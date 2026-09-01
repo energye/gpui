@@ -7,42 +7,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/energye/gpui/ui/imeutil"
 	"github.com/godbus/dbus/v5"
 )
-
-const (
-	dbusServiceIBus   = "org.freedesktop.IBus"
-	dbusPathIBusBus   = "/org/freedesktop/IBus"
-	dbusIfaceIBus     = "org.freedesktop.IBus"
-	dbusIfaceIBusCtx  = "org.freedesktop.IBus.InputContext"
-	dbusServiceFcitx5 = "org.fcitx.Fcitx5"
-	dbusPathFcitx5IM  = "/org/fcitx/Fcitx5/InputMethod"
-	dbusIfaceFcitx5IM = "org.fcitx.Fcitx5.InputMethod"
-	dbusServiceFcitx  = "org.fcitx.Fcitx"
-	dbusPathFcitxIM   = "/org/fcitx/Fcitx/InputMethod"
-	dbusIfaceFcitxIM  = "org.fcitx.Fcitx.InputMethod"
-	dbusServiceDBus   = "org.freedesktop.DBus"
-
-	ibusCaps  uint32 = 1<<0 | 1<<3 | 1<<5 // 41: PREEDIT|FOCUS|SURROUNDING (ibustypes.h)
-	fcitxCaps uint32 = 16                 // CAPACITY_PREEDIT|SURROUNDING
-
-	defaultCursorW = 2
-	defaultCursorH = 16
-
-	syntheticFcitxPrefix = "/org/fcitx/Fcitx/InputContext_"
-)
-
-var dbusMatchRules = []string{
-	"type='signal',sender='org.freedesktop.IBus'",
-	"type='signal',sender='org.fcitx.Fcitx5'",
-	"type='signal',sender='org.fcitx.Fcitx'",
-	"type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
-}
 
 // x11Ime 是 X11 D-Bus IME 的 S1+S2+S3 实现：会话总线 + 上下文 + 会话与锚点
 // S1: 单 Conn 复用 + AddMatch + 无守护降级 + GPUI_IME_DEBUG
@@ -197,13 +167,6 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 	}
 }
 
-func x11ImeDebug(format string, args ...any) {
-	if os.Getenv("GPUI_IME_DEBUG") != "1" {
-		return
-	}
-	fmt.Fprintf(os.Stderr, "[ime-x11] "+format+"\n", args...)
-}
-
 func sharedDBusConn() (*dbus.Conn, error) {
 	x11SharedOnce.Do(func() {
 		x11ImeDebug("dbus dial start addr=%q", os.Getenv("DBUS_SESSION_BUS_ADDRESS"))
@@ -241,11 +204,17 @@ func x11GlobalNameOwnerLoop(conn *dbus.Conn) {
 	conn.Signal(ch)
 	defer conn.RemoveSignal(ch)
 	for sig := range ch {
-		// Stale loop guard: if shared conn rotated, exit old loop (B4 leak)
+		// Stale loop guard: if any singleton rotated, exit old loop (B4 leak)
 		x11SharedMu.Lock()
-		cur := x11SharedConn
+		curShared := x11SharedConn
 		x11SharedMu.Unlock()
-		if cur != conn {
+		x11IbusMu.Lock()
+		curIbus := x11IbusConn
+		x11IbusMu.Unlock()
+		x11FcitxMu.Lock()
+		curFcitx := x11FcitxConn
+		x11FcitxMu.Unlock()
+		if conn != curShared && conn != curIbus && conn != curFcitx {
 			return
 		}
 		if sig.Name != dbusServiceDBus+".NameOwnerChanged" {
@@ -268,11 +237,17 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		// Stale loop guard: if shared conn already rotated, this loop is orphaned (B4)
+		// Stale loop guard: if any singleton rotated, this loop is orphaned (B4)
 		x11SharedMu.Lock()
-		cur := x11SharedConn
+		curShared := x11SharedConn
 		x11SharedMu.Unlock()
-		if cur != conn {
+		x11IbusMu.Lock()
+		curIbus := x11IbusConn
+		x11IbusMu.Unlock()
+		x11FcitxMu.Lock()
+		curFcitx := x11FcitxConn
+		x11FcitxMu.Unlock()
+		if conn != curShared && conn != curIbus && conn != curFcitx {
 			return
 		}
 		if conn.Connected() {
@@ -343,34 +318,6 @@ func dbusHasOwner(conn *dbus.Conn, name string) (bool, error) {
 	return has, nil
 }
 
-func x11ProbeOrder() []string {
-	gtk := strings.ToLower(os.Getenv("GTK_IM_MODULE"))
-	qt := strings.ToLower(os.Getenv("QT_IM_MODULE"))
-	xmod := strings.ToLower(os.Getenv("XMODIFIERS"))
-	check := func(v, src string) (bool, []string) {
-		if strings.Contains(v, "ibus") {
-			x11ImeDebug("probe order: ibus (%s=%q)", src, v)
-			return true, []string{"ibus", "fcitx5"}
-		}
-		if strings.Contains(v, "fcitx") {
-			x11ImeDebug("probe order: fcitx5 (%s=%q)", src, v)
-			return true, []string{"fcitx5", "ibus"}
-		}
-		return false, nil
-	}
-	if ok, ord := check(gtk, "GTK_IM_MODULE"); ok {
-		return ord
-	}
-	if ok, ord := check(qt, "QT_IM_MODULE"); ok {
-		return ord
-	}
-	if ok, ord := check(xmod, "XMODIFIERS"); ok {
-		return ord
-	}
-	x11ImeDebug("probe order: ibus (default GTK=%q QT=%q XMOD=%q)", gtk, qt, xmod)
-	return []string{"ibus", "fcitx5"}
-}
-
 func x11ClientName() string {
 	exe := os.Args[0]
 	if exe == "" {
@@ -395,30 +342,59 @@ func x11AppName() string {
 	return base
 }
 
-func isSyntheticPath(p dbus.ObjectPath) bool {
-	return strings.HasPrefix(string(p), syntheticFcitxPrefix)
-}
-
-// imeForX11 供 x11_linux.go 调用：有总线且有守护时返回 x11Ime，
-// 探测全异步化，建窗不阻塞（500ms 超时 per engine）。
+// imeForX11 供 x11_linux.go 调用：Q2 单选单探，建窗不阻塞（500ms 超时）
+// S1 三层：按环境变量只选一条总线，ibus 私有 vs fcitx 会话各单例，FlagNoAutoStart 防激活
 func imeForX11(h *x11Host) IME {
-	conn, err := sharedDBusConn()
-	if err != nil || conn == nil {
-		x11ImeDebug("imeForX11 no bus: %v", err)
+	order := x11ProbeOrder()
+	if len(order) == 0 {
 		return nil
 	}
-	hasIbus, _ := dbusHasOwner(conn, dbusServiceIBus)
-	hasFcitx5, _ := dbusHasOwner(conn, dbusServiceFcitx5)
-	hasFcitx, _ := dbusHasOwner(conn, dbusServiceFcitx)
-	if !hasIbus && !hasFcitx5 && !hasFcitx {
-		x11ImeDebug("imeForX11 no daemon owner (ibus=%v fcitx5=%v fcitx=%v) degrade nil", hasIbus, hasFcitx5, hasFcitx)
-		return nil
+	eng := order[0]
+	var conn *dbus.Conn
+	var err error
+	if eng == "ibus" {
+		conn, err = dialIbusPrivate()
+		if err != nil || conn == nil {
+			x11ImeDebug("imeForX11 ibus private no bus: %v", err)
+			// S1 单选：ibus 失败不 fallback fcitx，保持 nil 降级
+			return nil
+		}
+		has, _ := dbusHasOwner(conn, dbusServiceIBus)
+		if !has {
+			// 私有总线可能不响应 NameHasOwner，尝试会话总线
+			if c2, err2 := dbus.SessionBus(); err2 == nil && c2 != nil {
+				if has2, _ := dbusHasOwner(c2, dbusServiceIBus); has2 {
+					x11ImeDebug("imeForX11 ibus private no owner, fallback session has owner, use session conn=%p", c2)
+					conn = c2
+					has = true
+				}
+			}
+		}
+		if !has {
+			x11ImeDebug("imeForX11 ibus private no owner degrade nil")
+			return nil
+		}
+		x11ImeDebug("imeForX11 ibus private conn=%p", conn)
+	} else {
+		conn, err = sharedFcitxConn()
+		if err != nil || conn == nil {
+			x11ImeDebug("imeForX11 fcitx session no bus: %v", err)
+			return nil
+		}
+		hasFcitx5, _ := dbusHasOwner(conn, dbusServiceFcitx5)
+		hasFcitx, _ := dbusHasOwner(conn, dbusServiceFcitx)
+		if !hasFcitx5 && !hasFcitx {
+			x11ImeDebug("imeForX11 fcitx no owner degrade nil")
+			return nil
+		}
+		x11ImeDebug("imeForX11 fcitx session conn=%p hasFcitx5=%v hasFcitx=%v", conn, hasFcitx5, hasFcitx)
 	}
-	x11ImeDebug("imeForX11 created conn=%p hasIbus=%v hasFcitx5=%v hasFcitx=%v", conn, hasIbus, hasFcitx5, hasFcitx)
 	im := &x11Ime{
-		conn: conn,
-		host: h,
+		conn:   conn,
+		engine: eng,
+		host:   h,
 	}
+	// engine 已按单选预填，asyncProbe 将只探该引擎（FlagNoAutoStart 已在 tryCreate 内）
 	x11RegisterIme(im)
 	go im.asyncProbe()
 	return im
@@ -558,12 +534,12 @@ func (im *x11Ime) tryCreateIbus(timeout time.Duration) (dbus.ObjectPath, error) 
 	x11ImeDebug("ibus CreateInputContext(s) client_name=%q", clientName)
 	obj := im.conn.Object(dbusServiceIBus, dbusPathIBusBus)
 	var path dbus.ObjectPath
-	err := obj.CallWithContext(ctx, dbusIfaceIBus+".CreateInputContext", 0, clientName).Store(&path)
+	err := obj.CallWithContext(ctx, dbusIfaceIBus+".CreateInputContext", dbus.FlagNoAutoStart, clientName).Store(&path)
 	if err != nil {
 		x11ImeDebug("ibus single param failed, try dual: %v", err)
 		ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 		defer cancel2()
-		if err2 := obj.CallWithContext(ctx2, dbusIfaceIBus+".CreateInputContext", 0, clientName, clientName).Store(&path); err2 != nil {
+		if err2 := obj.CallWithContext(ctx2, dbusIfaceIBus+".CreateInputContext", dbus.FlagNoAutoStart, clientName, clientName).Store(&path); err2 != nil {
 			return "", err2
 		}
 	}
@@ -592,7 +568,7 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 		x11ImeDebug("fcitx CreateInputContext(ss) %s %s appname=%q appid=%q", t.service, t.path, appName, appID)
 		obj := im.conn.Object(t.service, dbus.ObjectPath(t.path))
 		var path dbus.ObjectPath
-		err := obj.CallWithContext(ctx, t.iface+".CreateInputContext", 0, appName, appID).Store(&path)
+		err := obj.CallWithContext(ctx, t.iface+".CreateInputContext", dbus.FlagNoAutoStart, appName, appID).Store(&path)
 		cancel()
 		if err == nil && path != "" {
 			return path, nil
@@ -608,7 +584,7 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 		var icid int32
 		var ok bool
 		var v0, v1, v2, v3 uint32
-		err := obj.CallWithContext(ctx, dbusIfaceFcitxIM+".CreateICv3", 0, appName, int32(0)).Store(&icid, &ok, &v0, &v1, &v2, &v3)
+		err := obj.CallWithContext(ctx, dbusIfaceFcitxIM+".CreateICv3", dbus.FlagNoAutoStart, appName, int32(0)).Store(&icid, &ok, &v0, &v1, &v2, &v3)
 		cancel()
 		if err == nil {
 			x11ImeDebug("fcitx CreateICv3 ok id=%d ok=%v -> synthetic path would be fake, treat as unsupported (hole 1)", icid, ok)
@@ -620,7 +596,7 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 		x11ImeDebug("fcitx CreateICv3 %s failed: %v", svc, err)
 		ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 		var id int32
-		err2 := obj.CallWithContext(ctx2, dbusIfaceFcitxIM+".CreateICv3", 0, appName, int32(0)).Store(&id)
+		err2 := obj.CallWithContext(ctx2, dbusIfaceFcitxIM+".CreateICv3", dbus.FlagNoAutoStart, appName, int32(0)).Store(&id)
 		cancel2()
 		if err2 == nil {
 			x11ImeDebug("fcitx CreateICv3 second try id=%d -> also synthetic, not usable", id)

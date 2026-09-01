@@ -11,10 +11,14 @@ import (
 
 // TestX11SharedBusSingleConn 验证 S1 单 Conn 复用：多次调用共享同一指针
 // 且建窗不阻塞（无守护时返回 nil 降级不崩）。
+// S1 后 ibus 私有与 fcitx 会话各单例，此用例改为验证会话总线单例（fcitx 基线）
 func TestX11SharedBusSingleConn(t *testing.T) {
+	origGtk := os.Getenv("GTK_IM_MODULE")
+	os.Setenv("GTK_IM_MODULE", "fcitx")
+	defer os.Setenv("GTK_IM_MODULE", origGtk)
 	// 无 DISPLAY 时 SessionBus 通常失败，验证降级路径不崩且不阻塞
-	c1, err1 := sharedDBusConn()
-	c2, err2 := sharedDBusConn()
+	c1, err1 := sharedFcitxConn()
+	c2, err2 := sharedFcitxConn()
 	if (c1 == nil) != (c2 == nil) {
 		t.Fatalf("shared conn mismatch nil: c1=%v err1=%v c2=%v err2=%v", c1, err1, c2, err2)
 	}
@@ -22,7 +26,7 @@ func TestX11SharedBusSingleConn(t *testing.T) {
 		t.Fatalf("shared conn not reused: %p vs %p", c1, c2)
 	}
 	if c1 != nil {
-		// 有总线时两窗 IME 应复用同一 conn
+		// 有总线时两窗 IME 应复用同一 conn（fcitx 单选）
 		h1 := &x11Host{st: &x11State{}}
 		h2 := &x11Host{st: &x11State{}}
 		im1 := imeForX11(h1)
