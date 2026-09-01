@@ -490,6 +490,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | 版本 | 说明 |
 |---|---|
 | **v3.14 2026-08-29** | R5 已落：§12 中 R5 3 项标 ✅（禁用全拦截 `InputBox/Viewport/Multi`+`InputRouter` 感知、`SetMaxLines` 单行忽略、`warmup` 诚实化 `r5/main.go`+`wrgate/report.go`），§11 R5 行标 ✅；`metrics-audit` A-J 10族全审 + 三证据（探针+像素+Golden）通过 |
+| **v3.15 2026-09-01** | 新增 §15 已复核缺陷清单（B1-B17 全量复核，见 §15），B2 原“每次按键卡 1~2.5s”撤回为弱化版 InputContext 泄漏，B16 修正为“不做自动路由但 OnEvent 可达”，其余 15 项确认真实 |
 
 ## 14. 六阶段可交付计划（按 §7 顺序 · X11 D-Bus 专用）
 
@@ -559,3 +560,34 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 - `X11` 统一走 `SetCursorLocation/SetCursorRect(x,y,w=2,h)` 的 `2×行高` 光标矩形，经 `XTranslateCoordinates` 到根窗口，`ScaleFactor` 转物理像素；
 - 闪烁 `caretOn` 节拍 ~500ms，`BaseEditable` ≤15 行 `grep -c` 审计；
 - `D-Bus` 依赖 `github.com/godbus/dbus/v5` **纯 Go 无 cgo**，会话总线 `dbus.SessionBus()` 自解析 `DBUS_SESSION_BUS_ADDRESS`，`X11` 每窗口一 `InputContext` 对象路径，`Destroy` 于 `Window.Close`；参考 `GTK gtkimcontextibus.c`，实现库 `godbus/dbus/v5`。
+
+---
+
+## 15. 已复核缺陷清单（2026-09-01 真源 · B1-B17）
+
+> 复核方式：逐项读 `ENGINE_TEXT_X11_IME_REQUIREMENT.md v2.3/v3.5` 真源 + `grep/读码` 现代码 + 实测数据对照（见上一轮复核表）。B2 原“每次按键卡 1~2.5s”已撤回，B16 说重了已修正，B1 机制描述已精化，其余 15 项原结论成立。
+
+| # | 问题 | 复核结论 | 根因定位 | 优先级 |
+|---|---|---|---|---|
+| **B1** | X11 DeleteSurrounding 多删字符 | ✅ 真实 | `x11_dbus_ime_linux.go:740/828` 推 `Start=offset, End=n`（IBus 原生“从 caret+offset 起删 n 个”），`composition.go:34` 却按 Wayland `Start=-before, End=+after` 当 `before=-Start, after=End` → `DeleteSurrounding(-before, before+after)`，`offset=-1 n=1` 误算 `(-1,2)` 多删 `\|offset\|` 个。`editor.go:670 DeleteSurrounding(offset,count)` 本身以 `offset+count` 为右界是对的，错只在转接层 | **P0** 唯一会损坏用户输入 |
+| **B2 弱化** | 守护消失后每键建一个 InputContext 泄漏 | ✅ 真实（弱化版） | 原“卡 2.5s”错：D-Bus 对“服务不存在”即时回错（实测 236~620µs）。弱化版成立：`x11_dbus_ime_linux.go:403-407 ensureReprobe` 失败仅 `imeDirty=false, objectPath=""`，下次 `need=true` 又全量双探且 `tryCreateIbus` 每次 `CreateInputContext` 成功即产新 `InputContext_xxx`，旧路径 `x11MarkDirty:130` 直接 `objectPath=""` 未 Destroy | P1 |
+| **B3** | 总线重连后 IME 永久失效 | ✅ 真实 | `imeForX11:340 conn:conn` 唯一赋值，`x11BusWatchLoop:227-233` 重拨仅回写 `x11SharedConn`，不回写各 `im.conn`，懒重探仍用旧断连 | P0 |
+| **B4** | 重连循环 goroutine 泄漏 | ✅ 真实 | `sharedDBusConn:176-178` 起一对 `GlobalNameOwnerLoop+BusWatchLoop`，`BusWatchLoop:240-242` 重连成功 `go 新global+go 新watch` 后 `return`，旧 `globalLoop:189 range ch` 无 `RemoveSignal/close` 永阻塞，每次重连多留 1 个 | P0 |
+| **B5** | x11UnregisterIme 数据竞争+清理不全 | ✅ 真实（-race 可报） | `x11UnregisterIme:102` 裸读 `x11SharedConn`，写侧 `sharedDBusConn:174`/`BusWatchLoop:231` 持 `x11SharedMu`；清理 `dbusMatchRules[:2]` 仅 2 条，漏 `org.fcitx.Fcitx` 与 `NameOwnerChanged` | P1 |
+| **B6** | 无 RandR 多显修正 | ✅ 真实 | 全仓 `RandR/XRR` 零命中，`x11_linux.go:222 XTranslateCoordinates` 仅根坐标，无 RandR 输出偏移 | P2 |
+| **B7** | Xutf8LookupString 绑定未用 | ✅ 真实 | `x11_linux.go:186/211` 绑定，零调用，死键走 `XLookupString:1278` | P2 |
+| **B8** | fcitx time 用 time.Now 造假 | ✅ 真实 | `x11_dbus_ime_linux.go:1348 time.Now()`，`xevKeyTimeOff=56` 零引用，本应取 `XKeyEvent.time` | P2 |
+| **B9** | ime_format.go 死代码 | ✅ 真实 | `ime_format.go: ImeSegment` 与 `DecodeIBusVariant/parseFcitxPreedit` 算出 `segs` 仅 `x11ImeDebug`，未进 `pushPreedit` 的 `Segment` 通道，`input.Segment` 零消费者 | P2 |
+| **B10** | 三份截断重复 | ✅ 真实 | `textinput/delta.go:142 TruncateSurrounding` 单源，`wayland_textinput_linux.go:351` 内联一份，`x11_dbus_ime_linux.go:1375 x11TruncateSurrounding` 三参版，各自维护 | P2 |
+| **B11** | SetComposing 注释方向反 | ✅ 真实 | `platform/ime.go:89` 像 IME→App，实为 App→IME 推环绕，`x11_dbus_ime_linux.go:947` 自注释“reports surrounding text” 承认拧巴 | P2 |
+| **B12** | Commit 两平台语义互斥 | ✅ 真实，影响有限 | `x11_dbus_ime_linux.go:973 Commit` 与 Wayland 同名但语义不同，引擎内零调用，仅 example/测试在调 | P2 |
+| **B13** | ContentPurpose 恒 Normal | ✅ 真实 | `input_box.go:299 / viewport_input.go:229 / base_editable.go:24` 全硬编码 `PurposeNormal`，`editor.go:279 purposeFromInputType` 未被控件透传 | P2 |
+| **B14** | 测试不断言 handled | ✅ 真实 | `x11_dbus_ime_linux_test.go` 与 `x11_s4_test.go` 未断言 `ProcessKeyEvent handled`，空焦点恒 false 也 PASS | P2 |
+| **B15** | 真窗无 Golden/像素断言 | ✅ 真实 | `examples/ui_wr_ime_r*/` 无 `golden/`，未按 `UI_PIXEL_ASSERTION_STANDARD.md F0-F9` 落地 | P2 |
+| **B16** | 旧 embedder.App 丢 IME | ⚠️ 部分成立 | `host.go` 旧 `App.Run switch` 只显式 `Resize/Expose`，但前置 `if a.opts.OnEvent != nil { a.opts.OnEvent(ev) }` 已透出所有事件（含 IME），不丢失，只是“不做自动路由，PipelineApp 才做” | P3 |
+| **B17** | AttachIME/SetFocus 重复注册观察者 | ✅ 真实（新增） | `focus/manager.go:108 AddFocusObserver` 明确不去重，`input_router.go:107 SetFocus` 与 `164 AttachIME` 各注册一次，先 SetFocus 再 AttachIME 重复两次，焦点一切换 `syncSession` 跑两遍 | P1 |
+
+> 修复顺序：P0 B1 → P0 B3+B4 → P1 B17 → P1 B5 → P1 B2弱化退避 → P2 其余规范与门禁补齐。
+
+### 15.1 15.2 与本文对应关系
+- 本清单为 §7 平台实现与 §10 验收的缺陷台账，修复后按 §14 S1-S6 逐项回归，真窗以 `UI_PIXEL_ASSERTION_STANDARD.md` + A-J 10 族为门禁，关闭即回写本表“处理状态”与 §13 修订行。

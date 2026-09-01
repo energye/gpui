@@ -207,6 +207,9 @@ func x11OpenLib() (*x11Lib, error) {
 	if _, err := purego.Dlsym(lib, "XkbKeycodeToKeysym"); err == nil {
 		purego.RegisterLibFunc(&x.xkbKeycodeToKeysym, lib, "XkbKeycodeToKeysym")
 	}
+	// B7: Xutf8LookupString is bound for future XIM path; X11 IME now uses D-Bus, so
+	// XIM is removed in v2.0 and this symbol is intentionally unused (dead code).
+	// Kept for diagnostic / fallback, not wired to decodeKey (which uses XLookupString).
 	if _, err := purego.Dlsym(lib, "Xutf8LookupString"); err == nil {
 		purego.RegisterLibFunc(&x.xutf8LookupString, lib, "Xutf8LookupString")
 	}
@@ -220,6 +223,7 @@ func x11OpenLib() (*x11Lib, error) {
 }
 
 // x11TranslateToRoot 将窗口内坐标经 XTranslateCoordinates 转根窗口物理坐标
+// B6: 暂未做 RandR 多显示器物理偏移修正，跨屏候选窗可能漂移，见 ENGINE_TEXT_X11_IME_REQUIREMENT §15 B6。
 func x11TranslateToRoot(st *x11State, x, y int) (int, int, bool) {
 	if st == nil || st.display == 0 || st.window == 0 || st.root == 0 {
 		return x, y, false
@@ -1112,13 +1116,14 @@ func (h *x11Host) drainX() []Event {
 				out = append(out, ev)
 			}
 		case xKeyPress, xKeyRelease:
-			// S4: X11 先走 D-Bus ProcessKeyEvent 再决定是否本地插入
+			// S4: X11 先走 D-Bus ProcessKeyEvent 再决定是否本地插入（B8: fcitx time 取 XKeyEvent.time）
 			if h.ime != nil {
 				keycode := uint32(readU32(buf[:], xevKeycodeOff))
 				state := uint32(readU32(buf[:], xevKeyStateOff))
 				isPress := t == xKeyPress
+				xTime := uint32(readU64(buf[:], xevKeyTimeOff) & 0xffffffff)
 				if x, ok := h.ime.(*x11Ime); ok && x != nil {
-					if x.ProcessKeyEvent(keycode, state, isPress) {
+					if x.ProcessKeyEvent(keycode, state, isPress, xTime) {
 						// 被输入法消费，拦截不再本地插入（与 Wayland filter_keypress 一致）
 						// 修饰键/英文非组合导航键已在 ProcessKeyEvent 内部转 pass-through，此处仅拦截真正需要输入法处理的字符/预编辑导航
 						continue

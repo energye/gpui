@@ -9,6 +9,10 @@ import (
 )
 
 // ImeSegment mirrors ui/input.Segment for platform layer (avoid import cycle)
+// B9: Segments are currently parsed (DecodeIBusVariant/parseFcitxPreedit) but only
+// logged in handleSignal, not forwarded to the Editor/DrawPreedit. Rich preedit
+// styling (underline/highlight/selected) awaits a Segment-aware IME event and
+// DrawPreedit upgrade; until then this is intentional dead code kept for debug.
 type ImeSegment struct {
 	Start, End int
 	Attr       uint8

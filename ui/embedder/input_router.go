@@ -76,6 +76,9 @@ type InputRouter struct {
 
 	mu   sync.Mutex
 	mods input.Modifiers
+	// B17 dedup: AddFocusObserver is not deduped by FocusManager, so router must guard double-add
+	imeObserverAdded bool
+	imeObserverFocus *focus.FocusManager
 }
 
 // NewInputRouter creates a router. Pass a hit-test function (typically
@@ -106,9 +109,24 @@ func (r *InputRouter) SetFocus(f *focus.FocusManager) {
 	ime := r.ime
 	r.mu.Unlock()
 	if ime != nil && f != nil {
-		f.AddFocusObserver(r.onFocusChange)
+		r.ensureIMEFocusObserver(f)
 		r.onFocusChange(nil, f.Primary())
 	}
+}
+
+func (r *InputRouter) ensureIMEFocusObserver(fm *focus.FocusManager) {
+	if r == nil || fm == nil {
+		return
+	}
+	r.mu.Lock()
+	if r.imeObserverAdded && r.imeObserverFocus == fm {
+		r.mu.Unlock()
+		return
+	}
+	r.imeObserverAdded = true
+	r.imeObserverFocus = fm
+	r.mu.Unlock()
+	fm.AddFocusObserver(r.onFocusChange)
 }
 
 // Modifiers returns the tracked modifier state (for FromPlatform).
@@ -173,7 +191,7 @@ func (r *InputRouter) AttachIME(ime platform.IME) {
 	fm := r.focus
 	r.mu.Unlock()
 	if fm != nil {
-		fm.AddFocusObserver(r.onFocusChange)
+		r.ensureIMEFocusObserver(fm)
 		r.onFocusChange(nil, fm.Primary())
 	}
 }

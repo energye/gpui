@@ -69,25 +69,26 @@ type IMEWantsSurrounding interface {
 // does not support IME leaves Window.IME() nil; the UI layer silently degrades
 // to plain keyboard text (same pattern as the optional VSyncWaiter).
 //
-// Lifecycle: when a text field gains focus the app calls EnableIME with the
-// cursor/field rect (logical px, window-relative); on blur it calls
-// DisableIME. During composition the system drives SetComposing (pre-edit)
-// and Commit (accepted text); the backend forwards these as platform events
-// that ui/input normalizes into input.Event{Kind: IME}.
+// Lifecycle (App → IME, cf B11): when a text field gains focus the app calls
+// EnableIME with the cursor/field rect (logical px, window-relative); on blur
+// it calls DisableIME. The app drives SetComposing/SetContentType/UpdateCursorRect
+// (surrounding/caret) to the IME; the IME drives preedit/commit/delete back via
+// platform.EventIME → input.Event IME (IME → App). Directions are opposite.
 type IME interface {
 	// EnableIME opens an input session for the focused field at rect
-	// (logical px, Y-down).
+	// (logical px, Y-down). App → IME.
 	EnableIME(rect Rect)
 	// UpdateCursorRect moves the IME anchor to the current caret position
 	// (logical px, window-relative). Candidate windows anchor here; call it
-	// whenever the caret moves or the field scrolls.
+	// whenever the caret moves or the field scrolls. App → IME.
 	UpdateCursorRect(rect Rect)
 	// SetContentType declares the editing purpose for subsequent state
 	// commits (digits/email/password…). Backends without purpose support
-	// ignore it.
+	// ignore it. App → IME.
 	SetContentType(purpose ContentPurpose)
-	// SetComposing updates the pre-edit text (e.g. pinyin romanization) and
-	// the caret position within it.
+	// SetComposing pushes surrounding text + caret to the IME (App → IME).
+	// Despite the name, it does NOT set the IME's composing flag; composing
+	// is driven IME → App via UpdatePreeditText/CommitText signals.
 	SetComposing(text string, cursor int)
 	// Commit accepts the current composition as committed text.
 	Commit(text string)

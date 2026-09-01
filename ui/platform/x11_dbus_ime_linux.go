@@ -66,6 +66,8 @@ type x11Ime struct {
 	lastAnchor int
 	sigCh      chan *dbus.Signal
 	sigStop    chan struct{}
+	// B2/B4 退避：探测全失败时记录，下次 ensureReprobe 需间隔
+	lastProbeFail time.Time
 }
 
 // 进程内单 dbus.Conn 复用（S1 核心：多窗口恒为 1 连接）。
@@ -99,10 +101,15 @@ func x11UnregisterIme(im *x11Ime) {
 	delete(x11Imes, im)
 	empty := len(x11Imes) == 0
 	x11ImesMu.Unlock()
-	if empty && x11SharedConn != nil {
-		// Last window closed: clean global matches to avoid leaking bus resources.
-		for _, rule := range dbusMatchRules[:2] {
-			_ = x11SharedConn.BusObject().Call(dbusServiceDBus+".RemoveMatch", 0, rule).Err
+	if empty {
+		x11SharedMu.Lock()
+		c := x11SharedConn
+		x11SharedMu.Unlock()
+		if c != nil {
+			// Clean all 4 global matches (was [:2] leaked fcitx+NameOwnerChanged)
+			for _, rule := range dbusMatchRules {
+				_ = c.BusObject().Call(dbusServiceDBus+".RemoveMatch", 0, rule).Err
+			}
 		}
 	}
 }
@@ -111,7 +118,6 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 	if name != dbusServiceIBus && name != dbusServiceFcitx5 && name != dbusServiceFcitx {
 		return
 	}
-	// Collect affected IMEs without holding global lock during bus calls.
 	x11ImesMu.Lock()
 	imes := make([]*x11Ime, 0, len(x11Imes))
 	for im := range x11Imes {
@@ -119,6 +125,12 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 	}
 	x11ImesMu.Unlock()
 
+	type pendingDestroy struct {
+		eng string
+		obj dbus.ObjectPath
+		c   *dbus.Conn
+	}
+	var toDestroy []pendingDestroy
 	var toFocusOut []*x11Ime
 	for _, im := range imes {
 		im.mu.Lock()
@@ -128,8 +140,27 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 			wasFocused := im.focused
 			im.focused = false
 			im.composing = false
+			oldObj := im.objectPath
+			oldEng := im.engine
+			oldConn := im.conn
 			im.objectPath = ""
+			im.engine = ""
+			if oldObj != "" {
+				toDestroy = append(toDestroy, pendingDestroy{eng: oldEng, obj: oldObj, c: oldConn})
+			}
+			// stop old signal loop tied to dead daemon
+			ch := im.sigCh
+			stop := im.sigStop
+			im.sigCh = nil
+			im.sigStop = nil
 			im.mu.Unlock()
+			if ch != nil && oldConn != nil {
+				oldConn.RemoveSignal(ch)
+				close(ch)
+			}
+			if stop != nil {
+				close(stop)
+			}
 			if wasFocused {
 				toFocusOut = append(toFocusOut, im)
 			}
@@ -139,6 +170,23 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 			im.mu.Unlock()
 		} else {
 			im.mu.Unlock()
+		}
+	}
+	for _, d := range toDestroy {
+		// Best-effort destroy on old conn (may already be dead, log anyway)
+		if d.c != nil && d.obj != "" && !isSyntheticPath(d.obj) {
+			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+			if d.eng == "ibus" {
+				o := d.c.Object(dbusServiceIBus, d.obj)
+				_ = o.CallWithContext(ctx, dbusIfaceIBusCtx+".Destroy", 0).Err
+			} else {
+				for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
+					o := d.c.Object(svc, d.obj)
+					_ = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".DestroyIC", 0).Err
+				}
+			}
+			cancel()
+			x11ImeDebug("destroy leaked ctx %s engine=%s on daemon gone", d.obj, d.eng)
 		}
 	}
 	for _, im := range toFocusOut {
@@ -190,6 +238,13 @@ func x11GlobalNameOwnerLoop(conn *dbus.Conn) {
 	conn.Signal(ch)
 	defer conn.RemoveSignal(ch)
 	for sig := range ch {
+		// Stale loop guard: if shared conn rotated, exit old loop (B4 leak)
+		x11SharedMu.Lock()
+		cur := x11SharedConn
+		x11SharedMu.Unlock()
+		if cur != conn {
+			return
+		}
 		if sig.Name != dbusServiceDBus+".NameOwnerChanged" {
 			continue
 		}
@@ -210,6 +265,13 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
+		// Stale loop guard: if shared conn already rotated, this loop is orphaned (B4)
+		x11SharedMu.Lock()
+		cur := x11SharedConn
+		x11SharedMu.Unlock()
+		if cur != conn {
+			return
+		}
 		if conn.Connected() {
 			continue
 		}
@@ -223,6 +285,13 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 					backoff = 2 * time.Second
 				}
 			}
+			// Another waiter may have already reconnected
+			x11SharedMu.Lock()
+			if x11SharedConn != conn {
+				x11SharedMu.Unlock()
+				return
+			}
+			x11SharedMu.Unlock()
 			c, err := dbus.SessionBus()
 			if err != nil {
 				x11ImeDebug("bus reconnect dial failed: %v backoff %v", err, backoff)
@@ -230,6 +299,12 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 			}
 			x11ImeDebug("bus reconnect ok")
 			x11SharedMu.Lock()
+			// Double-check still stale
+			if x11SharedConn != conn {
+				x11SharedMu.Unlock()
+				_ = c.Close()
+				return
+			}
 			x11SharedConn = c
 			x11SharedErr = nil
 			x11SharedMu.Unlock()
@@ -241,6 +316,7 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 			x11ImesMu.Lock()
 			for im := range x11Imes {
 				im.mu.Lock()
+				im.conn = c // B3: propagate new conn to existing IMEs
 				im.imeDirty = true
 				im.mu.Unlock()
 			}
@@ -352,6 +428,11 @@ func (im *x11Ime) ensureReprobe() {
 	}
 	im.mu.Lock()
 	need := im.imeDirty || im.objectPath == ""
+	if need && !im.lastProbeFail.IsZero() && time.Since(im.lastProbeFail) < 500*time.Millisecond {
+		im.mu.Unlock()
+		x11ImeDebug("lazy reprobe throttled lastFail=%v", im.lastProbeFail)
+		return
+	}
 	im.mu.Unlock()
 	if !need {
 		return
@@ -382,15 +463,21 @@ func (im *x11Ime) ensureReprobe() {
 			im.destroyObject(obj, eng)
 			return
 		}
+		oldObj := im.objectPath
+		oldEng := im.engine
 		im.engine = eng
 		im.objectPath = obj
 		im.imeDirty = false
+		im.lastProbeFail = time.Time{}
 		hasRect := im.hasRect
 		rect := im.lastRect
 		lastText := im.lastText
 		lastCursor := im.lastCursor
 		lastAnchor := im.lastAnchor
 		im.mu.Unlock()
+		if oldObj != "" && oldObj != obj {
+			im.destroyObject(oldObj, oldEng)
+		}
 		x11ImeDebug("lazy reprobe success engine=%s path=%s", eng, obj)
 		im.callFocusIn()
 		if hasRect {
@@ -405,6 +492,7 @@ func (im *x11Ime) ensureReprobe() {
 	x11ImeDebug("lazy reprobe all failed")
 	im.mu.Lock()
 	im.imeDirty = false
+	im.lastProbeFail = time.Now()
 	im.mu.Unlock()
 }
 
@@ -829,9 +917,152 @@ func (im *x11Ime) pushDeleteSurrounding(offset, n int) {
 	if im == nil || im.host == nil {
 		return
 	}
-	im.host.pushIME(Event{Type: EventIME, IMEKind: 3, IMEStart: offset, IMEEnd: n})
+	// IBus DeleteSurroundingText(offset, n) is rune-based [caret+offset, caret+offset+n).
+	// Wayland/composition expects before/after byte counts (-before, +after).
+	// Translate via last surrounding text so multi-byte (emoji/CJK) byte lengths are correct.
+	beforeBytes, afterBytes := 0, 0
+	im.mu.Lock()
+	text := im.lastText
+	cursorByte := im.lastCursor
+	im.mu.Unlock()
+	if text != "" {
+		// rune caret from byte cursor (cursor is at rune boundary)
+		runeCaret := 0
+		for i := 0; i < cursorByte; {
+			_, sz := x11DecodeRune(text[i:])
+			if sz == 0 {
+				break
+			}
+			runeCaret++
+			i += sz
+		}
+		startRune := runeCaret + offset
+		endRune := startRune + n
+		// Clamp
+		totalRunes := 0
+		for i := 0; i < len(text); {
+			_, sz := x11DecodeRune(text[i:])
+			if sz == 0 {
+				break
+			}
+			totalRunes++
+			i += sz
+		}
+		if startRune < 0 {
+			startRune = 0
+		}
+		if endRune > totalRunes {
+			endRune = totalRunes
+		}
+		if startRune < endRune {
+			beforeEnd := endRune
+			if beforeEnd > runeCaret {
+				beforeEnd = runeCaret
+			}
+			beforeStart := startRune
+			if beforeStart < 0 {
+				beforeStart = 0
+			}
+			if beforeEnd > beforeStart {
+				beforeBytes = byteLenForRunes(text, beforeStart, beforeEnd)
+			}
+			afterStart := startRune
+			if afterStart < runeCaret {
+				afterStart = runeCaret
+			}
+			afterEnd := endRune
+			if afterEnd > afterStart {
+				afterBytes = byteLenForRunes(text, afterStart, afterEnd)
+			}
+		}
+	} else {
+		// No surrounding context (fallback): assume ASCII 1:1
+		runeCaretOff := 0 // unknown, treat offset relative to caret
+		startRune := runeCaretOff + offset
+		endRune := startRune + n
+		_ = endRune
+		if offset < 0 {
+			if offset+n <= 0 {
+				beforeBytes = n
+			} else {
+				beforeBytes = -offset
+				afterBytes = offset + n
+			}
+		} else if offset == 0 {
+			afterBytes = n
+		} else {
+			// gap before delete: Wayland can't represent gap, delete from caret (over-delete gap)
+			afterBytes = offset + n
+		}
+		if beforeBytes < 0 {
+			beforeBytes = 0
+		}
+		if afterBytes < 0 {
+			afterBytes = 0
+		}
+	}
+	im.host.pushIME(Event{Type: EventIME, IMEKind: 3, IMEStart: -beforeBytes, IMEEnd: afterBytes})
 	im.host.WakeUp()
-	x11ImeDebug("push DeleteSurrounding %d %d", offset, n)
+	x11ImeDebug("push DeleteSurrounding ibus offset=%d n=%d -> before=%d after=%d", offset, n, beforeBytes, afterBytes)
+}
+
+func x11DecodeRune(s string) (r rune, sz int) {
+	if len(s) == 0 {
+		return 0, 0
+	}
+	b := s[0]
+	if b < 0x80 {
+		return rune(b), 1
+	}
+	if b < 0xE0 {
+		if len(s) < 2 {
+			return rune(b), 1
+		}
+		return rune(b&0x1F)<<6 | rune(s[1]&0x3F), 2
+	}
+	if b < 0xF0 {
+		if len(s) < 3 {
+			return rune(b), 1
+		}
+		return rune(b&0x0F)<<12 | rune(s[1]&0x3F)<<6 | rune(s[2]&0x3F), 3
+	}
+	if len(s) < 4 {
+		return rune(b), 1
+	}
+	return rune(b&0x07)<<18 | rune(s[1]&0x3F)<<12 | rune(s[2]&0x3F)<<6 | rune(s[3]&0x3F), 4
+}
+
+func byteLenForRunes(text string, startRune, endRune int) int {
+	if startRune >= endRune || startRune < 0 {
+		return 0
+	}
+	i, rIdx := 0, 0
+	startByte, endByte := -1, -1
+	for i < len(text) {
+		if rIdx == startRune {
+			startByte = i
+		}
+		if rIdx == endRune {
+			endByte = i
+			break
+		}
+		_, sz := x11DecodeRune(text[i:])
+		if sz == 0 {
+			break
+		}
+		i += sz
+		rIdx++
+	}
+	if startByte < 0 {
+		startByte = len(text)
+	}
+	if endByte < 0 {
+		endByte = len(text)
+	}
+	if endByte < startByte {
+		return 0
+	}
+	return endByte - startByte
 }
 
 // --- helpers for verification ---
@@ -1298,10 +1529,15 @@ func isX11NavKeysym(ks uint32) bool {
 
 // ProcessKeyEvent S4：先走 D-Bus 判 consumed，再本地 Home/End 等分流
 // keycode 为 X 硬件码，state 为 X 修饰位，isPress true=Press false=Release
+// xTime 为 XKeyEvent.time（ms），fcitx 侧透传，0 时回退 time.Now（兼容旧测试）
 // 返回 handled==true 则拦截不再本地插入，50ms 超时按未处理放行
 // ibus 的 ProcessKeyEvent 通过 state 的 IBUS_RELEASE_MASK(1<<30) 区分释放，
 // 实测 state=1<<30 可正常调通，故不再丢弃释放事件。
-func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool) bool {
+func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xTime ...uint32) bool {
+	var xTimeVal uint32
+	if len(xTime) > 0 {
+		xTimeVal = xTime[0]
+	}
 	im.mu.Lock()
 	dirty := im.imeDirty
 	im.mu.Unlock()
@@ -1342,7 +1578,10 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool) bo
 		x11ImeDebug("ibus ProcessKeyEvent uuu (%#x,%d,%d)->%v err=%v", keysym, keycode, state, handled, err)
 	} else {
 		o := im.conn.Object(dbusServiceFcitx5, obj)
-		t := uint32(time.Now().UnixNano() / 1e6 & 0xffffffff)
+		t := xTimeVal
+		if t == 0 {
+			t = uint32(time.Now().UnixNano() / 1e6 & 0xffffffff)
+		}
 		isRelease := !isPress
 		err = o.CallWithContext(ctx, dbusIfaceFcitxIM+".ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state), t, isRelease).Store(&handled)
 		if err != nil {
