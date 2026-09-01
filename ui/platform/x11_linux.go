@@ -218,7 +218,7 @@ func x11OpenLib() (*x11Lib, error) {
 }
 
 // x11TranslateToRoot 将窗口内坐标经 XTranslateCoordinates 转根窗口物理坐标
-// B6: 暂未做 RandR 多显示器物理偏移修正，跨屏候选窗可能漂移，见 ENGINE_TEXT_X11_IME_REQUIREMENT §15 B6。
+// B6 已修复：经 XTranslateCoordinates 后由 x11RandRAdjust 做多显多屏修正，见 x11_randr_linux.go。
 func x11TranslateToRoot(st *x11State, x, y int) (int, int, bool) {
 	if st == nil || st.display == 0 || st.window == 0 || st.root == 0 {
 		return x, y, false
