@@ -54,7 +54,9 @@ func (b *x11Backend) Adopt(ns NativeSurface) (*Window, error) {
 	// Atoms are resolved lazily by the controller (resolveAtoms on demand);
 	// root stays 0 here → EWMH ops (RequestMove/state toggles) return
 	// ErrUnsupported for adopted windows until atoms are probed.
-	return newWindow(h, PlatformX11, nil, nil, &x11Controller{h: h}, h.destroy), nil
+	clip := clipForX11(h)
+	h.clip = clip
+	return newWindow(h, PlatformX11, nil, clip, &x11Controller{h: h}, h.destroy), nil
 }
 
 // --- Xlib binding (purego, no CGO) ---
@@ -551,7 +553,9 @@ func x11Create(opts Options) (*Window, error) {
 
 	ime := imeForX11(host)
 	host.ime = ime
-	return newWindow(host, PlatformX11, ime, nil, ctl, host.destroy), nil
+	clip := clipForX11(host)
+	host.clip = clip
+	return newWindow(host, PlatformX11, ime, clip, ctl, host.destroy), nil
 }
 
 // resolveAtoms resolves the EWMH atoms the controller and event pump share.
@@ -674,6 +678,8 @@ type x11Host struct {
 	destroyFn func()
 	// S2: per-window D-Bus IME，共享 Conn 但每窗一 InputContext
 	ime IME
+	// X11 clipboard (ICCCM CLIPBOARD)
+	clip Clipboard
 	// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
 	// The xim field is kept as placeholder until D-Bus lands, but always nil.
 	_ximPlaceholder *struct{}
@@ -1162,6 +1168,22 @@ func (h *x11Host) drainX() []Event {
 			}
 		case xDestroyNotify:
 			out = append(out, Event{Type: EventClose})
+		case xSelectionClear:
+			if c, ok := h.clip.(*x11Clipboard); ok {
+				c.handleSelectionClear(buf[:])
+			} else if c2, ok := h.clip.(*fallbackClipboard); ok {
+				_ = c2
+			}
+		case xSelectionRequest:
+			if c, ok := h.clip.(*x11Clipboard); ok {
+				c.handleSelectionRequest(buf[:])
+			}
+		case xSelectionNotify:
+			if c, ok := h.clip.(*x11Clipboard); ok {
+				c.handleSelectionNotify(buf[:])
+			}
+		case xPropertyNotify:
+			// INCR incremental chunks are polled in readProperty; no app event needed
 		}
 	}
 	return out

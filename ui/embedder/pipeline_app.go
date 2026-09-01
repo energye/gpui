@@ -33,6 +33,10 @@ type PipelineOptions struct {
 	// IME is the optional input-method capability; when both are set it is
 	// attached to Input for automatic session management (plan I4).
 	IME platform.IME
+	// Clipboard is the optional cross-platform clipboard capability; when
+	// both are set it is auto-injected into focused TextEditTargets so
+	// apps no longer hand-wire each box (F-B5, X11 nil->fallback).
+	Clipboard platform.Clipboard
 	// WarmUp runs one full paint before the loop (F11).
 	WarmUp bool
 	// Overlay is the optional F13 overlay stack (P5d). Hit-test is overlay-first.
@@ -490,6 +494,9 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		opts.Input.SetHitTest(app.HitTestPointer)
 		if opts.IME != nil {
 			opts.Input.AttachIME(opts.IME)
+		}
+		if opts.Clipboard != nil {
+			opts.Input.AttachClipboard(opts.Clipboard)
 		}
 		app.input = opts.Input
 	}

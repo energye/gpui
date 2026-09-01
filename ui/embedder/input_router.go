@@ -58,8 +58,9 @@ type InputRouter struct {
 
 	// ime + session implement automatic IME session management (I4): the
 	// session belongs to the currently focused TextEditTarget.
-	ime     platform.IME
-	session TextEditTarget
+	ime       platform.IME
+	clipboard platform.Clipboard
+	session   TextEditTarget
 	// SurroundingUpdates enables periodic set_surrounding_text reporting
 	// (context for IME reconversion). OFF by default: each push is a
 	// commit_state round-trip and chatty reporting starved the input
@@ -196,6 +197,35 @@ func (r *InputRouter) AttachIME(ime platform.IME) {
 	}
 }
 
+type clipboardSetter interface{ SetClipboard(platform.Clipboard) }
+
+// AttachClipboard wires the optional clipboard capability for automatic
+// injection: focused TextEditTargets that implement SetClipboard receive the
+// window's clipboard, so apps no longer hand-wire each box.
+func (r *InputRouter) AttachClipboard(c platform.Clipboard) {
+	if r == nil || c == nil {
+		return
+	}
+	r.mu.Lock()
+	r.clipboard = c
+	fm := r.focus
+	r.mu.Unlock()
+	if fm != nil {
+		r.ensureIMEFocusObserver(fm)
+		r.onFocusChange(nil, fm.Primary())
+	}
+}
+
+// Clipboard returns the attached clipboard capability (or nil).
+func (r *InputRouter) Clipboard() platform.Clipboard {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.clipboard
+}
+
 // onFocusChange runs on UI-thread focus transitions and re-syncs the IME
 // session with the newly focused target.
 func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
@@ -208,27 +238,39 @@ func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
 			next = nil
 		}
 	}
-	if ime := r.ime; ime == nil || prev == next {
+	clip := r.clipboard
+	ime := r.ime
+	if ime == nil || prev == next {
 		r.session = prev // unchanged (or no capability yet)
 		r.mu.Unlock()
-		return
-	} else {
-		r.session = next
-		r.lastSurr = "" // new session must push fresh surrounding state
-		r.hasAnchor = false
-		if next != nil && next.Editor() != nil {
-			ed := next.Editor()
-			r.lastDeltaText = ed.GetText()
-			r.lastDeltaSel = ed.SelectionRange()
-			r.lastDeltaComp = ed.ComposingRange()
-		} else {
-			r.lastDeltaText = ""
-			r.lastDeltaSel = textinput.TextRange{}
-			r.lastDeltaComp = textinput.TextRange{}
+		// Still inject clipboard even when IME is nil or session unchanged
+		if clip != nil && next != nil {
+			if setter, ok := next.(interface{ SetClipboard(platform.Clipboard) }); ok {
+				setter.SetClipboard(clip)
+			}
 		}
-		r.mu.Unlock()
-		r.syncSession(ime, prev, next)
+		return
 	}
+	r.session = next
+	r.lastSurr = "" // new session must push fresh surrounding state
+	r.hasAnchor = false
+	if next != nil && next.Editor() != nil {
+		ed := next.Editor()
+		r.lastDeltaText = ed.GetText()
+		r.lastDeltaSel = ed.SelectionRange()
+		r.lastDeltaComp = ed.ComposingRange()
+	} else {
+		r.lastDeltaText = ""
+		r.lastDeltaSel = textinput.TextRange{}
+		r.lastDeltaComp = textinput.TextRange{}
+	}
+	r.mu.Unlock()
+	if clip != nil && next != nil {
+		if setter, ok := next.(interface{ SetClipboard(platform.Clipboard) }); ok {
+			setter.SetClipboard(clip)
+		}
+	}
+	r.syncSession(ime, prev, next)
 }
 
 // debugIME logs protocol-relevant session transitions when

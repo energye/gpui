@@ -871,22 +871,20 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 			return
 		case input.KeyC:
 			s := b.ed.Copy()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
+			if s != "" {
+				_ = effectiveClipboard(b.clipboard).Set("text/plain", s)
 			}
 			return
 		case input.KeyX:
 			s := b.ed.Cut()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
+			if s != "" {
+				_ = effectiveClipboard(b.clipboard).Set("text/plain", s)
 			}
 			return
 		case input.KeyV:
-			if b.clipboard != nil {
-				if s, err := b.clipboard.Get("text/plain"); err == nil && s != "" {
-					s = decodeUnicodeEscapes(s)
-					b.ed.Paste(s)
-				}
+			if s, err := effectiveClipboard(b.clipboard).Get("text/plain"); err == nil && s != "" {
+				s = decodeUnicodeEscapes(s)
+				b.ed.Paste(s)
 			}
 			return
 		case input.KeyBackspace:
@@ -2133,22 +2131,20 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 			return
 		case input.KeyC:
 			s := b.ed.Copy()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
+			if s != "" {
+				_ = effectiveClipboard(b.clipboard).Set("text/plain", s)
 			}
 			return
 		case input.KeyX:
 			s := b.ed.Cut()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
+			if s != "" {
+				_ = effectiveClipboard(b.clipboard).Set("text/plain", s)
 			}
 			return
 		case input.KeyV:
-			if b.clipboard != nil {
-				if s, err := b.clipboard.Get("text/plain"); err == nil && s != "" {
-					s = decodeUnicodeEscapes(s)
-					b.ed.Paste(s)
-				}
+			if s, err := effectiveClipboard(b.clipboard).Get("text/plain"); err == nil && s != "" {
+				s = decodeUnicodeEscapes(s)
+				b.ed.Paste(s)
 			}
 			return
 		case input.KeyBackspace:
