@@ -520,8 +520,11 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 		err := obj.CallWithContext(ctx, dbusIfaceFcitxIM+".CreateICv3", 0, appName, int32(0)).Store(&icid, &ok, &v0, &v1, &v2, &v3)
 		cancel()
 		if err == nil {
-			x11ImeDebug("fcitx CreateICv3 ok id=%d ok=%v", icid, ok)
-			return dbus.ObjectPath(fmt.Sprintf(syntheticFcitxPrefix+"%d", icid)), nil
+			x11ImeDebug("fcitx CreateICv3 ok id=%d ok=%v -> synthetic path would be fake, treat as unsupported (hole 1)", icid, ok)
+			// Hole 1: old fcitx CreateICv3 returns an integer id, not an object path.
+			// Fabricating /org/fcitx/Fcitx/InputContext_<id> makes 9 later calls silently skip.
+			// Honest fallback: report failure so probe can try ibus compat (which is real on this host).
+			continue
 		}
 		x11ImeDebug("fcitx CreateICv3 %s failed: %v", svc, err)
 		ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
@@ -529,7 +532,8 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 		err2 := obj.CallWithContext(ctx2, dbusIfaceFcitxIM+".CreateICv3", 0, appName, int32(0)).Store(&id)
 		cancel2()
 		if err2 == nil {
-			return dbus.ObjectPath(fmt.Sprintf(syntheticFcitxPrefix+"%d", id)), nil
+			x11ImeDebug("fcitx CreateICv3 second try id=%d -> also synthetic, not usable", id)
+			continue
 		}
 	}
 	return "", fmt.Errorf("fcitx CreateInputContext all failed")
@@ -863,17 +867,26 @@ func (im *x11Ime) EnableIME(rect Rect) {
 	im.lastRect = rect
 	im.hasRect = true
 	purpose := im.purpose
+	lastText := im.lastText
+	lastCursor := im.lastCursor
+	lastAnchor := im.lastAnchor
+	hasSurrounding := lastText != "" || lastCursor != 0 || lastAnchor != 0
 	im.mu.Unlock()
 	if wasFocused {
 		x11ImeDebug("EnableIME focused guard skip rect=%v", rect)
 		return
 	}
 	engine, path := im.Engine(), im.ObjectPath()
-	x11ImeDebug("EnableIME rect=%v engine=%s path=%s purpose=%d dirty=%v", rect, engine, path, purpose, im.imeDirty)
+	im.mu.Lock()
+	dirty := im.imeDirty
+	im.mu.Unlock()
+	x11ImeDebug("EnableIME rect=%v engine=%s path=%s purpose=%d dirty=%v", rect, engine, path, purpose, dirty)
 	im.callFocusIn()
 	im.callSetCursorLocation(rect)
 	im.callSetContentType(purpose)
-	im.callSetSurroundingText("", 0, 0)
+	if hasSurrounding {
+		im.callSetSurroundingText(lastText, lastCursor, lastAnchor)
+	}
 }
 
 func (im *x11Ime) UpdateCursorRect(rect Rect) {
@@ -901,7 +914,10 @@ func (im *x11Ime) UpdateCursorRect(rect Rect) {
 		return
 	}
 	engine, composingVal := im.Engine(), composing
-	x11ImeDebug("UpdateCursorRect rect=%v engine=%s composing=%v dirty=%v", rect, engine, composingVal, im.imeDirty)
+	im.mu.Lock()
+	dirty := im.imeDirty
+	im.mu.Unlock()
+	x11ImeDebug("UpdateCursorRect rect=%v engine=%s composing=%v dirty=%v", rect, engine, composingVal, dirty)
 	im.callSetCursorLocation(rect)
 }
 
@@ -914,9 +930,10 @@ func (im *x11Ime) SetContentType(purpose ContentPurpose) {
 	im.purpose = purpose
 	focused := im.focused
 	path := im.objectPath
+	dirty := im.imeDirty
 	im.mu.Unlock()
 	engine := im.Engine()
-	x11ImeDebug("SetContentType purpose=%d engine=%s focused=%v dirty=%v", purpose, engine, focused, im.imeDirty)
+	x11ImeDebug("SetContentType purpose=%d engine=%s focused=%v dirty=%v", purpose, engine, focused, dirty)
 	if !focused || path == "" {
 		return
 	}
@@ -928,9 +945,11 @@ func (im *x11Ime) SetComposing(text string, cursor int) {
 		return
 	}
 	im.ensureReprobe()
-	composing := text != ""
+	// SetComposing here reports surrounding text (InputRouter.pushSurrounding).
+	// Do NOT flip the IME composing flag here — composing state is driven
+	// ONLY by D-Bus signals (pushPreedit/pushCommit) to keep F-D3 anchor
+	// reporting honest (real report only when IME preedit is active).
 	im.mu.Lock()
-	im.composing = composing
 	im.lastText = text
 	im.lastCursor = cursor
 	im.lastAnchor = cursor
@@ -938,16 +957,18 @@ func (im *x11Ime) SetComposing(text string, cursor int) {
 	hasRect := im.hasRect
 	purpose := im.purpose
 	engine := im.engine
+	dirty := im.imeDirty
 	im.mu.Unlock()
-	x11ImeDebug("SetComposing len=%d cur=%d engine=%s composing=%v dirty=%v", len(text), cursor, engine, composing, im.imeDirty)
+	x11ImeDebug("SetComposing len=%d cur=%d engine=%s dirty=%v", len(text), cursor, engine, dirty)
 	if purpose == PurposePassword {
 		x11ImeDebug("SetComposing skip password purpose")
 		return
 	}
 	im.callSetSurroundingText(text, cursor, cursor)
-	if composing && hasRect {
-		im.callSetCursorLocation(rect)
-	}
+	// Cursor rect is driven by UpdateCursorRect (which checks im.composing);
+	// do not force a cursor update here to avoid preheat-period spurious reports.
+	_ = rect
+	_ = hasRect
 }
 
 func (im *x11Ime) Commit(text string) {
@@ -958,6 +979,11 @@ func (im *x11Ime) Commit(text string) {
 	im.mu.Lock()
 	im.composing = false
 	im.mu.Unlock()
+	// If app explicitly commits, forward as IME commit so editor's AddText path runs
+	if text != "" && im.host != nil {
+		im.host.pushIME(Event{Type: EventIME, IMEKind: 1, IMEText: text})
+		im.host.WakeUp()
+	}
 }
 
 func (im *x11Ime) DisableIME() {
@@ -1043,6 +1069,11 @@ func (im *x11Ime) callFocusOut() {
 		}
 	}
 	x11ImeDebug("FocusOut %s err=%v", obj, err)
+	// F-D7 / P10: FocusOut must clear preedit; push IMECompose empty so editor's composingRange is cleared
+	if im.host != nil {
+		im.host.pushIME(Event{Type: EventIME, IMEKind: 0, IMEText: "", IMEStart: -1, IMEEnd: -1})
+		im.host.WakeUp()
+	}
 	x11ImeDebug("EndComposing after FocusOut")
 }
 
@@ -1102,13 +1133,26 @@ func (im *x11Ime) callSetSurroundingText(text string, cursor, anchor int) {
 	eng := im.Engine()
 	var err error
 	if eng == "ibus" {
-		v := dbus.MakeVariant(t)
+		// IBusText wire is (sa{sv}sv) [name, props, text, AttrList]; plain s is wrong (hole 3).
+		// Use ibusTextPayload/ibusFullPayload style so godbus emits (sa{sv}sv) variant.
+		ibusText := ibusFullPayload{
+			Name:  ibusTextName,
+			Props: map[string]dbus.Variant{},
+			Text:  t,
+			Attrs: dbus.MakeVariant([]interface{}{}),
+		}
+		v := dbus.MakeVariant(ibusText)
+		// Fallback to simple text payload if full struct rejected (defensive)
 		o := im.conn.Object(dbusServiceIBus, obj)
 		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
 		if err != nil {
+			v2 := dbus.MakeVariant(ibusTextPayload{Text: t, Attrs: nil})
+			err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetSurroundingText", 0, v2, uint32(c), uint32(a)).Err
+		}
+		if err != nil {
 			err = o.CallWithContext(ctx, "SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
 		}
-		x11ImeDebug("ibus SetSurroundingText err=%v", err)
+		x11ImeDebug("ibus SetSurroundingText err=%v variant=%s", err, v.Signature())
 	} else {
 		if isSyntheticPath(obj) {
 			x11ImeDebug("SetSurroundingText fcitx synthetic skip")
@@ -1210,6 +1254,9 @@ func (im *x11Ime) translateRect(r Rect) (int, int, int, int) {
 	return px, py, pw, ph
 }
 
+// WantsSurrounding reports that X11 D-Bus needs surrounding on every edit.
+func (im *x11Ime) WantsSurrounding() bool { return true }
+
 // IsComposing reports whether a pre-edit session is active.
 func (im *x11Ime) IsComposing() bool {
 	if im == nil {
@@ -1252,11 +1299,15 @@ func isX11NavKeysym(ks uint32) bool {
 // ProcessKeyEvent S4：先走 D-Bus 判 consumed，再本地 Home/End 等分流
 // keycode 为 X 硬件码，state 为 X 修饰位，isPress true=Press false=Release
 // 返回 handled==true 则拦截不再本地插入，50ms 超时按未处理放行
-// ibus 的 ProcessKeyEvent 无 isRelease，Release 事件直接放行避免重复触发。
+// ibus 的 ProcessKeyEvent 通过 state 的 IBUS_RELEASE_MASK(1<<30) 区分释放，
+// 实测 state=1<<30 可正常调通，故不再丢弃释放事件。
 func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool) bool {
+	im.mu.Lock()
+	dirty := im.imeDirty
+	im.mu.Unlock()
 	im.ensureReprobe()
 	if im == nil || im.conn == nil || im.ObjectPath() == "" {
-		x11ImeDebug("ProcessKeyEvent skip no object keycode=%d state=%d press=%v dirty=%v", keycode, state, isPress, im.imeDirty)
+		x11ImeDebug("ProcessKeyEvent skip no object keycode=%d state=%d press=%v dirty=%v", keycode, state, isPress, dirty)
 		return false
 	}
 	if isSyntheticPath(im.ObjectPath()) {
@@ -1267,9 +1318,9 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool) bo
 	im.mu.Lock()
 	eng := im.engine
 	im.mu.Unlock()
+	// IBUS_RELEASE_MASK = 1<<30, ibus 用它区分 press/release
 	if eng == "ibus" && !isPress {
-		x11ImeDebug("ProcessKeyEvent ibus release skip keycode=%d", keycode)
-		return false
+		state |= 1 << 30
 	}
 	var keysym uint32
 	if im.host != nil && im.host.st != nil && im.host.st.keycodeToKeysym != nil && im.host.st.display != 0 {

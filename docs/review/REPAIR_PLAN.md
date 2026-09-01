@@ -79,6 +79,21 @@
 - 跨文档状态矛盾 5 处（基座文档把 retained 当未来时、API 目录裁剪描述前后矛盾、「26 窗」实为 27、P 计划线与 W 波次线完成口径差、帧标准按需渲染 vs 验收窗 Persistent）；
 - 动画系统两条 P2（Stop 一刀切 Dismissed、AnimatedOpacity.Mutations 无上限）。
 
+## 2026-09-01 增补：X11 D-Bus IME 六洞修复专项（按严重度）
+
+> 来源：`docs/review/R6_text_review.md` 2026-09-01 增补节；环境 `X11 + GTK_IM_MODULE=ibus + fcitx5(pid 2146260)` 实测。
+
+| # | 洞 | 修法 | 涉及文件 | 验收 |
+|---|---|---|---|---|
+| 1 致命 | 假路径 `syntheticFcitxPrefix` 导致 9 处静默跳过 | 删合成路径；`tryCreateFcitx5` 对 `CreateICv3` 成功不再拼假路径，改为存 `icid` 并走 `org.fcitx.Fcitx-0 /inputmethod` 带 `ic` 的旧接口；若 ibus 兼容层可用（本机 `org.freedesktop.IBus CreateInputContext → /org/freedesktop/IBus/InputContext_*` 实测可通）则优先 ibus，不落 synthetic 分支；新增 pid 判定规避双名同 pid 抢注 | `x11_dbus_ime_linux.go:515-532/560/590/1019/1051/1079/1124/1171/1275` | `gdbus call CreateInputContext` 返回真实路径，非 synthetic；`isSyntheticPath` 9 处不再命中；`dbus-monitor` 见 `SetSurrounding/Cursor` 真发 |
+| 2 严重 | ibus 松键丢弃 | 删 `if eng=="ibus" && !isPress` 早退；松键时 `state|=1<<30(IBUS_RELEASE_MASK)` 再调 `ProcessKeyEvent(uuu)` | `x11_dbus_ime_linux.go:1283` | `state=1<<30` 的调用 `err=nil`，松键可达 |
+| 3 严重 | `IBusText (sa{sv}sv)` 序列化错 | `callSetSurroundingText` 的 `dbus.MakeVariant(t)` 改为带 `IBusText` 结构的 `MakeVariant`（`godbus` 注册结构体打 `(sa{sv}sv)`），补 `attrs` 空表 | `x11_dbus_ime_linux.go:1117` | `gdbus monitor` 抓包签名为 `(sa{sv}sv)` 且输入法能取上下文 |
+| 4 严重 | 未走 XKB | `purego` 绑 `XkbGetState/XkbKeycodeToKeysym/Xutf8LookupString/XRefreshKeyboardMapping`；`xKeysymForState` 取 `group`；`drainX` 加 `MappingNotify`；`decodeKey` 优先 `Xutf8LookupString` 取 `Rune` | `x11_linux.go:193/1169/1214` | 俄语布局 group 正确、死键 `´+e=é` 产出 |
+| 5 中 | 焦点事件丢 | `drainX` 补 `case xFocusIn/xFocusOut` 发 `EventFocus`，上层转 `DisableIME+EndComposing` | `x11_linux.go:1028` | Alt+Tab 往返无 preedit 残留 |
+| 6 轻 | 空壳与竞态 | `callFocusOut` 真调 `EndComposing`；`Commit` 真调 `CommitString`；`imeDirty` 4 处改锁内读 | `x11_dbus_ime_linux.go:1056/963/876/910/925/1272` | `go vet -race` 零报 |
+
+> 注：洞1在本机因 `GTK_IM_MODULE=ibus` 优先走通 `org.freedesktop.IBus` 兼容路径（`InputContext_322` 实测），合成回退未命中，故“整条不通”为回退分支下的最坏情况；修后两条路径均通。
+
 ## 附：进度记录
 
 （每批完成后在此登记：批次/完成日期/验证证据位置）

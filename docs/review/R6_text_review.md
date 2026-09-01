@@ -150,3 +150,36 @@ SkParagraph 的链路是：一次 `paragraph.layout()` 完成 bidi(ICU/UAX#9 完
 3. **【P1】缓存 key 加固**：GlyphMaskKey 补 hinting/variations 位；HashFontFeatures/HashFontVariations 从 XOR 改为排序后拼接哈希；fontID 从名字哈希换内容指纹；fontIDCache 弱引用化并在 Close 时清理。
 4. **【P1】资源治理**：fallback faceCache 改为按文件路径去重 + 设上限；字体加载改 mmap 或至少消除双份拷贝；HbShaper.faces 设上限并在 Close 时失效；修 XScale 并发写（锁内复制或 per-shape font）。
 5. **【P1】bidi 补全 + 断行统一**：保留 x/text 完整嵌入层级并按 UAX#9 L2 做段间视觉重排；统一 WrapText 与 wrapLinesWithMode 为一条基于 shaped runs 的断行路径；顺手修 WrapText 的 \r\n 偏移漂移。
+
+---
+
+## 2026-09-01 增补：X11 D-Bus IME 六洞复核（实测环境 X11, GTK_IM_MODULE=ibus, fcitx5 pid=2146260）
+
+> **一句话**：不是小毛病，是整条通道没通——探测返回了总线上不存在的假路径，之后 9 处静默跳过，IME 全程零作用。
+
+### 环境事实（gdbus 实测，非推测）
+
+- `org.freedesktop.IBus` 与 `org.fcitx.Fcitx5` 的 owner 均为 `:1.812`，`GetConnectionUnixProcessID` 均为 2146260，`ps` 为 `fcitx5`——本机无真 ibus，fcitx5 抢注了 ibus 名。
+- `org.fcitx.Fcitx5 /org/fcitx/Fcitx5/InputMethod` 报 `Unknown object`，不存在。
+- 唯一可用的是 `org.fcitx.Fcitx-0 /inputmethod CreateICv3`，实测返回 `(5, true, 0,0,0,0)`。
+- `libX11.so.6` 内 `XkbGetState/XkbKeycodeToKeysym/Xutf8LookupString/XRefreshKeyboardMapping` 四符号均存在。
+
+### 六洞清单（按严重度）
+
+| # | 洞 | 位置 | 现象 | 复核 |
+|---|---|---|---|---|
+| 1 致命 | 假路径导致全程空转 | `x11_dbus_ime_linux.go:524/532` 拼 `syntheticFcitxPrefix+"%d"`；`isSyntheticPath` 在 9 处静默 return（`setCapabilitiesFcitx:561`、`destroyObject:590`、`callFocusIn:1019`、`callFocusOut:1051`、`callSetCursorLocation:1079`、`callSetSurroundingText:1124`、`callSetContentType:1171`、`ProcessKeyEvent:1275`、`handleSignal:705`） | `gdbus introspect /` 仅有 `inputmethod` 节点，无 `InputContext_*`；`drainX:1088 continue` 再拦截本地插入，通道全断 |
+| 2 严重 | ibus 松键被丢 | `ProcessKeyEvent:1283 if eng=="ibus" && !isPress {return false}` | 实测 `state=1<<30(IBUS_RELEASE_MASK)` 的 `ProcessKeyEvent` 可调通，松键永远到不了引擎 |
+| 3 严重 | SetSurroundingText 签名错 | `callSetSurroundingText:1117 v:=dbus.MakeVariant(t)` 签名 `s`，ibus 要 `(sa{sv}sv)` 的 `IBusText` | 三种写法均 `err=nil` 静默失败，输入法拿不到上下文 |
+| 4 严重 | 键盘未走 XKB | `xKeysymForState:1169` 只调 `XKeycodeToKeysym(dpy,k,0/1)` 异或大小写；全仓无 `Xkb*`/`Xutf8LookupString`/`MappingNotify` | 多布局 group 错、死键 `´+e=é`（P11）合不出；`libX11` 四符号已确认存在 |
+| 5 中 | 焦点事件收而不发 | `x11_linux.go:89` 开 `xFocusChangeMask`，`drainX:1028` switch 无 `xFocusIn/xFocusOut` case | Alt+Tab 不会 `DisableIME+EndComposing`，preedit 残留，F-D7/P10 失败 |
+| 6 轻 | 空壳与竞态 | `callFocusOut:1056` 仅日志无 `EndComposing`；`Commit:963` 仅清标志；`imeDirty` 在 `:876/:910/:925/:1272` 无锁读（`:949` 已修一半） | `go vet -race` 可复现；与洞1叠加时更难发现 |
+
+### 影响
+
+- 洞1 单独即可让 `ibus↔fcitx5 热切、光标跟随、上下文推送、按键转发` 全失效，且不报错不崩，表现为“没坏”。
+- 未提交的 71 行补丁（`ime.go + x11_dbus_ime_linux.go + input_router.go`）修的 CapsLock 与英文导航直通在假路径之上，无法送达。
+
+### 已验证无需改
+
+- `composition.go:27 utf16Len(ev.Text[:cursor])` 正确：`cursor` 为 IBus 字节偏移，`ev.Text[:cursor]` 为字节切片语义。

@@ -45,6 +45,7 @@ func (b *x11Backend) Adopt(ns NativeSurface) (*Window, error) {
 		scale:                1,
 		keycodeToKeysym:      x11KeycodeToKeysym(lib),
 		translateCoordinates: lib.translateCoordinates,
+		lib:                  lib,
 	}
 	if w, h, ok := x11GetGeometry(st); ok {
 		st.w, st.h = w, h
@@ -127,6 +128,7 @@ const (
 	xFocusIn              = 9
 	xFocusOut             = 10
 	xVisibilityNotify     = 15
+	xMappingNotify        = 34
 	xEnterNotify          = 7
 	xLeaveNotify          = 8
 	xMapNotify            = 19
@@ -176,9 +178,14 @@ type xClassHint struct {
 type x11Lib struct {
 	lib uintptr
 	// dynamic funcs (set per open to keep the struct small)
-	keycodeToKeysym      func(dpy uintptr, keycode uint, index int) uintptr
-	closeDisplay         func(dpy uintptr) int
-	translateCoordinates func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
+	keycodeToKeysym        func(dpy uintptr, keycode uint, index int) uintptr
+	closeDisplay           func(dpy uintptr) int
+	translateCoordinates   func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
+	xkbGetState            func(dpy uintptr, deviceSpec uint, state unsafe.Pointer) int
+	xkbKeycodeToKeysym     func(dpy uintptr, keycode uint, group int, level int) uintptr
+	xutf8LookupString      func(ic uintptr, ev unsafe.Pointer, str *byte, nbytes int, keysym *uintptr, status *int) int
+	xLookupString          func(ev unsafe.Pointer, str *byte, nbytes int, keysym *uintptr, status unsafe.Pointer) int
+	xRefreshKeyboardMapping func(ev unsafe.Pointer) int
 }
 
 func x11OpenLib() (*x11Lib, error) {
@@ -193,6 +200,22 @@ func x11OpenLib() (*x11Lib, error) {
 	purego.RegisterLibFunc(&x.keycodeToKeysym, lib, "XKeycodeToKeysym")
 	purego.RegisterLibFunc(&x.closeDisplay, lib, "XCloseDisplay")
 	purego.RegisterLibFunc(&x.translateCoordinates, lib, "XTranslateCoordinates")
+	// XKB / XIM helpers are optional: missing symbols are tolerated (fallback to legacy path)
+	if _, err := purego.Dlsym(lib, "XkbGetState"); err == nil {
+		purego.RegisterLibFunc(&x.xkbGetState, lib, "XkbGetState")
+	}
+	if _, err := purego.Dlsym(lib, "XkbKeycodeToKeysym"); err == nil {
+		purego.RegisterLibFunc(&x.xkbKeycodeToKeysym, lib, "XkbKeycodeToKeysym")
+	}
+	if _, err := purego.Dlsym(lib, "Xutf8LookupString"); err == nil {
+		purego.RegisterLibFunc(&x.xutf8LookupString, lib, "Xutf8LookupString")
+	}
+	if _, err := purego.Dlsym(lib, "XLookupString"); err == nil {
+		purego.RegisterLibFunc(&x.xLookupString, lib, "XLookupString")
+	}
+	if _, err := purego.Dlsym(lib, "XRefreshKeyboardMapping"); err == nil {
+		purego.RegisterLibFunc(&x.xRefreshKeyboardMapping, lib, "XRefreshKeyboardMapping")
+	}
 	return x, nil
 }
 
@@ -437,6 +460,7 @@ func x11Create(opts Options) (*Window, error) {
 			return lib.keycodeToKeysym(dpy, keycode, index)
 		},
 		translateCoordinates: lib.translateCoordinates,
+		lib:                  lib,
 		title:                title,
 		decorated:            opts.Decorations,
 		resizable:            opts.Resizable,
@@ -576,6 +600,7 @@ type x11State struct {
 	flush                func()
 	keycodeToKeysym      func(dpy uintptr, keycode uint, index int) uintptr
 	translateCoordinates func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
+	lib                  *x11Lib
 
 	// EWMH atoms (resolved at Create).
 	atNetState, atMaxV, atMaxH uintptr
@@ -1070,6 +1095,14 @@ func (h *x11Host) drainX() []Event {
 			state := int(readI32(buf[:], xevStateOff))
 			occluded := state == 2
 			out = append(out, Event{Type: EventOccluded, Occluded: occluded})
+		case xMappingNotify:
+			if h.st != nil && h.st.lib != nil && h.st.lib.xRefreshKeyboardMapping != nil {
+				h.st.lib.xRefreshKeyboardMapping(unsafe.Pointer(&buf[0]))
+			}
+		case xFocusIn:
+			out = append(out, Event{Type: EventFocus, Focused: true})
+		case xFocusOut:
+			out = append(out, Event{Type: EventFocus, Focused: false})
 		case xEnterNotify:
 			out = append(out, Event{Type: EventPointer, Pointer: PointerEnter})
 		case xLeaveNotify:
@@ -1167,7 +1200,37 @@ func (h *x11Host) decodePointer(t int, buf []byte) (Event, bool) {
 }
 
 func xKeysymForState(st *x11State, keycode uint, state uint32) uintptr {
-	if st == nil || st.keycodeToKeysym == nil || st.display == 0 {
+	if st == nil || st.display == 0 {
+		return 0
+	}
+	// Prefer XKB (group-aware) when available; fallback to legacy XKeycodeToKeysym(0/1)
+	if st != nil && st.lib != nil && st.lib.xkbKeycodeToKeysym != nil && st.lib.xkbGetState != nil {
+		// XkbStateRec: group is at offset 0 (int), mods at 16 etc. We only need group.
+		var xkbState [32]byte
+		if st.lib.xkbGetState(st.display, 0x0100, unsafe.Pointer(&xkbState[0])) == 0 {
+			group := int(int32(readI32(xkbState[:], 0)))
+			level := 0
+			if state&xShiftMask != 0 {
+				level = 1
+			}
+			if ks := st.lib.xkbKeycodeToKeysym(st.display, keycode, group, level); ks != 0 {
+				// Still handle CapsLock correctly for letters
+				if (ks >= 'a' && ks <= 'z') || (ks >= 'A' && ks <= 'Z') {
+					shift := state&xShiftMask != 0
+					caps := state&xLockMask != 0
+					wantUpper := shift != caps
+					if wantUpper && ks >= 'a' && ks <= 'z' {
+						return uintptr(rune(ks) - 'a' + 'A')
+					}
+					if !wantUpper && ks >= 'A' && ks <= 'Z' {
+						return uintptr(rune(ks) - 'A' + 'a')
+					}
+				}
+				return ks
+			}
+		}
+	}
+	if st.keycodeToKeysym == nil {
 		return 0
 	}
 	ks0 := st.keycodeToKeysym(st.display, keycode, 0)
@@ -1210,6 +1273,38 @@ func (h *x11Host) decodeKey(t int, buf []byte, state uint32) (Event, bool) {
 	st := h.st
 	keycode := uint(readU32(buf, xevKeycodeOff))
 	ev := Event{Type: EventKey, Pressed: t == xKeyPress, KeyCode: int(keycode)}
+	// Dead-key compose (P11): try XLookupString first — it handles dead keys (´+e=é) via X's compose table
+	if st != nil && st.lib != nil && st.lib.xLookupString != nil && st.display != 0 {
+		var tmp [32]byte
+		var ks uintptr
+		n := st.lib.xLookupString(unsafe.Pointer(&buf[0]), &tmp[0], len(tmp)-1, &ks, nil)
+		if n > 0 {
+			tmp[n] = 0
+			s := string(tmp[:n])
+			if s == "\r" || s == "\n" {
+				ev.KeyCode = int(xkReturn)
+				ev.Rune = 0
+				return ev, true
+			}
+			if len(s) > 0 {
+				// XLookupString already composed dead keys; use its result
+				r, _ := decodeFirstRune(s)
+				ev.KeyCode = int(ks)
+				if ks == 0 {
+					ev.KeyCode = int(r)
+				}
+				ev.Rune = r
+				// Special keys still need keysym mapping
+				switch ks {
+				case xkTab:
+					ev.KeyCode = int(xkTab)
+				case xkReturn:
+					ev.KeyCode = int(xkReturn)
+				}
+				return ev, true
+			}
+		}
+	}
 	if st != nil && st.keycodeToKeysym != nil && keycode != 0 {
 		ks := xKeysymForState(st, keycode, state)
 		ev.KeyCode = int(ks)
@@ -1229,6 +1324,13 @@ func (h *x11Host) decodeKey(t int, buf []byte, state uint32) (Event, bool) {
 		}
 	}
 	return ev, true
+}
+
+func decodeFirstRune(s string) (rune, int) {
+	for i, r := range s {
+		return r, i
+	}
+	return 0, 0
 }
 
 // --- geometry probe (Adopt) ---

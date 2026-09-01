@@ -167,6 +167,9 @@ func (r *InputRouter) AttachIME(ime platform.IME) {
 	}
 	r.mu.Lock()
 	r.ime = ime
+	if ws, ok := ime.(platform.IMEWantsSurrounding); ok && ws.WantsSurrounding() {
+		r.SurroundingUpdates = true
+	}
 	fm := r.focus
 	r.mu.Unlock()
 	if fm != nil {
@@ -278,21 +281,35 @@ func (r *InputRouter) editorFor() *textinput.Editor {
 func (r *InputRouter) afterEdit() {
 	r.mu.Lock()
 	t, ime := r.session, r.ime
+	fallback := r.TextEditor
 	r.mu.Unlock()
-	if t == nil || ime == nil {
+	if ime == nil {
 		return
 	}
-	rect := t.IMERect()
-	ed := t.Editor()
-	r.mu.Lock()
-	same := r.hasAnchor && rect == r.lastAnchor
-	r.hasAnchor, r.lastAnchor = true, rect
-	r.mu.Unlock()
-	if !same {
-		ime.UpdateCursorRect(rect)
+	// Focused target path (primary): full anchor + surrounding + delta.
+	if t != nil {
+		rect := t.IMERect()
+		ed := t.Editor()
+		r.mu.Lock()
+		same := r.hasAnchor && rect == r.lastAnchor
+		r.hasAnchor, r.lastAnchor = true, rect
+		r.mu.Unlock()
+		if !same {
+			ime.UpdateCursorRect(rect)
+		}
+		r.pushSurrounding(ime, t)
+		r.pushDelta(ed)
+		return
 	}
-	r.pushSurrounding(ime, t)
-	r.pushDelta(ed)
+	// Fallback editor path (no focused TextEditTarget, e.g. single-editor
+	// window or headless test): still keep surrounding fresh so X11
+	// SetSurroundingText stays in sync for every input scenario that
+	// mutates the buffer without a focus target. Anchor has no IMERect,
+	// so only surrounding/delta are refreshed.
+	if fallback != nil {
+		r.pushSurroundingForEditor(ime, fallback)
+		r.pushDelta(fallback)
+	}
 }
 func (r *InputRouter) pushDelta(ed *textinput.Editor) {
 	if r.OnDelta == nil || ed == nil || !ed.EnableDeltaModel() || ed.IsInBatch() {
@@ -323,12 +340,24 @@ func (r *InputRouter) RefreshIMEAnchor() { r.afterEdit() }
 
 // pushSurrounding reports buffer+caret as surrounding text. Truncates to 4000 bytes centered at cursor (R3).
 func (r *InputRouter) pushSurrounding(ime platform.IME, t TextEditTarget) {
-	if !r.SurroundingUpdates {
+	if t == nil || t.Editor() == nil {
 		return
 	}
-	ed := t.Editor()
-	if ed == nil {
+	r.pushSurroundingForEditor(ime, t.Editor())
+}
+
+// pushSurroundingForEditor is the editor-level surrounding push used by both
+// the focused-target path and the fallback TextEditor path.
+// X11 D-Bus (WantsSurrounding==true) bypasses the SurroundingUpdates gate
+// so every edit keeps SetSurroundingText fresh for all input scenarios.
+func (r *InputRouter) pushSurroundingForEditor(ime platform.IME, ed *textinput.Editor) {
+	if ime == nil || ed == nil {
 		return
+	}
+	if !r.SurroundingUpdates {
+		if ws, ok := ime.(platform.IMEWantsSurrounding); !ok || !ws.WantsSurrounding() {
+			return
+		}
 	}
 	text, cursor := ed.Snapshot()
 	trText, trCur := textinput.TruncateSurrounding(text, cursor)

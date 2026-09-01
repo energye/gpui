@@ -57,6 +57,14 @@ type FieldSnapshot struct {
 	Type ContentType
 }
 
+// IMEWantsSurrounding is an optional IME extension: when implemented and
+// true, the embedder pushes surrounding text on every edit (X11 D-Bus
+// SetSurroundingText). Wayland's retrieve-surrounding is on-demand, so
+// its implementation returns false and the push stays opt-in.
+type IMEWantsSurrounding interface {
+	WantsSurrounding() bool
+}
+
 // IME is the optional cross-platform input-method capability. A backend that
 // does not support IME leaves Window.IME() nil; the UI layer silently degrades
 // to plain keyboard text (same pattern as the optional VSyncWaiter).
