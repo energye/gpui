@@ -680,9 +680,6 @@ type x11Host struct {
 	ime IME
 	// X11 clipboard (ICCCM CLIPBOARD)
 	clip Clipboard
-	// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
-	// The xim field is kept as placeholder until D-Bus lands, but always nil.
-	_ximPlaceholder *struct{}
 
 	// Kernel-poll plumbing: WaitEvents blocks on unix.Poll over the X
 	// connection fd + a self-pipe (WakeUp writes it) instead of a
@@ -697,6 +694,12 @@ type x11Host struct {
 	// imeMu guards the pending IME event queue drained by WaitEvents.
 	imeMu     sync.Mutex
 	imeEvents []Event
+
+	// keyMu guards the pending key event queue for async ProcessKeyEvent.
+	// When IME is active, keys are not emitted directly from drainX but
+	// queued here and emitted later via callback, to avoid fixed-timeout guessing.
+	keyMu       sync.Mutex
+	pendingKeys []Event
 }
 
 // ximFocus is a stub after XIM removal in v2.0.
@@ -711,6 +714,15 @@ func (h *x11Host) pushIME(ev Event) {
 	h.imeMu.Lock()
 	h.imeEvents = append(h.imeEvents, ev)
 	h.imeMu.Unlock()
+}
+
+func (h *x11Host) pushPendingKey(ev Event) {
+	if h == nil {
+		return
+	}
+	h.keyMu.Lock()
+	h.pendingKeys = append(h.pendingKeys, ev)
+	h.keyMu.Unlock()
 }
 
 func (h *x11Host) destroy() {
@@ -841,6 +853,12 @@ func (h *x11Host) drain() []Event {
 		h.imeEvents = nil
 	}
 	h.imeMu.Unlock()
+	h.keyMu.Lock()
+	if len(h.pendingKeys) > 0 {
+		out = append(out, h.pendingKeys...)
+		h.pendingKeys = nil
+	}
+	h.keyMu.Unlock()
 	return out
 }
 
@@ -1115,23 +1133,21 @@ func (h *x11Host) drainX() []Event {
 				out = append(out, ev)
 			}
 		case xKeyPress, xKeyRelease:
-			// S4: X11 先走 D-Bus ProcessKeyEvent 再决定是否本地插入（B8: fcitx time 取 XKeyEvent.time）
+			// S4: X11 挂起队列等真回话，不靠固定闹钟（m/没 双写根治）
 			if h.ime != nil {
-				keycode := uint32(readU32(buf[:], xevKeycodeOff))
-				state := uint32(readU32(buf[:], xevKeyStateOff))
-				isPress := t == xKeyPress
-				xTime := uint32(readU64(buf[:], xevKeyTimeOff) & 0xffffffff)
 				if x, ok := h.ime.(*x11Ime); ok && x != nil {
-					if x.ProcessKeyEvent(keycode, state, isPress, xTime) {
-						// 被输入法消费，拦截不再本地插入（与 Wayland filter_keypress 一致）
-						// 修饰键/英文非组合导航键已在 ProcessKeyEvent 内部转 pass-through，此处仅拦截真正需要输入法处理的字符/预编辑导航
-						continue
+					keycode := uint32(readU32(buf[:], xevKeycodeOff))
+					state := uint32(readU32(buf[:], xevKeyStateOff))
+					isPress := t == xKeyPress
+					xTime := uint32(readU64(buf[:], xevKeyTimeOff) & 0xffffffff)
+					// 先解好 EventKey，供回调决定塞不塞
+					if ev, ok := h.decodeKey(t, buf[:], state); ok {
+						x.ProcessKeyEventAsync(keycode, state, isPress, xTime, ev)
 					}
-				} else if h.ime != nil {
-					// 非 x11Ime 的 IME（测试桩）按不拦截
+					continue
 				}
 			}
-			// 未消费则走本地 Home/End/PageUp/Down/Return 分流及 XLookupString 死键兜底
+			// 无 IME 或非 x11Ime 测试桩，走本地
 			stateForDecode := uint32(readU32(buf[:], xevKeyStateOff))
 			if ev, ok := h.decodeKey(t, buf[:], stateForDecode); ok {
 				out = append(out, ev)

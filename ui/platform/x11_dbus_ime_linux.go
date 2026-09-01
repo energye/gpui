@@ -4,6 +4,7 @@ package platform
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -147,7 +148,7 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 	}
 	for _, d := range toDestroy {
 		// Best-effort destroy on old conn (may already be dead, log anyway)
-		if d.c != nil && d.obj != "" && !isSyntheticPath(d.obj) {
+		if d.c != nil && d.obj != "" {
 			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 			if d.eng == "ibus" {
 				o := d.c.Object(dbusServiceIBus, d.obj)
@@ -565,32 +566,6 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 			x11ImeDebug("fcitx %s failed: %v", t.service, err)
 		}
 	}
-	for _, svc := range []string{"org.fcitx.Fcitx-0", dbusServiceFcitx} {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		x11ImeDebug("fcitx CreateICv3(si) %s /inputmethod appname=%q", svc, appName)
-		obj := im.conn.Object(svc, "/inputmethod")
-		var icid int32
-		var ok bool
-		var v0, v1, v2, v3 uint32
-		err := obj.CallWithContext(ctx, dbusIfaceFcitxIM+".CreateICv3", dbus.FlagNoAutoStart, appName, int32(0)).Store(&icid, &ok, &v0, &v1, &v2, &v3)
-		cancel()
-		if err == nil {
-			x11ImeDebug("fcitx CreateICv3 ok id=%d ok=%v -> synthetic path would be fake, treat as unsupported (hole 1)", icid, ok)
-			// Hole 1: old fcitx CreateICv3 returns an integer id, not an object path.
-			// Fabricating /org/fcitx/Fcitx/InputContext_<id> makes 9 later calls silently skip.
-			// Honest fallback: report failure so probe can try ibus compat (which is real on this host).
-			continue
-		}
-		x11ImeDebug("fcitx CreateICv3 %s failed: %v", svc, err)
-		ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
-		var id int32
-		err2 := obj.CallWithContext(ctx2, dbusIfaceFcitxIM+".CreateICv3", dbus.FlagNoAutoStart, appName, int32(0)).Store(&id)
-		cancel2()
-		if err2 == nil {
-			x11ImeDebug("fcitx CreateICv3 second try id=%d -> also synthetic, not usable", id)
-			continue
-		}
-	}
 	return "", fmt.Errorf("fcitx CreateInputContext all failed")
 }
 
@@ -617,10 +592,6 @@ func (im *x11Ime) setCapabilitiesFcitx(obj dbus.ObjectPath, caps uint32) error {
 	if im == nil || im.conn == nil {
 		return fmt.Errorf("nil conn")
 	}
-	if isSyntheticPath(obj) {
-		x11ImeDebug("fcitx old IC synthetic path %s skip SetCapacity", obj)
-		return nil
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
@@ -644,10 +615,6 @@ func (im *x11Ime) setCapabilitiesFcitx(obj dbus.ObjectPath, caps uint32) error {
 
 func (im *x11Ime) destroyObject(obj dbus.ObjectPath, engine string) {
 	if im == nil || im.conn == nil || obj == "" {
-		return
-	}
-	if isSyntheticPath(obj) {
-		x11ImeDebug("DestroyIC fcitx old synthetic %s (no-op)", obj)
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -761,12 +728,7 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 	}
 	path := im.ObjectPath()
 	if sig.Path != path {
-		if !isSyntheticPath(path) {
-			return
-		}
-		if sig.Sender != "org.fcitx.Fcitx-0" && sig.Sender != dbusServiceFcitx5 && sig.Sender != dbusServiceFcitx {
-			return
-		}
+		return
 	}
 	x11ImeDebug("signal %s %s path=%s body=%v", sig.Sender, sig.Name, sig.Path, sig.Body)
 	switch sig.Name {
@@ -949,30 +911,9 @@ func (im *x11Ime) pushDeleteSurrounding(offset, n int) {
 			}
 		}
 	} else {
-		// No surrounding context (fallback): assume ASCII 1:1
-		runeCaretOff := 0 // unknown, treat offset relative to caret
-		startRune := runeCaretOff + offset
-		endRune := startRune + n
-		_ = endRune
-		if offset < 0 {
-			if offset+n <= 0 {
-				beforeBytes = n
-			} else {
-				beforeBytes = -offset
-				afterBytes = offset + n
-			}
-		} else if offset == 0 {
-			afterBytes = n
-		} else {
-			// gap before delete: Wayland can't represent gap, delete from caret (over-delete gap)
-			afterBytes = offset + n
-		}
-		if beforeBytes < 0 {
-			beforeBytes = 0
-		}
-		if afterBytes < 0 {
-			afterBytes = 0
-		}
+		// No surrounding: cannot compute bytes correctly, drop to avoid over-delete.
+		x11ImeDebug("push DeleteSurrounding no surrounding, drop offset=%d n=%d", offset, n)
+		return
 	}
 	im.host.pushIME(Event{Type: EventIME, IMEKind: 3, IMEStart: -beforeBytes, IMEEnd: afterBytes})
 	im.host.WakeUp()
@@ -1236,10 +1177,6 @@ func (im *x11Ime) callFocusIn() {
 				break
 			}
 		}
-		if isSyntheticPath(dbus.ObjectPath(obj)) {
-			err = nil
-			x11ImeDebug("FocusIn fcitx synthetic no-op %s", obj)
-		}
 	}
 	x11ImeDebug("FocusIn %s err=%v", obj, err)
 }
@@ -1267,9 +1204,6 @@ func (im *x11Ime) callFocusOut() {
 			if err == nil {
 				break
 			}
-		}
-		if isSyntheticPath(dbus.ObjectPath(obj)) {
-			err = nil
 		}
 	}
 	x11ImeDebug("FocusOut %s err=%v", obj, err)
@@ -1301,10 +1235,6 @@ func (im *x11Ime) callSetCursorLocation(rect Rect) {
 		}
 		x11ImeDebug("ibus SetCursorLocation(%d,%d,%d,%d) err=%v", px, py, pw, ph, err)
 	} else {
-		if isSyntheticPath(obj) {
-			x11ImeDebug("SetCursorRect fcitx synthetic skip %v", rect)
-			return
-		}
 		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
 			o := im.conn.Object(svc, obj)
 			err = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".SetCursorRect", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
@@ -1358,10 +1288,6 @@ func (im *x11Ime) callSetSurroundingText(text string, cursor, anchor int) {
 		}
 		x11ImeDebug("ibus SetSurroundingText err=%v variant=%s", err, v.Signature())
 	} else {
-		if isSyntheticPath(obj) {
-			x11ImeDebug("SetSurroundingText fcitx synthetic skip")
-			return
-		}
 		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
 			o := im.conn.Object(svc, obj)
 			err = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".SetSurroundingText", 0, t, uint32(c), uint32(a)).Err
@@ -1406,10 +1332,6 @@ func (im *x11Ime) callSetContentType(purpose ContentPurpose) {
 		}
 		x11ImeDebug("ibus SetContentType purpose=%d err=%v", purpose, err)
 	} else {
-		if isSyntheticPath(obj) {
-			x11ImeDebug("SetContentType fcitx synthetic skip purpose=%d", purpose)
-			return
-		}
 		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
 			o := im.conn.Object(svc, obj)
 			err = o.CallWithContext(ctx, "SetContentType", 0, uint32(purpose)).Err
@@ -1521,10 +1443,6 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 		x11ImeDebug("ProcessKeyEvent skip no object keycode=%d state=%d press=%v dirty=%v", keycode, state, isPress, dirty)
 		return false
 	}
-	if isSyntheticPath(im.ObjectPath()) {
-		x11ImeDebug("ProcessKeyEvent fcitx synthetic skip")
-		return false
-	}
 	// Single lock acquisition for engine to avoid double locking.
 	im.mu.Lock()
 	eng := im.engine
@@ -1540,7 +1458,7 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 		x11ImeDebug("ProcessKeyEvent keysym=%#x keycode=%d state=%d", keysym, keycode, state)
 	}
 	obj := im.ObjectPath()
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 	var handled bool
 	var err error
@@ -1570,6 +1488,10 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 		x11ImeDebug("fcitx ProcessKeyEvent uuuub (%#x,%d,%d,%d,%v)->%v err=%v", keysym, keycode, state, t, isRelease, handled, err)
 	}
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			x11ImeDebug("ProcessKeyEvent deadline -> block to avoid double (m/没 case)")
+			return true
+		}
 		x11ImeDebug("ProcessKeyEvent err %v -> pass-through", err)
 		return false
 	}
@@ -1584,6 +1506,131 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 		return false
 	}
 	return handled
+}
+
+// ProcessKeyEventAsync 挂起队列等真回话：不靠固定闹钟，回调决定塞不塞
+// 与同步版共用同一套 handled/modifier/nav 规则，但不阻塞 drainX。
+func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress bool, xTime uint32, ev Event) {
+	if im == nil || im.host == nil {
+		return
+	}
+	im.mu.Lock()
+	dirty := im.imeDirty
+	im.mu.Unlock()
+	im.ensureReprobe()
+	if im == nil || im.conn == nil || im.ObjectPath() == "" {
+		x11ImeDebug("ProcessKeyEventAsync skip no object keycode=%d state=%d press=%v dirty=%v -> pass-through push", keycode, state, isPress, dirty)
+		im.host.pushPendingKey(ev)
+		im.host.WakeUp()
+		return
+	}
+	im.mu.Lock()
+	eng := im.engine
+	im.mu.Unlock()
+	if eng == "ibus" && !isPress {
+		state |= 1 << 30
+	}
+	var keysym uint32
+	if im.host != nil && im.host.st != nil && im.host.st.keycodeToKeysym != nil && im.host.st.display != 0 {
+		ks := xKeysymForState(im.host.st, uint(keycode), uint32(state))
+		keysym = uint32(ks)
+		x11ImeDebug("ProcessKeyEventAsync keysym=%#x keycode=%d state=%d", keysym, keycode, state)
+	}
+	obj := im.ObjectPath()
+	conn := im.conn
+	host := im.host
+	// 异步发 D-Bus，不卡事件泵；回包在 goroutine 回调决定塞不塞
+	go func() {
+		var handled bool
+		var err error
+		if eng == "ibus" {
+			o := conn.Object(dbusServiceIBus, obj)
+			ch := make(chan *dbus.Call, 1)
+			call := o.Go(dbusIfaceIBusCtx+".ProcessKeyEvent", 0, ch, uint32(keysym), uint32(keycode), uint32(state))
+			c := <-call.Done
+			err = c.Err
+			if err == nil {
+				if e := c.Store(&handled); e != nil {
+					err = e
+				}
+			}
+			if err != nil {
+				ch2 := make(chan *dbus.Call, 1)
+				call2 := o.Go("ProcessKeyEvent", 0, ch2, uint32(keysym), uint32(keycode), uint32(state))
+				c2 := <-call2.Done
+				err = c2.Err
+				if err == nil {
+					_ = c2.Store(&handled)
+				}
+			}
+				x11ImeDebug("ibus ProcessKeyEventAsync uuu (%#x,%d,%d)->%v err=%v", keysym, keycode, state, handled, err)
+		} else {
+			o := conn.Object(dbusServiceFcitx5, obj)
+			t := xTime
+			if t == 0 {
+				t = uint32(time.Now().UnixNano() / 1e6 & 0xffffffff)
+			}
+			isRelease := !isPress
+			ch := make(chan *dbus.Call, 1)
+			call := o.Go(dbusIfaceFcitxIM+".ProcessKeyEvent", 0, ch, uint32(keysym), uint32(keycode), uint32(state), t, isRelease)
+			c := <-call.Done
+			err = c.Err
+			if err == nil {
+				_ = c.Store(&handled)
+			}
+			if err != nil {
+				ch2 := make(chan *dbus.Call, 1)
+				call2 := o.Go("ProcessKeyEvent", 0, ch2, uint32(keysym), uint32(keycode), uint32(state), t, isRelease)
+				c2 := <-call2.Done
+				err = c2.Err
+				if err == nil {
+					_ = c2.Store(&handled)
+				}
+				if err != nil {
+					ch3 := make(chan *dbus.Call, 1)
+					call3 := o.Go("ProcessKeyEvent", 0, ch3, uint32(keysym), uint32(keycode), uint32(state))
+					c3 := <-call3.Done
+					err = c3.Err
+					if err == nil {
+						_ = c3.Store(&handled)
+					}
+				}
+			}
+			x11ImeDebug("fcitx ProcessKeyEventAsync uuuub (%#x,%d,%d,%d,%v)->%v err=%v", keysym, keycode, state, t, isRelease, handled, err)
+		}
+		// 窗口已关则丢弃 pending，避免向 dead host  push 泄漏
+		im.mu.Lock()
+		closed := im.closed
+		im.mu.Unlock()
+		if closed || host == nil {
+			return
+		}
+		if err != nil {
+			// 守护真死或极卡超时，兜底当未消费，补发本地，避免英文丢字；双写已靠“等真回话”避免
+			x11ImeDebug("ProcessKeyEventAsync err %v -> pass-through push", err)
+			host.pushPendingKey(ev)
+			host.WakeUp()
+			return
+		}
+		if handled && isX11ModifierKeysym(keysym) {
+			x11ImeDebug("ProcessKeyEventAsync modifier %#x handled but not blocking (preserve local mods)", keysym)
+			host.pushPendingKey(ev)
+			host.WakeUp()
+			return
+		}
+		if handled && !im.IsComposing() && isX11NavKeysym(keysym) {
+			x11ImeDebug("ProcessKeyEventAsync nav %#x handled but not composing -> pass-through push (english mode shortcut)", keysym)
+			host.pushPendingKey(ev)
+			host.WakeUp()
+			return
+		}
+		if handled {
+			x11ImeDebug("ProcessKeyEventAsync handled true -> drop local (m/没 case wait true)")
+			return
+		}
+		host.pushPendingKey(ev)
+		host.WakeUp()
+	}()
 }
 
 // x11TruncateSurrounding 复用 textinput.TruncateSurrounding 语义：4000 居中，UTF8 边界安全

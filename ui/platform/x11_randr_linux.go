@@ -87,16 +87,10 @@ func x11RandRMonitorForPoint(dpy, root uintptr, x, y int) (mx, my, mw, mh int, o
 	return 0, 0, 0, 0, false
 }
 
-// x11RandRAdjust 在 translate 之后做多显修正：目前仅做 monitor 命中校验与日志，
+// x11RandRAdjust 在 translate 之后做多显修正：目前为 no-op 钩子，
 // 为后续 HiDPI per-monitor scale 预留（scale 仍由 st.scale 统一提供，
 // 此处不二次缩放，避免与 XTranslateCoordinates 的 root 坐标重复计算）。
+// 之前每帧 XRRGetMonitors 查询已移除以免高频开销，需要时再按需缓存。
 func x11RandRAdjust(st *x11State, x, y int) (int, int) {
-	if st == nil || st.display == 0 || st.root == 0 {
-		return x, y
-	}
-	if _, _, _, _, ok := x11RandRMonitorForPoint(st.display, st.root, x, y); ok {
-		// 命中 monitor，坐标已在虚拟 root 中，无需偏移修正，保留 hook 供未来 per-monitor scale
-		return x, y
-	}
 	return x, y
 }

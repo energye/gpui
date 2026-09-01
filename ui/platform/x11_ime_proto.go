@@ -31,8 +31,6 @@ const (
 
 	defaultCursorW = 2
 	defaultCursorH = 16
-
-	syntheticFcitxPrefix = "/org/fcitx/Fcitx/InputContext_"
 )
 
 var dbusMatchRules = []string{
@@ -81,10 +79,6 @@ func x11ProbeOrder() []string {
 
 // x11ProbeOrderStrict 供单测严格校验单选
 func x11ProbeOrderStrict() []string { return x11ProbeOrder() }
-
-func isSyntheticPath(p dbus.ObjectPath) bool {
-	return strings.HasPrefix(string(p), syntheticFcitxPrefix)
-}
 
 // dbusFlagNoAutoStart 阻断对未拥有名字的 StartServiceByName 激活
 const dbusFlagNoAutoStart = dbus.FlagNoAutoStart

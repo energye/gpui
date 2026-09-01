@@ -202,6 +202,12 @@ func dialWithTimeout(addr string, ms int) (*dbus.Conn, error) {
 	case r := <-ch:
 		return r.c, r.err
 	case <-time.After(time.Duration(ms) * time.Millisecond):
+		go func() {
+			r := <-ch
+			if r.c != nil {
+				_ = r.c.Close()
+			}
+		}()
 		return nil, fmt.Errorf("dial timeout %dms", ms)
 	}
 }

@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"os"
 	"sync"
 
 	"github.com/godbus/dbus/v5"
@@ -21,7 +22,7 @@ var (
 // sharedFcitxConn 会话总线单例（fcitx5 基线）
 func sharedFcitxConn() (*dbus.Conn, error) {
 	x11FcitxOnce.Do(func() {
-		x11ImeDebug("fcitx session dial start addr=%q", envSessionBus())
+		x11ImeDebug("fcitx session dial start addr=%q", os.Getenv("DBUS_SESSION_BUS_ADDRESS"))
 		c, err := dbus.SessionBus()
 		if err != nil {
 			x11ImeDebug("fcitx session dial/hello failed: %v", err)
@@ -45,11 +46,6 @@ func sharedFcitxConn() (*dbus.Conn, error) {
 	x11FcitxMu.Lock()
 	defer x11FcitxMu.Unlock()
 	return x11FcitxConn, x11FcitxErr
-}
-
-func envSessionBus() string {
-	// os.Getenv 在 proto 侧已使用，此处仅为日志
-	return ""
 }
 
 func resetFcitxSessionForTest() {
