@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -82,3 +83,33 @@ func x11ProbeOrderStrict() []string { return x11ProbeOrder() }
 
 // dbusFlagNoAutoStart 阻断对未拥有名字的 StartServiceByName 激活
 const dbusFlagNoAutoStart = dbus.FlagNoAutoStart
+
+// x11ImeEngine 第2层引擎抽象：ibus 私有总线与 fcitx5 会话总线各自实现，统一层只调度
+type x11ImeEngine interface {
+	Name() string
+	Caps() uint32
+	CreateInputContext(conn *dbus.Conn, timeout time.Duration) (dbus.ObjectPath, error)
+	SetCapabilities(conn *dbus.Conn, obj dbus.ObjectPath, caps uint32) error
+	Destroy(conn *dbus.Conn, obj dbus.ObjectPath) error
+	FocusIn(conn *dbus.Conn, obj dbus.ObjectPath) error
+	FocusOut(conn *dbus.Conn, obj dbus.ObjectPath) error
+	SetCursorLocation(conn *dbus.Conn, obj dbus.ObjectPath, x, y, w, h int) error
+	SetSurroundingText(conn *dbus.Conn, obj dbus.ObjectPath, text string, cursor, anchor int) error
+	SetContentType(conn *dbus.Conn, obj dbus.ObjectPath, purpose ContentPurpose) error
+	ProcessKeyEvent(conn *dbus.Conn, obj dbus.ObjectPath, keysym, keycode, state, xTime uint32, isPress bool) (bool, error)
+}
+
+type ibusEngine struct{}
+type fcitxEngine struct{}
+
+var x11Engines = map[string]x11ImeEngine{
+	"ibus":   &ibusEngine{},
+	"fcitx5": &fcitxEngine{},
+}
+
+func x11EngineForName(name string) x11ImeEngine {
+	if e, ok := x11Engines[name]; ok {
+		return e
+	}
+	return nil
+}

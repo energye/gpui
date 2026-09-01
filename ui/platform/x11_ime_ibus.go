@@ -222,3 +222,186 @@ func resetIbusPrivateForTest() {
 	x11IbusMu.Unlock()
 	x11IbusOnce = sync.Once{}
 }
+
+func (e *ibusEngine) Name() string { return "ibus" }
+func (e *ibusEngine) Caps() uint32 { return ibusCaps }
+
+func (e *ibusEngine) CreateInputContext(conn *dbus.Conn, timeout time.Duration) (dbus.ObjectPath, error) {
+	if conn == nil {
+		return "", fmt.Errorf("nil conn")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	clientName := x11ClientName()
+	x11ImeDebug("ibus CreateInputContext(s) client_name=%q", clientName)
+	obj := conn.Object(dbusServiceIBus, dbusPathIBusBus)
+	var path dbus.ObjectPath
+	err := obj.CallWithContext(ctx, dbusIfaceIBus+".CreateInputContext", dbus.FlagNoAutoStart, clientName).Store(&path)
+	if err != nil {
+		x11ImeDebug("ibus single param failed, try dual: %v", err)
+		ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
+		defer cancel2()
+		if err2 := obj.CallWithContext(ctx2, dbusIfaceIBus+".CreateInputContext", dbus.FlagNoAutoStart, clientName, clientName).Store(&path); err2 != nil {
+			return "", err2
+		}
+	}
+	if path == "" {
+		return "", fmt.Errorf("empty path")
+	}
+	return path, nil
+}
+
+func (e *ibusEngine) SetCapabilities(conn *dbus.Conn, obj dbus.ObjectPath, caps uint32) error {
+	if conn == nil {
+		return fmt.Errorf("nil conn")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	o := conn.Object(dbusServiceIBus, obj)
+	err := o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetCapabilities", 0, caps).Err
+	if err != nil {
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancel2()
+		if err2 := o.CallWithContext(ctx2, dbusIfaceIBusCtx+".SetCapability", 0, caps).Err; err2 == nil {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func (e *ibusEngine) Destroy(conn *dbus.Conn, obj dbus.ObjectPath) error {
+	if conn == nil || obj == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	o := conn.Object(dbusServiceIBus, obj)
+	err := o.CallWithContext(ctx, dbusServiceIBus+".Service.Destroy", 0).Err
+	if err != nil {
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".Destroy", 0).Err
+	}
+	if err != nil {
+		err = o.CallWithContext(ctx, "Destroy", 0).Err
+	}
+	x11ImeDebug("Destroy ibus %s err=%v", obj, err)
+	return err
+}
+
+func (e *ibusEngine) FocusIn(conn *dbus.Conn, obj dbus.ObjectPath) error {
+	if conn == nil || obj == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	o := conn.Object(dbusServiceIBus, obj)
+	err := o.CallWithContext(ctx, dbusIfaceIBusCtx+".FocusIn", 0).Err
+	if err != nil {
+		err = o.CallWithContext(ctx, "FocusIn", 0).Err
+	}
+	x11ImeDebug("FocusIn %s err=%v", obj, err)
+	return err
+}
+
+func (e *ibusEngine) FocusOut(conn *dbus.Conn, obj dbus.ObjectPath) error {
+	if conn == nil || obj == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	o := conn.Object(dbusServiceIBus, obj)
+	err := o.CallWithContext(ctx, dbusIfaceIBusCtx+".FocusOut", 0).Err
+	if err != nil {
+		err = o.CallWithContext(ctx, "FocusOut", 0).Err
+	}
+	x11ImeDebug("FocusOut %s err=%v", obj, err)
+	return err
+}
+
+func (e *ibusEngine) SetCursorLocation(conn *dbus.Conn, obj dbus.ObjectPath, x, y, w, h int) error {
+	if conn == nil || obj == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	o := conn.Object(dbusServiceIBus, obj)
+	err := o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetCursorLocation", 0, int32(x), int32(y), int32(w), int32(h)).Err
+	if err != nil {
+		err = o.CallWithContext(ctx, "SetCursorLocation", 0, int32(x), int32(y), int32(w), int32(h)).Err
+	}
+	x11ImeDebug("ibus SetCursorLocation(%d,%d,%d,%d) err=%v", x, y, w, h, err)
+	return err
+}
+
+func (e *ibusEngine) SetSurroundingText(conn *dbus.Conn, obj dbus.ObjectPath, text string, cursor, anchor int) error {
+	if conn == nil || obj == "" {
+		return nil
+	}
+	t, c, a := x11TruncateSurrounding(text, cursor, anchor)
+	x11ImeDebug("SetSurroundingText len=%d->%d cursor=%d->%d anchor=%d->%d", len(text), len(t), cursor, c, anchor, a)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	ibusText := ibusFullPayload{
+		Name:  ibusTextName,
+		Props: map[string]dbus.Variant{},
+		Text:  t,
+		Attrs: dbus.MakeVariant([]interface{}{}),
+	}
+	v := dbus.MakeVariant(ibusText)
+	o := conn.Object(dbusServiceIBus, obj)
+	err := o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
+	if err != nil {
+		v2 := dbus.MakeVariant(ibusTextPayload{Text: t, Attrs: nil})
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetSurroundingText", 0, v2, uint32(c), uint32(a)).Err
+	}
+	if err != nil {
+		err = o.CallWithContext(ctx, "SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
+	}
+	x11ImeDebug("ibus SetSurroundingText err=%v variant=%s", err, v.Signature())
+	return err
+}
+
+func (e *ibusEngine) SetContentType(conn *dbus.Conn, obj dbus.ObjectPath, purpose ContentPurpose) error {
+	if conn == nil || obj == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	o := conn.Object(dbusServiceIBus, obj)
+	type ibusContentType struct {
+		Purpose uint32
+		Hints   uint32
+	}
+	v := dbus.MakeVariant(ibusContentType{Purpose: uint32(purpose), Hints: 0})
+	err := o.CallWithContext(ctx, dbusServiceDBus+".Properties.Set", 0, dbusIfaceIBusCtx, "ContentType", v).Err
+	if err != nil {
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetContentType", 0, uint32(purpose), uint32(0)).Err
+	}
+	if err != nil {
+		err = o.CallWithContext(ctx, "SetContentType", 0, uint32(purpose), uint32(0)).Err
+	}
+	if err != nil {
+		err = o.CallWithContext(ctx, dbusServiceDBus+".Properties.Set", 0, dbusIfaceIBusCtx, "ContentType", dbus.MakeVariant(uint32(purpose))).Err
+	}
+	x11ImeDebug("ibus SetContentType purpose=%d err=%v", purpose, err)
+	return err
+}
+
+func (e *ibusEngine) ProcessKeyEvent(conn *dbus.Conn, obj dbus.ObjectPath, keysym, keycode, state, xTime uint32, isPress bool) (bool, error) {
+	if conn == nil || obj == "" {
+		return false, fmt.Errorf("nil conn")
+	}
+	if !isPress {
+		state |= 1 << 30
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	o := conn.Object(dbusServiceIBus, obj)
+	var handled bool
+	err := o.CallWithContext(ctx, dbusIfaceIBusCtx+".ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
+	if err != nil {
+		err = o.CallWithContext(ctx, "ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
+	}
+	x11ImeDebug("ibus ProcessKeyEvent uuu (%#x,%d,%d)->%v err=%v", keysym, keycode, state, handled, err)
+	return handled, err
+}

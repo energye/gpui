@@ -23,6 +23,7 @@ import (
 type x11Ime struct {
 	conn       *dbus.Conn
 	engine     string
+	engineImpl x11ImeEngine
 	objectPath dbus.ObjectPath
 	imeDirty   bool
 	focused    bool
@@ -407,33 +408,29 @@ func (im *x11Ime) ensureReprobe() {
 	}
 	x11ImeDebug("lazy reprobe triggered dirty=%v path=%q", im.imeDirty, im.ObjectPath())
 	order := x11ProbeOrder()
-	for _, eng := range order {
-		var obj dbus.ObjectPath
-		var err error
-		if eng == "ibus" {
-			obj, err = im.tryCreateIbus(500 * time.Millisecond)
-		} else {
-			obj, err = im.tryCreateFcitx5(500 * time.Millisecond)
-		}
-		if err != nil {
-			x11ImeDebug("lazy reprobe %s failed: %v", eng, err)
+	for _, engName := range order {
+		eng := x11EngineForName(engName)
+		if eng == nil {
 			continue
 		}
-		x11ImeDebug("lazy reprobe %s ok %s", eng, obj)
-		if eng == "ibus" {
-			_ = im.setCapabilitiesIbus(obj, ibusCaps)
-		} else {
-			_ = im.setCapabilitiesFcitx(obj, fcitxCaps)
+		obj, err := eng.CreateInputContext(im.conn, 500*time.Millisecond)
+		if err != nil {
+			x11ImeDebug("lazy reprobe %s failed: %v", engName, err)
+			continue
 		}
+		x11ImeDebug("lazy reprobe %s ok %s", engName, obj)
+		_ = eng.SetCapabilities(im.conn, obj, eng.Caps())
 		im.mu.Lock()
 		if im.closed {
 			im.mu.Unlock()
-			im.destroyObject(obj, eng)
+			_ = eng.Destroy(im.conn, obj)
 			return
 		}
 		oldObj := im.objectPath
 		oldEng := im.engine
-		im.engine = eng
+		oldImpl := im.engineImpl
+		im.engine = engName
+		im.engineImpl = eng
 		im.objectPath = obj
 		im.imeDirty = false
 		im.lastProbeFail = time.Time{}
@@ -444,9 +441,15 @@ func (im *x11Ime) ensureReprobe() {
 		lastAnchor := im.lastAnchor
 		im.mu.Unlock()
 		if oldObj != "" && oldObj != obj {
-			im.destroyObject(oldObj, oldEng)
+			if oldImpl != nil {
+				_ = oldImpl.Destroy(im.conn, oldObj)
+			} else if oldEng != "" {
+				if e := x11EngineForName(oldEng); e != nil {
+					_ = e.Destroy(im.conn, oldObj)
+				}
+			}
 		}
-		x11ImeDebug("lazy reprobe success engine=%s path=%s", eng, obj)
+		x11ImeDebug("lazy reprobe success engine=%s path=%s", engName, obj)
 		im.callFocusIn()
 		if hasRect {
 			im.callSetCursorLocation(rect)
@@ -467,41 +470,32 @@ func (im *x11Ime) ensureReprobe() {
 func (im *x11Ime) asyncProbe() {
 	order := x11ProbeOrder()
 	x11ImeDebug("asyncProbe start order=%v", order)
-	for _, eng := range order {
-		var obj dbus.ObjectPath
-		var err error
-		if eng == "ibus" {
-			obj, err = im.tryCreateIbus(500 * time.Millisecond)
-		} else {
-			obj, err = im.tryCreateFcitx5(500 * time.Millisecond)
-		}
-		if err != nil {
-			x11ImeDebug("CreateInputContext %s failed: %v", eng, err)
+	for _, engName := range order {
+		eng := x11EngineForName(engName)
+		if eng == nil {
 			continue
 		}
-		x11ImeDebug("CreateInputContext %s ok objectPath=%s", eng, obj)
-		if eng == "ibus" {
-			if err := im.setCapabilitiesIbus(obj, ibusCaps); err != nil {
-				x11ImeDebug("SetCapabilities ibus failed: %v", err)
-			} else {
-				x11ImeDebug("SetCapabilities 41 ok")
-			}
+		obj, err := eng.CreateInputContext(im.conn, 500*time.Millisecond)
+		if err != nil {
+			x11ImeDebug("CreateInputContext %s failed: %v", engName, err)
+			continue
+		}
+		x11ImeDebug("CreateInputContext %s ok objectPath=%s", engName, obj)
+		if err := eng.SetCapabilities(im.conn, obj, eng.Caps()); err != nil {
+			x11ImeDebug("SetCapabilities %s failed: %v", engName, err)
 		} else {
-			if err := im.setCapabilitiesFcitx(obj, fcitxCaps); err != nil {
-				x11ImeDebug("SetCapacity fcitx5 failed: %v", err)
-			} else {
-				x11ImeDebug("SetCapacity ok")
-			}
+			x11ImeDebug("SetCapabilities %s ok caps=%d", engName, eng.Caps())
 		}
 		im.mu.Lock()
 		if im.closed {
 			im.mu.Unlock()
-			im.destroyObject(obj, eng)
+			_ = eng.Destroy(im.conn, obj)
 			return
 		}
-		im.engine = eng
+		im.engine = engName
+		im.engineImpl = eng
 		im.objectPath = obj
-		x11ImeDebug("engine=%s objectPath=%s", eng, obj)
+		x11ImeDebug("engine=%s objectPath=%s", engName, obj)
 		im.mu.Unlock()
 		im.startSignalLoop()
 		return
@@ -509,6 +503,7 @@ func (im *x11Ime) asyncProbe() {
 	x11ImeDebug("probe all failed, degrade")
 	im.mu.Lock()
 	im.engine = ""
+	im.engineImpl = nil
 	im.objectPath = ""
 	im.mu.Unlock()
 }
@@ -617,6 +612,18 @@ func (im *x11Ime) destroyObject(obj dbus.ObjectPath, engine string) {
 	if im == nil || im.conn == nil || obj == "" {
 		return
 	}
+	// 优先用 engineImpl（若还在），否则按名查
+	var eng x11ImeEngine
+	if im.engineImpl != nil && im.engine == engine {
+		eng = im.engineImpl
+	} else {
+		eng = x11EngineForName(engine)
+	}
+	if eng != nil {
+		_ = eng.Destroy(im.conn, obj)
+		return
+	}
+	// fallback 旧分支（兜底，理论不进）
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	if engine == "ibus" {
@@ -1154,29 +1161,12 @@ func (im *x11Ime) callFocusIn() {
 		x11ImeDebug("FocusIn skip no object")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
-	obj := string(im.ObjectPath())
-	eng := im.Engine()
+	obj := im.ObjectPath()
 	var err error
-	if eng == "ibus" {
-		o := im.conn.Object(dbusServiceIBus, dbus.ObjectPath(obj))
-		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".FocusIn", 0).Err
-		if err != nil {
-			err = o.CallWithContext(ctx, "FocusIn", 0).Err
-		}
-	} else {
-		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx, "org.fcitx.Fcitx-0"} {
-			o := im.conn.Object(svc, dbus.ObjectPath(obj))
-			err = o.CallWithContext(ctx, dbusIfaceFcitxIM+".FocusIn", 0).Err
-			if err == nil {
-				break
-			}
-			err = o.CallWithContext(ctx, "FocusIn", 0).Err
-			if err == nil {
-				break
-			}
-		}
+	if im.engineImpl != nil {
+		err = im.engineImpl.FocusIn(im.conn, obj)
+	} else if eng := x11EngineForName(im.Engine()); eng != nil {
+		err = eng.FocusIn(im.conn, obj)
 	}
 	x11ImeDebug("FocusIn %s err=%v", obj, err)
 }
@@ -1186,25 +1176,12 @@ func (im *x11Ime) callFocusOut() {
 		x11ImeDebug("FocusOut skip no object")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
-	obj := string(im.ObjectPath())
-	eng := im.Engine()
+	obj := im.ObjectPath()
 	var err error
-	if eng == "ibus" {
-		o := im.conn.Object(dbusServiceIBus, dbus.ObjectPath(obj))
-		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".FocusOut", 0).Err
-		if err != nil {
-			err = o.CallWithContext(ctx, "FocusOut", 0).Err
-		}
-	} else {
-		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx, "org.fcitx.Fcitx-0"} {
-			o := im.conn.Object(svc, dbus.ObjectPath(obj))
-			err = o.CallWithContext(ctx, "FocusOut", 0).Err
-			if err == nil {
-				break
-			}
-		}
+	if im.engineImpl != nil {
+		err = im.engineImpl.FocusOut(im.conn, obj)
+	} else if eng := x11EngineForName(im.Engine()); eng != nil {
+		err = eng.FocusOut(im.conn, obj)
 	}
 	x11ImeDebug("FocusOut %s err=%v", obj, err)
 	// F-D7 / P10: FocusOut must clear preedit; push IMECompose empty so editor's composingRange is cleared
@@ -1222,36 +1199,14 @@ func (im *x11Ime) callSetCursorLocation(rect Rect) {
 	}
 	px, py, pw, ph := im.translateRect(rect)
 	x11ImeDebug("SetCursorLocation ii ii rect=%v -> phys x=%d y=%d w=%d h=%d", rect, px, py, pw, ph)
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
 	obj := im.ObjectPath()
-	eng := im.Engine()
 	var err error
-	if eng == "ibus" {
-		o := im.conn.Object(dbusServiceIBus, obj)
-		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
-		if err != nil {
-			err = o.CallWithContext(ctx, "SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
-		}
-		x11ImeDebug("ibus SetCursorLocation(%d,%d,%d,%d) err=%v", px, py, pw, ph, err)
-	} else {
-		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
-			o := im.conn.Object(svc, obj)
-			err = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".SetCursorRect", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
-			if err == nil {
-				break
-			}
-			err = o.CallWithContext(ctx, "SetCursorRect", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
-			if err == nil {
-				break
-			}
-			err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
-			if err == nil {
-				break
-			}
-		}
-		x11ImeDebug("fcitx SetCursorRect(%d,%d,%d,%d) err=%v", px, py, pw, ph, err)
+	if im.engineImpl != nil {
+		err = im.engineImpl.SetCursorLocation(im.conn, obj, px, py, pw, ph)
+	} else if eng := x11EngineForName(im.Engine()); eng != nil {
+		err = eng.SetCursorLocation(im.conn, obj, px, py, pw, ph)
 	}
+	_ = err
 }
 
 func (im *x11Ime) callSetSurroundingText(text string, cursor, anchor int) {
@@ -1259,47 +1214,11 @@ func (im *x11Ime) callSetSurroundingText(text string, cursor, anchor int) {
 		x11ImeDebug("SetSurroundingText skip no object len=%d", len(text))
 		return
 	}
-	t, c, a := x11TruncateSurrounding(text, cursor, anchor)
-	x11ImeDebug("SetSurroundingText len=%d->%d cursor=%d->%d anchor=%d->%d", len(text), len(t), cursor, c, anchor, a)
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
 	obj := im.ObjectPath()
-	eng := im.Engine()
-	var err error
-	if eng == "ibus" {
-		// IBusText wire is (sa{sv}sv) [name, props, text, AttrList]; plain s is wrong (hole 3).
-		// Use ibusTextPayload/ibusFullPayload style so godbus emits (sa{sv}sv) variant.
-		ibusText := ibusFullPayload{
-			Name:  ibusTextName,
-			Props: map[string]dbus.Variant{},
-			Text:  t,
-			Attrs: dbus.MakeVariant([]interface{}{}),
-		}
-		v := dbus.MakeVariant(ibusText)
-		// Fallback to simple text payload if full struct rejected (defensive)
-		o := im.conn.Object(dbusServiceIBus, obj)
-		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
-		if err != nil {
-			v2 := dbus.MakeVariant(ibusTextPayload{Text: t, Attrs: nil})
-			err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetSurroundingText", 0, v2, uint32(c), uint32(a)).Err
-		}
-		if err != nil {
-			err = o.CallWithContext(ctx, "SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
-		}
-		x11ImeDebug("ibus SetSurroundingText err=%v variant=%s", err, v.Signature())
-	} else {
-		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
-			o := im.conn.Object(svc, obj)
-			err = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".SetSurroundingText", 0, t, uint32(c), uint32(a)).Err
-			if err == nil {
-				break
-			}
-			err = o.CallWithContext(ctx, "SetSurroundingText", 0, t, uint32(c), uint32(a)).Err
-			if err == nil {
-				break
-			}
-		}
-		x11ImeDebug("fcitx SetSurroundingText err=%v", err)
+	if im.engineImpl != nil {
+		_ = im.engineImpl.SetSurroundingText(im.conn, obj, text, cursor, anchor)
+	} else if eng := x11EngineForName(im.Engine()); eng != nil {
+		_ = eng.SetSurroundingText(im.conn, obj, text, cursor, anchor)
 	}
 }
 
@@ -1308,42 +1227,11 @@ func (im *x11Ime) callSetContentType(purpose ContentPurpose) {
 		x11ImeDebug("SetContentType skip no object purpose=%d", purpose)
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
 	obj := im.ObjectPath()
-	eng := im.Engine()
-	var err error
-	if eng == "ibus" {
-		o := im.conn.Object(dbusServiceIBus, obj)
-		type ibusContentType struct {
-			Purpose uint32
-			Hints   uint32
-		}
-		v := dbus.MakeVariant(ibusContentType{Purpose: uint32(purpose), Hints: 0})
-		err = o.CallWithContext(ctx, dbusServiceDBus+".Properties.Set", 0, dbusIfaceIBusCtx, "ContentType", v).Err
-		if err != nil {
-			err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetContentType", 0, uint32(purpose), uint32(0)).Err
-		}
-		if err != nil {
-			err = o.CallWithContext(ctx, "SetContentType", 0, uint32(purpose), uint32(0)).Err
-		}
-		if err != nil {
-			err = o.CallWithContext(ctx, dbusServiceDBus+".Properties.Set", 0, dbusIfaceIBusCtx, "ContentType", dbus.MakeVariant(uint32(purpose))).Err
-		}
-		x11ImeDebug("ibus SetContentType purpose=%d err=%v", purpose, err)
-	} else {
-		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
-			o := im.conn.Object(svc, obj)
-			err = o.CallWithContext(ctx, "SetContentType", 0, uint32(purpose)).Err
-			if err == nil {
-				break
-			}
-			err = o.CallWithContext(ctx, dbusIfaceFcitxIM+".SetContentType", 0, uint32(purpose)).Err
-			if err == nil {
-				break
-			}
-		}
-		x11ImeDebug("fcitx SetContentType purpose=%d err=%v", purpose, err)
+	if im.engineImpl != nil {
+		_ = im.engineImpl.SetContentType(im.conn, obj, purpose)
+	} else if eng := x11EngineForName(im.Engine()); eng != nil {
+		_ = eng.SetContentType(im.conn, obj, purpose)
 	}
 }
 
@@ -1443,14 +1331,6 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 		x11ImeDebug("ProcessKeyEvent skip no object keycode=%d state=%d press=%v dirty=%v", keycode, state, isPress, dirty)
 		return false
 	}
-	// Single lock acquisition for engine to avoid double locking.
-	im.mu.Lock()
-	eng := im.engine
-	im.mu.Unlock()
-	// IBUS_RELEASE_MASK = 1<<30, ibus 用它区分 press/release
-	if eng == "ibus" && !isPress {
-		state |= 1 << 30
-	}
 	var keysym uint32
 	if im.host != nil && im.host.st != nil && im.host.st.keycodeToKeysym != nil && im.host.st.display != 0 {
 		ks := xKeysymForState(im.host.st, uint(keycode), uint32(state))
@@ -1458,34 +1338,14 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 		x11ImeDebug("ProcessKeyEvent keysym=%#x keycode=%d state=%d", keysym, keycode, state)
 	}
 	obj := im.ObjectPath()
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
-	defer cancel()
 	var handled bool
 	var err error
-	if eng == "ibus" {
-		o := im.conn.Object(dbusServiceIBus, obj)
-		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
-		if err != nil {
-			err = o.CallWithContext(ctx, "ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
-		}
-		x11ImeDebug("ibus ProcessKeyEvent uuu (%#x,%d,%d)->%v err=%v", keysym, keycode, state, handled, err)
+	if im.engineImpl != nil {
+		handled, err = im.engineImpl.ProcessKeyEvent(im.conn, obj, keysym, keycode, state, xTimeVal, isPress)
+	} else if eng := x11EngineForName(im.Engine()); eng != nil {
+		handled, err = eng.ProcessKeyEvent(im.conn, obj, keysym, keycode, state, xTimeVal, isPress)
 	} else {
-		o := im.conn.Object(dbusServiceFcitx5, obj)
-		t := xTimeVal
-		if t == 0 {
-			t = uint32(time.Now().UnixNano() / 1e6 & 0xffffffff)
-		}
-		isRelease := !isPress
-		err = o.CallWithContext(ctx, dbusIfaceFcitxIM+".ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state), t, isRelease).Store(&handled)
-		if err != nil {
-			err = o.CallWithContext(ctx, "ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state), t, isRelease).Store(&handled)
-		}
-		if err != nil {
-			ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Millisecond)
-			defer cancel2()
-			err = o.CallWithContext(ctx2, "ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
-		}
-		x11ImeDebug("fcitx ProcessKeyEvent uuuub (%#x,%d,%d,%d,%v)->%v err=%v", keysym, keycode, state, t, isRelease, handled, err)
+		err = fmt.Errorf("no engine")
 	}
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
