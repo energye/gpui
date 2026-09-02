@@ -10,6 +10,7 @@
 | **1b** | [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) | 禁止 CGO · purego · 依赖 · 架构/示例边界 |
 | **1c** | [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md) | **画什么**（母表 · §22 收口 · §25） |
 | **1d** | [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md) | **自定义控件渲染基座统一真源**（§R · 域地图 · L0 预留 · W0–W6 排期） |
+| **1e** | [`ENGINE_TEXT_SCALE_PLAN.md`](./ENGINE_TEXT_SCALE_PLAN.md) | **任意规模文本编辑排版架构**（O(1) 击键 · M0–M5 分期 · 立项未开工） |
 | 2 | [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md) | 架构图 |
 | 3 | [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) | 架构条款全文 |
 | 4 | [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md) | P0–P3 考古 ✅ |
