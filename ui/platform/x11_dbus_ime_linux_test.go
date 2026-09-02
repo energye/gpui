@@ -59,8 +59,8 @@ func TestX11SharedBusSingleConn(t *testing.T) {
 func TestX11ImeDebugSmoke(t *testing.T) {
 	os.Setenv("GPUI_IME_DEBUG", "1")
 	defer os.Unsetenv("GPUI_IME_DEBUG")
-	// sharedDBusConn 在 debug 态应打印 dial/hello/match（人目验日志）
-	_, _ = sharedDBusConn()
+	// 会话总线单例在 debug 态应打印 dial/hello/match（人目验日志）
+	_, _ = sharedFcitxConn()
 	h := &x11Host{st: &x11State{w: 800, h: 600}}
 	im := imeForX11(h)
 	if im == nil {
@@ -69,7 +69,7 @@ func TestX11ImeDebugSmoke(t *testing.T) {
 	}
 	// 桩方法幂等与 same-rect 跳过
 	im.EnableIME(Rect{X: 10, Y: 20, W: 2, H: 16})
-	im.EnableIME(Rect{X: 10, Y: 20, W: 2, H: 16}) // focused guard skip
+	im.EnableIME(Rect{X: 10, Y: 20, W: 2, H: 16})        // focused guard skip
 	im.UpdateCursorRect(Rect{X: 10, Y: 20, W: 2, H: 16}) // same skip
 	im.UpdateCursorRect(Rect{X: 12, Y: 20, W: 2, H: 16})
 	im.SetContentType(PurposePassword)

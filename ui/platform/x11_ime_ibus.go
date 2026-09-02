@@ -282,8 +282,31 @@ func (e *ibusEngine) Caps() uint32 { return ibusCaps }
 
 // Bus ibus 走私有总线。force=true 时重新解析地址并拨号，用于「换了输入法框架」
 // 后连上新守护（总线地址本身会变，必须重拨）。
+//
+// 地址文件解析不出来时（真机实测：fcitx5 跑 ibusfrontend 时会把
+// ~/.config/ibus/bus/ 下的条目写成空值，IBUS_ADDRESS= / IBUS_DAEMON_PID=），
+// 回落到**会话总线**再验一次。理由：
+//   - fcitx5 的 ibusfrontend 不开私有总线，它把 IBus 服务直接开在会话总线上，
+//     地址文件里写的就是会话总线地址——会话总线本来就是它真正的服务位置。
+//   - 真 ibus-daemon 也会在会话总线上**占名**（名在此、物在彼），且实测
+//     NameHasOwner 在会话总线上可见，可作为「这条路通不通」的判据。
+//
+// 只有会话总线上确实看得见 IBus 名才回落，避免无守护时无谓地拿到一条空连接。
 func (e *ibusEngine) Bus(force bool) (*dbus.Conn, error) {
-	return dialIbusPrivate(force)
+	conn, err := dialIbusPrivate(force)
+	if err == nil && conn != nil {
+		return conn, nil
+	}
+	if sess, serr := sharedFcitxConn(); serr == nil && sess != nil {
+		if has, _ := dbusHasOwner(sess, dbusServiceIBus); has {
+			x11ImeDebug("ibus private bus unavailable (%v), fallback to session bus (IBus name visible there)", err)
+			return sess, nil
+		}
+	}
+	if err == nil {
+		err = fmt.Errorf("nil ibus private conn")
+	}
+	return nil, err
 }
 
 func (e *ibusEngine) CreateInputContext(conn *dbus.Conn, timeout time.Duration) (dbus.ObjectPath, error) {

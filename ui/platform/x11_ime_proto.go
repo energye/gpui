@@ -172,6 +172,19 @@ func x11ProbeOrderForOwner(conn *dbus.Conn) []string {
 	return x11ProbeOrderForOwnerFrom(x11ProbeOrder(), snapshotOwner(conn))
 }
 
+// snapshotOwnerOnSessionBus 在会话总线上做一次归属快照，失败返回空快照。
+//
+// 建窗时的目标校必须用会话总线：候选总线（私有地址文件）此刻可能解析不出来
+// （本机 fcitx5 跑 ibusfrontend 时会把 ~/.config/ibus/bus/ 写成空值），
+// 而真 ibus 也会在会话总线上占名，所以在会话总线上查才查得全。
+func snapshotOwnerOnSessionBus() x11ImeOwner {
+	sess, err := sharedFcitxConn()
+	if err != nil || sess == nil {
+		return x11ImeOwner{}
+	}
+	return snapshotOwner(sess)
+}
+
 // frameworkIdentity 归一出「当前是哪几家在服务、各自是谁」的指纹，用于跨框架比对。
 //
 // 为什么需要它：只按「同一个名字的 owner 是否变了」比对（x11OwnerChanged）**漏掉了
@@ -236,6 +249,17 @@ func x11OwnerChanged(before, after x11ImeOwner) bool {
 
 // dbusFlagNoAutoStart 阻断对未拥有名字的 StartServiceByName 激活
 const dbusFlagNoAutoStart = dbus.FlagNoAutoStart
+
+// x11ServiceForEngine 返回引擎在总线上占的名字（有多个时返回主名）。
+func x11ServiceForEngine(engine string) string {
+	switch engine {
+	case "ibus":
+		return dbusServiceIBus
+	case "fcitx5":
+		return dbusServiceFcitx5
+	}
+	return ""
+}
 
 // x11ImeEngine 第2层引擎抽象：ibus 私有总线与 fcitx5 会话总线各自实现，统一层只调度
 type x11ImeEngine interface {
