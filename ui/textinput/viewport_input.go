@@ -104,31 +104,31 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 type ViewportInputBox struct {
 	*rendering.RenderBox
 	*BaseEditable
-	Viewport  *rendering.RenderViewport
-	content   *rendering.RenderBox
-	txt       *rendering.RenderText
-	bar       *rendering.RenderColorBox
-	ed        *Editor
-	Node      *focus.FocusNode
-	sched     func()
-	focused   bool
-	caretOn   bool
-	clipboard platform.Clipboard
-	blinkElapsed float64
-	dragging    bool
-	dragStart   int
-	highlights  []*rendering.RenderColorBox
-	lastClickAt time.Time
-	lastClickX  float64
-	lastClickY  float64
-	clickCount  int
-	selHas                bool
+	Viewport               *rendering.RenderViewport
+	content                *rendering.RenderBox
+	txt                    *rendering.RenderText
+	bar                    *rendering.RenderColorBox
+	ed                     *Editor
+	Node                   *focus.FocusNode
+	sched                  func()
+	focused                bool
+	caretOn                bool
+	clipboard              platform.Clipboard
+	blinkElapsed           float64
+	dragging               bool
+	dragStart              int
+	highlights             []*rendering.RenderColorBox
+	lastClickAt            time.Time
+	lastClickX             float64
+	lastClickY             float64
+	clickCount             int
+	selHas                 bool
 	selR, selG, selB, selA float64
-	padHas                bool
-	pad                   float64
-	dragLastX             float64
-	dragLastY             float64
-	autoScrollRunning     bool
+	padHas                 bool
+	pad                    float64
+	dragLastX              float64
+	dragLastY              float64
+	autoScrollRunning      bool
 }
 
 func (b *ViewportInputBox) SetPlaceholder(s string) {
@@ -208,7 +208,7 @@ func (b *ViewportInputBox) ClearPadding() {
 }
 func (b *ViewportInputBox) Padding() float64 { return resolvePad(b.padHas, b.pad) }
 
-func (b *ViewportInputBox) IsFocused() bool                         { return b != nil && b.focused }
+func (b *ViewportInputBox) IsFocused() bool { return b != nil && b.focused }
 func (b *ViewportInputBox) ScrollX() float64 {
 	if b == nil || b.Viewport == nil {
 		return 0
@@ -221,11 +221,11 @@ func (b *ViewportInputBox) ScrollY() float64 {
 	}
 	return b.Viewport.ScrollOffset().Y
 }
-func (b *ViewportInputBox) SetClipboard(c platform.Clipboard)       { b.clipboard = c }
-func (b *ViewportInputBox) Clipboard() platform.Clipboard           { return b.clipboard }
-func (b *ViewportInputBox) SetSchedule(fn func())                   { b.sched = fn }
-func (b *ViewportInputBox) FocusNode() *focus.FocusNode             { return b.Node }
-func (b *ViewportInputBox) Editor() *Editor                         { return b.ed }
+func (b *ViewportInputBox) SetClipboard(c platform.Clipboard) { b.clipboard = c }
+func (b *ViewportInputBox) Clipboard() platform.Clipboard     { return b.clipboard }
+func (b *ViewportInputBox) SetSchedule(fn func())             { b.sched = fn }
+func (b *ViewportInputBox) FocusNode() *focus.FocusNode       { return b.Node }
+func (b *ViewportInputBox) Editor() *Editor                   { return b.ed }
 func (b *ViewportInputBox) ContentPurpose() platform.ContentPurpose {
 	if b != nil && b.BaseEditable != nil {
 		return b.BaseEditable.ContentType().Purpose
@@ -406,7 +406,7 @@ func (b *ViewportInputBox) sync() {
 		runes := []rune(b.ed.GetText())
 		runeIdx := 0
 		for i := range b.ed.GetText()[:viewportMin(curByte, len(b.ed.GetText()))] {
-			if (b.ed.GetText()[i]&0xC0) != 0x80 {
+			if (b.ed.GetText()[i] & 0xC0) != 0x80 {
 				runeIdx++
 			}
 		}

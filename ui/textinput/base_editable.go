@@ -18,7 +18,12 @@ type BaseEditable struct {
 func NewBaseEditable(ed *Editor) *BaseEditable { return &BaseEditable{ed: ed} }
 
 // Editor 返回编辑状态。
-func (b *BaseEditable) Editor() *Editor { if b == nil { return nil }; return b.ed }
+func (b *BaseEditable) Editor() *Editor {
+	if b == nil {
+		return nil
+	}
+	return b.ed
+}
 
 // ContentType 返回输入法类型（可配置，默认 Normal，B13）。
 func (b *BaseEditable) ContentType() platform.ContentType {
@@ -56,10 +61,19 @@ func (b *BaseEditable) DrawPreedit(pc *rendering.PaintContext, text string, comp
 }
 
 // SetPlaceholder 设置占位 hint（空+未聚焦才显，不进缓冲）。
-func (b *BaseEditable) SetPlaceholder(s string) { if b != nil { b.placeholder = s } }
+func (b *BaseEditable) SetPlaceholder(s string) {
+	if b != nil {
+		b.placeholder = s
+	}
+}
 
 // Placeholder 返回占位。
-func (b *BaseEditable) Placeholder() string { if b == nil { return "" }; return b.placeholder }
+func (b *BaseEditable) Placeholder() string {
+	if b == nil {
+		return ""
+	}
+	return b.placeholder
+}
 
 // SetDisabled 设置禁用态（样式置灰，编辑仍由 Editor.readOnly 控制）。
 func (b *BaseEditable) SetDisabled(v bool) {
@@ -73,4 +87,9 @@ func (b *BaseEditable) SetDisabled(v bool) {
 }
 
 // Disabled 返回禁用态。
-func (b *BaseEditable) Disabled() bool { if b == nil { return false }; return b.disabled }
+func (b *BaseEditable) Disabled() bool {
+	if b == nil {
+		return false
+	}
+	return b.disabled
+}

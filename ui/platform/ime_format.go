@@ -28,6 +28,17 @@ const (
 
 	ibusTextName     = "IBusText"
 	ibusAttrListName = "IBusAttrList"
+	ibusAttrName     = "IBusAttribute"
+)
+
+// ImeSegment.Attr 取值（与 IBus 属性类型对应，见 docs §15 B21）。
+const (
+	ImeAttrUnderline = 1 // 下划线（IBus ATTR_UNDERLINE 单线；前景色属性亦归入此值）
+	ImeAttrDouble    = 2 // 双下划线（ATTR_UNDERLINE + UNDERLINE_DOUBLE）
+	ImeAttrSelected  = 3 // 背景反显（ATTR_BACKGROUND，候选选中态）
+	// ImeAttrHighlight 是无属性时的整段默认样式，与单下划线同值：
+	// singleSegment 产出该值，故「属性被丢弃、退化为单段」的检测以此为判据。
+	ImeAttrHighlight = ImeAttrUnderline
 )
 
 type ibusAttr struct {
@@ -75,6 +86,134 @@ func attrToSegment(a ibusAttr, textLen int) (ImeSegment, bool) {
 	return ImeSegment{Start: start, End: end, Attr: attr}, true
 }
 
+// ibusAttrListWire 是 IBusAttrList 的线上结构 (sa{sv}av)。
+// godbus 把 (sa{sv}av) 的 variant 解成具名 struct（非 []interface{}），故按结构体直取。
+type ibusAttrListWire struct {
+	Name  string
+	Props map[string]dbus.Variant
+	Attrs []dbus.Variant
+}
+
+// ibusAttrWire 是单条 IBusAttribute 的线上结构 (sa{sv}uuuu)。
+type ibusAttrWire struct {
+	Name  string
+	Props map[string]dbus.Variant
+	Type  uint32
+	Value uint32
+	Start uint32
+	End   uint32
+}
+
+// parseIBusAttrList 解析线上真实格式的 AttrList：
+// (sa{sv}av) ["IBusAttrList", {}, [<(sa{sv}uuuu) ["IBusAttribute", {}, type, value, start, end]>, ...]]
+// 实测 fcitx5/ibus 均按此结构下发（见 docs/ENGINE_TEXT_X11_IME_REQUIREMENT.md §15 B21）。
+func parseIBusAttrList(v dbus.Variant, textLen int) []ImeSegment {
+	if v.Signature().String() == "" {
+		return nil
+	}
+	attrs := decodeAttrList(v)
+	if len(attrs) == 0 {
+		return nil
+	}
+	segs := make([]ImeSegment, 0, len(attrs))
+	for _, ia := range attrs {
+		if seg, ok := attrToSegment(ia, textLen); ok {
+			segs = append(segs, seg)
+		}
+	}
+	return segs
+}
+
+// decodeAttrList 从 AttrList variant 取出属性条目，兼容 struct / []interface{} 两种解包形态。
+func decodeAttrList(v dbus.Variant) []ibusAttr {
+	// 形态一：godbus 直解为具名 struct（实测路径）
+	if w, ok := v.Value().(ibusAttrListWire); ok {
+		return wireToAttrs(w)
+	}
+	// 形态二：按结构体 Store
+	var w ibusAttrListWire
+	if err := dbus.Store([]interface{}{v}, &w); err == nil {
+		return wireToAttrs(w)
+	}
+	// 形态三：原始元组 []interface{}
+	if arr, ok := v.Value().([]interface{}); ok && len(arr) >= 3 {
+		if vs, ok := arr[2].([]dbus.Variant); ok {
+			attrs := make([]ibusAttr, 0, len(vs))
+			for _, av := range vs {
+				if ia, ok := decodeIBusAttr(av); ok {
+					attrs = append(attrs, ia)
+				}
+			}
+			return attrs
+		}
+	}
+	return nil
+}
+
+func wireToAttrs(w ibusAttrListWire) []ibusAttr {
+	if w.Name != ibusAttrListName && w.Name != "" {
+		return nil
+	}
+	attrs := make([]ibusAttr, 0, len(w.Attrs))
+	for _, av := range w.Attrs {
+		ia, ok := decodeIBusAttr(av)
+		if !ok {
+			continue
+		}
+		attrs = append(attrs, ia)
+	}
+	return attrs
+}
+
+// decodeIBusAttr 解单条 IBusAttribute：
+// (sa{sv}uuuu) [name, props, type, value, start, end]
+func decodeIBusAttr(v dbus.Variant) (ibusAttr, bool) {
+	// 形态一：godbus 直解为具名 struct（实测路径）
+	if w, ok := v.Value().(ibusAttrWire); ok {
+		if w.Name == ibusAttrName || w.Name == "" {
+			return ibusAttr{Type: w.Type, Value: w.Value, Start: w.Start, End: w.End}, true
+		}
+	}
+	// 形态二：按结构体 Store
+	var w ibusAttrWire
+	if err := dbus.Store([]interface{}{v}, &w); err == nil {
+		if w.Name == ibusAttrName || w.Name == "" {
+			return ibusAttr{Type: w.Type, Value: w.Value, Start: w.Start, End: w.End}, true
+		}
+	}
+	// 形态三：原始元组 []interface{}
+	arr, ok := v.Value().([]interface{})
+	if !ok || len(arr) < 6 {
+		return ibusAttr{}, false
+	}
+	name, _ := arr[0].(string)
+	if name != ibusAttrName && name != "" {
+		return ibusAttr{}, false
+	}
+	readU := func(i int) (uint32, bool) {
+		switch x := arr[i].(type) {
+		case uint32:
+			return x, true
+		case uint:
+			return uint32(x), true
+		case int32:
+			if x < 0 {
+				return 0, false
+			}
+			return uint32(x), true
+		}
+		return 0, false
+	}
+	tp, ok1 := readU(2)
+	val, ok2 := readU(3)
+	st, ok3 := readU(4)
+	en, ok4 := readU(5)
+	if !ok1 || !ok2 || !ok3 || !ok4 {
+		return ibusAttr{}, false
+	}
+	return ibusAttr{Type: tp, Value: val, Start: st, End: en}, true
+}
+
 func singleSegment(text string) []ImeSegment {
 	if text == "" {
 		return nil
@@ -111,6 +250,10 @@ func parseIBusText(v dbus.Variant) (string, []ImeSegment) {
 	var full ibusFullPayload
 	if err := dbus.Store([]interface{}{v}, &full); err == nil && full.Text != "" {
 		if full.Name == ibusTextName || full.Name == "" {
+			// 线上真实格式走这里：Attrs 是 (sa{sv}av) 的 IBusAttrList variant。
+			if segs := parseIBusAttrList(full.Attrs, len(full.Text)); len(segs) > 0 {
+				return full.Text, segs
+			}
 			return full.Text, singleSegment(full.Text)
 		}
 	}

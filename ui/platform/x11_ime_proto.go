@@ -100,7 +100,6 @@ type x11ImeEngine interface {
 }
 
 type ibusEngine struct{}
-type fcitxEngine struct{}
 
 var x11Engines = map[string]x11ImeEngine{
 	"ibus":   &ibusEngine{},

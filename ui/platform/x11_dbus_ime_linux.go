@@ -100,45 +100,17 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 	}
 	x11ImesMu.Unlock()
 
-	type pendingDestroy struct {
-		eng string
-		obj dbus.ObjectPath
-		c   *dbus.Conn
-	}
-	var toDestroy []pendingDestroy
-	var toFocusOut []*x11Ime
 	for _, im := range imes {
 		im.mu.Lock()
 		if oldOwner != "" && newOwner == "" {
-			x11ImeDebug("NameOwnerChanged %s %q->%q imeDirty=true FocusOut", name, oldOwner, newOwner)
+			// B22：守护消失时【不销毁 IC、不清空 objectPath、不发 FocusOut】。
+			// 实测：Destroy 后重建 IC 会让 fcitx5 状态回落到 keyboard-us（英文），
+			// 表现为「切回程序任务栏显示英文、但还能输五笔」。保持 IC 存活则状态不丢。
+			// 守护真死时，旧 IC 会在 Close 或重探成功替换时销毁，不会泄漏。
+			x11ImeDebug("NameOwnerChanged %s %q->%q imeDirty=true (keep IC, no FocusOut)", name, oldOwner, newOwner)
 			im.imeDirty = true
-			wasFocused := im.focused
-			im.focused = false
 			im.composing = false
-			oldObj := im.objectPath
-			oldEng := im.engine
-			oldConn := im.conn
-			im.objectPath = ""
-			im.engine = ""
-			if oldObj != "" {
-				toDestroy = append(toDestroy, pendingDestroy{eng: oldEng, obj: oldObj, c: oldConn})
-			}
-			// stop old signal loop tied to dead daemon
-			ch := im.sigCh
-			stop := im.sigStop
-			im.sigCh = nil
-			im.sigStop = nil
 			im.mu.Unlock()
-			if ch != nil && oldConn != nil {
-				oldConn.RemoveSignal(ch)
-				close(ch)
-			}
-			if stop != nil {
-				close(stop)
-			}
-			if wasFocused {
-				toFocusOut = append(toFocusOut, im)
-			}
 		} else if oldOwner == "" && newOwner != "" {
 			x11ImeDebug("NameOwnerChanged %s %q->%q imeDirty=true", name, oldOwner, newOwner)
 			im.imeDirty = true
@@ -146,26 +118,6 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 		} else {
 			im.mu.Unlock()
 		}
-	}
-	for _, d := range toDestroy {
-		// Best-effort destroy on old conn (may already be dead, log anyway)
-		if d.c != nil && d.obj != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-			if d.eng == "ibus" {
-				o := d.c.Object(dbusServiceIBus, d.obj)
-				_ = o.CallWithContext(ctx, dbusIfaceIBusCtx+".Destroy", 0).Err
-			} else {
-				for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
-					o := d.c.Object(svc, d.obj)
-					_ = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".DestroyIC", 0).Err
-				}
-			}
-			cancel()
-			x11ImeDebug("destroy leaked ctx %s engine=%s on daemon gone", d.obj, d.eng)
-		}
-	}
-	for _, im := range toFocusOut {
-		im.callFocusOut()
 	}
 }
 
@@ -390,6 +342,21 @@ func imeForX11(h *x11Host) IME {
 	return im
 }
 
+// daemonAlive 报告当前引擎对应的守护是否仍在总线上拥有名字。
+// B22：用于区分「名字抖动」（守护还在，复用 IC）与「守护真死」（需重建）。
+func (im *x11Ime) daemonAlive() bool {
+	if im == nil || im.conn == nil {
+		return false
+	}
+	names := []string{dbusServiceIBus, dbusServiceFcitx5, dbusServiceFcitx}
+	for _, n := range names {
+		if has, err := dbusHasOwner(im.conn, n); err == nil && has {
+			return true
+		}
+	}
+	return false
+}
+
 // ensureReprobe 懒重探，脏标记或无对象时按 S2 顺序同步重探
 func (im *x11Ime) ensureReprobe() {
 	if im == nil {
@@ -405,6 +372,18 @@ func (im *x11Ime) ensureReprobe() {
 	im.mu.Unlock()
 	if !need {
 		return
+	}
+	// B22：已有对象且是「脏标记」触发（守护抖动）而非「无对象」时，
+	// 先确认守护是否真的还在。守护还在就说明只是名字抖了一下，
+	// 直接复用现有 IC 清脏即可——重建 IC 会让输入法状态回落英文。
+	if im.ObjectPath() != "" && im.imeDirty {
+		if im.daemonAlive() {
+			im.mu.Lock()
+			im.imeDirty = false
+			im.mu.Unlock()
+			x11ImeDebug("lazy reprobe skipped: daemon alive, reuse IC %s (keep IME state)", im.ObjectPath())
+			return
+		}
 	}
 	x11ImeDebug("lazy reprobe triggered dirty=%v path=%q", im.imeDirty, im.ObjectPath())
 	order := x11ProbeOrder()
@@ -1399,64 +1378,21 @@ func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress boo
 	obj := im.ObjectPath()
 	conn := im.conn
 	host := im.host
+	// 引擎实现：异步路径与同步路径共用同一协议选择（含 fcitx5 的 IBus 兼容模式），
+	// 避免两处签名漂移导致按键被误判为未消费。
+	engImpl := im.engineImpl
+	if engImpl == nil {
+		engImpl = x11EngineForName(eng)
+	}
 	// 异步发 D-Bus，不卡事件泵；回包在 goroutine 回调决定塞不塞
 	go func() {
 		var handled bool
 		var err error
-		if eng == "ibus" {
-			o := conn.Object(dbusServiceIBus, obj)
-			ch := make(chan *dbus.Call, 1)
-			call := o.Go(dbusIfaceIBusCtx+".ProcessKeyEvent", 0, ch, uint32(keysym), uint32(keycode), uint32(state))
-			c := <-call.Done
-			err = c.Err
-			if err == nil {
-				if e := c.Store(&handled); e != nil {
-					err = e
-				}
-			}
-			if err != nil {
-				ch2 := make(chan *dbus.Call, 1)
-				call2 := o.Go("ProcessKeyEvent", 0, ch2, uint32(keysym), uint32(keycode), uint32(state))
-				c2 := <-call2.Done
-				err = c2.Err
-				if err == nil {
-					_ = c2.Store(&handled)
-				}
-			}
-				x11ImeDebug("ibus ProcessKeyEventAsync uuu (%#x,%d,%d)->%v err=%v", keysym, keycode, state, handled, err)
+		if engImpl != nil {
+			handled, err = engImpl.ProcessKeyEvent(conn, obj, keysym, keycode, state, xTime, isPress)
+			x11ImeDebug("ProcessKeyEventAsync %s (%#x,%d,%d)->%v err=%v", eng, keysym, keycode, state, handled, err)
 		} else {
-			o := conn.Object(dbusServiceFcitx5, obj)
-			t := xTime
-			if t == 0 {
-				t = uint32(time.Now().UnixNano() / 1e6 & 0xffffffff)
-			}
-			isRelease := !isPress
-			ch := make(chan *dbus.Call, 1)
-			call := o.Go(dbusIfaceFcitxIM+".ProcessKeyEvent", 0, ch, uint32(keysym), uint32(keycode), uint32(state), t, isRelease)
-			c := <-call.Done
-			err = c.Err
-			if err == nil {
-				_ = c.Store(&handled)
-			}
-			if err != nil {
-				ch2 := make(chan *dbus.Call, 1)
-				call2 := o.Go("ProcessKeyEvent", 0, ch2, uint32(keysym), uint32(keycode), uint32(state), t, isRelease)
-				c2 := <-call2.Done
-				err = c2.Err
-				if err == nil {
-					_ = c2.Store(&handled)
-				}
-				if err != nil {
-					ch3 := make(chan *dbus.Call, 1)
-					call3 := o.Go("ProcessKeyEvent", 0, ch3, uint32(keysym), uint32(keycode), uint32(state))
-					c3 := <-call3.Done
-					err = c3.Err
-					if err == nil {
-						_ = c3.Store(&handled)
-					}
-				}
-			}
-			x11ImeDebug("fcitx ProcessKeyEventAsync uuuub (%#x,%d,%d,%d,%v)->%v err=%v", keysym, keycode, state, t, isRelease, handled, err)
+			err = fmt.Errorf("no engine")
 		}
 		// 窗口已关则丢弃 pending，避免向 dead host  push 泄漏
 		im.mu.Lock()

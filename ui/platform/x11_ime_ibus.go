@@ -75,17 +75,11 @@ func x11ResolveIbusAddressFromDir(dir string) (string, error) {
 		if !hasAddr || addr == "" {
 			continue
 		}
-		// 跳污染：地址或文件内容含 fcitx
-		if strings.Contains(strings.ToLower(addr), "fcitx") {
-			x11ImeDebug("ibus bus skip polluted addr %q file %s", addr, p)
-			continue
-		}
-		// 也检查文件原始内容是否含 fcitx_random_string
-		if x11FileContainsFcitx(p) {
-			x11ImeDebug("ibus bus skip fcitx file %s", p)
-			continue
-		}
-		// 验 PID 存活
+		// 验 PID 存活（真正的失效判据）。
+		// 注意：不得按「地址/内容含 fcitx」过滤——fcitx5 运行 ibusfrontend 时会以
+		// IBUS_DAEMON_PID=<自身 PID> 往此目录写合法条目，地址尾巴带
+		// fcitx_random_string。按字样过滤会把它当成"污染"误杀，导致本机
+		// （GTK_IM_MODULE=ibus 但实际守护是 fcitx5）候选归零、IME 降级为 nil。
 		if pid != "" && !x11PidAlive(pid) {
 			x11ImeDebug("ibus bus skip dead pid %s file %s addr %q", pid, p, addr)
 			continue
@@ -122,15 +116,6 @@ func x11ParseIbusBusFile(path string) (addr, pid string, hasAddr bool) {
 		}
 	}
 	return addr, pid, hasAddr
-}
-
-func x11FileContainsFcitx(path string) bool {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	s := strings.ToLower(string(b))
-	return strings.Contains(s, "fcitx")
 }
 
 func x11PidAlive(pidStr string) bool {

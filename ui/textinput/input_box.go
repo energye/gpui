@@ -19,20 +19,20 @@ import (
 type InputBox struct {
 	*rendering.RenderBox
 	*BaseEditable
-	ed        *Editor
-	txt       *rendering.RenderText
-	bar       *rendering.RenderColorBox
-	clip      *rendering.RenderClipRRect
-	Node      *focus.FocusNode
-	sched     func()
-	focused   bool
-	caretOn   bool
-	scrollX   float64
-	clipboard platform.Clipboard
-	selHas                bool
+	ed                     *Editor
+	txt                    *rendering.RenderText
+	bar                    *rendering.RenderColorBox
+	clip                   *rendering.RenderClipRRect
+	Node                   *focus.FocusNode
+	sched                  func()
+	focused                bool
+	caretOn                bool
+	scrollX                float64
+	clipboard              platform.Clipboard
+	selHas                 bool
 	selR, selG, selB, selA float64
-	padHas                bool
-	pad                   float64
+	padHas                 bool
+	pad                    float64
 	// R4: double/triple click and drag
 	lastClickAt time.Time
 	lastClickX  float64
@@ -42,10 +42,10 @@ type InputBox struct {
 	dragStart   int // utf16 offset at drag start
 	highlights  []*rendering.RenderColorBox
 	// 严格对齐 Flutter 闪烁：~500ms 周期，编辑/获焦后重置为常亮
-	blinkElapsed float64
-	dragLastX             float64
-	dragLastY             float64
-	autoScrollRunning     bool
+	blinkElapsed      float64
+	dragLastX         float64
+	dragLastY         float64
+	autoScrollRunning bool
 }
 
 func (b *InputBox) SetPlaceholder(s string) {
@@ -109,7 +109,9 @@ func (b *InputBox) ClearSelectionColor() {
 	b.selHas = false
 	b.MarkNeedsPaint()
 }
-func (b *InputBox) SelectionColor() (r, g, b2, a float64) { return resolveSelColor(b.selHas, b.selR, b.selG, b.selB, b.selA) }
+func (b *InputBox) SelectionColor() (r, g, b2, a float64) {
+	return resolveSelColor(b.selHas, b.selR, b.selG, b.selB, b.selA)
+}
 func (b *InputBox) SetPadding(pad float64) {
 	if b == nil {
 		return
@@ -211,10 +213,10 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	}
 	inner := rendering.NewRenderBox()
 	b := &InputBox{
-		RenderBox:   inner,
+		RenderBox:    inner,
 		BaseEditable: NewBaseEditable(ed),
-		ed:          ed,
-		txt:         rendering.NewRenderText(""),
+		ed:           ed,
+		txt:          rendering.NewRenderText(""),
 	}
 	inner.Init(b)
 	// Flutter RenderEditable is both RelayoutBoundary and RepaintBoundary:
@@ -286,7 +288,7 @@ func (b *InputBox) SetFace(face text.Face) {
 
 // SetClipboard sets the platform clipboard.
 func (b *InputBox) SetClipboard(c platform.Clipboard) { b.clipboard = c }
-func (b *InputBox) Clipboard() platform.Clipboard { return b.clipboard }
+func (b *InputBox) Clipboard() platform.Clipboard     { return b.clipboard }
 
 // SetSchedule sets the frame scheduler (PipelineApp.ScheduleFrame).
 func (b *InputBox) SetSchedule(fn func()) { b.sched = fn }
@@ -458,7 +460,7 @@ func (b *InputBox) sync() {
 		runes := []rune(b.ed.GetText())
 		runeIdx := 0
 		for i := range b.ed.GetText()[:min(curByte, len(b.ed.GetText()))] {
-			if (b.ed.GetText()[i]&0xC0) != 0x80 {
+			if (b.ed.GetText()[i] & 0xC0) != 0x80 {
 				runeIdx++
 			}
 		}
@@ -1286,34 +1288,34 @@ func (b *InputBox) OnIME(ev input.IMEEvent) {
 type MultiLineInputBox struct {
 	*rendering.RenderBox
 	*BaseEditable
-	ed        *Editor
-	txt       *rendering.RenderText
-	bar       *rendering.RenderColorBox
-	clip      *rendering.RenderClipRRect
-	Node      *focus.FocusNode
-	sched     func()
-	focused   bool
-	caretOn   bool
-	scrollX   float64
-	scrollY   float64
-	clipboard platform.Clipboard
-	selHas                bool
+	ed                     *Editor
+	txt                    *rendering.RenderText
+	bar                    *rendering.RenderColorBox
+	clip                   *rendering.RenderClipRRect
+	Node                   *focus.FocusNode
+	sched                  func()
+	focused                bool
+	caretOn                bool
+	scrollX                float64
+	scrollY                float64
+	clipboard              platform.Clipboard
+	selHas                 bool
 	selR, selG, selB, selA float64
-	padHas                bool
-	pad                   float64
-	lastClickAt time.Time
-	lastClickX  float64
-	lastClickY  float64
-	clickCount  int
-	dragging    bool
-	dragStart   int
-	highlights  []*rendering.RenderColorBox
-	blinkElapsed         float64
-	dragLastX            float64
-	dragLastY            float64
-	autoScrollRunning    bool
-	wrap                 bool
-	wrapMode             text.WrapMode
+	padHas                 bool
+	pad                    float64
+	lastClickAt            time.Time
+	lastClickX             float64
+	lastClickY             float64
+	clickCount             int
+	dragging               bool
+	dragStart              int
+	highlights             []*rendering.RenderColorBox
+	blinkElapsed           float64
+	dragLastX              float64
+	dragLastY              float64
+	autoScrollRunning      bool
+	wrap                   bool
+	wrapMode               text.WrapMode
 }
 
 func (b *MultiLineInputBox) SetPadding(pad float64) {

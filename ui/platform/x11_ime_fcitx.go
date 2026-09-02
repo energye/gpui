@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -87,18 +88,60 @@ func (e *fcitxEngine) CreateInputContext(conn *dbus.Conn, timeout time.Duration)
 		err := obj.CallWithContext(ctx, t.iface+".CreateInputContext", dbus.FlagNoAutoStart, appName, appID).Store(&path)
 		cancel()
 		if err == nil && path != "" {
+			e.setCompat(false)
 			return path, nil
 		}
 		if err != nil {
 			x11ImeDebug("fcitx %s failed: %v", t.service, err)
 		}
 	}
-	return "", fmt.Errorf("fcitx CreateInputContext all failed")
+	// 原生 /org/fcitx/Fcitx5/InputMethod 不存在（fcitx5 未装 dbusfrontend）时的回落：
+	// fcitx5 装 ibusfrontend 会在同一条会话总线上挂 /org/freedesktop/IBus 兼容节点，
+	// 说的就是 ibus 话。这仍是 fcitx5 自家入口，不跨到别的输入法。
+	return e.createInputContextViaIBus(conn, timeout)
+}
+
+// createInputContextViaIBus 经 fcitx5 提供的 IBus 兼容节点建上下文并置兼容模式。
+func (e *fcitxEngine) createInputContextViaIBus(conn *dbus.Conn, timeout time.Duration) (dbus.ObjectPath, error) {
+	has, err := dbusHasOwner(conn, dbusServiceIBus)
+	if err != nil || !has {
+		return "", fmt.Errorf("fcitx ibus compat node unavailable: hasOwner=%v err=%v", has, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	clientName := x11ClientName()
+	x11ImeDebug("fcitx fallback ibus compat CreateInputContext(s) client_name=%q", clientName)
+	var path dbus.ObjectPath
+	err = conn.Object(dbusServiceIBus, dbus.ObjectPath(dbusPathIBusBus)).
+		CallWithContext(ctx, dbusIfaceIBus+".CreateInputContext", dbus.FlagNoAutoStart, clientName).Store(&path)
+	if err != nil || path == "" {
+		if err == nil {
+			err = fmt.Errorf("empty path")
+		}
+		x11ImeDebug("fcitx ibus compat CreateInputContext failed: %v", err)
+		return "", err
+	}
+	e.setCompat(true)
+	x11ImeDebug("fcitx ibus compat CreateInputContext ok %s (compat mode)", path)
+	return path, nil
+}
+
+// compat 为真表示当前 IC 由 fcitx5 的 IBus 兼容节点提供，须按 ibus 协议调用。
+type fcitxEngine struct{ compat atomic.Bool }
+
+func (e *fcitxEngine) isCompat() bool { return e.compat.Load() }
+func (e *fcitxEngine) setCompat(v bool) {
+	e.compat.Store(v)
+	x11ImeDebug("fcitx compat mode = %v", v)
 }
 
 func (e *fcitxEngine) SetCapabilities(conn *dbus.Conn, obj dbus.ObjectPath, caps uint32) error {
 	if conn == nil {
 		return fmt.Errorf("nil conn")
+	}
+	// 兼容模式下 IC 由 fcitx5 的 IBus 节点提供，按 ibus 协议 SetCapabilities。
+	if e.isCompat() {
+		return (&ibusEngine{}).SetCapabilities(conn, obj, ibusCaps)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -125,6 +168,9 @@ func (e *fcitxEngine) Destroy(conn *dbus.Conn, obj dbus.ObjectPath) error {
 	if conn == nil || obj == "" {
 		return nil
 	}
+	if e.isCompat() {
+		return (&ibusEngine{}).Destroy(conn, obj)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
@@ -139,6 +185,9 @@ func (e *fcitxEngine) Destroy(conn *dbus.Conn, obj dbus.ObjectPath) error {
 func (e *fcitxEngine) FocusIn(conn *dbus.Conn, obj dbus.ObjectPath) error {
 	if conn == nil || obj == "" {
 		return nil
+	}
+	if e.isCompat() {
+		return (&ibusEngine{}).FocusIn(conn, obj)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
@@ -160,6 +209,9 @@ func (e *fcitxEngine) FocusOut(conn *dbus.Conn, obj dbus.ObjectPath) error {
 	if conn == nil || obj == "" {
 		return nil
 	}
+	if e.isCompat() {
+		return (&ibusEngine{}).FocusOut(conn, obj)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx, "org.fcitx.Fcitx-0"} {
@@ -175,6 +227,9 @@ func (e *fcitxEngine) FocusOut(conn *dbus.Conn, obj dbus.ObjectPath) error {
 func (e *fcitxEngine) SetCursorLocation(conn *dbus.Conn, obj dbus.ObjectPath, x, y, w, h int) error {
 	if conn == nil || obj == "" {
 		return nil
+	}
+	if e.isCompat() {
+		return (&ibusEngine{}).SetCursorLocation(conn, obj, x, y, w, h)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
@@ -201,6 +256,9 @@ func (e *fcitxEngine) SetSurroundingText(conn *dbus.Conn, obj dbus.ObjectPath, t
 	if conn == nil || obj == "" {
 		return nil
 	}
+	if e.isCompat() {
+		return (&ibusEngine{}).SetSurroundingText(conn, obj, text, cursor, anchor)
+	}
 	t, c, a := x11TruncateSurrounding(text, cursor, anchor)
 	x11ImeDebug("SetSurroundingText len=%d->%d cursor=%d->%d anchor=%d->%d", len(text), len(t), cursor, c, anchor, a)
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -224,6 +282,9 @@ func (e *fcitxEngine) SetContentType(conn *dbus.Conn, obj dbus.ObjectPath, purpo
 	if conn == nil || obj == "" {
 		return nil
 	}
+	if e.isCompat() {
+		return (&ibusEngine{}).SetContentType(conn, obj, purpose)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
@@ -244,6 +305,12 @@ func (e *fcitxEngine) SetContentType(conn *dbus.Conn, obj dbus.ObjectPath, purpo
 func (e *fcitxEngine) ProcessKeyEvent(conn *dbus.Conn, obj dbus.ObjectPath, keysym, keycode, state, xTime uint32, isPress bool) (bool, error) {
 	if conn == nil || obj == "" {
 		return false, fmt.Errorf("nil conn")
+	}
+	// 兼容模式下 IC 由 fcitx5 的 IBus 节点提供，只接受 ibus 的 uuu 三参签名；
+	// 发 uuuub 会被拒（Invalid arguments），按键被误判为"未消费"而放行，
+	// 直接导致 Ctrl+Space 切换失效。
+	if e.isCompat() {
+		return (&ibusEngine{}).ProcessKeyEvent(conn, obj, keysym, keycode, state, xTime, isPress)
 	}
 	t := xTime
 	if t == 0 {
