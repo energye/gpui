@@ -66,6 +66,13 @@ func resetFcitxSessionForTest() {
 func (e *fcitxEngine) Name() string { return "fcitx5" }
 func (e *fcitxEngine) Caps() uint32 { return fcitxCaps }
 
+// Bus fcitx5 走会话总线，地址来自 DBUS_SESSION_BUS_ADDRESS，与输入法切换无关
+// （守护换人不会改会话总线地址），故 force 时仍复用同一条连接——只需重建输入
+// 上下文，不必重拨。这与 ibus 的私有总线形成对比，是两者在热切时的关键差异。
+func (e *fcitxEngine) Bus(force bool) (*dbus.Conn, error) {
+	return sharedFcitxConn()
+}
+
 func (e *fcitxEngine) CreateInputContext(conn *dbus.Conn, timeout time.Duration) (dbus.ObjectPath, error) {
 	if conn == nil {
 		return "", fmt.Errorf("nil conn")

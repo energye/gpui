@@ -22,10 +22,11 @@ import (
 // 私有地址来自 ~/.config/ibus/bus/* 的 IBUS_ADDRESS，验 PID、跳 fcitx 污染，dialIbusPrivate 单例复用
 
 var (
-	x11IbusMu   sync.Mutex
-	x11IbusConn *dbus.Conn
-	x11IbusErr  error
-	x11IbusOnce sync.Once
+	x11IbusMu      sync.Mutex
+	x11IbusConn    *dbus.Conn
+	x11IbusErr     error
+	x11IbusDialing bool // 单飞标记：保证并发只拨一条
+	x11IbusCond    = sync.NewCond(&x11IbusMu)
 )
 
 // x11ResolveIbusAddress 读 ~/.config/ibus/bus/* → IBUS_ADDRESS
@@ -134,43 +135,111 @@ func x11PidAlive(pidStr string) bool {
 	return false
 }
 
-// dialIbusPrivate 私有总线拨号，单例复用，多窗口连接数恒为 1
-func dialIbusPrivate() (*dbus.Conn, error) {
-	x11IbusOnce.Do(func() {
-		addr, err := x11ResolveIbusAddress()
-		if err != nil {
-			x11ImeDebug("ibus private no addr: %v", err)
-			x11IbusErr = err
-			return
-		}
-		x11ImeDebug("ibus private dial addr=%q", addr)
-		c, err := dialWithTimeout(addr, 800)
-		if err != nil {
-			x11ImeDebug("ibus private dial failed: %v", err)
-			x11IbusErr = err
-			return
-		}
-		x11ImeDebug("ibus private dial ok addr=%q", addr)
-		// 私有/回退总线订阅 NameOwnerChanged（与会话总线一致）及 ibus 信号
-		for _, rule := range dbusMatchRules {
-			ctx2, cancel2 := context.WithTimeout(context.Background(), 500*time.Millisecond)
-			err := c.BusObject().CallWithContext(ctx2, dbusServiceDBus+".AddMatch", 0, rule).Err
-			cancel2()
-			if err != nil {
-				x11ImeDebug("ibus AddMatch %q note: %v", rule, err)
-			} else {
-				x11ImeDebug("ibus AddMatch %q ok", rule)
-			}
-		}
-		x11IbusMu.Lock()
-		x11IbusConn = c
-		x11IbusMu.Unlock()
-		go x11GlobalNameOwnerLoop(c)
-		go x11BusWatchLoop(c)
-	})
+// dialIbusPrivate 私有总线拨号。
+//
+// 与旧实现的关键差别：旧版用 sync.Once，**成败都永久缓存**，导致用户把输入法
+// 换成真 ibus-daemon 后（地址文件被新守护改写、总线地址整个变了）程序仍抱着
+// 启动时那条连接不放，输入上下文建不出来，只能重启进程。
+//
+// 现在改为「可失效的缓存 + 单飞」：
+//   - 命中缓存且连接仍健康 → 直接复用，多窗口连接数恒为 1（S1 纪律不变）；
+//   - force=true（已确认换了框架）→ 作废缓存重新解析地址并拨号；
+//   - 单飞保证并发调用只拨一条，不会因多窗口同时重探而连接数爆炸。
+func dialIbusPrivate(force bool) (*dbus.Conn, error) {
+	var old *dbus.Conn
+
 	x11IbusMu.Lock()
-	defer x11IbusMu.Unlock()
-	return x11IbusConn, x11IbusErr
+	if !force && x11IbusConn != nil && x11IbusConn.Connected() {
+		c := x11IbusConn
+		x11IbusMu.Unlock()
+		return c, nil
+	}
+	// 失效：清掉旧连接（force 重拨，或旧连接已断）
+	if x11IbusConn != nil {
+		old = x11IbusConn
+		x11IbusConn = nil
+	}
+	x11IbusErr = nil
+	// 已有重拨在进行 → 不重复拨号（单飞：保证多窗口同时触发也只建一条连接）
+	if x11IbusDialing {
+		pending := x11IbusCond
+		x11IbusMu.Unlock()
+		return waitIbusDial(pending)
+	}
+	x11IbusDialing = true
+	x11IbusMu.Unlock()
+
+	c, err := dialIbusPrivateSlow()
+
+	x11IbusMu.Lock()
+	x11IbusDialing = false
+	// 仅当本次拨号仍是「最新一次」时才写回，避免并发的旧拨号覆盖新结果
+	if err == nil && c != nil {
+		x11IbusConn = c
+	} else {
+		x11IbusErr = err
+	}
+	x11IbusMu.Unlock()
+	x11IbusCond.Broadcast()
+
+	// 旧连接放到最后再关：确保上面的状态已收敛，避免窗口期拿到半死连接
+	if old != nil && old != c {
+		_ = old.Close()
+	}
+	return c, err
+}
+
+// waitIbusDial 等待并发中的那次拨号完成，共享其结果（单飞）。
+func waitIbusDial(cond *sync.Cond) (*dbus.Conn, error) {
+	// 用带超时的等待，避免拨号协程异常时永久挂住调用方
+	done := make(chan struct{})
+	var c *dbus.Conn
+	var err error
+	go func() {
+		cond.L.Lock()
+		for x11IbusDialing {
+			cond.Wait()
+		}
+		c, err = x11IbusConn, x11IbusErr
+		cond.L.Unlock()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return c, err
+	case <-time.After(2 * time.Second):
+		return nil, fmt.Errorf("ibus dial wait timeout")
+	}
+}
+
+// dialIbusPrivateSlow 真正解析地址 + 拨号 + 订阅（不含缓存与并发控制）。
+func dialIbusPrivateSlow() (*dbus.Conn, error) {
+	addr, err := x11ResolveIbusAddress()
+	if err != nil {
+		x11ImeDebug("ibus private no addr: %v", err)
+		return nil, err
+	}
+	x11ImeDebug("ibus private dial addr=%q", addr)
+	c, err := dialWithTimeout(addr, 800)
+	if err != nil {
+		x11ImeDebug("ibus private dial failed: %v", err)
+		return nil, err
+	}
+	x11ImeDebug("ibus private dial ok addr=%q", addr)
+	// 私有/回退总线订阅 NameOwnerChanged（与会话总线一致）及 ibus 信号
+	for _, rule := range dbusMatchRules {
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		err := c.BusObject().CallWithContext(ctx2, dbusServiceDBus+".AddMatch", 0, rule).Err
+		cancel2()
+		if err != nil {
+			x11ImeDebug("ibus AddMatch %q note: %v", rule, err)
+		} else {
+			x11ImeDebug("ibus AddMatch %q ok", rule)
+		}
+	}
+	go x11GlobalNameOwnerLoop(c)
+	go x11BusWatchLoop(c)
+	return c, nil
 }
 
 func dialWithTimeout(addr string, ms int) (*dbus.Conn, error) {
@@ -204,12 +273,18 @@ func resetIbusPrivateForTest() {
 	}
 	x11IbusConn = nil
 	x11IbusErr = nil
+	x11IbusDialing = false
 	x11IbusMu.Unlock()
-	x11IbusOnce = sync.Once{}
 }
 
 func (e *ibusEngine) Name() string { return "ibus" }
 func (e *ibusEngine) Caps() uint32 { return ibusCaps }
+
+// Bus ibus 走私有总线。force=true 时重新解析地址并拨号，用于「换了输入法框架」
+// 后连上新守护（总线地址本身会变，必须重拨）。
+func (e *ibusEngine) Bus(force bool) (*dbus.Conn, error) {
+	return dialIbusPrivate(force)
+}
 
 func (e *ibusEngine) CreateInputContext(conn *dbus.Conn, timeout time.Duration) (dbus.ObjectPath, error) {
 	if conn == nil {

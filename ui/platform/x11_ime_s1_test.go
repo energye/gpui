@@ -130,7 +130,7 @@ func TestX11S1BusSingleton(t *testing.T) {
 	os.Setenv("IBUS_BUS_DIR", dir)
 	defer os.Setenv("IBUS_BUS_DIR", orig)
 	resetIbusPrivateForTest()
-	_, _ = dialIbusPrivate()
+	_, _ = dialIbusPrivate(false)
 	elapsed := time.Since(start)
 	if elapsed > 500*time.Millisecond {
 		t.Fatalf("ibus dial should not block >500ms, took %v", elapsed)

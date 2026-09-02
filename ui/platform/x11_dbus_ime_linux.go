@@ -43,6 +43,11 @@ type x11Ime struct {
 	lastSegs []ImeSegment
 	// B2/B4 退避：探测全失败时记录，下次 ensureReprobe 需间隔
 	lastProbeFail time.Time
+	// 建 IC 时的总线上输入法归属快照（身份真源，见 x11ImeOwner）。
+	// 「同一个守护抖了一下」与「换了输入法框架」必须靠它区分：
+	// 前者 owner 不变，复用 IC（B22，防 fcitx5 回落英文）；
+	// 后者 owner 变了，旧 IC 挂在已消失的服务方上，必须重建。
+	icOwner x11ImeOwner
 }
 
 // 进程内单 dbus.Conn 复用（S1 核心：多窗口恒为 1 连接）。
@@ -114,6 +119,17 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 		} else if oldOwner == "" && newOwner != "" {
 			x11ImeDebug("NameOwnerChanged %s %q->%q imeDirty=true", name, oldOwner, newOwner)
 			im.imeDirty = true
+			im.mu.Unlock()
+		} else if oldOwner != "" && newOwner != "" {
+			// 过户：同一个名字从一个人手里交到另一个人手里（A 让位、B 接管）。
+			// 这正是「用户换了输入法框架」的信号形态——旧服务方已经不在了，
+			// 现有 IC 挂在它上面，必须置脏让下次输入重建。
+			//
+			// 修复前此分支落在 else 里什么都不做：过户被当成「无变化」忽略，
+			// 程序便永远感知不到用户切了输入法（B23 直接根因）。
+			x11ImeDebug("NameOwnerChanged %s %q->%q imeDirty=true (handover: framework switched)", name, oldOwner, newOwner)
+			im.imeDirty = true
+			im.composing = false
 			im.mu.Unlock()
 		} else {
 			im.mu.Unlock()
@@ -307,7 +323,7 @@ func imeForX11(h *x11Host) IME {
 	var conn *dbus.Conn
 	var err error
 	if eng == "ibus" {
-		conn, err = dialIbusPrivate()
+		conn, err = dialIbusPrivate(false)
 		if err != nil || conn == nil {
 			x11ImeDebug("imeForX11 ibus private no bus: %v", err)
 			// S1 单选：ibus 失败不 fallback fcitx，保持 nil 降级
@@ -328,8 +344,20 @@ func imeForX11(h *x11Host) IME {
 		hasFcitx5, _ := dbusHasOwner(conn, dbusServiceFcitx5)
 		hasFcitx, _ := dbusHasOwner(conn, dbusServiceFcitx)
 		if !hasFcitx5 && !hasFcitx {
-			x11ImeDebug("imeForX11 fcitx no owner degrade nil")
-			return nil
+			// 声明 fcitx 但 fcitx5 原生入口不在：实测若 IBus 名活着（典型场景是
+			// fcitx5 只装 ibusfrontend，或用户已切到 ibus），改走 IBus，
+			// 否则用户切完输入法后新建的窗口会永远降级为英文直通。
+			if hasIBus, _ := dbusHasOwner(conn, dbusServiceIBus); hasIBus {
+				x11ImeDebug("imeForX11 declared fcitx5 absent, ibus alive -> switch to ibus (framework switch aware)")
+				eng = "ibus"
+				conn2, err2 := dialIbusPrivate(false)
+				if err2 == nil && conn2 != nil {
+					conn = conn2
+				}
+			} else {
+				x11ImeDebug("imeForX11 no fcitx and no ibus owner degrade nil")
+				return nil
+			}
 		}
 		x11ImeDebug("imeForX11 fcitx session conn=%p hasFcitx5=%v hasFcitx=%v", conn, hasFcitx5, hasFcitx)
 	}
@@ -342,19 +370,93 @@ func imeForX11(h *x11Host) IME {
 	return im
 }
 
-// daemonAlive 报告当前引擎对应的守护是否仍在总线上拥有名字。
-// B22：用于区分「名字抖动」（守护还在，复用 IC）与「守护真死」（需重建）。
+// daemonAlive 报告总线上是否仍有任一输入法框架活着。
+// B22：用于区分「守护完全没了」与「守护还在」。
+//
+// 注意：本函数**不能**单独用来判断能否复用 IC。只问「还活着吗」会把
+// 「fcitx5 让位给 ibus」这类过户误判成「还在」，从而复用一个挂在已消失
+// 服务方上的 IC。能否复用必须改用 icOwnerSame() 比对归属者身份。
 func (im *x11Ime) daemonAlive() bool {
 	if im == nil || im.conn == nil {
 		return false
 	}
-	names := []string{dbusServiceIBus, dbusServiceFcitx5, dbusServiceFcitx}
-	for _, n := range names {
-		if has, err := dbusHasOwner(im.conn, n); err == nil && has {
+	return snapshotOwner(im.conn).Any()
+}
+
+// icOwnerSame 报告「当前服务方」是否仍是「建这个 IC 时的那个服务方」。
+//
+// 这是热切感知的核心判据：
+//   - 同一个人（owner 未变）→ 只是抖了一下，复用 IC 保住输入法状态（B22）。
+//   - 换了人（某个名字的 owner 从 A 变成 B，都非空）→ 真换了框架，必须重建。
+//   - 人没了（当前无任何归属）→ 见下方 connAlive 判定。
+//
+// connAlive 是「人没了」时的关键分水岭，B22 与「切输入法」在此分道：
+//   - 连接还活着、只是名字暂时没人 → 守护在重启/抖动，**复用 IC**（B22 的本意：
+//     重建会让 fcitx5 回落 keyboard-us 英文）。
+//   - 连接本身已经断了 → 那不是抖动，是「旧守护连同它监听的那条总线一起没了」。
+//     此时必须返回 false 让上层重探，否则会卡死在一条死连接上：
+//     用户切到监听在另一条总线的新守护后，程序永远连不上，只能重启。
+//     （实测：fcitx5 把 IBus 开在会话总线，真 ibus-daemon 另开 unix:abstract
+//     私有总线，旧守护一退它那条私有总线即失效。）
+func (im *x11Ime) icOwnerSame() bool {
+	if im == nil || im.conn == nil {
+		return false
+	}
+	cur := snapshotOwner(im.conn)
+	im.mu.Lock()
+	prev := im.icOwner
+	im.mu.Unlock()
+	if !cur.Any() {
+		if im.conn.Connected() {
+			// 连接还在、只是名字暂时没人：守护抖动，B22 保住 IC。
+			x11ImeDebug("icOwner: no owner but conn alive, keep IC (B22)")
 			return true
 		}
+		// 连接已断：旧守护连同它那条总线一起没了，不是抖动，须重探。
+		x11ImeDebug("icOwner: no owner and conn dead -> rebuild (daemon/bus gone, not a blip)")
+		return false
 	}
-	return false
+	if !prev.Any() {
+		// 建 IC 时没记到归属（异常路径），无从比对，保守复用。
+		x11ImeDebug("icOwner: no recorded owner, keep IC (unknown)")
+		return true
+	}
+	// 两种「变了」都要认：① 同一名字过户；② 换了框架（两个名字不重叠，
+	// 任一名字都没有 owner 变化，只能靠整体指纹比对——否则 fcitx5↔ibus 会被漏判）。
+	if x11OwnerChanged(prev, cur) || prev.frameworkIdentity() != cur.frameworkIdentity() {
+		x11ImeDebug("icOwner: framework switched prev{IBus:%s Fcitx5:%s} cur{IBus:%s Fcitx5:%s} -> rebuild",
+			prev.IBus, prev.Fcitx5, cur.IBus, cur.Fcitx5)
+		return false
+	}
+	return true
+}
+
+// destroyCurrentIC 销毁当前 IC 并清空路径，供「换了服务方」时强制重建使用。
+// 与 Close 不同：不置 closed，后续仍可重探出新 IC。
+func (im *x11Ime) destroyCurrentIC() {
+	if im == nil {
+		return
+	}
+	im.stopSignalLoop()
+	im.mu.Lock()
+	obj := im.objectPath
+	eng := im.engine
+	engImpl := im.engineImpl
+	im.objectPath = ""
+	im.engine = ""
+	im.engineImpl = nil
+	im.composing = false
+	im.icOwner = x11ImeOwner{}
+	im.mu.Unlock()
+	if obj == "" {
+		return
+	}
+	if engImpl != nil {
+		_ = engImpl.Destroy(im.conn, obj)
+	} else if e := x11EngineForName(eng); e != nil {
+		_ = e.Destroy(im.conn, obj)
+	}
+	x11ImeDebug("destroy stale IC %s (engine=%s) after framework switch", obj, eng)
 }
 
 // ensureReprobe 懒重探，脏标记或无对象时按 S2 顺序同步重探
@@ -374,59 +476,127 @@ func (im *x11Ime) ensureReprobe() {
 		return
 	}
 	// B22：已有对象且是「脏标记」触发（守护抖动）而非「无对象」时，
-	// 先确认守护是否真的还在。守护还在就说明只是名字抖了一下，
-	// 直接复用现有 IC 清脏即可——重建 IC 会让输入法状态回落英文。
+	// 先确认服务方是否还是建这个 IC 时的那一个。是同一个人就说明只是名字抖了一下，
+	// 直接复用现有 IC 清脏即可——重建 IC 会让输入法状态回落英文（B22）。
+	//
+	// 判据必须是「身份不变」而非「还活着」：只看存活会把「fcitx5 让位给 ibus」的过户
+	// 误判成抖动，从而复用一个挂在已消失服务方上的 IC，表现为切了输入法却接不上。
 	if im.ObjectPath() != "" && im.imeDirty {
-		if im.daemonAlive() {
+		if im.icOwnerSame() {
 			im.mu.Lock()
 			im.imeDirty = false
 			im.mu.Unlock()
-			x11ImeDebug("lazy reprobe skipped: daemon alive, reuse IC %s (keep IME state)", im.ObjectPath())
+			x11ImeDebug("lazy reprobe skipped: same owner, reuse IC %s (keep IME state)", im.ObjectPath())
 			return
 		}
+		// 换了服务方（或旧连接已断）：需要先重探。但**不在这里销毁旧 IC**——
+		// 高可用要求：在新 IC 真正建出来之前，旧会话必须保持可用（哪怕它可能
+		// 已经不灵）。提前销毁会让「重探失败」直接退化成完全不能输入。
+		// 旧 IC 改由重探成功后统一销毁（见下方 oldObj 处理）。
+		x11ImeDebug("lazy reprobe forced: owner/bus changed, will rebuild IC %s (keep old until new is ready)", im.ObjectPath())
 	}
 	x11ImeDebug("lazy reprobe triggered dirty=%v path=%q", im.imeDirty, im.ObjectPath())
-	order := x11ProbeOrder()
+
+	// 判定本次是否属于「换了输入法框架」：旧归属有记录、现在有人、且不是同一个人。
+	// 这一步决定是否强制重拨总线——ibus 换守护后总线地址会变，不重拨连不上。
+	im.mu.Lock()
+	prevOwner := im.icOwner
+	im.mu.Unlock()
+	// 归属须按「能看见新输入法的那条总线」来判断：程序手里的可能是条已经死了的
+	// 私有总线连接（真 ibus 一退它那条总线就没了），在死连接上查必然查不到
+	// 新出现在会话总线上的 fcitx5，于是「从 ibus 切到 fcitx5」用不了。见 x11EffectiveOwner。
+	cur, probeConn := x11EffectiveOwner(im.conn)
+	// 两种「变了」都要认：
+	//   ① 同一名字过户（A 让位给 B）—— x11OwnerChanged
+	//   ② 换了框架（原先占 A 名、现在占 B 名，两者不重叠）—— 指纹比对
+	// 只认 ① 会漏掉 fcitx5↔ibus 这类跨框架切换（两个名字互不重叠，
+	// 任一名字都没有「从 A 变 B」，于是被误判为没变）。
+	switched := prevOwner.Any() && cur.Any() &&
+		(x11OwnerChanged(prevOwner, cur) || prevOwner.frameworkIdentity() != cur.frameworkIdentity())
+	if switched {
+		x11ImeDebug("framework switch confirmed: prev{IBus:%s Fcitx5:%s} cur{IBus:%s Fcitx5:%s} -> refetch bus",
+			prevOwner.IBus, prevOwner.Fcitx5, cur.IBus, cur.Fcitx5)
+	}
+	// 探测连接：优先用能看见新输入法的那条（可能与 im.conn 不同）
+	if probeConn != nil && probeConn.Connected() && probeConn != im.conn {
+		x11ImeDebug("probe via recovered conn %p (im.conn %p unusable)", probeConn, im.conn)
+		im.mu.Lock()
+		im.conn = probeConn
+		im.mu.Unlock()
+	}
+	// 用户切换框架不会改写本进程的环境变量，故按「实测谁活着」校正目标，
+	// 否则会一直去探一个已经没了名字的框架（G4）。声明的那家还在时严格按声明走。
+	// 这里用 cur（已按 x11EffectiveOwner 修正过的合并快照）而非 im.conn 上的即时快照，
+	// 保证在「旧私有总线已死、新输入法在会话总线」时也能把目标校正过去。
+	order := x11ProbeOrderForOwnerFrom(x11ProbeOrder(), cur)
+
 	for _, engName := range order {
 		eng := x11EngineForName(engName)
 		if eng == nil {
 			continue
 		}
-		obj, err := eng.CreateInputContext(im.conn, 500*time.Millisecond)
+		// 两轮取连接（高可用）：
+		//   第一轮沿用现有连接——绝大多数情况（守护没换、只是掉线重连）走这条，
+		//   代价最低，且不会破坏 S1 的「平时单连接复用」纪律。
+		//   第二轮强制重拨——用于「换了输入法框架」：新守护可能监听在**另一条
+		//   总线地址**上（实测 fcitx5 开在会话总线、真 ibus-daemon 开在
+		//   unix:abstract 私有总线并改写 ~/.config/ibus/bus/），不重拨永远连不上。
+		// 覆盖三种触发：① 明确换了归属者；② 当前连接上已无人应答（旧守护连同
+		// 它那条总线一起没了，连归属都没法比对）；③ IC 建不出来。
+		force := switched || !cur.Any()
+		obj, conn, err := tryCreateOnBus(eng, force, 500*time.Millisecond)
+		if err != nil && !force {
+			x11ImeDebug("lazy reprobe %s failed on current bus, retry with fresh bus: %v", engName, err)
+			obj, conn, err = tryCreateOnBus(eng, true, 500*time.Millisecond)
+		}
 		if err != nil {
 			x11ImeDebug("lazy reprobe %s failed: %v", engName, err)
 			continue
 		}
-		x11ImeDebug("lazy reprobe %s ok %s", engName, obj)
-		_ = eng.SetCapabilities(im.conn, obj, eng.Caps())
+		x11ImeDebug("lazy reprobe %s ok %s (force=%v)", engName, obj, force)
+		_ = eng.SetCapabilities(conn, obj, eng.Caps())
 		im.mu.Lock()
 		if im.closed {
 			im.mu.Unlock()
-			_ = eng.Destroy(im.conn, obj)
+			_ = eng.Destroy(conn, obj)
 			return
 		}
 		oldObj := im.objectPath
 		oldEng := im.engine
 		oldImpl := im.engineImpl
+		oldConn := im.conn
 		im.engine = engName
 		im.engineImpl = eng
 		im.objectPath = obj
 		im.imeDirty = false
 		im.lastProbeFail = time.Time{}
+		im.icOwner = snapshotOwner(conn)
+		// 换框架后会拿到一条新连接（ibus 私有总线地址变了），写回本窗口。
+		// 必须在持有锁时切换，避免与按键/锚点路径读到不一致的连接。
+		if conn != oldConn {
+			im.conn = conn
+			x11ImeDebug("conn rotated %p -> %p after framework switch", oldConn, conn)
+		}
 		hasRect := im.hasRect
 		rect := im.lastRect
 		lastText := im.lastText
 		lastCursor := im.lastCursor
 		lastAnchor := im.lastAnchor
 		im.mu.Unlock()
+		// 旧 IC 挂在旧连接上，必须用旧连接销毁，否则销毁发到新总线上无效、泄漏。
 		if oldObj != "" && oldObj != obj {
 			if oldImpl != nil {
-				_ = oldImpl.Destroy(im.conn, oldObj)
+				_ = oldImpl.Destroy(oldConn, oldObj)
 			} else if oldEng != "" {
-				if e := x11EngineForName(oldEng); e != nil {
-					_ = e.Destroy(im.conn, oldObj)
+				if e := x11EngineForName(oldEng); e != nil && oldConn != nil {
+					_ = e.Destroy(oldConn, oldObj)
 				}
 			}
+		}
+		// 多窗口高可用：把新连接传播给同进程的其他窗口，否则它们仍抱着旧连接，
+		// 表现为「切完输入法只有当前窗口能用，其他窗口还是不行」。
+		if (switched || !cur.Any()) && conn != oldConn {
+			x11PropagateConn(oldConn, conn)
 		}
 		x11ImeDebug("lazy reprobe success engine=%s path=%s", engName, obj)
 		im.callFocusIn()
@@ -441,9 +611,50 @@ func (im *x11Ime) ensureReprobe() {
 	}
 	x11ImeDebug("lazy reprobe all failed")
 	im.mu.Lock()
+	// 高可用：重探失败时只做节流，不清空 engine/IC/连接。
+	// 保住现有会话（哪怕它可能已不灵）远好过把窗口变成完全不能输入——
+	// 新守护可能还在写地址文件的窗口期，下一次输入就会成功。
 	im.imeDirty = false
 	im.lastProbeFail = time.Now()
 	im.mu.Unlock()
+}
+
+// tryCreateOnBus 取一条连接并在其上建输入上下文。
+// force=true 时作废总线缓存重新解析地址并拨号（用于换了输入法框架、总线地址也变了的场景）。
+// 返回可用的连接，供调用方写回窗口；失败时 conn 可能为 nil。
+func tryCreateOnBus(eng x11ImeEngine, force bool, timeout time.Duration) (dbus.ObjectPath, *dbus.Conn, error) {
+	conn, err := eng.Bus(force)
+	if err != nil || conn == nil {
+		return "", nil, fmt.Errorf("bus unavailable: %v", err)
+	}
+	obj, err := eng.CreateInputContext(conn, timeout)
+	if err != nil {
+		return "", conn, err
+	}
+	if obj == "" {
+		return "", conn, fmt.Errorf("empty input context path")
+	}
+	return obj, conn, nil
+}
+
+// x11PropagateConn 把新连接传播给同进程的其他窗口（多窗口高可用）。
+// 只更新仍指向旧连接的那些 IME，避免覆盖已自行重连成功的窗口。
+func x11PropagateConn(old, next *dbus.Conn) {
+	if next == nil {
+		return
+	}
+	x11ImesMu.Lock()
+	n := 0
+	for other := range x11Imes {
+		other.mu.Lock()
+		if other.conn == old || other.conn == nil {
+			other.conn = next
+			n++
+		}
+		other.mu.Unlock()
+	}
+	x11ImesMu.Unlock()
+	x11ImeDebug("conn propagated to %d window(s) %p -> %p", n, old, next)
 }
 
 func (im *x11Ime) asyncProbe() {
@@ -454,13 +665,18 @@ func (im *x11Ime) asyncProbe() {
 		if eng == nil {
 			continue
 		}
-		obj, err := eng.CreateInputContext(im.conn, 500*time.Millisecond)
+		conn, connErr := eng.Bus(false)
+		if connErr != nil || conn == nil {
+			x11ImeDebug("asyncProbe %s bus unavailable: %v", engName, connErr)
+			continue
+		}
+		obj, err := eng.CreateInputContext(conn, 500*time.Millisecond)
 		if err != nil {
 			x11ImeDebug("CreateInputContext %s failed: %v", engName, err)
 			continue
 		}
 		x11ImeDebug("CreateInputContext %s ok objectPath=%s", engName, obj)
-		if err := eng.SetCapabilities(im.conn, obj, eng.Caps()); err != nil {
+		if err := eng.SetCapabilities(conn, obj, eng.Caps()); err != nil {
 			x11ImeDebug("SetCapabilities %s failed: %v", engName, err)
 		} else {
 			x11ImeDebug("SetCapabilities %s ok caps=%d", engName, eng.Caps())
@@ -468,12 +684,16 @@ func (im *x11Ime) asyncProbe() {
 		im.mu.Lock()
 		if im.closed {
 			im.mu.Unlock()
-			_ = eng.Destroy(im.conn, obj)
+			_ = eng.Destroy(conn, obj)
 			return
 		}
 		im.engine = engName
 		im.engineImpl = eng
 		im.objectPath = obj
+		im.icOwner = snapshotOwner(conn)
+		if conn != im.conn {
+			im.conn = conn
+		}
 		x11ImeDebug("engine=%s objectPath=%s", engName, obj)
 		im.mu.Unlock()
 		im.startSignalLoop()
@@ -675,10 +895,13 @@ func (im *x11Ime) stopSignalLoop() {
 	im.sigCh = nil
 	im.sigStop = nil
 	im.mu.Unlock()
+	// 只反注册、不 close(ch)：dbus 内部仍持有该 channel 的引用，
+	// 在窗口关闭/连接轮换的竞态下 close 会触发「send on closed channel」
+	// 或重复 close 的 panic。反注册后 dbus 不再写入，channel 交给 GC 回收。
 	if ch != nil && im.conn != nil {
 		im.conn.RemoveSignal(ch)
-		close(ch)
 	}
+	// stop 是本进程私有的完成信号，只由本函数关闭一次（上面已置 nil 防重入）。
 	if stop != nil {
 		close(stop)
 	}
@@ -1363,12 +1586,6 @@ func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress boo
 		im.host.WakeUp()
 		return
 	}
-	im.mu.Lock()
-	eng := im.engine
-	im.mu.Unlock()
-	if eng == "ibus" && !isPress {
-		state |= 1 << 30
-	}
 	var keysym uint32
 	if im.host != nil && im.host.st != nil && im.host.st.keycodeToKeysym != nil && im.host.st.display != 0 {
 		ks := xKeysymForState(im.host.st, uint(keycode), uint32(state))
@@ -1378,6 +1595,9 @@ func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress boo
 	obj := im.ObjectPath()
 	conn := im.conn
 	host := im.host
+	eng := im.Engine()
+	// 释放事件的 IBUS_RELEASE_MASK 由引擎层按协议自行处理（G5）：
+	// 统一层不再写 `if eng == "ibus"` 这类引擎专属分支，避免与引擎层漂移。
 	// 引擎实现：异步路径与同步路径共用同一协议选择（含 fcitx5 的 IBus 兼容模式），
 	// 避免两处签名漂移导致按键被误判为未消费。
 	engImpl := im.engineImpl
