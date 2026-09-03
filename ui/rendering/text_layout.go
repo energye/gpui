@@ -31,9 +31,15 @@ type TextLayout struct {
 	FontSize float64
 	// LineSpacing is the multiplier used when building this layout; kept for HitTest fallback.
 	LineSpacing float64
-	Generation uint64
-	MaxWidth   float64
-	Face       text.Face
+	Generation  uint64
+	MaxWidth    float64
+	Face        text.Face
+	// MaxLines caps visible lines (0 = unlimited, mirrors RenderText.MaxLines).
+	MaxLines int
+	// Overflow applies when content exceeds MaxWidth/MaxLines (mirrors RenderText.Overflow).
+	Overflow TextOverflow
+	// Truncated is true when MaxLines dropped lines.
+	Truncated bool
 }
 
 func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
@@ -74,11 +80,18 @@ func (l *TextLayout) SnappedX(byteOff int, scale float64) (float64, bool) {
 	return SnapPixel(x, scale), true
 }
 
-// BuildTextLayout produces single-source layout.
+// BuildTextLayout produces single-source layout (no line cap).
 func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64) *TextLayout {
+	return BuildTextLayoutEx(textStr, face, fontSize, maxWidth, lineSpacing, 0.55, 0, TextOverflowClip)
+}
+
+// BuildTextLayoutEx is BuildTextLayout with an estimate width factor
+// (approxCharW, used only when face == nil) and a MaxLines/Overflow cap
+// applied to the built lines (layout-side truncation, I11).
+func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64, approxCharW float64, maxLines int, overflow TextOverflow) *TextLayout {
 	if textStr == "" {
 		textLayoutGen++
-		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face}
+		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow}
 	}
 	if fontSize <= 0 {
 		fontSize = 14
@@ -96,6 +109,14 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 			wrapped = append(wrapped, text.WrapResult{Text: p, Start: off, End: off + len(p)})
 			off += len(p) + 1
 		}
+		if len(wrapped) == 0 {
+			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
+		}
+	} else if face == nil {
+		// No-face estimate wrap (mirrors the old display-side estimate so
+		// layout and display break identically, I7). Kept in layout so the
+		// estimate path also yields caret geometry.
+		wrapped = estimateWrapResults(textStr, maxWidth, fontSize, approxCharW)
 		if len(wrapped) == 0 {
 			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
 		}
@@ -130,8 +151,128 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 			Glyphs:    glyphs,
 		})
 	}
+	truncated := false
+	if maxLines > 0 && len(lines) > maxLines {
+		lines = lines[:maxLines]
+		truncated = true
+	}
 	textLayoutGen++
-	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face}
+	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated}
+}
+
+// estimateWrapResults is the layout-side no-face estimate wrap. It produces
+// exactly the line strings the old display-side estimateWrapLines produced
+// (greedy word pack, rune-break for overlong words), plus byte offsets into
+// the ORIGINAL text so carets stay addressable. Whitespace collapsing matches
+// the old path; on multi-space text caret offsets may drift within the gap
+// (same lossiness the old display path had — display collapsed too).
+func estimateWrapResults(s string, maxW, fs, aw float64) []text.WrapResult {
+	avg := aw * fs
+	if avg < 1 {
+		avg = 1
+	}
+	var out []text.WrapResult
+	emit := func(txt string, start, end int) {
+		out = append(out, text.WrapResult{Text: txt, Start: start, End: end})
+	}
+	// Split hard breaks on '\n' in original coordinates; a trailing '\r'
+	// pairs with the '\n' (original "\r\n") and is not a second break.
+	segs := strings.Split(s, "\n")
+	base := 0
+	flushSeg := func(seg string, segBase int) {
+		// Sub-split lone '\r' (each is a break, like the old normalization).
+		paras := strings.Split(seg, "\r")
+		for pi, para := range paras {
+			pStart := segBase
+			for i := 0; i < pi; i++ {
+				pStart += len(paras[i]) + 1
+			}
+			pEnd := pStart + len(para)
+			if para == "" {
+				// Trailing '\r' pairing with '\n' is not an extra line.
+				if pi == len(paras)-1 && strings.HasSuffix(seg, "\r") {
+					continue
+				}
+				emit("", pStart, pStart)
+				continue
+			}
+			words := strings.Fields(para)
+			if len(words) == 0 {
+				emit("", pStart, pStart)
+				continue
+			}
+			cursor := pStart
+			nextWord := func(w string) (int, int) {
+				rel := strings.Index(s[cursor:pEnd], w)
+				if rel < 0 {
+					rel = 0
+				}
+				ws := cursor + rel
+				return ws, ws + len(w)
+			}
+			var line string
+			lineStart, lineEnd := 0, 0
+			for _, w := range words {
+				ws, we := nextWord(w)
+				cursor = we
+				ww := float64(utf8.RuneCountInString(w)) * avg
+				if ww > maxW {
+					if line != "" {
+						emit(line, lineStart, lineEnd)
+						line = ""
+					}
+					runes := []rune(w)
+					cs := ws
+					for len(runes) > 0 {
+						n := int(maxW / avg)
+						if n < 1 {
+							n = 1
+						}
+						if n > len(runes) {
+							n = len(runes)
+						}
+						chunk := string(runes[:n])
+						if float64(utf8.RuneCountInString(chunk))*avg > maxW && n > 1 {
+							n--
+							chunk = string(runes[:n])
+						}
+						emit(chunk, cs, cs+len(chunk))
+						cs += len(chunk)
+						runes = runes[n:]
+					}
+					continue
+				}
+				cand := w
+				if line != "" {
+					cand = line + " " + w
+				}
+				cw := float64(utf8.RuneCountInString(cand)) * avg
+				if line != "" && cw > maxW {
+					emit(line, lineStart, lineEnd)
+					line = w
+					lineStart = ws
+					lineEnd = we
+				} else {
+					if line == "" {
+						lineStart = ws
+					}
+					line = cand
+					lineEnd = we
+				}
+			}
+			if line != "" {
+				emit(line, lineStart, lineEnd)
+			}
+		}
+	}
+	for _, seg := range segs {
+		flushSeg(seg, base)
+		base += len(seg) + 1
+	}
+	if len(out) == 0 {
+		return []text.WrapResult{{Text: s, Start: 0, End: len(s)}}
+	}
+	return out
 }
 
 // LineTop returns the Y offset of line idx from the text origin (sum of previous line heights).
@@ -186,27 +327,103 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []t
 		}
 		return carets, x, glyphs
 	}
-	glyphs := text.Shape(line, face)
-	if len(glyphs) == 0 {
-		var carets []GlyphCaret
-		var sg []text.ShapedGlyph
-		carets = append(carets, GlyphCaret{ByteOff: 0, X: 0})
-		x := 0.0
-		for byteOff, r := range line {
-			adv := text.RuneAdvance(face, r)
-			sg = append(sg, text.ShapedGlyph{GID: 0, Cluster: 0, X: x, XAdvance: adv})
-			x += adv
-			next := byteOff + utf8.RuneLen(r)
-			carets = append(carets, GlyphCaret{ByteOff: next, X: x})
-			if next >= len(line) {
-				break
+	// Shaped path (M0 item 8): split into (face, script, direction) runs and
+	// shape each run, then stitch carets in a single pass — O(n), no
+	// CaretXForCluster table scan. Any unshapable run falls back below.
+	if runs := itemizeRuns(line, face); len(runs) > 0 {
+		if carets, width, glyphs, ok := buildShapedCarets(line, runs); ok {
+			return carets, width, glyphs
+		}
+	}
+	var carets []GlyphCaret
+	var sg []text.ShapedGlyph
+	carets = append(carets, GlyphCaret{ByteOff: 0, X: 0})
+	x := 0.0
+	for byteOff, r := range line {
+		adv := text.RuneAdvance(face, r)
+		sg = append(sg, text.ShapedGlyph{GID: 0, Cluster: 0, X: x, XAdvance: adv})
+		x += adv
+		next := byteOff + utf8.RuneLen(r)
+		carets = append(carets, GlyphCaret{ByteOff: next, X: x})
+		if next >= len(line) {
+			break
+		}
+	}
+	return carets, x, sg
+}
+
+// itemizedRun is one independently shapable slice of a line: byte range,
+// the face covering it, and whether it needs RTL visual reordering.
+type itemizedRun struct {
+	face       text.Face
+	start, end int
+	rtl        bool
+}
+
+// itemizeRuns intersects font-fallback runs (MultiFace.Runs) with
+// script/bidi segments (segment.go): same face but different script or
+// direction still splits, or complex scripts would never shape.
+func itemizeRuns(line string, face text.Face) []itemizedRun {
+	if line == "" || face == nil {
+		return nil
+	}
+	segs := text.SegmentText(line)
+	if len(segs) == 0 {
+		return nil
+	}
+	isRTL := func(d text.Direction) bool { return d == text.DirectionRTL }
+	if mf, ok := face.(*text.MultiFace); ok {
+		fruns := mf.Runs(line)
+		type frange struct {
+			face       text.Face
+			start, end int
+		}
+		var ranges []frange
+		cur := 0
+		for _, fr := range fruns {
+			if fr.Text == "" {
+				continue
+			}
+			rel := strings.Index(line[cur:], fr.Text)
+			if rel < 0 {
+				return nil
+			}
+			s := cur + rel
+			ranges = append(ranges, frange{fr.Face, s, s + len(fr.Text)})
+			cur = s + len(fr.Text)
+		}
+		if cur != len(line) {
+			return nil
+		}
+		var out []itemizedRun
+		j := 0
+		for _, r := range ranges {
+			for j < len(segs) && segs[j].End <= r.start {
+				j++
+			}
+			for k := j; k < len(segs) && segs[k].Start < r.end; k++ {
+				s := max(r.start, segs[k].Start)
+				e := min(r.end, segs[k].End)
+				if s < e {
+					out = append(out, itemizedRun{face: r.face, start: s, end: e, rtl: isRTL(segs[k].Direction)})
+				}
 			}
 		}
-		return carets, x, sg
+		if len(out) == 0 {
+			return nil
+		}
+		return out
 	}
-	// Build map from cluster (rune index) to X and byte offset
-	// Cluster is rune index in line
-	// Need byte offsets per rune index
+	out := make([]itemizedRun, 0, len(segs))
+	for _, s := range segs {
+		out = append(out, itemizedRun{face: face, start: s.Start, end: s.End, rtl: isRTL(s.Direction)})
+	}
+	return out
+}
+
+// buildShapedCarets shapes each run and stitches one caret per rune boundary
+// in a single pass. ok=false when any run shapes empty (caller falls back).
+func buildShapedCarets(line string, runs []itemizedRun) ([]GlyphCaret, float64, []text.ShapedGlyph, bool) {
 	runeByte := make([]int, 0)
 	for i := range line {
 		if utf8.RuneStart(line[i]) {
@@ -214,27 +431,57 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []t
 		}
 	}
 	runeByte = append(runeByte, len(line))
-	// Glyphs are in visual order with X already
-	// For caret we need ordered by X
-	// Build carets: one per rune boundary, using CaretXForCluster
-	n := len(runeByte) - 1 // rune count
-	var carets []GlyphCaret
-	for ri := 0; ri <= n; ri++ {
-		x := text.CaretXForCluster(glyphs, ri)
-		byteOff := 0
-		if ri < len(runeByte) {
-			byteOff = runeByte[ri]
-		} else {
-			byteOff = len(line)
+	n := len(runeByte) - 1
+	if n <= 0 {
+		return nil, 0, nil, false
+	}
+	xs := make([]float64, n)
+	filled := make([]bool, n)
+	var glyphs []text.ShapedGlyph
+	cursor := 0.0
+	runeBase := 0
+	for _, r := range runs {
+		seg := line[r.start:r.end]
+		// Shape results may be cache-owned: copy before remapping in place.
+		sg := text.Shape(seg, r.face)
+		if len(sg) == 0 {
+			return nil, 0, nil, false
 		}
-		carets = append(carets, GlyphCaret{ByteOff: byteOff, X: x})
+		g := append([]text.ShapedGlyph(nil), sg...)
+		if r.rtl {
+			g = text.ReorderRTLShapedGlyphs(g)
+		}
+		end := cursor
+		for i := range g {
+			g[i].Cluster += runeBase
+			g[i].X += cursor
+			if e := g[i].X + g[i].XAdvance; e > end {
+				end = e
+			}
+			c := g[i].Cluster
+			if c >= 0 && c < n {
+				if !filled[c] || g[i].X < xs[c] {
+					xs[c] = g[i].X
+					filled[c] = true
+				}
+			}
+		}
+		glyphs = append(glyphs, g...)
+		cursor = end
+		runeBase += utf8.RuneCountInString(seg)
 	}
-	var width float64
-	if len(glyphs) > 0 {
-		last := glyphs[len(glyphs)-1]
-		width = last.X + last.XAdvance
+	carets := make([]GlyphCaret, 0, n+1)
+	prevX := 0.0
+	for ri := 0; ri < n; ri++ {
+		x := prevX
+		if filled[ri] {
+			x = xs[ri]
+		}
+		carets = append(carets, GlyphCaret{ByteOff: runeByte[ri], X: x})
+		prevX = x
 	}
-	return carets, width, glyphs
+	carets = append(carets, GlyphCaret{ByteOff: len(line), X: cursor})
+	return carets, cursor, glyphs, true
 }
 
 // CaretForOffset returns line index and X for a global byte offset (downstream affinity).
@@ -268,14 +515,14 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 		return nil
 	}
 	if !t.hasRuns() {
-		return BuildTextLayout(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing())
+		return BuildTextLayoutEx(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
 	}
 	// Multi-run paragraph: per-run shaping + per-line max height.
 	maxW := t.MaxWidth
 	lineSpacing := t.lineSpacing()
 	if t.Text == "" {
 		textLayoutGen++
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace()}
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}
 	}
 	// Helper to flush current line.
 	var lines []TextLayoutLine
@@ -378,16 +625,18 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 	// Close last line.
 	flush()
 	// MaxLines / overflow truncation (mirror layoutRunLines).
+	truncated := false
 	if t.MaxLines > 0 && len(lines) > t.MaxLines {
 		lines = lines[:t.MaxLines]
+		truncated = true
 		// Ellipsis/clip would alter last line width but caret beyond truncation is not needed for editor.
 	}
 	if len(lines) == 0 {
 		textLayoutGen++
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace()}
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}
 	}
 	textLayoutGen++
-	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace()}
+	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow, Truncated: truncated}
 }
 
 // BoxesForRange mirrors Flutter getBoxesForRange — line-box union for a byte range.
@@ -544,7 +793,7 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 				// Return trailing of previous line.
 				if len(prev.Carets) > 0 {
 					last := prev.Carets[len(prev.Carets)-1]
-					return last.X, l.LineTop(i-1), prev.Height, true
+					return last.X, l.LineTop(i - 1), prev.Height, true
 				}
 			}
 			// Normal: find X within this line.
@@ -581,7 +830,7 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 	if caretWidth != 0 {
 		_ = caretWidth
 	}
-	return x, l.LineTop(len(l.Lines)-1), last.Height, true
+	return x, l.LineTop(len(l.Lines) - 1), last.Height, true
 }
 
 // GetFullHeightForCaret mirrors TextPainter.getFullHeightForCaret.

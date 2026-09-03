@@ -1,0 +1,83 @@
+# ui_text_edit_accept — 文本排版绘制验收主窗（M6，§5.6）
+
+真实单行 + 多行输入框验收窗。控件只用 `ui/textinput` 引擎现货
+（`NewInputBox` / `NewViewportInputBox` / `NewMultiLineInputBox`），本窗不实现输入框功能。
+
+## 场景区
+
+| 区 | 控件 | 预填 | 验证点 |
+|---|---|---|---|
+| A 单行短 | InputBox | 空 | 获焦/光标/手工键入 |
+| B 单行超长 | ViewportInputBox | `testdata/b_5000.txt`（5000 字） | 横滚、末尾击键 |
+| C 单行超长×10 | ViewportInputBox | `testdata/c_50000.txt`（50000 字） | 10× 量级对比 |
+| D 多行短 | MultiLineInputBox | 空 | Enter 换行、上下键 |
+| E 多行长文 | MultiLineInputBox | `testdata/e_1e5.txt`（1e5 字/~2000 行） | 纵滚、末行击键 |
+| F 多行回绕 | MultiLineInputBox（wrap 开） | `testdata/f_wrap.txt`（2000 字长段） | 段首插入重排 |
+
+预填一律存 `testdata/` 文件，`main.go` 无生成循环。
+
+## 运行
+
+```sh
+go run ./examples/ui_text_edit_accept
+GPUI_ACCEPT_RUN_SECONDS=30 go run ./examples/ui_text_edit_accept  # 门禁观察 30s
+GPUI_ACCEPT_SELFTEST=1 go run ./examples/ui_text_edit_accept      # 无头 CPU 探针
+```
+
+## 人工步骤（§5.6.3）
+
+1. 点 A 框，键入中英混排，看光标跟随。
+2. 点 B 框末尾，连续快速击键 30 次，看是否迟滞。
+3. 点 C 框重复步骤 2，对比 B 是否无感知差异。
+4. 点 E 框滚到底部，在末行击键，看滚动与输入。
+5. 点 F 框段落开头插入文字，看后续行重排是否错位。
+
+## 门禁（§5.6.4）
+
+`caret_vs_paint_max_delta_px ≤ 2`，`keystroke_p99_ms @C ≤ 16`，
+`T(C)/T(B) ≤ 1.5`；A–J 全族随退出 JSON 输出。
+
+## 基线趋势（M0-pre 取于 2026-09-03，改代码前）
+
+| 指标 | 值 | 口径 |
+|---|---|---|
+| `caret_vs_paint_max_delta_px` | **821.4** | CPU 模型：布局末 caret X − 逐字 round 累加 X（B 框 5000 字） |
+| `layout_ms_p99` | 6.06 | B 框 `BuildTextLayout` 31 次 p99 |
+| `keystroke_p99_ms` | 4.80 | B 框 +1 字重排 31 次 p99（仅布局侧） |
+| `paint_ms_p99` | 未验证 | 需 GPU 真窗 |
+| `scroll_fps` | 未验证 | 需 GPU 真窗 |
+| `interval_p95_ms` / `fps_interval` / `hitch_rate_per_min` / `rss_slope_kb_per_min` | 见下表真窗 30s | — |
+
+## 真窗 30s（2026-09-03，M0 第 8–10 项之后，同一台机器）
+
+| 指标 | 值 | 门禁 | 判定 |
+|---|---|---|---|
+| `fps_interval` | 59.3 | ≥ 55 | ✅ |
+| `interval_p95_ms` | 17.15 | ≤ 22 | ✅ |
+| `hitch_rate_per_min` | 0 | ≤ 5 | ✅ |
+| `cpu_fallback_ops` | 0 | == 0 | ✅ |
+| `bulk_taken`（B/C 全行字形非 0） | true | — | ✅ 批量分支已走通 |
+| `caret_vs_paint_max_delta_px`（布局提交侧） | 0 | ≤ 2 | ✅（像素墨迹比对待补） |
+| `keystroke_p99_ms` @C（50000 字整行重排） | 61.0 | ≤ 16 | ❌ M1 输入：整行重排太重，需行缓存 |
+| `layout_ms_p99` @B（含首次冷整形） | 11.8 | — | 参考值 |
+| `rss_slope_kb_per_min`（30s 含字体图集预热） | 52027 | ≤ 30000 | ❌ 口径问题：需 60s 稳态编辑复测（M3） |
+
+## 未验证清单
+
+- 像素墨迹与布局的对照：B 框截图已量出 3242 墨点、左缘在框内 +3px（内边距），与布局一致；全框逐字对照待补。
+- `paint_ms_p99` / `scroll_fps`（探针未接）。
+
+## Golden 基线（M0-pre pre-4）
+
+- 文件：`golden/baseline_m0.png`（默认预填 B/C/F，E 为空，1200×800，M0 代码后）。
+- 复现：`GPUI_ACCEPT_RUN_SECONDS=8 GPUI_ACCEPT_SNAP=/tmp/x.png go run
+  ./examples/ui_text_edit_accept`（需先 export 两个 lib 路径），逐像素对比。
+- 容差：零容差（同机同字体）；换机器/换字体只做目检，不判失败。
+
+## 已知问题（M2 范围）
+
+- E 框（1e5 字/2000 行）整窗预填时首帧提交 10 万逐字字形，GPU 图集同步转圈（B/C/F 单框均正常，布局 328ms、数值干净）。
+  M2 的裁剪覆盖多行 + M4 虚拟化就是治这个的，本窗不绕。
+  默认不预填 E（M0 只看 B/C/F 真实）；分段跑：`GPUI_ACCEPT_ONLY=B|C|E|F`
+  只预填一框，`GPUI_ACCEPT_FULL=1` 全预填（含 E，会卡），
+  `GPUI_ACCEPT_NOPREFILL=1` 全空跑。

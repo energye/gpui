@@ -449,11 +449,19 @@ func runAdvance(face Face, text string) float64 {
 	ppem := sf.size
 	total := 0.0
 	for glyph := range sf.Glyphs(text) {
-		if adv, hintOK := cache.hintedAdvanceWidth(uint16(glyph.GID), int32(ppem)); hintOK {
-			total += adv
-		} else {
-			total += glyph.Advance
+		gid := uint16(glyph.GID)
+		if v, ok := sf.lookupAdvance(gid, glyph.Rune, true); ok {
+			total += v
+			continue
 		}
+		var adv float64
+		if hintAdv, hintOK := cache.hintedAdvanceWidth(gid, int32(ppem)); hintOK {
+			adv = hintAdv
+		} else {
+			adv = glyph.Advance
+		}
+		sf.storeAdvance(gid, glyph.Rune, true, adv)
+		total += adv
 	}
 	return total
 }

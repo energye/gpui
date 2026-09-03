@@ -2,6 +2,7 @@ package text
 
 import (
 	"iter"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -84,6 +85,16 @@ type sourceFace struct {
 	source *FontSource
 	size   float64
 	config faceConfig
+	// fontID memoizes FontSourceID(source): hashing the font identity on
+	// every advance lookup dominated the cached hit path, so compute once.
+	fontIDOnce sync.Once
+	fontID     uint64
+}
+
+// cachedFontID returns the stable font identity for cache keys.
+func (f *sourceFace) cachedFontID() uint64 {
+	f.fontIDOnce.Do(func() { f.fontID = FontSourceID(f.source) })
+	return f.fontID
 }
 
 // Metrics implements Face.Metrics.
@@ -129,18 +140,13 @@ func (f *sourceFace) Advance(text string) float64 {
 		if r < 0x20 && r != '\t' {
 			continue
 		}
-		var advance float64
 		if r == '\t' {
-			_, advance = tabAdvance(parsed, f.size)
-		} else {
-			gid := parsed.GlyphIndex(r)
-			if varProvider != nil {
-				advance = varProvider.GlyphAdvanceVar(gid, f.size, f.config.variations)
-			} else {
-				advance = parsed.GlyphAdvance(gid, f.size)
-			}
+			_, adv := f.tabAdvanceCached(parsed, r)
+			totalAdvance += adv
+			continue
 		}
-		totalAdvance += advance
+		gid := parsed.GlyphIndex(r)
+		totalAdvance += f.rawAdvanceCached(parsed, gid, r, varProvider)
 	}
 
 	return totalAdvance
@@ -201,11 +207,11 @@ func (f *sourceFace) iterGlyphs(text string, visit func(g Glyph) bool) {
 
 		if r == '\t' {
 			// Tab: use space GID (empty outline) with tab-stop advance.
-			gid, advance = tabAdvance(parsed, f.size)
+			gid, advance = f.tabAdvanceCached(parsed, r)
 			// Space bounds are empty — no visual rendering.
 		} else {
 			gid = parsed.GlyphIndex(r)
-			advance, _ = f.glyphAdvance(parsed, gid, varProvider)
+			advance = f.rawAdvanceCached(parsed, gid, r, varProvider)
 			bounds = parsed.GlyphBounds(gid, f.size)
 		}
 
@@ -254,10 +260,10 @@ func (f *sourceFace) glyphForRune(r rune, byteIndex, cluster int) (Glyph, bool) 
 	var bounds Rect
 	if r == '\t' {
 		// Tab: use space GID (empty outline) with tab-stop advance.
-		gid, advance = tabAdvance(parsed, f.size)
+		gid, advance = f.tabAdvanceCached(parsed, r)
 	} else {
 		gid = parsed.GlyphIndex(r)
-		advance, _ = f.glyphAdvance(parsed, gid, varProvider)
+		advance = f.rawAdvanceCached(parsed, gid, r, varProvider)
 		bounds = parsed.GlyphBounds(gid, f.size)
 	}
 	return Glyph{

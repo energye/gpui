@@ -227,6 +227,7 @@ func (t *RenderText) SetMaxLines(n int) {
 		return
 	}
 	t.MaxLines = n
+	t.textLayout = nil
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -237,6 +238,7 @@ func (t *RenderText) SetOverflow(o TextOverflow) {
 		return
 	}
 	t.Overflow = o
+	t.textLayout = nil
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -386,7 +388,7 @@ func (t *RenderText) ensureLayout() *TextLayout {
 	if t.hasRuns() {
 		t.textLayout = BuildRenderTextLayout(t)
 	} else {
-		t.textLayout = BuildTextLayout(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing())
+		t.textLayout = BuildTextLayoutEx(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
 	}
 	return t.textLayout
 }
@@ -448,39 +450,6 @@ func TreeMeasureCacheStats(root RenderObject) (hits, misses int64) {
 	}
 	walk(root)
 	return hits, misses
-}
-
-// wrapLines produces soft-wrapped lines for the full source text (no maxLines yet).
-func (t *RenderText) wrapLines() []string {
-	s := ""
-	if t != nil {
-		s = t.Text
-	}
-	if s == "" {
-		return nil
-	}
-	maxW := 0.0
-	if t != nil {
-		maxW = t.MaxWidth
-	}
-	if maxW <= 0 {
-		// No wrap width: hard breaks only.
-		s = strings.ReplaceAll(s, "\r\n", "\n")
-		s = strings.ReplaceAll(s, "\r", "\n")
-		return strings.Split(s, "\n")
-	}
-	if face := t.effectiveFace(); face != nil {
-		res := text.WrapText(s, face, maxW, text.WrapWordChar)
-		out := make([]string, len(res))
-		for i, r := range res {
-			out[i] = r.Text
-		}
-		if len(out) == 0 {
-			return []string{""}
-		}
-		return out
-	}
-	return estimateWrapLines(s, maxW, t.fontSize(), t.approxCharW())
 }
 
 // FontSizePt returns the effective font size in points (default 14 when
@@ -604,30 +573,31 @@ func (t *RenderText) DisplayLines() []string {
 	if t == nil {
 		return nil
 	}
-	if t.hasRuns() {
-		rlines := t.layoutRunLines()
-		if len(rlines) == 0 {
-			return nil
-		}
-		out := make([]string, len(rlines))
-		for i, ln := range rlines {
-			var b strings.Builder
-			for _, sp := range ln.Spans {
-				b.WriteString(sp.Text)
-			}
-			out[i] = b.String()
-		}
-		return out
-	}
-	lines := t.wrapLines()
-	if len(lines) == 0 {
+	// Single-source (I7): line breaks come from TextLayout; only the
+	// truncation-marker fitting below stays string-level.
+	lay := t.ensureLayout()
+	if lay == nil || len(lay.Lines) == 0 {
 		return nil
+	}
+	lines := make([]string, len(lay.Lines))
+	for i, ln := range lay.Lines {
+		s, e := ln.StartByte, ln.EndByte
+		if s < 0 {
+			s = 0
+		}
+		if e > len(lay.Text) {
+			e = len(lay.Text)
+		}
+		if s > e {
+			s = e
+		}
+		lines[i] = lay.Text[s:e]
 	}
 	maxL := t.MaxLines
 	maxW := t.MaxWidth
 	overflow := t.Overflow
 
-	truncated := false
+	truncated := lay.Truncated
 	if maxL > 0 && len(lines) > maxL {
 		lines = append([]string(nil), lines[:maxL]...)
 		truncated = true
@@ -664,77 +634,6 @@ func (t *RenderText) DisplayLines() []string {
 // DisplayText joins DisplayLines with newlines (for debugging / tests).
 func (t *RenderText) DisplayText() string {
 	return strings.Join(t.DisplayLines(), "\n")
-}
-
-func estimateWrapLines(s string, maxW, fs, aw float64) []string {
-	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\r", "\n")
-	paras := strings.Split(s, "\n")
-	avg := aw * fs
-	if avg < 1 {
-		avg = 1
-	}
-	var out []string
-	for _, para := range paras {
-		if para == "" {
-			out = append(out, "")
-			continue
-		}
-		// Greedy word pack; break overlong words by rune.
-		words := strings.Fields(para)
-		if len(words) == 0 {
-			out = append(out, "")
-			continue
-		}
-		var line string
-		for _, w := range words {
-			ww := float64(utf8.RuneCountInString(w)) * avg
-			if ww > maxW {
-				// Flush current line, then break word.
-				if line != "" {
-					out = append(out, line)
-					line = ""
-				}
-				runes := []rune(w)
-				for len(runes) > 0 {
-					n := int(maxW / avg)
-					if n < 1 {
-						n = 1
-					}
-					if n > len(runes) {
-						n = len(runes)
-					}
-					// Prefer leaving room if more remains.
-					chunk := string(runes[:n])
-					if float64(utf8.RuneCountInString(chunk))*avg > maxW && n > 1 {
-						n--
-						chunk = string(runes[:n])
-					}
-					out = append(out, chunk)
-					runes = runes[n:]
-				}
-				continue
-			}
-			cand := w
-			if line != "" {
-				cand = line + " " + w
-			}
-			cw := float64(utf8.RuneCountInString(cand)) * avg
-			if line != "" && cw > maxW {
-				out = append(out, line)
-				line = w
-			} else {
-				line = cand
-			}
-		}
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	if len(out) == 0 {
-		return []string{""}
-	}
-	return out
 }
 
 func ellipsizeToWidth(s string, maxW float64, t *RenderText) string {
@@ -894,7 +793,10 @@ func (t *RenderText) Paint(pc *PaintContext) {
 				y := ascent + lay.LineTop(i)
 				if face != nil && pc.DC != nil && len(lay.Lines) > i {
 					glyphs := lay.Lines[i].Glyphs
-					if len(glyphs) > 0 && glyphs[0].GID != 0 {
+					// Bulk submission needs a sourced face (outlines/atlas
+					// page); composite faces stay per-rune until M2 builds
+					// composite batch support (bulk+MultiFace draws blank).
+					if len(glyphs) > 0 && glyphs[0].GID != 0 && face.Source() != nil {
 						// Flutter viewport culling for 5000 single-line:
 						// only submit glyphs within the viewport window
 						// (+200px margin) to keep GPU vertex count O(visible).
