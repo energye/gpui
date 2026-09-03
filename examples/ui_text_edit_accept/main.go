@@ -67,15 +67,20 @@ func liveProbes(boxB, boxC *textinput.ViewportInputBox, face text.Face, fontSize
 			bulkTaken = false
 			continue
 		}
-		// Routable bulk = real glyphs AND a sourced face (mirrors Paint).
-		if lay.Face == nil || lay.Face.Source() == nil {
-			bulkTaken = false
-		}
+		// Routable bulk mirrors RenderText.Paint (M2): single-face bulk
+		// (real glyphs + sourced face) or composite batch (per-face
+		// partitions all batchable). See lineBulkRoutable below.
 		for i := 0; i < lay.LineCount(); i++ {
 			glyphs := lay.LineGlyphs(i)
 			carets := lay.LineCarets(i)
-			if len(glyphs) == 0 || len(carets) == 0 || glyphs[0].GID == 0 {
+			if len(glyphs) == 0 || len(carets) == 0 {
 				bulkTaken = false
+				continue
+			}
+			if !lineBulkRoutable(lay, i) {
+				bulkTaken = false
+			}
+			if glyphs[0].GID == 0 {
 				continue
 			}
 			last := glyphs[len(glyphs)-1]
@@ -93,8 +98,7 @@ func liveProbes(boxB, boxC *textinput.ViewportInputBox, face text.Face, fontSize
 	}
 	p.CaretVsPaintMaxDeltaPx = delta
 	p.BulkTaken = bulkTaken
-	// NOTE: bulk_taken=false (per-rune until M2) does not invalidate delta:
-	// delta is layout-internal consistency, reported as measured.
+	// delta 是布局内部一致性(实测值);批量路由状态由 bulk_taken 独立上报.
 	for _, tc := range []struct {
 		text string
 		dst  *float64
@@ -119,6 +123,31 @@ func bTextOf(b *textinput.ViewportInputBox) string {
 		return ""
 	}
 	return b.Editor().GetText()
+}
+
+// lineBulkRoutable mirrors RenderText.Paint routing (example-side
+// observability only): single-face bulk, or M2 composite batch with every
+// partition carrying a sourced face. Must stay in sync with
+// RenderText.paintCompositeRuns acceptance.
+func lineBulkRoutable(lay *rendering.TextLayout, row int) bool {
+	glyphs := lay.LineGlyphs(row)
+	if len(glyphs) > 0 && glyphs[0].GID != 0 && lay.Face != nil && lay.Face.Source() != nil {
+		return true
+	}
+	runs := lay.LineGlyphRuns(row)
+	if len(runs) == 0 {
+		return false
+	}
+	for _, r := range runs {
+		if r.Start < 0 || r.End > len(glyphs) || r.Start >= r.End {
+			return false
+		}
+		part := glyphs[r.Start:r.End]
+		if len(part) == 0 || part[0].GID == 0 || r.Face == nil || r.Face.Source() == nil {
+			return false
+		}
+	}
+	return true
 }
 
 type probes struct {

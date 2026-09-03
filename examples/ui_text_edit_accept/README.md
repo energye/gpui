@@ -76,10 +76,28 @@ GPUI_ACCEPT_SELFTEST=1 go run ./examples/ui_text_edit_accept      # 无头 CPU �
 | `keystroke_p99_ms` @C（50000 字整行重排） | 69.4 | ≤ 16 | ❌ 非 M1 门禁：单行整行重整形 O(行长) 系 §3.4 设计使然（M0 记 61.0，同量级）；多行档 M1 门禁全绿见单测 |
 | `layout_ms_p99` @B | 9.785 | — | 参考值（M0 记 11.8，-17%） |
 
+## 真窗 30s（2026-09-03，M2 之后，同一台机器，`GPUI_ACCEPT_RUN_SECONDS=30`）
+
+| 指标 | 值 | 门禁 | 判定 |
+|---|---|---|---|
+| `fps_interval` | 59.3 | ≥ 55 | ✅ |
+| `interval_p95_ms` | 16.97 | ≤ 22 | ✅ |
+| `hitch_rate_per_min` | 0 | ≤ 5 | ✅ |
+| `cpu_fallback_ops` | 0 | == 0 | ✅ |
+| `bulk_taken`（B/C 行：单脸批量或复合分脸批量均可路由） | true | — | ✅ M1 记 false，本期复合批量打通后翻 true；探针与新 Paint 路由同条件（见 `lineBulkRoutable`） |
+| `caret_vs_paint_max_delta_px`（布局提交侧） | 0 | ≤ 2 | ✅ |
+| `keystroke_p99_ms` @C（50000 字整行重排） | 55.8 | ≤ 16 | ❌ 非 M2 门禁：同 M1 备注（M1 记 69.4，同量级，系 §3.4 设计） |
+| `layout_ms_p99` @B | 7.828 | — | 参考值（M1 记 9.785） |
+| `gpu_ops` / `frame_raster_ms` | 1355052 / 19.4 | — | 参考值（`paint_ms_p99` 文本专项探针仍未接，用整帧光栅耗时代替，见未验证清单） |
+
+> 本轮修过一次显示问题才达标：初版复合提交把绝对坐标的分区直接交 GPU，而 GPU 批量布局是按笔起点排的，导致各语种分区全叠在行首（英文压中文），有视口滚动的 B/C 框墨迹落在视口外、看起来是空的。修法是提交前把分区变基到自原点、提交原点平移同量（`rebaseGlyphs`，位置逐字形不变，`TestCompositeBatch_RebasedPositions` 锁拉丁+CJK+阿拉伯 RTL+泰文混排）。CPU 光栅路径一直是对的，所以单测全绿也没抓住，全靠真窗人眼发现。
+
+R5 对照窗（`GPUI_R5_SELFTEST=1`，3s）：9 探针全 true，`gpu_ops` 36034，`cpu_fallback_ops` 0；新增 `submitted_glyphs` 1061 / `vertex_count` 4244（CPU 侧提交观测，GPU 端精确顶点数未量）。
+
 ## 未验证清单
 
 - 像素墨迹与布局的对照：B 框截图已量出 3242 墨点、左缘在框内 +3px（内边距），与布局一致；全框逐字对照待补。
-- `paint_ms_p99` / `scroll_fps`（探针未接）。
+- `paint_ms_p99` / `scroll_fps`（探针未接，M2 状态：仍用整帧 `frame_raster_ms` 代替记录，未冒充文本专项 p99；滚动帧率需 E/F 纵滚脚本，待 M4 虚拟化时补）。
 
 ## Golden 基线（M0-pre pre-4）
 

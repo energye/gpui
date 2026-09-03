@@ -493,12 +493,18 @@ func main() {
 	pixelOK := snap.PaintVisits > 0 && snap.MeasureCacheHit >= 1
 	_ = pixelOK
 
+	// M2: CPU-side submit observation (mask quad = 4 verts each).
+	// GPU-side exact vertex count is unmeasured; this tracks what
+	// Paint submits under current viewport hints (O(V) evidence).
+	submitted := rendering.TreeSubmittedGlyphEstimate(shell.Root)
 	extra := map[string]any{
-		"present_policy": "full_paint",
-		"probe":          lastProbe,
-		"pixel_ok":       pixelOK,
-		"phases_seen":    clock.Name(),
-		"slope_gate":     "off",
+		"present_policy":   "full_paint",
+		"probe":            lastProbe,
+		"pixel_ok":         pixelOK,
+		"phases_seen":      clock.Name(),
+		"slope_gate":       "off",
+		"submitted_glyphs": submitted,
+		"vertex_count":     submitted * 4,
 	}
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "ime_r5_control",

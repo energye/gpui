@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -75,6 +76,11 @@ type RenderText struct {
 	viewportScrollX float64
 	viewportWidth   float64
 	hasViewportHint bool
+	// viewportHintY bounds the visible row band for wrapped/multi-line text
+	// (M2 vertical culling). Unset = unbounded, paint skips no rows.
+	viewportScrollY  float64
+	viewportHeight   float64
+	hasViewportHintY bool
 }
 
 // NewRenderText creates a text node.
@@ -465,6 +471,24 @@ func (t *RenderText) SetViewportHint(scrollX, visW float64) {
 	t.hasViewportHint = true
 }
 
+// SetViewportRect extends SetViewportHint with a vertical band for
+// wrapped/multi-line text (M2 vertical culling). scrollY/visH bound the
+// visible rows; visH<=0 clears only the vertical band (horizontal hint kept).
+// Does not mark dirty.
+func (t *RenderText) SetViewportRect(scrollX, visW, scrollY, visH float64) {
+	t.SetViewportHint(scrollX, visW)
+	if t == nil {
+		return
+	}
+	if visH <= 0 {
+		t.hasViewportHintY = false
+		return
+	}
+	t.viewportScrollY = scrollY
+	t.viewportHeight = visH
+	t.hasViewportHintY = true
+}
+
 // TextLayout returns the cached single-source layout (builds if needed).
 func (t *RenderText) TextLayout() *TextLayout { return t.ensureLayout() }
 
@@ -837,16 +861,23 @@ func (t *RenderText) Paint(pc *PaintContext) {
 			if m, ok := t.Metrics(); ok && m.Ascent > 0 {
 				ascent = m.Ascent
 			}
+			// M2 纵向裁剪:只提交可见行带(+/-1 行护栏保半行),无 Y hint 时全画.
+			rowLo, rowHi := 0, lay.LineCount()
+			if t.hasViewportHintY {
+				rowLo, rowHi = visibleRowBandOf(lay, t.viewportScrollY, t.viewportHeight)
+			}
 			for i, line := range lines {
 				if line == "" {
+					continue
+				}
+				if i < rowLo || i >= rowHi {
 					continue
 				}
 				y := ascent + lay.LineTop(i)
 				if face != nil && pc.DC != nil && i < lay.LineCount() {
 					glyphs := lay.LineGlyphs(i)
 					// Bulk submission needs a sourced face (outlines/atlas
-					// page); composite faces stay per-rune until M2 builds
-					// composite batch support (bulk+MultiFace draws blank).
+					// page); composite faces submit per-face partitions (M2).
 					if len(glyphs) > 0 && glyphs[0].GID != 0 && face.Source() != nil {
 						// Flutter viewport culling for 5000 single-line:
 						// only submit glyphs within the viewport window
@@ -856,6 +887,8 @@ func (t *RenderText) Paint(pc *PaintContext) {
 						}
 						ax, ay := pc.Abs(0, y)
 						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
+					} else if runs := lay.LineGlyphRuns(i); len(runs) > 0 && t.paintCompositeRuns(pc, lay, glyphs, runs, y) {
+						// M2 composite batch submitted per-face partitions.
 					} else if face.Source() == nil {
 						// M1-13: byteOff→X一次建表后O(1)查,不再每字线性扫Carets.
 						// caret为行内相对,键即相对偏移;range line的byteOff同为行内相对.
@@ -893,6 +926,155 @@ func (t *RenderText) Paint(pc *PaintContext) {
 	t.clearPaintDirty()
 }
 
+// paintCompositeRuns submits a composite-face line in per-face batches (M2).
+// Each run covers glyphs[Start:End] with its own sourced face; coordinates
+// stay glyph.X (I1 single source, same as the single-face path above).
+// The single-line viewport cull applies per partition. Reports false when any
+// partition is not batchable — the caller then falls back to the legacy
+// per-rune path, so the picture never changes, only the submit cost does.
+//
+// GPU batch layout is pen-origin based (it positions from the first glyph /
+// pen origin, not from absolute glyph.X), so each partition is rebased to
+// its own origin and submitted at ax+offset — final positions are identical,
+// only the representation changes. Skipping the rebase stacks every run at
+// the line start (Latin over CJK).
+func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, glyphs []text.ShapedGlyph, runs []LineGlyphRun, y float64) bool {
+	for _, r := range runs {
+		if r.Start < 0 || r.End > len(glyphs) || r.Start >= r.End {
+			return false
+		}
+		part := glyphs[r.Start:r.End]
+		if len(part) == 0 || part[0].GID == 0 || r.Face == nil || r.Face.Source() == nil {
+			return false
+		}
+	}
+	cull := t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 && len(glyphs) > 200
+	for _, r := range runs {
+		part := glyphs[r.Start:r.End]
+		if cull {
+			const margin = 200.0
+			lo := t.viewportScrollX - margin
+			hi := t.viewportScrollX + t.viewportWidth + margin
+			s, e := cullRangeForWindow(part, lo, hi)
+			part = part[s:e]
+		}
+		if len(part) == 0 {
+			continue
+		}
+		shifted, off := rebaseGlyphs(part)
+		ax, ay := pc.Abs(off, y)
+		pc.DC.DrawShapedGlyphs(shifted, r.Face, ax, ay)
+	}
+	return true
+}
+
+// rebaseGlyphs shifts a glyph partition so it starts at X=0, returning the
+// shifted copy and the removed origin offset. shifted[i].X+off == part[i].X
+// for every glyph: positions are preserved exactly, satisfying pen-origin
+// based batch consumers (GPU glyph-mask layout) without touching I1.
+func rebaseGlyphs(part []text.ShapedGlyph) (shifted []text.ShapedGlyph, off float64) {
+	if len(part) == 0 {
+		return nil, 0
+	}
+	off = part[0].X
+	shifted = append([]text.ShapedGlyph(nil), part...)
+	if off != 0 {
+		for i := range shifted {
+			shifted[i].X -= off
+		}
+	}
+	return shifted, off
+}
+
+// SubmittedGlyphEstimate returns the glyphs Paint would submit under the
+// current viewport hints (M2 observability, paints nothing). Unbounded (no
+// hints) = every line's glyphs; with hints = the culled visible subset —
+// the same gates Paint uses, so the estimate tracks real submissions.
+// Coordinates are untouched (I3: culling only narrows submit range).
+func (t *RenderText) SubmittedGlyphEstimate() int {
+	if t == nil {
+		return 0
+	}
+	if t.hasRuns() {
+		// Multi-run rich text still paints per-rune (M5 domain); vertical
+		// banding does not apply here, count all spans' runes.
+		total := 0
+		for _, ln := range t.layoutRunLines() {
+			for _, sp := range ln.Spans {
+				total += utf8.RuneCountInString(sp.Text)
+			}
+		}
+		return total
+	}
+	lay := t.ensureLayout()
+	if lay == nil {
+		return 0
+	}
+	lines := t.DisplayLines()
+	if len(lines) == 0 {
+		return 0
+	}
+	rowLo, rowHi := 0, lay.LineCount()
+	if t.hasViewportHintY && lay.LineCount() > 0 {
+		rowLo, rowHi = visibleRowBandOf(lay, t.viewportScrollY, t.viewportHeight)
+	}
+	cull := t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1
+	total := 0
+	for i := rowLo; i < rowHi && i < len(lines); i++ {
+		if lines[i] == "" {
+			continue
+		}
+		glyphs := lay.LineGlyphs(i)
+		if cull && len(glyphs) > 200 {
+			const margin = 200.0
+			s, e := cullRangeForWindow(glyphs, t.viewportScrollX-margin, t.viewportScrollX+t.viewportWidth+margin)
+			total += e - s
+			continue
+		}
+		total += len(glyphs)
+	}
+	return total
+}
+
+// visibleRowBandOf maps a Y viewport band to a row range with ±1 row guard
+// (shared by Paint and SubmittedGlyphEstimate so both skip the same rows).
+func visibleRowBandOf(lay *TextLayout, scrollY, visH float64) (lo, hi int) {
+	if lay == nil || lay.LineCount() == 0 || visH <= 0 {
+		return 0, 0
+	}
+	lo, hi = lay.VisibleLineRange(scrollY, scrollY+visH)
+	if lo > 0 {
+		lo--
+	}
+	if hi < lay.LineCount() {
+		hi++
+	}
+	return lo, hi
+}
+
+// TreeSubmittedGlyphEstimate sums SubmittedGlyphEstimate over every
+// RenderText in the tree (M2 window-level O(V) observability).
+func TreeSubmittedGlyphEstimate(root RenderObject) int {
+	if root == nil {
+		return 0
+	}
+	total := 0
+	var walk func(n RenderObject)
+	walk = func(n RenderObject) {
+		if n == nil {
+			return
+		}
+		if t, ok := n.(*RenderText); ok {
+			total += t.SubmittedGlyphEstimate()
+		}
+		for _, ch := range n.Children() {
+			walk(ch)
+		}
+	}
+	walk(root)
+	return total
+}
+
 // caretXByOffset把行内caret表建成byteOff→X索引(M1-13):建表O(n)一次,
 // 之后每字O(1)查.调用方复用,勿每字重建.首个caret胜出(与旧线性扫首命中一致).
 func caretXByOffset(carets []GlyphCaret) map[int]float64 {
@@ -905,36 +1087,44 @@ func caretXByOffset(carets []GlyphCaret) map[int]float64 {
 	return xByOff
 }
 
-func (t *RenderText) cullGlyphs(glyphs []text.ShapedGlyph) []text.ShapedGlyph {	if !t.hasViewportHint || len(glyphs) == 0 {
+func (t *RenderText) cullGlyphs(glyphs []text.ShapedGlyph) []text.ShapedGlyph {
+	if !t.hasViewportHint || len(glyphs) == 0 {
 		return glyphs
 	}
 	// Visible window in text-local X (same coords as glyphs[].X).
 	const margin = 200.0
 	lo := t.viewportScrollX - margin
 	hi := t.viewportScrollX + t.viewportWidth + margin
-	// Glyphs are sorted by X; binary search lo/hi.
-	start := 0
-	end := len(glyphs)
-	// start = first with X+XAdvance >= lo
-	for i, g := range glyphs {
-		if g.X+g.XAdvance >= lo {
-			start = i
-			break
-		}
-		if i == len(glyphs)-1 {
-			return glyphs[len(glyphs):]
-		}
-	}
-	for i := start; i < len(glyphs); i++ {
-		if glyphs[i].X > hi {
-			end = i
-			break
-		}
-	}
-	if start >= end {
-		return glyphs[start:end]
-	}
+	start, end := cullRangeForWindow(glyphs, lo, hi)
 	return glyphs[start:end]
+}
+
+// cullRangeForWindow returns the glyph index range intersecting [loX,hiX).
+// Glyphs must be sorted by X (true for all layout-built lines: shaped runs
+// stitch with a monotonically advancing cursor, estimate/fallback paths
+// accumulate in rune order). Two binary searches, O(log n), no full scan.
+// Empty intersection returns start==end; callers slice glyphs[start:end].
+func cullRangeForWindow(glyphs []text.ShapedGlyph, loX, hiX float64) (start, end int) {
+	n := len(glyphs)
+	if n == 0 || hiX <= loX {
+		return 0, 0
+	}
+	start = sort.Search(n, func(i int) bool {
+		return glyphs[i].X+glyphs[i].XAdvance >= loX
+	})
+	end = sort.Search(n, func(i int) bool {
+		return glyphs[i].X > hiX
+	})
+	if start > n {
+		start = n
+	}
+	if end > n {
+		end = n
+	}
+	if start > end {
+		start = end
+	}
+	return start, end
 }
 
 func (t *RenderText) paintRuns(pc *PaintContext) {
