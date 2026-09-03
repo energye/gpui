@@ -90,7 +90,7 @@ GPUI_ACCEPT_SELFTEST=1 go run ./examples/ui_text_edit_accept      # 无头 CPU �
 | `layout_ms_p99` @B | 7.828 | — | 参考值（M1 记 9.785） |
 | `gpu_ops` / `frame_raster_ms` | 1355052 / 19.4 | — | 参考值（`paint_ms_p99` 文本专项探针仍未接，用整帧光栅耗时代替，见未验证清单） |
 
-> 本轮修过一次显示问题才达标：初版复合提交把绝对坐标的分区直接交 GPU，而 GPU 批量布局是按笔起点排的，导致各语种分区全叠在行首（英文压中文），有视口滚动的 B/C 框墨迹落在视口外、看起来是空的。修法是提交前把分区变基到自原点、提交原点平移同量（`rebaseGlyphs`，位置逐字形不变，`TestCompositeBatch_RebasedPositions` 锁拉丁+CJK+阿拉伯 RTL+泰文混排）。CPU 光栅路径一直是对的，所以单测全绿也没抓住，全靠真窗人眼发现。
+> 本轮修过一次显示问题才达标：初版复合提交把绝对坐标的分区直接交 GPU，而 GPU 批量布局是按笔起点排的，导致各语种分区全叠在行首（英文压中文），有视口滚动的 B/C 框墨迹落在视口外、看起来是空的。修法是提交前把分区变基到自原点、提交原点平移同量（`rebaseGlyphs`，位置逐字形不变，`TestCompositeBatch_RebasedPositions` 锁拉丁+CJK+阿拉伯 RTL+泰文混排）。CPU 光栅路径一直是对的，所以单测全绿也没抓住，真窗人眼发现、修完后人眼复验确认不重叠、B/C 有字。
 
 R5 对照窗（`GPUI_R5_SELFTEST=1`，3s）：9 探针全 true，`gpu_ops` 36034，`cpu_fallback_ops` 0；新增 `submitted_glyphs` 1061 / `vertex_count` 4244（CPU 侧提交观测，GPU 端精确顶点数未量）。
 
