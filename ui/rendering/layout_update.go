@@ -297,8 +297,8 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 	return true
 }
 
-// patchIndex同步行索引:影响区替换,后续区起止平移,行顶不变
-// (同行高,文本平移不改变y;影响区行高由fresh行自带,构造时已填).
+// patchIndex同步行索引:影响区替换,后续区起止平移,行顶按新增高度顺延
+// (影响区新高度与旧高度之差累加到后续行顶;行高均匀时行数不变则差为0).
 // removedH为被替换行的原高度和(调用方在splice前算好传入).
 // 行数不变时原地改数组(零分配,值与重建逐项一致);行数变才重建.
 func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH float64, delta int) {
@@ -319,6 +319,11 @@ func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH fl
 		if lo > 0 {
 			top = old.tops[lo]
 		}
+		freshH := 0.0
+		for _, r := range fresh {
+			freshH += r.Height
+		}
+		shift := freshH - removedH
 		old.totalH -= removedH
 		for k, r := range fresh {
 			i := lo + k
@@ -329,6 +334,7 @@ func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH fl
 		for i := hi + 1; i < old.n; i++ {
 			old.starts[i] += delta
 			old.ends[i] += delta
+			old.tops[i] += shift
 		}
 		old.first = old.starts[0]
 		old.last = old.starts[old.n-1]
@@ -346,6 +352,10 @@ func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH fl
 		top = old.tops[lo]
 	}
 	idx.totalH = old.totalH - removedH
+	freshH := 0.0
+	for _, r := range fresh {
+		freshH += r.Height
+	}
 	for _, r := range fresh {
 		idx.starts = append(idx.starts, r.StartByte)
 		idx.ends = append(idx.ends, r.EndByte)
@@ -353,10 +363,11 @@ func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH fl
 		top += r.Height
 		idx.totalH += r.Height
 	}
+	shift := freshH - removedH
 	for i := hi + 1; i < old.n; i++ {
 		idx.starts = append(idx.starts, old.starts[i]+delta)
 		idx.ends = append(idx.ends, old.ends[i]+delta)
-		idx.tops = append(idx.tops, old.tops[i])
+		idx.tops = append(idx.tops, old.tops[i]+shift)
 	}
 	idx.first = idx.starts[0]
 	idx.last = idx.starts[len(idx.starts)-1]

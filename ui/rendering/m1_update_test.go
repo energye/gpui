@@ -56,6 +56,49 @@ func TestLayoutUpdate_KOnly_M1(t *testing.T) {
 	}
 }
 
+// TestLayoutUpdate_TailTops_RV锁行顶增量:行数变化时尾部行顶必须按
+// 新增高度顺延,与直接构建逐项一致.回车多一行少顺延即叠字,删行多留即裂缝.
+func TestLayoutUpdate_TailTops_RV(t *testing.T) {
+	checkTops := func(c *layoutCache, text string, w float64) {
+		t.Helper()
+		got := c.update(text, nil, 14, w, 1.2, 0.55, 0, TextOverflowClip)
+		want := BuildTextLayout(text, nil, 14, w, 1.2)
+		if got.LineCount() != want.LineCount() {
+			t.Fatalf("行数不一致(got %d want %d text=%q)", got.LineCount(), want.LineCount(), text)
+		}
+		for i := 0; i < want.LineCount(); i++ {
+			if got.LineTop(i) != want.LineTop(i) {
+				t.Fatalf("第%d行顶%.2f,直接%.2f(text=%q)", i, got.LineTop(i), want.LineTop(i), text)
+			}
+		}
+	}
+	c := newLayoutCache()
+	checkTops(c, "aaa\nbbb\nccc", 0)
+	checkTops(c, "aaa\n\nbbb\nccc", 0)
+	checkTops(c, "aaa\nbbb\nccc", 0)
+	checkTops(c, "\naaa\nbbb\nccc", 0)
+	checkTops(c, "hello world hello world hello world hello world\nTAIL", 200)
+	checkTops(c, "hello\nworld hello world hello world hello world\nTAIL", 200)
+}
+
+// TestLineClusters_StaleBounds_NoPanic锁拖选越界:增量快照在定时器线程
+// 被读到一半撕裂时,尾行EndByte可能比Text长1字节.查询必须钳制,不得panic.
+func TestLineClusters_StaleBounds_NoPanic(t *testing.T) {
+	l := &TextLayout{Text: "aaa\nbbb", FontSize: 14, LineSpacing: 1.2}
+	lh := lineHeightFor(nil, 14, 1.2)
+	l.lines = []TextLayoutLine{
+		{StartByte: 0, EndByte: 3, Height: lh, Carets: []GlyphCaret{{ByteOff: 0, X: 0}, {ByteOff: 3, X: 30}}},
+		{StartByte: 4, EndByte: 8, Height: lh, Carets: []GlyphCaret{{ByteOff: 0, X: 0}, {ByteOff: 3, X: 30}}},
+	}
+	off, _ := l.GetPositionForOffset(1000, 1000)
+	if off < 0 || off > len(l.Text) {
+		t.Fatalf("越界快照查询结果未钳制:off=%d len=%d", off, len(l.Text))
+	}
+	if got := l.lineClusters(1); len(got) == 0 {
+		t.Fatalf("钳制后簇表为空")
+	}
+}
+
 func TestLayoutUpdate_Generation_M1(t *testing.T) {
 	c := newLayoutCache()
 	l1 := c.update("aaa", nil, 14, 0, 1.2, 0.55, 0, TextOverflowClip)

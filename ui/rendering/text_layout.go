@@ -945,10 +945,23 @@ func isNewlineAt(text string, byteOff int) bool {
 // lineClusters返回行内簇起点(绝对偏移,末尾附行尾哨兵),首算O(L)后缓存.
 // 簇不跨\n(GB4/GB5控制字符恒切分),故按行切分与整串切分一致.
 func (l *TextLayout) lineClusters(li int) []int {
+	if l == nil || li < 0 || li >= len(l.lines) {
+		return nil
+	}
 	ln := &l.lines[li]
 	if ln.clusters == nil {
-		base := ln.StartByte
-		rel := text.ClusterStarts(l.Text[base:ln.EndByte])
+		// 撕裂快照的行界可能越过 Text,钳制后再切分.
+		base, end := ln.StartByte, ln.EndByte
+		if base < 0 {
+			base = 0
+		}
+		if end > len(l.Text) {
+			end = len(l.Text)
+		}
+		if base > end {
+			base = end
+		}
+		rel := text.ClusterStarts(l.Text[base:end])
 		abs := make([]int, len(rel))
 		for i, o := range rel {
 			abs[i] = base + o
@@ -961,11 +974,25 @@ func (l *TextLayout) lineClusters(li int) []int {
 // snapToCluster把off吸附到所在簇边界(行内,affinity语义同SnapCluster).
 // 已在边界或行区间外保持不动.起点表行内缓存,吸附走共享单源.
 func (l *TextLayout) snapToCluster(li int, off int, affinity int) int {
+	if l == nil || li < 0 || li >= len(l.lines) {
+		return off
+	}
 	ln := &l.lines[li]
 	if off <= ln.StartByte || off >= ln.EndByte {
 		return off
 	}
 	return text.SnapInStarts(l.lineClusters(li), off, affinity != AffinityUpstream)
+}
+
+// clampOffset把字节偏移钳制进Text区间(撕裂快照的行界可能越界).
+func (l *TextLayout) clampOffset(off int) int {
+	if off < 0 {
+		return 0
+	}
+	if l != nil && off > len(l.Text) {
+		return len(l.Text)
+	}
+	return off
 }
 
 // snapToGraphemeBoundary snaps byteOff to a UAX#29 cluster boundary per affinity.
@@ -1087,13 +1114,13 @@ func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity i
 	row := idx.rowForY(y, l.FontSize, l.LineSpacing, l.LineHeight)
 	ln := l.lines[row]
 	if x <= 0 {
-		return ln.StartByte, AffinityDownstream
+		return l.clampOffset(ln.StartByte), AffinityDownstream
 	}
 	if len(ln.Carets) == 0 {
-		return ln.StartByte, AffinityDownstream
+		return l.clampOffset(ln.StartByte), AffinityDownstream
 	}
 	if len(ln.Carets) == 1 {
-		return ln.Carets[0].ByteOff, AffinityDownstream
+		return l.clampOffset(ln.Carets[0].ByteOff), AffinityDownstream
 	}
 	// Mid-point rule for nearest caret, but also set affinity:
 	// If x is in left half of a grapheme, affinity downstream (leading), else upstream (trailing).
@@ -1102,7 +1129,7 @@ func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity i
 	// caret为行内相对,先加行基址转绝对再吸附.
 	off, aff := offsetForX(ln.Carets, x)
 	off += ln.StartByte
-	return l.snapToCluster(row, off, aff), aff
+	return l.clampOffset(l.snapToCluster(row, off, aff)), aff
 }
 
 func (l *TextLayout) HitTest(x, y float64, lineHeight float64) int {
