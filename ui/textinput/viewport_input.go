@@ -300,7 +300,7 @@ func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 		maskedByte := runeIdx * chBytes
 		aff := b.ed.TextRange().Affinity
 		lay := b.txt.TextLayout()
-		if lay != nil && len(lay.Lines) > 0 {
+		if lay != nil && lay.LineCount() > 0 {
 			if x, y, h, ok := lay.GetOffsetForCaret(maskedByte, aff, 1.5); ok {
 				cx := txtOff.X + x - vpOff.X + 1
 				cy := txtOff.Y + y + 1
@@ -323,7 +323,7 @@ func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			cx := txtOff.X + x - vpOff.X + 1
 			cy := txtOff.Y + y + 1
@@ -335,7 +335,7 @@ func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 
 func (b *ViewportInputBox) IMERect() platform.Rect {
 	if b != nil && b.ed != nil && b.ed.IsComposing() {
-		if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+		if lay := b.txt.TextLayout(); lay != nil && lay.LineCount() > 0 {
 			cr := b.ed.ComposingRange()
 			s := byteOffsetForUtf16(b.ed.GetText(), cr.Start())
 			e := byteOffsetForUtf16(b.ed.GetText(), cr.End())
@@ -423,7 +423,7 @@ func (b *ViewportInputBox) sync() {
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
 	var caretX float64
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		if x, _, _, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			caretX = x
 		}
@@ -444,8 +444,8 @@ func (b *ViewportInputBox) sync() {
 	}
 	// 同 InputBox：按行宽算 maxScroll，删除后自动回移，适配任意字号
 	maxW := 0.0
-	if lay != nil && len(lay.Lines) > 0 {
-		maxW = lay.Lines[0].Width
+	if lay != nil && lay.LineCount() > 0 {
+		_, _, maxW, _, _ = lay.Line(0)
 		if maxW < caretX {
 			maxW = caretX
 		}
@@ -489,7 +489,7 @@ func (b *ViewportInputBox) syncHighlight() {
 	sByte := byteOffsetForUtf16(b.ed.GetText(), sel.Start())
 	eByte := byteOffsetForUtf16(b.ed.GetText(), sel.End())
 	lay := b.txt.TextLayout()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		return
 	}
 	boxes := lay.BoxesForRange(sByte, eByte)
@@ -560,7 +560,7 @@ func (b *ViewportInputBox) layoutCaret() {
 	lay := b.txt.TextLayout()
 	var x, y, h float64
 	var ok bool
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		x, y, h, ok = lay.GetOffsetForCaret(curByte, aff, 1.5)
 	}
 	if !ok {
@@ -671,8 +671,8 @@ func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
 			scrollX := b.Viewport.ScrollOffset().X
 			layTmp := b.txt.TextLayout()
 			maxX := 0.0
-			if layTmp != nil && len(layTmp.Lines) > 0 {
-				maxX = layTmp.Lines[0].Width
+			if layTmp != nil && layTmp.LineCount() > 0 {
+				_, _, maxX, _, _ = layTmp.Line(0)
 			}
 			maxScroll := maxX - visW + 4
 			if maxScroll < 0 {
@@ -829,23 +829,23 @@ func (b *ViewportInputBox) extendVisual(delta int) {
 	cur := sel.Extent
 	lay := b.txt.TextLayout()
 	newOff := cur
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		curByte := byteOffsetForUtf16(b.ed.GetText(), cur)
 		lineIdx, _, ok := lay.CaretForOffset(curByte)
 		if ok {
-			ln := lay.Lines[lineIdx]
+			lineCarets := lay.LineCarets(lineIdx)
 			idx := -1
-			for j, c := range ln.Carets {
+			for j, c := range lineCarets {
 				if c.ByteOff == curByte {
 					idx = j
 					break
 				}
 			}
 			if idx >= 0 {
-				if delta > 0 && idx+1 < len(ln.Carets) {
-					newOff = b.ed.utf16ForByte(ln.Carets[idx+1].ByteOff)
+				if delta > 0 && idx+1 < len(lineCarets) {
+					newOff = b.ed.utf16ForByte(lineCarets[idx+1].ByteOff)
 				} else if delta < 0 && idx-1 >= 0 {
-					newOff = b.ed.utf16ForByte(ln.Carets[idx-1].ByteOff)
+					newOff = b.ed.utf16ForByte(lineCarets[idx-1].ByteOff)
 				}
 			}
 		}
@@ -895,8 +895,8 @@ func (b *ViewportInputBox) doViewportAutoScroll() {
 	scrollX := b.Viewport.ScrollOffset().X
 	layTmp := b.txt.TextLayout()
 	maxX := 0.0
-	if layTmp != nil && len(layTmp.Lines) > 0 {
-		maxX = layTmp.Lines[0].Width
+	if layTmp != nil && layTmp.LineCount() > 0 {
+		_, _, maxX, _, _ = layTmp.Line(0)
 	}
 	maxScroll := maxX - visW + 4
 	if maxScroll < 0 {

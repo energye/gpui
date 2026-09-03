@@ -137,7 +137,7 @@ func (b *inputBox) caretAnchor() (x, top, bottom float64, ok bool) {
 	var lineIdx int
 	var penX float64
 	var kok bool
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		lineIdx, penX, kok = lay.CaretForOffset(curByte)
 		penX -= b.scrollX
 	} else {
@@ -207,7 +207,7 @@ func (b *inputBox) sync() {
 	b.text.SetText(disp)
 	// 横滚：光标始终可见
 	curByte := b.ed.GetCursorOffset()
-	if lay := b.text.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+	if lay := b.text.TextLayout(); lay != nil && lay.LineCount() > 0 {
 		_, caretX, _ := lay.CaretForOffset(curByte)
 		visW := boxW - 8
 		if caretX-b.scrollX > visW-4 {
@@ -219,8 +219,8 @@ func (b *inputBox) sync() {
 		if b.scrollX < 0 {
 			b.scrollX = 0
 		}
-		if lay.Lines[0].Width > 0 && b.scrollX > lay.Lines[0].Width-visW {
-			b.scrollX = lay.Lines[0].Width - visW
+		if _, _, w0, _, _ := lay.Line(0); w0 > 0 && b.scrollX > w0-visW {
+			b.scrollX = w0 - visW
 			if b.scrollX < 0 {
 				b.scrollX = 0
 			}

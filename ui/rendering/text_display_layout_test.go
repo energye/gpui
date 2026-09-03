@@ -23,17 +23,18 @@ func TestDisplayLinesMatchLayout_MaxLinesEllipsis(t *testing.T) {
 
 	lay := txt.TextLayout()
 	lines := txt.DisplayLines()
-	if lay == nil || len(lay.Lines) != 2 {
-		t.Fatalf("layout lines=%d want 2 (truncated)", len(lay.Lines))
+	if lay == nil || lay.LineCount() != 2 {
+		t.Fatalf("layout lines=%d want 2 (truncated)", lay.LineCount())
 	}
-	if len(lines) != len(lay.Lines) {
-		t.Fatalf("display %d vs layout %d", len(lines), len(lay.Lines))
+	if len(lines) != lay.LineCount() {
+		t.Fatalf("display %d vs layout %d", len(lines), lay.LineCount())
 	}
 	if !lay.Truncated {
 		t.Fatalf("layout Truncated=false want true")
 	}
 	for i := range lines {
-		want := lay.Text[lay.Lines[i].StartByte:lay.Lines[i].EndByte]
+		ls, le, _, _, _ := lay.Line(i)
+		want := lay.Text[ls:le]
 		got := lines[i]
 		if i == len(lines)-1 {
 			got = strings.TrimSuffix(got, "…")
@@ -59,14 +60,15 @@ func TestDisplayLinesMatchLayout_MaxLinesClip(t *testing.T) {
 
 	lay := txt.TextLayout()
 	lines := txt.DisplayLines()
-	if lay == nil || len(lay.Lines) != 2 {
-		t.Fatalf("layout lines=%d want 2 (truncated)", len(lay.Lines))
+	if lay == nil || lay.LineCount() != 2 {
+		t.Fatalf("layout lines=%d want 2 (truncated)", lay.LineCount())
 	}
-	if len(lines) != len(lay.Lines) {
-		t.Fatalf("display %d vs layout %d", len(lines), len(lay.Lines))
+	if len(lines) != lay.LineCount() {
+		t.Fatalf("display %d vs layout %d", len(lines), lay.LineCount())
 	}
 	for i := range lines {
-		want := lay.Text[lay.Lines[i].StartByte:lay.Lines[i].EndByte]
+		ls, le, _, _, _ := lay.Line(i)
+		want := lay.Text[ls:le]
 		if lines[i] != want {
 			t.Fatalf("line %d display %q != layout %q", i, lines[i], want)
 		}
@@ -82,14 +84,15 @@ func TestDisplayLinesMatchLayout_NoFaceEstimate(t *testing.T) {
 
 	lay := txt.TextLayout()
 	lines := txt.DisplayLines()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		t.Fatalf("no layout lines")
 	}
-	if len(lines) != len(lay.Lines) {
-		t.Fatalf("display %d vs layout %d: %q", len(lines), len(lay.Lines), lines)
+	if len(lines) != lay.LineCount() {
+		t.Fatalf("display %d vs layout %d: %q", len(lines), lay.LineCount(), lines)
 	}
 	for i := range lines {
-		want := lay.Text[lay.Lines[i].StartByte:lay.Lines[i].EndByte]
+		ls, le, _, _, _ := lay.Line(i)
+		want := lay.Text[ls:le]
 		if lines[i] != want {
 			t.Fatalf("line %d display %q != layout %q", i, lines[i], want)
 		}
@@ -109,11 +112,12 @@ func TestDisplayLinesMatchLayout_WrapLock(t *testing.T) {
 
 	lay := txt.TextLayout()
 	lines := txt.DisplayLines()
-	if len(lines) != len(lay.Lines) {
-		t.Fatalf("display %d vs layout %d", len(lines), len(lay.Lines))
+	if len(lines) != lay.LineCount() {
+		t.Fatalf("display %d vs layout %d", len(lines), lay.LineCount())
 	}
 	for i := range lines {
-		want := lay.Text[lay.Lines[i].StartByte:lay.Lines[i].EndByte]
+		ls, le, _, _, _ := lay.Line(i)
+		want := lay.Text[ls:le]
 		if lines[i] != want {
 			t.Fatalf("line %d display %q != layout %q", i, lines[i], want)
 		}
@@ -132,11 +136,11 @@ func TestDisplayLinesMatchLayout_MultiRun(t *testing.T) {
 
 	lay := rt.TextLayout()
 	lines := rt.DisplayLines()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		t.Fatalf("no layout lines")
 	}
-	if len(lines) != len(lay.Lines) {
-		t.Fatalf("display %d vs layout %d: %q", len(lines), len(lay.Lines), lines)
+	if len(lines) != lay.LineCount() {
+		t.Fatalf("display %d vs layout %d: %q", len(lines), lay.LineCount(), lines)
 	}
 	if len(lines) > 2 {
 		t.Fatalf("lines=%d want ≤2", len(lines))

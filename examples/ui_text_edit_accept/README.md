@@ -62,6 +62,20 @@ GPUI_ACCEPT_SELFTEST=1 go run ./examples/ui_text_edit_accept      # 无头 CPU �
 | `layout_ms_p99` @B（含首次冷整形） | 11.8 | — | 参考值 |
 | `rss_slope_kb_per_min`（30s 含字体图集预热） | 52027 | ≤ 30000 | ❌ 口径问题：需 60s 稳态编辑复测（M3） |
 
+## 真窗 30s（2026-09-03，M1 之后，同一台机器，`GPUI_ACCEPT_RUN_SECONDS=30`）
+
+| 指标 | 值 | 门禁 | 判定 |
+|---|---|---|---|
+| `fps_interval` | 59.2 | ≥ 55 | ✅ |
+| `interval_p95_ms` | 16.91 | ≤ 22 | ✅ |
+| `hitch_rate_per_min` | 2.0 | ≤ 5 | ✅ |
+| `cpu_fallback_ops` | 0 | == 0 | ✅ |
+| `rss_slope_kb_per_min` | 13515 | ≤ 30000 | ✅（M0 的 52027 口径问题本轮未现） |
+| `bulk_taken`（B/C 全行字形非 0 且脸可源） | false | — | 非门禁：复合脸 `Source()==nil` 是 M0 主动保留语义，批量路由属 M2（M0 的 true 系回退前旧态，本轮探针与引擎语义一致） |
+| `caret_vs_paint_max_delta_px`（布局提交侧） | 0 | ≤ 2 | ✅ |
+| `keystroke_p99_ms` @C（50000 字整行重排） | 69.4 | ≤ 16 | ❌ 非 M1 门禁：单行整行重整形 O(行长) 系 §3.4 设计使然（M0 记 61.0，同量级）；多行档 M1 门禁全绿见单测 |
+| `layout_ms_p99` @B | 9.785 | — | 参考值（M0 记 11.8，-17%） |
+
 ## 未验证清单
 
 - 像素墨迹与布局的对照：B 框截图已量出 3242 墨点、左缘在框内 +3px（内边距），与布局一致；全框逐字对照待补。

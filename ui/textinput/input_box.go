@@ -343,7 +343,7 @@ func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 		maskedByte := runeIdx * chBytes
 		aff := b.ed.TextRange().Affinity
 		lay := b.txt.TextLayout()
-		if lay != nil && len(lay.Lines) > 0 {
+		if lay != nil && lay.LineCount() > 0 {
 			if x, y, h, ok := lay.GetOffsetForCaret(maskedByte, aff, 1.5); ok {
 				off := b.txt.Offset()
 				return off.X + x, off.Y + y, off.Y + y + h, true
@@ -366,7 +366,7 @@ func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			off := b.txt.Offset()
 			return off.X + x, off.Y + y, off.Y + y + h, true
@@ -379,7 +379,7 @@ func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 	off := b.txt.Offset()
 	x := off.X + penX
 	var top, bottom float64
-	if lay != nil && len(lay.Lines) > lineIdx {
+	if lay != nil && lay.LineCount() > lineIdx {
 		top = off.Y + lay.LineTop(lineIdx)
 		bottom = top + lay.LineHeight(lineIdx)
 	} else {
@@ -397,7 +397,7 @@ func (b *InputBox) IMERect() platform.Rect {
 	// F-D3: composing 时必报 composing_rect（Flutter firstRectForCharacterRange），
 	// 非 composing 仅预热 caret 矩形。composing_rect 取 composingRange 的 BoxesForRange 并集。
 	if b != nil && b.ed != nil && b.ed.IsComposing() {
-		if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+		if lay := b.txt.TextLayout(); lay != nil && lay.LineCount() > 0 {
 			cr := b.ed.ComposingRange()
 			// ComposingRange 是 UTF16，需转 byte 再取盒
 			s := byteOffsetForUtf16(b.ed.GetText(), cr.Start())
@@ -449,7 +449,17 @@ func (b *InputBox) sync() {
 	} else if disp == "" && !b.focused && b.placeholder != "" {
 		disp = b.placeholder
 	}
-	b.txt.SetText(disp)
+	// M1-d:非变换串时把Editor的变更区间直达排版引擎,免逐字节diff.
+	// 密码掩码/占位替换改变了串内容,区间不适用,走普通通道.
+	if !isPassword && !(disp == "" && !b.focused && b.placeholder != "") {
+		if oA, oB, nA, nB, ok := b.ed.ConsumeEditSpan(); ok {
+			b.txt.SetTextSpan(disp, oA, oB, nA, nB)
+		} else {
+			b.txt.SetText(disp)
+		}
+	} else {
+		b.txt.SetText(disp)
+	}
 	if disp == "" {
 		b.scrollX = 0
 	}
@@ -488,7 +498,7 @@ func (b *InputBox) sync() {
 	if visW < 0 {
 		visW = 0
 	}
-	if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+	if lay := b.txt.TextLayout(); lay != nil && lay.LineCount() > 0 {
 		caretX := 0.0
 		if x, _, _, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			caretX = x
@@ -507,7 +517,7 @@ func (b *InputBox) sync() {
 		// 对齐 Flutter RenderEditable ensureCaretVisible + 溢出回滚：
 		// 删除后总宽变小，scrollX 若仍停在旧 max 会在右侧留白、前面字不回移。
 		// 按实际行宽计算 maxScroll 并夹紧，自动适配任意字号/字体。
-		maxW := lay.Lines[0].Width
+		_, _, maxW, _, _ := lay.Line(0)
 		if maxW < caretX {
 			maxW = caretX
 		}
@@ -557,7 +567,7 @@ func (b *InputBox) syncSelectionHighlight() {
 	eByte := byteOffsetForUtf16(b.ed.GetText(), selRange.End())
 	// For password we already returned; for normal, map to display bytes (same as text)
 	lay := b.txt.TextLayout()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		return
 	}
 	boxes := lay.BoxesForRange(sByte, eByte)
@@ -757,8 +767,8 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 			}
 			layTmp := b.txt.TextLayout()
 			maxX := 0.0
-			if layTmp != nil && len(layTmp.Lines) > 0 {
-				maxX = layTmp.Lines[0].Width
+			if layTmp != nil && layTmp.LineCount() > 0 {
+				_, _, maxX, _, _ = layTmp.Line(0)
 			}
 			maxScroll := maxX - visW + 4
 			if maxScroll < 0 {
@@ -998,28 +1008,29 @@ func (b *InputBox) extendVisual(delta int) {
 	cur := sel.Extent
 	lay := b.txt.TextLayout()
 	newOff := cur
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		curByte := byteOffsetForUtf16(b.ed.GetText(), cur)
 		lineIdx, _, ok := lay.CaretForOffset(curByte)
 		if ok {
-			ln := lay.Lines[lineIdx]
+			lineCarets := lay.LineCarets(lineIdx)
 			idx := -1
-			for j, c := range ln.Carets {
+			for j, c := range lineCarets {
 				if c.ByteOff == curByte {
 					idx = j
 					break
 				}
 			}
 			if idx >= 0 {
-				if delta > 0 && idx+1 < len(ln.Carets) {
-					newOff = b.ed.utf16ForByte(ln.Carets[idx+1].ByteOff)
+				if delta > 0 && idx+1 < len(lineCarets) {
+					newOff = b.ed.utf16ForByte(lineCarets[idx+1].ByteOff)
 				} else if delta < 0 && idx-1 >= 0 {
-					newOff = b.ed.utf16ForByte(ln.Carets[idx-1].ByteOff)
-				} else if delta > 0 && lineIdx+1 < len(lay.Lines) {
-					newOff = b.ed.utf16ForByte(lay.Lines[lineIdx+1].Carets[0].ByteOff)
+					newOff = b.ed.utf16ForByte(lineCarets[idx-1].ByteOff)
+				} else if delta > 0 && lineIdx+1 < lay.LineCount() {
+					nextStart, _, _, _, _ := lay.Line(lineIdx + 1)
+					newOff = b.ed.utf16ForByte(nextStart)
 				} else if delta < 0 && lineIdx-1 >= 0 {
-					prev := lay.Lines[lineIdx-1]
-					newOff = b.ed.utf16ForByte(prev.Carets[len(prev.Carets)-1].ByteOff)
+					prev := lay.LineCarets(lineIdx - 1)
+					newOff = b.ed.utf16ForByte(prev[len(prev)-1].ByteOff)
 				}
 			} else {
 				// fallback
@@ -1058,15 +1069,15 @@ func (b *InputBox) extendVertical(dir int) {
 		return
 	}
 	target := lineIdx + dir
-	if target < 0 || target >= len(lay.Lines) {
+	if target < 0 || target >= lay.LineCount() {
 		return
 	}
 	// 粘滞列
 	curX, _, _, _ := lay.GetOffsetForCaret(curByte, rendering.AffinityDownstream, 1.5)
-	tln := lay.Lines[target]
+	tCarets := lay.LineCarets(target)
 	best := 0
 	bestDist := 1e12
-	for i, c := range tln.Carets {
+	for i, c := range tCarets {
 		d := c.X - curX
 		if d < 0 {
 			d = -d
@@ -1076,7 +1087,7 @@ func (b *InputBox) extendVertical(dir int) {
 			best = i
 		}
 	}
-	newOff := b.ed.utf16ForByte(tln.Carets[best].ByteOff)
+	newOff := b.ed.utf16ForByte(tCarets[best].ByteOff)
 	b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
 }
 
@@ -1196,8 +1207,8 @@ func (b *InputBox) doInputBoxAutoScroll() {
 	}
 	layTmp := b.txt.TextLayout()
 	maxX := 0.0
-	if layTmp != nil && len(layTmp.Lines) > 0 {
-		maxX = layTmp.Lines[0].Width
+	if layTmp != nil && layTmp.LineCount() > 0 {
+		_, _, maxX, _, _ = layTmp.Line(0)
 	}
 	maxScroll := maxX - visW + 4
 	if maxScroll < 0 {
@@ -1597,7 +1608,7 @@ func (b *MultiLineInputBox) caretAnchor() (float64, float64, float64, bool) {
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			off := b.txt.Offset()
 			return off.X + x, off.Y + y, off.Y + y + h, true
@@ -1610,7 +1621,7 @@ func (b *MultiLineInputBox) caretAnchor() (float64, float64, float64, bool) {
 	off := b.txt.Offset()
 	x := off.X + penX
 	var top, bottom float64
-	if lay != nil && len(lay.Lines) > lineIdx {
+	if lay != nil && lay.LineCount() > lineIdx {
 		top = off.Y + lay.LineTop(lineIdx)
 		bottom = top + lay.LineHeight(lineIdx)
 	} else {
@@ -1626,7 +1637,7 @@ func (b *MultiLineInputBox) caretAnchor() (float64, float64, float64, bool) {
 
 func (b *MultiLineInputBox) IMERect() platform.Rect {
 	if b != nil && b.ed != nil && b.ed.IsComposing() {
-		if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+		if lay := b.txt.TextLayout(); lay != nil && lay.LineCount() > 0 {
 			cr := b.ed.ComposingRange()
 			s := byteOffsetForUtf16(b.ed.GetText(), cr.Start())
 			e := byteOffsetForUtf16(b.ed.GetText(), cr.End())
@@ -1680,7 +1691,14 @@ func (b *MultiLineInputBox) sync() {
 	} else {
 		b.txt.MaxWidth = 0
 	}
-	b.txt.SetText(disp)
+	// M1-d:与单行sync同,占位替换时不用区间通道.
+	if disp == "" && !b.focused && b.placeholder != "" {
+		b.txt.SetText(disp)
+	} else if oA, oB, nA, nB, ok := b.ed.ConsumeEditSpan(); ok {
+		b.txt.SetTextSpan(disp, oA, oB, nA, nB)
+	} else {
+		b.txt.SetText(disp)
+	}
 	if disp == "" {
 		b.scrollX = 0
 		b.scrollY = 0
@@ -1691,10 +1709,10 @@ func (b *MultiLineInputBox) sync() {
 	lay := b.txt.TextLayout()
 	var caretX, caretY, caretH float64
 	var lineIdx int
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			caretX, caretY, caretH = x, y, h
-			for i := range lay.Lines {
+			for i := 0; i < lay.LineCount(); i++ {
 				top := lay.LineTop(i)
 				ht := lay.LineHeight(i)
 				if y >= top-0.01 && y < top+ht-0.01 {
@@ -1735,11 +1753,11 @@ func (b *MultiLineInputBox) sync() {
 		b.scrollX = 0
 	}
 	// 横向 maxScroll 夹紧：删除后总宽变小，前面文本自动回移
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		maxW := 0.0
-		for _, ln := range lay.Lines {
-			if ln.Width > maxW {
-				maxW = ln.Width
+		for i := 0; i < lay.LineCount(); i++ {
+			if _, _, w, _, ok := lay.Line(i); ok && w > maxW {
+				maxW = w
 			}
 		}
 		if maxW < caretX {
@@ -1754,7 +1772,7 @@ func (b *MultiLineInputBox) sync() {
 		}
 	}
 	var lineH float64
-	if lay != nil && len(lay.Lines) > lineIdx {
+	if lay != nil && lay.LineCount() > lineIdx {
 		lineH = lay.LineHeight(lineIdx)
 	} else {
 		lh := b.txt.LineHeight()
@@ -1772,8 +1790,8 @@ func (b *MultiLineInputBox) sync() {
 	if b.scrollY < 0 {
 		b.scrollY = 0
 	}
-	if lay != nil && len(lay.Lines) > 0 {
-		totalH := lay.LineTop(len(lay.Lines)-1) + lay.LineHeight(len(lay.Lines)-1)
+	if lay != nil && lay.LineCount() > 0 {
+		totalH := lay.LineTop(lay.LineCount()-1) + lay.LineHeight(lay.LineCount()-1)
 		maxY := totalH - visH
 		if maxY < 0 {
 			maxY = 0
@@ -1808,7 +1826,7 @@ func (b *MultiLineInputBox) syncMultiHighlight() {
 	sByte := byteOffsetForUtf16(b.ed.GetText(), sel.Start())
 	eByte := byteOffsetForUtf16(b.ed.GetText(), sel.End())
 	lay := b.txt.TextLayout()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		return
 	}
 	boxes := lay.BoxesForRange(sByte, eByte)
@@ -1894,13 +1912,13 @@ func (b *MultiLineInputBox) doMultiAutoScroll() {
 	}
 	lay := b.txt.TextLayout()
 	maxX, maxY := 0.0, 0.0
-	if lay != nil && len(lay.Lines) > 0 {
-		for _, ln := range lay.Lines {
-			if ln.Width > maxX {
-				maxX = ln.Width
+	if lay != nil && lay.LineCount() > 0 {
+		for i := 0; i < lay.LineCount(); i++ {
+			if _, _, w, _, ok := lay.Line(i); ok && w > maxX {
+				maxX = w
 			}
 		}
-		totalH := lay.LineTop(len(lay.Lines)-1) + lay.LineHeight(len(lay.Lines)-1)
+		totalH := lay.LineTop(lay.LineCount()-1) + lay.LineHeight(lay.LineCount()-1)
 		maxY = totalH - visH
 		if maxY < 0 {
 			maxY = 0
@@ -2039,13 +2057,13 @@ func (b *MultiLineInputBox) OnPointer(ev input.PointerEvent) {
 			}
 			layTmp := b.txt.TextLayout()
 			maxX, maxY := 0.0, 0.0
-			if layTmp != nil && len(layTmp.Lines) > 0 {
-				for _, ln := range layTmp.Lines {
-					if ln.Width > maxX {
-						maxX = ln.Width
+			if layTmp != nil && layTmp.LineCount() > 0 {
+				for i := 0; i < layTmp.LineCount(); i++ {
+					if _, _, w, _, ok := layTmp.Line(i); ok && w > maxX {
+						maxX = w
 					}
 				}
-				totalH := layTmp.LineTop(len(layTmp.Lines)-1) + layTmp.LineHeight(len(layTmp.Lines)-1)
+				totalH := layTmp.LineTop(layTmp.LineCount()-1) + layTmp.LineHeight(layTmp.LineCount()-1)
 				maxY = totalH - visH
 				if maxY < 0 {
 					maxY = 0
@@ -2225,28 +2243,29 @@ func (b *MultiLineInputBox) extendVisualMulti(delta int) {
 	base := sel.Base
 	cur := sel.Extent
 	lay := b.txt.TextLayout()
-	if lay != nil && len(lay.Lines) > 0 {
+	if lay != nil && lay.LineCount() > 0 {
 		curByte := byteOffsetForUtf16(b.ed.GetText(), cur)
 		lineIdx, _, ok := lay.CaretForOffset(curByte)
 		if ok {
-			ln := lay.Lines[lineIdx]
+			lineCarets := lay.LineCarets(lineIdx)
 			idx := -1
-			for j, c := range ln.Carets {
+			for j, c := range lineCarets {
 				if c.ByteOff == curByte {
 					idx = j
 					break
 				}
 			}
 			if idx >= 0 {
-				if delta > 0 && idx+1 < len(ln.Carets) {
-					cur = b.ed.utf16ForByte(ln.Carets[idx+1].ByteOff)
+				if delta > 0 && idx+1 < len(lineCarets) {
+					cur = b.ed.utf16ForByte(lineCarets[idx+1].ByteOff)
 				} else if delta < 0 && idx-1 >= 0 {
-					cur = b.ed.utf16ForByte(ln.Carets[idx-1].ByteOff)
-				} else if delta > 0 && lineIdx+1 < len(lay.Lines) {
-					cur = b.ed.utf16ForByte(lay.Lines[lineIdx+1].Carets[0].ByteOff)
+					cur = b.ed.utf16ForByte(lineCarets[idx-1].ByteOff)
+				} else if delta > 0 && lineIdx+1 < lay.LineCount() {
+					nextStart, _, _, _, _ := lay.Line(lineIdx + 1)
+					cur = b.ed.utf16ForByte(nextStart)
 				} else if delta < 0 && lineIdx-1 >= 0 {
-					prev := lay.Lines[lineIdx-1]
-					cur = b.ed.utf16ForByte(prev.Carets[len(prev.Carets)-1].ByteOff)
+					prev := lay.LineCarets(lineIdx - 1)
+					cur = b.ed.utf16ForByte(prev[len(prev)-1].ByteOff)
 				}
 			}
 		}
@@ -2266,7 +2285,7 @@ func (b *MultiLineInputBox) extendVerticalMulti(dir int) {
 	}
 	base := b.ed.SelectionRange().Base
 	lay := b.txt.TextLayout()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		if dir < 0 {
 			b.ed.MoveCursorUp()
 		} else {
@@ -2280,14 +2299,14 @@ func (b *MultiLineInputBox) extendVerticalMulti(dir int) {
 		return
 	}
 	target := lineIdx + dir
-	if target < 0 || target >= len(lay.Lines) {
+	if target < 0 || target >= lay.LineCount() {
 		return
 	}
 	curX, _, _, _ := lay.GetOffsetForCaret(curByte, rendering.AffinityDownstream, 1.5)
-	tln := lay.Lines[target]
+	tCarets := lay.LineCarets(target)
 	best := 0
 	bestDist := 1e12
-	for i, c := range tln.Carets {
+	for i, c := range tCarets {
 		d := c.X - curX
 		if d < 0 {
 			d = -d
@@ -2297,7 +2316,7 @@ func (b *MultiLineInputBox) extendVerticalMulti(dir int) {
 			best = i
 		}
 	}
-	newOff := b.ed.utf16ForByte(tln.Carets[best].ByteOff)
+	newOff := b.ed.utf16ForByte(tCarets[best].ByteOff)
 	b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
 }
 

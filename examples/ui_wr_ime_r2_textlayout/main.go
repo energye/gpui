@@ -232,8 +232,8 @@ func main() {
 		// Probe checks each tick
 		lay36 := t36.TextLayout()
 		deepOK := true
-		if lay36 != nil && len(lay36.Lines) > 0 {
-			carets := lay36.Lines[0].Carets
+		if lay36 != nil && lay36.LineCount() > 0 {
+			carets := lay36.LineCarets(0)
 			for i := 0; i < len(carets)-1; i++ {
 				if carets[i].X >= carets[i+1].X {
 					deepOK = false
@@ -259,11 +259,12 @@ func main() {
 		}
 		layNL := tNL.TextLayout()
 		affOK := false
-		if layNL != nil && len(layNL.Lines) >= 2 {
+		if layNL != nil && layNL.LineCount() >= 2 {
 			off := len("你好")
 			x0, y0, _, ok0 := layNL.GetOffsetForCaret(off, rendering.AffinityDownstream, 1.5)
 			x1, y1, _, ok1 := layNL.GetOffsetForCaret(off+1, rendering.AffinityDownstream, 1.5)
-			if ok0 && ok1 && x0 == layNL.Lines[0].Width && y0 == layNL.LineTop(0) && x1 == 0 && y1 == layNL.LineTop(1) {
+			_, _, w0, _, _ := layNL.Line(0)
+			if ok0 && ok1 && x0 == w0 && y0 == layNL.LineTop(0) && x1 == 0 && y1 == layNL.LineTop(1) {
 				affOK = true
 			}
 		}
@@ -278,9 +279,9 @@ func main() {
 		// Fallback: ensure no split inside cluster (heuristic: carets count == rune count +1)
 		layFB := tFallback.TextLayout()
 		fbOK := false
-		if layFB != nil && len(layFB.Lines) > 0 {
+		if layFB != nil && layFB.LineCount() > 0 {
 			rc := len([]rune("中文+😀+مرحبا mixed fallback"))
-			if len(layFB.Lines[0].Carets) == rc+1 {
+			if len(layFB.LineCarets(0)) == rc+1 {
 				fbOK = true
 			}
 		}

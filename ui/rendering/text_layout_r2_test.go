@@ -15,13 +15,14 @@ func TestTextLayout_36Deep_Roundtrip(t *testing.T) {
 	txt := strings.Repeat("m", m)
 	// also mixed variant
 	lay := BuildTextLayout(txt, nil, 14, 0, 1.2)
-	if len(lay.Lines) != 1 {
-		t.Fatalf("lines %d want 1", len(lay.Lines))
+	if lay.LineCount() != 1 {
+		t.Fatalf("lines %d want 1", lay.LineCount())
 	}
 	// X monotonic and roundtrip via midpoint.
-	for i := 0; i < len(lay.Lines[0].Carets)-1; i++ {
-		if lay.Lines[0].Carets[i].X >= lay.Lines[0].Carets[i+1].X {
-			t.Fatalf("X not monotonic at %d: %f >= %f", i, lay.Lines[0].Carets[i].X, lay.Lines[0].Carets[i+1].X)
+	lineCarets := lay.LineCarets(0)
+	for i := 0; i < len(lineCarets)-1; i++ {
+		if lineCarets[i].X >= lineCarets[i+1].X {
+			t.Fatalf("X not monotonic at %d: %f >= %f", i, lineCarets[i].X, lineCarets[i+1].X)
 		}
 	}
 	// 5 positions × 8 sample points mid-rule roundtrip <0.5px check
@@ -40,7 +41,7 @@ func TestTextLayout_36Deep_Roundtrip(t *testing.T) {
 		}
 	}
 	// 8 point sampling across line: each caret mid maps correctly
-	carets := lay.Lines[0].Carets
+	carets := lay.LineCarets(0)
 	for i := 0; i < 8 && i < len(carets)-1; i++ {
 		a := carets[i]
 		b := carets[i+1]
@@ -59,15 +60,15 @@ func TestTextLayout_36Deep_Roundtrip(t *testing.T) {
 func TestTextLayout_Affinity_Newline(t *testing.T) {
 	txt := "你好\n世界\nFlutter"
 	lay := BuildTextLayout(txt, nil, 14, 0, 1.2)
-	if len(lay.Lines) != 3 {
-		t.Fatalf("lines %d want 3", len(lay.Lines))
+	if lay.LineCount() != 3 {
+		t.Fatalf("lines %d want 3", lay.LineCount())
 	}
 	// Byte offset at first newline boundary: 6 is end of "你好", 7 is after '\n' start of next line
 	offEnd := len("你好") // 6 – end of first line
 	xDown, yDown, _, _ := lay.GetOffsetForCaret(offEnd, AffinityDownstream, 1.5)
 	xUp, yUp, _, _ := lay.GetOffsetForCaret(offEnd, AffinityUpstream, 1.5)
 	// Both affinities at end of line should be trailing of line 0
-	prevWidth := lay.Lines[0].Width
+	_, _, prevWidth, _, _ := lay.Line(0)
 	if xDown != prevWidth {
 		t.Fatalf("downstream x %f want %f", xDown, prevWidth)
 	}
@@ -91,8 +92,8 @@ func TestTextLayout_Affinity_Newline(t *testing.T) {
 	}
 	// Empty line "\n" box height
 	lay2 := BuildTextLayout("\n", nil, 14, 0, 1.2)
-	if len(lay2.Lines) != 2 {
-		t.Fatalf("empty newline lines %d want 2", len(lay2.Lines))
+	if lay2.LineCount() != 2 {
+		t.Fatalf("empty newline lines %d want 2", lay2.LineCount())
 	}
 	if lay2.LineHeight(0) <= 0 || lay2.LineHeight(1) <= 0 {
 		t.Fatalf("empty line height 0")
@@ -111,7 +112,7 @@ func TestTextLayout_Ellipsis_NotInCarets(t *testing.T) {
 	// Direct layout with maxWidth small will wrap; test BuildTextLayout MaxLines is not relevant here,
 	// but RenderText DisplayLines handles ellipsis. For raw layout, MaxLines truncates without ellipsis.
 	lay := BuildTextLayout(txt, nil, 14, 50, 1.2)
-	if len(lay.Lines) == 0 {
+	if lay.LineCount() == 0 {
 		t.Fatalf("no lines")
 	}
 	// Ensure carets cover full text, not ellipsis marker (ellipsis is DisplayLines concept).
@@ -119,8 +120,8 @@ func TestTextLayout_Ellipsis_NotInCarets(t *testing.T) {
 	if strings.Contains(lay.Text, "…") {
 		t.Fatalf("layout Text contains ellipsis")
 	}
-	for _, ln := range lay.Lines {
-		for _, c := range ln.Carets {
+	for i := 0; i < lay.LineCount(); i++ {
+		for _, c := range lay.LineCarets(i) {
 			if c.ByteOff > len(txt) {
 				t.Fatalf("caret byte %d beyond text", c.ByteOff)
 			}
@@ -146,7 +147,7 @@ func TestTextLayout_LongBuild(t *testing.T) {
 	if elapsed > 100*time.Millisecond {
 		t.Fatalf("Build 5000 took %v >100ms", elapsed)
 	}
-	if len(lay.Lines) == 0 {
+	if lay.LineCount() == 0 {
 		t.Fatalf("no lines for long text")
 	}
 	// scrollX linkage: ensure Caret X is within reasonable bounds
@@ -197,11 +198,11 @@ func TestTextLayout_BoxesForRange(t *testing.T) {
 	}
 	// Cross-line boxes with explicit newlines
 	lay2 := BuildTextLayout("Hello\nWorld\nFlutter", nil, 14, 0, 1.2)
-	if len(lay2.Lines) < 2 {
-		t.Fatalf("lines %d want >=2", len(lay2.Lines))
+	if lay2.LineCount() < 2 {
+		t.Fatalf("lines %d want >=2", lay2.LineCount())
 	}
-	start := lay2.Lines[0].StartByte
-	end := lay2.Lines[1].EndByte
+	start, _, _, _, _ := lay2.Line(0)
+	_, end, _, _, _ := lay2.Line(1)
 	boxes2 := lay2.BoxesForRange(start, end)
 	if len(boxes2) < 2 {
 		t.Fatalf("cross-line boxes %d want >=2", len(boxes2))
@@ -246,7 +247,7 @@ func TestTextLayout_Generation(t *testing.T) {
 func TestTextLayout_HiDPI_Snap(t *testing.T) {
 	lay := BuildTextLayout("Hello你好", nil, 14, 0, 1.2)
 	for _, scale := range []float64{1.25, 2.0} {
-		for _, c := range lay.Lines[0].Carets {
+		for _, c := range lay.LineCarets(0) {
 			snapped := SnapPixel(c.X, scale)
 			if math.Abs(snapped*scale-math.Round(snapped*scale)) > 1e-9 {
 				t.Fatalf("HiDPI snap fail x=%f scale=%f snapped=%f", c.X, scale, snapped)
@@ -264,10 +265,10 @@ func TestTextLayout_StickyFallback(t *testing.T) {
 	txt := "中文😀مرحبا"
 	lay := BuildTextLayout(txt, nil, 14, 0, 1.2)
 	// Carets 数应为 rune 数+1（即使 nil face 固定 adv=10 也不劈）
-	if len(lay.Lines[0].Carets) != len([]rune(txt))+1 {
-		t.Fatalf("fallback carets %d want %d", len(lay.Lines[0].Carets), len([]rune(txt))+1)
+	if len(lay.LineCarets(0)) != len([]rune(txt))+1 {
+		t.Fatalf("fallback carets %d want %d", len(lay.LineCarets(0)), len([]rune(txt))+1)
 	}
-	for _, c := range lay.Lines[0].Carets {
+	for _, c := range lay.LineCarets(0) {
 		if c.ByteOff > 0 && c.ByteOff < len(txt) && (txt[c.ByteOff]&0xC0) == 0x80 {
 			t.Fatalf("caret inside multi-byte at %d", c.ByteOff)
 		}
@@ -284,11 +285,11 @@ func TestTextLayout_StickyFallback(t *testing.T) {
 func TestTextLayout_EllipsisWidth(t *testing.T) {
 	// MaxLines 截断不应让 Width 包含省略号，且 Carets 不含 …
 	lay := BuildTextLayout("Hello world this is long", nil, 14, 50, 1.2)
-	if len(lay.Lines) == 0 {
+	if lay.LineCount() == 0 {
 		t.Fatalf("no lines")
 	}
-	for _, ln := range lay.Lines {
-		for _, c := range ln.Carets {
+	for i := 0; i < lay.LineCount(); i++ {
+		for _, c := range lay.LineCarets(i) {
 			if c.ByteOff > len(lay.Text) {
 				t.Fatalf("caret beyond text")
 			}

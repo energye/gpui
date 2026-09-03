@@ -328,7 +328,7 @@ func main() {
 			okShift = selText == "llo\nwo"
 			p.ShiftExpandOK = okShift
 			// Drag select cross-line via BoxesForRange using live multiBox layout if available
-			if lay := multiBox.TextLayout(); lay != nil && len(lay.Lines) >= 2 {
+			if lay := multiBox.TextLayout(); lay != nil && lay.LineCount() >= 2 {
 				// Estimate byte range for cross-line: first line end to second line start
 				s := len("多行 14px\n")
 				eoff := s + 6

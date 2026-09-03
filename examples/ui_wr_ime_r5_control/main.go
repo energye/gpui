@@ -267,15 +267,15 @@ func main() {
 		tmpBox.Sync()
 		if p.ScrollX >= 0 {
 			lay2 := tmpBox.TextLayout()
-			if lay2 != nil && len(lay2.Lines) > 0 {
+			if lay2 != nil && lay2.LineCount() > 0 {
 				visW := float64(260 - 16)
-				if lay2.Lines[0].Width > visW {
+				if _, _, w2, _, _ := lay2.Line(0); w2 > visW {
 					p.Single5000OK = true
 				}
 			}
 		}
-		if lay := boxLong.TextLayout(); lay != nil && len(lay.Lines) > 0 {
-			if lay.Lines[0].Width > 200 {
+		if lay := boxLong.TextLayout(); lay != nil && lay.LineCount() > 0 {
+			if _, _, wLong, _, _ := lay.Line(0); wLong > 200 {
 				p.Single5000OK = true
 			}
 		}

@@ -2,6 +2,7 @@ package rendering
 
 import (
 	"math"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -22,12 +23,17 @@ type TextLayoutLine struct {
 	Width     float64
 	Height    float64
 	Glyphs    []text.ShapedGlyph
+	// clusters是行内字素簇起点(绝对字节偏移,末尾附行尾哨兵),懒算缓存.
+	clusters []int
 }
 
 // TextLayout is the single source for paint + queries.
 type TextLayout struct {
-	Text     string
-	Lines    []TextLayoutLine
+	Text string
+	// lines是行表(M1-d5起不再导出).外部经LineCount/Line/LineCarets/
+	// LineGlyphs/CaretAt访问(值拷贝或只读 absolutize,供懒物化演进);
+	// 行内caret为行内相对偏移,绝对值=相对值+行StartByte.
+	lines    []TextLayoutLine
 	FontSize float64
 	// LineSpacing is the multiplier used when building this layout; kept for HitTest fallback.
 	LineSpacing float64
@@ -40,6 +46,34 @@ type TextLayout struct {
 	Overflow TextOverflow
 	// Truncated is true when MaxLines dropped lines.
 	Truncated bool
+	// LineGen holds per-row validity marks for the row/segment cache (M1 I9).
+	// TextLayout.Generation stays a global monotonic counter (2 consumers rely
+	// on it); invalidation granularity is expressed here instead.
+	LineGen []uint64
+	// idx is the lazily validated row index + height prefix (M1 I8).
+	idx *lineIndex
+	// idxSeq认领idx序号(增量引擎patch时递增,失配即重建).
+	idxSeq uint64
+}
+
+// finishLayout stamps per-row marks and prebuilds the row index.
+func (l *TextLayout) finishLayout() *TextLayout {
+	l.LineGen = make([]uint64, len(l.lines))
+	for i := range l.LineGen {
+		l.LineGen[i] = l.Generation
+	}
+	l.idx = buildLineIndex(l.lines, l.FontSize, l.LineSpacing)
+	return l
+}
+
+// index returns the row index, rebuilding when Lines changed since.
+func (l *TextLayout) index() *lineIndex {
+	if l.idx != nil && l.idx.valid(l.lines) && l.idx.seq == l.idxSeq {
+		return l.idx
+	}
+	l.idx = buildLineIndex(l.lines, l.FontSize, l.LineSpacing)
+	l.idxSeq = l.idx.seq
+	return l.idx
 }
 
 func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
@@ -70,7 +104,7 @@ func SnapPixel(x, scale float64) float64 {
 
 // TextLayout.SnappedX 返回按 scale 像素对齐的 caret X（HiDPI）。
 func (l *TextLayout) SnappedX(byteOff int, scale float64) (float64, bool) {
-	if l == nil || len(l.Lines) == 0 {
+	if l == nil || len(l.lines) == 0 {
 		return 0, false
 	}
 	_, x, ok := l.CaretForOffset(byteOff)
@@ -91,7 +125,7 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64, approxCharW float64, maxLines int, overflow TextOverflow) *TextLayout {
 	if textStr == "" {
 		textLayoutGen++
-		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow}
+		return (&TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow}).finishLayout()
 	}
 	if fontSize <= 0 {
 		fontSize = 14
@@ -127,29 +161,7 @@ func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidt
 		}
 	}
 	for _, w := range wrapped {
-		lineText := w.Text
-		start := w.Start
-		end := w.End
-		carets, width, glyphs := buildCaretsForLine(lineText, face)
-		for i := range carets {
-			carets[i].ByteOff += start
-		}
-		// Adjust glyph X to be relative to line start (already 0) and keep
-		if len(carets) == 0 {
-			carets = []GlyphCaret{{ByteOff: start, X: 0}, {ByteOff: end, X: 0}}
-		} else {
-			if carets[len(carets)-1].ByteOff != end {
-				carets = append(carets, GlyphCaret{ByteOff: end, X: width})
-			}
-		}
-		lines = append(lines, TextLayoutLine{
-			StartByte: start,
-			EndByte:   end,
-			Carets:    carets,
-			Width:     width,
-			Height:    lh,
-			Glyphs:    glyphs,
-		})
+		lines = append(lines, materializeWrappedRow(w, face, lh))
 	}
 	truncated := false
 	if maxLines > 0 && len(lines) > maxLines {
@@ -157,7 +169,81 @@ func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidt
 		truncated = true
 	}
 	textLayoutGen++
-	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated}
+	return (&TextLayout{Text: textStr, lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated}).finishLayout()
+}
+
+// LineCount返回行数(面1迁移新API,值拷贝语义,供懒物化演进).
+func (l *TextLayout) LineCount() int {
+	if l == nil {
+		return 0
+	}
+	return len(l.lines)
+}
+
+// Line返回第i行的几何(值拷贝,不暴露内部切片).
+func (l *TextLayout) Line(i int) (start, end int, width, height float64, ok bool) {
+	if l == nil || i < 0 || i >= len(l.lines) {
+		return 0, 0, 0, 0, false
+	}
+	ln := l.lines[i]
+	return ln.StartByte, ln.EndByte, ln.Width, ln.Height, true
+}
+
+// CaretAt返回指定行内偏移的X(行内二分,I8).
+func (l *TextLayout) CaretAt(lineIdx int, byteOff int) (x float64, ok bool) {
+	if l == nil || lineIdx < 0 || lineIdx >= len(l.lines) {
+		return 0, false
+	}
+	ln := &l.lines[lineIdx]
+	return caretXForOffset(ln.Carets, byteOff-ln.StartByte)
+}
+
+// LineCarets返回第i行的caret表(绝对偏移拷贝,调用方可安全持有).
+func (l *TextLayout) LineCarets(i int) []GlyphCaret {
+	if l == nil || i < 0 || i >= len(l.lines) {
+		return nil
+	}
+	ln := &l.lines[i]
+	out := make([]GlyphCaret, len(ln.Carets))
+	for k, c := range ln.Carets {
+		c.ByteOff += ln.StartByte
+		out[k] = c
+	}
+	return out
+}
+
+// LineGlyphs返回第i行的整形字形(内部切片只读共享,调用方不得修改).
+// 绘制批量提交的唯一字形源(I1).
+func (l *TextLayout) LineGlyphs(i int) []text.ShapedGlyph {
+	if l == nil || i < 0 || i >= len(l.lines) {
+		return nil
+	}
+	return l.lines[i].Glyphs
+}
+
+// materializeWrappedRow把一段回绕结果物化为行(主构建与段缓存共用,同源).
+// 行内caret为行内相对偏移(绝对值=相对值+w.Start);行起止为父坐标.
+func materializeWrappedRow(w text.WrapResult, face text.Face, lh float64) TextLayoutLine {
+	lineText := w.Text
+	start := w.Start
+	end := w.End
+	carets, width, glyphs := buildCaretsForLine(lineText, face)
+	// Adjust glyph X to be relative to line start (already 0) and keep
+	if len(carets) == 0 {
+		carets = []GlyphCaret{{ByteOff: 0, X: 0}, {ByteOff: len(lineText), X: 0}}
+	} else {
+		if carets[len(carets)-1].ByteOff != len(lineText) {
+			carets = append(carets, GlyphCaret{ByteOff: len(lineText), X: width})
+		}
+	}
+	return TextLayoutLine{
+		StartByte: start,
+		EndByte:   end,
+		Carets:    carets,
+		Width:     width,
+		Height:    lh,
+		Glyphs:    glyphs,
+	}
 }
 
 // estimateWrapResults is the layout-side no-face estimate wrap. It produces
@@ -280,24 +366,20 @@ func (l *TextLayout) LineTop(idx int) float64 {
 	if l == nil || idx <= 0 {
 		return 0
 	}
-	top := 0.0
-	for i := 0; i < idx && i < len(l.Lines); i++ {
-		h := l.Lines[i].Height
-		if h <= 0 {
-			h = lineHeightFor(nil, l.FontSize, l.LineSpacing)
-		}
-		top += h
+	x := l.index()
+	if idx < x.n {
+		return x.tops[idx]
 	}
-	return top
+	return x.totalH
 }
 
 // LineHeight returns the height of line idx, falling back to uniform calculation.
 func (l *TextLayout) LineHeight(idx int) float64 {
-	if l == nil || len(l.Lines) == 0 {
+	if l == nil || len(l.lines) == 0 {
 		return lineHeightFor(nil, l.FontSize, l.LineSpacing)
 	}
-	if idx >= 0 && idx < len(l.Lines) {
-		if h := l.Lines[idx].Height; h > 0 {
+	if idx >= 0 && idx < len(l.lines) {
+		if h := l.lines[idx].Height; h > 0 {
 			return h
 		}
 	}
@@ -486,23 +568,24 @@ func buildShapedCarets(line string, runs []itemizedRun) ([]GlyphCaret, float64, 
 
 // CaretForOffset returns line index and X for a global byte offset (downstream affinity).
 func (l *TextLayout) CaretForOffset(off int) (lineIdx int, x float64, ok bool) {
-	if l == nil || len(l.Lines) == 0 {
+	if l == nil || len(l.lines) == 0 {
 		return 0, 0, false
 	}
 	x, y, _, ok := l.GetOffsetForCaret(off, AffinityDownstream, 1.5)
 	if !ok {
 		return 0, 0, false
 	}
-	// Map y back to line index via LineTop.
-	for i := range l.Lines {
-		top := l.LineTop(i)
-		h := l.LineHeight(i)
-		if y >= top-0.01 && y < top+h-0.01 {
-			return i, x, true
-		}
+	// Map y back to line index via the height prefix (O(log n)).
+	idx := l.index()
+	n := len(l.lines)
+	j := sort.Search(n, func(i int) bool {
+		return y < idx.tops[i]+l.LineHeight(i)-0.01
+	})
+	if j < n && y >= idx.tops[j]-0.01 {
+		return j, x, true
 	}
 	// Past end.
-	return len(l.Lines) - 1, x, true
+	return n - 1, x, true
 }
 
 // HitTest returns byte offset for a point (x,y) in text-local coords.
@@ -522,7 +605,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 	lineSpacing := t.lineSpacing()
 	if t.Text == "" {
 		textLayoutGen++
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}
+		return (&TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}).finishLayout()
 	}
 	// Helper to flush current line.
 	var lines []TextLayoutLine
@@ -563,7 +646,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 				curStart = globalOff
 				curX = 0
 				curHeight = 0
-				curCarets = []GlyphCaret{{ByteOff: curStart, X: 0}}
+				curCarets = []GlyphCaret{{ByteOff: 0, X: 0}}
 			}
 			remain := part
 			for remain != "" {
@@ -579,7 +662,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 						curStart = globalOff
 						curX = 0
 						curHeight = rh
-						curCarets = []GlyphCaret{{ByteOff: curStart, X: 0}}
+						curCarets = []GlyphCaret{{ByteOff: 0, X: 0}}
 						budget = maxW
 					}
 				}
@@ -596,7 +679,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 						curStart = globalOff
 						curX = 0
 						curHeight = rh
-						curCarets = []GlyphCaret{{ByteOff: curStart, X: 0}}
+						curCarets = []GlyphCaret{{ByteOff: 0, X: 0}}
 					}
 				}
 				// Emit per-rune carets for chunk to match paint's per-rune advances.
@@ -605,7 +688,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 					curX += adv
 					bLen := utf8.RuneLen(r)
 					globalOff += bLen
-					curCarets = append(curCarets, GlyphCaret{ByteOff: globalOff, X: curX})
+					curCarets = append(curCarets, GlyphCaret{ByteOff: globalOff - curStart, X: curX})
 				}
 				remain = rest
 				if maxW > 0 && curX >= maxW-0.5 && remain != "" {
@@ -613,7 +696,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 					curStart = globalOff
 					curX = 0
 					curHeight = 0
-					curCarets = []GlyphCaret{{ByteOff: curStart, X: 0}}
+					curCarets = []GlyphCaret{{ByteOff: 0, X: 0}}
 				}
 			}
 			// If part was empty (consecutive \n or trailing), remain=="" loop does nothing;
@@ -633,17 +716,17 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 	}
 	if len(lines) == 0 {
 		textLayoutGen++
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}
+		return (&TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}).finishLayout()
 	}
 	textLayoutGen++
-	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow, Truncated: truncated}
+	return (&TextLayout{Text: t.Text, lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow, Truncated: truncated}).finishLayout()
 }
 
 // BoxesForRange mirrors Flutter getBoxesForRange — line-box union for a byte range.
 // Returned boxes are in text-local coords (X from Carets, Y from LineTop, H from LineHeight).
 // Empty or out-of-range input returns nil. Boxes are clipped to the line's carets.
 func (l *TextLayout) BoxesForRange(startByte, endByte int) []Rect {
-	if l == nil || len(l.Lines) == 0 || startByte >= endByte {
+	if l == nil || len(l.lines) == 0 || startByte >= endByte {
 		return nil
 	}
 	if startByte < 0 {
@@ -653,7 +736,18 @@ func (l *TextLayout) BoxesForRange(startByte, endByte int) []Rect {
 		endByte = len(l.Text)
 	}
 	var out []Rect
-	for i, ln := range l.Lines {
+	idx := l.index()
+	lo, hi := idx.rowRangeForSpan(startByte, endByte)
+	if hi >= lo {
+		if n := hi - lo + 1; n > 0 && n <= len(l.lines) {
+			out = make([]Rect, 0, n)
+		}
+	}
+	for i := lo; i <= hi && i < len(l.lines); i++ {
+		if i < 0 {
+			continue
+		}
+		ln := l.lines[i]
 		if endByte <= ln.StartByte || startByte >= ln.EndByte {
 			continue
 		}
@@ -665,21 +759,11 @@ func (l *TextLayout) BoxesForRange(startByte, endByte int) []Rect {
 		if e > ln.EndByte {
 			e = ln.EndByte
 		}
-		var x0, x1 float64
-		found0, found1 := false, false
-		for _, c := range ln.Carets {
-			if !found0 && c.ByteOff == s {
-				x0 = c.X
-				found0 = true
-			}
-			if !found1 && c.ByteOff == e {
-				x1 = c.X
-				found1 = true
-			}
-		}
+		x0, found0 := caretXForOffset(ln.Carets, s-ln.StartByte)
 		if !found0 {
 			x0 = 0
 		}
+		x1, found1 := caretXForOffset(ln.Carets, e-ln.StartByte)
 		if !found1 {
 			x1 = ln.Width
 		}
@@ -714,8 +798,47 @@ func isNewlineAt(text string, byteOff int) bool {
 	return false
 }
 
-// snapToGraphemeBoundary snaps byteOff to a grapheme start per affinity.
-// Our carets are per-rune (each rune = one grapheme for now; surrogate+ZWJ clusters would need text/segment).
+// lineClusters返回行内簇起点(绝对偏移,末尾附行尾哨兵),首算O(L)后缓存.
+// 簇不跨\n(GB4/GB5控制字符恒切分),故按行切分与整串切分一致.
+func (l *TextLayout) lineClusters(li int) []int {
+	ln := &l.lines[li]
+	if ln.clusters == nil {
+		base := ln.StartByte
+		rel := text.ClusterStarts(l.Text[base:ln.EndByte])
+		abs := make([]int, len(rel))
+		for i, o := range rel {
+			abs[i] = base + o
+		}
+		ln.clusters = abs
+	}
+	return ln.clusters
+}
+
+// snapToCluster把off吸附到所在簇边界(行内,affinity语义同SnapCluster).
+// 已在边界或行区间外保持不动.
+func (l *TextLayout) snapToCluster(li int, off int, affinity int) int {
+	ln := &l.lines[li]
+	if off <= ln.StartByte || off >= ln.EndByte {
+		return off
+	}
+	starts := l.lineClusters(li)
+	prev := ln.StartByte
+	for _, st := range starts {
+		if st >= off {
+			if st == off {
+				return off
+			}
+			if affinity == AffinityUpstream {
+				return st
+			}
+			return prev
+		}
+		prev = st
+	}
+	return off
+}
+
+// snapToGraphemeBoundary snaps byteOff to a UAX#29 cluster boundary per affinity.
 func (l *TextLayout) snapToGraphemeBoundary(byteOff int, affinity int) int {
 	if l == nil || l.Text == "" {
 		return byteOff
@@ -726,28 +849,19 @@ func (l *TextLayout) snapToGraphemeBoundary(byteOff int, affinity int) int {
 	if byteOff > len(l.Text) {
 		return len(l.Text)
 	}
-	// If already on a rune start, keep.
-	if byteOff == 0 || byteOff == len(l.Text) || utf8.RuneStart(l.Text[byteOff]) {
+	row := l.index().rowForOffset(byteOff)
+	ln := l.lines[row]
+	if byteOff < ln.StartByte || byteOff > ln.EndByte {
 		return byteOff
 	}
-	// Inside a multi-byte rune: snap per affinity.
-	if affinity == AffinityUpstream {
-		for byteOff > 0 && byteOff < len(l.Text) && (l.Text[byteOff]&0xC0) == 0x80 {
-			byteOff--
-		}
-	} else {
-		for byteOff < len(l.Text) && (l.Text[byteOff]&0xC0) == 0x80 {
-			byteOff++
-		}
-	}
-	return byteOff
+	return l.snapToCluster(row, byteOff, affinity)
 }
 
 // GetOffsetForCaret mirrors Flutter TextPainter.getOffsetForCaret.
 // byteOff is a UTF-8 byte offset on a grapheme boundary, affinity selects leading vs trailing edge.
 // caretWidth is the prototype width (1.5) for RTL adjustment.
 func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth float64) (x, y, h float64, ok bool) {
-	if l == nil || len(l.Lines) == 0 {
+	if l == nil || len(l.lines) == 0 {
 		return 0, 0, 0, false
 	}
 	if l.Text == "" {
@@ -781,46 +895,37 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 		}
 		_ = effectiveAffinity
 	}
-	// Find line for effectiveOff.
-	lineIdx := -1
-	var lineX float64
-	for i, ln := range l.Lines {
-		if effectiveOff >= ln.StartByte && effectiveOff <= ln.EndByte {
-			// If upstream and effectiveOff == StartByte of this line and not first line,
-			// Flutter's upstream at line start should be trailing of prev line.
-			if affinity == AffinityUpstream && effectiveOff == ln.StartByte && i > 0 && !isNewlineAt(l.Text, effectiveOff) {
-				prev := l.Lines[i-1]
-				// Return trailing of previous line.
-				if len(prev.Carets) > 0 {
-					last := prev.Carets[len(prev.Carets)-1]
-					return last.X, l.LineTop(i - 1), prev.Height, true
-				}
+	// Find line for effectiveOff via the row index (O(log n),首个命中语义).
+	idx := l.index()
+	row := idx.rowForOffset(effectiveOff)
+	ln := l.lines[row]
+	if effectiveOff >= ln.StartByte && effectiveOff <= ln.EndByte {
+		i := row
+		// If upstream and effectiveOff == StartByte of this line and not first line,
+		// Flutter's upstream at line start should be trailing of prev line.
+		if affinity == AffinityUpstream && effectiveOff == ln.StartByte && i > 0 && !isNewlineAt(l.Text, effectiveOff) {
+			prev := l.lines[i-1]
+			// Return trailing of previous line.
+			if len(prev.Carets) > 0 {
+				last := prev.Carets[len(prev.Carets)-1]
+				return last.X, l.LineTop(i - 1), prev.Height, true
 			}
-			// Normal: find X within this line.
-			for _, c := range ln.Carets {
-				if c.ByteOff == effectiveOff {
-					return c.X, l.LineTop(i), ln.Height, true
-				}
-			}
-			// Fallback mid-grapheme (should not happen after snap).
-			for j := 0; j < len(ln.Carets)-1; j++ {
-				if effectiveOff > ln.Carets[j].ByteOff && effectiveOff < ln.Carets[j+1].ByteOff {
-					return ln.Carets[j].X, l.LineTop(i), ln.Height, true
-				}
-			}
-			if len(ln.Carets) > 0 {
-				return ln.Carets[len(ln.Carets)-1].X, l.LineTop(i), ln.Height, true
-			}
-			lineIdx = i
-			lineX = ln.Width
-			break
 		}
-	}
-	if lineIdx >= 0 {
-		return lineX, l.LineTop(lineIdx), l.Lines[lineIdx].Height, true
+		// Normal: find X within this line via caret binary search.
+		if x, exact := caretXForOffset(ln.Carets, effectiveOff-ln.StartByte); exact {
+			return x, l.LineTop(i), ln.Height, true
+		}
+		// Fallback mid-grapheme (should not happen after snap).
+		if x, ok := caretXInSpan(ln.Carets, effectiveOff-ln.StartByte); ok {
+			return x, l.LineTop(i), ln.Height, true
+		}
+		if len(ln.Carets) > 0 {
+			return ln.Carets[len(ln.Carets)-1].X, l.LineTop(i), ln.Height, true
+		}
+		return ln.Width, l.LineTop(i), ln.Height, true
 	}
 	// Past end → end-of-text caret (Flutter _endOfTextCaretMetrics).
-	last := l.Lines[len(l.Lines)-1]
+	last := l.lines[len(l.lines)-1]
 	if len(last.Carets) > 0 {
 		x = last.Carets[len(last.Carets)-1].X
 	} else {
@@ -830,7 +935,7 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 	if caretWidth != 0 {
 		_ = caretWidth
 	}
-	return x, l.LineTop(len(l.Lines) - 1), last.Height, true
+	return x, l.LineTop(len(l.lines) - 1), last.Height, true
 }
 
 // GetFullHeightForCaret mirrors TextPainter.getFullHeightForCaret.
@@ -844,24 +949,18 @@ func (l *TextLayout) GetFullHeightForCaret(byteOff int, affinity int) float64 {
 // GetPositionForOffset mirrors TextPainter.getPositionForOffset.
 // Returns byte offset + affinity for a visual point (x,y) in text-local coords.
 func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity int) {
-	if l == nil || len(l.Lines) == 0 {
+	if l == nil || len(l.lines) == 0 {
 		return 0, AffinityDownstream
 	}
-	// Find line by y (per-line heights).
-	yTop := 0.0
-	row := 0
-	for i, ln := range l.Lines {
-		h := ln.Height
-		if h <= 0 {
-			h = l.FontSize * 1.2
+	// Find line by y via the height prefix (O(log n),首个y<top+h语义).
+	idx := l.index()
+	row := idx.rowForY(y, l.FontSize, l.LineSpacing, func(i int) float64 {
+		if h := l.lines[i].Height; h > 0 {
+			return h
 		}
-		if y < yTop+h || i == len(l.Lines)-1 {
-			row = i
-			break
-		}
-		yTop += h
-	}
-	ln := l.Lines[row]
+		return l.FontSize * 1.2
+	})
+	ln := l.lines[row]
 	if x <= 0 {
 		return ln.StartByte, AffinityDownstream
 	}
@@ -874,19 +973,11 @@ func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity i
 	// Mid-point rule for nearest caret, but also set affinity:
 	// If x is in left half of a grapheme, affinity downstream (leading), else upstream (trailing).
 	// For line-start/end edge, follow Flutter's line-break affinity.
-	for i := 0; i < len(ln.Carets)-1; i++ {
-		a := ln.Carets[i]
-		b := ln.Carets[i+1]
-		mid := (a.X + b.X) * 0.5
-		if x < mid {
-			return a.ByteOff, AffinityDownstream
-		}
-		if x < b.X {
-			// Between mid and b.X -> nearer to b.
-			return b.ByteOff, AffinityDownstream
-		}
-	}
-	return ln.Carets[len(ln.Carets)-1].ByteOff, AffinityDownstream
+	// M1-c:结果再按簇吸附(downstream),不得落进组合音标/ZWJ序列内.
+	// caret为行内相对,先加行基址转绝对再吸附.
+	off, aff := offsetForX(ln.Carets, x)
+	off += ln.StartByte
+	return l.snapToCluster(row, off, aff), aff
 }
 
 func (l *TextLayout) HitTest(x, y float64, lineHeight float64) int {

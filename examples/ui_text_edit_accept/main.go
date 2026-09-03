@@ -63,7 +63,7 @@ func liveProbes(boxB, boxC *textinput.ViewportInputBox, face text.Face, fontSize
 	delta := 0.0
 	for _, b := range []*textinput.ViewportInputBox{boxB, boxC} {
 		lay := b.TextLayout()
-		if lay == nil || len(lay.Lines) == 0 {
+		if lay == nil || lay.LineCount() == 0 {
 			bulkTaken = false
 			continue
 		}
@@ -71,14 +71,16 @@ func liveProbes(boxB, boxC *textinput.ViewportInputBox, face text.Face, fontSize
 		if lay.Face == nil || lay.Face.Source() == nil {
 			bulkTaken = false
 		}
-		for _, ln := range lay.Lines {
-			if len(ln.Glyphs) == 0 || len(ln.Carets) == 0 || ln.Glyphs[0].GID == 0 {
+		for i := 0; i < lay.LineCount(); i++ {
+			glyphs := lay.LineGlyphs(i)
+			carets := lay.LineCarets(i)
+			if len(glyphs) == 0 || len(carets) == 0 || glyphs[0].GID == 0 {
 				bulkTaken = false
 				continue
 			}
-			last := ln.Glyphs[len(ln.Glyphs)-1]
+			last := glyphs[len(glyphs)-1]
 			glyphEnd := last.X + last.XAdvance
-			caretEnd := ln.Carets[len(ln.Carets)-1].X
+			caretEnd := carets[len(carets)-1].X
 			if dd := caretEnd - glyphEnd; dd < 0 {
 				dd = -dd
 				if dd > delta {
@@ -149,6 +151,10 @@ func p99(ds []float64) float64 {
 // source of truth (BuildTextLayout float accumulation); snapX replays the
 // paint-side per-glyph rounding (drawGlyphs snapPen model). Their gap is the
 // constraint-① divergence the M0 fix must close.
+// NOTE(M1): snapX replay的是M0前的逐字取整旧模型,现绘制已改走glyph.X/
+// caret表(M0对策C+M1-13),故headless下该值恒≈821px(M0-pre基线)不代表回退;
+// 真实一致性证据见TestPaintUsesShapedX_MultiFaceBulk与TestCaretMatchesPaint_M1,
+// 像素墨迹对比仍待GPU真窗(见README"像素墨迹比对待补").
 func computeProbes(bText string, face text.Face, fontSize float64) probes {
 	p := probes{PaintMsP99: -1, ScrollFPS: -1}
 	if face == nil || bText == "" {
@@ -160,8 +166,8 @@ func computeProbes(bText string, face text.Face, fontSize float64) probes {
 	}
 	lay := rendering.BuildTextLayout(bText, face, fontSize, 0, 1.25)
 	layoutX := 0.0
-	if lay != nil && len(lay.Lines) > 0 {
-		cs := lay.Lines[len(lay.Lines)-1].Carets
+	if lay != nil && lay.LineCount() > 0 {
+		cs := lay.LineCarets(lay.LineCount() - 1)
 		if len(cs) > 0 {
 			layoutX = cs[len(cs)-1].X
 		}

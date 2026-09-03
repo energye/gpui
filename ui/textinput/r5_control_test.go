@@ -29,7 +29,7 @@ func TestScroll_Single5000_Horizontal(t *testing.T) {
 		t.Fatalf("5000 scrollX should >0, got %v", box.scrollX)
 	}
 	lay := box.TextLayout()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		t.Fatalf("no layout")
 	}
 	// click at localX+scrollX should map to byte offset via layout
@@ -158,8 +158,8 @@ func TestScroll_MaxLinesEllipsisNotEditable(t *testing.T) {
 		t.Fatalf("editable_range should be full")
 	}
 	// … should not be in carets byte range
-	for _, ln := range lay.Lines {
-		for _, c := range ln.Carets {
+	for i := 0; i < lay.LineCount(); i++ {
+		for _, c := range lay.LineCarets(i) {
 			if c.ByteOff == len(ed.GetText()) && strings.Contains(disp, "…") {
 				// okay, caret at end is fine, but ellipsis bytes not in original text
 			}

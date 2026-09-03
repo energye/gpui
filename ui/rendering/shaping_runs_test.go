@@ -75,19 +75,21 @@ func TestPaintUsesShapedX_MultiFaceBulk(t *testing.T) {
 		b.WriteString("a世界bHello你好")
 	}
 	lay := BuildTextLayout(b.String(), face, 16, 0, 1.2)
-	if len(lay.Lines) == 0 {
+	if lay.LineCount() == 0 {
 		t.Fatalf("no lines")
 	}
-	for i, ln := range lay.Lines {
-		if len(ln.Glyphs) == 0 {
+	for i := 0; i < lay.LineCount(); i++ {
+		lnGlyphs := lay.LineGlyphs(i)
+		lnCarets := lay.LineCarets(i)
+		if len(lnGlyphs) == 0 {
 			t.Fatalf("line %d: 0 glyphs", i)
 		}
-		if ln.Glyphs[0].GID == 0 {
+		if lnGlyphs[0].GID == 0 {
 			t.Fatalf("line %d: GID 0 (fallback → CPU逐字 branch)", i)
 		}
-		last := ln.Glyphs[len(ln.Glyphs)-1]
+		last := lnGlyphs[len(lnGlyphs)-1]
 		glyphEnd := last.X + last.XAdvance
-		caretEnd := ln.Carets[len(ln.Carets)-1].X
+		caretEnd := lnCarets[len(lnCarets)-1].X
 		if d := glyphEnd - caretEnd; d < -1 || d > 1 {
 			t.Fatalf("line %d: caret end %.2f vs glyph end %.2f", i, caretEnd, glyphEnd)
 		}

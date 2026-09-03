@@ -1,6 +1,7 @@
 package textinput
 
 import (
+	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -12,7 +13,7 @@ import (
 // delta is +1 (right) or -1 (left). Returns true if the cursor moved.
 // 多行时按可视行盒走缝，跨行时自动跳到相邻行的行首/行尾（Flutter TextPainter 可视缝语义）。
 func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
-	if e == nil || lay == nil || len(lay.Lines) == 0 {
+	if e == nil || lay == nil || lay.LineCount() == 0 {
 		if delta < 0 {
 			return e.MoveCursorBack()
 		}
@@ -29,64 +30,41 @@ func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 	if lineIdx < 0 {
 		lineIdx = 0
 	}
-	if lineIdx >= len(lay.Lines) {
-		lineIdx = len(lay.Lines) - 1
+	if lineIdx >= lay.LineCount() {
+		lineIdx = lay.LineCount() - 1
 	}
-	ln := lay.Lines[lineIdx]
-	// 在该行内找当前缝的下标（精确 ByteOff 匹配，找不到就最近）
-	idx := -1
-	for j, c := range ln.Carets {
-		if c.ByteOff == curByte {
-			idx = j
-			break
-		}
-	}
-	if idx < 0 {
-		best, bestDist := -1, 1<<30
-		for j, c := range ln.Carets {
-			d := c.ByteOff - curByte
-			if d < 0 {
-				d = -d
-			}
-			if d < bestDist {
-				bestDist = d
-				best = j
-			}
-		}
-		idx = best
-	}
-	if idx < 0 {
+	lineStart, lineEnd, _, _, ok := lay.Line(lineIdx)
+	if !ok {
 		if delta < 0 {
 			return e.MoveCursorBack()
 		}
 		return e.MoveCursorForward()
 	}
-	// 行内移动 — Flutter visual seam, affinity downstream except cross-line trailing.
+	// M1-c:按字素簇 stepping,不再逐rune走缝.簇起点=行内相对簇表+行基.
+	rel := text.ClusterStarts(lay.Text[lineStart:lineEnd])
 	if delta > 0 {
-		if idx+1 < len(ln.Carets) {
-			off := ln.Carets[idx+1].ByteOff
-			e.SetCaretWithAffinity(off, rendering.AffinityDownstream)
-			return true
+		for _, r := range rel {
+			if lineStart+r > curByte {
+				e.SetCaretWithAffinity(lineStart+r, rendering.AffinityDownstream)
+				return true
+			}
 		}
 		// 已在行尾，跳到下一行行首 (downstream at new line).
-		if lineIdx+1 < len(lay.Lines) {
-			off := lay.Lines[lineIdx+1].Carets[0].ByteOff
-			e.SetCaretWithAffinity(off, rendering.AffinityDownstream)
+		if nextStart, _, _, _, ok := lay.Line(lineIdx + 1); ok {
+			e.SetCaretWithAffinity(nextStart, rendering.AffinityDownstream)
 			return true
 		}
 		return false
 	}
-	// delta < 0
-	if idx-1 >= 0 {
-		off := ln.Carets[idx-1].ByteOff
-		e.SetCaretWithAffinity(off, rendering.AffinityDownstream)
-		return true
+	for i := len(rel) - 1; i >= 0; i-- {
+		if lineStart+rel[i] < curByte {
+			e.SetCaretWithAffinity(lineStart+rel[i], rendering.AffinityDownstream)
+			return true
+		}
 	}
 	// 已在行首，跳到上一行行尾 (upstream → trailing of prev line).
-	if lineIdx-1 >= 0 {
-		prev := lay.Lines[lineIdx-1]
-		off := prev.Carets[len(prev.Carets)-1].ByteOff
-		e.SetCaretWithAffinity(off, rendering.AffinityUpstream)
+	if _, prevEnd, _, _, ok := lay.Line(lineIdx - 1); ok {
+		e.SetCaretWithAffinity(prevEnd, rendering.AffinityUpstream)
 		return true
 	}
 	return false
@@ -99,7 +77,7 @@ func (e *Editor) MoveVisualUp(lay *rendering.TextLayout) bool { return e.moveVis
 func (e *Editor) MoveVisualDown(lay *rendering.TextLayout) bool { return e.moveVisualVertical(lay, 1) }
 
 func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
-	if e == nil || lay == nil || len(lay.Lines) == 0 {
+	if e == nil || lay == nil || lay.LineCount() == 0 {
 		if dir < 0 {
 			return e.MoveCursorUp()
 		}
@@ -114,7 +92,7 @@ func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
 		return e.MoveCursorDown()
 	}
 	target := lineIdx + dir
-	if target < 0 || target >= len(lay.Lines) {
+	if target < 0 || target >= lay.LineCount() {
 		return false
 	}
 	// Capture sticky column from current caret X on first vertical move.
@@ -127,10 +105,14 @@ func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
 		}
 	}
 	// Find caret in target line whose X is nearest to sticky column.
-	tln := lay.Lines[target]
+	tStart, tEnd, _, _, ok := lay.Line(target)
+	if !ok {
+		return false
+	}
+	tCarets := lay.LineCarets(target)
 	bestIdx := 0
 	bestDist := 1e12
-	for i, c := range tln.Carets {
+	for i, c := range tCarets {
 		d := c.X - sticky
 		if d < 0 {
 			d = -d
@@ -140,7 +122,9 @@ func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
 			bestIdx = i
 		}
 	}
-	off := tln.Carets[bestIdx].ByteOff
+	off := tCarets[bestIdx].ByteOff
+	// M1-c:粘滞列命中的caret可能在簇内,按簇吸附(downstream).
+	off = tStart + text.SnapCluster(lay.Text[tStart:tEnd], off-tStart, true)
 	cu := 0
 	for _, r := range e.text[:off] {
 		if r > 0xFFFF {

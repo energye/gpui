@@ -24,12 +24,12 @@ func TestR1_MixedCaretVisual_SingleSource(t *testing.T) {
 	}
 	for _, s := range singleSamples {
 		lay := rendering.BuildTextLayout(s, face, 16, 0, 1.25)
-		if lay == nil || len(lay.Lines) == 0 {
+		if lay == nil || lay.LineCount() == 0 {
 			t.Fatalf("no layout for %q", s)
 		}
 		// Only test at valid rune boundaries (carets), not inside surrogate
 		var lastX float64 = -1
-		for _, c := range lay.Lines[0].Carets {
+		for _, c := range lay.LineCarets(0) {
 			byteOff := c.ByteOff
 			_, x, ok := lay.CaretForOffset(byteOff)
 			if !ok {
@@ -51,11 +51,11 @@ func TestR1_MixedCaretVisual_SingleSource(t *testing.T) {
 	// per-size Measure path (mixedBox) uses the same face for both, so it is still single-source there.
 	mixed := "Aa你好Hello😀"
 	lay := rendering.BuildTextLayout(mixed, face, 16, 0, 1.25)
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		t.Fatalf("no layout for mixed %q", mixed)
 	}
 	var lastX float64 = -1
-	for _, c := range lay.Lines[0].Carets {
+	for _, c := range lay.LineCarets(0) {
 		if c.ByteOff < 0 || c.ByteOff > len(mixed) {
 			t.Fatalf("mixed caret ByteOff out of range %d", c.ByteOff)
 		}
@@ -91,8 +91,8 @@ func TestR1_MixedCaret_NoInsideGlyph(t *testing.T) {
 	}
 	s := "Aa你好Hello"
 	lay := rendering.BuildTextLayout(s, face, 16, 0, 1.25)
-	for _, ln := range lay.Lines {
-		for _, c := range ln.Carets {
+	for i := 0; i < lay.LineCount(); i++ {
+		for _, c := range lay.LineCarets(i) {
 			if c.ByteOff < 0 || c.ByteOff > len(s) {
 				t.Fatalf("caret ByteOff out of range %d", c.ByteOff)
 			}
@@ -102,8 +102,8 @@ func TestR1_MixedCaret_NoInsideGlyph(t *testing.T) {
 		}
 	}
 	// HitTest roundtrip must be exact: HitTest(CaretForOffset) == ByteOff
-	for _, ln := range lay.Lines {
-		for _, c := range ln.Carets {
+	for i := 0; i < lay.LineCount(); i++ {
+		for _, c := range lay.LineCarets(i) {
 			// HitTest at exactly the caret X should return that caret's ByteOff
 			off := lay.HitTest(c.X, 0, 16*1.25)
 			if off != c.ByteOff {
@@ -126,10 +126,10 @@ func TestR1_MoveVisual_PerCaret(t *testing.T) {
 		t.Skip("no face")
 	}
 	lay := rendering.BuildTextLayout(ed.GetText(), face, 16, 0, 1.25)
-	if len(lay.Lines) == 0 || len(lay.Lines[0].Carets) == 0 {
+	if lay.LineCount() == 0 || len(lay.LineCarets(0)) == 0 {
 		t.Fatalf("no carets")
 	}
-	carets := lay.Lines[0].Carets
+	carets := lay.LineCarets(0)
 	// Drive the shipped visual path: Editor.MoveVisual via TextLayout, not re-implemented SetCaret
 	ed.SetText("Aa你好Hello😀", TextRange{Base: 0, Extent: 0}, TextRange{}, 0)
 	for i := 0; i < len(carets)-1; i++ {

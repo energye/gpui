@@ -1269,7 +1269,7 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 | Damage 矩形上报 | `ui/scene/textured.go` → `pipeline_app.go` `TrackDamageRect` |
 | 断词/簇分段器 | `render/text/segment.go` |
 | **字体回退 run 切分** | `MultiFace.Runs()`（`render/text/multi.go:355`，带 `globalMultiFaceRunsCache`）— 已存在，M0 不必自研 |
-| **字素簇分段（待引入，M1-c 随 `go.mod` 合入）** | `rivo/uniseg`（UAX#29 参考实现，见 §9.1 Q5；合入后补此行状态为已存在） |
+| **字素簇分段（M1-c 已落地，无新依赖）** | `render/text/grapheme.go`（`ClusterStarts`/`SnapCluster`，复用 `third_party/go-text/typesetting/segmenter` 的 UAX#29 实现；见 §9.1 Q5-D） |
 | **亚像素量化（1/4 px）** | `render/text/glyph_mask_atlas.go` `MakeGlyphMaskKey`（`SubpixelXQ2/YQ2`）— 已实现，M5 只做验证 |
 
 ### 8.2 真正缺失（本方案要补的）
@@ -1328,7 +1328,7 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 | **Q2** | 回绕缓存粒度 | **段缓存**（以 `\n` 分段，编辑只作废所在段） | **M1 第 9 项**（双模式布局缓存：不回绕行缓存 / 回绕段缓存） |
 | **Q3** | piece tree | **押后**——M3 只做增量 undo，piece tree 降为 **M3.5 条件触发** | M3 / M3.5 |
 | **Q4** | `Lines` 公开面 | **加惰性 API + 拆旧字段**（分 d1–d5 五小步，不留兼容期） | **M1 第 12 项**（面 1 迁移，含 d1–d5） |
-| **Q5** | 字素簇依赖（M1 第 11 项开工前必须先定；默认 A，待用户最终确认） | **A · 引入 `rivo/uniseg`**（UAX#29 参考实现；`go.mod` 新增 1 个第三方依赖，单独一个提交；同步补 §8.1 家底表一行） | **M1 第 11 项**（M1-c）。备选 B 自研最小集 / C 降级到 M1.5（本期只做续字节归位覆盖 4 条路径）。选 A 后 `go.mod` 变更与 M1-c 代码变更**分两个提交**，先合依赖、再合实现 |
+| **Q5** | 字素簇依赖（M1 第 11 项开工前必须先定；默认 A，待用户最终确认） | **D · 复用内置 `segmenter`（2026-09-03 M1-c 落定）**：`third_party/go-text/typesetting/segmenter` 已实现 UAX#29（含 GB11 表情 ZWJ 序列、GB12/GB13 地区指示符、Extend/ZWJ 不切分，代码已核验），且 `render/text/wrap.go` 已依赖该包——**零新依赖，`go.mod` 无需改动**。原 A（引入 `rivo/uniseg`）/ B（自研）/ C（降级 M1.5）不再采用 | **M1 第 11 项**（M1-c：`render/text/grapheme.go` `ClusterStarts`/`SnapCluster` + 4 条路径吸附）。`go.mod` 零变更，故无单独依赖提交 |
 
 > **⚠️ 编号提示**：Q1/Q2/Q4 的落地位置曾写错过，**已按 M0/M1 实际改动清单校准**。**若后续调整 M0/M1 改动项编号，必须同步回来改这张表**——这是跨期引用的高危点。Q5 落地 M1 第 11 项，同样受本条约束。
 

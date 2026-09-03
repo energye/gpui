@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/platform"
 )
 
@@ -69,10 +70,37 @@ type Editor struct {
 	caretCol           float64
 	caretColValid      bool
 	OnChange           func()
+	// lastEdit是最近一次文本变更区间(M1-d增量排版用):旧串[oldA,oldB)→
+	// 新串[newA,newB).sync消费前又发生变更则失效(回退diff,保正确).
+	// 由noteEdit维护,ConsumeEditSpan读取并清除.
+	editOldA, editOldB, editNewA, editNewB int
+	editSpanValid                            bool
 	OnAnchor           func() // R4 F-D10: programmatic SetText → RefreshIMEAnchor
 	history            []editSnapshot
 	redoStack          []editSnapshot
 	composingSnapshot  bool // true when history already pushed for current composition
+}
+
+// noteEdit记录文本变更区间;已有未消费区间则失效(多变更回退diff).
+func (e *Editor) noteEdit(oldA, oldB, newA, newB int) {
+	if e == nil {
+		return
+	}
+	if e.editSpanValid {
+		e.editSpanValid = false
+		return
+	}
+	e.editOldA, e.editOldB, e.editNewA, e.editNewB = oldA, oldB, newA, newB
+	e.editSpanValid = true
+}
+
+// ConsumeEditSpan取走最近变更区间并清除,供InputBox.sync传RenderText.
+func (e *Editor) ConsumeEditSpan() (oldA, oldB, newA, newB int, ok bool) {
+	if e == nil || !e.editSpanValid {
+		return 0, 0, 0, 0, false
+	}
+	e.editSpanValid = false
+	return e.editOldA, e.editOldB, e.editNewA, e.editNewB, true
 }
 
 func New() *Editor { return &Editor{singleLine: true} }
@@ -179,6 +207,7 @@ func (e *Editor) Undo() bool {
 	e.redoStack = append(e.redoStack, cur)
 	last := e.history[len(e.history)-1]
 	e.history = e.history[:len(e.history)-1]
+	e.noteEdit(0, len(e.text), 0, len(last.text))
 	e.text = last.text
 	e.selection = last.selection
 	e.composingRange = last.composingRange
@@ -198,6 +227,7 @@ func (e *Editor) Redo() bool {
 	e.history = append(e.history, cur)
 	last := e.redoStack[len(e.redoStack)-1]
 	e.redoStack = e.redoStack[:len(e.redoStack)-1]
+	e.noteEdit(0, len(e.text), 0, len(last.text))
 	e.text = last.text
 	e.selection = last.selection
 	e.composingRange = last.composingRange
@@ -418,6 +448,9 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	if changed && !e.composingSnapshot {
 		e.pushHistory()
 	}
+	if e.text != text {
+		e.noteEdit(0, len(e.text), 0, len(text))
+	}
 	e.text = text
 	e.selection = sel
 	e.composingRange = comp
@@ -537,6 +570,7 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 	newEnd := newStart + utf16Len(text)
 	sel.Base = clampUtf16(newText, sel.Base)
 	sel.Extent = clampUtf16(newText, sel.Extent)
+	e.noteEdit(startByte, endByte, startByte, startByte+len(text))
 	e.text = newText
 	e.composing = true
 	e.composingRange = TextRange{Base: newStart, Extent: newEnd}
@@ -563,6 +597,7 @@ func (e *Editor) EndComposing() {
 	s := byteOffsetForUtf16(e.text, e.composingRange.Start())
 	en := byteOffsetForUtf16(e.text, e.composingRange.End())
 	if s != en {
+		e.noteEdit(s, en, s, s)
 		e.text = e.text[:s] + e.text[en:]
 		e.selection = TextRange{Base: e.composingRange.Start(), Extent: e.composingRange.Start()}
 	}
@@ -611,6 +646,7 @@ func (e *Editor) DeleteSelected() bool {
 	if !e.composingSnapshot {
 		e.pushHistory()
 	}
+	e.noteEdit(start, end, start, start)
 	e.text = e.text[:start] + e.text[end:]
 	off := e.selection.Start()
 	e.selection = TextRange{Base: off, Extent: off}
@@ -647,6 +683,7 @@ func (e *Editor) AddText(text string) bool {
 	}
 	startByte := byteOffsetForUtf16(e.text, replaceRange.Start())
 	endByte := byteOffsetForUtf16(e.text, replaceRange.End())
+	e.noteEdit(startByte, endByte, startByte, startByte+len(text))
 	e.text = e.text[:startByte] + text + e.text[endByte:]
 	newOff := replaceRange.Start() + utf16Len(text)
 	e.selection = TextRange{Base: newOff, Extent: newOff}
@@ -704,6 +741,7 @@ func (e *Editor) DeleteSurrounding(offset, count int) bool {
 	if !e.composingSnapshot {
 		e.pushHistory()
 	}
+	e.noteEdit(startByte, endByte, startByte, startByte)
 	e.text = e.text[:startByte] + e.text[endByte:]
 	delta := end - start
 	if offset < 0 {
@@ -944,18 +982,18 @@ func (e *Editor) SetCaretWithAffinity(off int, affinity int) {
 	if off > len(e.text) {
 		off = len(e.text)
 	}
-	// Snap to grapheme start per affinity (Flutter: inside a cluster snap to boundary).
-	for off > 0 && off < len(e.text) && (e.text[off]&0xC0) == 0x80 {
-		if affinity == AffinityUpstream {
-			off--
-		} else {
-			off++
-			for off < len(e.text) && (e.text[off]&0xC0) == 0x80 {
-				off++
-			}
-			break
-		}
+	// Snap to UAX#29 cluster boundary per affinity (M1-c), scoped to the
+	// current line so the cost is O(L), not O(n). Clusters never span \n.
+	lineStart := off
+	for lineStart > 0 && e.text[lineStart-1] != '\n' {
+		lineStart--
 	}
+	lineEnd := off
+	for lineEnd < len(e.text) && e.text[lineEnd] != '\n' {
+		lineEnd++
+	}
+	rel := text.SnapCluster(e.text[lineStart:lineEnd], off-lineStart, affinity == AffinityDownstream)
+	off = lineStart + rel
 	cu := 0
 	for _, r := range e.text[:off] {
 		if r > 0xFFFF {

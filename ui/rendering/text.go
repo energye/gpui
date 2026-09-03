@@ -63,6 +63,12 @@ type RenderText struct {
 	// textLayout is the single-source layout (R2). Nil = dirty.
 	textLayout *TextLayout
 
+	// lcache是行/段增量引擎(M1-d):单串路径经update增量重排,
+	// 多run路径仍走全量BuildRenderTextLayout.
+	lcache *layoutCache
+	// spanHint是SetTextSpan留下的变更区间,ensureLayout消费一次.
+	spanHint editSpan
+
 	// viewportHint enables Flutter-like culling for 5000 single-line viewports:
 	// only glyphs within [scrollX-margin, scrollX+visW+margin] are submitted to
 	// the GPU. Set by ViewportInputBox after scroll; cleared for wrapped/multi-line.
@@ -92,10 +98,51 @@ func (t *RenderText) SetText(s string) {
 		return
 	}
 	if t.Text == s && len(t.Runs) == 0 {
+		t.spanHint.ok = false
 		return
 	}
 	t.Text = s
 	t.Runs = nil
+	t.spanHint.ok = false
+	t.invalidateMeasureCache()
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// editSpan是InputBox.sync传来的击键变更区间(旧串→新串),免去引擎逐字节diff.
+type editSpan struct {
+	oldA, oldB, newA, newB int
+	ok                     bool
+}
+
+// SetTextSpan同SetText,另带Editor记录的变更区间.区间经长度方程校验,
+// 不一致回退普通SetText(保正确).调用方须保证区间描述的是本次变更
+// (密码掩码/占位替换等变换后的串不得用此通道).
+func (t *RenderText) SetTextSpan(s string, oldA, oldB, newA, newB int) {
+	if t == nil {
+		return
+	}
+	// 布局前连续两次SetTextSpan:第二区间相对中间串,与引擎live对不上,
+	// 直接丢区间走普通通道(引擎抽查是第二道防线).
+	if t.spanHint.ok {
+		t.SetText(s)
+		return
+	}
+	if oldA < 0 || oldB < oldA || oldB > len(t.Text) ||
+		newA < 0 || newB < newA || newB > len(s) ||
+		(newB-newA)-(oldB-oldA) != len(s)-len(t.Text) {
+		t.SetText(s)
+		return
+	}
+	if len(t.Runs) == 0 && oldA == oldB && newA == newB && t.Text == s {
+		// 空区间=无变更才需整串确认;非空区间下串必然已变(撒谎区间由
+		// 引擎checkSpan校验,结果仍正确),跳过O(n)整串比较(击键主瓶颈).
+		t.spanHint.ok = false
+		return
+	}
+	t.Text = s
+	t.Runs = nil
+	t.spanHint = editSpan{oldA: oldA, oldB: oldB, newA: newA, newB: newB, ok: true}
 	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
@@ -388,7 +435,16 @@ func (t *RenderText) ensureLayout() *TextLayout {
 	if t.hasRuns() {
 		t.textLayout = BuildRenderTextLayout(t)
 	} else {
-		t.textLayout = BuildTextLayoutEx(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
+		if t.lcache == nil {
+			t.lcache = newLayoutCache()
+		}
+		if t.spanHint.ok {
+			sp := t.spanHint
+			t.spanHint.ok = false
+			t.textLayout = t.lcache.updateSpan(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow, sp)
+		} else {
+			t.textLayout = t.lcache.update(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
+		}
 	}
 	return t.textLayout
 }
@@ -532,20 +588,20 @@ func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool) {
 	if t == nil {
 		return 0, 0, false
 	}
-	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
+	if lay := t.ensureLayout(); lay != nil && lay.LineCount() > 0 {
 		x, y, _, ok := lay.GetOffsetForCaret(off, AffinityDownstream, 1.5)
 		if !ok {
 			return 0, 0, false
 		}
 		// Map y to lineIdx.
-		for i := range lay.Lines {
+		for i := 0; i < lay.LineCount(); i++ {
 			top := lay.LineTop(i)
 			h := lay.LineHeight(i)
 			if y >= top-0.01 && y < top+h-0.01 {
 				return i, x, true
 			}
 		}
-		return len(lay.Lines) - 1, x, true
+		return lay.LineCount() - 1, x, true
 	}
 	lines := t.DisplayLines()
 	if len(lines) == 0 {
@@ -576,12 +632,15 @@ func (t *RenderText) DisplayLines() []string {
 	// Single-source (I7): line breaks come from TextLayout; only the
 	// truncation-marker fitting below stays string-level.
 	lay := t.ensureLayout()
-	if lay == nil || len(lay.Lines) == 0 {
+	if lay == nil || lay.LineCount() == 0 {
 		return nil
 	}
-	lines := make([]string, len(lay.Lines))
-	for i, ln := range lay.Lines {
-		s, e := ln.StartByte, ln.EndByte
+	lines := make([]string, lay.LineCount())
+	for i := 0; i < lay.LineCount(); i++ {
+		s, e, _, _, ok := lay.Line(i)
+		if !ok {
+			continue
+		}
 		if s < 0 {
 			s = 0
 		}
@@ -791,8 +850,8 @@ func (t *RenderText) Paint(pc *PaintContext) {
 					continue
 				}
 				y := ascent + lay.LineTop(i)
-				if face != nil && pc.DC != nil && len(lay.Lines) > i {
-					glyphs := lay.Lines[i].Glyphs
+				if face != nil && pc.DC != nil && i < lay.LineCount() {
+					glyphs := lay.LineGlyphs(i)
 					// Bulk submission needs a sourced face (outlines/atlas
 					// page); composite faces stay per-rune until M2 builds
 					// composite batch support (bulk+MultiFace draws blank).
@@ -800,21 +859,19 @@ func (t *RenderText) Paint(pc *PaintContext) {
 						// Flutter viewport culling for 5000 single-line:
 						// only submit glyphs within the viewport window
 						// (+200px margin) to keep GPU vertex count O(visible).
-						if t.hasViewportHint && t.MaxWidth == 0 && len(lay.Lines) == 1 && len(glyphs) > 200 {
+						if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 && len(glyphs) > 200 {
 							glyphs = t.cullGlyphs(glyphs)
 						}
 						ax, ay := pc.Abs(0, y)
 						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
 					} else if face.Source() == nil {
+						// M1-13: byteOff→X一次建表后O(1)查,不再每字线性扫Carets.
+						// caret为行内相对,键即相对偏移;range line的byteOff同为行内相对.
+						// 同包直读内部表(零拷贝),d5后外部统一走LineCarets.
+						xByOff := caretXByOffset(lay.lines[i].Carets)
 						for byteOff, r := range line {
-							var x float64
-							for _, c := range lay.Lines[i].Carets {
-								if c.ByteOff == byteOff+lay.Lines[i].StartByte {
-									x = c.X
-									break
-								}
-							}
-							if t.hasViewportHint && t.MaxWidth == 0 && len(lay.Lines) == 1 {
+							x := xByOff[byteOff]
+							if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 {
 								if x < t.viewportScrollX-200 || x > t.viewportScrollX+t.viewportWidth+200 {
 									continue
 								}
@@ -824,7 +881,7 @@ func (t *RenderText) Paint(pc *PaintContext) {
 						}
 					} else {
 						// Fallback colored path (also cull for large single line)
-						if t.hasViewportHint && t.MaxWidth == 0 && len(lay.Lines) == 1 && len(line) > 500 {
+						if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 && len(line) > 500 {
 							// drawTextColored draws whole line; skip if we have hint and line is huge
 							// fallback to per-glyph culling via DrawString above is already handled,
 							// but this path is for GID==0 with source != nil (rare). Skip whole draw
@@ -844,8 +901,19 @@ func (t *RenderText) Paint(pc *PaintContext) {
 	t.clearPaintDirty()
 }
 
-func (t *RenderText) cullGlyphs(glyphs []text.ShapedGlyph) []text.ShapedGlyph {
-	if !t.hasViewportHint || len(glyphs) == 0 {
+// caretXByOffset把行内caret表建成byteOff→X索引(M1-13):建表O(n)一次,
+// 之后每字O(1)查.调用方复用,勿每字重建.首个caret胜出(与旧线性扫首命中一致).
+func caretXByOffset(carets []GlyphCaret) map[int]float64 {
+	xByOff := make(map[int]float64, len(carets))
+	for _, c := range carets {
+		if _, dup := xByOff[c.ByteOff]; !dup {
+			xByOff[c.ByteOff] = c.X
+		}
+	}
+	return xByOff
+}
+
+func (t *RenderText) cullGlyphs(glyphs []text.ShapedGlyph) []text.ShapedGlyph {	if !t.hasViewportHint || len(glyphs) == 0 {
 		return glyphs
 	}
 	// Visible window in text-local X (same coords as glyphs[].X).
@@ -948,7 +1016,7 @@ func (t *RenderText) ByteOffsetAt(x float64) int {
 	if t == nil || t.Text == "" {
 		return 0
 	}
-	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
+	if lay := t.ensureLayout(); lay != nil && lay.LineCount() > 0 {
 		off, _ := lay.GetPositionForOffset(x, 0)
 		return off
 	}
@@ -972,7 +1040,7 @@ func (t *RenderText) ByteOffsetAtPoint(x, y float64) int {
 	if t == nil {
 		return 0
 	}
-	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
+	if lay := t.ensureLayout(); lay != nil && lay.LineCount() > 0 {
 		off, _ := lay.GetPositionForOffset(x, y)
 		return off
 	}
@@ -1013,14 +1081,14 @@ func (t *RenderText) ByteOffsetAtPoint(x, y float64) int {
 
 // HitTest implements RenderObject — single-source via TextLayout (Flutter Paragraph).
 func (t *RenderText) HitTest(p Point) RenderObject {
-	if lay := t.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+	if lay := t.TextLayout(); lay != nil && lay.LineCount() > 0 {
 		maxW := 0.0
-		for _, ln := range lay.Lines {
-			if ln.Width > maxW {
-				maxW = ln.Width
+		for i := 0; i < lay.LineCount(); i++ {
+			if _, _, w, _, ok := lay.Line(i); ok && w > maxW {
+				maxW = w
 			}
 		}
-		totalH := lay.LineTop(len(lay.Lines)-1) + lay.LineHeight(len(lay.Lines)-1)
+		totalH := lay.LineTop(lay.LineCount()-1) + lay.LineHeight(lay.LineCount()-1)
 		if p.X >= 0 && p.Y >= 0 && p.X < maxW+0.5 && p.Y < totalH+0.5 {
 			return t
 		}

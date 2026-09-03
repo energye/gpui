@@ -265,7 +265,7 @@ func main() {
 	mixedRunBox.AddChild(mixedCaretBar)
 	mixedRunBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		lay := mixedRunText.TextLayout()
-		if lay == nil || len(lay.Lines) == 0 {
+		if lay == nil || lay.LineCount() == 0 {
 			return
 		}
 		// 取全局 byte 2+3=5（Aa + 你）后的缝
@@ -486,12 +486,13 @@ func main() {
 				return
 			}
 			lay := rendering.BuildTextLayout(ed.GetText(), face, 16, 0, 1.25)
-			if lay == nil || len(lay.Lines) == 0 {
+			if lay == nil || lay.LineCount() == 0 {
 				fmt.Fprintln(os.Stderr, "FAIL: selftest no layout")
 				os.Exit(1)
 			}
 			lastX := -1.0
-			for i, c := range lay.Lines[0].Carets {
+			lineCarets := lay.LineCarets(0)
+			for i, c := range lineCarets {
 				if c.X < lastX-0.01 {
 					fmt.Fprintf(os.Stderr, "FAIL: selftest non-monotonic at %d x=%.2f last=%.2f\n", i, c.X, lastX)
 					os.Exit(1)
@@ -500,10 +501,10 @@ func main() {
 			}
 			// 额外：用 moveVisual 走一遍，看是否每格一跳
 			ed.SetText("Aa你好Hello😀", textinput.TextRange{Base: 0, Extent: 0}, textinput.TextRange{}, 0)
-			for i := 0; i < len(lay.Lines[0].Carets)-1; i++ {
+			for i := 0; i < len(lineCarets)-1; i++ {
 				inputBox.MoveVisual(1)
 				cur := ed.GetCursorOffset()
-				exp := lay.Lines[0].Carets[i+1].ByteOff
+				exp := lineCarets[i+1].ByteOff
 				if cur != exp {
 					fmt.Fprintf(os.Stderr, "FAIL: selftest moveVisual step %d got %d want %d\n", i, cur, exp)
 					os.Exit(1)
@@ -659,12 +660,12 @@ func verifyMixedCaret() (bool, string) {
 	samplesMono := []string{"Aa你好Hello", "Hello你好", "你好世界"}
 	for _, s := range samplesMono {
 		lay := rendering.BuildTextLayout(s, face, 16, 0, 1.25)
-		if lay == nil || len(lay.Lines) == 0 {
+		if lay == nil || lay.LineCount() == 0 {
 			return false, "no layout for " + s
 		}
 		var lastX float64 = -1
-		for _, ln := range lay.Lines {
-			for _, c := range ln.Carets {
+		for i := 0; i < lay.LineCount(); i++ {
+			for _, c := range lay.LineCarets(i) {
 				if c.ByteOff < 0 || c.ByteOff > len(s) {
 					return false, "ByteOff out of range"
 				}
@@ -682,8 +683,8 @@ func verifyMixedCaret() (bool, string) {
 	mixed := "Aa你好Hello😀"
 	lay := rendering.BuildTextLayout(mixed, face, 16, 0, 1.25)
 	if lay != nil {
-		for _, ln := range lay.Lines {
-			for _, c := range ln.Carets {
+		for i := 0; i < lay.LineCount(); i++ {
+			for _, c := range lay.LineCarets(i) {
 				if c.ByteOff > 0 && c.ByteOff < len(mixed) && mixed[c.ByteOff]&0xC0 == 0x80 {
 					return false, "mixed caret inside"
 				}
