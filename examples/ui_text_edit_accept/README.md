@@ -94,6 +94,23 @@ GPUI_ACCEPT_SELFTEST=1 go run ./examples/ui_text_edit_accept      # 无头 CPU �
 
 R5 对照窗（`GPUI_R5_SELFTEST=1`，3s）：9 探针全 true，`gpu_ops` 36034，`cpu_fallback_ops` 0；新增 `submitted_glyphs` 1061 / `vertex_count` 4244（CPU 侧提交观测，GPU 端精确顶点数未量）。
 
+## 真窗 30s（M3 之后，同一台机器，`GPUI_ACCEPT_RUN_SECONDS=30`）
+
+| 指标 | 值 | 门禁 | 判定 |
+|---|---|---|---|
+| `fps_interval` | 59.37 | ≥ 55 | ✅ |
+| `interval_p95_ms` | 16.98 | ≤ 22 | ✅ |
+| `hitch_rate_per_min` | 0 | ≤ 5 | ✅ |
+| `cpu_fallback_ops` | 0 | == 0 | ✅ |
+| `bulk_taken` | true | — | ✅ 与 M2 一致 |
+| `caret_vs_paint_max_delta_px`（布局提交侧） | 0 | ≤ 2 | ✅ |
+| `keystroke_p99_ms` @C（50000 字整行重排） | 57.9 | ≤ 16 | ❌ 非 M3 门禁：同 M2 备注（M2 记 55.8，同量级，系 §3.4 设计） |
+| `layout_ms_p99` @B | 7.724 | — | 参考值（M2 记 7.828，同量级） |
+| `rss_slope_kb_per_min`（30s 含图集预热 133→317MB） | 39184 | ≤ 30000 | ❌ 口径问题：同 M0/M2 备注，需 60s 稳态编辑复测；M3 单元证据见 `TestUndoDelta_MemoryCeiling_M3`（1e5 字 + 100 次 1 字节编辑，历史增长 100 字节） |
+
+M3 单元证据（`ui/textinput`，本机）：`TestUndoDelta_*` 3 个全绿；`BenchmarkPushHistory_M3` 比值 `T(1e5)/T(1e3) ≈ 0.34 ≤ 2` ✅；
+M3.5 触发数据（同尺寸对照，`face==nil` 估算路径）：1e3 下拼接 11.4µs / 排版 98.6µs（拷贝约占 10%），1e5 下拼接 711µs / 排版 28.2ms（拷贝约占 2.5%），均远低于 30% 触发线 → M3.5 条件一不触发。
+
 ## 未验证清单
 
 - 像素墨迹与布局的对照：B 框截图已量出 3242 墨点、左缘在框内 +3px（内边距），与布局一致；全框逐字对照待补。

@@ -39,11 +39,20 @@ func (r TextRange) Length() int {
 	return r.Extent - r.Base
 }
 
-type editSnapshot struct {
-	text           string
-	selection      TextRange
-	composingRange TextRange
-	composing      bool
+type editOp struct {
+	pos      int
+	deleted  string
+	inserted string
+}
+
+type editGroup struct {
+	ops             []editOp
+	selBefore       TextRange
+	selAfter        TextRange
+	compBefore      TextRange
+	compAfter       TextRange
+	composingBefore bool
+	composingAfter  bool
 }
 
 type Editor struct {
@@ -76,9 +85,9 @@ type Editor struct {
 	editOldA, editOldB, editNewA, editNewB int
 	editSpanValid                            bool
 	OnAnchor           func() // R4 F-D10: programmatic SetText → RefreshIMEAnchor
-	history            []editSnapshot
-	redoStack          []editSnapshot
-	composingSnapshot  bool // true when history already pushed for current composition
+	history            []editGroup
+	redoStack          []editGroup
+	composingSnapshot  bool // true when a group is open for current composition
 }
 
 // noteEdit记录文本变更区间;已有未消费区间则失效(多变更回退diff).
@@ -169,16 +178,80 @@ func clampUtf16(s string, off int) int {
 	return off
 }
 
-func (e *Editor) pushHistory() {
+func (e *Editor) openGroup(selB, compB TextRange, cB bool) {
 	if e == nil {
 		return
 	}
-	snap := editSnapshot{text: e.text, selection: e.selection, composingRange: e.composingRange, composing: e.composing}
-	e.history = append(e.history, snap)
+	g := editGroup{selBefore: selB, selAfter: selB, compBefore: compB, compAfter: compB, composingBefore: cB, composingAfter: cB}
+	e.history = append(e.history, g)
 	if len(e.history) > 100 {
 		e.history = e.history[1:]
 	}
 	e.redoStack = nil
+}
+
+func (e *Editor) pushDelta(pos int, deleted, inserted string, selB, compB TextRange, cB bool, selA, compA TextRange, cA bool) {
+	if e == nil {
+		return
+	}
+	if e.composingSnapshot && len(e.history) > 0 {
+		g := &e.history[len(e.history)-1]
+		g.ops = append(g.ops, editOp{pos: pos, deleted: deleted, inserted: inserted})
+		g.selAfter = selA
+		g.compAfter = compA
+		g.composingAfter = cA
+		return
+	}
+	g := editGroup{ops: []editOp{{pos: pos, deleted: deleted, inserted: inserted}}, selBefore: selB, selAfter: selA, compBefore: compB, compAfter: compA, composingBefore: cB, composingAfter: cA}
+	e.history = append(e.history, g)
+	if len(e.history) > 100 {
+		e.history = e.history[1:]
+	}
+	e.redoStack = nil
+}
+
+func diffStrings(old, new string) (pos int, deleted, inserted string) {
+	maxPre := len(old)
+	if len(new) < maxPre {
+		maxPre = len(new)
+	}
+	pre := 0
+	for pre < maxPre && old[pre] == new[pre] {
+		pre++
+	}
+	for pre > 0 && pre < len(old) && pre < len(new) && (old[pre]&0xC0) == 0x80 {
+		pre--
+	}
+	maxSuf := len(old) - pre
+	if len(new)-pre < maxSuf {
+		maxSuf = len(new) - pre
+	}
+	suf := 0
+	for suf < maxSuf && old[len(old)-1-suf] == new[len(new)-1-suf] {
+		suf++
+	}
+	for suf > 0 && (old[len(old)-suf]&0xC0) == 0x80 {
+		suf--
+	}
+	return pre, old[pre : len(old)-suf], new[pre : len(new)-suf]
+}
+
+func (e *Editor) HistoryBytes() int {
+	if e == nil {
+		return 0
+	}
+	n := 0
+	for _, g := range e.history {
+		for _, op := range g.ops {
+			n += len(op.deleted) + len(op.inserted)
+		}
+	}
+	for _, g := range e.redoStack {
+		for _, op := range g.ops {
+			n += len(op.deleted) + len(op.inserted)
+		}
+	}
+	return n
 }
 
 func (e *Editor) changed() {
@@ -203,16 +276,29 @@ func (e *Editor) Undo() bool {
 	if e == nil || len(e.history) == 0 {
 		return false
 	}
-	cur := editSnapshot{text: e.text, selection: e.selection, composingRange: e.composingRange, composing: e.composing}
-	e.redoStack = append(e.redoStack, cur)
-	last := e.history[len(e.history)-1]
+	g := e.history[len(e.history)-1]
 	e.history = e.history[:len(e.history)-1]
-	e.noteEdit(0, len(e.text), 0, len(last.text))
-	e.text = last.text
-	e.selection = last.selection
-	e.composingRange = last.composingRange
-	e.composing = last.composing
+	oldLen := len(e.text)
+	for i := len(g.ops) - 1; i >= 0; i-- {
+		op := g.ops[i]
+		if op.pos < 0 {
+			op.pos = 0
+		}
+		if op.pos > len(e.text) {
+			op.pos = len(e.text)
+		}
+		end := op.pos + len(op.inserted)
+		if end > len(e.text) {
+			end = len(e.text)
+		}
+		e.text = e.text[:op.pos] + op.deleted + e.text[end:]
+	}
+	e.noteEdit(0, oldLen, 0, len(e.text))
+	e.selection = g.selBefore
+	e.composingRange = g.compBefore
+	e.composing = g.composingBefore
 	e.composingSnapshot = false
+	e.redoStack = append(e.redoStack, g)
 	e.caretColValid = false
 	e.changed()
 	return true
@@ -223,15 +309,31 @@ func (e *Editor) Redo() bool {
 	if e == nil || len(e.redoStack) == 0 {
 		return false
 	}
-	cur := editSnapshot{text: e.text, selection: e.selection, composingRange: e.composingRange, composing: e.composing}
-	e.history = append(e.history, cur)
-	last := e.redoStack[len(e.redoStack)-1]
+	g := e.redoStack[len(e.redoStack)-1]
 	e.redoStack = e.redoStack[:len(e.redoStack)-1]
-	e.noteEdit(0, len(e.text), 0, len(last.text))
-	e.text = last.text
-	e.selection = last.selection
-	e.composingRange = last.composingRange
-	e.composing = last.composing
+	oldLen := len(e.text)
+	for _, op := range g.ops {
+		if op.pos < 0 {
+			op.pos = 0
+		}
+		if op.pos > len(e.text) {
+			op.pos = len(e.text)
+		}
+		end := op.pos + len(op.deleted)
+		if end > len(e.text) {
+			end = len(e.text)
+		}
+		e.text = e.text[:op.pos] + op.inserted + e.text[end:]
+	}
+	e.noteEdit(0, oldLen, 0, len(e.text))
+	e.selection = g.selAfter
+	e.composingRange = g.compAfter
+	e.composing = g.composingAfter
+	e.composingSnapshot = false
+	e.history = append(e.history, g)
+	if len(e.history) > 100 {
+		e.history = e.history[1:]
+	}
 	e.caretColValid = false
 	e.changed()
 	return true
@@ -445,8 +547,11 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	}
 	hasComp := comp.Length() > 0
 	changed := e.text != text || e.selection != sel || e.composingRange != comp || e.composing != hasComp
-	if changed && !e.composingSnapshot {
-		e.pushHistory()
+	selB, compB, cB := e.selection, e.composingRange, e.composing
+	var dPos int
+	var dDel, dIns string
+	if changed {
+		dPos, dDel, dIns = diffStrings(e.text, text)
 	}
 	if e.text != text {
 		e.noteEdit(0, len(e.text), 0, len(text))
@@ -455,6 +560,9 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	e.selection = sel
 	e.composingRange = comp
 	e.composing = hasComp
+	if changed {
+		e.pushDelta(dPos, dDel, dIns, selB, compB, cB, e.selection, e.composingRange, e.composing)
+	}
 	if changed {
 		e.changed()
 	}
@@ -520,7 +628,7 @@ func (e *Editor) BeginComposing() {
 		return
 	}
 	if !e.composingSnapshot {
-		e.pushHistory()
+		e.openGroup(e.selection, e.composingRange, e.composing)
 		e.composingSnapshot = true
 	}
 	// F-S1 有选区时先删选中段再起 preedit，批内合并为一次 epoch/OnChange
@@ -554,7 +662,7 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 		return false
 	}
 	if !e.composingSnapshot {
-		e.pushHistory()
+		e.openGroup(e.selection, e.composingRange, e.composing)
 		e.composingSnapshot = true
 	}
 	var replaceRange TextRange
@@ -565,6 +673,8 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 	}
 	startByte := byteOffsetForUtf16(e.text, replaceRange.Start())
 	endByte := byteOffsetForUtf16(e.text, replaceRange.End())
+	deleted := e.text[startByte:endByte]
+	selB, compB, cB := e.selection, e.composingRange, e.composing
 	newText := e.text[:startByte] + text + e.text[endByte:]
 	newStart := replaceRange.Start()
 	newEnd := newStart + utf16Len(text)
@@ -575,6 +685,7 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 	e.composing = true
 	e.composingRange = TextRange{Base: newStart, Extent: newEnd}
 	e.selection = sel
+	e.pushDelta(startByte, deleted, text, selB, compB, cB, e.selection, e.composingRange, e.composing)
 	e.changed()
 	e.caretColValid = false
 	return true
@@ -584,9 +695,16 @@ func (e *Editor) CommitComposing() {
 	if e == nil || !e.composing {
 		return
 	}
+	wasOpen := e.composingSnapshot
 	e.composing = false
 	e.composingRange = TextRange{}
 	e.composingSnapshot = false
+	if wasOpen && len(e.history) > 0 {
+		g := &e.history[len(e.history)-1]
+		g.selAfter = e.selection
+		g.compAfter = e.composingRange
+		g.composingAfter = false
+	}
 	e.changed()
 }
 
@@ -596,14 +714,24 @@ func (e *Editor) EndComposing() {
 	}
 	s := byteOffsetForUtf16(e.text, e.composingRange.Start())
 	en := byteOffsetForUtf16(e.text, e.composingRange.End())
+	selB, compB := e.selection, e.composingRange
+	wasOpen := e.composingSnapshot
 	if s != en {
+		deleted := e.text[s:en]
 		e.noteEdit(s, en, s, s)
 		e.text = e.text[:s] + e.text[en:]
 		e.selection = TextRange{Base: e.composingRange.Start(), Extent: e.composingRange.Start()}
+		e.pushDelta(s, deleted, "", selB, compB, true, e.selection, e.composingRange, true)
 	}
 	e.composing = false
 	e.composingRange = TextRange{}
 	e.composingSnapshot = false
+	if (wasOpen || s != en) && len(e.history) > 0 {
+		g := &e.history[len(e.history)-1]
+		g.selAfter = e.selection
+		g.compAfter = e.composingRange
+		g.composingAfter = false
+	}
 	e.changed()
 }
 
@@ -643,9 +771,8 @@ func (e *Editor) DeleteSelected() bool {
 	if start == end {
 		return false
 	}
-	if !e.composingSnapshot {
-		e.pushHistory()
-	}
+	deleted := e.text[start:end]
+	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(start, end, start, start)
 	e.text = e.text[:start] + e.text[end:]
 	off := e.selection.Start()
@@ -653,6 +780,7 @@ func (e *Editor) DeleteSelected() bool {
 	if e.composing {
 		e.composingRange = TextRange{Base: off, Extent: off}
 	}
+	e.pushDelta(start, deleted, "", selB, compB, cB, e.selection, e.composingRange, e.composing)
 	e.changed()
 	return true
 }
@@ -672,9 +800,6 @@ func (e *Editor) AddText(text string) bool {
 	if e.selection.Start() < er.Start() || e.selection.End() > er.End() {
 		return false
 	}
-	if !e.composingSnapshot {
-		e.pushHistory()
-	}
 	var replaceRange TextRange
 	if e.composing {
 		replaceRange = e.composingRange
@@ -683,10 +808,13 @@ func (e *Editor) AddText(text string) bool {
 	}
 	startByte := byteOffsetForUtf16(e.text, replaceRange.Start())
 	endByte := byteOffsetForUtf16(e.text, replaceRange.End())
+	deleted := e.text[startByte:endByte]
+	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(startByte, endByte, startByte, startByte+len(text))
 	e.text = e.text[:startByte] + text + e.text[endByte:]
 	newOff := replaceRange.Start() + utf16Len(text)
 	e.selection = TextRange{Base: newOff, Extent: newOff}
+	e.pushDelta(startByte, deleted, text, selB, compB, cB, e.selection, TextRange{}, false)
 	if e.composing {
 		e.composing = false
 		e.composingRange = TextRange{}
@@ -738,9 +866,8 @@ func (e *Editor) DeleteSurrounding(offset, count int) bool {
 	if startByte == endByte {
 		return false
 	}
-	if !e.composingSnapshot {
-		e.pushHistory()
-	}
+	deleted := e.text[startByte:endByte]
+	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(startByte, endByte, startByte, startByte)
 	e.text = e.text[:startByte] + e.text[endByte:]
 	delta := end - start
@@ -754,6 +881,7 @@ func (e *Editor) DeleteSurrounding(offset, count int) bool {
 		}
 		e.composingRange = TextRange{Base: e.composingRange.Start(), Extent: newEnd}
 	}
+	e.pushDelta(startByte, deleted, "", selB, compB, cB, e.selection, e.composingRange, e.composing)
 	e.changed()
 	e.caretColValid = false
 	return true
