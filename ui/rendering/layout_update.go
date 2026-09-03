@@ -34,15 +34,21 @@ type layoutLive struct {
 	spansMiss int
 }
 
+// matches报告常驻引擎是否为这组参数构建的.文本/区间/回车判定留给调用方,
+// 此处只合并8项参数比较,两处入口语义逐项一致.
+func (lv *layoutLive) matches(face text.Face, fontSize, maxWidth, lineSpacing, approxCharW float64, maxLines int, overflow TextOverflow) bool {
+	return lv.ok && lv.face == face && lv.size == fontSize && lv.maxW == maxWidth &&
+		lv.spacing == lineSpacing && lv.approx == approxCharW &&
+		lv.maxLines == maxLines && lv.overflow == overflow
+}
+
 // update增量构建.首建或参数变化走全量;否则diff patch.
 // 每次调用全局Generation自增一次(与BuildTextLayoutEx语义一致).
 func (c *layoutCache) update(textStr string, face text.Face, fontSize, maxWidth, lineSpacing, approxCharW float64, maxLines int, overflow TextOverflow) *TextLayout {
 	textLayoutGen++
 	gen := textLayoutGen
 	lv := &c.live
-	if !lv.ok || lv.face != face || lv.size != fontSize || lv.maxW != maxWidth ||
-		lv.spacing != lineSpacing || lv.approx != approxCharW ||
-		lv.maxLines != maxLines || lv.overflow != overflow ||
+	if !lv.matches(face, fontSize, maxWidth, lineSpacing, approxCharW, maxLines, overflow) ||
 		hasCR(textStr) || hasCR(lv.text) {
 		hit, miss := lv.spansHit, lv.spansMiss
 		lines, marks := c.cachedLinesFull(textStr, face, fontSize, maxWidth, lineSpacing, approxCharW, gen)
@@ -69,9 +75,7 @@ func (c *layoutCache) updateSpan(textStr string, face text.Face, fontSize, maxWi
 	textLayoutGen++
 	gen := textLayoutGen
 	lv := &c.live
-	if !lv.ok || lv.face != face || lv.size != fontSize || lv.maxW != maxWidth ||
-		lv.spacing != lineSpacing || lv.approx != approxCharW ||
-		lv.maxLines != maxLines || lv.overflow != overflow ||
+	if !lv.matches(face, fontSize, maxWidth, lineSpacing, approxCharW, maxLines, overflow) ||
 		lv.hasCR || !checkSpan(lv.text, textStr, sp) || spanHasCR(textStr, sp) {
 		hit, miss := lv.spansHit, lv.spansMiss+1
 		lines, marks := c.cachedLinesFull(textStr, face, fontSize, maxWidth, lineSpacing, approxCharW, gen)
@@ -296,15 +300,41 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 // patchIndex同步行索引:影响区替换,后续区起止平移,行顶不变
 // (同行高,文本平移不改变y;影响区行高由fresh行自带,构造时已填).
 // removedH为被替换行的原高度和(调用方在splice前算好传入).
+// 行数不变时原地改数组(零分配,值与重建逐项一致);行数变才重建.
 func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH float64, delta int) {
 	lv := &c.live
 	old := lv.idx
 	n := old.n - (hi - lo + 1) + len(fresh)
-	idx := &lineIndex{n: n, first: -1, last: -1}
 	if n == 0 {
-		lv.idx = idx
+		lv.idx = &lineIndex{}
 		return
 	}
+	if len(fresh) == hi-lo+1 && n == old.n && old.n > 0 {
+		for k, r := range fresh {
+			i := lo + k
+			old.starts[i] = r.StartByte
+			old.ends[i] = r.EndByte
+		}
+		top := 0.0
+		if lo > 0 {
+			top = old.tops[lo]
+		}
+		old.totalH -= removedH
+		for k, r := range fresh {
+			i := lo + k
+			old.tops[i] = top
+			top += r.Height
+			old.totalH += r.Height
+		}
+		for i := hi + 1; i < old.n; i++ {
+			old.starts[i] += delta
+			old.ends[i] += delta
+		}
+		old.first = old.starts[0]
+		old.last = old.starts[old.n-1]
+		return
+	}
+	idx := &lineIndex{n: n, first: -1, last: -1}
 	idx.starts = make([]int, 0, n)
 	idx.ends = make([]int, 0, n)
 	idx.tops = make([]float64, 0, n)
@@ -340,12 +370,12 @@ func (c *layoutCache) rowSpan(parts []hardPart, face text.Face, fontSize, lh flo
 }
 
 func (c *layoutCache) wrapSpan(parts []hardPart, face text.Face, fontSize, maxWidth, lh float64, gen uint64) ([]TextLayoutLine, []uint64) {
-	return c.partLines(parts, face, fontSize, maxWidth, lh, gen, c.segs,
+	return c.partLines(parts, face, fontSize, maxWidth, lh, 0, gen, c.segs,
 		func(seg string) []text.WrapResult { return wrapFaceResults(seg, face, maxWidth) })
 }
 
 func (c *layoutCache) estSpan(parts []hardPart, fontSize, maxWidth, approxCharW, lh float64, gen uint64) ([]TextLayoutLine, []uint64) {
-	return c.partLines(parts, nil, fontSize, maxWidth, lh, gen, c.segs,
+	return c.partLines(parts, nil, fontSize, maxWidth, lh, approxCharW, gen, c.segs,
 		func(seg string) []text.WrapResult {
 			return wrapEstResults(seg, maxWidth, fontSize, approxCharW)
 		})

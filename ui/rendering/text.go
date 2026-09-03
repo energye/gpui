@@ -882,12 +882,13 @@ func (t *RenderText) Paint(pc *PaintContext) {
 						// Flutter viewport culling for 5000 single-line:
 						// only submit glyphs within the viewport window
 						// (+200px margin) to keep GPU vertex count O(visible).
-						if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 && len(glyphs) > 200 {
-							glyphs = t.cullGlyphs(glyphs)
+						if lo, hi, ok := t.hCullWindow(lay.LineCount(), len(glyphs)); ok {
+							s, e := cullRangeForWindow(glyphs, lo, hi)
+							glyphs = glyphs[s:e]
 						}
 						ax, ay := pc.Abs(0, y)
 						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
-					} else if runs := lay.LineGlyphRuns(i); len(runs) > 0 && t.paintCompositeRuns(pc, lay, glyphs, runs, y) {
+					} else if t.paintCompositeRuns(pc, lay, i, y) {
 						// M2 composite batch submitted per-face partitions.
 					} else if face.Source() == nil {
 						// M1-13: byteOff→X一次建表后O(1)查,不再每字线性扫Carets.
@@ -896,8 +897,9 @@ func (t *RenderText) Paint(pc *PaintContext) {
 						xByOff := caretXByOffset(lay.lines[i].Carets)
 						for byteOff, r := range line {
 							x := xByOff[byteOff]
+							// 逐字路无二分开销,不设200门:屏外字照常跳过,漏跳的由GPU裁掉,画面一致.
 							if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 {
-								if x < t.viewportScrollX-200 || x > t.viewportScrollX+t.viewportWidth+200 {
+								if x < t.viewportScrollX-viewportMargin || x > t.viewportScrollX+t.viewportWidth+viewportMargin {
 									continue
 								}
 							}
@@ -929,33 +931,27 @@ func (t *RenderText) Paint(pc *PaintContext) {
 // paintCompositeRuns submits a composite-face line in per-face batches (M2).
 // Each run covers glyphs[Start:End] with its own sourced face; coordinates
 // stay glyph.X (I1 single source, same as the single-face path above).
-// The single-line viewport cull applies per partition. Reports false when any
-// partition is not batchable — the caller then falls back to the legacy
-// per-rune path, so the picture never changes, only the submit cost does.
+// The single-line viewport cull applies per partition. Reports false when the
+// row is not routable (see TextLayout.LineBulkRoutable) — the caller then
+// falls back to the legacy per-rune path, so the picture never changes,
+// only the submit cost does.
 //
 // GPU batch layout is pen-origin based (it positions from the first glyph /
 // pen origin, not from absolute glyph.X), so each partition is rebased to
 // its own origin and submitted at ax+offset — final positions are identical,
 // only the representation changes. Skipping the rebase stacks every run at
 // the line start (Latin over CJK).
-func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, glyphs []text.ShapedGlyph, runs []LineGlyphRun, y float64) bool {
-	for _, r := range runs {
-		if r.Start < 0 || r.End > len(glyphs) || r.Start >= r.End {
-			return false
-		}
-		part := glyphs[r.Start:r.End]
-		if len(part) == 0 || part[0].GID == 0 || r.Face == nil || r.Face.Source() == nil {
-			return false
-		}
+func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, row int, y float64) bool {
+	if !lay.LineBulkRoutable(row) {
+		return false
 	}
-	cull := t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 && len(glyphs) > 200
+	glyphs := lay.LineGlyphs(row)
+	runs := lay.LineGlyphRuns(row)
+	cullLo, cullHi, cull := t.hCullWindow(lay.LineCount(), len(glyphs))
 	for _, r := range runs {
 		part := glyphs[r.Start:r.End]
 		if cull {
-			const margin = 200.0
-			lo := t.viewportScrollX - margin
-			hi := t.viewportScrollX + t.viewportWidth + margin
-			s, e := cullRangeForWindow(part, lo, hi)
+			s, e := cullRangeForWindow(part, cullLo, cullHi)
 			part = part[s:e]
 		}
 		if len(part) == 0 {
@@ -1018,16 +1014,14 @@ func (t *RenderText) SubmittedGlyphEstimate() int {
 	if t.hasViewportHintY && lay.LineCount() > 0 {
 		rowLo, rowHi = visibleRowBandOf(lay, t.viewportScrollY, t.viewportHeight)
 	}
-	cull := t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1
 	total := 0
 	for i := rowLo; i < rowHi && i < len(lines); i++ {
 		if lines[i] == "" {
 			continue
 		}
 		glyphs := lay.LineGlyphs(i)
-		if cull && len(glyphs) > 200 {
-			const margin = 200.0
-			s, e := cullRangeForWindow(glyphs, t.viewportScrollX-margin, t.viewportScrollX+t.viewportWidth+margin)
+		if cullLo, cullHi, ok := t.hCullWindow(lay.LineCount(), len(glyphs)); ok {
+			s, e := cullRangeForWindow(glyphs, cullLo, cullHi)
 			total += e - s
 			continue
 		}
@@ -1087,16 +1081,20 @@ func caretXByOffset(carets []GlyphCaret) map[int]float64 {
 	return xByOff
 }
 
-func (t *RenderText) cullGlyphs(glyphs []text.ShapedGlyph) []text.ShapedGlyph {
-	if !t.hasViewportHint || len(glyphs) == 0 {
-		return glyphs
+// viewportMargin是视口裁剪向可见区外扩的护栏:滚动半字/字形出头不闪.
+// 横向裁剪四处(批量单脸/复合分区/提交预估/逐字兜底)共用此值.
+const viewportMargin = 200.0
+
+// hCullWindow returns the visible X window when single-line viewport
+// culling applies, ok=false means submit everything. The gate (hint set,
+// unwrapped single line, enough glyphs to matter) and the margin live here
+// once — Paint, paintCompositeRuns and SubmittedGlyphEstimate share it,
+// so the three can never disagree on what "visible" means.
+func (t *RenderText) hCullWindow(lineCount, totalGlyphs int) (lo, hi float64, ok bool) {
+	if !t.hasViewportHint || t.MaxWidth != 0 || lineCount != 1 || totalGlyphs <= 200 {
+		return 0, 0, false
 	}
-	// Visible window in text-local X (same coords as glyphs[].X).
-	const margin = 200.0
-	lo := t.viewportScrollX - margin
-	hi := t.viewportScrollX + t.viewportWidth + margin
-	start, end := cullRangeForWindow(glyphs, lo, hi)
-	return glyphs[start:end]
+	return t.viewportScrollX - viewportMargin, t.viewportScrollX + t.viewportWidth + viewportMargin, true
 }
 
 // cullRangeForWindow returns the glyph index range intersecting [loX,hiX).

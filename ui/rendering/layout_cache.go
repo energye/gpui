@@ -10,7 +10,10 @@ import (
 // 不回绕按行缓存,回绕按段(\n分段)缓存.命中复用已构建的行,只重排被改的行/段.
 // 调用方未接入前BuildTextLayout仍走全量构建,缓存行为由本文件单测独立锁定.
 //
-// key=内容哈希+face+字号+maxWidth(含回绕模式),缺一项即撞车.
+// key=内容哈希+face+字号+maxWidth(含回绕模式)+估算字宽,缺一项即撞车.
+// 估算字宽只在无脸估算分支使用(face!=nil 的两条分支填 0,face 键已隔离).
+// face 对象不可变(配置变化必换对象,见 render/text/options.go With*),
+// hinting/variations 等配置由 face 身份表达,不另进键.
 // 行按段内相对偏移存储,命中时拷贝并变基到全局(复用整形结果,不复用切片头;
 // Glyphs只读共享,构建后不再原地修改).
 // 线程封闭:只在事件循环线程使用(沿§7.4 C1),内部不加锁.
@@ -32,6 +35,7 @@ type cacheKey struct {
 	size float64
 	w    float64
 	lh   float64
+	aw   float64
 }
 
 type cachedRows struct {
@@ -41,6 +45,18 @@ type cachedRows struct {
 
 func newLayoutCache() *layoutCache {
 	return &layoutCache{rows: make(map[cacheKey]*cachedRows), segs: make(map[cacheKey]*cachedRows), seed: maphash.MakeSeed()}
+}
+
+// maxCacheEntries是跨文档缓存的条目上限(纯内存护栏,正确性无关):
+// 长会话不断粘贴新段落时清表重建,单次全量重建可接受,无限增长不可接受.
+// 取值拍脑袋(4096 行/段约数 MB),改它只影响命中率,不影响正确性.
+const maxCacheEntries = 4096
+
+func putCached(table map[cacheKey]*cachedRows, k cacheKey, v *cachedRows) {
+	if len(table) >= maxCacheEntries {
+		clear(table)
+	}
+	table[k] = v
 }
 
 // hashStr是段缓存key的内容哈希(FNV逐字节约1ns/B,长段击键瓶颈之一;
@@ -79,12 +95,23 @@ func (c *layoutCache) cachedLinesFull(textStr string, face text.Face, fontSize, 
 		return nil, nil
 	}
 	lh := lineHeightFor(face, fontSize, lineSpacing)
-	if maxWidth > 0 && face != nil && !hasCR(textStr) {
-		return c.partLines(splitHardLines(textStr), face, fontSize, maxWidth, lh, gen, c.segs,
+	if maxWidth > 0 && face != nil {
+		if hasCR(textStr) {
+			// 含回车:WrapText 在内部归一化换行并重映偏移,段缓存按 \n
+			// 切分会对不上.该路径稀少,直接整篇构建,不进段缓存.
+			var out []TextLayoutLine
+			var marks []uint64
+			for _, w := range wrapFaceResults(textStr, face, maxWidth) {
+				out = append(out, materializeWrappedRow(w, face, lh))
+				marks = append(marks, gen)
+			}
+			return out, marks
+		}
+		return c.partLines(splitHardLines(textStr), face, fontSize, maxWidth, lh, 0, gen, c.segs,
 			func(seg string) []text.WrapResult { return wrapFaceResults(seg, face, maxWidth) })
 	}
 	if maxWidth > 0 && face == nil {
-		return c.partLines(splitHardLines(textStr), face, fontSize, maxWidth, lh, gen, c.segs,
+		return c.partLines(splitHardLines(textStr), face, fontSize, maxWidth, lh, approxCharW, gen, c.segs,
 			func(seg string) []text.WrapResult {
 				return wrapEstResults(seg, maxWidth, fontSize, approxCharW)
 			})
@@ -137,7 +164,7 @@ func (c *layoutCache) rowLinesParts(parts []hardPart, face text.Face, fontSize, 
 		}
 		c.blds++
 		rel := materializeWrappedRow(text.WrapResult{Text: p.text, Start: 0, End: len(p.text)}, face, lh)
-		c.rows[k] = &cachedRows{rows: []TextLayoutLine{rel}, gen: gen}
+		putCached(c.rows, k, &cachedRows{rows: []TextLayoutLine{rel}, gen: gen})
 		out = append(out, rebaseLine(rel, p.start))
 		marks = append(marks, gen)
 	}
@@ -146,11 +173,11 @@ func (c *layoutCache) rowLinesParts(parts []hardPart, face text.Face, fontSize, 
 
 // partLines回绕/估算共用:每硬段独立key,段内回绕行整体存取.改首段不碰后续段.
 // 等价性由TestLayoutCache_Equiv锁定(与BuildTextLayoutEx逐字节对照).
-func (c *layoutCache) partLines(parts []hardPart, face text.Face, fontSize, maxWidth, lh float64, gen uint64, table map[cacheKey]*cachedRows, wrap func(seg string) []text.WrapResult) ([]TextLayoutLine, []uint64) {
+func (c *layoutCache) partLines(parts []hardPart, face text.Face, fontSize, maxWidth, lh, approxCharW float64, gen uint64, table map[cacheKey]*cachedRows, wrap func(seg string) []text.WrapResult) ([]TextLayoutLine, []uint64) {
 	var out []TextLayoutLine
 	var marks []uint64
 	for _, p := range parts {
-		k := cacheKey{sum: c.hashStr(p.text), face: face, size: fontSize, w: maxWidth, lh: lh}
+		k := cacheKey{sum: c.hashStr(p.text), face: face, size: fontSize, w: maxWidth, lh: lh, aw: approxCharW}
 		if u, ok := table[k]; ok {
 			c.hits++
 			for _, sl := range u.rows {
@@ -167,13 +194,13 @@ func (c *layoutCache) partLines(parts []hardPart, face text.Face, fontSize, maxW
 			out = append(out, rebaseLine(rel, p.start))
 			marks = append(marks, gen)
 		}
-		table[k] = stored
+		putCached(table, k, stored)
 	}
 	return out, marks
 }
 
 // rebaseLine把段内相对行拷贝并变基到全局:起止加基址,
-// caret/字形数组只读共享(行构建后无任何原地修改,分享安全;
+// caret/字形/分区数组只读共享(行构建后无任何原地修改,分享安全;
 // Glyphs此前已是只读共享,快照同样分享行内数组).
 func rebaseLine(sl TextLayoutLine, base int) TextLayoutLine {
 	sl.StartByte += base

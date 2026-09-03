@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"math"
 	"testing"
 )
 
@@ -56,7 +57,34 @@ func TestLineIndex_M1(t *testing.T) {
 	}
 }
 
-// TestCaretPrefixSum_M1锁M1第6/8项:CaretAt行内二分必须与caret表逐字节一致.
+// TestRowForY_RV锁收敛:RowForY(二分)必须与旧线性扫逐值一致,
+// 含边界/负数/超大/NaN.旧循环在 input_box.go 逐行比LineTop.
+func TestRowForY_RV(t *testing.T) {
+	lay := BuildTextLayout("aaa\nbb\nc\ndddd\nee", nil, 14, 0, 1.2)
+	loop := func(y float64) int {
+		idx := 0
+		for i := 0; i < lay.LineCount(); i++ {
+			top := lay.LineTop(i)
+			ht := lay.LineHeight(i)
+			if y >= top-0.01 && y < top+ht-0.01 {
+				idx = i
+				break
+			}
+		}
+		return idx
+	}
+	total := lay.LineTop(lay.LineCount() - 1)
+	lastH := lay.LineHeight(lay.LineCount() - 1)
+	ys := []float64{-100, -0.02, -0.01, 0, 0.5, total - 0.011, total - 0.01, total, total + lastH - 0.011, total + lastH - 0.009, total + lastH, total + 1000, math.NaN(), math.Inf(1), math.Inf(-1)}
+	for d := -50.0; d < total+lastH+50; d += 0.37 {
+		ys = append(ys, d)
+	}
+	for _, y := range ys {
+		if got, want := lay.RowForY(y), loop(y); got != want {
+			t.Fatalf("RowForY(%v)=%d,旧循环=%d", y, got, want)
+		}
+	}
+}
 func TestCaretPrefixSum_M1(t *testing.T) {
 	doc := "hello世界\nfoo bar\n尾行 end"
 	lay := BuildTextLayout(doc, nil, 14, 0, 1.2)

@@ -67,9 +67,7 @@ func liveProbes(boxB, boxC *textinput.ViewportInputBox, face text.Face, fontSize
 			bulkTaken = false
 			continue
 		}
-		// Routable bulk mirrors RenderText.Paint (M2): single-face bulk
-		// (real glyphs + sourced face) or composite batch (per-face
-		// partitions all batchable). See lineBulkRoutable below.
+		// 批量路由走引擎单源判定(TextLayout.LineBulkRoutable,与 Paint 同条件).
 		for i := 0; i < lay.LineCount(); i++ {
 			glyphs := lay.LineGlyphs(i)
 			carets := lay.LineCarets(i)
@@ -77,7 +75,7 @@ func liveProbes(boxB, boxC *textinput.ViewportInputBox, face text.Face, fontSize
 				bulkTaken = false
 				continue
 			}
-			if !lineBulkRoutable(lay, i) {
+			if !lay.LineBulkRoutable(i) {
 				bulkTaken = false
 			}
 			if glyphs[0].GID == 0 {
@@ -123,31 +121,6 @@ func bTextOf(b *textinput.ViewportInputBox) string {
 		return ""
 	}
 	return b.Editor().GetText()
-}
-
-// lineBulkRoutable mirrors RenderText.Paint routing (example-side
-// observability only): single-face bulk, or M2 composite batch with every
-// partition carrying a sourced face. Must stay in sync with
-// RenderText.paintCompositeRuns acceptance.
-func lineBulkRoutable(lay *rendering.TextLayout, row int) bool {
-	glyphs := lay.LineGlyphs(row)
-	if len(glyphs) > 0 && glyphs[0].GID != 0 && lay.Face != nil && lay.Face.Source() != nil {
-		return true
-	}
-	runs := lay.LineGlyphRuns(row)
-	if len(runs) == 0 {
-		return false
-	}
-	for _, r := range runs {
-		if r.Start < 0 || r.End > len(glyphs) || r.Start >= r.End {
-			return false
-		}
-		part := glyphs[r.Start:r.End]
-		if len(part) == 0 || part[0].GID == 0 || r.Face == nil || r.Face.Source() == nil {
-			return false
-		}
-	}
-	return true
 }
 
 type probes struct {

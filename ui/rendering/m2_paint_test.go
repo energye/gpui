@@ -164,6 +164,35 @@ func TestSubmittedGlyphEstimate(t *testing.T) {
 	}
 }
 
+// TestLineBulkRoutable_RV锁路由判定单源:单脸批量 true、复合分区 true、
+// 无脸估算 false、空行 false、越界 false.探针与 Paint 共用此判定.
+func TestLineBulkRoutable_RV(t *testing.T) {
+	if BuildTextLayout("", nil, 14, 0, 1.2).LineBulkRoutable(0) {
+		t.Fatalf("空布局应 false")
+	}
+	nilFace := BuildTextLayout("hello", nil, 14, 0, 1.2)
+	if nilFace.LineBulkRoutable(0) {
+		t.Fatalf("无脸估算应 false(走逐字旧路)")
+	}
+	if nilFace.LineBulkRoutable(9) {
+		t.Fatalf("越界应 false")
+	}
+	face, _, err := text.LoadMultiFace(16)
+	if err != nil || face == nil {
+		t.Skipf("no face for routable test: %v", err)
+	}
+	multi := BuildTextLayout("Hello世界abc", face, 16, 0, 1.2)
+	if !multi.LineBulkRoutable(0) {
+		t.Fatalf("复合可批量行应 true")
+	}
+	if sf, _, serr := TryLoadDefaultFace(16); serr == nil && sf != nil && sf.Source() != nil {
+		single := BuildTextLayout("Hello", sf, 16, 0, 1.2)
+		if !single.LineBulkRoutable(0) {
+			t.Fatalf("单脸可批量行应 true")
+		}
+	}
+}
+
 // TestCompositeBatch_RebasedPositions 锁复合批量提交的位置不变性:
 // 每个分区变基到自原点提交后,提交坐标+原点偏移必须逐字形等于布局坐标.
 // 变基错了,GPU 上各 run 会叠在行首(拉丁压中文),CPU 探针看不出来,

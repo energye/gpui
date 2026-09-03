@@ -27,6 +27,7 @@ type TextLayoutLine struct {
 	// each run covers Glyphs[Start:End] and must be submitted with Run.Face.
 	// Single-face lines hold one run; empty when the line has no batchable
 	// glyphs (nil-face estimate or unshaped fallback keeps the old paint path).
+	// 与Carets/Glyphs一样,构建后只读共享,任何原地修改都会污染缓存快照.
 	GlyphRuns []LineGlyphRun
 	// clusters是行内字素簇起点(绝对字节偏移,末尾附行尾哨兵),懒算缓存.
 	clusters []int
@@ -200,7 +201,9 @@ func (l *TextLayout) Line(i int) (start, end int, width, height float64, ok bool
 	return ln.StartByte, ln.EndByte, ln.Width, ln.Height, true
 }
 
-// CaretAt返回指定行内偏移的X(行内二分,I8).
+// CaretAt返回指定行内绝对字节偏移的X(行内二分,I8).
+// byteOff是文档全局偏移(含行基址),不是行内相对值;
+// 行内相对表由LineCarets转绝对,此处做逆换算.传相对值会错一个行基址.
 func (l *TextLayout) CaretAt(lineIdx int, byteOff int) (x float64, ok bool) {
 	if l == nil || lineIdx < 0 || lineIdx >= len(l.lines) {
 		return 0, false
@@ -246,6 +249,39 @@ func (l *TextLayout) LineGlyphRuns(i int) []LineGlyphRun {
 	return append([]LineGlyphRun(nil), runs...)
 }
 
+// LineBulkRoutable reports whether row i can be submitted in batches:
+// single-face bulk (real glyphs + sourced face, Paint's first branch) or
+// per-face composite partitions (Paint's second branch, see below).
+// Engine and example probes share this single source instead of
+// reimplementing the routing condition.
+//
+// NOTE: paintCompositeRuns calls this only after the single-face branch
+// failed, so inside that call the first clause never fires — the comment
+// stays to keep the predicate total, not to change that call path.
+func (l *TextLayout) LineBulkRoutable(i int) bool {
+	if l == nil || i < 0 || i >= len(l.lines) {
+		return false
+	}
+	glyphs := l.lines[i].Glyphs
+	if len(glyphs) > 0 && glyphs[0].GID != 0 && l.Face != nil && l.Face.Source() != nil {
+		return true
+	}
+	runs := l.lines[i].GlyphRuns
+	if len(runs) == 0 {
+		return false
+	}
+	for _, r := range runs {
+		if r.Start < 0 || r.End > len(glyphs) || r.Start >= r.End {
+			return false
+		}
+		part := glyphs[r.Start:r.End]
+		if len(part) == 0 || part[0].GID == 0 || r.Face == nil || r.Face.Source() == nil {
+			return false
+		}
+	}
+	return true
+}
+
 // VisibleLineRange返回与纵向区间 [y0,y1) 相交的行区间 [lo,hi).
 // 无交集时 lo==hi.行高前缀和二分定位,O(log n),不遍历全表 (M2).
 func (l *TextLayout) VisibleLineRange(y0, y1 float64) (lo, hi int) {
@@ -260,12 +296,6 @@ func (l *TextLayout) VisibleLineRange(y0, y1 float64) (lo, hi int) {
 	hi = sort.Search(n, func(i int) bool {
 		return idx.tops[i] >= y1
 	})
-	if lo > n {
-		lo = n
-	}
-	if hi > n {
-		hi = n
-	}
 	if lo > hi {
 		lo = hi
 	}
@@ -662,6 +692,24 @@ func buildShapedCarets(line string, runs []itemizedRun) ([]GlyphCaret, float64, 
 	return carets, cursor, glyphs, gruns, true
 }
 
+// RowForY returns the row whose band contains y, mirroring the legacy
+// linear scan predicate (y in [top-0.01, top+h-0.01), first hit wins).
+// Out-of-range y falls through to row 0, same as the old loop. O(log n).
+func (l *TextLayout) RowForY(y float64) int {
+	if l == nil || len(l.lines) == 0 {
+		return 0
+	}
+	idx := l.index()
+	n := len(l.lines)
+	j := sort.Search(n, func(i int) bool {
+		return y < idx.tops[i]+l.LineHeight(i)-0.01
+	})
+	if j < n && y >= idx.tops[j]-0.01 {
+		return j
+	}
+	return 0
+}
+
 // CaretForOffset returns line index and X for a global byte offset (downstream affinity).
 func (l *TextLayout) CaretForOffset(off int) (lineIdx int, x float64, ok bool) {
 	if l == nil || len(l.lines) == 0 {
@@ -1036,12 +1084,7 @@ func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity i
 	}
 	// Find line by y via the height prefix (O(log n),首个y<top+h语义).
 	idx := l.index()
-	row := idx.rowForY(y, l.FontSize, l.LineSpacing, func(i int) float64 {
-		if h := l.lines[i].Height; h > 0 {
-			return h
-		}
-		return l.FontSize * 1.2
-	})
+	row := idx.rowForY(y, l.FontSize, l.LineSpacing, l.LineHeight)
 	ln := l.lines[row]
 	if x <= 0 {
 		return ln.StartByte, AffinityDownstream

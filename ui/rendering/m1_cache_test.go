@@ -1,7 +1,10 @@
 package rendering
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/energye/gpui/render/text"
 )
 
 // M1-b:双模式布局缓存 + 按行失效标记(I9).
@@ -113,6 +116,71 @@ func TestGeneration_PerLine_M1(t *testing.T) {
 	for i := range l2.LineGen {
 		if l2.LineGen[i] != l1.LineGen[i] {
 			t.Fatalf("内容未变时行标记应复用")
+		}
+	}
+}
+
+// TestLayoutCache_Bounded_RV锁收敛:跨文档缓存条目有上限,超限清表后
+// 构建仍正确(只丢命中率,不丢正确性).
+func TestLayoutCache_Bounded_RV(t *testing.T) {
+	c := newLayoutCache()
+	for i := 0; i < maxCacheEntries+100; i++ {
+		doc := strings.Repeat("x", 8) + strings.Repeat("y", i%64) + "#"
+		c.buildCached(doc, nil, 14, 0, 1.2)
+	}
+	if len(c.rows) > maxCacheEntries {
+		t.Fatalf("行缓存%d条超上限%d", len(c.rows), maxCacheEntries)
+	}
+	got := c.buildCached("aaa\nbbb", nil, 14, 0, 1.2)
+	want := BuildTextLayout("aaa\nbbb", nil, 14, 0, 1.2)
+	if !m1CacheLinesEqual(got, want) {
+		t.Fatalf("清表后构建不一致")
+	}
+}
+
+// TestLayoutCache_EstWidthKey_RV锁B1:无脸估算回绕的 approxCharW 必须进
+// 缓存键.同文本同字号同宽、字宽因子不同,断行必须不同,且第二次不得命中
+// 第一次的行.
+func TestLayoutCache_EstWidthKey_RV(t *testing.T) {
+	const doc = "The quick brown fox jumps over the lazy dog and then keeps running far away indeed"
+	c := newLayoutCache()
+	_, _ = c.cachedLinesFull(doc, nil, 14, 300, 1.2, 0.55, 1)
+	b, _ := c.cachedLinesFull(doc, nil, 14, 300, 1.2, 1.0, 2)
+	direct := BuildTextLayoutEx(doc, nil, 14, 300, 1.2, 1.0, 0, TextOverflowClip)
+	if len(b) != direct.LineCount() {
+		t.Fatalf("1.0二次命中行数%d,与直接构建%d不一致(撞了0.55的旧行)", len(b), direct.LineCount())
+	}
+	for i := range b {
+		_, _, ww, _, _ := direct.Line(i)
+		if b[i].Width != ww {
+			t.Fatalf("第%d行二次命中宽%.1f,直接构建宽%.1f(撞了旧字宽的行)", i, b[i].Width, ww)
+		}
+	}
+}
+
+// TestLayoutCache_CRWrapEquiv_RV锁B2:含回车的文本,回绕模式下缓存构建
+// 必须与直接构建一致(直接构建走 WrapText 的回车归一,缓存不得跳过回绕).
+func TestLayoutCache_CRWrapEquiv_RV(t *testing.T) {
+	face, _, err := text.LoadMultiFace(14)
+	if err != nil || face == nil {
+		t.Skipf("no face for CR wrap test: %v", err)
+	}
+	docs := []string{
+		"aaa\r\nbbb\r\nccc ddd eee fff ggg hhh iii jjj kkk",
+		"aaa\rbbb ccc ddd eee fff ggg hhh iii jjj kkk lll",
+	}
+	for _, doc := range docs {
+		c := newLayoutCache()
+		gotL, _ := c.cachedLinesFull(doc, face, 14, 300, 1.2, 0.55, 1)
+		want := BuildTextLayoutEx(doc, face, 14, 300, 1.2, 0.55, 0, TextOverflowClip)
+		if len(gotL) != want.LineCount() {
+			t.Fatalf("%q:缓存%d行,直接%d行(含回车不得跳过回绕)", doc, len(gotL), want.LineCount())
+		}
+		for i := range gotL {
+			ws, we, _, _, _ := want.Line(i)
+			if gotL[i].StartByte != ws || gotL[i].EndByte != we {
+				t.Fatalf("%q:第%d行区间缓存[%d,%d)直接[%d,%d)", doc, i, gotL[i].StartByte, gotL[i].EndByte, ws, we)
+			}
 		}
 	}
 }

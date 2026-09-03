@@ -2,6 +2,7 @@ package textinput
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,6 +13,17 @@ import (
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
 )
+
+// caretIndexOf returns the caret index with exact absolute ByteOff, or -1.
+// Binary search over the sorted caret table; identical results to the old
+// linear scan. Callers keep their mid-cluster fallback unchanged.
+func caretIndexOf(lineCarets []rendering.GlyphCaret, byteOff int) int {
+	j := sort.Search(len(lineCarets), func(i int) bool { return lineCarets[i].ByteOff >= byteOff })
+	if j < len(lineCarets) && lineCarets[j].ByteOff == byteOff {
+		return j
+	}
+	return -1
+}
 
 // InputBox is a single-line text field backed by Editor.
 // It owns a RenderText + caret and handles focus, scroll, IME rect and
@@ -1013,13 +1025,7 @@ func (b *InputBox) extendVisual(delta int) {
 		lineIdx, _, ok := lay.CaretForOffset(curByte)
 		if ok {
 			lineCarets := lay.LineCarets(lineIdx)
-			idx := -1
-			for j, c := range lineCarets {
-				if c.ByteOff == curByte {
-					idx = j
-					break
-				}
-			}
+			idx := caretIndexOf(lineCarets, curByte)
 			if idx >= 0 {
 				if delta > 0 && idx+1 < len(lineCarets) {
 					newOff = b.ed.utf16ForByte(lineCarets[idx+1].ByteOff)
@@ -1712,14 +1718,7 @@ func (b *MultiLineInputBox) sync() {
 	if lay != nil && lay.LineCount() > 0 {
 		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			caretX, caretY, caretH = x, y, h
-			for i := 0; i < lay.LineCount(); i++ {
-				top := lay.LineTop(i)
-				ht := lay.LineHeight(i)
-				if y >= top-0.01 && y < top+ht-0.01 {
-					lineIdx = i
-					break
-				}
-			}
+			lineIdx = lay.RowForY(y)
 		} else {
 			lineIdx, caretX, _ = lay.CaretForOffset(curByte)
 			caretY = lay.LineTop(lineIdx)
@@ -2248,13 +2247,7 @@ func (b *MultiLineInputBox) extendVisualMulti(delta int) {
 		lineIdx, _, ok := lay.CaretForOffset(curByte)
 		if ok {
 			lineCarets := lay.LineCarets(lineIdx)
-			idx := -1
-			for j, c := range lineCarets {
-				if c.ByteOff == curByte {
-					idx = j
-					break
-				}
-			}
+			idx := caretIndexOf(lineCarets, curByte)
 			if idx >= 0 {
 				if delta > 0 && idx+1 < len(lineCarets) {
 					cur = b.ed.utf16ForByte(lineCarets[idx+1].ByteOff)

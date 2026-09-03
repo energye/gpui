@@ -67,3 +67,42 @@ func TestLayoutUpdate_Generation_M1(t *testing.T) {
 		t.Fatalf("内容未变行标记应复用")
 	}
 }
+
+// TestPatchIndex_InPlace_RV锁收敛:行数不变的增量更新,索引数组必须原地
+// 改(零分配),且值与重建逐项一致.指针不变是优化存在的证据,值一致是
+// 正确性的证据,缺一即回退重建.
+func TestPatchIndex_InPlace_RV(t *testing.T) {
+	c := newLayoutCache()
+	doc := "aaa\nbbb\nccc\nddd\neee"
+	l1 := c.update(doc, nil, 14, 0, 1.2, 0.55, 0, TextOverflowClip)
+	before := c.live.idx
+	n0 := before.n
+	doc2 := "aaa\nBBXb\nccc\nddd\neee"
+	l2 := c.update(doc2, nil, 14, 0, 1.2, 0.55, 0, TextOverflowClip)
+	if c.live.idx != before {
+		t.Fatalf("行数不变应原地改索引,对象被换了")
+	}
+	if c.live.idx.n != n0 {
+		t.Fatalf("行数应不变:%d vs %d", c.live.idx.n, n0)
+	}
+	want := BuildTextLayout(doc2, nil, 14, 0, 1.2)
+	if !m1CacheLinesEqual(l2, want) {
+		t.Fatalf("原地索引下快照与直接构建不一致")
+	}
+	for i := 0; i < want.LineCount(); i++ {
+		if l2.LineTop(i) != want.LineTop(i) {
+			t.Fatalf("第%d行顶%.2f,直接%.2f", i, l2.LineTop(i), want.LineTop(i))
+		}
+	}
+	// 行数变化仍走重建:对象换新,值正确.
+	doc3 := "aaa\nBBXb\nccc\nNEW\nddd\neee"
+	l3 := c.update(doc3, nil, 14, 0, 1.2, 0.55, 0, TextOverflowClip)
+	if c.live.idx == before {
+		t.Fatalf("行数变化应重建索引,对象没换")
+	}
+	want3 := BuildTextLayout(doc3, nil, 14, 0, 1.2)
+	if !m1CacheLinesEqual(l3, want3) {
+		t.Fatalf("重建索引下快照与直接构建不一致")
+	}
+	_ = l1
+}

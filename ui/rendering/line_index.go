@@ -113,6 +113,8 @@ func caretXInSpan(carets []GlyphCaret, off int) (float64, bool) {
 }
 func offsetForX(carets []GlyphCaret, x float64) (byteOff int, affinity int) {
 	// 注:carets为行内相对表,返回亦为行内相对偏移,调用方加行基址转绝对.
+	// affinity恒为下游:M1前即如此(点击一律下游,上游只由显式编辑动作传入),
+	// 右半簇不取上游.改此处会动点击落点,需单测先行,不得顺手改.
 	j := sort.Search(len(carets), func(i int) bool { return carets[i].X > x })
 	if j <= 0 {
 		return carets[0].ByteOff, AffinityDownstream
