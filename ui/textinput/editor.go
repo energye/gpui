@@ -178,15 +178,80 @@ func clampUtf16(s string, off int) int {
 	return off
 }
 
+// maxHistoryGroups caps undo depth (I4: history stays O(edit count), never O(document)).
+const maxHistoryGroups = 100
+
+// cloneDelta copies a stored delta so history never aliases the live document
+// backing array (Go substrings would pin the whole pre-edit string, I4).
+func cloneDelta(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.Clone(s)
+}
+
+// appendHistory records one group, evicting past the cap. The evicted slot is
+// zeroed: reslicing alone would keep its strings reachable (I4).
+func (e *Editor) appendHistory(g editGroup) {
+	e.history = append(e.history, g)
+	if len(e.history) > maxHistoryGroups {
+		e.history[0] = editGroup{}
+		e.history = e.history[1:]
+	}
+}
+
+// popHistory takes the newest group for Undo; popRedo mirrors it for Redo.
+// The popped slot is zeroed so its strings drop off the backing array (I4).
+func (e *Editor) popHistory() (editGroup, bool) {
+	if e == nil || len(e.history) == 0 {
+		return editGroup{}, false
+	}
+	g := e.history[len(e.history)-1]
+	e.history[len(e.history)-1] = editGroup{}
+	e.history = e.history[:len(e.history)-1]
+	return g, true
+}
+
+func (e *Editor) popRedo() (editGroup, bool) {
+	if e == nil || len(e.redoStack) == 0 {
+		return editGroup{}, false
+	}
+	g := e.redoStack[len(e.redoStack)-1]
+	e.redoStack[len(e.redoStack)-1] = editGroup{}
+	e.redoStack = e.redoStack[:len(e.redoStack)-1]
+	return g, true
+}
+
+func groupsBytes(gs []editGroup) int {
+	n := 0
+	for _, g := range gs {
+		for _, op := range g.ops {
+			n += len(op.deleted) + len(op.inserted)
+		}
+	}
+	return n
+}
+
+// dropTrailingEmptyGroup removes a trailing zero-op group opened for a
+// composition that produced no edits, so phantom steps never consume undo
+// depth or evict real history through the cap (I4).
+func (e *Editor) dropTrailingEmptyGroup() {
+	if e == nil || len(e.history) == 0 {
+		return
+	}
+	last := len(e.history) - 1
+	if len(e.history[last].ops) == 0 {
+		e.history[last] = editGroup{}
+		e.history = e.history[:last]
+	}
+}
+
 func (e *Editor) openGroup(selB, compB TextRange, cB bool) {
 	if e == nil {
 		return
 	}
 	g := editGroup{selBefore: selB, selAfter: selB, compBefore: compB, compAfter: compB, composingBefore: cB, composingAfter: cB}
-	e.history = append(e.history, g)
-	if len(e.history) > 100 {
-		e.history = e.history[1:]
-	}
+	e.appendHistory(g)
 	e.redoStack = nil
 }
 
@@ -196,17 +261,14 @@ func (e *Editor) pushDelta(pos int, deleted, inserted string, selB, compB TextRa
 	}
 	if e.composingSnapshot && len(e.history) > 0 {
 		g := &e.history[len(e.history)-1]
-		g.ops = append(g.ops, editOp{pos: pos, deleted: deleted, inserted: inserted})
+		g.ops = append(g.ops, editOp{pos: pos, deleted: cloneDelta(deleted), inserted: cloneDelta(inserted)})
 		g.selAfter = selA
 		g.compAfter = compA
 		g.composingAfter = cA
 		return
 	}
-	g := editGroup{ops: []editOp{{pos: pos, deleted: deleted, inserted: inserted}}, selBefore: selB, selAfter: selA, compBefore: compB, compAfter: compA, composingBefore: cB, composingAfter: cA}
-	e.history = append(e.history, g)
-	if len(e.history) > 100 {
-		e.history = e.history[1:]
-	}
+	g := editGroup{ops: []editOp{{pos: pos, deleted: cloneDelta(deleted), inserted: cloneDelta(inserted)}}, selBefore: selB, selAfter: selA, compBefore: compB, compAfter: compA, composingBefore: cB, composingAfter: cA}
+	e.appendHistory(g)
 	e.redoStack = nil
 }
 
@@ -240,18 +302,7 @@ func (e *Editor) HistoryBytes() int {
 	if e == nil {
 		return 0
 	}
-	n := 0
-	for _, g := range e.history {
-		for _, op := range g.ops {
-			n += len(op.deleted) + len(op.inserted)
-		}
-	}
-	for _, g := range e.redoStack {
-		for _, op := range g.ops {
-			n += len(op.deleted) + len(op.inserted)
-		}
-	}
-	return n
+	return groupsBytes(e.history) + groupsBytes(e.redoStack)
 }
 
 func (e *Editor) changed() {
@@ -273,11 +324,24 @@ func (e *Editor) changed() {
 
 // Undo reverts the last edit group. One IME composition (Begin→Update*→Commit) = one step (F-C2).
 func (e *Editor) Undo() bool {
-	if e == nil || len(e.history) == 0 {
+	if e == nil {
 		return false
 	}
-	g := e.history[len(e.history)-1]
-	e.history = e.history[:len(e.history)-1]
+	// Drop phantom trailing empty groups left by compositions that produced
+	// no edits. The open composition group is never skipped: undoing it must
+	// still cancel the composition and restore selBefore (I4).
+	for len(e.history) > 0 && len(e.history[len(e.history)-1].ops) == 0 {
+		if e.composingSnapshot {
+			break
+		}
+		last := len(e.history) - 1
+		e.history[last] = editGroup{}
+		e.history = e.history[:last]
+	}
+	g, ok := e.popHistory()
+	if !ok {
+		return false
+	}
 	oldLen := len(e.text)
 	for i := len(g.ops) - 1; i >= 0; i-- {
 		op := g.ops[i]
@@ -298,7 +362,9 @@ func (e *Editor) Undo() bool {
 	e.composingRange = g.compBefore
 	e.composing = g.composingBefore
 	e.composingSnapshot = false
-	e.redoStack = append(e.redoStack, g)
+	if len(g.ops) > 0 {
+		e.redoStack = append(e.redoStack, g)
+	}
 	e.caretColValid = false
 	e.changed()
 	return true
@@ -306,11 +372,10 @@ func (e *Editor) Undo() bool {
 
 // Redo reapplies the last undone edit.
 func (e *Editor) Redo() bool {
-	if e == nil || len(e.redoStack) == 0 {
+	g, ok := e.popRedo()
+	if !ok {
 		return false
 	}
-	g := e.redoStack[len(e.redoStack)-1]
-	e.redoStack = e.redoStack[:len(e.redoStack)-1]
 	oldLen := len(e.text)
 	for _, op := range g.ops {
 		if op.pos < 0 {
@@ -330,10 +395,7 @@ func (e *Editor) Redo() bool {
 	e.composingRange = g.compAfter
 	e.composing = g.composingAfter
 	e.composingSnapshot = false
-	e.history = append(e.history, g)
-	if len(e.history) > 100 {
-		e.history = e.history[1:]
-	}
+	e.appendHistory(g)
 	e.caretColValid = false
 	e.changed()
 	return true
@@ -705,6 +767,7 @@ func (e *Editor) CommitComposing() {
 		g.compAfter = e.composingRange
 		g.composingAfter = false
 	}
+	e.dropTrailingEmptyGroup()
 	e.changed()
 }
 
@@ -731,6 +794,9 @@ func (e *Editor) EndComposing() {
 		g.selAfter = e.selection
 		g.compAfter = e.composingRange
 		g.composingAfter = false
+	}
+	if wasOpen {
+		e.dropTrailingEmptyGroup()
 	}
 	e.changed()
 }

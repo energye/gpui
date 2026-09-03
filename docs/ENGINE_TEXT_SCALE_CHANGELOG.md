@@ -162,3 +162,10 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 [Wrap MaxWidth=300]   DisplayLines=4   TextLayout.Lines=4    content match OK
 [NoWrap single]       DisplayLines=1   TextLayout.Lines=1    content match OK
 ```
+
+## M3 合入记录（2026-09-04 · 代码合入，老裁判 1 红另立案，M3 不标完成）
+
+- 合入内容：`ui/textinput/editor.go` 增量 undo（`pushDelta` 存量做 `strings.Clone` 不钉原文数组、历史上限 100 组带槽位清零、空组合不占步数）+ `editor_undo_m3_test.go` 新增边界/零文档引用/耗时比值单测 + 新文件 `editor_retention_paths_m3_test.go`（DeleteSurrounding/覆盖式输入/IME 三条路径不断言漏网）+ 验收窗 README 补 M3 补丁与 60 秒稳态复测记录。
+- M3 自身证据（本机实测）：`TestUndoDelta_*` 7 个全绿、`TestPushHistory_NoQuadratic_M3` 比值 1.00、`BenchmarkPushHistory_M3` 多轮约 1.0–1.3（门禁 ≤2）、`go test ./ui/textinput` 整包绿。
+- 未消红灯（另立案跟，不归 M3）：13 个老裁判中 `TestTextLayout_LongBuild_RealFace` 红——5000 字真字体排版门禁 100ms，本机（i5-6200U）两次实测约 289ms / 225ms。M3 未碰排版层（改动文件清单无 `ui/rendering`），系慢机器跑不动门禁线，老问题在 M3 期暴露。
+- 待补诚实项：M3.5 触发数据现用“拼接 vs 空字体排版”口径并带“估算”字样，需换 `BenchmarkKeystroke` 口径重测；60 秒稳态复测只有结论缺原始输出附件。

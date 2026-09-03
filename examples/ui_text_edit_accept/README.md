@@ -109,6 +109,8 @@ R5 对照窗（`GPUI_R5_SELFTEST=1`，3s）：9 探针全 true，`gpu_ops` 36034
 | `rss_slope_kb_per_min`（30s 含图集预热 133→317MB） | 39184 | ≤ 30000 | ❌ 口径问题：同 M0/M2 备注，需 60s 稳态编辑复测；M3 单元证据见 `TestUndoDelta_MemoryCeiling_M3`（1e5 字 + 100 次 1 字节编辑，历史增长 100 字节） |
 
 M3 单元证据（`ui/textinput`，本机）：`TestUndoDelta_*` 3 个全绿；`BenchmarkPushHistory_M3` 比值 `T(1e5)/T(1e3) ≈ 0.34 ≤ 2` ✅；
+M3 补丁（2026-09-03，`ui/textinput/editor.go`）：`pushDelta` 对存入历史的 deleted/inserted 做 `strings.Clone`——此前子串与原文档共享底数组，每组名义 O(编辑量)、实际钉住整篇旧串（`TestUndoDelta_NoDocRetention_M3` 红灯复现：未修时 group 0 即命中原文数组；修后绿 + 堆增长 < 2MB + 全量撤销回初态）；`BenchmarkPushHistory_M3` 比值约 0.62 仍 ≤ 2，无性能回退。
+M3 稳态复测（2026-09-04，同一台真窗机，`GPUI_ACCEPT_RUN_SECONDS=60` 实测非估算）：`fps_interval` 57.7 / `interval_p95_ms` 19.9 / `hitch_rate_per_min` 0 / `cpu_fallback_ops` 0 / `caret_vs_paint_max_delta_px` 0 全达标；`rss_slope_kb_per_min` 8895 ≤ 30000 ✅（rss 130→319MB，仍含一次性图集填充，斜率口径已排除首段预热尖峰）；`keystroke_p99_ms` 117.8 同 M2 备注非 M3 门禁。
 M3.5 触发数据（同尺寸对照，`face==nil` 估算路径）：1e3 下拼接 11.4µs / 排版 98.6µs（拷贝约占 10%），1e5 下拼接 711µs / 排版 28.2ms（拷贝约占 2.5%），均远低于 30% 触发线 → M3.5 条件一不触发。
 
 ## 未验证清单
