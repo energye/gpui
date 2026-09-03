@@ -179,11 +179,9 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		return true
 	}
 	// 变化区向硬行边界扩展(只扫局部,不扫全文;memchr级查找,长段约10倍速).
-	segA := newA
+	segA := 0
 	if i := strings.LastIndexByte(textStr[:newA], '\n'); i >= 0 {
 		segA = i + 1
-	} else {
-		segA = 0
 	}
 	segB := len(textStr)
 	if i := strings.IndexByte(textStr[newB:], '\n'); i >= 0 {
@@ -343,23 +341,13 @@ func (c *layoutCache) rowSpan(parts []hardPart, face text.Face, fontSize, lh flo
 
 func (c *layoutCache) wrapSpan(parts []hardPart, face text.Face, fontSize, maxWidth, lh float64, gen uint64) ([]TextLayoutLine, []uint64) {
 	return c.partLines(parts, face, fontSize, maxWidth, lh, gen, c.segs,
-		func(seg string) []text.WrapResult {
-			wrapped := text.WrapText(seg, face, maxWidth, text.WrapWordChar)
-			if len(wrapped) == 0 {
-				wrapped = []text.WrapResult{{Text: seg, Start: 0, End: len(seg)}}
-			}
-			return wrapped
-		})
+		func(seg string) []text.WrapResult { return wrapFaceResults(seg, face, maxWidth) })
 }
 
 func (c *layoutCache) estSpan(parts []hardPart, fontSize, maxWidth, approxCharW, lh float64, gen uint64) ([]TextLayoutLine, []uint64) {
 	return c.partLines(parts, nil, fontSize, maxWidth, lh, gen, c.segs,
 		func(seg string) []text.WrapResult {
-			wrapped := estimateWrapResults(seg, maxWidth, fontSize, approxCharW)
-			if len(wrapped) == 0 {
-				wrapped = []text.WrapResult{{Text: seg, Start: 0, End: len(seg)}}
-			}
-			return wrapped
+			return wrapEstResults(seg, maxWidth, fontSize, approxCharW)
 		})
 }
 

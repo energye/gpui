@@ -815,27 +815,13 @@ func (l *TextLayout) lineClusters(li int) []int {
 }
 
 // snapToCluster把off吸附到所在簇边界(行内,affinity语义同SnapCluster).
-// 已在边界或行区间外保持不动.
+// 已在边界或行区间外保持不动.起点表行内缓存,吸附走共享单源.
 func (l *TextLayout) snapToCluster(li int, off int, affinity int) int {
 	ln := &l.lines[li]
 	if off <= ln.StartByte || off >= ln.EndByte {
 		return off
 	}
-	starts := l.lineClusters(li)
-	prev := ln.StartByte
-	for _, st := range starts {
-		if st >= off {
-			if st == off {
-				return off
-			}
-			if affinity == AffinityUpstream {
-				return st
-			}
-			return prev
-		}
-		prev = st
-	}
-	return off
+	return text.SnapInStarts(l.lineClusters(li), off, affinity != AffinityUpstream)
 }
 
 // snapToGraphemeBoundary snaps byteOff to a UAX#29 cluster boundary per affinity.

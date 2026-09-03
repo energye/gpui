@@ -37,8 +37,16 @@ func SnapCluster(s string, off int, downstream bool) int {
 	if off <= 0 || off >= len(s) {
 		return off
 	}
-	starts := ClusterStarts(s)
-	prev := 0
+	return SnapInStarts(ClusterStarts(s), off, downstream)
+}
+
+// SnapInStarts在已算好的簇起点表上吸附off(供调用方复用缓存过的起点表,
+// 免重复切分;语义与SnapCluster一致,唯一真源).
+func SnapInStarts(starts []int, off int, downstream bool) int {
+	if len(starts) == 0 {
+		return off
+	}
+	prev := starts[0]
 	for _, st := range starts {
 		if st >= off {
 			if st == off {

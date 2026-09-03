@@ -41,8 +41,9 @@ func BenchmarkCaretQuery(b *testing.B) {
 	}
 }
 
-// BenchmarkKeystrokeCached经行/段缓存的击键重排(改1字重建),M1-b设计证据.
-// 不回绕应O(L),回绕应O(段长),均只打日志;端到端门禁待M1-d调用方接入后收口.
+// BenchmarkKeystrokeCached冷缓存命中组装耗时(只打日志,无门禁):同一缓存上
+// 交替重建两文本,稳态全命中,量的是整表组装O(n)分配.生产热路径(零拷贝增量)
+// 见BenchmarkKeystroke,复杂度门禁见TestKeystrokeRatio_M1.
 func BenchmarkKeystrokeCached(b *testing.B) {
 	modes := []struct {
 		name string

@@ -589,19 +589,11 @@ func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool) {
 		return 0, 0, false
 	}
 	if lay := t.ensureLayout(); lay != nil && lay.LineCount() > 0 {
-		x, y, _, ok := lay.GetOffsetForCaret(off, AffinityDownstream, 1.5)
-		if !ok {
-			return 0, 0, false
+		// 行号经行索引二分(I8),与CaretForOffset同源,不再逐行扫LineTop.
+		if li, x, ok := lay.CaretForOffset(off); ok {
+			return li, x, true
 		}
-		// Map y to lineIdx.
-		for i := 0; i < lay.LineCount(); i++ {
-			top := lay.LineTop(i)
-			h := lay.LineHeight(i)
-			if y >= top-0.01 && y < top+h-0.01 {
-				return i, x, true
-			}
-		}
-		return lay.LineCount() - 1, x, true
+		return 0, 0, false
 	}
 	lines := t.DisplayLines()
 	if len(lines) == 0 {

@@ -81,25 +81,33 @@ func (c *layoutCache) cachedLinesFull(textStr string, face text.Face, fontSize, 
 	lh := lineHeightFor(face, fontSize, lineSpacing)
 	if maxWidth > 0 && face != nil && !hasCR(textStr) {
 		return c.partLines(splitHardLines(textStr), face, fontSize, maxWidth, lh, gen, c.segs,
-			func(seg string) []text.WrapResult {
-				wrapped := text.WrapText(seg, face, maxWidth, text.WrapWordChar)
-				if len(wrapped) == 0 {
-					wrapped = []text.WrapResult{{Text: seg, Start: 0, End: len(seg)}}
-				}
-				return wrapped
-			})
+			func(seg string) []text.WrapResult { return wrapFaceResults(seg, face, maxWidth) })
 	}
 	if maxWidth > 0 && face == nil {
 		return c.partLines(splitHardLines(textStr), face, fontSize, maxWidth, lh, gen, c.segs,
 			func(seg string) []text.WrapResult {
-				wrapped := estimateWrapResults(seg, maxWidth, fontSize, approxCharW)
-				if len(wrapped) == 0 {
-					wrapped = []text.WrapResult{{Text: seg, Start: 0, End: len(seg)}}
-				}
-				return wrapped
+				return wrapEstResults(seg, maxWidth, fontSize, approxCharW)
 			})
 	}
 	return c.rowLines(textStr, face, fontSize, lh, gen)
+}
+
+// wrapFaceResults按字回绕一段,空结果回退整段(与partLines的空段约定一致).
+func wrapFaceResults(seg string, face text.Face, maxWidth float64) []text.WrapResult {
+	wrapped := text.WrapText(seg, face, maxWidth, text.WrapWordChar)
+	if len(wrapped) == 0 {
+		wrapped = []text.WrapResult{{Text: seg, Start: 0, End: len(seg)}}
+	}
+	return wrapped
+}
+
+// wrapEstResults无脸估算回绕一段,空结果回退整段.
+func wrapEstResults(seg string, maxWidth, fontSize, approxCharW float64) []text.WrapResult {
+	wrapped := estimateWrapResults(seg, maxWidth, fontSize, approxCharW)
+	if len(wrapped) == 0 {
+		wrapped = []text.WrapResult{{Text: seg, Start: 0, End: len(seg)}}
+	}
+	return wrapped
 }
 
 func hasCR(s string) bool {
@@ -139,9 +147,6 @@ func (c *layoutCache) rowLinesParts(parts []hardPart, face text.Face, fontSize, 
 // partLines回绕/估算共用:每硬段独立key,段内回绕行整体存取.改首段不碰后续段.
 // 等价性由TestLayoutCache_Equiv锁定(与BuildTextLayoutEx逐字节对照).
 func (c *layoutCache) partLines(parts []hardPart, face text.Face, fontSize, maxWidth, lh float64, gen uint64, table map[cacheKey]*cachedRows, wrap func(seg string) []text.WrapResult) ([]TextLayoutLine, []uint64) {
-	if len(parts) == 1 {
-		return c.partLine(parts[0], face, fontSize, maxWidth, lh, gen, table, wrap)
-	}
 	var out []TextLayoutLine
 	var marks []uint64
 	for _, p := range parts {
@@ -164,65 +169,6 @@ func (c *layoutCache) partLines(parts []hardPart, face text.Face, fontSize, maxW
 		}
 		table[k] = stored
 	}
-	return out, marks
-}
-
-// tryFillSingle单段命中快径(击键热路径):parts必须恰1段,lo/hi为旧行区间.
-// 段内容命中缓存且布局(起止/行高)与旧行逐项一致时,直接变基写入live,
-// 返回true(索引不动,零fresh分配).任一不符返回false,调用方走通用fresh
-// 路径(语义不变).内容正确性由缓存key(段内容哈希)保证;命中复用行的标记
-// 取缓存旧值(与partLine一致,I9复用语义).
-func (c *layoutCache) tryFillSingle(p hardPart, live []TextLayoutLine, liveMarks []uint64, lo, hi int, face text.Face, fontSize, maxWidth, lh float64, table map[cacheKey]*cachedRows, useW bool) bool {
-	if hi-lo+1 <= 0 || lo < 0 || hi >= len(live) {
-		return false
-	}
-	k := cacheKey{sum: c.hashStr(p.text), face: face, size: fontSize, lh: lh}
-	if useW {
-		k.w = maxWidth
-	}
-	u, ok := table[k]
-	if !ok || len(u.rows) != hi-lo+1 {
-		return false
-	}
-	for i, sl := range u.rows {
-		o := &live[lo+i]
-		if sl.StartByte+p.start != o.StartByte || sl.EndByte+p.start != o.EndByte || sl.Height != o.Height {
-			return false
-		}
-	}
-	for i, sl := range u.rows {
-		sl.StartByte += p.start
-		sl.EndByte += p.start
-		live[lo+i] = sl
-		liveMarks[lo+i] = u.gen
-	}
-	c.hits++
-	return true
-}
-func (c *layoutCache) partLine(p hardPart, face text.Face, fontSize, maxWidth, lh float64, gen uint64, table map[cacheKey]*cachedRows, wrap func(seg string) []text.WrapResult) ([]TextLayoutLine, []uint64) {
-	k := cacheKey{sum: c.hashStr(p.text), face: face, size: fontSize, w: maxWidth, lh: lh}
-	if u, ok := table[k]; ok {
-		c.hits++
-		out := make([]TextLayoutLine, len(u.rows))
-		marks := make([]uint64, len(u.rows))
-		for i, sl := range u.rows {
-			out[i] = rebaseLine(sl, p.start)
-			marks[i] = u.gen
-		}
-		return out, marks
-	}
-	c.blds++
-	stored := &cachedRows{gen: gen}
-	wr := wrap(p.text)
-	out := make([]TextLayoutLine, len(wr))
-	marks := make([]uint64, len(wr))
-	for i, w := range wr {
-		rel := materializeWrappedRow(w, face, lh)
-		stored.rows = append(stored.rows, rel)
-		out[i] = rebaseLine(rel, p.start)
-		marks[i] = gen
-	}
-	table[k] = stored
 	return out, marks
 }
 
