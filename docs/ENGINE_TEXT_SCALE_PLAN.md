@@ -1,12 +1,12 @@
 # ENGINE_TEXT_SCALE_PLAN — 任意规模文本编辑排版架构（O(1) 击键 · 分期施工）
 
 **状态**: **立项（未开工）** — 本文档为设计与施工总纲，实施按 `M0 → M1 → M2 → M3 → M4 → M5` 分期触发，每期独立验收、独立可回滚。`M3.5` 为条件触发（非必经），`M6` 为贯穿全程的验收主窗（非施工期）。
-**日期**: 2026-09-02（立项 + 两轮重审 + 终审收敛 + **全量实证复核**）
+**日期**: 2026-09-02（立项；过程见 `docs/ENGINE_TEXT_SCALE_CHANGELOG.md`）
 **触发**: `ui_wr_ime_r*` 真窗实测「文本越多输入越卡」。实测定位：卡顿 100% 来自**排版与绘制层**，与 IME D-Bus 通道无关（详见 §2）。当前模型是**每次击键整串重排**，复杂度 O(n²)，靠优化常数无法解决量级增长。
 **定位约束**: 本仓库是**跨平台 wgpu 渲染框架 + GUI 组件库底层**，不是单一应用。因此本方案**不接受任何场景取舍**——不得出现「这个 case 我们不支持」「长文本走简化路径」这类分支。所有取舍必须是**复杂度上界的取舍**，不是**功能子集的取舍**。
 **问题范围**: 共 **4 个面**（详见 §3.6），非仅 `TextLayout.Lines` 一处：面1 字段暴露 / 面2 方法内部 O(n²) / 面3 `Generation` 语义 / 面4 绘制侧平行实现（**单源纪律现已破损**）。
 
-> **实证状态（2026-09-02 复核）**：§2 根因、§3.5 三条约束、§3.6 四个面的**全部关键论断均已在当前代码上重新跑探针复验**（探针已删，仓库零改动）。复核修正 12 处，其中 **3 处为论断错误**（单字量宽 8288ns 实为 ~430ns、面4 实测 2v12/11v1 而非 2v4/10v1、约束③「只切 1 run」实为切 6 run）、**4 处为行号漂移**。详见 §10 修订表「实证复核」行与 §11 复核记录。
+> **实证状态**：§2 根因、§3.5 三条约束、§3.6 四个面的关键论断均已在当前代码上跑探针复验（探针已删，仓库零改动）。当前值：量宽 ~430ns/字、面 4 为 2v12/11v1、混排切 6 run。过程明细见变更记录。
 **开工前必读**: `docs/ENGINE_TEXT_SESSION_BRIEF.md` —— **新会话开工话术 + 工作纪律 + 纪律速查卡**，每期开工前先读这份（含可直接复制的角色设定与证据纪律）。
 
 **关联**:
@@ -76,7 +76,7 @@
 | **V** | 视口内可见字形数（通常 100~2000） |
 | **run** | 同一 (字体, 字号, 脚本, 方向, 颜色) 的连续字符段，整形的最小单位 |
 | **itemizer** | 把文本切成 run 的组件（含字体回退决策） |
-| **簇 / 字素簇 (grapheme cluster)** | 用户可感知的最小编辑单位（组合音标、ZWJ emoji 序列 = 1 簇），按 **UAX #29** 定义。⚠️ 现有 `snapToGraphemeBoundary`（`text_layout.go:470`）**名不副实**——仅做 UTF-8 续字节归位，非 UAX#29（复核修正） |
+| **簇 / 字素簇 (grapheme cluster)** | 用户可感知的最小编辑单位（组合音标、ZWJ emoji 序列 = 1 簇），按 **UAX #29** 定义。⚠️ 现有 `snapToGraphemeBoundary`（`text_layout.go:470`）**名不副实**——仅做 UTF-8 续字节归位，非 UAX#29 |
 | **段 (paragraph)** | 以 `\n` 分隔的文本块。回绕模式下是**缓存与失效的粒度单位**（一个段可回绕出多个视觉行） |
 | **视觉行 vs 段** | 视觉行 = 屏幕上看到的一行；段 = 逻辑文本块。不回绕时二者 1:1；回绕时一段可含多行 |
 | **前缀和** | 累积宽度数组，支持偏移→X 的 O(1) 与 X→偏移的 O(log n) |
@@ -94,7 +94,7 @@
 
 **A · 击键路径（本机，5000 字 / 9444 字节，每次击键新字符串以绕过缓存）**
 
-> **🔴 口径声明（2026-09-02 数值复核新增 · 重要）**：下表数值为 **`MultiFace` 口径**（`ui_wr_ime_r*` 真窗的实际路径，经 `wrkit.FaceAt()` 装载 MultiFace）。
+> **🔴 口径声明**：下表数值为 **`MultiFace` 口径**（`ui_wr_ime_r*` 真窗的实际路径，经 `wrkit.FaceAt()` 装载 MultiFace）。
 > **但 `singleFace` 同语料是 34.06 ms，比 MultiFace 慢 14.9 倍**（本轮实测，见下表 A-2）。原因是两条路径走的是不同分支——**见下方「为什么单 face 反而更慢」**。
 > **不标注这个口径，会让新会话严重低估 M0 的收益空间**（以为排版就 2ms，实际修通整形后会先跳到 34ms 再降下来）。
 
@@ -127,9 +127,9 @@
 > **🔴 这条实测直接印证 M0 的「先慢后快」熔断**：M0 修通 `MultiFace` 整形后，代码会从 **O(n) 兜底切到 O(n²) 成功路径**，5000 字耗时将从 2.29 ms 跳到 ~34 ms（**慢 15 倍**）。
 > **这不是纸上风险，是实测确认的**。因此 M0 第 8 项必须与 `CaretXForCluster` 扫表消除**同时做**，否则 M0 会造成一次**真实的 15 倍性能回退**。
 
-**B · 单字量宽成本（2026-09-02 复核重测 · 修正立项值）**
+**B · 单字量宽成本（稳态实测）**
 
-立项时记录 `text.RuneAdvance` ≈ **8288 ns/字**，复核重测为：
+稳态实测（冷启动首字偏高，不代表稳态）：
 
 | 场景 | 实测 | 说明 |
 |---|---|---|
@@ -137,7 +137,7 @@
 | `MultiFace` | **449 ns/字** | 同上 |
 | `MultiFace.Advance(1000 字整串)` | 0.275 ms（≈275 ns/字） | 整串路径有内部缓存 |
 
-> **修正说明**：立项的 8288 ns 是**冷启动首字**（含 cmap/glyf 首次解析）或未预热缓存下的采样，不能代表稳态。稳态约 **430 ns/字**，差 **≈19×**。
+> **注**：冷启动首字含首次解析开销，稳态约 **430 ns/字**。
 > **但这不改变结论**：5000 字兜底逐字量宽 ≈ 5000 × 430 ns ≈ **2.15 ms**，与 A 表 `face.Advance` 1.95 ms、整串排版 2.35 ms 互相印证——**量宽仍是击键耗时的主要构成**。M0 的 advance 缓存目标改为「消除重复解析的**尾部抖动**与 leftover 解析开销」，基准门禁由「≤ 200 ns」放宽为 **「≤ 250 ns 且 P99 不劣化」**（见 M0 第 ⑥ 项）。
 
 CPU profile（200 次击键采样，cum 列为含被调用方的累计占比）：
@@ -153,12 +153,12 @@ flat   flat%    cum%     cum        symbol
 
 读法：`buildCaretsForLine` 累计占 **86.44%**，其中经 `RuneAdvance` 链（累计 76.27%）的部分是单字量宽。
 
-> **🔴 归因更正（2026-09-02 数值复核 · 推翻原注释）**：原注释称 `duffcopy` 是「undo 全量快照」的拷贝，**该归因错误**。实测：
+> **🔴 归因**：`duffcopy` 的调用方是 **`RuneAdvance` / `glyphForRune`（量宽链）**，**不是 undo**。实测：
 > - `pprof -peek duffcopy` 显示其调用方是 **`RuneAdvance` / `glyphForRune`（量宽链）**，**不是 undo**；
 > - **对照实验（决定性）**：只跑 `Editor` 编辑 3000 次、**完全不触排版**，profile 中 `duffcopy`/`memmove` **恒为 0**。
-> - `duffcopy` 实测占比 **6.90%**（另一轮 5.17%），原记 10.17% 偏高。
+> - `duffcopy` 实测占比 **6.90%**（另一轮 5.17%）。
 >
-> **影响**：§2.2 根因⑥ 曾引用 `duffcopy` 作为「undo 全量拷贝」的证据链一环，**该证据撤回**。根因⑥ 的结论**仍然成立**（undo 确实存 100 份全文快照，见 A-3），但**证据要换成快照常驻内存实测**，不再引用 duffcopy。
+> **影响**：根因⑥ 的证据用快照常驻内存实测，不引用 duffcopy。
 
 ### 2.2 根因链（从现象到代码）
 
@@ -166,29 +166,29 @@ flat   flat%    cum%     cum        symbol
 `render/text/multi.go:164` `MultiFace.Source()` 硬编码返回 `nil` → 三个 shaper（Own/Hb/Builtin）进门即 `return nil`。实测 `text.Shape(5000字, MultiFace)` 返回 **0 个 glyph**。而 `wrkit.FaceAt()` 给所有 `ui_wr_ime_r*` 装的正是一个 MultiFace → **全员中招**。
 
 **② 返回 0 glyph → 退化逐字量宽**
-`ui/rendering/text_layout.go:190-206` 兜底分支（`len(glyphs)==0` 时）对每个字调 `text.RuneAdvance`。稳态实测 ≈ **430 ns/字**（复核修正，立项记 8288 ns），5000 字 ≈ 2.15 ms，这就是那 76%。
+`ui/rendering/text_layout.go:190-206` 兜底分支（`len(glyphs)==0` 时）对每个字调 `text.RuneAdvance`。稳态实测 ≈ **430 ns/字**，5000 字 ≈ 2.15 ms，这就是那 76%。
 
 **③ 兜底分支内藏 O(n²)**
 `buildCaretsForLine` 对每个 rune 调 `CaretXForCluster`（`text_layout.go:222-231` 循环），该函数每次**从头线性扫一遍 glyph 数组**（`render/text/shaped.go:125-160`）。建 n 个 caret 扫 n 次 = **O(n²)**。5000 字 = 1250 万次比较。
 
-> **注意（复核新增）**：第 ③ 条的 O(n²) 只在 **`Shape` 成功返回 glyph**（即单 face 路径）时才成立；在 `MultiFace` 路径下 `Shape` 返回 0 glyph，走的是第 ② 条兜底分支，**只有 O(n) 的逐字量宽**。两条路径的瓶颈不同，M0 修复后**反而会进入第 ③ 条的 O(n²)**（因为 glyph 不再为空）。因此 M0 修完 ①② 后**必须立即复测 caret 构建耗时**，否则会「修完更慢」（见 M0 第 ⑦ 熔断条件）。
+> **注意**：第 ③ 条的 O(n²) 只在 **`Shape` 成功返回 glyph**（即单 face 路径）时才成立；在 `MultiFace` 路径下 `Shape` 返回 0 glyph，走的是第 ② 条兜底分支，**只有 O(n) 的逐字量宽**。两条路径的瓶颈不同，M0 修复后**反而会进入第 ③ 条的 O(n²)**（因为 glyph 不再为空）。因此 M0 修完 ①② 后**必须立即复测 caret 构建耗时**，否则会「修完更慢」（见 M0 第 ⑦ 熔断条件）。
 
 **④ 一次击键触发多轮全量重排**
 `InputBox.sync()` 内 `SetText` 清缓存后，`TextLayout()` / `syncSelectionHighlight()` / `layoutCaret()` / `caretAnchor()` 各自再摸 layout；密码框额外 `MeasureWidth`。
 
 **⑤ 绘制逐字提交，裁剪形同虚设**
-`ui/rendering/text.go:895-921`（`RenderText.Paint` 内 `face.Source()==nil` 分支，复核修正行号，原记 908-921）因 glyph 为空 → 逐字 `DrawString`，且逐字路径里对每个 rune 还要**线性扫 carets 找 X**（`text.go:906-913`），是第二处 O(n²)。
+`ui/rendering/text.go:895-921`（`RenderText.Paint` 内 `face.Source()==nil` 分支）因 glyph 为空 → 逐字 `DrawString`，且逐字路径里对每个 rune 还要**线性扫 carets 找 X**（`text.go:906-913`），是第二处 O(n²)。
 `cullGlyphs`（`text.go:945`）的调用条件为 `t.hasViewportHint && t.MaxWidth == 0 && len(lay.Lines) == 1 && len(glyphs) > 200`——**四条件与的关系**：`glyphs` 在 `MultiFace` 下恒为 0 使 `len(glyphs) > 200` 恒 false，且要求**恰好单行**才生效。实测该裁剪**从未生效**；多行（`MaxWidth > 0`）与横向长行未被覆盖。
 
 **⑥ undo 存整篇快照**
 `editor.go:144` `pushHistory` 存全文 ×100 份。**实测：100 份互异快照常驻 18.54 MB**（理论 18.01 MB，语料为中英混排 1e5 字）。
-> **口径说明**：原写「100k 字 = 10MB」，该值仅在**纯 ASCII（1 字 1 字节）**口径下成立（9.54 MB ✅）；中英混排（约 1.9 字节/字）实测 **18.5 MB**。结论不变且偏保守。
-> **⚠️ 表述更正**：原写「每次编辑全量拷贝」**不准确**——`pushHistory` 是纯 append，实测 **0.10–0.12 µs 且与文档长度无关**（Go string 只拷 header，底层数组共享）。真正的成本是**内存常驻**（100 份全文），不是编辑时的拷贝耗时。**不要再用 `duffcopy` 当这条的证据**（已归因更正，见 §2.1 读法）。
+> **口径说明**：纯 ASCII 约 9.54MB，中英混排（约 1.9 字节/字）实测 **18.5 MB**。
+> `pushHistory` 是纯 append，实测 **0.10–0.12 µs 且与文档长度无关**（Go string 只拷 header，底层数组共享）。真正的成本是**内存常驻**（100 份全文），不是编辑时的拷贝耗时。
 
 **⑦ 省略号拟合**
 `ellipsizeToWidth` 每次试探都是新字符串 → cache miss → 整行重量。
-> **复杂度复核更正（2026-09-02）**：原标 **O(n log n)**，**实为 O(n)**。实测 `ellipsize 总耗时 / 一次 Measure 耗时` 在 n=1e3→1e6 恒为 **8.0–8.7×**，**不随 n 增长**（若真是 O(n log n)，该比值应随 log₂n 从 10 涨到 20）。clip 对照组同为 8.2–8.6×，印证**瓶颈是整行 measure 而非二分**。
-> **影响**：M5 改为基于前缀和的 O(log n) 后，收益**比文档原先写的更大**（从 O(n) 直接到 O(log n)，不是从 O(n log n)）。
+> **复杂度为 O(n)**。实测 `ellipsize 总耗时 / 一次 Measure 耗时`在 n=1e3→1e6 恒为 **8.0–8.7×**，**不随 n 增长**。clip 对照组同为 8.2–8.6×，印证**瓶颈是整行 measure 而非二分**。
+> **影响**：M5 改为基于前缀和的 O(log n) 后，直接从 O(n) 到 O(log n)。
 
 ### 2.3 已排除（不是瓶颈）
 
@@ -239,7 +239,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 **关键：击键代价里不出现 n。**
 
-> **加粗三行（面 2）是重审补测新增**（§3.6）。此前契约表只覆盖了查询 API 的 O(n) 退化，**漏掉了两个 O(n²)**——实测 2 万行下单次调用耗时达 s 级，是比字段暴露（面 1）严重得多的问题。
+> **加粗三行（面 2，见 §3.6）**：查询 API 的 O(n²) 退化——实测 2 万行下单次调用耗时达 s 级，是比字段暴露（面 1）严重得多的问题。
 
 ### 3.2.1 跨期不变量（新会话必读 · 违反即回退）
 
@@ -253,11 +253,11 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 | **I4** | undo 历史**只存增量**，不得存全文 | M3 | 内存回到 O(n)×100 |
 | **I5** | 未显示行的高度是**估算值**，依赖精确总高的逻辑不得直接使用 | M4 | 滚动条跳变 |
 | **I6** | caret/hit 路径**禁止**逐字 `RuneAdvance` 累加（守 A1 单源） | M0 | O(n²) 复发 |
-| **I7** | `RenderText.DisplayLines()` 等绘制侧 API **必须从 `TextLayout` 派生**，禁止独立行计算 | M0 | 绘制行与布局行不一致（复核实测 2v12 / 11v1） |
-| **I8** | `CaretForOffset` / `BoxesForRange` / `LineTop` 必须走行索引 + 前缀和，**禁止全表遍历** | M1 | O(n²) 复发（复核实测 2 万行 365.9ms） |
+| **I7** | `RenderText.DisplayLines()` 等绘制侧 API **必须从 `TextLayout` 派生**，禁止独立行计算 | M0 | 绘制行与布局行不一致（实测 2v12 / 11v1） |
+| **I8** | `CaretForOffset` / `BoxesForRange` / `LineTop` 必须走行索引 + 前缀和，**禁止全表遍历** | M1 | O(n²) 复发（2 万行 365.9ms） |
 | **I9** | **按行/段失效标记独立于 `Generation`**：`Generation` 保持全局自增语义不动（有 2 处消费者），按行失效**另用**字段表达 | M1 | 改 `Generation` 语义会打破 `TestTextLayout_Generation` → M1-d2 熔断 |
-| **I10** | run 切分 = **字体回退（`MultiFace.Runs`）+ script/bidi 分段（`segment.go`）叠加**；仅按字形有无切分不够 | M0 | 阿拉伯/印度系等有字形但需整形的脚本**不整形**（复核实测 `Shape` 返 0 glyph）→ 显示错误 |
-| **I11** | `MaxLines` / `Ellipsis` 等**截断语义必须在布局侧与绘制侧同时生效**，不得只在一侧 | M0 | 绘制 2 行 vs 布局 12 行（复核实测） |
+| **I10** | run 切分 = **字体回退（`MultiFace.Runs`）+ script/bidi 分段（`segment.go`）叠加**；仅按字形有无切分不够 | M0 | 阿拉伯/印度系等有字形但需整形的脚本**不整形**（`Shape` 返 0 glyph）→ 显示错误 |
+| **I11** | `MaxLines` / `Ellipsis` 等**截断语义必须在布局侧与绘制侧同时生效**，不得只在一侧 | M0 | 绘制 2 行 vs 布局 12 行 |
 
 ### 3.3 四条硬分界（API 设计约束）
 
@@ -266,7 +266,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 3. **`TextLayout` 对外仍是唯一几何源**（守 A5/A1 硬约束），内部从「一张整表」变为「按行/段缓存的视图」。Paint 与查询读同一份结果，不破坏单源纪律。
 4. **回绕与不回绕是两套缓存结构，不是开关**。不回绕按行缓存、回绕按段缓存（约束 ② / Q2 决策）。二者 key 与失效粒度均不同，**不得用同一结构加条件分支糊过去**——否则回绕下会静默退化为 O(n²)。
 
-### 3.4 一条重要修正：不按窗口整形
+### 3.4 不按窗口整形
 
 早期讨论曾提出「超长单行只整形可见窗口 ±2000 字」。**本方案否决该做法**：
 
@@ -276,15 +276,15 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 **正确做法**：整行整形（`\n` 天然定界），**只在 GPU 提交时裁剪**。整形保证正确，裁剪只管性能，两者解耦——这也正是 Skia/SkParagraph 的做法。代价可接受，因为行级缓存让「整行整形」只在编辑那一行时发生。
 
-### 3.5 三条实测约束（重审新增 · 决定方案可行性）
+### 3.5 三条实测约束（决定方案可行性）
 
-> 2026-09-02 重审时补做探针实测（临时代码已删，仓库零改动）。以下三条是**设计时未考虑、但直接决定方案能否成立**的硬约束。
+> 以下三条是直接决定方案能否成立的硬约束（探针已删，仓库零改动）。
 
 #### 约束 ①：绘制位置与布局位置会发散（hinting 取整累加）
 
 `render/text/draw.go:113`（`drawGlyphs`）、`:229`（`drawGlyphsVariable`）、`:311` 绘制用 `snapPen += math.Round(adv)`——**每字取整后累加**；而布局（`BuildTextLayout`）用**原始浮点 advance 累加**。两者随长度线性发散。
 
-**复核重测（2026-09-02，DejaVuSans 16pt，`"a"`×N）**：
+**实测（DejaVuSans 16pt，`"a"`×N）**：
 
 | 文本长度 | 布局末尾 X | 绘制 snapPen 累加 | 偏差 | 每字平均 |
 |---|---|---|---|---|
@@ -292,17 +292,16 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 | 1000 字 | 9804.688 | 10000.000 | **195.3 px** | 0.195 px |
 | 5000 字 | 49023.438 | 50000.000 | **976.6 px** | 0.195 px |
 
-> **修正说明**：立项记录的偏差为 173px/5000 字（每字 0.035px），复核重测为 **976.6px/5000 字（每字 0.195px）**——**实测量级比原记录严重 5.6×**。差异源于测试字体/字号不同（立项用默认 UI 字体，复核用 DejaVuSans 16pt）。
-> **结论不变且更硬**：发散是**确定性线性函数**（每字恒定 0.195px），5000 字下约 **61 个字符宽**的偏移，肉眼与点击定位均可感知。对策 C 的必要性**不降反升**。
+> **注**：发散是**确定性线性函数**（每字恒定 0.195px），5000 字下约 **61 个字符宽**的偏移，肉眼与点击定位均可感知。对策 C 必须做。
 
 **影响**：前缀和只能给出**布局坐标**；若仍逐字 `DrawString`，第 5000 字会偏离 **976.6px**（约 61 个字符宽）。
 
-**对策选型（曾有三选，已拍板）**
+**对策选型（已拍板）**
 - ~~A：绘制改用前缀和坐标（放弃逐字取整）~~ —— 需验证 hinting crisp stems 是否退化，未验证
 - ~~B：布局侧同步取整（前缀和存整值）~~ —— O(1) 不变，但布局精度降低
 - ✅ **C：按 run 批量整形 + 批量绘制** —— 绘制不再逐字推进，而用整形结果里的 `glyph.X`（与布局同源），发散消失
 
-**决策（Q1，用户 2026-09-02 确认）**：选 **C**。理由：唯一同时保住**画质**与 **O(1)** 的做法，且与 M0 打通 run 整形的目标一致。
+**决策（Q1）**：选 **C**。理由：唯一同时保住**画质**与 **O(1)** 的做法，且与 M0 打通 run 整形的目标一致。
 
 **连带影响（硬）**：选 C 后，M2 的绘制批量化从「性能优化」升级为「**正确性前置**」——执行顺序锁定 `M0 → M1 → M2`，**不可调换**。若 M0 未完成就做 M2，批量提交会把近千 px 的发散**固化成批量错误**，比逐字错误更难排查。
 
@@ -315,7 +314,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 改后 L0:[0,30)  "INSERTED_WORD The quick brown "     L1:[30,62) "fox jumps over the lazy..."
 ```
 
-**影响**：M1 原写「编辑第 K 行只作废第 K 行」——**该表述仅在 `MaxWidth == 0`（不回绕）时成立**。回绕模式下必须作废 K 及其之后**所有行**，最坏退化为 O(n)。
+**影响**：`MaxWidth == 0`（不回绕）时编辑第 K 行只作废第 K 行；回绕模式下必须作废 K 及其之后**所有行**，最坏退化为 O(n)。
 **对策**：
 - **不回绕（单行/代码编辑器）**：K 行隔离成立，O(L) 达标。
 - **回绕（段落文本）**：引入**段落级缓存**——以 `\n` 分段，缓存粒度是「段」而非「行」；段落内回绕结果整体缓存。编辑只作废所在段。段长通常 << 文档长，O(段长) 达标。
@@ -323,11 +322,11 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 #### 约束 ③：`MultiFace.Runs()` 已存在，itemizer 不必自研
 
-**实测（2026-09-02 复核）**：
+**实测**：
 
 | 输入 | `Runs()` 结果 | 判定 |
 |---|---|---|
-| `"Hello世界abc你好"`（DejaVuSans，无 CJK） | **6 个 run**：`"Hello"` / `"世"` / `"界"` / `"abc"` / `"你"` / `"好"` | ✅ **按缺字正确切分**（立项记「只切 1 run」为错误记录） |
+| `"Hello世界abc你好"`（DejaVuSans，无 CJK） | **6 个 run**：`"Hello"` / `"世"` / `"界"` / `"abc"` / `"你"` / `"好"` | ✅ **按缺字正确切分** |
 | `"مرحبا بالعالم hello"`（阿拉伯+拉丁） | **1 个 run**（整串） | ⚠️ **阿拉伯文未被识别为缺字** |
 
 另有 `globalMultiFaceRunsCache` 软缓存（`multi.go:329-332`）。
@@ -337,15 +336,15 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 - **但存在真缺口**：`Runs()` 仅按「字形是否存在于该 face」切分，**不做 script/bidi 分段**。阿拉伯文在 DejaVuSans 下有字形（故不触发回退），但**未经整形**（`Shape` 返回 0 glyph，见根因①）→ 阿拉伯文本**连字与方向均错误**。
 - **因此 M0 不能只「接线」**：必须在 `MultiFace.Runs` 之上**叠加 `segment.go` 的 script/bidi 分段**，保证「同 face 但不同脚本/方向」的文本也切成独立 run 并各自整形。补单测锁：阿拉伯+拉丁混排须切 ≥2 run 且阿拉伯段 `Shape` 返回非 0 glyph。
 
-### 3.6 全量问题清单（重审补测 · 四个面，非仅 `Lines`）
+### 3.6 全量问题清单（四个面，非仅 `Lines`）
 
-> **背景**：此前讨论把注意力集中在 `TextLayout.Lines` 字段（面 1）。2026-09-02 补测后确认，**懒加载受影响的是四个面，且面 2 比面 1 严重得多**。本节是完整清单，后续分期按此覆盖。
+> 懒加载受影响的是四个面，且面 2 比面 1 严重得多。本节是完整清单，后续分期按此覆盖。
 
 #### 面 1 · 字段暴露 —— 外部可直接翻行
 
 `TextLayout.Lines` / `.Carets` / `.Glyphs` / `Lines[].Width` 全量暴露。
 
-**统计口径（2026-09-02 复核统一）**：以下计数**仅限 `TextLayout.Lines`**（即 `ui/rendering` + `ui/textinput` + 相关示例/测试），**不含** `render/` 下同名但无关的 `Line` 类型（`render/internal/gpu/`、`render/text/layout.go` 等另有 155 处 `.Lines` 匹配，与本面无关，已从计数中剔除）。
+**统计口径**：以下计数**仅限 `TextLayout.Lines`**（即 `ui/rendering` + `ui/textinput` + 相关示例/测试），**不含** `render/` 下同名但无关的 `Line` 类型（`render/internal/gpu/`、`render/text/layout.go` 等另有 155 处 `.Lines` 匹配，与本面无关，已从计数中剔除）。
 
 **按改动难度分**（排除 `text_layout.go` 自身）：
 
@@ -356,10 +355,10 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 | 遍历 `range .Lines` | 19 | 🟡 中 |
 | **合计（去重后）** | **139** | |
 
-> **计数口径（复核核准）**：三类相加为 146 > 总数 139，差 **7 行重复计数**——这些行形如 `for _, c := range lay.Lines[0].Carets`，同时命中「真下标」与「遍历」两类。7 行的确切归属：
+> **计数口径**：三类相加为 146 > 总数 139，差 **7 行重复计数**——这些行形如 `for _, c := range lay.Lines[0].Carets`，同时命中「真下标」与「遍历」两类。7 行的确切归属：
 > `ui/rendering/text.go:909`、`examples/ui_wr_ime_r1_editor/main.go:494`、`ui/rendering/text_layout_r2_test.go:32/58/129/249/270`。
 > **去重后总引用 139、真下标 47 准确无误**（已独立复算两遍）。
-> 「139 / 47」为**上述范围内的总量**（含测试与示例）；早期扫描的「29」是**生产代码子集**，口径不统一，本文档此后不再使用该数字（§9 风险表、§5 M5 收口项已同步修正）。
+> 「139 / 47」为**上述范围内的总量**（含测试与示例）；本文档统一用该口径。
 
 **按归属分层**（决定各期工作量，实测统计）：
 
@@ -400,22 +399,21 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 | `GetPositionForOffset` | 0.001 | 0.014 | 0.139 | 🟡 O(n) |
 | `BoxesForRange`(末小段) | 0.001 | 0.015 | 0.126 | 🟡 O(n) |
 
-**复核重测（2026-09-02，DejaVuSans 16pt，每行 ≈36 字节，10 次调用取均值）**：
+**实测（DejaVuSans 16pt，每行 ≈36 字节，10 次调用取均值）**：
 
 | API | 201 行 | 2001 行 | 20001 行 | 增长倍数（10× 行 → ?× 耗时） |
 |---|---|---|---|---|
 | `CaretForOffset`(末尾) | 0.031 ms | **3.14 ms** | **365.9 ms** | 200→2000：**102×** ／ 2000→20000：**116×** |
 | `BoxesForRange`(全文) | 0.073 ms | **3.78 ms** | **377.6 ms** | 200→2000：**52×** ／ 2000→20000：**100×** |
 
-> **复核结论**：O(n²) **完全确认**——行数 ×10，耗时 ×100（理论 O(n²) 特征）。2 万行下单次调用 **≈366 ms**，用户感知为「点一下卡死近 0.4 秒」。
-> 数值与立项记录（374.8 / 365.3 ms）**在同一量级**，微小差异源于机器负载与字体，不影响结论。
+> **结论**：O(n²) **完全确认**——行数 ×10，耗时 ×100（理论 O(n²) 特征）。2 万行下单次调用 **≈366 ms**，用户感知为「点一下卡死近 0.4 秒」。
 
-**根因**（复核确认行号准确）：
+**根因**：
 - `CaretForOffset`（`text_layout.go:241-260`）：先调 `GetOffsetForCaret` 拿到 y，再 `for i := range l.Lines` 逐行调 `LineTop(i)`（本身 O(i)）反查行号 → **O(n²)**。2 万行 = 2 亿次累加。
 - `BoxesForRange`（`text_layout.go:396-453`）：`for i, ln := range l.Lines` 扫全表，每行内嵌 `for _, c := range ln.Carets` 线性找 X → **O(n²)**。
-- **补充（复核新增）**：`RenderText.Paint` 的逐字绘制分支（`text.go:906-913`）对每个 rune 线性扫 `ln.Carets` 找 X，是**第三处** O(n²)，面 2 清单需覆盖（`text.go` 而非 `text_layout.go`）。
+- **补充**：`RenderText.Paint` 的逐字绘制分支（`text.go:906-913`）对每个 rune 线性扫 `ln.Carets` 找 X，是**第三处** O(n²)，面 2 清单需覆盖（`text.go` 而非 `text_layout.go`）。
 
-**关键认知（此前方案的漏洞）**：这两个是**公开方法内部的实现问题**，与外部怎么调**无关**。就算面 1 全部迁移到新 API，内部不改照样 O(n²)。**原 M1 只在「前缀和」里一笔带过，严重低估。**
+**关键认知**：这两个是**公开方法内部的实现问题**，与外部怎么调**无关**。就算面 1 全部迁移到新 API，内部不改照样 O(n²)。
 
 #### 面 3 · `Generation` 语义不足
 
@@ -423,7 +421,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 **问题**：它只能表达「整体变了」，无法表达「只有第 5 行变了」。懒加载 + 行/段缓存后，需要**按行/段的失效标记**，否则缓存只能全量作废 → 缓存等于没做。
 
-**🔴 复核更正（2026-09-02 第三轮 · 推翻此前结论）**：本项目此前曾写「`Generation` **当前无任何消费者读取**」，**该结论错误**。实测存在 **2 处消费者**：
+**🔴 实测有 2 处消费者**：
 
 | 消费者 | 位置 | 断言内容 | 后果 |
 |---|---|---|---|
@@ -433,7 +431,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 > **注**：`render/` 下另有大量 `GenerationID()`（Pixmap/Atlas 的缓存键），与 `TextLayout.Generation` **是不同东西**，不受影响。
 
 **这改变了面 3 的改造方式（硬约束）**：
-- ❌ **不可行**：直接把 `Generation` 语义改成按行失效标记（会同时打破 1 个老测试 + 1 个真窗断言；而 `TestTextLayout_Generation` 正是 M1-d2「13 个老测试一行不改全绿」的裁判之一 → **d2 会因文档给错情报而熔断**）。
+- ❌ **不可行**：直接把 `Generation` 语义改成按行失效标记（会同时打破 1 个老测试 + 1 个真窗断言；而 `TestTextLayout_Generation` 正是 M1-d2「13 个老测试一行不改全绿」的裁判之一 → **d2 会熔断**）。
 - ✅ **可行做法**：**保留 `TextLayout.Generation` 为全局自增计数器（语义不变）**，**另增**一个按行/段的失效标记字段（如 `LineGeneration []uint64` 或行缓存内部自带版本号）。
 - **理由**：d2 的硬约束是「d1 与 d2 之间不得修改任何测试文件」，故 M1 内**不允许**为适配改造而改测试。保留旧字段 + 新增字段是唯一不违反 d2 的路径。
 
@@ -441,16 +439,16 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 `RenderText` 有**另一套** line 概念：`DisplayLines()` / `DisplayText()` / `MeasureWidth()` / `CaretColumn()`，走 `wrapLines()` / `estimateWrapLines()` / `layoutRunLines()`，**与 `TextLayout` 不是同一条路径**。
 
-**实测确认的两个真实 bug**（2026-09-02；**复核重测数值更严重**）：
+**实测确认的两个真实 bug**：
 
 | 场景 | 绘制侧 `DisplayLines()` | 布局侧 `TextLayout.Lines` | 后果 |
 |---|---|---|---|
-| **MaxLines=2 + Ellipsis** | **2 行** | **12 行**（原记 4 行） | caret 查询可能落到**已被裁剪不可见**的行；`MaxLines` 对布局侧**完全未生效** |
-| **无 Face（估算路径）** | **11 行**（原记 10 行） | **1 行** | 绘制 11 行、布局只认 1 行；点击第 5 行 → 光标全落第 1 行 |
+| **MaxLines=2 + Ellipsis** | **2 行** | **12 行** | caret 查询可能落到**已被裁剪不可见**的行；`MaxLines` 对布局侧**完全未生效** |
+| **无 Face（估算路径）** | **11 行** | **1 行** | 绘制 11 行、布局只认 1 行；点击第 5 行 → 光标全落第 1 行 |
 
-对照（复核确认 ✓）：`MaxWidth=300` 有 face（回绕）→ 4v4 一致；不回绕单行 → 1v1 一致。
+对照：`MaxWidth=300` 有 face（回绕）→ 4v4 一致；不回绕单行 → 1v1 一致。
 
-> **复核新发现（比原记录更严重）**：`MaxLines` 截断**只在绘制侧 `DisplayLines()` 生效**（`text.go:631-634`，`if maxL > 0 && len(lines) > maxL { lines = lines[:maxL] }`）；`BuildRenderTextLayout` 的**多 run 路径有一句 mirror 注释但只截断不处理省略号**（`text_layout.go:380-383`），**单串路径根本没有对应截断**。即：**「限制 2 行」这个语义，绘制遵守、布局无视**，二者行数差 6 倍。这不是「偶尔不一致」，是**两条路径对同一份配置的理解不同**。
+> **现状**：`MaxLines` 截断**只在绘制侧 `DisplayLines()` 生效**（`text.go:631-634`，`if maxL > 0 && len(lines) > maxL { lines = lines[:maxL] }`）；`BuildRenderTextLayout` 的**多 run 路径有一句 mirror 注释但只截断不处理省略号**（`text_layout.go:380-383`），**单串路径根本没有对应截断**。即：**「限制 2 行」这个语义，绘制遵守、布局无视**，二者行数差 6 倍。这不是「偶尔不一致」，是**两条路径对同一份配置的理解不同**。
 
 **结论**：A1 单源纪律**当前即已破损**，不是懒加载引入的，是存量缺陷。M0 必须修复，否则后续所有坐标优化都建立在裂缝上。
 
@@ -473,21 +471,21 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 每个场景必须在 **M5 收口**时有**独立单测 + 至少一次真窗实测**，并在 **M6 验收主窗（§5.6）**上有对应场景区。
 
-| 维度 | 覆盖要求 | 当前状态（重审后） | 负责阶段 | M6 对应区 |
+| 维度 | 覆盖要求 | 当前状态 | 负责阶段 | M6 对应区 |
 |---|---|---|---|---|
 | **脚本** | 拉丁 / CJK / 阿拉伯 / 希伯来 / 天城文 / 泰 / 缅 / 高棉 / 藏 | bidi 有（UAX#9）；阿拉伯连接 + 印度系重排 GSUB 有；**泰/缅/高棉/藏未验（系统无字体，需引入测试字体）** | M5 | A/D |
 | **组合字符** | 组合音标、ZWJ emoji 序列、代理对 | ⚠️ **已有 `snapToGraphemeBoundary`（`text_layout.go:470`）但名不副实**——它只做 UTF-8 续字节（0x80–0xBF）归位，**不识别组合音标/ZWJ 序列**；且**仅在 `GetOffsetForCaret` 一处调用**，`GetPositionForOffset`（点击定位）与上下键移动**均未调用** | **M1**（并入，范围扩大） | A |
 | **彩色字形** | COLR/CBDT emoji | ⚠️ 有 `render_color_emoji` 示例，与排版 run 级集成待确认 | M5 | A |
 | **富文本** | 段内多字号/多字体/多颜色 | ⚠️ `layoutRunLines`（`paragraph.go:255`）有雏形，caret 精度待验 | M5 | D |
 | **长度** | 1 字 ~ 1e6 字；1 行 ~ 1e6 行 | ❌ 5000 字 2.35 ms/次；**2 万行 `CaretForOffset` 375ms**；**单 face 5000 字 34 ms**（见 §2.1 A-2） | **M1（重排 + 面2 去 O(n²)）/ M4（行数）/ M3.5（编辑，条件触发）** | B/C/E |
-| **行数规模（新增）** | 200 / 2000 / 20000 行的查询不退化 | ❌ **O(n²)**，复核实测 2 万行单次查询 **≈366 ms** | **M1（面 2）** | E |
-| **单源一致性（新增）** | 绘制行 == 布局行 | ❌ **已破损**（复核实测 MaxLines **2v12** / 无 Face **11v1**） | **M0（面 4）** | C/F |
+| **行数规模** | 200 / 2000 / 20000 行的查询不退化 | ❌ **O(n²)**，实测 2 万行单次查询 **≈366 ms** | **M1（面 2）** | E |
+| **单源一致性** | 绘制行 == 布局行 | ❌ **已破损**（实测 MaxLines **2v12** / 无 Face **11v1**） | **M0（面 4）** | C/F |
 | **DPR** | 1x / 1.25x / 2x / 3x，亚像素定位 | ✅ 量化**已实现**（`glyph_mask_atlas.go:63` 的 `SubpixelXQ2/YQ2`，1/4 px）→ **本项为验证，非新做** | M5（验证） | A |
 | **回绕** | 定宽回绕 / 不回绕 / 截断 / 省略号 | ⚠️ 省略号二分 O(n log n)；回绕下编辑级联作废（约束 ②） | M1（缓存）/ M5（省略号） | F |
 | **滚动** | 定行高 / 变行高 | ❌ 无行虚拟化 | M4 | E |
 | **GPU 约束** | 顶点数 / 批次数 / 图集容量 | ❌ 逐字提交；`cullGlyphs` 条件恒 false，**实测至今一次未生效** | M2 | B/C |
 
-**📊 「卡不卡」的量化分级（2026-09-02 数值复核新增 · 校准立项论据强度）**
+**📊 「卡不卡」的量化分级**
 
 > 立项时写「5000 字已卡」，该定性**偏强**。以一帧 16.7 ms 为基准实测分级：
 
@@ -500,12 +498,12 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 > **结论**：本方案的立项依据**依然成立**，但**真正的痛点在 2 万字以上**（M6 验收主窗的 B 框 5000 字 / C 框 50000 字设计正好覆盖这两个档位，见 §5.6.2）。
 > **不要再用「5000 字已卡」当主要论据**——它只占一帧 16%，容易被人反驳。改用「**50000 字超一帧 1.7 倍**」或「**单 face 5000 字 34 ms（超一帧 2 倍）**」这两个更硬的数。
 
-**「长度」维度的阶段分工（重审修正）**：
+**「长度」维度的阶段分工**：
 - **M1** 解决**排版**复杂度（O(n²) → O(L)/O(段长)）——这是 5000 字卡顿的主因
 - **M4** 解决**行数**维度（1e6 行的首屏与滚动）
 - **M3.5**（条件触发）解决**编辑时文本拷贝**——仅在实测证明拷贝成为瓶颈时才做
 
-> 原表把 M3 列为「长度」负责阶段，**已修正**：M3 收窄为仅增量 undo（Q3 决策），不解决长度问题。
+> 注：M3 只做增量 undo（Q3 决策），不解决长度问题。
 
 ---
 
@@ -543,12 +541,12 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
   **⚠️ 顺序约束**：pre-3 的基线**必须在改任何代码之前**记录——一旦开始改 M0，发散值就会变，基线再也取不到。
 
 **③ 背景与根因**（引用实测，非推测）
-- **§2.2 根因链 ①②**：`MultiFace.Source()` 返回 `nil`（`render/text/multi.go:164`）→ shaper 进门即 `return nil`（`shaper_hb.go:55-57`）→ 复核实测 `Shape(MultiFace)` 返回 **0 glyph**（单 face 同串返回 12）→ 布局退化逐字 `RuneAdvance`（占 profile 76%）。
-- **§3.5 约束 ①**：绘制 `snapPen` 逐字取整累加 vs 布局浮点累加，复核实测 5000 字发散 **976.6px**（每字 0.195px，确定性线性）。
-- **§3.5 约束 ③**：`MultiFace.Runs()` 已存在（`multi.go:355`）且带缓存。**复核修正**：其切分能力可用（混排切 6 run），但**不做 script/bidi 分段**（阿拉伯+拉丁只切 1 run 且不整形）→ M0 须**叠加 `segment.go`**，非纯「接线」。
+- **§2.2 根因链 ①②**：`MultiFace.Source()` 返回 `nil`（`render/text/multi.go:164`）→ shaper 进门即 `return nil`（`shaper_hb.go:55-57`）→ `Shape(MultiFace)` 返回 **0 glyph**（单 face 同串返回 12）→ 布局退化逐字 `RuneAdvance`（占 profile 76%）。
+- **§3.5 约束 ①**：绘制 `snapPen` 逐字取整累加 vs 布局浮点累加，5000 字发散 **976.6px**（每字 0.195px，确定性线性）。
+- **§3.5 约束 ③**：`MultiFace.Runs()` 已存在（`multi.go:355`）且带缓存。注：其切分能力可用（混排切 6 run），但**不做 script/bidi 分段**（阿拉伯+拉丁只切 1 run 且不整形）→ M0 须**叠加 `segment.go`**，非纯「接线」。
 
 **③ 补充背景：面 4（单源纪律现已破损）**
-- **§3.6 面 4 复核实测**：`RenderText.DisplayLines()`（绘制用）与 `TextLayout.Lines`（查询用）**不是同一条路径**，两个真实 bug——
+- **§3.6 面 4 实测**：`RenderText.DisplayLines()`（绘制用）与 `TextLayout.Lines`（查询用）**不是同一条路径**，两个真实 bug——
   - `MaxLines=2 + Ellipsis`：绘制 **2 行** vs 布局 **12 行** → `MaxLines` 对布局侧完全未生效
   - 无 Face（估算路径）：绘制 **11 行** vs 布局 **1 行** → 点击第 5 行光标全落第 1 行
 - 这是**存量缺陷**，不是懒加载引入的。**必须最先修**，否则后续所有坐标优化都建在裂缝上。
@@ -557,16 +555,16 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 | # | 面 | 文件:行号 | 改什么 |
 |---|---|---|---|
-| 1 | 面4 | `ui/rendering/text.go:603` `DisplayLines` / `:665` `DisplayText` / `:526` `MeasureWidth` / `:562` `CaretColumn` | **单源收敛**：这四个 API 改为**从 `TextLayout` 派生**，删除 `wrapLines()` / `estimateWrapLines()` 的独立行计算。**实现路径见下方「面 4 落地要点」**（`TextLayout` 当前**缺 `MaxLines` 截断能力**，需先补，否则无法派生） |
+| 1 | 面4 | `ui/rendering/text.go:603` `DisplayLines` / `:665` `DisplayText` / `:526` `MeasureWidth` / `:562` `CaretColumn` + `ui/rendering/text_layout.go`（`TextLayout` 新增 `MaxLines` + `Overflow/Ellipsis` 字段） | **单源收敛**：先给 `TextLayout` 补截断能力（单串与多 run 两个构建路径统一算截断宽度；省略号在布局侧生成替换字形并同步排除 caret；无 Face 估算回绕也在布局侧补齐），再把这四个 API 改为**从 `TextLayout` 派生**，删除 `wrapLines()` / `estimateWrapLines()` 的独立行计算。**实现路径见下方「面 4 落地要点」**（`TextLayout` 当前**缺 `MaxLines` 截断能力**，需先补，否则无法派生） |
 | 2 | 面4 | `ui/rendering/paragraph.go:255` `layoutRunLines` | 多 run 路径也收敛到 `TextLayout`（当前已有独立行计算） |
 | 3 | 面4 | `ui/rendering/text.go` 新增 | 补 `TestDisplayLinesMatchLayout_*`：MaxLines+Ellipsis、无 Face 估算、多 run、回绕 四种场景下 `DisplayLines()` 与 `TextLayout.Lines` **行数与内容必须一致** |
-| 4 | — | `render/text/` 新建 `advance_cache.go` | 新增 `(fontID, glyphID, sizeQ8)` → advance 缓存；容量上限 + LRU，范式照 `shape_result_cache.go` |
+| 4 | — | `render/text/` 新建 `advance_cache.go` | 新增 `(fontID, glyphID, sizeQ8, hinting, variations)` → advance 缓存（key 必须含 hinting/variations，缺一项即撞车）；容量上限 + LRU，范式照 `shape_result_cache.go` |
 | 5 | — | `render/text/face.go:118` `sourceFace.Advance` | 接入 advance 缓存（替代逐字 `parsed.GlyphAdvance`） |
-| 6 | — | `render/text/draw.go:435` `runAdvance` / `:475` `advanceFromGlyphs` | 两处统一走 advance 缓存（行号复核：435，原记 452） |
-| 7 | — | `render/text/face.go:70` `RuneAdvance` | 接入同一缓存（稳态 **~430 ns/字**，复核修正；目标降至 ≤ 250 ns 且消抖动） |
-| 8 | — | `ui/rendering/text_layout.go:166` `buildCaretsForLine` | 改用 **`MultiFace.Runs()` + `segment.go` script/bidi 分段**切 run（约束③ 复核：仅 `Runs()` 不足以处理阿拉伯文）→ 每 run 整段 `text.Shape` → 拼接 caret；**仅**消除 `:190-206` 的「有 face 但 Shape 返 0」兜底分支。**⚠️ `:170-188` 的 `face==nil` 估算路径必须保留，见下方要点**。同时必须消除 `:222-231` 的 O(n²) 扫表（见 §2.2 ③ 的复核提示） |
-| 9 | — | `render/text/draw.go:113` `drawGlyphs`、`:229` `drawGlyphsVariable`、`:309-312` `rasterizeHintedGlyph` | **对策 C**：绘制位置统一取整形结果的 `glyph.X`（与布局同源），消除发散（复核实测 **976.6px/5000 字**）。**⚠️ 路径澄清见下方要点** |
-| 10 | — | `ui/rendering/text.go:855` `RenderText.Paint` | 绘制路径同步改用 `glyph.X`（与第 9 项同源）；行号复核：855，原记 908 |
+| 6 | — | `render/text/draw.go:435` `runAdvance` / `:475` `advanceFromGlyphs` | 两处统一走 advance 缓存 |
+| 7 | — | `render/text/face.go:70` `RuneAdvance` | 接入同一缓存（稳态 **~430 ns/字**；目标降至 ≤ 250 ns 且消抖动） |
+| 8 | — | `ui/rendering/text_layout.go:166` `buildCaretsForLine` | 改用 **`MultiFace.Runs()` + `segment.go` script/bidi 分段**切 run（约束③：仅 `Runs()` 不足以处理阿拉伯文）→ 每 run 整段 `text.Shape` → 拼接 caret；**仅**消除 `:190-206` 的「有 face 但 Shape 返 0」兜底分支。**⚠️ `:170-188` 的 `face==nil` 估算路径必须保留，见下方要点**。同时必须消除 `:222-231` 的 O(n²) 扫表（见 §2.2 ③）。**🔒 同提交硬锁：通整形与扫表消除是第 8 项内部的两个半步，必须在同一提交合入、同一基准验证（`BenchmarkCaretBuild`），不得分两次提交** |
+| 9 | — | `render/text/draw.go:113` `drawGlyphs`、`:229` `drawGlyphsVariable`、`:309-312` `rasterizeHintedGlyph` | **对策 C**：绘制位置统一取整形结果的 `glyph.X`（与布局同源），消除发散（976.6px/5000 字）。**⚠️ 路径澄清见下方要点** |
+| 10 | — | `ui/rendering/text.go:855` `RenderText.Paint` | 绘制路径同步改用 `glyph.X`（与第 9 项同源） |
 
 #### 第 8 项路径要点（必读 · 删错分支会拆掉 M1 的裁判）
 
@@ -580,6 +578,8 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 **为什么 `face == nil` 路径不能删**：M1-d2 依赖的 13 个老测试中，**`TestTextLayout_36Deep_Roundtrip`、`TestTextLayout_StickyFallback`、`TestTextLayout_Affinity_Newline` 三个都用 `BuildTextLayout(txt, nil, ...)` 调用**。删掉该路径 → 这 3 个测试立即崩（返回空 layout）→ **M1-d2 的裁判体系在 M0 阶段就被拆掉**，且崩因隐藏（要等到 M1 才暴露）。
 
 **正确做法**：只消除 `:190-206`；`:170-188` 原样保留。M0 验收不因保留它而受影响。
+
+**叠加算法（第 8 项必读 · 否则阿拉伯文仍不整形）**：`MultiFace.Runs()` 按字形有无切出的区间，与 `segment.go` 按脚本/方向切出的区间**取相交**得最终 run 边界；每个最终 run 独立 `text.Shape`；RTL 段按视觉序重排后再拼 caret。只做其中一层 = 切不干净。
 
 #### 第 9–10 项路径要点（必读 · 否则改错地方）
 
@@ -608,13 +608,13 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 | 布局 vs 绘制偏差 | 5000 字 **976.6px** | **≤ 1px** |
 | **绘制行 vs 布局行** | **不一致（2v12 / 11v1）** | **完全一致** |
 
-> **⚠️ M0 的「先慢后快」风险（复核新增）**：当前 `MultiFace` 路径因 `Shape` 返回 0 glyph 而走**兜底 O(n)** 分支；M0 修通整形后会**进入此前从未执行过的成功路径**，而该路径藏着 **O(n²) 的 `CaretXForCluster` 扫表**（§2.2 ③）。因此 **M0 第 8 项必须与 O(n²) 消除同时做**，不得拆成两步——否则会出现「修完击键反而更慢」的回退。
+> **⚠️ M0 的「先慢后快」风险**：当前 `MultiFace` 路径因 `Shape` 返回 0 glyph 而走**兜底 O(n)** 分支；M0 修通整形后会**进入此前从未执行过的成功路径**，而该路径藏着 **O(n²) 的 `CaretXForCluster` 扫表**（§2.2 ③）。因此 **M0 第 8 项必须与 O(n²) 消除同时做**，不得拆成两步——否则会出现「修完击键反而更慢」的回退。
 
 #### 面 4 落地要点（第 1 项必读 · 否则无从下手）
 
 > **问题**：第 1 项要求「`DisplayLines()` 从 `TextLayout` 派生」，但**当前 `TextLayout` 根本没有截断能力**——直接派生会把「限制 2 行 + 省略号」这个语义**整个丢掉**。新会话照字面做会卡住。
 
-**现状实测（2026-09-02 复核）**：
+**现状实测**：
 
 | 能力 | 绘制侧 `DisplayLines()` | 布局侧 `TextLayout` |
 |---|---|---|
@@ -628,7 +628,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 | 方案 | 做法 | 代价 |
 |---|---|---|
-| **✅ 推荐：能力上移** | 把 `MaxLines` 截断、`Ellipsis`、无 Face 估算**三样能力补进 `TextLayout` 构建流程**（`TextLayout` 增 `MaxLines` 字段 + `Overflow`），然后 `DisplayLines()` 改为纯粹从 `TextLayout` 读结果 | 改动最大，但**一步到位符合 I7**，且修复 2v12/11v1 两个 bug |
+| **✅ 推荐：能力上移** | 把 `MaxLines` 截断、`Ellipsis`、无 Face 估算**三样能力补进 `TextLayout` 构建流程**（`TextLayout` 增 `MaxLines` 字段 + `Overflow`，单串/多 run 两条构建路径统一算截断宽度，省略号在布局侧落字形并排除 caret），然后 `DisplayLines()` 改为纯粹从 `TextLayout` 读结果 | 改动最大，但**一步到位符合 I7**，且修复 2v12/11v1 两个 bug |
 | 备选：派生 + 后处理 | `DisplayLines()` 从 `TextLayout` 取行，截断/省略号**仍在绘制侧做** | 行**内容**同源了，但行数仍可能不等 → **不满足 I11**，仅作临时台阶 |
 | ❌ 不可取：直接删 | 删掉 `wrapLines()`/`estimateWrapLines()`，直接读 `TextLayout` | 丢掉 `MaxLines`/`Ellipsis`/无 Face 三项能力 → **功能倒退**，禁止 |
 
@@ -637,29 +637,30 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 **⑥ 验收清单**
 - 单测 `TestDisplayLinesMatchLayout_*`（**面 4 核心**）：MaxLines+Ellipsis / 无 Face 估算 / 多 run / 回绕 四场景下 `DisplayLines()` 与 `TextLayout.Lines` **行数与内容逐字节一致**
 - 单测 `TestAdvanceCache_*`：命中 / 淘汰 / 容量上限 / 换字体失效 / 换字号失效
-- 单测 `TestItemizeRuns_*`：拉丁+CJK 混排切成多 run（复核实测 6 run ✅）；**阿拉伯+拉丁必须切成 ≥2 run 且阿拉伯段 `Shape` 返非 0 glyph**（复核实测当前只切 1 run 且不整形，此项为**回归锁**）；缺字场景正确切分
-- 单测 `TestPaintUsesShapedX_*`（约束①）：绘制坐标取自 `glyph.X`，与布局坐标偏差 **≤ 1px**（5000 字规模验证发散消失；改前实测偏差 976.6px）
-- 单测 `TestShapeNonEmpty_MultiFace_*`（根因① 回归锁）：`Shape(MultiFace, 5000字)` 返回 **非 0** glyph（改前为 0）
+- 单测 `TestItemizeRuns_*`：拉丁+CJK 混排切成多 run（6 run ✅）；**阿拉伯+拉丁必须切成 ≥2 run 且阿拉伯段 `Shape` 返非 0 glyph**（当前只切 1 run 且不整形，此项为**回归锁**）；缺字场景正确切分
+- 单测 `TestIntersectRuns_*`（叠加合并器）：`Runs` 区间与 script/bidi 区间相交合并正确；RTL 段视觉序重排正确；单测失败即第 8 项未完成
+- 单测 `TestPaintUsesShapedX_*`（约束①）：绘制坐标取自 `glyph.X`，与布局坐标偏差 **≤ 1px**（5000 字规模验证发散消失）
+- 单测 `TestShapeNonEmpty_MultiFace_*`（根因① 回归锁）：`Shape(MultiFace, 5000字)` 返回 **非 0** glyph
 - 基准 `BenchmarkShapeLine`：N ∈ {1e3, 1e4}，整形耗时下降 **≥ 5×**
-- 基准 `BenchmarkRuneAdvance`：单次 **≤ 250 ns**（改前稳态 ~430 ns；同时断言 **P99 不劣化**，防缓存引入抖动）
-- 基准 `BenchmarkCaretBuild`（**复核新增 · 防「修完更慢」**）：N ∈ {1e3, 1e4, 1e5}，caret 构建耗时比值 **≤ 1.5**，确保 M0 未把 O(n) 兜底换成 O(n²) 成功路径
+- 基准 `BenchmarkRuneAdvance`：单次 **≤ 250 ns**（稳态 ~430 ns；同时断言 **P99 不劣化**，防缓存引入抖动；缓存 key 必须含 hinting/variations，换设置必须失效）
+- 基准 `BenchmarkCaretBuild`（防「修完更慢」）：N ∈ {1e3, 1e4, 1e5}，caret 构建耗时比值 **≤ 1.5**，确保 M0 未把 O(n) 兜底换成 O(n²) 成功路径
 - 回归：`render/text` 全量 + `ui/rendering` 全量 + `ui/textinput` 全量绿
 - 像素：`render/text` 现有 golden **逐位一致**
 - 真窗：`ui_text_edit_accept`（§5.6）跑一次，记录 `caret_vs_paint_max_delta_px` 基线值
 
 **⑦ 熔断条件**
-- **面 4 修复后 `DisplayLines` 与 `TextLayout.Lines` 仍不一致 → 停**。这是地基，宁可多花时间。（注意：`MaxLines` 截断目前**仅绘制侧生效**，修复时须保证布局侧同步截断，见 §3.6 面 4 复核说明。）
+- **面 4 修复后 `DisplayLines` 与 `TextLayout.Lines` 仍不一致 → 停**。这是地基，宁可多花时间。（注意：`MaxLines` 截断目前**仅绘制侧生效**，修复时须保证布局侧同步截断，见 §3.6 面 4 说明。）
 - `MultiFace` 公开行为有任何变化 → **停**，重新设计接口后再动。
 - **像素 golden 出现任何差异 → 停**。整形通路切换是高风险改动，宁可退回逐字 fallback 也不接受静默画质变化。
 - `caret_vs_paint_max_delta_px` 未下降 → 停，对策 C 未生效。
-- **🔴 `BenchmarkCaretBuild` 未达标（修完击键反而更慢）→ 停**。这是「O(n) 兜底换成 O(n²) 成功路径」的信号，第 8 项必须连同 `CaretXForCluster` 扫表一起改，不得只通整形。（复核新增）
-  > **⚠️ 这不是预防性条款，是实测确认的必现风险**：同 5000 rune 语料下，`MultiFace`（当前路径，走 O(n) 兜底）**2.290 ms**，而 `singleFace`（**M0 修通后的成功路径**，走 O(n²) 扫表）**34.057 ms**，**慢 14.9 倍**（其中 98% 来自 `CaretXForCluster` 全表扫描）。
-  > **即：M0 若只通整形而不消除扫表，击键耗时将从 2.29 ms 跳到 ~34 ms**。见 §2.1 A-2 与 §11.0 第 13 项。
+- **🔴 `BenchmarkCaretBuild` 未达标（修完击键反而更慢）→ 停**。这是「O(n) 兜底换成 O(n²) 成功路径」的信号，第 8 项必须连同 `CaretXForCluster` 扫表一起改，**且在同一提交内**，不得只通整形。
+  > **⚠️ 这是实测确认的必现风险**：同 5000 rune 语料下，`MultiFace`（当前路径，走 O(n) 兜底）**2.290 ms**，而 `singleFace`（**M0 修通后的成功路径**，走 O(n²) 扫表）**34.057 ms**，**慢 14.9 倍**（其中 98% 来自 `CaretXForCluster` 全表扫描）。
+  > **即：M0 若只通整形而不消除扫表，击键耗时将从 2.29 ms 跳到 ~34 ms**。见 §2.1 A-2 与变更记录 §11.0 第 13 项。
 
 **⑧ 回滚方式**
 - 第 1–3 项（面 4）：`DisplayLines` 等四处恢复独立行计算。**注意：这会让两个已确认 bug 复现**，仅在无法推进时作为临时退路，且必须在文档记录。
 - 第 4–7 项（advance 缓存）：`advance_cache.go` 整文件删除 + 三处调用点 revert。纯加法，回滚无副作用。
-- 第 8–10 项（run 切分 + 对策 C）：**三项耦合**，须整体回滚。只回滚 9–10 而保留 8，发散会以新形式出现。
+- 第 8–10 项（run 切分 + 对策 C）：**三项耦合**，须整体回滚。只回滚 9–10 而保留 8，发散会以新形式出现。**第 8 项内部两半（通整形 + 消扫表）同样耦合，只回滚其中一半禁止合入**。
 
 **⑨ 交接说明（给 M1）**
 - **新不变量**：
@@ -677,19 +678,19 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 **② 前置依赖（硬）**
 - **M0 必须已完成**，尤其 **M0 第 8 项**（run 批量整形，让 `Shape` 返非 0 glyph）与 **第 9–10 项**（绘制用 `glyph.X`，坐标同源）。M1 的前缀和必须建在 `glyph.X` 同源坐标上，否则约束 ① 复发。
-  > ⚠️ **编号更正**：此处原文写「M0 第 5–7 项」，但 **M0 第 5–7 项是 advance 缓存**（性能项，非 M1 的正确性前置）；**run 批量整形是第 8 项、绘制用 `glyph.X` 是第 9–10 项**。照错误编号验收会漏掉真正的前置。
-- 需已读 §0、§1、§2.2 根因③、§3.5 约束①②、§9.1 Q1/Q2/Q4 决策。
+  > ⚠️ **注意**：**M0 第 5–7 项是 advance 缓存**（性能项，非 M1 的正确性前置）；**run 批量整形是第 8 项、绘制用 `glyph.X` 是第 9–10 项**。照错误编号验收会漏掉真正的前置。
+- 需已读 §0、§1、§2.2 根因③、§3.5 约束①②、§9.1 Q1/Q2/Q4/Q5 决策（M1-c 开工前 Q5 必须已定，否则不得动手）。
 
 **③ 背景与根因**
 - **§2.2 根因链 ③**：`buildCaretsForLine`（`text_layout.go:222-231`）对每个 rune 调 `CaretXForCluster`，该函数每次从头线性扫 glyph 数组（`render/text/shaped.go:125-160`）→ 建 n 个 caret 扫 n 次 = **O(n²)**，5000 字 = 1250 万次比较。
-- **§3.5 约束 ②**：回绕模式（`MaxWidth > 0`）下编辑会级联作废后续所有行（复核实测：改首行后 L1 由 `[35,71) "lazy dog and then keeps running far "` 变 `[30,62) "fox jumps over the lazy dog and "`，L2 由 `[71,75)` 变 `[62,89)`）→ 原「只作废第 K 行」表述不成立。
-- **复核实测依据**：不回绕下单独排版第 2 行与全文内第 2 行宽度**差值 0.000000**（170.593750 vs 170.593750）→ 行隔离在不回绕模式成立。
+- **§3.5 约束 ②**：回绕模式（`MaxWidth > 0`）下编辑会级联作废后续所有行（改首行后 L1 由 `[35,71) "lazy dog and then keeps running far "` 变 `[30,62) "fox jumps over the lazy dog and "`，L2 由 `[71,75)` 变 `[62,89)`）→ 回绕下「只作废第 K 行」不成立。
+- **实测依据**：不回绕下单独排版第 2 行与全文内第 2 行宽度**差值 0.000000**（170.593750 vs 170.593750）→ 行隔离在不回绕模式成立。
 
 **③ 补充背景：面 2（方法内部 O(n²)，实测）**
-- **§3.6 面 2 复核实测**：2 万行文档下单次调用 `CaretForOffset` = **365.9 ms**、`BoxesForRange`(全文) = **377.6 ms**；行数 ×10 → 耗时 ×100，**O(n²) 确认**。
+- **§3.6 面 2 实测**：2 万行文档下单次调用 `CaretForOffset` = **365.9 ms**、`BoxesForRange`(全文) = **377.6 ms**；行数 ×10 → 耗时 ×100，**O(n²) 确认**。
 - `CaretForOffset`（`text_layout.go:241-260`）外层 `for i := range l.Lines` 内调 `LineTop(i)`（自身 O(i)）→ O(n²)。
 - `BoxesForRange`（`text_layout.go:396-453`）扫全表 + 每行内嵌 `for _, c := range ln.Carets` 线性找 X → O(n²)。
-- **第三处（复核新增）**：`RenderText.Paint` 逐字分支（`text.go:906-913`）每 rune 线性扫 `ln.Carets` 找 X → O(n²)。
+- **第三处**：`RenderText.Paint` 逐字分支（`text.go:906-913`）每 rune 线性扫 `ln.Carets` 找 X → O(n²)。
 - **这是纯实现问题，与外部调用无关**——面 1 全迁移也救不了。
 
 **④ 改动清单（精确）**
@@ -704,12 +705,12 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 | 6 | — | `ui/rendering/text_layout.go:220-237` `buildCaretsForLine` | caret 构建改为**累积宽度前缀和数组**（一次遍历） |
 | 7 | — | `ui/rendering/text_layout.go:500` `GetOffsetForCaret` | 前缀和 O(1) 取 X + 行索引 O(log n) |
 | 8 | — | `ui/rendering/text_layout.go:597` `GetPositionForOffset` | 行索引 O(log n) + 行内前缀和二分 O(log L) |
-| 9 | — | `ui/rendering/` 新增 `layout_cache.go` | **双模式布局缓存**：不回绕→行缓存；回绕→**段缓存**。key = 内容哈希 + face + size + maxWidth |
-| 10 | 面3 | `ui/rendering/text_layout.go:34` `Generation` | **保留 `Generation` 全局自增语义不动**（有 2 处消费者，见 §3.6 面 3 的复核更正），**另增**按行/段失效标记字段供缓存使用。**禁止**把 `Generation` 本身改语义——会打破 `TestTextLayout_Generation`（M1-d2 的裁判之一） |
-| 11 | — | `ui/rendering/text_layout.go:470` + `:597` + `ui/textinput/editor.go:937` `SetCaretWithAffinity` + `ui/textinput/visual_move.go` | **簇边界（复核扩大范围）**：现有 `snapToGraphemeBoundary` **名不副实**（只做 UTF-8 续字节归位，不认组合音标/ZWJ），须升级为 **UAX#29 字素簇**。**⚠️ 需先决策依赖问题，见下方要点** |
-| 11-b | — | 同上 | **范围补全（复核新增）**：簇吸附只在 `text_layout.go:508` 一处被调用；`editor.go:937` `SetCaretWithAffinity` 有**同名独立实现**（同样只做续字节归位），点击定位（`GetPositionForOffset`）与上下键（`visual_move.go`）**均未吸附**。四处须一并改，只改一处会「点击修好了但 IME 置位没修好」 |
+| 9 | — | `ui/rendering/` 新增 `layout_cache.go` | **双模式布局缓存**：不回绕→行缓存；回绕→**段缓存**。key = 内容哈希 + face + size + maxWidth + hinting/variations（缺一项即撞车） |
+| 10 | 面3 | `ui/rendering/text_layout.go:34` `Generation` | **保留 `Generation` 全局自增语义不动**（有 2 处消费者，见 §3.6 面 3），**另增**按行/段失效标记字段供缓存使用。**禁止**把 `Generation` 本身改语义——会打破 `TestTextLayout_Generation`（M1-d2 的裁判之一） |
+| 11 | — | `ui/rendering/text_layout.go:470` + `:597` + `ui/textinput/editor.go:937` `SetCaretWithAffinity` + `ui/textinput/visual_move.go` | **簇边界**：现有 `snapToGraphemeBoundary` **名不副实**（只做 UTF-8 续字节归位，不认组合音标/ZWJ），须升级为 **UAX#29 字素簇**。**⚠️ 依赖见 §9.1 Q5（默认 A，M1-c 开工前最终确认），`go.mod` 单独提交，见下方要点** |
+| 11-b | — | 同上 | **范围补全**：簇吸附只在 `text_layout.go:508` 一处被调用；`editor.go:937` `SetCaretWithAffinity` 有**同名独立实现**（同样只做续字节归位），点击定位（`GetPositionForOffset`）与上下键（`visual_move.go`）**均未吸附**。四处须一并改，只改一处会「点击修好了但 IME 置位没修好」 |
 | 12 | 面1 | `ui/rendering/text_layout.go:28-37` + 22 处生产代码 + 23 处示例探针 | **Q4 决策落地（选项 4 · 先绿后拆）**：新增惰性 API + 生产代码换新 + 老测试当裁判 + 示例迁移 + 拆老门（详见下方执行顺序） |
-| **13** | **面2** | `ui/rendering/text.go:906-913`（`Paint` 逐字分支每 rune 扫 `ln.Carets` 找 X） | **去 O(n²)（复核新增第三处）**：改为一次构建 byteOff→X 索引后 O(1) 查表 |
+| **13** | **面2** | `ui/rendering/text.go:906-913`（`Paint` 逐字分支每 rune 扫 `ln.Carets` 找 X） | **去 O(n²)（第三处）**：改为一次构建 byteOff→X 索引后 O(1) 查表 |
 
 #### 第 11 项依赖决策（开工前必须先定 · 否则卡死）
 
@@ -720,7 +721,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 - `go.mod` 仅有 `golang.org/x/text`（含 bidi，**不含** grapheme 包）与 `golang.org/x/image`
 - 现有 `snapToGraphemeBoundary`（`text_layout.go:470`）只做 UTF-8 续字节（`0x80–0xBF`）归位，**不是 UAX#29**
 
-**三个选项（须先决策，建议列为 Q5 记入 §9.1）**：
+**三个选项（开工前必须先定，已记为 §9.1 Q5）**：
 
 | 选项 | 做法 | 代价 | 风险 |
 |---|---|---|---|
@@ -730,7 +731,7 @@ L0  字体度量        advance 缓存 + 回退链                  O(1) 摊还 
 
 **推荐 A**，理由：字素簇是文本编辑的基础能力，自研易错；引入成熟实现符合项目「参考成熟框架」的一贯做法。
 
-**若选 A，须同步**：① §9.1 新增 Q5 决策行；② `go.mod` 变更单独一个提交；③ §8.1 家底表补一行。
+**若选 A，须同步**：① §9.1 Q5 已记，`go.mod` 变更单独一个提交；② §8.1 家底表补一行（合入时把待引入状态翻为已存在）。
 
 **执行顺序（M1 内部四步，不可乱序）**
 
@@ -751,9 +752,9 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 
 > **顺序约束（硬）**：原计划把示例迁移排在 M2，但 **d5 删除 `.Lines` 会让 23 处示例探针立即编译失败**。故示例迁移（d4）**必须并入 M1**，排在 d5 之前、d2/d3 之后（等裁判验完再动其余调用方）。
 
-**为什么 d2 不能省**：这 13 个老测试（**10 个** `text_layout_r2_test.go` + **3 个** `r1_selftest_visual_test.go`，复核核准数量，原记 11+3 有误）验证的是**行为契约**——caret X 往返差 **≤0.5px**（`TestTextLayout_36Deep_Roundtrip`）、**混排不劈簇**（`TestTextLayout_StickyFallback`）、**HiDPI 对齐**（`TestTextLayout_HiDPI_Snap`）、**省略号不进 caret**（`TestTextLayout_Ellipsis_NotInCarets`）——而不是 API 形态。若 d1 与测试改写同时进行，运动员与裁判同时换人 → 失去判断对错的能力。d2 让老测试当**一次独立裁判**。
+**为什么 d2 不能省**：这 13 个老测试（**10 个** `text_layout_r2_test.go` + **3 个** `r1_selftest_visual_test.go`）验证的是**行为契约**——caret X 往返差 **≤0.5px**（`TestTextLayout_36Deep_Roundtrip`）、**混排不劈簇**（`TestTextLayout_StickyFallback`）、**HiDPI 对齐**（`TestTextLayout_HiDPI_Snap`）、**省略号不进 caret**（`TestTextLayout_Ellipsis_NotInCarets`）——而不是 API 形态。若 d1 与测试改写同时进行，运动员与裁判同时换人 → 失去判断对错的能力。d2 让老测试当**一次独立裁判**。
 
-> **⚠️ 一处裁判自身的缺口（复核发现）**：`TestTextLayout_StickyFallback` 的注释写明「Carets 数应为 **rune 数+1**（即使 nil face 固定 adv=10 也**不劈**）」——即该测试断言的是「按 rune 切分、不劈开**字形**」，**并非 UAX#29 字素簇**。它无法发现「组合音标被劈开」这类错误。
+> **⚠️ 裁判自身的缺口**：`TestTextLayout_StickyFallback` 的注释写明「Carets 数应为 **rune 数+1**（即使 nil face 固定 adv=10 也**不劈**）」——即该测试断言的是「按 rune 切分、不劈开**字形**」，**并非 UAX#29 字素簇**。它无法发现「组合音标被劈开」这类错误。
 > **对策**：d2 阶段该测试仍照跑（它是有效的回归锁，只是覆盖范围有限）；**簇边界的正确性由 M1-c 新增的 `TestClusterBoundary_*` 独立把关**，不得指望 d2 的老测试兜底。
 
 **⑤ 复杂度契约**（按模式**分别**书写，不得混用）
@@ -762,29 +763,30 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 |---|---|---|---|
 | 不回绕 | 击键重排 | O(n²) | **O(L)**（L = 行长） |
 | 回绕 | 击键重排 | O(n²) | **O(段长)**（段长 << 文档长） |
-| 二者 | `CaretForOffset` | **O(n²)**（复核实测 2 万行 365.9ms） | **O(log n)** |
-| 二者 | `BoxesForRange`(全文) | **O(n²)**（复核实测 2 万行 377.6ms） | **O(输出行数)** |
+| 二者 | `CaretForOffset` | **O(n²)**（2 万行 365.9ms） | **O(log n)** |
+| 二者 | `BoxesForRange`(全文) | **O(n²)**（2 万行 377.6ms） | **O(输出行数)** |
 | 二者 | `LineTop` | O(n) | **O(1)**（定行高）/ O(log n)（变行高） |
 | 二者 | 偏移↔坐标 | O(n) | **O(log n)** |
 | 二者 | caret 表构建 | O(n²) | **O(n)** |
 | 二者 | **逐字绘制 X 查表**（第 13 项） | **O(n²)**（每 rune 扫 carets） | **O(1)**/rune |
 
-二者均须满足：`BenchmarkKeystroke` 的 `T(1e5)/T(1e3) ≤ 5`。
+二者均须满足：`BenchmarkKeystroke` 的 `T(1e5)/T(1e3) ≤ 5`。**段长分布写死**：回绕模式必须分别测短段（≤200 字/段）与长段（≥5000 字/段），1e6 字按多短段 + 少数长段的混合分布测，不得只用单一长段冒充达标。
 
 **⑥ 验收清单**
-- 单测 `TestCaretForOffset_NoQuadratic_*`（**面2 核心**）：N ∈ {2e2, 2e3, 2e4} 行，单行查询耗时比值 ≤ 3（改前 10× 行数 → **100×** 耗时，复核实测 0.031→3.14→365.9 ms）
-- 单测 `TestBoxesForRange_NoQuadratic_*`（**面2 核心**）：同上（改前 0.073→3.78→377.6 ms）
+- 单测 `TestCaretForOffset_NoQuadratic_*`（**面2 核心**）：N ∈ {2e2, 2e3, 2e4} 行，单行查询耗时比值 ≤ 3（当前 10× 行数 → 100× 耗时：0.031→3.14→365.9 ms）
+- 单测 `TestBoxesForRange_NoQuadratic_*`（**面2 核心**）：同上（当前 0.073→3.78→377.6 ms）
 - 单测 `TestPaintPerRuneX_NoQuadratic_*`（**第 13 项**）：逐字绘制路径的 X 查表不得随行长二次增长
 - 单测 `TestLineTop_PrefixSum_*`：定行高 O(1)；变行高累计正确
 - 单测 `TestLineIndex_*`：增删行后索引正确、越界钳制、CRLF、末尾无换行
 - 单测 `TestLayoutCache_NoWrap_*`（不回绕）：改第 K 行**只作废 K**
 - 单测 `TestLayoutCache_Wrap_*`（回绕，**约束 ② 回归锁**）：**改首段不得作废后续段**
-- 单测 `TestGeneration_PerLine_*`（面3）：改第 K 行只让 K 失效，其余行 Generation 不变
+- 单测 `TestGeneration_PerLine_*`（面3）：改第 K 行只让 K 的行/段失效标记变化，其余行标记不变；`Generation` 仍全局自增（以 §3.2.1 I9 为准，禁止断言 `Generation` 按行不变）
 - 单测 `TestCaretPrefixSum_*`：与旧实现**逐字节对照**
 - 单测 `TestClusterBoundary_*`："e"+U+0301 不劈开；👨‍👩‍👧 ZWJ 整体跳过；代理对移动 2 单元
-- 单测 `TestClusterBoundary_ClickAndArrow_*`（**复核新增**）：**点击定位**（`GetPositionForOffset`）与**上下键移动**（`visual_move.go`）同样不得劈簇——现有实现仅 `GetOffsetForCaret` 一处吸附，另两条路径是缺口
+- 单测 `TestClusterBoundary_ClickAndArrow_*`：**点击定位**（`GetPositionForOffset`）与**上下键移动**（`visual_move.go`）同样不得劈簇——现有实现仅 `GetOffsetForCaret` 一处吸附，另两条路径是缺口
 - **单测 `TestLegacyLinesContract_*`（d2 门禁）**：M1-d2 阶段，`Lines` 下标访问对全部 i/j 与旧实现逐字节一致
 - 单测 `TestCaretMatchesPaint_*`（**约束① 回归锁**）：前缀和坐标与绘制位置偏差 **≤ 1px**
+- 门禁 `grep -rn "RuneAdvance\|MeasureWidth" ui/rendering/ --include="*.go"`：caret/hit 路径出现逐字累加循环即红（守 I6/I8，防偷偷退化）
 - 基准 `BenchmarkKeystroke`：**不回绕与回绕各跑一遍**，N ∈ {1e3,1e4,1e5}，均断言 `T(1e5)/T(1e3) ≤ 5`
 - 基准 `BenchmarkCaretQuery`：N ∈ {1e3,1e5}，偏移↔坐标查询耗时比值 ≤ 2
 - 回归：`ui/textinput` + `ui/rendering` 全量绿；`ui_wr_ime_r1/r2/r4/r5` 行为不变
@@ -806,7 +808,7 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 - **新不变量**：
   - **I2**：布局缓存失效粒度 = 不回绕按行 / 回绕按段
   - **I8（新增）**：`CaretForOffset` / `BoxesForRange` / `LineTop` 必须走行索引 + 前缀和，**禁止全表遍历**
-  - **I9（新增）**：`Generation` 为按行/段失效标记，不再是全局自增
+  - **I9（新增，以 §3.2.1 为准）**：`Generation` 保持全局自增语义不动，按行/段失效**另用新字段**表达（禁止改 `Generation` 语义，否则 `TestTextLayout_Generation` 变红 → M1-d2 熔断）
 - **新 API**：`TextLayout.LineCount()` / `Line(i)` / `CaretAt(...)`（**公开 API，须进 `RENDER_API_CATALOG.md` 并跑 `scripts/apidoc`**）
 - **`.Lines` 已删除**：M2 及之后不得再引用该字段。
 - **给 M2 的前置**：M2 的裁剪范围计算**必须基于 M1 的前缀和**，不得重新遍历。
@@ -831,8 +833,8 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 
 | # | 文件:行号 | 改什么 |
 |---|---|---|
-| 1 | `ui/rendering/text.go:895-921`（`RenderText.Paint`，行号复核：855 起，逐字分支 895-921） | 逐字 `DrawString` 改为 `DrawShapedGlyphs` 批量提交（约束① 对策 C 落地） |
-| 2 | `ui/rendering/text.go:945` `cullGlyphs`（行号复核，原记 946） | 现有调用条件为 `hasViewportHint && MaxWidth==0 && len(Lines)==1 && len(glyphs)>200` **四条件与**（`text.go:901`，行号复核：原记 897-899 为注释行）——实测从未生效。改为**基于 M1 前缀和算可见区间**（两次 O(log n) 二分）；**同时覆盖横向（不回绕）与纵向（MaxWidth>0 多行）**，并解除「必须单行」限制 |
+| 1 | `ui/rendering/text.go:895-921`（`RenderText.Paint`，逐字分支） | 逐字 `DrawString` 改为 `DrawShapedGlyphs` 批量提交（约束① 对策 C 落地） |
+| 2 | `ui/rendering/text.go:945` `cullGlyphs` | 现有调用条件为 `hasViewportHint && MaxWidth==0 && len(Lines)==1 && len(glyphs)>200` **四条件与**（`text.go:901`）——实测从未生效。改为**基于 M1 前缀和算可见区间**（两次 O(log n) 二分）；**同时覆盖横向（不回绕）与纵向（MaxWidth>0 多行）**，并解除「必须单行」限制 |
 | 3 | `ui/rendering/text.go:902` 裁剪调用点（`glyphs = t.cullGlyphs(glyphs)`） | 同上，按 M1 前缀和计算范围，不得重新遍历 |
 | 4 | `ui/rendering/` damage 上报 | 编辑只让被改行/段进 damage 矩形（回绕模式为被改段及其位移影响范围） |
 | 5 | `render/` GPU 提交层 | 按 (图集页, 颜色) 分组实例化 quad，控制批次数 |
@@ -873,18 +875,16 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 
 ### M3 · 文本缓冲（仅增量 undo）⚠️ 范围已收窄
 
-**① 本期目标**：undo 快照内存从 O(n)×100 降到 O(1)（原「编辑 O(log n)」目标移至 M3.5）。
+**① 本期目标**：undo 快照内存从 O(n)×100 降到 O(1)。
 
 **② 前置依赖**：M0–M2 已完成（M3 改动 `Editor`，与绘制层无耦合，技术上可独立；但复杂度门禁需在 M0–M2 之后测才有意义）。
 
 **③ 背景与根因**
-- **§2.2 根因链 ⑥**：`pushHistory`（`ui/textinput/editor.go:144`）存**整篇文本快照 ×100 份** → 100k 字 = 10MB 常驻 + 每次编辑全量拷贝（profile 中 `duffcopy` 10% 的来源）。
+- **§2.2 根因链 ⑥**：`pushHistory`（`ui/textinput/editor.go:144`）存**整篇文本快照 ×100 份** → 中英混排 1e5 字约 18.5MB 常驻。
 - **Q3 决策**：**piece tree 押后为 M3.5**，本期只做增量 undo。
-  > **数值复核更正（2026-09-02）**：原依据「1e5 字拷贝 ~10 µs、1e6 字 ~100 µs」**偏快 2 倍以上**。实测**字符串拼接**（`s[:off]+"x"+s[off:]`，即 `Editor` 插入的真实成本）：1e5 字 **~70 µs**、1e6 字 **~240 µs**。
-  > **但决策保住**：1e6 字拼接 0.24 ms 相对当前排版 2350 µs 仅占 **~10%**，远未到 M3.5 的 **30% 触发线** → piece tree 押后**依然成立**。
-  > 数字必须改准的理由：将来若真的逼近 30% 边界，用错的基线会误判触发时机。
+  > **注**：字符串拼接（`s[:off]+"x"+s[off:]`，即 `Editor` 插入的真实成本）实测 1e5 字 **~70 µs**、1e6 字 **~240 µs**；相对当前排版 2350 µs 仅占 **~10%**，远未到 M3.5 的 **30% 触发线** → piece tree 押后成立。
   >
-  > ⚠️ **未验证项诚实标注**：§5.6.4 中有 **5 项属真窗/GPU 运行时指标**——`interval_p95_ms`、`fps_interval`、`hitch_rate_per_min`、`rss_slope_kb_per_min`、`caret_vs_paint_max_delta_px`——需 `ui_text_edit_accept` 窗（**尚未创建**，见 M0-pre）+ GPU 环境才能产出，纯 CPU 探针测不了。**本轮未用估算值冒充实测**，待 M0-pre 建窗后补测。
+  > ⚠️ **未验证项诚实标注**：§5.6.4 中有 **5 项属真窗/GPU 运行时指标**——`interval_p95_ms`、`fps_interval`、`hitch_rate_per_min`、`rss_slope_kb_per_min`、`caret_vs_paint_max_delta_px`——需 `ui_text_edit_accept` 窗（**尚未创建**，见 M0-pre）+ GPU 环境才能产出，纯 CPU 探针测不了。**未用估算值冒充实测**，待 M0-pre 建窗后补测。
 
 **④ 改动清单（精确）**
 
@@ -1012,10 +1012,10 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 |---|---|---|
 | 1 | `ui/rendering/` run 结构 | **彩色字形**：run 打 `IsColor` 标记，走独立图集通道（不塞 mask 图集） |
 | 2 | `ui/rendering/paragraph.go:255` `layoutRunLines` | **富文本 run**：段内多字号/多字体/多颜色；行盒按该行**最大 ascent/descent** 撑开（Flutter SkParagraph 语义） |
-| 3 | `render/text/testdata/` | **复杂脚本**：**先盘点复用**已有资产，再补缺口（**守测试数据纪律，禁硬编码字表**）。**⚠️ 复核更正**：`render/text/hint/testdata/` **已存在** `NotoSansThai-Regular.otf`（泰文字体）、`th_all.txt`（泰文 128 码位）、`mymr_sample.txt`（缅文）、`cjk3000.txt`、`kr_all.txt`、`latin_all.txt`、`arab_sample.txt`、`deva_sample.txt`、`beng_sample.txt`、`gujr_sample.txt`、`taml_sample.txt`、`ethi_sample.txt` 等。**真正缺的只有高棉（Khmer）与藏文（Tibetan）** —— 文档原写「泰/缅/高棉/藏缺字体」不准确 |
+| 3 | `render/text/testdata/` | **复杂脚本**：**先盘点复用**已有资产，再补缺口（**守测试数据纪律，禁硬编码字表**）。`render/text/hint/testdata/` **已存在** `NotoSansThai-Regular.otf`（泰文字体）、`th_all.txt`（泰文 128 码位）、`mymr_sample.txt`（缅文）、`cjk3000.txt`、`kr_all.txt`、`latin_all.txt`、`arab_sample.txt`、`deva_sample.txt`、`beng_sample.txt`、`gujr_sample.txt`、`taml_sample.txt`、`ethi_sample.txt` 等。**真正缺的只有高棉（Khmer）与藏文（Tibetan）** |
 | 4 | `render/text/glyph_mask_atlas.go:63` | **DPR 量化验证**：确认已实现的 1/4px 量化（`SubpixelXQ2/YQ2`）在多 DPR 下图集不爆炸；**本项是验证，不是新做** |
 | 5 | `ui/rendering/text.go:740` `ellipsizeToWidth` | 省略号拟合改为基于前缀和的 **O(log n)** 定位，消除 O(n log n) 二分 |
-| 6 | `ui/embedder/input_router.go:413` `pushSurroundingForEditor`（行号复核，原记 424） | 去重键从「拼 4000 字节字符串」改为比对 `epoch`（`Editor` 已有单调计数） |
+| 6 | `ui/embedder/input_router.go:413` `pushSurroundingForEditor` | 去重键从「拼 4000 字节字符串」改为比对 `epoch`（`Editor` 已有单调计数） |
 | 7 | 全局 | **全场景矩阵回归**：§4 矩阵每项一个单测 + 一次真窗实测 |
 
 **⑤ 复杂度契约**：省略号 O(n log n) → **O(log n)**；IME 去重 O(n) → **O(1)**。
@@ -1025,7 +1025,7 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 - 像素断言：按 `UI_PIXEL_ASSERTION_STANDARD.md` F6（文字）+ F0（静态）+ F7（细线）选型，Golden **逐位回归**
 - 真窗：**新建** `ui_text_m5_anycase`（多脚本 + emoji + 富文本 + 多 DPR 同窗），A–J 全族
 - 真窗：`ui_text_edit_accept`（§5.6）**全部门禁达标**
-- **复杂度门禁总收口**：`BenchmarkKeystroke` N ∈ {1e3,1e4,1e5,1e6}，断言 **`T(1e6)/T(1e3) ≤ 1.5`**（G1 硬目标）
+- **复杂度门禁总收口**：`BenchmarkKeystroke` N ∈ {1e3,1e4,1e5,1e6}，断言 **`T(1e6)/T(1e3) ≤ 1.5`**（G1 硬目标；段长分布沿用 M1 第 ⑤ 项：短段/长段分别测 + 混合分布，不得单一段长冒充）
 - **Q4 迁移收口**：47 处 `Lines` 真下标访问已随 **M1-d5 删除字段**一并完成迁移。本期只做**核验**：确认全仓库无残留 `.Lines` 引用（`grep -rn "\.Lines" ui/ examples/ --include=*.go` 排除无关同名后应为 0），而非再做一次迁移
 
 **⑦ 熔断条件**
@@ -1096,7 +1096,7 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 
 **专属硬门禁**：
 
-> **族归属说明（对齐 `ENGINE_UI_WIDGET_RENDER.md` §2.2.1）**：A–J 是**既有指标族**，本窗另有 3 个**自定义指标**（`caret_vs_paint_max_delta_px`、`keystroke_p99_ms`、`ime_anchor_delta_px`），它们是**文本排版专项**，不属于任何既有族，**门禁阈值写在本窗 README**（符合该文档「阈值写在窗 README」的惯例）。特别说明：**J 族（正确性）在真源里是"构建/CI 防假绿"检查**（`ui` 不 import gpu、无 cgo、不降画质），**不含数值字段**——本文档早期曾把 `caret_vs_paint_max_delta_px` 误标为 J 族，已修正。
+> **族归属说明（对齐 `ENGINE_UI_WIDGET_RENDER.md` §2.2.1）**：A–J 是**既有指标族**，本窗另有 3 个**自定义指标**（`caret_vs_paint_max_delta_px`、`keystroke_p99_ms`、`ime_anchor_delta_px`），它们是**文本排版专项**，不属于任何既有族，**门禁阈值写在本窗 README**（符合该文档「阈值写在窗 README」的惯例）。特别说明：**J 族（正确性）在真源里是"构建/CI 防假绿"检查**（`ui` 不 import gpu、无 cgo、不降画质），**不含数值字段**。
 
 | 指标 | 阈值 | 族 |
 |---|---|---|
@@ -1109,7 +1109,7 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 | `rss_slope_kb_per_min` | **≤ 30000** | E |
 | `hitch_rate_per_min` | **≤ 5** | A |
 
-> **阈值自洽性复核（2026-09-02）**：
+> **阈值自洽性说明**：
 > - `keystroke_p99_ms ≤ 16` 与 `T(C)/T(B) ≤ 1.5` **合理且可达**——当前 29.09 ms / 11.04 是 O(n) 未优化的必然结果（5000→50000 字，字数 ×10 耗时 ×11，典型线性），**G1 达标后两个阈值自动满足**。这组阈值照着判**不会误判**。
 > - `interval_p95 ≤ 22` 与 `fps_interval ≥ 55` **互为补集、逻辑自洽**（1000/55 ≈ 18.2 ms，p95 放宽到 22 ms 是留长尾余量）。
 > - **§0 G1 的 `T(1e6)/T(1e3) ≤ 1.5` 与本表 `T(C)/T(B) ≤ 1.5` 是同一目标的两次抽样**（C/B = 5e4/5e3，是 1e6/1e3 区间的子集），**非两个独立门禁**——新会话不要当成两件事。
@@ -1121,8 +1121,8 @@ M1-d  面1 迁移（第 12 项）· **五小步 d1–d5**：
 - **F6（文字）**：每个输入框的文字包围盒内「非背景色像素数 ≥ 阈值」+ 主色占比；Golden 基线对比
 - **F0（静态）**：框体边框、背景精确点采样（容差 ≤8/通道）
 - **F7（细线）**：1.5px 光标条 —— 沿线段多点采样，「至少 N 点显著偏离背景」
-- **F1（平移动画 / 滚动）**（**复核补选**）：E/F 框含**滚动**形态，必须补。做法：从引擎 `scrollX/scrollY` **实时取 offset** 再采中心点，**禁止固定坐标采样**（固定坐标在滚动后会采到别的内容 → 假绿）
-- **F9（异步稳定）**（**复核补选**）：F 框「插入文字后重排」属异步稳定形态。做法：重排后**等待 ≥3 帧**再采样；且**前后双态各断言一次**（插入前/后都验）
+- **F1（平移动画 / 滚动）**：E/F 框含**滚动**形态，必须补。做法：从引擎 `scrollX/scrollY` **实时取 offset** 再采中心点，**禁止固定坐标采样**（固定坐标在滚动后会采到别的内容 → 假绿）
+- **F9（异步稳定）**：F 框「插入文字后重排」属异步稳定形态。做法：重排后**等待 ≥3 帧**再采样；且**前后双态各断言一次**（插入前/后都验）
 
 > **为什么补 F1/F9**：`UI_PIXEL_ASSERTION_STANDARD.md §7` 末句明写「本对照为最低集；**窗口实际包含超出此表的形态时，按 §2 矩阵补齐**」。本窗 E/F 区确实含滚动与回绕重排，属实打实的形态缺口——不补会在关窗时被 `metrics-audit` 判 FAIL。
 
@@ -1204,6 +1204,7 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 - [ ] `docs/RENDER_API_CATALOG.md` 已同步（若改了 render 公开面）
 - [ ] `docs/ENGINE_UI_WIDGET_RENDER.md §10` 修订表已追加一行
 - [ ] 回滚点已验证（按本期第 ⑧ 项实际执行一遍，确认上期功能仍完整）
+- [ ] 退化门禁已跑：`grep -rn "\.Lines" ui/ examples/ --include=*.go`（M1-d5 后应为 0）与 `grep -rn "RuneAdvance\|MeasureWidth" ui/rendering/ --include="*.go"`（caret/hit 路径逐字累加即红），两项均为红即 FAIL
 
 ---
 
@@ -1267,8 +1268,9 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 | 列表虚拟化 + 变高前缀和 | `ui/rendering/virtual_list.go` |
 | Damage 矩形上报 | `ui/scene/textured.go` → `pipeline_app.go` `TrackDamageRect` |
 | 断词/簇分段器 | `render/text/segment.go` |
-| **字体回退 run 切分** | `MultiFace.Runs()`（`render/text/multi.go:355`，带 `globalMultiFaceRunsCache`）— **重审实测确认已存在，M0 不必自研** |
-| **亚像素量化（1/4 px）** | `render/text/glyph_mask_atlas.go` `MakeGlyphMaskKey`（`SubpixelXQ2/YQ2`）— **重审发现已实现，M5 的「DPR 量化」实为验证而非新做** |
+| **字体回退 run 切分** | `MultiFace.Runs()`（`render/text/multi.go:355`，带 `globalMultiFaceRunsCache`）— 已存在，M0 不必自研 |
+| **字素簇分段（待引入，M1-c 随 `go.mod` 合入）** | `rivo/uniseg`（UAX#29 参考实现，见 §9.1 Q5；合入后补此行状态为已存在） |
+| **亚像素量化（1/4 px）** | `render/text/glyph_mask_atlas.go` `MakeGlyphMaskKey`（`SubpixelXQ2/YQ2`）— 已实现，M5 只做验证 |
 
 ### 8.2 真正缺失（本方案要补的）
 
@@ -1280,30 +1282,17 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 | 4 | 增量 undo | M3 | 替换全文快照 |
 | 5 | 纵向行虚拟化 + 懒测量 | M4 | 复用 `VirtualList` 范式 |
 | 6 | 簇边界 caret 吸附 | M1 | **部分已有**：`text_layout.go:470` `snapToGraphemeBoundary` 仅处理 UTF-8 续字节归位。M1 需**升级为 UAX#29 字素簇**并**扩展到全部 caret 路径**（`GetPositionForOffset`/上下键/`visual_move.go`），非「复用 `segment.go`」即可（`segment.go` 只做 script/bidi 分段，无字素簇能力） |
-| 7 | **script/bidi 分段叠加**（复核新增） | M0 | `MultiFace.Runs()` 只按「字形是否存在」切分，**不做 script/bidi 分段** → 阿拉伯文在 DejaVuSans 下有字形故不回退、但**不整形**（`Shape` 返 0 glyph，实测）。须在 `Runs()` 之上叠加 `segment.go` 分段 |
-| 8 | **`MaxLines` 布局侧截断**（复核新增） | M0 | 现状：`MaxLines` **仅绘制侧生效**（`text.go:631-634`），布局侧无截断 → 实测 2v12。属面 4，随单源修复一并解决 |
+| 7 | **script/bidi 分段叠加** | M0 | `MultiFace.Runs()` 只按「字形是否存在」切分，**不做 script/bidi 分段** → 阿拉伯文在 DejaVuSans 下有字形故不回退、但**不整形**（`Shape` 返 0 glyph）。须在 `Runs()` 之上叠加 `segment.go` 分段 |
+| 8 | **`MaxLines` 布局侧截断** | M0 | 现状：`MaxLines` **仅绘制侧生效**（`text.go:631-634`），布局侧无截断 → 2v12。属面 4，随单源修复一并解决 |
 | — | ~~字体回退 itemizer~~ | — | **降级为「接线 + 验证」**（`MultiFace.Runs` 已存在，约束 ③；但验证发现**需叠加 script/bidi 分段**，见上第 7 项） |
 | — | ~~DPR 亚像素量化~~ | — | **降级为「验证」**（图集 key 已含 1/4px 量化） |
 | — | ~~piece tree~~ | M3.5 | **降级为条件触发**（Q3 决策，实测拷贝非瓶颈） |
 
-**结论：这是补 20% 再组装，不是重写。** 重审后：原列 7 件缺失，其中 **2 件已由既有能力覆盖**（run 切分、DPR 量化），**1 件降级为条件触发**（piece tree）；复核再**新增 2 件**（script/bidi 分段叠加、`MaxLines` 布局侧截断）。实际必修 **8 件**。
+**结论：这是补 20% 再组装，不是重写。** 2 件已有能力覆盖（run 切分、DPR 量化），1 件条件触发（piece tree）；必修 **8 件**（含 script/bidi 分段叠加、`MaxLines` 布局侧截断）。
 
-### 8.3 重审修正记录（2026-09-02）
+### 8.3 修订过程记录（已搬出正文）
 
-| 原表述 | 修正后 | 依据 |
-|---|---|---|
-| M0「itemizer 自研」 | 改为「接线 + 验证」，`MultiFace.Runs` 已存在 | 约束 ③ 实测 |
-| M1「编辑第 K 行只作废第 K 行」 | 区分模式：不回绕=行缓存，回绕=**段缓存** | 约束 ② 实测 |
-| M1 未提及 `TextLayout.Lines` 公开面 | 补充：47 处直接下标访问，是最大回归风险 | 代码扫描（原记 29 为生产代码子集，口径不统一，已修正） |
-| M2 定位为「性能优化」 | 升级为**正确性前置**（依赖 M0 消除发散） | 约束 ① 实测 |
-| M5「DPR 量化」 | 降级为验证（图集 key 已量化 1/4px） | 代码核对 |
-| 缺失项 7 件 | 降为 6 件 | 上述合并 |
-| **单字量宽 8288 ns** | **稳态 ~430 ns**（复核：427/449 ns） | 复核重测，立项值为冷启动采样 |
-| **发散 173px/5000 字** | **976.6px/5000 字**（每字 0.195px） | 复核重测（DejaVuSans 16pt） |
-| **面4 2v4 / 10v1** | **2v12 / 11v1** | 复核重测 |
-| **约束③「只切 1 run」** | **混排切 6 run；但阿拉伯+拉丁只切 1 run** | 复核重测 |
-| **簇边界「按 rune 吸附」** | **已有 `snapToGraphemeBoundary` 但名不副实**（仅 UTF-8 续字节归位，且只在 1/3 条路径调用） | 代码核对 |
-| **面3 `Generation` 11 处引用** | **五处递增、零消费者读取** → 无兼容负担，纯设计风险 | 代码核对 |
+> 本节原对照表已搬到 `docs/ENGINE_TEXT_SCALE_CHANGELOG.md`（修订明细 + 8.3 原表）。正文只留当前结论，见 §8.2。
 
 ---
 
@@ -1314,14 +1303,14 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 | `MultiFace` 通路改动影响面大 | M0 阻塞 | 两种取法择优；公开行为零变化为硬约束，否则停 |
 | **像素 golden 变化** | M0 阻塞 | 整形通路切换是高风险改动；宁可退回逐字 fallback 也不接受静默画质变化 |
 | **面 1：`Lines` 139 处引用（47 真下标）迁移** | M1 工作量最大 | 拆四小步（d1–d4），d2 用老测试当独立裁判；d4 后拆门，不留兼容期 |
-| **🔴 M0「先慢后快」**（复核新增） | **修完击键反而更慢** | 当前 `MultiFace` 走 O(n) 兜底；修通整形后会进入**含 O(n²) 扫表的成功路径**（此前从未执行）。**对策**：M0 第 8 项与 `CaretXForCluster` 扫表消除**必须同时做**，新增 `BenchmarkCaretBuild` 门禁 + 熔断 |
-| **阿拉伯/复杂脚本不整形**（复核新增） | 阿拉伯、印度系等**显示错误**（`Shape` 返 0 glyph） | `MultiFace.Runs()` 只按字形有无切分、不做 script/bidi 分段 → 有字形的脚本不回退也不整形。M0 须叠加 `segment.go` 分段 |
+| **🔴 M0「先慢后快」** | **修完击键反而更慢** | 当前 `MultiFace` 走 O(n) 兜底；修通整形后会进入**含 O(n²) 扫表的成功路径**（此前从未执行）。**对策**：M0 第 8 项与 `CaretXForCluster` 扫表消除**必须同时做**，新增 `BenchmarkCaretBuild` 门禁 + 熔断 |
+| **阿拉伯/复杂脚本不整形** | 阿拉伯、印度系等**显示错误**（`Shape` 返 0 glyph） | `MultiFace.Runs()` 只按字形有无切分、不做 script/bidi 分段 → 有字形的脚本不回退也不整形。M0 须叠加 `segment.go` 分段 |
 | **面 2：`CaretForOffset`/`BoxesForRange` O(n²)** | **2 万行卡死（375ms/次）** | M1-a 专项去 O(n²)；`TestCaretForOffset_NoQuadratic_*` 等基准锁 |
 | **面 4：绘制侧与布局侧行不一致（存量 bug）** | **A1 单源纪律已破损** | M0 最先修；`TestDisplayLinesMatchLayout_*` 四场景锁 |
 | 簇边界改动影响现有 caret 单测 | M1 延期 | 可拆为 M1.5 独立做 |
 | **回绕模式段缓存设计不当 → O(n²) 复发** | M1/M4 返工 | M1 一次性把两种模式的缓存结构都设计好（§3.3 第 4 条）；复杂度门禁分模式各跑一遍 |
 | **M1-d2 老测试未全绿却改测试迁就实现** | 失去判错能力，光标错位难发现 | **硬约束**：d1 与 d2 之间禁止改任何测试文件；未全绿即熔断 |
-| 缺**高棉/藏文**字体（**复核更正**：泰/缅已有 `hint/testdata` 资产可复用） | M5 该两项无法验证 | **先盘点复用** `render/text/hint/testdata/`（已有泰文字体+字表、缅文字表、CJK/韩/拉丁/阿拉伯/梵文等），**仅高棉/藏文需新增**；新增字表须先落 `testdata/` 文件再写测试，禁止 range 生成 |
+| 缺**高棉/藏文**字体（泰/缅已有 `hint/testdata` 资产可复用） | M5 该两项无法验证 | **先盘点复用** `render/text/hint/testdata/`（已有泰文字体+字表、缅文字表、CJK/韩/拉丁/阿拉伯/梵文等），**仅高棉/藏文需新增**；新增字表须先落 `testdata/` 文件再写测试，禁止 range 生成 |
 | piece tree 引入新包增加维护面 | 长期 | **已押后为 M3.5 条件触发**（Q3）；未触发则不引入 |
 | 亚像素量化引入视觉抖动 | M5 | **量化已实现**，本项为验证；需 Golden 逐位对比 + 多 DPR 真窗目检 |
 | **M6 验收主窗自身性能不达标** | 项目无法收口 | M0–M5 每期都跑一次该窗记录趋势，早暴露而非最后才发现 |
@@ -1333,14 +1322,15 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 
 ## 9.1 已拍板决策（用户确认 · 2026-09-02）
 
-| # | 决策 | 已选 | 落地位置（**编号已复核校准**） |
+| # | 决策 | 已选 | 落地位置 |
 |---|---|---|---|
-| **Q1** | 约束 ① 对策 | **C · 按 run 批量整形 + 批量绘制**，绘制用 `glyph.X`（与布局同源） | **M0 第 8–10 项**（run 切分 + 绘制用 `glyph.X`）+ **M2**（批量化落地）。⚠️ 原记「M0 第 5–7 项」（那是 advance 缓存）为**编号错误，已修正** |
-| **Q2** | 回绕缓存粒度 | **段缓存**（以 `\n` 分段，编辑只作废所在段） | **M1 第 9 项**（双模式布局缓存：不回绕行缓存 / 回绕段缓存）。⚠️ 原记「M1 第 2 项」（那是 `BoxesForRange` 去 O(n²)）为**编号错误，已修正** |
+| **Q1** | 约束 ① 对策 | **C · 按 run 批量整形 + 批量绘制**，绘制用 `glyph.X`（与布局同源） | **M0 第 8–10 项**（run 切分 + 绘制用 `glyph.X`）+ **M2**（批量化落地） |
+| **Q2** | 回绕缓存粒度 | **段缓存**（以 `\n` 分段，编辑只作废所在段） | **M1 第 9 项**（双模式布局缓存：不回绕行缓存 / 回绕段缓存） |
 | **Q3** | piece tree | **押后**——M3 只做增量 undo，piece tree 降为 **M3.5 条件触发** | M3 / M3.5 |
-| **Q4** | `Lines` 公开面 | **加惰性 API + 拆旧字段**（分 d1–d5 五小步，不留兼容期） | **M1 第 12 项**（面 1 迁移，含 d1–d5）。⚠️ 原记「M1 第 8 项」（那是 `LineTop`/`LineHeight` 行高前缀和）为**编号错误，已修正** |
+| **Q4** | `Lines` 公开面 | **加惰性 API + 拆旧字段**（分 d1–d5 五小步，不留兼容期） | **M1 第 12 项**（面 1 迁移，含 d1–d5） |
+| **Q5** | 字素簇依赖（M1 第 11 项开工前必须先定；默认 A，待用户最终确认） | **A · 引入 `rivo/uniseg`**（UAX#29 参考实现；`go.mod` 新增 1 个第三方依赖，单独一个提交；同步补 §8.1 家底表一行） | **M1 第 11 项**（M1-c）。备选 B 自研最小集 / C 降级到 M1.5（本期只做续字节归位覆盖 4 条路径）。选 A 后 `go.mod` 变更与 M1-c 代码变更**分两个提交**，先合依赖、再合实现 |
 
-> **⚠️ 编号漂移提示**：Q1/Q2/Q4 的落地位置编号在早期版本中曾写错（分别记为 M0 第 5–7 项、M1 第 2 项、M1 第 8 项），本次已按 M0/M1 实际改动清单逐条核对校准。**若后续调整 M0/M1 改动项编号，必须同步回来改这张表**——这是跨期引用的高危点。
+> **⚠️ 编号提示**：Q1/Q2/Q4 的落地位置曾写错过，**已按 M0/M1 实际改动清单校准**。**若后续调整 M0/M1 改动项编号，必须同步回来改这张表**——这是跨期引用的高危点。Q5 落地 M1 第 11 项，同样受本条约束。
 
 ### Q1-C 的连带影响（必须遵守）
 选 C 后 **M2 不能再独立于 M0 评估**。执行顺序锁定为 `M0 → M1 → M2`：
@@ -1364,7 +1354,7 @@ M1-d5  删除 .Lines 字段，老门拆掉
        —— 全部在 M1 内完成，不跨期、不留兼容期
 ```
 
-> **编号统一说明**：M1-d 为 **d1–d5 五小步**（d4 = 示例迁移、d5 = 删字段）。早期版本曾写作「d1–d4 四小步」（当时把示例迁移排在 M2，d4 直接删字段）；因删字段会让 23 处示例编译失败，示例迁移已并入 M1，故**统一为五小步**。本文档此后一律用 d1–d5。
+> **编号说明**：M1-d 为 **d1–d5 五小步**（d4 = 示例迁移、d5 = 删字段）。本文档一律用 d1–d5。
 
 **为什么 d2 不能省**：这 13 个测试（10 个 `text_layout_r2_test.go` + 3 个 `r1_selftest_visual_test.go`）验证的是**行为契约**（caret X 往返差 ≤0.5px、混排不劈簇、HiDPI 对齐、省略号不进 caret），不是 API 形态。若 d1 与测试改写同时进行，**运动员（实现）与裁判（测试）同时换人**，比分失去意义——光标偏 2px 这类错在 5000 字框里肉眼根本看不出来。
 
@@ -1413,141 +1403,18 @@ M1-d5  删除 .Lines 字段，老门拆掉
 
 | 版本 | 说明 |
 |---|---|
-| 立项 | 2026-09-02 · 基于 `ui_wr_ime_r*` 实测卡顿（排版占 86%、其中 76% 为单字量宽）立项；定 M0–M5 六期，硬目标 G1–G6；否决「按可见窗口整形」方案（正确性优先，改为整行整形+提交裁剪） |
-| 重审 | 2026-09-02 · 补做三组探针实测（临时代码已删，仓库零改动），新增 §3.5 三条硬约束 + §9.1 四项待沟通决策。**约束①** 绘制 `snapPen` 逐字取整累加 vs 布局浮点累加，5000 字发散 **173px** → M2 由「性能优化」升级为「正确性前置」，必须在 M0 打通批量整形后实施。**约束②** 回绕模式下编辑会级联作废后续所有行（实测改首行后 L1 由 `[35,71)` 变 `[30,62)`）→ M1 原「只作废第 K 行」表述不成立，改为**按模式分：不回绕=行缓存，回绕=段缓存**，复杂度门禁分模式各跑。**约束③** `MultiFace.Runs()` 已存在且带软缓存 → M0 的 itemizer 由「自研」降为「接线+验证」，但实测 `Runs("Hello世界abc你好")` 只切 1 run，需补缺字场景回归锁。另发现 `glyph_mask_atlas.go` 已实现 1/4px 亚像素量化 → M5 的 DPR 量化降为验证项。**新增最大风险项**：`TextLayout.Lines` 被 29 处直接下标访问，懒视图改造是 M1 最大回归风险，已加 `TestTextLayout_LinesIndexable_*` 逐字节对照锁 + 全量物化兼容开关降级路径。缺失项由 7 件降为 6 件。 |
-| 决策落定 + 分期细化 | 2026-09-02 · **四项决策用户确认**：Q1 选 **C**（按 run 批量整形+批量绘制，用 `glyph.X`）、Q2 选**段缓存**、Q3 **piece tree 押后为 M3.5 条件触发**（M3 只做增量 undo）、Q4 选**惰性 API + 旧字段 deprecated 分阶段迁移**。据此新增：① **§5.6 M6 验收主窗 `ui_text_edit_accept`**——真实**单行 + 多行**输入框，6 个场景区（A 单行短/B 单行 5000/C 单行 50000/D 多行短/E 多行 1e5 字 2000 行/F 多行回绕），人工 5 步 + 自动探针双轨，专属硬门禁 8 项（含 `caret_vs_paint_max_delta_px ≤ 2`、`T(C框)/T(B框) ≤ 1.5` 作为 **G1 主证据**），F0+F6+F7 像素断言；② **§9.2 新会话接手规范**——每期条目必须含九项（目标/前置依赖/背景根因/**精确到文件:行号的改动清单**/复杂度契约/验收清单/熔断/回滚/交接说明）+ 开工五步法 + 文档自洽性要求，确保**每期可由全新会话独立接手**；③ **§3.2.1 跨期不变量 I1–I6**（`glyph.X` 单源、缓存失效粒度、裁剪只影响提交范围、undo 只存增量、懒测量估算值、禁逐字 RuneAdvance），降级链标注对应不变量；④ **§0 新增硬目标 G7（新会话可接手）、G8（最终验收是真实输入框）**；⑤ M0–M5 各期条目全部按九项规范重写，改动清单精确到文件:行号。M3 范围收窄为「仅增量 undo」，复杂度契约表同步修正（插入/删除 O(log n) 移至 M3.5）。 |
-| 全量问题纳入 + 分期重排 | 2026-09-02 · **用户质疑「只提 Lines，其它呢」→ 补测确认受影响的是四个面，非仅一个**。新增 **§3.6 全量问题清单**：**面1** 字段暴露（139 处引用，47 真下标 / 80 判空 / 19 遍历，其中 15 处主路径）；**面2** 方法内部全表遍历（**实测 2 万行 `CaretForOffset` 374.8ms、`BoxesForRange` 365.3ms，均 O(n²)**——根因 `CaretForOffset` 外层 `for i:=range l.Lines` 内调 `LineTop(i)`(O(i))、`BoxesForRange` 扫全表+行内线性找 X；**纯实现问题，与外部调用无关，此前方案严重低估**）；**面3** `Generation` 全局自增无法表达按行失效；**面4** 绘制侧平行实现（`DisplayLines()` 走 `wrapLines()/estimateWrapLines()`，与 `TextLayout` 非同一路径）——**实测确认两个存量 bug：MaxLines+Ellipsis 下绘制 2 行 vs 布局 4 行、无 Face 估算路径下绘制 10 行 vs 布局 1 行（点击第 5 行光标全落第 1 行），A1 单源纪律当前即已破损**。据此重排分期：**M0 增加面 4 单源修复为最先任务**（改动清单扩为 10 项，执行顺序「先 1–3 面4，再 4–10」）；**M1 重排为 M1-a/b/c/d 四步**——a 面2 去 O(n²)（第 1–4 项）、b 行索引+前缀和+缓存（第 5–10 项）、c 簇边界（第 11 项）、**d 面1 迁移四小步（d1 生产换新留脚手架 → d2 13 个老测试一行不改写跑一遍当独立裁判 → d3 老测试改新 API 断言不动 → d4 删 `.Lines` 拆门，全部在 M1 内完成不留兼容期）**。新增不变量 **I7**（绘制侧必须从 TextLayout 派生）、**I8**（CaretForOffset/BoxesForRange/LineTop 禁全表遍历）、**I9**（Generation 为按行失效标记）。复杂度契约表补三行 O(n²)→O(log n)。§4 场景矩阵补「行数规模」「单源一致性」两维。§7.1 降级链补三条。§9 风险表补五项。Q4 由「选项 3 分阶段兼容」升级为「**选项 4 · 先绿后拆**」（老测试当一次独立裁判，用完即拆，不留兼容期）；原 `TestTextLayout_LinesIndexable_*` 改为 `TestLegacyLinesContract_*`（仅 M1-d2 阶段有效，d4 后随字段删除）。 |
-| 终审收敛 | 2026-09-02 · 全文档通读校验，修正 10 处不一致：① **§2.1 CPU profile 数值缺失**（原始粘贴丢列）→ 补全 flat/flat%/cum%/cum 四列并加读法说明；② **§3.5 约束① 仍写「三选一待拍板」** → 改为已决策状态（Q1 选 C，划掉 A/B）；③ **§3.1 分层图**仍写 `piece tree`/`itemize`（均已变更）→ 重画为 L0–L7 + 旁挂 P1/P2，标注建立阶段与调用方向；④ **§3.3 硬分界**由三条增为四条，新增「回绕与不回绕是两套缓存结构，不是开关」；⑤ **§0 G1** 阶段标注（`M2 收口 ≤3`）与实际门禁不符 → 改为分档 **M1 收口 ≤5 / M5 总收口 ≤1.5**；⑥ **§4 场景矩阵**补充「M6 对应区」列 + DPR 改为「已实现·验证项」+ 新增「长度维度阶段分工」说明（原表误列 M3）；⑦ **§7.3 回滚**逐期写实（原只写 3 行且与 M3.5 决策不符）；⑧ **§7.4 并发**补充引用来源（IME 需求文档 §8 C1/C4）+ 懒测量的跨线程约束；⑨ **§8.2 缺失项**改表格并标注 2 件已覆盖/1 件条件触发；⑩ **§6.4 收口清单**位置错放（孤立于 §5.6 与 §6 之间）→ 移入 §6 下并补全（新增 M6 趋势记录、I1–I6 校验、按第⑧项实跑回滚）。另 §9 风险表新增「M6 自身不达标」「新会话误读」两项，§9.1 决策落地位置改为指向改动清单编号。 |
-| **实证复核 · 收敛** | 2026-09-02 · **把文档每条关键论断拿回当前代码重跑探针复验**（探针已删，仓库零改动）。共修正 **12 处**。逐条明细见 **§11.0**；此处只记结论与影响：<br>**结论：方案主干（四个面的认定、`M0→M5` 分期、G1–G8 硬目标、Q1–Q4 决策）全部成立，无一条被推翻。** 被修正的是**数值精度**（2 项）、**行号**（4 处）、**能力现状**（3 项）；**新增发现 3 处缺口**（script/bidi 分段、`MaxLines` 布局侧截断、面2 第三处 O(n²)）；**新增 1 项风险**（M0「先慢后快」）。<br>**对施工的影响**：M0 基准门禁放宽（≤250ns 且 P99 不劣化）、M0 第 8 项须与 O(n²) 消除同时做、M0 新增 `TestShapeNonEmpty_MultiFace_*` 与 `BenchmarkCaretBuild`、M0 需叠加 `segment.go` 分段、M1 新增第 13 项（面2 第三处 O(n²)）与簇边界范围扩大、§8.2 缺失项 6→8 件。 |
-| **可开工性校验 · 新会话视角** | 2026-09-02 · **以「新会话只读当期条目」的视角逐期走查**，补齐 5 处会让人卡住的地方：<br>**① 🔴 阻塞项：`ui_text_edit_accept` 不存在**，却被 M0–M5 每期引用 → 已新增 **M0-pre 前置任务**（M0 第 ② 项）。<br>**② 新增 §6.3.1 真窗生命周期表**（8 个窗的状态/建于/被谁用）。<br>**③ 新增「面 4 落地要点」**：`TextLayout` 缺 `MaxLines`/`Ellipsis`/无 Face 回绕三样能力（绘制侧都有）→ 不能靠删绘制侧实现，给出三方案选型 + 写死判据。<br>**④ 修正 M0 第 1 项描述**。<br>**⑤ M5 的 `ui_text_m5_anycase` 补标「新建」**。<br>校验结果：7 期九项规范全齐；行号 56 处中 55 通过；M0 的 8 个新测试均不存在 = 符合红灯起步；编译与基线绿灯。 |
-| **五 agent 并行分类核验 · 合成** | 2026-09-02 · **开 5 个子 agent 分维度并行全量核验**（事实 / 数值 / 可开工性 / 纪律合规 / 结构收敛），结果统一合成。共修正 **26 处**，其中 **5 处为阻塞级**（不修就做错或卡死）：<br>**🔴 阻塞级 5 处**：(a) **`Generation`「零消费者」结论被推翻**——实测有 2 处消费者（`TestTextLayout_Generation` 断言全局递增、`ui_wr_ime_r2_textlayout:307`），原方案「直接改语义」会**让 M1-d2 的裁判测试变红 → d2 熔断，且崩因是文档给错情报**。已改为「保留 `Generation` 自增语义不动，**另增**按行失效字段」，I9 同步更正。(b) **M0 第 9 项改错地方**：`snapPen` 属 CPU 光栅兜底，**不在验收路径上**（主路径 `text.go:905` 已走 `DrawShapedGlyphs` → GPU，直接取 `glyph.X`）；对策 C 的实质是「让 MultiFace 也走通批量路径」，而非改 `snapPen`。已加路径要点。(c) **M0 第 8 项删错分支**：`buildCaretsForLine` 有两条兜底，`:170-188`（`face==nil`）**必须保留**——M1-d2 的 3 个老测试正是用 nil face 跑的，删了会**在 M0 阶段就拆掉 M1 的裁判体系**。已加要点区分。(d) **M1 第 11 项依赖未声明**：升级 UAX#29 字素簇**仓库无实现、需引入 `rivo/uniseg` 或自研**，原文档只字未提 → 新会话做到这里必卡死。已补三选项决策表（推荐引入 `rivo/uniseg`，建议记为 Q5）。(e) **M1 前置依赖指向错误编号**：原写「M0 第 5–7 项」（实为 advance 缓存），真正前置是**第 8、9–10 项** → 照错编号验收会漏掉正确性前置。<br>**🟡 重要修正 8 处**：Q1/Q2/Q4 落地位置编号**三个全错**（Q1 应 M0 第 8–10 项、Q2 应 M1 第 9 项、Q4 应 M1 第 12 项）；M1-d 步骤数统一为 **d1–d5 五小步**（§9.1 曾写四小步）；老测试括号 **11+3→10+3**；新增 **A1/A5 术语定义**（原悬空未定义）；M5「字段进入移除评估」改为「核验已随 M1-d5 删除」；行号 3 处落到注释行上（`input_box.go:494` 应为 `ui_wr_ime_r1_editor:494`、`text.go:897-899` 应为 901、`text.go:899` 应为 902）；§9.1 的 11+3 与 M1 主条目 10+3 打架。<br>**🟢 纪律与规范 6 处**：像素断言**补选 F1（滚动）+ F9（异步稳定）**（原只 F0+F6+F7，漏形态，会判 FAIL）+ 补 Golden/理论色容差声明；场景文案加「禁进 `ui/` 引擎层」护栏 + 提醒 M0 补 Ellipsis 须沿用 `textEllipsis` 常量 + `SetOverflow` 模式；**M5 字体盘点更正**（泰/缅字表字体**已存在**于 `hint/testdata`，真正缺的只有高棉+藏文）；真窗命名加定位声明（非 R/C 窗但自愿按 `ui_wr_*` 全套标准）+ 与 `ui_textinput_ime` 划清职责边界；表头「专属四项」→「专属八项」；`caret_vs_paint_max_delta_px` 等 3 个自定义指标加族归属说明（真源 J 族无数值字段）。<br>**📐 结构优化 1 处**：新增**「读法三档」**（最小开工 / 完整开工 / 全盘理解）——实测新会话按原读法开工 M2 需读 462 行（34%），最小档压到 **120–180 行（≈10–13%）**，§3 目标架构 260 行改为按需回查。<br>**核验规模**：事实 agent 全量核 **89 处行号 + 33 个符号 + 55 个路径 + 38 个测试名**；纪律 agent 逐条比对 **A–J 全族 8 项阈值**（与真源逐字一致，0 错误）；可开工 agent **7 期 × 6 维度**全走查；**数值 agent（补跑完成）复验 22 项数值论断**。<br>**🔬 数值维度 7 处修正（最后一个维度，补跑后合成）**：(a) **🔴 §2.1 A 表缺口径标注 → 单 face 慢 14.9 倍**：同 5000 rune 中英混排语料，`MultiFace` 2.290 ms 而 **`singleFace` 34.057 ms**（我已独立复现：2.290 / 34.057）。机制：`MultiFace` 因 `Shape` 返 0 glyph 走 **O(n) 兜底**，`singleFace` 走成功路径的 `CaretXForCluster` **O(n²) 扫表**（实测占其总耗时 98%）。**这直接印证 M0「先慢后快」熔断不是纸上风险——修通整形后 5000 字会从 2.29 ms 跳到 ~34 ms（慢 15 倍）**。已补 A-2 对照表 + 机制说明。(b) **🔴 `duffcopy` 归因错误（证据撤回）**：原称「undo 全量快照拷贝」，实测 `pprof -peek` 显示调用方是 `RuneAdvance`/`glyphForRune`（量宽链）；**对照实验决定性**——只跑 Editor 编辑 3000 次不触排版，profile 中 duffcopy/memmove **恒为 0**。根因⑥ 该证据撤回，改用「100 份快照常驻 18.54 MB」实测。(c) **根因⑥「每次编辑全量拷贝」表述不准确**：`pushHistory` 是纯 append，实测 **0.10–0.12 µs 且与文档长度无关**（Go string 只拷 header）；真成本是**内存常驻**而非编辑耗时。(d) **Q3 数值偏快 2 倍**：1e5/1e6 拼接实测 **70 µs / 240 µs**（原记 10/100 µs）。**决策保住**（240 µs 相对排版 2350 µs 仅占 10%，远未到 M3.5 的 30% 触发线），但数字改准以防将来误判触发时机。(e) **`ellipsizeToWidth` 实为 O(n) 非 O(n log n)**：`ell/一次Measure` 比值在 n=1e3→1e6 恒为 8.0–8.7× 不随 n 增长；M5 改前缀和后收益**比原写的更大**。(f) **「5000 字已卡」论据偏强**：2.64 ms 仅占一帧 16.7 ms 的 **15.8%**，不足以支撑"卡"。已补量化分级表——真正卡的是 **20000 字 68%** / **50000 字 174%（超一帧）**；**建议改用「50000 字超一帧 1.7 倍」或「单 face 5000 字 34 ms」这两个更硬的数当论据**。(g) **`100k 字 = 10MB` 仅在纯 ASCII 口径成立**（9.54 MB）；中英混排实测 **18.5 MB**，已注明口径。<br>**✅ 数值维度验证通过项（给人信心）**：`InputBox.Sync` 5000 字 2.68 ms → 实测 **2.64 ms**（高度吻合，A 表最准的数）；profile 两占比（`buildCaretsForLine` 86.44%→实测 87.93%、`RuneAdvance` 链 76.27%→实测 72.41%）**双双成立**；§3.2 契约表三行 O(n) 标注**全部准确**（×10 行数 → 耗时 ×10~12）；`CaretForOffset` 374.9 ms / `BoxesForRange` 380.x ms **第三轮独立复现**；M6 的 `≤16ms` 与 `T(C)/T(B)≤1.5` 两阈值**自洽且可达**（当前 29.09 / 11.04，G1 达标后自动满足，照着判不会误判）。<br>**⚠️ 明确未验证的 5 项**：`interval_p95_ms`、`fps_interval`、`hitch_rate_per_min`、`rss_slope_kb_per_min`、`caret_vs_paint_max_delta_px` —— 均需 `ui_text_edit_accept` 窗（**尚未创建**）+ GPU 环境，**未用估算值冒充实测**，待 M0-pre 建窗后补测。<br>**最终校验**：行号 69 处中 68 通过（唯一"越界"为修订表历史对照，应保留）；7 期九项规范 0 缺失；`ui/`+`render/` 编译通过、基线测试绿灯；**代码零改动**，探针已全部清理。 |
+| 立项 | 2026-09-02 · 文本越长输入越卡，排版占 86%；定 M0–M5 六期与 G1–G8；整行整形 + 提交裁剪。 |
+| 重审 | 2026-09-02 · 补三条硬约束（发散 976.6px/5000 字、回绕级联作废、`Runs` 已存在但缺 script/bidi 分段）与 Q1–Q4 决策；M2 转为正确性前置。 |
+| 决策落定 + 分期细化 | 2026-09-02 · Q1 选 C、Q2 段缓存、Q3 piece tree 押后 M3.5、Q4 惰性 API + 拆旧字段；新增 M6 验收主窗、§9.2 接手规范、I1–I6、G7/G8；M0–M5 按九项规范重写。 |
+| 全量问题纳入 + 分期重排 | 2026-09-02 · 四个面全纳入：M0 先修面 4；M1 分 a/b/c/d 四步；新增 I7/I8/I9（I9 以 §3.2.1 为准：`Generation` 保持全局自增）；Q4 升级为先绿后拆。 |
+| 终审收敛 | 2026-09-02 · 通读校准行号、G1 分档、§7.3 回滚写实等 10 处；§9 补两项风险。 |
+| **实证复核 · 收敛** | 2026-09-02 · 关键论断全部重跑探针复验，主干无一被推翻；当前值：量宽 ~430ns/字、发散 976.6px/5000 字、面 4 为 2v12/11v1、面 2 两处 O(n²) 确认、新增 M0 先慢后快风险。明细见变更记录。 |
+| **可开工性校验 · 新会话视角** | 2026-09-02 · 新会话视角走查：补 M0-pre 前置建窗任务、§6.3.1 生命周期表、面 4 落地要点。 |
+| **五 agent 并行分类核验 · 合成** | 2026-09-02 · 五维度并行核验：`Generation` 保留语义另增字段、M0 第 8/9 项路径要点、M1 第 11 项补依赖决策（Q5）、前置编号校准、数值维度复验 22 项。明细见变更记录。 |
+| **七坑收敛** | 2026-09-03 · 落 7 处实现尾巴：① M1 ⑨ I9 改回以 §3.2.1 为准（`Generation` 保持全局自增，另用新字段；同步修正 `TestGeneration_PerLine_*` 断言口径）；② §9.1 新增 Q5（字素簇依赖默认 A · `rivo/uniseg`，`go.mod` 单独提交，M1-c 开工前最终确认；同步补 §8.1 待引入行）；③ M0 第 8 项加同提交硬锁（通整形 + 消扫表同一提交合入、同一基准验证，⑦熔断 + ⑧回滚同步耦合）；④ 补相交合并规则（`Runs` 区间 × script/bidi 区间取相交，RTL 视觉序重排）+ `TestIntersectRuns_*`；⑤ M0 第 1 项落点写死（`TextLayout` 新增 `MaxLines` + `Overflow/Ellipsis`，单串/多 run 统一算截断、布局侧落省略号字形并排除 caret）；⑥ 门禁补段长分布（短段 ≤200 字 / 长段 ≥5000 字 + 混合分布）与缓存 key 规则（advance 与布局缓存 key 必须含 hinting/variations）；⑦ 加退化门禁（`grep RuneAdvance\|MeasureWidth` 即红，同步进 M1 ⑥ 与 §6.4 收口清单）。主干（四面认定、M0→M5 分期、G1–G8、Q1–Q4）不动。 |
 
 ---
 
-## 11. 校验记录
+## 11. 校验记录（明细见变更记录）
 
-### 11.0 实证复核（2026-09-02 · 本文档最重要的一次校验）
-
-> 与 §11.1 的「文档自洽性校验」不同，本节记录的是**把文档里的每条关键论断拿回当前代码重新跑一遍**的结果。所有探针为临时代码，**已全部删除，仓库零改动**（`git status` 仅本文档）。
-
-| # | 论断 | 立项/重审记录 | 复核实测 | 判定 |
-|---|---|---|---|---|
-| 1 | `MultiFace.Source()` 返 nil → `Shape` 返 0 glyph | 是 | **确认**：`Shape(MultiFace)=0`，`Shape(单face)=12` | ✅ 成立 |
-| 2 | 单字量宽 `RuneAdvance` 成本 | 8288 ns | **~430 ns**（单 face 427 / MultiFace 449） | ❌ **修正**（差 19×，立项为冷启动值） |
-| 3 | 绘制/布局位置发散（5000 字） | 173 px | **976.6 px**（每字 0.195px，线性） | ❌ **修正**（实测量级更严重 5.6×） |
-| 4 | 回绕下编辑级联作废后续行 | L1 `[35,71)`→`[30,62)` | **逐字复现** | ✅ 成立 |
-| 5 | 不回绕下行隔离成立 | 差值 0.000000 | **确认**：170.593750 vs 170.593750 | ✅ 成立 |
-| 6 | `CaretForOffset` O(n²)（2 万行） | 374.8 ms | **365.9 ms**；行数×10 → 耗时×100 | ✅ 成立 |
-| 7 | `BoxesForRange` O(n²)（2 万行） | 365.3 ms | **377.6 ms**；同上 | ✅ 成立 |
-| 8 | 面4 单源破损 | 2v4 / 10v1 | **2v12 / 11v1**（更严重） | ❌ **修正**（数值）+ ✅ 成立 |
-| 9 | 约束③ `Runs()` 只切 1 run | 1 run | **6 run**（混排）；**1 run**（阿拉伯+拉丁） | ❌ **修正**（混排切分正常，阿拉伯才是缺口） |
-| 10 | caret 按 rune 吸附（无簇） | 无簇支持 | **部分有**：`snapToGraphemeBoundary` 仅 UTF-8 续字节归位，且只在 1/3 路径调用 | ⚠️ **状态修正** |
-| 11 | `Generation` 被广泛依赖 | 11 处引用 | **5 处递增、生产代码 0 处消费；但有 2 处测试/真窗消费**（`TestTextLayout_Generation`、`ui_wr_ime_r2_textlayout:307`） | ⚠️ **性质修正**：早期判为「零消费者、无兼容负担」**错误**，第三轮已推翻，见 §3.6 面 3 |
-| 12 | 面1 `.Lines` 引用规模 | 139 / 47（另处写 29） | **139 / 47**（剔除 `render/` 无关同名 155 处） | ⚠️ **口径统一** |
-| 13 | **§2.1 A 表口径**（新增维度） | 未标注 | **MultiFace 2.290 ms / singleFace 34.057 ms（慢 14.9×）**；机制：MultiFace 走 O(n) 兜底、singleFace 走 O(n²) 扫表（占其 98%） | ❌ **补口径**（不标会严重低估 M0 收益） |
-| 14 | `InputBox.Sync` 5000 字 | 2.68 ms | **2.64 ms** | ✅ **高度吻合**（A 表最准的数） |
-| 15 | profile：`buildCaretsForLine` cum | 86.44% | **87.93%** | ✅ 成立 |
-| 16 | profile：`RuneAdvance` 链 cum | 76.27% | **72.41%** | ✅ 成立 |
-| 17 | `duffcopy` 来源 | undo 全量快照 | **量宽链**（`RuneAdvance`/`glyphForRune`）；只跑 Editor 不触排版时 duffcopy **恒为 0** | ❌ **归因错误，证据撤回** |
-| 18 | Q3：1e5 / 1e6 拷贝 | ~10 µs / ~100 µs | **~70 µs / ~240 µs**（偏快 2 倍+） | ❌ **修正**（但决策保住：240µs 仅占排版 10%，未到 30% 触发线） |
-| 19 | `ellipsizeToWidth` 复杂度 | O(n log n) | **O(n)**（`ell/一次Measure` 恒 8.0–8.7× 不随 n 增长） | ❌ **修正**（M5 收益比原写更大） |
-| 20 | 「5000 字已卡」 | 定性"卡" | 2.64 ms = 一帧 16.7 ms 的 **15.8%**，**不足以支撑"卡"**；20000 字 68%、50000 字 **174%** | ⚠️ **论据强度校准** |
-| 21 | undo 内存：100k 字 | 10 MB | 纯 ASCII 9.54 MB ✅；中英混排 **18.5 MB** | ⚠️ **补口径**（结论不变且偏保守） |
-| 22 | §3.2 契约表 `LineTop`/`GetOffsetForCaret`/`GetPositionForOffset` 标 O(n) | O(n) | ×10 行数 → 耗时 **×9.5~12.2**，标准线性 | ✅ **标注准确** |
-| 23 | M6 阈值 `keystroke_p99≤16` / `T(C)/T(B)≤1.5` | 阈值合理性 | 当前 29.09 ms / 11.04（O(n) 未优化的必然），**G1 达标后自动满足** | ✅ **合理可达，照判不误判** |
-| 24 | `interval_p95`/`fps_interval`/`hitch_rate`/`rss_slope`/`caret_vs_paint_max_delta_px` | 5 项阈值 | **未验证**——需 `ui_text_edit_accept` 窗（尚未建）+ GPU 环境 | ⚠️ **未用估算冒充实测** |
-
-**复核总结论**：方案主干（四个面的认定、`M0→M1→M2→M3(/M3.5)→M4→M5` 分期、G1–G8 硬目标、Q1–Q4 决策）**全部成立，无一条被推翻**。被修正的是**数值精度**（5 项）、**若干行号**（4 处）、**能力现状**（3 项）与**证据归因**（1 项）；**新增发现 3 处缺口**（script/bidi 分段、`MaxLines` 布局侧截断、面2 第三处 O(n²)）。
-
-> **📌 唯一由数值复核"反向印证"的施工风险（最重要的一条）**：第 13 项实测——**`singleFace`（即 M0 修通后的成功路径）5000 字已达 34 ms，是 `MultiFace`（当前路径）2.29 ms 的 14.9 倍**。这意味着 M0 修通 `MultiFace` 整形后，代码会从 O(n) 兜底切到 O(n²) 成功路径，**造成一次真实的 15 倍性能回退**。
-> **这不是推测，是实测**。因此 M0 第 8 项（通整形）与 `CaretXForCluster` 扫表消除**必须同时做**，且 `BenchmarkCaretBuild` 熔断**必须设**。详见 M0 第 ⑤ 项与 ⑦ 熔断。
-
-### 11.0.1 可开工性校验（新会话视角 · 2026-09-02，第三轮由 5 个 agent 并行重跑）
-
-> 校验问题：**一个没有任何上下文的新会话，只读当期条目，能不能直接开工？**
-
-**第三轮（5 agent 并行）结论：可以开工，但必须先看三处新增的"要点"提示**——M0 第 8 项、第 9–10 项、M1 第 11 项，这三处照字面做都会做错或卡死，已各自加了实现路径说明。
-
-| 校验项 | 结果 |
-|---|---|
-| **各期九项规范齐全** | ✅ 机器核验：M0/M1/M2/M3/M3.5/M4/M5 共 **7 期，全部 9/9 齐全** |
-| **各期改动清单精确到文件:行号** | ✅ 无「重构排版层」类模糊描述 |
-| **各期熔断/回滚本期完整重写** | ✅ 无「见上期」 |
-| **本期要用的真窗是否存在** | ⚠️ **发现阻塞**：`ui_text_edit_accept` 被 M0–M5 每期引用但**不存在** → 已补 **M0-pre** 前置任务 + §6.3.1 生命周期表 |
-| **改动清单是否可执行（不隐藏坑）** | ⚠️ **发现坑**：M0 第 1 项「从 `TextLayout` 派生」隐含 `TextLayout` 缺 3 项能力 → 已补「面 4 落地要点」+ 三方案选型 |
-| **红灯起步条件** | ✅ M0 要求的 8 个新测试/基准**均不存在**，符合「先写失败测试」 |
-| **基线可跑** | ✅ `go test ./ui/rendering/ -count=1` 绿灯；`ui/`+`render/`+`examples/` 编译通过 |
-
-### 11.1 文档自洽性校验（复核后重跑）
-
-| 校验项 | 结果 |
-|---|---|
-| 章节顺序（§0→§11） | ✅ 连续无跳号、无重复 |
-| 分期条目九项规范 | ✅ M0/M1/M2/M3/M3.5/M4/M5 共 **7 期**齐全（7 个「①本期目标」+ 7 个「⑨交接说明」） |
-| 引用的代码行号 | ✅ **复核后全部校准**。已修正：`draw.go:452`→435、`text.go:908`→855(Paint)、`text.go:946`→945(cullGlyphs)、`input_router.go:424`→413、`text_layout.go` 区间 `241-258`→241-260 / `396-450`→396-453 / `501`→500 / `599`→597。核对无误：`multi.go:164/355`、`shaped.go:125`、`editor.go:144`、`text.go:603/665/740`、`text_layout.go:138/154`、`paragraph.go:255` |
-| 决策一致性 | ✅ Q1–Q4 在 §3.5 / §9.1 / 各期条目中表述一致，无残留「待拍板」 |
-| 阶段编号一致性 | ✅ M3.5 条件触发、M6 非施工期，在 §0/§3.2/§4/§5/§7.3 中表述统一 |
-| **四个面覆盖** | ✅ 面1(M1-d) / 面2(M1-a + 第13项) / 面3(M1 第10项) / 面4(M0 第1–3项) **全部纳入分期** |
-| **数值口径统一** | ✅ `.Lines` 全文档统一为 139/47（已剔除 `render/` 下无关同名 155 处）；发散/量宽/单源/复杂度均统一为复核值 |
-| 代码改动 | ✅ **零改动**（本轮仅文档；`git status` 仅本文档） |
-| 探针清理 | ✅ 全部临时探针已删（`zz_verify/` 包已移除，仓库无残留） |
-
-### 11.2 补测数据存档（2026-09-02，临时探针已删）
-
-**第一轮（立项/重审阶段）**
-
-| 探针 | 结论 | 落入 |
-|---|---|---|
-| 绘制 vs 布局位置发散 | 5000 字偏 **173px**（逐字 `snapPen` 取整累加 vs 浮点累加） | §3.5 约束①（**复核修正为 976.6px**） |
-| 回绕下编辑级联作废 | 改首行后 L1 由 `[35,71)` 变 `[30,62)` | §3.5 约束② |
-| `MultiFace.Runs()` 能力 | 已存在；"Hello世界abc你好" 只切 1 run | §3.5 约束③（**复核修正为 6 run**） |
-| 各 API 复杂度（2 万行） | `CaretForOffset` **374.8ms**、`BoxesForRange` **365.3ms**；其余 O(n) | §3.6 面2 |
-| 单源一致性 | MaxLines 2v4、无 Face 10v1 **不一致**；回绕/多 run 一致 | §3.6 面4（**复核修正为 2v12 / 11v1**） |
-
-**第二轮（实证复核阶段 · 原始输出）**
-
-```
-# MultiFace 整形通路（DejaVuSans 16pt）
-MultiFace.Source()==nil ? true
-Shape(MultiFace) glyphs = 0          ← 根因① 确认
-Shape(singleFace) glyphs = 12
-MultiFace.Runs("Hello世界abc你好") = 6
-  run0 "Hello"  run1 "世"  run2 "界"  run3 "abc"  run4 "你"  run5 "好"
-MultiFace.Runs("مرحبا بالعالم hello") = 1   ← script/bidi 分段缺口
-Shape(arabic) glyphs = 0
-
-# 单字量宽（1000 字混排 "a世界b"×200，稳态）
-RuneAdvance[singleFace]: 427.0 ns/call
-RuneAdvance[MultiFace]:  448.6 ns/call
-MultiFace.Advance(1000 字整串): 0.2746 ms
-
-# 绘制/布局发散（"a"×N，DejaVuSans 16pt）
-n=  100  layoutEnd=  980.469  snapPen= 1000.000  delta= 19.531  perChar=0.1953
-n= 1000  layoutEnd= 9804.688  snapPen=10000.000  delta=195.312  perChar=0.1953
-n= 5000  layoutEnd=49023.438  snapPen=50000.000  delta=976.562  perChar=0.1953
-
-# 复杂度（每行 ≈36 字节，10 次调用均值）
-CaretForOffset n=  201  0.0306 ms   lines=201
-CaretForOffset n= 2001  3.1425 ms   lines=2001
-CaretForOffset n=20001  365.9292 ms lines=20001
-BoxesForRange  n=  201  0.0728 ms
-BoxesForRange  n= 2001  3.7848 ms
-BoxesForRange  n=20001  377.6219 ms
-
-# 回绕级联（MaxWidth=300）
-BEFORE L0[0,35) "The quick brown fox jumps over the "
-       L1[35,71) "lazy dog and then keeps running far "
-       L2[71,75) "away"
-AFTER  L0[0,30) "INSERTED_WORD The quick brown "
-       L1[30,62) "fox jumps over the lazy dog and "
-       L2[62,89) "then keeps running far away"
-
-# 不回绕行隔离
-full L1 width=170.593750  solo width=170.593750  delta=0.000000
-
-# 单源一致性（147 字符长句）
-[MaxLines=2+Ellipsis] DisplayLines=2   TextLayout.Lines=12   *** MISMATCH ***
-[NoFace estimate]     DisplayLines=11  TextLayout.Lines=1    *** MISMATCH ***
-[Wrap MaxWidth=300]   DisplayLines=4   TextLayout.Lines=4    content match OK
-[NoWrap single]       DisplayLines=1   TextLayout.Lines=1    content match OK
-```
+> 过程证据已搬到 `docs/ENGINE_TEXT_SCALE_CHANGELOG.md`（修订明细、复核对照表、探针原始输出）。结论一句话：关键论断全部重跑复验，主干无一被推翻；动手只看正文各节的当前值。
