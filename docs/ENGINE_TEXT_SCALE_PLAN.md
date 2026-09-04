@@ -1343,6 +1343,9 @@ BenchmarkKeystroke/1e5    T = 0.10 ms
 | 亚像素量化引入视觉抖动 | M5 | **量化已实现**，本项为验证；需 Golden 逐位对比 + 多 DPR 真窗目检 |
 | **M6 验收主窗自身性能不达标** | 项目无法收口 | M0–M5 每期都跑一次该窗记录趋势，早暴露而非最后才发现 |
 | **新会话误读分期导致返工** | 任一期内耗 | §9.2 九项规范 + §3.2.1 跨期不变量；每期改动清单精确到文件:行号 |
+| **整形路径长文击键仍超线性（M5 遗留）** | G1 整形口径 | 窗侧抽样（整形全重建）：1k→100k 比值 128–174×。G1 门禁（增量口径）已达标；若未来以整形口径立门禁，需先做行级整形缓存或重估 M3.5 |
+| **完整彩色图集 GPU 通道未建（M5 遗留）** | emoji 画质/性能 | M5 只做到 mask 旁路 + 字符串彩色路；COLR/CBDT 独立 GPU 图集通道需新立项（含 `render/` 公开面 + apidoc）。**CBDT 实测（2026-09-04，真机）**：NotoColorEmoji 进链先崩（`DrawWithEmoji` 对无 Source 脸无 guard，已修 + 回归锁），修完仍整段回退（19 万 fallback、hitch、CPU 127%）且空白——CPU 逐帧兜底此路不通，已回退 |
+| **M5 GPU 真窗未验（M5 遗留）** | 收口完整性 | ~~`ui_text_m5_anycase` A–J 全族 + Golden + F6/F0/F7、`ui_text_edit_accept` 全绿，需 GPU 环境补跑~~ **已补（2026-09-04，真机）**：m5 窗三跑 fps≈58.8/p95≈17.4/hitch 0/零回退，Golden 两跑 0px，F6 四区有墨、F0 一致；accept 60s 除 C 框 `keystroke_p99`（存量设计）外全绿。剩余：accept Golden 相对 M0 基线差 1.0%（散布字形抗锯齿级，基线过期，待专立刷新项）；B 区 emoji 端到端彩色像素（缺链内彩色字体） |
 
 **遗留（本期不做）**：协同编辑/CRDT、RTL 特殊布局（DeleteSurrounding 按逻辑序已处理）、IME 自绘候选窗。
 
@@ -1440,6 +1443,7 @@ M1-d5  删除 .Lines 字段，老门拆掉
 | **可开工性校验 · 新会话视角** | 2026-09-02 · 新会话视角走查：补 M0-pre 前置建窗任务、§6.3.1 生命周期表、面 4 落地要点。 |
 | **五 agent 并行分类核验 · 合成** | 2026-09-02 · 五维度并行核验：`Generation` 保留语义另增字段、M0 第 8/9 项路径要点、M1 第 11 项补依赖决策（Q5）、前置编号校准、数值维度复验 22 项。明细见变更记录。 |
 | **七坑收敛** | 2026-09-03 · 落 7 处实现尾巴：① M1 ⑨ I9 改回以 §3.2.1 为准（`Generation` 保持全局自增，另用新字段；同步修正 `TestGeneration_PerLine_*` 断言口径）；② §9.1 新增 Q5（字素簇依赖默认 A · `rivo/uniseg`，`go.mod` 单独提交，M1-c 开工前最终确认；同步补 §8.1 待引入行）；③ M0 第 8 项加同提交硬锁（通整形 + 消扫表同一提交合入、同一基准验证，⑦熔断 + ⑧回滚同步耦合）；④ 补相交合并规则（`Runs` 区间 × script/bidi 区间取相交，RTL 视觉序重排）+ `TestIntersectRuns_*`；⑤ M0 第 1 项落点写死（`TextLayout` 新增 `MaxLines` + `Overflow/Ellipsis`，单串/多 run 统一算截断、布局侧落省略号字形并排除 caret）；⑥ 门禁补段长分布（短段 ≤200 字 / 长段 ≥5000 字 + 混合分布）与缓存 key 规则（advance 与布局缓存 key 必须含 hinting/variations）；⑦ 加退化门禁（`grep RuneAdvance\|MeasureWidth` 即红，同步进 M1 ⑥ 与 §6.4 收口清单）。主干（四面认定、M0→M5 分期、G1–G8、Q1–Q4）不动。 |
+| **M5 收口** | 2026-09-04 · 七项落地（CPU 侧）：① `LineGlyphRun`/`TextRun`/`displaySpan` 增 `IsColor`，`emoji.Segment` 检测，`paintCompositeRuns` 彩色分区绕开 mask 批量（`SubmittedMaskGlyphEstimate` 观测）；② 富文本行盒核实已是最大语义，零改动加锁；③ `khmer_all.txt`（128）+`tibetan_all.txt`（256）字表与整形单测；④ DPR 量化验证（16 键不爆炸）；⑤ `ellipsizeWithPrefix`（一次前缀构建+O(log n) 定位+常数次校验）；⑥ 去重键改 `Editor.Epoch` 比对（`lastSurr` 删除）；⑦ 矩阵 9 行单测齐。G1 `T(1e6)/T(1e3)`=0.92/1.19/1.25 ✅。真窗 `ui_text_m5_anycase` 新建并取改前基线。遗留见 §9（整形路径长文击键超线性、GPU 窗未验、彩色图集通道未建）。 |
 
 ---
 

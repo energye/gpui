@@ -23,7 +23,12 @@ func DrawWithEmoji(dst draw.Image, text string, face Face, x, y float64, col col
 		return
 	}
 
-	// Check if the font has color tables.
+	// Check if the font has color tables (MultiFace composites and sourceless
+	// faces have no single parsed font: fall back to standard rendering).
+	if face.Source() == nil {
+		Draw(dst, text, face, x, y, col)
+		return
+	}
 	parsed := face.Source().Parsed()
 	colorFont, hasColor := parsed.(ColorFont)
 

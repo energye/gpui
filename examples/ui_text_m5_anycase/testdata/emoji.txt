@@ -1,0 +1,5 @@
+Emoji ZWJ: 👨‍👩‍👧 family sequence
+Emoji modifier: 👋🏽 thumbs 👍🏿 party 🎉
+Mixed: hello 🌍 世界 مرحبا 🎉 test
+Flags-stub: US GB JP (regional indicators render as letters without emoji font)
+Combining: é å ö ñ (e+U0301 a+U030A o+U0308 n+U0303)

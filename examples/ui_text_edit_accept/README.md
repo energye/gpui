@@ -113,6 +113,27 @@ M3 补丁（2026-09-03，`ui/textinput/editor.go`）：`pushDelta` 对存入历�
 M3 稳态复测（2026-09-04，同一台真窗机，`GPUI_ACCEPT_RUN_SECONDS=60` 实测非估算）：`fps_interval` 57.7 / `interval_p95_ms` 19.9 / `hitch_rate_per_min` 0 / `cpu_fallback_ops` 0 / `caret_vs_paint_max_delta_px` 0 全达标；`rss_slope_kb_per_min` 8895 ≤ 30000 ✅（rss 130→319MB，仍含一次性图集填充，斜率口径已排除首段预热尖峰）；`keystroke_p99_ms` 117.8 同 M2 备注非 M3 门禁。
 M3.5 触发数据（同尺寸对照，`face==nil` 估算路径）：1e3 下拼接 11.4µs / 排版 98.6µs（拷贝约占 10%），1e5 下拼接 711µs / 排版 28.2ms（拷贝约占 2.5%），均远低于 30% 触发线 → M3.5 条件一不触发。
 
+## M5 收口（2026-09-04，CPU headless，`GPUI_ACCEPT_SELFTEST=1`）
+
+- `caret_vs_paint_max_delta_px` 821.5：headless 旧逐字模型复述值（M0-pre 同口径），不代表回退；真实一致性见 `TestPaintUsesShapedX_MultiFaceBulk` 与 `TestCaretMatchesPaint_M1`。
+- `layout_ms_p99` 7.24 / `keystroke_p99_ms` 5.47（B 框 5000 字整形全重建口径；增量口径见 `TestKeystrokeRatio_M5`）。
+- `paint_ms_p99` / `scroll_fps` / GPU 全族：见下 M5-GPU 行（已补跑）。
+
+## M5-GPU（2026-09-04，真机，30s 与 60s）
+
+| 指标 | 30s | 60s | 门禁 | 判定 |
+|---|---|---|---|---|
+| `fps_interval` | 59.37 | 59.19 | ≥ 55 | ✅ |
+| `interval_p95_ms` | 16.99 | 17.01 | ≤ 22 | ✅ |
+| `hitch_rate_per_min` | 0 | 0 | ≤ 5 | ✅ |
+| `cpu_fallback_ops` | 0 | 0 | == 0 | ✅ |
+| `bulk_taken` | true | true | — | ✅ |
+| `caret_vs_paint_max_delta_px`（布局提交侧） | 0 | 0 | ≤ 2 | ✅ |
+| `rss_slope_kb_per_min` | 41199 | 5175 | ≤ 30000 | 30s 含预热超，60s 稳态 ✅（与 M3 同口径注释） |
+| `keystroke_p99_ms` @C（50000 字整行重排） | 64.5 | 77.1 | ≤ 16 | ❌ 存量设计（§3.4 整行整形），增量口径由 `TestKeystrokeRatio_M5` 守 |
+
+像素：快照 `/tmp/accept_m5.png` 目检六区正常出字；与 M0 基线逐位差 1.0%（遮动态条后），差异为散布单字形抗锯齿级、无移位无缺字（差异图 `/tmp/accept_diffmap.png`）；M0 基线早于 M1–M4 提交路变更且从未刷新，本窗未覆盖写（原因已记，待专立 golden 刷新项）。
+
 ## 未验证清单
 
 - 像素墨迹与布局的对照：B 框截图已量出 3242 墨点、左缘在框内 +3px（内边距），与布局一致；全框逐字对照待补。

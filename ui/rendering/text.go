@@ -169,6 +169,11 @@ func (t *RenderText) SetRuns(runs []TextRun) {
 	}
 	cp := make([]TextRun, len(runs))
 	copy(cp, runs)
+	for i := range cp {
+		if !cp[i].IsColor && isColorText(cp[i].Text) {
+			cp[i].IsColor = true
+		}
+	}
 	t.Runs = cp
 	var b strings.Builder
 	for i, r := range cp {
@@ -736,22 +741,59 @@ func ellipsizeToWidth(s string, maxW float64, t *RenderText) string {
 	for strings.HasSuffix(string(runes), textEllipsis) {
 		runes = runes[:len(runes)-utf8.RuneCountInString(textEllipsis)]
 	}
-	lo, hi := 0, len(runes)
-	best := textEllipsis
-	if t.measureLine(best) > maxW {
+	return ellipsizeWithPrefix(runes, maxW, t)
+}
+
+// runePrefixWidths builds cumulative advance in one O(n) pass so the ellipsis
+// locator probes in O(log n) instead of re-measuring whole prefixes
+// (O(n log n) shaped work). Estimate path is exact; shaped path sums cached
+// per-rune advances and the caller verifies the fixed point with real
+// measures, so results match the old search byte-for-byte.
+func (t *RenderText) runePrefixWidths(runes []rune) []float64 {
+	prefix := make([]float64, len(runes)+1)
+	if face := t.effectiveFace(); face != nil {
+		for i, r := range runes {
+			prefix[i+1] = prefix[i] + text.RuneAdvance(face, r)
+		}
+		return prefix
+	}
+	w := t.fontSize() * t.approxCharW()
+	for i := range runes {
+		prefix[i+1] = prefix[i] + w
+	}
+	return prefix
+}
+
+// ellipsizeWithPrefix returns the longest runes[:k]+ellipsis fitting maxW.
+// Probes are O(log n) prefix lookups; at most a constant number of real
+// measures verify/adjust the fixed point (shaping is not purely additive).
+func ellipsizeWithPrefix(runes []rune, maxW float64, t *RenderText) string {
+	ellW := t.measureLine(textEllipsis)
+	if ellW > maxW {
 		return ""
 	}
+	prefix := t.runePrefixWidths(runes)
+	lo, hi := 0, len(runes)
+	best := 0
 	for lo <= hi {
 		mid := (lo + hi) / 2
-		cand := string(runes[:mid]) + textEllipsis
-		if t.measureLine(cand) <= maxW {
-			best = cand
+		if prefix[mid]+ellW <= maxW {
+			best = mid
 			lo = mid + 1
 		} else {
 			hi = mid - 1
 		}
 	}
-	return best
+	widthOf := func(k int) float64 {
+		return t.measureLine(string(runes[:k]) + textEllipsis)
+	}
+	for best < len(runes) && widthOf(best+1) <= maxW {
+		best++
+	}
+	for best > 0 && widthOf(best) > maxW {
+		best--
+	}
+	return string(runes[:best]) + textEllipsis
 }
 
 func clipToWidth(s string, maxW float64, t *RenderText) string {
@@ -888,7 +930,7 @@ func (t *RenderText) Paint(pc *PaintContext) {
 						}
 						ax, ay := pc.Abs(0, y)
 						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
-					} else if t.paintCompositeRuns(pc, lay, i, y) {
+					} else if t.paintCompositeRuns(pc, lay, i, y, line) {
 						// M2 composite batch submitted per-face partitions.
 					} else if face.Source() == nil {
 						// M1-13: byteOff→X一次建表后O(1)查,不再每字线性扫Carets.
@@ -941,7 +983,7 @@ func (t *RenderText) Paint(pc *PaintContext) {
 // its own origin and submitted at ax+offset — final positions are identical,
 // only the representation changes. Skipping the rebase stacks every run at
 // the line start (Latin over CJK).
-func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, row int, y float64) bool {
+func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, row int, y float64, line string) bool {
 	if !lay.LineBulkRoutable(row) {
 		return false
 	}
@@ -950,6 +992,31 @@ func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, row i
 	cullLo, cullHi, cull := t.hCullWindow(lay.LineCount(), len(glyphs))
 	for _, r := range runs {
 		part := glyphs[r.Start:r.End]
+		if r.IsColor {
+			// M5: color runs bypass the mask batch entirely (never stuffed
+			// into the mask atlas). Drawn via the string color path at the
+			// run's glyph.X origin with the run's own face (saved/restored
+			// around the draw); off-screen parts are GPU-clipped, so no
+			// glyph-window culling here (positions unchanged, I1/I3 hold).
+			if pc.DC != nil && line != "" && r.TextStart < r.TextEnd &&
+				r.TextStart >= 0 && r.TextEnd <= len(line) && len(part) > 0 {
+				ax, ay := pc.Abs(part[0].X, y)
+				a := t.A
+				if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
+					a = 1
+				}
+				saved := pc.DC.Font()
+				if r.Face != nil {
+					pc.DC.SetFont(r.Face)
+				}
+				pc.DC.SetRGBA(t.R, t.G, t.B, a)
+				pc.DC.DrawString(line[r.TextStart:r.TextEnd], ax, ay)
+				if saved != nil {
+					pc.DC.SetFont(saved)
+				}
+			}
+			continue
+		}
 		if cull {
 			s, e := cullRangeForWindow(part, cullLo, cullHi)
 			part = part[s:e]
@@ -1026,6 +1093,66 @@ func (t *RenderText) SubmittedGlyphEstimate() int {
 			continue
 		}
 		total += len(glyphs)
+	}
+	return total
+}
+
+// SubmittedMaskGlyphEstimate mirrors SubmittedGlyphEstimate but excludes
+// IsColor runs: the glyphs that would enter the mask atlas (M5 color
+// observability). Color runs paint via the string color path and must not
+// be counted as mask load.
+func (t *RenderText) SubmittedMaskGlyphEstimate() int {
+	if t == nil {
+		return 0
+	}
+	if t.hasRuns() {
+		// Rich runs paint per-span via the string path, never the mask
+		// batch: mask load is zero by construction.
+		return 0
+	}
+	lay := t.ensureLayout()
+	if lay == nil {
+		return 0
+	}
+	lines := t.DisplayLines()
+	if len(lines) == 0 {
+		return 0
+	}
+	rowLo, rowHi := 0, lay.LineCount()
+	if t.hasViewportHintY && lay.LineCount() > 0 {
+		rowLo, rowHi = visibleRowBandOf(lay, t.viewportScrollY, t.viewportHeight)
+	}
+	total := 0
+	for i := rowLo; i < rowHi && i < len(lines); i++ {
+		if lines[i] == "" {
+			continue
+		}
+		glyphs := lay.LineGlyphs(i)
+		mask := func(s, e int) int {
+			n := 0
+			for _, r := range lay.LineGlyphRuns(i) {
+				if r.IsColor {
+					continue
+				}
+				lo, hi := r.Start, r.End
+				if lo < s {
+					lo = s
+				}
+				if hi > e {
+					hi = e
+				}
+				if hi > lo {
+					n += hi - lo
+				}
+			}
+			return n
+		}
+		if cullLo, cullHi, ok := t.hCullWindow(lay.LineCount(), len(glyphs)); ok {
+			s, e := cullRangeForWindow(glyphs, cullLo, cullHi)
+			total += mask(s, e)
+			continue
+		}
+		total += mask(0, len(glyphs))
 	}
 	return total
 }

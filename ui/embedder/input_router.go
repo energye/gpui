@@ -67,7 +67,8 @@ type InputRouter struct {
 	// method (observed: engine switching stopped responding). Enable
 	// deliberately when a target needs context-aware IME features.
 	SurroundingUpdates bool
-	lastSurr           string // dedupe key of the last surrounding push ("text\x00cursor")
+	lastSurrEpoch      uint64 // epoch of the last surrounding push (M5: O(1) dedupe)
+	lastSurrValid      bool   // false until the first push of the session
 	hasAnchor          bool   // lastAnchor valid?
 	lastAnchor         platform.Rect
 	// delta tracking (R3)
@@ -252,7 +253,7 @@ func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
 		return
 	}
 	r.session = next
-	r.lastSurr = "" // new session must push fresh surrounding state
+	r.lastSurrValid = false // new session must push fresh surrounding state
 	r.hasAnchor = false
 	if next != nil && next.Editor() != nil {
 		ed := next.Editor()
@@ -420,15 +421,20 @@ func (r *InputRouter) pushSurroundingForEditor(ime platform.IME, ed *textinput.E
 		}
 	}
 	text, cursor := ed.Snapshot()
-	trText, trCur := textinput.TruncateSurrounding(text, cursor)
-	key := fmt.Sprintf("%s\x00%d", trText, trCur)
+	// M5: dedupe on the Editor epoch (monotonic per edit, O(1)) instead of
+	// building the 4000-byte surrounding key string (O(n)) on every push.
+	ep := ed.Epoch()
 	r.mu.Lock()
-	same := key == r.lastSurr
-	r.lastSurr = key
-	r.mu.Unlock()
-	if same {
+	if r.lastSurrValid && ep == r.lastSurrEpoch {
+		r.mu.Unlock()
 		return
 	}
+	r.mu.Unlock()
+	trText, trCur := textinput.TruncateSurrounding(text, cursor)
+	r.mu.Lock()
+	r.lastSurrEpoch = ep
+	r.lastSurrValid = true
+	r.mu.Unlock()
 	ime.SetComposing(trText, trCur)
 }
 

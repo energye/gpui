@@ -16,6 +16,10 @@ type TextRun struct {
 	FontSize    float64 // 0 → inherit parent FontSize
 	R, G, B, A  float64
 	ApproxCharW float64 // 0 → inherit parent
+	// IsColor marks color-glyph runs (emoji): they paint via the string
+	// color path and never enter the mask batch (M5). Auto-detected in
+	// AddRun/SetRuns; an explicit true is never cleared.
+	IsColor bool
 	// Decoration is a render.TextDecoration bitset (underline etc.); 0 = none.
 	Decoration render.TextDecoration
 }
@@ -122,6 +126,9 @@ func (b *ParagraphBuilder) AddRun(run TextRun) *ParagraphBuilder {
 	if run.Text == "" {
 		return b
 	}
+	if !run.IsColor && isColorText(run.Text) {
+		run.IsColor = true
+	}
 	b.runs = append(b.runs, run)
 	return b
 }
@@ -188,6 +195,7 @@ type displaySpan struct {
 	ApproxCharW float64
 	X           float64
 	Width       float64
+	IsColor     bool // carried from TextRun (M5 color-glyph marking)
 	Decoration  render.TextDecoration
 }
 
@@ -336,7 +344,7 @@ func (t *RenderText) layoutRunLines() []displayLine {
 				cur.Spans = append(cur.Spans, displaySpan{
 					Text: chunk, Face: t.runFace(run), FontSize: t.runFontSize(run),
 					R: rr, G: gg, B: bb, A: a, ApproxCharW: t.runApprox(run),
-					X: x, Width: w, Decoration: run.Decoration,
+					X: x, Width: w, IsColor: run.IsColor, Decoration: run.Decoration,
 				})
 				x += w
 				remain = rest

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/render/text/emoji"
 )
 
 // GlyphCaret is one pen boundary between glyphs.
@@ -38,6 +39,25 @@ type TextLayoutLine struct {
 type LineGlyphRun struct {
 	Face       text.Face
 	Start, End int
+	// IsColor marks color-glyph runs (emoji): Paint must NOT submit them
+	// through the mask batch (DrawShapedGlyphs) but through the string
+	// color path. TextStart/TextEnd is the run's byte range in the line.
+	IsColor            bool
+	TextStart, TextEnd int
+}
+
+// isColorText reports whether s holds an emoji-presentation sequence
+// (M5 color-glyph detection, via render/text/emoji segmenter).
+func isColorText(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range emoji.Segment(s) {
+		if r.IsEmoji {
+			return true
+		}
+	}
+	return false
 }
 
 // TextLayout is the single source for paint + queries.
@@ -676,7 +696,8 @@ func buildShapedCarets(line string, runs []itemizedRun) ([]GlyphCaret, float64, 
 		}
 		gstart := len(glyphs)
 		glyphs = append(glyphs, g...)
-		gruns = append(gruns, LineGlyphRun{Face: r.face, Start: gstart, End: len(glyphs)})
+		gruns = append(gruns, LineGlyphRun{Face: r.face, Start: gstart, End: len(glyphs),
+			IsColor: isColorText(seg), TextStart: r.start, TextEnd: r.end})
 		cursor = end
 		runeBase += utf8.RuneCountInString(seg)
 	}
