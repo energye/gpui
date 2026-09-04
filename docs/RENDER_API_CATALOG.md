@@ -20,7 +20,7 @@
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
 | `render`（主包） | 类型 95 · 顶层函数 112 · Context 导出方法 183 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
-| `render/text` | 包级导出 240（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
+| `render/text` | 包级导出 241（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`、+1 `SegmentReuse`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
 | `render/surface` | 顶层 53 | 🔌 无消费者 | surface 抽象（ImageSurface/GPUSurface）+ 注册表，未接入 render.Context |
@@ -224,11 +224,12 @@
 
 ## 6. 子包目录
 
-### 6.1 render/text（包级导出 239）
+### 6.1 render/text（包级导出 240）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
 | 字体与文件 | `RegisterParser/FontSource/FontSourceID/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…`、`MultiFace`（`AtSize`/`WithHinting` 等导出方法） | 字体解析器注册、字体源身份、字体文件加载、多字体链重建（尺寸/渲染选项保留）、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
 | 整形 | `Shape/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
+| 分段 | `SegmentText/SegmentTextRTL/SegmentReuse/Segment/BuiltinSegmenter/DetectScript` | 双向/脚本分段（UAX#9）与单行击键增量前后缀复用（`SegmentReuse`：`ui/rendering` 单行行内复用经单行分段缓存调用，`render/text/segment_reuse_test.go` 等价锁 + 真窗 `ui_text_m5_anycase` 已验） | 脚本双向分段 | 🔗 |
 | 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText/RuneAdvance` | 字形到目标图像的绘制（含别名/emoji）、文本度量；`RuneAdvance` 为单字形无分配推进（P7 5000 视口） | 字形绘制 | 🔗 |
 | 度量/量化 | `Quantize/QuantizePoint/SubpixelMode/SubpixelConfig` | 子像素量化（LCD/AA 的次像素定位） | 子像素量化 | 🔗 |
 | 缓存 | `ClearShapeResultCache/ClearMultiFaceRunsCache/ClearAutoHintCache/ClearFontScanFallbackCache/ResetShapeResultCacheStats` | 各缓存清理与统计复位（整形/多面/自动 hint/字体扫描） | 缓存管理 | 🔗 |
@@ -236,7 +237,7 @@
 | 特性/角色 | `FontRole/FontFeature/TabularNums/AxisWeight/DefaultMultiFontRoleChain/UnicodeRange/RangeBasicLatin/IsCJK/IsPunctuation/IsWhitespace…` | 字体角色链、OpenType 特性、Unicode 区间/分类判定 | 字体特性/分类 | 🔗 |
 | 错误/变量 | `ErrCFF2Unsupported/ErrUnsupportedFontType/…`、`DefaultTabWidth` 等 | 字体/格式错误、制表符宽默认 | 错误/常量 | — |
 
-> 完整 239 项请以 `go doc ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行）。
+> 完整 240 项请以 `go doc ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行）。
 
 ### 6.2 render/scene（顶层 143）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
@@ -443,7 +444,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ## 11. 附录：子包顶层符号完整清单（机器生成，go doc 2026-08-15）
 
-> 本附录由 `go doc ./render/{scene,recording,surface,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 239 项改以 `go doc ./render/text` 为准（正文 §6.1 族级归纳）。
+> 本附录由 `go doc ./render/{scene,recording,surface,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 240 项改以 `go doc ./render/text` 为准（正文 §6.1 族级归纳）。
 
 ```text
 scene      const DefaultMaxSizeMB = 64 ...

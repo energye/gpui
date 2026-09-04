@@ -31,6 +31,11 @@ type layoutCache struct {
 	seed maphash.Seed
 	// live是增量更新的常驻状态(RenderText接线用,见layout_update.go).
 	live layoutLive
+	// segLine/segSegs是单行复用的上次分段(仅长单行行内复用命中时维护):
+	// SegmentReuse 需上次分段做前后缀复用,恒与 live.text 对齐(对不上即
+	// 现场全量重建一种子,下次击键起增量).多行/短行不用,不占内存.
+	segLine string
+	segSegs []text.Segment
 }
 
 type cacheKey struct {

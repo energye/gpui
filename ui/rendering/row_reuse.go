@@ -22,7 +22,16 @@ func runeBoundary(s string, i int) bool {
 // tryReuseShapedRow重建单个非回绕整形行。oldRow 数组永不改动,
 // 结果与 oldRow 无共享。reused=false 时调用方全量重建。
 func tryReuseShapedRow(oldRow TextLayoutLine, oldLine, newLine string, face text.Face, lh float64) (TextLayoutLine, bool) {
-	fail := func() (TextLayoutLine, bool) { return TextLayoutLine{}, false }
+	row, _, ok := tryReuseShapedRowSegs(oldRow, oldLine, nil, newLine, face, lh)
+	return row, ok
+}
+
+// tryReuseShapedRowSegs同上，但用调用方缓存的上次分段增量得到新分段
+// （`render/text.SegmentReuse` 前后缀复用），免整行 SegmentText。
+// oldSegs 为空时退化为全量分段；返回的 newSegs 与本次 newLine 对应，
+// 调用方缓存后供下次击键复用。
+func tryReuseShapedRowSegs(oldRow TextLayoutLine, oldLine string, oldSegs []text.Segment, newLine string, face text.Face, lh float64) (TextLayoutLine, []text.Segment, bool) {
+	fail := func() (TextLayoutLine, []text.Segment, bool) { return TextLayoutLine{}, nil, false }
 	if face == nil || strings.IndexByte(oldLine, '\n') >= 0 || strings.IndexByte(newLine, '\n') >= 0 {
 		return fail()
 	}
@@ -38,11 +47,17 @@ func tryReuseShapedRow(oldRow TextLayoutLine, oldLine, newLine string, face text
 			return fail()
 		}
 	}
-	newRuns := itemizeRuns(newLine, face)
+	oldA, oldB, newA, newB := diffSpan(oldLine, newLine)
+	var newSegs []text.Segment
+	if len(oldSegs) == 0 {
+		newSegs = text.SegmentText(newLine)
+	} else {
+		newSegs = text.SegmentReuse(oldLine, oldSegs, newLine, oldA, oldB, newA, newB)
+	}
+	newRuns := itemizeRunsWithSegs(newLine, face, newSegs)
 	if len(newRuns) == 0 {
 		return fail()
 	}
-	oldA, oldB, newA, newB := diffSpan(oldLine, newLine)
 	// 前缀 run:成对一致且完全落在公共前缀内。
 	pre := 0
 	for pre < len(gruns) && pre < len(newRuns) {
@@ -215,7 +230,27 @@ func tryReuseShapedRow(oldRow TextLayoutLine, oldLine, newLine string, face text
 		StartByte: 0, EndByte: len(newLine),
 		Carets: newCarets, Width: oldRow.Width + shiftX, Height: lh,
 		Glyphs: newGlyphs, GlyphRuns: newGruns, runRTL: newRTL,
-	}, true
+	}, newSegs, true
+}
+
+// tryReuseCachedRow是单行快径的分段缓存外壳:segSegs 恒对应旧行文本,
+// 对不上(首建/回退后)现场全量一种子,命中后增量分段并滚动缓存。
+func (c *layoutCache) tryReuseCachedRow(oldRow TextLayoutLine, oldLine, newLine string, face text.Face, lh float64) (TextLayoutLine, []text.Segment, bool) {
+	fail := func() (TextLayoutLine, []text.Segment, bool) { return TextLayoutLine{}, nil, false }
+	if c.segLine != oldLine || len(c.segSegs) == 0 {
+		c.segSegs = text.SegmentText(oldLine)
+		c.segLine = oldLine
+		if len(c.segSegs) == 0 {
+			return fail()
+		}
+	}
+	row, newSegs, ok := tryReuseShapedRowSegs(oldRow, oldLine, c.segSegs, newLine, face, lh)
+	if !ok || len(newSegs) == 0 {
+		c.segLine = ""
+		c.segSegs = nil
+		return fail()
+	}
+	return row, newSegs, true
 }
 
 // reuseSingleRow是 patchRows 单行快径:整篇单行且够长时走行内复用,
@@ -234,10 +269,11 @@ func (c *layoutCache) reuseSingleRow(textStr string, parts []hardPart, lo, hi in
 	if oldRow.StartByte != 0 || oldRow.EndByte != len(lv.text) {
 		return fail()
 	}
-	row, ok := tryReuseShapedRow(oldRow, lv.text, textStr, face, lh)
+	row, newSegs, ok := c.tryReuseCachedRow(oldRow, lv.text, textStr, face, lh)
 	if !ok {
 		return fail()
 	}
+	c.segSegs, c.segLine = newSegs, textStr
 	row = rebaseLine(row, p0.start)
 	k := cacheKey{sum: c.hashStr(p0.text), face: face, size: fontSize, lh: lh}
 	putCached(c.rows, k, &cachedRows{rows: []TextLayoutLine{row}, gen: gen})

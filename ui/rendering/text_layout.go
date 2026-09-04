@@ -617,9 +617,32 @@ func itemizeRuns(line string, face text.Face) []itemizedRun {
 	if line == "" || face == nil {
 		return nil
 	}
-	segs := text.SegmentText(line)
-	if len(segs) == 0 {
+	return itemizeRunsWithSegs(line, face, text.SegmentText(line))
+}
+
+// itemizeRunsWithSegs is itemizeRuns with caller-supplied bidi/script
+// segments (single-line incremental path reuses SegmentReuse output instead
+// of re-segmenting the whole line). Foreign segs fail validation and fall
+// back to a full SegmentText, never silently mis-split.
+func itemizeRunsWithSegs(line string, face text.Face, segs []text.Segment) []itemizedRun {
+	if line == "" || face == nil {
 		return nil
+	}
+	if len(segs) == 0 || segs[0].Start != 0 || segs[len(segs)-1].End != len(line) {
+		segs = text.SegmentText(line)
+		if len(segs) == 0 {
+			return nil
+		}
+	} else {
+		for i := 1; i < len(segs); i++ {
+			if segs[i].Start != segs[i-1].End {
+				segs = text.SegmentText(line)
+				break
+			}
+		}
+		if len(segs) == 0 {
+			return nil
+		}
 	}
 	isRTL := func(d text.Direction) bool { return d == text.DirectionRTL }
 	if mf, ok := face.(*text.MultiFace); ok {
