@@ -178,7 +178,7 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - M3.5 自身证据（本机实测）：`TestPieceTree_RandomAgainstString`（10k 随机对拍 × auto/forced-tree 双模式）绿、`TestBufferLineAt_*`（空/边界/CRLF 跨块/越界钳制）绿、`TestInsertComplexityRatio` 比值 T(1e6)/T(1e4)=1.90（门禁 ≤3）、`BenchmarkInsertAtOffset` 2266/3951/5663 ns（1e4/1e5/1e6）、`BenchmarkSnapshot` 约 1ns（指针拷贝）、`TestEditorBufferMirror_M35`（2000 次公开 API 随机编辑镜像逐字节一致 × 正常/降级双模式）绿；`ui/textinput` 逐文件全绿、`ui/textbuffer` 整包绿；回滚演练（移走新文件 + 恢复两处旧文件，构建与 M3 烟囱测试绿）通过。
 - 未验证项：M3.5 验收清单本身无真窗/GPU 项；`ui_text_edit_accept` 无头探针已跑（`GPUI_ACCEPT_SELFTEST=1`：`keystroke_p99_ms` 3.868、`layout_ms_p99` 5.88、`caret_vs_paint_max_delta_px` 821.47，同 M0 基线量级，M3.5 未动排版/绘制符合预期；`paint_ms_p99`/`scroll_fps` 需交互真窗，工具自报 unmeasured），60 秒真窗空转无崩溃。
 
-## M3.8 合入记录（2026-09-04 · 修完，证据齐，待确认标完成）
+## M3.8 完成记录（2026-09-04 · 验收通过，用户已标完成）
 
 - 根因（画像+探针实锤）：`TestTextLayout_LongBuild_RealFace` 计时的 280ms 里约 235ms 是一次性 HbFont 构造（字体字节解析 + CFF 表），热态整形仅约 0.02ms/次；缓存机制本身正常，错的是构造时机（第一次排版时才懒构造，账记进了排版）。
 - 改动：`render/text/system_font.go` 加 28 行 `warmHbFonts`（`assembleFaces` 返回前对各源预建 HbFont，失败忽略则 Shape 照旧懒建）+ 白盒测试 `render/text/hb_warm_m38_test.go`（先红后绿锁定）。不改接口、不改行为、不改裁判。
@@ -186,3 +186,4 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - M0–M3.5 回归（单测）：`render/text` 整形/簇边界/版式/分段/缓存/加载组全绿、`ui/rendering` 整包两遍绿、`ui/textinput` 整包绿、`ui/textbuffer` 整包绿；验收窗无头探针无崩溃（`keystroke_p99_ms` 7.1、`layout_ms_p99` 7.06，`caret` 差值 821.47 同基线量级）。
 - M0–M3.5 回归（基准，本轮补跑）：`BenchmarkCaretBuild` 每字 450/499/618ns（比值约 1.37，门禁 1.5）；`BenchmarkKeystroke` 不回绕三档约 0.7–0.9µs 基本不随规模涨；`BenchmarkPushHistory_M3` 三轮比值约 1.0–1.1（门禁 ≤2）；`BenchmarkInsertAtOffset` 中位数约 2.3/2.9/5.4µs（比值约 2.4，门禁 ≤3）；`BenchmarkSnapshot` 约 1ns（指针拷贝）。
 - 诚实项：① `TestCaretBuild_NoQuadratic` 在整包+并行压测下误报红过一次（CPU 被我自己的并行任务占满），单跑三遍全绿，定性为测量方法问题；计时类回归以后一次只跑一个。② `render/text` 约 90 个微调/光栅/扫描类测试文件未逐个跑（改动碰不到这些路径）。③ `BenchmarkInsertAtOffset` 单轮样本抖动大（最坏单轮比值约 6.5），中位数与 `TestInsertComplexityRatio` 均达标，机器抖动已注明。
+- 完成确认：用户真窗人验（验收主窗 60 秒 + 五扇输入法窗逐扇操作）无明显问题 → M3.8 标完成；M4 前置（M1 缓存 + M3.8 完成）已齐，M4 可开工。
