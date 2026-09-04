@@ -43,7 +43,7 @@ func TestSpanFallback_M1(t *testing.T) {
 	}
 	// 引擎级撒谎区间:抽查不过→spansMiss+1,结果仍对.
 	c := newLayoutCache()
-	textLayoutGen++
+	textLayoutGen.Add(1)
 	c.update("aaa\nbbb\nccc", nil, 14, 0, 1.2, 0.55, 0, TextOverflowClip)
 	miss0 := c.live.spansMiss
 	got3 := c.updateSpan("aaa\nBBXb\nccc", nil, 14, 0, 1.2, 0.55, 0, TextOverflowClip,

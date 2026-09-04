@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render/text"
@@ -104,7 +105,8 @@ func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
 	return fontSize * 1.25 * lineSpacing
 }
 
-var textLayoutGen uint64
+// textLayoutGen是全局自增计数器(I9语义不变),原子操作保跨线程自增.
+var textLayoutGen atomic.Uint64
 
 // SnapPixel 对齐到物理像素（HiDPI 1.25/2.0 1px 采样，F0–F9）.
 func SnapPixel(x, scale float64) float64 {
@@ -136,8 +138,8 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 // applied to the built lines (layout-side truncation, I11).
 func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64, approxCharW float64, maxLines int, overflow TextOverflow) *TextLayout {
 	if textStr == "" {
-		textLayoutGen++
-		return (&TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow}).finishLayout()
+		gen := textLayoutGen.Add(1)
+		return (&TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow}).finishLayout()
 	}
 	if fontSize <= 0 {
 		fontSize = 14
@@ -180,8 +182,8 @@ func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidt
 		lines = lines[:maxLines]
 		truncated = true
 	}
-	textLayoutGen++
-	return (&TextLayout{Text: textStr, lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated}).finishLayout()
+	gen := textLayoutGen.Add(1)
+	return (&TextLayout{Text: textStr, lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated}).finishLayout()
 }
 
 // LineCount返回行数(面1迁移新API,值拷贝语义,供懒物化演进).
@@ -748,8 +750,8 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 	maxW := t.MaxWidth
 	lineSpacing := t.lineSpacing()
 	if t.Text == "" {
-		textLayoutGen++
-		return (&TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}).finishLayout()
+		gen := textLayoutGen.Add(1)
+		return (&TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}).finishLayout()
 	}
 	// Helper to flush current line.
 	var lines []TextLayoutLine
@@ -859,11 +861,11 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 		// Ellipsis/clip would alter last line width but caret beyond truncation is not needed for editor.
 	}
 	if len(lines) == 0 {
-		textLayoutGen++
-		return (&TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}).finishLayout()
+		gen := textLayoutGen.Add(1)
+		return (&TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow}).finishLayout()
 	}
-	textLayoutGen++
-	return (&TextLayout{Text: t.Text, lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow, Truncated: truncated}).finishLayout()
+	gen := textLayoutGen.Add(1)
+	return (&TextLayout{Text: t.Text, lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxW, Face: t.effectiveFace(), MaxLines: t.MaxLines, Overflow: t.Overflow, Truncated: truncated}).finishLayout()
 }
 
 // BoxesForRange mirrors Flutter getBoxesForRange — line-box union for a byte range.

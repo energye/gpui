@@ -45,8 +45,9 @@ func (lv *layoutLive) matches(face text.Face, fontSize, maxWidth, lineSpacing, a
 // update增量构建.首建或参数变化走全量;否则diff patch.
 // 每次调用全局Generation自增一次(与BuildTextLayoutEx语义一致).
 func (c *layoutCache) update(textStr string, face text.Face, fontSize, maxWidth, lineSpacing, approxCharW float64, maxLines int, overflow TextOverflow) *TextLayout {
-	textLayoutGen++
-	gen := textLayoutGen
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	gen := textLayoutGen.Add(1)
 	lv := &c.live
 	if !lv.matches(face, fontSize, maxWidth, lineSpacing, approxCharW, maxLines, overflow) ||
 		hasCR(textStr) || hasCR(lv.text) {
@@ -72,8 +73,9 @@ func (c *layoutCache) update(textStr string, face text.Face, fontSize, maxWidth,
 // 区间经边界+长度方程+两侧抽查三重校验,任一不过回退diff(保正确).
 // \r:live有\r走全量;否则只扫新区段(插入的\r只可能在新区段).
 func (c *layoutCache) updateSpan(textStr string, face text.Face, fontSize, maxWidth, lineSpacing, approxCharW float64, maxLines int, overflow TextOverflow, sp editSpan) *TextLayout {
-	textLayoutGen++
-	gen := textLayoutGen
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	gen := textLayoutGen.Add(1)
 	lv := &c.live
 	if !lv.matches(face, fontSize, maxWidth, lineSpacing, approxCharW, maxLines, overflow) ||
 		lv.hasCR || !checkSpan(lv.text, textStr, sp) || spanHasCR(textStr, sp) {

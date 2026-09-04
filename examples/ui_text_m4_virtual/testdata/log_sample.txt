@@ -1,0 +1,40 @@
+2026-09-04T00:00:01Z INFO  request_id=a1b2c3 latency=11ms status=200 path=/api/v1/items method=GET
+2026-09-04T00:00:02Z DEBUG conn_pool idle=42 active=8 checkout_us=310 host=db-primary
+2026-09-04T00:00:03Z INFO  request_id=d4e5f6 latency=18ms status=200 path=/api/v1/users method=POST bytes_in=512
+2026-09-04T00:00:04Z WARN  retry attempt=2 backoff_ms=200 upstream=auth err=timeout request_id=g7h8i9
+2026-09-04T00:00:05Z INFO  request_id=j0k1l2 latency=9ms status=304 path=/static/app.js method=GET
+2026-09-04T00:00:06Z ERROR upstream=payments code=E_CONN reset=true request_id=m3n4o5 retrying=true
+2026-09-04T00:00:07Z INFO  gc heap_mb=212 pause_ms=1.2 reason=periodic
+2026-09-04T00:00:08Z INFO  request_id=p6q7r8 latency=22ms status=200 path=/api/v1/orders method=GET items=37
+2026-09-04T00:00:09Z DEBUG scheduler tick_ms=16.6 frame=12041 dropped=0
+2026-09-04T00:00:10Z INFO  request_id=s9t0u1 latency=14ms status=201 path=/api/v1/orders method=POST
+2026-09-04T00:00:11Z WARN  tls handshake_ms=88 cipher=TLS_AES_128_GCM peer=10.0.2.15
+2026-09-04T00:00:12Z INFO  request_id=v2w3x4 latency=7ms status=200 path=/healthz method=GET
+2026-09-04T00:00:13Z DEBUG atlas page=3 used=71% evict=0 alloc_glyphs=512
+2026-09-04T00:00:14Z INFO  request_id=y5z6a7 latency=31ms status=200 path=/api/v1/search method=GET q_len=9 hits=142
+2026-09-04T00:00:15Z ERROR request_id=b8c9d0 latency=3001ms status=504 path=/api/v1/export method=GET timeout=true
+2026-09-04T00:00:16Z INFO  worker pool=render busy=3 idle=5 queue=0
+2026-09-04T00:00:17Z INFO  request_id=e1f2g3 latency=12ms status=200 path=/api/v1/items method=GET cached=true
+2026-09-04T00:00:18Z WARN  disk data=/var/lib/app usage=81% threshold=80%
+2026-09-04T00:00:19Z DEBUG ime surrounding_bytes=128 composing=false
+2026-09-04T00:00:20Z INFO  request_id=h4i5j6 latency=16ms status=200 path=/api/v1/users/42 method=GET
+2026-09-04T00:00:21Z INFO  snapshot present=18221 paint=18220 composite=9011
+2026-09-04T00:00:22Z DEBUG text shape runs=6 glyphs=128 fallback=CJK
+2026-09-04T00:00:23Z INFO  request_id=k7l8m9 latency=10ms status=204 path=/api/v1/session method=DELETE
+2026-09-04T00:00:24Z WARN  memory rss_mb=317 slope_kb_min=8895 budget=30000
+2026-09-04T00:00:25Z INFO  request_id=n0o1p2 latency=25ms status=200 path=/api/v1/report method=GET rows=4096
+2026-09-04T00:00:26Z DEBUG viewport scroll_y=12400 viewport_h=800 bound=[610,655)
+2026-09-04T00:00:27Z ERROR request_id=q3r4s5 status=500 path=/api/v1/pay method=POST code=E_STATE err=bad_state
+2026-09-04T00:00:28Z INFO  request_id=t6u7v8 latency=8ms status=200 path=/metrics method=GET
+2026-09-04T00:00:29Z DEBUG layout cache_hit=98.2% invalidated_rows=1段=段A
+2026-09-04T00:00:30Z INFO  request_id=w9x0y1 latency=19ms status=200 path=/api/v1/items method=GET items=120
+2026-09-04T00:00:31Z WARN  clock skew_ms=12 ntp=pool.ntp.org
+2026-09-04T00:00:32Z INFO  request_id=z2a3b4 latency=13ms status=200 path=/api/v1/ping method=GET
+2026-09-04T00:00:33Z DEBUG gpu batch=42 verts=168112 atlas_hit=99.1%
+2026-09-04T00:00:34Z INFO  request_id=c5d6e7 latency=27ms status=200 path=/api/v1/feed method=GET items=60
+2026-09-04T00:00:35Z ERROR dns host=metrics.internal code=E_NXDOMAIN retry=1
+2026-09-04T00:00:36Z INFO  request_id=f8g9h0 latency=15ms status=200 path=/api/v1/users method=GET page=3
+2026-09-04T00:00:37Z DEBUG scroll rerecord=12 reuse=31 phase=steady
+2026-09-04T00:00:38Z INFO  request_id=i1j2k3 latency=11ms status=200 path=/api/v1/items/99 method=GET
+2026-09-04T00:00:39Z WARN  queue depth=128 workers=8 lag_ms=44
+2026-09-04T00:00:40Z INFO  request_id=l4m5n6 latency=21ms status=200 path=/api/v1/orders/7 method=GET

@@ -33,8 +33,8 @@ func TestLayoutUpdate_Equiv_M1(t *testing.T) {
 
 func TestLayoutUpdate_MaxLines_M1(t *testing.T) {
 	c := newLayoutCache()
-	textLayoutGen++
-	wantGen := textLayoutGen + 1
+	textLayoutGen.Add(1)
+	wantGen := textLayoutGen.Load() + 1
 	got := c.update("a\nb\nc\nd", nil, 14, 0, 1.2, 0.55, 2, TextOverflowClip)
 	want := BuildTextLayoutEx("a\nb\nc\nd", nil, 14, 0, 1.2, 0.55, 2, TextOverflowClip)
 	_ = wantGen

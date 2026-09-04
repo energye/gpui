@@ -2,6 +2,7 @@ package rendering
 
 import (
 	"hash/maphash"
+	"sync"
 
 	"github.com/energye/gpui/render/text"
 )
@@ -16,8 +17,11 @@ import (
 // hinting/variations 等配置由 face 身份表达,不另进键.
 // 行按段内相对偏移存储,命中时拷贝并变基到全局(复用整形结果,不复用切片头;
 // Glyphs只读共享,构建后不再原地修改).
-// 线程封闭:只在事件循环线程使用(沿§7.4 C1),内部不加锁.
+// 线程安全:主线程建层与光栅线程绘制会同时进同一 RenderText 的缓存
+// (M4 真窗 60s 跑出过 concurrent map writes 崩溃),内部用互斥串行化.
+// 查命中也改 hits/blds 计数,故不分读写锁,三个入口统一拿写锁.
 type layoutCache struct {
+	mu   sync.Mutex
 	rows map[cacheKey]*cachedRows
 	segs map[cacheKey]*cachedRows
 	hits int
@@ -71,8 +75,9 @@ func (c *layoutCache) hashStr(s string) uint64 {
 // buildCached用缓存构建整份布局.复用行的LineGen保留旧值,
 // 新建/重建行取新Generation(全局Generation照常自增,I9).
 func (c *layoutCache) buildCached(textStr string, face text.Face, fontSize, maxWidth, lineSpacing float64) *TextLayout {
-	textLayoutGen++
-	gen := textLayoutGen
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	gen := textLayoutGen.Add(1)
 	lines, marks := c.cachedLines(textStr, face, fontSize, maxWidth, lineSpacing, gen)
 	lh := lineHeightFor(face, fontSize, lineSpacing)
 	for i := range lines {

@@ -102,6 +102,57 @@ func (v *VirtualList) InvalidateExtents() {
 	v.MarkNeedsLayout()
 }
 
+// RefreshExtents re-reads heights over [first, last) and patches the prefix
+// in place (M4.1: 懒测量的增量发布). Cost is O(last-first) extent calls +
+// one O(n) suffix shift with plain float adds and zero allocation — about
+// 10x cheaper than a full rebuild (which also pays per-row closure calls
+// plus an 8MB alloc per 1e6 rows). Reports whether any height changed.
+// Falls back to a full rebuild when no valid prefix exists or ItemCount
+// changed; use InvalidateExtents for those coarse cases (count changes).
+// Threading posture is unchanged from InvalidateExtents: call from the same
+// thread that drives scrolling/layout.
+func (v *VirtualList) RefreshExtents(first, last int) bool {
+	if v == nil || !v.variable() {
+		return false
+	}
+	n := v.ItemCount
+	if n < 0 {
+		n = 0
+	}
+	if !v.prefixValid || len(v.prefix) != n+1 {
+		v.ensurePrefix()
+		return true
+	}
+	if first < 0 {
+		first = 0
+	}
+	if last > n {
+		last = n
+	}
+	if first >= last {
+		return false
+	}
+	oldLast := v.prefix[last]
+	changed := false
+	for i := first; i < last; i++ {
+		h := v.extentAt(i)
+		if v.prefix[i+1] != v.prefix[i]+h {
+			v.prefix[i+1] = v.prefix[i] + h
+			changed = true
+		}
+	}
+	if !changed {
+		return false
+	}
+	if d := v.prefix[last] - oldLast; d != 0 {
+		for j := last; j < n; j++ {
+			v.prefix[j+1] += d
+		}
+	}
+	v.MarkNeedsLayout()
+	return true
+}
+
 func (v *VirtualList) variable() bool {
 	return v != nil && v.ItemExtentAt != nil
 }
