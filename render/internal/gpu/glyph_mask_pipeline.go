@@ -21,6 +21,9 @@ var glyphMaskShaderSource string
 //go:embed shaders/glyph_mask_lcd.wgsl
 var glyphMaskLCDShaderSource string
 
+//go:embed shaders/glyph_color.wgsl
+var glyphColorShaderSource string
+
 // glyphMaskVertexStride is the byte stride per vertex in the glyph mask pipeline.
 // Layout per vertex (matches MSDF text pipeline for Intel Vulkan driver compat):
 //
@@ -92,6 +95,15 @@ type GlyphMaskPipeline struct {
 	// alpha interpolation at subpixel positions).
 	sampler *webgpu.Sampler
 
+	// Color pipeline: RGBA color atlas sampling for color glyphs (CBDT
+	// bitmaps, flattened COLR layers). Reuses the mask vertex layout,
+	// uniform layout, and pipeline layout; only the shader, sampler
+	// (linear: color bitmaps are scaled from strike size), and pipeline
+	// differ.
+	colorShader   *webgpu.ShaderModule
+	colorPipeline *webgpu.RenderPipeline
+	colorSampler  *webgpu.Sampler
+
 	// LCD pipeline: separate shader + pipeline for ClearType rendering.
 	// Uses a different uniform struct (96 bytes with atlas_size) and a
 	// different fragment shader (per-channel alpha compositing).
@@ -141,10 +153,15 @@ func (p *GlyphMaskPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 // multiple times or on a pipeline with no allocated resources.
 func (p *GlyphMaskPipeline) Destroy() {
 	p.destroyLCDPipeline()
+	p.destroyColorPipeline()
 	p.destroyPipeline()
 	if p.sampler != nil {
 		p.sampler.Release()
 		p.sampler = nil
+	}
+	if p.colorSampler != nil {
+		p.colorSampler.Release()
+		p.colorSampler = nil
 	}
 }
 
@@ -246,6 +263,24 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 		p.sampler = sampler
 	}
 
+	// Linear sampler for RGBA color atlas textures: color bitmaps are
+	// scaled from strike size, so nearest would show blocky texels.
+	if p.colorSampler == nil {
+		sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+			Label:        "glyph_color_sampler",
+			AddressModeU: types.AddressModeClampToEdge,
+			AddressModeV: types.AddressModeClampToEdge,
+			AddressModeW: types.AddressModeClampToEdge,
+			MagFilter:    types.FilterModeLinear,
+			MinFilter:    types.FilterModeLinear,
+			MipmapFilter: types.MipmapFilterModeNearest,
+		})
+		if err != nil {
+			return fmt.Errorf("create glyph_color sampler: %w", err)
+		}
+		p.colorSampler = sampler
+	}
+
 	return nil
 }
 
@@ -302,6 +337,74 @@ func (p *GlyphMaskPipeline) ensurePipelineWithStencil() error {
 		return fmt.Errorf("create glyph mask pipeline with stencil: %w", err)
 	}
 	p.pipelineWithStencil = pipeline
+	return nil
+}
+
+// destroyColorPipeline releases color pipeline resources.
+func (p *GlyphMaskPipeline) destroyColorPipeline() {
+	if p.device == nil {
+		return
+	}
+	if p.colorPipeline != nil {
+		p.colorPipeline.Release()
+		p.colorPipeline = nil
+	}
+	if p.colorShader != nil {
+		p.colorShader.Release()
+		p.colorShader = nil
+	}
+}
+
+// ensureColorPipelineWithStencil creates the RGBA color pipeline variant.
+// Same layout, vertex format, blend, and stencil state as the grayscale
+// pipeline; only the fragment shader samples .rgba instead of .r.
+func (p *GlyphMaskPipeline) ensureColorPipelineWithStencil() error {
+	if err := p.ensureSharedResources(); err != nil {
+		return err
+	}
+	if p.colorPipeline != nil {
+		return nil
+	}
+	if glyphColorShaderSource == "" {
+		return fmt.Errorf("glyph_color shader source is empty")
+	}
+	shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		Label: "glyph_color_shader",
+		WGSL:  glyphColorShaderSource,
+	})
+	if err != nil {
+		return fmt.Errorf("compile glyph_color shader: %w", err)
+	}
+	p.colorShader = shader
+
+	premulBlend := types.BlendStatePremultiplied()
+	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Label:  "glyph_color_pipeline_with_stencil",
+		Layout: p.pipeLayout,
+		Vertex: webgpu.VertexState{
+			Module:     p.colorShader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    glyphMaskVertexLayout(),
+		},
+		Fragment: &webgpu.FragmentState{
+			Module:     p.colorShader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &premulBlend,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: stencilPassthroughDepthStencil(),
+		Primitive:    triangleListPrimitive(),
+		Multisample:  multisampleState(p.sampleCount),
+	})
+	if err != nil {
+		return fmt.Errorf("create glyph color pipeline with stencil: %w", err)
+	}
+	p.colorPipeline = pipeline
 	return nil
 }
 
@@ -390,6 +493,9 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 			continue
 		}
 		switch {
+		case dc.isColor && p.colorPipeline != nil:
+			// RGBA color atlas sampling; uniform color is white×opacity.
+			drawOne(p.colorPipeline, dc)
 		case useDepthClip:
 			// Depth-clip path currently only has grayscale stencil variant.
 			drawOne(p.pipelineWithDepthClip, dc)
@@ -632,6 +738,9 @@ type glyphMaskDrawCall struct {
 	// Mixed LCD/grayscale batches in one frame must not share a frame-level pipeline
 	// (LCD BGL minBindingSize=96 vs grayscale=80 → wgpu validation abort).
 	isLCD bool
+	// isColor selects the RGBA color pipeline for THIS draw only.
+	// Color batches never merge with mask batches (see CanMerge).
+	isColor bool
 }
 
 // glyphMaskFrameResources holds per-frame GPU resources for glyph mask rendering.
@@ -712,6 +821,12 @@ type GlyphMaskBatch struct {
 
 	// AtlasPageIndex identifies which atlas page (R8 texture) to use.
 	AtlasPageIndex int
+
+	// IsColor marks batches sampling RGBA color atlas pages instead of the
+	// R8 mask atlas. The fragment shader outputs the texel directly; the
+	// uniform Color carries white with opacity in alpha. Color batches must
+	// never merge with mask batches (see CanMerge).
+	IsColor bool
 }
 
 // CanMerge reports whether other can be merged into this batch.
@@ -723,6 +838,7 @@ func (b *GlyphMaskBatch) CanMerge(other GlyphMaskBatch) bool {
 	return b.Transform == other.Transform &&
 		b.Color == other.Color &&
 		b.IsLCD == other.IsLCD &&
+		b.IsColor == other.IsColor &&
 		b.AtlasPageIndex == other.AtlasPageIndex
 }
 
@@ -762,6 +878,7 @@ func SplitGlyphMaskBatchByPage(batch GlyphMaskBatch) []GlyphMaskBatch {
 			Transform:      batch.Transform,
 			Color:          batch.Color,
 			IsLCD:          batch.IsLCD,
+			IsColor:        batch.IsColor,
 			AtlasWidth:     batch.AtlasWidth,
 			AtlasHeight:    batch.AtlasHeight,
 			AtlasPageIndex: page,

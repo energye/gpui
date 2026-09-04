@@ -46,6 +46,22 @@ func loadText(name string) string {
 	return string(b)
 }
 
+// emojiFace loads the system color emoji font for zone B. Nil when absent —
+// callers keep the previous chain behavior (no color path) in that case.
+func emojiFace(points float64) text.Face {
+	for _, p := range []string{
+		"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+		"/usr/share/fonts/TTF/NotoColorEmoji.ttf",
+	} {
+		src, err := text.NewFontSourceFromFile(p)
+		if err != nil {
+			continue
+		}
+		return src.Face(points)
+	}
+	return nil
+}
+
 func memMB() float64 {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -237,11 +253,18 @@ func main() {
 	shell.Body.LabelAt("B emoji + 组合字符 (testdata/emoji.txt)", 11, 12, bodyY, 0.55, 0.75, 0.95)
 	bodyY += 18
 	tb := mkText(emoji, 560)
-	// NOTE: B 区不用表情字体：实测把 NotoColorEmoji（CBDT 位图）接进链会触发
-	// GPU 字形布局整段回退（cpu_fallback_ops 19 万、hitch、CPU 127%，且字形仍空白），
-	// 端到端彩色像素需独立颜色管线（§9 遗留），本窗不硬撑。
+	// B 区组装 MultiFace（表情字体在前、UI 链在后）：emoji 字形走颜色图集
+	// 管线，拉丁/CJK 回退 UI 脸走遮罩管线；缺表情字体时保持默认链。
+	// GPUI_M5_NOEMOJI=1 跳过表情字体，用于与改前基线对照。
+	if os.Getenv("GPUI_M5_NOEMOJI") == "" {
+		if ef := emojiFace(14); ef != nil {
+			if mf, err := text.NewMultiFace(ef, face); err == nil {
+				tb.SetFace(mf)
+			}
+		}
+	}
 	shell.Body.Place(tb, 12, bodyY)
-	bodyY += 98
+	bodyY += 140
 
 	shell.Body.LabelAt("C 富文本 run (testdata/richtext.txt, 20/14/8/12pt)", 11, 12, bodyY, 0.55, 0.75, 0.95)
 	bodyY += 18

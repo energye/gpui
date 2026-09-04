@@ -934,7 +934,10 @@ func (t *RenderText) Paint(pc *PaintContext) {
 					glyphs := lay.LineGlyphs(i)
 					// Bulk submission needs a sourced face (outlines/atlas
 					// page); composite faces submit per-face partitions (M2).
-					if len(glyphs) > 0 && glyphs[0].GID != 0 && face.Source() != nil {
+					// Lines holding color runs bypass bulk: the mask atlas
+					// is outline-only, bulk submit would only hit the
+					// explicit refusal and fall back every frame.
+					if len(glyphs) > 0 && glyphs[0].GID != 0 && face.Source() != nil && !lay.LineHasColorRun(i) {
 						// Flutter viewport culling for 5000 single-line:
 						// only submit glyphs within the viewport window
 						// (+200px margin) to keep GPU vertex count O(visible).
@@ -1008,26 +1011,18 @@ func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, row i
 		part := glyphs[r.Start:r.End]
 		if r.IsColor {
 			// M5: color runs bypass the mask batch entirely (never stuffed
-			// into the mask atlas). Drawn via the string color path at the
-			// run's glyph.X origin with the run's own face (saved/restored
-			// around the draw); off-screen parts are GPU-clipped, so no
+			// into the mask atlas). Shaped color glyphs keep absolute
+			// glyph.X, so no rebase is needed (unlike pen-origin mask
+			// batches); off-screen parts are GPU-clipped, so no
 			// glyph-window culling here (positions unchanged, I1/I3 hold).
-			if pc.DC != nil && line != "" && r.TextStart < r.TextEnd &&
-				r.TextStart >= 0 && r.TextEnd <= len(line) && len(part) > 0 {
-				ax, ay := pc.Abs(part[0].X, y)
+			if pc.DC != nil && len(part) > 0 {
+				ax, ay := pc.Abs(0, y)
 				a := t.A
 				if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
 					a = 1
 				}
-				saved := pc.DC.Font()
-				if r.Face != nil {
-					pc.DC.SetFont(r.Face)
-				}
 				pc.DC.SetRGBA(t.R, t.G, t.B, a)
-				pc.DC.DrawString(line[r.TextStart:r.TextEnd], ax, ay)
-				if saved != nil {
-					pc.DC.SetFont(saved)
-				}
+				pc.DC.DrawShapedColorGlyphs(part, r.Face, ax, ay)
 			}
 			continue
 		}

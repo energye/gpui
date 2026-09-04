@@ -260,6 +260,22 @@ func (l *TextLayout) LineGlyphs(i int) []text.ShapedGlyph {
 	return l.lines[i].Glyphs
 }
 
+// LineHasColorRun reports whether row i holds a color run (emoji/COLR).
+// Reads stored runs without copying, so Paint can call it per line per
+// frame. Lines with color runs must bypass single-face bulk mask submit
+// (the mask atlas is outline-only) and go through per-face partitions.
+func (l *TextLayout) LineHasColorRun(i int) bool {
+	if l == nil || i < 0 || i >= len(l.lines) {
+		return false
+	}
+	for _, r := range l.lines[i].GlyphRuns {
+		if r.IsColor {
+			return true
+		}
+	}
+	return false
+}
+
 // LineGlyphRuns返回第i行的批量分区(值拷贝,调用方可安全持有).
 // 每个分区覆盖 Glyphs[Start:End],用 Face 独立批量提交 (M2).
 // 无可批量字形时返回 nil,调用方走旧绘制路径.

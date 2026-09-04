@@ -90,6 +90,7 @@ type Context struct {
 	textDecoration   TextDecoration         // underline/line-through/overline (X.08)
 	outlineExtractor *text.OutlineExtractor // lazy: for transform-aware text (Strategy B)
 	glyphCache       *text.GlyphCache       // lazy: cached glyph outlines for drawStringAsOutlines
+	colorRasterCache *text.ColorRasterCache // lazy: reused color RGBA cache for the CPU color fallback
 
 	// Per-context GPU render context (isolated pending commands, clips, frame tracking).
 	// Lazily created when GPURenderContextProvider is available.

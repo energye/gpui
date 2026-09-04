@@ -249,6 +249,19 @@ type GPUShapedTextAccelerator interface {
 	DrawShapedGlyphMaskText(target GPURenderTarget, face any, glyphs []text.ShapedGlyph, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 }
 
+// GPUColorGlyphAccelerator is an optional interface for accelerators that
+// support RGBA color glyph rendering (CBDT bitmaps, flattened COLR layers).
+// Color runs bypass the R8 mask atlas entirely: glyphs are CPU-rasterized
+// once into premultiplied RGBA, packed into RGBA atlas pages, and drawn as
+// textured quads sampling the color pages.
+//
+// Coordinates follow DrawShapedGlyphMaskText: glyphs carry absolute X/Y and
+// the batch Transform applies rotation/scale on the GPU. Returns
+// ErrFallbackToCPU when color rendering is unavailable.
+type GPUColorGlyphAccelerator interface {
+	DrawShapedColorGlyphs(target GPURenderTarget, face any, glyphs []text.ShapedGlyph, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
+}
+
 // GPUTransformMaskTextAccelerator is an optional interface for accelerators
 // that render transformed (rotated/sheared/non-uniform) text with the
 // kTransformedMask semantic: the whole string's outline — already converted

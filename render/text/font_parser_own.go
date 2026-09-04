@@ -142,6 +142,7 @@ type ownParsedFont struct {
 	glyf    lazySlot[*cachedGlyfParser]   // glyf/loca contour parser cache
 	cff     lazySlot[*cffOutlineSupport]  // CFF 1 outline backend (sfnt)
 	cff2    lazySlot[*cff2OutlineSupport] // CFF2 outline backend (go-text)
+	color   lazySlot[*colorBackends]      // CBDT/COLR parsers; nil if no color tables
 
 	// cffBounds caches CFF/CFF2 glyph bboxes per (gid, quantized size).
 	// GlyphBounds is called for every glyph of every shaping pass

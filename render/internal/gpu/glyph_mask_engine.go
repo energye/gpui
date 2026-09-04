@@ -177,6 +177,14 @@ func (e *GlyphMaskEngine) LayoutText(
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
 	batchColor := p.batchColor
 
+	if cf, ok := colorFontOf(parsed); ok {
+		for _, r := range s {
+			if gid := parsed.GlyphIndex(r); cf.GlyphType(gid) != text.GlyphTypeOutline {
+				return GlyphMaskBatch{}, fmt.Errorf("glyph mask: color glyph %d, use color path", gid)
+			}
+		}
+	}
+
 	// opt24: try layout template BEFORE LayoutGlyphs — shaped is unused on hit
 	// (layoutTemplateGet only needs key+origin). Static HUD/list strings skip
 	// shape entirely; dynamic strings still shape on miss.
@@ -233,6 +241,14 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
 	batchColor := p.batchColor
 
+	if cf, ok := colorFontOf(parsed); ok {
+		for _, r := range s {
+			if gid := parsed.GlyphIndex(r); cf.GlyphType(gid) != text.GlyphTypeOutline {
+				return GlyphMaskBatch{}, fmt.Errorf("glyph mask: color glyph %d, use color path", gid)
+			}
+		}
+	}
+
 	// opt24: template hit before shape (same as LayoutText).
 	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, true, hinting, matrix); ok {
 		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
@@ -279,7 +295,25 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 	isCJK, hinting := p.isCJK, p.hinting
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
 	batchColor := p.batchColor
+	if cf, ok := colorFontOf(parsed); ok {
+		for i := range glyphs {
+			if cf.GlyphType(uint16(glyphs[i].GID)) != text.GlyphTypeOutline {
+				return GlyphMaskBatch{}, fmt.Errorf("glyph mask: color glyph %d, use color path", uint16(glyphs[i].GID))
+			}
+		}
+	}
 	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
+}
+
+// colorFontOf returns the color backend when the font carries CBDT/COLR
+// tables. Ordinary fonts return false with zero allocation, keeping the
+// hot mask path free of per-call slice building.
+func colorFontOf(parsed text.ParsedFont) (text.ColorFont, bool) {
+	cf, ok := parsed.(text.ColorFont)
+	if !ok || !cf.HasColorTables() {
+		return nil, false
+	}
+	return cf, true
 }
 
 // glyphMaskParams carries the common layout parameters resolved from a face

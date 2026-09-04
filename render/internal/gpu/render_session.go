@@ -4279,6 +4279,19 @@ func (s *GPURenderSession) ensureGlyphMaskPipeline(hasLCD bool) error {
 	return nil
 }
 
+// ensureColorGlyphPipeline creates the RGBA color glyph pipeline on demand.
+// Called only when color glyph batches are present.
+func (s *GPURenderSession) ensureColorGlyphPipeline() error {
+	if s.glyphMaskPipeline == nil {
+		s.glyphMaskPipeline = NewGlyphMaskPipeline(s.device, s.queue, s.sampleCount)
+	}
+	s.glyphMaskPipeline.SetClipBindLayout(s.clipBindLayout)
+	if err := s.glyphMaskPipeline.ensureColorPipelineWithStencil(); err != nil {
+		return fmt.Errorf("glyph color pipeline: %w", err)
+	}
+	return nil
+}
+
 // buildGlyphMaskResources updates persistent vertex, index, and per-batch
 // uniform buffers for glyph mask text rendering. Each batch gets its own
 // uniform buffer and bind group. Vertex and index buffers are shared across
@@ -4462,6 +4475,7 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 			indexCount:  indexCount,
 			bindGroup:   s.glyphMaskBindGroups[i],
 			isLCD:       batch.IsLCD,
+			isColor:     batch.IsColor,
 		})
 
 		quadOffset += nQuads
@@ -4496,6 +4510,7 @@ type glyphMaskPendingView struct {
 	batchIndex int
 	atlasView  *webgpu.TextureView
 	isLCD      bool
+	isColor    bool
 }
 
 // SetGlyphMaskAtlasView records an atlas view for deferred bind group creation.
@@ -4504,6 +4519,16 @@ type glyphMaskPendingView struct {
 // the stale bind group bug where destroyPipeline releases uniformLayout but bind
 // groups still reference the old layout (BUG-GPU-001).
 func (s *GPURenderSession) SetGlyphMaskAtlasView(batchIndex int, atlasView *webgpu.TextureView, isLCD bool) {
+	s.setGlyphAtlasView(batchIndex, atlasView, isLCD, false)
+}
+
+// SetColorGlyphAtlasView records an RGBA color atlas view for a color batch.
+// Same deferred bind group contract as SetGlyphMaskAtlasView.
+func (s *GPURenderSession) SetColorGlyphAtlasView(batchIndex int, atlasView *webgpu.TextureView) {
+	s.setGlyphAtlasView(batchIndex, atlasView, false, true)
+}
+
+func (s *GPURenderSession) setGlyphAtlasView(batchIndex int, atlasView *webgpu.TextureView, isLCD, isColor bool) {
 	if atlasView == nil {
 		slogger().Warn("SetGlyphMaskAtlasView: nil atlas view", "batchIndex", batchIndex)
 		return
@@ -4514,6 +4539,7 @@ func (s *GPURenderSession) SetGlyphMaskAtlasView(batchIndex int, atlasView *webg
 				batchIndex: batchIndex,
 				atlasView:  atlasView,
 				isLCD:      isLCD,
+				isColor:    isColor,
 			}
 			return
 		}
@@ -4522,6 +4548,7 @@ func (s *GPURenderSession) SetGlyphMaskAtlasView(batchIndex int, atlasView *webg
 		batchIndex: batchIndex,
 		atlasView:  atlasView,
 		isLCD:      isLCD,
+		isColor:    isColor,
 	})
 }
 
@@ -4543,9 +4570,16 @@ func (s *GPURenderSession) materializeGlyphMaskBindGroups() {
 
 		layout := s.glyphMaskPipeline.uniformLayout
 		uniformSize := uint64(glyphMaskUniformSize)
+		sampler := s.glyphMaskPipeline.sampler
 		if pv.isLCD && s.glyphMaskPipeline.lcdUniformLayout != nil {
 			layout = s.glyphMaskPipeline.lcdUniformLayout
 			uniformSize = glyphMaskLCDUniformSize
+		}
+		if pv.isColor {
+			// Same 80B uniform layout; linear sampler for scaled bitmaps.
+			if s.glyphMaskPipeline.colorSampler != nil {
+				sampler = s.glyphMaskPipeline.colorSampler
+			}
 		}
 
 		for len(s.glyphMaskBGViews) <= pv.batchIndex {
@@ -4563,7 +4597,7 @@ func (s *GPURenderSession) materializeGlyphMaskBindGroups() {
 			Entries: []webgpu.BindGroupEntry{
 				{Binding: 0, Buffer: s.glyphMaskUniformBufs[pv.batchIndex], Offset: 0, Size: uniformSize},
 				{Binding: 1, TextureView: pv.atlasView},
-				{Binding: 2, Sampler: s.glyphMaskPipeline.sampler},
+				{Binding: 2, Sampler: sampler},
 			},
 		})
 		if err != nil {

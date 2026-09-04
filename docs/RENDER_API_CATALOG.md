@@ -19,7 +19,7 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 94 · 顶层函数 111 · Context 导出方法 182 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
+| `render`（主包） | 类型 95 · 顶层函数 112 · Context 导出方法 183 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
 | `render/text` | 包级导出 240（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
@@ -71,7 +71,7 @@
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(随机点化) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试** |
 
-## 3. 主包：绘制上下文 Context（182 导出方法）
+## 3. 主包：绘制上下文 Context（183 导出方法）
 
 > **构造器与选项**：`NewContext(width,height,opts...)` / `NewContextForPixmap(pm)` / `NewContextForImage(img,opts...)` / `NewContextWithScale(w,h,scale)`；`ContextOption` 模式：`WithRenderer/WithPixmap/WithPipelineMode/WithDeviceScale`。状态 ✅（embedder 生产链路）。
 
@@ -160,11 +160,12 @@
 | `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**） |
 | `PresentNativeSurface` / `PresentPlatform` / var `ErrNilSurfaceView` | 原生表面句柄、平台枚举、空表面错误 | 原生表面/平台 | ✅ |
 
-### 3.8 text.go（15）+ text_decoration.go（2）+ text_mode.go · 文本族
+### 3.8 text.go（16）+ text_decoration.go（2）+ text_mode.go · 文本族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `SetFont/Font/LoadFontFace/LoadFontFaceWithVariations/FontVariationAxes` | 设置字体、读当前字体、加载 TTF/OTF 与可变字体轴 | 字体管理 | ✅ ui/rendering paint_context 在用 |
-| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs 🧪 仅测试**） |
+| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/DrawShapedColorGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/已整形彩色字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**DrawShapedColorGlyphs 🔗 生产在用（ui/rendering 彩色段→GPU 颜色图集/CPU 兜底，GPU 真窗待验）**；**StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs 🧪 仅测试**） |
+| `SplitColorGlyphs(cf,glyphs)`（text.go 顶层函数） | 按字形类型把已整形字形拆成彩色/描边两子集（保序），供 dispatch 入口分流 | 彩色字形分流 | 🔗（dispatchText 在用） |
 | `MeasureString/MeasureMultilineString/WordWrap` | 度量单行/多行文本、按宽度断词换行 | 文本度量 | 🔗 内部用（UI 布局未接，用自研估算） |
 | `TextMode`（Auto/MSDF/Vector/Bitmap/GlyphMask/Aliased）/ `LCDLayout`（None/RGB/BGR）/ `Align` | 文本渲染策略 / LCD 子像素布局 / 对齐枚举 | 文本模式 | ✅ |
 
@@ -193,7 +194,7 @@
 | `SDFFilledCircleCoverage/SDFCircleCoverage/SDFFilledRRectCoverage/SDFRRectCoverage` | SDF 覆盖率函数（像素点→形状内覆盖率，填/描边） | SDF 覆盖率 | 🔗（CPU SDF/测试） |
 | `SDFAccelerator`（无构造器 `&render.SDFAccelerator{}`） | 独立注册的 CPU SDF 加速器（形状快速填充） | CPU SDF 加速 | 🧪 生产仅作为 GPU 加速器内部 cpuFallback |
 | `GPUAccelerator` 接口 + `Accelerator()/RegisterAccelerator/CloseAccelerator/SetAcceleratorDeviceProvider/PurgeAcceleratorSurfaceResources/AbandonAcceleratorDevice/AcceleratorCanRenderDirect/BeginAcceleratorFrame/CPUOnlyMode` | GPU 加速器注册/取回/关闭、设备提供者注入、表面资源清理、设备放弃、可直渲判定、帧开始、CPU-only 模式判定（`GOGPU_RENDER_MODE=cpu` → 全部绘制与窗口呈现走 CPU 光栅） | GPU 加速管理 | ✅（gpu 包注册，全部真窗在用） |
-| 加速器能力接口群：`DeviceProviderAware/GPURenderContextProvider/FrameAware/MSAAAware/GPUTextAccelerator/GPUGlyphMaskAccelerator/GPUAliasedTextAccelerator/GPUShapedTextAccelerator/GPUTransformMaskTextAccelerator/DirectRenderCapable/AdapterAware/ComputePipelineAware/PipelineModeAware/ForceSDFAware/ClipAware/RRectClipAware/PathClipAware/LCDLayoutAware/MaskAware/SceneStatsTracker` | 加速器可探测/可选择性实现的各项能力接口（宿主据此选路径） | 能力探测接口 | 🔗 |
+| 加速器能力接口群：`DeviceProviderAware/GPURenderContextProvider/FrameAware/MSAAAware/GPUTextAccelerator/GPUGlyphMaskAccelerator/GPUAliasedTextAccelerator/GPUShapedTextAccelerator/GPUColorGlyphAccelerator/GPUTransformMaskTextAccelerator/DirectRenderCapable/AdapterAware/ComputePipelineAware/PipelineModeAware/ForceSDFAware/ClipAware/RRectClipAware/PathClipAware/LCDLayoutAware/MaskAware/SceneStatsTracker` | 加速器可探测/可选择性实现的各项能力接口（宿主据此选路径） | 能力探测接口 | 🔗 |
 | `AcceleratedOp`（Fill/Stroke/Scene/Text/Image/Gradient/CircleSDF/RRectSDF） | 加速操作位标记（加速器声明支持哪些 op） | 加速操作位 | 🔗 |
 | `CoverageFiller` + `RegisterCoverageFiller/GetCoverageFiller` + `ForceableFiller`（SparseFiller/ComputeFiller） | 覆盖率填充器接口与注册；AdaptiveFiller（4x4/16x16 tile）在此注册 | 覆盖率填充器 | ✅ |
 | `RasterizerMode`（Auto/Analytic/SparseStrips/TileCompute/SDF） | CPU 栅格化算法选择 | CPU 栅格化模式 | ✅ |
@@ -289,7 +290,7 @@
 ## 7. 状态总表（接线 × 未接线）
 
 ### 7.1 有生产接线（✅/🔗）
-Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Context 绘制族、Brush/三种渐变、文本绘制（DrawString 族经 ui/rendering）、图像（GPU QueueImageDraw，Bicubic 例外）、Mask 上传、Layer（GPU RT）、滤镜 op（经 render/gpu 副作用）、SDF/CoverageFiller/AdaptiveFiller、Pixmap、路径基础 API、损伤跟踪、共享编码器。`PresentTarget.SetVsync`（2026-08-19）🔗 embedder resize 风暴期切 Mailbox/Immediate，风暴平静后回 Fifo（内容不跟手修复）；初始 Fifo 排队偏好（2026-08-26 修3：显示周期学习 + Wayland Fifo 化，见 docs/ENGINE_FRAME_PRESENT_STANDARD.md §9）。
+Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Context 绘制族、Brush/三种渐变、文本绘制（DrawString 族经 ui/rendering；DrawShapedColorGlyphs 🔗 彩色段经 ui/rendering→GPU 颜色图集/CPU 兜底，GPU 真窗待验）、图像（GPU QueueImageDraw，Bicubic 例外）、Mask 上传、Layer（GPU RT）、滤镜 op（经 render/gpu 副作用）、SDF/CoverageFiller/AdaptiveFiller、Pixmap、路径基础 API、损伤跟踪、共享编码器。`PresentTarget.SetVsync`（2026-08-19）🔗 embedder resize 风暴期切 Mailbox/Immediate，风暴平静后回 Fifo（内容不跟手修复）；初始 Fifo 排队偏好（2026-08-26 修3：显示周期学习 + Wayland Fifo 化，见 docs/ENGINE_FRAME_PRESENT_STANDARD.md §9）。
 
 ### 7.2 已实现但无生产消费者（🔌 未接线）
 | 功能 | 证据 |

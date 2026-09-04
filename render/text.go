@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"image"
+	"image/color"
+	"image/draw"
 	"math"
 	"os"
 	"strings"
@@ -94,6 +96,96 @@ func (c *Context) DrawString(s string, x, y float64) {
 	c.dispatchText(s, x, y)
 }
 
+// SplitColorGlyphs partitions shaped glyphs into color vs outline subsets,
+// preserving order. Color glyphs (CBDT bitmaps, COLR layers) cannot go
+// through the R8 mask atlas; outline glyphs stay on the mask path.
+// Pure-outline runs return the input slice untouched with zero allocation.
+func SplitColorGlyphs(cf text.ColorFont, glyphs []text.ShapedGlyph) (color, outline []text.ShapedGlyph) {
+	first := -1
+	for i := range glyphs {
+		if cf.GlyphType(uint16(glyphs[i].GID)) != text.GlyphTypeOutline {
+			first = i
+			break
+		}
+	}
+	if first < 0 {
+		return nil, glyphs
+	}
+	color = make([]text.ShapedGlyph, 0, len(glyphs)-first)
+	outline = make([]text.ShapedGlyph, 0, len(glyphs))
+	for _, g := range glyphs {
+		if cf.GlyphType(uint16(g.GID)) == text.GlyphTypeOutline {
+			outline = append(outline, g)
+		} else {
+			color = append(color, g)
+		}
+	}
+	return color, outline
+}
+
+// tryGPUColorGlyphText routes single-face color runs to the RGBA color atlas
+// path before the strategy switch. Without this, color strings fall into the
+// mask pipeline, hit the explicit refusal, and fall back every frame. Faces
+// without color tables (the common case) return false before shaping, so the
+// normal dispatch is untouched. Explicit Vector/Bitmap modes keep their CPU
+// semantics and bypass this route.
+func (c *Context) tryGPUColorGlyphText(s string, x, y float64) bool {
+	face := c.face
+	if face == nil || s == "" {
+		return false
+	}
+	source := face.Source()
+	if source == nil {
+		return false
+	}
+	parsed := source.Parsed()
+	cf, ok := parsed.(text.ColorFont)
+	if !ok || !cf.HasColorTables() {
+		return false
+	}
+	glyphs := text.LayoutGlyphs(face, s)
+	color, outline := SplitColorGlyphs(cf, glyphs)
+	if len(color) == 0 {
+		return false
+	}
+	col := FromColor(c.currentColor())
+	target := c.gpuRenderTarget()
+	matrix, ds := c.totalMatrix(), c.deviceScale
+	if submitted, _ := c.submitColorGlyphs(target, face, color, x, y, col, matrix, ds); !submitted {
+		return false
+	}
+	if len(outline) > 0 {
+		c.DrawShapedGlyphs(outline, face, x, y)
+	}
+	c.recordGPUOp()
+	return true
+}
+
+// submitColorGlyphs queues pre-shaped color glyphs on the first available
+// color accelerator (per-context GPU ops, then the global accelerator).
+// Shared by the string shunt and the shaped entry point so the two call
+// sites cannot drift apart. The second result reports whether the
+// per-context accelerator exposes the color interface, so callers can
+// attribute a CPU fallback exactly as before.
+func (c *Context) submitColorGlyphs(target GPURenderTarget, face text.Face, glyphs []text.ShapedGlyph, x, y float64, col RGBA, matrix Matrix, ds float64) (submitted, rcHasColor bool) {
+	if rc := c.gpuCtxOps(); rc != nil {
+		if ca, ok := rc.(GPUColorGlyphAccelerator); ok {
+			rcHasColor = true
+			if ca.DrawShapedColorGlyphs(target, face, glyphs, x, y, col, matrix, ds) == nil {
+				return true, true
+			}
+		}
+	}
+	if a := Accelerator(); a != nil {
+		if ca, ok := a.(GPUColorGlyphAccelerator); ok {
+			if ca.DrawShapedColorGlyphs(target, face, glyphs, x, y, col, matrix, ds) == nil {
+				return true, rcHasColor
+			}
+		}
+	}
+	return false, rcHasColor
+}
+
 // dispatchText routes one text run to the concrete rendering path selected by
 // selectTextStrategy. It is the SINGLE strategy switch, shared by DrawString
 // (top-level entry) and drawStringResolved (after MultiFace per-run
@@ -106,6 +198,18 @@ func (c *Context) DrawString(s string, x, y float64) {
 //   - Aliased / MSDF / Vector / Bitmap: explicit pipelines.
 //   - default (TextModeAuto when no bitmap/stencil path applies): MSDF then CPU.
 func (c *Context) dispatchText(s string, x, y float64) {
+	// Color-font runs bypass the mask strategy switch: the mask pipeline
+	// explicitly refuses color glyphs, so without this shunt every such
+	// string would fall back on every frame.
+	mode := c.textMode
+	if m, ok := forceTextMode(); ok {
+		mode = m
+	}
+	if mode != TextModeVector && mode != TextModeBitmap {
+		if c.tryGPUColorGlyphText(s, x, y) {
+			return
+		}
+	}
 	switch c.selectTextStrategy() {
 	case TextModeGlyphMask:
 		if c.tryGPUGlyphMaskText(s, x, y) {
@@ -175,8 +279,15 @@ func (c *Context) needsOutlineTransform() bool {
 	return a != e
 }
 
+// nestedFaceMaxDepth caps MultiFace-in-MultiFace recursion in drawFaceRuns.
+// Composite font chains resolve one level per nesting; deeper chains fall
+// through to the resolved-face path instead of recursing unboundedly.
+const nestedFaceMaxDepth = 4
+
 // drawStringMultiFace renders fallback font runs (X.06). Each contiguous run
 // uses a single FontSource so the GPU glyph-mask path can operate correctly.
+// Runs may resolve to a nested MultiFace (composite chains); those recurse
+// with a depth cap instead of reaching dispatch with a sourceless face.
 func (c *Context) drawStringMultiFace(mf *text.MultiFace, s string, x, y float64) {
 	if mf == nil || s == "" {
 		return
@@ -185,15 +296,23 @@ func (c *Context) drawStringMultiFace(mf *text.MultiFace, s string, x, y float64
 	defer c.applyTextDecorations(s, x, y)
 
 	orig := c.face
+	c.drawFaceRuns(mf, s, x, y, 0)
+	c.face = orig
+}
+
+func (c *Context) drawFaceRuns(mf *text.MultiFace, s string, x, y float64, depth int) {
 	for _, run := range mf.Runs(s) {
 		if run.Text == "" || run.Face == nil {
 			continue
 		}
+		if inner, ok := run.Face.(*text.MultiFace); ok && depth < nestedFaceMaxDepth {
+			c.drawFaceRuns(inner, run.Text, x+run.X, y, depth+1)
+			continue
+		}
 		c.face = run.Face
-		// Call DrawString with a concrete face (no MultiFace recursion).
+		// Resolved face (no MultiFace recursion beyond the cap above).
 		c.drawStringResolved(run.Text, x+run.X, y)
 	}
-	c.face = orig
 }
 
 // drawStringResolved is DrawString after MultiFace resolution (no decorations/clip re-entry).
@@ -254,6 +373,77 @@ func (c *Context) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x,
 	// Fallback: reconstruct string is not possible from glyphs,
 	// so render each glyph outline through the fill pipeline.
 	c.drawShapedGlyphsAsOutlines(glyphs, face, x, y)
+}
+
+// DrawShapedColorGlyphs renders pre-shaped color glyphs (CBDT bitmaps,
+// COLR layers) at glyph.X positions plus the origin (x, y baseline).
+// The GPU path packs CPU-rasterized RGBA into color atlas pages; without a
+// color accelerator the glyphs composite onto the CPU pixmap (translation
+// CTM) or fall back to outlines. Glyphs the font renders as plain outlines
+// are skipped — they belong to the mask pipeline, not this call.
+func (c *Context) DrawShapedColorGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64) {
+	if face == nil || len(glyphs) == 0 {
+		return
+	}
+
+	defer c.setGPUClipRect()()
+
+	col := FromColor(c.currentColor())
+	target := c.gpuRenderTarget()
+
+	if submitted, rcHasColor := c.submitColorGlyphs(target, face, glyphs, x, y, col, c.totalMatrix(), c.deviceScale); submitted {
+		c.recordGPUOp()
+		return
+	} else if rcHasColor {
+		c.recordCPUFallbackReason("text:color-layout")
+	}
+
+	c.drawShapedColorGlyphsCPU(glyphs, face, x, y)
+}
+
+// drawShapedColorGlyphsCPU composites cached color RGBA onto the CPU pixmap
+// under translation-only CTMs; other transforms use outlines (same tiering
+// as the string bitmap path).
+func (c *Context) drawShapedColorGlyphsCPU(glyphs []text.ShapedGlyph, face text.Face, x, y float64) {
+	m := c.totalMatrix()
+	if m.B != 0 || m.D != 0 || m.A != m.E {
+		c.drawShapedGlyphsAsOutlines(glyphs, face, x, y)
+		return
+	}
+	source := face.Source()
+	if source == nil || c.pixmap == nil {
+		return
+	}
+	parsed := source.Parsed()
+	cf, ok := parsed.(text.ColorFont)
+	if !ok || !cf.HasColorTables() {
+		return
+	}
+	ppem := uint16(face.Size()*c.deviceScale + 0.5)
+	if ppem < 1 {
+		ppem = 1
+	}
+	fg := color.RGBAModel.Convert(c.currentColor()).(color.RGBA)
+	if c.colorRasterCache == nil {
+		c.colorRasterCache = text.NewColorRasterCache(64)
+	}
+	cache := c.colorRasterCache
+	c.flushGPUAccelerator()
+	for _, glyph := range glyphs {
+		if cf.GlyphType(uint16(glyph.GID)) == text.GlyphTypeOutline {
+			continue
+		}
+		img, err := cache.Image(parsed, uint16(glyph.GID), ppem, 0, fg)
+		if err != nil {
+			continue
+		}
+		dev := m.TransformPoint(Pt(x+glyph.X, y))
+		dx := int(dev.X + float64(img.OriginX) + 0.5)
+		dy := int(dev.Y - float64(img.OriginY) + 0.5)
+		w := img.Pix.Bounds().Dx()
+		h := img.Pix.Bounds().Dy()
+		draw.Draw(c.pixmap, image.Rect(dx, dy, dx+w, dy+h), img.Pix, image.Point{}, draw.Over)
+	}
 }
 
 // drawShapedGlyphsAsOutlines renders pre-shaped glyphs as vector outlines.

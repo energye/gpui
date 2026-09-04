@@ -1634,6 +1634,43 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 	return nil
 }
 
+// DrawShapedColorGlyphs renders pre-shaped color glyphs through the RGBA
+// color atlas path. Same queueing as mask batches; IsColor batches sample
+// color pages with the color pipeline at flush time.
+func (rc *GPURenderContext) DrawShapedColorGlyphs(target render.GPURenderTarget, face any, glyphs []text.ShapedGlyph, x, y float64, color render.RGBA, matrix render.Matrix, deviceScale float64) error {
+	textFace, ok := face.(text.Face)
+	if !ok || textFace == nil {
+		return render.ErrFallbackToCPU
+	}
+
+	rc.sceneStats.TextCount++
+
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return render.ErrFallbackToCPU
+		}
+	}
+
+	rc.shared.mu.Lock()
+	rc.shared.ensureColorGlyphEngine()
+	engine := rc.shared.colorGlyphEngine
+	rc.shared.mu.Unlock()
+
+	batch, err := engine.LayoutColorGlyphs(textFace, glyphs, x, y, color, matrix, deviceScale)
+	if err != nil {
+		return render.ErrFallbackToCPU
+	}
+	if len(batch.Quads) == 0 {
+		return nil
+	}
+
+	rc.queueGlyphMaskSplit(target, batch)
+	return nil
+}
+
 // FillPath queues a filled path for GPU rendering.
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	// L.06: prefer cover-inline R8 (convex / stencil-then-cover) when MaskAware
@@ -2268,11 +2305,26 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 
 	// Propagate glyph mask atlas page views for offscreen sessions.
 	// Same pattern as MSDF atlas — engine is shared, views must reach each session.
+	// Color batches carry RGBA color page views, never R8 mask views.
 	if len(allGlyphMaskBatches) > 0 && glyphEng != nil {
 		for i, batch := range allGlyphMaskBatches {
+			if batch.IsColor {
+				continue
+			}
 			view := glyphEng.PageTextureView(batch.AtlasPageIndex)
 			if view != nil {
 				rc.session.SetGlyphMaskAtlasView(i, view, batch.IsLCD)
+			}
+		}
+		if rc.shared.colorGlyphEngine != nil {
+			for i, batch := range allGlyphMaskBatches {
+				if !batch.IsColor {
+					continue
+				}
+				view := rc.shared.colorGlyphEngine.PageTextureView(batch.AtlasPageIndex)
+				if view != nil {
+					rc.session.SetColorGlyphAtlasView(i, view)
+				}
 			}
 		}
 	}
@@ -3587,7 +3639,34 @@ func (rc *GPURenderContext) syncGlyphMaskAtlases(batches []GlyphMaskBatch) error
 		return err
 	}
 
+	hasColor := false
+	for i := range batches {
+		if batches[i].IsColor {
+			hasColor = true
+			break
+		}
+	}
+	if hasColor {
+		s.ensureColorGlyphEngine()
+		if err := s.colorGlyphEngine.SyncColorAtlasTextures(s.device, s.queue); err != nil {
+			return err
+		}
+		if err := rc.session.ensureColorGlyphPipeline(); err != nil {
+			return err
+		}
+	}
+
 	for i, batch := range batches {
+		if batch.IsColor {
+			view := s.colorGlyphEngine.PageTextureView(batch.AtlasPageIndex)
+			if view == nil {
+				slogger().Warn("color glyph atlas page not synced — text skipped",
+					"pageIndex", batch.AtlasPageIndex, "batchIndex", i, "quads", len(batch.Quads))
+				continue
+			}
+			rc.session.SetColorGlyphAtlasView(i, view)
+			continue
+		}
 		view := s.glyphMaskEngine.PageTextureView(batch.AtlasPageIndex)
 		if view == nil {
 			slogger().Warn("glyph mask atlas page not synced — text skipped",

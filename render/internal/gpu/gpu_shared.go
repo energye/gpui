@@ -84,8 +84,9 @@ type GPUShared struct {
 	stencilRenderer   *StencilRenderer
 
 	// Text/glyph atlas engines (append-only, shared across contexts).
-	textEngine      *GPUTextEngine   // MSDF atlas (Tier 4)
-	glyphMaskEngine *GlyphMaskEngine // R8 alpha atlas (Tier 6)
+	textEngine       *GPUTextEngine    // MSDF atlas (Tier 4)
+	glyphMaskEngine  *GlyphMaskEngine  // R8 alpha atlas (Tier 6)
+	colorGlyphEngine *ColorGlyphEngine // RGBA color atlas (Tier 6 color path)
 
 	// Per-atlas-index GPU textures for the MSDF atlas pages (owned by
 	// GPUShared, NOT per-session). All contexts reference these so offscreen
@@ -93,8 +94,8 @@ type GPUShared struct {
 	// matches its AtlasIndex (Latin 0.., CJK cjkAtlasOffset..) instead of a
 	// single shared view — a single view meant the last-uploaded page
 	// shadowed all others when Latin and CJK text shared a frame.
-	msdfAtlasTexes  map[int]*webgpu.Texture
-	msdfAtlasViews  map[int]*webgpu.TextureView
+	msdfAtlasTexes map[int]*webgpu.Texture
+	msdfAtlasViews map[int]*webgpu.TextureView
 
 	// Compute pipeline.
 	velloAccel *VelloAccelerator
@@ -160,8 +161,8 @@ type GPUShared struct {
 // DX12/Metal device.
 func NewGPUShared() *GPUShared {
 	return &GPUShared{
-		texturePool:   NewTexturePool(defaultTexturePoolBudgetMB),
-		liveCtxs:      make(map[*GPURenderContext]struct{}),
+		texturePool:    NewTexturePool(defaultTexturePoolBudgetMB),
+		liveCtxs:       make(map[*GPURenderContext]struct{}),
 		msdfAtlasTexes: make(map[int]*webgpu.Texture),
 		msdfAtlasViews: make(map[int]*webgpu.TextureView),
 	}
@@ -627,6 +628,14 @@ func (s *GPUShared) ensurePipelines() {
 func (s *GPUShared) ensureGlyphMaskEngine() {
 	if s.glyphMaskEngine == nil {
 		s.glyphMaskEngine = NewGlyphMaskEngine()
+	}
+}
+
+// ensureColorGlyphEngine lazily creates the color glyph engine. Must be called
+// with s.mu held.
+func (s *GPUShared) ensureColorGlyphEngine() {
+	if s.colorGlyphEngine == nil {
+		s.colorGlyphEngine = NewColorGlyphEngine()
 	}
 }
 
