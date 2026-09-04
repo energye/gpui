@@ -33,6 +33,9 @@ type TextLayoutLine struct {
 	GlyphRuns []LineGlyphRun
 	// clusters是行内字素簇起点(绝对字节偏移,末尾附行尾哨兵),懒算缓存.
 	clusters []int
+	// runRTL是整形run的RTL标记(与GlyphRuns一一对应,仅整形路径有;
+	// 估算/兜底路径为nil).行内复用凭它加GlyphRuns还原旧run边界。
+	runRTL []bool
 }
 
 // LineGlyphRun is one batchable glyph slice within a line (M2).
@@ -357,7 +360,7 @@ func materializeWrappedRow(w text.WrapResult, face text.Face, lh float64) TextLa
 	lineText := w.Text
 	start := w.Start
 	end := w.End
-	carets, width, glyphs, gruns := buildCaretsForLineWithRuns(lineText, face)
+	carets, width, glyphs, gruns, runRTL := buildCaretsForLineWithRuns(lineText, face)
 	// Adjust glyph X to be relative to line start (already 0) and keep
 	if len(carets) == 0 {
 		carets = []GlyphCaret{{ByteOff: 0, X: 0}, {ByteOff: len(lineText), X: 0}}
@@ -374,6 +377,7 @@ func materializeWrappedRow(w text.WrapResult, face text.Face, lh float64) TextLa
 		Height:    lh,
 		Glyphs:    glyphs,
 		GlyphRuns: gruns,
+		runRTL:    runRTL,
 	}
 }
 
@@ -518,7 +522,7 @@ func (l *TextLayout) LineHeight(idx int) float64 {
 }
 
 func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []text.ShapedGlyph) {
-	carets, width, glyphs, _ := buildCaretsForLineWithRuns(line, face)
+	carets, width, glyphs, _, _ := buildCaretsForLineWithRuns(line, face)
 	return carets, width, glyphs
 }
 
@@ -526,9 +530,10 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []t
 // reports per-face glyph partitions for M2 composite batch submission.
 // Runs is nil when the line has no batchable glyphs (nil-face estimate or
 // unshaped fallback); callers keep the legacy paint path then.
-func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun) {
+// runRTL mirrors the shaping runs (nil unless the shaped path succeeded).
+func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, []bool) {
 	if line == "" {
-		return []GlyphCaret{{ByteOff: 0, X: 0}}, 0, nil, nil
+		return []GlyphCaret{{ByteOff: 0, X: 0}}, 0, nil, nil, nil
 	}
 	if face == nil {
 		var carets []GlyphCaret
@@ -547,14 +552,18 @@ func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, floa
 			}
 			_ = r
 		}
-		return carets, x, glyphs, nil
+		return carets, x, glyphs, nil, nil
 	}
 	// Shaped path (M0 item 8): split into (face, script, direction) runs and
 	// shape each run, then stitch carets in a single pass — O(n), no
 	// CaretXForCluster table scan. Any unshapable run falls back below.
 	if runs := itemizeRuns(line, face); len(runs) > 0 {
-		if carets, width, glyphs, gruns, ok := buildShapedCarets(line, runs); ok {
-			return carets, width, glyphs, gruns
+		if carets, width, glyphs, gruns, ok := buildShapedCarets(line, runs, 0, 0); ok {
+			rtl := make([]bool, len(runs))
+			for i, r := range runs {
+				rtl[i] = r.rtl
+			}
+			return carets, width, glyphs, gruns, rtl
 		}
 	}
 	var carets []GlyphCaret
@@ -572,9 +581,9 @@ func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, floa
 		}
 	}
 	if len(sg) == 0 {
-		return carets, x, sg, nil
+		return carets, x, sg, nil, nil
 	}
-	return carets, x, sg, []LineGlyphRun{{Face: face, Start: 0, End: len(sg)}}
+	return carets, x, sg, []LineGlyphRun{{Face: face, Start: 0, End: len(sg)}}, nil
 }
 
 // itemizedRun is one independently shapable slice of a line: byte range,
@@ -650,7 +659,9 @@ func itemizeRuns(line string, face text.Face) []itemizedRun {
 // in a single pass. ok=false when any run shapes empty (caller falls back).
 // gruns partitions the returned glyphs by submitting face (M2 composite
 // batch): gruns[k] covers glyphs[gruns[k].Start:gruns[k].End] with Face.
-func buildShapedCarets(line string, runs []itemizedRun) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, bool) {
+// cursor0/prevX0 seed the pen for window reuse (full-line builds pass 0,0);
+// Cluster/Caret ByteOff stay relative to line, glyph X absorbs cursor0.
+func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, bool) {
 	runeByte := make([]int, 0)
 	for i := range line {
 		if utf8.RuneStart(line[i]) {
@@ -666,7 +677,7 @@ func buildShapedCarets(line string, runs []itemizedRun) ([]GlyphCaret, float64, 
 	filled := make([]bool, n)
 	var glyphs []text.ShapedGlyph
 	var gruns []LineGlyphRun
-	cursor := 0.0
+	cursor := cursor0
 	runeBase := 0
 	for _, r := range runs {
 		seg := line[r.start:r.end]
@@ -702,7 +713,7 @@ func buildShapedCarets(line string, runs []itemizedRun) ([]GlyphCaret, float64, 
 		runeBase += utf8.RuneCountInString(seg)
 	}
 	carets := make([]GlyphCaret, 0, n+1)
-	prevX := 0.0
+	prevX := prevX0
 	for ri := 0; ri < n; ri++ {
 		x := prevX
 		if filled[ri] {

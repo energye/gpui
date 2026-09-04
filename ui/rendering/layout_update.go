@@ -240,7 +240,12 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 	} else if maxWidth > 0 {
 		fresh, freshMarks = c.estSpan(parts, fontSize, maxWidth, approxCharW, lh, gen)
 	} else {
-		fresh, freshMarks = c.rowSpan(parts, face, fontSize, lh, gen)
+		if row, marks, ok := c.reuseSingleRow(textStr, parts, lo, hi, face, fontSize, lh, gen); ok {
+			// 单行快径命中(遗留#1):只重整变更 run,前后缀复用。
+			fresh, freshMarks = row, marks
+		} else {
+			fresh, freshMarks = c.rowSpan(parts, face, fontSize, lh, gen)
+		}
 	}
 	removedH := 0.0
 	for i := lo; i <= hi && i < len(lv.rows); i++ {

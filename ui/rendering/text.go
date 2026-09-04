@@ -67,6 +67,11 @@ type RenderText struct {
 	// lcache是行/段增量引擎(M1-d):单串路径经update增量重排,
 	// 多run路径仍走全量BuildRenderTextLayout.
 	lcache *layoutCache
+	// effFace是effectiveFace的记忆值:face 对象不可变,输入不变时
+	// 返回同一对象,增量引擎才能按身份命中(否则每击键全量重建)。
+	effFace     text.Face
+	effFaceFor  text.Face
+	effFaceSize float64
 	// spanHint是SetTextSpan留下的变更区间,ensureLayout消费一次.
 	spanHint editSpan
 
@@ -363,11 +368,20 @@ func faceForSize(face text.Face, points float64) text.Face {
 }
 
 // effectiveFace is Face scaled to FontSize for single-string measure/paint.
+// The derived face is memoized on stable inputs: face objects are immutable,
+// and identity stability is what lets the incremental engine match the live
+// cache across keystrokes instead of fully rebuilding every time.
 func (t *RenderText) effectiveFace() text.Face {
 	if t == nil || t.Face == nil {
 		return nil
 	}
-	return faceForSize(t.Face, t.fontSize())
+	pts := t.fontSize()
+	if t.effFace != nil && t.effFaceFor == t.Face && t.effFaceSize == pts {
+		return t.effFace
+	}
+	ef := faceForSize(t.Face, pts)
+	t.effFaceFor, t.effFaceSize, t.effFace = t.Face, pts, ef
+	return ef
 }
 
 // lineHeightLogical is the per-line advance used for layout height and multi-line paint.
