@@ -32,6 +32,7 @@ import (
 
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/examples/wrsoak"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/io"
@@ -60,6 +61,23 @@ const (
 	overlayOpen  = 20.0 // 每轮 Spike 起浮层打开…
 	overlayClose = 28.0 // …8s 后关闭（5 轮共 5 次开合）
 	overlayMinOpens = 3 // 300s 关闭跑至少见到 3 次开合
+
+	// Body-local layout (logical px). resolveGeometry derives probe sites
+	// from the same constants — no hand-computed absolutes.
+	listW = 420.0
+	nestX, nestY     = 440.0, 10.0
+	denseX, denseY   = 440.0, 320.0
+	hotX, hotY       = 680.0, 40.0
+	hotLblY          = 70.0
+	ovLblX, ovLblY   = 660.0, 100.0
+	bannerX, bannerY = 440.0, 540.0
+	ovWinX, ovWinY   = 950.0, 570.0
+	ovW, ovH         = 200.0, 150.0
+	imgX, imgY       = 660.0, 140.0
+	imgTitleY        = 118.0
+	imgCellW, imgCellH = 104.0, 64.0
+	imgW, imgH         = 96.0, 56.0
+	imgStepX, imgStepY = 110.0, 70.0
 )
 
 var bodyBGColor = [3]float64{0.10, 0.11, 0.13}
@@ -140,21 +158,6 @@ func cyclicPhase(elapsed float64) (string, float64) {	cycleT := math.Mod(elapsed
 	}
 }
 
-type probePoint struct {
-	x, y float64
-	want [3]float64
-	tol  float64
-}
-
-type rect struct{ x, y, w, h float64 }
-
-type pixelCheck struct {
-	pt   *probePoint
-	text *rect // F6: text density is a REGION property
-	base [3]float64
-	desc string
-}
-
 var pixelResult = map[string]bool{}
 
 func main() {
@@ -195,7 +198,6 @@ func main() {
 	body := shell.Body
 
 	// ===== LIST: sustained-scroll producer (滚动) ==========================
-	listW := 420.0
 	vpH := body.H
 	list := rendering.NewVirtualList(itemCount, rowExtent, func(i int) rendering.RenderObject {
 		c := rowColor(i)
@@ -236,7 +238,7 @@ func main() {
 	nestInnerBox.Place(nestChip, 10, 10)
 	nestLbl := wrkit.Label("nest inner 静区", 10, 0.9, 0.85, 0.7)
 	nestInnerBox.Place(nestLbl, 10, 60)
-	body.Box.Place(nestOuter, 440, 10)
+	body.Box.Place(nestOuter, nestX, nestY)
 
 	// ===== DENSE: static panel (must stay untouched) =======================
 	dense := rendering.NewAbsoluteBox(200, 200)
@@ -253,15 +255,15 @@ func main() {
 	// box scores 0 text pixels and trips the pixel gate).
 	denseNote := wrkit.Label("静态缓存：全程 skip 不重录", 11, 0.55, 0.75, 0.95)
 	dense.Place(denseNote, 10, 172)
-	body.Box.Place(dense, 440, 320)
+	body.Box.Place(dense, denseX, denseY)
 
 	// ===== HOT spot (non-cached animation) =================================
 	hot := rendering.NewRenderColorBox(24, 24, 0.95, 0.3, 0.25, 1)
-	body.Box.Place(hot, 680, 40)
+	body.Box.Place(hot, hotX, hotY)
 	hotLbl := wrkit.Label("HOT 每帧变色", 11, 0.95, 0.7, 0.6)
-	body.Box.Place(hotLbl, 680, 70)
+	body.Box.Place(hotLbl, hotX, hotLblY)
 	ovLbl := wrkit.Label("OVERLAY 每轮 Spike 开 8s（右下）", 11, 0.70, 0.85, 0.95)
-	body.Box.Place(ovLbl, 660, 100)
+	body.Box.Place(ovLbl, ovLblX, ovLblY)
 
 	// ===== IMG: 4 decoded image cells (图片; decoded once at startup) ======
 	// Startup-only file decode path (R10-style): PNGs are generated + decoded
@@ -269,7 +271,7 @@ func main() {
 	// the soak proves decoded image textures composite stably, not that the
 	// decoder is fast. Cell 0 is a solid fill (F0 pixel probe target).
 	imgTitle := wrkit.Label("IMG 启动一次解码·全程零解码", 11, 0.65, 0.80, 0.95)
-	body.Box.Place(imgTitle, 660, 118)
+	body.Box.Place(imgTitle, imgX, imgTitleY)
 	imgCellBase := [][3]float64{
 		{0.30, 0.55, 0.80},
 		{0.75, 0.45, 0.25},
@@ -278,16 +280,16 @@ func main() {
 	}
 	imgLoaded := 0
 	for i := 0; i < 4; i++ {
-		box := rendering.NewAbsoluteBox(104, 64)
+		box := rendering.NewAbsoluteBox(imgCellW, imgCellH)
 		box.Background = &rendering.Color{R: 0.13, G: 0.14, B: 0.18, A: 1}
 		box.SetRepaintBoundary(true)
 		if im := decodeStripedCell(i, imgCellBase[i]); im != nil {
-			ri := rendering.NewRenderImage(96, 56)
+			ri := rendering.NewRenderImage(imgW, imgH)
 			ri.SetImage(im)
 			box.Place(ri, 4, 4)
 			imgLoaded++
 		}
-		body.Box.Place(box, 660+float64(i%2)*110, 140+float64(i/2)*70)
+		body.Box.Place(box, imgX+float64(i%2)*imgStepX, imgY+float64(i/2)*imgStepY)
 	}
 	if imgLoaded != 4 {
 		fmt.Fprintf(os.Stderr, "FAIL: img_loaded=%d want 4 (图片启动解码失败)\n", imgLoaded)
@@ -296,22 +298,22 @@ func main() {
 
 	// ===== Soak banner ======================================================
 	soakBanner := wrkit.Label("SOAK: bind=-- skip=-- ov=--", 12, 0.95, 0.90, 0.55)
-	body.Box.Place(soakBanner, 440, 540)
+	body.Box.Place(soakBanner, bannerX, bannerY)
 
 	// ===== Probe geometry ==================================================
-	ptNestInner := probePoint{want: nestInner, tol: 8.0 / 255}
-	ptListRow := probePoint{tol: 6.0 / 255}
-	ptOverlayClosed := probePoint{want: bodyBGColor, tol: 8.0 / 255}
-	ptImgCell := probePoint{want: imgCellBase[0], tol: 8.0 / 255}
-	capTextBox := rect{}
-	var goldenRects []rect
+	ptNestInner := wrsoak.ProbePoint{Want: nestInner, Tol: 8.0 / 255}
+	ptListRow := wrsoak.ProbePoint{Tol: 6.0 / 255}
+	ptOverlayClosed := wrsoak.ProbePoint{Want: bodyBGColor, Tol: 8.0 / 255}
+	ptImgCell := wrsoak.ProbePoint{Want: imgCellBase[0], Tol: 8.0 / 255}
+	capTextBox := wrsoak.Rect{}
+	var goldenRects []wrsoak.Rect
 
 	resolveGeometry := func(scrollY float64) {
 		bodyX, bodyY := body.Box.Offset().X, body.Box.Offset().Y
 		nx := bodyX + nestOuter.Offset().X + 15 + 15
 		ny := bodyY + nestOuter.Offset().Y + 25 + 40
-		ptNestInner.x = nx + 100
-		ptNestInner.y = ny + 120
+		ptNestInner.X = nx + 100
+		ptNestInner.Y = ny + 120
 		firstVis := int(scrollY / rowExtent)
 		lastVis := int((scrollY + float64(vpH)) / rowExtent)
 		if lastVis >= itemCount {
@@ -321,25 +323,25 @@ func main() {
 		if mid >= itemCount {
 			mid = itemCount - 1
 		}
-		ptListRow.want = rowColor(mid)
-		ptListRow.x = bodyX + 48
-		ptListRow.y = bodyY + (float64(mid)*rowExtent - scrollY) + rowExtent/2
+		ptListRow.Want = rowColor(mid)
+		ptListRow.X = bodyX + 48
+		ptListRow.Y = bodyY + (float64(mid)*rowExtent - scrollY) + rowExtent/2
 		dx := bodyX + dense.Offset().X
-		capTextBox = rect{x: dx + 10, y: bodyY + dense.Offset().Y + 172, w: 180, h: 24}
+		capTextBox = wrsoak.Rect{X: dx + 10, Y: bodyY + dense.Offset().Y + 172, W: 180, H: 24}
 		// Overlay closed-state probe: panel zone center shows body bg when
 		// the overlay is closed (final frame is always closed — cycleT=0).
-		ptOverlayClosed.x = 950 + 100
-		ptOverlayClosed.y = 570 + 75
+		ptOverlayClosed.X = ovWinX + 100
+		ptOverlayClosed.Y = ovWinY + 75
 		// Image cell 0 center: solid fill, decoded once at startup.
-		ptImgCell.x = bodyX + 660 + 4 + 48
-		ptImgCell.y = bodyY + 140 + 4 + 28
+		ptImgCell.X = bodyX + imgX + 4 + 48
+		ptImgCell.Y = bodyY + imgY + 4 + 28
 		// Golden static mask: time-invariant BY DESIGN. Excluded: HUD band,
 		// soak banner, scrolling list column, HOT spot, overlay corner zone.
-		goldenRects = []rect{
-			{x: 0, y: 0, w: winW, h: 48},
-			{shell.Legend.X, shell.Legend.Y, shell.Legend.W, shell.Legend.H},
-			{dx - 2, bodyY + dense.Offset().Y - 2, 206, 206},
-			{nx - 2, ny - 2, 146, 176},
+		goldenRects = []wrsoak.Rect{
+			{X: 0, Y: 0, W: winW, H: 48},
+			{X: shell.Legend.X, Y: shell.Legend.Y, W: shell.Legend.W, H: shell.Legend.H},
+			{X: dx - 2, Y: bodyY + dense.Offset().Y - 2, W: 206, H: 206},
+			{X: nx - 2, Y: ny - 2, W: 146, H: 176},
 		}
 	}
 
@@ -390,7 +392,7 @@ func main() {
 		panel.Place(wrkit.Label(fmt.Sprintf("浮层面板 open #%d", n), 12, 0.92, 0.95, 1.0), 12, 12)
 		panel.Place(wrkit.Label("Spike 期开 8s 后关", 11, 0.75, 0.85, 0.95), 12, 40)
 		panel.Place(wrkit.Label("主带不受浮层拖累", 11, 0.75, 0.85, 0.95), 12, 64)
-		ovEntry = overlay.NewEntry(panel, 950, 570, 200, 150)
+		ovEntry = overlay.NewEntry(panel, ovWinX, ovWinY, ovW, ovH)
 		ov.Insert(ovEntry)
 		ovIsOpen = true
 		overlayOpens = n
@@ -403,7 +405,7 @@ func main() {
 		ovIsOpen = false
 	}
 
-	app.Scheduler().Tickers().Add(&tickerT{on: func(dt float64) {
+	app.Scheduler().Tickers().Add(&wrsoak.Ticker{On: func(dt float64) {
 		elapsed += dt
 		phase, cycleT := cyclicPhase(elapsed)
 		phasesSeen[phase] = true
@@ -506,14 +508,14 @@ func main() {
 	// Final frame is always overlay-closed (300s = 5 full 60s cycles,
 	// cycleT=0 → Steady): deterministic, never a transition frame.
 	resolveGeometry(scrollY)
-	finalChecks := []pixelCheck{
-		{pt: &ptNestInner, desc: "nested_inner_intact_over_soak"},
-		{pt: &ptListRow, desc: "scrolled_in_row_content_correct"},
-		{pt: &ptOverlayClosed, desc: "overlay_zone_closed_no_residue"},
-		{pt: &ptImgCell, desc: "image_cell0_stable_over_soak"},
-		{text: &capTextBox, base: denseBase, desc: "static_note_text_density"},
+	finalChecks := []wrsoak.PixelCheck{
+		{Pt: &ptNestInner, Desc: "nested_inner_intact_over_soak"},
+		{Pt: &ptListRow, Desc: "scrolled_in_row_content_correct"},
+		{Pt: &ptOverlayClosed, Desc: "overlay_zone_closed_no_residue"},
+		{Pt: &ptImgCell, Desc: "image_cell0_stable_over_soak"},
+		{Text: &capTextBox, Base: denseBase, Desc: "static_note_text_density"},
 	}
-	runPixelChecks(loadImage(filepath.Join(snapDir, "c10_final.png")), finalChecks, pixelResult)
+	wrsoak.RunPixelChecks("ui_wr_c10_soak", winW, wrsoak.LoadImage(filepath.Join(snapDir, "c10_final.png")), finalChecks, pixelResult)
 
 	scriptedOK, scriptedTotal := 0, len(pixelResult)
 	for _, ok := range pixelResult {
@@ -522,7 +524,7 @@ func main() {
 		}
 	}
 
-	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapDir, goldenRects)
+	goldenDiffPct, goldenTotalPx, goldenFirstRun := wrsoak.EvaluateGolden("ui_wr_c10_soak", snapDir, "c10_final.png", "c10_final_base.png", goldenRects, winW)
 
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "C10",
@@ -544,7 +546,7 @@ func main() {
 			"hitch_budget_per_min":        hitchBudget,
 			"rss_slope_budget_kb_per_min": slopeBudget,
 			"cpu_budget_pct":              cpuBudget,
-			"phases_seen":                 keysOf(phasesSeen),
+			"phases_seen":                 wrsoak.SortedKeys(phasesSeen),
 			"scripted_ok":                 scriptedOK,
 			"scripted_total":              scriptedTotal,
 			"pixel_golden_diff_pct":       goldenDiffPct,
@@ -600,8 +602,8 @@ func main() {
 		os.Exit(1)
 	}
 	// 族 A: 持续 tick 60fps 档。
-	if fpsOf(snap) < 55 {
-		fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.1f < 55 (持续 tick C10)", fpsOf(snap))
+	if wrsoak.FpsOf(snap.AvgFrameIntervalMs) < 55 {
+		fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.1f < 55 (持续 tick C10)", wrsoak.FpsOf(snap.AvgFrameIntervalMs))
 		os.Exit(1)
 	}
 	if snap.HitchRatePerMin > hitchBudget {
@@ -634,163 +636,11 @@ func main() {
 	}
 
 	fmt.Fprintf(os.Stderr, "ui_wr_c10_soak: OK presents=%d fps=%.1f p95=%.1f hitch=%.2f/min bind=%d/%d scroll_rr=%d ov_opens=%d slope=%.0fKB/min cpu=%.1f skip=%d scripted=%d/%d golden=%.4f%%(%dpx first=%v) vsync=%s elapsed=%.1fs\n",
-		app.PresentCount(), fpsOf(snap), snap.P95FrameIntervalMs, snap.HitchRatePerMin,
+		app.PresentCount(), wrsoak.FpsOf(snap.AvgFrameIntervalMs), snap.P95FrameIntervalMs, snap.HitchRatePerMin,
 		snap.BindCount, snap.ItemCount, snap.ScrollRerecord, overlayOpens,
 		snap.RSSSlopeKBPerMin, snap.CPUPctAvg,
 		snap.BoundarySkip, scriptedOK, scriptedTotal, goldenDiffPct, goldenTotalPx, goldenFirstRun,
 		snap.VSyncSource, elapsedSec)
 }
 
-// --- assertion helpers -----------------------------------------------------
-
-func runPixelChecks(img image.Image, checks []pixelCheck, result map[string]bool) {
-	dpr := 1.0
-	if img != nil {
-		dpr = float64(img.Bounds().Dx()) / winW
-	}
-	for _, c := range checks {
-		var ok bool
-		if c.pt != nil {
-			r, g, b, valid := sampleLogical(img, dpr, c.pt.x, c.pt.y)
-			ok = valid && nearC(r, g, b, c.pt.want, c.pt.tol)
-			fmt.Fprintf(os.Stderr, "ui_wr_c10_soak: pixel %-32s @(%4.0f,%4.0f) got=(%.3f,%.3f,%.3f) want=(%.3f,%.3f,%.3f) ok=%v\n",
-				c.desc, c.pt.x, c.pt.y, r, g, b, c.pt.want[0], c.pt.want[1], c.pt.want[2], ok)
-		} else if c.text != nil {
-			n := textPixels(img, dpr, *c.text, c.base)
-			ok = img != nil && n >= 120
-			fmt.Fprintf(os.Stderr, "ui_wr_c10_soak: pixel %-32s text_px=%d (want >=120) ok=%v\n", c.desc, n, ok)
-		}
-		result[c.desc] = ok
-	}
-}
-
-func loadImage(path string) image.Image {
-	f, err := os.Open(path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "pixel checks: %v\n", err)
-		return nil
-	}
-	defer f.Close()
-	img, _, err := image.Decode(f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "pixel checks: decode %s: %v\n", path, err)
-		return nil
-	}
-	return img
-}
-
-func sampleLogical(img image.Image, dpr float64, lx, ly float64) (r, g, b float64, valid bool) {
-	if img == nil {
-		return 0, 0, 0, false
-	}
-	px, py := int(lx*dpr), int(ly*dpr)
-	if px < 0 || py < 0 || px >= img.Bounds().Dx() || py >= img.Bounds().Dy() {
-		return 0, 0, 0, false
-	}
-	r32, g32, b32, _ := img.At(px, py).RGBA()
-	return float64(r32>>8) / 255, float64(g32>>8) / 255, float64(b32>>8) / 255, true
-}
-
-func nearC(r, g, b float64, want [3]float64, tol float64) bool {
-	return math.Abs(r-want[0]) <= tol && math.Abs(g-want[1]) <= tol && math.Abs(b-want[2]) <= tol
-}
-
-func textPixels(img image.Image, dpr float64, box rect, base [3]float64) int {
-	if img == nil {
-		return 0
-	}
-	x0, y0 := int(box.x*dpr), int(box.y*dpr)
-	x1, y1 := int((box.x+box.w)*dpr), int((box.y+box.h)*dpr)
-	n := 0
-	for py := y0; py < y1 && py < img.Bounds().Dy(); py++ {
-		for px := x0; px < x1 && px < img.Bounds().Dx(); px++ {
-			r32, g32, b32, _ := img.At(px, py).RGBA()
-			r, g, b := float64(r32>>8)/255, float64(g32>>8)/255, float64(b32>>8)/255
-			if math.Abs(r-base[0]) > 24.0/255 || math.Abs(g-base[1]) > 24.0/255 || math.Abs(b-base[2]) > 24.0/255 {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
-	cur := filepath.Join(snapDir, "c10_final.png")
-	base := filepath.Join(snapDir, "c10_final_base.png")
-	if _, err := os.Stat(base); err != nil {
-		data, err := os.ReadFile(cur)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "golden: current snapshot %s missing (%v)\n", cur, err)
-			return 100, 0, false
-		}
-		if err := os.WriteFile(base, data, 0o644); err == nil {
-			fmt.Fprintf(os.Stderr, "golden baseline stored: %s\n", base)
-			return 0, 0, true
-		}
-		return 100, 0, false
-	}
-	diff, total, err := comparePNG(base, cur, rects)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "golden compare: %v\n", err)
-		return 100, 0, false
-	}
-	fmt.Fprintf(os.Stderr, "golden %s: diff=%.4f%% over %d px\n", filepath.Base(cur), diff, total)
-	return diff, total, false
-}
-
-func comparePNG(basePath, curPath string, rects []rect) (pct float64, total int64, err error) {
-	a, b := loadImage(basePath), loadImage(curPath)
-	if a == nil || b == nil {
-		return 0, 0, fmt.Errorf("decode failed")
-	}
-	if a.Bounds() != b.Bounds() {
-		return 0, 0, fmt.Errorf("size mismatch %v vs %v", a.Bounds(), b.Bounds())
-	}
-	dpr := float64(a.Bounds().Dx()) / winW
-	var diff int64
-	for _, r := range rects {
-		x0, y0 := int(r.x*dpr), int(r.y*dpr)
-		x1, y1 := int((r.x+r.w)*dpr), int((r.y+r.h)*dpr)
-		for py := y0; py < y1 && py < a.Bounds().Dy(); py++ {
-			for px := x0; px < x1 && px < a.Bounds().Dx(); px++ {
-				ar, ag, ab, _ := a.At(px, py).RGBA()
-				br, bg, bb, _ := b.At(px, py).RGBA()
-				if ar != br || ag != bg || ab != bb {
-					diff++
-				}
-				total++
-			}
-		}
-	}
-	if total == 0 {
-		return 0, 0, nil
-	}
-	return float64(diff) / float64(total) * 100, total, nil
-}
-
-func fpsOf(snap scheduler.FrameMetrics) float64 {
-	if snap.AvgFrameIntervalMs > 1e-6 {
-		return 1000.0 / snap.AvgFrameIntervalMs
-	}
-	return 0
-}
-
-func keysOf(m map[string]bool) string {
-	out := ""
-	for k := range m {
-		if out != "" {
-			out += ","
-		}
-		out += k
-	}
-	return out
-}
-
-type tickerT struct{ on func(dt float64) }
-
-func (t *tickerT) Tick(dt float64) bool {
-	if t.on != nil {
-		t.on(dt)
-	}
-	return true
-}
+// Assertion plumbing (pixel/Golden/tick) is shared with R15 in examples/wrsoak.
