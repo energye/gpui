@@ -132,19 +132,20 @@ M3.5 触发数据（同尺寸对照，`face==nil` 估算路径）：1e3 下拼�
 | `rss_slope_kb_per_min` | 41199 | 5175 | ≤ 30000 | 30s 含预热超，60s 稳态 ✅（与 M3 同口径注释） |
 | `keystroke_p99_ms` @C（50000 字整行重排） | 64.5 | 77.1 | ≤ 16 | ❌ 存量设计（§3.4 整行整形），增量口径由 `TestKeystrokeRatio_M5` 守 |
 
-像素：快照 `/tmp/accept_m5.png` 目检六区正常出字；与 M0 基线逐位差 1.0%（遮动态条后），差异为散布单字形抗锯齿级、无移位无缺字（差异图 `/tmp/accept_diffmap.png`）；M0 基线早于 M1–M4 提交路变更且从未刷新，本窗未覆盖写（原因已记，待专立 golden 刷新项）。
+像素：快照 `/tmp/accept_m5_rerun.png` 目检六区正常出字；与 M0 基线逐位差约 1.4%（>8 通道差 1.48%，3840 余字形行散布 + 底部动态条约 0.3%），差异为散布单字形抗锯齿级、无移位无缺字（差异图 `/tmp/accept_diffmap_rerun.png`，游程最长 20px，字形行每行 25–31 个短段）；M0 基线早于 M1–M4 提交路变更且从未刷新，已按 `LEGACY_03` 刷新归档为 `golden/baseline_m5.png`（独立评审通过），本窗 Golden 以新基线为准。
 
 ## 未验证清单
 
 - 像素墨迹与布局的对照：B 框截图已量出 3242 墨点、左缘在框内 +3px（内边距），与布局一致；全框逐字对照待补。
 - `paint_ms_p99` / `scroll_fps`（探针未接，M2 状态：仍用整帧 `frame_raster_ms` 代替记录，未冒充文本专项 p99；滚动帧率需 E/F 纵滚脚本，待 M4 虚拟化时补）。
 
-## Golden 基线（M0-pre pre-4）
+## Golden 基线（2026-09-04 按 LEGACY_03 刷新为 M5）
 
-- 文件：`golden/baseline_m0.png`（默认预填 B/C/F，E 为空，1200×800，M0 代码后）。
+- 文件：`golden/baseline_m5.png`（默认预填 B/C/F，E 为空，1200×800，M5 代码后；M0 时期旧基线已归档替换删除）。
 - 复现：`GPUI_ACCEPT_RUN_SECONDS=8 GPUI_ACCEPT_SNAP=/tmp/x.png go run
   ./examples/ui_text_edit_accept`（需先 export 两个 lib 路径），逐像素对比。
 - 容差：零容差（同机同字体）；换机器/换字体只做目检，不判失败。
+- 稳定性：同条件两跑（`/tmp/accept_m5.png` vs `/tmp/accept_m5_rerun.png`）全幅差 0.35%，其中底部动态条（tick/HUD/光标闪烁相位）约 0.3%，其余静态区约 0.07%（光标闪烁相位差，非字形渲染差）。
 
 ## 已知问题（M2 范围）
 
