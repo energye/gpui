@@ -48,3 +48,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_c7_resize_dpr
 - **禁止 CGO**；FFI 仅 purego — [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md)  
 - demo 仅 `examples/`，不进 `ui/*`  
 - 坐标：逻辑 px、Y-down；物理 = 逻辑 × dpr  
+
+## 文本规模分期（ENGINE_TEXT_SCALE_PLAN）
+
+- 缓冲层：`ui/textbuffer`（M3.5 piece tree：编辑 O(log n)、快照 O(1）；小文本 <64KB 走直串降级）

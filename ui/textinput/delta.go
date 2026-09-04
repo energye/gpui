@@ -113,6 +113,7 @@ func (e *Editor) ApplyDelta(d TextEditingDelta) bool {
 	}
 	newText := d.OldText[:startByte] + d.DeltaText + d.OldText[endByte:]
 	e.text = newText
+	e.mirrorRebuild()
 	e.selection = clampRangeForText(newText, d.Selection)
 	e.composingRange = clampRangeForText(newText, d.Composing)
 	e.composing = e.composingRange.Length() > 0

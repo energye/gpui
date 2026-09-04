@@ -1,6 +1,8 @@
 package textinput
 
 import (
+	"unicode/utf8"
+
 	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/platform"
 )
@@ -151,13 +153,7 @@ func (s *ImeSession) PreeditChanged(e input.PreeditEvent) {
 	if !s.ed.composing {
 		s.ed.BeginComposing()
 	}
-	cuOff := utf16Len(e.Text)
-	if e.Cursor >= 0 && e.Cursor <= len(e.Text) {
-		cuOff = utf16Len(e.Text[:e.Cursor])
-		if e.Cursor < 0 {
-			cuOff = utf16Len(e.Text)
-		}
-	}
+	cuOff := utf16Len(e.Text[:preeditCursorByte(e.Text, e.Cursor)])
 	// UpdateComposingText replaces composingRange or selection and sets new range
 	// sel is start+cuOff
 	start := s.ed.composingRange.Start()
@@ -176,6 +172,19 @@ func (s *ImeSession) PreeditChanged(e input.PreeditEvent) {
 	}
 }
 
+// preeditCursorByte maps PreeditEvent.Cursor (byte offset, <0 = end) to a
+// safe slice bound: clamped to [0,len] and snapped down to a rune boundary,
+// so a mid-rune or out-of-range value can never split a character.
+func preeditCursorByte(s string, cursor int) int {
+	if cursor < 0 || cursor >= len(s) {
+		return len(s)
+	}
+	for cursor > 0 && !utf8.RuneStart(s[cursor]) {
+		cursor--
+	}
+	return cursor
+}
+
 func (s *ImeSession) Committed(text string) {
 	if s == nil || s.state == StateIdle || s.ed == nil {
 		s.noop()
@@ -190,11 +199,10 @@ func (s *ImeSession) DeleteSurrounding(before, after int) {
 		s.noop()
 		return
 	}
-	s.ed.DeleteSurrounding(-before, before+after) // legacy calls with (before, after) counts
-	// new DeleteSurrounding expects offset/count; adapt: before is positive count before caret, after is count after
-	// Use direct: offset=-before, count=before+after? Actually spec: offset negative, count positive.
-	// Keep simple forward to editor's byte version handled above.
-	_ = after
+	// Editor.DeleteSurrounding takes (offset,count) in code points relative to
+	// the caret, deleting [caret-before, caret+after). before/after are the
+	// protocol's non-negative counts, so offset=-before, count=before+after.
+	s.ed.DeleteSurrounding(-before, before+after)
 }
 
 func (s *ImeSession) Session(active bool) {

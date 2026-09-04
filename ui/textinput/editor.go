@@ -6,6 +6,7 @@ import (
 
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/platform"
+	"github.com/energye/gpui/ui/textbuffer"
 )
 
 const (
@@ -88,6 +89,9 @@ type Editor struct {
 	history            []editGroup
 	redoStack          []editGroup
 	composingSnapshot  bool // true when a group is open for current composition
+	buf                *textbuffer.Buffer
+	bufOn              bool
+	bufForceString     bool // pin mirror to plain-string mode (degradation path)
 }
 
 // noteEdit记录文本变更区间;已有未消费区间则失效(多变更回退diff).
@@ -356,6 +360,8 @@ func (e *Editor) Undo() bool {
 			end = len(e.text)
 		}
 		e.text = e.text[:op.pos] + op.deleted + e.text[end:]
+		e.mirrorDelete(op.pos, end)
+		e.mirrorInsert(op.pos, op.deleted)
 	}
 	e.noteEdit(0, oldLen, 0, len(e.text))
 	e.selection = g.selBefore
@@ -389,6 +395,8 @@ func (e *Editor) Redo() bool {
 			end = len(e.text)
 		}
 		e.text = e.text[:op.pos] + op.inserted + e.text[end:]
+		e.mirrorDelete(op.pos, end)
+		e.mirrorInsert(op.pos, op.inserted)
 	}
 	e.noteEdit(0, oldLen, 0, len(e.text))
 	e.selection = g.selAfter
@@ -633,6 +641,7 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	e.lastFrameworkSel = sel
 	e.lastFrameworkComp = comp
 	e.caretColValid = false
+	e.mirrorRebuild()
 	return changed
 }
 
@@ -744,6 +753,8 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 	sel.Extent = clampUtf16(newText, sel.Extent)
 	e.noteEdit(startByte, endByte, startByte, startByte+len(text))
 	e.text = newText
+	e.mirrorDelete(startByte, endByte)
+	e.mirrorInsert(startByte, text)
 	e.composing = true
 	e.composingRange = TextRange{Base: newStart, Extent: newEnd}
 	e.selection = sel
@@ -783,6 +794,7 @@ func (e *Editor) EndComposing() {
 		deleted := e.text[s:en]
 		e.noteEdit(s, en, s, s)
 		e.text = e.text[:s] + e.text[en:]
+		e.mirrorDelete(s, en)
 		e.selection = TextRange{Base: e.composingRange.Start(), Extent: e.composingRange.Start()}
 		e.pushDelta(s, deleted, "", selB, compB, true, e.selection, e.composingRange, true)
 	}
@@ -841,6 +853,7 @@ func (e *Editor) DeleteSelected() bool {
 	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(start, end, start, start)
 	e.text = e.text[:start] + e.text[end:]
+	e.mirrorDelete(start, end)
 	off := e.selection.Start()
 	e.selection = TextRange{Base: off, Extent: off}
 	if e.composing {
@@ -878,6 +891,8 @@ func (e *Editor) AddText(text string) bool {
 	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(startByte, endByte, startByte, startByte+len(text))
 	e.text = e.text[:startByte] + text + e.text[endByte:]
+	e.mirrorDelete(startByte, endByte)
+	e.mirrorInsert(startByte, text)
 	newOff := replaceRange.Start() + utf16Len(text)
 	e.selection = TextRange{Base: newOff, Extent: newOff}
 	e.pushDelta(startByte, deleted, text, selB, compB, cB, e.selection, TextRange{}, false)
@@ -936,6 +951,7 @@ func (e *Editor) DeleteSurrounding(offset, count int) bool {
 	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(startByte, endByte, startByte, startByte)
 	e.text = e.text[:startByte] + e.text[endByte:]
+	e.mirrorDelete(startByte, endByte)
 	delta := end - start
 	if offset < 0 {
 		e.selection = TextRange{Base: start, Extent: start}
