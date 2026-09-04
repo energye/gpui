@@ -72,8 +72,12 @@ func TestPipelineApp_SetPresentPolicyRetained(t *testing.T) {
 	// Host-less: only policy flag + metrics wiring (no Open).
 	root := rendering.NewAbsoluteBox(10, 10)
 	app := embedder.NewPipelineApp(nil, root, embedder.PipelineOptions{})
-	if app.Metrics().PresentPolicy() != scheduler.PresentPolicyFullPaint {
+	if app.Metrics().PresentPolicy() != scheduler.PresentPolicyRetained {
 		t.Fatalf("default policy=%q", app.Metrics().PresentPolicy())
+	}
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	if app.Metrics().PresentPolicy() != scheduler.PresentPolicyFullPaint {
+		t.Fatalf("after set policy=%q", app.Metrics().PresentPolicy())
 	}
 	app.SetPresentPolicy(scheduler.PresentPolicyRetained)
 	if app.Metrics().PresentPolicy() != scheduler.PresentPolicyRetained {

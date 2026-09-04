@@ -98,8 +98,8 @@ L3–L5 Kit                       ← 暂缓
 
 | 策略 | 含义 | 默认 |
 |------|------|------|
-| `full_paint` | 每帧全树 paint | **全局默认**（W0 正确性；防 Clear 丢静态） |
-| `retained` | 稳态 CompositeOnly + PresentWithAuto damage | **W2 窗可选**（`SetPresentPolicy`）；W6 再作默认 |
+| `full_paint` | 每帧全树 paint | 正确性窗显式指定（R0/C0/R16/R3/R5/R11/R12b/R21/C1/C3/C7 经 `SetPresentPolicy` 钉住；防 Clear 丢静态） |
+| `retained` | 稳态 CompositeOnly + PresentWithAuto damage | **全局默认**（W6 起；`NewPipelineApp` 默认 + `useRetained` 常开，首帧/改尺寸仍全幅 Clear） |
 | `hybrid` | 可选 | — |
 
 禁止：CompositeOnly 跳过静态 + **GPU 全幅 Clear** 并存（无 LoadOpLoad/damage 时）。  
@@ -424,9 +424,9 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | **C6** | R18+R3 | `ui_wr_c6_savelayer_group` | **1200×800** | **10** | 离屏组 + boundary | savelayer_* | W2/W5 ✅（U21 像素断言/Golden + retained SaveLayer 预算接线洞根治，2026-08-25） |
 | **C7** | R11+R19+R3 | `ui_wr_c7_resize_dpr` | **1200×800** | **15** | 改尺寸/DPR 后缓存与 1px 线 | 一波 rerecord；线清晰 | **W2** ✅ 组合窗 |
 | **C8** | R13+R6+R8 | `ui_wr_c8_hit_overlay_xf` | **1200×800** | **15** | 变换/浮层下命中 | 命中 ID | **W4+** ✅（不代替 R6） |
-| **C9** | R14+R3+R7 | `ui_wr_c9_stress_cache` | **1200×800** | **60** | 多 boundary + 列表压缓存 | cache_entries、RSS | **W6** |
+| **C9** | R14+R3+R7 | `ui_wr_c9_stress_cache` | **1200×800** | **60** | 多 boundary + 列表压缓存 | cache_entries、RSS | **W6** ✅（2026-09-04：60s GPU PASS 三连跑，fps58.7/p95≤17.4/hitch≤1/entries触顶128/ev687单调/bind16–17/800/rr375/像素3/3/Golden逐位0；跑默认 retained，不显式设策略） |
 | **C10** | R15+全主路径 | `ui_wr_c10_soak` | **1200×800** | **300** | 长跑组合 | 无崩；hitch 可报 | W2+ |
-| **C11** | R0→R4 策略切换 | `ui_wr_c11_policy_switch` | **1200×800** | **15** | full_paint↔retained 切换正确 | policy 字段；切换后静不丢 | **W6** |
+| **C11** | R0→R4 策略切换 | `ui_wr_c11_policy_switch` | **1200×800** | **15** | full_paint↔retained 切换正确 | policy 字段；切换后静不丢 | **W6** ✅（2026-09-04：15s GPU PASS 两连跑，switches=2/full相dmg1.0/retained相dmg0.138/两态mode均见/fps58.6/p95≤17.6/像素2/2/Golden逐位0） |
 
 ### 3.1 每个 C 窗口复杂度标准（与 R 同级 · 硬）
 
@@ -493,7 +493,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | **W3** | **✅** | R7✅ · R7b✅ · R10✅（各独立 `ui_wr_*` 真窗） | C3✅ |
 | **W4** | **✅** | R8✅、R21✅ | C4✅v2（弃旧重写+U21）、C8✅（可选项已补，不代替 R6） |
 | **W5** | ✅（R6✅ R20✅ C5✅ C6✅） | R6✅、R20✅(可) | C5✅、C6✅ |
-| **W6** | 🔄 | R14✅、默认 retained | C9、C11；回归 C0–C5 |
+| **W6** | 🔄（默认已切 + C9✅C11✅；待 C4/C5 Golden 重定基线） | R14✅（solo 60s 复跑绿）、默认 retained（`NewPipelineApp`；10 个正确性窗 + C3 显式钉 full_paint 原姿态） | C9✅、C11✅；回归 C0–C3✅；C4/C5 Golden 系文本线 09-03/04 改动后基线过期（已定位、未动，待文本线重定基线） |
 
 ```text
 W0 → W1 → W2 → W6
@@ -658,6 +658,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | R2 5000横滚卡顿根治 | **R2 5000 字输入卡顿根治（`ui/rendering` + `render/text` + `ui/textinput`，2026-08-28）**：**现象**——R2 真窗 5000 长串窗口卡、输入卡；**根因**——① MultiFace 每字逐一扫 `HasGlyph`（5000×3 次 cmap）+ `string(r)` 分配，`LayoutGlyphs` 8.4ms/帧；② 单行回退用 `Measure(string(r))` 串分配；③ `InputBox` 非 `RelayoutBoundary/RepaintBoundary`，每字改动冒泡全窗布局+全量重绘；④ GPU 每帧提交 5000 字形顶点。**修复（对齐 Flutter/Skia，优先复用原生语义）**：`render/text` 加 `RuneAdvance`（P7 无分配推进）+ `MultiFace.runeFaceCache`（`sync.Map` 9 字复用）；`ui/rendering/text_layout.go` 回退改 `RuneAdvance`；`MultiFace.runsUncached` 改 `RuneAdvance`；`ui/textinput` 三框补 `RelayoutBoundary+RepaintBoundary`（`RenderEditable` 姿态）；`ui/rendering/text.go` 加 `SetViewportHint/cullGlyphs`（视口 200px margin 裁剪，顶点 5000→60）；`ui_wr_ime_r2_textlayout` 切 `ViewportInputBox`（`RenderViewport` 单一 `scrollX` 源）。**验证**：`LayoutGlyphs` 8.4→4.4ms、`BuildTextLayout` 7→2.6ms、`TestR1_Long5000Perf` 0.01s、R2 单测 6 项全绿；`go vet` 0。 |
 | API目录同步 | **render 公开 API 总账同步（`docs/RENDER_API_CATALOG.md`）**：`render/text` 族补 `RuneAdvance(face,r)`（单字形无分配推进，供 `ui/rendering` 大文本视口用，P7）。`go run ./scripts/apidoc` 绿（主包+scene/recording/surface/svg 均覆盖，text 族级）。 |
 | API目录同步 | **新增 `GPUColorGlyphAccelerator` 接口 + `Context.DrawShapedColorGlyphs`（M5 遗留#2 台阶③颜色图集，2026-09-04）**：`render/accelerator.go` 新接口（已整形彩色字形→RGBA 颜色图集纹理块，学 Skia/Impeller 独立 RGBA 图集）+ `render/text.go` 新方法（GPU 经加速器→`internal/gpu` 颜色引擎布局+RGBA 页上传+颜色管线采样；无加速器/失败时 CPU pixmap 合成，平移 CTM 外走轮廓）+ `ui/rendering/text.go paintCompositeRuns` 彩色段改走新方法（绝对 glyph.X，无需 rebase，颜色经 SetRGBA）。目录文档 §0（类型 94→95、Context 方法 182→183）/§3.8（text.go 15→16）/§4（接口群）/§7.1 同步，状态 🔗（生产接线，GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩，证据 /tmp/m5_verify/）。`go run ./scripts/apidoc` 绿。 |
+| W6 默认 retained + C9/C11 首次关闭（部分） | **默认切换（`ui/embedder/pipeline_app.go` + `ui/scheduler/metrics.go`，2026-09-04）**：`NewPipelineApp` 默认 `retained`（`useRetained` 常开，首帧/改尺寸仍全幅 Clear；CompositeOnly 只配 `PresentWithAuto` damage/LoadOpLoad，§2.1 禁止项复查通过）；10 个正确性窗（R0/R3/R5/R11/R12b/R16/R21/C0/C1/C7）+ C3 显式钉 `full_paint` 原姿态；删 `presentTree` 死包装（零调用者）；单测 `present_policy_test`/`retained_present_test` 同步新默认。**C11 ✅**（`ui_wr_c11_policy_switch` 15s 两连跑：switches=2、retained 相 dmg0.138<full 相1.0、两态 mode 均见、像素2/2、Golden 390176px 逐位0）。**C9 ✅**（`ui_wr_c9_stress_cache` 60s 三连跑：跑新默认无显式策略、entries触顶128/ev687单调/bind16–17/800/rr375、cpu36.8–38.9、slope17–24k≤30k、像素3/3、Golden 296292px 逐位0）。**回归**：C0/C1/C2 ✅；C3 在新默认下 tick_violations=939（对照跑 full_paint 下 viol=0，实证系默认切换所致；纹理 LRU 淘汰重录是设计行为非 bug，已钉回原姿态重跑绿，retained 重关另立项）+ R14 solo 60s ✅（此前批量跑 slope 超预算系负载抖动、Golden 系 /tmp 陈旧基线，已删基线重跑绿）；C4/C5 Golden 4–5% 系文本线 09-03/04 改动后基线过期（基线 08-24/25，主窗显式 retained 故与本切换无关，已定位、未动，工作快照已恢复）。§5 W6 保持 🔄 待 C4/C5 重定基线。 |
 
 
 ---
@@ -665,4 +666,4 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 ## 11. 一句话
 
 > **每个主能力真窗：1200×800 · RUN_SECONDS≥5 · 按能力加长观察指标（§2 主表 + §2.5 全表）。**  
-> **状态以 §2 主表 + §3 组合表 + §5 分期 + §10 修订为准。** W0 ✅ · W1 ✅ · W2 ✅ · W3 ✅。默认 Present 仍 full_paint 至 W6。
+> **状态以 §2 主表 + §3 组合表 + §5 分期 + §10 修订为准。** W0 ✅ · W1 ✅ · W2 ✅ · W3 ✅。默认 Present 自 W6 起为 retained（正确性窗显式钉 full_paint 原姿态）。

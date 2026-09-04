@@ -124,6 +124,8 @@ func main() {
 			}
 		},
 	})
+	// W6: full_paint correctness window — pin policy explicitly (global default is retained).
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
 	// R12b integrated: debug overlay on live repaints (magenta flash).
 	app.SetDebugRepaint(true)
 

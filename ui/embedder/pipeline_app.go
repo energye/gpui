@@ -129,7 +129,7 @@ type PipelineApp struct {
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
 	debugRepaintDraws atomic.Int64
 	// useRetained: steady frames use CompositeOnly paint + PresentWithAuto damage
-	// (W2 R4). Warm-up/resize still full-paint. Default false = full_paint (W0).
+	// (W2 R4). Warm-up/resize still full-paint. Default true = retained (W6).
 	useRetained atomic.Bool
 
 	// saveStats / saveBudget wire SaveLayer budget accounting (W2 R18):
@@ -242,8 +242,8 @@ func (a *PipelineApp) drainSnapshots() {
 }
 
 // SetPresentPolicy sets window present strategy and metrics present_policy.
-// Use scheduler.PresentPolicyRetained for W2 R4/R4b/C2 (CompositeOnly steady frames).
-// Default remains full_paint until W6 makes retained the global default.
+// Use scheduler.PresentPolicyFullPaint for correctness windows that need a
+// full tree repaint every frame (R0/C0/R16/...). Default is retained since W6.
 func (a *PipelineApp) SetPresentPolicy(policy string) {
 	if a == nil || policy == "" {
 		return
@@ -467,13 +467,14 @@ func (a *PipelineApp) SetOverlay(st *overlay.State) {
 }
 
 // NewPipelineApp builds a tree-driven app. Call Open then Run.
-// W0 default present policy is full_paint (steady frames repaint the whole tree).
+// W6 default present policy is retained (steady frames composite only dirty
+// paths + damage present; warm-up/resize still full-paint).
 func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts PipelineOptions) *PipelineApp {
 	if opts.ClearA == 0 && opts.ClearR == 0 && opts.ClearG == 0 && opts.ClearB == 0 {
 		opts.ClearR, opts.ClearG, opts.ClearB, opts.ClearA = 0.10, 0.12, 0.16, 1
 	}
 	s := scheduler.New()
-	s.Metrics().SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	s.Metrics().SetPresentPolicy(scheduler.PresentPolicyRetained)
 	app := &PipelineApp{
 		host:  host,
 		sched: s,
@@ -482,6 +483,7 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		root:  root,
 		opts:  opts,
 	}
+	app.useRetained.Store(true) // W6 default: retained steady frames
 	app.saveStats = &rendering.SaveLayerStats{}
 	if opts.SaveLayerMaxOps > 0 || opts.SaveLayerMaxArea > 0 {
 		app.saveBudget = &rendering.SaveLayerBudget{
@@ -1011,9 +1013,10 @@ func (a *PipelineApp) Run() error {
 		// Warm-up / resize / open: force=true → full clear + full paint.
 		force := a.forceFullPresent.Swap(0) > 0
 		metrics := a.sched.Metrics()
-		// Keep policy visible; default full_paint until caller SetPresentPolicy(retained).
+		// Keep policy visible; default retained since W6 (correctness windows
+		// pin full_paint explicitly via SetPresentPolicy).
 		if metrics != nil && metrics.PresentPolicy() == "" {
-			metrics.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+			metrics.SetPresentPolicy(scheduler.PresentPolicyRetained)
 		}
 		dbgOn := a.debugRepaint.Load()
 		dbgAccum := &a.debugRepaintDraws
@@ -1174,18 +1177,15 @@ func (a *PipelineApp) Run() error {
 	return nil
 }
 
-// PaintPresentTree draws the RO tree into dc for window/GPU present (W0 FullPaint).
+// PaintPresentTree draws the RO tree into dc for window/GPU present.
 //
 //	force=true  → full-surface clear + full tree paint; MarkFullRedraw (bootstrap/resize).
 //	force=false → no UI-side full clear; still **full tree paint** (CompositeOnly=false).
 //
-// Why full paint on steady frames: GPU vector Present commonly LoadOpClears the
-// surface. CompositeOnly would skip clean RepaintBoundaries and those pixels are
-// gone after clear — static chrome/labels vanish in examples. True retained
-// (Boundary → RT/Picture + blit Composite) is ENGINE_UI_WIDGET_RENDER W1–W2;
-// until then window present must repaint the whole tree every frame for
-// correctness. Partial CompositeOnly is available as PaintPresentTreeCompositeOnly
-// for unit tests and future Retained policy.
+// Steady retained frames go through PaintPresentTreeCompositeOnly +
+// PresentWithAuto damage (LoadOpLoad keeps clean pixels); force frames use the
+// full path. Partial CompositeOnly without damage present (GPU full Clear) is
+// prohibited (§2.1 U11): CompositeOnly must pair with PresentWithAuto.
 //
 // Layer-tree Present walk: scene.CompositeToContext / PaintPresentLayerTree.
 func PaintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) {
@@ -1359,10 +1359,6 @@ func SurfaceAreaLogical(dc *render.Context) int64 {
 		return 0
 	}
 	return int64(dc.Width()) * int64(dc.Height())
-}
-
-func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) (render.PresentOutcome, error) {
-	return presentTreeOpts(target, pipe, root, ov, cr, cg, cb, ca, force, paintPresentTreeOpts{})
 }
 
 func presentTreeOpts(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool, opts paintPresentTreeOpts) (render.PresentOutcome, error) {

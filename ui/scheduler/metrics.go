@@ -70,7 +70,7 @@ type FrameMetrics struct {
 
 	// PresentPolicy is the window paint/present strategy name (W0+).
 	// Values: PresentPolicyFullPaint | PresentPolicyRetained | PresentPolicyHybrid.
-	// Default for PipelineApp is full_paint until W6 Retained gates pass.
+	// Default for PipelineApp is retained since W6.
 	PresentPolicy string `json:"present_policy,omitempty"`
 
 	// VSyncSource is "true" | "fallback" | "" (unknown).

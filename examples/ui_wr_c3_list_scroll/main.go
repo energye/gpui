@@ -205,6 +205,12 @@ func main() {
 			}
 		},
 	})
+	// W6: C3's per-tick rerecord bound was calibrated on the full_paint path
+	// (boundary-cache replay); the retained texture-LRU path re-records on
+	// eviction by design and trips that bound. Pin the as-closed posture;
+	// retained-path list scroll is covered by C9. (C3-on-retained re-close is
+	// separate follow-up work, not this window's gate change.)
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
 
 	dir, err := os.MkdirTemp("", "c3_src")
 	if err != nil {

@@ -156,6 +156,8 @@ func main() {
 			}
 		},
 	})
+	// W6: full_paint correctness window — pin policy explicitly (global default is retained).
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
 
 	var (
 		elapsed          float64

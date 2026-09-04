@@ -166,6 +166,8 @@ func main() {
 			}
 		},
 	})
+	// W6: full_paint correctness window — pin policy explicitly (global default is retained).
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
 
 	// Scroll-state gates: after the initial record (warm-up), every frame's
 	// shell partition must show rerecord=0 while the body scrolls.
