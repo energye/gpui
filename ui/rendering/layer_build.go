@@ -425,11 +425,7 @@ func recordLeafContent(r *scene.PictureRecorder, n RenderObject) {
 		}
 		r.FillRect(0, 0, cw, chh, t.R, t.G, t.B, t.A)
 	case *RenderText:
-		f := t.Face
-		if ef := t.effectiveFace(); ef != nil {
-			f = ef
-		}
-		r.DrawString(t.Text, 0, fontBaselineY(t), f, t.R, t.G, t.B, t.A)
+		recordRenderText(r, t, 0, 0)
 	case *RenderImage:
 		dw, dh := sz.Width, sz.Height
 		if dw <= 0 {

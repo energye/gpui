@@ -546,13 +546,7 @@ func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) 
 		}
 		r.FillRect(ox, oy, cw, chh, t.R, t.G, t.B, t.A)
 	case *RenderText:
-		sz := t.Size()
-		f := t.Face
-		if ef := t.effectiveFace(); ef != nil {
-			f = ef
-		}
-		r.DrawString(t.Text, ox, oy+fontBaselineY(t), f, t.R, t.G, t.B, t.A)
-		_ = sz
+		recordRenderText(r, t, ox, oy)
 	case *RenderImage:
 		sz := t.Size()
 		dw, dh := sz.Width, sz.Height
@@ -570,15 +564,6 @@ func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) 
 	case *AbsoluteBox:
 		recordAbsoluteOwnContent(r, t, ox, oy)
 	}
-}
-
-// fontBaselineY maps RenderText's logical baseline convention to the absolute
-// DrawString baseline used by Paint (see RenderText.Paint).
-func fontBaselineY(t *RenderText) float64 {
-	if t == nil {
-		return 0
-	}
-	return t.FontSize
 }
 
 // recordAbsoluteOwnContent draws AbsoluteBox bg + non-RepaintBoundary children
@@ -609,11 +594,7 @@ func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy f
 			}
 			r.FillRect(ax, ay, cw, chh, t.R, t.G, t.B, t.A)
 		case *RenderText:
-			f := t.Face
-			if ef := t.effectiveFace(); ef != nil {
-				f = ef
-			}
-			r.DrawString(t.Text, ax, ay+t.FontSize, f, t.R, t.G, t.B, t.A)
+			recordRenderText(r, t, ax, ay)
 		case *RenderImage:
 			dw, dh := t.Size().Width, t.Size().Height
 			if dw <= 0 {
