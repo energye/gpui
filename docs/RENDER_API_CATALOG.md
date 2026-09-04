@@ -164,7 +164,7 @@
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `SetFont/Font/LoadFontFace/LoadFontFaceWithVariations/FontVariationAxes` | 设置字体、读当前字体、加载 TTF/OTF 与可变字体轴 | 字体管理 | ✅ ui/rendering paint_context 在用 |
-| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/DrawShapedColorGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/已整形彩色字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**DrawShapedColorGlyphs 🔗 生产在用（ui/rendering 彩色段→GPU 颜色图集/CPU 兜底，GPU 真窗待验）**；**StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs 🧪 仅测试**） |
+| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/DrawShapedColorGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/已整形彩色字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**DrawShapedColorGlyphs 🔗 生产在用（ui/rendering 彩色段→GPU 颜色图集/CPU 兜底，GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩）**；**StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs 🧪 仅测试**） |
 | `SplitColorGlyphs(cf,glyphs)`（text.go 顶层函数） | 按字形类型把已整形字形拆成彩色/描边两子集（保序），供 dispatch 入口分流 | 彩色字形分流 | 🔗（dispatchText 在用） |
 | `MeasureString/MeasureMultilineString/WordWrap` | 度量单行/多行文本、按宽度断词换行 | 文本度量 | 🔗 内部用（UI 布局未接，用自研估算） |
 | `TextMode`（Auto/MSDF/Vector/Bitmap/GlyphMask/Aliased）/ `LCDLayout`（None/RGB/BGR）/ `Align` | 文本渲染策略 / LCD 子像素布局 / 对齐枚举 | 文本模式 | ✅ |
@@ -290,7 +290,7 @@
 ## 7. 状态总表（接线 × 未接线）
 
 ### 7.1 有生产接线（✅/🔗）
-Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Context 绘制族、Brush/三种渐变、文本绘制（DrawString 族经 ui/rendering；DrawShapedColorGlyphs 🔗 彩色段经 ui/rendering→GPU 颜色图集/CPU 兜底，GPU 真窗待验）、图像（GPU QueueImageDraw，Bicubic 例外）、Mask 上传、Layer（GPU RT）、滤镜 op（经 render/gpu 副作用）、SDF/CoverageFiller/AdaptiveFiller、Pixmap、路径基础 API、损伤跟踪、共享编码器。`PresentTarget.SetVsync`（2026-08-19）🔗 embedder resize 风暴期切 Mailbox/Immediate，风暴平静后回 Fifo（内容不跟手修复）；初始 Fifo 排队偏好（2026-08-26 修3：显示周期学习 + Wayland Fifo 化，见 docs/ENGINE_FRAME_PRESENT_STANDARD.md §9）。
+Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Context 绘制族、Brush/三种渐变、文本绘制（DrawString 族经 ui/rendering；DrawShapedColorGlyphs 🔗 彩色段经 ui/rendering→GPU 颜色图集/CPU 兜底（GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩，证据 /tmp/m5_verify/））、图像（GPU QueueImageDraw，Bicubic 例外）、Mask 上传、Layer（GPU RT）、滤镜 op（经 render/gpu 副作用）、SDF/CoverageFiller/AdaptiveFiller、Pixmap、路径基础 API、损伤跟踪、共享编码器。`PresentTarget.SetVsync`（2026-08-19）🔗 embedder resize 风暴期切 Mailbox/Immediate，风暴平静后回 Fifo（内容不跟手修复）；初始 Fifo 排队偏好（2026-08-26 修3：显示周期学习 + Wayland Fifo 化，见 docs/ENGINE_FRAME_PRESENT_STANDARD.md §9）。
 
 ### 7.2 已实现但无生产消费者（🔌 未接线）
 | 功能 | 证据 |
