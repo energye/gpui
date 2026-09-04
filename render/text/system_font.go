@@ -270,6 +270,7 @@ func assembleFaces(points float64, chain []FontRole, candidates func(FontRole) [
 	if len(faces) == 0 {
 		return nil, "", fmt.Errorf("text: no system font found (SetDefaultFontPath / FontResolver.SetFontFile / platform fonts)")
 	}
+	warmHbFonts(faces)
 	if len(faces) == 1 {
 		return faces[0], paths[0], nil
 	}
@@ -285,6 +286,33 @@ func assembleFaces(points float64, chain []FontRole, candidates func(FontRole) [
 		desc += p
 	}
 	return mf, desc + " (MultiFace)", nil
+}
+
+// warmHbFonts pre-builds the HarfBuzz font objects for faces now, so the
+// one-time parse cost is paid at load instead of inside the first timed
+// layout (M3.8: TestTextLayout_LongBuild_RealFace cold-build overrun).
+// Failures are ignored: Shape still builds lazily on demand as before,
+// so behavior is unchanged when warming is skipped or fails.
+func warmHbFonts(faces []Face) {
+	hs, ok := GetShaper().(*HbShaper)
+	if !ok {
+		return
+	}
+	seen := make(map[*FontSource]struct{}, len(faces))
+	for _, f := range faces {
+		if f == nil {
+			continue
+		}
+		src := f.Source()
+		if src == nil {
+			continue
+		}
+		if _, dup := seen[src]; dup {
+			continue
+		}
+		seen[src] = struct{}{}
+		_, _ = hs.getOrCreateHbFont(src)
+	}
 }
 
 func loadFaceFromCandidates(points float64, candidates []string) (Face, string, error) {
