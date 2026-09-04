@@ -90,7 +90,7 @@ L3–L5 Kit                       ← 暂缓
 | **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | **1200×800** | **5** | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | **✅** |
 | **R20** | Filter 层（可选） | `ui_wr_r20_filter` | **1200×800** | **10** | 局部 rerecord | 子树灰/糊，外不变 | 可选 | **✅** |
 | **R21** | 壳/内容分层 | `ui_wr_r21_shell` | **1200×800** | **15** | 滚体时顶栏 `rerecord=0` | 顶栏静、体滚 | W2–W4 | **✅** |
-| **R22** | 选区/光标局部脏预留 | `ui_wr_r22_selection_stub` | **1200×800** | **5** | 字段可 0；API 存在 | stub 可空跑；防将来全窗刷 | 预留 | ⬜ |
+| **R22** | 选区/光标局部脏预留 | `ui_wr_r22_selection_stub` | **1200×800** | **5** | 字段可 0；API 存在 | stub 可空跑；防将来全窗刷 | 预留 | **✅** |
 
 **命名纪律：** 包名 `ui_wr_<id>_*` 与上表 **一一对应**；新增 R 必须同步新增一行 + 一个包 + **窗口/时长** 两列，禁止复用他包关闭新 R。
 
@@ -662,6 +662,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | API目录同步 | **render 公开 API 总账同步（`docs/RENDER_API_CATALOG.md`）**：`render/text` 族增 `SegmentReuse(oldText,oldSegs,newText,oldA,oldB,newA,newB)`（单行击键增量前后缀复用，LTR快径+缝位回退，供 `ui/rendering` 单行行内复用经单行分段缓存调用，LEGACY_02）。目录文档 §0（240→241）/§6.1（分段族补行，239→240）同步，状态 🔗（生产接线，真窗已验：`ui_text_m5_anycase` 10s 两跑0px、R21零重录）。`go run ./scripts/apidoc` 绿（主包+scene/recording/surface/svg 均覆盖，text 族级）。 |
 | accept Golden 基线刷新归档（LEGACY_03） | **以 M5 截图为新基线归档（2026-09-04，纯文档+基线资产变更，零代码改动）**：GPU 真窗重跑 accept 取新截图（8s，`GPUI_ACCEPT_SNAP=/tmp/accept_m5_rerun.png`，六区正常出字），逐位对照旧基线全幅 >8 差 1.48%（字形行每行 25–31 个短段、游程≤20px，底部动态条约 0.3%；无移位无缺字，差异图 `/tmp/accept_diffmap_rerun.png`）；独立评审确认抗锯齿级通过；`examples/ui_text_edit_accept/golden/baseline_m5.png` 新增、M0 时期旧基线删除，窗 README 已改指新基线；同条件两跑稳定性全幅 0.35%（静态区约 0.07% 系光标闪烁相位差）。 |
 | M5 留存模式多行文单行 bug 修复 | **留存图层文本快照多行丢失修复（`ui/rendering` 低风险层，2026-09-04）**：现象——`ui_text_m5_anycase` 真窗 A/B/C 三区首帧均为单行长条（硬换行被吞），拖拽改尺寸后才恢复多行。根因——留存纹理路径三处（`layer_build.go recordLeafContent`、`boundary_cache.go recordOwnContent/recordAbsoluteOwnContent`）把 `RenderText.Text` 原串当一条 `DrawString` 直录，与直接绘制（`RenderText.Paint` 经 `DisplayLines`/`layoutRunLines` 分行）不一源；CPU 证排版一直多行（A 10 行/B 6–8 行/C 3 行）、图层快照 6 个 DrawString 含 2 个带 `\n` 原串、活窗实拍单行。修复（通用非单窗特例，对齐 Flutter Paragraph 单源 + SkPicture 逐行文本块）——新增 `ui/rendering/text_picture.go recordRenderText`：单串经 `DisplayLines` 逐行、富文本经 `layoutRunLines` 逐 span（含各自字号颜色与 X 偏移、基线与 Paint 同口径），三处改调它；删 `fontBaselineY` 旧单行基线。验证——新单测 3 项（多行无 `\n` 且行数对齐、富文本分 span 保色、单行单 op 不变）绿；`./ui/rendering` 除既有抖动 `TestKeystrokeRatio_M5`（干净树同失败、与本改动无关）外全绿，`./ui/scene`、`./ui/embedder` 绿；M5 真窗 20s 活窗实拍免拖拽即多行（A 9 行/B 6 行/C 3 行）、`cpu_fallback_ops=0`、`picture_op_count` 21→42。 |
+| R22 首次关闭（LEGACY_04 顺序 4 第一件） | **R22 选区/光标局部脏预留独立真窗首次关闭（`examples/ui_wr_r22_selection_stub`，1200×800·5s 档·GPU PASS 三连跑，§2.5 正确性档）**：真引擎 API `textinput.Editor.SetSelection` 驱动 A/B stub 状态机（headless Editor，`selection_api_present`/`selection_set_ok` 双真，`stub_calls=4`），lane 视觉镜像同一状态（Steady/Recover 窄高亮 A + 光标 76，Spike 宽高亮 B + 光标 `MoveTo` 跟尾 156，全 paint-only，layout 基线后漂移 2≤4）；STUB + DENSE（4×4 色格 + 8 标签）+ HOT 呼吸盘 + LiveHUD。U21 三证据：6 像素断言（dense 精确点/F5 高亮混合公式解/selB 藏态恢复/光标精确色/呼吸盘变换不变点/F6 文字密度）+ Golden 静态掩码 318160px 次跑起逐位 0 + 稳态/恢复双快照。关闭证据跑：fps 58.9–59.7、p95 ≤17.3、hitch 0、vsync=true、fallback 0、cpu 非双 0、首帧 49.5ms。途中修两处真窗侧问题（非引擎洞）：① selB 与 selA 重叠遮盖致混合断言挂 → 改相邻布局；② `SnapshotAsync` 同 ticker 同步等把量测开销计入帧间隔（2 卡顿 = 2 快照等，fps 47）→ 改协程外发射 + 文件存在验完成（§2 门禁阈值零改动）。§5 无改动（R22 波次 = 预留，未进 W 矩阵）。 |
 
 
 ---
