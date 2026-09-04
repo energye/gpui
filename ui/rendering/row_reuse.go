@@ -233,10 +233,18 @@ func tryReuseShapedRowSegs(oldRow TextLayoutLine, oldLine string, oldSegs []text
 	}, newSegs, true
 }
 
+// segCacheMaxBytes是单行分段缓存的上限：分段数组约 64B/段，病态一行
+// 1 段/2B 时 256KB 文本约 8MB 常驻+瞬时；超限走 legacy 整行全量（与
+// LEGACY_02 前行为一致，只慢不坏），内存有界。
+const segCacheMaxBytes = 1 << 18
+
 // tryReuseCachedRow是单行快径的分段缓存外壳:segSegs 恒对应旧行文本,
 // 对不上(首建/回退后)现场全量一种子,命中后增量分段并滚动缓存。
 func (c *layoutCache) tryReuseCachedRow(oldRow TextLayoutLine, oldLine, newLine string, face text.Face, lh float64) (TextLayoutLine, []text.Segment, bool) {
 	fail := func() (TextLayoutLine, []text.Segment, bool) { return TextLayoutLine{}, nil, false }
+	if len(oldLine) > segCacheMaxBytes || len(newLine) > segCacheMaxBytes {
+		return fail()
+	}
 	if c.segLine != oldLine || len(c.segSegs) == 0 {
 		c.segSegs = text.SegmentText(oldLine)
 		c.segLine = oldLine

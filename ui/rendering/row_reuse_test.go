@@ -154,3 +154,16 @@ func TestReuseShapedRow_Fallback(t *testing.T) {
 		t.Fatalf("无 face 估算行不应复用")
 	}
 }
+
+// TestReuseCachedRow_Cap locks the memory bound: over-limit lines skip the
+// segment cache and fall back to the legacy full path (slow, never wrong).
+func TestReuseCachedRow_Cap(t *testing.T) {
+	big := strings.Repeat("a世", segCacheMaxBytes/4+8)
+	c := newLayoutCache()
+	if _, _, ok := c.tryReuseCachedRow(TextLayoutLine{}, big, big+"X", nil, 12); ok {
+		t.Fatalf("超限行应回退全量，不应进分段缓存")
+	}
+	if c.segLine != "" || c.segSegs != nil {
+		t.Fatalf("回退不应留缓存")
+	}
+}

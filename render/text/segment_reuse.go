@@ -10,233 +10,291 @@ import (
 // SegmentReuse incrementally segments newText by reusing oldSegs across a
 // single edit range [oldA,oldB) -> [newA,newB).
 //
-// LTR-only fast path: when the old segmentation has no odd levels and the new
-// text holds no strong RTL characters, levels stay 0 and only script runs
-// matter. Prefix segments fully inside the common head and suffix segments
-// fully inside the common tail are reused; only the straddling window plus
-// adjacent Common/Inherited runs (whose resolution depends on both sides) is
-// re-segmented. Seams with equal scripts merge, matching full segmentation.
+// LTR-only fast path: old levels are even and the new window holds no strong
+// RTL, so levels stay 0 and only script runs matter. Segments fully inside
+// the common head/tail are reused; only the straddling window plus adjacent
+// Common/Inherited runs is re-segmented. Seams with equal scripts merge.
 //
-// Any unsafe shape (RTL present, bad ranges, non-rune boundaries, invalid old
-// coverage) falls back to SegmentText(newText), so results always equal the
-// full pass.
+// Any unsafe shape falls back to SegmentText(newText), so the result always
+// equals the full pass.
 func SegmentReuse(oldText string, oldSegs []Segment, newText string, oldA, oldB, newA, newB int) []Segment {
 	full := func() []Segment { return SegmentText(newText) }
+	if !checkReuseRange(oldText, newText, oldA, oldB, newA, newB) {
+		return full()
+	}
+	if !checkOldSegs(oldText, oldSegs) {
+		return full()
+	}
+	leftKeep, rightKeep, loc, ok := keptRange(oldSegs, oldA, oldB)
+	if !ok {
+		return full()
+	}
+	win, leftKeep, rightKeep, ok := placeWindow(oldText, newText, oldSegs, leftKeep, rightKeep, oldA, oldB)
+	if !ok {
+		return full()
+	}
+	win, head, tail, ok := splitPartials(newText, oldSegs, loc, win, oldA, oldB, newA, newB)
+	if !ok {
+		return full()
+	}
+	if !checkWindow(newText, win, newA, newB) {
+		return full()
+	}
+	mid := resegmentWindow(newText, win)
+	if mid == nil {
+		return full()
+	}
+	return stitch(newText, oldSegs, leftKeep, rightKeep, head, tail, mid, win.delta, full)
+}
+
+// checkReuseRange validates the edit description against both texts.
+func checkReuseRange(oldText, newText string, oldA, oldB, newA, newB int) bool {
 	if oldA < 0 || oldB < oldA || oldA > len(oldText) || oldB > len(oldText) ||
 		newA < 0 || newB < newA || newA > len(newText) || newB > len(newText) {
-		return full()
+		return false
 	}
 	if oldA != newA {
-		return full()
+		return false
 	}
 	if len(oldText)-oldB != len(newText)-newB {
-		return full()
+		return false
 	}
-	if !runeBoundary(oldText, oldA) || !runeBoundary(oldText, oldB) ||
-		!runeBoundary(newText, newA) || !runeBoundary(newText, newB) {
-		return full()
-	}
+	return runeBoundary(oldText, oldA) && runeBoundary(oldText, oldB) &&
+		runeBoundary(newText, newA) && runeBoundary(newText, newB)
+}
+
+// checkOldSegs validates coverage, even levels, contiguity and boundaries.
+func checkOldSegs(oldText string, oldSegs []Segment) bool {
 	if len(oldSegs) == 0 {
-		return full()
+		return false
 	}
 	if oldSegs[0].Start != 0 || oldSegs[len(oldSegs)-1].End != len(oldText) {
-		return full()
+		return false
 	}
 	for i, s := range oldSegs {
 		if s.Start < 0 || s.End < s.Start || s.End > len(oldText) {
-			return full()
+			return false
 		}
 		if s.Level%2 == 1 {
-			return full()
+			return false
 		}
 		if i > 0 && s.Start != oldSegs[i-1].End {
-			return full()
+			return false
 		}
 		if !runeBoundary(oldText, s.Start) || !runeBoundary(oldText, s.End) {
-			return full()
+			return false
 		}
 	}
-	pre := oldA
-	sL0 := sort.Search(len(oldSegs), func(i int) bool { return oldSegs[i].End > pre })
-	sR0 := sort.Search(len(oldSegs), func(i int) bool { return oldSegs[i].Start >= oldB })
-	if sL0 > sR0 || sR0 > len(oldSegs) {
-		return full()
+	return true
+}
+
+// keptLoc records straddlers used by window placement and partial splitting.
+type keptLoc struct {
+	sL0, sR0         int
+	hasHead, hasTail bool
+}
+
+// keptRange finds whole reusable segments. A strong straddler shields its
+// side (neighbors resolve against it, unchanged); other sides drop adjacent
+// weak segments into the window.
+func keptRange(oldSegs []Segment, pre, oldB int) (leftKeep, rightKeep int, loc keptLoc, ok bool) {
+	loc.sL0 = sort.Search(len(oldSegs), func(i int) bool { return oldSegs[i].End > pre })
+	loc.sR0 = sort.Search(len(oldSegs), func(i int) bool { return oldSegs[i].Start >= oldB })
+	if loc.sL0 > loc.sR0 || loc.sR0 > len(oldSegs) {
+		return 0, 0, loc, false
 	}
-	// A strong straddler shields its side: neighboring weak runs resolve
-	// against it (unchanged), so weak-dropping is only needed on sides
-	// without a strong straddler. Splitting is only safe for all-strong
-	// edits with strong edges (weak edges re-resolve against the edit).
-	hasHead := sL0 < len(oldSegs) && oldSegs[sL0].Start < pre && oldSegs[sL0].End > pre &&
-		!isWeakScript(oldSegs[sL0].Script)
-	hasTail := sR0 > 0 && oldSegs[sR0-1].Start < oldB && oldSegs[sR0-1].End > oldB &&
-		!isWeakScript(oldSegs[sR0-1].Script)
-	leftKeep, rightKeep := sL0, sR0
-	if !hasHead {
+	loc.hasHead = loc.sL0 < len(oldSegs) && oldSegs[loc.sL0].Start < pre &&
+		oldSegs[loc.sL0].End > pre && !isWeakScript(oldSegs[loc.sL0].Script)
+	loc.hasTail = loc.sR0 > 0 && oldSegs[loc.sR0-1].Start < oldB &&
+		oldSegs[loc.sR0-1].End > oldB && !isWeakScript(oldSegs[loc.sR0-1].Script)
+	leftKeep, rightKeep = loc.sL0, loc.sR0
+	if !loc.hasHead {
 		for leftKeep > 0 && isWeakScript(oldSegs[leftKeep-1].Script) {
 			leftKeep--
 		}
 	}
-	if !hasTail {
+	if !loc.hasTail {
 		for rightKeep < len(oldSegs) && isWeakScript(oldSegs[rightKeep].Script) {
 			rightKeep++
 		}
 	}
-	winOldA := pre
+	return leftKeep, rightKeep, loc, true
+}
+
+// reuseWin is the re-segmented byte window in old and new coordinates.
+type reuseWin struct {
+	oldA, oldB int
+	newA, newB int
+	delta      int
+}
+
+// placeWindow bounds the window to kept regions, then widens once over
+// adjacent kept strongs when the new window holds weak runes (they resolve
+// against neighboring strongs outside a minimal window). Updated kept counts
+// are returned alongside the window.
+func placeWindow(oldText, newText string, oldSegs []Segment, leftKeep, rightKeep, oldA, oldB int) (reuseWin, int, int, bool) {
+	fail := func() (reuseWin, int, int, bool) { return reuseWin{}, 0, 0, false }
+	var w reuseWin
 	if leftKeep == 0 {
-		winOldA = 0
+		w.oldA = 0
 	} else {
-		winOldA = oldSegs[leftKeep-1].End
+		w.oldA = oldSegs[leftKeep-1].End
 	}
-	winOldB := oldB
 	if rightKeep == len(oldSegs) {
-		winOldB = len(oldText)
+		w.oldB = len(oldText)
 	} else if rightKeep > 0 {
-		winOldB = oldSegs[rightKeep].Start
-		if winOldB < oldB {
-			return full()
+		w.oldB = oldSegs[rightKeep].Start
+		if w.oldB < oldB {
+			return fail()
 		}
 	} else {
-		winOldB = oldB
+		w.oldB = oldB
 	}
-	if winOldA > pre || winOldB < oldB || winOldA > winOldB {
-		return full()
+	if w.oldA > oldA || w.oldB < oldB || w.oldA > w.oldB {
+		return fail()
 	}
-	delta := len(newText) - len(oldText)
-	winNewA := winOldA
-	winNewB := winOldB + delta
-	// Newly inserted weak runs resolve against neighboring strong scripts,
-	// which live outside a minimal window. If the new window holds any weak
-	// rune, widen once over the adjacent kept strong segment on each side so
-	// the re-segmented window carries both contexts.
-	if windowHasWeak(newText[winNewA:winNewB]) {
+	w.delta = len(newText) - len(oldText)
+	w.newA = w.oldA
+	w.newB = w.oldB + w.delta
+	if windowHasWeak(newText[w.newA:w.newB]) {
 		if leftKeep > 0 {
 			leftKeep--
 			if leftKeep == 0 {
-				winOldA = 0
+				w.oldA = 0
 			} else {
-				winOldA = oldSegs[leftKeep-1].End
+				w.oldA = oldSegs[leftKeep-1].End
 			}
 		}
 		if rightKeep < len(oldSegs) {
 			rightKeep++
 			if rightKeep == len(oldSegs) {
-				winOldB = len(oldText)
+				w.oldB = len(oldText)
 			} else {
-				winOldB = oldSegs[rightKeep].Start
+				w.oldB = oldSegs[rightKeep].Start
 			}
 		}
-		winNewA = winOldA
-		winNewB = winOldB + delta
+		w.newA = w.oldA
+		w.newB = w.oldB + w.delta
 	}
-	// Strong straddlers split AFTER widening (widening re-includes edge
-	// regions, so splitting earlier would overlap the widened window).
-	// Guards: the edit itself holds no weak rune (else the straddler parts
-	// plus new weaks re-resolve together), and each partial keeps a strong
-	// edge (a partial ending/starting with Common/Inherited re-resolves
-	// against the edit). This is what makes single-segment (homogeneous)
-	// lines incremental; everything else stays whole (context-dependent).
+	return w, leftKeep, rightKeep, true
+}
+
+// splitPartials carves strong straddler heads/tails out of the window (their
+// script is context-free), shrinking the window to the edit. Runs after
+// widening so partials never overlap the widened window. Weak edits, weak
+// edges, or out-of-window straddlers keep the window whole.
+func splitPartials(newText string, oldSegs []Segment, loc keptLoc, w reuseWin, oldA, oldB, newA, newB int) (reuseWin, *Segment, *Segment, bool) {
+	fail := func() (reuseWin, *Segment, *Segment, bool) { return reuseWin{}, nil, nil, false }
+	if windowHasWeak(newText[newA:newB]) {
+		return w, nil, nil, true
+	}
 	var head, tail *Segment
-	editHasWeak := windowHasWeak(newText[newA:newB])
-	if hasHead && !editHasWeak && oldSegs[sL0].Start >= winOldA &&
-		isStrongRuneBefore(newText, pre) {
-		sg := oldSegs[sL0]
+	pre := oldA
+	if loc.hasHead && oldSegs[loc.sL0].Start >= w.oldA && isStrongRuneBefore(newText, pre) {
+		sg := oldSegs[loc.sL0]
 		head = &Segment{Text: newText[sg.Start:pre], Start: sg.Start, End: pre,
 			Direction: sg.Direction, Script: sg.Script, Level: sg.Level}
-		winOldA = pre
-		winNewA = pre
+		w.oldA = pre
+		w.newA = pre
 	}
-	if hasTail && !editHasWeak && oldSegs[sR0-1].End <= winOldB &&
-		isStrongRuneAt(newText, newB) {
-		sg := oldSegs[sR0-1]
-		ns, ne := oldB+delta, sg.End+delta
+	if loc.hasTail && oldSegs[loc.sR0-1].End <= w.oldB && isStrongRuneAt(newText, newB) {
+		sg := oldSegs[loc.sR0-1]
+		ns, ne := oldB+w.delta, sg.End+w.delta
 		tail = &Segment{Text: newText[ns:ne], Start: ns, End: ne,
 			Direction: sg.Direction, Script: sg.Script, Level: sg.Level}
-		winOldB = oldB
-		winNewB = newB
+		w.oldB = oldB
+		w.newB = newB
 	}
-	if winNewA > newA || winNewB < newB || winNewA > winNewB ||
-		winNewB > len(newText) {
-		return full()
+	_ = fail
+	return w, head, tail, true
+}
+
+// checkWindow validates final window bounds, rune alignment and RTL absence.
+func checkWindow(newText string, w reuseWin, newA, newB int) bool {
+	if w.newA > newA || w.newB < newB || w.newA > w.newB || w.newB > len(newText) {
+		return false
 	}
-	if !runeBoundary(newText, winNewA) || !runeBoundary(newText, winNewB) {
-		return full()
+	if !runeBoundary(newText, w.newA) || !runeBoundary(newText, w.newB) {
+		return false
 	}
-	if hasStrongRTL(newText[winNewA:winNewB]) {
-		return full()
-	}
-	midRaw := SegmentText(newText[winNewA:winNewB])
-	mid := make([]Segment, 0, len(midRaw))
-	for _, s := range midRaw {
+	return !hasStrongRTL(newText[w.newA:w.newB])
+}
+
+// resegmentWindow re-segments the window into newText coordinates. Nil when
+// the window shows odd levels (must stay LTR-only).
+func resegmentWindow(newText string, w reuseWin) []Segment {
+	raw := SegmentText(newText[w.newA:w.newB])
+	mid := make([]Segment, 0, len(raw))
+	for _, s := range raw {
 		if s.Level%2 == 1 {
-			return full()
+			return nil
 		}
 		mid = append(mid, Segment{
-			Text:      newText[winNewA+s.Start : winNewA+s.End],
-			Start:     winNewA + s.Start,
-			End:       winNewA + s.End,
+			Text:      newText[w.newA+s.Start : w.newA+s.End],
+			Start:     w.newA + s.Start,
+			End:       w.newA + s.End,
 			Direction: s.Direction,
 			Script:    s.Script,
 			Level:     s.Level,
 		})
 	}
+	return mid
+}
+
+// stitch emits prefix, head, mid, tail and suffix in one pass: each piece is
+// contiguity-checked, seam-strength-checked (no weak run may cross a stitch
+// seam) and merged into the previous piece when scripts match. Checking
+// before merging keeps same-script seams honest. Full coverage is verified
+// at the end; any violation falls back to the full pass.
+func stitch(newText string, oldSegs []Segment, leftKeep, rightKeep int, head, tail *Segment, mid []Segment, delta int, full func() []Segment) []Segment {
 	out := make([]Segment, 0, leftKeep+len(mid)+len(oldSegs)-rightKeep+2)
+	emit := func(s Segment) bool {
+		if s.Start < 0 || s.End < s.Start || s.End > len(newText) || !runeBoundary(newText, s.Start) || !runeBoundary(newText, s.End) {
+			return false
+		}
+		if n := len(out); n > 0 {
+			p := out[n-1].End
+			if s.Start != p {
+				return false
+			}
+			if p > 0 && p < len(newText) && (!isStrongRuneBefore(newText, p) || !isStrongRuneAt(newText, p)) {
+				return false
+			}
+			if prev := &out[n-1]; prev.End == s.Start && prev.Level == s.Level &&
+				prev.Direction == s.Direction && prev.Script == s.Script {
+				prev.End = s.End
+				prev.Text += s.Text
+				return true
+			}
+		}
+		out = append(out, s)
+		return true
+	}
 	for _, s := range oldSegs[:leftKeep] {
-		out = append(out, Segment{
-			Text:      newText[s.Start:s.End],
-			Start:     s.Start,
-			End:       s.End,
-			Direction: s.Direction,
-			Script:    s.Script,
-			Level:     s.Level,
-		})
+		if !emit(Segment{Text: newText[s.Start:s.End], Start: s.Start, End: s.End,
+			Direction: s.Direction, Script: s.Script, Level: s.Level}) {
+			return full()
+		}
 	}
-	if head != nil {
-		out = append(out, *head)
+	if head != nil && !emit(*head) {
+		return full()
 	}
-	out = append(out, mid...)
-	if tail != nil {
-		out = append(out, *tail)
+	for _, s := range mid {
+		if !emit(s) {
+			return full()
+		}
+	}
+	if tail != nil && !emit(*tail) {
+		return full()
 	}
 	for _, s := range oldSegs[rightKeep:] {
 		ns, ne := s.Start+delta, s.End+delta
-		if ns < 0 || ne > len(newText) || ns > ne {
-			return full()
-		}
-		out = append(out, Segment{
-			Text:      newText[ns:ne],
-			Start:     ns,
-			End:       ne,
-			Direction: s.Direction,
-			Script:    s.Script,
-			Level:     s.Level,
-		})
-	}
-	// Seam strength (checked BEFORE merging: merging erases same-script
-	// seams and could hide a weak run whose resolution changed): no weak run
-	// may cross a stitch seam, else its resolution could depend on changed
-	// context (e.g. a trailing space merged as Latin flips to Common when Han
-	// is appended). Every seam needs a strong rune on both sides (or a text
-	// boundary); interior weak runs are then bracketed by unchanged strongs
-	// inside their own piece and resolve identically to the full pass.
-	for i := 1; i < len(out); i++ {
-		p := out[i].Start
-		if p != out[i-1].End || !runeBoundary(newText, p) {
-			return full()
-		}
-		if p > 0 && p < len(newText) {
-			if !isStrongRuneBefore(newText, p) || !isStrongRuneAt(newText, p) {
-				return full()
-			}
-		}
-		if out[i].Start > out[i].End || out[i].End > len(newText) {
+		if !emit(Segment{Text: newText[ns:ne], Start: ns, End: ne,
+			Direction: s.Direction, Script: s.Script, Level: s.Level}) {
 			return full()
 		}
 	}
-	out = mergeAdjacentSegments(out)
-	if len(out) == 0 {
-		return full()
-	}
-	if out[0].Start != 0 || out[len(out)-1].End != len(newText) {
+	if len(out) == 0 || out[0].Start != 0 || out[len(out)-1].End != len(newText) {
 		return full()
 	}
 	return out
@@ -293,22 +351,4 @@ func hasStrongRTL(s string) bool {
 		i += size
 	}
 	return false
-}
-
-func mergeAdjacentSegments(segs []Segment) []Segment {
-	if len(segs) == 0 {
-		return segs
-	}
-	out := segs[:1]
-	for _, s := range segs[1:] {
-		p := &out[len(out)-1]
-		if p.End == s.Start && p.Level == s.Level &&
-			p.Direction == s.Direction && p.Script == s.Script {
-			p.End = s.End
-			p.Text += s.Text
-			continue
-		}
-		out = append(out, s)
-	}
-	return out
 }
