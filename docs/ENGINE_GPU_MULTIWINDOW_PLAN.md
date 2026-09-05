@@ -189,6 +189,8 @@
 | 新会话可开工 | 2026-09-05 · 每阶段补齐前置/精确改动清单/行为契约/可执行验收/交接（对标 §9.2 九项规范）；新会话指文档说阶段号即可开工。 |
 | 第二块补门检 | 2026-09-05 · 新增 2.0 能力门检（F1–F7 硬需求表）；compute 建链实测通过；时间戳/格式预过不再重验；storage-9 与 EGL present 为待测门项。 |
 | 后端矩阵 | 2026-09-05 · 明确各 OS 可用后端与默认（见 §1）；macOS 无 GL（苹果已废弃，wgpu 不提供）；Linux 默认 GL 必须等 2.3 变绿；选型按能力驱动（见 §2），为 2.5D/3D 预留。 |
+| 1.1 关闭 | 2026-09-05 · 闲帧不碰交换链：`render/present_target.go` 的 `present()` 在空 damage 时早退 `PresentModeIdle`，不做 acquire/present/discard；accept 真机 3.75fps→57.8fps（p95 17.6/hitch 4.0/cpu_fallback 0），R6 58.0fps 且 Golden 漂移与改前同为 4.8887%（零新增），m5 同 accept 门禁，快照六区出字正常。 |
+| 1.2 关闭 | 2026-09-05 · 建窗走适配器策略：`render/gpu/adapter_policy.go` + `device.go` 整文件搬入 `render/adapter_policy.go`（函数名与行为一字不动；新文件无构建标签，保持 `go build -tags nogpu ./render/` 绿），`NewPresentTarget` 改走 `RequestAdapterWithPolicy(inst, surf, ResolveAdapterPolicy())` + `DeviceDescriptorForAdapter`，forceFallback 时 stderr 如实记日志，新增 `PresentTarget.GPUBackend()`（discrete/integrated/software）供 1.3 复用；混搭机默认核显（blank 窗 `nvidia-smi` 不见进程，~60fps，DBG=Intel IntegratedGPU），`GPUI_POWER=high` 回独显（`nvidia-smi` 可见，DBG=NVIDIA DiscreteGPU）；默认 R6 58.3fps/accept 57.5fps/m5 58.4fps 全绿，双窗同开（R6 40s + accept 15s）双快照出画面（全黑 0%），三窗核显基线 `baseline_igpu.png` 已存（R6 与独显基线差 9.93%≈参考值 9.9%，目检无移位无缺字；accept 差 1.52%），熔断未触发。 |
 
 ## 附 §1 各 OS 后端矩阵（以本仓 pin 的 wgpu 为准）
 

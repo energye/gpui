@@ -62,7 +62,7 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 		t.Fatalf("RequestAdapter: %v", err)
 	}
 
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("mem-t4-x11"))
+	device, err := adapter.RequestDevice(render.DeviceDescriptor("mem-t4-x11"))
 	if err != nil {
 		adapter.Release()
 		surf.Release()

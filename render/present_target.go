@@ -12,20 +12,6 @@ import (
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
-// presentDeviceDescriptor builds device limits for UI present (avoid import cycle
-// with render/gpu which imports render).
-func presentDeviceDescriptor(label string) *webgpu.DeviceDescriptor {
-	const minStorageBuffers = 9
-	limits := webgpu.DefaultLimits()
-	if limits.MaxStorageBuffersPerShaderStage < minStorageBuffers {
-		limits.MaxStorageBuffersPerShaderStage = minStorageBuffers
-	}
-	return &webgpu.DeviceDescriptor{
-		Label:          label,
-		RequiredLimits: limits,
-	}
-}
-
 // requestPresentDeviceWithRetry retries device creation when the adapter is
 // temporarily out of GPU memory (multi-window stolen-memory budget on iGPUs).
 // Other windows/processes may release memory between retries; this mirrors
@@ -188,21 +174,27 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
 	}
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference: webgpu.PowerPreferenceHighPerformance,
-	})
+	policy := ResolveAdapterPolicy()
+	adapter, forceFallback, err := RequestAdapterWithPolicy(inst, surf, policy)
 	if err != nil {
 		surf.Release()
 		inst.Release()
 		return nil, fmt.Errorf("render: RequestAdapter: %w", err)
 	}
+	ai := webgpu.AdapterInfo{}
+	if adapter != nil {
+		ai = adapter.Info()
+	}
+	if forceFallback {
+		fmt.Fprintf(os.Stderr, "render: adapter policy=%s fell back to software adapter %q (type=%v)\n",
+			policy, ai.Name, ai.DeviceType)
+	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
-		ai := adapter.Info()
 		fmt.Fprintf(os.Stderr, "DBG adapter=%q vendor=%q type=%v backend=%v\n",
 			ai.Name, ai.Vendor, ai.DeviceType, ai.Backend)
 	}
 
-	device, err := requestPresentDeviceWithRetry(adapter, presentDeviceDescriptor("ui-l1-present"), "ui-l1-present")
+	device, err := requestPresentDeviceWithRetry(adapter, DeviceDescriptorForAdapter("ui-l1-present", adapter), "ui-l1-present")
 	if err != nil {
 		adapter.Release()
 		surf.Release()
@@ -542,6 +534,27 @@ func (t *PresentTarget) LastPresentOutcome() PresentOutcome {
 	return t.lastOutcome
 }
 
+// GPUBackend reports the actual adapter category behind this target:
+// discrete, integrated, or software (CPU fallback). Metrics JSON uses it.
+func (t *PresentTarget) GPUBackend() string {
+	if t == nil {
+		return "unknown"
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.adapter == nil {
+		return "unknown"
+	}
+	switch t.adapter.Info().DeviceType {
+	case types.DeviceTypeDiscreteGPU:
+		return "discrete"
+	case types.DeviceTypeIntegratedGPU:
+		return "integrated"
+	default:
+		return "software"
+	}
+}
+
 // LastDamageAreaPx returns physical-pixel area of the last frame's damage union
 // (0 when idle / unknown). Used for M-DAMAGE-AREA style metrics.
 func (t *PresentTarget) LastDamageAreaPx() int64 {
@@ -606,6 +619,15 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	t.lastDamageArea = int64(union.Dx()) * int64(union.Dy())
 	if t.lastDamageArea < 0 {
 		t.lastDamageArea = 0
+	}
+	// Idle frames skip the swapchain entirely: acquiring a buffer and then
+	// discarding it without present leaves the image unrecycled in the
+	// driver, draining the swapchain until acquire times out (~250ms) and
+	// forces a ~1s reconfigure loop on static windows.
+	if !forceFull && union.Empty() && t.postResizeFull <= 0 && !t.inResizeStormLocked() {
+		out = PresentOutcome{Mode: PresentModeIdle, Idle: true}
+		t.lastOutcome = out
+		return out, nil
 	}
 
 	frame, err := t.sc.BeginFrame()

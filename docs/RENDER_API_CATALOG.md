@@ -19,7 +19,7 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 95 · 顶层函数 112 · Context 导出方法 183 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
+| `render`（主包） | 类型 96 · 顶层函数 117 · Context 导出方法 183 · 常量 127 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量） |
 | `render/text` | 包级导出 241（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`、+1 `SegmentReuse`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
@@ -27,7 +27,7 @@
 | `render/svg` | 顶层 15 | 🔌 无消费者 | 图标风 SVG 渲染（Render/RenderWithColor/Parse） |
 | `render/filters` | 0（仅 init 副作用注册） | 🔗 经 render/gpu 副作用注册 | 让 DC.ApplyBlur 等可用；ui 侧 facade 无生产调用 |
 | `render/raster` | 0（仅 init 副作用注册） | 🔌 无消费者 | 独立 CPU tile 光栅注册入口；功能已并入 render/gpu |
-| `render/gpu` | 顶层 18（管理 API） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期/策略管理 |
+| `render/gpu` | 顶层 12（8 函数 + 1 类型 + 3 常量，go doc 实数） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期（2026-09-05 1.2：适配器策略 AdapterPolicy 等 13 符号搬入 render 主包） |
 
 > text 子树内部还有分层子包（`render/text/hint` 等），非本次快照范围，改动时按其自身文档维护。
 
@@ -157,7 +157,8 @@
 | `PresentFrameAuto/PresentFrameFull`（frame.go） | 自动选路径 / 强制全帧呈现 | 自动/全帧呈现 | ✅（PresentFrameAuto 内部用） |
 | `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（PresentFrameAuto 内部用） |
 | `CoalesceDamageRects` | 把多条损伤矩形合并/裁剪到上限 | 损伤合并 | 🔗 |
-| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**） |
+| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/GPUBackend/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**） |
+| `AdapterPolicy`（PolicyDefault/PolicyHigh/PolicyLow + 别名 PolicyNone/PolicyAuto/PolicyHighPerformance/PolicyLowPower）+ `ResolveAdapterPolicy` + `RequestAdapterWithPolicy` + `DeviceDescriptor/DeviceDescriptorLowVRAM/DeviceDescriptorForAdapter`（adapter_policy.go，2026-09-05 自 render/gpu 搬入，函数名与行为一字不动） | 选卡策略（GPUI_POWER=high/low，默认混搭优先核显）与设备描述符（核显/CPU 走 LowVRAM 紧限） | 适配器策略 | 🔗 NewPresentTarget 建窗调用（render/present_target.go）；forceFallback 时 stderr 如实记日志 |
 | `PresentNativeSurface` / `PresentPlatform` / var `ErrNilSurfaceView` | 原生表面句柄、平台枚举、空表面错误 | 原生表面/平台 | ✅ |
 
 ### 3.8 text.go（16）+ text_decoration.go（2）+ text_mode.go · 文本族
@@ -282,7 +283,7 @@
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
 | `SetDeviceProvider(provider)/ResetAccelerator/AbandonDevice/PurgeSurfaceResources` | 注入共享 GPU 设备、重建加速器、设备放弃、清理表面资源 | 设备生命周期 | 🔗 examples/ggcanvas 注入；**ui/embedder 生产未调 ⚠️** |
-| `AdapterPolicy/ResolveAdapterPolicy/RequestAdapterWithPolicy/DeviceDescriptor*/DeviceDescriptorLowVRAM` | 适配器/设备策略选择与描述符 | 适配器策略 | 🔗 |
+| `AdapterPolicy/ResolveAdapterPolicy/RequestAdapterWithPolicy/DeviceDescriptor*/DeviceDescriptorLowVRAM` | 适配器/设备策略选择与描述符（2026-09-05 已搬入 render 主包，本包不再导出；见 §3.7） | 适配器策略（已搬迁） | 🔗 主包 NewPresentTarget 在用 |
 | `SurfaceLifecycle/NoteTextureOOM/TextureOOMCount/ResetTextureOOMCount/ResolveSurfaceLifecycle` | 表面生命周期（正常/清理/重建）与纹理 OOM 钩子 | 表面/OOM | 🔗 |
 | init() 副作用：注册 SDF GPU 加速器 + AdaptiveFiller + filters + OOM/lifecycle 钩子 | 一次 import 激活全部 GPU 加速与滤镜 | 加速注册 | ✅ 全部真窗 blank import 接线 |
 
@@ -291,7 +292,7 @@
 ## 7. 状态总表（接线 × 未接线）
 
 ### 7.1 有生产接线（✅/🔗）
-Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Context 绘制族、Brush/三种渐变、文本绘制（DrawString 族经 ui/rendering；DrawShapedColorGlyphs 🔗 彩色段经 ui/rendering→GPU 颜色图集/CPU 兜底（GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩，证据 /tmp/m5_verify/））、图像（GPU QueueImageDraw，Bicubic 例外）、Mask 上传、Layer（GPU RT）、滤镜 op（经 render/gpu 副作用）、SDF/CoverageFiller/AdaptiveFiller、Pixmap、路径基础 API、损伤跟踪、共享编码器。`PresentTarget.SetVsync`（2026-08-19）🔗 embedder resize 风暴期切 Mailbox/Immediate，风暴平静后回 Fifo（内容不跟手修复）；初始 Fifo 排队偏好（2026-08-26 修3：显示周期学习 + Wayland Fifo 化，见 docs/ENGINE_FRAME_PRESENT_STANDARD.md §9）。
+Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Context 绘制族、Brush/三种渐变、文本绘制（DrawString 族经 ui/rendering；DrawShapedColorGlyphs 🔗 彩色段经 ui/rendering→GPU 颜色图集/CPU 兜底（GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩，证据 /tmp/m5_verify/））、图像（GPU QueueImageDraw，Bicubic 例外）、Mask 上传、Layer（GPU RT）、滤镜 op（经 render/gpu 副作用）、SDF/CoverageFiller/AdaptiveFiller、Pixmap、路径基础 API、损伤跟踪、共享编码器。`PresentTarget.SetVsync`（2026-08-19）🔗 embedder resize 风暴期切 Mailbox/Immediate，风暴平静后回 Fifo（内容不跟手修复）；初始 Fifo 排队偏好（2026-08-26 修3：显示周期学习 + Wayland Fifo 化，见 docs/ENGINE_FRAME_PRESENT_STANDARD.md §9）。适配器策略（2026-09-05，多窗 1.2）🔗 `NewPresentTarget` 经 `RequestAdapterWithPolicy(inst, surf, ResolveAdapterPolicy())` 选卡（render/present_target.go）+ `DeviceDescriptorForAdapter` 按卡型取描述符：混搭机默认核显（真窗 ui_l1_blank，`nvidia-smi` 不见进程，DBG adapter=Intel IntegratedGPU）、`GPUI_POWER=high` 回独显（同窗落 NVIDIA DiscreteGPU，`nvidia-smi` 可见）；`PresentTarget.GPUBackend()` 上报 discrete/integrated/software 供 1.3 降级链复用。
 
 ### 7.2 已实现但无生产消费者（🔌 未接线）
 | 功能 | 证据 |
@@ -387,7 +388,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `CubicBez` | Start/End · Eval/Extrema/Inflections/Deriv · Normal/Tangent · BoundingBox · Subdivide/Subsegment | 三次贝塞尔求值/拐点/切线 | 三次贝塞尔 | 🔗 |
 | `Rect` | Width/Height · Contains · Union · (NewRect) | 矩形尺寸/包含/合并 | 矩形 | ✅ |
 | `PathMetric` | IsEmpty · Length · PositionAt/TangentAt | 路径度量查询（取点/切线） | 路径度量 | 🔗 |
-| `PresentTarget` | Context/Resize/SetVsync/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx · InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized · LogicalSize · Close | 呈现目标绘制/呈现/恢复状态（SetOnSwapchainResized：swapchain 换尺寸回调，Wayland 宿主用于 xdg 窗口几何声明；SetVsync：运行时切换 Fifo↔Mailbox/Immediate，embedder 在 resize 风暴期关闭 vsync 让内容帧不被 Fifo 阻塞；运行时切换 Fifo↔Mailbox/Immediate（2026-08-26 修3 起 Wayland 同样生效）） | 呈现目标 | ✅ |
+| `PresentTarget` | Context/Resize/SetVsync/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx/GPUBackend · InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized · LogicalSize · Close | 呈现目标绘制/呈现/恢复状态（SetOnSwapchainResized：swapchain 换尺寸回调，Wayland 宿主用于 xdg 窗口几何声明；SetVsync：运行时切换 Fifo↔Mailbox/Immediate，embedder 在 resize 风暴期关闭 vsync 让内容帧不被 Fifo 阻塞；运行时切换 Fifo↔Mailbox/Immediate（2026-08-26 修3 起 Wayland 同样生效）） | 呈现目标 | ✅ |
 | `FuncPainter`/`SolidPainter` | PaintSpan | 逐像素填色段 | 像素填色器 | 🧪 |
 | 枚举类型通用方法 `String()` | PathVerb / PipelineMode / PresentMode / RasterizerMode / TextMode 均实现 String() 输出枚举名（日志/调试用） | 枚举打印 | 枚举调试 | 🔗 |
 | `GPUAccelerator` 各接口方法 | 见 §4 接口群 | 加速能力探测 | 能力探测 | 🔗 |
@@ -396,10 +397,11 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ---
 
-## 9. 主包常量与变量成员总表（2026-08-15 go/ast 提取，120 常量 + 11 变量）
+## 9. 主包常量与变量成员总表（2026-08-15 go/ast 提取，120 常量 + 11 变量；2026-09-05 1.2 搬包 +7 → 127 常量）
 
 | 类型族 | 成员 |
 |--------|------|
+| `AdapterPolicy`（2026-09-05 自 render/gpu 搬入） | PolicyDefault · PolicyHigh · PolicyLow · PolicyNone · PolicyAuto · PolicyHighPerformance · PolicyLowPower |
 | `AcceleratedOp` | AccelFill · AccelStroke · AccelScene · AccelText · AccelImage · AccelGradient · AccelCircleSDF · AccelRRectSDF |
 | `Align` | AlignLeft · AlignCenter · AlignRight |
 | `BlendMode` | BlendNormal · BlendClear · BlendCopy · BlendPlus · BlendModulate · BlendDestinationOut · BlendSourceAtop · BlendXor · BlendDestinationOver · BlendDestinationIn · BlendSourceIn · BlendDestinationAtop · BlendSourceOut · BlendColorBurn · BlendColorDodge · BlendColor · BlendDarken · BlendDifference · BlendExclusion · BlendHardLight · BlendHue · BlendLighten · BlendLuminosity · BlendMultiply · BlendOverlay · BlendSaturation · BlendScreen · BlendSoftLight |

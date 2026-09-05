@@ -93,7 +93,7 @@ func TestS3c_M3_WindowSwapchain_PresentFrame(t *testing.T) {
 		t.Skipf("RequestAdapter: %v", err)
 	}
 	defer adapter.Release()
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("s3c-window-present"))
+	device, err := adapter.RequestDevice(render.DeviceDescriptor("s3c-window-present"))
 	if err != nil {
 		t.Skipf("RequestDevice: %v", err)
 	}

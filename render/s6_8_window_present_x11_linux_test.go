@@ -58,7 +58,7 @@ func TestS68_WindowPresent_MultiFrameDraw(t *testing.T) {
 	}
 	defer adapter.Release()
 
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("s68-x11"))
+	device, err := adapter.RequestDevice(render.DeviceDescriptor("s68-x11"))
 	if err != nil {
 		t.Skipf("RequestDevice: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestS68_WindowPresent_IdleSkip(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer adapter.Release()
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("s68-idle"))
+	device, err := adapter.RequestDevice(render.DeviceDescriptor("s68-idle"))
 	if err != nil {
 		t.Skipf("RequestDevice: %v", err)
 	}
