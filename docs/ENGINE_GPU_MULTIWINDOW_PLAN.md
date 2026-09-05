@@ -95,17 +95,43 @@
 
 ## 第二块：OpenGL 后端扶正（独立立项，与第一块并行排期）
 
-> 前提结论（已实测）：开关（`GPUI_BACKEND=gl`）与 GL 卡存在，X11 的 EGL 地基通，但 wgpu 的 GLES 后端不认我们建的 X11 窗口；另有 compute 缺口与已知 EGL abort 坑。故这是移植项目，不是配置项。
+> 前提结论（已实测）：开关（`GPUI_BACKEND=gl`）与 GL 卡存在，X11 的 EGL 地基通，但 wgpu 的 GLES 后端不认我们建的 X11 窗口；compute 管线在 GL 下建得出来（已实测 trivial compute 建链成功），真跑逐个验；另有已知 EGL abort 坑。故这是移植项目，不是配置项。
+>
+> 引擎对后端的硬需求清单（先对着它做 2.0 门检，缺一即停）：
+>
+> | # | 需求 | 来源 | GL 现状 |
+> |---|---|---|---|
+> | F1 | 每阶段 ≥9 storage buffer（Vello coarse） | `render/gpu/device.go:7` | 待 2.0 实测（看卡规格，低于 9 即熔断） |
+> | F2 | compute 着色器可建链可调度（flatten/fine/clear/prepare） | `render/internal/gpu` 四处建链点 | 建链已通（trivial 实测），调度逐管线验 |
+> | F3 | write-only storage texture（1 处） | `render/internal/gpu/pipeline.go:185` | 待 2.2 实测 |
+> | F4 | Depth24PlusStencil8 + MSAA | session 纹理 | GLES 基础能力，预过 |
+> | F5 | BGRA8/RGBA8/R8 三格式 | 全引擎用量统计（94/65/22 处） | GLES 基础能力，预过 |
+> | F6 | 时间戳查询 | 仅绑定层有，引擎运行时零使用 | 非问题，不验 |
+> | F7 | EGL 下 Fifo/Mailbox present |  steadily vsync 语义 | 待 2.1 实测 |
+
+### 阶段 2.0 能力门检（新增，不写功能代码）
+
+- **目标**：拿着上表 F1–F7 逐项出“过/不过”，任一硬需求不过则第二块整体暂停，不进入 2.1。
+- **前置**：无（可与第一块并行）。
+- **改动清单（精确）**：零功能改动。允许加临时探针（`examples/tmp_*/`，用完即删，禁合入）：
+  - 读 GL 卡规格：`GPUI_BACKEND=gl go run ./gpu/rwgpu/examples/adapter_info`，核对 F1（≥9）与 compute 相关规格。
+  - trivial compute 建链+调度冒烟（建、调度、读回各一步），核对 F2。
+  - EGL 初始化与 present mode 枚举，核对 F7。
+- **验收**：上表 F1–F7 每行填“过/不过 + 实测数”，写入本节；F1/F2/F3 任一不过 → 熔断（第二块暂停，结论回写）。
+- **熔断**：见上。门检本身不改代码，无需回滚。
+- **交接（给 2.1）**：过的清单即 2.1/2.2 的验证基线；不过的项即不支持清单的初稿。
 
 ### 阶段 2.1 EGL 窗面打通
 
 - **目标**：`GPUI_BACKEND=gl` 的窗口能弹出来、配好交换链、present 空帧。
-- **前置**：第一块已绿（同一套验收窗拿来验 GL，指标口径一致）。
+- **前置**：2.0 全过（F1–F7 门检绿灯）。
 - **背景与根因**：R8。GL 卡可枚举但不认 X11 窗（`gl not compatible with provided surface`）；X11 的 EGL 地基通（NVIDIA EGL 1.5）。
+- **架构事实（已按源码核定）**：后端在 Go 侧只有三处——建实例位掩码（`gpu/rwgpu/instance.go`，`GPUI_BACKEND` 进位）、选卡过滤（本策略）、上报名字（`convertBackendType`）；建设备之后引擎零后端分支（`render/`/`ui/` 无任何 `if GL`），WGSL 翻译与送显全在 wgpu 库内。注：仓内另有自研 `gpu/shader/glsl` 翻译包，但未接入窗口路径（仅自带测试），线上仍走库内翻译。故本阶段只修“进门两件”，不碰引擎。
 - **改动清单（精确）**：
   - `gpu/webgpu/surface_linux.go`：GL 后端走 EGL 路径建 surface（Xlib 窗配 EGLConfig 兼容 visual；Wayland 走既有 Wayland 路）。
   - 选卡：`RequestAdapterWithPolicy` 收 surface 兼容 + 特性需求两个条件（附 §2），GL 不满足直接下一级。
   - 默认后端保持 Vulkan 不动；GL 只走 `GPUI_BACKEND=gl`。
+  - F7 验证：EGL 下 Fifo 一定要有（稳态 vsync 语义就靠它），Mailbox 有最好，没有如实记、不强求。
 - **行为契约**：Vulkan 路径一行不动；GL 路径失败只影响 GL 窗。
 - **验收（全部可执行）**：
   1. `GPUI_BACKEND=gl RUN_SECONDS=15 go run ./examples/ui_l1_blank`：present ≥ 100 帧（读 stderr 汇总），无崩溃，退出码 0。
@@ -119,8 +145,8 @@
 
 - **目标**：全量管线在 GLES 下建得出来、跑得对；compute 缺口逐个有替代或明确不支持清单。
 - **前置**：2.1 已绿（GL 窗可开可刷）。
-- **背景与根因**：R8 + 已知坑（purego 下 EGL abort、并发选卡不安全，见 `gpu/rwgpu/thread_safety_test.go` 注释）。风险点：compute 管线（flatten/fine）、storage 纹理、时间戳查询。
-- **改动清单（精确）**：逐管线在 GL 真机建链+跑帧（清单：`render/internal/gpu` 下所有 `CreateRenderPipeline/CreateComputePipeline` 调用点，先列后验）；缺口改写法（禁止降画质通过）；改动一律进引擎层（`render/`/`gpu/`），示例层只做验证；EGL 调用串行化（沿用测试注释的结论，加锁不加并发）。
+- **背景与根因**：R8 + 2.0 门检结论 + 已知坑（purego 下 EGL abort、并发选卡不安全，见 `gpu/rwgpu/thread_safety_test.go` 注释）。风险点收敛为：F3 storage 纹理写、复杂 compute 调度的真实行为（建链已通不等于跑得对）。
+- **改动清单（精确）**：逐管线在 GL 真机建链+跑帧+读回（清单：`render/internal/gpu` 下所有 `CreateRenderPipeline/CreateComputePipeline` 调用点，先列后验）；缺口改写法（禁止降画质通过）；改动一律进引擎层（`render/`/`gpu/`），示例层只做验证；EGL 调用串行化（沿用测试注释的结论，加锁不加并发）。F4/F5 格式已预过，只做回归对照不重验；F6 时间戳跳过（引擎零使用）。
 - **行为契约**：Vulkan 下所有管线行为零变化（改写法必须双后端跑对照）。
 - **验收（全部可执行）**：
   1. `GPUI_BACKEND=gl` 分别跑 R6/m5/accept（时长同 1.1）：画面与 Vulkan 一致（像素断言过；Golden 存独立 `baseline_gl.png`）。
@@ -161,6 +187,7 @@
 |---|---|
 | 立项 | 2026-09-05 · 双窗黑屏 + 静态窗 4fps 根因实测建档；分两块六阶段； OpenGL 独立为第二块。 |
 | 新会话可开工 | 2026-09-05 · 每阶段补齐前置/精确改动清单/行为契约/可执行验收/交接（对标 §9.2 九项规范）；新会话指文档说阶段号即可开工。 |
+| 第二块补门检 | 2026-09-05 · 新增 2.0 能力门检（F1–F7 硬需求表）；compute 建链实测通过；时间戳/格式预过不再重验；storage-9 与 EGL present 为待测门项。 |
 | 后端矩阵 | 2026-09-05 · 明确各 OS 可用后端与默认（见 §1）；macOS 无 GL（苹果已废弃，wgpu 不提供）；Linux 默认 GL 必须等 2.3 变绿；选型按能力驱动（见 §2），为 2.5D/3D 预留。 |
 
 ## 附 §1 各 OS 后端矩阵（以本仓 pin 的 wgpu 为准）
