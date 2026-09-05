@@ -4,6 +4,16 @@
 > 日期：2026-09-05。
 > 触发：同机开第二个真窗黑屏；静态文本窗单窗掉到约 4fps。
 > 目标：同机运行任意数量程序，每个窗口都正常渲染；后端可配置（含 OpenGL 路线）；对齐成熟框架（Chrome 单 GPU 进程思想、Flutter 降级不崩、Skia 空帧不碰交换链）。
+>
+> **新会话开工法**：指着本文档说“开 1.1”（或任一阶段号）即可开工，不用读别的：
+>
+> 1. 只读 §0 根因表 + 你要做的那一阶段整节，不要通读全文。
+> 2. 先跑基线（本阶段“验收”里的第一条命令），确认当前是红（复现）还是绿。
+> 3. 红灯起步：先写失败断言（单测或真窗指标），确认它红，再改代码。
+> 4. 改完跑本阶段“验收”全部条目，全绿才算完。
+> 5. 收尾走“合入生产线的硬门槛”逐项打勾；任一熔断命中就停下报告，不自决跳过。
+>
+> 环境（ judging 口径一致）：`export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so LD_LIBRARY_PATH=$PWD/lib DISPLAY=:0 GPUI_SURFACE_SAMPLE_COUNT=1`，Go 用仓库默认工具链，`GOWORK=off`。窗口一律 1200×800（accept/R6/m5 均已是）。
 
 ## 0. 根因实测（立项依据，下面的每一条都是真机量出来的）
 
@@ -28,40 +38,58 @@
 ### 阶段 1.1 闲帧不碰交换链
 
 - **目标**：静态窗不再拿图，单窗帧率回到门禁线以上。
-- **改动**：`render/present_target.go` 的 `present()` —— damage 为空且非强制整帧/非 resize 风暴时，不调 `BeginFrame`（不拿图），直接返回 Idle 结果。动画窗每帧有 damage，走老路零影响。
-- **验收**：
-  - accept 30s：`fps_interval ≥ 55`、`interval_p95_ms ≤ 22`、`hitch_rate_per_min ≤ 5`、`cpu_fallback_ops == 0`。
-  - m5 15s 同上；R6 30s 保持绿（`fps_interval ≥ 55`、像素断言与 Golden 与改前一致）。
-  - 快照目检六区出字正常。
-- **熔断**：任一窗帧率回退或画面不一致 → 回退本阶段改动，先查 damage 口径。
-- **回滚**：单个函数改动，revert 即回。
+- **前置**：无。本阶段是后面所有阶段的地基（不修它，任何窗的指标都量不准）。
+- **背景与根因**：R6/R7。`present()` 先拿图后发现空帧再丢，驱动不回收未送显的图，交换链耗尽 → acquire 250ms 超时 + 约 1s 重建的死亡循环。
+- **改动清单（精确）**：
+  - `render/present_target.go` 的 `present()`：在 `FrameDamageUnion()` 取到空 damage 之后、`sc.BeginFrame()` 之前加早退——`!forceFull && damage==0 && postResizeFull<=0 && !inResizeStormLocked()` 时直接返回 `PresentOutcome{Mode: PresentModeIdle, Idle: true}` 并记 `lastOutcome`，不碰交换链。
+  - 其余逻辑（强制整帧、resize 风暴、postResize 欠帧、错误路的 Discard）一行不动。
+- **行为契约**：有 damage 的帧与改前逐字节同路；空帧不产生 acquire/present/discard 计数；动画窗（R6，常年有 damage）行为零变化。
+- **验收（全部可执行）**：
+  1. 复现基线：`GPUI_ACCEPT_RUN_SECONDS=15 go run ./examples/ui_text_edit_accept`（改前约 3~4fps，`hitch_count` 约 15）——确认红。
+  2. 改后同命令：`fps_interval ≥ 55`、`interval_p95_ms ≤ 22`、`hitch_rate_per_min ≤ 5`、`cpu_fallback_ops == 0`。
+  3. `RUN_SECONDS=15 go run ./examples/ui_wr_r6_layer_anim` 保持绿（`fps_interval ≥ 55`；Golden 与改前一致，允许既有 4.89% 基线漂移，不新增）。
+  4. `RUN_SECONDS=15 go run ./examples/ui_text_m5_anycase` 同 accept 门禁。
+  5. 快照目检：accept 六区出字正常（`GPUI_ACCEPT_SNAP=/tmp/x.png`）。
+- **熔断**：任一窗帧率回退或画面不一致 → 回退本阶段改动，先查 damage 口径（`FrameDamageUnion` 是否漏了 HUD/overlay 脏）。
+- **回滚**：单个函数早退块，revert 即回。
+- **交接（给 1.2/1.3）**：此后帧率问题先看 acquire 相关日志（`WR_RESIZE_DBG=1`），不再怀疑 damage；`PresentOutcome.Idle` 语义不变。
 
 ### 阶段 1.2 建窗走适配器策略（混搭默认核显）
 
 - **目标**：混搭机器默认用核显（内存与系统共用），独显不再被两个窗顶爆；`GPUI_POWER=high` 可要回独显；单显卡机器行为零变化。
-- **改动**：
-  - 建窗选卡从写死高性能改为走策略（默认混搭选核显，`GPUI_POWER` 高/低优先，逻辑沿用既有 `render/gpu/adapter_policy.go`，为避开 `render → render/gpu` 循环搬到 `render` 根包，函数名与行为不动）。
-  - 核显/CPU 卡建设备沿用 LowVRAM 收紧规格。
-- **验收**：
-  - 混搭机默认开窗落在核显（`nvidia-smi` 看不到该进程，画面与独显一致）。
-  - `GPUI_POWER=high` 落回独显，单窗 58fps 档。
-  - 核显跑 R6 + accept：单窗全绿；双窗同开两个都出画面（帧率按弱卡如实记录，不装绿）。
-  - 核显 Golden 单独存一份基线（与独显基线允许光栅级差异，差异需评审确认为抗锯齿级）。
-- **熔断**：核显出现渲染错误（缺字、错位、色块错）→ 默认切回独显，本阶段只保留变量可配。
-- **回滚**：选卡改动 revert，默认行为回到独显。
+- **前置**：1.1 已绿（否则帧率基线不可比）。
+- **改动清单（精确）**：
+  - 新建 `render/adapter_policy.go`（包 `render`）：把既有 `render/gpu/adapter_policy.go` 整文件搬入，函数名与行为一字不动（`AdapterPolicy/PolicyDefault/PolicyHigh/PolicyLow/ResolveAdapterPolicy/RequestAdapterWithPolicy/DeviceDescriptorForAdapter`）；`DeviceDescriptorLowVRAM/DeviceDescriptor` 若在 `render/gpu/device.go`，一并搬入（查引用：仅本策略使用）；删掉 `render/gpu` 下的原文件；`render/gpu/adapter_policy_test.go` 随之搬入改包名。
+  - `render/present_target.go` 的 `NewPresentTarget`：选卡一段（现写死 `PowerPreferenceHighPerformance`）改为 `RequestAdapterWithPolicy(inst, surf, ResolveAdapterPolicy())`；建设备改用 `DeviceDescriptorForAdapter("ui-l1-present", adapter)`；`forceFallback==true` 时如实记日志（哪级、为什么）。
+  - `ui/embedder` 两处调用方（`app.go`/`pipeline_app.go` 的 `OpenPresentTarget`）零改动。
+- **行为契约**：单显卡机器选出的卡与改前同一张；`GPUI_POWER` 各取值行为与策略文件注释一致；`forceFallback` 只上报不改画。
+- **验收（全部可执行）**：
+  1. 混搭机默认：`RUN_SECONDS=10 go run ./examples/ui_l1_blank`，`nvidia-smi` 看不到该进程，且窗口正常出色（清屏色）。
+  2. `GPUI_POWER=high RUN_SECONDS=10 go run ./examples/ui_l1_blank`，进程落在独显。
+  3. 默认分别跑 R6 与 accept 15s：门禁同 1.1（`fps_interval ≥ 55` 等）。
+  4. 默认双窗同开（R6 40s + accept 15s 带 SNAP）：两个快照都出画面（用像素数判定非全黑/非全一色），R6 不退回 4fps 档。
+  5. 核显 Golden 存 `examples/<窗>/golden/baseline_igpu.png`，与独显基线的差异经评审确认为光栅级（参考值：R6 约 9.9%，无移位无缺字）。
+- **熔断**：核显出现渲染错误（缺字、错位、色块错）→ 默认切回独显，本阶段只保留变量可配（`GPUI_POWER`），结论回写本节。
+- **回滚**：选卡两处 revert + 搬包还原，默认行为回到独显。
+- **交接（给 1.3）**：留下“当前实际后端”上报口（JSON 字段名、取值独显/核显/软渲染/GL），1.3 的降级链复用它；`RENDER_API_CATALOG.md` 的搬包路径由本阶段同步。
 
 ### 阶段 1.3 显存压力降级链 + 永不黑屏崩溃
 
 - **目标**：显存真不够时自动降级，还能开；降无可降时一句人话报错退出，永远不出现黑窗、不崩溃。
-- **改动**：
-  - 建窗按独显→核显→软渲染排队重试，每级先释放已占资源再试；当前已选卡上报进 JSON（诚实可查）。
-  - 建纹理 OOM 时先清可淘汰缓存（字形图集、图片纹理缓存、层池）重试一次；仍失败走干净错误退出，不送黑帧。
-  - 修 OOM 后继续画图导致的崩溃（此前实测 SIGSEGV）。
-- **验收**：
-  - 显存占满时开新窗：自动降级成功（画面对、JSON 标出实际后端）或带原因报错退出；两种都不允许黑屏、无日志刷屏、无崩溃。
-  - 正常单窗行为零变化（回归 1.1/1.2 的验收）。
-- **熔断**：降级后画面错 → 停用该级降级，只保留报错退出。
-- **回滚**：重试与报错改动 revert。
+- **前置**：1.1、1.2 已绿（降级链复用 1.2 的选卡与后端上报口）。
+- **改动清单（精确）**：
+  - `render/present_target.go` 的 `NewPresentTarget`：建卡/建设备/建交换链任一步报 OOM（含 `not enough memory`/`out of memory` 大小写全匹配）时，按“独显→核显→软渲染”顺序换卡重试（复用 `RequestAdapterWithPolicy` 的 fallback 语义）；每级重试前释放本级已建资源（instance/surface/adapter/device 按 `Close()` 逆序）；`requestPresentDeviceWithRetry` 的重试保留。
+  - OOM 可淘汰缓存：建纹理 OOM 处（`render/internal/gpu/gpu_textures.go` 的 `createTextureRetryOOM` 已有 flush+重试）在仍失败时，调一轮 purge（字形图集页、图片纹理缓存、层池的可淘汰部分，需各包提供 `PurgeEvictable()` 接口，缺口新加、只做加法）再试一次。
+  - 黑屏根除：任一必需纹理（depth/resolve）两次均失败 → 返回干净错误（写明哪一级、哪个尺寸、建议动作如关窗或换卡），调用方直接退出，不送黑帧；修此前 OOM 后继续画图导致的 SIGSEGV（失败后置失效位，后续调用直接返回错）。
+  - JSON 增加 `gpu_backend`（取值 `discrete/integrated/software/gl`）与 `gpu_fallbacks`（降级次数）。
+- **行为契约**：资源充足时与改前逐字节同路（重试只在 OOM 时触发）； purge 只清可重建缓存，不动当帧必需资源。
+- **验收（全部可执行）**：
+  1. 正常单窗：回归 1.1（accept 15s）+ 1.2（默认落卡）验收，零变化。
+  2. 压力：先开 R6 占住独显（`RUN_SECONDS=60` 后台），再开 accept——期望自动降级成功（`gpu_backend` 非 discrete、画面快照非黑、退出码 0）或带原因报错退出；两种都不允许：黑屏快照、无日志刷屏（OOM 日志每秒不超过 3 行）、崩溃（退出码须为 0 或 1 的干净错误，禁 SIGSEGV）。
+  3. 纹理级 OOM 注入：单测构造小堆设备（如有）或以缺卡 CI 跳过并注明（禁静默假绿）。
+- **熔断**：降级后画面错 → 停用该级降级，只保留报错退出，结论回写本节。
+- **回滚**：重试与报错改动 revert（`gpu_backend` 字段保留，值为 discrete 不影响旧判读）。
+- **交接（给出块）**：降级链即高可用的最后一道；此后新后端（第二块 GL）即插即用——只需实现“选卡+建窗”两步并上报 `gpu_backend=gl`。
 
 ---
 
@@ -72,29 +100,49 @@
 ### 阶段 2.1 EGL 窗面打通
 
 - **目标**：`GPUI_BACKEND=gl` 的窗口能弹出来、配好交换链、present 空帧。
-- **改动**：按后端建对 surface（GL 走 EGL 路径）；选卡带 surface 兼容条件；默认后端保持 Vulkan 不动。
-- **验收**：空白窗在 GL 下跑 15s，present 正常 ≥100 帧，无崩溃；`nvidia-smi` 记录单窗占用（立 2.3 的对比基线）。
-- **熔断**：EGL 初始化在目标机器壊境普遍失败 → 本路线暂停，结论回写本节。
+- **前置**：第一块已绿（同一套验收窗拿来验 GL，指标口径一致）。
+- **背景与根因**：R8。GL 卡可枚举但不认 X11 窗（`gl not compatible with provided surface`）；X11 的 EGL 地基通（NVIDIA EGL 1.5）。
+- **改动清单（精确）**：
+  - `gpu/webgpu/surface_linux.go`：GL 后端走 EGL 路径建 surface（Xlib 窗配 EGLConfig 兼容 visual；Wayland 走既有 Wayland 路）。
+  - 选卡：`RequestAdapterWithPolicy` 收 surface 兼容 + 特性需求两个条件（附 §2），GL 不满足直接下一级。
+  - 默认后端保持 Vulkan 不动；GL 只走 `GPUI_BACKEND=gl`。
+- **行为契约**：Vulkan 路径一行不动；GL 路径失败只影响 GL 窗。
+- **验收（全部可执行）**：
+  1. `GPUI_BACKEND=gl RUN_SECONDS=15 go run ./examples/ui_l1_blank`：present ≥ 100 帧（读 stderr 汇总），无崩溃，退出码 0。
+  2. `nvidia-smi` 记录 GL 空白窗占用，写入 §0 表续行（与 Vulkan 321MB 并列）。
+  3. 同条件在 Intel 机 / 单显卡机各跑一次（有条件才跑，缺环境 `t.Skip` 注明）。
+- **熔断**：EGL 初始化在目标机器环境普遍失败 → 本路线暂停，结论回写本节。
 - **回滚**：surface 改动 revert，Vulkan 路径零触碰。
+- **交接（给 2.2）**：留下 GL 窗的最小可跑基线与占用数；着色器逐个验的清单从 2.2 起。
 
 ### 阶段 2.2 着色器与管线过筛
 
 - **目标**：全量管线在 GLES 下建得出来、跑得对；compute 缺口逐个有替代或明确不支持清单。
-- **改动**：逐管线在 GL 真机验证；缺口改写法（禁止降画质通过）；改动进引擎层，示例层只做验证。
-- **验收**：
-  - R6/m5/accept 在 GL 下画面与 Vulkan 一致（像素断言过，Golden 允许独立基线）。
-  - 不支持清单写入本文档（哪个特性、影响哪个窗、替代方案）。
-- **熔断**：核心管线（文本/遮罩/合成任一）在 GLES 无合理替代 → 本路线暂停。
+- **前置**：2.1 已绿（GL 窗可开可刷）。
+- **背景与根因**：R8 + 已知坑（purego 下 EGL abort、并发选卡不安全，见 `gpu/rwgpu/thread_safety_test.go` 注释）。风险点：compute 管线（flatten/fine）、storage 纹理、时间戳查询。
+- **改动清单（精确）**：逐管线在 GL 真机建链+跑帧（清单：`render/internal/gpu` 下所有 `CreateRenderPipeline/CreateComputePipeline` 调用点，先列后验）；缺口改写法（禁止降画质通过）；改动一律进引擎层（`render/`/`gpu/`），示例层只做验证；EGL 调用串行化（沿用测试注释的结论，加锁不加并发）。
+- **行为契约**：Vulkan 下所有管线行为零变化（改写法必须双后端跑对照）。
+- **验收（全部可执行）**：
+  1. `GPUI_BACKEND=gl` 分别跑 R6/m5/accept（时长同 1.1）：画面与 Vulkan 一致（像素断言过；Golden 存独立 `baseline_gl.png`）。
+  2. 不支持清单写入本文档（哪个特性、影响哪个窗、替代方案或降级行为）。
+  3. `go test ./gpu/...` 全绿（含既有 GLES 串行测试）。
+- **熔断**：核心管线（文本/遮罩/合成任一）在 GLES 无合理替代 → 本路线暂停，结论回写本节。
 - **回滚**：按管线 revert，不影响 Vulkan。
+- **交接（给 2.3）**：GL 全绿的窗矩阵 + 不支持清单；2.3 只量占用与多窗。
 
 ### 阶段 2.3 多窗占用达标
 
-- **目标**：GL 单窗占用显著低于 Vulkan（目标：不足一半，以 2.1 基线为准），同机多窗数量翻倍以上且全绿。
-- **验收**：
-  - GL 下 R6 + accept + m5 三窗同开：个个出画面，`fps_interval ≥ 55`（弱卡如实记录），零黑屏。
-  - 每窗占用数写入本文档 §0 表格续行。
-- **熔断**：占用未达标 → 只保留 GL 可配，不宣传多窗收益。
-- **回滚**：默认后端仍是 Vulkan，GL 走变量。
+- **目标**：GL 单窗占用显著低于 Vulkan（不足一半，以 2.1 基线为准），同机多窗数量翻倍以上且全绿。
+- **前置**：2.2 已绿（GL 画面已对，只比占用与数量）。
+- **改动清单（精确）**：本阶段原则上不写功能代码，只做测量与调优（图集页上限、层池上限等旋钮若需动，走小步+单测+回归）；`GPUI_BACKEND` 矩阵文档化（Linux/Vulkan/GL 何时默认，见附 §1）。
+- **行为契约**：Vulkan 默认不动；GL 只走变量，直到本阶段验收全绿才谈默认。
+- **验收（全部可执行）**：
+  1. GL 下 R6 + accept + m5 三窗同开（R6 40s 后台 + 另两窗 15s 带 SNAP）：个个出画面（非黑判读），`fps_interval ≥ 55`（弱卡如实记录，`gpu_backend=gl` 可查），零黑屏零崩溃。
+  2. 每窗占用数（`nvidia-smi` 单进程）写入 §0 表格续行；与 Vulkan 同窗数并列对比。
+  3. 缺环境（无 GL/无多卡）用 `t.Skip` 注明，禁静默假绿。
+- **熔断**：占用未达标 → 只保留 GL 可配，不宣传多窗收益，结论回写本节。
+- **回滚**：默认后端仍是 Vulkan，GL 走变量；旋钮改动 revert。
+- **交接（给出块）**：GL 默认 gate（附 §1 的 Linux 默认行）由用户单独确认后才翻；翻之前本文档保持“GL 可配、Vulkan 默认”。
 
 ---
 
@@ -112,6 +160,7 @@
 | 版本 | 说明 |
 |---|---|
 | 立项 | 2026-09-05 · 双窗黑屏 + 静态窗 4fps 根因实测建档；分两块六阶段； OpenGL 独立为第二块。 |
+| 新会话可开工 | 2026-09-05 · 每阶段补齐前置/精确改动清单/行为契约/可执行验收/交接（对标 §9.2 九项规范）；新会话指文档说阶段号即可开工。 |
 | 后端矩阵 | 2026-09-05 · 明确各 OS 可用后端与默认（见 §1）；macOS 无 GL（苹果已废弃，wgpu 不提供）；Linux 默认 GL 必须等 2.3 变绿；选型按能力驱动（见 §2），为 2.5D/3D 预留。 |
 
 ## 附 §1 各 OS 后端矩阵（以本仓 pin 的 wgpu 为准）
