@@ -57,6 +57,9 @@ type Report struct {
 	CPUFallbackOps    int64    `json:"cpu_fallback_ops"`
 	FrameFlushes      int64    `json:"frame_flushes,omitempty"`
 	LastCPUFallback   string   `json:"last_cpu_fallback"`
+	// Multiwindow 1.3: actual adapter category + open-time downgrade count.
+	GPUBackend   string `json:"gpu_backend"`
+	GPUFallbacks int    `json:"gpu_fallbacks"`
 	// H-family first-present (R16): Warmup is observed by PipelineApp (first
 	// present); TimeToFirstPresentMs / FirstPresentPaintCount are observations.
 	Warmup                 bool    `json:"warmup"`
@@ -150,6 +153,8 @@ func BuildReport(in BuildInput) Report {
 		CPUFallbackOps:    in.Snap.CPUFallbackOps,
 		FrameFlushes:      in.Snap.FrameFlushes,
 		LastCPUFallback:   in.Snap.LastCPUFallbackReason,
+		GPUBackend:        in.Snap.GPUBackend,
+		GPUFallbacks:      in.Snap.GPUFallbacks,
 		// R16: warmup 诚实观测 — 仅认 PipelineApp 观测的 Snap.Warmup，禁止用 BuildInput.Warmup 硬写覆盖（R5 假绿修复）
 		Warmup:                 in.Snap.Warmup,
 		TimeToFirstPresentMs:   in.Snap.TimeToFirstPresentMs,

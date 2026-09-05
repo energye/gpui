@@ -108,6 +108,15 @@ type FrameMetrics struct {
 	FrameFlushes          int64  `json:"frame_flushes,omitempty"`
 	LastCPUFallbackReason string `json:"last_cpu_fallback,omitempty"`
 
+	// GPUBackend is the actual adapter category behind the window
+	// (discrete/integrated/software/gl), reported once at open from
+	// PresentTarget.GPUBackend (multiwindow 1.3 downgrade chain).
+	GPUBackend string `json:"gpu_backend,omitempty"`
+	// GPUFallbacks counts open-time downgrade levels retried before the
+	// window opened (0 = first level succeeded). Always emitted (zero is
+	// the honest common case, not "unavailable").
+	GPUFallbacks int `json:"gpu_fallbacks"`
+
 	// Boundary cache counters (W1 R3; cumulative across NoteBoundaryFrame calls).
 	BoundaryRerecord int64 `json:"boundary_rerecord,omitempty"`
 	BoundarySkip     int64 `json:"boundary_skip,omitempty"`
@@ -518,6 +527,19 @@ func (s *MetricsStore) NoteGPUPathStats(gpuOps, cpuFallbackOps, frameFlushes int
 	s.m.CPUFallbackOps = int64(cpuFallbackOps)
 	s.m.FrameFlushes = int64(frameFlushes)
 	s.m.LastCPUFallbackReason = lastFallbackReason
+	s.mu.Unlock()
+}
+
+// NoteGPUBackend records the actual adapter category + open-time downgrade
+// count once per window (multiwindow 1.3). Called by embedder Open after the
+// present target opens.
+func (s *MetricsStore) NoteGPUBackend(backend string, fallbacks int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.GPUBackend = backend
+	s.m.GPUFallbacks = fallbacks
 	s.mu.Unlock()
 }
 

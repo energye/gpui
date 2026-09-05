@@ -141,6 +141,7 @@ func NewPictureTextureCache(dc *render.Context, max int) *PictureTextureCache {
 	if dc != nil {
 		c.slotAlloc = defaultSlotAlloc
 	}
+	render.RegisterPurgeEvictable("picture-texture", c)
 	return c
 }
 
@@ -727,6 +728,54 @@ func (c *PictureTextureCache) evictForNew() bool {
 		c.Evictions++
 	}
 	return true
+}
+
+// PurgeEvictable drops every cached layer texture that is neither in-flight
+// this frame (usedNow) nor live in the current tree (liveKeys) for the
+// texture-OOM recovery round. Releases are deferred so in-flight submissions
+// keep sampling valid views; misses replay vector content on next blit.
+func (c *PictureTextureCache) PurgeEvictable() (freed int64) {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for {
+		victim := c.purgeVictimLocked()
+		if victim == 0 {
+			return freed
+		}
+		if e := c.entries[victim]; e != nil {
+			c.releaseEntryLocked(e)
+		}
+		delete(c.entries, victim)
+		c.Evictions++
+		freed++
+	}
+}
+
+// purgeVictimLocked picks the oldest entry outside the in-flight set and the
+// live tree. 0 means only live/in-flight entries remain (kept: evicting them
+// would force immediate re-records without relieving steady pressure).
+func (c *PictureTextureCache) purgeVictimLocked() uint64 {
+	var victim uint64
+	var oldest uint64 = ^uint64(0)
+	for id, e := range c.entries {
+		if e == nil {
+			continue
+		}
+		if _, used := c.usedNow[id]; used {
+			continue
+		}
+		if c.isLive(id) {
+			continue
+		}
+		if e.lastUse < oldest {
+			oldest = e.lastUse
+			victim = id
+		}
+	}
+	return victim
 }
 
 // blit draws the cached texture for id at the current CTM (layer-local

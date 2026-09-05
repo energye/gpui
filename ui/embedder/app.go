@@ -46,6 +46,9 @@ type App struct {
 
 	quit     atomic.Bool
 	presents atomic.Int64
+	// oom tracks consecutive OOM-class present failures for the 1.3
+	// exit-instead-of-black-loop contract (UI thread notes and reads).
+	oom oomExit
 }
 
 // New creates an App. Call Open then Run.
@@ -91,6 +94,10 @@ func (a *App) Open() error {
 		return err
 	}
 	a.target = t
+	// Multiwindow 1.3: report the actual backend + downgrade count once.
+	if m := a.Metrics(); m != nil {
+		m.NoteGPUBackend(t.GPUBackend(), t.Fallbacks())
+	}
 	return nil
 }
 
@@ -239,11 +246,17 @@ func (a *App) Run() error {
 		case err := <-done:
 			a.sched.Metrics().NoteBuildMs(time.Since(t0).Seconds() * 1000)
 			if err != nil {
+				// Persistent GPU exhaustion exits instead of black-looping
+				// (multiwindow 1.3: never black-screen, never crash).
+				if a.oom.note(err) {
+					return a.oom.runErr()
+				}
 				// Surface errors: keep running unless fatal nil target.
 				if a.opts.MaxFrames > 0 {
 					return fmt.Errorf("present: %w", err)
 				}
 			} else {
+				a.oom.note(nil)
 				a.presents.Add(1)
 			}
 		case <-time.After(2 * time.Second):
@@ -252,7 +265,7 @@ func (a *App) Run() error {
 		a.sched.ClearPending()
 		a.sched.RecomputeMode()
 	}
-	return nil
+	return a.oom.runErr()
 }
 
 // PresentCount returns successful presents observed by Run.

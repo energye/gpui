@@ -693,6 +693,9 @@ func (s *GPURenderSession) InvalidateForDeviceLoss() {
 	if s == nil {
 		return
 	}
+	// A fresh device gets a fresh OOM probe: drop the terminal-failure latch
+	// so recovered heaps are not failed-fast forever (multiwindow 1.3).
+	s.textures.clearFailed()
 	if s.resReg != nil {
 		s.resReg.InvalidateAll()
 	}
@@ -1196,7 +1199,7 @@ func (s *GPURenderSession) RenderFrame(
 	// vanished on the non-grouped path. RenderFrameGrouped already does this.
 	s.frameW, s.frameH = int(w), int(h)
 	if err := s.ensureTexturesForView(activeView, w, h); err != nil {
-		if s.onTextureOOM != nil && isOOMError(err) {
+		if s.onTextureOOM != nil && render.IsGPUOutOfMemory(err) {
 			s.onTextureOOM()
 		}
 		return fmt.Errorf("ensure textures: %w", err)
@@ -1325,7 +1328,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	w, h := s.effectiveDimensions(target, activeView)
 	s.frameW, s.frameH = int(w), int(h)
 	if err := s.ensureTexturesForView(activeView, w, h); err != nil {
-		if s.onTextureOOM != nil && isOOMError(err) {
+		if s.onTextureOOM != nil && render.IsGPUOutOfMemory(err) {
 			s.onTextureOOM()
 		}
 		return fmt.Errorf("ensure textures: %w", err)

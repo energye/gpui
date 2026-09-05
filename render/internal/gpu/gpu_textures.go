@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render"
 )
 
 // textureSet holds a set of MSAA color, depth/stencil, and resolve textures
@@ -45,8 +45,17 @@ type textureSet struct {
 	// "created surface textures"). Pooled entries rotate instead. Capped and
 	// LRU-stamped; evicted entries go through retireFn like any other retired
 	// texture (in-flight CBs keep them alive until the GPU is done).
-	stencilPool    map[stencilPoolKey]*pooledStencil
-	stencilStamp   uint64
+	stencilPool  map[stencilPoolKey]*pooledStencil
+	stencilStamp uint64
+
+	// failedErr latches a terminal double-failure OOM (full size + 1x1
+	// fallback both failed) for failedW/failedH: later draws fail fast with
+	// the stored error instead of retrying native allocation every frame
+	// (no retry storm, no log flood, no half-built state for later draws to
+	// trip on — the multiwindow 1.3 black-screen/SIGSEGV root). A different
+	// size clears the latch for one re-probe; device loss clears it.
+	failedErr        error
+	failedW, failedH uint32
 }
 
 // stencilPoolKey identifies a pooled depth/stencil texture.
@@ -133,6 +142,9 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	if device == nil {
 		return fmt.Errorf("ensureTextures: device is nil")
 	}
+	if err := ts.failedFast(w, h); err != nil {
+		return err
+	}
 	sc := uint32(4) // default MSAA sample count
 	if len(samples) > 0 && samples[0] > 0 {
 		sc = samples[0]
@@ -207,7 +219,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 		})
 		if err != nil {
 			ts.destroyTextures()
-			return fmt.Errorf("create depth/stencil texture: %w", err)
+			return ts.failTerminal(w, h, "full size and 1x1 fallback", labelPrefix+"_depth_stencil", err)
 		}
 		// Force recreate next frame when heap has reclaimed (size mismatch path).
 		ts.width, ts.height = 0, 0
@@ -240,7 +252,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	})
 	if err != nil {
 		ts.destroyTextures()
-		return fmt.Errorf("create resolve texture: %w", err)
+		return ts.failTerminal(w, h, "flush + cache-purge retries exhausted", labelPrefix+"_resolve", err)
 	}
 	ts.resolveTex = resolveTex
 
@@ -269,6 +281,12 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 }
 
 func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
+	if device == nil {
+		return fmt.Errorf("ensureSurfaceTextures: device is nil")
+	}
+	if err := ts.failedFast(w, h); err != nil {
+		return err
+	}
 	sc := uint32(4) // default MSAA sample count
 	if len(samples) > 0 && samples[0] > 0 {
 		sc = samples[0]
@@ -370,7 +388,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		})
 		if err != nil {
 			ts.destroyTextures()
-			return fmt.Errorf("create depth/stencil texture: %w", err)
+			return ts.failTerminal(w, h, "full size and 1x1 fallback", labelPrefix+"_depth_stencil", err)
 		}
 		// Force recreate next frame when heap has reclaimed (size mismatch path).
 		ts.width, ts.height = 0, 0
@@ -414,6 +432,38 @@ func (ts *textureSet) ClearStencilPool() {
 		}
 		delete(ts.stencilPool, k)
 	}
+}
+
+// failedFast returns the latched terminal OOM error when the same size is
+// requested again. A different size clears the latch for one re-probe.
+func (ts *textureSet) failedFast(w, h uint32) error {
+	if ts == nil || ts.failedErr == nil {
+		return nil
+	}
+	if w == ts.failedW && h == ts.failedH {
+		return ts.failedErr
+	}
+	ts.failedErr = nil
+	return nil
+}
+
+// failTerminal latches a double-failure OOM with the texture role, size, and
+// suggested action. Later draws at the same size fail fast with this error.
+func (ts *textureSet) failTerminal(w, h uint32, tried, label string, err error) error {
+	e := fmt.Errorf("render: GPU out of memory allocating %s %dx%d (%s): %v; close other GPU windows or set GPUI_POWER to a less-loaded GPU",
+		label, w, h, tried, err)
+	ts.failedErr = e
+	ts.failedW, ts.failedH = w, h
+	return e
+}
+
+// clearFailed drops the terminal-OOM latch (device-loss path: a fresh device
+// gets a fresh probe).
+func (ts *textureSet) clearFailed() {
+	if ts == nil {
+		return
+	}
+	ts.failedErr = nil
 }
 
 func (ts *textureSet) destroyTextures() {
@@ -489,11 +539,10 @@ func createTextureRetryOOM(device *webgpu.Device, desc *webgpu.TextureDescriptor
 	if err == nil {
 		return tex, nil
 	}
-	low := strings.ToLower(err.Error())
-	if !strings.Contains(low, "not enough memory") && !strings.Contains(low, "out of memory") {
+	if !render.IsGPUOutOfMemory(err) {
 		return nil, err
 	}
-	log.Printf("CreateTexture OOM label=%s %dx%d samples=%d", desc.Label, desc.Size.Width, desc.Size.Height, desc.SampleCount)
+	oomLogThrottled("CreateTexture OOM label=%s %dx%d samples=%d", desc.Label, desc.Size.Width, desc.Size.Height, desc.SampleCount)
 	noteTextureOOM()
 	device.FlushCallbacks()
 	_ = device.WaitIdle()
@@ -501,6 +550,16 @@ func createTextureRetryOOM(device *webgpu.Device, desc *webgpu.TextureDescriptor
 	tex, err2 := device.CreateTexture(desc)
 	if err2 == nil {
 		return tex, nil
+	}
+	// Still failing: purge rebuildable caches once (glyph/image/layer pools
+	// free their GPU textures; misses rebuild on next use), then retry once.
+	if freed, byName := render.PurgeEvictables(); freed > 0 {
+		oomLogThrottled("CreateTexture OOM purge freed %d entries %v, retrying label=%s", freed, byName, desc.Label)
+		if tex, err3 := device.CreateTexture(desc); err3 == nil {
+			return tex, nil
+		} else {
+			err2 = err3
+		}
 	}
 	// Last resort: drop MSAA for this allocation.
 	if desc.SampleCount > 1 {

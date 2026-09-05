@@ -46,3 +46,31 @@ func TestAdapterPolicyString(t *testing.T) {
 		t.Fatal("HighPerformance/LowPower must alias High/Low")
 	}
 }
+
+func TestPresentLevels_Order(t *testing.T) {
+	for _, tc := range []struct {
+		start AdapterPolicy
+		want  []AdapterPolicy // policies in order; last level is software
+	}{
+		{PolicyHigh, []AdapterPolicy{PolicyHigh, PolicyLow}},
+		{PolicyDefault, []AdapterPolicy{PolicyDefault, PolicyLow}},
+		{PolicyLow, []AdapterPolicy{PolicyLow}},
+	} {
+		levels := presentLevels(tc.start)
+		if len(levels) != len(tc.want)+1 {
+			t.Fatalf("start=%v levels=%d want %d+software", tc.start, len(levels), len(tc.want))
+		}
+		for i, want := range tc.want {
+			if levels[i].software {
+				t.Fatalf("start=%v level %d must not be software", tc.start, i)
+			}
+			if levels[i].policy != want {
+				t.Fatalf("start=%v level %d policy=%v want %v", tc.start, i, levels[i].policy, want)
+			}
+		}
+		last := levels[len(levels)-1]
+		if !last.software {
+			t.Fatalf("start=%v last level must be software fallback", tc.start)
+		}
+	}
+}

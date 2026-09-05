@@ -5,9 +5,11 @@ package gpu
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render"
 )
 
 // defaultImageCacheBudget is the maximum number of cached image textures.
@@ -69,6 +71,11 @@ type ImageCache struct {
 	// commands (shared-encoder path encodes before the final Submit), so the
 	// native release is deferred to a submission-completion point (P4).
 	pending []*imageCacheEntry
+
+	// destroyed latches session teardown; a destroyed cache purges to zero
+	// without touching native resources (multiwindow 1.3 purge chain).
+	// Atomic: Destroy runs on teardown while purges run on the raster thread.
+	destroyed atomic.Bool
 }
 
 // stagingScratch reuses CPU packing buffers for non-contiguous image uploads.
@@ -99,13 +106,15 @@ func releaseImageStaging(p *[]byte) {
 
 // NewImageCache creates a new image texture cache with the given device and queue.
 func NewImageCache(device *webgpu.Device, queue *webgpu.Queue) *ImageCache {
-	return &ImageCache{
+	c := &ImageCache{
 		device:      device,
 		queue:       queue,
 		entries:     make(map[uint64]*imageCacheEntry),
 		budget:      defaultImageCacheBudget,
 		budgetBytes: defaultImageCacheBudgetBytes,
 	}
+	render.RegisterPurgeEvictable("image-cache", c)
+	return c
 }
 
 // SetBudgets updates entry and byte soft limits (tests/tuning).
@@ -261,6 +270,8 @@ func (c *ImageCache) Destroy() {
 	if c == nil {
 		return
 	}
+	render.UnregisterPurgeEvictable(c)
+	c.destroyed.Store(true)
 	c.ReleaseEphemeral()
 	for key, entry := range c.entries {
 		entry.view.Release()
@@ -268,6 +279,21 @@ func (c *ImageCache) Destroy() {
 		delete(c.entries, key)
 	}
 	c.usedBytes = 0
+}
+
+// PurgeEvictable drops every entry through the deferred-release path
+// (in-flight frames keep sampling until submit completes) for the
+// texture-OOM recovery round. Misses re-upload on next use. A destroyed
+// cache frees nothing.
+func (c *ImageCache) PurgeEvictable() (freed int64) {
+	if c == nil || c.destroyed.Load() {
+		return 0
+	}
+	for len(c.entries) > 0 {
+		c.evictOldest()
+		freed++
+	}
+	return freed
 }
 
 // uploadImage creates a GPU texture and uploads pixel data from an ImageDrawCommand.

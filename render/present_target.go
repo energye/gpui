@@ -28,8 +28,7 @@ func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceD
 		if err == nil {
 			return device, nil
 		}
-		low := strings.ToLower(err.Error())
-		if !strings.Contains(low, "not enough memory") && !strings.Contains(low, "out of memory") {
+		if !IsGPUOutOfMemory(err) {
 			return nil, err
 		}
 		// Present device creation is not on a hot path; a short backoff
@@ -142,6 +141,31 @@ type PresentTarget struct {
 	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
 	lastOutcome    PresentOutcome
 	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
+
+	// fallbacks counts downgrade levels retried before this target opened
+	// (0 = first level succeeded). Set once by NewPresentTarget.
+	fallbacks int
+}
+
+// presentLevel is one step of the open-time downgrade chain
+// (discrete-first → integrated-first → software fallback). Levels reuse
+// RequestAdapterWithPolicy's ordered-try semantics; the last level requests
+// the software adapter directly.
+type presentLevel struct {
+	name     string
+	policy   AdapterPolicy
+	software bool
+}
+
+// presentLevels orders downgrade attempts from the resolved policy downward.
+// The first level is the 1.2 behavior; lower levels only run after an
+// OOM-class failure, so resource-sufficient opens follow the old path.
+func presentLevels(start AdapterPolicy) []presentLevel {
+	levels := []presentLevel{{name: start.String(), policy: start}}
+	if start != PolicyLow {
+		levels = append(levels, presentLevel{name: PolicyLow.String(), policy: PolicyLow})
+	}
+	return append(levels, presentLevel{name: "software", software: true})
 }
 
 // NewPresentTarget creates a GPU present path from native window handles.
@@ -160,6 +184,36 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		scale = 1
 	}
 
+	levels := presentLevels(ResolveAdapterPolicy())
+	var lastErr error
+	for i, lv := range levels {
+		t, err := buildPresentTarget(ns, logicalW, logicalH, scale, lv)
+		if err == nil {
+			t.fallbacks = i
+			return t, nil
+		}
+		// Only OOM walks down; any other failure returns as before.
+		if !IsGPUOutOfMemory(err) {
+			return nil, err
+		}
+		lastErr = err
+		if i < len(levels)-1 {
+			fmt.Fprintf(os.Stderr, "render: present level %q out of memory, trying %q\n",
+				lv.name, levels[i+1].name)
+		}
+	}
+	tried := make([]string, len(levels))
+	for i, lv := range levels {
+		tried[i] = lv.name
+	}
+	return nil, fmt.Errorf("render: out of GPU memory opening %dx%d window (tried %s): %v; close other GPU windows or set GPUI_POWER to a less-loaded GPU",
+		logicalW, logicalH, strings.Join(tried, " → "), lastErr)
+}
+
+// buildPresentTarget builds one downgrade level: instance → surface →
+// adapter → device → swapchain. Any step's failure releases that level's
+// resources (Close() reverse order) before returning.
+func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale float64, lv presentLevel) (*PresentTarget, error) {
 	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
 	if err != nil {
 		return nil, fmt.Errorf("render: CreateInstance: %w", err)
@@ -174,12 +228,28 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
 	}
 
-	policy := ResolveAdapterPolicy()
-	adapter, forceFallback, err := RequestAdapterWithPolicy(inst, surf, policy)
-	if err != nil {
-		surf.Release()
-		inst.Release()
-		return nil, fmt.Errorf("render: RequestAdapter: %w", err)
+	policy := lv.policy
+	var adapter *webgpu.Adapter
+	var forceFallback bool
+	if lv.software {
+		adapter, err = inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+			PowerPreference:      webgpu.PowerPreferenceNone,
+			ForceFallbackAdapter: true,
+			CompatibleSurface:    surf,
+		})
+		forceFallback = err == nil
+		if err != nil {
+			surf.Release()
+			inst.Release()
+			return nil, fmt.Errorf("render: RequestAdapter: %w", err)
+		}
+	} else {
+		adapter, forceFallback, err = RequestAdapterWithPolicy(inst, surf, policy)
+		if err != nil {
+			surf.Release()
+			inst.Release()
+			return nil, fmt.Errorf("render: RequestAdapter: %w", err)
+		}
 	}
 	ai := webgpu.AdapterInfo{}
 	if adapter != nil {
@@ -532,6 +602,17 @@ func (t *PresentTarget) LastPresentOutcome() PresentOutcome {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.lastOutcome
+}
+
+// Fallbacks reports how many downgrade levels were retried before this
+// target opened (0 = first level succeeded). Metrics JSON uses it.
+func (t *PresentTarget) Fallbacks() int {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.fallbacks
 }
 
 // GPUBackend reports the actual adapter category behind this target:

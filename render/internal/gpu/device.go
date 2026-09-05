@@ -4,11 +4,11 @@ package gpu
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render"
 )
 
 const minRenderStorageBuffersPerShaderStage = 9
@@ -85,18 +85,6 @@ func createDevice(adapter *webgpu.Adapter, label string) (*webgpu.Device, error)
 	return device, nil
 }
 
-// isOOMError reports whether err is a GPU-memory exhaustion error.
-// wgpu-native surfaces device memory exhaustion as "Not enough memory left".
-func isOOMError(err error) bool {
-	if err == nil {
-		return false
-	}
-	low := strings.ToLower(err.Error())
-	return strings.Contains(low, "not enough memory") ||
-		strings.Contains(low, "out of memory") ||
-		strings.Contains(low, "out of device memory")
-}
-
 // requestDeviceWithRetry retries adapter.RequestDevice a few times when the
 // adapter is temporarily out of GPU memory (multi-window shared stolen-memory
 // budget on iGPUs). Other windows/processes may release memory between
@@ -113,7 +101,7 @@ func requestDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceDescript
 		if err == nil {
 			return device, nil
 		}
-		if !isOOMError(err) {
+		if !render.IsGPUOutOfMemory(err) {
 			return nil, err
 		}
 		slogger().Warn("RequestDevice OOM, retrying", "label", label, "attempt", attempt, "err", err)

@@ -172,6 +172,10 @@ type PipelineApp struct {
 	// assertions). UI side waits on each request's done channel.
 	snapshotMu    sync.Mutex
 	snapshotQueue []func()
+
+	// oom tracks consecutive OOM-class present failures for the 1.3
+	// exit-instead-of-black-loop contract (raster notes, Run reads).
+	oom oomExit
 }
 
 // SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
@@ -639,6 +643,10 @@ func (a *PipelineApp) Open() error {
 		}
 	})
 	a.target = t
+	// Multiwindow 1.3: report the actual backend + downgrade count once.
+	if m := a.Metrics(); m != nil {
+		m.NoteGPUBackend(t.GPUBackend(), t.Fallbacks())
+	}
 	return nil
 }
 
@@ -672,6 +680,11 @@ func (a *PipelineApp) Close() {
 	a.quit.Store(true)
 	if a.loop != nil {
 		a.loop.Stop()
+	}
+	// Raster is drained: no purge can be in flight; drop the layer-texture
+	// cache from the OOM purge chain before its device goes away.
+	if a.pictureTex != nil {
+		render.UnregisterPurgeEvictable(a.pictureTex)
 	}
 	if a.target != nil {
 		_ = a.target.Close()
@@ -1132,6 +1145,11 @@ func (a *PipelineApp) Run() error {
 				if os.Getenv("HITCH_DIAG") == "1" {
 					FrameDone(jobFrameID)
 				}
+				// Persistent GPU exhaustion exits via Run instead of black-looping
+				// (multiwindow 1.3: never black-screen, never crash).
+				if a.oom.note(err) {
+					a.quit.Store(true)
+				}
 				return err
 			},
 		}
@@ -1173,6 +1191,9 @@ func (a *PipelineApp) Run() error {
 				fmt.Fprintf(os.Stderr, "snapshot: %s\n", a.opts.SnapshotPath)
 			}
 		}
+	}
+	if err := a.oom.runErr(); err != nil {
+		return err
 	}
 	return nil
 }
