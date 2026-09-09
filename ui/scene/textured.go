@@ -459,8 +459,47 @@ func (c *PictureTextureCache) record(id uint64, pic *Picture) (image.Rectangle, 
 // recordWith is record plus an optional raster-thread extra paint (RenderBox
 // OnPaint layers): when extra is non-nil it draws after pic.Replay (or alone
 // for empty pictures) in the same surface coordinate space.
+// dropTransparentLocked discards the cached texture for a re-record whose
+// replay queues no work: a no-op flush encodes no pass, so the reused slot
+// would keep stale pixels (stuck caret). A discarded live texture leaves a
+// viewless shell carrying the stale region for phase-2 damage; with no
+// cached texture the entry is just removed. Caller must hold c.mu.
+func (c *PictureTextureCache) dropTransparentLocked(id uint64, fallback image.Rectangle) {
+	e := c.entries[id]
+	if e == nil {
+		return
+	}
+	hadView := e.contentSlot >= 0 && e.contentSlot < len(e.slots) && !e.slots[e.contentSlot].view.IsNil()
+	b := e.bounds
+	if b.Empty() {
+		b = fallback
+	}
+	c.releaseEntryLocked(e)
+	if !hadView {
+		delete(c.entries, id)
+		return
+	}
+	e.contentSlot = -1
+	e.bounds = b
+	e.lastUse = c.stamp
+	e.recordedIn = c.recordFrame
+	c.usedNow[id] = struct{}{}
+}
+
 func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc *render.Context)) (image.Rectangle, bool) {
 	if c == nil || c.dc == nil || id == 0 || (pic != nil && pic.IsEmpty() && extra == nil) {
+		return image.Rectangle{}, false
+	}
+	// A transparent re-record must not keep stale slot pixels: fall back to
+	// (correctly empty) vector replay, keeping damage for the cleared region.
+	if extra == nil && !pic.hasVisibleOps() {
+		var gb image.Rectangle
+		if pic != nil {
+			gb = pic.Bounds
+		}
+		c.mu.Lock()
+		c.dropTransparentLocked(id, gb)
+		c.mu.Unlock()
 		return image.Rectangle{}, false
 	}
 	c.mu.Lock()
@@ -528,6 +567,13 @@ func (c *PictureTextureCache) recordLocal(id uint64, pic *Picture, b image.Recta
 // draws after pic.Replay in the same layer-local (translated) coordinate space.
 func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.Rectangle, extra func(dc *render.Context)) (image.Rectangle, bool) {
 	if c == nil || c.dc == nil || id == 0 || (pic != nil && pic.IsEmpty() && extra == nil) {
+		return image.Rectangle{}, false
+	}
+	// Same stale-slot guard as recordWith (bounds-sized variant).
+	if extra == nil && !pic.hasVisibleOps() {
+		c.mu.Lock()
+		c.dropTransparentLocked(id, b)
+		c.mu.Unlock()
 		return image.Rectangle{}, false
 	}
 	if b.Empty() {

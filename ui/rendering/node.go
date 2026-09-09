@@ -96,6 +96,15 @@ func (b *Base) Init(self RenderObject) {
 // SetOwner attaches a pipeline owner (for metrics / future schedule).
 func (b *Base) SetOwner(o *PipelineOwner) { b.owner = o }
 
+// Owner returns the attached pipeline owner, or nil when the node is not
+// attached to a tree (unit-built widgets).
+func (b *Base) Owner() *PipelineOwner {
+	if b == nil {
+		return nil
+	}
+	return b.owner
+}
+
 // Parent implements RenderObject.
 func (b *Base) Parent() RenderObject { return b.parent }
 

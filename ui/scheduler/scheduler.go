@@ -276,6 +276,17 @@ func (s *FrameScheduler) Tickers() *TickerRegistry {
 	return &s.tickers
 }
 
+// FrameWanted reports whether the last Tick saw frame demand from any
+// surviving ticker (see FrameWanter). Tickers that do not implement
+// FrameWanter count as wanting a frame, preserving the legacy
+// stay-registered-means-frames behavior.
+func (s *FrameScheduler) FrameWanted() bool {
+	if s == nil {
+		return false
+	}
+	return s.tickers.FrameWanted()
+}
+
 // SetAnimTick overrides fallback frame period.
 func (s *FrameScheduler) SetAnimTick(d time.Duration) {
 	if s == nil || d <= 0 {

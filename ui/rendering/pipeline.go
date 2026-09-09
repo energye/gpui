@@ -20,6 +20,115 @@ type PipelineOwner struct {
 	// boundaryCache is the process-lifetime Picture cache for RepaintBoundary
 	// nodes on this tree (W1 R3). Shared across presents so skip is observable.
 	boundaryCache *BoundaryCache
+
+	// blinkers are widgets with framework-owned blink state (caret blink)
+	// that need dt while focused. Widgets self-report on focus transitions;
+	// the embedder pumps them via TickBlink on the UI thread. blinkCtl (when
+	// set by the embedder) registers/unregisters the pump ticker as the set
+	// transitions between empty and non-empty, so a tree with no blinkers
+	// costs nothing.
+	blinkers map[Blinkable]struct{}
+	blinkCtl func(active bool)
+}
+
+// Blinkable is a widget whose blink phase advances on UI-thread dt.
+// BlinkTick reports whether the visible state toggled (the caller dirties
+// via the widget's own MarkNeedsPaint; frames come from dirtiness, never
+// from ticker aliveness).
+type Blinkable interface {
+	BlinkTick(dt float64) bool
+}
+
+// SetBlinkTickerCtl installs the embedder callback that (de)registers the
+// blink pump ticker. Nil clears it (unit-built owners).
+func (o *PipelineOwner) SetBlinkTickerCtl(fn func(active bool)) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	o.blinkCtl = fn
+	o.mu.Unlock()
+}
+
+// NoteBlinkable registers b for blink dt (idempotent). Notifies the
+// embedder when the set becomes non-empty.
+func (o *PipelineOwner) NoteBlinkable(b Blinkable) {
+	if o == nil || b == nil {
+		return
+	}
+	var ctl func(active bool)
+	var notify bool
+	o.mu.Lock()
+	if o.blinkers == nil {
+		o.blinkers = make(map[Blinkable]struct{})
+	}
+	if _, ok := o.blinkers[b]; !ok {
+		notify = len(o.blinkers) == 0
+		o.blinkers[b] = struct{}{}
+		ctl = o.blinkCtl
+	}
+	o.mu.Unlock()
+	if notify && ctl != nil {
+		ctl(true)
+	}
+}
+
+// DropBlinkable removes b from blink dt (idempotent). Notifies the
+// embedder when the set becomes empty.
+func (o *PipelineOwner) DropBlinkable(b Blinkable) {
+	if o == nil || b == nil {
+		return
+	}
+	var ctl func(active bool)
+	var notify bool
+	o.mu.Lock()
+	if _, ok := o.blinkers[b]; ok {
+		delete(o.blinkers, b)
+		notify = len(o.blinkers) == 0
+		ctl = o.blinkCtl
+	}
+	o.mu.Unlock()
+	if notify && ctl != nil {
+		ctl(false)
+	}
+}
+
+// BlinkActive reports whether any blinkable is registered.
+func (o *PipelineOwner) BlinkActive() bool {
+	if o == nil {
+		return false
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.blinkers) > 0
+}
+
+// TickBlink advances every registered blinkable on the UI thread and
+// reports whether any toggled. Callbacks run without the owner lock held
+// (widgets dirty themselves, which re-enters the owner).
+func (o *PipelineOwner) TickBlink(dt float64) bool {
+	if o == nil {
+		return false
+	}
+	o.mu.Lock()
+	if len(o.blinkers) == 0 {
+		o.mu.Unlock()
+		return false
+	}
+	list := make([]Blinkable, 0, len(o.blinkers))
+	for b := range o.blinkers {
+		if b != nil {
+			list = append(list, b)
+		}
+	}
+	o.mu.Unlock()
+	toggled := false
+	for _, b := range list {
+		if b.BlinkTick(dt) {
+			toggled = true
+		}
+	}
+	return toggled
 }
 
 // NewPipelineOwner creates an owner with optional root.

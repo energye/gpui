@@ -83,6 +83,41 @@ func (p *Picture) IsEmpty() bool {
 	return p == nil || len(p.Ops) == 0
 }
 
+// hasVisibleOps reports whether replaying p can emit any drawing work. It
+// mirrors applyPictureOp's skip conditions: zero-alpha, empty, or
+// missing-resource ops queue nothing into the record stream.
+func (p *Picture) hasVisibleOps() bool {
+	if p == nil {
+		return false
+	}
+	for i := range p.Ops {
+		op := &p.Ops[i]
+		switch op.Kind {
+		case OpFillRect, OpStrokeRect:
+			if op.W > 0 && op.H > 0 && op.A != 0 {
+				return true
+			}
+		case OpFillPath, OpStrokePath:
+			if op.A != 0 && op.Path != nil && op.Path.NumVerbs() > 0 {
+				return true
+			}
+		case OpDrawString:
+			if op.Text != "" && op.A != 0 {
+				return true
+			}
+		case OpDrawShapedGlyphs:
+			if len(op.Glyphs) > 0 && op.Face != nil && op.A != 0 {
+				return true
+			}
+		case OpDrawImage:
+			if op.Image != nil && !op.Image.Disposed() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Invalidate marks the picture for re-record (does not clear Ops until re-record).
 func (p *Picture) Invalidate() {
 	if p == nil {

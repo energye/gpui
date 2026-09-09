@@ -38,6 +38,70 @@ func TestRenderBox_LayoutPaintHit(t *testing.T) {
 	}
 }
 
+// fakeBlinker is a controllable rendering.Blinkable for registry tests.
+type fakeBlinker struct {
+	calls   int
+	toggled bool
+}
+
+func (f *fakeBlinker) BlinkTick(dt float64) bool {
+	f.calls++
+	_ = dt
+	return f.toggled
+}
+
+// Blinkables self-report: register/drop transitions notify the embedder
+// exactly on empty<->non-empty edges, and TickBlink fans dt out on the
+// calling thread reporting the OR of toggles.
+func TestOwner_BlinkRegistry(t *testing.T) {
+	root := rendering.NewRenderBox()
+	owner := rendering.NewPipelineOwner(root)
+	var ctlCalls []bool
+	owner.SetBlinkTickerCtl(func(active bool) { ctlCalls = append(ctlCalls, active) })
+	if owner.BlinkActive() {
+		t.Fatal("fresh owner must have no blinkers")
+	}
+	a, b := &fakeBlinker{}, &fakeBlinker{}
+	owner.NoteBlinkable(a)
+	owner.NoteBlinkable(a) // idempotent: no second edge
+	owner.NoteBlinkable(b)
+	if !owner.BlinkActive() {
+		t.Fatal("expected blinkers registered")
+	}
+	if len(ctlCalls) != 1 || !ctlCalls[0] {
+		t.Fatalf("ctl calls=%v want single [true]", ctlCalls)
+	}
+	a.toggled, b.toggled = true, false
+	if !owner.TickBlink(0.016) {
+		t.Fatal("TickBlink must OR toggle reports")
+	}
+	if a.calls != 1 || b.calls != 1 {
+		t.Fatalf("calls a=%d b=%d want 1/1", a.calls, b.calls)
+	}
+	a.toggled = false
+	if owner.TickBlink(0.016) {
+		t.Fatal("no toggles must report false")
+	}
+	owner.DropBlinkable(a)
+	if !owner.BlinkActive() {
+		t.Fatal("b still registered")
+	}
+	if len(ctlCalls) != 1 {
+		t.Fatalf("ctl calls=%v want no edge until empty", ctlCalls)
+	}
+	owner.DropBlinkable(b)
+	if owner.BlinkActive() {
+		t.Fatal("expected empty after drops")
+	}
+	if len(ctlCalls) != 2 || ctlCalls[1] {
+		t.Fatalf("ctl calls=%v want [true false]", ctlCalls)
+	}
+	owner.DropBlinkable(b) // idempotent
+	if len(ctlCalls) != 2 {
+		t.Fatalf("ctl calls=%v want no duplicate edge", ctlCalls)
+	}
+}
+
 func TestRelayoutBoundary_StopsBubble(t *testing.T) {
 	// root (not boundary) -> mid (boundary) -> leaf
 	leaf := rendering.NewRenderColorBox(10, 10, 0, 1, 0, 1)

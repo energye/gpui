@@ -352,6 +352,16 @@ func main() {
 	fm.Register(boxF.FocusNode())
 	router.OnPointer = func(pe input.PointerEvent, target rendering.RenderObject) {}
 	tick := 0
+	// Diagnosis only: GPUI_ACCEPT_FOCUS=A..F focuses one box at startup so
+	// caret blink can be observed without pointer injection. Requested after
+	// the app exists: focus drives framework-owned blink registration, which
+	// needs the tree attached to the pipeline owner.
+	focusName := os.Getenv("GPUI_ACCEPT_FOCUS")
+	// Demand-gated present: the HUD meter stays live at 2 Hz instead of
+	// driving ~10 fps alone at idle.
+	if shell.HUD != nil {
+		shell.HUD.SetMinIntervalSec(0.5)
+	}
 	router.OnKey = func(ke input.KeyEvent) {
 		switch {
 		case boxF.IsFocused():
@@ -390,10 +400,9 @@ func main() {
 	})
 	app.Scheduler().Tickers().Add(&acceptTicker{on: func(dt float64) {
 		tick++
-		if tick%30 == 0 {
-			boxA.SetCaretOn(!boxA.IsCaretOn())
-		}
-		app.ScheduleFrame()
+		// Caret blink is framework-owned (boxes register on focus
+		// transitions; the embedder pump advances them). Nothing to pump
+		// here; this ticker only advances HUD/diagnostic budgets.
 		proc.Sample()
 		shell.NoteHUDTick(dt)
 		snapH := app.Metrics().Snapshot()
@@ -403,6 +412,24 @@ func main() {
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
+	// Startup focus goes here (after the app owns the tree): focus drives
+	// framework-owned blink registration, which needs the pipeline owner.
+	if focusName != "" {
+		switch focusName {
+		case "A":
+			boxA.FocusNode().RequestFocus()
+		case "B":
+			boxB.FocusNode().RequestFocus()
+		case "C":
+			boxC.FocusNode().RequestFocus()
+		case "D":
+			boxD.FocusNode().RequestFocus()
+		case "E":
+			boxE.FocusNode().RequestFocus()
+		case "F":
+			boxF.FocusNode().RequestFocus()
+		}
+	}
 	if err := app.Open(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
@@ -444,5 +471,10 @@ func main() {
 }
 
 type acceptTicker struct{ on func(dt float64) }
+
+// WantsFrame opts out of per-tick frames: this ticker only advances HUD and
+// diagnostic budgets. Frames follow dirtiness (blink toggles, input edits,
+// HUD repaints); staying registered must not render by itself.
+func (t *acceptTicker) WantsFrame() bool { return false }
 
 func (t *acceptTicker) Tick(dt float64) bool { t.on(dt); return true }

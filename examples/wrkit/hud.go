@@ -147,6 +147,16 @@ type LiveHUD struct {
 	haveSnap       bool
 }
 
+// SetMinIntervalSec overrides the meter repaint throttle (default 0.1s =
+// ~10 Hz). Demand-gated windows use a slower meter (e.g. 0.5s) so the HUD
+// stays live and honest without driving idle frames alone.
+func (h *LiveHUD) SetMinIntervalSec(v float64) {
+	if h == nil || v <= 0 {
+		return
+	}
+	h.minIntervalSec = v
+}
+
 // NewLiveHUD builds a fixed-size HUD band. Call Update each tick (cheap); paint
 // dirties at most ~10×/s unless phase/gate flips.
 func NewLiveHUD(width, height float64) *LiveHUD {

@@ -80,6 +80,7 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 			return
 		}
 		vb.focused = on
+		syncBlinkRegistration(vb.RenderBox, on, vb)
 		vb.MarkNeedsPaint()
 		vb.sync()
 	}
@@ -155,6 +156,7 @@ func (b *ViewportInputBox) SetDisabled(v bool) {
 		b.Node.Enabled = !v
 		if v && b.focused {
 			b.focused = false
+			syncBlinkRegistration(b.RenderBox, false, b)
 			b.caretOn = false
 			b.layoutCaret()
 			if b.Node.HasFocus() {
@@ -262,6 +264,7 @@ func (b *ViewportInputBox) TickCaret(dt float64) {
 		if b != nil && b.caretOn {
 			b.caretOn = false
 			b.layoutCaret()
+			b.MarkNeedsPaint()
 		}
 		return
 	}
@@ -272,6 +275,18 @@ func (b *ViewportInputBox) TickCaret(dt float64) {
 		b.layoutCaret()
 		b.MarkNeedsPaint()
 	}
+}
+
+// BlinkTick implements rendering.Blinkable: advances the caret blink phase
+// on UI-thread dt, reporting whether the visible state toggled. Called by
+// the embedder blink pump only while focused.
+func (b *ViewportInputBox) BlinkTick(dt float64) bool {
+	if b == nil {
+		return false
+	}
+	before := b.caretOn
+	b.TickCaret(dt)
+	return b.caretOn != before
 }
 
 func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {

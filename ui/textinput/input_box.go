@@ -89,6 +89,7 @@ func (b *InputBox) SetDisabled(v bool) {
 		b.Node.Enabled = !v
 		if v && b.focused {
 			b.focused = false
+			syncBlinkRegistration(b.RenderBox, false, b)
 			b.caretOn = false
 			b.layoutCaret()
 			if b.Node.HasFocus() {
@@ -180,12 +181,31 @@ func (b *InputBox) SetCaretOn(v bool) {
 	b.MarkNeedsPaint()
 }
 
+// syncBlinkRegistration syncs framework-owned blink registration with focus
+// transitions: focused boxes receive dt from the embedder blink pump (which
+// frames only on toggles via dirtiness); unfocused boxes cost nothing.
+func syncBlinkRegistration(box *rendering.RenderBox, focused bool, bl rendering.Blinkable) {
+	if box == nil || bl == nil {
+		return
+	}
+	o := box.Owner()
+	if o == nil {
+		return
+	}
+	if focused {
+		o.NoteBlinkable(bl)
+	} else {
+		o.DropBlinkable(bl)
+	}
+}
+
 // TickCaret 按 Flutter 500ms 周期推进闪烁，获焦时编辑后已重置为常亮，需每帧调用
 func (b *InputBox) TickCaret(dt float64) {
 	if b == nil || !b.focused {
 		if b != nil && b.caretOn {
 			b.caretOn = false
 			b.layoutCaret()
+			b.MarkNeedsPaint()
 		}
 		return
 	}
@@ -282,12 +302,25 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 			return
 		}
 		b.focused = on
+		syncBlinkRegistration(b.RenderBox, on, b)
 		b.MarkNeedsPaint()
 		b.sync()
 	}
 	ed.OnChange = func() { b.sync() }
 	b.sync()
 	return b
+}
+
+// BlinkTick implements rendering.Blinkable: advances the caret blink phase
+// on UI-thread dt, reporting whether the visible state toggled. Called by
+// the embedder blink pump only while focused.
+func (b *InputBox) BlinkTick(dt float64) bool {
+	if b == nil {
+		return false
+	}
+	before := b.caretOn
+	b.TickCaret(dt)
+	return b.caretOn != before
 }
 
 // SetFace sets the font face for this box.
@@ -1382,6 +1415,7 @@ func (b *MultiLineInputBox) SetDisabled(v bool) {
 		b.Node.Enabled = !v
 		if v && b.focused {
 			b.focused = false
+			syncBlinkRegistration(b.RenderBox, false, b)
 			b.caretOn = false
 			b.layoutCaret()
 			if b.Node.HasFocus() {
@@ -1493,6 +1527,7 @@ func (b *MultiLineInputBox) TickCaret(dt float64) {
 		if b != nil && b.caretOn {
 			b.caretOn = false
 			b.layoutCaret()
+			b.MarkNeedsPaint()
 		}
 		return
 	}
@@ -1570,12 +1605,25 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 			return
 		}
 		b.focused = on
+		syncBlinkRegistration(b.RenderBox, on, b)
 		b.MarkNeedsPaint()
 		b.sync()
 	}
 	ed.OnChange = func() { b.sync() }
 	b.sync()
 	return b
+}
+
+// BlinkTick implements rendering.Blinkable: advances the caret blink phase
+// on UI-thread dt, reporting whether the visible state toggled. Called by
+// the embedder blink pump only while focused.
+func (b *MultiLineInputBox) BlinkTick(dt float64) bool {
+	if b == nil {
+		return false
+	}
+	before := b.caretOn
+	b.TickCaret(dt)
+	return b.caretOn != before
 }
 
 func (b *MultiLineInputBox) SetFace(face text.Face) {

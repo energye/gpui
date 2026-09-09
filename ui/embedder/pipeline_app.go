@@ -506,8 +506,40 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		}
 		app.input = opts.Input
 	}
+	// Framework-owned blink pump: widgets with blink state (caret blink)
+	// self-register with the pipe on focus transitions; the pump advances
+	// them on the UI thread. It never requests frames itself (no
+	// FrameWanter): toggles dirty their widgets and frames follow
+	// dirtiness. Registered only while blinkers exist, so a tree without
+	// any costs nothing.
+	pump := &blinkPump{pipe: app.pipe}
+	app.pipe.SetBlinkTickerCtl(func(active bool) {
+		if active {
+			app.sched.Tickers().Add(pump)
+		}
+	})
 	return app
 }
+
+// blinkPump drives PipelineOwner blinkables with engine dt. Self-removes
+// when the set empties. Not a FrameWanter: toggles dirty their widgets and
+// the demand gate turns that into frames.
+type blinkPump struct {
+	pipe *rendering.PipelineOwner
+}
+
+func (p *blinkPump) Tick(dt float64) bool {
+	if p == nil || p.pipe == nil {
+		return false
+	}
+	p.pipe.TickBlink(dt)
+	return p.pipe.BlinkActive()
+}
+
+// WantsFrame opts the pump out of per-tick frames: it only advances blink
+// phase. Without this, the pump itself (registered while any caret blinks)
+// would hold frame demand true and the idle loop would never sleep.
+func (p *blinkPump) WantsFrame() bool { return false }
 
 // SetInputRouter attaches (or replaces) the unified input router after
 // construction. The router's hit-test is bound to this app's HitTestPointer.
@@ -868,8 +900,18 @@ func (a *PipelineApp) Run() error {
 			a.sched.WaitFramePace(a.host)
 		}
 
-		// Advance animations → may MarkNeedsPaint on spinner only.
-		if a.sched.Tick() {
+		// Advance tickers (animations, framework blink pump, example pumps).
+		// Ticker aliveness must NOT imply frame demand: an idle window with
+		// a registered ticker (blink pump, HUD budgets) has to cost ~nothing.
+		// Frames follow dirtiness (below), explicit ScheduleFrame calls, and
+		// tickers that opt into per-frame rendering via FrameWanter.
+		a.sched.Tick()
+		if a.sched.FrameWanted() {
+			a.ScheduleFrame()
+		}
+		// Dirty widgets (blink toggles, input edits, HUD budgets) request
+		// their frame here (Flutter markNeedsPaint → scheduleFrame).
+		if a.pipe != nil && a.pipe.NeedsFrame() {
 			a.ScheduleFrame()
 		}
 		a.sched.RecomputeMode()
@@ -910,6 +952,15 @@ func (a *PipelineApp) Run() error {
 		// after the frame, so the gate re-closes until the next resize event
 		// (no busy spin).
 		if !a.sched.FrameDue() && !a.pendingResize {
+			continue
+		}
+
+		// Demand gate: skip the expensive build+raster+present unless
+		// something needs it. Pending already covers dirtiness (set above
+		// from NeedsFrame on the same thread). Overlay windows keep today's
+		// behavior — overlay dirtiness is tracked separately.
+		if a.opts.Overlay == nil && !a.sched.Pending() &&
+			a.forceFullPresent.Load() == 0 && !a.pendingResize {
 			continue
 		}
 
@@ -1160,8 +1211,10 @@ func (a *PipelineApp) Run() error {
 		_ = a.loop.SubmitLatest(job)
 		a.presents.Add(1) // count submit as frame produced; present completes on raster thread
 		a.sched.ClearPending()
-		// Keep scheduling while tickers run.
-		if a.sched.Tickers().HasActive() {
+		// Keep scheduling while a ticker wants per-frame rendering
+		// (animations; legacy default). Registered-but-quiet pumps (blink,
+		// HUD budgets) must not re-arm frames by themselves.
+		if a.sched.FrameWanted() {
 			a.ScheduleFrame()
 		}
 		a.sched.RecomputeMode()

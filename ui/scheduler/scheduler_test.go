@@ -101,6 +101,68 @@ func TestTickers(t *testing.T) {
 	}
 }
 
+// demandTicker is a controllable ticker with optional per-tick frame demand.
+type demandTicker struct {
+	alive bool
+	want  bool
+}
+
+func (t *demandTicker) Tick(dt float64) bool { return t.alive }
+func (t *demandTicker) WantsFrame() bool     { return t.want }
+
+// FrameWanted defaults to legacy behavior: a registered ticker that does
+// not opt out requests a frame; an empty registry wants nothing.
+func TestFrameWanted_LegacyDefault(t *testing.T) {
+	s := scheduler.New()
+	if s.FrameWanted() {
+		t.Fatal("empty registry must not want frames")
+	}
+	legacy := &onceTicker{}
+	s.Tickers().Add(legacy)
+	s.Tickers().TickAll(1.0 / 60)
+	if !s.FrameWanted() {
+		t.Fatal("legacy ticker (no FrameWanter) must keep per-tick frames")
+	}
+	if !s.Tickers().HasActive() {
+		t.Fatal("legacy ticker must stay registered after first tick")
+	}
+	s.Tickers().TickAll(1.0 / 60)
+	if s.Tickers().HasActive() {
+		t.Fatal("legacy ticker must unregister after returning false")
+	}
+	if s.FrameWanted() {
+		t.Fatal("unregistered tickers must not hold frame demand")
+	}
+}
+
+// An opt-out ticker stays registered for dt without requesting frames.
+func TestFrameWanted_OptOut(t *testing.T) {
+	s := scheduler.New()
+	quiet := &demandTicker{alive: true, want: false}
+	s.Tickers().Add(quiet)
+	s.Tickers().TickAll(1.0 / 60)
+	if s.FrameWanted() {
+		t.Fatal("opt-out ticker must not request frames")
+	}
+	if !s.Tickers().HasActive() {
+		t.Fatal("opt-out ticker must stay registered while Tick returns true")
+	}
+	// Mixed: one legacy ticker keeps demand true.
+	s.Tickers().Add(&onceTicker{})
+	s.Tickers().TickAll(1.0 / 60)
+	if !s.FrameWanted() {
+		t.Fatal("any legacy ticker must keep frame demand true")
+	}
+	// Flipping the opt-out back to wanting resumes demand alone.
+	loud := &demandTicker{alive: true, want: true}
+	r := scheduler.New()
+	r.Tickers().Add(loud)
+	r.Tickers().TickAll(1.0 / 60)
+	if !r.FrameWanted() {
+		t.Fatal("WantsFrame()=true must request frames")
+	}
+}
+
 func TestMetrics_Interval(t *testing.T) {
 	s := scheduler.New()
 	s.Metrics().NoteFrameInterval(time.Now())
