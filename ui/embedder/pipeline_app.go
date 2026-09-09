@@ -526,14 +526,38 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 // the demand gate turns that into frames.
 type blinkPump struct {
 	pipe *rendering.PipelineOwner
+	last time.Time
 }
 
 func (p *blinkPump) Tick(dt float64) bool {
 	if p == nil || p.pipe == nil {
 		return false
 	}
-	p.pipe.TickBlink(dt)
+	// Real elapsed time, not the clamped frame dt: a deadline-slept loop
+	// wakes with the true interval, and blink parity needs all of it (the
+	// scheduler clamp exists to keep animations from jumping after stalls,
+	// which does not apply to a 500ms toggle grid).
+	now := time.Now()
+	real := dt
+	if !p.last.IsZero() {
+		real = now.Sub(p.last).Seconds()
+		if real < 0 {
+			real = 0
+		}
+	}
+	p.last = now
+	p.pipe.TickBlink(real)
 	return p.pipe.BlinkActive()
+}
+
+// NextWake implements scheduler.DeadlineWanter: sleep until the next caret
+// toggle instead of holding the pacing cadence. No blinkers (or none with
+// a deadline) reports none, and the loop waits on events.
+func (p *blinkPump) NextWake() (time.Duration, bool) {
+	if p == nil || p.pipe == nil {
+		return 0, false
+	}
+	return p.pipe.NextBlinkWake()
 }
 
 // WantsFrame opts the pump out of per-tick frames: it only advances blink

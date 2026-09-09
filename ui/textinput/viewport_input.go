@@ -270,10 +270,9 @@ func (b *ViewportInputBox) TickCaret(dt float64) {
 		}
 		return
 	}
-	b.blinkElapsed += dt
-	if b.blinkElapsed >= 0.5 {
-		b.blinkElapsed = 0
-		b.caretOn = !b.caretOn
+	var toggled bool
+	b.caretOn, b.blinkElapsed, toggled = stepBlink(b.caretOn, b.blinkElapsed, dt)
+	if toggled {
 		b.layoutCaret()
 		b.MarkNeedsPaint()
 	}
@@ -289,6 +288,16 @@ func (b *ViewportInputBox) BlinkTick(dt float64) bool {
 	before := b.caretOn
 	b.TickCaret(dt)
 	return b.caretOn != before
+}
+
+// NextBlinkIn implements rendering.BlinkDeadliner: time until this box's
+// next visible toggle (the loop's sleep deadline). Unfocused boxes report
+// none and cost nothing.
+func (b *ViewportInputBox) NextBlinkIn() (time.Duration, bool) {
+	if b == nil || !b.focused {
+		return 0, false
+	}
+	return nextBlinkIn(b.blinkElapsed)
 }
 
 func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {

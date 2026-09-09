@@ -2,6 +2,7 @@ package rendering_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
@@ -42,6 +43,8 @@ func TestRenderBox_LayoutPaintHit(t *testing.T) {
 type fakeBlinker struct {
 	calls   int
 	toggled bool
+	wake    time.Duration
+	hasWake bool
 }
 
 func (f *fakeBlinker) BlinkTick(dt float64) bool {
@@ -49,6 +52,8 @@ func (f *fakeBlinker) BlinkTick(dt float64) bool {
 	_ = dt
 	return f.toggled
 }
+
+func (f *fakeBlinker) NextBlinkIn() (time.Duration, bool) { return f.wake, f.hasWake }
 
 // Blinkables self-report: register/drop transitions notify the embedder
 // exactly on empty<->non-empty edges, and TickBlink fans dt out on the
@@ -251,5 +256,30 @@ func TestHitTest_MatchesPaintOffset(t *testing.T) {
 	}
 	if hit := root.HitTest(rendering.Point{X: 15, Y: 5}); hit == child {
 		t.Fatal("y=5 should miss child at y=20")
+	}
+}
+
+// NextBlinkWake is the minimum reported deadline; empty or deadline-less
+// sets report none so the loop waits on events.
+func TestOwner_NextBlinkWake(t *testing.T) {
+	root := rendering.NewRenderBox()
+	owner := rendering.NewPipelineOwner(root)
+	if _, ok := owner.NextBlinkWake(); ok {
+		t.Fatal("empty set must report no deadline")
+	}
+	a := &fakeBlinker{wake: 500 * time.Millisecond, hasWake: true}
+	b := &fakeBlinker{wake: 200 * time.Millisecond, hasWake: true}
+	c := &fakeBlinker{}
+	owner.NoteBlinkable(a)
+	owner.NoteBlinkable(b)
+	owner.NoteBlinkable(c)
+	if d, ok := owner.NextBlinkWake(); !ok || d != 200*time.Millisecond {
+		t.Fatalf("NextBlinkWake=%v,%v want 200ms,true", d, ok)
+	}
+	owner.DropBlinkable(a)
+	owner.DropBlinkable(b)
+	owner.DropBlinkable(c)
+	if _, ok := owner.NextBlinkWake(); ok {
+		t.Fatal("emptied set must report no deadline")
 	}
 }

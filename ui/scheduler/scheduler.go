@@ -287,6 +287,15 @@ func (s *FrameScheduler) FrameWanted() bool {
 	return s.tickers.FrameWanted()
 }
 
+// NextWake reports the minimum ticker deadline from the last Tick (see
+// DeadlineWanter). False when no surviving ticker reported one.
+func (s *FrameScheduler) NextWake() (time.Duration, bool) {
+	if s == nil {
+		return 0, false
+	}
+	return s.tickers.NextWake()
+}
+
 // SetAnimTick overrides fallback frame period.
 func (s *FrameScheduler) SetAnimTick(d time.Duration) {
 	if s == nil || d <= 0 {
@@ -364,6 +373,19 @@ func (s *FrameScheduler) WaitTimeout() time.Duration {
 		return -1
 	}
 	s.RecomputeMode()
+	// Quiet tickers (blink phase, HUD budgets) must not hold the pacing
+	// cadence: with no frame demand and nothing pending, sleep until the
+	// earliest ticker deadline (events always interrupt). Tickers without
+	// a deadline sleep until an event; legacy wanters keep the 16ms path.
+	if !s.Pending() && !s.tickers.MayWantFrames() {
+		if d, ok := s.tickers.NextWake(); ok {
+			if d < 0 {
+				d = 0
+			}
+			return d
+		}
+		return -1
+	}
 	switch s.Mode() {
 	case ModePersistent:
 		s.vsyncMu.Lock()

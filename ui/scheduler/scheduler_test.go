@@ -370,7 +370,8 @@ func (h *hangHost) WaitVSync() error {
 // "渲染运行一会自动停止": a WaitVSync that never returns must NOT freeze the
 // frame loop. The listener goroutine absorbs the hang (once); WaitFramePace
 // returns immediately and FrameDue falls back to the software interval.
-func TestFramePace_HungVsync_DoesNotBlock(t *testing.T) {	s := scheduler.New()
+func TestFramePace_HungVsync_DoesNotBlock(t *testing.T) {
+	s := scheduler.New()
 	s.SetAnimTick(15 * time.Millisecond)
 	s.SetMode(scheduler.ModePersistent)
 	h := &hangHost{StubHost: platform.NewStubHost(100, 100)}
@@ -485,5 +486,78 @@ func TestNoteFramePresented_StampsPacing(t *testing.T) {
 	}
 	if s.Pending() {
 		t.Fatal("notice must not create render demand (块1)")
+	}
+}
+
+// deadlineTicker is a quiet ticker with a controllable wakeup deadline.
+type deadlineTicker struct {
+	alive   bool
+	want    bool
+	wake    time.Duration
+	hasWake bool
+}
+
+func (t *deadlineTicker) Tick(dt float64) bool            { return t.alive }
+func (t *deadlineTicker) WantsFrame() bool                { return t.want }
+func (t *deadlineTicker) NextWake() (time.Duration, bool) { return t.wake, t.hasWake }
+
+// Quiet tickers with deadlines sleep until the deadline instead of holding
+// the 16ms pacing cadence; the minimum across tickers wins.
+func TestWaitTimeout_QuietDeadline(t *testing.T) {
+	s := scheduler.New()
+	a := &deadlineTicker{alive: true, wake: 500 * time.Millisecond, hasWake: true}
+	b := &deadlineTicker{alive: true, wake: 300 * time.Millisecond, hasWake: true}
+	s.Tickers().Add(a)
+	s.Tickers().Add(b)
+	s.Tickers().TickAll(1.0 / 60)
+	if d, ok := s.NextWake(); !ok || d != 300*time.Millisecond {
+		t.Fatalf("NextWake=%v,%v want 300ms,true", d, ok)
+	}
+	if d := s.WaitTimeout(); d != 300*time.Millisecond {
+		t.Fatalf("WaitTimeout=%v want earliest deadline 300ms", d)
+	}
+	// Pending demand bypasses the deadline (a demanded frame keeps cadence).
+	s.ScheduleFrame()
+	if d := s.WaitTimeout(); d == 300*time.Millisecond {
+		t.Fatalf("WaitTimeout=%v must not sleep on deadline while demand pending", d)
+	}
+	s.ClearPending()
+	// A legacy wanter (no opt-out) keeps the pacing cadence.
+	s.Tickers().Add(&onceTicker{})
+	s.Tickers().TickAll(1.0 / 60)
+	if d := s.WaitTimeout(); d != scheduler.DefaultAnimTick {
+		t.Fatalf("WaitTimeout=%v want legacy cadence %v", d, scheduler.DefaultAnimTick)
+	}
+}
+
+// Quiet tickers without any deadline wait on events (infinite timeout).
+func TestWaitTimeout_QuietNoDeadline(t *testing.T) {
+	s := scheduler.New()
+	s.Tickers().Add(&demandTicker{alive: true, want: false})
+	s.Tickers().TickAll(1.0 / 60)
+	if _, ok := s.NextWake(); ok {
+		t.Fatal("no deadlines reported must give ok=false")
+	}
+	if d := s.WaitTimeout(); d != -1 {
+		t.Fatalf("WaitTimeout=%v want -1 (event-driven)", d)
+	}
+}
+
+// Dropping the only deadline ticker clears the deadline.
+func TestNextWake_ClearedOnUnregister(t *testing.T) {
+	s := scheduler.New()
+	a := &deadlineTicker{alive: true, wake: 500 * time.Millisecond, hasWake: true}
+	s.Tickers().Add(a)
+	s.Tickers().TickAll(1.0 / 60)
+	if _, ok := s.NextWake(); !ok {
+		t.Fatal("expected deadline while registered")
+	}
+	a.alive = false
+	s.Tickers().TickAll(1.0 / 60)
+	if _, ok := s.NextWake(); ok {
+		t.Fatal("deadline must clear after unregister")
+	}
+	if d := s.WaitTimeout(); d != -1 {
+		t.Fatalf("WaitTimeout=%v want -1 after unregister", d)
 	}
 }

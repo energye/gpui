@@ -2,6 +2,7 @@ package rendering
 
 import (
 	"sync"
+	"time"
 )
 
 // PipelineOwner flushes layout and paint for a root RenderObject (Flutter subset).
@@ -37,6 +38,13 @@ type PipelineOwner struct {
 // from ticker aliveness).
 type Blinkable interface {
 	BlinkTick(dt float64) bool
+}
+
+// BlinkDeadliner is an optional deadline expression for Blinkables: how
+// long until the next visible toggle (the event loop's sleep deadline).
+// ok=false means no deadline (unfocused or steady state).
+type BlinkDeadliner interface {
+	NextBlinkIn() (time.Duration, bool)
 }
 
 // SetBlinkTickerCtl installs the embedder callback that (de)registers the
@@ -101,6 +109,39 @@ func (o *PipelineOwner) BlinkActive() bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return len(o.blinkers) > 0
+}
+
+// NextBlinkWake reports the minimum time until any registered blinkable's
+// next visible toggle. False when none is registered or none reports one;
+// the loop then waits on events instead of holding a pacing cadence.
+func (o *PipelineOwner) NextBlinkWake() (time.Duration, bool) {
+	if o == nil {
+		return 0, false
+	}
+	o.mu.Lock()
+	list := make([]Blinkable, 0, len(o.blinkers))
+	for b := range o.blinkers {
+		if b != nil {
+			list = append(list, b)
+		}
+	}
+	o.mu.Unlock()
+	var min time.Duration
+	found := false
+	for _, b := range list {
+		dl, ok := b.(BlinkDeadliner)
+		if !ok {
+			continue
+		}
+		d, ok := dl.NextBlinkIn()
+		if !ok {
+			continue
+		}
+		if !found || d < min {
+			min, found = d, true
+		}
+	}
+	return min, found
 }
 
 // TickBlink advances every registered blinkable on the UI thread and

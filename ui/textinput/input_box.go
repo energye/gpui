@@ -199,6 +199,41 @@ func syncBlinkRegistration(box *rendering.RenderBox, focused bool, bl rendering.
 	}
 }
 
+// blinkHalfPeriod is the caret on/off dwell, matching Flutter's 500ms blink
+// half period. A full blink cycle is twice this.
+const blinkHalfPeriod = 0.5
+
+// stepBlink advances caret blink by dt seconds and reports whether the
+// visible state changed. Oversized steps (a deadline-slept loop wakes with
+// the real elapsed time, far past one period) count every crossed half
+// period, so the state keeps true parity and the remainder preserves the
+// long-term cadence instead of resetting it.
+func stepBlink(caretOn bool, elapsed, dt float64) (bool, float64, bool) {
+	if dt < 0 {
+		dt = 0
+	}
+	elapsed += dt
+	n := int(elapsed / blinkHalfPeriod)
+	if n <= 0 {
+		return caretOn, elapsed, false
+	}
+	elapsed -= float64(n) * blinkHalfPeriod
+	if n%2 == 0 {
+		return caretOn, elapsed, false
+	}
+	return !caretOn, elapsed, true
+}
+
+// nextBlinkIn reports how long until the current blink phase ends (the
+// loop's sleep deadline for this box).
+func nextBlinkIn(elapsed float64) (time.Duration, bool) {
+	d := blinkHalfPeriod - elapsed
+	if d < 0 {
+		d = 0
+	}
+	return time.Duration(d * float64(time.Second)), true
+}
+
 // TickCaret 按 Flutter 500ms 周期推进闪烁，获焦时编辑后已重置为常亮，需每帧调用
 func (b *InputBox) TickCaret(dt float64) {
 	if b == nil || !b.focused {
@@ -209,10 +244,9 @@ func (b *InputBox) TickCaret(dt float64) {
 		}
 		return
 	}
-	b.blinkElapsed += dt
-	if b.blinkElapsed >= 0.5 {
-		b.blinkElapsed = 0
-		b.caretOn = !b.caretOn
+	var toggled bool
+	b.caretOn, b.blinkElapsed, toggled = stepBlink(b.caretOn, b.blinkElapsed, dt)
+	if toggled {
 		b.layoutCaret()
 		b.MarkNeedsPaint()
 	}
@@ -320,6 +354,16 @@ func (b *InputBox) BlinkTick(dt float64) bool {
 	before := b.caretOn
 	b.TickCaret(dt)
 	return b.caretOn != before
+}
+
+// NextBlinkIn implements rendering.BlinkDeadliner: time until this box's
+// next visible toggle (the loop's sleep deadline). Unfocused boxes report
+// none and cost nothing.
+func (b *InputBox) NextBlinkIn() (time.Duration, bool) {
+	if b == nil || !b.focused {
+		return 0, false
+	}
+	return nextBlinkIn(b.blinkElapsed)
 }
 
 // SetFace sets the font face for this box.
@@ -1532,10 +1576,9 @@ func (b *MultiLineInputBox) TickCaret(dt float64) {
 		}
 		return
 	}
-	b.blinkElapsed += dt
-	if b.blinkElapsed >= 0.5 {
-		b.blinkElapsed = 0
-		b.caretOn = !b.caretOn
+	var toggled bool
+	b.caretOn, b.blinkElapsed, toggled = stepBlink(b.caretOn, b.blinkElapsed, dt)
+	if toggled {
 		b.layoutCaret()
 		b.MarkNeedsPaint()
 	}
@@ -1624,6 +1667,16 @@ func (b *MultiLineInputBox) BlinkTick(dt float64) bool {
 	before := b.caretOn
 	b.TickCaret(dt)
 	return b.caretOn != before
+}
+
+// NextBlinkIn implements rendering.BlinkDeadliner: time until this box's
+// next visible toggle (the loop's sleep deadline). Unfocused boxes report
+// none and cost nothing.
+func (b *MultiLineInputBox) NextBlinkIn() (time.Duration, bool) {
+	if b == nil || !b.focused {
+		return 0, false
+	}
+	return nextBlinkIn(b.blinkElapsed)
 }
 
 func (b *MultiLineInputBox) SetFace(face text.Face) {

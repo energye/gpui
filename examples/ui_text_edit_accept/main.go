@@ -371,6 +371,8 @@ func main() {
 		}
 	}
 	tick := 0
+	// Diagnosis flags are read once: per-tick Getenv on every loop wake is pure overhead.
+	diagBlink := os.Getenv("GPUI_ACCEPT_BLINKLOG") == "1"
 	// Diagnosis only: GPUI_ACCEPT_FOCUS=A..F focuses one box at startup so
 	// caret blink can be observed without pointer injection. Requested after
 	// the app exists: focus drives framework-owned blink registration, which
@@ -436,7 +438,8 @@ func main() {
 		// GPUI_ACCEPT_SNAP=path saves a GPU-readback PNG of the final frame.
 		SnapshotPath: os.Getenv("GPUI_ACCEPT_SNAP"),
 	})
-	app.Scheduler().Tickers().Add(&acceptTicker{on: func(dt float64) {
+	acceptTick := &acceptTicker{interval: 500 * time.Millisecond}
+	acceptTick.on = func(dt float64) {
 		tick++
 		// Caret blink is framework-owned (boxes register on focus
 		// transitions; the embedder pump advances them). Nothing to pump
@@ -444,7 +447,7 @@ func main() {
 		// Diagnosis only: per-tick caret/focus waveform (GPUI_ACCEPT_BLINKLOG=1)
 		// plus caret-texture dominance every 10 ticks (tick-tagged; opaque vs
 		// transparent proves the retained record follows the toggle).
-		if os.Getenv("GPUI_ACCEPT_BLINKLOG") == "1" && tick >= 300 && tick <= 390 {
+		if diagBlink && tick >= 300 && tick <= 390 {
 			fmt.Fprintf(os.Stderr, "BLINKLOG tick=%d A=%v/%v B=%v/%v C=%v/%v D=%v/%v E=%v/%v F=%v/%v\n", tick,
 				boxA.IsFocused(), boxA.IsCaretOn(), boxB.IsFocused(), boxB.IsCaretOn(),
 				boxC.IsFocused(), boxC.IsCaretOn(), boxD.IsFocused(), boxD.IsCaretOn(),
@@ -648,13 +651,21 @@ func main() {
 				}
 			})
 		}
-		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && snapH.CPUFallbackOps == 0
-		shell.UpdateHUD("text_edit_accept", "MANUAL", app, gateOK,
-			fmt.Sprintf("tick=%d caret_vs_paint=%.1fpx", tick, base.CaretVsPaintMaxDeltaPx), "")
-	}})
+		// HUD/meter budgets run at the 2Hz cadence, not every loop wake:
+		// snapshots, sampling and string formatting on a 500ms-slept loop would
+		// otherwise dominate idle CPU. Diagnostics above stay per-wake (env-off
+		// they are a few cheap flag checks).
+		if acceptTick.last.IsZero() || time.Since(acceptTick.last) >= acceptTick.interval {
+			acceptTick.last = time.Now()
+			proc.Sample()
+			shell.NoteHUDTick(dt)
+			snapH := app.Metrics().Snapshot()
+			gateOK := snapH.PaintCount > 0 && snapH.CPUFallbackOps == 0
+			shell.UpdateHUD("text_edit_accept", "MANUAL", app, gateOK,
+				fmt.Sprintf("tick=%d caret_vs_paint=%.1fpx", tick, base.CaretVsPaintMaxDeltaPx), "")
+		}
+	}
+	app.Scheduler().Tickers().Add(acceptTick)
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 	// Startup focus goes here (after the app owns the tree): focus drives
 	// framework-owned blink registration, which needs the pipeline owner.
@@ -715,11 +726,47 @@ func main() {
 	fmt.Println(string(raw))
 }
 
-type acceptTicker struct{ on func(dt float64) }
+type acceptTicker struct {
+	on func(dt float64)
+	// interval is the HUD-budget cadence (2Hz): the loop sleeps instead of
+	// waking every 16ms. last gates the expensive per-tick body; lastTick
+	// measures real elapsed time for the HUD budget (the scheduler dt is
+	// clamped for animations and understates a deadline-slept interval).
+	interval time.Duration
+	last     time.Time
+	lastTick time.Time
+}
 
 // WantsFrame opts out of per-tick frames: this ticker only advances HUD and
 // diagnostic budgets. Frames follow dirtiness (blink toggles, input edits,
 // HUD repaints); staying registered must not render by itself.
 func (t *acceptTicker) WantsFrame() bool { return false }
 
-func (t *acceptTicker) Tick(dt float64) bool { t.on(dt); return true }
+// NextWake implements scheduler.DeadlineWanter: wake at the HUD cadence.
+func (t *acceptTicker) NextWake() (time.Duration, bool) {
+	if t == nil || t.interval <= 0 {
+		return 0, false
+	}
+	if t.last.IsZero() {
+		return 0, true
+	}
+	d := t.interval - time.Since(t.last)
+	if d < 0 {
+		d = 0
+	}
+	return d, true
+}
+
+func (t *acceptTicker) Tick(dt float64) bool {
+	now := time.Now()
+	real := dt
+	if !t.lastTick.IsZero() {
+		real = now.Sub(t.lastTick).Seconds()
+		if real < 0 {
+			real = 0
+		}
+	}
+	t.lastTick = now
+	t.on(real)
+	return true
+}
