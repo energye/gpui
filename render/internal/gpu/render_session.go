@@ -5047,7 +5047,7 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 // applyGroupScissor sets or clears the scissor rect on the render pass for
 // a given group. When rect is nil, the scissor is reset to the full
 // framebuffer (w x h). When non-nil, the scissor clips to the given rect.
-func (s *GPURenderSession) applyGroupScissor(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32) {
+func (s *GPURenderSession) applyGroupScissor(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32) bool {
 	if rect != nil {
 		// Clamp to the render target: wgpu requires scissor ⊆ target bounds
 		// and silently drops the whole encode when violated. Bounds-sized RTs
@@ -5058,13 +5058,16 @@ func (s *GPURenderSession) applyGroupScissor(rp *webgpu.RenderPassEncoder, rect 
 		x1 := minU32(rect[0]+rect[2], w)
 		y1 := minU32(rect[1]+rect[3], h)
 		if x1 <= x0 || y1 <= y0 {
-			// Clip entirely outside this target — nothing can draw.
-			return
+			// Skia isClipEmpty: an empty clip covers no pixels — the caller
+			// must skip the draw. Setting no scissor here would leave a
+			// stale or full scissor active and paint outside the clip.
+			return false
 		}
 		rp.SetScissorRect(x0, y0, x1-x0, y1-y0)
 	} else {
 		rp.SetScissorRect(0, 0, w, h)
 	}
+	return true
 }
 
 func minU32(a, b uint32) uint32 {
@@ -5082,8 +5085,7 @@ func minU32(a, b uint32) uint32 {
 // Returns false when intersection is empty (caller should skip the draw).
 func (s *GPURenderSession) applyGroupScissorWithDamage(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32, damage image.Rectangle) bool {
 	if damage.Empty() {
-		s.applyGroupScissor(rp, rect, w, h)
-		return true
+		return s.applyGroupScissor(rp, rect, w, h)
 	}
 
 	x, y, dw, dh, valid := computeDamageScissor(rect, w, h, damage)
@@ -5105,8 +5107,7 @@ func (s *GPURenderSession) applyGroupScissorWithDamage(rp *webgpu.RenderPassEnco
 //   - otherwise → scissor = group ∩ relevant damage union
 func (s *GPURenderSession) applyGroupScissorWithDamageRects(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32, damageRects []image.Rectangle) bool {
 	if len(damageRects) == 0 {
-		s.applyGroupScissor(rp, rect, w, h)
-		return true
+		return s.applyGroupScissor(rp, rect, w, h)
 	}
 	relevant := damageRectsRelevantToGroup(rect, w, h, damageRects)
 	if relevant.Empty() {
@@ -5268,7 +5269,9 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 
 	// Render each group with its scissor rect applied.
 	for i := range grpRes {
-		s.applyGroupScissor(rp, grpRes[i].scissorRect, w, h)
+		if !s.applyGroupScissor(rp, grpRes[i].scissorRect, w, h) {
+			continue
+		}
 		s.recordGroupDraws(rp, &grpRes[i])
 	}
 
@@ -5422,7 +5425,9 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 			continue
 		}
 		if fullSurface {
-			s.applyGroupScissor(rp, gr.scissorRect, w, h)
+			if !s.applyGroupScissor(rp, gr.scissorRect, w, h) {
+				continue
+			}
 			s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
 			continue
 		}

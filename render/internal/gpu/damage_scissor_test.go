@@ -50,6 +50,13 @@ func TestComputeDamageScissor(t *testing.T) {
 			wantValid: false,
 		},
 		{
+			name:      "explicitly empty group clip — Skia isClipEmpty, always skip",
+			groupClip: &[4]uint32{240, 540, 0, 0}, // below-pixmap box clip on shrink
+			surfaceW:  800, surfaceH: 600,
+			damage:    image.Rect(0, 0, 800, 600), // even full damage cannot save it
+			wantValid: false,
+		},
+		{
 			name:      "damage clamped to surface bounds",
 			groupClip: nil,
 			surfaceW:  200, surfaceH: 200,

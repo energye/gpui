@@ -2612,6 +2612,15 @@ func (c *Context) setGPUClipRect() func() {
 	x1 := uint32(math.Ceil(bounds.X + bounds.W))
 	y1 := uint32(math.Ceil(bounds.Y + bounds.H))
 	if x1 <= x0 || y1 <= y0 {
+		// Skia isClipEmpty: an empty clip covers no pixels, so following
+		// draws cannot be visible. Record an explicit empty segment so the
+		// draws join an empty scissor group that dispatch skips — without
+		// it they would join the unclipped group and paint with a stale or
+		// full scissor on full-surface presents.
+		if rc := c.gpuCtxOps(); rc != nil {
+			rc.SetClipRect(x0, y0, 0, 0)
+			return func() { rc.ClearClipRect() }
+		}
 		return func() {}
 	}
 
