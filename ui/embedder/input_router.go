@@ -75,6 +75,12 @@ type InputRouter struct {
 	lastDeltaText string
 	lastDeltaSel  textinput.TextRange
 	lastDeltaComp textinput.TextRange
+	// dupCommit/dupArmed drop the trailing duplicate commit the platform
+	// sends for the session that just closed: blur confirms the live
+	// pre-edit into its own field, so the late commit belongs to that
+	// closed session and must never land in the newly focused field.
+	dupCommit string
+	dupArmed  bool
 
 	mu   sync.Mutex
 	mods input.Modifiers
@@ -153,8 +159,10 @@ func (r *InputRouter) RoutePlatform(ev platform.Event) {
 
 // TextEditTarget is implemented by editable controls (kit Input/TextArea,
 // demo boxes) so the framework drives their IME session automatically
-// (plan §10.2 I4): focus-in opens the session, blur closes it (rolling back
-// any live pre-edit), edits keep the candidate anchor and surrounding text
+// (plan §10.2 I4): focus-in opens the session, blur closes it (confirming
+// any live pre-edit into its own field; the platform's trailing duplicate
+// commit for the closed session is dropped, never delivered to the new
+// field), edits keep the candidate anchor and surrounding text
 // fresh.
 type TextEditTarget interface {
 	// Editor returns the editing state this target edits (non-nil).
@@ -283,15 +291,36 @@ func (r *InputRouter) debugIME(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "[ime-router] "+format+"\n", args...)
 }
 
-// syncSession closes the outgoing session (drop live overlay → disable)
+// syncSession closes the outgoing session (confirm live pre-edit → disable)
 // then opens the incoming one (purpose → enable at its anchor).
 // F-D7 / §7.1: input_type==NONE 按 focus_out 处理，不 Enable；首焦预热已在 new 时 focus_out 完成。
 func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 	if prev != nil {
-		r.debugIME("session close: cancel+disable")
+		r.debugIME("session close: confirm+disable")
 		if ed := prev.Editor(); ed != nil {
 			ed.OnAnchor = nil
-			ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""}) // R2 clear
+			// Blur confirms the pre-edit into its own field (browsers,
+			// Android closeConnection→finishComposingText and iOS resign
+			// all commit marked text on focus loss; the IME daemon shows
+			// the same intent by sending a trailing commit). Arm the
+			// duplicate guard so that late commit lands nowhere.
+			if pre := ed.CompositionText(); pre != "" {
+				r.mu.Lock()
+				r.dupCommit, r.dupArmed = pre, true
+				r.mu.Unlock()
+				ed.CommitComposing()
+			} else {
+				if ed.IsComposing() {
+					ed.CommitComposing()
+				}
+				r.mu.Lock()
+				r.dupCommit, r.dupArmed = "", false
+				r.mu.Unlock()
+			}
+		} else {
+			r.mu.Lock()
+			r.dupCommit, r.dupArmed = "", false
+			r.mu.Unlock()
 		}
 		ime.DisableIME()
 	}
@@ -311,6 +340,40 @@ func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 		ime.SetContentType(next.ContentPurpose())
 		ime.EnableIME(next.IMERect())
 	}
+}
+
+// filterStaleCommit reports whether ev is the trailing duplicate commit for
+// the session that just closed (already confirmed into its own field by
+// syncSession) and must not reach the newly focused editor. Any other IME
+// event disarms the single-shot guard: a pre-edit always precedes a genuine
+// new-session commit, so after the first pre-edit or the first delivered
+// commit every later commit is legitimate.
+// Residual risk (accepted): a genuine commit that carries no pre-edit and
+// happens to equal the closed pre-edit byte-for-byte before any new
+// pre-edit (e.g. voice input of the identical string in the guard window)
+// is dropped once; retyping recovers.
+func (r *InputRouter) filterStaleCommit(ed *textinput.Editor, ev input.IMEEvent) bool {
+	if ev.Kind == input.IMECompose {
+		r.mu.Lock()
+		r.dupCommit, r.dupArmed = "", false
+		r.mu.Unlock()
+		return false
+	}
+	if ev.Kind != input.IMECommit {
+		return false
+	}
+	r.mu.Lock()
+	armed, dup := r.dupArmed, r.dupCommit
+	r.dupCommit, r.dupArmed = "", false
+	r.mu.Unlock()
+	if !armed || dup == "" || ev.Text != dup {
+		return false
+	}
+	if ed != nil && ed.IsComposing() {
+		return false
+	}
+	r.debugIME("drop stale commit %q for closed session", ev.Text)
+	return true
 }
 
 // currentTarget resolves the focused control when it is a text edit target.
@@ -461,7 +524,9 @@ func (r *InputRouter) Route(ev input.Event) {
 	case input.KindIME:
 		if t := r.currentTarget(); t != nil && targetIsDisabled(t) {
 		} else if ed := r.editorFor(); ed != nil {
-			ed.ApplyIME(ev.IME)
+			if !r.filterStaleCommit(ed, ev.IME) {
+				ed.ApplyIME(ev.IME)
+			}
 		}
 		if r.OnIME != nil {
 			r.OnIME(ev.IME)

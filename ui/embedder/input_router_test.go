@@ -350,7 +350,9 @@ func TestRouter_IMEAutoSession(t *testing.T) {
 		t.Fatalf("commit result = %q", ed.Text())
 	}
 
-	// Blur → pre-edit canceled + session disabled.
+	// Blur → session disabled (no live pre-edit at this point; the
+	// focus-switch confirm path is covered by
+	// TestRouter_FocusSwitchConfirmsPreedit).
 	fm.Blur()
 	if ime.disabled != 1 {
 		t.Fatalf("blur did not disable: %d", ime.disabled)
@@ -372,6 +374,78 @@ func TestRouter_TextEditorFallback(t *testing.T) {
 }
 
 func itoa(v int) string { return fmt.Sprintf("%d", v) }
+
+// TestRouter_FocusSwitchConfirmsPreedit pins the cross-field IME handoff
+// (accept-window A→D report: typing "nihao" in A, then clicking D without
+// confirming, landed "nihao" in D): switching focus confirms the live
+// pre-edit into its own field, and the platform's trailing duplicate commit
+// for the closed session is dropped instead of landing in the new field. A
+// later genuine composition in the new field — even with identical text —
+// still commits, since the new session's own pre-edit disarms the guard.
+func TestRouter_FocusSwitchConfirmsPreedit(t *testing.T) {
+	setup := func() (*InputRouter, *textinput.Editor, *textinput.Editor, *focus.FocusNode, *focus.FocusNode, *recIME) {
+		ime := &recIME{}
+		edA, edD := textinput.New(), textinput.New()
+		fm := focus.NewManager()
+		nA, nD := focus.NewFocusNode("A"), focus.NewFocusNode("D")
+		nA.Target, nD.Target = &fakeTarget{ed: edA}, &fakeTarget{ed: edD}
+		fm.Register(nA)
+		fm.Register(nD)
+		r := NewInputRouter(nil, fm)
+		r.AttachIME(ime)
+		return r, edA, edD, nA, nD, ime
+	}
+	compose := func(r *InputRouter, text string) {
+		r.Route(input.FromIME(input.IMEEvent{Kind: input.IMECompose, Text: text, Start: len(text)}, input.Modifiers{}))
+	}
+	commit := func(r *InputRouter, text string) {
+		r.Route(input.FromIME(input.IMEEvent{Kind: input.IMECommit, Text: text}, input.Modifiers{}))
+	}
+
+	t.Run("click new field", func(t *testing.T) {
+		r, edA, edD, nA, nD, ime := setup()
+		nA.RequestFocus()
+		compose(r, "nihao")
+		if !edA.ComposeActive() || edA.Text() != "nihao" {
+			t.Fatalf("preedit state = %q active=%v", edA.Text(), edA.ComposeActive())
+		}
+		nD.RequestFocus()
+		if ime.disabled != 1 || ime.enabled != 2 {
+			t.Fatalf("session handoff: enabled=%d disabled=%d", ime.enabled, ime.disabled)
+		}
+		if edA.Text() != "nihao" || edA.ComposeActive() {
+			t.Fatalf("blur must confirm into source: A=%q active=%v", edA.Text(), edA.ComposeActive())
+		}
+		if edD.Text() != "" {
+			t.Fatalf("new field must start empty: D=%q", edD.Text())
+		}
+		commit(r, "nihao") // trailing duplicate for the closed session
+		if edD.Text() != "" || edA.Text() != "nihao" {
+			t.Fatalf("stale commit misdelivered: A=%q D=%q", edA.Text(), edD.Text())
+		}
+		// Genuine new-session composition with identical text still works.
+		compose(r, "nihao")
+		commit(r, "nihao")
+		if edD.Text() != "nihao" {
+			t.Fatalf("new-session commit dropped: D=%q", edD.Text())
+		}
+	})
+
+	t.Run("blur then focus", func(t *testing.T) {
+		r, edA, edD, nA, nD, _ := setup()
+		nA.RequestFocus()
+		compose(r, "hao")
+		nA.Unfocus()
+		if edA.Text() != "hao" || edA.ComposeActive() {
+			t.Fatalf("blur must confirm into source: A=%q active=%v", edA.Text(), edA.ComposeActive())
+		}
+		nD.RequestFocus()
+		commit(r, "hao") // trailing duplicate across the unfocused gap
+		if edD.Text() != "" || edA.Text() != "hao" {
+			t.Fatalf("stale commit misdelivered: A=%q D=%q", edA.Text(), edD.Text())
+		}
+	})
+}
 
 // TestRouter_PointerMotionDoesNotSpamIME locks the fix for "IME stopped
 // switching": mouse MOVE must not push cursor-rect/surrounding updates —
