@@ -336,14 +336,17 @@ func addOwnContent(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
 		addOwnPicture(b, n, n.NeedsPaint(), func(r *scene.PictureRecorder) {
 			r.FillRect(0, 0, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
 		})
-	case *RenderBox:
+	default:
 		// OnPaint-only leaves are handled by addLeafPicture (single cache key);
 		// a box with BOTH OnPaint and children gets its own paint layer here.
-		if t.OnPaint == nil || len(n.Children()) == 0 {
+		// ownBoxPaint covers RenderBox and wrappers embedding it (InputBox
+		// family sets OnPaint on the embedded box); a type case would only
+		// match exact *RenderBox and miss the wrappers.
+		onPaint, ok := ownBoxPaint(n)
+		if !ok || len(n.Children()) == 0 {
 			return
 		}
 		sz := n.Size()
-		onPaint := t.OnPaint
 		// OnPaint needs a live DC (render.Context) which only exists on the
 		// raster thread during texture record — defer it via RasterExtra.
 		pl := addOwnPicture(b, n, n.NeedsPaint(), func(r *scene.PictureRecorder) {
@@ -394,9 +397,8 @@ func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) 
 	// OnPaint-only boxes have nothing the UI-side recorder can capture; defer
 	// their paint to the raster thread during texture record (RasterExtra) so
 	// the retained path renders them instead of leaving a transparent hole.
-	if box, ok := n.(*RenderBox); ok && box.OnPaint != nil && len(pl.Picture.Ops) == 0 {
+	if onPaint, ok := ownBoxPaint(n); ok && len(pl.Picture.Ops) == 0 {
 		sz := n.Size()
-		onPaint := box.OnPaint
 		pl.RasterExtra = func(dc *render.Context) {
 			pc := &PaintContext{DC: dc, Scale: 1, LayerStats: wireStats(wire), LayerBudget: wireBudget(wire)}
 			onPaint(pc, sz)

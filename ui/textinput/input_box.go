@@ -292,7 +292,6 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 			pc.DC.DrawRectangle(pc.OriginX+1, pc.OriginY+1, size.Width-2, size.Height-2)
 			_ = pc.DC.Fill()
 		}
-		b.layoutCaret()
 	}
 	b.caretOn = true
 	b.Node = focus.NewFocusNode(fmt.Sprintf("input-%.0f-%p", fontSize, b))
@@ -663,8 +662,9 @@ func (b *InputBox) layoutCaret() {
 		return
 	}
 	b.bar.MoveTo(x-b.bar.Width/2, top)
-	if h := bottom - top; h > 0 {
+	if h := bottom - top; h > 0 && h != b.bar.Height {
 		b.bar.Height = h
+		b.bar.MarkNeedsPaint()
 	}
 	if b.caretOn && b.focused {
 		b.bar.SetAlpha(1)
@@ -1406,6 +1406,7 @@ func (b *MultiLineInputBox) Placeholder() string {
 
 func (b *MultiLineInputBox) IsFocused() bool { return b != nil && b.focused }
 func (b *MultiLineInputBox) IsCaretOn() bool { return b != nil && b.caretOn }
+
 func (b *MultiLineInputBox) SetDisabled(v bool) {
 	if b == nil || b.BaseEditable == nil {
 		return
@@ -1595,7 +1596,6 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 			pc.DC.DrawRectangle(pc.OriginX+1, pc.OriginY+1, size.Width-2, size.Height-2)
 			_ = pc.DC.Fill()
 		}
-		b.layoutCaret()
 	}
 	b.caretOn = true
 	b.Node = focus.NewFocusNode(fmt.Sprintf("multi-%p", b))
@@ -1922,8 +1922,9 @@ func (b *MultiLineInputBox) layoutCaret() {
 		return
 	}
 	b.bar.MoveTo(x-b.bar.Width/2, top)
-	if h := bottom - top; h > 0 {
+	if h := bottom - top; h > 0 && h != b.bar.Height {
 		b.bar.Height = h
+		b.bar.MarkNeedsPaint()
 	}
 	if b.caretOn && b.focused {
 		b.bar.SetAlpha(1)

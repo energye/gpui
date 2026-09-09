@@ -2,6 +2,7 @@ package textinput
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -211,6 +212,7 @@ func (b *ViewportInputBox) ClearPadding() {
 func (b *ViewportInputBox) Padding() float64 { return resolvePad(b.padHas, b.pad) }
 
 func (b *ViewportInputBox) IsFocused() bool { return b != nil && b.focused }
+func (b *ViewportInputBox) IsCaretOn() bool { return b != nil && b.caretOn }
 func (b *ViewportInputBox) ScrollX() float64 {
 	if b == nil || b.Viewport == nil {
 		return 0
@@ -390,6 +392,17 @@ func (b *ViewportInputBox) IMERect() platform.Rect {
 
 func (b *ViewportInputBox) Sync() { b.sync() }
 
+// expireViewportBand re-records text scrolled past the retained band
+// (Flutter: scroll repaints). Viewport dirty alone only re-blits the old
+// band at the new offset — past the cull margin the visible window maps
+// outside the recording and the box goes empty. Call after every
+// SetViewportHint with the same values.
+func (b *ViewportInputBox) expireViewportBand(scrollX, visW float64) {
+	if b != nil && b.txt != nil && b.txt.ViewportBandExpired(scrollX, visW) {
+		b.txt.MarkNeedsPaint()
+	}
+}
+
 func (b *ViewportInputBox) sync() {
 	if b == nil || b.txt == nil || b.ed == nil || b.Viewport == nil {
 		return
@@ -474,8 +487,14 @@ func (b *ViewportInputBox) sync() {
 	if scrollX > maxScroll {
 		scrollX = maxScroll
 	}
+	// Pixel-snapped scroll: the retained texture path blits layer textures
+	// 1:1, so a fractional scroll offset resamples the whole viewport soft
+	// (linear filter). Snapping keeps blits texel-aligned; the <=0.5px shift
+	// is invisible and the cull hint below uses the same snapped value.
+	scrollX = math.Round(scrollX)
 	b.Viewport.SetScrollOffset(scrollX, 0)
 	b.txt.SetViewportHint(scrollX, visW)
+	b.expireViewportBand(scrollX, visW)
 	b.syncHighlight()
 	b.caretOn = true
 	b.layoutCaret()
@@ -560,8 +579,9 @@ func (b *ViewportInputBox) layoutCaret() {
 		}
 		// bar 在 content 内，x 已含 pad（txtOff.X），直接用 content 坐标
 		b.bar.MoveTo(txtOff.X-b.bar.Width/2, txtOff.Y)
-		if h := bottom - top; h > 0 {
+		if h := bottom - top; h > 0 && h != b.bar.Height {
 			b.bar.Height = h
+			b.bar.MarkNeedsPaint()
 		}
 		if b.caretOn && b.focused {
 			b.bar.SetAlpha(1)
@@ -581,8 +601,9 @@ func (b *ViewportInputBox) layoutCaret() {
 	if !ok {
 		if _, top, bottom, ok2 := b.caretAnchor(); ok2 {
 			b.bar.MoveTo(txtOff.X-b.bar.Width/2, txtOff.Y)
-			if hh := bottom - top; hh > 0 {
+			if hh := bottom - top; hh > 0 && hh != b.bar.Height {
 				b.bar.Height = hh
+				b.bar.MarkNeedsPaint()
 			}
 			if b.caretOn && b.focused {
 				b.bar.SetAlpha(1)
@@ -593,8 +614,9 @@ func (b *ViewportInputBox) layoutCaret() {
 		return
 	}
 	b.bar.MoveTo(txtOff.X+x-b.bar.Width/2, txtOff.Y+y)
-	if h > 0 {
+	if h > 0 && h != b.bar.Height {
 		b.bar.Height = h
+		b.bar.MarkNeedsPaint()
 	}
 	if b.caretOn && b.focused {
 		b.bar.SetAlpha(1)
@@ -698,16 +720,20 @@ func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
 				if scrollX < 0 {
 					scrollX = 0
 				}
+				scrollX = math.Round(scrollX)
 				b.Viewport.SetScrollOffset(scrollX, 0)
 				b.txt.SetViewportHint(scrollX, visW)
+				b.expireViewportBand(scrollX, visW)
 				localX = ev.X - abs2.X - 1 - pad + scrollX
 			} else if ev.X > abs2.X+w2-pad && scrollX < maxScroll {
 				scrollX += 28
 				if scrollX > maxScroll {
 					scrollX = maxScroll
 				}
+				scrollX = math.Round(scrollX)
 				b.Viewport.SetScrollOffset(scrollX, 0)
 				b.txt.SetViewportHint(scrollX, visW)
+				b.expireViewportBand(scrollX, visW)
 				localX = ev.X - abs2.X - 1 - pad + scrollX
 				if localX > maxX {
 					localX = maxX
@@ -923,16 +949,20 @@ func (b *ViewportInputBox) doViewportAutoScroll() {
 		if scrollX < 0 {
 			scrollX = 0
 		}
+		scrollX = math.Round(scrollX)
 		b.Viewport.SetScrollOffset(scrollX, 0)
 		b.txt.SetViewportHint(scrollX, visW)
+		b.expireViewportBand(scrollX, visW)
 		did = true
 	} else if b.dragLastX > abs.X+w-pad && scrollX < maxScroll {
 		scrollX += 28
 		if scrollX > maxScroll {
 			scrollX = maxScroll
 		}
+		scrollX = math.Round(scrollX)
 		b.Viewport.SetScrollOffset(scrollX, 0)
 		b.txt.SetViewportHint(scrollX, visW)
+		b.expireViewportBand(scrollX, visW)
 		did = true
 	}
 	if did {

@@ -22,12 +22,14 @@ import (
 
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/focus"
 	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
+	"github.com/energye/gpui/ui/scene"
 	"github.com/energye/gpui/ui/scheduler"
 	"github.com/energye/gpui/ui/textinput"
 
@@ -330,6 +332,15 @@ func main() {
 	placeLabel("B 单行5000字（横滚·末尾击键）")
 	shell.Body.Place(boxB, 12, y)
 	y += 48
+	// Diagnosis only: GPUI_ACCEPT_SWAPAB=1 swaps the A/B rows to test
+	// whether the retained-composite loss follows the box or the position.
+	if os.Getenv("GPUI_ACCEPT_SWAPAB") == "1" {
+		body := shell.Body.Box
+		body.RemoveChild(boxA)
+		body.RemoveChild(boxB)
+		body.Place(boxA, 12, 120)
+		body.Place(boxB, 12, 54)
+	}
 	placeLabel("C 单行50000字（10x量级对比）")
 	shell.Body.Place(boxC, 12, y)
 	y += 48
@@ -350,7 +361,15 @@ func main() {
 	fm.Register(boxD.FocusNode())
 	fm.Register(boxE.FocusNode())
 	fm.Register(boxF.FocusNode())
-	router.OnPointer = func(pe input.PointerEvent, target rendering.RenderObject) {}
+	router.OnPointer = func(pe input.PointerEvent, target rendering.RenderObject) {
+		if os.Getenv("GPUI_ACCEPT_PTRLOG") == "1" {
+			tn := "<nil>"
+			if target != nil {
+				tn = fmt.Sprintf("%T", target)
+			}
+			fmt.Fprintf(os.Stderr, "PTRLOG kind=%v x=%.1f y=%.1f target=%s\n", pe.Kind, pe.X, pe.Y, tn)
+		}
+	}
 	tick := 0
 	// Diagnosis only: GPUI_ACCEPT_FOCUS=A..F focuses one box at startup so
 	// caret blink can be observed without pointer injection. Requested after
@@ -361,6 +380,25 @@ func main() {
 	// driving ~10 fps alone at idle.
 	if shell.HUD != nil {
 		shell.HUD.SetMinIntervalSec(0.5)
+	}
+	dumpDir := os.Getenv("GPUI_ACCEPT_DUMPTEX")
+	dumped := false
+	if dumpDir != "" {
+		_ = os.MkdirAll(dumpDir, 0o755)
+	}
+	// Late dump (broken-state textures): same as DUMPTEX but fires once at a
+	// late tick so a state reached after interaction (scroll/keys) can be
+	// inspected. Env-gated diagnosis only.
+	dumpLateTick := 0
+	if v := os.Getenv("GPUI_ACCEPT_DUMPTEX_LATE"); v != "" {
+		fmt.Sscanf(v, "%d", &dumpLateTick)
+	}
+	dumpedLate := false
+	selfDiff := os.Getenv("GPUI_ACCEPT_SELFDIFF")
+	selfDiffed := false
+	selfDiffStage := 0
+	if selfDiff != "" {
+		_ = os.MkdirAll(selfDiff, 0o755)
 	}
 	router.OnKey = func(ke input.KeyEvent) {
 		switch {
@@ -403,6 +441,213 @@ func main() {
 		// Caret blink is framework-owned (boxes register on focus
 		// transitions; the embedder pump advances them). Nothing to pump
 		// here; this ticker only advances HUD/diagnostic budgets.
+		// Diagnosis only: per-tick caret/focus waveform (GPUI_ACCEPT_BLINKLOG=1)
+		// plus caret-texture dominance every 10 ticks (tick-tagged; opaque vs
+		// transparent proves the retained record follows the toggle).
+		if os.Getenv("GPUI_ACCEPT_BLINKLOG") == "1" && tick >= 300 && tick <= 390 {
+			fmt.Fprintf(os.Stderr, "BLINKLOG tick=%d A=%v/%v B=%v/%v C=%v/%v D=%v/%v E=%v/%v F=%v/%v\n", tick,
+				boxA.IsFocused(), boxA.IsCaretOn(), boxB.IsFocused(), boxB.IsCaretOn(),
+				boxC.IsFocused(), boxC.IsCaretOn(), boxD.IsFocused(), boxD.IsCaretOn(),
+				boxE.IsFocused(), boxE.IsCaretOn(), boxF.IsFocused(), boxF.IsCaretOn())
+			if tick%10 == 0 {
+				tt := tick
+				app.SnapshotAsync(func() {
+					tex := app.PictureTextures()
+					dc := app.Target().Context()
+					if tex == nil || dc == nil {
+						return
+					}
+					for _, id := range tex.DebugEntryIDs() {
+						w, h, ok := tex.DebugEntrySlot(id)
+						if !ok || w > 8 || h > 30 {
+							continue
+						}
+						tex.DebugDumpEntryTexture(dc, fmt.Sprintf("/tmp/blinktag/tick%d_id%d.png", tt, id), id)
+					}
+				})
+			}
+		} // Diagnosis only (no engine behavior): dump retained layer textures
+		// once after warm-up so the textured composite (not the vector
+		// snapshot repaint) can be inspected for blur/overflow.
+		if dumpDir != "" && !dumped && tick > 300 {
+			dumped = true
+			dir := dumpDir
+			app.SnapshotAsync(func() {
+				tex := app.PictureTextures()
+				dc := app.Target().Context()
+				if tex == nil || dc == nil {
+					return
+				}
+				tex.DebugDumpEntries("accept-dumptex")
+				for _, id := range tex.DebugEntryIDs() {
+					w, h, ok := tex.DebugEntrySlot(id)
+					if !ok || w <= 0 || h <= 0 || w*h > 4_000_000 {
+						continue
+					}
+					tex.DebugDumpEntryTexture(dc,
+						fmt.Sprintf("%s/entry_%d_%dx%d.png", dir, id, w, h), id)
+				}
+			})
+		}
+		if dumpLateTick > 0 && !dumpedLate && tick > dumpLateTick {
+			dumpedLate = true
+			dir := dumpDir
+			if dir == "" {
+				dir = os.TempDir()
+			}
+			app.SnapshotAsync(func() {
+				tex := app.PictureTextures()
+				dc := app.Target().Context()
+				if tex == nil || dc == nil {
+					return
+				}
+				tex.DebugDumpEntries("accept-dumplate")
+				for _, id := range tex.DebugEntryIDs() {
+					w, h, ok := tex.DebugEntrySlot(id)
+					if !ok || w <= 0 || h <= 0 || w*h > 4_000_000 {
+						continue
+					}
+					tex.DebugDumpEntryTexture(dc,
+						fmt.Sprintf("%s/late_%d_%dx%d.png", dir, id, w, h), id)
+				}
+			})
+		}
+		// Diagnosis only: retained-vs-vector self diff. Renders the live
+		// tree twice into offscreen GPU surfaces on the raster thread —
+		// once via the retained textured composite, once via full vector
+		// repaint — so "static wrong, resize right" can be bisected without
+		// trusting the X11 backing store. Magenta shows through wherever
+		// the retained composite covered nothing.
+		if selfDiff != "" && !selfDiffed && tick > 300 {
+			selfDiffed = true
+			dir := selfDiff
+			dpr := 1.0
+			if dc0 := app.Target().Context(); dc0 != nil && dc0.DeviceScale() > 0 {
+				dpr = dc0.DeviceScale()
+			}
+			frameID := uint64(1) << 62
+			grabRetained := func(tag string) {
+				pkt := rendering.BuildFramePacketWithSaveLayer(shell.Root, frameID, dpr, winW, winH, nil, nil)
+				frameID++
+				keys, n := scene.CollectCacheableKeys(pkt)
+				app.SnapshotAsync(func() {
+					off := render.NewContext(winW, winH)
+					defer off.Close()
+					off.BeginFrame()
+					off.ClearWithColor(render.RGB(1, 0, 1))
+					// Warm up the fresh context: first-use records on a
+					// cold context may drop silently; prime it with a
+					// throwaway pass so the measured pass starts warm.
+					warmTex := scene.NewPictureTextureCache(off, 512)
+					warmTex.EnsureCapacity(n + n/4 + 16)
+					warmTex.SetLiveKeys(keys)
+					scene.CompositeFramePacketTextured(pkt, off, warmTex)
+					tmpTex := scene.NewPictureTextureCache(off, 512)
+					tmpTex.EnsureCapacity(n + n/4 + 16)
+					tmpTex.SetLiveKeys(keys)
+					st := scene.CompositeFramePacketTextured(pkt, off, tmpTex)
+					fmt.Fprintf(os.Stderr, "selfdiff %s: keys=%d entries=%d raster=%d skip=%d replayed=%d\n",
+						tag, n, tmpTex.Len(), st.RasterLayerCount, st.SkippedLayerCount, st.ReplayedOps)
+					fmt.Fprintf(os.Stderr, "selfdiff %s path: %s\n", tag, off.RenderPathStats().LogLine())
+					if tag == "base" {
+						for _, id := range tmpTex.DebugEntryIDs() {
+							w, h, ok := tmpTex.DebugEntrySlot(id)
+							if !ok || w <= 0 || h <= 0 || w*h > 4_000_000 {
+								continue
+							}
+							tmpTex.DebugDumpEntryTexture(off,
+								fmt.Sprintf("%s/tmp_%d_%dx%d.png", dir, id, w, h), id)
+						}
+					}
+					if err := off.SavePNG(fmt.Sprintf("%s/retained_%s.png", dir, tag)); err != nil {
+						fmt.Fprintf(os.Stderr, "selfdiff retained %s: %v\n", tag, err)
+					}
+				})
+			}
+			grabRetained("base")
+			selfDiffStage = 1
+		}
+		if selfDiff != "" && selfDiffStage == 1 && tick > 330 {
+			selfDiffStage = 2
+			dir := selfDiff
+			dpr := 1.0
+			if dc0 := app.Target().Context(); dc0 != nil && dc0.DeviceScale() > 0 {
+				dpr = dc0.DeviceScale()
+			}
+			if boxB.IsFocused() {
+				boxB.SetCaretOn(!boxB.IsCaretOn())
+				app.ScheduleFrame()
+			}
+			pkt := rendering.BuildFramePacketWithSaveLayer(shell.Root, uint64(1)<<62+100, dpr, winW, winH, nil, nil)
+			keys, n := scene.CollectCacheableKeys(pkt)
+			app.SnapshotAsync(func() {
+				off := render.NewContext(winW, winH)
+				defer off.Close()
+				off.BeginFrame()
+				off.ClearWithColor(render.RGB(1, 0, 1))
+				tmpTex := scene.NewPictureTextureCache(off, 512)
+				tmpTex.EnsureCapacity(n + n/4 + 16)
+				tmpTex.SetLiveKeys(keys)
+				st := scene.CompositeFramePacketTextured(pkt, off, tmpTex)
+				fmt.Fprintf(os.Stderr, "selfdiff flipped: keys=%d entries=%d raster=%d skip=%d replayed=%d\n",
+					n, tmpTex.Len(), st.RasterLayerCount, st.SkippedLayerCount, st.ReplayedOps)
+				if err := off.SavePNG(fmt.Sprintf("%s/retained_flipped.png", dir)); err != nil {
+					fmt.Fprintf(os.Stderr, "selfdiff retained flipped: %v\n", err)
+				}
+				// Same packet + warm cache: pure blits. If early layers are
+				// still missing here, blits (not first-use records) are at
+				// fault; if complete, the loss is first-use record side.
+				scene.CompositeFramePacketTextured(pkt, off, tmpTex)
+				if err := off.SavePNG(fmt.Sprintf("%s/retained_double.png", dir)); err != nil {
+					fmt.Fprintf(os.Stderr, "selfdiff retained double: %v\n", err)
+				}
+			})
+		}
+		if selfDiff != "" && selfDiffStage == 2 && tick > 360 {
+			selfDiffStage = 3
+			dir := selfDiff
+			// Single-subtree packets: is A alone broken, or only inside the
+			// full tree?
+			for _, sb := range []struct {
+				tag string
+				ro  rendering.RenderObject
+			}{{"abox", boxA}, {"bbox", boxB}} {
+				dpr := 1.0
+				if dc0 := app.Target().Context(); dc0 != nil && dc0.DeviceScale() > 0 {
+					dpr = dc0.DeviceScale()
+				}
+				pkt := rendering.BuildFramePacketWithSaveLayer(sb.ro, uint64(1)<<62+200, dpr, 880, 40, nil, nil)
+				keys, n := scene.CollectCacheableKeys(pkt)
+				tag, ro := sb.tag, sb.ro
+				_ = ro
+				app.SnapshotAsync(func() {
+					off := render.NewContext(winW, winH)
+					defer off.Close()
+					off.BeginFrame()
+					off.ClearWithColor(render.RGB(1, 0, 1))
+					tmpTex := scene.NewPictureTextureCache(off, 512)
+					tmpTex.EnsureCapacity(n + n/4 + 16)
+					tmpTex.SetLiveKeys(keys)
+					scene.CompositeFramePacketTextured(pkt, off, tmpTex)
+					if err := off.SavePNG(fmt.Sprintf("%s/retained_%s.png", dir, tag)); err != nil {
+						fmt.Fprintf(os.Stderr, "selfdiff retained %s: %v\n", tag, err)
+					}
+				})
+			}
+			app.SnapshotAsync(func() {
+				off := render.NewContext(winW, winH)
+				defer off.Close()
+				off.BeginFrame()
+				off.ClearWithColor(render.RGB(0.08, 0.09, 0.11))
+				pc := rendering.NewPaintContext(off, off.DeviceScale())
+				pc.BoundaryCache = rendering.NewBoundaryCache()
+				pc.UseBoundaryCache = true
+				app.Pipeline().FlushPaint(pc, true)
+				if err := off.SavePNG(fmt.Sprintf("%s/vector.png", dir)); err != nil {
+					fmt.Fprintf(os.Stderr, "selfdiff vector: %v\n", err)
+				}
+			})
+		}
 		proc.Sample()
 		shell.NoteHUDTick(dt)
 		snapH := app.Metrics().Snapshot()
@@ -411,7 +656,6 @@ func main() {
 			fmt.Sprintf("tick=%d caret_vs_paint=%.1fpx", tick, base.CaretVsPaintMaxDeltaPx), "")
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
-
 	// Startup focus goes here (after the app owns the tree): focus drives
 	// framework-owned blink registration, which needs the pipeline owner.
 	if focusName != "" {
@@ -430,6 +674,7 @@ func main() {
 			boxF.FocusNode().RequestFocus()
 		}
 	}
+
 	if err := app.Open(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)

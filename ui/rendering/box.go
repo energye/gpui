@@ -12,6 +12,31 @@ type RenderBox struct {
 	OnPaint func(pc *PaintContext, size Size)
 }
 
+// OwnPaint exposes OnPaint for layer-tree capture. Wrappers embedding
+// *RenderBox promote it, so ownBoxPaint recognizes them without a type-list
+// entry (same pattern as Base.base for baseOf).
+func (b *RenderBox) OwnPaint() func(*PaintContext, Size) {
+	if b == nil {
+		return nil
+	}
+	return b.OnPaint
+}
+
+// ownBoxPaint returns the OnPaint callback for boxes carrying custom paint
+// (RenderBox and wrappers embedding it via promotion, e.g. the InputBox
+// family). False when there is no custom paint to capture.
+func ownBoxPaint(n RenderObject) (func(*PaintContext, Size), bool) {
+	type ownPainter interface {
+		OwnPaint() func(*PaintContext, Size)
+	}
+	if h, ok := n.(ownPainter); ok && h != nil {
+		if fn := h.OwnPaint(); fn != nil {
+			return fn, true
+		}
+	}
+	return nil, false
+}
+
 // NewRenderBox constructs a box.
 func NewRenderBox(children ...RenderObject) *RenderBox {
 	b := &RenderBox{}
@@ -178,6 +203,9 @@ func NewRenderColorBox(w, h, r, g, b, a float64) *RenderColorBox {
 // move an absolutely-placed child (Base.SetOffset writes the field only;
 // without a dirty flag retained/CompositeOnly frames never repaint it).
 func (c *RenderColorBox) MoveTo(x, y float64) {
+	if c.Offset().X == x && c.Offset().Y == y {
+		return
+	}
 	c.SetOffset(Point{X: x, Y: y})
 	c.MarkNeedsPaint()
 }

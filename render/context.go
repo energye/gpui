@@ -2001,11 +2001,13 @@ func (c *Context) BeginOffscreenPass() func() {
 }
 
 // resetGPUClipForPass suspends the context's active canvas clip for the
-// duration of an offscreen sub-pass: the GPU-side clip state is cleared and
-// offscreenPassActive goes true, so doFill's setGPUClipRect /
-// applyClipToPaint stay inert until the returned undo flips the flag and
-// re-applies the GPU clip. The canvas clipStack itself is untouched — the
-// caller's clip must survive verbatim. Returns nil when no clip is active.
+// duration of an offscreen sub-pass: offscreenPassDepth goes true so doFill's
+// setGPUClipRect / applyClipToPaint stay inert, and the canvas clip path is
+// parked aside. The clipStack itself is untouched — the caller's clip must
+// survive verbatim. GPU clip state and the scissor timeline stay owned by
+// Begin/EndOffscreenPass (suspend-and-restore): recording segments here would
+// attribute later main-stream draws to this clip, so this func records none.
+// Returns nil when no clip is active.
 func (c *Context) resetGPUClipForPass() func() {
 	if !c.isClipActive() {
 		return nil
@@ -2013,16 +2015,10 @@ func (c *Context) resetGPUClipForPass() func() {
 	c.offscreenPassDepth++
 	savedPath := c.gpuClipPath
 	c.gpuClipPath = nil
-	if rc := c.gpuCtxOps(); rc != nil {
-		rc.ClearClipRect()
-		rc.ClearClipRRect()
-		rc.ClearClipPath()
-	}
 	return func() {
 		c.offscreenPassDepth--
 		if c.offscreenPassDepth == 0 {
 			c.gpuClipPath = savedPath
-			c.setGPUClipRect()
 		}
 	}
 }

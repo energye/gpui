@@ -673,6 +673,27 @@ func (c *PictureTextureCache) measureTextBounds(pic *Picture) (image.Rectangle, 
 	}
 	for i := range pic.Ops {
 		op := &pic.Ops[i]
+		if op.Kind == OpDrawShapedGlyphs && len(op.Glyphs) > 0 && op.Face != nil {
+			// Glyph ops carry final positions: no reshape, extents come
+			// straight from pen-relative X/XAdvance plus face metrics.
+			m := op.Face.Metrics()
+			minX, maxX := op.Glyphs[0].X, op.Glyphs[0].X+op.Glyphs[0].XAdvance
+			for _, g := range op.Glyphs[1:] {
+				if g.X < minX {
+					minX = g.X
+				}
+				if end := g.X + g.XAdvance; end > maxX {
+					maxX = end
+				}
+			}
+			union(image.Rect(
+				int(math.Floor(op.X+minX)),
+				int(math.Floor(op.Y-m.Ascent)),
+				int(math.Ceil(op.X+maxX)),
+				int(math.Ceil(op.Y+m.Descent)),
+			))
+			continue
+		}
 		if op.Kind != OpDrawString || op.Text == "" {
 			continue
 		}
@@ -840,7 +861,24 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 	if s.view.IsNil() {
 		return false
 	}
-	c.dc.DrawGPUTexture(s.view, float64(e.off.X), float64(e.off.Y), s.w, s.h)
+	// Device-pixel snap (Skia layer-bounds snap): a fractional blit origin
+	// resamples the whole texture through the linear filter, smearing every
+	// glyph of a scrolled text band. Rounding the destination keeps the baked
+	// subpixel glyph layout intact while placing the quad texel-aligned (a
+	// ≤0.5px global shift). Translate-only CTMs only; anything else draws at
+	// the live origin (always correct, possibly resampled).
+	ox, oy := float64(e.off.X), float64(e.off.Y)
+	dx, dy := c.dc.TransformPoint(ox, oy)
+	xx, xy := c.dc.TransformPoint(ox+1, oy)
+	yx, yy := c.dc.TransformPoint(ox, oy+1)
+	kx, ky := xx-dx, yy-dy
+	const eps = 1e-9
+	if math.Abs(xy-dy) < eps && math.Abs(yx-dx) < eps &&
+		math.Abs(kx-ky) < eps*math.Max(1, math.Abs(kx)) && math.Abs(kx) > 1e-12 {
+		ox += (math.Round(dx) - dx) / kx
+		oy += (math.Round(dy) - dy) / ky
+	}
+	c.dc.DrawGPUTexture(s.view, ox, oy, s.w, s.h)
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
 		fmt.Fprintf(os.Stderr, "DBG blit id=%d w=%d h=%d off=%v\n", id, s.w, s.h, e.off)
 	}
@@ -1059,9 +1097,16 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				}
 				if !blitOK {
 					// cache miss / no cache key / non-translating ancestor:
-					// vector replay fallback
+					// vector replay fallback, RasterExtra included:
+					// OnPaint-only layers (input borders) keep empty
+					// pictures, replay alone would leave a hole.
 					n := pl.Picture.OpCount()
 					pl.Picture.Replay(dc)
+					if pl.RasterExtra != nil {
+						dc.Push()
+						pl.RasterExtra(dc)
+						dc.Pop()
+					}
 					st.ReplayedOps += n
 				}
 				// Re-recorded this frame → the layer's region changed.
@@ -1407,6 +1452,9 @@ func (c *PictureTextureCache) DebugDumpEntryTexture(dc *render.Context, path str
 	out.ClearWithColor(render.Black)
 	out.DrawGPUTexture(view, 0, 0, w, h)
 	_ = out.FlushGPU()
+	if path != "" {
+		_ = out.SavePNG(path)
+	}
 	img := out.Image()
 	cc := map[[3]uint32]int{}
 	for y := 0; y < h; y += 2 {
@@ -1425,6 +1473,21 @@ func (c *PictureTextureCache) DebugDumpEntryTexture(dc *render.Context, path str
 	}
 	fmt.Fprintf(os.Stderr, "dump %s: id=%d %dx%d dominant rgb=%d,%d,%d count=%d\n",
 		path, id, w, h, topc[0], topc[1], topc[2], top)
+}
+
+// DebugEntryIDs lists live cache entry ids for diagnostics (accept-window
+// texture dumps). Order undefined.
+func (c *PictureTextureCache) DebugEntryIDs() []uint64 {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]uint64, 0, len(c.entries))
+	for id := range c.entries {
+		out = append(out, id)
+	}
+	return out
 }
 
 // DebugEntrySlot exposes one entry's current content slot dimensions for

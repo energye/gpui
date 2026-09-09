@@ -28,12 +28,16 @@ func TestRecordOwnContent_TextFaceFollowsFontSize(t *testing.T) {
 	picSelf := scene.RecordPicture(func(r *scene.PictureRecorder) {
 		recordOwnContent(r, labelSelf, 0, 0)
 	})
-	if picSelf.OpCount() != 1 || picSelf.Ops[0].Kind != scene.OpDrawString {
-		t.Fatalf("self: want OpDrawString, got ops=%d", picSelf.OpCount())
+	if picSelf.OpCount() != 1 {
+		t.Fatalf("self: want 1 op, got ops=%d", picSelf.OpCount())
 	}
-	if picSelf.Ops[0].Face == nil || picSelf.Ops[0].Face.Size() != 16 {
+	selfOp := picSelf.Ops[0]
+	if selfOp.Kind != scene.OpDrawString && selfOp.Kind != scene.OpDrawShapedGlyphs {
+		t.Fatalf("self: want text op, got kind=%v", selfOp.Kind)
+	}
+	if selfOp.Face == nil || selfOp.Face.Size() != 16 {
 		t.Fatalf("self: recorded face size=%v want 16 (FontSize), Face=%v",
-			faceSize(picSelf.Ops[0].Face), picSelf.Ops[0].Face)
+			faceSize(selfOp.Face), selfOp.Face)
 	}
 
 	// Path 2: non-RB child of an AbsoluteBox (recordAbsoluteOwnContent case).
@@ -45,7 +49,7 @@ func TestRecordOwnContent_TextFaceFollowsFontSize(t *testing.T) {
 	})
 	var found bool
 	for _, op := range picChild.Ops {
-		if op.Kind == scene.OpDrawString && op.Face != nil {
+		if (op.Kind == scene.OpDrawString || op.Kind == scene.OpDrawShapedGlyphs) && op.Face != nil {
 			found = true
 			if op.Face.Size() != 16 {
 				t.Fatalf("child: recorded face size=%v want 16 (FontSize)", faceSize(op.Face))
@@ -53,7 +57,7 @@ func TestRecordOwnContent_TextFaceFollowsFontSize(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("child: no OpDrawString recorded")
+		t.Fatal("child: no text op recorded")
 	}
 }
 

@@ -113,6 +113,10 @@ func (b *Base) Children() []RenderObject { return b.children }
 
 func (b *Base) setParent(p RenderObject) { b.parent = p }
 
+// base returns the embedded Base. Wrappers embedding *RenderBox promote it,
+// so baseOf recognizes them without a type-list entry.
+func (b *Base) base() *Base { return b }
+
 // Size implements RenderObject.
 func (b *Base) Size() Size { return b.size }
 
@@ -395,10 +399,15 @@ func NeedsCompositingOf(n RenderObject) bool {
 func baseOf(n RenderObject) (*Base, bool) {
 	type hasBase interface{ base() *Base }
 	if h, ok := n.(hasBase); ok {
-		return h.base(), true
+		if h == nil {
+			return nil, false
+		}
+		if b := h.base(); b != nil {
+			return b, true
+		}
+		return nil, false
 	}
-	// Embed Base in structs — method set includes promoted *Base methods but not base().
-	// Use type switch on known types; for P1, RenderBox embeds Base.
+	// Fallback for node types that embed Base without promoting base().
 	switch t := n.(type) {
 	case *RenderBox:
 		return &t.Base, true

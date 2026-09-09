@@ -81,6 +81,20 @@ type RenderText struct {
 	viewportScrollX float64
 	viewportWidth   float64
 	hasViewportHint bool
+	// recordedBand is the scroll window the retained texture currently
+	// holds (written at record time when a culled band is stored).
+	// Scrolling past its margin must re-record: the viewport re-blit alone
+	// reuses the old band at the new offset, and the visible window then
+	// maps outside the recording (empty box after ~200px of scroll).
+	// Unculled/full recordings never expire.
+	recordedScrollX float64
+	recordedVisW    float64
+	recordedCulled  bool
+	// recordedEver is set by the first dirty-build note write. Before any
+	// texture exists (warm-up vector paint clears the fresh dirty flags
+	// before the first retained record) the band is unknown and must be
+	// established, not trusted.
+	recordedEver bool
 	// viewportHintY bounds the visible row band for wrapped/multi-line text
 	// (M2 vertical culling). Unset = unbounded, paint skips no rows.
 	viewportScrollY  float64

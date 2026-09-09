@@ -752,7 +752,7 @@ func (a *PipelineApp) Run() error {
 	a.firstPresentT0 = time.Now()
 	if a.opts.WarmUp {
 		a.presentSyncFull()
-		a.forceFullPresent.Store(0) // warm-up already full-cleared swapchain
+		a.forceFullPresent.Add(-1) // warm-up covered one buffer, two owed
 	}
 	a.ScheduleFrame()
 
@@ -1047,6 +1047,12 @@ func (a *PipelineApp) Run() error {
 		if pkt != nil {
 			a.noteDirtyIDs(pkt.DirtyLayerIDs)
 		}
+		// The packet already snapshots this frame's dirty set: consume the
+		// live paint flags here on the UI thread. The raster job below must
+		// not touch them — it runs concurrently with UI event handling, and
+		// clearing there can wipe a mark made after this build (lost update,
+		// e.g. a scroll-band expiry that then never re-records).
+		a.pipe.ConsumeNeedsPaint()
 		hitchRasterStart := time.Now()
 		stats := scene.RasterizeDirty(pkt)
 		if os.Getenv("HITCH_DIAG") == "1" {
@@ -1075,7 +1081,13 @@ func (a *PipelineApp) Run() error {
 		// full_paint (W0 default): full tree paint every frame (GPU Clear safe).
 		// retained (W2): CompositeOnly paint — only dirty paths; LoadOpLoad keeps static.
 		// Warm-up / resize / open: force=true → full clear + full paint.
-		force := a.forceFullPresent.Swap(0) > 0
+		// Decrement per frame so the owed full presents land on consecutive
+		// frames, one per swapchain buffer.
+		force := false
+		if a.forceFullPresent.Load() > 0 {
+			a.forceFullPresent.Add(-1)
+			force = true
+		}
 		metrics := a.sched.Metrics()
 		// Keep policy visible; default retained since W6 (correctness windows
 		// pin full_paint explicitly via SetPresentPolicy).
@@ -1400,7 +1412,6 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 	liveKeys, liveCount := scene.CollectCacheableKeys(pkt)
 	tex.EnsureCapacity(liveCount + liveCount/4 + 16)
 	tex.SetLiveKeys(liveKeys)
-	pipe := a.pipe
 	draw := func(d *render.Context) {
 		// Clear: retained steady frames do not clear (LoadOpLoad keeps pixels);
 		// only force frames (handled by presentTreeOpts) full-clear.
@@ -1422,8 +1433,9 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 			ShellRerecord: st.ShellRerecord,
 			ShellSkip:     st.ShellSkip,
 		})
-		// Paint-dirty marks are consumed by the layer tree (no live paint).
-		pipe.ConsumeNeedsPaint()
+		// No live-paint consume here: the UI thread already consumed the
+		// paint flags when it built this packet (see Run). Touching them
+		// from this raster job would race UI event handling.
 	}
 	return target.PresentWithAuto(draw)
 }

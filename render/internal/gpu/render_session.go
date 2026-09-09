@@ -5411,12 +5411,23 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	// Draw GPU texture overlays (e.g., RepaintBoundary cached textures).
 	// R7.4/ADR-028: per-overlay scissor from group-relevant damage only.
 	// Distant multi-rect damage no longer inflates one global AABB.
+	// Layer clip always applies (same as the grouped pass, which sets the
+	// group scissor unconditionally): fullSurface only skips the damage
+	// intersection, never the clip. Skipping both left viewport-clipped
+	// blits (B/C text bands carry a 200px cull margin) unclipped on every
+	// full-surface present.
 	for i := range grpRes {
 		gr := &grpRes[i]
-		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
-			if fullSurface || s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
-				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
-			}
+		if gr.gpuTexRes == nil || len(gr.gpuTexRes.drawCalls) == 0 {
+			continue
+		}
+		if fullSurface {
+			s.applyGroupScissor(rp, gr.scissorRect, w, h)
+			s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
+			continue
+		}
+		if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
+			s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
 		}
 	}
 

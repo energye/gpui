@@ -23,6 +23,10 @@ const (
 	OpStrokePath
 	// OpDrawString draws a text run at baseline (X,Y); Face optional (else DC.Font).
 	OpDrawString
+	// OpDrawShapedGlyphs replays pre-shaped glyphs at pen (X,Y) baseline.
+	// Same representation Paint submits (bulk or rebased partition); replay
+	// calls DrawShapedGlyphs (IsColor=false) or DrawShapedColorGlyphs.
+	OpDrawShapedGlyphs
 	// OpDrawImage draws an ImageBuf at (X,Y); DstW/DstH >0 scales, else 1:1.
 	OpDrawImage
 )
@@ -42,7 +46,12 @@ type PictureOp struct {
 	// Text is the UTF-8 run for OpDrawString.
 	Text string
 	// Face is an optional font for OpDrawString; if nil, replay uses dc.Font().
+	// OpDrawShapedGlyphs requires Face (nil replays nothing).
 	Face text.Face
+	// Glyphs carries the shaped run for OpDrawShapedGlyphs (detached copy).
+	Glyphs []text.ShapedGlyph
+	// IsColor selects DrawShapedColorGlyphs at replay (color emoji runs).
+	IsColor bool
 	// Image is a retained buffer for OpDrawImage (not cloned; caller owns lifetime).
 	Image *render.ImageBuf
 	// DstW, DstH scale destination for OpDrawImage when both >0; else 1:1 DrawImage.
@@ -204,6 +213,16 @@ func applyPictureOp(dc *render.Context, op *PictureOp) {
 		}
 		dc.SetRGBA(op.R, op.G, op.B, op.A)
 		dc.DrawString(op.Text, op.X, op.Y)
+	case OpDrawShapedGlyphs:
+		if len(op.Glyphs) == 0 || op.Face == nil || op.A == 0 {
+			return
+		}
+		dc.SetRGBA(op.R, op.G, op.B, op.A)
+		if op.IsColor {
+			dc.DrawShapedColorGlyphs(op.Glyphs, op.Face, op.X, op.Y)
+			return
+		}
+		dc.DrawShapedGlyphs(op.Glyphs, op.Face, op.X, op.Y)
 	case OpDrawImage:
 		if op.Image == nil || op.Image.Disposed() {
 			return
@@ -360,6 +379,28 @@ func (r *PictureRecorder) DrawString(s string, x, y float64, face text.Face, red
 		Text: s,
 		Face: face,
 		R:    clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// DrawShapedGlyphs records pre-shaped glyphs at pen (x,y) baseline.
+// The slice is deep-copied; later layout mutation cannot affect the display
+// list. isColor selects the color-glyph replay path. face is required.
+func (r *PictureRecorder) DrawShapedGlyphs(glyphs []text.ShapedGlyph, x, y float64, face text.Face, isColor bool, red, gre, blu, a float64) {
+	if r == nil || len(glyphs) == 0 || face == nil {
+		return
+	}
+	cp := append([]text.ShapedGlyph(nil), glyphs...)
+	r.ops = append(r.ops, PictureOp{
+		Kind:    OpDrawShapedGlyphs,
+		X:       x,
+		Y:       y,
+		Glyphs:  cp,
+		Face:    face,
+		IsColor: isColor,
+		R:       clamp01(red),
+		G:       clamp01(gre),
+		B:       clamp01(blu),
+		A:       clamp01(a),
 	})
 }
 
