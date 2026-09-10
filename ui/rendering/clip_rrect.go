@@ -55,6 +55,11 @@ func (c *RenderClipRRect) Layout(cons Constraints) Size {
 	inner := Constraints{MinWidth: 0, MaxWidth: cons.MaxWidth, MinHeight: 0, MaxHeight: cons.MaxHeight}
 	var maxW, maxH float64
 	for _, ch := range c.children {
+		// Owner-managed geometry (e.g. text selection highlight) keeps its
+		// MoveTo position and built size (same rule as RenderBox).
+		if ManualLayoutOf(ch) {
+			continue
+		}
 		sz := ch.Layout(inner)
 		ch.SetOffset(Point{})
 		if sz.Width > maxW {

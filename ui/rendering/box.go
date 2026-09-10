@@ -74,6 +74,11 @@ func (b *RenderBox) Layout(c Constraints) Size {
 	}
 	var maxW, maxH float64
 	for _, ch := range b.children {
+		// Owner-managed geometry (e.g. text selection highlight) keeps its
+		// MoveTo position and built size; it must not stretch auto-size.
+		if ManualLayoutOf(ch) {
+			continue
+		}
 		sz := ch.Layout(inner)
 		// Default offset: padding top-left (Y-down).
 		ch.SetOffset(Point{X: b.Pad, Y: b.Pad})

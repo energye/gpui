@@ -529,8 +529,9 @@ func (b *ViewportInputBox) syncHighlight() {
 	if sel.Collapsed() {
 		return
 	}
-	sByte := byteOffsetForUtf16(b.ed.GetText(), sel.Start())
-	eByte := byteOffsetForUtf16(b.ed.GetText(), sel.End())
+	text := b.ed.GetText()
+	sByte := byteOffsetForUtf16(text, sel.Start())
+	eByte := byteOffsetForUtf16(text, sel.End())
 	lay := b.txt.TextLayout()
 	if lay == nil || lay.LineCount() == 0 {
 		return
@@ -540,6 +541,10 @@ func (b *ViewportInputBox) syncHighlight() {
 		return
 	}
 	off := b.txt.Offset()
+	visX0 := b.Viewport.ScrollOffset().X
+	vis := rendering.NewRect(visX0, 0, b.FixedWidth-2, b.FixedHeight)
+	sr, sg, sb, sa := b.SelectionColor()
+	b.highlights = make([]*rendering.RenderColorBox, 0, len(boxes))
 	for idx, r := range boxes {
 		h := r.Size().Height
 		pad := 0.0
@@ -560,9 +565,11 @@ func (b *ViewportInputBox) syncHighlight() {
 				}
 			}
 		}
-		sr, sg, sb, sa := b.SelectionColor()
-		hb := rendering.NewRenderColorBox(r.Size().Width, h+pad, sr, sg, sb, sa)
-		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y-pad)
+		hl := rendering.NewRect(off.X+r.Min.X, off.Y+r.Min.Y-pad, r.Size().Width, h+pad)
+		hb := newClippedHighlight(hl, vis, sr, sg, sb, sa)
+		if hb == nil {
+			continue
+		}
 		b.content.AddChild(hb)
 		b.highlights = append(b.highlights, hb)
 	}

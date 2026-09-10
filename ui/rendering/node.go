@@ -54,6 +54,11 @@ type Base struct {
 	relayoutBoundary bool
 	repaintBoundary  bool
 
+	// manualLayout marks a child whose geometry is owner-managed (e.g. a
+	// text selection highlight built from layout boxes): flow containers
+	// must not resize or reposition it during Layout, only paint it.
+	manualLayout bool
+
 	// shellBoundary marks this RepaintBoundary as part of the window shell
 	// (W2 R21 shell/content layering): shell boundaries are counted separately
 	// in BoundaryCache so a scrolling body can prove the shell's rerecord
@@ -155,6 +160,25 @@ func (b *Base) IsRepaintBoundary() bool { return b.repaintBoundary }
 
 // SetRelayoutBoundary marks layout isolation (F03).
 func (b *Base) SetRelayoutBoundary(v bool) { b.relayoutBoundary = v }
+
+// SetManualLayout marks owner-managed geometry: flow containers skip this
+// child in Layout (no resize, no reposition, no auto-size measure) and only
+// paint it. Default false — existing trees behave exactly as before.
+func (b *Base) SetManualLayout(v bool) { b.manualLayout = v }
+
+// ManualLayout reports the owner-managed geometry flag (false on nil).
+func (b *Base) ManualLayout() bool { return b != nil && b.manualLayout }
+
+// ManualLayoutOf reports whether n carries owner-managed geometry that flow
+// containers must not resize or reposition during Layout (paint only).
+// Single choke point for RenderBox/RenderClipRRect so the skip rule stays
+// identical everywhere; false for nil and non-Base nodes.
+func ManualLayoutOf(n RenderObject) bool {
+	if b, ok := baseOf(n); ok {
+		return b.ManualLayout()
+	}
+	return false
+}
 
 // SetRepaintBoundary marks paint isolation (P2).
 func (b *Base) SetRepaintBoundary(v bool) {

@@ -651,8 +651,9 @@ func (b *InputBox) syncSelectionHighlight() {
 		return
 	}
 	// Convert utf16 range to byte offsets
-	sByte := byteOffsetForUtf16(b.ed.GetText(), selRange.Start())
-	eByte := byteOffsetForUtf16(b.ed.GetText(), selRange.End())
+	text := b.ed.GetText()
+	sByte := byteOffsetForUtf16(text, selRange.Start())
+	eByte := byteOffsetForUtf16(text, selRange.End())
 	// For password we already returned; for normal, map to display bytes (same as text)
 	lay := b.txt.TextLayout()
 	if lay == nil || lay.LineCount() == 0 {
@@ -663,6 +664,9 @@ func (b *InputBox) syncSelectionHighlight() {
 		return
 	}
 	off := b.txt.Offset()
+	vis := rendering.NewRect(0, 0, b.FixedWidth, b.FixedHeight)
+	sr, sg, sb, sa := b.SelectionColor()
+	b.highlights = make([]*rendering.RenderColorBox, 0, len(boxes))
 	for idx, r := range boxes {
 		h := r.Size().Height
 		// 只给首行上面多留一点，下面不动；pad 按字体度量自动算，避免小字过大、大字过小
@@ -685,9 +689,11 @@ func (b *InputBox) syncSelectionHighlight() {
 				}
 			}
 		}
-		sr, sg, sb, sa := b.SelectionColor()
-		hb := rendering.NewRenderColorBox(r.Size().Width, h+pad, sr, sg, sb, sa)
-		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y-pad)
+		hl := rendering.NewRect(off.X+r.Min.X, off.Y+r.Min.Y-pad, r.Size().Width, h+pad)
+		hb := newClippedHighlight(hl, vis, sr, sg, sb, sa)
+		if hb == nil {
+			continue
+		}
 		b.clip.AddChild(hb)
 		b.highlights = append(b.highlights, hb)
 	}
@@ -1923,8 +1929,9 @@ func (b *MultiLineInputBox) syncMultiHighlight() {
 	if sel.Collapsed() {
 		return
 	}
-	sByte := byteOffsetForUtf16(b.ed.GetText(), sel.Start())
-	eByte := byteOffsetForUtf16(b.ed.GetText(), sel.End())
+	text := b.ed.GetText()
+	sByte := byteOffsetForUtf16(text, sel.Start())
+	eByte := byteOffsetForUtf16(text, sel.End())
 	lay := b.txt.TextLayout()
 	if lay == nil || lay.LineCount() == 0 {
 		return
@@ -1934,6 +1941,9 @@ func (b *MultiLineInputBox) syncMultiHighlight() {
 		return
 	}
 	off := b.txt.Offset()
+	vis := rendering.NewRect(0, 0, b.FixedWidth, b.FixedHeight)
+	sr, sg, sb, sa := b.SelectionColor()
+	b.highlights = make([]*rendering.RenderColorBox, 0, len(boxes))
 	for idx, r := range boxes {
 		h := r.Size().Height
 		pad := 0.0
@@ -1954,9 +1964,11 @@ func (b *MultiLineInputBox) syncMultiHighlight() {
 				}
 			}
 		}
-		sr, sg, sb, sa := b.SelectionColor()
-		hb := rendering.NewRenderColorBox(r.Size().Width, h+pad, sr, sg, sb, sa)
-		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y-pad)
+		hl := rendering.NewRect(off.X+r.Min.X, off.Y+r.Min.Y-pad, r.Size().Width, h+pad)
+		hb := newClippedHighlight(hl, vis, sr, sg, sb, sa)
+		if hb == nil {
+			continue
+		}
 		b.clip.AddChild(hb)
 		b.highlights = append(b.highlights, hb)
 	}
