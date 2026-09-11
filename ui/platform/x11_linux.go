@@ -4,6 +4,7 @@ package platform
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -50,6 +51,10 @@ func (b *x11Backend) Adopt(ns NativeSurface) (*Window, error) {
 	if w, h, ok := x11GetGeometry(st); ok {
 		st.w, st.h = w, h
 	}
+	// Adopted windows follow the live desktop scale like created ones.
+	if s := x11ScaleSource(st); s != 1 {
+		st.scale = s
+	}
 	h := &x11Host{st: st, lib: lib}
 	// Atoms are resolved lazily by the controller (resolveAtoms on demand);
 	// root stays 0 here → EWMH ops (RequestMove/state toggles) return
@@ -90,7 +95,7 @@ const (
 	xEventMask = xStructureNotifyMask | xExposureMask |
 		xButtonPressMask | xButtonReleaseMask | xPointerMotionMask |
 		xKeyPressMask | xKeyReleaseMask | xFocusChangeMask |
-		xVisibilityChangeMask | xEnterWindowMask | xLeaveWindowMask
+		xVisibilityChangeMask | xPropertyChangeMask | xEnterWindowMask | xLeaveWindowMask
 )
 
 // XSizeHints flags (Xutil.h PMinSize/PMaxSize/PBaseSize/PSize).
@@ -104,11 +109,14 @@ const (
 // X event field offsets (linux amd64 Xlib layout — matches exhost verified).
 const (
 	xevTypeOff        = 0
+	xevSerialOff      = 8 // last server-processed request serial at event time
 	xevXOff           = 48 // XConfigureEvent x
 	xevYOff           = 52 // XConfigureEvent y
 	xevWidthOff       = 56 // XConfigureEvent
 	xevHeightOff      = 60
 	xevClientData0Off = 56 // XClientMessageEvent.data.l[0]
+	xevAtomOff        = 40 // XPropertyEvent.atom
+	xevWindowOff      = 32 // XPropertyEvent.window (also ClientMessage/Crossing window)
 	xevPointerXOff    = 64
 	xevPointerYOff    = 68
 	xevButtonOff      = 84 // button (press/release) or keycode (key)
@@ -119,12 +127,32 @@ const (
 	// XPresentNotifyEvent.window (linux amd64: type@0 serial@8 send_event@16
 	// display@24 window@32 — Present extension).
 	xevPresentWindowOff = 32
+	xGenericEvent       = 35 // X generic-extension event (XI2 touch arrives here)
+)
+
+// XI2 touch event types (XInput2.h) + selection constants.
+const (
+	xiTouchBegin  = 18
+	xiTouchUpdate = 19
+	xiTouchEnd    = 20
+	xiAllMaster   = 1 // XIAllMasterDevices
+)
+
+// XIDeviceEvent field offsets (linux amd64, XInput2.h): doubles are native
+// doubles after XGetEventData conversion (wire FP1616 handled by libXi).
+const (
+	xiEvExtensionOff = 32
+	xiEvTypeOff      = 36
+	xiEvDetailOff    = 56 // touch ID for touch events
+	xiEvXOff         = 104 // event_x (window-relative)
+	xiEvYOff         = 112 // event_y (window-relative)
 )
 
 // X event codes + mask bits (X.h).
 const (
 	xFocusChangeMask      = 1 << 21
 	xVisibilityChangeMask = 1 << 16
+	xPropertyChangeMask   = 1 << 22
 	xEnterWindowMask      = 1 << 4
 	xLeaveWindowMask      = 1 << 5
 	xFocusIn              = 9
@@ -187,6 +215,7 @@ type x11Lib struct {
 	xkbKeycodeToKeysym     func(dpy uintptr, keycode uint, group int, level int) uintptr
 	xLookupString          func(ev unsafe.Pointer, str *byte, nbytes int, keysym *uintptr, status unsafe.Pointer) int
 	xRefreshKeyboardMapping func(ev unsafe.Pointer) int
+	resourceManagerString func(dpy uintptr) *byte
 }
 
 func x11OpenLib() (*x11Lib, error) {
@@ -201,6 +230,7 @@ func x11OpenLib() (*x11Lib, error) {
 	purego.RegisterLibFunc(&x.keycodeToKeysym, lib, "XKeycodeToKeysym")
 	purego.RegisterLibFunc(&x.closeDisplay, lib, "XCloseDisplay")
 	purego.RegisterLibFunc(&x.translateCoordinates, lib, "XTranslateCoordinates")
+	purego.RegisterLibFunc(&x.resourceManagerString, lib, "XResourceManagerString")
 	// XKB / XIM helpers are optional: missing symbols are tolerated (fallback to legacy path)
 	if _, err := purego.Dlsym(lib, "XkbGetState"); err == nil {
 		purego.RegisterLibFunc(&x.xkbGetState, lib, "XkbGetState")
@@ -267,6 +297,8 @@ func x11Create(opts Options) (*Window, error) {
 		xSelectInput      func(dpy uintptr, win uintptr, mask int64) int
 		xPending          func(dpy uintptr) int
 		xNextEvent        func(dpy uintptr, ev *byte) int
+		xPeekEvent        func(dpy uintptr, ev *byte) int
+		xNextRequest      func(dpy uintptr) uint64
 		xInternAtom       func(dpy uintptr, name *byte, onlyIfExists int) uintptr
 		xSetWMProtocols   func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
 		xSetWMNormalHints func(dpy uintptr, win uintptr, hints *xSizeHints) int
@@ -292,6 +324,8 @@ func x11Create(opts Options) (*Window, error) {
 	purego.RegisterLibFunc(&xSelectInput, lib.lib, "XSelectInput")
 	purego.RegisterLibFunc(&xPending, lib.lib, "XPending")
 	purego.RegisterLibFunc(&xNextEvent, lib.lib, "XNextEvent")
+	purego.RegisterLibFunc(&xPeekEvent, lib.lib, "XPeekEvent")
+	purego.RegisterLibFunc(&xNextRequest, lib.lib, "XNextRequest")
 	purego.RegisterLibFunc(&xInternAtom, lib.lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib.lib, "XSetWMProtocols")
 	purego.RegisterLibFunc(&xSetWMNormalHints, lib.lib, "XSetWMNormalHints")
@@ -451,7 +485,11 @@ func x11Create(opts Options) (*Window, error) {
 		scale:     1,
 		pending:   func() int { return xPending(dpy) },
 		nextEvent: func(ev *byte) int { return xNextEvent(dpy, ev) },
-		flush:     func() { xFlush(dpy) },
+		peekEvent: func(ev *byte) int { return xPeekEvent(dpy, ev) },
+		nextRequest: func() uint64 {
+			return xNextRequest(dpy)
+		},
+		flush: func() { xFlush(dpy) },
 		keycodeToKeysym: func(dpy2 uintptr, keycode uint, index int) uintptr {
 			if lib.keycodeToKeysym == nil {
 				return 0
@@ -476,6 +514,17 @@ func x11Create(opts Options) (*Window, error) {
 		// PresentCompleteNotifyMask = 1L<<0 (Present extension present.h).
 		xPresentSelectInp(dpy, win, 1)
 		st.xPresentNotifyMSC = xPresentNotifyMSC
+	}
+	// RandR scale probe (S6-P0 KindScale): select screen-change notices on
+	// the root and watch RESOURCE_MANAGER writes there (Xft.dpi). Best
+	// effort — unavailable servers simply never report EventScale.
+	if rl := xrandrLoad(); rl != nil && xrandrOK && rl.queryExtension != nil && rl.selectInput != nil {
+		var evBase, errBase int32
+		if rl.queryExtension(dpy, &evBase, &errBase) != 0 {
+			st.rrBase, st.rrOK = int(evBase), true
+			rl.selectInput(dpy, st.root, rrScreenChangeNotifyMask)
+			xSelectInput(dpy, st.root, int64(xPropertyChangeMask))
+		}
 	}
 	// The WM may resize the window at map time (maximize / fit the work
 	// area), often animating the size over a few hundred ms. Wait until the
@@ -509,6 +558,11 @@ func x11Create(opts Options) (*Window, error) {
 	}
 	// Resolve EWMH atoms once; the controller and event pump share them.
 	st.resolveAtoms(dpy)
+	// Read the live desktop scale once (96-dpi desktops stay 1, HiDPI starts
+	// right): the initial EventResize below carries it.
+	if s := x11ScaleSource(st); s != 1 {
+		st.scale = s
+	}
 	// Re-resolve wmDelete after drain (atom still valid).
 	{
 		delName := append([]byte("WM_DELETE_WINDOW"), 0)
@@ -550,6 +604,9 @@ func x11Create(opts Options) (*Window, error) {
 	xFlush(dpy)
 	st.visible = visible
 	st.resizable = opts.Resizable
+	// XI2 touch probe (best-effort, silent when unavailable).
+	st.xiMajor = x11ProbeTouch(dpy, win)
+	st.xiTouch = st.xiMajor != 0
 
 	ime := imeForX11(host)
 	host.ime = ime
@@ -573,6 +630,7 @@ func (st *x11State) resolveAtoms(dpy uintptr) {
 		return lib.internAtom(dpy, &b[0], 0)
 	}
 	st.atNetState = atom("_NET_WM_STATE")
+	st.atWMState = atom("WM_STATE")
 	st.atMaxV = atom("_NET_WM_STATE_MAXIMIZED_VERT")
 	st.atMaxH = atom("_NET_WM_STATE_MAXIMIZED_HORZ")
 	st.atFull = atom("_NET_WM_STATE_FULLSCREEN")
@@ -584,6 +642,7 @@ func (st *x11State) resolveAtoms(dpy uintptr) {
 	st.atSyncReq = atom("_NET_WM_SYNC_REQUEST")
 	st.atSyncCounter = atom("_NET_WM_SYNC_REQUEST_COUNTER")
 	st.atCardinal = atom("CARDINAL")
+	st.atResManager = atom("RESOURCE_MANAGER")
 }
 
 // --- window state ---
@@ -598,6 +657,8 @@ type x11State struct {
 	scale                float64
 	pending              func() int
 	nextEvent            func(ev *byte) int
+	peekEvent            func(ev *byte) int // XPeekEvent (nil = no repeat detect)
+	nextRequest          func() uint64      // XNextRequest (nil = no serial gate)
 	flush                func()
 	keycodeToKeysym      func(dpy uintptr, keycode uint, index int) uintptr
 	translateCoordinates func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
@@ -606,6 +667,7 @@ type x11State struct {
 	// EWMH atoms (resolved at Create).
 	atNetState, atMaxV, atMaxH uintptr
 	atFull, atAbove, atActive  uintptr
+	atWMState                  uintptr // WM_STATE (Iconic → minimized)
 	atNetName, atUTF8          uintptr
 	atMotifHints               uintptr
 	atSyncReq, atSyncCounter   uintptr // _NET_WM_SYNC_REQUEST + counter property
@@ -630,6 +692,31 @@ type x11State struct {
 	focused    bool
 	visible    bool
 	minimized  bool
+	// hideSignaled tracks an outstanding Hidden{true} (set by controller
+	// Hide, cleared by controller Show or an external re-map): back-to-back
+	// calls stay exact without waiting for the MapNotify round-trip.
+	hideSignaled bool
+	// hideUnmapped marks an UnmapNotify witnessed while hideSignaled: a later
+	// MapNotify is then a genuine external re-map (not a stale create-time
+	// map racing the Hide call) and reports Hidden{false}.
+	hideUnmapped bool
+	// hideReq is the client request serial of the Hide unmap (XNextRequest-1
+	// at call time): only MapNotifys the server generated after processing
+	// it (event serial >= hideReq) can clear the signal. A stale create-time
+	// Map predates it and stays quiet; a WM transition dance that genuinely
+	// re-maps reports the truth.
+	hideReq uint64
+
+	// Auto-repeat arm (XKB pairs share keycode+timestamp): a release with a
+	// matching press ahead is swallowed and the press is marked Repeat.
+	repeatArmed   bool
+	repeatKeycode uint32
+	repeatTime    uint32
+
+	// XI2 touch gate: xiTouch set at Create when XI 2.2+ selects cleanly;
+	// xiMajor is the extension opcode GenericEvents are checked against.
+	xiTouch bool
+	xiMajor int32
 
 	// Resizable / constraints bookkeeping for hints lock-restore.
 	resizable          bool
@@ -654,6 +741,13 @@ type x11State struct {
 	// presentOK=false → scheduler falls back to the DRM vblank waiter.
 	presentBase int
 	presentOK   bool
+	// RandR scale notices (S6-P0 KindScale): RRScreenChangeNotify arrives at
+	// rrBase + 0 when outputs/modes change; Xft.dpi writes (Settings scale
+	// flips change no pixels) arrive as root PropertyNotify on atResManager.
+	// Both feed reconcileScale; rrOK=false keeps scale 1.
+	rrBase       int
+	rrOK         bool
+	atResManager uintptr // RESOURCE_MANAGER (Xft.dpi lives here)
 	// xPresentNotifyMSC is bound at Create for RequestFrameNotify (raster thread).
 	xPresentNotifyMSC func(dpy uintptr, win uintptr, target, divisor, remainder uint64) int
 }
@@ -700,6 +794,11 @@ type x11Host struct {
 	// queued here and emitted later via callback, to avoid fixed-timeout guessing.
 	keyMu       sync.Mutex
 	pendingKeys []Event
+
+	// evMu guards controller-pushed events (Hide/Show → EventHidden):
+	// controller calls run on any goroutine (§2.5.5), the pump drains.
+	evMu          sync.Mutex
+	pendingEvents []Event
 }
 
 // ximFocus is a stub after XIM removal in v2.0.
@@ -723,6 +822,18 @@ func (h *x11Host) pushPendingKey(ev Event) {
 	h.keyMu.Lock()
 	h.pendingKeys = append(h.pendingKeys, ev)
 	h.keyMu.Unlock()
+}
+
+// pushEvent queues a controller-side event for the next WaitEvents
+// (thread-safe). Used for state the pump cannot observe itself
+// (Hide/Show have no distinct X event from minimize).
+func (h *x11Host) pushEvent(ev Event) {
+	if h == nil {
+		return
+	}
+	h.evMu.Lock()
+	h.pendingEvents = append(h.pendingEvents, ev)
+	h.evMu.Unlock()
 }
 
 func (h *x11Host) destroy() {
@@ -859,6 +970,12 @@ func (h *x11Host) drain() []Event {
 		h.pendingKeys = nil
 	}
 	h.keyMu.Unlock()
+	h.evMu.Lock()
+	if len(h.pendingEvents) > 0 {
+		out = append(out, h.pendingEvents...)
+		h.pendingEvents = nil
+	}
+	h.evMu.Unlock()
 	return out
 }
 
@@ -1080,6 +1197,12 @@ func (h *x11Host) drainX() []Event {
 			if st.presentOK && uintptr(readU64(buf[:], xevPresentWindowOff)) == st.window {
 				out = append(out, Event{Type: EventFramePresented})
 			}
+		case st.rrBase: // RRScreenChangeNotify (base + 0): outputs/modes changed
+			if st.rrOK {
+				if ev, ok := h.reconcileScale(); ok {
+					out = append(out, ev)
+				}
+			}
 		case xConfigureNotify:
 			nx := int(readI32(buf[:], xevXOff))
 			ny := int(readI32(buf[:], xevYOff))
@@ -1104,12 +1227,31 @@ func (h *x11Host) drainX() []Event {
 			out = append(out, Event{Type: EventExpose})
 		case xMapNotify:
 			st.mu.Lock()
+			wasMin := st.minimized
+			// Genuine external re-map: signaled + witnessed unmap + server
+			// causality (generated after our unmap was processed). A stale
+			// create-time map predates hideReq and stays quiet; a WM
+			// transition dance that genuinely re-maps reports the truth.
+			restored := !wasMin && st.hideSignaled && st.hideUnmapped &&
+				readU64(buf[:], xevSerialOff) >= st.hideReq
 			st.visible = true
 			st.minimized = false // remapped = restored from iconify
+			if restored {
+				st.hideSignaled = false
+				st.hideUnmapped = false
+			}
 			st.mu.Unlock()
+			// External re-map of a hidden window (not via controller Show,
+			// which clears the signal itself): report the visibility.
+			if restored {
+				h.pushEvent(Event{Type: EventHidden, Hidden: false})
+			}
 		case xUnmapNotify:
 			st.mu.Lock()
 			st.visible = false
+			if st.hideSignaled {
+				st.hideUnmapped = true
+			}
 			st.mu.Unlock()
 		case xVisibilityNotify:
 			// 0 = unobscured, 1 = partially, 2 = fully obscured.
@@ -1120,19 +1262,35 @@ func (h *x11Host) drainX() []Event {
 			if h.st != nil && h.st.lib != nil && h.st.lib.xRefreshKeyboardMapping != nil {
 				h.st.lib.xRefreshKeyboardMapping(unsafe.Pointer(&buf[0]))
 			}
+		case xGenericEvent:
+			if ev, ok := h.decodeXITouch(buf[:]); ok {
+				out = append(out, ev)
+			}
 		case xFocusIn:
+			st.mu.Lock()
+			st.focused = true
+			st.mu.Unlock()
 			out = append(out, Event{Type: EventFocus, Focused: true})
 		case xFocusOut:
+			st.mu.Lock()
+			st.focused = false
+			st.mu.Unlock()
 			out = append(out, Event{Type: EventFocus, Focused: false})
 		case xEnterNotify:
-			out = append(out, Event{Type: EventPointer, Pointer: PointerEnter})
+			out = append(out, Event{Type: EventPointer, Pointer: PointerEnter,
+				X: float64(readI32(buf[:], xevPointerXOff)), Y: float64(readI32(buf[:], xevPointerYOff))})
 		case xLeaveNotify:
-			out = append(out, Event{Type: EventPointer, Pointer: PointerLeave})
+			out = append(out, Event{Type: EventPointer, Pointer: PointerLeave,
+				X: float64(readI32(buf[:], xevPointerXOff)), Y: float64(readI32(buf[:], xevPointerYOff))})
 		case xButtonPress, xButtonRelease, xMotionNotify:
 			if ev, ok := h.decodePointer(t, buf[:]); ok {
 				out = append(out, ev)
 			}
 		case xKeyPress, xKeyRelease:
+			repeat, drop := h.checkAutoRepeat(t, buf[:])
+			if drop {
+				continue
+			}
 			// S4: X11 挂起队列等真回话，不靠固定闹钟（m/没 双写根治）
 			if h.ime != nil {
 				if x, ok := h.ime.(*x11Ime); ok && x != nil {
@@ -1142,6 +1300,7 @@ func (h *x11Host) drainX() []Event {
 					xTime := uint32(readU64(buf[:], xevKeyTimeOff) & 0xffffffff)
 					// 先解好 EventKey，供回调决定塞不塞
 					if ev, ok := h.decodeKey(t, buf[:], state); ok {
+						ev.Repeat = repeat
 						x.ProcessKeyEventAsync(keycode, state, isPress, xTime, ev)
 					}
 					continue
@@ -1150,13 +1309,14 @@ func (h *x11Host) drainX() []Event {
 			// 无 IME 或非 x11Ime 测试桩，走本地
 			stateForDecode := uint32(readU32(buf[:], xevKeyStateOff))
 			if ev, ok := h.decodeKey(t, buf[:], stateForDecode); ok {
+				ev.Repeat = repeat
 				out = append(out, ev)
 			}
 		case xClientMessage:
 			data0 := readU64(buf[:], xevClientData0Off)
 			switch {
 			case st.wmDelete != 0 && uintptr(data0) == st.wmDelete:
-				out = append(out, Event{Type: EventClose})
+				out = append(out, Event{Type: EventCloseRequested})
 			case st.atSyncReq != 0 && uintptr(data0) == st.atSyncReq:
 				// _NET_WM_SYNC_REQUEST (EWMH): l[1]=new width, l[2]=new
 				// height, l[3]=serial low 32 | flags high 32 (mode 0:
@@ -1199,7 +1359,24 @@ func (h *x11Host) drainX() []Event {
 				c.handleSelectionNotify(buf[:])
 			}
 		case xPropertyNotify:
-			// INCR incremental chunks are polled in readProperty; no app event needed
+			// INCR incremental chunks are polled in readProperty; no app event needed.
+			// S6-P0 state readback: WM-driven _NET_WM_STATE/WM_STATE changes
+			// reconcile the optimistic flags and surface real transitions.
+			// S6-P0 scale: RESOURCE_MANAGER writes on the root (Xft.dpi —
+			// Settings scale flips change no pixels) re-derive the scale.
+			if atom := uintptr(readU64(buf[:], xevAtomOff)); atom != 0 {
+				switch {
+				case atom == st.atNetState || atom == st.atWMState:
+					if ev, ok := h.reconcileWindowState(); ok {
+						out = append(out, ev)
+					}
+				case st.atResManager != 0 && atom == st.atResManager &&
+					st.root != 0 && uintptr(readU64(buf[:], xevWindowOff)) == st.root:
+					if ev, ok := h.reconcileScale(); ok {
+						out = append(out, ev)
+					}
+				}
+			}
 		}
 	}
 	return out
@@ -1221,6 +1398,18 @@ func (h *x11Host) decodePointer(t int, buf []byte) (Event, bool) {
 				ev.ScrollY = -1
 			} else {
 				ev.ScrollY = 1
+			}
+			return ev, true
+		}
+		// S6-P0 horizontal tilt at the source (mirrors 4/5; press edge only
+		// so one tilt ticks once — the release stays an ordinary Up).
+		// fromplatform keeps a fallback for backends reporting 6/7 as buttons.
+		if t == xButtonPress && (btn == 6 || btn == 7) {
+			ev.Pointer = PointerScroll
+			if btn == 6 {
+				ev.ScrollX = -1
+			} else {
+				ev.ScrollX = 1
 			}
 			return ev, true
 		}
@@ -1303,6 +1492,294 @@ func xKeysymForState(st *x11State, keycode uint, state uint32) uintptr {
 		return ks1
 	}
 	return ks0
+}
+
+// checkAutoRepeat folds XKB auto-repeat pairs (a release immediately followed
+// by a press sharing keycode and timestamp) into a single Repeat press: the
+// release drops (drop=true), the press carries repeat=true. Plain keys pass
+// through untouched; without a peek func every key is plain.
+func (h *x11Host) checkAutoRepeat(t int, buf []byte) (repeat, drop bool) {
+	st := h.st
+	if st == nil {
+		return false, false
+	}
+	keycode := uint32(readU32(buf, xevKeycodeOff))
+	keyTime := uint32(readU64(buf, xevKeyTimeOff) & 0xffffffff)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if t == xKeyRelease {
+		if st.repeatArmed = h.peekKeyPress(keycode, keyTime); st.repeatArmed {
+			st.repeatKeycode, st.repeatTime = keycode, keyTime
+			return false, true
+		}
+		return false, false
+	}
+	repeat = st.repeatArmed && st.repeatKeycode == keycode && st.repeatTime == keyTime
+	st.repeatArmed = false
+	return repeat, false
+}
+
+// peekKeyPress reports whether the next queued event is a KeyPress with the
+// same keycode and timestamp (an XKB auto-repeat pair). It takes no locks:
+// queue funcs are wired once at Create; callers hold st.mu.
+func (h *x11Host) peekKeyPress(keycode uint32, keyTime uint32) bool {
+	st := h.st
+	if st == nil || st.peekEvent == nil || st.pending == nil || st.pending() == 0 {
+		return false
+	}
+	var pbuf [256]byte
+	st.peekEvent(&pbuf[0])
+	if int(readI32(pbuf[:], xevTypeOff)) != xKeyPress {
+		return false
+	}
+	return uint32(readU32(pbuf[:], xevKeycodeOff)) == keycode &&
+		uint32(readU64(pbuf[:], xevKeyTimeOff)&0xffffffff) == keyTime
+}
+
+// reconcileWindowState re-reads _NET_WM_STATE/WM_STATE after a PropertyNotify
+// and emits EventStateChanged when the derived triple moved. No change (or an
+// unreadable property) stays quiet so title renames and hint updates cost
+// nothing.
+func (h *x11Host) reconcileWindowState() (Event, bool) {
+	st := h.st
+	if st == nil {
+		return Event{}, false
+	}
+	min, max, full, ok := x11ReadWindowStates(st)
+	if !ok {
+		return Event{}, false
+	}
+	st.mu.Lock()
+	changed := min != st.minimized || max != st.maximized || full != st.fullscreen
+	st.minimized, st.maximized, st.fullscreen = min, max, full
+	st.mu.Unlock()
+	if !changed {
+		return Event{}, false
+	}
+	return Event{Type: EventStateChanged, Minimized: min, Maximized: max, Fullscreen: full}, true
+}
+
+// reconcileScale re-reads the desktop scale (Xft.dpi) and emits EventScale
+// when the derived value moved. Unchanged — or unreadable, which falls back
+// to the running value's neighborhood of 1 — stays quiet, so unrelated root
+// property churn and no-op RandR notices cost nothing.
+func (h *x11Host) reconcileScale() (Event, bool) {
+	st := h.st
+	if st == nil {
+		return Event{}, false
+	}
+	s := x11ScaleSource(st)
+	st.mu.Lock()
+	changed := s != st.scale
+	if changed {
+		st.scale = s
+	}
+	st.mu.Unlock()
+	if !changed {
+		return Event{}, false
+	}
+	return Event{Type: EventScale, Scale: s}, true
+}
+
+// x11ReadWindowStates reads back _NET_WM_STATE (maximized/fullscreen atoms)
+// and WM_STATE (Iconic → minimized) so user-driven WM button clicks reconcile
+// the optimistic controller flags. Best-effort: any failure reports !ok and
+// the caller keeps its flags.
+func x11ReadWindowStates(st *x11State) (minimized, maximized, fullscreen bool, ok bool) {
+	if st == nil || st.display == 0 || st.window == 0 {
+		return false, false, false, false
+	}
+	lib, err := x11OpenLib()
+	if err != nil {
+		return false, false, false, false
+	}
+	var (
+		xGetWindowProperty func(dpy, w, prop uintptr, longOffset, longLength int64, del int, reqType uintptr, actualType *uintptr, actualFormat *int, nitems, bytesAfter *uint64, propReturn **byte) int
+		xFree              func(ptr unsafe.Pointer) int
+	)
+	purego.RegisterLibFunc(&xGetWindowProperty, lib.lib, "XGetWindowProperty")
+	purego.RegisterLibFunc(&xFree, lib.lib, "XFree")
+	if xGetWindowProperty == nil || xFree == nil {
+		return false, false, false, false
+	}
+	readAtoms := func(prop uintptr) []uint64 {
+		var actualType uintptr
+		var actualFormat int
+		var nitems, bytesAfter uint64
+		var data *byte
+		if xGetWindowProperty(st.display, st.window, prop, 0, 64, 0, 0, &actualType, &actualFormat, &nitems, &bytesAfter, &data) != 0 {
+			return nil
+		}
+		if data == nil {
+			return nil
+		}
+		defer xFree(unsafe.Pointer(data))
+		if actualFormat != 32 || nitems == 0 {
+			return nil
+		}
+		// format=32 arrives as long[] (8 bytes/elem on LP64); only the low
+		// 32 bits carry the atom (same layout note as the sync counter).
+		atoms := make([]uint64, 0, nitems)
+		base := uintptr(unsafe.Pointer(data))
+		for i := uint64(0); i < nitems; i++ {
+			atoms = append(atoms, uint64(*(*uint64)(unsafe.Pointer(base + uintptr(i*8)))))
+		}
+		return atoms
+	}
+	has := func(atoms []uint64, want uintptr) bool {
+		for _, a := range atoms {
+			if uint32(a) == uint32(want) {
+				return true
+			}
+		}
+		return false
+	}
+	if st.atNetState != 0 {
+		if atoms := readAtoms(st.atNetState); atoms != nil {
+			maximized = has(atoms, st.atMaxV) && has(atoms, st.atMaxH)
+			fullscreen = has(atoms, st.atFull)
+		}
+	}
+	if st.atWMState != 0 {
+		// WM_STATE is CARDINAL[2]: 0 Withdrawn, 1 Normal, 3 Iconic.
+		if atoms := readAtoms(st.atWMState); len(atoms) > 0 {
+			minimized = uint32(atoms[0]) == 3
+		}
+	}
+	return minimized, maximized, fullscreen, true
+}
+
+// --- XInput2 touch (S6-P0 backend touch产出) ---
+//
+// Probe (XI 2.2+) + select at Create; GenericEvent cookies decode into
+// EventTouch. Everything is gated: no libXi / old server / no touch device
+// → xiTouch stays false and the pump never sees touch. libXi selection on a
+// window without touch devices is harmless (the server simply never sends).
+
+var (
+	xiOnce sync.Once
+	xiLib  uintptr
+	xiOK   bool
+	xXIQueryExtension func(dpy uintptr, name *byte, major, firstEvent, firstError *int32) int
+	xXIQueryVersion   func(dpy uintptr, major, minor *int32) int
+	xXISelectEvents   func(dpy, win uintptr, masks unsafe.Pointer, nmasks int) int
+	xXIGetEventData   func(dpy uintptr, cookie unsafe.Pointer) int
+	xXIFreeEventData  func(dpy uintptr, cookie unsafe.Pointer)
+)
+
+func x11ResolveXI() bool {
+	xiOnce.Do(func() {
+		lib, err := purego.Dlopen("libXi.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		if err != nil {
+			lib, err = purego.Dlopen("libXi.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		}
+		if err != nil {
+			return
+		}
+		reg := func(fptr any, name string) bool {
+			if _, err := purego.Dlsym(lib, name); err != nil {
+				return false
+			}
+			purego.RegisterLibFunc(fptr, lib, name)
+			return true
+		}
+		xiOK = reg(&xXIQueryExtension, "XQueryExtension") &&
+			reg(&xXIQueryVersion, "XIQueryVersion") &&
+			reg(&xXISelectEvents, "XISelectEvents") &&
+			reg(&xXIGetEventData, "XGetEventData") &&
+			reg(&xXIFreeEventData, "XFreeEventData")
+		if xiOK {
+			xiLib = lib
+		}
+	})
+	return xiOK
+}
+
+// xiEventMask selects touch Begin/Update/End on all master devices.
+type xiEventMask struct {
+	deviceid int32
+	maskLen  int32
+	mask     *byte
+}
+
+// x11ProbeTouch enables XI2 touch on win. Returns the XI extension major
+// opcode (0 = unavailable). Called once at Create; safe on any server.
+func x11ProbeTouch(dpy, win uintptr) int32 {
+	if dpy == 0 || win == 0 || !x11ResolveXI() {
+		return 0
+	}
+	name := append([]byte("XInputExtension"), 0)
+	var major, firstEvent, firstError int32
+	if xXIQueryExtension(dpy, &name[0], &major, &firstEvent, &firstError) == 0 {
+		return 0
+	}
+	var vmajor, vminor int32 = 2, 2
+	if xXIQueryVersion(dpy, &vmajor, &vminor) != 0 {
+		return 0
+	}
+	if vmajor < 2 || (vmajor == 2 && vminor < 2) {
+		return 0
+	}
+	// evtypes 18/19/20 live in mask byte 2, bits 2/3/4.
+	mask := [3]byte{0, 0, (1 << 2) | (1 << 3) | (1 << 4)}
+	sel := xiEventMask{deviceid: xiAllMaster, maskLen: int32(len(mask)), mask: &mask[0]}
+	if xXISelectEvents(dpy, win, unsafe.Pointer(&sel), 1) != 0 {
+		return 0
+	}
+	return major
+}
+
+// parseXITouch decodes an XIDeviceEvent (post-XGetEventData) into EventTouch.
+// detail is the server touch ID (offset +1 keeps the ≥1 slot invariant);
+// event_x/y are window-relative logical px (X11 scale is 1 here).
+func parseXITouch(data []byte, evtype int) (Event, bool) {
+	var phase PointerKind
+	switch evtype {
+	case xiTouchBegin:
+		phase = PointerDown
+	case xiTouchUpdate:
+		phase = PointerMove
+	case xiTouchEnd:
+		phase = PointerUp
+	default:
+		return Event{}, false
+	}
+	if len(data) < xiEvYOff+8 {
+		return Event{}, false
+	}
+	detail := int32(readU32(data, xiEvDetailOff))
+	x := math.Float64frombits(readU64(data, xiEvXOff))
+	y := math.Float64frombits(readU64(data, xiEvYOff))
+	return Event{Type: EventTouch, Pointer: phase, TouchID: int(detail) + 1, X: x, Y: y}, true
+}
+
+// decodeXITouch handles one GenericEvent buffer: XI extension + touch evtype
+// → GetEventData → parse. Anything else is ignored (other extensions share
+// type 35).
+func (h *x11Host) decodeXITouch(buf []byte) (Event, bool) {
+	st := h.st
+	if st == nil || !st.xiTouch || st.xiMajor == 0 || len(buf) < 56 {
+		return Event{}, false
+	}
+	if int32(readU32(buf, xiEvExtensionOff)) != st.xiMajor {
+		return Event{}, false
+	}
+	evtype := int(readU32(buf, xiEvTypeOff))
+	if evtype != xiTouchBegin && evtype != xiTouchUpdate && evtype != xiTouchEnd {
+		return Event{}, false
+	}
+	if xXIGetEventData == nil || xXIFreeEventData == nil {
+		return Event{}, false
+	}
+	if xXIGetEventData(st.display, unsafe.Pointer(&buf[0])) == 0 {
+		return Event{}, false
+	}
+	defer xXIFreeEventData(st.display, unsafe.Pointer(&buf[0]))
+	dataPtr := *(*unsafe.Pointer)(unsafe.Pointer(&buf[48]))
+	if dataPtr == nil {
+		return Event{}, false
+	}
+	return parseXITouch(unsafe.Slice((*byte)(dataPtr), xiEvYOff+8), evtype)
 }
 
 func (h *x11Host) decodeKey(t int, buf []byte, state uint32) (Event, bool) {

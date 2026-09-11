@@ -128,6 +128,7 @@ type wlLib struct {
 	ifaceSeat       uintptr
 	ifaceKeyboard   uintptr
 	ifacePointer    uintptr
+	ifaceTouch      uintptr // wl_touch (capabilities-gated; 0 = no touch device)
 	ifaceCallback   uintptr // wl_callback (wl_surface.frame return; frame-presented notice)
 	// CSD (client-side decorations) interfaces.
 	ifaceShm           uintptr
@@ -179,6 +180,7 @@ func loadWayland() (*wlLib, error) {
 		{"wl_seat_interface", &l.ifaceSeat},
 		{"wl_keyboard_interface", &l.ifaceKeyboard},
 		{"wl_pointer_interface", &l.ifacePointer},
+		{"wl_touch_interface", &l.ifaceTouch},
 		{"wl_callback_interface", &l.ifaceCallback},
 		{"wl_shm_interface", &l.ifaceShm},
 		{"wl_shm_pool_interface", &l.ifaceShmPool},
@@ -446,6 +448,9 @@ type wlWin struct {
 	shmName           uint32  // wl_shm global name (0 = absent)
 	subcompName       uint32  // wl_subcompositor global name (0 = absent)
 	ddMgrName         uint32  // wl_data_device_manager global name (0 = absent)
+	// outGlobals captures wl_output globals for scale tracking (bound once
+	// after the registry roundtrip; see bindOutputs).
+	outGlobals []wlOutputGlobal
 	seat              uintptr // bound wl_seat proxy (via seatState)
 	seatState         *wlSeatState
 	// hostRef is set by waylandCreate so seat callbacks can wake the loop.
@@ -514,6 +519,8 @@ type wlWin struct {
 	kbd *wlKeyboardState
 	// pointer (wl_pointer) standard mouse input.
 	ptr *wlPointerState
+	// touch (wl_touch) multi-touch slots, nil without a touch capability.
+	touch *wlTouchState
 	// cursors holds the zwp_cursor_shape_v1 strategy (compositor-rendered
 	// cursor), nil when the manager global is absent — pointer handling then
 	// falls back to the wl_cursor_theme path in wlCSD.
@@ -526,6 +533,12 @@ type wlWin struct {
 	// dds owns clipboard + external DnD (wl_data_device), nil when the
 	// compositor lacks wl_data_device_manager (Clipboard() returns nil).
 	dds *wlDataDeviceState
+	// outputs tracks bound wl_output globals for scale; enteredOutputs the
+	// subset the surface is on. Nil until bindOutputs runs (no outputs →
+	// scale stays 1).
+	outputs        map[uint32]*wlOutputState
+	outputsByProxy map[uintptr]uint32
+	enteredOutputs map[uint32]bool
 	// imeMu guards the pending IME event queue drained by poll.
 	imeMu     sync.Mutex
 	imeEvents []Event
@@ -540,6 +553,9 @@ type wlWin struct {
 	dndEvents []Event
 
 	regListener  [2]uintptr
+	// surfListener carries wl_surface enter/leave for output-scale tracking
+	// (created once, re-installed on every surface-stack re-create).
+	surfListener [2]uintptr
 	wmListener   [1]uintptr
 	xdgListener  [1]uintptr
 	topListener  [2]uintptr
@@ -672,6 +688,10 @@ func waylandCreate(opts Options) (*Window, error) {
 	runtime.KeepAlive(win)
 	win.applySurfaceConfig()
 
+	// P0 scale上报: bind captured wl_output globals once (no outputs or old
+	// compositor → scale stays 1, silent).
+	win.bindOutputs()
+
 	// Standard Wayland input bootstrap: bind wl_seat and WAIT for the
 	// capabilities event before requesting keyboard/pointer. ALL seat-derived
 	// objects (keyboard, pointer, text-input, data-device) are created only
@@ -680,7 +700,7 @@ func waylandCreate(opts Options) (*Window, error) {
 	//
 	// Input is ON by default (standard Wayland client behavior; matches GTK/
 	// Chromium). To opt out of one or all bindings set the flag to "0":
-	//   GPUI_WL_KEYBOARD=0  GPUI_WL_POINTER=0  GPUI_WL_TEXTINPUT=0
+	//   GPUI_WL_KEYBOARD=0  GPUI_WL_POINTER=0  GPUI_WL_TEXTINPUT=0  GPUI_WL_TOUCH=0
 	// or disable everything with GPUI_WL_NO_INPUT=1.
 	seatEnabled := os.Getenv("GPUI_WL_NO_INPUT") != "1"
 	if win.seatName != 0 && seatEnabled {
@@ -689,6 +709,7 @@ func waylandCreate(opts Options) (*Window, error) {
 			win.seat = win.seatState.seat
 			win.seatState.pendingKeys = os.Getenv("GPUI_WL_KEYBOARD") != "0"
 			win.seatState.pendingPtrs = os.Getenv("GPUI_WL_POINTER") != "0"
+			win.seatState.pendingTouch = os.Getenv("GPUI_WL_TOUCH") != "0"
 			win.seatState.pendingTI = os.Getenv("GPUI_WL_TEXTINPUT") != "0"
 			// The data device (clipboard + DnD) needs the bound seat but no
 			// capability bit; it is created together with the other devices
@@ -712,7 +733,7 @@ func waylandCreate(opts Options) (*Window, error) {
 		win.hideNative()
 	}
 
-	host := &wlHost{win: win}
+	host := &wlHost{win: win, scale: 1}
 	win.hostRef = host
 	ctl := &waylandController{h: host}
 	return newWindow(host, PlatformWayland, imeFor(host), clipFor(host), ctl, host.destroy), nil
@@ -745,6 +766,8 @@ func (w *wlWin) createSurfaceStack(async bool) error {
 	if w.surface == 0 {
 		return fmt.Errorf("wayland: create wl_surface failed")
 	}
+	// Output membership (hence scale) tracks the surface across re-creates.
+	w.installSurfaceListener()
 	{
 		args := []wlArg{argNewID(), argO(w.surface)}
 		w.xdgSurf = lib.proxyMarshalArrayCtor(w.wmBase, xdgWmBaseGetXdgSurface, &args[0],
@@ -1038,6 +1061,18 @@ func (w *wlWin) destroyNative() {
 		w.ptr.destroy()
 		w.ptr = nil
 	}
+	if w.touch != nil {
+		w.touch.destroy()
+		w.touch = nil
+	}
+	for _, st := range w.outputs {
+		if st != nil && st.proxy != 0 && lib != nil {
+			lib.proxyDestroy(st.proxy)
+		}
+	}
+	w.outputs = nil
+	w.outputsByProxy = nil
+	w.enteredOutputs = nil
 	if w.seatState != nil {
 		w.seatState.destroy()
 		w.seatState = nil
@@ -1104,6 +1139,11 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 		w.subcompName = n
 	case "wl_data_device_manager":
 		w.ddMgrName = n
+	case "wl_output":
+		// Scale tracking binds these after the roundtrip (cap: 8 outputs).
+		if len(w.outGlobals) < 8 {
+			w.outGlobals = append(w.outGlobals, wlOutputGlobal{name: n, version: v})
+		}
 	}
 	_ = registry
 }
@@ -1198,6 +1238,40 @@ func (h *wlHost) RequestFrameNotify() {
 // Free-running software pacing with a display period learned from DRM
 // vblank stamps measured 5× lower inter-frame jitter, so the scheduler uses
 // the VSyncWaiter path here (same as X11).
+// minimizedNow folds the activated-restore rule into the tracked minimized
+// flag without writing it (the write belongs to setStateTriple).
+func (w *wlWin) minimizedNow(activated bool) bool {
+	if w == nil {
+		return false
+	}
+	w.ctlMu.Lock()
+	defer w.ctlMu.Unlock()
+	if activated {
+		return false
+	}
+	return w.minimized
+}
+
+// setStateTriple records the minimized/maximized/fullscreen triple and queues
+// EventStateChanged when it moved since the last report — the Wayland half of
+// the X11 reconcileWindowState contract (§4.4 KindStateChanged: configure is
+// the true value, optimistic request flags reconcile against it). Every
+// triple mutation (configure + Minimize/Maximize/Unmaximize/SetFullscreen)
+// routes through here, so each transition surfaces exactly once; repeats and
+// denied requests that change nothing stay quiet.
+func (w *wlWin) setStateTriple(min, max, full bool) {
+	if w == nil {
+		return
+	}
+	w.ctlMu.Lock()
+	moved := min != w.minimized || max != w.maximized || full != w.fullscreen
+	w.minimized, w.maximized, w.fullscreen = min, max, full
+	w.ctlMu.Unlock()
+	if moved {
+		w.focusEvents = append(w.focusEvents, Event{Type: EventStateChanged, Minimized: min, Maximized: max, Fullscreen: full})
+	}
+}
+
 func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	w := winFrom(data)
 	if w == nil {
@@ -1217,13 +1291,12 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	// (configure is the true value; controller requests are optimistic until
 	// the compositor confirms). Activated ⇒ the window was just restored from
 	// minimize (protocol has no minimized state → optimistic tracking, §3.2).
+	// The triple write goes through setStateTriple so every move — compositor
+	// or request driven — surfaces exactly once as EventStateChanged.
+	newMin := w.minimizedNow(states.activated)
+	w.setStateTriple(newMin, states.maximized, states.fullscreen)
 	w.ctlMu.Lock()
-	w.maximized = states.maximized
-	w.fullscreen = states.fullscreen
 	w.tiled = states.tiled
-	if states.activated {
-		w.minimized = false
-	}
 	w.ctlMu.Unlock()
 	// The resizing state flips only at drag start/end — not on every step —
 	// so it is tracked outside the width/height dedup below.

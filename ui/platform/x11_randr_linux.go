@@ -19,7 +19,17 @@ type xrandrLib struct {
 	freeMonitors  func(monitors uintptr) int
 	getResources  func(dpy uintptr, win uintptr) uintptr
 	freeResources func(res uintptr) int
+	// S6-P0 scale notices: extension event base + root selection.
+	queryExtension func(dpy uintptr, eventBase, errorBase *int32) int
+	selectInput    func(dpy, win uintptr, mask int) int
 }
+
+// RandR screen-change notice (Xrandr.h): the event number is an offset from
+// the extension event base; RRScreenChangeNotifyMask selects it on the root.
+const (
+	rrScreenChangeNotify     = 0
+	rrScreenChangeNotifyMask = 1
+)
 
 var (
 	xrandrOnce sync.Once
@@ -44,6 +54,14 @@ func xrandrLoad() *xrandrLib {
 			if _, err := purego.Dlsym(lib, "XRRGetScreenResources"); err == nil {
 				purego.RegisterLibFunc(&x.getResources, lib, "XRRGetScreenResources")
 				purego.RegisterLibFunc(&x.freeResources, lib, "XRRFreeScreenResources")
+				hasAny = true
+			}
+			if _, err := purego.Dlsym(lib, "XRRQueryExtension"); err == nil {
+				purego.RegisterLibFunc(&x.queryExtension, lib, "XRRQueryExtension")
+				hasAny = true
+			}
+			if _, err := purego.Dlsym(lib, "XRRSelectInput"); err == nil {
+				purego.RegisterLibFunc(&x.selectInput, lib, "XRRSelectInput")
 				hasAny = true
 			}
 			if hasAny {
@@ -85,6 +103,95 @@ func x11RandRMonitorForPoint(dpy, root uintptr, x, y int) (mx, my, mw, mh int, o
 		}
 	}
 	return 0, 0, 0, 0, false
+}
+
+// x11ScaleSource reports the logical scale for st (Xft.dpi / 96, unknown →
+// 1). A package var so synthetic-event tests can pin a fixed scale without
+// touching the live root resources; production never swaps it.
+var x11ScaleSource = x11LiveScale
+
+// x11LiveScale reads the scale from the X server's RESOURCE_MANAGER property
+// (Xft.dpi, the value GNOME writes when the user flips the display scale —
+// that flip changes no pixels, so RandR alone would miss it). Physical
+// monitor DPI is deliberately NOT a source: real panels report ~166 DPI,
+// which would wrongly rescale a 96-dpi desktop.
+func x11LiveScale(st *x11State) float64 {
+	if st == nil || st.lib == nil || st.lib.resourceManagerString == nil || st.display == 0 {
+		return 1
+	}
+	return x11ScaleFromDPI(x11ParseDPI(x11CString(st.lib.resourceManagerString(st.display))))
+}
+
+// x11ScaleFromDPI maps an Xft.dpi value to the logical scale (96 = 1).
+// Unknown (<=0) and absurd readings fall back to 1 rather than disturbing
+// layout with a garbage factor; sub-unity desktops are out of scope.
+func x11ScaleFromDPI(dpi float64) float64 {
+	if dpi < 96 || dpi > 96*4 {
+		return 1
+	}
+	return dpi / 96
+}
+
+// x11ParseDPI extracts the Xft.dpi value from an X RESOURCE_MANAGER string
+// ("Xft.dpi:<ws>192" lines). Returns 0 when absent or unparseable.
+func x11ParseDPI(res string) float64 {
+	const key = "Xft.dpi:"
+	for i := 0; i+len(key) <= len(res); i++ {
+		if res[i:i+len(key)] != key {
+			continue
+		}
+		if i > 0 && res[i-1] != '\n' {
+			continue // not at a line start
+		}
+		j := i + len(key)
+		for j < len(res) && (res[j] == ' ' || res[j] == '\t') {
+			j++
+		}
+		if v, ok := x11ParseDec(res[j:]); ok {
+			return v
+		}
+	}
+	return 0
+}
+
+// x11ParseDec parses a leading decimal (digits[.digits]) from s.
+func x11ParseDec(s string) (float64, bool) {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return 0, false
+	}
+	v := 0.0
+	for k := 0; k < i; k++ {
+		v = v*10 + float64(s[k]-'0')
+	}
+	if i < len(s) && s[i] == '.' {
+		j := i + 1
+		for j < len(s) && s[j] >= '0' && s[j] <= '9' {
+			j++
+		}
+		frac, div := 0.0, 1.0
+		for k := i + 1; k < j; k++ {
+			frac = frac*10 + float64(s[k]-'0')
+			div *= 10
+		}
+		return v + frac/div, true
+	}
+	return v, true
+}
+
+// x11CString copies a NUL-terminated C string (nil → "").
+func x11CString(p *byte) string {
+	if p == nil {
+		return ""
+	}
+	var b []byte
+	for q := p; *q != 0; q = (*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(q)) + 1)) {
+		b = append(b, *q)
+	}
+	return string(b)
 }
 
 // x11RandRAdjust 在 translate 之后做多显修正：目前为 no-op 钩子，

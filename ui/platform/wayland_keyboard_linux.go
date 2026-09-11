@@ -423,13 +423,17 @@ func (st *wlKeyboardState) repeatIntervalLocked() time.Duration {
 
 // fireRepeat pushes one synthesized press and reschedules while the key is
 // still held. Runs on the timer goroutine; pushKey is mutex-guarded.
+// Synthesized presses carry Repeat (S6-P0 "Repeat 必带"); the initial press
+// path shares keysymEvent but leaves it clear.
 func (st *wlKeyboardState) fireRepeat() {
 	st.repeatMu.Lock()
 	defer st.repeatMu.Unlock()
 	if st.heldKC == 0 || st.win == nil {
 		return // released / focused out since armed
 	}
-	st.win.pushKey(st.keysymEvent(st.heldKS, true))
+	ev := st.keysymEvent(st.heldKS, true)
+	ev.Repeat = true
+	st.win.pushKey(ev)
 	st.repTimer = time.AfterFunc(st.repeatIntervalLocked(), st.fireRepeat)
 }
 

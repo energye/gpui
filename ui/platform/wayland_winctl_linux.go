@@ -248,8 +248,9 @@ func (c *waylandController) Minimize() {
 		return
 	}
 	w.ctlMu.Lock()
-	w.minimized = true // optimistic until activated reverses it
+	mx, fl := w.maximized, w.fullscreen
 	w.ctlMu.Unlock()
+	w.setStateTriple(true, mx, fl) // optimistic until activated reverses it
 	w.topNoArg(xdgToplevelSetMinimized)
 }
 
@@ -271,8 +272,9 @@ func (c *waylandController) Maximize() {
 		return
 	}
 	w.ctlMu.Lock()
-	w.maximized = true // optimistic; configure reconciles
+	mn, fl := w.minimized, w.fullscreen
 	w.ctlMu.Unlock()
+	w.setStateTriple(mn, true, fl) // optimistic; configure reconciles
 	w.topNoArg(xdgToplevelSetMaximized)
 }
 
@@ -282,8 +284,9 @@ func (c *waylandController) Unmaximize() {
 		return
 	}
 	w.ctlMu.Lock()
-	w.maximized = false
+	mn, fl := w.minimized, w.fullscreen
 	w.ctlMu.Unlock()
+	w.setStateTriple(mn, false, fl)
 	w.topNoArg(xdgToplevelUnsetMaxim)
 }
 
@@ -303,8 +306,9 @@ func (c *waylandController) SetFullscreen(fs bool) {
 		return
 	}
 	w.ctlMu.Lock()
-	w.fullscreen = fs
+	mn, mx := w.minimized, w.maximized
 	w.ctlMu.Unlock()
+	w.setStateTriple(mn, mx, fs)
 	if fs {
 		// NULL output = the compositor picks the current output (§2.4).
 		w.top1o(xdgToplevelSetFullscreen, 0)

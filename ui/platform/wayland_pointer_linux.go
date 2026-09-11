@@ -103,6 +103,9 @@ type wlPointerState struct {
 	surface uintptr
 	// lastX/lastY: last surface-local pointer position (for CSD hit-testing).
 	lastX, lastY float64
+	// lastAppX/lastAppY: last content-space position (stamped onto Leave —
+	// wl_pointer.leave carries no coordinates of its own).
+	lastAppX, lastAppY float64
 	// enterSerial: serial of the last pointer.enter (needed for set_cursor).
 	enterSerial uintptr
 
@@ -182,17 +185,10 @@ func wlFixedToDouble(f uintptr) float64 {
 // isOurs reports whether the surface belongs to this window (content or CSD
 // chrome) — window-level pointer tracking treats them as one surface.
 func (st *wlPointerState) isOurs(surface uintptr) bool {
-	if st == nil || st.win == nil || surface == 0 {
+	if st == nil {
 		return false
 	}
-	if surface == st.win.surface {
-		return true
-	}
-	if c := st.win.csd; c != nil {
-		return surface == c.topSurface || surface == c.left.surf ||
-			surface == c.right.surf || surface == c.bottom.surf
-	}
-	return false
+	return st.win.ownsSurface(surface)
 }
 
 // isChrome reports whether the surface is a CSD decoration subsurface
@@ -234,6 +230,9 @@ func (st *wlPointerState) applyCursor(serial uintptr, hit csdHit) {
 
 // leaveWindow pushes the window-level PointerLeave and clears chrome state
 // (hover highlight + cursor).
+//go:noinline // state here is mutated through uintptr self-pointers, which
+// defeat the optimizer's alias tracking: inlining into a cached-view caller
+// risks stale field reads, so every invocation reloads from memory.
 func (st *wlPointerState) leaveWindow(serial uintptr) {
 	if st == nil || st.win == nil {
 		return
@@ -243,7 +242,7 @@ func (st *wlPointerState) leaveWindow(serial uintptr) {
 		c.onHover(0, 0, 0)
 		c.setCursor(serial, csdHit{})
 	}
-	st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerLeave})
+	st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerLeave, X: st.lastAppX, Y: st.lastAppY})
 }
 
 // resolveDeferredLeave flushes an unconsumed leave of one of our surfaces as
@@ -251,6 +250,7 @@ func (st *wlPointerState) leaveWindow(serial uintptr) {
 // internal content↔chrome crossing consumes lastLeaveOurs via its paired
 // enter; anything left over means the pointer left the window (possibly with
 // no enter at all — pointer over no surface).
+//go:noinline // same uintptr-aliasing reason as leaveWindow.
 func (st *wlPointerState) resolveDeferredLeave() {
 	if st == nil || !st.lastLeaveOurs {
 		return
@@ -287,6 +287,7 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 		}
 		st.applyCursor(serial, hit)
 		ax, ay := st.appXY(surface, x, y)
+		st.lastAppX, st.lastAppY = ax, ay
 		st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerMove, X: ax, Y: ay})
 		return
 	}
@@ -311,6 +312,7 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 	}
 	st.applyCursor(serial, hit)
 	ax, ay := st.appXY(surface, x, y)
+	st.lastAppX, st.lastAppY = ax, ay
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
 		Pointer: PointerEnter,
@@ -319,6 +321,7 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 	})
 }
 
+//go:noinline // direct-Go-callers must observe callback writes (see leaveWindow).
 func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
 	st := ptrFrom(data)
 	if st == nil || st.win == nil {
@@ -360,6 +363,7 @@ func wlPtrMotionCB(data, ptr, time, sx, sy uintptr) {
 		c.setCursor(st.enterSerial, hit)
 	}
 	ax, ay := st.appXY(st.surface, st.lastX, st.lastY)
+	st.lastAppX, st.lastAppY = ax, ay
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
 		Pointer: PointerMove,

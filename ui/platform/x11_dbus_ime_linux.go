@@ -33,6 +33,9 @@ type x11Ime struct {
 	hasRect    bool
 	purpose    ContentPurpose
 	closed     bool
+	// keyTail chains in-flight async key completions so pushPendingKey order
+	// matches arrival order (see chainNext). Guarded by mu.
+	keyTail    chan struct{}
 	composing  bool
 	lastText   string
 	lastCursor int
@@ -1517,6 +1520,24 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 	return handled
 }
 
+// chainNext links this key behind the previous in-flight async key so
+// completions (and hence pushPendingKey order) match arrival order.
+// Only paths that actually spawn the completion goroutine may link —
+// synchronous pass-throughs never close a link and would stall successors.
+// Callers hold no locks; the returned mine must be closed exactly once when
+// this key's completion finishes (all paths, including drops).
+func (im *x11Ime) chainNext() (prev, mine chan struct{}) {
+	mine = make(chan struct{})
+	if im == nil {
+		return nil, mine
+	}
+	im.mu.Lock()
+	prev = im.keyTail
+	im.keyTail = mine
+	im.mu.Unlock()
+	return prev, mine
+}
+
 // ProcessKeyEventAsync 挂起队列等真回话：不靠固定闹钟，回调决定塞不塞
 // 与同步版共用同一套 handled/modifier/nav 规则，但不阻塞 drainX。
 func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress bool, xTime uint32, ev Event) {
@@ -1552,7 +1573,19 @@ func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress boo
 		engImpl = x11EngineForName(eng)
 	}
 	// 异步发 D-Bus，不卡事件泵；回包在 goroutine 回调决定塞不塞
+	prev, mine := im.chainNext()
 	go func() {
+		defer close(mine)
+		if prev != nil {
+			// Preserve completion order across back-to-back keys: two D-Bus
+			// round trips can otherwise invert (a release surfacing after
+			// its press). Bounded wait — a wedged daemon must not wedge
+			// typing; past the budget we degrade to today's behavior.
+			select {
+			case <-prev:
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
 		var handled bool
 		var err error
 		if engImpl != nil {
