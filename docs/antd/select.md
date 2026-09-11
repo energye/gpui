@@ -230,6 +230,29 @@
 - **类型**：string
 - **默认值**：-
 
+#### `optionRender`
+
+- **说明**：自定义渲染下拉选项内容 `(option, info{index}) => Node`
+- **类型**：function
+- **默认值**：-
+- **版本**：5.11.0
+- **绘制影响**：替换下拉行默认 `label` 文本绘制；行高/选中态/禁用态 chrome 不变，自定义节点需自保可读性（超长省略 P1）
+
+#### `tagRender`
+
+- **说明**：自定义 `multiple`/`tags` 已选项标签内容，仅多选时生效
+- **类型**：function(props) => Node
+- **默认值**：-
+- **绘制影响**：替换选择框内 tag 默认绘制（文本+关闭图标）；关闭点击需透出 `onClose`，否则无法删除
+
+#### `labelRender`
+
+- **说明**：自定义当前选中 label 内容
+- **类型**：function(props) => Node
+- **默认值**：-
+- **版本**：5.15.0
+- **绘制影响**：替换选择框内单选回显绘制；不影响下拉行与占位文案
+
 ### 1.4 交互视觉状态（实现检查表）
 
 | 状态 | 要求 |
@@ -760,6 +783,8 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 
 #### P0（本阶段必须 1:1，否则不算完成）
 
+> 本版 P0 以单选+搜索为必保主路径（`mode=single` + `showSearch` + 过滤/排序/自定义选项），另收 `multiple` 基础、`tags` 创建、分组、前后缀常用件（共 11/27 例）；其余分词/联动/大数据等见 P1。7 个 debug 示例（filled-debug、placement-debug、debug、render-panel、option-label-center、debug-flip-shift、component-token）不计入 P0（口径与其它文件一致）。
+
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | `value` | 必须 |
@@ -783,7 +808,7 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | `optionRender` | 必须（自定义下拉选项内容） |
 | `notFoundContent` | 必须（空 options / 无匹配） |
 | `onSearch` / `onClear` / `onSelect` | 必须（搜索/清除/选中回调） |
-| 官方主路径示例 | 基本使用、带搜索框、自定义搜索、多字段搜索、多选、三种大小、自定义下拉选项、带排序的搜索 |
+| 官方主路径示例 | 基本使用、带搜索框、自定义搜索、多字段搜索、多选、三种大小、自定义下拉选项、带排序的搜索、标签（`tags.tsx`，输入+Enter 创建）、分组（`optgroup.tsx`）、前后缀（`suffix.tsx`） |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
@@ -796,7 +821,7 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 标签完整 demo、分组 optgroup、联动、label-in-value 完整、自动分词、前后缀、扩展菜单、隐藏已选、variant/status 完整 gallery、maxCount、响应式 maxTagCount、大数据 |
+| 其余示例 | 联动、label-in-value 完整、自动分词、前后缀扩展、扩展菜单、隐藏已选、variant/status 完整 gallery、maxCount、响应式 maxTagCount、大数据（虚拟滚动 P1，接口形状 `SetVirtual(bool)` + `SetListHeight`） |
 
 ### 6.9 验收用例表（可测）
 
@@ -826,6 +851,9 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | SEL-19 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | SEL-20 | L1 | 复现官方示例「自定义下拉选项」（`option-render.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | SEL-21 | L1 | 复现官方示例「带排序的搜索」（`search-sort.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| SEL-21b | L1 | 复现官方示例「标签」（`tags.tsx`） | `mode=tags` 输入新项 Enter 创建并选中 |
+| SEL-21c | L1 | 复现官方示例「分组」（`optgroup.tsx`） | 组头不可选，组内选项可选 |
+| SEL-21d | L1 | 复现官方示例「前后缀」（`suffix.tsx`） | `prefix/suffixIcon` 占位绘制，输入区宽度自适应 |
 | SEL-22 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | SEL-23 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | SEL-24 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

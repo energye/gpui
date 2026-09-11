@@ -594,7 +594,7 @@ import { Button } from 'antd';
 | 状态 | default/hover/active/focus/disabled/loading |
 | 度量 | §6.2 表 |
 | a11y | §6.6 |
-| 示例 | 语法糖、尺寸、禁用、loading、图标、图标位置、幽灵、危险、Block、颜色与变体（主路径） |
+| 示例 | 语法糖、尺寸、禁用、loading、图标、图标位置、多个按钮组合（`multiple.tsx` 横向间距排布）、幽灵、危险、Block、颜色与变体（主路径） |
 
 #### P1（可 later，须在 coverage Notes 写明）
 

@@ -183,10 +183,22 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | cellRender | 自定义单元格的内容 | function(current: dayjs, info: { prefixCls: string, originNode: React.ReactElement, today: dayjs, range?: 'start' \| 'end', type: PanelMode, locale?: Locale, subType?: 'hour' \| 'minute' \| 'second' \| 'meridiem' }) => React.ReactNode | - | 5.4.0 | × |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | ~~dateFullCellRender~~ | 自定义渲染日期单元格，返回内容覆盖单元格，>= 5.4.0 请用 `fullCellRender` | function(date: Dayjs): ReactNode | - | < 5.4.0 | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | — | × |
+| ~~dateFullCellRender~~ | 自定义渲染日期单元格，返回内容覆盖单元格，>= 5.4.0 请用 `fullCellRender` | function(date: Dayjs): ReactNode | - | < 5.4.0 | × |
 | fullCellRender | 自定义单元格的内容 | function(current: dayjs, info: { prefixCls: string, originNode: React.ReactElement, today: dayjs, range?: 'start' \| 'end', type: PanelMode, locale?: Locale, subType?: 'hour' \| 'minute' \| 'second' \| 'meridiem' }) => React.ReactNode | - | 5.4.0 | × |
-| defaultValue | 默认展示的日期 | [dayjs](https://day.js.org/) | - | disabledDate | 不可选择的日期，参数为当前 `value`，注意使用时[不要直接修改](https://github.com/ant-design/ant-design/issues/30987) | (currentDate: Dayjs) => boolean | - | fullscreen | 是否全屏显示 | boolean | true | showWeek | 是否显示周数列 | boolean | false | 5.23.0 | × |
-| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | headerRender | 自定义头部内容 | function(object:{value: Dayjs, type: 'year' \| 'month', onChange: f(), onTypeChange: f()}) | - | locale | 国际化配置 | object | [(默认配置)](https://github.com/ant-design/ant-design/blob/master/components/date-picker/locale/example.json) | mode | 初始模式 | `month` \| `year` | `month` | validRange | 设置可以显示的日期 | \[[dayjs](https://day.js.org/), [dayjs](https://day.js.org/)] | - | value | 展示日期 | [dayjs](https://day.js.org/) | - | onChange | 日期变化回调 | function(date: Dayjs) | - | onPanelChange | 日期面板变化回调 | function(date: Dayjs, mode: string) | - | onSelect | 选择日期回调，包含来源信息 | function(date: Dayjs, info: { source: 'year' \| 'month' \| 'date' \| 'customize' }) | - | `info`: 5.6.0 | × |
+| defaultValue | 默认展示的日期 | [dayjs](https://day.js.org/) | - | — | × |
+| disabledDate | 不可选择的日期，参数为当前 `value`，注意使用时[不要直接修改](https://github.com/ant-design/ant-design/issues/30987) | (currentDate: Dayjs) => boolean | - | — | × |
+| fullscreen | 是否全屏显示 | boolean | true | — | × |
+| showWeek | 是否显示周数列 | boolean | false | 5.23.0 | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | — | × |
+| headerRender | 自定义头部内容 | function(object:{value: Dayjs, type: 'year' \| 'month', onChange: f(), onTypeChange: f()}) | - | — | × |
+| locale | 国际化配置 | object | [(默认配置)](https://github.com/ant-design/ant-design/blob/master/components/date-picker/locale/example.json) | — | × |
+| mode | 初始模式 | `month` \| `year` | `month` | — | × |
+| validRange | 设置可以显示的日期 | \[[dayjs](https://day.js.org/), [dayjs](https://day.js.org/)] | - | — | × |
+| value | 展示日期 | [dayjs](https://day.js.org/) | - | — | × |
+| onChange | 日期变化回调 | function(date: Dayjs) | - | — | × |
+| onPanelChange | 日期面板变化回调 | function(date: Dayjs, mode: string) | - | — | × |
+| onSelect | 选择日期回调，包含来源信息 | function(date: Dayjs, info: { source: 'year' \| 'month' \| 'date' \| 'customize' }) | - | `info`: 5.6.0 | × |
 
 ### 导入方式
 
@@ -374,6 +386,16 @@ mount ──► value=defaultValue|today · mode=month · panel=value 年月
 | CAL-S8 | `cellRender` / `fullCellRender` | 附加内容 / 整格替换生效 |
 | CAL-S9 | `headerRender` | 替换默认头；`onChange`/`onTypeChange` 可用 |
 | CAL-S10 | `loading` / 整表 `disabled` | 不触发选择；loading 有指示 |
+
+**日期算法（对齐 `generateCalendar.tsx` + `Header.tsx`）：**
+
+| 项 | 规则 |
+| --- | --- |
+| 周编号 | `showWeek=true` 时日期面板左侧加周数列；周编号按 ISO 周计算（周一起算的年第几周，与 rc-picker 周列一致） |
+| 周起始 | 周头 Su…Sa 的起始日跟随 locale（`dayjs.locale` 的 `weekStart`，如 `zh-cn` 为周一、`en` 为周日）；kit P0 允许固定周一起算并在 Notes 注明，完整 locale 周起始为 P1 |
+| `validRange` × `disabledDate` 组合 | 最终禁选 = 越界 ∪ 回调：`mergedDisabled(date) = (validRange && (date < range[0] \|\| date > range[1])) \|\| disabledDate?.(date)`；越界日与 `disabledDate=true` 的日都不触发 `onSelect`/`onChange`；Header 年/月下拉的可选项同样按 `validRange` 裁剪（年列取 `range[0].year … range[1].year`，月列按当前年裁起止月并在切年时钳制月份） |
+
+**Header 前置依赖：** 默认头部由年 `Select` + 月 `Select` + 模式 `Radio.Group/Button` 组成（`Header.tsx`：`YearSelect`/`MonthSelect` 用 Select，`ModeSwitch` 用 Radio Group），kit 实现 Calendar 默认头前置依赖同库 Select 与 Radio.Button；若两者任一缺失，默认头降级为 `headerRender` 注入或纯文本年月，P0 用例 CAL-07/CAL-15 按降级路径验收并在 Notes 注明。
 
 ### 6.5 视觉 chrome 规则（L2 摘要）
 

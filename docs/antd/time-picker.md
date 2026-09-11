@@ -416,6 +416,7 @@ import { TimePicker } from 'antd';
 > **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/time-picker/`（`index.zh-CN.md` + `style/` + 组件实现）。
+> 共享源码：TimePicker 为 `date-picker/generatePicker` 薄封装（`time-picker/index.tsx` 直接取 `DatePicker.TimePicker/RangePicker`，`picker="time"`），面板逻辑在 `date-picker` + `@rc-component/picker`，时间值为 `dayjs`（`customParseFormat` 插件解析 `format`）。
 
 ### 6.1 对齐级别定义（TimePicker）
 
@@ -490,6 +491,17 @@ import { TimePicker } from 'antd';
 | `Range` / `NewTimeRangePicker` | 起止时间（API；gallery 示例可 P1） | bool | false |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+
+**TimeValue ↔ dayjs / format 双向映射**（kit 存 `TimeValue{Hour 0..23, Minute, Second, Valid}`，边界与 antd `dayjs` 互转）：
+
+| 方向 | 规则 |
+| --- | --- |
+| TimeValue → dayjs | `dayjs().hour(v.Hour).minute(v.Minute).second(v.Second)`；`Valid=false` → `null`（空值） |
+| dayjs → TimeValue | 取 `hour/minute/second`；`null/undefined` → `Valid=false` |
+| TimeValue → 显示串 | `dayjs` 按 `format` 格式化（`FormatValue/DisplayText`）；默认 `HH:mm:ss`，`use12Hours` 默认 `h:mm:ss a` |
+| 显示串 → TimeValue | `dayjs(str, format)`（`customParseFormat`）解析；失败 → 空值，不提交 `onChange` |
+| format ↔ 列 | `format` 含 `H/h` 显示小时列，含 `m` 显示分钟列，含 `s` 显示秒列（如 `HH:mm` 无秒列）；`use12Hours=true` 追加 AM/PM（meridiem）列 |
+| 12 小时 | 内部仍存 24 小时 `Hour`；`h + a` 仅显示层转换（`12 AM=0`，`12 PM=12`） |
 
 ### 6.4 交互状态机（L1）
 
@@ -569,8 +581,8 @@ disabled ──*──► 忽略交互
 | `needConfirm` + OK | 选择确认 |
 | `showNow` | 此刻 |
 | `disabledTime` | 禁项 |
-| `use12Hours` | L1 API（§6.9 TP-08）；gallery 完整页可 P1 |
-| `Range` / `NewTimeRangePicker` | L1 API（§6.9 TP-07）；gallery 完整页可 P1 |
+| `use12Hours` | 行为 P0（TP-08：AM/PM 列 + 默认 `h:mm:ss a`）；对应 gallery 完整视觉页 P1 |
+| `Range` / `NewTimeRangePicker` | 行为 P0（TP-07：起止 + order）；对应 gallery 完整视觉页 P1 |
 | `renderExtraFooter` | 附加内容 |
 | `loading` + Ticker | 后缀 loading 指示（适用） |
 | 官方主路径示例（gallery） | 基本、受控组件、三种大小、选择确认、禁用、选择时分、步长选项、附加内容 |
@@ -587,7 +599,7 @@ disabled ──*──► 忽略交互
 | cellRender / hideDisabledOptions / inputReadOnly / getPopupContainer | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余官方示例页 | 12 小时制完整页、滚动即改变、范围选择器完整页、形态变体完整页、前后缀、status 完整页 |
+| 其余官方示例页 | 滚动即改变、形态变体完整页、前后缀、status 完整页；12 小时制/范围选择器仅完整视觉页 P1（行为仍 P0，见上） |
 
 ### 6.9 验收用例表（可测）
 

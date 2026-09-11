@@ -34,6 +34,8 @@
 
 下列配置会改变绘制结果，kit 应建立样式枚举或 token 映射：
 
+**菜单级（Menu）**
+
 #### `classNames`
 
 - **说明**：用于自定义组件内部各语义化结构的 class，支持对象或函数
@@ -89,6 +91,8 @@
   | --- | --- |
   | `light` | 浅色主题 |
   | `dark` | 深色主题 |
+
+**事项级（ItemType：item / submenu / group / divider）**
 
 #### `danger`
 
@@ -505,6 +509,21 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 | MNU-S8 | 项高度 | ≈40 |
 | MNU-S9 | 键盘 Enter 在项上 | 激活同点击 |
 | MNU-S10 | 多选 multiple（若开） | 可多 selectedKeys |
+
+#### 6.4.1 溢出折叠规则（P0）
+
+- `horizontal` 宽度不足：溢出项收进 `...` 省略节点（`overflowedIndicator`，默认 `EllipsisOutlined`），点省略出浮层菜单。
+- `inline` + `inlineCollapsed`：子菜单转 popup 浮层；`tooltip` 默认开（`false` 可关）。
+
+#### 6.4.2 子菜单开关延时时序（P0）
+
+- `triggerSubMenuAction` 默认 `hover`（可配 `click`）；hover 进入开启延时 `subMenuOpenDelay` 默认 **0s**，离开关闭延时 `subMenuCloseDelay` 默认 **0.1s**。
+- 可测：虚拟时钟下离开子菜单 0.1s 后关闭（提前 re-enter 则不关）；进入立即开。
+
+#### 6.4.3 键盘漫游（前置增量规格，P1）
+
+- 目标：`↑↓` 项间移动、`→`/`Enter` 展开激活、`←`/`Esc` 收起关闭。
+- 依赖 kit 焦点与方向键漫游基础设施，另起增量规格；本规格 P0 只验 `Enter` 激活（MNU-S9 / MNU-10）。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -564,11 +583,11 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
+| semantic classNames/styles 深度（含 `_semantic.tsx` 语义节点口径） | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 切换菜单类型, 自定义语义结构的样式和类, 自定义弹出框, _semantic.tsx |
+| 其余示例 | 切换菜单类型, 自定义语义结构的样式和类, 自定义弹出框 |
 
 ### 6.9 验收用例表（可测）
 

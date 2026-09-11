@@ -57,13 +57,13 @@
 #### `itemLayout`
 
 - **说明**：设置 `List.Item` 布局，设置成 `vertical` 则竖直样式显示，默认横排
-- **类型**：string
-- **默认值**：-
+- **类型**：`horizontal` | `vertical`
+- **默认值**：`horizontal`
 - **可选值与外观含义**：
 
   | 值 | 外观/语义 |
   | --- | --- |
-  | `List.Item` | 官方取值 `List.Item` |
+  | `horizontal` | 默认横排 |
   | `vertical` | 垂直排布 |
 
 #### `loading`
@@ -349,7 +349,7 @@ import { List } from 'antd';
 | `footer` | 列表底部 | ReactNode | - | — |
 | `grid` | 列表栅格配置 | [object](#list-grid-props) | - | — |
 | `header` | 列表头部 | ReactNode | - | — |
-| `itemLayout` | 设置 `List.Item` 布局，设置成 `vertical` 则竖直样式显示，默认横排 | string | - | — |
+| `itemLayout` | 设置 `List.Item` 布局，设置成 `vertical` 则竖直样式显示，默认横排 | `horizontal` \| `vertical` | `horizontal` | — |
 | `loading` | 当卡片内容还在加载中时，可以用 `loading` 展示一个占位 | boolean \| [object](/components/spin-cn#api) ([更多](https://github.com/ant-design/ant-design/issues/8659)) | false | — |
 | `loadMore` | 加载更多 | ReactNode | - | — |
 | `locale` | 默认文案设置，目前包括空数据文案 | object | {emptyText: `暂无数据`} | — |
@@ -436,8 +436,16 @@ import { List } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+数值对齐 antd `components/list/style`（`prepareComponentToken`）：
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
+| 项内边距 default | **12 0** | `itemPadding` ← `paddingContentVertical 0` |
+| 项内边距 small | **8 16** | `itemPaddingSM` ← `paddingContentVerticalSM paddingContentHorizontal` |
+| 项内边距 large | **16 24** | `itemPaddingLG` ← `paddingContentVerticalLG paddingContentHorizontalLG` |
+| 头/尾/项横向内边距 | **24** | `paddingLG` |
+| 空文本内边距 | **16** | `emptyTextPadding` ← `padding` |
+| 头/尾底色 | transparent | `headerBg` / `footerBg` |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
@@ -467,7 +475,7 @@ import { List } from 'antd';
 | `footer` | 列表底部 | ReactNode | - |
 | `grid` | 列表栅格配置 | [object](#list-grid-props) | - |
 | `header` | 列表头部 | ReactNode | - |
-| `itemLayout` | 设置 `List.Item` 布局，设置成 `vertical` 则竖直样式显示，默认横排 | string | - |
+| `itemLayout` | 设置 `List.Item` 布局，设置成 `vertical` 则竖直样式显示，默认横排 | `horizontal` \| `vertical` | `horizontal` |
 | `loading` | 当卡片内容还在加载中时，可以用 `loading` 展示一个占位 | boolean \ | [object](/components/spin-cn#api) ([更多](https://github.com/ant-design/ant-design/issues/8659)) |
 | `loadMore` | 加载更多 | ReactNode | - |
 | `locale` | 默认文案设置，目前包括空数据文案 | object | {emptyText: `暂无数据`} |
@@ -484,22 +492,24 @@ import { List } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-dataSource.map(renderItem)
-pagination ──► 翻页
-loading ──► 遮罩
-[] ──► Empty
+dataSource.map(renderItem) ──► rowKey 去重
+pagination ──► 切页（pageSize 切分 dataSource）
+loading ──► Spin 遮罩（isLoading 时 body 占位 minHeight 53）
+[] ──► Empty（emptyText）
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
 | LST-S1 | 2 项 dataSource | 2 行 |
-| LST-S2 | pagination | 翻页回调 |
-| LST-S3 | loading | 遮罩 |
-| LST-S4 | 空数组 | Empty |
+| LST-S2 | pagination 翻页 | 按 pageSize 切分；`onChange(page, pageSize)`；position `bottom`/`top`/`both`，align 默认 `end` |
+| LST-S3 | loading=true | Spin 遮罩；加载中不重复触发翻页/加载更多 |
+| LST-S4 | 空数组 | Empty，内边距 16（`emptyTextPadding`） |
 | LST-S5 | split=false | 无分割线 |
-| LST-S6 | bordered | 边框 |
-| LST-S7 | grid | 栅格项 |
-| LST-S8 | header/footer | 可见 |
+| LST-S6 | bordered | 1px 边框 + 圆角 |
+| LST-S7 | grid | 按 column/断点列数排栅格，gutter 间隔 |
+| LST-S8 | header/footer/loadMore | 可见；loadMore 在列表尾 |
+| LST-S9 | itemLayout=vertical | extra 放右侧，actions 放底部；horizontal 则 extra 在最右、actions 同行 |
+| LST-S10 | size small/default/large | 项内边距 8 16 / 12 0 / 16 24（§6.2） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -534,14 +544,22 @@ loading ──► 遮罩
 
 ### 6.8 能力裁剪（P0 / P1）
 
+> 废弃策略：官方 List 已废弃（下个 major 移除，继任者 Listy 另起规格）；kit 侧 P0 只跟 List 主路径并冻结范围，不追 Listy。
+
 #### P0（本阶段必须 1:1，否则不算完成）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `loading` | 必须 |
-| `size` | 必须 |
-| `dataSource` | 必须 |
-| `title` | 必须 |
+| `dataSource` / `renderItem` / `rowKey` | 数据驱动；`rowKey` 取键，缺省用 `key` 字段或 `list-item-{index}` |
+| `itemLayout` | `horizontal`（默认）/ `vertical`（LST-S9） |
+| `size` | small / default / large → 项内边距见 §6.2（LST-S10） |
+| `loading` | Spin 遮罩（LST-S3） |
+| `split` / `bordered` | 分割线（默认 true）/ 边框 |
+| `header` / `footer` / `loadMore` | 头尾与加载更多（LST-S8） |
+| `pagination` | 切页 + position/align（LST-S2） |
+| `grid` | column / gutter / xs…xxxl 断点列数（LST-S7） |
+| `locale.emptyText` | 空数据文案（LST-S4） |
+| `title` / `description` / `avatar` / `extra` / `actions` | Item.Meta 主字段（extra/actions 位置随 itemLayout，LST-S9） |
 | 官方主路径示例 | 简单列表、基础列表、加载更多、竖排列表样式、分页设置、栅格列表、响应式的栅格列表、滚动加载 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -552,10 +570,11 @@ loading ──► 遮罩
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 | 分期（P0 瞬时切换） |
+| 虚拟列表（`virtual-list.tsx`） | P1：换本地数据源（`VirtualList data` 直喂，不经 List `dataSource`），复用现有 `ui/rendering` VirtualList |
+| 拖拽排序 4 示例 | P1：缺手势重排语义（官方基于 dnd-kit 拖拽手势实现排序；kit 侧须先补手势重排语义） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 拖拽排序, 拖拽排序（拖拽手柄）, 栅格拖拽排序, 栅格拖拽排序（拖拽手柄） |
 
 ### 6.9 验收用例表（可测）
 
@@ -585,31 +604,64 @@ loading ──► 遮罩
 | LST-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | LST-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
 | LST-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| LST-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| LST-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| LST-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+| LST-22 | L1 | itemLayout=vertical 带 extra/actions | extra 右侧、actions 底部；horizontal 对照组位置正确 |
+| LST-23 | L2 | size small/large 项内边距 | 8 16 / 16 24（±0.5px） |
+| LST-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
+| LST-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| LST-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewList(...) *List
+// 类型
+ListItemLayout = horizontal | vertical  // 默认 horizontal
+ListSize       = small | default | large // 默认 default
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 列表项（P0 字段，对齐 List.Item / Item.Meta）
+type ListItem struct {
+  Key         string
+  Title       string
+  Description string
+  Avatar      core.Node  // 图标节点（可选）
+  Extra       core.Node  // 额外内容（vertical 右侧 / horizontal 最右）
+  Actions     []core.Node
+}
+
+NewList(items ...ListItem) *List
+
+// 数据与布局
+SetDataSource([]ListItem)
+SetRenderItem(func(item ListItem, index int) core.Node)
+SetRowKey(func(item ListItem) string)
+SetItemLayout(ListItemLayout)
+SetSize(ListSize)
+SetBordered(bool)               // 默认 false
+SetSplit(bool)                  // 默认 true
+SetLoading(bool)
+SetHeader(core.Node) / SetFooter(core.Node) / SetLoadMore(core.Node)
+SetEmptyText(string)
+// 分页：false=不显示；position bottom|top|both（默认 bottom），align start|center|end（默认 end）
+SetPagination(*ListPagination)
+SetOnPageChange(func(page, pageSize int))
+// 栅格：column / gutter / xs…xxxl 断点列数
+SetGrid(ListGridConfig)
+// 主题 / a11y / 挂树
+SetTheme(*Theme)
+SetAriaLabel(string)
+Node() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Size | default |
+| ItemLayout | horizontal |
+| Split | true |
+| Bordered / Loading | false |
+| Pagination | false（不显示） |
+| EmptyText | `暂无数据`（随 locale） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

@@ -140,6 +140,12 @@
   | `rightTop` | 右上 |
   | `rightBottom` | 右下 |
 
+#### `trigger`
+
+- **说明**：触发行为；Popconfirm 用 `click` 覆盖 Tooltip 共享默认 `hover`
+- **类型**：string | string[]
+- **默认值**：`click`（共享表写 `hover` 为 Tooltip 默认，Popconfirm 产品默认见 §6.3）
+
 #### `styles`
 
 - **说明**：用于自定义组件内部各语义化结构的行内 style，支持对象或函数
@@ -172,7 +178,8 @@
 
 ### 1.5 语义化 DOM 与主题
 
-- 支持 `classNames` / `styles`；kit 应对齐语义节点钩子。
+- 支持 `classNames` / `styles`；kit 应对齐语义节点钩子。Popconfirm 语义节点：`root`（浮层根，定位/层级/变换原点）、`container`（面板容器，底色/内边距/圆角/阴影/边框）、`icon`（确认图标，尺寸/颜色/布局）、`title`（标题文本）、`content`（描述文本）、`arrow`（箭头，宽高/位置/颜色/边框）。函数形态与 `_semantic.tsx` 深度定制为 P1。
+- 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
 
 - 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
 
@@ -250,9 +257,19 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| cancelButtonProps | cancel 按钮 props | [ButtonProps](/components/button-cn#api) | - | cancelText | 取消按钮文字 | string | `取消` | disabled | 阻止点击 Popconfirm 子元素时弹出确认框 | boolean | false | icon | 自定义弹出气泡 Icon 图标 | ReactNode | &lt;ExclamationCircleFilled /> | okButtonProps | ok 按钮 props | [ButtonProps](/components/button-cn#api) | - | okText | 确认按钮文字 | string | `确定` | okType | 确认按钮类型 | string | `primary` | showCancel | 是否显示取消按钮 | boolean | true | 4.18.0 | × |
-| title | 确认框标题 | ReactNode \| () => ReactNode | - | description | 确认内容的详细描述 | ReactNode \| () => ReactNode | - | 5.1.0 | × |
-| onCancel | 点击取消的回调 | function(e) | - | onConfirm | 点击确认的回调 | function(e) | - | onPopupClick | 弹出气泡点击事件 | function(e) | - | 5.5.0 | × |
+| cancelButtonProps | cancel 按钮 props | [ButtonProps](/components/button-cn#api) | - | - | × |
+| cancelText | 取消按钮文字 | string | `取消` | - | × |
+| disabled | 阻止点击 Popconfirm 子元素时弹出确认框 | boolean | false | - | × |
+| icon | 自定义弹出气泡 Icon 图标 | ReactNode | <ExclamationCircleFilled /> | - | × |
+| okButtonProps | ok 按钮 props | [ButtonProps](/components/button-cn#api) | - | - | × |
+| okText | 确认按钮文字 | string | `确定` | - | × |
+| okType | 确认按钮类型 | string | `primary` | - | × |
+| showCancel | 是否显示取消按钮 | boolean | true | 4.18.0 | × |
+| title | 确认框标题 | ReactNode \| () => ReactNode | - | - | × |
+| description | 确认内容的详细描述 | ReactNode \| () => ReactNode | - | 5.1.0 | × |
+| onCancel | 点击取消的回调 | function(e) | - | - | × |
+| onConfirm | 点击确认的回调 | function(e) | - | - | × |
+| onPopupClick | 弹出气泡点击事件 | function(e) | - | 5.5.0 | × |
 
 <!-- 共同的 API -->
 
@@ -263,15 +280,23 @@
 <!-- prettier-ignore -->
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| align | 请参考 [dom-align](https://github.com/yiminghe/dom-align) 进行配置 | object | - | arrow | 修改箭头的显示状态以及修改箭头是否指向目标元素中心 | boolean \| { pointAtCenter: boolean } | true | 5.2.0 | Tooltip: 6.0.0，Popover: 6.0.0，Popconfirm: 6.0.0 |
-| autoAdjustOverflow | 气泡被遮挡时自动调整位置 | boolean | true | color | 背景颜色 | string | - | 4.3.0 | × |
+| align | 请参考 [dom-align](https://github.com/yiminghe/dom-align) 进行配置 | object | - | - | × |
+| arrow | 修改箭头的显示状态以及修改箭头是否指向目标元素中心 | boolean \| { pointAtCenter: boolean } | true | 5.2.0 | Tooltip: 6.0.0，Popover: 6.0.0，Popconfirm: 6.0.0 |
+| autoAdjustOverflow | 气泡被遮挡时自动调整位置 | boolean | true | - | × |
+| color | 背景颜色 | string | - | 4.3.0 | × |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | 5.23.0 | Tooltip: 5.23.0，Popover: 5.23.0，Popconfirm: 5.23.0 |
 | defaultOpen | 默认是否显隐 | boolean | false | 4.23.0 | × |
-| ~~destroyTooltipOnHide~~ | 关闭后是否销毁 dom | boolean | false | destroyOnHidden | 关闭后是否销毁 dom | boolean | false | 5.25.0 | × |
+| destroyOnHidden | 关闭后是否销毁 dom | boolean | false | 5.25.0 | × |
 | fresh | 默认情况下，Tooltip 在关闭时会缓存内容。设置该属性后会始终保持更新 | boolean | false | 5.10.0 | × |
-| getPopupContainer | 浮层渲染父节点，默认渲染到 body 上 | (triggerNode: HTMLElement) => HTMLElement | () => document.body | mouseEnterDelay | 鼠标移入后延时多少才显示 Tooltip，单位：秒 | number | 0.1 | mouseLeaveDelay | 鼠标移出后延时多少才隐藏 Tooltip，单位：秒 | number | 0.1 | ~~overlayClassName~~ | 卡片类名, 请使用 `classNames.root` 替换 | string | - | ~~overlayStyle~~ | 卡片样式, 请使用 `styles.root` 替换| React.CSSProperties | - | ~~overlayInnerStyle~~ | 卡片内容区域的样式对象, 请使用 `styles.container` 替换 | React.CSSProperties | - | placement | 气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom` | string | `top` | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 5.23.0 | Tooltip: 5.23.0，Popover: 5.23.0，Popconfirm: 5.23.0 |
-| trigger | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` | open | 用于手动控制浮层显隐，小于 4.23.0 使用 `visible`（[为什么?](/docs/react/faq#弹层类组件为什么要统一至-open-属性)） | boolean | false | 4.23.0 | × |
-| zIndex | 设置 Tooltip 的 `z-index` | number | - | onOpenChange | 显示隐藏的回调 | (open: boolean) => void | - | 4.23.0 | × |
+| getPopupContainer | 浮层渲染父节点，默认渲染到 body 上 | (triggerNode: HTMLElement) => HTMLElement | () => document.body | - | × |
+| mouseEnterDelay | 鼠标移入后延时多少才显示 Tooltip，单位：秒 | number | 0.1 | - | × |
+| mouseLeaveDelay | 鼠标移出后延时多少才隐藏 Tooltip，单位：秒 | number | 0.1 | - | × |
+| placement | 气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom` | string | `top` | - | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 5.23.0 | Tooltip: 5.23.0，Popover: 5.23.0，Popconfirm: 5.23.0 |
+| trigger | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为（Tooltip 共享默认 `hover`，Popconfirm 覆盖为 `click`，见 §6.3） | string \| string\[] | `hover`（Popconfirm 产品默认 `click`） | - | × |
+| open | 用于手动控制浮层显隐 | boolean | false | 4.23.0 | × |
+| zIndex | 设置 Tooltip 的 `z-index` | number | - | - | × |
+| onOpenChange | 显示隐藏的回调 | (open: boolean) => void | - | 4.23.0 | × |
 
 </embed>
 
@@ -315,7 +340,7 @@ import { Popconfirm } from 'antd';
 | `overlayInnerStyle` | 卡片内容区域的样式对象, 请使用 `styles.container` 替换 | React.CSSProperties | - | — |
 | `placement` | 气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom` | string | `top` | — |
 | `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props }) => Record | - | 5.23.0 |
-| `trigger` | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` | — |
+| `trigger` | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`（Popconfirm 产品默认 `click`，覆盖 Tooltip 共享默认 `hover`） | string \| string\[] | `hover`（共享）/`click`（产品） | — |
 | `open` | 用于手动控制浮层显隐，小于 4.23.0 使用 `visible`（[为什么?](/docs/react/faq#弹层类组件为什么要统一至-open-属性)） | boolean | false | 4.23.0 |
 | `zIndex` | 设置 Tooltip 的 `z-index` | number | - | — |
 | `onOpenChange` | 显示隐藏的回调 | (open: boolean) => void | - | 4.23.0 |
@@ -633,6 +658,8 @@ Popconfirm
 
 - 组合 `ui/primitive` + 已有 `Popover` / `Button` / `Icon`；禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild` 只读 Default/字段/Token。  
+- Portal 定位：触发器↔面板 gap **8**，`placement` 12 向映射 `AnchoredPopup.Placement`；`autoAdjustOverflow=true` 时传入 Viewport 做 flip/shift，`false` 清 Viewport；`pointAtCenter=true` 时边角 placement 主轴对齐触发器中心。  
+- 箭头几何：`arrow=true` 默认显示，边长约 **8**（`sizePopupArrow` 量级），位于 placement 主轴侧，与面板同底色；`arrow=false` 不绘制不占位。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - ConfirmLoading / 图标 spin 走 `Tree.AddTicker`；静止注销。  
 

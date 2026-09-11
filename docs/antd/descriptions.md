@@ -389,8 +389,10 @@ bordered 表框
 
 | 项 | 要求 |
 | --- | --- |
-| 表格/树/列表 | 结构角色与展开/选中态可读 |
-| 排序/筛选 | 控件有名 |
+| 只读分组 | 根 `role=group`（或等价）+ 可选 `AriaLabel`；纯展示容器，不抢焦点，不设展开/选中态 |
+| 标题/操作 | `title` 为分组标题文本，`extra` 为独立操作区（若可点则各自有可访问名，不挂到只读分组上） |
+| 键值配对 | 每项按“label＋内容”配对朗读；`colon` 冒号仅视觉分隔，不读出；`layout=vertical` 时先读 label 再读内容 |
+| 响应式 | 断点换行后朗读顺序跟随视觉行序（左→右、上→下），`span=filled` 整行项行序不变 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -469,20 +471,46 @@ bordered 表框
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
+type DescriptionsItem struct {
+  Key          string
+  Label        string
+  LabelNode    core.Node  // 非空时优先于 Label
+  Children     string
+  ChildrenNode core.Node  // 非空时优先于 Children
+  Span         int        // 默认 1；>column 时按 column 钳制
+  SpanFilled   bool       // true = filled，铺满当前行剩余
+  SpanMap      map[string]int // 响应式 span（如 xs/sm/md），命中时优先于 Span
+}
+
 NewDescriptions(items ...DescriptionsItem) *Descriptions
 
-// DescriptionsItem: Key, Label, LabelNode, Children, ChildrenNode,
-//                   Span, SpanFilled, SpanMap
-
-// 配置 SetXxx（P0）：
-//   SetItems / SetTitle / SetTitleNode / SetExtra
-//   SetSize / SetBordered / SetLayout / SetColon
-//   SetColumn / SetColumnMap / SetViewportWidth
-//   SetLabelStyle / SetContentStyle / SetStyle（浅语义）
-// 主题：SetTheme(*Theme)；SetFace
-// a11y：SetAriaLabel（role=group）
-// 查询：ResolvedColumn / RowCount / RowSpans / ItemPadBottom / …
-// 挂树：Node() core.Node；ChromeNode() 视觉壳
+// 数据 / 顶栏
+SetItems(items ...DescriptionsItem) *Descriptions
+SetTitle(title string) *Descriptions
+SetTitleNode(node core.Node) *Descriptions
+SetExtra(node core.Node) *Descriptions
+// 形态
+SetSize(size DescriptionsSize) *Descriptions            // DescriptionsLarge | DescriptionsMiddle | DescriptionsSmall
+SetBordered(bordered bool) *Descriptions
+SetLayout(layout DescriptionsLayout) *Descriptions      // DescriptionsHorizontal | DescriptionsVertical
+SetColon(colon bool) *Descriptions
+SetColumn(column int) *Descriptions
+SetColumnMap(m map[string]int) *Descriptions            // 响应式 column（如 xs/sm/md/xl/xxl/xxxl）
+SetViewportWidth(width float64) *Descriptions           // 响应式断点判定宽
+// 浅语义样式（P0 仅三节点；函数形态/全 SemanticDOM 为 P1）
+SetLabelStyle(style Style) *Descriptions
+SetContentStyle(style Style) *Descriptions
+SetStyle(style Style) *Descriptions
+// 主题 / a11y / 查询 / 挂树
+SetTheme(theme *Theme) *Descriptions
+SetFace(face text.Face) *Descriptions
+SetAriaLabel(label string) *Descriptions
+ResolvedColumn() int
+RowCount() int
+RowSpans() [][]int
+ItemPadBottom() float64
+Node() core.Node
+ChromeNode() core.Node
 // 本控件无 value/onChange、无 disabled/loading 主 API
 ```
 

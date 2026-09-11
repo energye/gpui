@@ -93,7 +93,7 @@
 | focus | 可见 focus ring，键盘可达 |
 | disabled | 降对比 + 禁止交互，布局稳定 |
 | loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+| error/warning | N/A：Switch 无表单 status 态 |
 
 ### 1.5 语义化 DOM 与主题
 
@@ -228,17 +228,13 @@ import { Switch } from 'antd';
 
 实现 gpui kit 版 **Switch** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
+1. **配置面**：`checked`/`value` 受控 + `defaultChecked`/`defaultValue` 非受控；`disabled` / `loading` / `size` / `checkedChildren` / `unCheckedChildren`；`onChange` / `onClick`。
+2. **视觉态**：开（主色轨）/ 关（中性灰轨，见 §6.2）/ hover / focus ring / disabled / loading（handle 内 spinner）。
+3. **尺寸态**：medium（≈44×22）/ small（≈28×16）。
+4. **受控**：受控下点击只抛回调，外观等父级回写。
+5. **无障碍**：`role=switch`，Tab 可达，Space/Enter 切换。
+6. **主题**：Token 化；动效可关（reduced-motion 下瞬时）。
+7. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
 
 ---
 ## 5. 参考链接
@@ -299,7 +295,7 @@ import { Switch } from 'antd';
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
 | 开态轨道 | `colorPrimary`（antd `switchColor`） | hover → `colorPrimaryHover` |
-| 关态轨道 | `colorTextQuaternary`（≈ rgba(0,0,0,0.25)） | hover → `colorTextTertiary`（≈ 0.45） |
+| 关态轨道 | `colorTextQuaternary`（≈ rgba(0,0,0,0.25)） | hover → `colorTextTertiary`（≈ 0.45）；Token 未覆盖时回落 `colorBorder` 加深（或新增 `DefaultSwitchOffBg` 常量），不得写死灰值 |
 | 内文（开/关文案） | `colorTextLightSolid` / `colorTextInverse` | 轨上反白字 |
 | 把手 | `colorWhite` / 白 | handleBg；loading 图标深色描边 |
 | 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
@@ -411,7 +407,7 @@ mount ──► unchecked | checked（受控/非受控）
 | `disabled` | 必须 |
 | `loading` | 必须（handle 内 spinner；期间不切换） |
 | `size` | `medium`（默认）/ `small` |
-| `checkedChildren` / `unCheckedChildren` | 字符串内文（图标名可走文案占位） |
+| `checkedChildren` / `unCheckedChildren` | P0 只接字符串内文并按开/关显示；图标先写死文案占位（如 `"开"`/`"关"`，或图标名字符串透传），多节点 Flex 图标 P1 |
 | 官方主路径示例 | 基本、不可用、文字和图标、两种大小、加载中 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求（role=switch；焦点环；Space/Enter） |

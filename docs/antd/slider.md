@@ -52,7 +52,8 @@
 
   | 值 | 外观/语义 |
   | --- | --- |
-  | `editable` | 官方取值 `editable` |
+  | `true` | 整组禁用，灰态不可拖 |
+  | `boolean[]` | range 下按柄禁用（如 `[true, false]` 禁第一柄）；任一柄禁用时 `range.editable` 动态增减自动停用 |
 
 #### `keyboard`
 
@@ -100,7 +101,8 @@
 
   | 值 | 外观/语义 |
   | --- | --- |
-  | `orientation` | 官方取值 `orientation` |
+  | `true` | 垂直轨（与 `orientation` 并存时以 `orientation` 为准） |
+  | `false` | 水平轨 |
 
 #### `handleStyle`
 
@@ -122,15 +124,10 @@
 
 #### `maxCount`
 
-- **说明**：配置 `editable` 时，最大节点数量
+- **说明**：配置 `editable` 时，最大节点数量（数字，无枚举外观）
 - **类型**：number
 - **默认值**：-
 - **版本**：5.20.0
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `editable` | 官方取值 `editable` |
 
 #### `autoAdjustOverflow`
 
@@ -196,8 +193,15 @@
 | `defaultValue` | 非受控默认值 | 设置初始取值。当 `range` 为 false 时，使用 number，否则用 \[number, number] |
 | `onChange` | 值变化 | 当 Slider 的值发生改变时，会触发 onChange 事件，并把改变后的值作为参数传入 |
 | `open` | 受控显隐 | 值为 true 时，Tooltip 将会始终显示；否则始终不显示，哪怕在拖拽及移入时 |
-| `disabled` | 禁用 | 值为 true 时，滑块为禁用状态。该属性也可以是一个数组，用于禁用 range 模式下特定的 handle，例如 `[true, false, true]` 会禁用第一个和第三个 handle。当任意 handle 被禁用时，`editable` 模式将自动禁用 |
-| `getPopupContainer` | 浮层容器 | Tooltip 渲染父节点，默认渲染到 body 上 |
+| `disabled` | 禁用 | 值为 true 整组禁用；数组按柄禁用 range 特定 handle；任一柄禁用时 `range.editable` 动态增减自动停用 |
+| `min` / `max` / `step` | 区间步长 | 夹紧 `[min,max]`；`step=null` + marks 时仅落刻度/`min`/`max` |
+| `marks` / `dots` / `included` | 刻度 | 点击刻度跳转；`dots` 仅落刻度；`included` 控制 track 包含关系 |
+| `range` / `draggableTrack` / `editable` | 多柄 | 双柄左≤右；轨可拖（P1）；动态增减节点（P1） |
+| `keyboard` | 键盘 | 默认 true；聚焦柄方向键 ±step，`keyboard=false` 不消费方向键 |
+| `orientation` / `vertical` / `reverse` | 方向 | 水平/垂直（`orientation` 优先）；`reverse` 反向坐标（P1） |
+| `tooltip.formatter` | 提示文案 | 默认显示数值；返回 `null` 隐藏本次文案 |
+| `tooltip.open` | 显隐 | `true` 常显 / `false` 永不 / 未设拖悬时显 |
+| `getPopupContainer` | 浮层容器 | 浏览器默认 body；本库一律就地气泡（见 §6.10），该配置忽略 |
 
 ### 2.4 示例全表
 
@@ -613,6 +617,11 @@ SetTooltipFormatterNull(bool)                    // antd formatter: null → 不
 OnChange func(v float64)                    // 单值拖动中
 OnRangeChange func(lo, hi float64)          // range 拖动中
 OnChangeComplete func(vals []float64)       // 松手；len=1 或 2
+
+// 方向键归属：聚焦的 handle 自己消费方向键（±step，Home/End 到界）；
+// Slider 未获焦或 keyboard=false 时方向键走全局焦点链，不由 Slider 拦截。
+// tooltip 容器策略：本库一律就地气泡（锚定 handle 的行内节点），不支持挂 body/Portal；
+// `getPopupContainer` / `autoAdjustOverflow` 忽略，`placement` 仅作上下偏好。
 
 // 主题 / a11y / 布局
 SetTheme(*Theme) / SetFace / SetAriaLabel / SetWidth / SetHeight

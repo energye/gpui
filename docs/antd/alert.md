@@ -131,6 +131,7 @@
   | 值 | 外观/语义 |
   | --- | --- |
   | `success` | 成功绿语义 |
+  | `info` | 信息蓝语义（默认，`colorPrimary` 系浅底） |
   | `warning` | 警告橙语义 |
   | `error` | 错误红语义 |
 
@@ -503,6 +504,7 @@ closable ──► 点关闭 ──► onClose ──► Hidden(不可见) ─�
 | ALT-13 | L1 | 复现官方示例「图标」（`icon.tsx`） | showIcon ± description ± closable |
 | ALT-14 | L1 | 复现官方示例「顶部公告」（`banner.tsx`） | banner 组合 |
 | ALT-15 | L1 | 复现官方示例「轮播的公告」（`loop-banner.tsx`） | banner + TitleNode/长标题可布局 |
+| ALT-15b | L1 | 复现官方示例「操作」（`action.tsx`）：SetAction 挂 Button（含单按钮 UNDO/Detail/Done 与 Accept+Decline 双按钮竖排） | 右侧操作槽可见可点；带 description 时与标题双行共存 |
 | ALT-16 | L2 | 读取 §6.2 关键尺寸/间距 | pad 8×12 / 有 desc 20×24；radius 8；字号 14/16；容差 ±0.5 |
 | ALT-17 | L2 | 默认皮颜色 | 语义色走 Theme；非唯一硬编码品牌皮 |
 | ALT-18 | L2 | disabled 外观（适用者） | **N/A**：antd Alert 无 disabled；用例断言不适用即可 |

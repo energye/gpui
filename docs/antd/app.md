@@ -12,26 +12,18 @@
 
 提供重置样式和提供消费上下文的默认环境。
 
-**App** 的视觉由结构层（根容器 / 内容 / 装饰 / 浮层）与状态层（default / hover / active / focus / disabled / loading 等）组成。gpui kit 实现时需与 antd **6.5** 的尺寸节奏、圆角、颜色语义对齐。
+**App** 本体几乎无自有外观：默认渲染一个 `div` 包裹层（`component=false` 时不建节点），只提供 antd 重置样式底；视觉即 children 原样，另挂 message / modal / notification 三个浮层的占位容器。
 
 ### 1.2 文档示例对应的外观形态
 
 | 示例名 | 形态/状态要点（kit 验收） |
 | --- | --- |
-| 基本用法 | 复现「基本用法」视觉与布局 |
-| Hooks 配置 | 复现「Hooks 配置」视觉与布局 |
+| 基本用法 | 顶层包 App，子页面拿到 message/modal/notification 上下文并能弹出提示 |
+| Hooks 配置 | 给 App 传 message/notification 默认配置，子页面弹出时按该配置生效 |
 
 ### 1.4 交互视觉状态（实现检查表）
 
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+App 无自有交互视觉态：hover / active / focus ring / disabled / loading / error-warning 皮均标 **N/A**。只验两点：默认重置样式生效，message / modal / notification 占位容器随 children 挂载。
 
 ### 1.5 语义化 DOM 与主题
 
@@ -115,17 +107,10 @@ import { App } from 'antd';
 
 实现 gpui kit 版 **App** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **2** 个，均需可复现。
+1. **配置面**：覆盖 `component` / `message` / `notification`（§6.3），命名与 antd 一致。
+2. **上下文透传**：子级 `UseApp()` 能拿到 message / notification / modal 三件套；嵌套 App 按 §6.3 合并规则生效。
+3. **无尺寸/受控/数据驱动/浮层定位/虚拟列表**：N/A（App 不做这些）。
+4. **示例矩阵**：官方非 debug 示例约 **2** 个，均需可复现。
 
 ---
 ## 5. 参考链接
@@ -197,7 +182,7 @@ import { App } from 'antd';
 | `message` | App 内 Message 的全局配置 | [MessageConfig](/components/message-c… | - |
 | `notification` | App 内 Notification 的全局配置 | [NotificationConfig](/components/noti… | - |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**上下文透传语义（源码 `components/app/App.tsx`）：** App 把 `message` / `notification` 与上层 `AppConfigContext` 做浅合并（子级覆盖父级同名字段），再经 `useMessage` / `useNotification` / `useModal` 生成三件套放入 `AppContext`；子组件经 `App.useApp()`（kit 侧 `UseApp()`）消费。`modal` 无全局配置项，直接透传。`component=false` 时不建包裹节点，同时无重置样式与 CSS Var 容器。App 必须在 `ConfigProvider` 之下才能拿到 Design Token；`UseApp` 必须在 App 子树内调用，否则无上下文可用。嵌套 App 按同规则逐层合并，内层优先。
 
 ### 6.4 交互状态机（L1）
 
@@ -207,18 +192,17 @@ App 包裹 ──► message/modal/notification 上下文可用
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| APP-S1 | 包裹后 Message.success | 能显示 |
-| APP-S2 | Modal.confirm | 能显示 |
-| APP-S3 | Notification.open | 能显示 |
-| APP-S4 | 配置 duration 默认 | 透传生效 |
+| APP-S1 | 包裹后经 `UseApp()` 取 message 并 `Success("hi")` | 同一 App 树下 message 队列长度 +1，holder 节点非空 |
+| APP-S2 | 经 `UseApp()` 取 modal 并 `Confirm({Title:"t"})` | Modal holder 出现确认框节点，回调可关 |
+| APP-S3 | 经 `UseApp()` 取 notification 并 `Open({Title:"t"})` | Notification holder 出现通知节点，可关 |
+| APP-S4 | `SetMessageConfig({Duration:9})` 后 Success | 该条 message 的 duration 读到 9；未设字段沿用父级/默认 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 包裹层只留重置样式底，children 原样透出 |
+| hover/active/focus/disabled/loading | N/A（App 本体无皮） |
+| 主题切换 | 重置样式与浮层容器跟随 Theme 更新 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -274,16 +258,16 @@ App 包裹 ──► message/modal/notification 上下文可用
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | APP-01 | L1 | NewApp 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| APP-02 | L1 | 包裹后 Message.success | 能显示 |
-| APP-03 | L1 | Modal.confirm | 能显示 |
-| APP-04 | L1 | Notification.open | 能显示 |
-| APP-05 | L1 | 配置 duration 默认 | 透传生效 |
-| APP-06 | L1 | 复现官方示例「基本用法」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| APP-07 | L1 | 复现官方示例「Hooks 配置」（`config.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| APP-08 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
+| APP-02 | L1 | 包裹后经 `UseApp()` 取 message 并 `Success("hi")` | message 队列长度 +1，holder 节点非空 |
+| APP-03 | L1 | 经 `UseApp()` 取 modal 并 `Confirm({Title:"t"})` | Modal holder 出现确认框节点，回调可关 |
+| APP-04 | L1 | 经 `UseApp()` 取 notification 并 `Open({Title:"t"})` | Notification holder 出现通知节点，可关 |
+| APP-05 | L1 | `SetMessageConfig({Duration:9})` 后 Success | 该条 duration 读到 9；未设字段沿用父级/默认 |
+| APP-06 | L1 | 复现官方示例「基本用法」（`basic.tsx`） | 子页面三件套均可弹；无控制台级错误 |
+| APP-07 | L1 | 复现官方示例「Hooks 配置」（`config.tsx`） | message/notification 默认配置生效；无控制台级错误 |
+| APP-08 | L2 | 重置样式底跟随 Theme | 换肤后底色/字色走 Token，无写死皮 |
 | APP-09 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| APP-10 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| APP-11 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| APP-10 | L2 | disabled 外观 | **N/A**：App 无 disabled 皮 |
+| APP-11 | L1 | 键盘/焦点主路径 | **N/A**：App 本体不可聚焦，焦点在 children/浮层内 |
 | APP-12 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | APP-13 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | APP-14 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -292,23 +276,23 @@ App 包裹 ──► message/modal/notification 上下文可用
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewApp(...) *App
+NewApp(children ...core.Node) *App
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 三个具体设置函数（提案签名，不建包，实现可微调命名但语义不可丢）：
+func (a *App) SetComponent(tag string, omit bool) // tag="div"；omit=true 对应 component=false，不建包裹节点
+func (a *App) SetMessageConfig(cfg AppMessageConfig) // 如 cfg.Duration；与上层 AppConfig 浅合并，子级优先
+func (a *App) SetNotificationConfig(cfg AppNotificationConfig) // 同上，子级优先
+
+// 上下文消费（子树内）：UseApp() (message, notification, modal 三件套)
+// 挂树：Node() core.Node； holders 经 MessageHolder()/ModalHolder()/NotificationHolder() 可验
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Component | `div` 包裹层；`omit=true` 时不建节点、无重置样式容器 |
+| Message / Notification | 空配置，沿用上层 AppConfig / 全局默认 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

@@ -456,6 +456,8 @@ import { Tabs } from 'antd';
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
+**位置矩阵**：`tabPlacement` 优先于废弃别名 `tabPosition`（`right→end`、`left→start`）；两者并存时一律以 `tabPlacement` 为准。
+
 ### 6.4 交互状态机（L1）
 
 ```text
@@ -468,7 +470,7 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
              └── 键盘左右 ──► 在可选项间移动
 ```
 
-\*horizontalItemGutter 固定 32；cardHeight 默认 40。
+\*horizontalItemGutter 固定 32；cardHeight 默认 40。P0 溢出行为：页签超宽时横向滚动，不收进 `more` 下拉菜单。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
@@ -500,7 +502,7 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
 | --- | --- |
 | 角色 | navigation / menu / tablist 等 |
 | 当前 | aria-current / selected |
-| 键盘 | 方向键与激活 |
+| 键盘 | 方向键由 Tabs 自己消费（左右/上下在可选项间移动 active），不走全局焦点链 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -545,7 +547,7 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
 | 动画像素级 ink / tabPane | 分期（P0 ink 可瞬时或短滑动） |
-| `more` 折叠菜单 / 溢出 Dropdown 深度 | 分期 |
+| `more` 折叠菜单 / 溢出 Dropdown | P1 分期；P0 溢出一律横向滚动代替下拉菜单，不出 `more` 按钮 |
 | `renderTabBar` / 可拖拽标签 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |

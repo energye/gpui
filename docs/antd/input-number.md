@@ -119,23 +119,12 @@
 - **类型**：boolean
 - **默认值**：false
 - **版本**：4.13.0
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `onChange` | 官方取值 `onChange` |
 
 #### `mode`
 
 - **说明**：展示输入框或拨轮
 - **类型**：`'input' | 'spinner'`
 - **默认值**：`'input'`
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `input` | 官方取值 `input` |
-  | `spinner` | 官方取值 `spinner` |
 
 #### `variant`
 
@@ -157,11 +146,6 @@
 - **说明**：是否带边框，请使用 `variant` 替代
 - **类型**：boolean
 - **默认值**：true
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `variant` | 官方取值 `variant` |
 
 ### 1.4 交互视觉状态（实现检查表）
 
@@ -246,7 +230,9 @@
 
 | 名称 | 说明 | 参数 | 版本 |
 | --- | --- | --- | --- |
-| blur() | 移除焦点 | - | nativeElement | 获取原生 DOM 元素 | - | 5.17.3 |
+| blur() | 移除焦点 | - |  |
+| focus() | 获取焦点 | (option?: { preventScroll?: boolean, cursor?: 'start' \| 'end' \| 'all' }) | cursor - 5.22.0 |
+| nativeElement | 获取原生 DOM 元素 | - | 5.17.3 |
 
 ### 2.6 FAQ
 
@@ -294,20 +280,27 @@ InputNumber 组件允许你使用 input 元素的所有属性最终透传至 inp
 | changeOnBlur | 是否在失去焦点时，触发 `onChange` 事件（例如值超出范围时，重新限制回范围并触发事件） | boolean | true | 5.11.0 | × |
 | changeOnWheel | 允许鼠标滚轮改变数值 | boolean | - | 5.14.0 | × |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
-| controls | 是否显示增减按钮，也可设置自定义箭头图标 | boolean \| { upIcon?: React.ReactNode; downIcon?: React.ReactNode; } | - | decimalSeparator | 小数点 | string | - | - | × |
-| placeholder | 占位符 | string | - | defaultValue | 初始值 | number | - | - | × |
+| controls | 是否显示增减按钮，也可设置自定义箭头图标 | boolean \| { upIcon?: React.ReactNode; downIcon?: React.ReactNode; } | - |  | × |
+| decimalSeparator | 小数点 | string | - | - | × |
+| placeholder | 占位符 | string | - |  | × |
+| defaultValue | 初始值 | number | - | - | × |
 | disabled | 禁用 | boolean | false | - | × |
-| formatter | 指定输入框展示值的格式 | function(value: number \| string, info: { userTyping: boolean, input: string }): string | - | keyboard | 是否启用键盘快捷行为 | boolean | true | max | 最大值 | number | [Number.MAX_SAFE_INTEGER](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) | - | × |
+| formatter | 指定输入框展示值的格式 | function(value: number \| string, info: { userTyping: boolean, input: string }): string | - |  | × |
+| keyboard | 是否启用键盘快捷行为 | boolean | true |  | × |
+| max | 最大值 | number | [Number.MAX_SAFE_INTEGER](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) | - | × |
 | min | 最小值 | number | [Number.MIN_SAFE_INTEGER](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Number/MIN_SAFE_INTEGER) | - | × |
 | parser | 指定从 `formatter` 里转换回数字的方式，和 `formatter` 搭配使用 | function(string): number | - | - | × |
 | precision | 数值精度，配置 `formatter` 时会以 `formatter` 为准 | number | - | - | × |
 | readOnly | 只读 | boolean | false | - | × |
-| status | 设置校验状态 | 'error' \| 'warning' | - | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
-| prefix | 带有前缀图标的 input | ReactNode | - | suffix | 带有后缀图标的 input | ReactNode | - | 5.20.0 | × |
+| status | 设置校验状态 | 'error' \| 'warning' | - |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
+| prefix | 带有前缀图标的 input | ReactNode | - |  | × |
+| suffix | 带有后缀图标的 input | ReactNode | - | 5.20.0 | × |
 | size | 输入框大小 | `large` \| `medium` \| `small` | - | - | × |
 | step | 每次改变步数，可以为小数 | number \| string | 1 | - | × |
 | stringMode | 字符值模式，开启后支持高精度小数。同时 `onChange` 将返回 string 类型 | boolean | false | 4.13.0 | × |
-| mode | 展示输入框或拨轮 | `'input' \| 'spinner'` | `'input'` | value | 当前值 | number | - | - | × |
+| mode | 展示输入框或拨轮 | `'input' \| 'spinner'` | `'input'` |  | × |
+| value | 当前值 | number | - | - | × |
 | variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | 5.13.0 \| `underlined`: 5.24.0 | 5.19.0 |
 | onChange | 变化回调 | function(value: number \| string \| null) | - | - | × |
 | onPressEnter | 按下回车的回调 | function(e) | - | - | × |
@@ -318,7 +311,9 @@ InputNumber 组件允许你使用 input 元素的所有属性最终透传至 inp
 
 | 名称 | 说明 | 参数 | 版本 |
 | --- | --- | --- | --- |
-| blur() | 移除焦点 | - | nativeElement | 获取原生 DOM 元素 | - | 5.17.3 |
+| blur() | 移除焦点 | - |  |
+| focus() | 获取焦点 | (option?: { preventScroll?: boolean, cursor?: 'start' \| 'end' \| 'all' }) | cursor - 5.22.0 |
+| nativeElement | 获取原生 DOM 元素 | - | 5.17.3 |
 
 ### 导入方式
 
@@ -432,6 +427,7 @@ import { InputNumber } from 'antd';
 | 边框线宽 | **1** | `lineWidth` |
 | 默认控件宽 | **90** | 组件 Token `controlWidth`（antd `style/token.ts`） |
 | 步进手柄宽 | **≈22** | `controlHeightSM − 2×lineWidth`（≈ handleWidth） |
+| 手柄图标字号 | **7** | `handleFontSize`（= fontSize/2；自定义 up/down 图标槽字号） |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -539,7 +535,7 @@ value
 | `value` / `defaultValue` / `onChange` | 受控与非受控；步进/输入只经 `onChange` 上抛 |
 | `min` / `max` / `step` | 步进夹紧；默认 step=1；受控展示可越界（见 FAQ） |
 | `precision` | 小数位；与 step 共同决定展示 |
-| `controls` | 默认 true 显示加减钮；false 隐藏（INN-S7） |
+| `controls` | 默认 true 显示加减钮；false 隐藏（INN-S7）；`{upIcon, downIcon}` 自定义图标 P0，图标槽宽 ≈22、手柄字号 7（= fontSize/2，见 §6.2 `handleWidth` / `handleFontSize`） |
 | `keyboard` | 默认 true；↑/↓ 步进 |
 | `changeOnWheel` | 聚焦时滚轮步进（`change-on-wheel.tsx`） |
 | `changeOnBlur` | 默认 true；失焦夹紧并可能触发 `onChange` |
@@ -548,7 +544,7 @@ value
 | `variant` | outlined / filled / borderless / underlined |
 | `status` | error / warning 语义边框 |
 | `mode` | `input`（默认）\|`spinner`；spinner 结构可简，API 必有 |
-| `stringMode` | 高精度小数路径（`digit.tsx`）；步进仍走数值逻辑 |
+| `stringMode` | 高精度小数路径（`digit.tsx`）；string 版 Set/Get/OnChange（§6.10）；步进仍走数值逻辑 |
 | `formatter` / `parser` | 格式化展示与回解析（`formatter.tsx`） |
 | `placeholder` | 空值占位 |
 | `onStep` / `onPressEnter` | 步进来源回调；Enter |
@@ -566,7 +562,7 @@ value
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 | 前缀/后缀 / addon（Space.Compact 替代） | 分期 |
-| 超出边界错误态完整 demo / 自定义 up/down 图标 | 分期 |
+| 超出边界错误态完整 demo | 分期 |
 | 其余示例 | 拨轮完整视觉、超出边界、前缀/后缀、自定义状态、聚焦 demo |
 
 ### 6.9 验收用例表（可测）
@@ -610,17 +606,23 @@ value
 NewInputNumber() *InputNumber
 NewInputNumberValue(defaultValue float64) *InputNumber   // 糖：defaultValue
 
-// 值
+// 值（数值版）
 SetValue(float64)                 // 受控写回 / 非受控赋值；不触发 onChange
 SetDefaultValue(float64)
 GetValue() float64
 SetControlled(bool)
+// 值（stringMode 高精度版：SetStringMode(true) 后用这组读写，onChange 回 string）
+SetStringValue(string)
+GetStringValue() string
+SetStringDefaultValue(string)
+SetOnChangeString(func(string))
 // 步进
 SetMin/SetMax/SetStep(float64)
 SetPrecision(int)                 // <0 表示未设置
 StepUp() / StepDown()             // 等价 handler；夹紧 + onChange + onStep
 // 行为
 SetControls(bool)                 // 默认 true
+SetUpIcon(core.Node) / SetDownIcon(core.Node)  // controls 自定义图标（P0；槽宽 ≈22）
 SetKeyboard(bool)                 // 默认 true
 SetChangeOnWheel(bool)
 SetChangeOnBlur(bool)             // 默认 true

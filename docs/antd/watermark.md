@@ -337,7 +337,7 @@ import { Watermark } from 'antd';
 | 文字 mark 宽/高 | 随 content 度量（未 Set width/height） | measureText |
 | fontSize | **16** | `fontSizeLG` / Font |
 | 多行行距 FontGap | **3** | `useClips.FontGap` |
-| zIndex 默认 | **9**（paint 序；antd 文档写 999 / `zIndexPopupBase-1`） | API |
+| zIndex 默认 | **9**（kit paint 序，对应 antd 文档 999 / `zIndexPopupBase-1`） | API |
 | 容器 | `position: relative` + 裁剪于自身盒 | 实现 |
 
 > 水印为装饰层，**无** controlHeight / focus ring / 圆角控件 chrome 主路径。
@@ -364,9 +364,9 @@ import { Watermark } from 'antd';
 | `rotate` | 旋转角度（°） | number | **-22** |
 | `gap` | 水印间距 \[x, y\] | \[number, number\] | **\[100, 100\]** |
 | `offset` | 距容器左上偏移；未设 = gap/2 | \[number, number\] | gap/2 |
-| `zIndex` | 叠层序（桌面映射为 paint 序） | number | 9 / 文档 999 |
+| `zIndex` | 叠层序 | number | 9（kit paint 序，对应 antd 文档 999 / `zIndexPopupBase-1`） |
 | `font` | 全局文字样式（color/fontSize/…） | Font | 见 §6.2 |
-| `inherit` | 是否将水印配置传导给 Modal/Drawer 等内容（桌面：Wrap/Apply） | boolean | **true** |
+| `inherit` | 是否将水印配置传导给弹出内容（可 Wrap 目标：Modal、Drawer；桌面经 `Wrap` 复制配置） | boolean | **true** |
 | `onRemove` | 水印层被移除/剥离时回调 | `() => void` | — |
 | children | 被覆盖的内容区 | Node | — |
 
@@ -535,7 +535,7 @@ ResolvedGap() (x,y) / ResolvedOffset() / ResolvedRotate() / …
 | Font color | rgba(0,0,0,.15) |
 | Width/Height（image） | 120 / 64 |
 | Inherit | **true** |
-| ZIndex | 9（文档语义 999） |
+| ZIndex | 9（kit paint 序，对应 antd 文档 999 / `zIndexPopupBase-1`） |
 | Loading | false |
 
 ### 6.11 结构与绘制分层（实现提示）
@@ -545,6 +545,9 @@ watermarkHost（相对容器 · 尺寸随 children）
   ├─ children（可点）
   └─ markLayer（HitTransparent · 平铺 rotate 字/图 · paint 在上）
 ```
+
+> 平铺伪代码（`useClips.ts` + `index.tsx`）：步长=`mark+gap`，起点=`offset`（默认 `gap/2`），倾角 `-22°`：
+> `for y=offsetY; y<H; y+=markH+gapY: for x=offsetX; x<W; x+=markW+gapX: draw(rotate(mark,-22°),x,y)`（另交错半格复写，见 `filledWidth=(cutW+gapX)*2`）。
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - `rebuild()` 只读 Default/字段/Token；image 像素变更可只 MarkNeedsPaint。  

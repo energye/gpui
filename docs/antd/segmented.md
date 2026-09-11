@@ -212,14 +212,29 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| block | 将宽度调整为父元素宽度的选项 | boolean | false | classNames | 用于自定义 Segmented 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | defaultValue | 默认选中的值 | string \| number | `options` 首项的值 | disabled | 是否禁用 | boolean | false | onChange | 选项变化时的回调函数 | function(value: string \| number) | options | 数据化配置选项内容 | string\[] \| number\[] \| SegmentedItemType\[] | [] | orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` | size | 控件尺寸 | `large` \| `medium` \| `small` | `medium` | styles | 用于自定义 Segmented 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom) , CSSProperties> | - | vertical | 排列方向，与 `orientation` 同时存在，以 `orientation` 优先 | boolean | `false` | 5.21.0 | × |
-| value | 当前选中的值 | string \| number | shape | 形状 | `default` \| `round` | `default` | 5.24.0 | × |
-| name | Segmented 下所有 `input[type="radio"]` 的 `name` 属性。若未设置，则将回退到随机生成的名称 | string 
+| block | 将宽度调整为父元素宽度的选项 | boolean | false | - | × |
+| classNames | 用于自定义 Segmented 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | - | × |
+| defaultValue | 默认选中的值 | string \| number | `options` 首项的值 | - | × |
+| disabled | 是否禁用 | boolean | false | - | × |
+| onChange | 选项变化时的回调函数 | function(value: string \| number) | - | - | × |
+| options | 数据化配置选项内容 | string\[] \| number\[] \| SegmentedItemType\[] | [] | - | × |
+| orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` | - | × |
+| size | 控件尺寸 | `large` \| `medium` \| `small` | `medium` | - | × |
+| styles | 用于自定义 Segmented 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom) , CSSProperties> | - | - | × |
+| vertical | 排列方向，与 `orientation` 同时存在，以 `orientation` 优先 | boolean | `false` | 5.21.0 | × |
+| value | 当前选中的值 | string \| number | - | - | × |
+| shape | 形状 | `default` \| `round` | `default` | 5.24.0 | × |
+| name | Segmented 下所有 `input[type="radio"]` 的 `name` 属性。若未设置，则将回退到随机生成的名称 | string | - | 5.23.0 | × |
 ### SegmentedItemType
 
 | 属性 | 描述 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
-| className | 自定义类名 | string | - | icon | 分段项的显示图标 | ReactNode | - | tooltip | 分段项的工具提示 | string \| [TooltipProps](../tooltip/index.zh-CN.md#api) | - 
+| label | 分段项的显示文本 | ReactNode | - | - |
+| value | 分段项的值 | string \| number | - | - |
+| disabled | 分段项的禁用状态 | boolean | false | - |
+| icon | 分段项的显示图标 | ReactNode | - | - |
+| tooltip | 分段项的工具提示 | string \| [TooltipProps](../tooltip/index.zh-CN.md#api) | - | - |
+| className | 自定义类名 | string | - | - |
 ### 导入方式
 
 ```js
@@ -246,6 +261,8 @@ import { Segmented } from 'antd';
 | `className` | 自定义类名 | string | - | — |
 | `icon` | 分段项的显示图标 | ReactNode | - | — |
 | `label` | 分段项的显示文本 | ReactNode | - | — |
+| `value` | 分段项的值 | string \| number | - | — |
+| `disabled` | 分段项的禁用状态 | boolean | false | — |
 | `tooltip` | 分段项的工具提示 | string \| [TooltipProps](../tooltip/index.zh-CN.md#api) | - | — |
 
 ---
@@ -380,7 +397,7 @@ import { Segmented } from 'antd';
 [idle]
   │ click / Enter·Space / ←→↑↓（适用）
   ▼
-select option ──► 非受控：写 Value；始终 onChange(value)
+select option ──► 非受控：写 Value；始终 onChange(value)；切换选中只变色不重建（仅同步选中项底色/文字色，不 ClearChildren，见 §6.11）
   │
   ├─ option.disabled 或 整体 disabled ──► 忽略
   ├─ 再点已选 ──► 保持（不反选、不重复 onChange）
@@ -409,7 +426,7 @@ shape=round ──► 胶囊圆角
 | default | track=`trackBg`；未选文字=`itemColor` |
 | hover（未选） | 文字=`itemHoverColor`；底=`itemHoverBg` |
 | active/pressed（未选） | 底=`itemActiveBg` |
-| selected | 底=`itemSelectedBg`；文字=`itemSelectedColor` |
+| selected | 底=`itemSelectedBg`；文字=`itemSelectedColor`；切换只变色不重建（P0 瞬时，见 §6.11） |
 | focus | 焦点项可见 focus ring（≈1.5px） |
 | disabled | 文字=`colorDisabledText`；无 hover 高亮 |
 

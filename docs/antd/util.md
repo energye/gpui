@@ -7,32 +7,9 @@
 
 **1:1 产品验收（度量 / 状态机 / P0·P1 / 用例 / Go API）→ [§6](#6-11-产品需求增量gpui-验收规格)**。手写对齐 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
 ---
-## 1. 控件外观
-### 1.1 基础形态
+## 1. 说明（无外观）
 
-辅助开发，提供一些常用的工具方法。
-
-**Util** 的视觉由结构层（根容器 / 内容 / 装饰 / 浮层）与状态层（default / hover / active / focus / disabled / loading 等）组成。gpui kit 实现时需与 antd **6.5** 的尺寸节奏、圆角、颜色语义对齐。
-
-### 1.4 交互视觉状态（实现检查表）
-
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
-
-### 1.5 语义化 DOM 与主题
-
-- 至少区分根容器、内容区、装饰/图标区；浮层再分 popup/mask。
-
-- 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
-
-- 动效可关（reduced-motion / 全局 motion、wave 配置）。
+Util 无 UI：`_util/` 工具箱 + `GetRef/GetProps/GetProp` 类型工具。不应进 kit，无视觉验收。
 ---
 ## 2. 功能
 ### 2.1 使用场景
@@ -141,23 +118,9 @@ import type { GetRef, GetProps, GetProp } from 'antd';
 ```
 
 ---
-## 4. gpui kit 实现要点
+## 4. gpui 落地说明
 
-> 1:1 验收以 **§6** 为准；本节为工程纪律补充。
-
-实现 gpui kit 版 **Util** 的验收清单：
-
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **0** 个，均需可复现。
+> Util 不应进 `ui/kit`：类型工具按 §6.3 Go 对照，运行时纯函数按需入 `internal/`；无 UI，豁免 gallery。
 
 ---
 ## 5. 参考链接
@@ -168,184 +131,105 @@ import type { GetRef, GetProps, GetProp } from 'antd';
 
 ---
 
-## 6. 1:1 产品需求增量（gpui 验收规格）
+## 6. Go 对照规格（非控件验收）
 
-> 本章把 antd **Util** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
-> **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
-> 源码：`/home/yanghy/app/projects/ant-design/components/util/`（`index.zh-CN.md` + `style/` + 组件实现）。
+> Util 为纯工具，无 UI：类型工具给 Go 对照，运行时工具按取舍表取用。不应进 `ui/kit`，豁免 gallery。
+> 真源：`/home/yanghy/app/projects/ant-design/components/_util/`（类型见 §3，工具箱见下表）。
 
-### 6.1 对齐级别定义（Util）
+### 6.1 对照定义
 
-| 级别 | 名称 | 本控件含义 | 验收方式 |
-| --- | --- | --- | --- |
-| **L1** | 行为 | 展示形态与可选交互（复制/预览/关闭） | Headless / behavior 测试 |
-| **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
-
-**明确不做（Util）：**
-
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
-- 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
-### 6.2 度量与 Design Token（L2 基线）
-
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
-
-#### 6.2.1 几何与组件 Token
-
-| 项 | 默认值 | Token / 来源 |
+| antd | Go 对照 | 说明 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| `GetProps<typeof X>` | 泛型约束/具名参数 struct | 取组件 props 类型；Go 用泛型类型参或显式 `XProps` |
+| `GetRef<typeof X>` | 句柄类型（如 `*Select`） | 取 ref 句柄；Go 直接用组件指针/接口 |
+| `GetProp<P,K>` | 字段类型/函数返回值 | 取单字段；`Return` 变体取函数返回类型 |
 
-#### 6.2.2 颜色 Token（语义）
+### 6.2 Token/度量
 
-| 用途 | Token 建议 | 备注 |
-| --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+无视觉 Token。纯函数不读 Theme；仅业务色判断（如 `isPresetColor`）复用 Theme 常量。
 
-禁止硬编码品牌色作为唯一默认皮。
+### 6.3 类型对照细则
 
-### 6.3 关键配置与语义
+| antd | Go 写法 |
+| --- | --- |
+| `GetProps<typeof Checkbox.Group>` | `CheckboxGroupProps` struct + 泛型约束 |
+| `GetProps<typeof Context>` | context value struct 直用 |
+| `GetRef<typeof Select>` | `*Select` 句柄 |
+| `GetProp<P,'options'>[number]` | `Option` 元素类型 |
+| `GetProp<P,'func','Return'>` | 函数返回类型具名 |
 
-下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**其他**。
+### 6.4 运行时工具取舍表（`_util/`）
 
-| 配置 | 说明 | 类型（摘录） | 默认 |
-| --- | --- | --- | --- |
-| `（见 §3）` | 以文档 API 表为准 |  | — |
-
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
-
-### 6.4 交互状态机（L1）
-
-```text
-（无运行时状态机；类型工具）
-```
-
-\*仅文档。
+| 移植（纯逻辑） | 不移植（浏览器/React） |
+| --- | --- |
+| `colors`（`isPresetColor/isPresetStatusColor`）、`is` 断言、`toList`、`transKeys`、`capitalize`、`easings` 数学、`getRenderPropValue` 语义 | `responsiveObserver`、`scrollTo/getScroll`、`wave`、`placements/dom-align`、`styleChecker`、`zindexContext/hooks` React 态、`throttleByAnimationFrame` |
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| UTL-S1 | GetProps 说明存在 | 文档可查 |
-| UTL-S2 | GetRef 说明存在 | 文档可查 |
-| UTL-S3 | 与 kit 映射说明 | 有对照指引 |
-### 6.5 视觉 chrome 规则（L2 摘要）
+| UTL-S1 | `GetProps`→泛型约束对照存在 | 文档可查 |
+| UTL-S2 | `GetRef`→句柄类型对照存在 | 文档可查 |
+| UTL-S3 | 取舍表覆盖移植/不移植两列 | 有对照指引 |
 
-| 态 | 规则 |
+### 6.5 视觉 chrome
+
+不适用（无 UI）。
+
+### 6.6 无障碍
+
+不适用（无 UI）。
+
+### 6.7 平台边界
+
+| 能力 | 策略 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
-
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
-
-### 6.6 无障碍（a11y）最低要求
-
-| 项 | 要求 |
-| --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
-
-### 6.7 平台边界（gpui vs 浏览器 antd）
-
-| 能力 | 策略 | 级别 |
-| --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 类型工具（§6.3） | Go 对照，P0 |
+| 纯函数（§6.4 左列） | 按需移植，P0 |
+| 浏览器-only（§6.4 右列） | 不做 |
 
 ### 6.8 能力裁剪（P0 / P1）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0
 
-| 配置 / 能力 | 说明 |
+| 能力 | 说明 |
 | --- | --- |
-| `主路径 API（§3）` | 必须 |
-| `Theme Token` | 必须 |
-| `基础 a11y` | 必须 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| 类型对照（§6.3） | 必须 |
+| 纯函数移植（§6.4 左列） | 按需 |
+| §6.9 UTL-01–UTL-03 | 通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1
 
-| 配置 / 能力 | 说明 |
+| 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| 浏览器-only（§6.4 右列） | 不做 |
 
 ### 6.9 验收用例表（可测）
 
-> 测试名建议：`TestUtil_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Util 完成 1:1 主路径。
-
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| UTL-01 | L1 | NewUtil 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| UTL-02 | L1 | GetProps 说明存在 | 文档可查 |
-| UTL-03 | L1 | GetRef 说明存在 | 文档可查 |
-| UTL-04 | L1 | 与 kit 映射说明 | 有对照指引 |
-| UTL-05 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| UTL-06 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| UTL-07 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| UTL-08 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| UTL-09 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| UTL-10 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| UTL-11 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
-### 6.10 产品 API 契约（Go kit 侧）
+| UTL-01 | L1 | `GetProps` 对照可查 | 有泛型约束写法 |
+| UTL-02 | L1 | `GetRef` 对照可查 | 有句柄类型写法 |
+| UTL-03 | L1 | 取舍表可查 | 移植/不移植两列齐 |
+| UTL-04 | P1 | 浏览器-only | 不做，Notes 标明 |
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+### 6.10 Go 对照（类型侧，无 kit 控件）
 
 ```text
-NewUtil(...) *Util
-
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// GetProps<typeof X> → 泛型约束或具名 Props
+type CheckboxGroupProps[T any] struct { Options []T; Value []T }
+// GetRef<typeof Select> → 句柄
+type SelectHandle = *Select
+// GetProp<P,K> → 字段类型
+type SelectOption = GetPropEquivalent[SelectProps, Option]
 ```
 
-**默认值（未 Set 时）：**
-
-| 字段 | 默认 |
-| --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
-
-### 6.11 结构与绘制分层（实现提示）
+### 6.11 落地分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+internal/util/  纯函数（colors/is/toList/transKeys/…）
+类型对照        各 kit 控件 Props/Handle 定义处注释引用 §6.3
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 不建 `ui/kit/util` 控件包；不进 gallery（无 UI，见 §6.12）。
 
 ### 6.12 完成定义（DoD）
 

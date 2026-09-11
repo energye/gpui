@@ -431,6 +431,8 @@ mount ──► default chrome（variant outlined|borderless · size middle|smal
 | CRD-S8 | type=inner | 头底 fillAlter；标题字号 14；内嵌皮 |
 | CRD-S9 | variant=borderless | 无描边（可弱阴影近似）；outlined 有 1px 边 |
 | CRD-S10 | Card.Grid | 等分网格；默认 hoverable；body 无 pad 包裹 |
+
+**loading 与 cover 几何（对齐 `Card.tsx`）：** `loading=true` 时 body 区替换为 `Skeleton`（`title=false`、`paragraph rows=4`、`active` 闪烁），骨架占满原 body 内边距盒（middle 24 / small 12），不保留原 children；`cover` 位于 header 下、body 上，全宽顶贴根容器，顶部圆角随根（8），左右不吃 body pad，图片按宽 100%、高自适应铺满，超高由业务裁剪，kit 不拉伸变形。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -447,8 +449,11 @@ mount ──► default chrome（variant outlined|borderless · size middle|smal
 
 | 项 | 要求 |
 | --- | --- |
-| 表格/树/列表 | 结构角色与展开/选中态可读 |
-| 排序/筛选 | 控件有名 |
+| 容器语义 | Card 本体为通用分组容器，无需表格/树角色；有标题时根具可读名（标题文本回落 `AriaLabel`），读屏按“标题+内容”顺序朗读 |
+| 标题/操作 | `title` 为标题文本，`extra` 与 `actions[]` 均为独立可激活控件，各自有可访问名；`actions` 项可聚焦并以 Enter/Space 激活 |
+| 封面 | `cover` 图片带等价文本（alt/`AriaLabel`），纯装饰则隐藏 |
+| 加载态 | `loading=true` 时 body 暴露忙态（`aria-busy` 等价），骨架不抢焦点，原内容不可激活 |
+| 可点卡片 | `hoverable` + `OnClick` 时整卡可聚焦，Focus ring 可见，Enter/Space 触发点击 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 

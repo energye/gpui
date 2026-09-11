@@ -185,7 +185,19 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | breakpoint | 触发响应式布局的[断点](/components/grid-cn#col) | `xs` \| `sm` \| `md` \| `lg` \| `xl` \| `xxl` \| `xxxl` | - | xxxl: 6.3.0 |
-| classNames | 用于自定义 Sider 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | collapsedWidth | 收缩宽度，设置为 0 会出现特殊 trigger | number | 80 | defaultCollapsed | 是否默认收起 | boolean | false | styles | 用于自定义 Sider 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | trigger | 自定义 trigger，设置为 null 时隐藏 trigger | ReactNode | - | zeroWidthTriggerStyle | 指定当 `collapsedWidth` 为 0 时出现的特殊 trigger 的样式 | object | - | onCollapse | 展开-收起时的回调函数，有点击 trigger 以及响应式反馈两种方式可以触发 | (collapsed, type) => {} | - 
+| classNames | 用于自定义 Sider 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  |
+| collapsed | 当前收起状态 | boolean | - |  |
+| collapsedWidth | 收缩宽度，设置为 0 会出现特殊 trigger | number | 80 |  |
+| collapsible | 是否可收起 | boolean | false |  |
+| defaultCollapsed | 是否默认收起 | boolean | false |  |
+| reverseArrow | 翻转折叠提示箭头的方向，当 Sider 在右边时可以使用 | boolean | false |  |
+| styles | 用于自定义 Sider 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  |
+| theme | 主题颜色 | `light` \| `dark` | `dark` |  |
+| trigger | 自定义 trigger，设置为 null 时隐藏 trigger | ReactNode | - |  |
+| width | 宽度 | number \| string | 200 |  |
+| zeroWidthTriggerStyle | 指定当 `collapsedWidth` 为 0 时出现的特殊 trigger 的样式 | object | - |  |
+| onBreakpoint | 触发响应式布局[断点](/components/grid-cn#api)时的回调 | (broken) => {} | - |  |
+| onCollapse | 展开-收起时的回调函数，有点击 trigger 以及响应式反馈两种方式可以触发 | (collapsed, type) => {} | - |  |
 ```js
 import { Layout } from 'antd';
 ```
@@ -402,7 +414,7 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
 | 折叠宽度过渡动画像素级 | 分期（P0 瞬时切换） |
-| 固定头部 / 固定侧边栏（`fixed.tsx` / `fixed-sider.tsx`） | 分期 |
+| 固定头部 / 固定侧边栏（`fixed.tsx` / `fixed-sider.tsx`） | 分期（缺宿主滚动锁定：官方靠 `position: sticky` + 宿主滚动容器实现，kit 暂无宿主滚动锁定能力） |
 | 浏览器-only API / ConfigProvider 全局 Layout 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 

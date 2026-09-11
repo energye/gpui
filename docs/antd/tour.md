@@ -406,7 +406,7 @@ closed ──SetOpen(true)/open──► open@current
 | TOU-S4 | Close / Esc / closeIcon / mask 点击 | `open=false` + `onClose`；Esc 受 `keyboard` 约束（默认 true） |
 | TOU-S5 | 受控 `current` | 外部 `SetCurrent` 为真相；内部 Next/Prev 不擅自改 current |
 | TOU-S6 | 末步 Next | `onFinish`；关闭引导（`open=false`）；可再触发 `onClose` |
-| TOU-S7 | `mask=false`（非模态） | 无全屏遮罩；面板仍显示；背景可交互（不 trap 全屏 mask） |
+| TOU-S7 | `mask=false`（非模态） | 无全屏遮罩，面板仍显示；背景可点（mask 层不拦截命中）；高亮洞仍可绘，仅 `disabledInteraction` 控制洞区透传 |
 | TOU-S8 | `type` / step.`type` | 面板底色与文字切换 default↔primary |
 | TOU-S9 | `placement` / step.`placement` | 面板相对 target 方位；`center` 或 target 空 → 视口居中 |
 | TOU-S10 | `gap` | 高亮洞相对 target 外扩 offset、圆角 radius |
@@ -422,6 +422,10 @@ closed ──SetOpen(true)/open──► open@current
 | footer | 指示器（左）+ 操作 Prev/Next|Finish（右）；可 `indicatorsRender` / `actionsRender` |
 | open/close | 动画可关 / reduced-motion；P0 瞬时 |
 | closeIcon | 默认显示；点击关闭 |
+| cover | 有 `cover` 才绘封面区（图/视频节点原样挂载，置标题上）；空不占位 |
+| buttons | `current>0` 才有 Prev；Next 末步文案切 Finish；`actionsRender(origin,{current,total})` 可包 origin 重排；`type=primary` 时主/次按钮色反转 |
+
+**target 矩形：谁来写——宿主（业务/布局层）写入 `TourStep.Target` 绝对矩形；何时写——`open`/`current` 切换与布局后重写；跟谁对齐——与锚点节点布局盒对齐，空则面板视口居中。**
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
 
@@ -548,7 +552,7 @@ Panel() core.Node                  // 测试钩：当前面板
 
 // TourStep
 Title / Description / Cover(core.Node)
-Target core.Rect                   // 空 → 居中；宿主每帧可写绝对矩形
+Target core.Rect                   // 空 → 视口居中；宿主写绝对矩形（open/current/布局后重写，与锚点盒对齐）
 Placement / Type / Mask* / Arrow*
 NextButtonProps / PrevButtonProps  // Children + OnClick + 浅 Style
 ```

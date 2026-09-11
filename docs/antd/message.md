@@ -149,6 +149,14 @@
 
 | API | 能力 | 说明 |
 | --- | --- | --- |
+| `open` / `success` / `error` / `info` / `warning` / `loading` | 类型打开 | 按类型打开一条，返回句柄（promise `then` 等关闭） |
+| `duration` | 自动关闭 | 秒；`0` 常驻；默认 3 |
+| `key` | 同条更新 | 同 key 再次 open 只更新内容，不新增 |
+| `onClose` | 关闭回调 | 关闭时触发 |
+| `destroy` | 销毁 | `destroy(key?)` 关一条或清空 |
+| `maxCount` | 最大显示数 | 超限丢最旧 |
+| `stack` | 堆叠折叠 | 超阈值收起，只展最新 |
+| `top` | 顶部偏移 | 默认 8 |
 | `onClick` | 点击 | 点击 message 时触发的回调函数 |
 
 ### 2.4 示例全表
@@ -422,6 +430,9 @@ import { Message } from 'antd';
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | duration 默认 | **3s** | API |
+| 顶部偏移 top | **8** | API（`getPlacementOffsetStyle`） |
+| 内容区 padding | **≈9 × 12** | `contentPadding` = `(controlHeightLG − fontSize×lineHeight)/2` × `paddingSM` |
+| 最大宽 | `max-content` / `maxWidth 100%` | 水平居中不定宽 |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **8** | `borderRadiusLG`（notice 共享样式） |
 | 边框线宽 | **1** | `lineWidth` |
@@ -612,8 +623,8 @@ SetStackThreshold(n int)
 | Top | 8px |
 | Type | info |
 | MaxCount | 0（不限制；SetMaxCount 后超限丢最旧） |
-| Stack | false；threshold=3 |
-| PauseOnHover | true（P0 行为允许不暂停；精确 hover 计时 P1） |
+| Stack | false；开启后 threshold 默认 3（来源：官方 `stack.tsx` 示例初始值 `useState(3)`，与 notification 默认阈值对齐） |
+| PauseOnHover | true；可测：悬停期间关闭计时冻结（虚拟时钟断言剩余时长不变），移开后恢复计时 |
 
 ### 6.11 结构与绘制分层（实现提示）
 

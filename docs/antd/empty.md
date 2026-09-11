@@ -12,7 +12,7 @@
 
 空状态时的展示占位图。
 
-**Empty** 的视觉由结构层（根容器 / 内容 / 装饰 / 浮层）与状态层（default / hover / active / focus / disabled / loading 等）组成。gpui kit 实现时需与 antd **6.5** 的尺寸节奏、圆角、颜色语义对齐。
+**Empty** 的视觉由 image（default/simple/自定义）+ description + footer（children 操作区）纵向居中组成；本体无交互态、无浮层（见 §6.4–§6.5）。gpui kit 实现时需与 antd **6.5** 的尺寸节奏、颜色语义对齐。
 
 ### 1.2 文档示例对应的外观形态
 
@@ -55,15 +55,7 @@
 
 ### 1.4 交互视觉状态（实现检查表）
 
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+本控件为非交互占位，无 hover / active / focus / disabled / loading / error 态（本体不可点；footer 子 Button 自带交互，见 §6.4–§6.6）。
 
 ### 1.5 语义化 DOM 与主题
 
@@ -207,7 +199,7 @@ import { Empty } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 展示形态与可选交互（复制/预览/关闭） | Headless / behavior 测试 |
+| **L1** | 行为 | 插画种类（default/simple/自定义）、描述显隐（默认 locale / 自定义 / `false` 隐藏）、footer 操作区有无 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -250,6 +242,12 @@ import { Empty } from 'antd';
 | 内置插画 fill | `colorFill*` / `colorBgContainer` / `colorTextQuaternary` | 随 Theme，禁止硬编码品牌主色当皮 |
 | 容器底 / 边框（styles 覆盖） | `colorBgContainer` / `colorBorder` | 仅 style-class 路径 |
 | 禁用 | 不适用 | Empty **无** disabled API |
+| 插画色回落 | `getAsSolidColor(前景, colorBgContainer)` | 前景半透明时与底实色合成（源码 `empty.tsx/utils.ts`），无底时取 `colorBgContainer` |
+
+#### 6.2.3 内置插画几何色块稿（P0 近似稿，源码 `empty.tsx` / `simple.tsx`）
+
+- **default 稿**（`PRESENTED_IMAGE_DEFAULT`，`viewBox 184×152`）：底部椭圆阴影（`shadowColor=colorFillSecondary`，`cx 67.8 cy 106.9 rx 67.8 ry 12.7`，`fillOpacity .8`）+ 外框（`borderColor=colorTextQuaternary`）+ 面板（`panelBgColor=colorFillTertiary`）+ 细节线（`detailColor=colorFill`）+ 右上气泡（`detailColor` 底 + `iconColor=colorBgContainer` 图形）；kit 用 Canvas 几何色块近似，不逐像素抠 SVG。
+- **simple 稿**（`PRESENTED_IMAGE_SIMPLE`，`viewBox 64×41`）：底部椭圆阴影（`shadowColor=colorFillTertiary`）+ 梯形盒描边（`borderColor=colorFill`）+ 内容块（`contentColor=colorFillQuaternary`）；`empty-normal` 上下文 `marginBlock=32`，图高 40。
 
 禁止硬编码品牌色作为唯一默认皮。
 

@@ -118,10 +118,9 @@
 
   | 值 | 外观/语义 |
   | --- | --- |
-  | `single` | 官方取值 `single` |
-  | `gradient` | 官方取值 `gradient` |
-  | `('single` | 官方取值 `('single` |
-  | `gradient')[]` | 官方取值 `gradient')[]` |
+  | `single` | 单色面板 |
+  | `gradient` | 渐变面板（多 stop 色条） |
+  | `('single' \| 'gradient')[]` | 双模式可切换（面板内 single/gradient 页签） |
 
 #### `presets`
 
@@ -192,58 +191,30 @@
 - **类型**：`(value: Color) => void`
 - **默认值**：-
 - **版本**：5.7.0
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `onChangeComplete` | 官方取值 `onChangeComplete` |
-  | `value` | 官方取值 `value` |
 
 #### `onFormatChange`
 
 - **说明**：颜色格式变化的回调
 - **类型**：`(format: 'hex' | 'rgb' | 'hsb') => void`
 - **默认值**：-
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `(format: 'hex` | 官方取值 `(format: 'hex` |
-  | `rgb` | 官方取值 `rgb` |
-  | `hsb') => void` | 官方取值 `hsb') => void` |
 
 #### `toHexString`
 
-- **说明**：转换成 `hex` 格式颜色字符串，返回格式如：`#1677ff`
+- **说明**：转换成 `hex` 格式颜色字符串，返回格式如：`#1677ff`（带透明度时 8 位，如 `#1677ff80`）
 - **类型**：`() => string`
 - **默认值**：—
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `hex` | 官方取值 `hex` |
 
 #### `toHsbString`
 
 - **说明**：转换成 `hsb` 格式颜色字符串，返回格式如：`hsb(215, 91%, 100%)`
 - **类型**：`() => string`
 - **默认值**：—
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `hsb` | 官方取值 `hsb` |
 
 #### `toRgbString`
 
-- **说明**：转换成 `rgb` 格式颜色字符串，返回格式如：`rgb(22, 119, 255)`
+- **说明**：转换成 `rgb` 格式颜色字符串，返回格式如：`rgb(22, 119, 255)`（带透明度时为 `rgba(...)`）
 - **类型**：`() => string`
 - **默认值**：—
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `rgb` | 官方取值 `rgb` |
 
 ### 1.4 交互视觉状态（实现检查表）
 
@@ -586,6 +557,18 @@ disabled ── 阻断 open / 改色
 | CP-S8 | 受控 value | `SetValue` 写入不发 onChange；父在 onChange 中回写 |
 | CP-S9 | open / onOpenChange | 受控 `SetOpen`；非受控 toggle；外点关闭回调 |
 | CP-S10 | mode=gradient | 值带 stops；触发器可画渐变条 |
+
+**颜色换算（kit 与 `@rc-component/color-picker` 一致，小数容差 ±1）：**
+
+| 方向 | 公式 |
+| --- | --- |
+| HSB→RGB | 记 `H∈[0,360)`、`S,B∈[0,1]`，`C=B·S`，`X=C·(1−\|((H/60) mod 2)−1\|)`，`m=B−C`；按 `H` 所属 60° 扇区取 `(R',G',B')` 为 `(C,X,0)/(X,C,0)/(0,C,X)/(0,X,C)/(X,0,C)/(C,0,X)`，`R=(R'+m)·255`（G、B 同理，四舍五入 0…255） |
+| RGB→HSB | `R'=R/255`（G'、B' 同理），`V=max`，`m=min`，`C=V−m`；`B=V`，`S=V=0?0:C/V`，`C=0?H=0:H` 按最大分量扇区求（R 最大：`60·(((G'−B')/C) mod 6)`，G 最大：`60·((B'−R')/C+2)`，B 最大：`60·((R'−G')/C+4)`，负值加 360） |
+| hex/hex-alpha | 不透明：`#rrggbb`；带透明度：`#rrggbbaa`（`aa=round(A·255)` 转两位十六进制，`A=1` 时可省略）；解析时去非十六进制字符后截 6/8 位（对齐 `toHexFormat`） |
+
+**渐变 stops 简化定义（对齐 `AggregationColor.colors`）：** `ColorStop{Color Color, Percent float64}` 有序数组，`Percent` 钳制 0…100 并升序排；面板 CSS 按 `linear-gradient(90deg, c1 p1%, c2 p2%, …)` 拼；kit P0 只管“首尾两 stop 直线渐变 + 面板可增删”（`presets-line-gradient` 多 stop 编辑器为 P1）。
+
+**附录：三滑杆交互：** ① Hue 色相条：底为 `hsl(H,100%,50%)` 彩虹条，拖动只改 `H`（S/B/A 不变），拖中发 `onChange`、松手发 `onChangeComplete`；② Alpha 透明条：底为透明棋盘 + 当前色 `toRgbString()` 叠加，拖动只改 `A`，`disabledAlpha=true` 时整条隐藏且 `A` 恒 1；③ Gradient stop 条（仅 `mode=gradient`）：多手柄条，底为当前 stops 的 `linear-gradient`，点条面新增 stop（percent=点击位置），拖手柄改该 stop 的 percent，`activeIndex` 为当前选中手柄，Delete 键删非首尾手柄；S/V 通过二维饱和度面板（非滑杆）调节。键盘左右箭头以 1% 步进当前手柄，respect reduced-motion 可瞬时跳变。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |

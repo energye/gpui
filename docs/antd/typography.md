@@ -586,9 +586,11 @@ import { Typography } from 'antd';
 ```text
 Text/Title/Paragraph/Link 渲染
 copyable ──► 剪贴板 + onCopy
-ellipsis ──► 省略；expandable 展开
+ellipsis ──► 量测后省略；expandable 展开
 editable ──► 编辑态 Enter 提交 Esc 取消
 ```
+
+> 省略量测算法（`Base/Ellipsis.tsx`）：隐藏全量按 `rows` 量高判溢出→预留 `rows-1` 高 + 操作符（suffix/展开符）行高→`[0,len]` 二分 cut 取 mid 高度与上限比→收敛后 `slice + ... + suffix/展开符`。中间省略走首尾双截写死：前段 `children` + 固定长 `suffix` 尾段（见 `ellipsis-middle.tsx`）。
 
 \*Title 字号 38/30/24/20/16。
 
@@ -597,8 +599,8 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 | TYP-S1 | Title level 1..5 | 字号阶梯 |
 | TYP-S2 | type=danger 等 | 语义色 |
 | TYP-S3 | copyable 点击 | 剪贴板正确；onCopy |
-| TYP-S4 | ellipsis 超长 | 省略号 |
-| TYP-S5 | expandable 展开 | 全文 |
+| TYP-S4 | ellipsis 超长（量测算法） | 按二分 cut 省略，预留 suffix/展开符 |
+| TYP-S5 | expandable 展开 | 全文；中间省略仍首尾双截（suffix 尾段固定） |
 | TYP-S6 | editable Enter | 提交新文案 |
 | TYP-S7 | editable Esc | 取消 |
 | TYP-S8 | disabled | 不可点复制/编辑 |

@@ -361,7 +361,7 @@ import { FloatButton } from 'antd';
 | `icon` | 自定义图标 | ReactNode | - |
 | `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
 | `content` | 文字及其它内容 | ReactNode | - |
-| `tooltip` | 气泡卡片的内容 | ReactNode \ | [TooltipProps](/components/tooltip-cn#api) |
+| `tooltip` | 悬停气泡：字符串透传为 Tooltip 标题（P0）；完整 `TooltipProps`（位置/箭头/延时）为 P1；悬停示意、不抢主点击，disabled 时不弹 | ReactNode \ | [TooltipProps](/components/tooltip-cn#api) |
 | `type` | 设置按钮类型 | `default` \ | `primary` |
 | `shape` | 设置按钮形状 | `circle` \ | `square` |
 | `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
@@ -369,7 +369,7 @@ import { FloatButton } from 'antd';
 | `href` | 点击跳转的地址，指定此属性 button 的行为和 a 链接一致 | string | - |
 | `target` | 相当于 a 标签的 target 属性，href 存在时生效 | string | - |
 | `htmlType` | 设置 `button` 原生的 `type` 值，可选值请参考 [HTML 标准](https://develop… | `submit` \ | `reset` \ |
-| `badge` | 带徽标数字的悬浮按钮（不支持 `status` 以及相关属性） | [BadgeProps](/components/badge-cn#api) | - |
+| `badge` | 徽标叠加：`count/dot/overflowCount` 角标右上叠加、不抢主点击；不支持 `status/text/title/children`（源码 `FloatButton.tsx` omit） | [BadgeProps](/components/badge-cn#api) | - |
 | `disabled` | 按钮是否禁用 | boolean | - |
 | `trigger` | 触发方式（有触发方式为菜单模式） | `click` \ | `hover` |
 | `open` | 受控展开，需配合 trigger 一起使用 | boolean | - |
@@ -387,7 +387,7 @@ badge 叠层不抢主点击
 
 【Group 无 trigger】子钮常显
 【Group + trigger】closed ──trigger──► open 子钮 + closeIcon
-受控 open；placement 四向
+受控 open；placement 四向；`trigger=click` 时组外点击走 overlay 外点关闭（document capture 监听，不在组内则收起，源码 `FloatButtonGroup.tsx`）
 
 【BackTop】scrollY < visibilityHeight ──► 隐藏
            scrollY ≥ 400 ──► 显示 ── click ──► 滚到顶
@@ -409,7 +409,7 @@ badge 叠层不抢主点击
 | FB-S10 | BackTop scroll≥400 点击 | 回顶（**P1**） |
 | FB-S11 | badge count | 角标可见（**P1**） |
 | FB-S12 | 仅图标 | 必须 AriaLabel |
-| FB-S13 | loading=true | 指示器；不触发 onClick |
+| FB-S13 | loading=true（**kit 自增，antd 6.5 无此 API**） | spinner 示意 + 吞 `onClick` 防重复（Ticker 驱动） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -419,7 +419,7 @@ badge 叠层不抢主点击
 | focus | 可见 focus ring |
 | checked/selected/active（适用者） | 主色强调 |
 | disabled | 降对比；无 hover |
-| loading | 指示器；防重复 |
+| loading（kit 自增） | spinner 示意；吞重复 click（见 FB-S13） |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -455,16 +455,17 @@ badge 叠层不抢主点击
 | --- | --- |
 | `onClick` | 必须 |
 | `disabled` | 必须 |
-| `loading` | bool；Ticker 旋转指示；吞重复 click |
+| `loading`（kit 自增，antd 无） | bool；Ticker spinner + 吞重复 click（见 FB-S13） |
 | `type` | `default` \| `primary`（默认 **default**） |
 | `shape` | `circle` \| `square`（默认 **circle**） |
 | `icon` | 必须；无 icon 且无 content 时用默认图标 |
 | `content` | 文字说明（antd `content`；旧 `description` 弃用） |
-| `tooltip` | 悬停气泡文案（字符串；完整 TooltipProps 属 P1） |
+| `tooltip` | 悬停气泡文案（字符串 P0；完整 `TooltipProps` P1；不抢主点击，disabled 不弹） |
 | `open` / `onOpenChange` | Group 菜单模式受控/非受控 |
 | `trigger` | Group：`click` \| `hover`；无 trigger = 子钮常显 |
 | `placement` | Group 菜单：`top` \| `left` \| `right` \| `bottom`（默认 top） |
 | `closeIcon` | 菜单展开时 trigger 图标（默认 close） |
+| Group 外点关闭 | **P0**：`trigger=click` 菜单开时组外点击收起（走 overlay 外点关闭，document capture，源码 `FloatButtonGroup.tsx`） |
 | 官方主路径示例 | 基本、类型、形状、描述(content)、气泡、浮动按钮组、菜单模式、受控模式 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -474,7 +475,7 @@ badge 叠层不抢主点击
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `badge` | 徽标叠加 |
+| `badge` | 徽标叠加（`count/dot` 右上，不抢主点击；不支持 `status/text/title/children`） |
 | `FloatButton.BackTop` | 回顶（visibilityHeight=400） |
 | 可拖拽 `draggable` | 分期 |
 | 弹出方向完整 demo 动画 | placement 四向 **行为** 属 P0；入场动画像素级属 P1 |

@@ -116,25 +116,27 @@
 - **类型**：number
 - **默认值**：-
 
+#### `order` / `push` / `pull`
+
+- **说明**：`order` 为栅格顺序（`order` 越小越靠前）；`push` 为向右推移格数，`pull` 为向左推移格数（相对定位偏移，不占列宽，源码 `col.tsx` `col-push/pull`）
+- **类型**：number
+- **默认值**：0
+
+#### 响应式对象写法（`xs`…`xxxl`）
+
+- **说明**：断点可为数字（=该断点 `span`）或对象（含 `span/order/offset/push/pull/flex` 全字段，如 `{span:12, offset:2}`）；命中规则为从大到小取首个匹配断点（`responsiveArray xxxl→xs`，源码 `col.tsx` + `row.tsx`）；`Row align/justify` 同理支持 `{xs…xxxl: 值}` 对象写法，`gutter` 支持 `{xs:8, sm:16, md:24}` 与 `[水平, 垂直]` 数组
+- **类型**：number | `{span?, order?, offset?, push?, pull?, flex?}`
+- **默认值**：-（未命中时回落显式 `span/order/…`）
+
 ### 1.4 交互视觉状态（实现检查表）
 
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+不适用——Grid 为纯布局（Row+Col），无 hover / focus / disabled / loading 态，只验列宽/偏移/断点几何（见 §6.4）。
 
 ### 1.5 语义化 DOM 与主题
 
-- 至少区分根容器、内容区、装饰/图标区；浮层再分 popup/mask。
+- 仅 Row 容器 + Col 列 + 子项；无装饰区、无浮层。
 
-- 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
-
-- 动效可关（reduced-motion / 全局 motion、wave 配置）。
+- 间隙与断点走 §6.2 度量；无颜色/动效 Token。
 ---
 ## 2. 功能
 ### 2.1 使用场景
@@ -305,25 +307,16 @@ import { Grid } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 栅格列数 | **24** | gridColumns |
-| 列数 | **24** | gridColumns |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 栅格列数 | **24** | `gridColumns`（列宽 `span/24×100%`） |
+| 水平 gutter 推导 | Row `marginInline=-gutterH/2` + Col `paddingInline=+gutterH/2` | 源码 `row.tsx`/`col.tsx` + `useGutter`；数字=px，字符串透传 `calc` |
+| 垂直 gutter 推导 | Row `rowGap=gutterV`（`[h,v]` 数组第二项） | 同上；未设=0 |
+| gutter 响应式对象 | `{xs:8, sm:16, md:24}` 按当前屏取首个匹配断点 | `useGutter` 从大到小（`xxxl→xs`）匹配 |
+| 断点 | `xs<576` · `sm≥576` · `md≥768` · `lg≥992` · `xl≥1200` · `xxl≥1600` · `xxxl≥1920` | `responsiveObserver`（`screen[XS…]` 可定制，P1） |
+| Col 响应式命中 | 当前断点对象 > 显式 `span/order/offset/push/pull` > 零值 | 源码 `col.tsx` `responsiveArrayReversed` |
 
 #### 6.2.2 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
-| --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
-
-禁止硬编码品牌色作为唯一默认皮。
+Grid 为纯布局，无自有颜色：子项底色/边框走子控件自身 Token；禁止为 Grid 硬编码品牌色。
 
 ### 6.3 关键配置与语义
 

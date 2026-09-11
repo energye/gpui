@@ -148,8 +148,6 @@
 | hover | 可交互控件需有悬停反馈 |
 | active/pressed | 按下态对比或反馈（若适用） |
 | focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
 | error/warning | 与 status/Form 语义色一致 |
 
 ### 1.5 语义化 DOM 与主题
@@ -185,7 +183,14 @@
 
 | API | 能力 | 说明 |
 | --- | --- | --- |
+| `onResizeStart` / `onResize` / `onResizeEnd` | 拖拽三段回调 | 起拖 / 尺寸变化（`lazy` 时拖中不发） / 松手提交，参数均为 `sizes: number[]` |
+| `size` / `defaultSize` | 受控/非受控 | `size` 已设为受控（须配 `onResize` 回写，否则面板不动）；`defaultSize` 为初值 |
+| `min` / `max` | 夹紧阈值 | px 或百分比，拖拽与折叠恢复均受夹紧 |
+| `collapsible` | 折叠 | 面板 `size→0`，空间让给邻面板；触发 `onCollapse(collapsed[], sizes[])` |
+| `resizable` | 禁拖 | `false` 时不可拖（仍可折叠）；条无 spinner，cursor 默认 |
+| `lazy` | 延迟渲染 | 拖中仅画预览线，松手一次提交 `size` |
 | `destroyOnHidden` | 隐藏销毁 | 折叠时（size 为 0）销毁面板内容，应用于所有面板，可在单个面板上覆盖 |
+| `onDraggerDoubleClick` | 双击条 | 双击拖拽条回调 `(index)` |
 
 ### 2.4 示例全表
 
@@ -578,7 +583,15 @@ splitterRoot（自定义 Layout：按 PanelSizes 摆面板 + 条）
 - `rebuild()` 只读 Default / 字段 / Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）；条盒 ≥ 可视条。  
 - lazy 预览线可叠在 root 上画；折叠动画 P0 瞬时，Ticker 仅用于 loading 类控件（本控件无 loading）。  
-- 键盘：条可聚焦；方向键微调为 P0 主路径（步进 ≈ 容器 1% 或 4px）。  
+- 键盘：条可聚焦；方向键微调为 P0 主路径（步进 ≈ 容器 1% 或 4px）。
+
+**受控判定**：任一面板 `size` 已 Set 即进入受控路径（`defaultSize` 只作初值）；受控下拖拽/折叠只发回调，不写内部 `sizes`。
+
+```text
+非受控：drag ──► 内 sizes 更新 + onResize ──► release ──► onResizeEnd
+受控：  drag ──► onResize(sizes')（内部不动）──► 父调 SetPanelSizesPx ──► 下次 Layout 生效
+        release ──► onResizeEnd（同上，须父回写才稳定）
+```
 
 ### 6.12 完成定义（DoD）
 

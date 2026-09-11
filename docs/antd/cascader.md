@@ -37,7 +37,7 @@
 | 形态变体 | variant 线框/填充差异 |
 | 自定义状态 | 自定义渲染/插槽外观 |
 | 自定义语义结构的样式和类 | 自定义渲染/插槽外观 |
-| = 5.10.0">面板使用 | 复现「= 5.10.0">面板使用」视觉与布局 |
+| 面板使用 | 面板形态（`panel.tsx`，`>=5.10.0` 纯面板嵌入，不带输入框） |
 
 ### 1.3 外观相关配置逐项说明
 
@@ -251,7 +251,7 @@
 17. **形态变体**（`variant.tsx`）— kit 需用对等 API 复现该示例的交互与展示。
 18. **自定义状态**（`status.tsx`）— kit 需用对等 API 复现该示例的交互与展示。
 19. **自定义语义结构的样式和类**（`style-class.tsx`）— kit 需用对等 API 复现该示例的交互与展示。
-20. **= 5.10.0">面板使用**（`panel.tsx`）— kit 需用对等 API 复现该示例的交互与展示。
+20. **面板使用**（`panel.tsx`）— 纯面板嵌入形态，不带输入框触发器。
 
 ### 2.3 行为 API 能力
 
@@ -293,7 +293,7 @@
 | 形态变体 | `variant.tsx` | 否 |
 | 自定义状态 | `status.tsx` | 否 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
-| = 5.10.0">面板使用 | `panel.tsx` | 否 |
+| 面板使用 | `panel.tsx` | 否 |
 | 菜单项省略样式调试 | `ellipsis-debug.tsx` | 是 |
 | _InternalPanelDoNotUseOrYouWillBeFired | `render-panel.tsx` | 是 |
 | Component Token | `component-token.tsx` | 是 |
@@ -531,6 +531,19 @@ import { Cascader } from 'antd';
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
+**组件 Token（对齐 `components/cascader/style/index.ts` → `prepareComponentToken`）：**
+
+| Token | 默认值 | 说明 |
+| --- | --- | --- |
+| `controlWidth` | **184** | 选择器整体宽度 |
+| `controlItemWidth` | **111** | 下拉单列最小宽（`&-menu minWidth`） |
+| `dropdownHeight` | **180** | 下拉单列高度（`&-menu height`，超高列内滚动） |
+| `optionSelectedBg` | `controlItemBgActive` | 选中项底色（`&-active`） |
+| `optionSelectedColor` | `colorText` | 选中项文字色 |
+| `optionSelectedFontWeight` | `fontWeightStrong`（600） | 选中项字重 |
+| `optionPadding` | **5px 12px**（`(controlHeight − fontSize×lineHeight)/2` 取整 × `paddingSM`） | 选项内边距 |
+| `menuPadding` | **4**（`paddingXXS`） | 单列菜单内边距 |
+
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
@@ -568,6 +581,8 @@ import { Cascader } from 'antd';
 | `maxTagCount` | 最多显示多少个 tag，响应式模式会对性能产生损耗 | number \ | `responsive` |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+
+**`isLeaf` 父节点语义（对齐官方 `Option.isLeaf` + `lazy.tsx`）：** `isLeaf=false` 时强制标为父节点——即使 `children` 为空也显示展开图标，点击下钻并可触发 `loadData`，单选下默认不可直接选中（`changeOnSelect=true` 才允许逐级提交）；`isLeaf=true`（或无 `children` 且无 `loadData`）为叶子，可直接选中；`isLeaf` 未设且配了 `loadData` 的无子节点视为“待加载父节点”，展开时显示 loading 并等待异步回填 `children`。
 
 ### 6.4 交互状态机（L1）
 

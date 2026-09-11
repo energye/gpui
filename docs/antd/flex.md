@@ -12,7 +12,7 @@
 
 用于对齐的弹性布局容器。
 
-**Flex** 的视觉由结构层（根容器 / 内容 / 装饰 / 浮层）与状态层（default / hover / active / focus / disabled / loading 等）组成。gpui kit 实现时需与 antd **6.5** 的尺寸节奏、圆角、颜色语义对齐。
+**Flex** 的视觉即排布本身：主轴方向（`vertical`/`orientation`）+ 间隙（`gap`）+ 主轴/交叉轴对齐（`justify`/`align`）+ 换行（`wrap`）。无颜色、无交互态，只验几何（见 §6.4–§6.5）。
 
 ### 1.2 文档示例对应的外观形态
 
@@ -87,23 +87,13 @@
 
 ### 1.4 交互视觉状态（实现检查表）
 
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+不适用——Flex 为纯布局容器，无颜色、无 hover / active / focus / disabled / loading 态，只验子项几何（见 §6.5）。
 
 ### 1.5 语义化 DOM 与主题
 
-- 至少区分根容器、内容区、装饰/图标区；浮层再分 popup/mask。
+- 仅根布局容器 + 子项；无装饰区、无浮层（`popup/mask` 不适用）。
 
-- 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
-
-- 动效可关（reduced-motion / 全局 motion、wave 配置）。
+- 间隙走 `gap` Token（small 8 / medium 16 / large 24，见 §6.2.1）；无颜色 Token、无动效。
 ---
 ## 2. 功能
 ### 2.1 使用场景
@@ -186,17 +176,9 @@ import { Flex } from 'antd';
 
 实现 gpui kit 版 **Flex** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **5** 个，均需可复现。
+1. **配置面**：`vertical`/`orientation`、`gap`、`justify`、`align`、`wrap`（最小排布语义，见 §6.3–§6.4）。
+2. **几何**：无颜色、无交互态，只验子项位置与间隙（§6.2 gap 8/16/24，§6.9 FLX-02…09）。
+3. **示例矩阵**：官方非 debug 示例约 **5** 个，均需可复现。
 
 ---
 ## 5. 参考链接
@@ -282,7 +264,9 @@ import { Flex } from 'antd';
 | `component` | 自定义元素类型（浏览器-only，P1） | React.ComponentType | `div` |
 | `orientation` | 主轴方向；与 `vertical` 二选一，**orientation 优先** | `horizontal` \| `vertical` | `horizontal` |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 显式 props > 组件默认 > ConfigProvider 全局默认（Flex 无受控 `value/open` 语义）。
+
+> **最小排布语义**：`orientation`/`vertical` 定主轴方向 → `justify` 定主轴分布 → `align` 定交叉轴对齐（未设时水平 start / 垂直 stretch）→ `gap` 定子项间隙 → `wrap` 定窄宽是否换行；五者共同决定子项几何，无颜色无交互。
 
 ### 6.4 交互状态机（L1）
 
@@ -306,20 +290,18 @@ direction/gap/justify/align/wrap 布局 children
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 子项按 §6.4 排布，间隙符合 §6.2（8/16/24 或数字 px） |
+| hover/active/focus/disabled/loading | **不适用**（纯布局容器，无颜色无交互态） |
+| 主题切换 | 间隙随 Theme 更新（无颜色切换） |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 无（纯布局，无入场动画要求）。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰分隔 | 纯装饰可 aria-hidden |
-| 拖拽把手 | 可命名；键盘微调 P0/P1 按控件 |
+| 布局容器 | 无强制 role；可选 `AriaLabel` 命名 landmark（无装饰分隔/把手/浮层） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 

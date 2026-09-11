@@ -12,15 +12,15 @@
 
 将页面元素钉在可视范围。
 
-**Affix** 的视觉由结构层（根容器 / 内容 / 装饰 / 浮层）与状态层（default / hover / active / focus / disabled / loading 等）组成。gpui kit 实现时需与 antd **6.5** 的尺寸节奏、圆角、颜色语义对齐。
+**Affix** 本体无自有皮：未钉住时完全透出被包裹内容；钉住时同一内容平移到视口固定偏移处，布局占位盒不变，下方内容不跳变。
 
 ### 1.2 文档示例对应的外观形态
 
 | 示例名 | 形态/状态要点（kit 验收） |
 | --- | --- |
-| 基本 | 复现「基本」视觉与布局 |
-| 固定状态改变的回调 | 固定头/列/侧栏 |
-| 滚动容器 | 复现「滚动容器」视觉与布局 |
+| 基本 | 按钮长条滚过阈值后钉在视口顶部，下方占位盒不变 |
+| 固定状态改变的回调 | 同基本，钉住/脱离时触发回调并可显示当前固定态 |
+| 滚动容器 | 在定高滚动盒内滚动，内容钉在盒顶部而非窗口 |
 
 ### 1.3 外观相关配置逐项说明
 
@@ -34,15 +34,7 @@
 
 ### 1.4 交互视觉状态（实现检查表）
 
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+Affix 本体无自有交互视觉态（无 hover / active / focus / disabled / loading / error 皮）；状态只有未钉住/已钉住两种，见 §6.4。根级 hover、focus ring、disabled、loading、error/warning 均标 **N/A**，可交互外观由被包裹的 children 自理。
 
 ### 1.5 语义化 DOM 与主题
 
@@ -148,17 +140,11 @@ import { Affix } from 'antd';
 
 实现 gpui kit 版 **Affix** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **3** 个，均需可复现。
+1. **配置面**：覆盖 `offsetTop` / `offsetBottom` / `target` / `onChange`（§6.3）。
+2. **占位**：钉住时布局盒不跳变（AFX-S3）。
+3. **滚动宿主**：`SetScrollTarget` 接桌面滚动视口（AFX-S4）。
+4. **无尺寸/受控/数据驱动/浮层/虚拟列表**：N/A（Affix 只包一层 children）。
+5. **示例矩阵**：官方非 debug 示例约 **3** 个，均需可复现。
 
 ---
 ## 5. 参考链接
@@ -228,7 +214,7 @@ import { Affix } from 'antd';
 | --- | --- | --- | --- |
 | `offsetBottom` | 距离窗口底部达到指定偏移量后触发 | number | -（未设） |
 | `offsetTop` | 距离窗口顶部达到指定偏移量后触发 | number | 0（两者皆未设时） |
-| `target` | 监听滚动的容器；桌面映射为 `SetScrollTarget(*ScrollViewport)` | `() => Window \| HTMLElement \| null` | `() => window` |
+| `target` | 监听滚动的容器；桌面映射为 `SetScrollTarget(*rendering.RenderViewport)` | `() => Window \| HTMLElement \| null` | `() => window` |
 | `onChange` | 固定状态改变时触发的回调 | `(affixed?: boolean) => void` | - |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
@@ -252,10 +238,10 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default（未钉住） | 与被包裹内容一致，Affix 不加皮 |
+| affixed | 同一内容平移到固定偏移处，占位盒尺寸不变 |
+| hover/active/focus/disabled/loading | N/A（Affix 本体无皮，由 children 自理） |
+| 主题切换 | Affix 本体无色标，不跟 Theme 变 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -278,6 +264,7 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 | 浏览器-only API | **映射**或 P1 不做 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 水平滚动容器 | **不支持，仅竖向**（FAQ #29108：水平请用原生 `position: sticky`） | — |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -288,7 +275,7 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 | --- | --- |
 | `offsetTop` | 默认 0；过阈钉顶（AFX-S1） |
 | `offsetBottom` | 贴底钉住（AFX-S5）；仅 bottom 时 top 规则关闭 |
-| `target` → `SetScrollTarget` | 自定义滚动容器（AFX-S4）；桌面 `*ScrollViewport` |
+| `target` → `SetScrollTarget` | 自定义滚动容器（AFX-S4）；桌面 `*rendering.RenderViewport` |
 | `onChange` | 固定态翻转回调（true/false） |
 | 占位 | 钉住时布局盒不跳变（AFX-S3 / placeholderStyle） |
 | 官方主路径示例 | 基本、固定状态改变的回调、滚动容器 |
@@ -341,7 +328,7 @@ NewAffix(content core.Node) *Affix
 SetOffsetTop(top float64)             // antd offsetTop；显式含 0
 SetOffsetBottom(bottom float64)       // antd offsetBottom
 ClearOffsetBottom()                   // 恢复「未设 bottom」
-SetScrollTarget(*primitive.ScrollViewport)  // antd target() 桌面映射
+SetScrollTarget(*rendering.RenderViewport)  // antd target() 桌面映射
 SetContentTop(y float64)              // 内容在滚动内容坐标中的 Y
 SetContent(content core.Node)         // 替换 children
 

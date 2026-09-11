@@ -445,7 +445,7 @@ import { Transfer } from 'antd';
 [右栏勾选] ── actions[1] / < ──► 右栏 targetKeys -= moveKeys；onChange(left)
 [oneWay 右栏移除] ─────────────► 等同左移单项
 [search] 过滤当前栏 filteredItems（不改 targetKeys）
-[全选] 勾选当前栏可见（过滤后、非 disabled）项
+[全选] 写死为当前栏可见过滤后非 disabled 项（`getEnabledItemKeys(filteredItems)`；分页时下拉另有选当页/反选）
 [disabled] 禁止勾选 / 穿梭 / 搜索输入
 ```
 
@@ -454,7 +454,7 @@ import { Transfer } from 'antd';
 | TF-S1 | 右移一项 | `targetKeys` 含该 key；`moveKeys` 正确；方向 `right` |
 | TF-S2 | 左移 | 从 `targetKeys` 移除 |
 | TF-S3 | search 左 | 左栏可见项按 filter 过滤；`onSearch` 触发 |
-| TF-S4 | 全选右移 | 批量加入 `targetKeys` |
+| TF-S4 | 全选右移（写死：当前栏可见过滤后非 disabled 项） | 批量加入 `targetKeys` |
 | TF-S5 | disabled | 不可移、不可改选 |
 | TF-S6 | oneWay | 无左移操作钮；右栏项可单条移除 |
 | TF-S7 | 受控 targetKeys | 本地不改值；仅 `onChange`；父 `SetTargetKeys` 后 UI 更新 |
@@ -664,7 +664,8 @@ Flex Row (Root, role=group, gap/margin 操作列)
   └─ Section right (同 left；oneWay 时项带移除)
 ```
 
-- 组合 `ui/primitive` + `ui/kit`（Checkbox / Input / Button / Pagination）+ `ui/core`，禁止第二套事件/帧循环。  
+- 组合 `ui/primitive` + `ui/kit`（Checkbox / Input / Button / Pagination）+ `ui/core`，禁止第二套事件/帧循环。
+- 跨 kit 就绪顺序：先 Table / Tree / Pagination，再 Transfer（`table-transfer` / `tree-transfer` / `large-data` 分页依赖三者先行）。  
 - `rebuild()` 在数据/配置变化时重建；Root 身份稳定。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - 操作钮 loading 走 Button Ticker；`AttachTicker` 转发。  

@@ -18,11 +18,13 @@
 
 | 示例名 | 形态/状态要点（kit 验收） |
 | --- | --- |
-| 基本用法 | 复现「基本用法」视觉与布局 |
-| 多色图标 | icon 与文本混排 |
-| 自定义图标 | icon 与文本混排 |
-| 使用 iconfont.cn | 复现「使用 iconfont.cn」视觉与布局 |
-| 使用 iconfont.cn 的多个资源 | 复现「使用 iconfont.cn 的多个资源」视觉与布局 |
+| 基本用法 | 单色字形 + `spin`/`rotate`（`HomeOutlined/SettingFilled/SmileOutlined/SyncOutlined/LoadingOutlined`，见 `basic.tsx`） |
+| 多色图标 | 双色字形：主色（+可选次色）参与绘制，`twoToneColor` 单色或 `[主, 次]`，全局 `setTwoToneColor` 兜底（`SmileTwoTone/HeartTwoTone/CheckCircleTwoTone`） |
+| 自定义图标 | `component` 自定义 SVG 绘制优先于 `name`（`HeartSvg/PandaSvg` + `Icon component={HomeOutlined}`，映射 `SetPainter`） |
+| 使用 iconfont.cn | 离线 `CreateFromIconfont` + `RegisterSource` 映射（不拉远程 `scriptUrl`，见 §6.7–§6.8） |
+| 使用 iconfont.cn 的多个资源 | 多源注册，后源覆盖同名（对齐 `scriptUrl[]` 覆盖序） |
+
+> 首批内建字形（P0 注册表，`primitive.GlobalIcons`）：`check`、`close`、`info-circle`、`warning`、`home`、`setting`、`smile`、`sync`、`loading`、`heart`、`star`、`search`、`plus`、`minus`、`edit`、`delete`、`left`、`right`、`up`、`down`、`file-text`、`close-circle`、`check-circle`、`exclamation-circle`；默认边长 `DefaultIconSize=16`（`Size==0` 时生效，见 §6.2.1/§6.10）。
 
 ### 1.3 外观相关配置逐项说明
 

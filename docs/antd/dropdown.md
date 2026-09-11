@@ -447,11 +447,15 @@ open ──► panel 可见（Portal / AnchoredPopup）
 | `open` | 必须 |
 | `onOpenChange` | 必须 |
 | `placement` | 必须 |
-| `trigger` | 必须 |
-| 官方主路径示例 | 基本、额外节点、弹出位置、箭头、其他元素、箭头指向、触发方式、触发事件 |
+| `trigger` | 必须（含 `hover` / `click` / `contextMenu`；`context-menu.tsx` 右键主路径为 P0） |
+| `menu` 项模型（依赖 Menu，见下） | **P0**：`Key/Label/Disabled/Divider/Danger/Extra/Icon/Children（一级）`；二级以下为 P1 |
+| 官方主路径示例（P0，共 11） | 基本、额外节点、弹出位置、箭头、其他元素、箭头指向、触发方式、触发事件、菜单隐藏方式（`overlay-open.tsx` 受控开合）、右键菜单（`context-menu.tsx`）、多级菜单一级（`sub-menu.tsx` 仅一级） |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
+
+> **Menu 项模型依赖声明**：Dropdown 不自建菜单语义，`menu.items` 复用 **Menu** 项模型（`Key` 必填、`Label`、`Disabled`、`Divider`、`Danger`、`Extra` 快捷键文案、`Icon`、`Children`）。`selectable/multiple` 选中语义、`danger/disabled` 染色、分隔线均走 Menu 侧实现；Dropdown 只负责触发器 + 浮层开合 + `OnMenuClick(key)` + `source=menu/trigger` 关闭策略（源码 `dropdown.tsx` `OverrideProvider mode=vertical selectable=false`）。
+> **多级写死**：P0 只保**一级**子菜单（`Children` 非空展开一层）；二级及更深、悬停连展动效、`sub-menu-debug` 均为 **P1**。
 
 #### P1（可 later，须在 coverage Notes 写明）
 
@@ -461,7 +465,8 @@ open ──► panel 可见（Portal / AnchoredPopup）
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 带下拉框的按钮, 扩展菜单, 多级菜单, 菜单隐藏方式 |
+| 其余 6 个非 debug 示例（**P1**） | 带下拉框的按钮（`dropdown-button.tsx`：Button 紧凑组合另期）、扩展菜单（`custom-dropdown.tsx`：`popupRender` 自定义内容分期）、加载中状态（`loading.tsx`：Button loading 组合，Dropdown 本体无 loading）、菜单可选选择（`selectable.tsx`：`menu.selectable` 选中态分期）、划词操作（`selection.tsx`：宿主文本选中联动分期）、自定义语义结构的样式和类（`style-class.tsx`：结构可挂载 P0，函数式深度 P1） |
+| 多级深层（`sub-menu.tsx` 二级以下） | **P1**：P0 只保一级，见上 |
 
 ### 6.9 验收用例表（可测）
 
@@ -489,6 +494,9 @@ open ──► panel 可见（Portal / AnchoredPopup）
 | DD-17 | L1 | 复现官方示例「箭头指向」（`arrow-center.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DD-18 | L1 | 复现官方示例「触发方式」（`trigger.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DD-19 | L1 | 复现官方示例「触发事件」（`event.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| DD-19a | L1 | 复现「菜单隐藏方式」（`overlay-open.tsx`）**P0** | 受控开合 + 选中关（`source=menu`）符合文档 |
+| DD-19b | L1 | 复现「右键菜单」（`context-menu.tsx`）**P0** | `contextMenu` 触发可开；外点/Esc 可关 |
+| DD-19c | L1 | 复现「多级菜单」（`sub-menu.tsx`）**P0 仅一级** | 一级 `Children` 可展；二级以下不测（P1） |
 | DD-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | DD-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | DD-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

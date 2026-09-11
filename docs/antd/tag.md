@@ -163,6 +163,8 @@
 | 禁用标签 | `disabled.tsx` | 是 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 
+> debug 口径：上表 `debug=是` 的三例（customize / component-token / disabled）不计入 §6 P0（见 §6.1 / §6.8）。
+
 ### 2.7 组合关系
 
 - **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
@@ -184,11 +186,15 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | closeIcon | 自定义关闭按钮。5.7.0：设置为 `null` 或 `false` 时隐藏关闭按钮 | ReactNode | false | 4.4.0 | 5.14.0 |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | 6.0.0 |
+| closeIcon | 自定义关闭按钮。5.7.0：设置为 `null` 或 `false` 时隐藏关闭按钮 | ReactNode | false | 4.4.0 | 5.14.0 |
 | color | 标签色 | string | `variant="solid"` 时为 `default` | `solid` 默认颜色: 6.4.0 | × |
 | disabled | 是否禁用标签 | boolean | false | 6.0.0 | × |
 | href | 点击跳转的地址，指定此属性`tag`组件会渲染成 `<a>` 标签 | string | - | 6.0.0 | × |
-| icon | 设置图标 | ReactNode | - | onClose | 关闭时的回调（可通过 `e.preventDefault()` 来阻止默认行为） | (e: React.MouseEvent<HTMLElement, MouseEvent>) => void | - | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | target | 相当于 a 标签的 target 属性，href 存在时生效 | string | - | 6.0.0 | × |
+| icon | 设置图标 | ReactNode | - |  | × |
+| onClose | 关闭时的回调（可通过 `e.preventDefault()` 来阻止默认行为） | (e: React.MouseEvent<HTMLElement, MouseEvent>) => void | - |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | 6.0.0 |
+| target | 相当于 a 标签的 target 属性，href 存在时生效 | string | - | 6.0.0 | × |
 | variant | 标签变体 | `'filled' \| 'solid' \| 'outlined'` | `'filled'` | 6.0.0 | 6.0.0 |
 | ~~bordered~~ | 是否带边框，请使用 `variant="filled"` 替代 | boolean | true | - | × |
 
@@ -204,8 +210,14 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-group), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-group), string> | - | disabled | 禁用选中 | `boolean` | - | options | 选项列表。对象类型的选项支持为每一项单独设置 `className` 和 `style` | `Array<{ className?: string; label: ReactNode; style?: CSSProperties; value: string \| number } \| string \| number>` | - | `className` 和 `style`: 6.4.0 |
-| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-group), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-group), CSSProperties> | - | onChange | 点击标签时触发的回调 | `(value: string \| number \| Array<string \| number> \| null) => void` | - 
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-group), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-group), string> | - |  |
+| defaultValue | 初始选中值 | `string \| number \| Array<string \| number> \| null` | - |  |
+| disabled | 禁用选中 | `boolean` | - |  |
+| multiple | 多选模式 | `boolean` | - |  |
+| options | 选项列表。对象类型的选项支持为每一项单独设置 `className` 和 `style` | `Array<{ className?: string; label: ReactNode; style?: CSSProperties; value: string \| number } \| string \| number>` | - | `className` 和 `style`: 6.4.0 |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-group), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-group), CSSProperties> | - |  |
+| value | 选中值 | `string \| number \| Array<string \| number> \| null` | - |  |
+| onChange | 点击标签时触发的回调 | `(value: string \| number \| Array<string \| number> \| null) => void` | - |  |
 ```js
 import { Tag } from 'antd';
 ```
@@ -419,6 +431,16 @@ CheckableTagGroup
 | checked（Checkable） | primary 实心 |
 | disabled | 禁用底/字；无 hover |
 | processing + spin icon | Icon Ticker 旋转 |
+
+**预设色名 / status / hex → 三 variant 底边字映射**（源码 `style/presetCmp.ts` + `style/statusCmp.ts` + `hooks/useColor.ts`）：
+
+| color 输入 | filled（默认） | solid | outlined |
+| --- | --- | --- | --- |
+| 预设色名（13：`blue/purple/cyan/green/magenta/pink/red/orange/yellow/volcano/geekblue/lime/gold`） | 浅底 `lightColor` + 色字 `textColor` + 无边 | 深底 `darkColor` + 深边 + 反白字 | 浅底 `lightColor` + 浅边 `lightBorderColor` + 色字 `textColor` |
+| status（`success/processing/error/warning`，`processing` 取 Info 系；`default` 走默认灰皮） | 语义浅底 `color{Success,Info,Error,Warning}Bg` + 语义色字 + 无边 | 语义色底 `color{success,info,error,warning}` + 同色边 + 反白字 | 语义浅底 + 语义边 `color{X}Border` + 语义色字 |
+| 自定义 `#hex` | `FastColor(hex).l=0.95` 浅底 + 原色字 + 无边 | 原色底 + 反白字 | 浅底 + 原色边 `borderColor=color` + 原色字 |
+| 空（无 color） | `defaultBg` 底 + `defaultColor` 字 + 无边 | `default` 灰底（`solid` 无 color 时 `color=default`）+ 反白字 | 浅底 + `colorBorder` 边 + 默认字 |
+| `-inverse` 后缀 | 去后缀后按上行映射，`variant` 未显式时回落 `solid` | 同上 | 同上 |
 
 **动效：** 入场/退场（animation.tsx）P0 允许瞬时增删；像素级动画 P1。
 

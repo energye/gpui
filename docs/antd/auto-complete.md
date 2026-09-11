@@ -364,6 +364,10 @@ import { AutoComplete } from 'antd';
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 下拉选项行高 `optionHeight` | **32** | Select `controlHeight`（单行，`optionPadding` 上下居中） |
+| 下拉选项字号/行高 | **14** / `lineHeight` | `optionFontSize` / `optionLineHeight` |
+| 下拉面板内边距 | **4** | Select `paddingXXS` |
+| 下拉面板圆角 | **8** | Select `borderRadiusLG` |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -374,7 +378,9 @@ import { AutoComplete } from 'antd';
 | 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
 | 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
 | 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 浮层阴影 | `boxShadowSecondary` | 下拉面板阴影（Select dropdown） |
+| 选项悬停底 `optionActiveBg` | `controlItemBgHover` | 鼠标/键盘高亮行底 |
+| 选项选中底 `optionSelectedBg` | `controlItemBgActive` | 选中行底；字色 `optionSelectedColor=colorText`、字重 `fontWeightStrong` |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -384,7 +390,7 @@ import { AutoComplete } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `allowClear` | 支持清除 | boolean \ | { clearIcon?: ReactNode } |
+| `allowClear` | 支持清除；`true` 显示清除钮，无内容时隐藏；对象形态可配 `clearIcon`（5.8.0+） | boolean \| { clearIcon?: ReactNode } | false |
 | `backfill` | 使用键盘选择选项的时候把选中项回填到输入框中 | boolean | false |
 | `children` | 自定义输入框 | HTMLInputElement \ | HTMLTextAreaElement \ |
 | `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
@@ -400,6 +406,11 @@ import { AutoComplete } from 'antd';
 | `options` | 数据化配置选项内容，相比 jsx 定义会获得更好的渲染性能 | { label, value }\[] | - |
 | `placeholder` | 输入框提示 | string | - |
 | `showSearch` | 搜索配置 | true \ | [Object](#showsearch) |
+| `size` | 控件大小（高 24 / 32 / 40，见 §6.2） | `large` \| `middle` \| `small` | `middle` |
+| `variant` | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined`（5.13.0+） |
+| `status` | 设置校验状态（error 红边 / warning 橙边） | `'error'` \| `'warning'` | -（4.19.0+） |
+| `value` | 指定当前选中的条目（受控） | string | - |
+| `onSearch` | 搜索补全项的时候调用（点选不触发）；源码主表删除线为笔误，实际经 `showSearch.onSearch` 透传，kit 侧 `SetOnSearch` 可用 | function(value) | - |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 

@@ -335,16 +335,28 @@ const suffix = condition ?  : ;
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| ~~addonAfter~~ | 带标签的 input，设置后置标签，请使用 Space.Compact 替换 | ReactNode | - | ~~addonBefore~~ | 带标签的 input，设置前置标签，请使用 Space.Compact 替换 | ReactNode | - | allowClear | 可以点击清除图标删除内容 | boolean \| { clearIcon: ReactNode, disabled?: boolean } | - | disabled: 6.4.0 | 5.15.0 |
+| ~~addonAfter~~ | 带标签的 input，设置后置标签，请使用 Space.Compact 替换 | ReactNode | - |  | × |
+| ~~addonBefore~~ | 带标签的 input，设置前置标签，请使用 Space.Compact 替换 | ReactNode | - |  | × |
+| allowClear | 可以点击清除图标删除内容 | boolean \| { clearIcon: ReactNode, disabled?: boolean } | - | disabled: 6.4.0 | 5.15.0 |
 | ~~bordered~~ | 是否有边框, 请使用 `variant` 替换 | boolean | true | 4.5.0 | × |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-input), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-input), string> | - | 5.4.0 | 5.7.0 |
 | count | 字符计数配置 | [CountConfig](#countconfig) | - | 5.10.0 | × |
-| defaultValue | 输入框默认内容 | string | - | disabled | 是否禁用状态，默认为 false | boolean | false | - | × |
-| id | 输入框的 id | string | - | maxLength | 最大长度 | number | - | prefix | 带有前缀图标的 input | ReactNode | - | showCount | 是否展示字数 | boolean \| { formatter: (info: { value: string, count: number, maxLength?: number }) => ReactNode } | false | 4.18.0 info.value: 4.23.0 | × |
+| defaultValue | 输入框默认内容 | string | - |  | × |
+| disabled | 是否禁用状态，默认为 false | boolean | false | - | × |
+| id | 输入框的 id | string | - |  | × |
+| maxLength | 最大长度 | number | - |  | × |
+| prefix | 带有前缀图标的 input | ReactNode | - |  | × |
+| showCount | 是否展示字数 | boolean \| { formatter: (info: { value: string, count: number, maxLength?: number }) => ReactNode } | false | 4.18.0 info.value: 4.23.0 | × |
 | status | 设置校验状态 | 'error' \| 'warning' | - | 4.19.0 | × |
 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-input), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-input), CSSProperties> | - | 5.4.0 | 5.7.0 |
-| size | 控件大小。注：标准表单内的输入框大小限制为 `medium` | `large` \| `medium` \| `small` | - | suffix | 带有后缀图标的 input | ReactNode | - | type | 声明 input 类型，同原生 input 标签的 type 属性，见：[MDN](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Element/input#属性)(请直接使用 `Input.TextArea` 代替 `type="textarea"`) | string | `text` | value | 输入框内容 | string | - | variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | 5.13.0 \| `underlined`: 5.24.0 | 5.19.0 |
-| onChange | 输入框内容变化时的回调 | function(e) | - | onPressEnter | 按下回车的回调 | function(e) | - | onClear | 按下清除按钮的回调 | () => void | - | 5.20.0 | × |
+| size | 控件大小。注：标准表单内的输入框大小限制为 `medium` | `large` \| `medium` \| `small` | - |  | × |
+| suffix | 带有后缀图标的 input | ReactNode | - |  | × |
+| type | 声明 input 类型，同原生 input 标签的 type 属性，见：[MDN](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Element/input#属性)(请直接使用 `Input.TextArea` 代替 `type="textarea"`) | string | `text` |  | × |
+| value | 输入框内容 | string | - |  | × |
+| variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | 5.13.0 \| `underlined`: 5.24.0 | 5.19.0 |
+| onChange | 输入框内容变化时的回调 | function(e) | - |  | × |
+| onPressEnter | 按下回车的回调 | function(e) | - |  | × |
+| onClear | 按下清除按钮的回调 | () => void | - | 5.20.0 | × |
 
 > 如果 `Input` 在 `Form.Item` 内，并且 `Form.Item` 设置了 `id` 属性，则 `value` `defaultValue` 和 `id` 属性会被自动设置。
 
@@ -371,7 +383,8 @@ interface CountConfig {
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| autoSize | 自适应内容高度，可设置为 true \| false 或对象：{ minRows: 2, maxRows: 6 } | boolean \| object | false | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-textarea), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-textarea), string> | - | 5.4.0 | 5.15.0 |
+| autoSize | 自适应内容高度，可设置为 true \| false 或对象：{ minRows: 2, maxRows: 6 } | boolean \| object | false |  | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-textarea), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-textarea), string> | - | 5.4.0 | 5.15.0 |
 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-textarea) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-textarea) , CSSProperties> | - | 5.4.0 | 5.15.0 |
 
 `Input.TextArea` 的其他属性和浏览器自带的 [textarea](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/textarea) 一致。
@@ -381,7 +394,10 @@ interface CountConfig {
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-search), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-search), string> | - | 6.0.0 | 6.0.0 |
-| enterButton | 是否有确认按钮，可设为按钮文字。该属性会与 `addonAfter` 冲突。 | ReactNode | false | loading | 搜索 loading | boolean | false | onSearch | 点击搜索图标、清除图标，或按下回车键时的回调 | function(value, event, { source: "input" \| "clear" }) | - | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-search) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-search) , CSSProperties> | - | 6.0.0 | 6.0.0 |
+| enterButton | 是否有确认按钮，可设为按钮文字。该属性会与 `addonAfter` 冲突。 | ReactNode | false |  | × |
+| loading | 搜索 loading | boolean | false |  | × |
+| onSearch | 点击搜索图标、清除图标，或按下回车键时的回调 | function(value, event, { source: "input" \| "clear" }) | - |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-search) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-search) , CSSProperties> | - | 6.0.0 | 6.0.0 |
 | searchIcon | 自定义搜索图标 | ReactNode | - | 6.4.0 | 6.4.0 |
 
 其余属性和 Input 一致。
@@ -393,7 +409,7 @@ interface CountConfig {
 | classNames | 语义化结构 class | Record<[SemanticDOM](#semantic-password), string> | - | 5.4.0 | 6.4.0 |
 | iconRender | 自定义切换按钮 | (visible) => ReactNode | (visible) => (visible ? &lt;EyeOutlined /> : &lt;EyeInvisibleOutlined />) | 4.3.0 | 6.4.0 |
 | styles | 语义化结构 style | Record<[SemanticDOM](#semantic-password), CSSProperties> | - | 5.4.0 | 6.4.0 |
-| visibilityToggle | 是否显示切换按钮或者控制密码显隐 | boolean \| [VisibilityToggle](#visibilitytoggle) | true 
+| visibilityToggle | 是否显示切换按钮或者控制密码显隐 | boolean \| [VisibilityToggle](#visibilitytoggle) | true |  | × |
 ### Input.OTP
 
 `5.16.0` 新增。
@@ -406,11 +422,19 @@ interface CountConfig {
 | --- | --- | --- | --- | --- | --- |
 | autoComplete | 输入元素的 autocomplete 属性，例如 `one-time-code` 可用于 OTP 自动填充 | string | - | 6.3.0 | × |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-otp), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-otp), string> | - | 6.0.0 | 6.0.0 |
-| defaultValue | 默认值 | string | - | disabled | 是否禁用 | boolean | false | formatter | 格式化展示，留空字段会被 ` ` 填充 | (value: string) => string | - | separator | 分隔符，在指定索引的输入框后渲染分隔符 | ReactNode \|((i: number) => ReactNode) | - | 5.24.0 | × |
+| defaultValue | 默认值 | string | - |  | × |
+| disabled | 是否禁用 | boolean | false |  | × |
+| formatter | 格式化展示，留空字段会被 ` ` 填充 | (value: string) => string | - |  | × |
+| separator | 分隔符，在指定索引的输入框后渲染分隔符 | ReactNode \|((i: number) => ReactNode) | - | 5.24.0 | × |
 | mask | 自定义展示，和 `formatter` 的区别是不会修改原始值 | boolean \| string | `false` | `5.17.0` | × |
-| length | 输入元素数量 | number | 6 | status | 设置校验状态 | 'error' \| 'warning' | - | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-otp) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-otp) , CSSProperties> | - | 6.0.0 | 6.0.0 |
-| size | 输入框大小 | `small` \| `medium` \| `large` | `medium` | variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | `underlined`: 5.24.0 | × |
-| value | 输入框内容 | string | - | onChange | 当输入框内容全部填充时触发回调 | (value: string) => void | - | onInput | 输入值变化时触发的回调 | (value: string[]) => void | - | `5.22.0` | × |
+| length | 输入元素数量 | number | 6 |  | × |
+| status | 设置校验状态 | 'error' \| 'warning' | - |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-otp) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-otp) , CSSProperties> | - | 6.0.0 | 6.0.0 |
+| size | 输入框大小 | `small` \| `medium` \| `large` | `medium` |  | × |
+| variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | `underlined`: 5.24.0 | × |
+| value | 输入框内容 | string | - |  | × |
+| onChange | 当输入框内容全部填充时触发回调 | (value: string) => void | - |  | × |
+| onInput | 输入值变化时触发的回调 | (value: string[]) => void | - | `5.22.0` | × |
 
 #### VisibilityToggle
 
@@ -424,7 +448,8 @@ interface CountConfig {
 
 | 名称 | 说明 | 参数 | 版本 |
 | --- | --- | --- | --- |
-| blur | 取消焦点 | - 
+| blur | 取消焦点 | - |  |
+| focus | 获取焦点 | (option?: { preventScroll?: boolean, cursor?: 'start' \| 'end' \| 'all' }) | option - 4.10.0 |
 ### 导入方式
 
 ```js
@@ -606,13 +631,17 @@ mount ──► idle
 
 \*IME composition 期间：实现须不把中间态当最终 value 提交（或与宿主约定一致并测）。
 
+\*受控 `value` 允许超过 `maxLength` 展示（官方 FAQ：防止表单显示值与提交值不一致）；截断只约束非受控键入。
+
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
 | INP-S1 | 受控 `value` | 显示外部值；键入只经 `onChange` 上抛，不私自写回 |
 | INP-S2 | `allowClear` 有内容时点清除 | `onChange("")` 一次；空时清除图标隐藏 |
 | INP-S3 | `disabled=true` | 不可编辑；点击/键盘不产生 `onChange` |
 | INP-S4 | `readOnly=true` | 不可编辑但可聚焦选区（若平台支持） |
-| INP-S5 | `maxLength=N` 输入超长 | 无法超过 N（或按 count 策略截断，需与文档一致） |
+| INP-S5 | `maxLength=N` 非受控键入超长 | 截断：显示与 `Value()` 均不超过 N；`onChange` 不吐超长值（计数器若开则显示 `len / N`） |
+| INP-S13 | `showCount=true`（P1） | 计数区显示实时字符数，默认 `value.length`；配 `maxLength=N` 时显示 `len / N` |
+| INP-S14 | `count={{max, strategy, exceedFormatter}}`（P1） | 超 `max` 只标红不截断；`strategy` 自定义计数；`exceedFormatter` 返回裁剪后值并回写展示 |
 | INP-S6 | `status=error` | 错误色边框；仍可输入 |
 | INP-S7 | 聚焦后 Enter | 触发 `onPressEnter` |
 | INP-S8 | Password 显隐切换 | 掩码变化，`value` 不变 |
@@ -709,7 +738,7 @@ mount ──► idle
 | INP-03 | L1 | `allowClear` 有内容时点清除 | `onChange("")` 一次；空时清除图标隐藏 |
 | INP-04 | L1 | `disabled=true` | 不可编辑；点击/键盘不产生 `onChange` |
 | INP-05 | L1 | `readOnly=true` | 不可编辑但可聚焦选区（若平台支持） |
-| INP-06 | L1 | `maxLength=N` 输入超长 | 无法超过 N（或按 count 策略截断，需与文档一致） |
+| INP-06 | L1 | `maxLength=N` 非受控输入超长 | 截断：显示与 `Value()` 均不超过 N |
 | INP-07 | L1 | `status=error` | 错误色边框；仍可输入 |
 | INP-08 | L1 | 聚焦后 Enter | 触发 `onPressEnter` |
 | INP-09 | L1 | Password 显隐切换 | 掩码变化，`value` 不变 |
@@ -825,6 +854,7 @@ Decorated（底、边框、圆角、高度 / TextArea 最小高）
 - `rebuild()` 只读 Default / 字段 / Token；值变更不整树 rebuild（patch editor.Value）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - 紧凑模式：与 `Space.Compact` 组合（gallery / INP-17）；Input 自身不实现 addonBefore/After（antd 已弃用）。
+- addon 替换写法固定一句：`<Space.Compact>{addonBefore}<Input/>…{addonAfter}</Space.Compact>`；`addonBefore/After` 已废弃，kit 不实现。
 
 ### 6.12 完成定义（DoD）
 

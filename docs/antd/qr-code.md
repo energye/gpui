@@ -244,6 +244,7 @@
 | errorLevel | 二维码纠错等级 | `'L' \| 'M' \| 'Q' \| 'H'` | `M` | - | × |
 | boostLevel | 如果启用，自动提升纠错等级，结果的纠错级别可能会高于指定的纠错级别 | `boolean` | true | 5.28.0 | × |
 | status | 二维码状态 | `active \| expired \| loading \| scanned` | `active` | scanned: 5.13.0 | × |
+| onRefresh | expired 状态下点击刷新按钮的回调 | `() => void` | - | - | × |
 | statusRender | 自定义状态渲染器 | (info: [StatusRenderInfo](/components/qr-code-cn#statusrenderinfo)) => React.ReactNode | - | 5.20.0 | × |
 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
 
@@ -280,6 +281,7 @@ import { QRCode } from 'antd';
 | `errorLevel` | 二维码纠错等级 | `'L' \| 'M' \| 'Q' \| 'H'` | `M` | - |
 | `boostLevel` | 如果启用，自动提升纠错等级，结果的纠错级别可能会高于指定的纠错级别 | `boolean` | true | 5.28.0 |
 | `status` | 二维码状态 | `active \| expired \| loading \| scanned` | `active` | scanned: 5.13.0 |
+| `onRefresh` | expired 状态下点击刷新按钮的回调 | `() => void` | - | - |
 | `statusRender` | 自定义状态渲染器 | (info: [StatusRenderInfo](/components/qr-code-cn#statusrenderinfo)) => React.ReactNode | - | 5.20.0 |
 | `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props })=> Record | - | 6.0.0 |
 
@@ -316,7 +318,7 @@ import { QRCode } from 'antd';
 > 本章把 antd **QRCode** 补成 **可开发、可测试、可裁剪** 的产品规格。  
 > **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
-> 源码：`/home/yanghy/app/projects/ant-design/components/qrcode/`（`index.zh-CN.md` + `style/` + 组件实现）。
+> 源码：`/home/yanghy/app/projects/ant-design/components/qr-code/`（`index.zh-CN.md` + `style/` + 组件实现；`qrcode/` 仅旧别名重导出）。
 
 ### 6.1 对齐级别定义（QRCode）
 
@@ -454,7 +456,7 @@ statusRender 非空 ──► cover 内容替换为自定义 Node（仍占满 co
 | value→矩阵 / size / status / icon / color / bordered / errorLevel | **对等** | P0 L1+L2 |
 | loading Spin + Ticker | **对等** | P0 |
 | type=canvas\|svg | **语义标签**（桌面均模块绘制，无 DOM canvas/svg） | P0 标签 / P1 导出差异 |
-| 下载二维码（toDataURL / SVG 序列化） | **宿主导出**矩阵/位图 API | P1 |
+| 下载二维码（toDataURL / SVG 序列化） | **宿主导出**：kit 只产矩阵，位图/PNG/SVG 序列化归宿主 | P1 |
 | boostLevel 精确抬升 | **近似**或分期 | P1 |
 | string[] value | **分期**（P0 单 string） | P1 |
 | 真 HTTP 解码 icon URL | **宿主**；kit 接受 IconNode / 占位 | P0 Node / P1 HTTP |
@@ -603,6 +605,8 @@ Decorated root                    // size×size；pad / border / radius / bg
 - `rebuild()` 只读 Default/字段/Token；根指针尽量稳定（ClearChildren）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - loading 动画跟随 Host Tick（`tickerLifecycle`）；不自建帧循环。  
+- QR 编码库选型：纯 Go 矩阵编码库（以 `Encode(value string, level QRErrorLevel) (modules [][]bool, err error)` 为选型门槛，不绑宿主网络/图片解码）；`marginSize` 安静区由绘制层加白边，不进编码。  
+- 下载宿主 API（二期形状，不进 P0）：`ExportPNG(pxPerModule int) ([]byte, error)` / `ExportSVG() string` / `ToDataURL() string` 由宿主按矩阵实现，kit 仅提供 `Modules()` 与 `ContentSize()` 只读查询。  
 - 真实 QR 编码可用纯 Go 库；icon URL 解码归宿主。
 
 ### 6.12 完成定义（DoD）

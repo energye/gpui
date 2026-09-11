@@ -308,7 +308,7 @@ import { Anchor } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `affix` | 固定模式 | boolean \ | Omit<AffixProps, 'offsetTop' \ |
+| `affix` | 固定模式；P0 仅 bool，对象形态（`Omit<AffixProps,…>`）透传为 P1 | boolean \ | Omit<AffixProps, 'offsetTop' \ |
 | `bounds` | 锚点区域边界 | number | 5 |
 | `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
 | `getContainer` | 指定滚动的容器 | () => HTMLElement | () => window |
@@ -322,6 +322,8 @@ import { Anchor } from 'antd';
 | `items` | 数据化配置选项内容，支持通过 children 嵌套 | { key, href, title, target, children … | - |
 | `direction` | 设置导航方向 | `vertical` \ | `horizontal` |
 | `replace` | 替换浏览器历史记录中项目的 href 而不是推送它 | boolean | false |
+| `replace`（item 级） | 单链替换历史而非 push，覆盖全局 `replace`（源码 `createNestedLink` 中 `{...item}` 覆盖） | boolean | false（5.7.0） |
+| `targetOffset`（单链） | 单链滚动偏移，覆盖全局 `targetOffset`（`targetOffsetParams ?? targetOffset ?? offsetTop`） | number | -（6.4.0） |
 | `key` | 唯一标志 | string \ | number |
 | `href` | 锚点链接 | string | - |
 

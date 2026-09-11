@@ -77,15 +77,7 @@
 
 ### 1.4 交互视觉状态（实现检查表）
 
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+BorderBeam 为装饰层（`pointer-events: none`、`aria-hidden`，源码 `BorderBeamEffect`），不抢焦点不参与命中：hover / active / focus ring / disabled / loading / error-warning 皮均标 **N/A**，焦点与键盘由被包裹的 children 自理。只验 beam 显示/隐藏与 reduced-motion 隐藏（见 §6.4）。
 
 ### 1.5 语义化 DOM 与主题
 
@@ -299,7 +291,7 @@ import { BorderBeam } from 'antd';
 | `color` | 流光色：单色或 `{color, percent}[]`（percent 输入 0–100） | 色 / 停靠点数组 | Theme primary 渐变 |
 | `duration` | 流光完成一圈的时间（秒） | number | **6** |
 | `lineWidth` | 流光线宽（px） | number | **1** |
-| `outset` | 流光层相对容器边缘的外扩（px）；裁剪容器可设 **0** | number | 未设 → **0**（贴边） |
+| `outset` | 流光层相对容器边缘的外扩（px）；裁剪容器可设 **0** | number | -（未设；kit 未设时回落 **0** 贴边，属 kit 扩展） |
 | `size` | **流光可见段长度**（px），非控件 size 档 | number | **100** |
 
 **桌面映射（非 antd props，但官方示例需要）：**
@@ -364,7 +356,8 @@ mount ──► running（Tick 推进 phase 0→1 循环）
 | reduced-motion 隐藏 | **对等** | P0 L1 |
 | 插入真实 DOM / portal 进 children | **映射**：kit 叠 beam 层于 host 内 | P0 |
 | 读 computed border-radius 持续监听 | **映射**：显式 `SetBorderRadius` + 默认 Token | P0 近似 |
-| mask-composite / 官网逐像素 | **不做** | — |
+| `mask-composite` + `offset-path` 环形轨迹 | 源码真实存在（`style/index.ts` `@supports`）：P0 用沿周长短段描边近似，像素级对齐为 P1 | P0 近似 / P1 像素级 |
+| 官网逐像素哈希 | **不做** | — |
 | semantic classNames/styles | kit Style 钩子 | P1 |
 | ConfigProvider `borderBeam` 全局 | 随 ConfigProvider | P1 |
 | debug 示例（non-uniform-radius / component-token） | 分期 | P1 |
@@ -479,7 +472,7 @@ Tick(dt float64) bool
 | Duration | **6** |
 | Size（段长） | **100** |
 | LineWidth | **1** |
-| Outset | 未设 → **0**（贴容器边） |
+| Outset | -（未设；kit 回落 **0** 贴容器边，属 kit 扩展；antd 未设时跟子容器边框宽） |
 | Color | Theme `colorPrimary` → `colorPrimaryHover` → 透明 |
 | BorderRadius | Token `borderRadius`（**6**） |
 | ShowOnHover | false（始终尝试显示 beam） |

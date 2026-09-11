@@ -427,7 +427,7 @@ href/项点击 ──► 导航/回调
 | `params` | title/path 中 `:key` 替换 |
 | `href` / `path` / `Link` | 链接项；path 逐层拼接为 `#/a/b` |
 | `onClick` | 项级 + 根级回调 |
-| `menu` | 项级下拉（组合 kit.Dropdown，hover 触发） |
+| `menu` | 项级下拉二选一：A 依赖 `kit.Dropdown` 底座（hover 触发）；B 无底座时降级为不可展开、点击只走 `OnClick`/`OnMenuClick`，所选分支写入 coverage Notes |
 | `dropdownIcon` | 自定义下拉图标（默认 chevron-down） |
 | `itemRender` | 自定义项内容钩子（浏览器History 映射） |
 | 图标项 | `Icon` / `IconNode` / `TitleNode` |
@@ -533,8 +533,8 @@ nav (Flex, role=navigation)
        └─ …
 ```
 
-- 组合 `ui/primitive` + `ui/core` + 既有 `kit.Dropdown`/`kit.Icon`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index（menu 走 Dropdown）；`rebuild()` 只读 Default/字段/Token。  
+- 组合 `ui/primitive` + `ui/core` + `kit.Icon`，禁止第二套事件/帧循环。  
+- 浮层统一 Portal / z-index（选 Dropdown 底座分支时 menu 走底座；降级分支无浮层）；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - 动画跟随 Host Tick；尊重 reduced-motion（P0 瞬时开合即可）。
 

@@ -333,6 +333,8 @@ index=i  (0..n-1)
 | CRS-S8 | infinite=false 末张 Next | 仍停留末张 |
 | CRS-S9 | Disabled | 交互无效 |
 
+**P0 瞬时切换时序：** P0 允许省去 `speed`/`easing` 动画帧直接换页，但回调时序与 antd 一致——先同步触发 `beforeChange(current, next)`，再更新 `Index`，最后同步触发 `afterChange(next)`；`GoTo(i, dontAnimate=true)` 与动画关闭同此顺序。像素级过渡动画（`speed`/`easing`/`waitForAnimate`）与 L3 golden 均推迟到 P1，本阶段 L3 不强制（见 §6.9 CRS-18/§6.12）。
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |

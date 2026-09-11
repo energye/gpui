@@ -92,6 +92,41 @@
 - **类型**：Record | (info: { props }) => Record
 - **默认值**：-
 
+#### `total`
+
+- **说明**：数据总数（条目数，非总页数）；决定总页数 `ceil(total/pageSize)` 与页码项数量
+- **类型**：number
+- **默认值**：0
+- **外观影响**：`total=0` 只展示第 1 页；总数变化时页码列表长度与省略号（`jump-prev/jump-next`）跟着变
+
+#### `pageSize` / `pageSizeOptions`
+
+- **说明**：每页条数 / 可选的每页条数档位；`showSizeChanger` 打开时用下拉切换
+- **类型**：number / number[]
+- **默认值**：10 / `[10, 20, 50, 100]`
+- **外观影响**：`pageSize` 越小页码项越多；切换 `pageSize` 后当前页夹紧到 `1..pages`，`onChange`/`onShowSizeChange` 回调
+
+#### `showTotal`
+
+- **说明**：总数文案渲染函数 `showTotal(total, [start, end]) => string`，展示在分页行起始侧
+- **类型**：function(total, range)
+- **默认值**：-
+- **外观影响**：有则多一段次级文本（如“共 50 条”）；无则不占位，页码行左对齐起点变化
+
+#### `showQuickJumper`
+
+- **说明**：快速跳转输入框；`Enter` 跳页
+- **类型**：boolean | { goButton: ReactNode }
+- **默认值**：false
+- **外观影响**：打开时行尾多一个输入框（+可选 Go 按钮），行宽增加
+
+#### `showSizeChanger`
+
+- **说明**：每页条数切换器；未显式设置时 `total > totalBoundaryShowSizeChanger(50)` 默认为 true
+- **类型**：boolean
+- **默认值**：auto（见 boundary）
+- **外观影响**：打开时行尾多一个 Select，行宽增加；`total≤50` 默认不展示
+
 ### 1.4 交互视觉状态（实现检查表）
 
 | 状态 | 要求 |
@@ -106,7 +141,8 @@
 
 ### 1.5 语义化 DOM 与主题
 
-- 支持 `classNames` / `styles`；kit 应对齐语义节点钩子。
+- 支持 `classNames` / `styles`；kit 应对齐语义节点钩子。Pagination 语义节点：`root`（根行容器，flex 布局/对齐/换行）、`item`（页码项，尺寸/边框/背景/悬停/激活态）。函数形态与 `_semantic.tsx` 深度定制为 P1。
+- 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
 
 - 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
 
@@ -282,9 +318,9 @@ import { Pagination } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 分页项高 middle（itemSize） | **32** | `controlHeight` |
-| 分页项高 small（itemSizeSM） | **24** | `controlHeightSM` |
-| 分页项高 large（itemSizeLG） | **40** | `controlHeightLG` |
+| 分页项高 middle（`itemSize`） | **32** | 组件 token `itemSize` = `controlHeight` |
+| 分页项高 small（`itemSizeSM`） | **24** | 组件 token `itemSizeSM` = `controlHeightSM` |
+| 分页项高 large（`itemSizeLG`） | **40** | 组件 token `itemSizeLG` = `controlHeightLG` |
 | 字号 middle | **14** | `fontSize` |
 | 字号 small | **12** | `fontSizeSM` |
 | 字号 large | **16** | `fontSizeLG` |
@@ -297,6 +333,9 @@ import { Pagination } from 'antd';
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
+| 激活项底（`itemActiveBg`） | `colorBgContainer` | 当前页底色 |
+| 页码链接底（`itemLinkBg`） | `colorBgContainer` | 普通项底色（`bordered.ts`） |
+| 激活禁用底（`itemActiveBgDisabled`） | `controlItemBgActiveDisabled` | 禁用激活项回落 |
 | 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
 | 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
 | 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
@@ -399,10 +438,17 @@ current, pageSize, total
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | `onChange` | 必须 |
+| `current` / `defaultCurrent` / `total` / `pageSize` / `defaultPageSize` | 必须；`total` 为条目数，`PageCount=ceil(total/pageSize)` |
+| `showTotal` | 必须；`SetShowTotal(func(total, start, end int) string)`，起始侧总数文案 |
+| `showQuickJumper` | 必须；输入页码 `Enter` 跳转 |
+| `showSizeChanger` / `pageSizeOptions` / `totalBoundaryShowSizeChanger` | 必须；未显式设置时 `total>50` 自动展示切换器 |
+| `hideOnSinglePage` / `showLessItems` | 必须 |
+| `simple` | 必须 |
 | `disabled` | 必须 |
 | `size` | 必须 |
-| 官方主路径示例 | 基本、方向、更多、改变、跳转、尺寸、简洁、受控 |
-| 度量 §6.2 | Token 断言 |
+| `itemRender` 自定义页码结构 | 二期接口形状：`SetItemRender(func(page int, kind ItemKind) core.Node)`，本期可用默认节点；SEO 优化语义 P1 |
+| 官方主路径示例 | 基本、方向、更多、改变、跳转、尺寸、简洁、受控、总数、全部展示 |
+| 度量 §6.2 | Token 断言（含 `itemSize/itemActiveBg/itemLinkBg`） |
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
@@ -414,7 +460,7 @@ current, pageSize, total
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 总数, 全部展示, 上一步和下一步, 自定义语义结构的样式和类 |
+| 其余示例 | 上一步和下一步（`itemRender` 自定义结构，二期形状见 P0）、自定义语义结构的样式和类 |
 
 ### 6.9 验收用例表（可测）
 
@@ -442,6 +488,8 @@ current, pageSize, total
 | PG-17 | L1 | 复现官方示例「尺寸」（`mini.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | PG-18 | L1 | 复现官方示例「简洁」（`simple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | PG-19 | L1 | 复现官方示例「受控」（`controlled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| PG-19b | L1 | 复现官方示例「总数」（`total.tsx`） | `showTotal` 文案含总数与范围 |
+| PG-19c | L1 | 复现官方示例「全部展示」（`all.tsx`） | `showSizeChanger`+`showQuickJumper`+`showTotal` 同屏可构建 |
 | PG-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | PG-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | PG-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

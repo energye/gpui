@@ -438,10 +438,12 @@ import { ConfigProvider } from 'antd';
 
 ### 6.1 对齐级别定义（ConfigProvider）
 
+ConfigProvider 本体无独立视觉，是**配置透传容器**：自身不绘制控件皮，只把 locale/direction/size/disabled/theme/variant 等配置下发给子树，子控件 `rebuild` 时读取并生效。
+
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 展示形态与可选交互（复制/预览/关闭） | Headless / behavior 测试 |
-| **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
+| **L1** | 透传行为 | 包裹前后子控件行为一致，仅配置值变化（主题色/尺寸/文案/方向/禁用/空状态/挂载点） | Headless / behavior 测试（断言子控件读到的配置值） |
+| **L2** | Token / 几何 | `theme` 切换后子树尺寸与颜色走新 Theme，符合各控件 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
 
@@ -537,8 +539,10 @@ Provider 注入 theme/locale/size
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 无自身语义 | Provider 不设角色、不抢焦点、不产出可读名，对读屏树透明 |
+| 方向 | `direction=rtl` 切换后子控件布局镜像，读屏顺序跟随视觉顺序 |
+| 禁用透传 | `componentDisabled=true` 的子树不可激活，读屏可感知禁用（按各控件禁用态） |
+| 文案 | `locale` 切换后子控件文案同步可读，无中英文混读残留 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -607,23 +611,60 @@ Provider 注入 theme/locale/size
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewConfigProvider(...) *ConfigProvider
+NewConfigProvider() *ConfigProvider
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// —— 逐项 Go 映射（对齐 §3 API） ——
+// locale：语言包（P0 覆盖子控件占位/按钮文案；完整文案表 P1）
+SetLocale(ConfigLocale)              // {Name string /*如 zhCN/enUS*/; Texts map[string]string}
+GetLocale() ConfigLocale
+// direction：文本与布局方向
+SetDirection(ConfigDirection)        // ConfigLTR | ConfigRTL（默认 LTR）
+GetDirection() ConfigDirection
+// size：全局控件尺寸（子控件未显式 SetSize 时回落）
+SetSize(ConfigSize)                  // ConfigSmall | ConfigMiddle | ConfigLarge
+GetSize() (ConfigSize, bool)         // bool=是否显式设置过
+// disabled：全局禁用（componentDisabled）
+SetDisabled(bool)
+GetDisabled() bool
+// theme：主题（见 §6.10.1 算法）
+SetTheme(ConfigTheme)                // {Primary int32 /*0=不覆盖*/; Mode ConfigThemeMode /*Light|Dark*/; SeedOverrides map[string]float64}
+GetTheme() ConfigTheme
+// variant：全局输入形态
+SetVariant(ConfigVariant)            // ConfigOutlined | ConfigFilled | ConfigBorderless（默认Outlined）
+GetVariant() (ConfigVariant, bool)
+// csp：内容安全策略（桌面等价：自定义样式/图标字体注入时的 nonce 透传；无 WebView 时仅存储透传）
+SetCSP(ConfigCSP)                    // {Nonce string}
+GetCSP() ConfigCSP
+// renderEmpty：空状态渲染（Table/Select/Empty 等无数据时调用）
+SetRenderEmpty(func(componentName string) core.Node)
+RenderEmpty(componentName string) core.Node  // 未设时回落默认空文案节点
+// useConfig：读取父级配置（对齐 ConfigProvider.useConfig）
+UseConfig() ConfigSnapshot           // {Disabled bool; Size ConfigSize, HasSize bool; Direction ConfigDirection; Locale ConfigLocale}
+// holderRender：静态方法容器包装（对齐 ConfigProvider.config holderRender；桌面等价：message/modal/notification 等脱离树的提示手动包一层 Provider 快照）
+SetHolderRender(func(children core.Node) core.Node)
+HolderRender(children core.Node) core.Node
+
+// —— 组合/嵌套 ——
+Wrap(children ...core.Node) core.Node // 挂树：Provider 本身不占视觉盒，只做上下文透传
+Snapshot() ConfigSnapshot            // 当前生效快照（含祖先合并结果）；内层显式值覆盖外层
 ```
+
+#### 6.10.1 主题算法（单列）
+
+`theme` 为“种子 + 派生”两层：`SetTheme` 只存种子（`Primary` 主色、`Mode` 明暗、`SeedOverrides` 零星种子覆盖），子控件 `rebuild` 时按下述顺序合并出最终 Token：`库默认种子 → 祖先 Provider 的 Theme（外→内逐层覆盖非零值） → 子控件自身 SetTheme/Style`；`Primary=0` 视为未设置不覆盖，`Mode=Dark` 时各控件按自身暗色映射（容器底/文字/边框取暗色 Token，禁止简单反色）；主题切换后 Provider 标记子树脏并触发 `rebuild`，P0 用例 CFG-02 断言子 Button 主色跟随变化。
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
+| Locale | `enUS`（未 Set 时；子控件回落自身默认文案） |
+| Direction | `ConfigLTR` |
+| Size | 未设置（`HasSize=false`；子控件用自身默认 middle/32 档） |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Theme | 空种子（不覆盖库默认；`Mode=Light`） |
+| Variant | 未设置（子控件用自身默认 outlined） |
+| CSP | 空（`Nonce=""`） |
+| RenderEmpty / HolderRender | nil（分别回落默认空文案 / 原样透传） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

@@ -8,6 +8,172 @@
 **1:1 产品验收（度量 / 状态机 / P0·P1 / 用例 / Go API）→ [§6](#6-1-1-产品需求增量gpui-验收规格)**。
 
 ---
+## 1. 控件外观
+### 1.1 基础形态
+
+在需要等待加载内容的位置提供占位图形组合：标题条 + 段落行 + 可选头像，按 `loading` 切换骨架 / 真实子组件。
+
+### 1.2 文档示例对应的外观形态
+
+| 示例名 | 形态/状态要点（kit 验收） |
+| --- | --- |
+| 基本（`basic.tsx`） | 标题条 + 3 行段落，末行 61% 宽 |
+| 复杂的组合（`complex.tsx`） | 头像 + 标题 + 2 行段落左右结构 |
+| 动画效果（`active.tsx`） | 同基本结构 + 1.4s 扫光 |
+| 按钮/头像/输入框/图像/自定义节点（`element.tsx`） | 各子组件占位尺寸见 §1.3 |
+| 包含子组件（`children.tsx`） | `loading=false` 时只显示 children |
+| 列表（`list.tsx`） | 多行“小头像 + 标题段落”重复 |
+| 自定义语义结构的样式和类（`style-class.tsx`） | 浅层 classNames/styles 钩子生效 |
+
+### 1.3 外观相关配置逐项说明
+
+#### `avatar`
+
+- **说明**：是否显示头像占位图
+- **类型**：`boolean | { shape?: 'circle' | 'square'; size?: number | 'large' | 'medium' | 'small' }`
+- **默认值**：`false`（独立 `Skeleton.Avatar` 默认 `shape=circle, size=medium`）
+
+#### `title`
+
+- **说明**：是否显示标题占位图
+- **类型**：`boolean | { width?: number | string }`
+- **默认值**：`true`（宽度规则：无 avatar 有段落 50%，无段落 100%，§6.2）
+
+#### `paragraph`
+
+- **说明**：是否显示段落占位图
+- **类型**：`boolean | { rows?: number; width?: number | string | Array<number | string> }`
+- **默认值**：`true`（行数默认无 avatar 3 / 有 avatar 2；`width` 为数组时逐行生效，否则只压末行）
+
+#### `active` / `round` / `loading`
+
+- `active: boolean=false`，扫光动画开关；`round: boolean=false`，标题段落取胶囊圆角；`loading: boolean`，`true` 显示骨架。
+
+#### 子组件占位（`Skeleton.Avatar/Button/Input/Image/Node`）
+
+- `Avatar: shape circle|square，size large 40 / medium 32 / small 24（亦可直接传数字 px）`；`Button: 宽=2×高`；`Input: 宽=5×高`；`Image/Node: 默认 96×96`。
+
+#### 骨架灰 → 本库 Surface 系映射
+
+| antd 侧 | 含义 | 本库映射 |
+| --- | --- | --- |
+| `gradientFromColor`（`colorFillContent`） | 骨架底色 | `Theme.Surface` 上的次级填充（回落 `colorFillSecondary`） |
+| `gradientToColor`（`colorFill`） | 扫光终点 | 同底色系更浅一档（回落 `colorBgContainer` 低透明高光） |
+| Image svg `#bfbfbf` | 图形占位线条 | `OnSurface` 中透明近似，不单独加 token |
+
+### 1.4 交互视觉状态（实现检查表）
+
+| 状态 | 要求 |
+| --- | --- |
+| default | 灰块尺寸圆角符合 §6.2 |
+| active | 1.4s 扫光，不改变布局 |
+| loading=false | 只显示 children |
+| round | 标题段落取胶囊圆角 |
+
+Skeleton 为装饰性占位，不可聚焦，无 disabled/loading 焦点态。
+
+### 1.5 语义化 DOM 与主题
+
+- 语义节点：`root/header/section/avatar/title/paragraph`，对齐 `classNames` / `styles` 浅钩子。
+- 颜色尺寸走 Token（§6.2）；`active` 动画尊重 reduced-motion。
+
+---
+## 2. 功能
+### 2.1 使用场景
+
+- 网络慢、首次加载数据时占位；图文列表/卡片可用 Skeleton 代替 Spin。
+
+### 2.2 核心功能（按官方示例拆解）
+
+1. **基本**（`basic.tsx`）— 默认标题 + 段落结构。
+2. **复杂的组合**（`complex.tsx`）— 头像 + 标题 + 段落组合。
+3. **动画效果**（`active.tsx`）— `active` 扫光。
+4. **按钮/头像/输入框/图像/自定义节点**（`element.tsx`）— 子组件占位。
+5. **包含子组件**（`children.tsx`）— `loading` 切换 children。
+6. **列表**（`list.tsx`）— `active + avatar + paragraph rows=4` 列表。
+7. **自定义语义结构的样式和类**（`style-class.tsx`）— 浅层钩子。
+
+### 2.3 行为 API 能力
+
+| API | 能力 | 说明 |
+| --- | --- | --- |
+| `loading` | 骨架/内容切换 | `true` 显示骨架，`false` 显示 children |
+| `active` | 扫光动画 | 1.4s 循环，可停（reduced-motion） |
+| `avatar` / `title` / `paragraph` | 结构开关 | bool 快捷或 §1.3 对象形态 |
+| `round` | 圆角化 | 标题段落取胶囊圆角 |
+| `children` | 真实内容 | `loading=false` 时展示 |
+
+### 2.4 示例全表
+
+| 示例 | 源文件 | debug |
+| --- | --- | --- |
+| 基本 | `basic.tsx` | 否 |
+| 复杂的组合 | `complex.tsx` | 否 |
+| 动画效果 | `active.tsx` | 否 |
+| 按钮/头像/输入框/图像/自定义节点 | `element.tsx` | 否 |
+| 包含子组件 | `children.tsx` | 否 |
+| 列表 | `list.tsx` | 否 |
+| 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
+| 自定义组件 Token | `componentToken.tsx` | 是 |
+
+### 2.7 组合关系
+
+- **Card/List**：常作骨架容器；**Spin**：同为加载反馈，按场景二选一。
+
+---
+## 3. 配置（API）
+
+### Skeleton
+
+| 参数 | 说明 | 类型 | 默认值 |
+| --- | --- | --- | --- |
+| active | 是否展示动画效果 | boolean | false |
+| avatar | 是否显示头像占位图 | boolean \| SkeletonAvatar | false |
+| loading | 为 true 时显示占位图，反之展示子组件 | boolean | - |
+| paragraph | 是否显示段落占位图 | boolean \| SkeletonParagraphProps | true |
+| round | 段落和标题是否圆角化 | boolean | false |
+| title | 是否显示标题占位图 | boolean \| SkeletonTitleProps | true |
+
+#### SkeletonTitleProps
+
+| 参数 | 说明 | 类型 | 默认值 |
+| --- | --- | --- | --- |
+| width | 标题占位图宽度 | number \| string | - |
+
+#### SkeletonParagraphProps
+
+| 参数 | 说明 | 类型 | 默认值 |
+| --- | --- | --- | --- |
+| rows | 段落行数 | number | - |
+| width | 每行宽度（数组逐行，否则压末行） | number \| string \| Array<number \| string> | - |
+
+### Skeleton.Avatar / Button / Input
+
+| 参数 | 说明 | 类型 | 默认值 |
+| --- | --- | --- | --- |
+| active | 独立使用时的动画开关 | boolean | false |
+| shape | Avatar: `circle` \| `square`；Button 加 `round` \| `default` | string | Avatar `circle` |
+| size | `large` \| `medium` \| `small`（Avatar 亦可数字 px） | string \| number | `medium` |
+| block | Button/Input 宽度铺满父级 | boolean | false |
+
+---
+## 4. gpui kit 实现要点
+
+> 1:1 验收以 **§6** 为准；本节为工程纪律补充。
+
+1. **结构**：`SkeletonHost` 下按 `avatar? + title? + paragraph rows?` 组合；`loading=false` 只挂 children。
+2. **对象形态**：P0 先接 `SetTitleWidth` / `SetParagraphWidths` / `SetAvatarSize` 主路径（见 §6.8），完整对象形态 P1。
+3. **动画**：`active` 走 Host Tick 扫光，尊重 reduced-motion；不动布局盒。
+4. **示例矩阵**：§2.4 非 debug 示例均需可复现。
+
+---
+## 5. 参考链接
+- 官方文档：https://ant.design/components/skeleton
+- 中文文档：https://ant.design/components/skeleton-cn
+- 源码：https://github.com/ant-design/ant-design/tree/master/components/skeleton
+- 驱动 gpui kit：`skeleton`
+
+---
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
 > 本章把 antd **Skeleton** 补成 **可开发、可测试、可裁剪** 的产品规格。  
@@ -65,7 +231,7 @@
 | `classNames` | root/header/section/avatar/title/paragraph 语义钩子 | nil |
 | `styles` | root/header/section/avatar/title/paragraph 浅样式钩子 | nil |
 
-`avatar` / `title` / `paragraph` 的对象形态按官方语义拆解；P0 先保证 bool 主路径与默认结构。
+`avatar` / `title` / `paragraph` 的对象形态见 §1.3；P0 先保证 bool 主路径与默认结构。
 
 ### 6.4 交互状态机（L1）
 

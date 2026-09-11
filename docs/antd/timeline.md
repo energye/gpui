@@ -404,20 +404,22 @@ import { Timeline } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
+| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props }) => Record | - |
 | `items` | 选项配置 | [Items](#items)[] | - |
-| `mode` | 通过设置 `mode` 可以改变时间轴和内容的相对位置 | `start` \ | `alternate` \ |
-| `orientation` | 设置时间轴的方向 | `vertical` \ | `horizontal` |
+| `mode` | 通过设置 `mode` 可以改变时间轴和内容的相对位置 | `start` \| `alternate` \| `end` | `start` |
+| `orientation` | 设置时间轴的方向 | `vertical` \| `horizontal` | `vertical` |
 | `reverse` | 节点排序 | boolean | false |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
-| `titleSpan` | 设置标题占比空间，为到 dot 中心点距离 <InlinePopover previewURL="https://… | number \ | string |
-| `variant` | 设置样式变体 | `filled` \ | `outlined` |
+| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props }) => Record | - |
+| `titleSpan` | 设置标题占比空间，为到 dot 中心点距离 | number \| string | 12 |
+| `variant` | 设置样式变体 | `filled` \| `outlined` | `outlined` |
 | `color` | 指定圆圈颜色 `blue`、`red`、`green`、`gray`，或自定义的色值 | string | `blue` |
 | `content` | 设置内容 | ReactNode | - |
 | `icon` | 自定义节点图标 | ReactNode | - |
 | `loading` | 设置加载状态 | boolean | false |
-| `placement` | 自定义节点位置 | `start` \ | `end` |
+| `placement` | 自定义节点位置 | `start` \| `end` | - |
 | `title` | 设置标题 | ReactNode | - |
+
+> `titleSpan` 换算：数字按 px 计到 dot 中心，字符串按原样（`100px`/`25%`），`12/24` 即一半（见 `title-span.tsx`：`100px`/`25%`/`18` 三档）。
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 

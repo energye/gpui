@@ -18,18 +18,18 @@
 
 | 示例名 | 形态/状态要点（kit 验收） |
 | --- | --- |
-| 基本用法 | 复现「基本用法」视觉与布局 |
-| 步骤运行错误 | 复现「步骤运行错误」视觉与布局 |
-| 竖直方向的步骤条 | 复现「竖直方向的步骤条」视觉与布局 |
-| 可点击 | 复现「可点击」视觉与布局 |
-| 面板式步骤 | 复现「面板式步骤」视觉与布局 |
-| 带图标的步骤条 | icon 与文本混排 |
-| 标签放置位置与进度 | placement 方位 |
-| 限量展示 | 复现「限量展示」视觉与布局 |
-| 点状步骤条 | 复现「点状步骤条」视觉与布局 |
-| 导航步骤 | 复现「导航步骤」视觉与布局 |
-| 内联步骤 | 复现「内联步骤」视觉与布局 |
-| 内联样式组合 | 复现「内联样式组合」视觉与布局 |
+| 基本用法 | `default`：圆图标 + 右侧标题描述 + 连接线 |
+| 步骤运行错误 | `default` + 当前步 error 红（图标字轨同红） |
+| 竖直方向的步骤条 | `default` 纵排，连接线转竖 |
+| 可点击 | `default` 可点步（hover 底 + focus ring） |
+| 面板式步骤 | `panel`：卡片 panel 块，当前块主色边 |
+| 带图标的步骤条 | `default` 图标位换自定义 icon |
+| 标签放置位置与进度 | `default` + `titlePlacement=vertical`（标题压图标下）+ process 步进度环 |
+| 限量展示 | `default` + `maxCount` 折叠，省略步禁用态 |
+| 点状步骤条 | `dot`（P1）：圆点代图标，标签强制图标下方 |
+| 导航步骤 | `navigation`（P1）：箭头导航块，当前块主色字 |
+| 内联步骤 | `inline`（P1）：单行紧凑无描述 |
+| 内联样式组合 | `inline` + `variant`（P1）：filled 浅底 / outlined 描边 |
 | 自定义语义结构的样式和类 | 自定义渲染/插槽外观 |
 
 ### 1.3 外观相关配置逐项说明
@@ -161,9 +161,9 @@
 
   | 值 | 外观/语义 |
   | --- | --- |
-  | `wait` | 等待 |
-  | `process` | 进行中 |
-  | `finish` | 完成 |
+  | `wait` | 等待（灰底图标 + 次级字） |
+  | `process` | 进行中：主色 `colorPrimary` 实心图标 + 反白字 |
+  | `finish` | 完成：主色描边/浅底图标 + 主色勾，连接线主色 |
   | `error` | 错误红语义 |
 
 #### `styles`
@@ -192,11 +192,11 @@
 
   | 值 | 外观/语义 |
   | --- | --- |
-  | `default` | 默认中性外观 |
-  | `dot` | 点状 |
-  | `inline` | 内联紧凑 |
-  | `navigation` | 导航式 |
-  | `panel` | 面板式 |
+  | `default` | 默认中性外观（P0） |
+  | `panel` | 面板式（P0） |
+  | `dot` | 点状（P1，枚举预留） |
+  | `inline` | 内联紧凑（P1，枚举预留） |
+  | `navigation` | 导航式（P1，枚举预留） |
 
 #### `variant`
 
@@ -255,7 +255,6 @@
 | active/pressed | 按下态对比或反馈（若适用） |
 | focus | 可见 focus ring，键盘可达 |
 | disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
 | error/warning | 与 status/Form 语义色一致 |
 
 ### 1.5 语义化 DOM 与主题
@@ -654,7 +653,7 @@ SetDefaultCurrent(int)          // 非受控初值
 SetInitial(int)                 // 起始序号偏移，默认 0
 SetStatus(StepsStatus)          // 当前步整体态 wait|process|finish|error
 SetSize(StepsSize)              // middle|small
-SetType(StepsType)              // default|panel（+ P1 枚举预留）
+SetType(StepsType)              // default|panel；dot|inline|navigation 为 P1 预留枚举（StepsTypeDot/Inline/Navigation），本阶段传参直接拒收
 SetVariant(StepsVariant)        // filled|outlined
 SetOrientation(StepsOrientation)// horizontal|vertical
 SetTitlePlacement(StepsTitlePlacement) // horizontal|vertical

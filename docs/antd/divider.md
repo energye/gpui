@@ -62,15 +62,9 @@
 
 #### `orientationMargin`
 
-- **说明**：标题和最近 left/right 边框之间的距离，去除了分割线，同时 `titlePlacement` 不能为 `center`。如果传入 `string` 类型的数字且不带单位，默认单位是 px
+- **说明**：start/end 时标题近侧轨的边距（已弃用，请用 `styles.content.margin`）。数字=px（逻辑像素）；纯数字字符串同样按数字解析（`"20"`→`20px`）；其他字符串透传（如 `"2em"`、`"10%"`）；仅 `titlePlacement=start/end` 时生效，`center` 时忽略
 - **类型**：string | number
-- **默认值**：-
-- **可选值与外观含义**：
-
-  | 值 | 外观/语义 |
-  | --- | --- |
-  | `titlePlacement` | 官方取值 `titlePlacement` |
-  | `center` | 居中 |
+- **默认值**：-（未设时按组件 Token `orientationMargin=0.05` 比例轨）
 
 #### `plain`
 
@@ -146,15 +140,7 @@
 
 ### 1.4 交互视觉状态（实现检查表）
 
-| 状态 | 要求 |
-| --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+本控件为非交互装饰分隔，无 hover / active / focus / disabled / loading / error 态（见 §6.5–§6.6，根 `role=separator`，默认不抢焦点）。
 
 ### 1.5 语义化 DOM 与主题
 
@@ -328,6 +314,7 @@ import { Divider } from 'antd';
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
 | 分割线色 | `colorSplit` | 默认皮；未注册时回落 `colorBorderSecondary` / fill 浅色 |
+| kit `Tokens.Border` | → `colorSplit` 回落 | kit 侧边框语义统一走 `colorSplit` 解析，见 `LineColor()` |
 | 标题默认色 | `colorTextHeading` 或 `colorText` | 非 plain |
 | 标题 plain 色 | `colorText` | |
 | 次级文本 | `colorTextSecondary` | 适用者 |

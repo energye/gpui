@@ -240,9 +240,12 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| checked | 指定当前是否选中 | boolean | false | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
-| defaultChecked | 初始是否选中 | boolean | false | disabled | 禁用 Radio | boolean | false | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
-| value | 根据 value 进行比较，判断是否选中 | any | - 
+| checked | 指定当前是否选中 | boolean | false | - | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
+| defaultChecked | 初始是否选中 | boolean | false | - | × |
+| disabled | 禁用 Radio | boolean | false | - | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
+| value | 根据 value 进行比较，判断是否选中 | any | - | - | × |
 ### Radio.Group
 
 单选框组合，用于包裹一组 `Radio`。
@@ -250,9 +253,17 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | block | 将 RadioGroup 宽度调整为其父宽度的选项 | boolean | false | 5.21.0 |
-| buttonStyle | RadioButton 的风格样式，目前有描边和填色两种风格 | `outline` \| `solid` | `outline` | defaultValue | 默认选中的值 | any | - | name | RadioGroup 下所有 `input[type="radio"]` 的 `name` 属性。若未设置，则将回退到随机生成的名称 | string | - | optionType | 用于设置 Radio `options` 类型 | `default` \| `button` | `default` | 4.4.0 |
-| orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 |
-| value | 用于设置当前选中的值 | any | - | onChange | 选项变化时的回调函数 | function(e:Event) | - 
+| buttonStyle | RadioButton 的风格样式，目前有描边和填色两种风格 | `outline` \| `solid` | `outline` | - |
+| defaultValue | 默认选中的值 | any | - | - |
+| name | RadioGroup 下所有 `input[type="radio"]` 的 `name` 属性。若未设置，则将回退到随机生成的名称 | string | - | - |
+| options | 以配置形式设置子元素 | string\[] \| number\[] \| Array<[CheckboxOptionType](#checkboxoptiontype)> | - | - |
+| optionType | 用于设置 Radio `options` 类型 | `default` \| `button` | `default` | 4.4.0 |
+| orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` | - |
+| size | 大小，只对按钮样式（`optionType=button` / Radio.Button）生效 | `large` \| `medium` \| `small` | - | - |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 |
+| value | 用于设置当前选中的值 | any | - | - |
+| vertical | 值为 true，Radio Group 为垂直方向。与 `orientation` 同时存在，以 `orientation` 优先 | boolean | false | - |
+| onChange | 选项变化时的回调函数 | function(e:Event) | - | - |
 | 属性 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | label | 用于作为 Radio 选项展示的文本 | `string` | - | 4.4.0 |
@@ -417,6 +428,8 @@ import { Radio } from 'antd';
 | `onChange` | 选项变化时的回调函数 | function(e:Event) | - |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+
+> `size` 只对按钮皮（`optionType=button` / Radio.Button）生效，默认圆点皮忽略 `size`（与 §1.3 呼应）；选项对象列 `label/value/disabled/title` 见 §3 `CheckboxOptionType`。
 
 ### 6.4 交互状态机（L1）
 

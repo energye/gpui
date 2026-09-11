@@ -169,6 +169,10 @@
 9. **垂直方向紧凑布局**（`compact-button-vertical.tsx`）— kit 需用对等 API 复现该示例的交互与展示。
 10. **自定义语义结构的样式和类**（`style-class.tsx`）— kit 需用对等 API 复现该示例的交互与展示。
 
+### 2.3 行为 API 能力
+
+Space 为纯布局容器，无行为 API（无受控值、无回调、无浮层）。
+
 ### 2.4 示例全表
 
 | 示例 | 源文件 | debug |
@@ -282,17 +286,13 @@ import { Space } from 'antd';
 
 实现 gpui kit 版 **Space** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **10** 个，均需可复现。
+1. **配置面**：`orientation` / `vertical` / `size`（含数字与 `[列,行]`）/ `wrap` / `align` / `separator` / `block`；Compact 另见 §6.10。
+2. **布局**：主轴 gap 等距；`wrap` 仅 horizontal 生效；`separator` 装饰节点不抢焦点。
+3. **Compact**：相邻子控件叠边（gap≈-lineWidth），中间项清圆角。
+4. **无障碍**：布局容器本身不聚焦；分隔符 `aria-hidden`。
+5. **RTL**：`start`/`end` 对齐与行方向镜像。
+6. **主题**：间距走 Token（small 8 / middle 16 / large 24）；支持 reduced-motion（无动画则瞬时）。
+7. **示例矩阵**：官方非 debug 示例约 **10** 个，均需可复现。
 
 ---
 ## 5. 参考链接

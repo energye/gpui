@@ -107,17 +107,23 @@
 - **类型**：ReactNode
 - **默认值**：-
 
+#### 指示色与遮罩映射
+
+| 用途 | Token |
+| --- | --- |
+| 指示符 / 描述文案 | `colorPrimary` |
+| 进度环底轨 | `colorFillSecondary` |
+| 嵌套遮罩 | `colorBgContainer` @ ≈0.4，children 降对比 opacity ≈0.5 |
+| 全屏遮罩（P1） | `colorBgMask`，文案白 |
+
 ### 1.4 交互视觉状态（实现检查表）
 
 | 状态 | 要求 |
 | --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+| default/spinning | 指示符 + 可选描述文案，几何色走 §6.2 |
+| nested spinning | children 降对比 + 遮罩挡点击，指示居中 |
+| percent | 进度环（fill 主色，轨次级填充） |
+| focus/disabled/error | N/A：Spin 不抢焦点、无 disabled、无表单 status 态 |
 
 ### 1.5 语义化 DOM 与主题
 
@@ -148,8 +154,12 @@
 
 | API | 能力 | 说明 |
 | --- | --- | --- |
-| `percent` | 进度值 | 展示进度，当设置 `percent="auto"` 时会预估一个永远不会停止的进度 |
-| `spinning` | 是否旋转 | 是否为加载中状态 |
+| `spinning` | 是否旋转 | 是否为加载中状态；`false` 时仅显示 children |
+| `delay` | 延迟显示 | 延迟毫秒数（防闪烁）；`spinning` 由 false→true 时经 delay 后才显示指示 |
+| `description`（`tip` 为废弃别名） | 描述文案 | 与指示符同显的文案 |
+| `size` | 尺寸档 | `small` / `medium`（默认）/ `large`，对应指示直径 14 / 20 / 32 |
+| `indicator` | 自定义指示符 | 覆盖内置 4-dot / 进度环；实例优先于全局 `setDefaultIndicator` |
+| `percent` | 进度值 | 数值进度环；`auto` 为永不停的模拟进度 |
 
 ### 2.4 示例全表
 

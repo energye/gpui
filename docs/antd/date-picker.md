@@ -705,6 +705,23 @@ import { DatePicker } from 'antd';
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
+**面板 Token（对齐 `components/date-picker/style/token.ts` → `initPanelComponentToken` + `initPickerPanelToken`，默认种子 `controlHeightSM=24`/`controlHeightLG=40`/`paddingXXS=4`）：**
+
+| Token | 默认值 | 说明 |
+| --- | --- | --- |
+| `cellWidth` | **36**（`controlHeightSM×1.5`） | 日期单元格宽 |
+| `cellHeight` | **24**（`controlHeightSM`） | 日期单元格高 |
+| `textHeight` | **40**（`controlHeightLG`） | 单元格文本行高 |
+| `withoutTimeCellHeight` | **66**（`controlHeightLG×1.65`） | 年/季/月/周单元格高 |
+| `timeColumnWidth` | **56**（`controlHeightLG×1.4`） | 时间列宽（时/分/秒各一列） |
+| `timeColumnHeight` | **224**（`28×8`） | 时间列高（可见约 8 行） |
+| `timeCellHeight` | **28** | 时间单行高 |
+| `pickerYearMonthCellWidth` | **60**（`controlHeightLG×1.5`） | 年/月单元格宽 |
+| `pickerQuarterPanelContentHeight` | **56**（`controlHeightLG×1.4`） | 季度面板内容高 |
+| `pickerCellPaddingVertical` | **6**（`paddingXXS + paddingXXS/2`） | 单元格纵向边距 |
+| `pickerCellBorderGap` | **2** | 单元格间隙（range 背景断开用） |
+| `presetsWidth` / `presetsMaxWidth` | **120** / **200** | 预设快捷区宽（P1） |
+
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
@@ -778,6 +795,16 @@ closed ── open ──► 面板（picker=date/week/month/quarter/year）
 | DP-S10 | size 高度 | 24/32/40 |
 | DP-S11 | `needConfirm` | 选日不立即 onChange；Confirm 后一次 |
 | DP-S12 | `multiple` | 多日集合；再点取消 |
+
+**时间列算法（`showTime`）：** 选日后时间列与日期面板同屏（或次屏），三列时/分/秒各宽 `timeColumnWidth=56`、行高 `timeCellHeight=28`、列高 `timeColumnHeight=224`（超高列内滚动）；时分秒分别步进选择，`showTime.defaultOpenValue` 为打开面板时的时间初值；日期切换不重置已选时分秒，切回同日保留。
+
+**确认流算法（`needConfirm`）：** 选日/选时只写预览值（输入框可配 `previewValue=hover` 实时预览），不发 `onChange`；点 OK（`onOk`）一次性提交预览并关面板，点取消/外点/Esc 丢弃预览；`multiple=true` 时 antd 默认 `needConfirm=false`（多选点选即进集合），kit 同此默认。
+
+**mask 算法（`format type=mask`）：** `format={format, type:'mask'}` 时输入框按格式占位对齐（如 `YYYY-MM-DD` 占 10 格），数字键顺序填入年月日格、非数字键忽略，退格按格回退；失焦时按 `format` 解析，合法则提交 `onChange`，非法按 `preserveInvalidOnBlur=false` 清空（默认）。
+
+**`disabledTime` 去向：** 单体 `DatePicker` 的 `disabledTime(date)`（返回禁用的时/分/秒集合）随 `showTime` 进 P0（时分秒列中禁行不可点）；`RangePicker` 按 `partial=start|end` 区分两端 + `info.from` 联动的深度形态列 P1，P0 的 Range 仅支持整控件 `disabled` 与按日 `disabledDate`。
+
+**周编号规则：** `picker=week` 选中整周（值取周起始日），周编号按 ISO 周（周一起算的年第几周）；周起始跟随 locale（`zh-cn` 周一、`en` 周日），kit P0 允许固定周一起算并在 Notes 注明，完整 locale 周起始为 P1。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
@@ -818,6 +845,8 @@ closed ── open ──► 面板（picker=date/week/month/quarter/year）
 ### 6.8 能力裁剪（P0 / P1）
 
 #### P0（本阶段必须 1:1，否则不算完成）
+
+**分期顺序：单日 → Range → showTime → multiple/needConfirm。** 先跑通单日 `DatePicker`（选日/open/format/禁用/弹层），再叠 Range 二元组，然后 showTime 时间列，最后 multiple 多选与 needConfirm 确认流；后一期以前一期用例全绿为前提。
 
 | 配置 / 能力 | 说明 |
 | --- | --- |

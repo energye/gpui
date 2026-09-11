@@ -1343,20 +1343,24 @@ mount ──► initialValues 写入字段
 | a11y §6.6 | label 关联、error→invalid、键盘提交主路径 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
+> **依赖前置三件套（P0 必备）**：① `Input` 绑定（`value/onChange`，Switch/Checkbox 用 `valuePropName=checked`，见 `BindInput/BindCheckbox/BindSwitch`）；② 内部 `store`（`initialValues` + `setFieldsValue/getFieldsValue/resetFields/submit` 闭环，不依赖外部 redux）；③ 最小校验（`required` + `message` + 同步 `validator` + `validateTrigger onChange/onBlur/提交时`）。三者齐了 P0 的 8 例才能跑；`warningOnly`/`parallel`/`debounce` 等归 P1。
+
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| `scrollToFirstError` / 真滚动宿主 | 分期 |
-| `hasFeedback` 图标 + validating Ticker 像素 | 分期 |
-| `fields` 受控 / redux 同步 | 分期 |
-| `feedbackIcons` / `validateMessages` i18n | 分期 |
-| `shouldUpdate` / `noStyle` 深度 / `getValueProps`+`normalize` | 分期 |
-| `preserve` 精细 `getFieldsValue(true)` | 分期 |
-| Form.Provider 多表单联动 | 分期 |
-| 其余示例 | 表单标签可换行、非阻塞校验、字段监听 Hooks、校验时机、动态规则、登录/注册等 |
-| ConfigProvider 全局 form 默认 | 分期 |
+| semantic classNames/styles 深度 | 分期——仅样式钩子深度，不挡主路径提交校验 |
+| `scrollToFirstError` / 真滚动宿主 | 分期——需滚动容器 + 焦点定位宿主，主路径先保错误展示 |
+| `hasFeedback` 图标 + validating Ticker 像素 | 分期——校验中动效与图标定制，主路径先保 error/warning 文案 |
+| `fields` 受控 / redux 同步 | 分期——外部 store 全量受控复杂度高，主路径先保 `initialValues`+`setFieldsValue` |
+| `feedbackIcons` / `validateMessages` i18n | 分期——图标与文案模板国际化，主路径先保默认中文 message |
+| `shouldUpdate` / `noStyle` 深度 / `getValueProps`+`normalize` | 分期——渲染优化与值转换，主路径先保 `value/checked` 直绑 |
+| `preserve` 精细 `getFieldsValue(true)`（含未注册字段） | 分期——卸载保留与全量取值，主路径先保已注册字段 |
+| `validateDebounce` / `validateFirst=parallel` / `warningOnly` 非阻塞 | 分期——防抖与并行/警告不阻塞提交，主路径先保同步 `required`+`validator` |
+| `dependencies` 深链 + `Form.List` `move` 拖拽排序 | 分期——跨字段深链与拖拽，主路径先保单层 `dependencies`+`add/remove` |
+| Form.Provider 多表单联动 | 分期——多实例事件总线，主路径先保单 Form 闭环 |
+| 其余 29 个非 debug 示例 | 分期——登录/注册/高级搜索等为 P0 能力的业务组装，不另验（P0 只收 8：基本使用、表单方法调用、表单布局、表单混合布局、表单禁用、表单变体、必选样式、表单尺寸） |
+| ConfigProvider 全局 form 默认 | 分期——随 ConfigProvider 另期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）

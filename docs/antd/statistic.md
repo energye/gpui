@@ -35,6 +35,37 @@
 - **类型**：Record | (info: { props }) => Record
 - **默认值**：-
 
+#### `decimalSeparator`
+
+- **说明**：设置小数点
+- **类型**：string
+- **默认值**：`.`
+
+#### `formatter`
+
+- **说明**：自定义数值展示，覆盖内置数字格式化
+- **类型**：`(value) => ReactNode`
+- **默认值**：-
+
+#### `groupSeparator`
+
+- **说明**：设置千分位标识符
+- **类型**：string
+- **默认值**：`,`
+
+#### `precision`
+
+- **说明**：数值精度，不足补 0
+- **类型**：number
+- **默认值**：-
+
+#### `format`
+
+- **说明**：Timer/倒计时展示模板（`formatCounter` 路径）
+- **类型**：string
+- **默认值**：`HH:mm:ss`
+- **占位符白名单**：`Y` 年 / `M` 月 / `D` 天 / `H` 时 / `m` 分 / `s` 秒 / `S` 毫秒；重复字母表补零宽度（如 `HH` 两位）；`[...]` 内为字面量不解析
+
 #### `loading`
 
 - **说明**：数值是否加载中
@@ -88,13 +119,10 @@
 
 | 状态 | 要求 |
 | --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+| default | 标题描述色 + 数值标题色，字号符合 §6.2 |
+| loading | 内容区换 Skeleton，标题仍可显示 |
+| hover/active/focus/disabled | N/A：展示控件，不可交互不可聚焦 |
+| error/warning | N/A：无表单 status 态（Card 示例内容色覆盖走 `styles.content`） |
 
 ### 1.5 语义化 DOM 与主题
 

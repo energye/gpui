@@ -489,13 +489,14 @@ treeData 渲染
 | TRE-S1 | 展开节点 | 子可见；onExpand |
 | TRE-S2 | 选中 | selectedKeys |
 | TRE-S3 | checkable 勾选 | checkedKeys |
-| TRE-S4 | 父子联动（默认） | 勾父影响子 |
-| TRE-S5 | disabled 节点 | 不可交互 |
+| TRE-S4 | 父子联动（默认，非 strictly） | 勾父影响子 |
+| TRE-S5 | disabled 传导终止 | 展开/勾选自变更节点上下传导，遇 `disabled` 停止；`disabled` 本身只改本身（例：父带 3 子其一 disabled，勾父仅另两子生效） |
 | TRE-S6 | loadData | 异步出现子节点 |
 | TRE-S7 | 受控 expandedKeys | 外部优先 |
 | TRE-S8 | showLine | 连接线可见 |
 | TRE-S9 | multiple 选 | 多 selected |
 | TRE-S10 | 搜索（若接） | 过滤 |
+| TRE-S11 | 拖拽落点 `DropInfo` | `DragKey` 被拖节点；`DropKey` 目标节点；`DropToGap` 是否落缝隙（false=节点内）；`DropPosition` -1 前/0 内/1 后 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |

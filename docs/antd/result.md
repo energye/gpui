@@ -62,10 +62,17 @@
   | --- | --- |
   | `success` | 成功绿语义 |
   | `error` | 错误红语义 |
+  | `info` | 信息蓝语义（默认） |
   | `warning` | 警告橙语义 |
-  | `404` | 官方取值 `404` |
-  | `403` | 官方取值 `403` |
-  | `500` | 官方取值 `500` |
+  | `404` | 异常插画 `noFound`（250×295，见 §6.5 回落） |
+  | `403` | 异常插画 `unauthorized`（250×295，见 §6.5 回落） |
+  | `500` | 异常插画 `serverError`（250×295，见 §6.5 回落） |
+
+#### `children`
+
+- **说明**：内容区（`body`），渲染在 `title/subTitle` 下、`extra` 上；Error 示例用其放描述文本
+- **类型**：ReactNode
+- **默认值**：-
 
 #### `styles`
 
@@ -152,8 +159,13 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | classNames | 自定义组件内部各语义化结构的类名。支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
-| extra | 操作区 | ReactNode | - | icon | 自定义 icon | ReactNode | - | status | 结果的状态，决定图标和颜色 | `success` \| `error` \| `info` \| `warning` \| `404` \| `403` \| `500` | `info` | styles | 自定义组件内部各语义化结构的内联样式。支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
-| subTitle | subTitle 文字 | ReactNode | - | title | title 文字 | ReactNode | - 
+| extra | 操作区 | ReactNode | - | - | × |
+| icon | 自定义 icon | ReactNode | - | - | × |
+| status | 结果的状态，决定图标和颜色 | `success` \| `error` \| `info` \| `warning` \| `404` \| `403` \| `500` | `info` | - | × |
+| styles | 自定义组件内部各语义化结构的内联样式。支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
+| subTitle | subTitle 文字 | ReactNode | - | - | × |
+| title | title 文字 | ReactNode | - | - | × |
+| children | 内容区（`body`），渲染在标题区下、操作区上 | ReactNode | - | - | × |
 ### 导入方式
 
 ```js
@@ -171,6 +183,7 @@ import { Result } from 'antd';
 | `styles` | 自定义组件内部各语义化结构的内联样式。支持对象或函数 | Record \| (info: { props }) => Record | - | 6.0.0 |
 | `subTitle` | subTitle 文字 | ReactNode | - | — |
 | `title` | title 文字 | ReactNode | - | — |
+| `children` | 内容区（`body`），渲染在标题区下、操作区上 | ReactNode | - | — |
 
 ---
 ## 4. gpui kit 实现要点
@@ -293,9 +306,11 @@ title/subTitle/extra 展示
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| status 图标 | `success/error/info/warning` 用对应填充图标（72px，见 §6.2）；`icon` 非空时替换默认图标 |
+| 异常插画 | `403/404/500` 用 SVG 插画 **250×295**：`403→unauthorized` / `404→noFound` / `500→serverError`（源码 `components/result/*.tsx`）；缺资源时回落画法：250×295 线框占位 + 状态码大字 + `subTitle` 文案，不留空 |
+| title/subTitle | title 24px 居中，subTitle 14px 次级文本居中 |
+| extra | 操作区按钮行居中，子项水平间距 8 |
+| body（children） | 内容区灰底卡（padding 24×40，margin-top 24），居中 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
 
@@ -396,29 +411,36 @@ const (
 
 NewResult() *Result
 
-// 配置：SetStatus / SetTitle / SetSubTitle / SetIcon / SetIconName / SetIconNone / SetExtra / SetBody
-// 状态：SetLoading（适用者：自定义/默认 glyph 可旋转提示；不改变 Result 展示语义）
+// 配置
+SetStatus(ResultStatus)             // info|success|warning|error|403|404|500，默认 info
+SetTitle(string) / SetTitleNode(core.Node)
+SetSubTitle(string) / SetSubTitleNode(core.Node)
+SetExtra(...core.Node) / SetExtraNodes([]core.Node)  // 操作区，可点
+SetBody(core.Node) / SetBodyText(string)             // children 内容区
+SetIcon(core.Node) / SetIconName(string) / SetIconNone(bool)  // 自定义 icon；true 则无图标区
 // 主题：SetTheme(*core.Theme)；SetStyle(Style) 可选覆盖 root/text
 // a11y：SetAriaLabel；extra 内控件保留自身焦点与键盘
 // 挂树：Node() core.Node
+// 查询：Status() ResultStatus / HasExtra() bool / HasBody() bool
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
 | status | `info` |
-| title/subTitle/extra/body/icon | 未设置 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| title/subTitle/extra/body/icon | 未设置（对应区不渲染不占位，异常插画除外） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Host holder or inline
-  └─ item (icon + content + close?)
+Column（纵排居中，padding 48×32）
+  ├─ icon / image（72px 状态图标或 250×295 异常插画；icon=None 时跳过）
+  ├─ title（24px）
+  ├─ subTitle（14px 次级文本，可空）
+  ├─ extra（操作区行，子项间距 8；可空）
+  └─ body（children 内容区卡，padding 24×40；可空）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

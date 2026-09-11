@@ -619,20 +619,27 @@ import { TreeSelect } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-开 ── 树 ── 选/勾 ── onChange
-search 过滤
+closed ──open──► dropdown tree
+single: click node ──► commit value + close + onChange
+multiple: click ──► toggle + stay open (+ maxCount gate) + onChange
+checkable: check ──► cascade (unless strictly) ──► refill by strategy ──► tags + onChange
+search ──► filter tree (loadData 不触发) ──► autoExpand hit branch
+async: expand unloaded ──► loadData ──► loadedKeys + children
+controlled: value/open/expandedKeys 外部优先；内部只回调
+disabled ──► 不打开
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| TSE-S1 | 选节点 | value |
-| TSE-S2 | treeCheckable | 勾选集合 |
-| TSE-S3 | search | 过滤 |
-| TSE-S4 | clear | 空 |
-| TSE-S5 | multiple | 多数组 |
-| TSE-S6 | loadData | 异步 |
-| TSE-S7 | disabled | 不打开 |
-| TSE-S8 | 高度 | 32 |
+| TSE-S1 | 单选点节点 | `value` 单值 + 关下拉 + `onChange/onSelect` |
+| TSE-S2 | 多选（`multiple`） | 值数组 toggle；下拉不关；`maxCount` 触顶拒绝并保持 |
+| TSE-S3 | 勾选回填 `SHOW_CHILD`（默认） | 仅回填子节点标签 |
+| TSE-S4 | 勾选回填 `SHOW_ALL` | 回填全部选中节点（含父） |
+| TSE-S5 | 勾选回填 `SHOW_PARENT` | 父全选时仅回填父标签 |
+| TSE-S6 | `treeCheckStrictly=true` | 父子不联动，且 `labelInValue` 强制 true（含 halfChecked） |
+| TSE-S7 | 搜索（`showSearch/filterTreeNode`） | 按 `value/title` 过滤，命中分支自动展开；搜索不调 `loadData` |
+| TSE-S8 | 异步（`loadData/treeLoadedKeys`） | 未加载节点转圈，完成后挂 `children` + `onTreeExpand/onLoad` |
+| TSE-S9 | 受控（`value/open/treeExpandedKeys`） | 外部优先，内部仅回调（`onChange/onOpenChange/onTreeExpand`） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
@@ -741,23 +748,58 @@ search 过滤
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewTreeSelect(...) *TreeSelect
+type TreeSelectNode struct {
+  Value, Title, Key string
+  Children []TreeSelectNode
+  Disabled, DisableCheckbox, IsLeaf, Selectable bool
+}
+type TreeSelectValue struct { Value, Label string; HalfChecked bool } // labelInValue=true
+type ShowCheckedStrategy int // SHOW_CHILD | SHOW_ALL | SHOW_PARENT
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewTreeSelect(nodes ...TreeSelectNode) *TreeSelect
+
+// 数据
+SetTreeData(...TreeSelectNode) / SetFieldNames(label, value, children string)
+// 单选 / 多选 / 勾选
+SetMultiple(bool) / SetTreeCheckable(bool)
+SetShowCheckedStrategy(ShowCheckedStrategy) // 默认 SHOW_CHILD
+SetTreeCheckStrictly(bool)                  // true → labelInValue 强制 true
+SetLabelInValue(bool)
+SetMaxCount(int)
+// 值（受控优先）
+SetValue(string) / SetValues([]string) / SetLabelValues([]TreeSelectValue)
+SetDefaultValue(string) / SetDefaultValues([]string)
+Value() string / Values() []string / LabelValues() []TreeSelectValue
+// 下拉与搜索
+SetOpen(bool) / SetDefaultOpen(bool) / IsOpen()
+SetPlacement(bottomLeft|bottomRight|topLeft|topRight)
+SetShowSearch(bool) / SetSearchValue(string) / SetFilterTreeNode(func(q string, n TreeSelectNode) bool)
+SetTreeExpandedKeys([]string) / SetTreeDefaultExpandedKeys([]string) / SetTreeDefaultExpandAll(bool)
+SetTreeExpandAction(click|doubleClick|false)
+// 异步
+SetLoadData(func(TreeSelectNode)) / SetTreeLoadedKeys([]string)
+// 展示
+SetDisabled / SetAllowClear / SetSize / SetVariant / SetStatus / SetPlaceholder
+SetListHeight(float64) // 默认 256；popupMatchSelectWidth=false 时关虚拟滚动
+// 回调
+SetOnChange(func(value any, label any)) / SetOnSelect / SetOnSearch / SetOnClear
+SetOnOpenChange(func(bool)) / SetOnTreeExpand(func([]string))
+// 主题 / a11y / 树
+SetTheme(*Theme) / SetFace / SetStyle / SetAriaLabel
+Node() core.Node / Popup() core.Node
+Focus() / Blur()
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Disabled / Multiple / TreeCheckable / TreeCheckStrictly / LabelInValue | false |
+| ShowCheckedStrategy | `SHOW_CHILD` |
+| ShowSearch | 单选 false，多选 true |
+| Size | middle（高 32）；Variant outlined；Status none；Placement bottomLeft |
+| ListHeight | 256；Virtual true；PopupMatchSelectWidth true |
+| 受控值/展开 | 未 Set 时用 default* 或内部状态 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
@@ -770,7 +812,7 @@ Field / Selector
   └─ Portal popup? (list/panel)
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
+- 组合 `ui/primitive` + `ui/kit`（Tree + Select + 下拉 Portal + 虚拟列表）+ `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - 动画跟随 Host Tick；尊重 reduced-motion。  

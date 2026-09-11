@@ -443,8 +443,8 @@ OnClick ──► Pressable；Disabled 时不触发
 | `dot` | 小红点 |
 | `offset` | 角标偏移 |
 | `size` medium \| small | count 高度档 |
-| `status` + `text` | 状态点 API 与色（含 processing Ticker） |
-| `color`（自定义色） | count/点底色；Style.Background 可覆盖 |
+| `status` + `text` | 状态点 API 与点色走 Token（含 processing Ticker）为 P0；`status.tsx` 整页铺陈为 P1 |
+| `color`（自定义色） | count/点底色走 Token 或解析色为 P0；`colorful.tsx` 整页铺陈为 P1 |
 | `title` | 字段 + 回落规则 |
 | `CountNode` | 自定义 count 内容（basic 时钟图标） |
 | children / 独立使用 | wrapper 与 not-a-wrapper |
@@ -459,7 +459,7 @@ OnClick ──► Pressable；Disabled 时不触发
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| 官方示例「状态点 / 多彩徽标 / 缎带」完整 gallery 铺陈 | API 已在 P0；页面级示例可 later |
+| 官方示例「状态点 / 多彩徽标 / 缎带」整页铺陈 | 仅页面铺陈为 P1；点色、`status`/`color`/`title` API 与规则仍为 P0 |
 | 预设色名全表与 colorful 深度 | 分期 |
 | semantic classNames/styles | 分期 |
 | ScrollNumber 翻滚 / zoom 入场动画像素级 | 分期 |
@@ -481,6 +481,7 @@ OnClick ──► Pressable；Disabled 时不触发
 | BDG-06 | L1 | showZero=true count=0 | DisplayCount=`0`；Visible |
 | BDG-07 | L1 | status=success/error/warning/default/processing | 状态点色走对应 Token；processing 可 Tick |
 | BDG-08 | L1 | offset=[10,10] | 角标 Offset 相对默认锚点含 +10,+10 |
+| BDG-08b | L1 | `SetTitle("99 条未读")` 后读 `ResolvedTitle()`；再 `SetTitleNone()` | 前者回落为该串并可作可访问名；后者为空且不回落 count |
 | BDG-09 | L1 | NewRibbon + placement | 缎带可布局；start/end 可切换 |
 | BDG-10 | L1 | 复现「基本」（`basic.tsx`） | count=5 / showZero0 / CountNode 可布局 |
 | BDG-11 | L1 | 复现「独立使用」（`no-wrapper.tsx`） | 无 child 的 count + color 可布局 |

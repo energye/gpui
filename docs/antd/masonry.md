@@ -41,8 +41,8 @@
 
 #### `gutter`
 
-- **说明**：间距，可以是固定值、响应式配置或水平垂直间距配置
-- **类型**：[Gap](#gap) | \[[Gap](#gap), [Gap](#gap)\]
+- **说明**：间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置
+- **类型**：`RowProps['gutter']`
 - **默认值**：`0`
 
 #### `styles`
@@ -51,12 +51,6 @@
 - **类型**：Record | ((info: { props }) => Record)
 - **默认值**：-
 - **版本**：6.0.0
-
-#### `height`
-
-- **说明**：高度
-- **类型**：`number`
-- **默认值**：-
 
 ### 1.4 交互视觉状态（实现检查表）
 
@@ -133,7 +127,7 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
-| columns | 列数，可以是固定值或响应式配置 | `number \| { xs?: number; sm?: number; md?: number }` | `3` | fresh | 是否持续监听子项尺寸变化 | `boolean` | `false` | gutter | 间距，可以是固定值、响应式配置或水平垂直间距配置 | [Gap](#gap) \| \[[Gap](#gap), [Gap](#gap)\] | `0` | items | 瀑布流项 | [MasonryItem](#masonryitem)[] | - | itemRender | 自定义项渲染 | `(item: MasonryItem) => React.ReactNode` | - | styles | 语义化结构 style，支持对象和函数形式 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| ((info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties>) | - | 6.0.0 | 6.0.0 |
+| columns | 列数，可以是固定值或响应式配置 | `number \| Partial<Record<Breakpoint, number>>`（Breakpoint = xxxl/xxl/xl/lg/md/sm/xs，见 §6.4） | `3` | fresh | 是否持续监听子项尺寸变化 | `boolean` | `false` | gutter | 间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置 | `RowProps['gutter']` | `0` | items | 瀑布流项 | [MasonryItem](#masonryitem)[] | - | itemRender | 自定义项渲染 | `(item: MasonryItem) => React.ReactNode` | - | styles | 语义化结构 style，支持对象和函数形式 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| ((info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties>) | - | 6.0.0 | 6.0.0 |
 | onLayoutChange | 列排序回调 | `({ key: React.Key; column: number }[]) => void` | - 
 ### MasonryItem
 
@@ -147,10 +141,11 @@
 
 ### Gap
 
-Gap 是项之间的间距，可以是固定值，也可以是响应式配置。
+`gutter` 沿用 Row 语义（`RowProps['gutter']`，对齐 `Masonry.tsx`）：固定值、响应式配置（xs…xxxl）或 `[水平, 垂直]` 二元组；垂直间距参与列高累加，水平间距参与列宽公式（见 §6.4）。
 
 ```ts
-type Gap = undefined | number | Partial<Record<'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl', number>>;
+// 不另起 Gap 类型，直接复用 Row：
+gutter?: RowProps['gutter'];
 ```
 
 ### 导入方式
@@ -164,9 +159,9 @@ import { Masonry } from 'antd';
 | 配置项 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props })=> Record | - | 6.0.0 |
-| `columns` | 列数，可以是固定值或响应式配置 | `number \| { xs?: number; sm?: number; md?: number }` | `3` | — |
+| `columns` | 列数，可以是固定值或响应式配置 | `number \| Partial<Record<Breakpoint, number>>`（Breakpoint = xxxl/xxl/xl/lg/md/sm/xs，见 §6.4） | `3` | — |
 | `fresh` | 是否持续监听子项尺寸变化 | `boolean` | `false` | — |
-| `gutter` | 间距，可以是固定值、响应式配置或水平垂直间距配置 | [Gap](#gap) \| \[[Gap](#gap), [Gap](#gap)\] | `0` | — |
+| `gutter` | 间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置 | `RowProps['gutter']` | `0` | — |
 | `items` | 瀑布流项 | [MasonryItem](#masonryitem)[] | - | — |
 | `itemRender` | 自定义项渲染 | `(item: MasonryItem) => React.ReactNode` | - | — |
 | `styles` | 语义化结构 style，支持对象和函数形式 | Record \| ((info: { props }) => Record) | - | 6.0.0 |
@@ -260,9 +255,9 @@ import { Masonry } from 'antd';
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
 | `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `columns` | 列数，可以是固定值或响应式配置 | `number \ | { xs?: number; sm?: number; md?: number }` |
+| `columns` | 列数，可以是固定值或响应式配置 | `number \ | Partial<Record<Breakpoint, number>>`（Breakpoint = xxxl/xxl/xl/lg/md/sm/xs，见 §6.4） |
 | `fresh` | 是否持续监听子项尺寸变化 | `boolean` | `false` |
-| `gutter` | 间距，可以是固定值、响应式配置或水平垂直间距配置 | [Gap](#gap) \ | \[[Gap](#gap), [Gap](#gap)\] |
+| `gutter` | 间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置 | `RowProps['gutter']` |
 | `items` | 瀑布流项 | [MasonryItem](#masonryitem)[] | - |
 | `itemRender` | 自定义项渲染 | `(item: MasonryItem) => React.ReactNode` | - |
 | `styles` | 语义化结构 style，支持对象和函数形式 | Record<[SemanticDOM](#semantic-dom), … | ((info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties>) |
@@ -281,6 +276,18 @@ import { Masonry } from 'antd';
 items 按 columns 放入最短列
 columns/gutter/items 变化 ──► 重排
 ```
+
+列分配算法（对齐 `usePositions`，按序稳定）：
+
+1. 按 items 顺序逐项放置；显式 `column` 钳制到 `columnCount-1`，否则进当前最短列。
+2. `top` = 该列当前高度；放置后列高 `+= 项高 + verticalGutter`。
+3. 根高 = `max(列高) − verticalGutter`（扣末尾多加的一份）。
+
+gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
+
+- 固定值直用；响应式按当前断点取值；`[水平, 垂直]` 二元组，无垂直则垂直 = 水平。
+- 水平 gutter 进列宽公式：列宽 = `(100% + h) / n`，项左 = 列宽 × 列索引，项宽 = 列宽 − h；垂直 gutter 只累列高。
+- columns 响应式：按 `responsiveArray` 自大到小取首个命中断点，无命中回落 `xs`，无 `xs` 回落 1；未传 columns 默认 3。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
@@ -330,7 +337,7 @@ columns/gutter/items 变化 ──► 重排
 | `items` | 必须 |
 | `columns` | 必须 |
 | `children` | 必须 |
-| 官方主路径示例 | 基础用法、响应式、图片、动态更新、自定义语义结构的样式和类、_semantic.tsx |
+| 官方主路径示例 | 基础用法、响应式、图片、动态更新、自定义语义结构的样式和类 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
@@ -339,7 +346,7 @@ columns/gutter/items 变化 ──► 重排
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
+| semantic classNames/styles 深度（含 `_semantic.tsx` 语义节点口径） | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
@@ -362,7 +369,7 @@ columns/gutter/items 变化 ──► 重排
 | MAS-09 | L1 | 复现官方示例「图片」（`image.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | MAS-10 | L1 | 复现官方示例「动态更新」（`dynamic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | MAS-11 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MAS-12 | L1 | 复现官方示例「_semantic.tsx」（`_semantic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| MAS-12 | P1 | 复现 `_semantic.tsx` 语义节点（随 semantic 分期） | 语义钩子与文档一致；无控制台级错误 |
 | MAS-13 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | MAS-14 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | MAS-15 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -375,23 +382,49 @@ columns/gutter/items 变化 ──► 重排
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewMasonry(...) *Masonry
+// 瀑布流项（对齐官方 MasonryItem 五字段）
+type MasonryItem struct {
+  Key     string    // 唯一标识（官方 key；缺省用 index）
+  Column  int       // 自定义所在列（官方 column；-1 = 自动进最短列）
+  Height  float64   // 项高（官方 height；0 = 实测）
+  Data    any       // 自定义存储数据（官方 data）
+  Content core.Node // 展示内容（官方 children，优先于 ItemRender）
+}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 列归属回调项（官方 onLayoutChange）
+type MasonryColumn struct {
+  Key    string
+  Column int
+}
+
+NewMasonry(items ...MasonryItem) *Masonry
+
+// 配置：固定列数（0 → 默认 3）；响应断点列数（xs…xxxl，未命中回落 xs，无 xs 回落 1）
+SetColumns(n int)
+SetResponsiveColumns(map[Breakpoint]int)
+// 间距 Row 语义：水平/垂直（vertical < 0 → 跟 horizontal）
+SetGutter(horizontal, vertical float64)
+SetItems([]MasonryItem)
+SetItemRender(func(item MasonryItem, index, column int) core.Node)
+SetFresh(bool)                        // 持续监听子项尺寸变化
+SetOnLayoutChange(func(items []MasonryColumn))
+// 布局断言（可选）
+ColumnOf(key string) int
+ItemBox(key string) Rect
+// 主题 / 挂树
+SetTheme(*Theme)
+Node() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Columns | 3 |
+| Gutter | 0（水平/垂直同值） |
+| Fresh | false |
+| Column（项） | -1（自动进最短列） |
+| Height（项） | 0（实测） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

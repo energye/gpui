@@ -260,15 +260,27 @@ Tooltip 默认在关闭时会缓存内容，以防止内容更新时出现闪烁
 <!-- prettier-ignore -->
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| align | 请参考 [dom-align](https://github.com/yiminghe/dom-align) 进行配置 | object | - | arrow | 修改箭头的显示状态以及修改箭头是否指向目标元素中心 | boolean \| { pointAtCenter: boolean } | true | 5.2.0 | Tooltip: 6.0.0，Popover: 6.0.0，Popconfirm: 6.0.0 |
-| autoAdjustOverflow | 气泡被遮挡时自动调整位置 | boolean | true | color | 背景颜色 | string | - | 4.3.0 | × |
+| align | 请参考 [dom-align](https://github.com/yiminghe/dom-align) 进行配置 | object | - |  | × |
+| arrow | 修改箭头的显示状态以及修改箭头是否指向目标元素中心 | boolean \| { pointAtCenter: boolean } | true | 5.2.0 | Tooltip: 6.0.0，Popover: 6.0.0，Popconfirm: 6.0.0 |
+| autoAdjustOverflow | 气泡被遮挡时自动调整位置 | boolean | true |  | × |
+| color | 背景颜色 | string | - | 4.3.0 | × |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | 5.23.0 | Tooltip: 5.23.0，Popover: 5.23.0，Popconfirm: 5.23.0 |
 | defaultOpen | 默认是否显隐 | boolean | false | 4.23.0 | × |
-| ~~destroyTooltipOnHide~~ | 关闭后是否销毁 dom | boolean | false | destroyOnHidden | 关闭后是否销毁 dom | boolean | false | 5.25.0 | × |
+| ~~destroyTooltipOnHide~~ | 关闭后是否销毁 dom | boolean | false |  | × |
+| destroyOnHidden | 关闭后是否销毁 dom | boolean | false | 5.25.0 | × |
 | fresh | 默认情况下，Tooltip 在关闭时会缓存内容。设置该属性后会始终保持更新 | boolean | false | 5.10.0 | × |
-| getPopupContainer | 浮层渲染父节点，默认渲染到 body 上 | (triggerNode: HTMLElement) => HTMLElement | () => document.body | mouseEnterDelay | 鼠标移入后延时多少才显示 Tooltip，单位：秒 | number | 0.1 | mouseLeaveDelay | 鼠标移出后延时多少才隐藏 Tooltip，单位：秒 | number | 0.1 | ~~overlayClassName~~ | 卡片类名, 请使用 `classNames.root` 替换 | string | - | ~~overlayStyle~~ | 卡片样式, 请使用 `styles.root` 替换| React.CSSProperties | - | ~~overlayInnerStyle~~ | 卡片内容区域的样式对象, 请使用 `styles.container` 替换 | React.CSSProperties | - | placement | 气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom` | string | `top` | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 5.23.0 | Tooltip: 5.23.0，Popover: 5.23.0，Popconfirm: 5.23.0 |
-| trigger | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` | open | 用于手动控制浮层显隐，小于 4.23.0 使用 `visible`（[为什么?](/docs/react/faq#弹层类组件为什么要统一至-open-属性)） | boolean | false | 4.23.0 | × |
-| zIndex | 设置 Tooltip 的 `z-index` | number | - | onOpenChange | 显示隐藏的回调 | (open: boolean) => void | - | 4.23.0 | × |
+| getPopupContainer | 浮层渲染父节点，默认渲染到 body 上 | (triggerNode: HTMLElement) => HTMLElement | () => document.body |  | × |
+| mouseEnterDelay | 鼠标移入后延时多少才显示 Tooltip，单位：秒 | number | 0.1 |  | × |
+| mouseLeaveDelay | 鼠标移出后延时多少才隐藏 Tooltip，单位：秒 | number | 0.1 |  | × |
+| ~~overlayClassName~~ | 卡片类名, 请使用 `classNames.root` 替换 | string | - |  | × |
+| ~~overlayStyle~~ | 卡片样式, 请使用 `styles.root` 替换 | React.CSSProperties | - |  | × |
+| ~~overlayInnerStyle~~ | 卡片内容区域的样式对象, 请使用 `styles.container` 替换 | React.CSSProperties | - |  | × |
+| placement | 气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom` | string | `top` |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 5.23.0 | Tooltip: 5.23.0，Popover: 5.23.0，Popconfirm: 5.23.0 |
+| trigger | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` |  | × |
+| open | 用于手动控制浮层显隐，小于 4.23.0 使用 `visible`（[为什么?](/docs/react/faq#弹层类组件为什么要统一至-open-属性)） | boolean | false | 4.23.0 | × |
+| zIndex | 设置 Tooltip 的 `z-index` | number | - |  | × |
+| onOpenChange | 显示隐藏的回调 | (open: boolean) => void | - | 4.23.0 | × |
 
 </embed>
 
@@ -440,6 +452,15 @@ import { Tooltip } from 'antd';
 
 **配置优先级：** 受控 `open` > 显式 `defaultOpen` > 组件默认 > ConfigProvider 全局（P1）。
 
+**12 向 placement 映射**（主方位 + 边角对齐；`pointAtCenter=true` 时边角方位贴主轴中点）：
+
+| placement | 面板在锚点 | 对齐 |
+| --- | --- | --- |
+| `top` / `topLeft` / `topRight` | 上 | 中 / 左 / 右 |
+| `bottom` / `bottomLeft` / `bottomRight` | 下 | 中 / 左 / 右 |
+| `left` / `leftTop` / `leftBottom` | 左 | 中 / 上 / 下 |
+| `right` / `rightTop` / `rightBottom` | 右 | 中 / 上 / 下 |
+
 ### 6.4 交互状态机（L1）
 
 ```text
@@ -549,7 +570,7 @@ import { Tooltip } from 'antd';
 | TIP-08 | L1 | color 预设 / 自定义 | 底色变 |
 | TIP-09 | L1 | mouseEnterDelay | delay>0 需 Tick 后开；0 立即 |
 | TIP-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档 |
-| TIP-11 | L1 | 复现「平滑过渡」（`smooth-transition.tsx`，无 unique） | 多 tip 可独立开合；无崩溃 |
+| TIP-11 | L1 | 复现「平滑过渡（降级版，不带 unique）」（`smooth-transition.tsx` 去 unique） | 多 tip 可独立开合；无崩溃 |
 | TIP-12 | L1 | 复现「位置」（`placement.tsx`） | 12 向可构造 |
 | TIP-13 | L1 | 复现「箭头展示」（`arrow.tsx`） | Show/Hide/Center |
 | TIP-14 | L1 | 复现「贴边偏移」（`shift.tsx`） | autoAdjustOverflow + Viewport 不崩溃；可开 |

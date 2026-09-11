@@ -157,9 +157,21 @@
 
 | 属性 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| allowClear | 是否允许再次点击后清除 | boolean | true | allowHalf | 是否允许半选 | boolean | false | character | 自定义字符 | ReactNode \| (RateProps) => ReactNode | &lt;StarFilled /> | function(): 4.4.0 | × |
-| count | star 总数 | number | 5 | defaultValue | 默认值 | number | 0 | disabled | 只读，无法进行交互 | boolean | false | keyboard | 支持使用键盘操作 | boolean | true | 5.18.0 | × |
-| size | 星星尺寸 | 'small' \| 'medium' \| 'large' | 'medium' | tooltips | 自定义每项的提示信息 | [TooltipProps](/components/tooltip-cn#api)[] \| string\[] | - | value | 当前数，受控值 | number | - | onBlur | 失去焦点时的回调 | function() | - | onChange | 选择时的回调 | function(value: number) | - | onFocus | 获取焦点时的回调 | function() | - | onHoverChange | 鼠标经过时数值变化的回调 | function(value: number) | - | onKeyDown | 按键回调 | function(event) | - 
+| allowClear | 是否允许再次点击后清除 | boolean | true | - | × |
+| allowHalf | 是否允许半选 | boolean | false | - | × |
+| character | 自定义字符 | ReactNode \| (RateProps) => ReactNode | <StarFilled /> | function(): 4.4.0 | × |
+| count | star 总数 | number | 5 | - | × |
+| defaultValue | 默认值 | number | 0 | - | × |
+| disabled | 只读，无法进行交互 | boolean | false | - | × |
+| keyboard | 支持使用键盘操作 | boolean | true | 5.18.0 | × |
+| size | 星星尺寸 | 'small' \| 'middle' \| 'large' | 'middle' | - | × |
+| tooltips | 自定义每项的提示信息 | [TooltipProps](/components/tooltip-cn#api)[] \| string\[] | - | - | × |
+| value | 当前数，受控值 | number | - | - | × |
+| onBlur | 失去焦点时的回调 | function() | - | - | × |
+| onChange | 选择时的回调 | function(value: number) | - | - | × |
+| onFocus | 获取焦点时的回调 | function() | - | - | × |
+| onHoverChange | 鼠标经过时数值变化的回调 | function(value: number) | - | - | × |
+| onKeyDown | 按键回调 | function(event) | - | - | × |
 ## 方法
 
 | 名称    | 描述     |
@@ -313,10 +325,14 @@ import { Rate } from 'antd';
 ```text
 hover 预览 ──► 临时高亮
 click 第 n 星 ──► value=n + onChange
-allowHalf ──► 半星区 value=n-0.5
+allowHalf ──► 半星区 value=n-0.5（见半星命中几何）
 allowClear 再点当前值 ──► 0
 disabled ──► 不改
 ```
+
+半星命中几何（`allowHalf=true` 时）：单星为独立命中盒，盒内左半 `x < w/2` 命中 `n-0.5`，右半命中 `n`；星间距（gap **8**）不命中；绘制时左半 clip 填色、右半空底。键盘方向键按 `0.5` 步进（`keyboard=true`）。
+
+字符回落规则：`string` 优先——`SetCharacter(string)` / `SetCharacterAt(index=>string)` 为 P0；默认回落 `★`。图标节点（`StarFilled` / 任意 ReactNode 图标）判 P1，本期写死字符绘制，不接图标管线。
 
 \*默认 count=5。
 
@@ -491,7 +507,8 @@ Flex Row (Root, role=radiogroup, gap=starGap)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 半星：同盒 left 50% 命中 = n-0.5，right 50% = n；绘制 left clip 填色。  
+- 半星：同盒左半命中 `n-0.5`、右半命中 `n`（gap 不命中）；绘制左半 clip 填色，右半空底。  
+- 字符：P0 只走 `string`（`Character` / `CharacterAt`），默认 `★`；图标节点 P1 写死不接。  
 - `rebuild()` 只在 count/size/character/tooltips 结构变化时重建星节点；`SetValue`/hover 只 `applyChrome`。  
 - 命中区域与布局盒一致（`hit == layout == paint`）；Root 身份跨 `SetValue` 稳定。  
 - Rate 无 loading API；无需 Ticker（P0）。  

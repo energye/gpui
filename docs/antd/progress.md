@@ -190,15 +190,15 @@
 
 ### 1.4 交互视觉状态（实现检查表）
 
+> Progress 为非交互展示控件，无 hover/active/focus/disabled/loading 态；以下为适用态。
+
 | 状态 | 要求 |
 | --- | --- |
-| default | 默认色、边框、阴影符合 token |
-| hover | 可交互控件需有悬停反馈 |
-| active/pressed | 按下态对比或反馈（若适用） |
-| focus | 可见 focus ring，键盘可达 |
-| disabled | 降对比 + 禁止交互，布局稳定 |
-| loading | 指示器 + 通常阻止重复触发 |
-| error/warning | 与 status/Form 语义色一致 |
+| default（normal） | 填充 `colorPrimary`，info 为 `p%`（或 `format`） |
+| active（仅 line） | 同 normal 色 + 轨上扫光（Ticker，P0 近似） |
+| success | 填充 `colorSuccess`；无 `format` 时 line 用成功图标、circle 用中心勾 |
+| exception | 填充 `colorError`；无 `format` 时 line 用异常图标、circle 用中心叉 |
+| showInfo=false | 无 info 节点 |
 
 ### 1.5 语义化 DOM 与主题
 
@@ -239,7 +239,10 @@
 
 | API | 能力 | 说明 |
 | --- | --- | --- |
-| `percent` | 进度值 | 百分比 |
+| `percent` | 进度值 | 百分比；`0..100`，线填充宽/圆弧扫角 |
+| `status` | 状态 | `success`/`exception`/`normal`/`active`（仅 line）；空=自动（≥100→success） |
+| `showInfo` | 信息显隐 | 是否显示进度数值或状态图标；`false` 则无 info 节点 |
+| `format` | 文案模板 | `format(percent, successPercent) => string`；覆盖默认 `%` 与状态图标 |
 
 ### 2.4 示例全表
 
@@ -552,10 +555,10 @@ size=small|medium|number ──► 线高 6|8；环边长 60|120|自定义
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `steps` 线/圈分段 | 分期 |
-| `strokeLinecap` butt/square、渐变 `strokeColor` object | 分期 |
-| `percentPosition` inner/outer/align | 分期 |
-| `success.percent` 双色分段 | 分期 |
+| `steps` 线/圈分段 | 二期形状：线按 `steps` 等宽分块 + 固定 gap，已完成块填色；圈按 `{count, gap}` 分弧。API：`SetSteps(int)` / `SetStepGap(float64)` |
+| `strokeLinecap` butt/square、渐变 `strokeColor` object | 二期形状：`butt/square` 改线端帽；渐变 `{from,to,direction}` 沿进度方向线性插值，`steps` 时按数组逐段着色。API：`SetStrokeLinecap` / `SetStrokeGradient(from,to,dir)` |
+| `percentPosition` inner/outer/align | 二期形状：`type=inner` 时 info 画在轨内（跟随填充端），`outer` 在轨外端；`align=start/center/end` 定水平锚点。API：`SetPercentPosition(align, typ)` |
+| `success.percent` 双色分段 | 二期形状：前 `success.percent%` 用 `success.strokeColor`（默认 success 色），剩余用主填充；`format` 第二参透出。API：`SetSuccessPercent` / `SetSuccessStrokeColor` |
 | semantic classNames/styles 深度 | 分期 |
 | 动画像素级 active keyframes | 分期 |
 | ConfigProvider 全局 progress 默认 | 分期 |

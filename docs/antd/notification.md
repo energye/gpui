@@ -204,6 +204,15 @@
 
 | API | 能力 | 说明 |
 | --- | --- | --- |
+| `open` / `success` / `info` / `warning` / `error` | 类型打开 | 按类型打开一条（`type` sugar 带语义图标） |
+| `title` / `description` | 主文案 | 标题 + 必选内容 |
+| `duration` | 自动关闭 | 默认 4.5；`0` 常驻 |
+| `key` | 同条更新 | 同 key 替换，不新增 |
+| `onClose` | 关闭回调 | 关闭时触发 |
+| `destroy` | 销毁 | `destroy(key?)` 关一条或清空 |
+| `placement` | 弹出位置 | 6 方位，默认 `topRight` |
+| `actions` | 按钮组 | 自定义按钮 |
+| `stack` | 堆叠 | 默认阈值 3 |
 | `onClick` | 点击 | 点击通知时触发的回调函数 |
 
 ### 2.4 示例全表
@@ -310,11 +319,13 @@ config 参数如下：
 | actions | 自定义按钮组 | ReactNode | - | 5.24.0 | × |
 | ~~btn~~ | 自定义按钮组，请使用 `actions` 替换 | ReactNode | - | - | × |
 | className | 自定义 CSS class | string | - | - | 5.7.0 |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | closable | 是否显示右上角的关闭按钮 | boolean \| [ClosableType](#closabletype) | true | - | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | 6.0.0 |
+| closable | 是否显示右上角的关闭按钮 | boolean \| [ClosableType](#closabletype) | true | - | × |
 | closeIcon | 自定义关闭图标 | ReactNode | true | 5.7.0：设置为 null 或 false 时隐藏关闭按钮 | 5.14.0 |
 | description | 通知提醒内容，必选 | ReactNode | - | - | × |
 | duration | 默认 4.5 秒后自动关闭，配置为 `0 \| false` 则不会自动关闭 | number \| false | 4.5 | - | × |
-| showProgress | 显示自动关闭通知框的进度条 | boolean | pauseOnHover | 悬停时是否暂停计时器 | boolean | true | 5.18.0 | × |
+| showProgress | 显示自动关闭通知框的进度条 | boolean |  | 5.18.0 | × |
+| pauseOnHover | 悬停时是否暂停计时器 | boolean | true | 5.18.0 | × |
 | icon | 自定义图标 | ReactNode | - | - | × |
 | key | 当前通知唯一标志 | string | - | - | × |
 | title | 通知提醒标题 | ReactNode | - | 6.0.0 | × |
@@ -322,7 +333,8 @@ config 参数如下：
 | placement | 弹出位置，可选 `top` \| `topLeft` \| `topRight` \| `bottom` \| `bottomLeft` \| `bottomRight` | string | `topRight` | - | × |
 | role | 供屏幕阅读器识别的通知内容语义，默认为 `alert`。此情况下屏幕阅读器会立即打断当前正在阅读的其他内容，转而阅读通知内容 | `alert \| status` | `alert` | 5.6.0 | × |
 | style | 自定义内联样式 | [CSSProperties](https://github.com/DefinitelyTyped/DefinitelyTyped/blob/e434515761b36830c3e58a970abf5186f005adac/types/react/index.d.ts#L794) | - | - | 5.7.0 |
-| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | onClick | 点击通知时触发的回调函数 | function | - | - | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | 6.0.0 |
+| onClick | 点击通知时触发的回调函数 | function | - | - | × |
 | onClose | 当通知关闭时触发 | function | - | - | × |
 | props | 透传至通知 `div` 上的 props 对象，支持传入 `data-*` `aria-*` 或 `role` 作为对象的属性。需要注意的是，虽然在 TypeScript 类型中声明的类型支持传入 `data-*` 作为对象的属性，但目前只允许传入 `data-testid` 作为对象的属性。 详见 https://github.com/microsoft/TypeScript/issues/28960 | Object | - | - | × |
 
@@ -332,10 +344,16 @@ config 参数如下：
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| bottom | 消息从底部弹出时，距离底部的位置，单位像素 | number | 24 | closeIcon | 自定义关闭图标 | ReactNode | true | 5.7.0：设置为 null 或 false 时隐藏关闭按钮 | 5.14.0 |
-| getContainer | 配置渲染节点的输出位置 | () => HTMLNode | () => document.body | placement | 弹出位置，可选 `top` \| `topLeft` \| `topRight` \| `bottom` \| `bottomLeft` \| `bottomRight` | string | `topRight` | showProgress | 显示自动关闭通知框的进度条 | boolean | pauseOnHover | 悬停时是否暂停计时器 | boolean | true | 5.18.0 | × |
-| rtl | 是否开启 RTL 模式 | boolean | false | stack | 堆叠模式，超过阈值时会将所有消息收起 | boolean \| `{ threshold: number }` | `{ threshold: 3 }` | 5.10.0 | × |
-| top | 消息从顶部弹出时，距离顶部的位置，单位像素 | number | 24 | maxCount | 最大显示数，超过限制时，最早的消息会被自动关闭 | number | - | 4.17.0 | × |
+| bottom | 消息从底部弹出时，距离底部的位置，单位像素 | number | 24 |  | × |
+| closeIcon | 自定义关闭图标 | ReactNode | true | 5.7.0：设置为 null 或 false 时隐藏关闭按钮 | 5.14.0 |
+| getContainer | 配置渲染节点的输出位置 | () => HTMLNode | () => document.body |  | × |
+| placement | 弹出位置，可选 `top` \| `topLeft` \| `topRight` \| `bottom` \| `bottomLeft` \| `bottomRight` | string | `topRight` |  | × |
+| showProgress | 显示自动关闭通知框的进度条 | boolean |  | 5.18.0 | × |
+| pauseOnHover | 悬停时是否暂停计时器 | boolean | true | 5.18.0 | × |
+| rtl | 是否开启 RTL 模式 | boolean | false |  | × |
+| stack | 堆叠模式，超过阈值时会将所有消息收起 | boolean \| `{ threshold: number }` | `{ threshold: 3 }` | 5.10.0 | × |
+| top | 消息从顶部弹出时，距离顶部的位置，单位像素 | number | 24 |  | × |
+| maxCount | 最大显示数，超过限制时，最早的消息会被自动关闭 | number | - | 4.17.0 | × |
 
 ### ClosableType
 
@@ -367,8 +385,12 @@ notification.config({
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
-| bottom | 消息从底部弹出时，距离底部的位置，单位像素 | number | 24 | duration | 默认自动关闭延时，单位秒 | number | 4.5 | pauseOnHover | 悬停时是否暂停计时器 | boolean | true | 5.18.0 |
-| getContainer | 配置渲染节点的输出位置，但依旧为全屏展示 | () => HTMLNode | () => document.body | rtl | 是否开启 RTL 模式 | boolean | false | maxCount | 最大显示数，超过限制时，最早的消息会被自动关闭 | number | - | 4.17.0 |
+| bottom | 消息从底部弹出时，距离底部的位置，单位像素 | number | 24 |  |
+| duration | 默认自动关闭延时，单位秒 | number | 4.5 |  |
+| pauseOnHover | 悬停时是否暂停计时器 | boolean | true | 5.18.0 |
+| getContainer | 配置渲染节点的输出位置，但依旧为全屏展示 | () => HTMLNode | () => document.body |  |
+| rtl | 是否开启 RTL 模式 | boolean | false |  |
+| maxCount | 最大显示数，超过限制时，最早的消息会被自动关闭 | number | - | 4.17.0 |
 
 ### 导入方式
 
@@ -575,6 +597,8 @@ btn 点击 ──► 业务回调
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
+
+> 前置（增量规格，另起文档）：6 方位独立堆叠池 placement 引擎（每方位独立队列与偏移）与 `role=status` 非打断语义；P0 先验 topRight（默认）与 bottomLeft 两点主路径（NTF-02 / NTF-03），全引擎后补。
 
 #### P0（本阶段必须 1:1，否则不算完成）
 

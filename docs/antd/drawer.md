@@ -500,10 +500,16 @@ import { Drawer } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 默认 width | **378** | API 默认 |
-| 默认 height（top/bottom） | **378** | API 默认 |
-| large size | **736** | API 预设 |
-| 面板 padding | **24** | Ant content padding |
+| 默认 width（`size=default` / 未设左右） | **378** | `DEFAULT_SIZE`；`size=large`→**736**，数字/`"378"`→该值 |
+| 默认 height（top/bottom） | **378** | 同上主轴语义；`width/height` 已弃用→`size` |
+| large size | **736** | `size='large'` 预设（源码 `Drawer.tsx`） |
+| 字符串 `size`（百分比/vw） | 按容器解析 | antd 透传 CSS；kit **P1**（需容器度量，见 §6.8） |
+| header padding | **16 24** | `padding` + `paddingLG`（`style/index.ts` header） |
+| body padding | **24** | `paddingLG`（`style/index.ts` body） |
+| footer padding | **纵 8 横 16** | `footerPaddingBlock=paddingXS` + `footerPaddingInline=padding` |
+| 拖拽条 `draggerSize` | **4** | 组件 Token `draggerSize` |
+| 多层推移 `push.distance` | **180** | 默认 `{distance:180}`；见 §6.8 P0 降级 |
+| 遮罩 blur | `blur(4px)` | `mask-blur`；kit **P1**（无 backdrop 时降级纯色 mask，见 §6.8） |
 | 标题字号 | **16** | `fontSizeLG` / 回落 |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **0** | Drawer 贴边面板，非浮动卡片 |
@@ -532,16 +538,18 @@ import { Drawer } from 'antd';
 | `open` | Drawer 是否可见 | `bool` | `false` |
 | `title` | 标题 / dialog 可访问名 | `string` | `""` |
 | `placement` | 抽屉方向 | `DrawerPlacementTop/Right/Bottom/Left` | `right` |
-| `size` | 预设或自定义主轴尺寸 | `DrawerSizeDefault/Large` + `SetSizePx` | `default=378` |
+| `size` | 预设或自定义主轴尺寸（**P0**：`default=378` / `large=736` / 数字 px；字符串百分比/vw 为 **P1**） | `DrawerSizeDefault/Large` + `SetSizePx` | `default=378` |
 | `loading` | 内容区骨架屏 | `bool`，Ticker 驱动 | `false` |
-| `closable` | 头部关闭按钮 | `bool` | `true` |
-| `mask` | 是否显示遮罩 | `bool` | `true` |
+| `closable` | 头部关闭按钮（含 `placement=start/end` 位置） | `bool` | `true` |
+| `mask` | 是否显示遮罩（**P0**）；`blur` 为 **P1**（不支持时降级纯色 `colorBgMask`） | `bool` | `true` |
 | `maskClosable` | 点击遮罩是否关闭 | `bool` | `true` |
 | `keyboard` | Esc 是否关闭 | `bool` | `true` |
 | `destroyOnHidden` | 关闭后卸载 body 子树 | `bool` | `false` |
 | `extra` | 标题栏右侧操作区 | `core.Node` | `nil` |
 | `footer` | 底栏 | `core.Node` | `nil` |
-| `resizable` | 拖拽边缘改主轴尺寸 | `bool` + resize callbacks | `false` |
+| `resizable` + `maxSize` | 拖拽边缘改主轴尺寸；`maxSize` 为拖拽上限钳制（**P0**，`SetResizeBounds`；不设=无上限） | `bool` + resize callbacks | `false` |
+| `push` | 多层 Drawer 推移（**P0**：默认下层偏移 `distance=180`；**降级二选一**：不支持推移时层叠不推移亦算过） | `bool`\|`{distance}` | `{distance:180}` |
+| `focusable.trap` | 焦点捕获（**P0**：open 进 panel、Esc 关、关后回触发器；**降级二选一**：不支持 Trap 时至少 Esc+mask 可关） | `bool` | `true` |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
@@ -552,7 +560,9 @@ closed ── open ──► 侧滑 panel + mask
              ├── close / Esc / mask ──► onClose
              ├── placement 四边 ──► 主轴尺寸 width/height
              ├── loading ──► body skeleton + Ticker
-             ├── resizable drag ──► size 更新 + onResize
+             ├── resizable drag ──► size 更新 + onResize（`maxSize` 钳制上限）
+             ├── push ──► 多层下层偏移 180（或层叠降级）
+             ├── focusable.trap ──► 焦点进 panel / 关后回触发器（或 Esc+mask 降级）
              └── destroyOnHidden ──► body 卸载
 ```
 
@@ -569,7 +579,9 @@ closed ── open ──► 侧滑 panel + mask
 | DRW-S7 | footer | 底栏可见 |
 | DRW-S8 | destroyOnHidden | 卸载子树 |
 | DRW-S9 | loading=true | body 显示骨架屏，Ticker 驱动 |
-| DRW-S10 | resizable=true | 拖拽边缘改变主轴尺寸并触发回调 |
+| DRW-S10 | resizable=true | 拖拽边缘改变主轴尺寸并触发回调（`maxSize` 钳制） |
+| DRW-S11 | push 多层 | 下层偏移约 180；层叠不推移降级亦可 |
+| DRW-S12 | focusable.trap | open 焦点进 panel，关后回触发器；降级至少 Esc+mask 可关 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -611,15 +623,18 @@ closed ── open ──► 侧滑 panel + mask
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `loading` | 必须 |
-| `size` | default / large / 自定义数字必须 |
+| `loading` | 必须（body 骨架 `Skeleton active paragraph rows=5`，见 `DrawerPanel.tsx`） |
+| `size` | **P0**：`default=378` / `large=736` / 数字 px 必须；字符串百分比/vw 为 **P1**（需容器度量） |
+| `mask` | **P0**：`enabled/closable` 必须；`blur(4px)` 为 **P1**（无 backdrop 降级纯色 mask） |
 | `open` | 必须 |
 | `title` | 必须 |
 | `placement` | top / right / bottom / left 必须 |
 | `closable` / `maskClosable` / `keyboard` | 关闭路径必须 |
 | `destroyOnHidden` | 关闭卸载 body 必须 |
-| `extra` / `footer` | 标题栏额外操作与底栏必须 |
-| `resizable` | 可调整大小主路径必须 |
+| `extra` / `footer` | 标题栏额外操作与底栏必须（footer 纵 8 横 16，见 §6.2.1） |
+| `resizable` + `maxSize` | 可调整大小主路径 + 上限钳制必须（`SetResizeBounds`；`maxSize` 未设=无上限） |
+| `push` | **P0**：默认 `distance=180` 多层推移；**降级二选一**：层叠不推移亦算过 |
+| `focusable.trap` / `focusTriggerAfterClose` | **P0**：进 panel + Esc + 回触发器；**降级二选一**：无 Trap 时至少 Esc+mask 可关 |
 | 官方主路径示例 | 基础抽屉、自定义位置、可调整大小、加载中、额外操作、抽屉表单、信息预览抽屉 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -634,7 +649,10 @@ closed ── open ──► 侧滑 panel + mask
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 | `getContainer=false` / 渲染在当前 DOM | 浏览器 DOM 挂载语义，桌面容器内裁剪另期 |
-| 其余示例 | 多层抽屉, 预设宽度字符串/百分比/vw, 遮罩 blur, 关闭按钮位置 |
+| `size` 字符串百分比/vw | **P1**：需容器度量，P0 只保 default/large/数字 |
+| `mask.blur` | **P1**：`backdrop blur(4px)`，不支持时降级纯色 mask |
+| 关闭按钮位置 `closable.placement` | **P1**：`start/end` 位置切换（P0 只保默认 start 可关） |
+| 其余示例 | 多层抽屉（P0 行為見 `push`，动画像素级 P1）, 预设宽度字符串/百分比/vw（P1）, 遮罩 blur（P1） |
 
 ### 6.9 验收用例表（可测）
 

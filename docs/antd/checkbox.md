@@ -502,6 +502,8 @@ SetBody(core.Node)                  // 自定义根内容（Row/Col 布局）
 Node()
 ```
 
+**值类型转换规则（对齐 antd `string | number` options）：** kit 主值类型只收 `string`；`number` 型 option 由调用方转十进制字符串传入（`strconv.Itoa`，浮点用 `strconv.FormatFloat(v, 'f', -1, 64)`），`Group.Value()`/`onChange` 回传的即该字符串，调用方按需转回；`CheckboxOption{Value string}` 的 `Value` 为空时回落用 `Label`。单框自身的选中态仍走 `SetChecked(bool)`，与 `SetValue`（option 身份）互不混淆。
+
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |

@@ -539,6 +539,32 @@ import { Image } from 'antd';
 | IMG-S7 | 受控 open | SetPreviewOpen 驱动；不因内部关而丢控 |
 | IMG-S8 | placeholder + percent | loading 态展示进度（Ticker 驱动不确定动画） |
 | IMG-S9 | preview.src | 预览层用独立 src（可与缩略不同） |
+| IMG-S10 | transform zoom | `scale` 初 1，`zoomIn/out` 按 `×(1+scaleStep=0.5)` 步进，钳制 `[minScale=1, maxScale=50]`；`onTransform(transform, action)` |
+| IMG-S11 | transform rotate/flip | `rotateLeft/Right` ±90°；`flipX/flipY` 布尔翻转；`reset` 回 `scale=1/rotate=0/flip=false` |
+| IMG-S12 | movable | 仅图大于视口可拖（`movable=true` 默认）；拖后 `move/dragRebound` 回调 `onTransform`；未超视口拖不动 |
+
+#### 预览 transform 状态机与全屏 overlay 规格（P0）
+
+```text
+transform = {x, y, rotate, scale, flipX, flipY}（`TransformType`）
+action ∈ flipY/flipX/rotateLeft/rotateRight/zoomIn/zoomOut/close/prev/next/wheel/doubleClick/move/dragRebound/reset
+
+preview open ──zoomIn──► scale=min(scale×1.5, 50)
+             ──zoomOut─► scale=max(scale/1.5, 1)
+             ──rotate──► rotate±90
+             ──flip────► flipX/Y 取反
+             ──move（movable 且超视口）──► x/y 跟手；松手 `dragRebound`
+             ──reset───► {0,0,0,1,false,false}
+每次变都调 `onTransform({transform, action})`；切图（prev/next）保留或重置按 `actions.onReset` 语义，P0 取重置。
+```
+
+| overlay 项 | 规格 |
+| --- | --- |
+| 挂载 | 全屏 `OverlayPortal`（`getContainer` 仍全屏，`false` 才挂当前位置，见 `PreviewType.getContainer`） |
+| 层级 | `zIndexPopupBase+80`（kit `OverlayZImagePreview`，见 §6.2.1） |
+| mask | `colorBgMask` 全屏；`mask.enabled=false` 可隐；`closable=false` 时点 mask 不关 |
+| 图 | 居中；`scale/rotate/flip` 按上机；超视口 + `movable` 才 `cursor=grab` 可拖 |
+| 工具栏/切换 | 操作色 `colorTextLightSolid`（hover 0.85 / 禁用 0.25）；切换钮尺寸 `controlHeightLG=40`；计数/关闭常显 |
 
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
@@ -560,11 +586,10 @@ import { Image } from 'antd';
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 缩略图（`img`） | `role=img`，可访问名=`alt`（无 `alt` 时装饰化，不进 Tab）；`width/height` 即布局盒 |
+| 预览（`dialog`） | `role=dialog` + `aria-modal=true`，可访问名取当前图 `alt`；打开焦点进预览，关闭回触发器；`focusTrap=true` 默认捕获（见 `PreviewType.focusTrap`） |
+| Esc / 遮罩 | Esc 关（`keyboard` 语义）；遮罩可点关（`mask.closable`，默认可关） |
+| 工具栏 | zoom/rotate/flip/close 按钮均有可访问名；`Tab` 可达，`Enter/Space` 激活 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -606,10 +631,11 @@ import { Image } from 'antd';
 | --- | --- |
 | semantic classNames/styles 深度 / 函数形态 | 分期 |
 | `imageRender` / 自定义预览内容 | 分期（示例 imageRender） |
-| `mask` / `cover` 高级（blur、placement、CoverConfig） | 分期（示例 mask / coverPlacement） |
+| `mask` 高级（`blur`） | 分期——需 GPU `backdrop blur`，无能力时只能降级纯色 `colorBgMask`，主路径先保 `enabled/closable` |
+| `cover` / `CoverConfig`（`coverNode/placement top/bottom/center`） | 分期——缩略图 hover 遮罩定位 + 自定义节点，主路径先保默认 hover cover（黑底 0.3+预览文案） |
 | 嵌套 Modal 内预览 / nested | 分期 |
 | 真 HTTP 解码 src、crossOrigin、srcSet | 分期 |
-| 拖拽移动大图 `movable`、滚轮缩放像素级 | 分期 |
+| 大图拖拽 `movable`（仅大于视口可拖）+ 滚轮缩放像素级 | 分期——需视口裁剪 + 手势/滚轮宿主，主路径先保工具栏 zoom/rotate/flip/reset（`movable` 默认 true 的语义见下节状态机） |
 | 动画像素级 / reduced-motion 细控 | 分期 |
 | ConfigProvider 全局 Image 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |

@@ -42,12 +42,14 @@
 - **说明**：卡片内容
 - **类型**：ReactNode | () => ReactNode
 - **默认值**：-
+- **绘制权重**：正文色 `colorText`；可承载链接/按钮等可交互节点（与 Tooltip 纯文本不同）；无 `content` 时面板只剩 `title`，内边距不变
 
 #### `title`
 
 - **说明**：卡片标题
 - **类型**：ReactNode | () => ReactNode
 - **默认值**：-
+- **绘制权重**：标题色（heading 语义，可加粗 P1）；最小宽 **177**（`titleMinWidth`）；与 `content` 间距 **8**（`titleMarginBottom`）；无 `title` 时 `content` 顶对齐，不留空行
 
 #### `styles`
 
@@ -80,6 +82,7 @@
 - **类型**：string
 - **默认值**：-
 - **版本**：4.3.0
+- **面板底映射**：预设色（与 Tag 同源 `pink/red/…/lime`）或 `#hex` 直接作为面板+箭头底色，面板字色按亮度自适应反白；空则走默认 `colorBgContainer` 底。精确色板为 P1，P0 可用 `SetPanelBackground` 近似。
 
 #### `overlayStyle`
 
@@ -108,22 +111,16 @@
 - **说明**：气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom`
 - **类型**：string
 - **默认值**：`top`
-- **可选值与外观含义**：
+- **12 向几何**（触发器↔面板 gap **8**，箭头在主轴侧；边角档按触发器边对齐，`pointAtCenter=true` 时改按触发器中心）：
 
-  | 值 | 外观/语义 |
+  | 值 | 几何 |
   | --- | --- |
-  | `top` | 上方 |
-  | `left` | 左侧 |
-  | `right` | 右侧 |
-  | `bottom` | 下方 |
-  | `topLeft` | 上左 |
-  | `topRight` | 上右 |
-  | `bottomLeft` | 下左 |
-  | `bottomRight` | 下右 |
-  | `leftTop` | 左上 |
-  | `leftBottom` | 左下 |
-  | `rightTop` | 右上 |
-  | `rightBottom` | 右下 |
+  | `top` / `bottom` | 触发器上/下方居中 |
+  | `left` / `right` | 触发器左/右侧居中 |
+  | `topLeft` / `topRight` | 上方，左/右边缘对齐 |
+  | `bottomLeft` / `bottomRight` | 下方，左/右边缘对齐 |
+  | `leftTop` / `leftBottom` | 左侧，上/下边缘对齐 |
+  | `rightTop` / `rightBottom` | 右侧，上/下边缘对齐 |
 
 #### `zIndex`
 
@@ -360,8 +357,8 @@ import { Popover } from 'antd';
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
 | 面板底 | `colorBgContainer`（≈ antd `colorBgElevated` / `popoverBg`） | 禁止硬编码白 |
-| 正文色 | `colorText`（`popoverColor`） | |
-| 标题色 | `colorText` / heading 语义 | 加粗可选（P1 字重） |
+| 正文色 | `colorText`（`popoverColor`） | `content` 绘制权重见 §1.3 |
+| 标题色 | `colorText` / heading 语义 | 加粗可选（P1 字重）；最小宽 177 见 §1.3 |
 | 边框 | `colorBorder` | 面板描边 |
 | 禁用触发 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
 | 浮层阴影 | 宿主/Decorated 阴影（P1 像素级） | P0 可用边框+底近似 |
@@ -592,7 +589,7 @@ Column (Wrap)
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- hover 离开宽限用 `Ticker`（跟随 Host Tick）；无控件级 loading 帧循环。  
+- hover 宽限 Ticker 方案：`mouseEnterDelay/mouseLeaveDelay` 默认各 **0.1s**；P0 瞬时打开 + 离开关闭宽限一个 Tick（跟随 Host Tick，避免触发器→面板缝隙抖动误关）；精确秒级延时为 P1。无控件级 loading 帧循环。  
 - 动画跟随 Host Tick；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）

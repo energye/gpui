@@ -468,6 +468,8 @@ activeKeys 集合（多选）或单 key（accordion）
 | `destroyOnHidden` / item `forceRender` | 收起卸载 |
 | 官方主路径示例（gallery） | basic / size / accordion / mix / borderless / custom / noarrow / extra |
 | 度量 §6.2 | Token / DefaultCollapse\* 断言 |
+
+**口径：** `ghost` 明确在 P0 内（透明无边框皮，与 `bordered=false` 同页对比进 gallery，用例 COL-05 覆盖），P1 列表中的“幽灵折叠面板 gallery 整页”仅指独立整页 demo 的像素级打磨，不代表 ghost 本体推迟。
 | a11y §6.6 | 头可聚焦 + 展开态可读 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
