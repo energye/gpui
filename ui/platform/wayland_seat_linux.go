@@ -51,6 +51,7 @@ type wlSeatState struct {
 	// pending device creation (called once after capabilities arrives)
 	pendingKeys  bool
 	pendingPtrs  bool
+	pendingTouch bool // wl_touch, gated on the seat touch capability bit
 	pendingTI    bool // zwp_text_input_v3 also needs the bound seat
 	pendingDD    bool // wl_data_device (clipboard + DnD) needs the bound seat
 }
@@ -128,6 +129,12 @@ func wlSeatFlushPending(st *wlSeatState) {
 			w.ptr = w.bindPointer()
 		}
 		st.pendingPtrs = false
+	}
+	if st.pendingTouch && w.touch == nil {
+		if st.capsMask&seatCapTouch != 0 && st.lib.ifaceTouch != 0 {
+			w.touch = w.bindTouch()
+		}
+		st.pendingTouch = false
 	}
 	if st.pendingTI && w.ti == nil {
 		if w.tiMgrName != 0 && st.lib.ifaceSeat != 0 {

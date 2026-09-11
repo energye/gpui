@@ -569,6 +569,19 @@ func (c *x11Controller) Show() error {
 	}
 	lib.mapWindow(s.display, s.window)
 	c.flush()
+	// S6-P0 Hidden emission: the pump cannot tell Show apart from a
+	// minimize-restore (both map), so the controller reports its own call.
+	// Flag-guarded (not flag-on-pump-state): back-to-back calls stay exact
+	// even before the MapNotify round-trips.
+	s.mu.Lock()
+	signaled := s.hideSignaled
+	s.hideSignaled = false
+	s.hideUnmapped = false
+	s.visible = true
+	s.mu.Unlock()
+	if signaled && c.h != nil {
+		c.h.pushEvent(Event{Type: EventHidden, Hidden: false})
+	}
 	return nil
 }
 
@@ -578,8 +591,28 @@ func (c *x11Controller) Hide() error {
 	if s == nil || !lib.ok() || lib.unmapWindow == nil {
 		return ErrUnsupported
 	}
+	s.mu.Lock()
+	if s.hideSignaled {
+		s.mu.Unlock()
+		return nil // already hidden-signaled; redundant calls stay silent
+	}
+	s.hideSignaled = true
+	s.hideUnmapped = false
+	s.visible = false
+	if s.nextRequest != nil && s.display != 0 {
+		// The unmap below takes the previous serial: only server events
+		// generated after it can clear the signal (see xMapNotify).
+		s.hideReq = s.nextRequest() - 1
+	}
+	s.mu.Unlock()
 	lib.unmapWindow(s.display, s.window)
 	c.flush()
+	// S6-P0 Hidden emission: Hide (Withdrawn) shares UnmapNotify with
+	// minimize (Iconic), so the controller reports its own call. Minimize()
+	// never pushes — no confusion between the two paths.
+	if c.h != nil {
+		c.h.pushEvent(Event{Type: EventHidden, Hidden: true})
+	}
 	return nil
 }
 

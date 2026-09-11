@@ -476,3 +476,85 @@ func TestRouter_PointerMotionDoesNotSpamIME(t *testing.T) {
 		t.Fatal("pointer down did not refresh the anchor")
 	}
 }
+
+func TestRouterOnEventPassthrough(t *testing.T) {
+	r := NewInputRouter(nil, nil)
+	var got []input.Event
+	r.OnEvent = func(ev input.Event) { got = append(got, ev) }
+
+	send := []input.Event{
+		{Kind: input.KindCloseRequested},
+		{Kind: input.KindClose},
+		{Kind: input.KindResize, Width: 800, Height: 600, Scale: 2},
+		{Kind: input.KindMove, MoveX: 10, MoveY: 20},
+		{Kind: input.KindScale, Scale: 2},
+		{Kind: input.KindOccluded, Occluded: true},
+		{Kind: input.KindHidden, Hidden: true},
+		{Kind: input.KindFocus, Focused: true},
+		{Kind: input.KindStateChanged, State: input.WindowState{Maximized: true}},
+		{Kind: input.KindThemeChanged, Dark: true},
+		{Kind: input.KindFramePresented},
+		{Kind: input.KindResizeSync},
+		{Kind: input.KindMonitorChanged, Monitor: input.MonitorEvent{Count: 2}},
+		{Kind: input.KindModifiersChanged, Modifiers: input.Modifiers{Shift: true}},
+		{Kind: input.KindLocaleChanged, Locale: input.LocaleEvent{Language: "zh-CN"}},
+		{Kind: input.KindWake},
+		{Kind: input.KindStylus, Stylus: input.StylusEvent{X: 1, Y: 2, Pressure: 0.5}},
+		{Kind: input.KindPinch, Pinch: input.PinchEvent{ScaleDelta: 1.1, Phase: input.PhaseMoved}},
+		{Kind: input.KindRotate, Rotate: input.RotateEvent{AngleDelta: 5, Phase: input.PhaseStarted}},
+		{Kind: input.KindSmartMagnify},
+		{Kind: input.KindDragEnter, Drag: input.DragEvent{X: 3, Y: 4, Files: []string{"/tmp/a"}}},
+		{Kind: input.KindDragOver, Drag: input.DragEvent{X: 5, Y: 6}},
+		{Kind: input.KindDragLeave},
+		{Kind: input.KindDrop, Drag: input.DragEvent{Files: []string{"/tmp/b"}}},
+		{Kind: input.KindDeviceAdded, Device: input.DeviceEvent{Class: input.DeviceTouch, Name: "touch"}},
+		{Kind: input.KindDeviceRemoved, Device: input.DeviceEvent{Class: input.DevicePen}},
+	}
+	for _, ev := range send {
+		r.Route(ev)
+	}
+	if len(got) != len(send) {
+		t.Fatalf("passthrough = %d events, want %d", len(got), len(send))
+	}
+	for i, ev := range send {
+		if got[i].Kind != ev.Kind {
+			t.Fatalf("event %d: kind = %s, want %s", i, got[i].Kind, ev.Kind)
+		}
+	}
+	// Payloads must arrive intact (spot-check across families).
+	if got[3].MoveX != 10 || got[5].Occluded != true || got[8].State.Maximized != true {
+		t.Fatalf("window payloads mangled: %+v", got[:9])
+	}
+	if got[16].Stylus.Pressure != 0.5 || got[17].Pinch.ScaleDelta != 1.1 {
+		t.Fatalf("gesture payloads mangled: %+v", got[16:18])
+	}
+	if len(got[20].Drag.Files) != 1 || got[24].Device.Class != input.DeviceTouch {
+		t.Fatalf("drag/device payloads mangled: %+v %+v", got[20].Drag, got[24].Device)
+	}
+}
+
+func TestRouterOnEventDropsNone(t *testing.T) {
+	r := NewInputRouter(nil, nil)
+	calls := 0
+	r.OnEvent = func(ev input.Event) { calls++ }
+	r.Route(input.Event{Kind: input.KindNone})
+	if calls != 0 {
+		t.Fatal("KindNone must stay dropped")
+	}
+	// Nil observer must not panic on unhandled kinds.
+	r.OnEvent = nil
+	r.Route(input.Event{Kind: input.KindFocus, Focused: true})
+}
+
+func TestRouterOnEventSkipsHandled(t *testing.T) {
+	r := NewInputRouter(fixedHit(nil), nil)
+	calls := 0
+	r.OnEvent = func(ev input.Event) { calls++ }
+	r.Route(input.Event{Kind: input.KindPointer, Pointer: input.PointerEvent{Kind: input.PointerDown, X: 1, Y: 1}})
+	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyA, Pressed: true}})
+	r.Route(input.Event{Kind: input.KindText, Text: input.TextEvent{Text: "x"}})
+	r.Route(input.Event{Kind: input.KindIME, IME: input.IMEEvent{Kind: input.IMECompose, Text: "ni"}})
+	if calls != 0 {
+		t.Fatalf("dedicated kinds must not reach OnEvent: %d calls", calls)
+	}
+}

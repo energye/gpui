@@ -229,6 +229,66 @@ func TestFromPlatform_HorizontalScroll(t *testing.T) {
 	}
 }
 
+func TestFromPlatform_LifecycleStates(t *testing.T) {
+	occ := FromPlatform(platform.Event{Type: platform.EventOccluded, Occluded: true}, Modifiers{})
+	if occ.Kind != KindOccluded || !occ.Occluded {
+		t.Fatalf("occluded = %s %+v", occ.Kind, occ)
+	}
+	vis := FromPlatform(platform.Event{Type: platform.EventOccluded}, Modifiers{})
+	if vis.Kind != KindOccluded || vis.Occluded {
+		t.Fatalf("visible = %s %+v", vis.Kind, vis)
+	}
+	hid := FromPlatform(platform.Event{Type: platform.EventHidden, Hidden: true}, Modifiers{})
+	if hid.Kind != KindHidden || !hid.Hidden {
+		t.Fatalf("hidden = %s %+v", hid.Kind, hid)
+	}
+	shown := FromPlatform(platform.Event{Type: platform.EventHidden}, Modifiers{})
+	if shown.Kind != KindHidden || shown.Hidden {
+		t.Fatalf("shown = %s %+v", shown.Kind, shown)
+	}
+	fp := FromPlatform(platform.Event{Type: platform.EventFramePresented}, Modifiers{})
+	if fp.Kind != KindFramePresented {
+		t.Fatalf("frame-presented = %s", fp.Kind)
+	}
+}
+
+func TestFromPlatform_StateChanged(t *testing.T) {
+	ev := FromPlatform(platform.Event{
+		Type: platform.EventStateChanged, Minimized: true, Maximized: true, Fullscreen: false,
+	}, Modifiers{})
+	if ev.Kind != KindStateChanged {
+		t.Fatalf("kind = %s, want state-changed", ev.Kind)
+	}
+	if !ev.State.Minimized || !ev.State.Maximized || ev.State.Fullscreen {
+		t.Fatalf("state = %+v", ev.State)
+	}
+}
+
+func TestFromPlatform_Touch(t *testing.T) {
+	down := FromPlatform(platform.Event{
+		Type: platform.EventTouch, Pointer: platform.PointerDown, TouchID: 3, X: 7, Y: 8,
+	}, Modifiers{})
+	if down.Kind != KindTouch {
+		t.Fatalf("kind = %s, want touch", down.Kind)
+	}
+	if down.Touch.Kind != PointerDown || down.Touch.ID != 3 || down.Touch.X != 7 || down.Touch.Y != 8 {
+		t.Fatalf("touch = %+v", down.Touch)
+	}
+	cancel := FromPlatform(platform.Event{
+		Type: platform.EventTouch, Pointer: platform.PointerCancel, TouchID: 3,
+	}, Modifiers{})
+	if cancel.Touch.Kind != PointerCancel {
+		t.Fatalf("cancel = %+v", cancel.Touch)
+	}
+	// Non-touch phases clamp to Move.
+	weird := FromPlatform(platform.Event{
+		Type: platform.EventTouch, Pointer: platform.PointerEnter, TouchID: 1,
+	}, Modifiers{})
+	if weird.Touch.Kind != PointerMove {
+		t.Fatalf("enter clamped = %+v", weird.Touch)
+	}
+}
+
 func TestFromPlatform_ResizeDefaultScale(t *testing.T) {
 	ev := FromPlatform(platform.Event{Type: platform.EventResize, Width: 10, Height: 10, Scale: 0}, Modifiers{})
 	if ev.Scale != 1 {

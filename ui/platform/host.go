@@ -82,6 +82,12 @@ const (
 	// PresentCompleteNotify). Drives frame pacing (scheduler.NoteFramePresented);
 	// only arrives when a RequestFrameNotify was outstanding (ENGINE_FRAME_PRESENT_STANDARD.md).
 	EventFramePresented
+	// EventStateChanged: derived minimized/maximized/fullscreen state
+	// (X11 _NET_WM_STATE/WM_STATE readback; Wayland configure states).
+	EventStateChanged
+	// EventTouch: multi-touch slot sample (phase in Pointer: Down/Move/Up/
+	// Cancel only; X/Y carry the position; TouchID carries the slot).
+	EventTouch
 )
 
 // String implements fmt.Stringer.
@@ -119,6 +125,10 @@ func (t EventType) String() string {
 		return "hidden"
 	case EventFramePresented:
 		return "frame-presented"
+	case EventStateChanged:
+		return "state-changed"
+	case EventTouch:
+		return "touch"
 	case EventWake:
 		return "wake"
 	default:
@@ -187,6 +197,16 @@ type Event struct {
 	Button  int
 	ScrollX float64
 	ScrollY float64
+
+	// EventTouch: touch slot (≥ 1; mouse uses EventPointer, 0 = invalid).
+	// The phase rides in Pointer (Down/Move/Up/Cancel only); X/Y carry the
+	// position in logical px.
+	TouchID int
+
+	// EventStateChanged: derived minimized/maximized/fullscreen state.
+	Minimized  bool
+	Maximized  bool
+	Fullscreen bool
 
 	// EventMove: window top-left screen position in logical pixels (X11
 	// reports it; Wayland has no event and silently omits moves).

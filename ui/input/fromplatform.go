@@ -25,6 +25,25 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 		return e
 	case platform.EventWake:
 		return Event{Kind: KindWake}
+	case platform.EventOccluded:
+		return Event{Kind: KindOccluded, Occluded: ev.Occluded}
+	case platform.EventHidden:
+		return Event{Kind: KindHidden, Hidden: ev.Hidden}
+	case platform.EventFramePresented:
+		return Event{Kind: KindFramePresented}
+	case platform.EventStateChanged:
+		return Event{Kind: KindStateChanged, State: WindowState{
+			Minimized:  ev.Minimized,
+			Maximized:  ev.Maximized,
+			Fullscreen: ev.Fullscreen,
+		}}
+	case platform.EventTouch:
+		return Event{Kind: KindTouch, Modifiers: mods, Touch: TouchEvent{
+			Kind: touchPhase(ev.Pointer),
+			ID:   ev.TouchID,
+			X:    ev.X,
+			Y:    ev.Y,
+		}}
 	case platform.EventPointer:
 		return fromPointer(ev, mods)
 	case platform.EventKey:
@@ -111,6 +130,21 @@ func scrollEvent(mods Modifiers, x, y, sx, sy float64) Event {
 			ScrollX: sx,
 			ScrollY: sy,
 		},
+	}
+}
+
+// touchPhase clamps a platform pointer phase to the touch vocabulary
+// (Down/Move/Up/Cancel); anything else arrives as Move.
+func touchPhase(k platform.PointerKind) PointerKind {
+	switch k {
+	case platform.PointerDown:
+		return PointerDown
+	case platform.PointerUp:
+		return PointerUp
+	case platform.PointerCancel:
+		return PointerCancel
+	default:
+		return PointerMove
 	}
 }
 

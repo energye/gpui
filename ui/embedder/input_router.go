@@ -48,6 +48,12 @@ type InputRouter struct {
 	OnText func(ev input.TextEvent)
 	// OnIME receives in-progress IME events.
 	OnIME func(ev input.IMEEvent)
+	// OnEvent receives every normalized event without dedicated handling
+	// (window close/move/scale/occluded/hidden/focus/state/theme, frame and
+	// sync notices, monitor/locale changes, stylus, pinch/rotate, drag and
+	// device events...). It is a fallback observer: events with a dedicated
+	// path (pointer/key/text/IME) never reach it, and KindNone never does.
+	OnEvent func(ev input.Event)
 	// OnDelta receives TextEditingDelta when enableDeltaModel==true (R3).
 	OnDelta func(delta textinput.TextEditingDelta)
 
@@ -532,6 +538,16 @@ func (r *InputRouter) Route(ev input.Event) {
 			r.OnIME(ev.IME)
 		}
 		r.afterEdit()
+	default:
+		// No dedicated handling for this kind: forward to the observer
+		// instead of swallowing it. KindNone (no input meaning) stays
+		// dropped.
+		if ev.Kind == input.KindNone {
+			return
+		}
+		if r.OnEvent != nil {
+			r.OnEvent(ev)
+		}
 	}
 }
 

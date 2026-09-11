@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/raster"
@@ -706,12 +707,67 @@ func (a *PipelineApp) Open() error {
 	return nil
 }
 
+// handleLifecycle serves the unified window-lifecycle trio (S6-P0 step 4):
+// occlusion stops/resumes frame demand, hide parks (or reopens) the native
+// surface stack, frame notices feed pacing. It reports whether the event was
+// consumed; the pump loop only routes the trio here.
+func (a *PipelineApp) handleLifecycle(in input.Event) bool {
+	if a == nil {
+		return false
+	}
+	switch in.Kind {
+	case input.KindOccluded:
+		// Window fully obscured or minimized → stop rendering
+		// (Flutter lifecycle paused / Chrome hidden → no frames);
+		// visible again → resume.
+		a.occluded.Store(in.Occluded)
+		if in.Occluded {
+			a.sched.ClearPending()
+		} else {
+			a.ScheduleFrame()
+		}
+		return true
+	case input.KindHidden:
+		// App-driven Hide/Show (Wayland §6.2): hide parks the render
+		// loop, closes the GPU present target (wgpu WSI surface) and
+		// then destroys the platform surface stack — the window truly
+		// unmaps (xdg has no unmap request; GTK4 parity). Show
+		// re-creates the stack on the platform side first; this event
+		// is delivered only after the new surface is re-mapped, so
+		// Open() below recreates the present target against the NEW
+		// wl_surface and frames resume.
+		a.occluded.Store(in.Hidden)
+		if in.Hidden {
+			a.sched.ClearPending()
+			a.parkNativeSurface()
+		} else {
+			if a.target == nil {
+				if err := a.Open(); err != nil {
+					fmt.Fprintf(os.Stderr, "embedder: reopen present target after Show: %v\n", err)
+					a.occluded.Store(true)
+					return true
+				}
+			}
+			a.ScheduleFrame()
+		}
+		return true
+	case input.KindFramePresented:
+		// Compositor "frame shown" notice (块2): stamps a fresh pacing
+		// timestamp only — demand stays with events/tickers, so idle
+		// costs nothing (on-demand rendering, 块1).
+		a.sched.NoteFramePresented()
+		return true
+	default:
+		return false
+	}
+}
+
 // parkNativeSurface implements the hide side of the Wayland hide/show cycle
 // (§6.2): wait for the raster thread to drain in-flight presents, close the
 // GPU present target (releases the wgpu WSI surface), then destroy the
 // platform surface stack via HiddenSurface — the wl_surface is only destroyed
 // once no GPU work references it (a detach/present race would hang Present).
-// Called on the event thread from the EventHidden{Hidden:true} branch.
+// Called on the event thread from the unified Hidden branch.
 func (a *PipelineApp) parkNativeSurface() {
 	if a.loop != nil {
 		deadline := time.Now().Add(2 * time.Second)
@@ -826,6 +882,13 @@ func (a *PipelineApp) Run() error {
 				a.quit.Store(true)
 				continue
 			}
+			// S6-P0 lifecycle cutover: occlusion/hide/frame notices dispatch
+			// on the normalized event; handleLifecycle reads unified fields.
+			if unified := input.FromPlatform(ev, input.Modifiers{}); unified.Kind == input.KindOccluded ||
+				unified.Kind == input.KindHidden || unified.Kind == input.KindFramePresented {
+				a.handleLifecycle(unified)
+				continue
+			}
 			switch ev.Type {
 			case platform.EventResize:
 				if ev.Width > 0 && ev.Height > 0 {
@@ -877,44 +940,6 @@ func (a *PipelineApp) Run() error {
 				// deliver a painted frame; schedule one now (the counter
 				// advances when the frame is presented via FrameSync).
 				if !a.sched.Pending() {
-					a.ScheduleFrame()
-				}
-			case platform.EventFramePresented:
-				// Compositor "frame shown" notice (块2): stamps a fresh pacing
-				// timestamp only — demand stays with events/tickers, so idle
-				// costs nothing (on-demand rendering, 块1).
-				a.sched.NoteFramePresented()
-			case platform.EventOccluded:
-				// Window fully obscured or minimized → stop rendering
-				// (Flutter lifecycle paused / Chrome hidden → no frames);
-				// visible again → resume.
-				a.occluded.Store(ev.Occluded)
-				if ev.Occluded {
-					a.sched.ClearPending()
-				} else {
-					a.ScheduleFrame()
-				}
-			case platform.EventHidden:
-				// App-driven Hide/Show (Wayland §6.2): hide parks the render
-				// loop, closes the GPU present target (wgpu WSI surface) and
-				// then destroys the platform surface stack — the window truly
-				// unmaps (xdg has no unmap request; GTK4 parity). Show
-				// re-creates the stack on the platform side first; this event
-				// is delivered only after the new surface is re-mapped, so
-				// Open() below recreates the present target against the NEW
-				// wl_surface and frames resume.
-				a.occluded.Store(ev.Hidden)
-				if ev.Hidden {
-					a.sched.ClearPending()
-					a.parkNativeSurface()
-				} else {
-					if a.target == nil {
-						if err := a.Open(); err != nil {
-							fmt.Fprintf(os.Stderr, "embedder: reopen present target after Show: %v\n", err)
-							a.occluded.Store(true)
-							continue
-						}
-					}
 					a.ScheduleFrame()
 				}
 			}
