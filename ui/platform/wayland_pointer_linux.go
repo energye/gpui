@@ -52,7 +52,7 @@ func ptrSurfName(w *wlWin, surface uintptr) string {
 //
 // Protocol (wl_pointer, stable v1 — event subset v1-v5 is enough):
 //
-//	requests: release(0), set_cursor(1)[serial,surface,hotspot,h,v], ...
+//	requests: set_cursor(0)[serial,surface,hotspot,h,v], release(1), ...
 //	events:   enter(0)[serial,surface,pos_fixed,surface_x_fixed,surface_y_fixed]
 //	          leave(1)[serial,surface]
 //	          motion(2)[time,pos_fixed,surface_x_fixed,surface_y_fixed]

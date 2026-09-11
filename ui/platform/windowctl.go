@@ -92,7 +92,7 @@ func (e WindowEdge) String() string {
 
 // ErrUnsupported is returned by WindowController operations the platform
 // cannot perform (e.g. Wayland has no client-side window positioning, no
-// map/unmap, no programmatic focus). Callers should degrade gracefully.
+// programmatic focus). Callers should degrade gracefully.
 // All errors are cross-platform tagged; the returned error never carries a
 // platform-specific type.
 var ErrUnsupported = errors.New("platform: window operation not supported")
@@ -105,7 +105,7 @@ var ErrUnsupported = errors.New("platform: window operation not supported")
 //
 // Not every operation exists on every platform. Operations that are
 // fundamentally impossible on a protocol return ErrUnsupported (Wayland:
-// SetPosition/Show/Hide/Focus/SetAlwaysOnTop/SetDecorations). Queries return
+// SetPosition/Focus/SetAlwaysOnTop/SetDecorations). Queries return
 // zero values when the backend cannot answer. See docs/ENGINE_WINDOW_API.md
 // (§3 capability matrix) for the per-platform column.
 type WindowController interface {
@@ -174,7 +174,7 @@ type WindowController interface {
 	SetFullscreen(fs bool)
 	IsFullscreen() bool
 
-	// Show / Hide map / unmap the window (X11). ErrUnsupported on Wayland.
+	// Show / Hide map / unmap the window (X11; Wayland destroys/recreates the surface stack and emits EventHidden).
 	Show() error
 	Hide() error
 	IsVisible() bool

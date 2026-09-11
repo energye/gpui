@@ -16,7 +16,7 @@
 - W3：可配置（`Options.Decorations`）：**true=标准装饰；false/缺省=无框裸窗**（手动开启）。
 - W4：不崩溃、可 resize、可拖动、按钮全功能、焦点态、光标态。
 - W5：GNOME 42.9 无 SSD（`zxdg_decoration_manager_v1` server-side 是 KDE 特性）→ 标准 CSD。
-- W6：GNOME 42.9 **无 wp_cursor_shape_manager_v1** → resize 光标用 `wl_cursor_theme`（libwayland-cursor）系统主题。
+- W6：光标首选 `wp_cursor_shape_manager_v1`（合成器自绘），缺席才回 `wl_cursor_theme`（libwayland-cursor）系统主题。
 
 ---
 
@@ -92,9 +92,10 @@ state 值：1=maximized 2=fullscreen 3=resizing 4=activated
 | BottomRight | bottom_right | 10 |
 请求 `RequestResize(edge)` 传 xdg 值，禁止按 WindowEdge 的 iota 顺序直传。
 
-### 2.3 光标（GNOME 42.9 无 cursor-shape）
+### 2.3 光标（首选 cursor-shape 协议，主题为兜底）
+- 有 `zwp_cursor_shape_manager_v1` 时走 `set_shape`（合成器自绘，每次 enter/motion 发一个枚举，无 surface/shm/主题加载）；无才回 `wl_cursor_theme` 路径。
 - `wl_cursor_theme_load(NULL, 24, shm)` → theme；`wl_cursor_theme_get_cursor(theme, name)` → cursor image（含 `wl_buffer`）。
-- `wl_pointer.set_cursor(serial, surface, hotspot_x, hotspot_y)`（opcode 1，签名 `ouii`）。
+- `wl_pointer.set_cursor(serial, surface, hotspot_x, hotspot_y)`（opcode 0，签名 `ouii`；`release`=1）。
 - 光标名：`sb_v_double_arrow`（N/S）、`sb_h_double_arrow`（E/W）、`top_left_corner`（NW/SE）、`top_right_corner`（NE/SW）、默认 `left_ptr`。
 - 创建专用 cursor wl_surface，attach cursor buffer + commit。
 
@@ -109,7 +110,7 @@ state 值：1=maximized 2=fullscreen 3=resizing 4=activated
 | Resizable=false | ✅ min==max 锁（waylandCreate + SetResizable） |
 | Position | ⛔ 协议无客户端定位 |
 | Fullscreen | ✅ 创建后 set_fullscreen(NULL→当前输出) |
-| Cursor | ✅ enter 时应用 wl_cursor_theme（win.cursor，9 形状映射） |
+| Cursor | ✅ 首选 cursor-shape 协议（§2.3），无才回主题（win.cursor，9 形状映射） |
 | Maximized | ✅ 首 commit 前 set_maximized |
 | Visible | ✅ 创建后隐藏：hideNative（§6.2；false=不可见启动） |
 
@@ -132,10 +133,10 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 | 协议事件 | 上报 Event |
 |---|---|
 | enter | `EventPointer{Pointer: PointerEnter, X, Y}` |
-| leave | `EventPointer{Pointer: PointerLeave}` |
+| leave | `EventPointer{Pointer: PointerLeave}`（无坐标） |
 | motion | `PointerMove`（现有） |
 | button | `PointerDown/Up`（现有） |
-| axis | `PointerScroll`（现有） |
+| axis | `PointerScroll`（现有；`frame/axis_source/axis_stop/axis_discrete` 现为空实现，高精度滚动相位 S6-P0） |
 
 > enter/leave 除驱动 CSD hover/光标外，必须同时上报给上层（hover 判定依赖）；CSD 消费与上报并存，不互斥。
 
@@ -268,7 +269,7 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 - v1.5（2026-08-19）：**真隐藏（§6.2 重写）**——隐藏从「停帧+chrome 隐藏（wgpu WSI 不能外部 attach(NULL)）」升级为「销毁+重建」：embedder 收 EventHidden 后停帧 → 等 raster 空闲 → `PresentTarget.Close()`（先释放 wgpu WSI surface）→ `ApplyHiddenDetach()` 销毁 surface 栈（真 unmap，GTK4 同款）；Show 在泵线程外异步重建代理栈（不 dispatch），泵 ack 首个新 configure 后映射，poll 补发 EventHidden{false}，embedder 以新 wl_surface 重开 PresentTarget。抽出 `createSurfaceStack/applySurfaceConfig/destroySurfaceStack`；修复 listener 回调初始化在重建路径丢失（libwayland abort）。验证：wayland_features TestWaylandHideShow（detach 后 NativeSurface=0 → Show 后新 surface + 重映射）+ diag DIAG_FEATURES=1 EXIT=0 + WAYLAND_DEBUG 线序（隐藏点 `wl_surface@5.destroy()`，Show 重建 `wl_surface@56`/`xdg_toplevel@61` + title/app_id/min-max 重放）。
 - v1.4（2026-08-19）：**§9 标准窗口需求落地**——§6.2 隐藏/恢复（Show/Hide/IsVisible/EventHidden + wgpu WSI attach(NULL) 限制）；§6.3 剪贴板读写 + 外部文件拖拽（wl_data_device 全套，offer/source 各自 destroy opcode、set_selection 焦点规则）；§6.4 图标名 set_app_id + zxdg_decoration 装饰协商；§2.4 Options 表 Visible/IconName 转 ✅、§3.2 IsVisible 改客户端跟踪；§7 加 S6。验证：wayland_features_linux_test（真窗 4 PASS + 1 预期 SKIP，8 连跑无崩溃）+ tmp_resize_diag DIAG_FEATURES=1 exit 0；并发安全：wlHost.destroying 防非事件线程 Close 的 SIGSEGV。
 - v1.3（2026-08-19）：**窗口几何声明改为渲染器 swapchain 同步（§6.1）**——新增 `render.PresentTarget.SetOnSwapchainResized` + `platform.SurfacePresenter.OnSurfaceResized` 链路，几何与同尺寸缓冲同批到达合成器；修复 configure 钩子提前声明导致的负 frame extents（取消最大化恢复尺寸被翻成 1468×653）问题；验证：tmp_resize_diag DIAG_STATE=1 DIAG_SIZE=400/800 取消最大化/全屏恢复 configure 恒等于请求尺寸。
-- v1.2（2026-08-12）：**S5 落地（主文档 S2 ✅）**——§2.4 Options 表 🔨 全部转 ✅（waylandCreate 全量接线 + SetResizable 锁）；§3.2 状态查询口径实现闭环（IsMinimized 乐观跟踪 + activated 回置、IsVisible 恒 true、configure 真值查询）；§7 S5 ✅。
+- v1.2（2026-08-12）：**S5 落地（主文档 S2 ✅）**——§2.4 Options 表 🔨 全部转 ✅（waylandCreate 全量接线 + SetResizable 锁）；§3.2 状态查询口径实现闭环（IsMinimized 乐观跟踪 + activated 回置、IsVisible 当时恒 true【已过期：v1.4 起改客户端跟踪真隐藏，见 §3.2 现行】、configure 真值查询）；§7 S5 ✅。
 - v1.1（2026-08-12）：**对齐主文档 v2.1**——CSD ✕ 动作改 EventCloseRequested（§5）；补 WindowEdge↔xdg resize_edge 映射（§2.2）；补事件上报闭环（§3.1）、状态查询口径（§3.2）、Options 全量接线表（§2.4）；分期补 S5（主文档 S2 对齐）。
 - v1.0（2026-08-12）：从"去边框"方案推翻重写，对齐 sctk/GTK/gogpu 标准 CSD。
 

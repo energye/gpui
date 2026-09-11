@@ -202,8 +202,8 @@ type Event struct {
 	// (empty when the drop carried no text/uri-list payload).
 	Files []string
 
-	// IME (EventIME): pre-edit / commit / caret events from the input method.
-	IMEKind  int    // 0 = compose (pre-edit), 1 = commit, 2 = caret move
+	// IME (EventIME): pre-edit / commit / caret / delete-surrounding events from the input method.
+	IMEKind  int    // 0 = compose (pre-edit), 1 = commit, 2 = caret move, 3 = delete-surrounding
 	IMEText  string // compose pre-edit / commit text
 	IMEStart int    // affected range start (bytes); -1 = whole buffer
 	IMEEnd   int    // affected range end (bytes); -1 = whole buffer
