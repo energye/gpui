@@ -13,7 +13,9 @@ import "github.com/energye/gpui/ui/platform"
 // zero Event with Kind == KindNone; callers may filter on Kind).
 func FromPlatform(ev platform.Event, mods Modifiers) Event {
 	switch ev.Type {
-	case platform.EventCloseRequested, platform.EventClose:
+	case platform.EventCloseRequested:
+		return Event{Kind: KindCloseRequested}
+	case platform.EventClose:
 		return Event{Kind: KindClose}
 	case platform.EventResize:
 		e := Event{Kind: KindResize, Width: ev.Width, Height: ev.Height, Scale: ev.Scale}
@@ -59,19 +61,11 @@ func fromIME(ev platform.Event, mods Modifiers) Event {
 func fromPointer(ev platform.Event, mods Modifiers) Event {
 	switch ev.Pointer {
 	case platform.PointerScroll:
-		return Event{
-			Kind:      KindScroll,
-			Modifiers: mods,
-			Pointer: PointerEvent{
-				Kind:    PointerScroll,
-				ID:      PrimaryPointerID,
-				X:       ev.X,
-				Y:       ev.Y,
-				ScrollX: ev.ScrollX,
-				ScrollY: ev.ScrollY,
-			},
-		}
+		return scrollEvent(mods, ev.X, ev.Y, ev.ScrollX, ev.ScrollY)
 	default:
+		if sx, ok := horizontalScroll(ev); ok {
+			return scrollEvent(mods, ev.X, ev.Y, sx, 0)
+		}
 		k := toPointerKind(ev.Pointer)
 		return Event{
 			Kind:      KindPointer,
@@ -93,8 +87,48 @@ func toPointerKind(k platform.PointerKind) PointerKind {
 		return PointerDown
 	case platform.PointerUp:
 		return PointerUp
+	case platform.PointerEnter:
+		return PointerEnter
+	case platform.PointerLeave:
+		return PointerLeave
+	case platform.PointerCancel:
+		return PointerCancel
 	default:
 		return PointerMove
+	}
+}
+
+// scrollEvent builds a KindScroll event at (x, y) with the given deltas.
+func scrollEvent(mods Modifiers, x, y, sx, sy float64) Event {
+	return Event{
+		Kind:      KindScroll,
+		Modifiers: mods,
+		Pointer: PointerEvent{
+			Kind:    PointerScroll,
+			ID:      PrimaryPointerID,
+			X:       x,
+			Y:       y,
+			ScrollX: sx,
+			ScrollY: sy,
+		},
+	}
+}
+
+// horizontalScroll maps X11 wheel buttons 6/7 (horizontal tilt) reported as
+// an ordinary button press into a scroll delta, mirroring the backend's 4/5
+// → ScrollY convention (6 = left = -1, 7 = right = +1). Only the press edge
+// scrolls; the release stays an ordinary Up so one tilt ticks once.
+func horizontalScroll(ev platform.Event) (float64, bool) {
+	if ev.Pointer != platform.PointerDown {
+		return 0, false
+	}
+	switch ev.Button {
+	case 6:
+		return -1, true
+	case 7:
+		return 1, true
+	default:
+		return 0, false
 	}
 }
 
@@ -109,6 +143,7 @@ func fromKey(ev platform.Event, mods Modifiers) Event {
 			Key:     mapKey(ev.KeyCode),
 			Rune:    ev.Rune,
 			Pressed: ev.Pressed,
+			Repeat:  ev.Repeat,
 			Mods:    mods,
 		},
 	}

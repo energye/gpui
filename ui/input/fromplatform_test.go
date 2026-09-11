@@ -140,7 +140,7 @@ func TestFromPlatform_Lifecycle(t *testing.T) {
 		ev   platform.Event
 		kind Kind
 	}{
-		{platform.Event{Type: platform.EventCloseRequested}, KindClose},
+		{platform.Event{Type: platform.EventCloseRequested}, KindCloseRequested},
 		{platform.Event{Type: platform.EventClose}, KindClose},
 		{platform.Event{Type: platform.EventWake}, KindWake},
 		{platform.Event{Type: platform.EventResize, Width: 800, Height: 600, Scale: 2}, KindResize},
@@ -157,6 +157,75 @@ func TestFromPlatform_Lifecycle(t *testing.T) {
 				t.Fatalf("resize = %dx%d scale %.1f", ev.Width, ev.Height, ev.Scale)
 			}
 		}
+	}
+}
+
+func TestFromPlatform_CloseSplit(t *testing.T) {
+	// CloseRequested (interceptable ask) and Close (already destroyed) are
+	// distinct Kinds; the embedder quits on both (see embedder.EventQuits).
+	if ev := FromPlatform(platform.Event{Type: platform.EventCloseRequested}, Modifiers{}); ev.Kind != KindCloseRequested {
+		t.Fatalf("close-requested = %s, want close-requested", ev.Kind)
+	}
+	if ev := FromPlatform(platform.Event{Type: platform.EventClose}, Modifiers{}); ev.Kind != KindClose {
+		t.Fatalf("close = %s, want close", ev.Kind)
+	}
+}
+
+func TestFromPlatform_KeyRepeat(t *testing.T) {
+	ev := FromPlatform(platform.Event{Type: platform.EventKey, KeyCode: 'a', Rune: 'a', Pressed: true, Repeat: true}, Modifiers{})
+	if ev.Kind != KindKey || !ev.Key.Repeat {
+		t.Fatalf("repeat not carried: %+v", ev.Key)
+	}
+	plain := FromPlatform(platform.Event{Type: platform.EventKey, KeyCode: 'a', Rune: 'a', Pressed: true}, Modifiers{})
+	if plain.Key.Repeat {
+		t.Fatal("unset Repeat must stay false")
+	}
+}
+
+func TestFromPlatform_PointerPhases(t *testing.T) {
+	cases := []struct {
+		in   platform.PointerKind
+		want PointerKind
+	}{
+		{platform.PointerMove, PointerMove},
+		{platform.PointerDown, PointerDown},
+		{platform.PointerUp, PointerUp},
+		{platform.PointerEnter, PointerEnter},
+		{platform.PointerLeave, PointerLeave},
+		{platform.PointerCancel, PointerCancel},
+	}
+	for _, c := range cases {
+		ev := FromPlatform(platform.Event{Type: platform.EventPointer, Pointer: c.in, X: 5, Y: 6}, Modifiers{})
+		if ev.Kind != KindPointer || ev.Pointer.Kind != c.want {
+			t.Errorf("phase %v: got %s/%s", c.in, ev.Kind, ev.Pointer.Kind)
+		}
+	}
+}
+
+func TestFromPlatform_HorizontalScroll(t *testing.T) {
+	// X11 buttons 6/7 arrive as ordinary button presses; only the press edge
+	// surfaces as horizontal scroll (backend 4/5 convention: negative =
+	// left/up), so one tilt ticks once. The release stays an ordinary Up.
+	press6 := FromPlatform(platform.Event{Type: platform.EventPointer, Pointer: platform.PointerDown, Button: 6, X: 1, Y: 2}, Modifiers{})
+	if press6.Kind != KindScroll || press6.Pointer.ScrollX != -1 || press6.Pointer.ScrollY != 0 {
+		t.Fatalf("button 6 press: got %s scroll %+v", press6.Kind, press6.Pointer)
+	}
+	press7 := FromPlatform(platform.Event{Type: platform.EventPointer, Pointer: platform.PointerDown, Button: 7}, Modifiers{})
+	if press7.Kind != KindScroll || press7.Pointer.ScrollX != 1 {
+		t.Fatalf("button 7 press: got %s scroll %+v", press7.Kind, press7.Pointer)
+	}
+	release := FromPlatform(platform.Event{Type: platform.EventPointer, Pointer: platform.PointerUp, Button: 6}, Modifiers{})
+	if release.Kind != KindPointer || release.Pointer.Kind != PointerUp || release.Pointer.Button != 6 {
+		t.Fatalf("button 6 release must stay an ordinary up: %+v", release.Pointer)
+	}
+	// Ordinary buttons and moves are untouched.
+	btn1 := FromPlatform(platform.Event{Type: platform.EventPointer, Pointer: platform.PointerDown, Button: 1}, Modifiers{})
+	if btn1.Kind != KindPointer || btn1.Pointer.Kind != PointerDown || btn1.Pointer.Button != 1 {
+		t.Fatalf("button 1 changed: %+v", btn1.Pointer)
+	}
+	move := FromPlatform(platform.Event{Type: platform.EventPointer, Pointer: platform.PointerMove, Button: 6}, Modifiers{})
+	if move.Kind != KindPointer || move.Pointer.Kind != PointerMove {
+		t.Fatalf("move with button 6 must stay a move: %+v", move.Pointer)
 	}
 }
 

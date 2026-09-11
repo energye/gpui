@@ -141,6 +141,8 @@ func (k PointerKind) String() string {
 		return "enter"
 	case PointerLeave:
 		return "leave"
+	case PointerCancel:
+		return "cancel"
 	default:
 		return "unknown"
 	}
@@ -154,8 +156,9 @@ const (
 	PointerDown
 	PointerUp
 	PointerScroll
-	PointerEnter // pointer (or window-level grab) entered the window
-	PointerLeave // pointer left the window
+	PointerEnter  // pointer (or window-level grab) entered the window
+	PointerLeave  // pointer left the window
+	PointerCancel // pointer sequence aborted (grab lost), not a release
 )
 
 // Event is a platform input or lifecycle event.
@@ -193,6 +196,7 @@ type Event struct {
 	KeyCode int
 	Rune    rune
 	Pressed bool
+	Repeat  bool // true = OS auto-repeat (backends set it; unset = single press)
 
 	// Focus / visibility (EventFocus)
 	Focused bool
