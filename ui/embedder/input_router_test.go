@@ -61,6 +61,13 @@ func TestRouterRoutesPointerToHandler(t *testing.T) {
 	if tgt.lastX != 12.5 || tgt.lastY != 33.25 {
 		t.Fatalf("pos = (%.2f,%.2f)", tgt.lastX, tgt.lastY)
 	}
+	// Move on the same path must also auto-wire to the handler.
+	r.RoutePlatform(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerMove, X: 5, Y: 6,
+	})
+	if tgt.pointerCalls.Load() != 2 {
+		t.Fatalf("move not auto-wired: calls = %d, want 2", tgt.pointerCalls.Load())
+	}
 }
 
 func TestRouterRoutesScrollToCallback(t *testing.T) {
@@ -129,6 +136,7 @@ func TestRouterFocusRouting(t *testing.T) {
 }
 
 func TestRouterTextAndIME(t *testing.T) {
+	// No editor attached: OnText/OnIME callbacks must still fire (fallback contract).
 	var text atomic.Value
 	var ime atomic.Value
 	r := NewInputRouter(nil, nil)
@@ -153,19 +161,6 @@ func TestRouterNilSafety(t *testing.T) {
 	r.SetHitTest(nil)
 	if r.Modifiers() != (input.Modifiers{}) {
 		t.Fatal("nil router mods should be zero")
-	}
-}
-
-func TestRouterEventTargetOnPath(t *testing.T) {
-	// A control implementing PointerHandler receives OnPointer automatically
-	// when hit — the framework's unified event binding for custom controls.
-	tgt := newTestTarget()
-	r := NewInputRouter(fixedHit(tgt), nil)
-	r.RoutePlatform(platform.Event{
-		Type: platform.EventPointer, Pointer: platform.PointerMove, X: 5, Y: 6,
-	})
-	if tgt.pointerCalls.Load() != 1 {
-		t.Fatalf("handler not auto-wired: %d", tgt.pointerCalls.Load())
 	}
 }
 
@@ -194,16 +189,6 @@ func TestRouterRoutesIMEToEditor(t *testing.T) {
 	}
 	if ed.ComposeActive() {
 		t.Fatal("compose should be done after commit")
-	}
-}
-
-func TestRouterIMEWithoutEditorStillCallsOnIME(t *testing.T) {
-	var imeGot atomic.Value
-	r := NewInputRouter(nil, nil)
-	r.OnIME = func(ev input.IMEEvent) { imeGot.Store(ev.Text) }
-	r.Route(input.FromIME(input.IMEEvent{Kind: input.IMECommit, Text: "x"}, input.Modifiers{}))
-	if imeGot.Load() != "x" {
-		t.Fatalf("OnIME not called: %v", imeGot.Load())
 	}
 }
 

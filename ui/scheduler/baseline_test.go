@@ -162,4 +162,5 @@ func TestProcessTracker_ElapsedAndSlopeSmoke(t *testing.T) {
 	if snap.RSSElapsedSec <= 0 {
 		t.Fatal("Apply must set rss_elapsed_sec")
 	}
+	_ = scheduler.ReadRSSKB()
 }

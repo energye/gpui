@@ -6,7 +6,6 @@ import (
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
 	"github.com/energye/gpui/ui/rendering"
-	"github.com/energye/gpui/ui/scene"
 )
 
 // TestApplyGrayscale_DesaturatesRed drives the shipped UI ApplyGrayscale façade:
@@ -87,37 +86,6 @@ func TestApplyBlur_SoftensHardEdge(t *testing.T) {
 	fr, fg, fb := sampleRGB(img.At(4, 20))
 	if fr < 0xC000 || fg < 0xC000 || fb < 0xC000 {
 		t.Fatalf("far from bar (4,20)=#%04x%04x%04x should stay near-white", fr, fg, fb)
-	}
-}
-
-// TestFilterLayers_InSceneTree is a cross-package sanity that scene filter
-// kinds exist and builder nesting works (full scene tests live in ui/scene).
-func TestFilterLayers_InSceneTree(t *testing.T) {
-	scene.ResetLayerIDGen()
-	b := scene.NewLayerBuilder()
-	cf := b.PushGrayscaleFilter()
-	im := b.PushImageFilter(2.5)
-	b.AddPicture(true)
-	b.Pop()
-	b.Pop()
-	if cf.Kind() != "color_filter" || im.Kind() != "image_filter" {
-		t.Fatalf("kinds %s / %s", cf.Kind(), im.Kind())
-	}
-	var kinds []string
-	scene.Walk(b.Root(), func(l scene.Layer) {
-		kinds = append(kinds, l.Kind())
-	})
-	hasCF, hasIF := false, false
-	for _, k := range kinds {
-		if k == "color_filter" {
-			hasCF = true
-		}
-		if k == "image_filter" {
-			hasIF = true
-		}
-	}
-	if !hasCF || !hasIF {
-		t.Fatalf("expected both filter kinds in tree, kinds=%v", kinds)
 	}
 }
 

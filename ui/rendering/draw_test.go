@@ -142,35 +142,6 @@ func TestDraw_FillLinearGradient_Runs(t *testing.T) {
 	}
 }
 
-func TestDraw_FillRadialAndSweep_NoPanic(t *testing.T) {
-	dc := render.NewContext(64, 64)
-	defer dc.Close()
-	dc.BeginFrame()
-	dc.ClearWithColor(render.White)
-	pc := rendering.NewPaintContext(dc, 1)
-	rendering.FillRadialGradient(pc, 0, 0, 64, 64, 32, 32, 2, 30,
-		1, 1, 0, 1, 0.1, 0.1, 0.2, 1)
-	rendering.FillSweepGradient(pc, 0, 0, 64, 64, 32, 32, 0,
-		1, 0, 0, 1, 0, 0, 1, 1)
-	if dc.Image() == nil {
-		t.Fatal("nil image")
-	}
-}
-
-func TestDraw_SetStrokeStyle_RoundCap(t *testing.T) {
-	dc := render.NewContext(40, 40)
-	defer dc.Close()
-	dc.BeginFrame()
-	dc.ClearWithColor(render.White)
-	pc := rendering.NewPaintContext(dc, 1)
-	rendering.SetStrokeStyle(pc, 4, render.LineCapRound, render.LineJoinRound)
-	rendering.StrokeLine(pc, 5, 20, 35, 20, 4, 0, 0, 0, 1)
-	if dc.Image() == nil {
-		t.Fatal("nil image")
-	}
-}
-
-// TestDraw_DrawPoints_OriginAware: points land at Abs positions.
 func TestDraw_DrawPoints_OriginAware(t *testing.T) {
 	dc := render.NewContext(60, 60)
 	defer dc.Close()

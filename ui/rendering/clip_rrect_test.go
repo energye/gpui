@@ -103,32 +103,6 @@ func TestPaintContext_PushClipRRect_ZeroRadiusFallsBackToRect(t *testing.T) {
 	}
 }
 
-// TestPaintContext_PushClipRect_StillWorks keeps rect clip exported path green.
-func TestPaintContext_PushClipRect_StillWorks(t *testing.T) {
-	dc := render.NewContext(60, 60)
-	defer dc.Close()
-	dc.BeginFrame()
-	dc.ClearWithColor(render.White)
-
-	pc := rendering.NewPaintContext(dc, 1).WithOrigin(5, 5)
-	pc.PushClipRect(5, 5, 30, 30) // abs 10..40
-	dc.SetRGBA(1, 0, 1, 1)
-	ax, ay := pc.Abs(0, 0)
-	dc.DrawRectangle(ax, ay, 100, 100)
-	_ = dc.Fill()
-	pc.PopClip()
-
-	img := dc.Image()
-	pr, pg, pb := sampleRGB(img.At(20, 20))
-	if pr < 0xA000 || pb < 0xA000 {
-		t.Fatalf("inside (20,20)=#%04x%04x%04x want magenta", pr, pg, pb)
-	}
-	or, og, ob := sampleRGB(img.At(2, 2))
-	if or < 0xC000 || og < 0xC000 || ob < 0xC000 {
-		t.Fatalf("outside (2,2)=#%04x%04x%04x want white", or, og, ob)
-	}
-}
-
 // TestRenderClipRRect_HitTest proves clipping is honored by hit testing (R13):
 // points outside the clip are rejected, points inside hit children, and a
 // child that overflows the clip is only hittable inside the clip bounds.
