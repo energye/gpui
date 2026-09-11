@@ -1032,15 +1032,8 @@ func (e *Editor) MoveCursorBack() bool {
 		return false
 	}
 	caret := e.selection.Extent
-	b := byteOffsetForUtf16(e.text, caret)
-	_, sz := utf8.DecodeLastRuneInString(e.text[:b])
-	r, _ := utf8.DecodeLastRuneInString(e.text[:b])
-	_ = sz
-	cu := 1
-	if r > 0xFFFF {
-		cu = 2
-	}
-	return e.SetSelection(TextRange{Base: caret - cu, Extent: caret - cu})
+	newCu := stepRuneUTF16(e.text, caret, -1)
+	return e.SetSelection(TextRange{Base: newCu, Extent: newCu})
 }
 func (e *Editor) MoveCursorForward() bool {
 	if e == nil {
@@ -1050,13 +1043,8 @@ func (e *Editor) MoveCursorForward() bool {
 		return false
 	}
 	caret := e.selection.Extent
-	b := byteOffsetForUtf16(e.text, caret)
-	r, _ := utf8.DecodeRuneInString(e.text[b:])
-	cu := 1
-	if r > 0xFFFF {
-		cu = 2
-	}
-	return e.SetSelection(TextRange{Base: caret + cu, Extent: caret + cu})
+	newCu := stepRuneUTF16(e.text, caret, 1)
+	return e.SetSelection(TextRange{Base: newCu, Extent: newCu})
 }
 
 func (e *Editor) MoveCursorUp() bool {
@@ -1213,6 +1201,85 @@ func (e *Editor) SetCaretWithAffinity(off int, affinity int) {
 		}
 	}
 	e.SetSelection(TextRange{Base: cu, Extent: cu, Affinity: affinity})
+}
+
+// stepCaretBytes moves the caret from curByte to newByte (both grapheme
+// boundaries, one visual step apart) and derives the utf16 selection
+// incrementally from the stored extent: only the bytes between the two
+// positions are decoded, so stepping stays O(cluster) no matter how long
+// the line is. The result is identical to a full recount (deltas are exact;
+// the stored extent is always on a boundary via clampUtf16).
+func (e *Editor) stepCaretBytes(curByte, newByte int, affinity int) {
+	if e == nil {
+		return
+	}
+	if newByte < 0 {
+		newByte = 0
+	}
+	if newByte > len(e.text) {
+		newByte = len(e.text)
+	}
+	newUtf := e.extentForBytes(curByte, newByte)
+	e.SetSelection(TextRange{Base: newUtf, Extent: newUtf, Affinity: affinity})
+}
+
+// extentForBytes maps a byte move onto the stored utf16 extent, decoding
+// only the bytes between the two positions (same O(cluster) core as
+// stepCaretBytes, without applying a selection).
+func (e *Editor) extentForBytes(curByte, newByte int) int {
+	oldUtf := e.selection.Extent
+	if newByte >= curByte {
+		return oldUtf + utf16Len(e.text[curByte:newByte])
+	}
+	return oldUtf - utf16Len(e.text[newByte:curByte])
+}
+
+// extendExtentBytes moves only the selection extent by a byte step while
+// preserving the base (shift+arrow). Counterpart of stepCaretBytes, which
+// collapses the caret; the utf16 delta derivation is shared.
+func (e *Editor) extendExtentBytes(curByte, newByte int) {
+	if e == nil {
+		return
+	}
+	if newByte < 0 {
+		newByte = 0
+	}
+	if newByte > len(e.text) {
+		newByte = len(e.text)
+	}
+	base := e.selection.Base
+	e.SetSelection(TextRange{Base: base, Extent: e.extentForBytes(curByte, newByte)})
+}
+
+// stepRuneUTF16 moves a utf16 offset by one rune (±1), surrogate-aware and
+// clamped into range. Single source for password stepping and rune
+// fallbacks (callers used to hand-roll this with a full []rune conversion
+// per key, and split astral runes with plain cur±1).
+func stepRuneUTF16(text string, cur, delta int) int {
+	if delta > 0 {
+		b := byteOffsetForUtf16(text, cur)
+		r, _ := utf8.DecodeRuneInString(text[b:])
+		if r > 0xFFFF {
+			cur += 2
+		} else {
+			cur++
+		}
+	} else if delta < 0 {
+		b := byteOffsetForUtf16(text, cur)
+		r, _ := utf8.DecodeLastRuneInString(text[:b])
+		if r > 0xFFFF {
+			cur -= 2
+		} else {
+			cur--
+		}
+	}
+	if cur < 0 {
+		cur = 0
+	}
+	if n := utf16Len(text); cur > n {
+		cur = n
+	}
+	return cur
 }
 func (e *Editor) SetSelectionBytes(s, en int) {
 	if e == nil {

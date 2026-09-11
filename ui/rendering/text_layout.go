@@ -90,6 +90,52 @@ type TextLayout struct {
 	idx *lineIndex
 	// idxSeq认领idx序号(增量引擎patch时递增,失配即重建).
 	idxSeq uint64
+	// clusters caches per-line grapheme cluster starts for caret stepping.
+	// ClusterStarts over a long line is O(n) per keystroke; the table only
+	// depends on the built text+lines, so build once per line and reuse.
+	// Validity mirrors lineIndex.valid (length + first/last line starts).
+	clusters      map[int][]int
+	clustersGen   uint64
+	clustersN     int
+	clustersFirst int
+	clustersLast  int
+}
+
+// LineClusterStarts returns the grapheme cluster starts of line (relative
+// offsets plus len sentinel), cached per layout build. Identical to
+// text.ClusterStarts over the line slice; caret stepping reuses it instead
+// of re-segmenting the whole line per keystroke.
+func (l *TextLayout) LineClusterStarts(line int) []int {
+	if l == nil || line < 0 || line >= len(l.lines) {
+		return []int{0}
+	}
+	if !l.clustersValid() {
+		l.clusters = nil
+	}
+	if s, ok := l.clusters[line]; ok {
+		return s
+	}
+	ln := l.lines[line]
+	s := text.ClusterStarts(l.Text[ln.StartByte:ln.EndByte])
+	if l.clusters == nil {
+		l.clusters = make(map[int][]int)
+		l.clustersGen = l.Generation
+		l.clustersN = len(l.lines)
+		l.clustersFirst = l.lines[0].StartByte
+		l.clustersLast = l.lines[len(l.lines)-1].StartByte
+	}
+	l.clusters[line] = s
+	return s
+}
+
+func (l *TextLayout) clustersValid() bool {
+	if l == nil || l.clusters == nil || len(l.lines) == 0 {
+		return false
+	}
+	return l.clustersGen == l.Generation &&
+		l.clustersN == len(l.lines) &&
+		l.clustersFirst == l.lines[0].StartByte &&
+		l.clustersLast == l.lines[len(l.lines)-1].StartByte
 }
 
 // finishLayout stamps per-row marks and prebuilds the row index.
@@ -716,6 +762,8 @@ func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64)
 	filled := make([]bool, n)
 	var glyphs []text.ShapedGlyph
 	var gruns []LineGlyphRun
+	var runRuneStart, runRuneEnd []int
+	var runRTL []bool
 	cursor := cursor0
 	runeBase := 0
 	for _, r := range runs {
@@ -725,6 +773,8 @@ func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64)
 		if len(sg) == 0 {
 			return nil, 0, nil, nil, false
 		}
+		runRuneStart = append(runRuneStart, runeBase)
+		runRTL = append(runRTL, r.rtl)
 		g := append([]text.ShapedGlyph(nil), sg...)
 		if r.rtl {
 			g = text.ReorderRTLShapedGlyphs(g)
@@ -750,6 +800,56 @@ func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64)
 			IsColor: isColorText(seg), TextStart: r.start, TextEnd: r.end})
 		cursor = end
 		runeBase += utf8.RuneCountInString(seg)
+		runRuneEnd = append(runRuneEnd, runeBase)
+	}
+	// Mid-cluster interpolation: runes covered by one multi-rune glyph
+	// (ligatures) get proportional X so every arrow step moves visibly
+	// (DirectWrite/Pango caret behavior). LTR runs only; RTL keeps the
+	// cluster-start position. Clamped to the cluster span so the caret
+	// table stays monotonic for binary search.
+	for gi := range gruns {
+		if gi >= len(runRTL) || gi >= len(runRuneStart) || gi >= len(runRuneEnd) || runRTL[gi] {
+			continue
+		}
+		gs, ge := gruns[gi].Start, gruns[gi].End
+		rs, re := runRuneStart[gi], runRuneEnd[gi]
+		if gs < 0 || ge > len(glyphs) || rs < 0 || re > n {
+			continue
+		}
+		for j := gs; j < ge; j++ {
+			c := glyphs[j].Cluster
+			if c < rs || c >= re {
+				continue
+			}
+			nc := re
+			for k := j + 1; k < ge; k++ {
+				if ck := glyphs[k].Cluster; ck > c && ck <= re {
+					nc = ck
+					break
+				}
+			}
+			if nc <= c {
+				continue
+			}
+			span := float64(nc - c)
+			upper := glyphs[j].X + glyphs[j].XAdvance
+			if nc < n && filled[nc] && xs[nc] < upper {
+				upper = xs[nc]
+			}
+			// ri == c keeps the stitch min-rule (mark+base sharing one
+			// cluster); only previously uncovered mid runes are filled.
+			for ri := c + 1; ri < nc; ri++ {
+				v := glyphs[j].X + glyphs[j].XAdvance*float64(ri-c)/span
+				if v < glyphs[j].X {
+					v = glyphs[j].X
+				}
+				if v > upper {
+					v = upper
+				}
+				xs[ri] = v
+				filled[ri] = true
+			}
+		}
 	}
 	carets := make([]GlyphCaret, 0, n+1)
 	prevX := prevX0
@@ -1131,6 +1231,20 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 	ln := l.lines[row]
 	if effectiveOff >= ln.StartByte && effectiveOff <= ln.EndByte {
 		i := row
+		// Downstream at a soft-wrap seam (this line's end == next line's
+		// start, no newline byte between) is the leading edge of the next
+		// line (Flutter: downstream after a soft break starts the new
+		// line). Without this the caret paints at the previous line's
+		// trailing edge and vertical stepping re-derives the old line and
+		// never advances past the seam.
+		if affinity == AffinityDownstream && i+1 < len(l.lines) {
+			if nxt := l.lines[i+1]; effectiveOff == ln.EndByte && effectiveOff == nxt.StartByte && !isNewlineAt(l.Text, effectiveOff) {
+				if x, exact := caretXForOffset(nxt.Carets, 0); exact {
+					return x, l.LineTop(i + 1), nxt.Height, true
+				}
+				return 0, l.LineTop(i + 1), nxt.Height, true
+			}
+		}
 		// If upstream and effectiveOff == StartByte of this line and not first line,
 		// Flutter's upstream at line start should be trailing of prev line.
 		if affinity == AffinityUpstream && effectiveOff == ln.StartByte && i > 0 && !isNewlineAt(l.Text, effectiveOff) {

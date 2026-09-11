@@ -291,6 +291,33 @@ func TestMultiFaceLanguage(t *testing.T) {
 	}
 }
 
+// TestMultiFaceScriptPreference pins the script-correction in faceForRune:
+// a CJK-covering first face keeps CJK-related runes but yields Latin to a
+// later non-CJK face, so Latin advances come from its own hinted font.
+func TestMultiFaceScriptPreference(t *testing.T) {
+	cjk := newMockFace(12, DirectionLTR, map[rune]float64{'永': 12, 'f': 10, 'Ｆ': 12, '。': 12})
+	latin := newMockFace(12, DirectionLTR, map[rune]float64{'f': 8, 'H': 9})
+	mf, err := NewMultiFace(cjk, latin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mf.faceForRune('f'); got != Face(latin) {
+		t.Fatalf("latin 'f' resolved to CJK face, want latin face")
+	}
+	if got := mf.faceForRune('永'); got != Face(cjk) {
+		t.Fatalf("CJK rune left the CJK face")
+	}
+	if got := mf.faceForRune('Ｆ'); got != Face(cjk) {
+		t.Fatalf("fullwidth latin left the CJK face (grid width must not change)")
+	}
+	if got := mf.faceForRune('。'); got != Face(cjk) {
+		t.Fatalf("CJK punctuation left the CJK face")
+	}
+	runs := mf.Runs("f永f")
+	if len(runs) != 3 {
+		t.Fatalf("Runs split = %d, want 3 (latin/CJK alternation)", len(runs))
+	}
+}
 // TestMultiFaceAtSizePreservesHinting pins the AtSize option-preservation
 // fix: re-deriving at a new size must keep each component face's hinting,
 // not reset to the engine default HintingFull.

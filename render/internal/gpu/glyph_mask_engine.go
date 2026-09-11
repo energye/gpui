@@ -196,14 +196,14 @@ func (e *GlyphMaskEngine) LayoutText(
 		// R7.5: origin-free layout template + safe quad rebase for scroll/HUD.
 		// Skip template put for high-churn telemetry strings (unique every frame).
 		shaped := text.LayoutGlyphs(face, s)
-		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false)
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, false), nil
 }
 
 // LayoutTextAliased converts a text string into a GlyphMaskBatch with binary
@@ -256,14 +256,14 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		}
 		// S6.5 shape cache + R7.5 layout template (aliased flag in key).
 		shaped := text.LayoutGlyphs(face, s)
-		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true)
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, false), nil
 }
 
 // LayoutShapedGlyphs lays out pre-shaped glyphs into a GlyphMaskBatch.
@@ -292,7 +292,9 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 	}
 	fontSize, fontID, parsed := p.fontSize, p.fontID, p.parsed
 	rasterScale := p.rasterScale
-	isCJK, hinting := p.isCJK, p.hinting
+	// p.isCJK was derived from an empty string (the shaped path carries no
+	// source text); the caller's per-batch flag wins.
+	hinting := p.hinting
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
 	batchColor := p.batchColor
 	if cf, ok := colorFontOf(parsed); ok {
@@ -302,7 +304,7 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 			}
 		}
 	}
-	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
+	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, true), nil
 }
 
 // colorFontOf returns the color backend when the font carries CBDT/COLR
@@ -473,6 +475,11 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	rasterScale float64,
 	isCJK bool,
 	aliased bool,
+	// honorShapedX places glyphs at their shaped X (kerning, ligatures,
+	// mark attachment) instead of walking hinted advances. True only for
+	// the pre-shaped submit (LayoutShapedGlyphs); the string entries keep
+	// the hint-advance pen walk for CPU text.Draw parity.
+	honorShapedX bool,
 ) GlyphMaskBatch {
 	quads := e.quadScratch[:0]
 	var batchIsLCD bool
@@ -499,10 +506,30 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		devScaleX = deviceScale * rasterScale
 	}
 	snapX := hinting != text.HintingNone && !useLCD
+	// Shaped submit on the pixel grid is declared here because the grid
+	// allocation below must know whether this batch takes the shaped
+	// branch (which never reads the rounded-advance grid).
+	shapedSnap := honorShapedX && pixelGrid
 	pen := math.Round(x * devScaleX)
 	var snappedDevX []float64
-	if !snapX && len(glyphs) > 0 && pixelGrid {
+	// The shaped branch positions from its own anchor math, so skip the
+	// per-batch grid allocation there; behavior is unchanged.
+	if !snapX && !shapedSnap && len(glyphs) > 0 && pixelGrid {
 		snappedDevX = snapXGrid(glyphs, x, deviceScale)
+	}
+	// Shaped submit on the pixel grid anchors on the first glyph: the batch
+	// origin is snapped once and each glyph's shaped offset is rounded
+	// absolutely. This keeps the run span identical to the caret table
+	// (kerning, ligatures, suffix/CJK boundary within half a pixel, no
+	// cumulative drift); equal fractional advances therefore alternate by
+	// 1px with period 1/frac (e.g. 10.288px pitch shows 10,11,10… — the
+	// visible fix is script-appropriate fallback so advances are near
+	// integers, not a different rounding). Other modes keep the pen walk.
+	anchorX := 0.0
+	shapedOrigin := 0.0
+	if shapedSnap && len(glyphs) > 0 {
+		anchorX = glyphs[0].X
+		shapedOrigin = math.Round((x + anchorX) * devScaleX)
 	}
 
 	for i := range glyphs {
@@ -511,6 +538,10 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		// the hint pen with the (unhinted) advance — TT phantom-only outlines
 		// give the integer advance; non-TT fonts fall back to the shaped diff.
 		if glyph.GID == 0 {
+			if shapedSnap {
+				// Shaped positions need no pen advance.
+				continue
+			}
 			if snapX && i+1 < len(glyphs) {
 				if pixelGrid {
 					pen += math.Round((glyphs[i+1].X - glyphs[i].X) * deviceScale)
@@ -526,7 +557,9 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		// glyph, applying hinting pixel-snapping (see glyphPlacement). snapped
 		// is only consulted when snapX is set.
 		var snapped float64
-		if snapX {
+		if shapedSnap {
+			snapped = shapedOrigin + math.Round((glyph.X-anchorX)*devScaleX)
+		} else if snapX {
 			snapped = pen
 		} else if len(snappedDevX) == len(glyphs) {
 			snapped = snappedDevX[i]
@@ -577,7 +610,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		// rasterized as a zero region) fall back to the shaped hmtx advance,
 		// which equals the hinted one for ink-less glyphs. This keeps every
 		// glyph x-position identical to the CPU bitmap on multi-glyph lines.
-		if snapX && i+1 < len(glyphs) {
+		if !shapedSnap && snapX && i+1 < len(glyphs) {
 			if pixelGrid {
 				adv := region.Advance
 				if region.Width <= 0 || region.Height <= 0 {

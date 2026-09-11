@@ -4,15 +4,26 @@ import (
 	"iter"
 	"strings"
 	"sync"
+	"unicode"
 	"unicode/utf8"
 )
 
 // MultiFace combines multiple faces with fallback.
-// When rendering, it uses the first face that has the glyph.
+// Glyph lookup is first-match with one script correction: a CJK-covering
+// face (it also bundles Latin/Greek/Cyrillic) is skipped for non-CJK
+// runes when a later non-CJK face covers them. CJK fonts grid their
+// bundled Latin on fractional advances, which jitters same-line spacing
+// on the integer pixel grid; routing Latin to its own hinted face keeps advances
+// near integers (Pango/fontconfig per-script matching). CJK-related runes
+// (Han, Kana, Hangul, Bopomofo, CJK punctuation, fullwidth forms) always
+// stay on the first match so CJK grid widths never change.
 // MultiFace is safe for concurrent use.
 type MultiFace struct {
 	faces     []Face
 	direction Direction
+	// cjkCover marks component faces covering CJK Unified Ideographs
+	// (computed once in NewMultiFace, read-only afterwards).
+	cjkCover []bool
 	// runeFaceCache avoids repeated HasGlyph scans for 5000-char
 	// single-line viewports (Flutter RenderEditable pattern). The text
 	// repeats a small rune alphabet (e.g. "你好Hello世界" 9 runes) and
@@ -44,6 +55,7 @@ func NewMultiFace(faces ...Face) (*MultiFace, error) {
 	return &MultiFace{
 		faces:     faces,
 		direction: direction,
+		cjkCover:  cjkCoverFlags(faces),
 	}, nil
 }
 
@@ -290,28 +302,91 @@ func (m *MultiFace) Hinting() Hinting {
 
 func (m *MultiFace) private() {}
 
-// faceForRune returns the first face that has the glyph for the rune.
-// If no face has the glyph, falls back to the system font index
-// (fontscan, M3) and then to the first face.
+// cjkProbe is covered by virtually every CJK font and by no Latin font.
+const cjkProbe = '永'
+
+// cjkCoverFlags reports per face whether it covers CJK Unified Ideographs.
+func cjkCoverFlags(faces []Face) []bool {
+	out := make([]bool, len(faces))
+	for i, f := range faces {
+		if f == nil {
+			continue
+		}
+		out[i] = f.HasGlyph(cjkProbe)
+	}
+	return out
+}
+
+// cjkRelated reports runes that must stay on the first-match face so CJK
+// grid widths never change: Han, Kana, Hangul, Bopomofo, CJK radicals and
+// punctuation blocks, and the fullwidth block (fullwidth Latin must keep
+// the CJK grid advance, never the proportional Latin one).
+func cjkRelated(r rune) bool {
+	if unicode.Is(unicode.Han, r) ||
+		unicode.Is(unicode.Hiragana, r) ||
+		unicode.Is(unicode.Katakana, r) ||
+		unicode.Is(unicode.Hangul, r) ||
+		unicode.Is(unicode.Bopomofo, r) {
+		return true
+	}
+	switch {
+	case r >= 0x2E80 && r <= 0x2FDF, // CJK radicals, Kangxi, description
+		r >= 0x3000 && r <= 0x303F,   // CJK symbols and punctuation
+		r >= 0x31C0 && r <= 0x31EF,   // CJK strokes
+		r >= 0x3200 && r <= 0x32FF,   // enclosed CJK
+		r >= 0x3300 && r <= 0x33FF,   // CJK compatibility
+		r >= 0x3400 && r <= 0x4DBF,   // Ext A (stdlib Han may lag newest blocks)
+		r >= 0xFE30 && r <= 0xFE4F,   // CJK compatibility forms
+		r >= 0xFF00 && r <= 0xFFEF,   // fullwidth / halfwidth forms
+		r >= 0x20000 && r <= 0x323AF: // Ext B and later planes
+		return true
+	}
+	return false
+}
+
+// faceForRune returns the face for the rune: first match, except a
+// CJK-covering face is skipped for non-CJK runes when a later non-CJK
+// face covers them (script preference, see MultiFace). If no face has
+// the glyph, falls back to the system font index (fontscan, M3) and then
+// to the first face.
 func (m *MultiFace) faceForRune(r rune) Face {
 	if v, ok := m.runeFaceCache.Load(r); ok {
 		if f, ok2 := v.(Face); ok2 && f != nil {
 			return f
 		}
 	}
-	for _, face := range m.faces {
+	first := -1
+	for i, face := range m.faces {
 		if face.HasGlyph(r) {
-			m.runeFaceCache.Store(r, face)
-			return face
+			first = i
+			break
 		}
 	}
-	// M3: missing-glyph fallback against the system font index.
-	if fc := globalFallback.resolveFace(r, m.Size()); fc != nil {
-		m.runeFaceCache.Store(r, fc)
-		return fc
+	if first >= 0 && len(m.cjkCover) == len(m.faces) &&
+		m.cjkCover[first] && !cjkRelated(r) {
+		for i := first + 1; i < len(m.faces); i++ {
+			f := m.faces[i]
+			if f == nil || (i < len(m.cjkCover) && m.cjkCover[i]) {
+				continue
+			}
+			if f.HasGlyph(r) {
+				m.runeFaceCache.Store(r, f)
+				return f
+			}
+		}
 	}
-	// Fallback to first face if no face has the glyph
-	fb := m.faces[0]
+	if first < 0 {
+		// M3: missing-glyph fallback against the system font index.
+		if fc := globalFallback.resolveFace(r, m.Size()); fc != nil {
+			m.runeFaceCache.Store(r, fc)
+			return fc
+		}
+		// Fallback to first face if no face has the glyph
+		fb := m.faces[0]
+		m.runeFaceCache.Store(r, fb)
+		return fb
+	}
+	fb := m.faces[first]
 	m.runeFaceCache.Store(r, fb)
 	return fb
 }
