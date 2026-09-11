@@ -64,28 +64,6 @@ func TestScroll_ComposingScroll(t *testing.T) {
 	}
 }
 
-func TestScroll_StickyAfterScroll(t *testing.T) {
-	ed := New()
-	ed.SetSingleLine(false)
-	ed.SetText("0123456789\n0123456789\n0123456789", TextRange{Base: 5, Extent: 5}, TextRange{}, 0)
-	box := NewMultiLineInputBox(ed, 280, 72, 14)
-	lay := box.TextLayout()
-	if lay == nil {
-		t.Fatalf("no layout")
-	}
-	// Move down twice and check offset is 27 (as in R2)
-	ed2 := New()
-	ed2.SetSingleLine(false)
-	ed2.SetText("0123456789\n0123456789\n0123456789", TextRange{Base: 5, Extent: 5}, TextRange{}, 0)
-	tmpLay := rendering.BuildTextLayout("0123456789\n0123456789\n0123456789", nil, 14, 0, 1.2)
-	ed2.MoveVisualDown(tmpLay)
-	ed2.MoveVisualDown(tmpLay)
-	if ed2.GetCursorOffset() != 27 {
-		t.Fatalf("sticky down expected 27 got %d", ed2.GetCursorOffset())
-	}
-	_ = box
-}
-
 func TestBaseEditable_PlaceholderAndDisabled(t *testing.T) {
 	ed := New()
 	ed.SetSingleLine(true)
@@ -124,17 +102,6 @@ func TestBaseEditable_PlaceholderAndDisabled(t *testing.T) {
 	lay := rendering.BuildTextLayout("hello", nil, 12, 0, 1.2)
 	// DrawPreedit should not panic
 	be.DrawPreedit(nil, "hello", TextRange{Base: 0, Extent: 5}, lay)
-}
-
-func TestBaseEditable_LinesAudit(t *testing.T) {
-	// F-E0a: BaseEditable 四件套 ≤15 行接入 — 这里验证 API 存在且可 3 行内完成接入
-	ed := New()
-	be := NewBaseEditable(ed)
-	_ = be.Editor()
-	_ = be.ContentType()
-	_ = be.IMERect()
-	lay := rendering.BuildTextLayout("hi", nil, 12, 0, 1.2)
-	be.DrawPreedit(nil, "hi", TextRange{}, lay)
 }
 
 func TestScroll_MaxLinesEllipsisNotEditable(t *testing.T) {

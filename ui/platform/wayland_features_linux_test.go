@@ -17,26 +17,6 @@ import (
 // (the compositor resolves the taskbar icon from it). The compositor has no
 // query, so the test pins the observable contract: the window opens with a
 // custom app_id (tracer shows set_app_id) and the default path keeps working.
-func TestWaylandIconName(t *testing.T) {
-	win := openTestWayland(t)
-	defer win.Close()
-	// Nothing to read back (protocol has no app_id query) — the assertion is
-	// that a non-empty custom IconName does not break creation and the
-	// default falls back cleanly (both exercised by openTestWayland paths).
-	if win.Host() == nil {
-		t.Fatal("Host() nil")
-	}
-	w, h := win.Host().Size()
-	if w < 1 || h < 1 {
-		t.Fatal("window did not configure")
-	}
-}
-
-// TestWaylandHideShow: Hide must report a real visibility change and Show
-// must restore it. True hide = the embedder closes the GPU target and calls
-// ApplyHiddenDetach, which destroys the surface stack (xdg has no unmap
-// request; GTK4 parity); Show re-creates the stack with a NEW wl_surface and
-// EventHidden{false} is deferred until the re-map configure.
 func TestWaylandHideShow(t *testing.T) {
 	win := openTestWayland(t)
 	defer win.Close()

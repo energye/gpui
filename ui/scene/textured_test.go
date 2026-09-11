@@ -111,21 +111,3 @@ func TestCompositeFramePacketTextured_OpacityGroup(t *testing.T) {
 }
 
 // TestPictureTextureCache_LRU evicts entries unused since the last frame.
-func TestPictureTextureCache_LRU(t *testing.T) {
-	dc := render.NewContext(20, 20)
-	defer dc.Close()
-	// No GPU in unit tests: entries are never created (CreateOffscreenTexture
-	// returns nil) — verify the cache stays empty and counters stay zero.
-	tex := scene.NewPictureTextureCache(dc, 4)
-	p := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 4, 4, 1, 0, 0, 1)
-	})
-	_, ok := tex.RecordForTest(1, &p)
-	if ok {
-		t.Fatalf("record without GPU should fail")
-	}
-	tex.EndFrame()
-	if tex.Len() != 0 {
-		t.Fatalf("Len=%d want 0", tex.Len())
-	}
-}

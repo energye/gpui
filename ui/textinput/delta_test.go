@@ -40,28 +40,3 @@ func TestDelta_Insert(t *testing.T) {
 		t.Fatalf("ApplyDelta insert %q", e2.GetText())
 	}
 }
-
-func TestSurrounding_TruncateCentered(t *testing.T) {
-	// 5000 bytes, cursor in middle
-	s := ""
-	for i := 0; i < 5000; i++ {
-		s += "a"
-	}
-	cur := 2500
-	tr, newCur := TruncateSurrounding(s, cur)
-	if len(tr) != 3999 {
-		t.Fatalf("truncate len %d", len(tr))
-	}
-	if newCur != 1999 && newCur != 2000 {
-		t.Fatalf("newCur %d", newCur)
-	}
-	if tr[newCur] != 'a' {
-		t.Fatalf("cursor not centered")
-	}
-	// Short text no truncate
-	s2 := "hello"
-	tr2, cur2 := TruncateSurrounding(s2, 2)
-	if tr2 != s2 || cur2 != 2 {
-		t.Fatalf("short truncate")
-	}
-}

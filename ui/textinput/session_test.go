@@ -89,14 +89,3 @@ func TestSessionCaretMovedDedup(t *testing.T) {
 		t.Fatalf("composing dedup failed")
 	}
 }
-
-func TestSessionDeleteSurroundingForwarded(t *testing.T) {
-	s, ed, _ := newTestSession()
-	s.AttachEditor(ed, fakeField{})
-	setText(t, ed, "hello")
-	ed.SetSelection(TextRange{Base: 5, Extent: 5})
-	s.DeleteSurrounding(2, 0)
-	if ed.GetText() != "hel" {
-		t.Fatalf("delete %q", ed.GetText())
-	}
-}

@@ -58,7 +58,7 @@ func TestLineIndex_M1(t *testing.T) {
 }
 
 // TestRowForY_RV锁收敛:RowForY(二分)必须与旧线性扫逐值一致,
-// 含边界/负数/超大/NaN.旧循环在 input_box.go 逐行比LineTop.
+// 含边界/负数/超大/NaN.
 func TestRowForY_RV(t *testing.T) {
 	lay := BuildTextLayout("aaa\nbb\nc\ndddd\nee", nil, 14, 0, 1.2)
 	loop := func(y float64) int {

@@ -151,12 +151,13 @@ func p99(ds []float64) float64 {
 	return cp[i]
 }
 
-// computeProbes runs the CPU-side baseline. layoutX comes from the layout
-// source of truth (BuildTextLayout float accumulation); snapX replays the
-// paint-side per-glyph rounding (drawGlyphs snapPen model). Their gap is the
-// constraint-① divergence the M0 fix must close.
-// NOTE(M1): snapX replay的是M0前的逐字取整旧模型,现绘制已改走glyph.X/
-// caret表(M0对策C+M1-13),故headless下该值恒≈821px(M0-pre基线)不代表回退;
+// computeProbes runs the CPU-side baseline. Caret-vs-paint compares the
+// shaped caret table against the shaped glyph advances (the same comparison
+// liveProbes runs per line in the window): both come from TextLayout, so any
+// nonzero gap means the caret seams drifted off the painted glyphs.
+// NOTE: an older revision summed math.Round(RuneAdvance) as the paint model
+// (M0-pre per-glyph rounding); paint now walks glyph.X/caret seams, so that
+// model is retired — it reported a constant ~821px that was not a regression.
 // 真实一致性证据见TestPaintUsesShapedX_MultiFaceBulk与TestCaretMatchesPaint_M1,
 // 像素墨迹对比仍待GPU真窗(见README"像素墨迹比对待补").
 func computeProbes(bText string, face text.Face, fontSize float64) probes {
@@ -169,18 +170,28 @@ func computeProbes(bText string, face text.Face, fontSize float64) probes {
 		return p
 	}
 	lay := rendering.BuildTextLayout(bText, face, fontSize, 0, 1.25)
-	layoutX := 0.0
-	if lay != nil && lay.LineCount() > 0 {
-		cs := lay.LineCarets(lay.LineCount() - 1)
-		if len(cs) > 0 {
-			layoutX = cs[len(cs)-1].X
+	delta := 0.0
+	if lay != nil {
+		for i := 0; i < lay.LineCount(); i++ {
+			glyphs := lay.LineGlyphs(i)
+			carets := lay.LineCarets(i)
+			if len(glyphs) == 0 || len(carets) == 0 {
+				continue
+			}
+			if glyphs[0].GID == 0 {
+				continue
+			}
+			last := glyphs[len(glyphs)-1]
+			glyphEnd := last.X + last.XAdvance
+			caretEnd := carets[len(carets)-1].X
+			if dd := caretEnd - glyphEnd; dd < 0 {
+				dd = -dd
+			} else if dd > delta {
+				delta = dd
+			}
 		}
 	}
-	snapX := 0.0
-	for _, r := range bText {
-		snapX += math.Round(text.RuneAdvance(face, r))
-	}
-	p.CaretVsPaintMaxDeltaPx = math.Abs(layoutX - snapX)
+	p.CaretVsPaintMaxDeltaPx = delta
 
 	var ds []float64
 	for i := 0; i < 31; i++ {

@@ -193,7 +193,10 @@ func TestFocus_KeyWithNoPrimary(t *testing.T) {
 	if ok {
 		t.Fatal("expected unconsumed")
 	}
-	m.HandleKey(focus.KeyEvent{KeyCode: focus.KeyTab, Pressed: true}) // no focusables
+	// Tab with no focusables registered must also pass through unconsumed.
+	if m.HandleKey(focus.KeyEvent{KeyCode: focus.KeyTab, Pressed: true}) {
+		t.Fatal("tab with no focusables should be unconsumed")
+	}
 }
 
 func TestFocus_DisabledSkipped(t *testing.T) {

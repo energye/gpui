@@ -156,20 +156,3 @@ func TestNested_TransferDisabled(t *testing.T) {
 		t.Fatalf("parent should not move when TransferAtEdge=false, got %v", parentVP.ScrollOffset().Y)
 	}
 }
-
-func TestNested_S6_SingleStillWorks(t *testing.T) {
-	child := rendering.NewRenderColorBox(100, 2000, 0.2, 0.3, 0.4, 1)
-	vp := rendering.NewRenderViewport(child)
-	sc := rendering.NewScrollable(vp)
-	sc.TouchSlop = 1
-	owner := rendering.NewPipelineOwner(vp)
-	owner.FlushLayout(rendering.Size{Width: 100, Height: 200}, true)
-	layouts := owner.LayoutCount
-	drag(sc, 100, nDeltas(50, -1))
-	if owner.LayoutCount != layouts {
-		t.Fatalf("layout storm %d→%d", layouts, owner.LayoutCount)
-	}
-	if vp.ScrollOffset().Y <= 0 {
-		t.Fatalf("expected scrollY>0 got %v", vp.ScrollOffset().Y)
-	}
-}

@@ -20,12 +20,6 @@ import (
 //   TestS2_Spinner_DirtyLayerAndNoLayout, TestS4_StaticTree_SpinnerOnlyRaster.
 
 // TestM1_PointsToS2S4 documents the M1 axis without duplicating S2/S4 bodies.
-func TestM1_PointsToS2S4(t *testing.T) {
-	t.Log("M1 dirty locality: see TestS2_Spinner_DirtyLayerAndNoLayout and TestS4_StaticTree_SpinnerOnlyRaster")
-}
-
-// TestM2_MultiBoundary_DirtyLocality: K independent RepaintBoundaries; dirty a subset each frame.
-// DirtyLayerIDs and CompositeOnly PaintVisits must stay proportional to the dirty set, not K+N.
 func TestM2_MultiBoundary_DirtyLocality(t *testing.T) {
 	scene.ResetLayerIDGen()
 	const (
@@ -236,6 +230,3 @@ func TestM5_GradientBoundary_DirtyLocality(t *testing.T) {
 }
 
 // TestM3_ScrollAxis_PointsToS5S6 keeps M3 documented; canonical gates live in virtual_list/viewport tests.
-func TestM3_ScrollAxis_PointsToS5S6(t *testing.T) {
-	t.Log("M3 scroll: see TestS5_VirtualList_BindCap, TestS6_DragScroll_NoLayoutStorm, TestViewport_ScrollDoesNotLayout")
-}

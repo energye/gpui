@@ -38,9 +38,6 @@ func TestSemantics_Flatten(t *testing.T) {
 	if flat[4].Role != semantics.RoleListItem {
 		t.Fatal("role")
 	}
-}
-
-func TestSemantics_FlattenNil(t *testing.T) {
 	if semantics.Flatten(nil) != nil {
 		t.Fatal("want nil")
 	}

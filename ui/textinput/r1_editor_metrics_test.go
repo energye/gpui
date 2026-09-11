@@ -308,9 +308,3 @@ func TestR1_AffinityCarry(t *testing.T) {
 }
 
 // G1 同源命名别名：供 metrics-audit 按 TestEditor_* 检索，逻辑与 TestR1_* 同源
-func TestEditor_Sentinel(t *testing.T) { TestR1_SentinelDoubleSetText(t) }
-func TestEditor_Surrogate(t *testing.T) { TestR1_SurrogateCount1(t) }
-func TestEditor_SurroundingCenter4(t *testing.T) { TestR1_SurroundingCenter4(t) }
-func TestEditor_BatchNest3(t *testing.T) { TestR1_BatchNest3(t) }
-func TestEditor_Utf16Roundtrip(t *testing.T) { TestR1_Utf16Roundtrip(t) }
-func TestEditor_MixedCJK200(t *testing.T) { TestR1_MixedCJK200(t) }

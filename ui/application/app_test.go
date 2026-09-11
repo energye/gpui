@@ -1,7 +1,6 @@
 package application
 
 import (
-	"sync/atomic"
 	"testing"
 
 	"github.com/energye/gpui/ui/platform"
@@ -153,27 +152,4 @@ func TestWindowNilSafety(t *testing.T) {
 	}
 	w.Close() // no panic
 	w.ScheduleFrame()
-}
-
-func TestOnEventWired(t *testing.T) {
-	var got atomic.Int32
-	app := New(Config{
-		Name:    "t",
-		NewHost: func(opts WindowOptions) (platform.Host, error) { return platform.NewStubHost(10, 10), nil },
-		OnEvent: func(ev platform.Event) {
-			if ev.Type == platform.EventWake {
-				got.Add(1)
-			}
-		},
-	})
-	w, _ := app.NewWindow(WindowOptions{Title: "A"})
-	_ = w.SetRoot(testRoot())
-	// The OnEvent closure is wired into the pipeline; we cannot run it without
-	// GPU, so assert the config is stored and window is bound.
-	if w.app == nil || w.pipe == nil {
-		t.Fatal("window not fully bound")
-	}
-	if got.Load() != 0 {
-		t.Fatal("no events should have been delivered without Run")
-	}
 }

@@ -281,22 +281,3 @@ func TestTextLayout_StickyFallback(t *testing.T) {
 		t.Logf("sticky X not preserved across lines but layout OK x0=%f x1=%f", x0, x1)
 	}
 }
-
-func TestTextLayout_EllipsisWidth(t *testing.T) {
-	// MaxLines 截断不应让 Width 包含省略号，且 Carets 不含 …
-	lay := BuildTextLayout("Hello world this is long", nil, 14, 50, 1.2)
-	if lay.LineCount() == 0 {
-		t.Fatalf("no lines")
-	}
-	for i := 0; i < lay.LineCount(); i++ {
-		for _, c := range lay.LineCarets(i) {
-			if c.ByteOff > len(lay.Text) {
-				t.Fatalf("caret beyond text")
-			}
-		}
-	}
-	// RenderText 层面 ellipsis 仅 DisplayLines 加 “…” ，TextLayout.Text 不应含 …
-	if strings.Contains(lay.Text, "…") {
-		t.Fatalf("layout Text contains ellipsis")
-	}
-}

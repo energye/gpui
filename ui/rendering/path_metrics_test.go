@@ -158,17 +158,3 @@ func TestPathMetrics_EmptyPath(t *testing.T) {
 }
 
 // TestPathMetrics_FillPathStillWorks ensures metrics land without breaking draw.
-func TestPathMetrics_FillPathStillWorks(t *testing.T) {
-	// Structural: NewPath + metrics + FillPath entry exist and metrics non-zero.
-	p := rendering.NewPath()
-	p.MoveTo(10, 10)
-	p.LineTo(50, 10)
-	p.LineTo(30, 40)
-	p.Close()
-	if rendering.PathTotalLength(p, 0.25) <= 0 {
-		t.Fatal("triangle perimeter should be > 0")
-	}
-	// FillPath is exercised in draw_test; here we only assert API still linked.
-	_ = rendering.FillPath
-	_ = rendering.StrokePath
-}
