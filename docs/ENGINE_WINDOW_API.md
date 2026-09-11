@@ -161,7 +161,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 5. **回归纪律**：真窗例程与平台的测试按文件跑（AGENTS.md），禁止一次全量。
 6. **验证范围（P6 验收只验本需求）**：三层各自独立的验收命令——
 
-   ```text
+```text
    C 层：go test ./examples/pfkit/ -count=1          # 6 例，恒绿（CI 无显示也跑）
    B 层：go test ./ui/platform/ -run '^(TestX11RealWindow|TestWaylandRealWindow|TestWaylandHideShow)' -count=1
           # 前缀匹配（禁止加 $ 锚点，否则 0 测试假绿）；真窗；无 DISPLAY/WAYLAND_DISPLAY
@@ -174,7 +174,7 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
    A′ 层：export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so && \
            go run ./examples/ui_textinput_ime   # IME 真窗（自动探测后端，Router+Editor 接线）
            go run ./examples/ui_ime_probe       # 双栈探针（D-Bus/X11 + text-input-v3，XIM 已移除）
-   ```
+```
    A′ 层为 GUI 交互式（人打字/Ibus 验证），无 JSON 门禁；能起窗打字即接线完整。
 
    P6 相关改动只跑这三层（平台其余测试/渲染层不在范围内）；完整平台回归（ui/platform 全部文件）留到各 S 阶段验收按文件跑。
