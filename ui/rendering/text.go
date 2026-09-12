@@ -104,6 +104,11 @@ type RenderText struct {
 	viewportScrollY  float64
 	viewportHeight   float64
 	hasViewportHintY bool
+	// recordedYBand is the Y scroll window a culled recording holds,
+	// mirroring the X band above (same dirty-build gate, same OR semantics).
+	recordedScrollY float64
+	recordedVisH    float64
+	recordedCulledY bool
 }
 
 // NewRenderText creates a text node.
@@ -531,6 +536,11 @@ func (t *RenderText) SetViewportRect(scrollX, visW, scrollY, visH float64) {
 	t.viewportScrollY = scrollY
 	t.viewportHeight = visH
 	t.hasViewportHintY = true
+}
+
+// HasViewportHintY reports whether a vertical cull band is set.
+func (t *RenderText) HasViewportHintY() bool {
+	return t != nil && t.hasViewportHintY
 }
 
 // TextLayout returns the cached single-source layout (builds if needed).
@@ -1211,6 +1221,33 @@ func visibleRowBandOf(lay *TextLayout, scrollY, visH float64) (lo, hi int) {
 	return lo, hi
 }
 
+// visibleRunBand maps a Y band onto run-line indices with a ±1 line guard,
+// the run-path form of visibleRowBandOf (paint and record share it).
+func visibleRunBand(tops []float64, lines []displayLine, scrollY, visH float64) (lo, hi int) {
+	n := len(lines)
+	if n == 0 || visH <= 0 {
+		return 0, 0
+	}
+	lo = n
+	for i := 0; i < n; i++ {
+		if tops[i]+lines[i].Height > scrollY {
+			lo = i
+			break
+		}
+	}
+	hi = lo
+	for hi < n && tops[hi] < scrollY+visH {
+		hi++
+	}
+	if lo > 0 {
+		lo--
+	}
+	if hi < n {
+		hi++
+	}
+	return lo, hi
+}
+
 // TreeSubmittedGlyphEstimate sums SubmittedGlyphEstimate over every
 // RenderText in the tree (M2 window-level O(V) observability).
 func TreeSubmittedGlyphEstimate(root RenderObject) int {
@@ -1295,8 +1332,22 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 	if len(lines) == 0 {
 		return
 	}
+	tops := make([]float64, len(lines))
+	top := 0.0
+	for i := range lines {
+		tops[i] = top
+		top += lines[i].Height
+	}
+	rowLo, rowHi := 0, len(lines)
+	if t.hasViewportHintY {
+		rowLo, rowHi = visibleRunBand(tops, lines, t.viewportScrollY, t.viewportHeight)
+	}
 	lineTop := 0.0
-	for _, ln := range lines {
+	for li, ln := range lines {
+		if li < rowLo || li >= rowHi {
+			lineTop += ln.Height
+			continue
+		}
 		// 行内最大 ascent 决定基线（Flutter SkParagraph：行盒按最大 run 撑开，基线 = 行顶 + 最大 ascent）
 		maxAscent := 0.0
 		for _, sp := range ln.Spans {
