@@ -116,6 +116,12 @@ type pictureTextureEntry struct {
 	contentSlot int
 	lastUse     uint64
 	bounds      image.Rectangle
+	// prevBounds carries the geometry bounds from before this frame's
+	// re-record (Flutter/Skia damage = union of previous + current layer
+	// bounds). Only meaningful when recordedIn == the current recordFrame;
+	// a shrink re-record must still damage the cleared tail or a LoadOpLoad
+	// present keeps stale pixels there (IME backspace stall).
+	prevBounds image.Rectangle
 	// recordedIn is the recordFrame in which the texture was last re-recorded.
 	recordedIn uint64
 	// off is the layer-local blit offset (bounds.Min of the recorded geometry,
@@ -485,6 +491,9 @@ func (c *PictureTextureCache) dropTransparentLocked(id uint64, fallback image.Re
 		return
 	}
 	e.contentSlot = -1
+	// Keep previous bounds for the damage union (shrink must repaint the
+	// cleared tail; uniform with recordWith/recordLocalWith).
+	e.prevBounds = e.bounds
 	e.bounds = b
 	e.lastUse = c.stamp
 	e.recordedIn = c.recordFrame
@@ -492,7 +501,21 @@ func (c *PictureTextureCache) dropTransparentLocked(id uint64, fallback image.Re
 }
 
 func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc *render.Context)) (image.Rectangle, bool) {
-	if c == nil || c.dc == nil || id == 0 || (pic != nil && pic.IsEmpty() && extra == nil) {
+	if c == nil || c.dc == nil || id == 0 {
+		return image.Rectangle{}, false
+	}
+	if pic != nil && pic.IsEmpty() && extra == nil {
+		// Fully empty re-record: the stale texture must go, but a viewless
+		// shell keeps the previous region so phase 2 still damages the
+		// cleared area (IME preedit deleted to empty ghosted until an
+		// incidental full repaint without this).
+		var gb image.Rectangle
+		if pic != nil {
+			gb = pic.Bounds
+		}
+		c.mu.Lock()
+		c.dropTransparentLocked(id, gb)
+		c.mu.Unlock()
 		return image.Rectangle{}, false
 	}
 	// A transparent re-record must not keep stale slot pixels: fall back to
@@ -543,8 +566,11 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 		return image.Rectangle{}, false
 	}
 	if pic != nil {
+		// Damage must cover the cleared tail on shrink (previous ∪ current).
+		e.prevBounds = e.bounds
 		e.bounds = pic.Bounds
 	} else {
+		e.prevBounds = e.bounds
 		e.bounds = image.Rectangle{}
 	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
@@ -615,7 +641,14 @@ func (c *PictureTextureCache) recordLocal(id uint64, pic *Picture, b image.Recta
 // (RenderBox OnPaint layers, see PictureLayer.RasterExtra). The extra callback
 // draws after pic.Replay in the same layer-local (translated) coordinate space.
 func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.Rectangle, extra func(dc *render.Context)) (image.Rectangle, bool) {
-	if c == nil || c.dc == nil || id == 0 || (pic != nil && pic.IsEmpty() && extra == nil) {
+	if c == nil || c.dc == nil || id == 0 {
+		return image.Rectangle{}, false
+	}
+	if pic != nil && pic.IsEmpty() && extra == nil {
+		// Same shell contract as recordWith (bounds-sized variant).
+		c.mu.Lock()
+		c.dropTransparentLocked(id, b)
+		c.mu.Unlock()
 		return image.Rectangle{}, false
 	}
 	// Same stale-slot guard as recordWith (bounds-sized variant).
@@ -701,6 +734,8 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 		delete(c.entries, id)
 		return image.Rectangle{}, false
 	}
+	// Damage must cover the cleared tail on shrink (previous ∪ current).
+	e.prevBounds = e.bounds
 	e.bounds = b
 	e.off = b.Min
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
@@ -973,6 +1008,22 @@ func (c *PictureTextureCache) Bounds(id uint64) image.Rectangle {
 	return image.Rectangle{}
 }
 
+// PrevBounds returns the geometry bounds from before this frame's
+// re-record (empty unless recorded in the current frame). Damage for a
+// re-recorded layer is the union of previous and current bounds so
+// shrunk-away pixels are repainted (Flutter damage semantics).
+func (c *PictureTextureCache) PrevBounds(id uint64) image.Rectangle {
+	if c == nil {
+		return image.Rectangle{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e := c.entries[id]; e != nil && e.recordedIn == c.recordFrame {
+		return e.prevBounds
+	}
+	return image.Rectangle{}
+}
+
 // OversizedBounds returns the bounds refused this frame for exceeding the
 // surface (empty when the layer cached normally).
 func (c *PictureTextureCache) OversizedBounds(id uint64) image.Rectangle {
@@ -1201,13 +1252,10 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 						}
 					}
 				}
-				// Re-recorded this frame → the layer's region changed.
-				if pl.CacheKey != 0 && tex.RecordedThisFrame(pl.CacheKey) {
-					b := tex.Bounds(pl.CacheKey)
-					if !b.Empty() {
-						st.DamageRects = append(st.DamageRects, transformBounds(dc, b))
-					}
-				}
+				// Re-recorded this frame → the layer's region changed. Damage
+				// is previous ∪ current bounds: a shrink must repaint the
+				// cleared tail or LoadOpLoad keeps stale pixels there
+				// (IME backspace stall).
 				// Non-translating ancestor (vector replay): the picture's
 				// rotated / scaled footprint is the four-corner CTM transform
 				// of its bounds — an axis-aligned bounds transform would
@@ -1215,6 +1263,18 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				if noTex > 0 && !pl.Picture.Bounds.Empty() {
 					st.DamageRects = append(st.DamageRects,
 						transformBounds4(dc, pl.Picture.Bounds))
+				}
+			}
+			// Re-recorded layers damage previous ∪ current bounds. This
+			// sits outside the empty-picture gate above on purpose: a layer
+			// cleared to empty keeps a viewless shell carrying its previous
+			// region (dropTransparent), and skipping damage here leaves the
+			// stale pixels until an incidental full repaint
+			// (second-backspace ghost).
+			if pl.CacheKey != 0 && tex.RecordedThisFrame(pl.CacheKey) {
+				b := tex.Bounds(pl.CacheKey).Union(tex.PrevBounds(pl.CacheKey))
+				if !b.Empty() {
+					st.DamageRects = append(st.DamageRects, transformBounds(dc, b))
 				}
 			}
 			return // leaf
