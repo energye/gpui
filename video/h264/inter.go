@@ -251,14 +251,14 @@ func lumaSample(plane []uint8, w, h, x, y, fx, fy int) int {
 	return avg2(hh, hv)
 }
 
-// predictLumaBlock copies one inter partition prediction from the reference.
-func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16) []uint8 {
-	out := make([]uint8, w*h)
+// predictLumaBlock writes one inter partition prediction from the reference
+// into out (length w*h).
+func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16, out []uint8) {
 	if ref == nil {
 		for i := range out {
 			out[i] = 128
 		}
-		return out
+		return
 	}
 	rw, rh := int(ref.Width), int(ref.Height)
 	for dy := 0; dy < h; dy++ {
@@ -273,13 +273,12 @@ func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16) []uint8 {
 			out[dy*w+dx] = uint8(lumaSample(ref.Y, rw, rh, ix, iy, fx, fy))
 		}
 	}
-	return out
 }
 
-// predictChromaBlock interpolates one chroma partition. The chroma vector
-// shares the luma integer (quarter units double as eighth units).
-func predictChromaBlock(plane []uint8, w, h, px, py, cw, ch int, mx, my int16) []uint8 {
-	out := make([]uint8, cw*ch)
+// predictChromaBlock interpolates one chroma partition into out (length
+// cw*ch). The chroma vector shares the luma integer (quarter units double
+// as eighth units).
+func predictChromaBlock(plane []uint8, w, h, px, py, cw, ch int, mx, my int16, out []uint8) {
 	for dy := 0; dy < ch; dy++ {
 		for dx := 0; dx < cw; dx++ {
 			ex := (px+dx)*8 + int(mx)
@@ -296,5 +295,4 @@ func predictChromaBlock(plane []uint8, w, h, px, py, cw, ch int, mx, my int16) [
 			out[dy*cw+dx] = uint8(clipInt(v, 0, 255))
 		}
 	}
-	return out
 }

@@ -4,57 +4,109 @@ import "fmt"
 
 // P-slice macroblock decoding: skip, inter partitions, intra fallback.
 
-func (d *Decoder) decodeSkip(h *SliceHeader, addr int) error {
+// part is one motion-compensated rectangle in luma pixels.
+type part struct {
+	px, py, w, h int
+	mx, my       int16
+	ref          int8
+}
+
+func (d *Decoder) decodeSkip(h *SliceHeader, addr int, r *Reader) error {
 	mbx, mby := addr%d.mbW, addr/d.mbW
-	x0, y0 := mbx*4, mby*4
-	mx, my := d.predMotion(x0, y0, 4, 0)
 	if d.refPic == nil {
 		return fmt.Errorf("%w: skip without reference", ErrBadSliceHeader)
 	}
+	mx, my := d.predMotion(mbx*4, mby*4, 4, 0)
 	d.storeMV(mbx*16, mby*16, 16, 16, mx, my, 0)
-	predY := predictLumaBlock(d.refPic, mbx*16, mby*16, 16, 16, mx, my)
-	for y := 0; y < 16; y++ {
-		for x := 0; x < 16; x++ {
-			d.pic.SetY(uint32(mbx*16+x), uint32(mby*16+y), predY[y*16+x])
-		}
+	var predY [256]uint8
+	var predCb, predCr [64]uint8
+	fillPred(&predY, &predCb, &predCr)
+	parts := [1]part{{mbx * 16, mby * 16, 16, 16, mx, my, 0}}
+	if err := d.mcParts(mbx, mby, parts[:], &predY, &predCb, &predCr); err != nil {
+		return err
 	}
-	cw, ch := int(d.pic.Width/2), int(d.pic.Height/2)
-	for comp := 0; comp < 2; comp++ {
-		plane := d.pic.Cb
-		refPlane := d.refPic.Cb
-		if comp == 1 {
-			plane = d.pic.Cr
-			refPlane = d.refPic.Cr
+	d.finishPMB(h, addr, mbx, mby)
+	if err := d.reconstructInter(r, mbx, mby, 0, &predY, &predCb, &predCr); err != nil {
+		return err
+	}
+	d.skipCnt++
+	return nil
+}
+
+// refFor resolves one reference index against list 0.
+func (d *Decoder) refFor(idx int8) (*Picture, error) {
+	if len(d.refList) == 0 {
+		if d.refPic != nil && idx == 0 {
+			return d.refPic, nil
 		}
-		pred := predictChromaBlock(refPlane, cw, ch, mbx*8, mby*8, 8, 8, mx, my)
-		for y := 0; y < 8; y++ {
-			for x := 0; x < 8; x++ {
-				plane[(mby*8+y)*cw+mbx*8+x] = pred[y*8+x]
+		return nil, fmt.Errorf("%w: ref %d without list", ErrBadSliceHeader, idx)
+	}
+	if int(idx) < 0 || int(idx) >= len(d.refList) || d.refList[idx] == nil {
+		return nil, fmt.Errorf("%w: ref idx %d", ErrBadSliceHeader, idx)
+	}
+	return d.refList[idx], nil
+}
+
+// fillPred resets MB prediction buffers to mid-grey.
+func fillPred(predY *[256]uint8, predCb, predCr *[64]uint8) {
+	for i := range predY {
+		predY[i] = 128
+	}
+	for i := range predCb {
+		predCb[i], predCr[i] = 128, 128
+	}
+}
+
+// mcParts runs motion compensation for every partition into MB-sized
+// prediction buffers.
+func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb, predCr *[64]uint8) error {
+	if len(parts) == 0 {
+		return fmt.Errorf("%w: no partitions", ErrBadSliceHeader)
+	}
+	rw, rh := int(d.pic.Width/2), int(d.pic.Height/2)
+	var blk [256]uint8
+	var cb, cr [64]uint8
+	for _, pt := range parts {
+		rp, err := d.refFor(pt.ref)
+		if err != nil {
+			return err
+		}
+		predictLumaBlock(rp, pt.px, pt.py, pt.w, pt.h, pt.mx, pt.my, blk[:pt.w*pt.h])
+		for y := 0; y < pt.h; y++ {
+			for x := 0; x < pt.w; x++ {
+				ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
+				predY[oy*16+ox] = blk[y*pt.w+x]
+			}
+		}
+		cw, ch := pt.w/2, pt.h/2
+		cx, cy := (pt.px-mbx*16)/2, (pt.py-mby*16)/2
+		// Chroma origin in the subsampled plane.
+		ccx, ccy := mbx*8+cx, mby*8+cy
+		predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cb[:cw*ch])
+		predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cr[:cw*ch])
+		for y := 0; y < ch; y++ {
+			for x := 0; x < cw; x++ {
+				predCb[(cy+y)*8+cx+x] = cb[y*cw+x]
+				predCr[(cy+y)*8+cx+x] = cr[y*cw+x]
 			}
 		}
 	}
-	stride := d.mbW * 4
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
-			bx, by := mbx*4+x, mby*4+y
-			d.modes[by*stride+bx] = -1
-			d.setNnz(d.nnzY, stride, bx, by, 0)
-		}
-	}
-	cstride := d.mbW * 2
-	for y := 0; y < 2; y++ {
-		for x := 0; x < 2; x++ {
-			d.setNnz(d.nnzCb, cstride, mbx*2+x, mby*2+y, 0)
-			d.setNnz(d.nnzCr, cstride, mbx*2+x, mby*2+y, 0)
-		}
-	}
+	return nil
+}
+
+// finishPMB records the per-MB state shared by all P macroblocks.
+func (d *Decoder) finishPMB(h *SliceHeader, addr, mbx, mby int) {
 	d.qps[addr] = d.qpY
 	d.fIDC[addr] = h.DisableFilter
 	d.fA[addr] = h.FilterAlpha
 	d.fB[addr] = h.FilterBeta
 	d.mbIntra[addr] = false
-	d.skipCnt++
-	return nil
+	stride := d.mbW * 4
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			d.modes[(mby*4+y)*stride+mbx*4+x] = -1
+		}
+	}
 }
 
 func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error {
@@ -78,23 +130,6 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 		// 8x8 transform flag would follow CBP; Baseline never sets it.
 		// Guard so a future High stream fails readable instead of skewing.
 		_ = pps
-	}
-	type part struct {
-		px, py, w, h int
-		mx, my       int16
-		ref          int8
-	}
-	refFor := func(idx int8) (*Picture, error) {
-		if len(d.refList) == 0 {
-			if d.refPic != nil && idx == 0 {
-				return d.refPic, nil
-			}
-			return nil, fmt.Errorf("%w: ref %d without list", ErrBadSliceHeader, idx)
-		}
-		if int(idx) < 0 || int(idx) >= len(d.refList) || d.refList[idx] == nil {
-			return nil, fmt.Errorf("%w: ref idx %d", ErrBadSliceHeader, idx)
-		}
-		return d.refList[idx], nil
 	}
 	var parts []part
 	x0, y0 := mbx*4, mby*4
@@ -274,48 +309,11 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 		}
 	}
 	// Motion compensation into full-MB prediction buffers.
-	predY := make([]uint8, 256)
-	for y := range predY {
-		predY[y] = 128
-	}
-	predCb := make([]uint8, 64)
-	predCr := make([]uint8, 64)
-	for i := range predCb {
-		predCb[i], predCr[i] = 128, 128
-	}
-	if len(parts) == 0 {
-		return fmt.Errorf("%w: no partitions", ErrBadSliceHeader)
-	}
-	for _, pt := range parts {
-		rp, err := refFor(pt.ref)
-		if err != nil {
-			return err
-		}
-		blk := predictLumaBlock(rp, pt.px, pt.py, pt.w, pt.h, pt.mx, pt.my)
-		for y := 0; y < pt.h; y++ {
-			for x := 0; x < pt.w; x++ {
-				ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
-				predY[oy*16+ox] = blk[y*pt.w+x]
-			}
-		}
-		cw := pt.w / 2
-		ch := pt.h / 2
-		cx, cy := (pt.px-mbx*16)/2, (pt.py-mby*16)/2
-		// Chroma origin in the subsampled plane.
-		ccx, ccy := mbx*8+cx, mby*8+cy
-		rw, rh := int(d.pic.Width/2), int(d.pic.Height/2)
-		rp2, err := refFor(pt.ref)
-		if err != nil {
-			return err
-		}
-		cb := predictChromaBlock(rp2.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my)
-		cr := predictChromaBlock(rp2.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my)
-		for y := 0; y < ch; y++ {
-			for x := 0; x < cw; x++ {
-				predCb[(cy+y)*8+cx+x] = cb[y*cw+x]
-				predCr[(cy+y)*8+cx+x] = cr[y*cw+x]
-			}
-		}
+	var predY [256]uint8
+	var predCb, predCr [64]uint8
+	fillPred(&predY, &predCb, &predCr)
+	if err := d.mcParts(mbx, mby, parts, &predY, &predCb, &predCr); err != nil {
+		return err
 	}
 	// CBP + QP delta + residual (inter table).
 	cbpUE, err := r.ReadUE()
@@ -339,24 +337,14 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 			d.qpY -= 52
 		}
 	}
-	d.qps[addr] = d.qpY
-	d.fIDC[addr] = h.DisableFilter
-	d.fA[addr] = h.FilterAlpha
-	d.fB[addr] = h.FilterBeta
-	d.mbIntra[addr] = false
-	stride := d.mbW * 4
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
-			d.modes[(mby*4+y)*stride+mbx*4+x] = -1
-		}
-	}
-	if err := d.reconstructInter(r, mbx, mby, cbp, predY, predCb, predCr); err != nil {
+	d.finishPMB(h, addr, mbx, mby)
+	if err := d.reconstructInter(r, mbx, mby, cbp, &predY, &predCb, &predCr); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d *Decoder) reconstructInter(r *Reader, mbx, mby int, cbp uint32, predY, predCb, predCr []uint8) error {
+func (d *Decoder) reconstructInter(r *Reader, mbx, mby int, cbp uint32, predY *[256]uint8, predCb, predCr *[64]uint8) error {
 	stride := d.mbW * 4
 	for _, b := range [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15} {
 		bx, by := mbx*4+b%4, mby*4+b/4
@@ -381,61 +369,5 @@ func (d *Decoder) reconstructInter(r *Reader, mbx, mby int, cbp uint32, predY, p
 		}
 		d.setNnz(d.nnzY, stride, bx, by, tc)
 	}
-	return d.reconstructInterChroma(r, mbx, mby, (cbp>>4)&3, predCb, predCr)
-}
-
-func (d *Decoder) reconstructInterChroma(r *Reader, mbx, mby int, cbpC uint32, predCb, predCr []uint8) error {
-	planes := [][]uint8{d.pic.Cb, d.pic.Cr}
-	preds := [][]uint8{predCb, predCr}
-	grids := [][]int8{d.nnzCb, d.nnzCr}
-	cstride := d.mbW * 2
-	qps := [2]int32{
-		ChromaQP(d.qpY, d.cOff0),
-		ChromaQP(d.qpY, d.cOff1),
-	}
-	var dcRs [2][4]int32
-	if cbpC > 0 {
-		for comp := 0; comp < 2; comp++ {
-			dcRaw, err := DecodeResidualBlock(r, 0, 4, 0, true)
-			if err != nil {
-				return fmt.Errorf("chroma dc: %w", err)
-			}
-			var dcArr [4]int32
-			copy(dcArr[:], dcRaw[:4])
-			dcRs[comp] = ITransformChromaDC(dcArr, uint32(qps[comp]))
-		}
-	}
-	for comp := 0; comp < 2; comp++ {
-		pred := preds[comp]
-		dcR := dcRs[comp]
-		for b := 0; b < 4; b++ {
-			var coeff [16]int32
-			acNZ := 0
-			if cbpC == 2 {
-				bx, by := mbx*2+b%2, mby*2+b/2
-				nC := d.blockNC(grids[comp], cstride, bx, by)
-				ac, err := DecodeResidualBlock(r, SelectTable(nC), 15, 1, false)
-				if err != nil {
-					return fmt.Errorf("chroma ac c%d b%d nC=%d: %w", comp, b, nC, err)
-				}
-				coeff = ac
-				for _, v := range ac {
-					if v != 0 {
-						acNZ++
-					}
-				}
-			}
-			res := ITransform4x4WithDC(coeff, dcR[b], uint32(qps[comp]))
-			bx, by := mbx*2+b%2, mby*2+b/2
-			for y := 0; y < 4; y++ {
-				for x := 0; x < 4; x++ {
-					v := int32(pred[((by-mby*2)*4+y)*8+(bx-mbx*2)*4+x]) + res[y*4+x]
-					px, py := uint32(bx*4+x), uint32(by*4+y)
-					planes[comp][py*d.pic.Width/2+px] = clipPixel(v)
-				}
-			}
-			d.setNnz(grids[comp], cstride, bx, by, acNZ)
-		}
-	}
-	return nil
+	return d.reconstructChromaBlocks(r, mbx, mby, (cbp>>4)&3, predCb, predCr)
 }

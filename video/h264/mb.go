@@ -206,7 +206,7 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	for addr < total {
 		// Pending skips consume no bits.
 		if h.IsP() && d.skipRun > 0 {
-			if err := d.decodeSkip(h, addr); err != nil {
+			if err := d.decodeSkip(h, addr, r); err != nil {
 				return fmt.Errorf("mb %d: %w", addr, err)
 			}
 			d.decoded++
@@ -660,13 +660,7 @@ func (d *Decoder) reconstructI16x16(r *Reader, mbx, mby, pred16, chromaMode int,
 }
 
 func (d *Decoder) reconstructChroma(r *Reader, mbx, mby, chromaMode int, cbpC uint32) error {
-	planes := [][]uint8{d.pic.Cb, d.pic.Cr}
-	grids := [][]int8{d.nnzCb, d.nnzCr}
-	cstride := d.mbW * 2
-	qps := [2]int32{
-		ChromaQP(d.qpY, d.cOff0),
-		ChromaQP(d.qpY, d.cOff1),
-	}
+	planes := [2][]uint8{d.pic.Cb, d.pic.Cr}
 	var preds [2][64]uint8
 	var err error
 	for comp := 0; comp < 2; comp++ {
@@ -677,6 +671,21 @@ func (d *Decoder) reconstructChroma(r *Reader, mbx, mby, chromaMode int, cbpC ui
 		}
 	}
 	// Bitstream order is Cb DC, Cr DC, then Cb AC blocks, Cr AC blocks.
+	return d.reconstructChromaBlocks(r, mbx, mby, cbpC, &preds[0], &preds[1])
+}
+
+// reconstructChromaBlocks reads chroma residual against caller-supplied
+// prediction and adds it into the picture. Both intra and inter macroblocks
+// share this tail; only the prediction source differs.
+func (d *Decoder) reconstructChromaBlocks(r *Reader, mbx, mby int, cbpC uint32, predCb, predCr *[64]uint8) error {
+	planes := [2][]uint8{d.pic.Cb, d.pic.Cr}
+	preds := [2]*[64]uint8{predCb, predCr}
+	grids := [2][]int8{d.nnzCb, d.nnzCr}
+	cstride := d.mbW * 2
+	qps := [2]int32{
+		ChromaQP(d.qpY, d.cOff0),
+		ChromaQP(d.qpY, d.cOff1),
+	}
 	var dcRs [2][4]int32
 	if cbpC > 0 {
 		for comp := 0; comp < 2; comp++ {
