@@ -106,27 +106,30 @@ func clipPixel(v int32) uint8 {
 
 // itrans4x4Core is the exact integer inverse transform (8.5.12) on
 // de-quantized coefficients in raster order, yielding residual samples.
+// Pass order is horizontal (rows) first, then vertical (columns): the
+// intermediate >>1 floors make the two orders differ by a rounding bit,
+// and this order matches the reference decoder bit-for-bit.
 func itrans4x4Core(c [16]int32) [16]int32 {
 	var e, f [16]int32
 	for i := 0; i < 4; i++ {
-		s0 := c[i] + c[8+i]
-		s1 := c[i] - c[8+i]
-		s2 := (c[4+i] >> 1) - c[12+i]
-		s3 := c[4+i] + (c[12+i] >> 1)
-		e[i] = s0 + s3
-		e[4+i] = s1 + s2
-		e[8+i] = s1 - s2
-		e[12+i] = s0 - s3
+		s0 := c[4*i] + c[4*i+2]
+		s1 := c[4*i] - c[4*i+2]
+		s2 := (c[4*i+1] >> 1) - c[4*i+3]
+		s3 := c[4*i+1] + (c[4*i+3] >> 1)
+		e[4*i] = s0 + s3
+		e[4*i+1] = s1 + s2
+		e[4*i+2] = s1 - s2
+		e[4*i+3] = s0 - s3
 	}
 	for i := 0; i < 4; i++ {
-		s0 := e[4*i] + e[4*i+2]
-		s1 := e[4*i] - e[4*i+2]
-		s2 := (e[4*i+1] >> 1) - e[4*i+3]
-		s3 := e[4*i+1] + (e[4*i+3] >> 1)
-		f[4*i] = s0 + s3
-		f[4*i+1] = s1 + s2
-		f[4*i+2] = s1 - s2
-		f[4*i+3] = s0 - s3
+		s0 := e[i] + e[8+i]
+		s1 := e[i] - e[8+i]
+		s2 := (e[4+i] >> 1) - e[12+i]
+		s3 := e[4+i] + (e[12+i] >> 1)
+		f[i] = s0 + s3
+		f[4+i] = s1 + s2
+		f[8+i] = s1 - s2
+		f[12+i] = s0 - s3
 	}
 	var out [16]int32
 	for i := range out {
