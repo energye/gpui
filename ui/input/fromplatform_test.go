@@ -410,3 +410,42 @@ func TestEventKindString(t *testing.T) {
 		t.Fatalf("none string: %s", KindNone)
 	}
 }
+
+func TestFromPlatform_ModifiersChanged(t *testing.T) {
+	ev := FromPlatform(platform.Event{
+		Type: platform.EventModifiersChanged,
+		ModShift: true, ModControl: false, ModAlt: true, ModMeta: false,
+	}, Modifiers{})
+	if ev.Kind != KindModifiersChanged {
+		t.Fatalf("kind = %s, want modifiers-changed", ev.Kind)
+	}
+	if !ev.Modifiers.Shift || ev.Modifiers.Control || !ev.Modifiers.Alt || ev.Modifiers.Meta {
+		t.Fatalf("mods = %+v, want shift+alt", ev.Modifiers)
+	}
+	all := FromPlatform(platform.Event{
+		Type: platform.EventModifiersChanged,
+		ModShift: true, ModControl: true, ModAlt: true, ModMeta: true,
+	}, Modifiers{})
+	if !all.Modifiers.Shift || !all.Modifiers.Control || !all.Modifiers.Alt || !all.Modifiers.Meta {
+		t.Fatalf("all mods = %+v", all.Modifiers)
+	}
+	none := FromPlatform(platform.Event{Type: platform.EventModifiersChanged}, Modifiers{})
+	if none.Kind != KindModifiersChanged || !none.Modifiers.IsEmpty() {
+		t.Fatalf("empty = %s %+v, want modifiers-changed with no mods", none.Kind, none.Modifiers)
+	}
+}
+
+func TestFromPlatform_PointerCancelCarriesPos(t *testing.T) {
+	ev := FromPlatform(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerCancel, X: 11, Y: 22,
+	}, Modifiers{Shift: true})
+	if ev.Kind != KindPointer || ev.Pointer.Kind != PointerCancel {
+		t.Fatalf("cancel = %s/%s, want pointer/cancel", ev.Kind, ev.Pointer.Kind)
+	}
+	if ev.Pointer.X != 11 || ev.Pointer.Y != 22 {
+		t.Fatalf("cancel pos = (%.1f,%.1f), want (11,22)", ev.Pointer.X, ev.Pointer.Y)
+	}
+	if !ev.Modifiers.Shift {
+		t.Fatalf("cancel mods not preserved: %+v", ev.Modifiers)
+	}
+}

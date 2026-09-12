@@ -124,6 +124,8 @@ const (
 	xevStateOff       = 88 // XVisibilityEvent.state
 	xevKeyStateOff    = 80 // XKeyEvent.state
 	xevKeyTimeOff     = 56 // XKeyEvent.time (Time is 8 bytes)
+	xevFocusModeOff   = 40 // XFocusChangeEvent.mode (NotifyGrab = grab break)
+	xevCrossModeOff   = 80 // XCrossingEvent.mode (NotifyGrab = pointer grabbed away)
 	// XPresentNotifyEvent.window (linux amd64: type@0 serial@8 send_event@16
 	// display@24 window@32 — Present extension).
 	xevPresentWindowOff = 32
@@ -177,6 +179,19 @@ const (
 
 const xShiftMask = 1 << 0 // X11 ShiftMask
 const xLockMask = 1 << 1  // X11 LockMask (CapsLock)
+const xControlMask = 1 << 2 // X11 ControlMask
+const xMod1Mask = 1 << 3    // X11 Mod1Mask (Alt on most layouts)
+const xMod4Mask = 1 << 6    // X11 Mod4Mask (Super/Meta on most layouts)
+
+// X11 notify modes (X.h NotifyNormal/NotifyGrab/NotifyUngrab/NotifyWhileGrabbed).
+// FocusOut or LeaveNotify with a grab mode means another client grabbed the
+// input mid-gesture: the ongoing pointer sequence is aborted, not released.
+const (
+	xNotifyNormal       = 0
+	xNotifyGrab         = 1
+	xNotifyUngrab       = 2
+	xNotifyWhileGrabbed = 3
+)
 
 // xSizeHints subset (Xutil.h) — layout matches linux/amd64 libX11.
 type xSizeHints struct {
@@ -739,6 +754,17 @@ type x11State struct {
 	repeatArmed   bool
 	repeatKeycode uint32
 	repeatTime    uint32
+
+	// Modifier tracking (§4.4 B 组): last reported held state + last pointer
+	// position for grab-break cancel stamping. Guarded by mu with the rest
+	// of the async window state; the pump thread owns writes.
+	modShift   bool
+	modControl bool
+	modAlt     bool
+	modMeta    bool
+	lastPX     float64
+	lastPY     float64
+	hasPtrPos  bool
 
 	// XI2 touch gate: xiTouch set at Create when XI 2.2+ selects cleanly;
 	// xiMajor is the extension opcode GenericEvents are checked against.
@@ -1350,16 +1376,41 @@ func (h *x11Host) drainX() []Event {
 		case xFocusOut:
 			st.mu.Lock()
 			st.focused = false
+			px, py, has := st.lastPX, st.lastPY, st.hasPtrPos
 			st.mu.Unlock()
 			out = append(out, Event{Type: EventFocus, Focused: false})
+			// Grab-break cancel (§4.4 C 组): focus lost to a grab means the
+			// ongoing pointer sequence is aborted, not released.
+			if mode := int(readI32(buf[:], xevFocusModeOff)); mode == xNotifyGrab ||
+				mode == xNotifyWhileGrabbed {
+				if !has {
+					px, py = 0, 0
+				}
+				out = append(out, Event{Type: EventPointer, Pointer: PointerCancel, X: px, Y: py})
+			}
 		case xEnterNotify:
-			out = append(out, Event{Type: EventPointer, Pointer: PointerEnter,
-				X: float64(readI32(buf[:], xevPointerXOff)), Y: float64(readI32(buf[:], xevPointerYOff))})
+			px := float64(readI32(buf[:], xevPointerXOff))
+			py := float64(readI32(buf[:], xevPointerYOff))
+			st.mu.Lock()
+			st.lastPX, st.lastPY, st.hasPtrPos = px, py, true
+			st.mu.Unlock()
+			out = append(out, Event{Type: EventPointer, Pointer: PointerEnter, X: px, Y: py})
 		case xLeaveNotify:
-			out = append(out, Event{Type: EventPointer, Pointer: PointerLeave,
-				X: float64(readI32(buf[:], xevPointerXOff)), Y: float64(readI32(buf[:], xevPointerYOff))})
+			px := float64(readI32(buf[:], xevPointerXOff))
+			py := float64(readI32(buf[:], xevPointerYOff))
+			st.mu.Lock()
+			st.lastPX, st.lastPY, st.hasPtrPos = px, py, true
+			st.mu.Unlock()
+			out = append(out, Event{Type: EventPointer, Pointer: PointerLeave, X: px, Y: py})
+			// Grab-break cancel (§4.4 C 组): pointer grabbed away mid-gesture.
+			if mode := int(readI32(buf[:], xevCrossModeOff)); mode == xNotifyGrab {
+				out = append(out, Event{Type: EventPointer, Pointer: PointerCancel, X: px, Y: py})
+			}
 		case xButtonPress, xButtonRelease, xMotionNotify:
 			if ev, ok := h.decodePointer(t, buf[:]); ok {
+				st.mu.Lock()
+				st.lastPX, st.lastPY, st.hasPtrPos = ev.X, ev.Y, true
+				st.mu.Unlock()
 				out = append(out, ev)
 			}
 		case xKeyPress, xKeyRelease:
@@ -1367,25 +1418,26 @@ func (h *x11Host) drainX() []Event {
 			if drop {
 				continue
 			}
-			// S4: X11 挂起队列等真回话，不靠固定闹钟（m/没 双写根治）
-			if h.ime != nil {
-				if x, ok := h.ime.(*x11Ime); ok && x != nil {
-					keycode := uint32(readU32(buf[:], xevKeycodeOff))
-					state := uint32(readU32(buf[:], xevKeyStateOff))
-					isPress := t == xKeyPress
-					xTime := uint32(readU64(buf[:], xevKeyTimeOff) & 0xffffffff)
-					// 先解好 EventKey，供回调决定塞不塞
-					if ev, ok := h.decodeKey(t, buf[:], state); ok {
-						ev.Repeat = repeat
-						x.ProcessKeyEventAsync(keycode, state, isPress, xTime, ev)
-					}
-					continue
+			stateForMods := uint32(readU32(buf[:], xevKeyStateOff))
+			if ev, ok := h.decodeKey(t, buf[:], stateForMods); ok {
+				isPress := t == xKeyPress
+				// ModifiersChanged leads Key so the router's tracked mods are
+				// fresh when the Key itself routes (plain typing stays quiet).
+				ns, nc, na, nm := x11NewMods(stateForMods, ev.KeyCode, isPress)
+				if mev, changed := h.x11TrackMods(ns, nc, na, nm); changed {
+					out = append(out, mev)
 				}
-			}
-			// 无 IME 或非 x11Ime 测试桩，走本地
-			stateForDecode := uint32(readU32(buf[:], xevKeyStateOff))
-			if ev, ok := h.decodeKey(t, buf[:], stateForDecode); ok {
 				ev.Repeat = repeat
+				// S4: X11 挂起队列等真回话，不靠固定闹钟（m/没 双写根治）
+				if h.ime != nil {
+					if x, ok := h.ime.(*x11Ime); ok && x != nil {
+						keycode := uint32(readU32(buf[:], xevKeycodeOff))
+						xTime := uint32(readU64(buf[:], xevKeyTimeOff) & 0xffffffff)
+						x.ProcessKeyEventAsync(keycode, stateForMods, isPress, xTime, ev)
+						continue
+					}
+				}
+				// 无 IME 或非 x11Ime 测试桩，走本地
 				out = append(out, ev)
 			}
 		case xClientMessage:
@@ -1613,6 +1665,55 @@ func (h *x11Host) checkAutoRepeat(t int, buf []byte) (repeat, drop bool) {
 	repeat = st.repeatArmed && st.repeatKeycode == keycode && st.repeatTime == keyTime
 	st.repeatArmed = false
 	return repeat, false
+}
+
+// x11ModsFromState derives the four reported modifiers from an XKeyEvent
+// state mask (pre-event bits). Alt lives on Mod1 and Meta/Super on Mod4 on
+// standard layouts; other Mod bits (Mod2/3/5, Lock) are not reported.
+func x11ModsFromState(state uint32) (shift, ctrl, alt, meta bool) {
+	return state&xShiftMask != 0, state&xControlMask != 0,
+		state&xMod1Mask != 0, state&xMod4Mask != 0
+}
+
+// x11NewMods folds one KeyPress/Release into the modifier state. The X state
+// mask predates the event itself, so a modifier key press/release overrides
+// its own bit (press sets, release clears); other keys keep the mask as is.
+func x11NewMods(state uint32, keysym int, pressed bool) (shift, ctrl, alt, meta bool) {
+	shift, ctrl, alt, meta = x11ModsFromState(state)
+	switch uint32(keysym) {
+	case 0xffe1, 0xffe2: // Shift L/R
+		shift = pressed
+	case 0xffe3, 0xffe4: // Control L/R
+		ctrl = pressed
+	case 0xffe9, 0xffea: // Alt L/R
+		alt = pressed
+	case 0xffeb, 0xffec: // Super/Meta L/R
+		meta = pressed
+	}
+	return shift, ctrl, alt, meta
+}
+
+// x11TrackMods compares the new modifier state against the cached report and
+// emits EventModifiersChanged on change. Callers hold no locks. Returns the
+// event and true only when the state moved; unchanged stays quiet so plain
+// typing costs nothing.
+func (h *x11Host) x11TrackMods(shift, ctrl, alt, meta bool) (Event, bool) {
+	st := h.st
+	if st == nil {
+		return Event{}, false
+	}
+	st.mu.Lock()
+	changed := shift != st.modShift || ctrl != st.modControl ||
+		alt != st.modAlt || meta != st.modMeta
+	if changed {
+		st.modShift, st.modControl, st.modAlt, st.modMeta = shift, ctrl, alt, meta
+	}
+	st.mu.Unlock()
+	if !changed {
+		return Event{}, false
+	}
+	return Event{Type: EventModifiersChanged,
+		ModShift: shift, ModControl: ctrl, ModAlt: alt, ModMeta: meta}, true
 }
 
 // peekKeyPress reports whether the next queued event is a KeyPress with the

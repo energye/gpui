@@ -1,6 +1,6 @@
 # 平台窗口统一 API — 设计真源
 
-> **版本：v2.24** | 日期：2026-09-12  
+> **版本：v2.25** | 日期：2026-09-12  
 > **地位：** `ui/platform` 窗口接口（Options / Window / Host / WindowController / Event）唯一设计真源，**口径：四平台统一语义**。
 > **并读：** [`ENGINE_WAYLAND_WINDOW_STANDARD.md`](./ENGINE_WAYLAND_WINDOW_STANDARD.md)（Wayland 标准窗口 CSD）· [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（分层）· [`ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`](./ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md) / [`ENGINE_TEXT_X11_IME_REQUIREMENT.md`](./ENGINE_TEXT_X11_IME_REQUIREMENT.md)（输入法需求；原 `ENGINE_INPUT_IME_PLAN.md` 不存在，入口改指这两份）  
 > **对标参考：** winit（Rust 窗口库）· GTK4（GtkWindow/GdkToplevel）· sctk（wayland-client 壳）· Zed gpui · Flutter（WindowOptions）。
@@ -121,7 +121,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | EventMove | MoveX/MoveY | 客户区左上屏幕坐标变化 | ✅ ConfigureNotify x/y | ⛔ 协议无 | ⬜ WM_MOVE | ⬜ didMoveNotification |
 | EventScale | Scale | dpr 独立变化（多屏拖动/系统缩放） | ✅ RandR 通知 + Xft.dpi 推导 | ✅ output 监听取 max | ⬜ WM_DPICHANGED | ⬜ viewDidChangeBackingProperties |
 | EventOccluded | Occluded bool | 完全遮挡/最小化（停渲染省电） | ✅ VisibilityNotify | ✅ suspended 上报 | ⬜ WM_SHOWWINDOW | ⬜ occlusionState |
-| EventPointer（Move/Down/Up/Scroll/**Enter/Leave/Cancel**） | PointerKind/X/Y/Button/Scroll* | 指针全事件（含 enter/leave hover 判定；Cancel 为 grab 中断/座位丢失，两端均为🔨未上报；X11 6/7 号横滚键转 ScrollX） | ✅ enter/leave 带坐标（Cancel 待 grab 中断上报🔨） | ✅ enter/leave；Leave 补最近坐标（Cancel 待 seat 丢失上报🔨） | ⬜ WM_MOUSEMOVE/ENTER/LEAVE | ⬜ mouseEntered:/Exited: |
+| EventPointer（Move/Down/Up/Scroll/**Enter/Leave/Cancel**） | PointerKind/X/Y/Button/Scroll* | 指针全事件（含 enter/leave hover 判定；Cancel 为 grab 中断/座位丢失，X11 已上报、Wayland 仍🔨；X11 6/7 号横滚键转 ScrollX） | ✅ enter/leave 带坐标 + grab 中断 Cancel（FocusOut/Leave NotifyGrab，带最后坐标） | ✅ enter/leave；Leave 补最近坐标（Cancel 待 seat 丢失上报🔨） | ⬜ WM_MOUSEMOVE/ENTER/LEAVE | ⬜ mouseEntered:/Exited: |
 | EventKey | KeyCode/Rune/Pressed/Repeat | 键盘（IME 已消费跳过；X11 XKB 连发/Wayland 客户端合成连发置 Repeat，异步 IME 保序） | ✅ | ✅ | ⬜ WM_KEYDOWN/UP | ⬜ keyDown/Up |
 | EventIME | IMEKind/IMEText/IMEStart/IMEEnd | 输入法（compose/commit/caret/delete-surrounding；X11 走 D-Bus ibus/fcitx5，XIM 已移除；两端暂缺 caret；Wayland text-input 批量原子提交 + 同 rect 去重） | ✅ D-Bus | ✅ text-input v3 | ⬜ TSF | ⬜ NSTextInputClient |
 | EventTouch | ID(≥1)/X/Y + 相位(Down/Move/Up/Cancel) | 多点触控槽采样 | ✅ XI2 探测 + 解析 + 门控 | ✅ wl_touch 绑定 + 解码 | ⬜ WM_TOUCH/POINTER | ⬜ touchesBegan/Moved/Ended: |
@@ -257,7 +257,7 @@ B 键盘/文本/输入法：
 | 上层事件 | 携带 | X11 | Wayland | Win32 | AppKit | 备注 |
 |---|---|---|---|---|---|---|
 | KindKey | Key/Rune/Pressed/Repeat | ✅ XKB 连发检测置位（含异步 IME 保序） | ✅ 客户端合成连发置位 | ⬜ WM_KEYDOWN/UP | ⬜ keyDown/Up | Repeat 必带；存量 `fromplatform_test.go` 补 Repeat 断言 |
-| KindModifiersChanged | Shift/Control/Alt/Meta | 🔨 状态变化即报 | 🔨 modifiers 事件即报 | ⬜ 修饰键跟踪 | ⬜ flagsChanged: | 修饰键单独变化也报一次 |
+| KindModifiersChanged | Shift/Control/Alt/Meta | ✅ 状态变化即报（Key 状态位 + 修饰键覆盖，去重，IME 路径也报） | 🔨 modifiers 事件即报 | ⬜ 修饰键跟踪 | ⬜ flagsChanged: | 修饰键单独变化也报一次 |
 | KindText | Text string | ✅ | ✅ | ⬜ WM_CHAR | ⬜ insertText: | 提交文字（键字符/粘贴/IME 提交转正） |
 | KindIMEPreedit | Text/Start/End | ✅ D-Bus（XIM 已移除） | ✅ text-input v3 | ⬜ TSF | ⬜ NSTextInputClient | 复用 KindIME + IMECompose；行名是语义别名，不新增 Kind |
 | KindIMECommit | Text | ✅ | ✅ | ⬜ TSF | ⬜ NSTextInputClient | 复用 KindIME + IMECommit |
@@ -271,7 +271,7 @@ C 鼠标（含悬停/滚轮相位）：
 | KindPointerMove | X/Y/Buttons | ✅ | ✅ | ⬜ WM_MOUSEMOVE | ⬜ mouseMoved: | 悬停移动；复用 KindPointer + PointerMove |
 | KindPointerDown/Up | X/Y/Button(1–5+前进后退) | ✅ 1–5 + 前进后退透传；6/7 转 ScrollX | ✅（含 8/9 侧键） | ⬜ WM_L/RBUTTON + XBUTTON | ⬜ mouseDown/Up | 5 键 + 横滚键区分；复用 KindPointer + PointerDown/Up |
 | KindPointerEnter/Leave | X/Y | ✅ 带坐标 | ✅；Leave 补最近坐标 | ⬜ TRACKMOUSEEVENT | ⬜ mouseEntered:/Exited: | 复用 KindPointer + PointerEnter/Leave；不再归并 Move |
-| KindPointerCancel | — | 🔨 grab 中断上报 | 🔨 seat 丢失上报 | ⬜ WM_CAPTURECHANGED | ⬜ trackingLost | 复用 KindPointer + PointerCancel；手势被系统打断 |
+| KindPointerCancel | — | ✅ grab 中断上报（FocusOut/Leave NotifyGrab，带最后坐标） | 🔨 seat 丢失上报 | ⬜ WM_CAPTURECHANGED | ⬜ trackingLost | 复用 KindPointer + PointerCancel；手势被系统打断 |
 | KindScroll | ScrollX/ScrollY + Phase(Started/Moved/Ended) | ✅ 4/5 竖滚 + 6/7 横滚 | ✅ axis 对齐 | ⬜ WM_MOUSEWHEEL/HWHEEL | ⬜ scrollWheel: | 复用 KindScroll；触控板惯性走 Moved→Ended |
 
 D 触控（多点）：
@@ -352,6 +352,7 @@ H 设备热插拔（P1）：
 
 ## 5. 修订
 
+- v2.25（2026-09-12）：**X11 修饰键与指针取消上报**——源码为准：新增 `EventModifiersChanged + ModShift/ModControl/ModAlt/ModMeta` 平台事件（`host.go` 尾部追加，旧值不动），`FromPlatform` 补映射；X11 侧按键状态位 + 修饰键覆盖推新状态、变化才报（含 IME 路径，去重，修饰报在按键前），FocusOut/Leave 遇 NotifyGrab/WhileGrabbed 追加 `PointerCancel`（带最后坐标，正常 Focus/Leave 仍单报）；收敛：主循环放行新事件进路由器，路由器见修饰变化即同步跟踪状态。§2.4 指针行补 X11 Cancel 说明，§4.4 B/C 组 X11 格翻绿（Wayland 两格仍 🔨），§3 不动（S6-P0 已 ✅，S6-P1 仍 🔨：剩 Wayland 悬停三上报、MIME 二期、外发拖放、Wayland 座位/取消/修饰上报）。回归按文件逐个：`ui/input` 映射（含新修饰/取消断言）+ embedder 路由（含修饰同步）+ pfkit 恒绿，B 层 X11 修饰/取消/进出/连发/横滚/触控解析绿，A 层 `ui_pf_x11` 19/19；Wayland 无显示诚实 Skip。
 - v2.24（2026-09-12）：**X11 笔压感先行**——源码为准：新增 `EventStylus + StylusID/Pressure/Tilt/Eraser` 平台事件（`host.go` 尾部追加，旧值不动），`FromPlatform` 补映射 + `FromStylus` 入口 + 主循环路由放行（路由器本就透传到 `OnEvent`）；X11 侧 `x11_stylus_linux.go`（笔设备逐个选 XI ButtonPress/Release/Motion、valuator 掩码按位取值、pressure 按 min/max 归一、无压感填 1、tilt 原始度数、eraser 看名、small ID 0 起、热插拔跟 hierarchy 增删；触控/层级选择按 deviceid 共存，鼠标核心路径不动）；Wayland 平板二期占位（`wayland_tablet_linux.go` 未绑定，零行为变化）。§2.4 补笔行（X11 ✅、Wayland ⬜、Win32/AppKit ⬜），§4.4 E 组 X11 格翻绿（Wayland ⛔→⬜ 二期占位），§3 S6-P2 ⬜→🔨。回归按文件逐个：`ui/input` 映射（含新笔文件）+ embedder 路由 + pfkit 恒绿，B 层笔解析/设备解析/DnD/同步/S6-P0 核心/窗口/显隐全绿，A 层 `ui_pf_x11` 19/19；Wayland 无显示诚实 Skip（笔无硬件，有笔需真笔复验压感曲线）。
 - v2.23（2026-09-12）：**跨平台标记规整**——只补标记不动语义：图例补 ⚠️（部分支持/依赖 WM）；§2.4 补 Touch 与 Device 两行的 Win32/AppKit 预期映射、Pointer 标题补 Cancel 并注明两端 Cancel 均为🔨；§2.6 A′ 行区分 IME 人工无门禁与 DnD/Device 自检 + 人工二合一并补两窗 `-auto-only` 命令；§3 日期对齐到 2026-09-12；§4.4 约定补 ✅/⬜ 口径，A–H 全表 Win32/AppKit 空白补预期映射（Close/Resize/Move/Scale/Occluded/Hidden/Focus/State/Theme/Frame/Monitor、Key/Modifiers/Text/IME/Locale、Pointer/Scroll/Touch/Force、Stylus、Pinch/Rotate/SmartMagnify、Drag 三件套、Device）。
 - v2.22（2026-09-12）：**设备插拔专项真窗**——新增 `examples/ui_pf_x11_device`（自检 + 人工二合一）：启动先跑映射自检（Added/Removed/Pen/Unknown 四行），再常驻收真事件；收到设备增减即打日志并改标题显示状态，关窗或 `-manual-seconds` 超时后出汇总 + JSON；`-auto-only` 只跑自检供门禁（4/4 PASS）。`ui_pf_x11` 保持原样（跑完即关的一次性验收）。

@@ -878,3 +878,231 @@ func evTypes(got []Event) []string {
 	}
 	return out
 }
+
+func TestX11ModsFromState(t *testing.T) {
+	if s, c, a, m := x11ModsFromState(0); s || c || a || m {
+		t.Fatalf("empty = %v %v %v %v", s, c, a, m)
+	}
+	if s, c, a, m := x11ModsFromState(xShiftMask | xControlMask | xMod1Mask | xMod4Mask); !s || !c || !a || !m {
+		t.Fatalf("all = %v %v %v %v", s, c, a, m)
+	}
+	if _, _, _, m := x11ModsFromState(1 << 5); m {
+		t.Fatal("Mod3 must not report as meta")
+	}
+}
+
+func TestX11NewMods(t *testing.T) {
+	// Modifier press overrides its pre-event bit (X state predates the event).
+	if s, _, _, _ := x11NewMods(0, 0xffe1, true); !s {
+		t.Fatal("shift press with clear state must set shift")
+	}
+	if s, _, _, _ := x11NewMods(xShiftMask, 0xffe1, false); s {
+		t.Fatal("shift release with set state must clear shift")
+	}
+	if _, c, _, _ := x11NewMods(0, 0xffe3, true); !c {
+		t.Fatal("control press must set control")
+	}
+	if _, _, a, _ := x11NewMods(0, 0xffe9, true); !a {
+		t.Fatal("alt press must set alt")
+	}
+	if _, _, _, m := x11NewMods(0, 0xffeb, true); !m {
+		t.Fatal("meta press must set meta")
+	}
+	// Plain keys keep the mask as is.
+	if s, _, _, _ := x11NewMods(xShiftMask, 'a', true); !s {
+		t.Fatal("plain key must keep shift from state")
+	}
+	if s, _, _, _ := x11NewMods(0, 'a', true); s {
+		t.Fatal("plain key must not invent shift")
+	}
+}
+
+func TestX11TrackModsEmitsOnce(t *testing.T) {
+	h := &x11Host{st: &x11State{}}
+	if _, ok := h.x11TrackMods(false, false, false, false); ok {
+		t.Fatal("initial empty must stay quiet")
+	}
+	mev, ok := h.x11TrackMods(true, false, false, false)
+	if !ok || mev.Type != EventModifiersChanged || !mev.ModShift {
+		t.Fatalf("shift change = %+v ok=%v", mev, ok)
+	}
+	if _, ok := h.x11TrackMods(true, false, false, false); ok {
+		t.Fatal("repeat same state must stay quiet")
+	}
+	mev, ok = h.x11TrackMods(false, false, false, false)
+	if !ok || mev.Type != EventModifiersChanged || mev.ModShift {
+		t.Fatalf("shift release = %+v ok=%v", mev, ok)
+	}
+}
+
+func x11KeyWithState(st *x11State, typ int32, keycode uint, tm uint64, state uint32) []byte {
+	ev := x11Key(st, typ, keycode, tm)
+	*(*uint32)(unsafe.Pointer(&ev[80])) = state
+	return ev
+}
+
+func x11FocusWithMode(st *x11State, typ int32, mode int32) []byte {
+	ev := make([]byte, 128)
+	*(*int32)(unsafe.Pointer(&ev[0])) = typ // 9 in / 10 out
+	*(*uintptr)(unsafe.Pointer(&ev[32])) = st.window
+	*(*int32)(unsafe.Pointer(&ev[40])) = mode
+	return ev
+}
+
+func x11CrossingWithMode(st *x11State, typ int32, x, y, mode int32) []byte {
+	ev := x11Crossing(st, typ, x, y)
+	*(*int32)(unsafe.Pointer(&ev[80])) = mode
+	return ev
+}
+
+func TestX11ModifiersChangedPump(t *testing.T) {
+	win := openTestX11(t)
+	defer win.Close()
+	h, st, lib := x11P0Handles(t, win)
+	x11Drain(h)
+	st.mu.Lock()
+	st.modShift, st.modControl, st.modAlt, st.modMeta = false, false, false, false
+	st.mu.Unlock()
+	// Plain 'a' (keycode 38) with the Shift bit set observes a state change:
+	// the pump reports ModifiersChanged alongside the key.
+	x11SendEvent(st, lib, x11KeyWithState(st, 2, 38, 0x7000, xShiftMask))
+	got := x11Collect(h, 2*time.Second, func(ev []Event) bool {
+		return x11HasType(ev, EventModifiersChanged) != nil
+	})
+	mev := x11HasType(got, EventModifiersChanged)
+	if mev == nil {
+		t.Fatalf("shift-state key produced no ModifiersChanged; saw %v", evTypes(got))
+	}
+	if !mev.ModShift {
+		t.Fatalf("modifiers = %+v, want shift", *mev)
+	}
+	// Same state again stays quiet (dedup): only the first transition reports.
+	x11Drain(h)
+	x11SendEvent(st, lib, x11KeyWithState(st, 2, 38, 0x7001, xShiftMask))
+	soak := x11Collect(h, 400*time.Millisecond, nil)
+	for _, e := range soak {
+		if e.Type == EventModifiersChanged {
+			t.Fatalf("repeat state emitted %+v", e)
+		}
+	}
+	// Clearing the bit reports the release.
+	x11SendEvent(st, lib, x11KeyWithState(st, 3, 38, 0x7002, 0))
+	got = x11Collect(h, 2*time.Second, func(ev []Event) bool {
+		for _, e := range ev {
+			if e.Type == EventModifiersChanged && !e.ModShift {
+				return true
+			}
+		}
+		return false
+	})
+	found := false
+	for _, e := range got {
+		if e.Type == EventModifiersChanged && !e.ModShift {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("state clear produced no empty ModifiersChanged; saw %v", evTypes(got))
+	}
+}
+
+func TestX11PointerCancelOnGrab(t *testing.T) {
+	win := openTestX11(t)
+	defer win.Close()
+	h, st, lib := x11P0Handles(t, win)
+	x11Drain(h)
+	// Normal leave stays a lone Leave (no cancel).
+	x11SendEvent(st, lib, x11CrossingWithMode(st, 8, 11, 22, xNotifyNormal))
+	got := x11Collect(h, 2*time.Second, func(ev []Event) bool {
+		for _, e := range ev {
+			if e.Type == EventPointer && e.Pointer == PointerLeave {
+				return true
+			}
+		}
+		return false
+	})
+	hasLeave, hasCancel := false, false
+	for _, e := range got {
+		if e.Type == EventPointer && e.Pointer == PointerLeave {
+			hasLeave = true
+		}
+		if e.Type == EventPointer && e.Pointer == PointerCancel {
+			hasCancel = true
+		}
+	}
+	if !hasLeave || hasCancel {
+		t.Fatalf("normal leave = leave=%v cancel=%v, want leave-only; saw %v", hasLeave, hasCancel, got)
+	}
+	// Grab leave reports Leave + Cancel at the same position.
+	x11Drain(h)
+	x11SendEvent(st, lib, x11CrossingWithMode(st, 8, 33, 44, xNotifyGrab))
+	got = x11Collect(h, 2*time.Second, func(ev []Event) bool {
+		for _, e := range ev {
+			if e.Type == EventPointer && e.Pointer == PointerCancel {
+				return true
+			}
+		}
+		return false
+	})
+	var leave, cancel *Event
+	for i := range got {
+		if got[i].Type == EventPointer && got[i].Pointer == PointerLeave {
+			leave = &got[i]
+		}
+		if got[i].Type == EventPointer && got[i].Pointer == PointerCancel {
+			cancel = &got[i]
+		}
+	}
+	if leave == nil || cancel == nil {
+		t.Fatalf("grab leave produced leave=%v cancel=%v; saw %v", leave != nil, cancel != nil, got)
+	}
+	if cancel.X != 33 || cancel.Y != 44 {
+		t.Fatalf("cancel pos = (%.0f,%.0f), want (33,44)", cancel.X, cancel.Y)
+	}
+	// Normal focus-out stays a lone Focus (no cancel).
+	x11Drain(h)
+	x11SendEvent(st, lib, x11FocusWithMode(st, 10, xNotifyNormal))
+	got = x11Collect(h, 2*time.Second, func(ev []Event) bool {
+		for _, e := range ev {
+			if e.Type == EventFocus && !e.Focused {
+				return true
+			}
+		}
+		return false
+	})
+	hasFocus, hasCancel := false, false
+	for _, e := range got {
+		if e.Type == EventFocus && !e.Focused {
+			hasFocus = true
+		}
+		if e.Type == EventPointer && e.Pointer == PointerCancel {
+			hasCancel = true
+		}
+	}
+	if !hasFocus || hasCancel {
+		t.Fatalf("normal focus-out = focus=%v cancel=%v, want focus-only; saw %v", hasFocus, hasCancel, got)
+	}
+	// Grab focus-out reports Focus{false} + Cancel.
+	x11Drain(h)
+	x11SendEvent(st, lib, x11FocusWithMode(st, 10, xNotifyGrab))
+	got = x11Collect(h, 2*time.Second, func(ev []Event) bool {
+		for _, e := range ev {
+			if e.Type == EventPointer && e.Pointer == PointerCancel {
+				return true
+			}
+		}
+		return false
+	})
+	hasFocus, hasCancel = false, false
+	for _, e := range got {
+		if e.Type == EventFocus && !e.Focused {
+			hasFocus = true
+		}
+		if e.Type == EventPointer && e.Pointer == PointerCancel {
+			hasCancel = true
+		}
+	}
+	if !hasFocus || !hasCancel {
+		t.Fatalf("grab focus-out = focus=%v cancel=%v, want both; saw %v", hasFocus, hasCancel, got)
+	}
+}

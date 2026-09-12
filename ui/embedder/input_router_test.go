@@ -119,6 +119,25 @@ func TestRouterKeyModifiersTracked(t *testing.T) {
 	}
 }
 
+func TestRouterModifiersChangedSyncs(t *testing.T) {
+	r := NewInputRouter(nil, nil)
+	var got []input.Event
+	r.OnEvent = func(ev input.Event) { got = append(got, ev) }
+	// Backend-observed state without an accompanying Key (external change)
+	// still updates the tracked mods for the next Key's event-time state.
+	r.RoutePlatform(platform.Event{Type: platform.EventModifiersChanged, ModShift: true})
+	if !r.Modifiers().Shift {
+		t.Fatal("tracked mods not synced from ModifiersChanged")
+	}
+	if len(got) != 1 || got[0].Kind != input.KindModifiersChanged || !got[0].Modifiers.Shift {
+		t.Fatalf("observer saw %+v, want one modifiers-changed with shift", got)
+	}
+	r.RoutePlatform(platform.Event{Type: platform.EventModifiersChanged})
+	if r.Modifiers().Shift {
+		t.Fatal("tracked mods not cleared")
+	}
+}
+
 func TestRouterFocusRouting(t *testing.T) {
 	fm := focus.NewManager()
 	r := NewInputRouter(nil, fm)

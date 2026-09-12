@@ -108,6 +108,11 @@ const (
 	// sensor); StylusTiltX/Y are degrees (0 = unknown); StylusEraser marks
 	// the eraser tool. Appended at the end so earlier values never shift.
 	EventStylus
+	// EventModifiersChanged: lone modifier-state change (S6 §4.4 B 组;
+	// X11 KeyPress/Release state tracking, Wayland modifiers reserved).
+	// ModShift/ModControl/ModAlt/ModMeta carry the new held state.
+	// Appended at the end so earlier values never shift.
+	EventModifiersChanged
 )
 
 // String implements fmt.Stringer.
@@ -161,6 +166,8 @@ func (t EventType) String() string {
 		return "device-removed"
 	case EventStylus:
 		return "stylus"
+	case EventModifiersChanged:
+		return "modifiers-changed"
 	case EventWake:
 		return "wake"
 	default:
@@ -281,6 +288,13 @@ type Event struct {
 	StylusTiltX    float64
 	StylusTiltY    float64
 	StylusEraser   bool
+
+	// EventModifiersChanged: lone modifier-state change (§4.4 B 组).
+	// Mirrors input.Modifiers (platform cannot import input).
+	ModShift   bool
+	ModControl bool
+	ModAlt     bool
+	ModMeta    bool
 }
 
 // DeviceClass identifies a hot-plugged device family (platform side).

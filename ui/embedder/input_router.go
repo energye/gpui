@@ -517,6 +517,13 @@ func (r *InputRouter) Route(ev input.Event) {
 		r.routePointer(ev)
 	case input.KindKey:
 		r.routeKey(ev)
+	case input.KindModifiersChanged:
+		r.mu.Lock()
+		r.mods = ev.Modifiers
+		r.mu.Unlock()
+		if r.OnEvent != nil {
+			r.OnEvent(ev)
+		}
 	case input.KindText:
 		if t := r.currentTarget(); t != nil && targetIsDisabled(t) {
 			// F-E0d: disabled must not accept text/IME

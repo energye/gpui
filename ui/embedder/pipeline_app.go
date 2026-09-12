@@ -874,14 +874,14 @@ func (a *PipelineApp) Run() error {
 			// Resize/Expose/ResizeSync keep raw handling below (relayout and
 			// frame scheduling); the rest goes through the router (dedicated
 			// paths for pointer/key/text/IME, OnEvent observer for window
-			// Move/Scale/Focus/StateChanged/Drop/Drag/Touch/Device/Stylus).
+			// Move/Scale/Focus/StateChanged/Drop/Drag/Touch/Device/Stylus/Modifiers).
 			if a.input != nil && (ev.Type == platform.EventPointer || ev.Type == platform.EventKey || ev.Type == platform.EventIME ||
 				ev.Type == platform.EventTouch || ev.Type == platform.EventStateChanged ||
 				ev.Type == platform.EventMove || ev.Type == platform.EventScale ||
 				ev.Type == platform.EventFocus || ev.Type == platform.EventDrop ||
 				ev.Type == platform.EventDragEnter || ev.Type == platform.EventDragOver || ev.Type == platform.EventDragLeave ||
 				ev.Type == platform.EventDeviceAdded || ev.Type == platform.EventDeviceRemoved ||
-				ev.Type == platform.EventStylus) {
+				ev.Type == platform.EventStylus || ev.Type == platform.EventModifiersChanged) {
 				a.input.RoutePlatform(ev)
 				continue
 			}

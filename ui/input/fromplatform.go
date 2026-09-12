@@ -98,6 +98,13 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 		}}
 	case platform.EventStylus:
 		return fromStylus(ev, mods)
+	case platform.EventModifiersChanged:
+		return Event{Kind: KindModifiersChanged, Modifiers: Modifiers{
+			Shift:   ev.ModShift,
+			Control: ev.ModControl,
+			Alt:     ev.ModAlt,
+			Meta:    ev.ModMeta,
+		}}
 	default:
 		return Event{Kind: KindNone}
 	}
