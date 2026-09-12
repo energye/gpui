@@ -1,6 +1,6 @@
 # 平台窗口统一 API — 设计真源
 
-> **版本：v2.21** | 日期：2026-09-12  
+> **版本：v2.22** | 日期：2026-09-12  
 > **地位：** `ui/platform` 窗口接口（Options / Window / Host / WindowController / Event）唯一设计真源，**口径：四平台统一语义**。
 > **并读：** [`ENGINE_WAYLAND_WINDOW_STANDARD.md`](./ENGINE_WAYLAND_WINDOW_STANDARD.md)（Wayland 标准窗口 CSD）· [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（分层）· [`ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`](./ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md) / [`ENGINE_TEXT_X11_IME_REQUIREMENT.md`](./ENGINE_TEXT_X11_IME_REQUIREMENT.md)（输入法需求；原 `ENGINE_INPUT_IME_PLAN.md` 不存在，入口改指这两份）  
 > **对标参考：** winit（Rust 窗口库）· GTK4（GtkWindow/GdkToplevel）· sctk（wayland-client 壳）· Zed gpui · Flutter（WindowOptions）。
@@ -154,7 +154,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | 层 | 形态 | 位置 | 验证什么 | 何时绿 |
 |---|---|---|---|---|
 | A 真窗例程 | 独立命令，开原生窗口跑全能力驱动 + 事件泵观察 + JSON 门禁 | `examples/ui_pf_x11` · `ui_pf_wayland` · `ui_pf_win32` · `ui_pf_appkit` | 统一 API 在该平台能真实驱动原生窗口的每一项能力 | 该平台 S 阶段落地时（win32/appkit 占位期只验「明确未实现错误」，S5 后同一例程自动转全能力） |
-| A′ 专项真窗例程 | 能力专项真窗（非全能力驱动）：IME 管线、输入法等 | `examples/ui_textinput_ime`（Wayland zwp_text_input_v3 全链路：platform.Event → InputRouter → Editor + 预编辑显示，自动探测后端）· `examples/ui_ime_probe`（D-Bus/X11 + text-input-v3 双栈探针，XIM 已移除） | 专项能力的端到端真实行为（IME compose/commit 只可能在真窗+真输入法下验证） | 与对应能力 S 阶段同生；无输入法/无法交互时人工验收（GUI 演示，不出 JSON 门禁） |
+| A′ 专项真窗例程 | 能力专项真窗（非全能力驱动）：IME 管线、输入法等 | `examples/ui_textinput_ime`（Wayland zwp_text_input_v3 全链路：platform.Event → InputRouter → Editor + 预编辑显示，自动探测后端）· `examples/ui_ime_probe`（D-Bus/X11 + text-input-v3 双栈探针，XIM 已移除）· `examples/ui_pf_x11_dnd`（X11 XDND 自检 + 人工）· `examples/ui_pf_x11_device`（X11 设备插拔自检 + 人工） | 专项能力的端到端真实行为（IME compose/commit 只可能在真窗+真输入法下验证） | 与对应能力 S 阶段同生；无输入法/无法交互时人工验收（GUI 演示，不出 JSON 门禁） |
 | B 原生单测 | 平台包内 build-tag 测试，直接断言原生行为（真假/去重/错误码） | `ui/platform/x11_window_linux_test.go` · `x11_sync_test.go`（3 例同步帧） · `wayland_window_linux_test.go`（win32/appkit 随后端落地同步落，形态对齐 x11） | 每能力断言 + 事件流断言（EventCloseRequested≠EventClose、Focus/Occluded/Resize 到达等） | 有显示环境则必跑；无环境 `t.Skipf` 带原因（禁止静默假绿） |
 | C 上层抽象测试 | 无 GPU 窗口：fake controller + `StubHost` 驱动同一共享驱动 | `examples/pfkit/pfkit_test.go` | 驱动确定性——调用序列/计数固定、ErrUnsupported 容忍为 ⛔、其他错误标 FAIL、Report 计数 | 恒绿（CI 无显示也跑） |
 
@@ -197,7 +197,7 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
 | S4 真窗验收 | 用户跑 examples：X11 + Wayland 全能力（§2.6 A 层）；真实显示环境跑通——`ui_pf_x11` 19 行全 PASS（18 能力行 + 1 事件观察行，IgnoreCursorEvents 按 XShape 未落地 ⛔ 诚实降级） + `ui_pf_wayland` 19 行全 PASS（Position/Focus/AlwaysOnTop/Decorations 切换/RequestMove/RequestResize 按协议 ⛔ 诚实降级，Show/Hide 与 IgnoreCursorEvents 走真实现），B 层 `TestX11RealWindow*` 7 例 + `TestWaylandRealWindow*` 3 例 + `TestWaylandHideShow` 同机全 PASS | ✅ |
 | S5 Win32/AppKit | 按 §2.3/§2.4 语义列落地（占位→实现）；同步落 `ui_pf_win32`/`ui_pf_appkit` 真窗例程 + 原生单测（§2.6 三层）；重跑能力矩阵 | ⬜ |
 | S6-P0 上层统一必做 | §4.4 A–C + D 触控基础：新 Kind/载荷、Close 拆分、Enter/Leave/Cancel 独立、Repeat、横滚、触控产出、Wayland 三上报；消费方切换；§2.6 三层真窗（`ui_pf_x11`/`ui_pf_wayland` 重跑 + `pfkit` 恒绿） | ✅（Move/Scale/Focus/Drop/ResizeSync 补 FromPlatform 分支并进主循环路由；Touch/StateChanged 进主循环路由；Resize/ResizeSync/Occluded/Hidden/FramePresented 同步透传路由器观察） |
-| S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | 🔨（X11 XDND Enter/Over/Leave + 文件 Drop 已落地，专项真窗 `examples/ui_pf_x11_dnd` 自检 + 人工；X11 设备插拔已落地（XI 层级变化，v2.21）；未完四项见 §5 v2.21：Wayland 悬停三上报、MIME 数据二期、本窗外发拖放、Wayland 座位设备上报） |
+| S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | 🔨（X11 XDND Enter/Over/Leave + 文件 Drop 已落地，专项真窗 `examples/ui_pf_x11_dnd` 自检 + 人工；X11 设备插拔已落地（XI 层级变化，v2.21），专项真窗 `examples/ui_pf_x11_device` 自检 + 人工（v2.22）；未完四项见 §5 v2.21：Wayland 悬停三上报、MIME 数据二期、本窗外发拖放、Wayland 座位设备上报） |
 | S6-P2 占位 | 笔压感/显示器增减/智能放大接口占位 + Win32/AppKit 映射表；真窗验占位错误明确 | ⬜ |
 
 **落地纪律**：S1–S3 逐行对照 §2.3/§2.4 实现，不跳步；每阶段跑对应单测 + 回归（按文件，禁止一次全量）+ §2.6 三层验收同步落地（例程与平台同生）；S5 落地时四条语义契约（§2.5）逐条核对。
@@ -349,6 +349,7 @@ H 设备热插拔（P1）：
 
 ## 5. 修订
 
+- v2.22（2026-09-12）：**设备插拔专项真窗**——新增 `examples/ui_pf_x11_device`（自检 + 人工二合一）：启动先跑映射自检（Added/Removed/Pen/Unknown 四行），再常驻收真事件；收到设备增减即打日志并改标题显示状态，关窗或 `-manual-seconds` 超时后出汇总 + JSON；`-auto-only` 只跑自检供门禁（4/4 PASS）。`ui_pf_x11` 保持原样（跑完即关的一次性验收）。
 - v2.21（2026-09-12）：**X11 设备插拔先行**——源码为准：新增 `EventDeviceAdded/Removed + DeviceClass/DeviceName` 平台事件（`host.go` 尾部追加，旧值不动），`FromPlatform` 补两映射 + 主循环路由放行（路由器本就透传到 `OnEvent`）；X11 侧 `x11_device_linux.go`（XI 层级变化 evtype=11 解码、Added/Removed 才报、attach/enable 忽略、触控看 XITouchClass、笔看名、查不到回落 use、移除回放缓存、启动播种现存设备；QueryVersion 与触控同用 2.2，免双版本 BadValue 致命）；Wayland 座位能力半留空（`wayland_seat_linux.go` 注释预留，无合成器不验）。§2.4 补设备行（X11 ✅、Wayland 🔨），§4.4 H 组 X11 格翻绿（Wayland 仍 🔨），§3 S6-P1 仍 🔨（剩 Wayland 悬停三上报、MIME 二期、外发拖放、Wayland 座位上报）。回归按文件逐个：`ui/input` 转换（含新设备文件）+ embedder 路由 + pfkit 恒绿，B 层 X11 设备/X11 S6-P0/窗口（整组首跑窗口管理器时机偶发失败、单跑与重跑均过）/同步/DnD 全绿，A 层 `ui_pf_x11` 19/19；Wayland 无显示诚实 Skip。
 - v2.20（2026-09-12）：**XDND 未完三项归档**——① Wayland 悬停三上报（enter/motion/leave 底层已跟踪，未转上层事件，§2.4/§4.4 G 组 Wayland 格仍 🔨）；② MIME 数据二期（Drop 文件列表之外按类型取数据填 `DragEvent.Data`，现非文件拖放静默吞掉）；③ 本窗外发拖放（我方窗口当拖放源，现只有测试替身源；Win32/AppKit 仍占位）。三项都不动已落地的 X11 收文件链路。
 - v2.19（2026-09-12）：**拖放专项真窗**——新增 `examples/ui_pf_x11_dnd`（自检 + 人工二合一）：启动先跑映射自检（Enter/Over/Leave/Drop 四行），再常驻收真事件；收到拖放即打日志并改标题显示状态，关窗或 `-manual-seconds` 超时后出汇总 + JSON；`-auto-only` 只跑自检供门禁。`ui_pf_x11` 保持原样（跑完即关的一次性验收）。
