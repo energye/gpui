@@ -59,9 +59,44 @@ type Decoder struct {
 	cOff0    int32
 	cOff1    int32
 	qpY      int32
+	// Explicit weighted prediction factors for the current slice
+	// (list 0). Identity when the table signals defaults.
+	wDenomL  int32
+	wDenomC  int32
+	wW0      [32]int32
+	wO0      [32]int32
+	wWC0     [32][2]int32
+	wOC0     [32][2]int32
+	// Effective scaling weights for the current slice (F9): six 4x4
+	// lists (intra-Y/Cb/Cr, inter-Y/Cb/Cr) and two 8x8 luma lists
+	// (intra, inter), all in raster order. Flat 16s without matrices.
+	sc4      [6][16]uint8
+	sc8      [2][64]uint8
 	decoded  int
 	slices   int
 	curIsRef bool
+	// CABAC state (VR2c): arithmetic decoder, packed contexts, and the
+	// per-MB side data that neighbour-dependent contexts read.
+	cab     *cabacDec
+	cabCtx  [1024]uint8
+	refTmp  []int8
+	skipped []bool
+	mbI16   []bool
+	cmode   []uint8
+	cbpArr  []uint16
+	mvdX    []int16
+	mvdY    []int16
+	mbSlice []int
+	mbT8    []bool
+	lastQPD int32
+	sliceQP int32
+	// lastQPDHit records whether the current macroblock decoded an
+	// mb_qp_delta; untouched blocks reset lastQPD instead of inheriting
+	// a stale delta.
+	lastQPDHit bool
+	// cabByte0 records the slice-payload byte offset backing the live
+	// CABAC engine, so the PCM path can hand the byte reader back over.
+	cabByte0 int
 }
 
 // NewDecoder builds a decoder over shared parameter sets.
@@ -108,8 +143,8 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	if err != nil {
 		return err
 	}
-	if sps.ProfileIDC != 66 {
-		return fmt.Errorf("%w: profile %s needs VR2c", ErrStageScope, sps.Profile)
+	if sps.ProfileIDC != 66 && sps.ProfileIDC != 77 && sps.ProfileIDC != 100 {
+		return fmt.Errorf("%w: profile %s needs a later stage", ErrStageScope, sps.Profile)
 	}
 	h, r, err := ParseSliceHeader(nalu, pps, sps)
 	if err != nil {
@@ -154,7 +189,22 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		for i := range d.refIdx {
 			d.refIdx[i] = -1
 		}
+		// Early reference scratch for CABAC contexts; zero reads as
+		// ref 0 (never greater than zero), so no fill is needed.
+		d.refTmp = make([]int8, n4)
 		d.mbIntra = make([]bool, d.mbW*d.mbH)
+		nmb := d.mbW * d.mbH
+		d.skipped = make([]bool, nmb)
+		d.mbI16 = make([]bool, nmb)
+		d.cmode = make([]uint8, nmb)
+		d.cbpArr = make([]uint16, nmb)
+		d.mvdX = make([]int16, n4)
+		d.mvdY = make([]int16, n4)
+		d.mbSlice = make([]int, nmb)
+		for i := range d.mbSlice {
+			d.mbSlice[i] = -1
+		}
+		d.mbT8 = make([]bool, nmb)
 	}
 	// New picture starts at FirstMB 0: reset per-frame motion state.
 	// Multi-slice frames keep accumulating; slices all share the arrays.
@@ -168,29 +218,46 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		for i := range d.mbIntra {
 			d.mbIntra[i] = false
 		}
+		for i := range d.skipped {
+			d.skipped[i] = false
+			d.mbI16[i] = false
+			d.cmode[i] = 0
+			d.cbpArr[i] = 0
+			d.mbSlice[i] = -1
+		}
+		for i := range d.mbT8 {
+			d.mbT8[i] = false
+		}
 		d.skipCnt = 0
 	}
 	d.qpY = 26 + pps.PicInitQP + h.QPDelta
 	d.cOff0 = pps.ChromaQPOffset
-	d.cOff1 = pps.ChromaQPOffset + pps.SecondChromaQPOffset
+	d.cOff1 = pps.ChromaQPOffset
+	if pps.HasSecondChromaQP {
+		d.cOff1 = pps.SecondChromaQPOffset
+	}
+	d.wDenomL, d.wDenomC = h.LumaDenom, h.ChromaDenom
+	d.wW0, d.wO0 = h.LumaW0, h.LumaO0
+	d.wWC0, d.wOC0 = h.ChromaW0, h.ChromaO0
+	resolveScaling(pps, sps, &d.sc4, &d.sc8)
 	d.pic.FrameNum = h.FrameNum
 	d.pic.POC = h.POC
 	d.pic.IsIDR = h.IsIDR
 	d.curIsRef = h.NalRefIDC != 0
-	// Reference list 0: newest stored pictures first (no reordering in
-	// this stage; modification flags parsed but untreated streams fail
-	// readable elsewhere). Multi-ref clips address older entries by idx.
+	// Reference list 0: buffered pictures newest-first, reshaped by
+	// the slice-header reordering steps. Multi-ref clips address
+	// older or duplicated entries by index (weights follow the index).
 	d.refPic = nil
 	d.refList = d.refList[:0]
 	if h.IsP() {
 		if h.IsIDR {
 			// IDR P is still a refresh: no reference needed.
 		} else {
-			n := int(h.RefL0Count)
-			if n < 1 {
-				n = 1
+			list, err := d.buildRefList0(h)
+			if err != nil {
+				return err
 			}
-			d.refList = d.dpb.List0(n)
+			d.refList = list
 			if len(d.refList) > 0 {
 				d.refPic = d.refList[0]
 			}
@@ -203,10 +270,17 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	d.skipRun = -1
 	total := d.mbW * d.mbH
 	addr := int(h.FirstMB)
+	if pps.EntropyCABAC {
+		if err := d.cabacInitSlice(h, r, pps); err != nil {
+			return err
+		}
+		return d.decodeSliceCabac(h, pps, r, addr, total)
+	}
+	d.cab = nil
 	for addr < total {
 		// Pending skips consume no bits.
 		if h.IsP() && d.skipRun > 0 {
-			if err := d.decodeSkip(h, addr, r); err != nil {
+			if err := d.decodeSkip(h, addr, d.cavlcSrc(r)); err != nil {
 				return fmt.Errorf("mb %d: %w", addr, err)
 			}
 			d.decoded++
@@ -263,7 +337,14 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 		return nil, fmt.Errorf("%w: %d of %d mbs", ErrBadSliceHeader, d.decoded, d.mbW*d.mbH)
 	}
 	DeblockPicture(d.pic, d.qps, d.fIDC, d.fA, d.fB, d.mbW, d.mbH, d.cOff0, d.cOff1,
-		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx)
+		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx, d.refList, d.mbT8)
+	// Sliding-window marking: a reference picture that finds the
+	// buffer full unmarks the oldest short-term before storing.
+	if d.curIsRef && d.sps != nil && d.sps.NumRefFrames > 0 {
+		for d.dpb.Len() >= int(d.sps.NumRefFrames) {
+			d.dpb.evictOldest()
+		}
+	}
 	d.dpb.Store(d.pic, d.curIsRef)
 	out := d.pic
 	d.pic = nil
@@ -281,6 +362,19 @@ func (d *Decoder) nnzAt(grid []int8, stride, x, y int) int {
 
 func (d *Decoder) setNnz(grid []int8, stride, x, y, v int) {
 	grid[y*stride+x] = int8(v)
+}
+
+// neighborT8 counts same-slice 8x8-transform neighbours (left + top)
+// for the transform_size_8x8_flag context.
+func (d *Decoder) neighborT8(addr, mbx, mby int) int {
+	n := 0
+	if mbx > 0 && d.cabSameSlice(addr-1) && addr-1 >= 0 && addr-1 < len(d.mbT8) && d.mbT8[addr-1] {
+		n++
+	}
+	if mby > 0 && d.cabSameSlice(addr-d.mbW) && addr-d.mbW >= 0 && addr-d.mbW < len(d.mbT8) && d.mbT8[addr-d.mbW] {
+		n++
+	}
+	return n
 }
 
 // neighbourCount derives nC for one 4x4 block from left/up TotalCoeffs.
@@ -313,6 +407,75 @@ func (d *Decoder) decodeMB(r *Reader, pps *PPS, h *SliceHeader, addr int) error 
 }
 
 func (d *Decoder) decodeIntraMB(r *Reader, pps *PPS, h *SliceHeader, addr, mbx, mby int, mbType uint32) error {
+	return d.decodeIntraMBCore(h, pps, addr, mbx, mby, mbType, d.cavlcIntraSrc(r, pps), d.cavlcSrc(r))
+}
+
+// intraSrc provides intra syntax; CAVLC reads codes, CABAC bins. chroma
+// returns the internal mode (V/H/DC/Plane = 0/1/2/3).
+type intraSrc struct {
+	t8     func() (bool, error)
+	mode   func(bx, by, pred int) (int, error)
+	mode8  func(bx, by int) (int, error)
+	chroma func() (uint32, error)
+	cbp    func() (uint32, error)
+	qpD    func() (int32, error)
+}
+
+// cavlcIntraSrc reads intra syntax with Exp-Golomb codes.
+func (d *Decoder) cavlcIntraSrc(r *Reader, pps *PPS) *intraSrc {
+	return &intraSrc{
+		t8: func() (bool, error) {
+			if pps == nil || !pps.Transform8x8 {
+				return false, nil
+			}
+			b, err := r.ReadBits(1)
+			if err != nil {
+				return false, fmt.Errorf("t8 flag: %w", err)
+			}
+			return b != 0, nil
+		},
+		mode: func(bx, by, pred int) (int, error) {
+			return d.intra4x4Mode(r, bx, by)
+		},
+		mode8: func(bx, by int) (int, error) {
+			return d.intra4x4Mode(r, bx, by)
+		},
+		chroma: func() (uint32, error) {
+			v, err := r.ReadUE()
+			if err != nil {
+				return 0, fmt.Errorf("chroma mode: %w", err)
+			}
+			if v > 3 {
+				if clampIV {
+					v = 0
+				} else {
+					return 0, fmt.Errorf("%w: chroma mode %d", ErrBadSliceHeader, v)
+				}
+			}
+			// ue values run DC/H/V/Plane; internal consts run V/H/DC/Plane.
+			return [4]uint32{2, 1, 0, 3}[v], nil
+		},
+		cbp: func() (uint32, error) {
+			cbpUE, err := r.ReadUE()
+			if err != nil {
+				return 0, fmt.Errorf("cbp: %w", err)
+			}
+			if cbpUE > 47 {
+				return 0, fmt.Errorf("%w: cbp %d", ErrBadSliceHeader, cbpUE)
+			}
+			return uint32(golombToIntra4x4CBP[cbpUE]), nil
+		},
+		qpD: func() (int32, error) {
+			delta, err := r.ReadSE()
+			if err != nil {
+				return 0, fmt.Errorf("qp delta: %w", err)
+			}
+			return delta, nil
+		},
+	}
+}
+
+func (d *Decoder) decodeIntraMBCore(h *SliceHeader, pps *PPS, addr, mbx, mby int, mbType uint32, is *intraSrc, rs *residSrc) error {
 	kind := mbI4x4
 	pred16 := 0
 	cbp := uint32(0)
@@ -326,13 +489,25 @@ func (d *Decoder) decodeIntraMB(r *Reader, pps *PPS, h *SliceHeader, addr, mbx, 
 		}
 		cbp |= i16ChromaCycle[group]
 	}
+	use8 := false
+	if !i16 {
+		var err error
+		use8, err = is.t8()
+		if err != nil {
+			return err
+		}
+		if addr >= 0 && addr < len(d.mbT8) {
+			d.mbT8[addr] = use8
+		}
+	}
 	var modes [16]int
-	if kind == mbI4x4 {
+	var modes8 [4]int
+	if kind == mbI4x4 && !use8 {
 		stride := d.mbW * 4
 		// Modes follow luma4x4BlkIdx (8x8-grouped), not raster.
 		for _, b := range [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15} {
 			bx, by := mbx*4+b%4, mby*4+b/4
-			m, err := d.intra4x4Mode(r, bx, by)
+			m, err := is.mode(bx, by, 0)
 			if err != nil {
 				return err
 			}
@@ -342,34 +517,41 @@ func (d *Decoder) decodeIntraMB(r *Reader, pps *PPS, h *SliceHeader, addr, mbx, 
 			d.modes[by*stride+bx] = int8(m)
 		}
 	}
-	chromaModeUE, err := r.ReadUE()
-	if err != nil {
-		return fmt.Errorf("chroma mode: %w", err)
-	}
-	if chromaModeUE > 3 {
-		if clampIV {
-			chromaModeUE = 0
-		} else {
-			return fmt.Errorf("%w: chroma mode %d", ErrBadSliceHeader, chromaModeUE)
+	if kind == mbI4x4 && use8 {
+		stride := d.mbW * 4
+		// One mode per 8x8 (TL,TR,BL,BR); each replicates to its
+		// four 4x4 slots for most-probable prediction.
+		for i8, b := range [4]int{0, 2, 8, 10} {
+			bx, by := mbx*4+b%4, mby*4+b/4
+			m, err := is.mode8(bx, by)
+			if err != nil {
+				return err
+			}
+			modes8[i8] = m
+			for dy := 0; dy < 2; dy++ {
+				for dx := 0; dx < 2; dx++ {
+					d.modes[(by+dy)*stride+bx+dx] = int8(m)
+					modes[(by-mby*4+dy)*4+(bx-mbx*4+dx)] = m
+				}
+			}
 		}
 	}
-	// ue values run DC/H/V/Plane; internal consts run V/H/DC/Plane.
-	chromaMode := [4]uint32{2, 1, 0, 3}[chromaModeUE]
+	chromaMode, err := is.chroma()
+	if err != nil {
+		return err
+	}
 	if err := checkChromaMode(int(chromaMode), mbx, mby); err != nil {
 		return err
 	}
 	if !i16 {
-		cbpUE, err := r.ReadUE()
+		v, err := is.cbp()
 		if err != nil {
-			return fmt.Errorf("cbp: %w", err)
+			return err
 		}
-		if cbpUE > 47 {
-			return fmt.Errorf("%w: cbp %d", ErrBadSliceHeader, cbpUE)
-		}
-		cbp = uint32(golombToIntra4x4CBP[cbpUE])
+		cbp = v
 	}
 	if cbp != 0 || i16 {
-		delta, err := r.ReadSE()
+		delta, err := is.qpD()
 		if err != nil {
 			return fmt.Errorf("qp delta: %w", err)
 		}
@@ -389,14 +571,27 @@ func (d *Decoder) decodeIntraMB(r *Reader, pps *PPS, h *SliceHeader, addr, mbx, 
 		d.mbIntra[addr] = true
 		d.markIntraMB(mbx, mby)
 	}
+	// Neighbour contexts (also read by CABAC slices): chroma mode, I16
+	// flag, CBP without DC-present bits (CABAC sets those lazily while
+	// decoding DC blocks), and owning slice.
+	d.cmode[addr] = uint8(chromaMode)
+	d.mbI16[addr] = i16
+	d.cbpArr[addr] = uint16(cbp)
+	d.mbSlice[addr] = d.slices
 	if kind == mbI16x16 {
-		return d.reconstructI16x16(r, mbx, mby, pred16, int(chromaMode), cbp)
+		if addr >= 0 && addr < len(d.mbT8) {
+			d.mbT8[addr] = false
+		}
+		return d.reconstructI16x16With(mbx, mby, pred16, int(chromaMode), cbp, rs)
 	}
-	return d.reconstructI4x4(r, mbx, mby, modes, int(chromaMode), cbp)
+	if use8 {
+		return d.reconstructI8x8With(mbx, mby, modes8, int(chromaMode), cbp, rs)
+	}
+	return d.reconstructI4x4With(mbx, mby, modes, int(chromaMode), cbp, rs)
 }
 
-// intra4x4Mode reads one block prediction mode with most-probable rule.
-func (d *Decoder) intra4x4Mode(r *Reader, bx, by int) (int, error) {
+// intraMostProbable derives one block prediction mode with most-probable rule.
+func (d *Decoder) intraMostProbable(bx, by int) int {
 	stride := d.mbW * 4
 	a, b := -1, -1
 	if bx > 0 {
@@ -413,6 +608,12 @@ func (d *Decoder) intra4x4Mode(r *Reader, bx, by int) (int, error) {
 			pred = b
 		}
 	}
+	return pred
+}
+
+// intra4x4Mode reads one block prediction mode with most-probable rule.
+func (d *Decoder) intra4x4Mode(r *Reader, bx, by int) (int, error) {
+	pred := d.intraMostProbable(bx, by)
 	flag, err := r.ReadBits(1)
 	if err != nil {
 		return 0, fmt.Errorf("pred flag: %w", err)
@@ -437,6 +638,12 @@ func (d *Decoder) decodePCM(r *Reader, mbx, mby int) error {
 	if err != nil {
 		return fmt.Errorf("pcm: %w", err)
 	}
+	d.storePCM(raw, mbx, mby)
+	return nil
+}
+
+// storePCM writes raw PCM samples and marks the block's neighbour state.
+func (d *Decoder) storePCM(raw []byte, mbx, mby int) {
 	for y := 0; y < 16; y++ {
 		for x := 0; x < 16; x++ {
 			d.pic.SetY(uint32(mbx*16+x), uint32(mby*16+y), raw[y*16+x])
@@ -474,7 +681,17 @@ func (d *Decoder) decodePCM(r *Reader, mbx, mby int) error {
 		d.mbIntra[mby*d.mbW+mbx] = true
 		d.markIntraMB(mbx, mby)
 	}
-	return nil
+	// Neighbour contexts shared with CABAC slices: PCM counts as coded
+	// intra with full CBP, mirroring the reference decoder's marks.
+	addr := mby*d.mbW + mbx
+	d.skipped[addr] = false
+	d.mbI16[addr] = true
+	d.cmode[addr] = 2
+	d.cbpArr[addr] = 0x1FF
+	d.mbSlice[addr] = d.slices
+	if addr >= 0 && addr < len(d.mbT8) {
+		d.mbT8[addr] = false
+	}
 }
 
 func checkChromaMode(m, mbx, mby int) error {
@@ -564,8 +781,116 @@ func (d *Decoder) blockNC(grid []int8, stride, bx, by int) int {
 	return neighbourCount(d.nnzAt(grid, stride, bx-1, by), d.nnzAt(grid, stride, bx, by-1))
 }
 
-func (d *Decoder) reconstructI4x4(r *Reader, mbx, mby int, modes [16]int, chromaMode int, cbp uint32) error {
+// residSrc decodes residual blocks into scan order; CAVLC and CABAC each
+// provide one, so the reconstruction loops stay shared.
+type residSrc struct {
+	lumaAC   func(bx, by, cat int) ([16]int32, int, error)
+	lumaAC15 func(bx, by int) ([16]int32, int, error)
+	lumaDC   func(mbx, mby int) ([16]int32, error)
+	chromaDC func(comp int) ([4]int32, error)
+	chromaAC func(mbx, mby, comp, b int) ([16]int32, int, error)
+	luma8x8  func(mbx, mby, i8 int) ([64]int32, [4]int, error)
+}
+
+// cavlcSrc builds the CAVLC residual source for one slice tail.
+func (d *Decoder) cavlcSrc(r *Reader) *residSrc {
 	stride := d.mbW * 4
+	cstride := d.mbW * 2
+	grouped := [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15}
+	// inv8 maps raster inside 8x8 to zigzag scan position.
+	var inv8 [64]int
+	for s, p := range zigzag8x8 {
+		inv8[p] = s
+	}
+	return &residSrc{
+		lumaAC: func(bx, by, cat int) ([16]int32, int, error) {
+			return d.readLumaBlock(r, d.blockNC(d.nnzY, stride, bx, by))
+		},
+		// I16x16 AC carries 15 coeffs (DC excluded): same bits, but
+		// placed one slot up so index matches true scan position.
+		lumaAC15: func(bx, by int) ([16]int32, int, error) {
+			nC := d.blockNC(d.nnzY, stride, bx, by)
+			ac, err := DecodeResidualBlock(r, SelectTable(nC), 15, 1, false)
+			if err != nil {
+				return ac, 0, err
+			}
+			tc := 0
+			for _, v := range ac {
+				if v != 0 {
+					tc++
+				}
+			}
+			return ac, tc, nil
+		},
+		lumaDC: func(mbx, mby int) ([16]int32, error) {
+			nC := d.blockNC(d.nnzY, stride, mbx*4, mby*4)
+			return DecodeResidualBlock(r, SelectTable(nC), 16, 0, false)
+		},
+		chromaDC: func(comp int) ([4]int32, error) {
+			dcRaw, err := DecodeResidualBlock(r, 0, 4, 0, true)
+			if err != nil {
+				return [4]int32{}, err
+			}
+			var dcArr [4]int32
+			copy(dcArr[:], dcRaw[:4])
+			return dcArr, nil
+		},
+		chromaAC: func(mbx, mby, comp, b int) ([16]int32, int, error) {
+			grid := d.nnzCb
+			if comp == 1 {
+				grid = d.nnzCr
+			}
+			bx, by := mbx*2+b%2, mby*2+b/2
+			nC := d.blockNC(grid, cstride, bx, by)
+			ac, err := DecodeResidualBlock(r, SelectTable(nC), 15, 1, false)
+			if err != nil {
+				return ac, 0, err
+			}
+			tc := 0
+			for _, v := range ac {
+				if v != 0 {
+					tc++
+				}
+			}
+			return ac, tc, nil
+		},
+		luma8x8: func(mbx, mby, i8 int) ([64]int32, [4]int, error) {
+			var coeff [64]int32
+			var tcs [4]int
+			for g := 0; g < 4; g++ {
+				b := grouped[i8*4+g]
+				bx, by := mbx*4+b%4, mby*4+b/4
+				nC := d.blockNC(d.nnzY, stride, bx, by)
+				blk, err := DecodeResidualBlock(r, SelectTable(nC), 16, 0, false)
+				if err != nil {
+					return coeff, tcs, err
+				}
+				tc := 0
+				for _, v := range blk {
+					if v != 0 {
+						tc++
+					}
+				}
+				tcs[g] = tc
+				// Publish immediately: later sub-blocks in this 8x8
+				// derive nC from already-decoded neighbours.
+				d.setNnz(d.nnzY, stride, bx, by, tc)
+				for k := 0; k < 16; k++ {
+					if blk[k] == 0 {
+						continue
+					}
+					raster := zigzag8x8CAVLC[g*16+k]
+					coeff[inv8[raster]] = blk[k]
+				}
+			}
+			return coeff, tcs, nil
+		},
+	}
+}
+
+func (d *Decoder) reconstructI4x4With(mbx, mby int, modes [16]int, chromaMode int, cbp uint32, rs *residSrc) error {
+	stride := d.mbW * 4
+	wY := d.sc4[0]
 	// 4x4 blocks are read 8x8-grouped (each spatial 8x8's four blocks in
 	// a row), matching the residual() syntax order.
 	for _, b := range [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15} {
@@ -579,14 +904,13 @@ func (d *Decoder) reconstructI4x4(r *Reader, mbx, mby int, modes [16]int, chroma
 		tc := 0
 		i8 := (b/8)*2 + (b%4)/2
 		if cbp&(1<<uint(i8)) != 0 {
-			nC := d.blockNC(d.nnzY, stride, bx, by)
-			c, total, err := d.readLumaBlock(r, nC)
+			c, total, err := rs.lumaAC(bx, by, 2)
 			if err != nil {
 				return err
 			}
 			coeff, tc = c, total
 		}
-		res := ITransform4x4(coeff, uint32(d.qpY))
+		res := ITransform4x4Scaled(coeff, uint32(d.qpY), wY)
 		for y := 0; y < 4; y++ {
 			for x := 0; x < 4; x++ {
 				v := int32(pred[y*4+x]) + res[y*4+x]
@@ -596,7 +920,7 @@ func (d *Decoder) reconstructI4x4(r *Reader, mbx, mby int, modes [16]int, chroma
 		d.modes[by*stride+bx] = int8(modes[b])
 		d.setNnz(d.nnzY, stride, bx, by, tc)
 	}
-	return d.reconstructChroma(r, mbx, mby, chromaMode, (cbp>>4)&3)
+	return d.reconstructChromaWith(mbx, mby, chromaMode, (cbp>>4)&3, rs, true)
 }
 
 func (d *Decoder) readLumaBlock(r *Reader, nC int) ([16]int32, int, error) {
@@ -613,39 +937,71 @@ func (d *Decoder) readLumaBlock(r *Reader, nC int) ([16]int32, int, error) {
 	return coeff, tc, nil
 }
 
-func (d *Decoder) reconstructI16x16(r *Reader, mbx, mby, pred16, chromaMode int, cbp uint32) error {
+// reconstructI8x8With predicts four 8x8 luma blocks, adds scaled 8x8
+// residual and writes chroma.
+func (d *Decoder) reconstructI8x8With(mbx, mby int, modes8 [4]int, chromaMode int, cbp uint32, rs *residSrc) error {
+	stride := d.mbW * 4
+	w8 := d.sc8[0]
+	grouped := [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15}
+	for i8, b := range [4]int{0, 2, 8, 10} {
+		bx, by := mbx*4+b%4, mby*4+b/4
+		get := d.lumaBlockSampler(bx, by)
+		pred, err := PredIntra8x8(get, int32(bx*4), int32(by*4), modes8[i8])
+		if err != nil {
+			return err
+		}
+		var coeff [64]int32
+		var tcs [4]int
+		if cbp&(1<<uint(i8)) != 0 {
+			c, t, err := rs.luma8x8(mbx, mby, i8)
+			if err != nil {
+				return err
+			}
+			coeff, tcs = c, t
+		}
+		res := ITransform8x8Scaled(coeff, uint32(d.qpY), w8)
+		for y := 0; y < 8; y++ {
+			for x := 0; x < 8; x++ {
+				v := int32(pred[y*8+x]) + res[y*8+x]
+				d.pic.SetY(uint32(mbx*16+(i8%2)*8+x), uint32(mby*16+(i8/2)*8+y), clipPixel(v))
+			}
+		}
+		for g := 0; g < 4; g++ {
+			bb := grouped[i8*4+g]
+			xx, yy := mbx*4+bb%4, mby*4+bb/4
+			d.setNnz(d.nnzY, stride, xx, yy, tcs[g])
+		}
+	}
+	return d.reconstructChromaWith(mbx, mby, chromaMode, (cbp>>4)&3, rs, true)
+}
+
+func (d *Decoder) reconstructI16x16With(mbx, mby, pred16, chromaMode int, cbp uint32, rs *residSrc) error {
 	get := d.lumaSampler()
 	pred, err := PredIntra16x16(get, int32(mbx*16), int32(mby*16), pred16)
 	if err != nil {
 		return err
 	}
-	stride := d.mbW * 4
-	nCDC := d.blockNC(d.nnzY, stride, mbx*4, mby*4)
-	dcRaw, err := DecodeResidualBlock(r, SelectTable(nCDC), 16, 0, false)
+	dcRaw, err := rs.lumaDC(mbx, mby)
 	if err != nil {
 		return fmt.Errorf("luma dc: %w", err)
 	}
-	dcScaled := ITransformLumaDC(dcRaw, uint32(d.qpY))
+	dcScaled := ITransformLumaDCScaled(dcRaw, uint32(d.qpY), d.sc4[0][0])
 	dcBlk := dcScaled
+	stride := d.mbW * 4
+	wY := d.sc4[0]
 	// AC blocks follow luma4x4BlkIdx (8x8-grouped), like Intra4x4.
 	for _, b := range [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15} {
 		var coeff [16]int32
 		acNZ := 0
 		if cbp&15 != 0 {
 			bx, by := mbx*4+b%4, mby*4+b/4
-			nC := d.blockNC(d.nnzY, stride, bx, by)
-			ac, err := DecodeResidualBlock(r, SelectTable(nC), 15, 1, false)
+			ac, total, err := rs.lumaAC15(bx, by)
 			if err != nil {
 				return fmt.Errorf("luma ac %d: %w", b, err)
 			}
-			coeff = ac
-			for _, v := range ac {
-				if v != 0 {
-					acNZ++
-				}
-			}
+			coeff, acNZ = ac, total
 		}
-		res := ITransform4x4WithDC(coeff, dcBlk[b], uint32(d.qpY))
+		res := ITransform4x4WithDCScaled(coeff, dcBlk[b], uint32(d.qpY), wY)
 		bx, by := mbx*4+b%4, mby*4+b/4
 		for y := 0; y < 4; y++ {
 			for x := 0; x < 4; x++ {
@@ -656,10 +1012,10 @@ func (d *Decoder) reconstructI16x16(r *Reader, mbx, mby, pred16, chromaMode int,
 		d.modes[by*stride+bx] = 2
 		d.setNnz(d.nnzY, stride, bx, by, acNZ)
 	}
-	return d.reconstructChroma(r, mbx, mby, chromaMode, (cbp>>4)&3)
+	return d.reconstructChromaWith(mbx, mby, chromaMode, (cbp>>4)&3, rs, true)
 }
 
-func (d *Decoder) reconstructChroma(r *Reader, mbx, mby, chromaMode int, cbpC uint32) error {
+func (d *Decoder) reconstructChromaWith(mbx, mby, chromaMode int, cbpC uint32, rs *residSrc, intra bool) error {
 	planes := [2][]uint8{d.pic.Cb, d.pic.Cr}
 	var preds [2][64]uint8
 	var err error
@@ -671,13 +1027,13 @@ func (d *Decoder) reconstructChroma(r *Reader, mbx, mby, chromaMode int, cbpC ui
 		}
 	}
 	// Bitstream order is Cb DC, Cr DC, then Cb AC blocks, Cr AC blocks.
-	return d.reconstructChromaBlocks(r, mbx, mby, cbpC, &preds[0], &preds[1])
+	return d.reconstructChromaBlocks(mbx, mby, cbpC, &preds[0], &preds[1], rs, intra)
 }
 
 // reconstructChromaBlocks reads chroma residual against caller-supplied
 // prediction and adds it into the picture. Both intra and inter macroblocks
 // share this tail; only the prediction source differs.
-func (d *Decoder) reconstructChromaBlocks(r *Reader, mbx, mby int, cbpC uint32, predCb, predCr *[64]uint8) error {
+func (d *Decoder) reconstructChromaBlocks(mbx, mby int, cbpC uint32, predCb, predCr *[64]uint8, rs *residSrc, intra bool) error {
 	planes := [2][]uint8{d.pic.Cb, d.pic.Cr}
 	preds := [2]*[64]uint8{predCb, predCr}
 	grids := [2][]int8{d.nnzCb, d.nnzCr}
@@ -689,36 +1045,39 @@ func (d *Decoder) reconstructChromaBlocks(r *Reader, mbx, mby int, cbpC uint32, 
 	var dcRs [2][4]int32
 	if cbpC > 0 {
 		for comp := 0; comp < 2; comp++ {
-			dcRaw, err := DecodeResidualBlock(r, 0, 4, 0, true)
+			dcArr, err := rs.chromaDC(comp)
 			if err != nil {
 				return fmt.Errorf("chroma dc: %w", err)
 			}
-			var dcArr [4]int32
-			copy(dcArr[:], dcRaw[:4])
-			dcRs[comp] = ITransformChromaDC(dcArr, uint32(qps[comp]))
+			var w0 uint8 = 16
+			if intra {
+				w0 = d.sc4[1+comp][0]
+			} else {
+				w0 = d.sc4[4+comp][0]
+			}
+			dcRs[comp] = ITransformChromaDCScaled(dcArr, uint32(qps[comp]), w0)
 		}
 	}
 	for comp := 0; comp < 2; comp++ {
 		pred := preds[comp]
 		dcR := dcRs[comp]
+		var w [16]uint8
+		if intra {
+			w = d.sc4[1+comp]
+		} else {
+			w = d.sc4[4+comp]
+		}
 		for b := 0; b < 4; b++ {
 			var coeff [16]int32
 			acNZ := 0
 			if cbpC == 2 {
-				bx, by := mbx*2+b%2, mby*2+b/2
-				nC := d.blockNC(grids[comp], cstride, bx, by)
-				ac, err := DecodeResidualBlock(r, SelectTable(nC), 15, 1, false)
+				ac, total, err := rs.chromaAC(mbx, mby, comp, b)
 				if err != nil {
-					return fmt.Errorf("chroma ac c%d b%d nC=%d: %w", comp, b, nC, err)
+					return fmt.Errorf("chroma ac c%d b%d: %w", comp, b, err)
 				}
-				coeff = ac
-				for _, v := range ac {
-					if v != 0 {
-						acNZ++
-					}
-				}
+				coeff, acNZ = ac, total
 			}
-			res := ITransform4x4WithDC(coeff, dcR[b], uint32(qps[comp]))
+			res := ITransform4x4WithDCScaled(coeff, dcR[b], uint32(qps[comp]), w)
 			bx, by := mbx*2+b%2, mby*2+b/2
 			for y := 0; y < 4; y++ {
 				for x := 0; x < 4; x++ {

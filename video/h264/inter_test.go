@@ -165,6 +165,87 @@ func TestDecodeBSkipExact(t *testing.T) {
 	}
 }
 
+// VR2c gate: Main-profile CABAC clip decodes pixel-exact, both packings.
+// Covers CABAC entropy, explicit weighted prediction, list reordering
+// and sliding-window marking (I + 4P, 96x96).
+func TestDecodeMMainExactAVCC(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_main.mp4", avccWrap)
+	if len(pics) != 5 {
+		t.Fatalf("frames = %d want 5", len(pics))
+	}
+	assertClipExact(t, pics, "../testdata/vr2_m_main.yuv", 96, 96)
+}
+
+func TestDecodeMMainExactAnnexB(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_main.mp4", annexBWrap)
+	if len(pics) != 5 {
+		t.Fatalf("frames = %d want 5", len(pics))
+	}
+	assertClipExact(t, pics, "../testdata/vr2_m_main.yuv", 96, 96)
+}
+
+// Reorder unit: the gate clip's frame-2 header moves fn1 to the front
+// twice, so list 0 aliases one picture under indices 0 and 1.
+func TestRefListReorder(t *testing.T) {
+	mk := func(fn uint32) *Picture {
+		p, err := NewPicture(16, 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.FrameNum = fn
+		return p
+	}
+	d := NewDecoder(nil)
+	d.sps = &SPS{Log2MaxFrameNum: 0}
+	p0, p1 := mk(0), mk(1)
+	d.dpb.Store(p0, true)
+	d.dpb.Store(p1, true)
+	h := &SliceHeader{FrameNum: 2, RefL0Count: 3, RefModL0: []RefModOp{
+		{IDC: 0, Arg: 0}, {IDC: 0, Arg: 15}, {IDC: 0, Arg: 0},
+	}}
+	list, err := d.buildRefList0(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 3 || list[0] != p1 || list[1] != p1 || list[2] != p0 {
+		t.Fatalf("reordered list = %v want [fn1 fn1 fn0]", list)
+	}
+}
+
+// Strength unit: two indices into the same picture are one reference,
+// so the edge between them filters only on motion difference.
+func TestInterBSAlias(t *testing.T) {
+	p, err := NewPicture(32, 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mbW, mbH := 2, 1
+	stride := mbW * 4
+	n4 := stride * mbH * 4
+	mbIntra := make([]bool, mbW*mbH)
+	nnz := make([]int8, n4)
+	mvX := make([]int16, n4)
+	mvY := make([]int16, n4)
+	refs := make([]int8, n4)
+	for i := range refs {
+		refs[i] = 0
+	}
+	// Right half rides index 1; both indices resolve to one picture.
+	for y := 0; y < 4; y++ {
+		for x := 4; x < 8; x++ {
+			refs[y*stride+x] = 1
+		}
+	}
+	list := []*Picture{p, p}
+	// sx=16 is the middle vertical edge (x=16), seg row 0.
+	if got := interBS(mbIntra, nnz, mvX, mvY, refs, list, mbW, mbH, 16, 0, false, false); got != 0 {
+		t.Fatalf("aliased edge bS = %d want 0", got)
+	}
+	if got := interBS(mbIntra, nnz, mvX, mvY, refs, nil, mbW, mbH, 16, 0, false, false); got != 1 {
+		t.Fatalf("index-compare edge bS = %d want 1", got)
+	}
+}
+
 // Marking unit: reference roster keeps newest-first order, drops
 // disposable pictures, slides the window, and flushes on IDR.
 func TestDPBMarkingOps(t *testing.T) {

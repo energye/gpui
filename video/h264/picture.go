@@ -1,6 +1,9 @@
 package h264
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Picture is one decoded 8-bit 4:2:0 frame in raster order.
 // Luma is Width x Height; each chroma plane is half width and height.
@@ -88,6 +91,102 @@ func (d *DPB) Store(p *Picture, isRef bool) {
 	for len(d.pics) > d.max {
 		d.pics = d.pics[1:]
 	}
+}
+
+// buildRefList0 constructs reference list 0 for one P slice: buffered
+// pictures newest-first, then the slice-header reordering steps, sized
+// to RefL0Count. Unavailable slots stay nil so refFor fails readable
+// instead of sampling a wrong picture. Frames only: field (IDC 1) and
+// long-term (IDC 2) reorderings stop readable for a later stage.
+func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
+	if d.sps == nil {
+		return nil, fmt.Errorf("%w: slice without sequence sets", ErrMissingPPS)
+	}
+	n := int(h.RefL0Count)
+	if n < 1 {
+		n = 1
+	}
+	byAge := append([]*Picture(nil), d.dpb.pics...)
+	sort.Slice(byAge, func(i, j int) bool { return byAge[i].FrameNum > byAge[j].FrameNum })
+	list := make([]*Picture, 0, n)
+	for _, p := range byAge {
+		if len(list) >= n {
+			break
+		}
+		list = append(list, p)
+	}
+	for len(list) < n {
+		list = append(list, nil)
+	}
+	if len(h.RefModL0) == 0 {
+		return list, nil
+	}
+	bits, err := frameNumBits(d.sps)
+	if err != nil {
+		return nil, err
+	}
+	maxPicNum := int32(1) << uint(bits)
+	pred := int32(h.FrameNum)
+	for index, op := range h.RefModL0 {
+		if index >= n {
+			break
+		}
+		var pic *Picture
+		switch op.IDC {
+		case 0:
+			diff := int32(op.Arg) + 1
+			if diff > maxPicNum {
+				return nil, fmt.Errorf("%w: abs_diff %d", ErrBadSliceHeader, op.Arg)
+			}
+			pred = (pred - diff) % maxPicNum
+			if pred < 0 {
+				pred += maxPicNum
+			}
+			for _, p := range d.dpb.pics {
+				if int32(p.FrameNum) == pred {
+					pic = p
+					break
+				}
+			}
+			if pic == nil {
+				// Missing reorder target: leave a hole like the
+				// reference decoder's zeroed entry.
+				list[index] = nil
+				continue
+			}
+		case 1:
+			return nil, fmt.Errorf("%w: field reference reorder", ErrStageScope)
+		case 2:
+			return nil, fmt.Errorf("%w: long-term reference reorder", ErrStageScope)
+		default:
+			return nil, fmt.Errorf("%w: ref mod idc %d", ErrBadSliceHeader, op.IDC)
+		}
+		i := index
+		for i < n && (list[i] == nil || list[i].FrameNum != pic.FrameNum) {
+			i++
+		}
+		if i >= n {
+			i = n - 1
+		}
+		copy(list[index+1:i+1], list[index:i])
+		list[index] = pic
+	}
+	return list, nil
+}
+
+// evictOldest drops the smallest-FrameNum buffered picture: the
+// sliding-window mark when the buffer already holds its maximum.
+func (d *DPB) evictOldest() {
+	if d == nil || len(d.pics) == 0 {
+		return
+	}
+	m := 0
+	for i := range d.pics {
+		if d.pics[i].FrameNum < d.pics[m].FrameNum {
+			m = i
+		}
+	}
+	d.pics = append(d.pics[:m], d.pics[m+1:]...)
 }
 
 // Latest returns the most recent reference picture.

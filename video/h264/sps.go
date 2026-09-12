@@ -19,6 +19,9 @@ type SPS struct {
 	FrameMBsOnly    bool
 	Interlaced      bool
 	NumRefFrames    uint32
+	// Scaling holds the sequence scaling lists in raster order
+	// (F9; flat unless the bitstream overrides).
+	Scaling         scalingRaw
 	HasCropping     bool
 	CropLeft        uint32
 	CropRight       uint32
@@ -101,7 +104,8 @@ func ParseSPS(nalu []byte) (*SPS, error) {
 			if s.ChromaFormat == 3 {
 				n = 12
 			}
-			if err := skipScalingLists(r, n); err != nil {
+			s.Scaling.present = true
+			if err := parseScalingMatrices(r, &s.Scaling, n); err != nil {
 				return nil, err
 			}
 		}
@@ -249,34 +253,4 @@ func cropUnit(chroma uint32, frameOnly bool) (ux, uy uint32) {
 	default:
 		return 2, 2
 	}
-}
-
-func skipScalingLists(r *Reader, n int) error {
-	for i := 0; i < n; i++ {
-		present, err := r.ReadBits(1)
-		if err != nil {
-			return fmt.Errorf("%w: scaling %d present: %v", ErrBadSPS, i, err)
-		}
-		if present == 0 {
-			continue
-		}
-		size := 16
-		if i >= 6 {
-			size = 64
-		}
-		last, next := int32(8), int32(8)
-		for j := 0; j < size; j++ {
-			if next != 0 {
-				d, err := r.ReadSE()
-				if err != nil {
-					return fmt.Errorf("%w: scaling %d delta: %v", ErrBadSPS, i, err)
-				}
-				next = (last + d + 256) % 256
-			}
-			if next != 0 {
-				last = next
-			}
-		}
-	}
-	return nil
 }

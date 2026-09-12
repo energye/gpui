@@ -227,7 +227,10 @@ func filterChromaIntraEdge(p []uint8, stride int, ex, ey int, vertical bool, alp
 // qps/fIDC/fA/fB carry per-macroblock QP and filter switches.
 // mbIntra/nnzY/mv/ref carry inter info for boundary strength; nil mbIntra
 // keeps the VR2a all-intra strengths (4 on MB edges, 3 inside).
-func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8) {
+// refList resolves reference indices to pictures: aliased indices into
+// the same picture count as one reference (no strength from the index
+// alone). A nil list keeps plain index comparison.
+func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbT8 []bool) {
 	if pic == nil {
 		return
 	}
@@ -252,8 +255,14 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 	// in MB raster order. Edges share one picture, so order matters.
 	for mby := 0; mby < mbH; mby++ {
 		for mbx := 0; mbx < mbW; mbx++ {
+			is8 := mby*mbW+mbx >= 0 && mby*mbW+mbx < len(mbT8) && mbT8[mby*mbW+mbx]
 			for _, vertical := range []bool{false, true} {
 				for e := 0; e < 4; e++ {
+					// 8x8 transform skips internal 4x4 edges (1 and 3);
+					// MB edge (0) and 8x8 boundary (2) still filter.
+					if is8 && (e == 1 || e == 3) {
+						continue
+					}
 					var ex, ey int
 					var edgeMB bool
 					if !vertical {
@@ -293,7 +302,7 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 						} else {
 							sx, sy = ex+seg*4, ey
 						}
-						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, mbW, mbH, sx, sy, vertical, edgeMB)
+						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB)
 						if bS == 0 {
 							continue
 						}
@@ -316,7 +325,7 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 							} else {
 								sx, sy = ex+seg*4, ey
 							}
-							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, mbW, mbH, sx, sy, vertical, edgeMB)
+							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB)
 							if bS < 1 {
 								continue
 							}
@@ -351,7 +360,9 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 
 // interBS derives one 4-line edge strength. sx,sy is the edge origin in
 // luma pixels; vertical=false means a vertical edge at x=sx.
-func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool) int {
+// Same-picture references through different indices compare equal;
+// without a list the raw indices compare (single-reference clips).
+func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool) int {
 	if mbIntra == nil {
 		if edgeMB {
 			return 4
@@ -398,7 +409,20 @@ func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, mbW, 
 		return 2
 	}
 	if refIdx != nil {
-		if refIdx[pi] != refIdx[qi] {
+		if refList != nil {
+			// refIdx entries are int8 indices; negative marks
+			// unavailable (intra/cleared) slots.
+			refOf := func(i int) *Picture {
+				idx := int(refIdx[i])
+				if idx < 0 || idx >= len(refList) {
+					return nil
+				}
+				return refList[idx]
+			}
+			if refOf(pi) != refOf(qi) {
+				return 1
+			}
+		} else if refIdx[pi] != refIdx[qi] {
 			return 1
 		}
 	}

@@ -21,7 +21,11 @@ type PPS struct {
 	RedundantPicPresent  bool
 	Transform8x8         bool
 	HasScalingMatrix     bool
+	// Scaling holds the picture scaling lists in raster order (F9).
+	// Chroma-4:4:4-only 8x8 positions are consumed and dropped.
+	Scaling              scalingRaw
 	SecondChromaQPOffset int32
+	HasSecondChromaQP    bool
 	Raw                  []byte
 }
 
@@ -127,13 +131,18 @@ func ParsePPS(nalu []byte) (*PPS, error) {
 		}
 		if scaling != 0 {
 			p.HasScalingMatrix = true
+			p.Scaling.present = true
+			// 4:2:0/4:2:2 carry 6 4x4 plus 2 luma 8x8 lists when the
+			// 8x8 transform is on; 4:4:4-only extras stay unmapped
+			// (parsed, dropped).
 			n := 6 + 2*boolToInt(t8 != 0)
-			if err := skipScalingLists(r, n); err != nil {
+			if err := parseScalingMatrices(r, &p.Scaling, n); err != nil {
 				return nil, err
 			}
 		}
 		if off, err := r.ReadSE(); err == nil {
 			p.SecondChromaQPOffset = off
+			p.HasSecondChromaQP = true
 		}
 	}
 	p.Raw = append([]byte(nil), nalu...)

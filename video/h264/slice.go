@@ -18,26 +18,46 @@ type MMCOOp struct {
 	Arg2 uint32
 }
 
+// RefModOp is one reference-list reordering step: IDC selects short-term
+// (0), short-term forward (1, fields only) or long-term (2) addressing,
+// Arg carries abs_diff_pic_num_minus1 (0/1) or long_term_pic_num (2).
+type RefModOp struct {
+	IDC uint32
+	Arg uint32
+}
+
 // SliceHeader is the parsed slice header: addressing, type, quant start,
 // filter switches and reference-marking ops. MB payload follows.
 type SliceHeader struct {
-	FirstMB         uint32
-	Type            uint32
-	PPSID           uint32
-	FrameNum        uint32
-	FieldPic        bool
-	BottomField     bool
-	IDRPicID        uint32
-	POC             int32
-	RedundantCnt    uint32
-	RefL0Count      uint32
-	RefL1Count      uint32
-	DirectSpatial   bool
-	CabacInitIDC    uint32
-	QPDelta         int32
-	DisableFilter   uint32
-	FilterAlpha     int32
-	FilterBeta      int32
+	FirstMB       uint32
+	Type          uint32
+	PPSID         uint32
+	FrameNum      uint32
+	FieldPic      bool
+	BottomField   bool
+	IDRPicID      uint32
+	POC           int32
+	RedundantCnt  uint32
+	RefL0Count    uint32
+	RefL1Count    uint32
+	DirectSpatial bool
+	// RefModL0 holds the list-0 reordering steps in bitstream order
+	// (empty when the flag is clear). List-1 steps are parsed and
+	// dropped: B slices stop readable in a later stage.
+	RefModL0      []RefModOp
+	CabacInitIDC  uint32
+	QPDelta       int32
+	DisableFilter uint32
+	FilterAlpha   int32
+	FilterBeta    int32
+	// Explicit weighted prediction (P slices use list 0). Denoms are
+	// slice-wide; per-reference factors default to identity.
+	LumaDenom       int32
+	ChromaDenom     int32
+	LumaW0          [32]int32
+	LumaO0          [32]int32
+	ChromaW0        [32][2]int32
+	ChromaO0        [32][2]int32
 	NalRefIDC       int
 	NoOutputPrior   bool
 	LongTermRef     bool
@@ -76,6 +96,15 @@ func ParseSliceHeader(nalu []byte, pps *PPS, sps *SPS) (*SliceHeader, *Reader, e
 		NalRefIDC:  refIDC,
 		RefL0Count: pps.RefL0Default,
 		RefL1Count: pps.RefL1Default,
+	}
+	// Absent weight tables infer identity (denominators stay zero).
+	for i := range h.LumaW0 {
+		h.LumaW0[i] = 1
+	}
+	for i := range h.ChromaW0 {
+		for c := 0; c < 2; c++ {
+			h.ChromaW0[i][c] = 1
+		}
 	}
 	if h.FirstMB, err = r.ReadUE(); err != nil {
 		return nil, nil, fmt.Errorf("%w: first mb: %v", ErrBadSliceHeader, err)
@@ -201,7 +230,7 @@ func finishSliceHeader(r *Reader, h *SliceHeader, pps *PPS, sps *SPS) error {
 				h.RefL1Count = l1 + 1
 			}
 		}
-		if err := skipRefPicListMod(r, h.Type); err != nil {
+		if err := parseRefPicListMod(r, h); err != nil {
 			return err
 		}
 	}
@@ -268,9 +297,9 @@ func finishSliceHeader(r *Reader, h *SliceHeader, pps *PPS, sps *SPS) error {
 	return nil
 }
 
-func skipRefPicListMod(r *Reader, sliceType uint32) error {
+func parseRefPicListMod(r *Reader, h *SliceHeader) error {
 	for list := 0; list < 2; list++ {
-		if sliceType == SliceB || list == 0 {
+		if h.Type == SliceB || list == 0 {
 			flag, err := r.ReadBits(1)
 			if err != nil {
 				return fmt.Errorf("%w: ref mod flag: %v", ErrBadSliceHeader, err)
@@ -289,13 +318,17 @@ func skipRefPicListMod(r *Reader, sliceType uint32) error {
 				if idc > 5 {
 					return fmt.Errorf("%w: ref mod idc %d", ErrBadSliceHeader, idc)
 				}
-				if _, err := r.ReadUE(); err != nil {
+				arg, err := r.ReadUE()
+				if err != nil {
 					return fmt.Errorf("%w: ref mod arg: %v", ErrBadSliceHeader, err)
 				}
 				if idc == 2 {
 					if _, err := r.ReadUE(); err != nil {
 						return fmt.Errorf("%w: ref mod view: %v", ErrBadSliceHeader, err)
 					}
+				}
+				if list == 0 {
+					h.RefModL0 = append(h.RefModL0, RefModOp{IDC: idc, Arg: arg})
 				}
 			}
 		}
@@ -311,6 +344,7 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 	if denom > 7 {
 		return fmt.Errorf("%w: luma denom %d", ErrBadSliceHeader, denom)
 	}
+	h.LumaDenom = int32(denom)
 	chroma := sps.ChromaFormat != 0
 	if chroma {
 		cdenom, err := r.ReadUE()
@@ -320,26 +354,44 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 		if cdenom > 7 {
 			return fmt.Errorf("%w: chroma denom %d", ErrBadSliceHeader, cdenom)
 		}
+		h.ChromaDenom = int32(cdenom)
+	}
+	// Unsignalled references stay identity: weight 1<<denom, offset 0.
+	for i := range h.LumaW0 {
+		h.LumaW0[i] = 1 << uint(h.LumaDenom)
+	}
+	for i := range h.ChromaW0 {
+		for c := 0; c < 2; c++ {
+			h.ChromaW0[i][c] = 1 << uint(h.ChromaDenom)
+		}
 	}
 	lists := []uint32{h.RefL0Count}
 	if h.Type == SliceB {
 		lists = append(lists, h.RefL1Count)
 	}
-	for _, n := range lists {
+	// Only list 0 is kept: B slices never reach prediction in this
+	// stage, so list-1 factors are parsed and dropped.
+	for li, n := range lists {
 		if n > 32 {
 			return fmt.Errorf("%w: ref count %d", ErrBadSliceHeader, n)
 		}
+		keep := li == 0
 		for i := uint32(0); i < n; i++ {
 			f, err := r.ReadBits(1)
 			if err != nil {
 				return fmt.Errorf("%w: luma weight flag: %v", ErrBadSliceHeader, err)
 			}
 			if f != 0 {
-				if _, err := r.ReadSE(); err != nil {
+				w, err := r.ReadSE()
+				if err != nil {
 					return fmt.Errorf("%w: luma weight: %v", ErrBadSliceHeader, err)
 				}
-				if _, err := r.ReadSE(); err != nil {
+				o, err := r.ReadSE()
+				if err != nil {
 					return fmt.Errorf("%w: luma offset: %v", ErrBadSliceHeader, err)
+				}
+				if keep {
+					h.LumaW0[i], h.LumaO0[i] = w, o
 				}
 			}
 			f, err = r.ReadBits(1)
@@ -347,9 +399,19 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 				return fmt.Errorf("%w: chroma weight flag: %v", ErrBadSliceHeader, err)
 			}
 			if f != 0 {
-				for k := 0; k < 4; k++ {
-					if _, err := r.ReadSE(); err != nil {
+				// Order per reference: Cb weight, Cb offset, Cr
+				// weight, Cr offset.
+				for k := 0; k < 2; k++ {
+					w, err := r.ReadSE()
+					if err != nil {
 						return fmt.Errorf("%w: chroma weight %d: %v", ErrBadSliceHeader, k, err)
+					}
+					o, err := r.ReadSE()
+					if err != nil {
+						return fmt.Errorf("%w: chroma offset %d: %v", ErrBadSliceHeader, k, err)
+					}
+					if keep {
+						h.ChromaW0[i][k], h.ChromaO0[i][k] = w, o
 					}
 				}
 			}

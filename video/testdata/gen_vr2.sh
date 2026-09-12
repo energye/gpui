@@ -19,6 +19,14 @@ gen vr2_b_mixed "$SRC" baseline -bf 0 -g 5
 gen vr2_b_skip color=size=96x96:rate=5:duration=1:color=0x808080 baseline -bf 0 -g 5
 # VR2c: Main mixed (Main profile proof).
 gen vr2_m_main "$SRC" main -bf 0 -g 5
+# VR2c F6/F9: High mixed with 8x8 intra/transform (mandelbrot detail
+# forces 8x8 blocks; I + 4P, no B to isolate from reorder).
+gen vr2_h_8x8 "mandelbrot=size=96x96:rate=5:end_pts=5" high -frames:v 5 -bf 0 -g 5
+# VR2c F9: High mixed with JVT default scaling lists (matrix present,
+# all implicit: dequant must use the default tables, not flat).
+gen vr2_h_scale "mandelbrot=size=96x96:rate=5:end_pts=5" high -frames:v 5 -bf 0 -g 5 -x264-params cqm=jvt
+# VR2c F5/F9: High mixed with CAVLC entropy + 8x8 (dual-entropy 8x8 proof).
+gen vr2_h_cavlc "mandelbrot=size=96x96:rate=5:end_pts=5" high -frames:v 5 -bf 0 -g 5 -x264-params no-cabac=1
 # VR2d: Main with 2 consecutive B frames (reorder proof).
 gen vr2_m_bframes "$SRC" main -bf 2 -g 8
 # VR2d matrix (short 5-frame clips per档; 1440p/4K local-only, not committed).

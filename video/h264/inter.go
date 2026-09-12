@@ -124,14 +124,29 @@ func (d *Decoder) pred8x16Right(px, py int, ref int8) (int16, int16) {
 	return d.predMotion(px, py, 2, ref)
 }
 
-// storeMV fills one luma rectangle (pixels) with a motion vector.
-func (d *Decoder) storeMV(px, py, w, h int, mx, my int16, ref int8) {
+// storeMV fills one luma rectangle (pixels) with a motion vector and its
+// difference (the difference feeds CABAC neighbour contexts).
+func (d *Decoder) storeMV(px, py, w, h int, mx, my, mdx, mdy int16, ref int8) {
 	stride := d.mbW * 4
 	for y := py / 4; y < (py+h)/4; y++ {
 		for x := px / 4; x < (px+w)/4; x++ {
 			i := y*stride + x
 			d.mvX[i], d.mvY[i] = mx, my
+			d.mvdX[i], d.mvdY[i] = mdx, mdy
 			d.refIdx[i] = ref
+		}
+	}
+}
+
+// storeRef records one partition's reference index into scratch the
+// moment it is read: later partitions of the same macroblock consult it
+// for neighbour contexts. It must not touch refIdx yet — motion
+// prediction still uses refIdx<0 to spot not-yet-decoded partitions.
+func (d *Decoder) storeRef(bx, by, w, h int, ref int8) {
+	stride := d.mbW * 4
+	for y := by; y < by+h; y++ {
+		for x := bx; x < bx+w; x++ {
+			d.refTmp[y*stride+x] = ref
 		}
 	}
 }
@@ -141,7 +156,12 @@ func (d *Decoder) markIntraMB(mbx, mby int) {
 	stride := d.mbW * 4
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			d.refIdx[(mby*4+y)*stride+mbx*4+x] = -1
+			i := (mby*4+y)*stride + mbx*4 + x
+			d.refIdx[i] = -1
+			// CABAC motion contexts read raw MVD slots: intra must
+			// contribute zero, never a stale inter difference.
+			d.mvdX[i] = 0
+			d.mvdY[i] = 0
 		}
 	}
 	d.mbIntra[mby*d.mbW+mbx] = true

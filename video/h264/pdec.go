@@ -11,13 +11,13 @@ type part struct {
 	ref          int8
 }
 
-func (d *Decoder) decodeSkip(h *SliceHeader, addr int, r *Reader) error {
+func (d *Decoder) decodeSkip(h *SliceHeader, addr int, rs *residSrc) error {
 	mbx, mby := addr%d.mbW, addr/d.mbW
 	if d.refPic == nil {
 		return fmt.Errorf("%w: skip without reference", ErrBadSliceHeader)
 	}
 	mx, my := d.predMotion(mbx*4, mby*4, 4, 0)
-	d.storeMV(mbx*16, mby*16, 16, 16, mx, my, 0)
+	d.storeMV(mbx*16, mby*16, 16, 16, mx, my, 0, 0, 0)
 	var predY [256]uint8
 	var predCb, predCr [64]uint8
 	fillPred(&predY, &predCb, &predCr)
@@ -26,7 +26,12 @@ func (d *Decoder) decodeSkip(h *SliceHeader, addr int, r *Reader) error {
 		return err
 	}
 	d.finishPMB(h, addr, mbx, mby)
-	if err := d.reconstructInter(r, mbx, mby, 0, &predY, &predCb, &predCr); err != nil {
+	d.skipped[addr] = true
+	d.mbSlice[addr] = d.slices
+	if addr >= 0 && addr < len(d.mbT8) {
+		d.mbT8[addr] = false
+	}
+	if err := d.reconstructInterWith(mbx, mby, 0, &predY, &predCb, &predCr, rs); err != nil {
 		return err
 	}
 	d.skipCnt++
@@ -72,6 +77,7 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 			return err
 		}
 		predictLumaBlock(rp, pt.px, pt.py, pt.w, pt.h, pt.mx, pt.my, blk[:pt.w*pt.h])
+		d.weightLuma(blk[:pt.w*pt.h], pt.ref)
 		for y := 0; y < pt.h; y++ {
 			for x := 0; x < pt.w; x++ {
 				ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
@@ -84,6 +90,7 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 		ccx, ccy := mbx*8+cx, mby*8+cy
 		predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cb[:cw*ch])
 		predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cr[:cw*ch])
+		d.weightChroma(cb[:cw*ch], cr[:cw*ch], pt.ref)
 		for y := 0; y < ch; y++ {
 			for x := 0; x < cw; x++ {
 				predCb[(cy+y)*8+cx+x] = cb[y*cw+x]
@@ -92,6 +99,45 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 		}
 	}
 	return nil
+}
+
+// weightLuma scales one predicted luma block by the slice's explicit
+// list-0 factors; default tables pass through untouched.
+func (d *Decoder) weightLuma(blk []byte, ref int8) {
+	if int(ref) < 0 || int(ref) >= len(d.wW0) {
+		return
+	}
+	w, o := d.wW0[ref], d.wO0[ref]
+	if w == 1<<uint(d.wDenomL) && o == 0 {
+		return
+	}
+	round := int32(0)
+	if d.wDenomL > 0 {
+		round = 1 << uint(d.wDenomL-1)
+	}
+	for i, p := range blk {
+		blk[i] = clipPixel((w*int32(p)+round)>>uint(d.wDenomL) + o)
+	}
+}
+
+// weightChroma scales one predicted chroma block pair the same way.
+func (d *Decoder) weightChroma(cb, cr []byte, ref int8) {
+	if int(ref) < 0 || int(ref) >= len(d.wWC0) {
+		return
+	}
+	for comp, dst := range [][]byte{cb, cr} {
+		w, o := d.wWC0[ref][comp], d.wOC0[ref][comp]
+		if w == 1<<uint(d.wDenomC) && o == 0 {
+			continue
+		}
+		round := int32(0)
+		if d.wDenomC > 0 {
+			round = 1 << uint(d.wDenomC-1)
+		}
+		for i, p := range dst {
+			dst[i] = clipPixel((w*int32(p)+round)>>uint(d.wDenomC) + o)
+		}
+	}
 }
 
 // finishPMB records the per-MB state shared by all P macroblocks.
@@ -126,15 +172,23 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 		return d.decodeIntraMB(r, pps, h, addr, mbx, mby, intraType)
 	}
 	// Inter 0..4.
-	if pps.Transform8x8 {
-		// 8x8 transform flag would follow CBP; Baseline never sets it.
-		// Guard so a future High stream fails readable instead of skewing.
-		_ = pps
-	}
-	var parts []part
-	x0, y0 := mbx*4, mby*4
-	px0, py0 := mbx*16, mby*16
-	readRef := func() (int8, error) {
+	return d.decodeMBPParts(h, pps, addr, mbx, mby, mbType, d.cavlcInterSrc(r, h, pps, addr, mbx, mby), d.cavlcSrc(r))
+}
+
+// interSrc provides partition-level syntax; CAVLC reads bits, CABAC bins.
+// ref/mvd take the partition origin in 4x4 units for neighbour contexts.
+type interSrc struct {
+	ref func(bx, by int) (int8, error)
+	mvd func(bx, by int, px, py int16) (mx, my, dx, dy int16, err error)
+	sub func() (uint32, error)
+	cbp func() (uint32, error)
+	qpD func() (int32, error)
+	t8  func(cbp uint32, subs []uint32) (bool, error)
+}
+
+// cavlcInterSrc reads inter syntax with Exp-Golomb codes.
+func (d *Decoder) cavlcInterSrc(r *Reader, h *SliceHeader, pps *PPS, addr, mbx, mby int) *interSrc {
+	readRef := func(bx, by int) (int8, error) {
 		if h.RefL0Count <= 1 {
 			return 0, nil
 		}
@@ -154,38 +208,97 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 		}
 		return int8(v), nil
 	}
-	readMVD := func(predX, predY int16) (int16, int16, error) {
+	readMVD := func(bx, by int, predX, predY int16) (int16, int16, int16, int16, error) {
 		dx, err := r.ReadSE()
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, 0, 0, err
 		}
 		dy, err := r.ReadSE()
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, 0, 0, err
 		}
-		return predX + int16(dx), predY + int16(dy), nil
+		return predX + int16(dx), predY + int16(dy), int16(dx), int16(dy), nil
 	}
+	return &interSrc{
+		ref: readRef,
+		mvd: readMVD,
+		sub: func() (uint32, error) {
+			v, err := r.ReadUE()
+			if err != nil {
+				return 0, fmt.Errorf("sub type: %w", err)
+			}
+			if v > 3 {
+				return 0, fmt.Errorf("%w: sub type %d", ErrBadSliceHeader, v)
+			}
+			return v, nil
+		},
+		cbp: func() (uint32, error) {
+			cbpUE, err := r.ReadUE()
+			if err != nil {
+				return 0, fmt.Errorf("cbp: %w", err)
+			}
+			if cbpUE > 47 {
+				return 0, fmt.Errorf("%w: cbp %d", ErrBadSliceHeader, cbpUE)
+			}
+			return uint32(golombToInterCBP[cbpUE]), nil
+		},
+		qpD: func() (int32, error) {
+			delta, err := r.ReadSE()
+			if err != nil {
+				return 0, fmt.Errorf("qp delta: %w", err)
+			}
+			return delta, nil
+		},
+		t8: func(cbp uint32, subs []uint32) (bool, error) {
+			if pps == nil || !pps.Transform8x8 || cbp&15 == 0 {
+				return false, nil
+			}
+			if len(subs) == 4 {
+				for _, s := range subs {
+					if s != 0 {
+						return false, nil
+					}
+				}
+			}
+			b, err := r.ReadBits(1)
+			if err != nil {
+				return false, fmt.Errorf("t8 flag: %w", err)
+			}
+			return b != 0, nil
+		},
+	}
+}
+
+func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, mbType uint32, is *interSrc, rs *residSrc) error {
+	var parts []part
+	var subList []uint32
+	var subTypes [4]uint32
+	hasSubs := false
+	x0, y0 := mbx*4, mby*4
+	px0, py0 := mbx*16, mby*16
 	switch mbType {
 	case 0: // P_16x16
-		ref, err := readRef()
+		ref, err := is.ref(x0, y0)
 		if err != nil {
 			return err
 		}
+		d.storeRef(x0, y0, 4, 4, ref)
 		px, py := d.predMotion(x0, y0, 4, ref)
-		mx, my, err := readMVD(px, py)
+		mx, my, mdx, mdy, err := is.mvd(x0, y0, px, py)
 		if err != nil {
 			return err
 		}
-		d.storeMV(px0, py0, 16, 16, mx, my, ref)
+		d.storeMV(px0, py0, 16, 16, mx, my, mdx, mdy, ref)
 		parts = append(parts, part{px0, py0, 16, 16, mx, my, ref})
 	case 1: // P_16x8: refs first, then MVDs in order.
 		var refs [2]int8
 		for i := 0; i < 2; i++ {
-			ref, err := readRef()
+			ref, err := is.ref(x0, y0+2*i)
 			if err != nil {
 				return err
 			}
 			refs[i] = ref
+			d.storeRef(x0, y0+2*i, 4, 2, ref)
 		}
 		for i := 0; i < 2; i++ {
 			ref := refs[i]
@@ -196,21 +309,22 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 			} else {
 				px, pyv = d.pred16x8Bottom(x0, y0+2, ref)
 			}
-			mx, my, err := readMVD(px, pyv)
+			mx, my, mdx, mdy, err := is.mvd(x0, y0+2*i, px, pyv)
 			if err != nil {
 				return err
 			}
-			d.storeMV(px0, py, 16, 8, mx, my, ref)
+			d.storeMV(px0, py, 16, 8, mx, my, mdx, mdy, ref)
 			parts = append(parts, part{px0, py, 16, 8, mx, my, ref})
 		}
 	case 2: // P_8x16: refs first, then MVDs.
 		var refs [2]int8
 		for i := 0; i < 2; i++ {
-			ref, err := readRef()
+			ref, err := is.ref(x0+2*i, y0)
 			if err != nil {
 				return err
 			}
 			refs[i] = ref
+			d.storeRef(x0+2*i, y0, 2, 4, ref)
 		}
 		for i := 0; i < 2; i++ {
 			ref := refs[i]
@@ -221,37 +335,36 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 			} else {
 				pxx, pyy = d.pred8x16Right(x0+2, y0, ref)
 			}
-			mx, my, err := readMVD(pxx, pyy)
+			mx, my, mdx, mdy, err := is.mvd(x0+2*i, y0, pxx, pyy)
 			if err != nil {
 				return err
 			}
-			d.storeMV(px, py0, 8, 16, mx, my, ref)
+			d.storeMV(px, py0, 8, 16, mx, my, mdx, mdy, ref)
 			parts = append(parts, part{px, py0, 8, 16, mx, my, ref})
 		}
 	case 3, 4: // P_8x8 / P_8x8ref0
 		ref0Only := mbType == 4
-		var subTypes [4]uint32
 		for i := 0; i < 4; i++ {
-			v, err := r.ReadUE()
+			v, err := is.sub()
 			if err != nil {
-				return fmt.Errorf("sub type: %w", err)
-			}
-			if v > 3 {
-				return fmt.Errorf("%w: sub type %d", ErrBadSliceHeader, v)
+				return err
 			}
 			subTypes[i] = v
 		}
+		hasSubs = true
+		subList = subTypes[:]
 		var refs [4]int8
 		for i := 0; i < 4; i++ {
 			if ref0Only {
 				refs[i] = 0
 				continue
 			}
-			ref, err := readRef()
+			ref, err := is.ref(x0+(i%2)*2, y0+(i/2)*2)
 			if err != nil {
 				return err
 			}
 			refs[i] = ref
+			d.storeRef(x0+(i%2)*2, y0+(i/2)*2, 2, 2, ref)
 		}
 		// 8x8 order: 0 TL, 1 TR, 2 BL, 3 BR. MVDs follow refs.
 		for i := 0; i < 4; i++ {
@@ -262,22 +375,22 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 			switch subTypes[i] {
 			case 0: // 8x8
 				px, py := d.predMotion(qx, qy, 2, ref)
-				mx, my, err := readMVD(px, py)
+				mx, my, mdx, mdy, err := is.mvd(qx, qy, px, py)
 				if err != nil {
 					return err
 				}
-				d.storeMV(ox, oy, 8, 8, mx, my, ref)
+				d.storeMV(ox, oy, 8, 8, mx, my, mdx, mdy, ref)
 				parts = append(parts, part{ox, oy, 8, 8, mx, my, ref})
 			case 1: // 8x4 top,bottom
 				for k := 0; k < 2; k++ {
 					py := oy + k*4
 					sqy := qy + k
 					px, pyv := d.predMotion(qx, sqy, 2, ref)
-					mx, my, err := readMVD(px, pyv)
+					mx, my, mdx, mdy, err := is.mvd(qx, sqy, px, pyv)
 					if err != nil {
 						return err
 					}
-					d.storeMV(ox, py, 8, 4, mx, my, ref)
+					d.storeMV(ox, py, 8, 4, mx, my, mdx, mdy, ref)
 					parts = append(parts, part{ox, py, 8, 4, mx, my, ref})
 				}
 			case 2: // 4x8 left,right
@@ -285,11 +398,11 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 					px := ox + k*4
 					sqx := qx + k
 					pvx, pvy := d.predMotion(sqx, qy, 1, ref)
-					mx, my, err := readMVD(pvx, pvy)
+					mx, my, mdx, mdy, err := is.mvd(sqx, qy, pvx, pvy)
 					if err != nil {
 						return err
 					}
-					d.storeMV(px, oy, 4, 8, mx, my, ref)
+					d.storeMV(px, oy, 4, 8, mx, my, mdx, mdy, ref)
 					parts = append(parts, part{px, oy, 4, 8, mx, my, ref})
 				}
 			default: // 4x4 raster
@@ -298,11 +411,11 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 					py := oy + (k/2)*4
 					sqx, sqy := qx+(k%2), qy+(k/2)
 					pvx, pvy := d.predMotion(sqx, sqy, 1, ref)
-					mx, my, err := readMVD(pvx, pvy)
+					mx, my, mdx, mdy, err := is.mvd(sqx, sqy, pvx, pvy)
 					if err != nil {
 						return err
 					}
-					d.storeMV(px, py, 4, 4, mx, my, ref)
+					d.storeMV(px, py, 4, 4, mx, my, mdx, mdy, ref)
 					parts = append(parts, part{px, py, 4, 4, mx, my, ref})
 				}
 			}
@@ -315,19 +428,27 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 	if err := d.mcParts(mbx, mby, parts, &predY, &predCb, &predCr); err != nil {
 		return err
 	}
-	// CBP + QP delta + residual (inter table).
-	cbpUE, err := r.ReadUE()
+	// CBP + 8x8 flag + QP delta + residual (t8 sits between CBP and
+	// QP delta in the bitstream).
+	cbp, err := is.cbp()
 	if err != nil {
-		return fmt.Errorf("cbp: %w", err)
+		return err
 	}
-	if cbpUE > 47 {
-		return fmt.Errorf("%w: cbp %d", ErrBadSliceHeader, cbpUE)
+	var subs []uint32
+	if hasSubs {
+		subs = subList
 	}
-	cbp := uint32(golombToInterCBP[cbpUE])
+	use8, err := is.t8(cbp, subs)
+	if err != nil {
+		return err
+	}
+	if addr >= 0 && addr < len(d.mbT8) {
+		d.mbT8[addr] = use8
+	}
 	if cbp != 0 {
-		delta, err := r.ReadSE()
+		delta, err := is.qpD()
 		if err != nil {
-			return fmt.Errorf("qp delta: %w", err)
+			return err
 		}
 		d.qpY += delta
 		for d.qpY < 0 {
@@ -338,28 +459,40 @@ func (d *Decoder) decodeMBP(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 		}
 	}
 	d.finishPMB(h, addr, mbx, mby)
-	if err := d.reconstructInter(r, mbx, mby, cbp, &predY, &predCb, &predCr); err != nil {
+	d.cbpArr[addr] = uint16(cbp)
+	d.mbSlice[addr] = d.slices
+	if use8 {
+		if err := d.reconstructInter8x8With(mbx, mby, cbp, &predY, &predCb, &predCr, rs); err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := d.reconstructInterWith(mbx, mby, cbp, &predY, &predCb, &predCr, rs); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (d *Decoder) reconstructInter(r *Reader, mbx, mby int, cbp uint32, predY *[256]uint8, predCb, predCr *[64]uint8) error {
+	return d.reconstructInterWith(mbx, mby, cbp, predY, predCb, predCr, d.cavlcSrc(r))
+}
+
+func (d *Decoder) reconstructInterWith(mbx, mby int, cbp uint32, predY *[256]uint8, predCb, predCr *[64]uint8, rs *residSrc) error {
 	stride := d.mbW * 4
+	wY := d.sc4[3]
 	for _, b := range [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15} {
 		bx, by := mbx*4+b%4, mby*4+b/4
 		var coeff [16]int32
 		tc := 0
 		i8 := (b/8)*2 + (b%4)/2
 		if cbp&(1<<uint(i8)) != 0 {
-			nC := d.blockNC(d.nnzY, stride, bx, by)
-			c, total, err := d.readLumaBlock(r, nC)
+			c, total, err := rs.lumaAC(bx, by, 2)
 			if err != nil {
 				return err
 			}
 			coeff, tc = c, total
 		}
-		res := ITransform4x4(coeff, uint32(d.qpY))
+		res := ITransform4x4Scaled(coeff, uint32(d.qpY), wY)
 		for y := 0; y < 4; y++ {
 			for x := 0; x < 4; x++ {
 				lx, ly := (bx-mbx*4)*4+x, (by-mby*4)*4+y
@@ -369,5 +502,41 @@ func (d *Decoder) reconstructInter(r *Reader, mbx, mby int, cbp uint32, predY *[
 		}
 		d.setNnz(d.nnzY, stride, bx, by, tc)
 	}
-	return d.reconstructChromaBlocks(r, mbx, mby, (cbp>>4)&3, predCb, predCr)
+	return d.reconstructChromaBlocks(mbx, mby, (cbp>>4)&3, predCb, predCr, rs, false)
+}
+
+// reconstructInter8x8With adds 8x8-transformed luma residual (CAVLC or
+// CABAC 8x8 blocks) to inter prediction.
+func (d *Decoder) reconstructInter8x8With(mbx, mby int, cbp uint32, predY *[256]uint8, predCb, predCr *[64]uint8, rs *residSrc) error {
+	stride := d.mbW * 4
+	w8 := d.sc8[1]
+	grouped := [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15}
+	for i8 := 0; i8 < 4; i8++ {
+		var coeff [64]int32
+		var tcs [4]int
+		if cbp&(1<<uint(i8)) != 0 {
+			c, t, err := rs.luma8x8(mbx, mby, i8)
+			if err != nil {
+				return err
+			}
+			coeff, tcs = c, t
+		}
+		res := ITransform8x8Scaled(coeff, uint32(d.qpY), w8)
+		bx0, by0 := mbx*4+(grouped[i8*4]%4), mby*4+(grouped[i8*4]/4)
+		_ = bx0
+		_ = by0
+		ox, oy := (i8%2)*8, (i8/2)*8
+		for y := 0; y < 8; y++ {
+			for x := 0; x < 8; x++ {
+				v := int32(predY[(oy+y)*16+ox+x]) + res[y*8+x]
+				d.pic.SetY(uint32(mbx*16+ox+x), uint32(mby*16+oy+y), clipPixel(v))
+			}
+		}
+		for g := 0; g < 4; g++ {
+			b := grouped[i8*4+g]
+			bx, by := mbx*4+b%4, mby*4+b/4
+			d.setNnz(d.nnzY, stride, bx, by, tcs[g])
+		}
+	}
+	return d.reconstructChromaBlocks(mbx, mby, (cbp>>4)&3, predCb, predCr, rs, false)
 }
