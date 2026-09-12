@@ -132,6 +132,99 @@ func (d *Decoder) topLeftNeighbour(x0, y0 int) (mx, my int16, ref int8) {
 	return d.gatedNeighbour(x0-1, y0-1, (y0/4)*d.mbW+x0/4)
 }
 
+// mvNeighbourL reads one 4x4 motion slot for one reference list. The
+// slot counts only when the partition actually predicts from that list
+// (useM); otherwise it reads intra-like (-1) even with a stored index.
+func (d *Decoder) mvNeighbourL(list, bx, by int) (mx, my int16, ref int8) {
+	if bx < 0 || by < 0 || bx >= d.mbW*4 || by >= d.mbH*4 {
+		return 0, 0, partNotAvailable
+	}
+	i := by*d.mbW*4 + bx
+	var r int8
+	if list == 0 {
+		r = d.refIdx[i]
+	} else {
+		r = d.refIdx1[i]
+	}
+	if r == partNotAvailable {
+		return 0, 0, partNotAvailable
+	}
+	if d.useM[i]&(1<<uint(list)) == 0 {
+		return 0, 0, -1
+	}
+	if r < 0 {
+		return 0, 0, -1
+	}
+	if list == 0 {
+		return d.mvX[i], d.mvY[i], r
+	}
+	return d.mvX1[i], d.mvY1[i], r
+}
+
+// gatedNeighbourL gates one list-aware slot by slice, like gatedNeighbour.
+func (d *Decoder) gatedNeighbourL(list, bx, by, cur int) (mx, my int16, ref int8) {
+	if bx < 0 || by < 0 || bx >= d.mbW*4 || by >= d.mbH*4 {
+		return 0, 0, partNotAvailable
+	}
+	mb := (by/4)*d.mbW + bx/4
+	if mb != cur && !d.cabSameSlice(mb) {
+		return 0, 0, partNotAvailable
+	}
+	return d.mvNeighbourL(list, bx, by)
+}
+
+// diagNeighbourL is the list-aware above-right diagonal with the same
+// dead-slot and slice gating as diagNeighbour.
+func (d *Decoder) diagNeighbourL(list, n, w4, x0, y0 int) (mx, my int16, ref int8) {
+	if deadCacheSlot(n, w4) {
+		return 0, 0, partNotAvailable
+	}
+	return d.gatedNeighbourL(list, x0+w4, y0-1, (y0/4)*d.mbW+x0/4)
+}
+
+// topLeftNeighbourL is the list-aware above-left diagonal.
+func (d *Decoder) topLeftNeighbourL(list, x0, y0 int) (mx, my int16, ref int8) {
+	return d.gatedNeighbourL(list, x0-1, y0-1, (y0/4)*d.mbW+x0/4)
+}
+
+// predMotionL predicts one B partition from one reference list, mirroring
+// predMotion's matching rules with list-aware neighbours.
+func (d *Decoder) predMotionL(list, n, x0, y0, w4 int, ref int8) (int16, int16) {
+	ax, ay, ar := d.mvNeighbourL(list, x0-1, y0)
+	bx, by, br := d.mvNeighbourL(list, x0, y0-1)
+	cx, cy, cr := d.diagNeighbourL(list, n, w4, x0, y0)
+	if cr == partNotAvailable {
+		cx, cy, cr = d.topLeftNeighbourL(list, x0, y0)
+	}
+	match := 0
+	if ar == ref {
+		match++
+	}
+	if br == ref {
+		match++
+	}
+	if cr == ref {
+		match++
+	}
+	switch {
+	case match > 1:
+		return median3(ax, bx, cx), median3(ay, by, cy)
+	case match == 1:
+		if ar == ref {
+			return ax, ay
+		}
+		if br == ref {
+			return bx, by
+		}
+		return cx, cy
+	default:
+		if br == partNotAvailable && cr == partNotAvailable && ar != partNotAvailable {
+			return ax, ay
+		}
+		return median3(ax, bx, cx), median3(ay, by, cy)
+	}
+}
+
 // gatedNeighbour reads one slot, treating neighbours from another slice
 // as not-available. Slots of the macroblock under decode (cur) are always
 // same-slice; its tag publishes only after motion parsing.
@@ -153,6 +246,8 @@ func (d *Decoder) poisonDiagSlots(mbx, mby int) {
 	stride := d.mbW * 4
 	d.refIdx[(mby*4+0)*stride+mbx*4+2] = partNotAvailable
 	d.refIdx[(mby*4+2)*stride+mbx*4+2] = partNotAvailable
+	d.refIdx1[(mby*4+0)*stride+mbx*4+2] = partNotAvailable
+	d.refIdx1[(mby*4+2)*stride+mbx*4+2] = partNotAvailable
 }
 
 // pred16x8Top predicts the top half of a P_16x8 MB at 4x4 origin (x0,y0).
@@ -200,6 +295,21 @@ func (d *Decoder) storeMV(px, py, w, h int, mx, my, mdx, mdy int16, ref int8) {
 			d.mvX[i], d.mvY[i] = mx, my
 			d.mvdX[i], d.mvdY[i] = mdx, mdy
 			d.refIdx[i] = ref
+			d.useM[i] |= useL0
+		}
+	}
+}
+
+// storeMV1 records one partition's list-1 motion, shadowing storeMV.
+func (d *Decoder) storeMV1(px, py, w, h int, mx, my, mdx, mdy int16, ref int8) {
+	stride := d.mbW * 4
+	for y := py / 4; y < (py+h)/4; y++ {
+		for x := px / 4; x < (px+w)/4; x++ {
+			i := y*stride + x
+			d.mvX1[i], d.mvY1[i] = mx, my
+			d.mvdX1[i], d.mvdY1[i] = mdx, mdy
+			d.refIdx1[i] = ref
+			d.useM[i] |= useL1
 		}
 	}
 }
@@ -217,6 +327,40 @@ func (d *Decoder) storeRef(bx, by, w, h int, ref int8) {
 	}
 }
 
+// storeRef1 is the list-1 shadow of storeRef.
+func (d *Decoder) storeRef1(bx, by, w, h int, ref int8) {
+	stride := d.mbW * 4
+	for y := by; y < by+h; y++ {
+		for x := bx; x < bx+w; x++ {
+			d.refTmp1[y*stride+x] = ref
+		}
+	}
+}
+
+// zeroMVL clears one list's motion of a rectangle (pixels) the decoded
+// partition does not use, so boundary-strength cross-list compares read
+// deterministic zeros instead of a previous picture's leftovers.
+func (d *Decoder) zeroMVL(px, py, w, h, list int) {
+	stride := d.mbW * 4
+	for y := py / 4; y < (py+h)/4; y++ {
+		for x := px / 4; x < (px+w)/4; x++ {
+			i := y*stride + x
+			if list == 0 {
+				d.mvX[i], d.mvY[i] = 0, 0
+				d.mvdX[i], d.mvdY[i] = 0, 0
+			} else {
+				d.mvX1[i], d.mvY1[i] = 0, 0
+				d.mvdX1[i], d.mvdY1[i] = 0, 0
+			}
+		}
+	}
+}
+
+const (
+	useL0 = 1
+	useL1 = 2
+)
+
 // markIntraMB clears motion state for an intra MB in a P slice.
 func (d *Decoder) markIntraMB(mbx, mby int) {
 	stride := d.mbW * 4
@@ -224,10 +368,15 @@ func (d *Decoder) markIntraMB(mbx, mby int) {
 		for x := 0; x < 4; x++ {
 			i := (mby*4+y)*stride + mbx*4 + x
 			d.refIdx[i] = -1
+			d.refIdx1[i] = -1
+			d.useM[i] = 0
+			d.direct4[i] = false
 			// CABAC motion contexts read raw MVD slots: intra must
 			// contribute zero, never a stale inter difference.
 			d.mvdX[i] = 0
 			d.mvdY[i] = 0
+			d.mvdX1[i] = 0
+			d.mvdY1[i] = 0
 		}
 	}
 	d.mbIntra[mby*d.mbW+mbx] = true

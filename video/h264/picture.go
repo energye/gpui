@@ -17,6 +17,19 @@ type Picture struct {
 	FrameNum uint32
 	POC      int32
 	IsIDR    bool
+	// Motion archive for B direct mode: per-4x4 motion of both lists,
+	// copied at FinishPicture while the decoder arrays are still alive.
+	// Rf holds -1 for intra/empty slots. MotW4/MotH4 are grid extents;
+	// nil grids mean no archive (synthetic pictures).
+	MotW4 int
+	MotH4 int
+	MV0x  []int16
+	MV0y  []int16
+	Rf0   []int8
+	MV1x  []int16
+	MV1y  []int16
+	Rf1   []int8
+	UseM  []uint8
 }
 
 // NewPicture allocates a blank (mid-grey) picture.
@@ -183,6 +196,41 @@ func (d *Decoder) applyRefMod(list []*Picture, ops []RefModOp, frameNum uint32, 
 		list[index] = pic
 	}
 	return list, nil
+}
+
+// coloc returns the colocated block's motion for frame direct mode: the
+// 4x4 at (x4, y4) in the first list-1 reference, both lists. ok=false
+// when the archive is missing, so the caller treats the block as
+// intra/outside.
+func (p *Picture) coloc(x4, y4 int) (r0 int8, x0, y0 int16, r1 int8, x1, y1 int16, ok bool) {
+	if p == nil || p.Rf0 == nil || p.MotW4 <= 0 || p.MotH4 <= 0 {
+		return -1, 0, 0, -1, 0, 0, false
+	}
+	if x4 < 0 || y4 < 0 || x4 >= p.MotW4 || y4 >= p.MotH4 {
+		return -1, 0, 0, -1, 0, 0, false
+	}
+	i := y4*p.MotW4 + x4
+	return p.Rf0[i], p.MV0x[i], p.MV0y[i], p.Rf1[i], p.MV1x[i], p.MV1y[i], true
+}
+
+// archiveMotion snapshots the current picture's per-4x4 motion of both
+// lists for later B direct-mode colocated reads. Only reference pictures
+// call it; the decoder arrays are reused by the next picture.
+func (p *Picture) archiveMotion(d *Decoder) {
+	if p == nil || d == nil {
+		return
+	}
+	w4, h4 := d.mbW*4, d.mbH*4
+	n := w4 * h4
+	p.MotW4, p.MotH4 = w4, h4
+	p.MV0x = append([]int16(nil), d.mvX...)
+	p.MV0y = append([]int16(nil), d.mvY...)
+	p.Rf0 = append([]int8(nil), d.refIdx...)
+	p.MV1x = append([]int16(nil), d.mvX1...)
+	p.MV1y = append([]int16(nil), d.mvY1...)
+	p.Rf1 = append([]int8(nil), d.refIdx1...)
+	p.UseM = append([]uint8(nil), d.useM...)
+	_ = n
 }
 
 // fixPOC rebuilds the full display order for poc type 0 wrapping

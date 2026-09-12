@@ -4,11 +4,16 @@ import "fmt"
 
 // P-slice macroblock decoding: skip, inter partitions, intra fallback.
 
-// part is one motion-compensated rectangle in luma pixels.
+// part is one motion-compensated rectangle in luma pixels. B partitions
+// name which lists they predict from (use0/use1); both means bipred with
+// the slice's bipred weights.
 type part struct {
 	px, py, w, h int
 	mx, my       int16
 	ref          int8
+	mx1, my1     int16
+	ref1         int8
+	use0, use1   bool
 }
 
 func (d *Decoder) decodeSkip(h *SliceHeader, addr int, rs *residSrc) error {
@@ -21,7 +26,7 @@ func (d *Decoder) decodeSkip(h *SliceHeader, addr int, rs *residSrc) error {
 	var predY [256]uint8
 	var predCb, predCr [64]uint8
 	fillPred(&predY, &predCb, &predCr)
-	parts := [1]part{{mbx * 16, mby * 16, 16, 16, mx, my, 0}}
+	parts := [1]part{{mbx * 16, mby * 16, 16, 16, mx, my, 0, 0, 0, 0, true, false}}
 	if err := d.mcParts(mbx, mby, parts[:], &predY, &predCb, &predCr); err != nil {
 		return err
 	}
@@ -52,6 +57,54 @@ func (d *Decoder) refFor(idx int8) (*Picture, error) {
 	return d.refList[idx], nil
 }
 
+// refFor1 resolves one reference index against list 1 (B slices).
+func (d *Decoder) refFor1(idx int8) (*Picture, error) {
+	if int(idx) < 0 || int(idx) >= len(d.refList1) || d.refList1[idx] == nil {
+		return nil, fmt.Errorf("%w: ref l1 idx %d", ErrBadSliceHeader, idx)
+	}
+	return d.refList1[idx], nil
+}
+
+// bipredWeight returns the implicit list-0 weight (0..64, denom 5) for one
+// B partition from display-order distances (spec 8.4.2.3.2): the nearer in
+// time, the heavier. Equal split when the lists share a picture or either
+// distance is zero.
+func (d *Decoder) bipredWeight(poc, p0, p1 *Picture, i0, i1 int8) int32 {
+	if poc == nil || p0 == nil || p1 == nil {
+		return 32
+	}
+	td := clipInt32(int32(p1.POC)-int32(p0.POC), -128, 127)
+	if td == 0 {
+		return 32
+	}
+	tb := clipInt32(int32(poc.POC)-int32(p0.POC), -128, 127)
+	tx := (16384 + (abs32(td) >> 1)) / td
+	w := 64 - ((tb*tx + 32) >> 8)
+	if w < -64 || w > 128 {
+		return 32
+	}
+	_ = i0
+	_ = i1
+	return w
+}
+
+func clipInt32(v, lo, hi int32) int32 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+func abs32(v int32) int32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // fillPred resets MB prediction buffers to mid-grey.
 func fillPred(predY *[256]uint8, predCb, predCr *[64]uint8) {
 	for i := range predY {
@@ -70,27 +123,97 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 	}
 	rw, rh := int(d.pic.Width/2), int(d.pic.Height/2)
 	var blk [256]uint8
+	var blk1 [256]uint8
 	var cb, cr [64]uint8
+	var cb1, cr1 [64]uint8
 	for _, pt := range parts {
-		rp, err := d.refFor(pt.ref)
-		if err != nil {
-			return err
-		}
-		predictLumaBlock(rp, pt.px, pt.py, pt.w, pt.h, pt.mx, pt.my, blk[:pt.w*pt.h])
-		d.weightLuma(blk[:pt.w*pt.h], pt.ref)
-		for y := 0; y < pt.h; y++ {
-			for x := 0; x < pt.w; x++ {
-				ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
-				predY[oy*16+ox] = blk[y*pt.w+x]
+		if pt.use0 && !pt.use1 {
+			rp, err := d.refFor(pt.ref)
+			if err != nil {
+				return err
 			}
+			predictLumaBlock(rp, pt.px, pt.py, pt.w, pt.h, pt.mx, pt.my, blk[:pt.w*pt.h])
+			d.weightLuma(blk[:pt.w*pt.h], pt.ref)
+			for y := 0; y < pt.h; y++ {
+				for x := 0; x < pt.w; x++ {
+					ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
+					predY[oy*16+ox] = blk[y*pt.w+x]
+				}
+			}
+		} else if pt.use0 && pt.use1 {
+			rp0, err := d.refFor(pt.ref)
+			if err != nil {
+				return err
+			}
+			rp1, err := d.refFor1(pt.ref1)
+			if err != nil {
+				return err
+			}
+			predictLumaBlock(rp0, pt.px, pt.py, pt.w, pt.h, pt.mx, pt.my, blk[:pt.w*pt.h])
+			predictLumaBlock(rp1, pt.px, pt.py, pt.w, pt.h, pt.mx1, pt.my1, blk1[:pt.w*pt.h])
+			w := d.bipredWeight(d.pic, rp0, rp1, pt.ref, pt.ref1)
+			for i := 0; i < pt.w*pt.h; i++ {
+				blk[i] = uint8((w*int32(blk[i]) + (64-w)*int32(blk1[i]) + 32) >> 6)
+			}
+			for y := 0; y < pt.h; y++ {
+				for x := 0; x < pt.w; x++ {
+					ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
+					predY[oy*16+ox] = blk[y*pt.w+x]
+				}
+			}
+		} else if pt.use1 {
+			rp, err := d.refFor1(pt.ref1)
+			if err != nil {
+				return err
+			}
+			predictLumaBlock(rp, pt.px, pt.py, pt.w, pt.h, pt.mx1, pt.my1, blk[:pt.w*pt.h])
+			for y := 0; y < pt.h; y++ {
+				for x := 0; x < pt.w; x++ {
+					ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
+					predY[oy*16+ox] = blk[y*pt.w+x]
+				}
+			}
+		} else {
+			return fmt.Errorf("%w: partition uses no list", ErrBadSliceHeader)
 		}
 		cw, ch := pt.w/2, pt.h/2
 		cx, cy := (pt.px-mbx*16)/2, (pt.py-mby*16)/2
 		// Chroma origin in the subsampled plane.
 		ccx, ccy := mbx*8+cx, mby*8+cy
-		predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cb[:cw*ch])
-		predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cr[:cw*ch])
-		d.weightChroma(cb[:cw*ch], cr[:cw*ch], pt.ref)
+		if !pt.use0 && pt.use1 {
+			rp, err := d.refFor1(pt.ref1)
+			if err != nil {
+				return err
+			}
+			predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cb[:cw*ch])
+			predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cr[:cw*ch])
+		} else if pt.use0 && !pt.use1 {
+			rp, err := d.refFor(pt.ref)
+			if err != nil {
+				return err
+			}
+			predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cb[:cw*ch])
+			predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cr[:cw*ch])
+			d.weightChroma(cb[:cw*ch], cr[:cw*ch], pt.ref)
+		} else {
+			rp0, err := d.refFor(pt.ref)
+			if err != nil {
+				return err
+			}
+			rp1, err := d.refFor1(pt.ref1)
+			if err != nil {
+				return err
+			}
+			w := d.bipredWeight(d.pic, rp0, rp1, pt.ref, pt.ref1)
+			predictChromaBlock(rp0.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cb[:cw*ch])
+			predictChromaBlock(rp0.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cr[:cw*ch])
+			predictChromaBlock(rp1.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cb1[:cw*ch])
+			predictChromaBlock(rp1.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cr1[:cw*ch])
+			for i := 0; i < cw*ch; i++ {
+				cb[i] = uint8((w*int32(cb[i]) + (64-w)*int32(cb1[i]) + 32) >> 6)
+				cr[i] = uint8((w*int32(cr[i]) + (64-w)*int32(cr1[i]) + 32) >> 6)
+			}
+		}
 		for y := 0; y < ch; y++ {
 			for x := 0; x < cw; x++ {
 				predCb[(cy+y)*8+cx+x] = cb[y*cw+x]
@@ -292,7 +415,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 			return err
 		}
 		d.storeMV(px0, py0, 16, 16, mx, my, mdx, mdy, ref)
-		parts = append(parts, part{px0, py0, 16, 16, mx, my, ref})
+		parts = append(parts, part{px0, py0, 16, 16, mx, my, ref, 0, 0, 0, true, false})
 	case 1: // P_16x8: refs first, then MVDs in order.
 		var refs [2]int8
 		for i := 0; i < 2; i++ {
@@ -317,7 +440,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 				return err
 			}
 			d.storeMV(px0, py, 16, 8, mx, my, mdx, mdy, ref)
-			parts = append(parts, part{px0, py, 16, 8, mx, my, ref})
+			parts = append(parts, part{px0, py, 16, 8, mx, my, ref, 0, 0, 0, true, false})
 		}
 	case 2: // P_8x16: refs first, then MVDs.
 		var refs [2]int8
@@ -343,7 +466,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 				return err
 			}
 			d.storeMV(px, py0, 8, 16, mx, my, mdx, mdy, ref)
-			parts = append(parts, part{px, py0, 8, 16, mx, my, ref})
+			parts = append(parts, part{px, py0, 8, 16, mx, my, ref, 0, 0, 0, true, false})
 		}
 	case 3, 4: // P_8x8 / P_8x8ref0
 		ref0Only := mbType == 4
@@ -383,7 +506,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 					return err
 				}
 				d.storeMV(ox, oy, 8, 8, mx, my, mdx, mdy, ref)
-				parts = append(parts, part{ox, oy, 8, 8, mx, my, ref})
+				parts = append(parts, part{ox, oy, 8, 8, mx, my, ref, 0, 0, 0, true, false})
 			case 1: // 8x4 top,bottom
 				for k := 0; k < 2; k++ {
 					py := oy + k*4
@@ -394,7 +517,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 						return err
 					}
 					d.storeMV(ox, py, 8, 4, mx, my, mdx, mdy, ref)
-					parts = append(parts, part{ox, py, 8, 4, mx, my, ref})
+					parts = append(parts, part{ox, py, 8, 4, mx, my, ref, 0, 0, 0, true, false})
 				}
 			case 2: // 4x8 left,right
 				for k := 0; k < 2; k++ {
@@ -406,7 +529,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 						return err
 					}
 					d.storeMV(px, oy, 4, 8, mx, my, mdx, mdy, ref)
-					parts = append(parts, part{px, oy, 4, 8, mx, my, ref})
+					parts = append(parts, part{px, oy, 4, 8, mx, my, ref, 0, 0, 0, true, false})
 				}
 			default: // 4x4 raster
 				for k := 0; k < 4; k++ {
@@ -419,7 +542,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 						return err
 					}
 					d.storeMV(px, py, 4, 4, mx, my, mdx, mdy, ref)
-					parts = append(parts, part{px, py, 4, 4, mx, my, ref})
+					parts = append(parts, part{px, py, 4, 4, mx, my, ref, 0, 0, 0, true, false})
 				}
 			}
 		}

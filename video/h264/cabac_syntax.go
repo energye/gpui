@@ -63,6 +63,8 @@ func (d *Decoder) decodeSliceCabac(h *SliceHeader, pps *PPS, r *Reader, addr, to
 		var err error
 		if h.IsI() {
 			err = d.decodeMBCabac(h, r, pps, addr)
+		} else if h.IsB() {
+			err = d.decodeMBBCabac(h, r, pps, addr)
 		} else {
 			err = d.decodeMBPCabac(h, r, pps, addr)
 		}
@@ -94,6 +96,41 @@ func (d *Decoder) decodeMBCabac(h *SliceHeader, r *Reader, pps *PPS, addr int) e
 		return d.cabacDecodePCM(r, mbx, mby)
 	}
 	err = d.decodeIntraMBCore(h, pps, addr, mbx, mby, mbType, d.cabacIntraSrc(addr, mbx, mby, pps), d.cabacResidSrc(addr, mbx, mby, true))
+	if !d.lastQPDHit {
+		d.lastQPD = 0
+	}
+	return err
+}
+
+// decodeMBBCabac decodes one CABAC B macroblock: B skip flag, B type,
+// then the shared B partition core or the intra escape (48 = PCM).
+func (d *Decoder) decodeMBBCabac(h *SliceHeader, r *Reader, pps *PPS, addr int) error {
+	d.lastQPDHit = false
+	d.mbSlice[addr] = d.slices
+	mbx, mby := addr%d.mbW, addr/d.mbW
+	skip, err := d.cabacSkipFlagB(mbx, mby, addr)
+	if err != nil {
+		return err
+	}
+	if skip {
+		d.skipped[addr] = true
+		d.mbSlice[addr] = d.slices
+		d.lastQPD = 0
+		return d.decodeSkipB(h, addr, d.cabacResidSrc(addr, mbx, mby, false))
+	}
+	mbType, err := d.cabacMBTypeB(mbx, mby, addr)
+	if err != nil {
+		return err
+	}
+	if mbType >= 23 {
+		intraType := mbType - 23
+		if intraType == 25 {
+			return d.cabacDecodePCM(r, mbx, mby)
+		}
+		err = d.decodeIntraMBCore(h, pps, addr, mbx, mby, intraType, d.cabacIntraSrc(addr, mbx, mby, pps), d.cabacResidSrc(addr, mbx, mby, true))
+	} else {
+		err = d.decodeMBBParts(h, pps, addr, mbx, mby, mbType, d.cabacBInterSrc(addr, mbx, mby, h, pps), d.cabacResidSrc(addr, mbx, mby, false))
+	}
 	if !d.lastQPDHit {
 		d.lastQPD = 0
 	}
@@ -160,6 +197,79 @@ func (d *Decoder) cabacSkipFlag(mbx, mby, addr int) (bool, error) {
 		ctx++
 	}
 	return d.cabBin(ctx) != 0, nil
+}
+
+// cabacSkipFlagB reads a B-slice skip flag: same neighbours as P, base
+// context 24 instead of 11.
+func (d *Decoder) cabacSkipFlagB(mbx, mby, addr int) (bool, error) {
+	left, top := d.cabLeftTop(addr, mbx, mby)
+	ctx := uint16(24)
+	if left >= 0 && !d.skipped[left] {
+		ctx++
+	}
+	if top >= 0 && !d.skipped[top] {
+		ctx++
+	}
+	return d.cabBin(ctx) != 0, nil
+}
+
+// cabacMBTypeB reads a B-slice mb_type (0..22 inter, 23..48 intra
+// escape/PCM). Directness of left/top neighbours picks the first context.
+func (d *Decoder) cabacMBTypeB(mbx, mby, addr int) (uint32, error) {
+	left, top := d.cabLeftTop(addr, mbx, mby)
+	ctx := uint16(27)
+	if left >= 0 && !d.mbDirect[left] {
+		ctx++
+	}
+	if top >= 0 && !d.mbDirect[top] {
+		ctx++
+	}
+	if d.cabBin(ctx) == 0 {
+		return 0, nil // B_Direct_16x16
+	}
+	if d.cabBin(30) == 0 {
+		return uint32(1 + d.cabBin(32)), nil // B_L0/L1_16x16
+	}
+	bits := d.cabBin(31)<<3 | d.cabBin(32)<<2 | d.cabBin(32)<<1 | d.cabBin(32)
+	switch {
+	case bits < 8:
+		return uint32(bits + 3), nil // B_Bi_16x16 through B_L1_L0_16x8
+	case bits == 14:
+		return 11, nil // B_L1_L0_8x16
+	case bits == 15:
+		return 22, nil // B_8x8
+	case bits == 13:
+		t, err := d.cabacIntraType(32, false)
+		if err != nil {
+			return 0, err
+		}
+		if t > 25 {
+			return 0, fmt.Errorf("%w: cabac B intra %d", ErrBadSliceHeader, t)
+		}
+		return 23 + t, nil
+	default:
+		bits = (bits << 1) + d.cabBin(32)
+		return uint32(bits - 4), nil // B_L0_Bi_* through B_Bi_Bi_*
+	}
+}
+
+// cabacBSubType reads one B 8x8 sub-block type (0..12, Table 7-17).
+func (d *Decoder) cabacBSubType() (uint32, error) {
+	if d.cabBin(36) == 0 {
+		return 0, nil // B_Direct_8x8
+	}
+	if d.cabBin(37) == 0 {
+		return uint32(1 + d.cabBin(39)), nil // B_L0/L1_8x8
+	}
+	typ := 3
+	if d.cabBin(38) != 0 {
+		if d.cabBin(39) != 0 {
+			return uint32(11 + d.cabBin(39)), nil // B_L1/Bi_4x4
+		}
+		typ += 4
+	}
+	typ += 2*d.cabBin(39) + d.cabBin(39)
+	return uint32(typ), nil
 }
 
 // cabacIntraType reads the shared Intra4x4/Intra16x16/PCM body after the
@@ -391,11 +501,11 @@ func (d *Decoder) cabacInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) *i
 			return d.cabacRefIdx(addr, mbx, mby, bx, by)
 		},
 		mvd: func(bx, by int, px, py int16) (mx, my, dx, dy int16, err error) {
-			dx, err = d.cabacMVD(bx, by, 0)
+			dx, err = d.cabacMVD(bx, by, 0, 0)
 			if err != nil {
 				return 0, 0, 0, 0, err
 			}
-			dy, err = d.cabacMVD(bx, by, 1)
+			dy, err = d.cabacMVD(bx, by, 1, 0)
 			if err != nil {
 				return 0, 0, 0, 0, err
 			}
@@ -433,6 +543,121 @@ func (d *Decoder) cabacInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) *i
 			return d.cabBin(399+uint16(d.neighborT8(addr, mbx, mby))) != 0, nil
 		},
 	}
+}
+
+// cabacBInterSrc reads B inter syntax from bins: per-list reference
+// indices, shared motion differences, B sub-block types.
+func (d *Decoder) cabacBInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) *bInterSrc {
+	return &bInterSrc{
+		ref0: func(bx, by int) (int8, error) {
+			if h.RefL0Count <= 1 {
+				return 0, nil
+			}
+			return d.cabacRefIdxB(addr, mbx, mby, bx, by, 0)
+		},
+		ref1: func(bx, by int) (int8, error) {
+			if h.RefL1Count <= 1 {
+				return 0, nil
+			}
+			return d.cabacRefIdxB(addr, mbx, mby, bx, by, 1)
+		},
+		mvd: func(list, bx, by int, px, py int16) (mx, my, dx, dy int16, err error) {
+			dx, err = d.cabacMVD(bx, by, 0, list)
+			if err != nil {
+				return 0, 0, 0, 0, err
+			}
+			dy, err = d.cabacMVD(bx, by, 1, list)
+			if err != nil {
+				return 0, 0, 0, 0, err
+			}
+			return px + dx, py + dy, dx, dy, nil
+		},
+		sub: func() (uint32, error) {
+			return d.cabacBSubType()
+		},
+		cbp: func() (uint32, error) {
+			return d.cabacCBP(addr, mbx, mby, false)
+		},
+		qpD: func() (int32, error) {
+			return d.cabacQPDelta()
+		},
+		t8: func(cbp uint32, subs []uint32) (bool, error) {
+			if pps == nil || !pps.Transform8x8 || cbp&15 == 0 {
+				return false, nil
+			}
+			if len(subs) == 4 {
+				for _, s := range subs {
+					if s != 0 {
+						return false, nil
+					}
+				}
+			}
+			return d.cabBin(399+uint16(d.neighborT8(addr, mbx, mby))) != 0, nil
+		},
+	}
+}
+
+// cabacRefAtB reads one 4x4 reference index of one list for neighbour
+// contexts: unavailable, cross-slice or non-using slots report -1.
+func (d *Decoder) cabacRefAtB(bx, by, list int) int {
+	if bx < 0 || by < 0 || bx >= d.mbW*4 || by >= d.mbH*4 {
+		return -1
+	}
+	if !d.cabSameSlice((by/4)*d.mbW + bx/4) {
+		return -1
+	}
+	i := by*d.mbW*4 + bx
+	if d.useM[i]&(1<<uint(list)) == 0 {
+		return -1
+	}
+	if list == 0 {
+		return int(d.refIdx[i])
+	}
+	return int(d.refIdx1[i])
+}
+
+// cabacRefIdxB reads one B reference index of one list: neighbours above
+// zero count unless direct-derived; unary bins from 54+i. Slots inside
+// the current macroblock come from early scratch.
+func (d *Decoder) cabacRefIdxB(addr, mbx, mby, bx, by, list int) (int8, error) {
+	at := func(x, y int) (int, bool) {
+		if x < 0 || y < 0 || x >= d.mbW*4 || y >= d.mbH*4 {
+			return -1, false
+		}
+		if x/4 == mbx && y/4 == mby {
+			if list == 0 {
+				return int(d.refTmp[y*d.mbW*4+x]), true
+			}
+			return int(d.refTmp1[y*d.mbW*4+x]), true
+		}
+		if !d.cabSameSlice((y/4)*d.mbW + x/4) {
+			return -1, false
+		}
+		i := y*d.mbW*4 + x
+		var r int8
+		if list == 0 {
+			r = d.refIdx[i]
+		} else {
+			r = d.refIdx1[i]
+		}
+		return int(r), !d.direct4[i]
+	}
+	off := uint16(0)
+	if v, direct := at(bx-1, by); v > 0 && direct {
+		off++
+	}
+	if v, direct := at(bx, by-1); v > 0 && direct {
+		off += 2
+	}
+	ref := 0
+	for d.cabBin(54+off) != 0 {
+		ref++
+		off = (off >> 2) + 4
+		if ref >= 32 {
+			return 0, fmt.Errorf("%w: cabac B ref l%d overflow", ErrBadSliceHeader, list)
+		}
+	}
+	return int8(ref), nil
 }
 
 // cabacRefAt reads one 4x4 reference index for neighbour contexts:
@@ -476,17 +701,26 @@ func (d *Decoder) cabacRefIdx(addr, mbx, mby, bx, by int) (int8, error) {
 	return int8(ref), nil
 }
 
-// cabacMVDAt reads one signed 4x4 motion difference for neighbour sums.
-func (d *Decoder) cabacMVDAt(bx, by, comp int) int {
+// cabacMVDAt reads one signed 4x4 motion difference of one list for
+// neighbour sums: P slices only own list 0; B slices keep both.
+func (d *Decoder) cabacMVDAt(bx, by, comp, list int) int {
 	if bx < 0 || by < 0 || bx >= d.mbW*4 || by >= d.mbH*4 {
 		return 0
 	}
 	if !d.cabSameSlice((by/4)*d.mbW + bx/4) {
 		return 0
 	}
-	v := int(d.mvdX[by*d.mbW*4+bx])
-	if comp == 1 {
-		v = int(d.mvdY[by*d.mbW*4+bx])
+	var v int
+	if list == 0 {
+		v = int(d.mvdX[by*d.mbW*4+bx])
+		if comp == 1 {
+			v = int(d.mvdY[by*d.mbW*4+bx])
+		}
+	} else {
+		v = int(d.mvdX1[by*d.mbW*4+bx])
+		if comp == 1 {
+			v = int(d.mvdY1[by*d.mbW*4+bx])
+		}
 	}
 	if v < 0 {
 		v = -v
@@ -494,15 +728,16 @@ func (d *Decoder) cabacMVDAt(bx, by, comp int) int {
 	return v
 }
 
-// cabacMVD reads one motion vector difference: leading bin picks one of
-// three contexts by neighbour magnitude, short unary runs to 8, longer
-// values continue Exp-Golomb order 3 in bypass, sign closes the code.
-func (d *Decoder) cabacMVD(bx, by, comp int) (int16, error) {
+// cabacMVD reads one motion vector difference of one list: leading bin
+// picks one of three contexts by neighbour magnitude, short unary runs
+// to 8, longer values continue Exp-Golomb order 3 in bypass, sign closes
+// the code.
+func (d *Decoder) cabacMVD(bx, by, comp, list int) (int16, error) {
 	base := uint16(40)
 	if comp == 1 {
 		base = 47
 	}
-	sum := d.cabacMVDAt(bx-1, by, comp) + d.cabacMVDAt(bx, by-1, comp)
+	sum := d.cabacMVDAt(bx-1, by, comp, list) + d.cabacMVDAt(bx, by-1, comp, list)
 	ctx := base
 	if sum > 2 {
 		ctx++

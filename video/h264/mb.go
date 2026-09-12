@@ -52,6 +52,21 @@ type Decoder struct {
 	mvY      []int16
 	refIdx   []int8
 	mbIntra  []bool
+	// Second-list motion for B slices, shadowing the list-0 arrays.
+	// useM marks which lists each 4x4 uses (bit0 L0, bit1 L1); intra
+	// and empty slots read zero.
+	mvX1    []int16
+	mvY1    []int16
+	refIdx1 []int8
+	mvdX1   []int16
+	mvdY1   []int16
+	refTmp1 []int8
+	useM    []uint8
+	// direct4 marks 4x4 blocks with direct-derived motion (CABAC
+	// reference contexts exclude them); mbDirect marks whole B MBs
+	// decoded as skip or direct (B mb_type contexts read it).
+	direct4  []bool
+	mbDirect []bool
 	skipRun  int
 	refPic   *Picture
 	refList  []*Picture
@@ -78,6 +93,7 @@ type Decoder struct {
 	decoded  int
 	slices   int
 	curIsRef bool
+	curIsB   bool
 	// pocMSB/pocPrevLSB track the display-order high bits for poc type 0
 	// wrapping (spec 8.2.1.1); pocHave is set by the first reference pic.
 	pocMSB     int32
@@ -162,17 +178,6 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		return fmt.Errorf("%w: field slice needs VR2d interlace", ErrStageScope)
 	}
 	d.fixPOC(h, sps)
-	if h.IsB() {
-		l0, l1, err := d.buildRefListsB(h)
-		if err != nil {
-			return err
-		}
-		d.refList, d.refList1 = l0, l1
-		if len(l0) > 0 {
-			d.refPic = l0[0]
-		}
-		return fmt.Errorf("%w: B slice needs VR2d macroblocks", ErrStageScope)
-	}
 	if d.pic == nil {
 		if sps.Width%16 != 0 || sps.Height%16 != 0 {
 			return fmt.Errorf("%w: cropped %dx%d needs VR2d", ErrStageScope, sps.Width, sps.Height)
@@ -209,12 +214,24 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		for i := range d.refIdx {
 			d.refIdx[i] = -1
 		}
+		d.mvX1 = make([]int16, n4)
+		d.mvY1 = make([]int16, n4)
+		d.refIdx1 = make([]int8, n4)
+		for i := range d.refIdx1 {
+			d.refIdx1[i] = -1
+		}
+		d.mvdX1 = make([]int16, n4)
+		d.mvdY1 = make([]int16, n4)
+		d.useM = make([]uint8, n4)
+		d.direct4 = make([]bool, n4)
 		// Early reference scratch for CABAC contexts; zero reads as
 		// ref 0 (never greater than zero), so no fill is needed.
 		d.refTmp = make([]int8, n4)
+		d.refTmp1 = make([]int8, n4)
 		d.mbIntra = make([]bool, d.mbW*d.mbH)
 		nmb := d.mbW * d.mbH
 		d.skipped = make([]bool, nmb)
+		d.mbDirect = make([]bool, nmb)
 		d.mbI16 = make([]bool, nmb)
 		d.cmode = make([]uint8, nmb)
 		d.cbpArr = make([]uint16, nmb)
@@ -231,6 +248,18 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	if h.FirstMB == 0 && d.decoded == 0 {
 		for i := range d.refIdx {
 			d.refIdx[i] = -1
+		}
+		for i := range d.refIdx1 {
+			d.refIdx1[i] = -1
+		}
+		for i := range d.useM {
+			d.useM[i] = 0
+		}
+		for i := range d.direct4 {
+			d.direct4[i] = false
+		}
+		for i := range d.mbDirect {
+			d.mbDirect[i] = false
 		}
 		for i := range d.modes {
 			d.modes[i] = -1
@@ -264,6 +293,7 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	d.pic.POC = h.POC
 	d.pic.IsIDR = h.IsIDR
 	d.curIsRef = h.NalRefIDC != 0
+	d.curIsB = h.IsB()
 	// Reference list 0: buffered pictures newest-first, reshaped by
 	// the slice-header reordering steps. Multi-ref clips address
 	// older or duplicated entries by index (weights follow the index).
@@ -288,6 +318,18 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 			return fmt.Errorf("%w: P slice without reference", ErrBadSliceHeader)
 		}
 	}
+	if h.IsB() {
+		// Reference lists 0+1 in display order, reshaped by the
+		// slice-header reordering steps (built here, after the reset).
+		l0, l1, err := d.buildRefListsB(h)
+		if err != nil {
+			return err
+		}
+		d.refList, d.refList1 = l0, l1
+		if len(l0) > 0 {
+			d.refPic = l0[0]
+		}
+	}
 	d.skipRun = -1
 	total := d.mbW * d.mbH
 	addr := int(h.FirstMB)
@@ -300,8 +342,12 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	d.cab = nil
 	for addr < total {
 		// Pending skips consume no bits.
-		if h.IsP() && d.skipRun > 0 {
-			if err := d.decodeSkip(h, addr, d.cavlcSrc(r)); err != nil {
+		if (h.IsP() || h.IsB()) && d.skipRun > 0 {
+			if h.IsB() {
+				if err := d.decodeSkipB(h, addr, d.cavlcSrc(r)); err != nil {
+					return fmt.Errorf("mb %d: %w", addr, err)
+				}
+			} else if err := d.decodeSkip(h, addr, d.cavlcSrc(r)); err != nil {
 				return fmt.Errorf("mb %d: %w", addr, err)
 			}
 			d.decoded++
@@ -309,7 +355,7 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 			addr++
 			continue
 		}
-		if h.IsP() && d.skipRun < 0 {
+		if (h.IsP() || h.IsB()) && d.skipRun < 0 {
 			if !r.MoreRBSPData() && r.BitsLeft() <= 8 {
 				break
 			}
@@ -322,16 +368,18 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 				continue
 			}
 		}
-		if !r.MoreRBSPData() && r.BitsLeft() <= 8 && !(h.IsP() && d.skipRun == 0) {
+		if !r.MoreRBSPData() && r.BitsLeft() <= 8 && !((h.IsP() || h.IsB()) && d.skipRun == 0) {
 			// I slices keep the old trailing guard; P with zero run
 			// still owns one coded MB in these bits.
-			if !h.IsP() {
+			if !h.IsP() && !h.IsB() {
 				break
 			}
 		}
 		var err error
 		if h.IsI() {
 			err = d.decodeMB(r, pps, h, addr)
+		} else if h.IsB() {
+			err = d.decodeMBB(r, pps, h, addr)
 		} else {
 			err = d.decodeMBP(r, pps, h, addr)
 		}
@@ -339,12 +387,42 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 			return fmt.Errorf("mb %d: %w", addr, err)
 		}
 		d.decoded++
-		if h.IsP() {
+		if h.IsP() || h.IsB() {
 			d.skipRun = -1
 		}
 		addr++
 	}
 	d.slices++
+	return nil
+}
+
+// bDeblock* expose second-list motion to the deblocker for B pictures
+// only; other pictures pass nils so the single-list path is untouched.
+func (d *Decoder) bDeblockMVX1() []int16 {
+	if d.curIsB {
+		return d.mvX1
+	}
+	return nil
+}
+
+func (d *Decoder) bDeblockMVY1() []int16 {
+	if d.curIsB {
+		return d.mvY1
+	}
+	return nil
+}
+
+func (d *Decoder) bDeblockRef1() []int8 {
+	if d.curIsB {
+		return d.refIdx1
+	}
+	return nil
+}
+
+func (d *Decoder) bDeblockUseM() []uint8 {
+	if d.curIsB {
+		return d.useM
+	}
 	return nil
 }
 
@@ -358,13 +436,17 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 		return nil, fmt.Errorf("%w: %d of %d mbs", ErrBadSliceHeader, d.decoded, d.mbW*d.mbH)
 	}
 	DeblockPicture(d.pic, d.qps, d.fIDC, d.fA, d.fB, d.mbW, d.mbH, d.cOff0, d.cOff1,
-		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx, d.refList, d.mbT8)
+		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx, d.refList, d.mbT8,
+		d.bDeblockMVX1(), d.bDeblockMVY1(), d.bDeblockRef1(), d.refList1, d.bDeblockUseM())
 	// Sliding-window marking: a reference picture that finds the
 	// buffer full unmarks the oldest short-term before storing.
 	if d.curIsRef && d.sps != nil && d.sps.NumRefFrames > 0 {
 		for d.dpb.Len() >= int(d.sps.NumRefFrames) {
 			d.dpb.evictOldest()
 		}
+	}
+	if d.curIsRef {
+		d.pic.archiveMotion(d)
 	}
 	d.dpb.Store(d.pic, d.curIsRef)
 	out := d.pic

@@ -2,7 +2,7 @@ package h264
 
 import (
 	"os"
-	"strings"
+	"sort"
 	"testing"
 
 	"github.com/energye/gpui/video/mp4"
@@ -120,10 +120,13 @@ func TestBRefLists(t *testing.T) {
 	eq("b2 l0", pocs(l0), 0)
 	eq("b2 l1", pocs(l1), 6)
 
-	// Payload still stops readable at the macroblock stage.
-	if err := dec.DecodeNALU(sliceOf(2)); err == nil || !strings.Contains(err.Error(), "macroblocks") {
-		t.Fatalf("b2 payload err = %v, want VR2d macroblocks gate", err)
+	// Payload decodes end to end now (macroblock stage landed), before
+	// the synthetic B2 below joins the buffer.
+	if err := dec.DecodeNALU(sliceOf(2)); err != nil {
+		t.Fatalf("b2 payload: %v", err)
 	}
+
+	// Sample 3 (B poc4, non-reference): buffer also holds the B2 ref.
 
 	// Sample 3 (B poc4, non-reference): buffer also holds the B2 ref.
 	dec.dpb.Store(&Picture{Width: 96, Height: 96, Y: make([]uint8, 96*96),
@@ -140,4 +143,52 @@ func TestBRefLists(t *testing.T) {
 	}
 	eq("b3 l0", pocs(l0), 2, 0)
 	eq("b3 l1", pocs(l1), 6)
+}
+
+// VR2d gate: Main-profile B clip decodes pixel-exact in display order,
+// both packings. Decode order is I0/P6/B2/B4/P8 (POC 0/6/2/4/8); display
+// order is POC 0/2/4/6/8. Covers B skip/direct/partitions, spatial
+// direct, implicit bipred weighting and two-list deblocking.
+func TestDecodeMBFramesExactAVCC(t *testing.T) {
+	pics, skips := decodeClip(t, "../testdata/vr2_m_bframes.mp4", avccWrap)
+	assertBFramesExact(t, pics, skips)
+}
+
+func TestDecodeMBFramesExactAnnexB(t *testing.T) {
+	pics, skips := decodeClip(t, "../testdata/vr2_m_bframes.mp4", annexBWrap)
+	assertBFramesExact(t, pics, skips)
+}
+
+func assertBFramesExact(t *testing.T, pics []*Picture, skips []int) {
+	t.Helper()
+	if len(pics) != 5 {
+		t.Fatalf("frames = %d want 5", len(pics))
+	}
+	var gotPOC []int32
+	for _, p := range pics {
+		gotPOC = append(gotPOC, p.POC)
+	}
+	wantDecode := []int32{0, 6, 2, 4, 8}
+	for i := range wantDecode {
+		if gotPOC[i] != wantDecode[i] {
+			t.Fatalf("decode order POC = %v want %v", gotPOC, wantDecode)
+		}
+	}
+	byDisplay := append([]*Picture(nil), pics...)
+	sort.Slice(byDisplay, func(i, j int) bool { return byDisplay[i].POC < byDisplay[j].POC })
+	for i, p := range byDisplay {
+		if p.POC != int32(i*2) {
+			t.Fatalf("display order POC = %v want 0/2/4/6/8", gotPOC)
+		}
+	}
+	assertClipExact(t, byDisplay, "../testdata/vr2_m_bframes.yuv", 96, 96)
+	t.Logf("skip counts per sample (decode order): %v", skips)
+	if skips[0] != 0 {
+		t.Fatalf("IDR frame skips = %d want 0", skips[0])
+	}
+	for _, i := range []int{2, 3} {
+		if skips[i] == 0 {
+			t.Fatalf("B sample %d used no skips", i)
+		}
+	}
 }

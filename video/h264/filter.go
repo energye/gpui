@@ -230,7 +230,7 @@ func filterChromaIntraEdge(p []uint8, stride int, ex, ey int, vertical bool, alp
 // refList resolves reference indices to pictures: aliased indices into
 // the same picture count as one reference (no strength from the index
 // alone). A nil list keeps plain index comparison.
-func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbT8 []bool) {
+func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) {
 	if pic == nil {
 		return
 	}
@@ -302,7 +302,7 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 						} else {
 							sx, sy = ex+seg*4, ey
 						}
-						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8)
+						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
 						if bS == 0 {
 							continue
 						}
@@ -325,7 +325,7 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 							} else {
 								sx, sy = ex+seg*4, ey
 							}
-							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8)
+							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
 							if bS < 1 {
 								continue
 							}
@@ -381,7 +381,9 @@ func t8count(nnzY []int8, stride int, mbT8 []bool, mbW, mbH, bx, by, mb int) int
 // luma pixels; vertical=false means a vertical edge at x=sx.
 // Same-picture references through different indices compare equal;
 // without a list the raw indices compare (single-reference clips).
-func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool, mbT8 []bool) int {
+// The trailing B parameters (second-list motion, both lists, usage mask)
+// switch on two-list comparison; nil keeps the single-list P behaviour.
+func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) int {
 	if mbIntra == nil {
 		if edgeMB {
 			return 4
@@ -432,7 +434,11 @@ func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refLi
 		return 2
 	}
 	if refIdx != nil {
-		if refList != nil {
+		if useM != nil {
+			if bRefsDiffer(mvX, mvY, refIdx, mvX1, mvY1, refIdx1, pi, qi) {
+				return 1
+			}
+		} else if refList != nil {
 			// refIdx entries are int8 indices; negative marks
 			// unavailable (intra/cleared) slots.
 			refOf := func(i int) *Picture {
@@ -449,6 +455,9 @@ func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refLi
 			return 1
 		}
 	}
+	if useM != nil {
+		return 0
+	}
 	if mvX != nil {
 		dx := int(mvX[pi]) - int(mvX[qi])
 		dy := int(mvY[pi]) - int(mvY[qi])
@@ -463,4 +472,58 @@ func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refLi
 		}
 	}
 	return 0
+}
+
+// bRefsDiffer compares one inter edge across both reference lists with
+// raw index semantics (unavailable reads -1, like the reference;
+// callers zero unused-list motion, so cross-list compares stay
+// deterministic): list-0 pictures-or-motion, then list 1, then the
+// cross-list pairing when one side's lists mirror the other's.
+func bRefsDiffer(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []int8, pi, qi int) bool {
+	raw := func(ref []int8, i int) int {
+		if ref == nil || i < 0 || i >= len(ref) || ref[i] < 0 {
+			return -1
+		}
+		return int(ref[i])
+	}
+	mvGe4 := func(ax, ay, bx, by int16) bool {
+		dx, dy := int(ax)-int(bx), int(ay)-int(by)
+		if dx < 0 {
+			dx = -dx
+		}
+		if dy < 0 {
+			dy = -dy
+		}
+		return dx >= 4 || dy >= 4
+	}
+	mv0p, mv0q := [2]int16{}, [2]int16{}
+	mv1p, mv1q := [2]int16{}, [2]int16{}
+	if mvX != nil && pi < len(mvX) && qi < len(mvX) {
+		mv0p = [2]int16{mvX[pi], mvY[pi]}
+		mv0q = [2]int16{mvX[qi], mvY[qi]}
+	}
+	if mvX1 != nil && pi < len(mvX1) && qi < len(mvX1) {
+		mv1p = [2]int16{mvX1[pi], mvY1[pi]}
+		mv1q = [2]int16{mvX1[qi], mvY1[qi]}
+	}
+	r0p, r0q := raw(refIdx, pi), raw(refIdx, qi)
+	r1p, r1q := raw(refIdx1, pi), raw(refIdx1, qi)
+	v := r0p != r0q
+	if !v && r0p != -1 {
+		v = mvGe4(mv0p[0], mv0p[1], mv0q[0], mv0q[1])
+	}
+	if !v {
+		v = r1p != r1q
+		if !v && r1p != -1 {
+			v = mvGe4(mv1p[0], mv1p[1], mv1q[0], mv1q[1])
+		}
+		if v {
+			if r0p != r1q || r1p != r0q {
+				return true
+			}
+			return mvGe4(mv0p[0], mv0p[1], mv1q[0], mv1q[1]) ||
+				mvGe4(mv1p[0], mv1p[1], mv0q[0], mv0q[1])
+		}
+	}
+	return v
 }

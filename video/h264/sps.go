@@ -19,16 +19,17 @@ type SPS struct {
 	FrameMBsOnly    bool
 	Interlaced      bool
 	NumRefFrames    uint32
+	Direct8x8Infer  bool
 	// Scaling holds the sequence scaling lists in raster order
 	// (F9; flat unless the bitstream overrides).
-	Scaling         scalingRaw
-	HasCropping     bool
-	CropLeft        uint32
-	CropRight       uint32
-	CropTop         uint32
-	CropBottom      uint32
-	VUIPresent      bool
-	Raw             []byte
+	Scaling     scalingRaw
+	HasCropping bool
+	CropLeft    uint32
+	CropRight   uint32
+	CropTop     uint32
+	CropBottom  uint32
+	VUIPresent  bool
+	Raw         []byte
 }
 
 // ParseSPS parses one SPS NALU (header byte included).
@@ -180,7 +181,7 @@ func ParseSPS(nalu []byte) (*SPS, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: direct8x8: %v", ErrBadSPS, err)
 	}
-	_ = direct
+	s.Direct8x8Infer = direct != 0
 	cropFlag, err := r.ReadBits(1)
 	if err != nil {
 		return nil, fmt.Errorf("%w: crop flag: %v", ErrBadSPS, err)
