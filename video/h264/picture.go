@@ -73,17 +73,44 @@ func NewDPB(max int) *DPB {
 }
 
 // Store adds a picture, flushing on IDR and evicting the oldest on overflow.
-func (d *DPB) Store(p *Picture) {
+// Non-reference pictures (disposable) are not kept for prediction.
+func (d *DPB) Store(p *Picture, isRef bool) {
 	if d == nil || p == nil {
 		return
 	}
 	if p.IsIDR {
 		d.pics = d.pics[:0]
 	}
+	if !isRef {
+		return
+	}
 	d.pics = append(d.pics, p)
 	for len(d.pics) > d.max {
 		d.pics = d.pics[1:]
 	}
+}
+
+// Latest returns the most recent reference picture.
+func (d *DPB) Latest() *Picture {
+	if d == nil || len(d.pics) == 0 {
+		return nil
+	}
+	return d.pics[len(d.pics)-1]
+}
+
+// List0 returns up to n newest references, newest first.
+func (d *DPB) List0(n int) []*Picture {
+	if d == nil || n <= 0 || len(d.pics) == 0 {
+		return nil
+	}
+	if n > len(d.pics) {
+		n = len(d.pics)
+	}
+	out := make([]*Picture, n)
+	for i := 0; i < n; i++ {
+		out[i] = d.pics[len(d.pics)-1-i]
+	}
+	return out
 }
 
 // Len reports buffered pictures.

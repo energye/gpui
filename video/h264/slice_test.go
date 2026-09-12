@@ -86,7 +86,7 @@ func activeSets(t *testing.T, ps *ParamSets) (*PPS, *SPS) {
 func TestSliceHeaderIntraClip(t *testing.T) {
 	ps, _, slices := firstSliceNALUs(t, "../testdata/vr2_b_intra.mp4", 1)
 	q, s := activeSets(t, ps)
-	h, err := ParseSliceHeader(slices[0], q, s)
+	h, _, err := ParseSliceHeader(slices[0], q, s)
 	if err != nil {
 		t.Fatalf("slice header: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestSliceHeaderRealClip(t *testing.T) {
 	seenIDR := false
 	var parsed []*SliceHeader
 	for i, raw := range slices {
-		h, err := ParseSliceHeader(raw, q, s)
+		h, _, err := ParseSliceHeader(raw, q, s)
 		if err != nil {
 			t.Fatalf("slice %d: %v", i, err)
 		}
@@ -163,7 +163,7 @@ func TestSliceHeaderMixedClip(t *testing.T) {
 	q, s := activeSets(t, ps)
 	seenP := false
 	for i, raw := range slices {
-		h, err := ParseSliceHeader(raw, q, s)
+		h, _, err := ParseSliceHeader(raw, q, s)
 		if err != nil {
 			t.Fatalf("slice %d: %v", i, err)
 		}
@@ -187,13 +187,13 @@ func TestSliceHeaderBad(t *testing.T) {
 	q, s := activeSets(t, ps)
 	wrongPPS := buildSlice(NALSliceIDR, 3, 0)
 	wrongPPS[1] ^= 0xFF
-	if _, err := ParseSliceHeader(wrongPPS, q, s); err == nil {
+	if _, _, err := ParseSliceHeader(wrongPPS, q, s); err == nil {
 		t.Fatal("wrong pps id should fail")
 	}
-	if _, err := ParseSliceHeader([]byte{0x65}, q, s); err == nil {
+	if _, _, err := ParseSliceHeader([]byte{0x65}, q, s); err == nil {
 		t.Fatal("truncated should fail")
 	}
-	if _, err := ParseSliceHeader(buildSlice(NALSliceIDR, 3, 0), nil, s); err == nil {
+	if _, _, err := ParseSliceHeader(buildSlice(NALSliceIDR, 3, 0), nil, s); err == nil {
 		t.Fatal("nil sets should fail")
 	}
 }
@@ -210,12 +210,12 @@ func TestDPB(t *testing.T) {
 	c, _ := NewPicture(16, 16)
 	c.POC = 4
 	c.IsIDR = true
-	d.Store(a)
-	d.Store(b)
+	d.Store(a, true)
+	d.Store(b, true)
 	if d.Len() != 2 {
 		t.Fatalf("len = %d", d.Len())
 	}
-	d.Store(c)
+	d.Store(c, true)
 	if d.Len() != 1 || d.ByPOC(4) == nil {
 		t.Fatal("idr should flush")
 	}

@@ -136,23 +136,25 @@ func ITransformLumaDC(dc [16]int32, qp uint32) [16]int32 {
 	m := int(qp % 6)
 	var c [16]int32
 	for scan, v := range dc {
-		c[zigzag4x4[scan]] = v
+		// DC scan is transposed vs the 4x4 residual zigzag (matches the
+		// reference decoder's transposed scan tables): swap x/y so the
+		// second coeff lands at block (0,1), not (1,0).
+		r := zigzag4x4[scan]
+		c[(r%4)*4+r/4] = v
 	}
-	var e [16]int32
+	var t [16]int32
 	for i := 0; i < 4; i++ {
-		s0 := c[i] + c[8+i] + c[4+i] + c[12+i]
-		s1 := c[i] + c[8+i] - c[4+i] - c[12+i]
-		s2 := c[i] - c[8+i] - c[4+i] + c[12+i]
-		s3 := c[i] - c[8+i] + c[4+i] - c[12+i]
-		e[i], e[4+i], e[8+i], e[12+i] = s0, s1, s2, s3
+		a, b, cc, dd := c[4*i], c[4*i+1], c[4*i+2], c[4*i+3]
+		z0, z1 := a+b, a-b
+		z2, z3 := cc-dd, cc+dd
+		t[4*i], t[4*i+1], t[4*i+2], t[4*i+3] = z0+z3, z0-z3, z1-z2, z1+z2
 	}
 	var f [16]int32
 	for i := 0; i < 4; i++ {
-		s0 := e[4*i] + e[4*i+2] + e[4*i+1] + e[4*i+3]
-		s1 := e[4*i] + e[4*i+2] - e[4*i+1] - e[4*i+3]
-		s2 := e[4*i] - e[4*i+2] - e[4*i+1] + e[4*i+3]
-		s3 := e[4*i] - e[4*i+2] + e[4*i+1] - e[4*i+3]
-		f[4*i], f[4*i+1], f[4*i+2], f[4*i+3] = s0, s1, s2, s3
+		t0, t1, t2, t3 := t[i], t[4+i], t[8+i], t[12+i]
+		z0, z1 := t0+t2, t0-t2
+		z2, z3 := t1-t3, t1+t3
+		f[4*i], f[4*i+1], f[4*i+2], f[4*i+3] = z0+z3, z1+z2, z1-z2, z0-z3
 	}
 	var out [16]int32
 	ls := levelScale(m, 0, 0)

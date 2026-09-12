@@ -13,7 +13,11 @@ type PPS struct {
 	RefL1Default         uint32
 	WeightedPred         bool
 	WeightedBiPred       uint32
+	PicInitQP            int32
+	PicInitQS            int32
+	ChromaQPOffset       int32
 	DeblockingPresent    bool
+	ConstrainedIntra     bool
 	RedundantPicPresent  bool
 	Transform8x8         bool
 	HasScalingMatrix     bool
@@ -81,23 +85,31 @@ func ParsePPS(nalu []byte) (*PPS, error) {
 		return nil, fmt.Errorf("%w: weighted bipred: %v", ErrBadPPS, err)
 	}
 	p.WeightedBiPred = bipred
-	if _, err := r.ReadSE(); err != nil {
+	if qp, err := r.ReadSE(); err != nil {
 		return nil, fmt.Errorf("%w: init qp: %v", ErrBadPPS, err)
+	} else {
+		p.PicInitQP = qp
 	}
-	if _, err := r.ReadSE(); err != nil {
+	if qs, err := r.ReadSE(); err != nil {
 		return nil, fmt.Errorf("%w: init qs: %v", ErrBadPPS, err)
+	} else {
+		p.PicInitQS = qs
 	}
-	if _, err := r.ReadSE(); err != nil {
+	if off, err := r.ReadSE(); err != nil {
 		return nil, fmt.Errorf("%w: chroma qp offset: %v", ErrBadPPS, err)
+	} else {
+		p.ChromaQPOffset = off
 	}
 	deblock, err := r.ReadBits(1)
 	if err != nil {
 		return nil, fmt.Errorf("%w: deblock present: %v", ErrBadPPS, err)
 	}
 	p.DeblockingPresent = deblock != 0
-	if _, err := r.ReadBits(1); err != nil {
+	constrained, err := r.ReadBits(1)
+	if err != nil {
 		return nil, fmt.Errorf("%w: constrained intra: %v", ErrBadPPS, err)
 	}
+	p.ConstrainedIntra = constrained != 0
 	redundant, err := r.ReadBits(1)
 	if err != nil {
 		return nil, fmt.Errorf("%w: redundant pic: %v", ErrBadPPS, err)

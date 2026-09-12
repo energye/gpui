@@ -31,28 +31,37 @@ const (
 	mbIPCM
 )
 
-// Decoder decodes I slices (VR2a scope) into pictures.
+// Decoder decodes I and P slices (VR2a+VR2b scope) into pictures.
 // Feed every NALU of a frame in stream order; params collect on the way.
 type Decoder struct {
-	ps      *ParamSets
-	dpb     *DPB
-	pic     *Picture
-	sps     *SPS
-	mbW     int
-	mbH     int
-	nnzY    []int8
-	nnzCb   []int8
-	nnzCr   []int8
-	modes   []int8
-	qps     []int32
-	fIDC    []uint32
-	fA      []int32
-	fB      []int32
-	cOff0   int32
-	cOff1   int32
-	qpY     int32
-	decoded int
-	slices  int
+	ps       *ParamSets
+	dpb      *DPB
+	pic      *Picture
+	sps      *SPS
+	mbW      int
+	mbH      int
+	nnzY     []int8
+	nnzCb    []int8
+	nnzCr    []int8
+	modes    []int8
+	qps      []int32
+	fIDC     []uint32
+	fA       []int32
+	fB       []int32
+	mvX      []int16
+	mvY      []int16
+	refIdx   []int8
+	mbIntra  []bool
+	skipRun  int
+	refPic   *Picture
+	refList  []*Picture
+	skipCnt  int
+	cOff0    int32
+	cOff1    int32
+	qpY      int32
+	decoded  int
+	slices   int
+	curIsRef bool
 }
 
 // NewDecoder builds a decoder over shared parameter sets.
@@ -106,12 +115,12 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	if err != nil {
 		return err
 	}
-	if !h.IsI() {
-		return fmt.Errorf("%w: non-I slice needs VR2b", ErrStageScope)
+	if h.IsB() {
+		return fmt.Errorf("%w: B slice needs VR2d", ErrStageScope)
 	}
 	if d.pic == nil {
 		if sps.Width%16 != 0 || sps.Height%16 != 0 {
-			return fmt.Errorf("%w: cropped %dx%d needs VR2b", ErrStageScope, sps.Width, sps.Height)
+			return fmt.Errorf("%w: cropped %dx%d needs VR2d", ErrStageScope, sps.Width, sps.Height)
 		}
 		pic, err := NewPicture(sps.Width, sps.Height)
 		if err != nil {
@@ -139,6 +148,27 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		d.fIDC = make([]uint32, d.mbW*d.mbH)
 		d.fA = make([]int32, d.mbW*d.mbH)
 		d.fB = make([]int32, d.mbH*d.mbW)
+		d.mvX = make([]int16, n4)
+		d.mvY = make([]int16, n4)
+		d.refIdx = make([]int8, n4)
+		for i := range d.refIdx {
+			d.refIdx[i] = -1
+		}
+		d.mbIntra = make([]bool, d.mbW*d.mbH)
+	}
+	// New picture starts at FirstMB 0: reset per-frame motion state.
+	// Multi-slice frames keep accumulating; slices all share the arrays.
+	if h.FirstMB == 0 && d.decoded == 0 {
+		for i := range d.refIdx {
+			d.refIdx[i] = -1
+		}
+		for i := range d.modes {
+			d.modes[i] = -1
+		}
+		for i := range d.mbIntra {
+			d.mbIntra[i] = false
+		}
+		d.skipCnt = 0
 	}
 	d.qpY = 26 + pps.PicInitQP + h.QPDelta
 	d.cOff0 = pps.ChromaQPOffset
@@ -146,12 +176,78 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	d.pic.FrameNum = h.FrameNum
 	d.pic.POC = h.POC
 	d.pic.IsIDR = h.IsIDR
+	d.curIsRef = h.NalRefIDC != 0
+	// Reference list 0: newest stored pictures first (no reordering in
+	// this stage; modification flags parsed but untreated streams fail
+	// readable elsewhere). Multi-ref clips address older entries by idx.
+	d.refPic = nil
+	d.refList = d.refList[:0]
+	if h.IsP() {
+		if h.IsIDR {
+			// IDR P is still a refresh: no reference needed.
+		} else {
+			n := int(h.RefL0Count)
+			if n < 1 {
+				n = 1
+			}
+			d.refList = d.dpb.List0(n)
+			if len(d.refList) > 0 {
+				d.refPic = d.refList[0]
+			}
+		}
+		if d.refPic == nil && !h.IsIDR && d.dpb.Len() == 0 {
+			// First frame must be IDR; P with no reference is corrupt.
+			return fmt.Errorf("%w: P slice without reference", ErrBadSliceHeader)
+		}
+	}
+	d.skipRun = -1
 	total := d.mbW * d.mbH
-	for addr := int(h.FirstMB); addr < total && r.BitsLeft() > 8; addr++ {
-		if err := d.decodeMB(r, pps, h, addr); err != nil {
+	addr := int(h.FirstMB)
+	for addr < total {
+		// Pending skips consume no bits.
+		if h.IsP() && d.skipRun > 0 {
+			if err := d.decodeSkip(h, addr); err != nil {
+				return fmt.Errorf("mb %d: %w", addr, err)
+			}
+			d.decoded++
+			d.skipRun--
+			addr++
+			continue
+		}
+		if h.IsP() && d.skipRun < 0 {
+			if !r.MoreRBSPData() && r.BitsLeft() <= 8 {
+				break
+			}
+			run, err := r.ReadUE()
+			if err != nil {
+				break
+			}
+			d.skipRun = int(run)
+			if d.skipRun > 0 {
+				continue
+			}
+		}
+		if !r.MoreRBSPData() && r.BitsLeft() <= 8 && !(h.IsP() && d.skipRun == 0) {
+			// I slices keep the old trailing guard; P with zero run
+			// still owns one coded MB in these bits.
+			if !h.IsP() {
+				break
+			}
+		}
+		var err error
+		if h.IsI() {
+			err = d.decodeMB(r, pps, h, addr)
+		} else {
+			err = d.decodeMBP(r, pps, h, addr)
+		}
+		if err != nil {
 			return fmt.Errorf("mb %d: %w", addr, err)
 		}
 		d.decoded++
+		if h.IsP() {
+			d.skipRun = -1
+		}
+		addr++
 	}
 	d.slices++
 	return nil
@@ -166,8 +262,9 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 	if d.decoded != d.mbW*d.mbH {
 		return nil, fmt.Errorf("%w: %d of %d mbs", ErrBadSliceHeader, d.decoded, d.mbW*d.mbH)
 	}
-	DeblockPicture(d.pic, d.qps, d.fIDC, d.fA, d.fB, d.mbW, d.mbH, d.cOff0, d.cOff1)
-	d.dpb.Store(d.pic)
+	DeblockPicture(d.pic, d.qps, d.fIDC, d.fA, d.fB, d.mbW, d.mbH, d.cOff0, d.cOff1,
+		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx)
+	d.dpb.Store(d.pic, d.curIsRef)
 	out := d.pic
 	d.pic = nil
 	d.decoded = 0
@@ -212,6 +309,10 @@ func (d *Decoder) decodeMB(r *Reader, pps *PPS, h *SliceHeader, addr int) error 
 	if mbType == 25 {
 		return d.decodePCM(r, mbx, mby)
 	}
+	return d.decodeIntraMB(r, pps, h, addr, mbx, mby, mbType)
+}
+
+func (d *Decoder) decodeIntraMB(r *Reader, pps *PPS, h *SliceHeader, addr, mbx, mby int, mbType uint32) error {
 	kind := mbI4x4
 	pred16 := 0
 	cbp := uint32(0)
@@ -284,6 +385,10 @@ func (d *Decoder) decodeMB(r *Reader, pps *PPS, h *SliceHeader, addr int) error 
 	d.fIDC[addr] = h.DisableFilter
 	d.fA[addr] = h.FilterAlpha
 	d.fB[addr] = h.FilterBeta
+	if d.mbIntra != nil {
+		d.mbIntra[addr] = true
+		d.markIntraMB(mbx, mby)
+	}
 	if kind == mbI16x16 {
 		return d.reconstructI16x16(r, mbx, mby, pred16, int(chromaMode), cbp)
 	}
@@ -365,6 +470,10 @@ func (d *Decoder) decodePCM(r *Reader, mbx, mby int) error {
 		}
 	}
 	d.qps[mby*d.mbW+mbx] = 0
+	if d.mbIntra != nil {
+		d.mbIntra[mby*d.mbW+mbx] = true
+		d.markIntraMB(mbx, mby)
+	}
 	return nil
 }
 

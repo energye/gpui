@@ -86,6 +86,26 @@ func (r *Reader) ReadSE() (int32, error) {
 // for VR1; the rule is documented and covered by tests both ways.
 func (r *Reader) MoreRBSPData() bool { return r.BitsLeft() > 8 }
 
+// AlignToByte skips to the next byte boundary (rbsp alignment).
+func (r *Reader) AlignToByte() {
+	for r.pos%8 != 0 {
+		r.pos++
+	}
+}
+
+// ReadBytes reads n whole bytes; the reader must be byte-aligned.
+func (r *Reader) ReadBytes(n int) ([]byte, error) {
+	if r.pos%8 != 0 {
+		return nil, fmt.Errorf("unaligned byte read")
+	}
+	if n < 0 || r.pos/8+n > len(r.data) {
+		return nil, fmt.Errorf("byte read past end")
+	}
+	out := append([]byte(nil), r.data[r.pos/8:r.pos/8+n]...)
+	r.pos += n * 8
+	return out, nil
+}
+
 // UnescapeRBSP removes emulation_prevention_three_byte sequences
 // (00 00 03 -> 00 00) so bit reading sees the true RBSP.
 func UnescapeRBSP(in []byte) []byte {

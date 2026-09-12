@@ -53,21 +53,22 @@ func (s *SliceHeader) IsP() bool { return s != nil && (s.Type == SliceP || s.Typ
 func (s *SliceHeader) IsB() bool { return s != nil && s.Type == SliceB }
 
 // ParseSliceHeader parses one slice NALU header (header byte included).
-// pps/sps select the active sets; pocLSB carries pic_order_cnt_lsb for
-// poc_type 0 pictures (kept outside: the caller tracks per-stream state).
-func ParseSliceHeader(nalu []byte, pps *PPS, sps *SPS) (*SliceHeader, error) {
+// pps/sps select the active sets. It also returns the bit reader
+// positioned at the first macroblock bit, so slice payload decoding can
+// continue without re-reading.
+func ParseSliceHeader(nalu []byte, pps *PPS, sps *SPS) (*SliceHeader, *Reader, error) {
 	forbidden, refIDC, typ, err := NALUHeader(nalu)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if forbidden {
-		return nil, fmt.Errorf("%w: forbidden bit set", ErrBadSliceHeader)
+		return nil, nil, fmt.Errorf("%w: forbidden bit set", ErrBadSliceHeader)
 	}
 	if typ != NALSliceNonIDR && typ != NALSliceIDR {
-		return nil, fmt.Errorf("%w: type %d is not a base slice", ErrBadSliceHeader, typ)
+		return nil, nil, fmt.Errorf("%w: type %d is not a base slice", ErrBadSliceHeader, typ)
 	}
 	if pps == nil || sps == nil {
-		return nil, fmt.Errorf("%w: slice without active sets", ErrMissingPPS)
+		return nil, nil, fmt.Errorf("%w: slice without active sets", ErrMissingPPS)
 	}
 	r := NewReader(UnescapeRBSP(nalu[1:]))
 	h := &SliceHeader{
@@ -77,114 +78,66 @@ func ParseSliceHeader(nalu []byte, pps *PPS, sps *SPS) (*SliceHeader, error) {
 		RefL1Count: pps.RefL1Default,
 	}
 	if h.FirstMB, err = r.ReadUE(); err != nil {
-		return nil, fmt.Errorf("%w: first mb: %v", ErrBadSliceHeader, err)
+		return nil, nil, fmt.Errorf("%w: first mb: %v", ErrBadSliceHeader, err)
 	}
 	rawType, err := r.ReadUE()
 	if err != nil {
-		return nil, fmt.Errorf("%w: slice type: %v", ErrBadSliceHeader, err)
+		return nil, nil, fmt.Errorf("%w: slice type: %v", ErrBadSliceHeader, err)
 	}
 	if rawType > 9 {
-		return nil, fmt.Errorf("%w: slice type %d", ErrBadSliceHeader, rawType)
+		return nil, nil, fmt.Errorf("%w: slice type %d", ErrBadSliceHeader, rawType)
 	}
 	h.Type = rawType % 5
 	if h.PPSID, err = r.ReadUE(); err != nil {
-		return nil, fmt.Errorf("%w: pps id: %v", ErrBadSliceHeader, err)
+		return nil, nil, fmt.Errorf("%w: pps id: %v", ErrBadSliceHeader, err)
 	}
 	if h.PPSID != pps.ID {
-		return nil, fmt.Errorf("%w: slice pps %d, active %d", ErrBadSliceHeader, h.PPSID, pps.ID)
+		return nil, nil, fmt.Errorf("%w: slice pps %d, active %d", ErrBadSliceHeader, h.PPSID, pps.ID)
 	}
 	fnBits, err := frameNumBits(sps)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if h.FrameNum, err = r.ReadBits(fnBits); err != nil {
-		return nil, fmt.Errorf("%w: frame num: %v", ErrBadSliceHeader, err)
+		return nil, nil, fmt.Errorf("%w: frame num: %v", ErrBadSliceHeader, err)
 	}
 	if !sps.FrameMBsOnly {
 		f, err := r.ReadBits(1)
 		if err != nil {
-			return nil, fmt.Errorf("%w: field pic: %v", ErrBadSliceHeader, err)
+			return nil, nil, fmt.Errorf("%w: field pic: %v", ErrBadSliceHeader, err)
 		}
 		h.FieldPic = f != 0
 		if h.FieldPic {
 			b, err := r.ReadBits(1)
 			if err != nil {
-				return nil, fmt.Errorf("%w: bottom field: %v", ErrBadSliceHeader, err)
+				return nil, nil, fmt.Errorf("%w: bottom field: %v", ErrBadSliceHeader, err)
 			}
 			h.BottomField = b != 0
 		}
 	}
 	if h.IsIDR {
 		if h.IDRPicID, err = r.ReadUE(); err != nil {
-			return nil, fmt.Errorf("%w: idr pic id: %v", ErrBadSliceHeader, err)
+			return nil, nil, fmt.Errorf("%w: idr pic id: %v", ErrBadSliceHeader, err)
 		}
 	}
 	if err := parsePOCLSB(r, h, pps, sps); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if pps.RedundantPicPresent {
 		rc, err := r.ReadUE()
 		if err != nil {
-			return nil, fmt.Errorf("%w: redundant pic: %v", ErrBadSliceHeader, err)
+			return nil, nil, fmt.Errorf("%w: redundant pic: %v", ErrBadSliceHeader, err)
 		}
 		h.RedundantCnt = rc
 	}
 	if err := finishSliceHeader(r, h, pps, sps); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return h, nil
+	return h, r, nil
 }
 
 func frameNumBits(sps *SPS) (int, error) {
-	v, err := spsLog2MaxFrameNum(sps)
-	if err != nil {
-		return 0, err
-	}
-	return int(v) + 4, nil
-}
-
-func spsLog2MaxFrameNum(sps *SPS) (uint32, error) {
-	r := NewReader(UnescapeRBSP(sps.Raw[1:]))
-	if _, err := r.ReadBits(24); err != nil {
-		return 0, err
-	}
-	if _, err := r.ReadUE(); err != nil {
-		return 0, err
-	}
-	if isHighFamily(sps.ProfileIDC) {
-		chroma, err := r.ReadUE()
-		if err != nil {
-			return 0, err
-		}
-		if chroma == 3 {
-			if _, err := r.ReadBits(1); err != nil {
-				return 0, err
-			}
-		}
-		if _, err := r.ReadUE(); err != nil {
-			return 0, err
-		}
-		if _, err := r.ReadUE(); err != nil {
-			return 0, err
-		}
-		if _, err := r.ReadBits(1); err != nil {
-			return 0, err
-		}
-		present, err := r.ReadBits(1)
-		if err != nil {
-			return 0, err
-		}
-		if present != 0 {
-			n := 8
-			if chroma == 3 {
-				n = 12
-			}
-			if err := skipScalingLists(r, n); err != nil {
-				return 0, err
-			}
-		}
-	}
-	return r.ReadUE()
+	return int(sps.Log2MaxFrameNum) + 4, nil
 }
 
 func parsePOCLSB(r *Reader, h *SliceHeader, pps *PPS, sps *SPS) error {
@@ -473,76 +426,16 @@ func parseMarking(r *Reader, h *SliceHeader) error {
 // header-only fields (poc type, lsb width) are needed by slice parsing
 // without growing the struct in VR1. They are re-read from the stored raw
 // bytes so engine state stays single-sourced.
+// SPS header fields live on the struct since VR2a (single-sourced at
+// parse time); the helpers below used to re-read raw bytes and skewed on
+// non-zero fields, so they now return stored values.
 func spsPOCType(sps *SPS) (uint32, error) {
-	r, err := spsFieldCursor(sps)
-	if err != nil {
-		return 0, err
-	}
-	return r.ReadUE()
+	return sps.POCType, nil
 }
 
 func spsPOCLSB(sps *SPS) (int, error) {
-	r, err := spsFieldCursor(sps)
-	if err != nil {
-		return 0, err
+	if sps.POCType != 0 {
+		return 0, fmt.Errorf("%w: poc %d lsb width", ErrBadSliceHeader, sps.POCType)
 	}
-	poc, err := r.ReadUE()
-	if err != nil {
-		return 0, err
-	}
-	if poc != 0 {
-		return 0, fmt.Errorf("%w: poc %d lsb width", ErrBadSliceHeader, poc)
-	}
-	v, err := r.ReadUE()
-	if err != nil {
-		return 0, err
-	}
-	return int(v) + 4, nil
-}
-
-func spsFieldCursor(sps *SPS) (*Reader, error) {
-	r := NewReader(UnescapeRBSP(sps.Raw[1:]))
-	if _, err := r.ReadBits(24); err != nil {
-		return nil, err
-	}
-	if _, err := r.ReadUE(); err != nil {
-		return nil, err
-	}
-	if isHighFamily(sps.ProfileIDC) {
-		chroma, err := r.ReadUE()
-		if err != nil {
-			return nil, err
-		}
-		if chroma == 3 {
-			if _, err := r.ReadBits(1); err != nil {
-				return nil, err
-			}
-		}
-		if _, err := r.ReadUE(); err != nil {
-			return nil, err
-		}
-		if _, err := r.ReadUE(); err != nil {
-			return nil, err
-		}
-		if _, err := r.ReadBits(1); err != nil {
-			return nil, err
-		}
-		present, err := r.ReadBits(1)
-		if err != nil {
-			return nil, err
-		}
-		if present != 0 {
-			n := 8
-			if chroma == 3 {
-				n = 12
-			}
-			if err := skipScalingLists(r, n); err != nil {
-				return nil, err
-			}
-		}
-	}
-	if _, err := r.ReadUE(); err != nil {
-		return nil, err
-	}
-	return r, nil
+	return int(sps.Log2MaxPOCLsb) + 4, nil
 }

@@ -11,6 +11,9 @@ type SPS struct {
 	LevelIDC        uint8
 	Level           string
 	ChromaFormat    uint32
+	Log2MaxFrameNum uint32
+	POCType         uint32
+	Log2MaxPOCLsb   uint32
 	Width           uint32
 	Height          uint32
 	FrameMBsOnly    bool
@@ -103,9 +106,11 @@ func ParseSPS(nalu []byte) (*SPS, error) {
 			}
 		}
 	}
-	if _, err := r.ReadUE(); err != nil {
+	log2Frame, err := r.ReadUE()
+	if err != nil {
 		return nil, fmt.Errorf("%w: log2 max frame num: %v", ErrBadSPS, err)
 	}
+	s.Log2MaxFrameNum = log2Frame
 	pocType, err := r.ReadUE()
 	if err != nil {
 		return nil, fmt.Errorf("%w: poc type: %v", ErrBadSPS, err)
@@ -113,11 +118,14 @@ func ParseSPS(nalu []byte) (*SPS, error) {
 	if pocType > 2 {
 		return nil, fmt.Errorf("%w: poc type %d", ErrBadSPS, pocType)
 	}
+	s.POCType = pocType
 	switch pocType {
 	case 0:
-		if _, err := r.ReadUE(); err != nil {
+		lsb, err := r.ReadUE()
+		if err != nil {
 			return nil, fmt.Errorf("%w: poc lsb: %v", ErrBadSPS, err)
 		}
+		s.Log2MaxPOCLsb = lsb
 	case 1:
 		if _, err := r.ReadBits(1); err != nil {
 			return nil, fmt.Errorf("%w: poc delta always zero: %v", ErrBadSPS, err)

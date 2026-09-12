@@ -79,6 +79,9 @@ func filterTC(qp, aOff int32, bS int) int {
 // (vertical=false) the edge runs down at x=ex starting at y=ey; for a
 // horizontal edge it runs right at y=ey starting at x=ex.
 func filterLumaEdge(p []uint8, stride int, ex, ey int, vertical bool, bS int, alpha, beta, tc int) {
+	if bS <= 0 {
+		return
+	}
 	get := func(x, y int) int { return int(p[y*stride+x]) }
 	put := func(x, y, v int) {
 		if v < 0 {
@@ -165,9 +168,10 @@ func clip3(v, lo, hi int) int {
 	return v
 }
 
-// filterChromaEdge filters 2 lines across a chroma edge (bS>=2 only).
+// filterChromaEdge filters 2 lines across a chroma edge (bS>=1; the
+// caller sends bS 4 to the intra path instead).
 func filterChromaEdge(p []uint8, stride int, ex, ey int, vertical bool, bS int, alpha, beta, tc int) {
-	if bS < 2 {
+	if bS < 1 {
 		return
 	}
 	tc++
@@ -221,7 +225,9 @@ func filterChromaIntraEdge(p []uint8, stride int, ex, ey int, vertical bool, alp
 
 // DeblockPicture filters all 4x4 edges of a decoded picture.
 // qps/fIDC/fA/fB carry per-macroblock QP and filter switches.
-func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32) {
+// mbIntra/nnzY/mv/ref carry inter info for boundary strength; nil mbIntra
+// keeps the VR2a all-intra strengths (4 on MB edges, 3 inside).
+func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8) {
 	if pic == nil {
 		return
 	}
@@ -266,10 +272,6 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 					if idc == 1 || idc == 2 && !edgeMB {
 						continue
 					}
-					bS := 3
-					if edgeMB {
-						bS = 4
-					}
 					var qx, qy int
 					if !vertical {
 						qx, qy = mbx, mby
@@ -284,7 +286,6 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 					}
 					qp := (qpAt(mbx, mby) + qpAt(qx, qy) + 1) >> 1
 					alpha, beta := filterAlphaBeta(qp, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
-					tc := filterTC(qp, fA[mby*mbW+mbx], bS)
 					for seg := 0; seg < 4; seg++ {
 						var sx, sy int
 						if !vertical {
@@ -292,15 +293,35 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 						} else {
 							sx, sy = ex+seg*4, ey
 						}
+						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, mbW, mbH, sx, sy, vertical, edgeMB)
+						if bS == 0 {
+							continue
+						}
+						tc := filterTC(qp, fA[mby*mbW+mbx], bS)
 						filterLumaEdge(pic.Y, W, sx, sy, vertical, bS, alpha, beta, tc)
 					}
 					// Chroma edges sit on even luma edges only (4:2:0: every
 					// second one), with thresholds from averaged chroma QP.
+					// Cb and Cr average separately: the second plane has its
+					// own offset.
 					if e%2 == 0 {
-						qpc := (ChromaQP(qpAt(mbx, mby), cOff0) + ChromaQP(qpAt(qx, qy), cOff0) + 1) >> 1
-						alphaC, betaC := filterAlphaBeta(qpc, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
-						tcC := filterTC(qpc, fA[mby*mbW+mbx], bS)
+						qpcCb := (ChromaQP(qpAt(mbx, mby), cOff0) + ChromaQP(qpAt(qx, qy), cOff0) + 1) >> 1
+						qpcCr := (ChromaQP(qpAt(mbx, mby), cOff1) + ChromaQP(qpAt(qx, qy), cOff1) + 1) >> 1
+						alphaCb, betaCb := filterAlphaBeta(qpcCb, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
+						alphaCr, betaCr := filterAlphaBeta(qpcCr, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
 						for seg := 0; seg < 4; seg++ {
+							var sx, sy int
+							if !vertical {
+								sx, sy = ex, ey+seg*4
+							} else {
+								sx, sy = ex+seg*4, ey
+							}
+							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, mbW, mbH, sx, sy, vertical, edgeMB)
+							if bS < 1 {
+								continue
+							}
+							tcCb := filterTC(qpcCb, fA[mby*mbW+mbx], bS)
+							tcCr := filterTC(qpcCr, fA[mby*mbW+mbx], bS)
 							var cx, cy int
 							if !vertical {
 								cx, cy = mbx*8+e*2, mby*8+seg*2
@@ -314,16 +335,85 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 								}
 							}
 							if bS == 4 {
-								filterChromaIntraEdge(pic.Cb, W/2, cx, cy, vertical, alphaC, betaC)
-								filterChromaIntraEdge(pic.Cr, W/2, cx, cy, vertical, alphaC, betaC)
+								filterChromaIntraEdge(pic.Cb, W/2, cx, cy, vertical, alphaCb, betaCb)
+								filterChromaIntraEdge(pic.Cr, W/2, cx, cy, vertical, alphaCr, betaCr)
 								continue
 							}
-							filterChromaEdge(pic.Cb, W/2, cx, cy, vertical, bS, alphaC, betaC, tcC)
-							filterChromaEdge(pic.Cr, W/2, cx, cy, vertical, bS, alphaC, betaC, tcC)
+							filterChromaEdge(pic.Cb, W/2, cx, cy, vertical, bS, alphaCb, betaCb, tcCb)
+							filterChromaEdge(pic.Cr, W/2, cx, cy, vertical, bS, alphaCr, betaCr, tcCr)
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+// interBS derives one 4-line edge strength. sx,sy is the edge origin in
+// luma pixels; vertical=false means a vertical edge at x=sx.
+func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool) int {
+	if mbIntra == nil {
+		if edgeMB {
+			return 4
+		}
+		return 3
+	}
+	var pBX, pBY, qBX, qBY int
+	if !vertical {
+		pBX, pBY = (sx-1)/4, sy/4
+		qBX, qBY = sx/4, sy/4
+	} else {
+		pBX, pBY = sx/4, (sy-1)/4
+		qBX, qBY = sx/4, sy/4
+	}
+	stride := mbW * 4
+	if pBX < 0 || pBY < 0 || qBX < 0 || qBY < 0 || pBX >= stride || qBX >= stride {
+		if edgeMB {
+			return 4
+		}
+		return 3
+	}
+	pMB := (pBY/4)*mbW + pBX/4
+	qMB := (qBY/4)*mbW + qBX/4
+	if pMB < 0 || qMB < 0 || pMB >= mbW*mbH || qMB >= mbW*mbH {
+		if edgeMB {
+			return 4
+		}
+		return 3
+	}
+	if mbIntra[pMB] || mbIntra[qMB] {
+		if edgeMB {
+			return 4
+		}
+		return 3
+	}
+	pi, qi := pBY*stride+pBX, qBY*stride+qBX
+	if pi < 0 || qi < 0 || pi >= len(nnzY) || qi >= len(nnzY) {
+		if edgeMB {
+			return 4
+		}
+		return 3
+	}
+	if nnzY[pi] > 0 || nnzY[qi] > 0 {
+		return 2
+	}
+	if refIdx != nil {
+		if refIdx[pi] != refIdx[qi] {
+			return 1
+		}
+	}
+	if mvX != nil {
+		dx := int(mvX[pi]) - int(mvX[qi])
+		dy := int(mvY[pi]) - int(mvY[qi])
+		if dx < 0 {
+			dx = -dx
+		}
+		if dy < 0 {
+			dy = -dy
+		}
+		if dx >= 4 || dy >= 4 {
+			return 1
+		}
+	}
+	return 0
 }
