@@ -62,7 +62,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | Position | *Point | 初始位置（客户区左上，屏幕坐标）；nil=系统决定 | ✅ | ⛔ | ⬜ SetWindowPos | ⬜ setFrameOrigin: |
 | Fullscreen | bool | 初始全屏 | ✅ EWMH | ✅ 创建后 set_fullscreen | ⬜ 屏幕铺满 | ⬜ toggleFullScreen: |
 | Cursor | Cursor | 初始光标（9 形状） | ✅ XCreateFontCursor | ✅ 首选 cursor-shape 协议（合成器自绘），无才回 wl_cursor_theme | ⬜ LoadCursor | ⬜ NSCursor |
-| Resizable | bool | 用户可否调整尺寸；false=固定（min==max） | ✅ | ✅ min==max 锁 | ⬜ WS_THICKFRAME | ⬜ styleMask Resizable |
+| Resizable | bool | 用户可否调整尺寸；false（缺省）=固定（min==max） | ✅ | ✅ min==max 锁 | ⬜ WS_THICKFRAME | ⬜ styleMask Resizable |
 | **Maximized** | bool | 初始最大化（新） | ✅ EWMH 初始 | ✅ 首 commit 前 set_maximized | ⬜ SW_MAXIMIZE | ⬜ zoom: |
 | **Visible** | *bool | 初始可见（nil=默认 true；&false=初始隐藏）（新） | ✅ map 控制 | ✅ destroy/重建栈 + EventHidden（原⛔已过期） | ⬜ SW_SHOW/SW_HIDE | ⬜ orderFront:/orderOut: |
 
@@ -75,7 +75,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | `Host() Host` | 事件泵 / 尺寸 / scale（永不为 nil） |
 | `Kind() PlatformKind` | 平台识别 |
 | `Backend() DisplayBackend` | 后端识别（窗口打开上报用，与 Kind 互补） |
-| `IME() / Clipboard() / Controls()` | 可选能力，可能为 nil（静默降级）；`Adopt` 无显示给内部剪贴板，`Create` 才给真剪贴板；Wayland 无 data-device 时 Clipboard 为 nil |
+| `IME() / Clipboard() / Controls()` | 可选能力，可能为 nil（静默降级）；X11 有合法 Display/Window 时 Create/Adopt 都给真剪贴板（ICCCM，非法/无显示/超时才回落内部），X11 Adopt 的 IME 恒 nil；Wayland Adopt 直接报错未实现，Create 无 data-device 时 Clipboard 为 nil |
 | `Close() / Closed()` | 请求销毁（幂等） |
 | `WrapHost(host)` | 测试/嵌入宿主包装 |
 
@@ -83,7 +83,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 
 - 方向：`IME` 六方法（EnableIME/UpdateCursorRect/SetContentType/SetComposing/Commit/DisableIME）是应用推给输入法；`EventIME` 是输入法推回应用。`SetComposing` 实为推 surrounding+光标（不翻 composing 旗，旗只靠信号），密码目的跳过上报，surrounding 超 4000 字节居中截断（两端同口径）。
 - 锚点：`Rect` 逻辑像素窗口相对；`ContentPurpose` 14 值（密码掩码+不预测等关键语义）；`FieldSnapshot` 是 Enable 快照包；X11 每改必推 surrounding，Wayland 按需取回。
-- 剪贴板：`Clipboard.Get/Set(kind, data)`（如 text/plain）；X11 走 ICCCM（500ms 超时/INCR 大块/空与超时回落内部剪贴板）；Wayland 自读短路 + 同源缓存，offer/source 销毁 opcode 不可混。剪贴板与占位后端的做不到走 `fmt.Errorf` 明错（非 `ErrUnsupported`，见 §2.5）。
+- 剪贴板：`Clipboard.Get/Set(kind, data)`（如 text/plain）；X11 走 ICCCM（500ms 超时/INCR 大块/空与超时回落内部剪贴板）；Wayland 自读短路 + 同源缓存，offer/source 销毁 opcode 不可混。X11 Adopt 有合法句柄同样给真剪贴板、IME 恒 nil（未接 D-Bus）；Wayland Adopt 直接报错。剪贴板与占位后端的做不到走 `fmt.Errorf` 明错（非 `ErrUnsupported`，见 §2.5）。
 - 富预编辑：ibus/fcitx 下划线选中态只解析不转发（等分段感知事件），当前只留纯文本，非 bug。
 
 ### 2.3 窗口控制 SPI `WindowController`
@@ -123,6 +123,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | EventOccluded | Occluded bool | 完全遮挡/最小化（停渲染省电） | ✅ VisibilityNotify | ✅ suspended 上报 | ⬜ WM_SHOWWINDOW | ⬜ occlusionState |
 | EventPointer（Move/Down/Up/Scroll/**Enter/Leave/Cancel**） | PointerKind/X/Y/Button/Scroll* | 指针全事件（含 enter/leave hover 判定；Cancel 为 grab 中断/座位丢失，X11 已上报、Wayland 仍🔨；X11 6/7 号横滚键转 ScrollX） | ✅ enter/leave 带坐标 + grab 中断 Cancel（FocusOut/Leave NotifyGrab，带最后坐标） | ✅ enter/leave；Leave 补最近坐标（Cancel 待 seat 丢失上报🔨） | ⬜ WM_MOUSEMOVE/ENTER/LEAVE | ⬜ mouseEntered:/Exited: |
 | EventKey | KeyCode/Rune/Pressed/Repeat | 键盘（IME 已消费跳过；X11 XKB 连发/Wayland 客户端合成连发置 Repeat，异步 IME 保序） | ✅ | ✅ | ⬜ WM_KEYDOWN/UP | ⬜ keyDown/Up |
+| EventModifiersChanged | ModShift/ModControl/ModAlt/ModMeta | 修饰键单独变化（变化才报，去重，IME 路径也报，报在按键前） | ✅ 状态位 + 修饰键覆盖推导 | 🔨 modifiers 只进 xkb 未上报 | ⬜ 修饰键跟踪 | ⬜ flagsChanged: |
 | EventIME | IMEKind/IMEText/IMEStart/IMEEnd | 输入法（compose/commit/caret/delete-surrounding；X11 走 D-Bus ibus/fcitx5，XIM 已移除；两端暂缺 caret；Wayland text-input 批量原子提交 + 同 rect 去重） | ✅ D-Bus | ✅ text-input v3 | ⬜ TSF | ⬜ NSTextInputClient |
 | EventTouch | ID(≥1)/X/Y + 相位(Down/Move/Up/Cancel) | 多点触控槽采样 | ✅ XI2 探测 + 解析 + 门控 | ✅ wl_touch 绑定 + 解码 | ⬜ WM_TOUCH/POINTER | ⬜ touchesBegan/Moved/Ended: |
 | EventStylus | ID(0=主笔)/X/Y/Pressure 0–1/TiltX/TiltY/Eraser + 相位(Down/Move/Up) | 笔压感采样（无压感填 1） | ✅ XI2 笔设备逐个选 Button/Motion + valuator 归一 + 门控 | ⬜ tablet 协议二期占位（未绑定） | ⬜ WM_POINTER 笔 | ⬜ tabletPoint |
@@ -131,8 +132,8 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | EventWake | — | 跨线程唤醒 | ✅ | ✅ | ⬜ | ⬜ |
 | EventExpose | — | 重绘提示。GPU 拥有像素，不进上层输入，X11 在事件泵过滤 | ✅ 发射后过滤 | ⛔ 无对应（frame 回调覆盖） | ⬜ WM_PAINT | ⬜ drawRect |
 | EventResizeSync | — | 窗口系统请求同步帧（X11 _NET_WM_SYNC_REQUEST；排帧后推进 counter，否则拖动时只拉伸旧画面） | ✅ 请求解析 + NotifyFrameDrawn 推进 | ⛔ | ⛔ | ⛔ |
-| EventDrop | Files/X/Y | 外部文件落入窗口（位置 + 路径；MIME 数据走 S6-P1；空拖放静默吞掉） | ✅ XDND text/uri-list | ✅ text/uri-list | ⬜ | ⬜ |
-| EventDragEnter/Over | X/Y/MIMETypes | 拖放悬停（位置 +  offered 类型；高亮用；空类型也报） | ✅ XDND Enter/Position | 🔨 wl_data_device enter/motion 已跟踪未上报 | ⬜ | ⬜ |
+| EventDrop | Files/X/Y | 外部文件落入窗口（位置 + 路径；文件先行，MIME Data 二期未完恒空；空拖放静默吞掉） | ✅ XDND text/uri-list | ✅ text/uri-list | ⬜ | ⬜ |
+| EventDragEnter/Over | X/Y/MIMETypes | 拖放悬停（位置 + offered 类型；高亮用；空类型也报；X11 XDND Enter 首包无坐标恒 0,0，有效坐标自首个 Position/Over 起） | ✅ XDND Enter/Position | 🔨 wl_data_device enter/motion 已跟踪未上报 | ⬜ | ⬜ |
 | EventDragLeave | — | 拖放离开（取消高亮） | ✅ XDND Leave | 🔨 wl_data_device leave 已跟踪未上报 | ⬜ | ⬜ |
 | EventHidden | Hidden bool | 应用显隐（Wayland destroy/重建栈，GPU 先停） | ✅ 显隐发射 + 外部重映射通知 | ✅ 双向 + 真窗断言 | ⬜ | ⬜ |
 | EventFramePresented | — | 合成器已显示一帧（帧 pacing 输入；通知与 DRM 二选一，有通知不用 DRM；Wayland 现恒不用通知、回 DRM 学周期） | ✅ XPresent（不可用回落 DRM） | ✅ frame 回调 | ⬜ | ⬜ |
@@ -269,7 +270,7 @@ C 鼠标（含悬停/滚轮相位）：
 | 上层事件 | 携带 | X11 | Wayland | Win32 | AppKit | 备注 |
 |---|---|---|---|---|---|---|
 | KindPointerMove | X/Y/Buttons | ✅ | ✅ | ⬜ WM_MOUSEMOVE | ⬜ mouseMoved: | 悬停移动；复用 KindPointer + PointerMove |
-| KindPointerDown/Up | X/Y/Button(1–5+前进后退) | ✅ 1–5 + 前进后退透传；6/7 转 ScrollX | ✅（含 8/9 侧键） | ⬜ WM_L/RBUTTON + XBUTTON | ⬜ mouseDown/Up | 5 键 + 横滚键区分；复用 KindPointer + PointerDown/Up |
+| KindPointerDown/Up | X/Y/Button(1–5+前进后退) | ✅ 1–5 + 前进后退透传；6/7 转 ScrollX | ✅（含 8/9 侧键，未知码按左键 1） | ⬜ WM_L/RBUTTON + XBUTTON | ⬜ mouseDown/Up | 5 键 + 横滚键区分；复用 KindPointer + PointerDown/Up |
 | KindPointerEnter/Leave | X/Y | ✅ 带坐标 | ✅；Leave 补最近坐标 | ⬜ TRACKMOUSEEVENT | ⬜ mouseEntered:/Exited: | 复用 KindPointer + PointerEnter/Leave；不再归并 Move |
 | KindPointerCancel | — | ✅ grab 中断上报（FocusOut/Leave NotifyGrab，带最后坐标） | 🔨 seat 丢失上报 | ⬜ WM_CAPTURECHANGED | ⬜ trackingLost | 复用 KindPointer + PointerCancel；手势被系统打断 |
 | KindScroll | ScrollX/ScrollY + Phase(Started/Moved/Ended) | ✅ 4/5 竖滚 + 6/7 横滚 | ✅ axis 对齐 | ⬜ WM_MOUSEWHEEL/HWHEEL | ⬜ scrollWheel: | 复用 KindScroll；触控板惯性走 Moved→Ended |
@@ -299,7 +300,7 @@ G 拖放（对齐 Gio transfer：MIME + 文件）：
 
 | 上层事件 | 携带 | X11 | Wayland | Win32 | AppKit | 备注 |
 |---|---|---|---|---|---|---|
-| KindDragEnter/Over | X/Y/MIMETypes | ✅ XDND Enter/Position + FromPlatform + 主循环路由 | 🔨 wl_data_device | ⬜ OleDragEnter/Over | ⬜ draggingEntered/Updated: | 悬停高亮用；X11 已接，Wayland 待上报 |
+| KindDragEnter/Over | X/Y/MIMETypes | ✅ XDND Enter/Position + FromPlatform + 主循环路由 | 🔨 wl_data_device | ⬜ OleDragEnter/Over | ⬜ draggingEntered/Updated: | 悬停高亮用；X11 已接，Wayland 待上报；X11 首包 Enter 无坐标恒 0,0，定位等 Over，仅合成 Enter 带坐标 |
 | KindDragLeave | — | ✅ XDND Leave + FromPlatform + 主循环路由 | 🔨 data-device leave | ⬜ OleDragLeave | ⬜ draggingExited: | 取消高亮；X11 已接，Wayland 待上报 |
 | KindDrop | X/Y/Files/MIME/Data | ✅ XDND text/uri-list + FromPlatform + 主循环路由 | ✅ FromPlatform + 主循环路由（text/uri-list） | ⬜ OleDrop/CF_HDROP | ⬜ performDragOperation: | 文件先行，MIME 数据二期 |
 
