@@ -42,7 +42,7 @@ func OpenReal(opts platform.Options, backend platform.DisplayBackend) (*platform
 
 // Drive walks the full controller surface once. Every probe is recorded;
 // ErrUnsupported is expected on protocol-impossible ops (Wayland
-// Position/Show/Focus/…) and counts as OK with a ⛔ note — the contract from
+// Position/Focus/…; Show is implemented on both Linux backends) and counts as OK with a ⛔ note — the contract from
 // ENGINE_WINDOW_API.md §2.5.4 is that non-nil errors are either
 // ErrUnsupported or a native failure; native failures are FAIL.
 //

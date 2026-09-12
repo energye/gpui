@@ -296,6 +296,40 @@ func TestFromPlatform_ResizeDefaultScale(t *testing.T) {
 	}
 }
 
+func TestFromPlatform_WindowEvents(t *testing.T) {
+	mv := FromPlatform(platform.Event{Type: platform.EventMove, MoveX: 10, MoveY: 20}, Modifiers{})
+	if mv.Kind != KindMove || mv.MoveX != 10 || mv.MoveY != 20 {
+		t.Fatalf("move = %s (%d,%d)", mv.Kind, mv.MoveX, mv.MoveY)
+	}
+	sc := FromPlatform(platform.Event{Type: platform.EventScale, Scale: 2}, Modifiers{})
+	if sc.Kind != KindScale || sc.Scale != 2 {
+		t.Fatalf("scale = %s %.1f", sc.Kind, sc.Scale)
+	}
+	sc0 := FromPlatform(platform.Event{Type: platform.EventScale}, Modifiers{})
+	if sc0.Kind != KindScale || sc0.Scale != 1 {
+		t.Fatalf("scale default = %s %.1f", sc0.Kind, sc0.Scale)
+	}
+	foc := FromPlatform(platform.Event{Type: platform.EventFocus, Focused: true}, Modifiers{})
+	if foc.Kind != KindFocus || !foc.Focused {
+		t.Fatalf("focus = %s %+v", foc.Kind, foc)
+	}
+	unf := FromPlatform(platform.Event{Type: platform.EventFocus}, Modifiers{})
+	if unf.Kind != KindFocus || unf.Focused {
+		t.Fatalf("unfocus = %s %+v", unf.Kind, unf)
+	}
+	dr := FromPlatform(platform.Event{
+		Type: platform.EventDrop, X: 5, Y: 6, Files: []string{"/tmp/a"},
+	}, Modifiers{})
+	if dr.Kind != KindDrop || dr.Drag.X != 5 || dr.Drag.Y != 6 ||
+		len(dr.Drag.Files) != 1 || dr.Drag.Files[0] != "/tmp/a" {
+		t.Fatalf("drop = %s %+v", dr.Kind, dr.Drag)
+	}
+	rs := FromPlatform(platform.Event{Type: platform.EventResizeSync}, Modifiers{})
+	if rs.Kind != KindResizeSync {
+		t.Fatalf("resize-sync = %s", rs.Kind)
+	}
+}
+
 func TestFromTouch(t *testing.T) {
 	ev := FromTouch(TouchEvent{Kind: PointerDown, ID: 2, X: 30, Y: 40}, Modifiers{Alt: true})
 	if ev.Kind != KindTouch || ev.Touch.ID != 2 || ev.Touch.X != 30 || ev.Touch.Y != 40 {

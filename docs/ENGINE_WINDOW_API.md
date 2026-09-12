@@ -1,6 +1,6 @@
 # 平台窗口统一 API — 设计真源
 
-> **版本：v2.15** | 日期：2026-09-12  
+> **版本：v2.17** | 日期：2026-09-12  
 > **地位：** `ui/platform` 窗口接口（Options / Window / Host / WindowController / Event）唯一设计真源，**口径：四平台统一语义**。
 > **并读：** [`ENGINE_WAYLAND_WINDOW_STANDARD.md`](./ENGINE_WAYLAND_WINDOW_STANDARD.md)（Wayland 标准窗口 CSD）· [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（分层）· [`ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`](./ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md) / [`ENGINE_TEXT_X11_IME_REQUIREMENT.md`](./ENGINE_TEXT_X11_IME_REQUIREMENT.md)（输入法需求；原 `ENGINE_INPUT_IME_PLAN.md` 不存在，入口改指这两份）  
 > **对标参考：** winit（Rust 窗口库）· GTK4（GtkWindow/GdkToplevel）· sctk（wayland-client 壳）· Zed gpui · Flutter（WindowOptions）。
@@ -188,12 +188,12 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | S0 接口定稿 | 四平台统一语义（v2.0 本文件） | ✅ |
-| S1 X11 | x11Controller 全方法 + 事件上报（Move/Close/Occluded/Enter/Leave；CloseRequested 待 S6-P0 从 Close 拆分）+ Options 全量 + 真窗例程 `ui_pf_x11` + 原生单测 `x11_window_linux_test.go` + `x11_sync_test.go`（同步帧 3 例） | ✅ |
+| S1 X11 | x11Controller 全方法 + 事件上报（Move/Close/Occluded/Enter/Leave；CloseRequested 已从 Close 拆分）+ Options 全量 + 真窗例程 `ui_pf_x11` + 原生单测 `x11_window_linux_test.go` + `x11_sync_test.go`（同步帧 3 例） | ✅ |
 | S2 Wayland | wlController（xdg marshal/光标/热区/RequestMove/RequestResize）+ Options 全量 + 状态字段 + 事件上报（EventCloseRequested/EventFocus/EventOccluded/PointerEnter/Leave）——按 `ENGINE_WAYLAND_WINDOW_STANDARD.md` §2.4/§3.1/§3.2 执行；同步落真窗例程 `ui_pf_wayland` 全能力 + 原生单测 `wayland_window_linux_test.go`（§2.6 三层） | ✅ |
 | S3 消费方兼容 + 测试 | embedder/application 兼容 EventCloseRequested；上层抽象测试 `pfkit_test.go`（C 层）落定；单测；回归按文件 | ✅ |
 | S4 真窗验收 | 用户跑 examples：X11 + Wayland 全能力（§2.6 A 层）；真实显示环境跑通——`ui_pf_x11` 19 行全 PASS（18 能力行 + 1 事件观察行，IgnoreCursorEvents 按 XShape 未落地 ⛔ 诚实降级） + `ui_pf_wayland` 19 行全 PASS（Position/Focus/AlwaysOnTop/Decorations 切换/RequestMove/RequestResize 按协议 ⛔ 诚实降级，Show/Hide 与 IgnoreCursorEvents 走真实现），B 层 `TestX11RealWindow*` 7 例 + `TestWaylandRealWindow*` 3 例 + `TestWaylandHideShow` 同机全 PASS | ✅ |
 | S5 Win32/AppKit | 按 §2.3/§2.4 语义列落地（占位→实现）；同步落 `ui_pf_win32`/`ui_pf_appkit` 真窗例程 + 原生单测（§2.6 三层）；重跑能力矩阵 | ⬜ |
-| S6-P0 上层统一必做 | §4.4 A–C + D 触控基础：新 Kind/载荷、Close 拆分、Enter/Leave/Cancel 独立、Repeat、横滚、触控产出、Wayland 三上报；消费方切换；§2.6 三层真窗（`ui_pf_x11`/`ui_pf_wayland` 重跑 + `pfkit` 恒绿） | ✅ |
+| S6-P0 上层统一必做 | §4.4 A–C + D 触控基础：新 Kind/载荷、Close 拆分、Enter/Leave/Cancel 独立、Repeat、横滚、触控产出、Wayland 三上报；消费方切换；§2.6 三层真窗（`ui_pf_x11`/`ui_pf_wayland` 重跑 + `pfkit` 恒绿） | ✅（Move/Scale/Focus/Drop/ResizeSync 补 FromPlatform 分支并进主循环路由；Touch/StateChanged 进主循环路由；Resize/ResizeSync/Occluded/Hidden/FramePresented 同步透传路由器观察） |
 | S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | ⬜ |
 | S6-P2 占位 | 笔压感/显示器增减/智能放大接口占位 + Win32/AppKit 映射表；真窗验占位错误明确 | ⬜ |
 
@@ -235,15 +235,15 @@ A 窗口生命周期/状态：
 | KindCloseRequested | — | ✅ WM_DELETE 源头拆分 | ✅ | ⬜ | ⬜ | 可拦截；不调 Close 则存活 |
 | KindClose | — | ✅ | ✅ | ⬜ | ⬜ | 已销毁；外部强杀通知 |
 | KindResize | Width/Height/Scale | ✅ | ✅ | ⬜ | ⬜ | 客户区+dpr |
-| KindMove | MoveX/MoveY | ✅ | ⛔ | ⬜ | ⬜ | Wayland 无事件即不支持 |
-| KindScale | Scale | ✅ RandR + Xft.dpi | ✅ output 监听取 max | ⬜ | ⬜ | 多屏拖动/系统缩放 |
+| KindMove | MoveX/MoveY | ✅ FromPlatform + 主循环路由 | ⛔ | ⬜ | ⬜ | Wayland 无事件即不支持 |
+| KindScale | Scale | ✅ FromPlatform + 主循环路由（RandR + Xft.dpi） | ✅ FromPlatform + 主循环路由（output 监听取 max） | ⬜ | ⬜ | 多屏拖动/系统缩放 |
 | KindOccluded | Occluded bool | ✅ VisibilityNotify | ✅ suspended 上报 | ⬜ | ⬜ | 全遮挡/最小化停渲染 |
 | KindHidden | Hidden bool | ✅ 显隐发射 + 外部重映射通知 | ✅ | ⬜ | ⬜ | 应用显隐 |
-| KindFocus | Focused bool | ✅ 事件 + IsFocused 真值回写 | ✅ activated 回传 | ⬜ | ⬜ | 键盘焦点 |
-| KindStateChanged | Minimized/Maximized/Fullscreen bool | ✅ _NET_WM_STATE/WM_STATE 回读 | ✅ configure 推导 | ⬜ | ⬜ | 非原生事件，由配置回传推导；用户点按钮也被动通知 |
+| KindFocus | Focused bool | ✅ FromPlatform + 主循环路由；IsFocused 可查 | ✅ FromPlatform + 主循环路由（activated） | ⬜ | ⬜ | 键盘焦点 |
+| KindStateChanged | Minimized/Maximized/Fullscreen bool | ✅ FromPlatform + 主循环路由（_NET_WM_STATE/WM_STATE 回读） | ✅ FromPlatform + 主循环路由（configure 推导） | ⬜ | ⬜ | 非原生事件，由配置回传推导；用户点按钮也被动通知 |
 | KindThemeChanged | Dark bool | ⛔ | ⛔ | ⬜ | ⬜ | 深浅色；Linux 走设置守护，P1 polling/portal |
 | KindFramePresented | — | ✅ XPresent | ✅ frame 回调 | ⬜ | ⬜ | pacing 用 |
-| KindResizeSync | — | ✅ | ⛔ | ⛔ | ⛔ | X11 同步 resize 专用 |
+| KindResizeSync | — | ✅ 统一 Kind + 原始排帧双通 | ⛔ | ⛔ | ⛔ | X11 同步 resize 专用 |
 | KindMonitorChanged | Count/PrimaryScale | 🔨 RandR | 🔨 output 增减 | ⬜ | ⬜ | P2 显示器插拔 |
 
 B 键盘/文本/输入法：
@@ -272,7 +272,7 @@ D 触控（多点）：
 
 | 上层事件 | 携带 | X11 | Wayland | Win32 | AppKit | 备注 |
 |---|---|---|---|---|---|---|
-| KindTouchDown/Move/Up/Cancel | ID(≥1)/X/Y | ✅ XI2 探测 + 解析 + 门控 | ✅ wl_touch 绑定 + 解码 | ⬜ | ⬜ | 复用 KindTouch + TouchEvent.Kind；一槽一竞技场 |
+| KindTouchDown/Move/Up/Cancel | ID(≥1)/X/Y | ✅ FromPlatform + 主循环路由（XI2 探测 + 解析 + 门控） | ✅ FromPlatform + 主循环路由（wl_touch 绑定 + 解码） | ⬜ | ⬜ | 复用 KindTouch + TouchEvent.Kind；一槽一竞技场 |
 | KindTouchForce | ID/Pressure 0–1 | ⛔多数屏 | ⛔ | ⬜ | ⬜ | 无则零值，不报错 |
 
 E 笔/压感（P2 占位）：
@@ -295,7 +295,7 @@ G 拖放（对齐 Gio transfer：MIME + 文件）：
 |---|---|---|---|---|---|---|
 | KindDragEnter/Over | X/Y/MIMETypes | 🔨 XDND | 🔨 wl_data_device | ⬜ | ⬜ | 悬停高亮用；平台只有 Drop，需新接 XDND/data-device |
 | KindDragLeave | — | 🔨 XDND leave | 🔨 data-device leave | ⬜ | ⬜ | 取消高亮；同上新接 |
-| KindDrop | X/Y/Files/MIME/Data | ❌ 无 XDND 接线、永不产生（S6-P1） | ✅ text/uri-list | ⬜ | ⬜ | 文件先行，MIME 数据二期 |
+| KindDrop | X/Y/Files/MIME/Data | ❌ 无 XDND 接线、永不产生（S6-P1） | ✅ FromPlatform + 主循环路由（text/uri-list） | ⬜ | ⬜ | 文件先行，MIME 数据二期 |
 
 H 设备热插拔（P1）：
 
@@ -346,6 +346,8 @@ H 设备热插拔（P1）：
 
 ## 5. 修订
 
+- v2.17（2026-09-12）：**S6-P0 统一打通**——按文档修源码：`FromPlatform` 补 Move/Scale/Focus/Drop/ResizeSync 五分支（含 Scale 缺省回 1）；主循环路由放行 Touch/StateChanged/Move/Scale/Focus/Drop，Occluded/Hidden/FramePresented 在生命周期处理后同步透传路由器观察，Resize/ResizeSync 在原始排帧后同步透传；`fromplatform_test.go` 新增窗口事件断言；`ui/input` + `pfkit` + embedder 路由/退出测试绿。§4.4 七行与 §3 S6-P0 回 ✅。真机复验（X11 真 GPU 桌面 DISPLAY=:0）：B 层 7 例 + 同步帧 3 例 + S6-P0 文件 12 例全绿（整组首跑 1 例窗口管理器时机偶发失败、单跑与整组重跑均过），A 层 `ui_pf_x11` 19/19（事件泵实收 move/state-changed/occluded/hidden/focus）；Wayland 无 WAYLAND_DISPLAY 诚实 Skip。
+- v2.16（2026-09-12）：**源码为准回齐**——以源码实现为真源、文档跟着走：§4.4 七行按源码降为 🔨（Move/Scale/Focus/Drop/ResizeSync 在 FromPlatform 无分支直接变 KindNone；Touch/StateChanged 转换有但主循环只放 Pointer/Key/IME、生命周期只认 Occluded/Hidden/FramePresented，到不了上层；ResizeSync 只走原始排帧）；§3 S6-P0 由 ✅ 改 🔨并注原因；S1 删“待拆分”旧话（两端拆分源码已做）；同步修三处注释（Visible 的 Wayland 忽略、Hidden 的 Wayland only、pfkit 的 Show 反例）+ `Window.Backend()` 补 AppKit 分支（源码内部对齐）。
 - v2.15（2026-09-12）：**S6-P0 收尾**——P0 缺口补齐：X11 RandR 缩放监听（RRScreenChangeNotify + Xft.dpi 推导 + 根 RESOURCE_MANAGER 通知）与 Wayland StateChanged 推导（configure 三元组 + 控制器乐观写统一经 setStateTriple，变更才报）；X11 异步 IME 按键加链保序（连发释放/按下不再反转）；Wayland 客户端合成连发置 Repeat 位；输出表 nil-map 真机 panic 修掉。§4.6 三命令重跑：C 恒绿、B 两端真窗绿（含嵌套 Mutter 下 Wayland B 4 例 ×3 + A 19/19）、A X11 19/19；X11 S6-P0 文件 12 例 + Wayland 回调 6 例绿。§2.4 七格翻绿、Key 行补 Repeat 载荷、补 StateChanged/Touch 两漏记行，§4.4 十四格翻绿（指针 Cancel 双端无源头仍 🔨、修饰键/手势/拖放/P2 占位次阶段），§3 S6-P0 → ✅。
 - v2.14（2026-09-11）：**开工前收敛**——消七处分歧重复：P0 补 StateChanged 推导、Wayland 去 suspended/activated 重复项；笔 Kind 口径统一（全表唯一新增 Kind 族）；Leave 补 Wayland 无坐标；§4.5 加平台加位项并重编号；§4.6 验收命令单源化指 §2.6；§2.6 A′ 双注释修正。开工线：§4.4 表 → §4.5 文件序 → §4.7 步骤 → §4.8 收尾。
 - v2.13（2026-09-11）：**五路全量互查补漏**——发射点约43处/公开符号约80个/ErrUnsupported 约15处逐项对表：§0 修死链（IME 计划文档改指两份输入法需求）；§2.1 补 IconName 行、探测优先级、光标 shape 首选；§2.2 补 Backend() 行 + §2.2.1 IME/Clipboard 能力现状；§2.3 边界注删显隐、Move/Resize 加条件错注；§2.4 补空拖放过滤、两端缺 caret、Leave 无坐标、帧通知双源、剪贴板错误口径；§2.6 补 sync 测试文件、HideShow 正则、mode 字段、18+1 口径、A′ 双修正；§3 S1/S4 两处过期；新增 §4.9 存量实现索引。联动 Wayland 标准（光标 shape 首选、set_cursor opcode 0、axis 空实现、Leave 无坐标、v1.2 可见性过期）+ 三处代码注释。编译 + `ui/input` 测试绿。

@@ -869,9 +869,16 @@ func (a *PipelineApp) Run() error {
 		evs := a.host.WaitEvents(timeout)
 		for _, ev := range evs {
 			// Unified input routing (plan §4): when an InputRouter is
-			// attached, pointer/key events are normalized and dispatched by
-			// the framework; per-example OnEvent input handling is skipped.
-			if a.input != nil && (ev.Type == platform.EventPointer || ev.Type == platform.EventKey || ev.Type == platform.EventIME) {
+			// attached, normalized events are dispatched by the framework;
+			// per-example OnEvent input handling is skipped for routed types.
+			// Resize/Expose/ResizeSync keep raw handling below (relayout and
+			// frame scheduling); the rest goes through the router (dedicated
+			// paths for pointer/key/text/IME, OnEvent observer for window
+			// Move/Scale/Focus/StateChanged/Drop/Touch).
+			if a.input != nil && (ev.Type == platform.EventPointer || ev.Type == platform.EventKey || ev.Type == platform.EventIME ||
+				ev.Type == platform.EventTouch || ev.Type == platform.EventStateChanged ||
+				ev.Type == platform.EventMove || ev.Type == platform.EventScale ||
+				ev.Type == platform.EventFocus || ev.Type == platform.EventDrop) {
 				a.input.RoutePlatform(ev)
 				continue
 			}
@@ -884,9 +891,13 @@ func (a *PipelineApp) Run() error {
 			}
 			// S6-P0 lifecycle cutover: occlusion/hide/frame notices dispatch
 			// on the normalized event; handleLifecycle reads unified fields.
+			// Forwarded to the router as well so OnEvent observers see them.
 			if unified := input.FromPlatform(ev, input.Modifiers{}); unified.Kind == input.KindOccluded ||
 				unified.Kind == input.KindHidden || unified.Kind == input.KindFramePresented {
 				a.handleLifecycle(unified)
+				if a.input != nil {
+					a.input.Route(unified)
+				}
 				continue
 			}
 			switch ev.Type {
@@ -928,6 +939,9 @@ func (a *PipelineApp) Run() error {
 					a.pendingResize = true
 					a.lastResizeAt = time.Now()
 					a.ScheduleFrame()
+					if a.input != nil {
+						a.input.Route(input.FromPlatform(ev, input.Modifiers{}))
+					}
 				}
 			case platform.EventExpose:
 				// Damage/full present redraws on demand. Reacting to every Expose
@@ -939,8 +953,12 @@ func (a *PipelineApp) Run() error {
 				// Flutter/Skia: the WM's resize-sync request is a promise to
 				// deliver a painted frame; schedule one now (the counter
 				// advances when the frame is presented via FrameSync).
+				// Forwarded to the router as well so KindResizeSync observers fire.
 				if !a.sched.Pending() {
 					a.ScheduleFrame()
+				}
+				if a.input != nil {
+					a.input.Route(input.FromPlatform(ev, input.Modifiers{}))
 				}
 			}
 		}

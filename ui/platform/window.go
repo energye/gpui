@@ -46,7 +46,8 @@ type Options struct {
 	Maximized bool
 	// Visible controls the initial window visibility.
 	// nil = true (default, visible on open).
-	//   - X11: map control; Wayland: protocol has no control → ignored;
+	//   - X11: map control; Wayland: hideNative detaches the surface stack
+	//     (window opens hidden);
 	//   - Win32 SW_SHOW/SW_HIDE; AppKit orderFront:/orderOut:.
 	Visible *bool
 }
@@ -181,6 +182,8 @@ func (w *Window) Backend() DisplayBackend {
 		return DisplayWayland
 	case PlatformWin32:
 		return DisplayWin32
+	case PlatformAppKit:
+		return DisplayAppKit
 	default:
 		return DisplayAuto
 	}

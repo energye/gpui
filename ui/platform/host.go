@@ -186,7 +186,7 @@ type Event struct {
 	// Win32 WM_SHOWWINDOW; AppKit occlusionState.)
 	Occluded bool
 	// EventHidden: app-driven hide/show state (WindowController.Hide/Show;
-	// Wayland only). true = the window content must be detached after the
+	// X11 + Wayland). true = the window content must be detached after the
 	// renderer stops; handled by the embedder like occlusion + surface
 	// detach.
 	Hidden bool

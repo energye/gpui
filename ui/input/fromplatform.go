@@ -50,6 +50,24 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 		return fromKey(ev, mods)
 	case platform.EventIME:
 		return fromIME(ev, mods)
+	case platform.EventMove:
+		return Event{Kind: KindMove, Modifiers: mods, MoveX: ev.MoveX, MoveY: ev.MoveY}
+	case platform.EventScale:
+		e := Event{Kind: KindScale, Modifiers: mods, Scale: ev.Scale}
+		if e.Scale <= 0 {
+			e.Scale = 1
+		}
+		return e
+	case platform.EventFocus:
+		return Event{Kind: KindFocus, Modifiers: mods, Focused: ev.Focused}
+	case platform.EventDrop:
+		return Event{Kind: KindDrop, Modifiers: mods, Drag: DragEvent{
+			X:     ev.X,
+			Y:     ev.Y,
+			Files: ev.Files,
+		}}
+	case platform.EventResizeSync:
+		return Event{Kind: KindResizeSync, Modifiers: mods}
 	default:
 		return Event{Kind: KindNone}
 	}
