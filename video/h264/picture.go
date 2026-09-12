@@ -96,8 +96,9 @@ func (d *DPB) Store(p *Picture, isRef bool) {
 // buildRefList0 constructs reference list 0 for one P slice: buffered
 // pictures newest-first, then the slice-header reordering steps, sized
 // to RefL0Count. Unavailable slots stay nil so refFor fails readable
-// instead of sampling a wrong picture. Frames only: field (IDC 1) and
-// long-term (IDC 2) reorderings stop readable for a later stage.
+// instead of sampling a wrong picture. Reorder IDC 0/1 are short-term
+// subtraction/addition (both legal in frames); field (frame/field IDC 1
+// with field pics) and long-term (IDC 2) reorderings stop readable.
 func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
 	if d.sps == nil {
 		return nil, fmt.Errorf("%w: slice without sequence sets", ErrMissingPPS)
@@ -133,12 +134,16 @@ func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
 		}
 		var pic *Picture
 		switch op.IDC {
-		case 0:
+		case 0, 1:
 			diff := int32(op.Arg) + 1
 			if diff > maxPicNum {
 				return nil, fmt.Errorf("%w: abs_diff %d", ErrBadSliceHeader, op.Arg)
 			}
-			pred = (pred - diff) % maxPicNum
+			if op.IDC == 0 {
+				pred = (pred - diff) % maxPicNum
+			} else {
+				pred = (pred + diff) % maxPicNum
+			}
 			if pred < 0 {
 				pred += maxPicNum
 			}
@@ -154,8 +159,6 @@ func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
 				list[index] = nil
 				continue
 			}
-		case 1:
-			return nil, fmt.Errorf("%w: field reference reorder", ErrStageScope)
 		case 2:
 			return nil, fmt.Errorf("%w: long-term reference reorder", ErrStageScope)
 		default:

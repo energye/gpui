@@ -19,8 +19,9 @@ type MMCOOp struct {
 }
 
 // RefModOp is one reference-list reordering step: IDC selects short-term
-// (0), short-term forward (1, fields only) or long-term (2) addressing,
+// subtraction (0), short-term addition (1) or long-term (2) addressing,
 // Arg carries abs_diff_pic_num_minus1 (0/1) or long_term_pic_num (2).
+// Frames use 0/1/2 (3 ends the steps); IDC 1 is not field-only.
 type RefModOp struct {
 	IDC uint32
 	Arg uint32
@@ -41,10 +42,10 @@ type SliceHeader struct {
 	RefL0Count    uint32
 	RefL1Count    uint32
 	DirectSpatial bool
-	// RefModL0 holds the list-0 reordering steps in bitstream order
-	// (empty when the flag is clear). List-1 steps are parsed and
-	// dropped: B slices stop readable in a later stage.
+	// RefModL0/L1 hold the list-0/list-1 reordering steps in bitstream
+	// order (empty when the flag is clear). L1 steps feed B slices.
 	RefModL0      []RefModOp
+	RefModL1      []RefModOp
 	CabacInitIDC  uint32
 	QPDelta       int32
 	DisableFilter uint32
@@ -329,6 +330,8 @@ func parseRefPicListMod(r *Reader, h *SliceHeader) error {
 				}
 				if list == 0 {
 					h.RefModL0 = append(h.RefModL0, RefModOp{IDC: idc, Arg: arg})
+				} else {
+					h.RefModL1 = append(h.RefModL1, RefModOp{IDC: idc, Arg: arg})
 				}
 			}
 		}
@@ -369,8 +372,9 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 	if h.Type == SliceB {
 		lists = append(lists, h.RefL1Count)
 	}
-	// Only list 0 is kept: B slices never reach prediction in this
-	// stage, so list-1 factors are parsed and dropped.
+	// List-1 reorder steps are kept for VR2d; list-1 weight factors are
+	// still parsed and dropped until B prediction wires them (the VR2d
+	// gate clip uses implicit weighting, so no table is signalled).
 	for li, n := range lists {
 		if n > 32 {
 			return fmt.Errorf("%w: ref count %d", ErrBadSliceHeader, n)
