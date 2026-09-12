@@ -55,6 +55,9 @@ type Decoder struct {
 	skipRun  int
 	refPic   *Picture
 	refList  []*Picture
+	// refList1 holds list 1 for B slices (nil outside B); refFor keeps
+	// serving list 0 so P behaviour is untouched.
+	refList1 []*Picture
 	skipCnt  int
 	cOff0    int32
 	cOff1    int32
@@ -75,6 +78,11 @@ type Decoder struct {
 	decoded  int
 	slices   int
 	curIsRef bool
+	// pocMSB/pocPrevLSB track the display-order high bits for poc type 0
+	// wrapping (spec 8.2.1.1); pocHave is set by the first reference pic.
+	pocMSB     int32
+	pocPrevLSB int32
+	pocHave    bool
 	// CABAC state (VR2c): arithmetic decoder, packed contexts, and the
 	// per-MB side data that neighbour-dependent contexts read.
 	cab     *cabacDec
@@ -150,8 +158,20 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	if err != nil {
 		return err
 	}
+	if h.FieldPic {
+		return fmt.Errorf("%w: field slice needs VR2d interlace", ErrStageScope)
+	}
+	d.fixPOC(h, sps)
 	if h.IsB() {
-		return fmt.Errorf("%w: B slice needs VR2d", ErrStageScope)
+		l0, l1, err := d.buildRefListsB(h)
+		if err != nil {
+			return err
+		}
+		d.refList, d.refList1 = l0, l1
+		if len(l0) > 0 {
+			d.refPic = l0[0]
+		}
+		return fmt.Errorf("%w: B slice needs VR2d macroblocks", ErrStageScope)
 	}
 	if d.pic == nil {
 		if sps.Width%16 != 0 || sps.Height%16 != 0 {
@@ -249,6 +269,7 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	// older or duplicated entries by index (weights follow the index).
 	d.refPic = nil
 	d.refList = d.refList[:0]
+	d.refList1 = nil
 	if h.IsP() {
 		if h.IsIDR {
 			// IDR P is still a refresh: no reference needed.

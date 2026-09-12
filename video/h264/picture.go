@@ -119,7 +119,15 @@ func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
 	for len(list) < n {
 		list = append(list, nil)
 	}
-	if len(h.RefModL0) == 0 {
+	return d.applyRefMod(list, h.RefModL0, h.FrameNum, n)
+}
+
+// applyRefMod reshapes one initialised reference list with the
+// slice-header reordering steps (short-term subtraction/addition;
+// long-term stops readable). Missing targets leave a hole like the
+// reference decoder's zeroed entry. P and B lists share it.
+func (d *Decoder) applyRefMod(list []*Picture, ops []RefModOp, frameNum uint32, n int) ([]*Picture, error) {
+	if len(ops) == 0 {
 		return list, nil
 	}
 	bits, err := frameNumBits(d.sps)
@@ -127,8 +135,8 @@ func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
 		return nil, err
 	}
 	maxPicNum := int32(1) << uint(bits)
-	pred := int32(h.FrameNum)
-	for index, op := range h.RefModL0 {
+	pred := int32(frameNum)
+	for index, op := range ops {
 		if index >= n {
 			break
 		}
@@ -175,6 +183,100 @@ func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
 		list[index] = pic
 	}
 	return list, nil
+}
+
+// fixPOC rebuilds the full display order for poc type 0 wrapping
+// (spec 8.2.1.1): the header only carries low bits, high bits come from
+// the previous reference picture. Other poc types keep the header stub
+// until VR2d wires them. IDR resets the count.
+func (d *Decoder) fixPOC(h *SliceHeader, sps *SPS) {
+	if sps == nil || sps.POCType != 0 {
+		return
+	}
+	lsb := h.POC
+	if h.IsIDR {
+		h.POC = lsb
+		if h.NalRefIDC != 0 {
+			d.pocMSB, d.pocPrevLSB, d.pocHave = 0, lsb, true
+		}
+		return
+	}
+	if !d.pocHave {
+		h.POC = lsb
+		return
+	}
+	bits, err := spsPOCLSB(sps)
+	if err != nil {
+		return
+	}
+	maxLSB := int32(1) << uint(bits)
+	msb := d.pocMSB
+	if lsb < d.pocPrevLSB && d.pocPrevLSB-lsb >= maxLSB/2 {
+		msb = d.pocMSB + maxLSB
+	} else if lsb > d.pocPrevLSB && lsb-d.pocPrevLSB > maxLSB/2 {
+		msb = d.pocMSB - maxLSB
+	}
+	h.POC = msb + lsb
+	if h.NalRefIDC != 0 {
+		d.pocMSB, d.pocPrevLSB = msb, lsb
+	}
+}
+
+// buildRefListsB initialises both reference lists for one B slice from
+// display order: list 0 takes past pictures (display order descending)
+// then future ones (ascending); list 1 takes future first, then past.
+// Each list is sized by its active count, reshaped by its own reordering
+// steps, and padded with nil holes. Long-term pictures stop readable:
+// this stage only tracks short-term frames.
+func (d *Decoder) buildRefListsB(h *SliceHeader) (l0, l1 []*Picture, err error) {
+	if d.sps == nil {
+		return nil, nil, fmt.Errorf("%w: slice without sequence sets", ErrMissingPPS)
+	}
+	for _, m := range h.MMCO {
+		if m.Op >= 3 {
+			return nil, nil, fmt.Errorf("%w: long-term marking op %d", ErrStageScope, m.Op)
+		}
+	}
+	if h.LongTermRef {
+		return nil, nil, fmt.Errorf("%w: long-term IDR reference", ErrStageScope)
+	}
+	var past, future []*Picture
+	for _, p := range d.dpb.pics {
+		if p.POC < h.POC {
+			past = append(past, p)
+		} else if p.POC > h.POC {
+			future = append(future, p)
+		} else {
+			return nil, nil, fmt.Errorf("%w: duplicate poc %d", ErrBadSliceHeader, h.POC)
+		}
+	}
+	sort.Slice(past, func(i, j int) bool { return past[i].POC > past[j].POC })
+	sort.Slice(future, func(i, j int) bool { return future[i].POC < future[j].POC })
+	mk := func(order []*Picture, n int) []*Picture {
+		if n < 1 {
+			n = 1
+		}
+		out := make([]*Picture, 0, n)
+		for _, p := range order {
+			if len(out) >= n {
+				break
+			}
+			out = append(out, p)
+		}
+		for len(out) < n {
+			out = append(out, nil)
+		}
+		return out
+	}
+	l0 = mk(append(append([]*Picture(nil), past...), future...), int(h.RefL0Count))
+	l1 = mk(append(append([]*Picture(nil), future...), past...), int(h.RefL1Count))
+	if l0, err = d.applyRefMod(l0, h.RefModL0, h.FrameNum, len(l0)); err != nil {
+		return nil, nil, err
+	}
+	if l1, err = d.applyRefMod(l1, h.RefModL1, h.FrameNum, len(l1)); err != nil {
+		return nil, nil, err
+	}
+	return l0, l1, nil
 }
 
 // evictOldest drops the smallest-FrameNum buffered picture: the
