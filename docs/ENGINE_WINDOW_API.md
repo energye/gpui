@@ -1,6 +1,6 @@
 # 平台窗口统一 API — 设计真源
 
-> **版本：v2.23** | 日期：2026-09-12  
+> **版本：v2.24** | 日期：2026-09-12  
 > **地位：** `ui/platform` 窗口接口（Options / Window / Host / WindowController / Event）唯一设计真源，**口径：四平台统一语义**。
 > **并读：** [`ENGINE_WAYLAND_WINDOW_STANDARD.md`](./ENGINE_WAYLAND_WINDOW_STANDARD.md)（Wayland 标准窗口 CSD）· [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（分层）· [`ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`](./ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md) / [`ENGINE_TEXT_X11_IME_REQUIREMENT.md`](./ENGINE_TEXT_X11_IME_REQUIREMENT.md)（输入法需求；原 `ENGINE_INPUT_IME_PLAN.md` 不存在，入口改指这两份）  
 > **对标参考：** winit（Rust 窗口库）· GTK4（GtkWindow/GdkToplevel）· sctk（wayland-client 壳）· Zed gpui · Flutter（WindowOptions）。
@@ -125,6 +125,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | EventKey | KeyCode/Rune/Pressed/Repeat | 键盘（IME 已消费跳过；X11 XKB 连发/Wayland 客户端合成连发置 Repeat，异步 IME 保序） | ✅ | ✅ | ⬜ WM_KEYDOWN/UP | ⬜ keyDown/Up |
 | EventIME | IMEKind/IMEText/IMEStart/IMEEnd | 输入法（compose/commit/caret/delete-surrounding；X11 走 D-Bus ibus/fcitx5，XIM 已移除；两端暂缺 caret；Wayland text-input 批量原子提交 + 同 rect 去重） | ✅ D-Bus | ✅ text-input v3 | ⬜ TSF | ⬜ NSTextInputClient |
 | EventTouch | ID(≥1)/X/Y + 相位(Down/Move/Up/Cancel) | 多点触控槽采样 | ✅ XI2 探测 + 解析 + 门控 | ✅ wl_touch 绑定 + 解码 | ⬜ WM_TOUCH/POINTER | ⬜ touchesBegan/Moved/Ended: |
+| EventStylus | ID(0=主笔)/X/Y/Pressure 0–1/TiltX/TiltY/Eraser + 相位(Down/Move/Up) | 笔压感采样（无压感填 1） | ✅ XI2 笔设备逐个选 Button/Motion + valuator 归一 + 门控 | ⬜ tablet 协议二期占位（未绑定） | ⬜ WM_POINTER 笔 | ⬜ tabletPoint |
 | EventFocus | Focused bool | 键盘焦点变化 | ✅ FocusIn/Out；IsFocused 真值回写 | ✅ activated 上报 | ⬜ WM_SETFOCUS/KILLFOCUS | ⬜ didBecomeKey/didResignKey |
 | EventStateChanged | Minimized/Maximized/Fullscreen bool | 最小化/最大化/全屏三元组变化（非原生事件，由回传推导） | ✅ _NET_WM_STATE/WM_STATE 回读 | ✅ configure 推导 | ⬜ | ⬜ |
 | EventWake | — | 跨线程唤醒 | ✅ | ✅ | ⬜ | ⬜ |
@@ -200,7 +201,7 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
 | S5 Win32/AppKit | 按 §2.3/§2.4 语义列落地（占位→实现）；同步落 `ui_pf_win32`/`ui_pf_appkit` 真窗例程 + 原生单测（§2.6 三层）；重跑能力矩阵 | ⬜ |
 | S6-P0 上层统一必做 | §4.4 A–C + D 触控基础：新 Kind/载荷、Close 拆分、Enter/Leave/Cancel 独立、Repeat、横滚、触控产出、Wayland 三上报；消费方切换；§2.6 三层真窗（`ui_pf_x11`/`ui_pf_wayland` 重跑 + `pfkit` 恒绿） | ✅（Move/Scale/Focus/Drop/ResizeSync 补 FromPlatform 分支并进主循环路由；Touch/StateChanged 进主循环路由；Resize/ResizeSync/Occluded/Hidden/FramePresented 同步透传路由器观察） |
 | S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | 🔨（X11 XDND Enter/Over/Leave + 文件 Drop 已落地，专项真窗 `examples/ui_pf_x11_dnd` 自检 + 人工；X11 设备插拔已落地（XI 层级变化，v2.21），专项真窗 `examples/ui_pf_x11_device` 自检 + 人工（v2.22）；未完四项见 §5 v2.21：Wayland 悬停三上报、MIME 数据二期、本窗外发拖放、Wayland 座位设备上报） |
-| S6-P2 占位 | 笔压感/显示器增减/智能放大接口占位 + Win32/AppKit 映射表；真窗验占位错误明确 | ⬜ |
+| S6-P2 占位 | 笔压感/显示器增减/智能放大接口占位 + Win32/AppKit 映射表；真窗验占位错误明确 | 🔨（X11 笔先行 ✅，剩显示器增减、智能放大、Wayland tablet 二期、Win32/AppKit 落地） |
 
 **落地纪律**：S1–S3 逐行对照 §2.3/§2.4 实现，不跳步；每阶段跑对应单测 + 回归（按文件，禁止一次全量）+ §2.6 三层验收同步落地（例程与平台同生）；S5 落地时四条语义契约（§2.5）逐条核对。
 
@@ -284,7 +285,7 @@ E 笔/压感（P2 占位）：
 
 | 上层事件 | 携带 | X11 | Wayland | Win32 | AppKit | 备注 |
 |---|---|---|---|---|---|---|
-| KindStylusDown/Move/Up | X/Y/Pressure/TiltX/TiltY/Eraser bool | 🔨 XInput2 | ⛔ tablet 协议二期 | ⬜ WM_POINTER 笔 | ⬜ tabletPoint | 本表唯一新增 Kind 族（相位放载荷）；无压感设备 pressure=1 |
+| KindStylusDown/Move/Up | X/Y/Pressure/TiltX/TiltY/Eraser bool | ✅ XInput2（笔设备逐个选 Button/Motion + valuator 归一，无压感填 1） | ⬜ tablet 协议二期占位（未绑定，零行为变化） | ⬜ WM_POINTER 笔 | ⬜ tabletPoint | 本表唯一新增 Kind 族（相位放载荷）；无压感设备 pressure=1 |
 
 F 触控板手势（P1–P2）：
 
@@ -351,6 +352,7 @@ H 设备热插拔（P1）：
 
 ## 5. 修订
 
+- v2.24（2026-09-12）：**X11 笔压感先行**——源码为准：新增 `EventStylus + StylusID/Pressure/Tilt/Eraser` 平台事件（`host.go` 尾部追加，旧值不动），`FromPlatform` 补映射 + `FromStylus` 入口 + 主循环路由放行（路由器本就透传到 `OnEvent`）；X11 侧 `x11_stylus_linux.go`（笔设备逐个选 XI ButtonPress/Release/Motion、valuator 掩码按位取值、pressure 按 min/max 归一、无压感填 1、tilt 原始度数、eraser 看名、small ID 0 起、热插拔跟 hierarchy 增删；触控/层级选择按 deviceid 共存，鼠标核心路径不动）；Wayland 平板二期占位（`wayland_tablet_linux.go` 未绑定，零行为变化）。§2.4 补笔行（X11 ✅、Wayland ⬜、Win32/AppKit ⬜），§4.4 E 组 X11 格翻绿（Wayland ⛔→⬜ 二期占位），§3 S6-P2 ⬜→🔨。回归按文件逐个：`ui/input` 映射（含新笔文件）+ embedder 路由 + pfkit 恒绿，B 层笔解析/设备解析/DnD/同步/S6-P0 核心/窗口/显隐全绿，A 层 `ui_pf_x11` 19/19；Wayland 无显示诚实 Skip（笔无硬件，有笔需真笔复验压感曲线）。
 - v2.23（2026-09-12）：**跨平台标记规整**——只补标记不动语义：图例补 ⚠️（部分支持/依赖 WM）；§2.4 补 Touch 与 Device 两行的 Win32/AppKit 预期映射、Pointer 标题补 Cancel 并注明两端 Cancel 均为🔨；§2.6 A′ 行区分 IME 人工无门禁与 DnD/Device 自检 + 人工二合一并补两窗 `-auto-only` 命令；§3 日期对齐到 2026-09-12；§4.4 约定补 ✅/⬜ 口径，A–H 全表 Win32/AppKit 空白补预期映射（Close/Resize/Move/Scale/Occluded/Hidden/Focus/State/Theme/Frame/Monitor、Key/Modifiers/Text/IME/Locale、Pointer/Scroll/Touch/Force、Stylus、Pinch/Rotate/SmartMagnify、Drag 三件套、Device）。
 - v2.22（2026-09-12）：**设备插拔专项真窗**——新增 `examples/ui_pf_x11_device`（自检 + 人工二合一）：启动先跑映射自检（Added/Removed/Pen/Unknown 四行），再常驻收真事件；收到设备增减即打日志并改标题显示状态，关窗或 `-manual-seconds` 超时后出汇总 + JSON；`-auto-only` 只跑自检供门禁（4/4 PASS）。`ui_pf_x11` 保持原样（跑完即关的一次性验收）。
 - v2.21（2026-09-12）：**X11 设备插拔先行**——源码为准：新增 `EventDeviceAdded/Removed + DeviceClass/DeviceName` 平台事件（`host.go` 尾部追加，旧值不动），`FromPlatform` 补两映射 + 主循环路由放行（路由器本就透传到 `OnEvent`）；X11 侧 `x11_device_linux.go`（XI 层级变化 evtype=11 解码、Added/Removed 才报、attach/enable 忽略、触控看 XITouchClass、笔看名、查不到回落 use、移除回放缓存、启动播种现存设备；QueryVersion 与触控同用 2.2，免双版本 BadValue 致命）；Wayland 座位能力半留空（`wayland_seat_linux.go` 注释预留，无合成器不验）。§2.4 补设备行（X11 ✅、Wayland 🔨），§4.4 H 组 X11 格翻绿（Wayland 仍 🔨），§3 S6-P1 仍 🔨（剩 Wayland 悬停三上报、MIME 二期、外发拖放、Wayland 座位上报）。回归按文件逐个：`ui/input` 转换（含新设备文件）+ embedder 路由 + pfkit 恒绿，B 层 X11 设备/X11 S6-P0/窗口（整组首跑窗口管理器时机偶发失败、单跑与重跑均过）/同步/DnD 全绿，A 层 `ui_pf_x11` 19/19；Wayland 无显示诚实 Skip。

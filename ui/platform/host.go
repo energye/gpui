@@ -101,6 +101,13 @@ const (
 	// the family, DeviceName the OS name (empty = unknown).
 	EventDeviceAdded
 	EventDeviceRemoved
+	// EventStylus: pen sample (S6-P2 E 组; X11 XInput2, Wayland tablet 二期占位).
+	// Phase rides in Pointer (Down/Move/Up only); X/Y carry the position in
+	// logical px; StylusID is the pen tool slot (0 = primary pen).
+	// StylusPressure is 0–1 (backend fills 1 when the device has no pressure
+	// sensor); StylusTiltX/Y are degrees (0 = unknown); StylusEraser marks
+	// the eraser tool. Appended at the end so earlier values never shift.
+	EventStylus
 )
 
 // String implements fmt.Stringer.
@@ -152,6 +159,8 @@ func (t EventType) String() string {
 		return "device-added"
 	case EventDeviceRemoved:
 		return "device-removed"
+	case EventStylus:
+		return "stylus"
 	case EventWake:
 		return "wake"
 	default:
@@ -262,6 +271,16 @@ type Event struct {
 	// OS name (empty = unknown). Mirrors input.DeviceEvent.
 	DeviceClass DeviceClass
 	DeviceName  string
+
+	// EventStylus: pen sample (S6-P2 E 组; phase in Pointer, position in X/Y).
+	// Mirrors input.StylusEvent (ID/Pressure/Tilt/Eraser); Pressure 0–1 with
+	// 1 as the sensor-less fallback (filled by the backend), Tilt degrees
+	// with 0 = unknown.
+	StylusID       int
+	StylusPressure float64
+	StylusTiltX    float64
+	StylusTiltY    float64
+	StylusEraser   bool
 }
 
 // DeviceClass identifies a hot-plugged device family (platform side).

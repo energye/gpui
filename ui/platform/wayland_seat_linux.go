@@ -41,13 +41,13 @@ const (
 
 // wlSeatState holds the bound seat + whether we have seen capabilities yet.
 type wlSeatState struct {
-	lib       *wlLib
-	win       *wlWin
-	seat      uintptr
-	listener  [2]uintptr
-	selfPtr   uintptr
-	capsSeen  bool
-	capsMask  uint32
+	lib      *wlLib
+	win      *wlWin
+	seat     uintptr
+	listener [2]uintptr
+	selfPtr  uintptr
+	capsSeen bool
+	capsMask uint32
 	// pending device creation (called once after capabilities arrives)
 	pendingKeys  bool
 	pendingPtrs  bool
@@ -113,6 +113,7 @@ func wlSeatNameCB(data, seat, name uintptr) {}
 // Device hot-plug (S6-P1 H 组 Wayland 侧) reserved: seat capabilities
 // 变化应转 EventDeviceAdded/Removed (键/鼠/触, 笔走 tablet 协议二期).
 // 本环境无 Wayland 合成器可验, 先空着, X11 侧先行 (见 x11_device_linux.go).
+// 笔二期占位见 wayland_tablet_linux.go (zwp_tablet_manager_v2 未绑定).
 
 // wlSeatFlushPending creates pending input devices now that capabilities
 // arrived. Called from the dispatch callback (single-threaded with dispatch).

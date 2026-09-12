@@ -1,6 +1,10 @@
 package input
 
-import "github.com/energye/gpui/ui/platform"
+import (
+	"math"
+
+	"github.com/energye/gpui/ui/platform"
+)
 
 // FromPlatform normalizes one platform event into the cross-platform input
 // Event vocabulary. This is the single point where per-platform differences
@@ -92,9 +96,35 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 			Class: deviceClassFromPlatform(ev.DeviceClass),
 			Name:  ev.DeviceName,
 		}}
+	case platform.EventStylus:
+		return fromStylus(ev, mods)
 	default:
 		return Event{Kind: KindNone}
 	}
+}
+
+// fromStylus maps a platform pen sample into the normalized stylus event.
+// Phase reuses the touch clamp (Down/Move/Up/Cancel, others arrive as Move);
+// Pressure stays 0–1 as the backend reported it (sensor-less pens arrive as
+// 1 per §4.4 E 组, hover/unknown may stay 0); Tilt stays degrees (0 = unknown).
+func fromStylus(ev platform.Event, mods Modifiers) Event {
+	p := ev.StylusPressure
+	if math.IsNaN(p) || p < 0 {
+		p = 0
+	}
+	if p > 1 {
+		p = 1
+	}
+	return Event{Kind: KindStylus, Modifiers: mods, Stylus: StylusEvent{
+		Kind:     touchPhase(ev.Pointer),
+		ID:       ev.StylusID,
+		X:        ev.X,
+		Y:        ev.Y,
+		Pressure: p,
+		TiltX:    ev.StylusTiltX,
+		TiltY:    ev.StylusTiltY,
+		Eraser:   ev.StylusEraser,
+	}}
 }
 
 // deviceClassFromPlatform maps a platform device family to the unified
@@ -332,6 +362,13 @@ func mapKey(code int) Key {
 		return KeyF1 + Key(code-0xffbe)
 	}
 	return KeyNone
+}
+
+// FromStylus is the normalized pen entry point for backends that surface
+// pen tools. Keep KindStylus with phase in Stylus.Kind; sensor-less pens
+// report Pressure 1, Tilt 0 = unknown.
+func FromStylus(ev StylusEvent, mods Modifiers) Event {
+	return Event{Kind: KindStylus, Modifiers: mods, Stylus: ev}
 }
 
 // FromTouch is the normalized multi-touch entry point for backends that

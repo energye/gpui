@@ -29,11 +29,11 @@ const (
 	xiFlagSlaveAdded    = 1 << 2
 	xiFlagSlaveRemoved  = 1 << 3
 
-	xiUseMasterPointer = 1
+	xiUseMasterPointer  = 1
 	xiUseMasterKeyboard = 2
-	xiUseSlavePointer  = 3
-	xiUseSlaveKeyboard = 4
-	xiUseFloatingSlave = 5
+	xiUseSlavePointer   = 3
+	xiUseSlaveKeyboard  = 4
+	xiUseFloatingSlave  = 5
 
 	xiClassTouch = 8
 )
@@ -314,6 +314,8 @@ func (h *x11Host) decodeXIHierarchy(buf []byte) ([]Event, bool) {
 	if !ok || len(infos) == 0 {
 		return nil, false
 	}
+	// Pen hot-plug follows the same hierarchy broadcast (S6-P2 E 组).
+	x11StylusOnHierarchy(st, infos)
 	evs := xiHierarchyToEvents(st, infos)
 	if len(evs) == 0 {
 		return nil, false
@@ -337,7 +339,7 @@ func x11SeedDeviceCache(st *x11State) {
 		}
 	}()
 	for i := 0; i < int(ndev); i++ {
-		entry := unsafe.Slice((*byte)(unsafe.Pointer(info + uintptr(i*xiDevSize))), xiDevSize)
+		entry := unsafe.Slice((*byte)(unsafe.Pointer(info+uintptr(i*xiDevSize))), xiDevSize)
 		id := int(readI32(entry, xiDevIDOff))
 		var name string
 		if p := readU64(entry, xiDevNameOff); p != 0 {

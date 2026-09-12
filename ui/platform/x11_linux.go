@@ -109,7 +109,7 @@ const (
 // X event field offsets (linux amd64 Xlib layout — matches exhost verified).
 const (
 	xevTypeOff        = 0
-	xevSerialOff      = 8 // last server-processed request serial at event time
+	xevSerialOff      = 8  // last server-processed request serial at event time
 	xevXOff           = 48 // XConfigureEvent x
 	xevYOff           = 52 // XConfigureEvent y
 	xevWidthOff       = 56 // XConfigureEvent
@@ -143,7 +143,7 @@ const (
 const (
 	xiEvExtensionOff = 32
 	xiEvTypeOff      = 36
-	xiEvDetailOff    = 56 // touch ID for touch events
+	xiEvDetailOff    = 56  // touch ID for touch events
 	xiEvXOff         = 104 // event_x (window-relative)
 	xiEvYOff         = 112 // event_y (window-relative)
 )
@@ -208,14 +208,14 @@ type xClassHint struct {
 type x11Lib struct {
 	lib uintptr
 	// dynamic funcs (set per open to keep the struct small)
-	keycodeToKeysym        func(dpy uintptr, keycode uint, index int) uintptr
-	closeDisplay           func(dpy uintptr) int
-	translateCoordinates   func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
-	xkbGetState            func(dpy uintptr, deviceSpec uint, state unsafe.Pointer) int
-	xkbKeycodeToKeysym     func(dpy uintptr, keycode uint, group int, level int) uintptr
-	xLookupString          func(ev unsafe.Pointer, str *byte, nbytes int, keysym *uintptr, status unsafe.Pointer) int
+	keycodeToKeysym         func(dpy uintptr, keycode uint, index int) uintptr
+	closeDisplay            func(dpy uintptr) int
+	translateCoordinates    func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
+	xkbGetState             func(dpy uintptr, deviceSpec uint, state unsafe.Pointer) int
+	xkbKeycodeToKeysym      func(dpy uintptr, keycode uint, group int, level int) uintptr
+	xLookupString           func(ev unsafe.Pointer, str *byte, nbytes int, keysym *uintptr, status unsafe.Pointer) int
 	xRefreshKeyboardMapping func(ev unsafe.Pointer) int
-	resourceManagerString func(dpy uintptr) *byte
+	resourceManagerString   func(dpy uintptr) *byte
 }
 
 func x11OpenLib() (*x11Lib, error) {
@@ -619,6 +619,9 @@ func x11Create(opts Options) (*Window, error) {
 	st.devClasses = make(map[int]DeviceClass)
 	st.devNames = make(map[int]string)
 	x11SeedDeviceCache(st)
+	// Pen slaves (S6-P2 E 组): per-device XI Button/Motion selection; silent
+	// without libXi / old server / no pen hardware.
+	x11SeedStylus(st)
 
 	ime := imeForX11(host)
 	host.ime = ime
@@ -753,6 +756,14 @@ type x11State struct {
 	devMu      sync.Mutex
 	devClasses map[int]DeviceClass
 	devNames   map[int]string
+	// Pen cache (S6-P2 E 组): per-slave valuator maps + XI selections +
+	// small tool IDs (0 = primary pen). Seeded at Create, hot-plug follows
+	// hierarchy events; removals keep IDs stable.
+	stylusMu   sync.Mutex
+	stylusInfo map[int]*stylusAxes
+	stylusSel  map[int]bool
+	stylusIDs  map[int]int
+	stylusNext int
 
 	// Resizable / constraints bookkeeping for hints lock-restore.
 	resizable          bool
@@ -791,22 +802,22 @@ type x11State struct {
 	// + text/uri-list Drop). Atoms resolved at Create; dndMu guards the
 	// in-flight drag below (event pump thread + test source helpers).
 	atXdndAware, atXdndEnter, atXdndPosition uintptr
-	atXdndStatus, atXdndLeave, atXdndDrop     uintptr
-	atXdndFinished, atXdndSelection           uintptr
-	atXdndTypeList, atXdndActionCopy          uintptr
-	atTextUriList, atTargetsAtom              uintptr
-	dndMu                                     sync.Mutex
-	dndInside                                 bool
-	dndSource                                 uintptr
-	dndVersion                                int
-	dndMimes                                  []string
-	dndX, dndY                                float64
-	dndTimestamp                              uint32
-	dndPendingSource                          uintptr
-	dndPendingX, dndPendingY                  float64
-	dndPendingTime                            uint32
-	dndPendingMimes                           []string
-	dndSrcData                                string // test source role: uri-list payload served on SelectionRequest
+	atXdndStatus, atXdndLeave, atXdndDrop    uintptr
+	atXdndFinished, atXdndSelection          uintptr
+	atXdndTypeList, atXdndActionCopy         uintptr
+	atTextUriList, atTargetsAtom             uintptr
+	dndMu                                    sync.Mutex
+	dndInside                                bool
+	dndSource                                uintptr
+	dndVersion                               int
+	dndMimes                                 []string
+	dndX, dndY                               float64
+	dndTimestamp                             uint32
+	dndPendingSource                         uintptr
+	dndPendingX, dndPendingY                 float64
+	dndPendingTime                           uint32
+	dndPendingMimes                          []string
+	dndSrcData                               string // test source role: uri-list payload served on SelectionRequest
 }
 
 // xConnectionNumberFn is bound at Create/Adopt from libX11. It is package-
@@ -1324,6 +1335,10 @@ func (h *x11Host) drainX() []Event {
 				out = append(out, ev)
 				break
 			}
+			if ev, ok := h.decodeXIStylus(buf[:]); ok {
+				out = append(out, ev)
+				break
+			}
 			if evs, ok := h.decodeXIHierarchy(buf[:]); ok {
 				out = append(out, evs...)
 			}
@@ -1738,9 +1753,9 @@ func x11ReadWindowStates(st *x11State) (minimized, maximized, fullscreen bool, o
 // window without touch devices is harmless (the server simply never sends).
 
 var (
-	xiOnce sync.Once
-	xiLib  uintptr
-	xiOK   bool
+	xiOnce            sync.Once
+	xiLib             uintptr
+	xiOK              bool
 	xXIQueryExtension func(dpy uintptr, name *byte, major, firstEvent, firstError *int32) int
 	xXIQueryVersion   func(dpy uintptr, major, minor *int32) int
 	xXISelectEvents   func(dpy, win uintptr, masks unsafe.Pointer, nmasks int) int

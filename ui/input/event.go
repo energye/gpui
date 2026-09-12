@@ -300,8 +300,9 @@ func (p Phase) String() string {
 }
 
 // StylusEvent is a pen sample for KindStylus. Kind carries the
-// Down/Move/Up phase; Pressure is 0–1 (0 = unknown, sensor-less pens
-// report 1); Tilt is in degrees (0 = unknown).
+// Down/Move/Up phase (Cancel on grab loss); Pressure is 0–1 (0 = unknown/
+// hover, sensor-less pens report 1 per §4.4 E 组); Tilt is in degrees
+// (0 = unknown).
 type StylusEvent struct {
 	Kind         PointerKind
 	ID           int // pen tool id (0 = primary pen, extra pens ≥ 1)
