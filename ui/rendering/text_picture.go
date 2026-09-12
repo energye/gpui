@@ -23,6 +23,7 @@ func recordRenderText(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
 	// Fresh recording: rows merge their culled state below (OR semantics —
 	// one band-limited row is enough to require scroll expiry).
 	t.noteRecordedBand(false)
+	t.noteRecordedBandY(false)
 	if t.hasRuns() {
 		recordRunsInto(r, t, ox, oy)
 		return
@@ -38,7 +39,22 @@ func recordRenderText(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
 	if m, ok := t.Metrics(); ok && m.Ascent > 0 {
 		ascent = m.Ascent
 	}
+	rowLo, rowHi := 0, len(lines)
+	culledY := false
+	if t.hasViewportHintY && lay != nil && lay.LineCount() > 0 {
+		rowLo, rowHi = visibleRowBandOf(lay, t.viewportScrollY, t.viewportHeight)
+		if rowLo < 0 {
+			rowLo = 0
+		}
+		if rowHi > len(lines) {
+			rowHi = len(lines)
+		}
+		culledY = rowLo > 0 || rowHi < lay.LineCount()
+	}
 	for i, line := range lines {
+		if i < rowLo || i >= rowHi {
+			continue
+		}
 		if line == "" {
 			continue
 		}
@@ -53,6 +69,7 @@ func recordRenderText(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
 		}
 		r.DrawString(line, ox, y, face, t.R, t.G, t.B, a)
 	}
+	t.mergeRecordedBandY(culledY)
 }
 
 // noteRecordedBand remembers which scroll window a recording holds: culled
@@ -113,6 +130,55 @@ func (t *RenderText) ViewportBandExpired(scrollX, visW float64) bool {
 		d = -d
 	}
 	return d > viewportMargin
+}
+
+// noteRecordedBandY remembers the Y scroll window a culled recording holds,
+// mirroring noteRecordedBand on the vertical axis.
+func (t *RenderText) noteRecordedBandY(culled bool) {
+	if t == nil || !t.NeedsPaint() {
+		return
+	}
+	t.recordedEver = true
+	t.recordedCulledY = culled
+	if culled {
+		t.recordedScrollY = t.viewportScrollY
+		t.recordedVisH = t.viewportHeight
+	}
+}
+
+// mergeRecordedBandY ORs the Y culled state into the recording.
+func (t *RenderText) mergeRecordedBandY(culled bool) {
+	if t == nil || !culled || !t.NeedsPaint() {
+		return
+	}
+	t.recordedEver = true
+	t.recordedCulledY = true
+	t.recordedScrollY = t.viewportScrollY
+	t.recordedVisH = t.viewportHeight
+}
+
+// ViewportBandExpiredY reports whether a Y-culled recording still covers
+// [scrollY, scrollY+visH]. Any pixel move re-records: the visible slice is
+// only a few rows, so re-recording is cheap and record/expiry can never
+// disagree (no blank rows past the margin).
+func (t *RenderText) ViewportBandExpiredY(scrollY, visH float64) bool {
+	if t == nil || visH <= 0 {
+		return false
+	}
+	if !t.recordedEver {
+		return true
+	}
+	if !t.recordedCulledY {
+		return false
+	}
+	if visH != t.recordedVisH {
+		return true
+	}
+	d := scrollY - t.recordedScrollY
+	if d < 0 {
+		d = -d
+	}
+	return d > 0.5
 }
 
 // recordShapedRow mirrors Paint's shaped submission for one row at the
@@ -187,8 +253,23 @@ func recordRunsInto(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
 	if len(lines) == 0 {
 		return
 	}
+	tops := make([]float64, len(lines))
+	top := 0.0
+	for i := range lines {
+		tops[i] = top
+		top += lines[i].Height
+	}
+	rowLo, rowHi := 0, len(lines)
+	if t.hasViewportHintY {
+		rowLo, rowHi = visibleRunBand(tops, lines, t.viewportScrollY, t.viewportHeight)
+		t.mergeRecordedBandY(rowLo > 0 || rowHi < len(lines))
+	}
 	lineTop := 0.0
-	for _, ln := range lines {
+	for li, ln := range lines {
+		if li < rowLo || li >= rowHi {
+			lineTop += ln.Height
+			continue
+		}
 		maxAscent := 0.0
 		for _, sp := range ln.Spans {
 			asc := sp.FontSize * 0.8

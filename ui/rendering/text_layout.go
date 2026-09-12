@@ -1307,7 +1307,7 @@ func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity i
 		return l.clampOffset(ln.StartByte), AffinityDownstream
 	}
 	if len(ln.Carets) == 1 {
-		return l.clampOffset(ln.Carets[0].ByteOff), AffinityDownstream
+		return l.clampOffset(ln.StartByte + ln.Carets[0].ByteOff), AffinityDownstream
 	}
 	// Mid-point rule for nearest caret, but also set affinity:
 	// If x is in left half of a grapheme, affinity downstream (leading), else upstream (trailing).

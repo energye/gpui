@@ -100,6 +100,30 @@ func TestM1_LineCaretsGlyphs_M1(t *testing.T) {
 	}
 }
 
+func TestM1_GetPositionForOffset_EmptyLines(t *testing.T) {
+	txt := "hello\n\n\n"
+	lay := BuildTextLayout(txt, nil, 14, 0, 1.2)
+	if lay.LineCount() != 4 {
+		t.Fatalf("want 4 lines got %d", lay.LineCount())
+	}
+	for i := 0; i < lay.LineCount(); i++ {
+		s, e, _, _, _ := lay.Line(i)
+		y := lay.LineTop(i) + lay.LineHeight(i)/2
+		off, _ := lay.GetPositionForOffset(5, y)
+		if off < s || off > e {
+			t.Fatalf("line %d y=%.1f off=%d not in [%d,%d]", i, y, off, s, e)
+		}
+	}
+	lastTop := lay.LineTop(lay.LineCount() - 1)
+	lastH := lay.LineHeight(lay.LineCount() - 1)
+	if off, _ := lay.GetPositionForOffset(5, lastTop+lastH-1); off != len(txt) {
+		t.Fatalf("last empty line want %d got %d", len(txt), off)
+	}
+	if off, _ := lay.GetPositionForOffset(5, lastTop+lastH+50); off != len(txt) {
+		t.Fatalf("beyond end want %d got %d", len(txt), off)
+	}
+}
+
 func TestM1_GetPositionForOffset_Edges_M1(t *testing.T) {
 	_, lay := m1EquivDoc()
 	lnStart, _, _, _, _ := lay.Line(2) // "ab"

@@ -241,7 +241,7 @@ func main() {
 	fText := loadText("f_wrap.txt")
 	base := computeProbes(bText, face, 16)
 
-	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_text_edit_accept — 文本排版绘制验收", Decorations: true})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_text_edit_accept — 文本排版绘制验收", Decorations: true, Resizable: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)
@@ -332,17 +332,72 @@ func main() {
 	boxE.SetSchedule(func() { app.ScheduleFrame() })
 	boxF.SetSchedule(func() { app.ScheduleFrame() })
 
-	y := 36.0
-	placeLabel := func(label string) {
-		shell.Body.LabelAt(label, 11, 12, y, 0.70, 0.78, 0.88)
-		y += 18
+	var yB, yF float64
+	// layoutBody (re)places every label + box for the current body size.
+	// Single-line rows keep their acceptance heights (40); the three
+	// multi-line boxes share any height beyond the 1200x800 baseline
+	// (taller window = taller D/E/F, never narrower logic). At the baseline
+	// size the geometry is bit-identical to the historical layout, so the
+	// f_script goldens keep matching. Labels are created once and re-placed
+	// (AbsoluteBox.Place moves an existing child).
+	labels := map[string]*rendering.RenderText{}
+	mkLabel := func(key, text string) *rendering.RenderText {
+		if l, ok := labels[key]; ok {
+			return l
+		}
+		l := wrkit.Label(text, 11, 0.70, 0.78, 0.88)
+		labels[key] = l
+		return l
 	}
-	placeLabel("A 单行短（手工键入）")
-	shell.Body.Place(boxA, 12, y)
-	y += 48
-	placeLabel("B 单行5000字（横滚·末尾击键）")
-	shell.Body.Place(boxB, 12, y)
-	y += 48
+	rows := []struct {
+		key    string
+		text   string
+		obj    *textinput.Box
+		single bool
+	}{
+		{"la", "A 单行短（手工键入）", boxA, true},
+		{"lb", "B 单行5000字（横滚·末尾击键）", boxB, true},
+		{"lc", "C 单行50000字（10x量级对比）", boxC, true},
+		{"ld", "D 多行短（Enter换行·上下键）", boxD, false},
+		{"le", "E 多行1e5字（纵滚·末行击键）", boxE, false},
+		{"lf", "F 多行回绕（段首插入看重排）", boxF, false},
+	}
+	setBoxSize := func(b *textinput.Box, w, h float64) {
+		if b == nil {
+			return
+		}
+		b.FixedWidth, b.FixedHeight = w, h
+		b.MarkNeedsLayout()
+	}
+	layoutBody := func(bw, multiH float64) {
+		boxW = bw - 24
+		y := 36.0
+		for _, r := range rows {
+			bh := multiH
+			if r.single {
+				bh = 40
+			}
+			shell.Body.Place(mkLabel(r.key, r.text), 12, y)
+			y += 18
+			if r.key == "lb" {
+				yB = y
+			}
+			if r.key == "lf" {
+				yF = y
+			}
+			setBoxSize(r.obj, boxW, bh)
+			shell.Body.Place(r.obj, 12, y)
+			y += bh + 8
+		}
+	}
+	multiHFor := func(bodyH float64) float64 {
+		extra := bodyH - 656
+		if extra < 0 {
+			extra = 0
+		}
+		return 90 + extra/3
+	}
+	layoutBody(bodyW, multiHFor(legH))
 	// Diagnosis only: GPUI_ACCEPT_SWAPAB=1 swaps the A/B rows to test
 	// whether the retained-composite loss follows the box or the position.
 	if os.Getenv("GPUI_ACCEPT_SWAPAB") == "1" {
@@ -352,17 +407,6 @@ func main() {
 		body.Place(boxA, 12, 120)
 		body.Place(boxB, 12, 54)
 	}
-	placeLabel("C 单行50000字（10x量级对比）")
-	shell.Body.Place(boxC, 12, y)
-	y += 48
-	placeLabel("D 多行短（Enter换行·上下键）")
-	shell.Body.Place(boxD, 12, y)
-	y += 98
-	placeLabel("E 多行1e5字（纵滚·末行击键）")
-	shell.Body.Place(boxE, 12, y)
-	y += 98
-	placeLabel("F 多行回绕（段首插入看重排）")
-	shell.Body.Place(boxF, 12, y)
 
 	fm := focus.NewManager()
 	router := embedder.NewInputRouter(nil, fm)
@@ -440,18 +484,76 @@ func main() {
 			runFor = time.Duration(n) * time.Second
 		}
 	}
-	app = embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
-		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
+	// applyWindowSize re-lays the shell + body rows for a window size.
+	// Single source for the event fast path (OnEvent) and the ticker
+	// convergence guard below: the WM can animate through intermediate
+	// sizes (overshoot/settle), so the last applied size must always be
+	// re-checkable against the live geometry.
+	var sv *scriptVerify
+	var curW, curH = float64(winW), float64(winH)
+	applyWindowSize := func(w, h float64) {
+		if w < 1 || h < 1 {
+			return
+		}
+		curW, curH = w, h
+		shell.Resize(w, h)
+		mh := multiHFor(shell.Body.H)
+		layoutBody(shell.Body.W, mh)
+		if os.Getenv("GPUI_ACCEPT_LAYOUTDBG") == "1" {
+			fmt.Fprintf(os.Stderr, "ACCEPTLAYOUT win=%.0fx%.0f body=%.0fx%.0f boxW=%.0f multiH=%.0f\n",
+				w, h, shell.Body.W, shell.Body.H, boxW, mh)
+		}
+		if sv != nil {
+			sv.c.fx, sv.c.fy, sv.c.fw, sv.c.fh = bodyX+12, topH+gap+yF, boxW, mh
+			sv.c.bx, sv.c.by, sv.c.bw, sv.c.bh = bodyX+12, topH+gap+yB, boxW, 40
+		}
+	}
+	app = embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		WarmUp: true,
 		Input:  router,
 		IME:    win.IME(),
 		RunFor: runFor,
 		// GPUI_ACCEPT_SNAP=path saves a GPU-readback PNG of the final frame.
 		SnapshotPath: os.Getenv("GPUI_ACCEPT_SNAP"),
+		OnEvent: func(ev platform.Event) {
+			if ev.Type != platform.EventPointer && ev.Type != platform.EventKey && os.Getenv("GPUI_ACCEPT_EVDBG") == "1" {
+				fmt.Fprintf(os.Stderr, "ACCEPTEV type=%v size=%dx%d\n", ev.Type, ev.Width, ev.Height)
+			}
+			if ev.Type != platform.EventResize || ev.Width <= 0 || ev.Height <= 0 {
+				return
+			}
+			// Responsive layout (standard wiring, same as ui_wr_r0/r21):
+			// shell tracks the window, body rows re-flow, multi-line
+			// boxes absorb the extra height, script marks follow.
+			// Schedule explicitly: this window is demand-gated idle, so a
+			// layout/paint mark without a requested frame would sit
+			// unflushed after the last storm event.
+			applyWindowSize(float64(ev.Width), float64(ev.Height))
+			app.ScheduleFrame()
+		},
 	})
 	acceptTick := &acceptTicker{interval: 500 * time.Millisecond}
+	scriptPass := true
+	if os.Getenv("GPUI_ACCEPT_SCRIPT") != "" {
+		dir := os.Getenv("GPUI_ACCEPT_SCRIPTDIR")
+		if dir == "" {
+			dir = filepath.Join("examples", "ui_text_edit_accept", "golden", "f_script")
+		}
+		_ = os.MkdirAll(dir, 0o755)
+		sv = newScriptVerify(scriptConfig{
+			app: app, ctl: win.Controls(), edB: edB, boxB: boxB, edF: edF, boxF: boxF,
+			root: shell.Root,
+			fx:   bodyX + 12, fy: topH + gap + yF, fw: boxW, fh: 90,
+			bx: bodyX + 12, by: topH + gap + yB, bw: boxW, bh: 40,
+			dir: dir,
+		})
+	}
 	acceptTick.on = func(dt float64) {
 		tick++
+		if sv != nil {
+			sv.tick()
+			scriptPass = len(sv.failures) == 0
+		}
 		// Caret blink is framework-owned (boxes register on focus
 		// transitions; the embedder pump advances them). Nothing to pump
 		// here; this ticker only advances HUD/diagnostic budgets.
@@ -668,6 +770,17 @@ func main() {
 		// they are a few cheap flag checks).
 		if acceptTick.last.IsZero() || time.Since(acceptTick.last) >= acceptTick.interval {
 			acceptTick.last = time.Now()
+			// Convergence guard: if the live geometry drifted past the
+			// last applied size (WM animation settle, coalesced events),
+			// re-lay at truth. Cheap integer compare at 2Hz.
+			if hw, hh := host.Size(); hw > 0 && hh > 0 && (float64(hw) != curW || float64(hh) != curH) {
+				applyWindowSize(float64(hw), float64(hh))
+				app.ScheduleFrame()
+			}
+			if os.Getenv("GPUI_ACCEPT_LAYOUTDBG") == "1" {
+				fmt.Fprintf(os.Stderr, "ACCEPTSIZE boxB fixed=%.0fx%.0f size=%.0fx%.0f\n",
+					boxB.FixedWidth, boxB.FixedHeight, boxB.Size().Width, boxB.Size().Height)
+			}
 			proc.Sample()
 			shell.NoteHUDTick(dt)
 			snapH := app.Metrics().Snapshot()
@@ -735,6 +848,9 @@ func main() {
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+	if sv != nil && !scriptPass {
+		os.Exit(1)
+	}
 }
 
 type acceptTicker struct {

@@ -42,6 +42,79 @@ func TestRecordRenderText_Multiline(t *testing.T) {
 	}
 }
 
+func TestRecordRenderText_YBandCullsToVisible(t *testing.T) {
+	s := "hello" + strings.Repeat("\n", 30) + "TAIL"
+	txt := NewRenderText(s)
+	txt.FontSize = 16
+	txt.MaxWidth = 864
+	lay := txt.TextLayout()
+	totalH := lay.LineTop(lay.LineCount()-1) + lay.LineHeight(lay.LineCount()-1)
+	visH := 74.0
+	scrollBottom := totalH - visH
+	txt.SetViewportRect(0, 864, scrollBottom, visH)
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		recordRenderText(r, txt, 0, 0)
+	})
+	foundTail, foundTop := false, false
+	for _, op := range pic.Ops {
+		if op.Text == "TAIL" {
+			foundTail = true
+		}
+		if op.Text == "hello" {
+			foundTop = true
+		}
+	}
+	if !foundTail {
+		t.Fatalf("tail missing in culled record ops=%d", pic.OpCount())
+	}
+	if foundTop {
+		t.Fatalf("top should be culled at bottom scroll")
+	}
+	if txt.ViewportBandExpiredY(scrollBottom, visH) {
+		t.Fatalf("same band should not expire")
+	}
+	txt.SetViewportRect(0, 864, 0, visH)
+	if !txt.ViewportBandExpiredY(0, visH) {
+		t.Fatalf("moved band should expire")
+	}
+}
+
+func TestRecordRuns_YBandCullsToVisible(t *testing.T) {
+	pb := NewParagraphBuilder()
+	pb.AddRun(TextRun{Text: "TOP" + strings.Repeat("\n", 30) + "TAIL", FontSize: 14, R: 1, G: 1, B: 1, A: 1})
+	txt := NewRenderText("")
+	txt.MaxWidth = 864
+	txt.SetRuns(pb.Runs())
+	lines := txt.layoutRunLines()
+	if len(lines) != 31 {
+		t.Fatalf("want 31 run lines got %d", len(lines))
+	}
+	totalH := 0.0
+	for _, ln := range lines {
+		totalH += ln.Height
+	}
+	visH := 74.0
+	txt.SetViewportRect(0, 864, totalH-visH, visH)
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		recordRenderText(r, txt, 0, 0)
+	})
+	foundTail, foundTop := false, false
+	for _, op := range pic.Ops {
+		if strings.Contains(op.Text, "TAIL") {
+			foundTail = true
+		}
+		if strings.Contains(op.Text, "TOP") {
+			foundTop = true
+		}
+	}
+	if !foundTail {
+		t.Fatalf("tail missing in culled run record ops=%d", pic.OpCount())
+	}
+	if foundTop {
+		t.Fatalf("top should be culled at bottom scroll")
+	}
+}
+
 // Multi-run content must keep per-span text and color in retained pictures.
 func TestRecordRenderText_MultiRun(t *testing.T) {
 	pb := NewParagraphBuilder()

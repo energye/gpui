@@ -69,6 +69,10 @@ type PictureTextureCache struct {
 	// stamp is a monotonically-increasing last-use counter for LRU eviction.
 	stamp   uint64
 	usedNow map[uint64]struct{}
+	// oversized holds layer-local bounds refused this frame because they
+	// exceed the surface (raster-cache miss): phase 2 damages the region
+	// so the vector replay reaches the screen under LoadOpLoad present.
+	oversized map[uint64]image.Rectangle
 	// explicitMax is the pinned budget from SetBudget (0 = automatic sizing
 	// via EnsureCapacity; the pinned value REPLACES it for eviction).
 	explicitMax int
@@ -353,6 +357,7 @@ func (c *PictureTextureCache) BeginFrame() {
 	defer c.mu.Unlock()
 	c.recordFrame++
 	c.stamp++ // advance the LRU clock once per composite frame
+	c.oversized = nil
 	c.drainDeferred(c.recordFrame)
 }
 
@@ -552,6 +557,50 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	return e.bounds, true
 }
 
+// pictureRecordBounds resolves the geometry a bounds-sized record of pl
+// would use: tracked picture bounds, measured text bounds, or the OnPaint
+// paint bounds. False when the layer has no bounds (full-surface record).
+func pictureRecordBounds(tex *PictureTextureCache, pl *PictureLayer) (image.Rectangle, bool) {
+	if tex == nil || pl == nil {
+		return image.Rectangle{}, false
+	}
+	b := pl.Picture.Bounds
+	if b.Empty() {
+		if tb, ok := tex.measureTextBounds(&pl.Picture); ok {
+			b = tb
+		}
+	}
+	// OnPaint layers (RasterExtra) fall back to their declared paint bounds
+	// so they still get cheap bounds-sized textures.
+	if b.Empty() && !pl.ExtraBounds.Empty() {
+		b = pl.ExtraBounds
+	}
+	return b, !b.Empty()
+}
+
+// BoundsMismatch reports whether the cached entry's recorded geometry no
+// longer matches the layer's live bounds. A match means the blit shows what
+// a re-record would; a mismatch (e.g. a resize the retained path never
+// re-recorded) must re-record instead of blitting stale content.
+//
+// Only the SIZE (Dx/Dy) is compared, never the position: scrolling shifts a
+// band's layer-local origin while the margin-covered content stays valid
+// (repositioned blit, no re-record by design), whereas a resize changes the
+// size of every affected layer. Comparing positions would turn every small
+// scroll step into a re-record and kill the margin optimization.
+func (c *PictureTextureCache) BoundsMismatch(id uint64, b image.Rectangle) bool {
+	if c == nil || b.Empty() {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e := c.entries[id]
+	if e == nil || e.bounds.Empty() {
+		return false
+	}
+	return e.bounds.Dx() != b.Dx() || e.bounds.Dy() != b.Dy()
+}
+
 // recordLocal records a picture into a texture sized to its geometry bounds
 // (plus AA pad) instead of the full window — the common retained case (a cell
 // or block) then costs a tiny RT instead of a full-surface one. The caller must
@@ -581,6 +630,29 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	}
 	w := b.Dx() + 2
 	h := b.Dy() + 2
+	if b.Dx() > c.width || b.Dy() > c.height {
+		// Raster-cache miss (Engine RasterCache::CanRasterCachePicture):
+		// a clipped texture would show blank past the surface edge, so
+		// refuse and let phase 2 replay vector with damage. Full-surface
+		// layers still cache (equal fits; only the +2 AA pad is clamped).
+		c.mu.Lock()
+		if c.oversized == nil {
+			c.oversized = make(map[uint64]image.Rectangle)
+		}
+		c.oversized[id] = b
+		// The refused band replaces whatever an earlier fitting band left:
+		// keep the old entry and phase 2 blits it at its recorded offset
+		// (content baked for another scroll position), so a scrolled text
+		// band shows stale rows or blank instead of replaying vector.
+		// Evict here — same contract as the flush-error path below — so a
+		// miss always means vector replay of the current picture.
+		if e := c.entries[id]; e != nil {
+			c.releaseEntryLocked(e)
+			delete(c.entries, id)
+		}
+		c.mu.Unlock()
+		return image.Rectangle{}, false
+	}
 	if w > c.width {
 		w = c.width
 	}
@@ -901,6 +973,17 @@ func (c *PictureTextureCache) Bounds(id uint64) image.Rectangle {
 	return image.Rectangle{}
 }
 
+// OversizedBounds returns the bounds refused this frame for exceeding the
+// surface (empty when the layer cached normally).
+func (c *PictureTextureCache) OversizedBounds(id uint64) image.Rectangle {
+	if c == nil {
+		return image.Rectangle{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.oversized[id]
+}
+
 // Has reports whether a live texture entry exists for id.
 func (c *PictureTextureCache) Has(id uint64) bool {
 	if c == nil {
@@ -1020,20 +1103,21 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			underShell = true
 		}
 		pushCtx := pushCompositeCTM(dc, l)
-		if isPic && noTex == 0 {
+		if isPic && noTex == 0 && pl.CacheKey != 0 {
 			_, dirtyID := dirty[pl.LayerID()]
-			if pl.CacheKey != 0 && (dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)) {
-				b := pl.Picture.Bounds
-				if b.Empty() {
-					if tb, ok := tex.measureTextBounds(&pl.Picture); ok {
-						b = tb
-					}
-				}
-				// OnPaint layers (RasterExtra) fall back to their declared
-				// paint bounds so they still get cheap bounds-sized textures.
-				if b.Empty() && !pl.ExtraBounds.Empty() {
-					b = pl.ExtraBounds
-				}
+			record := dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)
+			b, haveBounds := pictureRecordBounds(tex, pl)
+			if !record && haveBounds && tex.BoundsMismatch(pl.CacheKey, b) {
+				// Geometry moved without dirt: a resize recovery frame
+				// direct-paints the new sizes live but never refreshes
+				// retained records (nor marks them — the paint already
+				// happened). Blitting the old entry would show stale
+				// rows/rects at the recorded offset, so re-record here.
+				// Only clean layers pay the bounds computation, and only
+				// truly moved layers re-record (static content still skips).
+				record = true
+			}
+			if record {
 				var ok bool
 				// Bounds-sized recordLocal also under clip/rotate CTM
 				// (restr > 0): the texture only covers the picture geometry;
@@ -1108,6 +1192,14 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 						dc.Pop()
 					}
 					st.ReplayedOps += n
+					// Refused oversized layers replay every frame without a
+					// texture: damage the refused region or LoadOpLoad
+					// present keeps stale pixels there.
+					if noTex == 0 {
+						if ob := tex.OversizedBounds(pl.CacheKey); !ob.Empty() {
+							st.DamageRects = append(st.DamageRects, transformBounds(dc, ob))
+						}
+					}
 				}
 				// Re-recorded this frame → the layer's region changed.
 				if pl.CacheKey != 0 && tex.RecordedThisFrame(pl.CacheKey) {

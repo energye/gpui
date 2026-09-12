@@ -170,6 +170,20 @@ func diffSpan(old, new string) (oldA, oldB, newA, newB int) {
 	return pre, oldSuf, pre, newSuf
 }
 
+// countBreaks统计区间内的硬换行数(越界钳制).
+func countBreaks(s string, a, b int) int {
+	if a < 0 {
+		a = 0
+	}
+	if b > len(s) {
+		b = len(s)
+	}
+	if a >= b {
+		return 0
+	}
+	return strings.Count(s[a:b], "\n")
+}
+
 // patchRows重建落入变化区的硬行/段,其余行只平移偏移.
 // lo=首个End>=oldA的行(含插入点所在行);hi=max(lo,末个Start<oldB的行).
 // 行表按字节有序,lo/hi二分定位(O(log n),原线性扫是击键主瓶颈).
@@ -248,6 +262,36 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		}
 	}
 	removedH := 0.0
+	// Hard-break balance: pure break edits inside empty runs change the
+	// hard-line count by (nNew - nOld); replaced old rows must outnumber
+	// fresh rows by exactly that, or phantom zero-width rows survive.
+	// Empty rows map 1:1 to hard lines in every mode, non-empty regions
+	// keep the existing boundaries.
+	if nOld, nNew := countBreaks(lv.text, oldA, oldB), countBreaks(textStr, newA, newB); nOld != nNew {
+		empty := len(fresh) > 0
+		for _, r := range fresh {
+			if r.StartByte != r.EndByte {
+				empty = false
+				break
+			}
+		}
+		if empty {
+			for i := lo; i <= hi && i < len(lv.rows); i++ {
+				if lv.rows[i].StartByte != lv.rows[i].EndByte {
+					empty = false
+					break
+				}
+			}
+		}
+		if empty {
+			if want := len(fresh) + (nOld - nNew); want > hi-lo+1 {
+				hi = lo + want - 1
+				if hi > len(lv.rows)-1 {
+					hi = len(lv.rows) - 1
+				}
+			}
+		}
+	}
 	for i := lo; i <= hi && i < len(lv.rows); i++ {
 		removedH += lv.rows[i].Height
 	}

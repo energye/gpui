@@ -1089,20 +1089,20 @@ func (e *Editor) MoveCursorByWord(forward bool) bool {
 		if runeIdx >= len(runes) {
 			return false
 		}
-		// skip current word if inside
+		// One word per press: inside a word stop at its end, otherwise
+		// cross the separator run and stop at the next word end.
 		if isWordChar(runes[runeIdx]) {
 			for runeIdx < len(runes) && isWordChar(runes[runeIdx]) {
 				runeIdx++
 			}
+		} else {
+			for runeIdx < len(runes) && !isWordChar(runes[runeIdx]) {
+				runeIdx++
+			}
+			for runeIdx < len(runes) && isWordChar(runes[runeIdx]) {
+				runeIdx++
+			}
 		}
-		for runeIdx < len(runes) && !isWordChar(runes[runeIdx]) {
-			runeIdx++
-		}
-		for runeIdx < len(runes) && isWordChar(runes[runeIdx]) {
-			runeIdx++
-		}
-		// stop at word end; if we skipped spaces, we are at start of next word, back to start
-		// Actually for Ctrl+Right, move to end of next word; our loop does that.
 	} else {
 		if runeIdx <= 0 {
 			return false

@@ -804,12 +804,15 @@ func (b *Box) sync() {
 	pad := b.Padding()
 	if b.multi {
 		if b.wrap {
-			b.txt.MaxWidth = b.FixedWidth - 2*pad
-			if b.txt.MaxWidth < 0 {
-				b.txt.MaxWidth = 0
+			wantW := b.FixedWidth - 2*pad
+			if wantW < 0 {
+				wantW = 0
 			}
+			// Setter invalidates the layout cache; a bare field write
+			// would keep serving the old wrap after a width change.
+			b.txt.SetMaxWidth(wantW)
 		} else {
-			b.txt.MaxWidth = 0
+			b.txt.SetMaxWidth(0)
 		}
 		curByte := b.ed.GetCursorOffset()
 		aff := b.ed.TextRange().Affinity
@@ -1025,9 +1028,54 @@ func (b *Box) layoutCaret() {
 
 // Layout preserves the text/caret offsets computed by sync().
 // RenderBox.Layout would reset children to Pad(0,0).
+// Wrap width tracks the box width here (not only in sync): a width change
+// with no edit in between must still rewrap and re-clamp scroll.
 func (b *Box) Layout(c rendering.Constraints) rendering.Size {
 	if b == nil || b.txt == nil || b.bar == nil {
 		return rendering.Size{}
+	}
+	// Size follow-through (window resize): the clip/viewport shells were
+	// sized once at construction; when the outer box size changes they must
+	// track it here, otherwise content stays clipped to the old rect while
+	// the border paints the new one. sync re-clamps scroll and refreshes
+	// the cull hints for the new visible window.
+	resized := false
+	if b.clip != nil && (b.clip.FixedWidth != b.FixedWidth || b.clip.FixedHeight != b.FixedHeight) {
+		b.clip.FixedWidth, b.clip.FixedHeight = b.FixedWidth, b.FixedHeight
+		resized = true
+	}
+	if b.Viewport != nil {
+		vw, vh := b.FixedWidth-2, b.FixedHeight-2
+		if vw < 0 {
+			vw = 0
+		}
+		if vh < 0 {
+			vh = 0
+		}
+		if b.Viewport.FixedWidth != vw || b.Viewport.FixedHeight != vh {
+			b.Viewport.FixedWidth, b.Viewport.FixedHeight = vw, vh
+			resized = true
+		}
+	}
+	if b.multi && b.wrap {
+		wantW := b.FixedWidth - 2*b.Padding()
+		if wantW < 0 {
+			wantW = 0
+		}
+		if b.txt.MaxWidth != wantW {
+			b.sync()
+		} else if resized {
+			b.sync()
+		}
+	} else if resized {
+		b.sync()
+	}
+	if resized {
+		// A size change always repaints the border/background shell: layout
+		// alone leaves the retained picture (recorded at the old rect)
+		// blitting stale. The text child re-marks itself through band
+		// expiry (visW/visH inequality) inside sync above.
+		b.MarkNeedsPaint()
 	}
 	textOff := b.txt.Offset()
 	barOff := b.bar.Offset()

@@ -98,6 +98,13 @@ func (s *editScroll) refresh(m scrollMetrics) {
 	} else {
 		s.txt.SetOffset(rendering.Point{X: m.pad - s.scrollX, Y: m.textY})
 	}
+	if m.multi && s.viewport == nil {
+		s.txt.SetViewportRect(s.scrollX, m.visW, s.scrollY, m.visH)
+		if s.txt.ViewportBandExpired(s.scrollX, m.visW) || s.txt.ViewportBandExpiredY(s.scrollY, m.visH) {
+			s.txt.MarkNeedsPaint()
+		}
+		return
+	}
 	s.txt.SetViewportHint(s.scrollX, m.visW)
 	if s.txt.ViewportBandExpired(s.scrollX, m.visW) {
 		s.txt.MarkNeedsPaint()
@@ -157,6 +164,13 @@ func (s *editScroll) commit(m scrollMetrics, followCaret bool) {
 		s.txt.SetOffset(rendering.Point{X: m.pad - s.scrollX, Y: m.pad - s.scrollY})
 	} else {
 		s.txt.SetOffset(rendering.Point{X: m.pad - s.scrollX, Y: m.textY})
+	}
+	if m.multi && s.viewport == nil {
+		s.txt.SetViewportRect(s.scrollX, m.visW, s.scrollY, m.visH)
+		if s.txt.ViewportBandExpired(s.scrollX, m.visW) || s.txt.ViewportBandExpiredY(s.scrollY, m.visH) {
+			s.txt.MarkNeedsPaint()
+		}
+		return
 	}
 	s.txt.SetViewportHint(s.scrollX, m.visW)
 	if s.txt.ViewportBandExpired(s.scrollX, m.visW) {
