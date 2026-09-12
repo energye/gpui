@@ -260,7 +260,7 @@
   示例用法无误（布局/路由/预填均正确），示例层零改动。
 - 全局回归：scene/rendering/textinput/embedder/overlay 全包绿 + race 干净；
   C11 策略窗切换 2 次、损伤双模式、截图结构完整，Golden diff 与干净 HEAD
-  逐位相同（6.92%，既有漂移）；`apidoc` 绿；硬编码回归空。
+  逐位相同（6.92%，既有漂移，此数为 C11 策略窗回归口径，不用作 accept 窗基线依据）；`apidoc` 绿；硬编码回归空。
 - 观察项（均与本轮无关，不挡合入）：`TestKeystrokeRatio_M5` 低负载仍红但干净树
   同红（见 §七）；`TestTextureBudget_EvictsUnderPressure` 偶发红，系 map 迭代随机
   挑受害者（lastUse 全 0 打平），提交文件、改动未碰逐出逻辑，单跑连绿。

@@ -60,7 +60,7 @@
 | 5.1 | damage 准确性前提：线宽外扩（context.go:1162/1175）+ Path.Reset 清 boundsValid（path.go:178-185）+ Append 合并边界（:189-196） | 单测：粗线条 damage ≥ 描边外沿；复用路径 damage 不膨胀 | ⬜ |
 | 5.2 | PresentWithDamage（gpu/webgpu/surface.go:312）真实传递矩形到 wgpu partial present | wayland damage 可视化工具确认仅提交脏区 | ⬜ |
 | 5.3 | 门禁实测化专项（三处公式化/缺失 + wrgate 放宽点）：C2 sumRatio（ui_wr_c2 main.go:57-66）换实测 rects 面积和；R4b realRepaintRatio 常量门禁同改；R19 补真实采样断言替换硬编码 snapped_lines:46；wrgate 收紧三处——短跑(<5s)跳过 FPS 门禁须显式标记 fps_gate=skipped、默认 55 提至与产品口径一致、interval FPS 不得单独掩护 wall FPS | 负向用例：改场景参数/制造掉帧，门禁不再自动变绿 | ⬜ |
-| 5.4 | MSAA LoadOpLoad UB（render_session.go 决策本体 :4827-4831，原引 :5368-5373 为漂移行号）：中帧 pass 改正确 loadOp | 4x MSAA 真机开 damage 无闪块（钉死 ROUND3 待验尾巴 #5） | ⬜ |
+| 5.4 | MSAA LoadOpLoad UB（render_session.go 决策本体 :5373,5645，旧引 :4827-4831/:5368-5373 已漂移）：中帧 pass 改正确 loadOp | 4x MSAA 真机开 damage 无闪块（钉死 ROUND3 待验尾巴 #5） | ⬜ |
 
 ## 第六批及以后：P1 存量清账
 

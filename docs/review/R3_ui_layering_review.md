@@ -17,7 +17,7 @@
    - 专为修这个问题写的增量 `LayerCache`（`ui/rendering/layer_cache.go`）是**死代码**：全仓库无生产调用者；唯一引用方 `tmp_vlprobe/main.go:76` 调用已不存在的 `owner.LayerCache()` 和 `BuildFramePacketCached`，`go vet` 直接编译失败（本轮已实测复现）。注释里自己承认 "Without this, BuildLayerTree allocated ~4-5MB/s allocation"，却没接上。
 
 2. **F02/F04「静态层纹理复用」——存在但要手动开（P1）**
-   - 默认 present policy 是 `full_paint`（`ui/embedder/pipeline_app.go:365-371`，测试 `present_policy_test.go:12` 钉死），retained 路径要示例显式 `SetPresentPolicy(retained)`（pipeline_app.go:175-185 注释自认 "Default remains full_paint until W6"）。文档 §6.3 说 P3 起"静态层纹理复用/禁止每帧无条件重传"，默认值直接违背。retained 纹理路径本身（`ui/scene/textured.go` 双缓冲 slot、LRU、延迟释放、EnsureCapacity）工程质量不错，这部分是兑现的。
+   - 默认 present policy 是 `full_paint`（旧引 `ui/embedder/pipeline_app.go:365-371` 已漂移，现 W6 默认 retained 见 `pipeline_app.go:482,491`，测试 `present_policy_test.go:12` 钉死），retained 路径要示例显式 `SetPresentPolicy(retained)`（旧引 pipeline_app.go:175-185 已漂移）。文档 §6.3 说 P3 起"静态层纹理复用/禁止每帧无条件重传"，默认值直接违背。retained 纹理路径本身（`ui/scene/textured.go` 双缓冲 slot、LRU、延迟释放、EnsureCapacity）工程质量不错，这部分是兑现的。
 
 3. **F09「动画默认 compositor-only」——断头路（P1）**
    - `ui/scene/compositing.go:11` 的 `ClassifyDirty` 只有测试在调；`ui/scene/packet.go:57-67` 的 `Mutations`/`CompositorDirtyIDs` 字段没有任何 embedder 生产者填充或消费者应用；`ui/animation/implicit.go:29,53` 的 AnimatedOpacity 产出 Mutation 后没人接。真实的 spinner 动画走的是 MarkNeedsPaint → 重录，不是 compositor-only。另外 `needsCompositing` 位算完没人消费（node.go:218 起），纯摆设（P2）。

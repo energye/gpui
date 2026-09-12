@@ -9,11 +9,11 @@
 | 顺序 | 文档 | 问题 | 前置 |
 |---|---|---|---|
 | 1 | `LEGACY_01_W6_RETAINED_PLAN.md` | W6 整波：默认切 retained，C9/C11 新建，C0–C5 回归 | 无，本批主线先做 |
-| 2 | `LEGACY_02_SEGMENTTEXT_PLAN.md` | 单行 5 万字剩约 24ms，卡在整行 `SegmentText` | 无，可与 1 并行排期但不同会话 |
-| 3 | `LEGACY_03_GOLDEN_BASELINE_PLAN.md` | accept Golden 差 1.0%，基线过期待刷新归档 | 无，但**必须独立评审**，禁顺手办 |
-| 4 | `LEGACY_04_R_WINDOWS_PLAN.md` | R1/R15/R22 三个单能力窗未关 | 无，建议按 R22→R1→R15 从小到大做 |
-| 5 | `LEGACY_05_C10_SOAK_PLAN.md` | C10 长跑组合窗未建 | R15 关闭后（C10 跑全主路径长跑） |
-| 6 | `LEGACY_06_M6_TREND_PLAN.md` | M6 验收主窗每期跑一次记趋势 | 例行公事，每期收尾时执行 |
+| 2 | `LEGACY_02_SEGMENTTEXT_PLAN.md` | 单行 5 万字分段复用已落地（`segment_reuse.go`，约 24→14ms），余量以新 profile 为准 | 无，可与 1 并行排期但不同会话 |
+| 3 | `LEGACY_03_GOLDEN_BASELINE_PLAN.md` | accept Golden 已按 M5 截图刷新归档（原差 1.48%，现 `baseline_m5.png`） | 无，但**必须独立评审**，禁顺手办 |
+| 4 | `LEGACY_04_R_WINDOWS_PLAN.md` | R22 已关，R1/R15 两个单能力窗未关 | 无，建议按 R1→R15 从小到大做 |
+| 5 | `LEGACY_05_C10_SOAK_PLAN.md` | C10 长跑组合窗已建未关（300s 可跑，第三跑金图差 1.728% 卡相位分界） | C10 收尾（R15 首跑已 PASS，次跑待补） |
+| 6 | `LEGACY_06_M6_TREND_PLAN.md` | M6 验收主窗散表已有 M0–M2，正式 numbers 行待补 | 例行公事，每期收尾时执行 |
 
 ## 每件的固定结构
 
@@ -22,4 +22,4 @@
 
 ## 明确不做的（本批不动）
 
-R17（后置）、协同编辑/CRDT、RTL 特殊布局、IME 自绘候选窗、M3.5 piece tree（Q3 未触发不引入）。
+R17（后置）、协同编辑/CRDT、RTL 特殊布局、IME 自绘候选窗。M3.5 说明：buffer 已合入，piece tree 仍为条件触发（Q3 未触发不引入）。

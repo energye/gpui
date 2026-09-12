@@ -80,21 +80,21 @@
 | 编号 | 问题 | 位置 |
 |---|---|---|
 | C1 | OS 增量呈现丢参数（PresentWithDamage 收 rects 直接 _）；DamageRectSetter 仅测试 mock | gpu/webgpu/surface.go:312-314; ggcanvas/canvas.go:630 |
-| C2 | MSAA 中帧 LoadOpLoad 读已 discard 内存（规范级 UB，需 4x MSAA 真机复现） | render/internal/gpu/render_session.go:4827-4831（决策本体）,1002-1020 |
-| C3 | Auto 选管线死路由：ClipDepth/OverlapFactor 判据生产不填充，且 Auto 每帧空转惰性初始化 | render/pipeline_mode.go:60,65; gpu_render_context.go:1457-1458 |
-| C4 | 默认 full_paint——事实成立但属分期设计（注释自述 W6 才全局默认 retained）。**保质期条款：W6 宣称完成时若默认仍 full_paint，恢复为缺陷** | ui/embedder/pipeline_app.go:365-371,176-186 |
-| C5 | compositor-only 动画断头：ClassifyDirty/Mutations 无生产消费者 | ui/scene/compositing.go:11; packet.go:56-67（目录已修正） |
+| C2 | MSAA 中帧 LoadOpLoad 读已 discard 内存（规范级 UB，需 4x MSAA 真机复现） | render/internal/gpu/render_session.go:5373,5645（决策本体，旧引 4827-4831 已漂移）,1007-1023 |
+| C3 | Auto 选管线死路由：ClipDepth/OverlapFactor 判据生产不填充，且 Auto 每帧空转惰性初始化 | render/pipeline_mode.go:54（旧引 60,65 已漂移）; render/internal/gpu 收敛中（旧引 gpu_render_context.go:1457-1458 已漂移） |
+| C4 | 默认 full_paint——事实成立但属分期设计（注释自述 W6 才全局默认 retained）。**保质期条款：W6 宣称完成时若默认仍 full_paint，恢复为缺陷**（现状 W6 默认已切 retained：`pipeline_app.go:482,491`，旧引 365-371/176-186 已漂移） | ui/embedder/pipeline_app.go:249-257,482,491 |
+| C5 | compositor-only 动画断头：ClassifyDirty/Mutations 无生产消费者 | ui/scene/compositing.go:11; packet.go:57-67（旧引 56-67 已对齐现源码） |
 | C6 | viewport 滚动保留路径丢平移（对照直绘路径有 -scroll） | ui/rendering/layer_build.go:124-139 vs viewport.go:296-299 |
 | C7 | Spinner 在 retained 下消失：recordLeafContent 只认三叶且无 OnPaint 兜底 | layer_build.go:263-297; spinner.go:60-94 |
 | C8 | WGSL uniform 数组步长按自然对齐非 16 字节规范 | gpu/shader/wgsl/internal/lower/lower.go:818-831 |
 | C9 | WGSL MatrixStride 非 uniform 16 字节要求；uniformStructTypes 声明后从未写入 | spirv/internal/codegen/backend.go:1610-1636,155/196/236 |
 | C10 | Transform 子 PaintContext 手搓丢字段（LayerBudget/BoundaryCache 等） | ui/rendering/transform.go:113-121 |
 
-**批 D 性能/资源类（4 项成立 + D5 门禁公式化成立）**
+**批 D 性能/资源类（4 项成立 + D5 门禁公式化成立；D4 为空号，无对应源码项）**
 | 编号 | 问题 | 位置 |
 |---|---|---|
 | D1 | Buffer.Map 兜底 goroutine 纯自旋烧核 | gpu/rwgpu/map_pending.go:190-204 |
-| D2 | 渐变逐像素 math.Pow（查表优化已写好未上线，约快 200 倍） | gradient.go:98-133; internal/color/convert.go:8-23 |
+| D2 | 渐变逐像素 math.Pow（查表优化已写好未上线，码注约 20x/15x，测试目标 200x） | gradient.go:100-133; internal/color/convert.go:8-23; internal/color/lut.go:64,101,116 |
 | D3 | 备选字体按 rune×size 反复整读文件无上限；死检查 fallbackKey 恒不命中 | render/text/fontscan_fallback.go:100-127 |
 | D5 | 真窗门禁公式估算：sumRatio 写死几何常数（C2/R4b 同族），改场景参数门禁自动绿 | examples/ui_wr_c2_retained_scene/main.go:57-66 |
 

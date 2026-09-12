@@ -201,7 +201,7 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
 | S4 真窗验收 | 用户跑 examples：X11 + Wayland 全能力（§2.6 A 层）；真实显示环境跑通——`ui_pf_x11` 19 行全 PASS（18 能力行 + 1 事件观察行，IgnoreCursorEvents 按 XShape 未落地 ⛔ 诚实降级） + `ui_pf_wayland` 19 行全 PASS（Position/Focus/AlwaysOnTop/Decorations 切换/RequestMove/RequestResize 按协议 ⛔ 诚实降级，Show/Hide 与 IgnoreCursorEvents 走真实现），B 层 `TestX11RealWindow*` 7 例 + `TestWaylandRealWindow*` 3 例 + `TestWaylandHideShow` 同机全 PASS | ✅ |
 | S5 Win32/AppKit | 按 §2.3/§2.4 语义列落地（占位→实现）；同步落 `ui_pf_win32`/`ui_pf_appkit` 真窗例程 + 原生单测（§2.6 三层）；重跑能力矩阵 | ⬜ |
 | S6-P0 上层统一必做 | §4.4 A–C + D 触控基础：新 Kind/载荷、Close 拆分、Enter/Leave/Cancel 独立、Repeat、横滚、触控产出、Wayland 三上报；消费方切换；§2.6 三层真窗（`ui_pf_x11`/`ui_pf_wayland` 重跑 + `pfkit` 恒绿） | ✅（Move/Scale/Focus/Drop/ResizeSync 补 FromPlatform 分支并进主循环路由；Touch/StateChanged 进主循环路由；Resize/ResizeSync/Occluded/Hidden/FramePresented 同步透传路由器观察） |
-| S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | 🔨（X11 XDND Enter/Over/Leave + 文件 Drop 已落地，专项真窗 `examples/ui_pf_x11_dnd` 自检 + 人工；X11 设备插拔已落地（XI 层级变化，v2.21），专项真窗 `examples/ui_pf_x11_device` 自检 + 人工（v2.22）；未完四项见 §5 v2.21：Wayland 悬停三上报、MIME 数据二期、本窗外发拖放、Wayland 座位设备上报） |
+| S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | 🔨（X11 XDND Enter/Over/Leave + 文件 Drop 已落地，专项真窗 `examples/ui_pf_x11_dnd` 自检 + 人工；X11 设备插拔已落地（XI 层级变化，v2.21），专项真窗 `examples/ui_pf_x11_device` 自检 + 人工（v2.22）；Wayland 剪贴板已落地（`wayland_clipboard_linux.go` 约 775 行）；未完四项见 §5 v2.21：Wayland 悬停三上报、MIME 数据二期、本窗外发拖放、Wayland 座位设备上报） |
 | S6-P2 占位 | 笔压感/显示器增减/智能放大接口占位 + Win32/AppKit 映射表；真窗验占位错误明确 | 🔨（X11 笔先行 ✅，剩显示器增减、智能放大、Wayland tablet 二期、Win32/AppKit 落地） |
 
 **落地纪律**：S1–S3 逐行对照 §2.3/§2.4 实现，不跳步；每阶段跑对应单测 + 回归（按文件，禁止一次全量）+ §2.6 三层验收同步落地（例程与平台同生）；S5 落地时四条语义契约（§2.5）逐条核对。
