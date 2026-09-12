@@ -16,7 +16,7 @@ func (d *Decoder) decodeSkip(h *SliceHeader, addr int, rs *residSrc) error {
 	if d.refPic == nil {
 		return fmt.Errorf("%w: skip without reference", ErrBadSliceHeader)
 	}
-	mx, my := d.predMotion(mbx*4, mby*4, 4, 0)
+	mx, my := d.predMotion(0, mbx*4, mby*4, 4, 0)
 	d.storeMV(mbx*16, mby*16, 16, 16, mx, my, 0, 0, 0)
 	var predY [256]uint8
 	var predCb, predCr [64]uint8
@@ -276,6 +276,9 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 	hasSubs := false
 	x0, y0 := mbx*4, mby*4
 	px0, py0 := mbx*16, mby*16
+	// Right-half top rows start not-available for diagonal prediction
+	// until their 8x8 stores land (reference fill semantics).
+	d.poisonDiagSlots(mbx, mby)
 	switch mbType {
 	case 0: // P_16x16
 		ref, err := is.ref(x0, y0)
@@ -283,7 +286,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 			return err
 		}
 		d.storeRef(x0, y0, 4, 4, ref)
-		px, py := d.predMotion(x0, y0, 4, ref)
+		px, py := d.predMotion(0, x0, y0, 4, ref)
 		mx, my, mdx, mdy, err := is.mvd(x0, y0, px, py)
 		if err != nil {
 			return err
@@ -374,7 +377,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 			ref := refs[i]
 			switch subTypes[i] {
 			case 0: // 8x8
-				px, py := d.predMotion(qx, qy, 2, ref)
+				px, py := d.predMotion(4*i, qx, qy, 2, ref)
 				mx, my, mdx, mdy, err := is.mvd(qx, qy, px, py)
 				if err != nil {
 					return err
@@ -385,7 +388,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 				for k := 0; k < 2; k++ {
 					py := oy + k*4
 					sqy := qy + k
-					px, pyv := d.predMotion(qx, sqy, 2, ref)
+					px, pyv := d.predMotion(4*i+2*k, qx, sqy, 2, ref)
 					mx, my, mdx, mdy, err := is.mvd(qx, sqy, px, pyv)
 					if err != nil {
 						return err
@@ -397,7 +400,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 				for k := 0; k < 2; k++ {
 					px := ox + k*4
 					sqx := qx + k
-					pvx, pvy := d.predMotion(sqx, qy, 1, ref)
+					pvx, pvy := d.predMotion(4*i+k, sqx, qy, 1, ref)
 					mx, my, mdx, mdy, err := is.mvd(sqx, qy, pvx, pvy)
 					if err != nil {
 						return err
@@ -410,7 +413,7 @@ func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 					px := ox + (k%2)*4
 					py := oy + (k/2)*4
 					sqx, sqy := qx+(k%2), qy+(k/2)
-					pvx, pvy := d.predMotion(sqx, sqy, 1, ref)
+					pvx, pvy := d.predMotion(4*i+k, sqx, sqy, 1, ref)
 					mx, my, mdx, mdy, err := is.mvd(sqx, sqy, pvx, pvy)
 					if err != nil {
 						return err

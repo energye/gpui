@@ -38,11 +38,16 @@ func clipInt(v, lo, hi int) int {
 	return v
 }
 
-// mvNeighbour reads one 4x4 motion slot. ref -1 means unavailable
-// (outside picture, intra, or not yet decoded).
+// partNotAvailable marks neighbours outside the picture: only those fall
+// back to the top-left diagonal and force the median default. Intra
+// neighbours report ref -1 with a zero vector.
+const partNotAvailable = int8(-2)
+
+// mvNeighbour reads one 4x4 motion slot. ref -1 means present but without
+// a vector (intra or not yet decoded); partNotAvailable means outside.
 func (d *Decoder) mvNeighbour(bx, by int) (mx, my int16, ref int8) {
 	if bx < 0 || by < 0 || bx >= d.mbW*4 || by >= d.mbH*4 {
-		return 0, 0, -1
+		return 0, 0, partNotAvailable
 	}
 	i := by*d.mbW*4 + bx
 	r := d.refIdx[i]
@@ -52,13 +57,33 @@ func (d *Decoder) mvNeighbour(bx, by int) (mx, my int16, ref int8) {
 	return d.mvX[i], d.mvY[i], r
 }
 
-// predMotion predicts one partition at 4x4 origin (x0,y0) with width w4.
-func (d *Decoder) predMotion(x0, y0, w4 int, ref int8) (int16, int16) {
+// scan8Cache maps grouped 4x4 index to motion-cache slot, mirroring the
+// reference layout the diagonal predictor indexes.
+var scan8Cache = [16]int{
+	12, 13, 20, 21, 14, 15, 22, 23,
+	28, 29, 36, 37, 30, 31, 38, 39,
+}
+
+// deadCacheSlot reports diagonal slots the reference never maintains:
+// init to not-available forever, so the predictor always falls back to
+// the top-left diagonal for these shapes (bottom-right 8x8, bottom 16x8,
+// and matching sub-partitions).
+func deadCacheSlot(n, pw int) bool {
+	if n < 0 || n >= len(scan8Cache) {
+		return false
+	}
+	s := scan8Cache[n] - 8 + pw
+	return s == 16 || s == 24 || s == 32
+}
+
+// predMotion predicts one partition: n is its top-left grouped 4x4 index,
+// (x0,y0) its 4x4 origin, w4 its width in 4x4 units.
+func (d *Decoder) predMotion(n, x0, y0, w4 int, ref int8) (int16, int16) {
 	ax, ay, ar := d.mvNeighbour(x0-1, y0)
 	bx, by, br := d.mvNeighbour(x0, y0-1)
-	cx, cy, cr := d.mvNeighbour(x0+w4, y0-1)
-	if cr < 0 {
-		cx, cy, cr = d.mvNeighbour(x0-1, y0-1)
+	cx, cy, cr := d.diagNeighbour(n, w4, x0, y0)
+	if cr == partNotAvailable {
+		cx, cy, cr = d.topLeftNeighbour(x0, y0)
 	}
 	match := 0
 	if ar == ref {
@@ -82,11 +107,52 @@ func (d *Decoder) predMotion(x0, y0, w4 int, ref int8) (int16, int16) {
 		}
 		return cx, cy
 	default:
-		if br < 0 && cr < 0 && ar >= 0 {
+		if br == partNotAvailable && cr == partNotAvailable && ar != partNotAvailable {
 			return ax, ay
 		}
 		return median3(ax, bx, cx), median3(ay, by, cy)
 	}
+}
+
+// diagNeighbour reads the above-right diagonal for motion prediction.
+// Dead cache slots always report not-available (top-left fallback); other
+// positions read the picture with cross-slice neighbours gated out. Slots
+// inside the macroblock under decode hold fresh stores, except the two
+// top rows of the right halves, which the caller poisons at MB start
+// (see poisonDiagSlots) until their partitions decode.
+func (d *Decoder) diagNeighbour(n, w4, x0, y0 int) (mx, my int16, ref int8) {
+	if deadCacheSlot(n, w4) {
+		return 0, 0, partNotAvailable
+	}
+	return d.gatedNeighbour(x0+w4, y0-1, (y0/4)*d.mbW+x0/4)
+}
+
+// topLeftNeighbour reads the above-left diagonal with the same gating.
+func (d *Decoder) topLeftNeighbour(x0, y0 int) (mx, my int16, ref int8) {
+	return d.gatedNeighbour(x0-1, y0-1, (y0/4)*d.mbW+x0/4)
+}
+
+// gatedNeighbour reads one slot, treating neighbours from another slice
+// as not-available. Slots of the macroblock under decode (cur) are always
+// same-slice; its tag publishes only after motion parsing.
+func (d *Decoder) gatedNeighbour(bx, by, cur int) (mx, my int16, ref int8) {
+	if bx < 0 || by < 0 || bx >= d.mbW*4 || by >= d.mbH*4 {
+		return 0, 0, partNotAvailable
+	}
+	mb := (by/4)*d.mbW + bx/4
+	if mb != cur && !d.cabSameSlice(mb) {
+		return 0, 0, partNotAvailable
+	}
+	return d.mvNeighbour(bx, by)
+}
+
+// poisonDiagSlots marks the two right-half top rows not-available at
+// inter-MB start: later partitions read them as not-available until the
+// owning 8x8 stores overwrite them, mirroring the reference fill.
+func (d *Decoder) poisonDiagSlots(mbx, mby int) {
+	stride := d.mbW * 4
+	d.refIdx[(mby*4+0)*stride+mbx*4+2] = partNotAvailable
+	d.refIdx[(mby*4+2)*stride+mbx*4+2] = partNotAvailable
 }
 
 // pred16x8Top predicts the top half of a P_16x8 MB at 4x4 origin (x0,y0).
@@ -95,7 +161,7 @@ func (d *Decoder) pred16x8Top(x0, y0 int, ref int8) (int16, int16) {
 		mx, my, _ := d.mvNeighbour(x0, y0-1)
 		return mx, my
 	}
-	return d.predMotion(x0, y0, 4, ref)
+	return d.predMotion(0, x0, y0, 4, ref)
 }
 
 // pred16x8Bottom predicts the bottom half at origin (x0,y0+2).
@@ -104,7 +170,7 @@ func (d *Decoder) pred16x8Bottom(x0, y0 int, ref int8) (int16, int16) {
 		mx, my, _ := d.mvNeighbour(x0-1, y0)
 		return mx, my
 	}
-	return d.predMotion(x0, y0, 4, ref)
+	return d.predMotion(8, x0, y0, 4, ref)
 }
 
 // pred8x16Left predicts the left half at origin (x0,y0).
@@ -113,7 +179,7 @@ func (d *Decoder) pred8x16Left(x0, y0 int, ref int8) (int16, int16) {
 		mx, my, _ := d.mvNeighbour(x0-1, y0)
 		return mx, my
 	}
-	return d.predMotion(x0, y0, 2, ref)
+	return d.predMotion(0, x0, y0, 2, ref)
 }
 
 // pred8x16Right predicts the right half; px is its 4x4 origin (mbX0+2).
@@ -121,7 +187,7 @@ func (d *Decoder) pred8x16Right(px, py int, ref int8) (int16, int16) {
 	if mx, my, cr := d.mvNeighbour(px+2, py-1); cr == ref {
 		return mx, my
 	}
-	return d.predMotion(px, py, 2, ref)
+	return d.predMotion(4, px, py, 2, ref)
 }
 
 // storeMV fills one luma rectangle (pixels) with a motion vector and its

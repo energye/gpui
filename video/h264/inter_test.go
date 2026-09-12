@@ -238,10 +238,10 @@ func TestInterBSAlias(t *testing.T) {
 	}
 	list := []*Picture{p, p}
 	// sx=16 is the middle vertical edge (x=16), seg row 0.
-	if got := interBS(mbIntra, nnz, mvX, mvY, refs, list, mbW, mbH, 16, 0, false, false); got != 0 {
+	if got := interBS(mbIntra, nnz, mvX, mvY, refs, list, mbW, mbH, 16, 0, false, false, nil); got != 0 {
 		t.Fatalf("aliased edge bS = %d want 0", got)
 	}
-	if got := interBS(mbIntra, nnz, mvX, mvY, refs, nil, mbW, mbH, 16, 0, false, false); got != 1 {
+	if got := interBS(mbIntra, nnz, mvX, mvY, refs, nil, mbW, mbH, 16, 0, false, false, nil); got != 1 {
 		t.Fatalf("index-compare edge bS = %d want 1", got)
 	}
 }

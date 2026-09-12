@@ -591,24 +591,37 @@ func (d *Decoder) decodeIntraMBCore(h *SliceHeader, pps *PPS, addr, mbx, mby int
 }
 
 // intraMostProbable derives one block prediction mode with most-probable rule.
+// Unavailable neighbours (picture edge or another slice) contribute -1
+// and force DC; decoded neighbours contribute their stored mode, with
+// non-Intra4x4 blocks (inter, I16x16, PCM) reading as DC (2), mirroring
+// the reference pred_intra_mode cache (inter type maps to 2, only a
+// zero type maps to -1). Constrained-intra gating is not applied yet.
 func (d *Decoder) intraMostProbable(bx, by int) int {
 	stride := d.mbW * 4
-	a, b := -1, -1
-	if bx > 0 {
-		a = int(d.modes[by*stride+bx-1])
-	}
-	if by > 0 {
-		b = int(d.modes[(by-1)*stride+bx])
-	}
-	pred := 2
-	if a >= 0 && b >= 0 {
-		if a < b {
-			pred = a
-		} else {
-			pred = b
+	cur := (by/4)*d.mbW + bx/4
+	// Neighbours inside the macroblock under decode are trivially
+	// same-slice: its slice tag publishes only after the modes parse.
+	same := func(mb int) bool { return mb == cur || d.cabSameSlice(mb) }
+	aC, bC := -1, -1
+	if bx > 0 && same((by/4)*d.mbW+(bx-1)/4) {
+		aC = 2
+		if a := int(d.modes[by*stride+bx-1]); a >= 0 {
+			aC = a
 		}
 	}
-	return pred
+	if by > 0 && same(((by-1)/4)*d.mbW+bx/4) {
+		bC = 2
+		if b := int(d.modes[(by-1)*stride+bx]); b >= 0 {
+			bC = b
+		}
+	}
+	if aC < 0 || bC < 0 {
+		return 2
+	}
+	if aC < bC {
+		return aC
+	}
+	return bC
 }
 
 // intra4x4Mode reads one block prediction mode with most-probable rule.
@@ -883,6 +896,15 @@ func (d *Decoder) cavlcSrc(r *Reader) *residSrc {
 					coeff[inv8[raster]] = blk[k]
 				}
 			}
+			// Deblock strength reads the first 4x4 slot of each 8x8
+			// as the whole-block presence: fold the four slice counts
+			// into slot 0 like the reference decoder does. Later
+			// neighbours' nC keeps working because only zero-ness of
+			// that slot changes the table the same way it does there.
+			b0 := grouped[i8*4]
+			s := tcs[0] + tcs[1] + tcs[2] + tcs[3]
+			tcs[0] = s
+			d.setNnz(d.nnzY, stride, mbx*4+b0%4, mby*4+b0/4, s)
 			return coeff, tcs, nil
 		},
 	}

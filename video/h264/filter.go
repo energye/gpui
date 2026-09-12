@@ -302,7 +302,7 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 						} else {
 							sx, sy = ex+seg*4, ey
 						}
-						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB)
+						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8)
 						if bS == 0 {
 							continue
 						}
@@ -325,7 +325,7 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 							} else {
 								sx, sy = ex+seg*4, ey
 							}
-							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB)
+							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8)
 							if bS < 1 {
 								continue
 							}
@@ -358,11 +358,30 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 	}
 }
 
+// t8count reads deblock presence for one 4x4 slot: the whole-8x8 sum
+// from the first slot when its macroblock uses the 8x8 transform,
+// the slot's own count otherwise. Macroblock origins sit on even 4x4
+// columns, so clearing the low bit stays inside the block.
+func t8count(nnzY []int8, stride int, mbT8 []bool, mbW, mbH, bx, by, mb int) int {
+	i := by*stride + bx
+	if mb < 0 || mb >= mbW*mbH || mb >= len(mbT8) || !mbT8[mb] {
+		if i < 0 || i >= len(nnzY) {
+			return 0
+		}
+		return int(nnzY[i])
+	}
+	si := (by&^1)*stride + (bx &^ 1)
+	if si < 0 || si >= len(nnzY) {
+		return 0
+	}
+	return int(nnzY[si])
+}
+
 // interBS derives one 4-line edge strength. sx,sy is the edge origin in
 // luma pixels; vertical=false means a vertical edge at x=sx.
 // Same-picture references through different indices compare equal;
 // without a list the raw indices compare (single-reference clips).
-func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool) int {
+func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool, mbT8 []bool) int {
 	if mbIntra == nil {
 		if edgeMB {
 			return 4
@@ -405,7 +424,11 @@ func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refLi
 		}
 		return 3
 	}
-	if nnzY[pi] > 0 || nnzY[qi] > 0 {
+	// Strength counts whole-8x8 presence for 8x8-transform blocks (the
+	// first 4x4 slot of each 8x8 holds the block sum) and per-block
+	// counts otherwise, mirroring the reference per-8x8 coded flags.
+	if t8count(nnzY, stride, mbT8, mbW, mbH, pBX, pBY, pMB) > 0 ||
+		t8count(nnzY, stride, mbT8, mbW, mbH, qBX, qBY, qMB) > 0 {
 		return 2
 	}
 	if refIdx != nil {

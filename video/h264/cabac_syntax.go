@@ -167,7 +167,12 @@ func (d *Decoder) cabacSkipFlag(mbx, mby, addr int) (bool, error) {
 // and two prediction bits. base selects contexts 3 (I slice) or 17
 // (P-slice escape); intra picks the second chroma/pred contexts.
 func (d *Decoder) cabacIntraType(base uint16, intra bool) (uint32, error) {
-	st := base + 2
+	// The I-slice first bin consumes the base pair before the body;
+	// the P escape reads its I4x4 flag straight from the base.
+	st := base
+	if intra {
+		st = base + 2
+	}
 	if d.cab.terminate() != 0 {
 		return 25, nil
 	}
