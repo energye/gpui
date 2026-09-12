@@ -1361,6 +1361,34 @@ func (im *x11Ime) callSetCursorLocation(rect Rect) {
 	_ = err
 }
 
+// needSwitchBurst 切换补刷的统一判据（B25）：输入法吃掉按键（handled）
+// 且是按下事件（press，抬起不刷）且非组合期。组合期不补（preedit 变更自带
+// 上报）；同步/异步两条 ProcessKeyEvent 路径共用，保证规则不分叉。
+func (im *x11Ime) needSwitchBurst(handled, isPress bool) bool {
+	return handled && isPress && !im.IsComposing()
+}
+
+// refreshCursorOnce 切换补刷（B25）：把预热缓存里的最新锚点实发一次。
+// F-D3 平时门禁不变（非组合期 UpdateCursorRect 仍只预热不实发）；仅当输入法
+// 吃掉按键（handled）且非组合期时由 ProcessKeyEvent（同步/异步）调用 ——
+// 输入法刚做了用户可见动作（如 Shift/Ctrl+Space 切中/拼/en 弹出小框），那小框
+// 按最后收到的矩形摆位，必须把缓存里已是最新的矩形推过去。组合期不调
+//（preedit 变更自带上报）。focused/hasRect 任一不满足静默跳过；
+// same 去重在此不适用（缓存正因去重而从未发出），调用方限 press 以保证只刷一次。
+func (im *x11Ime) refreshCursorOnce() {
+	if im == nil {
+		return
+	}
+	im.mu.Lock()
+	rect, hasRect, focused := im.lastRect, im.hasRect, im.focused
+	im.mu.Unlock()
+	if !hasRect || !focused {
+		return
+	}
+	x11ImeDebug("refreshCursorOnce rect=%v (switch burst)", rect)
+	im.callSetCursorLocation(rect)
+}
+
 func (im *x11Ime) callSetSurroundingText(text string, cursor, anchor int) {
 	if im == nil || im.conn == nil || im.ObjectPath() == "" {
 		x11ImeDebug("SetSurroundingText skip no object len=%d", len(text))
@@ -1510,12 +1538,20 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 	// 修饰键（Shift/Ctrl/Alt/Meta）不拦截：需让本地感知修饰状态，否则 Shift+字母/方向 的后续组合会丢失修饰
 	if handled && isX11ModifierKeysym(keysym) {
 		x11ImeDebug("ProcessKeyEvent modifier %#x handled but not blocking (preserve local mods)", keysym)
+		// 切换补刷（B25）：修饰键切换（如 Shift 切中/en）补刷一次，判据见 needSwitchBurst。
+		if im.needSwitchBurst(handled, isPress) {
+			im.refreshCursorOnce()
+		}
 		return false
 	}
 	// 英文非组合态：输入法已无 preedit，方向/翻页等导航键应直通本地编辑器（Shift+方向选区等快捷键才有效）
 	if handled && !im.IsComposing() && isX11NavKeysym(keysym) {
 		x11ImeDebug("ProcessKeyEvent nav %#x handled but not composing -> pass-through (english mode shortcut)", keysym)
 		return false
+	}
+	// 切换补刷（B25）：触发键（如 Ctrl+Space）补刷一次，判据见 needSwitchBurst。
+	if im.needSwitchBurst(handled, isPress) {
+		im.refreshCursorOnce()
 	}
 	return handled
 }
@@ -1610,6 +1646,10 @@ func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress boo
 		}
 		if handled && isX11ModifierKeysym(keysym) {
 			x11ImeDebug("ProcessKeyEventAsync modifier %#x handled but not blocking (preserve local mods)", keysym)
+			// 切换补刷（B25）：判据见 needSwitchBurst（与同步版同一条）。
+			if im.needSwitchBurst(handled, isPress) {
+				im.refreshCursorOnce()
+			}
 			host.pushPendingKey(ev)
 			host.WakeUp()
 			return
@@ -1622,6 +1662,10 @@ func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress boo
 		}
 		if handled {
 			x11ImeDebug("ProcessKeyEventAsync handled true -> drop local (m/没 case wait true)")
+			// 切换补刷（B25）：判据见 needSwitchBurst（与同步版同一条）。
+			if im.needSwitchBurst(handled, isPress) {
+				im.refreshCursorOnce()
+			}
 			return
 		}
 		host.pushPendingKey(ev)
