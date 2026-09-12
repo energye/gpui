@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render"
@@ -57,6 +58,9 @@ type RenderText struct {
 	FontFamily string
 
 	// measureCache maps measureLine keys → width (R9). Invalidated on text/face/size change.
+	// Guarded by measureMu: layout (UI thread) and paint/record (raster
+	// thread) measure concurrently, and an unguarded map fatals the runtime.
+	measureMu    sync.Mutex
 	measureCache map[string]float64
 	measureHits  int64
 	measureMiss  int64
@@ -417,13 +421,15 @@ func (t *RenderText) measureLine(s string) float64 {
 		return 0
 	}
 	key := t.measureCacheKey(s)
+	t.measureMu.Lock()
 	if t.measureCache != nil {
 		if w, ok := t.measureCache[key]; ok {
 			t.measureHits++
+			t.measureMu.Unlock()
 			return w
 		}
 	}
-	t.measureMiss++
+	t.measureMu.Unlock()
 	var w float64
 	if face := t.effectiveFace(); face != nil {
 		w, _ = text.Measure(s, face)
@@ -431,10 +437,13 @@ func (t *RenderText) measureLine(s string) float64 {
 		fs := t.fontSize()
 		w = float64(utf8.RuneCountInString(s)) * fs * t.approxCharW()
 	}
+	t.measureMu.Lock()
+	t.measureMiss++
 	if t.measureCache == nil {
 		t.measureCache = make(map[string]float64)
 	}
 	t.measureCache[key] = w
+	t.measureMu.Unlock()
 	return w
 }
 
@@ -456,8 +465,10 @@ func (t *RenderText) invalidateMeasureCache() {
 	if t == nil {
 		return
 	}
+	t.measureMu.Lock()
 	t.measureCache = nil
 	t.textLayout = nil
+	t.measureMu.Unlock()
 }
 
 // ensureLayout returns the single-source TextLayout, building if dirty.
@@ -530,6 +541,8 @@ func (t *RenderText) MeasureCacheStats() (hits, misses int64) {
 	if t == nil {
 		return 0, 0
 	}
+	t.measureMu.Lock()
+	defer t.measureMu.Unlock()
 	return t.measureHits, t.measureMiss
 }
 
@@ -538,6 +551,8 @@ func (t *RenderText) ResetMeasureCacheStats() {
 	if t == nil {
 		return
 	}
+	t.measureMu.Lock()
+	defer t.measureMu.Unlock()
 	t.measureHits, t.measureMiss = 0, 0
 }
 
