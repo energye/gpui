@@ -862,6 +862,11 @@ var xPresentFuncsOK bool
 type x11Host struct {
 	st        *x11State
 	lib       *x11Lib
+	// wakeMu guards the lazy wake plumbing (wake channel + wakeW pipe end):
+	// WakeUp runs on any thread (IME signal loop, async key completions),
+	// WaitEvents/ensurePollFds on the event thread. Leaf lock, never held
+	// across calls out.
+	wakeMu    sync.Mutex
 	wake      chan struct{}
 	destroyFn func()
 	// S2: per-window D-Bus IME，共享 Conn 但每窗一 InputContext
@@ -1084,9 +1089,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 	if h == nil || h.st == nil {
 		return nil
 	}
-	if h.wake == nil {
-		h.wake = make(chan struct{}, 1)
-	}
+	wakeCh := h.wakeChan()
 	if timeout == 0 {
 		if evs := filterXNoise(h.drain()); len(evs) > 0 {
 			return evs
@@ -1170,7 +1173,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 			}
 		}
 		select {
-		case <-h.wake:
+		case <-wakeCh:
 			if evs := filterXNoise(h.drain()); len(evs) > 0 {
 				return evs
 			}
@@ -1203,7 +1206,9 @@ func (h *x11Host) ensurePollFds() bool {
 		if err != nil {
 			return
 		}
+		h.wakeMu.Lock()
 		h.wakeR, h.wakeW = r, w
+		h.wakeMu.Unlock()
 	})
 	return h.wakeR != nil && h.wakeW != nil && h.xfd > 0
 }
@@ -1224,18 +1229,30 @@ func (h *x11Host) WakeUp() {
 	if h == nil {
 		return
 	}
-	if h.wakeW != nil {
+	h.wakeMu.Lock()
+	wakeW := h.wakeW
+	h.wakeMu.Unlock()
+	if wakeW != nil {
 		// Kernel-poll path: write the self-pipe to wake unix.Poll.
-		_, _ = h.wakeW.Write([]byte{1})
+		_, _ = wakeW.Write([]byte{1})
 		return
 	}
+	wakeCh := h.wakeChan()
+	select {
+	case wakeCh <- struct{}{}:
+	default:
+	}
+}
+
+// wakeChan returns the wake channel, creating it once (thread-safe).
+// Callers keep the returned reference instead of re-reading h.wake.
+func (h *x11Host) wakeChan() chan struct{} {
+	h.wakeMu.Lock()
+	defer h.wakeMu.Unlock()
 	if h.wake == nil {
 		h.wake = make(chan struct{}, 1)
 	}
-	select {
-	case h.wake <- struct{}{}:
-	default:
-	}
+	return h.wake
 }
 
 // filterXNoise drops Expose (GPU present owns pixels). Keep input/lifecycle.
