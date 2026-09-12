@@ -558,6 +558,7 @@ func x11Create(opts Options) (*Window, error) {
 	}
 	// Resolve EWMH atoms once; the controller and event pump share them.
 	st.resolveAtoms(dpy)
+	x11DndAdvertise(st)
 	// Read the live desktop scale once (96-dpi desktops stay 1, HiDPI starts
 	// right): the initial EventResize below carries it.
 	if s := x11ScaleSource(st); s != 1 {
@@ -607,6 +608,17 @@ func x11Create(opts Options) (*Window, error) {
 	// XI2 touch probe (best-effort, silent when unavailable).
 	st.xiMajor = x11ProbeTouch(dpy, win)
 	st.xiTouch = st.xiMajor != 0
+	// XI hierarchy probe (S6-P1 device hot-plug): shares xiMajor, selection
+	// is per-deviceid so it coexists with the touch selection above.
+	if major, ok := x11SelectHierarchy(dpy, win); ok {
+		if st.xiMajor == 0 {
+			st.xiMajor = major
+		}
+		st.xiHierarchy = true
+	}
+	st.devClasses = make(map[int]DeviceClass)
+	st.devNames = make(map[int]string)
+	x11SeedDeviceCache(st)
 
 	ime := imeForX11(host)
 	host.ime = ime
@@ -643,6 +655,18 @@ func (st *x11State) resolveAtoms(dpy uintptr) {
 	st.atSyncCounter = atom("_NET_WM_SYNC_REQUEST_COUNTER")
 	st.atCardinal = atom("CARDINAL")
 	st.atResManager = atom("RESOURCE_MANAGER")
+	st.atXdndAware = atom("XdndAware")
+	st.atXdndEnter = atom("XdndEnter")
+	st.atXdndPosition = atom("XdndPosition")
+	st.atXdndStatus = atom("XdndStatus")
+	st.atXdndLeave = atom("XdndLeave")
+	st.atXdndDrop = atom("XdndDrop")
+	st.atXdndFinished = atom("XdndFinished")
+	st.atXdndSelection = atom("XdndSelection")
+	st.atXdndTypeList = atom("XdndTypeList")
+	st.atXdndActionCopy = atom("XdndActionCopy")
+	st.atTextUriList = atom("text/uri-list")
+	st.atTargetsAtom = atom("TARGETS")
 }
 
 // --- window state ---
@@ -717,6 +741,18 @@ type x11State struct {
 	// xiMajor is the extension opcode GenericEvents are checked against.
 	xiTouch bool
 	xiMajor int32
+	// XI hierarchy gate (S6-P1 device hot-plug): xiHierarchy set at Create
+	// when XI 2.0+ selects XI_HierarchyChanged on XIAllDevices. Shares
+	// xiMajor (same extension opcode); touch and hierarchy selections are
+	// per-deviceid and coexist.
+	xiHierarchy bool
+	// Device cache for hot-plug classification: Added stores the resolved
+	// class/name, Removed replays the cached value (the server has already
+	// forgotten the device, XIQueryDevice would fail). Seeded at Create
+	// with the current device list so pre-existing removals classify.
+	devMu      sync.Mutex
+	devClasses map[int]DeviceClass
+	devNames   map[int]string
 
 	// Resizable / constraints bookkeeping for hints lock-restore.
 	resizable          bool
@@ -750,6 +786,27 @@ type x11State struct {
 	atResManager uintptr // RESOURCE_MANAGER (Xft.dpi lives here)
 	// xPresentNotifyMSC is bound at Create for RequestFrameNotify (raster thread).
 	xPresentNotifyMSC func(dpy uintptr, win uintptr, target, divisor, remainder uint64) int
+
+	// XDND drag-and-drop target state (S6-P1 file-first: Enter/Position/Leave
+	// + text/uri-list Drop). Atoms resolved at Create; dndMu guards the
+	// in-flight drag below (event pump thread + test source helpers).
+	atXdndAware, atXdndEnter, atXdndPosition uintptr
+	atXdndStatus, atXdndLeave, atXdndDrop     uintptr
+	atXdndFinished, atXdndSelection           uintptr
+	atXdndTypeList, atXdndActionCopy          uintptr
+	atTextUriList, atTargetsAtom              uintptr
+	dndMu                                     sync.Mutex
+	dndInside                                 bool
+	dndSource                                 uintptr
+	dndVersion                                int
+	dndMimes                                  []string
+	dndX, dndY                                float64
+	dndTimestamp                              uint32
+	dndPendingSource                          uintptr
+	dndPendingX, dndPendingY                  float64
+	dndPendingTime                            uint32
+	dndPendingMimes                           []string
+	dndSrcData                                string // test source role: uri-list payload served on SelectionRequest
 }
 
 // xConnectionNumberFn is bound at Create/Adopt from libX11. It is package-
@@ -1265,6 +1322,10 @@ func (h *x11Host) drainX() []Event {
 		case xGenericEvent:
 			if ev, ok := h.decodeXITouch(buf[:]); ok {
 				out = append(out, ev)
+				break
+			}
+			if evs, ok := h.decodeXIHierarchy(buf[:]); ok {
+				out = append(out, evs...)
 			}
 		case xFocusIn:
 			st.mu.Lock()
@@ -1314,7 +1375,16 @@ func (h *x11Host) drainX() []Event {
 			}
 		case xClientMessage:
 			data0 := readU64(buf[:], xevClientData0Off)
+			msgType := uintptr(readU64(buf[:], xevAtomOff))
 			switch {
+			case st.atXdndEnter != 0 && msgType == st.atXdndEnter:
+				out = append(out, h.handleXdndEnter(st, buf[:])...)
+			case st.atXdndPosition != 0 && msgType == st.atXdndPosition:
+				out = append(out, h.handleXdndPosition(st, buf[:])...)
+			case st.atXdndLeave != 0 && msgType == st.atXdndLeave:
+				out = append(out, h.handleXdndLeave(st, buf[:])...)
+			case st.atXdndDrop != 0 && msgType == st.atXdndDrop:
+				out = append(out, h.handleXdndDrop(st, buf[:])...)
 			case st.wmDelete != 0 && uintptr(data0) == st.wmDelete:
 				out = append(out, Event{Type: EventCloseRequested})
 			case st.atSyncReq != 0 && uintptr(data0) == st.atSyncReq:
@@ -1354,7 +1424,18 @@ func (h *x11Host) drainX() []Event {
 			if c, ok := h.clip.(*x11Clipboard); ok {
 				c.handleSelectionRequest(buf[:])
 			}
+			// XDND test-source role (two-window対拖): serve uri-list payload.
+			h.handleXdndSelectionRequest(st, buf[:])
 		case xSelectionNotify:
+			if sel := uintptr(readU64(buf[:], 40)); st.atXdndSelection != 0 && sel == st.atXdndSelection {
+				st.dndMu.Lock()
+				pending := st.dndPendingSource
+				st.dndMu.Unlock()
+				if pending != 0 {
+					out = append(out, h.handleXdndSelectionNotify(st, buf[:])...)
+					break
+				}
+			}
 			if c, ok := h.clip.(*x11Clipboard); ok {
 				c.handleSelectionNotify(buf[:])
 			}

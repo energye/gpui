@@ -88,6 +88,19 @@ const (
 	// EventTouch: multi-touch slot sample (phase in Pointer: Down/Move/Up/
 	// Cancel only; X/Y carry the position; TouchID carries the slot).
 	EventTouch
+	// EventDragEnter / EventDragOver report a drag hovering the window
+	// (X11 XDND Enter/Position; Wayland wl_data_device enter/motion reserved).
+	// X/Y carry the position in logical px; MIMETypes carries the offered types.
+	EventDragEnter
+	EventDragOver
+	// EventDragLeave reports the drag left the window (X11 XDND Leave;
+	// Wayland wl_data_device leave reserved). No payload.
+	EventDragLeave
+	// EventDeviceAdded / EventDeviceRemoved report hot-plug (X11 XI
+	// hierarchy; Wayland seat capabilities reserved). DeviceClass carries
+	// the family, DeviceName the OS name (empty = unknown).
+	EventDeviceAdded
+	EventDeviceRemoved
 )
 
 // String implements fmt.Stringer.
@@ -129,6 +142,16 @@ func (t EventType) String() string {
 		return "state-changed"
 	case EventTouch:
 		return "touch"
+	case EventDragEnter:
+		return "drag-enter"
+	case EventDragOver:
+		return "drag-over"
+	case EventDragLeave:
+		return "drag-leave"
+	case EventDeviceAdded:
+		return "device-added"
+	case EventDeviceRemoved:
+		return "device-removed"
 	case EventWake:
 		return "wake"
 	default:
@@ -222,15 +245,51 @@ type Event struct {
 	Focused bool
 
 	// EventDrop: external files dropped onto the window (Wayland DnD;
-	// X11 URI-list drops reserved). Files holds absolute local paths
+	// X11 XDND text/uri-list). Files holds absolute local paths
 	// (empty when the drop carried no text/uri-list payload).
 	Files []string
+	// EventDragEnter / EventDragOver: offered MIME types (e.g. text/uri-list).
+	// Empty when the source announced none; mirrors input.DragEvent.MIMETypes.
+	MIMETypes []string
 
 	// IME (EventIME): pre-edit / commit / caret / delete-surrounding events from the input method.
 	IMEKind  int    // 0 = compose (pre-edit), 1 = commit, 2 = caret move, 3 = delete-surrounding
 	IMEText  string // compose pre-edit / commit text
 	IMEStart int    // affected range start (bytes); -1 = whole buffer
 	IMEEnd   int    // affected range end (bytes); -1 = whole buffer
+
+	// EventDeviceAdded / EventDeviceRemoved: hot-plugged device family +
+	// OS name (empty = unknown). Mirrors input.DeviceEvent.
+	DeviceClass DeviceClass
+	DeviceName  string
+}
+
+// DeviceClass identifies a hot-plugged device family (platform side).
+// Values mirror input.DeviceClass (platform cannot import input).
+type DeviceClass int
+
+const (
+	DeviceUnknown DeviceClass = iota
+	DeviceKeyboard
+	DeviceMouse
+	DeviceTouch
+	DevicePen
+)
+
+// String implements fmt.Stringer.
+func (c DeviceClass) String() string {
+	switch c {
+	case DeviceKeyboard:
+		return "keyboard"
+	case DeviceMouse:
+		return "mouse"
+	case DeviceTouch:
+		return "touch"
+	case DevicePen:
+		return "pen"
+	default:
+		return "unknown"
+	}
 }
 
 // Host is the cross-platform window/input SPI.

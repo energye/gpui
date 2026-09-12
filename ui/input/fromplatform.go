@@ -66,10 +66,51 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 			Y:     ev.Y,
 			Files: ev.Files,
 		}}
+	case platform.EventDragEnter:
+		return Event{Kind: KindDragEnter, Modifiers: mods, Drag: DragEvent{
+			X:         ev.X,
+			Y:         ev.Y,
+			MIMETypes: append([]string(nil), ev.MIMETypes...),
+		}}
+	case platform.EventDragOver:
+		return Event{Kind: KindDragOver, Modifiers: mods, Drag: DragEvent{
+			X:         ev.X,
+			Y:         ev.Y,
+			MIMETypes: append([]string(nil), ev.MIMETypes...),
+		}}
+	case platform.EventDragLeave:
+		return Event{Kind: KindDragLeave, Modifiers: mods}
 	case platform.EventResizeSync:
 		return Event{Kind: KindResizeSync, Modifiers: mods}
+	case platform.EventDeviceAdded:
+		return Event{Kind: KindDeviceAdded, Modifiers: mods, Device: DeviceEvent{
+			Class: deviceClassFromPlatform(ev.DeviceClass),
+			Name:  ev.DeviceName,
+		}}
+	case platform.EventDeviceRemoved:
+		return Event{Kind: KindDeviceRemoved, Modifiers: mods, Device: DeviceEvent{
+			Class: deviceClassFromPlatform(ev.DeviceClass),
+			Name:  ev.DeviceName,
+		}}
 	default:
 		return Event{Kind: KindNone}
+	}
+}
+
+// deviceClassFromPlatform maps a platform device family to the unified
+// vocabulary. Unknown values stay DeviceUnknown (zero value, no error).
+func deviceClassFromPlatform(c platform.DeviceClass) DeviceClass {
+	switch c {
+	case platform.DeviceKeyboard:
+		return DeviceKeyboard
+	case platform.DeviceMouse:
+		return DeviceMouse
+	case platform.DeviceTouch:
+		return DeviceTouch
+	case platform.DevicePen:
+		return DevicePen
+	default:
+		return DeviceUnknown
 	}
 }
 
