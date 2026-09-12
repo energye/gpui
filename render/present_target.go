@@ -471,10 +471,10 @@ func (t *PresentTarget) SetVsync(vsync bool) {
 // thread at the present boundary (serialized with BeginFrame/EndFrame via
 // mu). Caller must hold mu.
 //
-// X11/Xwayland: the reconfigure is deferred to BeginFrame's outdated-retry
-// (outdated acquire → probe the live window size → Configure → re-acquire)
-// instead of a synchronous Configure here — on X11/Xwayland each Configure
-// costs 26–383ms (scaling with window size), so configuring synchronously on
+// X11/Xwayland: the reconfigure is deferred to the present boundary (the
+// extent check below, then BeginFrame's outdated-retry) instead of a
+// synchronous Configure here — on X11/Xwayland each Configure costs
+// 26–383ms (scaling with window size), so configuring synchronously on
 // every resize step — and again in BeginFrame when the window moved during
 // the Configure — doubled the per-step stall (the visible "content lags the
 // window" gap); measured +70% drag presents.
@@ -726,6 +726,45 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
 		fmt.Fprintf(os.Stderr, "DBG sc.frame %dx%d (logic %dx%d)\n", frame.Width, frame.Height, t.logicW, t.logicH)
+	}
+	// Extent check (Impeller KHRSwapchainVK::AcquireNextDrawable parity: a
+	// successful acquire is still reconfigured when
+	// `!out_of_date && size_ == GetSize()` fails). X11 does not report
+	// "outdated" after programmatic resizes, so a matching acquire is not
+	// proof the swapchain tracks the window — without this check the chain
+	// stays at the stale extent forever and every present clips to it.
+	// Like Impeller there is no storm deferral here: a mismatch reconfigures
+	// at the recorded size and re-acquires once, every present if needed
+	// (bounded: one forced reconfigure per present, convergence across
+	// presents). Deferring inside the storm window left drag-resizes painting
+	// clipped frames with blank regions until the storm settled; the
+	// synchronous Configure costs ~1–5ms on real GPUs, and correctness
+	// (content tracks the window) outranks saving it on software raster.
+	if pw, ph := physicalSize(t.logicW, t.logicH, t.scale); frame.Width != pw || frame.Height != ph {
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			fmt.Fprintf(os.Stderr, "DBG sc.frame stale %dx%d want %dx%d (force reconfig)\n", frame.Width, frame.Height, pw, ph)
+		}
+		t.sc.DiscardFrame(frame)
+		var rApply time.Time
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			rApply = time.Now()
+		}
+		if rerr := t.sc.Resize(pw, ph); rerr != nil {
+			t.swapchainPending = true
+			return out, fmt.Errorf("render: stale extent reconfigure: %w", rerr)
+		}
+		t.postResizeFull = 3
+		t.lastResizeAt = time.Now()
+		frame, err = t.sc.BeginFrame()
+		if err != nil {
+			if os.Getenv("WR_RESIZE_DBG") == "1" {
+				fmt.Fprintf(os.Stderr, "DBG present BeginFrame err=%v (logic %dx%d)\n", err, t.logicW, t.logicH)
+			}
+			return out, fmt.Errorf("render: BeginFrame: %w", err)
+		}
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			fmt.Fprintf(os.Stderr, "DBG sc.frame %dx%d (logic %dx%d, forced reconfig=%dms)\n", frame.Width, frame.Height, t.logicW, t.logicH, time.Since(rApply).Milliseconds())
+		}
 	}
 	// Failed/timeout BeginFrames above return early and do NOT consume the
 	// post-resize full budget: the next frame still owes a full write.
