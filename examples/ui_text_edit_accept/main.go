@@ -303,6 +303,13 @@ func main() {
 		}
 	}
 	boxF.SetWrap(true)
+	clip := win.Clipboard()
+	boxA.SetClipboard(clip)
+	boxB.SetClipboard(clip)
+	boxC.SetClipboard(clip)
+	boxD.SetClipboard(clip)
+	boxE.SetClipboard(clip)
+	boxF.SetClipboard(clip)
 	// Preload policy (M0 default): B/C/F verify M0 truth (shaped layout +
 	// per-rune paint + wrap derivation). E (1e5 chars) wedges first-frame
 	// GPU atlas upload until M2/M4 culling lands, so it is opt-in:
