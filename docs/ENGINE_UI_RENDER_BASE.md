@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.29** | 日期：2026-07-28  
+> **版本：1.30** | 日期：2026-09-13  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
@@ -701,7 +701,35 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 11 | ✅ | clip 局部毛玻璃；层 Present 默走 | 中（质感） |
 | 12 | ✅ | multi-sliver；BouncingPhysics | 产品滚动手感 |
 | 13 | ✅ | GPU picture 缓存；列表内 clip/saveLayer；层树 Present 合成 | 中（性能结构） |
+| 14 | ⬜ | **几何管线性能结构（动画帧预算）** | 高（鹈鹕偶发卡顿） |
 | 指标 | ✅ D8 | build/raster p99、VRAM、atlas 命中、CI 基线库 | 可观测加深 |
+
+### 22.2a 几何管线性能结构（动画帧预算 · 序 14）
+
+> **立项：** 2026-09-13。鹈鹕真窗（`examples/ui_render_pelican`）偶发卡顿（此前已存在）：
+> 同二进制同机对照，机器安静 30s 卡顿 0 次（维持 ~59fps、p99 < 20ms），
+> 日常桌面负载 4–46 次。垃圾回收（最大停顿 < 0.3ms）、CPU 变频、
+> VSync 源（JSON `vsync_source=true`）均已排除；帧内分段计时（`HITCH_DIAG=1`）
+> 定锤：**每次卡顿的 33–75ms 全部花在光栅线程的提交函数里，
+> 界面线程构建耗时恒 < 1ms**。病根在**提交路径和几何管线内部**，
+> **不是** 某个图形功能（天空/云/山/鸟/腿/轮）的绘制问题：
+> 同一提交路径服务所有真窗，任何每帧重画的矢量场景都会踩同一条路，
+> 鹈鹕只是因为每帧全屏动画把它暴露得最明显。
+> 画像最大三块：purego 调 wgpu 原生库过门费约四成、四几何缓存命中不了仍交
+> 全表扫描淘汰税、顶点/uniform 逐次上传。
+> 本库开发中无用户，**不保留双路/开关，直接重写**。
+>
+> **公开接口：** 两期均不动公开 API（内部实现替换）。**跨平台：** 纯软件侧改动，
+> 不新增系统调用，X11/Wayland/Win/mac 一次生效；像素以离屏逐字节对比为准。
+
+| 期 | 目标 | 改动落点 | 状态 | ① 单测 | ② 指标（§20） | ③ 窗测 |
+|----|------|----------|------|--------|---------------|--------|
+| F1（中档） | 淘汰常数化 + 上传合并：预期单帧 CPU 下降、hitch 回落（以同机基线对比为准，不预设具体 ms 数） | `render/internal/gpu/path_geometry_cache.go`（四缓存淘汰：Path/Stroke/Dash/Convex，全表扫描→链表常数步；键/哈希/命中语义不变） · `render/internal/gpu/stencil_renderer.go` + `render_session.go` 提交路径（模版/覆盖顶点逐 path WriteBuffer → 整板一次上传；uniform 沿用 slab；着色器/管线布局不动） | 🔄 未开工 | 缓存命中率单测（`path_geometry_cache_test.go` 加淘汰回归） | 同机 30s：单帧 CPU ms、hitch_count、p95/p99 不回退 | `ui_render_pelican` RUN_SECONDS=30 + `ui_render_base_geometry` 像素对比 |
+| F2（大档） | 几何存用户空间原形、变换随 uniform 下发：动画帧几何命中（病根：变换在 `render.Context` 动词级 baked 进路径坐标 → 逐帧内容哈希永变；用户空间原形 + 设备矩阵只在提交时应用，动画帧只变矩阵不换形） | 缓存键拆（形状/变换分家） · 四缓存 + 凸包判断改用户空间键 · 填充/描边/凸包/模版着色器加变换 uniform + 管线布局加槽（图片路 Quad 已有 CTM→四角先例可抄） · CPU 兜底对齐（裁剪/遮罩设备空间、HiDPI、描边/虚线/AA 边缘像素一致） | ⬜ 未立项（F1 绿后开） | 各着色器像素单测 | 同机离屏像素对比 + 多真窗回归（鹈鹕/几何/vec） + 30s 卡顿数 | `ui_render_pelican` + `ui_render_base_geometry`（离屏逐字节） |
+
+**F1 验收门（硬）：** ① 缓存单测绿 ② 同机同二进制基线对比（单帧 CPU、hitch、p95/p99）
+③ 离屏像素一致（除既有 CPU 兜底退化外）④ `go vet` + 上表回归不回退。
+**F2 开工门：** F1 四门全绿。**退出门：** 两期交付后本节状态 → ✅，修订记 1.31。
 
 ### 22.3 已落地（勿回退）
 
@@ -838,6 +866,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 | 版本 | 说明 |
 |------|------|
+| **1.30** | **序 14 立项**：§22.2a 几何管线性能结构（F1/F2 两期，未开工；鹈鹕偶发卡顿诊断结论与证据落位；无用户故直接重写不留双路） |
 | **1.29** | **阶段 E 终审**：§25 基座收口声明；§22.2 改为收口后残项；文首闭环口径更新；抽查 `go test ./ui/...`；链出 **ENGINE_UI_WIDGET_RENDER**（控件工业级渲染设计） |
 | 1.28 | **阶段 D8** 指标：rss_slope_kb_per_min；gpu_ops/cpu_fallback 进 UI JSON；CompareToBaseline+Load/Save；perfsoak BASELINE_JSON |
 | 1.27 | **阶段 D7** Picture 显示列表扩展：Fill/StrokePath · DrawString · DrawImage + picture_test 像素回放；非 GPU picture 缓存 |
