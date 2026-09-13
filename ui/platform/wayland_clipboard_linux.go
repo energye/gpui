@@ -31,6 +31,7 @@ const (
 	wlDataDevMgrGetDataDevice = 1
 
 	// wl_data_device requests: start_drag(0) set_selection(1) release(2).
+	wlDataDevStartDrag    = 0
 	wlDataDevSetSelection = 1
 	// wl_data_device events:
 	//   data_offer(0) enter(1) leave(2) motion(3) drop(4) selection(5)
@@ -54,9 +55,6 @@ const (
 	// wl_data_offer events: offer(0) (mime announced).
 	wlDataOfferEvOffer = 0
 )
-
-// mimeURIList is the standard DnD payload type for file transfers.
-const mimeURIList = "text/uri-list"
 
 // wlDataDeviceState owns the seat's wl_data_device: clipboard (selection) +
 // external file DnD. Created after seat capabilities arrive (bindDataDevice);
@@ -82,12 +80,17 @@ type wlDataDeviceState struct {
 	// operations (receive vs destroy marshal) are serialized here.
 	offerMu sync.Mutex
 	// Clipboard (selection).
-	selOffer    uintptr              // current selection data_offer (0 = no selection)
-	selMimes    []string             // mimes announced for selOffer
-	offerMimes  map[uintptr][]string // pending data_offer -> mimes (cleared on selection)
-	ownSource   uintptr              // our wl_data_source (held while we own the clipboard)
-	ownData     string               // Set() copy — served to peers on send(), readable locally
-	cachedData  string               // last external Get result, for fast second paste without re-reading pipe
+	selOffer   uintptr              // current selection data_offer (0 = no selection)
+	selMimes   []string             // mimes announced for selOffer
+	offerMimes map[uintptr][]string // pending data_offer -> mimes (cleared on selection)
+	ownSource  uintptr              // our wl_data_source (held while we own the clipboard)
+	ownData    string               // Set() copy — served to peers on send(), readable locally
+	// Outbound drag source (S6-P1 item 4): our wl_data_source while a
+	// StartDrag is in flight + the servable payloads by MIME type
+	// (uri-list from Files unless Data overrides, then every Data entry).
+	dragSource  uintptr
+	dragData    map[string][]byte
+	cachedData  string // last external Get result, for fast second paste without re-reading pipe
 	cachedKind  string
 	cachedOffer uintptr
 	// DnD (external file drops).
@@ -239,6 +242,9 @@ func (st *wlDataDeviceState) destroyNow() {
 	st.mu.Lock()
 	sel, drag, src := st.selOffer, st.dragOffer, st.ownSource
 	st.selOffer, st.dragOffer, st.ownSource = 0, 0, 0
+	dsrc := st.dragSource
+	st.dragSource = 0
+	st.dragData = nil
 	st.selMimes = nil
 	st.offerMimes = nil
 	st.mu.Unlock()
@@ -253,6 +259,10 @@ func (st *wlDataDeviceState) destroyNow() {
 	if src != 0 {
 		st.lib.proxyMarshalArrayFlags(src, wlDataSourceDestroy, 0, 0, 0, nil)
 		st.lib.proxyDestroy(src)
+	}
+	if dsrc != 0 && dsrc != src {
+		st.lib.proxyMarshalArrayFlags(dsrc, wlDataSourceDestroy, 0, 0, 0, nil)
+		st.lib.proxyDestroy(dsrc)
 	}
 }
 
@@ -396,10 +406,17 @@ func (st *wlDataDeviceState) appendDragEvent(ev Event) {
 	w.dndMu.Unlock()
 }
 
-// wlDDDropCB: drop() — the user released a file drop over the window. A
-// text/uri-list payload is pulled synchronously here (the compositor feeds
-// the pipe asynchronously; readOffer drains it) and reported as an EventDrop
-// with the resolved absolute file paths.
+// MIME phase 2 budget: per-type and total caps for Drop Data payloads
+// (mirrors the X11 XDND caps; readOffer already bounds each read).
+const (
+	wlDndMaxTypeBytes  = 1 << 20 // 1MB per MIME type
+	wlDndMaxTotalBytes = 4 << 20 // 4MB per drop
+)
+
+// wlDDDropCB: drop() — the user released a drag over the window. The
+// offered types are pulled one by one (uri-list first: parsed into Files
+// and kept raw in Data; every other fetched type lands in Data under its
+// MIME name). Drops with no usable payload are swallowed (no event).
 func wlDDDropCB(data, dd uintptr) {
 	st := ddsFrom(data)
 	if st == nil {
@@ -416,24 +433,54 @@ func wlDDDropCB(data, dd uintptr) {
 	if off == 0 {
 		return
 	}
-	if hasMime(mimes, mimeURIList) {
-		// Serialize the receive marshal against the deferred destroy marshal;
-		// the drop offer is not pending destruction yet (callbacks produce
-		// the pending entries), but concurrent Get+drain may be mid-flight.
-		st.offerMu.Lock()
-		buf, err := st.readOffer(off, mimeURIList)
-		st.offerMu.Unlock()
-		if err == nil {
-			files := parseURIList(string(buf))
-			if len(files) > 0 {
-				w := st.win
-				w.dndMu.Lock()
-				w.dndEvents = append(w.dndEvents, Event{Type: EventDrop, Files: files, X: x, Y: y})
-				w.dndMu.Unlock()
-			}
-		}
+	// Serialize the receive marshal against the deferred destroy marshal;
+	// the drop offer is not pending destruction yet (callbacks produce
+	// the pending entries), but concurrent Get+drain may be mid-flight.
+	files, dropData := wlDndFetchPayloads(st, off, mimes)
+	if len(files) > 0 || len(dropData) > 0 {
+		w := st.win
+		w.dndMu.Lock()
+		w.dndEvents = append(w.dndEvents, Event{Type: EventDrop, Files: files, X: x, Y: y, DropData: dropData})
+		w.dndMu.Unlock()
 	}
 	st.destroyOffer(off)
+}
+
+// wlDndFetchPayloads pulls the offered MIME types serially (uri-list
+// first). Oversized singles are dropped, the total is capped; failures
+// skip the type, never the drop. Callers hold no locks.
+func wlDndFetchPayloads(st *wlDataDeviceState, offer uintptr, mimes []string) ([]string, map[string][]byte) {
+	if st == nil || offer == 0 {
+		return nil, nil
+	}
+	ordered := wlDndOrderForTest(mimes)
+	var files []string
+	var data map[string][]byte
+	total := 0
+	st.offerMu.Lock()
+	defer st.offerMu.Unlock()
+	for _, m := range ordered {
+		buf, err := st.readOffer(offer, m)
+		if err != nil || len(buf) == 0 {
+			continue
+		}
+		if !wlDndAcceptForTest(len(buf), total) {
+			continue
+		}
+		cp := make([]byte, len(buf))
+		copy(cp, buf)
+		if m == mimeURIList {
+			if f := parseURIList(string(buf)); len(f) > 0 {
+				files = append(files, f...)
+			}
+		}
+		if data == nil {
+			data = make(map[string][]byte)
+		}
+		data[m] = cp
+		total += len(buf)
+	}
+	return files, data
 }
 
 // wlDDSelectionCB: selection(offer) — the clipboard selection changed (offer
@@ -477,17 +524,25 @@ func wlDDSelectionCB(data, dd, offer uintptr) {
 
 // --- wl_data_source callbacks (our clipboard write) ---
 
-// wlSourceSendCB: send(mime, fd) — a peer wants our clipboard data: write
-// the stored payload into fd and close it (the compositor forwards it).
+// wlSourceSendCB: send(mime, fd) — a peer wants our data: clipboard peers
+// get the Set() copy, drag destinations get the StartDrag payload for the
+// requested MIME. The bytes are written into fd and it is closed (the
+// compositor forwards them).
 func wlSourceSendCB(data, source, mime, fd uintptr) {
 	st := ddsFrom(data)
 	if st == nil || fd == 0 {
 		return
 	}
 	st.mu.Lock()
-	d := st.ownData
+	var b []byte
+	if st.dragSource != 0 && source == st.dragSource {
+		if payload := st.dragData[goString(mime)]; len(payload) > 0 {
+			b = append([]byte(nil), payload...)
+		}
+	} else {
+		b = []byte(st.ownData)
+	}
 	st.mu.Unlock()
-	b := []byte(d)
 	for len(b) > 0 {
 		n, err := unix.Write(int(fd), b)
 		if err != nil {
@@ -498,8 +553,8 @@ func wlSourceSendCB(data, source, mime, fd uintptr) {
 	_ = unix.Close(int(fd))
 }
 
-// wlSourceCancelledCB: cancelled() — the clipboard was taken by another
-// client (or our source was otherwise invalidated); drop the source proxy.
+// wlSourceCancelledCB: cancelled() — the selection was taken by another
+// client, or our drag ended (dropped/cancelled); drop the source proxy.
 func wlSourceCancelledCB(data, source uintptr) {
 	st := ddsFrom(data)
 	if st == nil {
@@ -510,19 +565,66 @@ func wlSourceCancelledCB(data, source uintptr) {
 		st.ownSource = 0
 		st.ownData = ""
 	}
+	if st.dragSource == source {
+		st.dragSource = 0
+		st.dragData = nil
+	}
 	st.mu.Unlock()
 	st.destroySource(source)
 }
 
 // --- helpers ---
 
-func hasMime(mimes []string, want string) bool {
+// wlNewDataSource creates a wl_data_source offering mimes, with the shared
+// source listener attached (clipboard Set and drag StartDrag both serve
+// peer pulls through wlSourceSendCB). The caller owns the proxy and must
+// destroy it (directly or via destroySource).
+func wlNewDataSource(st *wlDataDeviceState, mimes []string) (uintptr, error) {
+	if st == nil || st.lib == nil || st.mgr == 0 {
+		return 0, fmt.Errorf("wayland: data source unavailable")
+	}
+	lib := st.lib
+	srcArgs := []wlArg{argNewID()}
+	src := lib.proxyMarshalArrayCtor(st.mgr, wlDataDevMgrCreateSource, &srcArgs[0], lib.ifaceDataSource, 1)
+	if src == 0 {
+		return 0, fmt.Errorf("wayland: create data source failed")
+	}
+	if lib.proxyAddListener(src, uintptr(unsafe.Pointer(&st.sourceListener[0])), st.selfPtr) != 0 {
+		lib.proxyDestroy(src)
+		return 0, fmt.Errorf("wayland: source listener failed")
+	}
 	for _, m := range mimes {
-		if m == want {
-			return true
+		pin := append([]byte(m), 0)
+		oargs := []wlArg{argS(cstr(pin))}
+		lib.proxyMarshalArrayFlags(src, wlDataSourceOffer, 0, 0, 0, &oargs[0])
+	}
+	return src, nil
+}
+
+// wlDndOrderForTest exposes the fetch order (uri-list first, deduped) for
+// unit tests without touching the compositor pipe.
+func wlDndOrderForTest(mimes []string) []string {
+	ordered := make([]string, 0, len(mimes))
+	for _, m := range mimes {
+		if m == mimeURIList {
+			ordered = append(ordered, m)
+			break
 		}
 	}
-	return false
+	seen := map[string]bool{mimeURIList: true}
+	for _, m := range mimes {
+		if m == "" || seen[m] {
+			continue
+		}
+		seen[m] = true
+		ordered = append(ordered, m)
+	}
+	return ordered
+}
+
+// wlDndAcceptForTest exposes the size-budget check for unit tests.
+func wlDndAcceptForTest(n, total int) bool {
+	return n <= wlDndMaxTypeBytes && total+n <= wlDndMaxTotalBytes
 }
 
 // parseURIList converts a text/uri-list payload into absolute local paths
@@ -778,19 +880,9 @@ func (c *wlClipboard) Set(kind, data string) error {
 		return fmt.Errorf("wayland: clipboard unavailable")
 	}
 
-	srcArgs := []wlArg{argNewID()}
-	src := lib.proxyMarshalArrayCtor(st.mgr, wlDataDevMgrCreateSource, &srcArgs[0], lib.ifaceDataSource, 1)
-	if src == 0 {
-		return fmt.Errorf("wayland: create data source failed")
-	}
-	if lib.proxyAddListener(src, uintptr(unsafe.Pointer(&st.sourceListener[0])), st.selfPtr) != 0 {
-		lib.proxyDestroy(src)
-		return fmt.Errorf("wayland: source listener failed")
-	}
-	for _, m := range clipboardMimes(kind) {
-		pin := append([]byte(m), 0)
-		oargs := []wlArg{argS(cstr(pin))}
-		lib.proxyMarshalArrayFlags(src, wlDataSourceOffer, 0, 0, 0, &oargs[0])
+	src, err := wlNewDataSource(st, clipboardMimes(kind))
+	if err != nil {
+		return err
 	}
 
 	st.mu.Lock()

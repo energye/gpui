@@ -177,8 +177,8 @@ const (
 	xkShiftR = 0xffe2
 )
 
-const xShiftMask = 1 << 0 // X11 ShiftMask
-const xLockMask = 1 << 1  // X11 LockMask (CapsLock)
+const xShiftMask = 1 << 0   // X11 ShiftMask
+const xLockMask = 1 << 1    // X11 LockMask (CapsLock)
 const xControlMask = 1 << 2 // X11 ControlMask
 const xMod1Mask = 1 << 3    // X11 Mod1Mask (Alt on most layouts)
 const xMod4Mask = 1 << 6    // X11 Mod4Mask (Super/Meta on most layouts)
@@ -843,7 +843,15 @@ type x11State struct {
 	dndPendingX, dndPendingY                 float64
 	dndPendingTime                           uint32
 	dndPendingMimes                          []string
-	dndSrcData                               string // test source role: uri-list payload served on SelectionRequest
+	// MIME phase 2: serial per-type conversion queue (TARGETS-negotiated;
+	// uri-list fills Files, every fetched type fills DropData).
+	dndPendingQueue []uintptr
+	dndPendingAtoms map[uintptr]string
+	dndDropFiles    []string
+	dndDropData     map[string][]byte
+	dndDropBytes    int
+	dndSrcData      string            // test source role: uri-list payload served on SelectionRequest
+	dndSrcMimeData  map[string]string // test source role: extra MIME payloads by type name
 }
 
 // xConnectionNumberFn is bound at Create/Adopt from libX11. It is package-
@@ -860,8 +868,8 @@ var xPresentFuncsOK bool
 // x11Host implements Host for an X11 window (event pump). Destroying the
 // window is the Window.Close callback.
 type x11Host struct {
-	st        *x11State
-	lib       *x11Lib
+	st  *x11State
+	lib *x11Lib
 	// wakeMu guards the lazy wake plumbing (wake channel + wakeW pipe end):
 	// WakeUp runs on any thread (IME signal loop, async key completions),
 	// WaitEvents/ensurePollFds on the event thread. Leaf lock, never held
@@ -1478,6 +1486,14 @@ func (h *x11Host) drainX() []Event {
 				out = append(out, h.handleXdndLeave(st, buf[:])...)
 			case st.atXdndDrop != 0 && msgType == st.atXdndDrop:
 				out = append(out, h.handleXdndDrop(st, buf[:])...)
+			case st.atXdndFinished != 0 && msgType == st.atXdndFinished:
+				// Source-side completion: the target finished our outbound
+				// drop — stop serving the staged payload (in-flight converts
+				// already hold their bytes).
+				x11DndClearSource(st)
+			case st.atXdndStatus != 0 && msgType == st.atXdndStatus:
+				// Source-side Status reply (accept/want-position): no modal
+				// loop consumes it yet — ignore.
 			case st.wmDelete != 0 && uintptr(data0) == st.wmDelete:
 				out = append(out, Event{Type: EventCloseRequested})
 			case st.atSyncReq != 0 && uintptr(data0) == st.atSyncReq:
@@ -1526,8 +1542,14 @@ func (h *x11Host) drainX() []Event {
 				st.dndMu.Unlock()
 				if pending != 0 {
 					out = append(out, h.handleXdndSelectionNotify(st, buf[:])...)
-					break
+				} else {
+					// Late TARGETS/convert reply after the drop already
+					// finished (queue drained): still advance the serial
+					// chain so a stalled conversion cannot wedge a later
+					// drop. No event (the drop is over).
+					h.handleXdndSelectionNotify(st, buf[:])
 				}
+				break
 			}
 			if c, ok := h.clip.(*x11Clipboard); ok {
 				c.handleSelectionNotify(buf[:])

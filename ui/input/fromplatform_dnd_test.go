@@ -33,3 +33,28 @@ func TestFromPlatform_DragEnterOverLeave(t *testing.T) {
 		t.Fatalf("leave must carry zero drag: %+v", leave.Drag)
 	}
 }
+
+func TestFromPlatform_DropDataClone(t *testing.T) {
+	src := map[string][]byte{"text/plain": []byte("hi"), "image/png": {1, 2, 3}}
+	ev := FromPlatform(platform.Event{
+		Type: platform.EventDrop, X: 1, Y: 2,
+		Files:    []string{"/tmp/a"},
+		DropData: src,
+	}, Modifiers{})
+	if ev.Kind != KindDrop {
+		t.Fatalf("kind = %s, want drop", ev.Kind)
+	}
+	if string(ev.Drag.Data["text/plain"]) != "hi" || len(ev.Drag.Data["image/png"]) != 3 {
+		t.Fatalf("data = %q, want cloned payloads", ev.Drag.Data)
+	}
+	// Mutating the backend buffers must not alias the unified event.
+	src["text/plain"][0] = 'X'
+	ev.Drag.Files[0] = "/tmp/changed"
+	if string(ev.Drag.Data["text/plain"]) != "hi" {
+		t.Fatal("unified Data aliases backend buffer")
+	}
+	empty := FromPlatform(platform.Event{Type: platform.EventDrop}, Modifiers{})
+	if empty.Drag.Data != nil || empty.Drag.Files != nil {
+		t.Fatalf("empty drop = %+v, want nil payloads", empty.Drag)
+	}
+}

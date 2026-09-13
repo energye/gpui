@@ -1,6 +1,11 @@
 package platform
 
-import "errors"
+import (
+	"errors"
+	"net/url"
+	"sort"
+	"strings"
+)
 
 // Cursor identifies a standard cross-platform cursor shape.
 type Cursor int
@@ -189,4 +194,98 @@ type WindowController interface {
 
 	// SetCursor changes the pointer cursor for the window.
 	SetCursor(c Cursor)
+
+	// StartDrag begins an outbound drag with this window as the source.
+	// The payload is served to the drop target until the drag ends
+	// (completion is silent — no new event, the source state just clears).
+	//   - Wayland: wl_data_device.start_drag with the last button serial
+	//     (call from a press handler; serial 0 → ErrUnsupported).
+	//   - X11: pointer-snapshot drop onto the XdndAware window under the
+	//     pointer (no grab/modal yet — the drop fires immediately).
+	StartDrag(offer DragOffer) error
+	// StartDragTo drops the payload onto an explicit target window now
+	// (programmatic drop, no pointer grab — dual-window pull + tests).
+	//   - X11: XDND Enter/Position/Drop to the target, served via
+	//     XdndSelection (owns the selection for the drag duration).
+	//   - Wayland: the protocol cannot address a window → ErrUnsupported
+	//     (use StartDrag, the compositor routes by pointer).
+	StartDragTo(target *Window, offer DragOffer) error
+}
+
+// mimeURIList is the standard DnD payload type for file transfers.
+const mimeURIList = "text/uri-list"
+
+// DragOffer describes an outbound drag payload (this window is the source).
+// Files are local paths, announced as text/uri-list; Data carries the raw
+// bytes per MIME type (an explicit Data["text/uri-list"] overrides the
+// Files-derived list). Empty offer (no Files, no Data) is rejected.
+type DragOffer struct {
+	Files []string
+	Data  map[string][]byte
+}
+
+// MIMETypes lists the servable MIME types, uri-list first then the rest
+// sorted (deterministic Enter/offer order). Empty payloads are not
+// announced, so the set always matches OfferPayload keys. Empty when the
+// offer is empty.
+func (o DragOffer) MIMETypes() []string {
+	var rest []string
+	hasURI := len(o.Files) > 0
+	for m, v := range o.Data {
+		if m == "" || len(v) == 0 {
+			continue
+		}
+		if m == mimeURIList {
+			hasURI = true
+			continue
+		}
+		rest = append(rest, m)
+	}
+	sort.Strings(rest)
+	var out []string
+	if hasURI {
+		out = append(out, mimeURIList)
+	}
+	return append(out, rest...)
+}
+
+// URIList encodes Files as a text/uri-list payload (file:// URLs,
+// one per line). An explicit Data["text/uri-list"] overrides it — see
+// OfferPayload.
+func (o DragOffer) URIList() string {
+	if len(o.Files) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, f := range o.Files {
+		b.WriteString((&url.URL{Scheme: "file", Path: f}).String())
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// OfferPayload resolves the servable bytes per MIME type: the uri-list
+// slot first (explicit Data wins over Files), then every other Data entry.
+// Nil when the offer is empty.
+func (o DragOffer) OfferPayload() map[string][]byte {
+	mimes := o.MIMETypes()
+	if len(mimes) == 0 {
+		return nil
+	}
+	out := make(map[string][]byte, len(mimes))
+	if uri, ok := o.Data[mimeURIList]; ok && len(uri) > 0 {
+		out[mimeURIList] = append([]byte(nil), uri...)
+	} else if ul := o.URIList(); ul != "" {
+		out[mimeURIList] = []byte(ul)
+	}
+	for m, v := range o.Data {
+		if m == "" || m == mimeURIList || len(v) == 0 {
+			continue
+		}
+		out[m] = append([]byte(nil), v...)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

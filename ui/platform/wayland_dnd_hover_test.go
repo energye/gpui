@@ -137,3 +137,29 @@ func TestWlDDHover_EnterReplacesOffer(t *testing.T) {
 		t.Fatalf("pendingDestroys = %d, want the retired offer queued", len(st.pendingDestroys))
 	}
 }
+
+func TestWlDndFetchOrderURIListFirst(t *testing.T) {
+	st, _ := newHoverState(t)
+	_ = st
+	seen := wlDndOrderForTest([]string{"text/plain", "text/uri-list", "image/png"})
+	if len(seen) != 3 || seen[0] != mimeURIList {
+		t.Fatalf("order = %v, want uri-list first", seen)
+	}
+	dup := wlDndOrderForTest([]string{mimeURIList, mimeURIList, "text/plain", ""})
+	if len(dup) != 2 || dup[0] != mimeURIList || dup[1] != "text/plain" {
+		t.Fatalf("dedup order = %v, want [uri-list text/plain]", dup)
+	}
+}
+
+func TestWlDndFetchCapsDropOversize(t *testing.T) {
+	big := make([]byte, wlDndMaxTypeBytes+1)
+	if wlDndAcceptForTest(len(big), 0) {
+		t.Fatal("oversize single must be rejected")
+	}
+	if !wlDndAcceptForTest(3, 0) {
+		t.Fatal("small payload must be accepted")
+	}
+	if wlDndAcceptForTest(3, wlDndMaxTotalBytes) {
+		t.Fatal("payload breaching the total cap must be rejected")
+	}
+}

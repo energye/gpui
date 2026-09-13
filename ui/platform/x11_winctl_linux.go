@@ -45,6 +45,9 @@ type x11CtlLib struct {
 	getWindowProperty func(dpy uintptr, w, prop uintptr, longOffset, longLength int64, del int, reqType uintptr,
 		actualType *uintptr, actualFormat *int, nitems, bytesAfter *uint64, propReturn **byte) int
 	freeData func(ptr unsafe.Pointer) int
+	// queryPointer locates the pointer for drag-source discovery
+	// (XQueryPointer: root/child + root coords + mask).
+	queryPointer func(dpy uintptr, w uintptr, root, child *uintptr, rootX, rootY, winX, winY *int32, mask *uint) int
 }
 
 var ctlLib x11CtlLib
@@ -79,6 +82,7 @@ func (l *x11CtlLib) open() *x11CtlLib {
 		purego.RegisterLibFunc(&l.defaultScreen, lib, "XDefaultScreen")
 		purego.RegisterLibFunc(&l.getWindowProperty, lib, "XGetWindowProperty")
 		purego.RegisterLibFunc(&l.freeData, lib, "XFree")
+		purego.RegisterLibFunc(&l.queryPointer, lib, "XQueryPointer")
 	})
 	return l
 }

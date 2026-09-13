@@ -68,7 +68,8 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 		return Event{Kind: KindDrop, Modifiers: mods, Drag: DragEvent{
 			X:     ev.X,
 			Y:     ev.Y,
-			Files: ev.Files,
+			Files: append([]string(nil), ev.Files...),
+			Data:  cloneDropData(ev.DropData),
 		}}
 	case platform.EventDragEnter:
 		return Event{Kind: KindDragEnter, Modifiers: mods, Drag: DragEvent{
@@ -132,6 +133,20 @@ func fromStylus(ev platform.Event, mods Modifiers) Event {
 		TiltY:    ev.StylusTiltY,
 		Eraser:   ev.StylusEraser,
 	}}
+}
+
+// cloneDropData copies a platform drop payload into a fresh map (nil in,
+// nil out): the backend reuses its buffers across drops, the unified event
+// must not alias them.
+func cloneDropData(src map[string][]byte) map[string][]byte {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string][]byte, len(src))
+	for k, v := range src {
+		out[k] = append([]byte(nil), v...)
+	}
+	return out
 }
 
 // deviceClassFromPlatform maps a platform device family to the unified

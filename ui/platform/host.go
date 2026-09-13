@@ -264,6 +264,10 @@ type Event struct {
 	// X11 XDND text/uri-list). Files holds absolute local paths
 	// (empty when the drop carried no text/uri-list payload).
 	Files []string
+	// EventDrop per-MIME payloads (MIME phase 2): raw bytes by offered
+	// type name (uri-list keeps its raw bytes too). Nil when the drop
+	// carried nothing usable; mirrors input.DragEvent.Data.
+	DropData map[string][]byte
 	// EventDragEnter / EventDragOver: offered MIME types (e.g. text/uri-list).
 	// Empty when the source announced none; mirrors input.DragEvent.MIMETypes.
 	MIMETypes []string

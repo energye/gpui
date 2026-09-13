@@ -528,6 +528,59 @@ func wlEdgeOf(e WindowEdge) int {
 	}
 }
 
+// StartDrag begins a compositor-driven outbound drag with this window as
+// the source (S6-P1 item 4: 本窗外发拖放): a wl_data_source offering the
+// payload types (uri-list from Files unless Data overrides, then every
+// Data entry) is passed to wl_data_device.start_drag with the last button
+// serial and no icon. The call returns once the compositor owns the drag —
+// motion/drop are routed by pointer, destinations pull via send (served
+// from the staged payload), and cancelled clears the source. No new event:
+// completion is silent. Call from a button-press handler: without any
+// input serial yet the request would be dropped, so serial 0 honestly
+// reports ErrUnsupported (same rule as RequestMove/RequestResize).
+func (c *waylandController) StartDrag(offer DragOffer) error {
+	w := c.win()
+	if w == nil || w.lib == nil || w.display == 0 || w.surface == 0 {
+		return fmt.Errorf("wayland: drag source unavailable")
+	}
+	payload := offer.OfferPayload()
+	if len(payload) == 0 {
+		return fmt.Errorf("platform: empty drag offer")
+	}
+	st := w.dds
+	if st == nil || st.mgr == 0 || st.dd == 0 {
+		return fmt.Errorf("wayland: drag unavailable (no data-device)")
+	}
+	serial := w.lastSerial.Load()
+	if serial == 0 {
+		return ErrUnsupported
+	}
+	mimes := offer.MIMETypes()
+	lib := w.lib
+	src, err := wlNewDataSource(st, mimes)
+	if err != nil {
+		return err
+	}
+	st.mu.Lock()
+	old := st.dragSource
+	st.dragSource = src
+	st.dragData = payload
+	st.mu.Unlock()
+	if old != 0 {
+		st.destroySource(old)
+	}
+	dargs := []wlArg{argO(src), argO(w.surface), argO(0), argU(serial)}
+	lib.proxyMarshalArrayFlags(st.dd, wlDataDevStartDrag, 0, 0, 0, &dargs[0])
+	lib.displayFlush(w.display)
+	return nil
+}
+
+// StartDragTo has no protocol mapping: the compositor routes the drag by
+// pointer, an explicit destination window cannot be addressed.
+func (c *waylandController) StartDragTo(_ *Window, _ DragOffer) error {
+	return ErrUnsupported
+}
+
 // SetCursor records the active cursor and applies it immediately when the
 // pointer is over the window (valid enter serial). Otherwise it is applied
 // on the next enter/motion (CSD setCursor path). Best-effort: frameless

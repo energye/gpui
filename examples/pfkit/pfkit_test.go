@@ -131,6 +131,16 @@ func (c *recCtl) SetCursor(cur platform.Cursor) {
 func (c *recCtl) RequestMove() error                           { return c.rec("RequestMove") }
 func (c *recCtl) RequestResize(edge platform.WindowEdge) error { c.rec("RequestResize"); return nil }
 
+// Outbound drag (not driven by Drive: initiating a real drag inside the
+// capability walk would disturb the session; covered by dedicated tests).
+func (c *recCtl) StartDrag(offer platform.DragOffer) error {
+	return c.rec("StartDrag")
+}
+func (c *recCtl) StartDragTo(target *platform.Window, offer platform.DragOffer) error {
+	c.rec("StartDragTo")
+	return nil
+}
+
 func newRecCtl(rowErr map[string]error) *recCtl {
 	return &recCtl{
 		w: 640, h: 480, // Open() defaults
