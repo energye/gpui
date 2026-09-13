@@ -98,10 +98,16 @@ type PipelineApp struct {
 	// consecutive frames covers all swapchain buffers (observed black bursts
 	// after min/max resize cycles until a second full frame landed).
 	forceFullPresent atomic.Int64
-	// occluded latches window visibility: when fully obscured/minimized the
-	// frame loop stops rendering (Flutter lifecycle paused → stop frames);
-	// a visible-again event resumes scheduling.
+	// occluded latches window visibility: when fully obscured the frame
+	// loop stops rendering (Flutter lifecycle paused → stop frames);
+	// a visible-again event resumes scheduling. Minimized (iconified)
+	// latches separately below: X11 reports it via StateChanged, not
+	// VisibilityNotify, but the stop/resume policy is identical (R17).
 	occluded atomic.Bool
+	// minimized latches the StateChanged minimized bit (user iconify).
+	// Kept apart from occluded so an unrelated StateChanged (e.g. a
+	// maximize while obscured) can never clear the obscured stop.
+	minimized atomic.Bool
 	// lastResizeScale tracks the last DPR seen in EventResize; boundary
 	// Pictures are only invalidated when the DPR actually changes (pure size
 	// changes rely on tryReplay's size/fingerprint checks instead).
@@ -587,6 +593,24 @@ func (a *PipelineApp) SaveLayerStats() (allow, reject int64) {
 	return a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
 }
 
+// Occluded reports the fully-obscured latch (VisibilityNotify / Wayland
+// suspended). While true the frame loop produces no frames (R17 stop).
+func (a *PipelineApp) Occluded() bool {
+	if a == nil {
+		return false
+	}
+	return a.occluded.Load()
+}
+
+// Minimized reports the iconified latch (StateChanged minimized bit).
+// While true the frame loop produces no frames, like Occluded (R17 stop).
+func (a *PipelineApp) Minimized() bool {
+	if a == nil {
+		return false
+	}
+	return a.minimized.Load()
+}
+
 // Scheduler returns the frame scheduler (for AddTicker / AnimationController).
 func (a *PipelineApp) Scheduler() *scheduler.FrameScheduler {
 	if a == nil {
@@ -717,14 +741,29 @@ func (a *PipelineApp) handleLifecycle(in input.Event) bool {
 	}
 	switch in.Kind {
 	case input.KindOccluded:
-		// Window fully obscured or minimized → stop rendering
+		// Window fully obscured → stop rendering
 		// (Flutter lifecycle paused / Chrome hidden → no frames);
-		// visible again → resume.
+		// visible again → resume. Minimized is tracked separately
+		// (KindStateChanged below) so the two stops never clear
+		// each other.
 		a.occluded.Store(in.Occluded)
 		if in.Occluded {
 			a.sched.ClearPending()
 		} else {
 			a.ScheduleFrame()
+		}
+		return true
+	case input.KindStateChanged:
+		// User iconify/restore (X11 WM_STATE via PropertyNotify):
+		// minimized stops rendering like occlusion (R17); restore
+		// resumes. Transition-guarded so an unrelated StateChanged
+		// (maximize/fullscreen) raises no spurious demand.
+		if was := a.minimized.Swap(in.State.Minimized); in.State.Minimized != was {
+			if in.State.Minimized {
+				a.sched.ClearPending()
+			} else {
+				a.ScheduleFrame()
+			}
 		}
 		return true
 	case input.KindHidden:
@@ -882,6 +921,12 @@ func (a *PipelineApp) Run() error {
 				ev.Type == platform.EventDragEnter || ev.Type == platform.EventDragOver || ev.Type == platform.EventDragLeave ||
 				ev.Type == platform.EventDeviceAdded || ev.Type == platform.EventDeviceRemoved ||
 				ev.Type == platform.EventStylus || ev.Type == platform.EventModifiersChanged) {
+				// Minimized must still reach the lifecycle latch even when
+				// the router owns the event (R17): the router forwards to
+				// observers, the latch stops/resumes frame demand.
+				if ev.Type == platform.EventStateChanged {
+					a.handleLifecycle(input.FromPlatform(ev, input.Modifiers{}))
+				}
 				a.input.RoutePlatform(ev)
 				continue
 			}
@@ -895,8 +940,10 @@ func (a *PipelineApp) Run() error {
 			// S6-P0 lifecycle cutover: occlusion/hide/frame notices dispatch
 			// on the normalized event; handleLifecycle reads unified fields.
 			// Forwarded to the router as well so OnEvent observers see them.
+			// StateChanged joins the trio for the minimized latch (R17).
 			if unified := input.FromPlatform(ev, input.Modifiers{}); unified.Kind == input.KindOccluded ||
-				unified.Kind == input.KindHidden || unified.Kind == input.KindFramePresented {
+				unified.Kind == input.KindHidden || unified.Kind == input.KindFramePresented ||
+				unified.Kind == input.KindStateChanged {
 				a.handleLifecycle(unified)
 				if a.input != nil {
 					a.input.Route(unified)
@@ -993,7 +1040,7 @@ func (a *PipelineApp) Run() error {
 		// Window not visible (occluded/minimized): stop rendering entirely —
 		// no frames are produced until a visible-again event. The vsync
 		// listener may keep stamping, but the frame gate stays closed.
-		if a.occluded.Load() {
+		if a.occluded.Load() || a.minimized.Load() {
 			a.sched.ClearPending()
 			continue
 		}

@@ -1347,6 +1347,7 @@ func (h *x11Host) drainX() []Event {
 				readU64(buf[:], xevSerialOff) >= st.hideReq
 			st.visible = true
 			st.minimized = false // remapped = restored from iconify
+			max, full := st.maximized, st.fullscreen
 			if restored {
 				st.hideSignaled = false
 				st.hideUnmapped = false
@@ -1356,6 +1357,14 @@ func (h *x11Host) drainX() []Event {
 			// which clears the signal itself): report the visibility.
 			if restored {
 				h.pushEvent(Event{Type: EventHidden, Hidden: false})
+			}
+			// Restore from iconify must be observable (R17): the silent
+			// reset above would swallow the follow-up WM_STATE
+			// PropertyNotify (reconcile sees no change), so report the
+			// transition here. A later reconcile self-heals if the WM
+			// still considers the window iconic.
+			if wasMin {
+				out = append(out, Event{Type: EventStateChanged, Minimized: false, Maximized: max, Fullscreen: full})
 			}
 		case xUnmapNotify:
 			st.mu.Lock()

@@ -374,9 +374,17 @@ func (c *x11Controller) Minimize() {
 	}
 	s.mu.Lock()
 	s.minimized = true
+	max, full := s.maximized, s.fullscreen
 	s.mu.Unlock()
 	lib.iconifyWindow(s.display, s.window, 0)
 	c.flush()
+	// Self-report the transition (R17): the optimistic set above would make
+	// the later WM_STATE PropertyNotify reconcile see "no change" and stay
+	// quiet — same reason Show pushes its own Hidden event. If the WM
+	// refuses the iconify, a later reconcile corrects back to unminimized.
+	if c.h != nil {
+		c.h.pushEvent(Event{Type: EventStateChanged, Minimized: true, Maximized: max, Fullscreen: full})
+	}
 }
 
 // IsMinimized queries the window state. X11 has no cheap property round-trip;
