@@ -143,6 +143,123 @@
 | ConfigProvider | [config-provider.md](./config-provider.md) |
 | Util | [util.md](./util.md) |
 
+## 总体进度看板（新会话先看这张表领活）
+
+> 状态只有四种：**未开工** → **首批中** → **首批完**（完工六条全勾）→ **全完**（官方非 debug 全覆盖）。
+> 每次完工更新对应行；`ui/kit/coverage.go` 建成后照本表写，两处保持一致。
+
+### W0 地基（先行，阻塞一切）
+
+| 项 | 状态 | 备注 |
+| --- | --- | --- |
+| 套件架子 `ui/kit`（一控件一目录 + doc.go） | 未开工 | — |
+| 示例总窗（左标签右展示 + 临时导航） | 未开工 | — |
+| 覆盖记录 `ui/kit/coverage.go` | 未开工 | — |
+| 主题全局种子（对齐 antd v6.5.1） | 未开工 | — |
+| 浮层通用定位（十二方向/翻转/箭头/外点关/焦点锁） | 未开工 | — |
+| Icon（最底层，先做） | 未开工 | [icon.md](./icon.md) |
+
+### W1 基础件（19 个，地基好后并行）
+
+| 控件 | 状态 | 备注 |
+| --- | --- | --- |
+| Alert [alert.md](./alert.md) | 未开工 | — |
+| BorderBeam [border-beam.md](./border-beam.md) | 未开工 | 自有扩展 |
+| Button [button.md](./button.md) | 未开工 | — |
+| Divider [divider.md](./divider.md) | 未开工 | — |
+| Flex [flex.md](./flex.md) | 未开工 | — |
+| FloatButton [float-button.md](./float-button.md) | 未开工 | — |
+| Grid [grid.md](./grid.md) | 未开工 | — |
+| Layout [layout.md](./layout.md) | 未开工 | — |
+| Masonry [masonry.md](./masonry.md) | 未开工 | — |
+| Progress [progress.md](./progress.md) | 未开工 | — |
+| Skeleton [skeleton.md](./skeleton.md) | 未开工 | 先做（被复用） |
+| Space [space.md](./space.md) | 未开工 | — |
+| Spin [spin.md](./spin.md) | 未开工 | 先做（被复用） |
+| Splitter [splitter.md](./splitter.md) | 未开工 | — |
+| Statistic [statistic.md](./statistic.md) | 未开工 | — |
+| Tag [tag.md](./tag.md) | 未开工 | — |
+| Timeline [timeline.md](./timeline.md) | 未开工 | — |
+| Typography [typography.md](./typography.md) | 未开工 | — |
+| Watermark [watermark.md](./watermark.md) | 未开工 | — |
+
+### W2 组合件（20 个并行）
+
+| 控件 | 状态 | 备注 |
+| --- | --- | --- |
+| Affix [affix.md](./affix.md) | 未开工 | — |
+| Avatar [avatar.md](./avatar.md) | 未开工 | — |
+| Badge [badge.md](./badge.md) | 未开工 | — |
+| Card [card.md](./card.md) | 未开工 | — |
+| Carousel [carousel.md](./carousel.md) | 未开工 | — |
+| Collapse [collapse.md](./collapse.md) | 未开工 | — |
+| Descriptions [descriptions.md](./descriptions.md) | 未开工 | — |
+| Empty [empty.md](./empty.md) | 未开工 | — |
+| Menu [menu.md](./menu.md) | 未开工 | 被复用底座 |
+| Tooltip [tooltip.md](./tooltip.md) | 未开工 | 先做（被复用） |
+| Popover [popover.md](./popover.md) | 未开工 | 等 Tooltip |
+| QRCode [qr-code.md](./qr-code.md) | 未开工 | — |
+| Radio [radio.md](./radio.md) | 未开工 | — |
+| Rate [rate.md](./rate.md) | 未开工 | — |
+| Result [result.md](./result.md) | 未开工 | — |
+| Segmented [segmented.md](./segmented.md) | 未开工 | — |
+| Slider [slider.md](./slider.md) | 未开工 | — |
+| Steps [steps.md](./steps.md) | 未开工 | — |
+| Switch [switch.md](./switch.md) | 未开工 | — |
+| Tabs [tabs.md](./tabs.md) | 未开工 | 做好后回替总窗导航 |
+
+### W3 浮层表单件（18 个并行）
+
+| 控件 | 状态 | 备注 |
+| --- | --- | --- |
+| Input [input.md](./input.md) | 未开工 | 先做（被复用） |
+| Select [select.md](./select.md) | 未开工 | 先做（被复用） |
+| Tree [tree.md](./tree.md) | 未开工 | 非勾选先行 |
+| TimePicker [time-picker.md](./time-picker.md) | 未开工 | — |
+| AutoComplete [auto-complete.md](./auto-complete.md) | 未开工 | 等 Input |
+| Mentions [mentions.md](./mentions.md) | 未开工 | 等 Input |
+| InputNumber [input-number.md](./input-number.md) | 未开工 | 等 Input |
+| ColorPicker [color-picker.md](./color-picker.md) | 未开工 | — |
+| Image [image.md](./image.md) | 未开工 | 含预览浮层 |
+| Message [message.md](./message.md) | 未开工 | — |
+| Notification [notification.md](./notification.md) | 未开工 | — |
+| Tour [tour.md](./tour.md) | 未开工 | — |
+| Anchor [anchor.md](./anchor.md) | 未开工 | — |
+| Dropdown [dropdown.md](./dropdown.md) | 未开工 | — |
+| Popconfirm [popconfirm.md](./popconfirm.md) | 未开工 | — |
+| Upload [upload.md](./upload.md) | 未开工 | — |
+| Drawer 本体 [drawer.md](./drawer.md) | 未开工 | 表单联调延后 W4 |
+| Modal 本体 [modal.md](./modal.md) | 未开工 | 表单联调延后 W4 |
+
+### W4 抬升件 + 聚合（11 个）
+
+| 控件 | 状态 | 备注 |
+| --- | --- | --- |
+| Checkbox [checkbox.md](./checkbox.md) | 未开工 | 先做（表格/穿梭等它） |
+| Pagination [pagination.md](./pagination.md) | 未开工 | 先做（表格/列表等它） |
+| Calendar 完整头 [calendar.md](./calendar.md) | 未开工 | 降级可先行 |
+| Breadcrumb 完整分支 [breadcrumb.md](./breadcrumb.md) | 未开工 | 降级可先行 |
+| List [list.md](./list.md) | 未开工 | — |
+| Table [table.md](./table.md) | 未开工 | 等 Checkbox/Pagination |
+| Transfer [transfer.md](./transfer.md) | 未开工 | 等 Table/List |
+| Cascader [cascader.md](./cascader.md) | 未开工 | 等 Select |
+| DatePicker [date-picker.md](./date-picker.md) | 未开工 | 等 Input/TimePicker |
+| TreeSelect [tree-select.md](./tree-select.md) | 未开工 | 等 Tree + Select |
+| Form [form.md](./form.md) | 未开工 | 最后（等 DatePicker） |
+
+### W5 全局（最后，2 个并行）
+
+| 控件 | 状态 | 备注 |
+| --- | --- | --- |
+| App [app.md](./app.md) | 未开工 | 等消息/弹窗/通知 + 按钮/输入 |
+| ConfigProvider [config-provider.md](./config-provider.md) | 未开工 | 等消息/弹窗/通知 + 按钮/输入 |
+
+### 随时可并行
+
+| 控件 | 状态 | 备注 |
+| --- | --- | --- |
+| Util [util.md](./util.md) | 未开工 | 无 UI，不进 kit |
+
 ## 再生生成
 
 - **antd 源码（权威）**：`/home/yanghy/app/projects/ant-design/components/*`
@@ -175,12 +292,12 @@
 
 **权威约定（全局只此一处详述）：**
 
-- **路径：** 仓库根目录 [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)  
-- **何时：** 实现某控件 **§6.8 P0** 后、勾选 §6.12 完成前，必须在 gallery **增加或更新**该控件页示例。  
-- **覆盖范围：** 对齐该控件 **§6.8 P0** 与 §6.12 中列出的 gallery 场景；官方 **非 debug** 主路径 demo 优先。  
-- **不要**强求覆盖 §1–§3 全部官方 demo（避免范围爆炸）。  
-- **P1：** 可不进 gallery，或单独标明 Later；须在 `coverage.go` Notes 写出。  
-- **组织：** 一控件一页/tab；能力用 section 分块（参考 Button 页：Type / Size / Icon / …）。  
+- **路径：** 仓库根目录 [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)（W0 地基新建；落定前 §6.12 第 5/6 条视为悬空）
+- **形态：** 单窗口总预览：左标签（组件列表）、右展示（该组件页）。**何时：** 实现某控件 **§6.8 P0** 后、勾选 §6.12 完成前，必须在 gallery **增加或更新**该控件标签页。
+- **覆盖范围（分期长大）：** 先上 §6.8 P0；**最终每个标签页与官方示例库对齐**——官方**非 debug** 示例在数量/功能/展示效果/使用方式上一个不少（debug 仅参考，不进数）。用法功能相同、写法按 Go 习惯；浏览器才有的能力（真文件下载、剪贴板等）走宿主映射，效果相同。
+- **P1：** 随分期续补进 gallery，或单独标明 Later；须在 `coverage.go` Notes 写出。
+- **组织：** 一控件一标签；能力用 section 分块（参考 Button 页：Type / Size / Icon / …）。
+- **独立可验：** 每个标签须可独立打开、独立测、独立截图；总窗只作平时预览，正式验收以单标签独立断言为准（组合窗不代替单能力）。
 - **豁免：** 无运行时 UI 的条目（如 **Util** 类型工具）可跳过 gallery，在 Notes 写「无 UI」。  
 - **细节实现：** 见 `examples/ui_polish_gallery/catalog.go` 与 [`ui/kit/doc.go`](../../ui/kit/doc.go)（Demos 规则）。
 
@@ -200,7 +317,7 @@ python3 docs/antd/_write_button_depth_sec6.py input modal  # 子集
 | 状态 | 说明 |
 | --- | --- |
 | **样板** | [button.md §6](./button.md)（手写最细，不自动覆盖） |
-| **全库** | **71 控件** §6 已按 Button 结构从本地 antd 源码重写（约 200–260 行/控件；无「见上文」filler） |
+| **全库** | **72 份** §6 已按 Button 结构从本地 antd 源码重写（约 200–260 行/控件；无「见上文」filler） |
 | **实现时** | 以该控件 §6 为 DoD；复杂控件可再对照 style/*.ts 补业务专用数字 |
 
 ## 说明
