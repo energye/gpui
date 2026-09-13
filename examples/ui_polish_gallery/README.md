@@ -18,3 +18,11 @@ RUN_SECONDS=5 go run ./examples/ui_polish_gallery -tab=overview
 ```
 
 正式验收以单标签独立断言为准，总窗只作平时预览（组合窗不代替单能力）。
+
+## 真窗证据（2026-09-13，X11）
+
+- `RUN_SECONDS=5 -tab=overview`：presents=2，exit 0
+- `RUN_SECONDS=5` 总窗：presents=2，exit 0
+- `RUN_SECONDS=5 -tab=icon`：presents=4，exit 0
+
+静态窗按需呈现，无动画时 presents 个位数属正常。
