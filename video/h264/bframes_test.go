@@ -194,6 +194,22 @@ func TestDecode720pExactAnnexB(t *testing.T) {
 	assertCropExact(t, pics, "../testdata/vr2_720p.yuv", 1280, 720, []int32{0, 4, 2, 8, 6})
 }
 
+// VR2d-5 gate: 1080p Main clip (1920x1080, same single-B structure as
+// 480p/720p). The 5-frame oracle is ~15MB so it stays out of git: the
+// clip and oracle are generated on the spot by
+// video/testdata/gen_vr2.sh (CI runs it first); without them the gate
+// skips readably. Verified locally 2026-09-13: 5 frames luma+chroma
+// byte-exact in display order, both packings.
+func TestDecode1080pExactAVCC(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_1080p.mp4", avccWrap)
+	assertCropExact(t, pics, "../testdata/vr2_1080p.yuv", 1920, 1080, []int32{0, 4, 2, 8, 6})
+}
+
+func TestDecode1080pExactAnnexB(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_1080p.mp4", annexBWrap)
+	assertCropExact(t, pics, "../testdata/vr2_1080p.yuv", 1920, 1080, []int32{0, 4, 2, 8, 6})
+}
+
 // VR2d d3 gate: B-pyramid clip (96x96, decode I0/P8/B4/B2/B6; the middle
 // B is a reference, so later Bs see two future refs). Nets multi-ref
 // list-1 indices and motion, both packings.

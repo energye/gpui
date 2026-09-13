@@ -18,8 +18,12 @@ type SPS struct {
 	Height          uint32
 	FrameMBsOnly    bool
 	Interlaced      bool
-	NumRefFrames    uint32
-	Direct8x8Infer  bool
+	// MBAFF mirrors the sequence adaptive-frame-field flag (F12 second
+	// mode): frame pictures then mix frame and field macroblocks, which
+	// needs field-aware prediction the engine does not implement yet.
+	MBAFF          bool
+	NumRefFrames   uint32
+	Direct8x8Infer bool
 	// Scaling holds the sequence scaling lists in raster order
 	// (F9; flat unless the bitstream overrides).
 	Scaling     scalingRaw
@@ -178,9 +182,11 @@ func ParseSPS(nalu []byte) (*SPS, error) {
 	s.FrameMBsOnly = frameOnly != 0
 	s.Interlaced = !s.FrameMBsOnly
 	if !s.FrameMBsOnly {
-		if _, err := r.ReadBits(1); err != nil {
+		mbaff, err := r.ReadBits(1)
+		if err != nil {
 			return nil, fmt.Errorf("%w: mbaff: %v", ErrBadSPS, err)
 		}
+		s.MBAFF = mbaff != 0
 	}
 	direct, err := r.ReadBits(1)
 	if err != nil {

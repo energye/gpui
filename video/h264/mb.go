@@ -197,7 +197,21 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		return err
 	}
 	if h.FieldPic {
-		return fmt.Errorf("%w: field slice needs VR2d interlace", ErrStageScope)
+		which := "top"
+		if h.BottomField {
+			which = "bottom"
+		}
+		return fmt.Errorf("%w: F12 interlace field picture (%s field) needs field decoding", ErrStageScope, which)
+	}
+	if !sps.FrameMBsOnly {
+		// Any frame inside a field-capable sequence needs field-aware
+		// handling (MBAFF macroblocks or field-pair geometry) the
+		// progressive engine does not implement: refuse readably
+		// instead of decoding wrong pixels silently.
+		if sps.MBAFF {
+			return fmt.Errorf("%w: F12 interlace MBAFF frame needs field-aware decoding", ErrStageScope)
+		}
+		return fmt.Errorf("%w: F12 interlace sequence frame needs field-aware decoding", ErrStageScope)
 	}
 	d.fixPOC(h, sps)
 	if d.pic == nil {

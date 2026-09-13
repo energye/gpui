@@ -71,6 +71,10 @@ type spsOpt struct {
 	hMap    uint32
 	pocType uint32
 	crop    []uint32
+	// interlaced writes frame_mbs_only_flag 0 plus the MBAFF bit (F12
+	// vectors); unset keeps the legacy progressive bytes exactly.
+	interlaced bool
+	mbaff      bool
 }
 
 func buildSPS(o spsOpt) []byte {
@@ -100,7 +104,12 @@ func buildSPS(o spsOpt) []byte {
 	w.bit(0)
 	w.ue(o.wMBs)
 	w.ue(o.hMap)
-	w.bit(1)
+	if o.interlaced {
+		w.bit(0)
+		w.bit(boolBit(o.mbaff))
+	} else {
+		w.bit(1)
+	}
 	w.bit(1)
 	if len(o.crop) == 4 {
 		w.bit(1)

@@ -49,4 +49,8 @@ gen vr2_m_fadeout "testsrc=size=96x96:rate=5:duration=2,fade=t=out:st=0:d=2" mai
 # VR2d matrix (short 5-frame clips per档; 1440p/4K local-only, not committed).
 gen vr2_480p testsrc=size=854x480:rate=5:duration=1 main -bf 1 -g 5
 gen vr2_720p testsrc=size=1280x720:rate=5:duration=1 main -bf 1 -g 5
+# VR2d-5: 1080p clip (same single-B structure as 480p/720p; the .mp4 is
+# tens of KB but the 5-frame .yuv is ~15MB, so CI generates both on the
+# spot and neither is committed).
+gen vr2_1080p testsrc=size=1920x1080:rate=5:duration=1 main -bf 1 -g 5
 ls -l "$OUT"/vr2_*
