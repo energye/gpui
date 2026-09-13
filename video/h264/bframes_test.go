@@ -159,6 +159,250 @@ func TestDecodeMBFramesExactAnnexB(t *testing.T) {
 	assertBFramesExact(t, pics, skips)
 }
 
+// VR2d widening gate: cropped 480p Main clip (854x480 display over
+// 864x480 coded, decode order I0/P4/B2/P8/B6, display POC 0/2/4/6/8)
+// decodes pixel-exact in display order, both packings. Nets the B intra
+// escape (I4x4 flag before the PCM check) and list-grouped B motion
+// differences, both first hit by real-encoder B blocks this clip carries.
+func TestDecode480pExactAVCC(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_480p.mp4", avccWrap)
+	assert480pExact(t, pics)
+}
+
+func TestDecode480pExactAnnexB(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_480p.mp4", annexBWrap)
+	assert480pExact(t, pics)
+}
+
+func assert480pExact(t *testing.T, pics []*Picture) {
+	t.Helper()
+	assertCropExact(t, pics, "../testdata/vr2_480p.yuv", 854, 480, []int32{0, 4, 2, 8, 6})
+}
+
+// VR2d widening gate: 720p Main clip (1280x720, same I0/P4/B2/P8/B6
+// structure as 480p) decodes pixel-exact in display order, both
+// packings. Nets the P-skip zero shortcut and macroblock-level B_8x8
+// direct derivation, both first hit by real-encoder blocks this clip
+// carries.
+func TestDecode720pExactAVCC(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_720p.mp4", avccWrap)
+	assertCropExact(t, pics, "../testdata/vr2_720p.yuv", 1280, 720, []int32{0, 4, 2, 8, 6})
+}
+
+func TestDecode720pExactAnnexB(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_720p.mp4", annexBWrap)
+	assertCropExact(t, pics, "../testdata/vr2_720p.yuv", 1280, 720, []int32{0, 4, 2, 8, 6})
+}
+
+// VR2d d3 gate: B-pyramid clip (96x96, decode I0/P8/B4/B2/B6; the middle
+// B is a reference, so later Bs see two future refs). Nets multi-ref
+// list-1 indices and motion, both packings.
+func TestDecodeBpyrExactAVCC(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_bpyr.mp4", avccWrap)
+	assertCropExact(t, pics, "../testdata/vr2_m_bpyr.yuv", 96, 96, []int32{0, 8, 4, 2, 6})
+}
+
+func TestDecodeBpyrExactAnnexB(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_bpyr.mp4", annexBWrap)
+	assertCropExact(t, pics, "../testdata/vr2_m_bpyr.yuv", 96, 96, []int32{0, 8, 4, 2, 6})
+}
+
+// VR2d d3 gate: CAVLC-entropy B clip (96x96, decode I0/P6/B2/B4/P8).
+// Nets the CAVLC B-macroblock path (skip/direct/partitions/residual)
+// and direct-sub-block-first ordering, both packings.
+func TestDecodeBcavlcExactAVCC(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_bcavlc.mp4", avccWrap)
+	assertCropExact(t, pics, "../testdata/vr2_m_bcavlc.yuv", 96, 96, []int32{0, 6, 2, 4, 8})
+}
+
+func TestDecodeBcavlcExactAnnexB(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_bcavlc.mp4", annexBWrap)
+	assertCropExact(t, pics, "../testdata/vr2_m_bcavlc.yuv", 96, 96, []int32{0, 6, 2, 4, 8})
+}
+
+// VR2d d3 gate: explicit-B-weight vector (96x96, decode I0/P6/B2/B4/P8).
+// x264 does not emit explicit B tables on tried content, so the vector
+// is built by NAL surgery on vr2_m_bframes.mp4 samples (recipe, kept in
+// sync with video/testdata/gen_vr2.sh comments): the PPS bipred flag is
+// flipped 2->1; each B slice gets one weight table inserted after its
+// reference-modification steps (P slices keep their own tables
+// verbatim, since PPS weighted_pred=1 already gives them denom-0
+// tables); every inserted table is a multiple of 8 bits so the CABAC
+// payload that follows stays byte-aligned. B2 (one ref per list):
+// denoms 5/5, L0[0] weight 48 offset 0 with chroma 48 offset Cb+1/Cr+0,
+// L1[0] weight 16 offset +1 with chroma 16 offset Cb+2/Cr-2 (104 bits).
+// B4 (two L0 refs): denoms 5/5, L0[0] weight 20 offset 0 with chroma 20
+// offset Cb+0/Cr-1, L0[1] default, L1[0] weight 44 offset -2 with
+// default chroma (72 bits). Wire values are used as-is (a fade-out
+// clip proves it: wire +115 at denom 7 dims 124 to 113). Nets explicit
+// list-0/list-1 weights, explicit bipred (luma and chroma), default
+// entries and negative offsets.
+func TestDecodeBExplicitExact(t *testing.T) {
+	raw, err := os.ReadFile("testdata/b_explicit.h264")
+	if err != nil {
+		t.Skipf("vector missing: %v", err)
+	}
+	units, err := SplitAnnexB(raw)
+	if err != nil {
+		t.Fatalf("split: %v", err)
+	}
+	dec := NewDecoder(nil)
+	var sps *SPS
+	var pps *PPS
+	for _, u := range units {
+		typ, _ := NALType(u)
+		if typ == NALSPS {
+			if sps, err = ParseSPS(u); err != nil {
+				t.Fatalf("sps: %v", err)
+			}
+		}
+		if typ == NALPPS {
+			if pps, err = ParsePPS(u); err != nil {
+				t.Fatalf("pps: %v", err)
+			}
+		}
+	}
+	if pps == nil || sps == nil {
+		t.Fatalf("vector has no parameter sets")
+	}
+	if pps.WeightedBiPred != 1 {
+		t.Fatalf("pps bipred = %d, want 1", pps.WeightedBiPred)
+	}
+	assertBExplicitTables(t, units, pps, sps)
+	var pics []*Picture
+	for _, u := range units {
+		typ, _ := NALType(u)
+		if typ != NALSliceNonIDR && typ != NALSliceIDR {
+			if err := dec.DecodeNALU(u); err != nil {
+				t.Fatalf("param: %v", err)
+			}
+			continue
+		}
+		if err := dec.DecodeNALU(u); err != nil {
+			t.Fatalf("slice: %v", err)
+		}
+		pic, err := dec.FinishPicture()
+		if err != nil {
+			t.Fatalf("finish: %v", err)
+		}
+		pics = append(pics, pic)
+	}
+	assertCropExact(t, pics, "testdata/b_explicit.yuv", 96, 96, []int32{0, 6, 2, 4, 8})
+	byDisplay := append([]*Picture(nil), pics...)
+	sort.Slice(byDisplay, func(i, j int) bool { return byDisplay[i].POC < byDisplay[j].POC })
+	assertClipExact(t, byDisplay, "testdata/b_explicit.yuv", 96, 96)
+}
+
+// assertBExplicitTables pins the surgical weight values each B slice
+// carries (display POC selects the slice).
+func assertBExplicitTables(t *testing.T, units [][]byte, pps *PPS, sps *SPS) {
+	t.Helper()
+	seen := map[int32]bool{}
+	for _, u := range units {
+		typ, _ := NALType(u)
+		if typ != NALSliceNonIDR && typ != NALSliceIDR {
+			continue
+		}
+		h, _, err := ParseSliceHeader(u, pps, sps)
+		if err != nil {
+			t.Fatalf("header: %v", err)
+		}
+		if !h.IsB() {
+			continue
+		}
+		seen[h.POC] = true
+		if h.LumaDenom != 5 || h.ChromaDenom != 5 {
+			t.Fatalf("poc %d denoms = %d/%d, want 5/5", h.POC, h.LumaDenom, h.ChromaDenom)
+		}
+		switch h.POC {
+		case 2:
+			if h.RefL0Count != 1 || h.RefL1Count != 1 {
+				t.Fatalf("poc 2 refs = %d/%d, want 1/1", h.RefL0Count, h.RefL1Count)
+			}
+			if h.LumaW0[0] != 48 || h.LumaO0[0] != 0 || h.LumaW1[0] != 16 || h.LumaO1[0] != 1 {
+				t.Fatalf("poc 2 luma = %d/%d %d/%d, want 48/0 16/1",
+					h.LumaW0[0], h.LumaO0[0], h.LumaW1[0], h.LumaO1[0])
+			}
+			if h.ChromaW0[0] != [2]int32{48, 48} || h.ChromaO0[0] != [2]int32{1, 0} {
+				t.Fatalf("poc 2 chroma L0 = %v/%v", h.ChromaW0[0], h.ChromaO0[0])
+			}
+			if h.ChromaW1[0] != [2]int32{16, 16} || h.ChromaO1[0] != [2]int32{2, -2} {
+				t.Fatalf("poc 2 chroma L1 = %v/%v", h.ChromaW1[0], h.ChromaO1[0])
+			}
+		case 4:
+			if h.RefL0Count != 2 || h.RefL1Count != 1 {
+				t.Fatalf("poc 4 refs = %d/%d, want 2/1", h.RefL0Count, h.RefL1Count)
+			}
+			if h.LumaW0[0] != 20 || h.LumaO0[0] != 0 || h.LumaW0[1] != 32 || h.LumaO0[1] != 0 {
+				t.Fatalf("poc 4 luma L0 = %d/%d %d/%d", h.LumaW0[0], h.LumaO0[0], h.LumaW0[1], h.LumaO0[1])
+			}
+			if h.LumaW1[0] != 44 || h.LumaO1[0] != -2 {
+				t.Fatalf("poc 4 luma L1 = %d/%d", h.LumaW1[0], h.LumaO1[0])
+			}
+		default:
+			t.Fatalf("unexpected B poc %d", h.POC)
+		}
+	}
+	if len(seen) != 2 {
+		t.Fatalf("B slices = %v, want poc 2 and 4", seen)
+	}
+}
+
+// VR2d d3 gate: real-encoder fade-out without B frames (96x96, two GOPs
+// back to back, decode order == display order within each GOP). x264
+// emits explicit P tables here (e.g. wire +115 at denom 7 on bright
+// refs, dimming 124 to 113), pinning the wire-direct convention on top
+// of the surgical B gate above. No POC sorting: the second GOP reuses
+// POC 0/2, so frames compare in file order.
+func TestDecodeFadeoutExactAVCC(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_fadeout.mp4", avccWrap)
+	assertFadeoutExact(t, pics)
+}
+
+func TestDecodeFadeoutExactAnnexB(t *testing.T) {
+	pics, _ := decodeClip(t, "../testdata/vr2_m_fadeout.mp4", annexBWrap)
+	assertFadeoutExact(t, pics)
+}
+
+func assertFadeoutExact(t *testing.T, pics []*Picture) {
+	t.Helper()
+	wantPOC := []int32{0, 2, 4, 6, 8, 10, 12, 14, 0, 2}
+	if len(pics) != len(wantPOC) {
+		t.Fatalf("frames = %d want %d", len(pics), len(wantPOC))
+	}
+	for i, p := range pics {
+		if p.POC != wantPOC[i] {
+			t.Fatalf("frame %d poc = %d want %d", i, p.POC, wantPOC[i])
+		}
+		if p.Width != 96 || p.Height != 96 {
+			t.Fatalf("frame %d size = %dx%d", i, p.Width, p.Height)
+		}
+	}
+	assertClipExact(t, pics, "../testdata/vr2_m_fadeout.yuv", 96, 96)
+}
+
+func assertCropExact(t *testing.T, pics []*Picture, yuvPath string, w, h int, wantDecode []int32) {
+	t.Helper()
+	if len(pics) != len(wantDecode) {
+		t.Fatalf("frames = %d want %d", len(pics), len(wantDecode))
+	}
+	var gotPOC []int32
+	for _, p := range pics {
+		gotPOC = append(gotPOC, p.POC)
+		if p.Width != uint32(w) || p.Height != uint32(h) {
+			t.Fatalf("frame poc %d size = %dx%d, want %dx%d", p.POC, p.Width, p.Height, w, h)
+		}
+	}
+	for i := range wantDecode {
+		if gotPOC[i] != wantDecode[i] {
+			t.Fatalf("decode order POC = %v want %v", gotPOC, wantDecode)
+		}
+	}
+	byDisplay := append([]*Picture(nil), pics...)
+	sort.Slice(byDisplay, func(i, j int) bool { return byDisplay[i].POC < byDisplay[j].POC })
+	assertClipExact(t, byDisplay, yuvPath, w, h)
+}
+
 func assertBFramesExact(t *testing.T, pics []*Picture, skips []int) {
 	t.Helper()
 	if len(pics) != 5 {

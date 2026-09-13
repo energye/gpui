@@ -29,6 +29,23 @@ gen vr2_h_scale "mandelbrot=size=96x96:rate=5:end_pts=5" high -frames:v 5 -bf 0 
 gen vr2_h_cavlc "mandelbrot=size=96x96:rate=5:end_pts=5" high -frames:v 5 -bf 0 -g 5 -x264-params no-cabac=1
 # VR2d: Main with 2 consecutive B frames (reorder proof).
 gen vr2_m_bframes "$SRC" main -bf 2 -g 8
+# VR2d d3: Main B-pyramid (multi-ref list-1 proof: middle B is a reference,
+# so later Bs see two future refs; implicit weights, CABAC).
+gen vr2_m_bpyr "testsrc=size=96x96:rate=5:duration=1,fade=t=in:st=0:d=0.4,fade=t=out:st=0.6:d=0.4" main -bf 3 -g 8 -x264-params scenecut=0:b-adapt=0:b-pyramid=normal:weightb=1
+# VR2d d3: Main B frames with CAVLC entropy (CAVLC B-macroblock proof).
+gen vr2_m_bcavlc "testsrc=size=96x96:rate=5:duration=1,fade=t=in:st=0:d=0.4,fade=t=out:st=0.6:d=0.4" main -bf 2 -g 8 -x264-params scenecut=0:b-adapt=0:no-cabac=1
+# VR2d d3: Main fade-out without B frames (real explicit P weights proof:
+# bright refs with sub-unity wire weights; decode order == display order).
+gen vr2_m_fadeout "testsrc=size=96x96:rate=5:duration=2,fade=t=out:st=0:d=2" main -bf 0 -g 8 -x264-params scenecut=0:weightp=2
+# VR2d d3: explicit B weights are NOT emittable by x264 (weightb stays
+# implicit on tried content), so b_explicit.h264/.yuv in
+# video/h264/testdata/ are built by NAL surgery instead (see the gate
+# test comment for the exact recipe): vr2_m_bframes.mp4 samples with the
+# PPS bipred flag flipped 2->1 and weight tables inserted into the two B
+# slices (P slices keep their own tables verbatim; every table is a
+# multiple of 8 bits so CABAC payload stays byte-aligned); the .yuv is
+# the ffmpeg decode of the result (ffmpeg -i b_explicit.h264 -vsync 0
+# -pix_fmt yuv420p b_explicit.yuv).
 # VR2d matrix (short 5-frame clips per档; 1440p/4K local-only, not committed).
 gen vr2_480p testsrc=size=854x480:rate=5:duration=1 main -bf 1 -g 5
 gen vr2_720p testsrc=size=1280x720:rate=5:duration=1 main -bf 1 -g 5

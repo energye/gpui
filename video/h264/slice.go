@@ -51,7 +51,8 @@ type SliceHeader struct {
 	DisableFilter uint32
 	FilterAlpha   int32
 	FilterBeta    int32
-	// Explicit weighted prediction (P slices use list 0). Denoms are
+	// Explicit weighted prediction (P slices use list 0, B slices both
+	// lists when the picture set selects explicit mode). Denoms are
 	// slice-wide; per-reference factors default to identity.
 	LumaDenom       int32
 	ChromaDenom     int32
@@ -59,6 +60,10 @@ type SliceHeader struct {
 	LumaO0          [32]int32
 	ChromaW0        [32][2]int32
 	ChromaO0        [32][2]int32
+	LumaW1          [32]int32
+	LumaO1          [32]int32
+	ChromaW1        [32][2]int32
+	ChromaO1        [32][2]int32
 	NalRefIDC       int
 	NoOutputPrior   bool
 	LongTermRef     bool
@@ -101,10 +106,12 @@ func ParseSliceHeader(nalu []byte, pps *PPS, sps *SPS) (*SliceHeader, *Reader, e
 	// Absent weight tables infer identity (denominators stay zero).
 	for i := range h.LumaW0 {
 		h.LumaW0[i] = 1
+		h.LumaW1[i] = 1
 	}
 	for i := range h.ChromaW0 {
 		for c := 0; c < 2; c++ {
 			h.ChromaW0[i][c] = 1
+			h.ChromaW1[i][c] = 1
 		}
 	}
 	if h.FirstMB, err = r.ReadUE(); err != nil {
@@ -362,24 +369,26 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 	// Unsignalled references stay identity: weight 1<<denom, offset 0.
 	for i := range h.LumaW0 {
 		h.LumaW0[i] = 1 << uint(h.LumaDenom)
+		h.LumaW1[i] = 1 << uint(h.LumaDenom)
 	}
 	for i := range h.ChromaW0 {
 		for c := 0; c < 2; c++ {
 			h.ChromaW0[i][c] = 1 << uint(h.ChromaDenom)
+			h.ChromaW1[i][c] = 1 << uint(h.ChromaDenom)
 		}
 	}
 	lists := []uint32{h.RefL0Count}
 	if h.Type == SliceB {
 		lists = append(lists, h.RefL1Count)
 	}
-	// List-1 reorder steps are kept for VR2d; list-1 weight factors are
-	// still parsed and dropped until B prediction wires them (the VR2d
-	// gate clip uses implicit weighting, so no table is signalled).
+	// Stored factors are used as-is: the table carries the weight
+	// itself (defaults are 1<<denom for unity gain). Proven by a
+	// fade-out clip: wire +115 at denom 7 dims 124 to 113, while
+	// base+delta (243) would brighten to 237.
 	for li, n := range lists {
 		if n > 32 {
 			return fmt.Errorf("%w: ref count %d", ErrBadSliceHeader, n)
 		}
-		keep := li == 0
 		for i := uint32(0); i < n; i++ {
 			f, err := r.ReadBits(1)
 			if err != nil {
@@ -394,8 +403,10 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 				if err != nil {
 					return fmt.Errorf("%w: luma offset: %v", ErrBadSliceHeader, err)
 				}
-				if keep {
+				if li == 0 {
 					h.LumaW0[i], h.LumaO0[i] = w, o
+				} else {
+					h.LumaW1[i], h.LumaO1[i] = w, o
 				}
 			}
 			f, err = r.ReadBits(1)
@@ -404,7 +415,7 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 			}
 			if f != 0 {
 				// Order per reference: Cb weight, Cb offset, Cr
-				// weight, Cr offset.
+				// weight, Cr offset, all used as-is like luma.
 				for k := 0; k < 2; k++ {
 					w, err := r.ReadSE()
 					if err != nil {
@@ -414,8 +425,10 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 					if err != nil {
 						return fmt.Errorf("%w: chroma offset %d: %v", ErrBadSliceHeader, k, err)
 					}
-					if keep {
+					if li == 0 {
 						h.ChromaW0[i][k], h.ChromaO0[i][k] = w, o
+					} else {
+						h.ChromaW1[i][k], h.ChromaO1[i][k] = w, o
 					}
 				}
 			}
