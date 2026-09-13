@@ -10,13 +10,17 @@
 //
 // Controls:
 //   - Space or P, or click the left button: play / pause.
+//   - O or click 打开: pick a file (zenity/kdialog) or drag a file in.
 //   - Left / Right: seek -/+ 1s. Home / End: head / tail. R: replay.
 //   - Click the progress bar: jump there. Q or Esc: quit.
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/energye/gpui/examples/wrkit"
@@ -39,6 +43,7 @@ const (
 	videoW, videoH   = 960.0, 540.0
 	playW, playH     = 110.0, 36.0
 	replayW, replayH = 110.0, 36.0
+	openW, openH     = 110.0, 36.0
 	barH             = 14.0
 )
 
@@ -83,8 +88,13 @@ func main() {
 	replayLabel := wrkit.Label("重播", 14, 0.9, 0.93, 0.96)
 	root.Place(replayLabel, 240+34, 650+9)
 
+	openBox := rendering.NewRenderColorBox(openW, openH, 0.16, 0.42, 0.32, 1)
+	root.Place(openBox, 360, 650)
+	openLabel := wrkit.Label("打开", 14, 0.95, 0.97, 1)
+	root.Place(openLabel, 360+34, 650+9)
+
 	statusLabel := wrkit.Label("", 13, 0.75, 0.85, 0.9)
-	root.Place(statusLabel, 370, 658)
+	root.Place(statusLabel, 490, 658)
 
 	barBg := rendering.NewRenderColorBox(videoW, barH, 0.2, 0.22, 0.26, 1)
 	root.Place(barBg, 120, 700)
@@ -93,7 +103,7 @@ func main() {
 
 	timeLabel := wrkit.Label("", 12, 0.72, 0.8, 0.9)
 	root.Place(timeLabel, 120, 722)
-	helpLabel := wrkit.Label("空格/P=播/停 ←/→=±1秒 Home/End=头/尾 R=重播 点进度条=跳 Q=退出", 12, 0.55, 0.65, 0.75)
+	helpLabel := wrkit.Label("空格/P=播/停 O=打开 ←/→=±1秒 R=重播 拖文件进来=换片 Q=退出", 12, 0.55, 0.65, 0.75)
 	root.Place(helpLabel, 120, 746)
 
 	st := &state{clip: clip}
@@ -134,7 +144,9 @@ func main() {
 	st.img, st.barFill = img, barFill
 	st.root = root
 	st.playBox, st.replayBox, st.barBg = playBox, replayBox, barBg
+	st.openBox = openBox
 	st.replayLabel, st.helpLabel = replayLabel, helpLabel
+	st.openLabel = openLabel
 	st.applyLayout(float64(winW), float64(winH))
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui video_player — 完整播放小样", Decorations: true})
@@ -169,6 +181,19 @@ func main() {
 				if ev.Pointer == platform.PointerDown && ev.Button == 1 {
 					st.click(ev.X, ev.Y, app)
 				}
+				app.ScheduleFrame()
+			case platform.EventDrop:
+				if len(ev.Files) > 0 {
+					st.openPath(cleanDropPath(ev.Files[0]))
+				} else {
+					st.status("拖进来的东西拿不到路径，换个文件管理器再拖一次")
+				}
+				app.ScheduleFrame()
+			case platform.EventDragEnter, platform.EventDragOver:
+				st.status("松手就换片播")
+				app.ScheduleFrame()
+			case platform.EventDragLeave:
+				st.refreshStatus()
 				app.ScheduleFrame()
 			case platform.EventKey:
 				if st.key(ev, app, win) {
@@ -240,12 +265,15 @@ type state struct {
 	timeLabel, playLabel    *rendering.RenderText
 	root                     *rendering.AbsoluteBox
 	playBox, replayBox, barBg *rendering.RenderColorBox
+	openBox                  *rendering.RenderColorBox
 	replayLabel, helpLabel    *rendering.RenderText
+	openLabel                *rendering.RenderText
 	// Current layout in window logical px (applyLayout owns these;
 	// click/paint math reads them, never the defaults above).
 	winW, winH                         float64
 	videoX, videoY, videoW, videoH     float64
 	playX, playY, replayX, replayY     float64
+	openX, openY                       float64
 	barX, barY, barW                   float64
 	statusX, statusY, timeY, helpY     float64
 }
@@ -281,7 +309,8 @@ func (st *state) applyLayout(winW, winH float64) {
 	st.videoY = top + (availH-dispH)/2
 	st.playX, st.playY = side, winH-150
 	st.replayX, st.replayY = side+120, winH-150
-	st.statusX, st.statusY = side+250, winH-142
+	st.openX, st.openY = side+240, winH-150
+	st.statusX, st.statusY = side+370, winH-142
 	st.barX, st.barY = side, winH-100
 	st.barW = availW
 	st.timeY, st.helpY = st.barY+22, st.barY+46
@@ -299,6 +328,12 @@ func (st *state) applyLayout(winW, winH float64) {
 	}
 	if st.replayBox != nil {
 		st.root.Place(st.replayBox, st.replayX, st.replayY)
+	}
+	if st.openBox != nil {
+		st.root.Place(st.openBox, st.openX, st.openY)
+	}
+	if st.openLabel != nil {
+		st.root.Place(st.openLabel, st.openX+34, st.openY+9)
 	}
 	if st.replayLabel != nil {
 		st.root.Place(st.replayLabel, st.replayX+34, st.replayY+9)
@@ -509,6 +544,10 @@ func (st *state) click(x, y float64, app *embedder.PipelineApp) {
 		st.replay()
 		return
 	}
+	if inside(x, y, st.openX, st.openY, openW, openH) {
+		st.promptOpen()
+		return
+	}
 	if st.player == nil || st.bad != "" || st.durMs <= 0 {
 		return
 	}
@@ -542,6 +581,13 @@ func (st *state) key(ev platform.Event, app *embedder.PipelineApp, win *platform
 		st.replay()
 		return true
 	}
+	if ev.Rune == 'o' || ev.Rune == 'O' {
+		if ev.Repeat {
+			return false
+		}
+		st.promptOpen()
+		return true
+	}
 	step := int64(0)
 	switch ev.KeyCode {
 	case keyLeft:
@@ -564,6 +610,124 @@ func (st *state) key(ev platform.Event, app *embedder.PipelineApp, win *platform
 		return true
 	}
 	return false
+}
+
+// openPath swaps the clip while the window stays open: probe first so a
+// bad file never kills the current playback, then rebuild the display
+// buffer for the new size and re-fit the layout (aspect may change).
+// Runs on the UI loop thread (events share it with the ticker).
+func (st *state) openPath(path string) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	if _, err := os.Stat(path); err != nil {
+		st.status("找不到文件：" + shortName(path))
+		return
+	}
+	if _, _, err := govideo.ProbeFile(path); err != nil {
+		st.status("打不开：" + govideo.Classify(err).Readable())
+		return
+	}
+	next, err := govideo.OpenFile(path, govideo.Options{})
+	if err != nil {
+		st.status("打不开：" + govideo.Classify(err).Readable())
+		return
+	}
+	nbuf, err := render.NewImageBuf(next.Info().Width, next.Info().Height, render.FormatRGBA8)
+	if err != nil {
+		next.Close()
+		st.status(fmt.Sprintf("显存建不起：%v", err))
+		return
+	}
+	if st.player != nil {
+		st.player.Close()
+	}
+	if st.buf != nil {
+		st.buf.Dispose()
+	}
+	st.player, st.buf = next, nbuf
+	st.clip = path
+	st.info = next.Info()
+	st.durMs = st.info.DurMs
+	if st.durMs <= 0 && st.info.Frames > 0 {
+		st.durMs = int64(st.info.Frames) * 200
+	}
+	st.paused, st.ended = false, false
+	st.lastPTS, st.shown = 0, 0
+	st.bad, st.note = "", ""
+	if st.fileLabel != nil {
+		st.fileLabel.SetText(fmt.Sprintf("%s  %dx%d  %.1ffps  %s  %d帧  %s/%s",
+			shortName(path), st.info.Width, st.info.Height, st.info.FrameRate,
+			fmtMs(st.durMs), st.info.Frames, st.info.Container, st.info.Codec))
+	}
+	if st.statusLabel != nil {
+		st.statusLabel.SetColor(0.75, 0.85, 0.9, 1)
+	}
+	if st.playLabel != nil {
+		st.playLabel.SetText("暂停")
+	}
+	if _, err := st.player.SeekTo(0); err == nil {
+		st.refreshTime()
+	}
+	st.applyLayout(st.winW, st.winH)
+	st.status("播放中")
+}
+
+// promptOpen asks the desktop for a file via zenity/kdialog when present.
+// No CGO, no new dependency: plain os/exec from the example layer only.
+// Cancel or missing tool is never an error, just a status hint.
+func (st *state) promptOpen() {
+	if path, ok := systemPickFile(); ok {
+		st.openPath(path)
+		return
+	}
+	st.status("没找到系统选片框，把片子直接拖进窗口，或按 O 再试")
+}
+
+// systemPickFile tries zenity then kdialog. ok=false means cancelled or
+// no tool installed (caller shows the drag hint instead).
+func systemPickFile() (path string, ok bool) {
+	if _, err := exec.LookPath("zenity"); err == nil {
+		cmd := exec.Command("zenity", "--file-selection",
+			"--title=打开视频",
+			"--file-filter=视频 | *.mp4 *.m4v *.mov",
+			"--file-filter=全部文件 | *")
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		if err := cmd.Run(); err != nil {
+			return "", false
+		}
+		if p := strings.TrimSpace(out.String()); p != "" {
+			return p, true
+		}
+		return "", false
+	}
+	if _, err := exec.LookPath("kdialog"); err == nil {
+		cmd := exec.Command("kdialog", "--title", "打开视频",
+			"--getopenfilename", os.Getenv("HOME"),
+			"*.mp4 *.m4v *.mov | 视频文件 (*.mp4 *.m4v *.mov)")
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		if err := cmd.Run(); err != nil {
+			return "", false
+		}
+		if p := strings.TrimSpace(out.String()); p != "" {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+// cleanDropPath defends against raw file:// URLs in case a backend ever
+// passes one through unparsed (normal path: Files are already clean).
+func cleanDropPath(p string) string {
+	p = strings.TrimSpace(p)
+	p = strings.Trim(p, "<>")
+	if strings.HasPrefix(p, "file://") {
+		p = strings.TrimPrefix(p, "file://")
+	}
+	return p
 }
 
 // fastBlitRGBA copies a player frame into the display buffer row by row
