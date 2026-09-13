@@ -42,6 +42,25 @@ func (d *Decoder) bDirectMB(mbx, mby int, h *SliceHeader, colPic *Picture) ([2]b
 	return d.applyDirectStationary(dm, x0, y0, colPic), nil
 }
 
+// bDirectMBBlocks derives spatial-direct motion for one 16x16 MB with a
+// stationary-colocated check per 8x8 block. Neighbours come once from the
+// macroblock origin; each 8x8 then applies its own colocated zeroing like
+// the reference decoder's per-block path for 16x16 direct.
+func (d *Decoder) bDirectMBBlocks(mbx, mby int, h *SliceHeader, colPic *Picture) ([4][2]bDirectMV, error) {
+	var out [4][2]bDirectMV
+	x0, y0 := mbx*4, mby*4
+	base, err := d.bDirectNeighbors(x0, y0, 0, 4, h)
+	if err != nil {
+		return out, err
+	}
+	for i := 0; i < 4; i++ {
+		qx := x0 + (i%2)*2
+		qy := y0 + (i/2)*2
+		out[i] = d.applyDirectStationary(base, qx, qy, colPic)
+	}
+	return out, nil
+}
+
 // bDirectMBLevel derives the macroblock-level spatial-direct motion once
 // for a B_8x8 block: every direct 8x8 sub-block shares it (plus its own
 // stationary-colocated check), instead of deriving per sub-block from

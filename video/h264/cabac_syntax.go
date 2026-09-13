@@ -540,10 +540,21 @@ func (d *Decoder) cabacInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) *i
 				return false, nil
 			}
 			if len(subs) == 4 {
+				directInfer := true
+				if d.sps != nil {
+					directInfer = d.sps.Direct8x8Infer
+				}
 				for _, s := range subs {
-					if s != 0 {
-						return false, nil
+					if s == 0 {
+						if !directInfer {
+							return false, nil
+						}
+						continue
 					}
+					if s <= 3 {
+						continue
+					}
+					return false, nil
 				}
 			}
 			return d.cabBin(399+uint16(d.neighborT8(addr, mbx, mby))) != 0, nil
@@ -592,10 +603,21 @@ func (d *Decoder) cabacBInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) *
 				return false, nil
 			}
 			if len(subs) == 4 {
+				directInfer := true
+				if d.sps != nil {
+					directInfer = d.sps.Direct8x8Infer
+				}
 				for _, s := range subs {
-					if s != 0 {
-						return false, nil
+					if s == 0 {
+						if !directInfer {
+							return false, nil
+						}
+						continue
 					}
+					if s <= 3 {
+						continue
+					}
+					return false, nil
 				}
 			}
 			return d.cabBin(399+uint16(d.neighborT8(addr, mbx, mby))) != 0, nil

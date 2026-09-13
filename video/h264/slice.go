@@ -12,6 +12,8 @@ const (
 )
 
 // MMCOOp is one decoded-reference marking operation (Annex C control).
+// Arg1 stores the wire difference (op 1/3) except op 2 stores the
+// resolved short picture number (curr_pic_num - diff - 1, wrapped).
 type MMCOOp struct {
 	Op   uint32
 	Arg1 int32
@@ -211,7 +213,6 @@ func parsePOCLSB(r *Reader, h *SliceHeader, pps *PPS, sps *SPS) error {
 }
 
 func finishSliceHeader(r *Reader, h *SliceHeader, pps *PPS, sps *SPS) error {
-	_ = sps
 	if h.Type == SliceB {
 		d, err := r.ReadBits(1)
 		if err != nil {
@@ -248,7 +249,7 @@ func finishSliceHeader(r *Reader, h *SliceHeader, pps *PPS, sps *SPS) error {
 			return err
 		}
 	}
-	if err := parseMarking(r, h); err != nil {
+	if err := parseMarking(r, h, sps); err != nil {
 		return err
 	}
 	if pps.EntropyCABAC && h.Type != SliceI && h.Type != SliceSI {
@@ -437,7 +438,7 @@ func skipWeightTable(r *Reader, h *SliceHeader, sps *SPS) error {
 	return nil
 }
 
-func parseMarking(r *Reader, h *SliceHeader) error {
+func parseMarking(r *Reader, h *SliceHeader, sps *SPS) error {
 	// dec_ref_pic_marking() exists only when nal_ref_idc != 0: reference
 	// management has nothing to say about a disposable picture.
 	if h.NalRefIDC == 0 {
@@ -482,7 +483,22 @@ func parseMarking(r *Reader, h *SliceHeader) error {
 			if err != nil {
 				return fmt.Errorf("%w: mmco arg: %v", ErrBadSliceHeader, err)
 			}
-			m.Arg1 = int32(v)
+			if op == 1 {
+				// Wire carries the difference; resolve to the short
+				// picture number now (curr_pic_num wraps at max_pic_num).
+				bits, ferr := frameNumBits(sps)
+				if ferr != nil {
+					return ferr
+				}
+				maxPicNum := int32(1) << uint(bits)
+				picNum := (int32(h.FrameNum) - int32(v) - 1) % maxPicNum
+				if picNum < 0 {
+					picNum += maxPicNum
+				}
+				m.Arg1 = picNum
+			} else {
+				m.Arg1 = int32(v)
+			}
 		case 2:
 			v, err := r.ReadUE()
 			if err != nil {

@@ -367,6 +367,41 @@ func (d *DPB) evictOldest() {
 	d.pics = append(d.pics[:m], d.pics[m+1:]...)
 }
 
+// unmarkShort drops one short-term picture by frame number (explicit
+// marking op 1): missing targets are ignored like the reference decoder.
+func (d *DPB) unmarkShort(frameNum uint32) {
+	if d == nil {
+		return
+	}
+	for i, p := range d.pics {
+		if p.FrameNum == frameNum {
+			d.pics = append(d.pics[:i], d.pics[i+1:]...)
+			return
+		}
+	}
+}
+
+// applyMarking runs one slice's explicit reference operations before
+// list construction. Op 1 unmarks one short-term picture; op 2 without
+// long-term storage is a no-op here. Sliding-window eviction still
+// happens at store time in FinishPicture.
+func (d *Decoder) applyMarking(h *SliceHeader) error {
+	if h == nil || !h.AdaptiveMarking {
+		return nil
+	}
+	for _, m := range h.MMCO {
+		switch m.Op {
+		case 1:
+			d.dpb.unmarkShort(uint32(m.Arg1))
+		case 2:
+			return nil
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
 // Latest returns the most recent reference picture.
 func (d *DPB) Latest() *Picture {
 	if d == nil || len(d.pics) == 0 {

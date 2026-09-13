@@ -323,6 +323,11 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	d.pic.IsIDR = h.IsIDR
 	d.curIsRef = h.NalRefIDC != 0
 	d.curIsB = h.IsB()
+	// Explicit marking runs before list construction (the new decode
+	// consumes the lists shaped by it, like the reference decoder).
+	if err := d.applyMarking(h); err != nil {
+		return err
+	}
 	// Reference list 0: buffered pictures newest-first, reshaped by
 	// the slice-header reordering steps. Multi-ref clips address
 	// older or duplicated entries by index (weights follow the index).

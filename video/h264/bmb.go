@@ -193,15 +193,22 @@ func (d *Decoder) decodeSkipB(h *SliceHeader, addr int, rs *residSrc) error {
 	if len(d.refList1) == 0 || d.refList1[0] == nil {
 		return fmt.Errorf("%w: B skip without list-1 picture", ErrBadSliceHeader)
 	}
-	dm, err := d.bDirectMB(mbx, mby, h, d.refList1[0])
+	dms, err := d.bDirectMBBlocks(mbx, mby, h, d.refList1[0])
 	if err != nil {
 		return err
 	}
-	d.storeDirectB(mbx, mby, dm)
+	x0, y0 := mbx*4, mby*4
+	px0, py0 := mbx*16, mby*16
+	var parts [4]part
+	for i := 0; i < 4; i++ {
+		qx := x0 + (i%2)*2
+		qy := y0 + (i/2)*2
+		d.storeDirectB8(qx, qy, dms[i])
+		parts[i] = directPartB8(px0+(i%2)*8, py0+(i/2)*8, dms[i])
+	}
 	var predY [256]uint8
 	var predCb, predCr [64]uint8
 	fillPred(&predY, &predCb, &predCr)
-	parts := [1]part{directPart(mbx, mby, dm)}
 	if err := d.mcParts(mbx, mby, parts[:], &predY, &predCb, &predCr); err != nil {
 		return err
 	}
@@ -217,48 +224,6 @@ func (d *Decoder) decodeSkipB(h *SliceHeader, addr int, rs *residSrc) error {
 	}
 	d.skipCnt++
 	return nil
-}
-
-// directPart packs one 16x16 direct block's motion into a part.
-func directPart(mbx, mby int, dm [2]bDirectMV) part {
-	p := part{px: mbx * 16, py: mby * 16, w: 16, h: 16}
-	if dm[0].use {
-		p.mx, p.my, p.ref = dm[0].mx, dm[0].my, dm[0].ref
-	}
-	if dm[1].use {
-		p.mx1, p.my1, p.ref1 = dm[1].mx, dm[1].my, dm[1].ref
-	}
-	p.use0, p.use1 = dm[0].use, dm[1].use
-	return p
-}
-
-// storeDirectB records one 16x16 direct block's motion into every 4x4.
-func (d *Decoder) storeDirectB(mbx, mby int, dm [2]bDirectMV) {
-	stride := d.mbW * 4
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
-			i := (mby*4+y)*stride + mbx*4 + x
-			if dm[0].use {
-				d.mvX[i], d.mvY[i] = dm[0].mx, dm[0].my
-				d.mvdX[i], d.mvdY[i] = 0, 0
-				d.refIdx[i] = dm[0].ref
-				d.useM[i] |= useL0
-			} else {
-				d.mvX[i], d.mvY[i] = 0, 0
-				d.mvdX[i], d.mvdY[i] = 0, 0
-			}
-			if dm[1].use {
-				d.mvX1[i], d.mvY1[i] = dm[1].mx, dm[1].my
-				d.mvdX1[i], d.mvdY1[i] = 0, 0
-				d.refIdx1[i] = dm[1].ref
-				d.useM[i] |= useL1
-			} else {
-				d.mvX1[i], d.mvY1[i] = 0, 0
-				d.mvdX1[i], d.mvdY1[i] = 0, 0
-			}
-			d.direct4[i] = true
-		}
-	}
 }
 
 // storeDirectB8 records one 8x8 direct sub-block's motion (2x2 slots at
@@ -344,12 +309,16 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 		if len(d.refList1) == 0 || d.refList1[0] == nil {
 			return fmt.Errorf("%w: B direct without list-1 picture", ErrBadSliceHeader)
 		}
-		dm, err := d.bDirectMB(mbx, mby, h, d.refList1[0])
+		dms, err := d.bDirectMBBlocks(mbx, mby, h, d.refList1[0])
 		if err != nil {
 			return err
 		}
-		d.storeDirectB(mbx, mby, dm)
-		parts = append(parts, directPart(mbx, mby, dm))
+		for i := 0; i < 4; i++ {
+			qx := x0 + (i%2)*2
+			qy := y0 + (i/2)*2
+			d.storeDirectB8(qx, qy, dms[i])
+			parts = append(parts, directPartB8(px0+(i%2)*8, py0+(i/2)*8, dms[i]))
+		}
 		allDirect = true
 	case mbType <= 3:
 		dir := bMBDirs[mbType][0]
@@ -546,6 +515,9 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 	d.finishPMB(h, addr, mbx, mby)
 	d.cbpArr[addr] = uint16(cbp)
 	d.mbSlice[addr] = d.slices
+	// B type contexts read directness: skip, whole-direct and
+	// all-direct-subblock B_8x8 count; anything with an explicit
+	// partition does not (matches the reference DIRECT2 bit).
 	d.mbDirect[addr] = allDirect || mbType == 0
 	if use8 {
 		if err := d.reconstructInter8x8With(mbx, mby, cbp, &predY, &predCb, &predCr, rs); err != nil {
