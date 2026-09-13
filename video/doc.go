@@ -8,7 +8,10 @@
 // only polls due frames. SeekTo lands on the last keyframe at or before
 // the target and re-decodes forward (verified pixel-exact, never a head
 // replay). Bad inputs fail or isolate readably: Classify names layer +
-// tool, F20 frames are skipped with the tail kept playing. VR7 bounds
+// tool, F20 frames are skipped with the tail kept playing. Containers and
+// codecs resolve through the registry (video/registry.go: shell probe +
+// codec table + capability query); the player never names a format, so new
+// shells/codecs arrive as new packages + Register calls. VR7 bounds
 // the steady loop: single-frame-size pools (YUV/RGBA/work, video/pool.go)
 // with hit/leak/cap stats, bounded queue, explicit memory cap, and a
 // timer-free Poll fast path so steady polls cost no heap. Errors name

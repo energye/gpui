@@ -80,6 +80,8 @@ func Classify(err error) Fault {
 	case errors.Is(err, ErrNoVideo) || errors.Is(err, ErrNoFrames) ||
 		errors.Is(err, ErrBadClip) || errors.Is(err, ErrClosed) || errors.Is(err, ErrDecodeEOF):
 		return Fault{Kind: KindBadClip, Layer: "video", Tool: "播放器", CN: "片子打不开（video层：无视频轨/无可解帧/已关闭）"}
+	case errors.Is(err, ErrUnsupportedContainer) || errors.Is(err, ErrUnsupportedCodec):
+		return Fault{Kind: KindBadClip, Layer: "video", Tool: "注册表", CN: "格式不支持（注册表层：容器/编码不在支持表里，先问能力再开）"}
 	}
 	if errors.Is(err, os.ErrNotExist) {
 		return Fault{Kind: KindBadClip, Layer: "io", Tool: "文件", CN: "文件不存在（io层：路径错）"}

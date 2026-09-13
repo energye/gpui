@@ -34,6 +34,10 @@ type Info struct {
 	DurMs     int64
 	Frames    int
 	KeyframeN int
+	// Container and Codec name the registry entries that opened the
+	// clip (capability-first UI reads these instead of guessing).
+	Container string
+	Codec     string
 	// Concealed counts bad samples skipped at open (F20 isolation):
 	// truncated/corrupt frames isolated, good tail keeps playing.
 	Concealed int64
@@ -103,6 +107,12 @@ type Player struct {
 	avcc      *h264.AVCC
 	copt      color.Options
 	frameRate float64
+	// container/codec/sampling ride along for seek re-decode: the
+	// forward pass rebuilds through the same registry entries, never
+	// by naming a format.
+	container string
+	codec     string
+	sampling  string
 	// frameSamples parallels frames: decode-order sample position that
 	// produced each display-order frame.
 	frameSamples []int
@@ -129,10 +139,18 @@ type Player struct {
 }
 
 // OpenFile opens path and starts the background decoder. The player owns
-// nothing caller-side; Close must be called.
+// nothing caller-side; Close must be called. Container and codec are
+// resolved through the registry: the same clip that probes also plays,
+// and unknown shells/codecs fail with the supported set named.
 func OpenFile(path string, opt Options) (*Player, error) {
-	movie, err := mp4.ParseFile(path)
+	movie, containerName, codecName, err := openViaRegistry(path)
 	if err != nil {
+		if errors.Is(err, ErrUnsupportedContainer) || errors.Is(err, ErrUnsupportedCodec) {
+			return nil, err
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("video: box unreadable %s: %w", path, err)
 	}
 	v := movie.Video
@@ -148,7 +166,10 @@ func OpenFile(path string, opt Options) (*Player, error) {
 		return nil, err
 	}
 	defer f.Close()
-	dec := h264.NewDecoder(nil)
+	dec, err := NewDecoder(codecName)
+	if err != nil {
+		return nil, fmt.Errorf("video: codec %s: %w", path, err)
+	}
 	for _, raw := range avcc.SPS {
 		if err := dec.DecodeNALU(raw); err != nil {
 			return nil, fmt.Errorf("video: sequence params %s: %w", path, err)
@@ -197,8 +218,12 @@ func OpenFile(path string, opt Options) (*Player, error) {
 	// reset rebuilds a clean decoder after a corrupt sample fed partial
 	// state: the bad frame is dropped, the next IDR restarts the tail.
 	// Truncated reads feed nothing, so they keep the live decoder.
+	// The rebuild goes through the same registry entry.
 	reset := func() {
-		nd := h264.NewDecoder(nil)
+		nd, err := NewDecoder(codecName)
+		if err != nil {
+			return
+		}
 		for _, raw := range avcc.SPS {
 			_ = nd.DecodeNALU(raw)
 		}
@@ -214,7 +239,7 @@ func OpenFile(path string, opt Options) (*Player, error) {
 			remember(fmt.Errorf("video: sample %d truncated %s (%v): %w", s.Number, path, err, mp4.ErrTruncated))
 			continue
 		}
-		units, err := h264.SplitAVCC(buf, avcc.LengthSize)
+		units, err := SplitUnits(codecName, buf, avcc.LengthSize)
 		if err != nil {
 			// Split failures are truncations; keep refs, skip frame.
 			concealed++
@@ -290,7 +315,7 @@ func OpenFile(path string, opt Options) (*Player, error) {
 	}
 	q := clock.NewQueue(cap)
 	clk := clock.NewClock(now)
-	p := &Player{info: Info{Path: path, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(pics), KeyframeN: v.KeyframeCount(), Concealed: concealed}, q: q, clk: clk, nowMs: now, stopCh: make(chan struct{}), doneCh: make(chan struct{}), loop: opt.Loop, readyCh: make(chan struct{})}
+	p := &Player{info: Info{Path: path, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(pics), KeyframeN: v.KeyframeCount(), Concealed: concealed, Container: containerName, Codec: codecName}, q: q, clk: clk, nowMs: now, stopCh: make(chan struct{}), doneCh: make(chan struct{}), loop: opt.Loop, readyCh: make(chan struct{})}
 	if firstFault != nil {
 		p.info.Fault = Classify(firstFault).Readable()
 	}
@@ -302,9 +327,12 @@ func OpenFile(path string, opt Options) (*Player, error) {
 	p.avcc = avcc
 	p.copt = copt
 	p.frameRate = v.FrameRate
+	p.container = containerName
+	p.codec = codecName
+	p.sampling = dec.Sampling()
 	for i, sp := range pics {
 		t0 := time.Now()
-		cf, err := color.Convert(color.SamplingYUV420P, sp.pic.Y, sp.pic.Cb, sp.pic.Cr, int(sp.pic.Width), int(sp.pic.Height), copt)
+		cf, err := color.Convert(p.sampling, sp.pic.Y, sp.pic.Cb, sp.pic.Cr, int(sp.pic.Width), int(sp.pic.Height), copt)
 		if err != nil {
 			return nil, fmt.Errorf("video: color frame %d %s: %w", i, path, err)
 		}
@@ -641,6 +669,8 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	keyframes := append([]mp4.Keyframe(nil), p.keyframes...)
 	avcc := p.avcc
 	copt := p.copt
+	codec := p.codec
+	sampling := p.sampling
 	wasPaused := p.paused
 	p.mu.Unlock()
 
@@ -688,7 +718,7 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	if keyPos > targetPos {
 		return 0, fmt.Errorf("%w: keyframe after target (key %d target %d)", ErrBadClip, keyPos, targetPos)
 	}
-	fresh, err := decodeForward(p.path, samples, avcc, copt, keyPos, targetPos)
+	fresh, err := decodeForward(p.path, samples, avcc, copt, codec, sampling, keyPos, targetPos)
 	if err != nil {
 		return 0, err
 	}
@@ -727,9 +757,10 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 }
 
 // decodeForward re-decodes samples[keyPos..targetPos] with a fresh decoder
-// (SPS/PPS re-fed, so IDR clearing is exercised) and returns the target
-// picture as RGBA. Small clips only; VR5 gates are ≤10 frames.
-func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt color.Options, keyPos, targetPos int) ([]byte, error) {
+// from the same registry codec (SPS/PPS re-fed, so IDR clearing is
+// exercised) and returns the target picture as RGBA. Small clips only;
+// VR5 gates are ≤10 frames.
+func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt color.Options, codec, sampling string, keyPos, targetPos int) ([]byte, error) {
 	if avcc == nil {
 		return nil, fmt.Errorf("%w: missing header params %s", ErrBadClip, path)
 	}
@@ -738,7 +769,10 @@ func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt colo
 		return nil, err
 	}
 	defer f.Close()
-	dec := h264.NewDecoder(nil)
+	dec, err := NewDecoder(codec)
+	if err != nil {
+		return nil, fmt.Errorf("video: seek codec %s: %w", path, err)
+	}
 	for _, raw := range avcc.SPS {
 		if err := dec.DecodeNALU(raw); err != nil {
 			return nil, fmt.Errorf("video: seek sequence params %s: %w", path, err)
@@ -756,7 +790,7 @@ func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt colo
 		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
 			return nil, fmt.Errorf("video: seek sample %d unreadable %s: %w", s.Number, path, err)
 		}
-		units, err := h264.SplitAVCC(buf, avcc.LengthSize)
+		units, err := SplitUnits(codec, buf, avcc.LengthSize)
 		if err != nil {
 			return nil, fmt.Errorf("video: seek sample %d split %s: %w", s.Number, path, err)
 		}
@@ -776,7 +810,7 @@ func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt colo
 	if target == nil {
 		return nil, fmt.Errorf("%w: seek produced no picture %s", ErrBadClip, path)
 	}
-	cf, err := color.Convert(color.SamplingYUV420P, target.Y, target.Cb, target.Cr, int(target.Width), int(target.Height), copt)
+	cf, err := color.Convert(sampling, target.Y, target.Cb, target.Cr, int(target.Width), int(target.Height), copt)
 	if err != nil {
 		return nil, fmt.Errorf("video: seek color %s: %w", path, err)
 	}
