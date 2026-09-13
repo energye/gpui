@@ -261,7 +261,10 @@ func main() {
 		framesDecoded, framesShown, dropped, liveShown, app.PresentCount(), elapsed)
 }
 
-// blitRGBA copies a player frame into the shared display buffer.
+// blitRGBA copies a player frame into the shared display buffer and flags
+// it for GPU reupload (window side only). Without MarkPixelsDirty the GPU
+// texture cache keys on GenerationID and would keep showing the first
+// frame forever: numbers run, picture frozen.
 func blitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
 	if dst == nil || len(pix) < w*h*4 {
 		return
@@ -272,6 +275,7 @@ func blitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
 			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
 		}
 	}
+	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }
