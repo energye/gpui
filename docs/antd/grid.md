@@ -179,11 +179,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；Row/Col 纯布局，不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；断点语义与 Layout 共用（不同文件，各自实现并行安全）。
+- **文件归属**：`ui/kit/grid/`（只改自己文件，并行安全；`NewGrid` 为 `NewRow` 别名）。
+- **ConfigProvider**：主题（间隙 Token）、默认 props。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -253,17 +252,10 @@ import { Grid } from 'antd';
 
 实现 gpui kit 版 **Grid** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **13** 个，均需可复现。
+1. **配置面**：Row（align/gutter/justify/wrap）+ Col（span/offset/order/push/pull/flex）+ 断点 span 切换（§6.3）。
+2. **几何**：列宽=span/24×容器宽，gutter 半垫，断点 576/768/992/1200/1600/1920（§6.2，±0.5px）。
+3. **无障碍**：容器可选 AriaLabel，无强制 role（§6.6）。
+4. **示例矩阵**：P0 按 §6.8（8 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -361,40 +353,39 @@ gutter 间距
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| GRD-S1 | span=12+12 | 各 50% |
-| GRD-S2 | span=8×3 | 各约 33% |
-| GRD-S3 | offset=6 | 左空 6 格 |
-| GRD-S4 | gutter=16 | 列间隙 |
-| GRD-S5 | 响应 md=12 xs=24 | 断点切换 |
-| GRD-S6 | wrap | 换行行为 |
+| GRD-S1 | span=12+12，容器宽 1200，gutter=0 | 每列宽 600±0.5px |
+| GRD-S2 | span=8×3，容器宽 1200 | 每列宽 400±0.5px |
+| GRD-S3 | offset=6，容器宽 1200 | 左空 300±0.5px（6/24×1200） |
+| GRD-S4 | gutter=16（水平 16） | 相邻列内容间距 16±0.5px（Col 各垫 8） |
+| GRD-S5 | 响应 xs=24 / md=12（`SetViewportWidth` 500→800） | 500 时列宽=容器宽±0.5px，800 时列宽=容器宽×50%±0.5px |
+| GRD-S6 | wrap=false，列宽和>容器宽 | 列不换行，右列右边缘超出容器右边缘 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 列宽/偏移/断点几何符合 §6.2（±0.5px） |
+| hover/active/focus/disabled/loading | **不适用**（纯布局；可交互子项自理） |
+| 主题切换 | 间隙随 Theme 更新（无颜色切换） |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 无（纯布局；断点切换 P0 瞬时重排）。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰分隔 | 纯装饰可 aria-hidden |
-| 拖拽把手 | 可命名；键盘微调 P0/P1 按控件 |
+| 布局容器 | 无强制 role；可选 `AriaLabel` 命名；Grid 无装饰分隔、无浮层 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 栅格度量（§6.2 列数 24/gutter/断点） | **对等** | P0 L2 |
+| Row `gutter` 数字/`[h,v]` | **对等** | P0 L1 |
+| Col `span`/`offset`/`order`/`push`/`pull`/`flex` | **对等** | P0 L1 |
+| 断点 span 切换（`SetViewportWidth`） | **对等** | P0 L1 |
+| gutter/align/justify 响应式对象与 CSS 字符串 | P1 分期 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -431,6 +422,17 @@ gutter 间距
 | semantic classNames/styles、ConfigProvider 全局 | 分期 |
 | 动画像素级、官网逐像素哈希 | 分期 |
 
+**13 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 5 例 P1，官方无 debug 示例）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基础栅格/区块间隔/左右偏移/栅格排序/排版/对齐/排序/Flex 填充 | P0 | 栅格+偏移+排序+对齐主路径，gallery 必备 |
+| 响应式布局 | P1 | 响应式整页（断点 span 切换能力 GRD-06 已验） |
+| Flex 响应式布局 | P1 | 同上 |
+| 其他属性的响应式 | P1 | 响应式 object 全字段分期 |
+| 栅格配置器 | P1 | playground 交互页 |
+| useBreakpoint Hook | P1 | Hook 整页（能力由 SetViewportWidth 覆盖） |
+
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestGrid_PRD_<ID>` 或 gallery 场景 ID。  
@@ -439,24 +441,24 @@ gutter 间距
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | GRD-01 | L1 | NewGrid 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| GRD-02 | L1 | span=12+12 | 各 50% |
-| GRD-03 | L1 | span=8×3 | 各约 33% |
-| GRD-04 | L1 | offset=6 | 左空 6 格 |
-| GRD-05 | L1 | gutter=16 | 列间隙 |
-| GRD-06 | L1 | 响应 md=12 xs=24 | 断点切换 |
-| GRD-07 | L1 | wrap | 换行行为 |
-| GRD-08 | L1 | 复现官方示例「基础栅格」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-09 | L1 | 复现官方示例「区块间隔」（`gutter.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-10 | L1 | 复现官方示例「左右偏移」（`offset.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-11 | L1 | 复现官方示例「栅格排序」（`sort.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-12 | L1 | 复现官方示例「排版」（`flex.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-13 | L1 | 复现官方示例「对齐」（`flex-align.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-14 | L1 | 复现官方示例「排序」（`flex-order.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-15 | L1 | 复现官方示例「Flex 填充」（`flex-stretch.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| GRD-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| GRD-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| GRD-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| GRD-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| GRD-02 | L1 | span=12+12，容器宽 1200，gutter=0 | 每列宽 600±0.5px |
+| GRD-03 | L1 | span=8×3，容器宽 1200 | 每列宽 400±0.5px |
+| GRD-04 | L1 | offset=6，容器宽 1200 | 左空 300±0.5px |
+| GRD-05 | L1 | gutter=16 | 相邻列内容间距 16±0.5px |
+| GRD-06 | L1 | 响应 xs=24 / md=12（`SetViewportWidth` 500→800） | 500 时列宽=容器宽±0.5px，800 时列宽=容器宽×50%±0.5px |
+| GRD-07 | L1 | wrap=false，列宽和>容器宽 | 列不换行，右列右边缘超出容器右边缘 |
+| GRD-08 | L1 | 挂 `basic.tsx`（span 12+12，容器 1200，gutter=0） | 每列宽 600±0.5px |
+| GRD-09 | L1 | 挂 `gutter.tsx`（gutter=16） | 相邻列内容间距 16±0.5px |
+| GRD-10 | L1 | 挂 `offset.tsx`（offset=6，容器 1200） | 左空 300±0.5px |
+| GRD-11 | L1 | 挂 `sort.tsx`（push/pull 成对） | 两列视觉顺序交换，列宽不变 |
+| GRD-12 | L1 | 挂 `flex.tsx`（justify=center） | 行内列组居中，首列左>容器左 |
+| GRD-13 | L1 | 挂 `flex-align.tsx`（align=middle，列高不等） | 矮列交叉轴居中，差≤0.5px |
+| GRD-14 | L1 | 挂 `flex-order.tsx`（order 大小） | order 大者排后 |
+| GRD-15 | L1 | 挂 `flex-stretch.tsx`（flex 填充列） | 填充列宽=剩余宽±0.5px |
+| GRD-16 | L2 | 读取 §6.2 列数/gutter/断点 | gridColumns=24，gutter/断点数字一致（±0.5px） |
+| GRD-17 | L2 | 默认皮颜色 | 无自有颜色；无硬编码品牌色 |
+| GRD-18 | L2 | disabled 外观 | **不适用**（纯布局无禁用态） |
+| GRD-19 | L1 | 键盘/焦点主路径 | **不适用**（容器不聚焦；子项自理） |
 | GRD-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | GRD-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | GRD-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

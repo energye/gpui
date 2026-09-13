@@ -168,11 +168,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L0 无依赖原子件**（本组最底层）；不依赖组内其他件，被 Button/FloatButton 等引用。
+- **等谁**：无，可最先实现；谁等它：图标消费方（不同文件，并行安全）。
+- **文件归属**：`ui/kit/icon/`（只改自己文件，并行安全；注册表放 `ui/primitive` 由 icon 侧声明）。
+- **ConfigProvider**：主题（默认色/双色全局）、locale 无关。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -340,17 +339,11 @@ import { HomeOutlined } from '@ant-design/icons';
 
 实现 gpui kit 版 **Icon** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **5** 个，均需可复现。
+1. **配置面**：`name` 注册解析、`size`、`color`、`rotate`、`spin`、双色（实例+全局）、`component→SetPainter`、离线 iconfont 多源（§6.3）。
+2. **几何**：默认边长 16，`SetSize` 后布局 `size×size`（±0.5px）；`hit==layout==paint`。
+3. **动效**：spin 走 Host Tick，reduced-motion 下停转；禁止自建帧循环。
+4. **无障碍**：默认装饰（aria-hidden 等价）；`SetAriaLabel` 转有意义 img。
+5. **示例矩阵**：P0 按 §6.8（5 例全收）、无 P1 示例；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -520,6 +513,12 @@ spin=false ───────────────► 相位冻结；仅 s
 | spin 动画像素级 / 官网哈希 | 分期 |
 | ConfigProvider 全局 Icon 默认 | 分期 |
 | 可聚焦交互 Icon（非装饰） | 宿主控件负责；纯 Icon 不做 |
+
+**5 例→P0/P1 剪裁对应表**（§2.4 全量；5 例全收 P0，无 P1，官方无 debug 示例）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本用法/多色图标/自定义图标/使用 iconfont.cn/多个资源 | P0 | 注册解析+双色+自定义绘制+离线多源主路径，gallery 必备 |
 
 ### 6.9 验收用例表（可测）
 

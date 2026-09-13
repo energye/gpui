@@ -221,11 +221,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2**：表单件（无浮层）；Group 互斥值管理，Button 皮复用按钮 chrome；无组内前置依赖。
+- **Form**：`value` 直绑（Group）/ `checked`（单项），`status` 由 Item 下发。
+- **ConfigProvider**：size（仅按钮皮）/ 全局默认。
+- **文件归属**：`ui/kit/radio/`（圆点 + 按钮组 + Group 互斥）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -240,12 +239,12 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| checked | 指定当前是否选中 | boolean | false | - | × |
+| checked | 指定当前是否选中 | boolean | false |  | × |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
-| defaultChecked | 初始是否选中 | boolean | false | - | × |
-| disabled | 禁用 Radio | boolean | false | - | × |
+| defaultChecked | 初始是否选中 | boolean | false |  | × |
+| disabled | 禁用 Radio | boolean | false |  | × |
 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
-| value | 根据 value 进行比较，判断是否选中 | any | - | - | × |
+| value | 根据 value 进行比较，判断是否选中 | any | - |  | × |
 ### Radio.Group
 
 单选框组合，用于包裹一组 `Radio`。
@@ -253,17 +252,18 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | block | 将 RadioGroup 宽度调整为其父宽度的选项 | boolean | false | 5.21.0 |
-| buttonStyle | RadioButton 的风格样式，目前有描边和填色两种风格 | `outline` \| `solid` | `outline` | - |
-| defaultValue | 默认选中的值 | any | - | - |
-| name | RadioGroup 下所有 `input[type="radio"]` 的 `name` 属性。若未设置，则将回退到随机生成的名称 | string | - | - |
-| options | 以配置形式设置子元素 | string\[] \| number\[] \| Array<[CheckboxOptionType](#checkboxoptiontype)> | - | - |
+| buttonStyle | RadioButton 的风格样式，目前有描边和填色两种风格 | `outline` \| `solid` | `outline` |  |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 |
+| defaultValue | 默认选中的值 | any | - |  |
+| disabled | 禁选所有子单选器 | boolean | false |  |
+| options | 以配置形式设置子元素 | string\[] \| number\[] \| Array&lt;[CheckboxOptionType](#checkboxoptiontype)> | - |  |
 | optionType | 用于设置 Radio `options` 类型 | `default` \| `button` | `default` | 4.4.0 |
-| orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` | - |
-| size | 大小，只对按钮样式（`optionType=button` / Radio.Button）生效 | `large` \| `medium` \| `small` | - | - |
+| orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` |  |
+| size | 大小，只对按钮样式（`optionType=button` / Radio.Button）生效 | `large` \| `medium` \| `small` | - |  |
 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 |
-| value | 用于设置当前选中的值 | any | - | - |
-| vertical | 值为 true，Radio Group 为垂直方向。与 `orientation` 同时存在，以 `orientation` 优先 | boolean | false | - |
-| onChange | 选项变化时的回调函数 | function(e:Event) | - | - |
+| value | 用于设置当前选中的值 | any | - |  |
+| vertical | 值为 true，Radio Group 为垂直方向。与 `orientation` 同时存在，以 `orientation` 优先 | boolean | false |  |
+| onChange | 选项变化时的回调函数 | function(e:Event) | - |  |
 | 属性 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | label | 用于作为 Radio 选项展示的文本 | `string` | - | 4.4.0 |
@@ -304,8 +304,9 @@ import { Radio } from 'antd';
 | `block` | 将 RadioGroup 宽度调整为其父宽度的选项 | boolean | false | 5.21.0 |
 | `buttonStyle` | RadioButton 的风格样式，目前有描边和填色两种风格 | `outline` \| `solid` | `outline` | — |
 | `defaultValue` | 默认选中的值 | any | - | — |
+| `disabled` | 禁选所有子单选器（Group） | boolean | false | — |
 | `name` | RadioGroup 下所有 `input[type="radio"]` 的 `name` 属性。若未设置，则将回退到随机生成的名称 | string | - | — |
-| `options` | 以配置形式设置子元素 | string\[] \| number\[] \| Array<[CheckboxOptionType](#checkboxoptiontype)> | - | — |
+| `options` | 以配置形式设置子元素 | string\[] \| number\[] \| Array&lt;[CheckboxOptionType](#checkboxoptiontype)> | - | — |
 | `optionType` | 用于设置 Radio `options` 类型 | `default` \| `button` | `default` | 4.4.0 |
 | `orientation` | 排列方向 | `horizontal` \| `vertical` | `horizontal` | — |
 | `size` | 大小，只对按钮样式生效 | `large` \| `medium` \| `small` | - | — |
@@ -327,7 +328,7 @@ import { Radio } from 'antd';
 
 实现 gpui kit 版 **Radio** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -337,7 +338,7 @@ import { Radio } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 主路径 8 例（基本、不可用、单选组合、Radio.Group 垂直、Block 单选组合、配置方式、按钮样式、配合 name 使用）；余下（大小、填底的按钮样式、语义结构）P1，Notes 显式列出。
 
 ---
 ## 5. 参考链接
@@ -389,6 +390,8 @@ import { Radio } from 'antd';
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
+| Button 组横向内边距 `buttonPaddingInline` | **15** | `padding − lineWidth`（16−1；`prepareComponentToken`） |
+| Button 组项右间距 `wrapperMarginInlineEnd` | **8** | `marginXS` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -455,17 +458,21 @@ Group value=v
 | RDO-S8 | 键盘方向 | 移动选中 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 | 规则 |
+| 皮 / 态 | 规则 |
 | --- | --- |
-| default | Token 默认皮 |
-| hover / active | 可交互反馈 |
-| focus | 可见 focus ring |
-| checked/selected/active（适用者） | 主色强调 |
-| disabled | 降对比；无 hover |
-| loading | 指示器；防重复 |
+| 圆点皮 default | 白底圆点（直径 16）+ `colorBorder` 边；label 字 `colorText` |
+| 圆点皮 hover | 边框走主色系强调 |
+| 圆点皮 checked | 内圆点（`dotSize`）主色填充 |
+| 圆点皮 focus | 可见 focus ring（`radioFocusShadow`） |
+| 圆点皮 disabled | 圆点底降对比 + `dotColorDisabled`；label `colorTextDisabled`；无 hover |
+| Button 皮 default | `buttonBg` 底 + 边框；横向内边距 15（§6.2）；高 24/32/40（small/middle/large） |
+| Button 皮 checked | `buttonCheckedBg` + 主色字（`outline`）；`solid` 时 `buttonSolidCheckedBg` + 反白字 |
+| Button 皮 disabled-checked | `buttonCheckedBgDisabled` 底 + `buttonCheckedColorDisabled` 字 |
+| `block` | Group 通栏；按钮模式均分宽 |
+| `orientation=vertical` | 纵向排布，项间距走 `wrapperMarginInlineEnd` 纵向 |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 圆点/按钮态切换 P0 可用瞬时；尊重 reduced-motion。
 
 ### 6.6 无障碍（a11y）最低要求
 

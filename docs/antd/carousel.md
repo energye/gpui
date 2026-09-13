@@ -134,11 +134,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：舞台 + dots + arrows + Ticker（autoplay/dotDuration）；纵向由 `dotPlacement=start/end` 派生，无外部 kit 强依赖。
+- **动效**：scrollx/fade 像素级 P1，P0 瞬时切换；`ReduceMotion` 下进度可瞬时满（§6.5）。
+- **ConfigProvider**：尺寸、主题、全局 carousel 默认（P1）。
+- **文件归属**：`ui/kit/carousel/`（`carousel.go`，舞台 Clip + dots/arrows 定位）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -201,17 +200,17 @@ import { Carousel } from 'antd';
 
 实现 gpui kit 版 **Carousel** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（arrows/autoplay+speed/dotDuration/adaptiveHeight/dotPlacement/dots/draggable/fade-effect/infinite/GoTo-Next-Prev/after-beforeChange）；slick 全量 P1。
+2. **视觉态**：dots 四向/激活宽24/arrows 显隐/纵向/空态（§6.4 CRS-S1~S9，§6.5）。
+3. **尺寸态**：不分档；舞台高默认 160（basic 节奏）或 adaptiveHeight 随 slide。
+4. **受控/非受控**：`SetIndex/GoTo` 显式驱动 + autoplay Ticker；回调时序 before→index→after（§6.4）。
+5. **数据驱动**：slides[] 节点 + index。
+6. **无障碍**：region/dots 可激活命名/箭头边界禁用/Arrow 键切换（§6.6，动画注明见下）。
+7. **RTL**：横向 dots/箭头镜像；纵向上下键不变。
+8. **浮层**：无自带浮层。
+9. **性能**：P0 单 slide 挂载瞬时切换；autoplay/dotDuration 走 Host Ticker。
+10. **主题**：Token 化（§6.2 点16×3/激活24/箭头16）；支持 reduced-motion（动画瞬时，步进保留）。
+11. **示例矩阵**：§6.8 P0 **6** 例（basic/placement/autoplay/fade/arrows/dot-duration）。
 
 ---
 ## 5. 参考链接
@@ -349,6 +348,8 @@ index=i  (0..n-1)
 
 ### 6.6 无障碍（a11y）最低要求
 
+**Carousel（容器）/ animation 注明：**
+
 | 项 | 要求 |
 | --- | --- |
 | 根 | `role=region`（或 group）；`AriaLabel` 可设 |
@@ -356,6 +357,7 @@ index=i  (0..n-1)
 | 箭头 | prev/next 有名；`infinite=false` 边界禁用 |
 | 键盘 | 聚焦舞台后 `ArrowLeft`/`ArrowRight`（纵向 `ArrowUp`/`ArrowDown`）切换 |
 | Focus ring | 可聚焦控件可见 ring（§6.2 outset） |
+| animation | scrollx/fade 像素级过渡为 **P1**；P0 瞬时切换 + `ReduceMotion` 下进度可瞬时满（§6.5） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 

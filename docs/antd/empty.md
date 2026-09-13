@@ -93,11 +93,9 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：纯占位（image + description + footer）；footer 可嵌入 `Button`（`customize.tsx`），`config-provider.tsx` 的 `renderEmpty` 随 ConfigProvider（P1，§6.7）。
+- **全局空态**：`renderEmpty` 归宿主 P1；kit 本体只做默认 `No data` + 自定义（EMP-S1~S7）。
+- **文件归属**：`ui/kit/empty/`（`empty.go`，Canvas 内置插画 + 纵向 Column）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -167,17 +165,17 @@ import { Empty } from 'antd';
 
 实现 gpui kit 版 **Empty** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（description/image/children/浅 styles+classNames/image 高覆盖）；`renderEmpty`/函数形态 P1。
+2. **视觉态**：default/simple/自定义图 + 描述显隐 + footer（§6.4 EMP-S1~S7，§6.5 本体无交互态）。
+3. **尺寸态**：图高 default 100 / simple 40 / small 上下文 35（§6.2）。
+4. **受控/非受控**：不适用（纯占位）。
+5. **数据驱动**：不适用；footer children 节点注入。
+6. **无障碍**：装饰内置图不进 Tab、string 图 `role=img`、footer 子 Button 自带名（§6.6）。
+7. **RTL**：纵向居中，无方向语义。
+8. **浮层**：无自带浮层。
+9. **性能**：静态 Canvas 插画，无 Ticker。
+10. **主题**：Token 化（§6.2 描述色/插画 fill/margin 8/footer 16）；无主路径动画。
+11. **示例矩阵**：§6.8 P0 **5** 例（basic/simple/customize/description/style-class浅）；`config-provider` 归 P1。
 
 ---
 ## 5. 参考链接
@@ -314,7 +312,7 @@ mount ──► 显示 image + description? + children(footer)?
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
 | 内置 SVG 插画 | **近似** Canvas/几何色块（随 Token） | P0 近似 |
 | 真 URL 图片解码 | **映射**为 src 标签/占位 | P1 |
-| ConfigProvider `renderEmpty` / 全局 empty.image | 随 ConfigProvider | P1 |
+| ConfigProvider `renderEmpty` / 全局 empty.image | 归宿主 P1（`config-provider.tsx` 不进 P0） | P1 |
 | semantic classNames/styles **函数形态**深度 | 分期 | P1 |
 | styles/classNames **浅覆盖** | kit Style / ClassNames 钩子 | P0 |
 | debug `_semantic.tsx` / 官网逐像素 | **不做** / P1 | P1 |

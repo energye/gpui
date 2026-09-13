@@ -197,11 +197,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（浮层引导件；依赖浮层定位 Portal/z-index/mask/洞区，先做浮层定位与 `button` 再做本件）。
+- **等谁**：等浮层定位（Portal/mask/zIndex 1001）、Button（Prev/Next/Finish）、宿主目标矩形注入就绪。
+- **文件归属**：`ui/kit/tour/`。
+- **组合**：`target` 矩形由宿主写入；`getPopupContainer` 自定义挂载 P1。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -274,21 +273,17 @@ import { Tour } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Tour** 的验收清单：
+实现 gpui kit 版 **Tour** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **8** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
-12. **表单专项**：rules、dependencies、scrollToFirstError。
+1. **配置面**：覆盖 §6.8 P0 字段（open/current/steps/title/description/target/cover/placement/type/mask/gap/arrow/keyboard/indicators/actions）；P1 可分期但命名兼容。
+2. **视觉态**：mask+高亮洞（offset 6/radius 2）+面板（宽 520/z 1001）+footer 指示器与操作区（§6.5）。
+3. **行为**：Next/Prev/Finish/Close/Esc 六规则（TOU-S 系）；受控 current 外部优先。
+4. **受控/非受控**：open/current 受控 + onChange/onClose/onFinish。
+5. **无障碍**：面板 dialog + 可访问名 + 焦点陷阱 + Esc（§6.6）；洞区仅视觉镂空。
+6. **浮层**：Portal/zIndex 1001 + mask；`getPopupContainer/scrollIntoView` P1。
+7. **主题**：Token 化（§6.2）；P0 瞬时，动画像素级 P1。
+8. **示例矩阵**：官方非 debug **8** 个：P0 **8** 全收（§6.8 主路径，style-class 浅 styles）。
+9. **表单专项**：N/A（引导控件，无 rules/dependencies 校验语义）。
 
 ---
 ## 5. 参考链接
@@ -433,22 +428,22 @@ closed ──SetOpen(true)/open──► open@current
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 角色 | 面板 `role=dialog`；洞区（高亮目标）不套可交互角色，仅作视觉镂空 |
+| 命名 | 每步名=title＋description（title 为空时用 description 首句；两者皆空测试失败） |
+| 键盘 | Tab 困在面板内循环；Esc 关闭（`keyboard=true`）；←/→ 上一步/下一步（适用时） |
+| 焦点环 | Prev/Next/关闭按钮聚焦时 ring 可见；打开时焦点进面板，关闭回触发器 |
+| 遮罩/洞区 | `mask=true` 朗读模态遮罩；`disabledInteraction` 时洞区不透传且朗读“不可交互” |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| open/current/Next/Prev/Finish/Close/Esc 主路径（§6.1 L1） | **对等** | P0 L1 |
+| 面板 520/z 1001/gap/指示器度量与色 Token（§6.2） | **对等** | P0 L2 |
+| 开合入场 | **瞬时**（尊重 reduced-motion） | P0 瞬时 / P1 像素 |
+| `target` 目标矩形 | **宿主写入**绝对矩形（open/current/布局后重写，与锚点盒对齐；空则居中） | P0 宿主 |
+| `scrollIntoViewOptions` 真滚动 | 桌面宿主 | P1 |
+| Semantic classNames/styles 函数形态 | kit 浅钩子 P0；函数深度 P1 | P0/P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -514,8 +509,8 @@ closed ──SetOpen(true)/open──► open@current
 | TOU-15 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | TOU-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | TOU-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| TOU-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| TOU-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| TOU-18 | L2 | disabled 外观 | N/A（Tour 无 disabled；洞区 `disabledInteraction` 见 TOU-S7） |
+| TOU-19 | L1 | 键盘/焦点：Tab 困面板循环，Esc 关，←/→ 上下步 | Prev/Next/关闭聚焦 ring 可见；打开进面板、关闭回触发器 |
 | TOU-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | TOU-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | TOU-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

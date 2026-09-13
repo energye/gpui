@@ -234,11 +234,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2**：表单件（tooltip 就地气泡，非 Portal 浮层）；轨/柄自绘 host；无组内前置依赖。
+- **Form**：数值 `value`（单值 / range 双值）直绑。
+- **ConfigProvider**：`tooltip` 全局默认随 ConfigProvider（P1）。
+- **文件归属**：`ui/kit/slider/`（轨 + 柄 + 刻度 + 就地 tooltip）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -251,9 +250,26 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | defaultValue | 设置初始取值。当 `range` 为 false 时，使用 number，否则用 \[number, number] | number \| \[number, number] | 0 \| \[0, 0] | disabled | 值为 true 时，滑块为禁用状态。该属性也可以是一个数组，用于禁用 range 模式下特定的 handle，例如 `[true, false, true]` 会禁用第一个和第三个 handle。当任意 handle 被禁用时，`editable` 模式将自动禁用 | boolean \| boolean[] | false | keyboard | 支持使用键盘操作 handler | boolean | true | 5.2.0+ | × |
-| dots | 是否只能拖拽到刻度上 | boolean | false | included | `marks` 不为空对象时有效，值为 true 时表示值为包含关系，false 表示并列 | boolean | true | marks | 刻度标记，key 的类型必须为 `number` 且取值在闭区间 \[min, max] 内，每个标签可以单独设置样式 | object | { number: ReactNode } or { number: { style: CSSProperties, label: ReactNode } } | max | 最大值 | number | 100 | min | 最小值 | number | 0 | orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` | range | 双滑块模式 | boolean \| [range](#range) | false | reverse | 反向坐标轴 | boolean | false | step | 步长，取值必须大于 0，并且可被 (max - min) 整除。当 `marks` 不为空对象时，可以设置 `step` 为 null，此时 Slider 的可选值仅有 `marks`、`min` 和 `max` | number \| null | 1 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | tooltip | 设置 Tooltip 相关属性 | [tooltip](#tooltip) | - | 4.23.0 | × |
-| value | 设置当前取值。当 `range` 为 false 时，使用 number，否则用 \[number, number] | number \| \[number, number] | - | vertical | 值为 true 时，Slider 为垂直方向。与 `orientation` 同时存在，以 `orientation` 优先 | boolean | false | onChangeComplete | 与 `mouseup` 和 `keyup` 触发时机一致，把当前值作为参数传入 | (value) => void | - | onChange | 当 Slider 的值发生改变时，会触发 onChange 事件，并把改变后的值作为参数传入 | (value) => void | - | ~~handleStyle~~ | 滑块手柄样式，请使用 `styles.handle` 替代 | CSSProperties | - | - | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | 5.23.0 |
+| defaultValue | 设置初始取值。当 `range` 为 false 时，使用 number，否则用 \[number, number] | number \| \[number, number] | 0 \| \[0, 0] |  | × |
+| disabled | 值为 true 时，滑块为禁用状态。该属性也可以是一个数组，用于禁用 range 模式下特定的 handle，例如 `[true, false, true]` 会禁用第一个和第三个 handle。当任意 handle 被禁用时，`editable` 模式将自动禁用 | boolean \| boolean[] | false |  | × |
+| keyboard | 支持使用键盘操作 handler | boolean | true | 5.2.0+ | × |
+| dots | 是否只能拖拽到刻度上 | boolean | false |  | × |
+| included | `marks` 不为空对象时有效，值为 true 时表示值为包含关系，false 表示并列 | boolean | true |  | × |
+| marks | 刻度标记，key 的类型必须为 `number` 且取值在闭区间 \[min, max] 内，每个标签可以单独设置样式 | object | { number: ReactNode } or { number: { style: CSSProperties, label: ReactNode } } |  | × |
+| max | 最大值 | number | 100 |  | × |
+| min | 最小值 | number | 0 |  | × |
+| orientation | 排列方向 | `horizontal` \| `vertical` | `horizontal` |  | × |
+| range | 双滑块模式 | boolean \| [range](#range) | false |  | × |
+| reverse | 反向坐标轴 | boolean | false |  | × |
+| step | 步长，取值必须大于 0，并且可被 (max - min) 整除。当 `marks` 不为空对象时，可以设置 `step` 为 null，此时 Slider 的可选值仅有 `marks`、`min` 和 `max` | number \| null | 1 |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | × |
+| tooltip | 设置 Tooltip 相关属性 | [tooltip](#tooltip) | - | 4.23.0 | × |
+| value | 设置当前取值。当 `range` 为 false 时，使用 number，否则用 \[number, number] | number \| \[number, number] | - |  | × |
+| vertical | 值为 true 时，Slider 为垂直方向。与 `orientation` 同时存在，以 `orientation` 优先 | boolean | false |  | × |
+| onChangeComplete | 与 `mouseup` 和 `keyup` 触发时机一致，把当前值作为参数传入 | (value) => void | - |  | × |
+| onChange | 当 Slider 的值发生改变时，会触发 onChange 事件，并把改变后的值作为参数传入 | (value) => void | - |  | × |
+| ~~handleStyle~~ | 滑块手柄样式，请使用 `styles.handle` 替代 | CSSProperties | - | - | × |
 | ~~onAfterChange~~ | 与 `mouseup` 和 `keyup` 触发时机一致，请使用 `onChangeComplete` 替代 | (value) => void | - | - | × |
 | ~~railStyle~~ | 滑轨样式，请使用 `styles.rail` 替代 | CSSProperties | - | - | × |
 | ~~trackStyle~~ | 已选轨道样式，请使用 `styles.track` 替代 | CSSProperties | - | - | × |
@@ -336,7 +352,7 @@ import { Slider } from 'antd';
 
 实现 gpui kit 版 **Slider** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -346,7 +362,7 @@ import { Slider } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **14** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 主路径 8 例（基本、带输入框的滑块、带 icon 的滑块、自定义提示、事件、带标签的滑块、垂直、控制 ToolTip 的显示）；余下（反向、范围可拖拽、多点组合、动态增减节点、禁用指定滑块、语义结构）P1，Notes 显式列出。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---

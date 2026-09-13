@@ -175,18 +175,19 @@
 | 设置分割线的间距大小 | `size.tsx` | 否 |
 | 分割文字使用正文样式 | `plain.tsx` | 否 |
 | 垂直分割线 | `vertical.tsx` | 否 |
-| 样式自定义 | `customize-style.tsx` | 是 |
+| 样式自定义 | `customize-style.tsx` | 否 |
 | 组件 Token | `component-token.tsx` | 是 |
 | 变体 | `variant.tsx` | 否 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 
+> debug 标记依据：`component-token.tsx` 文案即“组件 Token Debug”，标 debug；`customize-style.tsx` 为正经 style 覆盖 demo（文件名无 debug），标非 debug；官方 `_semantic.tsx` 为内部语义节点示例，不计入上表。
+
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；纯展示分隔，不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；常作 Flex/Space/Row 子项被引用，不同文件并行安全。
+- **文件归属**：`ui/kit/divider/`（只改自己文件，并行安全）。
+- **ConfigProvider**：主题（线色/字色 Token）、默认 props。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -237,17 +238,10 @@ import { Divider } from 'antd';
 
 实现 gpui kit 版 **Divider** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **7** 个，均需可复现。
+1. **配置面**：`orientation`/`vertical`（orientation 优先）、`size`（8/16/24）、`variant`+`dashed` 糖、`children` 标题、`titlePlacement`、`plain`（§6.3）。
+2. **几何**：水平 marginBlock、垂直 0.9em 高、标题字号 16/14（§6.2，±0.5px）。
+3. **非交互**：无 hover/press/focus/disabled 态；根 `role=separator`（§6.4–§6.6）。
+4. **示例矩阵**：P0 按 §6.8（6 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -429,6 +423,15 @@ mount ──► orientation=horizontal|vertical
 | dashed/dotted 与浏览器纹样逐像素 | 分期 |
 | ConfigProvider 全局 Divider 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
+
+**9 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 6 例，余下 2 例 P1，1 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 水平分割线/带文字/间距大小/正文样式/垂直分割线/变体 | P0 | 方向+标题+尺寸+线型主路径，gallery 必备 |
+| 样式自定义 | P1 | style 一锤子覆盖深度（线色/字号覆盖能力已验） |
+| 自定义语义结构的样式和类 | P1 | semantic 深度（结构可挂载见 DIV-21） |
+| 组件 Token | 不计 | Token 预览内部用例 |
 
 ### 6.9 验收用例表（可测）
 

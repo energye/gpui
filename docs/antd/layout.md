@@ -144,11 +144,12 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；Header/Sider/Content/Footer 纯布局，不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；Sider 内菜单/按钮由业务挂子项（不同文件，并行安全）。
+- **文件归属**：`ui/kit/layout/`（只改自己文件，并行安全）。
+- **ConfigProvider**：主题（壳 Token）、默认 props。
+
+> debug 标记依据：`custom-trigger-debug.tsx` 文件名含 debug；`component-token.tsx` 为 Token 预览内部用例。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -229,17 +230,11 @@ import { Layout } from 'antd';
 
 实现 gpui kit 版 **Layout** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **10** 个，均需可复现。
+1. **配置面**：四区嵌套 + Sider（width/collapsedWidth/collapsible/受控collapsed/theme/trigger/breakpoint/reverseArrow/覆盖）（§6.3）。
+2. **几何**：Header 64、Sider 200/80、trigger 48（§6.2，±0.5px）。
+3. **交互**：折叠切换+`onCollapse(collapsed,type)` 1 次；断点自动折叠+`onBreakpoint`（§6.4 LAY-S4/S7）。
+4. **无障碍**：trigger 可聚焦可键盘，容器可选名（§6.6）。
+5. **示例矩阵**：P0 按 §6.8（8 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -305,14 +300,13 @@ import { Layout } from 'antd';
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| body 背景 | `bodyBg`（=`colorBgLayout`） | Layout 根底 |
+| Header 背景/字色 | `headerBg`（默认 `#001529`）/`headerColor` | 深色壳 |
+| Sider 背景 dark/light | `siderBg`（`#001529`）/`lightSiderBg`（=`colorBgContainer`） | `theme` 切换 |
+| trigger 背景/字色 | `triggerBg`（`#002140`）/`triggerColor` | 折叠条 |
+| Footer 背景 | `footerBg`（=`colorBgLayout`） | |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色作为唯一默认皮；`#001529`/`#002140` 为 antd 侧栏壳 Token 默认，经组件 Token 可配。
 
 ### 6.3 关键配置与语义
 
@@ -349,21 +343,21 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| LAY-S1 | 经典四区 | 均可见 |
-| LAY-S2 | Header 高 | 64 |
-| LAY-S3 | Sider 宽 | 200 |
-| LAY-S4 | 折叠 | 宽→80；onCollapse |
-| LAY-S5 | theme dark | 侧深底 |
-| LAY-S6 | 再展开 | 回 200 |
-| LAY-S7 | breakpoint（适用） | 自动折叠 |
+| LAY-S1 | 经典四区（Header+Sider+Content+Footer） | 四区布局盒宽高均>0且互不重叠 |
+| LAY-S2 | Header 高默认 | 高 64±0.5px |
+| LAY-S3 | Sider 宽默认 | 宽 200±0.5px |
+| LAY-S4 | 折叠（collapsible，collapsed=true） | Sider 宽 80±0.5px，`onCollapse(true, click)` 触发 1 次 |
+| LAY-S5 | theme=dark | Sider 底色为深色壳 `#001529`（Token `siderBg`） |
+| LAY-S6 | 再展开（collapsed=false） | Sider 宽回 200±0.5px |
+| LAY-S7 | breakpoint=md + 视口 700 | 视口<768 时自动折叠为 80±0.5px，`onBreakpoint(true)` 触发 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 四区几何符合 §6.2（Header 64±0.5px，Sider 200/80±0.5px） |
+| hover/active/focus | 仅 Sider trigger 可交互：悬停底色变化，聚焦 ring 可见 |
+| disabled/loading | **不适用**（布局容器无禁用/加载态） |
+| 主题切换 | Sider dark/light 底色与 body 背随 Theme 更新 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -372,18 +366,17 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰分隔 | 纯装饰可 aria-hidden |
-| 拖拽把手 | 可命名；键盘微调 P0/P1 按控件 |
+| 布局容器 | 无强制 role；可选 `AriaLabel` 命名；Layout 无装饰分隔 |
+| 折叠 trigger | 可聚焦可键盘激活（Enter/Space 切换折叠），Focus ring 可见 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 四区度量（§6.2 Header 64/Sider 200/80/trigger 48） | **对等** | P0 L2 |
+| Sider 折叠/trigger/breakpoint/覆盖 | **对等** | P0 L1 |
+| 固定头部/固定侧边栏 | P1 分期（缺宿主滚动锁定） | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -418,6 +411,15 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 | 浏览器-only API / ConfigProvider 全局 Layout 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
+**12 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 2 例 P1，2 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本结构/上中下/顶部-侧边/通栏/侧边/自定义触发器/折叠覆盖/响应式 | P0 | 四区+折叠+断点主路径，gallery 必备 |
+| 固定头部 | P1 | 缺宿主滚动锁定（sticky+滚动容器） |
+| 固定侧边栏 | P1 | 同上 |
+| custom-trigger-debug/component-token | 不计 | 内部调试/Token 预览 |
+
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestLayout_PRD_<ID>` 或 gallery 场景 ID。  
@@ -426,25 +428,25 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | LAY-01 | L1 | NewLayout 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| LAY-02 | L1 | 经典四区 | 均可见 |
-| LAY-03 | L1 | Header 高 | 64 |
-| LAY-04 | L1 | Sider 宽 | 200 |
-| LAY-05 | L1 | 折叠 | 宽→80；onCollapse |
-| LAY-06 | L1 | theme dark | 侧深底 |
-| LAY-07 | L1 | 再展开 | 回 200 |
-| LAY-08 | L1 | breakpoint（适用） | 自动折叠 |
-| LAY-09 | L1 | 复现官方示例「基本结构」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-10 | L1 | 复现官方示例「上中下布局」（`top.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-11 | L1 | 复现官方示例「顶部-侧边布局」（`top-side.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-12 | L1 | 复现官方示例「顶部-侧边布局-通栏」（`top-side-2.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-13 | L1 | 复现官方示例「侧边布局」（`side.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-14 | L1 | 复现官方示例「自定义触发器」（`custom-trigger.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-15 | L1 | 复现官方示例「折叠覆盖布局」（`collapsible-overlay.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-16 | L1 | 复现官方示例「响应式布局」（`responsive.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LAY-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| LAY-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| LAY-19 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| LAY-20 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| LAY-02 | L1 | 经典四区（Header+Sider+Content+Footer） | 四区布局盒宽高均>0且互不重叠 |
+| LAY-03 | L1 | Header 高默认 | 高 64±0.5px |
+| LAY-04 | L1 | Sider 宽默认 | 宽 200±0.5px |
+| LAY-05 | L1 | 折叠（collapsed=true） | Sider 宽 80±0.5px，`onCollapse(true, click)` 触发 1 次 |
+| LAY-06 | L1 | theme=dark | Sider 底色为深色壳 `#001529` |
+| LAY-07 | L1 | 再展开（collapsed=false） | Sider 宽回 200±0.5px |
+| LAY-08 | L1 | breakpoint=md + 视口 700 | 视口<768 时自动折叠为 80±0.5px |
+| LAY-09 | L1 | 挂 `basic.tsx`（Header+Content+Footer） | Header 高 64±0.5px，三区纵向无重叠 |
+| LAY-10 | L1 | 挂 `top.tsx`（上中下） | 同上，Footer 贴底 |
+| LAY-11 | L1 | 挂 `top-side.tsx`（顶+侧） | Sider 宽 200±0.5px，Content 占剩余宽 |
+| LAY-12 | L1 | 挂 `top-side-2.tsx`（通栏） | Header 通栏宽=容器宽，Sider 在 Header 下 |
+| LAY-13 | L1 | 挂 `side.tsx`（侧边+折叠） | 点 trigger 后 Sider 宽 80±0.5px，`onCollapse` 1 次 |
+| LAY-14 | L1 | 挂 `custom-trigger.tsx`（自定义 trigger） | 自定节点可点，折叠切换同上 |
+| LAY-15 | L1 | 挂 `collapsible-overlay.tsx`（collapsedWidth=0 覆盖） | 折叠后 Sider 不占主轴宽，内容宽不变 |
+| LAY-16 | L1 | 挂 `responsive.tsx`（breakpoint=md，视口 700） | Sider 自动折叠 80±0.5px，`onBreakpoint(true)` 1 次 |
+| LAY-17 | L2 | 读取 §6.2 Header/Sider/trigger | 64/200/80/48（±0.5px） |
+| LAY-18 | L2 | 默认皮颜色 | Sider dark `#001529`、light 走容器底；无硬编码品牌色 |
+| LAY-19 | L2 | disabled 外观 | **不适用**（布局无禁用态） |
+| LAY-20 | L1 | 键盘/焦点主路径 | trigger 可聚焦，Enter/Space 切换折叠，Focus ring 可见 |
 | LAY-21 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | LAY-22 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | LAY-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

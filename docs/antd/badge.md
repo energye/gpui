@@ -199,11 +199,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：角标叠加容器，可包 `Avatar/Icon/Button`（`badge.tsx` 包头像）；`Ribbon` 为缎带子组件，同文件实现。
+- **processing 脉冲**：Ticker 驱动（§6.4 BDG-S9），reduced-motion 可关。
+- **ConfigProvider**：尺寸、主题、全局 badge 默认（P1）。
+- **文件归属**：`ui/kit/badge/`（`badge.go` + `ribbon.go`）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -257,18 +256,17 @@ import { Badge } from 'antd';
 
 实现 gpui kit 版 **Badge** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **12** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
+1. **配置面**：覆盖 §6.8 P0 字段（count/showZero/overflowCount/dot/offset/size/status+text/color/title/CountNode/Ribbon）；预设色全表 P1。
+2. **视觉态**：count 胶囊/dot/状态点/Ribbon start-end/processing 脉冲（§6.4 BDG-S1~S10，§6.5）。
+3. **尺寸态**：medium / small（count 高 20/14，§6.2）。
+4. **受控/非受控**：不适用（展示件；`SetCount/SetDot` 显式驱动）。
+5. **数据驱动**：count 封顶 `99+` + `CountNode` 自定义内容。
+6. **无障碍**：装饰角标默认隐藏、有意义 count 用 title/名、可点击 button 语义（§6.6）。
+7. **RTL**：offset/半出锚点镜像；Ribbon start/end 随文向。
+8. **浮层**：无自带浮层；`title` 悬停气泡可简化为字段。
+9. **性能**：瞬时切换（ScrollNumber 翻滚 P1）；processing Ticker 按需挂载。
+10. **主题**：Token 化（§6.2 count 底 Error/字 Inverse，Ribbon 底 Primary）；支持 reduced-motion。
+11. **示例矩阵**：§6.8 P0 **8** 例（basic/no-wrapper/overflow/dot/change/link/offset/size）；`status/colorful/ribbon` 整页铺陈 P1（API 仍 P0）。
 
 ---
 ## 5. 参考链接

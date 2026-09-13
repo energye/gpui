@@ -208,11 +208,11 @@ AutoComplete 组件本质上是 Input 输入框的一种扩展，当 `options` �
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
+- **依赖等级 L3**：浮层件 + 表单件；触发器复用 `kit.Input`，弹层走 Portal；先做 `input` 再做本件。
+- **Form**：`value`/`onChange` 直绑，`status` 由 Item 下发。
+- **ConfigProvider**：size/variant/status 全局默认。
 - **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **文件归属**：`ui/kit/auto-complete/`（触发器 + 弹层面板 + 过滤）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -312,7 +312,7 @@ import { AutoComplete } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **10** 个，均需可复现。
+11. **示例矩阵**：官方非 debug **10** 个：P0 **8**（§6.8 主路径）+ P1 **2**（清除按钮、语义结构）；`_semantic` 仅主题钩子。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -443,12 +443,21 @@ allowClear ──► value="" + onClear + onChange
 
 | 态 / 变体 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| default | 触发器 Input 壳（outlined 默认）+ 关闭时仅输入框；Token 色 |
+| hover | 触发器边框/底强调；下拉行 hover 底 `controlItemBgHover` |
+| focus | 触发器**可见** focus ring + 主色边；弹层打开仍保留 |
+| disabled | 触发器降对比不可编辑；不弹层 |
+| status=error/warning | 触发器语义色边框；弹层过滤链路不变 |
+| 弹层 open | 面板圆角 8 + 内边距 4 + 阴影；行高 32；选中底 `controlItemBgActive`；min-width=触发器宽 |
+
+**variant 矩阵（`variant` × chrome，L2，触发器壳与 Input 同规则）：**
+
+| variant | 填充 | 边框 | focus | 备注 |
+| --- | --- | --- | --- | --- |
+| `outlined`（默认） | `colorBgContainer` | 1px `colorBorder` 全边框 | 主色边 + 可见 ring | 默认 |
+| `filled` | `colorFillAlter` 浅底 | 无/弱边框 | 主色边 + ring | 浅底形态 |
+| `borderless` | 透明 | 无 | 仅 ring 可见 | 无 chrome |
+| `underlined` | 透明 | 仅底边 1px `colorBorder` | 底边走主色 | 底边线形态 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -457,23 +466,23 @@ allowClear ──► value="" + onClear + onChange
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | 触发器 `combobox`（`aria-expanded` + `aria-controls`）+ 面板 `listbox` + 行 `option` |
+| 标签 | 与 Form.Item label 或 `AriaLabel` 关联；`placeholder` 不作唯一名称 |
+| 清除 | 清除钮有可访问名；无内容时隐藏且不可聚焦 |
+| 错误 | `status=error` 时触发器暴露 invalid + 错误文案关联 |
+| 键盘 | ↑/↓ 移动高亮（`aria-activedescendant`）、Enter 选中、Esc 关闭；分组标题跳过 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 输入/过滤/选中/清除主路径 | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2，含下拉行高 32/圆角 8） | **对等** | P0 L2 |
+| 中文 IME 输入（`onChange` 受控，`onSearch` 不拦截组字） | **宿主** | P0 宿主 |
+| 空 options + 受控 open 不展示下拉（FAQ 防误导） | **对等** | P0 L1 |
+| `backfill` 键盘回填 / `virtual` 大数据 / `popupRender` 自定义壳 | 分期 | P1 |
+| `getPopupContainer` 宿主挂载 | **映射**宿主容器 | P0 宿主 |
+| Semantic classNames/styles + ConfigProvider 全局默认 | kit 语义钩子，随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -525,22 +534,22 @@ allowClear ──► value="" + onClear + onChange
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | AC-01 | L1 | NewAutoComplete 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| AC-02 | L1 | 输入触发 onSearch | 回调 |
-| AC-03 | L1 | 选建议 | 回填 value |
-| AC-04 | L1 | clear | 空 |
-| AC-05 | L1 | 无匹配 | 空列表/notFound |
-| AC-06 | L1 | 键盘选中 | Enter 选 |
-| AC-07 | L1 | disabled | 不交互 |
-| AC-08 | L1 | 受控 value | 外部 |
-| AC-09 | L1 | 高度 | 32 middle |
-| AC-10 | L1 | 复现官方示例「基本使用」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AC-11 | L1 | 复现官方示例「自定义选项」（`options.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AC-12 | L1 | 复现官方示例「自定义输入组件」（`custom.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AC-13 | L1 | 复现官方示例「不区分大小写」（`non-case-sensitive.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AC-14 | L1 | 复现官方示例「查询模式 - 确定类目」（`certain-category.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AC-15 | L1 | 复现官方示例「查询模式 - 不确定类目」（`uncertain-category.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AC-16 | L1 | 复现官方示例「自定义状态」（`status.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AC-17 | L1 | 复现官方示例「多种形态」（`variant.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| AC-02 | L1 | 输入触发 onSearch | 每次有效键入 `onSearch+onChange` 各一次，点选选项不触发 `onSearch` |
+| AC-03 | L1 | 点选一条建议 | 回填 value + `onSelect(value,option)+onChange` 各一次并关层 |
+| AC-04 | L1 | 有内容时点清除 | 值空 + `onClear+onChange("")`，空时清除钮隐藏 |
+| AC-05 | L1 | 输入无匹配词 | 过滤后空行不展示误导行；有 `notFoundContent` 则显示该文案一行 |
+| AC-06 | L1 | 弹层开时↑↓+Enter/Esc | ↑↓移动高亮，Enter 选中高亮项回填，Esc 关层不提交 |
+| AC-07 | L1 | `disabled=true` 下键入/点击 | 不弹层、不回调、不改值 |
+| AC-08 | L1 | 受控 `value` 键入 | 只上抛 `onChange`，展示值等外部 `SetValue` 写回才变 |
+| AC-09 | L1 | `size` 三档实测 | 触发器高 small=24 / middle=32 / large=40（±0.5） |
+| AC-10 | L1 | 复现官方示例「基本使用」（`basic.tsx`） | 输入 `b`：下拉出现含 `b` 的选项，点选第一项后回填 value 并触发 `onSelect+onChange` 各一次，随即关层 |
+| AC-11 | L1 | 复现官方示例「自定义选项」（`options.tsx`） | 自定义 label 节点（含富文本/附加文案）逐行绘制，行高仍 32；点选后回填对应 value，`onSelect` 带回完整 option |
+| AC-12 | L1 | 复现官方示例「自定义输入组件」（`custom.tsx`） | `SetChildren` 换 Search/TextArea 作触发器：键入/清除/禁用同步到子输入，弹层过滤与选中行为不变 |
+| AC-13 | L1 | 复现官方示例「不区分大小写」（`non-case-sensitive.tsx`） | 输入 `A` 与 `a` 命中同一批选项（`containsFold`），高亮首项（`defaultActiveFirstOption=true`），Enter 选中高亮项 |
+| AC-14 | L1 | 复现官方示例「查询模式 - 确定类目」（`certain-category.tsx`） | 分组标题行不可点，组内行右侧显示类目文案（`Extra`）；点选项回填 value，`onSelect` 带回所属 group |
+| AC-15 | L1 | 复现官方示例「查询模式 - 不确定类目」（`uncertain-category.tsx`） | 搜索词变化时分组实时重算过滤，无匹配分组整组消失；有命中时 Enter 选中当前高亮项并回填 |
+| AC-16 | L1 | 复现官方示例「自定义状态」（`status.tsx`） | `status=error/warning` 时触发器边框走语义色且仍可输入过滤；弹层打开/选中链路不变 |
+| AC-17 | L1 | 复现官方示例「多种形态」（`variant.tsx`） | 同值切 outlined/filled/borderless/underlined：§6.5 矩阵 chrome 逐一对上，无残留边框，focus ring 仍可见 |
 | AC-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | AC-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | AC-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -553,9 +562,6 @@ allowClear ──► value="" + onClear + onChange
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewAutoComplete(placeholder string, optionValues ...string) *AutoComplete
-// optionValues 便捷构造为 []AutoCompleteOption{Value:s}
-
 type AutoCompleteOption struct {
   Value, Label string
   Disabled bool
@@ -564,18 +570,43 @@ type AutoCompleteOption struct {
   LabelNode core.Node          // 可选自定义 label 节点
 }
 
-// 配置 SetXxx（P0）：
-//   SetValue / SetDefaultValue / SetPlaceholder / SetOptions / SetOptionValues
-//   SetDisabled / SetSize / SetVariant / SetStatus / SetAllowClear
-//   SetOpen / SetDefaultOpen / SetFilterOption / SetFilterOptionFunc
-//   SetDefaultActiveFirstOption / SetNotFoundContent / SetChildren
-//   SetPopupMatchSelectWidth / SetLoading / SetFixedWidth
-// 回调：
-//   SetOnChange / SetOnSearch / SetOnSelect / SetOnOpenChange / SetOnClear
-// 状态：SetDisabled / SetLoading（Ticker）
-// 主题：SetTheme(*Theme)；SetFace
-// a11y：SetAriaLabel；HandleKey(↑↓EnterEsc)
-// 挂树：Node() core.Node；Input() *Input；Popup() *AnchoredPopup
+NewAutoComplete(placeholder string, optionValues ...string) *AutoComplete
+// optionValues 便捷构造为 []AutoCompleteOption{Value:s}
+
+SetValue(string)                // 受控值；不触发 OnChange（由外部写回）
+SetDefaultValue(string)         // 非受控初值
+GetValue() string
+SetPlaceholder(string)
+SetOptions([]AutoCompleteOption)
+SetOptionValues(...string)      // 便捷：仅 value 列表
+SetDisabled(bool)
+SetSize(InputSize)              // small|middle|large → 高 24/32/40
+SetVariant(InputVariant)        // outlined|filled|borderless|underlined
+SetStatus(InputStatus)          // none|error|warning
+SetAllowClear(bool)
+SetOpen(bool)                   // 受控弹层；空 options 时仍不展示（FAQ）
+SetDefaultOpen(bool)
+IsOpen() bool
+SetFilterOption(bool)           // false=不过滤，由 OnSearch 供数
+SetFilterOptionFunc(func(input string, opt AutoCompleteOption) bool)
+SetDefaultActiveFirstOption(bool)
+SetNotFoundContent(string)
+SetChildren(core.Node)          // 自定义触发输入（默认 Input；可 Search/TextArea）
+SetPopupMatchSelectWidth(bool)  // 默认 true：弹层 min-width=触发器宽
+SetLoading(bool)                // Ticker 转圈，挂面板（异步搜索指示）
+SetFixedWidth(float64)          // 场景定宽
+SetOnChange(func(value string))
+SetOnSearch(func(value string)) // 点选不触发
+SetOnSelect(func(value string, opt AutoCompleteOption))
+SetOnOpenChange(func(open bool))
+SetOnClear(func())
+SetTheme(*Theme) / SetFace(text.Face)
+SetAriaLabel(string)
+HandleKey(*KeyEvent)            // ↑↓高亮 + Enter选中 + Esc关
+AttachTicker(*Tree)             // loading 旋转
+Node() core.Node
+Input() *Input                  // 触发器（默认或 children 包裝）
+Popup() *AnchoredPopup
 ```
 
 **默认值（未 Set 时）：**
@@ -597,13 +628,19 @@ type AutoCompleteOption struct {
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Column (Wrap)
-  ├─ Input | children (Search / TextArea / custom)
-  └─ AnchoredPopup (Portal)
-       └─ Decorated panel
-            ├─ loading spinner? (Ticker)
-            ├─ group title? …
-            └─ option rows (Pressable) | notFoundContent
+Column (Wrap，宽=触发器宽)
+  ├─ Trigger：Input（默认 outlined，高 24/32/40）| children（Search/TextArea/custom）
+  │    └─ Decorated 壳 + Flex(Row)：prefix? · EditableText · clear? · suffix?
+  └─ AnchoredPopup (Portal，min-width=触发器宽，见 popupMatchSelectWidth)
+       └─ Decorated panel（圆角 8，内边距 4，阴影 boxShadowSecondary）
+            ├─ loading spinner?（顶部/居中，Ticker 旋转）
+            ├─ group title?（次级文本色，不可点，单行高 32 内左对齐）
+            ├─ option rows × N（Pressable，行高 32，padding 5px 12px）
+            │    ├─ default：文本 14/lineHeight，超长省略
+            │    ├─ active（hover/键盘高亮）：底 controlItemBgHover
+            │    ├─ selected：底 controlItemBgActive + 字重 600
+            │    └─ disabled：降对比 + 不响应
+            └─ empty?：notFoundContent（有则显示一行，否则整层不展示）
 ```
 
 - 组合 `ui/primitive` + `ui/core` + 已有 `kit.Input`，禁止第二套事件/帧循环。  

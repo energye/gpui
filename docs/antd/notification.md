@@ -233,6 +233,7 @@
 | 组件 Token | `component-token.tsx` | 是 |
 | _InternalPanelDoNotUseOrYouWillBeFired | `render-panel.tsx` | 是 |
 | 自定义语义结构样式 | `style-class.tsx` | 否 |
+| 语义结构调试 | `_semantic.tsx` | 是 |
 
 ### 2.5 实例方法 / Ref
 
@@ -290,11 +291,10 @@ Notification 使用固定宽度布局，以保证堆叠卡片样式的一致性�
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（浮层：四角堆叠池 + z-index 定位）。
+- **等谁**：浮层定位（placement 独立队列）、Button（`actions` 按钮组）、Icon（类型图标）。
+- **文件归属**：`ui/kit/notification/`。
+- **组合**：经 App 上下文消费；ConfigProvider 下发 `placement`/`duration`/`maxCount` 全局默认。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -437,7 +437,7 @@ import { Notification } from 'antd';
 
 实现 gpui kit 版 **Notification** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -447,7 +447,7 @@ import { Notification } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **12** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -549,20 +549,24 @@ import { Notification } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-open ──► placement 角落显示
-duration ──► 自动关（默认 4.5s）
-key 更新 ──► 替换
-btn 点击 ──► 业务回调
+open ──► placement 角落独立队列显示（默认 topRight，边缘 inset 24）
+duration（默认 4.5s ±0.2s）──► 自动关；0/false 常驻
+key 更新 ──► 同 key 替换，不新增
+maxCount 超限 ──► 丢最旧一条
+stack 超 threshold（默认 3）──► 折叠只展最新
+actions 点击 ──► 业务回调；手动 close ──► onClose
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| NTF-S1 | open | 可见 |
-| NTF-S2 | placement=bottomLeft | 位置在左下 |
-| NTF-S3 | duration 到期 | 消失 |
-| NTF-S4 | key 更新 | 不新增一条 |
-| NTF-S5 | 手动 close | onClose |
-| NTF-S6 | 带 btn | 按钮可点 |
+| NTF-S1 | open | 右上角（默认 topRight）可见，宽 384 |
+| NTF-S2 | placement=bottomLeft | 左下角队列位置，边缘 inset 24 |
+| NTF-S3 | duration 到期（4.5s ±0.2s） | 消失；duration=0 常驻 |
+| NTF-S4 | key 更新 | 同 key 替换，不新增一条 |
+| NTF-S5 | 手动 close | onClose 触发并移除 |
+| NTF-S6 | 带 actions | 按钮可点，回调透出 |
+| NTF-S7 | maxCount=2 后连发 3 条 | 最旧被丢弃，剩 2 条 |
+| NTF-S8 | stack 超 threshold=3 | 折叠只展最新，其余收起 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -579,21 +583,25 @@ btn 点击 ──► 业务回调
 
 | 项 | 要求 |
 | --- | --- |
-| 实时区域 | message/notification 用 status 语义等价 |
-| 关闭 | 可关控件可操作 |
-| 不抢焦点 | 轻提示默认不抢（Modal 例外） |
+| 角色 | 卡片 `role=alert`（默认打断），可配 `role=status` 非打断 |
+| 命名 | 每卡名=title＋description（description 必选，空测试失败） |
+| 键盘 | Esc 关闭当前卡（适用时）；actions 内按钮保留自身键盘能力 |
+| 焦点环 | 关闭按钮/actions 按钮聚焦时 ring 可见；轻提示默认不抢焦点 |
+| 遮罩 | 无遮罩；多卡堆叠朗读顺序与视觉顺序一致 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 类型打开（open/success/info/warning/error）+ key 更新替换 + destroy | **对等** | P0 L1 |
+| 六角堆叠池（`top/topLeft/topRight/bottom/bottomLeft/bottomRight`，默认 `topRight`；边缘 inset 24，`top`/`bottom` API 各默认 24） | **对等**：P0 先验 topRight 与 bottomLeft 两点，全引擎后补 | P0 L1 |
+| 自动关闭（默认 **4.5s**，`0/false` 常驻；容差 ±0.2s，虚拟时钟断言） | **对等** | P0 L1 |
+| 堆叠上限（`maxCount` 超限丢最旧；`stack.threshold` 默认 3 超量折叠） | **对等**：队列写实 | P0 L1 |
+| `actions` 按钮组 + `onClick`/`onClose` + `closable` | **对等** | P0 L1 |
+| 尺寸/色 Token（宽 384、内边距 20×24、圆角 8、图标 24） | **对等** | P0 L2 |
+| `showProgress` 进度条/`pauseOnHover` 精确计时 | **分期** | P1 |
+| 静态方法全局单例 | **映射**：`useNotification`/App holder 为 P0 | P1 |
+| Semantic classNames/styles 深度 | kit 语义钩子 | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -646,14 +654,14 @@ btn 点击 ──► 业务回调
 | NTF-05 | L1 | key 更新 | 不新增一条 |
 | NTF-06 | L1 | 手动 close | onClose |
 | NTF-07 | L1 | 带 btn | 按钮可点 |
-| NTF-08 | L1 | 复现官方示例「Hooks 调用（推荐）」（`hooks.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| NTF-09 | L1 | 复现官方示例「自动关闭的延时」（`duration.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| NTF-10 | L1 | 复现官方示例「带有图标的通知提醒框」（`with-icon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| NTF-11 | L1 | 复现官方示例「自定义按钮」（`with-btn.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| NTF-12 | L1 | 复现官方示例「自定义图标」（`custom-icon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| NTF-13 | L1 | 复现官方示例「位置」（`placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| NTF-14 | L1 | 复现官方示例「更新消息内容」（`update.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| NTF-15 | L1 | 复现官方示例「堆叠」（`stack.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| NTF-08 | L1 | 复现「Hooks 调用」（`hooks.tsx`）：经 holder `Open({Title, Description})` | 右上角出现宽 384 卡片，标题+内容齐 |
+| NTF-09 | L1 | 复现「自动关闭的延时」（`duration.tsx`）：`duration=0` 与默认各发一条 | 前者常驻，后者 4.5s±0.2s 消失 |
+| NTF-10 | L1 | 复现「带有图标的通知提醒框」（`with-icon.tsx`）：success/info/warning/error 各一条 | 4 条图标语义色互异 |
+| NTF-11 | L1 | 复现「自定义按钮」（`with-btn.tsx`）：带 `actions` 发一条并点按钮 | 按钮回调触发，卡片不误关 |
+| NTF-12 | L1 | 复现「自定义图标」（`custom-icon.tsx`）：设 `IconName` 发一条 | 自定义图标替换默认类型图标 |
+| NTF-13 | L1 | 复现「位置」（`placement.tsx`）：`topRight` 与 `bottomLeft` 各发一条 | 两卡分属右上/左下队列，互不串池 |
+| NTF-14 | L1 | 复现「更新消息内容」（`update.tsx`）：同 key 发两次不同 description | 卡片仍 1 张，内容为第二次文案 |
+| NTF-15 | L1 | 复现「堆叠」（`stack.tsx`）：threshold=3 下连发 5 条 | 只展最新 + 折叠，其余收起 |
 | NTF-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | NTF-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | NTF-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -708,9 +716,16 @@ PlacementOf(key) / ItemBox(key)  // 布局断言（可选）
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Host holder or inline
-  └─ item (icon + content + close?)
+NotificationHolder（四角六方位独立堆叠池；与 Message 顶栏单队列区分）
+  ├─ 6 队列：top/topLeft/topRight/bottom/bottomLeft/bottomRight（默认 topRight；边缘 inset 24 ±0.5px；各池独立不串池）
+  └─ 队列内纵向卡片（宽 384 ±0.5px；内边距 20×24；圆角 8；图标 24）
+       ├─ 卡片（icon + title + description 必选 + close + actions；role=alert 默认打断，可配 status）
+       ├─ 入队：同 placement 追加；同 key 替换不新增（NTF-S4）；maxCount 超限丢最旧（NTF-S7）
+       ├─ stack 超 threshold（默认 3）折叠只展最新（NTF-S8）；计时 duration 默认 4.5s ±0.2s（虚拟时钟），0/false 常驻
+       └─ 交互：手动 close → onClose；actions 点击透业务回调不误关；Esc 关当前卡（适用时）
 ```
+
+- 与 Message 区分：Notification 为四角六方位独立池重卡片（含 title/description/actions/close，可打断）；Message 为顶部居中单队列轻条（无分栏、无 actions、不抢焦点，见 [message.md §6.11](./message.md#611-结构与绘制分层实现提示)）。
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  

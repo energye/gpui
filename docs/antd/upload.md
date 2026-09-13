@@ -279,11 +279,11 @@ accept = {
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：组合件 + 宿主件；选文件靠宿主 `UploadFilePicker` 注入，上传靠业务 `customRequest`；Modal/Drawer 内挂载走宿主 `getPopupContainer`（桌面映射见 §6.7）。
+- **Form**：`fileList` 受控直绑（`valuePropName=fileList`），`status` 由 Item 下发。
+- **ConfigProvider**：全局默认随 ConfigProvider（P1）。
+- **进度**：列表进度线复用 Progress 线形态（线宽 2），`progress` 全量 P1。
+- **文件归属**：`ui/kit/upload/`（触发器 + 列表 + 宿主 Picker + `customRequest`）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -296,15 +296,37 @@ accept = {
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| accept | 接受上传的文件类型，详见 [input accept Attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#accept) | string \| [AcceptObject](#acceptobject) | - | action | 上传的地址 | string \| (file) => Promise&lt;string> | - | beforeUpload | 上传文件之前的钩子，参数为上传的文件，若返回 `false` 则停止上传。支持返回一个 Promise 对象，Promise 对象 reject 时则停止上传，resolve 时开始上传（ resolve 传入 `File` 或 `Blob` 对象则上传 resolve 传入对象）；也可以返回 `Upload.LIST_IGNORE`，此时列表中将不展示此文件。 **注意：IE9 不支持该方法** | (file: [RcFile](#rcfile), fileList: [RcFile[]](#rcfile)) => boolean \| Promise&lt;File> \| `Upload.LIST_IGNORE` | - | customRequest | 通过覆盖默认的上传行为，可以自定义自己的上传实现 | ( options: [RequestOptions](#request-options), info: { defaultRequest: (option: [RequestOptions](#request-options)) => void; } ) => void | - | defaultRequest: 5.28.0 | 5.27.0 |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | data | 上传所需额外参数或返回上传额外参数的方法 | object\|(file) => object \| Promise&lt;object> | - | defaultFileList | 默认已经上传的文件列表 | object\[] | - | directory | 支持上传文件夹（[caniuse](https://caniuse.com/#feat=input-file-directory)） | boolean | false | disabled | 是否禁用。对于自定义 Upload children 时，请同时将 `disabled` 属性传给 child node，以确保禁用状态的渲染效果保持一致 | boolean | false | fileList | 已经上传的文件列表（受控），使用此参数时，如果遇到 `onChange` 只调用一次的问题，请参考 [#2423](https://github.com/ant-design/ant-design/issues/2423) | [UploadFile](#uploadfile)\[] | - | headers | 设置上传的请求头部，IE10 以上有效 | object | - | iconRender | 自定义显示 icon | (file: UploadFile, listType?: UploadListType) => ReactNode | - | isImageUrl | 自定义缩略图是否使用 &lt;img /> 标签进行显示 | (file: UploadFile) => boolean | [(内部实现)](https://github.com/ant-design/ant-design/blob/4ad5830eecfb87471cd8ac588c5d992862b70770/components/upload/utils.tsx#L47-L68) | itemRender | 自定义上传列表项 | (originNode: ReactElement, file: UploadFile, fileList: object\[], actions: { download: function, preview: function, remove: function }) => React.ReactNode | - | 4.16.0 | × |
+| accept | 接受上传的文件类型，详见 [input accept Attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#accept) | string \| [AcceptObject](#acceptobject) | - |  | 6.4.0 |
+| action | 上传的地址 | string \| (file) => Promise<string> | - |  | × |
+| beforeUpload | 上传文件之前的钩子，参数为上传的文件，若返回 `false` 则停止上传。支持返回一个 Promise 对象，Promise 对象 reject 时则停止上传，resolve 时开始上传（ resolve 传入 `File` 或 `Blob` 对象则上传 resolve 传入对象）；也可以返回 `Upload.LIST_IGNORE`，此时列表中将不展示此文件。 **注意：IE9 不支持该方法** | (file: [RcFile](#rcfile), fileList: [RcFile[]](#rcfile)) => boolean \| Promise<File> \| `Upload.LIST_IGNORE` | - |  | × |
+| customRequest | 通过覆盖默认的上传行为，可以自定义自己的上传实现 | (options: [RequestOptions](#request-options), info: { defaultRequest: (option: [RequestOptions](#request-options)) => void }) => void | - | defaultRequest: 5.28.0 | 5.27.0 |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | 6.0.0 |
+| data | 上传所需额外参数或返回上传额外参数的方法 | object\|(file) => object \| Promise<object> | - |  | × |
+| defaultFileList | 默认已经上传的文件列表 | object\[] | - |  | × |
+| directory | 支持上传文件夹（[caniuse](https://caniuse.com/#feat=input-file-directory)） | boolean | false |  | × |
+| disabled | 是否禁用。对于自定义 Upload children 时，请同时将 `disabled` 属性传给 child node，以确保禁用状态的渲染效果保持一致 | boolean | false |  | × |
+| fileList | 已经上传的文件列表（受控），使用此参数时，如果遇到 `onChange` 只调用一次的问题，请参考 [#2423](https://github.com/ant-design/ant-design/issues/2423) | [UploadFile](#uploadfile)\[] | - |  | × |
+| headers | 设置上传的请求头部，IE10 以上有效 | object | - |  | × |
+| iconRender | 自定义显示 icon | (file: UploadFile, listType?: UploadListType) => ReactNode | - |  | × |
+| isImageUrl | 自定义缩略图是否使用 <img /> 标签进行显示 | (file: UploadFile) => boolean | [(内部实现)](https://github.com/ant-design/ant-design/blob/4ad5830eecfb87471cd8ac588c5d992862b70770/components/upload/utils.tsx#L47-L68) |  | × |
+| itemRender | 自定义上传列表项 | (originNode: ReactElement, file: UploadFile, fileList: object\[], actions: { download: function, preview: function, remove: function }) => React.ReactNode | - | 4.16.0 | × |
 | listType | 上传列表的内建样式，支持四种基本样式 `text`, `picture`, `picture-card` 和 `picture-circle` | string | `text` | `picture-circle`(5.2.0+) | × |
 | maxCount | 限制上传数量。当为 1 时，始终用最新上传的文件代替当前文件 | number | - | 4.10.0 | × |
-| method | 上传请求的 http method | string | `post` | multiple | 是否支持多选文件，`ie10+` 支持。开启后按住 ctrl 可选择多个文件 | boolean | false | name | 发到后台的文件参数名 | string | `file` | openFileDialogOnClick | 点击打开文件对话框 | boolean | true | pastable | 是否支持粘贴文件 | boolean | false | 5.25.0 | × |
-| previewFile | 自定义文件预览逻辑 | (file: File \| Blob) => Promise&lt;dataURL: string> | - | progress | 自定义进度条样式 | [ProgressProps](/components/progress-cn#api)（仅支持 `type="line"`） | { strokeWidth: 2, showInfo: false } | 4.3.0 | 6.4.0 |
+| method | 上传请求的 http method | string | `post` |  | × |
+| multiple | 是否支持多选文件，`ie10+` 支持。开启后按住 ctrl 可选择多个文件 | boolean | false |  | × |
+| name | 发到后台的文件参数名 | string | `file` |  | × |
+| openFileDialogOnClick | 点击打开文件对话框 | boolean | true |  | × |
+| pastable | 是否支持粘贴文件 | boolean | false | 5.25.0 | × |
+| previewFile | 自定义文件预览逻辑 | (file: File \| Blob) => Promise<dataURL: string> | - |  | × |
+| progress | 自定义进度条样式 | [ProgressProps](/components/progress-cn#api)（仅支持 `type="line"`） | { strokeWidth: 2, showInfo: false } | 4.3.0 | 6.4.0 |
 | showUploadList | 是否展示文件列表, 可设为一个对象，用于单独设定 `extra`(5.20.0+), `showPreviewIcon`, `showRemoveIcon`, `showDownloadIcon`, `removeIcon` 和 `downloadIcon` | boolean \| { extra?: ReactNode \| (file: UploadFile) => ReactNode, showPreviewIcon?: boolean \| (file: UploadFile) => boolean, showDownloadIcon?: boolean \| (file: UploadFile) => boolean, showRemoveIcon?: boolean \| (file: UploadFile) => boolean, previewIcon?: ReactNode \| (file: UploadFile) => ReactNode, removeIcon?: ReactNode \| (file: UploadFile) => ReactNode, downloadIcon?: ReactNode \| (file: UploadFile) => ReactNode } | true | `extra`: 5.20.0, `showPreviewIcon` function: 5.21.0, `showRemoveIcon` function: 5.21.0, `showDownloadIcon` function: 5.21.0 | × |
-| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | withCredentials | 上传请求时是否携带 cookie | boolean | false | onChange | 上传文件改变时的回调，上传每个阶段都会触发该事件。详见 [onChange](#onchange) | function | - | onDrop | 当文件被拖入上传区域时执行的回调功能 | (event: React.DragEvent) => void | - | 4.16.0 | × |
-| onDownload | 点击下载文件时的回调，如果没有指定，则默认跳转到文件 url 对应的标签页 | function(file): void | (跳转新标签页) | onPreview | 点击文件链接或预览图标时的回调 | function(file) | - | onRemove | 点击移除文件时的回调，返回值为 false 时不移除。支持返回一个 Promise 对象，Promise 对象 resolve(false) 或 reject 时不移除 | function(file): boolean \| Promise | - 
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | 6.0.0 |
+| withCredentials | 上传请求时是否携带 cookie | boolean | false |  | × |
+| onChange | 上传文件改变时的回调，上传每个阶段都会触发该事件。详见 [onChange](#onchange) | function | - |  | × |
+| onDrop | 当文件被拖入上传区域时执行的回调功能 | (event: React.DragEvent) => void | - | 4.16.0 | × |
+| onDownload | 点击下载文件时的回调，如果没有指定，则默认跳转到文件 url 对应的标签页 | function(file): void | (跳转新标签页) |  | × |
+| onPreview | 点击文件链接或预览图标时的回调 | function(file) | - |  | × |
+| onRemove | 点击移除文件时的回调，返回值为 false 时不移除。支持返回一个 Promise 对象，Promise 对象 resolve(false) 或 reject 时不移除 | function(file): boolean \| Promise | - |  | × |
 ## Interface
 
 ### RcFile
@@ -402,7 +424,7 @@ import { Upload } from 'antd';
 | `accept` | 接受上传的文件类型，详见 [input accept Attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#accept) | string \| [AcceptObject](#acceptobject) | - | — |
 | `action` | 上传的地址 | string \| (file) => Promise<string> | - | — |
 | `beforeUpload` | 上传文件之前的钩子，参数为上传的文件，若返回 `false` 则停止上传。支持返回一个 Promise 对象，Promise 对象 reject 时则停止上传，resolve 时开始上传（ resolve 传入 `File` 或 `Blob` 对象则上传 resolve 传入对象）；也可以返回 `Upload.LIST_IGNORE`，此时列表中将不展示此文件。 **注意：IE9 不支持该方法** | (file: [RcFile](#rcfile), fileList: [RcFile[]](#rcfile)) => boolean \| Promise<File> \| `Upload.LIST_IGNORE` | - | — |
-| `customRequest` | 通过覆盖默认的上传行为，可以自定义自己的上传实现 | ( options: [RequestOptions](#request-options), info: { defaultRequest: (option: [RequestOptions](#request-options)) => void; } ) => void | - | defaultRequest: 5.28.0 |
+| `customRequest` | 通过覆盖默认的上传行为，可以自定义自己的上传实现 | (options: [RequestOptions](#request-options), info: { defaultRequest: (option: [RequestOptions](#request-options)) => void }) => void | - | defaultRequest: 5.28.0 |
 | `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props })=> Record | - | — |
 | `data` | 上传所需额外参数或返回上传额外参数的方法 | object\|(file) => object \| Promise<object> | - | — |
 | `defaultFileList` | 默认已经上传的文件列表 | object\[] | - | — |
@@ -452,7 +474,7 @@ import { Upload } from 'antd';
 
 实现 gpui kit 版 **Upload** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -462,7 +484,7 @@ import { Upload } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **21** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 主路径 8 例（点击上传、用户头像、已上传的文件列表、照片墙、圆形照片墙、完全控制的上传列表、拖拽上传、粘贴上传）；余下 13 例逐例去向见 §6.8 剪裁对应表，Notes 显式列出。
 12. **上传专项**：uploading/done/error/removed 状态机。
 
 ---
@@ -570,9 +592,9 @@ idle ── 选择文件 ──► beforeUpload(file)
                       ├── 返回 false ──► 仍可入 list（antd 行为）或不上传
                       ├── 返回 Promise reject ──► 阻止
                       └── 通过 ──► customRequest / 默认上传
-                                      ├── progress ──► onChange
-                                      ├── done ──► file.status=done
-                                      └── error ──► file.status=error
+                                      ├── Tick OnProgress ──► percent 递增 + onChange
+                                      ├── done/OnSuccess ──► file.status=done
+                                      └── error/超时OnError ──► file.status=error
 onRemove ──► 列表移除 + onChange
 maxCount 触顶 ──► 不能再选（或替换策略）
 disabled ──► 不可选
@@ -584,27 +606,32 @@ disabled ──► 不可选
 | --- | --- | --- |
 | UPL-S1 | 选择 1 个文件 | `fileList` 增加；`onChange` |
 | UPL-S2 | `beforeUpload` 返回 false | 按 antd：列表可有文件但不自动上传 |
-| UPL-S3 | `customRequest` 调成功 | status 到 done |
-| UPL-S4 | 上传失败 | status=error；可展示 |
+| UPL-S3 | `customRequest` 调成功 | `OnProgress(Tick)→percent 0..100` 渐进（默认请求走 Host Ticker 模拟），`OnSuccess→status=done`；每次 Tick 的 `onChange({file,fileList})` 载荷可断言 |
+| UPL-S4 | 上传失败/超时 | `OnError→status=error` 可展示；超时分支（Tick 无进展达阈值或业务显式 `OnError`）同 error，只断言终态 `status=error` + `onChange`，不断言具体秒数 |
 | UPL-S5 | `onRemove` | 项消失 |
 | UPL-S6 | `maxCount=1` 再选 | 受控替换或拒绝（与实现一致并测） |
 | UPL-S7 | `disabled` | 不能选文件 |
 | UPL-S8 | `listType=picture-card` | 卡片格布局 |
 | UPL-S9 | Drag 区拖入 | 同等 onChange |
 | UPL-S10 | `accept` 过滤 | 不接受类型不可入（或宿主过滤） |
+
+**可断言补充（UPL-S3/S4，异步/进度 Tick/超时分支）：** 默认 `customRequest`（无注入时）走 Host `Ticker` 模拟进度：每 Tick `OnProgress→percent` 递增并触发 `onChange`，到 100 后 `OnSuccess→status=done`；业务 `customRequest` 必须透出 `OnProgress/OnSuccess/OnError` 三回调；超时/失败统一进 `status=error` 分支（`percent` 停留末值，列表项红框 + 错误文案），测试用虚拟 Ticker 推进断言，不依赖真实时钟。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 / 变体 | 规则 |
+| 形态 / 态 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| select 触发器（text/picture） | 内嵌 Button（高 32/24/40）；自定义 `TriggerNode` 时把 `disabled` 同时透给子节点 |
+| select 卡片触发（picture-card/circle） | 虚线边框卡片格 **≈102**（`pictureCardSize`）+ 「+ / Upload」文案；`maxCount` 触顶隐藏触发器；circle 圆角 50% |
+| drag 区（`type=drag`） | 虚线大区 + 圆角 8 + 内边距 16；icon + 16px 主文案 + 次级 hint；hover 主色边 |
+| text 列表项 | icon + 文件名 + 移除钮 + 进度线（线宽 2，`strokeWidth: 2, showInfo: false`）；项上边距 4，水平 padding 4 |
+| picture 列表项 | 48 缩略图（`uploadThumbnailSize`）+ 文件名 + 移除/预览 |
+| picture-card/circle 列表项 | 卡片格 + 预览/移除叠层；`status=error` 红框 + 错误文案 |
+| uploading | 进度线 0..100；`percent` 驱动 |
+| done / error | done 常态；error 语义红（列表项 + 文案） |
+| disabled | 触发器 + 列表均降对比；不可选/拖/粘贴 |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 上传进度 / loading 环跟 Host Ticker；尊重 reduced-motion（可瞬时到 done）。
 
 ### 6.6 无障碍（a11y）最低要求
 
@@ -621,13 +648,17 @@ disabled ──► 不可选
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 选择/列表/进度/移除主路径（§6.1 L1，`customRequest` 驱动） | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2：卡片 ≈102 / 缩略图 48 / 进度线宽 2） | **对等** | P0 L2 |
+| 默认上传（无注入时 Ticker 模拟进度 → done，仅 demo/gallery） | **近似** | P0 |
+| 真 HTTP（`action` / `headers` / `data` / `method` / `withCredentials`，如 `upload-with-aliyun-oss.tsx` OSS 直传） | **映射**：桌面无浏览器表单上传，业务用 `customRequest`（`OnProgress/OnSuccess/OnError`）实现；kit 不内置 HTTP | P1 |
+| 文件夹上传（`directory.tsx`：`directory` + `webkitdirectory`） | **宿主**：靠系统选文件框能力；`Picker` 返回目录文件列表后走同一 `SelectFiles` 链路 | P1 |
+| 拖拽（`drag.tsx` / `drag-sorting.tsx`） | **映射**：`DropFiles` + `onDrop` 等价 onChange；列表拖拽排序属业务层 | P0 拖入 / P1 排序 |
+| 粘贴（`paste.tsx`，5.25.0：`pastable`） | **宿主注入**：`PasteProvider`/`PasteFiles`（桌面剪贴板由宿主给） | P0 |
+| 图片预览（`preview-file.tsx`：`previewFile` / `isImageUrl` / `thumbUrl`） | **分期**：缩略图绘制管线 | P1 |
+| 裁切（`crop-image.tsx`）/ 转换（`transform-file.tsx`）/ 手动上传（`upload-manually.tsx` + `beforeUpload` 拦截） | **映射**：业务层 + `beforeUpload`（`Proceed/SkipUpload/Reject`） | P1 |
+| 自定义渲染（`iconRender` / `itemRender` / `progress` 全量 / `showUploadList` 对象） | **分期**：P0 仅 `percent` 线宽 2 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -707,14 +738,14 @@ disabled ──► 不可选
 | UPL-09 | L1 | `listType=picture-card` | 卡片格布局 |
 | UPL-10 | L1 | Drag 区拖入 | 同等 onChange |
 | UPL-11 | L1 | `accept` 过滤 | 不接受类型不可入（或宿主过滤） |
-| UPL-12 | L1 | 复现官方示例「点击上传」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| UPL-13 | L1 | 复现官方示例「用户头像」（`avatar.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| UPL-14 | L1 | 复现官方示例「已上传的文件列表」（`defaultFileList.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| UPL-15 | L1 | 复现官方示例「照片墙」（`picture-card.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| UPL-16 | L1 | 复现官方示例「圆形照片墙」（`picture-circle.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| UPL-17 | L1 | 复现官方示例「完全控制的上传列表」（`fileList.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| UPL-18 | L1 | 复现官方示例「拖拽上传」（`drag.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| UPL-19 | L1 | 复现官方示例「粘贴上传」（`paste.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| UPL-12 | L1 | 复现官方示例「点击上传」（`basic.tsx`） | 输入 `SelectFiles([a.png])`；回调 `onChange({file:a.png, fileList长1})`（uploading→Ticker到done）；可见谓词默认 Button 触发器 + 列表 1 项 + 进度线宽 2 |
+| UPL-13 | L1 | 复现官方示例「用户头像」（`avatar.tsx`） | 输入 `SetShowUploadList(false)+SelectFiles([avatar.png])`；回调 `onChange` fileList 长 1 且 status 到 done；可见谓词头像触发区图片替换、列表不展示 |
+| UPL-14 | L1 | 复现官方示例「已上传的文件列表」（`defaultFileList.tsx`） | 输入 `SetDefaultFileList([done×2])`；回调初渲染无 `onChange`；可见谓词列表 2 项均为 done 态、文件名齐 |
+| UPL-15 | L1 | 复现官方示例「照片墙」（`picture-card.tsx`） | 输入 `SetListType(picture-card)+SelectFiles([p1.png])`；回调 `onChange` fileList 长 1；可见谓词卡片格 ≈102（±0.5px）+ 预览/移除叠层 |
+| UPL-16 | L1 | 复现官方示例「圆形照片墙」（`picture-circle.tsx`） | 输入 `SetListType(picture-circle)+SelectFiles([p1.png])`；回调同 UPL-15；可见谓词卡片圆角 50% 圆形格 + 叠层按钮 |
+| UPL-17 | L1 | 复现官方示例「完全控制的上传列表」（`fileList.tsx`） | 输入 `SetControlled(true)+SetFileList(v)` 受控；`SelectFiles` 后回调 `onChange({file,fileList})`，父级 `SetFileList` 回写才变；可见谓词列表与受控值严格一致 |
+| UPL-18 | L1 | 复现官方示例「拖拽上传」（`drag.tsx`） | 输入 `NewUploadDragger()+DropFiles([d.png])`；回调同等 `onChange`（含 percent 渐进）；可见谓词虚线大区 + 16px 主文案 + 次级 hint + hover 主色边 |
+| UPL-19 | L1 | 复现官方示例「粘贴上传」（`paste.tsx`） | 输入 `SetPastable(true)+PasteFiles([c.png])`；回调同等 `onChange`；可见谓词触发器常态、列表新增 1 项并走 uploading→done |
 | UPL-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | UPL-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | UPL-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

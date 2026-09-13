@@ -167,11 +167,10 @@ Form.Item 默认绑定值属性到 `value` 上，而 Checkbox 的值属性为 `c
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：表单件（无浮层）；单框 + Group，多选值走 `[]string`；先做 `form` 值桥（`valuePropName=checked`）再做本件。
+- **Form**：`checked`（单框）/ `value []string`（Group），`title` 可作可访问名回落。
+- **ConfigProvider**：禁用/尺寸下发（行高对齐 controlHeight）。
+- **文件归属**：`ui/kit/checkbox/`（单框指示器 + Group + 全选半选）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -260,7 +259,7 @@ import { Checkbox } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **7** 个，均需可复现。
+11. **示例矩阵**：官方非 debug **7** 个全部 P0（§6.8）；`_semantic` 仅主题钩子，debug 4 个不验收。
 
 ---
 ## 5. 参考链接
@@ -379,12 +378,12 @@ disabled ──► 不切换
 
 | 态 | 规则 |
 | --- | --- |
-| default | Token 默认皮 |
-| hover / active | 可交互反馈 |
-| focus | 可见 focus ring |
-| checked/selected/active（适用者） | 主色强调 |
-| disabled | 降对比；无 hover |
-| loading | 指示器；防重复 |
+| unchecked | 白底空框 16×16 + 1px `colorBorder` + 圆角 4 |
+| checked | 主色底 + 白勾（线宽 `lineWidthBold`，45° 对勾）；边框同主色 |
+| indeterminate（半选） | 主色底 + 白横杠；仅样式，点击后进 checked 并清半选（CB-S4） |
+| hover | 边框走 `colorPrimaryHover`；禁用无 hover |
+| focus | 输入聚焦时外框可见 focus ring（`genFocusOutline`） |
+| disabled（unchecked/checked/半选） | 底 `colorBgContainerDisabled` + 字 `colorTextDisabled`；勾/杠降对比；不可点 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -393,22 +392,21 @@ disabled ──► 不切换
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | button / checkbox / switch / radio 等与语义一致 |
-| 名称 | 可交互必有名；仅图标必须 AriaLabel |
-| 焦点 | Tab 可达；ring 可见 |
-| 键盘 | Space/Enter 或方向键按角色 |
-| 禁用 | 不可激活；读屏可感知（平台支持时） |
+| 角色 | 单框 `checkbox`（`aria-checked` true/false/mixed）；Group 容器 `group` + 可访问名 |
+| 名称 | 默认 label 文本；无 label 时必须 `AriaLabel`/`title` 回落，否则测试失败 |
+| 焦点 | Tab 到隐藏 input；Focus ring 落在 16×16 框上 |
+| 键盘 | Space 切换（Enter 同效）；Group 内方向键可选（P1） |
+| 禁用 | `disabled` 不切换；读屏可感知禁用 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| 勾选/半选/Group/禁用主路径 | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2：框 16×16/圆角 4/间距 8） | **对等** | P0 L2 |
+| 全选联动（`check-all`：全选↔半选↔空） | **对等** | P0 L1 |
+| Form 值桥（`valuePropName=checked`，Group `value []string`） | **对等** | P0 L1 |
+| `onFocus`/`onBlur`、semantic 函数形态、`nativeElement` | 分期 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -424,7 +422,7 @@ disabled ──► 不切换
 | `disabled` | 单框与 Group |
 | `title` | 选项 title（可作 a11y 名回落） |
 | `Checkbox.Group`：`value` / `defaultValue` / `options` / `name` | 多选组；options 支持 string 或 `{label,value,disabled,title}` |
-| 官方主路径示例 | 基本用法、不可用、受控的 Checkbox、Checkbox 组、全选、布局、自定义语义结构的样式和类、_semantic.tsx |
+| 官方主路径示例 | 基本用法、不可用、受控的 Checkbox、Checkbox 组、全选、布局、自定义语义结构的样式和类 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | role=checkbox、名称、焦点 ring、Space/Enter |
 | §6.9 中 L1/L2 用例 | 测试通过 |
@@ -439,6 +437,7 @@ disabled ──► 不切换
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 | ConfigProvider 全局 checkbox 默认 | 分期 |
+| `_semantic` 主题钩子（CB-17） | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -456,14 +455,14 @@ disabled ──► 不切换
 | CB-07 | L1 | disabled | 不切换 |
 | CB-08 | L1 | Space 聚焦 | 切换 |
 | CB-09 | L1 | 指示器尺寸 | 16×16 |
-| CB-10 | L1 | 复现官方示例「基本用法」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CB-11 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CB-12 | L1 | 复现官方示例「受控的 Checkbox」（`controller.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CB-13 | L1 | 复现官方示例「Checkbox 组」（`group.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CB-14 | L1 | 复现官方示例「全选」（`check-all.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CB-15 | L1 | 复现官方示例「布局」（`layout.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CB-16 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CB-17 | L1 | 复现官方示例「_semantic.tsx」（`_semantic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| CB-10 | L1 | 复现官方示例「基本用法」（`basic.tsx`） | 点空框进 checked 再点回空：`OnChange` true/false 各一次，框 16×16 主色切换 |
+| CB-11 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | `disabled` 单框与 Group 项均不可点；禁用 checked 仍显示主色降对比勾 |
+| CB-12 | L1 | 复现官方示例「受控的 Checkbox」（`controller.tsx`） | `SetControlled(true)`：点击只发 `OnChange` 不改本地，外部 `SetChecked` 写回才变 |
+| CB-13 | L1 | 复现官方示例「Checkbox 组」（`group.tsx`） | `SetOptions` 三项勾两项：`Value()` 长 2，`OnChange` 带该数组 |
+| CB-14 | L1 | 复现官方示例「全选」（`check-all.tsx`） | 全选框：空→半选（mixed）→全选三态随子项走；点全选一次全勾 |
+| CB-15 | L1 | 复现官方示例「布局」（`layout.tsx`） | `Add` 子框 + `SetBody(Row/Col)`：换行/栅格后勾选值链路不变 |
+| CB-16 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 语义节点钩子 + `Style` 覆盖：仅换皮，勾选/`indeterminate` 行为不变 |
+| CB-17 | P1 | `_semantic.tsx` 主题钩子 | 单独用例；Notes 标明 |
 | CB-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | CB-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | CB-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

@@ -112,7 +112,7 @@
 
 - **说明**：显示骨架屏
 - **类型**：boolean
-- **默认值**：—
+- **默认值**：-
 - **版本**：5.18.0
 
 #### `title`
@@ -156,12 +156,6 @@
 - **说明**：自定义图标
 - **类型**：ReactNode
 - **默认值**：<ExclamationCircleFilled />
-
-#### `disabled`
-
-- **说明**：关闭图标是否禁用
-- **类型**：boolean
-- **默认值**：false
 
 ### 1.4 交互视觉状态（实现检查表）
 
@@ -322,11 +316,10 @@ return (
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（浮层：居中对话框 + mask + z-index 栈 + ModalHost 命令式管线）。
+- **等谁**：浮层定位（Portal/z-index）、Button（页脚 OK/Cancel）、Form（弹窗表单）、Skeleton（`loading` 骨架）。
+- **文件归属**：`ui/kit/modal/`。
+- **组合**：经 App 上下文消费命令式 `confirm`；嵌套弹框走 ModalHost 层叠。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -339,39 +332,39 @@ return (
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| afterClose | Modal 完全关闭后的回调 | function | - |  | × |
-| cancelButtonProps | cancel 按钮 props | [ButtonProps](/components/button-cn#api) | - |  | 6.0.0 |
-| cancelText | 取消按钮文字 | ReactNode | `取消` |  | × |
-| centered | 垂直居中展示 Modal | boolean | false |  | 5.24.0 |
-| classNames | 用于自定义 Modal 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - |  | 5.10.0 |
+| afterClose | Modal 完全关闭后的回调 | function | - | - | × |
+| cancelButtonProps | cancel 按钮 props | [ButtonProps](/components/button-cn#api) | - | - | 6.0.0 |
+| cancelText | 取消按钮文字 | ReactNode | `取消` | - | × |
+| centered | 垂直居中展示 Modal | boolean | false | - | 5.24.0 |
+| classNames | 用于自定义 Modal 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | - | 5.10.0 |
 | closable | 是否显示右上角的关闭按钮 | boolean \| [ClosableType](#closabletype) | true | - | 5.16.0 |
-| closeIcon | 自定义关闭图标。5.7.0：设置为 `null` 或 `false` 时隐藏关闭按钮 | ReactNode | &lt;CloseOutlined /> |  | 5.14.0 |
-| confirmLoading | 确定按钮 loading | boolean | false |  | × |
-| ~~destroyOnClose~~ | 关闭时销毁 Modal 里的子元素 | boolean | false |  | × |
+| closeIcon | 自定义关闭图标。5.7.0：设置为 `null` 或 `false` 时隐藏关闭按钮 | ReactNode | &lt;CloseOutlined /> | - | 5.14.0 |
+| confirmLoading | 确定按钮 loading | boolean | false | - | × |
+| ~~destroyOnClose~~ | 关闭时销毁 Modal 里的子元素 | boolean | false | - | × |
 | destroyOnHidden | 关闭时销毁 Modal 里的子元素 | boolean | false | 5.25.0 | × |
 | ~~focusTriggerAfterClose~~ | 对话框关闭后是否需要聚焦触发元素。请使用 `focusable.focusTriggerAfterClose` 替代 | boolean | true | 4.9.0 | × |
 | footer | 底部内容，当不需要默认底部按钮时，可以设为 `footer={null}` | ReactNode \| (originNode: ReactNode, extra: { OkBtn: React.FC, CancelBtn: React.FC }) => ReactNode | (确定取消按钮) | renderFunction: 5.9.0 | × |
-| forceRender | 强制渲染 Modal | boolean | false |  | × |
+| forceRender | 强制渲染 Modal | boolean | false | - | × |
 | focusable | 对话框内焦点管理的配置 | `{ trap?: boolean, focusTriggerAfterClose?: boolean }` | - | 6.2.0 | 6.4.0 |
-| getContainer | 指定 Modal 挂载的节点，但依旧为全屏展示，`false` 为挂载在当前位置 | HTMLElement \| () => HTMLElement \| Selectors \| false | document.body |  | × |
-| keyboard | 是否支持键盘 esc 关闭 | boolean | true |  | × |
+| getContainer | 指定 Modal 挂载的节点，但依旧为全屏展示，`false` 为挂载在当前位置 | HTMLElement \| () => HTMLElement \| Selectors \| false | document.body | - | × |
+| keyboard | 是否支持键盘 esc 关闭 | boolean | true | - | × |
 | mask | 遮罩效果 | boolean \| `{enabled: boolean, blur: boolean, closable?: boolean}` | true | mask.closable: 6.3.0 | 6.0.0，mask.closable: 6.3.0 |
 | ~~maskClosable~~ | 点击蒙层是否允许关闭。请使用 `mask.closable` 替代。 | boolean | true | - | × |
 | modalRender | 自定义渲染对话框 | (node: ReactNode) => ReactNode | - | 4.7.0 | × |
-| okButtonProps | ok 按钮 props | [ButtonProps](/components/button-cn#api) | - |  | 6.0.0 |
-| okText | 确认按钮文字 | ReactNode | `确定` |  | × |
-| okType | 确认按钮类型 | string | `primary` |  | × |
-| style | 可用于设置浮层的样式，调整浮层位置等 | CSSProperties | - |  | 5.7.0 |
-| styles | 用于自定义 Modal 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | 5.10.0 |
-| loading | 显示骨架屏 | boolean |  | 5.18.0 | × |
+| okButtonProps | ok 按钮 props | [ButtonProps](/components/button-cn#api) | - | - | 6.0.0 |
+| okText | 确认按钮文字 | ReactNode | `确定` | - | × |
+| okType | 确认按钮类型 | string | `primary` | - | × |
+| style | 可用于设置浮层的样式，调整浮层位置等 | CSSProperties | - | - | 5.7.0 |
+| styles | 用于自定义 Modal 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | - | 5.10.0 |
+| loading | 显示骨架屏 | boolean | - | 5.18.0 | × |
 | scrollLock | 弹窗打开时是否锁定body滚动 | boolean | true | 6.5.0 | × |
-| title | 标题 | ReactNode | - |  | × |
-| open | 对话框是否可见 | boolean | - |  | × |
+| title | 标题 | ReactNode | - | - | × |
+| open | 对话框是否可见 | boolean | - | - | × |
 | width | 宽度 | string \| number \| [Breakpoint](/components/grid-cn#col) | 520 | Breakpoint: 5.23.0 | × |
-| wrapClassName | 对话框外层容器的类名 | string | - |  | × |
-| zIndex | 设置 Modal 的 `z-index` | number | 1000 |  | × |
-| onCancel | 点击遮罩层或右上角叉或取消按钮的回调 | function(e) | - |  | × |
-| onOk | 点击确定回调 | function(e) | - |  | × |
+| wrapClassName | 对话框外层容器的类名 | string | - | - | × |
+| zIndex | 设置 Modal 的 `z-index` | number | 1000 | - | × |
+| onCancel | 点击遮罩层或右上角叉或取消按钮的回调 | function(e) | - | - | × |
+| onOk | 点击确定回调 | function(e) | - | - | × |
 | afterOpenChange | 打开和关闭 Modal 时动画结束后的回调 | (open: boolean) => void | - | 5.4.0 | × |
 
 > `mask.closable` 优先于已废弃的 `maskClosable`（`useMergedMask`：`maskConfig.closable ?? maskClosable`）；kit 只收敛到新语义。
@@ -397,22 +390,32 @@ return (
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | afterClose | Modal 完全关闭后的回调 | function | - | 4.9.0 |
-| ~~autoFocusButton~~ | 指定自动获得焦点的按钮。请使用 `focusable.autoFocusButton` 替代 | null \| `ok` \| `cancel` | `ok` |  |
-| cancelText | 设置 Modal.confirm 取消按钮文字 | string | `取消` |  |
-| className | 容器类名 | string | - |  |
+| ~~autoFocusButton~~ | 指定自动获得焦点的按钮。请使用 `focusable.autoFocusButton` 替代 | null \| `ok` \| `cancel` | `ok` | - |
+| cancelButtonProps | cancel 按钮 props | [ButtonProps](/components/button-cn#api) | - | - |
+| cancelText | 设置 Modal.confirm 取消按钮文字 | string | `取消` | - |
+| centered | 垂直居中展示 Modal | boolean | false | - |
+| className | 容器类名 | string | - | - |
+| closable | 是否显示右上角的关闭按钮 | boolean \| [ClosableType](#closabletype) | false | - |
 | closeIcon | 自定义关闭图标 | ReactNode | undefined | 4.9.0 |
-| content | 内容 | ReactNode | - |  |
+| content | 内容 | ReactNode | - | - |
+| focusable.autoFocusButton | 指定自动获得焦点的按钮 | null \| `ok` \| `cancel` | `ok` | 6.2.0 |
 | footer | 底部内容，当不需要默认底部按钮时，可以设为 `footer: null` | ReactNode \| (originNode: ReactNode, extra: { OkBtn: React.FC, CancelBtn: React.FC }) => ReactNode | - | renderFunction: 5.9.0 |
-| getContainer | 指定 Modal 挂载的 HTML 节点，false 为挂载在当前 dom | HTMLElement \| () => HTMLElement \| Selectors \| false | document.body |  |
-| keyboard | 是否支持键盘 esc 关闭 | boolean | true |  |
+| getContainer | 指定 Modal 挂载的 HTML 节点，false 为挂载在当前 dom | HTMLElement \| () => HTMLElement \| Selectors \| false | document.body | - |
+| icon | 自定义图标 | ReactNode | <ExclamationCircleFilled /> | - |
+| keyboard | 是否支持键盘 esc 关闭 | boolean | true | - |
+| mask | 遮罩效果 | boolean \| `{enabled?: boolean, blur?: boolean, closable?: boolean}` | true | - |
 | ~~maskClosable~~ | 点击蒙层是否允许关闭。请使用 `mask.closable` 替代。 | boolean | false | - |
 | scrollLock | 弹窗打开时是否锁定body滚动 | boolean | true | 6.5.0 |
-| okButtonProps | ok 按钮 props | [ButtonProps](/components/button-cn#api) | - |  |
-| okType | 确认按钮类型 | string | `primary` |  |
-| title | 标题 | ReactNode | - |  |
+| okButtonProps | ok 按钮 props | [ButtonProps](/components/button-cn#api) | - | - |
+| okText | 确认按钮文字 | string | `确定` | - |
+| okType | 确认按钮类型 | string | `primary` | - |
+| style | 可用于设置浮层的样式，调整浮层位置等 | CSSProperties | - | - |
+| title | 标题 | ReactNode | - | - |
+| width | 宽度 | string \| number | 416 | - |
 | wrapClassName | 对话框外层容器的类名 | string | - | 4.18.0 |
-| zIndex | 设置 Modal 的 `z-index` | number | 1000 |  |
-| onOk | 点击确定回调，参数为关闭函数，若返回 promise 时 resolve 为正常关闭, reject 为不关闭 | function(close) | - |  |
+| zIndex | 设置 Modal 的 `z-index` | number | 1000 | - |
+| onCancel | 点击取消回调，参数为关闭函数，若返回 promise 时 resolve 为正常关闭, reject 为不关闭 | function(close) | - | - |
+| onOk | 点击确定回调，参数为关闭函数，若返回 promise 时 resolve 为正常关闭, reject 为不关闭 | function(close) | - | - |
 ### ClosableType
 
 | 参数       | 说明                   | 类型      | 默认值    | 版本 |
@@ -513,7 +516,7 @@ import { Modal } from 'antd';
 | `okType` | 确认按钮类型 | string | `primary` | — |
 | `style` | 可用于设置浮层的样式，调整浮层位置等 | CSSProperties | - | — |
 | `styles` | 用于自定义 Modal 组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props }) => Record | - | — |
-| `loading` | 显示骨架屏 | boolean | — | 5.18.0 |
+| `loading` | 显示骨架屏 | boolean | - | 5.18.0 |
 | `scrollLock` | 弹窗打开时是否锁定body滚动 | boolean | true | 6.5.0 |
 | `title` | 标题 | ReactNode | - | — |
 | `open` | 对话框是否可见 | boolean | - | — |
@@ -538,7 +541,7 @@ import { Modal } from 'antd';
 
 实现 gpui kit 版 **Modal** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -548,7 +551,7 @@ import { Modal } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **17** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -595,7 +598,8 @@ import { Modal } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 默认 width | **520** | API 默认 |
+| 默认 width | **520** | API 默认（声明式 Modal） |
+| 命令式 method width | **416** | Modal.method() 默认（源码 `index.zh-CN.md` L129） |
 | 非居中 top 偏移 | **100** | style `top: 100`（`centered=false`） |
 | 标题字号 | **16** | `titleFontSize` ← `fontSizeHeading5` |
 | 正文字号 | **14** | `fontSize` |
@@ -675,17 +679,21 @@ closed ── SetOpen(true) / 命令式 open ──► opening ──► open
 | MDL-S7 | `maskClosable=false` 点 mask | 不关闭 |
 | MDL-S8 | `destroyOnHidden=true` 关闭后再开 | 子状态重置（不保留输入） |
 | MDL-S9 | `footer=null` | 无默认按钮区 |
-| MDL-S10 | `centered=true` | 垂直居中（非顶距布局） |
-| MDL-S11 | 默认 width | **520** |
+| MDL-S10 | `centered=true` | 垂直居中（非顶距布局；非居中时顶距 100 ±0.5px） |
+| MDL-S11 | 默认 width | **520**（±0.5px） |
 | MDL-S12 | `Modal.confirm` | 命令式显示；确认/取消回调 |
+
+**可断言补充（MDL-S1/S10/S11）：** 几何一律 ±0.5px（默认宽 520、非居中顶距 100、标题 16、内容区内边距 20×24、标题下间距 8、页脚上间距 12、关闭钮 32）；`centered=true` 断言垂直居中且不套顶距 100，`centered=false` 断言顶距 100 ±0.5px。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| mask | `colorBgMask` 半透明（适用者） |
-| panel/popup | 容器底 + 阴影 + 圆角 LG |
-| open/close | 动画可关 / reduced-motion |
-| disabled 触发 | 触发器禁用皮，不打开 |
+| mask | `colorBgMask` 半透明，点击策略走 `mask.closable`（默认可点关，MDL-S6/S7） |
+| panel | 容器底 + 阴影 + 圆角 LG（8）；**默认宽 520**，非居中顶距 100 |
+| confirm 管线 | `Modal.confirm/info/success/error/warning` 命令式：图标 + 标题/内容 + OK/Cancel，经 ModalHost 挂载 |
+| open/close | 动画可关 / reduced-motion；P0 瞬时切换 |
+| footer | 默认 Cancel + OK（primary）；`footer=null` 无按钮区 |
+| disabled 关闭图标 | `closable.disabled` 时关闭图标降对比不可点 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -694,23 +702,24 @@ closed ── SetOpen(true) / 命令式 open ──► opening ──► open
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 角色 | 面板 `role=dialog`；命令式 confirm 同 |
+| 命名 | 每框名=title（title 为空时用 content 首句；两者皆空测试失败，可 `SetAriaLabel` 覆盖） |
+| 键盘 | Tab 困在面板内循环；Esc 关闭（`keyboard=true`）；Enter 触发 OK（适用时） |
+| 焦点环 | OK/Cancel/关闭按钮聚焦时 ring 可见；打开时焦点进面板，关闭回触发器（`focusTriggerAfterClose`） |
+| 遮罩 | `mask=true` 朗读模态遮罩；`maskClosable=false` 时点 mask 不关且朗读提示 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 声明式 open/标题/内容/页脚/OK-Cancel 主路径 | **对等** | P0 L1 |
+| mask 点击关闭（`mask.closable` 优先于废弃 `maskClosable`） | **对等** | P0 L1 |
+| 命令式 `Modal.confirm/info/success/error/warning` 全家桶 | **映射**：kit 侧 ModalHost（`Confirm/Info/Success/Error/Warning` + Destroy/Update），桌面无 ReactDOM.render | P0 L1 |
+| 焦点陷阱（`focusable.trap` 进 panel、Tab 约束、`focusTriggerAfterClose` 回触发器） | **映射**：P0 先验打开进焦点 + Esc/遮罩可关，完整 Trap 语义另起增量文档 | P0 降级 / P1 完整 |
+| 尺寸/色 Token（宽 520、顶距 100、标题 16、圆角 8） | **对等** | P0 L2 |
+| `getContainer=false`/挂载当前位置、`forceRender`、`scrollLock` 宿主级 | **映射**或分期 | P1 |
+| `modalRender`/鼠标位置/嵌套像素动效、`mask.blur` 真模糊 | **近似**或分期 | P1 |
+| Semantic classNames/styles 函数形态 | kit 语义钩子 | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -754,7 +763,7 @@ closed ── SetOpen(true) / 命令式 open ──► opening ──► open
 | ConfigProvider 全局默认 / locale 注入 | 分期 |
 | 动画像素级 open/close | 分期（P0 瞬时） |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 手动更新和移除, 自定义位置, 自定义页脚按钮属性, 自定义渲染对话框, 静态 info 全家桶细皮 |
+| 其余示例（P1，逐例去向） | 手动更新和移除（`manual.tsx`，命令式 update/destroy）、自定义位置（`position.tsx`，style 偏移）、自定义页脚按钮属性（`button-props.tsx`，ok/cancel 全量透传）、自定义渲染对话框（`modal-render.tsx`，modalRender）、自定义模态的宽度（`width.tsx`，width/Breakpoint 细皮）、静态方法（`static-info.tsx`，Modal.info）、静态确认对话框（`confirm.tsx`，Modal.confirm）、销毁确认对话框（`confirm-router.tsx`，destroyAll 路由）、自定义语义结构的样式和类（`style-class.tsx`，semantic 深度） |
 
 ### 6.9 验收用例表（可测）
 
@@ -776,14 +785,14 @@ closed ── SetOpen(true) / 命令式 open ──► opening ──► open
 | MDL-11 | L1 | `centered=true` | 垂直居中（非顶距布局） |
 | MDL-12 | L1 | 默认 width | **520** |
 | MDL-13 | L1 | `Modal.confirm` | 命令式显示；确认/取消回调 |
-| MDL-14 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MDL-15 | L1 | 复现官方示例「异步关闭」（`async.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MDL-16 | L1 | 复现官方示例「自定义页脚」（`footer.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MDL-17 | L1 | 复现官方示例「遮罩」（`mask.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MDL-18 | L1 | 复现官方示例「加载中」（`loading.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MDL-19 | L1 | 复现官方示例「自定义页脚渲染函数」（`footer-render.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MDL-20 | L1 | 复现官方示例「使用 hooks 获得上下文」（`hooks.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MDL-21 | L1 | 复现官方示例「国际化」（`locale.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| MDL-14 | L1 | 复现「基本」（`basic.tsx`）：`SetOpen(true)` 默认框 | 遮罩 + 宽 520 对话框可见，标题/内容/默认 Cancel+OK 齐 |
+| MDL-15 | L1 | 复现「异步关闭」（`async.tsx`）：OK 返回 pending Promise | OK 按钮 `confirmLoading`，resolve 后关闭，期间重复点只记一次 |
+| MDL-16 | L1 | 复现「自定义页脚」（`footer.tsx`）：`SetFooterNull` + 自定义节点 | 默认按钮区消失，自定义节点可见可点 |
+| MDL-17 | L1 | 复现「遮罩」（`mask.tsx`）：`maskClosable` 真/假各点一次 mask | 真关闭假不关；`mask=false` 时无遮罩层 |
+| MDL-18 | L1 | 复现「加载中」（`loading.tsx`）：`SetLoading(true)` 打开 | 内容区骨架屏可见，页脚按钮仍在 |
+| MDL-19 | L1 | 复现「自定义页脚渲染函数」（`footer-render.tsx`）：`SetFooterRender` 包 OkBtn/CancelBtn | 渲染函数输出挂载，原 OK/Cancel 行为保留 |
+| MDL-20 | L1 | 复现「使用 hooks 获得上下文」（`hooks.tsx`）：经 holder `Confirm` | 确认框出现，OK/Cancel 回调各走各 |
+| MDL-21 | L1 | 复现「国际化」（`locale.tsx`）：设 `okText/cancelText` 中英两套 | 按钮文案跟随切换，无硬编码残留 |
 | MDL-22 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | MDL-23 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | MDL-24 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -860,10 +869,15 @@ host.Confirm/Info/Success/Error/Warning(ModalConfirmConfig) *ModalConfirmHandle
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Trigger?
-  └─ Portal
-       ├─ mask?
-       └─ panel / popup (+ arrow?)
+ModalRoot（声明式 open；命令式走 ModalHost）
+  ├─ Portal（全屏层，zIndex 默认 1000）
+  │    ├─ mask（colorBgMask；mask.closable 决定点 mask 关；mask=false 无遮罩）
+  │    └─ panel（默认宽 520 ±0.5px；非居中顶距 100 ±0.5px；centered=true 垂直居中；圆角 8；标题 16/正文 14/内边距 20×24）
+  │         ├─ header（title + close；closable.disabled 不可点）
+  │         ├─ body（content；loading=true 骨架屏，页脚仍在）
+  │         └─ footer（默认 Cancel + OK primary；footer=null 无区；FooterRender 包 OkBtn/CancelBtn 行为保留）
+  ├─ 焦点落点（open 进 panel 首焦；Tab 困 panel 循环；Esc 关（keyboard=true）；关后回触发器 focusTriggerAfterClose）
+  └─ ModalHost 命令式（Confirm/Info/Success/Error/Warning + Destroy/Update/then；经 holder 挂载，OK/Cancel 各走各回调）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

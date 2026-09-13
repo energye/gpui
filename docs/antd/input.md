@@ -316,11 +316,10 @@ const suffix = condition ?  : ;
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：表单件（无浮层）；最基础录入件，被 `form`/`auto-complete`/`date-picker` 复用；先做本件再做上层。
+- **Form**：`value`/`onChange` 直绑；`status` 由 Item 下发；`maxLength` 受控可超长展示（FAQ）。
+- **Space.Compact**：`addonBefore/After` 已废弃，一律 `<Space.Compact>{addon}<Input/>…</Space.Compact>` 紧凑拼。
+- **文件归属**：`ui/kit/input/`（单行 + Search + TextArea + Password，OTP 另期）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -498,7 +497,8 @@ import { Input } from 'antd';
 | `tabIndex` | 设置切换按钮的 `tabIndex` | number | 0 | 6.5.0 |
 | `visible` | 用于手动控制密码显隐 | boolean | false | 4.24 |
 | `onVisibleChange` | 显隐密码的回调 | (visible) => void | - | 4.24 |
-| `(option?: { preventScroll?: boolean, cursor?: 'start' | 'end' | 'all' })` | 获取焦点 | — | — | option - 4.10.0 |
+| `blur` | 取消焦点 | — | — | — |
+| `focus` | 获取焦点 | (option?: { preventScroll?: boolean, cursor?: 'start' \| 'end' \| 'all' }) | — | option - 4.10.0 |
 
 ---
 ## 4. gpui kit 实现要点
@@ -517,7 +517,7 @@ import { Input } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **18** 个，均需可复现。
+11. **示例矩阵**：官方非 debug **18** 个：P0 **8**（§6.8 主路径）+ P1 **10**（密码/前后缀/计数/状态等）；debug 8 个不验收。
 
 ---
 ## 5. 参考链接
@@ -561,15 +561,17 @@ import { Input } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Input paddingInline | **≈11** | paddingSM−lineWidth |
-| 高 s/m/l | **24/32/40** | controlHeight* |
-| paddingInline middle | **≈11** | paddingSM−lineWidth |
 | 控件高度 middle | **32** | `controlHeight` |
 | 控件高度 small | **24** | `controlHeightSM` |
 | 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
+| 字号 middle | **14** | `fontSize`（`inputFontSize`） |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
+| paddingInline middle | **≈11** | `paddingSM−lineWidth`（`paddingInline`） |
+| 前后缀间距 `inputAffixPadding` | **4** | `paddingXXS`（prefix/suffix 与文本 gap≈6 含此） |
+| addon 背景 | `colorFillAlter` | `addonBg`（废弃 addon 经 `Space.Compact` 拼，不自绘） |
+| 清除图标 | 有内容时显，空隐藏 | 点击走 `onChange("")` + `onClear`（§6.4 INP-S2） |
+| TextArea 最小高 | **rows×行高 + 纵向 padding**（示例 rows=4） | `rows`（<2 回落 3）；`autoSize{minRows,maxRows}` 钳高 |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -640,25 +642,35 @@ mount ──► idle
 | INP-S3 | `disabled=true` | 不可编辑；点击/键盘不产生 `onChange` |
 | INP-S4 | `readOnly=true` | 不可编辑但可聚焦选区（若平台支持） |
 | INP-S5 | `maxLength=N` 非受控键入超长 | 截断：显示与 `Value()` 均不超过 N；`onChange` 不吐超长值（计数器若开则显示 `len / N`） |
-| INP-S13 | `showCount=true`（P1） | 计数区显示实时字符数，默认 `value.length`；配 `maxLength=N` 时显示 `len / N` |
-| INP-S14 | `count={{max, strategy, exceedFormatter}}`（P1） | 超 `max` 只标红不截断；`strategy` 自定义计数；`exceedFormatter` 返回裁剪后值并回写展示 |
-| INP-S6 | `status=error` | 错误色边框；仍可输入 |
-| INP-S7 | 聚焦后 Enter | 触发 `onPressEnter` |
-| INP-S8 | Password 显隐切换 | 掩码变化，`value` 不变 |
-| INP-S9 | Search 点搜索图标 | 触发 `onSearch` |
-| INP-S10 | TextArea `autoSize={minRows,maxRows}` | 高度随内容，不小于 min、不大于 max |
-| INP-S11 | `size` small/middle/large | 高度 24/32/40（±0.5） |
-| INP-S12 | `variant` outlined/filled/borderless/underlined | chrome 切换无残留错误边框 |
+| INP-S6 | `showCount=true`（P1） | 计数区显示实时字符数，默认 `value.length`；配 `maxLength=N` 时显示 `len / N` |
+| INP-S7 | `count={{max, strategy, exceedFormatter}}`（P1） | 超 `max` 只标红不截断；`strategy` 自定义计数；`exceedFormatter` 返回裁剪后值并回写展示 |
+| INP-S8 | `status=error` | 错误色边框；仍可输入 |
+| INP-S9 | 聚焦后 Enter | 触发 `onPressEnter` |
+| INP-S10 | Password 显隐切换 | 掩码变化，`value` 不变 |
+| INP-S11 | Search 点搜索图标 | 触发 `onSearch` |
+| INP-S12 | TextArea `autoSize={minRows,maxRows}` | 高度随内容，不小于 min、不大于 max |
+| INP-S13 | `size` small/middle/large | 高度 24/32/40（±0.5） |
+| INP-S14 | `variant` outlined/filled/borderless/underlined | chrome 切换无残留错误边框 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| default | 单行/Input 壳（outlined 默认）+ 前后缀槽；Token 色 |
+| hover | 边框走 `hoverBorderColor` + 底 `hoverBg` |
+| focus | **可见** focus ring + 主色边 + `activeShadow`；内层编辑器不另画 ring |
+| disabled | 字 `colorTextDisabled` + 底 `colorBgContainerDisabled` + 边 `colorBorderDisabled`；不可编辑 |
+| status=error/warning | 边框/前后缀走语义色 + `errorActiveShadow`/`warningActiveShadow`；仍可输入 |
+| Search loading | 后缀转圈（Ticker）；禁用重复提交 |
+| TextArea | 最小高 rows×行高；`autoSize` 在 min/maxRows 间伸缩 |
+
+**variant 矩阵（`variant` × chrome，L2）：**
+
+| variant | 填充 | 边框 | focus | 备注 |
+| --- | --- | --- | --- | --- |
+| `outlined`（默认） | `colorBgContainer` | 1px `colorBorder` 全边框 | 主色边 + 可见 ring | 单行/TextArea/Search/Password 默认 |
+| `filled` | `colorFillAlter` 浅底 | 无/弱边框，hover 加深 | 主色边 + ring | `filled-debug` 非 P0 |
+| `borderless` | 透明 | 无 | 底无框，仅 ring/底强调可选 | 无 chrome |
+| `underlined` | 透明 | 仅底边 1px `colorBorder` | 底边走主色 | 底边线形态 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -667,23 +679,23 @@ mount ──► idle
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | 单行 `textbox`；TextArea `textbox` 多行；Search `searchbox` + 搜索按钮；Password 掩码仍 `textbox`（`aria-label` 注明密码） |
+| 标签 | 与 Form.Item label 或 `AriaLabel` 关联；`placeholder` 不作唯一名称 |
+| 清除 | 清除钮有可访问名；空时隐藏且不可聚焦；清除后焦点保留框内 |
+| 错误 | `status=error` 暴露 invalid + 错误文案关联；`showCount` 超长标红同步文案 |
+| 键盘 | Enter 触发 `onPressEnter`（Search 兼 `onSearch`）；Password 显隐钮可聚焦激活 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 单行/Search/TextArea/Password 主路径 | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2：高 24/32/40 + addon/清除/TextArea 行高） | **对等** | P0 L2 |
+| 中文 IME 组字（组字期不提交最终值） | **宿主** | P0 宿主 |
+| 前后置 addon（废弃，一律 `Space.Compact` 拼，不自实现） | **映射**紧凑拼 | P0 拼法 / P1 不做自绘 |
+| 字数 `showCount`/`count`（超 `max` 标红不截断 + `strategy`/`exceedFormatter`） | 分期 | P1 |
+| OTP/格式化 `formatter`/`mask`/自定义图标深度 | 分期 | P1 |
+| Semantic classNames/styles + ConfigProvider 全局默认 | kit 语义钩子，随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -704,13 +716,13 @@ mount ──► idle
 | `prefix` / `suffix` | 前后缀节点（`size.tsx` 等主路径需要） |
 | **Input.Search** | `onSearch`、`enterButton`（bool/文案）、**`loading`**（仅 Search；用 Ticker 转圈） |
 | **Input.TextArea** | `rows`；`autoSize` bool 或 `{minRows,maxRows}` |
-| **Input.Password** | `visibilityToggle` 掩码显隐，`value` 不变（INP-09） |
+| **Input.Password** | `visibilityToggle` 掩码显隐，`value` 不变（INP-S10 / INP-09） |
 | 官方主路径示例 | 基本使用、三种大小、形态变体、紧凑模式、搜索框、搜索框 loading、文本域、适应文本高度的文本域 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求（textbox 角色、AriaLabel、error→invalid、Focus ring） |
 | §6.9 中 L1/L2 用例 | 测试通过（INP-01…INP-25；L3/L4/P1 除外） |
 
-> **说明（相对旧稿修正）**：antd 基础 `Input` **无** `loading`；`loading` 仅 **`Input.Search`**（见官方 `search-input-loading.tsx`）。P0 验收以 Search.loading 为准。`Input.Password` 虽不在官方「主路径示例」前八项，但 §6.4 / INP-09 为 L1 必测，故纳入 P0。
+> **说明（相对旧稿修正）**：antd 基础 `Input` **无** `loading`；`loading` 仅 **`Input.Search`**（见官方 `search-input-loading.tsx`）。P0 验收以 Search.loading 为准。`Input.Password` 虽不在官方「主路径示例」前八项，但 §6.4 INP-S10 / §6.9 INP-09 为 L1 必测，故纳入 P0。
 
 #### P1（可 later，须在 coverage Notes 写明）
 
@@ -746,14 +758,14 @@ mount ──► idle
 | INP-11 | L1 | TextArea `autoSize={minRows,maxRows}` | 高度随内容，不小于 min、不大于 max |
 | INP-12 | L1 | `size` small/middle/large | 高度 24/32/40（±0.5） |
 | INP-13 | L1 | `variant` outlined/filled/borderless/underlined | chrome 切换无残留错误边框 |
-| INP-14 | L1 | 复现官方示例「基本使用」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INP-15 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INP-16 | L1 | 复现官方示例「形态变体」（`variant.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INP-17 | L1 | 复现官方示例「紧凑模式」（`compact-style.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INP-18 | L1 | 复现官方示例「搜索框」（`search-input.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INP-19 | L1 | 复现官方示例「搜索框 loading」（`search-input-loading.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INP-20 | L1 | 复现官方示例「文本域」（`textarea.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INP-21 | L1 | 复现官方示例「适应文本高度的文本域」（`autosize-textarea.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| INP-14 | L1 | 复现官方示例「基本使用」（`basic.tsx`） | NewInput 可聚焦键入：每次键入 `onChange` 上抛一次，显示值同步，失焦后值保留 |
+| INP-15 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 三档同文案并排：实测高 small=24 / middle=32 / large=40（±0.5），字号/内边距随档增大 |
+| INP-16 | L1 | 复现官方示例「形态变体」（`variant.tsx`） | 同值切 outlined/filled/borderless/underlined：§6.5 矩阵 chrome 逐一对上，无残留边框，focus ring 仍可见 |
+| INP-17 | L1 | 复现官方示例「紧凑模式」（`compact-style.tsx`） | `Space.Compact` 横排多 Input：相邻边框合并无双线，高度按同一 size 对齐，首尾圆角保留 |
+| INP-18 | L1 | 复现官方示例「搜索框」（`search-input.tsx`） | 输入 `hi` 后按 Enter/点搜索图标：`onSearch("hi", source=input)` 一次，框内值不变 |
+| INP-19 | L1 | 复现官方示例「搜索框 loading」（`search-input-loading.tsx`） | `SetLoading(true)`：后缀出现旋转指示，再点搜索不重复提交；关 loading 后恢复可搜 |
+| INP-20 | L1 | 复现官方示例「文本域」（`textarea.tsx`） | `NewTextArea(rows=4)`：多行换行不断行丢失，实测高 ≥ rows×行高，滚动只在超高时出现 |
+| INP-21 | L1 | 复现官方示例「适应文本高度的文本域」（`autosize-textarea.tsx`） | `SetAutoSizeRange(2,6)`：逐行加内容高度单调增，且钳在 [minRows 高，maxRows 高] 内 |
 | INP-22 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | INP-23 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | INP-24 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -841,11 +853,15 @@ SetVisible(bool) / IsVisible() bool
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Decorated（底、边框、圆角、高度 / TextArea 最小高）
+Input 单行（Password/Search 共用此壳，细节见分支）
+Decorated（底、边框、圆角、高 24/32/40，variant 见 §6.5 矩阵）
   └─ Flex(Row) CrossStretch gap≈6
-       prefix? · Flexible(EditableText) · clear? · suffix?
-                                         · Search: searchIcon | enterButton | spinner?
-                                         · Password: eye toggle?
+       prefix? · Flexible(EditableText 单行) · clear? · suffix?
+       Search 分支：searchIcon | enterButton（文案/按钮） | loading spinner?(Ticker)
+       Password 分支：eye toggle?(Pressable，不改 value)
+TextArea 分支：Decorated（最小高=rows×行高+纵向 padding，autoSize 时按 min/maxRows 伸缩）
+  └─ EditableText 多行 + count?（右下计数，P1）
+OTP 分支（P1）：Flex(Row) gap≈8 → N×Decorated cell（单字符）+ separator?
 ```
 
 - 组合 `ui/primitive`（Decorated / Flex / EditableText / Pressable / Icon / Canvas）+ `ui/core`，禁止第二套事件/帧循环。  

@@ -36,6 +36,12 @@
 
 下列配置会改变绘制结果，kit 应建立样式枚举或 token 映射：
 
+#### `action`
+
+- **说明**：自定义操作项
+- **类型**：ReactNode
+- **默认值**：-
+
 #### `banner`
 
 - **说明**：是否用作顶部公告
@@ -208,14 +214,14 @@
 | 自定义标题对齐 | `custom-title-alignment.tsx` | 否 |
 | 组件 Token | `component-token.tsx` | 是 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
+| 语义结构调试 | `_semantic.tsx` | 是 |
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L1（静态反馈，无浮层定位）。
+- **等谁**：Button（`action` 操作槽常挂按钮）、Icon（`showIcon` 语义图标）。
+- **文件归属**：`ui/kit/alert/`。
+- **组合**：banner 顶栏常驻页面顶部；带 description 时标题 16 字号双行结构。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -286,7 +292,7 @@ import { Alert } from 'antd';
 
 实现 gpui kit 版 **Alert** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -296,7 +302,7 @@ import { Alert } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **13** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 
 ---
 ## 5. 参考链接

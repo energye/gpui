@@ -441,11 +441,11 @@ Select 虚拟滚动会模拟无障碍绑定元素。如果需要读屏器完整�
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：浮层件 + 表单件；下拉走 Portal，锚定触发器；大数据虚拟滚动 P1，先做本件再做 `cascader`/`tree-select`/`auto-complete`。
+- **Form**：`value`（单选 string / 多选 `[]string`）直绑，`status` 由 Item 下发。
+- **ConfigProvider**：size/variant/status 全局默认。
+- **浮层**：Modal/Drawer 内注意 `getPopupContainer`；`placement` 四角。
+- **文件归属**：`ui/kit/select/`（触发器 + 下拉面板 + 搜索过滤 + 多选 tag）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -461,37 +461,82 @@ Select 虚拟滚动会模拟无障碍绑定元素。如果需要读屏器完整�
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | allowClear | 自定义清除按钮 | boolean \| { clearIcon?: ReactNode } | false | 5.8.0: 支持对象类型 | 6.4.0 |
-| ~~autoClearSearchValue~~ | 是否在选中项后清空搜索框，只在 `mode` 为 `multiple` 或 `tags` 时有效 | boolean | true | ~~bordered~~ | 是否带边框，请使用 `variant` 替代 | boolean | true | - | × |
-| classNames | 用于自定义 Select 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | defaultActiveFirstOption | 是否默认高亮第一个选项 | boolean | true | defaultOpen | 是否默认展开下拉菜单 | boolean | - | defaultValue | 指定默认选中的条目 | string \| string\[] \|<br />number \| number\[] \| <br />LabeledValue \| LabeledValue\[] | - | disabled | 是否禁用 | boolean | false | ~~dropdownClassName~~ | 下拉菜单的 className 属性，请使用 `classNames.popup.root` 替代 | string | - | - | × |
+| ~~autoClearSearchValue~~ | 是否在选中项后清空搜索框，只在 `mode` 为 `multiple` 或 `tags` 时有效 | boolean | true |  | × |
+| ~~bordered~~ | 是否带边框，请使用 `variant` 替代 | boolean | true | - | × |
+| classNames | 用于自定义 Select 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - |  | 5.25.0 |
+| defaultActiveFirstOption | 是否默认高亮第一个选项 | boolean | true |  | × |
+| defaultOpen | 是否默认展开下拉菜单 | boolean | - |  | × |
+| defaultValue | 指定默认选中的条目 | string \| string\[] \| number \| number\[] \| LabeledValue \| LabeledValue\[] | - |  | × |
+| disabled | 是否禁用 | boolean | false |  | × |
+| ~~dropdownClassName~~ | 下拉菜单的 className 属性，请使用 `classNames.popup.root` 替代 | string | - | - | × |
 | ~~dropdownMatchSelectWidth~~ | 下拉菜单和选择器是否同宽，请使用 `popupMatchSelectWidth` 替代 | boolean \| number | true | - | × |
 | ~~popupClassName~~ | 下拉菜单的 className 属性，使用 `classNames.popup.root` 替换 | string | - | 4.23.0 | × |
 | popupMatchSelectWidth | 下拉菜单和选择器同宽。默认将设置 `min-width`，当值小于选择框宽度时会被忽略。false 时会关闭虚拟滚动 | boolean \| number | true | 5.5.0 | × |
-| ~~dropdownRender~~ | 自定义下拉框内容，使用 `popupRender` 替换 | (originNode: ReactNode) => ReactNode | - | popupRender | 自定义下拉框内容 | (originNode: ReactNode) => ReactNode | - | 5.25.0 | × |
-| ~~dropdownStyle~~ | 下拉菜单的 style 属性，使用 `styles.popup.root` 替换 | CSSProperties | - | fieldNames | 自定义节点 label、value、options、groupLabel 的字段 | object | { label: `label`, value: `value`, options: `options`, groupLabel: `label` } | 4.17.0（`groupLabel` 在 5.6.0 新增） | × |
-| ~~filterOption~~ | 是否根据输入项进行筛选。当其为一个函数时，会接收 `inputValue` `option` 两个参数，当 `option` 符合筛选条件时，应返回 true，反之则返回 false。[示例](#select-demo-search) | boolean \| function(inputValue, option) | true | ~~filterSort~~ | 搜索时对筛选结果项的排序函数, 类似[Array.sort](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort)里的 compareFunction | (optionA: Option, optionB: Option, info: { searchValue: string }) => number | - | `searchValue`: 5.19.0 | × |
-| getPopupContainer | 菜单渲染父节点。默认渲染到 body 上，如果你遇到菜单滚动定位问题，试试修改为滚动的区域，并相对其定位。[示例](https://codesandbox.io/s/4j168r7jw0) | function(triggerNode) | () => document.body | labelInValue | 是否把每个选项的 label 包装到 value 中，会把 Select 的 value 类型从 `string` 变为 { value: string, label: ReactNode } 的格式 | boolean | false | listHeight | 设置弹窗滚动高度 | number | 256 | loading | 加载中状态 | boolean | false | loadingIcon | 自定义的加载图标 | ReactNode | `<LoadingOutlined spin />` | 6.4.0 | 6.4.0 |
+| ~~dropdownRender~~ | 自定义下拉框内容，使用 `popupRender` 替换 | (originNode: ReactNode) => ReactNode | - |  | × |
+| popupRender | 自定义下拉框内容 | (originNode: ReactNode) => ReactNode | - | 5.25.0 | × |
+| ~~dropdownStyle~~ | 下拉菜单的 style 属性，使用 `styles.popup.root` 替换 | CSSProperties | - |  | × |
+| fieldNames | 自定义节点 label、value、options、groupLabel 的字段 | object | { label: `label`, value: `value`, options: `options`, groupLabel: `label` } | 4.17.0（`groupLabel` 在 5.6.0 新增） | × |
+| ~~filterOption~~ | 是否根据输入项进行筛选。当其为一个函数时，会接收 `inputValue` `option` 两个参数，当 `option` 符合筛选条件时，应返回 true，反之则返回 false。[示例](#select-demo-search) | boolean \| function(inputValue, option) | true |  | × |
+| ~~filterSort~~ | 搜索时对筛选结果项的排序函数 | (optionA: Option, optionB: Option, info: { searchValue: string }) => number | - | `searchValue`: 5.19.0 | × |
+| getPopupContainer | 菜单渲染父节点。默认渲染到 body 上，如果你遇到菜单滚动定位问题，试试修改为滚动的区域，并相对其定位。[示例](https://codesandbox.io/s/4j168r7jw0) | function(triggerNode) | () => document.body |  | × |
+| labelInValue | 是否把每个选项的 label 包装到 value 中，会把 Select 的 value 类型从 `string` 变为 { value: string, label: ReactNode } 的格式 | boolean | false |  | × |
+| listHeight | 设置弹窗滚动高度 | number | 256 |  | × |
+| loading | 加载中状态 | boolean | false |  | × |
+| loadingIcon | 自定义的加载图标 | ReactNode | `<LoadingOutlined spin />` | 6.4.0 | 6.4.0 |
 | maxCount | 指定可选中的最多 items 数量，仅在 `mode` 为 `multiple` 或 `tags` 时生效 | number | - | 5.13.0 | × |
 | maxTagCount | 最多显示多少个 tag，响应式模式会对性能产生损耗 | number \| `responsive` | - | responsive: 4.10 | × |
-| maxTagPlaceholder | 隐藏 tag 时显示的内容 | ReactNode \| function(omittedValues) | - | maxTagTextLength | 最大显示的 tag 文本长度 | number | - | menuItemSelectedIcon | 自定义多选时当前选中的条目图标 | ReactNode | `<CheckOutlined />` | mode | 设置 Select 的模式为多选或标签 | `multiple` \| `tags` | - | notFoundContent | 当下拉列表为空时显示的内容 | ReactNode | `Not Found` | open | 是否展开下拉菜单 | boolean | - | ~~optionFilterProp~~ | 已废弃，见 `showSearch.optionFilterProp` | optionLabelProp | 回填到选择框的 Option 的属性值，默认是 Option 的子元素。比如在子元素需要高亮效果时，此值可以设为 `value`。[示例](https://codesandbox.io/s/antd-reproduction-template-tk678) | string | `children` | options | 数据化配置选项内容，相比 jsx 定义会获得更好的渲染性能 | { label, value }\[] | - | optionRender | 自定义渲染下拉选项 | (option: FlattenOptionData\<BaseOptionType\> , info: { index: number }) => React.ReactNode | - | 5.11.0 | × |
-| placeholder | 选择框默认文本 | ReactNode | - | placement | 选择框弹出的位置 | `bottomLeft` `bottomRight` `topLeft` `topRight` | bottomLeft | prefix | 自定义前缀 | ReactNode | - | 5.22.0 | × |
-| removeIcon | 自定义的多选框清除图标 | ReactNode | `<CloseOutlined />` | ~~searchValue~~ | 控制搜索文本 | string | - | ~~showArrow~~ | 是否显示箭头图标，请使用 `suffixIcon={null}` 替代 | boolean | true | - | × |
+| maxTagPlaceholder | 隐藏 tag 时显示的内容 | ReactNode \| function(omittedValues) | - |  | × |
+| maxTagTextLength | 最大显示的 tag 文本长度 | number | - |  | × |
+| menuItemSelectedIcon | 自定义多选时当前选中的条目图标 | ReactNode | `<CheckOutlined />` |  | 6.4.0 |
+| mode | 设置 Select 的模式为多选或标签 | `multiple` \| `tags` | - |  | × |
+| notFoundContent | 当下拉列表为空时显示的内容 | ReactNode | `Not Found` |  | × |
+| open | 是否展开下拉菜单 | boolean | - |  | × |
+| ~~optionFilterProp~~ | 已废弃，见 `showSearch.optionFilterProp` | — | — |  | × |
+| optionLabelProp | 回填到选择框的 Option 的属性值，默认是 Option 的子元素。比如在子元素需要高亮效果时，此值可以设为 `value`。[示例](https://codesandbox.io/s/antd-reproduction-template-tk678) | string | `children` |  | × |
+| options | 数据化配置选项内容，相比 jsx 定义会获得更好的渲染性能 | { label, value }\[] | - |  | × |
+| optionRender | 自定义渲染下拉选项 | (option: FlattenOptionData<BaseOptionType> , info: { index: number }) => React.ReactNode | - | 5.11.0 | × |
+| placeholder | 选择框默认文本 | ReactNode | - |  | × |
+| placement | 选择框弹出的位置 | `bottomLeft` `bottomRight` `topLeft` `topRight` | bottomLeft |  | × |
+| prefix | 自定义前缀 | ReactNode | - | 5.22.0 | × |
+| removeIcon | 自定义的多选框清除图标 | ReactNode | `<CloseOutlined />` |  | 6.4.0 |
+| ~~searchValue~~ | 控制搜索文本 | string | - |  | × |
+| ~~showArrow~~ | 是否显示箭头图标，请使用 `suffixIcon={null}` 替代 | boolean | true | - | × |
 | showSearch | 配置是否可搜索 | boolean \| [Object](#showsearch) | 单选为 false，多选为 true | Object: 6.0.0 | 6.4.0 |
-| size | 选择框大小 | `large` \| `medium` \| `small` | `medium` | status | 设置校验状态 | 'error' \| 'warning' | - | 4.19.0 | × |
-| styles | 用于自定义 Select 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | suffixIcon | 自定义的选择框后缀图标。以防止图标被用于其他交互，替换的图标默认不会响应展开、收缩事件，可以通过添加 `pointer-events: none` 样式透传。 | ReactNode | `<DownOutlined />` | tagRender | 自定义 tag 内容 render，仅在 `mode` 为 `multiple` 或 `tags` 时生效 | (props) => ReactNode | - | labelRender | 自定义当前选中的 label 内容 render （LabelInValueType的定义见 [LabelInValueType](https://github.com/react-component/select/blob/b39c28aa2a94e7754ebc570f200ab5fd33bd31e7/src/Select.tsx#L70)） | (props: LabelInValueType) => ReactNode | - | 5.15.0 | × |
+| size | 选择框大小 | `large` \| `medium` \| `small` | `medium` |  | × |
+| status | 设置校验状态 | 'error' \| 'warning' | - | 4.19.0 | × |
+| styles | 用于自定义 Select 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | × |
+| suffixIcon | 自定义的选择框后缀图标。以防止图标被用于其他交互，替换的图标默认不会响应展开、收缩事件，可以通过添加 `pointer-events: none` 样式透传。 | ReactNode | `<DownOutlined />` |  | 6.4.0 |
+| tagRender | 自定义 tag 内容 render，仅在 `mode` 为 `multiple` 或 `tags` 时生效 | (props) => ReactNode | - |  | × |
+| labelRender | 自定义当前选中的 label 内容 render | (props: LabelInValueType) => ReactNode | - | 5.15.0 | × |
 | tokenSeparators | 自动分词的分隔符或自定义分词函数，仅在 `mode="tags"` 或 `mode="multiple"` 时生效 | string[] \| ((input: string) => string[]) | - | function: 6.5.0 | × |
-| value | 指定当前选中的条目，多选时为一个数组。（value 数组引用未变化时，Select 不会更新） | string \| string\[] \| <br />number \| number\[] \| <br />LabeledValue \| LabeledValue\[] | - | variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | 5.13.0 \| `underlined`: 5.24.0 | 5.19.0 |
+| value | 指定当前选中的条目，多选时为一个数组。（value 数组引用未变化时，Select 不会更新） | string \| string\[] \| number \| number\[] \| LabeledValue \| LabeledValue\[] | - |  | × |
+| variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | 5.13.0 \| `underlined`: 5.24.0 | 5.19.0 |
 | virtual | 设置 false 时关闭虚拟滚动 | boolean | true | 4.1.0 | × |
-| onActive | 键盘和鼠标交互时触发 | function(value: string \| number \| LabeledValue) | - | onBlur | 失去焦点时回调 | function | - | onChange | 选中 option，或 input 的 value 变化时，调用此函数 | function(value, option:Option \| Array&lt;Option>) | - | onClear | 清除内容时回调 | function | - | 4.6.0 | × |
-| onDeselect | 取消选中时调用，参数为选中项的 value (或 key) 值，仅在 `multiple` 或 `tags` 模式下生效 | function(value: string \| number \| LabeledValue) | - | ~~onDropdownVisibleChange~~ | 展开下拉菜单的回调，使用 `onOpenChange` 替换 | (open: boolean) => void | - | onOpenChange | 展开下拉菜单的回调 | (open: boolean) => void | - | onFocus | 获得焦点时回调 | (event: FocusEvent) => void | - | onInputKeyDown | 按键按下时回调 | (event: KeyboardEvent) => void | - | onPopupScroll | 下拉列表滚动时的回调 | (event: UIEvent) => void | - | ~~onSearch~~ | 文本框值变化时回调 | function(value: string) | - | onSelect | 被选中时调用，参数为选中项的 value (或 key) 值 | function(value: string \| number \| LabeledValue, option: Option) | - 
+| onActive | 键盘和鼠标交互时触发 | function(value: string \| number \| LabeledValue) | - |  | × |
+| onBlur | 失去焦点时回调 | function | - |  | × |
+| onChange | 选中 option，或 input 的 value 变化时，调用此函数 | function(value, option:Option \| Array<Option>) | - |  | × |
+| onClear | 清除内容时回调 | function | - | 4.6.0 | × |
+| onDeselect | 取消选中时调用，参数为选中项的 value (或 key) 值，仅在 `multiple` 或 `tags` 模式下生效 | function(value: string \| number \| LabeledValue) | - |  | × |
+| ~~onDropdownVisibleChange~~ | 展开下拉菜单的回调，使用 `onOpenChange` 替换 | (open: boolean) => void | - |  | × |
+| onOpenChange | 展开下拉菜单的回调 | (open: boolean) => void | - |  | × |
+| onFocus | 获得焦点时回调 | (event: FocusEvent) => void | - |  | × |
+| onInputKeyDown | 按键按下时回调 | (event: KeyboardEvent) => void | - |  | × |
+| onPopupScroll | 下拉列表滚动时的回调 | (event: UIEvent) => void | - |  | × |
+| ~~onSearch~~ | 文本框值变化时回调 | function(value: string) | - |  | × |
+| onSelect | 被选中时调用，参数为选中项的 value (或 key) 值 | function(value: string \| number \| LabeledValue, option: Option) | - |  | × |
 > 注意，如果发现下拉菜单跟随页面滚动，或者需要在其他弹层中触发 Select，请尝试使用 `getPopupContainer={triggerNode => triggerNode.parentElement}` 将下拉弹层渲染节点固定在触发器的父元素中。
 
 ### showSearch
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
-| autoClearSearchValue | 是否在选中项后清空搜索框，只在 `mode` 为 `multiple` 或 `tags` 时有效 | boolean | true | filterSort | 搜索时对筛选结果项的排序函数, 类似[Array.sort](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort)里的 compareFunction | (optionA: Option, optionB: Option, info: { searchValue: string }) => number | - | `searchValue`: 5.19.0 |
+| autoClearSearchValue | 是否在选中项后清空搜索框，只在 `mode` 为 `multiple` 或 `tags` 时有效 | boolean | true |  |
+| filterOption | 是否根据输入项进行筛选。当其为一个函数时，会接收 `inputValue` `option` 两个参数，当 `option` 符合筛选条件时，应返回 true，反之则返回 false。[示例](#select-demo-search) | boolean \| function(inputValue, option) | true |  |
+| filterSort | 搜索时对筛选结果项的排序函数 | (optionA: Option, optionB: Option, info: { searchValue: string }) => number | - | `searchValue`: 5.19.0 |
 | optionFilterProp | 搜索时过滤对应的 `option` 属性，如设置为 `children` 表示对内嵌内容进行搜索。<br/> 若通过 `options` 属性配置选项内容，建议设置 `optionFilterProp="label"` 来对内容进行搜索。<br/> 当传入 `string[]` 时多个字段进行 OR 匹配搜索 | string \| string[] | `value` | `string[]`: 6.1.0 |
-| searchValue | 控制搜索文本 | string | - | searchIcon | 自定义的搜索图标 | ReactNode | `<SearchOutlined />` | 6.4.0 |
+| searchValue | 控制搜索文本 | string | - |  |
+| onSearch | 文本框值变化时回调 | function(value: string) | - |  |
+| searchIcon | 自定义的搜索图标 | ReactNode | `<SearchOutlined />` | 6.4.0 |
 
 ### Select Methods
 
@@ -534,7 +579,7 @@ import { Select } from 'antd';
 | `classNames` | 用于自定义 Select 组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props }) => Record | - | — |
 | `defaultActiveFirstOption` | 是否默认高亮第一个选项 | boolean | true | — |
 | `defaultOpen` | 是否默认展开下拉菜单 | boolean | - | — |
-| `defaultValue` | 指定默认选中的条目 | string \| string\[] \|number \| number\[] \| LabeledValue \| LabeledValue\[] | - | — |
+| `defaultValue` | 指定默认选中的条目 | string \| string\[] \| number \| number\[] \| LabeledValue \| LabeledValue\[] | - | — |
 | `disabled` | 是否禁用 | boolean | false | — |
 | `dropdownClassName` | 下拉菜单的 className 属性，请使用 `classNames.popup.root` 替代 | string | - | - |
 | `dropdownMatchSelectWidth` | 下拉菜单和选择器是否同宽，请使用 `popupMatchSelectWidth` 替代 | boolean \| number | true | - |
@@ -550,30 +595,30 @@ import { Select } from 'antd';
 | `labelInValue` | 是否把每个选项的 label 包装到 value 中，会把 Select 的 value 类型从 `string` 变为 { value: string, label: ReactNode } 的格式 | boolean | false | — |
 | `listHeight` | 设置弹窗滚动高度 | number | 256 | — |
 | `loading` | 加载中状态 | boolean | false | — |
-| `loadingIcon` | 自定义的加载图标 | ReactNode | `` | 6.4.0 |
+| `loadingIcon` | 自定义的加载图标 | ReactNode | `<LoadingOutlined spin />` | 6.4.0 |
 | `maxCount` | 指定可选中的最多 items 数量，仅在 `mode` 为 `multiple` 或 `tags` 时生效 | number | - | 5.13.0 |
 | `maxTagCount` | 最多显示多少个 tag，响应式模式会对性能产生损耗 | number \| `responsive` | - | responsive: 4.10 |
 | `maxTagPlaceholder` | 隐藏 tag 时显示的内容 | ReactNode \| function(omittedValues) | - | — |
 | `maxTagTextLength` | 最大显示的 tag 文本长度 | number | - | — |
-| `menuItemSelectedIcon` | 自定义多选时当前选中的条目图标 | ReactNode | `` | — |
+| `menuItemSelectedIcon` | 自定义多选时当前选中的条目图标 | ReactNode | `<CheckOutlined />` | — |
 | `mode` | 设置 Select 的模式为多选或标签 | `multiple` \| `tags` | - | — |
 | `notFoundContent` | 当下拉列表为空时显示的内容 | ReactNode | `Not Found` | — |
 | `open` | 是否展开下拉菜单 | boolean | - | — |
 | `optionFilterProp` | 已废弃，见 `showSearch.optionFilterProp` | — | — | — |
 | `optionLabelProp` | 回填到选择框的 Option 的属性值，默认是 Option 的子元素。比如在子元素需要高亮效果时，此值可以设为 `value`。[示例](https://codesandbox.io/s/antd-reproduction-template-tk678) | string | `children` | — |
 | `options` | 数据化配置选项内容，相比 jsx 定义会获得更好的渲染性能 | { label, value }\[] | - | — |
-| `optionRender` | 自定义渲染下拉选项 | (option: FlattenOptionData\ , info: { index: number }) => React.ReactNode | - | 5.11.0 |
+| `optionRender` | 自定义渲染下拉选项 | (option: FlattenOptionData<BaseOptionType>, info: { index: number }) => React.ReactNode | - | 5.11.0 |
 | `placeholder` | 选择框默认文本 | ReactNode | - | — |
 | `placement` | 选择框弹出的位置 | `bottomLeft` `bottomRight` `topLeft` `topRight` | bottomLeft | — |
 | `prefix` | 自定义前缀 | ReactNode | - | 5.22.0 |
-| `removeIcon` | 自定义的多选框清除图标 | ReactNode | `` | — |
+| `removeIcon` | 自定义的多选框清除图标 | ReactNode | `<CloseOutlined />` | — |
 | `searchValue` | 控制搜索文本 | string | - | — |
 | `showArrow` | 是否显示箭头图标，请使用 `suffixIcon={null}` 替代 | boolean | true | - |
 | `showSearch` | 配置是否可搜索 | boolean \| [Object](#showsearch) | 单选为 false，多选为 true | Object: 6.0.0 |
 | `size` | 选择框大小 | `large` \| `medium` \| `small` | `medium` | — |
 | `status` | 设置校验状态 | 'error' \| 'warning' | - | 4.19.0 |
 | `styles` | 用于自定义 Select 组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props }) => Record | - | — |
-| `suffixIcon` | 自定义的选择框后缀图标。以防止图标被用于其他交互，替换的图标默认不会响应展开、收缩事件，可以通过添加 `pointer-events: none` 样式透传。 | ReactNode | `` | — |
+| `suffixIcon` | 自定义的选择框后缀图标。以防止图标被用于其他交互，替换的图标默认不会响应展开、收缩事件，可以通过添加 `pointer-events: none` 样式透传。 | ReactNode | `<DownOutlined />` | — |
 | `tagRender` | 自定义 tag 内容 render，仅在 `mode` 为 `multiple` 或 `tags` 时生效 | (props) => ReactNode | - | — |
 | `labelRender` | 自定义当前选中的 label 内容 render （LabelInValueType的定义见 [LabelInValueType](https://github.com/react-component/select/blob/b39c28aa2a94e7754ebc570f200ab5fd33bd31e7/src/Select.tsx#L70)） | (props: LabelInValueType) => ReactNode | - | 5.15.0 |
 | `tokenSeparators` | 自动分词的分隔符或自定义分词函数，仅在 `mode="tags"` 或 `mode="multiple"` 时生效 | string[] \| ((input: string) => string[]) | - | function: 6.5.0 |
@@ -592,7 +637,7 @@ import { Select } from 'antd';
 | `onPopupScroll` | 下拉列表滚动时的回调 | (event: UIEvent) => void | - | — |
 | `onSearch` | 文本框值变化时回调 | function(value: string) | - | — |
 | `onSelect` | 被选中时调用，参数为选中项的 value (或 key) 值 | function(value: string \| number \| LabeledValue, option: Option) | - | — |
-| `searchIcon` | 自定义的搜索图标 | ReactNode | `` | 6.4.0 |
+| `searchIcon` | 自定义的搜索图标 | ReactNode | `<SearchOutlined />` | 6.4.0 |
 | `blur()` | 取消焦点 | — | — | — |
 | `focus()` | 获取焦点 | — | — | — |
 | `className` | Option 器类名 | string | - | — |
@@ -607,7 +652,7 @@ import { Select } from 'antd';
 
 实现 gpui kit 版 **Select** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -617,7 +662,7 @@ import { Select } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **27** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 主路径 11 例（基本使用、带搜索框、自定义搜索、多字段搜索、多选、三种大小、自定义下拉选项、带排序的搜索、标签、分组、前后缀）；余下 16 例逐例去向见 §6.8 P1，Notes 显式列出。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -663,6 +708,12 @@ import { Select } from 'antd';
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | 选择器高 | **32/24/40** | controlHeight* |
+| 下拉选项行高 `optionHeight` | **32** | `= controlHeight`（单行，`optionPadding` 上下居中） |
+| 下拉选项内边距 `optionPadding` | **5px 12px**（`(controlHeight − fontSize×lineHeight)/2` 取整 × `controlPaddingHorizontal`） | 组件 Token（同族 Cascader 同公式，见 [cascader.md](./cascader.md#621-几何与组件-token)） |
+| 下拉选项字号/行高 | **14** / `lineHeight` | `optionFontSize` / `optionLineHeight` |
+| 多选 tag 高 `multipleItemHeight` | **24**（SM **16** / LG **32**） | `min(controlHeight(*) − 2×paddingXXS, controlHeight(*) − 2×lineWidth)` |
+| 下拉面板内边距 | **4** | `paddingXXS` |
+| 下拉面板圆角 | **8** | `borderRadiusLG` |
 | listHeight | **256** | 常见默认 |
 | 控件高度 middle | **32** | `controlHeight` |
 | 控件高度 small | **24** | `controlHeightSM` |
@@ -739,19 +790,40 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | SEL-S7 | Esc 打开时 | 关闭弹层 |
 | SEL-S8 | 空 options | 显示 `notFoundContent` |
 | SEL-S9 | `mode=tags` 输入新项 Enter | 创建并选中 |
-| SEL-S10 | `size` 三档 | 高度 24/32/40 |
+| SEL-S10 | `size` 三档 | 高度 24/32/40（±0.5px，与 SEL-19/§6.9 一致） |
 | SEL-S11 | 键盘 Enter 选中高亮项 | 同点击选中 |
 | SEL-S12 | maxTagCount（适用者） | 多余折叠为 +N |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 / 变体 | 规则 |
+| 态 / 变体（触发器壳专属，面板见下表） | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| 触发器壳 default | 高 32（SM 24/LG 40，±0.5px）+ 容器底 + 边框（outlined）或族默认皮；Token 色 |
+| 触发器壳 hover | 触发器边框/底强调；面板不跟变 |
+| 触发器壳 focus | **可见** focus ring；主色边（只断言触发器壳） |
+| 触发器壳 disabled | 触发器降对比不可编辑；后缀/清除不响应 |
+| 触发器壳 status=error/warning | 触发器语义色边框/反馈；面板行态不变 |
+| 触发器壳 open（锚定） | 触发器保持 focus 边；面板另起 Portal（几何见下拉面板表），此处只断言锚定 placement |
+
+
+**variant 矩阵（`variant` × chrome，L2，触发器壳与 Input 同规则）：**
+
+| variant | 填充 | 边框 | focus | 备注 |
+| --- | --- | --- | --- | --- |
+| `outlined`（默认） | `colorBgContainer` | 1px `colorBorder` 全边框 | 主色边 + 可见 ring | 默认 |
+| `filled` | `colorFillAlter` 浅底 | 无/弱边框 | 主色边 + ring | 浅底形态 |
+| `borderless` | 透明 | 无 | 仅 ring 可见 | 无 chrome |
+| `underlined` | 透明 | 仅底边 1px `colorBorder` | 底边走主色 | 底边线形态 |
+
+**下拉面板 chrome（L2，`components/select/style`）：**
+
+| 项 | 规则 |
+| --- | --- |
+| 面板 | `colorBgElevated` 底 + 圆角 8 + 内边距 4 + `boxShadowSecondary`；滚动高 `listHeight`=256 |
+| 选项行 | 行高 32 + 内边距 5px 12px + 字号 14；超长省略 |
+| active 行（hover/键盘） | 底 `controlItemBgHover`（`optionActiveBg`） |
+| selected 行 | 底 `controlItemBgActive` + 字色 `optionSelectedColor` + 字重 `fontWeightStrong`；多选行尾打勾（`menuItemSelectedIcon`，默认 `<CheckOutlined />`） |
+| disabled 行 | `colorTextDisabled` + 不响应 |
+| 多选 tag | 高 24（SM 16 / LG 32）+ `multipleItemBg` 底 + 圆角 `borderRadiusSM`；删叉 `removeIcon` |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -770,11 +842,15 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 单选/多选/tags 选择主路径（§6.1 L1） | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2）+ variant 四态 + status 边框 | **对等** | P0 L2 |
+| 搜索过滤（`filterOption` 函数 / `optionFilterProp` 多字段 / `filterSort` 排序） | **对等**（纯内存过滤） | P0 L1 |
+| 远程搜索（`select-users.tsx`：`filterOption=false` + `onSearch` 喂数 + `loading` + 防抖） | **映射**：kit 只管 `SetFilterOption(false)` + `SetOnSearch` + `SetOptions` 回填；真 HTTP 与防抖由业务层做 | P1 |
+| 级联（`coordinate.tsx`：省市双 Select） | **映射**：纯业务受控组合，无新 kit 能力；真级联走 Cascader | P1 页面 |
+| 大数据虚拟滚动（`big-data.tsx`，10 万项） | **分期**：`SetVirtual` + `SetListHeight`；`virtual=false` 关虚拟走全量 | P1 |
+| 自定义下拉壳（`popupRender`）/ tag（`tagRender`）/ 回显（`labelRender`） | **分期**：节点工厂，见 §6.8 | P1 |
+| `getPopupContainer`（Modal 内挂载） | **映射**：kit 弹层一律 Portal 就地锚定触发器；挂 body/自定义容器不支持 | P1 |
+| `responsive` maxTagCount 按宽折叠 | **分期**（数字形态 P0） | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -821,7 +897,22 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 联动、label-in-value 完整、自动分词、前后缀扩展、扩展菜单、隐藏已选、variant/status 完整 gallery、maxCount、响应式 maxTagCount、大数据（虚拟滚动 P1，接口形状 `SetVirtual(bool)` + `SetListHeight`） |
+| 联动（`coordinate.tsx`） | P1 页面：省市双 Select 受控联动，纯业务组合，无新 kit 能力（受控 `value` 已覆盖） |
+| 获得选项的文本（`label-in-value.tsx`） | P1 页面：`labelInValue` 回填形态分期 |
+| 自动分词（`automatic-tokenization.tsx`） | P1：`tokenSeparators` 字符串分隔 |
+| 自定义分词（`custom-tokenization.tsx`，6.5.0） | P1：`tokenSeparators` 函数形态 |
+| 搜索用户（`select-users.tsx`） | P1：远程搜索模式（`filterOption=false` + `onSearch` 喂数 + `loading`），桌面无真 HTTP，见 §6.7 |
+| 扩展菜单（`custom-dropdown-menu.tsx`） | P1：`popupRender` 自定义下拉壳 |
+| 隐藏已选择选项（`hide-selected.tsx`） | P1 页面：受控过滤业务写法（已选从 `options` 踢除） |
+| 形态变体（`variant.tsx`） | P1 完整 gallery 页（`variant` 四态行为 P0，SEL-21d 覆盖前后缀壳） |
+| 自定义状态（`status.tsx`） | P1 完整 gallery 页（`status` 行为 P0） |
+| 弹出位置（`placement.tsx`） | P1 完整 gallery 页（`placement` 四角行为 P0） |
+| 最大选中数量（`maxCount.tsx`，5.13.0） | P1 页面（`maxCount` 截断行为 P0，SEL-03 覆盖） |
+| 响应式 maxTagCount（`responsive.tsx`） | P1：`responsive` 按宽折叠像素级（数字 `maxTagCount` P0，SEL-13 覆盖） |
+| 大数据（`big-data.tsx`，10 万项） | P1：虚拟滚动（接口形状 `SetVirtual(bool)` + `SetListHeight`，`virtual=false` 关虚拟走全量） |
+| 自定义选择标签（`custom-tag-render.tsx`） | P1：`tagRender`（含 `onClose` 透出关闭，否则 tag 不可删，见 FAQ） |
+| 自定义选中 label（`custom-label-render.tsx`，5.15.0） | P1：`labelRender`（仅换单选回显，不动下拉行与占位） |
+| 自定义语义结构（`style-class.tsx`，6.0.0） | P1：semantic 深度 |
 
 ### 6.9 验收用例表（可测）
 
@@ -843,17 +934,17 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | SEL-11 | L1 | `size` 三档 | 高度 24/32/40 |
 | SEL-12 | L1 | 键盘 Enter 选中高亮项 | 同点击选中 |
 | SEL-13 | L1 | maxTagCount（适用者） | 多余折叠为 +N |
-| SEL-14 | L1 | 复现官方示例「基本使用」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-15 | L1 | 复现官方示例「带搜索框」（`search.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-16 | L1 | 复现官方示例「自定义搜索」（`search-filter-option.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-17 | L1 | 复现官方示例「多字段搜索」（`search-multi-field.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-18 | L1 | 复现官方示例「多选」（`multiple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-19 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-20 | L1 | 复现官方示例「自定义下拉选项」（`option-render.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-21 | L1 | 复现官方示例「带排序的搜索」（`search-sort.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SEL-21b | L1 | 复现官方示例「标签」（`tags.tsx`） | `mode=tags` 输入新项 Enter 创建并选中 |
-| SEL-21c | L1 | 复现官方示例「分组」（`optgroup.tsx`） | 组头不可选，组内选项可选 |
-| SEL-21d | L1 | 复现官方示例「前后缀」（`suffix.tsx`） | `prefix/suffixIcon` 占位绘制，输入区宽度自适应 |
+| SEL-14 | L1 | 复现官方示例「基本使用」（`basic.tsx`：jack/lucy/yiminghe/disabled 四项，默认 lucy；同页含 disabled/loading/allowClear 变体） | 点 jack：`onChange(jack)` 一次且关层；点 disabled 项无回调；allowClear 变体点清除后值空 |
+| SEL-15 | L1 | 复现官方示例「带搜索框」（`search.tsx`：`showSearch.optionFilterProp=label`） | 输 `lu` 仅 Lucy 可见，`onSearch(lu)` 触发；点 Lucy 后 `onChange(lucy)` |
+| SEL-16 | L1 | 复现官方示例「自定义搜索」（`search-filter-option.tsx`：`filterOption` 小写包含） | 输 `JACK` 命中 Jack；输 `zzz` 显示 `notFoundContent` |
+| SEL-17 | L1 | 复现官方示例「多字段搜索」（`search-multi-field.tsx`：`optionFilterProp=[label,otherField]`） | 输 `c11`（仅 otherField 命中 a11 行）该行可见 |
+| SEL-18 | L1 | 复现官方示例「多选」（`multiple.tsx`：`mode=multiple` 默认 `['a10','c12']`，同页含 disabled 变体） | 默认两 tag；再点一项变三 tag 且层不关；disabled 变体点不开 |
+| SEL-19 | L1 | 复现官方示例「三种大小」（`size.tsx`：Radio 切 large/medium/small） | 三档实测高 40/32/24（±0.5）；切档后选中值保留 |
+| SEL-20 | L1 | 复现官方示例「自定义下拉选项」（`option-render.tsx`：multiple + emoji/desc 富文本行，默认 `['happy']`） | 下拉行带 emoji+desc 两段文案但行高仍 32；点 sad 后值为 `['happy','sad']` |
+| SEL-21 | L1 | 复现官方示例「带排序的搜索」（`search-sort.tsx`：`filterSort` 按 label 字母序） | 输 `i` 命中行按字母序排列（Closed/Communicated/Identified…） |
+| SEL-21b | L1 | 复现官方示例「标签」（`tags.tsx`：`mode=tags`） | 输新词 `newtag` + Enter：创建并选中，`onChange` 含该值 |
+| SEL-21c | L1 | 复现官方示例「分组」（`optgroup.tsx`：manager/engineer 两组，默认 lucy） | 组头行不可点；点组内 Lucy 后 `onChange(lucy)` |
+| SEL-21d | L1 | 复现官方示例「前后缀」（`suffix.tsx`：`prefix=User` + 笑脸 `suffixIcon` + `allowClear` + `showSearch`） | 前后缀占位绘制且输入区自适应；disabled 项仍不可选 |
 | SEL-22 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | SEL-23 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | SEL-24 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -946,12 +1037,16 @@ AttachTicker(*Tree)              // loading 旋转
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+TriggerShell（高 32/24/40 ±0.5px，variant 壳；单列纵向，与 Cascader 多列横排区分）
+  ├─ prefix? / suffixIcon / clear? / loading?
+  ├─ 单选 display value / 多选 tag 行（高 24/SM16/LG32，超 maxTagCount 折 +N）/ tags 输入创建位
+  └─ Portal popup（单列纵向列表；与 Cascader 多列横排区分）
+       ├─ 虚拟列表窗口（listHeight=256，大数据只挂载可视窗，virtual=false 走全量）
+       ├─ option 行（行高 32 + 内边距 5px 12px；搜索过滤后仅匹配行，filterSort 落此处排序）
+       └─ notFoundContent 空态（空 options / 无匹配）
 ```
+
+- 与 Cascader 区分：Select 弹层为单列纵向虚拟列表 + 触发器内多选 tag 行 + 搜索过滤落单列排序；Cascader 为多列横排 + 列分割 + 异步节点下钻（见 [cascader.md §6.11](./cascader.md#611-结构与绘制分层实现提示)）。
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  

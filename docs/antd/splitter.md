@@ -207,17 +207,18 @@
 | 自定义样式 | `customize.tsx` | 否 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 | 双击重置 | `reset.tsx` | 否 |
-| 标签页中嵌套 | `nested-in-tabs.tsx` | 是 |
+| 标签页中嵌套 | `nested-in-tabs.tsx` | 否 |
 | 调试 | `debug.tsx` | 是 |
 | 尺寸混合 | `size-mix.tsx` | 是 |
 
+> debug 标记依据：`debug.tsx` 文件名含 debug；`size-mix.tsx` 无独立文档 md，为 `size.tsx` 的辅助源文件，标 debug；`nested-in-tabs.tsx` 为正经 Tabs 嵌套场景 demo（文件名无 debug），标非 debug。
+
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；拖拽条+面板纯布局交互，不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；面板内容由业务挂节点（不同文件，并行安全）。
+- **文件归属**：`ui/kit/splitter/`（只改自己文件，并行安全；拖拽把手为本件自有，保留）。
+- **ConfigProvider**：主题（条 Token）、默认 props。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -300,17 +301,11 @@ import { Splitter } from 'antd';
 
 实现 gpui kit 版 **Splitter** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
+1. **配置面**：`orientation`/`vertical` + Panel（size/defaultSize/min/max/resizable/collapsible）+ `lazy` + 回调（onResize/Start/End/onCollapse）+ `destroyOnHidden`（§6.3）。
+2. **几何**：条可视 2、命中 6、把手 20（§6.2，±0.5px）；命中≥可视，`hit==layout==paint`。
+3. **交互**：拖拽改尺寸±0.5px（min/max 夹紧），lazy 拖中预览松手提交，受控只发回调（§6.4 SPL-S1…S9，§6.11）。
+4. **无障碍**：条可聚焦命名，方向键微调；折叠按钮可键盘（§6.6）。
+5. **示例矩阵**：P0 按 §6.8（8 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -359,11 +354,9 @@ import { Splitter } from 'antd';
 | 拖拽可视条宽 `splitBarSize` | **2** | 组件 Token（kit `DefaultSplitBarSize`） |
 | 拖拽命中区 `splitTriggerSize` | **6** | 组件 Token（kit `DefaultSplitTriggerSize`）；**命中 ≥ 可视** |
 | 拖拽把手标识高 `splitBarDraggableSize` | **20** | 组件 Token（kit `DefaultSplitBarDraggableSize`） |
-| 字号 | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 | 折叠按钮（水平条） | 宽≈`fontSizeSM`、高≈`controlHeightSM` | Token 回落 12×24 |
+
+> 面板内容区无字号/圆角自有 chrome（子项自理）；条聚焦 ring 见 §6.5/§6.6。
 
 > **布局约定（gpui）：** 面板 `sizes` 之和 = 容器主轴长度（与 antd 一致；条在边界上叠加命中区，不挤占 flex 百分比基数）。`hit == layout == paint`：条节点布局盒 = `splitTriggerSize`，居中压在相邻面板接缝上。
 
@@ -405,7 +398,7 @@ import { Splitter } from 'antd';
 | `max` | 最大阈值，支持数字 px 或者文字 '百分比%' 类型 | `number \ | string` |
 | `min` | 最小阈值，支持数字 px 或者文字 '百分比%' 类型 | `number \ | string` |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 面板 `size`（已设=受控，须配 `onResize` 回写）> `defaultSize` 初值 > 均分；`orientation` > `vertical` 糖；面板 `destroyOnHidden` 覆盖全局。
 
 ### 6.4 交互状态机（L1）
 
@@ -418,23 +411,24 @@ keyboard on bar ──► 方向键微调相邻面板
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| SPL-S1 | 拖动 | 尺寸变；onResize（非 lazy） |
-| SPL-S2 | 低于 min | 夹紧 |
-| SPL-S3 | 高于 max | 夹紧 |
-| SPL-S4 | 松手 | onResizeEnd |
-| SPL-S5 | 折叠 | 面板收起（size→0，空间给邻面板） |
-| SPL-S6 | vertical | 上下分 |
-| SPL-S7 | 命中条 | 布局盒 ≥ 可视宽（trigger ≥ bar） |
-| SPL-S8 | lazy | 拖中面板几何不变；松手一次提交 |
-| SPL-S9 | resizable=false | 不可拖；仍可折叠（若 collapsible） |
+| SPL-S1 | 拖动条 +40px（非 lazy，容器 600） | 相邻面板尺寸变化 +40±0.5px，`onResize` 触发且载荷和=容器长 |
+| SPL-S2 | 目标尺寸低于 min（如 min=100，拖到 60） | 面板钳在 100±0.5px |
+| SPL-S3 | 目标尺寸高于 max（如 max=400，拖到 450） | 面板钳在 400±0.5px |
+| SPL-S4 | 松手 | `onResizeEnd` 触发 1 次，载荷=当前 `PanelSizes` |
+| SPL-S5 | 折叠（collapsible） | 折叠面板 size→0±0.5px，邻面板增同量，`onCollapse` 触发 |
+| SPL-S6 | vertical=true | 条水平，面板上下分；拖动改高度±0.5px |
+| SPL-S7 | 命中条（trigger 6，可视条 2） | 条布局盒宽 6±0.5px≥可视 2px，居中压缝 |
+| SPL-S8 | lazy=true 拖中 | 拖中面板几何不变，松手一次提交 `size` 并触发 `onResizeEnd` |
+| SPL-S9 | resizable=false | 拖动不改尺寸；仍可折叠（若 collapsible） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 条可视宽 2±0.5px，命中宽 6±0.5px，把手标识高 20±0.5px（§6.2） |
+| hover/active | 条底走 `colorBgTextHover`/`Active`，把手填充变化 |
+| focus | 条聚焦 ring 可见（§6.2 outset 约 1.5px） |
+| resizable=false | 无把手 spinner，cursor 默认，不可拖 |
+| 主题切换 | 条色与面板间隙随 Theme 更新 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -443,18 +437,18 @@ keyboard on bar ──► 方向键微调相邻面板
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰分隔 | 纯装饰可 aria-hidden |
-| 拖拽把手 | 可命名；键盘微调 P0/P1 按控件 |
+| 拖拽条 | 可聚焦命名；方向键微调相邻面板（步进约容器 1% 或 4px）；Focus ring 可见 |
+| 折叠按钮 | 可聚焦命名；Enter/Space 触发折叠/恢复 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 条度量（§6.2 bar 2/trigger 6/把手 20） | **对等** | P0 L2 |
+| `orientation`/`vertical` 与 `lazy`/`resizable` | **对等** | P0 L1 |
+| `collapsible` 折叠动画 | P0 瞬时可关；像素级动画 P1 | P0 L1/P1 |
+| `draggerIcon`/`collapsibleIcon` 自定义图标 | **对等** | P0 L1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -465,8 +459,15 @@ keyboard on bar ──► 方向键微调相邻面板
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `orientation` | 必须 |
+| `orientation` / `vertical` | 必须；`orientation` 优先于 `vertical` 糖 |
+| `Panel.size` / `defaultSize`（px 或百分比） | 必须；`size` 已设为受控（须配 `onResize` 回写），`defaultSize` 为初值 |
+| `Panel.min` / `max`（px 或百分比） | 必须；拖拽与折叠恢复均受夹紧 |
+| `Panel.resizable` | 必须；false 时不可拖（仍可折叠），默认 true |
+| `Panel.collapsible`（+两侧/图标显隐） | 必须；折叠 size→0，空间让给邻面板 |
+| `lazy` | 必须；拖中仅画预览线，松手一次提交 |
+| `onResize` / `onResizeStart` / `onResizeEnd` | 必须；载荷均为 `sizes: number[]` |
+| `onCollapse` | 必须；载荷 `(collapsed[], sizes[])` |
+| `destroyOnHidden`（全局/面板覆盖） | 必须；折叠 size 为 0 时销毁面板内容 |
 | 官方主路径示例 | 基本用法、受控模式、垂直方向、可折叠、可折叠图标显示、多面板、复杂组合、延迟渲染模式 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -480,7 +481,19 @@ keyboard on bar ──► 方向键微调相邻面板
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 自定义样式, 自定义语义结构的样式和类, 双击重置, _semantic.tsx |
+| 其余示例 | 自定义样式, 自定义语义结构的样式和类, 双击重置, 标签页中嵌套, _semantic.tsx |
+
+**14 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 4 例 P1，2 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本用法/受控模式/垂直方向/可折叠/可折叠图标/多面板/复杂组合/延迟渲染 | P0 | 拖拽+折叠+受控+lazy 主路径，gallery 必备 |
+| 自定义样式 | P1 | 条/面板样式覆盖深度 |
+| 自定义语义结构的样式和类 | P1 | semantic 深度 |
+| 双击重置 | P1 | `onDraggerDoubleClick` 整页（回调能力已验） |
+| 标签页中嵌套 | P1 | Tabs 宿主组合页 |
+| debug/size-mix | 不计 | 内部调试/辅助源文件（依据见 §2.4） |
+| _semantic.tsx | P1 | semantic 深度 |
 
 ### 6.9 验收用例表（可测）
 
@@ -490,25 +503,25 @@ keyboard on bar ──► 方向键微调相邻面板
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | SPL-01 | L1 | NewSplitter 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| SPL-02 | L1 | 拖动 | 尺寸变；onResize |
-| SPL-03 | L1 | 低于 min | 夹紧 |
-| SPL-04 | L1 | 高于 max | 夹紧 |
-| SPL-05 | L1 | 松手 | onResizeEnd |
-| SPL-06 | L1 | 折叠 | 面板收起 |
-| SPL-07 | L1 | vertical | 上下分 |
-| SPL-08 | L1 | 命中条 | ≥ 可视宽 |
-| SPL-09 | L1 | 复现官方示例「基本用法」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-10 | L1 | 复现官方示例「受控模式」（`control.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-11 | L1 | 复现官方示例「垂直方向」（`vertical.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-12 | L1 | 复现官方示例「可折叠」（`collapsible.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-13 | L1 | 复现官方示例「可折叠图标显示」（`collapsibleIcon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-14 | L1 | 复现官方示例「多面板」（`multiple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-15 | L1 | 复现官方示例「复杂组合」（`group.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-16 | L1 | 复现官方示例「延迟渲染模式」（`lazy.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPL-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| SPL-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| SPL-19 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| SPL-20 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| SPL-02 | L1 | 拖动条 +40px（非 lazy，容器 600） | 相邻面板变化 +40±0.5px，`onResize` 触发 |
+| SPL-03 | L1 | 目标低于 min（如 min=100，拖到 60） | 面板钳在 100±0.5px |
+| SPL-04 | L1 | 目标高于 max（如 max=400，拖到 450） | 面板钳在 400±0.5px |
+| SPL-05 | L1 | 松手 | `onResizeEnd` 触发 1 次 |
+| SPL-06 | L1 | 折叠（collapsible） | 折叠面板 size→0±0.5px，`onCollapse` 触发 |
+| SPL-07 | L1 | vertical=true | 条水平，面板上下分；拖动改高度±0.5px |
+| SPL-08 | L1 | 命中条（trigger 6，可视 2） | 条布局盒宽 6±0.5px≥可视 2px |
+| SPL-09 | L1 | 挂 `size.tsx`（双面板 50/50，容器 600，拖 +40px） | 面板变为 340/260±0.5px，`onResize` 载荷和=600 |
+| SPL-10 | L1 | 挂 `control.tsx`（受控 size，拖后父回写） | 回写前面板几何不变；回写后跟随新值±0.5px |
+| SPL-11 | L1 | 挂 `vertical.tsx`（vertical=true，拖 +40px） | 面板高度变化 +40±0.5px，条水平 |
+| SPL-12 | L1 | 挂 `collapsible.tsx`（折叠左面板） | 左面板 size→0±0.5px，右面板增同量，`onCollapse` 1 次 |
+| SPL-13 | L1 | 挂 `collapsibleIcon.tsx`（双图标折叠） | 两侧折叠按钮均可点，各触发 `onCollapse` 1 次 |
+| SPL-14 | L1 | 挂 `multiple.tsx`（三面板，拖中间条 +40px） | 中间/右侧面板变化 ±40±0.5px，两侧和=容器长 |
+| SPL-15 | L1 | 挂 `group.tsx`（嵌套 Splitter） | 内外条各拖 20px，互不干扰，载荷各自为政 |
+| SPL-16 | L1 | 挂 `lazy.tsx`（lazy=true，拖 +40px 不松手） | 拖中面板几何不变；松手后一次提交，`onResizeEnd` 1 次 |
+| SPL-17 | L2 | 读取 §6.2 条 2/命中 6/把手 20 | 与表内数字一致（±0.5px） |
+| SPL-18 | L2 | 默认皮颜色 | 条色走 `colorBgTextHover`/`Active`，无硬编码品牌色 |
+| SPL-19 | L2 | resizable=false 外观 | 无把手 spinner，cursor 默认，不可拖 |
+| SPL-20 | L1 | 键盘/焦点主路径 | 条可聚焦，方向键微调±步进，Focus ring 可见 |
 | SPL-21 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | SPL-22 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | SPL-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

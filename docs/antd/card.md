@@ -219,11 +219,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：纯容器 + `Skeleton`（loading）、`Tabs`（`tabList` P1）；`cover` 图节点由宿主图片能力注入，无自带浮层。
+- **Grid/Meta**：`Card.Grid` 网格与 `Card.Meta`（avatar/title/description）为内置子组件，同文件实现。
+- **ConfigProvider**：尺寸、主题、全局 card 默认（P1）。
+- **文件归属**：`ui/kit/card/`（`card.go` + `meta.go`/`grid.go`，复用 `ui/kit/skeleton`）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -295,17 +294,17 @@ import { Card } from 'antd';
 
 实现 gpui kit 版 **Card** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（title/extra/cover/actions/loading/hoverable/size/type/variant/Meta/Grid）；`tabList` 系 P1。
+2. **视觉态**：头/封面/body/底栏/Meta/Grid/inner/borderless/loading 骨架（§6.4 CRD-S1~S10，§6.5）。
+3. **尺寸态**：middle / small（body 24/12，头高 56/38，§6.2）。
+4. **受控/非受控**：不适用（展示容器；loading/hoverable 为显式开关）。
+5. **数据驱动**：actions[] / Grid 流式 / Meta 三件套。
+6. **无障碍**：头 extra/actions 可激活命名、cover 等价文本、loading 忙态、可点卡片聚焦（§6.6）。
+7. **RTL**：title/extra 左右镜像；Grid 流向镜像。
+8. **浮层**：无自带浮层；cover 图超高由业务裁剪。
+9. **性能**：静态容器，无虚拟列表；loading 骨架 Ticker 按需挂载。
+10. **主题**：Token 化（§6.2 圆角8/body24/头56）；支持 reduced-motion（骨架瞬时）。
+11. **示例矩阵**：§6.8 P0 **8** 例（basic/border-less/simple/flexible/in-column/loading/grid-card/inner）；`tabs/meta页/style-class` 归 P1。
 
 ---
 ## 5. 参考链接
@@ -435,15 +434,21 @@ mount ──► default chrome（variant outlined|borderless · size middle|smal
 **loading 与 cover 几何（对齐 `Card.tsx`）：** `loading=true` 时 body 区替换为 `Skeleton`（`title=false`、`paragraph rows=4`、`active` 闪烁），骨架占满原 body 内边距盒（middle 24 / small 12），不保留原 children；`cover` 位于 header 下、body 上，全宽顶贴根容器，顶部圆角随根（8），左右不吃 body pad，图片按宽 100%、高自适应铺满，超高由业务裁剪，kit 不拉伸变形。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 | 规则 |
+| 部位 / 态 | 规则（源码 `Card.tsx` + `style/index.ts`） |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| 根 | 圆角 **8**（`borderRadiusLG`）；`outlined` 1px `colorBorderSecondary` 边框，`borderless` 无描边；底 `colorBgContainer` |
+| header | 有 `title`/`extra` 才渲染；左 title（middle 16/medium 14，`colorTextHeading`）、右 extra；水平 pad 24/12（middle/small），最小高 ≈56/38；底边 `colorSplit` |
+| cover | header 下、body 上全宽；顶圆角随根 8；图宽 100% 高自适应，不拉伸（超高业务裁） |
+| body | 内边距 middle **24** / small **12**（`bodyPadding/bodyPaddingSM`）；正文 14 `colorText` |
+| actions | 底栏等分 Row + 顶边 `colorSplit`；项图标 `colorTextSecondary`，可点 Pressable；行上下 margin 12 |
+| Meta | avatar 右 pad 16 + title 16 + description 次级色横排（`flexible-content.tsx`） |
+| Grid | 默认宽 33.33%（demo 25%），内边距 24；默认 `hoverable=true`；body 无 pad 包裹 |
+| type=inner | 头底 `colorFillSecondary`，标题 14，内嵌皮（`inner.tsx` 双层卡） |
+| hoverable | 悬停抬升（`boxShadowCard` 像素级 P1，P0 边框/底反馈近似）；`cursor=pointer`；可 `OnClick` 整卡可聚焦 |
+| loading | body 换 Skeleton（title=false、paragraph rows=4、active 闪烁），占满 body pad 盒；不保留原 children |
 | 主题切换 | 色与间距随 Theme 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** hover 抬升/骨架闪烁须可关或尊重 reduced-motion；P0 可用瞬时切换。
 
 ### 6.6 无障碍（a11y）最低要求
 
@@ -460,11 +465,12 @@ mount ──► default chrome（variant outlined|borderless · size middle|smal
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| 尺寸/色 Token（§6.2 body24/头56/圆角8） | **对等** | P0 L2 |
+| `tabList` 页签头 | **组合**：复用同库 `Tabs`；缺失时 P1 整页后补 | P1 |
+| `hoverable` 悬停阴影 `boxShadowCard` | **近似**：P0 边框/底反馈，像素级阴影 P1 | P0 近似 / P1 像素 |
+| `cover` 真图解码 | **宿主**：`SetCover` 节点注入，URL 解码走宿主图片能力 | P0 注入 / P1 自动解码 |
+| `Card.Grid` 网格 | **对等**（等分 + hoverable） | P0 L1 |
+| Semantic classNames/styles | kit 语义钩子（浅 root/header/body/actions） | P1 深度 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -518,14 +524,14 @@ mount ──► default chrome（variant outlined|borderless · size middle|smal
 | CRD-07 | L1 | Meta | avatar+title+desc |
 | CRD-08 | L1 | size=small | 更紧 padding |
 | CRD-09 | L1 | type=inner | 内嵌皮 |
-| CRD-10 | L1 | 复现官方示例「典型卡片」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRD-11 | L1 | 复现官方示例「无边框」（`border-less.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRD-12 | L1 | 复现官方示例「简洁卡片」（`simple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRD-13 | L1 | 复现官方示例「更灵活的内容展示」（`flexible-content.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRD-14 | L1 | 复现官方示例「栅格卡片」（`in-column.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRD-15 | L1 | 复现官方示例「预加载的卡片」（`loading.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRD-16 | L1 | 复现官方示例「网格型内嵌卡片」（`grid-card.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRD-17 | L1 | 复现官方示例「内部卡片」（`inner.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| CRD-10 | L1 | 复现官方示例「典型卡片」（`basic.tsx`） | middle/small 双卡：title 左 extra 右头区 + body 三段文本可布局 |
+| CRD-11 | L1 | 复现官方示例「无边框」（`border-less.tsx`） | `variant=borderless` 无描边；头+body 可布局 |
+| CRD-12 | L1 | 复现官方示例「简洁卡片」（`simple.tsx`） | 无 title/extra 时无头区；纯 body 文本可布局 |
+| CRD-13 | L1 | 复现官方示例「更灵活的内容展示」（`flexible-content.tsx`） | `cover` 图 + `Meta`（title/description）+ hoverable/borderless 可布局 |
+| CRD-14 | L1 | 复现官方示例「栅格卡片」（`in-column.tsx`） | 3 列等宽卡（Row 16 间距）可布局 |
+| CRD-15 | L1 | 复现官方示例「预加载的卡片」（`loading.tsx`） | `loading=true` body 为 Skeleton（rows≈4）；切换开关可测 |
+| CRD-16 | L1 | 复现官方示例「网格型内嵌卡片」（`grid-card.tsx`） | 7 个 `Card.Grid`（25% 宽）网格可布局；hoverable 默认开 |
+| CRD-17 | L1 | 复现官方示例「内部卡片」（`inner.tsx`） | 外卡套 2 个 `type=inner` 内卡；内卡头底 fill 色可断言 |
 | CRD-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | CRD-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | CRD-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

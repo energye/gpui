@@ -26,6 +26,8 @@ Util 无 UI：`_util/` 工具箱 + `GetRef/GetProps/GetProp` 类型工具。不�
 | --- | --- | --- |
 | — | — | — |
 
+> §2.3/2.5/2.6 缺节声明：Util 无行为 API、无实例方法、无 FAQ，缺节**豁免**（非遗漏）。
+
 ### 2.7 组合关系
 
 - **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
@@ -237,8 +239,8 @@ internal/util/  纯函数（colors/is/toList/transKeys/…）
 
 1. §6.8 **P0** 全部实现。  
 2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
-3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
+3. L2 度量与 Token 断言：**N/A**（无 UI，见 §6.2）。  
+4. L3 golden：**N/A**（无可见态）。  
 5. **示例程序**：Util 无运行时 UI，**豁免** gallery（见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；在 `coverage.go` Notes 标明「无 UI」。
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/util.md` §6；P1 显式列出。  
 

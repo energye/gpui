@@ -221,6 +221,7 @@
 | 聚焦 | `focus.tsx` | 否 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 | 图标按钮 | `controls.tsx` | 是 |
+| 反馈后缀调试 | `feedback-suffix-debug.tsx` | 是 |
 | _InternalPanelDoNotUseOrYouWillBeFired | `render-panel.tsx` | 是 |
 | 覆盖组件样式 | `debug-token.tsx` | 是 |
 
@@ -258,11 +259,10 @@ InputNumber 组件允许你使用 input 元素的所有属性最终透传至 inp
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：表单件（无浮层）；复用 `input` 壳 + 右侧步进手柄；先做 `input` 再做本件。
+- **Form**：数值 `value`（`stringMode` 走 string），越界受控可展示（FAQ），`status` 由 Item 下发。
+- **Space.Compact**：`addon` 已废弃，一律紧凑拼，不自实现。
+- **文件归属**：`ui/kit/input-number/`（编辑框 + 步进手柄 + 精度/格式化）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -356,7 +356,9 @@ import { InputNumber } from 'antd';
 | `onPressEnter` | 按下回车的回调 | function(e) | - | - |
 | `onStep` | 点击上下箭头、键盘、滚轮的回调 | (value: number, info: { offset: number, type: 'up' \| 'down', emitter: 'handler' \| 'keydown' \| 'wheel' }) => void | - | 4.7.0 |
 | `bordered` | 是否带边框，请使用 `variant` 替代 | boolean | true | - |
-| `(option?: { preventScroll?: boolean, cursor?: 'start' | 'end' | 'all' })` | 获取焦点 | — | — | cursor - 5.22.0 |
+| `blur` | 移除焦点 | — | — | — |
+| `focus` | 获取焦点 | (option?: { preventScroll?: boolean, cursor?: 'start' \| 'end' \| 'all' }) | — | cursor - 5.22.0 |
+| `nativeElement` | 获取原生 DOM 元素 | — | — | 5.17.3 |
 
 ---
 ## 4. gpui kit 实现要点
@@ -375,7 +377,7 @@ import { InputNumber } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **14** 个，均需可复现。
+11. **示例矩阵**：官方非 debug **14** 个：P0 **8**（§6.8 主路径）+ P1 **6**（拨轮/越界/前后缀/状态/聚焦/语义结构）；debug 8 个不验收（含未索引 `feedback-suffix-debug.tsx`）。
 
 ---
 ## 5. 参考链接
@@ -493,12 +495,21 @@ value
 
 | 态 / 变体 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| default | Input 壳（outlined 默认，宽 90）+ 右侧步进手柄（宽≈22，上下两区）；Token 色 |
+| hover | 边框强调 + 手柄显现（`handleVisible=auto` 时）；手柄 hover 字走 `handleHoverColor` |
+| focus | **可见** focus ring + 主色边；↑/↓ 仍可步进 |
+| disabled | 降对比；手柄不可点且无 hover |
+| status=error/warning | 语义色边框；越界值红字展示但不截断（受控可越界 FAQ） |
+| `controls=false` | 无手柄纯输入；`mode=spinner` 拨轮结构可简 |
+
+**variant 矩阵（`variant` × chrome，L2，与 Input 同规则）：**
+
+| variant | 填充 | 边框 | focus | 备注 |
+| --- | --- | --- | --- | --- |
+| `outlined`（默认） | `colorBgContainer` | 1px `colorBorder` 全边框 | 主色边 + 可见 ring | 默认 |
+| `filled` | `colorFillAlter` 浅底 + 手柄 `filledHandleBg` | 无/弱边框 | 主色边 + ring | 浅底形态 |
+| `borderless` | 透明 | 无 | 仅 ring 可见 | 高度仍按档对齐 |
+| `underlined` | 透明 | 仅底边 1px `colorBorder` | 底边走主色 | 底边线形态 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -507,23 +518,23 @@ value
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | `spinbutton`（`aria-valuemin`/`max`/`now`）+ 手柄按钮可访问名（上/下） |
+| 标签 | 与 Form.Item label 或 `AriaLabel` 关联；`placeholder` 不作唯一名称 |
+| 错误 | `status=error`/越界红字时暴露 invalid + 文案关联 |
+| 键盘 | ↑/↓（`keyboard=true`）步进；Enter 触发 `onPressEnter`；手柄可聚焦激活 |
+| 禁用 | `disabled` 不改值；`readOnly` 可聚焦不可改 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 步进/输入/精度/格式化主路径 | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2：宽 90/手柄 22/字号 7） | **对等** | P0 L2 |
+| 高精度 `stringMode`（`digit.tsx` 字符串读写，步进仍数值） | **对等** | P0 L1 |
+| `formatter`/`parser`（千分位/货币前后缀展示与回解析） | **对等** | P0 L1 |
+| 前后置 addon（废弃，一律 `Space.Compact` 拼） | **映射**紧凑拼 | P1 |
+| `controls` 自定义图标/`mode=spinner`/越界红字完整视觉 | P0 给 API，完整视觉分期 | P0 API / P1 视觉 |
+| Semantic classNames/styles + ConfigProvider 全局默认 | kit 语义钩子，随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -563,7 +574,7 @@ value
 | debug 示例与官网逐像素哈希 | 分期 |
 | 前缀/后缀 / addon（Space.Compact 替代） | 分期 |
 | 超出边界错误态完整 demo | 分期 |
-| 其余示例 | 拨轮完整视觉、超出边界、前缀/后缀、自定义状态、聚焦 demo |
+| 其余示例 | 拨轮（`spinner.tsx`，`mode` API P0，完整拨轮视觉 P1）、超出边界、前缀/后缀、自定义状态、聚焦、自定义语义结构的样式和类 |
 
 ### 6.9 验收用例表（可测）
 
@@ -583,14 +594,14 @@ value
 | INN-09 | L1 | 高度 middle | 32 |
 | INN-10 | L1 | 受控 value | 外部优先 |
 | INN-11 | L1 | step=0.1 | 按 0.1 步进 |
-| INN-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INN-13 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INN-14 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INN-15 | L1 | 复现官方示例「高精度小数」（`digit.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INN-16 | L1 | 复现官方示例「格式化展示」（`formatter.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INN-17 | L1 | 复现官方示例「键盘行为」（`keyboard.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INN-18 | L1 | 复现官方示例「鼠标滚轮」（`change-on-wheel.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| INN-19 | L1 | 复现官方示例「形态变体」（`variant.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| INN-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | `StepUp` 一次 +1 并 `OnChange`；`SetMin/Max` 夹紧后 `DisplayText` 同值 |
+| INN-13 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 三档实测高 24/32/40（±0.5），手柄宽≈22 不随档变 |
+| INN-14 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | `SetDisabled(true)`：点手柄/键入/滚轮均不改值不出 `OnChange` |
+| INN-15 | L1 | 复现官方示例「高精度小数」（`digit.tsx`） | `SetStringMode(true)` + `SetStringValue("0.1")` 步进 0.1 无浮点丢位，`OnChangeString` 回 string |
+| INN-16 | L1 | 复现官方示例「格式化展示」（`formatter.tsx`） | `SetFormatter` 千分位展示（如 `1,000`），`parser` 回解析后 `GetValue()==1000` |
+| INN-17 | L1 | 复现官方示例「键盘行为」（`keyboard.tsx`） | 聚焦后 ↑ +step / ↓ -step 各一次并 `OnStep(emitter=keydown)`；`SetKeyboard(false)` 则不动 |
+| INN-18 | L1 | 复现官方示例「鼠标滚轮」（`change-on-wheel.tsx`） | `SetChangeOnWheel(true)` 聚焦滚轮步进；关闭则滚轮不改值 |
+| INN-19 | L1 | 复现官方示例「形态变体」（`variant.tsx`） | 同值切 outlined/filled/borderless/underlined：§6.5 矩阵逐一对上，手柄底同步变 |
 | INN-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | INN-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | INN-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

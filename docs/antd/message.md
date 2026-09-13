@@ -174,6 +174,7 @@
 | 静态方法（不推荐） | `info.tsx` | 否 |
 | _InternalPanelDoNotUseOrYouWillBeFired | `render-panel.tsx` | 是 |
 | 组件 Token | `component-token.tsx` | 是 |
+| 语义结构调试 | `_semantic.tsx` | 是 |
 
 ### 2.5 实例方法 / Ref
 
@@ -249,11 +250,10 @@ return (
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（浮层：顶部居中队列 + 堆叠定位）。
+- **等谁**：浮层定位（holder 队列）、Icon/Progress（类型图标与 loading 环）。
+- **文件归属**：`ui/kit/message/`。
+- **组合**：经 App 上下文消费（`UseApp`）；ConfigProvider 下发 `top`/`duration`/`maxCount` 全局默认。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -375,7 +375,7 @@ import { Message } from 'antd';
 
 实现 gpui kit 版 **Message** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -385,7 +385,7 @@ import { Message } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **9** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 
 ---
 ## 5. 参考链接
@@ -424,6 +424,7 @@ import { Message } from 'antd';
 ### 6.2 度量与 Design Token（L2 基线）
 
 数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+源码：`components/message/style/index.ts`（`contentPadding` 由 `controlHeightLG/fontSize/lineHeight` 派生）+ notice 共享样式（圆角 `borderRadiusLG=8`）。
 
 #### 6.2.1 几何与组件 Token
 
@@ -491,12 +492,17 @@ Message.success(content) ──► 顶栏入队显示
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
 | MSG-S1 | success 调用 | 可见成功条 |
-| MSG-S2 | duration=0.1 短时 | 会自动消失 |
-| MSG-S3 | duration=0 | 不自动关 |
+| MSG-S2 | duration=0.1 短时 | 0.1s±0.05s（虚拟时钟 Tick 推进）后自动消失 + `onClose` 恰一次 |
+| MSG-S3 | duration=0 | 不自动关（虚拟时钟推进任意步仍在，直至 close/destroy） |
 | MSG-S4 | 同 key 更新 | 仍一条 |
-| MSG-S5 | 连续多条 | 堆叠 |
+| MSG-S5 | 连续多条 | 顶部居中纵向堆叠（`top=8` 起排） |
 | MSG-S6 | destroy | 清空 |
 | MSG-S7 | error/warning/info/loading | 图标类型正确 |
+| MSG-S8 | `maxCount=2` 后连发 3 条 | 最旧一条被丢弃，队列剩 2 条 |
+| MSG-S9 | `stack` 开启超 threshold | 折叠只展最新一条 + 计数，其余收起 |
+| MSG-S10 | `pauseOnHover=true` 悬停 | 悬停期间剩余时长不变（虚拟时钟断言：推进 N 步仍不关），移开后恢复计时到期关 |
+
+**可断言补充（MSG-S2/S3/S10，虚拟时钟）：** `duration` 默认 3s，测试一律用虚拟时钟 Tick 推进断言，不依赖真实时钟；短时 `duration=0.1` 容差 ±0.05s，默认 3s 容差 ±0.2s；`duration=0` 常驻分支推进任意步仍在；`pauseOnHover=true` 时悬停条 `剩余时长` 快照不变，移开后继续递减到期触发 `onClose`/`Then` 恰一次。
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -513,21 +519,25 @@ Message.success(content) ──► 顶栏入队显示
 
 | 项 | 要求 |
 | --- | --- |
-| 实时区域 | message/notification 用 status 语义等价 |
-| 关闭 | 可关控件可操作 |
-| 不抢焦点 | 轻提示默认不抢（Modal 例外） |
+| 角色 | 条目 `role=status`，`aria-live=polite`（轻提示不断言 assertive） |
+| 命名 | 每条名=content 文案（`format` 无，此处即内容本身） |
+| 键盘 | 无键盘操作；轻提示默认不抢焦点 |
+| 焦点环 | 不适用（条目本身不可聚焦；带 `onClick` 可点条目需可聚焦并 ring 可见） |
+| 遮罩 | 无遮罩；多条堆叠朗读顺序与视觉顺序一致 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 类型打开（success/error/info/warning/loading）+ duration/key/onClose/destroy | **对等** | P0 L1 |
+| 顶部居中队列（`top=8`，`getPlacementOffsetStyle`） | **对等**：holder 顶栏入队，`top` 可配 | P0 L1 |
+| 堆叠队列（`maxCount` 超限丢最旧；`stack` 超阈值折叠只展最新，threshold 默认 3） | **对等**：队列写实，先进先出丢弃 + 折叠计数 | P0 L1 |
+| 同 key 更新内容不新增 + promise `then(afterClose)` | **对等**：`MessageHandle.Then` 映射 | P0 L1 |
+| `pauseOnHover` 悬停暂停计时 | **对等**（虚拟时钟可测） | P0 L1 |
+| 尺寸/色 Token（内容区 ≈9×12、圆角 8） | **对等** | P0 L2 |
+| 入场/离场动画 | **近似**或瞬时 | P1 |
+| 全局静态方法脱离上下文（`ReactDOM.render` 语义） | **映射**：`useMessage`/App holder 为 P0，裸静态仅便利用法 | P1 |
+| Semantic classNames/styles 深度 | kit 语义钩子 | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -572,14 +582,14 @@ Message.success(content) ──► 顶栏入队显示
 | MSG-06 | L1 | 连续多条 | 堆叠 |
 | MSG-07 | L1 | destroy | 清空 |
 | MSG-08 | L1 | error/warning/info/loading | 图标类型正确 |
-| MSG-09 | L1 | 复现官方示例「Hooks 调用（推荐）」（`hooks.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MSG-10 | L1 | 复现官方示例「其他提示类型」（`other.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MSG-11 | L1 | 复现官方示例「修改延时」（`duration.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MSG-12 | L1 | 复现官方示例「堆叠」（`stack.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MSG-13 | L1 | 复现官方示例「加载中」（`loading.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MSG-14 | L1 | 复现官方示例「Promise 接口」（`thenable.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MSG-15 | L1 | 复现官方示例「自定义语义结构样式」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MSG-16 | L1 | 复现官方示例「更新消息内容」（`update.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| MSG-09 | L1 | 复现「Hooks 调用」（`hooks.tsx`）：经 holder 发 `Success("hi")` | 顶栏出现成功条，holder 非空；`duration` 默认 3s |
+| MSG-10 | L1 | 复现「其他提示类型」（`other.tsx`）：success/error/info/warning/loading 各发一条 | 5 条图标语义互异，loading 条带旋转指示 |
+| MSG-11 | L1 | 复现「修改延时」（`duration.tsx`）：发 `duration=10` 与 `duration=0` 各一条 | 前者 10s 后消失，后者常驻直至 destroy |
+| MSG-12 | L1 | 复现「堆叠」（`stack.tsx`）：threshold=3 下连发 5 条 | 只展最新 + 折叠计数，旧条收起 |
+| MSG-13 | L1 | 复现「加载中」（`loading.tsx`）：`Loading("Action...", 0)` 后调 `Destroy` | 常驻loading条出现后被手动关闭，无残留 |
+| MSG-14 | L1 | 复现「Promise 接口」（`thenable.tsx`）：`Success(...).Then(afterClose)` | 关闭后 `afterClose` 恰触发一次 |
+| MSG-15 | L1 | 复现「自定义语义结构样式」（`style-class.tsx`） | 浅 Style 覆盖 root 圆角/色生效，不崩 |
+| MSG-16 | L1 | 复现「更新消息内容」（`update.tsx`）：同 key 发两次不同 content | 队列仍 1 条，内容为第二次文案 |
 | MSG-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | MSG-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | MSG-19 | L2 | 自定义 style-class 主路径 | 浅 Style 覆盖 root/icon/title 色与圆角；semantic 深度 P1 |
@@ -629,9 +639,16 @@ SetStackThreshold(n int)
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Host holder or inline
-  └─ item (icon + content + close?)
+MessageHolder（顶栏居中单队列；与 Notification 六角独立池区分）
+  └─ 纵向堆叠列（top=8 起排 ±0.5px；max-content/100% 不定宽；圆角 8）
+       ├─ 条目（icon + content；role=status，aria-live=polite；默认不抢焦点）
+       ├─ 入队：新条追加列尾；同 key 更新内容不新增（MSG-S4）
+       ├─ maxCount 超限丢最旧 FIFO（MSG-S8）；stack 超 threshold（默认 3）折叠只展最新 + 计数（MSG-S9）
+       ├─ 计时：每条 duration 默认 3s（±0.2s，虚拟时钟 Tick 推进）；duration=0 常驻；到期离场销毁 + onClose/Then(afterClose) 恰一次
+       └─ 悬停冻结：pauseOnHover=true 时悬停条剩余时长不变，移开恢复（MSG-S10）
 ```
+
+- 与 Notification 区分：Message 为顶部居中单队列轻提示（无 title/description 分栏、无 actions、无六角池）；Notification 为四角六方位独立堆叠池卡片（见 [notification.md §6.11](./notification.md#611-结构与绘制分层实现提示)）。
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  

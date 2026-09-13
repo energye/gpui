@@ -293,11 +293,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；四形态+复制+编辑+省略均不依赖组内其他 10 件，可先行实现。
+- **等谁**：仅等宿主剪贴板/文本域注入（`copyable`/`editable` 的 P0 宿主能力）；不等其他组件，不同文件并行安全。
+- **文件归属**：`ui/kit/typography/`（只改自己文件，并行安全）。
+- **ConfigProvider**：主题、locale（`展开`/`收起` 默认文案）、默认 props。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -477,18 +476,11 @@ import { Typography } from 'antd';
 
 实现 gpui kit 版 **Typography** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **10** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
+1. **配置面**：四形态构造 + `type`/`disabled` + 修饰（strong/code/mark/delete/underline/italic/keyboard）+ `copyable`/`editable` + `ellipsis`（rows/expandable/受控expanded/suffix/中间省略）+ `actions.placement`（§6.3）。
+2. **度量**：正文 14、Title 38/30/24/20/16（§6.2，±0.5px）。
+3. **交互**：复制写剪贴板+`onCopy` 1 次；编辑 Enter 提交/Esc 取消；省略按二分算法（§6.4 TYP-S1…S12）。
+4. **无障碍**：操作按钮自带名，Link 可聚焦（§6.6）。
+5. **示例矩阵**：P0 按 §6.8（8 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -610,12 +602,19 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 | TYP-S12 | 正文 14 | 字号 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 | 规则 |
+| 态 / 修饰 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| 正文/Title | 正文 14，Title 38/30/24/20/16（§6.2，±0.5px） |
+| `type` 语义色 | secondary/success/warning/danger 走对应 Token |
+| `strong` | 加粗面；`italic` 斜体；`underline`/`delete` 装饰线可区分 |
+| `code` | 等宽面 + 浅底 + 圆角 3（组件常量） |
+| `keyboard` | 键盘帽 chrome（边框+浅底+圆角 3） |
+| `mark` | 标记底 gold[2]≈`#ffe58f` |
+| `disabled` | 禁用文本色；复制/编辑不可触发 |
+| `copyable`/`editable` 操作符 | 图标 14，间距 4；`placement=start/end` 定左右 |
+| Link | 链接色；hover 变体；可聚焦 ring 可见 |
+
+**动效：** 省略展开 P0 瞬时切换；复制成功反馈用短 Ticker 态（≈3s），尊重 reduced-motion。
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -624,18 +623,22 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 角色 | 文本容器无强制 role；Link 为 `link`；操作按钮（复制/编辑/展开）为 `button` |
+| 名称 | 操作按钮自带可访问名（复制/编辑/展开·收起）；`SetAriaLabel` 可覆盖 |
+| 焦点 | 复制/编辑/展开按钮与 Link 可 Tab 到达，ring 可见；纯文本不抢焦点 |
+| 键盘 | Enter/Space 激活操作按钮；编辑态 Enter 提交、Esc 取消 |
+| 禁用 | `disabled` 时复制/编辑/onClick 均不触发，读屏可感知 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| Text/Title/Paragraph/Link 形态与 type 修饰 | **对等** | P0 L1/L2 |
+| `copyable` 复制到剪贴板 | **映射**宿主剪贴板（`format/tooltips` 深度 P1） | P0 宿主 |
+| `editable` 行内编辑 | **映射**宿主文本域（`autoSize/maxLength/enterIcon` 全矩阵 P1） | P0 L1 |
+| `ellipsis` 二分省略/展开/中间省略 | **对等**量测算法（`tooltip/onEllipsis` 像素级 P1） | P0 L1 |
+| `actions.placement` start/end | **对等** | P0 L1 |
+| 中文文档 `展开`/`收起` 默认文案 | **对等**（引擎不写死业务文案，经 API/默认常量暴露） | P0 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -674,6 +677,16 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 | 其余示例 | 后缀, 表格, _semantic.tsx |
 | ConfigProvider 全局 Typography 默认 | 分期 |
 
+**14 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 2 例 P1，4 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本/标题组件/文本与超链接/可编辑/可复制/省略号/受控省略/省略中间 | P0 | 形态+复制+编辑+省略主路径，gallery 必备 |
+| 后缀 | P1 | 省略 suffix 深度（能力已验，整页后补） |
+| 表格 | P1 | 表格单元格排版组合页 |
+| paragraph-debug/ellipsis-debug/componentToken-debug/link-danger-debug | 不计 | 内部调试/Token 预览 |
+| _semantic.tsx | P1 | semantic 深度（随 classNames/styles 分期） |
+
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestTypography_PRD_<ID>` 或 gallery 场景 ID。  
@@ -694,14 +707,14 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 | TYP-11 | L1 | Link | 链接色可聚焦 |
 | TYP-12 | L1 | 受控 expanded | 外部优先 |
 | TYP-13 | L1 | 正文 14 | 字号 |
-| TYP-14 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TYP-15 | L1 | 复现官方示例「标题组件」（`title.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TYP-16 | L1 | 复现官方示例「文本与超链接组件」（`text.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TYP-17 | L1 | 复现官方示例「可编辑」（`editable.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TYP-18 | L1 | 复现官方示例「可复制」（`copyable.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TYP-19 | L1 | 复现官方示例「省略号」（`ellipsis.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TYP-20 | L1 | 复现官方示例「受控省略展开/收起」（`ellipsis-controlled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TYP-21 | L1 | 复现官方示例「省略中间」（`ellipsis-middle.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| TYP-14 | L1 | 挂 `basic.tsx`（四形态各 1 行） | Text/Title/Paragraph/Link 均有文案行，Title 字号>正文 |
+| TYP-15 | L1 | 挂 `title.tsx`（level 1..5） | 字号 38/30/24/20/16（±0.5px）逐级递减 |
+| TYP-16 | L1 | 挂 `text.tsx`（type/link 修饰各 1 行+点击） | 语义色行与正文行可区分；点击触发 `onClick` 1 次 |
+| TYP-17 | L1 | 挂 `editable.tsx`（进编辑改 1 字，Enter） | `onChange` 载荷为新文案；内容行更新 |
+| TYP-18 | L1 | 挂 `copyable.tsx`（点复制 1 次） | 剪贴板内容=文案；`onCopy` 触发 1 次 |
+| TYP-19 | L1 | 挂 `ellipsis.tsx`（窄宽超长行） | 行尾出现省略符，行数=rows |
+| TYP-20 | L1 | 挂 `ellipsis-controlled.tsx`（SetExpanded(true)） | 由省略态变为全文；`onExpand` 触发 1 次 |
+| TYP-21 | L1 | 挂 `ellipsis-middle.tsx`（超长单行） | 首尾双截：首段+省略符+固定尾段 |
 | TYP-22 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | TYP-23 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | TYP-24 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

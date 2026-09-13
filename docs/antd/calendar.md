@@ -62,6 +62,27 @@
   | `month` | 月 |
   | `year` | 年 |
 
+#### `value` / `defaultValue`
+
+- **说明**：受控展示/选中日期（`generateCalendar.tsx`：`mergedValue` 驱动面板年月与选中格）；`defaultValue` 为非受控初始（默认今天）
+- **类型**：`DateValue`（dayjs）
+- **默认值**：今天
+- **绘制影响**：选中格底 `itemActiveBg` + 日期值 `colorPrimary`；跨月选日同步刷新面板年月（见 §6.4 CAL-S1/S6）
+
+#### `onChange` / `onSelect`
+
+- **说明**：`onSelect(date, { source })` 为选中回调（含 `date`/`month`/`year`/`customize` 来源）；`onChange(date)` 仅当日期值变化时触发（`generateCalendar.tsx`：`onInternalSelect`）
+- **类型**：`func(DateValue)` / `func(DateValue, source)`
+- **默认值**：-
+- **绘制影响**：回调本身不改绘制；非受控由 kit 更新 `value` 重绘选中格，受控需父级 `SetValue` 才重绘
+
+#### `disabledDate` / `validRange`
+
+- **说明**：禁选日判定（`generateCalendar.tsx`：`mergedDisabled = 越界 ∪ disabledDate(date)`）；`validRange` 裁剪 Header 年/月下拉可选项
+- **类型**：`func(DateValue) bool` / `[2]DateValue`
+- **默认值**：-
+- **绘制影响**：禁选日降对比（`colorDisabledText`）、无 hover 高亮、不可聚焦选中；越界年月在 Header 下拉中不可选
+
 ### 1.4 交互视觉状态（实现检查表）
 
 | 状态 | 要求 |
@@ -154,11 +175,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：默认头依赖同库 `Select`（年/月下拉）+ `Radio.Group/Button`（`ModeSwitch`，见 `Header.tsx`）；两者缺失时降级为 `headerRender` 注入或纯文本年月（§6.4 前置依赖，P0 按降级验收）。
+- **locale**：`locale.lang` 文案 + `dayjs.locale` 周起始；P0 英文简写 + 周一起算，完整 locale 表 P1。
+- **ConfigProvider**：尺寸、主题、全局 calendar 默认（P1）。
+- **文件归属**：`ui/kit/calendar/`（`calendar.go` + 头/体子节点，复用 `ui/kit/select`、`ui/kit/radio`）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -235,17 +255,17 @@ import { Calendar } from 'antd';
 
 实现 gpui kit 版 **Calendar** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **9** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（value/defaultValue/mode/fullscreen/showWeek/disabledDate/validRange/cellRender/fullCellRender/headerRender/onChange/onSelect/onPanelChange）；`classNames/styles/locale` P1。
+2. **视觉态**：今日/选中/hover/他月/禁选日（§6.4 CAL-S1~S10，§6.5）。
+3. **尺寸态**：全屏 vs 卡片（`fullscreen`，§6.2 mini256/卡片圆角8）。
+4. **受控/非受控**：value+onChange/onSelect 与 defaultValue（CAL-S5）。
+5. **数据驱动**：cellRender/fullCellRender 注入（含农历钩子，kit 不内置农历算法）。
+6. **无障碍**：grid 角色、日/月格可聚焦选中、selected 可感知（§6.6）。
+7. **RTL**：周起始跟 locale；P0 固定周一起算可接受（Notes 注明）。
+8. **浮层**：无自带浮层；Header Select 弹层随同库 Select。
+9. **性能**：月面板 6×7 格重建复用 Root；无虚拟列表需求。
+10. **主题**：Token 化（§6.2 年80/月70/mini256）；支持 reduced-motion（面板瞬时切换）。
+11. **示例矩阵**：§6.8 P0 **8** 例（基本/通知/跨日/卡片/选择/农历钩子/周数/自定义头）；`style-class` 归 P1（§6.8）。
 
 ---
 ## 5. 参考链接

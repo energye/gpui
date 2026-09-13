@@ -311,11 +311,11 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：浮层件 + 表单件；多列菜单走 Portal，复用 Select 弹层与 Checkbox 多选；先做 `select`/`checkbox` 再做本件。
+- **Form**：路径 `value`（单选 `[]string` / 多选 `[][]string`），`status` 由 Item 下发。
+- **ConfigProvider**：size/variant/status 全局默认。
+- **浮层**：Modal/Drawer 内注意 `getPopupContainer`；`placement` 四角。
+- **文件归属**：`ui/kit/cascader/`（触发器 + 多列菜单 + 搜索/远程）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -478,7 +478,7 @@ import { Cascader } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **20** 个，均需可复现。
+11. **示例矩阵**：官方非 debug **20** 个：P0 **8**（§6.8 主路径）+ P1 **12**（见 §6.8 逐例表）；debug 3 个不验收。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -587,32 +587,47 @@ import { Cascader } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-开面板 ── 列0
-选中级 ──► 下钻 / changeOnSelect 立即 onChange
-loadData 异步填 children
-多选 multiple ──► 多路径
+closed ── click/hover 触发 ──► open（列0；宽184/列111/高180，见 §6.2）
+open ── 选中级 ──► 下钻下一列 / changeOnSelect 立即 onChange
+open ── 叶子 ──► onChange(全路径) ──► close
+open ── loadData 父节点 ──► Loading ──► 完成：回填 children 展下一列 / 失败：节点留父列并标错，不关层
+open ── search 输入 ──► 路径过滤 ──► 有命中列单列结果 / 无命中显 notFoundContent 空态
+open ── Esc/外点 ──► close（预览丢弃）
+multiple ──► 多路径勾选；showCheckedStrategy 回填
+disabled ──► 不打开
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| CAS-S1 | 选三级路径 | onChange 数组长度 3 |
+| CAS-S1 | 选三级路径 | onChange 数组长度 3；展示 `displayRender` |
 | CAS-S2 | changeOnSelect | 每级触发 onChange |
-| CAS-S3 | loadData | 异步子列出现 |
-| CAS-S4 | clear | 空 |
-| CAS-S5 | search | 过滤 |
-| CAS-S6 | disabled | 不打开 |
-| CAS-S7 | expandTrigger=hover | 悬停下钻 |
-| CAS-S8 | displayRender | 输入框展示定制 |
+| CAS-S3a | loadData 完成 | Loading 后子列出现；可继续下钻 |
+| CAS-S3b | loadData 失败 | 节点清 Loading 并标错；不关层，可重试 |
+| CAS-S4 | clear（allowClear 默认 true） | value 空；`OnClear` |
+| CAS-S5a | search 有命中 | 单列展示命中路径；点选提交全路径 |
+| CAS-S5b | search 无命中 | 显示 `notFoundContent`（默认 `Not Found`），无可选行 |
+| CAS-S6 | disabled | 不打开；触发器禁用皮 |
+| CAS-S7 | expandTrigger=hover | 悬停下钻；click 仍可用 |
+| CAS-S8 | displayRender | 输入框展示定制（默认 labels ` / ` 拼接） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| default | 触发器 Input 壳（outlined 默认，宽 184）+ 关闭时单行展示；Token 色 |
+| hover | 触发器边框强调；菜单行 hover 底 `controlItemBgHover` |
+| focus | 触发器**可见** focus ring + 主色边 |
+| disabled | 触发器降对比；菜单 disabled 行只读 |
+| status=error/warning | 触发器语义色边框；菜单链路不变 |
+| 弹层 open | 多列横排（单列 min宽 111/高 180/内边距 4）；选中底 `controlItemBgActive` + 字重 600；列间分割线 |
+
+**variant 矩阵（`variant` × chrome，L2，触发器壳与 Input 同规则）：**
+
+| variant | 填充 | 边框 | focus | 备注 |
+| --- | --- | --- | --- | --- |
+| `outlined`（默认） | `colorBgContainer` | 1px `colorBorder` 全边框 | 主色边 + 可见 ring | 默认 |
+| `filled` | `colorFillAlter` 浅底 | 无/弱边框 | 主色边 + ring | 浅底形态 |
+| `borderless` | 透明 | 无 | 仅 ring 可见 | 无 chrome |
+| `underlined` | 透明 | 仅底边 1px `colorBorder` | 底边走主色 | 底边线形态 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -621,23 +636,23 @@ loadData 异步填 children
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | 触发器 `combobox`（`aria-expanded`）+ 菜单列 `listbox` + 行 `option`（`aria-selected`）；多选加 `aria-multiselectable` |
+| 标签 | 与 Form.Item label 或 `AriaLabel` 关联；选中路径为可访问名 |
+| 清除 | 清除钮（allowClear 默认 true）有可访问名；空值时隐藏 |
+| 错误 | `status=error` 时触发器暴露 invalid |
+| 键盘 | Enter 展层/选中叶子；方向键跨列移动；Esc 关层；`isLeaf=false` 父节点 Enter 下钻不提交 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 单选路径/多选/清除/禁用主路径 | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2：宽 184/列 111/高 180） | **对等** | P0 L2 |
+| 级联搜索 `showSearch`（布尔路径过滤 + 空态 `notFoundContent`） | **对等**布尔；对象形态 filter/limit/sort 分期 | P0 布尔 / P1 对象 |
+| 远程 `loadData`（完成回填下钻 / 失败标错重试，与 `showSearch` 互斥） | **对等**完成分支；失败标错重试 | P0 |
+| `fieldNames`/`optionRender`/`tagRender`/`popupRender` 定制 | 分期 | P1 |
+| `getPopupContainer` 宿主挂载 + `placement` 四角 | **映射**宿主容器 | P0 宿主 |
+| Semantic classNames/styles + ConfigProvider 全局默认 | kit 语义钩子，随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -678,7 +693,17 @@ loadData 异步填 children
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例深度 | 大小档位 gallery 全矩阵、自定义已选项、搜索高级、动态加载完整 demo 视觉 |
+
+**20 例→P0/P1 剪裁对应表**（§2.2 全量；P0=§6.8 主路径 8 例，余下 12 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本/默认值/可以自定义显示/移入展开/禁用选项/选择即改变/多选/自定义回填方式 | P0 | 主路径行为 + gallery 必备 |
+| 大小 | P1 页面（`size` 三档行为 P0） | 能力已验，整页后补 |
+| 自定义已选项/自定义字段名/前后缀/扩展菜单/弹出位置/形态变体/自定义状态 | P1 | 定制渲染与形态变体深度 |
+| 搜索 | P1 页面（`showSearch` 布尔过滤 P0） | 高级对象形态后补 |
+| 动态加载选项 | P1 页面（`loadData` 完成/失败分支 P0） | 完整远程 demo 视觉后补 |
+| 面板使用/自定义语义结构 | P1 | 纯面板嵌入与 semantic 深度 |
 
 ### 6.9 验收用例表（可测）
 
@@ -696,14 +721,14 @@ loadData 异步填 children
 | CAS-07 | L1 | disabled | 不打开 |
 | CAS-08 | L1 | expandTrigger=hover | 悬停下钻 |
 | CAS-09 | L1 | displayRender | 输入框展示定制 |
-| CAS-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CAS-11 | L1 | 复现官方示例「默认值」（`default-value.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CAS-12 | L1 | 复现官方示例「可以自定义显示」（`custom-trigger.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CAS-13 | L1 | 复现官方示例「移入展开」（`hover.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CAS-14 | L1 | 复现官方示例「禁用选项」（`disabled-option.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CAS-15 | L1 | 复现官方示例「选择即改变」（`change-on-select.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CAS-16 | L1 | 复现官方示例「多选」（`multiple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CAS-17 | L1 | 复现官方示例「自定义回填方式」（`showCheckedStrategy.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| CAS-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 打开列0选省-市-区：`OnChange` 路径长 3，触发器显示 `省 / 市 / 区` |
+| CAS-11 | L1 | 复现官方示例「默认值」（`default-value.tsx`） | `SetDefaultValue([省,市,区])` 初渲染即显示该路径；再选新路径覆盖并 `OnChange` 一次 |
+| CAS-12 | L1 | 复现官方示例「可以自定义显示」（`custom-trigger.tsx`） | `SetTriggerNode` 自定义触发器：点击仍开层，选中后自定义节点同步新路径文案 |
+| CAS-13 | L1 | 复现官方示例「移入展开」（`hover.tsx`） | `SetExpandTrigger(hover)`：悬停父项即下钻出子列，click 仍可选中叶子 |
+| CAS-14 | L1 | 复现官方示例「禁用选项」（`disabled-option.tsx`） | 禁用行只读不可点；点击禁用行不 `OnChange`，可选行仍可提交 |
+| CAS-15 | L1 | 复现官方示例「选择即改变」（`change-on-select.tsx`） | `SetChangeOnSelect(true)`：点每级父节点即 `OnChange` 当级路径，不必到叶子 |
+| CAS-16 | L1 | 复现官方示例「多选」（`multiple.tsx`） | `SetMultiple(true)` 勾两条路径：`OnChangeMulti` 收到 2 条，触发器按策略回填 |
+| CAS-17 | L1 | 复现官方示例「自定义回填方式」（`showCheckedStrategy.tsx`） | SHOW_PARENT 全选父下子项只回填父；切 SHOW_CHILD 回填全部子路径 |
 | CAS-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | CAS-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | CAS-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -779,12 +804,17 @@ AttachTicker(*Tree)    // loadData Loading 指示
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+TriggerShell（宽 184，高 32/24/40 ±0.5px；单行展示 displayRender，默认 labels Join("/")）
+  ├─ prefix? / clear?（allowClear 默认 true）/ suffixIcon
+  └─ Portal popup（多列横排；与 Select 单列纵向区分）
+       ├─ 菜单列横排（单列 min 宽 111/高 180/内边距 4，±0.5px；列间分割线）
+       ├─ 列 0 → 列 1 → 列 N（选中下钻；expandTrigger click/hover；选中底 controlItemBgActive + 字重 600）
+       ├─ 父节点（isLeaf=false，有展开图标，点击下钻；changeOnSelect=false 时不提交）/ 叶子（点击提交全路径）
+       ├─ 异步节点落点（isLeaf=false 无 children：展列显 Loading → loadData 回填 children 展下一列；失败清 Loading 标错留父列可重试）
+       └─ 搜索态（showSearch 布尔：单列命中路径结果；无命中 notFoundContent）
 ```
+
+- 与 Select 区分：Cascader 弹层为多列横排 + 列分割 + 异步节点下钻落下一列；Select 为单列纵向虚拟列表 + 触发器内多选 tag 行 + 搜索过滤落单列（见 [select.md §6.11](./select.md#611-结构与绘制分层实现提示)）。
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  

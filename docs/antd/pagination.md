@@ -199,11 +199,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（导航：组合 Select 下拉 + Input 跳页，无浮层定位）。
+- **等谁**：等 `kit.Select`（`showSizeChanger` 切换器底座）与输入框（`showQuickJumper` 跳页）就绪；纯页码模式可先行。
+- **文件归属**：`ui/kit/pagination/`。
+- **组合**：`showSizeChanger` 复用 Select 语义（`pageSizeOptions` 档位），`showQuickJumper` 复用输入框 Enter 跳页；`showTotal` 文案由上层注入。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -253,7 +252,7 @@ import { Pagination } from 'antd';
 | `size` | 组件尺寸 | `large` \| `medium` \| `small` | `medium` | — |
 | `styles` | 自定义组件内部各语义化结构的内联样式。支持对象或函数 | Record \| (info: { props }) => Record | - | — |
 | `total` | 数据总数 | number | 0 | — |
-| `totalBoundaryShowSizeChanger` | 当 `total` 大于该值时，`showSizeChanger` 默认为 true | number | 50 | — |
+| `totalBoundaryShowSizeChanger` | 当 `total` 大于该值时，`showSizeChanger` 默认为 true | number | 50 | 6.2.0 |
 | `onChange` | 页码或 `pageSize` 改变的回调，参数是改变后的页码及每页条数 | function(page, pageSize) | - | — |
 | `onShowSizeChange` | pageSize 变化的回调 | function(current, size) | - | — |
 
@@ -274,7 +273,7 @@ import { Pagination } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **12** 个，均需可复现。
+11. **示例矩阵**：P0 按 §6.8 逐例对照表（10 例主路径），余下 P1 分期（`itemRender` 自定义页码、`style-class` + 3 个 debug）。
 
 ---
 ## 5. 参考链接
@@ -296,7 +295,7 @@ import { Pagination } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 选中/展开/分页或步骤切换与键盘 | Headless / behavior 测试 |
+| **L1** | 行为 | 点页码/prev-next 夹紧/size 切换/jumper 跳页/simple 简化与禁用 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -318,15 +317,15 @@ import { Pagination } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 分页项高 middle（`itemSize`） | **32** | 组件 token `itemSize` = `controlHeight` |
-| 分页项高 small（`itemSizeSM`） | **24** | 组件 token `itemSizeSM` = `controlHeightSM` |
-| 分页项高 large（`itemSizeLG`） | **40** | 组件 token `itemSizeLG` = `controlHeightLG` |
+| 分页项高 middle（`itemSize`） | **32** | 组件 token `itemSize` = `controlHeight`（±0.5px） |
+| 分页项高 small（`itemSizeSM`） | **24** | 组件 token `itemSizeSM` = `controlHeightSM`（±0.5px） |
+| 分页项高 large（`itemSizeLG`） | **40** | 组件 token `itemSizeLG` = `controlHeightLG`（±0.5px） |
 | 字号 middle | **14** | `fontSize` |
 | 字号 small | **12** | `fontSizeSM` |
 | 字号 large | **16** | `fontSizeLG` |
-| 圆角 | **6** | `borderRadius`（small→SM=4，large→LG=8） |
+| 圆角 | **6** | `borderRadius`（small→SM=4，large→LG=8，±0.5px） |
 | 边框线宽 | **1** | `lineWidth` |
-| 项间距 | **8** | ≈ `marginXS` 节奏 |
+| 项间距 | **8** | ≈ `marginXS` 节奏（±0.5px） |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -384,27 +383,37 @@ current, pageSize, total
   disabled ──► 无切换
 ```
 
-\*itemSize 默认 32。
+\*itemSize 默认 32（±0.5px）；`PageCount=ceil(total/pageSize)`，total=0 时 PageCount=1。
+
+**触发条件 + 容差（可断言）：**
+
+- 点页：点页码 → `current=page` + `OnChange(page,pageSize)`；prev/next 夹紧 `1..pages`，越界不变（PG-S2/S3）。
+- size：切 pageSize → `OnShowSizeChange(current,size)` + `OnChange`，current 夹紧到新 pages；未显式设 `showSizeChanger` 时 `total>50` 自动展示（`totalBoundaryShowSizeChanger=50`，6.2.0）。
+- jumper：输入页码 Enter 跳转，越界夹紧；`simple.readOnly` 时输入只读不可跳。
+- 隐藏：`hideOnSinglePage=true` 且 pages=1 时整树隐藏；`showLessItems` 减少页码项数。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| PG-S1 | 点第 2 页 | current=2；onChange |
-| PG-S2 | 首页点 prev | 不变 |
-| PG-S3 | 末页点 next | 不变 |
-| PG-S4 | 改 pageSize | 回调 |
-| PG-S5 | jumper 输入页码 Enter | 跳转 |
-| PG-S6 | disabled | 不切换 |
-| PG-S7 | simple | 简化 UI |
-| PG-S8 | 项高 middle | 32 |
-| PG-S9 | total=0 | 合理空/一页 |
-| PG-S10 | showTotal | 文案含总数 |
+| PG-S1 | 点第 2 页 | current=2；onChange(page=2,pageSize) |
+| PG-S2 | 首页点 prev | 不变，无回调 |
+| PG-S3 | 末页点 next | 不变，无回调 |
+| PG-S4 | 改 pageSize | OnShowSizeChange + OnChange，current 夹紧 |
+| PG-S5 | jumper 输入页码 Enter | 跳转并夹紧；越界到首/末 |
+| PG-S6 | disabled | 不切换，无回调 |
+| PG-S7 | simple | 简化 UI（prev + 输入/文案 + next） |
+| PG-S8 | 项高 middle | 32（±0.5px） |
+| PG-S9 | total=0 | PageCount=1，展示第 1 页 |
+| PG-S10 | showTotal | 文案含总数与范围（`showTotal(total,start,end)`） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | 页码项高 32/24/40（±0.5px），字 14/12/16；项底 `itemLinkBg` + 边 `colorBorder` + 圆角 6（small 4/large 8） |
+| active | 当前页底 `itemActiveBg` + 主色字/边；禁用激活底 `itemActiveBgDisabled` |
+| hover/focus | 项 hover 边/字强调 + focus ring 可见（outset ≈1.5px） |
+| disabled | 整树降对比不可点；激活项用禁用底 |
+| simple | prev/next + 当前/总数文案（或只读输入），无页码列表 |
+| jumper/changer | 输入框 + Go（若配）/ Select 档位行尾对齐，行宽随之增加 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
 
@@ -414,19 +423,23 @@ current, pageSize, total
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | navigation / menu / tablist 等 |
-| 当前 | aria-current / selected |
-| 键盘 | 方向键与激活 |
+| 角色 | 根 `navigation`；页码列为 list，单项为 button（当前页 `aria-current=page`） |
+| 当前 | 当前页 `aria-current=page` + `itemActiveBg` 双通道；读屏报“第 X 页共 Y 页” |
+| 键盘 | 页码 Tab 可聚焦 ring 可见；Enter/Space 跳页；jumper 输入 Enter 跳转 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
-| 能力 | 策略 | 级别 |
+| 能力 | 真实映射（gpui 侧落点） | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 点页/夹紧/回调（§6.4 PG-S1~S6） | **对等**：`SetCurrent/SetPageSize` + `OnChange/OnShowSizeChange` | P0 L1 |
+| 页项度量（§6.2 itemSize 32/24/40） | **对等** | P0 L2 |
+| `showSizeChanger` 下拉切换 | **对等**：桌面 Select 映射（`pageSizeOptions` 档位，默认 10/20/50/100；`total>50` 自动展示） | P0 L1 |
+| `showQuickJumper` 输入跳页 | **对等**：桌面输入框 Enter 跳页（`goButton` 可配 P1） | P0 L1 |
+| `simple` 简洁分页 | **对等**：prev + 文案/只读输入 + next | P0 L1 |
+| `responsive` 按宽自适应 | **对等**：`SetViewportWidth` 映射，小宽切 small | P0 L1 |
+| 滚动宿主 | **映射**：分页行 `align`（start/center/end）由父布局宿主决定；弹层无，全树随容器滚动 | P0 宿主 |
+| `showTitle` 原生 tooltip | P1 不做（桌面无原生 title） | P1 |
+| `itemRender` 自定义页码结构 | P1 分期（二期 `SetItemRender(page,kind)`，SEO 语义 P1） | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -447,20 +460,28 @@ current, pageSize, total
 | `disabled` | 必须 |
 | `size` | 必须 |
 | `itemRender` 自定义页码结构 | 二期接口形状：`SetItemRender(func(page int, kind ItemKind) core.Node)`，本期可用默认节点；SEO 优化语义 P1 |
-| 官方主路径示例 | 基本、方向、更多、改变、跳转、尺寸、简洁、受控、总数、全部展示 |
-| 度量 §6.2 | Token 断言（含 `itemSize/itemActiveBg/itemLinkBg`） |
-| a11y §6.6 | 最低要求 |
+| 官方主路径示例（P0，10 例） | 基本（`basic.tsx`）、方向（`align.tsx`，5.19.0）、更多（`more.tsx` 省略号）、改变（`changer.tsx` changer+回调）、跳转（`jump.tsx` jumper）、尺寸（`mini.tsx` small）、简洁（`simple.tsx`）、受控（`controlled.tsx`）、总数（`total.tsx`）、全部展示（`all.tsx` 三件套同屏） |
+| 度量 §6.2 | Token 断言（含 `itemSize/itemActiveBg/itemLinkBg`，高 32/24/40±0.5） |
+| a11y §6.6 | 当前页 `aria-current=page`；键盘 Enter 跳页 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
+
+**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 10 例，余下 5 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本 / 方向 / 更多 / 改变 / 跳转 / 尺寸 / 简洁 / 受控 / 总数 / 全部展示 | P0 | 页码+省略+changer+jumper+总数主路径 |
+| 上一步和下一步（`itemRender.tsx`） | P1 | `itemRender` 自定义结构分期（二期形状见 P0） |
+| 自定义语义结构的样式和类（`style-class.tsx`）/ `_semantic.tsx` | P1 | semantic 深度 |
+| 线框风格（`wireframe.tsx`，debug）/ 组件 Token（`component-token.tsx`，debug）/ 变体 Debug（`variant-debug.tsx`，debug） | P1 | 调试页，不验收 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
+| semantic classNames/styles 深度 | 分期（`style-class.tsx` / `_semantic.tsx`，见逐例表） |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 上一步和下一步（`itemRender` 自定义结构，二期形状见 P0）、自定义语义结构的样式和类 |
+| 浏览器-only API 或桌面无等价项 | 分期（`showTitle` 原生 tooltip、`itemRender` SEO 语义） |
+| debug 示例与官网逐像素哈希 | 分期（`wireframe`/`component-token`/`variant-debug`，见逐例表） |
 
 ### 6.9 验收用例表（可测）
 
@@ -470,30 +491,30 @@ current, pageSize, total
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | PG-01 | L1 | NewPagination 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| PG-02 | L1 | 点第 2 页 | current=2；onChange |
-| PG-03 | L1 | 首页点 prev | 不变 |
-| PG-04 | L1 | 末页点 next | 不变 |
-| PG-05 | L1 | 改 pageSize | 回调 |
-| PG-06 | L1 | jumper 输入页码 Enter | 跳转 |
-| PG-07 | L1 | disabled | 不切换 |
-| PG-08 | L1 | simple | 简化 UI |
-| PG-09 | L1 | 项高 middle | 32 |
-| PG-10 | L1 | total=0 | 合理空/一页 |
-| PG-11 | L1 | showTotal | 文案含总数 |
-| PG-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PG-13 | L1 | 复现官方示例「方向」（`align.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PG-14 | L1 | 复现官方示例「更多」（`more.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PG-15 | L1 | 复现官方示例「改变」（`changer.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PG-16 | L1 | 复现官方示例「跳转」（`jump.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PG-17 | L1 | 复现官方示例「尺寸」（`mini.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PG-18 | L1 | 复现官方示例「简洁」（`simple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PG-19 | L1 | 复现官方示例「受控」（`controlled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| PG-02 | L1 | 点第 2 页 | current=2；OnChange(2,pageSize) |
+| PG-03 | L1 | 首页点 prev | 不变，无回调 |
+| PG-04 | L1 | 末页点 next | 不变，无回调 |
+| PG-05 | L1 | 改 pageSize | OnShowSizeChange + OnChange，current 夹紧 |
+| PG-06 | L1 | jumper 输入页码 Enter | 跳转并夹紧越界 |
+| PG-07 | L1 | disabled=true 后点页码 | 不切换，无回调；整树禁用色 |
+| PG-08 | L1 | simple=true | 仅 prev + 文案/输入 + next，无页码列表 |
+| PG-09 | L1 | 项高 middle | 32（±0.5px） |
+| PG-10 | L1 | total=0 | PageCount=1，展示第 1 页 |
+| PG-11 | L1 | showTotal 注入 | 文案含总数与范围（start/end 正确） |
+| PG-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | total=50 默认页码可点切，OnChange 页码正确 |
+| PG-13 | L1 | 复现官方示例「方向」（`align.tsx`） | `align=center/end` 行对齐可断言 |
+| PG-14 | L1 | 复现官方示例「更多」（`more.tsx`） | total=500 时省略号（jump-prev/next）可见可点 |
+| PG-15 | L1 | 复现官方示例「改变」（`changer.tsx`） | 切 pageSize 档回调双调，current 夹紧 |
+| PG-16 | L1 | 复现官方示例「跳转」（`jump.tsx`） | jumper 输入页码 Enter 跳转，越界夹紧 |
+| PG-17 | L1 | 复现官方示例「尺寸」（`mini.tsx`） | size=small 项高 24（±0.5px），字 12 |
+| PG-18 | L1 | 复现官方示例「简洁」（`simple.tsx`） | simple 行无页码列表，prev/next 可切 |
+| PG-19 | L1 | 复现官方示例「受控」（`controlled.tsx`） | 受控 current/pageSize 外部优先，回调后父级回写才变 |
 | PG-19b | L1 | 复现官方示例「总数」（`total.tsx`） | `showTotal` 文案含总数与范围 |
 | PG-19c | L1 | 复现官方示例「全部展示」（`all.tsx`） | `showSizeChanger`+`showQuickJumper`+`showTotal` 同屏可构建 |
-| PG-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| PG-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| PG-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| PG-23 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| PG-20 | L2 | 读取 §6.2 关键尺寸/间距 | 高 32/24/40、圆角 6（small 4/large 8）±0.5px |
+| PG-21 | L2 | 默认皮颜色 | 当前页 `itemActiveBg`+主色字；普通项 `itemLinkBg`；无硬编码 |
+| PG-22 | L2 | disabled 外观 | 整树禁用色；激活项用 `itemActiveBgDisabled`；无 hover |
+| PG-23 | L1 | 键盘/焦点主路径 | 页码 Tab 聚焦 ring 可见；Enter/Space 跳页；jumper Enter 跳转 |
 | PG-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | PG-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | PG-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -556,14 +577,18 @@ Node() core.Node · ChromeNode() core.Node
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Nav root
-  └─ items / panels / connectors
+Nav（role=navigation，align start/center/end 由父布局定）
+  ├─ showTotal 文案（起始侧次级色）
+  ├─ prev/next + 页码项 Pressable（高 32/24/40，当前页 itemActiveBg）
+  │    └─ jump-prev/jump-next 省略节点（... 可点展）
+  ├─ showSizeChanger Select（pageSizeOptions 档位）
+  └─ showQuickJumper 输入框（Enter 跳页；simple 下为当前/总数文案）
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 组合 `ui/primitive` + `ui/core` + Select/输入框底座，禁止第二套事件/帧循环。
+- 无浮层（`showTitle` 原生 tooltip 不做）；`rebuild()` 只读 Default/字段/Token。
+- 命中区域与布局盒一致（`hit == layout == paint`）；项间距 8 用 Flex gap。
+- 无动画需求；尊重 reduced-motion。
 
 ### 6.12 完成定义（DoD）
 

@@ -191,11 +191,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；单钮/组/BackTop 均不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；`tooltip` 字符串 P0 自绘，完整 Tooltip/xBadge 叠加为 P1，不同文件并行安全。
+- **文件归属**：`ui/kit/float-button/`（只改自己文件，并行安全）。
+- **ConfigProvider**：尺寸、主题、locale、默认 props。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -272,18 +271,11 @@ import { FloatButton } from 'antd';
 
 实现 gpui kit 版 **FloatButton** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **13** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
+1. **配置面**：`type`/`shape`/`icon`/`content`/`tooltip`（字符串）/`disabled`/`loading`；Group `trigger`/`open`/`placement`/`closeIcon`；BackTop/draggable/badge 按 P1 分期。
+2. **几何**：边长 40、circle r=20、square r=8、组间距 16（§6.2，±0.5px）。
+3. **交互**：单击 1 次、禁用吞事件、菜单外点关闭、受控 open（§6.4 FB-S1…S13）。
+4. **无障碍**：单钮/trigger 可聚焦命名，仅图标必须 AriaLabel（§6.6）。
+5. **示例矩阵**：P0 按 §6.8（9 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -412,14 +404,21 @@ badge 叠层不抢主点击
 | FB-S13 | loading=true（**kit 自增，antd 6.5 无此 API**） | spinner 示意 + 吞 `onClick` 防重复（Ticker 驱动） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 | 规则 |
+| 态 / 部位 | 规则 |
 | --- | --- |
-| default | Token 默认皮 |
-| hover / active | 可交互反馈 |
-| focus | 可见 focus ring |
-| checked/selected/active（适用者） | 主色强调 |
-| disabled | 降对比；无 hover |
-| loading（kit 自增） | spinner 示意；吞重复 click（见 FB-S13） |
+| 单钮 `type=default` | 容器底 `colorBgContainer` + 边框 `colorBorder`，字/图标 `colorText` |
+| 单钮 `type=primary` | 实心 `colorPrimary` 底，反白字/图标；hover/active 走变体 |
+| `shape=circle` | 圆形，半径=边长/2（20±0.5px） |
+| `shape=square` | 方形，圆角=`borderRadiusLG`（8±0.5px） |
+| `content` 文字钮 | 字号 12（`fontSizeSM`），竖直 padding 4 |
+| Group 常显 | 子钮纵向排布，间距 16（`padding`） |
+| Group 菜单 open | 子钮按 placement 四向展开，trigger 切 closeIcon |
+| `tooltip` 字符串 | 悬停气泡文案（P0）；不抢主点击，disabled 时不弹 |
+| `disabled` | 禁用底+禁用字；无 hover 高亮 |
+| `loading`（kit 自增） | spinner 示意；吞重复 click（FB-S13） |
+
+
+**动效：** 菜单展开/BackTop 入场 P0 可用瞬时切换，须尊重 reduced-motion。
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -428,21 +427,26 @@ badge 叠层不抢主点击
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | button / checkbox / switch / radio 等与语义一致 |
-| 名称 | 可交互必有名；仅图标必须 AriaLabel |
-| 焦点 | Tab 可达；ring 可见 |
-| 键盘 | Space/Enter 或方向键按角色 |
-| 禁用 | 不可激活；读屏可感知（平台支持时） |
+| 角色 | 单钮/trigger 为 `button`；子钮菜单容器可标 `menu`，子钮为 `menuitem` |
+| 名称 | 单钮默认识别名 = `content` 文案；仅图标时**必须** `AriaLabel` |
+| 焦点 | Tab 可聚焦单钮与 trigger；Focus ring 可见（§6.2） |
+| 键盘 | Space/Enter 激活单钮；菜单 open 时 Esc 收起 |
+| 禁用 | disabled 不触发激活；读屏可感知（平台支持时） |
+| 徽标 | badge 角标纯装饰，不进 Tab 序 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 单钮点击/禁用/键盘/type/shape/content | **对等** | P0 L1 |
+| 边长 40/圆角/色 Token（§6.2） | **对等** | P0 L2 |
+| Group 菜单 trigger/placement/受控 open/外点关闭 | **对等**（外点关闭走 overlay 监听） | P0 L1 |
+| `tooltip` 字符串 | **对等**；完整 `TooltipProps`（位置/箭头/延时）P1 | P0/P1 |
+| `href`/`target` 跳转 | **映射**为打开 URL 回调，非 `<a>` 导航 | P1 |
+| `htmlType` submit/reset | **映射**：由上层 Form 解释，只抛事件 | P1 |
+| BackTop `target` 滚动宿主/`visibilityHeight` | **映射**宿主滚动观测 | P1 |
+| `draggable` 拖拽 | **映射**宿主拖拽 | P1 |
+| `badge.status` 等 Badge 全量 | 不支持（源码 omit），仅 count/dot | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -484,6 +488,17 @@ badge 叠层不抢主点击
 | ConfigProvider 全局默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
+**15 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 9 例，余下 4 例 P1，2 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本/类型/形状/描述/气泡卡片/浮动按钮组/菜单模式/受控模式/弹出方向 | P0 | 主路径行为 + gallery 必备（弹出方向仅四向行为，动画 P1） |
+| 可拖拽 | P1 | 宿主拖拽映射分期 |
+| 回到顶部 | P1 | BackTop 滚动宿主分期 |
+| 徽标数 | P1 | badge 叠加分期 |
+| 自定义语义结构的样式和类 | P1 | semantic 深度 |
+| badge-debug/render-panel | 不计 | 内部调试/面板预览 |
+
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestFloatButton_PRD_<ID>` 或 gallery 场景 ID。  
@@ -504,14 +519,14 @@ badge 叠层不抢主点击
 | FB-11 | L1 **P1** | BackTop scroll≥400 点击 | 回顶 |
 | FB-12 | L1 **P1** | badge count | 角标可见 |
 | FB-13 | L1 | 仅图标 | 必须 AriaLabel |
-| FB-14 | L1 | 复现官方示例「基本」（`basic.tsx`） | 默认可点；无崩溃 |
-| FB-15 | L1 | 复现官方示例「类型」（`type.tsx`） | default + primary 并存 |
-| FB-16 | L1 | 复现官方示例「形状」（`shape.tsx`） | circle + square |
-| FB-17 | L1 | 复现官方示例「描述」（`content.tsx`） | content 可见 |
-| FB-18 | L1 | 复现官方示例「含有气泡卡片」（`tooltip.tsx`） | Tooltip 文案可设 |
-| FB-19 | L1 | 复现官方示例「浮动按钮组」（`group.tsx`） | 无 trigger 子钮常显 |
-| FB-20 | L1 | 复现官方示例「菜单模式」（`group-menu.tsx`） | trigger=click/hover 可展开 |
-| FB-21 | L1 | 复现官方示例「受控模式」（`controlled.tsx`） | SetOpen 驱动 |
+| FB-14 | L1 | 挂 `basic.tsx`（默认单钮，点击 1 次） | `onClick` 触发 1 次；边长 40±0.5px |
+| FB-15 | L1 | 挂 `type.tsx`（default + primary 并存） | 两钮底色分别为容器底与 `colorPrimary`，字色分别为正文色与反白 |
+| FB-16 | L1 | 挂 `shape.tsx`（circle + square） | circle 半径 20±0.5px，square 圆角 8±0.5px |
+| FB-17 | L1 | 挂 `content.tsx`（文字钮） | content 文案可见，字号 12±0.5px |
+| FB-18 | L1 | 挂 `tooltip.tsx`（悬停） | 悬停出现气泡文案；主点击仍触发 1 次 |
+| FB-19 | L1 | 挂 `group.tsx`（无 trigger） | 全部子钮常显，纵向间距 16±0.5px |
+| FB-20 | L1 | 挂 `group-menu.tsx`（trigger=click/hover） | 触发后子钮出现；组外点击收起，`onOpenChange` 各触发 1 次 |
+| FB-21 | L1 | 挂 `controlled.tsx`（SetOpen(true/false)） | open 状态与设置值一致，子钮显隐跟随 |
 | FB-22 | L2 | 读取 §6.2 关键尺寸 | 边长 40、square r=8（±0.5） |
 | FB-23 | L2 | 默认皮颜色 | 走 Theme Token（非硬编码品牌色） |
 | FB-24 | L2 | disabled 外观 | 禁用色；无 hover 高亮 |
@@ -577,9 +592,18 @@ Node() core.Node
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Pressable
-  └─ Decorated chrome
-       └─ content (icon/label/indicator)
+// —— 单钮 ——
+Pressable（命中 40×40，hover/press/focus、Space/Enter）
+  └─ Decorated（circle r=20 / square r=8，底/边走 type Token）
+       └─ Row(gap)：Icon? · Content(12px)? · badge 角标叠层（不抢点击）
+
+// —— 组 ——
+FloatButtonGroup root（Column，gap=16）
+  ├─ trigger 钮（菜单模式；开时切 closeIcon）
+  └─ 子钮 × N（placement 四向排布；受控 open 驱动显隐）
+
+// —— BackTop（P1）——
+宿主滚动观测 + 单钮；scrollY≥400 显示，点击回顶（duration=450ms）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

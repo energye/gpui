@@ -170,11 +170,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L1（纯展示件，无上游 kit 等待；`card.tsx` 反向依赖 `card` 容器）。
+- **等谁**：等 Skeleton（`loading` 骨架）与 Ticker（Timer/`loading` 刷新）就绪；不等其他组件，不同文件并行安全。
+- **文件归属**：`ui/kit/statistic/`（只改自己文件，并行安全）。
+- **组合**：Card 内作数值区；`formatter` 覆盖内置格式化。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -233,20 +232,16 @@ import { Statistic } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Statistic** 的验收清单：
+实现 gpui kit 版 **Statistic** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
-12. **表单专项**：rules、dependencies、scrollToFirstError。
+1. **配置面**：覆盖 §6.8 P0 字段（value/title/prefix/suffix/precision/分隔符/formatter/loading/Timer type/format/onChange/onFinish）；P1 可分期但命名兼容。
+2. **视觉态**：标题 description 色+数值 heading 色、loading 换 Skeleton（§6.5）；无 hover/active/disabled/focus 整件态，不套模板。
+3. **度量**：标题 14/数值 24/间距 4（§6.2）。
+4. **Timer**：countdown/countup + Ticker + onFinish 恰一次（STA-S4）。
+5. **无障碍**：group 角色 + 数值可读（§6.6）；展示控件不抢焦点。
+6. **主题**：Token 化（§6.2）；CountUp 像素级 P1，P0 formatter 瞬时终值。
+7. **示例矩阵**：官方非 debug **6** 个：P0 **6** 全收（§6.8 主路径，含动画 formatter 近似）。
+8. **表单专项**：N/A（展示控件，无 rules/dependencies 校验语义）。
 
 ---
 ## 5. 参考链接
@@ -268,7 +263,7 @@ import { Statistic } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 展示形态与可选交互（复制/预览/关闭） | Headless / behavior 测试 |
+| **L1** | 行为 | 数值格式化、精度/分隔符、Timer 计时与回调主路径 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -396,9 +391,9 @@ import { Statistic } from 'antd';
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| CountUp 动画像素 / 复杂 CSS | **近似**或瞬时 | P1 |
+| 数值格式化/精度/分隔符/Timer 计时回调主路径（§6.1 L1） | **对等** | P0 L1 |
+| 标题 14/数值 24/间距 4 与色 Token（§6.2） | **对等** | P0 L2 |
+| CountUp 动画像素（`animated.tsx`） | **近似**：P0 formatter 瞬时终值 | P0 近似 / P1 像素 |
 | Timer 刷新率 | Host Tick（≈60fps 目标） | P0 |
 | Semantic classNames/styles 函数形态 | 浅钩子 P0；函数深度 P1 | 分档 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |

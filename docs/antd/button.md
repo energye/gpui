@@ -131,7 +131,7 @@
 
 - **说明**：（仅支持全局配置）设置按钮的加载图标
 - **类型**：ReactNode
-- **默认值**：``
+- **默认值**：`<LoadingOutlined />`
 
 #### `shape`
 
@@ -271,7 +271,7 @@
 | --- | --- | --- |
 | 语法糖 | `basic.tsx` | 否 |
 | 颜色与变体 | `color-variant.tsx` | 否 |
-| 调试颜色与变体 | `debug-color-variant` | 是 |
+| 调试颜色与变体 | `debug-color-variant.tsx` | 是 |
 | 按钮图标 | `icon.tsx` | 否 |
 | 按钮图标位置 | `icon-placement.tsx` | 否 |
 | 调试图标按钮 | `debug-icon.tsx` | 是 |
@@ -291,6 +291,8 @@
 | 移除两个汉字之间的空格 | `chinese-space.tsx` | 否 |
 | 自定义禁用样式背景 | `custom-disabled-bg.tsx` | 否 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
+
+> debug 标记依据：以源码 `index.zh-CN.md` 代码演示区 `debug` 属性为准；`chinese-chars-loading.tsx` 源码 L53 带 `debug` 标记（加载中状态 bug 还原内部用例）故标 debug；`legacy-group.tsx`/`component-token.tsx` 同理为源码标 debug 的废弃 API 与 Token 预览内部用例。
 
 ### 2.6 FAQ
 
@@ -329,11 +331,12 @@ click
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；被上层业务与 FloatButton（`icon` 复用图标名）引用，不同文件并行安全。
+- **文件归属**：`ui/kit/button/`（只改自己文件，并行安全）。
+- **ConfigProvider**：尺寸、主题、locale、默认 props（全局 button 默认 P1）。
+- **App**：message / modal / notification 上下文（浮层内按钮）。
+- **Space / Flex / Grid / Layout**：按钮作子项时的布局与间距。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -351,13 +354,26 @@ click
 | 属性 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | autoInsertSpace | 我们默认提供两个汉字之间的空格，可以设置 `autoInsertSpace` 为 `false` 关闭 | boolean | `true` | 5.17.0 | 5.17.0 |
-| block | 将按钮宽度调整为其父宽度的选项 | boolean | false | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
+| block | 将按钮宽度调整为其父宽度的选项 | boolean | false | - | - |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
 | color | 设置按钮的颜色 | `default` \| `primary` \| `danger` \| [PresetColors](#presetcolors) | `variant="solid"` 时为 `primary` | `default`、`primary` 和 `danger`: 5.21.0, `PresetColors`: 5.23.0, `solid` 默认颜色: 6.4.0 | 5.25.0 |
-| danger | 语法糖，设置危险按钮。当设置 `color` 时会以后者为准 | boolean | false | disabled | 设置按钮失效状态 | boolean | false | ghost | 幽灵属性，使按钮背景透明 | boolean | false | href | 点击跳转的地址，指定此属性 button 的行为和 a 链接一致 | string | - | htmlType | 设置 `button` 原生的 `type` 值，可选值请参考 [HTML 标准](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Element/button#type) | `submit` \| `reset` \| `button` | `button` | icon | 设置按钮的图标组件 | ReactNode | - | iconPlacement | 设置按钮图标组件的位置 | `start` \| `end` | `start` | - | × |
+| danger | 语法糖，设置危险按钮。当设置 `color` 时会以后者为准 | boolean | false | - | - |
+| disabled | 设置按钮失效状态 | boolean | false | - | - |
+| ghost | 幽灵属性，使按钮背景透明 | boolean | false | - | - |
+| href | 点击跳转的地址，指定此属性 button 的行为和 a 链接一致 | string | - | - | - |
+| htmlType | 设置 `button` 原生的 `type` 值，可选值请参考 [HTML 标准](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Element/button#type) | `submit` \| `reset` \| `button` | `button` | - | - |
+| icon | 设置按钮的图标组件 | ReactNode | - | - | - |
+| iconPlacement | 设置按钮图标组件的位置 | `start` \| `end` | `start` | - | × |
 | ~~iconPosition~~ | 设置按钮图标组件的位置,请使用 `iconPlacement` 替换 | `start` \| `end` | `start` | 5.17.0 | × |
 | loading | 设置按钮载入状态 | boolean \| { delay: number, icon: ReactNode } | false | icon: 5.23.0 | × |
-| loadingIcon | （仅支持全局配置）设置按钮的加载图标 | ReactNode | `<LoadingOutlined />` | onClick | 点击按钮时的回调 | (event: React.MouseEvent<HTMLElement, MouseEvent>) => void | - | shape | 设置按钮形状 | `default` \| `circle` \| `round` | `default` | size | 设置按钮大小 | `large` \| `medium` \| `small` | `medium` | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
-| target | 相当于 a 链接的 target 属性，href 存在时生效 | string | - | type | 语法糖，设置按钮类型。当设置 `variant` 与 `color` 时以后者为准 | `primary` \| `dashed` \| `link` \| `text` \| `default` | `default` | variant | 设置按钮的变体 | `outlined` \| `dashed` \| `solid` \| `filled` \| `text` \| `link` | - | 5.21.0 | 5.25.0 |
+| loadingIcon | （仅支持全局配置）设置按钮的加载图标 | ReactNode | `<LoadingOutlined />` | - | 6.3.0 |
+| onClick | 点击按钮时的回调 | (event: React.MouseEvent<HTMLElement, MouseEvent>) => void | - | - | - |
+| shape | 设置按钮形状 | `default` \| `circle` \| `round` | `default` | - | 5.27.0 |
+| size | 设置按钮大小 | `large` \| `medium` \| `small` | `medium` | - | - |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
+| target | 相当于 a 链接的 target 属性，href 存在时生效 | string | - | - | × |
+| type | 语法糖，设置按钮类型。当设置 `variant` 与 `color` 时以后者为准 | `primary` \| `dashed` \| `link` \| `text` \| `default` | `default` | - | × |
+| variant | 设置按钮的变体 | `outlined` \| `dashed` \| `solid` \| `filled` \| `text` \| `link` | - | 5.21.0 | 5.25.0 |
 
 支持原生 button 的其他所有属性。
 
@@ -388,7 +404,7 @@ import { Button } from 'antd';
 | `iconPlacement` | 设置按钮图标组件的位置 | `start` \| `end` | `start` | - |
 | `iconPosition` | 设置按钮图标组件的位置,请使用 `iconPlacement` 替换 | `start` \| `end` | `start` | 5.17.0 |
 | `loading` | 设置按钮载入状态 | boolean \| { delay: number, icon: ReactNode } | false | icon: 5.23.0 |
-| `loadingIcon` | （仅支持全局配置）设置按钮的加载图标 | ReactNode | `` | — |
+| `loadingIcon` | （仅支持全局配置）设置按钮的加载图标 | ReactNode | `<LoadingOutlined />` | — |
 | `onClick` | 点击按钮时的回调 | (event: React.MouseEvent) => void | - | — |
 | `shape` | 设置按钮形状 | `default` \| `circle` \| `round` | `default` | — |
 | `size` | 设置按钮大小 | `large` \| `medium` \| `small` | `medium` | — |
@@ -410,7 +426,7 @@ import { Button } from 'antd';
 5. **无障碍**：可聚焦、Space/Enter 激活、读屏名 = label（§6.6）。
 6. **RTL**：`iconPlacement` start/end 随写作方向镜像。
 7. **动效**：波纹/旋转在 reduced-motion 下可关（§6.7）。
-8. **示例矩阵**：§6.9 用例全部可勾选。
+8. **示例矩阵**：P0 按 §6.8（11 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准，§6.9 用例全部可勾选。
 9. **纪律**：Default + Set + rebuild；禁止魔法 offset；实现须落在架构 [`ENGINE_FLUTTER_SKIA_ARCH.md`](../ENGINE_FLUTTER_SKIA_ARCH.md) 的 RenderObject / Layer 契约上（P7 及以后）。
 10. **对齐级别**：以本节 **§6.1 L1–L4** 定义为准。
 
@@ -608,6 +624,18 @@ import { Button } from 'antd';
 | `classNames` / `styles` 语义节点 | |
 | ConfigProvider 全局 button 默认 | autoInsertSpace、默认 variant 等 |
 | success/warning 等扩展 color | 若 Theme 支持可提前 |
+
+**22 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 11 例，余下 5 例 P1，6 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 语法糖/尺寸/禁用/loading/图标/图标位置/多个按钮组合/幽灵/危险/Block/颜色与变体 | P0 | 主路径行为 + gallery 必备 |
+| 渐变按钮 | P1 | 渐变内置 API（P0 允许 Style 覆盖） |
+| 自定义按钮波纹 | P1 | wave 动效分期 |
+| 移除两个汉字之间的空格 | P1 | `autoInsertSpace` 分期 |
+| 自定义禁用样式背景 | P1 | 禁用样式覆盖深度 |
+| 自定义语义结构的样式和类 | P1 | semantic 深度 |
+| debug-color-variant/debug-icon/debug-block/legacy-group/chinese-chars-loading/component-token | 不计 | 内部调试/废弃/Token 预览 |
 
 ### 6.9 验收用例表（可测）
 

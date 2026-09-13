@@ -163,13 +163,14 @@
 | 获取配置 | `useConfig.tsx` | 是 |
 | 警告 | `warning.tsx` | 是 |
 
+> debug 标记依据：对照 `components/config-provider/index.zh-CN.md` 代码演示节，`prefixCls.tsx`/`useConfig.tsx`/`warning.tsx` 带 debug 标记为内部用例，标“是”不计入 P0；其余 6 例无 debug 标记，标“否”为 P0 主路径。
+
 ### 2.5 实例方法 / Ref
 
 #### 方法
 
-### 为什么 message.info、notification.open 或 Modal.confirm 等方法内的 ReactNode 无法继承 ConfigProvider 的属性？比如 `prefixCls` 和 `theme`。 {#faq-message-inherit}
-
-静态方法是使用 ReactDOM.render 重新渲染一个 React 根节点上，和主应用的 React 节点是脱离的。我们建议使用 useMessage、useNotification 和 useModal 来使用相关方法。原先的静态方法在 5.0 中已被废弃。
+- `ConfigProvider.config({ holderRender, prefixCls, ... })`：设置 Modal/Message/Notification **静态方法**配置，只对非 hooks 静态调用生效（见 §3 `ConfigProvider.config()`）。
+- `ConfigProvider.useConfig()`：读取父级 Provider 快照（`componentDisabled`/`componentSize`，见 §3 `useConfig`）。
 
 ### 2.6 FAQ
 
@@ -220,11 +221,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L5（全局件，**最后做**）。
+- **等谁**：等 message/modal/notification（全局透传对象）与 Button/Input 就绪（`theme`/`componentSize`/`locale` 断言载体）。
+- **文件归属**：`ui/kit/config-provider/`（上下文透传容器，本体无视觉盒）。
+- **组合**：嵌套 Provider 内层显式值覆盖外层；`getPopupContainer`/`getTargetContainer` 透传浮层与滚动宿主。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -236,10 +236,17 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | componentDisabled | 设置 antd 组件禁用状态 | boolean | - | 4.21.0 |
-| componentSize | 设置 antd 组件大小 | `small` \| `medium` \| `large` | - | direction | 设置文本展示方向。 [示例](#config-provider-demo-direction) | `ltr` \| `rtl` | `ltr` | getTargetContainer | 配置 Affix、Anchor 滚动监听容器。 | `() => HTMLElement \| Window \| ShadowRoot` | () => window | 4.2.0 |
+| csp | 设置 Content Security Policy 配置 | { nonce: string } | - | - |
+| componentSize | 设置 antd 组件大小 | `small` \| `medium` \| `large` | - | - |
+| direction | 设置文本展示方向。 [示例](#config-provider-demo-direction) | `ltr` \| `rtl` | `ltr` | - |
+| getTargetContainer | 配置 Affix、Anchor 滚动监听容器 | `() => HTMLElement \| Window \| ShadowRoot` | () => window | 4.2.0 |
+| getPopupContainer | 弹出框（Select, Tooltip, Menu 等）渲染父节点，默认渲染到 body 上 | `(trigger?: HTMLElement) => HTMLElement \| ShadowRoot` | () => document.body | - |
 | iconPrefixCls | 设置图标统一样式前缀 | string | `anticon` | 4.11.0 |
-| locale | 语言包配置，语言包可到 [antd/locale](https://unpkg.com/antd/locale/) 目录下寻找 | object | - | popupOverflow | Select 类组件弹层展示逻辑，默认为可视区域滚动，可配置成滚动区域滚动 | 'viewport' \| 'scroll' <InlinePopover previewURL="https://user-images.githubusercontent.com/5378891/230344474-5b9f7e09-0a5d-49e8-bae8-7d2abed6c837.png"></InlinePopover> | 'viewport' | 5.5.0 |
-| prefixCls | 设置统一样式前缀 | string | `ant` | theme | 设置主题，参考 [定制主题](/docs/react/customize-theme-cn) | [Theme](/docs/react/customize-theme-cn#theme) | - | 5.0.0 |
+| locale | 语言包配置，语言包可到 [antd/locale](https://unpkg.com/antd/locale/) 目录下寻找 | object | - | - |
+| popupOverflow | Select 类组件弹层展示逻辑，默认为可视区域滚动，可配置成滚动区域滚动 | 'viewport' \| 'scroll' | 'viewport' | 5.5.0 |
+| popupMatchSelectWidth | 下拉菜单和选择器同宽。默认将设置 min-width，当值小于选择框宽度时会被忽略。false 时会关闭虚拟滚动 | boolean \| number | - | 5.5.0 |
+| prefixCls | 设置统一样式前缀 | string | `ant` | - |
+| theme | 设置主题，参考 [定制主题](/docs/react/customize-theme-cn) | [Theme](/docs/react/customize-theme-cn#theme) | - | 5.0.0 |
 | variant | 设置全局输入组件形态变体 | `outlined` \| `filled` \| `borderless` | - | 5.19.0 |
 | virtual | 设置 `false` 时关闭虚拟滚动 | boolean | - | 4.3.0 |
 | warning | 设置警告等级，`strict` 为 `false` 时会将废弃相关信息聚合为单条信息 | { strict: boolean } | - | 5.10.0 |
@@ -407,7 +414,7 @@ import { ConfigProvider } from 'antd';
 
 实现 gpui kit 版 **ConfigProvider** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -417,7 +424,7 @@ import { ConfigProvider } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -458,29 +465,9 @@ ConfigProvider 本体无独立视觉，是**配置透传容器**：自身不绘�
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+> ConfigProvider 本体无独立视觉、只透传：自身不占视觉盒，不设字号/圆角/边框/Focus ring 自有 chrome，透传值只在子控件落度量（子控件各按自身 §6.2 断言）；本节不设 ConfigProvider 自有度量表。
 
-#### 6.2.1 几何与组件 Token
-
-| 项 | 默认值 | Token / 来源 |
-| --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
-
-#### 6.2.2 颜色 Token（语义）
-
-| 用途 | Token 建议 | 备注 |
-| --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
-
-禁止硬编码品牌色作为唯一默认皮。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`），透传链路经 `Snapshot/Theme` 可读（见 §6.4 CFG-S7）。禁止硬编码品牌色作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
@@ -489,19 +476,19 @@ ConfigProvider 本体无独立视觉，是**配置透传容器**：自身不绘�
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
 | `componentDisabled` | 设置 antd 组件禁用状态 | boolean | - |
-| `componentSize` | 设置 antd 组件大小 | `small` \ | `medium` \ |
-| `csp` | 设置 [Content Security Policy](https://developer.mozilla.or… | { nonce: string } | - |
-| `direction` | 设置文本展示方向。 [示例](#config-provider-demo-direction) | `ltr` \ | `rtl` |
-| `getPopupContainer` | 弹出框（Select, Tooltip, Menu 等等）渲染父节点，默认渲染到 body 上。 | `(trigger?: HTMLElement) => HTMLEleme… | ShadowRoot` |
-| `getTargetContainer` | 配置 Affix、Anchor 滚动监听容器。 | `() => HTMLElement \ | Window \ |
+| `componentSize` | 设置 antd 组件大小 | `small` \| `medium` \| `large` | - |
+| `csp` | 设置 [Content Security Policy](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CSP) 配置 | { nonce: string } | - |
+| `direction` | 设置文本展示方向。 [示例](#config-provider-demo-direction) | `ltr` \| `rtl` | `ltr` |
+| `getPopupContainer` | 弹出框（Select, Tooltip, Menu 等等）渲染父节点，默认渲染到 body 上。 | `(trigger?: HTMLElement) => HTMLElement \| ShadowRoot` | () => document.body |
+| `getTargetContainer` | 配置 Affix、Anchor 滚动监听容器。 | `() => HTMLElement \| Window \| ShadowRoot` | () => window |
 | `iconPrefixCls` | 设置图标统一样式前缀 | string | `anticon` |
-| `locale` | 语言包配置，语言包可到 [antd/locale](https://unpkg.com/antd/locale/)… | object | - |
-| `popupMatchSelectWidth` | 下拉菜单和选择器同宽。默认将设置 `min-width`，当值小于选择框宽度时会被忽略。`false` 时会关闭虚拟滚动 | boolean \ | number |
-| `popupOverflow` | Select 类组件弹层展示逻辑，默认为可视区域滚动，可配置成滚动区域滚动 | 'viewport' \ | 'scroll' <InlinePopover previewURL="https://user-images.githubusercontent.com/5378891/230344474-5b9f7e09-0a5d-49e8-bae8-7d2abed6c837.png"></InlinePopover> |
+| `locale` | 语言包配置，语言包可到 [antd/locale](https://unpkg.com/antd/locale/) 目录下寻找 | object | - |
+| `popupMatchSelectWidth` | 下拉菜单和选择器同宽。默认将设置 `min-width`，当值小于选择框宽度时会被忽略。`false` 时会关闭虚拟滚动 | boolean \| number | - |
+| `popupOverflow` | Select 类组件弹层展示逻辑，默认为可视区域滚动，可配置成滚动区域滚动 | 'viewport' \| 'scroll' | 'viewport' |
 | `prefixCls` | 设置统一样式前缀 | string | `ant` |
-| `renderEmpty` | 自定义组件空状态。参考 [空状态](/components/empty-cn) | function(componentName: string): Reac… | - |
-| `theme` | 设置主题，参考 [定制主题](/docs/react/customize-theme-cn) | [Theme](/docs/react/customize-theme-c… | - |
-| `variant` | 设置全局输入组件形态变体 | `outlined` \ | `filled` \ |
+| `renderEmpty` | 自定义组件空状态。参考 [空状态](/components/empty-cn) | function(componentName: string): ReactNode | - |
+| `theme` | 设置主题，参考 [定制主题](/docs/react/customize-theme-cn) | [Theme](/docs/react/customize-theme-cn#theme) | - |
+| `variant` | 设置全局输入组件形态变体 | `outlined` \| `filled` \| `borderless` | - |
 | `virtual` | 设置 `false` 时关闭虚拟滚动 | boolean | - |
 | `warning` | 设置警告等级，`strict` 为 `false` 时会将废弃相关信息聚合为单条信息 | { strict: boolean } | - |
 
@@ -517,12 +504,13 @@ Provider 注入 theme/locale/size
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| CFG-S1 | theme 改 primary | 子 Button 主色变 |
-| CFG-S2 | componentSize=small | 子 Input 高 24 |
-| CFG-S3 | locale | 文案变 |
-| CFG-S4 | 嵌套覆盖 | 内层胜出 |
-| CFG-S5 | direction=rtl | 布局镜像（适用） |
-| CFG-S6 | getPopupContainer | 浮层挂载点 |
+| CFG-S1 | theme 改 primary | 子 Button 主色变（断言：`button.fill == colorPrimary`，hover 取 `PrimaryHover`） |
+| CFG-S2 | componentSize=small | 子 Input 高 24（断言：`height == controlHeightSM == 24`；中 32、大 40） |
+| CFG-S3 | locale | 文案变（断言：子控件读 `Texts[ok]` 非空且切换前后不同） |
+| CFG-S4 | 嵌套覆盖 | 内层胜出（断言：`Snapshot().Primary == 内层值`） |
+| CFG-S5 | direction=rtl | 布局镜像（适用）（断言：`iconPlacement=start` 落右，顺序翻转） |
+| CFG-S6 | getPopupContainer | 浮层挂载点（断言：浮层 holder 父链含指定容器） |
+| CFG-S7 | Token 名直读 | `colorPrimary/colorSuccess/colorWarning/colorError/colorText/borderRadius/lineWidth/fontSize/controlHeight` 经 `Snapshot/Theme` 可读 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -563,8 +551,14 @@ Provider 注入 theme/locale/size
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `disabled` | 必须 |
-| `variant` | 必须 |
+| `theme` | 主题透传：改 primary 后子 Button 主色跟随（对 CFG-02） |
+| `componentSize` | 全局尺寸：small 时子 Input 高 24，未设回落子控件自身默认（对 CFG-03） |
+| `locale` / `renderEmpty` | 文案透传：切换后子控件文案同步，无数据时走 RenderEmpty（对 CFG-04） |
+| 嵌套覆盖 | 内层 Provider 显式值覆盖外层，内层胜出（对 CFG-05） |
+| `direction` | LTR 默认；`rtl` 时布局镜像（对 CFG-06） |
+| `getPopupContainer` / `getTargetContainer` | 浮层挂载点 / 滚动监听容器透传（对 CFG-07） |
+| `componentDisabled` | 全局禁用透传 |
+| `variant` | 全局输入形态（outlined / filled / borderless）透传 |
 | 官方主路径示例 | 国际化、方向、组件尺寸、主题、自定义波纹、静态方法 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |

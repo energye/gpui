@@ -214,11 +214,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3（含预览浮层）**：缩略图（L2）+ 预览浮层（`OverlayPortal` + `FocusScope`，z=`zIndexPopupBase+80`）；`PreviewGroup` 为共享预览容器，同文件实现。
+- **下载/解码归宿主**：真 URL 解码、`crossOrigin`、`srcSet` 走宿主图片能力；kit 经 `SetPixels`/`SetImageOK`/`NotifyImageError` 注入（§6.7 P0 状态机 / P1 自动 HTTP）。
+- **ConfigProvider**：尺寸、主题、全局 Image 默认（P1）；`mask.blur` 需 GPU backdrop blur，无能力降级纯色（§6.8 P1）。
+- **文件归属**：`ui/kit/image/`（`image.go` + `preview.go`/`group.go`，复用 overlay/focus-scope）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -404,18 +403,18 @@ import { Image } from 'antd';
 
 实现 gpui kit 版 **Image** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **12** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
+1. **配置面**：覆盖 §6.8 P0 字段（src/alt/宽高/fallback+onError/placeholder+percent/preview/open+onOpenChange/preview.src/scaleStep+工具栏/actionsRender/Group items-current-onChange）；`imageRender/mask.blur/cover` P1。
+2. **视觉态**：thumb/cover hover/placeholder/预览 mask+工具栏/transform 缩放旋转翻转（§6.4 IMG-S1~S12，§6.5）。
+3. **尺寸态**：不分档；宽高 0 回落 200 占位，真实图 intrinsic。
+4. **受控/非受控**：`open`/`current` 受控 + `onOpenChange`/`onChange`，默认非受控。
+5. **数据驱动**：Group `items[]` 优先于子 Image 收集顺序。
+6. **无障碍**：缩略图 `role=img` + alt、预览 `role=dialog` 焦点捕获、Esc 关（§6.6，动画注明：开合 P0 瞬时）。
+7. **RTL**：工具栏/切换钮镜像；预览图 transform 不变。
+8. **浮层**：全屏 `OverlayPortal`（`getContainer=false` 才挂当前位置）；层级 `zIndexPopupBase+80`；`mask.closable=false` 点 mask 不关。
+9. **性能**：placeholder 不确定动画 Ticker 按需挂载；静止不挂 Ticker。
+10. **主题**：Token 化（§6.2 圆角6/操作色/切换钮40）；支持 reduced-motion。
+11. **示例矩阵**：§6.8 P0 **8** 例（basic/placeholder/fallback/preview-group/preview-group-visible/previewSrc/controlled/toolbarRender）；`imageRender/mask/cover/nested/style-class` 归 P1。
+12. **预览专项**：Esc/遮罩/Close 三路关闭；`movable` 仅超视口可拖（P1 手势）；下载/解码归宿主。
 
 ---
 ## 5. 参考链接
@@ -595,12 +594,14 @@ preview open ──zoomIn──► scale=min(scale×1.5, 50)
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| 主路径行为（§6.1 L1 / §6.4 IMG-S1~S12） | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2 圆角6/操作色/切换钮40） | **对等** | P0 L2 |
+| 真 URL 解码/`crossOrigin`/`srcSet` | **宿主**：kit 经 `SetPixels`/`SetImageOK`/`NotifyImageError` 注入；自动 HTTP 解码 P1 | P0 注入 / P1 自动 |
+| 预览 transform（zoom/rotate/flip/reset + `onTransform`） | **对等**（步长×1.5，钳制[1,50]） | P0 L1 |
+| `mask.blur`（backdrop blur） | 无 GPU 能力降级纯色 `colorBgMask`；主路径保 `enabled/closable` | P1 |
+| `cover`/`CoverConfig`（hover 遮罩定位+自定义节点） | 主路径保默认 hover cover（黑底0.3+文案）；定位/自定义节点 P1 | P0 默认 / P1 深度 |
+| `movable` 大图拖拽 + 滚轮缩放像素级 | 需视口裁剪+手势宿主；主路径保工具栏 zoom/rotate/flip/reset | P1 |
+| Semantic classNames/styles 函数形态 | 分期 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 

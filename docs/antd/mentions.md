@@ -221,11 +221,11 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：浮层件 + 表单件；多行编辑域复用 `input`（TextArea 形态），建议弹层走 Portal；先做 `input` 再做本件。
+- **Form**：全文 `value` 直绑，提及实体经 `GetMentions` 解析（`form.tsx` rows=1/3）。
+- **ConfigProvider**：size/variant/status 全局默认。
+- **浮层**：Modal/Drawer 内注意 `getPopupContainer`；`placement` 上/下。
+- **文件归属**：`ui/kit/mentions/`（多行编辑域 + measure + 建议弹层）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -335,7 +335,7 @@ import { Mentions } from 'antd';
 
 实现 gpui kit 版 **Mentions** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -345,7 +345,7 @@ import { Mentions } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **12** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 主路径 8 例（基本使用、尺寸、形态变体、异步加载、配合 Form 使用、自定义触发字符、无效或只读、向上展开）；余下 4 例（带移除图标、自动大小、自定义状态、语义结构）P1，Notes 显式列出。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -398,6 +398,10 @@ import { Mentions } from 'antd';
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 | 建议面板最大高 | **250** | `dropdownHeight`（下拉菜单 maxHeight） |
+| 建议选项行高 | **32** | `= controlHeight`（单行，`itemPaddingVertical` 上下居中；同族 AutoComplete 同值） |
+| 建议选项内边距 | **5px 12px**（`(controlHeight − fontHeight)/2` × `controlPaddingHorizontal`） | 组件 Token |
+| 建议面板内边距 | **4** | `paddingXXS` |
+| 建议面板圆角 | **8** | `borderRadiusLG` |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -474,6 +478,15 @@ allowClear ──► value="" + onClear
 | status=error/warning | 语义色边框/反馈 |
 | 弹层 open | elevation 阴影；与触发器对齐 placement |
 
+**variant 矩阵（`variant` × chrome，L2，多行壳与 Input.TextArea 同规则）：**
+
+| variant | 填充 | 边框 | focus | 备注 |
+| --- | --- | --- | --- | --- |
+| `outlined`（默认） | `colorBgContainer` | 1px `colorBorder` 全边框 | 主色边 + 可见 ring | 默认 |
+| `filled` | `colorFillAlter` 浅底 | 无/弱边框 | 主色边 + ring | 浅底形态 |
+| `borderless` | 透明 | 无 | 仅 ring 可见 | 无 chrome |
+| `underlined` | 透明 | 仅底边 1px `colorBorder` | 底边走主色 | 底边线形态 |
+
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
 
@@ -549,20 +562,20 @@ allowClear ──► value="" + onClear
 | --- | --- | --- | --- |
 | MEN-01 | L1 | NewMentions 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
 | MEN-02 | L1 | 行首或空白后输入 `@` | 开面板并 `onSearch("", "@")`；词中输入（如 `a@`）不开面板（边界规则 MEN-S1） |
-| MEN-03 | L1 | 选一项 | 插入；onSelect |
+| MEN-03 | L1 | 点选/Enter 选中一项 | 在 measure 区间插入 `prefix+value+split`，`onSelect(option,prefix)` 一次后关面板 |
 | MEN-04 | L1 | 继续输入搜索段 | `onSearch(text, prefix)` + contains 过滤；搜索段含空格（split）→ 关面板 |
-| MEN-05 | L1 | 多行 rows | 高度 |
-| MEN-06 | L1 | disabled | 不交互 |
-| MEN-07 | L1 | clear | 空 |
-| MEN-08 | L1 | 自定义 prefix # | # 触发 |
-| MEN-09 | L1 | 复现官方示例「基本使用」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MEN-10 | L1 | 复现官方示例「尺寸」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MEN-11 | L1 | 复现官方示例「形态变体」（`variant.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MEN-12 | L1 | 复现官方示例「异步加载」（`async.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MEN-13 | L1 | 复现官方示例「配合 Form 使用」（`form.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MEN-14 | L1 | 复现官方示例「自定义触发字符」（`prefix.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MEN-15 | L1 | 复现官方示例「无效或只读」（`readonly.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MEN-16 | L1 | 复现官方示例「向上展开」（`placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| MEN-05 | L1 | `rows=3` 多行 | 实测高=3×行高+纵向 padding（±0.5），换行不丢字符 |
+| MEN-06 | L1 | `disabled=true` 下键入/触发 | 不可编辑不打开，无 `onChange/onSearch` |
+| MEN-07 | L1 | 有内容时点清除 | 全文空 + `onClear` 一次并关面板，空时清除钮隐藏 |
+| MEN-08 | L1 | `SetPrefix("@","#")` 后边界输入 `#` | `#` 开面板且 `onSearch("", "#")`，`@` 链路不受影响 |
+| MEN-09 | L1 | 复现官方示例「基本使用」（`basic.tsx`） | 空行首键入 `@`：开面板并 `onSearch("", "@")`，点第一项后插入 `@value+split`，触发 `onSelect+onChange` 后关面板 |
+| MEN-10 | L1 | 复现官方示例「尺寸」（`size.tsx`） | 三档同文案并排：字号/行高随 large/middle/small 增大，`rows=1` 时单行高仍对齐 24/32/40 节奏（±0.5） |
+| MEN-11 | L1 | 复现官方示例「形态变体」（`variant.tsx`） | 同值切 outlined/filled/borderless/underlined：§6.5 矩阵 chrome 逐一对上，无残留边框，`@` 触发与选中链路不变 |
+| MEN-12 | L1 | 复现官方示例「异步加载」（`async.tsx`） | 触发 `@` 后先显面板 spinner（`loading=true` + Ticker），异步回填 options 后出现可选项，选中插入正常 |
+| MEN-13 | L1 | 复现官方示例「配合 Form 使用」（`form.tsx`） | `rows=1/3` 两框 wartości 经 `GetMentions` 解析出提及实体，提交值与展示值一致，空值不误报提及 |
+| MEN-14 | L1 | 复现官方示例「自定义触发字符」（`prefix.tsx`） | `SetPrefix("@", "#")`：`#` 在边界处同样开面板，`onSearch` 第二参为命中 prefix，`@` 链路不受影响 |
+| MEN-15 | L1 | 复现官方示例「无效或只读」（`readonly.tsx`） | `disabled` 下不可聚焦不可触发；`readOnly` 下可聚焦浏览但键入不改值、`@` 不开面板 |
+| MEN-16 | L1 | 复现官方示例「向上展开」（`placement.tsx`） | `SetPlacement(top)`：面板锚在触发器上方，选项高度/选中插入与 bottom 一致，视口不足时仍不遮挡输入区 |
 | MEN-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | MEN-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | MEN-19 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -575,24 +588,55 @@ allowClear ──► value="" + onClear
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewMentions(placeholder string, optionValues ...string) *Mentions
+type MentionsOption struct {
+  Value, Label, Key string
+  Disabled bool
+  LabelNode core.Node          // 可选自定义 label 节点
+}
 
-// 配置 SetXxx（P0）
-//   SetValue / SetDefaultValue / SetPlaceholder
-//   SetOptions([]MentionsOption) / SetOptionValues(...string)
-//   SetDisabled / SetReadOnly / SetAllowClear
-//   SetSize / SetVariant / SetStatus
-//   SetPrefix(...string) / SetSplit / SetPlacement / SetRows
-//   SetFilterOption(bool) / SetFilterOptionFunc / SetNotFoundContent
-//   SetLoading / SetOpen（测试/受控）
-// 回调
-//   SetOnChange / SetOnSearch(text,prefix) / SetOnSelect(option,prefix)
-//   SetOnClear / SetOnOpenChange
-// 主题 / a11y
-//   SetTheme / SetFace / SetAriaLabel / Focus / Blur
-// 工具
-//   GetMentions(value, prefix?, split?) []MentionsEntity  // Form 校验用
-// 挂树：Node() core.Node；Field() *Input；Popup() *AnchoredPopup
+type MentionsEntity struct {
+  Prefix, Value string         // 命中触发符与提及值
+  Start, End int              // 在全文中的 rune 区间（含 prefix 与 split 外）
+}
+
+NewMentions(placeholder string, optionValues ...string) *Mentions
+// optionValues 便捷构造为 []MentionsOption{Value:s}
+
+SetValue(string)                // 受控全文；不触发 OnChange（由外部写回）
+SetDefaultValue(string)         // 非受控初值
+GetValue() string
+SetPlaceholder(string)
+SetOptions([]MentionsOption)
+SetOptionValues(...string)      // 便捷：仅 value 列表
+SetDisabled(bool)
+SetReadOnly(bool)
+SetAllowClear(bool)
+SetSize(InputSize)              // small|middle|large → 字号/行高档
+SetVariant(InputVariant)        // outlined|filled|borderless|underlined
+SetStatus(InputStatus)          // none|error|warning
+SetPrefix(...string)            // 触发关键字，默认 ["@"]；可 ["@","#"]
+SetSplit(string)                // 选中插入后缀分隔，默认 " "
+SetPlacement(MentionsPlacement) // top|bottom
+SetRows(int)                    // 多行高度，默认 1
+SetFilterOption(bool)           // false=不过滤，由 OnSearch 供数
+SetFilterOptionFunc(func(input string, opt MentionsOption) bool)
+SetNotFoundContent(string)
+SetLoading(bool)                // 面板 spinner + Ticker（async.tsx）
+SetOpen(bool)                   // 受控弹层（测试用）；默认由 measure 驱动
+IsOpen() bool
+SetOnChange(func(text string))
+SetOnSearch(func(text, prefix string))
+SetOnSelect(func(opt MentionsOption, prefix string))
+SetOnClear(func())
+SetOnOpenChange(func(open bool))
+GetMentions(value string, prefix ...string) []MentionsEntity // Form 校验用
+SetTheme(*Theme) / SetFace(text.Face)
+SetAriaLabel(string)
+Focus() / Blur()
+AttachTicker(*Tree)             // loading 旋转
+Node() core.Node
+Field() *Input                  // 多行编辑域（TextArea 形态）
+Popup() *AnchoredPopup
 ```
 
 **默认值（未 Set 时）：**
@@ -614,10 +658,17 @@ NewMentions(placeholder string, optionValues ...string) *Mentions
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Column (Wrap)
-  ├─ TextArea / multiline Input   (editable value + clear?)
-  └─ AnchoredPopup
-       └─ panel (options | notFound | loading spinner)
+Column (Wrap，宽=输入框宽)
+  ├─ Field：Decorated 多行壳（variant 见 §6.5，最小高=rows×行高+纵向 padding）
+  │    └─ Flex(Row)：Flexible(EditableText 多行，caret 前 measure prefix) · clear?
+  └─ AnchoredPopup (Portal，placement=top|bottom，默认 bottom)
+       └─ Decorated panel（圆角 8，内边距 4，最大高 250，阴影 boxShadowSecondary）
+            ├─ loading spinner?（顶部/居中，Ticker 旋转，options 可同时显示）
+            ├─ option rows × N（Pressable，行高 32，padding 5px 12px）
+            │    ├─ active（hover/↑↓高亮）：底 controlItemBgHover
+            │    ├─ selected（Enter/点选瞬间）：底 controlItemBgActive
+            │    └─ disabled：降对比 + 不响应
+            └─ empty?：notFoundContent（有则显示一行，否则整层不展示）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

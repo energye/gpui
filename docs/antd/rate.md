@@ -58,15 +58,15 @@
 
 #### `size`
 
-- **说明**：星星尺寸（antd `SizeType`）
-- **类型**：'small' | 'middle' | 'large'（文档偶写 medium＝middle）
-- **默认值**：'middle'
+- **说明**：星星尺寸（antd `SizeType`；官方文档写 `medium`，`SizeContext` 同时接受 `middle`，同档；kit 侧统一用 `middle`，见 §6.3）
+- **类型**：'small' | 'medium' | 'large'（kit：'small' | 'middle' | 'large'）
+- **默认值**：'medium'（kit：'middle'，同值 starSize 20）
 - **可选值与外观含义**：
 
   | 值 | 外观/语义 |
   | --- | --- |
   | `small` | starSize **15**（controlHeightSM×0.625） |
-  | `middle` | starSize **20**（默认） |
+  | `medium`/`middle` | starSize **20**（默认） |
   | `large` | starSize **25**（controlHeightLG×0.625） |
 
 ### 1.4 交互视觉状态（实现检查表）
@@ -140,11 +140,11 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2**：表单件（无浮层）；星行字符绘制（P0 字符串，图标管线 P1）；无组内前置依赖。
+- **Form**：数值 `value`（半星 x.5）直绑。
+- **ConfigProvider**：size（small/middle/large 星档）全局默认。
+- **Tooltip**：`tooltips` string 形态就地悬停文案（完整 TooltipProps P1）。
+- **文件归属**：`ui/kit/rate/`（星行 + 半星 clip + 键盘步进）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -157,21 +157,21 @@
 
 | 属性 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| allowClear | 是否允许再次点击后清除 | boolean | true | - | × |
-| allowHalf | 是否允许半选 | boolean | false | - | × |
-| character | 自定义字符 | ReactNode \| (RateProps) => ReactNode | <StarFilled /> | function(): 4.4.0 | × |
-| count | star 总数 | number | 5 | - | × |
-| defaultValue | 默认值 | number | 0 | - | × |
-| disabled | 只读，无法进行交互 | boolean | false | - | × |
+| allowClear | 是否允许再次点击后清除 | boolean | true |  | × |
+| allowHalf | 是否允许半选 | boolean | false |  | × |
+| character | 自定义字符 | ReactNode \| (RateProps) => ReactNode | &lt;StarFilled /> | function(): 4.4.0 | × |
+| count | star 总数 | number | 5 |  | × |
+| defaultValue | 默认值 | number | 0 |  | × |
+| disabled | 只读，无法进行交互 | boolean | false |  | × |
 | keyboard | 支持使用键盘操作 | boolean | true | 5.18.0 | × |
-| size | 星星尺寸 | 'small' \| 'middle' \| 'large' | 'middle' | - | × |
-| tooltips | 自定义每项的提示信息 | [TooltipProps](/components/tooltip-cn#api)[] \| string\[] | - | - | × |
-| value | 当前数，受控值 | number | - | - | × |
-| onBlur | 失去焦点时的回调 | function() | - | - | × |
-| onChange | 选择时的回调 | function(value: number) | - | - | × |
-| onFocus | 获取焦点时的回调 | function() | - | - | × |
-| onHoverChange | 鼠标经过时数值变化的回调 | function(value: number) | - | - | × |
-| onKeyDown | 按键回调 | function(event) | - | - | × |
+| size | 星星尺寸 | 'small' \| 'medium' \| 'large' | 'medium' |  | × |
+| tooltips | 自定义每项的提示信息 | [TooltipProps](/components/tooltip-cn#api)[] \| string\[] | - |  | × |
+| value | 当前数，受控值 | number | - |  | × |
+| onBlur | 失去焦点时的回调 | function() | - |  | × |
+| onChange | 选择时的回调 | function(value: number) | - |  | × |
+| onFocus | 获取焦点时的回调 | function() | - |  | × |
+| onHoverChange | 鼠标经过时数值变化的回调 | function(value: number) | - |  | × |
+| onKeyDown | 按键回调 | function(event) | - |  | × |
 ## 方法
 
 | 名称    | 描述     |
@@ -191,12 +191,12 @@ import { Rate } from 'antd';
 | --- | --- | --- | --- | --- |
 | `allowClear` | 是否允许再次点击后清除 | boolean | true | — |
 | `allowHalf` | 是否允许半选 | boolean | false | — |
-| `character` | 自定义字符 | ReactNode \| (RateProps) => ReactNode | <StarFilled /> | function(): 4.4.0 |
+| `character` | 自定义字符 | ReactNode \| (RateProps) => ReactNode | &lt;StarFilled /> | function(): 4.4.0 |
 | `count` | star 总数 | number | 5 | — |
 | `defaultValue` | 默认值 | number | 0 | — |
 | `disabled` | 只读，无法进行交互 | boolean | false | — |
 | `keyboard` | 支持使用键盘操作 | boolean | true | 5.18.0 |
-| `size` | 星星尺寸 | 'small' \| 'middle' \| 'large' | 'middle' | — |
+| `size` | 星星尺寸（官方写 `medium`，kit 用 `middle`，同档） | 'small' \| 'medium' \| 'large' | 'medium' | — |
 | `tooltips` | 自定义每项的提示信息 | [TooltipProps](/components/tooltip-cn#api)[] \| string\[] | - | — |
 | `value` | 当前数，受控值 | number | - | — |
 | `onBlur` | 失去焦点时的回调 | function() | - | — |
@@ -214,7 +214,7 @@ import { Rate } from 'antd';
 
 实现 gpui kit 版 **Rate** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -224,7 +224,7 @@ import { Rate } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **8** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 8 例全量（基本、尺寸、半星、文案展现、只读、清除、其他字符、自定义字符），Notes 显式列出 P1（图标字符/完整 TooltipProps/hover 缩放像素级）。
 
 ---
 ## 5. 参考链接
@@ -309,7 +309,7 @@ import { Rate } from 'antd';
 | `defaultValue` | 默认值 | number | 0 |
 | `disabled` | 只读，无法进行交互 | boolean | false |
 | `keyboard` | 支持使用键盘操作 | boolean | true |
-| `size` | 星星尺寸 | `'small'` \| `'middle'` \| `'large'`（文档偶写 medium＝middle） | middle |
+| `size` | 星星尺寸 | `'small'` \| `'middle'` \| `'large'`（官方文档写 `medium`，`SizeType` 两者同档，见 §3） | middle |
 | `tooltips` | 自定义每项的提示信息 | `string[]`（完整 TooltipProps 形态 P1） | - |
 | `value` | 当前数，受控值 | number（半星为 x.5） | - |
 | `onBlur` | 失去焦点时的回调 | function() | - |
@@ -348,17 +348,19 @@ disabled ──► 不改
 | RAT-S8 | 受控 value | 外部优先 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 | 规则 |
+| 态 / 项 | 规则 |
 | --- | --- |
-| default | Token 默认皮 |
-| hover / active | 可交互反馈 |
-| focus | 可见 focus ring |
-| checked/selected/active（适用者） | 主色强调 |
-| disabled | 降对比；无 hover |
-| loading | 指示器；防重复 |
+| 空星 | `starBg`（`colorFillContent` 系）字符底 |
+| 满星 | `starColor`（antd yellow6 ≈ `#FADB14`，回落常量，须可被 Theme/Style 覆盖） |
+| 半星 | 同盒左半 clip 填 `starColor`、右半 `starBg`（命中几何见 §6.4） |
+| hover 预览 | 悬停及之前星瞬时高亮（`starHoverScale` scale(1.1) 像素级 P1） |
+| focus | **可见** focus ring；`keyboard=true` 时方向键 0.5 步进 |
+| disabled | 降对比；无 hover 预览；不可点 |
+| 尺寸 | small/middle/large → 星 15/20/25，星间距 8（`marginXS`，勿与本库 `TokenMarginXS=4` 混用） |
+| 自定义字符 | P0 字符串（`Character` / `CharacterAt`，默认 `★`）；图标节点 P1 |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** hover 缩放 P1；P0 瞬时高亮即可，尊重 reduced-motion。
 
 ### 6.6 无障碍（a11y）最低要求
 
@@ -431,17 +433,17 @@ disabled ──► 不改
 | RAT-04 | L1 | allowClear 再点 | 0 |
 | RAT-05 | L1 | disabled | 不改 |
 | RAT-06 | L1 | count=10 | 10 星 |
-| RAT-07 | L1 | 键盘（适用） | 可调 |
-| RAT-08 | L1 | tooltips | 悬停文案 |
+| RAT-07 | L1 | 聚焦后按右/左方向键（`keyboard` 默认 true） | 右键 value+1（`allowHalf` 时 +0.5）；`keyboard=false` 时方向键不消费 |
+| RAT-08 | L1 | `tooltips=[t1..t5]` 时 hover 第 3 星 | 悬停文案为 `t3`，移出消失；`onHoverChange` 依次收到 3 与 0 |
 | RAT-09 | L1 | 受控 value | 外部优先 |
-| RAT-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| RAT-11 | L1 | 复现官方示例「尺寸」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| RAT-12 | L1 | 复现官方示例「半星」（`half.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| RAT-13 | L1 | 复现官方示例「文案展现」（`text.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| RAT-14 | L1 | 复现官方示例「只读」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| RAT-15 | L1 | 复现官方示例「清除」（`clear.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| RAT-16 | L1 | 复现官方示例「其他字符」（`character.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| RAT-17 | L1 | 复现官方示例「自定义字符」（`character-function.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| RAT-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 点第 3 星 value=3 + `onChange(3)`；hover 第 5 星时 5 星瞬时高亮，移出恢复 |
+| RAT-11 | L1 | 复现官方示例「尺寸」（`size.tsx`：large/默认/small 三排） | 三排星直径实测 25/20/15（±0.5），星间距均为 8 |
+| RAT-12 | L1 | 复现官方示例「半星」（`half.tsx`：`allowHalf` 初值 2.5） | 初值左 2 满 + 第 3 星左半填；点第 4 星左半 → 3.5 |
+| RAT-13 | L1 | 复现官方示例「文案展现」（`text.tsx`：`tooltips` 5 段 + 右侧文案，初值 3） | hover 第 5 星右侧文案变 `wonderful`；点选后文案锁定该值（`tooltips` 混入 TooltipProps 对象形态按 string 取 title，P1 全形态分期） |
+| RAT-14 | L1 | 复现官方示例「只读」（`disabled.tsx`） | 点星 value 不变、无 `onChange`、无 hover 预览 |
+| RAT-15 | L1 | 复现官方示例「清除」（`clear.tsx`：`allowClear` 真/假各一排，初值 3） | 真排再点第 3 星 → 0；假排再点保持 3 |
+| RAT-16 | L1 | 复现官方示例「其他字符」（`character.tsx`：`HeartOutlined`/`A`/`好` 三排 + `allowHalf`） | 三排字符分别为图标占位（P1 图标管线分期，P0 按字符串 `A`/`好` 绘制）/`A`/`好`；半星命中仍按左/右半 |
+| RAT-17 | L1 | 复现官方示例「自定义字符」（`character-function.tsx`：`character=({index})=>index+1` 初值 2 + 表情图标排） | 数字排 5 星依次绘 `1..5`；点第 4 星 value=4；图标排 P1 |
 | RAT-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | RAT-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | RAT-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

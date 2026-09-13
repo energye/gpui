@@ -323,11 +323,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（导航：纯展示 + 可点切换，无浮层定位）。
+- **等谁**：无上游等待；`percent` 进度环复用 Progress 环语义，图标复用 `kit.Icon`；被业务向导页组合。
+- **文件归属**：`ui/kit/steps/`。
+- **组合**：单步 `icon` 经 Icon 注册表解析；`maxCount` 省略步为禁用态不可点，见 §6.4。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -405,7 +404,7 @@ import { Steps } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **13** 个，均需可复现。
+11. **示例矩阵**：P0 按 §6.8 逐例对照表（8 例主路径），余下 P1 分期（`progress-dot`/`nav`/`inline`/`inline-variant`/`style-class` + 6 个 debug）。
 
 ---
 ## 5. 参考链接
@@ -427,7 +426,7 @@ import { Steps } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 选中/展开/分页或步骤切换与键盘 | Headless / behavior 测试 |
+| **L1** | 行为 | current/index 状态推导、可点切换、error 态、orientation 布局与 maxCount 折叠 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -451,19 +450,19 @@ import { Steps } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 图标容器 middle（`size=medium`） | **32** | Steps `iconSize` ← `controlHeight` |
-| 图标容器 small | **24** | Steps `iconSizeSM`（≈ `controlHeightSM` / heading3） |
-| 自定义图标容器 | 同 size 档 | `customIconSize` |
+| 图标容器 middle（`size=medium`） | **32** | Steps `iconSize` ← `controlHeight`（±0.5px） |
+| 图标容器 small | **24** | Steps `iconSizeSM`（≈ `controlHeightSM` / heading3，±0.5px） |
+| 自定义图标容器 | 同 size 档 | `customIconSize`（±0.5px） |
 | 标题字号 | **16** | `fontSizeLG`（title） |
 | 正文字号 / content | **14** | `fontSize` |
 | 子标题字号 | **14** | `fontSize`；色 `colorTextSecondary` |
 | 图标内数字字号 middle | **14** | `fontSize` |
 | 图标内数字字号 small | **14** | `fontSize`（sm 档仅容器缩小，字号不缩） |
-| 圆角 | **6** | `borderRadius` |
+| 圆角 | **6** | `borderRadius`（±0.5px） |
 | 边框线宽 / rail | **1** | `lineWidth` |
-| 步骤间距 gap（水平 rail 区） | **8+** | 实现可读；rail 可 flex 填充 |
+| 步骤间距 gap（水平 rail 区） | **8+** | 实现可读；rail 可 flex 填充（±0.5px 起） |
 | Focus ring outset | ≈ **1.5px** 可见 | 可点步可聚焦时必须可见 |
-| percent 进度环 stroke | ≈ **2–3** | process 步图标外环 |
+| percent 进度环 stroke | ≈ **2–3** | process 步图标外环（±0.5px） |
 
 > 注：antd Steps **无 large size**（仅 `medium` / `small`）。通用表里的 large 不适用于本控件。
 
@@ -505,7 +504,7 @@ import { Steps } from 'antd';
 | `onChange` | 点击切换步骤时触发 | (current) => void | - |
 | `items` | 配置选项卡内容 | [StepItem](#stepitem) | [] |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 单步显式 `status` > `current`/`initial` 推导（mapped=current-initial）> 整体 `status`（默认 process）> 组件默认；`onChange` 非 nil 且步未 disabled 才可点。
 
 ### 6.4 交互状态机（L1）
 
@@ -521,23 +520,34 @@ current=i（0-based；与 antd 一致；Initial 偏移后 mapped = current-initi
   maxCount>=3 且 items 更长 ──► 折叠为可见集 + 禁用省略步；OnChange 仍用原始下标
 ```
 
+**触发条件 + 容差（可断言）：**
+
+- 推导：`mapped=current-initial`（0-based）；`index<mapped→finish`，`=mapped→Steps.status`（默认 process），`>mapped→wait`；单步显式 status 覆盖。
+- 可点：`OnChange!=nil` 且步未 disabled 才触发 `OnChange(originIndex)`，未受控时 Current 更新；disabled 步不触发（STP-S6）。
+- 折叠：`maxCount>=3` 且 items 更长时折叠，省略步 disabled 不可点，回调仍用原始下标。
+- 几何：图标容器 middle 32 / small 24（±0.5px，STP-S5）；error 当前步用 `colorError`。
+
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| STP-S1 | current=1（**0-based**） | 第 2 步为 process（或 Steps.status） |
-| STP-S2 | 点可点步（OnChange 已设） | 触发 OnChange(index)；未受控时 Current 更新 |
-| STP-S3 | status=error | 当前步错误样式（色=error） |
-| STP-S4 | orientation=vertical | 根轴纵向 |
-| STP-S5 | size=small | 图标容器 ≈24（小于 middle 32） |
-| STP-S6 | item.disabled | 不可点；不触发 OnChange |
-| STP-S7 | 自定义 icon | 图标节点可见 |
-| STP-S8 | content（description 别名） | 详情文案可见 |
+| STP-S1 | current=1（**0-based**） | 第 2 步为 process（或 Steps.status）；0=finish、2=wait |
+| STP-S2 | 点可点步（OnChange 已设） | 触发 OnChange(originIndex)；未受控时 Current 更新 |
+| STP-S3 | status=error | 当前步错误样式（图标/字/轨 `colorError`） |
+| STP-S4 | orientation=vertical | 根轴纵向（Flex column） |
+| STP-S5 | size=small | 图标容器 24（±0.5px，小于 middle 32） |
+| STP-S6 | item.disabled | 不可点；不触发 OnChange；禁用色 |
+| STP-S7 | 自定义 icon | 图标节点可见（`IconNode` 优先） |
+| STP-S8 | content（description 别名） | 详情文案可见（`Description→Content`） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| wait | 灰底图标（`colorFillSecondary`）+ 次级字；轨 `colorSplit` |
+| process | 主色实心图标 + 反白字/勾；标题 `colorText` 强调 |
+| finish | 主色描边/浅底（`colorPrimaryBg`）+ 主色勾；轨主色 |
+| error | 图标/字/轨 `colorError`（整体 status 或单步覆盖） |
+| disabled | `colorDisabledBg/Text`，无 hover，不可点 |
+| panel | 卡片块 + 当前块主色边；无 rail |
+| 可点 hover/focus | hover 底 + focus ring 可见（outset ≈1.5px） |
 | 主题切换 | 色与间距随 Theme 更新 |
 
 
@@ -547,19 +557,23 @@ current=i（0-based；与 antd 一致；Initial 偏移后 mapped = current-initi
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | navigation / menu / tablist 等 |
-| 当前 | aria-current / selected |
-| 键盘 | 方向键与激活 |
+| 角色 | 根 `navigation`；步骤列为 list，单步为 listitem（可点步为 button 语义） |
+| 当前 | 当前步 `aria-current=step`；error 步附加 error 文案通道 |
+| 键盘 | 可点步 Tab 可聚焦 ring 可见；Enter/Space 触发 OnChange |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
-| 能力 | 策略 | 级别 |
+| 能力 | 真实映射（gpui 侧落点） | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 状态推导/切换/折叠（§6.4 STP-S1~S8） | **对等**：`SetCurrent/SetInitial/SetStatus` + `ItemStatus(i)` | P0 L1 |
+| 图标/字号度量（§6.2 32/24/16/14） | **对等** | P0 L2 |
+| `orientation` 横/纵 + `titlePlacement` | **对等**：Flex 行/列 + 标签右/下布局 | P0 L1 |
+| `percent` 进度环（仅 default type） | **对等**：process 图标 Canvas 环（stroke 2–3，±0.5px） | P0 L1 |
+| `responsive` 532px 自动纵排 | **映射**：桌面 `SetViewportWidth`，小宽切 vertical | P0 宿主 |
+| 滚动宿主 | **映射**：长步骤条随容器滚动，无自有浮层 | P0 宿主 |
+| `type=dot/navigation/inline` | P1 分期（枚举预留，传参拒收） | P1 |
+| `iconRender`/`progressDot` 函数 | P1 分期（优先 `items.icon`） | P1 |
+| ink/rail 像素级过渡 | P0 瞬时，像素级 P1 | P0 L1/P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -580,10 +594,19 @@ current=i（0-based；与 antd 一致；Initial 偏移后 mapped = current-initi
 | `titlePlacement` | horizontal（默认）/ vertical（标签在图标下） |
 | `percent` | 当前 process 步进度环（0–100；仅 default type） |
 | `maxCount` | ≥3 时折叠；省略步 disabled；OnChange 原始下标 |
-| 官方主路径示例 | simple / error / vertical / clickable / panel / icon / title-placement / max-count |
-| 度量 §6.2 | Token 断言（icon 32/24 等） |
-| a11y §6.6 | role=navigation；可点步可聚焦 + focus ring；当前 aria 语义 |
+| 官方主路径示例（P0，8 例） | 简单用法（`simple.tsx`）、步骤运行错误（`error.tsx`）、竖直方向（`vertical.tsx`）、可点击（`clickable.tsx`）、面板式（`panel.tsx`）、带图标（`icon.tsx`）、标签放置与进度（`title-placement.tsx`，含 percent）、限量展示（`max-count.tsx`） |
+| 度量 §6.2 | Token 断言（icon 32/24±0.5 等） |
+| a11y §6.6 | role=navigation；可点步可聚焦 + focus ring；当前 `aria-current=step` |
 | §6.9 中 L1/L2 用例 | 测试通过 |
+
+**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 12 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本用法 / 步骤运行错误 / 竖直方向 / 可点击 / 面板式 / 带图标 / 标签放置与进度 / 限量展示 | P0 | 状态推导+切换+panel+percent+折叠主路径 |
+| 点状步骤条（`progress-dot.tsx`）/ 导航步骤（`nav.tsx`）/ 内联步骤（`inline.tsx`）/ 内联样式组合（`inline-variant.tsx`） | P1 | `type` 子集分期 |
+| 自定义语义结构的样式和类（`style-class.tsx`）/ `_semantic*.tsx` | P1 | semantic 深度 |
+| 步骤切换（`step-next.tsx`，debug）/ 自定义点状（`customized-progress-dot.tsx`，debug）/ 带有进度的步骤（`progress.tsx`，debug）/ Progress Debug（`progress-debug.tsx`）/ 嵌套（`steps-in-steps.tsx`）/ 变体 Debug（`variant-debug.tsx`）/ 组件 Token（`component-token.tsx`） | P1 | 调试页，不验收 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
@@ -592,11 +615,10 @@ current=i（0-based；与 antd 一致；Initial 偏移后 mapped = current-initi
 | `type=dot` / `navigation` / `inline` | 点状 / 导航 / 内联 |
 | `responsive` 断点自动 vertical | 桌面宿主映射 |
 | `iconRender` 深度 / progressDot function | 自定义渲染钩子 |
-| semantic classNames/styles 深度 | 分期 |
+| semantic classNames/styles 深度 | 分期（`style-class.tsx`，见逐例表） |
 | 动画像素级 / rail 过渡 | 分期；P0 瞬时 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | progress-dot / nav / inline / inline-variant / style-class |
+| debug 示例与官网逐像素哈希 | 分期（7 个 debug，见逐例表） |
 
 ### 6.9 验收用例表（可测）
 

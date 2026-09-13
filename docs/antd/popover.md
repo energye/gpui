@@ -205,11 +205,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（浮层气泡件；定位复用 Tooltip 的 Portal/placement/arrow 管线，先做 `tooltip` 再做本件）。
+- **等谁**：等浮层定位（Portal/z-index/12 向/flip）与 Button（content 内操作按钮）就绪；`trigger` 宿主事件先行。
+- **文件归属**：`ui/kit/popover/`。
+- **组合**：Modal/Drawer 内经 `getPopupContainer` 挂载；content 内按钮/链接走各自控件语义，不吞事件。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -273,7 +272,7 @@ import { Popover } from 'antd';
 | `overlayStyle` | 卡片样式, 请使用 `styles.root` 替换 | React.CSSProperties | - | — |
 | `overlayInnerStyle` | 卡片内容区域的样式对象, 请使用 `styles.container` 替换 | React.CSSProperties | - | — |
 | `placement` | 气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom` | string | `top` | — |
-| `trigger` | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` | — |
+| `trigger` | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` | Tooltip/Popover/Popconfirm: 6.1.0 |
 | `open` | 用于手动控制浮层显隐，小于 4.23.0 使用 `visible`（[为什么?](/docs/react/faq#弹层类组件为什么要统一至-open-属性)） | boolean | false | 4.23.0 |
 | `zIndex` | 设置 Tooltip 的 `z-index` | number | - | — |
 | `onOpenChange` | 显示隐藏的回调 | (open: boolean) => void | - | 4.23.0 |
@@ -283,20 +282,18 @@ import { Popover } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Popover** 的验收清单：
+实现 gpui kit 版 **Popover** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **8** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
+1. **配置面**：覆盖 §6.8 P0 字段（title/content/trigger/placement/arrow/open/autoAdjustOverflow/disabled/zIndex）；P1 可分期但命名兼容。
+2. **视觉态**：面板底+边框+圆角 LG(8)+内边 12、title 最小宽 177、arrow 示意（§6.5）；无通用 loading 整件态，不套模板。
+3. **触发**：hover/click/focus/contextMenu 可多选；hover 离开宽限 Tick 防缝隙抖动（POP-S7）。
+4. **受控/非受控**：open 受控优先 + defaultOpen + onOpenChange（POP-S4）。
+5. **无障碍**：触发可激活 + 面板 dialog + Esc 关（§6.6）。
+6. **RTL**：placement 左右镜像。
+7. **浮层**：Portal/z-index 阶梯 + `getPopupContainer`（P1）+ Viewport flip/shift（§6.11）。
+8. **主题**：Token 化（§6.2）；P0 瞬时切换，zoom-big 像素级 P1。
+9. **示例矩阵**：官方非 debug **8** 个：P0 **7**（§6.8 主路径）+ P1 **1**（style-class）。
+10. **delay 专项**：`mouseEnterDelay/mouseLeaveDelay` 精确秒级 P1；P0 瞬时开 + 离开宽限一 Tick。
 
 ---
 ## 5. 参考链接
@@ -454,7 +451,7 @@ Popover **继承 Tooltip 共享 API**（placement / trigger / open / arrow / aut
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
 | 动画 zoom-big / 阴影像素 | **近似**或瞬时 | P1 |
-| `mouseEnterDelay` / `mouseLeaveDelay` | **近似**（P0 瞬时+宽限；精确秒级 P1） | P1 |
+| `mouseEnterDelay` / `mouseLeaveDelay`（默认各 0.1s） | P0 瞬时打开+离开宽限一 Tick（跟 Host Tick，防触发器→面板缝隙抖动）；精确秒级累计 P1 | P0 宽限 / P1 精确 |
 | `getPopupContainer` / `align` / `destroyOnHidden` / `fresh` | **映射**或分期 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | `color` 预设色板 | 分期；可用 `SetPanelBackground` 近似 | P1 |

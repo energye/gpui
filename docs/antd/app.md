@@ -21,6 +21,31 @@
 | 基本用法 | 顶层包 App，子页面拿到 message/modal/notification 上下文并能弹出提示 |
 | Hooks 配置 | 给 App 传 message/notification 默认配置，子页面弹出时按该配置生效 |
 
+### 1.3 外观相关配置逐项说明
+
+下列配置决定 App 包裹层与浮层占位的外观（App 本体无尺寸档、无状态皮，只做重置样式底 + 上下文透传）：
+
+#### `component`
+
+- **说明**：设置渲染元素，为 `false` 则不创建 DOM 节点，同时无重置样式与 CSS Var 容器
+- **类型**：ComponentType | false
+- **默认值**：div
+- **版本**：5.11.0
+
+#### `message`
+
+- **说明**：App 内 Message 的全局配置，子级与上层浅合并（子级优先），控制 holder 内提示的默认外观行为（如时长）
+- **类型**：[MessageConfig](/components/message-cn/#messageconfig)
+- **默认值**：-
+- **版本**：5.3.0
+
+#### `notification`
+
+- **说明**：App 内 Notification 的全局配置，合并规则同 message，控制 holder 内通知的默认外观行为
+- **类型**：[NotificationConfig](/components/notification-cn/#notificationconfig)
+- **默认值**：-
+- **版本**：5.3.0
+
 ### 1.4 交互视觉状态（实现检查表）
 
 App 无自有交互视觉态：hover / active / focus ring / disabled / loading / error-warning 皮均标 **N/A**。只验两点：默认重置样式生效，message / modal / notification 占位容器随 children 挂载。
@@ -61,11 +86,10 @@ App 无自有交互视觉态：hover / active / focus ring / disabled / loading 
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L5（全局件，**最后做**）。
+- **等谁**：等 message/modal/notification 三浮层与 Button/Input 就绪（holders 挂载与配置透传的断言载体）。
+- **文件归属**：`ui/kit/app/`。
+- **组合**：嵌套 App 浅合并内层优先；`component=false` 时无包裹节点无重置样式容器。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -148,29 +172,26 @@ import { App } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`）。App 本体无尺寸档、无自有几何：包裹层尺寸即 children 尺寸，不设字号/圆角/线宽/焦点环，度量断言只验重置样式底跟随主题与占位容器挂载。
 
-#### 6.2.1 几何与组件 Token
+#### 6.2.1 几何与组件 Token（App 专属：无自有几何，只有包裹与占位）
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 包裹层盒 | = children 布局盒，不新增内边距 | `component` 渲染元素；`component=false` 时无盒 |
+| 重置样式底 | 跟随 Theme（底色/字色/行高） | `colorBgContainer` / `colorText`，换肤即变（APP-08） |
+| 三 holders 占位 | 随 children 挂载，不占文档流视觉 | message / modal / notification holder 节点非空即合格 |
+| 字号/圆角/线宽/Focus ring | N/A（App 本体无皮） | 由 children 与浮层内控件各自断言 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 重置样式底 | `colorBgContainer` / `colorText` | 换肤后底色/字色跟随 Theme，无写死皮（APP-08） |
+| holders 内提示/通知/确认框 | 走 message / notification / modal 各自 Token | App 层只透传配置，不另设色标 |
+| 主色/错误/警告/禁用/阴影 | N/A（App 本体无皮） | 由 children 与浮层内控件各自断言 |
 
-禁止硬编码品牌色作为唯一默认皮。
+App 层禁止硬编码品牌色作为重置样式底或 holder 的唯一默认皮。
 
 ### 6.3 关键配置与语义
 
@@ -196,35 +217,39 @@ App 包裹 ──► message/modal/notification 上下文可用
 | APP-S2 | 经 `UseApp()` 取 modal 并 `Confirm({Title:"t"})` | Modal holder 出现确认框节点，回调可关 |
 | APP-S3 | 经 `UseApp()` 取 notification 并 `Open({Title:"t"})` | Notification holder 出现通知节点，可关 |
 | APP-S4 | `SetMessageConfig({Duration:9})` 后 Success | 该条 message 的 duration 读到 9；未设字段沿用父级/默认 |
+| APP-S5 | 嵌套 App（内层设 Duration=5，外层 9） | 内层子树弹条读到 5，外层子树仍读 9（浅合并内层优先） |
+| APP-S6 | `component=false`（omit） | 无包裹节点、无重置样式容器；children 与三 holders 照常挂载可用 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 包裹层只留重置样式底，children 原样透出 |
-| hover/active/focus/disabled/loading | N/A（App 本体无皮） |
-| 主题切换 | 重置样式与浮层容器跟随 Theme 更新 |
+| default | 包裹层只留重置样式底，children 原样透出；三 holders 随 children 挂载 |
+| hover/active/focus/disabled/loading | N/A（App 本体无皮，焦点与状态皮由 children/浮层内控件自理） |
+| 主题切换 | 重置样式底与 holders 跟随 Theme 更新；`component=false` 时无重置样式容器 |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** App 本体无动效；message / modal / notification 的展开与消失动效由各自控件语义决定，P0 允许瞬时切换，reduced-motion 由各浮层控件各自尊重。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| App 本体 | 对读屏树透明：不设角色、不抢焦点、不产出可读名；`component=false` 时连包裹节点都没有 |
+| 上下文透传 | `UseApp()` 必须在 App 子树内调用，否则无三件套可用；嵌套 App 内层优先但不改变可达性语义 |
+| 提示与浮层 | message / modal / notification 的角色、焦点管理、Esc 关闭、读屏名由各自控件语义保证，App 层只保证 holders 随 children 挂载 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| `component` 包裹/省略 + 重置样式底跟随主题 | **对等** | P0 L1+L2 |
+| `message` / `notification` 全局配置透传与浅合并（子级优先） | **对等** | P0 L1 |
+| `modal` 上下文透传（无全局配置项，直接透传） | **对等** | P0 L1 |
+| 嵌套 App 逐层合并、内层优先 | **对等** | P0 L1 |
+| `component=false` 无节点无重置样式容器 | **对等** | P0 L1 |
+| holders 内控件的动画/波纹/CSS 特效 | 由 message / modal / notification 各自语义决定 | P1 |
+| 浏览器 `ComponentType` 任意标签名 | **映射**：kit 侧 `tag string` 仅 `div`/空语义有意义，其余待 message/notification L5 回填 | P0 近似 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -278,13 +303,17 @@ App 包裹 ──► message/modal/notification 上下文可用
 ```text
 NewApp(children ...core.Node) *App
 
-// 三个具体设置函数（提案签名，不建包，实现可微调命名但语义不可丢）：
-func (a *App) SetComponent(tag string, omit bool) // tag="div"；omit=true 对应 component=false，不建包裹节点
-func (a *App) SetMessageConfig(cfg AppMessageConfig) // 如 cfg.Duration；与上层 AppConfig 浅合并，子级优先
-func (a *App) SetNotificationConfig(cfg AppNotificationConfig) // 同上，子级优先
+// 三个具体设置函数（提案签名，实现可微调命名但语义不可丢；结构体全字段待 message/notification L5 回填，此处只定已探明的子集）：
+func (a *App) SetComponent(tag string, omit bool) // tag="div"；omit=true 对应 component=false，不建包裹节点、无重置样式容器
+func (a *App) SetMessageConfig(cfg AppMessageConfig) // 与上层 AppConfig 浅合并，子级优先；已探明 cfg.Duration（秒，APP-S4），其余字段待 message L5 回填
+func (a *App) SetNotificationConfig(cfg AppNotificationConfig) // 合并规则同上；全字段待 notification L5 回填，未回填前只透传已探明子集
 
-// 上下文消费（子树内）：UseApp() (message, notification, modal 三件套)
-// 挂树：Node() core.Node； holders 经 MessageHolder()/ModalHolder()/NotificationHolder() 可验
+// 已探明的配置子集（其余待 L5 回填，不要假装确定）：
+// type AppMessageConfig struct { Duration float64 /*0=沿用上层/默认*/ }
+// type AppNotificationConfig struct { /* 全字段待 notification L5 回填 */ }
+
+// 上下文消费（子树内）：UseApp() 返回 message / notification / modal 三件套（具体返回类型待三控件 L5 回填，此处只定语义：必须在 App 子树内调用）
+// 挂树：Node() core.Node；holders 经 MessageHolder()/ModalHolder()/NotificationHolder() 可验（holder 具体类型随三控件实现，待 L5 回填）
 ```
 
 **默认值（未 Set 时）：**
@@ -298,14 +327,17 @@ func (a *App) SetNotificationConfig(cfg AppNotificationConfig) // 同上，子�
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+appHost（可选包裹；omit=true 即 component=false 时无此层、无重置样式容器）
+  ├─ children（原样透出，尺寸即 App 尺寸）
+  ├─ messageHolder（占位，随 children 挂载）
+  ├─ modalHolder（占位，随 children 挂载）
+  └─ notificationHolder（占位，随 children 挂载）
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- App 本体只做上下文透传 + 重置样式底，不自建事件/帧循环；组合 `ui/primitive` + `ui/core`。  
+- `rebuild()` 只读 component/message/notification 字段与 Theme Token；`component=false` 时跳过包裹层绘制。  
+- 命中区域与布局盒一致（`hit == layout == paint`）；holders 不占文档流视觉，焦点在 children/浮层内。  
+- 嵌套 App 按 §6.3 浅合并逐层覆盖，内层优先；主题切换后标记子树脏并 `rebuild`，重置样式底跟随新 Theme。  
 
 ### 6.12 完成定义（DoD）
 

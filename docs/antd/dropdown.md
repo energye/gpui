@@ -201,11 +201,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（浮层：依赖浮层定位 + Menu 项模型）。
+- **等谁**：等浮层定位底座（`AnchoredPopup` placement/flip）与 `kit.Menu` 项模型（`menu.items` 语义）就绪；触发器 Button 可先行。
+- **文件归属**：`ui/kit/dropdown/`。
+- **组合**：`menu.items` 复用 Menu 项模型（P0 仅一级 Children，见 §6.8）；浮层挂载走 `getPopupContainer` 映射的宿主，见 §6.7。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -220,12 +219,23 @@
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| arrow | 下拉框箭头是否显示 | boolean \| { pointAtCenter: boolean } | false | autoAdjustOverflow | 下拉框被遮挡时自动调整位置 | boolean | true | 5.2.0 | × |
-| classNames | 用于自定义 Dropdown 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | disabled | 菜单是否禁用 | boolean | - | ~~destroyPopupOnHide~~ | 关闭后是否销毁 Dropdown，使用 `destroyOnHidden` 替换 | boolean | false | destroyOnHidden | 关闭后是否销毁 Dropdown | boolean | false | 5.25.0 | × |
+| arrow | 下拉框箭头是否显示 | boolean \| { pointAtCenter: boolean } | false |  | × |
+| autoAdjustOverflow | 下拉框被遮挡时自动调整位置 | boolean | true | 5.2.0 | × |
+| classNames | 用于自定义 Dropdown 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - |  | 6.0.0 |
+| disabled | 菜单是否禁用 | boolean | - |  | × |
+| ~~destroyPopupOnHide~~ | 关闭后是否销毁 Dropdown，使用 `destroyOnHidden` 替换 | boolean | false |  | × |
+| destroyOnHidden | 关闭后是否销毁 Dropdown | boolean | false | 5.25.0 | × |
 | ~~dropdownRender~~ | 自定义下拉框内容，使用 `popupRender` 替换 | (menus: ReactNode) => ReactNode | - | 4.24.0 | × |
 | popupRender | 自定义弹出框内容 | (menus: ReactNode) => ReactNode | - | 5.25.0 | × |
-| getPopupContainer | 菜单渲染父节点。默认渲染到 body 上，如果你遇到菜单滚动定位问题，试试修改为滚动的区域，并相对其定位。[示例](https://codepen.io/afc163/pen/zEjNOy?editors=0010) | (triggerNode: HTMLElement) => HTMLElement | () => document.body | menu | 菜单配置项 | [MenuProps](/components/menu-cn#api) | - | ~~overlayClassName~~ | 下拉根元素的类名称, 请使用 `classNames.root` 替换 | string | - | ~~overlayStyle~~ | 下拉根元素的样式，请使用 `styles.root` | CSSProperties | - | placement | 菜单弹出位置：`top` `topLeft` `topRight` `bottom` `bottomLeft` `bottomRight` `left` `leftTop` `leftBottom` `right` `rightTop` `rightBottom` | string | `bottomLeft` | `left` `leftTop` `leftBottom` `right` `rightTop` `rightBottom`：6.5.0 | × |
-| styles | 用于自定义 Dropdown 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom) , CSSProperties> | - | trigger | 触发下拉的行为，移动端不支持 hover | Array&lt;`click`\|`hover`\|`contextMenu`> | \[`hover`] | open | 菜单是否显示 | boolean | - | onOpenChange | 菜单显示状态改变时调用，点击菜单按钮导致的消失不会触发 | (open: boolean, info: { source: 'trigger' \| 'menu' }) => void | - | `info.source`: 5.11.0 | × |
+| getPopupContainer | 菜单渲染父节点。默认渲染到 body 上，如果你遇到菜单滚动定位问题，试试修改为滚动的区域，并相对其定位。[示例](https://codepen.io/afc163/pen/zEjNOy?editors=0010) | (triggerNode: HTMLElement) => HTMLElement | () => document.body |  | × |
+| menu | 菜单配置项 | [MenuProps](/components/menu-cn#api) | - |  | × |
+| ~~overlayClassName~~ | 下拉根元素的类名称, 请使用 `classNames.root` 替换 | string | - |  | × |
+| ~~overlayStyle~~ | 下拉根元素的样式，请使用 `styles.root` | CSSProperties | - |  | × |
+| placement | 菜单弹出位置：`top` `topLeft` `topRight` `bottom` `bottomLeft` `bottomRight` `left` `leftTop` `leftBottom` `right` `rightTop` `rightBottom` | string | `bottomLeft` | `left` `leftTop` `leftBottom` `right` `rightTop` `rightBottom`：6.5.0 | × |
+| styles | 用于自定义 Dropdown 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom) , CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom) , CSSProperties> | - |  | 6.0.0 |
+| trigger | 触发下拉的行为，移动端不支持 hover | Array&lt;`click`\|`hover`\|`contextMenu`> | \[`hover`] |  | × |
+| open | 菜单是否显示 | boolean | - |  | × |
+| onOpenChange | 菜单显示状态改变时调用，点击菜单按钮导致的消失不会触发 | (open: boolean, info: { source: 'trigger' \| 'menu' }) => void | - | `info.source`: 5.11.0 | × |
 
 ### 导入方式
 
@@ -272,7 +282,7 @@ import { Dropdown } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **17** 个，均需可复现。
+11. **示例矩阵**：P0 按 §6.8 逐例对照表（11 例主路径），余下 P1 分期（`dropdown-button`/`custom-dropdown`/`loading`/`selectable`/`selection`/`style-class` 深度 + 3 个 debug）。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -295,7 +305,7 @@ import { Dropdown } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 开合、遮罩/Esc、placement、确认/取消主路径 | Headless / behavior 测试 |
+| **L1** | 行为 | hover/click/contextMenu 开合、外点/Esc 关闭、placement 定位、一级子菜单展开与选中关闭 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -323,11 +333,11 @@ import { Dropdown } from 'antd';
 | 触发器圆角（默认 Button 触发） | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | 菜单面板内边距 | **4** | `paddingXXS` / `dropdownEdgeChildPadding` |
-| 菜单项水平 padding | **12** | `controlPaddingHorizontal` |
-| 菜单项垂直 padding | **5** | `paddingBlock` ≈ `(controlHeight - fontSize*lineHeight)/2` |
-| 触发器与面板间距 | **4** | `marginXXS` 量级；kit `DefaultDropdownGap` |
-| 面板最小宽 | **160** | 产品回落（避免挤扁） |
-| 箭头边长（示意） | **8** | `sizePopupArrow` 近似；P0 几何示意即可 |
+| 菜单项水平 padding | **12** | `controlPaddingHorizontal`（±0.5px） |
+| 菜单项垂直 padding | **5** | `paddingBlock` ≈ `(controlHeight - fontSize*lineHeight)/2`（±0.5px） |
+| 触发器与面板间距 | **4** | `marginXXS` 量级；kit `DefaultDropdownGap`（±0.5px） |
+| 面板最小宽 | **160** | 产品回落（避免挤扁，`menu-full` 调截图验证） |
+| 箭头边长（示意） | **8** | `sizePopupArrow` 近似；P0 几何示意即可（±1px） |
 | Focus ring outset | ≈ **1.5px** 可见 | 触发器可聚焦时必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -387,28 +397,35 @@ open ──► panel 可见（Portal / AnchoredPopup）
    └─ 一级子菜单（Children 非空）──► 悬停/点击父项展开子列表（P0 最小；多级 gallery 见 P1）
 ```
 
+**触发条件 + 容差（可断言）：**
+
+- 开合：`trigger` 含 hover 时指针进入触发器即开，离开触发器且离开面板则关（DD-S8）；含 click 时点触发器 toggle；含 contextMenu 时右键开（DD-19b）。受控 `open` 下用户意图只走 `OnOpenChange(open, source)`，显示态以 `SetOpen` 为准（DD-S6）。
+- 关闭源：选可点项关（`source=menu`），外点/Esc 关（`source=trigger`，DD-19a 语义）；点 disabled/divider 不关不断言 OnMenuClick。
+- 定位：面板边与触发器边按 `placement` 12 向对齐，间距 4（±0.5px，DD-S7）；`autoAdjustOverflow=true` 时被遮挡翻转仍可见。
+
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| DD-S1 | click 触发打开 | 菜单可见 |
-| DD-S2 | 选一项 | OnMenuClick；关闭 |
-| DD-S3 | 外点 | 关闭 |
-| DD-S4 | Esc | 关闭 |
-| DD-S5 | disabled | 不打开 |
+| DD-S1 | click 触发打开 | 菜单可见（`IsOpen()==true`） |
+| DD-S2 | 选一项 | OnMenuClick(key)；关闭（`source=menu`） |
+| DD-S3 | 外点 | 关闭（`source=trigger`） |
+| DD-S4 | Esc | 关闭（`source=trigger`） |
+| DD-S5 | disabled | 不打开（一切意图忽略） |
 | DD-S6 | 受控 open=false | 保持关；意图走 OnOpenChange |
-| DD-S7 | placement | 面板相对触发器方位正确 |
+| DD-S7 | placement | 面板相对触发器方位正确，间距 4（±0.5px） |
 | DD-S8 | hover 触发 | 悬停开；离开触发器且离开面板则关 |
-| DD-S9 | 子菜单（一级 Children） | 可展开子项列表 |
-| DD-S10 | 危险项 | 文字用 error 色 |
+| DD-S9 | 子菜单（一级 Children） | hover/点父项展开一层子列表；二级以下 P1 不测 |
+| DD-S10 | 危险项 | 文字用 error 色（`colorError`） |
 
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| panel/popup | 容器底 + 边框 + 圆角 LG；无全屏 mask（Dropdown ≠ Modal） |
-| arrow | `arrow=true` 时在 placement 主轴侧绘制示意箭头；`pointAtCenter` 时箭头指向触发器中心 |
-| item hover | 项背景 hover 填充；disabled 无 hover 高亮 |
-| danger item | 标签 `colorError` |
-| divider | 细分割线 `colorSplit` |
+| panel/popup | 容器底 `colorBgElevated/Container` + 边 `colorBorder` + 圆角 8（`borderRadiusLG`）；内边距 4（`dropdownEdgeChildPadding`）；无全屏 mask（Dropdown ≠ Modal） |
+| arrow | `arrow=true` 时在 placement 主轴侧绘制示意箭头（边长约 8，±1px）；`pointAtCenter` 时箭头指向触发器中心 |
+| item（Menu 模型） | 文本 `colorText`（14px，横向 12/纵向 5）；hover 底 `controlItemBgHover`；`extra` 快捷键文案用次级色；`icon` 与 label 混排 |
+| danger item | 标签 `colorError`（DD-S10/DD-11） |
+| divider | 细分割线 `colorSplit`（`item.tsx` 含 divider 可见） |
+| disabled 项 | `colorDisabledText`，无 hover 高亮，不可点 |
 | open/close | 动画可关 / reduced-motion；**P0 瞬时切换** |
 | disabled 触发 | 触发器禁用皮，不打开 |
 
@@ -418,21 +435,25 @@ open ──► panel 可见（Portal / AnchoredPopup）
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | 触发器可激活；菜单容器 `menu`；项 `menuitem`（divider 用 `separator`） |
-| 名称 | 触发器可访问名 = 标签 / `AriaLabel` |
-| 焦点 | 触发器可聚焦并显示 focus ring；打开后 Esc 可关 |
-| Esc | 打开时 Esc 关闭菜单 |
-| 键盘 | 适用者：Enter/Space 在 click 触发模式下可切换（与 Button 一致） |
+| 角色 | 触发器可激活（button/link）；菜单容器 `menu`；项 `menuitem`（divider 用 `separator`，danger 项仍为 menuitem + error 色） |
+| 名称 | 触发器可访问名 = 标签 / `AriaLabel`；菜单项名 = label 文案（extra 快捷键不进读屏名） |
+| 焦点 | 触发器 Tab 可聚焦并显示 focus ring（outset ≈1.5px）；打开后 Esc 可关并回焦触发器 |
+| 键盘 | click 模式 Enter/Space 切换开合（与 Button 一致）；contextMenu 模式 Shift+F10（或右键）可开；Esc 关闭 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
-| 能力 | 策略 | 级别 |
+| 能力 | 真实映射（gpui 侧落点） | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 开合/选中关闭/外点/Esc（§6.4 DD-S1~S6/S8） | **对等**：`AnchoredPopup` + `OnOpenChange(open, source)`（menu/trigger 双源） | P0 L1 |
+| 面板度量（§6.2 pad 12/5/间距 4/圆角 8） | **对等** | P0 L2 |
+| `placement` 12 向 + `autoAdjustOverflow` | **对等**：`SetPlacement` + `SetAutoAdjustOverflow(true)` 走 flip/shift，被遮挡翻转仍可见 | P0 L1 |
+| `trigger` hover/click/contextMenu | **对等**：`SetTriggerModes` 多选；右键经宿主右键事件开（`context-menu.tsx`） | P0 L1 |
+| `getPopupContainer` 浮层容器 | **映射**：桌面 `Popup宿主 *core.Tree/Portal`（对等 body/滚动区挂载；滚动区内跟随定位，见 codepen 宿主示例） | P0 宿主 |
+| 滚动宿主跟随 | **映射**：挂载到滚动区时面板随宿主滚动重算锚点；挂错宿主则错位（FAQ 挤压/定位） | P0 宿主 |
+| `menu` 项模型（含一级 Children） | **对等**：复用 `kit.Menu` 项模型（`dropdown.tsx` Override vertical/selectable=false）；一级展开 P0，二级以下 P1 | P0 L1/P1 |
+| `popupRender` 自定义内容 | P1 分期（`custom-dropdown.tsx`） | P1 |
+| `destroyOnHidden` | **对等**：关后销毁面板节点（默认 false 保留） | P0 L1 |
+| animation/transition 像素级 | P0 瞬时开合，像素级 P1 | P0 L1/P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -449,10 +470,24 @@ open ──► panel 可见（Portal / AnchoredPopup）
 | `placement` | 必须 |
 | `trigger` | 必须（含 `hover` / `click` / `contextMenu`；`context-menu.tsx` 右键主路径为 P0） |
 | `menu` 项模型（依赖 Menu，见下） | **P0**：`Key/Label/Disabled/Divider/Danger/Extra/Icon/Children（一级）`；二级以下为 P1 |
-| 官方主路径示例（P0，共 11） | 基本、额外节点、弹出位置、箭头、其他元素、箭头指向、触发方式、触发事件、菜单隐藏方式（`overlay-open.tsx` 受控开合）、右键菜单（`context-menu.tsx`）、多级菜单一级（`sub-menu.tsx` 仅一级） |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 官方主路径示例（P0，共 11） | 基本（`basic.tsx`）、额外节点（`extra.tsx`）、弹出位置（`placement.tsx`）、箭头（`arrow.tsx`）、其他元素（`item.tsx`，含 divider/disabled）、箭头指向（`arrow-center.tsx`）、触发方式（`trigger.tsx`）、触发事件（`event.tsx`，menu.onClick）、菜单隐藏方式（`overlay-open.tsx` 受控开合）、右键菜单（`context-menu.tsx`）、多级菜单一级（`sub-menu.tsx` 仅一级） |
+| 度量 §6.2 | Token 断言（pad 12/5、间距 4±0.5、圆角 8） |
+| a11y §6.6 | 触发器可聚焦 ring 可见；Esc 关并回焦；项 menuitem 语义 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
+
+**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 11 例，余下 10 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本 / 额外节点 / 弹出位置 / 箭头 / 其他元素 / 箭头指向 / 触发方式 / 触发事件 / 菜单隐藏方式 / 右键菜单 / 多级菜单（一级） | P0 | 触发+定位+Menu 一级+受控主路径 |
+| 带下拉框的按钮（`dropdown-button.tsx`） | P1 | Button 紧凑组合另期 |
+| 扩展菜单（`custom-dropdown.tsx`） | P1 | `popupRender` 自定义内容分期 |
+| 加载中状态（`loading.tsx`） | P1 | Button loading 组合，Dropdown 本体无 loading |
+| 菜单可选选择（`selectable.tsx`） | P1 | `menu.selectable` 选中态分期 |
+| 划词操作（`selection.tsx`） | P1 | 宿主文本选中联动分期 |
+| 自定义语义结构的样式和类（`style-class.tsx`） | P1 | 函数式语义深度分期 |
+| 多级菜单二级以下（`sub-menu.tsx` 深层）/ `sub-menu-debug.tsx`（debug） | P1 | P0 只保一级 |
+| Menu 完整样式（`menu-full.tsx`，debug）/ `_InternalPanel`（`render-panel.tsx`，debug）/ Icon（`icon-debug.tsx`，debug） | P1 | 调试页，不验收 |
 
 > **Menu 项模型依赖声明**：Dropdown 不自建菜单语义，`menu.items` 复用 **Menu** 项模型（`Key` 必填、`Label`、`Disabled`、`Divider`、`Danger`、`Extra` 快捷键文案、`Icon`、`Children`）。`selectable/multiple` 选中语义、`danger/disabled` 染色、分隔线均走 Menu 侧实现；Dropdown 只负责触发器 + 浮层开合 + `OnMenuClick(key)` + `source=menu/trigger` 关闭策略（源码 `dropdown.tsx` `OverrideProvider mode=vertical selectable=false`）。
 > **多级写死**：P0 只保**一级**子菜单（`Children` 非空展开一层）；二级及更深、悬停连展动效、`sub-menu-debug` 均为 **P1**。
@@ -461,12 +496,12 @@ open ──► panel 可见（Portal / AnchoredPopup）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
+| semantic classNames/styles 深度 | 分期（`style-class.tsx`，见逐例表） |
+| `popupRender` 自定义内容 | 分期（`custom-dropdown.tsx`，见逐例表） |
+| `menu.selectable` 选中态 | 分期（`selectable.tsx`，见逐例表） |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余 6 个非 debug 示例（**P1**） | 带下拉框的按钮（`dropdown-button.tsx`：Button 紧凑组合另期）、扩展菜单（`custom-dropdown.tsx`：`popupRender` 自定义内容分期）、加载中状态（`loading.tsx`：Button loading 组合，Dropdown 本体无 loading）、菜单可选选择（`selectable.tsx`：`menu.selectable` 选中态分期）、划词操作（`selection.tsx`：宿主文本选中联动分期）、自定义语义结构的样式和类（`style-class.tsx`：结构可挂载 P0，函数式深度 P1） |
-| 多级深层（`sub-menu.tsx` 二级以下） | **P1**：P0 只保一级，见上 |
+| 浏览器-only API 或桌面无等价项 | 分期（Button 组合/划词宿主，见逐例表） |
+| debug 示例与官网逐像素哈希 | 分期（4 个 debug，见逐例表） |
 
 ### 6.9 验收用例表（可测）
 
@@ -486,21 +521,21 @@ open ──► panel 可见（Portal / AnchoredPopup）
 | DD-09 | L1 | hover 触发 | 悬停开，离开关 |
 | DD-10 | L1 | 一级子菜单（`Children`） | 可展开子项；完整多级 demo 属 P1 |
 | DD-11 | L1 | 危险项 | 红色样式（`colorError`） |
-| DD-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-13 | L1 | 复现官方示例「额外节点」（`extra.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-14 | L1 | 复现官方示例「弹出位置」（`placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-15 | L1 | 复现官方示例「箭头」（`arrow.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-16 | L1 | 复现官方示例「其他元素」（`item.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-17 | L1 | 复现官方示例「箭头指向」（`arrow-center.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-18 | L1 | 复现官方示例「触发方式」（`trigger.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-19 | L1 | 复现官方示例「触发事件」（`event.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DD-19a | L1 | 复现「菜单隐藏方式」（`overlay-open.tsx`）**P0** | 受控开合 + 选中关（`source=menu`）符合文档 |
+| DD-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | hover 触发器开；面板含 3 可点项；选中关并 OnMenuClick(key) |
+| DD-13 | L1 | 复现官方示例「额外节点」（`extra.tsx`，5.21.0） | 项尾 extra 快捷键文案次级色可见；点击仍走 OnMenuClick |
+| DD-14 | L1 | 复现官方示例「弹出位置」（`placement.tsx`） | 抽测 bottomLeft/topLeft/topRight 三方位，间距 4（±0.5px） |
+| DD-15 | L1 | 复现官方示例「箭头」（`arrow.tsx`） | `arrow=true` 时主轴侧箭头可见；`pointAtCenter` 指向触发器中心 |
+| DD-16 | L1 | 复现官方示例「其他元素」（`item.tsx`） | divider 线可见；disabled 项不可点不关；其余项可点关 |
+| DD-17 | L1 | 复现官方示例「箭头指向」（`arrow-center.tsx`） | `arrow={pointAtCenter:true}` 箭头对中，方位仍对 |
+| DD-18 | L1 | 复现官方示例「触发方式」（`trigger.tsx`） | click 模式点 toggle；hover 模式悬停开离开关 |
+| DD-19 | L1 | 复现官方示例「触发事件」（`event.tsx`） | `menu.onClick` 收到 key；面板选中后关（source=menu） |
+| DD-19a | L1 | 复现「菜单隐藏方式」（`overlay-open.tsx`）**P0** | 输入 `SetOpen(true)` 受控开 + `SetOnOpenChange/SetOnMenuClick`；选可点项回调 `OnMenuClick(key)` + `OnOpenChange(false, menu)`（显示态以回写 `SetOpen(false)` 为准）；可见谓词开时面板可见、回写关后消失，点 disabled/divider 不关不断言 |
 | DD-19b | L1 | 复现「右键菜单」（`context-menu.tsx`）**P0** | `contextMenu` 触发可开；外点/Esc 可关 |
 | DD-19c | L1 | 复现「多级菜单」（`sub-menu.tsx`）**P0 仅一级** | 一级 `Children` 可展；二级以下不测（P1） |
-| DD-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| DD-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| DD-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| DD-23 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| DD-20 | L2 | 读取 §6.2 关键尺寸/间距 | pad 横 12/纵 5、间距 4、圆角 8（±0.5px，箭头 ±1px） |
+| DD-21 | L2 | 默认皮颜色 | 面板底+边走 Token；danger 项 `colorError`；无硬编码品牌色 |
+| DD-22 | L2 | disabled 外观 | 触发器禁用皮不打开；disabled 项无 hover 高亮不可点 |
+| DD-23 | L1 | 键盘/焦点主路径 | 触发器 Tab 聚焦 ring 可见；click 模式 Enter/Space 切换；Esc 关并回焦 |
 | DD-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | DD-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | DD-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -556,16 +591,20 @@ IsOpen() bool
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Trigger?
-  └─ Portal
-       ├─ mask?
-       └─ panel / popup (+ arrow?)
+Trigger（Button/链接/自定义节点，role=button）
+  └─ Portal（getPopupContainer 宿主，默认根树）
+       └─ AnchoredPopup（placement 12 向 + autoAdjustOverflow flip/shift，间距 4）
+            ├─ arrow?（pointAtCenter 对中）
+            └─ Menu（vertical / selectable=false Override；P0 一级 Children）
+                 ├─ item Pressable（hover 底 + danger/error 色 + extra 次级文案）
+                 ├─ divider（colorSplit 线）
+                 └─ submenu（一级：hover/点父项展子列表；二级以下 P1）
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 组合 `ui/primitive` + `ui/core` + `kit.Menu` 项渲染，禁止第二套事件/帧循环。
+- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token；`destroyOnHidden=true` 时关后销毁面板节点。
+- 命中区域与布局盒一致（`hit == layout == paint`）；面板最小宽 160 防挤扁（FAQ #43025 用 max-content 语义）。
+- 动画跟随 Host Tick；尊重 reduced-motion（P0 瞬时）。
 
 ### 6.12 完成定义（DoD）
 

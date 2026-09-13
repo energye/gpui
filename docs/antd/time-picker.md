@@ -245,11 +245,11 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：浮层件 + 表单件；时间列面板走 Portal（与 DatePicker `showTime` 同列宽行高）；先做 `select`（弹层定位）再做本件。
+- **Form**：`TimeValue`（H/M/S + Valid）直绑，`status` 由 Item 下发。
+- **ConfigProvider**：size/variant/status 全局默认。
+- **浮层**：Modal/Drawer 内注意 `getPopupContainer`；`placement` 四角。
+- **文件归属**：`ui/kit/time-picker/`（触发器 + 时间列面板 + footer）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -276,15 +276,38 @@ dayjs.extend(customParseFormat)
 | ~~addon~~ | TimePicker 面板底部的附加内容渲染函数，请使用 `renderExtraFooter` 替代 | () => ReactNode | - | - | × |
 | cellRender | 自定义单元格的内容 | (current: number, info: { originNode: React.ReactNode, today: dayjs, range?: 'start' \| 'end', subType: 'hour' \| 'minute' \| 'second' \| 'meridiem' }) => React.ReactNode | - | 5.4.0 | × |
 | changeOnScroll | 在滚动时改变选择值 | boolean | false | 5.14.0 | × |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | defaultValue | 默认时间 | [dayjs](http://day.js.org/) | - | disabled | 禁用全部操作 | boolean | false | disabledTime | 不可选择的时间 | [DisabledTime](#disabledtime) | - | 4.19.0 | × |
-| format | 展示的时间格式 | string | `HH:mm:ss` | getPopupContainer | 定义浮层的容器，默认为 body 上新建 div | function(trigger) | - | hideDisabledOptions | 隐藏禁止选择的选项 | boolean | false | hourStep | 小时选项间隔 | number | 1 | inputReadOnly | 设置输入框为只读（避免在移动设备上打开虚拟键盘） | boolean | false | minuteStep | 分钟选项间隔 | number | 1 | needConfirm | 是否需要确认按钮，为 `false` 时失去焦点即代表选择 | boolean | - | 5.14.0 | × |
-| open | 面板是否打开 | boolean | false | placeholder | 没有值的时候显示的内容 | string \| \[string, string] | `请选择时间` | placement | 选择框弹出的位置 | `bottomLeft` `bottomRight` `topLeft` `topRight` | bottomLeft | ~~popupClassName~~ | 弹出层类名，请使用 `classNames.popup` 替换 | string | - | ~~popupStyle~~ | 弹出层样式对象, 请使用 `styles.popup` 替换 | object | - | prefix | 自定义前缀 | ReactNode | - | 5.22.0 | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | × |
+| defaultValue | 默认时间 | [dayjs](http://day.js.org/) | - |  | × |
+| disabled | 禁用全部操作 | boolean | false |  | × |
+| disabledTime | 不可选择的时间 | [DisabledTime](#disabledtime) | - | 4.19.0 | × |
+| format | 展示的时间格式 | string | `HH:mm:ss` |  | × |
+| getPopupContainer | 定义浮层的容器，默认为 body 上新建 div | function(trigger) | - |  | × |
+| hideDisabledOptions | 隐藏禁止选择的选项 | boolean | false |  | × |
+| hourStep | 小时选项间隔 | number | 1 |  | × |
+| inputReadOnly | 设置输入框为只读（避免在移动设备上打开虚拟键盘） | boolean | false |  | × |
+| minuteStep | 分钟选项间隔 | number | 1 |  | × |
+| needConfirm | 是否需要确认按钮，为 `false` 时失去焦点即代表选择 | boolean | - | 5.14.0 | × |
+| open | 面板是否打开 | boolean | false |  | × |
+| placeholder | 没有值的时候显示的内容 | string \| \[string, string] | `请选择时间` |  | × |
+| placement | 选择框弹出的位置 | `bottomLeft` `bottomRight` `topLeft` `topRight` | bottomLeft |  | × |
+| ~~popupClassName~~ | 弹出层类名，请使用 `classNames.popup` 替换 | string | - |  | × |
+| ~~popupStyle~~ | 弹出层样式对象, 请使用 `styles.popup` 替换 | object | - |  | × |
+| prefix | 自定义前缀 | ReactNode | - | 5.22.0 | × |
 | previewValue | 当用户选择时间悬停选项时，输入字段的值会发生临时更改 | false \| hover | hover | 6.0.0 | × |
-| renderExtraFooter | 选择框底部显示自定义的内容 | () => ReactNode | - | secondStep | 秒选项间隔 | number | 1 | showNow | 面板是否显示“此刻”按钮 | boolean | - | 4.4.0 | × |
-| size | 输入框大小，`large` 高度为 40px，`small` 为 24px，默认是 32px | `large` \| `medium` \| `small` | - | status | 设置校验状态 | 'error' \| 'warning' \| 'success' \| 'validating' | - | 4.19.0 | × |
-| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | suffixIcon | 自定义的选择框后缀图标 | ReactNode | - | use12Hours | 使用 12 小时制，为 true 时 `format` 默认为 `h:mm:ss a` | boolean | false | value | 当前时间 | [dayjs](http://day.js.org/) | - | variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | 5.13.0 \| `underlined`: 5.24.0 | 5.19.0 |
-| onCalendarChange | 待选日期发生变化的回调。`info` 参数自 4.4.0 添加 | function(dates: \[dayjs, dayjs], dateStrings: \[string, string], info: { range:`start`\|`end` }) | - | onChange | 时间发生变化的回调 | function(time: dayjs, timeString: string): void | - | onClear | 点击清除按钮时的回调 | () => void | - | 6.5.0 | × |
-| onOpenChange | 面板打开/关闭时的回调 | (open: boolean) => void | - 
+| renderExtraFooter | 选择框底部显示自定义的内容 | () => ReactNode | - |  | × |
+| secondStep | 秒选项间隔 | number | 1 |  | × |
+| showNow | 面板是否显示“此刻”按钮 | boolean | - | 4.4.0 | × |
+| size | 输入框大小，`large` 高度为 40px，`small` 为 24px，默认是 32px | `large` \| `medium` \| `small` | - |  | × |
+| status | 设置校验状态 | 'error' \| 'warning' \| 'success' \| 'validating' | - | 4.19.0 | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | × |
+| suffixIcon | 自定义的选择框后缀图标 | ReactNode | - |  | 6.3.0 |
+| use12Hours | 使用 12 小时制，为 true 时 `format` 默认为 `h:mm:ss a` | boolean | false |  | × |
+| value | 当前时间 | [dayjs](http://day.js.org/) | - |  | × |
+| variant | 形态变体 | `outlined` \| `borderless` \| `filled` \| `underlined` | `outlined` | 5.13.0 \| `underlined`: 5.24.0 | 5.19.0 |
+| onCalendarChange | 待选日期发生变化的回调。`info` 参数自 4.4.0 添加 | function(dates: \[dayjs, dayjs], dateStrings: \[string, string], info: { range:`start`\|`end` }) | - | 4.4.0 | × |
+| onChange | 时间发生变化的回调 | function(time: dayjs, timeString: string): void | - |  | × |
+| onClear | 点击清除按钮时的回调 | () => void | - | 6.5.0 | × |
+| onOpenChange | 面板打开/关闭时的回调 | (open: boolean) => void | - |  | × |
 #### DisabledTime
 
 ```typescript
@@ -388,7 +411,7 @@ import { TimePicker } from 'antd';
 
 实现 gpui kit 版 **TimePicker** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -398,7 +421,7 @@ import { TimePicker } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **15** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 gallery 8 例（基本、受控组件、三种大小、选择确认、禁用、选择时分、步长选项、附加内容）；12 小时制/范围选择器行为 P0、完整视觉页 P1；余下（滚动即改变、形态变体完整页、前后缀、自定义状态完整页、语义结构）P1，Notes 显式列出。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -451,6 +474,17 @@ import { TimePicker } from 'antd';
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+
+**面板 Token（对齐 `components/date-picker/style/token.ts` → `initPanelComponentToken` + `initPickerPanelToken`；TimePicker 为 `picker="time"` 薄封装，时间列与 DatePicker `showTime` 共用同一套列宽行高）：**
+
+| Token | 默认值 | 说明 |
+| --- | --- | --- |
+| `timeColumnWidth` | **56**（`controlHeightLG×1.4`） | 时/分/秒每列宽，`use12Hours` 时 AM/PM 列同宽 |
+| `timeColumnHeight` | **224**（`28×8`） | 时间列高，可见约 8 行，超高列内滚动 |
+| `timeCellHeight` | **28** | 时间单行高（含选中高亮底） |
+| 列数 | `format` 决定 | `HH:mm:ss`=3 列，`HH:mm`=2 列（无秒列），`use12Hours` 追加 1 列 meridiem |
+| 面板宽 | 列数×`timeColumnWidth` | 如 3 列=168，4 列（含 AM/PM）=224；footer（OK/Now/extra）通栏另计 |
+| 面板内边距 | **4** | `paddingXXS`（列间分隔走 `colorSplit`） |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -536,6 +570,15 @@ disabled ──*──► 忽略交互
 | status=error/warning | 语义色边框/反馈 |
 | 弹层 open | elevation 阴影；与触发器对齐 placement |
 
+**variant 矩阵（`variant` × chrome，L2，触发器壳与 DatePicker/Input 同规则）：**
+
+| variant | 填充 | 边框 | focus | 备注 |
+| --- | --- | --- | --- | --- |
+| `outlined`（默认） | `colorBgContainer` | 1px `colorBorder` 全边框 | 主色边 + 可见 ring | 默认 |
+| `filled` | `colorFillAlter` 浅底 | 无/弱边框 | 主色边 + ring | 浅底形态 |
+| `borderless` | 透明 | 无 | 仅 ring 可见 | 无 chrome |
+| `underlined` | 透明 | 仅底边 1px `colorBorder` | 底边走主色 | 底边线形态 |
+
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
 
@@ -609,22 +652,22 @@ disabled ──*──► 忽略交互
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | TP-01 | L1 | NewTimePicker 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| TP-02 | L1 | 选时间 | onChange |
-| TP-03 | L1 | format 展示 | 字符串匹配 |
-| TP-04 | L1 | hourStep=2 | 小时列间隔 2 |
-| TP-05 | L1 | disabledTime | 禁项不可选 |
-| TP-06 | L1 | clear | 空 |
-| TP-07 | L1 | Range | 起止 |
-| TP-08 | L1 | 12 小时制（适用） | am/pm |
-| TP-09 | L1 | 高度 | 32 |
-| TP-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TP-11 | L1 | 复现官方示例「受控组件」（`value.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TP-12 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TP-13 | L1 | 复现官方示例「选择确认」（`need-confirm.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TP-14 | L1 | 复现官方示例「禁用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TP-15 | L1 | 复现官方示例「选择时分」（`hide-column.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TP-16 | L1 | 复现官方示例「步长选项」（`interval-options.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TP-17 | L1 | 复现官方示例「附加内容」（`addon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| TP-02 | L1 | 面板点选 10:20:30 | `onChange` 一次，`timeString` 按 `format` 格式化，面板按 `needConfirm=false` 自动关闭 |
+| TP-03 | L1 | `format=HH:mm` 展示 | `DisplayText` 为 `10:20` 无秒段，面板仅时/分 2 列（列宽 56×2） |
+| TP-04 | L1 | `hourStep=2` 后展小时列 | 小时列仅出现 0,2,4…偶数行，点 4 回填 Hour=4 |
+| TP-05 | L1 | `disabledTime` 禁 12 时 | 12 行置灰不可点，点之无 `onChange`，其余行可选 |
+| TP-06 | L1 | 有值时点清除 | 值 Valid=false + `onClear` + `onChange` 空值各一次，输入框回占位 |
+| TP-07 | L1 | `NewTimeRangePicker` 选起止 | `GetRangeValue` 起<止（`order=true` 自动排序），`onChangeRange` 一次 |
+| TP-08 | L1 | `use12Hours=true` | 追加 AM/PM 第 4 列，`format` 默 `h:mm:ss a`，选 `3 PM` 存 Hour=15 |
+| TP-09 | L1 | `size` 三档实测 | 触发器高 small=24 / middle=32 / large=40（±0.5） |
+| TP-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 打开面板点时/分/秒各一行：`onChange` 一次且 `DisplayText` 与所点一致，关层 |
+| TP-11 | L1 | 复现官方示例「受控组件」（`value.tsx`） | `SetValue` 外部写入回显到输入框，面板内高亮行同步；内部点选仍只回调不私自改受控值 |
+| TP-12 | L1 | 复现官方示例「三种大小」（`size.tsx`） | 三档同值并排：实测高 24/32/40，面板列宽行高（56/28）三档一致 |
+| TP-13 | L1 | 复现官方示例「选择确认」（`need-confirm.tsx`） | `needConfirm=true` 时点选只写预览无 `onChange`，点 OK 后 `onChange` 一次并关层，点 Esc 丢弃预览 |
+| TP-14 | L1 | 复现官方示例「禁用」（`disabled.tsx`） | `disabled=true` 下点触发器不打开面板，无 `onChange/onOpenChange`，外观走禁用色 |
+| TP-15 | L1 | 复现官方示例「选择时分」（`hide-column.tsx`） | `format=HH:mm`：面板仅 2 列无秒列，提交值 Second=0，`timeString` 无秒段 |
+| TP-16 | L1 | 复现官方示例「步长选项」（`interval-options.tsx`） | `minuteStep=15` 时分列仅 00/15/30/45 四行，点 30 回填 Minute=30 |
+| TP-17 | L1 | 复现官方示例「附加内容」（`addon.tsx`） | `renderExtraFooter` 文案通栏贴底显示，点选时间链路不变，点 footer 不关层不提交 |
 | TP-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | TP-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | TP-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
@@ -680,11 +723,17 @@ FormatValue(v) / DisplayText() / Format string
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Column (Wrap，宽=触发器宽)
+  ├─ Trigger（Decorated，高 24/32/40，variant 见 §6.5）
+  │    └─ Flex(Row) CrossStretch gap≈6
+  │         prefix? · display text（format 串 / 空占位 Select time）· clear? · suffix clock?/spinner?(loading Ticker)
+  └─ AnchoredPopup (Portal，placement 四角，默认 bottomLeft)
+       └─ Decorated time panel（圆角 8，内边距 4，阴影 boxShadowSecondary，宽=列数×56）
+            ├─ Flex(Row) time columns（每列宽 56、高 224、列内滚动，列间 colorSplit 分隔）
+            │    ├─ hour col（step=hourStep）· minute col（step=minuteStep）· second col?(format 含 s)
+            │    ├─ meridiem col?(use12Hours，AM/PM 两行)
+            │    └─ cell × N（行高 28，选中底 controlItemBgActive + 字重 600，禁项置灰不可点）
+            └─ Footer（通栏）：Now?（showNow）· OK?（needConfirm）· extraFooter?(renderExtraFooter)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

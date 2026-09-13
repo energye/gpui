@@ -302,11 +302,11 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：浮层件 + 表单件；触发器色块 + 弹层调色面板（SV/Hue/Alpha/渐变条）；先做 `popover` 弹层与 `input` 触发器再做本件。
+- **Form**：色值 `value`（`Color` 结构体，忌字符串精度丢），`onChange` 回写。
+- **ConfigProvider**：size/全局默认。
+- **浮层**：`placement`（默认 bottomLeft）+ `open` 受控；Modal 内挂载。
+- **文件归属**：`ui/kit/color-picker/`（触发器 + 面板 + 颜色换算）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -430,7 +430,7 @@ import { ColorPicker } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **14** 个，均需可复现。
+11. **示例矩阵**：官方非 debug **14** 个：P0 **8**（§6.8 主路径）+ P1 **6**（触发器定制/编码/预设/面板）；debug 2 个不验收。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -573,12 +573,12 @@ disabled ── 阻断 open / 改色
 
 | 态 / 变体 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| default | 触发器（色块 24/16/32 随 size + 边框）+ 关闭时单行；Token 色 |
+| hover | 触发器边框强调；面板手柄 hover 放大 |
+| focus | 触发器**可见** focus ring + 主色边；Space/Enter 开关面板 |
+| disabled | 触发器禁用底/字色；不可打开面板 |
+| 面板 open | 宽 234 + 圆角 8 + 内边距 12；SV 方 + Hue/Alpha 条高 8 + 手柄 12/16；渐变条多手柄 |
+| cleared（allowClear） | 触发器空态（棋盘/空文案）；面板保留上次色 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -587,23 +587,22 @@ disabled ── 阻断 open / 改色
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | 触发器 `button`（`aria-haspopup=dialog` + `aria-expanded`）+ 面板 `dialog`；色块非唯一名称 |
+| 标签 | 触发器必须可访问名（`AriaLabel`/触发文案/showText）；面板内滑杆带 `aria-valuenow` |
+| 清除 | 清除钮有可访问名；cleared 空态仍保留触发器名称 |
+| 错误 | 表单校验错误走文案关联，不单独染色面板 |
+| 键盘 | Space/Enter 开关面板；左右箭头以 1% 步进当前滑杆/渐变手柄；Esc 关闭 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 选色/渐变/清除/禁用主路径（含 HSB↔RGB 换算 ±1） | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2：面板 234/滑条 8/手柄 12/16） | **对等** | P0 L2 |
+| 受控 `value` 用 `Color` 对象（忌字符串精度丢，见 FAQ） | **对等** | P0 L1 |
+| 预设色 `presets`/预设渐变/面板 format 切换/`disabledFormat` | 分期 | P1 |
+| 自定义触发器 `children`/触发事件 hover/`panelRender`/`arrow` | P0 给 API，完整视觉分期 | P0 API / P1 视觉 |
+| `placement` + `open` 受控 + `destroyOnHidden` | **映射**宿主容器 | P0 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）

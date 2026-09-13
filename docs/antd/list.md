@@ -272,11 +272,10 @@ Ant Design v6 将基于 rc-listy 正式提供 Listy 组件。
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：数据容器 + 同库 `Pagination`（切页）、`Spin`（loading 遮罩）、`Empty`（空态 `emptyText`）、`Card`（grid 项容器示例）；`grid` 断点列数经 `ViewportWidth` 注入。
+- **Item**：`List.Item`（actions/extra）+ `List.Item.Meta`（avatar/title/description）为内置子组件，同文件实现；`itemLayout` 决定 extra/actions 位置（LST-S9）。
+- **废弃冻结**：官方 List 已废弃（继任 Listy 另起规格），kit P0 冻结当前主路径不追新。
+- **文件归属**：`ui/kit/list/`（`list.go` + `item.go`/`meta.go`，复用 `ui/kit/pagination`、`ui/kit/spin`、`ui/kit/empty`）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -384,17 +383,17 @@ import { List } from 'antd';
 
 实现 gpui kit 版 **List** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **13** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（dataSource/renderItem/rowKey/itemLayout/size/loading/split/bordered/header/footer/loadMore/pagination/grid/locale/meta）；semantic 深度 P1。
+2. **视觉态**：bordered/split/itemLayout 双布局/loading 遮罩/empty/头尾/grid/分页 position-align（§6.4 LST-S1~S10，§6.5）。
+3. **尺寸态**：small / default / large（项 8·16/12·0/16·24，§6.2）。
+4. **受控/非受控**：分页受控（page/pageSize + onChange）与非受控默认页；dataSource 为父级数据。
+5. **数据驱动**：dataSource + renderItem + rowKey（缺省 `key` 或 `list-item-{index}`）。
+6. **无障碍**：List/List.Item 分表（§6.6）；空态朗读名、加载忙态、项内控件各自键盘。
+7. **RTL**：extra/actions/分页 align start/end 镜像；grid 流向镜像。
+8. **浮层**：无自带浮层；分页弹层随同库 Pagination。
+9. **性能**：分页切片 + 按需重建；虚拟列表 P1（复用 `ui/rendering` VirtualList，本地直喂）。
+10. **主题**：Token 化（§6.2 行线 Split/头尾 transparent）；支持 reduced-motion（瞬时）。
+11. **示例矩阵**：§6.8 P0 **8** 例（simple/basic/loadmore/vertical/pagination/grid/responsive/infinite-load）；`virtual-list/拖拽排序4例` 归 P1。
 
 ---
 ## 5. 参考链接
@@ -515,6 +514,14 @@ loading ──► Spin 遮罩（isLoading 时 body 占位 minHeight 53）
 | 态 | 规则 |
 | --- | --- |
 | default | 符合 §6.2 Token |
+| bordered | 外框 1px `colorBorder`＋圆角 6；头/尾/项横向 pad 24；分割线仍受 `split` 控制 |
+| split | 默认 true 画 `colorSplit` 行线；split=false 全列表无行线；grid 栅格不画行线 |
+| itemLayout | horizontal：extra 最右、actions 同行尾；vertical：extra 右侧、actions 底部 |
+| loading | Spin 遮罩 body（minHeight 53）；加载中不重复触发翻页/loadMore |
+| empty | 空数组走 Empty 文案（默认「暂无数据」），内边距 16 |
+| header/footer/loadMore | 头/尾通栏；loadMore 居尾部按钮区；grid 下仍通栏占整行 |
+| grid | 按 column/断点列数排，gutter 间距；bordered 网格卡片各自圆角 |
+| pagination | position bottom/top/both，align 默认 end；换页只切 dataSource 片 |
 | hover/active/focus | 可交互者具备反馈与 focus ring |
 | disabled / loading / empty | 按本控件语义 |
 | 主题切换 | 色与间距随 Theme 更新 |
@@ -524,21 +531,35 @@ loading ──► Spin 遮罩（isLoading 时 body 占位 minHeight 53）
 
 ### 6.6 无障碍（a11y）最低要求
 
+**List（容器）：**
+
 | 项 | 要求 |
 | --- | --- |
-| 表格/树/列表 | 结构角色与展开/选中态可读 |
-| 排序/筛选 | 控件有名 |
+| 角色 | 根 `role=list`；grid 栅格仍为 list，不用表格角色 |
+| 命名 | `AriaLabel` 可设；空态名=`locale.emptyText`（默认「暂无数据」） |
+| 键盘 | 本体无统一键盘操作；分页/loadMore 按各自控件处理 |
+| 加载 | loading 朗读“加载中”且不重复触发；翻页后焦点建议落新页首项或分页控件 |
+
+**List.Item（项）：**
+
+| 项 | 要求 |
+| --- | --- |
+| 角色 | 每项 `role=listitem`；grid 项同 |
+| 命名 | 名=title＋description（无 title 用首行文本）；extra/actions 各自命名 |
+| 键盘 | 纯展示项不抢焦点；项内按钮/链接按各自语义 Enter/Space 激活 |
+| 焦点环 | 分页、loadMore、项内可点控件聚焦时 ring 可见（outset≈1.5px） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| 主路径行为（§6.1 L1 / §6.4 LST-S1~S10） | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2 项12·0/8·16/16·24） | **对等** | P0 L2 |
+| `pagination` 切页（position/align） | **组合**：复用同库 `Pagination`；缺失时 P0 自绘简易页码 | P0 L1 |
+| `grid` 断点列数（xs…xxxl+gutter） | **对等**（`ViewportWidth` 注入） | P0 L1 |
+| 虚拟列表 `virtual-list` | **P1**：本地数据源直喂，复用 `ui/rendering` VirtualList | P1 |
+| 拖拽排序 4 示例（dnd-kit 手势） | **P1**：缺手势重排语义，先补手势再跟进 | P1 |
+| Semantic classNames/styles（actions/extra） | kit 浅钩子；深度 P1 | P0 浅 / P1 深 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -592,18 +613,18 @@ loading ──► Spin 遮罩（isLoading 时 body 占位 minHeight 53）
 | LST-07 | L1 | bordered | 边框 |
 | LST-08 | L1 | grid | 栅格项 |
 | LST-09 | L1 | header/footer | 可见 |
-| LST-10 | L1 | 复现官方示例「简单列表」（`simple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-11 | L1 | 复现官方示例「基础列表」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-12 | L1 | 复现官方示例「加载更多」（`loadmore.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-13 | L1 | 复现官方示例「竖排列表样式」（`vertical.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-14 | L1 | 复现官方示例「分页设置」（`pagination.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-15 | L1 | 复现官方示例「栅格列表」（`grid.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-16 | L1 | 复现官方示例「响应式的栅格列表」（`responsive.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-17 | L1 | 复现官方示例「滚动加载」（`infinite-load.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| LST-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| LST-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| LST-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| LST-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| LST-10 | L1 | 复现官方示例「简单列表」（`simple.tsx`） | bordered + header/footer + 三档 size（default/small/large）可布局 |
+| LST-11 | L1 | 复现官方示例「基础列表」（`basic.tsx`） | horizontal + `Item.Meta`（avatar/title/description）4 项可布局 |
+| LST-12 | L1 | 复现官方示例「加载更多」（`loadmore.tsx`） | `loadMore` 按钮 + 初始化 Spin 遮罩可布局；点击加载追加 |
+| LST-13 | L1 | 复现官方示例「竖排列表样式」（`vertical.tsx`） | `itemLayout=vertical` + extra 右侧 + actions 底部 + 分页 pageSize=3 |
+| LST-14 | L1 | 复现官方示例「分页设置」（`pagination.tsx`） | position top/bottom/both × align start/center/end 切页可测 |
+| LST-15 | L1 | 复现官方示例「栅格列表」（`grid.tsx`） | `grid={gutter:16,column:4}` + 项内 Card 可布局 |
+| LST-16 | L1 | 复现官方示例「响应式的栅格列表」（`responsive.tsx`） | `grid={xs:1,sm:2,…}` 断点列数随视口切换 |
+| LST-17 | L1 | 复现官方示例「滚动加载」（`infinite-load.tsx`） | 滚动触底追加 + Spin 遮罩；加载中不重复触发 |
+| LST-18 | L2 | 读取 §6.2 关键尺寸/间距 | 项12·0/8·16/16·24、头尾横24、空文16（±0.5px） |
+| LST-19 | L2 | 默认皮颜色 | 行线 `colorSplit`、头尾 transparent、空文次级色；无硬编码品牌色 |
+| LST-20 | L2 | disabled 外观 | **不适用**（List 无 disabled API；加载中用 Spin 遮罩）— 跳过 |
+| LST-21 | L1 | 键盘/焦点 | 本体无统一键盘；分页/loadMore/项内可点控件按各自语义可聚焦（§6.6） |
 | LST-22 | L1 | itemLayout=vertical 带 extra/actions | extra 右侧、actions 底部；horizontal 对照组位置正确 |
 | LST-23 | L2 | size small/large 项内边距 | 8 16 / 16 24（±0.5px） |
 | LST-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |

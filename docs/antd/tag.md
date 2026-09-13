@@ -167,11 +167,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L1（小标签件，无上游 kit 等待；反被 Tooltip/Popover 内容复用）。
+- **等谁**：等 Icon（`icon` 注册表）就绪；`color` 预设表自带，不同文件并行安全。
+- **文件归属**：`ui/kit/tag/`（Tag/CheckableTag/CheckableTagGroup 同文件）。
+- **组合**：Table 筛选标签/Select 多选标签同色板语义；`href` 真导航归 P1。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -231,7 +230,7 @@ import { Tag } from 'antd';
 | `color` | 标签色 | string | `variant="solid"` 时为 `default` | `solid` 默认颜色: 6.4.0 |
 | `disabled` | 是否禁用标签 | boolean | false | 6.0.0 |
 | `href` | 点击跳转的地址，指定此属性`tag`组件会渲染成 `` 标签 | string | - | 6.0.0 |
-| `icon` | 设置图标 | ReactNode | - | — |
+| `icon` | 设置图标（CheckableTag `icon` 5.27.0，主 Tag `icon` 无版本） | ReactNode | - | CheckableTag icon: 5.27.0 |
 | `onClose` | 关闭时的回调（可通过 `e.preventDefault()` 来阻止默认行为） | (e: React.MouseEvent) => void | - | — |
 | `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props })=> Record | - | — |
 | `target` | 相当于 a 标签的 target 属性，href 存在时生效 | string | - | 6.0.0 |
@@ -249,19 +248,15 @@ import { Tag } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Tag** 的验收清单：
+实现 gpui kit 版 **Tag** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **9** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（Tag/CheckableTag/CheckableTagGroup 三层，§6.3）；P1 可分期但命名兼容。
+2. **视觉态**：filled/solid/outlined × 预设/status/hex 映射（§6.5）；无 antd size 档，高约 22（§6.2 字 12/横边 7）。
+3. **交互**：closable 关闭（preventDefault 可阻止）、Checkable 切换、Group 单/多选（TAG-S 系）。
+4. **受控/非受控**：checked/value 受控优先 + default*（§6.3）。
+5. **无障碍**：Checkable checkbox、close button、文案即名（§6.6）。
+6. **主题**：Token 化（§6.2）；入场退场 P0 瞬时，像素级 P1。
+7. **示例矩阵**：官方非 debug **9** 个：P0 **8**（§6.8 主路径，动画瞬时/拖拽组合示意）+ P1 **1**（style-class）。
 
 ---
 ## 5. 参考链接
@@ -459,11 +454,11 @@ CheckableTagGroup
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 关闭 / Checkable / Group / color / variant / icon / disabled | **对等** | P0 L1 |
-| 几何 §6.2 / 默认皮 Token | **对等** | P0 L2 |
+| 字 12/高 22/横边 7 与三 variant 色皮（§6.2/§6.5） | **对等** | P0 L2 |
 | 预设全色板 + status 三 variant | **对等** | P0 |
 | `href`/`target` 真导航 | **映射** OnClick | P1 |
-| motion 入场退场像素 | **瞬时** 或 P1 | P1 |
-| dnd-kit 拖拽库 | **组合** gallery 重排示意 | P0 示意 / P1 完整 |
+| motion 入场退场像素 | **瞬时**（P0 允许瞬时增删） | P0 瞬时 / P1 像素 |
+| dnd-kit 拖拽库（`draggable.tsx`） | **组合** gallery 重排示意 | P0 示意 / P1 完整 |
 | semantic classNames/styles | kit 浅钩子 | P1 |
 | ConfigProvider 全局 tag | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -516,8 +511,8 @@ CheckableTagGroup
 | TAG-15 | L1 | 复现 draggable.tsx | 列表可重排（组合） |
 | TAG-16 | L2 | 读取 §6.2 关键尺寸 | font≈12、radius≈4、padH≈7、高≈20–24 |
 | TAG-17 | L2 | 默认皮颜色 | 走 Theme；无硬编码品牌色当默认 |
-| TAG-18 | L2 | disabled 外观 | 禁用色；不触发 close/change |
-| TAG-19 | L1 | Checkable 键盘 | Focus ring；Space/Enter 切换 |
+| TAG-18 | L2 | disabled 标签外观（`disabled.tsx` 文档页，P1 备注） | 禁用底/字；不触发 close/change |
+| TAG-19 | L1 | Checkable 键盘：Space/Enter 切换 | Tab 可达；ring 可见 |
 | TAG-20 | L3 | 关键态 golden | 基线（可后补） |
 | TAG-21 | L4 | 与 ant.design 并排 | 人眼签字 |
 | TAG-22 | P1 | §6.8 P1 任一能力 | 单独用例；Notes 标明 |

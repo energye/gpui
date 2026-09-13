@@ -147,11 +147,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（导航：依赖 Affix 钉住 + 滚动宿主定位）。
+- **等谁**：等 `kit.Affix`（`affix=true` 默认钉住的承载）与滚动视口（`getContainer` 桌面映射 `ScrollTarget`）就绪；`affix=false` 静态模式可先行。
+- **文件归属**：`ui/kit/anchor/`。
+- **组合**：默认包一层 Affix（`offsetTop`/`bounds` 透传）；`getContainer` 指向的滚动宿主由上层注入，见 §6.7。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -196,21 +195,23 @@ import { Anchor } from 'antd';
 | --- | --- | --- | --- | --- |
 | `affix` | 固定模式 | boolean \| Omit | true | object: 5.19.0 |
 | `bounds` | 锚点区域边界 | number | 5 | — |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props })=> Record | - | — |
+| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props })=> Record | - | 6.0.0 |
 | `getContainer` | 指定滚动的容器 | () => HTMLElement | () => window | — |
 | `getCurrentAnchor` | 自定义高亮的锚点 | (activeLink: string) => string | - | — |
 | `offsetTop` | 距离窗口顶部达到指定偏移量后触发 | number | 0 | — |
 | `showInkInFixed` | `affix={false}` 时是否显示小方块 | boolean | false | — |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props })=> Record | - | — |
+| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props })=> Record | - | 6.0.0 |
 | `targetOffset` | 锚点滚动偏移量，默认与 offsetTop 相同，[例子](#anchor-demo-targetoffset) | number | - | — |
 | `onChange` | 监听锚点链接改变 | (currentActiveLink: string) => void | - | — |
 | `onClick` | `click` 事件的 handler | (e: MouseEvent, link: object) => void | - | — |
 | `items` | 数据化配置选项内容，支持通过 children 嵌套 | { key, href, title, target, children }\[] [具体见](#anchoritem) | - | 5.1.0 |
 | `direction` | 设置导航方向 | `vertical` \| `horizontal` | `vertical` | 5.2.0 |
 | `replace` | 替换浏览器历史记录中项目的 href 而不是推送它 | boolean | false | 5.7.0 |
+| `replace`（item 级） | 单链替换历史而非 push，覆盖全局 `replace`（源码 `Anchor.tsx createNestedLink` 中 `{...item}` 覆盖） | boolean | false | 5.7.0 |
+| `targetOffset`（单链） | 单链滚动偏移，覆盖全局 `targetOffset`（`linkTargetOffsetRef`，`targetOffsetParams ?? targetOffset ?? offsetTop`，P1） | number | - | 6.4.0 |
 | `key` | 唯一标志 | string \| number | - | — |
 | `href` | 锚点链接 | string | - | — |
-| `target` | 该属性指定在何处显示链接的资源 | string | - | — |
+| `target`（item 级） | 该属性指定在何处显示链接的资源 | string | - | — |
 | `title` | 文字内容 | ReactNode | - | — |
 | `children` | 嵌套的 Anchor Link，`注意：水平方向该属性不支持` | [AnchorItem](#anchoritem)\[] | - | — |
 
@@ -231,7 +232,7 @@ import { Anchor } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **9** 个，均需可复现。
+11. **示例矩阵**：P0 按 §6.8 逐例对照表（8 例主路径），余下 P1 分期（单链 `targetOffset` debug、`legacy-anchor`、`component-token`、`style-class` 语义深度）。
 
 ---
 ## 5. 参考链接
@@ -253,7 +254,7 @@ import { Anchor } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 选中/展开/分页或步骤切换与键盘 | Headless / behavior 测试 |
+| **L1** | 行为 | 点击跳转锚点、滚动跟随高亮（bounds 交叠阈值）、ink 指示、affix 钉住与键盘激活 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -269,7 +270,9 @@ import { Anchor } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design Anchor `style/index.ts` + 本库 Theme 默认** 为准（`scale=1`，种子：`fontSize=14`、`padding=16`、`paddingXXS=4`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design Anchor `style/index.ts` + 本库 Theme 默认** 为准（`scale=1`，种子：`fontSize=14`、`padding=16`、`paddingXXS=4`、`lineWidth=1`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。源码：`components/anchor/style/index.ts` `prepareComponentToken` + `mergeToken`（`holderOffsetBlock=paddingXXS=4`；次级/标题/圆点见 `AnchorToken`）。
+
+> Anchor **无** `size` / `controlHeight` 档位（与 Button 不同）；通用 controlHeight 表不适用。
 
 > Anchor **无** `size` / `controlHeight` 档位（与 Button 不同）；通用 controlHeight 表不适用。
 
@@ -279,13 +282,13 @@ import { Anchor } from 'antd';
 | --- | --- | --- |
 | 字号 | **14** | `fontSize` |
 | 链接纵向内间距 `linkPaddingBlock` | **4** | `paddingXXS` → kit `TokenPaddingXS` |
-| 链接横向起边距 `linkPaddingInlineStart` | **16** | `padding` → kit `TokenPadding` |
-| 容器块偏移 `holderOffsetBlock` | **4** | `paddingXXS` |
-| 次级链接纵向间距 `anchorPaddingBlockSecondary` | **2** | `paddingXXS / 2` |
-| 标题块间距 `anchorTitleBlock` | **3** | `fontSize/14*3`（仅有嵌套子链时） |
-| 指示条粗细（ink / 左轨） | **2** | antd `lineWidthBold`（≈ `lineWidth*2`；kit 回落 2） |
+| 链接横向起边距 `linkPaddingInlineStart` | **16** | `padding` → kit `TokenPadding`（±0.5px） |
+| 容器块偏移 `holderOffsetBlock` | **4** | `paddingXXS`（`marginBlockStart=-4` / `paddingBlockStart=4`，±0.5px） |
+| 次级链接纵向间距 `anchorPaddingBlockSecondary` | **2** | `paddingXXS / 2`（`mergeToken` 计算值，±0.5px） |
+| 标题块间距 `anchorTitleBlock` | **3** | `fontSize/14*3`（仅有嵌套子链时；±0.5px） |
+| 指示条粗细（ink / 左轨） | **2** | antd `lineWidthBold`（≈ `lineWidth*2`；kit 回落 2，±0.5px） |
 | 分割轨色 | `colorSplit` | 垂直左轨 / 水平底轨 |
-| 圆角（容器） | **6** | `borderRadius`（链接本身无圆角强制） |
+| 圆角（容器） | **6** | `borderRadius`（链接本身无圆角强制；±0.5px） |
 | 边框线宽（轨） | **1** | `lineWidth`（水平底部分割线） |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
@@ -332,26 +335,34 @@ import { Anchor } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-click link ──► 滚动到 href 目标 + onClick
-scroll ──► 计算 active link + ink + onChange
-affix ──► 钉住
+click link ──► 滚动到 href 目标（应用 targetOffset 停位偏移）+ onClick({title,href,key})
+scroll（滚动宿主 ScrollTarget 上报 Y）──► 按 bounds 交叠阈值计算 active link + ink 同步 + onChange(activeHref)
+affix=true ──► Affix 钉住（offsetTop 阈值，见 Affix AFX-S1）
 ```
+
+**触发条件 + 容差（可断言）：**
+
+- 交叠阈值：`bounds` 默认 **5**（px）；滚动位置落在 `[sectionTop - targetOffset - bounds, sectionTop - targetOffset + bounds]` 即视为进入该锚点区，active 切换。断言：构造两 section 间距 20，`bounds=5` 时分界点前后 ±0.5px 内切换正确。
+- ink 偏移：ink 条顶部 = active title 盒顶部 ±0.5px；`showInkInFixed=false + affix=false` 时 ink 隐藏（`InkVisible()==false`）。
+- `targetOffset` 停位：`ScrollTo(href)` 后视口 Y = `sectionY - (targetOffset ?? offsetTop)`，±0.5px。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| ANC-S1 | 点击项 | 滚到锚点 |
-| ANC-S2 | 滚动经过 section | active 切换；onChange |
-| ANC-S3 | affix | 钉住 |
-| ANC-S4 | ink | 指示条在 active |
-| ANC-S5 | 嵌套 items | 二级可见 |
-| ANC-S6 | targetOffset | 停位偏移 |
+| ANC-S1 | 点击项 | 滚到锚点（停位 = sectionY - targetOffset/offsetTop，±0.5px） |
+| ANC-S2 | 滚动经过 section（含 bounds=5 交叠带） | active 切换；onChange(activeHref) |
+| ANC-S3 | affix=true 默认 | 钉住（阈值走 Affix offsetTop 规则） |
+| ANC-S4 | ink | 指示条顶部与 active title 对齐 ±0.5px |
+| ANC-S5 | 嵌套 items（vertical） | 二级可见；horizontal 忽略 children |
+| ANC-S6 | targetOffset | 停位偏移 = sectionY - targetOffset（±0.5px） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | title 字色 `colorText`（14px，`linkPaddingBlock=4` / `linkPaddingInlineStart=16`）；左轨 `colorSplit` 宽 2（`lineWidthBold`） |
+| hover | title 字色切 `colorPrimaryHover`（或 `colorPrimary`），无底色块 |
+| active | title 字色 `colorPrimary`；ink 条（宽 2，主色）在 active title 左侧，顶部对齐 ±0.5px |
+| focus | title 可聚焦时 focus ring 可见（outset ≈1.5px） |
+| horizontal | 底轨分割线（`lineWidth=1` + `colorSplit`）+ 底 ink 条；children 不渲染 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
 
@@ -361,19 +372,22 @@ affix ──► 钉住
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | navigation / menu / tablist 等 |
-| 当前 | aria-current / selected |
-| 键盘 | 方向键与激活 |
+| 角色 | 根 `role=navigation`；链接列为 link 列表 |
+| 当前 | active 项 `aria-current=true`（或 `aria-current="location"`），读屏报“当前位置” |
+| 键盘 | Tab 逐项聚焦，focus ring 可见；Enter/Space 跳转并触发 OnClick；方向键上下在项间移动焦点 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
-| 能力 | 策略 | 级别 |
+| 能力 | 真实映射（gpui 侧落点） | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 主路径行为（点击跳转/滚动高亮/ink） | **对等**：`ScrollTo` + `SyncFromScroll` + ink 同步 | P0 L1 |
+| 链接/ink 度量（§6.2 pad 4/16/轨 2） | **对等** | P0 L2 |
+| `affix` 钉住与 `offsetTop`/`bounds` | **对等**：包 `kit.Affix`，`offsetTop` 透传 Affix 阈值（桌面 Sticky 映射） | P0 L1 |
+| `getContainer` 滚动容器 | **映射**：桌面 `ScrollTarget *ScrollViewport` + `SectionOffsets map[href]Y` + `SyncFromScroll`（对等 DOM id 查询 + scroll 监听） | P0 宿主 |
+| `replace` 历史替换 | **映射**：桌面 History 栈改末项（`History []string + CurrentHref`，`Replace=true` 时不 push） | P0 L1 |
+| `getCurrentAnchor(activeHref)` 自定义高亮 | **对等**：`SetGetCurrentAnchor(func)`，`ActiveLink` 存解析后 href | P0 L1 |
+| per-link `targetOffset`（6.4.0） | P1 分期（`linkTargetOffsetRef` 单链覆盖，见 targetOffset-per-link debug） | P1 |
+| ink 滑动动画 | P0 瞬时同步 active title 盒，像素级滑动 P1 | P0 L1/P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -396,10 +410,20 @@ affix ──► 钉住
 | `replace` | 导航时替换历史项而非 push（桌面映射见 §6.7） |
 | ink 指示条 | active 时可见（vertical 左轨 / horizontal 底轨）；`affix=false && !showInkInFixed` 隐藏 |
 | 滚动宿主映射 | 桌面：`ScrollTarget *ScrollViewport` + `SectionOffsets map[href]Y` + `SyncFromScroll`（对等 `getContainer` + DOM id 查询） |
-| 官方主路径示例 | 基本、横向 Anchor、静态位置、自定义 onClick、自定义锚点高亮、targetOffset、onChange、replace |
-| 度量 §6.2 | Token 断言 |
+| 官方主路径示例（P0，8 例） | 基本（`basic.tsx`）、横向 Anchor（`horizontal.tsx`）、静态位置（`static.tsx`，`affix=false`）、自定义 onClick（`onClick.tsx`）、自定义锚点高亮（`customizeHighlight.tsx`，`getCurrentAnchor`）、设置锚点滚动偏移量（`targetOffset.tsx`）、监听锚点链接改变（`onChange.tsx`）、替换历史中的 href（`replace.tsx`） |
+| 度量 §6.2 | Token 断言（pad 4/16、轨 2，±0.5px） |
 | a11y §6.6 | role=navigation；当前 `aria-current`；键盘方向键 + 激活 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
+
+**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 4 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本 / 横向 / 静态位置 / 自定义 onClick / 自定义锚点高亮 / targetOffset / onChange / replace | P0 | 点击跳转 + 滚动高亮 + ink + affix 主路径 |
+| 每个链接单独的滚动偏移量（`targetOffset-per-link.tsx`，debug，6.4.0） | P1 | 单链 `targetOffset` 覆盖分期 |
+| 废弃的 JSX 示例（`legacy-anchor.tsx`，debug） | P1 | 旧 JSX 形态，不进主路径 |
+| 自定义语义结构的样式和类（`style-class.tsx`）/ `_semantic.tsx` | P1 | semantic 深度 |
+| 组件 Token（`component-token.tsx`，debug） | P1 | 调试页，不验收 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
@@ -420,24 +444,24 @@ affix ──► 钉住
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | ANC-01 | L1 | NewAnchor 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| ANC-02 | L1 | 点击项 | 滚到锚点 |
-| ANC-03 | L1 | 滚动经过 section | active 切换；onChange |
-| ANC-04 | L1 | affix | 钉住 |
-| ANC-05 | L1 | ink | 指示条在 active |
-| ANC-06 | L1 | 嵌套 items | 二级可见 |
-| ANC-07 | L1 | targetOffset | 停位偏移 |
-| ANC-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-09 | L1 | 复现官方示例「横向 Anchor」（`horizontal.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-10 | L1 | 复现官方示例「静态位置」（`static.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-11 | L1 | 复现官方示例「自定义 onClick 事件」（`onClick.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-12 | L1 | 复现官方示例「自定义锚点高亮」（`customizeHighlight.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-13 | L1 | 复现官方示例「设置锚点滚动偏移量」（`targetOffset.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-14 | L1 | 复现官方示例「监听锚点链接改变」（`onChange.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-15 | L1 | 复现官方示例「替换历史中的 href」（`replace.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ANC-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| ANC-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| ANC-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| ANC-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| ANC-02 | L1 | 点击项 | 滚到锚点（停位=sectionY-targetOffset/offsetTop，±0.5px）；OnClick 载荷含 title/href |
+| ANC-03 | L1 | 滚动经过 section（含 bounds=5 交叠带） | active 切换；onChange(activeHref) |
+| ANC-04 | L1 | affix=true 默认 | 钉住（阈值走 Affix offsetTop） |
+| ANC-05 | L1 | ink | 指示条顶部与 active title 对齐 ±0.5px；affix=false 且 !showInkInFixed 时隐藏 |
+| ANC-06 | L1 | 嵌套 items（vertical）/ horizontal 忽略 children | 二级可见 / 水平不渲染子链 |
+| ANC-07 | L1 | targetOffset=100 后 ScrollTo | 停位=sectionY-100（±0.5px） |
+| ANC-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 三项纵排可点；点击切 active 并 ScrollTo 对应 section（±0.5px） |
+| ANC-09 | L1 | 复现官方示例「横向 Anchor」（`horizontal.tsx`） | 横排底轨 + 底 ink；点击切 active；children 不渲染 |
+| ANC-10 | L1 | 复现官方示例「静态位置」（`static.tsx`） | `affix=false` 不钉住；`showInkInFixed=false` 时 ink 隐藏 |
+| ANC-11 | L1 | 复现官方示例「自定义 onClick 事件」（`onClick.tsx`） | 点击触发 OnClick 且载荷含 title/href；仍滚动到锚点 |
+| ANC-12 | L1 | 复现官方示例「自定义锚点高亮」（`customizeHighlight.tsx`） | `getCurrentAnchor` 返回值即 ActiveLink；ink 跟随解析后 href |
+| ANC-13 | L1 | 复现官方示例「设置锚点滚动偏移量」（`targetOffset.tsx`） | 停位=sectionY-targetOffset（±0.5px）；滚动高亮分界同偏移 |
+| ANC-14 | L1 | 复现官方示例「监听锚点链接改变」（`onChange.tsx`） | 滚动切 active 时 OnChange 恰调一次且参数为新 href |
+| ANC-15 | L1 | 复现官方示例「替换历史中的 href」（`replace.tsx`） | `replace=true` 跳转改 History 末项不 push；长度不变 |
+| ANC-16 | L2 | 读取 §6.2 关键尺寸/间距 | pad 纵 4/横 16、轨 2（±0.5px） |
+| ANC-17 | L2 | 默认皮颜色 | title 默认 `colorText`、active/ink `colorPrimary`、轨 `colorSplit`；无硬编码品牌色 |
+| ANC-18 | L2 | Anchor 无 disabled API | 本用例记 N/A（`colorDisabledText` 仅预留不断言） |
+| ANC-19 | L1 | 键盘/焦点主路径 | Tab 逐项聚焦 ring 可见；Enter/Space 跳转触发 OnClick；上下键移动焦点 |
 | ANC-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | ANC-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | ANC-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

@@ -115,10 +115,15 @@ Skeleton 为装饰性占位，不可聚焦，无 disabled/loading 焦点态。
 | 列表 | `list.tsx` | 否 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 | 自定义组件 Token | `componentToken.tsx` | 是 |
+| 语义结构调试 | `_semantic.tsx` | 是 |
+| 元素语义调试 | `_semantic_element.tsx` | 是 |
 
 ### 2.7 组合关系
 
-- **Card/List**：常作骨架容器；**Spin**：同为加载反馈，按场景二选一。
+- **依赖等级**：L1（占位装饰，反被浮层复用）。
+- **等谁**：无上游等待；反被 Drawer/Modal（`loading` 骨架）、Card/List（列表占位）复用；同为加载反馈与 Spin 按场景二选一。
+- **文件归属**：`ui/kit/skeleton/`。
+- **组合**：`loading=false` 时只挂业务 children；`active` 扫光走 Host Tick。
 
 ---
 ## 3. 配置（API）
@@ -236,10 +241,12 @@ Skeleton 为装饰性占位，不可聚焦，无 disabled/loading 焦点态。
 ### 6.4 交互状态机（L1）
 
 ```text
-loading=true  -> skeleton
-loading=false -> children
-active        -> shimmer / pulse
+loading=true  -> skeleton（默认标题 + 3 行段落，末行 61% 宽）
+loading=false -> children（骨架节点全下树）
+active        -> shimmer / pulse（1.4s 扫光，不改变布局盒）
 ```
+
+**最简重点**：`NewSkeleton()` 零配置即基本占位（标题条 16 + 3 行 16，末行 61%）；`SetParagraphRows(n)`/`SetTitleWidth`/`SetAvatarSize` 为 P0 主路径，完整对象形态（width 数组/百分比字符串）P1。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |

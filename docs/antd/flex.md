@@ -127,11 +127,12 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；纯弹性布局，不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；常作子项容器被引用，不同文件并行安全。
+- **文件归属**：`ui/kit/flex/`（只改自己文件，并行安全）。
+- **ConfigProvider**：主题（间隙 Token）、默认 props。
+
+> debug 标记依据：`debug.tsx` 文件名含 debug，为内部调试用例，不计 P0。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -178,7 +179,7 @@ import { Flex } from 'antd';
 
 1. **配置面**：`vertical`/`orientation`、`gap`、`justify`、`align`、`wrap`（最小排布语义，见 §6.3–§6.4）。
 2. **几何**：无颜色、无交互态，只验子项位置与间隙（§6.2 gap 8/16/24，§6.9 FLX-02…09）。
-3. **示例矩阵**：官方非 debug 示例约 **5** 个，均需可复现。
+3. **示例矩阵**：P0 按 §6.8（5 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -230,24 +231,13 @@ import { Flex } from 'antd';
 | Flex gap small | **8** | antd `paddingXS`(=sizeXS)；kit `DefaultFlexGapSmall` |
 | Flex gap medium / middle | **16** | `padding` / `TokenPadding` |
 | Flex gap large | **24** | `paddingLG` / `TokenPaddingLG` |
-| gap s/m/l | **8 / 16 / 24** | 同上 |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 布局容器无焦点皮；可交互子控件自理 |
+| gap 数字 | 透传 px（±0.5px） | 显式 `SetGap` 覆盖预设 |
+
+> Flex 为无皮布局容器，无字号/圆角/边框/Focus ring 自有 chrome（子项自理）。
 
 #### 6.2.2 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
-| --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
-
-禁止硬编码品牌色作为唯一默认皮。
+Flex 为纯布局，无自有颜色：子项底色/边框走子控件自身 Token；禁止为 Flex 硬编码品牌色。
 
 ### 6.3 关键配置与语义
 
@@ -278,14 +268,14 @@ direction/gap/justify/align/wrap 布局 children
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| FLX-S1 | 默认两子 | 横向 |
-| FLX-S2 | vertical | 纵向 |
-| FLX-S3 | gap middle | 间距 16 |
-| FLX-S4 | gap large | 24 |
-| FLX-S5 | justify=space-between | 两端 |
-| FLX-S6 | align=center | 交叉轴居中 |
-| FLX-S7 | wrap + 窄宽 | 换行 |
-| FLX-S8 | gap=8 数字 | 8px |
+| FLX-S1 | 默认两子（gap=0，horizontal） | 两子顶坐标差≤0.5px，第二子左=第一子右±0.5px |
+| FLX-S2 | vertical=true | 两子左坐标差≤0.5px，第二子顶=第一子底±0.5px |
+| FLX-S3 | gap=middle | 相邻子间距 16±0.5px |
+| FLX-S4 | gap=large | 相邻子间距 24±0.5px |
+| FLX-S5 | justify=space-between，容器宽 600，两子宽 100 | 首子左=容器左±0.5px，尾子右=容器右±0.5px |
+| FLX-S6 | align=center，子高 20/40 | 矮子交叉轴中线与行中线差≤0.5px |
+| FLX-S7 | wrap=true，窄容器（子宽和>容器宽） | 第二项顶坐标大于第一项顶坐标，行数≥2 |
+| FLX-S8 | gap=8 数字 | 相邻子间距 8±0.5px |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -308,10 +298,10 @@ direction/gap/justify/align/wrap 布局 children
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 间隙度量（§6.2 gap 8/16/24） | **对等** | P0 L2 |
+| `justify`/`align`/`wrap` 排布语义 | **对等** | P0 L1 |
+| `flex` CSS 简写（容器作 item） | P1 分期 | P1 |
+| `component` 自定义元素类型 | 浏览器-only，P1 不做 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -344,6 +334,13 @@ direction/gap/justify/align/wrap 布局 children
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
+**6 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 5 例全收，1 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本布局/对齐方式/设置间隙/自动换行/组合使用 | P0 | 方向+对齐+间隙+换行主路径，gallery 必备 |
+| 调试专用 | 不计 | 文件名含 debug 的内部用例 |
+
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestFlex_PRD_<ID>` 或 gallery 场景 ID。  
@@ -352,23 +349,23 @@ direction/gap/justify/align/wrap 布局 children
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | FLX-01 | L1 | NewFlex 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| FLX-02 | L1 | 默认两子 | 横向 |
-| FLX-03 | L1 | vertical | 纵向 |
-| FLX-04 | L1 | gap middle | 间距 16 |
-| FLX-05 | L1 | gap large | 24 |
-| FLX-06 | L1 | justify=space-between | 两端 |
-| FLX-07 | L1 | align=center | 交叉轴居中 |
-| FLX-08 | L1 | wrap + 窄宽 | 换行 |
-| FLX-09 | L1 | gap=8 数字 | 8px |
-| FLX-10 | L1 | 复现官方示例「基本布局」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| FLX-11 | L1 | 复现官方示例「对齐方式」（`align.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| FLX-12 | L1 | 复现官方示例「设置间隙」（`gap.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| FLX-13 | L1 | 复现官方示例「自动换行」（`wrap.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| FLX-14 | L1 | 复现官方示例「组合使用」（`combination.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| FLX-15 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| FLX-16 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| FLX-17 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| FLX-18 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| FLX-02 | L1 | 默认两子（gap=0，horizontal） | 两子顶坐标差≤0.5px，第二子左=第一子右±0.5px |
+| FLX-03 | L1 | vertical=true | 两子左坐标差≤0.5px，第二子顶=第一子底±0.5px |
+| FLX-04 | L1 | gap=middle | 相邻子间距 16±0.5px |
+| FLX-05 | L1 | gap=large | 相邻子间距 24±0.5px |
+| FLX-06 | L1 | justify=space-between，容器宽 600，两子宽 100 | 首子左=容器左±0.5px，尾子右=容器右±0.5px |
+| FLX-07 | L1 | align=center，子高 20/40 | 矮子交叉轴中线与行中线差≤0.5px |
+| FLX-08 | L1 | wrap=true，窄容器 | 行数≥2，第二项顶坐标大于第一项顶坐标 |
+| FLX-09 | L1 | gap=8 数字 | 相邻子间距 8±0.5px |
+| FLX-10 | L1 | 挂 `basic.tsx`（两子，gap=small） | 两子顶差≤0.5px，间距 8±0.5px |
+| FLX-11 | L1 | 挂 `align.tsx`（子高 20/40，align=center） | 矮子中线与行中线差≤0.5px |
+| FLX-12 | L1 | 挂 `gap.tsx`（small/middle/large 三行） | 三行间距分别为 8/16/24（±0.5px） |
+| FLX-13 | L1 | 挂 `wrap.tsx`（wrap=true，窄容器） | 行数≥2，第二项顶>第一项顶 |
+| FLX-14 | L1 | 挂 `combination.tsx`（vertical+justify+align 组合） | 主轴垂直，子左差≤0.5px，间距=gaps±0.5px |
+| FLX-15 | L2 | 读取 §6.2 gap small/middle/large | 8/16/24（±0.5px） |
+| FLX-16 | L2 | 默认皮颜色 | 无自有颜色；无硬编码品牌色 |
+| FLX-17 | L2 | disabled 外观 | **不适用**（纯布局无禁用态） |
+| FLX-18 | L1 | 键盘/焦点主路径 | **不适用**（容器不聚焦；子项自理） |
 | FLX-19 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | FLX-20 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | FLX-21 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -409,8 +406,8 @@ Node() core.Node
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Layout root
-  └─ children with gap/span/handles
+Flex root（Row/Column，gap=ResolvedGap）
+  └─ child × N（justify 主轴分布，align 交叉轴对齐）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

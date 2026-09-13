@@ -250,11 +250,10 @@ Menu 初始化时会先全部渲染，然后根据宽度裁剪内容。当处于
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（导航底座：被 Dropdown/Breadcrumb 复用项模型，反依赖浮层定位）。
+- **等谁**：等浮层定位（`vertical`/`horizontal` 弹层 `popupOffset`/`popupRender` 宿主）就绪；`inline` 内嵌模式可先行。
+- **文件归属**：`ui/kit/menu/`。
+- **组合**：项模型（item/submenu/group/divider）被 Dropdown `menu.items`、Breadcrumb `menu` 复用；弹层挂载走浮层宿主，见 §6.7。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -392,7 +391,7 @@ import { Menu } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
+11. **示例矩阵**：P0 按 §6.8 逐例对照表（8 例主路径），余下 P1 分期（`switch-mode`/`style-class`/`custom-popup-render` + 6 个 debug）。
 
 ---
 ## 5. 参考链接
@@ -414,7 +413,7 @@ import { Menu } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 选中/展开/分页或步骤切换与键盘 | Headless / behavior 测试 |
+| **L1** | 行为 | select 选中/open 展开/mode 三态布局/溢出折叠/键盘 Enter 激活与延时开关 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -436,10 +435,10 @@ import { Menu } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 菜单项高 itemHeight | **40** | `controlHeightLG` |
-| 折叠栏宽 collapsedWidth | **80** | `controlHeightLG * 2` |
-| 浮层菜单最小宽 dropdownWidth | **160** | 组件 Token |
-| inline 缩进 inlineIndent | **24** | 组件默认（可 `SetInlineIndent`） |
+| 菜单项高 itemHeight | **40** | `controlHeightLG`（±0.5px） |
+| 折叠栏宽 collapsedWidth | **80** | `controlHeightLG * 2`（±0.5px） |
+| 浮层菜单最小宽 dropdownWidth | **160** | 组件 Token（±0.5px） |
+| inline 缩进 inlineIndent | **24** | 组件默认（可 `SetInlineIndent`，±0.5px） |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
@@ -467,7 +466,7 @@ import { Menu } from 'antd';
 | `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> |
 | `defaultOpenKeys` | 初始展开的 SubMenu 菜单项 key 数组 | string\[] | - |
 | `defaultSelectedKeys` | 初始选中的菜单项 key 数组 | string\[] | - |
-| `expandIcon` | 自定义展开图标 | ReactNode \ | `(props: SubMenuProps & { isSubMenu: boolean }) => ReactNode` |
+| `expandIcon` | 自定义展开图标 | ReactNode \| `(props: SubMenuProps & { isSubMenu: boolean }) => ReactNode` | -（4.9.0，Config 5.15.0） |
 | `forceSubMenuRender` | 在子菜单展示之前就渲染进 DOM | boolean | false |
 | `inlineCollapsed` | inline 时菜单是否收起状态 | boolean | - |
 | `inlineIndent` | inline 模式的菜单缩进宽度 | number | 24 |
@@ -481,7 +480,7 @@ import { Menu } from 'antd';
 | `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom) ,… | (info: { props }) => Record<[SemanticDOM](#semantic-dom) , CSSProperties> |
 | `subMenuCloseDelay` | 用户鼠标离开子菜单后关闭延时，单位：秒 | number | 0.1 |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 受控 `selectedKeys`/`openKeys` > 非受控 `defaultSelectedKeys`/`defaultOpenKeys` > 组件默认（`selectable=true`/`mode=vertical`/`theme=light`）> ConfigProvider 全局默认。
 
 ### 6.4 交互状态机（L1）
 
@@ -495,20 +494,27 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
              └── 键盘 ↑↓ Enter / Esc（popup）──► 移动/激活/关闭
 ```
 
-\*itemHeight 默认 controlHeightLG=40。
+\*itemHeight 默认 controlHeightLG=40（±0.5px）。
+
+**触发条件 + 容差（可断言）：**
+
+- select：`selectable=true` 时点可选项 → `selectedKeys` 含 key + `OnClick`/`OnSelect(MenuInfo{key,keyPath})`；`multiple=false` 时单选替换，`multiple=true` 时增删；disabled 项不触发。
+- open：SubMenu 点标题/`OnTitleClick` 或 hover（`triggerSubMenuAction`）→ `openKeys` 增删 + `OnOpenChange(openKeys)`；受控 `openKeys` 下显示态以外部为准。
+- mode：`vertical` 纵排 / `horizontal` 横排（溢出进 `...`，见 6.4.1）/ `inline` 内嵌缩进 24（±0.5px）；`inlineCollapsed=true` 时宽收至 80（±0.5px）子菜单转 popup。
+- 延时：hover 开延时 `subMenuOpenDelay=0s` 立即开，关延时 `subMenuCloseDelay=0.1s`（虚拟时钟断言，提前 re-enter 不关）。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| MNU-S1 | 点菜单项 | `onClick`；`selectedKeys` 含其 key |
-| MNU-S2 | 打开 SubMenu | `openKeys` 更新；子项可见 |
-| MNU-S3 | 受控 selectedKeys | 外部优先 |
-| MNU-S4 | disabled 项点击 | 不选中 |
-| MNU-S5 | `mode` 切换 | 布局变为水平/直/inline |
-| MNU-S6 | `theme=dark` | 深底浅字 |
-| MNU-S7 | `inlineCollapsed=true` | 宽度收窄；图标可见 |
-| MNU-S8 | 项高度 | ≈40 |
+| MNU-S1 | 点菜单项 | `onClick`；`selectedKeys` 含其 key（`keyPath` 含父链） |
+| MNU-S2 | 打开 SubMenu | `openKeys` 更新；子项可见；`OnOpenChange` 被调 |
+| MNU-S3 | 受控 selectedKeys | 外部优先（点选不改显示只回调） |
+| MNU-S4 | disabled 项点击 | 不选中不回调 |
+| MNU-S5 | `mode` 切换 | 布局变为水平/纵向/inline（横排溢出进 `...`） |
+| MNU-S6 | `theme=dark`（含 SubMenu 级覆盖） | 深底浅字；子菜单 theme 覆盖父级 |
+| MNU-S7 | `inlineCollapsed=true` | 宽度收窄至 80（±0.5px）；图标可见；子菜单转 popup + tooltip |
+| MNU-S8 | 项高度 | 40（±0.5px） |
 | MNU-S9 | 键盘 Enter 在项上 | 激活同点击 |
-| MNU-S10 | 多选 multiple（若开） | 可多 selectedKeys |
+| MNU-S10 | 多选 multiple（若开） | 可多 selectedKeys；`OnDeselect` 仅 multiple 生效 |
 
 #### 6.4.1 溢出折叠规则（P0）
 
@@ -528,9 +534,14 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | 项高 40（±0.5px），字 14px `colorText`；inline 缩进 24/级（±0.5px） |
+| hover | 项底 hover 填充 + 字切主色系；SubMenu 箭头（`expandIcon`）跟随 |
+| selected | 选中项主色字 + 主色指示（inline 左条 / horizontal 底条）；`multiple` 多项同显 |
+| open | SubMenu 子项展开（inline 内嵌 / vertical-horizontal 弹层底色+阴影+圆角 6） |
+| disabled | `colorDisabledText`，无 hover 高亮，不可点 |
+| danger | 项字 `colorError` |
+| group/divider | 分组标题次级色；分割线 `colorSplit`（`dashed` 虚线可配） |
+| dark | 深底浅字（`theme=dark` 整树或 SubMenu 级覆盖） |
 | 主题切换 | 色与间距随 Theme 更新 |
 
 
@@ -540,19 +551,23 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | navigation / menu / tablist 等 |
-| 当前 | aria-current / selected |
-| 键盘 | 方向键与激活 |
+| 角色 | 根 `menu`（导航场景外包 `navigation`）；项 `menuitem`，SubMenu 带 `menu` 弹层，group 用 `group`，divider 用 `separator` |
+| 当前 | 选中项 `aria-selected=true`（多选用多项）；展开 SubMenu `aria-expanded=true` |
+| 键盘 | P0：Tab 进菜单 + Enter 激活同点击（MNU-S9）；P1 漫游（↑↓移动/→展开/←收起/Esc 关，见 §6.4.3） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
-| 能力 | 策略 | 级别 |
+| 能力 | 真实映射（gpui 侧落点） | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| select/open/mode 主路径（§6.4 MNU-S1~S8） | **对等**：`SetSelectedKeys`/`SetOpenKeys` + `OnClick/OnSelect/OnOpenChange` | P0 L1 |
+| 项度量（§6.2 高 40/缩进 24/宽 80/160） | **对等** | P0 L2 |
+| `horizontal` 溢出 `...` + `overflowedIndicator` | **对等**：宽度不足收进省略节点，点省略出浮层菜单（桌面宽度由宿主量） | P0 L1 |
+| SubMenu 弹层（`popupOffset`/`popupRender`/`popupClassName`） | **映射**：桌面 Portal 浮层 + 偏移；`popupRender` 自定义弹层内容 P1（`custom-popup-render.tsx`） | P0 宿主/P1 |
+| `inlineCollapsed` + `tooltip` | **对等**：收至 80 + 子菜单转 popup；tooltip 布尔开关 P0，全量 TooltipProps P1 | P0 L1/P1 |
+| 滚动宿主 | **映射**：弹层跟随滚动宿主重算锚点；`inline` 内嵌随容器滚动 | P0 宿主 |
+| `getPopupContainer` 类挂载 | **映射**：弹层挂到指定宿主树（对等 body/滚动区挂载） | P0 宿主 |
+| 开关延时 0/0.1s | **对等**：虚拟时钟断言（§6.4.2） | P0 L1 |
+| 键盘漫游 ↑↓→← | P1 前置增量规格（P0 只保 Enter，见 §6.4.3） | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -574,20 +589,30 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 | `theme` | `light` \| `dark`（含 SubMenu 级 `theme` 覆盖） |
 | `inlineCollapsed` / `inlineIndent` | 缩起内嵌；缩进宽度默认 24 |
 | `tooltip` | inline 折叠时项悬浮提示；`false` 可关（P0：布尔开关即可） |
-| 官方主路径示例 | 顶部导航、内嵌菜单、缩起内嵌菜单、菜单项提示、只展开当前父级菜单、垂直菜单、主题、子菜单主题 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 官方主路径示例（P0，8 例） | 顶部导航（`horizontal.tsx`）、内嵌菜单（`inline.tsx`）、缩起内嵌菜单（`inline-collapsed.tsx`）、菜单项提示（`tooltip.tsx`）、只展开当前父级菜单（`sider-current.tsx`）、垂直菜单（`vertical.tsx`）、主题（`theme.tsx`）、子菜单主题（`submenu-theme.tsx`） |
+| 度量 §6.2 | Token 断言（高 40/缩进 24/宽 80/160，±0.5px） |
+| a11y §6.6 | menu/menuitem 语义；选中 `aria-selected`；Enter 激活 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
+
+**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 10 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 顶部导航 / 内嵌菜单 / 缩起内嵌菜单 / 菜单项提示 / 只展开当前父级菜单 / 垂直菜单 / 主题 / 子菜单主题 | P0 | select/open/mode/溢出/主题主路径 |
+| 切换菜单类型（`switch-mode.tsx`） | P1 | mode 切换演示页，能力已验整页后补 |
+| 自定义语义结构的样式和类（`style-class.tsx`）/ `_semantic.tsx` | P1 | semantic 深度 |
+| 自定义弹出框（`custom-popup-render.tsx`） | P1 | `popupRender` 自定义弹层分期 |
+| 顶部导航 dark（`horizontal-dark.tsx`，debug）/ Style debug（`style-debug.tsx`）/ v4 Menu（`menu-v4.tsx`）/ 组件 Token（`component-token.tsx`）/ Extra 调试（`extra-style.tsx`/`extra-collapsed-debug.tsx`）/ 折叠 icon 对齐（`collapsed-icon-debug.tsx`） | P1 | 调试页，不验收 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度（含 `_semantic.tsx` 语义节点口径） | 分期 |
+| semantic classNames/styles 深度（含 `_semantic.tsx` 语义节点口径） | 分期（`style-class.tsx`，见逐例表） |
+| `popupRender` 自定义弹层 | 分期（`custom-popup-render.tsx`，见逐例表） |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 切换菜单类型, 自定义语义结构的样式和类, 自定义弹出框 |
+| debug 示例与官网逐像素哈希 | 分期（6 个 debug，见逐例表） |
 
 ### 6.9 验收用例表（可测）
 
@@ -604,21 +629,21 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 | MNU-06 | L1 | `mode` 切换 | 布局变为水平/直/inline |
 | MNU-07 | L1 | `theme=dark` | 深底浅字 |
 | MNU-08 | L1 | `inlineCollapsed=true` | 宽度收窄；图标可见 |
-| MNU-09 | L1 | 项高度 | ≈40 |
-| MNU-10 | L1 | 键盘 Enter 在项上 | 激活同点击 |
-| MNU-11 | L1 | 多选 multiple（若开） | 可多 selectedKeys |
-| MNU-12 | L1 | 复现官方示例「顶部导航」（`horizontal.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-13 | L1 | 复现官方示例「内嵌菜单」（`inline.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-14 | L1 | 复现官方示例「缩起内嵌菜单」（`inline-collapsed.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-15 | L1 | 复现官方示例「菜单项提示」（`tooltip.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-16 | L1 | 复现官方示例「只展开当前父级菜单」（`sider-current.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-17 | L1 | 复现官方示例「垂直菜单」（`vertical.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-18 | L1 | 复现官方示例「主题」（`theme.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-19 | L1 | 复现官方示例「子菜单主题」（`submenu-theme.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MNU-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| MNU-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| MNU-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| MNU-23 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| MNU-09 | L1 | 项高度 | 40（±0.5px，`ItemPressable` 盒高断言） |
+| MNU-10 | L1 | 键盘 Enter 在项上 | 激活同点击（`OnClick` 载荷 key/keyPath） |
+| MNU-11 | L1 | 多选 multiple=true 后点两项 | `SelectedKeys` 含两 key；取消选调 `OnDeselect` |
+| MNU-12 | L1 | 复现官方示例「顶部导航」（`horizontal.tsx`） | 横排 + 溢出 `...` 可开浮层；选中项底条主色 |
+| MNU-13 | L1 | 复现官方示例「内嵌菜单」（`inline.tsx`） | 纵排内嵌缩进 24/级（±0.5px）；SubMenu 内嵌展开 |
+| MNU-14 | L1 | 复现官方示例「缩起内嵌菜单」（`inline-collapsed.tsx`） | 宽 80（±0.5px）只剩图标；子菜单转 popup 可开 |
+| MNU-15 | L1 | 复现官方示例「菜单项提示」（`tooltip.tsx`） | 折叠时悬停出 title 提示；`tooltip=false` 可关 |
+| MNU-16 | L1 | 复现官方示例「只展开当前父级菜单」（`sider-current.tsx`） | 点新父级收起旧父级（`openKeys` 只留当前链） |
+| MNU-17 | L1 | 复现官方示例「垂直菜单」（`vertical.tsx`） | 纵排 + SubMenu 弹层可开；hover 开延时 0s、关延时 0.1s |
+| MNU-18 | L1 | 复现官方示例「主题」（`theme.tsx`） | light/dark 整树切换，深色底浅字可断言 |
+| MNU-19 | L1 | 复现官方示例「子菜单主题」（`submenu-theme.tsx`） | SubMenu 级 theme 覆盖父级，兄弟子菜单保持原主题 |
+| MNU-20 | L2 | 读取 §6.2 关键尺寸/间距 | 高 40/缩进 24/宽 80/160（±0.5px） |
+| MNU-21 | L2 | 默认皮颜色 | 选中主色系、禁用 `colorDisabledText`；无硬编码品牌色 |
+| MNU-22 | L2 | disabled 外观 | 禁用色；无 hover 高亮；点击不回调 |
+| MNU-23 | L1 | 键盘/焦点主路径 | 项可聚焦 ring 可见；Enter 激活同点击（漫游 ↑↓→← 为 P1） |
 | MNU-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | MNU-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | MNU-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -696,14 +721,18 @@ ColorTheme MenuColorTheme         // SubMenu 主题覆盖（submenu-theme 示例
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Nav root
-  └─ items / panels / connectors
+Nav（role=menu；inline 纵排 / horizontal 横排 + 溢出 ... 节点）
+  ├─ item Pressable（高 40：icon + label + extra；选中主色指示）
+  ├─ submenu（标题 Pressable + expandIcon；inline 内嵌 children | vertical-horizontal Portal 弹层）
+  ├─ group（标题次级色 + children）
+  └─ divider（colorSplit 线，dashed 可配）
+  collapsed（inlineCollapsed）：宽 80 图标栏 + popup 弹层 + tooltip
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。
+- 浮层（SubMenu popup / 溢出 `...` 菜单）统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token；`forceSubMenuRender` 可预挂载。
+- 命中区域与布局盒一致（`hit == layout == paint`）；缩进 24/级用布局 pad 实现。
+- 开关延时走 Host Tick 虚拟时钟；尊重 reduced-motion（P0 瞬时）。
 
 ### 6.12 完成定义（DoD）
 

@@ -237,11 +237,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L1（纯展示件，无上游 kit 等待）。
+- **等谁**：等 Spin（`item.loading` spinner）与 Ticker 就绪；不等其他组件，不同文件并行安全。
+- **文件归属**：`ui/kit/timeline/`。
+- **组合**：节点内可点控件走各自语义；`reverse` 只改渲染序。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -310,20 +309,16 @@ import { Timeline } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Timeline** 的验收清单：
+实现 gpui kit 版 **Timeline** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
+1. **配置面**：覆盖 §6.8 P0 字段（items/content/title/color/icon/loading/placement/mode/orientation/variant/reverse）；P1 可分期但命名兼容。
+2. **视觉态**：dot 10/tail 2/项底距 20（§6.2）；outlined 空心/filled 实心；无 hover/active/disabled 整件态，不套模板。
+3. **行为**：mode 起始/交替/末侧 + placement 覆盖 + reverse 倒序；根 pending 走 item.loading（TL-S 系）。
+4. **数据驱动**：items 列表；titleSpan 默认 12 可用，精细占比 P1。
+5. **无障碍**：list/listitem 角色、朗读序跟渲染序（§6.6）；本体不抢焦点。
+6. **主题**：Token 化（§6.2）；P0 瞬时，动画像素级 P1。
+7. **示例矩阵**：官方非 debug **11** 个：P0 **8**（§6.8 主路径）+ P1 **3**（见 §6.8 逐例表）。
+8. **弹层专项**：N/A（无自带浮层；节点内控件自理）。
 
 ---
 ## 5. 参考链接
@@ -478,18 +473,20 @@ import { Timeline } from 'antd';
 
 | 项 | 要求 |
 | --- | --- |
-| 表格/树/列表 | 结构角色与展开/选中态可读 |
-| 排序/筛选 | 控件有名 |
+| 角色 | 根 `role=list`，每节点 `role=listitem`（时间流朗读，不用排序控件语义） |
+| 命名 | 每项名=title＋content（仅图标/点无文本时沿用 title/content，不另造“排序/筛选”名） |
+| 键盘 | 本体不抢焦点、无展开/排序快捷键；节点内可点控件按各自语义走键盘 |
+| 焦点环 | 本体无 ring；节点内可聚焦控件聚焦时 ring 可见；loading spinner 纯装饰不聚焦 |
+| 顺序 | 朗读序跟渲染序一致；`reverse=true` 后跟倒序，alternate 只改视觉侧不改朗读序 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| items/mode/orientation/variant/reverse/loading 主路径（§6.1 L1） | **对等** | P0 L1 |
+| dot 10/tail 2/项底距 20 与色 Token（§6.2） | **对等** | P0 L2 |
+| 入场/展开 | **瞬时**（尊重 reduced-motion） | P0 瞬时 / P1 像素 |
+| 根级废弃 `pending/pendingDot/label/dot/children/position` | **映射**到 `items[].loading/icon/content/title/placement` | P0 映射 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -520,13 +517,12 @@ import { Timeline } from 'antd';
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| 其余示例（P1，逐例去向） | 标题占比（`title-span.tsx`，`titleSpan` 精细/百分比）、语义化自定义（`semantic.tsx`，semantic 钩子）、自定义语义结构的样式和类（`style-class.tsx`，semantic 深度） |
 | `titleSpan` 精细占比 / 百分比字符串 | 分期（默认 12 可用） |
-| 根级 deprecated `pending`/`pendingDot`/`label`/`dot`/`children`/`position` | 映射或分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 | 分期（P0 瞬时） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 标题占比, 语义化自定义, 自定义语义结构的样式和类, _semantic.tsx |
+| debug 示例与官网逐像素哈希 | 分期（`pending-legacy/horizontal-debug/component-token` 不验收；`_semantic/_semantic_items` 仅主题钩子） |
 
 ### 6.9 验收用例表（可测）
 
@@ -552,8 +548,8 @@ import { Timeline } from 'antd';
 | TL-15 | L1 | 复现官方示例「标题」（`title.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | TL-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | TL-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| TL-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| TL-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| TL-18 | L2 | disabled 外观 | N/A（Timeline 无 disabled；节点内控件自理） |
+| TL-19 | L1 | 键盘/焦点 | N/A（本体不抢焦点；节点内可点控件按各自语义走键盘） |
 | TL-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | TL-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | TL-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

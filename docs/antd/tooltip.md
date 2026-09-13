@@ -229,11 +229,10 @@ Tooltip 默认在关闭时会缓存内容，以防止内容更新时出现闪烁
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（浮层提示件；被 Popover/Popconfirm/Table 筛选提示复用定位管线，先做本件再做复用者）。
+- **等谁**：等浮层定位（Portal/z-index/12 向/flip/arrow）就绪；`trigger` 宿主事件先行。
+- **文件归属**：`ui/kit/tooltip/`。
+- **组合**：Table `showSorterTooltip`/Segmented `option.tooltip` 的提示语义走本件；`unique` 全局唯一为 P1。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -339,7 +338,7 @@ import { Tooltip } from 'antd';
 | `overlayStyle` | 卡片样式, 请使用 `styles.root` 替换 | React.CSSProperties | - | — |
 | `overlayInnerStyle` | 卡片内容区域的样式对象, 请使用 `styles.container` 替换 | React.CSSProperties | - | — |
 | `placement` | 气泡框位置，可选 `top` `left` `right` `bottom` `topLeft` `topRight` `bottomLeft` `bottomRight` `leftTop` `leftBottom` `rightTop` `rightBottom` | string | `top` | — |
-| `trigger` | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` | — |
+| `trigger` | 触发行为，可选 `hover` \| `focus` \| `click` \| `contextMenu`，可使用数组设置多个触发行为 | string \| string\[] | `hover` | Tooltip/Popover/Popconfirm: 6.1.0 |
 | `open` | 用于手动控制浮层显隐，小于 4.23.0 使用 `visible`（[为什么?](/docs/react/faq#弹层类组件为什么要统一至-open-属性)） | boolean | false | 4.23.0 |
 | `zIndex` | 设置 Tooltip 的 `z-index` | number | - | — |
 | `onOpenChange` | 显示隐藏的回调 | (open: boolean) => void | - | 4.23.0 |
@@ -349,20 +348,18 @@ import { Tooltip } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Tooltip** 的验收清单：
+实现 gpui kit 版 **Tooltip** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **9** 个，均需可复现。
-12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
+1. **配置面**：覆盖 §6.8 P0 字段（title/placement/arrow/trigger/open/delay/color/autoAdjustOverflow）；P1 可分期但命名兼容。
+2. **视觉态**：spotlight 底+反白字+圆角 6+pad 6×8+maxWidth 250、arrow 同色（§6.5）；空 title 永不打开（TIP-S5）。
+3. **触发**：hover/focus/click（contextMenu 可做）；delay 默认 0.1 Ticker 累计（TIP-S8）。
+4. **受控/非受控**：open 受控优先 + defaultOpen + onOpenChange（TIP-S4）。
+5. **无障碍**：气泡 role=tooltip + 触发名；无 mask（§6.6）。
+6. **RTL**：placement 左右镜像。
+7. **浮层**：Portal/z-index 1070 档 + Viewport flip/shift；`getPopupContainer` P1。
+8. **主题**：Token 化（§6.2）；P0 瞬时，zoom-big-fast 像素级 P1。
+9. **示例矩阵**：官方非 debug **9** 个：P0 **8**（§6.8 主路径，smooth-transition 用无 unique 多 tip）+ P1 **1**（style-class）。
+10. **unique 专项**：ConfigProvider `tooltip.unique` 全局唯一归 P1（§6.7）。
 
 ---
 ## 5. 参考链接

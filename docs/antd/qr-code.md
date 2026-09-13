@@ -212,11 +212,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（纯展示件，无上游 kit 等待；`Popover.tsx` 高级用法反向依赖 `popover`）。
+- **等谁**：等纯 Go 矩阵编码库选型与宿主图片解码（`icon` URL）注入；不等其他组件，不同文件并行安全。
+- **文件归属**：`ui/kit/qr-code/`（只改自己文件，并行安全）。
+- **组合**：Popover 高级用法作 borderless 内容；下载导出归宿主（§6.7 P1）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -290,19 +289,15 @@ import { QRCode } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **QRCode** 的验收清单：
+实现 gpui kit 版 **QRCode** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（value/size/color/bgColor/bordered/errorLevel/marginSize/icon/status/onRefresh/statusRender/type）；P1 可分期但命名兼容。
+2. **视觉态**：外框 size×size、pad 12（borderless 0）、圆角 LG(8)、边框 colorSplit、cover 遮罩（§6.5）；无 hover/active/disabled 整件态，不套模板。
+3. **状态**：active/expired/loading/scanned + statusRender 覆盖；空 value 不崩无矩阵（QR-S 系）。
+4. **无障碍**：根 img/group + 可访问名；刷新按钮可聚焦（§6.6）。
+5. **主题**：Token 化（§6.2 边长 160/内边 12）；loading 旋转跟 Host Tick。
+6. **示例矩阵**：官方非 debug **11** 个：P0 **9**（§6.8 主路径）+ P1 **2**（download 宿主导出、style-class 深度）。
+7. **下载专项**：位图/PNG/SVG 序列化归宿主，kit 只产矩阵（§6.7 P1）。
 
 ---
 ## 5. 参考链接

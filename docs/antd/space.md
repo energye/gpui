@@ -193,13 +193,14 @@ Space 为纯布局容器，无行为 API（无受控值、无回调、无浮层�
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 | 自定义主题 | `component-token.tsx` | 是 |
 
+> debug 标记依据：官方 `index.zh-CN.md` 带 `debug` 属性即标是（`compact-debug`/`compact-nested`/`debug`/`gap-in-line`/`component-token`）；`compact-nested.tsx` 官方 L37 带 debug，故标是。
+
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；间距+Compact 纯布局，不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；Compact 内 Button 档下传只读尺寸常量，不反向依赖 button 包，不同文件并行安全。
+- **文件归属**：`ui/kit/space/`（只改自己文件，并行安全）。
+- **ConfigProvider**：主题（间隙 Token）、默认 `size`。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -215,11 +216,14 @@ Space 为纯布局容器，无行为 API（无受控值、无回调、无浮层�
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | align | 对齐方式 | `start` \| `end` \|`center` \|`baseline` | - | 4.2.0 | × |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props: SpaceProps })=> Record<[SemanticDOM](#semantic-dom), string> | - | ~~direction~~ | 间距方向 | `vertical` \| `horizontal` | `horizontal` | 4.1.0 | × |
-| orientation | 间距方向 | `vertical` \| `horizontal` | `horizontal` | size | 间距大小 | [Size](#size) \| [Size\[\]](#size) | `small` | 4.1.0 \| Array: 4.9.0 | 5.6.0 |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props: SpaceProps })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | 5.6.0 |
+| ~~direction~~ | 间距方向 | `vertical` \| `horizontal` | `horizontal` | 4.1.0 | × |
+| orientation | 间距方向 | `vertical` \| `horizontal` | `horizontal` |  | × |
+| size | 间距大小 | [Size](#size) \| [Size\[\]](#size) | `small` | 4.1.0 \| Array: 4.9.0 | 5.6.0 |
 | ~~split~~ | 设置分隔符, 请使用 `separator` 替换 | ReactNode | - | 4.7.0 | × |
 | separator | 设置分隔符 | ReactNode | - | - | × |
-| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props: SpaceProps })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | vertical | 是否垂直，和 `orientation` 同时配置以 `orientation` 优先 | boolean | false | - | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props: SpaceProps })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | 5.6.0 |
+| vertical | 是否垂直，和 `orientation` 同时配置以 `orientation` 优先 | boolean | false | - | × |
 | wrap | 是否自动换行，仅在 `horizontal` 时有效 | boolean | false | 4.9.0 | × |
 
 ### Size
@@ -244,7 +248,9 @@ Space 为纯布局容器，无行为 API（无受控值、无回调、无浮层�
 | --- | --- | --- | --- | --- |
 | block | 将宽度调整为父元素宽度的选项 | boolean | false | 4.24.0 |
 | ~~direction~~ | 指定排列方向 | `vertical` \| `horizontal` | `horizontal` | 4.24.0 |
-| orientation | 指定排列方向 | `vertical` \| `horizontal` | `horizontal` | vertical | 是否垂直，和 `orientation` 同时配置以 `orientation` 优先 | boolean | false | - |
+| orientation | 指定排列方向 | `vertical` \| `horizontal` | `horizontal` |  |
+| size | 子组件大小 | `large` \| `medium` \| `small` | `medium` | 4.24.0 |
+| vertical | 是否垂直，和 `orientation` 同时配置以 `orientation` 优先 | boolean | false | - |
 
 ### Space.Addon
 
@@ -291,8 +297,8 @@ import { Space } from 'antd';
 3. **Compact**：相邻子控件叠边（gap≈-lineWidth），中间项清圆角。
 4. **无障碍**：布局容器本身不聚焦；分隔符 `aria-hidden`。
 5. **RTL**：`start`/`end` 对齐与行方向镜像。
-6. **主题**：间距走 Token（small 8 / middle 16 / large 24）；支持 reduced-motion（无动画则瞬时）。
-7. **示例矩阵**：官方非 debug 示例约 **10** 个，均需可复现。
+6. **主题**：间距走 Token（small 8 / middle 16 / large 24）；无动画，瞬时。
+7. **示例矩阵**：P0 按 §6.8（8 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -336,28 +342,14 @@ import { Space } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Space size small | **8** | paddingXS |
-| Space size middle | **16** | padding |
-| Space size large | **24** | paddingLG |
-| size small 默认 | **8** | paddingXS |
-| middle/large | **16 / 24** | padding / paddingLG |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| Space size small / middle / large | **8 / 16 / 24** | `paddingXS` / `padding` / `paddingLG` |
+| size 数字 / `[列, 行]` | 透传 px（±0.5px） | `SetSizePx` / `SetSizeXY` |
+
+> Space 为无皮布局容器，无字号/圆角/边框/Focus ring 自有 chrome（分隔符走 `colorSplit`，子项自理）。
 
 #### 6.2.2 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
-| --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
-
-禁止硬编码品牌色作为唯一默认皮。
+Space 为纯布局，无自有颜色：子项底色/边框走子控件自身 Token；分隔符走 `colorSplit`/`colorTextSecondary`；禁止为 Space 硬编码品牌色。
 
 ### 6.3 关键配置与语义
 
@@ -392,42 +384,42 @@ import { Space } from 'antd';
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| SPC-S1 | 默认三子 | 横向 gap8 |
-| SPC-S2 | size=large | gap24 |
-| SPC-S3 | vertical | 纵向 |
-| SPC-S4 | wrap | 换行 |
-| SPC-S5 | separator | 分隔可见 |
-| SPC-S6 | Compact 双 Button | 中间无双边框缝 |
-| SPC-S7 | align | 对齐 |
-| SPC-S8 | size=16 数字 | 16px |
+| SPC-S1 | 默认三子（size=small） | 主轴水平，相邻子左边缘间距 8±0.5px |
+| SPC-S2 | size=large | 相邻子间距 24±0.5px |
+| SPC-S3 | vertical=true | 主轴垂直，相邻子顶边缘间距 8±0.5px |
+| SPC-S4 | wrap=true，horizontal，窄容器 | 第二行首项顶坐标大于第一行顶坐标，行间距=gap±0.5px |
+| SPC-S5 | separator="/" | 每对相邻子之间恰 1 个分隔节点，宽>0，`aria-hidden` |
+| SPC-S6 | Compact 双 Button（lineWidth=1） | 相邻边重叠约 −1±0.5px，中间项圆角清零，无 2px 双边框 |
+| SPC-S7 | align=center，子高不等 | 子交叉轴中线与行中线差≤0.5px |
+| SPC-S8 | size=16 数字 | 相邻子间距 16±0.5px |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 子项按 §6.4 排布，间隙符合 §6.2（±0.5px）；Compact 叠边约 −lineWidth |
+| hover/active/focus/disabled/loading | **不适用**（纯布局容器；可交互子项自理） |
+| 主题切换 | 间隙随 Theme 更新（无颜色切换；分隔符随 `colorSplit` 更新） |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 无（纯布局；换行/显隐 P0 瞬时）。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰分隔 | 纯装饰可 aria-hidden |
-| 拖拽把手 | 可命名；键盘微调 P0/P1 按控件 |
+| 布局容器 | 无强制 role；可选 `AriaLabel` 命名；Space 无浮层 |
+| 分隔符 | 纯装饰时 `aria-hidden`，不抢焦点，不进 Tab 序 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
+| 间隙度量（§6.2 small 8/middle 16/large 24） | **对等** | P0 L2 |
+| `separator` 装饰节点 | **对等**（不抢焦点，可 `aria-hidden`） | P0 L1 |
+| `Space.Compact` 叠边/清圆角 | **对等**（gap≈−lineWidth，中间项清圆角） | P0 L1 |
+| `Space.Addon` 自定义单元格 | **对等** | P0 L1 |
 | 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -438,9 +430,16 @@ import { Space } from 'antd';
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `children` | 必须 |
-| `orientation` | 必须 |
+| `size` 预设（small/middle/large=8/16/24） | 必须 |
+| `size` 数字（`SetSizePx`，含显式 0） | 必须 |
+| `size` `[列, 行]`（`SetSizeXY`） | 必须；主轴/列间距写入 Gap |
+| `children`（`SetChildren`/`Add`/`ClearChildren`） | 必须 |
+| `orientation` / `vertical` | 必须；`orientation` 优先于 `vertical` 糖 |
+| `align`（start/end/center/baseline） | 必须；水平未设时 center |
+| `wrap` | 必须；仅 horizontal 生效 |
+| `separator`（`SetSeparator`） | 必须；每间隙调一次，装饰可 `aria-hidden` |
+| `Space.Compact`（`block`/`orientation`/`size` 下传） | 必须；gap≈−lineWidth 叠边，中间项清圆角 |
+| `Space.Addon` 自定义单元格 | 必须 |
 | 官方主路径示例 | 基本用法、垂直间距、间距大小、对齐、自动换行、分隔符、紧凑布局组合、Button 紧凑布局 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -456,6 +455,17 @@ import { Space } from 'antd';
 | debug 示例与官网逐像素哈希 | 分期 |
 | 其余示例 | 垂直方向紧凑布局, 自定义语义结构的样式和类, _semantic.tsx |
 
+**15 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 2 例 P1，5 例 debug 不计）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本用法/垂直间距/间距大小/对齐/自动换行/分隔符/紧凑布局组合/Button 紧凑布局 | P0 | 间距+对齐+换行+分隔+Compact 主路径，gallery 必备 |
+| 垂直方向紧凑布局 | P1 | 垂直 Compact 整页（Compact 能力已验） |
+| 紧凑布局嵌套 | 不计 | 官方 debug 示例（`compact-nested.tsx` 带 debug，不计入 P0） |
+| 自定义语义结构的样式和类 | P1 | semantic 深度 |
+| compact-debug/compact-nested/debug/gap-in-line/component-token | 不计 | 内部调试/主题预览（依据见 §2.4） |
+| _semantic.tsx | P1 | semantic 深度 |
+
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestSpace_PRD_<ID>` 或 gallery 场景 ID。  
@@ -464,26 +474,27 @@ import { Space } from 'antd';
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | SPC-01 | L1 | NewSpace 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| SPC-02 | L1 | 默认三子 | 横向 gap8 |
-| SPC-03 | L1 | size=large | gap24 |
-| SPC-04 | L1 | vertical | 纵向 |
-| SPC-05 | L1 | wrap | 换行 |
-| SPC-06 | L1 | separator | 分隔可见 |
-| SPC-07 | L1 | Compact 双 Button | 中间无双边框缝 |
-| SPC-08 | L1 | align | 对齐 |
-| SPC-09 | L1 | size=16 数字 | 16px |
-| SPC-10 | L1 | 复现官方示例「基本用法」（`base.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-11 | L1 | 复现官方示例「垂直间距」（`vertical.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-12 | L1 | 复现官方示例「间距大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-13 | L1 | 复现官方示例「对齐」（`align.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-14 | L1 | 复现官方示例「自动换行」（`wrap.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-15 | L1 | 复现官方示例「分隔符」（`separator.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-16 | L1 | 复现官方示例「紧凑布局组合」（`compact.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-17 | L1 | 复现官方示例「Button 紧凑布局」（`compact-buttons.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPC-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| SPC-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| SPC-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| SPC-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| SPC-02 | L1 | 默认三子（size=small） | 主轴水平，相邻子左边缘间距 8±0.5px |
+| SPC-03 | L1 | size=large | 相邻子间距 24±0.5px |
+| SPC-04 | L1 | vertical=true | 主轴垂直，相邻子顶边缘间距 8±0.5px |
+| SPC-05 | L1 | wrap=true，horizontal，窄容器 | 第二行首项顶坐标大于第一行顶坐标，行间距=gap±0.5px |
+| SPC-06 | L1 | separator="/" | 每间隙恰 1 个分隔节点，宽>0 |
+| SPC-07 | L1 | Compact 双 Button（lineWidth=1） | 相邻边重叠约 −1±0.5px，无 2px 双边框 |
+| SPC-08 | L1 | align=center，子高不等 | 子交叉轴中线与行中线差≤0.5px |
+| SPC-09 | L1 | size=16 数字 | 相邻子间距 16±0.5px |
+| SPC-10 | L1 | 挂 `base.tsx`（三子，size=small） | 相邻子间距 8±0.5px，主轴水平 |
+| SPC-11 | L1 | 挂 `vertical.tsx`（vertical=true） | 相邻子顶间距 8±0.5px，主轴垂直 |
+| SPC-12 | L1 | 挂 `size.tsx`（small/middle/large 三行） | 三行间距 8/16/24（±0.5px） |
+| SPC-13 | L1 | 挂 `align.tsx`（子高不等，align=center） | 子中线与行中线差≤0.5px |
+| SPC-14 | L1 | 挂 `wrap.tsx`（wrap=true，窄容器） | 第二行首项顶>第一行顶，行间距=gap±0.5px |
+| SPC-15 | L1 | 挂 `separator.tsx`（separator="/"） | 每间隙恰 1 个分隔节点，宽>0 |
+| SPC-16 | L1 | 挂 `compact.tsx`（Compact 双子，lineWidth=1） | 相邻边重叠 −1±0.5px，无 2px 双边框 |
+| SPC-17 | L1 | 挂 `compact-buttons.tsx`（Compact 多 Button） | 同上；中间项圆角清零 |
+| SPC-17b | — | 挂 `compact-nested.tsx`（Compact 嵌套，debug 不计） | 嵌套 Compact 叠边正常，无 2px 双边框；无控制台级错误（debug，仅分期参考） |
+| SPC-18 | L2 | 读取 §6.2 间隙 small/middle/large | 8/16/24（±0.5px） |
+| SPC-19 | L2 | 默认皮颜色 | 无自有颜色；分隔符走 `colorSplit`；无硬编码品牌色 |
+| SPC-20 | L2 | disabled 外观 | **不适用**（纯布局无禁用态；子项自理） |
+| SPC-21 | L1 | 键盘/焦点主路径 | **不适用**（容器不聚焦；分隔符不抢焦点） |
 | SPC-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | SPC-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | SPC-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -547,8 +558,10 @@ Node() core.Node
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Layout root
-  └─ children with gap/span/handles
+Space root（Flex 行/列，gap=ResolvedGap）
+  ├─ child × N
+  └─ separator × (N−1)（装饰，不抢焦点）
+Compact root（gap≈−lineWidth，中间项清圆角）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

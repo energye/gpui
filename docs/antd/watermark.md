@@ -56,6 +56,32 @@
 - **类型**：number
 - **默认值**：999
 
+#### `rotate`
+
+- **说明**：水印绘制时旋转的角度，单位 °
+- **类型**：number
+- **默认值**：-22
+
+#### `image`
+
+- **说明**：图片源，优先级高于文字内容
+- **类型**：string
+- **默认值**：-
+
+#### `inherit`
+
+- **说明**：是否将水印传导给弹出组件如 Modal、Drawer
+- **类型**：boolean
+- **默认值**：true
+- **版本**：5.11.0
+
+#### `onRemove`
+
+- **说明**：水印因 DOM 变更被移除时触发的回调
+- **类型**：() => void
+- **默认值**：-
+- **版本**：6.0.0
+
 #### `content`
 
 - **说明**：水印文字内容
@@ -202,11 +228,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L1（装饰层，不拦截命中）。
+- **等谁**：无上游等待；经 `inherit`/`Wrap` 传导给 Modal/Drawer 内容。
+- **文件归属**：`ui/kit/watermark/`。
+- **组合**：mark 层 HitTransparent，children 可点；图片水印走 host 像素注入。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -275,7 +300,7 @@ import { Watermark } from 'antd';
 
 实现 gpui kit 版 **Watermark** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -285,7 +310,7 @@ import { Watermark } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **5** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 
 ---
 ## 5. 参考链接

@@ -231,6 +231,7 @@
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 | _InternalPanelDoNotUseOrYouWillBeFired | `render-panel.tsx` | 是 |
 | 线框风格 | `wireframe.tsx` | 是 |
+| 语义结构调试 | `_semantic.tsx` | 是 |
 
 ### 2.6 FAQ
 
@@ -240,11 +241,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（浮层：锚定气泡 + 12 向 placement 定位）。
+- **等谁**：Popover 浮层定位（arrow/gap/翻转）、Button（OK/Cancel 小按钮）。
+- **文件归属**：`ui/kit/popconfirm/`。
+- **组合**：触发器常为 Button；Modal/Drawer 内注意浮层挂载容器。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -352,7 +352,7 @@ import { Popconfirm } from 'antd';
 
 实现 gpui kit 版 **Popconfirm** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -362,7 +362,7 @@ import { Popconfirm } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **9** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -502,11 +502,11 @@ import { Popconfirm } from 'antd';
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 角色 | 气泡 `role=dialog`（小确认框，非 tooltip） |
+| 命名 | 每泡名=title＋description（title 为空测试失败） |
+| 键盘 | Esc 关闭；Enter 确认 / Esc 取消（焦点在泡内时） |
+| 焦点环 | 触发器与 OK/Cancel 聚焦时 ring 可见；打开焦点进泡，关闭回触发器 |
+| 遮罩 | 无模态遮罩；背景可点，点外关闭 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 

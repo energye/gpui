@@ -24,9 +24,27 @@
 
 ### 1.3 外观相关配置逐项说明
 
-下列配置会改变绘制结果，kit 应建立样式枚举或 token 映射：
+下列配置会改变 Affix 的钉住位置与占位绘制（Affix 本体无自有皮，只决定何时钉、钉在哪、占位盒多大；颜色/字号/圆角由被包裹内容自理）：
 
-#### `onChange`
+#### `offsetTop`
+
+- **说明**：距离窗口/滚动容器顶部达到指定偏移量后钉住；两者皆未设时默认 `0` 启用顶规则
+- **类型**：number
+- **默认值**：0（两者皆未设时）
+
+#### `offsetBottom`
+
+- **说明**：距离窗口/滚动容器底部达到指定偏移量后贴底钉住；仅设 bottom 时 top 规则关闭
+- **类型**：number
+- **默认值**：-（未设）
+
+#### `target`
+
+- **说明**：设置 `Affix` 需要监听其滚动事件的元素，值为一个返回对应 DOM 元素的函数；kit 侧映射为滚动视口，决定相对哪个容器计算阈值
+- **类型**：() => Window | HTMLElement | null
+- **默认值**：() => window
+
+#### `onChange`（不改变绘制，仅通知）
 
 - **说明**：固定状态改变时触发的回调函数
 - **类型**：(affixed?: boolean) => void
@@ -38,11 +56,8 @@ Affix 本体无自有交互视觉态（无 hover / active / focus / disabled / l
 
 ### 1.5 语义化 DOM 与主题
 
-- 至少区分根容器、内容区、装饰/图标区；浮层再分 popup/mask。
-
-- 颜色、圆角、间距、动效走 Design Token；支持亮暗色与品牌色。
-
-- 动效可关（reduced-motion / 全局 motion、wave 配置）。
+- 根占位盒 + 内容节点两层即可（`role=presentation`）；无 popup/mask、无装饰图标区。
+- 本体无色标不读 Token；动画仅瞬时钉住切换，无需 motion 开关（children 动效走自身）。
 ---
 ## 2. 功能
 ### 2.1 使用场景
@@ -94,11 +109,10 @@ Affix 一般只适用于单向滚动的区域，只支持在垂直滚动容器�
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（滚动定位基础设施，反被 Anchor 钉住复用）。
+- **等谁**：等滚动视口（`ScrollTarget` 桌面映射 `target()`）就绪；无上游控件等待，本体无皮不依赖浮层。
+- **文件归属**：`ui/kit/affix/`。
+- **组合**：被 Anchor 默认包裹（`affix=true` 时透传 `offsetTop`）；`target` 指向的滚动宿主由上层注入，见 §6.7。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -144,7 +158,7 @@ import { Affix } from 'antd';
 2. **占位**：钉住时布局盒不跳变（AFX-S3）。
 3. **滚动宿主**：`SetScrollTarget` 接桌面滚动视口（AFX-S4）。
 4. **无尺寸/受控/数据驱动/浮层/虚拟列表**：N/A（Affix 只包一层 children）。
-5. **示例矩阵**：官方非 debug 示例约 **3** 个，均需可复现。
+5. **示例矩阵**：P0 按 §6.8 逐例对照表（3 例主路径），余下 P1 分期（`debug.tsx` #17678）。
 
 ---
 ## 5. 参考链接
@@ -166,7 +180,7 @@ import { Affix } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 展示形态与可选交互（复制/预览/关闭） | Headless / behavior 测试 |
+| **L1** | 行为 | 过 offsetTop 钉顶、回滚解除、offsetBottom 贴底、自定义 target 容器相对计算、占位盒不变 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -182,29 +196,29 @@ import { Affix } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`）。Affix 本体无尺寸档、无自有绘制：度量断言只验钉住阈值与占位盒（见下表），不验字号/圆角/线宽/颜色。
 
-#### 6.2.1 几何与组件 Token
+#### 6.2.1 几何与行为参数（Affix 专属，本体无皮）
 
-| 项 | 默认值 | Token / 来源 |
+Affix 本体无自有皮：不引入字号/圆角/线宽/色标，不为自身绘制读 `fontSize` / `borderRadius` / `lineWidth`；下表只约束钉住阈值与占位盒，颜色与字形由被包裹内容自理。
+
+| 项 | 默认值 | 来源 / 断言 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| `offsetTop` 钉住阈值 | **0**（两者皆未设时启用顶规则） | props；`scrollY + offsetTop ≥ contentTop` 即钉住（AFX-S1） |
+| `offsetBottom` 贴底阈值 | -（未设，不启用底规则） | props；仅设 bottom 时 top 规则关闭（AFX-S5） |
+| 占位盒 | = 内容布局盒 | 钉住前后宽高不变，下方内容不跳变（AFX-S3，断言 `PlaceholderSize()==内容尺寸`，容差 ±0.5px） |
+| 钉住偏移 | 按阈值平移 | 只改 paint/hit，layout 占位不动；`hit ≈ paint` |
 
 #### 6.2.2 颜色 Token（语义）
 
+Affix 本体无色标：无主色/状态色/禁用色/浮层色，不跟 Theme 变色；主题相关断言只验被包裹内容，Affix 层不断言颜色 Token。
+
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| Affix 本体 | — | N/A，无皮不读 Token |
+| 被包裹内容 | 走各控件自身 §6.2 | 由 children 自理，本文件不断言 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止为 Affix 本体硬编码品牌色或字号/圆角回落值。
 
 ### 6.3 关键配置与语义
 
@@ -222,18 +236,25 @@ import { Affix } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-scroll < 阈 ──► 静态
-scroll ≥ offsetTop ──► affixed fixed + onChange(true)
-回滚 ──► onChange(false) + 占位保持布局
+scroll < 阈 ──► 静态（IsAffixed()==false，不回调）
+scroll ≥ offsetTop（默认 0，两者皆未设时启用顶规则）──► affixed 置顶 + onChange(true)
+回滚到阈下 ──► 解除 + onChange(false)，占位盒保持布局不跳变
+仅设 offsetBottom ──► 贴底规则，top 规则关闭
 ```
+
+**触发条件 + 容差（可断言）：**
+
+- 钉顶：`scrollY + offsetTop ≥ contentTop` 即钉住（AFX-S1），临界 ±0.5px；`Evaluate` 纯几何可单测。
+- 占位：钉住前后 `PlaceholderSize()==内容尺寸`，宽高各 ±0.5px，下方内容 Y 不变（AFX-S3 挂钩 §6.2）。
+- 贴底：仅设 bottom 时按底阈计算；回滚一次只调一次 onChange（AFX-S2/S5）。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| AFX-S1 | 过 offsetTop | 钉住；onChange true |
-| AFX-S2 | 回滚 | 解除；onChange false |
-| AFX-S3 | 占位 | 下方内容不跳变 |
-| AFX-S4 | 自定义 target 容器滚 | 相对容器计算 |
-| AFX-S5 | offsetBottom | 贴底逻辑 |
+| AFX-S1 | 过 offsetTop（默认 0） | 钉住；onChange(true)；临界 ±0.5px |
+| AFX-S2 | 回滚到阈下 | 解除；onChange(false) |
+| AFX-S3 | 占位 | `PlaceholderSize()==内容尺寸`（±0.5px），下方内容不跳变 |
+| AFX-S4 | 自定义 target 容器滚 | 相对容器计算（`SetScrollTarget` 视口） |
+| AFX-S5 | offsetBottom（仅设 bottom 时 top 关闭） | 贴底钉住 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -248,23 +269,25 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 
 ### 6.6 无障碍（a11y）最低要求
 
+Affix 本体为占位容器（`role=presentation`，无障碍树中透明）；焦点与操作语义全部由被包裹 children 承担，本层只要求钉住前后可访问名与焦点顺序不变。
+
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 根容器 | `role=presentation`，钉住/解除不改变子节点可访问名与 Tab 顺序 |
+| 被包裹交互 | 按钮/链接的焦点 ring 与读屏名由其自身 §6.6 覆盖，本文件不重复断言 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
-| 能力 | 策略 | 级别 |
+| 能力 | 真实映射（gpui 侧落点） | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 钉顶/贴底/占位（§6.4 AFX-S1~S5） | **对等**：`UpdatePosition`/`SyncFromScroll` + `Evaluate` 纯几何 | P0 L1 |
+| `target` 滚动容器 | **映射**：桌面 `SetScrollTarget(*rendering.RenderViewport)`（对等 `target()` + scroll 监听；只监听所指容器，见 FAQ #3938） | P0 宿主 |
+| `onChange(affixed)` | **对等**：`SetOnChange(func(bool))`，翻转恰调一次 | P0 L1 |
+| 滚动宿主 `getPopupContainer` 类透传 | 不适用（Affix 无浮层；宿主即 `target` 本身） | — |
+| 水平滚动容器 | **不支持，仅竖向**（FAQ #29108：水平请用原生 `position: sticky`） | — |
+| 真 `position: fixed` 出流 / 跨层 Portal 钉住 | P1 分期（P0 为 scroll 内 paint/hit 钉） | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 水平滚动容器 | **不支持，仅竖向**（FAQ #29108：水平请用原生 `position: sticky`） | — |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -277,11 +300,18 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 | `offsetBottom` | 贴底钉住（AFX-S5）；仅 bottom 时 top 规则关闭 |
 | `target` → `SetScrollTarget` | 自定义滚动容器（AFX-S4）；桌面 `*rendering.RenderViewport` |
 | `onChange` | 固定态翻转回调（true/false） |
-| 占位 | 钉住时布局盒不跳变（AFX-S3 / placeholderStyle） |
-| 官方主路径示例 | 基本、固定状态改变的回调、滚动容器 |
-| 度量 §6.2 | Token 断言（fontSize/radius/lineWidth） |
-| a11y §6.6 | 根 presentation；有名操作在子节点 |
+| 占位 | 钉住时布局盒不跳变（AFX-S3 / placeholderStyle，`PlaceholderSize()` ±0.5px） |
+| 官方主路径示例（P0，3 例） | 基本（`basic.tsx`：过 offsetTop 钉顶）、固定状态改变的回调（`on-change.tsx`：翻转恰调一次）、滚动容器（`target.tsx`：相对容器计算） |
+| 度量 §6.2 | 阈值 + 占位盒断言（±0.5px）；本体不验字号/圆角/颜色 |
+| a11y §6.6 | 根 presentation；焦点语义由 children 承担 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
+
+**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 3 例，余下 1 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本 / 固定状态改变的回调 / 滚动容器 | P0 | 钉顶+回调+自定义容器主路径 |
+| 调整浏览器大小观察容器（`debug.tsx`，debug #17678） | P1 | 调试页，不验收 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
@@ -302,18 +332,18 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | AFX-01 | L1 | NewAffix 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| AFX-02 | L1 | 过 offsetTop | 钉住；onChange true |
-| AFX-03 | L1 | 回滚 | 解除；onChange false |
-| AFX-04 | L1 | 占位 | 下方内容不跳变 |
-| AFX-05 | L1 | 自定义 target 容器滚 | 相对容器计算 |
-| AFX-06 | L1 | offsetBottom | 贴底逻辑 |
-| AFX-07 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AFX-08 | L1 | 复现官方示例「固定状态改变的回调」（`on-change.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AFX-09 | L1 | 复现官方示例「滚动容器」（`target.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AFX-10 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| AFX-11 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| AFX-12 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| AFX-13 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| AFX-02 | L1 | `Evaluate(scrollY)` 过 offsetTop（默认 0） | 钉住；onChange(true)；临界 ±0.5px |
+| AFX-03 | L1 | 回滚到阈下 | 解除；onChange(false) |
+| AFX-04 | L1 | 钉住前后占位 | `PlaceholderSize()==内容尺寸`（±0.5px），下方内容 Y 不变 |
+| AFX-05 | L1 | `SetScrollTarget` 后容器滚动 | 相对容器计算钉住 |
+| AFX-06 | L1 | 仅设 offsetBottom | 贴底钉住；top 规则关闭 |
+| AFX-07 | L1 | 复现官方示例「基本」（`basic.tsx`） | 滚过阈值钉顶，占位盒不变 |
+| AFX-08 | L1 | 复现官方示例「固定状态改变的回调」（`on-change.tsx`） | 翻转恰调一次 onChange(true/false) |
+| AFX-09 | L1 | 复现官方示例「滚动容器」（`target.tsx`） | 盒内滚动钉盒顶而非窗口 |
+| AFX-10 | L2 | 读取 §6.2 阈值/占位 | offsetTop 默认 0、占位=内容盒（±0.5px） |
+| AFX-11 | L2 | 本体无皮无色标 | 不断言颜色 Token（N/A，验 children 自身 §6.2） |
+| AFX-12 | L2 | 无 disabled API | 本用例记 N/A（交互在 children） |
+| AFX-13 | L1 | 无根级键盘焦点 | 本用例记 N/A（焦点在 children，钉住前后顺序不变） |
 | AFX-14 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | AFX-15 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | AFX-16 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

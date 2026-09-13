@@ -105,13 +105,14 @@
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 | 持续更新 | `fresh.tsx` | 是 |
 
+> debug 标记依据：官方 `index.zh-CN.md` L29 `<code src="./demo/fresh.tsx" debug>` 带 debug 标记，`fresh.tsx` 标是；官方 `_semantic.tsx` 为内部语义节点示例，不计入上表。
+
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：**L1 无依赖基础件**；列分配纯布局，不依赖组内其他 10 件，可先行实现。
+- **等谁**：无；子项内容由业务挂节点（不同文件，并行安全）。
+- **文件归属**：`ui/kit/masonry/`（只改自己文件，并行安全）。
+- **ConfigProvider**：主题（间隙 Token）、默认 props。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -127,8 +128,13 @@
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
-| columns | 列数，可以是固定值或响应式配置 | `number \| Partial<Record<Breakpoint, number>>`（Breakpoint = xxxl/xxl/xl/lg/md/sm/xs，见 §6.4） | `3` | fresh | 是否持续监听子项尺寸变化 | `boolean` | `false` | gutter | 间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置 | `RowProps['gutter']` | `0` | items | 瀑布流项 | [MasonryItem](#masonryitem)[] | - | itemRender | 自定义项渲染 | `(item: MasonryItem) => React.ReactNode` | - | styles | 语义化结构 style，支持对象和函数形式 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| ((info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties>) | - | 6.0.0 | 6.0.0 |
-| onLayoutChange | 列排序回调 | `({ key: React.Key; column: number }[]) => void` | - 
+| columns | 列数，可以是固定值或响应式配置 | `number \| Partial<Record<Breakpoint, number>>`（Breakpoint = xxxl/xxl/xl/lg/md/sm/xs，见 §6.4） | `3` |  | × |
+| fresh | 是否持续监听子项尺寸变化 | `boolean` | `false` |  | × |
+| gutter | 间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置 | `RowProps['gutter']` | `0` |  | × |
+| items | 瀑布流项 | [MasonryItem](#masonryitem)[] | - |  | × |
+| itemRender | 自定义项渲染 | `(item: MasonryItem) => React.ReactNode` | - |  | × |
+| styles | 语义化结构 style，支持对象和函数形式 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| ((info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties>) | - | 6.0.0 | 6.0.0 |
+| onLayoutChange | 列排序回调 | `({ key: React.Key; column: number }[]) => void` | - |  | × |
 ### MasonryItem
 
 | 参数     | 说明                                             | 类型                 | 默认值 |
@@ -179,17 +185,10 @@ import { Masonry } from 'antd';
 
 实现 gpui kit 版 **Masonry** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **5** 个，均需可复现。
+1. **配置面**：`items`（key/column/height/data/children）+ `columns`（固定/响应式）+ `gutter`（固定/`[水平,垂直]`/响应式）+ `itemRender`/`children` + `fresh` + `onLayoutChange`（§6.3）。
+2. **几何**：列宽=`(W+h)/n`、项宽=列宽−h、根高=`max(列高)−v`（§6.2，±0.5px）。
+3. **算法**：显式 column 钳制，否则最短列优先（§6.4 MAS-S1…S5）。
+4. **示例矩阵**：P0 按 §6.8（4 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -230,23 +229,17 @@ import { Masonry } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 列数 `columns` | **3** | 默认列数；未传回落 3，响应式无命中回落 `xs`，无 `xs` 回落 1 |
+| `gutter` 默认 | **0** | Row 语义：固定值直用；响应式按断点取值；`[水平, 垂直]` 无垂直则垂直=水平 |
+| 列宽公式（水平 gutter=`h`，列数=`n`，容器宽=`W`） | 列宽=`(W+h)/n`，项左=`列宽×列索引`，项宽=`列宽−h`（±0.5px） | §6.4 `usePositions` |
+| 垂直 gutter 累列高 | 放置后列高`+=项高+v`，根高=`max(列高)−v`（±0.5px） | §6.4 |
+| 断点 | `xs<576` · `sm≥576` · `md≥768` · `lg≥992` · `xl≥1200` · `xxl≥1600` · `xxxl≥1920` | `responsiveObserver`，自大到小取首个命中 |
+
+> Masonry 为无皮布局容器，无字号/圆角/边框/Focus ring 自有 chrome（子项自理）。
 
 #### 6.2.2 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
-| --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
-
-禁止硬编码品牌色作为唯一默认皮。
+Masonry 为纯布局，无自有颜色：子项底色/边框走子控件自身 Token；禁止为 Masonry 硬编码品牌色。
 
 ### 6.3 关键配置与语义
 
@@ -254,21 +247,21 @@ import { Masonry } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `columns` | 列数，可以是固定值或响应式配置 | `number \ | Partial<Record<Breakpoint, number>>`（Breakpoint = xxxl/xxl/xl/lg/md/sm/xs，见 §6.4） |
+| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |
+| `columns` | 列数，可以是固定值或响应式配置 | `number \| Partial<Record<Breakpoint, number>>`（Breakpoint = xxxl/xxl/xl/lg/md/sm/xs，见 §6.4） | `3` |
 | `fresh` | 是否持续监听子项尺寸变化 | `boolean` | `false` |
-| `gutter` | 间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置 | `RowProps['gutter']` |
+| `gutter` | 间距，沿用 Row 语义：固定值、响应式配置或水平垂直间距配置 | `RowProps['gutter']` | `0` |
 | `items` | 瀑布流项 | [MasonryItem](#masonryitem)[] | - |
 | `itemRender` | 自定义项渲染 | `(item: MasonryItem) => React.ReactNode` | - |
-| `styles` | 语义化结构 style，支持对象和函数形式 | Record<[SemanticDOM](#semantic-dom), … | ((info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties>) |
-| `onLayoutChange` | 列排序回调 | `({ key: React.Key; column: number }[… | - |
+| `styles` | 语义化结构 style，支持对象和函数形式 | Record<[SemanticDOM](#semantic-dom), … \| ((info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties>) | - |
+| `onLayoutChange` | 列排序回调 | `({ key: React.Key; column: number }[…` | - |
 | `children` | 自定义展示内容，相对 `itemRender` 具有更高优先级 | `React.ReactNode` | - |
 | `column` | 自定义所在列 | `number` | - |
 | `data` | 自定义存储数据 | `T` | - |
 | `height` | 高度 | `number` | - |
-| `key` | 唯一标识 | `string` \ | `number` |
+| `key` | 唯一标识 | `string` \| `number` | - |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 显式 `column` > 最短列自动分配；`children` > `itemRender`；显式 props > 组件默认 > ConfigProvider 全局默认（P1）。
 
 ### 6.4 交互状态机（L1）
 
@@ -291,39 +284,39 @@ gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| MAS-S1 | columns=3 | 三列有项 |
-| MAS-S2 | gutter | 间距 |
-| MAS-S3 | 不等高项 | 错落非严格网格 |
-| MAS-S4 | 增项 | 重排不崩 |
-| MAS-S5 | columns=1 | 单列 |
+| MAS-S1 | columns=3，容器宽 900，gutter=0 | 三列宽各 300±0.5px，每列至少 1 项 |
+| MAS-S2 | gutter=16（水平 16，垂直 16） | 项宽=`(W+16)/n−16`（±0.5px），列高累加含 16 |
+| MAS-S3 | 不等高项（如 100/200/150） | 最短列优先放项；列高差>0，非等行网格 |
+| MAS-S4 | 增 1 项后重排 | 列归属按序重算，`onLayoutChange` 列号更新，不崩溃 |
+| MAS-S5 | columns=1，容器宽 900 | 单列宽 900±0.5px，纵向堆叠 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 子项按 §6.4 列宽/列高排布，间隙符合 §6.2（±0.5px） |
+| hover/active/focus/disabled/loading | **不适用**（纯布局容器，无颜色无交互态；可交互子项自理） |
+| 主题切换 | 间隙随 Theme 更新（无颜色切换） |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 项入场/离场 fade（`motionDurationSlow/Fast` + `motionEaseOut`）；P0 可瞬时，须尊重 reduced-motion。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰分隔 | 纯装饰可 aria-hidden |
-| 拖拽把手 | 可命名；键盘微调 P0/P1 按控件 |
+| 布局容器 | 无强制 role；可选 `AriaLabel` 命名；Masonry 无装饰分隔、无浮层 |
+| 子项 | 可交互子项自行承担焦点、键盘与读屏名；纯展示项不抢焦点 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 列宽/列高/gutter 度量（§6.2） | **对等** | P0 L2 |
+| `fresh` 持续监听子项尺寸 | **对等**（宿主尺寸观测；P0 瞬时重排） | P0 L1 |
+| columns/gutter 响应式断点 | **对等**（`SetViewportWidth` 解析，自大到小取首个命中） | P0 L1 |
+| `itemRender` / `children` 优先级 | **对等**（`children` 优先于 `itemRender`） | P0 L1 |
+| 动画/过渡特效 | **近似**或瞬时 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -334,11 +327,17 @@ gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `items` | 必须 |
-| `columns` | 必须 |
-| `children` | 必须 |
-| 官方主路径示例 | 基础用法、响应式、图片、动态更新、自定义语义结构的样式和类 |
-| 度量 §6.2 | Token 断言 |
+| `items`（`key` / `column` / `height` / `data` / `children`） | 数据驱动；`column=-1` 自动进最短列，`height=0` 实测 |
+| `columns` 固定列数 | 默认 3；`0` 回落 3 |
+| `columns` 响应式（`xs…xxxl` 数字） | 按视口取首个命中，无命中回落 `xs`，无 `xs` 回落 1 |
+| `gutter` 固定值 | 水平/垂直同值，直用 px |
+| `gutter` `[水平, 垂直]` 二元组 | 水平进列宽公式，垂直累列高 |
+| `gutter` 响应式对象 | 按断点取值，规则同 Row `useGutter` |
+| `itemRender` / `children` | `children` 优先于 `itemRender` |
+| `fresh` | 持续监听子项尺寸变化，默认 false |
+| `onLayoutChange` | 列归属回调 `[{key, column}]` |
+| 官方主路径示例 | 基础用法、响应式、图片、动态更新 |
+| 度量 §6.2 | Token 断言（含列宽公式±0.5px） |
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
@@ -346,10 +345,19 @@ gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| 自定义语义结构的样式和类 | semantic 深度（结构可挂载，见 MAS-11） |
 | semantic classNames/styles 深度（含 `_semantic.tsx` 语义节点口径） | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| debug 示例与官网逐像素哈希 | 分期（持续更新 `fresh.tsx` 为官方 debug 示例，不计 P0） |
+
+**6 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 4 例，余下 2 例 P1，其中持续更新为官方 debug 示例）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基础用法/响应式/图片/动态更新 | P0 | 列分配+响应式+重排主路径，gallery 必备 |
+| 自定义语义结构的样式和类 | P1 | semantic 深度 |
+| 持续更新（`fresh.tsx`，debug） | P1 | 官方 debug 示例，不计 P0 |
 
 ### 6.9 验收用例表（可测）
 
@@ -359,21 +367,22 @@ gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | MAS-01 | L1 | NewMasonry 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| MAS-02 | L1 | columns=3 | 三列有项 |
-| MAS-03 | L1 | gutter | 间距 |
-| MAS-04 | L1 | 不等高项 | 错落非严格网格 |
-| MAS-05 | L1 | 增项 | 重排不崩 |
-| MAS-06 | L1 | columns=1 | 单列 |
-| MAS-07 | L1 | 复现官方示例「基础用法」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MAS-08 | L1 | 复现官方示例「响应式」（`responsive.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MAS-09 | L1 | 复现官方示例「图片」（`image.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MAS-10 | L1 | 复现官方示例「动态更新」（`dynamic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| MAS-11 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| MAS-02 | L1 | columns=3，容器宽 900，gutter=0 | 三列宽各 300±0.5px，每列至少 1 项 |
+| MAS-03 | L1 | gutter=16 | 项宽=`(W+16)/n−16`（±0.5px），行间距 16±0.5px |
+| MAS-04 | L1 | 不等高项 100/200/150 | 最短列优先，列高差>0 |
+| MAS-05 | L1 | 增 1 项后重排 | 列归属更新且不崩溃，`onLayoutChange` 触发 |
+| MAS-06 | L1 | columns=1，容器宽 900 | 单列宽 900±0.5px |
+| MAS-07 | L1 | 挂 `basic.tsx`（6 项，columns=3，容器 900，gutter=0） | 三列宽各 300±0.5px，每列 ≥1 项 |
+| MAS-08 | L1 | 挂 `responsive.tsx`（视口 500→800） | 列数按断点切换，列宽符合公式±0.5px |
+| MAS-09 | L1 | 挂 `image.tsx`（不等高图） | 最短列优先，列高差>0 |
+| MAS-10 | L1 | 挂 `dynamic.tsx`（增 1 项） | 列归属更新不崩溃，`onLayoutChange` 触发 1 次 |
+| MAS-10b | — | 挂 `fresh.tsx`（子项改高，debug 不计） | 列高与根高跟随重算±0.5px（debug，仅分期参考） |
+| MAS-11 | P1 | 挂 `style-class.tsx`（语义结构覆盖） | 结构可挂载；class 字符串深度不测 |
 | MAS-12 | P1 | 复现 `_semantic.tsx` 语义节点（随 semantic 分期） | 语义钩子与文档一致；无控制台级错误 |
-| MAS-13 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| MAS-14 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| MAS-15 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| MAS-16 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| MAS-13 | L2 | 读取 §6.2 列宽/列高/gutter | 与表内公式一致（±0.5px） |
+| MAS-14 | L2 | 默认皮颜色 | 无自有颜色；子项走自身 Token；无硬编码品牌色 |
+| MAS-15 | L2 | disabled 外观 | **不适用**（纯布局无禁用态） |
+| MAS-16 | L1 | 键盘/焦点主路径 | **不适用**（容器不聚焦；可交互子项自理） |
 | MAS-17 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | MAS-18 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | MAS-19 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -430,8 +439,9 @@ Node() core.Node
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Layout root
-  └─ children with gap/span/handles
+Masonry root
+  └─ column × n（宽按 §6.2 列宽公式）
+       └─ item × m（top=列高，height=项高）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

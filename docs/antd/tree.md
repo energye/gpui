@@ -255,11 +255,10 @@ Tree 通过传导方式进行数据变更。无论是展开还是勾选，它都
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（数据树件；拖拽/勾选/异步/node 复用 Checkbox 与搜索；与 `tree-select` 联动，先做本件再做 `tree-select`）。
+- **等谁**：等 Checkbox（`checkable` 勾选语义）、Spin（`loadData` loading）、Input.Search（`search.tsx` 外部搜索组合）就绪。
+- **文件归属**：`ui/kit/tree/`。
+- **组合**：Form 内作树数据录入；Table `childrenColumnName` 树形结构同语义；`fieldNames` 映射外部字段。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -358,19 +357,19 @@ import { Tree } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Tree** 的验收清单：
+实现 gpui kit 版 **Tree** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **12** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（treeData/展开/选中/勾选/loadData/showLine/showIcon/draggable/blockNode/directory/searchValue）；P1 可分期但命名兼容。
+2. **视觉态**：行 hover/选中/dir 选中底/showLine 连接线/loading 节点（§6.4 TRE-S1–S11，§6.2 行高 24/缩进 24/内边 4/连接线）。
+3. **展开/选中/勾选/拖拽**：expandedKeys 受控优先 + `defaultExpandAll/Parent/autoExpandParent`；selectedKeys（`multiple`）；checkedKeys 父子联动（`checkStrictly=false`）与半选；`Drop` 重排（`allowDrop` 细粒度 P1）。
+4. **受控/非受控**：expanded/selected/checked 受控优先，未 Controlled 走 default* 或交互写入（§6.10）。
+5. **数据驱动**：treeData（`key/title/children/disabled/selectable`）+ `NotifyTreeDataChanged`。
+6. **无障碍**：tree/treeitem 角色、展开/选中/半选态、键盘（§6.6）。
+7. **RTL**：缩进方向镜像。
+8. **浮层**：无自带浮层；`height` 虚拟滚动容器（P1 像素级）。
+9. **性能**：大数据 `height` 虚拟只挂载可视窗（P1）；`searchValue` 高亮不过滤结构。
+10. **主题**：Token 化（§6.2）；支持 reduced-motion（展开瞬时）。
+11. **示例矩阵**：官方非 debug **12** 个：P0 **8**（§6.8 主路径）+ P1 **4**（见 §6.8 逐例表）。
 
 ---
 ## 5. 参考链接
@@ -422,7 +421,7 @@ import { Tree } from 'antd';
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
-| showLine 叶图标直径 | **14** | 组件常量（线框圆） |
+| showLine 叶线/连接线 | `colorBorder` 1px 线（`lineWidth`） | `line.tsx` 连接线；`{showLeafIcon}` 自定义叶图标（P0 布尔可见，复杂渲染 P1） |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -513,18 +512,21 @@ treeData 渲染
 
 | 项 | 要求 |
 | --- | --- |
-| 表格/树/列表 | 结构角色与展开/选中态可读 |
-| 排序/筛选 | 控件有名 |
+| 角色 | 根 `role=tree`，节点 `role=treeitem`；勾选框为节点内 checkbox（`aria-checked` 含半选 mixed） |
+| 命名 | 节点名=title（`SearchValue` 高亮片段仍读全标题）；图标/连接线纯装饰不命名 |
+| 键盘 | ↑↓移节点，→展开/←折叠（有子），Enter 选中，Space 勾选（checkable）；disabled 节点可聚焦但不激活 |
+| 焦点环 | 焦点节点整行 ring 可见（outset≈1.5px）；blockNode 下 ring 占整行宽 |
+| 展开/选中 | 展开 `aria-expanded`，层级 `aria-level`，选中 `aria-selected`；异步 loading 节点朗读“加载中” |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 展开/选中/勾选/拖拽/异步/目录/搜索主路径（§6.1 L1） | **对等** | P0 L1 |
+| 行高/缩进/内边/连接线度量与色 Token（§6.2） | **对等** | P0 L2 |
+| 展开/勾选入场 | **瞬时**（尊重 reduced-motion） | P0 瞬时 / P1 像素 |
+| `height` 虚拟滚动容器 | **写实**：定高行+可视窗挂载，长标题横滚行为与浏览器有差须 Notes 注明 | P1 |
+| `fieldNames` 自定义字段 | **映射**外部 title/key/children | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -556,14 +558,14 @@ treeData 渲染
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 / `height` 虚拟滚动 | 分期 |
+| 其余示例（P1，逐例去向） | 自定义展开/折叠图标完整页（`switcher-icon.tsx`，节点级复杂渲染）、虚拟滚动（`virtual-scroll.tsx`，`height` 虚拟容器）、占据整行独立页（`block-node.tsx`，`blockNode` 整行环）、自定义语义结构的样式和类（`style-class.tsx`，semantic 深度） |
+| 动画像素级 / `height` 虚拟滚动像素级 | 分期 |
 | `allowDrop` 细粒度 / 拖拽 icon 关闭 / dropPosition 全矩阵 | 分期 |
 | `fieldNames` 自定义字段 / `treeDataSimpleMode` | 分期 |
 | 自定义 switcherIcon 节点级复杂渲染 / 多行 title ReactNode | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 自定义展开/折叠图标完整页、占据整行独立页、自定义语义结构的样式和类、ConfigProvider 全局 |
+| ConfigProvider 全局默认 | 分期 |
+| debug 示例与官网逐像素哈希 | 分期（`directory-debug/drag-debug/big-data/multiple-line/line-debug/component-token` 不验收） |
 
 ### 6.9 验收用例表（可测）
 
@@ -591,10 +593,10 @@ treeData 渲染
 | TRE-17 | L1 | 复现官方示例「连接线」（`line.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | TRE-18 | L1 | 复现官方示例「自定义图标」（`customized-icon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | TRE-19 | L1 | 复现官方示例「目录」（`directory.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TRE-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| TRE-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| TRE-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| TRE-23 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| TRE-20 | L2 | 读取 §6.2 关键尺寸/间距 | 行高 24/缩进 24/内边 4/连接线（±0.5px） |
+| TRE-21 | L2 | 默认皮颜色 | 选中/hover 底走 `controlItemBgActive/Hover`；无硬编码品牌色 |
+| TRE-22 | L2 | disabled 节点外观 | `colorTextDisabled`；不可选中/勾选/拖拽 |
+| TRE-23 | L1 | 键盘：↑↓移节点，→展开/←折叠，Enter 选中，Space 勾选 | 焦点节点整行 ring 可见；disabled 节点可聚焦不激活 |
 | TRE-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | TRE-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | TRE-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

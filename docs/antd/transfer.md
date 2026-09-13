@@ -232,11 +232,11 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L3**：组合件（依赖空态/分页：空列表走 `empty`，翻页走 `pagination`；先做 `empty`/`pagination`/`checkbox`/`input` 再做本件）。
+- **等谁**：等 Empty（空态文案）、Pagination（`large-data.tsx` 翻页）、Table/Tree（`table-transfer`/`tree-transfer` 自绘体，P0 仅 Table 体）就绪。
+- **Form**：`targetKeys` 受控直绑（只支持受控，父级 `onChange` 后回写）。
+- **ConfigProvider**：全局默认随 ConfigProvider（P1）。
+- **文件归属**：`ui/kit/transfer/`（双栏 section + 操作列 + 搜索 + 分页 + ListBody）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -253,12 +253,30 @@
 | --- | --- | --- | --- | --- | --- |
 | actions | 操作文案集合，顺序从上至下。当为字符串数组时使用默认的按钮，当为 ReactNode 数组时直接使用自定义元素 | ReactNode\[] | \[`>`, `<`] | 6.0.0 | × |
 | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | 6.0.0 | 6.0.0 |
-| dataSource | 数据源，其中的数据将会被渲染到左边一栏中，`targetKeys` 中指定的除外 | [RecordType extends TransferItem = TransferItem](https://github.com/ant-design/ant-design/blob/1bf0bab2a7bc0a774119f501806e3e0e3a6ba283/components/transfer/index.tsx#L12)\[] | \[] | disabled | 是否禁用 | boolean | false | selectionsIcon | 自定义下拉菜单图标 | React.ReactNode | filterOption | 根据搜索内容进行筛选，接收 `inputValue` `option` `direction` 三个参数，(`direction` 自5.9.0+支持)，当 `option` 符合筛选条件时，应返回 true，反之则返回 false | (inputValue, option, direction: `left` \| `right`): boolean | - | footer | 底部渲染函数 | (props, { direction }) => ReactNode | - | direction: 4.17.0 | × |
-| ~~listStyle~~ | 两个穿梭框的自定义样式，使用 `styles.section` 代替 | object\|({direction: `left` \| `right`}) => object | - | locale | 各种语言 | { itemUnit: string; itemsUnit: string; searchPlaceholder: string; notFoundContent: ReactNode \| ReactNode[]; } | { itemUnit: `项`, itemsUnit: `项`, searchPlaceholder: `请输入搜索内容` } | oneWay | 展示为单向样式 | boolean | false | 4.3.0 | × |
-| ~~operations~~ | 操作文案集合，顺序从上至下。使用 `actions` 代替 | string\[] | \[`>`, `<`] | ~~operationStyle~~ | 操作栏的自定义样式，使用 `styles.actions` 代替 | CSSProperties | - | pagination | 使用分页样式，自定义渲染列表下无效 | boolean \| { pageSize: number, simple: boolean, showSizeChanger?: boolean, showLessItems?: boolean } | false | 4.3.0 | × |
-| render | 每行数据渲染函数，该函数的入参为 `dataSource` 中的项，返回值为 ReactElement。或者返回一个普通对象，其中 `label` 字段为 ReactElement，`value` 字段为 title | (record) => ReactNode | - | selectAllLabels | 自定义顶部多选框标题的集合 | (ReactNode \| (info: { selectedCount: number, totalCount: number }) => ReactNode)\[] | - | selectedKeys | 设置哪些项应该被选中 | string\[] \| number\[] | \[] | showSearch | 是否显示搜索框，或可对两侧搜索框进行配置 | boolean \| { placeholder:string,defaultValue:string } | false | showSelectAll | 是否展示全选勾选框 | boolean | true | status | 设置校验状态 | 'error' \| 'warning' | - | 4.19.0 | × |
+| dataSource | 数据源，其中的数据将会被渲染到左边一栏中，`targetKeys` 中指定的除外 | [RecordType extends TransferItem = TransferItem](https://github.com/ant-design/ant-design/blob/1bf0bab2a7bc0a774119f501806e3e0e3a6ba283/components/transfer/index.tsx#L12)\[] | \[] |  | × |
+| disabled | 是否禁用 | boolean | false |  | × |
+| selectionsIcon | 自定义下拉菜单图标 | React.ReactNode | — | 5.8.0 | 5.14.0 |
+| filterOption | 根据搜索内容进行筛选，接收 `inputValue` `option` `direction` 三个参数，(`direction` 自5.9.0+支持)，当 `option` 符合筛选条件时，应返回 true，反之则返回 false | (inputValue, option, direction: `left` \| `right`): boolean | - | `direction`: 5.9.0 | × |
+| footer | 底部渲染函数 | (props, { direction }) => ReactNode | - | direction: 4.17.0 | × |
+| ~~listStyle~~ | 两个穿梭框的自定义样式，使用 `styles.section` 代替 | object\|({direction: `left` \| `right`}) => object | - |  | × |
+| locale | 各种语言 | { itemUnit: string; itemsUnit: string; searchPlaceholder: string; notFoundContent: ReactNode \| ReactNode[]; } | { itemUnit: `项`, itemsUnit: `项`, searchPlaceholder: `请输入搜索内容` } |  | × |
+| oneWay | 展示为单向样式 | boolean | false | 4.3.0 | × |
+| ~~operations~~ | 操作文案集合，顺序从上至下。使用 `actions` 代替 | string\[] | \[`>`, `<`] |  | × |
+| ~~operationStyle~~ | 操作栏的自定义样式，使用 `styles.actions` 代替 | CSSProperties | - |  | × |
+| pagination | 使用分页样式，自定义渲染列表下无效 | boolean \| { pageSize: number, simple: boolean, showSizeChanger?: boolean, showLessItems?: boolean } | false | 4.3.0 | × |
+| render | 每行数据渲染函数，该函数的入参为 `dataSource` 中的项，返回值为 ReactElement。或者返回一个普通对象，其中 `label` 字段为 ReactElement，`value` 字段为 title | (record) => ReactNode | - |  | × |
+| selectAllLabels | 自定义顶部多选框标题的集合 | (ReactNode \| (info: { selectedCount: number, totalCount: number }) => ReactNode)\[] | - |  | × |
+| selectedKeys | 设置哪些项应该被选中 | string\[] \| number\[] | \[] |  | × |
+| showSearch | 是否显示搜索框，或可对两侧搜索框进行配置 | boolean \| { placeholder:string,defaultValue:string } | false |  | × |
+| showSelectAll | 是否展示全选勾选框 | boolean | true |  | × |
+| status | 设置校验状态 | 'error' \| 'warning' | - | 4.19.0 | × |
 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
-| targetKeys | 显示在右侧框数据的 key 集合 | string\[] \| number\[] | \[] | titles | 标题集合，顺序从左至右 | ReactNode\[] | - | onChange | 选项在两栏之间转移时的回调函数 | (targetKeys, direction, moveKeys): void | - | onScroll | 选项列表滚动时的回调函数 | (direction, event): void | - | onSearch | 搜索框内容时改变时的回调函数 | (direction: `left` \| `right`, value: string): void | - | onSelectChange | 选中项发生改变时的回调函数 | (sourceSelectedKeys, targetSelectedKeys): void | - 
+| targetKeys | 显示在右侧框数据的 key 集合 | string\[] \| number\[] | \[] |  | × |
+| titles | 标题集合，顺序从左至右 | ReactNode\[] | - |  | × |
+| onChange | 选项在两栏之间转移时的回调函数 | (targetKeys, direction, moveKeys): void | - |  | × |
+| onScroll | 选项列表滚动时的回调函数 | (direction, event): void | - |  | × |
+| onSearch | 搜索框内容时改变时的回调函数 | (direction: `left` \| `right`, value: string): void | - |  | × |
+| onSelectChange | 选中项发生改变时的回调函数 | (sourceSelectedKeys, targetSelectedKeys): void | - |  | × |
 ### Render Props
 
 Transfer 支持接收 `children` 自定义渲染列表，并返回以下参数：
@@ -326,7 +344,7 @@ import { Transfer } from 'antd';
 
 实现 gpui kit 版 **Transfer** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -336,7 +354,7 @@ import { Transfer } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 主路径 8 例（基本用法、单向样式、带搜索框、高级用法、自定义渲染行数据、自定义操作按钮、分页、表格穿梭框）；余下（树穿梭框、自定义状态完整页、语义结构）P1，Notes 显式列出。
 
 ---
 ## 5. 参考链接
@@ -555,14 +573,14 @@ import { Transfer } from 'antd';
 | TF-06 | L1 | disabled | 不可移 |
 | TF-07 | L1 | oneWay | 无回移 |
 | TF-08 | L1 | 受控 targetKeys | 外部优先 |
-| TF-09 | L1 | 复现官方示例「基本用法」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TF-10 | L1 | 复现官方示例「单向样式」（`oneWay.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TF-11 | L1 | 复现官方示例「带搜索框」（`search.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TF-12 | L1 | 复现官方示例「高级用法」（`advanced.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TF-13 | L1 | 复现官方示例「自定义渲染行数据」（`custom-item.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TF-14 | L1 | 复现官方示例「自定义操作按钮」（`actions.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TF-15 | L1 | 复现官方示例「分页」（`large-data.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TF-16 | L1 | 复现官方示例「表格穿梭框」（`table-transfer.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| TF-09 | L1 | 复现官方示例「基本用法」（`basic.tsx`：20 项 `content1..20`，右栏初始 key>10，标题 Source/Target） | 左栏勾 1 项点 `>`：`onChange` 方向 `right`、`moveKeys=[该key]`，右栏多一项；`onSelectChange` 源/目标两侧分别上报 |
+| TF-10 | L1 | 复现官方示例「单向样式」（`oneWay.tsx`） | 无 `<` 操作钮；右栏项点移除等价左移单项；左→右链路同 TF-09 |
+| TF-11 | L1 | 复现官方示例「带搜索框」（`search.tsx`：`filterOption` 按 description 包含，`onSearch` 打日志） | 左栏输 `of content1`：可见项按 description 过滤且 `onSearch(left, …)` 一次；穿梭后目标栏不受搜索词影响 |
+| TF-12 | L1 | 复现官方示例「高级用法」（`advanced.tsx`：20 项偶数预置右栏 + 两侧 footer 重载按钮） | footer 按钮绘制在列表底栏；点左 footer 重载后左栏恢复 10 项，`targetKeys` 回偶数集 |
+| TF-13 | L1 | 复现官方示例「自定义渲染行数据」（`custom-item.tsx`：行文案 `title - description`，`value` 取 title） | 行显示 `content1 - description of content1`；搜索按 `value`（title）匹配；勾选穿梭 moveKeys 仍为 key |
+| TF-14 | L1 | 复现官方示例「自定义操作按钮」（`actions.tsx`：双箭头 actions + 穿梭 loading + message） | 点右移后该侧操作钮进 loading（Button Ticker），约 1s 后恢复；无勾选时对应侧按钮 disabled |
+| TF-15 | L1 | 复现官方示例「分页」（`large-data.tsx`：2000 项 + `pagination`，默认 pageSize=10 simple） | 列表宽切 250（`listWidthLG`）；翻页后仅当页可勾；跨页勾选累计进 `selectedKeys` |
+| TF-16 | L1 | 复现官方示例「表格穿梭框」（`table-transfer.tsx`：`children` ListBody 自绘 Table + `onItemSelectAll(keys,'replace')`） | 两侧渲染 Table（列不同）；表头全选走 `OnItemSelectAll` replace 语义；自绘时内建分页不渲染 |
 | TF-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | TF-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | TF-19 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

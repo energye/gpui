@@ -190,11 +190,9 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：纯展开容器，无外部 kit 强依赖；`extra` 节点可嵌入同库 `Button/Icon`，`custom.tsx` 面板 `style` 覆盖走 kit `Style`。
+- **ConfigProvider**：尺寸、主题、全局 collapse 默认（P1）。
+- **文件归属**：`ui/kit/collapse/`（`collapse.go`，头 Pressable + 体 Column）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -272,17 +270,17 @@ import { Collapse } from 'antd';
 
 实现 gpui kit 版 **Collapse** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **11** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（items/activeKey/defaultActiveKey/accordion/size/bordered/ghost/collapsible/showArrow/expandIcon/placement/extra/destroyOnHidden/forceRender）；`classNames/styles` 深度 P1。
+2. **视觉态**：头/体 pad 三档、bordered/ghost/borderless、disabled 头、extra 不折叠（§6.4 COL-S1~S11，§6.5）。
+3. **尺寸态**：large / medium / small（头 16×24/12×16/8×12，体 24/16×16/12，§6.2）。
+4. **受控/非受控**：activeKey + onChange 与 defaultActiveKey（COL-S7）。
+5. **数据驱动**：items[]（key/label/children/extra/showArrow/collapsible/forceRender）。
+6. **无障碍**：头可聚焦 button + 展开态可读、extra 独立语义（§6.6）。
+7. **RTL**：`expandIconPlacement` start/end 镜像。
+8. **浮层**：无自带浮层。
+9. **性能**：瞬时展开；`destroyOnHidden` 收起卸载，`forceRender` 常驻。
+10. **主题**：Token 化（§6.2 圆角8/头体 pad）；支持 reduced-motion。
+11. **示例矩阵**：§6.8 P0 **8** 例（basic/size/accordion/mix/borderless/custom/noarrow/extra）；`ghost整页/collapsible三态/style-class` 归 P1（ghost 本体仍 P0）。
 
 ---
 ## 5. 参考链接
@@ -419,15 +417,19 @@ activeKeys 集合（多选）或单 key（accordion）
 | COL-S11 | extra 点击 | 不触发折叠 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 | 规则 |
+| 部位 / 态 | 规则（源码 `style/index.ts` + `Collapse.tsx`） |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| 根 bordered | 圆角 **8**（`collapsePanelBorderRadius=borderRadiusLG`）；头底 `colorFillAlter`（kit `colorFillSecondary`），体底 `colorBgContainer`，边框/分割 `colorBorder` |
+| header | 内边距 middle **12×16** / small **8×12** / large **16×24**；字号 14/14/16；箭头 12 + 标题间距 12；`expandIconPlacement=end` 时箭头尾侧 |
+| body | 内边距 middle **16×16** / small **12** / large **24**；顶边 `colorBorder`；`borderless` 体上下 4/16/16、底 transparent |
+| bordered=false | 根无描边，item 保留底部分割线 |
+| ghost | 根/体 transparent 无边框；头底 transparent（COL-S4/COL-05） |
+| accordion | 至多一开；切换时其余项收起（COL-S2） |
+| collapsible=disabled | 头字 `colorDisabledText`，无 hover，键盘不切换 |
+| extra | 头右侧节点，点击不折叠（COL-S11） |
 | 主题切换 | 色与间距随 Theme 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 展开/收起高度动画 P0 瞬时；尊重 reduced-motion。
 
 ### 6.6 无障碍（a11y）最低要求
 
@@ -442,12 +444,12 @@ activeKeys 集合（多选）或单 key（accordion）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| 主路径行为（§6.1 L1 / §6.4 COL-S1~S11） | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2 头12×16/体16×16/圆角8） | **对等** | P0 L2 |
+| 展开/收起高度动画 | **瞬时**（P0）；像素级高度过渡 P1 | P0 瞬时 / P1 像素 |
+| `expandIcon` 自定义箭头 | **对等**（`func(isActive)` 节点注入） | P0 L1 |
+| `destroyOnHidden`/`forceRender` | **对等**（收起卸载语义） | P0 L1 |
+| Semantic classNames/styles（header/body） | kit 浅钩子；函数形态 P1 | P0 浅 / P1 深 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -500,14 +502,14 @@ activeKeys 集合（多选）或单 key（accordion）
 | COL-07 | L1 | destroyOnHidden | 收起卸载 |
 | COL-08 | L1 | 受控 activeKey | 外部优先 |
 | COL-09 | L1 | 键盘（适用） | 可激活头 |
-| COL-10 | L1 | 复现官方示例「折叠面板」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| COL-11 | L1 | 复现官方示例「面板尺寸」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| COL-12 | L1 | 复现官方示例「手风琴」（`accordion.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| COL-13 | L1 | 复现官方示例「面板嵌套」（`mix.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| COL-14 | L1 | 复现官方示例「简洁风格」（`borderless.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| COL-15 | L1 | 复现官方示例「自定义面板」（`custom.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| COL-16 | L1 | 复现官方示例「隐藏箭头」（`noarrow.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| COL-17 | L1 | 复现官方示例「额外节点」（`extra.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| COL-10 | L1 | 复现官方示例「折叠面板」（`basic.tsx`） | 3 面板 items 可展开/收起；onChange 带 key |
+| COL-11 | L1 | 复现官方示例「面板尺寸」（`size.tsx`） | middle/small/large 三档头体 pad（12×16/8×12/16×24）可布局 |
+| COL-12 | L1 | 复现官方示例「手风琴」（`accordion.tsx`） | `accordion=true` 至多一开；开第二项首项收起 |
+| COL-13 | L1 | 复现官方示例「面板嵌套」（`mix.tsx`） | 外层 body 内嵌套内层 Collapse 可布局 |
+| COL-14 | L1 | 复现官方示例「简洁风格」（`borderless.tsx`） | `bordered=false` 根无框、item 底分割可断言 |
+| COL-15 | L1 | 复现官方示例「自定义面板」（`custom.tsx`） | item `style` 背景/圆角覆盖可布局 |
+| COL-16 | L1 | 复现官方示例「隐藏箭头」（`noarrow.tsx`） | `showArrow=false` 项无箭头；其余项正常 |
+| COL-17 | L1 | 复现官方示例「额外节点」（`extra.tsx`） | `extra` 右侧设置图标可布局；点击 extra 不折叠 |
 | COL-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | COL-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | COL-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |

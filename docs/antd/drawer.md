@@ -170,6 +170,13 @@
   | `bottom` | 下方 |
   | `left` | 左侧 |
 
+#### `push`
+
+- **说明**：多层 Drawer 的推动行为，默认下层偏移 180
+- **类型**：boolean | { distance: string | number }
+- **默认值**：{ distance: 180 }
+- **版本**：4.5.0+
+
 #### `resizable`
 
 - **说明**：是否启用拖拽改变尺寸
@@ -341,14 +348,14 @@
 | _InternalPanelDoNotUseOrYouWillBeFired | `render-panel.tsx` | 是 |
 | 滚动锁定调试 | `scroll-debug.tsx` | 是 |
 | 组件 Token | `component-token.tsx` | 是 |
+| 语义结构调试 | `_semantic.tsx` | 是 |
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L3（浮层：Portal 侧滑面板 + mask + z-index 定位）。
+- **等谁**：浮层定位（Portal/z-index 栈）、Button/Input/Form（抽屉内表单与操作区）、Skeleton（`loading` 骨架屏）。
+- **文件归属**：`ui/kit/drawer/`。
+- **组合**：多层 Drawer 经 `push` 推移；Modal/Drawer 内浮层注意挂载容器。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -445,7 +452,7 @@ import { Drawer } from 'antd';
 
 实现 gpui kit 版 **Drawer** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -455,7 +462,7 @@ import { Drawer } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **13** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -586,10 +593,12 @@ closed ── open ──► 侧滑 panel + mask
 
 | 态 | 规则 |
 | --- | --- |
-| mask | `colorBgMask` 半透明（适用者） |
-| panel/popup | 容器底 + 阴影 + 圆角 LG |
-| open/close | 动画可关 / reduced-motion |
-| disabled 触发 | 触发器禁用皮，不打开 |
+| mask | `colorBgMask` 半透明；`blur(4px)` 无 backdrop 时降级纯色 mask（P1） |
+| panel | 容器底 + 阴影；贴边面板圆角 0；**默认宽 378**，`large=736`，数字 px 可调 |
+| resizable 拖拽条 | 边缘拖拽条宽 **4**（`draggerSize`），拖拽改主轴尺寸，`maxSize` 钳制上限 |
+| push 多层 | 下层偏移 **180**（`distance`）；不支持推移时层叠不推移亦可 |
+| open/close | 侧滑动画可关 / reduced-motion；P0 瞬时切换 |
+| header | 标题 16 + 内边距 16×24；`closable=false` 时无关闭按钮 |
 
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
@@ -598,23 +607,25 @@ closed ── open ──► 侧滑 panel + mask
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 角色 | 面板 `role=dialog` |
+| 命名 | 每屉名=title（title 为空测试失败，可 `SetAriaLabel` 覆盖） |
+| 键盘 | Esc 关闭（`keyboard=true`）；Tab 在 panel 内循环（`focusable.trap`，降级至少 Esc+mask 可关） |
+| 焦点环 | 关闭按钮/extra 操作聚焦时 ring 可见；打开焦点进 panel，关闭回触发器 |
+| 遮罩 | `mask=true` 朗读模态遮罩；`maskClosable=false` 时点 mask 不关 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
+| open/placement/closable/keyboard/destroyOnHidden 主路径 | **对等** | P0 L1 |
+| `size` 数字 px（default=378/large=736） | **对等** | P0 L1+L2 |
+| `size` 字符串百分比/vw（如 `size.tsx` 百分比行） | **映射**：需容器度量，P0 只保 default/large/数字 | P1 |
+| `mask.blur(4px)` 真实模糊 | **降级**：无 backdrop 时纯色 `colorBgMask`，模糊 P1 | P0 降级 / P1 完整 |
+| resizable 拖拽 + `maxSize` 钳制 + push 180 推移 | **对等**（推移不支持时层叠降级） | P0 L1 |
+| `getContainer=false`/渲染在当前 DOM | **映射**：浏览器 DOM 挂载语义，桌面容器内裁剪另期 | P1 |
+| `closable.placement=start/end` 位置切换 | **分期**（P0 只保默认可关） | P1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）

@@ -168,11 +168,10 @@ Form.Item 默认绑定值属性到 `value` 上，而 Switch 的值属性为 `che
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2**：表单件（无浮层）；轨+把手+内文瞬时/FloatAnim 切换；无组内前置依赖。
+- **Form**：`checked`（`value` 别名）直绑，注意 Item 默认绑 `value`，用 `valuePropName` 改绑（FAQ）。
+- **ConfigProvider**：size 全局默认。
+- **文件归属**：`ui/kit/switch/`（轨 + 把手 + 内文 + loading spinner）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -185,9 +184,19 @@ Form.Item 默认绑定值属性到 `value` 上，而 Switch 的值属性为 `che
 
 | 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
 | --- | --- | --- | --- | --- | --- |
-| checked | 指定当前是否选中 | boolean | false | checkedChildren | 选中时的内容 | ReactNode | - | classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - | defaultChecked | 初始是否选中 | boolean | false | defaultValue | `defaultChecked` 的别名 | boolean | - | 5.12.0 | × |
-| disabled | 是否禁用 | boolean | false | loading | 加载中的开关 | boolean | false | size | 开关大小，可选值：`medium` `small` | `'medium'` \| `'small'` | `medium` | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | unCheckedChildren | 非选中时的内容 | ReactNode | - | value | `checked` 的别名 | boolean | - | 5.12.0 | × |
-| onChange | 变化时的回调函数 | function(checked: boolean, event: Event) | - | onClick | 点击时的回调函数 | function(checked: boolean, event: Event) | - 
+| checked | 指定当前是否选中 | boolean | false |  | × |
+| checkedChildren | 选中时的内容 | ReactNode | - |  | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | 6.0.0 |
+| defaultChecked | 初始是否选中 | boolean | false |  | × |
+| defaultValue | `defaultChecked` 的别名 | boolean | - | 5.12.0 | × |
+| disabled | 是否禁用 | boolean | false |  | × |
+| loading | 加载中的开关 | boolean | false |  | × |
+| size | 开关大小，可选值：`medium` `small` | `'medium'` \| `'small'` | `medium` |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | 6.0.0 |
+| unCheckedChildren | 非选中时的内容 | ReactNode | - |  | × |
+| value | `checked` 的别名 | boolean | - | 5.12.0 | × |
+| onChange | 变化时的回调函数 | function(checked: boolean, event: Event) | - |  | × |
+| onClick | 点击时的回调函数 | function(checked: boolean, event: Event) | - |  | × |
 ## 方法
 
 | 名称    | 描述     |
@@ -234,7 +243,7 @@ import { Switch } from 'antd';
 4. **受控**：受控下点击只抛回调，外观等父级回写。
 5. **无障碍**：`role=switch`，Tab 可达，Space/Enter 切换。
 6. **主题**：Token 化；动效可关（reduced-motion 下瞬时）。
-7. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
+7. **示例矩阵**：§6.8 P0 主路径 5 例（基本、不可用、文字和图标、两种大小、加载中）；余下（语义结构、`_semantic`）P1，Notes 显式列出。
 
 ---
 ## 5. 参考链接
@@ -360,15 +369,17 @@ mount ──► unchecked | checked（受控/非受控）
 
 | 态 | 规则 |
 | --- | --- |
-| default | Token 默认皮 |
-| hover / active | 可交互反馈 |
-| focus | 可见 focus ring |
-| checked/selected/active（适用者） | 主色强调 |
-| disabled | 降对比；无 hover |
-| loading | 指示器；防重复 |
+| 关（unchecked） | `colorTextQuaternary`（≈ rgba(0,0,0,0.25)）轨；白把手（直径≈轨高−2×2，见 §6.2） |
+| 开（checked） | `colorPrimary` 轨（`switchColor`）；白把手滑向开侧 |
+| hover | 开轨 → `colorPrimaryHover`；关轨 → `colorTextTertiary`（≈ 0.45） |
+| focus | 可见 focus ring，形状跟胶囊（outset ≈ 1.5px） |
+| disabled | 整体降对比（`opacityLoading` ≈0.65 或降对比填充）；无 hover；不可点 |
+| loading | 把手内 spinner（深色描边，Ticker 旋转）；期间不切换；可保持 checked 外观 |
+| 内文 | `checkedChildren` / `unCheckedChildren` 字符串按开/关显示，反白字（`colorTextLightSolid`） |
+| 尺寸 | medium 轨 ≈44×22；small 轨 ≈28×16（公式见 §6.2） |
 
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 把手滑动 P0 可用瞬时或 FloatAnim；loading 旋转跟 Host Tick；尊重 reduced-motion。
 
 ### 6.6 无障碍（a11y）最低要求
 
@@ -441,11 +452,11 @@ mount ──► unchecked | checked（受控/非受控）
 | SW-09 | L1 | 默认尺寸 | 轨高≈22、最小宽≈44（公式见 §6.2） |
 | SW-10 | L1 | `checkedChildren`/`unCheckedChildren` | 开/关文案随状态显示 |
 | SW-11 | L1 | 主题主色 | 开态轨道 = `colorPrimary` |
-| SW-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SW-13 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SW-14 | L1 | 复现官方示例「文字和图标」（`text.tsx`，字符串内文） | 交互与主视觉符合文档；无控制台级错误 |
-| SW-15 | L1 | 复现官方示例「两种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SW-16 | L1 | 复现官方示例「加载中」（`loading.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| SW-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 点一次 `onChange(true)` + `onClick(true)` 各一次，外观变开；再点回关 |
+| SW-13 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | `disabled` 下点/Space 均无 `onChange`/`onClick`，外观降对比 |
+| SW-14 | L1 | 复现官方示例「文字和图标」（`text.tsx`：`On/Off`、`1/0`、勾叉图标、笑脸/Happy 四排，P0 只验字符串两排） | `On/Off` 排：开显 `On`、关显 `Off`；`1/0` 排同理；图标两排 P1（多节点 Flex 图标分期） |
+| SW-15 | L1 | 复现官方示例「两种大小」（`size.tsx`：默认 + small 各一） | 实测轨 ≈44×22 与 ≈28×16（±0.5）；小轨把手 ≈12 |
+| SW-16 | L1 | 复现官方示例「加载中」（`loading.tsx`：默认 loading 开 + small loading 关） | 两开关把手内均有 spinner（Ticker 转）；点击均无 `onChange`；开排外观保持开 |
 | SW-17 | P1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | semantic 深度分期 |
 | SW-18 | P1 | 复现官方示例「_semantic.tsx」 | semantic 深度分期 |
 | SW-19 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |

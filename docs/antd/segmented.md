@@ -191,11 +191,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（单选条件；`option.tooltip` 提示语义走 `tooltip`，先做 `tooltip` 再做本件）。
+- **等谁**：等 Tooltip（`tooltip` 字符串回落）、Icon（`icon` 注册表）就绪；`options` 数据先行。
+- **文件归属**：`ui/kit/segmented/`。
+- **组合**：Form 内作单选录入；`name` radio 组名透传；`block` 撑满父宽。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -270,19 +269,18 @@ import { Segmented } from 'antd';
 
 > 1:1 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **Segmented** 的验收清单：
+实现 gpui kit 版 **Segmented** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **13** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（value/defaultValue/onChange/options/disabled/size/block/orientation/shape/icon/LabelNode）；P1 可分期但命名兼容。
+2. **视觉态**：track 底+选中浮起+hover/active 底（§6.5）；无 antd loading 态，不伪造。
+3. **尺寸态**：small / middle / large 三档外高 24/32/40（§6.2 trackPadding 2）。
+4. **受控/非受控**：value+onChange 与 defaultValue（首项回落）；同值复点不重复 onChange（SEG-S 系）。
+5. **数据驱动**：options（string/number/SegmentedOption）+ 动态 SetOptions。
+6. **无障碍**：radiogroup/radio 角色、项名、键盘、ring（§6.6）。
+7. **RTL**：orientation 水平镜像。
+8. **动效**：P0 瞬时切换选中皮；thumb 滑动像素级 P1。
+9. **主题**：Token 化（§6.2）；支持 reduced-motion。
+10. **示例矩阵**：官方非 debug **13** 个：P0 **8**（§6.8 主路径）+ P1 **5**（见 §6.8 逐例表）。
 
 ---
 ## 5. 参考链接
@@ -438,21 +436,20 @@ shape=round ──► 胶囊圆角
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | button / checkbox / switch / radio 等与语义一致 |
-| 名称 | 可交互必有名；仅图标必须 AriaLabel |
-| 焦点 | Tab 可达；ring 可见 |
-| 键盘 | Space/Enter 或方向键按角色 |
-| 禁用 | 不可激活；读屏可感知（平台支持时） |
+| 角色 | 根 `role=radiogroup`，每项 `role=radio`（`aria-checked` 跟选中态） |
+| 命名 | 每项名=label（仅图标项用 `AriaLabel`/value；无名则测试失败）；root `name` 为组名，不替代项名 |
+| 键盘 | Tab 一次入组；←→（水平）/↑↓（垂直）移动焦点并选中，Enter/Space 激活焦点项；同值复点不重复 `onChange` |
+| 焦点环 | 焦点项 ring 可见（outset≈1.5px）；disabled 整组/单项无 ring 激活 |
+| 禁用 | 不可点项 `aria-disabled=true`，读屏可感知，不触发 `onChange` |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 点击/切换/禁用/键盘/受控主路径（§6.1 L1） | **对等** | P0 L1 |
+| 高 24/32/40 与 track/item 圆角/色 Token（§6.2） | **对等** | P0 L2 |
+| thumb 滑动/入场 | **瞬时**（尊重 reduced-motion） | P0 瞬时 / P1 像素 |
+| option.`tooltip` 完整形态 | kit 短提示回落；完整 TooltipProps **分期** | P0 回落 / P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -483,13 +480,13 @@ shape=round ──► 胶囊圆角
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `name`（radio 组名） | 配合 name 使用示例 |
-| option.`tooltip` 完整 TooltipProps | 分期 |
+| 其余示例（P1，逐例去向） | 三种大小（`size.tsx`，高 24/32/40 三档）、设置图标（`with-icon.tsx`，icon+label 混排）、只设置图标（`icon-only.tsx`，icon-only+`AriaLabel`）、配合 name 使用（`with-name.tsx`，`name` radio 组名）、自定义语义结构的样式和类（`style-class.tsx`，semantic 深度） |
+| `name`（radio 组名） | 配合 name 使用示例（`with-name.tsx`） |
+| option.`tooltip` 完整 TooltipProps | 分期（P0 仅 `Title` 短提示） |
 | semantic classNames/styles 深度 | 分期 |
-| thumb 滑动动画像素级 | 分期 |
+| thumb 滑动动画像素级 | 分期（P0 瞬时切换） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 gallery 页 | 三种大小、设置图标、只设置图标、配合 name 使用、style-class |
+| debug 示例与官网逐像素哈希 | 分期（`controlled-two/size-consistent/componentToken` 不验收） |
 
 ### 6.9 验收用例表（可测）
 
@@ -516,8 +513,8 @@ shape=round ──► 胶囊圆角
 | SEG-16 | L1 | 复现官方示例「动态数据」（`dynamic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | SEG-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | SEG-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| SEG-19 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| SEG-20 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| SEG-19 | L2 | disabled 整组/单项外观 | `colorDisabledText`；无 hover 高亮；不触发 onChange |
+| SEG-20 | L1 | 键盘：Tab 一次入组，←→/↑↓ 移动并选中，Enter/Space 激活 | 焦点项 ring 可见；同值复点不重复 onChange |
 | SEG-21 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | SEG-22 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | SEG-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

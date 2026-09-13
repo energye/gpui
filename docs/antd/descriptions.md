@@ -188,11 +188,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：纯只读分组容器，无外部 kit 强依赖；`extra` 可嵌入 `Button` 等可交互控件（各自处理键盘/焦点）。
+- **行算法**：对齐 `useRow`（满列换行/末项补齐/`filled` 收行），`column`/`span` 响应式 map + `ViewportWidth` 注入。
+- **ConfigProvider**：尺寸、主题、全局 descriptions 默认（P1）。
+- **文件归属**：`ui/kit/descriptions/`（`descriptions.go`，行/格 Flex 布局）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -253,17 +252,17 @@ import { Descriptions } from 'antd';
 
 实现 gpui kit 版 **Descriptions** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **8** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（items/title/extra/size/bordered/column/layout/colon/span+filled/响应式map）；semantic 函数形态 P1。
+2. **视觉态**：顶栏/非边框/边框表/竖排/column-span/冒号规则（§6.4 DSC-S1~S8，§6.5）。
+3. **尺寸态**：large / medium / small（竖档 16/12/8，横 24/24/16，§6.2）。
+4. **受控/非受控**：不适用（只读展示；`ViewportWidth` 为显式注入）。
+5. **数据驱动**：items[]（label/children/span/filled/spanMap）+ `useRow` 行算法。
+6. **无障碍**：只读分组 `role=group`、label+内容配对、本体不抢焦点（§6.6）。
+7. **RTL**：行内 label/内容顺序镜像；换行朗读序跟视觉。
+8. **浮层**：无自带浮层。
+9. **性能**：静态行格，无虚拟列表；断点切换瞬时重排。
+10. **主题**：Token 化（§6.2 label Tertiary/内容 Text/底 FillSecondary）；无主路径动画。
+11. **示例矩阵**：§6.8 P0 **8** 例（basic/border/size/responsive/vertical/vertical-border/style-class浅/block）；`text/padding/style/jsx` 归 P1。
 
 ---
 ## 5. 参考链接
@@ -367,43 +366,48 @@ bordered 表框
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| DSC-S1 | 3 项 column=3 | 一行三格 |
-| DSC-S2 | bordered | 表框 |
-| DSC-S3 | span=2 | 占两列 |
-| DSC-S4 | size | padding 变 |
-| DSC-S5 | title | 标题 |
-| DSC-S6 | layout=vertical | 标签在上 |
+| DSC-S1 | 3 项 column=3 | 一行三格，列宽均分 |
+| DSC-S2 | bordered=true | 外框+格线 `colorSplit`，label 格底 `colorFillSecondary`，不画冒号 |
+| DSC-S3 | Item span=2（column=3） | 该格占两列宽，行内剩余项补齐后换行 |
+| DSC-S4 | size=small/medium/large | 边框格与非边框项 padding 按 §6.2 竖档 8/12/16 切换 |
+| DSC-S5 | title+extra | 标题左上、extra 右上同行可见；extra 可点节点独立命名 |
+| DSC-S6 | layout=vertical | 每格 label 在上、内容在下竖排 |
+| DSC-S7 | colon=false（非边框） | 不画冒号；bordered 时强制无冒号（与 antd 一致） |
+| DSC-S8 | span=filled / 响应式 ColumnMap | filled 铺满当前行剩余并收行；ViewportWidth 命中断点列数切换 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
-| 态 | 规则 |
+| 部位 / 态 | 规则（源码 `style/index.ts` + `useRow` 行算法） |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| 顶栏 | title 左（16 `fontSizeLG` 加粗 `colorText`）+ extra 右上；标题下间距 **20**（`titleMarginBottom`） |
+| 非边框行 | item 下间距 large **16** / medium **12** / small **8**，右间距 16；label `colorTextTertiary` + 冒号（左 2/右 8），内容 `colorText` |
+| bordered 表 | 外框 + 格线 `colorSplit`（1px）；label 格底 `colorFillSecondary`；格 pad 竖 16/12/8、横 24/24/16；强制无冒号 |
+| layout=vertical | 每格 label 在上、内容在下竖排；bordered 竖表同格线 |
+| column/span | 默认 3 列均分；`span=2` 占两列宽后换行；`filled` 铺满剩余并收行；响应式 `ColumnMap` 按视口切列 |
+| colon=false | 非边框不画冒号；bordered 恒无冒号 |
+| 主题切换 | 色与间距随 Theme 更新（medium 12 走组件常量，非 `TokenPaddingSM`） |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 本控件无主路径动画；断点换列 P0 瞬时。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 只读分组 | 根 `role=group`（或等价）+ 可选 `AriaLabel`；纯展示容器，不抢焦点，不设展开/选中态 |
-| 标题/操作 | `title` 为分组标题文本，`extra` 为独立操作区（若可点则各自有可访问名，不挂到只读分组上） |
-| 键值配对 | 每项按“label＋内容”配对朗读；`colon` 冒号仅视觉分隔，不读出；`layout=vertical` 时先读 label 再读内容 |
-| 响应式 | 断点换行后朗读顺序跟随视觉行序（左→右、上→下），`span=filled` 整行项行序不变 |
+| 角色 | 根 `role=group`；纯展示容器，不设表格/展开/选中角色 |
+| 命名 | 分组名=title 或 `AriaLabel`；每项按 label＋内容配对，`colon` 冒号仅视觉分隔不读出 |
+| 键盘 | 本体不抢焦点、无键盘操作；extra 内可交互控件按各自语义处理键盘 |
+| 焦点环 | 本体无 ring；extra 或内容区可聚焦子控件聚焦时 ring 可见（outset≈1.5px） |
+| 顺序 | 断点换行后朗读序跟视觉行序（左→右、上→下）；`layout=vertical` 先 label 后内容，`span=filled` 整行不断序 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| 主路径行为（§6.1 L1 / §6.4 DSC-S1~S8） | **对等** | P0 L1 |
+| 尺寸/色 Token（§6.2 竖档8/12/16 + 横24/16） | **对等** | P0 L2 |
+| 行算法 `useRow`（满列换行/末项补齐/filled 收行） | **对等** | P0 L1 |
+| 响应式 `column`/`span` map + `ViewportWidth` | **对等**（断点注入） | P0 L1 |
+| 浅 `styles`（root/label/content） | kit `Style` 直配 | P0 |
+| Semantic 函数形态 / 全节点深度 | 分期 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -451,18 +455,18 @@ bordered 表框
 | DSC-05 | L1 | size | padding 变 |
 | DSC-06 | L1 | title | 标题 |
 | DSC-07 | L1 | layout=vertical | 标签在上 |
-| DSC-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-09 | L1 | 复现官方示例「带边框的」（`border.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-10 | L1 | 复现官方示例「自定义尺寸」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-11 | L1 | 复现官方示例「响应式」（`responsive.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-12 | L1 | 复现官方示例「垂直」（`vertical.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-13 | L1 | 复现官方示例「垂直带边框的」（`vertical-border.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-14 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-15 | L1 | 复现官方示例「整行」（`block.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DSC-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| DSC-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| DSC-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| DSC-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| DSC-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | title「User Info」+ 5 项非边框三列可布局 |
+| DSC-09 | L1 | 复现官方示例「带边框的」（`border.tsx`） | bordered 表框 + `span=2` 占两列可布局；无冒号 |
+| DSC-10 | L1 | 复现官方示例「自定义尺寸」（`size.tsx`） | bordered 下 middle/small 格 pad（竖12/8）可断言 |
+| DSC-11 | L1 | 复现官方示例「响应式」（`responsive.tsx`） | `span={xl:2}` 响应式 + `ViewportWidth` 切列可布局 |
+| DSC-12 | L1 | 复现官方示例「垂直」（`vertical.tsx`） | `layout=vertical` 标签在上 + `span=2` 可布局 |
+| DSC-13 | L1 | 复现官方示例「垂直带边框的」（`vertical-border.tsx`） | 竖排 bordered 表可布局 |
+| DSC-14 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 浅 `styles.label` 覆盖可布局（函数形态 P1） |
+| DSC-15 | L1 | 复现官方示例「整行」（`block.tsx`） | `span=filled` 铺满剩余并收行可布局 |
+| DSC-16 | L2 | 读取 §6.2 关键尺寸/间距 | 非边框竖档16/12/8、边框横24/16、冒号2/8、标题下20（±0.5px） |
+| DSC-17 | L2 | 默认皮颜色 | label 走 `colorTextTertiary`、内容 `colorText`、label 底 bordered 时 `colorFillSecondary`；无硬编码品牌色 |
+| DSC-18 | L2 | disabled 外观 | **不适用**（Descriptions 无 disabled API；extra 子控件各自处理）— 跳过 |
+| DSC-19 | L1 | 键盘/焦点 | 本体不抢焦点；extra 内可交互子控件按各自语义可聚焦（§6.6） |
 | DSC-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | DSC-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | DSC-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |

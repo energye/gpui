@@ -253,11 +253,10 @@ Ant Design 依次提供了三级选项卡，分别用于不同的场景。
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（导航：纯切换 + 横向滚动宿主，无浮层定位）。
+- **等谁**：无上游等待；`more` 折叠菜单（Dropdown 底座）为 P1，P0 溢出只走横向滚动不等待。
+- **文件归属**：`ui/kit/tabs/`。
+- **组合**：页签图标复用 `kit.Icon`；`tabBarExtraContent` 左右附加内容由上层注入；`renderTabBar`/拖拽为 P1。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -309,20 +308,20 @@ import { Tabs } from 'antd';
 | 配置项 | 说明 | 类型 | 默认值 | 版本 |
 | --- | --- | --- | --- | --- |
 | `activeKey` | 当前激活 tab 面板的 key | string | - | — |
-| `addIcon` | 自定义添加按钮，设置 `type="editable-card"` 时有效 | ReactNode | `` | 4.4.0 |
+| `addIcon` | 自定义添加按钮，设置 `type="editable-card"` 时有效 | ReactNode | `<PlusOutlined />` | 4.4.0 |
 | `animated` | 是否使用动画切换 Tabs | boolean\| { inkBar: boolean, tabPane: boolean } | { inkBar: true, tabPane: false } | — |
 | `centered` | 标签居中展示 | boolean | false | 4.4.0 |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props })=> Record | - | — |
+| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record \| (info: { props })=> Record | - | 6.0.0 |
 | `defaultActiveKey` | 初始化选中面板的 key，如果没有设置 activeKey | string | `第一个面板的 key` | — |
 | `hideAdd` | 是否隐藏加号图标，在 `type="editable-card"` 时有效 | boolean | false | — |
 | `indicator` | 自定义指示条的长度和对齐方式 | { size?: number \| (origin: number) => number; align: `start` \| `center` \| `end`; } | - | 5.13.0 |
 | `items` | 配置选项卡内容 | [TabItemType](#tabitemtype) | [] | 4.23.0 |
-| `more` | 自定义折叠菜单属性 | [MoreProps](#moreprops) | { icon: `` , trigger: 'hover' } | — |
-| `removeIcon` | 自定义删除按钮，设置 `type="editable-card"` 时有效 | ReactNode | `` | 5.15.0 |
+| `more` | 自定义折叠菜单属性 | [MoreProps](#moreprops) | { icon: `<EllipsisOutlined />` , trigger: 'hover' } | 5.17.0 |
+| `removeIcon` | 自定义删除按钮，设置 `type="editable-card"` 时有效 | ReactNode | `<CloseOutlined />` | 5.15.0 |
 | `popupClassName` | 更多菜单的 `className`, 请使用 `classNames.popup` 替换 | string | - | 4.21.0 |
 | `renderTabBar` | 替换 TabBar，用于二次封装标签头 | (props: DefaultTabBarProps, DefaultTabBar: React.ComponentClass) => React.ReactElement | - | — |
 | `size` | 大小，提供 `large` `medium` 和 `small` 三种大小 | `large` \| `medium` \| `small` | `medium` | — |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props })=> Record | - | — |
+| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record \| (info: { props })=> Record | - | 6.0.0 |
 | `tabBarExtraContent` | tab bar 上额外的元素 | ReactNode \| {left?: ReactNode, right?: ReactNode} | - | object: 4.6.0 |
 | `tabBarGutter` | tabs 之间的间隙 | number | - | — |
 | `tabBarStyle` | tab bar 的样式对象 | CSSProperties | - | — |
@@ -362,7 +361,7 @@ import { Tabs } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **15** 个，均需可复现。
+11. **示例矩阵**：P0 按 §6.8 逐例对照表（8 例主路径），余下 P1 分期（位置全矩阵/card 完整页/editable 完整页/自定义触发器/页签头/拖拽 + 3 个 debug）。
 
 ---
 ## 5. 参考链接
@@ -384,7 +383,7 @@ import { Tabs } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 选中/展开/分页或步骤切换与键盘 | Headless / behavior 测试 |
+| **L1** | 行为 | 点签切换/受控/禁用/editable 增删/四方位布局/横向滚动溢出与键盘移动 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -406,13 +405,9 @@ import { Tabs } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Tabs 水平 gutter | **32** | horizontalItemGutter 固定 |
-| Tabs cardHeight | **40** | controlHeightLG |
-| cardHeight | **40** | controlHeightLG |
-| itemGutter | **32** | 固定 |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
+| 页签间隙 `tabBarGutter` | **32** | `horizontalItemGutter` 固定值（源码写死 32，非 token 推导，±0.5px；`tabBarGutter` 未设时回落此值） |
+| 卡片高度 `cardHeight` | **40** | `controlHeightLG`（±0.5px；SM/LG 变体另见源码 `mergedCardHeightSM/LG`） |
+| 控件高度 small / middle / large | **24 / 32 / 40** | `controlHeightSM` / `controlHeight` / `controlHeightLG`（±0.5px） |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
@@ -446,7 +441,7 @@ import { Tabs } from 'antd';
 | `hideAdd` | 是否隐藏加号图标，在 `type="editable-card"` 时有效 | boolean | false |
 | `indicator` | 自定义指示条的长度和对齐方式 | { size?: number \ | (origin: number) => number; align: `start` \ |
 | `items` | 配置选项卡内容 | [TabItemType](#tabitemtype) | [] |
-| `more` | 自定义折叠菜单属性 | [MoreProps](#moreprops) | { icon: `<EllipsisOutlined />` , trigger: 'hover' } |
+| `more` | 自定义折叠菜单属性 | [MoreProps](#moreprops) | { icon: `<EllipsisOutlined />` , trigger: 'hover' } | 5.17.0 |
 | `removeIcon` | 自定义删除按钮，设置 `type="editable-card"` 时有效 | ReactNode | `<CloseOutlined />` |
 | `renderTabBar` | 替换 TabBar，用于二次封装标签头 | (props: DefaultTabBarProps, DefaultTa… | - |
 | `size` | 大小，提供 `large` `medium` 和 `small` 三种大小 | `large` \ | `medium` \ |
@@ -454,7 +449,7 @@ import { Tabs } from 'antd';
 | `tabBarExtraContent` | tab bar 上额外的元素 | ReactNode \ | {left?: ReactNode, right?: ReactNode} |
 | `tabBarGutter` | tabs 之间的间隙 | number | - |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 受控 `activeKey` > 非受控 `defaultActiveKey`（无时取首个可选项）> 组件默认（`type=line`/`size=middle`/`placement=top`/`gutter=32`）；`tabPlacement` 优先于废弃 `tabPosition`。
 
 **位置矩阵**：`tabPlacement` 优先于废弃别名 `tabPosition`（`right→end`、`left→start`）；两者并存时一律以 `tabPlacement` 为准。
 
@@ -470,27 +465,38 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
              └── 键盘左右 ──► 在可选项间移动
 ```
 
-\*horizontalItemGutter 固定 32；cardHeight 默认 40。P0 溢出行为：页签超宽时横向滚动，不收进 `more` 下拉菜单。
+\*`tabBarGutter` 未设时回落 `horizontalItemGutter=32` 固定值（±0.5px）；cardHeight 默认 40（±0.5px）。P0 溢出行为：页签超宽时横向滚动，不收进 `more` 下拉菜单（`more` 全量 P1）。
+
+**触发条件 + 容差（可断言）：**
+
+- 切换：点可选项 → `activeKey'=key` + `OnChange(key)` + `OnTabClick(key)` + 面板切换 + ink 平移；受控 `activeKey` 下点选只回调不改显示。
+- 禁用：disabled 签不可点，无回调无切换（TAB-S3）。
+- editable：add 按钮 → `OnEdit("",add)`；关按钮 → `OnEdit(key,remove)`；`hideAdd` 藏加号，`closable=false` 藏关闭。
+- 溢出：页签总宽超视口 → 横向滚动条可滚出隐藏签（不断言 `more` 按钮，P0 不出）；`OnTabScroll(direction)` 在滚动时触发。
+- ink：line 型 ink 宽 = active 签宽（`indicator.size` 未设时），位置 = active 签偏移 ±0.5px。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
 | TAB-S1 | 点第二个 tab | `onChange` 为该项 key；面板内容切换 |
-| TAB-S2 | 受控 activeKey | 外部固定时点击不改变显示直至 props 变 |
-| TAB-S3 | disabled tab | 点击无效 |
-| TAB-S4 | `type=card` | 卡片样式 |
-| TAB-S5 | editable-card 删除 | `onEdit` remove |
-| TAB-S6 | `placement=left` | 页签在左 |
-| TAB-S7 | line 型 ink | 指示条在 active 下 |
-| TAB-S8 | 键盘方向 | 移动 active |
-| TAB-S9 | `destroyOnHidden` | 隐藏面板卸载 |
-| TAB-S10 | size 三档 | padding/高度变化 |
+| TAB-S2 | 受控 activeKey | 外部固定时点击不改变显示直至 props 变（只回调） |
+| TAB-S3 | disabled tab | 点击无效，无回调 |
+| TAB-S4 | `type=card` | 卡片容器高 40（±0.5px） |
+| TAB-S5 | editable-card 删除 | `onEdit(key,remove)` |
+| TAB-S6 | `placement=left` | 页签列在左，面板在右 |
+| TAB-S7 | line 型 ink | 指示条在 active 下，宽/位 ±0.5px |
+| TAB-S8 | 键盘方向 | 左右/上下在可选项间移动 active 并回调 |
+| TAB-S9 | `destroyOnHidden` | 隐藏面板卸载（`ForceRender` 反之常驻） |
+| TAB-S10 | size 三档 | 高 24/32/40（±0.5px） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| line default | 签间距 32（gutter ±0.5px），字 14px `colorText`；active 签主色字 + 底 ink 条（宽/位 ±0.5px） |
+| card | 卡片高 40（±0.5px）+ 边 `colorBorder` + 圆角 6；active 卡白底主色字 |
+| hover/focus | 签 hover 主色字 + focus ring 可见（outset ≈1.5px） |
+| disabled | `colorDisabledText`，无 hover，不可点 |
+| centered | 水平签组居中（`centered=true`） |
+| extra | `tabBarExtraContent` 左右附加节点与签行对齐 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
 
@@ -500,19 +506,23 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | navigation / menu / tablist 等 |
-| 当前 | aria-current / selected |
-| 键盘 | 方向键由 Tabs 自己消费（左右/上下在可选项间移动 active），不走全局焦点链 |
+| 角色 | 根 `tablist`；签为 `tab`，面板为 `tabpanel`（`aria-controls/labelledby` 配对） |
+| 当前 | active 签 `aria-selected=true`；禁用签 `aria-disabled=true` |
+| 键盘 | 方向键由 Tabs 自己消费（左右/上下在可选项间移动 active 并回调，不走全局焦点链）；Enter/Space 激活聚焦签 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
-| 能力 | 策略 | 级别 |
+| 能力 | 真实映射（gpui 侧落点） | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 切换/受控/禁用/增删（§6.4 TAB-S1~S6） | **对等**：`SetActiveKey/SetDefaultActiveKey` + `OnChange/OnTabClick/OnEdit` | P0 L1 |
+| 页签度量（§6.2 gutter 32/card 高 40） | **对等** | P0 L2 |
+| `tabPlacement` 四方位与 `tabPosition` 别名 | **对等**：`SetPlacement`（`tabPlacement` 优先，`right→end/left→start`） | P0 L1 |
+| `editable-card` 增删与 `indicator` | **对等**：`OnEdit(add/remove)` + `SetIndicator(size,align)` | P0 L1 |
+| 溢出横向滚动 | **对等**：页签超宽横向滚出（`OnTabScroll`），P0 不出 `more` 下拉按钮 | P0 L1 |
+| 滚动宿主 | **映射**：签行置于横向滚动宿主内，面板随宿主滚动；`tabBarExtraContent` 不随签滚动 | P0 宿主 |
+| `more` 折叠菜单/溢出 Dropdown | P1 分期（`more.icon/trigger` + Dropdown 底座） | P1 |
+| ink/tabPane 动画（`animated` 默认 ink 开/pane 关） | P0 瞬时或短滑动，像素级 P1；reduced-motion 下瞬时 | P0 L1/P1 |
+| `renderTabBar`/可拖拽标签 | P1 分期 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -536,22 +546,33 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
 | `destroyOnHidden` | 隐藏面板卸载 |
 | `hideAdd` / `onEdit` | editable-card 增删 |
 | 键盘方向 | 在可选项间移动 active（§6.4 TAB-S8） |
-| 官方主路径示例（gallery） | 基本、禁用、居中、图标、指示条、滑动、附加内容、大小 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | tablist / tab / 焦点环最低要求 |
+| 官方主路径示例（P0，8 例） | 基本（`basic.tsx`）、禁用（`disabled.tsx`）、居中（`centered.tsx`）、图标（`icon.tsx`）、指示条（`custom-indicator.tsx`）、滑动（`slide.tsx` 横向滚动）、附加内容（`extra.tsx`）、大小（`size.tsx` 三档） |
+| 度量 §6.2 | Token 断言（gutter 32/card 高 40±0.5，去重 gutter 单一来源） |
+| a11y §6.6 | tablist/tab/tabpanel 配对；`aria-selected`；方向键消费 |
 | §6.9 中 **L1/L2 且非 P1** 用例 | 测试通过（含 TAB-05/06/07 能力，不强制完整 gallery 四方位/editable 全页） |
+
+**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 8 例，余下 11 例 P1）：
+
+| 示例 | 裁剪 | 原因 |
+| --- | --- | --- |
+| 基本 / 禁用 / 居中 / 图标 / 指示条 / 滑动 / 附加内容 / 大小 | P0 | 切换+禁用+居中+ink+横滚+extra+三档主路径 |
+| 位置（`placement.tsx`） | P1 页面（`tabPlacement` top/left 能力 P0） | 四方位整页后补 |
+| 卡片式页签（`card.tsx`） | P1 页面（`type=card` 能力 P0） | 完整卡页后补 |
+| 新增和关闭页签（`editable-card.tsx`） | P1 页面（增删回调能力 P0） | 完整编辑页后补 |
+| 自定义新增页签触发器（`custom-add-trigger.tsx`）/ 自定义页签头（`custom-tab-bar.tsx`）/ 可拖拽标签（`custom-tab-bar-node.tsx`） | P1 | `renderTabBar`/拖拽分期 |
+| 自定义语义结构的样式和类（`style-class.tsx`）/ `_semantic.tsx` | P1 | semantic 深度 |
+| 卡片式页签容器（`card-top.tsx`，debug）/ 动画（`animated.tsx`，debug）/ 嵌套（`nest.tsx`，debug）/ 组件 Token（`component-token.tsx`，debug） | P1 | 调试页，不验收 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
+| semantic classNames/styles 深度 | 分期（`style-class.tsx`，见逐例表） |
 | 动画像素级 ink / tabPane | 分期（P0 ink 可瞬时或短滑动） |
 | `more` 折叠菜单 / 溢出 Dropdown | P1 分期；P0 溢出一律横向滚动代替下拉菜单，不出 `more` 按钮 |
-| `renderTabBar` / 可拖拽标签 | 分期 |
+| `renderTabBar` / 可拖拽标签 | 分期（3 个自定义页，见逐例表） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余 gallery 示例页 | 位置全矩阵页、卡片式页签完整页、新增和关闭页签完整页、自定义新增触发器、自定义页签头 |
+| debug 示例与官网逐像素哈希 | 分期（4 个 debug，见逐例表） |
 
 ### 6.9 验收用例表（可测）
 
@@ -564,25 +585,25 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
 | TAB-02 | L1 | 点第二个 tab | `onChange` 为该项 key；面板内容切换 |
 | TAB-03 | L1 | 受控 activeKey | 外部固定时点击不改变显示直至 props 变 |
 | TAB-04 | L1 | disabled tab | 点击无效 |
-| TAB-05 | L1 | `type=card` | 卡片样式 |
-| TAB-06 | L1 | editable-card 删除 | `onEdit` remove |
-| TAB-07 | L1 | `placement=left` | 页签在左 |
-| TAB-08 | L1 | line 型 ink | 指示条在 active 下 |
-| TAB-09 | L1 | 键盘方向 | 移动 active |
-| TAB-10 | L1 | `destroyOnHidden` | 隐藏面板卸载 |
-| TAB-11 | L1 | size 三档 | padding/高度变化 |
-| TAB-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-13 | L1 | 复现官方示例「禁用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-14 | L1 | 复现官方示例「居中」（`centered.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-15 | L1 | 复现官方示例「图标」（`icon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-16 | L1 | 复现官方示例「指示条」（`custom-indicator.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-17 | L1 | 复现官方示例「滑动」（`slide.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-18 | L1 | 复现官方示例「附加内容」（`extra.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-19 | L1 | 复现官方示例「大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TAB-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| TAB-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| TAB-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| TAB-23 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| TAB-05 | L1 | `type=card` | 卡片高 40（±0.5px），active 卡白底主色字 |
+| TAB-06 | L1 | editable-card 点关闭 | `OnEdit(key,remove)`；`hideAdd` 时无加号 |
+| TAB-07 | L1 | `placement=left` | 签列在左面板在右，布局可断言 |
+| TAB-08 | L1 | line 型 ink | 宽/位 = active 签宽/偏 ±0.5px；`indicator.align` 可配 |
+| TAB-09 | L1 | 键盘方向 | 左右/上下跳可选项并回调，不走全局焦点链 |
+| TAB-10 | L1 | `destroyOnHidden=true` 切签 | 隐藏面板卸载；`forceRender` 反之常驻 |
+| TAB-11 | L1 | size 三档 | 高 24/32/40（±0.5px） |
+| TAB-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 三签可点切，OnChange key 正确，面板同步 |
+| TAB-13 | L1 | 复现官方示例「禁用」（`disabled.tsx`） | disabled 签不可点无回调，禁用色 |
+| TAB-14 | L1 | 复现官方示例「居中」（`centered.tsx`） | `centered=true` 签组水平居中 |
+| TAB-15 | L1 | 复现官方示例「图标」（`icon.tsx`） | icon+label 混排可点切 |
+| TAB-16 | L1 | 复现官方示例「指示条」（`custom-indicator.tsx`） | `indicator.size/align` 生效，ink 宽/位可断言 |
+| TAB-17 | L1 | 复现官方示例「滑动」（`slide.tsx`） | 超宽横向滚动可滚出隐藏签并调 OnTabScroll；不出 `more` 按钮 |
+| TAB-18 | L1 | 复现官方示例「附加内容」（`extra.tsx`） | 左右 extra 节点与签行对齐，不随签滚动 |
+| TAB-19 | L1 | 复现官方示例「大小」（`size.tsx`） | 三档高 24/32/40（±0.5px）同屏可建 |
+| TAB-20 | L2 | 读取 §6.2 关键尺寸/间距 | gutter 32/card 高 40/高 24-32-40（±0.5px） |
+| TAB-21 | L2 | 默认皮颜色 | active 主色字+ink，禁用 `colorDisabledText`；无硬编码 |
+| TAB-22 | L2 | disabled 外观 | 禁用色无 hover；点击无回调 |
+| TAB-23 | L1 | 键盘/焦点主路径 | 签 Tab 聚焦 ring 可见；方向键移动 active；Enter/Space 激活 |
 | TAB-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | TAB-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | TAB-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -649,14 +670,19 @@ Node() core.Node
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Nav root
-  └─ items / panels / connectors
+Tabs（role=tablist；placement top/bottom/left/right 四方位）
+  ├─ Bar（横向滚动宿主：签 Flex 行 + gutter 32；超宽横滚，不出 more）
+  │    ├─ tab Pressable（icon + label + closable×；active 主色+ink）
+  │    ├─ ink（line 型：宽/位跟 active，±0.5px）
+  │    ├─ addBtn?（editable-card；hideAdd 藏）
+  │    └─ extraLeft/extraRight（不随签滚动）
+  └─ Panel（tabpanel；destroyOnHidden 卸载 / forceRender 常驻）
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 组合 `ui/primitive` + `ui/core` + `kit.Icon`，禁止第二套事件/帧循环。
+- 无浮层（`more` P1 才经 Dropdown）；`rebuild()` 只读 Default/字段/Token；ink 位 Layout 后同步。
+- 命中区域与布局盒一致（`hit == layout == paint`）。
+- ink/面板动画跟随 Host Tick；`animated{inkBar:true,tabPane:false}`，reduced-motion 下瞬时。
 
 ### 6.12 完成定义（DoD）
 

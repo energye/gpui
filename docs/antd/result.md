@@ -138,14 +138,14 @@
 | 自定义 icon | `customIcon.tsx` | 否 |
 | 自定义语义结构的样式和类 | `style-class.tsx` | 否 |
 | 组件 Token | `component-token.tsx` | 是 |
+| 语义结构调试 | `_semantic.tsx` | 是 |
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级**：L2（静态结果页，组合图标与操作区）。
+- **等谁**：Button（`extra` 操作区）、Icon/插画（状态图标 72 与 403/404/500 插画 250×295）。
+- **文件归属**：`ui/kit/result/`。
+- **组合**：常作空状态/异常页整页；`children` 内容区灰底卡。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -192,7 +192,7 @@ import { Result } from 'antd';
 
 实现 gpui kit 版 **Result** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -202,7 +202,7 @@ import { Result } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **9** 个，均需可复现。
+11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
 
 ---
 ## 5. 参考链接
@@ -241,6 +241,7 @@ import { Result } from 'antd';
 ### 6.2 度量与 Design Token（L2 基线）
 
 数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+源码：`components/result/style/index.ts`（`iconFontSize=fontSizeHeading3*3`、`imageWidth=250/imageHeight=295`）+ `components/result/*.tsx`（403→unauthorized/404→noFound/500→serverError）。
 
 #### 6.2.1 几何与组件 Token
 
@@ -291,9 +292,11 @@ import { Result } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-status 决定图标
-title/subTitle/extra 展示
+status 决定图标（success/error/info/warning=72px 填充图标；403/404/500=250×295 插画）
+title/subTitle 居中展示；extra 操作区按钮行居中；children 内容区灰底卡
 ```
+
+**最简重点（empty 式用法）**：只设 `status + title` 两字段即完整一屏（如 `info + "暂无数据"` 当轻量空状态用）；`subTitle`/`extra`/`children` 全空时不留空占位区。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |

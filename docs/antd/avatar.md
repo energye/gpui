@@ -162,11 +162,10 @@
 
 ### 2.7 组合关系
 
-- **Form**：录入类注意 `value`/`checked` 与 `valuePropName`。
-- **ConfigProvider**：尺寸、主题、locale、空状态、默认 props。
-- **App**：message / modal / notification 上下文。
-- **浮层**：Modal/Drawer 内注意 `getPopupContainer`。
-- **Space / Flex / Grid / Layout**：布局与间距。
+- **依赖等级 L2 组合件**：单头 + `Avatar.Group`（max 溢出 `+N`）；`badge.tsx` 示例反向依赖 `Badge` 叠加；真图经宿主解码注入（`SetPixels`/`SetImageOK`，`srcSet`/`crossOrigin` P1）。
+- **响应式**：`size` map + `SetBreakpoint` 注入当前档（§6.7）。
+- **ConfigProvider**：尺寸、主题、全局 avatar 默认（P1）。
+- **文件归属**：`ui/kit/avatar/`（`avatar.go` + `group.go`）。
 ---
 ## 3. 配置（API）
 通用属性参考：[Common props](https://ant.design/docs/react/common-props)。
@@ -229,17 +228,17 @@ import { Avatar } from 'antd';
 
 实现 gpui kit 版 **Avatar** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
-2. **视觉态**：default / hover / active / focus / disabled / loading。
-3. **尺寸态**：small / medium / large（适用者）。
-4. **受控/非受控**：value+onChange 与 defaultValue。
-5. **数据驱动**：options / items / columns / treeData / fileList 等。
-6. **无障碍**：焦点、角色、键盘、读屏。
-7. **RTL**：placement / orientation 镜像。
-8. **浮层**：z-index、挂载容器、遮挡、滚动。
-9. **性能**：虚拟列表、防抖、减少重绘。
-10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：官方非 debug 示例约 **6** 个，均需可复现。
+1. **配置面**：覆盖 §6.8 P0 字段（size/shape/icon/children+gap/src+onError/alt/loading/disabled/Style/Group max+响应式）；`srcSet/crossOrigin` P1。
+2. **视觉态**：图/icon/字三态 + gap 缩放 + square 圆角档 + Group 叠压（§6.4 AV-S1~S12，§6.5）。
+3. **尺寸态**：small / medium / large + 自定义 number（24/32/40，§6.2）。
+4. **受控/非受控**：不适用（展示件；`src` 经宿主注入驱动状态机）。
+5. **数据驱动**：Group children + max.count 溢出 `+N`。
+6. **无障碍**：装饰默认 HitDefer、图 alt、有 OnClick 时 button 语义（§6.6）。
+7. **RTL**：Group 叠压方向镜像。
+8. **浮层**：无自带浮层；Group max.popover 为 P1。
+9. **性能**：字符 scale 布局后一次计算；loading Ticker 按需挂载。
+10. **主题**：Token 化（§6.2 默认 quaternary 底 + inverse 字）；支持 reduced-motion。
+11. **示例矩阵**：§6.8 P0 **6** 例（basic/type/dynamic/badge/group/responsive）；`fallback/toggle-debug` 为 debug 不进 P0。
 
 ---
 ## 5. 参考链接
