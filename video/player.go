@@ -400,34 +400,26 @@ func (p *Player) feed() {
 	}
 	// Loop: every pass is queued through Push backpressure; PollDue's
 	// due gate paces display, so early queueing never shows early.
+	// Push blocks while full and wakes on Queue.Close, so no helper
+	// goroutine per frame: steady loop allocates one Frame struct per
+	// push only (VR7 profile: the old go+chan per push cost ~8KB stack
+	// each and dominated steady bytes).
 	epoch := int64(0)
 	base := p.frames[0].PTSMs
 	for {
 		for _, src := range p.frames {
 			cp := *src
 			cp.PTSMs = base + epoch + (src.PTSMs - p.base)
-			// Re-check stop while blocked in Push: Close during a full
-			// queue must wake the producer instead of hanging it. The
-			// helper goroutine is bounded: Push returns on Close or on
-			// room, and the select always consumes its result.
-			type pushRes struct {
-				ok bool
-			}
-			resCh := make(chan pushRes, 1)
-			go func(f clock.Frame) {
-				ok, _ := p.q.Push(&f)
-				resCh <- pushRes{ok: ok}
-			}(cp)
 			select {
 			case <-p.stopCh:
-				// Let the helper finish its Push (it will, on Close),
-				// then leave without leaking it.
-				<-resCh
 				return
-			case r := <-resCh:
-				if !r.ok {
-					return
-				}
+			default:
+			}
+			// Queue cap always fits the clip, and Close wakes a
+			// blocked Push via Broadcast, so this cannot hang past
+			// Close without any per-frame goroutine or channel.
+			if ok, _ := p.q.Push(&cp); !ok {
+				return
 			}
 			// Announce the head as soon as it is queued so Poll never
 			// waits past the first frame.
@@ -450,13 +442,25 @@ func (p *Player) spanMs() int64 {
 // stream ended and drained). Ended reports the stream played through;
 // callers keep polling until Ended plus nil. The first call waits for
 // the background thread to queue the head frame (bounded wait).
+// Steady polls cost no timer: readyCh stays closed after the head, so the
+// fast path below skips time.After entirely (VR7 profile: one timer per
+// Poll dominated steady bytes before this fix).
 func (p *Player) Poll() (f *clock.Frame, ended bool) {
 	select {
-	case <-p.readyCh:
 	case <-p.stopCh:
 		return nil, false
-	case <-time.After(5 * time.Second):
-		return nil, false
+	default:
+	}
+	select {
+	case <-p.readyCh:
+	default:
+		select {
+		case <-p.readyCh:
+		case <-p.stopCh:
+			return nil, false
+		case <-time.After(5 * time.Second):
+			return nil, false
+		}
 	}
 	due := p.clk.DuePTSMS()
 	fr, skipped, ok := p.q.PollDue(due)
