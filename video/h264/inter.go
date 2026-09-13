@@ -76,6 +76,23 @@ func deadCacheSlot(n, pw int) bool {
 	return s == 16 || s == 24 || s == 32
 }
 
+// predSkipP predicts a P-skip block: a zero left or top neighbour (ref 0
+// with a zero vector) forces zero motion before the median path. Missing
+// neighbours count as zero too; intra neighbours report ref -1 and fall
+// through to the median like the reference.
+func (d *Decoder) predSkipP(mbx, mby int) (int16, int16) {
+	cur := mby*d.mbW + mbx
+	ax, ay, ar := d.gatedNeighbour(mbx*4-1, mby*4, cur)
+	if ar == partNotAvailable || (ar == 0 && ax == 0 && ay == 0) {
+		return 0, 0
+	}
+	bx, by, br := d.gatedNeighbour(mbx*4, mby*4-1, cur)
+	if br == partNotAvailable || (br == 0 && bx == 0 && by == 0) {
+		return 0, 0
+	}
+	return d.predMotion(0, mbx*4, mby*4, 4, 0)
+}
+
 // predMotion predicts one partition: n is its top-left grouped 4x4 index,
 // (x0,y0) its 4x4 origin, w4 its width in 4x4 units.
 func (d *Decoder) predMotion(n, x0, y0, w4 int, ref int8) (int16, int16) {

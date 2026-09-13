@@ -198,6 +198,31 @@ func (d *Decoder) applyRefMod(list []*Picture, ops []RefModOp, frameNum uint32, 
 	return list, nil
 }
 
+// Crop returns the top-left w×h view as an owned copy (display size
+// after sequence cropping; references keep the aligned original).
+func (p *Picture) Crop(w, h uint32) (*Picture, error) {
+	if p == nil {
+		return nil, fmt.Errorf("%w: crop of nil picture", ErrBadSPS)
+	}
+	if w == 0 || h == 0 || w > p.Width || h > p.Height || w%2 != 0 || h%2 != 0 {
+		return nil, fmt.Errorf("%w: crop %dx%d from %dx%d", ErrBadSPS, w, h, p.Width, p.Height)
+	}
+	out := &Picture{Width: w, Height: h}
+	out.Y = make([]uint8, w*h)
+	for y := uint32(0); y < h; y++ {
+		copy(out.Y[y*w:(y+1)*w], p.Y[y*p.Width:y*p.Width+w])
+	}
+	cw, ch := w/2, h/2
+	pw := p.Width / 2
+	out.Cb = make([]uint8, cw*ch)
+	out.Cr = make([]uint8, cw*ch)
+	for y := uint32(0); y < ch; y++ {
+		copy(out.Cb[y*cw:(y+1)*cw], p.Cb[y*pw:y*pw+cw])
+		copy(out.Cr[y*cw:(y+1)*cw], p.Cr[y*pw:y*pw+cw])
+	}
+	return out, nil
+}
+
 // coloc returns the colocated block's motion for frame direct mode: the
 // 4x4 at (x4, y4) in the first list-1 reference, both lists. ok=false
 // when the archive is missing, so the caller treats the block as

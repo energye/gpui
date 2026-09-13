@@ -78,13 +78,20 @@ type Decoder struct {
 	cOff1    int32
 	qpY      int32
 	// Explicit weighted prediction factors for the current slice
-	// (list 0). Identity when the table signals defaults.
+	// (list 0 always; list 1 for B slices in explicit mode). Identity
+	// when the table signals defaults. wBiExpl selects the explicit
+	// bipred formula; implicit time weights otherwise.
 	wDenomL  int32
 	wDenomC  int32
 	wW0      [32]int32
 	wO0      [32]int32
 	wWC0     [32][2]int32
 	wOC0     [32][2]int32
+	wW1      [32]int32
+	wO1      [32]int32
+	wWC1     [32][2]int32
+	wOC1     [32][2]int32
+	wBiExpl  bool
 	// Effective scaling weights for the current slice (F9): six 4x4
 	// lists (intra-Y/Cb/Cr, inter-Y/Cb/Cr) and two 8x8 luma lists
 	// (intra, inter), all in raster order. Flat 16s without matrices.
@@ -94,6 +101,10 @@ type Decoder struct {
 	slices   int
 	curIsRef bool
 	curIsB   bool
+	// lastSEI holds the most recent supplemental messages (timing and
+	// user data ride along for the player; decoding never depends on
+	// them).
+	lastSEI []SEIMessage
 	// pocMSB/pocPrevLSB track the display-order high bits for poc type 0
 	// wrapping (spec 8.2.1.1); pocHave is set by the first reference pic.
 	pocMSB     int32
@@ -141,6 +152,17 @@ func (d *Decoder) DecodeNALU(nalu []byte) error {
 	case NALSPS, NALPPS:
 		_, err := d.ps.AddNALU(nalu)
 		return err
+	case NALSei:
+		var vui *VUI
+		if d.sps != nil {
+			vui = d.sps.VUI
+		}
+		msgs, err := ParseSEI(nalu, vui)
+		if err != nil {
+			return err
+		}
+		d.lastSEI = msgs
+		return nil
 	case NALSliceNonIDR, NALSliceIDR:
 		return d.decodeSlice(nalu)
 	default:
@@ -179,16 +201,20 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	}
 	d.fixPOC(h, sps)
 	if d.pic == nil {
-		if sps.Width%16 != 0 || sps.Height%16 != 0 {
-			return fmt.Errorf("%w: cropped %dx%d needs VR2d", ErrStageScope, sps.Width, sps.Height)
+		aw, ah := sps.AlignedWidth, sps.AlignedHeight
+		if aw == 0 || ah == 0 {
+			aw, ah = sps.Width, sps.Height
 		}
-		pic, err := NewPicture(sps.Width, sps.Height)
+		if aw%16 != 0 || ah%16 != 0 {
+			return fmt.Errorf("%w: aligned %dx%d", ErrBadSPS, aw, ah)
+		}
+		pic, err := NewPicture(aw, ah)
 		if err != nil {
 			return err
 		}
 		d.pic = pic
 		d.sps = sps
-		d.mbW, d.mbH = int(sps.Width/16), int(sps.Height/16)
+		d.mbW, d.mbH = int(aw/16), int(ah/16)
 		n4 := d.mbW * 4 * d.mbH * 4
 		d.nnzY = make([]int8, n4)
 		for i := range d.nnzY {
@@ -288,6 +314,9 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	d.wDenomL, d.wDenomC = h.LumaDenom, h.ChromaDenom
 	d.wW0, d.wO0 = h.LumaW0, h.LumaO0
 	d.wWC0, d.wOC0 = h.ChromaW0, h.ChromaO0
+	d.wW1, d.wO1 = h.LumaW1, h.LumaO1
+	d.wWC1, d.wOC1 = h.ChromaW1, h.ChromaO1
+	d.wBiExpl = h.IsB() && pps.WeightedBiPred == 1
 	resolveScaling(pps, sps, &d.sc4, &d.sc8)
 	d.pic.FrameNum = h.FrameNum
 	d.pic.POC = h.POC
@@ -426,6 +455,15 @@ func (d *Decoder) bDeblockUseM() []uint8 {
 	return nil
 }
 
+// LastSEI reports the most recent supplemental messages (nil when the
+// stream carried none). The slice aliases decoder state: copy to keep.
+func (d *Decoder) LastSEI() []SEIMessage {
+	if d == nil {
+		return nil
+	}
+	return d.lastSEI
+}
+
 // FinishPicture deblocks, stores to the DPB and hands over the picture.
 // The frame must be exactly covered by decoded macroblocks.
 func (d *Decoder) FinishPicture() (*Picture, error) {
@@ -450,6 +488,16 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 	}
 	d.dpb.Store(d.pic, d.curIsRef)
 	out := d.pic
+	// Cropped display size: references keep the aligned picture, the
+	// caller gets the cropped view (copied; uncropped returns as-is).
+	if d.sps != nil && (d.sps.Width != out.Width || d.sps.Height != out.Height) {
+		cr, err := out.Crop(d.sps.Width, d.sps.Height)
+		if err != nil {
+			return nil, err
+		}
+		cr.FrameNum, cr.POC, cr.IsIDR = out.FrameNum, out.POC, out.IsIDR
+		out = cr
+	}
 	d.pic = nil
 	d.decoded = 0
 	d.slices = 0

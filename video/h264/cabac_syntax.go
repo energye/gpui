@@ -239,6 +239,11 @@ func (d *Decoder) cabacMBTypeB(mbx, mby, addr int) (uint32, error) {
 	case bits == 15:
 		return 22, nil // B_8x8
 	case bits == 13:
+		// Intra escape reads the I4x4 flag first, then the shared
+		// body (PCM terminate first inside); 23 = Intra4x4.
+		if d.cabBin(32) == 0 {
+			return 23, nil
+		}
 		t, err := d.cabacIntraType(32, false)
 		if err != nil {
 			return 0, err
@@ -272,10 +277,11 @@ func (d *Decoder) cabacBSubType() (uint32, error) {
 	return uint32(typ), nil
 }
 
-// cabacIntraType reads the shared Intra4x4/Intra16x16/PCM body after the
-// leading bins: one terminate bin for PCM, then luma flag, chroma pair
-// and two prediction bits. base selects contexts 3 (I slice) or 17
-// (P-slice escape); intra picks the second chroma/pred contexts.
+// cabacIntraType reads the shared Intra16x16/PCM body after the caller
+// consumed the I4x4 flag: one terminate bin for PCM, then luma flag,
+// chroma pair and two prediction bits. base selects contexts 3 (I slice)
+// or 17/32 (P/B-slice escape); intra picks the second chroma/pred
+// contexts.
 func (d *Decoder) cabacIntraType(base uint16, intra bool) (uint32, error) {
 	// The I-slice first bin consumes the base pair before the body;
 	// the P escape reads its I4x4 flag straight from the base.

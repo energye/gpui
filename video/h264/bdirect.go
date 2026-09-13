@@ -35,26 +35,36 @@ func minNonNeg(refs ...int8) int8 {
 // which fails readable). Temporal direct stops readable for a later stage.
 func (d *Decoder) bDirectMB(mbx, mby int, h *SliceHeader, colPic *Picture) ([2]bDirectMV, error) {
 	x0, y0 := mbx*4, mby*4
-	return d.bDirectAt(x0, y0, 0, 4, x0, y0, h, colPic)
+	dm, err := d.bDirectNeighbors(x0, y0, 0, 4, h)
+	if err != nil {
+		return dm, err
+	}
+	return d.applyDirectStationary(dm, x0, y0, colPic), nil
 }
 
-// bDirectB8 derives spatial-direct motion for one 8x8 sub-block at 4x4
-// origin (qx, qy): neighbours at the sub-block origin, colocated read at
-// the sub-block's own top-left 4x4.
-func (d *Decoder) bDirectB8(qx, qy int, h *SliceHeader, colPic *Picture) ([2]bDirectMV, error) {
-	return d.bDirectAt(qx, qy, 0, 2, qx, qy, h, colPic)
+// bDirectMBLevel derives the macroblock-level spatial-direct motion once
+// for a B_8x8 block: every direct 8x8 sub-block shares it (plus its own
+// stationary-colocated check), instead of deriving per sub-block from
+// just-decoded explicit neighbours inside the same macroblock.
+func (d *Decoder) bDirectMBLevel(mbx, mby int, h *SliceHeader) ([2]bDirectMV, error) {
+	x0, y0 := mbx*4, mby*4
+	return d.bDirectNeighbors(x0, y0, 0, 4, h)
 }
 
-// bDirectAt is the shared spatial-direct core: (x0, y0) is the 4x4
-// origin for neighbour reads (n/w4 shape the diagonal rule),
-// (colX4, colY4) the colocated 4x4 address in colPic.
-func (d *Decoder) bDirectAt(x0, y0, n, w4, colX4, colY4 int, h *SliceHeader, colPic *Picture) ([2]bDirectMV, error) {
+// bDirectB8 copies the macroblock-level direct motion onto one 8x8
+// sub-block at 4x4 origin (qx, qy), applying the sub-block's own
+// stationary-colocated check. colPic is the first list-1 reference.
+func (d *Decoder) bDirectB8(dm [2]bDirectMV, qx, qy int, colPic *Picture) [2]bDirectMV {
+	return d.applyDirectStationary(dm, qx, qy, colPic)
+}
+
+// bDirectNeighbors is the shared spatial-direct neighbour core: (x0, y0)
+// is the 4x4 origin for neighbour reads (n/w4 shape the diagonal rule).
+// Stationary-colocated zeroing is separate (applyDirectStationary).
+func (d *Decoder) bDirectNeighbors(x0, y0, n, w4 int, h *SliceHeader) ([2]bDirectMV, error) {
 	var out [2]bDirectMV
 	if !h.DirectSpatial {
 		return out, fmt.Errorf("%w: temporal direct needs a later stage", ErrStageScope)
-	}
-	if colPic == nil {
-		return out, fmt.Errorf("%w: direct without list-1 picture", ErrBadSliceHeader)
 	}
 	for list := 0; list < 2; list++ {
 		ax, ay, ar := d.mvNeighbourL(list, x0-1, y0)
@@ -95,10 +105,19 @@ func (d *Decoder) bDirectAt(x0, y0, n, w4, colX4, colY4 int, h *SliceHeader, col
 		out[0] = bDirectMV{ref: 0, use: true}
 		out[1] = bDirectMV{ref: 0, use: true}
 	}
-	// Both-zero neighbour motion needs no colocated read: the result is
-	// zero motion either way.
+	return out, nil
+}
+
+// applyDirectStationary applies the stationary-colocated check at
+// colocated 4x4 (colX4, colY4): a near-zero colocated block zeroes both
+// derived motions. Both-zero neighbour motion needs no colocated read:
+// the result is zero motion either way.
+func (d *Decoder) applyDirectStationary(out [2]bDirectMV, colX4, colY4 int, colPic *Picture) [2]bDirectMV {
 	if out[0].mx == 0 && out[0].my == 0 && out[1].mx == 0 && out[1].my == 0 {
-		return out, nil
+		return out
+	}
+	if colPic == nil {
+		return out
 	}
 	cr0, cx0, cy0, cr1, cx1, cy1, ok := colPic.coloc(colX4, colY4)
 	stationary := false
@@ -117,7 +136,7 @@ func (d *Decoder) bDirectAt(x0, y0, n, w4, colX4, colY4 int, h *SliceHeader, col
 			out[1].mx, out[1].my = 0, 0
 		}
 	}
-	return out, nil
+	return out
 }
 
 func abs16(v int16) int16 {

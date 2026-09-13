@@ -21,7 +21,7 @@ func (d *Decoder) decodeSkip(h *SliceHeader, addr int, rs *residSrc) error {
 	if d.refPic == nil {
 		return fmt.Errorf("%w: skip without reference", ErrBadSliceHeader)
 	}
-	mx, my := d.predMotion(0, mbx*4, mby*4, 4, 0)
+	mx, my := d.predSkipP(mbx, mby)
 	d.storeMV(mbx*16, mby*16, 16, 16, mx, my, 0, 0, 0)
 	var predY [256]uint8
 	var predCb, predCr [64]uint8
@@ -151,9 +151,15 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 			}
 			predictLumaBlock(rp0, pt.px, pt.py, pt.w, pt.h, pt.mx, pt.my, blk[:pt.w*pt.h])
 			predictLumaBlock(rp1, pt.px, pt.py, pt.w, pt.h, pt.mx1, pt.my1, blk1[:pt.w*pt.h])
-			w := d.bipredWeight(d.pic, rp0, rp1, pt.ref, pt.ref1)
-			for i := 0; i < pt.w*pt.h; i++ {
-				blk[i] = uint8((w*int32(blk[i]) + (64-w)*int32(blk1[i]) + 32) >> 6)
+			if d.wBiExpl {
+				for i := 0; i < pt.w*pt.h; i++ {
+					blk[i] = d.bipredExplicitLuma(int32(blk[i]), int32(blk1[i]), pt.ref, pt.ref1)
+				}
+			} else {
+				w := d.bipredWeight(d.pic, rp0, rp1, pt.ref, pt.ref1)
+				for i := 0; i < pt.w*pt.h; i++ {
+					blk[i] = uint8((w*int32(blk[i]) + (64-w)*int32(blk1[i]) + 32) >> 6)
+				}
 			}
 			for y := 0; y < pt.h; y++ {
 				for x := 0; x < pt.w; x++ {
@@ -167,6 +173,7 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 				return err
 			}
 			predictLumaBlock(rp, pt.px, pt.py, pt.w, pt.h, pt.mx1, pt.my1, blk[:pt.w*pt.h])
+			d.weightLuma1(blk[:pt.w*pt.h], pt.ref1)
 			for y := 0; y < pt.h; y++ {
 				for x := 0; x < pt.w; x++ {
 					ox, oy := pt.px-mbx*16+x, pt.py-mby*16+y
@@ -187,6 +194,7 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 			}
 			predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cb[:cw*ch])
 			predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cr[:cw*ch])
+			d.weightChroma1(cb[:cw*ch], cr[:cw*ch], pt.ref1)
 		} else if pt.use0 && !pt.use1 {
 			rp, err := d.refFor(pt.ref)
 			if err != nil {
@@ -204,14 +212,21 @@ func (d *Decoder) mcParts(mbx, mby int, parts []part, predY *[256]uint8, predCb,
 			if err != nil {
 				return err
 			}
-			w := d.bipredWeight(d.pic, rp0, rp1, pt.ref, pt.ref1)
 			predictChromaBlock(rp0.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cb[:cw*ch])
 			predictChromaBlock(rp0.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx, pt.my, cr[:cw*ch])
 			predictChromaBlock(rp1.Cb, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cb1[:cw*ch])
 			predictChromaBlock(rp1.Cr, rw, rh, ccx, ccy, cw, ch, pt.mx1, pt.my1, cr1[:cw*ch])
-			for i := 0; i < cw*ch; i++ {
-				cb[i] = uint8((w*int32(cb[i]) + (64-w)*int32(cb1[i]) + 32) >> 6)
-				cr[i] = uint8((w*int32(cr[i]) + (64-w)*int32(cr1[i]) + 32) >> 6)
+			if d.wBiExpl {
+				for i := 0; i < cw*ch; i++ {
+					cb[i] = d.bipredExplicitChroma(int32(cb[i]), int32(cb1[i]), pt.ref, pt.ref1, 0)
+					cr[i] = d.bipredExplicitChroma(int32(cr[i]), int32(cr1[i]), pt.ref, pt.ref1, 1)
+				}
+			} else {
+				w := d.bipredWeight(d.pic, rp0, rp1, pt.ref, pt.ref1)
+				for i := 0; i < cw*ch; i++ {
+					cb[i] = uint8((w*int32(cb[i]) + (64-w)*int32(cb1[i]) + 32) >> 6)
+					cr[i] = uint8((w*int32(cr[i]) + (64-w)*int32(cr1[i]) + 32) >> 6)
+				}
 			}
 		}
 		for y := 0; y < ch; y++ {
@@ -261,6 +276,64 @@ func (d *Decoder) weightChroma(cb, cr []byte, ref int8) {
 			dst[i] = clipPixel((w*int32(p)+round)>>uint(d.wDenomC) + o)
 		}
 	}
+}
+
+// weightLuma1 scales one predicted luma block by the slice's explicit
+// list-1 factors; default tables pass through untouched.
+func (d *Decoder) weightLuma1(blk []byte, ref int8) {
+	if int(ref) < 0 || int(ref) >= len(d.wW1) {
+		return
+	}
+	w, o := d.wW1[ref], d.wO1[ref]
+	if w == 1<<uint(d.wDenomL) && o == 0 {
+		return
+	}
+	round := int32(0)
+	if d.wDenomL > 0 {
+		round = 1 << uint(d.wDenomL-1)
+	}
+	for i, p := range blk {
+		blk[i] = clipPixel((w*int32(p)+round)>>uint(d.wDenomL) + o)
+	}
+}
+
+// weightChroma1 scales one predicted chroma block pair the same way.
+func (d *Decoder) weightChroma1(cb, cr []byte, ref int8) {
+	if int(ref) < 0 || int(ref) >= len(d.wWC1) {
+		return
+	}
+	for comp, dst := range [][]byte{cb, cr} {
+		w, o := d.wWC1[ref][comp], d.wOC1[ref][comp]
+		if w == 1<<uint(d.wDenomC) && o == 0 {
+			continue
+		}
+		round := int32(0)
+		if d.wDenomC > 0 {
+			round = 1 << uint(d.wDenomC-1)
+		}
+		for i, p := range dst {
+			dst[i] = clipPixel((w*int32(p)+round)>>uint(d.wDenomC) + o)
+		}
+	}
+}
+
+// bipredExplicitLuma mixes one luma sample pair with the slice's explicit
+// bipred factors (offsets average outside the shift).
+func (d *Decoder) bipredExplicitLuma(p0, p1 int32, r0, r1 int8) uint8 {
+	w0, o0 := d.wW0[r0], d.wO0[r0]
+	w1, o1 := d.wW1[r1], d.wO1[r1]
+	den := uint(d.wDenomL)
+	v := ((p0*w0 + p1*w1 + (1 << den)) >> uint(den+1)) + ((o0 + o1 + 1) >> 1)
+	return clipPixel(v)
+}
+
+// bipredExplicitChroma mixes one chroma sample pair the same way.
+func (d *Decoder) bipredExplicitChroma(p0, p1 int32, r0, r1 int8, comp int) uint8 {
+	w0, o0 := d.wWC0[r0][comp], d.wOC0[r0][comp]
+	w1, o1 := d.wWC1[r1][comp], d.wOC1[r1][comp]
+	den := uint(d.wDenomC)
+	v := ((p0*w0 + p1*w1 + (1 << den)) >> uint(den+1)) + ((o0 + o1 + 1) >> 1)
+	return clipPixel(v)
 }
 
 // finishPMB records the per-MB state shared by all P macroblocks.

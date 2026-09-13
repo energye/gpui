@@ -28,8 +28,13 @@ type SPS struct {
 	CropRight   uint32
 	CropTop     uint32
 	CropBottom  uint32
-	VUIPresent  bool
-	Raw         []byte
+	// Aligned holds the pre-crop coded size (macroblock multiples);
+	// Width/Height are the cropped display size. Equal when uncropped.
+	AlignedWidth  uint32
+	AlignedHeight uint32
+	VUIPresent    bool
+	VUI           *VUI
+	Raw           []byte
 }
 
 // ParseSPS parses one SPS NALU (header byte included).
@@ -191,6 +196,7 @@ func ParseSPS(nalu []byte) (*SPS, error) {
 	if !s.FrameMBsOnly {
 		height *= 2
 	}
+	s.AlignedWidth, s.AlignedHeight = width, height
 	if cropFlag != 0 {
 		s.HasCropping = true
 		vals := make([]uint32, 4)
@@ -221,8 +227,17 @@ func ParseSPS(nalu []byte) (*SPS, error) {
 	}
 	s.Width, s.Height = width, height
 	if r.MoreRBSPData() {
-		if v, err := r.ReadBits(1); err == nil && v != 0 {
+		v, err := r.ReadBits(1)
+		if err != nil {
+			return nil, fmt.Errorf("%w: vui present: %v", ErrBadSPS, err)
+		}
+		if v != 0 {
 			s.VUIPresent = true
+			vui, err := parseVUI(r)
+			if err != nil {
+				return nil, err
+			}
+			s.VUI = vui
 		}
 	}
 	s.Raw = append([]byte(nil), nalu...)

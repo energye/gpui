@@ -358,7 +358,11 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 		if err != nil {
 			return err
 		}
-		pt, err := d.decodeBPartMVD(h, is, refs, 0, ds, bk16, px0, py0)
+		diffs, err := d.decodeBMVDs(is, []bPartDesc{ds})
+		if err != nil {
+			return err
+		}
+		pt, err := d.decodeBPartMVD(refs, diffs, 0, ds, bk16, px0, py0)
 		if err != nil {
 			return err
 		}
@@ -385,6 +389,10 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 		if err != nil {
 			return err
 		}
+		diffs, err := d.decodeBMVDs(is, descs)
+		if err != nil {
+			return err
+		}
 		for i, ds := range descs {
 			px, py := px0, py0
 			if wide {
@@ -392,7 +400,7 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 			} else {
 				px += i * 8
 			}
-			pt, err := d.decodeBPartMVD(h, is, refs, i, ds, kind, px, py)
+			pt, err := d.decodeBPartMVD(refs, diffs, i, ds, kind, px, py)
 			if err != nil {
 				return err
 			}
@@ -449,20 +457,14 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 				}
 			}
 		}
-		refs, err := d.decodeBRefs(is, descs)
-		if err != nil {
-			return err
-		}
-		for i, ds := range descs {
-			pt, err := d.decodeBPartMVD(h, is, refs, i, ds, kinds[i], poses[i][0], poses[i][1])
-			if err != nil {
-				return err
-			}
-			parts = append(parts, pt)
-		}
-		// Direct sub-blocks consume no bits, so they decode after the
-		// explicit neighbours they may read (only earlier partitions
-		// are ever neighbours, all already stored).
+		// Direct sub-blocks derive and store first: later explicit
+		// partitions predict from their motion, mirroring the reference
+		// order (macroblock-level derivation before any explicit
+		// decode). They share one macroblock-level derivation (plus
+		// each sub-block's own stationary check), not per-sub-block
+		// neighbours.
+		var mbDM [2]bDirectMV
+		mbDMDone := false
 		for i := 0; i < 4; i++ {
 			dir, _, err := bSubDirShape(subs[i])
 			if err != nil {
@@ -471,15 +473,37 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 			if dir != bDirect {
 				continue
 			}
+			if !mbDMDone {
+				if len(d.refList1) == 0 || d.refList1[0] == nil {
+					return fmt.Errorf("%w: B direct without list-1 picture", ErrBadSliceHeader)
+				}
+				mbDM, err = d.bDirectMBLevel(mbx, mby, h)
+				if err != nil {
+					return err
+				}
+				mbDMDone = true
+			}
 			bx8, by8 := i%2, i/2
 			qx, qy := x0+bx8*2, y0+by8*2
 			ox, oy := px0+bx8*8, py0+by8*8
-			dm, err := d.bDirectB8(qx, qy, h, d.refList1[0])
+			dm := d.bDirectB8(mbDM, qx, qy, d.refList1[0])
+			d.storeDirectB8(qx, qy, dm)
+			parts = append(parts, directPartB8(ox, oy, dm))
+		}
+		refs, err := d.decodeBRefs(is, descs)
+		if err != nil {
+			return err
+		}
+		diffs, err := d.decodeBMVDs(is, descs)
+		if err != nil {
+			return err
+		}
+		for i, ds := range descs {
+			pt, err := d.decodeBPartMVD(refs, diffs, i, ds, kinds[i], poses[i][0], poses[i][1])
 			if err != nil {
 				return err
 			}
-			d.storeDirectB8(qx, qy, dm)
-			parts = append(parts, directPartB8(ox, oy, dm))
+			parts = append(parts, pt)
 		}
 		allDirect = b8direct
 	}
@@ -591,19 +615,73 @@ func (d *Decoder) decodeBRefs(is *bInterSrc, descs []bPartDesc) ([]bRefPair, err
 	return refs, nil
 }
 
-// decodeBPartMVD decodes one B partition whose references are already
-// read: motion prediction per used list, differences, stores.
-func (d *Decoder) decodeBPartMVD(h *SliceHeader, is *bInterSrc, refs []bRefPair, pi int, ds bPartDesc, kind bKind, px, py int) (part, error) {
+// bMVDDiff holds one partition's decoded differences per used list.
+type bMVDDiff struct {
+	dx0, dy0, dx1, dy1 int16
+}
+
+// decodeBMVDs reads every partition's motion differences list-outer
+// (every list-0 difference, then every list-1 difference, each in
+// partition order): the bitstream groups differences by list, so mixed-
+// direction blocks must not read partition-by-partition. Differences
+// land in the raw MVD slots at read time, so later same-list partitions
+// see them for neighbour contexts; prediction still runs in partition
+// order afterwards.
+func (d *Decoder) decodeBMVDs(is *bInterSrc, descs []bPartDesc) ([]bMVDDiff, error) {
+	out := make([]bMVDDiff, len(descs))
+	for i, ds := range descs {
+		if !ds.dir.usesL0() {
+			continue
+		}
+		_, _, dx, dy, err := is.mvd(0, ds.qx, ds.qy, 0, 0)
+		if err != nil {
+			return nil, err
+		}
+		out[i].dx0, out[i].dy0 = dx, dy
+		d.storeBMVD(ds, 0, dx, dy)
+	}
+	for i, ds := range descs {
+		if !ds.dir.usesL1() {
+			continue
+		}
+		_, _, dx, dy, err := is.mvd(1, ds.qx, ds.qy, 0, 0)
+		if err != nil {
+			return nil, err
+		}
+		out[i].dx1, out[i].dy1 = dx, dy
+		d.storeBMVD(ds, 1, dx, dy)
+	}
+	return out, nil
+}
+
+// storeBMVD records one partition's decoded differences into the raw
+// MVD slots of one list at read time (motion vectors follow later, in
+// partition order, and overwrite nothing here).
+func (d *Decoder) storeBMVD(ds bPartDesc, list int, dx, dy int16) {
+	stride := d.mbW * 4
+	for y := ds.qy; y < ds.qy+ds.h4; y++ {
+		for x := ds.qx; x < ds.qx+ds.w4; x++ {
+			i := y*stride + x
+			if list == 0 {
+				d.mvdX[i], d.mvdY[i] = dx, dy
+			} else {
+				d.mvdX1[i], d.mvdY1[i] = dx, dy
+			}
+		}
+	}
+}
+
+// decodeBPartMVD predicts and stores one B partition whose references
+// and differences are already read: motion prediction per used list,
+// then stores.
+func (d *Decoder) decodeBPartMVD(refs []bRefPair, diffs []bMVDDiff, pi int, ds bPartDesc, kind bKind, px, py int) (part, error) {
 	var pt part
 	pt.px, pt.py, pt.w, pt.h = px, py, ds.w4*4, ds.h4*4
 	if ds.dir.usesL0() {
 		ref := refs[pi].r0
 		pvx, pvy := d.predBPart(0, kind, pi, ds, ref)
-		mx, my, mdx, mdy, err := is.mvd(0, ds.qx, ds.qy, pvx, pvy)
-		if err != nil {
-			return pt, err
-		}
-		d.storeMV(px, py, ds.w4*4, ds.h4*4, mx, my, mdx, mdy, ref)
+		mx, my := pvx+diffs[pi].dx0, pvy+diffs[pi].dy0
+		d.storeMV(px, py, ds.w4*4, ds.h4*4, mx, my, diffs[pi].dx0, diffs[pi].dy0, ref)
 		pt.mx, pt.my, pt.ref = mx, my, ref
 		pt.use0 = true
 	} else {
@@ -612,11 +690,8 @@ func (d *Decoder) decodeBPartMVD(h *SliceHeader, is *bInterSrc, refs []bRefPair,
 	if ds.dir.usesL1() {
 		ref := refs[pi].r1
 		pvx, pvy := d.predBPart(1, kind, pi, ds, ref)
-		mx, my, mdx, mdy, err := is.mvd(1, ds.qx, ds.qy, pvx, pvy)
-		if err != nil {
-			return pt, err
-		}
-		d.storeMV1(px, py, ds.w4*4, ds.h4*4, mx, my, mdx, mdy, ref)
+		mx, my := pvx+diffs[pi].dx1, pvy+diffs[pi].dy1
+		d.storeMV1(px, py, ds.w4*4, ds.h4*4, mx, my, diffs[pi].dx1, diffs[pi].dy1, ref)
 		pt.mx1, pt.my1, pt.ref1 = mx, my, ref
 		pt.use1 = true
 	} else {
