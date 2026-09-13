@@ -13,12 +13,18 @@ var (
 	ErrMissingPPS       = errors.New("h264: slice needs a PPS that was never seen")
 	ErrSliceGroups      = errors.New("h264: slice groups (F17) not supported in this stage")
 	ErrDataPartitioning = errors.New("h264: data partitioning (F17) not supported in this stage")
+	ErrRedundantPic     = errors.New("h264: redundant picture (F17) not supported in this stage")
 	ErrUnsupportedNAL   = errors.New("h264: unsupported NAL unit for this stage")
 	ErrBadAVCC          = errors.New("h264: bad avcC box")
 	ErrNoParamSets      = errors.New("h264: no parameter sets")
 	ErrBadSliceHeader   = errors.New("h264: bad slice header")
 	ErrUnsupportedLevel = errors.New("h264: unsupported level")
 	ErrTruncated        = errors.New("h264: truncated input")
+	// ErrLostReference marks F20: a slice needs a reference picture that
+	// is gone (P without reference, empty or partial picture). Callers
+	// isolate the bad frame and keep playing; it always rides with
+	// ErrBadSliceHeader so old errors.Is checks keep working.
+	ErrLostReference = errors.New("h264: lost reference (F20) conceals frame")
 )
 
 // NAL unit types (ITU-T H.264 Table 7-1).

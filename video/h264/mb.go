@@ -196,6 +196,9 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	if err != nil {
 		return err
 	}
+	if h.RedundantCnt != 0 {
+		return fmt.Errorf("%w: redundant %d", ErrRedundantPic, h.RedundantCnt)
+	}
 	if h.FieldPic {
 		which := "top"
 		if h.BottomField {
@@ -363,7 +366,8 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		}
 		if d.refPic == nil && !h.IsIDR && d.dpb.Len() == 0 {
 			// First frame must be IDR; P with no reference is corrupt.
-			return fmt.Errorf("%w: P slice without reference", ErrBadSliceHeader)
+			// F20 rides along so fault triage can name the tool.
+			return fmt.Errorf("%w: P slice without reference (%w)", ErrBadSliceHeader, ErrLostReference)
 		}
 	}
 	if h.IsB() {
@@ -485,12 +489,14 @@ func (d *Decoder) LastSEI() []SEIMessage {
 
 // FinishPicture deblocks, stores to the DPB and hands over the picture.
 // The frame must be exactly covered by decoded macroblocks.
+// Empty or partial pictures are F20 (lost reference / truncated sample):
+// the caller skips the frame and keeps playing.
 func (d *Decoder) FinishPicture() (*Picture, error) {
 	if d.pic == nil || d.decoded == 0 {
-		return nil, fmt.Errorf("%w: no slices decoded", ErrBadSliceHeader)
+		return nil, fmt.Errorf("%w: no slices decoded (%w)", ErrBadSliceHeader, ErrLostReference)
 	}
 	if d.decoded != d.mbW*d.mbH {
-		return nil, fmt.Errorf("%w: %d of %d mbs", ErrBadSliceHeader, d.decoded, d.mbW*d.mbH)
+		return nil, fmt.Errorf("%w: %d of %d mbs (%w)", ErrBadSliceHeader, d.decoded, d.mbW*d.mbH, ErrLostReference)
 	}
 	DeblockPicture(d.pic, d.qps, d.fIDC, d.fA, d.fB, d.mbW, d.mbH, d.cOff0, d.cOff1,
 		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx, d.refList, d.mbT8,

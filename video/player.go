@@ -34,6 +34,11 @@ type Info struct {
 	DurMs     int64
 	Frames    int
 	KeyframeN int
+	// Concealed counts bad samples skipped at open (F20 isolation):
+	// truncated/corrupt frames isolated, good tail keeps playing.
+	Concealed int64
+	// Fault names the first skipped sample's problem, "" when clean.
+	Fault string
 }
 
 // Stats is the playback waterline the window HUD and JSON report.
@@ -54,6 +59,8 @@ type Stats struct {
 	SeekDeltaMs  int64
 	SeekForward  int64
 	SeekLandedMs int64
+	// Concealed mirrors Info.Concealed for HUD/JSON.
+	Concealed int64
 }
 
 // Options tunes the player. QueueCap <= 0 means clock.DefaultCap;
@@ -106,6 +113,9 @@ type Player struct {
 	seekLandedMs int64
 	seekTargetMs int64
 	seekKeyMs    int64
+	// VR6 conceal evidence: bad samples skipped at open.
+	concealed  int64
+	firstFault error
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -155,6 +165,11 @@ func OpenFile(path string, opt Options) (*Player, error) {
 			return nil, fmt.Errorf("video: sequence params %s: %w", path, err)
 		}
 	}
+	// F1/F2 gate at open: non-B/M/H profiles and levels past 5.2 fail
+	// fast with a namable error instead of flowering later.
+	if err := checkStreamLimits(sps, path); err != nil {
+		return nil, err
+	}
 	copt := color.Options{}
 	if sps != nil && sps.VUI != nil {
 		copt = color.OptionsFromVUI(sps.VUI.FullRange, sps.VUI.ColourPresent, sps.VUI.ColourMatrix)
@@ -172,27 +187,82 @@ func OpenFile(path string, opt Options) (*Player, error) {
 		spos int
 	}
 	var pics []*sized
+	var concealed int64
+	var firstFault error
+	remember := func(err error) {
+		if firstFault == nil {
+			firstFault = err
+		}
+	}
+	// reset rebuilds a clean decoder after a corrupt sample fed partial
+	// state: the bad frame is dropped, the next IDR restarts the tail.
+	// Truncated reads feed nothing, so they keep the live decoder.
+	reset := func() {
+		nd := h264.NewDecoder(nil)
+		for _, raw := range avcc.SPS {
+			_ = nd.DecodeNALU(raw)
+		}
+		for _, raw := range avcc.PPS {
+			_ = nd.DecodeNALU(raw)
+		}
+		dec = nd
+	}
 	for si, s := range v.Samples {
 		buf := make([]byte, s.Size)
 		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-			return nil, fmt.Errorf("video: sample %d unreadable %s: %w", s.Number, path, err)
+			concealed++
+			remember(fmt.Errorf("video: sample %d truncated %s (%v): %w", s.Number, path, err, mp4.ErrTruncated))
+			continue
 		}
 		units, err := h264.SplitAVCC(buf, avcc.LengthSize)
 		if err != nil {
-			return nil, fmt.Errorf("video: sample %d split %s: %w", s.Number, path, err)
+			// Split failures are truncations; keep refs, skip frame.
+			concealed++
+			remember(fmt.Errorf("video: sample %d split %s: %w", s.Number, path, err))
+			continue
 		}
+		if err := rejectF17Units(units, s.Number, path); err != nil {
+			// F17 is stream-level unsupported: fail the whole clip.
+			return nil, err
+		}
+		fed := false
+		var decErr error
 		for _, u := range units {
 			if err := dec.DecodeNALU(u); err != nil {
-				return nil, fmt.Errorf("video: sample %d decode %s: %w", s.Number, path, err)
+				decErr = fmt.Errorf("video: sample %d decode %s: %w", s.Number, path, err)
+				break
 			}
+			fed = true
+		}
+		if decErr != nil {
+			if streamFatal(decErr) {
+				return nil, decErr
+			}
+			concealed++
+			remember(decErr)
+			reset()
+			continue
+		}
+		if !fed {
+			// No slices fed (SEI-only sample): nothing to show.
+			continue
 		}
 		pic, err := dec.FinishPicture()
 		if err != nil {
-			return nil, fmt.Errorf("video: sample %d finish %s: %w", s.Number, path, err)
+			if streamFatal(err) {
+				return nil, fmt.Errorf("video: sample %d finish %s: %w", s.Number, path, err)
+			}
+			concealed++
+			remember(fmt.Errorf("video: sample %d finish %s: %w", s.Number, path, err))
+			reset()
+			continue
 		}
 		pics = append(pics, &sized{pic: pic, pts: s.PTSMs, spos: si})
 	}
 	if len(pics) == 0 {
+		if firstFault != nil {
+			return nil, fmt.Errorf("%w: %s: %v", ErrNoFrames, path, firstFault)
+		}
 		return nil, fmt.Errorf("%w: %s", ErrNoFrames, path)
 	}
 	sort.Slice(pics, func(i, j int) bool {
@@ -220,7 +290,12 @@ func OpenFile(path string, opt Options) (*Player, error) {
 	}
 	q := clock.NewQueue(cap)
 	clk := clock.NewClock(now)
-	p := &Player{info: Info{Path: path, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(pics), KeyframeN: v.KeyframeCount()}, q: q, clk: clk, nowMs: now, stopCh: make(chan struct{}), doneCh: make(chan struct{}), loop: opt.Loop, readyCh: make(chan struct{})}
+	p := &Player{info: Info{Path: path, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(pics), KeyframeN: v.KeyframeCount(), Concealed: concealed}, q: q, clk: clk, nowMs: now, stopCh: make(chan struct{}), doneCh: make(chan struct{}), loop: opt.Loop, readyCh: make(chan struct{})}
+	if firstFault != nil {
+		p.info.Fault = Classify(firstFault).Readable()
+	}
+	p.concealed = concealed
+	p.firstFault = firstFault
 	p.path = path
 	p.samples = append([]mp4.Sample(nil), v.Samples...)
 	p.keyframes = append([]mp4.Keyframe(nil), v.Keyframes...)
@@ -483,8 +558,53 @@ func (p *Player) Stats() Stats {
 		seekOK = 1
 	}
 	seekDelta, seekFwd, seekLanded := p.seekDeltaMs, p.seekForward, p.seekLandedMs
+	concealed := p.concealed
 	p.mu.Unlock()
-	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: p.err, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded}
+	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: p.err, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed}
+}
+
+// ConcealedFault reports the first skipped sample's problem, "" when the
+// clip opened clean. Window lists use Classify for the kind.
+func (p *Player) ConcealedFault() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.firstFault
+}
+
+// streamFatal reports stream-level unsupported inputs that must fail the
+// whole open instead of concealing one frame: F17 old tools, F2 level,
+// F12 interlace and non-B/M/H profiles.
+func streamFatal(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, h264.ErrSliceGroups) || errors.Is(err, h264.ErrDataPartitioning) ||
+		errors.Is(err, h264.ErrRedundantPic) || errors.Is(err, h264.ErrUnsupportedNAL) ||
+		errors.Is(err, h264.ErrUnsupportedLevel) ||
+		errors.Is(err, h264.ErrStageScope) || errors.Is(err, h264.ErrBadAVCC) ||
+		errors.Is(err, h264.ErrNoParamSets) {
+		return true
+	}
+	return false
+}
+
+// rejectF17Units spots old-tool NALUs inside a sample payload: data
+// partitions (2/3/4) and slice extension (20). They stop the open with a
+// namable F17 error instead of guessing.
+func rejectF17Units(units [][]byte, sampleNum int, path string) error {
+	for _, u := range units {
+		t, ok := h264.NALType(u)
+		if !ok {
+			continue
+		}
+		switch t {
+		case h264.NALSlicePartA, h264.NALSlicePartB, h264.NALSlicePartC:
+			return fmt.Errorf("video: sample %d F17 data partition %s %s: %w", sampleNum, path, h264.TypeName(t), h264.ErrDataPartitioning)
+		case h264.NALSliceExt:
+			return fmt.Errorf("video: sample %d F17 slice extension %s: %w", sampleNum, path, h264.ErrUnsupportedNAL)
+		}
+	}
+	return nil
 }
 
 // SeekTo jumps to targetMs (container PTS milliseconds): lands on the last
