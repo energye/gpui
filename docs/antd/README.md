@@ -152,11 +152,11 @@
 
 | 项 | 状态 | 备注 |
 | --- | --- | --- |
-| 套件架子 `ui/kit`（一控件一目录 + doc.go） | 未开工 | — |
-| 示例总窗（左标签右展示 + 临时导航） | 未开工 | — |
-| 覆盖记录 `ui/kit/coverage.go` | 未开工 | — |
-| 主题全局种子（对齐 antd v6.5.1） | 未开工 | — |
-| 浮层通用定位（十二方向/翻转/箭头/外点关/焦点锁） | 未开工 | — |
+| 套件架子 `ui/kit`（一控件一目录 + doc.go） | 首批完 | `ui/kit/doc.go` + 71 目录，规矩见包注释 |
+| 示例总窗（左标签右展示 + 临时导航） | 首批完 | `examples/ui_polish_gallery` + `-tab` 独立开 |
+| 覆盖记录 `ui/kit/coverage.go` | 首批完 | 与本表一致，72 行 + `ByName` |
+| 主题全局种子（对齐 antd v6.5.1） | 首批完 | `ui/theme` 浅色默认 + `testdata/seed_default.json` |
+| 浮层通用定位（十二方向/翻转/箭头/外点关/焦点锁） | 首批完 | `ui/overlay/placement.go` + `interact.go` 纯函数 |
 | Icon（最底层，先做） | 未开工 | [icon.md](./icon.md) |
 
 ### W1 基础件（19 个，地基好后并行）

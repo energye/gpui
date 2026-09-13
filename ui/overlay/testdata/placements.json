@@ -1,0 +1,22 @@
+{
+  "source": "antd _util/placements.ts + tooltip/index.tsx defaults + style/placementArrow.ts",
+  "defaults": {"gap": 12, "arrowWidth": 16, "arrowOffsetH": 12, "arrowOffsetV": 8, "viewportW": 800, "viewportH": 600},
+  "cases": [
+    {"name": "top-center", "anchor": [100, 100, 80, 32], "overlay": [120, 48], "want": "top", "expect": {"x": 80, "y": 40, "actual": "top", "flipped": false}},
+    {"name": "bottom-center", "anchor": [100, 100, 80, 32], "overlay": [120, 48], "want": "bottom", "expect": {"x": 80, "y": 144, "actual": "bottom", "flipped": false}},
+    {"name": "top-flips-to-bottom", "anchor": [100, 4, 80, 32], "overlay": [120, 48], "want": "top", "expect": {"actual": "bottom", "flipped": true}},
+    {"name": "bottom-flips-to-top", "anchor": [100, 560, 80, 32], "overlay": [120, 48], "want": "bottom", "expect": {"actual": "top", "flipped": true}},
+    {"name": "left-center", "anchor": [400, 200, 80, 32], "overlay": [120, 48], "want": "left", "expect": {"x": 268, "y": 192, "actual": "left", "flipped": false}},
+    {"name": "right-center", "anchor": [400, 200, 80, 32], "overlay": [120, 48], "want": "right", "expect": {"x": 492, "y": 192, "actual": "right", "flipped": false}},
+    {"name": "left-flips-to-right", "anchor": [4, 200, 80, 32], "overlay": [120, 48], "want": "left", "expect": {"actual": "right", "flipped": true}},
+    {"name": "topLeft-hugs-left", "anchor": [100, 100, 80, 32], "overlay": [120, 48], "want": "topLeft", "expect": {"x": 100, "y": 40, "actual": "topLeft", "flipped": false}},
+    {"name": "topRight-hugs-right", "anchor": [100, 100, 80, 32], "overlay": [120, 48], "want": "topRight", "expect": {"x": 60, "y": 40, "actual": "topRight", "flipped": false}},
+    {"name": "bottomLeft-hugs-left", "anchor": [100, 100, 80, 32], "overlay": [120, 48], "want": "bottomLeft", "expect": {"x": 100, "y": 144, "actual": "bottomLeft", "flipped": false}},
+    {"name": "leftTop-hugs-top", "anchor": [400, 200, 80, 32], "overlay": [120, 48], "want": "leftTop", "expect": {"x": 268, "y": 200, "actual": "leftTop", "flipped": false}},
+    {"name": "rightBottom-hugs-bottom", "anchor": [400, 200, 80, 32], "overlay": [120, 48], "want": "rightBottom", "expect": {"x": 492, "y": 184, "actual": "rightBottom", "flipped": false}},
+    {"name": "shift-clamps-right-edge", "anchor": [740, 100, 80, 32], "overlay": [200, 48], "want": "top", "expect": {"x": 600, "actual": "top", "flipped": false}},
+    {"name": "arrow-top-center", "anchor": [100, 100, 80, 32], "overlay": [120, 48], "want": "top", "expectArrow": [60, 48]},
+    {"name": "arrow-topLeft-pinned", "anchor": [100, 100, 80, 32], "overlay": [120, 48], "want": "topLeft", "expectArrow": [12, 48]},
+    {"name": "arrow-leftTop-pinned", "anchor": [400, 200, 80, 32], "overlay": [120, 48], "want": "leftTop", "expectArrow": [120, 8]}
+  ]
+}
