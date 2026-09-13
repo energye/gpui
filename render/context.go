@@ -2070,8 +2070,11 @@ func (c *Context) FlushGPUWithViewDamageRects(view gpucontext.TextureView, width
 type gpuContextOps interface {
 	FillShape(target GPURenderTarget, shape DetectedShape, paint *Paint) error
 	StrokeShape(target GPURenderTarget, shape DetectedShape, paint *Paint) error
-	FillPath(target GPURenderTarget, path *Path, paint *Paint) error
-	StrokePath(target GPURenderTarget, path *Path, paint *Paint) error
+	// F2: FillPath/StrokePath take the total user→device matrix; path stays
+	// device-space (baked). The GPU backend unbakes to user space for
+	// transform-independent caching when the matrix is a similarity.
+	FillPath(target GPURenderTarget, path *Path, paint *Paint, matrix Matrix) error
+	StrokePath(target GPURenderTarget, path *Path, paint *Paint, matrix Matrix) error
 	DrawText(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 	DrawGlyphMaskText(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 	DrawGlyphMaskTextAliased(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
@@ -2209,7 +2212,7 @@ func (c *Context) tryGPUFill() error {
 	}
 	defer cleanup()
 	if rc := c.gpuCtxOps(); rc != nil {
-		return c.tryGPUOpRC(rc.FillShape, rc.FillPath)
+		return c.tryGPUOpRC(rc.FillShape, rc.FillPath, c.totalMatrix())
 	}
 	a := Accelerator()
 	if a == nil {
@@ -2229,7 +2232,7 @@ func (c *Context) tryGPUStroke() error {
 	}
 	defer cleanup()
 	if rc := c.gpuCtxOps(); rc != nil {
-		return c.tryGPUOpRC(rc.StrokeShape, rc.StrokePath)
+		return c.tryGPUOpRC(rc.StrokeShape, rc.StrokePath, c.totalMatrix())
 	}
 	a := Accelerator()
 	if a == nil {
@@ -2266,7 +2269,8 @@ func (c *Context) setupGPUMask() (func(), error) {
 // tryGPUOpRC routes GPU operations through the per-context GPURenderContext.
 func (c *Context) tryGPUOpRC(
 	shapeFn func(GPURenderTarget, DetectedShape, *Paint) error,
-	pathFn func(GPURenderTarget, *Path, *Paint) error,
+	pathFn func(GPURenderTarget, *Path, *Paint, Matrix) error,
+	totalM Matrix,
 ) error {
 	target := c.gpuRenderTarget()
 
@@ -2277,7 +2281,7 @@ func (c *Context) tryGPUOpRC(
 		}
 	}
 
-	return pathFn(target, c.path, c.paint)
+	return pathFn(target, c.path, c.paint, totalM)
 }
 
 // tryGPUOp attempts GPU rendering using shape-specific SDF first, then general path.

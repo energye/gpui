@@ -259,7 +259,9 @@ func TestRenderPathResizesTextures(t *testing.T) {
 }
 
 func TestMakeStencilFillUniform(t *testing.T) {
-	buf := makeStencilFillUniform(800, 600)
+	// F2: viewport + affine rows + color = 64B.
+	m := render.Translate(10, 20)
+	buf := makeStencilUniform(800, 600, m, [4]float32{0.8, 0.4, 0.2, 0.8})
 	if len(buf) != stencilFillUniformSize {
 		t.Fatalf("expected %d bytes, got %d", stencilFillUniformSize, len(buf))
 	}
@@ -270,6 +272,32 @@ func TestMakeStencilFillUniform(t *testing.T) {
 	}
 	if got := decodeFloat32(buf[4:8]); got != 600.0 {
 		t.Errorf("expected height 600.0, got %v", got)
+	}
+	// Affine row 0 = (1, 0, 10): identity rotation + tx=10.
+	if got := decodeFloat32(buf[16:20]); got != 1.0 {
+		t.Errorf("expected m00 1.0, got %v", got)
+	}
+	if got := decodeFloat32(buf[24:28]); got != 10.0 {
+		t.Errorf("expected m02 10.0, got %v", got)
+	}
+	// Affine row 1 = (0, 1, 20).
+	if got := decodeFloat32(buf[36:40]); got != 1.0 {
+		t.Errorf("expected m11 1.0, got %v", got)
+	}
+	if got := decodeFloat32(buf[40:44]); got != 20.0 {
+		t.Errorf("expected m12 20.0, got %v", got)
+	}
+	// Color at offset 48.
+	if got := decodeFloat32(buf[48:52]); got != 0.8 {
+		t.Errorf("expected color R 0.8, got %v", got)
+	}
+	// Identity matrix encodes cleanly.
+	id := makeStencilUniform(100, 100, render.Identity(), [4]float32{1, 1, 1, 1})
+	if got := decodeFloat32(id[16:20]); got != 1.0 {
+		t.Errorf("identity m00: got %v", got)
+	}
+	if got := decodeFloat32(id[24:28]); got != 0.0 {
+		t.Errorf("identity m02: got %v", got)
 	}
 }
 

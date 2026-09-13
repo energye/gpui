@@ -260,6 +260,7 @@ func TestRenderSessionStencilOnly(t *testing.T) {
 	// Triangle fan for a simple triangle path.
 	paths := []StencilPathCommand{
 		{
+			Matrix: render.Identity(), // baked (test geometry is device-space)
 			Vertices: []float32{
 				50, 50, 150, 50, 150, 150, // triangle 1
 			},
@@ -313,6 +314,7 @@ func TestRenderSessionMixed(t *testing.T) {
 	// Stencil paths (arbitrary shape).
 	paths := []StencilPathCommand{
 		{
+			Matrix: render.Identity(), // baked (test geometry is device-space)
 			Vertices: []float32{
 				200, 200, 250, 200, 250, 250,
 				200, 200, 250, 250, 200, 250,
@@ -409,6 +411,7 @@ func TestRenderSessionPipelineSetters(t *testing.T) {
 
 func TestStencilPathCommandFields(t *testing.T) {
 	cmd := StencilPathCommand{
+		Matrix:   render.Identity(), // baked (test geometry is device-space)
 		Vertices: []float32{0, 0, 100, 0, 100, 100},
 		CoverQuad: [12]float32{
 			-1, -1, 101, -1, 101, 101,
@@ -712,6 +715,7 @@ func TestRenderSessionSurfaceModeStencilPaths(t *testing.T) {
 	}
 	paths := []StencilPathCommand{
 		{
+			Matrix:    render.Identity(), // baked (test geometry is device-space)
 			Vertices:  []float32{200, 200, 250, 200, 250, 250},
 			CoverQuad: [12]float32{199, 199, 251, 199, 251, 251, 199, 199, 251, 251, 199, 251},
 			Color:     [4]float32{0, 1, 0, 1},

@@ -813,6 +813,7 @@ func TestRenderSessionMixedWithConvex(t *testing.T) {
 	}
 	paths := []StencilPathCommand{
 		{
+			Matrix:    render.Identity(), // baked (test geometry is device-space)
 			Vertices:  []float32{300, 200, 350, 200, 350, 250},
 			CoverQuad: [12]float32{299, 199, 351, 199, 351, 251, 299, 199, 351, 251, 299, 251},
 			Color:     [4]float32{0, 0, 1, 1},

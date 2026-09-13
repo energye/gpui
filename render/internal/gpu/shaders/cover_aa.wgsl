@@ -15,7 +15,8 @@
 
 struct Uniforms {
     viewport: vec2<f32>,  // width, height in pixels
-    _pad: vec2<f32>,
+    m_row0: vec4<f32>,    // F2 affine row 0 (user → device); identity for baked draws
+    m_row1: vec4<f32>,    // F2 affine row 1
     color: vec4<f32>,     // fill color (premultiplied alpha)
 }
 
@@ -78,10 +79,17 @@ struct AAVertexOutput {
 @vertex
 fn vs_main(@location(0) pos: vec2<f32>, @location(1) edge_d: f32) -> AAVertexOutput {
     var out: AAVertexOutput;
-    let ndc_x = pos.x / u.viewport.x * 2.0 - 1.0;
-    let ndc_y = 1.0 - pos.y / u.viewport.y * 2.0;
+    // F2: band verts are user-space; transform to device. edge_d is a user-space
+    // distance: scale by the uniform similarity factor (|row0.xy| = s) so the
+    // fragment compares device-space distance against the device-space band.
+    let p = vec3<f32>(pos, 1.0);
+    let wx = dot(u.m_row0.xyz, p);
+    let wy = dot(u.m_row1.xyz, p);
+    let ndc_x = wx / u.viewport.x * 2.0 - 1.0;
+    let ndc_y = 1.0 - wy / u.viewport.y * 2.0;
     out.position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
-    out.edge_d = edge_d;
+    let s = sqrt(u.m_row0.x * u.m_row0.x + u.m_row0.y * u.m_row0.y);
+    out.edge_d = edge_d * s;
     return out;
 }
 

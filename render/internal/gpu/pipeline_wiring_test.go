@@ -508,7 +508,7 @@ func TestStrokeRouting_AutoModeUsesStencil(t *testing.T) {
 	paint.SetBrush(render.Solid(render.Red))
 	paint.SetStroke(render.Stroke{Width: 2.0, Cap: render.LineCapButt, Join: render.LineJoinMiter, MiterLimit: 10.0})
 
-	if err := rc.StrokePath(target, path, paint); err != nil {
+	if err := rc.StrokePath(target, path, paint, render.Identity()); err != nil {
 		t.Fatalf("StrokePath: %v", err)
 	}
 
@@ -540,7 +540,7 @@ func TestStrokeRouting_ComputeModeUsesVello(t *testing.T) {
 	paint.SetBrush(render.Solid(render.Red))
 	paint.SetStroke(render.Stroke{Width: 2.0, Cap: render.LineCapButt, Join: render.LineJoinMiter, MiterLimit: 10.0})
 
-	if err := rc.StrokePath(target, path, paint); err != nil {
+	if err := rc.StrokePath(target, path, paint, render.Identity()); err != nil {
 		t.Fatalf("StrokePath: %v", err)
 	}
 
@@ -570,7 +570,7 @@ func TestEvenOddFillRouting_AutoModeUsesStencil(t *testing.T) {
 	paint.SetBrush(render.Solid(render.Red))
 	paint.FillRule = render.FillRuleEvenOdd
 
-	if err := rc.FillPath(target, path, paint); err != nil {
+	if err := rc.FillPath(target, path, paint, render.Identity()); err != nil {
 		t.Fatalf("FillPath: %v", err)
 	}
 
@@ -825,7 +825,7 @@ func TestFillPath_RasterAtlas_FallsBackToCPU(t *testing.T) {
 	paint := render.NewPaint()
 	paint.SetBrush(render.Solid(render.Red))
 
-	err := rc.FillPath(target, path, paint)
+	err := rc.FillPath(target, path, paint, render.Identity())
 	if err != nil && !errors.Is(err, render.ErrFallbackToCPU) {
 		t.Fatalf("expected ErrFallbackToCPU or nil, got: %v", err)
 	}

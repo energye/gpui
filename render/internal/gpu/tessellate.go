@@ -59,7 +59,41 @@ type FanTessellator struct {
 	segments       []aaSegment
 	segContours    []int
 	contourAreas   []float64
+
+	// userScale: device px per user unit for the geometry being
+	// tessellated. Pixel-denominated constants (flatten tolerance, AA band
+	// widths, corner lengths) are divided by it so user-space tessellation
+	// matches device-space tessellation. Default 1 (device space).
+	userScale float64
 }
+
+// SetUserScale sets the device-px-per-user-unit scale for subsequent
+// TessellatePath/TessellateAA calls. Pass 1 for device-space paths.
+func (ft *FanTessellator) SetUserScale(s float64) {
+	if !(s > 1e-9) || math.IsNaN(s) || math.IsInf(s, 0) {
+		s = 1
+	}
+	ft.userScale = s
+}
+
+func (ft *FanTessellator) scale() float64 {
+	if ft.userScale > 1e-9 {
+		return ft.userScale
+	}
+	return 1
+}
+
+// tol is the curve flatten tolerance in the tessellated (user) space.
+func (ft *FanTessellator) tol() float64 { return fanFlattenTolerance / ft.scale() }
+
+// aaHalf is the AA fringe half width in the tessellated space.
+func (ft *FanTessellator) aaHalf() float64 { return aaCoverHalfWidth / ft.scale() }
+
+// aaPad is the band pad in the tessellated space.
+func (ft *FanTessellator) aaPad() float64 { return aaCoverBandPad / ft.scale() }
+
+// cornerSuppress is the corner-suppress length in the tessellated space.
+func (ft *FanTessellator) cornerSuppress() float64 { return cornerSuppressLen / ft.scale() }
 
 // NewFanTessellator creates a new tessellator with pre-allocated capacity.
 func NewFanTessellator() *FanTessellator {
@@ -125,7 +159,7 @@ func (ft *FanTessellator) TessellatePath(path *render.Path) int {
 				prevX, prevY,
 				coords[0], coords[1],
 				coords[2], coords[3],
-				fanFlattenTolerance,
+				ft.tol(),
 			)
 			prevX, prevY = coords[2], coords[3]
 
@@ -139,7 +173,7 @@ func (ft *FanTessellator) TessellatePath(path *render.Path) int {
 				coords[0], coords[1],
 				coords[2], coords[3],
 				coords[4], coords[5],
-				fanFlattenTolerance,
+				ft.tol(),
 			)
 			prevX, prevY = coords[4], coords[5]
 
@@ -468,7 +502,7 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 		// ideal line; outer (convex) contours already cover those centers.
 		bandPad := 0.0
 		if isHole && len(ft.contourAreas) > 1 {
-			bandPad = aaCoverBandPad
+			bandPad = ft.aaPad()
 		}
 		// Interior half: emitted for boundary segments up to aaInnerMaxSegLen
 		// (curved/flattened segments — glyph outlines, arc strokes, the eye's
@@ -500,8 +534,8 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 			prev := ft.segments[start+(k-1+n)%n]
 			next := ft.segments[start+(k+1)%n]
 			s := ft.segments[i]
-			erosionA := aaCornerErosion(prev.bx-prev.ax, prev.by-prev.ay, s.bx-s.ax, s.by-s.ay)
-			erosionB := aaCornerErosion(s.bx-s.ax, s.by-s.ay, next.bx-next.ax, next.by-next.ay)
+			erosionA := ft.aaErosion(prev.bx-prev.ax, prev.by-prev.ay, s.bx-s.ax, s.by-s.ay)
+			erosionB := ft.aaErosion(s.bx-s.ax, s.by-s.ay, next.bx-next.ax, next.by-next.ay)
 			// Decoration-end erosion: when this end's corner is smooth
 			// (collinear with the adjacent segment) but the adjacent segment
 			// is a SHORT join decoration whose FAR end is a sharp corner (a
@@ -512,15 +546,15 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 			// extent.
 			prevLen := math.Hypot(prev.bx-prev.ax, prev.by-prev.ay)
 			nextLen := math.Hypot(next.bx-next.ax, next.by-next.ay)
-			if erosionA == 0 && prevLen <= cornerSuppressLen {
+			if erosionA == 0 && prevLen <= ft.cornerSuppress() {
 				pp := ft.segments[start+(k-2+n+n)%n]
-				if e := aaCornerErosion(pp.bx-pp.ax, pp.by-pp.ay, prev.bx-prev.ax, prev.by-prev.ay); e > 0 {
+				if e := ft.aaErosion(pp.bx-pp.ax, pp.by-pp.ay, prev.bx-prev.ax, prev.by-prev.ay); e > 0 {
 					erosionA = e
 				}
 			}
-			if erosionB == 0 && nextLen <= cornerSuppressLen {
+			if erosionB == 0 && nextLen <= ft.cornerSuppress() {
 				nn := ft.segments[start+(k+2)%n]
-				if e := aaCornerErosion(next.bx-next.ax, next.by-next.ay, nn.bx-nn.ax, nn.by-nn.ay); e > 0 {
+				if e := ft.aaErosion(next.bx-next.ax, next.by-next.ay, nn.bx-nn.ax, nn.by-nn.ay); e > 0 {
 					erosionB = e
 				}
 			}
@@ -531,7 +565,7 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 			// side edge fade (ui_render_graphics/basic ③ lines vs ⑥ stroke:
 			// a binary interior makes the stroked triangle's edges look
 			// stepped where the convex shapes stay smooth).
-			emitThis := emitInner && !(segLen <= cornerSuppressLen && (erosionA > 0 || erosionB > 0))
+			emitThis := emitInner && !(segLen <= ft.cornerSuppress() && (erosionA > 0 || erosionB > 0))
 			ft.emitAABands(s.ax, s.ay, s.bx, s.by, orient, bandPad, emitThis, erosionA, erosionB)
 		}
 	}
@@ -574,6 +608,12 @@ const cornerSuppressLen = 4.0
 // plus aa removes the overlap region where both adjacent strips would
 // Replace partial coverage onto pixels the binary cover already fills.
 func aaCornerErosion(px, py, qx, qy float64) float64 {
+	return aaCornerErosionScaled(px, py, qx, qy, aaCoverHalfWidth)
+}
+
+// aaCornerErosionScaled is aaCornerErosion with an explicit fringe half width
+// (user-space width = aaCoverHalfWidth / userScale).
+func aaCornerErosionScaled(px, py, qx, qy, aa float64) float64 {
 	pl := math.Hypot(px, py)
 	ql := math.Hypot(qx, qy)
 	if pl < 1e-9 || ql < 1e-9 {
@@ -593,7 +633,12 @@ func aaCornerErosion(px, py, qx, qy float64) float64 {
 	// the smooth just-inside fade (convex-renderer look), so the wedge ends
 	// of those arms are eroded past the wedge extent (plus aa for pixel
 	// centers) to avoid hollow corner pixels.
-	return aaCoverHalfWidth*(1+5/math.Sin(phi/2)) + aaCoverHalfWidth
+	return aa*(1+5/math.Sin(phi/2)) + aa
+}
+
+// aaErosion is aaCornerErosionScaled with the tessellator's fringe width.
+func (ft *FanTessellator) aaErosion(px, py, qx, qy float64) float64 {
+	return aaCornerErosionScaled(px, py, qx, qy, ft.aaHalf())
 }
 
 // aaCollectSegments walks the path and flattens every edge into aaSegments
@@ -621,13 +666,13 @@ func (ft *FanTessellator) aaCollectSegments(path *render.Path) {
 			if !contourOn {
 				return
 			}
-			ft.aaFlattenQuad(prevX, prevY, coords[0], coords[1], coords[2], coords[3], fanFlattenTolerance, 0)
+			ft.aaFlattenQuad(prevX, prevY, coords[0], coords[1], coords[2], coords[3], ft.tol(), 0)
 			prevX, prevY = coords[2], coords[3]
 		case render.CubicTo:
 			if !contourOn {
 				return
 			}
-			ft.aaFlattenCubic(prevX, prevY, coords[0], coords[1], coords[2], coords[3], coords[4], coords[5], fanFlattenTolerance, 0)
+			ft.aaFlattenCubic(prevX, prevY, coords[0], coords[1], coords[2], coords[3], coords[4], coords[5], ft.tol(), 0)
 			prevX, prevY = coords[4], coords[5]
 		case render.Close:
 			if !contourOn {
@@ -738,7 +783,7 @@ func (ft *FanTessellator) emitAABands(ax, ay, bx, by, orient, contourPad float64
 	if elen < 1e-9 {
 		return
 	}
-	aa := aaCoverHalfWidth
+	aa := ft.aaHalf()
 	pad := contourPad
 	tx, ty := ex/elen, ey/elen
 	// Outward normal: right of the direction for CCW (fill left), left for CW.

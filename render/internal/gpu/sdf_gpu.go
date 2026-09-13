@@ -343,12 +343,13 @@ func (a *SDFAccelerator) DrawGlyphMaskTextAliased(target render.GPURenderTarget,
 }
 
 // FillPath queues a filled path for GPU rendering via the default context.
+// Legacy GPUAccelerator path carries baked device-space geometry: identity.
 func (a *SDFAccelerator) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	a.mu.Lock()
 	a.ensureDefaultCtx()
 	rc := a.defaultCtx
 	a.mu.Unlock()
-	return rc.FillPath(target, path, paint)
+	return rc.FillPath(target, path, paint, render.Identity())
 }
 
 // StrokePath renders a stroked path via the default context.
@@ -357,7 +358,7 @@ func (a *SDFAccelerator) StrokePath(target render.GPURenderTarget, path *render.
 	a.ensureDefaultCtx()
 	rc := a.defaultCtx
 	a.mu.Unlock()
-	return rc.StrokePath(target, path, paint)
+	return rc.StrokePath(target, path, paint, render.Identity())
 }
 
 // FillShape accumulates a filled shape via the default context.

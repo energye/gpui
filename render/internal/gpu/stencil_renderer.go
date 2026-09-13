@@ -277,7 +277,15 @@ type stencilCoverBuffers struct {
 	coverUniBuf      *webgpu.Buffer
 	stencilBindGroup *webgpu.BindGroup
 	coverBindGroup   *webgpu.BindGroup
-	fanVertexCount   uint32
+	// F2 sticky marks (per pool entry): last uploaded stencil uniform bytes
+	// (viewport + matrix + color) and band content fingerprints. Static draws
+	// skip their WriteBuffers after the first frame.
+	lastStencilUni                      []byte
+	stencilUniValid                     bool
+	bandLastHash, bandLastLen           uint64
+	innerBandLastHash, innerBandLastLen uint64
+	bandFingerValid                     bool
+	fanVertexCount                      uint32
 	// Analytic-AA fringe band meshes (sampleCount==1): stride-12 (x, y, d)
 	// buffers uploaded from StencilPathCommand.BandAA/InnerBandAA. Empty when
 	// the path uses the plain binary cover (4x MSAA, pattern/textured, or AA
@@ -343,6 +351,24 @@ func (b *stencilCoverBuffers) destroy() {
 	b.isTextured = false
 	b.isPattern = false
 	b.coverUniCap = 0
+	b.lastStencilUni = b.lastStencilUni[:0]
+	b.stencilUniValid = false
+	b.bandFingerValid = false
+	b.bandLastHash, b.bandLastLen = 0, 0
+	b.innerBandLastHash, b.innerBandLastLen = 0, 0
+}
+
+// equalBytes reports byte equality without importing bytes on the hot path.
+func equalBytes(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // updateAACoverBuffers uploads the analytic-AA fringe band meshes (stride-12
@@ -360,17 +386,26 @@ func (sr *StencilRenderer) updateAACoverBuffers(b *stencilCoverBuffers, bandVert
 		return nil
 	}
 	if len(bandVerts) > 0 {
-		if err := sr.updateVertexBuffer(&b.bandVertBuf, &b.bandVertBufCap, "stencil_aa_band_verts", float32SliceToBytes(bandVerts)); err != nil {
-			return err
+		bb := float32SliceToBytes(bandVerts)
+		if h, l := indexBytesFingerprint(bb), uint64(len(bb)); !b.bandFingerValid || b.bandLastHash != h || b.bandLastLen != l {
+			if err := sr.updateVertexBuffer(&b.bandVertBuf, &b.bandVertBufCap, "stencil_aa_band_verts", bb); err != nil {
+				return err
+			}
+			b.bandLastHash, b.bandLastLen = h, l
 		}
 		b.bandVertexCount = uint32(len(bandVerts) / 3) //nolint:gosec // triple floats
 	}
 	if len(innerBandVerts) > 0 {
-		if err := sr.updateVertexBuffer(&b.innerBandVertBuf, &b.innerBandVertBufCap, "stencil_aa_inner_band_verts", float32SliceToBytes(innerBandVerts)); err != nil {
-			return err
+		bb := float32SliceToBytes(innerBandVerts)
+		if h, l := indexBytesFingerprint(bb), uint64(len(bb)); !b.bandFingerValid || b.innerBandLastHash != h || b.innerBandLastLen != l {
+			if err := sr.updateVertexBuffer(&b.innerBandVertBuf, &b.innerBandVertBufCap, "stencil_aa_inner_band_verts", bb); err != nil {
+				return err
+			}
+			b.innerBandLastHash, b.innerBandLastLen = h, l
 		}
 		b.innerBandVertexCount = uint32(len(innerBandVerts) / 3) //nolint:gosec // triple floats
 	}
+	b.bandFingerValid = true
 	return nil
 }
 
@@ -441,8 +476,18 @@ func (sr *StencilRenderer) createRenderBuffers(
 }
 
 // updateRenderBuffers creates or updates reusable stencil-then-cover buffers.
+// fanVerts are USER-space (transform in the uniform); coverQuad is
+// device-space (pre-placed, shader has no cover transform). matrix maps
+// user → device; Identity reproduces the pre-F2 baked behavior exactly.
 func (sr *StencilRenderer) updateRenderBuffers(
 	b *stencilCoverBuffers, w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
+) (*stencilCoverBuffers, error) {
+	return sr.updateRenderBuffersSticky(b, w, h, fanVerts, coverQuad, color, render.Identity(), false)
+}
+
+func (sr *StencilRenderer) updateRenderBuffersSticky(
+	b *stencilCoverBuffers, w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
+	matrix render.Matrix, skipFan bool,
 ) (*stencilCoverBuffers, error) {
 	if b == nil {
 		b = &stencilCoverBuffers{}
@@ -475,17 +520,38 @@ func (sr *StencilRenderer) updateRenderBuffers(
 	}
 
 	// Vertex buffers.
-	if err := sr.updateVertexBuffer(&b.fanVertBuf, &b.fanVertBufCap, "stencil_fan_verts", float32SliceToBytes(fanVerts)); err != nil {
-		return nil, err
+	if !skipFan {
+		if err := sr.updateVertexBuffer(&b.fanVertBuf, &b.fanVertBufCap, "stencil_fan_verts", float32SliceToBytes(fanVerts)); err != nil {
+			return nil, err
+		}
 	}
 	if err := sr.updateVertexBuffer(&b.coverVertBuf, &b.coverVertBufCap, "stencil_cover_verts", float32SliceToBytes(coverQuad[:])); err != nil {
 		return nil, err
 	}
 
 	// Uniform buffers + bind groups.
-	if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
-		"stencil_fill", makeStencilFillUniform(w, h), stencilFillUniformSize); err != nil {
-		return nil, err
+	// F2: stencil uniform is viewport + matrix + color (64B, shared by the
+	// fill and AA band pipelines). Upload only when bytes differ from the
+	// entry's last upload — static draws go silent after the first frame.
+	pmul := [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)}
+	stencilUni := makeStencilUniform(w, h, matrix, pmul)
+	if !b.stencilUniValid || len(b.lastStencilUni) != len(stencilUni) || !equalBytes(b.lastStencilUni, stencilUni) {
+		if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
+			"stencil_fill", stencilUni, stencilFillUniformSize); err != nil {
+			return nil, err
+		}
+		if b.lastStencilUni == nil {
+			b.lastStencilUni = make([]byte, 0, stencilFillUniformSize)
+		}
+		b.lastStencilUni = append(b.lastStencilUni[:0], stencilUni...)
+		b.stencilUniValid = true
+	} else if b.stencilBindGroup == nil {
+		// Stale-entry corner: content matches but bind group is gone (e.g.
+		// pool grew / pipelines recreated). Re-create without re-upload.
+		if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
+			"stencil_fill", stencilUni, stencilFillUniformSize); err != nil {
+			return nil, err
+		}
 	}
 	if err := sr.updateUniformAndBindGroup(&b.coverUniBuf, &b.coverBindGroup,
 		"cover", makeCoverUniform(w, h, color), coverUniformSize); err != nil {
@@ -940,9 +1006,10 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	//      and cover meet seamlessly.
 	if !useDepthClip && blendMode == render.BlendNormal &&
 		!bufs.isPattern && !bufs.isTextured {
-		if bufs.bandVertexCount > 0 && sr.aaBandPipeline != nil && bufs.coverBindGroup != nil {
+		// F2: bands share the stencil uniform (viewport + matrix + color).
+		if bufs.bandVertexCount > 0 && sr.aaBandPipeline != nil && bufs.stencilBindGroup != nil {
 			rp.SetPipeline(sr.aaBandPipeline)
-			rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+			rp.SetBindGroup(0, bufs.stencilBindGroup, nil)
 			if clipBG != nil {
 				rp.SetBindGroup(1, clipBG, nil)
 			}
@@ -953,9 +1020,9 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 			rp.SetVertexBuffer(0, bufs.bandVertBuf, 0)
 			rp.Draw(bufs.bandVertexCount, 1, 0, 0)
 		}
-		if bufs.innerBandVertexCount > 0 && sr.aaInnerBandPipeline != nil && bufs.coverBindGroup != nil {
+		if bufs.innerBandVertexCount > 0 && sr.aaInnerBandPipeline != nil && bufs.stencilBindGroup != nil {
 			rp.SetPipeline(sr.aaInnerBandPipeline)
-			rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+			rp.SetBindGroup(0, bufs.stencilBindGroup, nil)
 			if clipBG != nil {
 				rp.SetBindGroup(1, clipBG, nil)
 			}
@@ -1078,8 +1145,9 @@ func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (*web
 	return pipeline, nil
 }
 
-// makeStencilFillUniform creates the 16-byte uniform buffer for the stencil fill pass.
-// Layout: viewport (vec2<f32>) + padding (vec2<f32>).
+// stencilFillUniformSize is superseded by makeStencilUniform (64B viewport +
+// affine + color); makeStencilFillUniform stays for the standalone
+// RenderPath/encodeAndReadback identity path and its unit test.
 func makeStencilFillUniform(w, h uint32) []byte {
 	buf := make([]byte, stencilFillUniformSize)
 	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(float32(w)))

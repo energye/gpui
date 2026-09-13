@@ -232,10 +232,15 @@ type groupOffset struct {
 type StencilPathCommand struct {
 	// Vertices holds fan-tessellated triangle vertices as x,y float32 pairs.
 	// Every 6 consecutive floats form one triangle (3 vertices x 2 coords).
+	// F2: user-space coordinates; Matrix maps them to device pixels.
 	Vertices []float32
 
+	// Matrix maps Vertices (and BandAA/InnerBandAA) from user space to
+	// device pixels. Identity = pre-F2 baked device-space behavior.
+	Matrix render.Matrix
+
 	// CoverQuad holds 6 vertices (12 floats) forming the path's bounding
-	// rectangle for the cover pass.
+	// rectangle for the cover pass. Always device-space (pre-placed).
 	CoverQuad [12]float32
 
 	// BandAA / InnerBandAA hold the analytic-AA fringe bands (sampleCount==1):
@@ -573,6 +578,11 @@ type GPURenderSession struct {
 	sdfUniformW, sdfUniformH       uint32
 	sdfUniformAA                   bool
 	sdfUniformValid                bool
+	// F1+F2 sticky marks (per pool index): fan vertex fingerprints skip
+	// WriteBuffer for identical packed bytes; the stencil uniform compares
+	// per-entry inside StencilRenderer (lastStencilUni).
+	stencilFanLastHash []uint64
+	stencilFanLastLen  []int
 
 	// In-flight command buffers from the previous frame. Freed at the
 	// start of the next frame, when VSync guarantees the GPU is done.
@@ -3032,6 +3042,18 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 	for len(s.stencilBufPool) < len(paths) {
 		s.stencilBufPool = append(s.stencilBufPool, nil)
 	}
+	// Sticky uploads are tracked per pool index (see struct fields).
+	if cap(s.stencilFanLastHash) < len(paths) {
+		nh := make([]uint64, len(paths))
+		copy(nh, s.stencilFanLastHash)
+		s.stencilFanLastHash = nh
+		nl := make([]int, len(paths))
+		copy(nl, s.stencilFanLastLen)
+		s.stencilFanLastLen = nl
+	} else {
+		s.stencilFanLastHash = s.stencilFanLastHash[:len(paths)]
+		s.stencilFanLastLen = s.stencilFanLastLen[:len(paths)]
+	}
 
 	result := make([]*stencilCoverBuffers, len(paths))
 	for i := range paths {
@@ -3043,7 +3065,15 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 			A: float64(cmd.Color[3]),
 		}
 
-		bufs, err := s.stencilRenderer.updateRenderBuffers(s.stencilBufPool[i], w, h, cmd.Vertices, cmd.CoverQuad, color)
+		// Sticky uploads: skip the fan WriteBuffer when packed bytes match
+		// the entry fingerprint; uniform/bands compare per-entry inside
+		// the renderer. Cover uniform (color) always uploads.
+		fanBytes := float32SliceToBytes(cmd.Vertices)
+		skipFan := false
+		if h0, l0 := s.stencilFanLastHash[i], s.stencilFanLastLen[i]; l0 == len(fanBytes) && h0 == indexBytesFingerprint(fanBytes) {
+			skipFan = true
+		}
+		bufs, err := s.stencilRenderer.updateRenderBuffersSticky(s.stencilBufPool[i], w, h, cmd.Vertices, cmd.CoverQuad, color, cmd.Matrix, skipFan)
 		if err != nil {
 			// Clean up buffers created in this batch.
 			for j := 0; j < i; j++ {
@@ -3092,6 +3122,11 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		}
 		s.stencilBufPool[i] = bufs
 		result[i] = bufs
+		// Record fingerprint only on success (pool entry holds the data).
+		if !skipFan {
+			fanBytes2 := float32SliceToBytes(cmd.Vertices)
+			s.stencilFanLastHash[i], s.stencilFanLastLen[i] = indexBytesFingerprint(fanBytes2), len(fanBytes2)
+		}
 	}
 
 	return result, nil

@@ -22,8 +22,10 @@ var coverShaderSource string
 var coverAAShaderSource string
 
 // stencilFillUniformSize is the byte size of the stencil fill uniform buffer.
-// Layout: viewport (vec2<f32>) + padding (vec2<f32>) = 16 bytes.
-const stencilFillUniformSize = 16
+// F2 layout: viewport (vec2<f32>) + pad + affine row0 (vec4: m00,m01,m02,pad)
+// + affine row1 (vec4) + color (vec4 premul) = 64 bytes.
+// Must match shaders/stencil_fill.wgsl Uniforms (also shared by cover_aa).
+const stencilFillUniformSize = 64
 
 // coverUniformSize is the byte size of the cover pass uniform buffer.
 // Layout: viewport (vec2<f32>) + padding (vec2<f32>) + color (vec4<f32>) = 32 bytes.

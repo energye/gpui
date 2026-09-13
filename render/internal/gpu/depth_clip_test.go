@@ -310,6 +310,7 @@ func TestRecordGroupDraws_NoDepthClip_Regression(t *testing.T) {
 	coverQuad := tess.CoverQuad()
 
 	cmd := StencilPathCommand{
+		Matrix:    render.Identity(), // baked (test geometry is device-space)
 		Vertices:  fanVerts,
 		CoverQuad: coverQuad,
 		Color:     [4]float32{1, 0, 0, 1},
@@ -734,7 +735,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 	}
 	defer layout.Release()
 	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
-		Label: "test_mask_samp",
+		Label:        "test_mask_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
 		AddressModeW: types.AddressModeClampToEdge,

@@ -18,11 +18,77 @@ const (
 	defaultConvexClassBudget = 512
 )
 
+// lruList is the intrusive LRU shared by the four geometry caches: the
+// map owns keys, each entry carries its node, refresh/evict are O(1) pointer
+// ops with no per-frame allocation on hit. Go generics keep one
+// implementation for the four key types (pathTessKey, strokeCacheKey,
+// dashGeomKey, uint64 convex hash); instantiated K appears only in the node
+// key field, so codegen is four tiny pointer-shuffling copies, no
+// interface boxing on the hot path.
+type lruList[K comparable] struct {
+	front, back *lruNode[K]
+}
+
+type lruNode[K comparable] struct {
+	key        K
+	prev, next *lruNode[K]
+}
+
+func (l *lruList[K]) pushFront(n *lruNode[K]) {
+	n.prev, n.next = nil, l.front
+	if l.front != nil {
+		l.front.prev = n
+	}
+	l.front = n
+	if l.back == nil {
+		l.back = n
+	}
+}
+
+func (l *lruList[K]) moveFront(n *lruNode[K]) {
+	if l.front == n {
+		return
+	}
+	if n.prev != nil {
+		n.prev.next = n.next
+	}
+	if n.next != nil {
+		n.next.prev = n.prev
+	}
+	if l.back == n {
+		l.back = n.prev
+	}
+	l.pushFront(n)
+}
+
+func (l *lruList[K]) popBack() *lruNode[K] {
+	n := l.back
+	if n == nil {
+		return nil
+	}
+	if n.prev != nil {
+		n.prev.next = nil
+	}
+	l.back = n.prev
+	if l.back == nil {
+		l.front = nil
+	}
+	n.prev, n.next = nil, nil
+	return n
+}
+
+// pathTessLRU keeps the historical name; it is lruList[pathTessKey].
+type pathTessLRU = lruList[pathTessKey]
+type pathTessNode = lruNode[pathTessKey]
+
 // pathTessKey identifies a tessellated fill path.
+// scaleBits: tessellation tolerance/band widths are scale-relative, so
+// the same user-space shape at different scales occupies distinct entries.
 type pathTessKey struct {
-	hash     uint64
-	fillRule render.FillRule
-	aaOff    bool // anti-alias disabled → pixel-snapped geometry slot
+	hash      uint64
+	fillRule  render.FillRule
+	aaOff     bool // anti-alias disabled → pixel-snapped geometry slot
+	scaleBits uint64
 }
 
 // pathTessEntry holds fan-tessellated geometry for stencil-then-cover.
@@ -32,15 +98,21 @@ type pathTessEntry struct {
 	coverQuad [12]float32
 	// Analytic-AA fringe bands (sampleCount==1): exterior + interior halves
 	// as (x, y, signedEdgeDist) triples. Empty until an AA request misses.
-	bandAA       []float32
-	innerBandAA  []float32
-	gen          uint64
+	bandAA      []float32
+	innerBandAA []float32
+	gen         uint64
+	lru         *pathTessNode // owned by PathGeometryCache.lru while in entries
 }
 
 // PathGeometryCache reuses path tessellation across draws/frames (S4.3/S6.6).
+// Eviction is LRU via an intrusive list — insert/refresh/evict are O(1).
+// The map still owns keys; each entry carries its list element so refresh on
+// hit and removal on evict never scan the table (the old full-table oldest-gen
+// scan stalled animation frames that churn unique paths every frame).
 type PathGeometryCache struct {
 	mu      sync.Mutex
 	entries map[pathTessKey]*pathTessEntry
+	lru     pathTessLRU
 	budget  int
 	gen     uint64
 	hits    uint64
@@ -61,43 +133,20 @@ func NewPathGeometryCache() *PathGeometryCache {
 // treat the returned vertices as immutable. StencilPathCommand / flush only
 // read vertices into GPU buffers.
 func (c *PathGeometryCache) GetOrTessellate(path *render.Path, fillRule render.FillRule, aaOff bool) (verts []float32, cover [12]float32, ok bool) {
-	if c == nil || path == nil || path.NumVerbs() == 0 {
+	if path == nil || path.NumVerbs() == 0 {
 		return nil, cover, false
 	}
-	key := pathTessKey{
-		hash:     hashPathContent(path),
-		fillRule: fillRule,
-		aaOff:    aaOff,
-	}
+	return c.GetOrTessellateKeyed(hashPathContent(path), fillRule, aaOff, 1, func() *render.Path { return path })
+}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if e, found := c.entries[key]; found {
-		c.gen++
-		e.gen = c.gen
-		c.hits++
-		return e.vertices, e.coverQuad, true
-	}
-
-	c.misses++
-	tess := NewFanTessellator()
-	tess.TessellatePath(path)
-	fv := tess.Vertices()
-	if len(fv) == 0 {
-		return nil, cover, false
-	}
-	stored := make([]float32, len(fv))
-	copy(stored, fv)
-	cq := tess.CoverQuad()
-
-	if len(c.entries) >= c.budget {
-		c.evictOldestLocked()
-	}
-	c.gen++
-	c.entries[key] = &pathTessEntry{vertices: stored, coverQuad: cq, gen: c.gen}
-	// Return the stored slice (same immutability contract as hit).
-	return stored, cq, true
+// GetOrTessellateKeyed is GetOrTessellate with a caller-supplied content hash
+// and user scale. F2: preHash may be the unbaked (user-space) hash of a
+// device-space path, in which case raw materializes the user-space path and
+// is only invoked on miss (deferred closure — hits never allocate).
+// userScale scales the flatten tolerance (device px → user units); 1 = device.
+func (c *PathGeometryCache) GetOrTessellateKeyed(preHash uint64, fillRule render.FillRule, aaOff bool, userScale float64, raw func() *render.Path) (verts []float32, cover [12]float32, ok bool) {
+	v, cq, _, _, ok := c.GetOrTessellateAAKeyed(preHash, fillRule, aaOff, false, userScale, raw)
+	return v, cq, ok
 }
 
 // GetOrTessellateAA returns fan vertices plus the analytic-AA cover meshes
@@ -105,13 +154,31 @@ func (c *PathGeometryCache) GetOrTessellate(path *render.Path, fillRule render.F
 // need AA). The AA fringe bands are tessellated lazily on the first AA miss
 // and then cached; the base fan/cover are shared with GetOrTessellate.
 func (c *PathGeometryCache) GetOrTessellateAA(path *render.Path, fillRule render.FillRule, aaOff, wantAA bool) (verts []float32, cover [12]float32, bandAA, innerBandAA []float32, ok bool) {
-	if c == nil || path == nil || path.NumVerbs() == 0 {
+	if path == nil || path.NumVerbs() == 0 {
 		return nil, cover, nil, nil, false
 	}
+	return c.GetOrTessellateAAKeyed(hashPathContent(path), fillRule, aaOff, wantAA, 1, func() *render.Path { return path })
+}
+
+// GetOrTessellateAAKeyed is the keyed variant (see GetOrTessellateKeyed).
+// A nil cache, nil raw result, or empty path misses (returns ok=false);
+// raw is only invoked when the entry (or its lazy AA bands) is absent.
+func (c *PathGeometryCache) GetOrTessellateAAKeyed(preHash uint64, fillRule render.FillRule, aaOff, wantAA bool, userScale float64, raw func() *render.Path) (verts []float32, cover [12]float32, bandAA, innerBandAA []float32, ok bool) {
+	if c == nil || raw == nil {
+		return nil, cover, nil, nil, false
+	}
+	// Quantize the scale for keying AND tessellation: per-frame rotation
+	// preserves norms only up to float64 rounding — unquantized bits would
+	// miss every frame with zero visual difference.
+	userScale = quantizeScale(userScale)
+	if !(userScale > 1e-9) {
+		userScale = 1
+	}
 	key := pathTessKey{
-		hash:     hashPathContent(path),
-		fillRule: fillRule,
-		aaOff:    aaOff,
+		hash:      preHash,
+		fillRule:  fillRule,
+		aaOff:     aaOff,
+		scaleBits: math.Float64bits(userScale),
 	}
 
 	c.mu.Lock()
@@ -120,16 +187,26 @@ func (c *PathGeometryCache) GetOrTessellateAA(path *render.Path, fillRule render
 	if e, found := c.entries[key]; found {
 		c.gen++
 		e.gen = c.gen
+		c.lru.moveFront(e.lru)
 		c.hits++
 		if wantAA && len(e.bandAA) == 0 {
-			c.tessellateAALocked(e, path)
+			r := raw()
+			if r == nil || r.NumVerbs() == 0 {
+				return nil, cover, nil, nil, false
+			}
+			c.tessellateAALocked(e, r, userScale)
 		}
 		return e.vertices, e.coverQuad, e.bandAA, e.innerBandAA, true
 	}
 
 	c.misses++
+	r := raw()
+	if r == nil || r.NumVerbs() == 0 {
+		return nil, cover, nil, nil, false
+	}
 	tess := NewFanTessellator()
-	tess.TessellatePath(path)
+	tess.SetUserScale(userScale)
+	tess.TessellatePath(r)
 	fv := tess.Vertices()
 	if len(fv) == 0 {
 		return nil, cover, nil, nil, false
@@ -143,17 +220,20 @@ func (c *PathGeometryCache) GetOrTessellateAA(path *render.Path, fillRule render
 	}
 	c.gen++
 	e := &pathTessEntry{vertices: stored, coverQuad: cq, gen: c.gen}
+	e.lru = &pathTessNode{key: key}
+	c.lru.pushFront(e.lru)
 	c.entries[key] = e
 	if wantAA {
-		c.tessellateAALocked(e, path)
+		c.tessellateAALocked(e, r, userScale)
 	}
 	return e.vertices, e.coverQuad, e.bandAA, e.innerBandAA, true
 }
 
 // tessellateAALocked generates the analytic-AA fringe bands into an existing
 // entry. Caller holds c.mu.
-func (c *PathGeometryCache) tessellateAALocked(e *pathTessEntry, path *render.Path) {
+func (c *PathGeometryCache) tessellateAALocked(e *pathTessEntry, path *render.Path, userScale float64) {
 	tess := NewFanTessellator()
+	tess.SetUserScale(userScale)
 	tess.TessellateAA(path)
 	if len(tess.bandVerts) == 0 {
 		return
@@ -180,6 +260,7 @@ func (c *PathGeometryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries = make(map[pathTessKey]*pathTessEntry, 64)
+	c.lru = pathTessLRU{}
 	c.hits = 0
 	c.misses = 0
 }
@@ -196,16 +277,11 @@ func (c *PathGeometryCache) ResetStats() {
 }
 
 func (c *PathGeometryCache) evictOldestLocked() {
-	var oldest pathTessKey
-	var oldestGen uint64 = ^uint64(0)
-	found := false
-	for k, e := range c.entries {
-		if !found || e.gen < oldestGen {
-			oldest, oldestGen, found = k, e.gen, true
-		}
-	}
-	if found {
-		delete(c.entries, oldest)
+	// F1: O(1) LRU evict — the back of the list is the oldest.
+	// The node may alias a newer key only if the same node were reinserted,
+	// which never happens (one node per entry, removed with its entry).
+	if n := c.lru.popBack(); n != nil {
+		delete(c.entries, n.key)
 	}
 }
 
@@ -224,12 +300,15 @@ type strokeCacheEntry struct {
 	// path is an immutable clone of the expanded outline (S6.6 shared hit).
 	path *render.Path
 	gen  uint64
+	lru  *lruNode[strokeCacheKey] // owned by StrokeGeometryCache.lru while in entries
 }
 
 // StrokeGeometryCache caches stroke expansion results (S4.3/S6.6).
+// Eviction is LRU via an intrusive list — Get/Put/evict are O(1).
 type StrokeGeometryCache struct {
 	mu      sync.Mutex
 	entries map[strokeCacheKey]*strokeCacheEntry
+	lru     lruList[strokeCacheKey]
 	budget  int
 	gen     uint64
 	hits    uint64
@@ -269,6 +348,7 @@ func (c *StrokeGeometryCache) Get(key strokeCacheKey) (*render.Path, bool) {
 	}
 	c.gen++
 	e.gen = c.gen
+	c.lru.moveFront(e.lru)
 	c.hits++
 	return e.path, true
 }
@@ -284,7 +364,8 @@ func (c *StrokeGeometryCache) Put(key strokeCacheKey, p *render.Path) {
 		c.evictOldestLocked()
 	}
 	c.gen++
-	c.entries[key] = &strokeCacheEntry{path: p.Clone(), gen: c.gen}
+	c.entries[key] = &strokeCacheEntry{path: p.Clone(), gen: c.gen, lru: &lruNode[strokeCacheKey]{key: key}}
+	c.lru.pushFront(c.entries[key].lru)
 }
 
 // Clear drops all entries and stats.
@@ -295,6 +376,7 @@ func (c *StrokeGeometryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries = make(map[strokeCacheKey]*strokeCacheEntry, 32)
+	c.lru = lruList[strokeCacheKey]{}
 	c.hits = 0
 	c.misses = 0
 }
@@ -311,16 +393,9 @@ func (c *StrokeGeometryCache) ResetStats() {
 }
 
 func (c *StrokeGeometryCache) evictOldestLocked() {
-	var oldest strokeCacheKey
-	var oldestGen uint64 = ^uint64(0)
-	found := false
-	for k, e := range c.entries {
-		if !found || e.gen < oldestGen {
-			oldest, oldestGen, found = k, e.gen, true
-		}
-	}
-	if found {
-		delete(c.entries, oldest)
+	// O(1) LRU evict.
+	if n := c.lru.popBack(); n != nil {
+		delete(c.entries, n.key)
 	}
 }
 
@@ -337,12 +412,15 @@ type dashGeomKey struct {
 type dashGeomEntry struct {
 	path *render.Path
 	gen  uint64
+	lru  *lruNode[dashGeomKey] // owned by DashGeometryCache.lru while in entries
 }
 
 // DashGeometryCache caches dashed path expansions (S6.6).
+// Eviction is LRU via an intrusive list — GetOrApply/evict are O(1).
 type DashGeometryCache struct {
 	mu      sync.Mutex
 	entries map[dashGeomKey]*dashGeomEntry
+	lru     lruList[dashGeomKey]
 	budget  int
 	gen     uint64
 	hits    uint64
@@ -376,6 +454,7 @@ func (c *DashGeometryCache) GetOrApply(path *render.Path, dash *render.Dash, tra
 	if e, ok := c.entries[key]; ok {
 		c.gen++
 		e.gen = c.gen
+		c.lru.moveFront(e.lru)
 		c.hits++
 		out := e.path
 		c.mu.Unlock()
@@ -401,6 +480,7 @@ func (c *DashGeometryCache) GetOrApply(path *render.Path, dash *render.Dash, tra
 	if e, ok := c.entries[key]; ok {
 		c.gen++
 		e.gen = c.gen
+		c.lru.moveFront(e.lru)
 		c.hits++
 		return e.path
 	}
@@ -410,7 +490,9 @@ func (c *DashGeometryCache) GetOrApply(path *render.Path, dash *render.Dash, tra
 	}
 	c.gen++
 	stored := dashed.Clone()
-	c.entries[key] = &dashGeomEntry{path: stored, gen: c.gen}
+	e := &dashGeomEntry{path: stored, gen: c.gen, lru: &lruNode[dashGeomKey]{key: key}}
+	c.lru.pushFront(e.lru)
+	c.entries[key] = e
 	return stored
 }
 
@@ -432,6 +514,7 @@ func (c *DashGeometryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries = make(map[dashGeomKey]*dashGeomEntry, 32)
+	c.lru = lruList[dashGeomKey]{}
 	c.hits = 0
 	c.misses = 0
 }
@@ -448,16 +531,9 @@ func (c *DashGeometryCache) ResetStats() {
 }
 
 func (c *DashGeometryCache) evictOldestLocked() {
-	var oldest dashGeomKey
-	var oldestGen uint64 = ^uint64(0)
-	found := false
-	for k, e := range c.entries {
-		if !found || e.gen < oldestGen {
-			oldest, oldestGen, found = k, e.gen, true
-		}
-	}
-	if found {
-		delete(c.entries, oldest)
+	// O(1) LRU evict.
+	if n := c.lru.popBack(); n != nil {
+		delete(c.entries, n.key)
 	}
 }
 
@@ -469,12 +545,15 @@ type convexClassEntry struct {
 	ok     bool
 	points []render.Point // immutable after insert when ok
 	gen    uint64
+	lru    *lruNode[uint64] // owned by ConvexPathCache.lru while in entries
 }
 
 // ConvexPathCache caches extractConvexPolygon results by path content hash.
+// Eviction is LRU via an intrusive list — GetOrClassify/evict are O(1).
 type ConvexPathCache struct {
 	mu      sync.Mutex
 	entries map[uint64]*convexClassEntry
+	lru     lruList[uint64]
 	budget  int
 	gen     uint64
 	hits    uint64
@@ -502,6 +581,7 @@ func (c *ConvexPathCache) GetOrClassify(path *render.Path) ([]render.Point, bool
 	if e, ok := c.entries[key]; ok {
 		c.gen++
 		e.gen = c.gen
+		c.lru.moveFront(e.lru)
 		c.hits++
 		pts, isConvex := e.points, e.ok
 		c.mu.Unlock()
@@ -519,6 +599,7 @@ func (c *ConvexPathCache) GetOrClassify(path *render.Path) ([]render.Point, bool
 	if e, ok := c.entries[key]; ok {
 		c.gen++
 		e.gen = c.gen
+		c.lru.moveFront(e.lru)
 		c.hits++
 		if !e.ok {
 			return nil, false
@@ -535,7 +616,9 @@ func (c *ConvexPathCache) GetOrClassify(path *render.Path) ([]render.Point, bool
 		copy(stored, pts)
 	}
 	c.gen++
-	c.entries[key] = &convexClassEntry{ok: isConvex, points: stored, gen: c.gen}
+	e := &convexClassEntry{ok: isConvex, points: stored, gen: c.gen, lru: &lruNode[uint64]{key: key}}
+	c.lru.pushFront(e.lru)
+	c.entries[key] = e
 	if !isConvex {
 		return nil, false
 	}
@@ -560,6 +643,7 @@ func (c *ConvexPathCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries = make(map[uint64]*convexClassEntry, 64)
+	c.lru = lruList[uint64]{}
 	c.hits = 0
 	c.misses = 0
 }
@@ -576,16 +660,9 @@ func (c *ConvexPathCache) ResetStats() {
 }
 
 func (c *ConvexPathCache) evictOldestLocked() {
-	var oldest uint64
-	var oldestGen uint64 = ^uint64(0)
-	found := false
-	for k, e := range c.entries {
-		if !found || e.gen < oldestGen {
-			oldest, oldestGen, found = k, e.gen, true
-		}
-	}
-	if found {
-		delete(c.entries, oldest)
+	// O(1) LRU evict.
+	if n := c.lru.popBack(); n != nil {
+		delete(c.entries, n.key)
 	}
 }
 
@@ -657,9 +734,15 @@ func makeStrokeCacheKey(path *render.Path, paint *render.Paint, aaOff bool, dash
 		join = int(paint.EffectiveLineJoin())
 		miter = paint.EffectiveMiterLimit()
 	}
+	return makeStrokeCacheKeyHashed(hashPathContent(path), w, cap, join, miter, dashHash, aaOff)
+}
+
+// makeStrokeCacheKeyHashed builds a stroke key from a precomputed path hash
+// (F2: unbaked user-space hash — hits across pure-transform animation).
+func makeStrokeCacheKeyHashed(preHash uint64, width float64, cap, join int, miter float64, dashHash uint64, aaOff bool) strokeCacheKey {
 	return strokeCacheKey{
-		pathHash:  hashPathContent(path),
-		widthBits: math.Float64bits(w),
+		pathHash:  preHash,
+		widthBits: math.Float64bits(width),
 		cap:       cap,
 		join:      join,
 		miterBits: math.Float64bits(miter),

@@ -1672,7 +1672,13 @@ func (rc *GPURenderContext) DrawShapedColorGlyphs(target render.GPURenderTarget,
 }
 
 // FillPath queues a filled path for GPU rendering.
-func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
+//
+// path arrives in DEVICE space (Context bakes the user transform); matrix is
+// the total user→device transform that produced it (render.Identity when
+// unknown). Similarity matrices unbake geometry to user space and cache it
+// transform-independently, with matrix applied in the vertex shader.
+// Otherwise the path is used baked with identity.
+func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint, matrix render.Matrix) error {
 	// L.06: prefer cover-inline R8 (convex / stencil-then-cover) when MaskAware
 	// texture is live. Advanced paints fall back to fillMaskedAsImage.
 	if paint != nil && paint.MaskCoverage != nil {
@@ -1783,35 +1789,14 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	aaOff := !rc.antiAlias
 	fr := paint.FillRule
 	useAA := rc.antiAlias
-	var fanVerts []float32
-	var coverQuad [12]float32
-	var bandVerts, innerBandVerts []float32
-	if cache := rc.shared.PathGeomCache(); cache != nil {
-		v, cq, ba, iba, cok := cache.GetOrTessellateAA(path, fr, aaOff, useAA)
-		if cok {
-			fanVerts, coverQuad, bandVerts, innerBandVerts = v, cq, ba, iba
-		}
-	}
-	if fanVerts == nil {
-		tess := NewFanTessellator()
-		tess.TessellatePath(path)
-		fanVerts = tess.Vertices()
-		if len(fanVerts) == 0 {
-			return nil
-		}
-		coverQuad = tess.CoverQuad()
-		if useAA {
-			tess.TessellateAA(path)
-			bandVerts = tess.bandVerts
-			innerBandVerts = tess.innerBandVerts
-		}
-	}
-	if len(fanVerts) == 0 {
+	fanVerts, coverQuad, bandVerts, innerBandVerts, outMatrix, ok := rc.stencilTess(path, matrix, fr, aaOff, useAA)
+	if !ok || len(fanVerts) == 0 {
 		return nil
 	}
 
 	cmd := StencilPathCommand{
 		Vertices:    fanVerts, // already owned copy from cache/miss path
+		Matrix:      outMatrix,
 		CoverQuad:   coverQuad,
 		BandAA:      bandVerts,
 		InnerBandAA: innerBandVerts,
@@ -1823,8 +1808,57 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	return nil
 }
 
+// stencilTess resolves stencil-tier geometry for a device-space path with its
+// total user→device matrix. F2 fast path: similarity matrix → tessellate the
+// unbaked user-space path (cache hits across pure-transform animation) and
+// return matrix for the vertex shader; cover quad stays device-space.
+// Fallback: baked path + identity (pre-F2, bit-identical).
+func (rc *GPURenderContext) stencilTess(path *render.Path, matrix render.Matrix, fr render.FillRule, aaOff, useAA bool) (fan []float32, quad [12]float32, ba, iba []float32, outMatrix render.Matrix, ok bool) {
+	if path == nil || path.NumVerbs() == 0 {
+		return nil, quad, nil, nil, render.Identity(), false
+	}
+	if s, similar := uniformSimilarityOK(matrix); similar {
+		if inv, invertible := invertAffine(matrix); invertible {
+			h := unbakedHash(path, inv)
+			if cache := rc.shared.PathGeomCache(); cache != nil {
+				v, _, ba, iba, cok := cache.GetOrTessellateAAKeyed(h, fr, aaOff, useAA, s, func() *render.Path {
+					return unbakePath(path, inv)
+				})
+				if cok {
+					return v, deviceCoverQuadFromBounds(path), ba, iba, matrix, true
+				}
+			}
+			return rc.tessUser(unbakePath(path, inv), s, useAA, deviceCoverQuadFromBounds(path), matrix)
+		}
+	}
+	// Fallback: baked device-space.
+	if cache := rc.shared.PathGeomCache(); cache != nil {
+		v, cq, ba, iba, cok := cache.GetOrTessellateAA(path, fr, aaOff, useAA)
+		if cok {
+			return v, cq, ba, iba, render.Identity(), true
+		}
+	}
+	tess := NewFanTessellator()
+	tess.TessellatePath(path)
+	fv := tess.Vertices()
+	if len(fv) == 0 {
+		return nil, quad, nil, nil, render.Identity(), false
+	}
+	cq := tess.CoverQuad()
+	if useAA {
+		tess.TessellateAA(path)
+		ba, iba = tess.bandVerts, tess.innerBandVerts
+	}
+	return fv, cq, ba, iba, render.Identity(), true
+}
+
 // StrokePath renders a stroked path by expanding to filled outline.
-func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
+//
+// path arrives in DEVICE space with the total user→device matrix (see
+// FillPath). Similarity transforms expand the unbaked user-space path
+// with a scale-corrected width, so expansion + tessellation hit cache across
+// pure-transform animation. All other cases keep the baked behavior.
+func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *render.Path, paint *render.Paint, matrix render.Matrix) error {
 	// R2: non-solid strokes expand to filled outlines then route through FillPath
 	// (native gradient/pattern or bootstrap). Solid keeps fixed/advanced blend gates.
 	if isGPUSolidPaint(paint) {
@@ -1869,6 +1903,24 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	if shouldSnapHairline(paint) {
 		pathToStroke = snapHairlineStrokePath(pathToStroke)
 	}
+	// Fast path gate: AA on, no snap applied, no dash, no mask,
+	// similarity matrix. Everything else keeps the baked device-space
+	// expansion below. Masked strokes must keep the FillPath mask routing
+	// (fillMaskedAsImage / cover-inline); the fast tail is stencil-only.
+	fastStroke := rc.antiAlias && pathToStroke == path && !paint.IsDashed() && paint.MaskCoverage == nil
+	var userScale float64
+	var userInv render.Matrix
+	if fastStroke {
+		var s float64
+		var ok bool
+		if s, ok = uniformSimilarityOK(matrix); !ok {
+			fastStroke = false
+		} else if inv, invertible := invertAffine(matrix); !invertible {
+			fastStroke = false
+		} else {
+			userScale, userInv = s, inv
+		}
+	}
 	var dashHash uint64
 	if paint.IsDashed() {
 		dash := paint.EffectiveDash()
@@ -1895,7 +1947,17 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	}
 
 	// S4.3/S6.6: stroke expansion cache keyed by path + style + dash.
+	// Fast path: key on the unbaked user-space hash with a scale-corrected
+	// width, so expansion hits across pure-transform animation.
 	skey := makeStrokeCacheKey(pathToStroke, paint, !rc.antiAlias, dashHash)
+	if fastStroke {
+		// Width quantized: per-frame rotation preserves the scale only up
+		// to float64 rounding — unquantized bits would miss every frame.
+		qw := quantizeScale(effectiveStrokeWidth(paint) / userScale)
+		skey = makeStrokeCacheKeyHashed(unbakedHash(pathToStroke, userInv), qw,
+			int(paint.EffectiveLineCap()), int(paint.EffectiveLineJoin()),
+			paint.EffectiveMiterLimit(), 0, !rc.antiAlias)
+	}
 	var fillPath *render.Path
 	if sc := rc.shared.StrokeGeomCache(); sc != nil {
 		if cached, ok := sc.Get(skey); ok {
@@ -1903,15 +1965,23 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		}
 	}
 	if fillPath == nil {
-		strokeVerbs := convertPathVerbsToStroke(pathToStroke.Verbs())
+		expandPath := pathToStroke
+		expandWidth := effectiveStrokeWidth(paint)
+		if fastStroke {
+			// Materialize user-space once per miss; hits never allocate.
+			// Width uses the same quantized value as the key above.
+			expandPath = unbakePath(pathToStroke, userInv)
+			expandWidth = quantizeScale(expandWidth / userScale)
+		}
+		strokeVerbs := convertPathVerbsToStroke(expandPath.Verbs())
 		style := stroke.Stroke{
-			Width:      effectiveStrokeWidth(paint),
+			Width:      expandWidth,
 			Cap:        stroke.LineCap(paint.EffectiveLineCap()),
 			Join:       stroke.LineJoin(paint.EffectiveLineJoin()),
 			MiterLimit: paint.EffectiveMiterLimit(),
 		}
 		expander := stroke.NewStrokeExpander(style)
-		outVerbs, outCoords := expander.Expand(strokeVerbs, pathToStroke.Coords())
+		outVerbs, outCoords := expander.Expand(strokeVerbs, expandPath.Coords())
 		if len(outVerbs) == 0 {
 			return nil
 		}
@@ -1929,7 +1999,89 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	// independent — NonZero uses Increment/Decrement wrap for winding.
 	strokePaint := *paint
 	strokePaint.FillRule = render.FillRuleNonZero
-	return rc.FillPath(target, fillPath, &strokePaint)
+	if fastStroke {
+		return rc.fillPathUser(target, fillPath, &strokePaint, matrix, userScale)
+	}
+	return rc.FillPath(target, fillPath, &strokePaint, render.Identity())
+}
+
+// fillPathUser fills an already user-space path with its total matrix
+// (fast-path tail shared by FillPath stencil section and StrokePath).
+// Mirrors FillPath's prologue: GPU must be ready and the target bound,
+// else ErrFallbackToCPU so the caller falls back to CPU rendering.
+func (rc *GPURenderContext) fillPathUser(target render.GPURenderTarget, rawPath *render.Path, paint *render.Paint, matrix render.Matrix, userScale float64) error {
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return render.ErrFallbackToCPU
+		}
+	}
+	if err := rc.prepareTarget(target); err != nil {
+		return err
+	}
+	color := getColorFromPaint(paint)
+	fr := paint.FillRule
+	useAA := rc.antiAlias
+	var fanVerts []float32
+	var bandVerts, innerBandVerts []float32
+	if cache := rc.shared.PathGeomCache(); cache != nil {
+		v, _, ba, iba, cok := cache.GetOrTessellateAAKeyed(hashPathContent(rawPath), fr, !useAA, useAA, userScale, func() *render.Path {
+			return rawPath
+		})
+		if cok {
+			fanVerts, bandVerts, innerBandVerts = v, ba, iba
+		}
+	}
+	if fanVerts == nil {
+		var ok bool
+		fanVerts, bandVerts, innerBandVerts, ok = tessellateUser(rawPath, userScale, useAA)
+		if !ok {
+			return nil
+		}
+	}
+	if len(fanVerts) == 0 {
+		return nil
+	}
+	cmd := StencilPathCommand{
+		Vertices:    fanVerts,
+		Matrix:      matrix,
+		CoverQuad:   deviceCoverQuadTransformed(rawPath, matrix),
+		BandAA:      bandVerts,
+		InnerBandAA: innerBandVerts,
+		Color:       [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)},
+		FillRule:    fr,
+		BlendMode:   paintBlendMode(paint),
+	}
+	rc.QueueStencil(target, cmd)
+	return nil
+}
+
+// tessUser tessellates a user-space path with the scale rule
+// (no cache): the stencilTess no-cache leg.
+func (rc *GPURenderContext) tessUser(raw *render.Path, userScale float64, useAA bool, quad [12]float32, matrix render.Matrix) (fan []float32, outQuad [12]float32, ba, iba []float32, outMatrix render.Matrix, ok bool) {
+	fan, ba, iba, ok = tessellateUser(raw, userScale, useAA)
+	if !ok {
+		return nil, quad, nil, nil, render.Identity(), false
+	}
+	return fan, quad, ba, iba, matrix, true
+}
+
+// tessellateUser tessellates raw in user space (scale rule, no cache).
+func tessellateUser(raw *render.Path, userScale float64, useAA bool) (fan, ba, iba []float32, ok bool) {
+	tess := NewFanTessellator()
+	tess.SetUserScale(userScale)
+	tess.TessellatePath(raw)
+	fan = tess.Vertices()
+	if len(fan) == 0 {
+		return nil, nil, nil, false
+	}
+	if useAA {
+		tess.TessellateAA(raw)
+		ba, iba = tess.bandVerts, tess.innerBandVerts
+	}
+	return fan, ba, iba, true
 }
 
 // FillShape accumulates a filled shape for batch dispatch.
@@ -1964,7 +2116,8 @@ func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape rende
 		if p == nil {
 			return render.ErrFallbackToCPU
 		}
-		return rc.FillPath(target, p, paint)
+		// detectedShapeToPath rebuilds baked device-space geometry: identity.
+		return rc.FillPath(target, p, paint, render.Identity())
 	}
 	if !rc.shared.gpuReady {
 		// Match FillPath/text paths: lazy-init shared GPU before silent CPU fallback.
@@ -2014,7 +2167,8 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 		if p == nil {
 			return render.ErrFallbackToCPU
 		}
-		return rc.StrokePath(target, p, paint)
+		// Rebuilt baked geometry: identity.
+		return rc.StrokePath(target, p, paint, render.Identity())
 	}
 
 	if rc.pipelineMode == render.PipelineModeCompute {

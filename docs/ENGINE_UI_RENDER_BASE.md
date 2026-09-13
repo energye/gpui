@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.30** | 日期：2026-09-13  
+> **版本：1.31** | 日期：2026-09-13  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
@@ -701,7 +701,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 11 | ✅ | clip 局部毛玻璃；层 Present 默走 | 中（质感） |
 | 12 | ✅ | multi-sliver；BouncingPhysics | 产品滚动手感 |
 | 13 | ✅ | GPU picture 缓存；列表内 clip/saveLayer；层树 Present 合成 | 中（性能结构） |
-| 14 | ⬜ | **几何管线性能结构（动画帧预算）** | 高（鹈鹕偶发卡顿） |
+| 14 | ✅ | **几何管线性能结构（动画帧预算 · F1/F2 已交付 2026-09-13）** | — |
 | 指标 | ✅ D8 | build/raster p99、VRAM、atlas 命中、CI 基线库 | 可观测加深 |
 
 ### 22.2a 几何管线性能结构（动画帧预算 · 序 14）
@@ -724,12 +724,13 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 期 | 目标 | 改动落点 | 状态 | ① 单测 | ② 指标（§20） | ③ 窗测 |
 |----|------|----------|------|--------|---------------|--------|
-| F1（中档） | 淘汰常数化 + 上传合并：预期单帧 CPU 下降、hitch 回落（以同机基线对比为准，不预设具体 ms 数） | `render/internal/gpu/path_geometry_cache.go`（四缓存淘汰：Path/Stroke/Dash/Convex，全表扫描→链表常数步；键/哈希/命中语义不变） · `render/internal/gpu/stencil_renderer.go` + `render_session.go` 提交路径（模版/覆盖顶点逐 path WriteBuffer → 整板一次上传；uniform 沿用 slab；着色器/管线布局不动） | 🔄 未开工 | 缓存命中率单测（`path_geometry_cache_test.go` 加淘汰回归） | 同机 30s：单帧 CPU ms、hitch_count、p95/p99 不回退 | `ui_render_pelican` RUN_SECONDS=30 + `ui_render_base_geometry` 像素对比 |
-| F2（大档） | 几何存用户空间原形、变换随 uniform 下发：动画帧几何命中（病根：变换在 `render.Context` 动词级 baked 进路径坐标 → 逐帧内容哈希永变；用户空间原形 + 设备矩阵只在提交时应用，动画帧只变矩阵不换形） | 缓存键拆（形状/变换分家） · 四缓存 + 凸包判断改用户空间键 · 填充/描边/凸包/模版着色器加变换 uniform + 管线布局加槽（图片路 Quad 已有 CTM→四角先例可抄） · CPU 兜底对齐（裁剪/遮罩设备空间、HiDPI、描边/虚线/AA 边缘像素一致） | ⬜ 未立项（F1 绿后开） | 各着色器像素单测 | 同机离屏像素对比 + 多真窗回归（鹈鹕/几何/vec） + 30s 卡顿数 | `ui_render_pelican` + `ui_render_base_geometry`（离屏逐字节） |
+| F1（中档） | 淘汰常数化 + 上传合并：预期单帧 CPU 下降、hitch 回落（以同机基线对比为准，不预设具体 ms 数） | `render/internal/gpu/path_geometry_cache.go`（四缓存淘汰：Path/Stroke/Dash/Convex，全表扫描→链表常数步；键/哈希/命中语义不变） · `render/internal/gpu/stencil_renderer.go` + `render_session.go` 提交路径（模版/覆盖顶点逐 path WriteBuffer → 整板一次上传；uniform 沿用 slab；着色器/管线布局不动） | ✅ 已交付（2026-09-13；单测/像素/真窗见验收） | 缓存命中率单测（`path_geometry_cache_test.go` 加淘汰回归） | 同机 30s：单帧 CPU ms、hitch_count、p95/p99 不回退 | `ui_render_pelican` RUN_SECONDS=30 + `ui_render_base_geometry` 像素对比 |
+| F2（大档） | 几何存用户空间原形、变换随 uniform 下发：动画帧几何命中（病根：变换在 `render.Context` 动词级 baked 进路径坐标 → 逐帧内容哈希永变；用户空间原形 + 设备矩阵只在提交时应用，动画帧只变矩阵不换形） | 缓存键拆（形状/变换分家；坐标量化 1e-6 + 负零归一 + 尺度相对量化，旋转平移哈希稳定） · 四缓存键加尺度位 + 键控查询（命中零分配） · 模版填充/AA 带着色器加 64B 变换 uniform（视口+仿射行+颜色；AA 带距离按相似比缩放）管线布局不动 · 描边快路径（相似变换：用户空间膨胀 + 宽度除尺度，用户空间缓存；遮罩/虚线/发丝/非相似走烘焙老路） · 快路径复用 FillPath 建联检查（GPU 未就绪/目标绑定失败 → CPU 兜底，与改前一致） | ✅ 已交付（2026-09-13；单测/像素/真窗见验收） | F2 专项 6 项（相似门/往返哈希/uniform 布局/尺度键/描边键一致/容差尺度） | 同机 30s：hitch 17→2、p99 21.8→18.4ms（负载同约 1.9） | `ui_render_pelican` RUN_SECONDS=30 + 离屏双时刻（>4 差异 ≤9/84 万像素，max 29，落点为旋转辐条 AA 边缘） |
 
 **F1 验收门（硬）：** ① 缓存单测绿 ② 同机同二进制基线对比（单帧 CPU、hitch、p95/p99）
 ③ 离屏像素一致（除既有 CPU 兜底退化外）④ `go vet` + 上表回归不回退。
-**F2 开工门：** F1 四门全绿。**退出门：** 两期交付后本节状态 → ✅，修订记 1.31。
+**F1 验收结论（2026-09-13）：** ① `render/internal/gpu` 全绿（`render` 包 6 个失败经 stash 对照为改前已存在：AA 探针/CPU 回退、虚线、描边文字、混合、布尔、S6.9 合同）② 同机 30s：光栅指示 15.87→11.50ms、hitch 44→13、p99 54.4→34.2ms（负载相近 1.8~2.2）③ 离屏双时刻逐字节一致 ④ vet 仅老告警（gpu_render_context 不可达 + attack 测试 unsafe，与改前一致）。
+**F2 开工门：** F1 四门全绿（已满足，可开）。**F2 验收结论（2026-09-13）：** ① `render/internal/gpu` 全绿（含新增 F2 专项 6 项）；`render` 包失败集与改前逐项一致（6 个老失败：AA 探针、虚线、混合、布尔、S6.9 合同、描边文字；中间曾引入 9 个描边/裁剪/文字失败，根因为快路径跳过建联检查与遮罩路由，已修并复验）② 同机 30s：hitch 17→2、p99 21.8→18.4ms、58.1fps（负载同约 1.9；另有两轮 4~5 hitch 佐证）③ 离屏双时刻：>4 差异 ≤9/84 万像素、max 29（旋转辐条 AA 边缘亚像素，无结构差异）④ `ui/...` 回归：仅剩 2 个改前已失败（TestUIDoesNotImportGPU、TestPicture_Replay_DrawImagePixels；另 3 个疑似失败经安静重跑确认为并发负载污染）⑤ vet 仅老告警。**退出门：** 两期交付后本节状态 → ✅，修订记 1.31。
 
 ### 22.3 已落地（勿回退）
 
@@ -866,6 +867,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 | 版本 | 说明 |
 |------|------|
+| **1.31** | **序 14 收口**：F1（淘汰链表化 + 模版粘性上传）与 F2（用户空间几何 + 变换 uniform + 描边快路径）已交付；验收数见 §22.2a；公开 API 未动 |
 | **1.30** | **序 14 立项**：§22.2a 几何管线性能结构（F1/F2 两期，未开工；鹈鹕偶发卡顿诊断结论与证据落位；无用户故直接重写不留双路） |
 | **1.29** | **阶段 E 终审**：§25 基座收口声明；§22.2 改为收口后残项；文首闭环口径更新；抽查 `go test ./ui/...`；链出 **ENGINE_UI_WIDGET_RENDER**（控件工业级渲染设计） |
 | 1.28 | **阶段 D8** 指标：rss_slope_kb_per_min；gpu_ops/cpu_fallback 进 UI JSON；CompareToBaseline+Load/Save；perfsoak BASELINE_JSON |

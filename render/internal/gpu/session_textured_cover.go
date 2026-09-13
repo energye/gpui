@@ -347,6 +347,7 @@ func (rc *GPURenderContext) queueSessionTexturedCover(
 	copy(rampCopy, ramp[:rampN*4])
 
 	cmd := StencilPathCommand{
+		Matrix:    render.Identity(), // baked device-space (pattern/textured, F2 fallback)
 		Vertices:  fanVerts,
 		CoverQuad: coverQuad,
 		Color:     [4]float32{0, 0, 0, 0}, // unused when textured
@@ -686,6 +687,7 @@ func (rc *GPURenderContext) queueSessionPatternCover(
 	copy(tileCopy, tile[:srcW*srcH*4])
 
 	cmd := StencilPathCommand{
+		Matrix:     render.Identity(), // baked device-space (pattern/textured, F2 fallback)
 		Vertices:   fanVerts,
 		CoverQuad:  coverQuad,
 		Color:      [4]float32{0, 0, 0, 0},
