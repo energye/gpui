@@ -170,15 +170,8 @@ func OpenFile(path string, opt Options) (*Player, error) {
 	if err != nil {
 		return nil, fmt.Errorf("video: codec %s: %w", path, err)
 	}
-	for _, raw := range avcc.SPS {
-		if err := dec.DecodeNALU(raw); err != nil {
-			return nil, fmt.Errorf("video: sequence params %s: %w", path, err)
-		}
-	}
-	for _, raw := range avcc.PPS {
-		if err := dec.DecodeNALU(raw); err != nil {
-			return nil, fmt.Errorf("video: picture params %s: %w", path, err)
-		}
+	if err := feedParams(dec, avcc, path, ""); err != nil {
+		return nil, err
 	}
 	var sps *h264.SPS
 	if len(avcc.SPS) > 0 {
@@ -224,12 +217,7 @@ func OpenFile(path string, opt Options) (*Player, error) {
 		if err != nil {
 			return
 		}
-		for _, raw := range avcc.SPS {
-			_ = nd.DecodeNALU(raw)
-		}
-		for _, raw := range avcc.PPS {
-			_ = nd.DecodeNALU(raw)
-		}
+		feedParams(nd, avcc, path, "")
 		dec = nd
 	}
 	for si, s := range v.Samples {
@@ -246,7 +234,7 @@ func OpenFile(path string, opt Options) (*Player, error) {
 			remember(fmt.Errorf("video: sample %d split %s: %w", s.Number, path, err))
 			continue
 		}
-		if err := rejectF17Units(units, s.Number, path); err != nil {
+		if err := RejectUnits(codecName, units, s.Number, path); err != nil {
 			// F17 is stream-level unsupported: fail the whole clip.
 			return nil, err
 		}
@@ -620,20 +608,20 @@ func streamFatal(err error) bool {
 	return false
 }
 
-// rejectF17Units spots old-tool NALUs inside a sample payload: data
-// partitions (2/3/4) and slice extension (20). They stop the open with a
-// namable F17 error instead of guessing.
-func rejectF17Units(units [][]byte, sampleNum int, path string) error {
-	for _, u := range units {
-		t, ok := h264.NALType(u)
-		if !ok {
-			continue
+// feedParams feeds the header sets (SPS then PPS) into a fresh decoder.
+// Open, error isolation and seek forward share it, so IDR clearing is
+// exercised identically on every path. tag names the caller in errors
+// ("seek " for forward decode, "" at open); messages stay byte-identical
+// to the pre-registry wording.
+func feedParams(dec Decoder, avcc *h264.AVCC, path, tag string) error {
+	for _, raw := range avcc.SPS {
+		if err := dec.DecodeNALU(raw); err != nil {
+			return fmt.Errorf("video: %ssequence params %s: %w", tag, path, err)
 		}
-		switch t {
-		case h264.NALSlicePartA, h264.NALSlicePartB, h264.NALSlicePartC:
-			return fmt.Errorf("video: sample %d F17 data partition %s %s: %w", sampleNum, path, h264.TypeName(t), h264.ErrDataPartitioning)
-		case h264.NALSliceExt:
-			return fmt.Errorf("video: sample %d F17 slice extension %s: %w", sampleNum, path, h264.ErrUnsupportedNAL)
+	}
+	for _, raw := range avcc.PPS {
+		if err := dec.DecodeNALU(raw); err != nil {
+			return fmt.Errorf("video: %spicture params %s: %w", tag, path, err)
 		}
 	}
 	return nil
@@ -773,15 +761,8 @@ func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt colo
 	if err != nil {
 		return nil, fmt.Errorf("video: seek codec %s: %w", path, err)
 	}
-	for _, raw := range avcc.SPS {
-		if err := dec.DecodeNALU(raw); err != nil {
-			return nil, fmt.Errorf("video: seek sequence params %s: %w", path, err)
-		}
-	}
-	for _, raw := range avcc.PPS {
-		if err := dec.DecodeNALU(raw); err != nil {
-			return nil, fmt.Errorf("video: seek picture params %s: %w", path, err)
-		}
+	if err := feedParams(dec, avcc, path, "seek "); err != nil {
+		return nil, err
 	}
 	var target *h264.Picture
 	for si := keyPos; si <= targetPos; si++ {

@@ -470,7 +470,7 @@ VW0 → VW1 → VW2 → VW3
 | v0.33 VC1翻绿 | 组合窗 `examples/video_vc1_seek_fault`（RUN30）绿：跳3/3（预算500毫秒+即时恢复）+坏例5/5（缺文件/非MP4/截断尾/花屏F20/分区F17）+直播166跳17恢复≤15毫秒/上屏1793/fps59.4/p95 17.5毫秒/§2.2全族齐；§3 VC1行翻绿；回归（`video`/`clock`/`mp4`/`color`绿、`h264`关键门禁绿、vet过）；VW2收口（VR4+VR5+VR6单窗齐+VC0+VC1组合齐）。 |
 | v0.34 VR7翻绿 | 极限落地 `video/pool.go` 三池加播放器稳态快路径加真窗 `examples/video_vr7_perf`（RUN60）加 `pool_test.go`/`steady_test.go`：手表（池复用/封顶/零分配/1080p稳态≤2048B/帧）绿、真窗五站全过/直播309/分配89B/帧/池99.7%/零泄漏/峰值423MB<512MB/上屏3438/fps57.1/p95 21.5毫秒/§2.2全族齐；§2 VR7行与§6 VR7行翻绿；回归（`video`/`clock`/`mp4`/`color`绿、`h264`B帧矩阵+三档+颜色向量绿、VR2/VR3零回退、CGO_ENABLED=0构建+vet过）；VW3待VR8/VR9与VC2/VC3。 |
 | v0.35 VR8翻绿 | 内嵌落地新窗 `examples/video_vr8_embed`（RUN30）：冷解码5/直播151/内嵌1/两尺寸同源/裁剪透明浮层齐/改尺寸走完/尾MAD124/上屏1737/fps57.4/p95 19.8毫秒/§2.2全族齐；§2 VR8行与§6 VR8行翻绿；回归（`video`/`h264`720p+B帧/`color`绿、vet+CGO构建过）；VW3待VR9与VC2/VC3。 |
-| v0.36 VR9翻绿 | 注册表落地 `video/registry.go` 加播放器走表加 `registry_test.go` 加新窗 `examples/video_vr9_registry`（RUN15）：注册8/8/播出5/直播76/上屏866/fps57.4/p95 18.5毫秒/§2.2全族齐；§2 VR9行与§6 VR9行翻绿；回归（`video`/`clock`/`mp4`/`color`/`h264`全绿、VR4/VR5窗重跑绿、vet+CGO构建过）；VW3待VC2/VC3。 |
+| v0.36 VR9翻绿 | 注册表落地 `video/registry.go` 加播放器走表加 `registry_test.go` 加新窗 `examples/video_vr9_registry`（RUN15）：注册8/8/播出5/直播76/上屏866/fps57.4/p95 18.5毫秒/§2.2全族齐；§2 VR9行与§6 VR9行翻绿；回归（`video`/`clock`/`mp4`/`color`/`h264`全绿、VR4/VR5窗重跑绿、vet+CGO构建过）；VW3待VC2/VC3。收敛2026-09-13：注册表名字收拢为 `ContainerMP4`/`CodecH264` 常量、探测循环合一（`probeOpen`）、三处喂参数合一（`feedParams`，报错字面不变）、F17检查搬进注册表（`RejectUnits`，player不再认NAL类型）、列表排序合一；公开API零破坏（只新增常量与 `RejectUnits`），回归（`video`/`clock`/`mp4`/`color`/`h264`全绿、VR9窗RUN15绿8/8、VR5跳窗重跑绿、vet+CGO构建过）。 |
 
 ---
 

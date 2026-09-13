@@ -28,6 +28,14 @@ var (
 	ErrUnsupportedCodec     = errors.New("video: unsupported codec")
 )
 
+// ContainerMP4 and CodecH264 are the first-stage registry names. They
+// appear as literals exactly once each (the init below); everything else
+// refers to these constants or to names the tables hand back.
+const (
+	ContainerMP4 = "mp4"
+	CodecH264    = "h264"
+)
+
 // Decoder is the codec interface the player decodes through: feed
 // compressed units, finish one picture, report the sampling the picture
 // carries for the color registry. A fresh instance starts clean, so
@@ -82,9 +90,8 @@ func RegisterDecoder(codec string, factory func() Decoder, split SplitFunc) {
 	decoders[codec] = decoderEntry{factory: factory, split: split}
 }
 
-// SupportedContainers lists registered shells in sorted order for
-// capability queries (VR9 asks first, then opens).
-func SupportedContainers() []string {
+// containerNames snapshots the shell table's names in sorted order.
+func containerNames() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	out := make([]string, 0, len(containers))
@@ -95,8 +102,8 @@ func SupportedContainers() []string {
 	return out
 }
 
-// SupportedCodecs lists registered codecs in sorted order.
-func SupportedCodecs() []string {
+// decoderNames snapshots the codec table's names in sorted order.
+func decoderNames() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	out := make([]string, 0, len(decoders))
@@ -106,6 +113,13 @@ func SupportedCodecs() []string {
 	sort.Strings(out)
 	return out
 }
+
+// SupportedContainers lists registered shells in sorted order for
+// capability queries (VR9 asks first, then opens).
+func SupportedContainers() []string { return containerNames() }
+
+// SupportedCodecs lists registered codecs in sorted order.
+func SupportedCodecs() []string { return decoderNames() }
 
 // SupportedSamplings lists registered color samplings (delegates to the
 // color registry, so there is exactly one sampling table).
@@ -138,56 +152,16 @@ func SplitUnits(codec string, buf []byte, lengthSize int) ([][]byte, error) {
 	return e.split(buf, lengthSize)
 }
 
-// ProbeFile asks the registry which shell/codec a path carries, without
-// decoding. It powers capability-first UI ("ask, then open") and the
-// VR9 window's registry proof. Missing files keep their os error so the
-// fault triage still reports file-not-found instead of unsupported.
-func ProbeFile(path string) (container, codec string, err error) {
-	if _, err := os.Stat(path); err != nil {
-		return "", "", err
-	}
-	regMu.RLock()
-	names := make([]string, 0, len(containers))
-	for k := range containers {
-		names = append(names, k)
-	}
-	regMu.RUnlock()
-	sort.Strings(names)
-	for _, name := range names {
-		regMu.RLock()
-		e := containers[name]
-		regMu.RUnlock()
-		if !e.probe(path) {
-			continue
-		}
-		movie, codecName, err := e.open(path)
-		if err != nil {
-			return name, "", err
-		}
-		if movie == nil || movie.Video == nil {
-			return name, "", fmt.Errorf("%w: %s", ErrNoVideo, path)
-		}
-		return name, codecName, nil
-	}
-	return "", "", fmt.Errorf("%w: %s (have %v)", ErrUnsupportedContainer, path, SupportedContainers())
-}
-
-// openViaRegistry probes then opens, handing the player a parsed movie
-// plus the registry names to decode through. Errors keep their sentinel
-// chain (mp4/h264/os) so the VR6 triage keeps its buckets; only the
-// truly-unknown shell becomes ErrUnsupportedContainer.
-func openViaRegistry(path string) (movie *mp4.Movie, container, codec string, err error) {
+// probeOpen runs stat + probe loop + shell open once for both ProbeFile
+// and openViaRegistry, so the two entry points never drift. Missing files
+// keep their os error; parses keep their sentinel chain; only the truly
+// unknown shell becomes ErrUnsupportedContainer. On shell-open failure
+// container names the claiming shell (callers report it); otherwise "".
+func probeOpen(path string) (movie *mp4.Movie, container, codec string, err error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, "", "", err
 	}
-	regMu.RLock()
-	names := make([]string, 0, len(containers))
-	for k := range containers {
-		names = append(names, k)
-	}
-	regMu.RUnlock()
-	sort.Strings(names)
-	for _, name := range names {
+	for _, name := range containerNames() {
 		regMu.RLock()
 		e := containers[name]
 		regMu.RUnlock()
@@ -198,12 +172,39 @@ func openViaRegistry(path string) (movie *mp4.Movie, container, codec string, er
 		if err != nil {
 			return nil, name, "", err
 		}
-		if movie == nil || movie.Video == nil || len(movie.Video.Samples) == 0 {
-			return nil, name, "", fmt.Errorf("%w: %s", ErrNoVideo, path)
-		}
 		return movie, name, codecName, nil
 	}
 	return nil, "", "", fmt.Errorf("%w: %s (have %v)", ErrUnsupportedContainer, path, SupportedContainers())
+}
+
+// ProbeFile asks the registry which shell/codec a path carries, without
+// decoding. It powers capability-first UI ("ask, then open") and the
+// VR9 window's registry proof. Missing files keep their os error so the
+// fault triage still reports file-not-found instead of unsupported.
+func ProbeFile(path string) (container, codec string, err error) {
+	movie, name, codecName, err := probeOpen(path)
+	if err != nil {
+		return name, "", err
+	}
+	if movie == nil || movie.Video == nil {
+		return name, "", fmt.Errorf("%w: %s", ErrNoVideo, path)
+	}
+	return name, codecName, nil
+}
+
+// openViaRegistry probes then opens, handing the player a parsed movie
+// plus the registry names to decode through. Errors keep their sentinel
+// chain (mp4/h264/os) so the VR6 triage keeps its buckets; only the
+// truly-unknown shell becomes ErrUnsupportedContainer.
+func openViaRegistry(path string) (movie *mp4.Movie, container, codec string, err error) {
+	movie, name, codecName, err := probeOpen(path)
+	if err != nil {
+		return nil, name, "", err
+	}
+	if movie == nil || movie.Video == nil || len(movie.Video.Samples) == 0 {
+		return nil, name, "", fmt.Errorf("%w: %s", ErrNoVideo, path)
+	}
+	return movie, name, codecName, nil
 }
 
 // h264Decoder adapts the H.264 decoder to the registry interface.
@@ -246,6 +247,30 @@ func mp4ProbeFile(path string) bool {
 	return false
 }
 
+// RejectUnits spots old-tool units inside one sample payload: data
+// partitions and slice extension stop the open with a namable F17 error
+// instead of guessing. Only this H.264 entry knows these types; the
+// player calls through with the codec name, so no NAL knowledge leaks
+// into the core flow. Non-H.264 codecs have no F17 shapes: pass.
+func RejectUnits(codec string, units [][]byte, sampleNum int, path string) error {
+	if codec != CodecH264 {
+		return nil
+	}
+	for _, u := range units {
+		t, ok := h264.NALType(u)
+		if !ok {
+			continue
+		}
+		switch t {
+		case h264.NALSlicePartA, h264.NALSlicePartB, h264.NALSlicePartC:
+			return fmt.Errorf("video: sample %d F17 data partition %s %s: %w", sampleNum, path, h264.TypeName(t), h264.ErrDataPartitioning)
+		case h264.NALSliceExt:
+			return fmt.Errorf("video: sample %d F17 slice extension %s: %w", sampleNum, path, h264.ErrUnsupportedNAL)
+		}
+	}
+	return nil
+}
+
 // mp4Open parses the shell and reports the carried codec. This stage
 // only carries AVC, so the codec answer is the registered H.264 name;
 // a shell without AVC config fails as an unsupported codec with the
@@ -256,13 +281,13 @@ func mp4Open(path string) (*mp4.Movie, string, error) {
 		return nil, "", err
 	}
 	if movie.Video == nil || len(movie.Video.AVCConfig) == 0 {
-		return movie, "", fmt.Errorf("%w: container mp4 without AVC config %s (have %v)", ErrUnsupportedCodec, path, SupportedCodecs())
+		return movie, "", fmt.Errorf("%w: container %s without AVC config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, path, SupportedCodecs())
 	}
-	return movie, "h264", nil
+	return movie, CodecH264, nil
 }
 
 func init() {
-	RegisterContainer("mp4", mp4ProbeFile, mp4Open)
-	RegisterDecoder("h264", func() Decoder { return &h264Decoder{d: h264.NewDecoder(nil)} },
+	RegisterContainer(ContainerMP4, mp4ProbeFile, mp4Open)
+	RegisterDecoder(CodecH264, func() Decoder { return &h264Decoder{d: h264.NewDecoder(nil)} },
 		func(buf []byte, lengthSize int) ([][]byte, error) { return h264.SplitAVCC(buf, lengthSize) })
 }
