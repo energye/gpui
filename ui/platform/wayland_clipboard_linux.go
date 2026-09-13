@@ -82,19 +82,19 @@ type wlDataDeviceState struct {
 	// operations (receive vs destroy marshal) are serialized here.
 	offerMu sync.Mutex
 	// Clipboard (selection).
-	selOffer   uintptr // current selection data_offer (0 = no selection)
-	selMimes   []string // mimes announced for selOffer
-	offerMimes map[uintptr][]string // pending data_offer -> mimes (cleared on selection)
-	ownSource  uintptr // our wl_data_source (held while we own the clipboard)
-	ownData    string  // Set() copy — served to peers on send(), readable locally
-	cachedData string // last external Get result, for fast second paste without re-reading pipe
-	cachedKind string
+	selOffer    uintptr              // current selection data_offer (0 = no selection)
+	selMimes    []string             // mimes announced for selOffer
+	offerMimes  map[uintptr][]string // pending data_offer -> mimes (cleared on selection)
+	ownSource   uintptr              // our wl_data_source (held while we own the clipboard)
+	ownData     string               // Set() copy — served to peers on send(), readable locally
+	cachedData  string               // last external Get result, for fast second paste without re-reading pipe
+	cachedKind  string
 	cachedOffer uintptr
 	// DnD (external file drops).
-	dragOffer    uintptr   // data_offer of the in-flight drag (0 = none)
-	dragMimes    []string  // mimes announced via wl_data_offer.offer
-	dragX, dragY float64   // last drag position (window local, logical px)
-	dragInFlight bool      // enter received, drop/leave pending
+	dragOffer    uintptr  // data_offer of the in-flight drag (0 = none)
+	dragMimes    []string // mimes announced via wl_data_offer.offer
+	dragX, dragY float64  // last drag position (window local, logical px)
+	dragInFlight bool     // enter received, drop/leave pending
 	// pendingDestroys are offer/source proxies queued for destruction on the
 	// event thread (wlHost.poll drains them): Clipboard.Get/Set may run on
 	// any goroutine, and a libwayland proxy must never be destroyed while
@@ -298,7 +298,10 @@ func wlOfferMimeCB(data, offer, mime uintptr) {
 }
 
 // wlDDEnterCB: enter(serial, surface, x, y, id) — a drag entered the window.
-// wl_fixed x/y encode 24.8 fixed-point (divide by 256).
+// wl_fixed x/y encode 24.8 fixed-point (divide by 256). Always reports an
+// EventDragEnter (even with no mimes yet — offers announce types
+// asynchronously; later motions carry the growing snapshot, mirroring the
+// X11 Enter/Position split where the first packet also lacks payload).
 func wlDDEnterCB(data, dd, serial, surface, sx, sy, id uintptr) {
 	st := ddsFrom(data)
 	if st == nil {
@@ -315,25 +318,39 @@ func wlDDEnterCB(data, dd, serial, surface, sx, sy, id uintptr) {
 	}
 	st.dragOffer = id
 	st.dragMimes = nil
-	st.dragX = wlFixedToDouble(sx)
-	st.dragY = wlFixedToDouble(sy)
+	x, y := wlFixedToDouble(sx), wlFixedToDouble(sy)
+	st.dragX, st.dragY = x, y
 	st.dragInFlight = true
 	st.mu.Unlock()
+	// Mimes announced so far (often none yet — see above).
+	st.appendDragEvent(Event{Type: EventDragEnter, X: x, Y: y, MIMETypes: st.dragMimeSnapshot()})
 }
 
 // wlDDMotionCB: motion(time, x, y) — drag position update (window local).
+// Reports EventDragOver with the latest mime snapshot. A motion without a
+// prior enter synthesizes the Enter first (out-of-order sources, mirroring
+// the X11 Position-without-Enter rule).
 func wlDDMotionCB(data, dd, time, x, y uintptr) {
 	st := ddsFrom(data)
 	if st == nil {
 		return
 	}
 	st.mu.Lock()
-	st.dragX = wlFixedToDouble(x)
-	st.dragY = wlFixedToDouble(y)
+	px, py := wlFixedToDouble(x), wlFixedToDouble(y)
+	st.dragX, st.dragY = px, py
+	synthEnter := !st.dragInFlight
+	st.dragInFlight = true
 	st.mu.Unlock()
+	mimes := st.dragMimeSnapshot()
+	if synthEnter {
+		st.appendDragEvent(Event{Type: EventDragEnter, X: px, Y: py, MIMETypes: mimes})
+	}
+	st.appendDragEvent(Event{Type: EventDragOver, X: px, Y: py, MIMETypes: mimes})
 }
 
-// wlDDLeaveCB: leave() — the drag left the window; abandon the offer.
+// wlDDLeaveCB: leave() — the drag left the window; abandon the offer and
+// report EventDragLeave. Stray leaves (no drag inside) stay quiet,
+// mirroring the X11 rule.
 func wlDDLeaveCB(data, dd uintptr) {
 	st := ddsFrom(data)
 	if st == nil {
@@ -341,13 +358,42 @@ func wlDDLeaveCB(data, dd uintptr) {
 	}
 	st.mu.Lock()
 	off := st.dragOffer
+	wasInFlight := st.dragInFlight
 	st.dragOffer = 0
 	st.dragMimes = nil
 	st.dragInFlight = false
 	st.mu.Unlock()
+	if wasInFlight {
+		st.appendDragEvent(Event{Type: EventDragLeave})
+	}
 	if off != 0 {
 		st.destroyOffer(off)
 	}
+}
+
+// dragMimeSnapshot copies the mimes announced for the in-flight drag offer
+// so far (offers announce types asynchronously — early snapshots may be
+// empty; later motions re-snapshot).
+func (st *wlDataDeviceState) dragMimeSnapshot() []string {
+	if st == nil {
+		return nil
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return append([]string(nil), st.dragMimes...)
+}
+
+// appendDragEvent queues a hover event for the pump drain (same dndEvents
+// queue as the Drop path in wlDDDropCB; st.mu must NOT be held — the queue
+// has its own dndMu, matching the drop ordering).
+func (st *wlDataDeviceState) appendDragEvent(ev Event) {
+	if st == nil || st.win == nil {
+		return
+	}
+	w := st.win
+	w.dndMu.Lock()
+	w.dndEvents = append(w.dndEvents, ev)
+	w.dndMu.Unlock()
 }
 
 // wlDDDropCB: drop() — the user released a file drop over the window. A

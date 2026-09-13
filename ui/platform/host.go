@@ -89,12 +89,12 @@ const (
 	// Cancel only; X/Y carry the position; TouchID carries the slot).
 	EventTouch
 	// EventDragEnter / EventDragOver report a drag hovering the window
-	// (X11 XDND Enter/Position; Wayland wl_data_device enter/motion reserved).
+	// (X11 XDND Enter/Position; Wayland wl_data_device enter/motion).
 	// X/Y carry the position in logical px; MIMETypes carries the offered types.
 	EventDragEnter
 	EventDragOver
 	// EventDragLeave reports the drag left the window (X11 XDND Leave;
-	// Wayland wl_data_device leave reserved). No payload.
+	// Wayland wl_data_device leave). No payload.
 	EventDragLeave
 	// EventDeviceAdded / EventDeviceRemoved report hot-plug (X11 XI
 	// hierarchy; Wayland seat capabilities reserved). DeviceClass carries

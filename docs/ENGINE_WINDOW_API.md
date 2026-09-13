@@ -1,6 +1,6 @@
 # 平台窗口统一 API — 设计真源
 
-> **版本：v2.25** | 日期：2026-09-12  
+> **版本：v2.26** | 日期：2026-09-13  
 > **地位：** `ui/platform` 窗口接口（Options / Window / Host / WindowController / Event）唯一设计真源，**口径：四平台统一语义**。
 > **并读：** [`ENGINE_WAYLAND_WINDOW_STANDARD.md`](./ENGINE_WAYLAND_WINDOW_STANDARD.md)（Wayland 标准窗口 CSD）· [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（分层）· [`ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`](./ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md) / [`ENGINE_TEXT_X11_IME_REQUIREMENT.md`](./ENGINE_TEXT_X11_IME_REQUIREMENT.md)（输入法需求；原 `ENGINE_INPUT_IME_PLAN.md` 不存在，入口改指这两份）  
 > **对标参考：** winit（Rust 窗口库）· GTK4（GtkWindow/GdkToplevel）· sctk（wayland-client 壳）· Zed gpui · Flutter（WindowOptions）。
@@ -133,8 +133,8 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | EventExpose | — | 重绘提示。GPU 拥有像素，不进上层输入，X11 在事件泵过滤 | ✅ 发射后过滤 | ⛔ 无对应（frame 回调覆盖） | ⬜ WM_PAINT | ⬜ drawRect |
 | EventResizeSync | — | 窗口系统请求同步帧（X11 _NET_WM_SYNC_REQUEST；排帧后推进 counter，否则拖动时只拉伸旧画面） | ✅ 请求解析 + NotifyFrameDrawn 推进 | ⛔ | ⛔ | ⛔ |
 | EventDrop | Files/X/Y | 外部文件落入窗口（位置 + 路径；文件先行，MIME Data 二期未完恒空；空拖放静默吞掉） | ✅ XDND text/uri-list | ✅ text/uri-list | ⬜ | ⬜ |
-| EventDragEnter/Over | X/Y/MIMETypes | 拖放悬停（位置 + offered 类型；高亮用；空类型也报；X11 XDND Enter 首包无坐标恒 0,0，有效坐标自首个 Position/Over 起） | ✅ XDND Enter/Position | 🔨 wl_data_device enter/motion 已跟踪未上报 | ⬜ | ⬜ |
-| EventDragLeave | — | 拖放离开（取消高亮） | ✅ XDND Leave | 🔨 wl_data_device leave 已跟踪未上报 | ⬜ | ⬜ |
+| EventDragEnter/Over | X/Y/MIMETypes | 拖放悬停（位置 + offered 类型；高亮用；空类型也报；X11 XDND Enter 首包无坐标恒 0,0，有效坐标自首个 Position/Over 起） | ✅ XDND Enter/Position | ✅ wl_data_device enter/motion 已上报（常报 Enter 空类型也报、motion 无 enter 先合成 Enter、mime 快照随 motion 增长） | ⬜ | ⬜ |
+| EventDragLeave | — | 拖放离开（取消高亮） | ✅ XDND Leave | ✅ wl_data_device leave 已上报（野 leave 静默） | ⬜ | ⬜ |
 | EventHidden | Hidden bool | 应用显隐（Wayland destroy/重建栈，GPU 先停） | ✅ 显隐发射 + 外部重映射通知 | ✅ 双向 + 真窗断言 | ⬜ | ⬜ |
 | EventFramePresented | — | 合成器已显示一帧（帧 pacing 输入；通知与 DRM 二选一，有通知不用 DRM；Wayland 现恒不用通知、回 DRM 学周期） | ✅ XPresent（不可用回落 DRM） | ✅ frame 回调 | ⬜ | ⬜ |
 | EventDeviceAdded/Removed | DeviceClass/DeviceName | 设备插拔（键/鼠/触/笔 + 系统名；移除回放缓存分类） | ✅ XI 层级变化 + FromPlatform + 主循环路由 | 🔨 seat caps 预留未上报（无环境先空） | ⬜ WM_DEVICECHANGE | ⬜ IOKit 匹配通知 |
@@ -201,7 +201,7 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
 | S4 真窗验收 | 用户跑 examples：X11 + Wayland 全能力（§2.6 A 层）；真实显示环境跑通——`ui_pf_x11` 19 行全 PASS（18 能力行 + 1 事件观察行，IgnoreCursorEvents 按 XShape 未落地 ⛔ 诚实降级） + `ui_pf_wayland` 19 行全 PASS（Position/Focus/AlwaysOnTop/Decorations 切换/RequestMove/RequestResize 按协议 ⛔ 诚实降级，Show/Hide 与 IgnoreCursorEvents 走真实现），B 层 `TestX11RealWindow*` 7 例 + `TestWaylandRealWindow*` 3 例 + `TestWaylandHideShow` 同机全 PASS | ✅ |
 | S5 Win32/AppKit | 按 §2.3/§2.4 语义列落地（占位→实现）；同步落 `ui_pf_win32`/`ui_pf_appkit` 真窗例程 + 原生单测（§2.6 三层）；重跑能力矩阵 | ⬜ |
 | S6-P0 上层统一必做 | §4.4 A–C + D 触控基础：新 Kind/载荷、Close 拆分、Enter/Leave/Cancel 独立、Repeat、横滚、触控产出、Wayland 三上报；消费方切换；§2.6 三层真窗（`ui_pf_x11`/`ui_pf_wayland` 重跑 + `pfkit` 恒绿） | ✅（Move/Scale/Focus/Drop/ResizeSync 补 FromPlatform 分支并进主循环路由；Touch/StateChanged 进主循环路由；Resize/ResizeSync/Occluded/Hidden/FramePresented 同步透传路由器观察） |
-| S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | 🔨（X11 XDND Enter/Over/Leave + 文件 Drop 已落地，专项真窗 `examples/ui_pf_x11_dnd` 自检 + 人工；X11 设备插拔已落地（XI 层级变化，v2.21），专项真窗 `examples/ui_pf_x11_device` 自检 + 人工（v2.22）；Wayland 剪贴板已落地（`wayland_clipboard_linux.go` 约 775 行）；未完四项见 §5 v2.21：Wayland 悬停三上报、MIME 数据二期、本窗外发拖放、Wayland 座位设备上报） |
+| S6-P1 顺手做 | §4.4 拖放四件套/触控板手势/主题/语言/设备插拔；专项真窗（拖放/Gesture 人工 + JSON 门禁能自动的自动） | 🔨（X11 XDND Enter/Over/Leave + 文件 Drop 已落地，专项真窗 `examples/ui_pf_x11_dnd` 自检 + 人工；X11 设备插拔已落地（XI 层级变化，v2.21），专项真窗 `examples/ui_pf_x11_device` 自检 + 人工（v2.22）；Wayland 剪贴板已落地（`wayland_clipboard_linux.go` 约 775 行）；Wayland 悬停三上报已落地（v2.26）；剩三项见 §5 v2.21：MIME 数据二期、本窗外发拖放、Wayland 座位设备上报） |
 | S6-P2 占位 | 笔压感/显示器增减/智能放大接口占位 + Win32/AppKit 映射表；真窗验占位错误明确 | 🔨（X11 笔先行 ✅，剩显示器增减、智能放大、Wayland tablet 二期、Win32/AppKit 落地） |
 
 **落地纪律**：S1–S3 逐行对照 §2.3/§2.4 实现，不跳步；每阶段跑对应单测 + 回归（按文件，禁止一次全量）+ §2.6 三层验收同步落地（例程与平台同生）；S5 落地时四条语义契约（§2.5）逐条核对。
@@ -300,8 +300,8 @@ G 拖放（对齐 Gio transfer：MIME + 文件）：
 
 | 上层事件 | 携带 | X11 | Wayland | Win32 | AppKit | 备注 |
 |---|---|---|---|---|---|---|
-| KindDragEnter/Over | X/Y/MIMETypes | ✅ XDND Enter/Position + FromPlatform + 主循环路由 | 🔨 wl_data_device | ⬜ OleDragEnter/Over | ⬜ draggingEntered/Updated: | 悬停高亮用；X11 已接，Wayland 待上报；X11 首包 Enter 无坐标恒 0,0，定位等 Over，仅合成 Enter 带坐标 |
-| KindDragLeave | — | ✅ XDND Leave + FromPlatform + 主循环路由 | 🔨 data-device leave | ⬜ OleDragLeave | ⬜ draggingExited: | 取消高亮；X11 已接，Wayland 待上报 |
+| KindDragEnter/Over | X/Y/MIMETypes | ✅ XDND Enter/Position + FromPlatform + 主循环路由 | ✅ wl_data_device enter/motion + FromPlatform + 主循环路由 | ⬜ OleDragEnter/Over | ⬜ draggingEntered/Updated: | 悬停高亮用；两端已接；X11 首包 Enter 无坐标恒 0,0，定位等 Over，仅合成 Enter 带坐标；Wayland 首包常无 mime（异步公告），motion 带增长快照，无 enter 的 motion 先合成 Enter |
+| KindDragLeave | — | ✅ XDND Leave + FromPlatform + 主循环路由 | ✅ data-device leave + FromPlatform + 主循环路由 | ⬜ OleDragLeave | ⬜ draggingExited: | 取消高亮；两端已接；野 leave 两端静默 |
 | KindDrop | X/Y/Files/MIME/Data | ✅ XDND text/uri-list + FromPlatform + 主循环路由 | ✅ FromPlatform + 主循环路由（text/uri-list） | ⬜ OleDrop/CF_HDROP | ⬜ performDragOperation: | 文件先行，MIME 数据二期 |
 
 H 设备热插拔（P1）：
@@ -353,6 +353,7 @@ H 设备热插拔（P1）：
 
 ## 5. 修订
 
+- v2.26（2026-09-13）：**Wayland 悬停三上报**——源码为准：`wlDDEnterCB/wlDDMotionCB/wlDDLeaveCB` 经 `appendDragEvent` 进 `w.dndEvents` 同 Drop 队列走泵透出（`wayland_linux.go` 泵无类型过滤），`FromPlatform` 与主循环路由早已放行（路由器透传到 `OnEvent`）；语义对齐 X11：常报 Enter（含空类型，offer 异步公告、motion 带增长快照）、无 enter 的 motion 先合成 Enter、野 leave 静默、二次 enter 换 offer（旧 offer 进 `pendingDestroys`）；`host.go` 注释去 reserved。§2.4 两行与 §4.4 G 组两格 Wayland 格翻绿，§3 S6-P1 仍 🔨（剩 MIME 二期、外发拖放、座位上报）。回归按文件逐个：`wayland_dnd_hover_test.go` 4 例（含全局可达防编译器缓存修测）+ `ui/input` 拖放映射 + X11 DnD 双窗 3 例绿，A 层嵌套 GNOME（软件渲染）下 `ui_pf_wayland` 19/19（`backend=wayland`）+ B 层 `TestWaylandRealWindow*`/`TestWaylandHideShow` 4 例绿 + X11 对照 `ui_pf_x11` 19/19 与 `ui_pf_x11_dnd -auto-only` 4/4；Wayland 真拖需人工（嵌套下泵 3s 空闲零事件符合预期，外发源待 P1 第 3 项）。
 - v2.25（2026-09-12）：**X11 修饰键与指针取消上报**——源码为准：新增 `EventModifiersChanged + ModShift/ModControl/ModAlt/ModMeta` 平台事件（`host.go` 尾部追加，旧值不动），`FromPlatform` 补映射；X11 侧按键状态位 + 修饰键覆盖推新状态、变化才报（含 IME 路径，去重，修饰报在按键前），FocusOut/Leave 遇 NotifyGrab/WhileGrabbed 追加 `PointerCancel`（带最后坐标，正常 Focus/Leave 仍单报）；收敛：主循环放行新事件进路由器，路由器见修饰变化即同步跟踪状态。§2.4 指针行补 X11 Cancel 说明，§4.4 B/C 组 X11 格翻绿（Wayland 两格仍 🔨），§3 不动（S6-P0 已 ✅，S6-P1 仍 🔨：剩 Wayland 悬停三上报、MIME 二期、外发拖放、Wayland 座位/取消/修饰上报）。回归按文件逐个：`ui/input` 映射（含新修饰/取消断言）+ embedder 路由（含修饰同步）+ pfkit 恒绿，B 层 X11 修饰/取消/进出/连发/横滚/触控解析绿，A 层 `ui_pf_x11` 19/19；Wayland 无显示诚实 Skip。
 - v2.24（2026-09-12）：**X11 笔压感先行**——源码为准：新增 `EventStylus + StylusID/Pressure/Tilt/Eraser` 平台事件（`host.go` 尾部追加，旧值不动），`FromPlatform` 补映射 + `FromStylus` 入口 + 主循环路由放行（路由器本就透传到 `OnEvent`）；X11 侧 `x11_stylus_linux.go`（笔设备逐个选 XI ButtonPress/Release/Motion、valuator 掩码按位取值、pressure 按 min/max 归一、无压感填 1、tilt 原始度数、eraser 看名、small ID 0 起、热插拔跟 hierarchy 增删；触控/层级选择按 deviceid 共存，鼠标核心路径不动）；Wayland 平板二期占位（`wayland_tablet_linux.go` 未绑定，零行为变化）。§2.4 补笔行（X11 ✅、Wayland ⬜、Win32/AppKit ⬜），§4.4 E 组 X11 格翻绿（Wayland ⛔→⬜ 二期占位），§3 S6-P2 ⬜→🔨。回归按文件逐个：`ui/input` 映射（含新笔文件）+ embedder 路由 + pfkit 恒绿，B 层笔解析/设备解析/DnD/同步/S6-P0 核心/窗口/显隐全绿，A 层 `ui_pf_x11` 19/19；Wayland 无显示诚实 Skip（笔无硬件，有笔需真笔复验压感曲线）。
 - v2.23（2026-09-12）：**跨平台标记规整**——只补标记不动语义：图例补 ⚠️（部分支持/依赖 WM）；§2.4 补 Touch 与 Device 两行的 Win32/AppKit 预期映射、Pointer 标题补 Cancel 并注明两端 Cancel 均为🔨；§2.6 A′ 行区分 IME 人工无门禁与 DnD/Device 自检 + 人工二合一并补两窗 `-auto-only` 命令；§3 日期对齐到 2026-09-12；§4.4 约定补 ✅/⬜ 口径，A–H 全表 Win32/AppKit 空白补预期映射（Close/Resize/Move/Scale/Occluded/Hidden/Focus/State/Theme/Frame/Monitor、Key/Modifiers/Text/IME/Locale、Pointer/Scroll/Touch/Force、Stylus、Pinch/Rotate/SmartMagnify、Drag 三件套、Device）。
