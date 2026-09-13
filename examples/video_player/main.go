@@ -32,16 +32,14 @@ import (
 
 const winW, winH = 1200, 800
 
-// Layout in window logical px (hit math below uses the same numbers).
+// Layout defaults for 1200x800 (hit math uses st.* at runtime, these are
+// just the first frame before applyLayout runs).
 const (
 	videoX, videoY   = 120.0, 90.0
 	videoW, videoH   = 960.0, 540.0
-	playX, playY     = 120.0, 650.0
 	playW, playH     = 110.0, 36.0
-	replayX, replayY = 240.0, 650.0
 	replayW, replayH = 110.0, 36.0
-	barX, barY       = 120.0, 700.0
-	barW, barH       = 960.0, 14.0
+	barH             = 14.0
 )
 
 // X11 keysyms for non-printable keys (Wayland xkb uses the same values).
@@ -76,25 +74,27 @@ func main() {
 	root.Place(img, videoX, videoY)
 
 	playBox := rendering.NewRenderColorBox(playW, playH, 0.2, 0.5, 0.9, 1)
-	root.Place(playBox, playX, playY)
+	root.Place(playBox, 120, 650)
 	playLabel := wrkit.Label("暂停", 14, 0.95, 0.97, 1)
-	root.Place(playLabel, playX+34, playY+9)
+	root.Place(playLabel, 120+34, 650+9)
 
 	replayBox := rendering.NewRenderColorBox(replayW, replayH, 0.25, 0.28, 0.33, 1)
-	root.Place(replayBox, replayX, replayY)
-	root.Place(wrkit.Label("重播", 14, 0.9, 0.93, 0.96), replayX+34, replayY+9)
+	root.Place(replayBox, 240, 650)
+	replayLabel := wrkit.Label("重播", 14, 0.9, 0.93, 0.96)
+	root.Place(replayLabel, 240+34, 650+9)
 
 	statusLabel := wrkit.Label("", 13, 0.75, 0.85, 0.9)
 	root.Place(statusLabel, 370, 658)
 
-	barBg := rendering.NewRenderColorBox(barW, barH, 0.2, 0.22, 0.26, 1)
-	root.Place(barBg, barX, barY)
+	barBg := rendering.NewRenderColorBox(videoW, barH, 0.2, 0.22, 0.26, 1)
+	root.Place(barBg, 120, 700)
 	barFill := rendering.NewRenderColorBox(1, barH, 0.3, 0.8, 0.5, 1)
-	root.Place(barFill, barX, barY)
+	root.Place(barFill, 120, 700)
 
 	timeLabel := wrkit.Label("", 12, 0.72, 0.8, 0.9)
-	root.Place(timeLabel, barX, barY+22)
-	root.Place(wrkit.Label("空格/P=播/停 ←/→=±1秒 Home/End=头/尾 R=重播 点进度条=跳 Q=退出", 12, 0.55, 0.65, 0.75), barX, barY+46)
+	root.Place(timeLabel, 120, 722)
+	helpLabel := wrkit.Label("空格/P=播/停 ←/→=±1秒 Home/End=头/尾 R=重播 点进度条=跳 Q=退出", 12, 0.55, 0.65, 0.75)
+	root.Place(helpLabel, 120, 746)
 
 	st := &state{clip: clip}
 	if player != nil {
@@ -132,6 +132,10 @@ func main() {
 	st.fileLabel, st.statusLabel = fileLabel, statusLabel
 	st.timeLabel, st.playLabel = timeLabel, playLabel
 	st.img, st.barFill = img, barFill
+	st.root = root
+	st.playBox, st.replayBox, st.barBg = playBox, replayBox, barBg
+	st.replayLabel, st.helpLabel = replayLabel, helpLabel
+	st.applyLayout(float64(winW), float64(winH))
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui video_player — 完整播放小样", Decorations: true})
 	if err != nil {
@@ -158,6 +162,7 @@ func main() {
 				if ev.Width > 0 && ev.Height > 0 {
 					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
 					root.MarkNeedsLayout()
+					st.applyLayout(float64(ev.Width), float64(ev.Height))
 				}
 				app.ScheduleFrame()
 			case platform.EventPointer:
@@ -233,6 +238,89 @@ type state struct {
 	barFill                  *rendering.RenderColorBox
 	fileLabel, statusLabel  *rendering.RenderText
 	timeLabel, playLabel    *rendering.RenderText
+	root                     *rendering.AbsoluteBox
+	playBox, replayBox, barBg *rendering.RenderColorBox
+	replayLabel, helpLabel    *rendering.RenderText
+	// Current layout in window logical px (applyLayout owns these;
+	// click/paint math reads them, never the defaults above).
+	winW, winH                         float64
+	videoX, videoY, videoW, videoH     float64
+	playX, playY, replayX, replayY     float64
+	barX, barY, barW                   float64
+	statusX, statusY, timeY, helpY     float64
+}
+
+// applyLayout fits the video into the window keeping its aspect ratio
+// (letterbox, never stretched), and pins the controls to the bottom.
+// Called once at startup and on every resize.
+func (st *state) applyLayout(winW, winH float64) {
+	if st == nil || st.root == nil {
+		return
+	}
+	const side, top, bottomReserve = 20.0, 80.0, 150.0
+	availW := winW - 2*side
+	availH := winH - top - bottomReserve - 10
+	if availW < 200 {
+		availW = 200
+	}
+	if availH < 150 {
+		availH = 150
+	}
+	srcW, srcH := float64(st.info.Width), float64(st.info.Height)
+	if srcW <= 0 || srcH <= 0 {
+		srcW, srcH = 1280, 720
+	}
+	aspect := srcW / srcH
+	dispW, dispH := availW, availW/aspect
+	if dispH > availH {
+		dispH, dispW = availH, availH*aspect
+	}
+	st.winW, st.winH = winW, winH
+	st.videoW, st.videoH = dispW, dispH
+	st.videoX = side + (availW-dispW)/2
+	st.videoY = top + (availH-dispH)/2
+	st.playX, st.playY = side, winH-150
+	st.replayX, st.replayY = side+120, winH-150
+	st.statusX, st.statusY = side+250, winH-142
+	st.barX, st.barY = side, winH-100
+	st.barW = availW
+	st.timeY, st.helpY = st.barY+22, st.barY+46
+
+	if st.img != nil {
+		st.img.Width, st.img.Height = dispW, dispH
+		st.img.MarkNeedsLayout()
+		st.root.Place(st.img, st.videoX, st.videoY)
+	}
+	if st.playBox != nil {
+		st.root.Place(st.playBox, st.playX, st.playY)
+	}
+	if st.playLabel != nil {
+		st.root.Place(st.playLabel, st.playX+34, st.playY+9)
+	}
+	if st.replayBox != nil {
+		st.root.Place(st.replayBox, st.replayX, st.replayY)
+	}
+	if st.replayLabel != nil {
+		st.root.Place(st.replayLabel, st.replayX+34, st.replayY+9)
+	}
+	if st.statusLabel != nil {
+		st.root.Place(st.statusLabel, st.statusX, st.statusY)
+	}
+	if st.barBg != nil {
+		st.barBg.Width = st.barW
+		st.barBg.MarkNeedsLayout()
+		st.root.Place(st.barBg, st.barX, st.barY)
+	}
+	if st.barFill != nil {
+		st.root.Place(st.barFill, st.barX, st.barY)
+	}
+	if st.timeLabel != nil {
+		st.root.Place(st.timeLabel, st.barX, st.timeY)
+	}
+	if st.helpLabel != nil {
+		st.root.Place(st.helpLabel, st.barX, st.helpY)
+	}
+	st.refreshTime()
 }
 
 func (st *state) fatal(msg string) {
@@ -292,7 +380,7 @@ func (st *state) refreshTime() {
 	if ratio > 1 {
 		ratio = 1
 	}
-	st.barFill.Width = 1 + ratio*(barW-1)
+	st.barFill.Width = 1 + ratio*(st.barW-1)
 	st.barFill.MarkNeedsLayout()
 }
 
@@ -413,19 +501,19 @@ func (st *state) tick() {
 // click routes left-button hits: buttons first, then the progress bar.
 func (st *state) click(x, y float64, app *embedder.PipelineApp) {
 	_ = app
-	if inside(x, y, playX, playY, playW, playH) {
+	if inside(x, y, st.playX, st.playY, playW, playH) {
 		st.toggle()
 		return
 	}
-	if inside(x, y, replayX, replayY, replayW, replayH) {
+	if inside(x, y, st.replayX, st.replayY, replayW, replayH) {
 		st.replay()
 		return
 	}
 	if st.player == nil || st.bad != "" || st.durMs <= 0 {
 		return
 	}
-	if inside(x, y, barX, barY-8, barW, barH+16) {
-		ratio := (x - barX) / barW
+	if inside(x, y, st.barX, st.barY-8, st.barW, barH+16) {
+		ratio := (x - st.barX) / st.barW
 		st.seekTo(int64(ratio * float64(st.durMs)))
 	}
 }
