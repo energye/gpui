@@ -97,7 +97,7 @@ const (
 	// Wayland wl_data_device leave). No payload.
 	EventDragLeave
 	// EventDeviceAdded / EventDeviceRemoved report hot-plug (X11 XI
-	// hierarchy; Wayland seat capabilities reserved). DeviceClass carries
+	// hierarchy; Wayland seat capabilities diff). DeviceClass carries
 	// the family, DeviceName the OS name (empty = unknown).
 	EventDeviceAdded
 	EventDeviceRemoved

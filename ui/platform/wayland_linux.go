@@ -445,6 +445,7 @@ type wlWin struct {
 	decoTop           uintptr
 	tiMgrName         uint32  // zwp_text_input_manager_v3 global name (0 = absent)
 	seatName          uint32  // wl_seat global name (0 = absent)
+	seatVer           uint32  // wl_seat advertised version (v2+ carries name)
 	shmName           uint32  // wl_shm global name (0 = absent)
 	subcompName       uint32  // wl_subcompositor global name (0 = absent)
 	ddMgrName         uint32  // wl_data_device_manager global name (0 = absent)
@@ -551,6 +552,9 @@ type wlWin struct {
 	// dndMu guards the pending drop event queue (wayland_clipboard_linux.go).
 	dndMu     sync.Mutex
 	dndEvents []Event
+	// devMu guards seat capability hot-plug events (wayland_seat_linux.go).
+	devMu     sync.Mutex
+	devEvents []Event
 
 	regListener  [2]uintptr
 	// surfListener carries wl_surface enter/leave for output-scale tracking
@@ -711,6 +715,12 @@ func waylandCreate(opts Options) (*Window, error) {
 			win.seatState.pendingPtrs = os.Getenv("GPUI_WL_POINTER") != "0"
 			win.seatState.pendingTouch = os.Getenv("GPUI_WL_TOUCH") != "0"
 			win.seatState.pendingTI = os.Getenv("GPUI_WL_TEXTINPUT") != "0"
+			// want* remembers the opt-in for late hot-plug binds: pending*
+			// clears after the first capabilities, want* stays so a device
+			// appearing later still binds.
+			win.seatState.wantKeys = win.seatState.pendingKeys
+			win.seatState.wantPtrs = win.seatState.pendingPtrs
+			win.seatState.wantTouch = win.seatState.pendingTouch
 			// The data device (clipboard + DnD) needs the bound seat but no
 			// capability bit; it is created together with the other devices
 			// once capabilities arrive.
@@ -1133,6 +1143,7 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 		w.tiMgrName = n
 	case "wl_seat":
 		w.seatName = n
+		w.seatVer = v
 	case "wl_shm":
 		w.shmName = n
 	case "wl_subcompositor":
@@ -1812,6 +1823,13 @@ func (h *wlHost) poll() []Event {
 		w.dndEvents = nil
 	}
 	w.dndMu.Unlock()
+	// Seat capability hot-plug (DeviceAdded/Removed, wayland_seat_linux.go).
+	w.devMu.Lock()
+	if len(w.devEvents) > 0 {
+		out = append(out, w.devEvents...)
+		w.devEvents = nil
+	}
+	w.devMu.Unlock()
 	// Show re-created the surface stack (async path): the re-map completes
 	// when the first new configure is acked+committed here on the event
 	// thread; only then does the embedder recreate the GPU present target
