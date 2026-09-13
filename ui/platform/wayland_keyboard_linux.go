@@ -61,6 +61,19 @@ const (
 	xkbKeymapFormatTextV1 = 1
 	xkbKeyDown            = 1
 	xkbKeyUp              = 0
+	// Effective-mod query (xkbcommon.h enum xkb_state_component): currently
+	// active and affecting key processing, derived from the other
+	// components. Use this unless explicitly caring how state came about.
+	xkbStateModsEffective = 1 << 3
+)
+
+// Pinned NUL-terminated modifier names for xkb_state_mod_name_is_active
+// (xkbcommon-names.h): Alt lives on Mod1, Meta/Super on Mod4.
+var (
+	wlModNameShift = []byte("Shift\x00")
+	wlModNameCtrl  = []byte("Control\x00")
+	wlModNameAlt   = []byte("Mod1\x00")
+	wlModNameMeta  = []byte("Mod4\x00")
 )
 
 // xkb common function table (lazy-loaded once).
@@ -75,6 +88,9 @@ type xkbFuncs struct {
 	stateUpdateKey  func(st uintptr, keycode, action uintptr) int
 	stateUpdateMask func(st uintptr, depressed, latched, locked, group, compat, append uintptr) uintptr
 	keysymToUTF8    func(ks uintptr, buf *byte, size uintptr) int
+	// modNameIsActive reports whether a named modifier is active
+	// (xkb_state_mod_name_is_active; 1 = active, 0 = not, -1 = unknown).
+	modNameIsActive func(st uintptr, name *byte, typ uintptr) int
 }
 
 var xkbCache *xkbFuncs
@@ -101,6 +117,7 @@ func loadXKB() *xkbFuncs {
 	purego.RegisterLibFunc(&f.stateUpdateKey, lib, "xkb_state_update_key")
 	purego.RegisterLibFunc(&f.stateUpdateMask, lib, "xkb_state_update_mask")
 	purego.RegisterLibFunc(&f.keysymToUTF8, lib, "xkb_keysym_to_utf8")
+	purego.RegisterLibFunc(&f.modNameIsActive, lib, "xkb_state_mod_name_is_active")
 	xkbCache = f
 	return f
 }
@@ -127,6 +144,15 @@ type wlKeyboardState struct {
 	heldKC     uintptr     // xkb keycode of the repeating key (0 = none)
 	heldKS     uintptr     // its keysym
 	repTimer   *time.Timer // fires the next repeat (delay first, then interval)
+
+	// Modifier report cache (S6 §4.4 B 组): last EventModifiersChanged
+	// state. Guarded by modMu; the track helper dedups so plain typing
+	// stays quiet (mirrors x11TrackMods).
+	modMu      sync.Mutex
+	modShift   bool
+	modControl bool
+	modAlt     bool
+	modMeta    bool
 }
 
 // bindKeyboard creates a wl_keyboard from the seat and adds the listener.
@@ -302,6 +328,13 @@ func wlKbKeyCB(data, kbd, serial, time, key, state uintptr) {
 	if st.xkb.stateKeySym != nil {
 		ks = st.xkb.stateKeySym(st.state, kc)
 	}
+	// ModifiersChanged leads Key so the router's tracked mods are fresh
+	// when the Key itself routes (mirrors X11; plain typing stays quiet).
+	if ns, nc, na, nm := wlModsFromXKB(st.xkb, st.state); true {
+		if mev, changed := st.wlTrackMods(ns, nc, na, nm); changed {
+			st.win.pushKey(mev)
+		}
+	}
 	ev := st.keysymEvent(ks, state&0xff == 1)
 	st.win.pushKey(ev)
 	// Client-side repeat (Wayland has no server autorepeat): a non-modifier
@@ -320,6 +353,49 @@ func wlKbModifiersCB(data, kbd, serial, depressed, latched, locked, group uintpt
 		return
 	}
 	st.xkb.stateUpdateMask(st.state, depressed, latched, locked, group, 0, 0)
+	// Standalone mask changes (latched/locked without an accompanying key
+	// event) still report; key-accompanied changes dedup against the key
+	// path's lead report so one transition emits once.
+	if ns, nc, na, nm := wlModsFromXKB(st.xkb, st.state); true {
+		if mev, changed := st.wlTrackMods(ns, nc, na, nm); changed {
+			st.win.pushKey(mev)
+		}
+	}
+}
+
+// wlModsFromXKB queries the effective Shift/Control/Alt(Mod1)/Meta(Mod4)
+// state from the xkb state object. Missing bindings or unknown names read
+// as released so a partial xkb build never invents a held modifier.
+func wlModsFromXKB(xkb *xkbFuncs, state uintptr) (shift, ctrl, alt, meta bool) {
+	if xkb == nil || state == 0 || xkb.modNameIsActive == nil {
+		return false, false, false, false
+	}
+	return xkb.modNameIsActive(state, &wlModNameShift[0], xkbStateModsEffective) > 0,
+		xkb.modNameIsActive(state, &wlModNameCtrl[0], xkbStateModsEffective) > 0,
+		xkb.modNameIsActive(state, &wlModNameAlt[0], xkbStateModsEffective) > 0,
+		xkb.modNameIsActive(state, &wlModNameMeta[0], xkbStateModsEffective) > 0
+}
+
+// wlTrackMods compares the new modifier state against the cached report and
+// emits EventModifiersChanged on change. Callers hold no locks. Returns the
+// event and true only when the state moved; unchanged stays quiet so plain
+// typing costs nothing.
+func (st *wlKeyboardState) wlTrackMods(shift, ctrl, alt, meta bool) (Event, bool) {
+	if st == nil {
+		return Event{}, false
+	}
+	st.modMu.Lock()
+	changed := shift != st.modShift || ctrl != st.modControl ||
+		alt != st.modAlt || meta != st.modMeta
+	if changed {
+		st.modShift, st.modControl, st.modAlt, st.modMeta = shift, ctrl, alt, meta
+	}
+	st.modMu.Unlock()
+	if !changed {
+		return Event{}, false
+	}
+	return Event{Type: EventModifiersChanged,
+		ModShift: shift, ModControl: ctrl, ModAlt: alt, ModMeta: meta}, true
 }
 
 // decodeRune decodes the first UTF-8 rune (returns its size).

@@ -109,7 +109,7 @@ const (
 	// the eraser tool. Appended at the end so earlier values never shift.
 	EventStylus
 	// EventModifiersChanged: lone modifier-state change (S6 §4.4 B 组;
-	// X11 KeyPress/Release state tracking, Wayland modifiers reserved).
+	// X11 KeyPress/Release state tracking, Wayland xkb effective-mods query).
 	// ModShift/ModControl/ModAlt/ModMeta carry the new held state.
 	// Appended at the end so earlier values never shift.
 	EventModifiersChanged
