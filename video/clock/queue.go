@@ -158,3 +158,16 @@ func (q *Queue) Drained() bool {
 	defer q.mu.Unlock()
 	return q.closed && len(q.buf) == 0
 }
+
+// Clear drops every queued frame (seek rewinds the line) and wakes one
+// blocked producer so the refilled tail never deadlocks. Counts stay
+// cumulative: drops here are display rewinds, not stale catch-ups.
+func (q *Queue) Clear() {
+	q.mu.Lock()
+	for i := range q.buf {
+		q.buf[i] = nil
+	}
+	q.buf = q.buf[:0]
+	q.mu.Unlock()
+	q.room.Signal()
+}

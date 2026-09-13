@@ -49,6 +49,11 @@ type Stats struct {
 	DriftMs     int64
 	Ended       bool
 	Error       string
+	// Seek evidence (VR5): last seek landing vs request.
+	SeekOK       int
+	SeekDeltaMs  int64
+	SeekForward  int64
+	SeekLandedMs int64
 }
 
 // Options tunes the player. QueueCap <= 0 means clock.DefaultCap;
@@ -62,8 +67,9 @@ type Options struct {
 
 // Player decodes in the background and serves frames by timestamp.
 // Open with OpenFile; poll with Poll; Pause truly stops the picture;
-// Close ends the thread. Poll is safe for one display thread; Pause,
-// Resume and Stats are safe from any thread.
+// Seek jumps to a time (non-loop only in VR5); Close ends the thread.
+// Poll is safe for one display thread; Pause, Resume, Seek and Stats
+// are safe from any thread (Seek blocks for its forward decode).
 type Player struct {
 	info  Info
 	q     *clock.Queue
@@ -73,6 +79,7 @@ type Player struct {
 	mu        sync.Mutex
 	paused    bool
 	ended     bool
+	closed    bool
 	err       string
 	decoded   int64
 	shown     int64
@@ -82,6 +89,23 @@ type Player struct {
 	// live counts frames the queue still owes the display; Poll flips
 	// Ended once it hits zero on a non-loop run.
 	live int64
+	// Seek inputs (kept for forward re-decode from the landing keyframe).
+	path      string
+	samples   []mp4.Sample
+	keyframes []mp4.Keyframe
+	avcc      *h264.AVCC
+	copt      color.Options
+	frameRate float64
+	// frameSamples parallels frames: decode-order sample position that
+	// produced each display-order frame.
+	frameSamples []int
+	// Last seek evidence for Stats/JSON.
+	seekOK       bool
+	seekDeltaMs  int64
+	seekForward  int64
+	seekLandedMs int64
+	seekTargetMs int64
+	seekKeyMs    int64
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -142,6 +166,10 @@ func OpenFile(path string, opt Options) (*Player, error) {
 	type sized struct {
 		pic *h264.Picture
 		pts int64
+		// spos is the decode-order sample position (0-based into
+		// v.Samples) that produced this picture; Seek needs it to map
+		// a display frame back to its sample for forward re-decode.
+		spos int
 	}
 	var pics []*sized
 	for si, s := range v.Samples {
@@ -162,8 +190,7 @@ func OpenFile(path string, opt Options) (*Player, error) {
 		if err != nil {
 			return nil, fmt.Errorf("video: sample %d finish %s: %w", s.Number, path, err)
 		}
-		pics = append(pics, &sized{pic: pic, pts: s.PTSMs})
-		_ = si
+		pics = append(pics, &sized{pic: pic, pts: s.PTSMs, spos: si})
 	}
 	if len(pics) == 0 {
 		return nil, fmt.Errorf("%w: %s", ErrNoFrames, path)
@@ -194,6 +221,12 @@ func OpenFile(path string, opt Options) (*Player, error) {
 	q := clock.NewQueue(cap)
 	clk := clock.NewClock(now)
 	p := &Player{info: Info{Path: path, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(pics), KeyframeN: v.KeyframeCount()}, q: q, clk: clk, nowMs: now, stopCh: make(chan struct{}), doneCh: make(chan struct{}), loop: opt.Loop, readyCh: make(chan struct{})}
+	p.path = path
+	p.samples = append([]mp4.Sample(nil), v.Samples...)
+	p.keyframes = append([]mp4.Keyframe(nil), v.Keyframes...)
+	p.avcc = avcc
+	p.copt = copt
+	p.frameRate = v.FrameRate
 	for i, sp := range pics {
 		t0 := time.Now()
 		cf, err := color.Convert(color.SamplingYUV420P, sp.pic.Y, sp.pic.Cb, sp.pic.Cr, int(sp.pic.Width), int(sp.pic.Height), copt)
@@ -213,6 +246,7 @@ func OpenFile(path string, opt Options) (*Player, error) {
 			p.base = pts
 		}
 		p.frames = append(p.frames, &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(v.FrameRate), Seq: int64(i)})
+		p.frameSamples = append(p.frameSamples, sp.spos)
 		p.decoded++
 	}
 	if w := p.frames[0].Width; w > 0 {
@@ -443,15 +477,219 @@ func (p *Player) Stats() Stats {
 		}
 	}
 	done := !p.loop && ended && live <= 0
-	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: p.err}
+	p.mu.Lock()
+	seekOK := 0
+	if p.seekOK {
+		seekOK = 1
+	}
+	seekDelta, seekFwd, seekLanded := p.seekDeltaMs, p.seekForward, p.seekLandedMs
+	p.mu.Unlock()
+	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: p.err, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded}
+}
+
+// SeekTo jumps to targetMs (container PTS milliseconds): lands on the last
+// keyframe at or before the target, re-decodes forward to the display
+// frame covering the target, then re-anchors the clock and refills the
+// queue from there. The already-decoded tail shows instantly (no black);
+// the fresh forward decode is verified pixel-equal against the cached
+// tail, proving IDR clearing and forward decode instead of a head replay.
+// Loop players are refused in VR5 (loop+seek goes to VC1); rapid seeks
+// are safe (decode runs outside locks, queue swap is bounded).
+func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return 0, fmt.Errorf("%w: seek after close", ErrClosed)
+	}
+	if p.loop {
+		p.mu.Unlock()
+		return 0, fmt.Errorf("%w: seek in loop mode goes to VC1", ErrBadClip)
+	}
+	if len(p.frames) == 0 || len(p.samples) == 0 {
+		p.mu.Unlock()
+		return 0, fmt.Errorf("%w: nothing to seek", ErrNoFrames)
+	}
+	// Snapshot display tail + decode inputs under lock; heavy file IO
+	// and decode run unlocked so Poll/Stats never block.
+	frames := p.frames
+	frameSamples := append([]int(nil), p.frameSamples...)
+	samples := p.samples
+	keyframes := append([]mp4.Keyframe(nil), p.keyframes...)
+	avcc := p.avcc
+	copt := p.copt
+	wasPaused := p.paused
+	p.mu.Unlock()
+
+	seekIdx := 0
+	for i, fr := range frames {
+		if fr.PTSMs <= targetMs {
+			seekIdx = i
+		} else {
+			break
+		}
+	}
+	landed := frames[seekIdx].PTSMs
+	delta := targetMs - landed
+	if delta < 0 {
+		delta = -delta
+	}
+	// Landing keyframe: last keyframe at or before the target (first
+	// when the target precedes them all), mirroring KeyframeNear.
+	key := keyframes[0]
+	found := targetMs >= key.PTSMs
+	if !found {
+		key = keyframes[0]
+	} else {
+		best := keyframes[0]
+		for _, k := range keyframes[1:] {
+			if k.PTSMs <= targetMs {
+				best = k
+			} else {
+				break
+			}
+		}
+		key = best
+	}
+	keyPos := -1
+	for i, s := range samples {
+		if s.Number == key.SampleNumber {
+			keyPos = i
+			break
+		}
+	}
+	if keyPos < 0 {
+		return 0, fmt.Errorf("%w: keyframe sample %d lost", ErrBadClip, key.SampleNumber)
+	}
+	targetPos := frameSamples[seekIdx]
+	if keyPos > targetPos {
+		return 0, fmt.Errorf("%w: keyframe after target (key %d target %d)", ErrBadClip, keyPos, targetPos)
+	}
+	fresh, err := decodeForward(p.path, samples, avcc, copt, keyPos, targetPos)
+	if err != nil {
+		return 0, err
+	}
+	if len(fresh) != len(frames[seekIdx].Pix) || !equalBytes(fresh, frames[seekIdx].Pix) {
+		return 0, fmt.Errorf("%w: forward decode mismatch at pts %d (key %d)", ErrBadClip, landed, key.PTSMs)
+	}
+	forward := int64(targetPos - keyPos + 1)
+
+	// Swap the line: drain stale queue, re-anchor now onto landed, refill
+	// the tail. Cap already fits the whole clip, so Push never blocks here.
+	p.q.Clear()
+	p.clk.Start(landed)
+	if wasPaused {
+		p.clk.Pause()
+	}
+	refilled := 0
+	for _, fr := range frames[seekIdx:] {
+		if ok, _ := p.q.Push(fr); !ok {
+			break
+		}
+		refilled++
+	}
+	p.mu.Lock()
+	p.live = int64(refilled)
+	p.ended = false
+	p.hasShown = false
+	p.decoded += forward
+	p.seekOK = true
+	p.seekDeltaMs = delta
+	p.seekForward = forward
+	p.seekLandedMs = landed
+	p.seekTargetMs = targetMs
+	p.seekKeyMs = key.PTSMs
+	p.mu.Unlock()
+	return landed, nil
+}
+
+// decodeForward re-decodes samples[keyPos..targetPos] with a fresh decoder
+// (SPS/PPS re-fed, so IDR clearing is exercised) and returns the target
+// picture as RGBA. Small clips only; VR5 gates are ≤10 frames.
+func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt color.Options, keyPos, targetPos int) ([]byte, error) {
+	if avcc == nil {
+		return nil, fmt.Errorf("%w: missing header params %s", ErrBadClip, path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := h264.NewDecoder(nil)
+	for _, raw := range avcc.SPS {
+		if err := dec.DecodeNALU(raw); err != nil {
+			return nil, fmt.Errorf("video: seek sequence params %s: %w", path, err)
+		}
+	}
+	for _, raw := range avcc.PPS {
+		if err := dec.DecodeNALU(raw); err != nil {
+			return nil, fmt.Errorf("video: seek picture params %s: %w", path, err)
+		}
+	}
+	var target *h264.Picture
+	for si := keyPos; si <= targetPos; si++ {
+		s := samples[si]
+		buf := make([]byte, s.Size)
+		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
+			return nil, fmt.Errorf("video: seek sample %d unreadable %s: %w", s.Number, path, err)
+		}
+		units, err := h264.SplitAVCC(buf, avcc.LengthSize)
+		if err != nil {
+			return nil, fmt.Errorf("video: seek sample %d split %s: %w", s.Number, path, err)
+		}
+		for _, u := range units {
+			if err := dec.DecodeNALU(u); err != nil {
+				return nil, fmt.Errorf("video: seek sample %d decode %s: %w", s.Number, path, err)
+			}
+		}
+		pic, err := dec.FinishPicture()
+		if err != nil {
+			return nil, fmt.Errorf("video: seek sample %d finish %s: %w", s.Number, path, err)
+		}
+		if si == targetPos {
+			target = pic
+		}
+	}
+	if target == nil {
+		return nil, fmt.Errorf("%w: seek produced no picture %s", ErrBadClip, path)
+	}
+	cf, err := color.Convert(color.SamplingYUV420P, target.Y, target.Cb, target.Cr, int(target.Width), int(target.Height), copt)
+	if err != nil {
+		return nil, fmt.Errorf("video: seek color %s: %w", path, err)
+	}
+	return cf.Pix, nil
+}
+
+func equalBytes(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// SeekInfo reports the last seek evidence for HUD/JSON.
+func (p *Player) SeekInfo() (ok bool, targetMs, landedMs, keyMs, deltaMs int64, forward int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.seekOK, p.seekTargetMs, p.seekLandedMs, p.seekKeyMs, p.seekDeltaMs, p.seekForward
 }
 
 // Close ends the background thread and waits for it.
 func (p *Player) Close() {
+	p.mu.Lock()
+	already := p.closed
+	p.closed = true
+	p.mu.Unlock()
 	select {
 	case <-p.stopCh:
 	default:
-		close(p.stopCh)
+		if !already {
+			close(p.stopCh)
+		}
 	}
 	p.q.Close()
 	<-p.doneCh
