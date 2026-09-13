@@ -217,6 +217,19 @@ func BenchmarkConvert420Into(b *testing.B) {
 	}
 }
 
+func BenchmarkConvert420Into1080p(b *testing.B) {
+	w, h := 1920, 1080
+	y := make([]byte, w*h)
+	cb := make([]byte, w*h/4)
+	cr := make([]byte, w*h/4)
+	dst := make([]byte, w*h*4)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ConvertInto(SamplingYUV420P, dst, y, cb, cr, w, h, Options{})
+	}
+}
+
 func BenchmarkConvert420(b *testing.B) {
 	w, h := 320, 240
 	y := make([]byte, w*h)

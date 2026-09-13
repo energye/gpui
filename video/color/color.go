@@ -152,17 +152,25 @@ func resolveMatrix(opt Options) (uint32, error) {
 	}
 }
 
+// checkPlanes validates even dims and plane sizes shared by both entries.
+func checkPlanes(y, cb, cr []byte, w, h int) error {
+	if w <= 0 || h <= 0 || w%2 != 0 || h%2 != 0 || w > 8192 || h > 8192 {
+		return fmt.Errorf("%w: size %dx%d (yuv420 needs even dims)", ErrBadSize, w, h)
+	}
+	if len(y) < w*h || len(cb) < w*h/4 || len(cr) < w*h/4 {
+		return fmt.Errorf("%w: planes %d/%d/%d for %dx%d", ErrBadPlanes, len(y), len(cb), len(cr), w, h)
+	}
+	return nil
+}
+
 // Convert decodes one frame through the registry (allocates the output).
 func Convert(sampling string, y, cb, cr []byte, w, h int, opt Options) (*Frame, error) {
 	c, err := lookup(sampling)
 	if err != nil {
 		return nil, err
 	}
-	if w <= 0 || h <= 0 || w%2 != 0 || h%2 != 0 || w > 8192 || h > 8192 {
-		return nil, fmt.Errorf("%w: size %dx%d (yuv420 needs even dims)", ErrBadSize, w, h)
-	}
-	if len(y) < w*h || len(cb) < w*h/4 || len(cr) < w*h/4 {
-		return nil, fmt.Errorf("%w: planes %d/%d/%d for %dx%d", ErrBadPlanes, len(y), len(cb), len(cr), w, h)
+	if err := checkPlanes(y, cb, cr, w, h); err != nil {
+		return nil, err
 	}
 	if _, err := resolveMatrix(opt); err != nil {
 		return nil, err
@@ -181,11 +189,8 @@ func ConvertInto(sampling string, dst, y, cb, cr []byte, w, h int, opt Options) 
 	if err != nil {
 		return err
 	}
-	if w <= 0 || h <= 0 || w%2 != 0 || h%2 != 0 || w > 8192 || h > 8192 {
-		return fmt.Errorf("%w: size %dx%d (yuv420 needs even dims)", ErrBadSize, w, h)
-	}
-	if len(y) < w*h || len(cb) < w*h/4 || len(cr) < w*h/4 {
-		return fmt.Errorf("%w: planes %d/%d/%d for %dx%d", ErrBadPlanes, len(y), len(cb), len(cr), w, h)
+	if err := checkPlanes(y, cb, cr, w, h); err != nil {
+		return err
 	}
 	if len(dst) < w*h*4 {
 		return fmt.Errorf("%w: dst %d for %dx%d", ErrBadSize, len(dst), w, h)
@@ -230,31 +235,47 @@ func clip8(v int) uint8 {
 }
 
 // convert420Into is the yuv420p converter: each 2x2 luma quad shares one
-// chroma pair (nearest). Chroma location offsets stay out of VR3; the gate
-// clips are progressive with default siting, and the difference is far
-// below the per-channel tolerance.
+// chroma pair (nearest). The loop walks two luma pixels per chroma tap
+// with row slices, so the compiler drops per-pixel divisions and bounds
+// checks; output bits are unchanged (vectors pin them). Chroma location
+// offsets stay out of VR3; the gate clips are progressive with default
+// siting, and the difference is far below the per-channel tolerance.
 func convert420Into(dst, y, cb, cr []byte, w, h int, opt Options) error {
 	m, err := resolveMatrix(opt)
 	if err != nil {
 		return err
 	}
 	t := tableFor(m, opt.FullRange)
+	yMul, yOff := t.yMul, t.yOff
+	rCr, gCb, gCr, bCb := t.rCr, t.gCb, t.gCr, t.bCb
 	cw := w / 2
 	for yy := 0; yy < h; yy++ {
-		cr0 := (yy / 2) * cw
-		for xx := 0; xx < w; xx++ {
-			ci := cr0 + xx/2
-			c := int(y[yy*w+xx]) - t.yOff
-			d := int(cb[ci]) - 128
-			e := int(cr[ci]) - 128
-			r := (t.yMul*c + t.rCr*e + 128) >> 8
-			g := (t.yMul*c - t.gCb*d - t.gCr*e + 128) >> 8
-			b := (t.yMul*c + t.bCb*d + 128) >> 8
-			o := (yy*w + xx) * 4
-			dst[o] = clip8(r)
-			dst[o+1] = clip8(g)
-			dst[o+2] = clip8(b)
-			dst[o+3] = 255
+		yRow := y[yy*w : (yy+1)*w]
+		dRow := dst[yy*w*4 : (yy+1)*w*4]
+		cBase := (yy >> 1) * cw
+		cbRow := cb[cBase : cBase+cw]
+		crRow := cr[cBase : cBase+cw]
+		for xx := 0; xx < w; xx += 2 {
+			ci := xx >> 1
+			d := int(cbRow[ci]) - 128
+			e := int(crRow[ci]) - 128
+			// Shared taps: identical rounding to the per-pixel form,
+			// (yMul*c +/- taps + 128) >> 8, only factored per pair.
+			re := rCr * e
+			ge := gCr * e
+			gd := gCb * d
+			bd := bCb * d
+			o := xx * 4
+			y0 := yMul * (int(yRow[xx]) - yOff)
+			dRow[o] = clip8((y0 + re + 128) >> 8)
+			dRow[o+1] = clip8((y0 - gd - ge + 128) >> 8)
+			dRow[o+2] = clip8((y0 + bd + 128) >> 8)
+			dRow[o+3] = 255
+			y1 := yMul * (int(yRow[xx+1]) - yOff)
+			dRow[o+4] = clip8((y1 + re + 128) >> 8)
+			dRow[o+5] = clip8((y1 - gd - ge + 128) >> 8)
+			dRow[o+6] = clip8((y1 + bd + 128) >> 8)
+			dRow[o+7] = 255
 		}
 	}
 	return nil
