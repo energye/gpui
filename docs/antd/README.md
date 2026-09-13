@@ -157,7 +157,7 @@
 | 覆盖记录 `ui/kit/coverage.go` | 首批完 | 与本表一致，72 行 + `ByName` |
 | 主题全局种子（对齐 antd v6.5.1） | 首批完 | `ui/theme` 浅色默认 + `testdata/seed_default.json` |
 | 浮层通用定位（十二方向/翻转/箭头/外点关/焦点锁） | 首批完 | `ui/overlay/placement.go` + `interact.go` 纯函数 |
-| Icon（最底层，先做） | 未开工 | [icon.md](./icon.md) |
+| Icon（最底层，先做） | 首批中 | P0行为已合（`ui/kit/icon` + 画廊`icon`页）；L3截图另轮 |
 
 ### W1 基础件（19 个，地基好后并行）
 

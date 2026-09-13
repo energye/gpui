@@ -48,7 +48,7 @@ var FoundationW0 = []Foundation{
 
 // Controls mirrors README W0-W5 + Util rows (72 specs, 71 in kit).
 var Controls = []Control{
-	{Name: "icon", Doc: "docs/antd/icon.md", Wave: "W0", Status: NotStarted, P1: "见 docs/antd/icon.md §6.8 P1"},
+	{Name: "icon", Doc: "docs/antd/icon.md", Wave: "W0", Status: InProgress, P0: "P0行为/度量/画廊页已对齐§6（ICO-01…18绿）；L3截图另轮", P1: "远程scriptUrl/extraCommonProps/全量SVG/动画像素/Config全局/可聚焦Icon（见 docs/antd/icon.md §6.8 P1）"},
 	{Name: "alert", Doc: "docs/antd/alert.md", Wave: "W1", Status: NotStarted, P1: "见 docs/antd/alert.md §6.8 P1"},
 	{Name: "border-beam", Doc: "docs/antd/border-beam.md", Wave: "W1", Status: NotStarted, P1: "见 docs/antd/border-beam.md §6.8 P1"},
 	{Name: "button", Doc: "docs/antd/button.md", Wave: "W1", Status: NotStarted, P1: "见 docs/antd/button.md §6.8 P1"},

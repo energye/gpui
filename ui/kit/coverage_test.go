@@ -23,8 +23,8 @@ func TestCoverage_MirrorsBoard(t *testing.T) {
 		}
 		seen[c.Name] = true
 		waves[c.Wave]++
-		if c.Name != "util" && c.Status != kit.NotStarted {
-			t.Fatalf("%s status=%s want 未开工 (W0 only closes foundation)", c.Name, c.Status)
+		if c.Name != "util" && c.Name != "icon" && c.Status != kit.NotStarted {
+			t.Fatalf("%s status=%s want 未开工 (only icon has started)", c.Name, c.Status)
 		}
 		if c.P1 == "" && c.Name != "util" {
 			t.Fatalf("%s missing P1 pointer", c.Name)
