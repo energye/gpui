@@ -82,4 +82,7 @@
 ## 参考成熟框架设计与实现
 
 - /home/yanghy/app/projects/flutter
-- /home/yanghy/app/projects/gogpu/gio
+
+## 参考kit组件成熟框架设计与实现
+
+- /home/yanghy/app/projects/ant-design/components
