@@ -397,7 +397,7 @@ P5 暂缓（动了全崩，先不动）
 
 | 编号 | 能力 | 所属模块 | 分期 | 前置 | 接口约定 | 实现方式 | 测试与真窗 | 全场景测啥 | 状态 |
 |---|---|---|---|---|---|---|---|---|---|
-| 0.0 | 共用底座core | game/core（7文件） | P0最前 | 无 | Vec2/Rect/Color/Time/Rand/AssetID/Result/Version | game新包，render老类型边界转 | 测core_test；窗免 | A数对，B空零超大不崩，D万次耗时有数，E长跑不漂 | 未开工 |
+| 0.0 | 共用底座core | game/core（7文件） | P0最前 | 无（已绿，可开工） | Vec2/Rect/Color/Time/Rand/AssetID/Result/Version | game新包，render老类型边界转 | 测core_test；窗免 | A数对，B空零超大不崩，D万次耗时有数，E长跑不漂 | 已完成（2026-09-14；game/core/core_test.go 15项全PASS＋CGO_ENABLED=0可构建；D万次约9.6ns/op；窗免-纯算数，边界往返等价即离屏依据） |
 | 1.1 | 上层透视投影 | game/camera/project.go | P1b | 0.0 | Project(world)→screen，DepthToScale | game新包只算数，算好喂现有梯形三角 | 测camera_project_test＋离屏；窗免 | A 算出的屏坐标对，B 深度零和负不崩，C 两边齐，D 56 段路全量重投影帧率有数，E 环线跑千圈闭合，F 离屏对比 | 未开工 |
 | 1.2 | 前后遮挡 | game/sprite/ysort.go（深度扩展）+ render | P1b | core＋R5深度分支 | SetDepth＋Sort()，远先近后 | game排序为主，需动显卡走隔离新分支 | 测ysort_depth_test；窗game_sprite--case=depth | A 远先近后盖对，B 同深不闪，C 两边齐，D 百个遮挡帧率有数，E 长跑顺序不乱，F 真窗看盖对 | 未开工 |
 | 1.3a | 镜头纯算 | game/camera/camera.go | P0 | 0.0 | Camera{pos,zoom,rot,shake,limit}＋View() | game新包只算数，不碰渲染 | 测camera_test＋离屏；窗免 | A位置缩放角度震动限位平滑锚点数对，B零负钳住，D万次耗时有数，E长跑不漂 | 未开工 |
