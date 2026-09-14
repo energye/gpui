@@ -494,6 +494,7 @@ VW0 → VW1 → VW2 → VW3
 | v0.53 VR5重测换线 | §12.2 顺序 6（只动 VR5 一项，E小步）：基线 `video/testdata/vr5_ffmpeg.json` 入库（ffmpeg 4.4.2 同机：与窗同三片 `vr5_seek.mp4` 双IDR 96x96/Main/10/10帧6002B + `vr2_m_bframes.mp4` 96x96/Main/10/5帧3714B + `vr2_480p.mp4` 裁边854x480/Main/22/5帧11057B，三片已进仓；`ffmpeg -ss 秒 -i 片 -frames:v 1 -f hash` 取内容哈希认落帧 + `-copyts -f framehash` 取落点戳认天花板；对等语义：我方覆盖帧floor对ffmpeg天花板ceiling，格点同帧差0，格点间各差一格，基线五跳全入库含差值数学自洽；elst偏移ffmpeg从0起、我方vr5/bframes首帧400毫秒/480p首帧200毫秒，基线以shift_ms换算，端到端显示不对线）+ 新门禁 `video/vr5_ffmpeg_test.go` 三片五跳绿（流身份走avcC[1]/[3]/宽高精确、落点/键/差/前解精确、Stats对齐、跳后下拍首现PTS等于落点不黑屏、恢复耗时只记log不设线，引擎零改动）+ 真窗 `video_vr5_seek` RUN15绿（四跳全绿差0/前解≤5/直播84帧10跳恢复≤15毫秒/上屏883/fps57.9/p95 17.5毫秒/§2.2全族齐）+ 回归（`video`搜进度/VR4对等/VR5对等/S6池/播放/流/容错/注册绿、`clock`两文件绿、`mp4`两文件绿含VR0 parity仍绿、`color`两文件绿、`h264`十二文件绿含VR1/VR2 parity仍绿、`vet`+`CGO_ENABLED=0`构建过；注：`stream_long_test.go`的HTTP整播偶发多丢、SeekBackward偶发首现未落，单例重跑即过，属别线流式长片抖动未动）；§2/§5 VW0–VW3 状态不动，顺序 6 标 🟩。 |
 | v0.54 对齐硬纪律 | §12 加实现对齐硬纪律（只动文档，引擎与小样零改动）：开工前必须翻 `gogpu/ffmpeg` 写清文件/函数/行号与我方落点，路线问题先抄 ffmpeg（转色按行切段见 `libswscale/swscale.c`、线程常驻见 `utils.c:ff_sws_thread_exec` 与 `pthread_frame.c` 核数加一封顶、池借还见 `av_buffer_pool`），ffmpeg 没答案才允许问用户且须贴已查文件，否则打回；改完三道（逐位一致+对等门禁+逐文件回归）不过不标绿；§2/§5 VW0–VW3 状态不动。 |
 | v0.55 VR3重测换线 | §12.2 顺序 4（只动 VR3 一项）：基线 `video/testdata/vr3_ffmpeg.json` 入库（ffmpeg 4.4.2 同机：与窗同三片 `vr2_b_intra.mp4` 96x96/Constrained Baseline/10/5帧10823B + `vr2_480p.mp4` 裁边854x480/Main/22/5帧11057B + `vr2_720p.mp4` 1280x720/Main/31/5帧14378B，三片已进仓；`ffmpeg -pix_fmt rgba -f rawvideo` 取逐帧md5 + 我方同片播出逐帧md5 + 差分布（b_intra 46080像素最大2/3/2/P99 2/2/2/均值0.4941首帧0.4662、480p 2049600像素最大2/3/2/P99 2/2/1/均值0.4161、720p 4608000像素最大2/3/2/P99 2/2/1/均值0.4145），向量11组仍逐字节零差异；对等点 `libswscale/yuv2rgb.c:ff_yuv2rgb_coeffs+YUV2RGBFUNC` + `output.c:yuv2rgba64_*_c_template` + `swscale.c:sws_scale` 对 `video/color/color.go:tableFor+convertBand`，解码段已由VR2锁零差异此处纯转色差，三片无VUI全走默认BT.601有限范围，旧自定3作废改P99线：聚合R最大2/G最大3/B最大2且R/B P99≤2/G P99≤3）+ 新门禁 `video/vr3_ffmpeg_test.go` 三片绿（流身份走avcC档位等级/宽高精确/播到Ended/显示序0..单调PTS递增/逐帧rgba md5锁死+基线自洽+通过线自检，引擎零改动）+ 真窗 `video_vr3_color` RUN5绿（向量11组差0/三片15帧md5对上R/B P99≤2 G P99≤3/上屏295/§2.2全族齐，窗内`checkParity`同门禁复算，README门禁与对等节换线）+ 回归（`video` VR3/VR4/VR5/VR6对等+播放+搜进度+池+稳态+流+容错+注册绿、`color`向量+合规绿、`h264` VR1/VR2 parity+核心绿、`mp4`两文件绿含VR0 parity仍绿、`clock`绿、`vet`+`CGO_ENABLED=0`构建过）；§2/§5 VW0–VW3 状态不动，顺序 4 标 🟩。 |
+| v0.56 S6收尾 | §12.2 顺序 13（只动 S6 一项，引擎零改动）：收尾只做三件事——①池 CPU 件仍绿（`s6_pool_test.go`：200帧命中98.5%/miss仅3暖机/关窗零泄漏/小片快路零改动；`pool_test.go`/`steady_test.go`/`compliance` 逐文件绿）②转色耗时追平（常驻多核落地后追测 `vr7t_ffmpeg_test.go` 绿：我方 0.41ms/帧 ≤ 基线 0.63ms/帧，早前单线程 0.66ms 作废不记 S1；`color` 向量逐位不变，VR2/VR3 parity 仍绿）③内存采数（编译后门禁二进制同片约 15.7MB ≤ `bench: maxrss` 约 52MB；长稳趋势交 S7/S9，只看封顶不涨）+ 四窗复验绿（VR2 差0/VR3 向量0+md5/VR4 零丢/VR7 六十秒分配88B/帧池99.7%峰值499MB<512MB零泄漏；`race` 下 VR7-T 不稳属测试时钟抖动，不进门禁，见本行）+ 回写 §11.7/§12 行/对等线/尺子；§2/§5 VW0–VW3 状态不动，§12.2 顺序 13 标 🟩，S6 行标 🟩。 |
 
 ---
 
@@ -601,14 +602,14 @@ VW0 → VW1 → VW2 → VW3
 
 | # | 生产级要求（说人话） | 我们现在 | 差距 |
 |---|---------------------|----------|------|
-| S6 | 转色/帧缓冲池化（不每帧新分配大内存） | 三池已写好（`video/pool.go`），流式转色已接 RGBA 池（`convertPic` 走 `ConvertInto` 借还，YUV 后补；小片快路不动） | 引擎接通，CPU 回归绿，待真窗复验（见 §12 S6 行） |
+| S6 | 转色/帧缓冲池化（不每帧新分配大内存） | 三池已写好（`video/pool.go`），流式转色已接 RGBA 池（`convertPic` 走 `ConvertInto` 借还，YUV 后补；小片快路不动）+ 转色常驻多核按行分段（`video/color/color.go`，输出逐位不变） | 已收尾（2026-09-14晚）：池稳态零增长（200帧命中98.5%/miss仅3暖机/关窗零泄漏）+ 转色0.41毫秒/帧≤ffmpeg同片0.63 + 同片峰值15.7MB≤52MB + 四窗复验绿（见 §12 S6 行） |
 | S7 | 内存封顶按档配置、超了报“装不下”不爆内存 | 1080p 512MB 数值已有，未全链路接上 | 接线缺口 |
 | S8 | 帧目录流式化（不全读内存）+ 跳转二分查 + 分段索引 | 全量进内存 + 逐个扫描 | 长片（几小时）必露馅，见 N3 |
 | S9 | 长稳（几小时不漏内存、不越播越慢） | 最长证据 VC2 120s 循环 | 无长稳 soak 证据 |
 
 #### 11.7 深度解析（对齐 ffmpeg，只学思路不搬代码）
 
-- **S6 池化接上**：ffmpeg 是 `libavutil/mem` 池 + `av_buffer_pool`（帧池借还）+ `hwframe_ctx` 帧池，`ffplay.c` 的 `FrameQueue` 环形复用（`keep_last` 语义，`unref_item` 归还）。我们三池已写好（`video/pool.go`：YUV/RGBA/work 独立，命中/泄漏/封顶可查，`TestPoolZeroAlloc` 锁零分配），播放器没接转色输出（`convertPic` 在 `player.go` 调 `color.Convert` 每帧新分配，1536x864 约 5.3MB）。要做：`convertPic` 改 `ConvertInto` + RGBA 池借还（帧被队列/显示持有期间不还，`Poll` 消费后还；分辨率切换重建池，`NewPools` 已有）；YUV 侧解码器输出复用（后补，先接 RGBA 见效最快）；`Stats` 透池命中（VR7 门禁已有 `pool_hit_pct`，直接复用）。验：稳态 `alloc_per_frame_B` 归零级 + 池命中≥90% + exact 不变。
+- **S6 池化接上**：ffmpeg 是 `libavutil/mem` 池 + `av_buffer_pool`（帧池借还）+ `hwframe_ctx` 帧池，`ffplay.c` 的 `FrameQueue` 环形复用（`keep_last` 语义，`unref_item` 归还）。我们三池已写好（`video/pool.go`：YUV/RGBA/work 独立，命中/泄漏/封顶可查，`TestPoolZeroAlloc` 锁零分配），流式转色已接 RGBA 池（`player.go:convertPic` 走 `ConvertInto` 借还，`Poll` 消费/队列丢弃/关窗回收归还，分辨率切换 `remakeLive` 重建；小片快路不动；YUV 后补）。转色已按行分段常驻多核（`color.go:convertBand`，与改前逐位一致，向量锁死）。验（对等线见 §12 S6 行）：暖机后 miss 零增长 + 转色段≤同片 rgba utime/帧 + 同片峰值≤maxrss + exact 不变。
 - **S7 封顶接线**：ffmpeg 靠 `-max_alloc` / 帧池上限 + 解码前按 `width×height×refs` 预估。要做：打开前 `EstimateDecoderBytes`（`pool.go` 已有）按档算（宽高×(YUV+RGBA)×参考帧＋队列＋工作区），超 `mem_cap_kb` 直接报装不下（`Err` 人话 + `Classify` 入桶）；播中水位超限走淘汰（丢最旧 + 计数，`dropped_old_frames` 已有语义）并上报，不静默涨。验：超限片秒报装不下、播中封顶不爆。
 - **S8 目录流式化**：ffmpeg 普通 MP4 用 `stsc/stts/ctts/stco` 索引（`mov.c` 常驻内存，量小），frag 用段索引（B1），TS/HLS 不用全局索引（N3）。我们 `samples/keyframes` 全量 + `seekPlan` 逐扫。要做：段表数组（每段：起止 PTS + 段内采样偏移 + 关键帧位图），`seekPlan` 先段二分后段内二分；`samples` 改按需页读（段页缓存，LRU 8 页，`Source` Range 本是分块，直接复用）；小片（≤64 帧）保留全量快路（现有双路径不动）。验：2 小时片打开毫秒级 + 跳转对数级 + 小片门禁逐位不变。
 - **S9 长稳 soak**：ffmpeg 靠 FATE + 长跑 CI。我们最长 VC2 120s。要做：4 小时循环 soak（内存斜率/GC/CPU/漂移四曲线 + `rss_slope` 门禁沿 §2.7）， valuable 在 nightly 不在合入；先把 S6–S8 接完再跑，否则测出漏了也定位不清。验：4 小时斜率不超预算 + 首尾帧 exact 抽检一致。
@@ -629,12 +630,12 @@ VW0 → VW1 → VW2 → VW3
 > 对等验证总规则（硬 · 2026-09-14 起）：**每一项开工必须立 ffmpeg 对等验证**，三件缺一不开工：① 对等点（ffmpeg 哪个文件/函数/行为，对我们哪段代码）；② 对比物（同片 + 同命令 + 同指标，基线数写进门禁）；③ 通过线（逐字节零差异，或差值预算写死）。只比可比的：ffplay 带显示和声音，端到端帧率不直接对，只对解码段；内存只对比趋势与封顶（Go GC 与 ffmpeg 池架构不同，绝对值不对线）。
 >
 > 实现对齐硬纪律（硬 · 2026-09-14 起）：**先看 ffmpeg 再动手，不问用户要路线**。① 开工前必须翻对照库（上级 `gogpu/ffmpeg` 只读，不搬代码）：每项写清 ffmpeg 哪个文件/哪个函数/哪几行，对我们哪个文件/哪个函数；找不到对等点不开工，找到后把路径行号写进门禁注释与基线。② 路线问题（怎么切、开几个工人、常驻还是现开、小图走不走并行、池怎么借还）一律先抄 ffmpeg：转色抄 `libswscale/swscale.c` 分段（按行切段、各写各行、至少一行一段）与 `utils.c:ff_sws_thread_exec` 分片线程思想；线程数抄解码默认（`libavcodec/pthread_frame.c`：核数加一封顶 `MAX_AUTO_THREADS`）；池抄 `libavutil` 池 + `av_buffer_pool` 借还（稳态零新分配）。ffmpeg 就是这么干的就照着干，不问用户。③ 只有 ffmpeg 也没答案（两种做法都对，或 Go 特有无对等如 GC/堆绝对值见 VR7-G 行）才允许问用户，问时必须同时贴出已查的 ffmpeg 文件与行为、为什么没答案，否则打回。④ 防写错：改完必须过三道——输出与改前逐位一致（向量/exact 锁）、对等门禁（同片同机同命令基线）、所属回归逐文件绿；一道不过不标绿，不进真窗。
-> 本机尺子（`ffmpeg 4.4.2`，同仓片源，2026-09-14 实测）：长片 320x240x200 解码到 YUV 约 0.55ms/帧、峰值约 49MB，解码加转 RGBA 约 0.60ms/帧、峰值约 51MB；我方同片转色段约 0.66ms/帧（p95 约 0.84ms，`Stats` 的 `decode_ms` 口径，池命中 98.5%）：转色段同量级，解码段我方未单采（纯 Go 无汇编，预期慢于 ffmpeg，S1/S2 收敛），全链路同场对比待补。
+> 本机尺子（`ffmpeg 4.4.2`，同仓片源，2026-09-14晚更新）：长片 320x240x200 同片门禁基线为 `vr7t_ffmpeg.json`（rgba max 0.126秒/200帧 = 0.63ms/帧、yuv 参考 0.54ms/帧、maxrss 约 52MB，6 次取最大保守值）；我方同片转色段追测约 0.41ms/帧（p95 约 0.58ms，`Stats` 的 `decode_ms` 口径，池命中 98.5%），编译后门禁二进制同片约 15.7MB ≤ 52MB：转色段与内存段均已追平，解码段（纯 Go 无汇编）预期仍慢于 ffmpeg，落 S1/S2 收敛。
 >
-> 对比清单（每项开工从这里领自己的三件，领完写进该项门禁）：解码正确性对解码器 YUV 输出（`gen_vr2.sh` 的 `.yuv`，逐字节零差异，VR2 已有）；头信息对 `ffprobe` + `trace_headers`（逐项一致，VR1 已有）；转色对 `libswscale`（向量单测零差异 + 窗容差，VR3 已有）；池化语义对 `av_buffer_pool` 借还 + `FrameQueue` 留末帧复用（稳态命中 + 零泄漏，S6 的 CPU 件已有，窗级待补）；解码耗时对 `ffmpeg -benchmark -i 片 -f null -` 的 utime/帧（差值预算待 S1/S2 立）；转色段耗时对 `ffmpeg -benchmark -pix_fmt rgba -f null -` 的 utime/帧（单采数已有，门禁待 S1 立）；内存对 `bench: maxrss` 同片峰值与斜率（只看趋势与封顶，待 S7/长稳立）。
+> 对比清单（每项开工从这里领自己的三件，领完写进该项门禁）：解码正确性对解码器 YUV 输出（`gen_vr2.sh` 的 `.yuv`，逐字节零差异，VR2 已有）；头信息对 `ffprobe` + `trace_headers`（逐项一致，VR1 已有）；转色对 `libswscale`（向量单测零差异 + 窗容差，VR3 已有）；池化语义对 `av_buffer_pool` 借还 + `FrameQueue` 留末帧复用（S6 已收尾：CPU 件 `s6_pool_test.go` 稳态零增长 + 门禁 `vr7t_ffmpeg_test.go` 转色 0.41≤0.63 + 同片峰值 15.7≤52MB，窗级四窗复验绿）；解码耗时对 `ffmpeg -benchmark -i 片 -f null -` 的 utime/帧（差值预算待 S1/S2 立）；转色段耗时对 `ffmpeg -benchmark -pix_fmt rgba -f null -` 的 utime/帧（S6 已达 0.41≤0.63，S1 再压）；内存对 `bench: maxrss` 同片峰值与斜率（同片峰值 S6 已采 15.7≤52MB，长稳趋势待 S7/S9 立）。
 >
 > 禁自定数（硬 · 2026-09-14 起）：**所有分数线只认 ffmpeg 来源**，不再自己定数。存量自定线（§2.2/§2.7 各窗预算与 §12 各行旧说明）逐项替换为 ffmpeg 对等线，换完之前一律标注“自定（待替换）”，不冒充对等；新开工项直接执行本条。
-> S6 对等线改写（旧自定线作废）：① 池行为：删“命中≥90%”，换暖机（首个队列深 + 2 帧）后 miss 零增长（对 `av_buffer_pool` 稳态零新分配；现状：miss 3 全在暖机，稳态 197/197 中，已达）；② 转色耗时：换我方转色段（`Stats` 的 `decode_ms` 口径）≤ `ffmpeg -benchmark -pix_fmt rgba -f null -` 同片 utime/帧（本机 0.60ms/帧；现状 0.66ms 未达，差 0.06ms，记入 S1 攻坚，本项该条挂起）；③ 内存：换同片 RSS 峰值 ≤ `bench: maxrss`（本机 51MB 含转；现状未采，待 S7/长稳验）。
+> S6 对等线改写（旧自定线作废）：① 池行为：删“命中≥90%”，换暖机（首个队列深 + 2 帧）后 miss 零增长（对 `av_buffer_pool` 稳态零新分配；2026-09-14晚：miss 3 全在暖机，稳态 197/197 中，已达）；② 转色耗时：换我方转色段（`Stats` 的 `decode_ms` 口径）≤ `ffmpeg -benchmark -pix_fmt rgba -f null -` 同片 utime/帧（门禁基线 0.63ms/帧；2026-09-14晚常驻多核后追测 0.41ms/帧，已达，早前单线程 0.66ms 作废，不记 S1）；③ 内存：换同片 RSS 峰值 ≤ `bench: maxrss`（基线约 52MB 含转；2026-09-14晚：编译后门禁二进制同片 15.7MB ≤ 52MB，已采数；长稳趋势仍按 VR7-M 只看封顶不涨，交 S7/S9）。
 >
 > #### 12.1 存量线替换总表（VW0–VW3 全量 · 硬 · 2026-09-14 起）
 >
@@ -662,7 +663,7 @@ VW0 → VW1 → VW2 → VW3
 
 | 项 | 归属 | 内容（认领 §11 缺口） | 状态 | 说明 |
 |----|------|----------------------|------|------|
-| S6 | VW4 能装下 | 池化接上（`convertPic` 改 `ConvertInto` + RGBA 池借还） | 🟨 进行中 | 引擎接通，CPU回归绿，待真窗复验（2026-09-14：流式200帧命中98.5%/ miss仅3/关窗零泄漏/小片快路零改动；对等线已改写：①池行为已达 ②转色耗时0.66未达0.60挂起记S1 ③内存待S7，见§10 v0.47） |
+| S6 | VW4 能装下 | 池化接上（`convertPic` 改 `ConvertInto` + RGBA 池借还 + 转色常驻多核按行分段） | 🟩 已完成 | 收尾绿（2026-09-14晚，见§10 v0.56）：①池稳态零增长（200帧命中98.5%/miss仅3暖机/关窗零泄漏）②转色0.41≤0.63门禁绿（早前单线程0.66作废）③同片峰值15.7MB≤52MB已采数（长稳趋势交S7/S9）；四窗复验绿（VR2差0/VR3向量0+md5/VR4零丢/VR7六十秒分配88B池99.7%峰值499MB<512MB）；YUV池化后补另项认领，不在本项 |
 | S7 | VW4 能装下 | 内存封顶接线（解前预估 + 超限报装不下 + 播中淘汰上报） | ⬜ 未启动 | 建议 S6 后开 |
 | S8 | VW4 能装下 | 目录流式化（段表 + 二分 + 页读，小片快路不动） | ⬜ 未启动 | 与 B1 同块，建议合一会话先 S8 后 B1 |
 | B1 | VW4 能装下 | 分段 MP4（moof 段索引 + 段内 seek 下钻） | ⬜ 未启动 | 与 S8 同块，建议合一会话 |
@@ -695,7 +696,7 @@ VW0 → VW1 → VW2 → VW3
 > | 10 | 重测换线（VW0–VW3 复验） | VR9 重测 + 换线 + 复验 | §12.1 VR9 行 | ⬜ 未启动 | – |
 > | 11 | 重测换线（VW0–VW3 复验） | VC0/VC1 复验（沿单窗线） | §12.1 VC 行 | ⬜ 未启动 | – |
 > | 12 | 重测换线（VW0–VW3 复验） | VC2/VC3 复验（沿单窗线，斜率只留趋势） | §12.1 VC 行 | ⬜ 未启动 | – |
-> | 13 | VW4 能装下 | S6 收尾（转色耗时追平 + 内存采数 + 真窗复验） | §12 S6 行 | 🟨 进行中 | 引擎接通，CPU 回归绿；耗时未达挂起记 S1，内存待 S7 |
+> | 13 | VW4 能装下 | S6 收尾（池稳态零增长 + 转色追平 + 内存采数 + 四窗复验） | §12 S6 行 | 🟩 已完成 | 三线全达：池已达/转色0.41≤0.63已达/内存15.7≤52已采数（2026-09-14晚，见§10 v0.56） |
 > | 14 | VW4 能装下 | S7 封顶接线 | §12 S7 行 | ⬜ 未启动 | 等 S6 收尾后开 |
 > | 15 | VW4 能装下 | S8 目录流式化 + B1 分段 MP4（合一会话，先 S8 后 B1） | §12 S8/B1 行 | ⬜ 未启动 | – |
 > | 16 | VW5 跟得上 | S1 快车道 | §12 S1 行 | ⬜ 未启动 | 与 S2 同批文件，一前一后 |
