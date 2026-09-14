@@ -255,8 +255,13 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 	// in MB raster order. Edges share one picture, so order matters.
 	for mby := 0; mby < mbH; mby++ {
 		for mbx := 0; mbx < mbW; mbx++ {
-			is8 := mby*mbW+mbx >= 0 && mby*mbW+mbx < len(mbT8) && mbT8[mby*mbW+mbx]
-			for _, vertical := range []bool{false, true} {
+			addr := mby*mbW + mbx
+			is8 := addr >= 0 && addr < len(mbT8) && mbT8[addr]
+			// NOTE: plain index loop, not `range []bool{...}` — the
+			// slice literal allocates per macroblock (5k+ allocs per
+			// 1536x864 frame straight into GC).
+			for vi := 0; vi < 2; vi++ {
+				vertical := vi == 1
 				for e := 0; e < 4; e++ {
 					// 8x8 transform skips internal 4x4 edges (1 and 3);
 					// MB edge (0) and 8x8 boundary (2) still filter.
@@ -295,6 +300,13 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 					}
 					qp := (qpAt(mbx, mby) + qpAt(qx, qy) + 1) >> 1
 					alpha, beta := filterAlphaBeta(qp, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
+					// Interior edges skip per-segment bounds checks (same
+					// results, no branches). Border edges keep the safe path.
+					inFast := edgeInterior(ex, ey, vertical, mbW, mbH) &&
+						mbIntra != nil && nnzY != nil && mvX != nil && mvY != nil &&
+						refIdx != nil && mbT8 != nil &&
+						(useM == nil || (mvX1 != nil && mvY1 != nil && refIdx1 != nil))
+					var bSedge [4]int
 					for seg := 0; seg < 4; seg++ {
 						var sx, sy int
 						if !vertical {
@@ -302,7 +314,13 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 						} else {
 							sx, sy = ex+seg*4, ey
 						}
-						bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+						var bS int
+						if inFast {
+							bS = interBSInterior(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+						} else {
+							bS = interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+						}
+						bSedge[seg] = bS
 						if bS == 0 {
 							continue
 						}
@@ -319,13 +337,10 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 						alphaCb, betaCb := filterAlphaBeta(qpcCb, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
 						alphaCr, betaCr := filterAlphaBeta(qpcCr, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
 						for seg := 0; seg < 4; seg++ {
-							var sx, sy int
-							if !vertical {
-								sx, sy = ex, ey+seg*4
-							} else {
-								sx, sy = ex+seg*4, ey
-							}
-							bS := interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+							// Chroma strength reuses the luma edge result:
+							// identical derivation inputs, so no second
+							// interBS call is needed.
+							bS := bSedge[seg]
 							if bS < 1 {
 								continue
 							}
@@ -472,6 +487,129 @@ func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refLi
 		}
 	}
 	return 0
+}
+
+// edgeInterior reports whether all four 16-pixel segments of an edge
+// stay clear of the picture border, so per-segment bounds checks can be
+// skipped. ex,ey is the edge origin in luma pixels; coded size is exact
+// multiples of 16 by construction. Horizontal edges filter rows ey..ey+15
+// starting at column ex-1 (p-side tap); vertical edges filter columns
+// ex..ex+15 starting at row ey-1 — the minus-one side is what the guard
+// covers.
+func edgeInterior(ex, ey int, vertical bool, mbW, mbH int) bool {
+	if vertical {
+		return ey >= 4 && ey+16 <= mbH*16 && ex >= 0 && ex+16 <= mbW*16
+	}
+	return ex >= 4 && ex+16 <= mbW*16 && ey >= 0 && ey+16 <= mbH*16
+}
+
+// interBSInterior is interBS for interior edges: identical results with
+// no bounds checks and no closures. Callers must check edgeInterior
+// first and pass full-length arrays.
+func interBSInterior(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) int {
+	var pBX, pBY, qBX, qBY int
+	if !vertical {
+		pBX, pBY = (sx-1)/4, sy/4
+		qBX, qBY = sx/4, sy/4
+	} else {
+		pBX, pBY = sx/4, (sy-1)/4
+		qBX, qBY = sx/4, sy/4
+	}
+	stride := mbW * 4
+	pMB := (pBY/4)*mbW + pBX/4
+	qMB := (qBY/4)*mbW + qBX/4
+	if mbIntra[pMB] || mbIntra[qMB] {
+		if edgeMB {
+			return 4
+		}
+		return 3
+	}
+	pi, qi := pBY*stride+pBX, qBY*stride+qBX
+	if t8count(nnzY, stride, mbT8, mbW, mbH, pBX, pBY, pMB) > 0 ||
+		t8count(nnzY, stride, mbT8, mbW, mbH, qBX, qBY, qMB) > 0 {
+		return 2
+	}
+	if useM != nil {
+		if bRefsDifferInterior(mvX, mvY, refIdx, mvX1, mvY1, refIdx1, pi, qi) {
+			return 1
+		}
+		return 0
+	}
+	if refList != nil {
+		// Same-picture-different-index compares EQUAL (reference
+		// reordering duplicates one picture at two indexes): compare
+		// pictures, not raw indexes — exactly like the safe path.
+		var pp, qq *Picture
+		if rp := refIdx[pi]; rp >= 0 && int(rp) < len(refList) {
+			pp = refList[rp]
+		}
+		if rq := refIdx[qi]; rq >= 0 && int(rq) < len(refList) {
+			qq = refList[rq]
+		}
+		if pp != qq {
+			return 1
+		}
+	} else if refIdx[pi] != refIdx[qi] {
+		return 1
+	}
+	dx := int(mvX[pi]) - int(mvX[qi])
+	if dx < 0 {
+		dx = -dx
+	}
+	dy := int(mvY[pi]) - int(mvY[qi])
+	if dy < 0 {
+		dy = -dy
+	}
+	if dx >= 4 || dy >= 4 {
+		return 1
+	}
+	return 0
+}
+
+// bRefsDifferInterior is bRefsDiffer for in-range indexes: no bounds
+// checks, no closures. Shape mirrors bRefsDiffer exactly, including the
+// cross-list mirror pairing.
+func bRefsDifferInterior(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []int8, pi, qi int) bool {
+	// NOTE: negative indexes are all "unavailable" (-1, -2 sentinels):
+	// normalize like the safe path's raw() instead of comparing raw.
+	neg1 := func(v int) int {
+		if v < 0 {
+			return -1
+		}
+		return v
+	}
+	r0p, r0q := neg1(int(refIdx[pi])), neg1(int(refIdx[qi]))
+	v := r0p != r0q
+	if !v && r0p != -1 {
+		v = ge4(mvX[pi], mvY[pi], mvX[qi], mvY[qi])
+	}
+	if !v {
+		r1p, r1q := neg1(int(refIdx1[pi])), neg1(int(refIdx1[qi]))
+		v = r1p != r1q
+		if !v && r1p != -1 {
+			v = ge4(mvX1[pi], mvY1[pi], mvX1[qi], mvY1[qi])
+		}
+		if v {
+			if r0p != r1q || r1p != r0q {
+				return true
+			}
+			return ge4(mvX[pi], mvY[pi], mvX1[qi], mvY1[qi]) ||
+				ge4(mvX1[pi], mvY1[pi], mvX[qi], mvY[qi])
+		}
+	}
+	return v
+}
+
+// ge4 reports quarter-pel motion differences of 1 luma sample or more.
+func ge4(ax, ay, bx, by int16) bool {
+	dx, dy := int(ax)-int(bx), int(ay)-int(by)
+	if dx < 0 {
+		dx = -dx
+	}
+	if dy < 0 {
+		dy = -dy
+	}
+	return dx >= 4 || dy >= 4
 }
 
 // bRefsDiffer compares one inter edge across both reference lists with

@@ -677,6 +677,24 @@ func (d *Decoder) reconstructInter(r *Reader, mbx, mby int, cbp uint32, predY *[
 }
 
 func (d *Decoder) reconstructInterWith(mbx, mby int, cbp uint32, predY *[256]uint8, predCb, predCr *[64]uint8, rs *residSrc) error {
+	// Fast path: zero residual means prediction IS the reconstruction
+	// (skip/direct blocks, the common case). Copy rows and mark all
+	// coefficients zero — no per-block inverse transform of all-zero
+	// input, no per-pixel clip.
+	if cbp == 0 {
+		stride := int(d.pic.Width)
+		base := mby*16*stride + mbx*16
+		for y := 0; y < 16; y++ {
+			copy(d.pic.Y[base+y*stride:base+y*stride+16], predY[y*16:(y+1)*16])
+		}
+		ystride := d.mbW * 4
+		for by := mby * 4; by < mby*4+4; by++ {
+			for bx := mbx * 4; bx < mbx*4+4; bx++ {
+				d.nnzY[by*ystride+bx] = 0
+			}
+		}
+		return d.reconstructChromaBlocks(mbx, mby, 0, predCb, predCr, rs, false)
+	}
 	stride := d.mbW * 4
 	wY := d.sc4[3]
 	for _, b := range [16]int{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15} {

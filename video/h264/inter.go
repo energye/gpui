@@ -513,6 +513,19 @@ func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16, out []uint8)
 		return
 	}
 	rw, rh := int(ref.Width), int(ref.Height)
+	// Fast path: integer-pel motion inside the frame is a plain row copy
+	// (no 6-tap filter, no per-pixel clipping). Static content — the
+	// common case for screen recordings — lands here for every block.
+	if int(mx)&3 == 0 && int(my)&3 == 0 {
+		sx := px + int(mx>>2)
+		sy := py + int(my>>2)
+		if sx >= 0 && sy >= 0 && sx+w <= rw && sy+h <= rh {
+			for dy := 0; dy < h; dy++ {
+				copy(out[dy*w:(dy+1)*w], ref.Y[(sy+dy)*rw+sx:(sy+dy)*rw+sx+w])
+			}
+			return
+		}
+	}
 	for dy := 0; dy < h; dy++ {
 		for dx := 0; dx < w; dx++ {
 			qx := (px+dx)*4 + int(mx)
@@ -531,6 +544,18 @@ func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16, out []uint8)
 // cw*ch). The chroma vector shares the luma integer (quarter units double
 // as eighth units).
 func predictChromaBlock(plane []uint8, w, h, px, py, cw, ch int, mx, my int16, out []uint8) {
+	// Fast path: eighth-pel-exact motion inside the frame is a plain row
+	// copy (bilinear weights collapse to the top-left tap).
+	if int(mx)&7 == 0 && int(my)&7 == 0 {
+		sx := px + int(mx>>3)
+		sy := py + int(my>>3)
+		if sx >= 0 && sy >= 0 && sx+cw <= w && sy+ch <= h {
+			for dy := 0; dy < ch; dy++ {
+				copy(out[dy*cw:(dy+1)*cw], plane[(sy+dy)*w+sx:(sy+dy)*w+sx+cw])
+			}
+			return
+		}
+	}
 	for dy := 0; dy < ch; dy++ {
 		for dx := 0; dx < cw; dx++ {
 			ex := (px+dx)*8 + int(mx)
