@@ -2,6 +2,7 @@ package color
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 )
@@ -235,21 +236,95 @@ func clip8(v int) uint8 {
 }
 
 // convert420Into is the yuv420p converter: each 2x2 luma quad shares one
-// chroma pair (nearest). The loop walks two luma pixels per chroma tap
-// with row slices, so the compiler drops per-pixel divisions and bounds
-// checks; output bits are unchanged (vectors pin them). Chroma location
-// offsets stay out of VR3; the gate clips are progressive with default
-// siting, and the difference is far below the per-channel tolerance.
+// chroma pair (nearest). Rows split across resident workers, each band
+// writes its own dst rows only; per-pixel math equals the single-thread
+// form, so output bits are unchanged (vectors pin them). Workers park
+// once at init and wake per frame, so steady frames pay no thread or
+// buffer setup cost. Chroma location offsets stay out of VR3; the gate
+// clips are progressive with default siting, and the difference is far
+// below the per-channel tolerance.
 func convert420Into(dst, y, cb, cr []byte, w, h int, opt Options) error {
 	m, err := resolveMatrix(opt)
 	if err != nil {
 		return err
 	}
 	t := tableFor(m, opt.FullRange)
+	k := convMax
+	if k > h {
+		k = h
+	}
+	if k <= 1 {
+		convertBand(dst, y, cb, cr, w, h, t, 0, h)
+		return nil
+	}
+	convMu.Lock()
+	defer convMu.Unlock()
+	base := h / k
+	extra := h % k
+	start := 0
+	for i := 0; i < k; i++ {
+		cnt := base
+		if i < extra {
+			cnt++
+		}
+		end := start + cnt
+		convJobChs[i] <- convertJob{dst: dst, y: y, cb: cb, cr: cr, w: w, h: h, ys: start, ye: end, t: t}
+		start = end
+	}
+	for i := 0; i < k; i++ {
+		<-convDone
+	}
+	return nil
+}
+
+// convertJob is one row band: full slices plus the rows to write.
+// Slices stay shared, workers only touch their own dst rows.
+type convertJob struct {
+	dst, y, cb, cr []byte
+	w, h, ys, ye   int
+	t              coeffs
+}
+
+var (
+	convMu     sync.Mutex
+	convJobChs []chan convertJob
+	convDone   chan struct{}
+	convMax    int
+)
+
+func init() {
+	n := runtime.NumCPU() + 1
+	if n < 1 {
+		n = 1
+	}
+	if n > 16 {
+		n = 16
+	}
+	convMax = n
+	convDone = make(chan struct{}, n)
+	convJobChs = make([]chan convertJob, n)
+	for i := 0; i < n; i++ {
+		ch := make(chan convertJob)
+		convJobChs[i] = ch
+		go convWorker(ch)
+	}
+}
+
+// convWorker parks until a band arrives, converts it, then signals done.
+func convWorker(ch chan convertJob) {
+	for job := range ch {
+		convertBand(job.dst, job.y, job.cb, job.cr, job.w, job.h, job.t, job.ys, job.ye)
+		convDone <- struct{}{}
+	}
+}
+
+// convertBand converts dst rows [ys,ye): same taps and rounding as the
+// old per-pixel form, (yMul*c +/- taps + 128) >> 8, factored per pair.
+func convertBand(dst, y, cb, cr []byte, w, h int, t coeffs, ys, ye int) {
 	yMul, yOff := t.yMul, t.yOff
 	rCr, gCb, gCr, bCb := t.rCr, t.gCb, t.gCr, t.bCb
 	cw := w / 2
-	for yy := 0; yy < h; yy++ {
+	for yy := ys; yy < ye; yy++ {
 		yRow := y[yy*w : (yy+1)*w]
 		dRow := dst[yy*w*4 : (yy+1)*w*4]
 		cBase := (yy >> 1) * cw
@@ -278,5 +353,4 @@ func convert420Into(dst, y, cb, cr []byte, w, h int, opt Options) error {
 			dRow[o+7] = 255
 		}
 	}
-	return nil
 }
