@@ -162,6 +162,10 @@ type Player struct {
 	path      string
 	samples   []mp4.Sample
 	keyframes []mp4.Keyframe
+	// sidx is the S8 streaming seek index (segment + binary search over
+	// the tables above, built once at open; nil on the buffered small-
+	// clip path whose tables stay on the old linear scans).
+	sidx      *seekIndex
 	avcc      *h264.AVCC
 	copt      color.Options
 	frameRate float64
@@ -412,6 +416,9 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	p.dec = dec
 	p.pos = 0
 	p.reorderDepth = depth
+	// S8: segment + binary index over the immutable tables (one O(n log n)
+	// build at open, O(log n) per seek; buffered clips never reach here).
+	p.sidx = buildSeekIndex(p.samples, p.keyframes)
 	p.base0 = base0
 	p.spanMs = span
 	p.dropUntil = -1
@@ -1409,15 +1416,19 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	return p.seekStream(keyPos, seekSpos, landed, delta, targetMs, key.PTSMs)
 }
 
-// seekPlan scans the immutable sample/keyframe tables for targetMs: the
-// covering sample's decode-order index, its stamp, the budget delta, the
-// landing keyframe and its decode-order index. Pure table math, no locks,
-// no IO — safe on any thread.
+// seekPlan resolves targetMs to the covering sample's decode-order index,
+// its stamp, the budget delta, and the landing keyframe. Streaming players
+// answer from the S8 index (segment + binary); the buffered small-clip
+// path keeps the old linear scans byte-identical. Pure table math, no
+// locks, no IO — safe on any thread.
 func (p *Player) seekPlan(targetMs int64) (seekSpos int, landed, delta int64, key mp4.Keyframe, keyPos int, err error) {
 	samples := p.samples
 	keyframes := p.keyframes
 	if len(keyframes) == 0 {
 		return 0, 0, 0, mp4.Keyframe{}, 0, fmt.Errorf("%w: no keyframes", ErrBadClip)
+	}
+	if p.sidx != nil {
+		return p.seekPlanIndexed(targetMs)
 	}
 	// Display-order landing: last sample with PTS <= target (floor
 	// covering), mirroring the old cached-frames behaviour. Samples are
@@ -1477,6 +1488,32 @@ func (p *Player) seekPlan(targetMs int64) (seekSpos int, landed, delta int64, ke
 		// Keyframe after target in decode order (B reorder): the target
 		// display frame needs a ref decoded later — fall back to landing
 		// on the keyframe's own display stamp via its sample.
+		seekSpos = keyPos
+		landed = samples[keyPos].PTSMs
+		delta = targetMs - landed
+		if delta < 0 {
+			delta = -delta
+		}
+	}
+	return seekSpos, landed, delta, key, keyPos, nil
+}
+
+// seekPlanIndexed is the S8 twin of the linear scan above: same contract
+// (floor covering + landing key + B-reorder fallback), answered from the
+// segment + binary index in O(log n) table steps.
+func (p *Player) seekPlanIndexed(targetMs int64) (seekSpos int, landed, delta int64, key mp4.Keyframe, keyPos int, err error) {
+	samples := p.samples
+	seekSpos, landed, _ = p.sidx.covering(targetMs)
+	key, _ = p.sidx.keyAtOrBefore(targetMs)
+	var ok bool
+	if keyPos, ok = keyDecodePos(samples, key); !ok {
+		return 0, 0, 0, mp4.Keyframe{}, 0, fmt.Errorf("%w: keyframe sample %d lost", ErrBadClip, key.SampleNumber)
+	}
+	delta = targetMs - landed
+	if delta < 0 {
+		delta = -delta
+	}
+	if keyPos > seekSpos {
 		seekSpos = keyPos
 		landed = samples[keyPos].PTSMs
 		delta = targetMs - landed
@@ -1615,34 +1652,37 @@ func (p *Player) seekKeyframe(next bool) (int64, error) {
 	}
 	p.mu.Unlock()
 	var key mp4.Keyframe
-	found := false
-	if next {
-		for _, k := range p.keyframes {
-			if k.PTSMs > ref && (!found || k.PTSMs < key.PTSMs) {
-				key, found = k, true
-			}
-		}
-		if !found {
-			key = p.keyframes[len(p.keyframes)-1]
+	if p.sidx != nil {
+		// S8: binary next/prev over the sorted keys.
+		if next {
+			key, _ = p.sidx.nextKey(ref)
+		} else {
+			key, _ = p.sidx.prevKey(ref)
 		}
 	} else {
-		for _, k := range p.keyframes {
-			if k.PTSMs < ref && (!found || k.PTSMs > key.PTSMs) {
-				key, found = k, true
+		found := false
+		if next {
+			for _, k := range p.keyframes {
+				if k.PTSMs > ref && (!found || k.PTSMs < key.PTSMs) {
+					key, found = k, true
+				}
+			}
+			if !found {
+				key = p.keyframes[len(p.keyframes)-1]
+			}
+		} else {
+			for _, k := range p.keyframes {
+				if k.PTSMs < ref && (!found || k.PTSMs > key.PTSMs) {
+					key, found = k, true
+				}
+			}
+			if !found {
+				key = p.keyframes[0]
 			}
 		}
-		if !found {
-			key = p.keyframes[0]
-		}
 	}
-	keyPos := -1
-	for i, s := range p.samples {
-		if s.Number == key.SampleNumber {
-			keyPos = i
-			break
-		}
-	}
-	if keyPos < 0 {
+	keyPos, ok := keyDecodePos(p.samples, key)
+	if !ok {
 		return 0, fmt.Errorf("%w: keyframe sample %d lost", ErrBadClip, key.SampleNumber)
 	}
 	if p.buffered {
