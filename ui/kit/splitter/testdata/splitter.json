@@ -1,0 +1,13 @@
+{
+  "source": "docs/antd/splitter.md §6.2 L2 基线（antd 6.5.1 默认算法 + 本库 Theme 默认，scale=1）",
+  "splitBarSize": 2,
+  "splitTriggerSize": 6,
+  "splitBarDraggableSize": 20,
+  "containerMain": 600,
+  "containerCross": 200,
+  "dragDelta": 40,
+  "nestedDelta": 20,
+  "minPx": 100,
+  "maxPx": 400,
+  "keyboardStepMin": 4
+}

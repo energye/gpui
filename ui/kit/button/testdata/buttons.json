@@ -1,0 +1,59 @@
+{
+  "source": "docs/antd/button.md §6.2 P0 baseline (antd v6.5.1 default theme, scale=1)",
+  "sizes": [
+    {"size": "small", "height": 24, "fontSize": 12, "paddingInline": 7, "radius": 4, "icon": 12, "gap": 4},
+    {"size": "middle", "height": 32, "fontSize": 14, "paddingInline": 15, "radius": 6, "icon": 16, "gap": 8},
+    {"size": "large", "height": 40, "fontSize": 16, "paddingInline": 15, "radius": 8, "icon": 16, "gap": 8}
+  ],
+  "borderWidth": 1,
+  "dash": [3, 2],
+  "focusRingOutset": 1.5,
+  "minTarget": 44,
+  "contrastFloor": 3.0,
+  "tolerance": {"maxDiff": 12, "badFrac": 0.005, "hardCap": 64},
+  "p0Examples": ["type", "size", "disabled", "loading", "icon", "iconPlacement", "multiple", "ghost", "danger", "block", "colorVariant"],
+  "p0Cases": ["BTN-01", "BTN-02", "BTN-03", "BTN-04", "BTN-05", "BTN-06", "BTN-07", "BTN-08", "BTN-09", "BTN-10", "BTN-11", "BTN-12", "BTN-13", "BTN-14", "BTN-15", "BTN-16", "BTN-17", "BTN-18", "BTN-19", "BTN-20", "BTN-23", "BTN-24"],
+  "colorMatrix": [
+    {"color": "primary", "variant": "solid"},
+    {"color": "primary", "variant": "outlined"},
+    {"color": "default", "variant": "solid"},
+    {"color": "default", "variant": "outlined"},
+    {"color": "danger", "variant": "solid"},
+    {"color": "danger", "variant": "outlined"}
+  ],
+  "darkTheme": {
+    "colorBgContainer": "#141414",
+    "colorText": [255, 255, 255, 0.85],
+    "colorBorder": "#424242",
+    "colorPrimary": "#1677ff"
+  },
+  "compactTheme": {
+    "controlHeight": 28,
+    "controlHeightSM": 22,
+    "controlHeightLG": 36,
+    "fontSize": 14
+  },
+  "presetColors": {
+    "blue": "#1677ff",
+    "purple": "#722ed1",
+    "cyan": "#13c2c2",
+    "green": "#52c41a",
+    "magenta": "#eb2f96",
+    "pink": "#f759ab",
+    "red": "#f5222d",
+    "orange": "#fa8c16",
+    "yellow": "#fadb14",
+    "volcano": "#fa541c",
+    "geekblue": "#2f54eb",
+    "lime": "#a0d911",
+    "gold": "#faad14"
+  },
+  "p1Cases": ["BTN-25", "BTN-26", "BTN-27"],
+  "p1": {
+    "autoInsertSample": "确定",
+    "autoInsertSpaced": "确 定",
+    "gradient": {"from": "#1677ff", "to": "#722ed1"},
+    "htmlTypes": ["button", "submit", "reset"],
+    "semanticNodes": ["root", "label", "icon"]
+  }
+}

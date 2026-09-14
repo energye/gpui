@@ -1,0 +1,11 @@
+{
+  "source": "docs/antd/skeleton.md §6.8 P0+P1 showcase (basic/complex/active/avatar/button/input/image/node/children/list/round/custom-widths/style-class/semantic)",
+  "canvasW": 880,
+  "margin": 20,
+  "gap": 16,
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

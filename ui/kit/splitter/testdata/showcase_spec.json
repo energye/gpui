@@ -1,0 +1,15 @@
+{
+  "source": "docs/antd/splitter.md §6.8 主路径 8 例 + P1 自定义/双击/语义 showcase（antd 6.5.1，scale=1）",
+  "canvasW": 880,
+  "margin": 12,
+  "gap": 12,
+  "rowH": 72,
+  "tallH": 140,
+  "customBar": "#52c41a",
+  "customHandle": "#722ed1",
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

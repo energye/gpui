@@ -1,0 +1,22 @@
+{
+  "source": "docs/antd/divider.md §6.2 L2 基线（antd 6.5.1 默认算法 + 本库 Theme 默认，scale=1）",
+  "marginBlock": {
+    "unset": 24,
+    "small": 8,
+    "medium": 16,
+    "large": 24,
+    "withTextUnset": 16
+  },
+  "lineWidth": 1,
+  "titleFontSize": {
+    "plain": 14,
+    "default": 16
+  },
+  "titlePaddingInlineEm": 1,
+  "orientationMarginRatio": 0.05,
+  "vertical": {
+    "heightFactor": 0.9,
+    "marginInline": 8,
+    "fontSize": 14
+  }
+}

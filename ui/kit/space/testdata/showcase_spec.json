@@ -1,0 +1,11 @@
+{
+  "source": "docs/antd/space.md §6.8 P0+P1 showcase (base/size/vertical/align/wrap/separator/compact/compact-buttons/vertical-compact/xy)",
+  "canvasW": 720,
+  "margin": 20,
+  "gap": 16,
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

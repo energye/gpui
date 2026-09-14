@@ -1,0 +1,11 @@
+{
+  "source": "docs/antd/divider.md §6.8 P0 showcase (horizontal/with-text/size/plain/vertical/variant)",
+  "canvasW": 640,
+  "margin": 20,
+  "gap": 14,
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

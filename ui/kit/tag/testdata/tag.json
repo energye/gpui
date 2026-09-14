@@ -1,0 +1,19 @@
+{
+  "source": "docs/antd/tag.md §6.2 P0 metrics + §6.5 palettes",
+  "fontSize": 12,
+  "radius": 4,
+  "padH": 7,
+  "padV": 1,
+  "contentH": 20,
+  "heightMin": 20,
+  "heightMax": 24,
+  "iconSizeMin": 10,
+  "iconSizeMax": 12,
+  "iconGap": 7,
+  "closeGap": 3,
+  "groupGap": 8,
+  "tolerance": 0.5,
+  "presets": ["blue", "purple", "cyan", "green", "magenta", "pink", "red", "orange", "yellow", "volcano", "geekblue", "lime", "gold"],
+  "statuses": ["success", "processing", "error", "warning"],
+  "variants": ["filled", "solid", "outlined"]
+}

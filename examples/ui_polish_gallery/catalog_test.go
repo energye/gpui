@@ -17,13 +17,13 @@ func TestCatalog_OverviewStandalone(t *testing.T) {
 }
 
 func TestCatalog_RegisterAndSelect(t *testing.T) {
-	Register(Page{Name: "button", Title: "Button", Doc: "docs/antd/button.md", Sections: []Section{{Title: "Type"}, {Title: "Size"}}})
-	defer delete(registry, "button")
-	if _, ok := Lookup("button"); !ok {
-		t.Fatal("button should register")
+	Register(Page{Name: "zz-tmp-test", Title: "Tmp", Doc: "docs/antd/button.md", Sections: []Section{{Title: "Type"}, {Title: "Size"}}})
+	defer delete(registry, "zz-tmp-test")
+	if _, ok := Lookup("zz-tmp-test"); !ok {
+		t.Fatal("tmp should register")
 	}
-	s := NewScene(1200, 800, "button")
-	if s.SelectedPage().Name != "button" {
+	s := NewScene(1200, 800, "zz-tmp-test")
+	if s.SelectedPage().Name != "zz-tmp-test" {
 		t.Fatalf("selected=%s", s.SelectedPage().Name)
 	}
 	if !s.Select("overview") || s.Selected != "overview" {

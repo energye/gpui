@@ -1,0 +1,11 @@
+{
+  "source": "docs/antd/progress.md §6.8 P0+P1 showcase (line/circle/dashboard + steps/gradient/linecap/percentPosition/success)",
+  "canvasW": 680,
+  "margin": 16,
+  "gap": 12,
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

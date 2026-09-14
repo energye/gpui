@@ -1,0 +1,11 @@
+{
+  "source": "docs/antd/alert.md §6 official 9 examples showcase (basic/four/filled/closable/description/icon/banner/loop/action)",
+  "canvasW": 880,
+  "margin": 12,
+  "gap": 12,
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

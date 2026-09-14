@@ -1,0 +1,13 @@
+{
+  "source": "docs/antd/space.md §6.2 P0 gaps + layout fixtures",
+  "gapSmall": 8,
+  "gapMiddle": 16,
+  "gapLarge": 24,
+  "childW": 60,
+  "childH": 32,
+  "shortH": 20,
+  "tallH": 40,
+  "narrowW": 120,
+  "narrowChildW": 80,
+  "tolerance": 0.5
+}

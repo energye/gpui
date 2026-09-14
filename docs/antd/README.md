@@ -163,25 +163,25 @@
 
 | 控件 | 状态 | 备注 |
 | --- | --- | --- |
-| Alert [alert.md](./alert.md) | 未开工 | — |
-| BorderBeam [border-beam.md](./border-beam.md) | 未开工 | 自有扩展 |
-| Button [button.md](./button.md) | 未开工 | — |
-| Divider [divider.md](./divider.md) | 未开工 | — |
-| Flex [flex.md](./flex.md) | 未开工 | — |
-| FloatButton [float-button.md](./float-button.md) | 未开工 | — |
-| Grid [grid.md](./grid.md) | 未开工 | — |
-| Layout [layout.md](./layout.md) | 未开工 | — |
-| Masonry [masonry.md](./masonry.md) | 未开工 | — |
-| Progress [progress.md](./progress.md) | 未开工 | — |
-| Skeleton [skeleton.md](./skeleton.md) | 未开工 | 先做（被复用） |
-| Space [space.md](./space.md) | 未开工 | — |
-| Spin [spin.md](./spin.md) | 未开工 | 先做（被复用） |
-| Splitter [splitter.md](./splitter.md) | 未开工 | — |
-| Statistic [statistic.md](./statistic.md) | 未开工 | — |
-| Tag [tag.md](./tag.md) | 未开工 | — |
-| Timeline [timeline.md](./timeline.md) | 未开工 | — |
-| Typography [typography.md](./typography.md) | 未开工 | — |
-| Watermark [watermark.md](./watermark.md) | 未开工 | — |
+| Alert [alert.md](./alert.md) | 首批完 | `ui/kit/alert` P0全合（ALT-01…19 + 画廊`alert`页） |
+| BorderBeam [border-beam.md](./border-beam.md) | 首批完 | `ui/kit/border-beam` P0全合（BB-01…15 + 画廊`border-beam`页，自有扩展） |
+| Button [button.md](./button.md) | 首批完 | `ui/kit/button` P0全合（BTN-01…20/23/24 + 画廊`button`页） |
+| Divider [divider.md](./divider.md) | 首批完 | `ui/kit/divider` P0全合（DIV-01…23 + 画廊`divider`页） |
+| Flex [flex.md](./flex.md) | 首批完 | `ui/kit/flex` P0全合（FLX-01…18 + 画廊`flex`页） |
+| FloatButton [float-button.md](./float-button.md) | 首批完 | `ui/kit/float-button` P0全合（FB-01…26 + 画廊`float-button`页） |
+| Grid [grid.md](./grid.md) | 首批完 | `ui/kit/grid` P0全合（GRD-01…19 + 画廊`grid`页） |
+| Layout [layout.md](./layout.md) | 首批完 | `ui/kit/layout` P0全合（LAY-01…21 + 画廊`layout`页） |
+| Masonry [masonry.md](./masonry.md) | 首批完 | `ui/kit/masonry` P0全合（MAS-01…16 + 画廊`masonry`页） |
+| Progress [progress.md](./progress.md) | 首批完 | `ui/kit/progress` P0全合（PRG-01…22 + 画廊`progress`页） |
+| Skeleton [skeleton.md](./skeleton.md) | 首批完 | `ui/kit/skeleton` P0全合（SKL-01…18 + 画廊`skeleton`页，先做已合） |
+| Space [space.md](./space.md) | 首批完 | `ui/kit/space` P0全合（SPC-01…21 + 画廊`space`页） |
+| Spin [spin.md](./spin.md) | 首批完 | `ui/kit/spin` P0全合（SPN-01…18 + 画廊`spin`页，先做已合） |
+| Splitter [splitter.md](./splitter.md) | 首批完 | `ui/kit/splitter` P0全合（SPL-01…21 + 画廊`splitter`页） |
+| Statistic [statistic.md](./statistic.md) | 首批完 | `ui/kit/statistic` P0全合（STA-01…16 + 画廊`statistic`页） |
+| Tag [tag.md](./tag.md) | 首批完 | `ui/kit/tag` P0全合（TAG-01…19 + 画廊`tag`页） |
+| Timeline [timeline.md](./timeline.md) | 首批完 | `ui/kit/timeline` P0全合（TL-01…17 + 画廊`timeline`页） |
+| Typography [typography.md](./typography.md) | 首批完 | `ui/kit/typography` P0全合（TYP-01…25 + 画廊`typography`页） |
+| Watermark [watermark.md](./watermark.md) | 首批完 | `ui/kit/watermark` P0全合（WM-01…14 + 画廊`watermark`页） |
 
 ### W2 组合件（20 个并行）
 

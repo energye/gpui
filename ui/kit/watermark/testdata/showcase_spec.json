@@ -1,0 +1,32 @@
+{
+  "source": "docs/antd/watermark.md §6.8 P0 showcase (basic/multi-line/image/custom/font/size/portal)",
+  "canvasW": 880,
+  "margin": 12,
+  "gap": 12,
+  "rowHeights": [120, 140, 120, 130, 130, 130, 140],
+  "fontRow": {
+    "content": "Font Style",
+    "fontSize": 18,
+    "color": [0.2, 0.2, 0.2, 1],
+    "weight": "bold",
+    "style": "italic",
+    "family": "sans-serif",
+    "align": "right",
+    "rotate": -22,
+    "gap": [60, 60]
+  },
+  "sizeRow": {
+    "content": "Sized Gap",
+    "width": 140,
+    "height": 40,
+    "gap": [40, 40],
+    "offset": [20, 20],
+    "rotate": -30,
+    "fontSize": 14
+  },
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

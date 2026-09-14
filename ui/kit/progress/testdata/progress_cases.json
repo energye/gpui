@@ -1,0 +1,20 @@
+{
+  "source": "docs/antd/progress.md §6.2 P0度量与Token",
+  "version": "6.5.1",
+  "lineHeightMedium": 8,
+  "lineHeightSmall": 6,
+  "circleEdgeMedium": 120,
+  "circleEdgeSmall": 60,
+  "infoGap": 8,
+  "lineFallbackWidth": 160,
+  "strokeWidthPct": 6,
+  "gapDegree": 75,
+  "lineInfoFontSize": 14,
+  "fillCases": [
+    {"percent": 0, "fillRatio": 0},
+    {"percent": 30, "fillRatio": 0.3},
+    {"percent": 50, "fillRatio": 0.5},
+    {"percent": 75, "fillRatio": 0.75},
+    {"percent": 100, "fillRatio": 1}
+  ]
+}

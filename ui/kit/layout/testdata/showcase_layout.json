@@ -1,0 +1,22 @@
+{
+  "source": "docs/antd/layout.md §6.8 P0 8 examples + nested double-sider showcase (basic/top/top-side/top-side-2/side/custom-trigger/overlay/responsive/nested)",
+  "canvasW": 720,
+  "margin": 16,
+  "gap": 18,
+  "heights": {
+    "basic": 220,
+    "top": 200,
+    "topSide": 220,
+    "topSide2": 220,
+    "side": 240,
+    "custom": 240,
+    "overlay": 180,
+    "responsive": 180,
+    "nested": 240
+  },
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

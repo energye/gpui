@@ -1,0 +1,10 @@
+{
+  "source": "docs/antd/border-beam.md §6.2 defaults (scale=1)",
+  "duration": 6,
+  "size": 100,
+  "lineWidth": 1,
+  "outset": 0,
+  "borderRadius": 6,
+  "fontSize": 14,
+  "maxStopPercent": 70
+}
