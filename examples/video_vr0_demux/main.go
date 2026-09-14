@@ -729,7 +729,12 @@ func goodMP4Bytes(path string) ([]byte, string) {
 
 func badMP4Bytes(good []byte) []byte {
 	if len(good) > 100 {
-		return append([]byte(nil), good[:len(good)-100]...)
+		// Smash the first box size so the shell dies at offset 0 no
+		// matter where moov lives: chopping the tail only wounds mdat
+		// on faststart files, which the streaming rule tolerates.
+		bad := append([]byte(nil), good...)
+		bad[0], bad[1], bad[2], bad[3] = 0xFF, 0xFF, 0xFF, 0xFF
+		return bad
 	}
 	return []byte("12345678junkjunkjunkjunk")
 }
