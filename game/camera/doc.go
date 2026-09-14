@@ -46,3 +46,25 @@ package camera
 // Finite-but-out-of-range inputs clamp (zero/negative zoom to MinZoom,
 // anchor to [0,1], viewport negatives to 0, smoothing to [0,1]);
 // NaN/Inf inputs are core InvalidArg errors and change nothing.
+
+// Layer is one parallax depth band (capability 1.3b, P1b).
+//
+// Frozen 2026-09-15: NewLayer, Shift, Screen, ScreenQuad. Additive
+// changes only.
+//
+// State: Factor follow ratio per axis (1 locks to the world, 0 pins to
+// the screen, 0.5 drifts at half speed), Offset extra shift in world
+// units, Mirror repeat period per axis (0 disables that axis). Only core
+// numbers are used; Screen feeds shifted positions into the 1.1
+// Projector, whose corners go to the existing trapezoid/triangle draws.
+//
+// Math:
+//
+//	shift = world + camera*(1-factor) + offset, wrapped per axis into
+//	[0, mirror) when that mirror component is set
+//	screen = Project(shift, depth)
+//
+// Factor 1 cancels the camera term (world-locked); factor 0 keeps it so
+// Screen subtracts it back out (screen-pinned). Negative mirror is a
+// core InvalidArg error, never a silent wrap. NaN/Inf inputs return
+// ok=false with zero outputs, never NaN and never a panic.
