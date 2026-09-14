@@ -49,6 +49,8 @@ func (c Color) Clamped() Color {
 }
 
 // ToBytes returns 8-bit straight-alpha channels (clamped, rounded).
+// render truncates instead, so edge values may differ by 1 by design;
+// float path ToRender carries the exact value across the boundary.
 func (c Color) ToBytes() (r, g, b, a uint8) {
 	c = c.Clamped()
 	return uint8(math.Round(c.R * 255)),

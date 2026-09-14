@@ -215,7 +215,8 @@ func (m Mat2D) TransformPoint(p Vec2) Vec2 {
 }
 
 // Invert returns the inverse matrix, or false for a singular matrix.
-// A singular matrix never silently becomes identity here.
+// Singular stays an error here; render.Matrix.Invert falls back to identity.
+// Exact det==0 keeps replay stable across machines.
 func (m Mat2D) Invert() (Mat2D, bool) {
 	det := m.A*m.E - m.B*m.D
 	if det == 0 {

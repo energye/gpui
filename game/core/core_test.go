@@ -633,6 +633,65 @@ func TestAssetManagerFromCases(t *testing.T) {
 	}
 }
 
+// Dual-ledger check: Manager count always equals the sum of live handle refs.
+func TestAssetLedgerConsistent(t *testing.T) {
+	var c struct {
+		IDs []string `json:"ids"`
+	}
+	loadCases(t, "asset_cases.json", &c)
+	if len(c.IDs) == 0 {
+		t.Fatal("asset_cases.json has no ids")
+	}
+	id := AssetID(c.IDs[0])
+	m := NewManager()
+	var live []*Handle
+	check := func(step string) {
+		t.Helper()
+		sum := 0
+		for _, h := range live {
+			sum += h.refs
+		}
+		if got := m.LiveCount(id); got != sum {
+			t.Fatalf("%s: manager=%d, handles sum=%d", step, got, sum)
+		}
+		if m.Loaded(id) != (sum > 0) {
+			t.Fatalf("%s: loaded=%v, sum=%d", step, m.Loaded(id), sum)
+		}
+	}
+	a, err := m.Acquire(id)
+	if err != nil {
+		t.Fatalf("acquire a: %v", err)
+	}
+	live = append(live, a)
+	check("acquire a")
+	b, err := m.Acquire(id)
+	if err != nil {
+		t.Fatalf("acquire b: %v", err)
+	}
+	live = append(live, b)
+	check("acquire b")
+	if !a.Ref() {
+		t.Fatal("a.Ref = false, want true")
+	}
+	check("a ref")
+	if err := a.Release(); err != nil {
+		t.Fatalf("a release: %v", err)
+	}
+	check("a release")
+	if err := a.Release(); err != nil {
+		t.Fatalf("a release2: %v", err)
+	}
+	check("a release2")
+	if err := a.Release(); err == nil {
+		t.Fatal("a over-release: want error")
+	}
+	check("a over-release")
+	if err := b.Release(); err != nil {
+		t.Fatalf("b release: %v", err)
+	}
+	check("b release")
+}
+
 // Error taxonomy: codes survive wrapping, foreign errors stay unknown.
 func TestResultCodes(t *testing.T) {
 	cases := []struct {

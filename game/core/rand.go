@@ -30,6 +30,8 @@ func (r *Rand) Uint64() uint64 {
 func (r *Rand) Int63() int64 { return int64(r.Uint64() >> 1) }
 
 // Int63n returns a value in [0, n). n <= 0 returns 0 (no panic).
+// Modulo bias is accepted by design: sequence is frozen for replay,
+// not for security or statistical use.
 func (r *Rand) Int63n(n int64) int64 {
 	if n <= 0 {
 		return 0

@@ -28,6 +28,8 @@ func (id AssetID) Validate() error {
 
 // Handle is a reference-counted claim on an asset. Ref and Release must
 // pair; releasing past zero is reported, never silent.
+// Handle.refs counts this handle's claims; Manager.counts sums all handles
+// for the same id. Ref/Release/Acquire update both sides together.
 type Handle struct {
 	m    *Manager
 	id   AssetID
