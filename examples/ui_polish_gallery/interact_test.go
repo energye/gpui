@@ -1,9 +1,11 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/energye/gpui/ui/kit/button"
+	"github.com/energye/gpui/ui/kit/tooltip"
 )
 
 // Gallery interaction backbone test: dispatch pointer through the scene
@@ -259,4 +261,78 @@ func TestInteract_TagToggle(t *testing.T) {
 		return
 	}
 	t.Fatal("no checkable tag handler")
+}
+
+// Tooltip click through dispatch: click-trigger tip opens on press.
+func TestInteract_TooltipClick(t *testing.T) {
+	s := NewScene(1200, 800, "tooltip")
+	s.Layout()
+	for _, n := range s.handlerOrder {
+		tr, ok := trackedByNode[n]
+		if !ok || tr == nil || tr.tip == nil {
+			continue
+		}
+		if !tr.tip.HasTrigger(tooltip.TriggerClick) {
+			continue
+		}
+		ox, oy := absOrigin(n)
+		sz := n.Size()
+		cx, cy := ox+sz.Width/2, oy+sz.Height/2
+		if _, ok := s.DispatchDown(cx, cy); !ok {
+			t.Fatal("tooltip click press not consumed")
+		}
+		if !tr.tip.IsOpen() {
+			t.Fatal("tooltip not open after click press")
+		}
+		// Tab-focus this tip so Escape routes to its handler, then close.
+		for i := 0; i < len(s.handlerOrder)+1; i++ {
+			s.DispatchKey("Tab")
+			if s.focusNode == n {
+				break
+			}
+		}
+		if s.focusNode != n {
+			t.Fatal("tooltip not focusable via Tab")
+		}
+		if _, ok := s.DispatchKey("Escape"); !ok {
+			t.Fatal("tooltip Escape not consumed")
+		}
+		if tr.tip.IsOpen() {
+			t.Fatal("tooltip still open after Escape")
+		}
+		return
+	}
+	t.Fatal("no click-trigger tooltip handler")
+}
+
+// Popover click through dispatch: click-trigger popover toggles.
+func TestInteract_PopoverClick(t *testing.T) {
+	s := NewScene(1200, 800, "popover")
+	s.Layout()
+	for _, n := range s.handlerOrder {
+		tr, ok := trackedByNode[n]
+		if !ok || tr == nil || tr.pop == nil {
+			continue
+		}
+		if !strings.HasPrefix(tr.label, "Click/") {
+			continue
+		}
+		ox, oy := absOrigin(n)
+		sz := n.Size()
+		cx, cy := ox+sz.Width/2, oy+sz.Height/2
+		if _, ok := s.DispatchDown(cx, cy); !ok {
+			t.Fatal("popover click press not consumed")
+		}
+		if !tr.pop.IsOpen() {
+			t.Fatal("popover not open after click press")
+		}
+		if _, ok := s.DispatchDown(cx, cy); !ok {
+			t.Fatal("popover second press not consumed")
+		}
+		if tr.pop.IsOpen() {
+			t.Fatal("popover still open after second press")
+		}
+		return
+	}
+	t.Fatal("no click-trigger popover handler")
 }

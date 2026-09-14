@@ -652,7 +652,7 @@ import { Select } from 'antd';
 
 实现 gpui kit 版 **Select** 的验收清单：
 
-1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
+1. **配置面**：覆盖 §6.8 P0+P1 字段；P1 必须实现且命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -676,8 +676,8 @@ import { Select } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Select** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Select** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/select/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -687,15 +687,15 @@ import { Select } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 受控输入/选择、弹层、清除、校验 status、尺寸档 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Select）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：下拉选择器。
 
@@ -847,19 +847,19 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | 搜索过滤（`filterOption` 函数 / `optionFilterProp` 多字段 / `filterSort` 排序） | **对等**（纯内存过滤） | P0 L1 |
 | 远程搜索（`select-users.tsx`：`filterOption=false` + `onSearch` 喂数 + `loading` + 防抖） | **映射**：kit 只管 `SetFilterOption(false)` + `SetOnSearch` + `SetOptions` 回填；真 HTTP 与防抖由业务层做 | P1 |
 | 级联（`coordinate.tsx`：省市双 Select） | **映射**：纯业务受控组合，无新 kit 能力；真级联走 Cascader | P1 页面 |
-| 大数据虚拟滚动（`big-data.tsx`，10 万项） | **分期**：`SetVirtual` + `SetListHeight`；`virtual=false` 关虚拟走全量 | P1 |
-| 自定义下拉壳（`popupRender`）/ tag（`tagRender`）/ 回显（`labelRender`） | **分期**：节点工厂，见 §6.8 | P1 |
+| 大数据虚拟滚动（`big-data.tsx`，10 万项） | **P1 必做**：`SetVirtual` + `SetListHeight`；`virtual=false` 关虚拟走全量 | P1 |
+| 自定义下拉壳（`popupRender`）/ tag（`tagRender`）/ 回显（`labelRender`） | **P1 必做**：节点工厂，见 §6.8 | P1 |
 | `getPopupContainer`（Modal 内挂载） | **映射**：kit 弹层一律 Portal 就地锚定触发器；挂 body/自定义容器不支持 | P1 |
-| `responsive` maxTagCount 按宽折叠 | **分期**（数字形态 P0） | P1 |
+| `responsive` maxTagCount 按宽折叠 | **P1 必做**（数字形态 P0） | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
-> 本版 P0 以单选+搜索为必保主路径（`mode=single` + `showSearch` + 过滤/排序/自定义选项），另收 `multiple` 基础、`tags` 创建、分组、前后缀常用件（共 11/27 例）；其余分词/联动/大数据等见 P1。7 个 debug 示例（filled-debug、placement-debug、debug、render-panel、option-label-center、debug-flip-shift、component-token）不计入 P0（口径与其它文件一致）。
+> 本版 P0 以单选+搜索为必保主路径（`mode=single` + `showSearch` + 过滤/排序/自定义选项），另收 `multiple` 基础、`tags` 创建、分组、前后缀常用件（共 11/27 例）；其余分词/联动/大数据等见 P1。7 个 debug 示例（filled-debug、placement-debug、debug、render-panel、option-label-center、debug-flip-shift、component-token）不验收（仅参考）（口径与其它文件一致）。
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -889,16 +889,16 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| semantic classNames/styles 深度 | P1 必做 |
+| 动画像素级 / 复杂虚拟列表 | P1 必做 |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| debug 示例 | 不验收（仅参考） |
 | 联动（`coordinate.tsx`） | P1 页面：省市双 Select 受控联动，纯业务组合，无新 kit 能力（受控 `value` 已覆盖） |
-| 获得选项的文本（`label-in-value.tsx`） | P1 页面：`labelInValue` 回填形态分期 |
+| 获得选项的文本（`label-in-value.tsx`） | P1 页面：`labelInValue` 回填形态 P1必做 |
 | 自动分词（`automatic-tokenization.tsx`） | P1：`tokenSeparators` 字符串分隔 |
 | 自定义分词（`custom-tokenization.tsx`，6.5.0） | P1：`tokenSeparators` 函数形态 |
 | 搜索用户（`select-users.tsx`） | P1：远程搜索模式（`filterOption=false` + `onSearch` 喂数 + `loading`），桌面无真 HTTP，见 §6.7 |
@@ -917,7 +917,7 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestSelect_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Select 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Select 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -949,8 +949,8 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | SEL-23 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | SEL-24 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
 | SEL-25 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| SEL-26 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| SEL-27 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| SEL-26 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| SEL-27 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | SEL-28 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -1055,15 +1055,15 @@ TriggerShell（高 32/24/40 ±0.5px，variant 壳；单列纵向，与 Cascader 
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Select 主路径 1:1 完成**：
+同时满足即可宣布 **Select 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/select.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/select.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Select 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Select 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

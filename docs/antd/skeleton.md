@@ -181,8 +181,8 @@ Skeleton 为装饰性占位，不可聚焦，无 disabled/loading 焦点态。
 ---
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Skeleton** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design 6.5 桌面主路径在行为与设计体系上对齐；不是浏览器 ant.design 逐像素哈希一致。  
+> 本章把 antd **Skeleton** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/skeleton/`。
 
 ### 6.1 对齐级别定义（Skeleton）
@@ -191,15 +191,15 @@ Skeleton 为装饰性占位，不可聚焦，无 disabled/loading 焦点态。
 | --- | --- | --- | --- |
 | **L1** | 行为 | loading 切换、active 动画、默认结构、子组件语义 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排同系 | 大改时签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Skeleton）：**
 
-- 浏览器 ant.design 逐像素哈希一致。
+- 浏览器 ant.design 官网截图相似（99.99%）一致。
 - 为抠图破坏 `hit == layout == paint`。
-- 浏览器-only 且桌面无等价映射的 API，放到 P1。
-- 官方 debug 示例不计入 P0。
+- 浏览器-only 且桌面无等价映射的 API，单测Skip写清平台原因。
+- 官方 debug 示例不验收（仅参考）。
 
 ### 6.2 度量与 Design Token（L2 基线）
 
@@ -285,11 +285,11 @@ active        -> shimmer / pulse（1.4s 扫光，不改变布局盒）
 | 浏览器-only API | 映射或不做 | P1 |
 | semantic classNames/styles **浅** 钩子（root/header/section/avatar/title/paragraph） | 对等 | P0 |
 | semantic classNames/styles **深度函数形态** | 先浅后深 | P1 |
-| debug 示例 / 逐像素哈希 | 不做 | - |
+| debug 示例 | 不做（仅参考） | - |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -305,15 +305,15 @@ active        -> shimmer / pulse（1.4s 扫光，不改变布局盒）
 | a11y §6.6 | 最低要求 |
 | §6.9 中 P0 用例 | 全部通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `title` / `paragraph` / `avatar` 完整对象形态（`width` 数组/百分比字符串、avatar size 数字） | 分期；P0 提供 `SetTitleWidth` / `SetParagraphWidths` / `SetAvatarSize` 主路径 |
-| semantic classNames/styles 深度函数形态（`styles(info)=>`） | 分期；P0 浅 struct 钩子 |
-| 动画像素级 shimmer / 复杂自定义节点装饰 | 分期；P0 Ticker 扫光可测 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| `title` / `paragraph` / `avatar` 完整对象形态（`width` 数组/百分比字符串、avatar size 数字） | P1 必做；P0+P1 提供 `SetTitleWidth` / `SetParagraphWidths` / `SetAvatarSize` 主路径 |
+| semantic classNames/styles 深度函数形态（`styles(info)=>`） | P1 必做；P0+P1 浅 struct 钩子 |
+| 动画像素级 shimmer / 复杂自定义节点装饰 | P1 必做；P0+P1 Ticker 扫光可测 |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| debug 示例 | 不验收（仅参考） |
 
 ### 6.9 验收用例表（可测）
 
@@ -341,7 +341,7 @@ active        -> shimmer / pulse（1.4s 扫光，不改变布局盒）
 | SKL-17 | L2 | 默认皮颜色 | 走 Theme Token |
 | SKL-18 | L2 | round 结构 | 条块圆润化 |
 | SKL-19 | L3 | 关键态 golden | 与仓库基线一致 |
-| SKL-20 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| SKL-20 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | SKL-21 | P1 | 任一 P1 能力 | 单独用例；Notes 标明 |
 
 ### 6.10 产品 API 契约（Go kit 侧）
@@ -411,15 +411,15 @@ SkeletonHost (RepaintBoundary)
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Skeleton 主路径 1:1 完成**：
+同时满足即可宣布 **Skeleton 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过。  
-4. L3 golden 至少覆盖 1 个关键可见态。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页增加或更新示例，覆盖 **§6.8 P0** 主路径。  
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/skeleton.md` §6；P1 显式列出。
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页增加或更新示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少）。  
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/skeleton.md` §6；P1 显式列出。
 
 ---
 
-**本章用法**：实现 `ui/kit` Skeleton 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Skeleton 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

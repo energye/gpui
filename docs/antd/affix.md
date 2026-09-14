@@ -158,7 +158,7 @@ import { Affix } from 'antd';
 2. **占位**：钉住时布局盒不跳变（AFX-S3）。
 3. **滚动宿主**：`SetScrollTarget` 接桌面滚动视口（AFX-S4）。
 4. **无尺寸/受控/数据驱动/浮层/虚拟列表**：N/A（Affix 只包一层 children）。
-5. **示例矩阵**：P0 按 §6.8 逐例对照表（3 例主路径），余下 P1 分期（`debug.tsx` #17678）。
+5. **示例矩阵**：P0 按 §6.8 逐例对照表（3 例主路径），余下仅 `debug.tsx` #17678，不验收。
 
 ---
 ## 5. 参考链接
@@ -171,8 +171,8 @@ import { Affix } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Affix** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Affix** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/affix/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -182,15 +182,15 @@ import { Affix } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 过 offsetTop 钉顶、回滚解除、offsetBottom 贴底、自定义 target 容器相对计算、占位盒不变 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Affix）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：将页面元素钉在可视范围。
 
@@ -285,14 +285,14 @@ Affix 本体为占位容器（`role=presentation`，无障碍树中透明）；�
 | `onChange(affixed)` | **对等**：`SetOnChange(func(bool))`，翻转恰调一次 | P0 L1 |
 | 滚动宿主 `getPopupContainer` 类透传 | 不适用（Affix 无浮层；宿主即 `target` 本身） | — |
 | 水平滚动容器 | **不支持，仅竖向**（FAQ #29108：水平请用原生 `position: sticky`） | — |
-| 真 `position: fixed` 出流 / 跨层 Portal 钉住 | P1 分期（P0 为 scroll 内 paint/hit 钉） | P1 |
+| 真 `position: fixed` 出流 / 跨层 Portal 钉住 | P1 P1 必做（P0+P1 为 scroll 内 paint/hit 钉） | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -306,28 +306,28 @@ Affix 本体为占位容器（`role=presentation`，无障碍树中透明）；�
 | a11y §6.6 | 根 presentation；焦点语义由 children 承担 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-**逐例 P0/P1 对照表**（§2.4 全量；P0=§6.8 主路径 3 例，余下 1 例 P1）：
+**逐例 P0/P1 对照表**（§2.4 全量；P0+P1=§6.8 非debug 3+1 例一次做完）：
 
-| 示例 | 裁剪 | 原因 |
+| 示例 | 范围 | 原因 |
 | --- | --- | --- |
 | 基本 / 固定状态改变的回调 / 滚动容器 | P0 | 钉顶+回调+自定义容器主路径 |
 | 调整浏览器大小观察容器（`debug.tsx`，debug #17678） | P1 | 调试页，不验收 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| ConfigProvider 全局 affix 默认 | 分期 |
-| 真 `position: fixed` 出流 / 跨层 Portal 钉住 | 分期（P0 为 scroll 内 paint/hit 钉） |
-| debug 示例与官网逐像素哈希 | 分期 |
+| semantic classNames/styles 深度 | P1 必做 |
+| 动画像素级 / 复杂虚拟列表 | P1 必做 |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| ConfigProvider 全局 affix 默认 | P1 必做 |
+| 真 `position: fixed` 出流 / 跨层 Portal 钉住 | P1 必做（P0 为 scroll 内 paint/hit 钉） |
+| debug 示例 | 不验收（仅参考） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestAffix_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Affix 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Affix 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -344,8 +344,8 @@ Affix 本体为占位容器（`role=presentation`，无障碍树中透明）；�
 | AFX-11 | L2 | 本体无皮无色标 | 不断言颜色 Token（N/A，验 children 自身 §6.2） |
 | AFX-12 | L2 | 无 disabled API | 本用例记 N/A（交互在 children） |
 | AFX-13 | L1 | 无根级键盘焦点 | 本用例记 N/A（焦点在 children，钉住前后顺序不变） |
-| AFX-14 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| AFX-15 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| AFX-14 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| AFX-15 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | AFX-16 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -402,15 +402,15 @@ affixHost (placeholder · TypeID kit.Affix · role=presentation)
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Affix 主路径 1:1 完成**：
+同时满足即可宣布 **Affix 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/affix.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/affix.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Affix 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Affix 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

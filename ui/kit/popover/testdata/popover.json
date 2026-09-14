@@ -1,0 +1,29 @@
+{
+  "source": "docs/antd/popover.md §6.2 L2 baseline (antd v6.5.1 default theme, scale=1)",
+  "fontSize": 14,
+  "innerPadding": 12,
+  "titleMinWidth": 177,
+  "titleMarginBottom": 8,
+  "gap": 8,
+  "arrowSize": 8,
+  "radiusLG": 8,
+  "lineWidth": 1,
+  "focusRingOutset": 1.5,
+  "minTarget": 44,
+  "contrastFloor": 3.0,
+  "tolerance": {"maxDiff": 12, "badFrac": 0.005, "hardCap": 64},
+  "canvasW": 920,
+  "margin": 16,
+  "gapCanvas": 16,
+  "p0Cases": ["POP-01", "POP-02", "POP-03", "POP-04", "POP-05", "POP-06", "POP-07", "POP-08", "POP-09", "POP-10", "POP-11", "POP-12", "POP-13", "POP-14", "POP-16", "POP-17", "POP-18", "POP-19"],
+  "darkTheme": {
+    "colorBgContainer": "#141414",
+    "colorText": [255, 255, 255, 0.85],
+    "colorBorder": "#424242",
+    "colorPrimary": "#1668dc"
+  },
+  "compactTheme": {
+    "controlHeight": 28,
+    "fontSize": 14
+  }
+}

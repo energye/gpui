@@ -188,7 +188,7 @@ import { Masonry } from 'antd';
 1. **配置面**：`items`（key/column/height/data/children）+ `columns`（固定/响应式）+ `gutter`（固定/`[水平,垂直]`/响应式）+ `itemRender`/`children` + `fresh` + `onLayoutChange`（§6.3）。
 2. **几何**：列宽=`(W+h)/n`、项宽=列宽−h、根高=`max(列高)−v`（§6.2，±0.5px）。
 3. **算法**：显式 column 钳制，否则最短列优先（§6.4 MAS-S1…S5）。
-4. **示例矩阵**：P0 按 §6.8（4 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
+4. **示例矩阵**：P0 按 §6.8（4 例）、余下 P1 一次做完；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -201,8 +201,8 @@ import { Masonry } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Masonry** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Masonry** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/masonry/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -212,15 +212,15 @@ import { Masonry } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 布局参数驱动子项几何正确 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Masonry）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 ### 6.2 度量与 Design Token（L2 基线）
 
 数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
@@ -319,11 +319,11 @@ gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
 | 动画/过渡特效 | **近似**或瞬时 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -341,28 +341,28 @@ gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | 自定义语义结构的样式和类 | semantic 深度（结构可挂载，见 MAS-11） |
-| semantic classNames/styles 深度（含 `_semantic.tsx` 语义节点口径） | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期（持续更新 `fresh.tsx` 为官方 debug 示例，不计 P0） |
+| semantic classNames/styles 深度（含 `_semantic.tsx` 语义节点口径） | P1 必做 |
+| 动画像素级 / 复杂虚拟列表 | P1 必做 |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| debug 示例 | 不验收（仅参考；`fresh.tsx` 为官方持续更新 debug 示例） |
 
-**6 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 4 例，余下 2 例 P1，其中持续更新为官方 debug 示例）：
+**6 例→P0/P1 范围对应表**（§2.4 全量；P0+P1=§6.8 非 debug 5 例一次做完，其中持续更新为官方 debug 示例，不验收）：
 
-| 示例 | 裁剪 | 原因 |
+| 示例 | 范围 | 原因 |
 | --- | --- | --- |
 | 基础用法/响应式/图片/动态更新 | P0 | 列分配+响应式+重排主路径，gallery 必备 |
 | 自定义语义结构的样式和类 | P1 | semantic 深度 |
-| 持续更新（`fresh.tsx`，debug） | P1 | 官方 debug 示例，不计 P0 |
+| 持续更新（`fresh.tsx`，debug） | 不验收 | 官方 debug 示例，仅参考 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestMasonry_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Masonry 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Masonry 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -376,15 +376,15 @@ gutter 响应式规则（对齐 `useBreakpoint` + `useGutter`，Row 语义）：
 | MAS-08 | L1 | 挂 `responsive.tsx`（视口 500→800） | 列数按断点切换，列宽符合公式±0.5px |
 | MAS-09 | L1 | 挂 `image.tsx`（不等高图） | 最短列优先，列高差>0 |
 | MAS-10 | L1 | 挂 `dynamic.tsx`（增 1 项） | 列归属更新不崩溃，`onLayoutChange` 触发 1 次 |
-| MAS-10b | — | 挂 `fresh.tsx`（子项改高，debug 不计） | 列高与根高跟随重算±0.5px（debug，仅分期参考） |
+| MAS-10b | — | 挂 `fresh.tsx`（子项改高，debug 不验收（仅参考）） | 列高与根高跟随重算±0.5px（debug，仅参考不验收） |
 | MAS-11 | P1 | 挂 `style-class.tsx`（语义结构覆盖） | 结构可挂载；class 字符串深度不测 |
-| MAS-12 | P1 | 复现 `_semantic.tsx` 语义节点（随 semantic 分期） | 语义钩子与文档一致；无控制台级错误 |
+| MAS-12 | P1 | 复现 `_semantic.tsx` 语义节点（随 semantic P1必做） | 语义钩子与文档一致；无控制台级错误 |
 | MAS-13 | L2 | 读取 §6.2 列宽/列高/gutter | 与表内公式一致（±0.5px） |
 | MAS-14 | L2 | 默认皮颜色 | 无自有颜色；子项走自身 Token；无硬编码品牌色 |
 | MAS-15 | L2 | disabled 外观 | **不适用**（纯布局无禁用态） |
 | MAS-16 | L1 | 键盘/焦点主路径 | **不适用**（容器不聚焦；可交互子项自理） |
-| MAS-17 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| MAS-18 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| MAS-17 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| MAS-18 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | MAS-19 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -451,15 +451,15 @@ Masonry root
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Masonry 主路径 1:1 完成**：
+同时满足即可宣布 **Masonry 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/masonry.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/masonry.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Masonry 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Masonry 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

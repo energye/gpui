@@ -29,6 +29,8 @@ import (
 	"github.com/energye/gpui/ui/kit/statistic"
 	"github.com/energye/gpui/ui/kit/tag"
 	"github.com/energye/gpui/ui/kit/timeline"
+	"github.com/energye/gpui/ui/kit/tooltip"
+	"github.com/energye/gpui/ui/kit/popover"
 	"github.com/energye/gpui/ui/kit/typography"
 	"github.com/energye/gpui/ui/kit/watermark"
 	"github.com/energye/gpui/ui/rendering"
@@ -606,6 +608,53 @@ func contentForPage(name string) []rendering.RenderObject {
 			mk("Image mark", nil),
 			mk("Custom", func(w *watermark.Watermark) { w.SetRotate(-15); w.SetFontSize(18) }),
 			mk("Modal", nil),
+		}
+	case "tooltip":
+		mkTip := func(title, trigger string, fn func(t *tooltip.Tooltip)) *tooltip.Tooltip {
+			t := tooltip.NewTooltip(title)
+			t.SetTriggerLabel(trigger)
+			t.SetTextFace(face14)
+			// Gallery is instant: no ticker drives delays in the window.
+			t.SetMouseEnterDelay(0)
+			t.SetMouseLeaveDelay(0)
+			if fn != nil {
+				fn(t)
+			}
+			t.Layout(loose)
+			track(t.Node(), &tracked{tip: t, label: trigger + "/" + title})
+			return t
+		}
+		return []rendering.RenderObject{
+			mkTip("prompt text", "Hover me", nil).Node(),
+			flexRow(mkTip("hover tip", "Hover", nil).Node(), mkTip("focus tip", "Focus", func(t *tooltip.Tooltip) { t.SetTrigger(tooltip.TriggerFocus) }).Node(), mkTip("click tip", "Click", func(t *tooltip.Tooltip) { t.SetTrigger(tooltip.TriggerClick) }).Node()),
+			flexRow(mkTip("tip top", "top", nil).Node(), mkTip("tip bottom", "bottom", func(t *tooltip.Tooltip) { t.SetPlacement(tooltip.Bottom) }).Node(), mkTip("tip left", "left", func(t *tooltip.Tooltip) { t.SetPlacement(tooltip.Left) }).Node(), mkTip("tip right", "right", func(t *tooltip.Tooltip) { t.SetPlacement(tooltip.Right) }).Node()),
+			flexRow(mkTip("arrow on", "Arrow", nil).Node(), mkTip("no arrow", "NoArrow", func(t *tooltip.Tooltip) { t.SetArrow(false) }).Node(), mkTip("center arrow", "Center", func(t *tooltip.Tooltip) { t.SetArrowConfig(true, true) }).Node()),
+			mkTip("edge tip", "Edge", func(t *tooltip.Tooltip) { t.SetAutoAdjustOverflow(true) }).Node(),
+			flexRow(mkTip("red tip", "red", func(t *tooltip.Tooltip) { t.SetColor("red") }).Node(), mkTip("green tip", "green", func(t *tooltip.Tooltip) { t.SetColor("green") }).Node(), mkTip("hex tip", "#ff5500", func(t *tooltip.Tooltip) { t.SetColor("#ff5500") }).Node()),
+			flexRow(mkTip("disabled tip", "Disabled", func(t *tooltip.Tooltip) { t.SetDisabled(true) }).Node(), mkTip("", "Empty title", nil).Node()),
+			mkTip("custom title node", "Custom", func(t *tooltip.Tooltip) { t.SetTriggerNode(box(60, 24, 0.3, 0.4, 0.8)) }).Node(),
+		}
+	case "popover":
+		mkPop := func(title, content, trigger string, fn func(p *popover.Popover)) *popover.Popover {
+			p := popover.NewPopover(trigger)
+			p.SetTitle(title)
+			p.SetContent(content)
+			p.SetTextFace(face14)
+			if fn != nil {
+				fn(p)
+			}
+			p.Layout(loose)
+			track(p.Node(), &tracked{pop: p, label: trigger + "/" + title})
+			return p
+		}
+		return []rendering.RenderObject{
+			mkPop("Title", "Content here", "Hover me", nil).Node(),
+			flexRow(mkPop("Hover title", "Hover content", "Hover", nil).Node(), mkPop("Focus title", "Focus content", "Focus", func(p *popover.Popover) { p.SetTrigger(popover.TriggerFocus) }).Node(), mkPop("Click title", "Click content", "Click", func(p *popover.Popover) { p.SetTrigger(popover.TriggerClick) }).Node()),
+			flexRow(mkPop("Top title", "Top content", "Top", nil).Node(), mkPop("Bottom title", "Bottom content", "Bottom", func(p *popover.Popover) { p.SetPlacement(popover.Bottom) }).Node(), mkPop("Left title", "Left content", "Left", func(p *popover.Popover) { p.SetPlacement(popover.Left) }).Node(), mkPop("Right title", "Right content", "Right", func(p *popover.Popover) { p.SetPlacement(popover.Right) }).Node()),
+			flexRow(mkPop("Arrow on", "Caret shown", "Arrow", nil).Node(), mkPop("Arrow off", "Caret hidden", "NoArrow", func(p *popover.Popover) { p.SetArrow(false) }).Node(), mkPop("Point center", "Arrow centered", "Center", func(p *popover.Popover) { p.SetArrowConfig(true, true) }).Node()),
+			mkPop("Shift title", "Flip near edge", "Shift", func(p *popover.Popover) { p.SetAutoAdjustOverflow(true) }).Node(),
+			mkPop("Control title", "Press inner close", "Control", func(p *popover.Popover) { p.SetOpen(true) }).Node(),
+			mkPop("Mixed title", "Hover plus click", "HoverClick", func(p *popover.Popover) { p.SetTriggerModes(popover.TriggerHover, popover.TriggerClick) }).Node(),
 		}
 	default:
 		return nil

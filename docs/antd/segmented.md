@@ -271,7 +271,7 @@ import { Segmented } from 'antd';
 
 实现 gpui kit 版 **Segmented** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 §6.8 P0 字段（value/defaultValue/onChange/options/disabled/size/block/orientation/shape/icon/LabelNode）；P1 可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0+P1 字段（value/defaultValue/onChange/options/disabled/size/block/orientation/shape/icon/LabelNode）；P1 必须实现且命名与官网一致。
 2. **视觉态**：track 底+选中浮起+hover/active 底（§6.5）；无 antd loading 态，不伪造。
 3. **尺寸态**：small / middle / large 三档外高 24/32/40（§6.2 trackPadding 2）。
 4. **受控/非受控**：value+onChange 与 defaultValue（首项回落）；同值复点不重复 onChange（SEG-S 系）。
@@ -293,8 +293,8 @@ import { Segmented } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Segmented** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Segmented** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/segmented/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -304,15 +304,15 @@ import { Segmented } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 点击/切换、禁用、键盘激活、受控值正确 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Segmented）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：用于展示多个选项并允许用户选择其中单个选项。
 
@@ -449,14 +449,14 @@ shape=round ──► 胶囊圆角
 | 点击/切换/禁用/键盘/受控主路径（§6.1 L1） | **对等** | P0 L1 |
 | 高 24/32/40 与 track/item 圆角/色 Token（§6.2） | **对等** | P0 L2 |
 | thumb 滑动/入场 | **瞬时**（尊重 reduced-motion） | P0 瞬时 / P1 像素 |
-| option.`tooltip` 完整形态 | kit 短提示回落；完整 TooltipProps **分期** | P0 回落 / P1 |
+| option.`tooltip` 完整形态 | kit 短提示回落；完整 TooltipProps **P1 必做** | P0 回落 / P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -476,22 +476,22 @@ shape=round ──► 胶囊圆角
 | a11y §6.6 | radiogroup/radio + 焦点 + 键盘 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | 其余示例（P1，逐例去向） | 三种大小（`size.tsx`，高 24/32/40 三档）、设置图标（`with-icon.tsx`，icon+label 混排）、只设置图标（`icon-only.tsx`，icon-only+`AriaLabel`）、配合 name 使用（`with-name.tsx`，`name` radio 组名）、自定义语义结构的样式和类（`style-class.tsx`，semantic 深度） |
 | `name`（radio 组名） | 配合 name 使用示例（`with-name.tsx`） |
-| option.`tooltip` 完整 TooltipProps | 分期（P0 仅 `Title` 短提示） |
-| semantic classNames/styles 深度 | 分期 |
-| thumb 滑动动画像素级 | 分期（P0 瞬时切换） |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期（`controlled-two/size-consistent/componentToken` 不验收） |
+| option.`tooltip` 完整 TooltipProps | P1 必做（P0 仅 `Title` 短提示） |
+| semantic classNames/styles 深度 | P1 必做 |
+| thumb 滑动动画像素级 | P1 必做（P0 瞬时切换） |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| debug 示例 | 不验收（仅参考：`controlled-two/size-consistent/componentToken`） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestSegmented_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Segmented 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Segmented 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -515,8 +515,8 @@ shape=round ──► 胶囊圆角
 | SEG-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | SEG-19 | L2 | disabled 整组/单项外观 | `colorDisabledText`；无 hover 高亮；不触发 onChange |
 | SEG-20 | L1 | 键盘：Tab 一次入组，←→/↑↓ 移动并选中，Enter/Space 激活 | 焦点项 ring 可见；同值复点不重复 onChange |
-| SEG-21 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| SEG-22 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| SEG-21 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| SEG-22 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | SEG-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -590,15 +590,15 @@ Decorated track (Root, role=radiogroup)
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Segmented 主路径 1:1 完成**：
+同时满足即可宣布 **Segmented 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/segmented.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/segmented.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Segmented 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Segmented 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

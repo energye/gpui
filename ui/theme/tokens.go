@@ -110,6 +110,45 @@ type Tokens struct {
 	ColorFillTertiary    Color
 	ColorFillQuaternary  Color
 
+	// Button-owned palette derivatives (antd 6.5.1 @ant-design/colors
+	// generate() values; verified 2026-09-14 against the published
+	// package: hover=palette[5], active=palette[7], bg=palette[1],
+	// bgHover=palette[2], border=palette[3]).
+	// Primary #1677ff -> hover #4096ff active #0958d9.
+	ColorPrimaryHover  Color
+	ColorPrimaryActive Color
+	ColorPrimaryBg     Color
+	ColorPrimaryBgHover Color
+	ColorPrimaryBorder Color
+	// Danger/error #ff4d4f -> hover #ff7875 active #d9363e.
+	ColorErrorHover  Color
+	ColorErrorActive Color
+	ColorErrorBg     Color
+	ColorErrorBgHover Color
+	ColorErrorBgFilledHover Color
+	ColorErrorBgActive Color
+	ColorErrorBorder Color
+	// Success #52c41a -> hover palette[4] #95de64 active #389e0d.
+	ColorSuccessHover  Color
+	ColorSuccessActive Color
+	ColorSuccessBg     Color
+	ColorSuccessBgHover Color
+	ColorSuccessBorder Color
+	// Warning #faad14 -> hover palette[4] #ffd666 active #d48806.
+	ColorWarningHover  Color
+	ColorWarningActive Color
+	ColorWarningBg     Color
+	ColorWarningBgHover Color
+	ColorWarningBorder Color
+	// Link #1677ff -> hover palette[4] #69b1ff active #0958d9.
+	ColorLinkHover  Color
+	ColorLinkActive Color
+	// Default solid black + disabled container.
+	ColorBgSolid       Color
+	ColorBgSolidHover  Color
+	ColorBgSolidActive Color
+	ColorBgContainerDisabled Color
+
 	// Type scale (base 14).
 	FontSizeXL   float64
 	LineHeight   float64
@@ -237,6 +276,35 @@ func DefaultTokens() Tokens {
 		ColorFillSecondary:   RGBA(0, 0, 0, 0.06),
 		ColorFillTertiary:    RGBA(0, 0, 0, 0.04),
 		ColorFillQuaternary:  RGBA(0, 0, 0, 0.02),
+
+		ColorPrimaryHover:   Hex("#4096ff"),
+		ColorPrimaryActive:  Hex("#0958d9"),
+		ColorPrimaryBg:      Hex("#e6f4ff"),
+		ColorPrimaryBgHover: Hex("#bae0ff"),
+		ColorPrimaryBorder:  Hex("#91caff"),
+		ColorErrorHover:     Hex("#ff7875"),
+		ColorErrorActive:    Hex("#d9363e"),
+		ColorErrorBg:        Hex("#fff2f0"),
+		ColorErrorBgHover:   Hex("#fff1f0"),
+		ColorErrorBgFilledHover: Hex("#ffdfdc"),
+		ColorErrorBgActive:  Hex("#ffccc7"),
+		ColorErrorBorder:    Hex("#ffa39e"),
+		ColorSuccessHover:   Hex("#95de64"),
+		ColorSuccessActive:  Hex("#389e0d"),
+		ColorSuccessBg:      Hex("#f6ffed"),
+		ColorSuccessBgHover: Hex("#d9f7be"),
+		ColorSuccessBorder:  Hex("#b7eb8f"),
+		ColorWarningHover:   Hex("#ffd666"),
+		ColorWarningActive:  Hex("#d48806"),
+		ColorWarningBg:      Hex("#fffbe6"),
+		ColorWarningBgHover: Hex("#fff1b8"),
+		ColorWarningBorder:  Hex("#ffe58f"),
+		ColorLinkHover:      Hex("#69b1ff"),
+		ColorLinkActive:     Hex("#0958d9"),
+		ColorBgSolid:        Hex("#000000"),
+		ColorBgSolidHover:   RGBA(0, 0, 0, 0.75),
+		ColorBgSolidActive:  RGBA(0, 0, 0, 0.95),
+		ColorBgContainerDisabled: RGBA(0, 0, 0, 0.04),
 
 		FontSizeXL:   20,
 		LineHeight:   1.5714285714285714,

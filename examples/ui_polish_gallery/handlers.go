@@ -12,8 +12,10 @@ import (
 	"github.com/energye/gpui/ui/kit/button"
 	floatbutton "github.com/energye/gpui/ui/kit/float-button"
 	"github.com/energye/gpui/ui/kit/layout"
+	"github.com/energye/gpui/ui/kit/popover"
 	"github.com/energye/gpui/ui/kit/splitter"
 	"github.com/energye/gpui/ui/kit/tag"
+	"github.com/energye/gpui/ui/kit/tooltip"
 	"github.com/energye/gpui/ui/kit/typography"
 	"github.com/energye/gpui/ui/rendering"
 )
@@ -30,6 +32,8 @@ type tracked struct {
 	typo  *typography.Typography
 	sider *layout.Sider
 	split *splitter.Splitter
+	tip   *tooltip.Tooltip
+	pop   *popover.Popover
 	label string
 }
 
@@ -264,6 +268,44 @@ func (s *Scene) registerNode(page string, node rendering.RenderObject) {
 				return false
 			},
 			Focusable: func() bool { return true },
+		})
+	case t.tip != nil:
+		tp := t.tip
+		s.registerHandler(&CompHandler{
+			Label: "tooltip/" + t.label,
+			Node:  node,
+			Move:  func(lx, ly float64) { tp.HoverEnter() },
+			Down: func(lx, ly float64) bool {
+				// Click path only fires with a click trigger; otherwise
+				// the press is a no-op (hover already opened it).
+				return tp.Click()
+			},
+			Up: func(lx, ly float64) bool { return false },
+			Key: func(key string) bool {
+				return tp.PressKey(key)
+			},
+			Focusable: func() bool { return tp.Focusable() },
+		})
+	case t.pop != nil:
+		pp := t.pop
+		s.registerHandler(&CompHandler{
+			Label: "popover/" + t.label,
+			Node:  node,
+			Move:  func(lx, ly float64) { pp.HoverEnter() },
+			Down: func(lx, ly float64) bool {
+				return pp.ClickTrigger()
+			},
+			Up: func(lx, ly float64) bool { return false },
+			Key: func(key string) bool {
+				if key == "Escape" || key == "Esc" {
+					return pp.Escape()
+				}
+				if key == "Enter" || key == "Space" {
+					return pp.ClickTrigger()
+				}
+				return false
+			},
+			Focusable: func() bool { return pp.Focusable() },
 		})
 	}
 	// Display-only components (progress/spin/skeleton/watermark/divider/

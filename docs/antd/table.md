@@ -19,9 +19,9 @@
 | 示例名 | 形态/状态要点（kit 验收） |
 | --- | --- |
 | 基本用法 | 姓名/年龄/住址三列 + 两行数据 + 右下分页 |
-| JSX 风格的 API | 长相基本用法，多列/列两个写法同（P0 只验） |
+| JSX 风格的 API | 长相基本用法，多列/列两个写法同（P0+P1 全验） |
 | 可选择 | 首列选择框 + 表头全选框，选中行高亮 |
-| 选择和操作 | 选择框 + 末列行操作（`action` 列，P0 只验） |
+| 选择和操作 | 选择框 + 末列行操作（`action` 列，P0+P1 全验） |
 | 自定义选择项 | 表头选择下拉：全选/反选/奇偶行等快捷项 |
 | 筛选和排序 | 姓名列筛选漏斗图标 + 年龄列排序箭头，点击出菜单/切排序态 |
 | 树型筛选菜单 | 筛选菜单为树形（住址多级勾选） |
@@ -845,7 +845,7 @@ import { Table } from 'antd';
 
 实现 gpui kit 版 **Table** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 §6.8 P0 字段（columns/dataSource/rowKey/pagination/loading/size/bordered/showHeader/title/footer/rowSelection/sorter/filters/expandable/scroll/rowHoverable）；P1 可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0+P1 字段（columns/dataSource/rowKey/pagination/loading/size/bordered/showHeader/title/footer/rowSelection/sorter/filters/expandable/scroll/rowHoverable）；P1 必须实现且命名与官网一致。
 2. **视觉态**：表头/行 hover（`rowHoverable`）/选中行/loading 遮罩/Empty（§6.4 TBL-S1–S12，§6.5）；无通用 disabled 整表态，不套模板。
 3. **尺寸态**：large / middle / small 三档 cell pad（§6.2：16×16 / 12×8 / 8×8）。
 4. **受控/非受控**：selected/expanded/filters/sorter 受控优先，未 Set 走内部态（§6.10）。
@@ -869,8 +869,8 @@ import { Table } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Table** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Table** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/table/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -880,15 +880,15 @@ import { Table } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 数据渲染与选择/展开/分页/加载主路径 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Table）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：展示行列数据。
 
@@ -1023,11 +1023,11 @@ mount ──► 渲染 columns × dataSource
 | 大表虚拟滚动（`virtual`） | **写实**：定高行+可视窗挂载，不承诺浏览器像素级复用 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 > 修正（2026-07-25）：原稿误抄 Button 模板字段 `type` / `placement`；按 antd Table 主路径 + §6.4 状态机 + 官方 P0 示例重写。
 
@@ -1042,9 +1042,9 @@ mount ──► 渲染 columns × dataSource
 | `title` / `footer` | 表格上下扩展区（string 或 Node） |
 | `rowSelection` | `type` checkbox\|radio、`selectedRowKeys` 受控、`onChange`、`getCheckboxProps`、`selections`（ALL/INVERT/NONE/自定义） |
 | `onChange` | `(pagination, filters, sorter, extra{action,currentDataSource})` |
-| 列 `sorter`（`function/boolean/{compare,multiple}`）/ `sortDirections` / `sortOrder` / `defaultSortOrder` / `showSorterTooltip`（`{target}`）/ `sortIcon` | P0 只验 `sorter`+`sortDirections`+`defaultSortOrder` 表头点击切换；`sortOrder` 受控、`showSorterTooltip`、`sortIcon` 随 P1 |
-| 列 `filters` / `onFilter` / `filtered` / `filteredValue` / `defaultFilteredValue` / `filterResetToDefaultFilteredValue` / `filterMode` / `filterSearch` / `filterIcon` / `filterMultiple` / `filterOnClose` / `filterDropdownProps` | P0 只验 `filters`+`onFilter`+`filterMode`+`filterSearch` 菜单/树+搜索确认；`filterDropdown` 自定义面板、`filteredValue` 受控等随 P1 |
-| 列 `fixed`（`true/start/end`）/ `width` / `minWidth`（`tableLayout=auto`）/ `ellipsis`（`tableLayout=fixed`）/ `align` / `responsive` / `hidden` / `colSpan` / `rowScope` / `onCell` / `onHeaderCell` / `render` / `title` / `dataIndex` / `key` / `shouldCellUpdate` / `onFilter` | P0 只验 `fixed/width/align/render/title/dataIndex/key`；`ellipsis/hidden/responsive` 等随 P1 |
+| 列 `sorter`（`function/boolean/{compare,multiple}`）/ `sortDirections` / `sortOrder` / `defaultSortOrder` / `showSorterTooltip`（`{target}`）/ `sortIcon` | P0+P1 全验 `sorter`+`sortDirections`+`defaultSortOrder` 表头点击切换；`sortOrder` 受控、`showSorterTooltip`、`sortIcon` 随 P1 一次做完 |
+| 列 `filters` / `onFilter` / `filtered` / `filteredValue` / `defaultFilteredValue` / `filterResetToDefaultFilteredValue` / `filterMode` / `filterSearch` / `filterIcon` / `filterMultiple` / `filterOnClose` / `filterDropdownProps` | P0+P1 全验 `filters`+`onFilter`+`filterMode`+`filterSearch` 菜单/树+搜索确认；`filterDropdown` 自定义面板、`filteredValue` 受控等随 P1 一次做完 |
+| 列 `fixed`（`true/start/end`）/ `width` / `minWidth`（`tableLayout=auto`）/ `ellipsis`（`tableLayout=fixed`）/ `align` / `responsive` / `hidden` / `colSpan` / `rowScope` / `onCell` / `onHeaderCell` / `render` / `title` / `dataIndex` / `key` / `shouldCellUpdate` / `onFilter` | P0+P1 全验 `fixed/width/align/render/title/dataIndex/key`；`ellipsis/hidden/responsive` 等随 P1 一次做完 |
 | `expandable` | `expandedRowRender` / `rowExpandable` / `expandedRowKeys` / `onExpand` |
 | `scroll` | `y` 表体滚动+表头固定；`x` 横滚 + `column.fixed` 左/右钉列 |
 | `rowHoverable` | 默认 true |
@@ -1054,20 +1054,20 @@ mount ──► 渲染 columns × dataSource
 | a11y §6.6 | 表格角色；排序/筛选控件有名 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | 其余示例（P1，逐例去向） | 多列排序（`multiple-sorter.tsx`，`sorter.{multiple}` 多列优先级）、可控的筛选和排序（`reset-filter.tsx`，`filteredValue/sortOrder` 全受控）、自定义筛选菜单（`custom-filter-panel.tsx`，`filterDropdown` 自定义面板）、远程加载数据（`ajax.tsx`，服务端分页/排序/筛选）、紧凑型（`size.tsx`，middle/small 档）、带边框（`bordered.tsx`，外边框+列边框）、可展开（`expand.tsx`，`expandedRowRender`）、特殊列排序（`order-column.tsx`，`Table.EXPAND_COLUMN/SELECTION_COLUMN` 列定位）、表格行/列合并（`colspan-rowspan.tsx`，`colSpan/rowSpan` 合并）、树形数据展示（`tree-data.tsx`，`childrenColumnName`）、固定表头（`fixed-header.tsx`，`scroll.y`）、自动高度（`auto-height.tsx`，容器自适应高）、固定列（`fixed-columns.tsx`，`fixed` 钉列）、堆叠固定列（`fixed-gapped-columns.tsx`，多钉列间隙）、固定头和列（`fixed-columns-header.tsx`，双向固定）、隐藏列（`hidden-columns.tsx`，`hidden`）、表头分组（`grouping-columns.tsx`，`ColumnGroup`）、可编辑单元格（`edit-cell.tsx`，`onCell` 编辑态）、可编辑行（`edit-row.tsx`，整行编辑）、嵌套子表格（`nested-table.tsx`，表内嵌表）、拖拽排序（`drag-sorting.tsx`，行拖拽）、列拖拽排序（`drag-column-sorting.tsx`，列拖拽）、拖拽手柄列（`drag-sorting-handler.tsx`，手柄列）、单元格自动省略（`ellipsis.tsx`，`ellipsis`）、统一列配置（`column-defaults.tsx`，`column` 统一配置）、自定义单元格省略提示（`ellipsis-custom-tooltip.tsx`，省略+Tooltip）、自定义空状态（`custom-empty.tsx`，`locale.emptyText`）、总结栏（`summary.tsx`，`summary`）、虚拟列表（`virtual-list.tsx`，大表虚拟滚动写实，万行只挂载可视窗）、响应式（`responsive.tsx`，`responsive` 断点）、分页设置（`pagination.tsx`，`pagination.placement`）、随页面滚动的固定表头和滚动条（`sticky.tsx`，`sticky`）、动态控制表格属性（`dynamic-settings.tsx`，属性面板）、自定义语义结构的样式和类（`style-class.tsx`，semantic 深度） |
-| sticky 复杂 / 虚拟滚动像素级 | 分期 |
-| semantic classNames/styles 深度 | 分期 |
-| ConfigProvider 全局默认 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期（`row-selection-debug/narrow/expand-sticky/tree-table-ellipsis/tree-table-preserveSelectedRowKeys/nest-table-border-debug/nested-table-in-tabs-debug/row-selection-custom-debug/selections-debug/component-token/measure-row-render` 不验收） |
+| sticky 复杂 / 虚拟滚动像素级 | P1 必做 |
+| semantic classNames/styles 深度 | P1 必做 |
+| ConfigProvider 全局默认 | P1 必做 |
+| debug 示例 | 不验收（仅参考；`row-selection-debug/narrow/expand-sticky/tree-table-ellipsis/tree-table-preserveSelectedRowKeys/nest-table-border-debug/nested-table-in-tabs-debug/row-selection-custom-debug/selections-debug/component-token/measure-row-render` 不验收） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestTable_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Table 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Table 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -1096,8 +1096,8 @@ mount ──► 渲染 columns × dataSource
 | TBL-23 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | TBL-24 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
 | TBL-25 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| TBL-26 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| TBL-27 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| TBL-26 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| TBL-27 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | TBL-28 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -1164,15 +1164,15 @@ Data view
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Table 主路径 1:1 完成**：
+同时满足即可宣布 **Table 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/table.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/table.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Table 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Table 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

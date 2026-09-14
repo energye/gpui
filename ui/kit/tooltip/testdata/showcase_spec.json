@@ -1,0 +1,11 @@
+{
+  "source": "docs/antd/tooltip.md §6.8 P0 showcase (basic/trigger/placement/arrow/shift/colorful/disabled/custom)",
+  "canvasW": 960,
+  "margin": 16,
+  "gap": 16,
+  "tolerance": {
+    "maxDiff": 12,
+    "badFrac": 0.005,
+    "hardCap": 64
+  }
+}

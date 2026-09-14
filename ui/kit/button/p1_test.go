@@ -225,7 +225,11 @@ func TestButton_P1_PresetColors(t *testing.T) {
 			t.Fatalf("%s solid fill transparent", name)
 		}
 		if prev, dup := seen[f]; dup {
-			t.Fatalf("%s fill duplicates %s (%+v)", name, prev, f)
+			// Pink is the deprecated alias of magenta (presetPrimaryColors
+			// pink = magenta): duplicate fill is official, not a bug.
+			if !((name == "pink" && prev == "magenta") || (name == "magenta" && prev == "pink")) {
+				t.Fatalf("%s fill duplicates %s (%+v)", name, prev, f)
+			}
 		}
 		seen[f] = name
 		// Outlined preset tints the border too.

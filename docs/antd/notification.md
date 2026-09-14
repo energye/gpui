@@ -437,7 +437,7 @@ import { Notification } from 'antd';
 
 实现 gpui kit 版 **Notification** 的验收清单：
 
-1. **配置面**：覆盖 §6.8 P0 字段（与 §6.8 打架以 §6.8 为准）；P1 可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0+P1 字段（与 §6.8 打架以 §6.8 为准）；P1 必须实现且命名与官网一致。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -447,7 +447,7 @@ import { Notification } from 'antd';
 8. **浮层**：z-index、挂载容器、遮挡、滚动。
 9. **性能**：虚拟列表、防抖、减少重绘。
 10. **主题**：Token 化；支持 reduced-motion。
-11. **示例矩阵**：§6.8 P0 示例均需可复现（官方非 debug 主路径）。
+11. **示例矩阵**：§6.8 P0+P1 示例均需可复现（官方非 debug 一个不少）。
 12. **弹层专项**：autoAdjustOverflow、点击外部关闭、destroyOnHidden。
 
 ---
@@ -461,8 +461,8 @@ import { Notification } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Notification** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Notification** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/notification/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -472,15 +472,15 @@ import { Notification } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 展示/自动关闭/堆叠/类型语义 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Notification）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：全局展示通知提醒信息。
 
@@ -599,16 +599,16 @@ actions 点击 ──► 业务回调；手动 close ──► onClose
 | 堆叠上限（`maxCount` 超限丢最旧；`stack.threshold` 默认 3 超量折叠） | **对等**：队列写实 | P0 L1 |
 | `actions` 按钮组 + `onClick`/`onClose` + `closable` | **对等** | P0 L1 |
 | 尺寸/色 Token（宽 384、内边距 20×24、圆角 8、图标 24） | **对等** | P0 L2 |
-| `showProgress` 进度条/`pauseOnHover` 精确计时 | **分期** | P1 |
+| `showProgress` 进度条/`pauseOnHover` 精确计时 | **P1 必做** | P1 |
 | 静态方法全局单例 | **映射**：`useNotification`/App holder 为 P0 | P1 |
 | Semantic classNames/styles 深度 | kit 语义钩子 | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
 > 前置（增量规格，另起文档）：6 方位独立堆叠池 placement 引擎（每方位独立队列与偏移）与 `role=status` 非打断语义；P0 先验 topRight（默认）与 bottomLeft 两点主路径（NTF-02 / NTF-03），全引擎后补。
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -628,7 +628,7 @@ actions 点击 ──► 业务回调；手动 close ──► onClose
 | a11y §6.6 | role=`alert`（可 `status`）；轻提示不抢焦点；关闭可操作 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -636,14 +636,14 @@ actions 点击 ──► 业务回调；手动 close ──► onClose
 | `pauseOnHover` 精确计时 | 悬停暂停 |
 | 静态方法全局单例 | `notification.success` 静态路径（不推荐） |
 | semantic classNames/styles 深度 | 自定义语义结构样式 |
-| 动画像素级 / 复杂虚拟列表 stack 阴影 | 分期 |
-| 浏览器-only API（getContainer/prefixCls/RTL） | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| 动画像素级 / 复杂虚拟列表 stack 阴影 | P1 必做 |
+| 浏览器-only API（getContainer/prefixCls/RTL） | P1 必做 |
+| debug 示例 | 不验收（仅参考） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestNotification_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Notification 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Notification 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -666,8 +666,8 @@ actions 点击 ──► 业务回调；手动 close ──► onClose
 | NTF-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
 | NTF-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
 | NTF-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| NTF-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| NTF-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| NTF-20 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| NTF-21 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | NTF-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -734,15 +734,15 @@ NotificationHolder（四角六方位独立堆叠池；与 Message 顶栏单队�
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Notification 主路径 1:1 完成**：
+同时满足即可宣布 **Notification 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/notification.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/notification.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Notification 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Notification 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

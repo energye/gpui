@@ -311,8 +311,9 @@ func TestButton_Showcase_MainPaths(t *testing.T) {
 	defer dc.Close()
 	dc.BeginFrame()
 	dc.ClearWithColor(render.White)
-	// Ghost dark strip (complex backdrop stand-in).
-	dc.SetRGBA(0.12, 0.13, 0.16, 1)
+	// Ghost backdrop matches official demo wrapper (.site-button-ghost-wrapper
+	// background rgb(190,200,200) = #bec8c8).
+	dc.SetRGBA(190.0/255.0, 200.0/255.0, 200.0/255.0, 1)
 	dc.DrawRectangle(ghostBg.x, ghostBg.y, ghostBg.w, ghostBg.h)
 	_ = dc.Fill()
 	for _, it := range items {

@@ -179,7 +179,7 @@ import { Flex } from 'antd';
 
 1. **配置面**：`vertical`/`orientation`、`gap`、`justify`、`align`、`wrap`（最小排布语义，见 §6.3–§6.4）。
 2. **几何**：无颜色、无交互态，只验子项位置与间隙（§6.2 gap 8/16/24，§6.9 FLX-02…09）。
-3. **示例矩阵**：P0 按 §6.8（5 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
+3. **示例矩阵**：P0 按 §6.8（5 例）、余下 P1 一次做完；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -194,8 +194,8 @@ import { Flex } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Flex** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Flex** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/flex/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -205,15 +205,15 @@ import { Flex } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 布局参数驱动子项几何正确 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Flex）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：用于对齐的弹性布局容器。
 
@@ -300,15 +300,15 @@ direction/gap/justify/align/wrap 布局 children
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 间隙度量（§6.2 gap 8/16/24） | **对等** | P0 L2 |
 | `justify`/`align`/`wrap` 排布语义 | **对等** | P0 L1 |
-| `flex` CSS 简写（容器作 item） | P1 分期 | P1 |
+| `flex` CSS 简写（容器作 item） | P1 必做 | P1 |
 | `component` 自定义元素类型 | 浏览器-only，P1 不做 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -322,21 +322,21 @@ direction/gap/justify/align/wrap 布局 children
 | a11y §6.6 | 布局容器最低：可选 `AriaLabel`；无装饰分隔/把手 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `flex` CSS 简写（容器作 flex item） | 分期；item 侧用 `primitive.Flexible` |
+| `flex` CSS 简写（容器作 flex item） | P1必做；item 侧用 `primitive.Flexible` |
 | `component` 自定义元素类型 | 浏览器-only |
-| `wrap-reverse` 等非 bool wrap | 分期 |
-| semantic classNames/styles 深度 | 分期 |
-| ConfigProvider 全局 `flex` 默认 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| `wrap-reverse` 等非 bool wrap | P1 必做 |
+| semantic classNames/styles 深度 | P1 必做 |
+| ConfigProvider 全局 `flex` 默认 | P1 必做 |
+| 动画像素级 / 复杂虚拟列表 | P1 必做 |
+| debug 示例 | 不验收（仅参考） |
 
-**6 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 5 例全收，1 例 debug 不计）：
+**6 例→P0/P1 范围对应表**（§2.4 全量；P0=§6.8 主路径 5 例全收，1 例 debug 不验收（仅参考））：
 
-| 示例 | 裁剪 | 原因 |
+| 示例 | 范围 | 原因 |
 | --- | --- | --- |
 | 基本布局/对齐方式/设置间隙/自动换行/组合使用 | P0 | 方向+对齐+间隙+换行主路径，gallery 必备 |
 | 调试专用 | 不计 | 文件名含 debug 的内部用例 |
@@ -344,7 +344,7 @@ direction/gap/justify/align/wrap 布局 children
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestFlex_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Flex 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Flex 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -366,8 +366,8 @@ direction/gap/justify/align/wrap 布局 children
 | FLX-16 | L2 | 默认皮颜色 | 无自有颜色；无硬编码品牌色 |
 | FLX-17 | L2 | disabled 外观 | **不适用**（纯布局无禁用态） |
 | FLX-18 | L1 | 键盘/焦点主路径 | **不适用**（容器不聚焦；子项自理） |
-| FLX-19 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| FLX-20 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| FLX-19 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| FLX-20 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | FLX-21 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -417,15 +417,15 @@ Flex root（Row/Column，gap=ResolvedGap）
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Flex 主路径 1:1 完成**：
+同时满足即可宣布 **Flex 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/flex.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/flex.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Flex 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Flex 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

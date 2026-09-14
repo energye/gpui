@@ -419,14 +419,14 @@ import { Button } from 'antd';
 
 实现 / 重写 gpui kit **Button** 时，除下列通用项外，**必须以 §6 为 1:1 产品验收依据**。
 
-1. **配置面**：覆盖 §6.8 P0 字段；P1 可分期但命名预留。
+1. **配置面**：覆盖 §6.8 P0+P1 字段；P1 必须实现且命名预留。
 2. **视觉态**：default / hover / active / focus / disabled / loading（§6.4）。
 3. **尺寸态**：small / medium / large（§6.2）。
 4. **主题**：度量与颜色一律走 Theme Token（§6.2、§6.5）；禁止硬编码品牌色当唯一默认。
 5. **无障碍**：可聚焦、Space/Enter 激活、读屏名 = label（§6.6）。
 6. **RTL**：`iconPlacement` start/end 随写作方向镜像。
 7. **动效**：波纹/旋转在 reduced-motion 下可关（§6.7）。
-8. **示例矩阵**：P0 按 §6.8（11 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准，§6.9 用例全部可勾选。
+8. **示例矩阵**：P0 按 §6.8（11 例）、余下 P1 一次做完；与 §4 例数打架以 §6.8 为准，§6.9 用例全部可勾选。
 9. **纪律**：Default + Set + rebuild；禁止魔法 offset；实现须落在架构 [`ENGINE_FLUTTER_SKIA_ARCH.md`](../ENGINE_FLUTTER_SKIA_ARCH.md) 的 RenderObject / Layer 契约上（P7 及以后）。
 10. **对齐级别**：以本节 **§6.1 L1–L4** 定义为准。
 
@@ -446,8 +446,8 @@ import { Button } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd 文档补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd 文档补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > 本章为 **全库控件 1:1 增量规格的样板**（最细）。其它控件已按同级结构补齐 §6；实现时以各控件自己的 §6 为验收，复杂处可回看本章。
 
 ### 6.1 对齐级别定义（Button）
@@ -456,12 +456,12 @@ import { Button } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 点击、禁用、loading 吞事件、键盘激活、type/color/variant 语义切换正确 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 高度、字号、圆角、水平 padding、主色/边框/禁用色读 Theme，与下表基线一致 | `ant_style_test` + 读 Token 断言 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态（如 primary middle）截图与仓库基线一致（允许 AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design Button 并排「一眼同系」 | 建/大改基线时人眼签字，非 CI 绑官网 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Button）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 依赖 CSS 的复杂渐变波纹算法 100% 复刻（可用等价反馈，见 §6.7）。  
 - 原生 HTML `submit`/`reset` 表单语义以外的浏览器默认行为。
 
@@ -589,14 +589,14 @@ import { Button } from 'antd';
 | `htmlType` submit/reset | **近似**：由上层 Form 解释，Button 抛事件即可 | P1 |
 | 点击波纹 wave | **近似**或 P1 不做 | P1 |
 | 渐变预设 | **Style 覆盖**，非必做 API | P1 |
-| PresetColors 全色板 | **分期** | P1 |
-| `loading.delay` / 自定义 loading 图标 | **分期** | P1 |
+| PresetColors 全色板 | **P1 必做** | P1 |
+| `loading.delay` / 自定义 loading 图标 | **P1 必做** | P1 |
 | Semantic `classNames`/`styles` | 映射为 kit 语义样式钩子 / `Style` | P1 |
 | ConfigProvider 全局 button 默认 | 随 ConfigProvider 能力 | P1 |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -612,7 +612,7 @@ import { Button } from 'antd';
 | a11y | §6.6 |
 | 示例 | 语法糖、尺寸、禁用、loading、图标、图标位置、多个按钮组合（`multiple.tsx` 横向间距排布）、幽灵、危险、Block、颜色与变体（主路径） |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -625,14 +625,14 @@ import { Button } from 'antd';
 | ConfigProvider 全局 button 默认 | autoInsertSpace、默认 variant 等 |
 | success/warning 等扩展 color | 若 Theme 支持可提前 |
 
-**22 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 11 例，余下 5 例 P1，6 例 debug 不计）：
+**22 例→P0/P1 范围对应表**（§2.4 全量；P0+P1=§6.8 非debug 11+5 例一次做完，6 例 debug 不验收（仅参考））：
 
-| 示例 | 裁剪 | 原因 |
+| 示例 | 范围 | 原因 |
 | --- | --- | --- |
 | 语法糖/尺寸/禁用/loading/图标/图标位置/多个按钮组合/幽灵/危险/Block/颜色与变体 | P0 | 主路径行为 + gallery 必备 |
 | 渐变按钮 | P1 | 渐变内置 API（P0 允许 Style 覆盖） |
-| 自定义按钮波纹 | P1 | wave 动效分期 |
-| 移除两个汉字之间的空格 | P1 | `autoInsertSpace` 分期 |
+| 自定义按钮波纹 | P1 | wave 动效 P1必做 |
+| 移除两个汉字之间的空格 | P1 | `autoInsertSpace` P1必做 |
 | 自定义禁用样式背景 | P1 | 禁用样式覆盖深度 |
 | 自定义语义结构的样式和类 | P1 | semantic 深度 |
 | debug-color-variant/debug-icon/debug-block/legacy-group/chinese-chars-loading/component-token | 不计 | 内部调试/废弃/Token 预览 |
@@ -640,7 +640,7 @@ import { Button } from 'antd';
 ### 6.9 验收用例表（可测）
 
 > 每个用例对应测试名建议：`TestButton_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 全部通过** 才可宣称 Button 完成 1:1 主路径。
+> **P0+P1 全部通过** 才可宣称 Button 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -664,8 +664,8 @@ import { Button } from 'antd';
 | BTN-18 | L1 | icon + label，placement end | 图标在文字后 |
 | BTN-19 | L1 | type 与 variant 同时设 | variant 优先 |
 | BTN-20 | L1 | color+variant 矩阵抽测 | solid/outlined × primary/default/danger |
-| BTN-21 | L3 | primary middle 截图 | 与 golden 基线一致（容差内） |
-| BTN-22 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| BTN-21 | L3 | primary middle 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| BTN-22 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | BTN-23 | L1 | 仅图标无 label | 必须设 AriaLabel 否则测试失败 |
 | BTN-24 | L2 | disabled 外观 | 禁用色，无 hover 高亮 |
 | BTN-25 | P1 | loading delay | 延迟后才显示 spinner |
@@ -734,15 +734,15 @@ Pressable（命中、hover/press/focus、键盘）
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Button 主路径 1:1 完成**：
+同时满足即可宣布 **Button 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 相关用例（BTN-01–BTN-24）** 测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（高度档位等）。  
-4. L3 golden 至少覆盖 primary middle 与 default middle 之一。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
 6. `coverage.go` Notes 更新为：P0 已对齐 docs/antd/button.md §6；P1 项显式列出。
 
 ---
 
-**本章用法**：重写 `ui/kit` Button 时，以 §6 为需求与验收；§1–§3 为 antd 能力全集参考；§6.8 为范围裁剪。其它控件复制 §6 结构即可形成同等 1:1 产品规格。
+**本章用法**：重写 `ui/kit` Button 时，以 §6 为需求与验收；§1–§3 为 antd 能力全集参考；§6.8 为范围定义（无裁剪）。其它控件复制 §6 结构即可形成同等 1:1 产品规格。

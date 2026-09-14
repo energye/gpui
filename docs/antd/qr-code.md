@@ -291,7 +291,7 @@ import { QRCode } from 'antd';
 
 实现 gpui kit 版 **QRCode** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 §6.8 P0 字段（value/size/color/bgColor/bordered/errorLevel/marginSize/icon/status/onRefresh/statusRender/type）；P1 可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0+P1 字段（value/size/color/bgColor/bordered/errorLevel/marginSize/icon/status/onRefresh/statusRender/type）；P1 必须实现且命名与官网一致。
 2. **视觉态**：外框 size×size、pad 12（borderless 0）、圆角 LG(8)、边框 colorSplit、cover 遮罩（§6.5）；无 hover/active/disabled 整件态，不套模板。
 3. **状态**：active/expired/loading/scanned + statusRender 覆盖；空 value 不崩无矩阵（QR-S 系）。
 4. **无障碍**：根 img/group + 可访问名；刷新按钮可聚焦（§6.6）。
@@ -310,8 +310,8 @@ import { QRCode } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **QRCode** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **QRCode** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/qr-code/`（`index.zh-CN.md` + `style/` + 组件实现；`qrcode/` 仅旧别名重导出）。
 
@@ -321,15 +321,15 @@ import { QRCode } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 展示形态与可选交互（复制/预览/关闭） | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（QRCode）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 ### 6.2 度量与 Design Token（L2 基线）
 
 数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
@@ -452,16 +452,16 @@ statusRender 非空 ──► cover 内容替换为自定义 Node（仍占满 co
 | loading Spin + Ticker | **对等** | P0 |
 | type=canvas\|svg | **语义标签**（桌面均模块绘制，无 DOM canvas/svg） | P0 标签 / P1 导出差异 |
 | 下载二维码（toDataURL / SVG 序列化） | **宿主导出**：kit 只产矩阵，位图/PNG/SVG 序列化归宿主 | P1 |
-| boostLevel 精确抬升 | **近似**或分期 | P1 |
-| string[] value | **分期**（P0 单 string） | P1 |
+| boostLevel 精确抬升 | **近似**或 P1必做 | P1 |
+| string[] value | **P1 必做**（单 string 与 string[] 全接） | P1 |
 | 真 HTTP 解码 icon URL | **宿主**；kit 接受 IconNode / 占位 | P0 Node / P1 HTTP |
 | semantic classNames/styles 函数形态 | 浅 hooks P0；深度 P1 | P0/P1 |
 | ConfigProvider 全局 qrcode 默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -483,24 +483,24 @@ statusRender 非空 ──► cover 内容替换为自定义 Node（仍占满 co
 | hit == layout == paint | 根盒一致 |
 | loading Ticker | status=loading 旋转 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | 下载二维码（download 示例 / canvas.toDataURL / svg 导出） | 宿主 API |
-| `boostLevel` 精确语义 | 分期 |
-| `value` string[] | 分期 |
-| 真 HTTP 解码 icon URL | 分期 |
-| semantic classNames/styles 函数形态深度 | 分期 |
-| style-class 完整 / ConfigProvider 全局 | 分期 |
-| type 导出差异（真 SVG 序列化） | 分期 |
-| 动画像素级 / reduced-motion 细控 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| `boostLevel` 精确语义 | P1 必做 |
+| `value` string[] | P1 必做 |
+| 真 HTTP 解码 icon URL | P1 必做 |
+| semantic classNames/styles 函数形态深度 | P1 必做 |
+| style-class 完整 / ConfigProvider 全局 | P1 必做 |
+| type 导出差异（真 SVG 序列化） | P1 必做 |
+| 动画像素级 / reduced-motion 细控 | P1 必做 |
+| debug 示例 | 不验收（仅参考） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestQRCode_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记、非 L3/L4）全部通过** 才可宣称 QRCode 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 QRCode 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -606,18 +606,18 @@ Decorated root                    // size×size；pad / border / radius / bg
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **QRCode 主路径 1:1 完成**：
+同时满足即可宣布 **QRCode 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例（QR-01–QR-21，除标注 N/A）测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见；可后置）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。  
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/qr-code.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。  
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/qr-code.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` QRCode 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` QRCode 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
 
 **§6 相对模板修订摘要（本轮手写）：**  
 - **§6.2**：圆角改为 `borderRadiusLG=8`；补 paddingSM、iconSize、marginSize、cover 色。  

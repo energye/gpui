@@ -243,7 +243,7 @@ import { Switch } from 'antd';
 4. **受控**：受控下点击只抛回调，外观等父级回写。
 5. **无障碍**：`role=switch`，Tab 可达，Space/Enter 切换。
 6. **主题**：Token 化；动效可关（reduced-motion 下瞬时）。
-7. **示例矩阵**：§6.8 P0 主路径 5 例（基本、不可用、文字和图标、两种大小、加载中）；余下（语义结构、`_semantic`）P1，Notes 显式列出。
+7. **示例矩阵**：§6.8 主路径 5 例（基本、不可用、文字和图标、两种大小、加载中）与语义结构、`_semantic` P0+P1 一次做完，Notes 显式列出。
 
 ---
 ## 5. 参考链接
@@ -256,8 +256,8 @@ import { Switch } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Switch** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Switch** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/switch/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -267,15 +267,15 @@ import { Switch } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 点击/切换、禁用、键盘激活、受控值正确 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Switch）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：使用开关切换两种状态之间。
 
@@ -402,11 +402,11 @@ mount ──► unchecked | checked（受控/非受控）
 | 浏览器-only API | **映射**或 P1 不做 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -418,26 +418,26 @@ mount ──► unchecked | checked（受控/非受控）
 | `disabled` | 必须 |
 | `loading` | 必须（handle 内 spinner；期间不切换） |
 | `size` | `medium`（默认）/ `small` |
-| `checkedChildren` / `unCheckedChildren` | P0 只接字符串内文并按开/关显示；图标先写死文案占位（如 `"开"`/`"关"`，或图标名字符串透传），多节点 Flex 图标 P1 |
+| `checkedChildren` / `unCheckedChildren` | 字符串内文与图标节点全接并按开/关显示；图标节点全接（文字与图标透传），不许写死占位（如 `"开"`/`"关"`，或图标名字符串透传），多节点 Flex 图标 P1 必做 |
 | 官方主路径示例 | 基本、不可用、文字和图标、两种大小、加载中 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求（role=switch；焦点环；Space/Enter） |
 | §6.9 中 L1/L2 且非 P1 的用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期（含 style-class / _semantic 示例） |
-| 复杂 ReactNode 内文（多节点 Flex 图标） | 分期；P0 仅字符串 |
-| 动画像素级 handle 拉伸 / Wave | 分期（P0 可用瞬时或 FloatAnim 滑块） |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| semantic classNames/styles 深度 | P1 必做（含 style-class / _semantic 示例） |
+| 复杂 ReactNode 内文（多节点 Flex 图标） | P1 必做（字符串与多节点全接） |
+| 动画像素级 handle 拉伸 / Wave | P1 必做（P0 可用瞬时或 FloatAnim 滑块） |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| debug 示例 | 不验收（仅参考） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestSwitch_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Switch 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Switch 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -454,17 +454,17 @@ mount ──► unchecked | checked（受控/非受控）
 | SW-11 | L1 | 主题主色 | 开态轨道 = `colorPrimary` |
 | SW-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 点一次 `onChange(true)` + `onClick(true)` 各一次，外观变开；再点回关 |
 | SW-13 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | `disabled` 下点/Space 均无 `onChange`/`onClick`，外观降对比 |
-| SW-14 | L1 | 复现官方示例「文字和图标」（`text.tsx`：`On/Off`、`1/0`、勾叉图标、笑脸/Happy 四排，P0 只验字符串两排） | `On/Off` 排：开显 `On`、关显 `Off`；`1/0` 排同理；图标两排 P1（多节点 Flex 图标分期） |
+| SW-14 | L1 | 复现官方示例「文字和图标」（`text.tsx`：`On/Off`、`1/0`、勾叉图标、笑脸/Happy 四排，P0+P1 全验字符串两排） | `On/Off` 排：开显 `On`、关显 `Off`；`1/0` 排同理；图标两排 P1 必做（多节点 Flex 图标一次做完） |
 | SW-15 | L1 | 复现官方示例「两种大小」（`size.tsx`：默认 + small 各一） | 实测轨 ≈44×22 与 ≈28×16（±0.5）；小轨把手 ≈12 |
 | SW-16 | L1 | 复现官方示例「加载中」（`loading.tsx`：默认 loading 开 + small loading 关） | 两开关把手内均有 spinner（Ticker 转）；点击均无 `onChange`；开排外观保持开 |
-| SW-17 | P1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | semantic 深度分期 |
-| SW-18 | P1 | 复现官方示例「_semantic.tsx」 | semantic 深度分期 |
+| SW-17 | P1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | semantic 深度一次做完 |
+| SW-18 | P1 | 复现官方示例「_semantic.tsx」 | semantic 深度一次做完 |
 | SW-19 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | SW-20 | L2 | 默认皮颜色 | 开态 = `colorPrimary`；关态中性填充（非品牌硬编码） |
 | SW-21 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
 | SW-22 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；Space/Enter 激活 |
-| SW-23 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| SW-24 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| SW-23 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| SW-24 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | SW-25 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -520,15 +520,15 @@ Pressable
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Switch 主路径 1:1 完成**：
+同时满足即可宣布 **Switch 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/switch.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/switch.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Switch 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Switch 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

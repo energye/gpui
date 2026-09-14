@@ -145,43 +145,46 @@
 
 ## 总体进度看板（新会话先看这张表领活）
 
-> 状态只有四种：**未开工** → **首批中** → **首批完**（完工六条全勾）→ **全完**（官方非 debug 全覆盖）。
-> 每次完工更新对应行；`ui/kit/coverage.go` 建成后照本表写，两处保持一致。
+> 状态一共五种：**未开工** → **首批中** → **首批完**（新 DoD 六条全勾：P0+P1 全合 + showcase 大图 + 官网并排）→ **全完**（官方非 debug 全覆盖）；另有 **重写中**（推翻重写专用，旧状态作废待重做）。
+> ⚠ 2026-09-14 起 W0 文档与 W1 代码全推翻重写：本表一切旧“首批完”作废，已统一翻成“重写中”，待办见各行备注。`ui/kit/coverage.go` 还没跟上，在它同步之前以本表为准。
+> 每次完工更新对应行；`ui/kit/coverage.go` 同步后两处保持一致。
 
-### W0 地基（先行，阻塞一切）
+### W0 地基（先行，阻塞一切，重写中）
 
 | 项 | 状态 | 备注 |
 | --- | --- | --- |
-| 套件架子 `ui/kit`（一控件一目录 + doc.go） | 首批完 | `ui/kit/doc.go` + 71 目录，规矩见包注释 |
-| 示例总窗（左标签右展示 + 临时导航） | 首批完 | `examples/ui_polish_gallery` + `-tab` 独立开 |
-| 覆盖记录 `ui/kit/coverage.go` | 首批完 | 与本表一致，72 行 + `ByName` |
-| 主题全局种子（对齐 antd v6.5.1） | 首批完 | `ui/theme` 浅色默认 + `testdata/seed_default.json` |
-| 浮层通用定位（十二方向/翻转/箭头/外点关/焦点锁） | 首批完 | `ui/overlay/placement.go` + `interact.go` 纯函数 |
-| Icon（最底层，先做） | 首批完 | `ui/kit/icon` P0全合（ICO-01…19 + 画廊`icon`页） |
+| 套件架子 `ui/kit`（一控件一目录 + doc.go） | 重写中 | 旧首批完作废；待按新 DoD 重验目录规矩与 §6.10 签名落点 |
+| 示例总窗（左标签右展示 + 临时导航） | 重写中 | 旧首批完作废；待重验独立打开/独立测/独立截图与事件主干接线 |
+| 覆盖记录 `ui/kit/coverage.go` | 重写中 | 旧首批完作废；待把本表“重写中”同步过去，同步前以本表为准 |
+| 主题全局种子（对齐 antd v6.5.1） | 重写中 | 旧首批完作废；悬停/按压/内边距等 Token 还没跟官网种子对过数，对完才算落定 |
+| 浮层通用定位（十二方向/翻转/箭头/外点关/焦点锁） | 重写中 | 旧首批完作废；待按 antd 定位语义逐项重验，只调包不自写一套 |
+| Icon（最底层，先做） | 重写中 | 旧 P0 全合作废；待 W0 文档定稿后按新 DoD 重做 |
 
-### W1 基础件（19 个，地基好后并行）
+### W1 基础件（19 个，先按钮标杆签字，再 18 个并行）
+
+> 本节 19 行旧“首批完”全部作废，现统一为重写中；备注里的旧 P0 用例号只备查，不代表现状。开工顺序：W0 文档定稿 → 门禁修好（见下使用建议第 5 条）→ **按钮先单做、官网并排签字（标杆）** → 剩下 18 个并行；不等标杆签字就铺开必返工。
 
 | 控件 | 状态 | 备注 |
 | --- | --- | --- |
-| Alert [alert.md](./alert.md) | 首批完 | `ui/kit/alert` P0全合（ALT-01…19 + 画廊`alert`页） |
-| BorderBeam [border-beam.md](./border-beam.md) | 首批完 | `ui/kit/border-beam` P0全合（BB-01…15 + 画廊`border-beam`页，自有扩展） |
-| Button [button.md](./button.md) | 首批完 | `ui/kit/button` P0全合（BTN-01…20/23/24 + 画廊`button`页） |
-| Divider [divider.md](./divider.md) | 首批完 | `ui/kit/divider` P0全合（DIV-01…23 + 画廊`divider`页） |
-| Flex [flex.md](./flex.md) | 首批完 | `ui/kit/flex` P0全合（FLX-01…18 + 画廊`flex`页） |
-| FloatButton [float-button.md](./float-button.md) | 首批完 | `ui/kit/float-button` P0全合（FB-01…26 + 画廊`float-button`页） |
-| Grid [grid.md](./grid.md) | 首批完 | `ui/kit/grid` P0全合（GRD-01…19 + 画廊`grid`页） |
-| Layout [layout.md](./layout.md) | 首批完 | `ui/kit/layout` P0全合（LAY-01…21 + 画廊`layout`页） |
-| Masonry [masonry.md](./masonry.md) | 首批完 | `ui/kit/masonry` P0全合（MAS-01…16 + 画廊`masonry`页） |
-| Progress [progress.md](./progress.md) | 首批完 | `ui/kit/progress` P0全合（PRG-01…22 + 画廊`progress`页） |
-| Skeleton [skeleton.md](./skeleton.md) | 首批完 | `ui/kit/skeleton` P0全合（SKL-01…18 + 画廊`skeleton`页，先做已合） |
-| Space [space.md](./space.md) | 首批完 | `ui/kit/space` P0全合（SPC-01…21 + 画廊`space`页） |
-| Spin [spin.md](./spin.md) | 首批完 | `ui/kit/spin` P0全合（SPN-01…18 + 画廊`spin`页，先做已合） |
-| Splitter [splitter.md](./splitter.md) | 首批完 | `ui/kit/splitter` P0全合（SPL-01…21 + 画廊`splitter`页） |
-| Statistic [statistic.md](./statistic.md) | 首批完 | `ui/kit/statistic` P0全合（STA-01…16 + 画廊`statistic`页） |
-| Tag [tag.md](./tag.md) | 首批完 | `ui/kit/tag` P0全合（TAG-01…19 + 画廊`tag`页） |
-| Timeline [timeline.md](./timeline.md) | 首批完 | `ui/kit/timeline` P0全合（TL-01…17 + 画廊`timeline`页） |
-| Typography [typography.md](./typography.md) | 首批完 | `ui/kit/typography` P0全合（TYP-01…25 + 画廊`typography`页） |
-| Watermark [watermark.md](./watermark.md) | 首批完 | `ui/kit/watermark` P0全合（WM-01…14 + 画廊`watermark`页） |
+| Alert [alert.md](./alert.md) | 重写中 | `ui/kit/alert` P0全合（ALT-01…19 + 画廊`alert`页） |
+| BorderBeam [border-beam.md](./border-beam.md) | 重写中 | `ui/kit/border-beam` P0全合（BB-01…15 + 画廊`border-beam`页，自有扩展） |
+| Button [button.md](./button.md) | 重写中 | `ui/kit/button` P0全合（BTN-01…20/23/24 + 画廊`button`页） |
+| Divider [divider.md](./divider.md) | 重写中 | `ui/kit/divider` P0全合（DIV-01…23 + 画廊`divider`页） |
+| Flex [flex.md](./flex.md) | 重写中 | `ui/kit/flex` P0全合（FLX-01…18 + 画廊`flex`页） |
+| FloatButton [float-button.md](./float-button.md) | 重写中 | `ui/kit/float-button` P0全合（FB-01…26 + 画廊`float-button`页） |
+| Grid [grid.md](./grid.md) | 重写中 | `ui/kit/grid` P0全合（GRD-01…19 + 画廊`grid`页） |
+| Layout [layout.md](./layout.md) | 重写中 | `ui/kit/layout` P0全合（LAY-01…21 + 画廊`layout`页） |
+| Masonry [masonry.md](./masonry.md) | 重写中 | `ui/kit/masonry` P0全合（MAS-01…16 + 画廊`masonry`页） |
+| Progress [progress.md](./progress.md) | 重写中 | `ui/kit/progress` P0全合（PRG-01…22 + 画廊`progress`页） |
+| Skeleton [skeleton.md](./skeleton.md) | 重写中 | `ui/kit/skeleton` P0全合（SKL-01…18 + 画廊`skeleton`页，先做已合） |
+| Space [space.md](./space.md) | 重写中 | `ui/kit/space` P0全合（SPC-01…21 + 画廊`space`页） |
+| Spin [spin.md](./spin.md) | 重写中 | `ui/kit/spin` P0全合（SPN-01…18 + 画廊`spin`页，先做已合） |
+| Splitter [splitter.md](./splitter.md) | 重写中 | `ui/kit/splitter` P0全合（SPL-01…21 + 画廊`splitter`页） |
+| Statistic [statistic.md](./statistic.md) | 重写中 | `ui/kit/statistic` P0全合（STA-01…16 + 画廊`statistic`页） |
+| Tag [tag.md](./tag.md) | 重写中 | `ui/kit/tag` P0全合（TAG-01…19 + 画廊`tag`页） |
+| Timeline [timeline.md](./timeline.md) | 重写中 | `ui/kit/timeline` P0全合（TL-01…17 + 画廊`timeline`页） |
+| Typography [typography.md](./typography.md) | 重写中 | `ui/kit/typography` P0全合（TYP-01…25 + 画廊`typography`页） |
+| Watermark [watermark.md](./watermark.md) | 重写中 | `ui/kit/watermark` P0全合（WM-01…14 + 画廊`watermark`页） |
 
 ### W2 组合件（20 个并行）
 
@@ -196,8 +199,8 @@
 | Descriptions [descriptions.md](./descriptions.md) | 未开工 | — |
 | Empty [empty.md](./empty.md) | 未开工 | — |
 | Menu [menu.md](./menu.md) | 未开工 | 被复用底座 |
-| Tooltip [tooltip.md](./tooltip.md) | 未开工 | 先做（被复用） |
-| Popover [popover.md](./popover.md) | 未开工 | 等 Tooltip |
+| Tooltip [tooltip.md](./tooltip.md) | 重写中 | 旧 P0 全合（TIP-01…21）作废；站在按钮和画廊上，W1 落定后连带回归 |
+| Popover [popover.md](./popover.md) | 重写中 | 旧 P0 全合（POP-01…19）作废；同上，连带回归 |
 | QRCode [qr-code.md](./qr-code.md) | 未开工 | — |
 | Radio [radio.md](./radio.md) | 未开工 | — |
 | Rate [rate.md](./rate.md) | 未开工 | — |
@@ -263,61 +266,68 @@
 ## 再生生成
 
 - **antd 源码（权威）**：`/home/yanghy/app/projects/ant-design/components/*`
-- §1–§5 历史脚本：[`_generate_deep_docs.py`](./_generate_deep_docs.py)（可作骨架，需校对）
-- **§6**：**逐个手写**（Button 模板）；`_deepen_sec6.py` 仅历史批量草稿，**不得**再覆盖已手写章节
+- §1–§5 历史脚本：[`_generate_deep_docs.py`](./_generate_deep_docs.py)（只作骨架参考，重写期间不许整批跑）
+- **§6**：**逐个手写**（按钮标杆先签字，签字后再铺开）；`_deepen_sec6.py` 与 `_write_button_depth_sec6.py --force` 已封存，重写期间**不得**再跑整批覆盖，谁跑谁负责找回
 
-手写下一控件流程：读 `index.zh-CN.md` + `style/*.ts` + 组件 TS → 按 button.md §6 结构写满 6.1–6.12 → 只替换该文件 `## 6.` 起至文末。
+手写下一控件流程：读 `index.zh-CN.md` + `style/*.ts` + 组件 TS → 按标杆签字稿的 §6 结构写满 6.1–6.12 → 只替换该文件 `## 6.` 起至文末。
 
 ## 使用建议（开发 kit）
 
 1. 实现前读对应 `docs/antd/<name>.md` 的 **§6**（DoD）；§1–§3 为 antd 能力全集参考。  
-2. 以 **§6.8 P0** 定实现范围；**§6.10** 定 Go API；**§6.4 / §6.9** 写自动测试。  
-3. 以 **§6.12** 做完成勾选（含 gallery，见下）。  
-4. `coverage.go` Notes：P0 已对齐该 md §6；P1 显式列出。
+2. 以 **§6.8 P0+P1** 定实现范围（一次做完，不分期）；**§6.10** 定 Go API；**§6.4 / §6.9** 写自动测试。  
+3. 以 **§6.12** 做完成勾选（含独立真窗 + gallery，见下）。  
+4. `coverage.go` Notes：P0+P1 已对齐该 md §6；真做不了的单测 Skip 写清平台原因。
+5. 门禁先修再开 W1 代码：`ui/kit/acceptance_test.go` 现在还跳过 P1 只查 P0，跟新 DoD 打架，开工前必须改成 P0+P1 同查（只认 N/A 与写清原因的 Skip），修完三处回归全绿才算数。
 
 ### 完成定义（全库统一）
 
-控件宣布 **1:1 主路径完成** 须同时满足：
+控件宣布 **1:1 完成** 须同时满足：
 
 | # | 要求 | 文档锚点 |
 | --- | --- | --- |
-| 1 | §6.8 **P0** 已实现 | 各控件 §6.8 |
-| 2 | §6.9 中 **P0 / L1 / L2** 自动测试通过 | 各控件 §6.9 |
+| 1 | §6.8 **P0+P1** 已实现（官方非 debug 一个不少） | 各控件 §6.8 |
+| 2 | §6.9 中 **P0+P1 / L1 / L2** 自动测试通过 | 各控件 §6.9 |
 | 3 | L2 Token/度量断言（适用者） | §6.2 |
-| 4 | L3 golden 至少一个关键态（控件可见时） | §6.9 L3 |
-| 5 | **示例程序** 已增加/更新 | 见下节 **ui_polish_gallery** |
-| 6 | `ui/kit/coverage.go` Notes 已更新 | P0 对齐路径 + P1 列表 |
+| 4 | L3 showcase 大图 + 官网并排验收通过（控件可见时） | §6.9 L3 |
+| 5 | **独立真窗** `examples/kit/<名>/` 已建，`-auto-only` 按该组件特性流程逐功能验效果全绿 | ACCEPTANCE 第七节第三道门禁 |
+| 6 | **示例程序** 已增加/更新 | 见下节 **ui_polish_gallery** |
+| 7 | `ui/kit/coverage.go` Notes 已更新 | P0+P1 对齐路径 + Skip 原因 |
+| 8 | **人测完才关**：人在真窗按该组件特性流程亲手测完每实例每功能并看效果，§6.9 L4 留验收记录 | ACCEPTANCE 第八节硬规则 |
 
 ### 示例程序：`examples/ui_polish_gallery`（强制）
 
 **权威约定（全局只此一处详述）：**
 
 - **路径：** 仓库根目录 [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)（W0 地基新建；落定前 §6.12 第 5/6 条视为悬空）
-- **形态：** 单窗口总预览：左标签（组件列表）、右展示（该组件页）。**何时：** 实现某控件 **§6.8 P0** 后、勾选 §6.12 完成前，必须在 gallery **增加或更新**该控件标签页。
-- **覆盖范围（分期长大）：** 先上 §6.8 P0；**最终每个标签页与官方示例库对齐**——官方**非 debug** 示例在数量/功能/展示效果/使用方式上一个不少（debug 仅参考，不进数）。用法功能相同、写法按 Go 习惯；浏览器才有的能力（真文件下载、剪贴板等）走宿主映射，效果相同。
-- **P1：** 随分期续补进 gallery，或单独标明 Later；须在 `coverage.go` Notes 写出。
+- **形态：** 单窗口总预览：左标签（组件列表）、右展示（该组件页）。**何时：** 实现某控件 **§6.8 P0+P1** 后、勾选 §6.12 完成前，必须在 gallery **增加或更新**该控件标签页。
+- **覆盖范围（一次做完）：** 每个标签页与官方示例库对齐——官方**非 debug** 示例在数量/功能/展示效果/使用方式上一个不少（debug 仅参考，不进数）。用法功能相同、写法按 Go 习惯；浏览器才有的能力（真文件下载、剪贴板等）走宿主映射，真做不了的单测 Skip 写清平台原因，效果相同。
+- **P1：** 必须进 gallery，与 P0 一次做完；真做不了的须在 `coverage.go` Notes 写清 Skip 原因。
 - **组织：** 一控件一标签；能力用 section 分块（参考 Button 页：Type / Size / Icon / …）。
 - **独立可验：** 每个标签须可独立打开、独立测、独立截图；总窗只作平时预览，正式验收以单标签独立断言为准（组合窗不代替单能力）。
+- **独立真窗（硬）：** 每组件另有独立目录 `examples/kit/<名>/`（一组件一窗，只摆自己），`go run ./examples/kit/<名>` 打开，`-auto-only` 按该组件自己的特性流程逐功能验效果全绿（一项一效果，挂一项整窗挂）；机器绿只是放行，关闭必须人按同一流程亲手测完看完效果（见 ACCEPTANCE 第八节）。
 - **豁免：** 无运行时 UI 的条目（如 **Util** 类型工具）可跳过 gallery，在 Notes 写「无 UI」。  
 - **细节实现：** 见 `examples/ui_polish_gallery/catalog.go` 与 [`ui/kit/doc.go`](../../ui/kit/doc.go)（Demos 规则）。
 
 各控件文档 **§6.12** 仅保留短锚点，指向本节，避免 72 份重复长文。
 
+### 官网截图基准（W0 重写落点，全局只此一处详述）
+
+- **来源：** `https://ant.design/components/<名>`，版本锁 6.5.1，只认这一处，不认 Gio。
+- **存哪：** `ui/kit/<名>/testdata/official_<名>.png`，跟 showcase 大图放同一目录；截了多大窗口、哪几个示例，一并记入该组件文档 §6.1。
+- **谁签字：** 建/大改基线时人眼并排验完，把截图与结论记入该组件测试注释，§6.9 的 L4 行留验收记录；没这条不算完。
+
 ## 1:1 产品规格（§6）
 
 **写法约定：** 全部控件 §6 对齐 [Button §6](./button.md) 模板细度（6.1–6.12：度量 Token、状态机规则 ID、chrome、a11y、平台边界、P0/P1、可测用例、Go API、结构、DoD）。  
 **依据源码：** `/home/yanghy/app/projects/ant-design/components/<name>/`。  
-**再生（跳过 button 样板）：**
+**再生（重写期间封存，不许跑）：**
 
-```bash
-python3 docs/antd/_write_button_depth_sec6.py --force
-python3 docs/antd/_write_button_depth_sec6.py input modal  # 子集
-```
+上面两条历史脚本重写期间一律不许整批跑，只许单看参考；解封要等 W0 定稿后另行确认。
 
 | 状态 | 说明 |
 | --- | --- |
-| **样板** | [button.md §6](./button.md)（手写最细，不自动覆盖） |
-| **全库** | **72 份** §6 已按 Button 结构从本地 antd 源码重写（约 200–260 行/控件；无「见上文」filler） |
+| **样板** | 按钮标杆签字稿（以签字版为准，不自动覆盖） |
+| **全库** | 旧 72 份 §6 已作废，待按标杆逐个重写（约 200–260 行/控件；无「见上文」filler） |
 | **实现时** | 以该控件 §6 为 DoD；复杂控件可再对照 style/*.ts 补业务专用数字 |
 
 ## 说明
@@ -325,4 +335,4 @@ python3 docs/antd/_write_button_depth_sec6.py input modal  # 子集
 - **List** 官方倾向废弃，仍保留完整规格便于兼容。  
 - **Icon** 依赖 `@ant-design/icons@6.x`。  
 - Table / Form / DatePicker 等 API 极长，文档含官方全文表 + 解析速查。  
-- §1–§3 = antd 能力全集；**§6 = gpui 可交付的 1:1 产品需求**（含裁剪与平台边界）。  
+- §1–§3 = antd 能力全集；**§6 = gpui 可交付的 1:1 产品需求**（无裁剪；平台做不了的单测 Skip 写清原因）。  

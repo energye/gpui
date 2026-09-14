@@ -420,7 +420,7 @@ import { ColorPicker } from 'antd';
 
 实现 gpui kit 版 **ColorPicker** 的验收清单：
 
-1. **配置面**：覆盖 API 表常用字段；冷门字段可分期但命名兼容。
+1. **配置面**：覆盖 API 表全部字段；冷门字段必须实现且命名兼容。
 2. **视觉态**：default / hover / active / focus / disabled / loading。
 3. **尺寸态**：small / medium / large（适用者）。
 4. **受控/非受控**：value+onChange 与 defaultValue。
@@ -444,8 +444,8 @@ import { ColorPicker } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **ColorPicker** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **ColorPicker** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/color-picker/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -455,15 +455,15 @@ import { ColorPicker } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 受控输入/选择、弹层、清除、校验 status、尺寸档 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（ColorPicker）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：用于选择颜色。
 
@@ -566,7 +566,7 @@ disabled ── 阻断 open / 改色
 | RGB→HSB | `R'=R/255`（G'、B' 同理），`V=max`，`m=min`，`C=V−m`；`B=V`，`S=V=0?0:C/V`，`C=0?H=0:H` 按最大分量扇区求（R 最大：`60·(((G'−B')/C) mod 6)`，G 最大：`60·((B'−R')/C+2)`，B 最大：`60·((R'−G')/C+4)`，负值加 360） |
 | hex/hex-alpha | 不透明：`#rrggbb`；带透明度：`#rrggbbaa`（`aa=round(A·255)` 转两位十六进制，`A=1` 时可省略）；解析时去非十六进制字符后截 6/8 位（对齐 `toHexFormat`） |
 
-**渐变 stops 简化定义（对齐 `AggregationColor.colors`）：** `ColorStop{Color Color, Percent float64}` 有序数组，`Percent` 钳制 0…100 并升序排；面板 CSS 按 `linear-gradient(90deg, c1 p1%, c2 p2%, …)` 拼；kit P0 只管“首尾两 stop 直线渐变 + 面板可增删”（`presets-line-gradient` 多 stop 编辑器为 P1）。
+**渐变 stops 简化定义（对齐 `AggregationColor.colors`）：** `ColorStop{Color Color, Percent float64}` 有序数组，`Percent` 钳制 0…100 并升序排；面板 CSS 按 `linear-gradient(90deg, c1 p1%, c2 p2%, …)` 拼；kit P0+P1 全管“首尾两 stop 直线渐变 + 面板可增删”（含 `presets-line-gradient` 多 stop 编辑器）。
 
 **附录：三滑杆交互：** ① Hue 色相条：底为 `hsl(H,100%,50%)` 彩虹条，拖动只改 `H`（S/B/A 不变），拖中发 `onChange`、松手发 `onChangeComplete`；② Alpha 透明条：底为透明棋盘 + 当前色 `toRgbString()` 叠加，拖动只改 `A`，`disabledAlpha=true` 时整条隐藏且 `A` 恒 1；③ Gradient stop 条（仅 `mode=gradient`）：多手柄条，底为当前 stops 的 `linear-gradient`，点条面新增 stop（percent=点击位置），拖手柄改该 stop 的 percent，`activeIndex` 为当前选中手柄，Delete 键删非首尾手柄；S/V 通过二维饱和度面板（非滑杆）调节。键盘左右箭头以 1% 步进当前手柄，respect reduced-motion 可瞬时跳变。
 ### 6.5 视觉 chrome 规则（L2 摘要）
@@ -600,14 +600,14 @@ disabled ── 阻断 open / 改色
 | 选色/渐变/清除/禁用主路径（含 HSB↔RGB 换算 ±1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2：面板 234/滑条 8/手柄 12/16） | **对等** | P0 L2 |
 | 受控 `value` 用 `Color` 对象（忌字符串精度丢，见 FAQ） | **对等** | P0 L1 |
-| 预设色 `presets`/预设渐变/面板 format 切换/`disabledFormat` | 分期 | P1 |
-| 自定义触发器 `children`/触发事件 hover/`panelRender`/`arrow` | P0 给 API，完整视觉分期 | P0 API / P1 视觉 |
+| 预设色 `presets`/预设渐变/面板 format 切换/`disabledFormat` | P1 必做 | P1 |
+| 自定义触发器 `children`/触发事件 hover/`panelRender`/`arrow` | P0 给 API，完整视觉 P1必做 | P0 API / P1 视觉 |
 | `placement` + `open` 受控 + `destroyOnHidden` | **映射**宿主容器 | P0 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -629,24 +629,24 @@ disabled ── 阻断 open / 改色
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例（非 P1） | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `presets` 预设色面板 | 分期（含 presets 示例） |
-| 面板内 format 切换 UI / `disabledFormat` / `onFormatChange` | 分期（颜色编码示例） |
-| `panelRender` / 箭头 `arrow` 像素级 | 分期 |
-| 自定义触发器完整 demo / 自定义 trigger 事件 demo | 分期（API 可先有） |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 多 stop 渐变编辑器深度 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| ConfigProvider 全局默认 | 分期 |
+| `presets` 预设色面板 | P1 必做（含 presets 示例） |
+| 面板内 format 切换 UI / `disabledFormat` / `onFormatChange` | P1 必做（颜色编码示例） |
+| `panelRender` / 箭头 `arrow` 像素级 | P1 必做 |
+| 自定义触发器完整 demo / 自定义 trigger 事件 demo | P1 必做（API 可先有） |
+| semantic classNames/styles 深度 | P1 必做 |
+| 动画像素级 / 多 stop 渐变编辑器深度 | P1 必做 |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| debug 示例 | 不验收（仅参考） |
+| ConfigProvider 全局默认 | P1 必做 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestColorPicker_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 ColorPicker 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 ColorPicker 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -671,8 +671,8 @@ disabled ── 阻断 open / 改色
 | CP-19 | L2 | 默认皮颜色 | 走 Theme Token（primary 可测） |
 | CP-20 | L2 | disabled 外观 | 禁用底/字色；无 hover 强调 |
 | CP-21 | L1 | 键盘/焦点主路径 | Focus ring；Space/Enter 开关面板 |
-| CP-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差）— 可后补 |
-| CP-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| CP-22 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过— 可后补 |
+| CP-23 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | CP-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 
 ### 6.10 产品 API 契约（Go kit 侧，便于 1:1 重写）
@@ -762,15 +762,15 @@ Field / Selector
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **ColorPicker 主路径 1:1 完成**：
+同时满足即可宣布 **ColorPicker 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/color-picker.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/color-picker.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` ColorPicker 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` ColorPicker 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

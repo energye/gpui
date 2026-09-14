@@ -241,7 +241,7 @@ import { Divider } from 'antd';
 1. **配置面**：`orientation`/`vertical`（orientation 优先）、`size`（8/16/24）、`variant`+`dashed` 糖、`children` 标题、`titlePlacement`、`plain`（§6.3）。
 2. **几何**：水平 marginBlock、垂直 0.9em 高、标题字号 16/14（§6.2，±0.5px）。
 3. **非交互**：无 hover/press/focus/disabled 态；根 `role=separator`（§6.4–§6.6）。
-4. **示例矩阵**：P0 按 §6.8（6 例）、余下按 P1 分期；与 §4 例数打架以 §6.8 为准。
+4. **示例矩阵**：P0 按 §6.8（6 例）、余下 P1 一次做完；与 §4 例数打架以 §6.8 为准。
 
 ---
 ## 5. 参考链接
@@ -254,8 +254,8 @@ import { Divider } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Divider** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Divider** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/divider/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -265,15 +265,15 @@ import { Divider } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 布局参数驱动子项几何正确 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Divider）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：区隔内容的分割线。
 
@@ -394,11 +394,11 @@ mount ──► orientation=horizontal|vertical
 | 垂直 `-0.06em` 光学偏移 | **近似** | P0 可 0 |
 | Semantic classNames/styles | kit 语义钩子 / Style 覆盖 | **P1**（gallery 可示意结构） |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -413,20 +413,20 @@ mount ──► orientation=horizontal|vertical
 | a11y §6.6 | role=separator |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度（root/rail/content 函数式） | 分期；P0 可用 `Style` 做线色等一锤子覆盖 |
-| `orientationMargin` 绝对 px + styles.content.margin 全矩阵 | 分期；P0 默认比例 0.05 |
-| 垂直光学 top:-0.06em 像素级 | 分期 |
-| dashed/dotted 与浏览器纹样逐像素 | 分期 |
-| ConfigProvider 全局 Divider 默认 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| semantic classNames/styles 深度（root/rail/content 函数式） | P1 必做；P0+P1 可用 `Style` 做线色等一锤子覆盖 |
+| `orientationMargin` 绝对 px + styles.content.margin 全矩阵 | P1 必做；P0+P1 默认比例 0.05 |
+| 垂直光学 top:-0.06em 像素级 | P1 必做 |
+| dashed/dotted 与浏览器纹样逐像素 | P1 必做 |
+| ConfigProvider 全局 Divider 默认 | P1 必做 |
+| debug 示例 | 不验收（仅参考） |
 
-**9 例→P0/P1 剪裁对应表**（§2.4 全量；P0=§6.8 主路径 6 例，余下 2 例 P1，1 例 debug 不计）：
+**9 例→P0/P1 范围对应表**（§2.4 全量；P0+P1=§6.8 非debug 6+2 例一次做完，1 例 debug 不验收（仅参考））：
 
-| 示例 | 裁剪 | 原因 |
+| 示例 | 范围 | 原因 |
 | --- | --- | --- |
 | 水平分割线/带文字/间距大小/正文样式/垂直分割线/变体 | P0 | 方向+标题+尺寸+线型主路径，gallery 必备 |
 | 样式自定义 | P1 | style 一锤子覆盖深度（线色/字号覆盖能力已验） |
@@ -436,7 +436,7 @@ mount ──► orientation=horizontal|vertical
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestDivider_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Divider 完成 1:1 主路径。  
+> **P0+P1 相关用例全部通过** 才可宣称 Divider 完成 1:1。  
 > L3/L4 与 P1 不阻塞本阶段 DoD。
 
 | ID | 级别 | 步骤 | 期望 |
@@ -552,18 +552,18 @@ Box root (marginInline; Height≈0.9em)
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Divider 主路径 1:1 完成**：
+同时满足即可宣布 **Divider 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例（DIV-01…DIV-23）测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 本阶段可选（控件可见但非交互）。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
 5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：Divider 页覆盖 horizontal / with-text / size / plain / vertical / variant；style-class 仅示意。  
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/divider.md` §6；P1 显式列出。  
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/divider.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Divider 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Divider 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
 
 **本轮 §6 修订说明（相对批量模板）：**  
 - **§6.2**：按 antd `style/index.ts` 重写 margin 档（未设/large=24、medium=16、small=8）、标题字号 LG/plain、orientationMargin=0.05、vertical 0.9em；去掉无关 controlHeight/focus ring/圆角。  

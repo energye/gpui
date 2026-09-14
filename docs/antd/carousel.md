@@ -200,7 +200,7 @@ import { Carousel } from 'antd';
 
 实现 gpui kit 版 **Carousel** 的验收清单：
 
-1. **配置面**：覆盖 §6.8 P0 字段（arrows/autoplay+speed/dotDuration/adaptiveHeight/dotPlacement/dots/draggable/fade-effect/infinite/GoTo-Next-Prev/after-beforeChange）；slick 全量 P1。
+1. **配置面**：覆盖 §6.8 P0+P1 字段（arrows/autoplay+speed/dotDuration/adaptiveHeight/dotPlacement/dots/draggable/fade-effect/infinite/GoTo-Next-Prev/after-beforeChange）；slick 全量 P1。
 2. **视觉态**：dots 四向/激活宽24/arrows 显隐/纵向/空态（§6.4 CRS-S1~S9，§6.5）。
 3. **尺寸态**：不分档；舞台高默认 160（basic 节奏）或 adaptiveHeight 随 slide。
 4. **受控/非受控**：`SetIndex/GoTo` 显式驱动 + autoplay Ticker；回调时序 before→index→after（§6.4）。
@@ -223,8 +223,8 @@ import { Carousel } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Carousel** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Carousel** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/carousel/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -234,15 +234,15 @@ import { Carousel } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 数据渲染与选择/展开/分页/加载主路径 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Carousel）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：一组轮播的区域。
 
@@ -332,7 +332,7 @@ index=i  (0..n-1)
 | CRS-S8 | infinite=false 末张 Next | 仍停留末张 |
 | CRS-S9 | Disabled | 交互无效 |
 
-**P0 瞬时切换时序：** P0 允许省去 `speed`/`easing` 动画帧直接换页，但回调时序与 antd 一致——先同步触发 `beforeChange(current, next)`，再更新 `Index`，最后同步触发 `afterChange(next)`；`GoTo(i, dontAnimate=true)` 与动画关闭同此顺序。像素级过渡动画（`speed`/`easing`/`waitForAnimate`）与 L3 golden 均推迟到 P1，本阶段 L3 不强制（见 §6.9 CRS-18/§6.12）。
+**P0 瞬时切换时序：** P0 允许省去 `speed`/`easing` 动画帧直接换页，但回调时序与 antd 一致——先同步触发 `beforeChange(current, next)`，再更新 `Index`，最后同步触发 `afterChange(next)`；`GoTo(i, dontAnimate=true)` 与动画关闭同此顺序。像素级过渡动画（`speed`/`easing`/`waitForAnimate`）与 L3 showcase大图+官网并排 均推迟到 P1，本阶段 L3 不强制（见 §6.9 CRS-18/§6.12）。
 
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
@@ -369,11 +369,11 @@ index=i  (0..n-1)
 | react-slick 全量 Settings | **子集**映射 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -393,21 +393,21 @@ index=i  (0..n-1)
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| scrollx/fade 像素级过渡 / `speed`/`easing`/`waitForAnimate` 动画语义 | 分期 |
-| 自定义 `prevArrow`/`nextArrow` 节点 | 分期 |
-| semantic classNames/styles 深度 | 分期 |
-| react-slick 其余 Settings（variableWidth、centerMode、…） | 分期 |
-| ConfigProvider 全局 Carousel 默认 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| scrollx/fade 像素级过渡 / `speed`/`easing`/`waitForAnimate` 动画语义 | P1 必做 |
+| 自定义 `prevArrow`/`nextArrow` 节点 | P1 必做 |
+| semantic classNames/styles 深度 | P1 必做 |
+| react-slick 其余 Settings（variableWidth、centerMode、…） | P1 必做 |
+| ConfigProvider 全局 Carousel 默认 | P1 必做 |
+| debug 示例 | 不验收（仅参考） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestCarousel_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Carousel 完成 1:1 主路径。  
+> **P0+P1 相关用例全部通过** 才可宣称 Carousel 完成 1:1。  
 > L3/L4（CRS-18/19）与 P1（CRS-20）本阶段不强制。
 
 | ID | 级别 | 步骤 | 期望 |
@@ -429,7 +429,7 @@ index=i  (0..n-1)
 | CRS-15 | L2 | 默认皮颜色 | 无硬编码品牌主色；走 Theme Token |
 | CRS-16 | L2 | disabled | 禁交互；无推进 |
 | CRS-17 | L1 | 键盘主路径 | Arrow 键切换（适用） |
-| CRS-18 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差）— **本阶段不强制** |
+| CRS-18 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过— **本阶段不强制** |
 | CRS-19 | L4 | 与 ant.design 并排 | 人眼签字 — **本阶段不强制** |
 | CRS-20 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 
@@ -510,17 +510,17 @@ Root (Stack, hit==layout==paint)
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Carousel 主路径 1:1 完成**：
+同时满足即可宣布 **Carousel 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例（CRS-01…17）测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 本阶段不强制（CRS-18 deferred）。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
 5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：Carousel 页覆盖 **§6.8 P0** 官方非 debug 六例。  
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/carousel.md` §6；P1 显式列出。  
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/carousel.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Carousel 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Carousel 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
 
 > **§6 修订说明（相对模板稿）**：补强 **§6.2** 组件 Token（dots/arrows 源码表）；**§6.3** 补 infinite 默认与纵向衍生；**§6.4** 增 drag/disabled/边界规则；**§6.6** 具体 a11y；**§6.8** 明确 autoplay.dotDuration 与 infinite；**§6.10** 落地 Go 契约；**§6.11** 改为 Carousel 分层；**§6.9/6.12** 标明 L3/L4 本阶段不强制。

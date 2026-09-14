@@ -168,7 +168,8 @@ func (s *Scene) DispatchKey(key string) (string, bool) {
 	}
 	if key == "Escape" {
 		s.pressNode = nil
-		return "", false
+		// Fall through to focused/hovered routing so open bubbles
+		// (tooltip/popover) close via Escape like their unit tests.
 	}
 	// Focused handler first.
 	if s.focusNode != nil {

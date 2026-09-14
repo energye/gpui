@@ -359,7 +359,7 @@ import { Tree } from 'antd';
 
 实现 gpui kit 版 **Tree** 的验收清单（与 §6.8 打架以 §6.8 为准）：
 
-1. **配置面**：覆盖 §6.8 P0 字段（treeData/展开/选中/勾选/loadData/showLine/showIcon/draggable/blockNode/directory/searchValue）；P1 可分期但命名兼容。
+1. **配置面**：覆盖 §6.8 P0+P1 字段（treeData/展开/选中/勾选/loadData/showLine/showIcon/draggable/blockNode/directory/searchValue）；P1 必须实现且命名与官网一致。
 2. **视觉态**：行 hover/选中/dir 选中底/showLine 连接线/loading 节点（§6.4 TRE-S1–S11，§6.2 行高 24/缩进 24/内边 4/连接线）。
 3. **展开/选中/勾选/拖拽**：expandedKeys 受控优先 + `defaultExpandAll/Parent/autoExpandParent`；selectedKeys（`multiple`）；checkedKeys 父子联动（`checkStrictly=false`）与半选；`Drop` 重排（`allowDrop` 细粒度 P1）。
 4. **受控/非受控**：expanded/selected/checked 受控优先，未 Controlled 走 default* 或交互写入（§6.10）。
@@ -382,8 +382,8 @@ import { Tree } from 'antd';
 
 ## 6. 1:1 产品需求增量（gpui 验收规格）
 
-> 本章把 antd **Tree** 补成 **可开发、可测试、可裁剪** 的产品规格。  
-> **1:1 含义**：与 Ant Design **6.5** 桌面主路径在行为与设计体系上对齐；**不是**与浏览器 ant.design 逐像素哈希一致（见 L1–L4）。  
+> 本章把 antd **Tree** 补成 **可开发、可测试、可验收** 的产品规格。  
+> **1:1 含义**：与 Ant Design **6.5.1** 官网截图 99.99% 相似（见 ACCEPTANCE 对齐定义）。只允字体光栅亚像素差；颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即不算对齐。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 源码：`/home/yanghy/app/projects/ant-design/components/tree/`（`index.zh-CN.md` + `style/` + 组件实现）。
 
@@ -393,15 +393,15 @@ import { Tree } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 数据渲染与选择/展开/分页/加载主路径 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（Tree）：**
 
-- 与浏览器渲染 ant.design **逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- 官方 **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- 官方 **debug** 示例不验收（仅参考）。  
 
 > 控件说明：多层次的结构列表。
 
@@ -529,11 +529,11 @@ treeData 渲染
 | `fieldNames` 自定义字段 | **映射**外部 title/key/children | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 官网截图相似（99.99%） | **不做** | — |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
-#### P0（本阶段必须 1:1，否则不算完成）
+#### P0（本阶段必须 1:1，与P1一次做完）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
@@ -554,23 +554,23 @@ treeData 渲染
 | a11y §6.6 | `role=tree` / `treeitem` + 展开/选中态；焦点 ring |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | 其余示例（P1，逐例去向） | 自定义展开/折叠图标完整页（`switcher-icon.tsx`，节点级复杂渲染）、虚拟滚动（`virtual-scroll.tsx`，`height` 虚拟容器）、占据整行独立页（`block-node.tsx`，`blockNode` 整行环）、自定义语义结构的样式和类（`style-class.tsx`，semantic 深度） |
-| 动画像素级 / `height` 虚拟滚动像素级 | 分期 |
-| `allowDrop` 细粒度 / 拖拽 icon 关闭 / dropPosition 全矩阵 | 分期 |
-| `fieldNames` 自定义字段 / `treeDataSimpleMode` | 分期 |
-| 自定义 switcherIcon 节点级复杂渲染 / 多行 title ReactNode | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| ConfigProvider 全局默认 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期（`directory-debug/drag-debug/big-data/multiple-line/line-debug/component-token` 不验收） |
+| 动画像素级 / `height` 虚拟滚动像素级 | P1 必做 |
+| `allowDrop` 细粒度 / 拖拽 icon 关闭 / dropPosition 全矩阵 | P1 必做 |
+| `fieldNames` 自定义字段 / `treeDataSimpleMode` | P1 必做 |
+| 自定义 switcherIcon 节点级复杂渲染 / 多行 title ReactNode | P1 必做 |
+| 浏览器-only API 或桌面无等价项 | 单测 Skip 写清平台原因 |
+| ConfigProvider 全局默认 | P1 必做 |
+| debug 示例 | 不验收（仅参考；`directory-debug/drag-debug/big-data/multiple-line/line-debug/component-token` 不验收） |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestTree_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Tree 完成 1:1 主路径。
+> **P0+P1 相关用例全部通过** 才可宣称 Tree 完成 1:1。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
@@ -597,8 +597,8 @@ treeData 渲染
 | TRE-21 | L2 | 默认皮颜色 | 选中/hover 底走 `controlItemBgActive/Hover`；无硬编码品牌色 |
 | TRE-22 | L2 | disabled 节点外观 | `colorTextDisabled`；不可选中/勾选/拖拽 |
 | TRE-23 | L1 | 键盘：↑↓移节点，→展开/←折叠，Enter 选中，Space 勾选 | 焦点节点整行 ring 可见；disabled 节点可聚焦不激活 |
-| TRE-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| TRE-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| TRE-24 | L3 | 关键态 golden 截图 | 与showcase基线一致（容差内）+官网并排验收通过 |
+| TRE-25 | L4 | 与 ant.design 并排 | 官网并排验收记录（必验） |
 | TRE-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
@@ -718,15 +718,15 @@ Decorated Root (role=tree)
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Tree 主路径 1:1 完成**：
+同时满足即可宣布 **Tree 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/tree.md` §6；P1 显式列出。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/tree.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Tree 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Tree 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。

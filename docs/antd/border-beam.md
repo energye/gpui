@@ -202,7 +202,7 @@ import { BorderBeam } from 'antd';
 
 > 验收以 **§6** 为准；本节为工程纪律补充。
 
-实现 gpui kit 版 **BorderBeam** 的验收清单（与 §6.8 P0 一致，不一致以 §6.8 为准）：
+实现 gpui kit 版 **BorderBeam** 的验收清单（与 §6.8 P0+P1 一致，不一致以 §6.8 为准）：
 
 1. **配置面**：`children` 包裹内容节点（§6.8 P0）。
 2. **颜色**：`color` 单色 + 渐变 stops（percent 0–100 → 映射 70% 可见段），默认走 Theme primary。
@@ -212,7 +212,7 @@ import { BorderBeam } from 'antd';
 6. **外扩**：`outset` 可选，未设回落 0 贴边。
 7. **悬停**：`showOnHover` 映射 hover 示例（未 hover 隐藏）。
 8. **动效**：reduced-motion 时隐藏 beam；Ticker 仅 beam 可见且需动画时挂载。
-9. **示例矩阵**：§6.8 P0 七例（basic/hover/custom-container/customized-color/duration/size/line-width）。
+9. **示例矩阵**：§6.8 七例（P0+P1 一次做完：basic/hover/custom-container/customized-color/duration/size/line-width）。
 
 ---
 ## 5. 参考链接
@@ -223,7 +223,7 @@ import { BorderBeam } from 'antd';
 
 ## 6. 产品需求增量（gpui 验收规格）
 
-> 本章把 **BorderBeam（gpui 自有扩展）**补成 **可开发、可测试、可裁剪** 的产品规格。  
+> 本章把 **BorderBeam（gpui 自有扩展）**补成 **可开发、可测试、可验收** 的产品规格。  
 > **对齐含义**：自有装饰控件，以本仓库 §6 为验收真源；写法借用 antd 规格体例。  
 > **手写对齐** [Button §6](./button.md#6-11-产品需求增量gpui-验收规格) 模板细度（度量档、状态机规则 ID、chrome、P0/P1、可测用例、Go API、DoD）。  
 > 真源：本仓库 `docs/antd/border-beam.md` §6（gpui kit 自有扩展，无官方上游）。
@@ -234,15 +234,15 @@ import { BorderBeam } from 'antd';
 | --- | --- | --- | --- |
 | **L1** | 行为 | 展示形态与可选交互（复制/预览/关闭） | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
-| **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
-| **L4** | 人眼气质 | 与本库示例基线并排「一眼同系」 | 建/大改基线时人眼签字 |
+| **L3** | showcase 大图 + 官网并排 | showcase大图进testdata按§6.8摆全多种式样（CPU容差内比对）+ 与官网同示例截图并排验收（颜色/尺寸/圆角/间距/边框/阴影/布局任一项肉眼可见差异即挂，只允字体光栅亚像素差） | showcase/官网并排 |
+| **L4** | 官网并排必验（非可选） | 建/大改基线时与官网截图并排验收并留验收记录（见L3），CI比showcase基线，人眼签官网并排 | 建/大改基线必验 |
 
 **明确不做（BorderBeam）：**
 
-- 与浏览器渲染**逐像素哈希**一致。  
+- 与官网截图逐字节哈希一致（只要求 99.99% 相似，允字体光栅亚像素差）。  
 - 为抠图破坏 `hit == layout == paint` 边界。  
-- 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
-- **debug** 示例不计入 P0 验收。  
+- 浏览器-only 且桌面无等价映射的 API（见 §6.7，单测Skip写清平台原因）。  
+- **debug** 示例不验收（仅参考）。  
 
 > 控件说明：为容器边框提供持续流动的装饰性高亮效果。
 
@@ -352,12 +352,12 @@ mount ──► running（Tick 推进 phase 0→1 循环）
 | 插入真实 DOM / portal 进 children | **映射**：kit 叠 beam 层于 host 内 | P0 |
 | 读 computed border-radius 持续监听 | **映射**：显式 `SetBorderRadius` + 默认 Token | P0 近似 |
 | `mask-composite` + `offset-path` 环形轨迹 | 源码真实存在（`style/index.ts` `@supports`）：P0 用沿周长短段描边近似，像素级对齐为 P1 | P0 近似 / P1 像素级 |
-| 逐像素哈希 | **不做** | — |
+| 官网逐字节哈希 | 不做（只要求 99.99% 相似） | — |
 | semantic classNames/styles | kit Style 钩子 | P1 |
 | ConfigProvider `borderBeam` 全局 | 随 ConfigProvider | P1 |
-| debug 示例（non-uniform-radius / component-token） | 分期 | P1 |
+| debug 示例（non-uniform-radius / component-token） | 不验收（仅参考） | P1 |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
 #### P0（本阶段必须完成，否则不算完成）
 
@@ -378,16 +378,16 @@ mount ──► running（Tick 推进 phase 0→1 循环）
 | a11y §6.6 | 装饰层不抢 hit |
 | §6.9 中 L1/L2 非 P1 用例 | 测试通过 |
 
-#### P1（可 later，须在 coverage Notes 写明）
+#### P1（本阶段必须 1:1，与 P0 同标准；真做不了的单测 Skip 写清平台原因）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| CSS offset-path / mask-composite 像素级 | 分期 |
-| 自动测量 children 运行时 border-radius 变化 | 分期 |
-| ConfigProvider 全局 `borderBeam` | 分期 |
-| debug 示例与逐像素哈希 | 分期 |
-| non-uniform 四角圆角 | 分期 |
+| semantic classNames/styles 深度 | P1 必做 |
+| CSS offset-path / mask-composite 像素级 | P1 必做 |
+| 自动测量 children 运行时 border-radius 变化 | P1 必做 |
+| ConfigProvider 全局 `borderBeam` | P1 必做 |
+| debug 示例 | 不验收（仅参考） |
+| non-uniform 四角圆角 | P1 必做 |
 
 ### 6.9 验收用例表（可测）
 
@@ -492,15 +492,15 @@ borderBeamHost（HitDefer · layout = children 盒）
 
 同时满足即可宣布 **BorderBeam 主路径完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2 适用用例（BB-01–15）** 测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 可选（装饰控件；有则覆盖 1 关键可见态）。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
 5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：BorderBeam 页覆盖 **§6.8 P0** 自有非 debug 七例。  
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/border-beam.md` §6；P1 显式列出。  
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/border-beam.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` BorderBeam 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` BorderBeam 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
 
 **§6 修订说明（相对模板薄稿）：** 6.2 改为流光专用度量（去掉错误的 focus-ring/禁用色表）；6.3–6.4 补 `showOnHover` 与 reduced-motion **隐藏**；6.8 P0 列全 color/duration/lineWidth/outset/size；6.9 明确 BB-16/17 N/A；6.10 写成具体 Go API；6.11 改为 host+beamLayer。

@@ -83,8 +83,8 @@ const (
 	ColorGold     ButtonColor = "gold"
 )
 
-// presetHex is the P1 component palette (button-owned tokens; global seed
-// has no button presets). Values follow antd preset hues.
+// presetHex is the P1 component palette base (button-owned tokens; global
+// seed has no button presets). Bases follow antd seed defaultPresetColors.
 func presetHex(c ButtonColor) (render.RGBA, bool) {
 	switch c {
 	case ColorBlue:
@@ -98,7 +98,7 @@ func presetHex(c ButtonColor) (render.RGBA, bool) {
 	case ColorMagenta:
 		return render.RGBA{R: 0xeb / 255.0, G: 0x2f / 255.0, B: 0x96 / 255.0, A: 1}, true
 	case ColorPink:
-		return render.RGBA{R: 0xf7 / 255.0, G: 0x59 / 255.0, B: 0xab / 255.0, A: 1}, true
+		return render.RGBA{R: 0xeb / 255.0, G: 0x2f / 255.0, B: 0x96 / 255.0, A: 1}, true
 	case ColorRed:
 		return render.RGBA{R: 0xf5 / 255.0, G: 0x22 / 255.0, B: 0x2d / 255.0, A: 1}, true
 	case ColorOrange:
@@ -115,6 +115,64 @@ func presetHex(c ButtonColor) (render.RGBA, bool) {
 		return render.RGBA{R: 0xfa / 255.0, G: 0xad / 255.0, B: 0x14 / 255.0, A: 1}, true
 	}
 	return render.RGBA{}, false
+}
+
+// presetStyle holds exact @ant-design/colors generate() derivatives per
+// preset (hover=palette[5], active=palette[7], light=[1], lightHover=[2],
+// lightActive=[3]; verified 2026-09-14 via published package).
+type presetStyle struct {
+	base, hover, active, light, lightHover, lightActive render.RGBA
+}
+
+func presetStyleFor(c ButtonColor) (presetStyle, bool) {
+	hex := func(s string) render.RGBA {
+		return render.RGBA{R: float64(hexByte(s, 1)) / 255.0, G: float64(hexByte(s, 3)) / 255.0, B: float64(hexByte(s, 5)) / 255.0, A: 1}
+	}
+	switch c {
+	case ColorBlue:
+		return presetStyle{hex("#1677ff"), hex("#4096ff"), hex("#0958d9"), hex("#e6f4ff"), hex("#bae0ff"), hex("#91caff")}, true
+	case ColorPurple:
+		return presetStyle{hex("#722ed1"), hex("#9254de"), hex("#531dab"), hex("#f9f0ff"), hex("#efdbff"), hex("#d3adf7")}, true
+	case ColorCyan:
+		return presetStyle{hex("#13c2c2"), hex("#36cfc9"), hex("#08979c"), hex("#e6fffb"), hex("#b5f5ec"), hex("#87e8de")}, true
+	case ColorGreen:
+		return presetStyle{hex("#52c41a"), hex("#73d13d"), hex("#389e0d"), hex("#f6ffed"), hex("#d9f7be"), hex("#b7eb8f")}, true
+	case ColorMagenta, ColorPink:
+		return presetStyle{hex("#eb2f96"), hex("#f759ab"), hex("#c41d7f"), hex("#fff0f6"), hex("#ffd6e7"), hex("#ffadd2")}, true
+	case ColorRed:
+		return presetStyle{hex("#f5222d"), hex("#ff4d4f"), hex("#cf1322"), hex("#fff1f0"), hex("#ffccc7"), hex("#ffa39e")}, true
+	case ColorOrange:
+		return presetStyle{hex("#fa8c16"), hex("#ffa940"), hex("#d46b08"), hex("#fff7e6"), hex("#ffe7ba"), hex("#ffd591")}, true
+	case ColorYellow:
+		return presetStyle{hex("#fadb14"), hex("#ffec3d"), hex("#d4b106"), hex("#feffe6"), hex("#ffffb8"), hex("#fffb8f")}, true
+	case ColorVolcano:
+		return presetStyle{hex("#fa541c"), hex("#ff7a45"), hex("#d4380d"), hex("#fff2e8"), hex("#ffd8bf"), hex("#ffbb96")}, true
+	case ColorGeekBlue:
+		return presetStyle{hex("#2f54eb"), hex("#597ef7"), hex("#1d39c4"), hex("#f0f5ff"), hex("#d6e4ff"), hex("#adc6ff")}, true
+	case ColorGold:
+		return presetStyle{hex("#faad14"), hex("#ffc53d"), hex("#d48806"), hex("#fffbe6"), hex("#fff1b8"), hex("#ffe58f")}, true
+	case ColorLime:
+		return presetStyle{hex("#a0d911"), hex("#bae637"), hex("#7cb305"), hex("#fcffe6"), hex("#f4ffb8"), hex("#eaff8f")}, true
+	}
+	return presetStyle{}, false
+}
+
+func hexByte(s string, i int) uint8 {
+	hexVal := func(c byte) uint8 {
+		switch {
+		case c >= '0' && c <= '9':
+			return c - '0'
+		case c >= 'a' && c <= 'f':
+			return c - 'a' + 10
+		case c >= 'A' && c <= 'F':
+			return c - 'A' + 10
+		}
+		return 0
+	}
+	if i+1 >= len(s) {
+		return 0
+	}
+	return hexVal(s[i])*16 + hexVal(s[i+1])
 }
 
 // IsPresetColor reports the 13 PresetColors palette membership.
@@ -1203,6 +1261,147 @@ func mix(a, b render.RGBA, t float64) render.RGBA {
 	return render.RGBA{R: a.R + (b.R-a.R)*t, G: a.G + (b.G-a.G)*t, B: a.B + (b.B-a.B)*t, A: a.A + (b.A-a.A)*t}
 }
 
+// fam resolves the exact official color family for the current color +
+// variant (antd 6.5.1 @ant-design/colors generate() + token.ts derivations).
+// Link variant always uses link blue (or danger red) regardless of color.
+// Default color returns neutralDefault=true (caller branches per variant).
+func (b *Button) fam() (base, hover, active, light, lightHover, lightActive render.RGBA, neutralDefault bool) {
+	tok := b.themeTokens()
+	pick := func(c theme.Color, fallback string) render.RGBA {
+		var zero theme.Color
+		if c != zero {
+			return themeToRGBA(c)
+		}
+		return parseHexRender(fallback)
+	}
+	v := b.EffectiveVariant()
+	danger := b.dangerActive()
+	if v == VariantLink {
+		if danger {
+			return pick(tok.ColorError, "#ff4d4f"), pick(tok.ColorErrorHover, "#ff7875"), pick(tok.ColorErrorActive, "#d9363e"), render.RGBA{}, render.RGBA{}, render.RGBA{}, false
+		}
+		return pick(tok.ColorLink, "#1677ff"), pick(tok.ColorLinkHover, "#69b1ff"), pick(tok.ColorLinkActive, "#0958d9"), render.RGBA{}, render.RGBA{}, render.RGBA{}, false
+	}
+	if danger {
+		return pick(tok.ColorError, "#ff4d4f"), pick(tok.ColorErrorHover, "#ff7875"), pick(tok.ColorErrorActive, "#d9363e"),
+			pick(tok.ColorErrorBg, "#fff2f0"), pick(tok.ColorErrorBgFilledHover, "#ffdfdc"), pick(tok.ColorErrorBgActive, "#ffccc7"), false
+	}
+	// Type sugar carries color when Color stays default (primary type =>
+	// primary blue even under explicit variant, BTN-19).
+	if b.ColorName() == ColorDefault && b.Type() == ButtonPrimary {
+		return pick(tok.ColorPrimary, "#1677ff"), pick(tok.ColorPrimaryHover, "#4096ff"), pick(tok.ColorPrimaryActive, "#0958d9"),
+			pick(tok.ColorPrimaryBg, "#e6f4ff"), pick(tok.ColorPrimaryBgHover, "#bae0ff"), pick(tok.ColorPrimaryBorder, "#91caff"), false
+	}
+	switch b.ColorName() {
+	case ColorPrimary:
+		return pick(tok.ColorPrimary, "#1677ff"), pick(tok.ColorPrimaryHover, "#4096ff"), pick(tok.ColorPrimaryActive, "#0958d9"),
+			pick(tok.ColorPrimaryBg, "#e6f4ff"), pick(tok.ColorPrimaryBgHover, "#bae0ff"), pick(tok.ColorPrimaryBorder, "#91caff"), false
+	case ColorDanger:
+		return pick(tok.ColorError, "#ff4d4f"), pick(tok.ColorErrorHover, "#ff7875"), pick(tok.ColorErrorActive, "#d9363e"),
+			pick(tok.ColorErrorBg, "#fff2f0"), pick(tok.ColorErrorBgFilledHover, "#ffdfdc"), pick(tok.ColorErrorBgActive, "#ffccc7"), false
+	case ColorSuccess:
+		return pick(tok.ColorSuccess, "#52c41a"), pick(tok.ColorSuccessHover, "#95de64"), pick(tok.ColorSuccessActive, "#389e0d"),
+			pick(tok.ColorSuccessBg, "#f6ffed"), pick(tok.ColorSuccessBgHover, "#d9f7be"), pick(tok.ColorSuccessBorder, "#b7eb8f"), false
+	case ColorWarning:
+		return pick(tok.ColorWarning, "#faad14"), pick(tok.ColorWarningHover, "#ffd666"), pick(tok.ColorWarningActive, "#d48806"),
+			pick(tok.ColorWarningBg, "#fffbe6"), pick(tok.ColorWarningBgHover, "#fff1b8"), pick(tok.ColorWarningBorder, "#ffe58f"), false
+	case ColorDefault:
+		return render.RGBA{}, render.RGBA{}, render.RGBA{}, render.RGBA{}, render.RGBA{}, render.RGBA{}, true
+	default:
+		if ps, ok := presetStyleFor(b.ColorName()); ok {
+			return ps.base, ps.hover, ps.active, ps.light, ps.lightHover, ps.lightActive, false
+		}
+		return render.RGBA{}, render.RGBA{}, render.RGBA{}, render.RGBA{}, render.RGBA{}, render.RGBA{}, true
+	}
+}
+
+func parseHexRender(s string) render.RGBA {
+	if len(s) == 0 || s[0] != '#' {
+		return render.RGBA{}
+	}
+	h := s[1:]
+	if len(h) == 3 {
+		h = string([]byte{h[0], h[0], h[1], h[1], h[2], h[2]})
+	}
+	if len(h) != 6 {
+		return render.RGBA{}
+	}
+	return render.RGBA{R: float64(hexByte(s, 1)) / 255.0, G: float64(hexByte(s, 3)) / 255.0, B: float64(hexByte(s, 5)) / 255.0, A: 1}
+}
+
+// hoverActive keeps the old mix fallback for provider overrides without
+// palette derivatives; chrome() now resolves exact families directly.
+func (b *Button) hoverActive(base render.RGBA, hover bool) render.RGBA {
+	tok := b.themeTokens()
+	var zero theme.Color
+	pick := func(c theme.Color) (render.RGBA, bool) {
+		if c == zero {
+			return render.RGBA{}, false
+		}
+		return themeToRGBA(c), true
+	}
+	acc := b.accent(tok)
+	baseIsPrimary := base == themeToRGBA(tok.ColorPrimary)
+	baseIsError := base == themeToRGBA(tok.ColorError)
+	baseIsSuccess := base == themeToRGBA(tok.ColorSuccess)
+	baseIsWarning := base == themeToRGBA(tok.ColorWarning)
+	isPrimary := baseIsPrimary
+	isError := baseIsError
+	isSuccess := baseIsSuccess
+	isWarning := baseIsWarning
+	if !isPrimary && !isError && !isSuccess && !isWarning {
+		isPrimary = acc == themeToRGBA(tok.ColorPrimary)
+		isError = acc == themeToRGBA(tok.ColorError)
+		isSuccess = acc == themeToRGBA(tok.ColorSuccess)
+		isWarning = acc == themeToRGBA(tok.ColorWarning)
+	}
+	if hover {
+		switch {
+		case isPrimary:
+			if c, ok := pick(tok.ColorPrimaryHover); ok {
+				return c
+			}
+		case isError:
+			if c, ok := pick(tok.ColorErrorHover); ok {
+				return c
+			}
+		case isSuccess:
+			if c, ok := pick(tok.ColorSuccessHover); ok {
+				return c
+			}
+		case isWarning:
+			if c, ok := pick(tok.ColorWarningHover); ok {
+				return c
+			}
+		}
+		if c, ok := presetHex(b.ColorName()); ok && b.ColorName() != ColorDefault {
+			_ = c
+			// Preset hover/active stay on the mix path (palette[5] per
+			// preset is not in the global seed; button keeps its mix).
+		}
+		return shade(base, true)
+	}
+	switch {
+	case isPrimary:
+		if c, ok := pick(tok.ColorPrimaryActive); ok {
+			return c
+		}
+	case isError:
+		if c, ok := pick(tok.ColorErrorActive); ok {
+			return c
+		}
+	case isSuccess:
+		if c, ok := pick(tok.ColorSuccessActive); ok {
+			return c
+		}
+	case isWarning:
+		if c, ok := pick(tok.ColorWarningActive); ok {
+			return c
+		}
+	}
+	return shade(base, false)
+}
+
 func shade(c render.RGBA, hover bool) render.RGBA {
 	white := render.RGBA{R: 1, G: 1, B: 1, A: c.A}
 	black := render.RGBA{R: 0, G: 0, B: 0, A: c.A}
@@ -1213,21 +1412,17 @@ func shade(c render.RGBA, hover bool) render.RGBA {
 }
 
 // chrome resolves fill/border/text for the current state (§6.5 table).
+// Exact official mapping (variant.ts + token.ts, 6.5.1): solid uses
+// base/hover/active fills; outlined keeps white fill; filled uses
+// light fills; text uses light fills on hover/active; link stays
+// transparent. Disabled uses container-disabled gray; loading dims 0.65.
 func (b *Button) chrome() (fill, border, text render.RGBA, dashed, hasBorder bool) {
 	tok := b.themeTokens()
 	container := themeToRGBA(tok.ColorBgContainer)
-	ink := themeToRGBA(tok.ColorText)
-	acc := b.accent(tok)
-	neutral := acc.A == 0
-	v := b.EffectiveVariant()
-
-	if b.Disabled() {
-		fill = themeToRGBA(tok.ColorFillTertiary)
-		border = themeToRGBA(tok.ColorBorder)
-		text = themeToRGBA(tok.ColorTextDisabled)
-		return fill, border, text, false, v == VariantOutlined || v == VariantDashed
+	if container.A == 0 {
+		container = render.RGBA{R: 1, G: 1, B: 1, A: 1}
 	}
-
+	ink := themeToRGBA(tok.ColorText)
 	white := themeToRGBA(tok.ColorWhite)
 	if white.A == 0 {
 		white = render.RGBA{R: 1, G: 1, B: 1, A: 1}
@@ -1236,97 +1431,204 @@ func (b *Button) chrome() (fill, border, text render.RGBA, dashed, hasBorder boo
 	if inverse.A == 0 {
 		inverse = white
 	}
+	v := b.EffectiveVariant()
+	base, hoverC, activeC, light, lightHover, lightActive, neutral := b.fam()
+	disabledFill := themeToRGBA(tok.ColorBgContainerDisabled)
+	if disabledFill.A == 0 {
+		disabledFill = themeToRGBA(tok.ColorFillTertiary)
+	}
+	disabledBorder := themeToRGBA(tok.ColorBorder)
+	disabledText := themeToRGBA(tok.ColorTextDisabled)
+
+	if b.Disabled() {
+		if v == VariantText || v == VariantLink {
+			return render.RGBA{}, render.RGBA{}, disabledText, false, false
+		}
+		dashed = v == VariantDashed
+		hasBorder = v == VariantOutlined || v == VariantDashed
+		return disabledFill, disabledBorder, disabledText, dashed, hasBorder
+	}
+
+	isHover := !b.Disabled() && b.hovered && !b.pressed
+	isPress := !b.Disabled() && !b.loading && b.pressed && b.inBound
 
 	if b.ghost {
-		// Transparent fill; light border/text stay visible on dark art.
+		// Ghost: transparent fill always; default color uses white ink,
+		// other colors keep family ink on transparent.
 		fill = render.RGBA{}
-		switch v {
-		case VariantSolid:
-			border, text = white, white
-			hasBorder = true
-		case VariantOutlined, VariantDashed:
-			border, text = white, white
-			hasBorder = true
-			dashed = v == VariantDashed
-		case VariantFilled:
-			border, text = render.RGBA{}, white
-		default: // text/link
-			border, text = render.RGBA{}, white
-		}
-	} else {
-		switch v {
-		case VariantSolid:
-			base := acc
-			if neutral {
-				base = themeToRGBA(tok.ColorPrimary)
+		if neutral {
+			switch v {
+			case VariantSolid, VariantOutlined, VariantDashed:
+				border, text = white, white
+				hasBorder = true
+				dashed = v == VariantDashed
+			default:
+				border, text = render.RGBA{}, white
 			}
-			fill, border, text = base, base, inverse
+		} else {
+			switch v {
+			case VariantSolid, VariantOutlined, VariantDashed:
+				cur := base
+				if isHover {
+					cur = hoverC
+				} else if isPress {
+					cur = activeC
+				}
+				border, text = cur, cur
+				hasBorder = true
+				dashed = v == VariantDashed
+			case VariantFilled, VariantText, VariantLink:
+				cur := base
+				if v == VariantLink {
+					// Link ghost keeps link blue hover/active.
+					if isHover {
+						cur = hoverC
+					} else if isPress {
+						cur = activeC
+					}
+				} else if isHover {
+					cur = hoverC
+				} else if isPress {
+					cur = activeC
+				}
+				border, text = render.RGBA{}, cur
+			}
+		}
+		goto applyStyle
+	}
+
+	if neutral {
+		// Default color per-variant bases.
+		switch v {
+		case VariantSolid:
+			solidBase := themeToRGBA(tok.ColorBgSolid)
+			if solidBase.A == 0 {
+				solidBase = render.RGBA{R: 0, G: 0, B: 0, A: 1}
+			}
+			fill, border, text = solidBase, solidBase, inverse
 			hasBorder = false
+			if isHover {
+				h := themeToRGBA(tok.ColorBgSolidHover)
+				if h.A == 0 {
+					h = render.RGBA{R: 0, G: 0, B: 0, A: 0.75}
+				}
+				fill, border = h, h
+			} else if isPress {
+				a := themeToRGBA(tok.ColorBgSolidActive)
+				if a.A == 0 {
+					a = render.RGBA{R: 0, G: 0, B: 0, A: 0.95}
+				}
+				fill, border = a, a
+			}
 		case VariantOutlined, VariantDashed:
 			fill = container
 			dashed = v == VariantDashed
 			hasBorder = true
-			if neutral {
-				border, text = themeToRGBA(tok.ColorBorder), ink
-			} else {
-				border, text = acc, acc
+			border, text = themeToRGBA(tok.ColorBorder), ink
+			if isHover {
+				h := themeToRGBA(tok.ColorPrimaryHover)
+				if h.A == 0 {
+					h = themeToRGBA(tok.ColorPrimary)
+				}
+				border, text = h, h
+			} else if isPress {
+				a := themeToRGBA(tok.ColorPrimaryActive)
+				if a.A == 0 {
+					a = themeToRGBA(tok.ColorPrimary)
+				}
+				border, text = a, a
 			}
 		case VariantFilled:
 			hasBorder = false
-			if neutral {
+			fill = themeToRGBA(tok.ColorFillTertiary)
+			if fill.A == 0 {
+				fill = render.RGBA{R: 0, G: 0, B: 0, A: 0.04}
+			}
+			text = ink
+			if isHover {
 				fill = themeToRGBA(tok.ColorFillSecondary)
-				text = ink
-			} else {
-				fill = mix(container, acc, 0.15)
-				text = acc
-			}
-		default: // text/link: transparent, weak border
-			fill = render.RGBA{}
-			hasBorder = false
-			if neutral && v == VariantText {
-				text = ink
-			} else {
-				text = acc
-			}
-		}
-	}
-
-	// Hover/press feedback (skipped while disabled/loading-gated above only
-	// for disabled; loading keeps chrome but no press shade, B-S2).
-	if !b.Disabled() && b.hovered && !b.pressed {
-		switch v {
-		case VariantSolid:
-			fill = shade(fill, true)
-			border = fill
-		case VariantOutlined, VariantDashed:
-			if neutral {
-				accH := themeToRGBA(tok.ColorPrimary)
-				border, text = accH, accH
-				fill = mix(fill, accH, 0.04)
-			} else {
-				border, text = shade(border, true), shade(text, true)
+			} else if isPress {
+				fill = themeToRGBA(tok.ColorFill)
 			}
 		case VariantText:
-			bg := themeToRGBA(tok.ColorFillSecondary)
-			if bg.A == 0 {
-				bg = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+			hasBorder = false
+			fill = render.RGBA{}
+			text = ink
+			if isHover {
+				fill = themeToRGBA(tok.ColorFillTertiary)
+			} else if isPress {
+				fill = themeToRGBA(tok.ColorFill)
 			}
-			fill = bg
-			if !neutral {
-				text = shade(text, true)
-			}
-		case VariantLink:
-			text = shade(text, true)
-		case VariantFilled:
-			fill = shade(fill, true)
+		default:
+			fill = render.RGBA{}
+			hasBorder = false
+			text = ink
 		}
+		goto applyLoading
 	}
-	if !b.Disabled() && !b.loading && b.pressed && b.inBound {
-		fill = shade(fill, false)
-		if hasBorder {
-			border = shade(border, false)
+
+	// Family colors (primary/danger/success/warning/presets/link).
+	switch v {
+	case VariantSolid:
+		cur := base
+		if isHover {
+			cur = hoverC
+		} else if isPress {
+			cur = activeC
 		}
+		fill, border, text = cur, cur, inverse
+		hasBorder = false
+	case VariantOutlined, VariantDashed:
+		fill = container
+		dashed = v == VariantDashed
+		hasBorder = true
+		cur := base
+		if isHover {
+			cur = hoverC
+		} else if isPress {
+			cur = activeC
+		}
+		border, text = cur, cur
+	case VariantFilled:
+		hasBorder = false
+		cur := base
+		f := light
+		if isHover {
+			cur, f = hoverC, lightHover
+		} else if isPress {
+			cur, f = activeC, lightActive
+		}
+		fill, text = f, cur
+	case VariantText:
+		hasBorder = false
+		cur := base
+		f := render.RGBA{}
+		if isHover {
+			cur, f = hoverC, light
+		} else if isPress {
+			cur, f = activeC, lightActive
+		}
+		fill, text = f, cur
+	case VariantLink:
+		hasBorder = false
+		cur := base
+		if isHover {
+			cur = hoverC
+		} else if isPress {
+			cur = activeC
+		}
+		fill, text = render.RGBA{}, cur
 	}
+
+applyLoading:
+	if b.loading {
+		const dim = 0.65
+		fill.A *= dim
+		border.A *= dim
+		text.A *= dim
+	}
+
+applyStyle:
 
 	if b.style.UseBg {
 		fill = b.style.Bg

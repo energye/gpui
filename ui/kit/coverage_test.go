@@ -30,14 +30,17 @@ func TestCoverage_MirrorsBoard(t *testing.T) {
 			"spin": true, "splitter": true, "statistic": true, "tag": true,
 			"timeline": true, "typography": true, "watermark": true,
 		}
-		if c.Name == "icon" || w1Done[c.Name] {
+		w2Done := map[string]bool{
+			"tooltip": true, "popover": true,
+		}
+		if c.Name == "icon" || w1Done[c.Name] || w2Done[c.Name] {
 			if c.Status != kit.P0Done || c.P0 == "" {
 				t.Fatalf("%s status=%s want 首批完 with P0 note", c.Name, c.Status)
 			}
 			continue
 		}
 		if c.Name != "util" && c.Status != kit.NotStarted {
-			t.Fatalf("%s status=%s want 未开工 (only icon+W1 have closed)", c.Name, c.Status)
+			t.Fatalf("%s status=%s want 未开工 (only icon+W1+tooltip/popover have closed)", c.Name, c.Status)
 		}
 		if c.P1 == "" && c.Name != "util" {
 			t.Fatalf("%s missing P1 pointer", c.Name)

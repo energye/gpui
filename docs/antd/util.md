@@ -188,7 +188,7 @@ import type { GetRef, GetProps, GetProp } from 'antd';
 | 纯函数（§6.4 左列） | 按需移植，P0 |
 | 浏览器-only（§6.4 右列） | 不做 |
 
-### 6.8 能力裁剪（P0 / P1）
+### 6.8 能力范围（P0 / P1 全做）
 
 #### P0
 
@@ -235,15 +235,15 @@ internal/util/  纯函数（colors/is/toList/transKeys/…）
 
 ### 6.12 完成定义（DoD）
 
-同时满足即可宣布 **Util 主路径 1:1 完成**：
+同时满足即可宣布 **Util 1:1 完成**：
 
-1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+1. §6.8 **P0+P1** 全部实现（官方非debug一个不少，真做不了的单测Skip写清平台原因）。  
+2. §6.9 中 **P0+P1** 用例全部通过。
 3. L2 度量与 Token 断言：**N/A**（无 UI，见 §6.2）。  
-4. L3 golden：**N/A**（无可见态）。  
+4. L3 showcase大图+官网并排验收通过（控件可见时必需，见§6.1）。
 5. **示例程序**：Util 无运行时 UI，**豁免** gallery（见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；在 `coverage.go` Notes 标明「无 UI」。
-6. `coverage.go` Notes：P0 已对齐 `docs/antd/util.md` §6；P1 显式列出。  
+6. `coverage.go` Notes：P0+P1 已对齐 `docs/antd/util.md` §6；P1 显式列出。  
 
 ---
 
-**本章用法**：实现 `ui/kit` Util 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+**本章用法**：实现 `ui/kit` Util 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
