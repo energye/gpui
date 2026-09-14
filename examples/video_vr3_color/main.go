@@ -31,11 +31,11 @@ import (
 
 const winW, winH = 1200, 800
 
-// colorTolerance is the per-channel allowance against theory. Vectors pin
-// the formula byte-exact in unit tests; the window keeps 3 to cover the
-// ffmpeg swscale lookup-table noise measured on real frames (R/B<=2,
-// G<=3, mean 0.47, see README).
-const colorTolerance = 3
+// VR3 pass line (§12.1, ffmpeg-anchored, no self-set numbers): vectors stay
+// byte-exact (maxDiff==0); real frames equal the committed baseline md5s in
+// video/testdata/vr3_ffmpeg.json, whose ffmpeg gap is R/B P99<=2, G P99<=3
+// (peer: libswscale/yuv2rgb.c + output.c + swscale.c, see README).
+const vectorExact = 0
 
 func main() {
 	secs, secsSet := wrkit.RunSecondsOpt()
@@ -52,7 +52,9 @@ func main() {
 	colorErr := ""
 	if gate.err != nil {
 		colorErr = gate.err.Error()
-	} else if gate.maxDiff <= colorTolerance && gate.frames > 0 {
+	} else if gate.parityErr != "" {
+		colorErr = gate.parityErr
+	} else if gate.maxDiff == vectorExact && gate.parityOk && gate.frames > 0 {
 		yuvReady = 1
 	}
 
@@ -67,7 +69,7 @@ func main() {
 		"左边门禁，走真转色引擎",
 		"右边色块，转出 vs 理论",
 		"灰阶肤色三原色全覆盖",
-		"门禁：每通道差≤3 真帧≥1",
+		"门禁：向量零差异+3片对等 真帧≥1",
 		"跑满5秒，至少上屏1次",
 	})
 
@@ -76,8 +78,11 @@ func main() {
 	if colorErr != "" {
 		statusText = "转色失败：" + shortErr(translateColorError(colorErr), 56)
 		sr, sg, sb = 0.95, 0.4, 0.35
-	} else if gate.maxDiff > colorTolerance {
-		statusText = fmt.Sprintf("色偏超标：最大差%d", gate.maxDiff)
+	} else if gate.maxDiff != vectorExact {
+		statusText = fmt.Sprintf("向量漂移：最大差%d(要0)", gate.maxDiff)
+		sr, sg, sb = 0.95, 0.4, 0.35
+	} else if !gate.parityOk {
+		statusText = "对等失败：" + shortErr(gate.parityErr, 48)
 		sr, sg, sb = 0.95, 0.4, 0.35
 	}
 	shell.Body.LabelAt("VR3 YUV转RGBA颜色", 22, 20, 12, 0.92, 0.94, 0.98)
@@ -134,7 +139,7 @@ func main() {
 	} else {
 		shell.Body.LabelAt("无图可摆，门禁必挂", 12, fx, patchY, 0.95, 0.4, 0.35)
 	}
-	shell.Body.LabelAt("容差3盖ffmpeg查表噪声，见README", 11, 20, shell.Body.H-56, 0.55, 0.65, 0.75)
+	shell.Body.LabelAt("R/B P99≤2 G P99≤3 对等ffmpeg，见README", 11, 20, shell.Body.H-56, 0.55, 0.65, 0.75)
 	shell.Body.LabelAt("不支持的矩阵/采样报人话错，见单测", 11, 20, shell.Body.H-30, 0.55, 0.65, 0.75)
 
 	var proc scheduler.ProcessTracker
@@ -169,7 +174,7 @@ func main() {
 		snapH := app.Metrics().Snapshot()
 		gatePreview := colorErr == "" && yuvReady == 1 && snapH.PresentCount > 0
 		shell.UpdateHUD("VR3", phaseCN(phase), app, gatePreview,
-			fmt.Sprintf("向量=%d组 色差=%d", len(gate.vectors), gate.maxDiff),
+			fmt.Sprintf("向量=%d组 差%d 对等%s", len(gate.vectors), gate.maxDiff, gate.parityLine),
 			fmt.Sprintf("真帧解码%.1f毫秒", gate.decodeMs))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
@@ -207,8 +212,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: 转色失败: %s\n", translateColorError(colorErr))
 		os.Exit(1)
 	}
-	if gate.maxDiff > colorTolerance {
-		fmt.Fprintf(os.Stderr, "FAIL: 每通道色差=%d 超过容差%d\n", gate.maxDiff, colorTolerance)
+	if gate.maxDiff != vectorExact {
+		fmt.Fprintf(os.Stderr, "FAIL: 向量最大差=%d(要逐字节零差异)\n", gate.maxDiff)
+		os.Exit(1)
+	}
+	if !gate.parityOk {
+		fmt.Fprintf(os.Stderr, "FAIL: 对等失败: %s\n", gate.parityErr)
 		os.Exit(1)
 	}
 	if yuvReady != 1 || gate.frames < 1 {
@@ -227,8 +236,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "video_vr3_color: 通过 向量=%d组 色差=%d 上屏=%d 用时=%.1f秒\n",
-		len(gate.vectors), gate.maxDiff, app.PresentCount(), elapsed)
+	fmt.Fprintf(os.Stderr, "video_vr3_color: 通过 向量=%d组 差%d 对等%s 上屏=%d 用时=%.1f秒\n",
+		len(gate.vectors), gate.maxDiff, gate.parityLine, app.PresentCount(), elapsed)
 }
 
 // solidImage packs one RGB triple into a bridge image (window side only;
@@ -440,11 +449,11 @@ func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, g
 		MemCapKB: 1048576, GCPausesMsP99: gcP99, HeapAllocMB: heapMB,
 		GPUOps: snap.GPUOps, CPUFallbackOps: snap.CPUFallbackOps, LastCPUFallback: snap.LastCPUFallbackReason,
 		SPSOk: 1, PPSOk: 1, FramesSplit: gate.frames, YUVReady: yuvReady, ColorDiffPerChannel: float64(gate.maxDiff), PixelGoldenDiffPct: gate.diffPct,
-		Clips: fmt.Sprintf("vectors=%d", len(gate.vectors)), Profile: gate.profile,
+		Clips: fmt.Sprintf("vectors=%d parity=%s", len(gate.vectors), gate.parityLine), Profile: gate.profile,
 		TimeToFirstFrameMs: snap.TimeToFirstPresentMs,
 		PresentCount:       presents, PaintCount: snap.PaintCount,
-		DecodeError: colorErr, Source: "video/color/testdata/vr3_vectors.json+vr2_b_intra",
-		NANote: "color-only: queue/clock/seek N/A in VR3; vectors/maxdiff/realframe are the gates",
+		DecodeError: colorErr, Source: "video/testdata/vr3_ffmpeg.json+video/color/testdata/vr3_vectors.json",
+		NANote: "color-only: queue/clock/seek N/A in VR3; vectors exact + 3-clip rgba md5 parity (R/B P99<=2 G P99<=3) are the gates",
 	}
 }
 
