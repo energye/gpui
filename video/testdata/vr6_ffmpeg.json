@@ -1,0 +1,230 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR6行",
+  "commands": [
+    "ffmpeg -v error -i <bad> -f null -  (exit + stderr:报错还是播完)",
+    "ffmpeg -v error -i <bad> -f framehash -  (decoded dts+hash:缺几帧+哪几帧变了)"
+  ],
+  "notes": [
+    "VR6对等点：ffmpeg -v error -i 坏片 -f null - 退出行为（libavformat/mov.c 盒子语义 + libavcodec/h264dec.c 解码语义）对我方 video.Classify 归口（11桶）+ player 隔离（F20单帧conceal继续播，F17/F12/F2整片fail-fast）；坏文件思路另对 tests/fate（mov.mak elist/frag + h264.mak 高频矩阵，见基线对等点）。",
+    "通过线：ffmpeg报错我方须报同层桶（Classify kind组一致）；ffmpeg能播完（exit 0）我方须播到Ended，且concealed <= ffmpeg受影响帧数（缺帧+哈希变帧）；F12/F17三条件罕见项保留但须写清ffmpeg同行为；level已知分歧待V1（见下）。",
+    "文件与单测分工：file_cases是真坏文件（进git，缺文件即FAIL不Skip，字节数锁死防漂移）；unit_cases是NALU/参数集级合成哨兵（无文件，记录ffmpeg同文件行号+日志串，不要求文件对等）。",
+    "花屏数学：好片vr5_seek 10帧哈希全入库；坏片vr6_flower 9帧（缺dts3计1）+变哈希dts1/dts2/dts4（计3），受影响共4；我方concealed=2（剩8帧播到Ended）<=4才过。只比缺帧数会误判（2>1），必须把ffmpeg花帧（变哈希）也算进去：ffmpeg是花着播（输出脏帧），我方是隔离丢帧（不花），隔离多一帧是更严不是更差。",
+    "容器层归一：junk/非MP4在ffmpeg侧是lavf探测失败（Invalid data），在我方播放器侧是注册表拦截（unsupported container→bad-clip）；mp4直解侧是坏盒/截断。二者同属容器层，同层即过；冻结junk只断言bad-clip精确值，不放宽。",
+    "level已知分歧（待V1等级放宽）：vr6_level60是SPS+avcC双补丁（level 10→60/6.0，ffprobe认60）；ffmpeg不卡等级（h264dec.c无等级上限，见§11 V1）exit 0且5帧哈希与好片逐位一致；我方fail-fast报level-over-limit。门禁只要求分歧如实（ffmpeg侧0+哈希一致，我方侧level桶），不要求播完；V1放宽后重审本条。",
+    "F12/F17三条件留档：F17分区/扩展/冗余我方整片失败（streamFatal），ffmpeg侧分区走h264_attach_partitions尝试接续、冗余走redundant_pic_count解析后继续、扩展按SVC/MVC处理，均可能继续播；F17条带组双端同失败（ffmpeg h264_ps.c:758-762 FMO报缺特性PATCHWELCOME，我方ErrSliceGroups）；F12三路（场/MBAFF/序列帧）ffmpeg真解（h264dec.c field_pic + yadif/bwdif），我方三条件拒解。门禁只要求我方桶精确+人话点名工具+零崩溃，不要求与ffmpeg同播完。",
+    "缺参数对等：单切片无参数集直解，我方missing-params；ffmpeg同为解码错（h264_slice.c:1764 non-existing PPS referenced / h264_parser.c:380），单帧conceal不整片死。文件级全片无参数会收敛到bad-clip（ErrNoFrames包firstFault只包一层），故只在NALU级断言missing-params精确值。",
+    "四冻结坏文件 recipe（与fault_test/window TempDir生成逐字节一致，md5见file_cases）：trunc取vr2_m_bframes尾切200B；flower取vr5_seek第2采样（number 2/offset 2348/size 238）清零；level60取vr2_m_bframes的SPS样板67 4D 40 0A中level字节与avcC头level字节双改60；junk固定71B文本。好片用vr2_m_bframes（5帧）做零误伤锚。",
+    "fate坏文件思路对照：mov侧elist/frag/zombie/init-nonkeyframe/displaymatrix（mov.mak）是盒子容错思想来源；h264侧高频矩阵（h264.mak）是解码容错来源。本基线不等同fate用例复刻，只取思想：坏盒报盒子层、花帧隔离保时间线、罕见工具点名拒解。"
+  ],
+  "file_cases": [
+    {
+      "name": "missing-file",
+      "file": "does-not-exist-vr6.mp4",
+      "tracked_mp4": false,
+      "mp4_bytes": 0,
+      "ffmpeg": {
+        "exit": 1,
+        "stderr_contains": ["No such file or directory"],
+        "decoded": 0,
+        "total": 0
+      },
+      "ours": {
+        "kind": "bad-clip",
+        "open_ok": false,
+        "concealed": 0,
+        "frames": 0
+      }
+    },
+    {
+      "name": "junk-not-mp4",
+      "file": "vr6_junk.bin",
+      "tracked_mp4": true,
+      "mp4_bytes": 71,
+      "ffmpeg": {
+        "exit": 1,
+        "stderr_contains": ["Invalid data found when processing input"],
+        "decoded": 0,
+        "total": 0
+      },
+      "ours": {
+        "kind": "bad-clip",
+        "open_ok": false,
+        "concealed": 0,
+        "frames": 0
+      }
+    },
+    {
+      "name": "trunc-tail",
+      "file": "vr6_trunc.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 3514,
+      "ffmpeg": {
+        "exit": 1,
+        "stderr_contains": ["error reading header", "End of file"],
+        "decoded": 0,
+        "total": 5
+      },
+      "ours": {
+        "kind": "truncated",
+        "open_ok": false,
+        "concealed": 0,
+        "frames": 0
+      }
+    },
+    {
+      "name": "flower-f20",
+      "file": "vr6_flower.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 6002,
+      "ffmpeg": {
+        "exit": 0,
+        "stderr_contains": ["Invalid NAL unit size (0 > 234).", "Error splitting the input into NAL units."],
+        "decoded": 9,
+        "total": 10,
+        "missing_dts": [3],
+        "differ_dts": [1, 2, 4],
+        "affected": 4
+      },
+      "ours": {
+        "kind": "f20-lost-reference",
+        "open_ok": true,
+        "concealed": 2,
+        "frames": 8,
+        "ended": true
+      }
+    },
+    {
+      "name": "level60-diverged",
+      "file": "vr6_level60.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 3714,
+      "ffmpeg": {
+        "exit": 0,
+        "stderr_contains": [],
+        "decoded": 5,
+        "total": 5,
+        "hash_identical_to_good": true
+      },
+      "ours": {
+        "kind": "level-over-limit",
+        "open_ok": false,
+        "concealed": 0,
+        "frames": 0,
+        "divergence": "ffmpeg不卡等级继续播，我方fail-fast，待V1放宽"
+      }
+    },
+    {
+      "name": "clean-good",
+      "file": "vr2_m_bframes.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 3714,
+      "ffmpeg": {
+        "exit": 0,
+        "stderr_contains": [],
+        "decoded": 5,
+        "total": 5
+      },
+      "ours": {
+        "kind": "unknown",
+        "open_ok": true,
+        "concealed": 0,
+        "frames": 5,
+        "ended": true
+      }
+    }
+  ],
+  "good_hashes": {
+    "vr5_seek.mp4": [
+      "6e5e6315702a375ef36c449d32ef18dd1c07a4bd61080481285360b69d19e34e",
+      "9f9057deb5e4e3843c33490145bb01590a0f1983748699f13140ed2f5e980691",
+      "cfb50e60e8d2836e15e96079bb6647cd2419d9d1644a8a8c556f18c0f0689c5b",
+      "a57754edc3c6b971ddd720d31355e89dcfd7e611897edd01a025790cd8cf4220",
+      "18fc21316714c76d1a79b35f2935a0acb14fe0764f1edc2bcfede6393bf377cc",
+      "8f546511204018387626dff679f8fd509b481ac0e0b6a2cc86ad07f77b9ddf08",
+      "a6f0309ee04c24685eaf4301db1e7aa6ac354f5ada9a345044000173724d2184",
+      "359727ceddf0645272d9267d733d318c4235212c6e2c83758e49d475293d1a01",
+      "2fddac8345556a617d85420817dd3f4d4a894970e7af1afd5c84a04d593a1081",
+      "6c156c87fdf101f8fe1156367acd401934424c72dba2f2d64f67721f9e4eace6"
+    ]
+  },
+  "flower_hashes": {
+    "vr6_flower.mp4": [
+      {"dts": 0, "hash": "6e5e6315702a375ef36c449d32ef18dd1c07a4bd61080481285360b69d19e34e", "same_as_good": true},
+      {"dts": 1, "hash": "e51fcf682dba080597699e115676ab029f4f510f52f8b7c60bafb25d4eeac7ac", "same_as_good": false},
+      {"dts": 2, "hash": "b5f3ba46aa3702e46d413065592d1e31ab36699bba31216e5296fb5828b70f4c", "same_as_good": false},
+      {"dts": 4, "hash": "10d8d003838b6cc07be51eb0a0aebb2abab2e042cf791bfa0da7fffb22472364", "same_as_good": false},
+      {"dts": 5, "hash": "8f546511204018387626dff679f8fd509b481ac0e0b6a2cc86ad07f77b9ddf08", "same_as_good": true},
+      {"dts": 6, "hash": "a6f0309ee04c24685eaf4301db1e7aa6ac354f5ada9a345044000173724d2184", "same_as_good": true},
+      {"dts": 7, "hash": "359727ceddf0645272d9267d733d318c4235212c6e2c83758e49d475293d1a01", "same_as_good": true},
+      {"dts": 8, "hash": "2fddac8345556a617d85420817dd3f4d4a894970e7af1afd5c84a04d593a1081", "same_as_good": true},
+      {"dts": 9, "hash": "6c156c87fdf101f8fe1156367acd401934424c72dba2f2d64f67721f9e4eace6", "same_as_good": true}
+    ]
+  },
+  "unit_cases": [
+    {
+      "name": "missing-params",
+      "trigger": "DecodeNALU P切片不喂SPS/PPS",
+      "ours_kind": "missing-params",
+      "ffmpeg_peer": "libavcodec/h264_slice.c:1764 non-existing PPS referenced + libavcodec/h264_parser.c:380 non-existing PPS",
+      "same_behavior": "单帧解码错，不整片死；文件级全坏收敛到bad-clip，故只在NALU级断言"
+    },
+    {
+      "name": "f17-partition",
+      "trigger": "SplitFrames 0x42 数据分区",
+      "ours_kind": "f17-old-tools",
+      "ffmpeg_peer": "libavcodec/h264dec.c h264_attach_partitions（分区续接，JM系流）",
+      "same_behavior": "罕见三条件留档：我方整片失败，ffmpeg可能续接；只要求桶精确+点名F17+零崩溃"
+    },
+    {
+      "name": "f17-ext",
+      "trigger": "SplitFrames 0x74 扩展切片NAL20",
+      "ours_kind": "f17-old-tools",
+      "ffmpeg_peer": "SVC/MVC扩展（NAL20），本期不做",
+      "same_behavior": "罕见三条件留档：我方整片失败，只要求桶精确+点名F17+零崩溃"
+    },
+    {
+      "name": "f17-groups",
+      "trigger": "PPS条带组>1 ErrSliceGroups",
+      "ours_kind": "f17-old-tools",
+      "ffmpeg_peer": "libavcodec/h264_ps.c:758-762 FMO报缺特性PATCHWELCOME并fail",
+      "same_behavior": "双端同失败（参数层fail-open），同层桶一致"
+    },
+    {
+      "name": "f17-redundant",
+      "trigger": "ErrRedundantPic冗余片",
+      "ours_kind": "f17-old-tools",
+      "ffmpeg_peer": "libavcodec/h264_slice.c:1834-1835 redundant_pic_count解析后继续",
+      "same_behavior": "罕见三条件留档：我方整片失败，ffmpeg可能继续；只要求桶精确+点名F17+零崩溃"
+    },
+    {
+      "name": "f20-lostref",
+      "trigger": "有参数无参考解P ErrLostReference",
+      "ours_kind": "f20-lost-reference",
+      "ffmpeg_peer": "libavcodec/h264dec.c decode_error_flags conceal（坏帧糊过去继续播）",
+      "same_behavior": "单帧conceal继续播，不整片花；同层桶一致"
+    },
+    {
+      "name": "f20-badslice",
+      "trigger": "ErrBadSliceHeader坏切片头",
+      "ours_kind": "f20-lost-reference",
+      "ffmpeg_peer": "libavcodec/h264dec.c conceal同上",
+      "same_behavior": "单帧conceal继续播；Classify归F20桶"
+    },
+    {
+      "name": "f12-interlace",
+      "trigger": "ErrStageScope带F12场/MBAFF/序列帧三路",
+      "ours_kind": "f12-interlace",
+      "ffmpeg_peer": "libavcodec/h264dec.c field_pic真解 + libavfilter yadif/bwdif去隔行",
+      "same_behavior": "罕见三条件留档：ffmpeg真解，我方只认不解；只要求桶精确+点名F12+零崩溃"
+    },
+    {
+      "name": "profile-beyond",
+      "trigger": "SPS profile 110 High10 ErrStageScope无F12",
+      "ours_kind": "profile-beyond-stage",
+      "ffmpeg_peer": "h264dec支持High10等多档位，无档位上限",
+      "same_behavior": "阶段分歧：ffmpeg解，我方fail-fast；只要求桶精确+点名F1+零崩溃，本期三档外不解"
+    }
+  ]
+}
