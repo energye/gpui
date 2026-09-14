@@ -1,0 +1,73 @@
+{
+  "tool": "ffprobe 4.4.2-0ubuntu0.22.04.1 + ffmpeg 4.4.2 -v trace",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR1行",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,codec_name,profile,level -of default=nw=1 <clip>",
+    "ffmpeg -v trace -i <clip> -f null - 2>&1 | grep -E 'nal_unit_type: [78]\\(|frames successfully decoded|Input stream #0:0 \\(video\\)'"
+  ],
+  "notes": [
+    "三片与 VR0 基线同片（B/M/H 各一：oceans=Constrained Baseline，720p=Main，f42906=High），档位全覆盖才算认全。",
+    "profile 断言走盒内 avcC[1]（66=Baseline 系，含 Constrained Baseline/77=Main/100=High），level 走 avcC[3]（ffprobe level 原值，如 30=3.0），引擎不新增字段，测试内映射，与 VR0 同法。",
+    "SPS/PPS 数的是去重后的参数集个数（盒内 avcC 各 1，流内无新增，故各 1）；trace 原始输出里 7(SPS)/8(PPS) 各出现 2 次，是找流信息与正式解码两次初始化各播一遍，不是两套参数，不按原始行数断言。",
+    "帧数对视频流（Input stream #0:0 (video) 的 packets read / frames decoded），不对全文件总帧：f42906 视频 812（总 2269 含音频 1457），oceans 视频 1116（总 3301 含音频 2185），720p 无音频轨故视频 5 即总数 5。",
+    "oceans 与 f42906 体积大，按 VR0 惯例 tracked=false、缺文件时测试 Skip，不装绿；720p 已进仓常跑。"
+  ],
+  "clips": [
+    {
+      "file": "vr_oceans.mp4",
+      "tracked": false,
+      "bytes": 23014356,
+      "missing": "skip",
+      "stream": {
+        "width": 960,
+        "height": 400,
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "profile_idc": 66,
+        "level": 30
+      },
+      "trace": {
+        "sps_count": 1,
+        "pps_count": 1,
+        "frames_decoded": 1116
+      }
+    },
+    {
+      "file": "vr_f42906.mp4",
+      "tracked": false,
+      "bytes": 3350316,
+      "missing": "skip",
+      "stream": {
+        "width": 852,
+        "height": 480,
+        "codec_name": "h264",
+        "profile": "High",
+        "profile_idc": 100,
+        "level": 30
+      },
+      "trace": {
+        "sps_count": 1,
+        "pps_count": 1,
+        "frames_decoded": 812
+      }
+    },
+    {
+      "file": "vr2_720p.mp4",
+      "tracked": true,
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 31
+      },
+      "trace": {
+        "sps_count": 1,
+        "pps_count": 1,
+        "frames_decoded": 5
+      }
+    }
+  ]
+}
