@@ -152,9 +152,12 @@ func TestBadClips(t *testing.T) {
 	if _, err := OpenFile("testdata/does-not-exist.mp4", Options{NowMs: h.at}); err == nil {
 		t.Fatal("missing file opens")
 	}
-	if _, err := OpenFile("testdata/vr3_vectors.json", Options{NowMs: h.at}); err == nil {
+	if _, err := OpenFile("fault.go", Options{NowMs: h.at}); err == nil {
 		t.Fatal("non-mp4 opens")
 	} else {
 		t.Logf("non-mp4 err: %v", err)
+		if got := Classify(err).Kind; got != KindBadBox && got != KindTruncated && got != KindBadClip {
+			t.Fatalf("non-mp4 kind = %q, want bad-box/truncated/bad-clip", got)
+		}
 	}
 }

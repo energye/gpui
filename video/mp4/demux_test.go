@@ -488,12 +488,32 @@ func TestErrors(t *testing.T) {
 	data := buildMP4(buildVideoTrak(stblOpt{withStss: true, stss: []uint32{1}}))
 
 	t.Run("truncated", func(t *testing.T) {
-		_, err := Parse(data[:len(data)-20])
+		// moov itself cut: shell broken, open must fail namable.
+		// (mdat-tail cut is the tolerated twin below: moov intact,
+		// samples fail per-read later.)
+		moovEnd := bytes.Index(data, []byte("moov"))
+		if moovEnd < 0 {
+			t.Fatal("no moov in fixture")
+		}
+		_, err := Parse(data[:moovEnd+10])
 		if err == nil {
 			t.Fatal("expected error")
 		}
-		if !errors.Is(err, ErrTruncated) && !errors.Is(err, ErrBadBox) {
+		if !errors.Is(err, ErrTruncated) && !errors.Is(err, ErrBadBox) && !errors.Is(err, ErrNoMoov) {
 			t.Fatalf("wrong error: %v", err)
+		}
+	})
+
+	t.Run("truncatedMdatTailTolerated", func(t *testing.T) {
+		// moov intact + mdat tail cut (streaming rule): shell parses,
+		// samples fail per-read later (conceal), never open-fatal.
+		cut := data[:len(data)-20]
+		m, err := Parse(cut)
+		if err != nil {
+			t.Fatalf("mdat-tail cut should parse: %v", err)
+		}
+		if m.Video == nil || len(m.Video.Samples) == 0 {
+			t.Fatal("sample table lost on mdat-tail cut")
 		}
 	})
 

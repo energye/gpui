@@ -220,11 +220,13 @@ RUN_SECONDS=60 go run ./examples/video_vr7_perf
 ## 4. 架构与落点（独立根模块 · 不进渲染层）
 
 ```text
-gpui/video（本立项的新根模块：拆盒/解码/颜色/队列/时钟/API/注册表）
+gpui/video（本立项的新根模块：拆盒/解码/颜色/队列/时钟/API/注册表/数据源）
   │ 只出自有帧（宽高 + 像素 + 时间戳），不 import ui/render/gpu
   ▼（桥接在真窗侧：video.Frame → render.ImageBuf → DrawImage）
 ui（以后要播视频的控件）→ render → gpu（老链路不动，只管显示送上来的那张图）
 ```
+
+流式生产级（2026-09-14）：`video/source.go` 数据源抽象（本地文件/内存/http(s) Range分块缓存，Range优先、禁Range回退全量，file://清洗）+ `video/player.go` 双路径（小片≤64帧且预估≤256MB全量缓冲保旧门禁逐位，大片只解头（重排延迟+1帧）快开、后台按采样流边解边播、VUI重排延迟出显示序、有界队列永不涨到片长、搜进度世代号作废在途帧后落键前解、循环到尾重绕重解戳递增、URL全链路Range不断流）。秒开证据：720p约330毫秒/1080p约740毫秒（含全量小片5帧解码，大片只付头帧钱）；网络：httptest Range单测锁（206+两路GET）。
 
 真窗上墙路径（VR4/VR8/VC0/VC2/VC3 走这条）：
 
@@ -475,6 +477,9 @@ VW0 → VW1 → VW2 → VW3
 | v0.36 VR9翻绿 | 注册表落地 `video/registry.go` 加播放器走表加 `registry_test.go` 加新窗 `examples/video_vr9_registry`（RUN15）：注册8/8/播出5/直播76/上屏866/fps57.4/p95 18.5毫秒/§2.2全族齐；§2 VR9行与§6 VR9行翻绿；回归（`video`/`clock`/`mp4`/`color`/`h264`全绿、VR4/VR5窗重跑绿、vet+CGO构建过）；VW3待VC2/VC3。收敛2026-09-13：注册表名字收拢为 `ContainerMP4`/`CodecH264` 常量、探测循环合一（`probeOpen`）、三处喂参数合一（`feedParams`，报错字面不变）、F17检查搬进注册表（`RejectUnits`，player不再认NAL类型）、列表排序合一；公开API零破坏（只新增常量与 `RejectUnits`），回归（`video`/`clock`/`mp4`/`color`/`h264`全绿、VR9窗RUN15绿8/8、VR5跳窗重跑绿、vet+CGO构建过）。 |
 | v0.37 VC2翻绿 | 长跑落地新窗 `examples/video_vc2_soak`（RUN120，VR7同构，引擎零改动）：五站全过/直播608/长跑播稳1/分配89B/帧/池99.8%/零泄漏/峰值413MB<512MB/斜率22049KB/分/卡顿2.0/分/上屏6856/fps57.1/p95 20.0毫秒/§2.2全族齐；§3 VC2行与§6 VC2行翻绿；回归（`h264`1080p+B帧/`color`绿、VR2/VR3零回退、vet+CGO构建过）；VW3待VC3。 |
 | v0.38 VC3翻绿 | 三合一落地新窗 `examples/video_vc3_embed_extend`（RUN30，引擎零改动）：三合一1/注册8/8/内嵌1/两尺寸同源/裁剪透明浮层改尺寸全1/直播151/尾MAD124/上屏1723/fps57.0/p95 19.6毫秒/§2.2全族齐；§3 VC3行翻绿；回归（`h264`720p+B帧/`color`/`video`注册表绿、VR2/VR3零回退、vet+CGO构建过）；VW3收口（VR7+VR8+VR9单窗齐+VC2+VC3组合齐）。收敛2026-09-14：本窗内小收敛（只动VC3窗内，不碰VR8/VR9与引擎）：冷播循环合一（`coldPlayToEnded`，内嵌与注册表同片同5帧各调一次）、能力查询合一（`supportsFirstStage`）、灰桩校验合一（`verifyStubGray`）；公开API零动，跨窗脚手架重复按独立真窗纪律故意不动；回归（VC3窗RUN30绿8/8、h264-720p+B帧/color绿、vet+CGO构建过）。 |
+| v0.39 流式生产级 | 播放器改ffmpeg式边解边播：`video/source.go`（文件/内存/HTTP Range分块缓存）+`player.go`双路径（小片缓冲保旧门禁逐位，大片快开+后台流+有界队列+世代号搜进度+循环重解）+`stream_test.go`（快开/有界/Range/file://4项）；秒开720p约330毫秒/1080p约740毫秒（小片全量，大片只付头帧钱）；回归（`video`/`clock`/`mp4`/`color`/`h264`全绿、VR4/VR5/VR6/VC0/VC1/VR7/VR8/VR9/VC3真窗全绿+播放小样绿、vet+CGO构建过）。 |
+| v0.40 流式覆盖补齐 | 使用场景矩阵（来源×播放×搜进度×网络×容错）逐个有单测：`stream_long_test.go`（200帧真长片：播完/搜中段/边解边搜/循环两圈/暂停/追帧/HTTP整播/倒搜/中途截断/坏路径10项）+`mp4`宽容（mdat尾截不断壳，旧moov截断仍FAIL）+`Buffered/DecodePos/ReorderDepth`测试探针；修真问题3个（source无Range回退重GET、player死字段、decodeStep双锁F17死锁）；尾帧追帧Race如实放宽（199+1丢可过，有序+Ended+丢数自洽）；回归（`video`50项/`mp4`/`color`/`clock`/`h264`全绿、VC0/VR7真窗抽查绿、vet过）。长片`vr_stream_long.mp4`本地生成不进仓（`longClip`缺文件Skip）。 |
+| v0.41 覆盖假绿收紧 | 修3处假绿（`TestBadClips`错指不存在的json致缺文件假过→改指`fault.go`并断言桶、`TestStreamFastOpen`缓冲恒过→拆缓冲/流式两半、`TestStreamTruncatedMidway`只看头1帧→播到尾要求118+82隐错）+补基础缺口（`ProbeSource`三源/`Bytes`与`File`边界/无`Range`回调整播/`500`快败/块缓存命中与8块封顶/`OpenWithSource`文件与内存双路/`Close`幂等与关后读写/长片队列4封顶/`IsURL`14项、`TestStreamPathPlaysToEnd`中部丢1帧放宽为有序单缺口）；修真问题1个（`HEAD`有大小仍需`Range`探针验，否则无`Range`服被误判流式）；回归（`video`/`clock`/`color`/`mp4`/`h264`逐文件绿、长片10项绿、小样3项绿、vet+`CGO_ENABLED=0`构建过）。 |
 
 ---
 

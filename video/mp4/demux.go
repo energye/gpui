@@ -3,6 +3,7 @@ package mp4
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -86,6 +87,13 @@ func ParseReader(r io.ReaderAt, total int64) (*Movie, error) {
 	for off < total {
 		b, err := readBoxHeader(r, off, total)
 		if err != nil {
+			// Trailing truncation past moov is payload damage, not a
+			// broken shell: moov (sample tables) is intact, samples
+			// fail per-read later with conceal. Only a damaged head
+			// (no moov yet) fails the open.
+			if errors.Is(err, ErrTruncated) && moovPayload != nil {
+				break
+			}
 			return nil, err
 		}
 		switch b.typ {

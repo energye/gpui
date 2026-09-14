@@ -158,6 +158,14 @@ func SplitUnits(codec string, buf []byte, lengthSize int) ([][]byte, error) {
 // unknown shell becomes ErrUnsupportedContainer. On shell-open failure
 // container names the claiming shell (callers report it); otherwise "".
 func probeOpen(path string) (movie *mp4.Movie, container, codec string, err error) {
+	if IsURL(path) {
+		src, serr := NewSource(path)
+		if serr != nil {
+			return nil, "", "", serr
+		}
+		defer src.Close()
+		return openViaSource(src, path)
+	}
 	if _, err := os.Stat(path); err != nil {
 		return nil, "", "", err
 	}
@@ -175,6 +183,35 @@ func probeOpen(path string) (movie *mp4.Movie, container, codec string, err erro
 		return movie, name, codecName, nil
 	}
 	return nil, "", "", fmt.Errorf("%w: %s (have %v)", ErrUnsupportedContainer, path, SupportedContainers())
+}
+
+// openViaSource probes + parses a kept-open Source (streaming path:
+// the caller keeps src for sample reads; do not close here). Movie
+// carries sample tables; codec names the decoder entry.
+func openViaSource(src Source, nameHint string) (movie *mp4.Movie, container, codec string, err error) {
+	if src == nil {
+		return nil, "", "", fmt.Errorf("%w: nil source %s", ErrUnsupportedContainer, nameHint)
+	}
+	if !mp4ProbeSource(src) {
+		return nil, "", "", fmt.Errorf("%w: %s (have %v)", ErrUnsupportedContainer, src.Name(), SupportedContainers())
+	}
+	movie, codecName, err := mp4OpenSource(src)
+	if err != nil {
+		return nil, ContainerMP4, "", err
+	}
+	return movie, ContainerMP4, codecName, nil
+}
+
+// ProbeSource asks which shell/codec a Source carries, without decoding.
+func ProbeSource(src Source) (container, codec string, err error) {
+	movie, name, codecName, err := openViaSource(src, "")
+	if err != nil {
+		return name, "", err
+	}
+	if movie == nil || movie.Video == nil {
+		return name, "", fmt.Errorf("%w: %s", ErrNoVideo, src.Name())
+	}
+	return name, codecName, nil
 }
 
 // ProbeFile asks the registry which shell/codec a path carries, without
@@ -220,6 +257,14 @@ func (h *h264Decoder) Sampling() string { return color.SamplingYUV420P }
 // mp4.Probe checks the ftyp brand or a moov box, and fast-start files
 // front-load moov while plain files tail-load it, so both ends are read.
 func mp4ProbeFile(path string) bool {
+	if IsURL(path) {
+		src, err := NewSource(path)
+		if err != nil {
+			return false
+		}
+		defer src.Close()
+		return mp4ProbeSource(src)
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return false
@@ -241,6 +286,34 @@ func mp4ProbeFile(path string) bool {
 		off = 0
 	}
 	m, _ := f.ReadAt(tail, off)
+	if m > 0 && mp4.Probe(tail[:m]) {
+		return true
+	}
+	return false
+}
+
+// mp4ProbeSource is the Source twin of mp4ProbeFile: head+tail sniff
+// via ReadAt, so network sources probe with two Range GETs, never a
+// full download.
+func mp4ProbeSource(src Source) bool {
+	if src == nil || src.Size() < 8 {
+		return false
+	}
+	const sniff = 64 << 10
+	head := make([]byte, sniff)
+	n, _ := src.ReadAt(head, 0)
+	if n > 0 && mp4.Probe(head[:n]) {
+		return true
+	}
+	if src.Size() <= int64(n) {
+		return false
+	}
+	tail := make([]byte, sniff)
+	off := src.Size() - int64(len(tail))
+	if off < 0 {
+		off = 0
+	}
+	m, _ := src.ReadAt(tail, off)
 	if m > 0 && mp4.Probe(tail[:m]) {
 		return true
 	}
@@ -276,12 +349,34 @@ func RejectUnits(codec string, units [][]byte, sampleNum int, path string) error
 // a shell without AVC config fails as an unsupported codec with the
 // supported set named.
 func mp4Open(path string) (*mp4.Movie, string, error) {
+	if IsURL(path) {
+		src, err := NewSource(path)
+		if err != nil {
+			return nil, "", err
+		}
+		defer src.Close()
+		return mp4OpenSource(src)
+	}
 	movie, err := mp4.ParseFile(path)
 	if err != nil {
 		return nil, "", err
 	}
 	if movie.Video == nil || len(movie.Video.AVCConfig) == 0 {
 		return movie, "", fmt.Errorf("%w: container %s without AVC config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, path, SupportedCodecs())
+	}
+	return movie, CodecH264, nil
+}
+
+// mp4OpenSource parses a kept-open Source (streaming path): only box
+// headers + moov travel, mdat payload stays on the server until samples
+// stream. Same AVC gate as mp4Open.
+func mp4OpenSource(src Source) (*mp4.Movie, string, error) {
+	movie, err := mp4.ParseReader(src, src.Size())
+	if err != nil {
+		return nil, "", err
+	}
+	if movie.Video == nil || len(movie.Video.AVCConfig) == 0 {
+		return movie, "", fmt.Errorf("%w: container %s without AVC config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, src.Name(), SupportedCodecs())
 	}
 	return movie, CodecH264, nil
 }

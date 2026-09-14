@@ -11,7 +11,11 @@
 // tool, F20 frames are skipped with the tail kept playing. Containers and
 // codecs resolve through the registry (video/registry.go: shell probe +
 // codec table + capability query); the player never names a format, so new
-// shells/codecs arrive as new packages + Register calls. VR7 bounds
+// shells/codecs arrive as new packages + Register calls. Streaming is
+// ffmpeg-shaped: Open parses headers + first frame only (any length
+// opens fast, any Source — file, memory, HTTP Range), the background
+// decodes ahead through a bounded queue, so memory stays flat; small
+// clips buffer fully to keep every gate deterministic. VR7 bounds
 // the steady loop: single-frame-size pools (YUV/RGBA/work, video/pool.go)
 // with hit/leak/cap stats, bounded queue, explicit memory cap, and a
 // timer-free Poll fast path so steady polls cost no heap. Errors name

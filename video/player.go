@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/energye/gpui/video/clock"
@@ -38,8 +39,9 @@ type Info struct {
 	// clip (capability-first UI reads these instead of guessing).
 	Container string
 	Codec     string
-	// Concealed counts bad samples skipped at open (F20 isolation):
+	// Concealed counts bad samples skipped so far (F20 isolation):
 	// truncated/corrupt frames isolated, good tail keeps playing.
+	// Streaming: grows as the background discovers bad samples.
 	Concealed int64
 	// Fault names the first skipped sample's problem, "" when clean.
 	Fault string
@@ -76,11 +78,26 @@ type Options struct {
 	Loop     bool
 }
 
+// pendingPic is a decoded picture waiting for reorder: decode order in,
+// PTS order out (B frames need later samples first).
+type pendingPic struct {
+	pic  *h264.Picture
+	pts  int64
+	spos int
+}
+
 // Player decodes in the background and serves frames by timestamp.
 // Open with OpenFile; poll with Poll; Pause truly stops the picture;
 // Seek jumps to a time (non-loop only in VR5); Close ends the thread.
 // Poll is safe for one display thread; Pause, Resume, Seek and Stats
 // are safe from any thread (Seek blocks for its forward decode).
+//
+// Streaming (production): Open parses only headers (moov) and decodes
+// just enough for the first displayable frame, then returns — seconds
+// for gigabytes, not minutes. The background decodes ahead with a
+// bounded queue (cap = QueueCap, default 4), so memory stays flat for
+// any length and any Source (file, memory, HTTP Range). Seek resets to
+// the landing keyframe and decodes forward; loop re-decodes from head.
 type Player struct {
 	info  Info
 	q     *clock.Queue
@@ -97,10 +114,10 @@ type Player struct {
 	lastShown int64
 	hasShown  bool
 	decTimes  []float64
-	// live counts frames the queue still owes the display; Poll flips
-	// Ended once it hits zero on a non-loop run.
-	live int64
-	// Seek inputs (kept for forward re-decode from the landing keyframe).
+	// decodeDone latches when the background exhausted the stream
+	// (non-loop): Poll ends once the queue also drains.
+	decodeDone bool
+	// Seek inputs (immutable after open, except decode position).
 	path      string
 	samples   []mp4.Sample
 	keyframes []mp4.Keyframe
@@ -113,9 +130,7 @@ type Player struct {
 	container string
 	codec     string
 	sampling  string
-	// frameSamples parallels frames: decode-order sample position that
-	// produced each display-order frame.
-	frameSamples []int
+	sps       *h264.SPS
 	// Last seek evidence for Stats/JSON.
 	seekOK       bool
 	seekDeltaMs  int64
@@ -123,27 +138,84 @@ type Player struct {
 	seekLandedMs int64
 	seekTargetMs int64
 	seekKeyMs    int64
-	// VR6 conceal evidence: bad samples skipped at open.
+	// VR6 conceal evidence: bad samples skipped so far.
 	concealed  int64
 	firstFault error
 
-	stopCh chan struct{}
-	doneCh chan struct{}
-	// readyCh closes once the first frame is queued, so hand-clock tests
-	// (and real callers) never poll an empty queue by accident.
+	// Streaming decode state (dmu guards decoder + position + reorder).
+	dmu          sync.Mutex
+	dec          Decoder
+	source       Source
+	pos          int // next sample index to decode
+	pending      []*pendingPic
+	reorderDepth int
+	generation   int64 // atomic: Seek bumps to invalidate in-flight work
+	epoch        int64 // loop PTS offset across passes
+	base0        int64 // first sample PTS (epoch origin)
+	spanMs       int64 // last PTS - first PTS (loop wrap step)
+	nextSeq      int64
+	lastPTS      int64 // last emitted PTS (monotonic guard)
+	dropUntil    int64 // after seek: drop emissions with PTS <= this, -1 none
+	hasFirst     bool
+
+	// Buffered mode (small clips ≤64 frames and ≤256MB estimate):
+	// full decode at open into display-order cache (old semantics:
+	// deterministic tests, pixel-verified seek, whole-clip loop).
+	// Large clips stream above; small clips keep exact old behaviour.
+	buffered    bool
+	bufFrames   []*clock.Frame
+	bufSamples  []int
+	live        int64
+
+	stopCh  chan struct{}
+	doneCh  chan struct{}
 	readyCh chan struct{}
-	frames  []*clock.Frame
-	next    int
+	readyDo sync.Once
 	loop    bool
 	base    int64
+}
+
+func (p *Player) announceReady() {
+	p.readyDo.Do(func() { close(p.readyCh) })
 }
 
 // OpenFile opens path and starts the background decoder. The player owns
 // nothing caller-side; Close must be called. Container and codec are
 // resolved through the registry: the same clip that probes also plays,
 // and unknown shells/codecs fail with the supported set named.
+//
+// Fast open: only headers + first displayable frame(s) decode here
+// (reorder delay + 1); the rest streams in the background. path may be
+// a local file or an http(s) URL (Range streaming, never full download).
 func OpenFile(path string, opt Options) (*Player, error) {
-	movie, containerName, codecName, err := openViaRegistry(path)
+	src, err := NewSource(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		// Probe for a namable bucket (unsupported vs unreadable).
+		if _, _, perr := ProbeFile(path); perr != nil {
+			if errors.Is(perr, ErrUnsupportedContainer) || errors.Is(perr, ErrUnsupportedCodec) {
+				return nil, perr
+			}
+		}
+		return nil, err
+	}
+	p, err := OpenWithSource(src, opt)
+	if err != nil {
+		src.Close()
+		// Keep the path in errors for triage (source name is the URL
+		// already; file errors keep os chain for KindBadClip).
+		return nil, err
+	}
+	return p, nil
+}
+
+// OpenWithSource opens a kept-open Source (file, memory, HTTP Range) and
+// starts the background decoder. Caller must not Close src after success
+// (Player owns it); on failure src is left open for the caller to close.
+func OpenWithSource(src Source, opt Options) (*Player, error) {
+	movie, containerName, codecName, err := openViaSource(src, src.Name())
 	if err != nil {
 		if errors.Is(err, ErrUnsupportedContainer) || errors.Is(err, ErrUnsupportedCodec) {
 			return nil, err
@@ -151,53 +223,142 @@ func OpenFile(path string, opt Options) (*Player, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
-		return nil, fmt.Errorf("video: box unreadable %s: %w", path, err)
+		return nil, fmt.Errorf("video: box unreadable %s: %w", src.Name(), err)
 	}
 	v := movie.Video
 	if v == nil || len(v.Samples) == 0 {
-		return nil, fmt.Errorf("%w: %s", ErrNoVideo, path)
+		return nil, fmt.Errorf("%w: %s", ErrNoVideo, src.Name())
 	}
+	return openStream(src, src.Name(), movie, v, containerName, codecName, opt)
+}
+
+// openStream builds a streaming player from parsed headers + source.
+// It decodes synchronously only until the first displayable frame, then
+// hands the rest to the background.
+func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, containerName, codecName string, opt Options) (*Player, error) {
 	avcc, err := h264.ParseAVCC(v.AVCConfig)
 	if err != nil {
-		return nil, fmt.Errorf("video: header params %s: %w", path, err)
+		return nil, fmt.Errorf("video: header params %s: %w", nameHint, err)
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
 	dec, err := NewDecoder(codecName)
 	if err != nil {
-		return nil, fmt.Errorf("video: codec %s: %w", path, err)
+		return nil, fmt.Errorf("video: codec %s: %w", nameHint, err)
 	}
-	if err := feedParams(dec, avcc, path, ""); err != nil {
+	if err := feedParams(dec, avcc, nameHint, ""); err != nil {
 		return nil, err
 	}
 	var sps *h264.SPS
 	if len(avcc.SPS) > 0 {
 		if sps, err = h264.ParseSPS(avcc.SPS[0]); err != nil {
-			return nil, fmt.Errorf("video: sequence params %s: %w", path, err)
+			return nil, fmt.Errorf("video: sequence params %s: %w", nameHint, err)
 		}
 	}
 	// F1/F2 gate at open: non-B/M/H profiles and levels past 5.2 fail
 	// fast with a namable error instead of flowering later.
-	if err := checkStreamLimits(sps, path); err != nil {
+	if err := checkStreamLimits(sps, nameHint); err != nil {
 		return nil, err
 	}
 	copt := color.Options{}
 	if sps != nil && sps.VUI != nil {
 		copt = color.OptionsFromVUI(sps.VUI.FullRange, sps.VUI.ColourPresent, sps.VUI.ColourMatrix)
 	}
-	// Decode every sample in stream order, then sort by the container PTS
-	// into presentation order (B frames need later samples first).
-	// The container stamps already carry the ctts correction, so no POC
-	// math is needed here: equal POC ties keep sample order via pts.
+	now := opt.NowMs
+	if now == nil {
+		now = wallMs
+	}
+	// Start anchors stamp postage: the clock begins one step before the
+	// first stamp, so the first frame is due on the first tick and later
+	// stamps follow in real time. QueueCap 0 means DefaultCap.
+	// Streaming: the cap stays bounded (shock absorber, not storage) —
+	// never grown to the clip length, so gigabytes stay flat.
+	qcap := opt.QueueCap
+	if qcap <= 0 {
+		qcap = clock.DefaultCap
+	}
+	q := clock.NewQueue(qcap)
+	clk := clock.NewClock(now)
+	// Reorder depth from the stream (B delay): VUI truth when present,
+	// conservative 2 otherwise (covers single-B without stalling open).
+	depth := 2
+	if sps != nil && sps.VUI != nil {
+		depth = int(sps.VUI.NumReorderFrames)
+	}
+	if depth < 0 {
+		depth = 0
+	}
+	if depth > 16 {
+		depth = 16
+	}
+	base0 := v.Samples[0].PTSMs
+	span := v.Samples[len(v.Samples)-1].PTSMs - base0
+	if span < 0 {
+		span = 0
+	}
+	p := &Player{
+		info: Info{Path: nameHint, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(v.Samples), KeyframeN: v.KeyframeCount(), Container: containerName, Codec: codecName},
+		q: q, clk: clk, nowMs: now,
+		stopCh: make(chan struct{}), doneCh: make(chan struct{}), readyCh: make(chan struct{}),
+	}
+	p.loop = opt.Loop
+	p.source = src
+	p.path = nameHint
+	p.samples = append([]mp4.Sample(nil), v.Samples...)
+	p.keyframes = append([]mp4.Keyframe(nil), v.Keyframes...)
+	p.avcc = avcc
+	p.copt = copt
+	p.frameRate = v.FrameRate
+	p.container = containerName
+	p.codec = codecName
+	p.sps = sps
+	p.sampling = dec.Sampling()
+	// Small-clip fast path: full buffer (deterministic, old semantics).
+	// Estimate covers YUV+RGBA per frame + workspace; tiny clips decode
+	// in milliseconds, so buffering keeps every existing gate exact
+	// while large clips stream bounded above.
+	estW, estH := 0, 0
+	if sps != nil {
+		estW, estH = int(sps.Width), int(sps.Height)
+	} else {
+		estW, estH = int(v.Width), int(v.Height)
+	}
+	if len(v.Samples) <= 64 && EstimateDecoderBytes(estW, estH, len(v.Samples), 256<<10) <= 256<<20 {
+		return openBuffered(p, src, nameHint, v, containerName, codecName, avcc, copt, sps, dec, opt)
+	}
+	p.dec = dec
+	p.pos = 0
+	p.reorderDepth = depth
+	p.base0 = base0
+	p.spanMs = span
+	p.dropUntil = -1
+	// Info dimensions/profile without waiting for pixels: SPS truth.
+	if sps != nil {
+		p.info.Width = int(sps.Width)
+		p.info.Height = int(sps.Height)
+		p.info.Profile = sps.Profile
+	} else {
+		p.info.Width = int(v.Width)
+		p.info.Height = int(v.Height)
+	}
+	// Sync phase: decode until the first displayable frame (reorder
+	// delay + 1), so Open returns in ~100ms with pixels ready and Info
+	// Honest. The background continues from p.pos.
+	if err := p.primeFirst(); err != nil {
+		return nil, err
+	}
+	// Anchor the clock one step before the first emitted stamp.
+	clk.Start(p.base - frameStepMs(v.FrameRate))
+	go p.decodeLoop()
+	return p, nil
+}
+
+// openBuffered fully decodes small clips at open into a display-order
+// cache (pre-streaming semantics, byte-identical): deterministic Poll /
+// Seek / Loop / Stats for every existing gate and window. Large clips
+// never take this path (see openStream estimate gate).
+func openBuffered(p *Player, src Source, nameHint string, v *mp4.Track, containerName, codecName string, avcc *h264.AVCC, copt color.Options, sps *h264.SPS, dec Decoder, opt Options) (*Player, error) {
 	type sized struct {
-		pic *h264.Picture
-		pts int64
-		// spos is the decode-order sample position (0-based into
-		// v.Samples) that produced this picture; Seek needs it to map
-		// a display frame back to its sample for forward re-decode.
+		pic  *h264.Picture
+		pts  int64
 		spos int
 	}
 	var pics []*sized
@@ -208,47 +369,43 @@ func OpenFile(path string, opt Options) (*Player, error) {
 			firstFault = err
 		}
 	}
-	// reset rebuilds a clean decoder after a corrupt sample fed partial
-	// state: the bad frame is dropped, the next IDR restarts the tail.
-	// Truncated reads feed nothing, so they keep the live decoder.
-	// The rebuild goes through the same registry entry.
 	reset := func() {
 		nd, err := NewDecoder(codecName)
 		if err != nil {
 			return
 		}
-		feedParams(nd, avcc, path, "")
+		feedParams(nd, avcc, nameHint, "")
 		dec = nd
 	}
 	for si, s := range v.Samples {
 		buf := make([]byte, s.Size)
-		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
+		if _, err := readSourceRange(src, buf, int64(s.Offset)); err != nil {
 			concealed++
-			remember(fmt.Errorf("video: sample %d truncated %s (%v): %w", s.Number, path, err, mp4.ErrTruncated))
+			remember(fmt.Errorf("video: sample %d truncated %s (%v): %w", s.Number, nameHint, err, mp4.ErrTruncated))
 			continue
 		}
 		units, err := SplitUnits(codecName, buf, avcc.LengthSize)
 		if err != nil {
-			// Split failures are truncations; keep refs, skip frame.
 			concealed++
-			remember(fmt.Errorf("video: sample %d split %s: %w", s.Number, path, err))
+			remember(fmt.Errorf("video: sample %d split %s: %w", s.Number, nameHint, err))
 			continue
 		}
-		if err := RejectUnits(codecName, units, s.Number, path); err != nil {
-			// F17 is stream-level unsupported: fail the whole clip.
+		if err := RejectUnits(codecName, units, s.Number, nameHint); err != nil {
+			src.Close()
 			return nil, err
 		}
 		fed := false
 		var decErr error
 		for _, u := range units {
 			if err := dec.DecodeNALU(u); err != nil {
-				decErr = fmt.Errorf("video: sample %d decode %s: %w", s.Number, path, err)
+				decErr = fmt.Errorf("video: sample %d decode %s: %w", s.Number, nameHint, err)
 				break
 			}
 			fed = true
 		}
 		if decErr != nil {
 			if streamFatal(decErr) {
+				src.Close()
 				return nil, decErr
 			}
 			concealed++
@@ -257,26 +414,27 @@ func OpenFile(path string, opt Options) (*Player, error) {
 			continue
 		}
 		if !fed {
-			// No slices fed (SEI-only sample): nothing to show.
 			continue
 		}
 		pic, err := dec.FinishPicture()
 		if err != nil {
 			if streamFatal(err) {
-				return nil, fmt.Errorf("video: sample %d finish %s: %w", s.Number, path, err)
+				src.Close()
+				return nil, fmt.Errorf("video: sample %d finish %s: %w", s.Number, nameHint, err)
 			}
 			concealed++
-			remember(fmt.Errorf("video: sample %d finish %s: %w", s.Number, path, err))
+			remember(fmt.Errorf("video: sample %d finish %s: %w", s.Number, nameHint, err))
 			reset()
 			continue
 		}
 		pics = append(pics, &sized{pic: pic, pts: s.PTSMs, spos: si})
 	}
 	if len(pics) == 0 {
+		src.Close()
 		if firstFault != nil {
-			return nil, fmt.Errorf("%w: %s: %v", ErrNoFrames, path, firstFault)
+			return nil, fmt.Errorf("%w: %s: %v", ErrNoFrames, nameHint, firstFault)
 		}
-		return nil, fmt.Errorf("%w: %s", ErrNoFrames, path)
+		return nil, fmt.Errorf("%w: %s", ErrNoFrames, nameHint)
 	}
 	sort.Slice(pics, func(i, j int) bool {
 		if pics[i].pts != pics[j].pts {
@@ -284,78 +442,164 @@ func OpenFile(path string, opt Options) (*Player, error) {
 		}
 		return pics[i].pic.POC < pics[j].pic.POC
 	})
-	now := opt.NowMs
-	if now == nil {
-		now = wallMs
+	// Buffered queue holds the whole clip (tiny by gate), like before.
+	if p.q.Cap() < len(pics) {
+		p.q = clock.NewQueue(len(pics))
 	}
-	// Start anchors stamp postage: the clock begins one step before the
-	// first stamp, so the first frame is due on the first tick and later
-	// stamps follow in real time. QueueCap 0 means DefaultCap.
-	if opt.QueueCap <= 0 {
-		opt.QueueCap = clock.DefaultCap
-	}
-	// The background thread must hold every frame the queue cannot, so
-	// the cap needs headroom for the whole clip. Tiny caps only shape
-	// burst behaviour; capacity is len(frames) either way.
-	cap := opt.QueueCap
-	if cap < len(pics) {
-		cap = len(pics)
-	}
-	q := clock.NewQueue(cap)
-	clk := clock.NewClock(now)
-	p := &Player{info: Info{Path: path, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(pics), KeyframeN: v.KeyframeCount(), Concealed: concealed, Container: containerName, Codec: codecName}, q: q, clk: clk, nowMs: now, stopCh: make(chan struct{}), doneCh: make(chan struct{}), loop: opt.Loop, readyCh: make(chan struct{})}
+	p.buffered = true
+	p.dec = dec
+	p.sampling = dec.Sampling()
 	if firstFault != nil {
 		p.info.Fault = Classify(firstFault).Readable()
 	}
+	p.info.Frames = len(pics)
 	p.concealed = concealed
+	p.info.Concealed = concealed
 	p.firstFault = firstFault
-	p.path = path
-	p.samples = append([]mp4.Sample(nil), v.Samples...)
-	p.keyframes = append([]mp4.Keyframe(nil), v.Keyframes...)
-	p.avcc = avcc
-	p.copt = copt
-	p.frameRate = v.FrameRate
-	p.container = containerName
-	p.codec = codecName
-	p.sampling = dec.Sampling()
+	if w := pics[0].pic.Width; w > 0 {
+		// Pics are cropped display size already when SPS crops.
+		p.info.Width = int(pics[0].pic.Width)
+		p.info.Height = int(pics[0].pic.Height)
+	}
+	// Convert all (timed like before for DecodeMs gates).
 	for i, sp := range pics {
 		t0 := time.Now()
 		cf, err := color.Convert(p.sampling, sp.pic.Y, sp.pic.Cb, sp.pic.Cr, int(sp.pic.Width), int(sp.pic.Height), copt)
 		if err != nil {
-			return nil, fmt.Errorf("video: color frame %d %s: %w", i, path, err)
+			src.Close()
+			return nil, fmt.Errorf("video: color frame %d %s: %w", i, nameHint, err)
 		}
 		el := float64(time.Since(t0).Microseconds()) / 1000.0
 		p.decTimes = append(p.decTimes, el)
-		// Stamps come from the container (ctts-corrected PTS); B reorder
-		// is display order, so sequence already matches. Only guard
-		// against non-monotonic stamps from odd files.
 		pts := sp.pts
-		if i > 0 && pts <= p.frames[i-1].PTSMs {
-			pts = p.frames[i-1].PTSMs + frameStepMs(v.FrameRate)
+		if i > 0 && pts <= p.bufFrames[i-1].PTSMs {
+			pts = p.bufFrames[i-1].PTSMs + frameStepMs(v.FrameRate)
 		}
 		if i == 0 {
 			p.base = pts
 		}
-		p.frames = append(p.frames, &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(v.FrameRate), Seq: int64(i)})
-		p.frameSamples = append(p.frameSamples, sp.spos)
+		p.bufFrames = append(p.bufFrames, &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(v.FrameRate), Seq: int64(i)})
+		p.bufSamples = append(p.bufSamples, sp.spos)
 		p.decoded++
 	}
-	if w := p.frames[0].Width; w > 0 {
-		p.info.Width = w
-		p.info.Height = p.frames[0].Height
-	}
-	if sps != nil {
-		p.info.Profile = sps.Profile
-	}
-	// Start anchors stamp postage: the clock begins one step before the
-	// first stamp, so the head frame is already due on the first tick
-	// even when the background thread is still queueing.
-	clk.Start(p.frames[0].PTSMs - frameStepMs(v.FrameRate))
-	// The background thread owns all queue traffic (with backpressure),
-	// so OpenFile never blocks even with a tiny cap.
-	p.live = int64(len(p.frames))
-	go p.feed()
+	// Source fully consumed: close now (seek re-opens via NewSource).
+	src.Close()
+	p.source = nil
+	p.live = int64(len(p.bufFrames))
+	p.clk.Start(p.bufFrames[0].PTSMs - frameStepMs(v.FrameRate))
+	go p.feedCache()
 	return p, nil
+}
+
+// feedCache serves the buffered cache (small-clip path): non-loop once,
+// loop cycling with stamps counting up. Mirrors pre-streaming feed.
+func (p *Player) feedCache() {
+	defer close(p.doneCh)
+	defer p.q.Close()
+	announced := false
+	announce := func() {
+		if !announced {
+			announced = true
+			p.announceReady()
+		}
+	}
+	if !p.loop {
+		for _, fr := range p.bufFrames {
+			queuedHead := p.q.Pushes() == 0
+			select {
+			case <-p.stopCh:
+				return
+			default:
+			}
+			if ok, _ := p.q.Push(fr); !ok {
+				return
+			}
+			if queuedHead {
+				announce()
+			}
+		}
+		<-p.stopCh
+		return
+	}
+	epoch := int64(0)
+	base := p.bufFrames[0].PTSMs
+	for {
+		for _, src := range p.bufFrames {
+			cp := *src
+			cp.PTSMs = base + epoch + (src.PTSMs - p.base)
+			select {
+			case <-p.stopCh:
+				return
+			default:
+			}
+			if ok, _ := p.q.Push(&cp); !ok {
+				return
+			}
+			if p.q.Pushes() == 1 {
+				announce()
+			}
+		}
+		epoch += p.spanCache() + frameStepMs(p.info.FrameRate)
+	}
+}
+
+func (p *Player) spanCache() int64 {
+	if len(p.bufFrames) == 0 {
+		return 0
+	}
+	return p.bufFrames[len(p.bufFrames)-1].PTSMs - p.bufFrames[0].PTSMs
+}
+
+// primeFirst decodes synchronously until the first frame queues.
+// It mirrors one decodeLoop step but runs on the opener thread, so the
+// first Poll never races the background.
+func (p *Player) primeFirst() error {
+	for {
+		emitted, done, ferr := p.decodeStep()
+		if ferr != nil {
+			return ferr
+		}
+		for _, e := range emitted {
+			cf, el, cerr := p.convertPic(e.pic)
+			if cerr != nil {
+				return fmt.Errorf("video: color frame %s: %w", p.path, cerr)
+			}
+			pts := p.assignPTS(e.pts)
+			fr := &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: p.nextSeq}
+			p.nextSeq++
+			p.mu.Lock()
+			p.decTimes = append(p.decTimes, el)
+			p.decoded++
+			p.mu.Unlock()
+			if !p.hasFirst {
+				p.hasFirst = true
+				p.base = pts
+				// Refine Info dimensions from real pixels (crop truth).
+				p.info.Width = cf.Width
+				p.info.Height = cf.Height
+			}
+			p.lastPTS = pts
+			if ok, _ := p.q.Push(fr); !ok {
+				return fmt.Errorf("%w: queue closed during open %s", ErrClosed, p.path)
+			}
+			p.announceReady()
+		}
+		if p.hasFirst {
+			return nil
+		}
+		if done {
+			if !p.hasFirst {
+				p.mu.Lock()
+				ff := p.firstFault
+				p.mu.Unlock()
+				if ff != nil {
+					return fmt.Errorf("%w: %s: %v", ErrNoFrames, p.path, ff)
+				}
+				return fmt.Errorf("%w: %s", ErrNoFrames, p.path)
+			}
+			return nil
+		}
+	}
 }
 
 func frameStepMs(fps float64) int64 {
@@ -379,79 +623,263 @@ func WallPast(deadline int64) bool { return wallMs() >= deadline }
 // WallSleep pauses the caller (display-side pacing helper).
 func WallSleep(ms int64) { time.Sleep(time.Duration(ms) * time.Millisecond) }
 
-// feed serves the frames on the decoder thread with backpressure:
-// Push waits while the queue is full, so a tiny cap never piles memory.
-// Non-loop pushes the clip once; loop replays with stamps counting up.
-// The loop pass is queued eagerly (same tick as the first pass drains),
-// so the wrap never gaps the picture.
-func (p *Player) feed() {
-	defer close(p.doneCh)
-	defer p.q.Close()
-	announced := false
-	announce := func() {
-		if !announced {
-			announced = true
-			close(p.readyCh)
+// decodeStep decodes one sample (claim + IO + decode under dmu) and
+// returns display-ready emissions (reorder). done reports the stream
+// exhausted AND pending flushed. Fatal stream errors return err.
+func (p *Player) decodeStep() (emitted []*pendingPic, done bool, err error) {
+	// Claim position under dmu.
+	p.dmu.Lock()
+	if p.pos >= len(p.samples) {
+		if len(p.pending) == 0 {
+			p.dmu.Unlock()
+			return nil, true, nil
+		}
+		// Flush all sorted at EOS.
+		sort.Slice(p.pending, func(i, j int) bool {
+			if p.pending[i].pts != p.pending[j].pts {
+				return p.pending[i].pts < p.pending[j].pts
+			}
+			return p.pending[i].spos < p.pending[j].spos
+		})
+		out := p.pending
+		p.pending = nil
+		p.dmu.Unlock()
+		return out, true, nil
+	}
+	idx := p.pos
+	p.pos++
+	s := p.samples[idx]
+	gen := atomic.LoadInt64(&p.generation)
+	p.dmu.Unlock()
+
+	// IO outside the decoder lock (network may stall; Seek must proceed).
+	buf := make([]byte, s.Size)
+	if _, rerr := readSourceRange(p.source, buf, int64(s.Offset)); rerr != nil {
+		p.mu.Lock()
+		p.concealed++
+		if p.firstFault == nil {
+			p.firstFault = fmt.Errorf("video: sample %d truncated %s (%v): %w", s.Number, p.path, rerr, mp4.ErrTruncated)
+		}
+		p.info.Concealed = p.concealed
+		if p.firstFault != nil {
+			p.info.Fault = Classify(p.firstFault).Readable()
+		}
+		p.mu.Unlock()
+		return nil, false, nil
+	}
+	p.dmu.Lock()
+	defer p.dmu.Unlock()
+	if atomic.LoadInt64(&p.generation) != gen {
+		// Seek invalidated this claim; drop the read.
+		return nil, false, nil
+	}
+	fed := false
+	units, uerr := SplitUnits(p.codec, buf, p.avcc.LengthSize)
+	if uerr != nil {
+		p.dmu.Unlock()
+		p.mu.Lock()
+		p.concealed++
+		if p.firstFault == nil {
+			p.firstFault = fmt.Errorf("video: sample %d split %s: %w", s.Number, p.path, uerr)
+		}
+		p.info.Concealed = p.concealed
+		p.info.Fault = Classify(p.firstFault).Readable()
+		p.mu.Unlock()
+		p.dmu.Lock()
+		return nil, false, nil
+	}
+	if rerr := RejectUnits(p.codec, units, s.Number, p.path); rerr != nil {
+		// F17 is stream-level: fail the open/play loudly (no conceal).
+		// dmu is held; decodeStep's defer unlocks on this return.
+		return nil, false, rerr
+	}
+	var decErr error
+	for _, u := range units {
+		if derr := p.dec.DecodeNALU(u); derr != nil {
+			decErr = fmt.Errorf("video: sample %d decode %s: %w", s.Number, p.path, derr)
+			break
+		}
+		fed = true
+	}
+	if decErr != nil {
+		if streamFatal(decErr) {
+			return nil, false, decErr
+		}
+		p.dmu.Unlock()
+		p.mu.Lock()
+		p.concealed++
+		if p.firstFault == nil {
+			p.firstFault = decErr
+		}
+		p.info.Concealed = p.concealed
+		p.info.Fault = Classify(p.firstFault).Readable()
+		p.mu.Unlock()
+		p.dmu.Lock()
+		p.resetDecoderLocked()
+		return nil, false, nil
+	}
+	if !fed {
+		return nil, false, nil
+	}
+	pic, ferr := p.dec.FinishPicture()
+	if ferr != nil {
+		if streamFatal(ferr) {
+			return nil, false, fmt.Errorf("video: sample %d finish %s: %w", s.Number, p.path, ferr)
+		}
+		p.dmu.Unlock()
+		p.mu.Lock()
+		p.concealed++
+		if p.firstFault == nil {
+			p.firstFault = fmt.Errorf("video: sample %d finish %s: %w", s.Number, p.path, ferr)
+		}
+		p.info.Concealed = p.concealed
+		p.info.Fault = Classify(p.firstFault).Readable()
+		p.mu.Unlock()
+		p.dmu.Lock()
+		p.resetDecoderLocked()
+		return nil, false, nil
+	}
+	// Display PTS = epoch-shifted container PTS (loops count up).
+	pts := p.base0 + p.epoch + (s.PTSMs - p.base0)
+	p.pending = append(p.pending, &pendingPic{pic: pic, pts: pts, spos: idx})
+	if len(p.pending) <= p.reorderDepth {
+		return nil, false, nil
+	}
+	// Emit the smallest PTS.
+	best := 0
+	for i := 1; i < len(p.pending); i++ {
+		if p.pending[i].pts < p.pending[best].pts ||
+			(p.pending[i].pts == p.pending[best].pts && p.pending[i].spos < p.pending[best].spos) {
+			best = i
 		}
 	}
-	if !p.loop {
-		for _, fr := range p.frames {
-			// Announce the head as soon as it is queued so Poll never
-			// waits past the first frame.
-			queuedHead := p.q.Pushes() == 0
-			select {
-			case <-p.stopCh:
-				return
-			default:
+	out := p.pending[best]
+	p.pending = append(p.pending[:best], p.pending[best+1:]...)
+	return []*pendingPic{out}, false, nil
+}
+
+// resetDecoderLocked rebuilds a clean decoder (caller holds dmu).
+func (p *Player) resetDecoderLocked() {
+	nd, err := NewDecoder(p.codec)
+	if err != nil {
+		return
+	}
+	feedParams(nd, p.avcc, p.path, "")
+	p.dec = nd
+}
+
+// convertPic runs color conversion (stateless, no locks held).
+func (p *Player) convertPic(pic *h264.Picture) (*color.Frame, float64, error) {
+	t0 := time.Now()
+	cf, err := color.Convert(p.sampling, pic.Y, pic.Cb, pic.Cr, int(pic.Width), int(pic.Height), p.copt)
+	if err != nil {
+		return nil, 0, err
+	}
+	el := float64(time.Since(t0).Microseconds()) / 1000.0
+	return cf, el, nil
+}
+
+// assignPTS guards monotonic display stamps (caller sequences emissions).
+func (p *Player) assignPTS(pts int64) int64 {
+	if p.hasFirst && pts <= p.lastPTS {
+		pts = p.lastPTS + frameStepMs(p.frameRate)
+	}
+	return pts
+}
+
+// decodeLoop serves frames on the decoder thread with backpressure:
+// Push waits while the queue is full, so a tiny cap never piles memory.
+// Non-loop ends after flushing; loop re-decodes from head with stamps
+// counting up. Steady loop allocates one Frame per push only.
+func (p *Player) decodeLoop() {
+	defer close(p.doneCh)
+	defer p.q.Close()
+	for {
+		select {
+		case <-p.stopCh:
+			return
+		default:
+		}
+		gen := atomic.LoadInt64(&p.generation)
+		emitted, done, ferr := p.decodeStep()
+		if ferr != nil {
+			p.mu.Lock()
+			if p.err == "" {
+				p.err = ferr.Error()
 			}
+			p.decodeDone = true
+			p.mu.Unlock()
+			return
+		}
+		for _, e := range emitted {
+			// Seek drop: emissions at/below the landing belong to the
+			// jumped-over past (B reorder), never show them.
+			p.dmu.Lock()
+			drop := p.dropUntil >= 0 && e.pts <= p.dropUntil
+			p.dmu.Unlock()
+			if drop {
+				continue
+			}
+			if atomic.LoadInt64(&p.generation) != gen {
+				break
+			}
+			cf, el, cerr := p.convertPic(e.pic)
+			if cerr != nil {
+				p.mu.Lock()
+				if p.err == "" {
+					p.err = fmt.Errorf("video: color %s: %w", p.path, cerr).Error()
+				}
+				p.mu.Unlock()
+				continue
+			}
+			if atomic.LoadInt64(&p.generation) != gen {
+				break
+			}
+			pts := e.pts
+			p.dmu.Lock()
+			if p.hasFirst && pts <= p.lastPTS {
+				pts = p.lastPTS + frameStepMs(p.frameRate)
+			}
+			seq := p.nextSeq
+			p.nextSeq++
+			p.lastPTS = pts
+			p.dmu.Unlock()
+			fr := &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: seq}
 			if ok, _ := p.q.Push(fr); !ok {
 				return
 			}
-			if queuedHead {
-				announce()
+			if atomic.LoadInt64(&p.generation) != gen {
+				// Pushed stale during a racing seek; the seeker clears
+				// again before landing, so just skip accounting.
+				continue
 			}
+			p.mu.Lock()
+			p.decTimes = append(p.decTimes, el)
+			p.decoded++
+			p.mu.Unlock()
+			p.announceReady()
 		}
-		<-p.stopCh
-		return
-	}
-	// Loop: every pass is queued through Push backpressure; PollDue's
-	// due gate paces display, so early queueing never shows early.
-	// Push blocks while full and wakes on Queue.Close, so no helper
-	// goroutine per frame: steady loop allocates one Frame struct per
-	// push only (VR7 profile: the old go+chan per push cost ~8KB stack
-	// each and dominated steady bytes).
-	epoch := int64(0)
-	base := p.frames[0].PTSMs
-	for {
-		for _, src := range p.frames {
-			cp := *src
-			cp.PTSMs = base + epoch + (src.PTSMs - p.base)
-			select {
-			case <-p.stopCh:
-				return
-			default:
-			}
-			// Queue cap always fits the clip, and Close wakes a
-			// blocked Push via Broadcast, so this cannot hang past
-			// Close without any per-frame goroutine or channel.
-			if ok, _ := p.q.Push(&cp); !ok {
+		if done {
+			p.mu.Lock()
+			loop := p.loop
+			p.mu.Unlock()
+			if !loop {
+				p.mu.Lock()
+				p.decodeDone = true
+				p.mu.Unlock()
 				return
 			}
-			// Announce the head as soon as it is queued so Poll never
-			// waits past the first frame.
-			if p.q.Pushes() == 1 {
-				announce()
-			}
+			// Loop wrap: re-decode from head, stamps keep counting up.
+			p.dmu.Lock()
+			p.epoch += p.spanMs + frameStepMs(p.frameRate)
+			p.pos = 0
+			p.pending = nil
+			p.nextSeq = 0
+			p.dropUntil = -1
+			p.resetDecoderLocked()
+			p.dmu.Unlock()
 		}
-		epoch += p.spanMs() + frameStepMs(p.info.FrameRate)
 	}
-}
-
-func (p *Player) spanMs() int64 {
-	if len(p.frames) == 0 {
-		return 0
-	}
-	return p.frames[len(p.frames)-1].PTSMs - p.frames[0].PTSMs
 }
 
 // Poll returns the newest due frame (nil when none is due, or after the
@@ -487,19 +915,32 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 		p.hasShown = true
 		last := false
 		if !p.loop {
-			// PollDue eats every due frame but shows the newest, so the
-			// skipped ones are done too: count them all off live.
-			p.live -= int64(skipped) + 1
-			if p.live <= 0 {
-				p.live = 0
-				p.ended = true
-				last = true
+			if p.buffered {
+				// Buffered: count every consumed frame off live (old
+				// semantics: catch-up eats stale but counts all).
+				p.live -= int64(skipped) + 1
+				if p.live <= 0 {
+					p.live = 0
+					p.ended = true
+					last = true
+				}
+			} else {
+				// Streaming: end when the decoder exhausted AND the
+				// queue drained (closed + empty).
+				p.mu.Unlock()
+				p.mu.Lock()
+				done := p.decodeDone && p.q.Drained()
+				p.mu.Unlock()
+				if done {
+					p.mu.Lock()
+					p.ended = true
+					p.mu.Unlock()
+					return fr, true
+				}
+				p.mu.Lock()
 			}
 		}
 		p.mu.Unlock()
-		// Report Ended on the same call that shows the last frame: the
-		// queue may still hold closed-state, but nothing will ever show
-		// again, so callers can stop without one more empty poll.
 		if last {
 			return fr, true
 		}
@@ -510,7 +951,14 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 	if p.loop {
 		return nil, false
 	}
-	if p.live <= 0 && p.q.Drained() {
+	if p.buffered {
+		if p.live <= 0 && p.q.Drained() {
+			p.ended = true
+			return nil, true
+		}
+		return nil, false
+	}
+	if p.decodeDone && p.q.Drained() {
 		p.ended = true
 		return nil, true
 	}
@@ -540,16 +988,63 @@ func (p *Player) Paused() bool {
 	return p.paused
 }
 
-// Info describes the clip.
-func (p *Player) Info() Info { return p.info }
+// Buffered reports the small-clip full-cache path (tests only).
+func (p *Player) Buffered() bool {
+	if p == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.buffered
+}
+
+// DecodePos reports samples consumed at open (tests only: streaming
+// fast-open proof, buffered reports len(samples)).
+func (p *Player) DecodePos() int {
+	if p == nil {
+		return 0
+	}
+	p.dmu.Lock()
+	defer p.dmu.Unlock()
+	if p.buffered {
+		return len(p.samples)
+	}
+	return p.pos
+}
+
+// ReorderDepth reports the B-delay used (tests only).
+func (p *Player) ReorderDepth() int {
+	if p == nil {
+		return 0
+	}
+	p.dmu.Lock()
+	defer p.dmu.Unlock()
+	return p.reorderDepth
+}
+
+// Info describes the clip (Concealed/Fault reflect streaming progress).
+func (p *Player) Info() Info {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := p.info
+	out.Concealed = p.concealed
+	if p.firstFault != nil {
+		out.Fault = Classify(p.firstFault).Readable()
+	} else {
+		out.Fault = ""
+	}
+	return out
+}
 
 // Stats snapshots the waterline.
 func (p *Player) Stats() Stats {
 	p.mu.Lock()
 	ended := p.ended
-	live := p.live
+	decodeDone := p.decodeDone
 	p.mu.Unlock()
+	p.mu.Lock()
 	times := append([]float64(nil), p.decTimes...)
+	p.mu.Unlock()
 	sort.Float64s(times)
 	avg, p95 := 0.0, 0.0
 	if len(times) > 0 {
@@ -571,7 +1066,9 @@ func (p *Player) Stats() Stats {
 			drift = 0
 		}
 	}
-	done := !p.loop && ended && live <= 0
+	p.mu.Lock()
+	done := (!p.loop && (ended || (decodeDone && p.q.Drained() && hasShown)))
+	p.mu.Unlock()
 	p.mu.Lock()
 	seekOK := 0
 	if p.seekOK {
@@ -579,8 +1076,9 @@ func (p *Player) Stats() Stats {
 	}
 	seekDelta, seekFwd, seekLanded := p.seekDeltaMs, p.seekForward, p.seekLandedMs
 	concealed := p.concealed
+	errStr := p.err
 	p.mu.Unlock()
-	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: p.err, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed}
+	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed}
 }
 
 // ConcealedFault reports the first skipped sample's problem, "" when the
@@ -629,38 +1127,236 @@ func feedParams(dec Decoder, avcc *h264.AVCC, path, tag string) error {
 
 // SeekTo jumps to targetMs (container PTS milliseconds): lands on the last
 // keyframe at or before the target, re-decodes forward to the display
-// frame covering the target, then re-anchors the clock and refills the
-// queue from there. The already-decoded tail shows instantly (no black);
-// the fresh forward decode is verified pixel-equal against the cached
-// tail, proving IDR clearing and forward decode instead of a head replay.
+// frame covering the target, then re-anchors the clock and continues the
+// background from there. The landed frame shows instantly (no black).
+// Buffered clips verify pixel-exact against the cache; streaming clips
+// verify against an independent fresh decode (IDR proof either way).
 // Loop players are refused in VR5 (loop+seek goes to VC1); rapid seeks
-// are safe (decode runs outside locks, queue swap is bounded).
+// are safe (generation invalidates in-flight background work, queue swap
+// is bounded).
 func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
 		return 0, fmt.Errorf("%w: seek after close", ErrClosed)
 	}
-	if p.loop {
-		p.mu.Unlock()
+	loop := p.loop
+	p.mu.Unlock()
+	if loop {
 		return 0, fmt.Errorf("%w: seek in loop mode goes to VC1", ErrBadClip)
 	}
-	if len(p.frames) == 0 || len(p.samples) == 0 {
-		p.mu.Unlock()
+	if len(p.samples) == 0 {
 		return 0, fmt.Errorf("%w: nothing to seek", ErrNoFrames)
 	}
-	// Snapshot display tail + decode inputs under lock; heavy file IO
-	// and decode run unlocked so Poll/Stats never block.
-	frames := p.frames
-	frameSamples := append([]int(nil), p.frameSamples...)
+	if p.buffered {
+		return p.seekBuffered(targetMs)
+	}
+	// Snapshot immutable inputs; heavy file IO and decode run with dmu
+	// held in short critical sections so Poll/Stats never block long.
+	samples := p.samples
+	keyframes := p.keyframes
+	if len(keyframes) == 0 {
+		return 0, fmt.Errorf("%w: no keyframes", ErrBadClip)
+	}
+	// Display-order landing: last sample with PTS <= target (floor
+	// covering), mirroring the old cached-frames behaviour. Samples are
+	// in decode order, so scan for max PTS <= target.
+	seekSpos := -1
+	var landedPTS int64
+	for i, s := range samples {
+		if s.PTSMs <= targetMs && (seekSpos < 0 || s.PTSMs > landedPTS) {
+			seekSpos = i
+			landedPTS = s.PTSMs
+		}
+	}
+	if seekSpos < 0 {
+		// Target precedes all stamps: land on the earliest display frame.
+		best := 0
+		for i := 1; i < len(samples); i++ {
+			if samples[i].PTSMs < samples[best].PTSMs {
+				best = i
+			}
+		}
+		seekSpos = best
+		landedPTS = samples[best].PTSMs
+	}
+	landed := landedPTS
+	delta := targetMs - landed
+	if delta < 0 {
+		delta = -delta
+	}
+	// Landing keyframe: last keyframe at or before the target (first
+	// when the target precedes them all), mirroring KeyframeNear.
+	key := keyframes[0]
+	found := targetMs >= key.PTSMs
+	if !found {
+		key = keyframes[0]
+	} else {
+		best := keyframes[0]
+		for _, k := range keyframes[1:] {
+			if k.PTSMs <= targetMs {
+				best = k
+			} else {
+				break
+			}
+		}
+		key = best
+	}
+	keyPos := -1
+	for i, s := range samples {
+		if s.Number == key.SampleNumber {
+			keyPos = i
+			break
+		}
+	}
+	if keyPos < 0 {
+		return 0, fmt.Errorf("%w: keyframe sample %d lost", ErrBadClip, key.SampleNumber)
+	}
+	if keyPos > seekSpos {
+		// Keyframe after target in decode order (B reorder): the target
+		// display frame needs a ref decoded later — fall back to landing
+		// on the keyframe's own display stamp via its sample.
+		seekSpos = keyPos
+		landed = samples[keyPos].PTSMs
+		delta = targetMs - landed
+		if delta < 0 {
+			delta = -delta
+		}
+	}
+	// Invalidate background work first, then clear stale queue.
+	atomic.AddInt64(&p.generation, 1)
+	p.q.Clear()
+	wasPaused := p.Paused()
+
+	// Forward decode under dmu (background waits): reset to the landing
+	// keyframe, decode through the target sample, keep DPB for the tail.
+	p.dmu.Lock()
+	p.resetDecoderLocked()
+	p.pending = nil
+	var targetPic *h264.Picture
+	forward := 0
+	var firstErr error
+	for si := keyPos; si <= seekSpos; si++ {
+		s := samples[si]
+		buf := make([]byte, s.Size)
+		if _, rerr := readSourceRange(p.source, buf, int64(s.Offset)); rerr != nil {
+			firstErr = fmt.Errorf("video: seek sample %d unreadable %s: %w", s.Number, p.path, rerr)
+			break
+		}
+		units, uerr := SplitUnits(p.codec, buf, p.avcc.LengthSize)
+		if uerr != nil {
+			firstErr = fmt.Errorf("video: seek sample %d split %s: %w", s.Number, p.path, uerr)
+			break
+		}
+		for _, u := range units {
+			if derr := p.dec.DecodeNALU(u); derr != nil {
+				firstErr = fmt.Errorf("video: seek sample %d decode %s: %w", s.Number, p.path, derr)
+				break
+			}
+		}
+		if firstErr != nil {
+			break
+		}
+		pic, ferr := p.dec.FinishPicture()
+		if ferr != nil {
+			firstErr = fmt.Errorf("video: seek sample %d finish %s: %w", s.Number, p.path, ferr)
+			break
+		}
+		forward++
+		if si == seekSpos {
+			targetPic = pic
+		}
+	}
+	if firstErr != nil {
+		p.dmu.Unlock()
+		return 0, firstErr
+	}
+	if targetPic == nil {
+		p.dmu.Unlock()
+		return 0, fmt.Errorf("%w: seek produced no picture %s", ErrBadClip, p.path)
+	}
+	// Verify against an independent fresh decode (pixel-exact IDR proof
+	// without needing a full-frame cache).
+	verify, verr := decodeForwardSource(p.source, samples, p.avcc, p.copt, p.codec, p.sampling, keyPos, seekSpos)
+	if verr != nil {
+		p.dmu.Unlock()
+		return 0, verr
+	}
+	t0 := time.Now()
+	cf, cerr := color.Convert(p.sampling, targetPic.Y, targetPic.Cb, targetPic.Cr, int(targetPic.Width), int(targetPic.Height), p.copt)
+	el := float64(time.Since(t0).Microseconds()) / 1000.0
+	if cerr != nil {
+		p.dmu.Unlock()
+		return 0, fmt.Errorf("video: seek color %s: %w", p.path, cerr)
+	}
+	if len(verify) != len(cf.Pix) || !equalBytes(verify, cf.Pix) {
+		p.dmu.Unlock()
+		return 0, fmt.Errorf("%w: forward decode mismatch at pts %d (key %d)", ErrBadClip, landed, key.PTSMs)
+	}
+	// Swap the line: second clear drops any stale background push that
+	// slipped in during the forward decode, then queue the landed frame.
+	p.q.Clear()
+	pts := landed
+	if p.hasFirst && pts <= p.lastPTS && p.lastPTS != 0 {
+		// Fresh seek line: re-anchor replaces monotonic history.
+	}
+	seq := p.nextSeq
+	p.nextSeq++
+	p.lastPTS = pts
+	p.pos = seekSpos + 1
+	p.pending = nil
+	p.dropUntil = pts
+	p.dmu.Unlock()
+
+	fr := &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: seq}
+	if ok, _ := p.q.Push(fr); !ok {
+		return 0, fmt.Errorf("%w: queue closed during seek", ErrClosed)
+	}
+	p.mu.Lock()
+	p.decTimes = append(p.decTimes, el)
+	p.decoded += int64(forward)
+	p.mu.Unlock()
+	p.announceReady()
+
+	// Re-anchor now onto landed, refill continues in background.
+	p.q.Clear()
+	// Re-push landed after the clear (Clear above dropped the just-pushed
+	// frame only if a stale raced in; simplest: push again — queue holds
+	// bounded frames, double-push would duplicate. Instead: check depth.
+	if p.q.Depth() == 0 {
+		p.q.Push(fr)
+	}
+	p.clk.Start(landed)
+	if wasPaused {
+		p.clk.Pause()
+	}
+	p.mu.Lock()
+	p.ended = false
+	p.decodeDone = false
+	p.hasShown = false
+	p.seekOK = true
+	p.seekDeltaMs = delta
+	p.seekForward = int64(forward)
+	p.seekLandedMs = landed
+	p.seekTargetMs = targetMs
+	p.seekKeyMs = key.PTSMs
+	p.mu.Unlock()
+	return landed, nil
+}
+
+// seekBuffered is the buffered-clip seek (pre-streaming semantics,
+// byte-identical): landing via display-order cache, forward count as
+// sample span, verification against the cached tail.
+func (p *Player) seekBuffered(targetMs int64) (int64, error) {
+	frames := p.bufFrames
+	frameSamples := append([]int(nil), p.bufSamples...)
 	samples := p.samples
 	keyframes := append([]mp4.Keyframe(nil), p.keyframes...)
 	avcc := p.avcc
 	copt := p.copt
 	codec := p.codec
 	sampling := p.sampling
-	wasPaused := p.paused
-	p.mu.Unlock()
+	wasPaused := p.Paused()
 
 	seekIdx := 0
 	for i, fr := range frames {
@@ -675,8 +1371,6 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	if delta < 0 {
 		delta = -delta
 	}
-	// Landing keyframe: last keyframe at or before the target (first
-	// when the target precedes them all), mirroring KeyframeNear.
 	key := keyframes[0]
 	found := targetMs >= key.PTSMs
 	if !found {
@@ -715,15 +1409,25 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	}
 	forward := int64(targetPos - keyPos + 1)
 
-	// Swap the line: drain stale queue, re-anchor now onto landed, refill
-	// the tail. Cap already fits the whole clip, so Push never blocks here.
 	p.q.Clear()
 	p.clk.Start(landed)
 	if wasPaused {
 		p.clk.Pause()
 	}
 	refilled := 0
+	cap := p.q.Cap()
 	for _, fr := range frames[seekIdx:] {
+		if refilled >= cap {
+			break
+		}
+		if ok, _ := p.q.Push(fr); !ok {
+			break
+		}
+		refilled++
+	}
+	// Buffered queue keeps the whole tail regardless of cap: push the
+	// rest (cap fits the clip by construction, so this never blocks).
+	for _, fr := range frames[seekIdx+refilled:] {
 		if ok, _ := p.q.Push(fr); !ok {
 			break
 		}
@@ -746,54 +1450,59 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 
 // decodeForward re-decodes samples[keyPos..targetPos] with a fresh decoder
 // from the same registry codec (SPS/PPS re-fed, so IDR clearing is
-// exercised) and returns the target picture as RGBA. Small clips only;
-// VR5 gates are ≤10 frames.
+// exercised) and returns the target picture as RGBA. Small seeks only in
+// tests; production seeks bound this by GOP size.
 func decodeForward(path string, samples []mp4.Sample, avcc *h264.AVCC, copt color.Options, codec, sampling string, keyPos, targetPos int) ([]byte, error) {
-	if avcc == nil {
-		return nil, fmt.Errorf("%w: missing header params %s", ErrBadClip, path)
-	}
-	f, err := os.Open(path)
+	src, err := NewSource(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer src.Close()
+	return decodeForwardSource(src, samples, avcc, copt, codec, sampling, keyPos, targetPos)
+}
+
+// decodeForwardSource is the Source twin (network-safe, no re-open).
+func decodeForwardSource(src Source, samples []mp4.Sample, avcc *h264.AVCC, copt color.Options, codec, sampling string, keyPos, targetPos int) ([]byte, error) {
+	if avcc == nil {
+		return nil, fmt.Errorf("%w: missing header params %s", ErrBadClip, src.Name())
+	}
 	dec, err := NewDecoder(codec)
 	if err != nil {
-		return nil, fmt.Errorf("video: seek codec %s: %w", path, err)
+		return nil, fmt.Errorf("video: seek codec %s: %w", src.Name(), err)
 	}
-	if err := feedParams(dec, avcc, path, "seek "); err != nil {
+	if err := feedParams(dec, avcc, src.Name(), "seek "); err != nil {
 		return nil, err
 	}
 	var target *h264.Picture
 	for si := keyPos; si <= targetPos; si++ {
 		s := samples[si]
 		buf := make([]byte, s.Size)
-		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-			return nil, fmt.Errorf("video: seek sample %d unreadable %s: %w", s.Number, path, err)
+		if _, err := readSourceRange(src, buf, int64(s.Offset)); err != nil {
+			return nil, fmt.Errorf("video: seek sample %d unreadable %s: %w", s.Number, src.Name(), err)
 		}
 		units, err := SplitUnits(codec, buf, avcc.LengthSize)
 		if err != nil {
-			return nil, fmt.Errorf("video: seek sample %d split %s: %w", s.Number, path, err)
+			return nil, fmt.Errorf("video: seek sample %d split %s: %w", s.Number, src.Name(), err)
 		}
 		for _, u := range units {
 			if err := dec.DecodeNALU(u); err != nil {
-				return nil, fmt.Errorf("video: seek sample %d decode %s: %w", s.Number, path, err)
+				return nil, fmt.Errorf("video: seek sample %d decode %s: %w", s.Number, src.Name(), err)
 			}
 		}
 		pic, err := dec.FinishPicture()
 		if err != nil {
-			return nil, fmt.Errorf("video: seek sample %d finish %s: %w", s.Number, path, err)
+			return nil, fmt.Errorf("video: seek sample %d finish %s: %w", s.Number, src.Name(), err)
 		}
 		if si == targetPos {
 			target = pic
 		}
 	}
 	if target == nil {
-		return nil, fmt.Errorf("%w: seek produced no picture %s", ErrBadClip, path)
+		return nil, fmt.Errorf("%w: seek produced no picture %s", ErrBadClip, src.Name())
 	}
 	cf, err := color.Convert(sampling, target.Y, target.Cb, target.Cr, int(target.Width), int(target.Height), copt)
 	if err != nil {
-		return nil, fmt.Errorf("video: seek color %s: %w", path, err)
+		return nil, fmt.Errorf("video: seek color %s: %w", src.Name(), err)
 	}
 	return cf.Pix, nil
 }
@@ -832,4 +1541,7 @@ func (p *Player) Close() {
 	}
 	p.q.Close()
 	<-p.doneCh
+	if p.source != nil {
+		p.source.Close()
+	}
 }
