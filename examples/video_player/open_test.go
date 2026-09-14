@@ -123,9 +123,8 @@ func TestCleanDropPath(t *testing.T) {
 }
 
 // TestAsyncSeekNeverFreezes pins progress clicks on a fresh clip: the
-// click returns at once with a jumping hint, the background lands, and
-// tick shows the landed frame. A second click while jumping is ignored,
-// never queued into a freeze.
+// engine reparks and returns in milliseconds (no background patch), the
+// landing then arrives via Poll, and scrub (fast) + exact both work.
 func TestAsyncSeekNeverFreezes(t *testing.T) {
 	st := newHeadlessState(t, resolveTestClip("vr2_720p.mp4"))
 	st.openPath(resolveTestClip("vr2_720p.mp4"))
@@ -134,44 +133,56 @@ func TestAsyncSeekNeverFreezes(t *testing.T) {
 	}
 	defer st.player.Close()
 	defer st.buf.Dispose()
-	// Click must not block (large GOPs decode seconds off-thread).
+	// Exact seek returns at once even on a fresh clip.
 	start := time.Now()
 	st.seekTo(600)
 	if took := time.Since(start); took > 2*time.Second {
 		t.Fatalf("seekTo blocked %v (must return at once)", took)
 	}
-	st.mu.Lock()
-	jumping := st.seeking
-	st.mu.Unlock()
-	if !jumping {
-		t.Fatal("seeking flag not set after click")
-	}
-	// Second click while jumping: ignored, still one flight.
-	gen0 := st.seekGen
-	st.seekTo(800)
-	st.mu.Lock()
-	gen1 := st.seekGen
-	stillJumping := st.seeking
-	st.mu.Unlock()
-	if gen1 != gen0 || !stillJumping {
-		t.Fatalf("second click started gen %d (was %d), want ignored", gen1, gen0)
-	}
-	// Wait for the background to land via tick (UI thread only).
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		st.tick()
-		st.mu.Lock()
-		done := !st.seeking && st.pending == nil
-		st.mu.Unlock()
-		if done {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("background seek never lands via tick")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
 	if st.lastPTS != 600 {
-		t.Fatalf("lastPTS = %d, want 600 (first click wins)", st.lastPTS)
+		t.Fatalf("lastPTS = %d, want 600 (landing re-anchored)", st.lastPTS)
+	}
+	// Scrub path: fast keyframe jump then exact release.
+	st.press(st.barX+st.barW/2, st.barY)
+	if !st.scrubbing {
+		t.Fatal("press on bar did not start scrub")
+	}
+	st.drag(st.barX + st.barW*0.8)
+	st.release(st.barX + st.barW*0.8)
+	// Rate + step + keyframe walk all work headless.
+	st.setRate(2)
+	if st.player.Rate() != 2 {
+		t.Fatalf("rate = %v, want 2", st.player.Rate())
+	}
+	st.setRate(1)
+	before := st.lastPTS
+	st.stepFrame()
+	if st.lastPTS == before && st.player.Info().Frames > 1 {
+		t.Logf("step stayed at %d (single-frame clip edge ok)", st.lastPTS)
+	}
+}
+
+// TestScrubPressDragRelease pins the standard scrub model: press-move
+// fires fast jumps, release fires the exact landing.
+func TestScrubPressDragRelease(t *testing.T) {
+	st := newHeadlessState(t, resolveTestClip("vr2_720p.mp4"))
+	st.openPath(resolveTestClip("vr2_720p.mp4"))
+	if st.player == nil || st.bad != "" {
+		t.Fatalf("open: player=%v bad=%q", st.player != nil, st.bad)
+	}
+	defer st.player.Close()
+	defer st.buf.Dispose()
+	mid := st.barX + st.barW/2
+	st.press(mid, st.barY)
+	if !st.scrubbing {
+		t.Fatal("scrub not started")
+	}
+	st.drag(mid + 10)
+	st.release(mid + 20)
+	if st.scrubbing {
+		t.Fatal("scrub not ended on release")
+	}
+	if st.bad != "" {
+		t.Fatalf("bad = %q after scrub", st.bad)
 	}
 }

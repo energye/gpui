@@ -228,6 +228,42 @@ func TestClockDrift(t *testing.T) {
 	}
 }
 
+// TestClockRate pins the speed clock: 2x advances due stamps twice as
+// fast, 0.5x half as fast, Start keeps the rate, and bad rates refuse.
+func TestClockRate(t *testing.T) {
+	now := int64(1000)
+	c := NewClock(func() int64 { return now })
+	if c.Rate() != 1 {
+		t.Fatalf("rate = %v, want 1", c.Rate())
+	}
+	c.Start(0)
+	if err := c.SetRate(2); err != nil {
+		t.Fatalf("rate 2: %v", err)
+	}
+	now = 1100
+	if got := c.DuePTSMS(); got != 200 {
+		t.Fatalf("2x due = %d, want 200", got)
+	}
+	if err := c.SetRate(0.5); err != nil {
+		t.Fatalf("rate 0.5: %v", err)
+	}
+	// Rate change re-anchors in production via Start; emulate the same:
+	// due stays continuous (200) then walks at half speed.
+	c.Start(200)
+	now = 1200
+	if got := c.DuePTSMS(); got != 250 {
+		t.Fatalf("0.5x due = %d, want 250", got)
+	}
+	for _, bad := range []float64{0, -1, 9} {
+		if err := c.SetRate(bad); err == nil {
+			t.Fatalf("rate %v accepted", bad)
+		}
+	}
+	if c.Rate() != 0.5 {
+		t.Fatalf("rate after bad set = %v, want 0.5 (unchanged)", c.Rate())
+	}
+}
+
 // TestQueueConcurrent hammers push/poll from two threads: counts must
 // add up exactly, never lose or duplicate. Stamps rise with the push
 // index so PollDue can always make progress; a stuck queue fails loud.

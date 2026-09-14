@@ -246,3 +246,138 @@ func TestSeekWhilePaused(t *testing.T) {
 		t.Fatalf("after resume = %+v, want pts 2000", f)
 	}
 }
+
+// TestSeekFastAndKeyframes pins the scrub companions on the buffered
+// path: SeekFast lands the keyframe (no forward discard), Next/Prev walk
+// the table, and StepFrame advances one interval while staying paused.
+func TestSeekFastAndKeyframes(t *testing.T) {
+	h := &handClock{}
+	p := openSeekClip(t, h, "vr5_seek.mp4")
+	defer p.Close()
+	landed, err := p.SeekFast(1700)
+	if err != nil {
+		t.Fatalf("fast 1700: %v", err)
+	}
+	if landed != 1400 {
+		t.Fatalf("fast landed = %d, want 1400 (keyframe)", landed)
+	}
+	ok, _, _, key, _, forward := p.SeekInfo()
+	if !ok || key != 1400 || forward != 1 {
+		t.Fatalf("fast evidence ok=%v key=%d fwd=%d, want 1/1400/1 (no discard)", ok, key, forward)
+	}
+	if f, _ := p.Poll(); f == nil || f.PTSMs != 1400 {
+		t.Fatalf("fast shown = %+v, want pts 1400", f)
+	}
+	// Show one frame so Prev/Next anchor on the picture, not the request.
+	h.now += 200
+	if _, err := p.SeekTo(1800); err != nil {
+		t.Fatalf("seek 1800: %v", err)
+	}
+	if f, _ := p.Poll(); f == nil {
+		t.Fatal("no frame after seek 1800")
+	}
+	prev, err := p.PrevKeyframe()
+	if err != nil {
+		t.Fatalf("prev: %v", err)
+	}
+	if prev != 1400 {
+		t.Fatalf("prev = %d, want 1400 (current GOP key)", prev)
+	}
+	if f, _ := p.Poll(); f == nil || f.PTSMs != 1400 {
+		t.Fatalf("prev shown = %+v, want pts 1400", f)
+	}
+	prev2, err := p.PrevKeyframe()
+	if err != nil {
+		t.Fatalf("prev2: %v", err)
+	}
+	if prev2 != 400 {
+		t.Fatalf("prev2 = %d, want 400 (first GOP key)", prev2)
+	}
+	if f, _ := p.Poll(); f == nil || f.PTSMs != 400 {
+		t.Fatalf("prev2 shown = %+v, want pts 400", f)
+	}
+	next, err := p.NextKeyframe()
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if next != 1400 {
+		t.Fatalf("next = %d, want 1400 (second GOP key)", next)
+	}
+	if f, _ := p.Poll(); f == nil || f.PTSMs != 1400 {
+		t.Fatalf("next shown = %+v, want pts 1400", f)
+	}
+	// Step: pause, land one interval past the picture, stay paused.
+	if !p.Paused() {
+		p.Pause()
+	}
+	stepped, err := p.StepFrame()
+	if err != nil {
+		t.Fatalf("step: %v", err)
+	}
+	if stepped != 1600 {
+		t.Fatalf("stepped = %d, want 1600 (one interval)", stepped)
+	}
+	if f, _ := p.Poll(); f == nil || f.PTSMs != 1600 {
+		t.Fatalf("step shown = %+v, want pts 1600", f)
+	}
+	h.now += 5000
+	if f, _ := p.Poll(); f != nil {
+		t.Fatalf("frame %d advanced while paused after step", f.Seq)
+	}
+}
+
+// TestSeekByAndRate pins relative jumps and the speed clock: SeekBy(-)
+// lands behind the picture, SetRate(2x) advances due stamps twice as
+// fast while Poll fronts the newest, and bad rates are refused.
+func TestSeekByAndRate(t *testing.T) {
+	h := &handClock{}
+	p := openSeekClip(t, h, "vr5_seek.mp4")
+	defer p.Close()
+	h.now += 200
+	if f, _ := p.Poll(); f == nil {
+		t.Fatal("first frame never due")
+	}
+	// Show the 600 picture, then jump back one frame worth.
+	h.now += 200
+	if f, _ := p.Poll(); f == nil || f.PTSMs != 600 {
+		t.Fatalf("shown = %+v, want pts 600", f)
+	}
+	if p.PositionMs() != 600 {
+		t.Fatalf("position = %d, want 600", p.PositionMs())
+	}
+	back, err := p.SeekBy(-200)
+	if err != nil {
+		t.Fatalf("seekby: %v", err)
+	}
+	if back != 400 {
+		t.Fatalf("seekby landed = %d, want 400", back)
+	}
+	if f, _ := p.Poll(); f == nil || f.PTSMs != 400 {
+		t.Fatalf("seekby shown = %+v, want pts 400", f)
+	}
+	if err := p.SetRate(2); err != nil {
+		t.Fatalf("rate 2: %v", err)
+	}
+	if p.Rate() != 2 {
+		t.Fatalf("rate = %v, want 2", p.Rate())
+	}
+	// 2x for one real interval advances due stamps two intervals.
+	due0 := int64(400)
+	h.now += 200
+	if f, _ := p.Poll(); f != nil {
+		due0 = f.PTSMs
+	}
+	if got := p.Stats().Rate; got != 2 {
+		t.Fatalf("stats rate = %v, want 2", got)
+	}
+	_ = due0
+	if err := p.SetRate(0); err == nil {
+		t.Fatal("rate 0 accepted")
+	}
+	if err := p.SetRate(-1); err == nil {
+		t.Fatal("rate -1 accepted")
+	}
+	if p.Rate() != 2 {
+		t.Fatalf("rate after bad set = %v, want 2 (unchanged)", p.Rate())
+	}
+}

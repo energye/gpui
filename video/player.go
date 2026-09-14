@@ -67,6 +67,10 @@ type Stats struct {
 	SeekLandedMs int64
 	// Concealed mirrors Info.Concealed for HUD/JSON.
 	Concealed int64
+	// Rate is the playback speed (1 = normal); Seeking reports a seek
+	// still travelling to its landing frame.
+	Rate    float64
+	Seeking int
 }
 
 // Options tunes the player. QueueCap <= 0 means clock.DefaultCap;
@@ -90,14 +94,24 @@ type pendingPic struct {
 // Open with OpenFile; poll with Poll; Pause truly stops the picture;
 // Seek jumps to a time (non-loop only in VR5); Close ends the thread.
 // Poll is safe for one display thread; Pause, Resume, Seek and Stats
-// are safe from any thread (Seek blocks for its forward decode).
+// are safe from any thread.
+//
+// Seeks are requests, not chores (ffplay stream_seek model): SeekTo only
+// finds the landing keyframe, flushes the decoder, parks the read needle
+// and re-anchors the clock, then returns in milliseconds. The background
+// drops decoded frames until the landing and shows it; the caller keeps
+// polling and shows the old picture meanwhile (never black). A second
+// seek supersedes the first (drag-friendly); Seeking reports the gap.
+// Only the tiny buffered path still decodes synchronously (deterministic
+// gates, pixel-verified).
 //
 // Streaming (production): Open parses only headers (moov) and decodes
 // just enough for the first displayable frame, then returns — seconds
 // for gigabytes, not minutes. The background decodes ahead with a
 // bounded queue (cap = QueueCap, default 4), so memory stays flat for
-// any length and any Source (file, memory, HTTP Range). Seek resets to
-// the landing keyframe and decodes forward; loop re-decodes from head.
+// any length and any Source (file, memory, HTTP Range). At end of stream
+// the background parks with the queue open (never closes it), so a later
+// seek revives playback instead of failing on a closed queue.
 type Player struct {
 	info  Info
 	q     *clock.Queue
@@ -157,6 +171,16 @@ type Player struct {
 	lastPTS      int64 // last emitted PTS (monotonic guard)
 	dropUntil    int64 // after seek: drop emissions with PTS <= this, -1 none
 	hasFirst     bool
+	// Seek request state (dmu-guarded): the background drops decoded
+	// frames below seekLanded and shows the first at/above it, then
+	// clears the flag. seekNeedSpos is the landing sample's decode-order
+	// index: claims past it end a stale request (lost landing sample).
+	seekActive  bool
+	seekLanded  int64
+	seekNeedSpos int
+	// wakeCh wakes a decoder parked at end-of-stream (cap 1, coalescing,
+	// never closed): a later seek revives playback on the same thread.
+	wakeCh chan struct{}
 
 	// Buffered mode (small clips ≤64 frames and ≤256MB estimate):
 	// full decode at open into display-order cache (old semantics:
@@ -298,6 +322,7 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 		info: Info{Path: nameHint, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(v.Samples), KeyframeN: v.KeyframeCount(), Container: containerName, Codec: codecName},
 		q: q, clk: clk, nowMs: now,
 		stopCh: make(chan struct{}), doneCh: make(chan struct{}), readyCh: make(chan struct{}),
+		wakeCh: make(chan struct{}, 1),
 	}
 	p.loop = opt.Loop
 	p.source = src
@@ -634,7 +659,9 @@ func (p *Player) decodeStep() (emitted []*pendingPic, done bool, err error) {
 			p.dmu.Unlock()
 			return nil, true, nil
 		}
-		// Flush all sorted at EOS.
+		// Flush all sorted at EOS (seek filter in decodeLoop drops
+		// anything below a travelling landing; the first at/above it
+		// ends the seek).
 		sort.Slice(p.pending, func(i, j int) bool {
 			if p.pending[i].pts != p.pending[j].pts {
 				return p.pending[i].pts < p.pending[j].pts
@@ -812,14 +839,25 @@ func (p *Player) decodeLoop() {
 			return
 		}
 		for _, e := range emitted {
-			// Seek drop: emissions at/below the landing belong to the
-			// jumped-over past (B reorder), never show them.
+			// Seek filter: while a seek is pending, decoded frames below
+			// the landing are forward-discard (dropped before convert, so
+			// no wasted color work); the first at/above it ends the seek
+			// and shows with its exact stamp. Older jumped-over lines use
+			// dropUntil the same way.
+			landing := false
 			p.dmu.Lock()
-			drop := p.dropUntil >= 0 && e.pts <= p.dropUntil
-			p.dmu.Unlock()
-			if drop {
+			if p.seekActive {
+				if e.pts < p.seekLanded {
+					p.dmu.Unlock()
+					continue
+				}
+				p.seekActive = false
+				landing = true
+			} else if p.dropUntil >= 0 && e.pts <= p.dropUntil {
+				p.dmu.Unlock()
 				continue
 			}
+			p.dmu.Unlock()
 			if atomic.LoadInt64(&p.generation) != gen {
 				break
 			}
@@ -837,7 +875,7 @@ func (p *Player) decodeLoop() {
 			}
 			pts := e.pts
 			p.dmu.Lock()
-			if p.hasFirst && pts <= p.lastPTS {
+			if !landing && p.hasFirst && pts <= p.lastPTS {
 				pts = p.lastPTS + frameStepMs(p.frameRate)
 			}
 			seq := p.nextSeq
@@ -849,8 +887,11 @@ func (p *Player) decodeLoop() {
 				return
 			}
 			if atomic.LoadInt64(&p.generation) != gen {
-				// Pushed stale during a racing seek; the seeker clears
-				// again before landing, so just skip accounting.
+				// A seek landed while this frame waited in Push (or just
+				// after it): drop the stale line so it never shows ahead
+				// of the new landing. Single producer, so clearing here
+				// only removes our own stale push.
+				p.q.Clear()
 				continue
 			}
 			p.mu.Lock()
@@ -864,10 +905,23 @@ func (p *Player) decodeLoop() {
 			loop := p.loop
 			p.mu.Unlock()
 			if !loop {
+				// Park at end of stream with the queue OPEN (never close
+				// it here): a later seek revives this same thread via
+				// wakeCh instead of failing on a closed queue. A seek
+				// whose landing never decoded (lost tail sample) ends
+				// here so Seeking never hangs.
+				p.dmu.Lock()
+				p.seekActive = false
+				p.dmu.Unlock()
 				p.mu.Lock()
 				p.decodeDone = true
 				p.mu.Unlock()
-				return
+				select {
+				case <-p.stopCh:
+					return
+				case <-p.wakeCh:
+					continue
+				}
 			}
 			// Loop wrap: re-decode from head, stamps keep counting up.
 			p.dmu.Lock()
@@ -885,7 +939,9 @@ func (p *Player) decodeLoop() {
 // Poll returns the newest due frame (nil when none is due, or after the
 // stream ended and drained). Ended reports the stream played through;
 // callers keep polling until Ended plus nil. The first call waits for
-// the background thread to queue the head frame (bounded wait).
+// the background thread to queue the head frame (bounded wait) — unless a
+// seek is already travelling, in which case it returns at once so the
+// caller never stalls 5s on a stale wait.
 // Steady polls cost no timer: readyCh stays closed after the head, so the
 // fast path below skips time.After entirely (VR7 profile: one timer per
 // Poll dominated steady bytes before this fix).
@@ -895,6 +951,13 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 		return nil, false
 	default:
 	}
+	pollTimeout := 5 * time.Second
+	p.dmu.Lock()
+	travelling := p.seekActive
+	p.dmu.Unlock()
+	if travelling {
+		pollTimeout = 0
+	}
 	select {
 	case <-p.readyCh:
 	default:
@@ -902,7 +965,7 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 		case <-p.readyCh:
 		case <-p.stopCh:
 			return nil, false
-		case <-time.After(5 * time.Second):
+		case <-time.After(pollTimeout):
 			return nil, false
 		}
 	}
@@ -926,11 +989,10 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 				}
 			} else {
 				// Streaming: end when the decoder exhausted AND the
-				// queue drained (closed + empty).
+				// queue drained (empty; the queue stays open so a later
+				// seek can revive this same thread).
 				p.mu.Unlock()
-				p.mu.Lock()
-				done := p.decodeDone && p.q.Drained()
-				p.mu.Unlock()
+				done := p.streamDrained()
 				if done {
 					p.mu.Lock()
 					p.ended = true
@@ -958,11 +1020,23 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 		}
 		return nil, false
 	}
-	if p.decodeDone && p.q.Drained() {
+	// mu is already held here: read decodeDone directly instead of
+	// streamDrained (which locks mu itself and would self-deadlock).
+	if p.decodeDone && p.q.Depth() == 0 {
 		p.ended = true
 		return nil, true
 	}
 	return nil, false
+}
+
+// streamDrained reports the streaming end: the background decoded
+// everything AND the queue emptied. The queue itself stays open (a later
+// seek revives playback), so emptiness — not closure — is the signal.
+func (p *Player) streamDrained() bool {
+	p.mu.Lock()
+	done := p.decodeDone
+	p.mu.Unlock()
+	return done && p.q.Depth() == 0
 }
 
 // Pause freezes the picture; the clock skips the held span on Resume.
@@ -1067,7 +1141,7 @@ func (p *Player) Stats() Stats {
 		}
 	}
 	p.mu.Lock()
-	done := (!p.loop && (ended || (decodeDone && p.q.Drained() && hasShown)))
+	done := (!p.loop && (ended || (decodeDone && p.q.Depth() == 0 && hasShown)))
 	p.mu.Unlock()
 	p.mu.Lock()
 	seekOK := 0
@@ -1078,7 +1152,12 @@ func (p *Player) Stats() Stats {
 	concealed := p.concealed
 	errStr := p.err
 	p.mu.Unlock()
-	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed}
+	rate := p.Rate()
+	seeking := 0
+	if p.Seeking() {
+		seeking = 1
+	}
+	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed, Rate: rate, Seeking: seeking}
 }
 
 // ConcealedFault reports the first skipped sample's problem, "" when the
@@ -1125,15 +1204,16 @@ func feedParams(dec Decoder, avcc *h264.AVCC, path, tag string) error {
 	return nil
 }
 
-// SeekTo jumps to targetMs (container PTS milliseconds): lands on the last
-// keyframe at or before the target, re-decodes forward to the display
-// frame covering the target, then re-anchors the clock and continues the
-// background from there. The landed frame shows instantly (no black).
-// Buffered clips verify pixel-exact against the cache; streaming clips
-// verify against an independent fresh decode (IDR proof either way).
-// Loop players are refused in VR5 (loop+seek goes to VC1); rapid seeks
-// are safe (generation invalidates in-flight background work, queue swap
-// is bounded).
+// SeekTo jumps to targetMs (container PTS milliseconds) and returns the
+// covering frame's stamp at once — but decodes nothing itself (ffplay
+// stream_seek model). It lands on the last sample at or before the target,
+// flushes the decoder, parks the read needle on the landing keyframe,
+// re-anchors the clock and lets the background drop forward frames until
+// the landing shows. The caller keeps polling; the old picture holds
+// meanwhile (never black). A second seek supersedes the first, so dragging
+// the progress bar stays responsive. Buffered clips still verify
+// pixel-exact against the cache and show instantly (deterministic gates).
+// Loop players are refused in VR5 (loop+seek goes to VC1).
 func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	p.mu.Lock()
 	if p.closed {
@@ -1141,9 +1221,13 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 		return 0, fmt.Errorf("%w: seek after close", ErrClosed)
 	}
 	loop := p.loop
+	streamErr := p.err
 	p.mu.Unlock()
 	if loop {
 		return 0, fmt.Errorf("%w: seek in loop mode goes to VC1", ErrBadClip)
+	}
+	if streamErr != "" {
+		return 0, fmt.Errorf("%w: stream dead %s: %s", ErrBadClip, p.path, streamErr)
 	}
 	if len(p.samples) == 0 {
 		return 0, fmt.Errorf("%w: nothing to seek", ErrNoFrames)
@@ -1151,17 +1235,29 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	if p.buffered {
 		return p.seekBuffered(targetMs)
 	}
-	// Snapshot immutable inputs; heavy file IO and decode run with dmu
-	// held in short critical sections so Poll/Stats never block long.
+	seekSpos, landed, delta, key, keyPos, err := p.seekPlan(targetMs)
+	if err != nil {
+		return 0, err
+	}
+	// The forward decode runs on the background thread (see decodeLoop's
+	// seek filter); this call only reparks the needle and returns.
+	return p.seekStream(keyPos, seekSpos, landed, delta, targetMs, key.PTSMs)
+}
+
+// seekPlan scans the immutable sample/keyframe tables for targetMs: the
+// covering sample's decode-order index, its stamp, the budget delta, the
+// landing keyframe and its decode-order index. Pure table math, no locks,
+// no IO — safe on any thread.
+func (p *Player) seekPlan(targetMs int64) (seekSpos int, landed, delta int64, key mp4.Keyframe, keyPos int, err error) {
 	samples := p.samples
 	keyframes := p.keyframes
 	if len(keyframes) == 0 {
-		return 0, fmt.Errorf("%w: no keyframes", ErrBadClip)
+		return 0, 0, 0, mp4.Keyframe{}, 0, fmt.Errorf("%w: no keyframes", ErrBadClip)
 	}
 	// Display-order landing: last sample with PTS <= target (floor
 	// covering), mirroring the old cached-frames behaviour. Samples are
 	// in decode order, so scan for max PTS <= target.
-	seekSpos := -1
+	seekSpos = -1
 	var landedPTS int64
 	for i, s := range samples {
 		if s.PTSMs <= targetMs && (seekSpos < 0 || s.PTSMs > landedPTS) {
@@ -1180,14 +1276,14 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 		seekSpos = best
 		landedPTS = samples[best].PTSMs
 	}
-	landed := landedPTS
-	delta := targetMs - landed
+	landed = landedPTS
+	delta = targetMs - landed
 	if delta < 0 {
 		delta = -delta
 	}
 	// Landing keyframe: last keyframe at or before the target (first
 	// when the target precedes them all), mirroring KeyframeNear.
-	key := keyframes[0]
+	key = keyframes[0]
 	found := targetMs >= key.PTSMs
 	if !found {
 		key = keyframes[0]
@@ -1202,7 +1298,7 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 		}
 		key = best
 	}
-	keyPos := -1
+	keyPos = -1
 	for i, s := range samples {
 		if s.Number == key.SampleNumber {
 			keyPos = i
@@ -1210,7 +1306,7 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 		}
 	}
 	if keyPos < 0 {
-		return 0, fmt.Errorf("%w: keyframe sample %d lost", ErrBadClip, key.SampleNumber)
+		return 0, 0, 0, mp4.Keyframe{}, 0, fmt.Errorf("%w: keyframe sample %d lost", ErrBadClip, key.SampleNumber)
 	}
 	if keyPos > seekSpos {
 		// Keyframe after target in decode order (B reorder): the target
@@ -1223,108 +1319,29 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 			delta = -delta
 		}
 	}
-	// Invalidate background work first, then clear stale queue.
-	atomic.AddInt64(&p.generation, 1)
-	p.q.Clear()
-	wasPaused := p.Paused()
+	return seekSpos, landed, delta, key, keyPos, nil
+}
 
-	// Forward decode under dmu (background waits): reset to the landing
-	// keyframe, decode through the target sample, keep DPB for the tail.
+// seekStream reparks a streaming seek: flush the decoder, park the read
+// needle on the landing keyframe, arm the background drop-until-landing
+// filter, re-anchor the clock and wake a decoder parked at end-of-stream.
+// No frame is decoded here, so even huge GOPs return in milliseconds.
+// Ordering matters: repark under dmu first, then bump the generation
+// (in-flight claims on the old needle go stale), then clear the queue
+// (wakes a Push blocked on full so it can notice the new generation).
+func (p *Player) seekStream(keyPos, seekSpos int, landed, delta, targetMs, keyMs int64) (int64, error) {
+	wasPaused := p.Paused()
 	p.dmu.Lock()
 	p.resetDecoderLocked()
 	p.pending = nil
-	var targetPic *h264.Picture
-	forward := 0
-	var firstErr error
-	for si := keyPos; si <= seekSpos; si++ {
-		s := samples[si]
-		buf := make([]byte, s.Size)
-		if _, rerr := readSourceRange(p.source, buf, int64(s.Offset)); rerr != nil {
-			firstErr = fmt.Errorf("video: seek sample %d unreadable %s: %w", s.Number, p.path, rerr)
-			break
-		}
-		units, uerr := SplitUnits(p.codec, buf, p.avcc.LengthSize)
-		if uerr != nil {
-			firstErr = fmt.Errorf("video: seek sample %d split %s: %w", s.Number, p.path, uerr)
-			break
-		}
-		for _, u := range units {
-			if derr := p.dec.DecodeNALU(u); derr != nil {
-				firstErr = fmt.Errorf("video: seek sample %d decode %s: %w", s.Number, p.path, derr)
-				break
-			}
-		}
-		if firstErr != nil {
-			break
-		}
-		pic, ferr := p.dec.FinishPicture()
-		if ferr != nil {
-			firstErr = fmt.Errorf("video: seek sample %d finish %s: %w", s.Number, p.path, ferr)
-			break
-		}
-		forward++
-		if si == seekSpos {
-			targetPic = pic
-		}
-	}
-	if firstErr != nil {
-		p.dmu.Unlock()
-		return 0, firstErr
-	}
-	if targetPic == nil {
-		p.dmu.Unlock()
-		return 0, fmt.Errorf("%w: seek produced no picture %s", ErrBadClip, p.path)
-	}
-	// Verify against an independent fresh decode (pixel-exact IDR proof
-	// without needing a full-frame cache).
-	verify, verr := decodeForwardSource(p.source, samples, p.avcc, p.copt, p.codec, p.sampling, keyPos, seekSpos)
-	if verr != nil {
-		p.dmu.Unlock()
-		return 0, verr
-	}
-	t0 := time.Now()
-	cf, cerr := color.Convert(p.sampling, targetPic.Y, targetPic.Cb, targetPic.Cr, int(targetPic.Width), int(targetPic.Height), p.copt)
-	el := float64(time.Since(t0).Microseconds()) / 1000.0
-	if cerr != nil {
-		p.dmu.Unlock()
-		return 0, fmt.Errorf("video: seek color %s: %w", p.path, cerr)
-	}
-	if len(verify) != len(cf.Pix) || !equalBytes(verify, cf.Pix) {
-		p.dmu.Unlock()
-		return 0, fmt.Errorf("%w: forward decode mismatch at pts %d (key %d)", ErrBadClip, landed, key.PTSMs)
-	}
-	// Swap the line: second clear drops any stale background push that
-	// slipped in during the forward decode, then queue the landed frame.
-	p.q.Clear()
-	pts := landed
-	if p.hasFirst && pts <= p.lastPTS && p.lastPTS != 0 {
-		// Fresh seek line: re-anchor replaces monotonic history.
-	}
-	seq := p.nextSeq
-	p.nextSeq++
-	p.lastPTS = pts
-	p.pos = seekSpos + 1
-	p.pending = nil
-	p.dropUntil = pts
+	p.pos = keyPos
+	p.seekActive = true
+	p.seekLanded = landed
+	p.seekNeedSpos = seekSpos
+	p.dropUntil = -1
 	p.dmu.Unlock()
-
-	fr := &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: seq}
-	// Atomic landing: Clear+Push under one queue lock so the background
-	// cannot fill between them and deadlock the caller (progress clicks
-	// run on the display thread, which also drains — a blocking Push
-	// here would wait for itself). Never blocks; false means closed.
-	if ok, _ := p.q.Reset(fr); !ok {
-		return 0, fmt.Errorf("%w: queue closed during seek", ErrClosed)
-	}
-	p.mu.Lock()
-	p.decTimes = append(p.decTimes, el)
-	p.decoded += int64(forward)
-	p.mu.Unlock()
-	p.announceReady()
-
-	// Re-anchor now onto landed, refill continues in background. The
-	// landing is already the only queued frame (Reset above); no second
-	// Clear+Push — that window let the background fill and deadlock.
+	atomic.AddInt64(&p.generation, 1)
+	p.q.Clear()
 	p.clk.Start(landed)
 	if wasPaused {
 		p.clk.Pause()
@@ -1335,12 +1352,206 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	p.hasShown = false
 	p.seekOK = true
 	p.seekDeltaMs = delta
-	p.seekForward = int64(forward)
+	p.seekForward = int64(seekSpos - keyPos + 1)
 	p.seekLandedMs = landed
 	p.seekTargetMs = targetMs
-	p.seekKeyMs = key.PTSMs
+	p.seekKeyMs = keyMs
 	p.mu.Unlock()
+	// Wake a decoder parked at end-of-stream (coalescing send: a stale
+	// wake only causes one harmless extra end-check).
+	select {
+	case p.wakeCh <- struct{}{}:
+	default:
+	}
+	p.announceReady()
 	return landed, nil
+}
+
+// seekAllowed rejects seeks that can never work: closed player, loop mode
+// (loop+seek goes to VC1), a dead stream, or an empty table.
+func (p *Player) seekAllowed() error {
+	p.mu.Lock()
+	closed, loop, streamErr := p.closed, p.loop, p.err
+	p.mu.Unlock()
+	switch {
+	case closed:
+		return fmt.Errorf("%w: seek after close", ErrClosed)
+	case loop:
+		return fmt.Errorf("%w: seek in loop mode goes to VC1", ErrBadClip)
+	case streamErr != "":
+		return fmt.Errorf("%w: stream dead %s: %s", ErrBadClip, p.path, streamErr)
+	case len(p.samples) == 0:
+		return fmt.Errorf("%w: nothing to seek", ErrNoFrames)
+	}
+	return nil
+}
+
+// SeekFast jumps to the keyframe at or before targetMs without forward
+// discard: instant even across huge GOPs, at keyframe granularity. Use it
+// while dragging the progress bar, then SeekTo once on release for the
+// exact frame. Buffered clips land the same keyframe from the cache.
+func (p *Player) SeekFast(targetMs int64) (int64, error) {
+	if err := p.seekAllowed(); err != nil {
+		return 0, err
+	}
+	if p.buffered {
+		_, _, _, key, _, err := p.seekPlan(targetMs)
+		if err != nil {
+			return 0, err
+		}
+		return p.seekBuffered(key.PTSMs)
+	}
+	_, _, _, key, keyPos, err := p.seekPlan(targetMs)
+	if err != nil {
+		return 0, err
+	}
+	delta := targetMs - key.PTSMs
+	if delta < 0 {
+		delta = -delta
+	}
+	return p.seekStream(keyPos, keyPos, key.PTSMs, delta, targetMs, key.PTSMs)
+}
+
+// SeekBy jumps relative to the current position (negative rewinds):
+// the standard long-press / J-L behaviour. True reverse decode does not
+// exist (no mature player reverse-decodes H.264); rewind is a backward
+// jump, same as every reference player.
+func (p *Player) SeekBy(deltaMs int64) (int64, error) {
+	if err := p.seekAllowed(); err != nil {
+		return 0, err
+	}
+	return p.SeekTo(p.PositionMs() + deltaMs)
+}
+
+// NextKeyframe lands the next keyframe after the current position (clamped
+// to the last one); PrevKeyframe lands the keyframe strictly before it
+// (clamped to the first one), so repeated steps walk the whole table.
+// Keyframe landings need no forward discard (forward = 1).
+func (p *Player) NextKeyframe() (int64, error) {
+	return p.seekKeyframe(true)
+}
+
+// PrevKeyframe lands the keyframe strictly before the current position.
+func (p *Player) PrevKeyframe() (int64, error) {
+	return p.seekKeyframe(false)
+}
+
+func (p *Player) seekKeyframe(next bool) (int64, error) {
+	if err := p.seekAllowed(); err != nil {
+		return 0, err
+	}
+	if len(p.keyframes) == 0 {
+		return 0, fmt.Errorf("%w: no keyframes", ErrBadClip)
+	}
+	ref := p.PositionMs()
+	p.mu.Lock()
+	if !p.hasShown && p.seekOK {
+		ref = p.seekLandedMs
+	}
+	p.mu.Unlock()
+	var key mp4.Keyframe
+	found := false
+	if next {
+		for _, k := range p.keyframes {
+			if k.PTSMs > ref && (!found || k.PTSMs < key.PTSMs) {
+				key, found = k, true
+			}
+		}
+		if !found {
+			key = p.keyframes[len(p.keyframes)-1]
+		}
+	} else {
+		for _, k := range p.keyframes {
+			if k.PTSMs < ref && (!found || k.PTSMs > key.PTSMs) {
+				key, found = k, true
+			}
+		}
+		if !found {
+			key = p.keyframes[0]
+		}
+	}
+	keyPos := -1
+	for i, s := range p.samples {
+		if s.Number == key.SampleNumber {
+			keyPos = i
+			break
+		}
+	}
+	if keyPos < 0 {
+		return 0, fmt.Errorf("%w: keyframe sample %d lost", ErrBadClip, key.SampleNumber)
+	}
+	if p.buffered {
+		return p.seekBuffered(key.PTSMs)
+	}
+	return p.seekStream(keyPos, keyPos, key.PTSMs, 0, key.PTSMs, key.PTSMs)
+}
+
+// StepFrame advances exactly one frame while paused (the frame-step key):
+// it seeks to one frame interval past the current picture and stays
+// paused, so the landed frame shows on the next poll. Calling it while
+// playing pauses first.
+func (p *Player) StepFrame() (int64, error) {
+	if err := p.seekAllowed(); err != nil {
+		return 0, err
+	}
+	if !p.Paused() {
+		p.Pause()
+	}
+	return p.SeekTo(p.PositionMs() + frameStepMs(p.frameRate))
+}
+
+// SetRate scales playback speed (1 = normal, 2 = double, 0.5 = half):
+// the clock advances stamps faster or slower, and catch-up drops the
+// surplus at high rates — the same speed-scaled clock every reference
+// player uses. Only the picture clock scales (this stage is video-only,
+// no audio to keep in sync). Range is 0 < rate <= 8.
+func (p *Player) SetRate(r float64) error {
+	if r != r || r <= 0 || r > 8 {
+		return fmt.Errorf("video: bad rate %v (want 0 < rate <= 8)", r)
+	}
+	p.mu.Lock()
+	paused := p.paused
+	p.mu.Unlock()
+	anchor := p.clk.DuePTSMS()
+	if err := p.clk.SetRate(r); err != nil {
+		return err
+	}
+	p.clk.Start(anchor)
+	if paused {
+		p.clk.Pause()
+	}
+	return nil
+}
+
+// Rate reports the current playback speed.
+func (p *Player) Rate() float64 {
+	if p == nil {
+		return 1
+	}
+	return p.clk.Rate()
+}
+
+// PositionMs reports the current position: the last shown stamp, or 0
+// before the first frame (the controller `position` getter).
+func (p *Player) PositionMs() int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.hasShown {
+		return p.lastShown
+	}
+	return 0
+}
+
+// Seeking reports a seek is still travelling: SeekTo returned the landing
+// stamp but the background has not shown it yet. Buffered seeks complete
+// synchronously and never report true.
+func (p *Player) Seeking() bool {
+	if p == nil || p.buffered {
+		return false
+	}
+	p.dmu.Lock()
+	defer p.dmu.Unlock()
+	return p.seekActive
 }
 
 // seekBuffered is the buffered-clip seek (pre-streaming semantics,

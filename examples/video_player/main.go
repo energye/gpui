@@ -4,15 +4,20 @@
 //
 // Window: 1200x800, stays open until you close it (RUN_SECONDS only caps
 // automated runs). Opens one clip through the public video API, shows it
-// as one scene rect, and lets you play/pause/seek with mouse + keyboard.
-// No JSON gate, no FAIL lines: this is the usage sample, the VR/VC
-// windows next door are the ones that judge.
+// as one scene rect, and exposes the standard player controls:
+// play/pause, progress scrub (drag = fast keyframe jumps, release =
+// exact landing), rate 0.25x-4x, frame step, prev/next keyframe,
+// relative jumps. No JSON gate, no FAIL lines: this is the usage sample,
+// the VR/VC windows next door are the ones that judge.
 //
 // Controls:
-//   - Space or P, or click the left button: play / pause.
+//   - Space or P, or click 播/停: play / pause.
 //   - O or click 打开: pick a file (zenity/kdialog) or drag a file in.
-//   - Left / Right: seek -/+ 1s. Home / End: head / tail. R: replay.
-//   - Click the progress bar: jump there. Q or Esc: quit.
+//   - Progress bar: press-move = SeekFast scrub, release = SeekTo exact.
+//   - Left / Right: seek -/+ 1s (SeekBy). Home / End: head / tail.
+//   - R: replay. . : frame step. , / . : prev/next keyframe.
+//   - 1/2/3/4: rate 0.5x/1x/2x/4x (Shift+1 = 0.25x).
+//   - Q or Esc: quit.
 package main
 
 import (
@@ -21,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/energye/gpui/examples/wrkit"
@@ -104,10 +108,10 @@ func main() {
 
 	timeLabel := wrkit.Label("", 12, 0.72, 0.8, 0.9)
 	root.Place(timeLabel, 120, 722)
-	helpLabel := wrkit.Label("空格/P=播/停 O=打开 ←/→=±1秒 R=重播 拖文件进来=换片 Q=退出", 12, 0.55, 0.65, 0.75)
+	helpLabel := wrkit.Label("空格=播/停 ←/→=±1秒 ,/.=上下关键帧 .=单步 1/2/3/4=0.5/1/2/4x 拖条=快 scrub Q=退出", 12, 0.55, 0.65, 0.75)
 	root.Place(helpLabel, 120, 746)
 
-	st := &state{clip: clip}
+	st := &state{clip: clip, rateIdx: 1}
 	if player != nil {
 		st.player = player
 		st.info = player.Info()
@@ -179,8 +183,17 @@ func main() {
 				}
 				app.ScheduleFrame()
 			case platform.EventPointer:
-				if ev.Pointer == platform.PointerDown && ev.Button == 1 {
-					st.click(ev.X, ev.Y, app)
+				switch ev.Pointer {
+				case platform.PointerDown:
+					if ev.Button == 1 {
+						st.press(ev.X, ev.Y)
+					}
+				case platform.PointerMove:
+					st.drag(ev.X)
+				case platform.PointerUp:
+					if ev.Button == 1 {
+						st.release(ev.X)
+					}
 				}
 				app.ScheduleFrame()
 			case platform.EventDrop:
@@ -210,7 +223,6 @@ func main() {
 		st.tick()
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
-	st.app = app
 
 	if err := app.Open(); err != nil {
 		fmt.Fprintln(os.Stderr, "打开失败:", err)
@@ -245,10 +257,10 @@ func main() {
 		shortName(clip), st.shown, presents, fps, elapsed)
 }
 
-// state is the demo playback state. Poll/tick stay on the UI loop
-// thread; seeks run in the background (large GOPs decode seconds on
-// the caller) and marshal back via pending, so progress clicks never
-// freeze the window.
+// state is the demo playback state. The engine SeekTo is async by
+// design (repark-and-return, background forward discard), so every
+// control calls it directly on the UI thread — no background patch, no
+// generation, clicks never freeze.
 type state struct {
 	clip   string
 	player *govideo.Player
@@ -263,11 +275,10 @@ type state struct {
 	note    string
 	bad     string
 
-	mu       sync.Mutex
-	app      *embedder.PipelineApp
-	seeking  bool
-	seekGen  int
-	pending  *seekResult
+	// Progress scrub: press-move fires fast keyframe jumps, release
+	// fires the exact landing (standard scrub model).
+	scrubbing bool
+	rateIdx   int
 
 	img                      *rendering.RenderImage
 	barFill                  *rendering.RenderColorBox
@@ -395,7 +406,7 @@ func (st *state) refreshStatus() {
 		return
 	}
 	stats := st.player.Stats()
-	extra := fmt.Sprintf("解码=%d 显示=%d 丢=%d 队列=%d", stats.Decoded, stats.Shown, stats.Dropped, stats.QueueDepth)
+	extra := fmt.Sprintf("解码=%d 显示=%d 丢=%d 队列=%d %.1fx%s", stats.Decoded, stats.Shown, stats.Dropped, stats.QueueDepth, stats.Rate, seekingMark(stats.Seeking))
 	if s == "" {
 		st.statusLabel.SetText(extra)
 	} else {
@@ -403,18 +414,35 @@ func (st *state) refreshStatus() {
 	}
 }
 
+func seekingMark(v int) string {
+	if v != 0 {
+		return " 跳转中"
+	}
+	return ""
+}
+
 func (st *state) refreshTime() {
 	if st.timeLabel == nil || st.barFill == nil {
 		return
 	}
 	cur := st.lastPTS
+	// While a seek travels, the progress knob already tracks the request
+	// (standard scrub feel); the picture catches up via Poll.
+	if st.player != nil && st.player.Seeking() {
+		_, _, landed, _, _, _ := st.player.SeekInfo()
+		cur = landed
+	}
 	if cur < 0 {
 		cur = 0
 	}
 	if st.durMs > 0 && cur > st.durMs {
 		cur = st.durMs
 	}
-	st.timeLabel.SetText(fmt.Sprintf("%s / %s  (%d帧)", fmtMs(cur), fmtMs(st.durMs), st.shown))
+	rate := 1.0
+	if st.player != nil {
+		rate = st.player.Rate()
+	}
+	st.timeLabel.SetText(fmt.Sprintf("%s / %s  (%d帧 %.1fx)", fmtMs(cur), fmtMs(st.durMs), st.shown, rate))
 	ratio := 0.0
 	if st.durMs > 0 {
 		ratio = float64(cur) / float64(st.durMs)
@@ -429,31 +457,14 @@ func (st *state) refreshTime() {
 	st.barFill.MarkNeedsLayout()
 }
 
-// seekResult carries a background seek home to the UI thread: tick
-// applies it, so UI fields stay UI-thread-only.
-type seekResult struct {
-	player *govideo.Player
-	gen    int
-	landed int64
-	target int64
-	err    error
-}
-
 // toggle pauses, resumes, or replays from the end.
 func (st *state) toggle() {
 	p := st.player
 	if p == nil || st.bad != "" {
 		return
 	}
-	st.mu.Lock()
-	jumping := st.seeking
-	st.mu.Unlock()
-	if jumping {
-		st.status("跳转中，稍等一下")
-		return
-	}
 	if st.ended {
-		st.requestSeek(0)
+		st.seekTo(0)
 		return
 	}
 	if st.paused {
@@ -477,23 +488,41 @@ func (st *state) replay() {
 	if st.player == nil || st.bad != "" {
 		return
 	}
-	st.requestSeek(0)
+	st.seekTo(0)
 }
 
-// seekTo jumps to targetMs, clamped into the clip. Async: the forward
-// decode runs off the UI thread (large GOPs cost seconds), clicks while
-// jumping only hint and never freeze the window.
+// seekTo jumps to targetMs, clamped into the clip. The engine reparks
+// and returns in milliseconds, so this runs directly on the UI thread.
 func (st *state) seekTo(target int64) {
-	st.requestSeek(target)
-}
-
-// requestSeek starts one background seek; a second click while jumping
-// is ignored with a hint instead of queueing freezes.
-func (st *state) requestSeek(target int64) {
 	p := st.player
 	if p == nil || st.bad != "" {
 		return
 	}
+	target = st.clampSeek(target)
+	landed, err := p.SeekTo(target)
+	if err != nil {
+		st.status("跳失败：" + errTail(err))
+		return
+	}
+	st.afterSeek(landed, "跳到%s")
+}
+
+// seekFastTo jumps keyframe-only (scrub drag): instant across huge GOPs.
+func (st *state) seekFastTo(target int64) {
+	p := st.player
+	if p == nil || st.bad != "" {
+		return
+	}
+	target = st.clampSeek(target)
+	landed, err := p.SeekFast(target)
+	if err != nil {
+		st.status("跳失败：" + errTail(err))
+		return
+	}
+	st.afterSeek(landed, "快移到%s")
+}
+
+func (st *state) clampSeek(target int64) int64 {
 	if st.durMs > 0 {
 		if target < 0 {
 			target = 0
@@ -502,55 +531,17 @@ func (st *state) requestSeek(target int64) {
 			target = st.durMs - 1
 		}
 	}
-	st.mu.Lock()
-	if st.seeking {
-		st.mu.Unlock()
-		st.status("跳转中，稍等一下")
-		return
-	}
-	st.seeking = true
-	st.seekGen++
-	gen := st.seekGen
-	st.mu.Unlock()
-	st.status("跳转中…")
-	go func(pl *govideo.Player, tg int64, g int) {
-		landed, err := pl.SeekTo(tg)
-		st.mu.Lock()
-		// Stale (opened a new clip meanwhile): drop silently.
-		if g != st.seekGen || pl != st.player {
-			st.mu.Unlock()
-			return
-		}
-		st.seeking = false
-		st.pending = &seekResult{player: pl, gen: g, landed: landed, target: tg, err: err}
-		app := st.app
-		st.mu.Unlock()
-		if app != nil {
-			app.ScheduleFrame()
-		}
-	}(p, target, gen)
+	return target
 }
 
-// applyPendingSeek runs on the UI thread (tick): shows the landed frame
-// at once, resumes play, or reports readable failure.
-func (st *state) applyPendingSeek() {
-	st.mu.Lock()
-	r := st.pending
-	st.pending = nil
-	st.mu.Unlock()
-	if r == nil {
-		return
-	}
-	if r.err != nil {
-		st.status("跳失败：" + errTail(r.err))
-		st.refreshTime()
-		return
-	}
+// afterSeek refreshes the resumed line after any jump (exact or fast):
+// the clock is already re-anchored, the picture arrives via Poll.
+func (st *state) afterSeek(landed int64, format string) {
 	st.ended = false
 	st.paused = false
 	st.player.Resume()
-	st.lastPTS = r.landed
-	st.status(fmt.Sprintf("跳到%s", fmtMs(r.landed)))
+	st.lastPTS = landed
+	st.status(fmt.Sprintf(format, fmtMs(landed)))
 	if st.playLabel != nil {
 		st.playLabel.SetText("暂停")
 	}
@@ -558,10 +549,40 @@ func (st *state) applyPendingSeek() {
 	st.refreshStatus()
 }
 
+// setRate cycles the standard ladder 0.5x/1x/2x/4x (Shift+1 = 0.25x via key).
+func (st *state) setRate(r float64) {
+	p := st.player
+	if p == nil || st.bad != "" {
+		return
+	}
+	if err := p.SetRate(r); err != nil {
+		st.status("变速失败：" + errTail(err))
+		return
+	}
+	for i, v := range rateLadder {
+		if v == r {
+			st.rateIdx = i
+		}
+	}
+	st.status(fmt.Sprintf("%.2fx", r))
+	st.refreshTime()
+	st.refreshStatus()
+}
+
+// rateLadder is the standard playback ladder (0.25x via Shift+1).
+var rateLadder = []float64{0.5, 1, 2, 4}
+
+func (st *state) cycleRate() {
+	next := rateLadder[0]
+	if st.rateIdx+1 < len(rateLadder) {
+		next = rateLadder[st.rateIdx+1]
+	}
+	st.setRate(next)
+}
+
 // tick polls one due frame and paints it. Pause freezes via the player
 // clock, so polling while paused just yields nil and holds the picture.
 func (st *state) tick() {
-	st.applyPendingSeek()
 	p := st.player
 	if p == nil || st.bad != "" || st.buf == nil {
 		return
@@ -590,7 +611,61 @@ func (st *state) tick() {
 	}
 }
 
-// click routes left-button hits: buttons first, then the progress bar.
+// press routes left-button down: buttons act at once, the progress bar
+// starts a scrub (fast jumps while held).
+func (st *state) press(x, y float64) {
+	if inside(x, y, st.playX, st.playY, playW, playH) {
+		st.toggle()
+		return
+	}
+	if inside(x, y, st.replayX, st.replayY, replayW, replayH) {
+		st.replay()
+		return
+	}
+	if inside(x, y, st.openX, st.openY, openW, openH) {
+		st.promptOpen()
+		return
+	}
+	if st.player == nil || st.bad != "" || st.durMs <= 0 {
+		return
+	}
+	if inside(x, y, st.barX, st.barY-8, st.barW, barH+16) {
+		st.scrubbing = true
+		st.seekFastTo(st.barTarget(x))
+	}
+}
+
+// drag fires fast keyframe jumps while the bar stays held (standard
+// scrub: superseding requests, never a freeze).
+func (st *state) drag(x float64) {
+	if !st.scrubbing {
+		return
+	}
+	if st.player == nil || st.bad != "" || st.durMs <= 0 {
+		return
+	}
+	st.seekFastTo(st.barTarget(x))
+}
+
+// release ends a scrub with the exact landing frame.
+func (st *state) release(x float64) {
+	if !st.scrubbing {
+		return
+	}
+	st.scrubbing = false
+	if st.player == nil || st.bad != "" || st.durMs <= 0 {
+		return
+	}
+	st.seekTo(st.barTarget(x))
+}
+
+func (st *state) barTarget(x float64) int64 {
+	ratio := (x - st.barX) / st.barW
+	return int64(ratio * float64(st.durMs))
+}
+
+// click routes left-button hits: kept for headless tests (buttons then
+// the progress bar, exact landing like release).
 func (st *state) click(x, y float64, app *embedder.PipelineApp) {
 	_ = app
 	if inside(x, y, st.playX, st.playY, playW, playH) {
@@ -645,6 +720,47 @@ func (st *state) key(ev platform.Event, app *embedder.PipelineApp, win *platform
 		st.promptOpen()
 		return true
 	}
+	// Frame step (paused single step) and keyframe walk.
+	if ev.Rune == '.' {
+		if ev.Repeat {
+			return false
+		}
+		st.stepFrame()
+		return true
+	}
+	if ev.Rune == ',' {
+		if ev.Repeat {
+			return false
+		}
+		st.prevKeyframe()
+		return true
+	}
+	// Rate ladder: 1/2/3/4 = 0.5x/1x/2x/4x (Shift+1 = 0.25x), 0 = cycle.
+	if ev.Rune == '1' || ev.Rune == '2' || ev.Rune == '3' || ev.Rune == '4' || ev.Rune == '0' {
+		if ev.Repeat {
+			return false
+		}
+		switch ev.Rune {
+		case '1':
+			st.setRate(0.5)
+		case '2':
+			st.setRate(1)
+		case '3':
+			st.setRate(2)
+		case '4':
+			st.setRate(4)
+		case '0':
+			st.cycleRate()
+		}
+		return true
+	}
+	if ev.Rune == '!' {
+		if ev.Repeat {
+			return false
+		}
+		st.setRate(0.25)
+		return true
+	}
 	step := int64(0)
 	switch ev.KeyCode {
 	case keyLeft:
@@ -663,10 +779,73 @@ func (st *state) key(ev platform.Event, app *embedder.PipelineApp, win *platform
 		return true
 	}
 	if step != 0 {
-		st.seekTo(st.lastPTS + step)
+		st.seekBy(step)
 		return true
 	}
 	return false
+}
+
+// seekBy jumps relative to the current picture (J/L style rewind).
+func (st *state) seekBy(delta int64) {
+	p := st.player
+	if p == nil || st.bad != "" {
+		return
+	}
+	landed, err := p.SeekBy(delta)
+	if err != nil {
+		st.status("跳失败：" + errTail(err))
+		return
+	}
+	st.afterSeek(landed, "跳到%s")
+}
+
+// stepFrame advances one frame while paused (frame-step key).
+func (st *state) stepFrame() {
+	p := st.player
+	if p == nil || st.bad != "" {
+		return
+	}
+	landed, err := p.StepFrame()
+	if err != nil {
+		st.status("单步失败：" + errTail(err))
+		return
+	}
+	st.paused = true
+	if st.playLabel != nil {
+		st.playLabel.SetText("播放")
+	}
+	st.ended = false
+	st.lastPTS = landed
+	st.status(fmt.Sprintf("单步%s", fmtMs(landed)))
+	st.refreshTime()
+	st.refreshStatus()
+}
+
+// prevKeyframe / nextKeyframe walk the keyframe table.
+func (st *state) prevKeyframe() {
+	p := st.player
+	if p == nil || st.bad != "" {
+		return
+	}
+	landed, err := p.PrevKeyframe()
+	if err != nil {
+		st.status("跳失败：" + errTail(err))
+		return
+	}
+	st.afterSeek(landed, "上个关键帧%s")
+}
+
+func (st *state) nextKeyframe() {
+	p := st.player
+	if p == nil || st.bad != "" {
+		return
+	}
+	landed, err := p.NextKeyframe()
+	if err != nil {
+		st.status("跳失败：" + errTail(err))
+		return
+	}
+	st.afterSeek(landed, "下个关键帧%s")
 }
 
 // openPath swaps the clip while the window stays open: probe first so a
@@ -697,13 +876,6 @@ func (st *state) openPath(path string) {
 		st.status(fmt.Sprintf("显存建不起：%v", err))
 		return
 	}
-	// Cancel any in-flight background seek on the old clip: bump the
-	// generation so its completion drops silently.
-	st.mu.Lock()
-	st.seekGen++
-	st.seeking = false
-	st.pending = nil
-	st.mu.Unlock()
 	if st.player != nil {
 		st.player.Close()
 	}
