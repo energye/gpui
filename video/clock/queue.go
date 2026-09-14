@@ -36,6 +36,19 @@ type Queue struct {
 	maxDepth int
 	depthSum int64
 	depthN   int64
+	// onDrop observes frames discarded without display (stale catch-up
+	// drops in PollDue, rewinds in Clear/Reset). The video player sets
+	// it to return pooled buffers (S6); nil keeps old behaviour.
+	onDrop func(*Frame)
+}
+
+// SetOnDrop installs the discard observer (nil clears it). Only the
+// video player uses it; drained frames via Drain never fire it (the
+// caller takes ownership there).
+func (q *Queue) SetOnDrop(fn func(*Frame)) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.onDrop = fn
 }
 
 // NewQueue builds a queue holding at most cap frames (cap <= 0 means
@@ -84,21 +97,36 @@ func (q *Queue) Push(f *Frame) (bool, error) {
 // one room means one producer proceeds).
 func (q *Queue) PollDue(nowMs int64) (f *Frame, skipped int, ok bool) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
+	var wasted []*Frame
 	n := 0
 	for len(q.buf) > 0 && q.buf[0].PTSMs <= nowMs {
+		if f != nil {
+			// A newer due frame supersedes the previous one: the
+			// previous becomes stale (counted); ownership leaves
+			// the queue here.
+			wasted = append(wasted, f)
+		}
 		f = q.buf[0]
 		q.buf[0] = nil
 		q.buf = q.buf[1:]
 		n++
 	}
 	if n == 0 {
+		q.mu.Unlock()
 		return nil, 0, false
 	}
+	// f is the newest due frame; wasted holds the stale ones.
 	q.dropped += int64(n - 1)
 	q.depthSum += int64(len(q.buf))
 	q.depthN++
 	q.room.Signal()
+	drop := q.onDrop
+	q.mu.Unlock()
+	if drop != nil {
+		for _, w := range wasted {
+			drop(w)
+		}
+	}
 	return f, n - 1, true
 }
 
@@ -162,14 +190,35 @@ func (q *Queue) Drained() bool {
 // Clear drops every queued frame (seek rewinds the line) and wakes one
 // blocked producer so the refilled tail never deadlocks. Counts stay
 // cumulative: drops here are display rewinds, not stale catch-ups.
+// Discarded frames go to the OnDrop observer (nil keeps old behaviour).
 func (q *Queue) Clear() {
 	q.mu.Lock()
+	wasted := append([]*Frame(nil), q.buf...)
 	for i := range q.buf {
 		q.buf[i] = nil
 	}
 	q.buf = q.buf[:0]
+	drop := q.onDrop
 	q.mu.Unlock()
 	q.room.Signal()
+	if drop != nil {
+		for _, w := range wasted {
+			drop(w)
+		}
+	}
+}
+
+// Drain removes every queued frame and hands ownership to the caller
+// (Close path): the OnDrop observer never fires here.
+func (q *Queue) Drain() []*Frame {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	out := append([]*Frame(nil), q.buf...)
+	for i := range q.buf {
+		q.buf[i] = nil
+	}
+	q.buf = q.buf[:0]
+	return out
 }
 
 // TryPush adds a frame only when there is room: never blocks. It reports
@@ -200,15 +249,17 @@ func (q *Queue) TryPush(f *Frame) (bool, error) {
 // Reset atomically clears the line and queues one frame: the seek
 // landing always gets in, no Clear-then-Push window for the background
 // to fill and deadlock the caller. Never blocks; false means closed.
+// Replaced frames go to the OnDrop observer (nil keeps old behaviour).
 func (q *Queue) Reset(f *Frame) (bool, error) {
 	if f == nil {
 		return false, fmt.Errorf("clock: nil frame")
 	}
 	q.mu.Lock()
-	defer q.mu.Unlock()
 	if q.closed {
+		q.mu.Unlock()
 		return false, nil
 	}
+	wasted := append([]*Frame(nil), q.buf...)
 	for i := range q.buf {
 		q.buf[i] = nil
 	}
@@ -220,6 +271,13 @@ func (q *Queue) Reset(f *Frame) (bool, error) {
 	}
 	q.depthSum += int64(len(q.buf))
 	q.depthN++
+	drop := q.onDrop
+	q.mu.Unlock()
 	q.room.Signal()
+	if drop != nil {
+		for _, w := range wasted {
+			drop(w)
+		}
+	}
 	return true, nil
 }

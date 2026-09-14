@@ -60,6 +60,10 @@ type Stats struct {
 	DriftMs     int64
 	Ended       bool
 	Error       string
+	// PoolHitPct is the streaming RGBA pool hit% (S6 §11.7): 0 on the
+	// buffered small-clip path (no pool acquisitions there, honest
+	// unavailable rather than a faked 100).
+	PoolHitPct float64
 	// Seek evidence (VR5): last seek landing vs request.
 	SeekOK       int
 	SeekDeltaMs  int64
@@ -80,6 +84,17 @@ type Options struct {
 	QueueCap int
 	NowMs    func() int64
 	Loop     bool
+}
+
+// pooledLive is one streaming pool snapshot (S6 §11.7): immutable per
+// resolution, swapped only on resolution change (cold path, never steady
+// play). Shared atomically between the decoder thread (convertPic builds
+// it) and the display thread (Poll releases, queue OnDrop returns drops).
+type pooledLive struct {
+	pools    *Pools
+	w, h     int
+	workSize int
+	capBytes int
 }
 
 // pendingPic is a decoded picture waiting for reorder: decode order in,
@@ -175,8 +190,8 @@ type Player struct {
 	// frames below seekLanded and shows the first at/above it, then
 	// clears the flag. seekNeedSpos is the landing sample's decode-order
 	// index: claims past it end a stale request (lost landing sample).
-	seekActive  bool
-	seekLanded  int64
+	seekActive   bool
+	seekLanded   int64
 	seekNeedSpos int
 	// wakeCh wakes a decoder parked at end-of-stream (cap 1, coalescing,
 	// never closed): a later seek revives playback on the same thread.
@@ -186,10 +201,18 @@ type Player struct {
 	// full decode at open into display-order cache (old semantics:
 	// deterministic tests, pixel-verified seek, whole-clip loop).
 	// Large clips stream above; small clips keep exact old behaviour.
-	buffered    bool
-	bufFrames   []*clock.Frame
-	bufSamples  []int
-	live        int64
+	buffered   bool
+	bufFrames  []*clock.Frame
+	bufSamples []int
+	live       int64
+	// S6 streaming pool (nil on the buffered path, whose pixels live in
+	// bufFrames and are never pooled). convertPic borrows RGBA buffers
+	// here; Poll, queue drops, seeks and Close return them.
+	pooled atomic.Pointer[pooledLive]
+	// lastPix is the currently displayed Pix (streaming only): valid
+	// until the next Poll or Close, then recycled. Guarded by mu (Poll
+	// is one display thread, Close races it).
+	lastPix []byte
 
 	stopCh  chan struct{}
 	doneCh  chan struct{}
@@ -320,7 +343,7 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	}
 	p := &Player{
 		info: Info{Path: nameHint, FrameRate: v.FrameRate, DurMs: v.DurationMs, Frames: len(v.Samples), KeyframeN: v.KeyframeCount(), Container: containerName, Codec: codecName},
-		q: q, clk: clk, nowMs: now,
+		q:    q, clk: clk, nowMs: now,
 		stopCh: make(chan struct{}), doneCh: make(chan struct{}), readyCh: make(chan struct{}),
 		wakeCh: make(chan struct{}, 1),
 	}
@@ -355,6 +378,16 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	p.base0 = base0
 	p.spanMs = span
 	p.dropUntil = -1
+	// S6: pooled returns ride the queue observer — drops without display
+	// (stale catch-up, seek rewinds) go straight back to the RGBA pool.
+	// Buffered clips never take this branch (their pixels are owned by
+	// the cache, see openBuffered), so their queue stays observer-free.
+	p.q.SetOnDrop(func(fr *clock.Frame) {
+		if fr == nil {
+			return
+		}
+		p.releasePix(fr.Pix)
+	})
 	// Info dimensions/profile without waiting for pixels: SPS truth.
 	if sps != nil {
 		p.info.Width = int(sps.Width)
@@ -605,6 +638,7 @@ func (p *Player) primeFirst() error {
 			}
 			p.lastPTS = pts
 			if ok, _ := p.q.Push(fr); !ok {
+				p.releasePix(fr.Pix)
 				return fmt.Errorf("%w: queue closed during open %s", ErrClosed, p.path)
 			}
 			p.announceReady()
@@ -795,15 +829,73 @@ func (p *Player) resetDecoderLocked() {
 	p.dec = nd
 }
 
-// convertPic runs color conversion (stateless, no locks held).
+// releasePix returns a streaming convert buffer (S6). No-op for nil, for
+// the buffered path, and for sizes the current pool no longer takes
+// (resolution switch just rebuilt: the old slice falls back to GC on
+// this cold path instead of polluting the new pool's counters).
+func (p *Player) releasePix(b []byte) {
+	if len(b) == 0 {
+		return
+	}
+	lv := p.pooled.Load()
+	if lv == nil || lv.pools == nil || lv.pools.RGBA == nil {
+		return
+	}
+	if len(b) != lv.pools.RGBA.BufSize() {
+		return
+	}
+	lv.pools.RGBA.Release(b)
+}
+
+// remakeLive builds (or rebuilds on resolution change) the streaming pool
+// set. Cold path only: steady frames always match the loaded snapshot
+// above. Caps park queue + displayed + in-flight + 1 spare RGBA frame, so
+// steady play never evicts; YUV/Work keep one spare each until their
+// borrow paths land (S6 wires RGBA first, YUV follows later).
+func (p *Player) remakeLive(w, h int) *pooledLive {
+	work := 0
+	for _, s := range p.samples {
+		if int(s.Size) > work {
+			work = int(s.Size)
+		}
+	}
+	if work <= 0 {
+		work = 256 << 10
+	}
+	qcap := p.q.Cap()
+	if qcap <= 0 {
+		qcap = clock.DefaultCap
+	}
+	spare := qcap + 3
+	ps := &Pools{
+		YUV:  NewPool("yuv", YUVBytes(w, h), YUVBytes(w, h)),
+		RGBA: NewPool("rgba", RGBABytes(w, h), spare*RGBABytes(w, h)),
+		Work: NewPool("work", work, work),
+	}
+	lv := &pooledLive{pools: ps, w: w, h: h, workSize: work, capBytes: spare * RGBABytes(w, h)}
+	p.pooled.Store(lv)
+	return lv
+}
+
+// convertPic runs color conversion (stateless, no locks held): the dst
+// comes from the RGBA pool (S6), so the steady loop borrows instead of
+// allocating ~w*h*4 per frame. Bits equal color.Convert (same registry
+// converter, vectors pin them); the caller owns the Pix until it is
+// queued, dropped, shown-and-superseded, or closed.
 func (p *Player) convertPic(pic *h264.Picture) (*color.Frame, float64, error) {
+	w, h := int(pic.Width), int(pic.Height)
+	lv := p.pooled.Load()
+	if lv == nil || lv.w != w || lv.h != h {
+		lv = p.remakeLive(w, h)
+	}
+	buf := lv.pools.RGBA.Acquire()
 	t0 := time.Now()
-	cf, err := color.Convert(p.sampling, pic.Y, pic.Cb, pic.Cr, int(pic.Width), int(pic.Height), p.copt)
-	if err != nil {
+	if err := color.ConvertInto(p.sampling, buf, pic.Y, pic.Cb, pic.Cr, w, h, p.copt); err != nil {
+		lv.pools.RGBA.Release(buf)
 		return nil, 0, err
 	}
 	el := float64(time.Since(t0).Microseconds()) / 1000.0
-	return cf, el, nil
+	return &color.Frame{Width: w, Height: h, Pix: buf}, el, nil
 }
 
 // assignPTS guards monotonic display stamps (caller sequences emissions).
@@ -871,6 +963,9 @@ func (p *Player) decodeLoop() {
 				continue
 			}
 			if atomic.LoadInt64(&p.generation) != gen {
+				// A seek landed mid-convert: the frame never queues,
+				// so its buffer goes straight back.
+				p.releasePix(cf.Pix)
 				break
 			}
 			pts := e.pts
@@ -884,6 +979,7 @@ func (p *Player) decodeLoop() {
 			p.dmu.Unlock()
 			fr := &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: seq}
 			if ok, _ := p.q.Push(fr); !ok {
+				p.releasePix(fr.Pix)
 				return
 			}
 			if atomic.LoadInt64(&p.generation) != gen {
@@ -945,6 +1041,11 @@ func (p *Player) decodeLoop() {
 // Steady polls cost no timer: readyCh stays closed after the head, so the
 // fast path below skips time.After entirely (VR7 profile: one timer per
 // Poll dominated steady bytes before this fix).
+//
+// Streaming Pix lifetime (S6): the returned Pix stays valid until the next
+// Poll or Close, then it is recycled — copy what the display needs during
+// the tick (the windows blit synchronously). Buffered clips are exempt:
+// their pixels live in the open-time cache and stay valid forever.
 func (p *Player) Poll() (f *clock.Frame, ended bool) {
 	select {
 	case <-p.stopCh:
@@ -972,6 +1073,16 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 	due := p.clk.DuePTSMS()
 	fr, skipped, ok := p.q.PollDue(due)
 	if ok {
+		if !p.buffered {
+			// S6: the display now owns fr.Pix; the previously shown
+			// buffer goes back. Dropped stale frames never reach here
+			// (the queue observer already returned them).
+			p.mu.Lock()
+			old := p.lastPix
+			p.lastPix = fr.Pix
+			p.mu.Unlock()
+			p.releasePix(old)
+		}
 		p.mu.Lock()
 		p.shown++
 		p.lastShown = fr.PTSMs
@@ -1157,7 +1268,13 @@ func (p *Player) Stats() Stats {
 	if p.Seeking() {
 		seeking = 1
 	}
-	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed, Rate: rate, Seeking: seeking}
+	// S6: streaming pool hit% rides along for the §2.2 B family
+	// (pool_hit_pct); buffered clips report 0 (no acquisitions).
+	poolHit := 0.0
+	if lv := p.pooled.Load(); lv != nil && lv.pools != nil {
+		poolHit = lv.pools.HitPctMin()
+	}
+	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed, Rate: rate, Seeking: seeking, PoolHitPct: poolHit}
 }
 
 // ConcealedFault reports the first skipped sample's problem, "" when the
@@ -1736,7 +1853,10 @@ func (p *Player) SeekInfo() (ok bool, targetMs, landedMs, keyMs, deltaMs int64, 
 	return p.seekOK, p.seekTargetMs, p.seekLandedMs, p.seekKeyMs, p.seekDeltaMs, p.seekForward
 }
 
-// Close ends the background thread and waits for it.
+// Close ends the background thread and waits for it. Streaming Pix
+// buffers still queued or displayed are recycled here, so the pools
+// report zero outstanding afterwards (leak check); Poll results handed
+// out before Close must no longer be touched.
 func (p *Player) Close() {
 	p.mu.Lock()
 	already := p.closed
@@ -1751,6 +1871,17 @@ func (p *Player) Close() {
 	}
 	p.q.Close()
 	<-p.doneCh
+	for _, fr := range p.q.Drain() {
+		if fr == nil {
+			continue
+		}
+		p.releasePix(fr.Pix)
+	}
+	p.mu.Lock()
+	last := p.lastPix
+	p.lastPix = nil
+	p.mu.Unlock()
+	p.releasePix(last)
 	if p.source != nil {
 		p.source.Close()
 	}
