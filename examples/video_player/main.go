@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/energye/gpui/examples/wrkit"
@@ -209,6 +210,7 @@ func main() {
 		st.tick()
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
+	st.app = app
 
 	if err := app.Open(); err != nil {
 		fmt.Fprintln(os.Stderr, "打开失败:", err)
@@ -243,8 +245,10 @@ func main() {
 		shortName(clip), st.shown, presents, fps, elapsed)
 }
 
-// state is the demo playback state. All player calls happen on the UI
-// loop thread (events + ticker share it), so no extra lock is needed.
+// state is the demo playback state. Poll/tick stay on the UI loop
+// thread; seeks run in the background (large GOPs decode seconds on
+// the caller) and marshal back via pending, so progress clicks never
+// freeze the window.
 type state struct {
 	clip   string
 	player *govideo.Player
@@ -258,6 +262,12 @@ type state struct {
 	shown   int64
 	note    string
 	bad     string
+
+	mu       sync.Mutex
+	app      *embedder.PipelineApp
+	seeking  bool
+	seekGen  int
+	pending  *seekResult
 
 	img                      *rendering.RenderImage
 	barFill                  *rendering.RenderColorBox
@@ -419,24 +429,31 @@ func (st *state) refreshTime() {
 	st.barFill.MarkNeedsLayout()
 }
 
+// seekResult carries a background seek home to the UI thread: tick
+// applies it, so UI fields stay UI-thread-only.
+type seekResult struct {
+	player *govideo.Player
+	gen    int
+	landed int64
+	target int64
+	err    error
+}
+
 // toggle pauses, resumes, or replays from the end.
 func (st *state) toggle() {
 	p := st.player
 	if p == nil || st.bad != "" {
 		return
 	}
+	st.mu.Lock()
+	jumping := st.seeking
+	st.mu.Unlock()
+	if jumping {
+		st.status("跳转中，稍等一下")
+		return
+	}
 	if st.ended {
-		if _, err := p.SeekTo(0); err != nil {
-			st.status("重播失败：" + errTail(err))
-			return
-		}
-		st.ended = false
-		st.paused = false
-		p.Resume()
-		st.status("播放中")
-		if st.playLabel != nil {
-			st.playLabel.SetText("暂停")
-		}
+		st.requestSeek(0)
 		return
 	}
 	if st.paused {
@@ -457,25 +474,22 @@ func (st *state) toggle() {
 }
 
 func (st *state) replay() {
-	p := st.player
-	if p == nil || st.bad != "" {
+	if st.player == nil || st.bad != "" {
 		return
 	}
-	if _, err := p.SeekTo(0); err != nil {
-		st.status("重播失败：" + errTail(err))
-		return
-	}
-	st.ended = false
-	st.paused = false
-	p.Resume()
-	st.status("播放中")
-	if st.playLabel != nil {
-		st.playLabel.SetText("暂停")
-	}
+	st.requestSeek(0)
 }
 
-// seekTo jumps to targetMs, clamped into the clip.
+// seekTo jumps to targetMs, clamped into the clip. Async: the forward
+// decode runs off the UI thread (large GOPs cost seconds), clicks while
+// jumping only hint and never freeze the window.
 func (st *state) seekTo(target int64) {
+	st.requestSeek(target)
+}
+
+// requestSeek starts one background seek; a second click while jumping
+// is ignored with a hint instead of queueing freezes.
+func (st *state) requestSeek(target int64) {
 	p := st.player
 	if p == nil || st.bad != "" {
 		return
@@ -488,23 +502,66 @@ func (st *state) seekTo(target int64) {
 			target = st.durMs - 1
 		}
 	}
-	landed, err := p.SeekTo(target)
-	if err != nil {
-		st.status("跳失败：" + errTail(err))
+	st.mu.Lock()
+	if st.seeking {
+		st.mu.Unlock()
+		st.status("跳转中，稍等一下")
+		return
+	}
+	st.seeking = true
+	st.seekGen++
+	gen := st.seekGen
+	st.mu.Unlock()
+	st.status("跳转中…")
+	go func(pl *govideo.Player, tg int64, g int) {
+		landed, err := pl.SeekTo(tg)
+		st.mu.Lock()
+		// Stale (opened a new clip meanwhile): drop silently.
+		if g != st.seekGen || pl != st.player {
+			st.mu.Unlock()
+			return
+		}
+		st.seeking = false
+		st.pending = &seekResult{player: pl, gen: g, landed: landed, target: tg, err: err}
+		app := st.app
+		st.mu.Unlock()
+		if app != nil {
+			app.ScheduleFrame()
+		}
+	}(p, target, gen)
+}
+
+// applyPendingSeek runs on the UI thread (tick): shows the landed frame
+// at once, resumes play, or reports readable failure.
+func (st *state) applyPendingSeek() {
+	st.mu.Lock()
+	r := st.pending
+	st.pending = nil
+	st.mu.Unlock()
+	if r == nil {
+		return
+	}
+	if r.err != nil {
+		st.status("跳失败：" + errTail(r.err))
+		st.refreshTime()
 		return
 	}
 	st.ended = false
-	_, _, _, _, delta, fwd := p.SeekInfo()
-	st.lastPTS = landed
-	st.status(fmt.Sprintf("跳到%s", fmtMs(landed)))
-	_ = delta
-	_ = fwd
+	st.paused = false
+	st.player.Resume()
+	st.lastPTS = r.landed
+	st.status(fmt.Sprintf("跳到%s", fmtMs(r.landed)))
+	if st.playLabel != nil {
+		st.playLabel.SetText("暂停")
+	}
 	st.refreshTime()
+	st.refreshStatus()
 }
 
 // tick polls one due frame and paints it. Pause freezes via the player
 // clock, so polling while paused just yields nil and holds the picture.
 func (st *state) tick() {
+	st.applyPendingSeek()
 	p := st.player
 	if p == nil || st.bad != "" || st.buf == nil {
 		return
@@ -640,6 +697,13 @@ func (st *state) openPath(path string) {
 		st.status(fmt.Sprintf("显存建不起：%v", err))
 		return
 	}
+	// Cancel any in-flight background seek on the old clip: bump the
+	// generation so its completion drops silently.
+	st.mu.Lock()
+	st.seekGen++
+	st.seeking = false
+	st.pending = nil
+	st.mu.Unlock()
 	if st.player != nil {
 		st.player.Close()
 	}

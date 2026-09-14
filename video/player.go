@@ -1309,7 +1309,11 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	p.dmu.Unlock()
 
 	fr := &clock.Frame{Width: cf.Width, Height: cf.Height, Pix: cf.Pix, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: seq}
-	if ok, _ := p.q.Push(fr); !ok {
+	// Atomic landing: Clear+Push under one queue lock so the background
+	// cannot fill between them and deadlock the caller (progress clicks
+	// run on the display thread, which also drains — a blocking Push
+	// here would wait for itself). Never blocks; false means closed.
+	if ok, _ := p.q.Reset(fr); !ok {
 		return 0, fmt.Errorf("%w: queue closed during seek", ErrClosed)
 	}
 	p.mu.Lock()
@@ -1318,14 +1322,9 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	p.mu.Unlock()
 	p.announceReady()
 
-	// Re-anchor now onto landed, refill continues in background.
-	p.q.Clear()
-	// Re-push landed after the clear (Clear above dropped the just-pushed
-	// frame only if a stale raced in; simplest: push again — queue holds
-	// bounded frames, double-push would duplicate. Instead: check depth.
-	if p.q.Depth() == 0 {
-		p.q.Push(fr)
-	}
+	// Re-anchor now onto landed, refill continues in background. The
+	// landing is already the only queued frame (Reset above); no second
+	// Clear+Push — that window let the background fill and deadlock.
 	p.clk.Start(landed)
 	if wasPaused {
 		p.clk.Pause()

@@ -171,3 +171,55 @@ func (q *Queue) Clear() {
 	q.mu.Unlock()
 	q.room.Signal()
 }
+
+// TryPush adds a frame only when there is room: never blocks. It reports
+// false when full or closed (seek path uses this so the UI thread never
+// waits for the display to drain). Nil frames are rejected with an error.
+func (q *Queue) TryPush(f *Frame) (bool, error) {
+	if f == nil {
+		return false, fmt.Errorf("clock: nil frame")
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closed {
+		return false, nil
+	}
+	if len(q.buf) >= q.cap {
+		return false, nil
+	}
+	q.buf = append(q.buf, f)
+	q.pushes++
+	if len(q.buf) > q.maxDepth {
+		q.maxDepth = len(q.buf)
+	}
+	q.depthSum += int64(len(q.buf))
+	q.depthN++
+	return true, nil
+}
+
+// Reset atomically clears the line and queues one frame: the seek
+// landing always gets in, no Clear-then-Push window for the background
+// to fill and deadlock the caller. Never blocks; false means closed.
+func (q *Queue) Reset(f *Frame) (bool, error) {
+	if f == nil {
+		return false, fmt.Errorf("clock: nil frame")
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closed {
+		return false, nil
+	}
+	for i := range q.buf {
+		q.buf[i] = nil
+	}
+	q.buf = q.buf[:0]
+	q.buf = append(q.buf, f)
+	q.pushes++
+	if len(q.buf) > q.maxDepth {
+		q.maxDepth = len(q.buf)
+	}
+	q.depthSum += int64(len(q.buf))
+	q.depthN++
+	q.room.Signal()
+	return true, nil
+}

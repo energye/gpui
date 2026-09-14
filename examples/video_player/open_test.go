@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
@@ -118,5 +119,59 @@ func TestCleanDropPath(t *testing.T) {
 	}
 	if got := cleanDropPath("  /tmp/b.mp4  "); got != "/tmp/b.mp4" {
 		t.Fatalf("trim => %q", got)
+	}
+}
+
+// TestAsyncSeekNeverFreezes pins progress clicks on a fresh clip: the
+// click returns at once with a jumping hint, the background lands, and
+// tick shows the landed frame. A second click while jumping is ignored,
+// never queued into a freeze.
+func TestAsyncSeekNeverFreezes(t *testing.T) {
+	st := newHeadlessState(t, resolveTestClip("vr2_720p.mp4"))
+	st.openPath(resolveTestClip("vr2_720p.mp4"))
+	if st.player == nil || st.bad != "" {
+		t.Fatalf("open: player=%v bad=%q", st.player != nil, st.bad)
+	}
+	defer st.player.Close()
+	defer st.buf.Dispose()
+	// Click must not block (large GOPs decode seconds off-thread).
+	start := time.Now()
+	st.seekTo(600)
+	if took := time.Since(start); took > 2*time.Second {
+		t.Fatalf("seekTo blocked %v (must return at once)", took)
+	}
+	st.mu.Lock()
+	jumping := st.seeking
+	st.mu.Unlock()
+	if !jumping {
+		t.Fatal("seeking flag not set after click")
+	}
+	// Second click while jumping: ignored, still one flight.
+	gen0 := st.seekGen
+	st.seekTo(800)
+	st.mu.Lock()
+	gen1 := st.seekGen
+	stillJumping := st.seeking
+	st.mu.Unlock()
+	if gen1 != gen0 || !stillJumping {
+		t.Fatalf("second click started gen %d (was %d), want ignored", gen1, gen0)
+	}
+	// Wait for the background to land via tick (UI thread only).
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		st.tick()
+		st.mu.Lock()
+		done := !st.seeking && st.pending == nil
+		st.mu.Unlock()
+		if done {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("background seek never lands via tick")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if st.lastPTS != 600 {
+		t.Fatalf("lastPTS = %d, want 600 (first click wins)", st.lastPTS)
 	}
 }

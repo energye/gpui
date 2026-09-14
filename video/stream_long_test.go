@@ -432,6 +432,52 @@ func TestStreamTruncatedMidway(t *testing.T) {
 	t.Logf("cut play: shown=%d concealed=%d fault=%q", shown, p.Info().Concealed, p.Info().Fault)
 }
 
+// TestStreamSeekWithFullQueueNoConsumer pins progress clicks on a fresh
+// clip: the queue is full and nobody drains (UI thread is the consumer),
+// yet SeekTo still returns quickly with the landed frame queued — never
+// blocking on Push (the old Clear+Push window could fill and freeze).
+func TestStreamSeekWithFullQueueNoConsumer(t *testing.T) {
+	name := longClip(t)
+	h := &handClock{}
+	p, err := OpenFile(name, Options{NowMs: h.at, QueueCap: 1})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer p.Close()
+	if p.Buffered() {
+		t.Fatal("want streaming path")
+	}
+	// Fill cap 1, background blocks; no Poll runs (like the UI thread
+	// stuck in the click handler).
+	time.Sleep(1200 * time.Millisecond)
+	done := make(chan int64, 1)
+	go func() {
+		landed, err := p.SeekTo(20000)
+		if err != nil {
+			t.Errorf("seek: %v", err)
+			done <- -1
+			return
+		}
+		done <- landed
+	}()
+	select {
+	case landed := <-done:
+		if landed < 0 {
+			return
+		}
+		if landed > 20000 || 20000-landed > 500 {
+			t.Fatalf("landed = %d, want covering <=20000 within 500ms", landed)
+		}
+		// Landed frame is queued for the very next Poll (no black).
+		f, _ := p.Poll()
+		if f == nil || f.PTSMs != landed {
+			t.Fatalf("shown = %+v, want pts %d", f, landed)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("SeekTo blocked 15s with full queue and no consumer (progress click freezes)")
+	}
+}
+
 // TestStreamOpenMissingAndJunk pins fast failure: missing + junk fail
 // fast with namable buckets (no hang, no full parse).
 func TestStreamOpenMissingAndJunk(t *testing.T) {

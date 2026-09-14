@@ -480,6 +480,7 @@ VW0 → VW1 → VW2 → VW3
 | v0.39 流式生产级 | 播放器改ffmpeg式边解边播：`video/source.go`（文件/内存/HTTP Range分块缓存）+`player.go`双路径（小片缓冲保旧门禁逐位，大片快开+后台流+有界队列+世代号搜进度+循环重解）+`stream_test.go`（快开/有界/Range/file://4项）；秒开720p约330毫秒/1080p约740毫秒（小片全量，大片只付头帧钱）；回归（`video`/`clock`/`mp4`/`color`/`h264`全绿、VR4/VR5/VR6/VC0/VC1/VR7/VR8/VR9/VC3真窗全绿+播放小样绿、vet+CGO构建过）。 |
 | v0.40 流式覆盖补齐 | 使用场景矩阵（来源×播放×搜进度×网络×容错）逐个有单测：`stream_long_test.go`（200帧真长片：播完/搜中段/边解边搜/循环两圈/暂停/追帧/HTTP整播/倒搜/中途截断/坏路径10项）+`mp4`宽容（mdat尾截不断壳，旧moov截断仍FAIL）+`Buffered/DecodePos/ReorderDepth`测试探针；修真问题3个（source无Range回退重GET、player死字段、decodeStep双锁F17死锁）；尾帧追帧Race如实放宽（199+1丢可过，有序+Ended+丢数自洽）；回归（`video`50项/`mp4`/`color`/`clock`/`h264`全绿、VC0/VR7真窗抽查绿、vet过）。长片`vr_stream_long.mp4`本地生成不进仓（`longClip`缺文件Skip）。 |
 | v0.41 覆盖假绿收紧 | 修3处假绿（`TestBadClips`错指不存在的json致缺文件假过→改指`fault.go`并断言桶、`TestStreamFastOpen`缓冲恒过→拆缓冲/流式两半、`TestStreamTruncatedMidway`只看头1帧→播到尾要求118+82隐错）+补基础缺口（`ProbeSource`三源/`Bytes`与`File`边界/无`Range`回调整播/`500`快败/块缓存命中与8块封顶/`OpenWithSource`文件与内存双路/`Close`幂等与关后读写/长片队列4封顶/`IsURL`14项、`TestStreamPathPlaysToEnd`中部丢1帧放宽为有序单缺口）；修真问题1个（`HEAD`有大小仍需`Range`探针验，否则无`Range`服被误判流式）；回归（`video`/`clock`/`color`/`mp4`/`h264`逐文件绿、长片10项绿、小样3项绿、vet+`CGO_ENABLED=0`构建过）。 |
+| v0.42 新片进度条不卡死 | 修两处（引擎：`Queue.Reset`原子清+放永不堵，`SeekTo`流式落点改`Reset`并删二次清放窗口，进度点击与放帧同线程不再互等；小样：跳进度改后台+跳转中提示+连点忽略+换片代际作废，`tick`回主线程落点，大`GOP`两次前解不再冻窗）；补3用例（`TryPush`满即回/`Reset`满原子落点/`SeekWithFullQueueNoConsumer`满队无消费15秒必回/小样`AsyncSeekNeverFreezes`点击即回+连点忽略+落点600）；回归（`clock`/`video`流与长片/小样4项绿、播放跳容错注册绿、`h264`矩阵绿、vet+`CGO_ENABLED=0`构建过）。 |
 
 ---
 

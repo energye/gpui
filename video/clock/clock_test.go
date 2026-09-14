@@ -123,6 +123,68 @@ func TestQueueStats(t *testing.T) {
 	}
 }
 
+// TestQueueTryPush pins non-blocking offer: full returns false at once
+// (seek path uses this so progress clicks never wait for drain).
+func TestQueueTryPush(t *testing.T) {
+	q := NewQueue(1)
+	if ok, _ := q.TryPush(&Frame{PTSMs: 0}); !ok {
+		t.Fatal("empty trypush refused")
+	}
+	done := make(chan bool, 1)
+	go func() {
+		ok, _ := q.TryPush(&Frame{PTSMs: 200})
+		done <- ok
+	}()
+	select {
+	case ok := <-done:
+		if ok {
+			t.Fatal("full trypush claims kept")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("trypush blocked (must never wait)")
+	}
+	if _, _, ok := q.PollDue(0); !ok {
+		t.Fatal("queued frame lost")
+	}
+	if ok, _ := q.TryPush(&Frame{PTSMs: 200}); !ok {
+		t.Fatal("trypush after drain refused")
+	}
+	if _, err := q.TryPush(nil); err == nil {
+		t.Fatal("nil trypush accepted")
+	}
+}
+
+// TestQueueReset pins atomic seek landing: full queue with stale frames
+// becomes exactly the landed frame, never blocks, stale never shows.
+func TestQueueReset(t *testing.T) {
+	q := NewQueue(2)
+	for _, pts := range []int64{0, 200} {
+		if ok, _ := q.Push(&Frame{PTSMs: pts}); !ok {
+			t.Fatalf("push %d refused", pts)
+		}
+	}
+	done := make(chan bool, 1)
+	go func() {
+		ok, _ := q.Reset(&Frame{PTSMs: 999})
+		done <- ok
+	}()
+	select {
+	case ok := <-done:
+		if !ok {
+			t.Fatal("reset refused")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("reset blocked (must be atomic, never wait)")
+	}
+	if q.Depth() != 1 {
+		t.Fatalf("depth = %d, want 1 (stale cleared)", q.Depth())
+	}
+	f, skipped, ok := q.PollDue(999)
+	if !ok || f.PTSMs != 999 || skipped != 0 {
+		t.Fatalf("due999 = %+v skip %d ok %v, want landed 999 skip 0", f, skipped, ok)
+	}
+}
+
 // TestClockPause pins the pause contract with a hand-driven clock:
 // pausing freezes DuePTSMS, resuming skips the held span.
 func TestClockPause(t *testing.T) {
