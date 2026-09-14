@@ -482,21 +482,160 @@ VW0 → VW1 → VW2 → VW3
 | v0.41 覆盖假绿收紧 | 修3处假绿（`TestBadClips`错指不存在的json致缺文件假过→改指`fault.go`并断言桶、`TestStreamFastOpen`缓冲恒过→拆缓冲/流式两半、`TestStreamTruncatedMidway`只看头1帧→播到尾要求118+82隐错）+补基础缺口（`ProbeSource`三源/`Bytes`与`File`边界/无`Range`回调整播/`500`快败/块缓存命中与8块封顶/`OpenWithSource`文件与内存双路/`Close`幂等与关后读写/长片队列4封顶/`IsURL`14项、`TestStreamPathPlaysToEnd`中部丢1帧放宽为有序单缺口）；修真问题1个（`HEAD`有大小仍需`Range`探针验，否则无`Range`服被误判流式）；回归（`video`/`clock`/`color`/`mp4`/`h264`逐文件绿、长片10项绿、小样3项绿、vet+`CGO_ENABLED=0`构建过）。 |
 | v0.42 新片进度条不卡死 | 修两处（引擎：`Queue.Reset`原子清+放永不堵，`SeekTo`流式落点改`Reset`并删二次清放窗口，进度点击与放帧同线程不再互等；小样：跳进度改后台+跳转中提示+连点忽略+换片代际作废，`tick`回主线程落点，大`GOP`两次前解不再冻窗）；补3用例（`TryPush`满即回/`Reset`满原子落点/`SeekWithFullQueueNoConsumer`满队无消费15秒必回/小样`AsyncSeekNeverFreezes`点击即回+连点忽略+落点600）；回归（`clock`/`video`流与长片/小样4项绿、播放跳容错注册绿、`h264`矩阵绿、vet+`CGO_ENABLED=0`构建过）。 |
 | v0.43 播放控制根治 | 按成熟播放器重做控制层：`SeekTo`改请求式（只拨读针不清算，后台顺手丢帧，拖条不卡，大`GOP`毫秒回，播尾停住可复活）；`SeekFast`拖条快跳+松手精跳、`SeekBy`相对快退快进、`Next/PrevKeyframe`走表、`StepFrame`暂停单步、`SetRate/Rate`变速时钟0.25-4x（只管画面，无音频对齐）、`PositionMs/Seeking/Stats.Rate`状态；修自死锁2处（`Poll`尾分支锁自己、`Clock`无锁跨线程）；小样全接上（拖条快 scrub+变速梯+单步+关键帧+相对跳，去后台补丁）；整播按追帧语义放宽（≥190有序+Ended+丢数自洽，ffplay framedrop同理）；回归（`clock`率/`video`全系/长片12项/小样5项/`h264`矩阵绿、vet+`CGO_ENABLED=0`构建过）。 |
+| v0.44 生产级差距落位 | 新增 §11 生产级差距总表（盒子/编码/声音/网络/操作/性能/大小时长七块约 30 项，每项写清生产级要求与现状差距；性能附问题片实测 47.8ms/帧 vs 20.8ms 预算与四轮优化结论）+ §12 后续分期草案（VW4 能装下/VW5 跟得上/VW6 有声音/VW7 片源广，未启动不算承诺）+ 原 §11 声音模块并入 VW6 候选（节号顺延为 §13）；引擎与小样零改动，纯文档落位。 |
+| v0.45 差距深度收敛 | §11 每块补深度解析（§11.1–§11.7，共 26 项 B1–B4/V1–V4/A1–A4/N1–N3/P1–P3/S1–S9）：每项写清 ffmpeg 对应文件+函数/结构体名、我们现状落点文件、要做的改动链条、怎么验；N3 见 S8 改挂 S8（原“见 S3”笔误）；ffmpeg 锚点 30 个文件全验存在（§4.3 对照库）；引擎与小样零改动，纯文档收敛。 |
+| v0.46 分期逐项状态 | §12 改按项列表（S6/S7/S8/B1/S1/S2/S3/A1/A2/A4/V2/B2/B3/P3 共 14 项，每项独立状态标记，图例 ⬜/🟨/🟩，全 ⬜ 未启动，均可单独在新会话开工，不反写 VW0–VW3）；引擎与小样零改动，纯文档。 |
 
 ---
 
-## 11. 声音模块（下一期 · 本期不做）
+## 11. 生产级差距总表（现状 → 生产级 · 只记录差距，不改 VW0–VW3 已关状态）
 
-> 状态：**未立项**。本期（VW0–VW3）只做画面，声音等本期收口后再单独立项成篇，不在本文件里施工。
+> 性质：本节是 2026-09-14 基于生产级目标（任意大小/时长片源）盘点的差距清单，只做现状与缺口记录，不改变 §2/§3/§5 已关闭状态，不新增施工承诺。每一行都写清“生产级长什么样、我们现在在哪”。后继施工按 §12 分期认领，认领时再立门禁。
 
-下一期暂定范围（立项时再细化，不算本期承诺）：
+### 11.1 片源能打开（盒子）
 
-| 项 | 暂定内容 |
-|---|----------|
-| 解码 | AAC 先行、Opus 随后，纯 Go 同样纪律（无第三方、无 CGO） |
-| 容器 | 复用本期拆盒拿到的音频轨，不另起盒子 |
-| 时钟 | 音频另起队列，本期 `video/clock` 只留扩展口；音画对齐放到声音篇验收 |
-| 播放 | 系统音频输出对接（走平台能力， `video` 本体不碰系统音频句柄，桥接在宿主侧） |
-| 验收 | 独立声表 + 声画组合窗，同样真窗 + 全族门禁纪律 |
+| # | 生产级要求（说人话） | 我们现在 | 差距 |
+|---|---------------------|----------|------|
+| B1 | 分段存放 MP4（手机录像/监控/直播回放主流写法，边录边存）能播 | 只认一次写完的老式 MP4，分段的报 `mp4: fragmented` 不播 | 分段解析缺失，属“打不开”级缺口 |
+| B2 | MKV / WebM / MOV / AVI / FLV / TS 常用盒子能播 | 只有 MP4 一种（注册表已留插槽，未注册新盒子） | 每加一种需拆盒+门禁，无施工 |
+| B3 | 网站视频 HLS / DASH（切小片轮着下、网差降清晰度）能播 | 无切片拉取、无码率自适应 | 整块缺失 |
+| B4 | 旋转/横竖屏/变帧率/章节信息全认 | 只认宽高帧率时长；旋转/编辑列表仅透出，未全生效 | 显示方向与时长仍有缺口 |
 
-启动条件：VW3 收口（VR7+VR8+VR9 与 VC2+VC3 全绿）后再开声音篇；声音篇独立成文，不反写本期状态。
+#### 11.1 深度解析（对齐 ffmpeg，只学思路不搬代码）
+
+- **B1 分段 MP4（moof）**：ffmpeg 在 `libavformat/mov.c`。认盒子走 `mov_read_moof`（记 `fragment.moof_offset`，调 `update_frag_index`，再递归吃 `traf`）；拼参数走 `mov_read_tfhd` / `mov_read_trex`（默认采样参数）/ `mov_read_tfdt`（本段起始解码时间）/ `mov_read_trun`（拼本段采样表）；段表走 `mov_read_sidx` + `update_frag_index` 预建索引；索引结构是 `MOVFragment`（当前段）+ `MOVFragmentIndex` / `MOVFragmentIndexItem` / `MOVFragmentStreamInfo`，配套 `get_frag_stream_info` / `search_frag_moof_offset` / `search_frag_timestamp` / `fix_frag_index_entries`；取包 `mov_read_packet` 在普通 `stsc/stts/ctts/stco` 索引与 frag 索引二选一，中途换参数走 `mov_change_extradata`，`mov_switch_root` 切 `moov` 上下文；段内跳转 `mov_read_seek` → `mov_seek_stream` → `mov_seek_fragment`（先 `search_frag_timestamp` 定位段，再按采样时间戳下钻）。我们现在 `video/mp4` 见 `moof` 直接报 `ErrFragmented`（`types.go` + `demux.go` 分发、`demux_test.go` 锁死）。要做：在 `video/mp4` 里加段索引（当前段 + 段表数组，二选一取包）、`tfhd/trex/tfdt/trun/sidx` 解析、段内 seek 下钻；`seekPlan` 从全量扫描改成“先定段再定采样”；`Source` 本来就是 Range 分块，段包按段偏移拉即可。验：一段手机录像边录边存片能播到尾、中段跳转落点对、播完不黑。
+- **B2 新盒子（MKV/WebM/MOV/AVI/FLV/TS）**：ffmpeg 各有一个独立 demux，只认接口（探测+打开+取包+跳转+关闭），我们 §4.4 注册表同构，直接对号入座。MKV/WebM 在 `libavformat/matroskadec.c`（入口 `matroska_read_header/packet/seek/close`，上下文 `MatroskaDemuxContext`，`ebml_parse` / `ebml_parse_nest` 自描述解析，`matroska_parse_block/cluster/track` 拼包，`matroska_parse_cues` / `matroska_add_index_entries` 建跳转索引，靠 `Cluster+Block/SimpleBlock` 拼包、`Cues+SeekHead` 跳转）；FLV 在 `libavformat/flvdec.c`（`flv_read_header/packet/seek/close` + `FLVContext`，纯 Tag 流顺序读，`flv_queue_extradata` 攒参数，跳转靠关键帧文件偏移线性找）；AVI 在 `libavformat/avidec.c`（`avi_read_header/packet/seek/close` + `AVIContext`，RIFF 分块，`avi_load_index` / `avi_read_idx1` / `guess_ni_flag` 索引表驱动，兼容非交织）；TS 在 `libavformat/mpegts.c`（`mpegts_read_header/packet/close`，无独立 `read_seek`，靠通用 seek + `seek_back` / `mpegts_get_pcr` 回退；`handle_packets` / `handle_packet` / `parse_pcr`，`mpegts_open_section/pes/pcr_filter`，188 字节包过滤 PAT/PMT 重组 PES，PCR 做时钟）。MOV 与 MP4 同文件（`mov.c`），最顺。要做：每种盒子单独一包，实现探测+打开+取包+跳转+关闭后 `RegisterContainer` 注册，播放器不动；先啃 MOV（复用现有 MP4 解析大半），再 FLV/AVI（索引简单），再 MKV（EBML 自描述最费），TS 最后（无全局索引，配 N3 直播一起啃）。验：每种盒子一片真片播到 `Ended` + 跳转 + 坏盒人话错。
+- **B3 HLS/DASH**：ffmpeg 在 `libavformat/hls.c` + `libavformat/dashdec.c`，模型是“列表拉取 + 分片队列 + 按带宽/错误换版本”。HLS 结构 `HLSContext` → `variant`（`bandwidth`）→ `playlist` → `segment`（URL/时长/序号）；`hls_read_header` 调 `parse_playlist` 解析 m3u8 主/子列表，`select_cur_seq_no` 定首序号，`open_input` + `reload_playlist` 轮询刷直播列表，`hls_read_packet` 按 `cur_seq_no` 顺序消费，换码率走 `recheck_discard_flags`（按带宽/错误屏蔽版本）+ `update_variant_timing`，跳转 `hls_read_seek` 全列表重算序号再重开。DASH 结构 `DASHContext` → Period/AdaptationSet → `representation`（`bandwidth/id/url_template`）；`parse_manifest*` 边解析 XML 边建，`resolve_content_path` / `ff_dash_fill_tmpl_params` 展开 `$Bandwidth$/$Number$/$Time$`，`calc_cur_seg_no` / `calc_max_seg_no` 定号，`open_input` / `update_init_section` 拉 init+media，音/视/字幕各维护一组 representation，可 `reopen_demux_for_component` 开子 demux，`copy_init_section` 复用初始化段，跳转 `dash_seek` 按 `SegmentTimeline/duration` 算号（`dry_run` 预探被屏蔽流）。要做：新包（列表解析 + 分片队列 + 版本选择），复用 `Source` Range 拉分片，播放器加“换版本不断流”（排空旧队、重锚时钟、复用初始化段）；本地先用 `httptest` 喂 m3u8/MPD 夹具。验：网好播高清、网差自动降档不断、直播列表能跟、跳转不卡死。
+- **B4 旋转/编辑列表/章节/变帧率**：ffmpeg 里旋转是 `mov.c` 读 `tkhd` 矩阵 + `displaymatrix` 侧数据透给显示（解码不管旋转）；编辑列表 `elst` 参与时长与起跳换算；章节是跳转表（`seek_chapter` 走同一 `stream_seek`）；变帧率靠 `stts/ctts` 逐采样时间戳（我们已有 `ctts`）。我们 `video/mp4` 已解析旋转矩阵（`parseTkhd` / `matrixRotation`）与 `elst`（`demux_test.go` 有用例），但播放器与桥接没消费：竖拍片方向不对、时长没扣留白、章节无表、跳转按固定步长猜。要做：旋转透给真窗桥接做显示旋转（解码侧不转，保持 exact）；`elst` 进时长与首帧起跳；章节表进 `Next/PrevKeyframe` 旁边的章节跳；变帧率全程按采样 PTS 走（已是，只需夹具锁死）。验：竖拍片在 VR8 里方向对、留白片时长对、章节跳落点对。
+
+### 11.2 画面能解（视频编码）
+
+| # | 生产级要求（说人话） | 我们现在 | 差距 |
+|---|---------------------|----------|------|
+| V1 | H.264 等级放宽到 4K 档（6.x），高等级片能开 | 等级卡 1–5.2，超限 fail fast | 等级上限是“打不开 4K”级缺口 |
+| V2 | H.265 / VP9 / AV1 新编码能解 | 无（注册表已留解码器插槽，未注册） | 每加一种等于重写一个解码器，最大坑 |
+| V3 | 10 位深色 / HDR 片颜色不错 | 只有 8 位 `yuv420p`，10 位与 HDR 无管线 | 颜色管线缺口 |
+| V4 | 隔行片能看（老采集卡/电视信号） | F12 只认出并报人话错，不解 | 罕见制式三条件留档，未解码 |
+
+#### 11.2 深度解析（对齐 ffmpeg，只学思路不搬代码）
+
+- **V1 等级放宽（5.2 → 6.x，4K）**：ffmpeg 不卡等级（等级只是上限声明，`h264dec.c` 按 `SPS` 实际参数解，超限由内存与性能自然约束）。我们 `h264/types.go` 的 `LevelSupported` 卡 1–5.2，`video/fault.go` 的 `checkStreamLimits` 在打开时直接拦。要做：等级改为“声明校验 + 解前预估”（按宽高×参考帧数×队列算字节，超 `mem_cap_kb` 报装不下而不是报等级错）；DPB 上限 `NumRefFrames` 本来就从 `SPS` 读（`sps.go` / `mb.go` 滑动窗已按它淘汰），无需改逻辑，只需把 16 参考与大帧的内存算例补进 `EstimateDecoderBytes`（`pool.go`）；SPS 解析（`sps.go`）对高等级新增语法无感，未见拦点。验：4K 片能打开、超内存片报装不下、exact 门禁不降。
+- **V2 新编码（H.265/VP9/AV1）**：ffmpeg 每个编码独立一包，各自注册：H.264 `libavcodec/h264dec.c`（`ff_h264_decoder`，`h264_decode_init/end`，`FF_CODEC_DECODE_CB(h264_decode_frame)` 一包一帧）；HEVC `libavcodec/hevc/hevcdec.c`（`ff_hevc_decoder`，`hevc_decode_init/free`，`FF_CODEC_RECEIVE_FRAME_CB(hevc_receive_frame)` 拉帧模型，适配延迟/多帧缓存）；VP9 `libavcodec/vp9.c`（`ff_vp9_decoder`，`FF_CODEC_DECODE_CB(vp9_decode_frame)`）；AV1 `libavcodec/av1dec.c`（`ff_av1_decoder`，`av1_decode_init/free/flush`，`RECEIVE_FRAME_CB` 拉帧）。一包一帧（DECODE_CB）与拉帧（RECEIVE_FRAME_CB）是两种消费契约。要做：我们注册表（`video/registry.go`）的 `Decoder` 接口（`DecodeNALU` + `FinishPicture` + `Sampling`）天然是一包一帧契约，先接 H.265 也按此契约（新包 `video/h265` + `SplitUnits` 分包 + `RegisterDecoder`），播放器零改；拉帧模型暂不需要（有 B 重排但 `pending` 队列已 cover）。顺序建议 H.265（盒子仍是 MP4，`avcC` 变 `hvcC`，复用最多）→ VP9 → AV1；每种独立门禁（exact 向量 + 真窗）。验：新编码片走注册表播到 `Ended`，老 H.264 门禁全绿。
+- **V3 10 位/HDR**：ffmpeg 转色 `libswscale`（见 §11.6 S1）与颜色侧数据分离：10 位先解成 10 位平面，再经 dither 下到 8 位上屏（`format.c:fmt_dither` 选 Bayer 矩阵，执行在 `uops_tmpl.c`），HDR 另有色调映射（`tonemap` filter）。我们 `video/color` 只有 8 位 `yuv420p`（`color.go` 注册表 + `SamplingYUV420P`），`Matrix` 只认 BT.709/601。我们 VUI 已透 `FullRange/ColourMatrix`（`h264/vui.go` + `OptionsFromVUI`），管线是通的。要做：解码器输出 10 位平面（新采样名注册，如 `yuv420p10`）→ 转色加 10 位→8 位下限（dither，先 C 版，SIMD 后补）→ HDR 加色调映射（后置，先报人话错再实现）。验：10 位片颜色不断层、SDR 片输出逐位不变。
+- **V4 隔行**：ffmpeg 是真解（场解码 + 去隔行 filter `yadif/bwdif` 在 `libavfilter`）。我们 F12 只认出报错（`interlace_test.go`）。要做：场解码（顶场/底场分开解再合并）+ 去隔行（二选一：片内合并/运动自适应，先 C 版）；罕见制式三条件留档继续有效，解出来一种划掉一种。验：隔行片播出来无梳齿、逐行片逐位不变。
+
+### 11.3 声音能出（现在是零）
+
+| # | 生产级要求（说人话） | 我们现在 | 差距 |
+|---|---------------------|----------|------|
+| A1 | AAC / MP3 / Opus 等声音能解 | 无声道、无解码 | 整块为零，最大单项缺口 |
+| A2 | 音画对上（声音做主时钟，画面快了等、慢了丢） | 只有画面自己的钟，变速只动画面 | 时钟架构缺口 |
+| A3 | 变速不变调、音量、静音、声道切换 | 无 | 整块缺失 |
+| A4 | 系统声音输出（各系统各一套接口） | 无 | 宿主桥接缺失 |
+
+#### 11.3 深度解析（对齐 ffmpeg，只学思路不搬代码）
+
+- **A1 声音解码（AAC 先行、Opus 随后）**：ffmpeg 在 `libavcodec/aac/aacdec.c`（`ff_aac_decoder` / `ff_aac_fixed_decoder`，`ff_aac_decode_init`，`FF_CODEC_DECODE_CB(aac_decode_frame)` 内调 `aac_decode_frame_int`；裸流预切 `aac_parser.c`）与 `libavcodec/opus/dec.c`（`ff_opus_decoder`，`opus_decode_init`，`FF_CODEC_DECODE_CB(opus_decode_packet)` 内调 `opus_decode_frame` 按 TOC 切包）。要做：新包 `video/aac`（ADTS 裸切 + `aacdec` 主解，定点/浮点先定浮点，纯 Go 同纪律）→ `RegisterDecoder("aac")`；Opus 照抄第二遍。盒子侧复用 MP4 音轨（`mp4` 加音频轨解析，视频轨不动）。验：有声 MP4 能拆出音轨、解出 PCM、坏音频流人话错。
+- **A2 音画对齐**：ffmpeg 在 `fftools/ffplay.c`，三钟同构 `Clock{pts/serial/speed/paused/last_updated}`（音/视/外），默认音频做主钟（`get_master_sync_type` / `get_master_clock` 按 `av_sync_type` + 流存在性选主）；读时间统一 `get_clock`（暂停则冻结），写 `set_clock` / `set_clock_at`（seek/队空校准），变速只改 `Clock.speed` 并重基准（`set_clock_speed`），防漂 `sync_clock_to_slave`，外钟按纳包速度微调（`check_external_clock_speed`）；视频同步在 `video_refresh`（按 `diff/sync_threshold` 丢/重显，算留多久 `compute_target_delay` / `vp_duration`，显示后 `update_video_pts` 刷视频钟）；音频同步在 `sdl_audio_callback` → `audio_decode_frame`（非音频主时 `swr` 补偿/丢样）。我们 `video/clock` 只有视频单钟（`Clock` + `Queue`，变速已接画面 `Rate`）。要做：音频另起队列（PCM 帧队列），`Clock` 一式两份（音钟主、视钟从），`Poll` 侧抄 `video_refresh`（超前等、落后丢，阈值写 README），seek 时双队同 `serial`（抄 `stream_seek` + `packet_queue_flush` + 新 serial 语义，我们已有 `generation` 世代号，直接对号）。验：声画漂移收敛不发散、seek 后双队同 serial、无声片回落视频主钟。
+- **A3 变速不变调/音量/声道**：ffmpeg 变速不变调不在重采样库，在 `libavfilter/af_atempo.c`（`tempo` 选项，WSOLA 切片平移 + 重叠混合，`yae_curr_frag` / `yae_prev_frag` / `yae_clear` 管 fragment 环）；重采样在 `libswresample/swresample.c`（`SwrContext`，`swr_alloc/swr_init/swr_convert/swr_get_delay`，核 `resample.c`，汇编 `x86/resample.asm`）；声道矩阵 `rematrix.c`，抖动 `dither.c`。我们画面变速已有（`Clock` rate 0.25–4x），声音侧零。要做：新包纯 Go 重采样（先线性插值顶通量，后补 polyphase）+ WSOLA 变速（`tempo` 语义抄 `af_atempo`）+ 声道混音（立体声↔单声道矩阵）+ 音量/静音（PCM 乘系数，防削波限幅）。验：2x 人声不变尖、声道切换不断流、静音零爆音。
+- **A4 系统输出**：ffmpeg 走 SDL 回调（`sdl_audio_callback` 拉 PCM，缺声回合落）。我们纪律是 `video` 本体不碰系统句柄（§4 同 `gpu` 禁令），桥接在宿主侧。要做：宿主侧（examples/平台层）对接系统音频输出（各系统各一套），`video` 只出 PCM 帧 + 时间戳 + 水位；断设备（拔耳机）报人话错并暂停不断线程。验：有声窗播出声、插拔不崩。
+
+### 11.4 网络和直播
+
+| # | 生产级要求（说人话） | 我们现在 | 差距 |
+|---|---------------------|----------|------|
+| N1 | 缓冲水位状态机（水多就播、水少就转圈提示） | 只有 Range 分块缓存，无水位上报 | 体验缺口 |
+| N2 | 断网重试、超时、弱网恢复 | 断一下就死，无重试 | 稳定性缺口 |
+| N3 | 无限时长直播（帧目录不全读内存） | 帧目录一次全读内存，跳转逐个扫描 | “播不长”级缺口，见 S8 |
+
+#### 11.4 深度解析（对齐 ffmpeg，只学思路不搬代码）
+
+- **N1 缓冲水位**：ffmpeg 在 `ffplay.c` 的 `PacketQueue`（`nb_packets/size/duration` 三维水位，判空/满/serial）+ `FrameQueue`（`pictq/sampq/subpq` 三实例，`rindex/windex/size/max_size/keep_last` 环形语义）+ `read_thread` 按水位启停 demux。要做：我们 `clock.Queue`（cap 默认 4，`DefaultCap`）加水位上报（包数/字节/时长三维，`Stats` 透出），播放器加三态机（播/转圈缓冲/恢复），阈值写 README；小样 HUD 接水位条（VR4 窗已有水位 HUD 雏形，照抄）。验：弱网先转圈后恢复，水位 JSON 全程有数。
+- **N2 断网重试**：ffmpeg 在 `libavformat/avio.c`（`avio` 重连 + 超时选项）+ demux 层 `open_input` 重开。要做：我们 `Source`（`video/source.go` Range 分块）加超时 + 次数封顶重试 + 人话错（超时/404/500 分开，`stream_test.go` 已有 500 快败雏形）；重试时播放器不死（停钟、保队、重开后续流）。验：断网 3 秒恢复不断播、404 秒报可读错。
+- **N3 无限时长**：ffmpeg 的 TS（`mpegts.c`）本来就无全局索引（188 字节包过滤 PAT/PMT 重组 PES，PCR 做时钟，seek 靠 `seek_back` 回退），HLS/DASH（见 B3）按序号消费不限总长。我们 `samples` 全量进内存 + `seekPlan` 逐个扫描，几小时片必露馅。要做：帧目录分段索引（段表数组 + 段内二分，B1 的 `MOVFragmentIndex` 同构），`seekPlan` 先定段后定采样（O(log n)）；直播模式不限总长（时长未知、水位驱动）。验：2 小时片打开毫秒级、跳转对数级、直播 1 小时内存不涨。
+
+### 11.5 播放操作（手感）
+
+| # | 生产级要求（说人话） | 我们现在 | 差距 |
+|---|---------------------|----------|------|
+| P1 | 上次进度记忆、缩略图预览（拖进度条冒小图） | 无 | 功能缺口 |
+| P2 | AB 循环、截图、逐帧手感打磨 | AB 循环/截图无；`StepFrame` 暂停单步已有雏形 | 功能缺口 |
+| P3 | 字幕（内外挂 srt/ass 开关渲染） | V-U2 明确后置，无 | 整块缺失 |
+
+#### 11.5 深度解析（对齐 ffmpeg，只学思路不搬代码）
+
+- **P1 进度记忆/缩略图**：ffmpeg 进度记忆在 cli 侧（`ffplay.c` 无内置，靠 `-ss` 起播 + 外层存）；缩略图在 `libavfilter/vf_thumbnail.c`（按帧差异挑缩略图）+ `vf_framestep.c`（按 N 步抽帧），真截图靠 `ffmpeg -ss/-frames:v` 或 ffplay 按 `s` 写 PNG（无专用 snapshot filter）。要做：进度记忆放小样/宿主侧（`PositionMs` 已有，存盘即可）；缩略图用 `StepFrame` 暂停单步 + 定时抽帧（`framestep` 语义抄），拖条浮层显示小图（先低分再高清）。验：二次打开续播、拖条小图与落点一致。
+- **P2 AB 循环/截图/逐帧**：ffmpeg AB 循环是 seek 组合（`seek_chapter` + 同一 `stream_seek`，AB 两点来回跳）；截图是抽帧写文件；逐帧是 `step_to_next_frame`（暂停则 resume 再置 `step=1`，`video_refresh` 消费放一帧即停）。我们 `SeekBy/Next/PrevKeyframe/StepFrame/PositionMs/Seeking` 已有（v0.43），AB 只差两点来回跳 + 小样按钮；截图只差抽帧写 PNG（`Frame.Pix` 已有 RGBA，直接落盘）。验：AB 两点循环无缝、截图与画面逐位一致、单步一帧一停。
+- **P3 字幕**：ffmpeg 在 `libavfilter/vf_subtitles.c` 一个文件 cover 两个 filter（`ass` + `subtitles`，`allfilters.c:ff_vf_subtitles` 注册；`init_subtitles` 开 track，`ass_render_frame` 合成，`filter_frame` 叠字幕，走 libass 烧录）。要做：新包字幕解析（srt 先行、ass 随后，纯 Go）+ 渲染烧录（复用文本链路，走 VR8 内嵌浮层同路，时间戳对齐视频钟）；开关/轨道切换/样式（ass 字体颜色位置）。验：内外挂字幕时间对、开关不闪、ass 样式基本对。
+
+### 11.6 跑得快（实测根因）
+
+> 2026-09-14 问题片（1536x864 High@4.2 48fps，B 帧占 74%）实测：预算 20.8ms/帧，现状 47.8ms/帧（解码 36 + 转色 12），四轮同输出优化（整数拷贝/零残差跳过/强度复用，已把 109ms 砍到 48ms，exact 门禁全绿）后便宜手段已吃完。缺口如下：
+
+| # | 生产级手段（说人话） | 我们现在 | 差距 |
+|---|---------------------|----------|------|
+| S1 | 一次算 8/16 个像素（CPU 算图快车道） | 逐像素 Go 循环 | 最大单项性能缺口，约差 4–8 倍 |
+| S2 | 多核一起解（分帧/分片并行） | 单线程，一个核干 | 约差 4 倍（按核数） |
+| S3 | 抠码加速（CABAC 逐比特查表+分支优化） | 按文档直译，多层函数调用 | High 档片主瓶颈之一 |
+| S4 | 显卡/芯片硬解（4K60 正道） | V-U3 禁 CGO、`video` 禁 import 显卡包 | 需合规桥接设计，无施工 |
+| S5 | 零拷贝上屏（解完直接是显卡纹理） | CPU 逐像素搬运上墙 | 显示通路缺口 |
+
+#### 11.6 深度解析（对齐 ffmpeg，只学思路不搬代码）
+
+- **S1 快车道（SIMD，一次算 8/16 像素）**：ffmpeg 三件套落点——查表是 C 侧 `*_init.c` + `*_template.c` / `dsp.h`（函数指针表赋值）；汇编是 `*.asm` / `*.S`（SIMD 真实现）；转色管线 `libswscale/swscale.c`（`SwsContext`，`sws_getContext` / `sws_scale` / `sws_scale_frame`），缩放 `hscale.c` / `hscale_fast_bilinear.c` / `vscale.c`（滤波器生成与执行，`x86/hscale_fast_bilinear_simd.c` 特化），像素读写 `input.c` / `output.c`，C 版矩阵 `yuv2rgb.c`，格式协商+dither 插入 `format.c`，新 ops 图 `graph.c` / `ops*.c`；汇编实例 x86 `x86/yuv_2_rgb.asm` + `x86/scale.asm` / `scale_avx2.asm`，aarch64 `aarch64/yuv2rgb_neon.S` + `aarch64/output.S` / `input.S`；dither 在 `format.c:fmt_dither` 按 `SwsDither` 选 Bayer 矩阵、`uops_tmpl.c` 执行。我们转色是纯 Go 双像素复用（`color.go:convert420Into`，exact 锁死），插值/去块同是逐像素。要做：Go 汇编（`GOARCH` 分 `amd64` / `arm64` 两套，先转色后插值再去块）+ C 版留守（汇编缺席自动回落，输出逐位一致）；dither 在 10 位下 8 位时（V3）再加。验：同输出逐位不变 + 基准倍数写进 README。
+- **S2 多线程（几核解几帧）**：ffmpeg 在 `libavcodec/pthread.c` + `pthread_frame.c` + `pthread_slice.c`（`FF_THREAD_FRAME` / `FF_THREAD_SLICE` 分流，`AVCodecContext.thread_type` / `thread_count` 开）。帧级并行（各帧独立解，H.264 常用）与片级并行（帧内分片）两种。要做：先帧级（解码 worker 池 + 按显示序重排输出，我们 `pending` + `reorderDepth` 已有排序骨架，直接复用；参考帧只读共享 + 写时复制）；再片级（按片分工，合并时处理边界滤波）。exact 门禁是红线（多线程输出必须与单线程逐位一致）。验：4 核加速比写进 README + exact 全绿。
+- **S3 抠码加速（CABAC）**：ffmpeg 是查表 + 汇编 + 分支调优（`h264_qpel` / `h264_deblock` / `aacpsdsp` 三族 `*_init.c` 分发 + `*.asm` / `*.S` 实现，x86 如 `libavcodec/x86/h264_qpel_8bit.asm` / `h264_deblock.asm` / `aacpsdsp.asm`，aarch64 如 `libavcodec/aarch64/h264qpel_neon.S` / `h264dsp_neon.S` / `aacpsdsp_neon.S`，另 `sbrdsp_template.c` 分发）。我们 CABAC 是按文档直译（`cabac*`），一比特走多层调用。要做：先剖后改（`pprof` 定是算术核还是上下文查表还是二值化），再查表化高频路径（上下文初值/状态机拍平成表），最后汇编化算术核；每步 exact 锁。验：High 档片帧耗时降幅 + exact 全绿。
+- **S4 硬解**：ffmpeg 抽象在 `libavutil/hwcontext.h/.c`（`av_hwdevice_ctx_create` 建设备，`av_hwframe_ctx_alloc` + `av_hwframe_transfer_data/map/get_buffer` 走帧），后端每家一个文件（`hwcontext_cuda/vaapi/qsv/d3d11va/d3d12va/dxva2/videotoolbox/mediacodec/opencl/vulkan/drm/vdpau/amf`），cli 接线 `fftools/ffmpeg_hw.c`（`hw_device_init_from_string/type` 解析 `-hwaccel`，全局 `HWDevice` 表供编解码/filter 取）。我们 V-U3 禁 CGO、`video` 禁 import 显卡包。要做：合规桥接设计（`video` 只出“可硬解码的包 + 时间戳”，宿主侧另起硬解进程/服务走系统接口，帧以外部纹理句柄回传，exact 门禁对硬解放宽为容差比对 + 软解对照）；先定接口再接一家（按目标机器：Linux VA-API/NVDEC，mac VideoToolbox，Android MediaCodec）。验：4K60 满帧 + 回落软解不断。
+- **S5 零拷贝上屏**：ffmpeg 是 `hwcontext` 帧直接贴（DRM prime fd / D3D 纹理互操作，`map` 而非 `memcpy`）。我们 `video.Frame → render.ImageBuf → DrawImage` 全程 CPU 搬运。要做：纹理直传（解码输出/硬解句柄直接建纹理，显示矩形只传坐标，VR8 的“缩放只走显示矩形”纪律不变）；软解先做 PBO/持久映射（仍一次拷贝但不经 Go 堆），硬解再做真零拷。验：4K 上屏耗时降幅 + 大小窗同源一致。
+
+### 11.7 装得下、播得完（任意大小/时长）
+
+| # | 生产级要求（说人话） | 我们现在 | 差距 |
+|---|---------------------|----------|------|
+| S6 | 转色/帧缓冲池化（不每帧新分配大内存） | 三池已写好（`video/pool.go`），播放器未接转色输出（每帧新分配约 5.3MB @1536x864） | 最近、最稳的一步，已验证收益，未施工 |
+| S7 | 内存封顶按档配置、超了报“装不下”不爆内存 | 1080p 512MB 数值已有，未全链路接上 | 接线缺口 |
+| S8 | 帧目录流式化（不全读内存）+ 跳转二分查 + 分段索引 | 全量进内存 + 逐个扫描 | 长片（几小时）必露馅，见 N3 |
+| S9 | 长稳（几小时不漏内存、不越播越慢） | 最长证据 VC2 120s 循环 | 无长稳 soak 证据 |
+
+#### 11.7 深度解析（对齐 ffmpeg，只学思路不搬代码）
+
+- **S6 池化接上**：ffmpeg 是 `libavutil/mem` 池 + `av_buffer_pool`（帧池借还）+ `hwframe_ctx` 帧池，`ffplay.c` 的 `FrameQueue` 环形复用（`keep_last` 语义，`unref_item` 归还）。我们三池已写好（`video/pool.go`：YUV/RGBA/work 独立，命中/泄漏/封顶可查，`TestPoolZeroAlloc` 锁零分配），播放器没接转色输出（`convertPic` 在 `player.go` 调 `color.Convert` 每帧新分配，1536x864 约 5.3MB）。要做：`convertPic` 改 `ConvertInto` + RGBA 池借还（帧被队列/显示持有期间不还，`Poll` 消费后还；分辨率切换重建池，`NewPools` 已有）；YUV 侧解码器输出复用（后补，先接 RGBA 见效最快）；`Stats` 透池命中（VR7 门禁已有 `pool_hit_pct`，直接复用）。验：稳态 `alloc_per_frame_B` 归零级 + 池命中≥90% + exact 不变。
+- **S7 封顶接线**：ffmpeg 靠 `-max_alloc` / 帧池上限 + 解码前按 `width×height×refs` 预估。要做：打开前 `EstimateDecoderBytes`（`pool.go` 已有）按档算（宽高×(YUV+RGBA)×参考帧＋队列＋工作区），超 `mem_cap_kb` 直接报装不下（`Err` 人话 + `Classify` 入桶）；播中水位超限走淘汰（丢最旧 + 计数，`dropped_old_frames` 已有语义）并上报，不静默涨。验：超限片秒报装不下、播中封顶不爆。
+- **S8 目录流式化**：ffmpeg 普通 MP4 用 `stsc/stts/ctts/stco` 索引（`mov.c` 常驻内存，量小），frag 用段索引（B1），TS/HLS 不用全局索引（N3）。我们 `samples/keyframes` 全量 + `seekPlan` 逐扫。要做：段表数组（每段：起止 PTS + 段内采样偏移 + 关键帧位图），`seekPlan` 先段二分后段内二分；`samples` 改按需页读（段页缓存，LRU 8 页，`Source` Range 本是分块，直接复用）；小片（≤64 帧）保留全量快路（现有双路径不动）。验：2 小时片打开毫秒级 + 跳转对数级 + 小片门禁逐位不变。
+- **S9 长稳 soak**：ffmpeg 靠 FATE + 长跑 CI。我们最长 VC2 120s。要做：4 小时循环 soak（内存斜率/GC/CPU/漂移四曲线 + `rss_slope` 门禁沿 §2.7）， valuable 在 nightly 不在合入；先把 S6–S8 接完再跑，否则测出漏了也定位不清。验：4 小时斜率不超预算 + 首尾帧 exact 抽检一致。
+
+### 11.8 小结：到“任意大小/时长”先补哪三项
+
+1. **能打开**：B1 分段 MP4 + S8 目录流式化 + V1 等级放宽（否则大片长片直接拒播）。
+2. **不断不爆**：S6 池化接上 + S7 封顶接线（否则大帧抖、小机爆）。
+3. **跟得上**：S1 快车道 / S2 多线程二选一先啃（否则高分高帧永远慢放）。
+
+---
+
+## 12. 后续分期（未启动 · 不算承诺，每项独立开工）
+
+> 状态：**草案**。VW0–VW3 已收口；以下分期未开工、无门禁、无时间承诺，只做候选清单。**每项可单独在新会话开工**（单独立项：范围+门禁+真窗），不反写 §2/§3/§5。
+> 状态图例：⬜ 未启动（可单独开工） · 🟨 进行中 · 🟩 已完成（真窗绿+回归绿+回写本文）。
+
+| 项 | 归属 | 内容（认领 §11 缺口） | 状态 | 说明 |
+|----|------|----------------------|------|------|
+| S6 | VW4 能装下 | 池化接上（`convertPic` 改 `ConvertInto` + RGBA 池借还） | ⬜ 未启动 | 最近最稳，大帧先不抖 |
+| S7 | VW4 能装下 | 内存封顶接线（解前预估 + 超限报装不下 + 播中淘汰上报） | ⬜ 未启动 | 建议 S6 后开 |
+| S8 | VW4 能装下 | 目录流式化（段表 + 二分 + 页读，小片快路不动） | ⬜ 未启动 | 与 B1 同块，建议合一会话先 S8 后 B1 |
+| B1 | VW4 能装下 | 分段 MP4（moof 段索引 + 段内 seek 下钻） | ⬜ 未启动 | 与 S8 同块，建议合一会话 |
+| S1 | VW5 跟得上 | 快车道 SIMD（先转色后插值再去块，C 版留守对照） | ⬜ 未启动 | 与 S2 同批文件，一前一后 |
+| S2 | VW5 跟得上 | 多线程（先帧级后片级，复用 `pending` 排序骨架） | ⬜ 未启动 | 与 S1 同批文件，一前一后 |
+| S3 | VW5 跟得上 | 抠码加速（先剖后改，查表化高频路径再汇编算术核） | ⬜ 未启动 | exact 锁 |
+| A1 | VW6 有声音 | AAC 先行（新包 + 音轨采样表 + 注册） | ⬜ 未启动 | A2 的前置 |
+| A2 | VW6 有声音 | 音画对齐（PCM 队列 + 第二时钟 + 双队同 serial） | ⬜ 未启动 | 等 A1 后开 |
+| A4 | VW6 有声音 | 宿主音频桥接（系统输出 + 插拔处理） | ⬜ 未启动 | 可与 A1 并行 |
+| V2 | VW7 片源广 | H.265（新包 + 注册，播放器零改） | ⬜ 未启动 | 可独立并行 |
+| B2 | VW7 片源广 | 新盒子（MOV 先行，其一 + 独立门禁） | ⬜ 未启动 | 可独立并行 |
+| B3 | VW7 片源广 | HLS/DASH（列表 + 分片队列 + 版本选择） | ⬜ 未启动 | 可独立并行 |
+| P3 | VW7 片源广 | 字幕（srt 先行 + 烧录 + 开关） | ⬜ 未启动 | 可独立并行 |
+
+---
+
+## 13. 声音模块（原 §11 · 本期不做，并入 VW6 候选）
+
+> 状态：**未立项**。本期（VW0–VW3）只做画面，声音等后继分期单独立项成篇，不在本文件里施工。原 §11 暂定范围（AAC 先行/Opus 随后、复用音频轨、音频另起队列、宿主侧桥接、独立声表+组合窗验收）整体并入 §12 VW6 候选，原文保留本节备查，不算本期承诺。
