@@ -208,7 +208,83 @@ func (ps *Pools) OutstandingTotal() int64 {
 // (VR7 most strict); 4K takes a larger but still explicit cap (VC2).
 // The window enforces RSS peak against it and reports overruns, never
 // silent growth.
+//
+// S7 grade caps (VW4, §11.7 S7): one explicit cap per §2.8 grade, short
+// side buckets (portrait uses min(w,h)). Each cap is ~2x the worst-case
+// live footprint below (refs=16, queue=DefaultCap, spare=3, work=256KB),
+// rounded up to a power of two, so normal clips pass with headroom for
+// Go heap/GPU/UI while oversize clips fail fast. Derivation (live max):
+// 480p 854x480 ~49.7MB -> 128MB; 720p ~111.4MB -> 256MB;
+// 1080p ~250.4MB -> 512MB (kept); 1440p ~445MB -> 1024MB;
+// 4K ~1000.9MB -> 2048MB. Monotonic with pixels, 4K capped, never silent.
+//
+// ffmpeg peer (read-only, no code copied): libavutil/mem.c:76-77
+// av_max_alloc (single-block upper limit) + :102 av_malloc / :158
+// av_realloc refuse over-limit; libavutil/buffer.h:266
+// av_buffer_pool_init + buffer.c:390 av_buffer_pool_get borrow/reuse;
+// fftools/ffplay.c:126 VIDEO_PICTURE_QUEUE_SIZE 3 + :129 FRAME_QUEUE_SIZE
+// + :705 max_size capped + :751 peek_writable blocks when full (bounded,
+// never grows to clip length) + :789 frame_queue_next unrefs (return).
 const MemCapKBFor1080p = 512 << 10
+
+// Grade caps backing MemCapKBFor (S7 §11.7): explicit per grade, same
+// derivation as above. New grades arrive here, never as window literals.
+const (
+	MemCapKBFor480p  = 128 << 10
+	MemCapKBFor720p  = 256 << 10
+	MemCapKBFor1440p = 1024 << 10
+	MemCapKBFor4K    = 2048 << 10
+)
+
+// MemCapKBFor returns the S7 grade cap for w×h (short-side bucket per
+// §2.8: portrait uses min(w,h)). Unknown/zero sizes fall back to the
+// 1080p cap (never uncapped, never zero).
+func MemCapKBFor(w, h int) int {
+	short := w
+	if h < short {
+		short = h
+	}
+	switch {
+	case short <= 480:
+		return MemCapKBFor480p
+	case short <= 720:
+		return MemCapKBFor720p
+	case short <= 1080:
+		return MemCapKBFor1080p
+	case short <= 1440:
+		return MemCapKBFor1440p
+	default:
+		return MemCapKBFor4K
+	}
+}
+
+// EstimateLiveBytes bounds the streaming live footprint (S7 §11.7): one
+// YUV+RGBA frame per reference slot plus queue plus in-flight spares,
+// plus one workspace (max sample size). Refs clamp to 1..16 (SPS truth,
+// H.264 max 16); queue clamps to >=1. Small clips use EstimateDecoderBytes
+// (full cache); streaming clips use this (bounded, never clip length).
+//
+// ffmpeg peer: width×height×refs pre-estimate idea (see S7 depth) +
+// buffer pool + bounded FrameQueue above; we only copy the shape.
+func EstimateLiveBytes(w, h, refs, queueCap, workSize int) int64 {
+	if w <= 0 || h <= 0 {
+		return int64(workSize)
+	}
+	if refs < 1 {
+		refs = 1
+	}
+	if refs > 16 {
+		refs = 16
+	}
+	if queueCap < 1 {
+		queueCap = 1
+	}
+	if workSize < 0 {
+		workSize = 0
+	}
+	live := int64(refs+queueCap+3) * (int64(YUVBytes(w, h)) + int64(RGBABytes(w, h)))
+	return live + int64(workSize)
+}
 
 // EstimateDecoderBytes bounds one open of w×h: YUV+RGBA per frame plus one
 // workspace, times frames. The window compares it against the cap before

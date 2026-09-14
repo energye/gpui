@@ -23,6 +23,10 @@ var (
 	ErrClosed    = errors.New("video: player closed")
 	ErrBadClip   = errors.New("video: bad clip")
 	ErrDecodeEOF = errors.New("video: end of stream")
+	// ErrMemOverCap is the S7 fail-fast: the pre-decode estimate exceeds
+	// the grade cap (assembling the clip would not fit). Callers triage
+	// it via Classify (KindMemOverCap), never as a silent OOM.
+	ErrMemOverCap = errors.New("video: memory over cap")
 )
 
 // Info describes an opened clip.
@@ -75,6 +79,14 @@ type Stats struct {
 	// still travelling to its landing frame.
 	Rate    float64
 	Seeking int
+	// S7 cap evidence (§11.7): the grade cap enforced at open, the
+	// pre-decode estimate checked against it, and pooled evictions
+	// during play (cap overflow drops, never silent growth). Buffered
+	// small clips report their total estimate; streaming clips report
+	// the bounded live estimate. Zero evictions is the healthy value.
+	MemCapKB     int
+	EstimateB    int64
+	PoolEvictions int64
 }
 
 // Options tunes the player. QueueCap <= 0 means clock.DefaultCap;
@@ -205,6 +217,9 @@ type Player struct {
 	bufFrames  []*clock.Frame
 	bufSamples []int
 	live       int64
+	// S7 cap evidence: grade cap enforced at open + estimate checked.
+	memCapKB  int
+	estimateB int64
 	// S6 streaming pool (nil on the buffered path, whose pixels live in
 	// bufFrames and are never pooled). convertPic borrows RGBA buffers
 	// here; Poll, queue drops, seeks and Close return them.
@@ -359,18 +374,40 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	p.codec = codecName
 	p.sps = sps
 	p.sampling = dec.Sampling()
-	// Small-clip fast path: full buffer (deterministic, old semantics).
-	// Estimate covers YUV+RGBA per frame + workspace; tiny clips decode
-	// in milliseconds, so buffering keeps every existing gate exact
-	// while large clips stream bounded above.
+	// S7 cap gate (fail fast, before any frame decode): grade cap from
+	// dimensions, estimate from refs+queue+workspace. Buffered small
+	// clips check the full-cache total; streaming clips check the
+	// bounded live footprint (never clip length). Over-cap names the
+	// numbers so the window can show 装不下 instead of OOMing.
+	// ffmpeg peer: -max_alloc single-block limit (libavutil/mem.c:76-77
+	// av_max_alloc, :102/:158 refuse) + pool/queue bounds above.
 	estW, estH := 0, 0
 	if sps != nil {
 		estW, estH = int(sps.Width), int(sps.Height)
 	} else {
 		estW, estH = int(v.Width), int(v.Height)
 	}
+	refs := 4
+	if sps != nil && sps.NumRefFrames > 0 {
+		refs = int(sps.NumRefFrames)
+	}
+	work := 256 << 10
+	for _, s := range v.Samples {
+		if int(s.Size) > work {
+			work = int(s.Size)
+		}
+	}
+	p.memCapKB = MemCapKBFor(estW, estH)
 	if len(v.Samples) <= 64 && EstimateDecoderBytes(estW, estH, len(v.Samples), 256<<10) <= 256<<20 {
+		p.estimateB = EstimateDecoderBytes(estW, estH, len(v.Samples), 256<<10)
+		if p.estimateB > int64(p.memCapKB)<<10 {
+			return nil, fmt.Errorf("video: memory over cap %s %dx%d estimate %dB over %dKB cap (refs=%d queue=%d): %w", nameHint, estW, estH, p.estimateB, p.memCapKB, refs, qcap, ErrMemOverCap)
+		}
 		return openBuffered(p, src, nameHint, v, containerName, codecName, avcc, copt, sps, dec, opt)
+	}
+	p.estimateB = EstimateLiveBytes(estW, estH, refs, qcap, work)
+	if p.estimateB > int64(p.memCapKB)<<10 {
+		return nil, fmt.Errorf("video: memory over cap %s %dx%d estimate %dB over %dKB cap (refs=%d queue=%d): %w", nameHint, estW, estH, p.estimateB, p.memCapKB, refs, qcap, ErrMemOverCap)
 	}
 	p.dec = dec
 	p.pos = 0
@@ -1270,11 +1307,22 @@ func (p *Player) Stats() Stats {
 	}
 	// S6: streaming pool hit% rides along for the §2.2 B family
 	// (pool_hit_pct); buffered clips report 0 (no acquisitions).
+	// S7: evictions ride along too (pool cap overflow drops, never
+	// silent); buffered clips report 0 with nil pools.
 	poolHit := 0.0
+	var evict int64
 	if lv := p.pooled.Load(); lv != nil && lv.pools != nil {
 		poolHit = lv.pools.HitPctMin()
+		for _, pl := range []*Pool{lv.pools.YUV, lv.pools.RGBA, lv.pools.Work} {
+			if pl != nil {
+				evict += pl.Stats().Evictions
+			}
+		}
 	}
-	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed, Rate: rate, Seeking: seeking, PoolHitPct: poolHit}
+	p.mu.Lock()
+	memCap, estimate := p.memCapKB, p.estimateB
+	p.mu.Unlock()
+	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed, Rate: rate, Seeking: seeking, PoolHitPct: poolHit, MemCapKB: memCap, EstimateB: estimate, PoolEvictions: evict}
 }
 
 // ConcealedFault reports the first skipped sample's problem, "" when the
