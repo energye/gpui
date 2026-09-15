@@ -19,7 +19,7 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 97 · 顶层函数 121 · Context 导出方法 183 · 常量 127 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数） |
+| `render`（主包） | 类型 99 · 顶层函数 123 · Context 导出方法 184 · 常量 131 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系） |
 | `render/text` | 包级导出 241（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`、+1 `SegmentReuse`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
@@ -131,7 +131,9 @@
 |------|------|------|------|
 | `DrawImage/DrawImageEx` | 绘制图像（GPU QueueImageDraw；Bicubic 走 GPU 4×4 卷积变体 Catmull-Rom，GPU 失败回退 CPU） | 图像绘制 | ✅ GPU 有效 |
 | `DrawImageCircular/DrawImageRounded` | 在圆形/圆角矩形裁剪区内绘制图像 | 裁剪内画图 | 🔗 |
-| `DrawImageQuad(corners)`（m4_extensions.go） | 四角自由变换绘制（透视/梯形） | 透视贴图 | 🧪 仅测试 |
+| `DrawImageQuad(corners)`（m4_extensions.go） | 四角自由变换绘制（透视/梯形；CPU包络兼容） | 透视贴图 | ✅ GPU 有效（真窗game_quad 2026-09-15：parity 0%/golden 0%） |
+| `DrawImageQuadEx(img,corners,opts)` + `QuadDrawOptions{Interpolation,Opacity,BlendMode}`（m4_extensions.go，R1 S01） | 带显式选项的梯形绘制：零值Bilinear/不透明；退化/自交/非有限/非Normal混合返回哨兵错（ErrQuadDegenerate/ErrQuadBowTie/ErrQuadNonFinite/ErrQuadUnsupportedBlend/ErrQuadUnsupportedInterp），不静默画错 | 梯形绘制显式版 | ✅ GPU 有效（真窗game_quad 2026-09-15） |
+| `ClassifyQuad(corners) QuadKind` + `QuadKind`（QuadOK/QuadDegenerate/QuadBowTie/QuadNonFinite） | 四边形分类：只有OK可画，其余画不得 | 梯形分类 | ✅（quad_cpu_test 2026-09-15） |
 | `DrawImageNine`（nine_patch.go） | 九宫格缩放绘制图像（四角不变、边拉伸） | 九宫格缩放 | 🔗 ui/rendering/image_draw.go 已接门面；**无 Widget 生产调用 🔌** |
 | `DrawGPUTexture` / `DrawGPUTextureBase` / `DrawGPUTextureWithOpacity` / `DrawGPUTextureWithOpacityUV` | GPU 纹理直接合成（Base 作 render pass 背景层零读回；Opacity/UV 带不透明度/子区） | GPU 纹理合成 | ✅ |
 | `ExportImageBuf(dst **ImageBuf) bool` | 把画布导出/复用为图像缓冲（特效连续帧免分配） | 画布→缓冲 | ✅ |
@@ -305,7 +307,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 路径布尔 `BooleanPath/PathOp*` | 仅测试（s3c_m3_residual_gate_test） |
 | 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test） |
 | Path 高级造型 `Trim/WithCorners/Discrete` | 仅测试 |
-| `SetDither/DrawImageQuad`（m4_extensions） | 仅测试 |
+| `SetDither`（m4_extensions） | 仅测试 |
 | `Pattern/ImagePattern` 旧图案接口（SetFillPattern 等） | 仅测试/桥接；生产走 Brush |
 | `Painter/SolidPainter/FuncPainter/PainterFromPaint` | 仅测试 |
 | 文本描边/路径 `StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs` | 仅测试 |
