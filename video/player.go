@@ -50,6 +50,13 @@ type Info struct {
 	Concealed int64
 	// Fault names the first skipped sample's problem, "" when clean.
 	Fault string
+	// A2 sound presence (VW6 §11.3 A2): true when an AAC track was
+	// found and the second clock + PCM queue run. Silent clips report
+	// false and keep the picture-only clock bit for bit.
+	HasAudio        bool
+	AudioSampleRate int
+	AudioChannels   int
+	AudioSamples    int
 }
 
 // Stats is the playback waterline the window HUD and JSON report.
@@ -88,6 +95,17 @@ type Stats struct {
 	MemCapKB      int
 	EstimateB     int64
 	PoolEvictions int64
+	// A2 AV sync evidence (VW6 §11.3 A2): which clock leads, how far
+	// the last shown picture lags it, and the PCM queue waterline.
+	// Silent clips report Master=video and zeros (honest unavailable,
+	// never faked). Master mirrors SelectMaster; AVDiffMs mirrors the
+	// ffplay A-V status (audio time minus shown video stamp).
+	Master       string
+	AVDiffMs     int64
+	AudioDecoded int64
+	AudioShown   int64
+	AudioDepth   int
+	AudioDropped int64
 }
 
 // Options tunes the player. QueueCap <= 0 means clock.DefaultCap;
@@ -102,6 +120,9 @@ type Options struct {
 	NowMs      func() int64
 	Loop       bool
 	S2Parallel bool
+	// AudioQueueCap bounds the A2 PCM queue (<=0 means
+	// DefaultAudioQueueCap). Silent clips ignore it.
+	AudioQueueCap int
 }
 
 // pooledLive is one streaming pool snapshot (S6 §11.7): immutable per
@@ -238,6 +259,33 @@ type Player struct {
 	// S7 cap evidence: grade cap enforced at open + estimate checked.
 	memCapKB  int
 	estimateB int64
+	// A2 AV sync state (VW6 §11.3 A2, logic in a2_player.go): the second
+	// clock + PCM queue. Nil/zero when silent (picture-only path keeps
+	// old semantics bit for bit). generation above is the shared serial
+	// for both queues (ffplay packet_queue_flush on both at once).
+	hasAudio        bool
+	audioSamples    []mp4.Sample
+	audioPos        int
+	audioDec        AudioDecoder
+	audioQ          *AudioQueue
+	audioClk        *clock.Clock
+	audioBase0      int64
+	audioSpanMs     int64
+	audioEpoch      int64
+	audioNextSeq    int64
+	audioDecoded    int64
+	audioShown      int64
+	lastAudioShown  int64
+	hasAudioShown   bool
+	audioDone       bool
+	audioErr        string
+	audioFirstFault error
+	audioConcealed  int64
+	audioDoneCh     chan struct{}
+	audioWakeCh     chan struct{}
+	audioStep       int64
+	audioASC        []byte
+	audioRate       int
 	// S6 streaming pool (nil on the buffered path, whose pixels live in
 	// bufFrames and are never pooled). convertPic borrows RGBA buffers
 	// here; Poll, queue drops, seeks and Close return them.
@@ -416,7 +464,10 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 		}
 	}
 	p.memCapKB = MemCapKBFor(estW, estH)
-	if len(v.Samples) <= 64 && EstimateDecoderBytes(estW, estH, len(v.Samples), 256<<10) <= 256<<20 {
+	// A2: clips carrying sound always stream (the PCM queue + second
+	// clock live on the streaming path); silent small clips keep the
+	// buffered full-cache path bit for bit.
+	if len(v.Samples) <= 64 && movie.Audio == nil && EstimateDecoderBytes(estW, estH, len(v.Samples), 256<<10) <= 256<<20 {
 		p.estimateB = EstimateDecoderBytes(estW, estH, len(v.Samples), 256<<10)
 		if p.estimateB > int64(p.memCapKB)<<10 {
 			return nil, fmt.Errorf("video: memory over cap %s %dx%d estimate %dB over %dKB cap (refs=%d queue=%d): %w", nameHint, estW, estH, p.estimateB, p.memCapKB, refs, qcap, ErrMemOverCap)
@@ -426,6 +477,12 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	p.estimateB = EstimateLiveBytes(estW, estH, refs, qcap, work)
 	if p.estimateB > int64(p.memCapKB)<<10 {
 		return nil, fmt.Errorf("video: memory over cap %s %dx%d estimate %dB over %dKB cap (refs=%d queue=%d): %w", nameHint, estW, estH, p.estimateB, p.memCapKB, refs, qcap, ErrMemOverCap)
+	}
+	// A2: second clock + PCM queue when a sound track rides along
+	// (logic in a2_player.go; silent clips skip untouched, estimate
+	// grows by the bounded audio footprint only).
+	if err := p.setupAudio(movie, opt); err != nil {
+		return nil, err
 	}
 	p.dec = dec
 	p.pos = 0
@@ -497,7 +554,13 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	}
 	// Anchor the clock one step before the first emitted stamp.
 	clk.Start(p.base - frameStepMs(v.FrameRate))
+	// A2: prime one PCM packet and anchor the sound clock on the same
+	// wall tick, then run its background thread (silent: no-op).
+	if err := p.primeAudioFirst(); err != nil {
+		return nil, err
+	}
 	go p.decodeLoop()
+	p.startAudioLoop()
 	return p, nil
 }
 
@@ -1174,7 +1237,9 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 			return nil, false
 		}
 	}
-	due := p.clk.DuePTSMS()
+	// A2: the picture follows the master clock (sound when present,
+	// else the picture clock itself = old behavior bit for bit).
+	due := p.masterDue()
 	fr, skipped, ok := p.q.PollDue(due)
 	if ok {
 		if !p.buffered {
@@ -1255,19 +1320,22 @@ func (p *Player) streamDrained() bool {
 }
 
 // Pause freezes the picture; the clock skips the held span on Resume.
+// A2: both clocks freeze together, so sound and picture hold one frame.
 func (p *Player) Pause() {
 	p.mu.Lock()
 	p.paused = true
 	p.mu.Unlock()
 	p.clk.Pause()
+	p.pauseAudioClock()
 }
 
-// Resume continues after Pause.
+// Resume continues after Pause (both clocks together).
 func (p *Player) Resume() {
 	p.mu.Lock()
 	p.paused = false
 	p.mu.Unlock()
 	p.clk.Resume()
+	p.resumeAudioClock()
 }
 
 // Paused reports the hold state.
@@ -1397,7 +1465,9 @@ func (p *Player) Stats() Stats {
 	p.mu.Lock()
 	memCap, estimate := p.memCapKB, p.estimateB
 	p.mu.Unlock()
-	return Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed, Rate: rate, Seeking: seeking, PoolHitPct: poolHit, MemCapKB: memCap, EstimateB: estimate, PoolEvictions: evict}
+	st := Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: concealed, Rate: rate, Seeking: seeking, PoolHitPct: poolHit, MemCapKB: memCap, EstimateB: estimate, PoolEvictions: evict}
+	p.fillAudioStats(&st)
+	return st
 }
 
 // ConcealedFault reports the first skipped sample's problem, "" when the
@@ -1609,12 +1679,18 @@ func (p *Player) seekStream(keyPos, seekSpos int, landed, delta, targetMs, keyMs
 	p.seekLanded = landed
 	p.seekNeedSpos = seekSpos
 	p.dropUntil = -1
+	// A2: park the sound needle on its floor packet under the same lock
+	// (same serial as video: one bump below retires both sides).
+	p.parkAudioLocked(targetMs)
 	p.dmu.Unlock()
 	atomic.AddInt64(&p.generation, 1)
 	p.q.Clear()
+	p.clearAudioQueue()
 	p.clk.Start(landed)
+	p.startAudioClockAtSeek(targetMs)
 	if wasPaused {
 		p.clk.Pause()
+		p.pauseAudioClock()
 	}
 	p.mu.Lock()
 	p.ended = false
@@ -1628,11 +1704,13 @@ func (p *Player) seekStream(keyPos, seekSpos int, landed, delta, targetMs, keyMs
 	p.seekKeyMs = keyMs
 	p.mu.Unlock()
 	// Wake a decoder parked at end-of-stream (coalescing send: a stale
-	// wake only causes one harmless extra end-check).
+	// wake only causes one harmless extra end-check). A2 wakes the
+	// sound thread on the same trip.
 	select {
 	case p.wakeCh <- struct{}{}:
 	default:
 	}
+	p.wakeAudioLoop()
 	p.announceReady()
 	return landed, nil
 }
@@ -1776,8 +1854,9 @@ func (p *Player) StepFrame() (int64, error) {
 // SetRate scales playback speed (1 = normal, 2 = double, 0.5 = half):
 // the clock advances stamps faster or slower, and catch-up drops the
 // surplus at high rates — the same speed-scaled clock every reference
-// player uses. Only the picture clock scales (this stage is video-only,
-// no audio to keep in sync). Range is 0 < rate <= 8.
+// player uses. A2: both clocks scale together and re-anchor (ffplay
+// set_clock_speed), so sound and picture stay on one timeline from 0.25
+// to 4x. Range is 0 < rate <= 8.
 func (p *Player) SetRate(r float64) error {
 	if r != r || r <= 0 || r > 8 {
 		return fmt.Errorf("video: bad rate %v (want 0 < rate <= 8)", r)
@@ -1790,8 +1869,10 @@ func (p *Player) SetRate(r float64) error {
 		return err
 	}
 	p.clk.Start(anchor)
+	p.setAudioRate(r)
 	if paused {
 		p.clk.Pause()
+		p.pauseAudioClock()
 	}
 	return nil
 }
@@ -2026,7 +2107,9 @@ func (p *Player) Close() {
 		}
 	}
 	p.q.Close()
+	p.closeAudioQueue()
 	<-p.doneCh
+	p.waitAudioLoop()
 	for _, fr := range p.q.Drain() {
 		if fr == nil {
 			continue

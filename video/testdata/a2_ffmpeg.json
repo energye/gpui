@@ -1,0 +1,59 @@
+{
+  "tool": "ffprobe 4.4.2 + ffmpeg 4.4.2",
+  "peer": "fftools/ffplay.c Clock/get_master_sync_type/get_master_clock (139-150/1477-1506) + set_clock/set_clock_speed (1441-1457) + stream_seek/packet_queue_flush (1527/493) + compute_target_delay (1580) + video_refresh (1630) + audio_decode_frame/sdl_audio_callback (2423/2571) + thresholds AV_SYNC_THRESHOLD_MIN/MAX 0.04/0.1 + AV_SYNC_FRAMEDUP_THRESHOLD 0.1 + AV_NOSYNC_THRESHOLD 10.0 (80-86)",
+  "gen": "ffmpeg -hide_banner -y -f lavfi -i testsrc=size=320x240:rate=10:duration=5 -f lavfi -i sine=frequency=440:duration=5 -c:v libx264 -profile:v main -pix_fmt yuv420p -bf 0 -g 10 -c:a aac -b:a 64k -ac 2 -ar 44100 -shortest video/testdata/vr_a2_av.mp4 (77KB, committed: A2 gate + window live clip)",
+  "clip": "vr_a2_av.mp4",
+  "video": {
+    "codec_name": "h264",
+    "profile": "Main",
+    "width": 320,
+    "height": 240,
+    "level": 11,
+    "avg_frame_rate": "10/1",
+    "nb_frames": 50,
+    "duration_ms": 5000,
+    "samples": 50,
+    "keyframes": 5,
+    "key_pts_ms": [0, 1000, 2000, 3000, 4000],
+    "first_pts_ms": [0, 100, 200],
+    "last_pts_ms": 4900
+  },
+  "audio": {
+    "codec_name": "aac",
+    "profile": "LC",
+    "sample_rate": 44100,
+    "channels": 2,
+    "nb_frames": 217,
+    "duration_ms": 5000,
+    "samples": 217,
+    "timescale": 44100,
+    "asc_hex": "121056e500",
+    "mp4a_rate": 44100,
+    "mp4a_channels": 2,
+    "mp4a_bits": 16,
+    "first_packets": [
+      {"size": 140, "pts_ms": 0},
+      {"size": 168, "pts_ms": 23},
+      {"size": 140, "pts_ms": 46}
+    ],
+    "last_pts_ms": 5015
+  },
+  "format_duration": "5.000000",
+  "duration_tolerance_ms": 50,
+  "thresholds_ms": {
+    "sync_min": 40,
+    "sync_max": 100,
+    "framedup": 100,
+    "nosync": 10000
+  },
+  "diff_budget_ms": 200,
+  "seeks": [
+    {"target_ms": 0, "video_floor_ms": 0, "video_key_ms": 0, "audio_floor_ms": 0},
+    {"target_ms": 1000, "video_floor_ms": 1000, "video_key_ms": 1000, "audio_floor_ms": 998},
+    {"target_ms": 2500, "video_floor_ms": 2500, "video_key_ms": 2000, "audio_floor_ms": 2484},
+    {"target_ms": 4900, "video_floor_ms": 4900, "video_key_ms": 4000, "audio_floor_ms": 4899},
+    {"target_ms": 4999, "video_floor_ms": 4900, "video_key_ms": 4000, "audio_floor_ms": 4992}
+  ],
+  "boundary_note": "A2 gate clip uses Main profile on purpose: the engine's Baseline (CAVLC) path fails past tiny frames on this box (flat 320x240 IDR already F20 at mb 299/300; 160x120 dies at sample 4; only 96x96 survives; Main 320x240 decodes 10/10 and 50/50). Warehouse vr_oceans/vr_f42906 video (High, multi-ref B) also conceals from the first P frame (ref idx 4 / F20). All pre-existing VR2-line gaps, untouched by A2 (A2 only adds clocks/queues/sync; video decode bytes unchanged). Repro: TestZZA2Bisect-style direct decode (removed after probing). Owner line VR2/H.264 may pick this up separately.",
+  "pass": "stream identity exact (profile/level/dims/rate/channels/ASC/samples/keys/durations +-50ms/first packets); play head with sound leading: video+audio PTS monotonic, master=audio, |avdiff|<=200ms; seeks land video on floor, audio on floor +0..100ms packet cadence (audio-led picker, catch-up newer-wins), with one shared serial bump; silent clip falls back to video master with AVDiff 0 and old exact behavior"
+}
