@@ -334,7 +334,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | Apply* 全画布 | 滤镜 API | ColorFilterLayer Builder | **C** | scene/build · filter_draw | 层类型有；RO push 子树隔离仍 C |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 |
 | FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | **PushTransform** · RenderTransform | CTM | TransformLayer | **A/C** | paint_context · transform · layer_build | 2D PushTransform；非 Matrix4 |
-| FPC-LAYER | pushLayer/addLayer | pushLayer | 自定义层 | — | — | LayerBuilder 有限 | C | scene/build.go | — |
+| FPC-LAYER | pushLayer/addLayer | pushLayer | 自定义层 | `BuildFramePacketWithSaveLayer(Stats)` | — | LayerBuilder 有限 | C | scene/build.go | `Stats` 版顺手出操作数（`BuildPacket` 收尾走包树收脏图层时加，E2 已修 2026-09-15；包结构不动，生产消费者 `ui/embedder/pipeline_app.go:1149`） |
 | FPC-COMPLEX-HINT | setIsComplexHint | setIsComplexHint | 光栅缓存提示 | — | — | — | D | — | 光栅缓存（序13） |
 | FPC-WILL-CHANGE | setWillChangeHint | setWillChangeHint | 动画提示 | — | — | — | D | — | 序13 |
 | FPC-COMPOSITE-ONLY | retained 跳过 | 实现细节 | 脏区局部 paint | CompositeOnly+PaintVisits | — | FlushPaint(false) | **A** | pipeline.go · present_damage_test | 稳态 force=false；首帧/resize full |
@@ -382,7 +382,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FRO-LAYOUT | performLayout | performLayout | 测布局 | Layout() | — | 各 RO | A | rendering/* | — |
 | FRO-PAINT | paint | paint | 录制/绘制 | Paint(pc) | 经 DC | — | A | — | — |
 | FRO-HIT | 命中测试 | hitTest* | 指针 | HitTest | — | 各 RO | A | — | — |
-| FRO-LAYER-FIELD | 层句柄 | layer / updateCompositedLayer | 合成对象 | BuildLayerTree | — | layer_build.go | C | — | 非每节点持久 Layer 句柄 |
+| FRO-LAYER-FIELD | 层句柄 | layer / updateCompositedLayer | 合成对象 | BuildLayerTree(+Stats) | — | layer_build.go | C | — | 非每节点持久 Layer 句柄；`BuildLayerTreeStats`/`FrameBuildStats` 一次建包顺手出边界数·深度·字命中（E2 已修 2026-09-15，生产消费者 `ui/embedder/pipeline_app.go:1149`，实测见 §22.2 序 2） |
 | FRO-ATTACH | attach/detach | attach/detach | 元素挂载 | AddChild 等 | — | Base | C | node.go | 生命周期弱于 Element 树 |
 | FRO-SEMANTICS | 语义脏 | markNeedsSemanticsUpdate | 无障碍 | ui/semantics 骨架 | — | — | C | semantics | 非完整 |
 | FRO-PIPELINE | PipelineOwner | flushLayout/Paint/Compositing | 帧驱动 | PipelineOwner | — | embedder | A | pipeline.go | flushCompositing 弱 |
@@ -701,7 +701,10 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 11 | ✅ | clip 局部毛玻璃；层 Present 默走 | 中（质感） |
 | 12 | ✅ | multi-sliver；BouncingPhysics | 产品滚动手感 |
 | 13 | ✅ | GPU picture 缓存；列表内 clip/saveLayer；层树 Present 合成 | 中（性能结构） |
+| 2/13 | ✅ | E1 层树全量重建（2026-09-15 证伪、撤销不修，同 B1）：每帧整树重建是认账的现状（对齐 Flutter：搭树便宜、脏层重录 + 干净贴图；本引擎送屏模型要求每帧重现全部可见内容，B1 跳过干净层已黑屏撤回）。稀疏包修法（干净层扔出包）致静按钮丢失，已退回作废；`e-isolation-baseline` 分支与 `TestEVerify_E1` 残留待清 | —（不再排期；CPU 走 E2 + 使用层） |
+| 2 | ✅ | E2 一帧多遍整树 walk（已修，2026-09-15 实测）：`BuildFramePacketWithSaveLayerStats` 一次建包顺手出边界数/深度（`appendNode` 记）+ 操作数（`BuildPacket` 收尾本来就要走包树收脏图层时加）+ 字命中（建包走到 `RenderText` 顺手读，与 `TreeMeasureCacheStats` 同一数同加锁）；真帧不再调 `CountRepaintBoundaries`/`CountPictureOps`/`TreeMeasureCacheStats`（老函数留着给别处）。`ConsumeNeedsPaint` 留原行原位。120 节点只脏 1 叶：老序列 `Children` 603 次 → 新序列 361 次（根 2 + 叶 359）；数诚实（边界 120/深 1、操作数、字命中与老单独数逐位等，`TestE2Merged_CountsHonestAndPacketEqual`）；包相等（同树同脏态新老层序列与脏号顺序全等） | 高（E2 已闭环；E1 已撤销，CPU 剩使用层） |
 | 14 | ✅ | **几何管线性能结构（动画帧预算 · F1/F2 已交付 2026-09-13）** | — |
+| T（立项，未开工） | ⬜ | **三线重设计（唯一文档 `ENGINE_THREAD_T_PLAN.md`，此处只留指针）** | 高 |
 | 指标 | ✅ D8 | build/raster p99、VRAM、atlas 命中、CI 基线库 | 可观测加深 |
 
 ### 22.2a 几何管线性能结构（动画帧预算 · 序 14）
@@ -867,6 +870,8 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 | 版本 | 说明 |
 |------|------|
+| **1.33（三线 T 立项 2026-09-16，未开工）** | **三线重设计立项（唯一文档 `ENGINE_THREAD_T_PLAN.md`，此处只留指针）** |
+| **1.32（E2 已修 2026-09-15；E1 已撤销）** | **动画帧 CPU 结构问题 E2 闭环、E1 撤销**：E2 一帧多遍 walk 已修——一次建包顺手出四个数（边界数/深度、操作数、字命中），`ConsumeNeedsPaint` 原位不动，包结构不动。实测 120 节点只脏 1 叶老序列 `Children` 603 次 → 新序列 361 次；数诚实 + 包相等由 `TestE2Merged_CountsHonestAndPacketEqual` 锁死，老证据 `TestEVerify_E2_OldEvidence` 仍通过（只调老代码）。E1 证伪撤销：全量重建是对齐 Flutter 的认账现状（同 B1），稀疏包修法丢静按钮已退回作废。E4（任务槽多执行一次）经 20 万次 hammer + 存取时序推演证伪，不修 |
 | **1.31** | **序 14 收口**：F1（淘汰链表化 + 模版粘性上传）与 F2（用户空间几何 + 变换 uniform + 描边快路径）已交付；验收数见 §22.2a；公开 API 未动 |
 | **1.30** | **序 14 立项**：§22.2a 几何管线性能结构（F1/F2 两期，未开工；鹈鹕偶发卡顿诊断结论与证据落位；无用户故直接重写不留双路） |
 | **1.29** | **阶段 E 终审**：§25 基座收口声明；§22.2 改为收口后残项；文首闭环口径更新；抽查 `go test ./ui/...`；链出 **ENGINE_UI_WIDGET_RENDER**（控件工业级渲染设计） |

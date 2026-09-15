@@ -121,6 +121,7 @@ vsync/fallback → Tick → layout(脏) → paint(脏) → FramePacket
 | P0–P3 | L1 体验雏形 | ✅ |
 | P4 | 滚动 / 文本 / IO | ✅ |
 | P5 | L2 手势 / 焦点 / Overlay | ✅ A–F（ui_l2_shell） |
+| T | 三线重设计（唯一文档 `ENGINE_THREAD_T_PLAN.md`） | ⬜ 立项 2026-09-16 |
 | P6–P7 | 增强 / Ant | ⬜ |
 
 **验收命令与限制 →** [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)
@@ -141,6 +142,7 @@ examples/ui_l1_blank | ui_l1_spinner
 
 | 版本 | 说明 |
 |------|------|
+| T（2026-09-16） | 三线重设计立项（唯一文档 `ENGINE_THREAD_T_PLAN.md`） |
 | 3.0–3.1 | 清仓架构；P0–P3 状态 |
 | **3.2** | **L1 文档收尾：总览与收口对齐；L1 标完成** |
 | 3.3 | 挂链 P5 细卡 |

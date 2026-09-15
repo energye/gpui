@@ -297,6 +297,8 @@ vsync（真信号优先；无则 16.67ms fallback）
 | PERSISTENT | 持续 Ticker，每 vsync 一帧 |
 | CUSTOM | 仅游戏；产品 UI 禁用 |
 
+### 5.5 三线重设计立项 T（唯一文档见 `ENGINE_THREAD_T_PLAN.md`，此处只留指针）
+
 ---
 
 ## §6 场景图与性能模型（L1）
