@@ -57,23 +57,23 @@ const (
 
 // Hardcoded tolerances (review visible, never silent).
 const (
-	parityBudgetPct  = 1.0   // C both sides: CPU vs GPU old DrawImage
-	warpStrength     = 6.0   // water wobble amplitude, pixels at noise 1
-	warpProbeT       = 1.5   // probe time, seconds
-	warpMovedMinPx   = 10    // warp must move at least this many pixels
-	warpMagMin       = 0.5   // probe offset magnitude lower bound
-	warpMagMax       = 9.0   // strength*sqrt2 upper bound
-	cornerDarkMin    = 0.05  // center minus corner luminance, grade
-	haloGainMin      = 0.03  // halo ring minus far background, grade
-	pixelDiffThresh  = 2     // per-channel byte threshold for moved
-	goldenTolPct     = 0.0   // static mask zero tolerance
-	bloomThreshold   = 0.8   // only the bright sun blooms, sky stays out
-	bloomRadius      = 2     // halo spread, px each pass
-	bloomIntensity   = 0.9   // glow strength
-	vigInner         = 0.25  // full-bright radius, UV
-	vigOuter         = 0.85  // fully-dimmed radius, UV
-	vigStrength      = 0.45  // corner dim amount
-	tonemapExposure  = 1.0   // Reinhard exposure
+	parityBudgetPct = 1.0  // C both sides: CPU vs GPU old DrawImage
+	warpStrength    = 6.0  // water wobble amplitude, pixels at noise 1
+	warpProbeT      = 1.5  // probe time, seconds
+	warpMovedMinPx  = 10   // warp must move at least this many pixels
+	warpMagMin      = 0.5  // probe offset magnitude lower bound
+	warpMagMax      = 9.0  // strength*sqrt2 upper bound
+	cornerDarkMin   = 0.05 // center minus corner luminance, grade
+	haloGainMin     = 0.03 // halo ring minus far background, grade
+	pixelDiffThresh = 2    // per-channel byte threshold for moved
+	goldenTolPct    = 0.0  // static mask zero tolerance
+	bloomThreshold  = 0.8  // only the bright sun blooms, sky stays out
+	bloomRadius     = 2    // halo spread, px each pass
+	bloomIntensity  = 0.9  // glow strength
+	vigInner        = 0.25 // full-bright radius, UV
+	vigOuter        = 0.85 // fully-dimmed radius, UV
+	vigStrength     = 0.45 // corner dim amount
+	tonemapExposure = 1.0  // Reinhard exposure
 )
 
 const testdataDir = "examples/game_fx/testdata"
@@ -530,19 +530,21 @@ func abilityForCase(c string) string {
 		return "fx-warp"
 	case "grade":
 		return "fx-grade"
+	case "custom":
+		return "fx-custom"
 	default:
 		return "fx-all"
 	}
 }
 
 func main() {
-	caseFlag := flag.String("case", "all", "fx case: warp|grade|all")
+	caseFlag := flag.String("case", "all", "fx case: warp|grade|custom|all")
 	autoOnly := flag.Bool("auto-only", false, "run selftest + short real window and exit (gate mode)")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase timeout in seconds (0 = until window close)")
 	flag.Parse()
 	caseName := *caseFlag
-	if caseName != "warp" && caseName != "grade" && caseName != "all" {
-		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want warp|grade|all\n", caseName)
+	if caseName != "warp" && caseName != "grade" && caseName != "custom" && caseName != "all" {
+		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want warp|grade|custom|all\n", caseName)
 		os.Exit(1)
 	}
 	abilityID := abilityForCase(caseName)
@@ -616,6 +618,50 @@ func main() {
 	}
 	goldenDiff, goldenTotal, goldenFirst, goldenOK := checkOffscreenGolden(smallGraded)
 
+	// Custom case evidence (5.5): same probe+pixel+golden rule as grade.
+	customOutline := mustOutline()
+	customDissolve := mustDissolve()
+	customSrcCols := makeCustomSrcColors(srcW, srcH)
+	customSrcImg, err := fx.NewImageFromColors(srcW, srcH, customSrcCols)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: custom NewImageFromColors: %v\n", err)
+		os.Exit(1)
+	}
+	customOutlined, _, err := customOutline.Apply(customSrcImg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: custom outline Apply: %v\n", err)
+		os.Exit(1)
+	}
+	customDissolved, _, err := customDissolve.Apply(customSrcImg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: custom dissolve Apply: %v\n", err)
+		os.Exit(1)
+	}
+	customProbeMap, customProbeOK := runCustomLogicProbes(customOutline, customDissolve)
+	customOutlinePx, customKept, customEdged, customGone, customPixelOK := runCustomPixelAssertions(customSrcImg, customOutlined, customDissolved)
+	smallCustomCols := makeCustomSrcColors(goldenW, goldenH)
+	smallCustomImg, err := fx.NewImageFromColors(goldenW, goldenH, smallCustomCols)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: small custom NewImageFromColors: %v\n", err)
+		os.Exit(1)
+	}
+	smallOutlined, _, err := customOutline.Apply(smallCustomImg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: small custom outline Apply: %v\n", err)
+		os.Exit(1)
+	}
+	smallDissolved, _, err := customDissolve.Apply(smallCustomImg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: small custom dissolve Apply: %v\n", err)
+		os.Exit(1)
+	}
+	customGoldenDiff, customGoldenTotal, customGoldenFirst, customGoldenOK := checkCustomOffscreenGolden(smallOutlined, smallDissolved)
+	if caseName == "custom" {
+		casePixelOK = customPixelOK
+		caseProbeOK = customProbeOK
+		goldenDiff, goldenTotal, goldenFirst, goldenOK = customGoldenDiff, customGoldenTotal, customGoldenFirst, customGoldenOK
+	}
+
 	if !*autoOnly && !secsSet && *manualSeconds <= 0 {
 		if !caseProbeOK || !casePixelOK || !goldenOK {
 			fmt.Fprintf(os.Stderr, "game_fx: selftest FAIL probe=%v pixel=%v golden=%.4f%%, not opening window\n", caseProbeOK, casePixelOK, goldenDiff)
@@ -646,6 +692,18 @@ func main() {
 		// Warp-only: right card shows the original so layout stays, gate ignores grade.
 		gradeForCase = srcBuf
 	}
+	customSrcBuf := bufFromColors(srcW, srcH, customSrcCols)
+	customOutlineBuf := bufFromColors(customOutlined.W, customOutlined.H, customOutlined.Pix)
+	// Precompute dissolve animation frames (frozen cycle amounts).
+	customDissolveBufs := make([]*render.ImageBuf, len(customDissolveCycle))
+	for i, amount := range customDissolveCycle {
+		frame, _, err := mustDissolveAt(amount).Apply(customSrcImg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL: custom dissolve frame %d: %v\n", i, err)
+			os.Exit(1)
+		}
+		customDissolveBufs[i] = bufFromColors(frame.W, frame.H, frame.Pix)
+	}
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
@@ -657,26 +715,49 @@ func main() {
 	}
 	host := win.Host()
 
-	shell := wrkit.NewShell(winW, winH, "game_fx 水晃+胶片 — 左原图 中warp水晃 右grade胶片", []string{
+	shellTitle := "game_fx 水晃+胶片 — 左原图 中warp水晃 右grade胶片"
+	shellLegend := []string{
 		"左ORIG原图 中WARP水晃 右GRADE胶片",
 		"warp: OffsetAt/WarpRGBA, 强度条=振幅",
 		"grade: 发光→暗角→查表→映射",
 		"四角压暗+亮日带晕=气氛对",
 		"JSON看parity<=1+探针全过",
 		"--case=warp|grade|all, 默认all",
-	})
+	}
+	if caseName == "custom" {
+		shellTitle = "game_fx 材质钩子 — 左原片 中outline描边 右dissolve溶解"
+		shellLegend = []string{
+			"左CUSTOM原片 中OUTLINE描边 右DISSOLVE溶解",
+			"outline: 红环width=1, 中心原色不动",
+			"dissolve: 橙边+透明, 量走0.2→0.8",
+			"坏钩子占位主路不断=气氛对",
+			"JSON看outline/dissolve/金图全过",
+			"--case=warp|grade|custom|all, 默认all",
+		}
+	}
+	shell := wrkit.NewShell(winW, winH, shellTitle, shellLegend)
 
 	origBox := rendering.NewRenderBox()
 	origBox.FixedWidth, origBox.FixedHeight = cardW, cardH
 	origBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintFxCard(pc, "ORIG 原图", srcBuf, -1, "湖+日原片")
+		origCard := srcBuf
+		origTitle, origFoot := "ORIG 原图", "湖+日原片"
+		if caseName == "custom" {
+			origCard, origTitle, origFoot = customSrcBuf, "CUSTOM 原片", "蓝块+白芯透明底"
+		}
+		paintFxCard(pc, origTitle, origCard, -1, origFoot)
 	}
 	shell.Body.Place(origBox, 20, 20)
 
 	warpIdx := 0
+	customIdx := 0
 	warpBox := rendering.NewRenderBox()
 	warpBox.FixedWidth, warpBox.FixedHeight = cardW, cardH
 	warpBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if caseName == "custom" {
+			paintFxCard(pc, "OUTLINE 描边 width=1", customOutlineBuf, customOutlineBar, "红环+中心原色")
+			return
+		}
 		cur := warpBufs[warpIdx%len(warpBufs)]
 		if caseName == "grade" {
 			cur = srcBuf
@@ -688,13 +769,24 @@ func main() {
 	gradeBox := rendering.NewRenderBox()
 	gradeBox.FixedWidth, gradeBox.FixedHeight = cardW, cardH
 	gradeBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if caseName == "custom" {
+			cur := customDissolveBufs[customIdx%len(customDissolveBufs)]
+			amount := customDissolveCycle[customIdx%len(customDissolveCycle)]
+			paintFxCard(pc, fmt.Sprintf("DISSOLVE 溶解 amount=%.2f", amount), cur, amount, "橙边+透明混合")
+			return
+		}
 		paintFxCard(pc, "GRADE 胶片 Bloom暗角LUT映射", gradeForCase, -1, "四角压暗+亮日带晕")
 	}
 	shell.Body.Place(gradeBox, 604, 20)
 
-	note := wrkit.Label("左原图/中水晃/右胶片, 强度条=warp振幅", 12, 0.75, 0.82, 0.9)
+	noteText, chainText := "左原图/中水晃/右胶片, 强度条=warp振幅", "grade链: 发光Bloom→暗角Vignette→查表LUT→映射Tonemap"
+	if caseName == "custom" {
+		noteText = "左原片/中描边/右溶解, 强度条=dissolve量"
+		chainText = "custom钩子: outline描边→dissolve溶解, 坏钩子占位主路不断"
+	}
+	note := wrkit.Label(noteText, 12, 0.75, 0.82, 0.9)
 	shell.Body.Place(note, 20, 340)
-	chain := wrkit.Label("grade链: 发光Bloom→暗角Vignette→查表LUT→映射Tonemap", 12, 0.70, 0.78, 0.88)
+	chain := wrkit.Label(chainText, 12, 0.70, 0.78, 0.88)
 	shell.Body.Place(chain, 20, 362)
 
 	var summary manualSummary
@@ -711,11 +803,14 @@ func main() {
 
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "fx_final.png")
+	if caseName == "custom" {
+		snapPath = filepath.Join(testdataDir, "fx_custom_last.png")
+	}
 
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
 		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
@@ -750,6 +845,7 @@ func main() {
 		if warpAccum >= 0.12 {
 			warpAccum = 0
 			warpIdx++
+			customIdx++
 			warpBox.MarkNeedsPaint()
 		}
 		origBox.MarkNeedsPaint()
@@ -759,9 +855,12 @@ func main() {
 		shell.NoteHUDTick(dt)
 		snapH := app.Metrics().Snapshot()
 		gateOK := snapH.PaintCount > 0 && caseProbeOK && casePixelOK
-		shell.UpdateHUD(abilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d moved=%d", app.PresentCount(), movedPx),
-			fmt.Sprintf("parity=%.2f probe=%v", parity["parity_changed_pct"], caseProbeOK))
+		hudLeft, hudRight := fmt.Sprintf("presents=%d moved=%d", app.PresentCount(), movedPx), fmt.Sprintf("parity=%.2f probe=%v", parity["parity_changed_pct"], caseProbeOK)
+		if caseName == "custom" {
+			hudLeft = fmt.Sprintf("presents=%d outline=%d", app.PresentCount(), customOutlinePx)
+			hudRight = fmt.Sprintf("kept=%d edge=%d gone=%d", customKept, customEdged, customGone)
+		}
+		shell.UpdateHUD(abilityID, "Steady", app, gateOK, hudLeft, hudRight)
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -785,35 +884,52 @@ func main() {
 	wrkit.MergeBoundaryCache(app, &snap)
 
 	// Window Golden over the static mask (warp water + HUD excluded by design).
+	// Custom case reuses the same shell but snapshots its own file and masks
+	// only static rects: the right dissolve card animates, so it stays out.
+	snapName, customWinBase := "fx_final.png", "fx_final_base.png"
 	goldenRects := []wrsoak.Rect{
 		{X: 0, Y: 0, W: winW, H: 48},
 		{X: 12, Y: 60, W: 260, H: 656},
 		{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
 		{X: 284 + 604 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
 	}
-	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_fx", testdataDir, "fx_final.png", "fx_final_base.png", goldenRects, winW)
+	if caseName == "custom" {
+		snapName, customWinBase = "fx_custom_last.png", "fx_custom_base.png"
+		goldenRects = []wrsoak.Rect{
+			{X: 0, Y: 0, W: winW, H: 48},
+			{X: 12, Y: 60, W: 260, H: 656},
+			{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
+			{X: 284 + 20 + 20 + 292, Y: 60 + 20 + 40, W: imgW, H: imgH},
+		}
+	}
+	_ = os.MkdirAll(testdataDir, 0o755)
+	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_fx", testdataDir, snapName, customWinBase, goldenRects, winW)
 
 	parityPct, _ := parity["parity_changed_pct"].(float64)
 	extra := map[string]any{
-		"parity_changed_pct": parityPct,
-		"parity_mean_abs":    parity["parity_mean_abs"],
-		"parity_gpu_ops":     parity["parity_gpu_ops"],
-		"warp_moved_px":      movedPx,
-		"warp_moved_frac":    movedFrac,
-		"warp_offset_mag":    probeMap["warp_offset_mag"],
-		"grade_dark_corner":  cornerDiff,
-		"grade_halo_gain":    haloGain,
+		"parity_changed_pct":  parityPct,
+		"parity_mean_abs":     parity["parity_mean_abs"],
+		"parity_gpu_ops":      parity["parity_gpu_ops"],
+		"warp_moved_px":       movedPx,
+		"warp_moved_frac":     movedFrac,
+		"warp_offset_mag":     probeMap["warp_offset_mag"],
+		"grade_dark_corner":   cornerDiff,
+		"grade_halo_gain":     haloGain,
 		"grade_center_factor": probeMap["vignette_center_factor"],
-		"probe_ok":           caseProbeOK && casePixelOK && goldenOK,
-		"warp_probe_ok":      probeMap["warp_offset_ok"],
-		"pixel_ok":           casePixelOK,
-		"golden_diff_pct":    goldenDiff,
-		"golden_total_px":    goldenTotal,
-		"golden_first_run":   goldenFirst,
+		"probe_ok":            caseProbeOK && casePixelOK && goldenOK,
+		"warp_probe_ok":       probeMap["warp_offset_ok"],
+		"pixel_ok":            casePixelOK,
+		"golden_diff_pct":     goldenDiff,
+		"golden_total_px":     goldenTotal,
+		"golden_first_run":    goldenFirst,
 		"win_golden_diff_pct": winGoldenDiff,
 		"win_golden_total_px": winGoldenTotal,
 		"win_golden_first":    winGoldenFirst,
 		"case":                caseName,
+		"custom_outline_px":   customOutlinePx,
+		"custom_kept_px":      customKept,
+		"custom_edge_px":      customEdged,
+		"custom_gone_px":      customGone,
 		"pointer_events":      summary.Pointer,
 		"key_events":          summary.Key,
 		"resize_events":       summary.Resize,
@@ -821,6 +937,11 @@ func main() {
 		"covered":             "左原图+中水晃warp+右胶片grade, 强度条, 四角压暗+亮日带晕",
 		"impl_correctness":    "warp OffsetAt/WarpRGBA直调冻接口, grade Bloom/Vignette/LUT/Grade整链直调",
 		"impl_visible":        "HUD实时presents/moved/parity, 强度条=振幅, 关窗/超时出JSON",
+	}
+	for k, v := range customProbeMap {
+		if _, dup := extra[k]; !dup {
+			extra[k] = v
+		}
 	}
 	for k, v := range probeMap {
 		if _, dup := extra[k]; !dup {
@@ -855,7 +976,11 @@ func main() {
 			os.Exit(1)
 		}
 		if !casePixelOK {
-			fmt.Fprintf(os.Stderr, "FAIL: pixel assertions fail moved=%d corner=%.4f halo=%.4f\n", movedPx, cornerDiff, haloGain)
+			if caseName == "custom" {
+				fmt.Fprintf(os.Stderr, "FAIL: pixel assertions fail outline=%d kept=%d edge=%d gone=%d\n", customOutlinePx, customKept, customEdged, customGone)
+			} else {
+				fmt.Fprintf(os.Stderr, "FAIL: pixel assertions fail moved=%d corner=%.4f halo=%.4f\n", movedPx, cornerDiff, haloGain)
+			}
 			os.Exit(1)
 		}
 		if !goldenOK && !goldenFirst {

@@ -648,13 +648,17 @@ func numExtra(m map[string]any, k string) (float64, bool) {
 }
 
 func main() {
-	caseFlag := flag.String("case", "fire", "scenario case (only fire)")
+	caseFlag := flag.String("case", "fire", "scenario case (fire|trail)")
 	autoOnly := flag.Bool("auto-only", false, "probes + short window, JSON gate on stdout")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase seconds (0 = until close)")
 	flag.Parse()
 
+	if *caseFlag == "trail" {
+		runTrail(*autoOnly, *manualSeconds)
+		return
+	}
 	if *caseFlag != "fire" {
-		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want fire (only fire cone plus smoke)\n", *caseFlag)
+		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want fire|trail (fire cone plus smoke, trail knife slash)\n", *caseFlag)
 		os.Exit(1)
 	}
 	wrkit.EnsureUIFace()
