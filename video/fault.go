@@ -50,8 +50,10 @@ func Classify(err error) Fault {
 		errors.Is(err, mp4.ErrNoVideoTrack) || errors.Is(err, mp4.ErrNoSampleTable) ||
 		errors.Is(err, mp4.ErrBadSampleTable):
 		return Fault{Kind: KindBadBox, Layer: "mp4", Tool: "盒子", CN: "盒子坏了（mp4层：缺moov/无视频轨/样表不一致）"}
-	case errors.Is(err, mp4.ErrFragmented) || errors.Is(err, mp4.ErrUnsupported):
-		return Fault{Kind: KindBadBox, Layer: "mp4", Tool: "盒子", CN: "盒子不支持（mp4层：碎片moof/特性超本期范围）"}
+	case errors.Is(err, mp4.ErrUnsupported):
+		return Fault{Kind: KindBadBox, Layer: "mp4", Tool: "盒子", CN: "盒子不支持（mp4层：特性超本期范围）"}
+	case errors.Is(err, mp4.ErrFragmented):
+		return Fault{Kind: KindBadBox, Layer: "mp4", Tool: "盒子", CN: "盒子碎了（mp4层：分段moof坏/无视频分段，见B1门禁）"}
 	case errors.Is(err, h264.ErrSliceGroups) || errors.Is(err, h264.ErrDataPartitioning) ||
 		errors.Is(err, h264.ErrRedundantPic) || errors.Is(err, h264.ErrUnsupportedNAL):
 		return Fault{Kind: KindF17, Layer: "h264", Tool: "F17", CN: "老容错工具F17（条带组/数据分区/冗余片/扩展切片，本期只认不解）"}

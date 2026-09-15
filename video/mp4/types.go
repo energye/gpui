@@ -11,7 +11,7 @@ var (
 	ErrNoVideoTrack   = errors.New("mp4: no video track found")
 	ErrNoSampleTable  = errors.New("mp4: video track has no sample table")
 	ErrBadSampleTable = errors.New("mp4: inconsistent sample table")
-	ErrFragmented     = errors.New("mp4: fragmented mp4 (moof) not supported in this stage")
+	ErrFragmented     = errors.New("mp4: fragmented mp4 (moof) unreadable in this stage")
 	ErrUnsupported    = errors.New("mp4: unsupported feature for this stage")
 )
 
@@ -22,9 +22,14 @@ type Movie struct {
 	Timescale  uint32
 	Duration   uint64
 	DurationMs int64
+	// Fragmented reports moof segments were assembled (B1): moov holds
+	// headers, moofs hold the sample tables. Stays true after assembly
+	// (honest provenance); open no longer fails on it.
 	Fragmented bool
-	Tracks     []*Track
-	Video      *Track
+	// FragCount is the assembled moof segment count (0 = plain moov).
+	FragCount int
+	Tracks    []*Track
+	Video     *Track
 }
 
 // HasVideo reports whether a video track was found.
@@ -47,6 +52,10 @@ type Sample struct {
 	DTSMs    int64
 	PTSMs    int64
 	Keyframe bool
+	// fragDur is the fragment sample duration in track ticks (trun/tfhd
+	// duration, 0 on plain moov). Unexported: duration evidence surfaces
+	// via DurationMs/FrameRate, not per-sample output.
+	fragDur uint32
 }
 
 // Keyframe is the seek index entry.
@@ -58,6 +67,8 @@ type Keyframe struct {
 }
 
 // Track is one parsed trak box. Only video tracks carry sample tables.
+// FragCount mirrors Movie.FragCount when this track's samples came from
+// moof assembly (0 = plain moov tables).
 type Track struct {
 	ID           uint32
 	Handler      string
@@ -80,6 +91,7 @@ type Track struct {
 	PixelAspectV uint32
 	HasCTTS      bool
 	HasEditList  bool
+	FragCount    int
 }
 
 // KeyframeCount is a convenience for metrics.

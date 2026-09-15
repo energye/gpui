@@ -83,6 +83,7 @@ func ParseReader(r io.ReaderAt, total int64) (*Movie, error) {
 	m := &Movie{}
 	var moovPayload []byte
 	var ftypSeen bool
+	var moofs []moofData
 	off := int64(0)
 	for off < total {
 		b, err := readBoxHeader(r, off, total)
@@ -112,6 +113,11 @@ func ParseReader(r io.ReaderAt, total int64) (*Movie, error) {
 			moovPayload = payload
 		case "moof":
 			m.Fragmented = true
+			payload, err := readBytes(r, b.payloadOff, b.payloadEnd)
+			if err != nil {
+				return nil, err
+			}
+			moofs = append(moofs, moofData{offset: off, payload: payload})
 		case "mdat", "free", "skip", "wide", "uuid":
 		default:
 		}
@@ -133,7 +139,9 @@ func ParseReader(r io.ReaderAt, total int64) (*Movie, error) {
 		return nil, err
 	}
 	if m.Fragmented {
-		return nil, fmt.Errorf("%w", ErrFragmented)
+		if err := attachFragments(m, moovPayload, moofs); err != nil {
+			return nil, err
+		}
 	}
 	if len(m.Tracks) == 0 {
 		return nil, fmt.Errorf("%w: moov has no tracks", ErrNoVideoTrack)
@@ -217,11 +225,60 @@ func parseMoov(payload []byte, m *Movie) error {
 	for _, tb := range builders {
 		t, err := buildTrack(tb)
 		if err != nil {
+			if m.Fragmented {
+				// Empty-moov frag headers (stbl zero entries, the
+				// standard frag_keyframe+empty_moov shape): keep the
+				// header shell, samples arrive from moofs later.
+				if et, ok := buildEmptyFragTrack(tb); ok {
+					m.Tracks = append(m.Tracks, et)
+					continue
+				}
+			}
 			return err
 		}
 		m.Tracks = append(m.Tracks, t)
 	}
 	return nil
+}
+
+// buildEmptyFragTrack keeps the header shell of an empty-moov frag track
+// (no samples yet). Only for fragmented movies; plain clips keep the
+// strict buildTrack errors above.
+func buildEmptyFragTrack(tb *trackBuilder) (*Track, bool) {
+	if tb.handler != "vide" || tb.codec == "" {
+		return nil, false
+	}
+	t := &Track{
+		ID:           tb.id,
+		Handler:      tb.handler,
+		Codec:        tb.codec,
+		CodedWidth:   tb.codedW,
+		CodedHeight:  tb.codedH,
+		Width:        tb.tkWidth,
+		Height:       tb.tkHeight,
+		Rotation:     tb.rotation,
+		Timescale:    tb.timescale,
+		Duration:     tb.duration,
+		PixelAspectH: tb.paspH,
+		PixelAspectV: tb.paspV,
+		EditList:     tb.editList,
+		HasEditList:  tb.hasEditList,
+		HasCTTS:      len(tb.ctts) > 0,
+	}
+	if t.Timescale == 0 {
+		t.Timescale = 1
+	}
+	if t.Width == 0 {
+		t.Width = t.CodedWidth
+	}
+	if t.Height == 0 {
+		t.Height = t.CodedHeight
+	}
+	if len(tb.avcConfig) > 0 {
+		t.AVCConfig = append([]byte(nil), tb.avcConfig...)
+	}
+	t.DurationMs = ticksToMs(int64(t.Duration), t.Timescale)
+	return t, true
 }
 
 func parseMvhd(p []byte) (uint32, uint64) {
@@ -840,7 +897,45 @@ func buildTrack(tb *trackBuilder) (*Track, error) {
 	} else if sttsDur > 0 {
 		t.FrameRate = float64(n) * float64(t.Timescale) / float64(sttsDur)
 	}
+	if t.Handler == "vide" {
+		fillFragDuration(t)
+	}
 	return t, nil
+}
+
+// fillFragDuration derives duration/rate for empty-moov frag tracks: the
+// headers carry no duration, so the span end (max PTS + its duration)
+// is the duration peer (ffmpeg st->duration from track_end).
+func fillFragDuration(t *Track) {
+	if t.Duration != 0 || len(t.Samples) == 0 || t.FragCount == 0 {
+		return
+	}
+	end := int64(0)
+	for _, s := range t.Samples {
+		if e := s.PTS + int64(s.fragDur); e > end {
+			end = e
+		}
+	}
+	if end < 0 {
+		end = 0
+	}
+	t.Duration = uint64(end)
+	t.DurationMs = ticksToMs(end, t.Timescale)
+	if end > 0 {
+		// Rate peers the wall rate (frames per second), not
+		// samples-per-span-end: the end includes the last frame's hold
+		// (max PTS + its duration), which understates B-reorder clips
+		// whose max PTS sits a CTS above the last DTS. The wall span is
+		// last DTS + last duration (decode timeline end); B clips divide
+		// by that, progressive clips (max PTS == last DTS + hold) are
+		// identical either way.
+		wall := end
+		last := t.Samples[len(t.Samples)-1]
+		if e := last.DTS + int64(last.fragDur); e > 0 {
+			wall = e
+		}
+		t.FrameRate = float64(len(t.Samples)) * float64(t.Timescale) / float64(wall)
+	}
 }
 
 func expandSizes(tb *trackBuilder) ([]uint32, error) {

@@ -552,8 +552,42 @@ func TestErrors(t *testing.T) {
 	})
 
 	t.Run("fragmented", func(t *testing.T) {
+		// moof with an undecodable traf (no tfhd): ffmpeg rejects the
+		// fragment (trun track id unknown); plain moov tables still win,
+		// so the open succeeds on the base clip.
 		frag := append(bytes.Clone(data), mkBox("moof", mkBox("traf", []byte{1, 2, 3}))...)
-		_, err := Parse(frag)
+		m, err := Parse(frag)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if m.Video == nil || len(m.Video.Samples) != 4 {
+			t.Fatalf("samples = %+v", m.Video)
+		}
+	})
+
+	t.Run("fragmentedTrunWithoutTfhd", func(t *testing.T) {
+		// moof + traf + trun but no tfhd: ffmpeg rejects (trun track id
+		// unknown); plain moov tables still win, so the open succeeds on
+		// the base clip and ignores the broken fragment.
+		trun := mkFullBox("trun", 0, 0, []byte{0, 0, 0, 0})
+		frag := append(bytes.Clone(data), mkBox("moof", mkBox("traf", trun))...)
+		m, err := Parse(frag)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if m.Video == nil || len(m.Video.Samples) != 4 {
+			t.Fatalf("samples = %+v", m.Video)
+		}
+		if m.Video.FragCount != 0 {
+			t.Fatalf("fragCount = %d, want 0 (broken fragment ignored)", m.Video.FragCount)
+		}
+	})
+
+	t.Run("fragmentedNoSamples", func(t *testing.T) {
+		// moof without moov: no shell at all, the open still names the
+		// fragmented bucket (pre-B1 lock).
+		onlyMoof := mkBox("moof", mkBox("traf", []byte{1, 2, 3}))
+		_, err := Parse(append(mkFtyp(), onlyMoof...))
 		if !errors.Is(err, ErrFragmented) {
 			t.Fatalf("err = %v", err)
 		}
