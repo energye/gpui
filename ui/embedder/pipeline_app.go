@@ -240,13 +240,16 @@ func (a *PipelineApp) SnapshotAsync(fn func()) {
 
 // drainSnapshots executes queued snapshot closures on the raster thread.
 func (a *PipelineApp) drainSnapshots() {
-	if a == nil || a.snapshotQueue == nil {
+	if a == nil {
 		return
 	}
 	a.snapshotMu.Lock()
 	q := a.snapshotQueue
 	a.snapshotQueue = nil
 	a.snapshotMu.Unlock()
+	if q == nil {
+		return
+	}
 	for _, fn := range q {
 		fn()
 	}
@@ -1137,21 +1140,20 @@ func (a *PipelineApp) Run() error {
 			scale = 1
 		}
 		// R3b compositing-bits flush (Flutter updateCompositingBits runs before
-		// paint): propagate needsCompositing bottom-up and sample boundary
-		// discovery so boundary_count / boundary_max_depth are honest JSON.
+		// paint): propagate needsCompositing bottom-up.
+		// E2: boundary / op / measure counts ride the single build walk below
+		// (FrameBuildStats) — no separate CountRepaintBoundaries /
+		// CountPictureOps / TreeMeasureCacheStats passes. Those helpers stay
+		// for other callers.
 		a.pipe.UpdateCompositingBits()
-		if m := a.sched.Metrics(); m != nil {
-			bc, bd := rendering.CountRepaintBoundaries(a.root)
-			m.SetBoundaryDiscovery(bc, bd)
-		}
-		pkt := rendering.BuildFramePacketWithSaveLayer(a.root, frameID, scale, float64(w), float64(h), a.saveStats, a.saveBudget)
+		pkt, fbStats := rendering.BuildFramePacketWithSaveLayerStats(a.root, frameID, scale, float64(w), float64(h), a.saveStats, a.saveBudget)
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d viewport=%dx%d dirty=%v\n", frameID, w, h, pkt.DirtyLayerIDs)
 		}
 		if m := a.sched.Metrics(); m != nil {
-			m.SetPictureOpCount(scene.CountPictureOps(pkt))
-			mh, mm := rendering.TreeMeasureCacheStats(a.root)
-			m.SetMeasureCacheStats(mh, mm)
+			m.SetBoundaryDiscovery(fbStats.BoundaryCount, fbStats.BoundaryMaxDepth)
+			m.SetPictureOpCount(fbStats.PictureOpCount)
+			m.SetMeasureCacheStats(fbStats.MeasureHits, fbStats.MeasureMisses)
 		}
 		if a.opts.Overlay != nil {
 			// R8 band-separated dirty observation: sample the main-band
