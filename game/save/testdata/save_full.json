@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "slot": 2,
+  "progress": {"level": "level5", "checkpoint": "boss", "play_ms": 9876543},
+  "inventory": [{"id": "coin", "count": 999}, {"id": "potion", "count": 5}, {"id": "sword", "count": 1}],
+  "stars": {"level1": 3, "level2": 3, "level3": 2, "level4": 1}
+}

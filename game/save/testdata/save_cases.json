@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "max_slots": 3,
+  "max_inventory": 256,
+  "max_item_count": 9999,
+  "max_stars": 64,
+  "max_stars_per_level": 3,
+  "max_name_len": 64,
+  "max_bytes": 1048576,
+  "saves": [
+    {
+      "file": "save_empty.json",
+      "name": "empty_slot0",
+      "slot": 0,
+      "version": "1.0",
+      "progress": {"level": "", "checkpoint": "", "play_ms": 0},
+      "inventory": [],
+      "stars": {}
+    },
+    {
+      "file": "save_mid.json",
+      "name": "mid_slot1",
+      "slot": 1,
+      "version": "1.0",
+      "progress": {"level": "level2", "checkpoint": "cp3", "play_ms": 123456},
+      "inventory": [{"id": "coin", "count": 120}, {"id": "key", "count": 1}],
+      "stars": {"level1": 3, "level2": 2}
+    },
+    {
+      "file": "save_full.json",
+      "name": "full_slot2",
+      "slot": 2,
+      "version": "1.0",
+      "progress": {"level": "level5", "checkpoint": "boss", "play_ms": 9876543},
+      "inventory": [{"id": "coin", "count": 999}, {"id": "potion", "count": 5}, {"id": "sword", "count": 1}],
+      "stars": {"level1": 3, "level2": 3, "level3": 2, "level4": 1}
+    }
+  ],
+  "legacy": {
+    "file": "save_legacy09.json",
+    "slot": 0,
+    "version": "0.9",
+    "want_version": "1.0",
+    "progress": {"level": "level1", "checkpoint": "cp1", "play_ms": 60000},
+    "inventory": [{"id": "coin", "count": 10}],
+    "stars": {"level1": 2}
+  },
+  "bad_files": [
+    {"file": "save_bad_truncated.json", "want_code": "bad-data"},
+    {"file": "save_bad_slot.json", "want_code": "bad-data"},
+    {"file": "save_bad_stars.json", "want_code": "bad-data"},
+    {"file": "save_bad_dupe.json", "want_code": "bad-data"},
+    {"file": "save_bad_version.json", "want_code": "version-mismatch"}
+  ]
+}

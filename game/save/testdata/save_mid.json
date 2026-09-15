@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "slot": 1,
+  "progress": {"level": "level2", "checkpoint": "cp3", "play_ms": 123456},
+  "inventory": [{"id": "coin", "count": 120}, {"id": "key", "count": 1}],
+  "stars": {"level1": 3, "level2": 2}
+}
