@@ -37,4 +37,31 @@
 // core InvalidArg; bad writes store nothing. Nil receivers never panic:
 // getters park at zero, writers report InvalidArg. Window intent: none,
 // pure arithmetic, offscreen golden only.
+//
+// Frozen 2026-09-15 (capability 10.3, P2, S34/W4): LifeState,
+// LifeActive, LifeSleeping, Scene, NewScene, Spawn, Sleep, Wake, State,
+// IsActive, IsSleeping, Alive, Dispose, Count, ActiveCount,
+// SleepingCount, Spawned, Clear, World. Additive changes only. Scene owns
+// one World for storage; births run active, Sleep parks, Wake resumes,
+// Dispose clears comps and flags. Window intent: none, pure arithmetic,
+// offscreen golden only.
+//
+// Frozen 2026-09-15 (capability 10.2, P2, S33/W4): PrefabVersion,
+// MaxPrefabNameLen, MaxPrefabComps, MaxPrefabBytes, Prefab, NewPrefab,
+// Name, Version, Local, SetLocal, AddComp, Comps, Encode, Equal,
+// Instantiate, ParsePrefab, LoadPrefab, SavePrefab, SceneFileVersion,
+// MaxSceneNameLen, MaxSceneEntities, MaxSceneComps, MaxSceneBytes,
+// SceneNode, SceneFile, NewSceneFile, Name, Version, Count, Entities,
+// AddEntity, ParseScene, LoadScene, SaveScene, Open. Additive changes only. Prefab
+// is one reusable entity template (name, local, comps); SceneFile is one
+// level on disk (name, version, entities with parent links, comps,
+// referenced asset ids). Parse/Load read scene JSON, Encode/Save write
+// canonical bytes, Instantiate stamps a prefab into a World, Open builds
+// a live Scene (every birth active) plus the filed-name to live-id
+// index. Intentional deviation: the plan table names Scene{Load,Save};
+// here SceneFile+LoadScene/SaveScene/Open because S34 already owns the
+// live Scene name in this package and a second Scene would not compile.
+// File shape frozen: version "1.0", entity, comps, parent links,
+// referenced asset ids. Window intent: game_world--case=open; pure file
+// math, offscreen golden only (round-trip byte-identical).
 package world

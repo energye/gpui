@@ -53,6 +53,18 @@
 // VertDrawOptions/VertDrawResult（Degraded 降级标记）与哨兵错
 // ErrVertsNonFinite/ErrVertsBadIndex。CPU 为预乘重心真渐变，与 GPU 只差抗锯齿。
 //
+// # R4 图集扩展冻结（S30/W4，2.2 的 render 底，前置 S24 R3，见 vertices.go）
+//
+// 老 DrawAtlas 签名不动，只读老字段；新字段零值即老路，逐位一致。
+// 新 DrawAtlasEx 带 AtlasDrawOptions/AtlasDrawResult 与哨兵错
+// ErrAtlasNonFinite/ErrAtlasUnsupportedFilter。AtlasSprite 加
+// Rot/FlipX/FlipY/PivotX/PivotY/Tint/Filter：绕轴心先翻转后旋转，
+// Tint 零结构体即白不透明，Filter 零值即 Bilinear，单图选
+// Nearest/Bilinear/Bicubic。染色暂无显卡着色器，含染色整批走 CPU
+// 真采样（Degraded，与 GPU 同真值）；rot/flip/filter 走显卡四角，
+// CPU 与显卡同拆法只差采样舍入。GOGPU_RENDER_MODE=cpu 强制取 CPU 真值，
+// 离屏对比即未来 game_sprite--case=rot 窗的依据（窗随 P2 建）。
+//
 // # Performance
 //
 // The software renderer prioritizes correctness.

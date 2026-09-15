@@ -1,0 +1,54 @@
+{
+  "sequences": [
+    {
+      "name": "activate",
+      "spawn": 3,
+      "sleep": [1],
+      "wake": [1],
+      "dispose": [2],
+      "want_alive": 2,
+      "want_active": 2,
+      "want_sleeping": 0
+    },
+    {
+      "name": "sleep_holds",
+      "spawn": 2,
+      "sleep": [0, 1],
+      "wake": [],
+      "dispose": [],
+      "want_alive": 2,
+      "want_active": 0,
+      "want_sleeping": 2
+    },
+    {
+      "name": "dispose_clears",
+      "spawn": 4,
+      "sleep": [0],
+      "wake": [],
+      "dispose": [0, 1],
+      "want_alive": 2,
+      "want_active": 2,
+      "want_sleeping": 0
+    }
+  ],
+  "hierarchy": {
+    "name": "orphan",
+    "chain": 3,
+    "sleep": [1],
+    "dispose_root": 0,
+    "want_alive": 2,
+    "want_active": 1,
+    "want_sleeping": 1
+  },
+  "perf": {"rounds": 10000},
+  "longrun": {"levels": 60, "batch": 40},
+  "golden": {
+    "spawn": 5,
+    "sleep": [1, 3],
+    "dispose": [0, 4],
+    "want_alive": 3,
+    "want_active": 1,
+    "want_sleeping": 2,
+    "want_spawned": 5
+  }
+}

@@ -1,0 +1,1 @@
+{"version":"1.0","name":"hero","local":{"pos":[10,20],"rot":0,"scale":[1,1]},"comps":[{"kind":"sprite","ref":"tex/hero"},{"kind":"collider","ref":""},{"kind":"script","ref":"lua/ai"}]}

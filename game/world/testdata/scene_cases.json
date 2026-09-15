@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "prefab_version": "1.0",
+  "max_prefab_name_len": 64,
+  "max_prefab_comps": 16,
+  "max_prefab_bytes": 65536,
+  "max_scene_name_len": 64,
+  "max_scene_entities": 4096,
+  "max_scene_comps": 16,
+  "max_scene_bytes": 4194304,
+  "prefab": {
+    "file": "scene_prefab_hero.json",
+    "name": "hero",
+    "pos": [10, 20],
+    "rot": 0,
+    "scale": [1, 1],
+    "comps": [
+      {"kind": "sprite", "ref": "tex/hero"},
+      {"kind": "collider", "ref": ""},
+      {"kind": "script", "ref": "lua/ai"}
+    ]
+  },
+  "scene": {
+    "file": "scene_open.json",
+    "name": "open",
+    "count": 4,
+    "want_world": [
+      {
+        "name": "hero", "pos": [10, 20], "rot": 0, "scale": [1, 1],
+        "mat": [1, 0, 10, 0, 1, 20],
+        "comps": [
+          {"kind": "sprite", "ref": "tex/hero"},
+          {"kind": "script", "ref": "lua/ai"}
+        ]
+      },
+      {
+        "name": "sword", "pos": [15, 20], "rot": 0, "scale": [1, 1],
+        "mat": [1, 0, 15, 0, 1, 20],
+        "comps": [{"kind": "sprite", "ref": "tex/sword"}]
+      },
+      {
+        "name": "crate", "pos": [30, 40], "rot": 0, "scale": [2, 2],
+        "mat": [2, 0, 30, 0, 2, 40],
+        "comps": [
+          {"kind": "sprite", "ref": "tex/crate"},
+          {"kind": "collider", "ref": ""}
+        ]
+      },
+      {
+        "name": "slime", "pos": [32, 42], "rot": 0, "scale": [2, 2],
+        "mat": [2, 0, 32, 0, 2, 42],
+        "comps": [{"kind": "script", "ref": "lua/slime"}]
+      }
+    ]
+  },
+  "bad_files": [
+    {"file": "scene_bad_truncated.json", "parse": "scene", "want_code": "bad-data"},
+    {"file": "scene_bad_parent.json", "parse": "scene", "want_code": "bad-data"},
+    {"file": "scene_bad_dupe.json", "parse": "scene", "want_code": "bad-data"},
+    {"file": "scene_bad_version.json", "parse": "scene", "want_code": "version-mismatch"},
+    {"file": "scene_prefab_bad_kind.json", "parse": "prefab", "want_code": "bad-data"}
+  ],
+  "perf": {"entities": 2000, "reps": 5},
+  "longrun": {"cycles": 200, "batch": 20}
+}

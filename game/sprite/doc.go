@@ -8,6 +8,14 @@
 // EventFinished), Event, Flipbook, NewFlipbook, AddClip, Has, Count,
 // OnEvent, Play, Current, IsPlaying, Update. Additive changes only.
 //
+// Frozen 2026-09-15 (capability 2.1, P1b, S31/W4): Sprite, NewSprite,
+// Skippable, EffectiveOpacity, Batch, NewBatch, Add, Flush, Len,
+// Skipped, Clear. Additive changes only. Same image submits once:
+// Flush groups by image in first-seen order and calls emit once per
+// image. Pure numbers only; the caller draws each group with the
+// existing render DrawAtlas (Src.X/Y/W/H, Dst.X/Y/W/H, EffectiveOpacity
+// field for field), render main path untouched.
+//
 // Ordering (draw first = behind, draw last = front on top):
 //
 //	layer ascending, then feet Y ascending, stable for ties.
