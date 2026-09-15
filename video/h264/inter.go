@@ -526,8 +526,21 @@ func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16, out []uint8)
 			return
 		}
 	}
-	for dy := 0; dy < h; dy++ {
-		for dx := 0; dx < w; dx++ {
+	// S1 fast path: interior sub-pel blocks run the arch row kernel
+	// (qpel_fast.go); edges and forced-scalar fall to the留守 below.
+	if qpelFast(ref.Y, rw, rh, px, py, w, h, mx, my, out) {
+		return
+	}
+	predictLumaBlockScalar(ref.Y, rw, rh, px, py, w, h, mx, my, out)
+}
+
+// predictLumaBlockScalar is the scalar留守 (C版留守): per-pixel 6-tap
+// interpolation with per-tap edge clipping. Bit-exact reference for the
+// S1 fast paths: SIMD缺席/贴边/强制标量时回落到此, 输出逐位一致由
+// qpel_s1_test.go 锁死. Do not optimize here; optimize in qpel_*.
+func predictLumaBlockScalar(plane []uint8, w, h, px, py, bw, bh int, mx, my int16, out []uint8) {
+	for dy := 0; dy < bh; dy++ {
+		for dx := 0; dx < bw; dx++ {
 			qx := (px+dx)*4 + int(mx)
 			qy := (py+dy)*4 + int(my)
 			// Floor divide by 4 for possibly negative vectors.
@@ -535,7 +548,7 @@ func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16, out []uint8)
 			iy := qy >> 2
 			fx := qx - (ix << 2)
 			fy := qy - (iy << 2)
-			out[dy*w+dx] = uint8(lumaSample(ref.Y, rw, rh, ix, iy, fx, fy))
+			out[dy*bw+dx] = uint8(lumaSample(plane, w, h, ix, iy, fx, fy))
 		}
 	}
 }
