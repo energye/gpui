@@ -325,7 +325,16 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 							continue
 						}
 						tc := filterTC(qp, fA[mby*mbW+mbx], bS)
-						filterLumaEdge(pic.Y, W, sx, sy, vertical, bS, alpha, beta, tc)
+						// S1 dispatch: closed gates skip (scalar would
+						// filter nothing), the arch kernel filters
+						// directly in the picture, chroma stays scalar
+						// (2 lines are too narrow to win back setup).
+						if alpha == 0 || beta == 0 {
+							continue
+						}
+						if !deblockLumaFast(pic.Y, W, sx, sy, vertical, bS, alpha, beta, tc) {
+							filterLumaEdge(pic.Y, W, sx, sy, vertical, bS, alpha, beta, tc)
+						}
 					}
 					// Chroma edges sit on even luma edges only (4:2:0: every
 					// second one), with thresholds from averaged chroma QP.

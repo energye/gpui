@@ -1,0 +1,848 @@
+// S1 amd64 deblock direct 4-line kernels (SSE2 + SSSE3 PABSW).
+// Each kernel loads taps straight from the picture, filters 4 lines at
+// once (one lane per line, branchless masks), and stores straight back.
+// No Go lane buffer, no per-byte bounds checks. Semantics match
+// filterLumaEdge exactly (gate order, tcLine, single-rounding taps).
+//
+// Base pointer: &pic[ey*stride+ex] (first q-side pixel, first line).
+// V kernels (vertical edge, edge runs down): lines are rows ey..ey+3,
+// taps x ex-4..ex+3 per row. Positions p3..q3 number 0..7.
+// H kernels (horizontal edge, edge runs right): lines are columns
+// ex..ex+3, taps y ey-4..ey+3 per column.
+
+#include "textflag.h"
+
+// func deblockVWeak(p unsafe.Pointer, stride, alpha, beta, tc int)
+TEXT ·deblockVWeak(SB), NOSPLIT, $0-40
+	MOVQ p+0(FP), DI
+	MOVQ stride+8(FP), SI
+	MOVQ alpha+16(FP), AX
+	MOVQ beta+24(FP), BX
+	MOVQ tc+32(FP), CX
+	PXOR X15, X15
+	MOVQ AX, X8
+	PSHUFLW $0, X8, X8
+	MOVQ BX, X9
+	PSHUFLW $0, X9, X9
+	MOVQ CX, X10
+	PSHUFLW $0, X10, X10
+	MOVQ DI, R8
+	MOVQ DI, R9
+	ADDQ SI, R9
+	MOVQ DI, R10
+	ADDQ SI, R10
+	ADDQ SI, R10
+	MOVQ DI, R11
+	ADDQ SI, R11
+	ADDQ SI, R11
+	ADDQ SI, R11
+	// Gather p2..q2 (positions 1..6).
+	PXOR X1, X1
+	MOVBLZX -3(R8), AX; PINSRW $0, AX, X1
+	MOVBLZX -3(R9), AX; PINSRW $1, AX, X1
+	MOVBLZX -3(R10), AX; PINSRW $2, AX, X1
+	MOVBLZX -3(R11), AX; PINSRW $3, AX, X1
+	PXOR X2, X2
+	MOVBLZX -2(R8), AX; PINSRW $0, AX, X2
+	MOVBLZX -2(R9), AX; PINSRW $1, AX, X2
+	MOVBLZX -2(R10), AX; PINSRW $2, AX, X2
+	MOVBLZX -2(R11), AX; PINSRW $3, AX, X2
+	PXOR X3, X3
+	MOVBLZX -1(R8), AX; PINSRW $0, AX, X3
+	MOVBLZX -1(R9), AX; PINSRW $1, AX, X3
+	MOVBLZX -1(R10), AX; PINSRW $2, AX, X3
+	MOVBLZX -1(R11), AX; PINSRW $3, AX, X3
+	PXOR X4, X4
+	MOVBLZX 0(R8), AX; PINSRW $0, AX, X4
+	MOVBLZX 0(R9), AX; PINSRW $1, AX, X4
+	MOVBLZX 0(R10), AX; PINSRW $2, AX, X4
+	MOVBLZX 0(R11), AX; PINSRW $3, AX, X4
+	PXOR X5, X5
+	MOVBLZX 1(R8), AX; PINSRW $0, AX, X5
+	MOVBLZX 1(R9), AX; PINSRW $1, AX, X5
+	MOVBLZX 1(R10), AX; PINSRW $2, AX, X5
+	MOVBLZX 1(R11), AX; PINSRW $3, AX, X5
+	PXOR X6, X6
+	MOVBLZX 2(R8), AX; PINSRW $0, AX, X6
+	MOVBLZX 2(R9), AX; PINSRW $1, AX, X6
+	MOVBLZX 2(R10), AX; PINSRW $2, AX, X6
+	MOVBLZX 2(R11), AX; PINSRW $3, AX, X6
+	// avg = (p0+q0+1)>>1 (originals).
+	MOVAPS X3, X7
+	PADDW X4, X7
+	PADDW ·deblockC1(SB), X7
+	PSRLW $1, X7
+	// GATE = (|p0-q0|<a) & (|p1-p0|<b) & (|q1-q0|<b).
+	MOVAPS X3, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X8, X12
+	PCMPGTW X11, X12
+	MOVAPS X2, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X5, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	PAND X13, X12
+	PAND X14, X12
+	// AP = |p2-p0|<b ; AQ = |q2-q0|<b.
+	MOVAPS X1, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X6, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	// tcL = tc + ap + aq per lane (X8; alpha dead from here on).
+	MOVAPS X13, X8
+	PSRLW $15, X8
+	MOVAPS X14, X11
+	PSRLW $15, X11
+	PADDW X11, X8
+	PADDW X10, X8
+	// delta = clip3(((q0-p0)<<2)+(p1-q1)+4)>>3, -tcL, tcL).
+	MOVAPS X4, X11
+	PSUBW X3, X11
+	PSLLW $2, X11
+	MOVAPS X2, X9
+	PSUBW X5, X9
+	PADDW X9, X11
+	PADDW ·deblockC4(SB), X11
+	PSRAW $3, X11
+	MOVAPS X15, X9
+	PSUBW X8, X9
+	PMAXSW X9, X11
+	PMINSW X8, X11
+	MOVAPS X11, X9
+	// p0 = GATE ? p0+delta : p0 ; q0 = GATE ? q0-delta : q0.
+	MOVAPS X3, X0
+	PADDW X9, X0
+	PXOR X3, X0
+	PAND X12, X0
+	PXOR X0, X3
+	MOVAPS X4, X0
+	PSUBW X9, X0
+	PXOR X4, X0
+	PAND X12, X0
+	PXOR X0, X4
+	// p1 += clip3((p2+avg-2*p1)>>1, -tc, tc), kept under GATE&AP.
+	MOVAPS X1, X11
+	PADDW X7, X11
+	MOVAPS X2, X9
+	PSLLW $1, X9
+	PSUBW X9, X11
+	PSRAW $1, X11
+	MOVAPS X15, X9
+	PSUBW X10, X9
+	PMAXSW X9, X11
+	PMINSW X10, X11
+	MOVAPS X2, X0
+	PADDW X11, X0
+	PXOR X2, X0
+	MOVAPS X12, X9
+	PAND X13, X9
+	PAND X9, X0
+	PXOR X0, X2
+	// q1 += clip3((q2+avg-2*q1)>>1, -tc, tc), kept under GATE&AQ.
+	MOVAPS X6, X11
+	PADDW X7, X11
+	MOVAPS X5, X9
+	PSLLW $1, X9
+	PSUBW X9, X11
+	PSRAW $1, X11
+	MOVAPS X15, X9
+	PSUBW X10, X9
+	PMAXSW X9, X11
+	PMINSW X10, X11
+	MOVAPS X5, X0
+	PADDW X11, X0
+	PXOR X5, X0
+	MOVAPS X12, X9
+	PAND X14, X9
+	PAND X9, X0
+	PXOR X0, X5
+	// Store p1/p0/q0/q1 (saturating pack, lanes to rows).
+	PACKUSWB X2, X2
+	MOVD X2, AX
+	MOVB AL, -2(R8)
+	SHRL $8, AX; MOVB AL, -2(R9)
+	SHRL $8, AX; MOVB AL, -2(R10)
+	SHRL $8, AX; MOVB AL, -2(R11)
+	PACKUSWB X3, X3
+	MOVD X3, AX
+	MOVB AL, -1(R8)
+	SHRL $8, AX; MOVB AL, -1(R9)
+	SHRL $8, AX; MOVB AL, -1(R10)
+	SHRL $8, AX; MOVB AL, -1(R11)
+	PACKUSWB X4, X4
+	MOVD X4, AX
+	MOVB AL, 0(R8)
+	SHRL $8, AX; MOVB AL, 0(R9)
+	SHRL $8, AX; MOVB AL, 0(R10)
+	SHRL $8, AX; MOVB AL, 0(R11)
+	PACKUSWB X5, X5
+	MOVD X5, AX
+	MOVB AL, 1(R8)
+	SHRL $8, AX; MOVB AL, 1(R9)
+	SHRL $8, AX; MOVB AL, 1(R10)
+	SHRL $8, AX; MOVB AL, 1(R11)
+	RET
+
+// func deblockHWeak(p unsafe.Pointer, stride, alpha, beta, tc int)
+TEXT ·deblockHWeak(SB), NOSPLIT, $0-40
+	MOVQ p+0(FP), DI
+	MOVQ stride+8(FP), SI
+	MOVQ alpha+16(FP), AX
+	MOVQ beta+24(FP), BX
+	MOVQ tc+32(FP), CX
+	PXOR X15, X15
+	MOVQ AX, X8
+	PSHUFLW $0, X8, X8
+	MOVQ BX, X9
+	PSHUFLW $0, X9, X9
+	MOVQ CX, X10
+	PSHUFLW $0, X10, X10
+	// Row pointers R8..R15 = base -4*stride .. base +3*stride.
+	MOVQ SI, AX
+	SHLQ $2, AX
+	MOVQ DI, R8
+	SUBQ AX, R8
+	MOVQ R8, R9
+	ADDQ SI, R9
+	MOVQ R9, R10
+	ADDQ SI, R10
+	MOVQ R10, R11
+	ADDQ SI, R11
+	MOVQ R11, R12
+	ADDQ SI, R12
+	MOVQ R12, R13
+	ADDQ SI, R13
+	MOVQ R13, R14
+	ADDQ SI, R14
+	MOVQ R14, R15
+	ADDQ SI, R15
+	// Gather p2..q2: one DWORD (4 columns) per position row.
+	// X1=p2=R9, X2=p1=R10, X3=p0=R11, X4=q0=R12, X5=q1=R13, X6=q2=R14.
+	MOVL (R9), AX; MOVD AX, X1; PUNPCKLBW X15, X1
+	MOVL (R10), AX; MOVD AX, X2; PUNPCKLBW X15, X2
+	MOVL (R11), AX; MOVD AX, X3; PUNPCKLBW X15, X3
+	MOVL (R12), AX; MOVD AX, X4; PUNPCKLBW X15, X4
+	MOVL (R13), AX; MOVD AX, X5; PUNPCKLBW X15, X5
+	MOVL (R14), AX; MOVD AX, X6; PUNPCKLBW X15, X6
+	// avg = (p0+q0+1)>>1 (originals).
+	MOVAPS X3, X7
+	PADDW X4, X7
+	PADDW ·deblockC1(SB), X7
+	PSRLW $1, X7
+	// GATE = (|p0-q0|<a) & (|p1-p0|<b) & (|q1-q0|<b).
+	MOVAPS X3, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X8, X12
+	PCMPGTW X11, X12
+	MOVAPS X2, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X5, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	PAND X13, X12
+	PAND X14, X12
+	// AP = |p2-p0|<b ; AQ = |q2-q0|<b.
+	MOVAPS X1, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X6, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	// tcL = tc + ap + aq per lane (X8; alpha dead from here on).
+	MOVAPS X13, X8
+	PSRLW $15, X8
+	MOVAPS X14, X11
+	PSRLW $15, X11
+	PADDW X11, X8
+	PADDW X10, X8
+	// delta = clip3(((q0-p0)<<2)+(p1-q1)+4)>>3, -tcL, tcL).
+	MOVAPS X4, X11
+	PSUBW X3, X11
+	PSLLW $2, X11
+	MOVAPS X2, X9
+	PSUBW X5, X9
+	PADDW X9, X11
+	PADDW ·deblockC4(SB), X11
+	PSRAW $3, X11
+	MOVAPS X15, X9
+	PSUBW X8, X9
+	PMAXSW X9, X11
+	PMINSW X8, X11
+	MOVAPS X11, X9
+	// p0 = GATE ? p0+delta : p0 ; q0 = GATE ? q0-delta : q0.
+	MOVAPS X3, X0
+	PADDW X9, X0
+	PXOR X3, X0
+	PAND X12, X0
+	PXOR X0, X3
+	MOVAPS X4, X0
+	PSUBW X9, X0
+	PXOR X4, X0
+	PAND X12, X0
+	PXOR X0, X4
+	// p1 += clip3((p2+avg-2*p1)>>1, -tc, tc), kept under GATE&AP.
+	MOVAPS X1, X11
+	PADDW X7, X11
+	MOVAPS X2, X9
+	PSLLW $1, X9
+	PSUBW X9, X11
+	PSRAW $1, X11
+	MOVAPS X15, X9
+	PSUBW X10, X9
+	PMAXSW X9, X11
+	PMINSW X10, X11
+	MOVAPS X2, X0
+	PADDW X11, X0
+	PXOR X2, X0
+	MOVAPS X12, X9
+	PAND X13, X9
+	PAND X9, X0
+	PXOR X0, X2
+	// q1 += clip3((q2+avg-2*q1)>>1, -tc, tc), kept under GATE&AQ.
+	MOVAPS X6, X11
+	PADDW X7, X11
+	MOVAPS X5, X9
+	PSLLW $1, X9
+	PSUBW X9, X11
+	PSRAW $1, X11
+	MOVAPS X15, X9
+	PSUBW X10, X9
+	PMAXSW X9, X11
+	PMINSW X10, X11
+	MOVAPS X5, X0
+	PADDW X11, X0
+	PXOR X5, X0
+	MOVAPS X12, X9
+	PAND X14, X9
+	PAND X9, X0
+	PXOR X0, X5
+	// Store p1/p0/q0/q1 as DWORDs to rows R10..R13.
+	PACKUSWB X2, X2
+	MOVD X2, AX; MOVL AX, (R10)
+	PACKUSWB X3, X3
+	MOVD X3, AX; MOVL AX, (R11)
+	PACKUSWB X4, X4
+	MOVD X4, AX; MOVL AX, (R12)
+	PACKUSWB X5, X5
+	MOVD X5, AX; MOVL AX, (R13)
+	RET
+
+// func deblockVStrong(p unsafe.Pointer, stride, alpha, beta int)
+TEXT ·deblockVStrong(SB), NOSPLIT, $0-32
+	MOVQ p+0(FP), DI
+	MOVQ stride+8(FP), SI
+	MOVQ alpha+16(FP), AX
+	MOVQ beta+24(FP), BX
+	PXOR X15, X15
+	MOVQ AX, X8
+	PSHUFLW $0, X8, X8
+	MOVQ BX, X9
+	PSHUFLW $0, X9, X9
+	MOVQ DI, R8
+	MOVQ DI, R9
+	ADDQ SI, R9
+	MOVQ DI, R10
+	ADDQ SI, R10
+	ADDQ SI, R10
+	MOVQ DI, R11
+	ADDQ SI, R11
+	ADDQ SI, R11
+	ADDQ SI, R11
+	// Gather p3..q3 (positions 0..7).
+	PXOR X0, X0
+	MOVBLZX -4(R8), AX; PINSRW $0, AX, X0
+	MOVBLZX -4(R9), AX; PINSRW $1, AX, X0
+	MOVBLZX -4(R10), AX; PINSRW $2, AX, X0
+	MOVBLZX -4(R11), AX; PINSRW $3, AX, X0
+	PXOR X1, X1
+	MOVBLZX -3(R8), AX; PINSRW $0, AX, X1
+	MOVBLZX -3(R9), AX; PINSRW $1, AX, X1
+	MOVBLZX -3(R10), AX; PINSRW $2, AX, X1
+	MOVBLZX -3(R11), AX; PINSRW $3, AX, X1
+	PXOR X2, X2
+	MOVBLZX -2(R8), AX; PINSRW $0, AX, X2
+	MOVBLZX -2(R9), AX; PINSRW $1, AX, X2
+	MOVBLZX -2(R10), AX; PINSRW $2, AX, X2
+	MOVBLZX -2(R11), AX; PINSRW $3, AX, X2
+	PXOR X3, X3
+	MOVBLZX -1(R8), AX; PINSRW $0, AX, X3
+	MOVBLZX -1(R9), AX; PINSRW $1, AX, X3
+	MOVBLZX -1(R10), AX; PINSRW $2, AX, X3
+	MOVBLZX -1(R11), AX; PINSRW $3, AX, X3
+	PXOR X4, X4
+	MOVBLZX 0(R8), AX; PINSRW $0, AX, X4
+	MOVBLZX 0(R9), AX; PINSRW $1, AX, X4
+	MOVBLZX 0(R10), AX; PINSRW $2, AX, X4
+	MOVBLZX 0(R11), AX; PINSRW $3, AX, X4
+	PXOR X5, X5
+	MOVBLZX 1(R8), AX; PINSRW $0, AX, X5
+	MOVBLZX 1(R9), AX; PINSRW $1, AX, X5
+	MOVBLZX 1(R10), AX; PINSRW $2, AX, X5
+	MOVBLZX 1(R11), AX; PINSRW $3, AX, X5
+	PXOR X6, X6
+	MOVBLZX 2(R8), AX; PINSRW $0, AX, X6
+	MOVBLZX 2(R9), AX; PINSRW $1, AX, X6
+	MOVBLZX 2(R10), AX; PINSRW $2, AX, X6
+	MOVBLZX 2(R11), AX; PINSRW $3, AX, X6
+	PXOR X7, X7
+	MOVBLZX 3(R8), AX; PINSRW $0, AX, X7
+	MOVBLZX 3(R9), AX; PINSRW $1, AX, X7
+	MOVBLZX 3(R10), AX; PINSRW $2, AX, X7
+	MOVBLZX 3(R11), AX; PINSRW $3, AX, X7
+	// GATE (same three conditions as weak).
+	MOVAPS X3, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X8, X12
+	PCMPGTW X11, X12
+	MOVAPS X2, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X5, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	PAND X13, X12
+	PAND X14, X12
+	// AP / AQ masks (fold OUTER in below).
+	MOVAPS X1, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X6, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	// OUTER = |p0-q0| < (alpha>>2)+2 ; M1 = GATE&AP&OUTER (X13), M2 (X14).
+	MOVAPS X3, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X8, X15
+	PSRLW $2, X15
+	PADDW ·deblockC2(SB), X15
+	PCMPGTW X11, X15
+	PAND X12, X13
+	PAND X15, X13
+	PAND X12, X14
+	PAND X15, X14
+	// Spill original p0/p1 to free GPRs (rows stay intact; q candidates
+	// need them after p blends). DX/BX are free here (broadcast done).
+	MOVQ X3, DX
+	MOVQ X2, BX
+	// p2a = (2*p3+3*p2+p1+p0+q0+4)>>3.
+	MOVAPS X0, X8
+	PSLLW $1, X8
+	MOVAPS X1, X11
+	PSLLW $1, X11
+	PADDW X1, X11
+	PADDW X11, X8
+	PADDW X2, X8
+	PADDW X3, X8
+	PADDW X4, X8
+	PADDW ·deblockC4(SB), X8
+	PSRAW $3, X8
+	// p0a = (p2+2*p1+2*p0+2*q0+q1+4)>>3.
+	MOVAPS X1, X9
+	MOVAPS X2, X11
+	PSLLW $1, X11
+	PADDW X11, X9
+	MOVAPS X3, X11
+	PSLLW $1, X11
+	PADDW X11, X9
+	MOVAPS X4, X11
+	PSLLW $1, X11
+	PADDW X11, X9
+	PADDW X5, X9
+	PADDW ·deblockC4(SB), X9
+	PSRAW $3, X9
+	// p1a = (p2+p1+p0+q0+2)>>2 ; p0b = (2*p1+p0+q1+2)>>2.
+	MOVAPS X1, X10
+	PADDW X2, X10
+	PADDW X3, X10
+	PADDW X4, X10
+	PADDW ·deblockC2(SB), X10
+	PSRAW $2, X10
+	MOVAPS X2, X11
+	PSLLW $1, X11
+	PADDW X3, X11
+	PADDW X5, X11
+	PADDW ·deblockC2(SB), X11
+	PSRAW $2, X11
+	// p1 = M1 ? p1a : p1 ; p2 = M1 ? p2a : p2 (M1 in X13).
+	MOVAPS X2, X15
+	PXOR X10, X15
+	PAND X13, X15
+	PXOR X15, X2
+	MOVAPS X1, X15
+	PXOR X8, X15
+	PAND X13, X15
+	PXOR X15, X1
+	// p0 = M1 ? p0a : (GATE ? p0b : p0). R starts as old p0 (X3).
+	MOVAPS X3, X15
+	PXOR X11, X15
+	PAND X12, X15
+	PXOR X15, X3
+	MOVAPS X3, X15
+	PXOR X9, X15
+	PAND X13, X15
+	PXOR X15, X3
+	// Reload original p0/p1 (X9/X10 dead now).
+	PXOR X9, X9
+	MOVQ DX, X9
+	PXOR X10, X10
+	MOVQ BX, X10
+	// q2a = (2*q3+3*q2+q1+q0+p0+4)>>3.
+	MOVAPS X7, X8
+	PSLLW $1, X8
+	MOVAPS X6, X11
+	PSLLW $1, X11
+	PADDW X6, X11
+	PADDW X11, X8
+	PADDW X5, X8
+	PADDW X4, X8
+	PADDW X9, X8
+	PADDW ·deblockC4(SB), X8
+	PSRAW $3, X8
+	// q0a = (q2+2*q1+2*q0+2*p0+p1+4)>>3 (orig p0/p1 in X9/X10).
+	MOVAPS X6, X0
+	MOVAPS X5, X15
+	PSLLW $1, X15
+	PADDW X15, X0
+	MOVAPS X4, X15
+	PSLLW $1, X15
+	PADDW X15, X0
+	MOVAPS X9, X15
+	PSLLW $1, X15
+	PADDW X15, X0
+	PADDW X10, X0
+	PADDW ·deblockC4(SB), X0
+	PSRAW $3, X0
+	// q0b = (2*q1+q0+p1+2)>>2 (orig p1 still in X10).
+	MOVAPS X5, X11
+	PSLLW $1, X11
+	PADDW X4, X11
+	PADDW X10, X11
+	PADDW ·deblockC2(SB), X11
+	PSRAW $2, X11
+	// q1a = (q2+q1+q0+p0+2)>>2.
+	MOVAPS X6, X10
+	PADDW X5, X10
+	PADDW X4, X10
+	PADDW X9, X10
+	PADDW ·deblockC2(SB), X10
+	PSRAW $2, X10
+	// q0 = M2 ? q0a : (GATE ? q0b : q0). R starts as old q0 (X4).
+	MOVAPS X4, X15
+	PXOR X11, X15
+	PAND X12, X15
+	PXOR X15, X4
+	MOVAPS X4, X15
+	PXOR X0, X15
+	PAND X14, X15
+	PXOR X15, X4
+	// q1 = M2 ? q1a : q1 ; q2 = M2 ? q2a : q2 (M2 in X14).
+	MOVAPS X5, X15
+	PXOR X10, X15
+	PAND X14, X15
+	PXOR X15, X5
+	MOVAPS X6, X15
+	PXOR X8, X15
+	PAND X14, X15
+	PXOR X15, X6
+	// Store p2/p1/p0/q0/q1/q2 (lanes to rows).
+	PACKUSWB X1, X1
+	MOVD X1, AX
+	MOVB AL, -3(R8)
+	SHRL $8, AX; MOVB AL, -3(R9)
+	SHRL $8, AX; MOVB AL, -3(R10)
+	SHRL $8, AX; MOVB AL, -3(R11)
+	PACKUSWB X2, X2
+	MOVD X2, AX
+	MOVB AL, -2(R8)
+	SHRL $8, AX; MOVB AL, -2(R9)
+	SHRL $8, AX; MOVB AL, -2(R10)
+	SHRL $8, AX; MOVB AL, -2(R11)
+	PACKUSWB X3, X3
+	MOVD X3, AX
+	MOVB AL, -1(R8)
+	SHRL $8, AX; MOVB AL, -1(R9)
+	SHRL $8, AX; MOVB AL, -1(R10)
+	SHRL $8, AX; MOVB AL, -1(R11)
+	PACKUSWB X4, X4
+	MOVD X4, AX
+	MOVB AL, 0(R8)
+	SHRL $8, AX; MOVB AL, 0(R9)
+	SHRL $8, AX; MOVB AL, 0(R10)
+	SHRL $8, AX; MOVB AL, 0(R11)
+	PACKUSWB X5, X5
+	MOVD X5, AX
+	MOVB AL, 1(R8)
+	SHRL $8, AX; MOVB AL, 1(R9)
+	SHRL $8, AX; MOVB AL, 1(R10)
+	SHRL $8, AX; MOVB AL, 1(R11)
+	PACKUSWB X6, X6
+	MOVD X6, AX
+	MOVB AL, 2(R8)
+	SHRL $8, AX; MOVB AL, 2(R9)
+	SHRL $8, AX; MOVB AL, 2(R10)
+	SHRL $8, AX; MOVB AL, 2(R11)
+	RET
+
+// func deblockHStrong(p unsafe.Pointer, stride, alpha, beta int)
+TEXT ·deblockHStrong(SB), NOSPLIT, $0-32
+	MOVQ p+0(FP), DI
+	MOVQ stride+8(FP), SI
+	MOVQ alpha+16(FP), AX
+	MOVQ beta+24(FP), BX
+	PXOR X15, X15
+	MOVQ AX, X8
+	PSHUFLW $0, X8, X8
+	MOVQ BX, X9
+	PSHUFLW $0, X9, X9
+	// Row pointers R8..R15 = base -4*stride .. base +3*stride.
+	MOVQ SI, AX
+	SHLQ $2, AX
+	MOVQ DI, R8
+	SUBQ AX, R8
+	MOVQ R8, R9
+	ADDQ SI, R9
+	MOVQ R9, R10
+	ADDQ SI, R10
+	MOVQ R10, R11
+	ADDQ SI, R11
+	MOVQ R11, R12
+	ADDQ SI, R12
+	MOVQ R12, R13
+	ADDQ SI, R13
+	MOVQ R13, R14
+	ADDQ SI, R14
+	MOVQ R14, R15
+	ADDQ SI, R15
+	// Gather p3..q3: one DWORD per position row.
+	// X0=p3=R8, X1=p2=R9, X2=p1=R10, X3=p0=R11,
+	// X4=q0=R12, X5=q1=R13, X6=q2=R14, X7=q3=R15.
+	MOVL (R8), AX; MOVD AX, X0; PUNPCKLBW X15, X0
+	MOVL (R9), AX; MOVD AX, X1; PUNPCKLBW X15, X1
+	MOVL (R10), AX; MOVD AX, X2; PUNPCKLBW X15, X2
+	MOVL (R11), AX; MOVD AX, X3; PUNPCKLBW X15, X3
+	MOVL (R12), AX; MOVD AX, X4; PUNPCKLBW X15, X4
+	MOVL (R13), AX; MOVD AX, X5; PUNPCKLBW X15, X5
+	MOVL (R14), AX; MOVD AX, X6; PUNPCKLBW X15, X6
+	MOVL (R15), AX; MOVD AX, X7; PUNPCKLBW X15, X7
+	// GATE (same three conditions as weak).
+	MOVAPS X3, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X8, X12
+	PCMPGTW X11, X12
+	MOVAPS X2, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X5, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	PAND X13, X12
+	PAND X14, X12
+	// AP / AQ masks (fold OUTER in below).
+	MOVAPS X1, X11
+	PSUBW X3, X11
+	PABSW X11, X11
+	MOVAPS X9, X13
+	PCMPGTW X11, X13
+	MOVAPS X6, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X9, X14
+	PCMPGTW X11, X14
+	// OUTER = |p0-q0| < (alpha>>2)+2 ; M1 = GATE&AP&OUTER (X13), M2 (X14).
+	MOVAPS X3, X11
+	PSUBW X4, X11
+	PABSW X11, X11
+	MOVAPS X8, X15
+	PSRLW $2, X15
+	PADDW ·deblockC2(SB), X15
+	PCMPGTW X11, X15
+	PAND X12, X13
+	PAND X15, X13
+	PAND X12, X14
+	PAND X15, X14
+	// Spill original p0/p1 to free GPRs (rows stay intact; q candidates
+	// need them after p blends). DX/BX are free here (broadcast done).
+	MOVQ X3, DX
+	MOVQ X2, BX
+	// p2a = (2*p3+3*p2+p1+p0+q0+4)>>3.
+	MOVAPS X0, X8
+	PSLLW $1, X8
+	MOVAPS X1, X11
+	PSLLW $1, X11
+	PADDW X1, X11
+	PADDW X11, X8
+	PADDW X2, X8
+	PADDW X3, X8
+	PADDW X4, X8
+	PADDW ·deblockC4(SB), X8
+	PSRAW $3, X8
+	// p0a = (p2+2*p1+2*p0+2*q0+q1+4)>>3.
+	MOVAPS X1, X9
+	MOVAPS X2, X11
+	PSLLW $1, X11
+	PADDW X11, X9
+	MOVAPS X3, X11
+	PSLLW $1, X11
+	PADDW X11, X9
+	MOVAPS X4, X11
+	PSLLW $1, X11
+	PADDW X11, X9
+	PADDW X5, X9
+	PADDW ·deblockC4(SB), X9
+	PSRAW $3, X9
+	// p1a = (p2+p1+p0+q0+2)>>2 ; p0b = (2*p1+p0+q1+2)>>2.
+	MOVAPS X1, X10
+	PADDW X2, X10
+	PADDW X3, X10
+	PADDW X4, X10
+	PADDW ·deblockC2(SB), X10
+	PSRAW $2, X10
+	MOVAPS X2, X11
+	PSLLW $1, X11
+	PADDW X3, X11
+	PADDW X5, X11
+	PADDW ·deblockC2(SB), X11
+	PSRAW $2, X11
+	// p1 = M1 ? p1a : p1 ; p2 = M1 ? p2a : p2 (M1 in X13).
+	MOVAPS X2, X15
+	PXOR X10, X15
+	PAND X13, X15
+	PXOR X15, X2
+	MOVAPS X1, X15
+	PXOR X8, X15
+	PAND X13, X15
+	PXOR X15, X1
+	// p0 = M1 ? p0a : (GATE ? p0b : p0). R starts as old p0 (X3).
+	MOVAPS X3, X15
+	PXOR X11, X15
+	PAND X12, X15
+	PXOR X15, X3
+	MOVAPS X3, X15
+	PXOR X9, X15
+	PAND X13, X15
+	PXOR X15, X3
+	// Reload original p0/p1 (X9/X10 dead now).
+	PXOR X9, X9
+	MOVQ DX, X9
+	PXOR X10, X10
+	MOVQ BX, X10
+	// q2a = (2*q3+3*q2+q1+q0+p0+4)>>3.
+	MOVAPS X7, X8
+	PSLLW $1, X8
+	MOVAPS X6, X11
+	PSLLW $1, X11
+	PADDW X6, X11
+	PADDW X11, X8
+	PADDW X5, X8
+	PADDW X4, X8
+	PADDW X9, X8
+	PADDW ·deblockC4(SB), X8
+	PSRAW $3, X8
+	// q0a = (q2+2*q1+2*q0+2*p0+p1+4)>>3 (orig p0/p1 in X9/X10).
+	MOVAPS X6, X0
+	MOVAPS X5, X15
+	PSLLW $1, X15
+	PADDW X15, X0
+	MOVAPS X4, X15
+	PSLLW $1, X15
+	PADDW X15, X0
+	MOVAPS X9, X15
+	PSLLW $1, X15
+	PADDW X15, X0
+	PADDW X10, X0
+	PADDW ·deblockC4(SB), X0
+	PSRAW $3, X0
+	// q0b = (2*q1+q0+p1+2)>>2 (orig p1 still in X10).
+	MOVAPS X5, X11
+	PSLLW $1, X11
+	PADDW X4, X11
+	PADDW X10, X11
+	PADDW ·deblockC2(SB), X11
+	PSRAW $2, X11
+	// q1a = (q2+q1+q0+p0+2)>>2.
+	MOVAPS X6, X10
+	PADDW X5, X10
+	PADDW X4, X10
+	PADDW X9, X10
+	PADDW ·deblockC2(SB), X10
+	PSRAW $2, X10
+	// q0 = M2 ? q0a : (GATE ? q0b : q0). R starts as old q0 (X4).
+	MOVAPS X4, X15
+	PXOR X11, X15
+	PAND X12, X15
+	PXOR X15, X4
+	MOVAPS X4, X15
+	PXOR X0, X15
+	PAND X14, X15
+	PXOR X15, X4
+	// q1 = M2 ? q1a : q1 ; q2 = M2 ? q2a : q2 (M2 in X14).
+	MOVAPS X5, X15
+	PXOR X10, X15
+	PAND X14, X15
+	PXOR X15, X5
+	MOVAPS X6, X15
+	PXOR X8, X15
+	PAND X14, X15
+	PXOR X15, X6
+	// Store p2/p1/p0/q0/q1/q2 as DWORDs to rows R9..R14 (intact).
+	PACKUSWB X1, X1
+	MOVD X1, AX; MOVL AX, (R9)
+	PACKUSWB X2, X2
+	MOVD X2, AX; MOVL AX, (R10)
+	PACKUSWB X3, X3
+	MOVD X3, AX; MOVL AX, (R11)
+	PACKUSWB X4, X4
+	MOVD X4, AX; MOVL AX, (R12)
+	PACKUSWB X5, X5
+	MOVD X5, AX; MOVL AX, (R13)
+	PACKUSWB X6, X6
+	MOVD X6, AX; MOVL AX, (R14)
+	RET
+
+GLOBL ·deblockC1(SB), RODATA|NOPTR, $16
+DATA ·deblockC1+0(SB)/8, $0x0001000100010001
+DATA ·deblockC1+8(SB)/8, $0x0000000000000000
+GLOBL ·deblockC2(SB), RODATA|NOPTR, $16
+DATA ·deblockC2+0(SB)/8, $0x0002000200020002
+DATA ·deblockC2+8(SB)/8, $0x0000000000000000
+GLOBL ·deblockC4(SB), RODATA|NOPTR, $16
+DATA ·deblockC4+0(SB)/8, $0x0004000400040004
+DATA ·deblockC4+8(SB)/8, $0x0000000000000000
