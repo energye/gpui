@@ -1,0 +1,67 @@
+{
+  "bodies": [
+    {"name": "box_a", "shape": "box", "pos": [0, 0], "half": [10, 10], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "box_b", "shape": "box", "pos": [5, 5], "half": [10, 10], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "box_far", "shape": "box", "pos": [100, 100], "half": [5, 5], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "box_touch", "shape": "box", "pos": [20, 0], "half": [10, 10], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "box_gap", "shape": "box", "pos": [20.5, 0], "half": [10, 10], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_a", "shape": "circle", "pos": [0, 0], "half": [0, 0], "radius": 5, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_b", "shape": "circle", "pos": [8, 0], "half": [0, 0], "radius": 5, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_far", "shape": "circle", "pos": [50, 0], "half": [0, 0], "radius": 5, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "box_c", "shape": "box", "pos": [0, 0], "half": [10, 10], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_in", "shape": "circle", "pos": [0, 0], "half": [0, 0], "radius": 2, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_edge", "shape": "circle", "pos": [15, 0], "half": [0, 0], "radius": 5, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_out", "shape": "circle", "pos": [15.5, 0], "half": [0, 0], "radius": 5, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "coin_trigger", "shape": "box", "pos": [0, 0], "half": [10, 10], "radius": 0, "layer": 1, "mask": 1, "trigger": true},
+    {"name": "ghost", "shape": "box", "pos": [0, 0], "half": [10, 10], "radius": 0, "layer": 2, "mask": 2, "trigger": false},
+    {"name": "hero", "shape": "box", "pos": [0, 0], "half": [5, 5], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "wall", "shape": "box", "pos": [8, 0], "half": [5, 5], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "far_coin", "shape": "box", "pos": [100, 100], "half": [5, 5], "radius": 0, "layer": 1, "mask": 1, "trigger": true},
+    {"name": "coin_near", "shape": "box", "pos": [1, 0], "half": [5, 5], "radius": 0, "layer": 1, "mask": 1, "trigger": true}
+  ],
+  "overlaps": [
+    {"a": "box_a", "b": "box_b", "want": true},
+    {"a": "box_a", "b": "box_far", "want": false},
+    {"a": "box_a", "b": "box_touch", "want": true},
+    {"a": "box_a", "b": "box_gap", "want": false},
+    {"a": "circle_a", "b": "circle_b", "want": true},
+    {"a": "circle_a", "b": "circle_far", "want": false},
+    {"a": "box_c", "b": "circle_in", "want": true},
+    {"a": "box_c", "b": "circle_edge", "want": true},
+    {"a": "box_c", "b": "circle_out", "want": false},
+    {"a": "box_a", "b": "coin_trigger", "want": true},
+    {"a": "box_a", "b": "ghost", "want": true}
+  ],
+  "collides": [
+    {"a": "box_a", "b": "box_b", "want": true},
+    {"a": "box_a", "b": "ghost", "want": false},
+    {"a": "hero", "b": "ghost", "want": false},
+    {"a": "hero", "b": "wall", "want": true}
+  ],
+  "queries": [
+    {
+      "name": "trio_solid",
+      "bodies": ["hero", "wall", "far_coin"],
+      "want": [["hero", "wall"]],
+      "want_trigger": [false]
+    },
+    {
+      "name": "trigger_one",
+      "bodies": ["hero", "coin_near"],
+      "want": [["hero", "coin_near"]],
+      "want_trigger": [true]
+    },
+    {
+      "name": "layer_filtered",
+      "bodies": ["hero", "ghost"],
+      "want": [],
+      "want_trigger": []
+    },
+    {
+      "name": "mixed",
+      "bodies": ["hero", "wall", "coin_near", "ghost", "far_coin"],
+      "want": [["hero", "wall"], ["hero", "coin_near"], ["wall", "coin_near"]],
+      "want_trigger": [false, true, true]
+    }
+  ]
+}
