@@ -8,6 +8,10 @@ type LayerBuilder struct {
 
 	// DirtyBoundaryIDs collected when a boundary reports needs paint.
 	DirtyBoundaryIDs []uint64
+
+	// pictureOpCount is the BuildPacket-time op total (see PictureOpCount).
+	// Builder-scoped, never shipped in the packet: the packet shape is unchanged.
+	pictureOpCount int
 }
 
 // NewLayerBuilder starts with a root container.
@@ -126,6 +130,20 @@ func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer {
 	return p
 }
 
+// PictureOpCount returns the display-list op total summed over every
+// PictureLayer under the built root during the last BuildPacket call.
+// It is gathered inside the packet-finalize walk that already collects dirty
+// picture layers, so readers pay no extra tree walk (E2: replaces a separate
+// CountPictureOps pass over the finished packet). The overlay band is still
+// an empty reserve at BuildPacket time (attached later), so this equals
+// CountPictureOps on the fresh packet.
+func (b *LayerBuilder) PictureOpCount() int {
+	if b == nil {
+		return 0
+	}
+	return b.pictureOpCount
+}
+
 // Pop removes the current layer from the stack (not the root).
 func (b *LayerBuilder) Pop() {
 	if b == nil || len(b.stack) <= 1 {
@@ -150,10 +168,16 @@ func (b *LayerBuilder) BuildPacket(frameID uint64, dpr, w, h float64) *FramePack
 		Generation:    frameID,
 	}
 	// Picture layers that need raster also dirty.
+	// Same walk also sums display-list ops (see PictureOpCount).
+	ops := 0
 	Walk(b.root, func(l Layer) {
-		if pl, ok := l.(*PictureLayer); ok && pl.NeedsRaster {
-			pkt.DirtyLayerIDs = append(pkt.DirtyLayerIDs, pl.LayerID())
+		if pl, ok := l.(*PictureLayer); ok {
+			ops += pl.Picture.OpCount()
+			if pl.NeedsRaster {
+				pkt.DirtyLayerIDs = append(pkt.DirtyLayerIDs, pl.LayerID())
+			}
 		}
 	})
+	b.pictureOpCount = ops
 	return pkt
 }
