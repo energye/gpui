@@ -34,12 +34,12 @@ button 真窗点按拖拽慢半拍——界面线程建包 + 画纹理（`scene.
 
 | 期 | 做什么（落点） | 门（有一项不对回滚当期） |
 |----|---------------|--------------------------|
-| T0 基线冻结 | E2/E3/E5 留基线不动；示例测试冻结；记基线数（按钮包、渲染包、真窗140项、`Children` 361次、race干净）；`-race` 常驻点拖滚复现 D11 活 race | 基线数落 §7 状态表 |
-| T1 封包只读 | `ui/scene/packet.go` + `ui/rendering/layer_build.go`：交出去后不再改，单测锁“交后改树不影响已交包”；附带 G1 平台线分家名分、G2 再生语义、G3 交包即 EndFrame、G10 逐帧四戳、G12 帧后钩子、D3 单测 inline 双模式、D10 hops 表 | 新单测绿；包相等门绿；`ui/scene` + `ui/rendering` 逐文件绿 |
-| T2 搬画画出界面线 | `pipeline_app.go` + `raster/loop.go`：`RasterizeDirty`（含 `RasterExtra`）搬进 `raster.FrameJob`，界面建完包即回循环；附带 G4 建前占位、G5 线程断言、G9 事件帧号、D1 建包快照（Button/Icon/Text 先行）、D2/D12 旗子收拢、D5 完成回执、D9 异步语义、D14 budget 单侧判定 | 点按反馈≤2帧；`-race` 点拖滚干净；`ui/embedder` + `ui/raster` 逐文件绿；真窗140项绿 |
-| T3 合成送屏收尾 | `ui/scene/textured.go` + `render/present_target.go`：纹理缓存调用点定死、`render` 上下文归光栅独占（`gpu` 不动）；附带 G6 静态合并模式、G7 快照亲和、G11 无新包重送旧包、D4 队列双验、D6 字形归属、D8 改尺寸握手单测、D16 Face/atlas 审计 | 金色像素对比绿；改尺寸/遮挡恢复不黑屏；`ui/scene` + `render` 逐文件绿 |
-| T4 图片线扶正 | `ui/io/decode.go`：2 工人沿用，大图单飞，窗关取消，预算淘汰记数；G8 解码注册表；D7 光栅首次见上传；D15 包留图片引用 | 大图解码滚列表不卡；`ui/io` 绿 |
-| T5 解冻示例测试 | 重构 `examples/kit/button` 事件与组件测试，不倒灌回引擎 | 真窗140项绿；按钮包绿；E2 两道门常挂 |
+| T0 基线冻结 | E2 两道门留尺子（E3/E5 已合，只记一句）；示例测试冻结；记基线数（按钮包、渲染包、button 真窗140项、`Children` 361次、race干净）；`-race` 点拖滚复现 D11 活 race | 基线数落 §7；单测全绿 + button 真窗 140 项绿 + race 复现记录，缺一项不开 T1 |
+| T1 封包只读 | `ui/scene/packet.go` + `ui/rendering/layer_build.go`：交出去后不再改，单测锁“交后改树不影响已交包”；附带 G1 平台线分家名分、G2 再生语义、G3 交包即 EndFrame、G10 逐帧四戳、G12 帧后钩子、D3 单测 inline 双模式、D10 hops 表 | 新单测绿 + 包相等绿 + `ui/scene`/`ui/rendering` 逐文件绿 + button 真窗 140 项绿 + race 干净，§7 记“✅ 已关”，缺一项不关 |
+| T2 搬画画出界面线 | `pipeline_app.go` + `raster/loop.go`：`RasterizeDirty`（含 `RasterExtra`）搬进 `raster.FrameJob`，界面建完包即回循环；附带 G4 建前占位、G5 线程断言、G9 事件帧号、D1 建包快照（Button/Icon/Text 先行）、D2/D12 旗子收拢、D5 完成回执、D9 异步语义、D14 budget 单侧判定 | T 真窗 9 项 + X1–X12 极端全绿 + 点按≤2帧 + race 点拖滚干净 + `ui/embedder`/`ui/raster` 逐文件绿 + button 140 项绿 + §12 窗单红一扇即停，§7 记“✅ 已关”，缺一项不关 |
+| T3 合成送屏收尾 | `ui/scene/textured.go` + `render/present_target.go`：纹理缓存调用点定死、`render` 上下文归光栅独占（`gpu` 不动）；附带 G6 静态合并模式、G7 快照亲和、G11 无新包重送旧包、D4 队列双验、D6 字形归属、D8 改尺寸握手单测、D16 Face/atlas 审计 | T 真窗 9 项 + 金色逐字节绿 + 改尺寸/遮挡恢复（X5/X6）绿 + `ui/scene`/`render` 逐文件绿 + §12 窗单全绿，§7 记“✅ 已关”，缺一项不关 |
+| T4 图片线扶正 | `ui/io/decode.go`：2 工人沿用，大图单飞，窗关取消，预算淘汰记数；G8 解码注册表；D7 光栅首次见上传；D15 包留图片引用 | T 真窗图片 2 项（X3 边解边滚 + 缓存打满 X9）绿 + `ui/io` 逐文件绿 + button 140 项绿，§7 记“✅ 已关”，缺一项不关 |
+| T5 解冻示例测试 | 重构 `examples/kit/button` 事件与组件测试，不倒灌回引擎；T 真窗转正（§6 9 项 + §6b 12 条全量绿） | button 140 项绿 + 按钮包绿 + E2 两道门绿 + T 真窗全绿 + §12 窗单全绿，§7 记“✅ 已关”，全关即 T 闭项 |
 
 注：合成+送屏已在光栅任务（`pipeline_app.go` job→`presentPacketTextured`），T2 只搬纹理录制+旗子+计数，不碰合成送屏。纹理缓存 T-ready（mu 全包、`SetLiveKeys` 协议、C4 修过超前 race），T3 只定调用点。
 
@@ -93,6 +93,7 @@ button 真窗点按拖拽慢半拍——界面线程建包 + 画纹理（`scene.
 |------|----|------|------|
 | 2026-09-16 | T 立项 | ⬜ 未开工 | 创建，三处旧址收敛为指针（`d868b18`） |
 | 2026-09-16 | T 收敛 | ⬜ 未开工 | 四路核查修正 + 本次收敛（去重：§17 并入 §14 表、D1/D11 与 D2/D12 合一、D13 只留正确结论） |
+| 2026-09-15 | T0 基线 | ⬜ 基线已记（待开T1，不写代码） | 按钮包逐文件绿：6文件共43测（42 PASS+1 SKIP）；button_test.go 25绿、dirty 1绿、golden 2绿、p1 12绿+BTN22 SKIP（人工项）、showcase 1绿、spinner 1绿。渲染包（ui/rendering）逐文件绿：71 PASS+1 SKIP（m1_bench无Test）；E2两道门绿（honest boundary=(3,2) ops=2 measure=(4,2)；包相等 layers=13 dirty=2；新序列 N=120 Children=361次 root2+leaf359 <400；老证据603次 dirtyIDs=2 packetLayers=242）。E3/E5已合入E2只记一句。button真窗-auto-only：backend=x11 presents=148 rows=140 fails=0 pass=true（selftest 7+win00-132共133）。race复现D11活：临时单测（跑完即删，未提交）UI写PointerMove/Down/Up/Tick对光栅读RasterExtra闭包（layer_build.go:413→button.go:424 paint/chrome），go test -race报DATA RACE；主栈读chrome button.go:1522 hovered对写PointerDown button.go:2083，写paint lastSize button.go:2333对读sync button.go:2174，captured extras=4；结论D11活着，T2建包快照前不开工 |
 
 ## 8. 三线细则
 
