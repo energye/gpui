@@ -1,0 +1,42 @@
+{
+  "format": "BC1_RGBA_UNORM",
+  "vk_format": 133,
+  "block_w": 4,
+  "block_h": 4,
+  "block_bytes": 8,
+  "tolerance": 0,
+  "max_dimension": 8192,
+  "max_pixels": 67108864,
+  "files": [
+    {"name": "solid_red_4x4.ktx2", "width": 4, "height": 4, "blocks": 1, "upload": 8, "pixels": 64},
+    {"name": "checker_8x8.ktx2", "width": 8, "height": 8, "blocks": 4, "upload": 32, "pixels": 256},
+    {"name": "solid_256x256.ktx2", "width": 256, "height": 256, "blocks": 4096, "upload": 32768, "pixels": 262144}
+  ],
+  "solids": {
+    "solid_red_4x4.ktx2": [255, 0, 0, 255],
+    "solid_256x256.ktx2": [255, 0, 0, 255]
+  },
+  "quadrants": {
+    "checker_8x8.ktx2": {
+      "tl": [255, 0, 0, 255],
+      "tr": [0, 255, 0, 255],
+      "bl": [0, 0, 255, 255],
+      "br": [255, 255, 255, 255]
+    }
+  },
+  "spots": [
+    {"file": "solid_red_4x4.ktx2", "x": 0, "y": 0, "rgba": [255, 0, 0, 255]},
+    {"file": "solid_red_4x4.ktx2", "x": 3, "y": 3, "rgba": [255, 0, 0, 255]},
+    {"file": "checker_8x8.ktx2", "x": 0, "y": 0, "rgba": [255, 0, 0, 255]},
+    {"file": "checker_8x8.ktx2", "x": 7, "y": 0, "rgba": [0, 255, 0, 255]},
+    {"file": "checker_8x8.ktx2", "x": 0, "y": 7, "rgba": [0, 0, 255, 255]},
+    {"file": "checker_8x8.ktx2", "x": 7, "y": 7, "rgba": [255, 255, 255, 255]},
+    {"file": "checker_8x8.ktx2", "x": 3, "y": 3, "rgba": [255, 0, 0, 255]},
+    {"file": "checker_8x8.ktx2", "x": 4, "y": 3, "rgba": [0, 255, 0, 255]},
+    {"file": "checker_8x8.ktx2", "x": 3, "y": 4, "rgba": [0, 0, 255, 255]},
+    {"file": "checker_8x8.ktx2", "x": 4, "y": 4, "rgba": [255, 255, 255, 255]},
+    {"file": "solid_256x256.ktx2", "x": 0, "y": 0, "rgba": [255, 0, 0, 255]},
+    {"file": "solid_256x256.ktx2", "x": 255, "y": 255, "rgba": [255, 0, 0, 255]},
+    {"file": "solid_256x256.ktx2", "x": 128, "y": 64, "rgba": [255, 0, 0, 255]}
+  ]
+}
