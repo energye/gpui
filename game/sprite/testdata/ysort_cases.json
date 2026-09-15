@@ -1,0 +1,67 @@
+{
+  "layers": {
+    "world": 0,
+    "fx": 1,
+    "ui": 2
+  },
+  "cases": [
+    {
+      "name": "basic_y_world",
+      "items": [
+        {"name": "hero", "layer": 0, "feet_y": 200},
+        {"name": "tree", "layer": 0, "feet_y": 100},
+        {"name": "rock", "layer": 0, "feet_y": 150}
+      ],
+      "want": ["tree", "rock", "hero"]
+    },
+    {
+      "name": "layer_split",
+      "items": [
+        {"name": "hero", "layer": 0, "feet_y": 500},
+        {"name": "fire", "layer": 1, "feet_y": 10},
+        {"name": "button", "layer": 2, "feet_y": 0},
+        {"name": "tree", "layer": 0, "feet_y": 100}
+      ],
+      "want": ["tree", "hero", "fire", "button"]
+    },
+    {
+      "name": "fx_above_world_same_y",
+      "items": [
+        {"name": "tip", "layer": 2, "feet_y": 200},
+        {"name": "spark", "layer": 1, "feet_y": 200},
+        {"name": "hero", "layer": 0, "feet_y": 200}
+      ],
+      "want": ["hero", "spark", "tip"]
+    },
+    {
+      "name": "stable_tie",
+      "items": [
+        {"name": "s2", "layer": 0, "feet_y": 100},
+        {"name": "s1", "layer": 0, "feet_y": 100},
+        {"name": "s3", "layer": 0, "feet_y": 100}
+      ],
+      "want": ["s2", "s1", "s3"]
+    },
+    {
+      "name": "mixed_negative",
+      "items": [
+        {"name": "a", "layer": 0, "feet_y": -50},
+        {"name": "b", "layer": 0, "feet_y": 0},
+        {"name": "c", "layer": 0, "feet_y": -100}
+      ],
+      "want": ["c", "a", "b"]
+    },
+    {
+      "name": "single",
+      "items": [
+        {"name": "solo", "layer": 1, "feet_y": 42}
+      ],
+      "want": ["solo"]
+    },
+    {
+      "name": "empty",
+      "items": [],
+      "want": []
+    }
+  ]
+}
