@@ -643,3 +643,19 @@ iconHost (RepaintBoundary 可选；OnMount/OnUnmount 绑 Ticker)
 - **§6.4**：补 ICO-S9…S12（a11y / painter / two-tone / 多源覆盖）。  
 - **§6.9**：P0 范围锁定 ICO-01…18；L3/L4/P1 分开。  
 - **§6.10**：写出完整 Go API（含 IconfontFamily、全局 two-tone、Ticker）。
+
+### 6.13 修订与跨线问题落位
+
+| 日期 | 内容 |
+| --- | --- |
+| 2026-09-15 | E5 落位（待修，见下）；验证 `TestEVerify_E5_IdleIconStaysRegistered`（`ui/kit/icon/e_verify_e5_test.go`）通过 = 问题存在，修完需反转期望。 |
+| 2026-09-15 | 新增公开 API `PaintGlyph`（实现层：按钮前导图标/转圈复用，与 Icon 逐像素一致；未知名画占位不断墨）；新增注册字形 poweroff/download/ellipsis/ant-design（`p0Glyphs`）；锁 `icon_test` 全绿 + E5 验证见上行。 |
+| 2026-09-15 | E5 已修：`Tick` 在 `!spin \|\| reduceMotion` 时回 false（`ui/kit/icon/icon.go:620`），`TickAll` 当场摘除；验证 `TestEVerify_E5_IdleIconAutoDrop`（`ui/kit/icon/e_verify_e5_test.go`，闲摘除/转着留/关转摘除/省动态不占位四断言）绿；图标包全绿。 |
+
+**本线问题 E5（调度占位，已修 2026-09-15）：**
+现象：`SetSpin(false)` 关掉转圈后，`Tick` 仍回 true，`TickAll` 后仍占着注册表
+（`HasActive=true`），越积越多，持久模式一直以为在转；`WantsFrame=false` 故不烧帧、只占位。
+位置：`ui/kit/icon/icon.go:620` `Tick`（`!spin || reduceMotion` 直接回 true）。
+与真值差异：同库 Button 已对齐闲了回 false 自动摘除，Icon 漏了。
+归属：图标组件自身（对齐 Button 惯例即可）。
+待办：~~`Tick` 在 `!spin || reduceMotion` 时回 false；修完把验证测试改成期望摘除。~~已做（`TestEVerify_E5_IdleIconAutoDrop`）。

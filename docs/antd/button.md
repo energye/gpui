@@ -743,6 +743,40 @@ Pressable（命中、hover/press/focus、键盘）
 5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0+P1** 全部（官方非 debug 一个不少；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 必须进 gallery，真做不了的单测 Skip 写清平台原因。
 6. `coverage.go` Notes 更新为：P0 已对齐 docs/antd/button.md §6；P1 项显式列出。
 
+### 6.13 修订与跨线问题落位
+
+| 日期 | 内容 |
+| --- | --- |
+| 2026-09-15 | 新增公开 API（实现层，锁单测+真窗）：`WaveColor/WaveProgress/WaveShowing/ClearWave`（点按出波纹，文字/链路永不出）、`FocusVisible/FocusRingVisible`（仅键盘焦点画环）、`SpinPhase`（转圈相位查询，推进只走 `Tick`）、`Attach/Detach`（调度挂载，闲钮自动摘除）、`LoadingOpacity`（整组透明）；锁 `button_test`（焦点环）+ `p1_test`（loading 宽度不动/点按波纹/文字链路无波纹/相位）+ `showcase_test`（点按波纹）+ 真窗 140 项绿。 |
+| 2026-09-15 | 引擎 CPU 结构问题验证测试落位（E1/E2/E3/E5，见 RENDER-002 与各域文档）；按钮侧转圈热区拆分已交付（小节点只脏小层，转速仍跟显示器走）；E4（任务槽多执行）经 hammer + 时序推演证伪，不修。 |
+| 2026-09-14 | loading 改整钮组透明（`LoadingOpacity` + `SaveLayer`，对齐官网 `opacity: opacityLoading`）；转圈去圆点（开口环）；真窗按官网 16 例重排（标题 + 描述 + 行列，固定 1200×900 + 滚动视口，`-scroll-y` 快照定位）。 |
+
+**跨线问题 RENDER-001（渲染线，待解，门禁已做稳态断言、未捂盖子）：**
+现象：渐变按钮（圆角裁剪对角渐变 + 白字 + 图标）在同一进程第一次绘制该组合时，
+右半（x≈128..199 全高）出一块纯红 `#ff0000`，同一实例第二次 paint 起终身干净。
+位置：`render/internal/gpu/image_cache.go` 上传路（`GetOrUpload`/`uploadImage`）
+`bytesPerRow=w*4` 未按 256 对齐（对比如 `gpu_texture.go` 的 `alignTextureBytesPerRow`、
+字形路 `glyph_mask_engine.go` 的 256 对齐），叠加首帧字形大页整页上传同帧抢传，
+驱动拒收后 Go 侧只走 `uncaptured error` 跳批，纹理脏显存采样出纯红。
+归属：渲染线（`render/internal/gpu`，GPU 后端最高谨慎区）。
+待办：垫行上传或失败不缓存直接回 CPU 兜底；首帧设备/管线/字形页预热；
+`Push/Pop` 存画笔、`drawStringAsOutlines` 存取画笔、模板取前对 `atlas.Generation`。
+当前线处理：门禁与真窗在首个采样前做一次暖机 paint（与 `PipelineApp WarmUp:true`
+同理，见真窗 `warmGradient`），真窗本身连跑数百帧不受影响；待渲染线修完后去掉暖机复验。
+
+**跨线问题 RENDER-002（渲染 + 呈现线，E2 已闭环、E1 已撤销）：button 真窗 18% 的引擎侧。**
+现象：4 颗转圈按钮各要 60fps 时，窗口 CPU 下不来（27%→热区拆分后仍 18%）。
+位置与归属：E1 层树全量重建（`ui/rendering/layer_build.go`，渲染线，2026-09-15 证伪撤销：全量重建是对齐 Flutter 的认账现状，同 B1；稀疏包修法丢静按钮已退回作废）、
+E2 一帧多遍整树 walk（已修 2026-09-15：一次建包顺手出边界数/深度/操作数/字命中，`Consume` 原位不动；120 节点只脏 1 叶老序列 `Children` 603 次 → 新序列 361 次，数诚实 + 包相等单测锁死）、
+E3 快照队列竞态（`ui/embedder/pipeline_app.go`，呈现线，影响小）、
+E5 图标闲占注册表（`ui/kit/icon/icon.go`，图标线，影响小，已修 2026-09-15，见 `antd/icon.md` §6.13）。
+待办与验证：E2 已修（2026-09-15：一次建包顺手出边界数/深度/操作数/字命中，`Consume` 原位不动；120 节点只脏 1 叶老序列 `Children` 603 次 → 新序列 361 次，数诚实 + 包相等单测锁死）；E1 已撤销（全量重建是对齐 Flutter 的认账现状，同 B1；`TestEVerify_E1` 作废待删）；剩 CPU 走使用层（示例三刀）；
+验证测试 `TestEVerify_E2/E3/E5` 通过 = 问题存在（E2 老证据 `TestEVerify_E2_OldEvidence` 只调老代码仍通过），新修由 `TestE2Merged_*` 锁死。
+明细见各域真源：`ENGINE_UI_RENDER_BASE` §22.2/§24（E1/E2）、
+`ENGINE_FRAME_PRESENT_STANDARD` §1.2 P5/§9（E3）、`antd/icon.md` §6.13（E5）。
+当前线处理：按钮侧已做转圈热区拆分（小节点只脏小层）+ 闲钮自动摘除；
+真窗用法层浪费（挪动全树摸一遍、滚动条每次拆装）待示例侧优化，不在本条。
+
 ---
 
 **本章用法**：重写 `ui/kit` Button 时，以 §6 为需求与验收；§1–§3 为 antd 能力全集参考；§6.8 为范围定义（无裁剪）。其它控件复制 §6 结构即可形成同等 1:1 产品规格。
