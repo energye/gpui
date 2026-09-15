@@ -254,7 +254,7 @@ func convert420Into(dst, y, cb, cr []byte, w, h int, opt Options) error {
 		k = h
 	}
 	if k <= 1 {
-		convertBand(dst, y, cb, cr, w, h, t, 0, h)
+		convertBand(dst, y, cb, cr, w, t, 0, h)
 		return nil
 	}
 	convMu.Lock()
@@ -268,7 +268,7 @@ func convert420Into(dst, y, cb, cr []byte, w, h int, opt Options) error {
 			cnt++
 		}
 		end := start + cnt
-		convJobChs[i] <- convertJob{dst: dst, y: y, cb: cb, cr: cr, w: w, h: h, ys: start, ye: end, t: t}
+		convJobChs[i] <- convertJob{dst: dst, y: y, cb: cb, cr: cr, w: w, ys: start, ye: end, t: t}
 		start = end
 	}
 	for i := 0; i < k; i++ {
@@ -281,7 +281,7 @@ func convert420Into(dst, y, cb, cr []byte, w, h int, opt Options) error {
 // Slices stay shared, workers only touch their own dst rows.
 type convertJob struct {
 	dst, y, cb, cr []byte
-	w, h, ys, ye   int
+	w, ys, ye      int
 	t              coeffs
 }
 
@@ -313,14 +313,21 @@ func init() {
 // convWorker parks until a band arrives, converts it, then signals done.
 func convWorker(ch chan convertJob) {
 	for job := range ch {
-		convertBand(job.dst, job.y, job.cb, job.cr, job.w, job.h, job.t, job.ys, job.ye)
+		convertBand(job.dst, job.y, job.cb, job.cr, job.w, job.t, job.ys, job.ye)
 		convDone <- struct{}{}
 	}
 }
 
-// convertBand converts dst rows [ys,ye): same taps and rounding as the
-// old per-pixel form, (yMul*c +/- taps + 128) >> 8, factored per pair.
-func convertBand(dst, y, cb, cr []byte, w, h int, t coeffs, ys, ye int) {
+// convertBandScalar is the scalar留守 (C版留守): per-pair factored math,
+// (yMul*c +/- taps + 128) >> 8, bit-exact reference for S1 fast paths.
+// S1 dispatch (convert_fast.go) keeps this as fallback: SIMD缺席回落到此,
+// 输出逐位一致由向量锁死.
+// NOTE (S1收敛实测 2026-09-15): the pair body is intentionally written out
+// here AND in the amd64 tail instead of a shared helper: a helper costs
+// 284 > 80 inline budget, i.e. one call per 2 pixels, ~20% slower scalar
+// (4.9ms -> 6.0ms on 854x480). TestS1DispatchMatchesScalar pins both
+// copies bit-identical (incl. the 854 tail width), so they cannot drift.
+func convertBandScalar(dst, y, cb, cr []byte, w int, t coeffs, ys, ye int) {
 	yMul, yOff := t.yMul, t.yOff
 	rCr, gCb, gCr, bCb := t.rCr, t.gCb, t.gCr, t.bCb
 	cw := w / 2

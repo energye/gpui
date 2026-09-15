@@ -501,6 +501,12 @@ VW0 → VW1 → VW2 → VW3
 
 | v0.59 B1分段初落 | §12 B1 项（只动 B1 一项）：新 `video/mp4/frag.go`（`trex→tfhd→trun` 缺省链、`base` 显式/moof/隐式优先级、`tfdt` 否则 `track_end`、`PTS=DTS+shift+CTS`、`NON_SYNC|DEPENDS_YES` 判键）+ `demux.go` 空 moov 留壳后 `attachFragments` 拼表（有表用 moov、空壳拼 moof、无表无段仍 `ErrFragmented` 旧桶）+ 时长按 `max PTS+dur`、帧率按墙钟重算（B 重排不再低估）+ `fault.go` 碎片桶文案同步；对等 `mov.c:1946 mov_read_moof`+`:6057 mov_read_tfhd`+`:6125 mov_read_trex`+`:6151 mov_read_tfdt`+`:6190 mov_read_trun`+`:6530 mov_read_sidx`（见门禁头注释）；基线 `video/testdata/b1_ffmpeg.json`（ffmpeg 4.4.2 同机：5 帧 B 帧片 + 100 帧 I/P 长片，ffprobe/benchmark/yuv 全入库，两片进仓）+ 门禁 `video/b1_ffmpeg_test.go` 4 项绿（头/像素逐字节/播到尾零丢单调 Ended/跳转 floor）；公开 API 新增 `Movie.FragCount`/`Track.FragCount`（§7 同步）；三道（`video/h264` exact 仍绿 + 对等门禁 + `video/mp4` 旧门禁语义更新仍绿/`vet`+`CGO_ENABLED=0` 构建过）全过；VR7-D 仍红（改前改后同红，系 §12 已记 S1/S2 缺口，与 B1 无关）；未跑真窗故 B1 行标 🟨 不标 🟩；§2/§5 VW0–VW3 状态不动，其余 §12 行不动（顺序 15 内 B1 字样同步，S8 状态未动）。 |
 
+| v0.61 S1转色T2 | §12 S1 项（只动 S1 一项）：`video/color` 转色快车道（`convert_amd64.s` SSE4.1行核4像素/迭代 + `convert_amd64.go` 分发行 + `convert_fallback.go` 非amd64回落 + `color.go` 标量留守，`GPUI_SCALAR_CONVERT=1` 可强制标量）+ 新门禁 `video/color/s1_convert_test.go` 3项绿（向量11组逐位+四矩阵/档全变体与854尾宽分发==标量+数学基准）；试过查表+8像素展开纯Go版约1.0x不赚已撤（见 convert_fast.go 注）；对等 `libswscale/yuv2rgb.c:47` 表+`:137 YUV2RGBFUNC` 分 taps+`:520 YUV420FUNC` 打包 + `x86/yuv_2_rgb.asm` 向量实例 + `output.c:1116` 行带 + `utils.c:2447` 切片线程 + `swscale.c:1626` 入口（见门禁与源码头注释）；公开API零增删（§7免同步）；三道（向量/exact逐位不变 + VR7-T 0.15≤0.63与VR7-D转色段红转绿 + `video/color` 整包与`video` 播放/池/稳态/VR3/VR4逐门禁绿/`vet`+`CGO_ENABLED=0`构建过+跨架构构建过）全过；数学854x480标量~4.1ms对分发~1.0ms（~3.9x零分配）、1080p端到端~8.2ms对~2.9ms（~2.8x线程封顶）；H264数学段未动（1080p直接解码仍数十毫秒级，交插值/去块核与S2），arm64 NEON待续；未跑真窗故S1行与顺序16标🟨不标🟩；§2/§5 VW0–VW3状态不动，其余§12行不动。 |
+
+| v0.62 S1收敛 | §12 S1 项（只动 S1 一项，门禁/数据/接口零碰）：C2 helper合一试后回退（`convertPair` cost284>80内联预算致标量854x480由~4.9ms到~6.0ms约+20%，回退并留守注记，`TestS1DispatchMatchesScalar`继续双份逐位锁）+ C3内部链路去死参`h`（`convertBand`/`convertBandScalar`/双架构`convertBandSIMD`/`convertJob`与两处调用点，公开`Convert/ConvertInto`不动）+ C1环境收敛单名（`GPUI_SCALAR_CONVERT`，三声明并一处）；三道（向量11组+分发==标量四变体/854尾宽逐位不变 + `video/color`整包与`video` VR3/VR4/稳态零分配/S6池/播放序绿/`vet`+`CGO_ENABLED=0`+arm64构建过 + 标量~4.0ms/分发~0.95ms零分配同速）全过；VR7-T绿；VR7-D在高负载盒抖动红（同代码33.27/17.90/10.45三连，load9-11有外线并行link，GOGC=off诊断过，像素与内核证据指向GC/调度抖动，待闲时原条件复验，不降预算不改门禁）；§2/§5 VW0–VW3状态不动，其余§12行不动（S1行与顺序16同步，仍🟨）。 |
+
+| v0.63 S1转色arm64 | §12 S1 项（只动 S1 一项，门禁/数据/接口零碰）：`video/color` arm64 NEON行核8像素/迭代（`convert_arm64.s` + `convert_arm64.go` 分发，`convert_fallback.go` 收敛到 `!amd64 && !arm64`，i386/32位arm按设计走标量）+ 有符号流水线（SXTL拓宽/SSHR算术右移/SQXTUN饱和窄化；VUXTL+VUSHR+UQXTN旧版在负数道上错，标量留守逐位抓出）+ 存储段（SQXTUN.8B只写低半区，每对像素VEXT移位后ZIP1存；Go汇编VZIP操作数顺序与直觉反，经qemu探针锁定，见源码头注释）；WORD编码逐条对clang真值（容器内 `clang -c + objdump -d` 取19条：10 MUL + 6 SQXTUN16 + 3 SQXTUN8，错一条即SIGILL/像素错，修编码不修逻辑）；对等 `libswscale/aarch64/yuv2rgb_neon.S:1034` 入口 + `swscale_unscaled.c:25` 建表（见源码头注释）；公开API零增删（§7免同步）；三道（Docker arm64真跑转色整包9门禁全绿 + 本机amd64整包/VR3/VR7-T绿/`vet`+`CGO_ENABLED=0`双架构构建过+`gofmt`干净）全过；qemu只验对不计时（arm加速比待真机）；未跑真窗故S1行与顺序16仍🟨；§2/§5 VW0–VW3状态不动，其余§12行不动。 |
+
 ---
 
 ## 11. 生产级差距总表（现状 → 生产级 · 只记录差距，不改 VW0–VW3 已关状态）
@@ -672,7 +678,7 @@ VW0 → VW1 → VW2 → VW3
 | S7 | VW4 能装下 | 内存封顶接线（解前预估 + 超限报装不下 + 播中淘汰上报） | 🟩 已完成 | 五档上限（480p128/720p256/1080p512/1440p1024/4K2048MB，短边归档，`EstimateLiveBytes` 重算写死）+ 解前两路拦（`ErrMemOverCap`+`KindMemOverCap`桶）+ 播中有界淘汰上报（`Dropped`+`PoolEvictions`+`Stats`三字段）；对等 `libavutil/mem.c:76-77 av_max_alloc`+`buffer.h:266/buffer.c:390`池+`ffplay.c:126/129/705/751/789`有界队列（见§11.7 S7）；基线 `video/testdata/vr7m_ffmpeg.json`（同片bench maxrss 50228kB参照，档live重算表）+ 门禁 `video/vr7m_ffmpeg_test.go`（档表自洽+同片Ended+单调+零挤出+8K秒报）绿；四窗复验绿（VR2差0/VR3向量0+md5/VR4零丢/VR7六十秒分配91B池99.7%峰值496MB<512MB零泄漏）；`video/h264/mp4/color/clock`逐包绿，`vet`+`CGO_ENABLED=0`构建过；VR7-D未达（12.2>8.8ms）系S1/S2旧缺口，改前改后同红与S7无关 |
 | S8 | VW4 能装下 | 目录流式化（段表 + 二分，小片快路不动；页读留 N3/B1） | 🟨 进行中 | 查表半落（2026-09-14，见§10 v0.58）：五片逐位一致 + 步数对数级 + 快路不动；未跑真窗故不标 🟩；B1 未动 |
 | B1 | VW4 能装下 | 分段 MP4（moof 段索引 + 段内 seek 下钻） | 🟨 进行中 | 初落 + 收敛（2026-09-15，未跑真窗故不标 🟩）：新 `video/mp4/frag.go` 拼表 + 基线 `video/testdata/b1_ffmpeg.json`（5 帧 B 帧片 + 100 帧 I/P 长片，ffprobe/benchmark/yuv 全入库）+ 门禁 `video/b1_ffmpeg_test.go` 4 项绿（头/像素逐字节/播到尾零丢单调 Ended/跳转 floor）；收敛（见 §10 v0.60，门禁/数据/接口零碰）后三道重过；`video/mp4` 旧门禁语义更新（坏段忽略保基表、无壳无段仍旧桶）仍绿、`video/h264` exact 仍绿、`vet`+`CGO_ENABLED=0` 构建过；公开 API `Movie.FragCount`/`Track.FragCount`（分段来源标记，见 §10 v0.59）；余中途换参/mfra 直跳 + 真窗复验另开 |
-| S1 | VW5 跟得上 | 快车道 SIMD（先转色后插值再去块，C 版留守对照） | ⬜ 未启动 | 与 S2 同批文件，一前一后 |
+| S1 | VW5 跟得上 | 快车道 SIMD（先转色后插值再去块，C 版留守对照） | 🟨 进行中 | 转色双核绿（2026-09-15）：amd64 SSE4.1行核4像素/迭代 + arm64 NEON行核8像素/迭代 + 分发 + 标量留守，输出逐位一致；i386/32位arm按设计走标量（只保对不加速）；amd64数学~3.9x/1080p端到端~2.8x零分配（qemu只验对不计时，arm加速比待真机），VR7-T 0.15≤0.63/VR7-D转色段由12.85红转绿；T2.1收敛（helper合一因内联预算回退/内部死参h已去/环境单名，行为零变）；arm64三坑已填（VZIP操作数顺序反直觉/窄化须SQXTUN非UQXTN/8B窄化只写低半区须VEXT移位，见源码头注释；WORD编码逐条对clang真值，VZIP语义经qemu探针锁定）；VR7-D在高负载盒抖动（同代码三连，待闲时原条件复验）；余插值/去块核，H264数学段未动 |
 | S2 | VW5 跟得上 | 多线程（先帧级后片级，复用 `pending` 排序骨架） | ⬜ 未启动 | 与 S1 同批文件，一前一后 |
 | S3 | VW5 跟得上 | 抠码加速（先剖后改，查表化高频路径再汇编算术核） | ⬜ 未启动 | exact 锁 |
 | A1 | VW6 有声音 | AAC 先行（新包 + 音轨采样表 + 注册） | ⬜ 未启动 | A2 的前置 |
@@ -704,7 +710,7 @@ VW0 → VW1 → VW2 → VW3
 > | 13 | VW4 能装下 | S6 收尾（池稳态零增长 + 转色追平 + 内存采数 + 四窗复验） | §12 S6 行 | 🟩 已完成 | 三线全达：池已达/转色0.41≤0.63已达/内存15.7≤52已采数（2026-09-14晚，见§10 v0.56） |
 > | 14 | VW4 能装下 | S7 封顶接线 | §12 S7 行 | 🟩 已完成 | 五档上限+解前两路拦+播中淘汰上报全接上（2026-09-14晚，见§12 S7行）：基线 `video/testdata/vr7m_ffmpeg.json` + 门禁 `video/vr7m_ffmpeg_test.go` 绿 + 四窗复验绿（VR2/VR3/VR4/VR7） |
 > | 15 | VW4 能装下 | S8 查表半落（B1 已半落见 B1 行，后续页读另开） | §12 S8 行 | 🟨 进行中 | S8 索引落地（见 S8 行）；B1 分段已 🟨（见 B1 行） |
-> | 16 | VW5 跟得上 | S1 快车道 | §12 S1 行 | ⬜ 未启动 | 与 S2 同批文件，一前一后 |
+> | 16 | VW5 跟得上 | S1 快车道 | §12 S1 行 | 🟨 进行中 | 转色双核落地+收敛（见S1行，VR7-D待闲时复验，插值/去块待续），与 S2 同批文件，一前一后 |
 > | 17 | VW5 跟得上 | S2 多线程 | §12 S2 行 | ⬜ 未启动 | 与 S1 同批文件，一前一后 |
 > | 18 | VW5 跟得上 | S3 抠码加速 | §12 S3 行 | ⬜ 未启动 | exact 锁 |
 > | 19 | VW6 有声音 | A1 AAC 先行 | §12 A1 行 | ⬜ 未启动 | A2 的前置 |
