@@ -102,6 +102,10 @@ var p0Glyphs = []struct {
 	{"close-circle", false},
 	{"check-circle", true},
 	{"exclamation-circle", false},
+	{"poweroff", false},
+	{"download", false},
+	{"ellipsis", false},
+	{"ant-design", false},
 }
 
 // Global is the default registry preloaded with the P0 set.
@@ -235,12 +239,12 @@ func GetTwoToneColorGlobal() render.RGBA {
 // It owns a rendering.RenderBox node: put Node() in the tree, drive Tick via
 // a scheduler.TickerRegistry, and read Effective* for assertions.
 type Icon struct {
-	name       string
-	size       float64
-	color      render.RGBA
-	rotate     float64
-	spin       bool
-	phase      float64
+	name         string
+	size         float64
+	color        render.RGBA
+	rotate       float64
+	spin         bool
+	phase        float64
 	reduceMotion bool
 
 	twoTonePrimary   render.RGBA
@@ -613,13 +617,13 @@ func (ic *Icon) Detach() {
 	ic.attached = nil
 }
 
-// Tick advances spin phase (scheduler.Ticker). Stays registered.
+// Tick advances spin phase (scheduler.Ticker). Idle icons auto-drop.
 func (ic *Icon) Tick(dt float64) bool {
 	if ic == nil {
 		return false
 	}
 	if !ic.spin || ic.reduceMotion {
-		return true
+		return false
 	}
 	if dt < 0 {
 		dt = 0
@@ -681,4 +685,26 @@ func (ic *Icon) paint(pc *rendering.PaintContext, size float64) {
 	}
 	drawGlyph(pc, ic.name, size, base, primary, secondary, d.TwoTone)
 	pc.RestoreCanvas()
+}
+
+// PaintGlyph draws one registered glyph in a size×size box whose top-left
+// is (x,y) in pc local space, rotated angleDeg about its center. Button
+// leading icons/spinners reuse this so they match Icon pixel-for-pixel.
+// Unknown names draw the placeholder (never blank, never a black bar).
+func PaintGlyph(pc *rendering.PaintContext, name string, x, y, size float64, c render.RGBA, angleDeg float64) {
+	if pc == nil || pc.DC == nil || size <= 0 {
+		return
+	}
+	child := pc.WithOrigin(pc.OriginX+x, pc.OriginY+y)
+	child.Save()
+	if angleDeg != 0 {
+		child.RotateAbout(angleDeg*math.Pi/180, size/2, size/2)
+	}
+	if d, ok := Global.Lookup(name); ok {
+		drawGlyph(child, name, size, c, c, c, d.TwoTone)
+	} else {
+		// Family painters / unknown: placeholder keeps ink visible.
+		drawPlaceholder(child, size, c)
+	}
+	child.RestoreCanvas()
 }

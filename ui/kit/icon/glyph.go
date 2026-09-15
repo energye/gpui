@@ -135,8 +135,8 @@ func drawGlyph(pc *rendering.PaintContext, name string, size float64, base, prim
 		p.Close()
 		rendering.FillPath(pc, p, r, g, b, a)
 	case "loading":
+		// LoadingOutlined: open ring spinner, no dot (rotates via Tick).
 		rendering.StrokeArc(pc, size*0.5, size*0.5, size*0.30, 0.6, 5.4, w, r, g, b, a)
-		rendering.FillCircle(pc, size*0.5+size*0.30, size*0.5, w*0.7, r, g, b, a)
 	case "heart":
 		if twoTone {
 			rendering.FillCircle(pc, size*0.36, size*0.40, size*0.20, secondary.R, secondary.G, secondary.B, secondary.A)
@@ -223,6 +223,35 @@ func drawGlyph(pc *rendering.PaintContext, name string, size float64, base, prim
 		rendering.StrokeCircle(pc, size*0.5, size*0.5, size*0.32, w, r, g, b, a)
 		rendering.StrokeLine(pc, size*0.40, size*0.40, size*0.60, size*0.60, w*0.9, r, g, b, a)
 		rendering.StrokeLine(pc, size*0.60, size*0.40, size*0.40, size*0.60, w*0.9, r, g, b, a)
+	case "poweroff":
+		// Power symbol: broken ring + vertical bar (Ant PoweroffOutlined).
+		rendering.StrokeArc(pc, size*0.5, size*0.54, size*0.28, 0.7, 5.6, w, r, g, b, a)
+		rendering.StrokeLine(pc, size*0.5, size*0.18, size*0.5, size*0.52, w, r, g, b, a)
+	case "download":
+		// DownloadOutlined: arrow down + base line (Ant DownloadOutlined).
+		rendering.StrokeLine(pc, size*0.5, size*0.18, size*0.5, size*0.62, w, r, g, b, a)
+		p := rendering.NewPath()
+		p.MoveTo(size*0.32, size*0.46)
+		p.LineTo(size*0.5, size*0.64)
+		p.LineTo(size*0.68, size*0.46)
+		rendering.StrokePath(pc, p, w, r, g, b, a)
+		rendering.StrokeLine(pc, size*0.24, size*0.78, size*0.76, size*0.78, w, r, g, b, a)
+	case "ellipsis":
+		// EllipsisOutlined: three dots (Ant EllipsisOutlined).
+		rendering.FillCircle(pc, size*0.24, size*0.5, w*0.55, r, g, b, a)
+		rendering.FillCircle(pc, size*0.5, size*0.5, w*0.55, r, g, b, a)
+		rendering.FillCircle(pc, size*0.76, size*0.5, w*0.55, r, g, b, a)
+	case "ant-design":
+		// AntDesignOutlined approximation: rounded square + "A" stroke.
+		rendering.StrokeRect(pc, size*0.22, size*0.22, size*0.56, size*0.56, w, r, g, b, a)
+		p2 := rendering.NewPath()
+		p2.MoveTo(size*0.5, size*0.32)
+		p2.LineTo(size*0.36, size*0.68)
+		p2.MoveTo(size*0.5, size*0.32)
+		p2.LineTo(size*0.64, size*0.68)
+		p2.MoveTo(size*0.41, size*0.56)
+		p2.LineTo(size*0.59, size*0.56)
+		rendering.StrokePath(pc, p2, w*0.9, r, g, b, a)
 	default:
 		drawPlaceholder(pc, size, base)
 	}
