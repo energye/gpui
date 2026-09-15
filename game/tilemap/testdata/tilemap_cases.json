@@ -1,0 +1,113 @@
+{
+  "ortho": {
+    "tmx": "map_ortho.tmx",
+    "orient": "orthogonal",
+    "map_w": 4,
+    "map_h": 3,
+    "tile_w": 32,
+    "tile_h": 32,
+    "layers": ["ground", "collide", "nav", "shade"],
+    "kinds": {"ground": 0, "collide": 2, "nav": 3, "shade": 4},
+    "at": [
+      {"layer": "ground", "col": 0, "row": 0, "want": 1},
+      {"layer": "ground", "col": 2, "row": 0, "want": 2},
+      {"layer": "ground", "col": 3, "row": 1, "want": 0},
+      {"layer": "ground", "col": 0, "row": 2, "want": 3},
+      {"layer": "ground", "col": 3, "row": 2, "want": 0},
+      {"layer": "collide", "col": 1, "row": 1, "want": 1},
+      {"layer": "collide", "col": 3, "row": 2, "want": 1},
+      {"layer": "collide", "col": 0, "row": 0, "want": 0},
+      {"layer": "nav", "col": 3, "row": 0, "want": 2},
+      {"layer": "shade", "col": 2, "row": 1, "want": 1}
+    ],
+    "cells": [
+      {"col": 0, "row": 0, "world": [0, 0]},
+      {"col": 3, "row": 0, "world": [96, 0]},
+      {"col": 0, "row": 2, "world": [0, 64]},
+      {"col": 3, "row": 2, "world": [96, 64]},
+      {"col": 2, "row": 1, "world": [64, 32]}
+    ],
+    "worlds": [
+      {"world": [0, 0], "col": 0, "row": 0},
+      {"world": [31.9, 31.9], "col": 0, "row": 0},
+      {"world": [32, 0], "col": 1, "row": 0},
+      {"world": [64, 32], "col": 2, "row": 1},
+      {"world": [127.9, 95.9], "col": 3, "row": 2}
+    ],
+    "oob_worlds": [[128, 0], [-1, 0], [0, 96], [1000, 1000]],
+    "solids": [
+      {"col": 1, "row": 1, "want": true},
+      {"col": 3, "row": 2, "want": true},
+      {"col": 0, "row": 0, "want": false},
+      {"col": 2, "row": 1, "want": false}
+    ],
+    "navs": [
+      {"col": 0, "row": 0, "cost": 1, "ok": true},
+      {"col": 3, "row": 0, "cost": 2, "ok": true},
+      {"col": 3, "row": 1, "cost": 0, "ok": false},
+      {"col": 2, "row": 2, "cost": 0, "ok": false}
+    ],
+    "occlusions": [
+      {"col": 2, "row": 1, "want": true},
+      {"col": 0, "row": 0, "want": false},
+      {"col": 1, "row": 1, "want": false}
+    ],
+    "masks": [
+      {"col": 0, "row": 0, "mask": 6},
+      {"col": 1, "row": 0, "mask": 14},
+      {"col": 2, "row": 0, "mask": 14},
+      {"col": 3, "row": 0, "mask": 8},
+      {"col": 0, "row": 1, "mask": 7},
+      {"col": 1, "row": 1, "mask": 15},
+      {"col": 2, "row": 1, "mask": 9},
+      {"col": 3, "row": 1, "mask": 9},
+      {"col": 0, "row": 2, "mask": 3},
+      {"col": 1, "row": 2, "mask": 9},
+      {"col": 2, "row": 2, "mask": 9},
+      {"col": 3, "row": 2, "mask": 0}
+    ],
+    "variants": [
+      {"mask": 0, "variant": 0, "ok": true},
+      {"mask": 6, "variant": 6, "ok": true},
+      {"mask": 15, "variant": 15, "ok": true}
+    ],
+    "objects": [
+      {"id": 1, "name": "hero", "type": "spawn", "bounds": [64, 32, 32, 32]},
+      {"id": 2, "name": "chest1", "type": "chest", "bounds": [96, 64, 32, 32]},
+      {"id": 3, "name": "dot", "type": "mark", "bounds": [10, 10, 0, 0]}
+    ],
+    "objects_in": [
+      {"rect": [64, 32, 32, 32], "want": ["hero"]},
+      {"rect": [0, 0, 32, 32], "want": ["dot"]},
+      {"rect": [0, 0, 200, 200], "want": ["hero", "chest1", "dot"]}
+    ]
+  },
+  "iso": {
+    "tmx": "map_iso.tmx",
+    "tile_w": 64,
+    "tile_h": 32,
+    "tiles": [
+      {"col": 0, "row": 0, "origin": [0, 0], "center": [32, 16]},
+      {"col": 1, "row": 0, "origin": [32, 16], "center": [64, 32]},
+      {"col": 0, "row": 1, "origin": [-32, 16], "center": [0, 32]},
+      {"col": 1, "row": 1, "origin": [0, 32], "center": [32, 48]},
+      {"col": 2, "row": 0, "origin": [64, 32], "center": [96, 48]},
+      {"col": 0, "row": 2, "origin": [-64, 32], "center": [-32, 48]}
+    ],
+    "worlds": [
+      {"world": [32, 16], "col": 0, "row": 0},
+      {"world": [64, 32], "col": 1, "row": 0},
+      {"world": [0, 32], "col": 0, "row": 1},
+      {"world": [32, 48], "col": 1, "row": 1}
+    ],
+    "contains": [
+      {"col": 0, "row": 0, "world": [32, 16], "want": true},
+      {"col": 0, "row": 0, "world": [32, 0], "want": true},
+      {"col": 0, "row": 0, "world": [0, 16], "want": true},
+      {"col": 0, "row": 0, "world": [64, 16], "want": true},
+      {"col": 0, "row": 0, "world": [32, 32], "want": true},
+      {"col": 0, "row": 0, "world": [0, 0], "want": false},
+      {"col": 1, "row": 0, "world": [32, 16], "want": false}
+    ]
+  }
+}

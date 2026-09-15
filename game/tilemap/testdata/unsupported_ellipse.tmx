@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" orientation="orthogonal" width="2" height="2" tilewidth="32" tileheight="32">
+ <tileset firstgid="1" name="tiles" tilewidth="32" tileheight="32" tilecount="4" columns="2">
+  <image source="tiles.png" width="64" height="64"/>
+ </tileset>
+ <layer id="1" name="ground" width="2" height="2">
+  <data encoding="csv">1,1,1,1
+</data>
+ </layer>
+ <objectgroup id="2" name="actors">
+  <object id="1" name="ball" type="prop" x="0" y="0" width="16" height="16">
+   <ellipse/>
+  </object>
+ </objectgroup>
+</map>
