@@ -84,18 +84,23 @@ type Stats struct {
 	// during play (cap overflow drops, never silent growth). Buffered
 	// small clips report their total estimate; streaming clips report
 	// the bounded live estimate. Zero evictions is the healthy value.
-	MemCapKB     int
-	EstimateB    int64
+	MemCapKB      int
+	EstimateB     int64
 	PoolEvictions int64
 }
 
 // Options tunes the player. QueueCap <= 0 means clock.DefaultCap;
 // NowMs nil means the wall clock. Loop replays from the first stamp
 // (stamps keep counting up so the clock never jumps back).
+// S2Parallel opts into bounded IDR-group parallel decode (S2 §11.6):
+// false (default) keeps the sequential path bit for bit (all existing
+// gates); true enables 2-group windows on long streaming clips (short
+// buffered clips stay sequential either way).
 type Options struct {
-	QueueCap int
-	NowMs    func() int64
-	Loop     bool
+	QueueCap   int
+	NowMs      func() int64
+	Loop       bool
+	S2Parallel bool
 }
 
 // pooledLive is one streaming pool snapshot (S6 §11.7): immutable per
@@ -209,6 +214,14 @@ type Player struct {
 	seekActive   bool
 	seekLanded   int64
 	seekNeedSpos int
+	// S2 bounded parallel (streaming only, nil disables): IDR group
+	// heads over samples, built once at open; windows decoded in
+	// s2_player.go, emitted through the same pending skeleton.
+	// s2yuv bounds one window's transient YUV against the S7 cap.
+	// s2windows counts parallel windows (atomic, tests only).
+	s2starts  []int
+	s2yuv     int
+	s2windows int64
 	// wakeCh wakes a decoder parked at end-of-stream (cap 1, coalescing,
 	// never closed): a later seek revives playback on the same thread.
 	wakeCh chan struct{}
@@ -419,6 +432,40 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	// S8: segment + binary index over the immutable tables (one O(n log n)
 	// build at open, O(log n) per seek; buffered clips never reach here).
 	p.sidx = buildSeekIndex(p.samples, p.keyframes)
+	// S2: IDR group heads for bounded parallel windows (streaming only,
+	// opt-in via Options.S2Parallel; default sequential keeps every
+	// existing gate bit for bit). Disabled (nil) when the window
+	// transient would break the S7 cap: honesty first, speed second.
+	p.s2yuv = YUVBytes(estW, estH)
+	p.s2starts = nil
+	if opt.S2Parallel {
+		p.s2starts = buildS2Starts(p.samples, p.keyframes)
+	}
+	if p.s2starts != nil && s2ParallelCodecOK(codecName) {
+		maxGOP := 0
+		for g := 0; g < len(p.s2starts); g++ {
+			end := len(p.samples)
+			if g+1 < len(p.s2starts) {
+				end = p.s2starts[g+1]
+			}
+			if l := end - p.s2starts[g]; l > maxGOP {
+				maxGOP = l
+			}
+		}
+		if w := s2WorkerCount(0); w > 1 && maxGOP > 0 {
+			winFrames := w * maxGOP
+			if winFrames > s2WindowMaxFrames {
+				winFrames = s2WindowMaxFrames
+			}
+			if int64(p.s2yuv)*int64(winFrames)+p.estimateB > int64(p.memCapKB)<<10 {
+				p.s2starts = nil
+			}
+		} else {
+			p.s2starts = nil
+		}
+	} else {
+		p.s2starts = nil
+	}
 	p.base0 = base0
 	p.spanMs = span
 	p.dropUntil = -1
@@ -964,7 +1011,19 @@ func (p *Player) decodeLoop() {
 		default:
 		}
 		gen := atomic.LoadInt64(&p.generation)
-		emitted, done, ferr := p.decodeStep()
+		// S2: serve an already-decoded window first, else claim at most
+		// one new bounded window on a group head per lap; ran=false
+		// means plain sequential below, unchanged. One claim per lap
+		// keeps the needle from racing far ahead of the display while
+		// windows decode (else catch-up drops pile up unseen).
+		emitted, done, ferr, ran := p.maybeDecodeS2Window(gen)
+		if !ran {
+			emitted, done, ferr = p.decodeStep()
+		} else if ferr == nil && len(emitted) == 0 && !done {
+			// Generation travelled mid-window: the seeker owns the
+			// needle now, retry on the new generation.
+			continue
+		}
 		if ferr != nil {
 			p.mu.Lock()
 			if p.err == "" {
@@ -1249,6 +1308,14 @@ func (p *Player) ReorderDepth() int {
 	p.dmu.Lock()
 	defer p.dmu.Unlock()
 	return p.reorderDepth
+}
+
+// S2Windows reports parallel windows run so far (tests only, atomic).
+func (p *Player) S2Windows() int64 {
+	if p == nil {
+		return 0
+	}
+	return atomic.LoadInt64(&p.s2windows)
 }
 
 // Info describes the clip (Concealed/Fault reflect streaming progress).
