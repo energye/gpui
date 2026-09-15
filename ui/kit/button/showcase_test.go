@@ -284,7 +284,7 @@ func TestButton_Showcase_MainPaths(t *testing.T) {
 	bsz := blockBtn.Layout(rendering.Constraints{MinWidth: rowW, MaxWidth: rowW, MaxHeight: rendering.Unbounded})
 	items = append(items, placed{b: blockBtn, x: margin, y: y, w: bsz.Width, h: bsz.Height})
 	y += bsz.Height + rowGap
-	// Wave row needs pressed state before paint.
+	// Wave row needs clicked state before paint (wave fires on click).
 	waveRow := []*button.Button{waveOn, waveOff}
 	x := margin
 	maxH := 0.0
@@ -301,6 +301,7 @@ func TestButton_Showcase_MainPaths(t *testing.T) {
 	for i, b := range waveRow {
 		sz := rendering.Size{Width: wsizes[i].w, Height: wsizes[i].h}
 		b.PointerDown(sz.Width/2, sz.Height/2)
+		b.PointerUp(sz.Width/2, sz.Height/2)
 		items = append(items, placed{b: b, x: x, y: y, w: sz.Width, h: sz.Height})
 		x += sz.Width + colGap
 	}

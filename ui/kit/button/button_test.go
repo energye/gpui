@@ -482,6 +482,24 @@ func TestButton_A11y(t *testing.T) {
 	if mgr.Primary() != b.FocusNode() || !b.Focused() {
 		t.Fatal("tab must reach the button with a visible ring flag")
 	}
+	if !b.FocusRingVisible() {
+		t.Fatal("keyboard focus must show the ring (:focus-visible)")
+	}
+	// Pointer focus must not show the ring (antd &:focus-visible only).
+	p := button.NewButton("确定")
+	pm := focus.NewManager()
+	pm.Register(p.FocusNode())
+	psz := p.Layout(rendering.Loose(1000, 1000))
+	if !p.PointerDown(psz.Width/2, psz.Height/2) {
+		t.Fatal("pointer down should press")
+	}
+	p.PointerUp(psz.Width/2, psz.Height/2)
+	if !p.Focused() {
+		t.Fatal("pointer click should focus")
+	}
+	if p.FocusRingVisible() {
+		t.Fatal("pointer focus must not show the ring")
+	}
 	if b.Role() != "button" || b.AriaName() != "确定" {
 		t.Fatalf("role=%s aria=%s", b.Role(), b.AriaName())
 	}
@@ -504,12 +522,15 @@ func TestButton_A11y(t *testing.T) {
 			t.Fatalf("%s contrast=%.2f below %.1f", tc.name, r, f.ContrastFloor)
 		}
 	}
-	// Focus ring paints outside the chrome: bigger canvas, ring pixel is accent.
+	// Focus ring paints outside the chrome: bigger canvas, ring pixel is #91caff.
 	x := button.NewButton("确定")
 	x.SetType(button.ButtonPrimary)
 	m := focus.NewManager()
 	m.Register(x.FocusNode())
 	x.FocusNode().RequestFocus()
+	if !x.FocusRingVisible() {
+		t.Fatal("keyboard focus must be ring-visible")
+	}
 	bsz := x.Layout(rendering.Loose(1000, 1000))
 	W, H := int(bsz.Width)+8, int(bsz.Height)+8
 	dc := render.NewContext(W, H)
@@ -518,9 +539,9 @@ func TestButton_A11y(t *testing.T) {
 	dc.ClearWithColor(render.White)
 	x.Node().Paint(rendering.NewPaintContext(dc, 1).WithOrigin(4, 4))
 	got := dc.Image()
-	// Ring left stroke sits near canvas x=1 at mid height.
-	if r, g, bl, _ := got.At(1, 4+int(bsz.Height)/2).RGBA(); bl < 0x8000 || r > 0xC000 || g > 0xE000 {
-		t.Fatalf("focus ring pixel #%04x%04x%04x want primary blue", r, g, bl)
+	// Ring left stroke sits near canvas x=2 at mid height (#91caff).
+	if r, g, bl, _ := got.At(2, 4+int(bsz.Height)/2).RGBA(); r/257 < 120 || r/257 > 165 || g/257 < 185 || g/257 > 220 || bl/257 < 235 {
+		t.Fatalf("focus ring pixel #%04x%04x%04x want #91caff", r, g, bl)
 	}
 }
 

@@ -2,6 +2,7 @@ package button_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,8 +114,21 @@ func TestButton_PRD_BTN25_LoadingDelay(t *testing.T) {
 	if c.LoadingIcon() != "alt-spin" {
 		t.Fatalf("icon=%q", c.LoadingIcon())
 	}
+	// Loading toggles paint only: chrome width must not move (antd keeps
+	// the button width stable while loading toggles).
+	wOn := c.Layout(rendering.Loose(1000, 1000)).Width
 	if !c.HasSpinner() {
 		t.Fatal("zero-delay loading must spinner immediately")
+	}
+	if wOff := func() float64 {
+		c.SetLoading(false)
+		return c.Layout(rendering.Loose(1000, 1000)).Width
+	}(); math.Abs(wOff-wOn) > 1e-9 {
+		t.Fatalf("loading-off moved width %.1f -> %.1f", wOn, wOff)
+	}
+	c.SetLoading(true)
+	if c.HasSpinner() != true {
+		t.Fatal("re-loading must spinner")
 	}
 	c.SetLoading(false)
 	if c.HasSpinner() {
@@ -154,6 +168,8 @@ func TestButton_PRD_BTN26_AutoInsertSpace(t *testing.T) {
 }
 
 // BTN-27: wave close + reduced-motion kills the ripple.
+// antd Wave fires on click (not press-hold): press alone shows nothing,
+// release fires the expanding shadow; text/link never wave.
 func TestButton_PRD_BTN27_WaveDisabled(t *testing.T) {
 	b := button.NewButton("确定")
 	if b.WaveDisabled() || b.ReducedMotion() {
@@ -171,13 +187,22 @@ func TestButton_PRD_BTN27_WaveDisabled(t *testing.T) {
 	if !b.ReducedMotion() || b.WaveActive() {
 		t.Fatal("reduced-motion must deactivate the ripple")
 	}
-	// Pixel proof: pressed wave paints an outer ring, closed does not.
+	// Pixel proof: click fires the expanding shadow, closed shows nothing.
 	paint := func(waveOff bool) []uint8 {
 		x := button.NewButton("确定")
 		x.SetType(button.ButtonPrimary)
 		x.SetWaveDisabled(waveOff)
 		sz := x.Layout(rendering.Loose(1000, 1000))
 		x.PointerDown(sz.Width/2, sz.Height/2)
+		n := 0
+		x.OnClick = func() { n++ }
+		x.PointerUp(sz.Width/2, sz.Height/2)
+		if n != 1 {
+			t.Fatalf("click fired=%d want 1", n)
+		}
+		if x.WaveShowing() == waveOff {
+			t.Fatalf("waveOff=%v showing=%v", waveOff, x.WaveShowing())
+		}
 		W, H := int(sz.Width)+12, int(sz.Height)+12
 		dc := render.NewContext(W, H)
 		defer dc.Close()
@@ -206,6 +231,36 @@ func TestButton_PRD_BTN27_WaveDisabled(t *testing.T) {
 	}
 	if diff == 0 {
 		t.Fatal("wave on/off snapshots identical: ripple missing")
+	}
+	// Text/link variants never wave even when enabled (Button.tsx skips <Wave>).
+	for _, typ := range []button.ButtonType{button.ButtonText, button.ButtonLink} {
+		x := button.NewButton("确定")
+		x.SetType(typ)
+		sz := x.Layout(rendering.Loose(1000, 1000))
+		x.PointerDown(sz.Width/2, sz.Height/2)
+		x.PointerUp(sz.Width/2, sz.Height/2)
+		if x.WaveShowing() {
+			t.Fatalf("%s must not wave", typ)
+		}
+	}
+	// Spinner advances only via Tick (host scheduler owns the clock).
+	sp := button.NewButton("Loading")
+	sp.SetType(button.ButtonPrimary)
+	sp.SetLoading(true)
+	sp.Layout(rendering.Loose(1000, 1000))
+	if sp.SpinPhase() != 0 {
+		t.Fatalf("spin phase=%v want 0 before tick", sp.SpinPhase())
+	}
+	sp.Tick(0.25)
+	if sp.SpinPhase() <= 0 {
+		t.Fatal("spin phase must advance on Tick")
+	}
+	if !sp.WantsFrame() {
+		t.Fatal("loading spinner must want frames")
+	}
+	idle := button.NewButton("确定")
+	if idle.WantsFrame() {
+		t.Fatal("idle button must not want frames")
 	}
 }
 

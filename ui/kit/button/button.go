@@ -10,7 +10,9 @@ import (
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/focus"
+	"github.com/energye/gpui/ui/kit/icon"
 	"github.com/energye/gpui/ui/rendering"
+	"github.com/energye/gpui/ui/scheduler"
 	"github.com/energye/gpui/ui/theme"
 )
 
@@ -285,8 +287,15 @@ const (
 	minTouchTarget = 44.0
 	// dashOn/dashOff draw the dashed variant border (§6.5 dash period ~3-2).
 	dashOn, dashOff = 3.0, 2.0
-	// focusRingOutset matches the §6.2 focus ring baseline.
-	focusRingOutset = 1.5
+	// focusRingOutset is the antd outlineOffset (genFocusOutline default 1).
+	focusRingOutset = 1.0
+	// spinPeriodSec is one loading-spinner revolution (matches FloatButton).
+	spinPeriodSec = 1.0
+	// waveShadowMs/waveFadeMs follow antd wave style.ts: box-shadow 0.4s,
+	// opacity 2s (motionEaseOutCirc). Spread grows 0->6px, alpha 0.2->0.
+	waveShadowSec = 0.4
+	waveFadeSec   = 2.0
+	waveSpreadMax = 6.0
 )
 
 // Style is an optional business override (P1 gradient hook, §6.5/§6.7).
@@ -338,6 +347,18 @@ type Button struct {
 	pressed bool
 	inBound bool // press started inside and pointer still inside
 	focused bool
+	// focusVisible tracks :focus-visible (antd genFocusStyle): keyboard focus
+	// shows the ring, pointer focus does not. focusFromPointer is set before
+	// RequestFocus from PointerDown so OnFocusChange can tell them apart.
+	focusVisible     bool
+	focusFromPointer bool
+	// spinPhase is the loading-spinner revolution in [0,1), driven by Tick.
+	spinPhase float64
+	// Wave is click-triggered (antd WaveEffect on click, not press-hold):
+	// hasWave + waveStart/waveColor describe the expanding fading shadow.
+	hasWave   bool
+	waveStart time.Time
+	waveColor render.RGBA
 
 	// OnClick fires once per in-bounds press-release or keyboard activate.
 	OnClick func()
@@ -345,12 +366,23 @@ type Button struct {
 	provider *theme.Provider
 	override *theme.Tokens
 
+	attached  *scheduler.TickerRegistry
 	focusNode *focus.FocusNode
 	// textFace is the paint-only font face (nil keeps headless rune
 	// estimate; gallery sets it via SetTextFace so true windows draw text).
-	textFace  text.Face
-	node      *rendering.RenderBox
-	lastSize  rendering.Size
+	textFace text.Face
+	node     *rendering.RenderBox
+	lastSize rendering.Size
+	// spinNode is the loading-spinner hot region: a nested repaint boundary
+	// sized to the leading slot. Steady spinner frames dirty only this node;
+	// the parent chrome (fill/border/text + dim group) stays cached and the
+	// retained path re-records just this small layer. Plain *RenderBox (not
+	// a custom type) so the framework keeps recognizing it for dirty
+	// tracking, layer keys and fingerprints; ManualLayout keeps the
+	// owner-driven Button.Layout geometry stable.
+	spinNode *rendering.RenderBox
+	// spinEdge is the last laid-out spinner edge (child relayout iff changed).
+	spinEdge float64
 }
 
 // NewButton creates a default middle button (Type default, Variant auto).
@@ -391,6 +423,17 @@ func NewButton(label string) *Button {
 	b.node.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		self.paint(pc, size)
 	}
+	// Spinner hot region: nested repaint boundary under the button node.
+	// ManualLayout so parent Layout never resizes or repositions it (button
+	// owns the leading-slot geometry); paint isolation means a spinner tick
+	// dirties only this child and the parent replays cached.
+	b.spinNode = rendering.NewRenderBox()
+	b.spinNode.SetRepaintBoundary(true)
+	b.spinNode.SetManualLayout(true)
+	b.spinNode.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		self.paintSpin(pc, size)
+	}
+	b.node.AddChild(b.spinNode)
 	// Intrinsic size up front so tree embedding (owner-driven Layout that
 	// reaches the node directly) already sees content size, like Icon.
 	b.Layout(rendering.Loose(rendering.Unbounded, rendering.Unbounded))
@@ -633,6 +676,10 @@ func (b *Button) SetDisabled(v bool) {
 func (b *Button) Disabled() bool { return b != nil && b.disabled }
 
 // SetLoading shows the spinner and swallows repeat clicks (B-S2).
+// Loading is layout-neutral: the spinner takes the icon's slot when one
+// exists, otherwise it reuses the gap between icon and text — SetLoading
+// must never move the label or resize the chrome (antd keeps the button
+// width stable while loading toggles).
 func (b *Button) SetLoading(v bool) {
 	if b == nil {
 		return
@@ -646,8 +693,12 @@ func (b *Button) SetLoading(v bool) {
 	b.loading = v
 	if v {
 		b.loadingStart = time.Now()
+		b.ensureAttached()
 	}
-	b.relayout()
+	// Chrome dims as a group and the spinner appears/clears: dirty both the
+	// parent and the hot region (steady frames after this dirty only spin).
+	b.dirty()
+	b.dirtySpin()
 }
 
 // SetLoadingConfig enables loading with P1 delay + custom icon in one call.
@@ -663,8 +714,10 @@ func (b *Button) SetLoadingConfig(cfg LoadingConfig) {
 	if !b.loading {
 		b.loading = true
 		b.loadingStart = time.Now()
+		b.ensureAttached()
 	}
-	b.relayout()
+	b.dirty()
+	b.dirtySpin()
 }
 
 // SetLoadingDelay sets the P1 spinner delay (BTN-25). Negative clears.
@@ -1226,9 +1279,9 @@ func (b *Button) textWidth() float64 {
 	return (float64(ascii)*0.6 + float64(wide)*1.0) * b.FontSize()
 }
 
-// leadingWidth is the icon-or-spinner slot (loading replaces icon, B-S2).
-// With a P1 delay the spinner slot stays empty until the delay elapses;
-// a plain icon still shows while the delayed spinner waits.
+// leadingWidth is the icon-or-spinner paint slot (loading replaces the
+// icon, B-S2). Paint-only: width comes from iconSlot so SetLoading never
+// moves layout (see SetLoading).
 func (b *Button) leadingWidth() float64 {
 	if b == nil {
 		return 0
@@ -1242,9 +1295,26 @@ func (b *Button) leadingWidth() float64 {
 	return 0
 }
 
+// iconSlot is the layout slot: icon when set, otherwise the gap the
+// spinner will occupy while loading (loading keeps chrome width stable).
+// With a P1 delay the paint slot stays empty until the delay elapses;
+// a plain icon still shows while the delayed spinner waits.
+func (b *Button) iconSlot() float64 {
+	if b == nil {
+		return 0
+	}
+	if b.iconName != "" {
+		return b.IconEdge()
+	}
+	if b.loading {
+		return b.IconEdge()
+	}
+	return 0
+}
+
 // ContentWidth is text + leading slot + gap (excludes padding).
 func (b *Button) ContentWidth() float64 {
-	tw, lw := b.textWidth(), b.leadingWidth()
+	tw, lw := b.textWidth(), b.iconSlot()
 	if tw > 0 && lw > 0 {
 		return tw + b.IconGap() + lw
 	}
@@ -1621,12 +1691,10 @@ func (b *Button) chrome() (fill, border, text render.RGBA, dashed, hasBorder boo
 	}
 
 applyLoading:
-	if b.loading {
-		const dim = 0.65
-		fill.A *= dim
-		border.A *= dim
-		text.A *= dim
-	}
+	// No per-channel dim here: loading fades the whole button as one
+	// group (antd style/index.ts `&loading: { opacity: opacityLoading }`).
+	// paint() wraps content in SaveLayer(w,h,LoadingOpacity()); chrome
+	// stays full-strength so text keeps contrast after compositing.
 
 applyStyle:
 
@@ -1659,7 +1727,16 @@ applyStyle:
 	return fill, border, text, dashed, hasBorder
 }
 
-// IconColor exposes the leading icon/spinner ink (semantic icon hook wins).
+// LoadingOpacity is the group opacity for loading buttons (antd token
+// opacityLoading, default 0.65). paint() composites the whole chrome at
+// this opacity instead of dimming channels one by one.
+func (b *Button) LoadingOpacity() float64 {
+	tok := b.themeTokens()
+	if tok.OpacityLoading > 0 && tok.OpacityLoading <= 1 {
+		return tok.OpacityLoading
+	}
+	return 0.65
+}
 func (b *Button) IconColor() render.RGBA {
 	_, _, t, _, _ := b.chrome()
 	if b != nil && b.semanticStyles != nil {
@@ -1700,8 +1777,18 @@ func (b *Button) HasBorder() bool {
 	return has
 }
 
-// Focused reports keyboard focus (ring paints when true).
+// Focused reports focus (ring paints only when FocusRingVisible).
 func (b *Button) Focused() bool { return b != nil && b.focused }
+
+// FocusVisible reports :focus-visible (keyboard focus shows the ring,
+// pointer focus does not; antd genFocusStyle &:focus-visible).
+func (b *Button) FocusVisible() bool { return b != nil && b.focused && b.focusVisible }
+
+// FocusRingVisible reports whether the focus ring paints: focused via
+// keyboard, not disabled (antd &:not(:disabled):focus-visible).
+func (b *Button) FocusRingVisible() bool {
+	return b != nil && b.focused && b.focusVisible && !b.disabled
+}
 
 // Hovered reports pointer hover.
 func (b *Button) Hovered() bool { return b != nil && b.hovered }
@@ -1722,6 +1809,13 @@ func (b *Button) FocusNode() *focus.FocusNode {
 		n.OnActivate = func() { self.click() }
 		n.OnFocusChange = func(f bool) {
 			self.focused = f
+			// Pointer-driven focus never shows the ring; keyboard does.
+			if f {
+				self.focusVisible = !self.focusFromPointer
+			} else {
+				self.focusVisible = false
+			}
+			self.focusFromPointer = false
 			self.dirty()
 		}
 		b.focusNode = n
@@ -1749,6 +1843,208 @@ func (b *Button) click() {
 	if b.IsLink() && b.OnNavigate != nil {
 		b.OnNavigate(b.href, b.target)
 	}
+	// antd Wave fires on click (not press-hold), except text/link variants
+	// (Button.tsx skips <Wave> for unbordered variants) and loading.
+	b.startWave()
+}
+
+// waveAllowed mirrors Button.tsx: <Wave> wraps every variant except
+// text/link; waveDisabled/reduced-motion/loading/disabled close it.
+func (b *Button) waveAllowed() bool {
+	if b == nil || b.waveDisabled || b.reducedMotion || b.disabled || b.loading {
+		return false
+	}
+	switch b.EffectiveVariant() {
+	case VariantText, VariantLink:
+		return false
+	}
+	return true
+}
+
+// startWave arms the click-triggered expanding shadow (antd WaveEffect).
+func (b *Button) startWave() {
+	if !b.waveAllowed() {
+		return
+	}
+	b.waveColor = b.WaveColor()
+	b.waveStart = time.Now()
+	b.hasWave = true
+	b.ensureAttached()
+	b.dirty()
+}
+
+// WaveColor follows antd getTargetWaveColor: first valid of border,
+// background (white/transparent never count, so default falls to its gray
+// border, primary to its fill).
+func (b *Button) WaveColor() render.RGBA {
+	if b == nil {
+		return render.RGBA{}
+	}
+	fill, border, _, _, hasBorder := b.chrome()
+	if hasBorder && isValidWaveColor(border) {
+		return border
+	}
+	if isValidWaveColor(fill) {
+		return fill
+	}
+	tok := b.themeTokens()
+	return themeToRGBA(tok.ColorPrimary)
+}
+
+// isValidWaveColor mirrors antd isValidWaveColor (white/transparent out).
+func isValidWaveColor(c render.RGBA) bool {
+	if c.A <= 0.01 {
+		return false
+	}
+	const tol = 1.0 / 255.0
+	isWhite := func(v float64) bool { return v > 1-tol }
+	if isWhite(c.R) && isWhite(c.G) && isWhite(c.B) {
+		return false
+	}
+	return true
+}
+
+// WaveProgress reports the active wave 0..1 (spread) and alpha; ok=false
+// when no wave is showing (expired, closed, or unbordered variant).
+func (b *Button) WaveProgress() (spread, alpha float64, ok bool) {
+	if b == nil || !b.hasWave || !b.waveAllowed() {
+		return 0, 0, false
+	}
+	el := time.Since(b.waveStart).Seconds()
+	if el >= waveFadeSec {
+		return 0, 0, false
+	}
+	sp := el / waveShadowSec
+	if sp > 1 {
+		sp = 1
+	}
+	return sp * waveSpreadMax, 0.2 * (1 - el/waveFadeSec), true
+}
+
+// WaveShowing reports a live wave ring (paint + tests + example gate).
+func (b *Button) WaveShowing() bool {
+	_, _, ok := b.WaveProgress()
+	return ok
+}
+
+// ClearWave retires any live wave without painting (snapshot/test setup).
+func (b *Button) ClearWave() {
+	if b == nil || !b.hasWave {
+		return
+	}
+	b.hasWave = false
+}
+
+// SpinPhase returns the loading-spinner revolution in [0,1).
+func (b *Button) SpinPhase() float64 {
+	if b == nil {
+		return 0
+	}
+	return b.spinPhase
+}
+
+// Attach registers the spinner/wave ticker (host scheduler drives Tick).
+// Hot-region rule: spinner keeps vsync frames while loading; idle buttons
+// must not hold the loop (Tick returns false so they auto-drop).
+func (b *Button) Attach(reg *scheduler.TickerRegistry) {
+	if b == nil || reg == nil {
+		return
+	}
+	if b.attached != nil && b.attached != reg {
+		b.attached.Remove(b)
+	}
+	b.attached = reg
+	reg.Add(b)
+}
+
+// ensureAttached re-adds the button to its last registry when a new
+// animation starts after an idle auto-drop (Tick returned false).
+func (b *Button) ensureAttached() {
+	if b == nil || b.attached == nil {
+		return
+	}
+	b.attached.Add(b)
+}
+
+// Detach unregisters the ticker.
+func (b *Button) Detach() {
+	if b == nil || b.attached == nil {
+		return
+	}
+	b.attached.Remove(b)
+	b.attached = nil
+}
+
+// Tick advances spinner phase and retires the wave.
+// Spinner keeps vsync pacing but dirties only the hot region (parent chrome
+// replays cached); all other dynamics are hot-region only (dirty their own
+// boundary, detach when idle).
+func (b *Button) Tick(dt float64) bool {
+	if b == nil {
+		return false
+	}
+	if dt < 0 {
+		dt = 0
+	}
+	if b.loading && !b.reducedMotion && b.HasSpinner() {
+		b.spinPhase = math.Mod(b.spinPhase+dt/spinPeriodSec, 1)
+		if b.spinPhase < 0 {
+			b.spinPhase++
+		}
+		b.dirtySpin()
+	}
+	if b.hasWave {
+		if _, _, ok := b.WaveProgress(); !ok {
+			b.hasWave = false
+			b.dirty()
+		} else {
+			b.dirty()
+		}
+	}
+	// Stay registered only while an animation needs vsync ticks.
+	if b.loading && !b.reducedMotion {
+		return true
+	}
+	return b.hasWave
+}
+
+// WantsFrame asks the host for frames only while spinner/wave run.
+func (b *Button) WantsFrame() bool {
+	if b == nil {
+		return false
+	}
+	if b.loading && !b.reducedMotion && b.HasSpinner() {
+		return true
+	}
+	_, _, ok := b.WaveProgress()
+	return ok
+}
+
+// NextWake sleeps the host loop until the wave retires when only wave runs,
+// or until a loading delay elapses when the spinner has not shown yet.
+// While the spinner shows it keeps vsync pacing (no deadline).
+func (b *Button) NextWake() (time.Duration, bool) {
+	if b == nil {
+		return 0, false
+	}
+	if b.loading && !b.reducedMotion && b.HasSpinner() {
+		return 0, false
+	}
+	if b.loading && !b.reducedMotion && b.loadingDelay > 0 {
+		left := b.loadingDelay - time.Since(b.loadingStart)
+		if left > 0 {
+			return left, true
+		}
+	}
+	if !b.hasWave {
+		return 0, false
+	}
+	el := time.Since(b.waveStart).Seconds()
+	left := waveFadeSec - el
+	if left <= 0 {
+		return 0, false
+	}
+	return time.Duration(left * float64(time.Second)), true
 }
 
 // inside reports hit including the 44px floor expansion (a11y, §6.6).
@@ -1786,6 +2082,8 @@ func (b *Button) PointerDown(x, y float64) bool {
 	}
 	b.pressed, b.inBound = true, true
 	if b.focusNode != nil {
+		// Pointer focus must not show :focus-visible ring.
+		b.focusFromPointer = true
 		b.focusNode.RequestFocus()
 	}
 	b.dirty()
@@ -1865,6 +2163,7 @@ func (b *Button) Layout(c rendering.Constraints) rendering.Size {
 	out := c.Tighten(rendering.Size{Width: w, Height: h})
 	b.lastSize = out
 	b.sync()
+	b.syncSpin()
 	return b.node.Layout(c)
 }
 
@@ -1873,6 +2172,56 @@ func (b *Button) sync() {
 		return
 	}
 	b.node.FixedWidth, b.node.FixedHeight = b.lastSize.Width, b.lastSize.Height
+}
+
+// spinRect computes the spinner hot-region box in button-local coords.
+// Visible only while the spinner shows; otherwise edge<=0 (child paints
+// nothing and records empty).
+func (b *Button) spinRect() (x, y, edge float64) {
+	if b == nil {
+		return 0, 0, 0
+	}
+	w, h := b.lastSize.Width, b.lastSize.Height
+	if w <= 0 || h <= 0 || !b.HasSpinner() {
+		return 0, 0, 0
+	}
+	leadCX, _, _, hasLead, _ := b.slots(w, h)
+	lw := b.leadingWidth()
+	if !hasLead || lw <= 0 {
+		return 0, 0, 0
+	}
+	return leadCX - lw/2, h/2 - lw/2, lw
+}
+
+// syncSpin positions/sizes the spinner child (UI-thread paths only: Layout,
+// loading transitions, Tick). Size goes through child Layout (marks paint on
+// size change); position is a paint-neutral offset write. Never call from
+// paint (raster thread in the retained path): paint updates the offset only.
+func (b *Button) syncSpin() {
+	if b == nil || b.spinNode == nil {
+		return
+	}
+	x, y, edge := b.spinRect()
+	if edge != b.spinEdge {
+		b.spinEdge = edge
+		if edge > 0 {
+			b.spinNode.Layout(rendering.Tight(edge, edge))
+		} else {
+			b.spinNode.Layout(rendering.Tight(0, 0))
+		}
+	}
+	b.spinNode.SetOffset(rendering.Point{X: x, Y: y})
+}
+
+// dirtySpin dirties only the spinner hot region (steady vsync frames).
+// MarkNeedsPaint stops at the child's own boundary, so the parent chrome
+// stays clean and replays cached (or blits its texture in retained mode).
+func (b *Button) dirtySpin() {
+	if b == nil || b.spinNode == nil {
+		return
+	}
+	b.syncSpin()
+	b.spinNode.MarkNeedsPaint()
 }
 
 func (b *Button) dirty() {
@@ -1951,6 +2300,32 @@ func (b *Button) TextCenterX() float64 {
 	return x
 }
 
+// normalizeIconName maps Ant icon component names to kit registry keys:
+// SearchOutlined->search, PoweroffOutlined->poweroff, SyncOutlined->sync,
+// DownloadOutlined->download, AntDesignOutlined->ant-design,
+// EllipsisOutlined->ellipsis, LoadingOutlined->loading. Unknown names pass
+// through (icon package draws its placeholder, never blank).
+func normalizeIconName(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "search", "searchoutlined":
+		return "search"
+	case "poweroff", "poweroffoutlined":
+		return "poweroff"
+	case "sync", "syncoutlined":
+		return "sync"
+	case "download", "downloadoutlined":
+		return "download"
+	case "antdesign", "ant-design", "antdesignoutlined", "ant-designoutlined":
+		return "ant-design"
+	case "ellipsis", "ellipsisoutlined":
+		return "ellipsis"
+	case "loading", "loadingoutlined":
+		return "loading"
+	default:
+		return s
+	}
+}
+
 func (b *Button) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
@@ -1958,6 +2333,13 @@ func (b *Button) paint(pc *rendering.PaintContext, size rendering.Size) {
 	b.lastSize = size
 	w, h := size.Width, size.Height
 	fill, border, text, dashed, hasBorder := b.chrome()
+	// Loading fades the whole button as one group (antd `opacity` on the
+	// loading class): open the layer first, paint chrome at full strength,
+	// composite once. Wave/focus overlays stay outside (undimmed).
+	layered := b.loading && pc != nil && pc.DC != nil
+	if layered {
+		layered = pc.SaveLayer(w, h, b.LoadingOpacity())
+	}
 	radius := b.Radius()
 	if b.shape == ButtonShapeCircle {
 		radius = h / 2
@@ -1986,22 +2368,19 @@ func (b *Button) paint(pc *rendering.PaintContext, size rendering.Size) {
 
 	leadCX, textCX, _, hasLead, hasText := b.slots(w, h)
 	cy := h / 2
-	if hasLead {
+	// Keep the hot-region offset in sync on every paint (paint-safe: offset
+	// write only, no layout, no dirty; sizing stays on UI-thread syncSpin).
+	// The leading slot itself stays empty while loading: the spinner draws
+	// in the spinNode child so steady frames re-record only that layer.
+	if b.spinNode != nil {
+		x, y, _ := b.spinRect()
+		b.spinNode.SetOffset(rendering.Point{X: x, Y: y})
+	}
+	if hasLead && !b.HasSpinner() {
 		lw := b.leadingWidth()
-		r := lw * 0.32
 		ink := b.IconColor()
-		if b.HasSpinner() {
-			// Spinner ring (Tick-driven rotation is host-owned; static arc here).
-			if b.loadingIcon != "" {
-				// P1 custom loading icon: solid dot instead of the ring.
-				rendering.FillCircle(pc, leadCX, cy, r, ink.R, ink.G, ink.B, ink.A)
-			} else {
-				rendering.StrokeArc(pc, leadCX, cy, r, 0.6, 5.4, math.Max(2, r*0.4), ink.R, ink.G, ink.B, ink.A)
-				rendering.FillCircle(pc, leadCX+r*0.85, cy-r*0.35, math.Max(1.2, r*0.28), ink.R, ink.G, ink.B, ink.A)
-			}
-		} else {
-			rendering.StrokeCircle(pc, leadCX, cy, r, math.Max(1.6, r*0.35), ink.R, ink.G, ink.B, ink.A)
-		}
+		gx, gy := leadCX-lw/2, cy-lw/2
+		icon.PaintGlyph(pc, normalizeIconName(b.iconName), gx, gy, lw, ink, 0)
 	}
 	disp := b.DisplayLabel()
 	if hasText && pc.DC != nil && disp != "" {
@@ -2018,29 +2397,54 @@ func (b *Button) paint(pc *rendering.PaintContext, size rendering.Size) {
 		ax, ay := pc.Abs(textCX, top)
 		pc.DC.DrawStringAnchored(disp, ax, ay, 0.5, 0)
 	}
-	// P1 wave ripple: pressed + WaveActive paints an outer ring.
-	if b.pressed && b.inBound && b.WaveActive() && !b.Disabled() {
-		tok := b.themeTokens()
-		wc := b.accent(tok)
-		if wc.A == 0 {
-			wc = themeToRGBA(tok.ColorPrimary)
-		}
-		wc.A = 0.55
-		rendering.StrokeRoundRect(pc, -3, -3, w+6, h+6, radius+3, 2, wc.R, wc.G, wc.B, wc.A)
+	if layered {
+		pc.RestoreLayer()
+	}
+	// antd Wave: click-triggered expanding shadow (style.ts wave-motion:
+	// box-shadow 0->6px in 0.4s, opacity 0.2->0 in 2s), never for text/link.
+	if spread, alpha, ok := b.WaveProgress(); ok {
+		wc := b.waveColor
+		rendering.StrokeRoundRect(pc, -spread, -spread, w+2*spread, h+2*spread, radius+spread, 2, wc.R, wc.G, wc.B, alpha)
 	}
 
-	if b.focused && !b.disabled {
+	// antd genFocusOutline: 3px solid #91caff, offset 1, only
+	// &:not(:disabled):focus-visible (keyboard focus, never pointer focus).
+	if b.FocusRingVisible() {
 		tok := b.themeTokens()
-		ring := b.accent(tok)
+		ring := themeToRGBA(tok.ColorPrimaryBorder)
 		if ring.A == 0 {
-			ring = themeToRGBA(tok.ColorPrimary)
+			ring = parseHexRender("#91caff")
+		}
+		ringWidth := tok.LineWidthFocus
+		if ringWidth <= 0 {
+			ringWidth = 3
 		}
 		rx, ry, rw, rh := focus.FocusRingRect(0, 0, w, h, focusRingOutset)
-		rendering.StrokeRoundRect(pc, rx, ry, rw, rh, radius+focusRingOutset, tok.ControlOutlineWidth, ring.R, ring.G, ring.B, ring.A)
-		if tok.ControlOutlineWidth <= 0 {
-			rendering.StrokeRoundRect(pc, rx, ry, rw, rh, radius+focusRingOutset, 2, ring.R, ring.G, ring.B, ring.A)
-		}
+		rendering.StrokeRoundRect(pc, rx, ry, rw, rh, radius+focusRingOutset, ringWidth, ring.R, ring.G, ring.B, ring.A)
 	}
+}
+
+// paintSpin draws only the loading indicator in the hot-region child
+// (Button.tsx iconType='loading'): default LoadingOutlined, custom
+// loading.icon when set, rotating with the Tick phase. The ink carries the
+// loading group opacity because the parent SaveLayer now covers the chrome
+// only — the spinner is an isolated layer and would otherwise paint full
+// strength while the button dims (antd `opacity` covers the whole button).
+func (b *Button) paintSpin(pc *rendering.PaintContext, size rendering.Size) {
+	if b == nil || pc == nil || size.Width <= 0 || size.Height <= 0 {
+		return
+	}
+	if !b.HasSpinner() {
+		return
+	}
+	ink := b.IconColor()
+	ink.A *= b.LoadingOpacity()
+	angle := b.spinPhase * 360
+	name := "loading"
+	if b.loadingIcon != "" {
+		name = normalizeIconName(b.loadingIcon)
+	}
+	icon.PaintGlyph(pc, name, 0, 0, size.Width, ink, angle)
 }
 
 // ContrastRatio flattens fg over bg (sRGB) and returns the WCAG ratio.
