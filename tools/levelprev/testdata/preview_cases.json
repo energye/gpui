@@ -1,0 +1,4 @@
+{
+  "proj_small": {"project": "testdata/proj_small", "tiles": 17, "layers": 2, "solids": 2, "objects": 3, "entities": 3, "orient": "orthogonal", "mask00": 6, "has_mask": true},
+  "proj_big": {"project": "testdata/proj_big", "tiles": 14627, "layers": 2, "solids": 64, "objects": 2, "entities": 2000, "orient": "orthogonal", "mask00": 6, "has_mask": true}
+}

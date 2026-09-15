@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "max_frames": 3600,
+  "slow_dt_ms": 20,
+  "max_dt_ms": 250,
+  "frames": [
+    {"name": "f0", "dt_ms": 16, "draws": 120, "overdraw": 1.25, "mem": 67108864, "spans": [{"name": "update", "took_ms": 6}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]},
+    {"name": "f1", "dt_ms": 17, "draws": 130, "overdraw": 1.3, "mem": 68157440, "spans": [{"name": "update", "took_ms": 7}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]},
+    {"name": "f2", "dt_ms": 16, "draws": 120, "overdraw": 1.25, "mem": 67108864, "spans": [{"name": "update", "took_ms": 6}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]},
+    {"name": "f3", "dt_ms": 33, "draws": 200, "overdraw": 1.8, "mem": 69206016, "spans": [{"name": "update", "took_ms": 10}, {"name": "render", "took_ms": 20}, {"name": "present", "took_ms": 3}]},
+    {"name": "f4", "dt_ms": 16, "draws": 120, "overdraw": 1.25, "mem": 67108864, "spans": [{"name": "update", "took_ms": 6}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]},
+    {"name": "f5", "dt_ms": 17, "draws": 130, "overdraw": 1.3, "mem": 68157440, "spans": [{"name": "update", "took_ms": 7}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]},
+    {"name": "f6", "dt_ms": 16, "draws": 120, "overdraw": 1.25, "mem": 67108864, "spans": [{"name": "update", "took_ms": 6}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]},
+    {"name": "f7", "dt_ms": 50, "draws": 250, "overdraw": 2.0, "mem": 70254592, "spans": [{"name": "update", "took_ms": 15}, {"name": "render", "took_ms": 30}, {"name": "present", "took_ms": 5}]},
+    {"name": "f8", "dt_ms": 16, "draws": 120, "overdraw": 1.25, "mem": 67108864, "spans": [{"name": "update", "took_ms": 6}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]},
+    {"name": "f9", "dt_ms": 17, "draws": 130, "overdraw": 1.3, "mem": 68157440, "spans": [{"name": "update", "took_ms": 7}, {"name": "render", "took_ms": 8}, {"name": "present", "took_ms": 2}]}
+  ],
+  "shaders": [
+    {"name": "lit", "takes_ms": [45, 12]},
+    {"name": "shadow", "takes_ms": [120]}
+  ],
+  "expect": {
+    "frames": 10,
+    "total_frames": 10,
+    "avg_ms": 21,
+    "p95_ms": 50,
+    "slow": 2,
+    "total_draws": 1440,
+    "avg_draws": 144,
+    "mem_cur": 68157440,
+    "mem_peak": 70254592,
+    "overdraw": 1.395,
+    "shader_ms": 177,
+    "breakdown": [
+      {"name": "render", "total_ms": 114, "avg_ms": 11.4, "max_ms": 30},
+      {"name": "update", "total_ms": 76, "avg_ms": 7.6, "max_ms": 15},
+      {"name": "present", "total_ms": 24, "avg_ms": 2.4, "max_ms": 5}
+    ]
+  },
+  "mini_frames": [
+    {"name": "m0", "dt_ms": 16, "draws": 100, "overdraw": 1.2, "mem": 67108864, "spans": [{"name": "update", "took_ms": 6}, {"name": "render", "took_ms": 8}]},
+    {"name": "m1", "dt_ms": 17, "draws": 110, "overdraw": 1.3, "mem": 68157440, "spans": [{"name": "update", "took_ms": 7}, {"name": "render", "took_ms": 8}]}
+  ],
+  "mini_shaders": [
+    {"name": "mini", "takes_ms": [30]}
+  ],
+  "bad_files": [
+    {"file": "stats_bad_truncated.json", "want_code": "bad-data"},
+    {"file": "stats_bad_version.json", "want_code": "version-mismatch"},
+    {"file": "stats_bad_newminor.json", "want_code": "version-mismatch"}
+  ],
+  "crash": {"file": "stats_crash.json", "reason": "long-run-oom", "code": "out-of-memory"}
+}

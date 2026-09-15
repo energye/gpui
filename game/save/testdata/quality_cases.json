@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "max_bytes": 4096,
+  "levels": [
+    {"name": "high", "particles": 1000, "lights": 8, "scale": 1.0},
+    {"name": "medium", "particles": 500, "lights": 4, "scale": 0.75},
+    {"name": "low", "particles": 200, "lights": 2, "scale": 0.5}
+  ],
+  "files": [
+    {"file": "quality_high.json", "name": "high", "quality": "high"},
+    {"file": "quality_medium.json", "name": "medium", "quality": "medium"},
+    {"file": "quality_low.json", "name": "low", "quality": "low"}
+  ],
+  "bad_files": [
+    {"file": "quality_bad_truncated.json", "want_code": "bad-data"},
+    {"file": "quality_bad_name.json", "want_code": "bad-data"},
+    {"file": "quality_bad_empty.json", "want_code": "bad-data"},
+    {"file": "quality_bad_version.json", "want_code": "version-mismatch"}
+  ],
+  "bad_names": ["", "ultra", "HIGH", "High", " high", "high ", "4k", "low0"]
+}

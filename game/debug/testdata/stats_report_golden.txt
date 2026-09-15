@@ -1,0 +1,4 @@
+stats v1.0 frames=2 total=2 fps=62.50 avg=16.000ms p95=17.000ms slow=0 gaps=0 ooms=0
+draws total=210 avg=105.00/frame overdraw=1.250x mem cur=68157440B peak=68157440B
+spans 2: render 16ms 55.2% | update 13ms 44.8%
+shaders 1 total=30ms: mini 30ms x1

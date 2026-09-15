@@ -1,0 +1,4 @@
+{
+  "fire": {"effect": "effect_fire", "spawned": 16, "alive": 16, "child": 0, "shape": "cone"},
+  "smoke": {"effect": "effect_smoke", "spawned": 15, "alive": 15, "child": 0, "shape": "box"}
+}
