@@ -1,0 +1,4156 @@
+{
+  "atlas": {
+    "h": 16,
+    "quads": [
+      {
+        "h": 8,
+        "name": "tl-red",
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "h": 8,
+        "name": "tr-green",
+        "rgba": [
+          0,
+          255,
+          0,
+          255
+        ],
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      {
+        "h": 8,
+        "name": "bl-blue",
+        "rgba": [
+          0,
+          0,
+          255,
+          255
+        ],
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      {
+        "h": 8,
+        "name": "br-yellow",
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ],
+        "w": 8,
+        "x": 8,
+        "y": 8
+      }
+    ],
+    "w": 16
+  },
+  "canvas": [
+    32,
+    32
+  ],
+  "cases": {
+    "feet_center": {
+      "note": "pivot at feet bottom-center, rot 0 keeps feet glued",
+      "probes": [
+        {
+          "desc": "feet TL red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "feet TR green",
+          "tol": 0,
+          "want": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "feet BL blue",
+          "tol": 0,
+          "want": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "feet BR yellow",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            8,
+            16
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "feet0",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "feet_rot360": {
+      "note": "full turn about feet returns to same pixels, feet never lift",
+      "probes": [
+        {
+          "desc": "feet360 TL red",
+          "tol": 1,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "feet360 TR green",
+          "tol": 1,
+          "want": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "feet360 BL blue",
+          "tol": 1,
+          "want": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "feet360 BR yellow",
+          "tol": 1,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            8,
+            16
+          ],
+          "rot": 6.283185307179586,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "feet360",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "filter_bicubic_identity": {
+      "note": "per-sprite bicubic 1:1 solid centers stay exact",
+      "probes": [
+        {
+          "desc": "bicubic TL stays red",
+          "tol": 1,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "bicubic BR stays yellow",
+          "tol": 1,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "bicubic",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "fc",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "filter_bilinear_scaled": {
+      "note": "per-sprite bilinear 16->32, seam blends four quadrants",
+      "probes": [
+        {
+          "desc": "bilinear interior stays red",
+          "tol": 1,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 8,
+          "y": 8
+        },
+        {
+          "desc": "bilinear seam blends",
+          "tol": 2,
+          "want": [
+            159,
+            191,
+            47,
+            255
+          ],
+          "x": 16,
+          "y": 16
+        },
+        {
+          "desc": "bilinear BR stays yellow",
+          "tol": 1,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 24,
+          "y": 24
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            0,
+            0,
+            32,
+            32
+          ],
+          "filter": "bilinear",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "fb",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "filter_nearest_scaled": {
+      "note": "per-sprite nearest 16->32, seam stays sharp yellow",
+      "probes": [
+        {
+          "desc": "nearest interior stays red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 8,
+          "y": 8
+        },
+        {
+          "desc": "nearest seam stays sharp yellow",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 16,
+          "y": 16
+        },
+        {
+          "desc": "nearest BR stays yellow",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 24,
+          "y": 24
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            0,
+            0,
+            32,
+            32
+          ],
+          "filter": "nearest",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "fn",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "flipx_center": {
+      "note": "flipX about center swaps left/right",
+      "probes": [
+        {
+          "desc": "flipX TL shows green",
+          "tol": 0,
+          "want": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "flipX TR shows red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "flipX BL shows yellow",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "flipX BR shows blue",
+          "tol": 0,
+          "want": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": true,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            8,
+            8
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "fx",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "flipy_center": {
+      "note": "flipY about center swaps top/bottom",
+      "probes": [
+        {
+          "desc": "flipY TL shows blue",
+          "tol": 0,
+          "want": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "flipY TR shows yellow",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "flipY BL shows red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "flipY BR shows green",
+          "tol": 0,
+          "want": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": true,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            8,
+            8
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "fy",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "hundred": {
+      "note": "hundred 2x2 blocks for D perf, same image submits via Ex",
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h0",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h1",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h2",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h3",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h4",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h5",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h6",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h7",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h8",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            8,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h9",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h10",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h11",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h12",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h13",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h14",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h15",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h16",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h17",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h18",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            10,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h19",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h20",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h21",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h22",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h23",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h24",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h25",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h26",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h27",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h28",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            12,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h29",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h30",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h31",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h32",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h33",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h34",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h35",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h36",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h37",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h38",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            14,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h39",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h40",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h41",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h42",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h43",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h44",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h45",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h46",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h47",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h48",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            16,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h49",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h50",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h51",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h52",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h53",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h54",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h55",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h56",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h57",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h58",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            18,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h59",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h60",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h61",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h62",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h63",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h64",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h65",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h66",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h67",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h68",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            20,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h69",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h70",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h71",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h72",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h73",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h74",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h75",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h76",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h77",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h78",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            22,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h79",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h80",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h81",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h82",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h83",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h84",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h85",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h86",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h87",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h88",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            24,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h89",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            8,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h90",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            10,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h91",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            12,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h92",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            14,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h93",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            16,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h94",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            18,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h95",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            20,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h96",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            22,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h97",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            24,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h98",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "dst": [
+            26,
+            26,
+            2,
+            2
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "tag": "h99",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "identity": {
+      "note": "zero new fields equals old road",
+      "probes": [
+        {
+          "desc": "identity TL red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "identity TR green",
+          "tol": 0,
+          "want": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "identity BL blue",
+          "tol": 0,
+          "want": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "identity BR yellow",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        },
+        {
+          "desc": "identity outside white",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 4,
+          "y": 4
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "id",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "rot180_center": {
+      "note": "rot PI about center swaps TL<->BR",
+      "probes": [
+        {
+          "desc": "rot180 TL shows yellow",
+          "tol": 1,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "rot180 TR shows blue",
+          "tol": 1,
+          "want": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "rot180 BL shows green",
+          "tol": 1,
+          "want": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "rot180 BR shows red",
+          "tol": 1,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            8,
+            8
+          ],
+          "rot": 3.141592653589793,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "r180",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "rot180_origin": {
+      "note": "same rot about top-left moves red to canvas corner, proves pivot matters",
+      "probes": [
+        {
+          "desc": "origin-pivot red moves to canvas corner",
+          "tol": 1,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 4,
+          "y": 4
+        },
+        {
+          "desc": "origin-pivot old center stays white",
+          "tol": 1,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "origin-pivot far corner stays white",
+          "tol": 1,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 3.141592653589793,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "r180o",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "rot90_center": {
+      "note": "rot +90deg about center is clockwise on screen (Y down), TL red moves to TR",
+      "probes": [
+        {
+          "desc": "rot90 TR shows red",
+          "tol": 1,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "rot90 BR shows green",
+          "tol": 1,
+          "want": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        },
+        {
+          "desc": "rot90 BL shows yellow",
+          "tol": 1,
+          "want": [
+            255,
+            255,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "rot90 TL shows blue",
+          "tol": 1,
+          "want": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            8,
+            8
+          ],
+          "rot": 1.5707963267948966,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "r90",
+          "tint": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "tint_gray": {
+      "note": "gray tint halves straight RGB, alpha stays opaque",
+      "probes": [
+        {
+          "desc": "tint TL dark red",
+          "tol": 1,
+          "want": [
+            128,
+            0,
+            0,
+            255
+          ],
+          "x": 12,
+          "y": 12
+        },
+        {
+          "desc": "tint TR dark green",
+          "tol": 1,
+          "want": [
+            0,
+            128,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 12
+        },
+        {
+          "desc": "tint BL dark blue",
+          "tol": 1,
+          "want": [
+            0,
+            0,
+            128,
+            255
+          ],
+          "x": 12,
+          "y": 20
+        },
+        {
+          "desc": "tint BR dark yellow",
+          "tol": 1,
+          "want": [
+            128,
+            128,
+            0,
+            255
+          ],
+          "x": 20,
+          "y": 20
+        }
+      ],
+      "sprites": [
+        {
+          "dst": [
+            8,
+            8,
+            16,
+            16
+          ],
+          "filter": "default",
+          "flipx": false,
+          "flipy": false,
+          "image": "tex/atlas",
+          "opacity": 1,
+          "pivot": [
+            0,
+            0
+          ],
+          "rot": 0,
+          "src": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tag": "tg",
+          "tint": [
+            0.5,
+            0.5,
+            0.5,
+            1
+          ]
+        }
+      ]
+    }
+  },
+  "window_intent": "game_sprite--case=rot (P2 build, S36 keeps offscreen only)"
+}

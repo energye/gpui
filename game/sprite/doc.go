@@ -16,6 +16,29 @@
 // existing render DrawAtlas (Src.X/Y/W/H, Dst.X/Y/W/H, EffectiveOpacity
 // field for field), render main path untouched.
 //
+// Frozen 2026-09-15 (capability 2.2, P1b, S36/W5): AtlasFilter
+// (AtlasFilterDefault/Nearest/Bilinear/Bicubic), ParseAtlasFilter,
+// AtlasSprite, NewAtlasSprite, Validate, Skippable, HasTint, PivotPoint,
+// FeetPivot, ToRender, AtlasToRender. Additive changes only. Rotation is
+// radians about the pivot (Y down, positive clockwise, matching render R4);
+// FlipX/FlipY mirror about the pivot before Rot; Pivot is the offset from
+// the Dst origin in Dst units (zero is top-left, FeetPivot pins the feet);
+// Tint zero struct means no tint, else straight multiply incl alpha;
+// Filter zero means the historic bilinear road, per-sprite
+// nearest/bilinear/bicubic each on its own. Pure numbers plus one boundary
+// conversion; the caller draws the result with the existing render
+// DrawAtlasEx (field for field), render main path untouched. Window intent
+// game_sprite--case=rot lands with P2; S36 keeps the offscreen proof only.
+// Bad numbers are core InvalidArg and change nothing.
+//
+// Frozen 2026-09-15 (capability 1.2, P1b, S41/W5): DeepItem, NewDeepItem,
+// SetDepth, DepthSort, IsDepthSorted. Additive changes only. Depth follows
+// R5/game/camera: bigger = farther, drawn first (far-to-near painter);
+// ties keep the input order (stable, no flicker). Within the same depth,
+// Layer/FeetY keep the 2.3 rule. Pure numbers; the caller feeds the ordered
+// slice to render depth branch (DrawDepthSprites) or plain atlas draws.
+// Bad depth (NaN/Inf) is a core InvalidArg error and changes nothing.
+//
 // Ordering (draw first = behind, draw last = front on top):
 //
 //	layer ascending, then feet Y ascending, stable for ties.

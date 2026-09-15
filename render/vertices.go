@@ -707,7 +707,7 @@ func atlasSpriteCorners(sp AtlasSprite, ctm Matrix) (tl, tr, br, bl Point) {
 
 // DrawAtlasEx 校验后按 R4 新分支绘制并返回降级标记（新函数，老路不动）。
 // 空批或全跳过返回 Skipped；非有限数与未知过滤返回哨兵错且什么都不画。
-// tint 染色暂无显卡着色器，含染色整批走 CPU 真采样（Degraded）。
+// tint 染色走显卡逐顶点 premul 颜色（与 CPU 真采样同真值，只差采样舍入）。
 func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawOptions) (AtlasDrawResult, error) {
 	if c == nil || img == nil || len(sprites) == 0 {
 		return AtlasDrawResult{Skipped: true}, nil
@@ -733,17 +733,11 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 	if len(drawIdx) == 0 {
 		return AtlasDrawResult{Skipped: true}, nil
 	}
-	hasTint := false
-	for _, i := range drawIdx {
-		if !atlasTintIsIdentity(sprites[i].Tint) {
-			hasTint = true
-			break
-		}
-	}
 	useGPU := !CPUOnlyMode() && c.gpuCtxOps() != nil
 	var pixelData []byte
 	var genID uint64
 	var stride int
+	tintIface := false
 	if useGPU {
 		pixelData = img.PremultipliedData()
 		if len(pixelData) == 0 {
@@ -752,10 +746,10 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 			genID = img.GenerationID()
 			stride = img.Stride()
 		}
-		// 染色无着色器：整批回 CPU，保证两边同一真值。
-		if useGPU && hasTint {
-			useGPU = false
-		}
+		// 染色走逐顶点颜色：QueueImageDrawTint 已是 gpuContextOps 的
+		// 必备方法（所有后端必须实现，旧桩随接口一起补），不断言；
+		// 仍保留含染色整批回 CPU 的注释历史见 git log。
+		tintIface = useGPU
 	}
 	if useGPU {
 		defer c.setGPUClipRect()()
@@ -768,19 +762,35 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 			sp := sprites[i]
 			filt, _ := normalizeAtlasFilter(sp.Filter)
 			op := normalizeAtlasOpacity(sp.Opacity)
-			tl, tr, br, bl := atlasSpriteCorners(sp, ctm)
+			tl, trPt, br, bl := atlasSpriteCorners(sp, ctm)
 			u0 := float32(sp.SrcX) / float32(imgW)
 			v0 := float32(sp.SrcY) / float32(imgH)
 			u1 := float32(sp.SrcX+sp.SrcW) / float32(imgW)
 			v1 := float32(sp.SrcY+sp.SrcH) / float32(imgH)
 			nearest := filt == InterpNearest
 			bicubic := filt == InterpBicubic
-			c.gpuCtxOps().QueueImageDraw(target, pixelData, genID, imgW, imgH, stride,
-				float32(tl.X), float32(tl.Y),
-				float32(tr.X), float32(tr.Y),
-				float32(br.X), float32(br.Y),
-				float32(bl.X), float32(bl.Y),
-				float32(op), vpW, vpH, u0, v0, u1, v1, nearest, false, bicubic)
+			if tintIface {
+				tintR, tintG, tintB, tintA := atlasTintFactors(sp.Tint)
+				// Premultiply on the CPU side (texel premul * tint premul):
+				// CPU does srcRGB = tex*tr*srcA with srcA = baseA*ta*op,
+				// so the vertex tint must carry tr*ta (not straight tr).
+				tintR, tintG, tintB = tintR*tintA, tintG*tintA, tintB*tintA
+				c.gpuCtxOps().QueueImageDrawTint(target, pixelData, genID, imgW, imgH, stride,
+					float32(tl.X), float32(tl.Y),
+					float32(trPt.X), float32(trPt.Y),
+					float32(br.X), float32(br.Y),
+					float32(bl.X), float32(bl.Y),
+					float32(op), vpW, vpH, u0, v0, u1, v1,
+					float32(tintR), float32(tintG), float32(tintB), float32(tintA),
+					nearest, false, bicubic)
+			} else {
+				c.gpuCtxOps().QueueImageDraw(target, pixelData, genID, imgW, imgH, stride,
+					float32(tl.X), float32(tl.Y),
+					float32(trPt.X), float32(trPt.Y),
+					float32(br.X), float32(br.Y),
+					float32(bl.X), float32(bl.Y),
+					float32(op), vpW, vpH, u0, v0, u1, v1, nearest, false, bicubic)
+			}
 			queued++
 		}
 		if queued > 0 {

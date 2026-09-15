@@ -73,6 +73,13 @@ type Context struct {
 	// the sub-pass stream (see resetGPUClipForPass).
 	offscreenPassDepth int
 
+	// passScratch / passMain / passRect implement the retained-record CPU
+	// scratch swap (see context_pass_scratch.go). passMain != nil means a
+	// swap is active and c.pixmap currently aliases passScratch.
+	passScratch *Pixmap
+	passMain    *Pixmap
+	passRect    image.Rectangle
+
 	// Pipeline mode
 	pipelineMode PipelineMode // GPU pipeline selection mode
 
@@ -1572,10 +1579,6 @@ func (c *Context) DrawEllipse(x, y, rx, ry float64) {
 
 // DrawArc draws a circular arc.
 func (c *Context) DrawArc(x, y, r, angle1, angle2 float64) {
-	// Transform center point
-	center := c.matrix.TransformPoint(Pt(x, y))
-
-	// Create arc in world space
 	const twoPi = 2 * math.Pi
 	for angle2 < angle1 {
 		angle2 += twoPi
@@ -1588,31 +1591,33 @@ func (c *Context) DrawArc(x, y, r, angle1, angle2 float64) {
 	for i := 0; i < numSegments; i++ {
 		a1 := angle1 + float64(i)*angleStep
 		a2 := a1 + angleStep
-		c.arcSegment(center.X, center.Y, r, a1, a2)
+		c.arcSegment(x, y, r, a1, a2)
 	}
 }
 
 // arcSegment draws a single arc segment.
+// Endpoints and control handles go through the CTM (exactly like
+// MoveTo/CubicTo and ellipseArcSegment) so rotation/scale apply to the
+// arc shape; previously only the center was transformed, so a rotated
+// arc (loading spinner, sync icon) painted unrotated and never animated.
+// Pure-rotation CTMs only: the radius stays unscaled, matching the
+// historical behavior for uniform transforms (T.03 user-space expansion
+// owns non-uniform scale/skew for strokes, ellipseArcSegment owns radii).
 func (c *Context) arcSegment(cx, cy, r, a1, a2 float64) {
 	alpha := math.Sin(a2-a1) * (math.Sqrt(4+3*math.Tan((a2-a1)/2)*math.Tan((a2-a1)/2)) - 1) / 3
 
 	cos1, sin1 := math.Cos(a1), math.Sin(a1)
 	cos2, sin2 := math.Cos(a2), math.Sin(a2)
 
-	x1 := cx + r*cos1
-	y1 := cy + r*sin1
-	x2 := cx + r*cos2
-	y2 := cy + r*sin2
-
-	c1x := x1 - alpha*r*sin1
-	c1y := y1 + alpha*r*cos1
-	c2x := x2 + alpha*r*sin2
-	c2y := y2 - alpha*r*cos2
+	p1 := c.matrix.TransformPoint(Pt(cx+r*cos1, cy+r*sin1))
+	p2 := c.matrix.TransformPoint(Pt(cx+r*cos2, cy+r*sin2))
+	c1 := c.matrix.TransformPoint(Pt(cx+r*cos1-alpha*r*sin1, cy+r*sin1+alpha*r*cos1))
+	c2 := c.matrix.TransformPoint(Pt(cx+r*cos2+alpha*r*sin2, cy+r*sin2-alpha*r*cos2))
 
 	if c.path.isEmpty() {
-		c.path.MoveTo(x1, y1)
+		c.path.MoveTo(p1.X, p1.Y)
 	}
-	c.path.CubicTo(c1x, c1y, c2x, c2y, x2, y2)
+	c.path.CubicTo(c1.X, c1.Y, c2.X, c2.Y, p2.X, p2.Y)
 }
 
 // DrawEllipticalArc draws an elliptical arc (advanced).
@@ -2081,6 +2086,12 @@ type gpuContextOps interface {
 	QueueImageDraw(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, nearest bool, contentDirty bool, bicubic ...bool)
+	// QueueImageDrawTint is QueueImageDraw plus per-quad straight tint
+	// (R4 vertex color; zero struct = identity). Implemented by
+	// internal/gpu; callers that cannot assert it must keep CPU fallback.
+	QueueImageDrawTint(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
+		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool, contentDirty bool, bicubic ...bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	// QueueColoredMeshIndexed draws unique verts + uint16 indices (opt22 DrawMesh).

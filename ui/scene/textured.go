@@ -500,6 +500,64 @@ func (c *PictureTextureCache) dropTransparentLocked(id uint64, fallback image.Re
 	c.usedNow[id] = struct{}{}
 }
 
+// passScratchRect maps a layer-local rect into Context device pixels through
+// the CURRENT user matrix plus an about-to-be-pushed translation (tx,ty):
+// the device coordinate of layer-local q is TransformPoint(q.X+tx, q.Y+ty).
+// Corners are bboxed (rotation-safe) and padded like texture allocations.
+// It tells BeginPassScratch exactly which pixmap bytes a pass may CPU-touch,
+// under any scale/origin (the retained path must not assume scale 1).
+func passScratchRect(dc *render.Context, b image.Rectangle, tx, ty float64, pad int) image.Rectangle {
+	if dc == nil || b.Empty() {
+		return image.Rectangle{}
+	}
+	type fpt struct{ x, y float64 }
+	corners := [4]fpt{
+		{float64(b.Min.X) + tx, float64(b.Min.Y) + ty},
+		{float64(b.Max.X) + tx, float64(b.Min.Y) + ty},
+		{float64(b.Min.X) + tx, float64(b.Max.Y) + ty},
+		{float64(b.Max.X) + tx, float64(b.Max.Y) + ty},
+	}
+	var x0, y0, x1, y1 float64
+	for i, cn := range corners {
+		dx, dy := dc.TransformPoint(cn.x, cn.y)
+		if i == 0 || dx < x0 {
+			x0 = dx
+		}
+		if i == 0 || dy < y0 {
+			y0 = dy
+		}
+		if i == 0 || dx > x1 {
+			x1 = dx
+		}
+		if i == 0 || dy > y1 {
+			y1 = dy
+		}
+	}
+	return image.Rect(int(math.Floor(x0))-pad, int(math.Floor(y0))-pad,
+		int(math.Ceil(x1))+pad, int(math.Ceil(y1))+pad)
+}
+
+// passScratchNeeded reports whether a record pass can produce CPU pixels
+// that would miss the texture without the scratch swap: always true with
+// an OnPaint callback (arbitrary draws, e.g. tinted atlas sprites), else
+// true when the picture holds image draws (DrawImageEx can CPU-fallback).
+// Pure vector/text pictures queue GPU only, so the swap is skipped at zero
+// behavior change (hot text bands re-record with memset/memcmp cost ~0).
+func passScratchNeeded(pic *Picture, extra func(dc *render.Context)) bool {
+	if extra != nil {
+		return true
+	}
+	if pic == nil {
+		return false
+	}
+	for i := range pic.Ops {
+		if pic.Ops[i].Kind == OpDrawImage {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc *render.Context)) (image.Rectangle, bool) {
 	if c == nil || c.dc == nil || id == 0 {
 		return image.Rectangle{}, false
@@ -546,6 +604,17 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	// the record's commands/flush must not touch the suspended main stream
 	// (C8 root-cause fix; see the longer comment in recordLocalWith).
 	defer c.dc.BeginOffscreenPass()()
+	// Retained-record CPU scratch (render.ContextPassScratch): OnPaint and
+	// picture CPU fallbacks inside this pass land in a scratch pixmap;
+	// commit uploads them into the view before the closing flush. Skipped
+	// for provably GPU-only passes (zero behavior change, hot path free).
+	restoreScratch := func() {}
+	scratchOK := false
+	if passScratchNeeded(pic, extra) {
+		restoreScratch, scratchOK = c.dc.BeginPassScratch(
+			passScratchRect(c.dc, image.Rect(0, 0, c.width, c.height), 0, 0, 2))
+	}
+	defer restoreScratch()
 	c.dc.SetDamageTracking(false)
 	if pic != nil {
 		pic.Replay(c.dc)
@@ -554,6 +623,14 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 		c.dc.Push()
 		extra(c.dc)
 		c.dc.Pop()
+	}
+	if scratchOK {
+		if _, err := c.dc.CommitPassScratchToView(e.slots[e.contentSlot].view); err != nil {
+			fmt.Fprintf(os.Stderr, "TXSCRATCHERR id=%d w=%d h=%d err=%#v\n", id, c.width, c.height, err)
+			c.releaseEntryLocked(e)
+			delete(c.entries, id)
+			return image.Rectangle{}, false
+		}
 	}
 	err := c.dc.FlushGPUWithView(e.slots[e.contentSlot].view, uint32(c.width), uint32(c.height)) //nolint:gosec
 	c.dc.SetDamageTracking(true)
@@ -714,14 +791,33 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	// queue and the texture recorded black (C8 root cause).
 	defer c.dc.BeginOffscreenPass()()
 	ox, oy := c.dc.TransformPoint(0, 0)
+	tx, ty := -ox/scale-float64(b.Min.X), -oy/scale-float64(b.Min.Y)
+	// Retained-record CPU scratch (render.ContextPassScratch): OnPaint and
+	// picture CPU fallbacks inside this pass land in a scratch pixmap;
+	// commit uploads them into the view before the closing flush. Skipped
+	// for provably GPU-only passes (zero behavior change, hot path free).
+	restoreScratch := func() {}
+	scratchOK := false
+	if passScratchNeeded(pic, extra) {
+		restoreScratch, scratchOK = c.dc.BeginPassScratch(passScratchRect(c.dc, b, tx, ty, 2))
+	}
+	defer restoreScratch()
 	c.dc.Push()
-	c.dc.Translate(-ox/scale-float64(b.Min.X), -oy/scale-float64(b.Min.Y))
+	c.dc.Translate(tx, ty)
 	c.dc.SetDamageTracking(false)
 	if pic != nil {
 		pic.Replay(c.dc)
 	}
 	if extra != nil {
 		extra(c.dc)
+	}
+	if scratchOK {
+		if _, err := c.dc.CommitPassScratchToView(e.slots[e.contentSlot].view); err != nil {
+			fmt.Fprintf(os.Stderr, "TXSCRATCHERR id=%d w=%d h=%d err=%v\n", id, w, h, err)
+			c.releaseEntryLocked(e)
+			delete(c.entries, id)
+			return image.Rectangle{}, false
+		}
 	}
 	err := c.dc.FlushGPUWithView(e.slots[e.contentSlot].view, uint32(w), uint32(h)) //nolint:gosec
 	c.dc.SetDamageTracking(true)

@@ -23,11 +23,13 @@ struct ImageUniforms {
 struct VertexInput {
     @location(0) position: vec2<f32>,   // quad corner in pixel coords
     @location(1) tex_coord: vec2<f32>,  // UV coordinates (0..1 range)
+    @location(2) tint: vec4<f32>,       // premultiplied straight tint (1,1,1,1 = identity)
 }
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) tex_coord: vec2<f32>,
+    @location(1) tint: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: ImageUniforms;
@@ -85,6 +87,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     let pos = p.x * col0 + p.y * col1 + p.z * col2 + p.w * col3;
     out.position = pos;
     out.tex_coord = in.tex_coord;
+    out.tint = in.tint;
     return out;
 }
 
@@ -93,7 +96,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let texel = textureSample(image_texture, image_sampler, in.tex_coord);
     let clip_cov = rrect_clip_coverage(in.position.xy);
 
-    // Apply opacity to premultiplied texel (scale all channels uniformly).
+    // Apply opacity to premultiplied texel (scale all channels uniformly),
+    // then multiply the straight tint (premultiplied on the CPU side so
+    // texel*tint keeps premultiplied-alpha blending correct).
     let opacity = uniforms.opacity_pad.x * clip_cov;
-    return texel * opacity;
+    return texel * opacity * in.tint;
 }

@@ -1,0 +1,13 @@
+{
+ "note": "pass-scratch mixed record: GPU white fill + GPU plain atlas + CPU tint atlas into a small view. Atlas file carries the pixels, this file carries geometry and probes.",
+ "canvas": [48, 32],
+ "atlas": "pass_scratch_atlas.png",
+ "fill": {"r": 1.0, "g": 1.0, "b": 1.0},
+ "plain": {"src": [0, 0, 4, 8], "dst": [4, 8, 16, 16]},
+ "tint": {"src": [4, 0, 4, 8], "dst": [28, 8, 16, 16], "tint": [1.0, 0.6, 0.1, 1.0]},
+ "probes": [
+  {"x": 2, "y": 2, "want": [255, 255, 255, 255], "tol": 2, "desc": "fill-white"},
+  {"x": 12, "y": 16, "want": [255, 0, 0, 255], "tol": 2, "desc": "plain-red"},
+  {"x": 36, "y": 16, "want": [255, 153, 26, 255], "tol": 8, "desc": "tint-orange"}
+ ]
+}

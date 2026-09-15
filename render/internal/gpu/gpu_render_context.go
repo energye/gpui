@@ -1221,9 +1221,25 @@ func (rc *GPURenderContext) QueueText(target render.GPURenderTarget, batch TextB
 // QueueImageDraw accumulates an image draw command for Tier 3 dispatch.
 // Destination is a CTM-transformed quad given as TL, TR, BR, BL corners in
 // device pixels. Parameters are kept primitive to avoid import cycles.
+// tintRGBA is the straight R4 tint (R,G,B,A); zero struct = identity white
+// (premultiplied on the CPU side into TintR/G/B/A so blending stays premul).
 func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
+	nearest bool,
+	contentDirty bool,
+	bicubic ...bool,
+) {
+	rc.QueueImageDrawTint(target, pixelData, genID, imgWidth, imgHeight, imgStride,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
+		u0, v0, u1, v1, 0, 0, 0, 0, nearest, contentDirty, bicubic...)
+}
+
+// QueueImageDrawTint is QueueImageDraw plus per-quad tint (R4 vertex color).
+func (rc *GPURenderContext) QueueImageDrawTint(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
+	u0, v0, u1, v1 float32,
+	tintR, tintG, tintB, tintA float32,
 	nearest bool,
 	contentDirty bool,
 	bicubic ...bool,
@@ -1254,6 +1270,10 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 		Opacity:        opacity,
 		ViewportWidth:  viewportW,
 		ViewportHeight: viewportH,
+		TintR:          tintR,
+		TintG:          tintG,
+		TintB:          tintB,
+		TintA:          tintA,
 		U0:             u0,
 		V0:             v0,
 		U1:             u1,
@@ -3223,6 +3243,61 @@ func (rc *GPURenderContext) flushVello(target render.GPURenderTarget) error {
 		}
 	}
 	rc.sceneStats = render.SceneStats{}
+	return nil
+}
+
+// CommitScratchRegion writes CPU-rasterized retained-pass pixels into an
+// offscreen view, then marks the view rendered so the pass-closing flush
+// loads instead of clearing the upload away. The payload is BGRA bytes
+// with the given row pitch covering a w-by-h extent at view origin (the
+// pass region is top-left aligned by construction, see
+// render.ContextPassScratch). Mirrors the WriteTexture half of
+// uploadPixmapToView, but targets a caller-owned view instead of the
+// swapchain and carries pass frame-state instead of present semantics.
+func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, payload []byte, bytesPerRow, rows, w, h int) error {
+	if rc == nil || view.IsNil() || len(payload) == 0 || w <= 0 || h <= 0 || rows <= 0 {
+		return fmt.Errorf("gpu: CommitScratchRegion: bad region (w=%d h=%d rows=%d payload=%d)", w, h, rows, len(payload))
+	}
+	queue := rc.shared.Queue()
+	if queue == nil {
+		return fmt.Errorf("gpu: CommitScratchRegion: no queue")
+	}
+	wgpuView := (*webgpu.TextureView)(view.Pointer())
+	if wgpuView == nil {
+		return fmt.Errorf("gpu: CommitScratchRegion: nil native view")
+	}
+	tex := wgpuView.Texture()
+	if tex == nil {
+		return fmt.Errorf("gpu: CommitScratchRegion: nil texture")
+	}
+	if err := queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		payload,
+		&webgpu.ImageDataLayout{BytesPerRow: uint32(bytesPerRow), RowsPerImage: uint32(rows)}, //nolint:gosec // view-bounded
+		&webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},          //nolint:gosec // view-bounded
+	); err != nil {
+		return err
+	}
+	// The queued texture write only executes on a queue submit; without it a
+	// later submit may present the uninitialized view (same hazard documented
+	// in uploadPixmapToView). An empty command buffer submit flushes the
+	// write queue.
+	if enc, err := rc.shared.Device().CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "pass_scratch_commit"}); err != nil {
+		return err
+	} else if cmdBuf, err := enc.Finish(); err != nil {
+		return err
+	} else if _, err := queue.Submit(cmdBuf); err != nil {
+		return err
+	} else {
+		// wgpu-native does not drop the CB ref on Submit; release manually.
+		cmdBuf.Release()
+	}
+	// The view now holds pass content: the closing flush must load, not
+	// clear. Transfer via per-context frame tracking (consumed by Flush at
+	// session setup); this also covers a lazily created session, which
+	// inherits the state instead of defaulting to Clear.
+	rc.frameRendered = true
+	rc.lastView = wgpuView
 	return nil
 }
 

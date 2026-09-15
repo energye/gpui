@@ -1,0 +1,589 @@
+{
+ "atlas": {
+  "h": 16,
+  "quads": [
+   {
+    "h": 8,
+    "name": "tl-red",
+    "rgba": [
+     255,
+     0,
+     0,
+     255
+    ],
+    "w": 8,
+    "x": 0,
+    "y": 0
+   },
+   {
+    "h": 8,
+    "name": "tr-green",
+    "rgba": [
+     0,
+     255,
+     0,
+     255
+    ],
+    "w": 8,
+    "x": 8,
+    "y": 0
+   },
+   {
+    "h": 8,
+    "name": "bl-blue",
+    "rgba": [
+     0,
+     0,
+     255,
+     255
+    ],
+    "w": 8,
+    "x": 0,
+    "y": 8
+   },
+   {
+    "h": 8,
+    "name": "br-yellow",
+    "rgba": [
+     255,
+     255,
+     0,
+     255
+    ],
+    "w": 8,
+    "x": 8,
+    "y": 8
+   }
+  ],
+  "w": 16
+ },
+ "canvas": [
+  32,
+  32
+ ],
+ "cases": {
+  "depth_off": {
+   "depth_test": false,
+   "note": "R5 switch off keeps input order: far last covers near, center stays far color.",
+   "probes": [
+    {
+     "desc": "outside stays far red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 10,
+     "y": 10
+    },
+    {
+     "desc": "input order wins: far covers near, center stays red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 14,
+     "y": 14
+    },
+    {
+     "desc": "input order wins: far covers near, seam center stays yellow",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      0,
+      255
+     ],
+     "x": 18,
+     "y": 18
+    },
+    {
+     "desc": "outside stays far yellow",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      0,
+      255
+     ],
+     "x": 22,
+     "y": 22
+    },
+    {
+     "desc": "outside stays white",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      255,
+      255
+     ],
+     "x": 4,
+     "y": 4
+    }
+   ],
+   "sprites": [
+    {
+     "depth": 0,
+     "dst": [
+      12,
+      12,
+      8,
+      8
+     ],
+     "name": "near-green",
+     "opacity": 1,
+     "src": [
+      8,
+      0,
+      8,
+      8
+     ]
+    },
+    {
+     "depth": 10,
+     "dst": [
+      8,
+      8,
+      16,
+      16
+     ],
+     "name": "far-full",
+     "opacity": 1,
+     "src": [
+      0,
+      0,
+      16,
+      16
+     ]
+    }
+   ]
+  },
+  "far_first": {
+   "depth_test": true,
+   "note": "R5 far first input already sorted: near green covers far center.",
+   "probes": [
+    {
+     "desc": "far corner stays red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 10,
+     "y": 10
+    },
+    {
+     "desc": "near covers far red",
+     "tol": 0,
+     "want": [
+      0,
+      255,
+      0,
+      255
+     ],
+     "x": 14,
+     "y": 14
+    },
+    {
+     "desc": "near covers far yellow",
+     "tol": 0,
+     "want": [
+      0,
+      255,
+      0,
+      255
+     ],
+     "x": 18,
+     "y": 18
+    },
+    {
+     "desc": "far corner stays yellow",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      0,
+      255
+     ],
+     "x": 22,
+     "y": 22
+    },
+    {
+     "desc": "outside stays white",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      255,
+      255
+     ],
+     "x": 4,
+     "y": 4
+    }
+   ],
+   "sprites": [
+    {
+     "depth": 10,
+     "dst": [
+      8,
+      8,
+      16,
+      16
+     ],
+     "name": "far-full",
+     "opacity": 1,
+     "src": [
+      0,
+      0,
+      16,
+      16
+     ]
+    },
+    {
+     "depth": 0,
+     "dst": [
+      12,
+      12,
+      8,
+      8
+     ],
+     "name": "near-green",
+     "opacity": 1,
+     "src": [
+      8,
+      0,
+      8,
+      8
+     ]
+    }
+   ]
+  },
+  "far_last_input": {
+   "depth_test": true,
+   "note": "R5 reversed input still sorts far first: same pixels as far_first.",
+   "probes": [
+    {
+     "desc": "far corner stays red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 10,
+     "y": 10
+    },
+    {
+     "desc": "sorted: near still covers far red",
+     "tol": 0,
+     "want": [
+      0,
+      255,
+      0,
+      255
+     ],
+     "x": 14,
+     "y": 14
+    },
+    {
+     "desc": "sorted: near still covers far yellow",
+     "tol": 0,
+     "want": [
+      0,
+      255,
+      0,
+      255
+     ],
+     "x": 18,
+     "y": 18
+    },
+    {
+     "desc": "far corner stays yellow",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      0,
+      255
+     ],
+     "x": 22,
+     "y": 22
+    },
+    {
+     "desc": "outside stays white",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      255,
+      255
+     ],
+     "x": 4,
+     "y": 4
+    }
+   ],
+   "sprites": [
+    {
+     "depth": 0,
+     "dst": [
+      12,
+      12,
+      8,
+      8
+     ],
+     "name": "near-green",
+     "opacity": 1,
+     "src": [
+      8,
+      0,
+      8,
+      8
+     ]
+    },
+    {
+     "depth": 10,
+     "dst": [
+      8,
+      8,
+      16,
+      16
+     ],
+     "name": "far-full",
+     "opacity": 1,
+     "src": [
+      0,
+      0,
+      16,
+      16
+     ]
+    }
+   ]
+  },
+  "same_depth_stable": {
+   "depth_test": true,
+   "note": "R5 same depth keeps input order (stable, no flicker): second blue covers first red.",
+   "probes": [
+    {
+     "desc": "first only stays red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 10,
+     "y": 10
+    },
+    {
+     "desc": "overlap second covers first",
+     "tol": 0,
+     "want": [
+      0,
+      0,
+      255,
+      255
+     ],
+     "x": 14,
+     "y": 14
+    },
+    {
+     "desc": "second only stays blue",
+     "tol": 0,
+     "want": [
+      0,
+      0,
+      255,
+      255
+     ],
+     "x": 22,
+     "y": 22
+    },
+    {
+     "desc": "outside stays white",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      255,
+      255
+     ],
+     "x": 4,
+     "y": 4
+    }
+   ],
+   "sprites": [
+    {
+     "depth": 5,
+     "dst": [
+      8,
+      8,
+      12,
+      12
+     ],
+     "name": "first-red",
+     "opacity": 1,
+     "src": [
+      0,
+      0,
+      8,
+      8
+     ]
+    },
+    {
+     "depth": 5,
+     "dst": [
+      12,
+      12,
+      12,
+      12
+     ],
+     "name": "second-blue",
+     "opacity": 1,
+     "src": [
+      0,
+      8,
+      8,
+      8
+     ]
+    }
+   ]
+  },
+  "three_layers": {
+   "depth_test": true,
+   "note": "R5 scrambled far/mid/near sorts to far-mid-near: blue over red, yellow on top.",
+   "probes": [
+    {
+     "desc": "far only stays red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 8,
+     "y": 8
+    },
+    {
+     "desc": "mid covers far",
+     "tol": 0,
+     "want": [
+      0,
+      0,
+      255,
+      255
+     ],
+     "x": 12,
+     "y": 12
+    },
+    {
+     "desc": "near covers mid",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      0,
+      255
+     ],
+     "x": 16,
+     "y": 16
+    },
+    {
+     "desc": "mid covers far outside near",
+     "tol": 0,
+     "want": [
+      0,
+      0,
+      255,
+      255
+     ],
+     "x": 20,
+     "y": 20
+    },
+    {
+     "desc": "outside stays white",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      255,
+      255
+     ],
+     "x": 2,
+     "y": 2
+    }
+   ],
+   "sprites": [
+    {
+     "depth": 0,
+     "dst": [
+      14,
+      14,
+      4,
+      4
+     ],
+     "name": "near-yellow",
+     "opacity": 1,
+     "src": [
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    {
+     "depth": 10,
+     "dst": [
+      6,
+      6,
+      20,
+      20
+     ],
+     "name": "far-full",
+     "opacity": 1,
+     "src": [
+      0,
+      0,
+      16,
+      16
+     ]
+    },
+    {
+     "depth": 5,
+     "dst": [
+      10,
+      10,
+      12,
+      12
+     ],
+     "name": "mid-blue",
+     "opacity": 1,
+     "src": [
+      0,
+      8,
+      8,
+      8
+     ]
+    }
+   ]
+  }
+ },
+ "depth_note": "Depth larger=farther (same as camera.Projector.DepthToScale); Sort descending far-first-near-last, stable for ties.",
+ "parity": {
+  "max_changed_pct": 1.0,
+  "max_mean_abs": 1.0,
+  "note": "CPU vs GPU only sampling rounding, same Atlas road in sorted order."
+ },
+ "tolerance_note": "Solid interiors exact tol 0; seam avoided by probe choice.",
+ "window_intent": "game_sprite--case=depth (P2 build, S35 keeps offscreen only)"
+}

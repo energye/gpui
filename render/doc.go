@@ -59,9 +59,9 @@
 // 新 DrawAtlasEx 带 AtlasDrawOptions/AtlasDrawResult 与哨兵错
 // ErrAtlasNonFinite/ErrAtlasUnsupportedFilter。AtlasSprite 加
 // Rot/FlipX/FlipY/PivotX/PivotY/Tint/Filter：绕轴心先翻转后旋转，
-// Tint 零结构体即白不透明，Filter 零值即 Bilinear，单图选
-// Nearest/Bilinear/Bicubic。染色暂无显卡着色器，含染色整批走 CPU
-// 真采样（Degraded，与 GPU 同真值）；rot/flip/filter 走显卡四角，
+// Tint 零结构体即白不透明（直射相乘含 A，显卡走逐顶点 premul 颜色，
+// 与 CPU 真采样同真值，只差采样舍入）；Filter 零值即 Bilinear，单图选
+// Nearest/Bilinear/Bicubic。rot/flip/tint/filter 走显卡四角，
 // CPU 与显卡同拆法只差采样舍入。GOGPU_RENDER_MODE=cpu 强制取 CPU 真值，
 // 离屏对比即未来 game_sprite--case=rot 窗的依据（窗随 P2 建）。
 //

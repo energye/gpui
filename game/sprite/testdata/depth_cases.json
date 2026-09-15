@@ -1,0 +1,231 @@
+{
+ "note": "1.2 depth body: far-to-near painter, ties stable; depth beats layer, layer/feet break same-depth ties",
+ "cases": [
+  {
+   "name": "far_first",
+   "items": [
+    {
+     "name": "far",
+     "depth": 9,
+     "layer": 0,
+     "feetY": 10
+    },
+    {
+     "name": "near",
+     "depth": 1,
+     "layer": 0,
+     "feetY": 10
+    }
+   ],
+   "want_order": [
+    "far",
+    "near"
+   ]
+  },
+  {
+   "name": "near_first_input",
+   "items": [
+    {
+     "name": "near",
+     "depth": 1,
+     "layer": 0,
+     "feetY": 10
+    },
+    {
+     "name": "far",
+     "depth": 9,
+     "layer": 0,
+     "feetY": 10
+    }
+   ],
+   "want_order": [
+    "far",
+    "near"
+   ]
+  },
+  {
+   "name": "same_depth_stable",
+   "items": [
+    {
+     "name": "a",
+     "depth": 5,
+     "layer": 0,
+     "feetY": 10
+    },
+    {
+     "name": "b",
+     "depth": 5,
+     "layer": 0,
+     "feetY": 20
+    }
+   ],
+   "want_order": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "three_layers",
+   "items": [
+    {
+     "name": "n3",
+     "depth": 1,
+     "layer": 0,
+     "feetY": 30
+    },
+    {
+     "name": "n2",
+     "depth": 5,
+     "layer": 0,
+     "feetY": 20
+    },
+    {
+     "name": "n1",
+     "depth": 9,
+     "layer": 0,
+     "feetY": 10
+    }
+   ],
+   "want_order": [
+    "n1",
+    "n2",
+    "n3"
+   ]
+  },
+  {
+   "name": "depth_beats_layer",
+   "items": [
+    {
+     "name": "fx_far",
+     "depth": 9,
+     "layer": 1,
+     "feetY": 10
+    },
+    {
+     "name": "world_near",
+     "depth": 1,
+     "layer": 0,
+     "feetY": 10
+    }
+   ],
+   "want_order": [
+    "fx_far",
+    "world_near"
+   ]
+  },
+  {
+   "name": "layer_tiebreak",
+   "items": [
+    {
+     "name": "fx",
+     "depth": 5,
+     "layer": 1,
+     "feetY": 10
+    },
+    {
+     "name": "world",
+     "depth": 5,
+     "layer": 0,
+     "feetY": 20
+    }
+   ],
+   "want_order": [
+    "world",
+    "fx"
+   ]
+  },
+  {
+   "name": "feet_tiebreak",
+   "items": [
+    {
+     "name": "front",
+     "depth": 5,
+     "layer": 0,
+     "feetY": 20
+    },
+    {
+     "name": "back",
+     "depth": 5,
+     "layer": 0,
+     "feetY": 10
+    }
+   ],
+   "want_order": [
+    "back",
+    "front"
+   ]
+  },
+  {
+   "name": "negative_depth",
+   "items": [
+    {
+     "name": "neg",
+     "depth": -3,
+     "layer": 0,
+     "feetY": 10
+    },
+    {
+     "name": "pos",
+     "depth": 3,
+     "layer": 0,
+     "feetY": 10
+    }
+   ],
+   "want_order": [
+    "pos",
+    "neg"
+   ]
+  },
+  {
+   "name": "empty",
+   "items": [],
+   "want_order": []
+  },
+  {
+   "name": "single",
+   "items": [
+    {
+     "name": "solo",
+     "depth": 2,
+     "layer": 0,
+     "feetY": 5
+    }
+   ],
+   "want_order": [
+    "solo"
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "name": "nan_depth",
+   "patch": {
+    "depth": "NaN"
+   },
+   "want_err": true
+  },
+  {
+   "name": "inf_depth",
+   "patch": {
+    "depth": "Inf"
+   },
+   "want_err": true
+  },
+  {
+   "name": "nan_feet",
+   "patch": {
+    "feetY": "NaN"
+   },
+   "want_err": true
+  },
+  {
+   "name": "nil_is_sorted",
+   "want_sorted": false
+  },
+  {
+   "name": "setdepth_nan",
+   "setdepth": "NaN",
+   "want_err": true
+  }
+ ]
+}

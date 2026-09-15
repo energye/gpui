@@ -96,6 +96,7 @@
 | SetEffectSurface/SetSharedEncoder/CreateSharedEncoder/SubmitSharedEncoder | 特效离屏强制 1x 采样、共享命令编码器（单命令缓冲帧，ADR-017） | 离屏/编码器 | ✅ |
 | BeginGPUFrame/FlushGPU/FlushGPUWithView/FlushGPUWithViewDamage/FlushGPUWithViewDamageRects/GPURenderContext/DropGPURenderContext | 每帧 GPU 状态重置、把累积 GPU 命令提交并解析到 pixmap/视图（带单/多损伤区）、per-context GPU 会话 | GPU 提交 | ✅ |
 | `BeginOffscreenPass()` | 开离屏子通道并返回还原 func（调用方须 defer）：激活期间队列命令/裁剪时间线/LoadOp 跟踪独占归子目标，主通路状态挂起、还原时恢复；同时挂起画布裁剪防 scissor 泄漏进子视口。使帧中 retained 纹理重录安全（Skia GrRecordingContext / Flutter EntityPass pass-ownership 语义）；无 GPU ops 时返回空 func | 离屏子通道 | ✅ ui/scene/textured.go:430,513 retained 重录消费 |
+| `BeginPassScratch(r)` / `CommitPassScratchToView(view)` | retained 纹理重录子通道内的 CPU 暂存交换：Begin 把画布 pixmap 换成同尺寸透明暂存（CPU 回退像素落暂存而非主画布，半路 GPU 提交读回到暂存，顺序精确）；Commit 把脏区经 WriteTexture 直写视图并标已渲染使收尾提交 Load（干净暂存跳过零开销）。只在 GPU 会话有效时武装，CPU 模式零行为变化 | 离屏子通道 | ✅ ui/scene/textured.go recordWith/recordLocalWith 消费（2026-09-15 修染色混画黑卡） |
 | RenderPathStats/ResetRenderPathStats/LastCPUFallbackReason/MemDigCmdBufs/Close | GPU/CPU 路由计数、最近 CPU 回退原因、残留命令缓冲诊断、关闭释放 | 诊断/资源 | 🔗 |
 | `DebugLayerViews()` | 返回 C5VIEWDBG=1 下跟踪的层视图纹理（临时诊断，R20 滤镜线） | 诊断 | 🔗 ui/scene/textured.go 消费 |
 

@@ -23,9 +23,10 @@ var texturedQuadBicubicShaderSource string
 //
 //	position  (vec2<f32>) =  8 bytes  (location 0)
 //	tex_coord (vec2<f32>) =  8 bytes  (location 1)
+//	tint      (vec4<f32>) = 16 bytes  (location 2, premultiplied straight)
 //
-// Total = 16 bytes per vertex.
-const imageVertexStride = 16
+// Total = 32 bytes per vertex.
+const imageVertexStride = 32
 
 // imageUniformSize is the byte size of the image uniform buffer.
 // Layout:
@@ -66,6 +67,14 @@ type ImageDrawCommand struct {
 	TRX, TRY float32
 	BRX, BRY float32
 	BLX, BLY float32
+
+	// Tint multiplies straight source texels (R4 AtlasSprite.Tint, zero
+	// struct = identity white). Stored premultiplied (R*A, G*A, B*A, A) so
+	// the shader's texel*tint keeps premultiplied-alpha blending correct.
+	// Zero struct (TintR/G/B/A all 0) means identity, matching
+	// atlasTintIsIdentity: old callers that never touch these fields keep
+	// (1,1,1,1) on the wire bit-identically.
+	TintR, TintG, TintB, TintA float32
 
 	Opacity        float32
 	ViewportWidth  uint32
@@ -781,6 +790,10 @@ func SamplerDescriptorForImageFilter(key ImageSamplerKey) webgpu.SamplerDescript
 
 // canMergeImageDraw reports whether two image commands may share one bind group
 // and multi-quad draw (same GPU texture key + sampling + opacity + viewport).
+// Tint intentionally does NOT block the merge: tint rides per-vertex, so
+// neighbors with different tints share one bind group and one multi-quad
+// Draw (1000 same-texture particles stay one commit). GPUTextureDraw keeps
+// the stricter rule (no tint channel there).
 func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 	if a == nil || b == nil {
 		return false
@@ -835,8 +848,9 @@ func imageVertexLayout() []types.VertexBufferLayout {
 			ArrayStride: imageVertexStride,
 			StepMode:    types.VertexStepModeVertex,
 			Attributes: []types.VertexAttribute{
-				{Format: types.VertexFormatFloat32x2, Offset: 0, ShaderLocation: 0}, // position
-				{Format: types.VertexFormatFloat32x2, Offset: 8, ShaderLocation: 1}, // tex_coord
+				{Format: types.VertexFormatFloat32x2, Offset: 0, ShaderLocation: 0},  // position
+				{Format: types.VertexFormatFloat32x2, Offset: 8, ShaderLocation: 1},  // tex_coord
+				{Format: types.VertexFormatFloat32x4, Offset: 16, ShaderLocation: 2}, // tint (premul)
 			},
 		},
 	}
@@ -878,15 +892,21 @@ func buildImageVerticesInto(dst []byte, cmd *ImageDrawCommand) {
 	// UV coordinates.
 	u0, v0, u1, v1 := cmd.U0, cmd.V0, cmd.U1, cmd.V1
 
+	// Per-quad tint (premultiplied straight); zero struct = identity white.
+	tr, tg, tb, ta := cmd.TintR, cmd.TintG, cmd.TintB, cmd.TintA
+	if tr == 0 && tg == 0 && tb == 0 && ta == 0 {
+		tr, tg, tb, ta = 1, 1, 1, 1
+	}
+
 	// Triangle 1: TL, TR, BL
 	// Triangle 2: TR, BR, BL
-	verts := [6][4]float32{
-		{x0, y0, u0, v0}, // TL
-		{x1, y1, u1, v0}, // TR
-		{x3, y3, u0, v1}, // BL
-		{x1, y1, u1, v0}, // TR
-		{x2, y2, u1, v1}, // BR
-		{x3, y3, u0, v1}, // BL
+	verts := [6][8]float32{
+		{x0, y0, u0, v0, tr, tg, tb, ta}, // TL
+		{x1, y1, u1, v0, tr, tg, tb, ta}, // TR
+		{x3, y3, u0, v1, tr, tg, tb, ta}, // BL
+		{x1, y1, u1, v0, tr, tg, tb, ta}, // TR
+		{x2, y2, u1, v1, tr, tg, tb, ta}, // BR
+		{x3, y3, u0, v1, tr, tg, tb, ta}, // BL
 	}
 
 	offset := 0
@@ -895,6 +915,10 @@ func buildImageVerticesInto(dst []byte, cmd *ImageDrawCommand) {
 		binary.LittleEndian.PutUint32(dst[offset+4:], math.Float32bits(v[1]))
 		binary.LittleEndian.PutUint32(dst[offset+8:], math.Float32bits(v[2]))
 		binary.LittleEndian.PutUint32(dst[offset+12:], math.Float32bits(v[3]))
+		binary.LittleEndian.PutUint32(dst[offset+16:], math.Float32bits(v[4]))
+		binary.LittleEndian.PutUint32(dst[offset+20:], math.Float32bits(v[5]))
+		binary.LittleEndian.PutUint32(dst[offset+24:], math.Float32bits(v[6]))
+		binary.LittleEndian.PutUint32(dst[offset+28:], math.Float32bits(v[7]))
 		offset += imageVertexStride
 	}
 }
