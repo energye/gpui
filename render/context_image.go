@@ -342,6 +342,15 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 		}
 		return false
 	}
+	// No-device gate: only claim the draw when the GPU session can execute
+	// it. Without a device the queued quad never lands in the pixmap while
+	// the CPU fallback is skipped (headless R5 DrawImage readback red).
+	// Mirrors CreateOffscreenTexture's device gate; CPU renders identical
+	// pixels. Optional interface keeps third-party rc impls on old behavior.
+	if dr, ok := rc.(interface{ IsDeviceReady() bool }); ok && !dr.IsDeviceReady() {
+		c.recordCPUFallbackReason("image:no-device")
+		return false
+	}
 
 	defer c.setGPUClipRect()()
 

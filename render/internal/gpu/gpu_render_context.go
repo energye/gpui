@@ -3383,6 +3383,25 @@ func (rc *GPURenderContext) effectivePipelineMode() render.PipelineMode {
 	return mode
 }
 
+// IsDeviceReady reports whether the GPU device is available for texture ops,
+// initializing it lazily. Queued image draws resolve only when true; callers
+// (render.tryGPUDrawImage) must take the CPU fallback otherwise — otherwise
+// the draw is claimed yet never lands in the pixmap (headless/CI red).
+// Read-only delegate of GPUShared.IsDeviceReady; no pipeline state changes.
+func (rc *GPURenderContext) IsDeviceReady() bool {
+	if rc == nil || rc.shared == nil {
+		return false
+	}
+	rc.shared.mu.Lock()
+	defer rc.shared.mu.Unlock()
+	if !rc.shared.deviceReady {
+		if err := rc.shared.ensureGPU(); err != nil {
+			return false
+		}
+	}
+	return rc.shared.deviceReady
+}
+
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
 // Reuses pooled textures by (w,h) to avoid VRAM OOM from per-layer alloc.
 func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func()) {
