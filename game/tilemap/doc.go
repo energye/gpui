@@ -5,6 +5,11 @@
 // LayerIndex, At, CellToWorld, WorldToCell, CellBounds, ObjectsIn,
 // IsSolidAt, NavCostAt, OccludedAt, AutoMaskAt, AutoVariant4, ParseTMX,
 // Iso, NewIso, TileToWorld, WorldToTile, TileCenter, DiamondContains.
+// Frozen 2026-09-15 (capability 7.2, P2, S20/W2): Chunk, ChunkID,
+// NewChunker, MaxChunks, ChunkOf, ChunkBounds, Needed, Load, Unload,
+// Update, Visible, Loaded, IsLoaded, Reset, LoadedCount, ChunkCols,
+// ChunkRows. The caller feeds camera VisibleWorldRect in as a core.Rect
+// and draws the returned ids with the existing render draws.
 // Additive changes only.
 //
 // The package draws nothing; the caller draws the returned cells and

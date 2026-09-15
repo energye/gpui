@@ -1,0 +1,62 @@
+{
+  "bodies": [
+    {"name": "wall_box", "shape": "box", "pos": [10, 0], "half": [2, 2], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "floor_box", "shape": "box", "pos": [0, -5], "half": [10, 1], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "rider_stand", "shape": "box", "pos": [0, -1], "half": [2, 3], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "rider_air", "shape": "box", "pos": [0, 5], "half": [2, 2], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "plat_move", "shape": "box", "pos": [0, 0], "half": [5, 1], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "rider_on_plat", "shape": "box", "pos": [0, 3], "half": [2, 2], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "rider_side", "shape": "box", "pos": [6, 0], "half": [1, 1], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "rider_gap", "shape": "box", "pos": [0, 3.5], "half": [2, 2], "radius": 0, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_target", "shape": "circle", "pos": [10, 0], "half": [0, 0], "radius": 2, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "circle_rider", "shape": "circle", "pos": [0, 3], "half": [0, 0], "radius": 2, "layer": 1, "mask": 1, "trigger": false},
+    {"name": "ghost_box", "shape": "box", "pos": [10, 0], "half": [2, 2], "radius": 0, "layer": 2, "mask": 2, "trigger": false},
+    {"name": "trigger_zone", "shape": "box", "pos": [6, 0], "half": [1, 1], "radius": 0, "layer": 1, "mask": 1, "trigger": true},
+    {"name": "tile_solid_10", "shape": "box", "pos": [24, 8], "half": [8, 8], "radius": 0, "layer": 1, "mask": 1, "trigger": false}
+  ],
+  "rays": [
+    {"name": "ray_hit_wall", "origin": [0, 0], "dir": [1, 0], "maxdist": 20, "mask": 1},
+    {"name": "ray_hit_wall_nonnorm", "origin": [0, 0], "dir": [5, 0], "maxdist": 20, "mask": 1},
+    {"name": "ray_miss_up", "origin": [0, 0], "dir": [0, 1], "maxdist": 20, "mask": 1},
+    {"name": "ray_hit_circle", "origin": [0, 0], "dir": [1, 0], "maxdist": 20, "mask": 1},
+    {"name": "ray_inside", "origin": [10, 0], "dir": [1, 0], "maxdist": 20, "mask": 1},
+    {"name": "ray_edge", "origin": [0, 2], "dir": [1, 0], "maxdist": 20, "mask": 1},
+    {"name": "ray_masked", "origin": [0, 0], "dir": [1, 0], "maxdist": 20, "mask": 1},
+    {"name": "ray_short", "origin": [0, 0], "dir": [1, 0], "maxdist": 5, "mask": 1},
+    {"name": "ray_trigger", "origin": [0, 0], "dir": [1, 0], "maxdist": 20, "mask": 1},
+    {"name": "ray_tile_probe", "origin": [0, 8], "dir": [1, 0], "maxdist": 30, "mask": 1},
+    {"name": "ray_zero_range", "origin": [0, 0], "dir": [1, 0], "maxdist": 0, "mask": 1},
+    {"name": "ray_zero_inside", "origin": [10, 0], "dir": [1, 0], "maxdist": 0, "mask": 1},
+    {"name": "ray_down_probe", "origin": [0, 5], "dir": [0, -1], "maxdist": 10, "mask": 1}
+  ],
+  "casts": [
+    {"name": "cast_wall", "ray": "ray_hit_wall", "bodies": ["wall_box"], "want_hit": true, "want_body": "wall_box", "want_dist": 8, "want_pos": [8, 0], "want_normal": [-1, 0], "want_trigger": false},
+    {"name": "cast_wall_nonnorm", "ray": "ray_hit_wall_nonnorm", "bodies": ["wall_box"], "want_hit": true, "want_body": "wall_box", "want_dist": 8, "want_pos": [8, 0], "want_normal": [-1, 0], "want_trigger": false},
+    {"name": "cast_miss_up", "ray": "ray_miss_up", "bodies": ["wall_box"], "want_hit": false, "want_body": "", "want_dist": 0, "want_pos": [0, 0], "want_normal": [0, 0], "want_trigger": false},
+    {"name": "cast_circle", "ray": "ray_hit_circle", "bodies": ["circle_target"], "want_hit": true, "want_body": "circle_target", "want_dist": 8, "want_pos": [8, 0], "want_normal": [-1, 0], "want_trigger": false},
+    {"name": "cast_inside", "ray": "ray_inside", "bodies": ["wall_box"], "want_hit": true, "want_body": "wall_box", "want_dist": 0, "want_pos": [10, 0], "want_normal": [0, 0], "want_trigger": false},
+    {"name": "cast_edge", "ray": "ray_edge", "bodies": ["wall_box"], "want_hit": true, "want_body": "wall_box", "want_dist": 8, "want_pos": [8, 2], "want_normal": [-1, 0], "want_trigger": false},
+    {"name": "cast_masked", "ray": "ray_masked", "bodies": ["ghost_box"], "want_hit": false, "want_body": "", "want_dist": 0, "want_pos": [0, 0], "want_normal": [0, 0], "want_trigger": false},
+    {"name": "cast_short", "ray": "ray_short", "bodies": ["wall_box"], "want_hit": false, "want_body": "", "want_dist": 0, "want_pos": [0, 0], "want_normal": [0, 0], "want_trigger": false},
+    {"name": "cast_trigger_nearest", "ray": "ray_trigger", "bodies": ["trigger_zone", "wall_box"], "want_hit": true, "want_body": "trigger_zone", "want_dist": 5, "want_pos": [5, 0], "want_normal": [-1, 0], "want_trigger": true},
+    {"name": "cast_wall_order", "ray": "ray_trigger", "bodies": ["wall_box", "trigger_zone"], "want_hit": true, "want_body": "trigger_zone", "want_dist": 5, "want_pos": [5, 0], "want_normal": [-1, 0], "want_trigger": true},
+    {"name": "cast_tile", "ray": "ray_tile_probe", "bodies": ["tile_solid_10"], "want_hit": true, "want_body": "tile_solid_10", "want_dist": 16, "want_pos": [16, 8], "want_normal": [-1, 0], "want_trigger": false},
+    {"name": "cast_zero_range_miss", "ray": "ray_zero_range", "bodies": ["wall_box"], "want_hit": false, "want_body": "", "want_dist": 0, "want_pos": [0, 0], "want_normal": [0, 0], "want_trigger": false},
+    {"name": "cast_zero_range_touch", "ray": "ray_zero_inside", "bodies": ["wall_box"], "want_hit": true, "want_body": "wall_box", "want_dist": 0, "want_pos": [10, 0], "want_normal": [0, 0], "want_trigger": false},
+    {"name": "cast_probe_floor", "ray": "ray_down_probe", "bodies": ["floor_box"], "want_hit": true, "want_body": "floor_box", "want_dist": 9, "want_pos": [0, -4], "want_normal": [0, 1], "want_trigger": false}
+  ],
+  "stands": [
+    {"name": "stand_floor_true", "rider": "rider_stand", "platform": "floor_box", "want": true},
+    {"name": "stand_air_false", "rider": "rider_air", "platform": "floor_box", "want": false},
+    {"name": "stand_plat_true", "rider": "rider_on_plat", "platform": "plat_move", "want": true},
+    {"name": "stand_circle_true", "rider": "circle_rider", "platform": "plat_move", "want": true},
+    {"name": "stand_side_false", "rider": "rider_side", "platform": "plat_move", "want": false},
+    {"name": "stand_gap_false", "rider": "rider_gap", "platform": "plat_move", "want": false},
+    {"name": "stand_below_false", "rider": "floor_box", "platform": "rider_stand", "want": false}
+  ],
+  "carries": [
+    {"name": "carry_along", "rider": "rider_on_plat", "platform": "plat_move", "delta": [3, 1], "want_carried": true, "want_rider_pos": [3, 4]},
+    {"name": "carry_air_no", "rider": "rider_air", "platform": "floor_box", "delta": [3, 1], "want_carried": false, "want_rider_pos": [0, 5]},
+    {"name": "carry_zero", "rider": "rider_on_plat", "platform": "plat_move", "delta": [0, 0], "want_carried": true, "want_rider_pos": [0, 3]}
+  ]
+}

@@ -7,6 +7,11 @@
 // Rebind, ClearBindings, Bindings, SetKey, SetPadButton, SetPadAxis,
 // AddPinchDelta, Pinch, ClearPinch, ResetInputs, Strength, Pressed, Vector,
 // StartRumble, StopRumble, UpdateRumbles, RumbleLevels, RumbleActive.
+// Frozen 2026-09-15 (capability 13.2, P0, S23/W2): MaxBuffered,
+// MaxTouches, DefaultBufferWindow, BufferedPress, Buffer, NewBuffer,
+// Window, SetWindow, Push, Prune, Consume, Peek, Len, LiveCount, Clear,
+// Presses, Touch, TouchTracker, NewTouchTracker, Begin, Move, End,
+// Position, ActiveCount, ActiveIDs, Touches.
 // Additive changes only.
 //
 // The package draws nothing and makes no sound; it only turns hardware

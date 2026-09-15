@@ -1,0 +1,82 @@
+{
+  "slopes": [
+    {"name": "flat", "a": [0, 100], "b": [100, 100], "one_way": false},
+    {"name": "ramp", "a": [0, 100], "b": [100, 80], "one_way": false},
+    {"name": "steep", "a": [0, 100], "b": [20, 0], "one_way": false},
+    {"name": "oneway", "a": [0, 80], "b": [100, 80], "one_way": true},
+    {"name": "oneway_ramp", "a": [0, 80], "b": [100, 70], "one_way": true},
+    {"name": "wall", "a": [50, 0], "b": [50, 100], "one_way": false}
+  ],
+  "grounds": [
+    {"slope": "flat", "x": 50, "want_y": 100, "ok": true},
+    {"slope": "flat", "x": 0, "want_y": 100, "ok": true},
+    {"slope": "flat", "x": 100, "want_y": 100, "ok": true},
+    {"slope": "flat", "x": -1, "want_y": 0, "ok": false},
+    {"slope": "flat", "x": 101, "want_y": 0, "ok": false},
+    {"slope": "ramp", "x": 0, "want_y": 100, "ok": true},
+    {"slope": "ramp", "x": 50, "want_y": 90, "ok": true},
+    {"slope": "ramp", "x": 100, "want_y": 80, "ok": true},
+    {"slope": "ramp", "x": 10, "want_y": 98, "ok": true},
+    {"slope": "steep", "x": 0, "want_y": 100, "ok": true},
+    {"slope": "steep", "x": 10, "want_y": 50, "ok": true},
+    {"slope": "steep", "x": 20, "want_y": 0, "ok": true},
+    {"slope": "oneway", "x": 50, "want_y": 80, "ok": true},
+    {"slope": "oneway_ramp", "x": 0, "want_y": 80, "ok": true},
+    {"slope": "oneway_ramp", "x": 50, "want_y": 75, "ok": true},
+    {"slope": "oneway_ramp", "x": 100, "want_y": 70, "ok": true},
+    {"slope": "wall", "x": 50, "want_y": 0, "ok": false},
+    {"slope": "wall", "x": 0, "want_y": 0, "ok": false}
+  ],
+  "angles": [
+    {"slope": "flat", "want_rad": 0},
+    {"slope": "ramp", "want_rad": 0.19739555984988075},
+    {"slope": "steep", "want_rad": 1.373400766945016},
+    {"slope": "oneway", "want_rad": 0},
+    {"slope": "oneway_ramp", "want_rad": 0.09966865249116202},
+    {"slope": "wall", "want_rad": 1.5707963267948966}
+  ],
+  "walkable": [
+    {"slope": "flat", "max_rad": 0.7853981633974483, "want": true},
+    {"slope": "ramp", "max_rad": 0.7853981633974483, "want": true},
+    {"slope": "steep", "max_rad": 0.7853981633974483, "want": false},
+    {"slope": "oneway", "max_rad": 0.7853981633974483, "want": true},
+    {"slope": "oneway_ramp", "max_rad": 0.7853981633974483, "want": true},
+    {"slope": "wall", "max_rad": 0.7853981633974483, "want": false},
+    {"slope": "ramp", "max_rad": 0.08726646259971647, "want": false},
+    {"slope": "steep", "max_rad": 1.5707963267948966, "want": true}
+  ],
+  "slides": [
+    {"slope": "flat", "want": [0, 0], "ok": false},
+    {"slope": "ramp", "want": [-0.9805806756909201, 0.19611613513818404], "ok": true},
+    {"slope": "steep", "want": [-0.19611613513818404, 0.9805806756909201], "ok": true},
+    {"slope": "oneway", "want": [0, 0], "ok": false},
+    {"slope": "oneway_ramp", "want": [-0.9950371902099892, 0.09950371902099892], "ok": true},
+    {"slope": "wall", "want": [0, 1], "ok": true}
+  ],
+  "feet": [
+    {"shape": "box", "pos": [0, 0], "half": [5, 5], "radius": 0, "want": [0, 5], "ok": true},
+    {"shape": "circle", "pos": [10, 20], "half": [0, 0], "radius": 4, "want": [10, 24], "ok": true}
+  ],
+  "grounded": [
+    {"feet": [50, 100], "want": "flat", "ok": true},
+    {"feet": [50, 90], "want": "ramp", "ok": true},
+    {"feet": [50, 80], "want": "oneway", "ok": true},
+    {"feet": [50, 75], "want": "oneway_ramp", "ok": true},
+    {"feet": [0, 100], "want": "flat", "ok": true},
+    {"feet": [50, 70], "want": "", "ok": false},
+    {"feet": [150, 100], "want": "", "ok": false}
+  ],
+  "steps": [
+    {"name": "stand_flat", "slopes": ["flat"], "feet": [50, 100], "vel": [0, 0], "dt": 0.016, "want_pos": [50, 100], "want_ground": "flat", "want_grounded": true, "want_head": false},
+    {"name": "fall_flat", "slopes": ["flat"], "feet": [50, 90], "vel": [0, 100], "dt": 0.1, "want_pos": [50, 100], "want_ground": "flat", "want_grounded": true, "want_head": false},
+    {"name": "miss_flat", "slopes": ["flat"], "feet": [150, 90], "vel": [0, 100], "dt": 0.1, "want_pos": [150, 100], "want_ground": "", "want_grounded": false, "want_head": false},
+    {"name": "stand_ramp", "slopes": ["ramp"], "feet": [50, 90], "vel": [0, 0], "dt": 0.016, "want_pos": [50, 90], "want_ground": "ramp", "want_grounded": true, "want_head": false},
+    {"name": "walk_ramp_up", "slopes": ["ramp"], "feet": [0, 100], "vel": [100, -20], "dt": 0.1, "want_pos": [10, 98], "want_ground": "ramp", "want_grounded": true, "want_head": false},
+    {"name": "walk_flat", "slopes": ["flat"], "feet": [0, 100], "vel": [100, 0], "dt": 0.5, "want_pos": [50, 100], "want_ground": "flat", "want_grounded": true, "want_head": false},
+    {"name": "fall_oneway", "slopes": ["oneway"], "feet": [50, 70], "vel": [0, 100], "dt": 0.1, "want_pos": [50, 80], "want_ground": "oneway", "want_grounded": true, "want_head": false},
+    {"name": "pass_oneway", "slopes": ["oneway"], "feet": [50, 90], "vel": [0, -200], "dt": 0.1, "want_pos": [50, 70], "want_ground": "", "want_grounded": false, "want_head": false},
+    {"name": "bump_solid", "slopes": ["flat"], "feet": [50, 110], "vel": [0, -200], "dt": 0.1, "want_pos": [50, 100], "want_ground": "", "want_grounded": false, "want_head": true},
+    {"name": "jump_from_ground", "slopes": ["flat"], "feet": [50, 100], "vel": [0, -200], "dt": 0.05, "want_pos": [50, 90], "want_ground": "", "want_grounded": false, "want_head": false},
+    {"name": "corner_flat_wall", "slopes": ["flat", "wall"], "feet": [50, 100], "vel": [0, 0], "dt": 0.016, "want_pos": [50, 100], "want_ground": "flat", "want_grounded": true, "want_head": false}
+  ]
+}

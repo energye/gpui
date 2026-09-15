@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "max_assets": 1024,
+  "max_bytes": 67108864,
+  "max_asset_bytes": 8388608,
+  "max_deps": 16,
+  "max_id_len": 128,
+  "assets": [
+    {"id": "tex/red", "kind": "ktx2", "file": "tex_red_4x4.ktx2", "version": "1.0", "hash": 16942742255593044567, "size": 112, "upload": 8, "pixels": 64, "deps": []},
+    {"id": "tex/checker", "kind": "ktx2", "file": "tex_checker_8x8.ktx2", "version": "1.0", "hash": 7475831939817489811, "size": 136, "upload": 32, "pixels": 256, "deps": []},
+    {"id": "map/level1", "kind": "raw", "file": "raw_level1.bin", "version": "1.0", "hash": 1146714789404643373, "size": 52, "upload": 0, "pixels": 0, "deps": ["tex/red", "tex/checker"]},
+    {"id": "bone/slime", "kind": "raw", "file": "raw_slime.bin", "version": "1.0", "hash": 3460803430753669911, "size": 33, "upload": 0, "pixels": 0, "deps": ["tex/red"]}
+  ],
+  "unsupported_kinds": ["basis", "spine", "tmx", "atlas", "png", "json"],
+  "bad_files": [
+    {"file": "bad_truncated.ktx2", "kind": "ktx2", "want_code": "bad-data"}
+  ]
+}

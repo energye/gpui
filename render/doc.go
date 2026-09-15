@@ -47,6 +47,12 @@
 //   - Y increases down
 //   - Angles in radians, 0 is right, increases counter-clockwise
 //
+// # R2 CPU渐变冻结（S16/W2，见 vertices.go）
+//
+// 老 DrawVertices/DrawMesh 签名不动；新 DrawVerticesEx/DrawMeshEx 带
+// VertDrawOptions/VertDrawResult（Degraded 降级标记）与哨兵错
+// ErrVertsNonFinite/ErrVertsBadIndex。CPU 为预乘重心真渐变，与 GPU 只差抗锯齿。
+//
 // # Performance
 //
 // The software renderer prioritizes correctness.

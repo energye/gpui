@@ -14,8 +14,18 @@
 // returned number of fixed logic ticks, then blends the last two logic
 // states with Alpha for the picture. Only core numbers are used; the
 // caller converts once at the render boundary with Vec2.ToRenderPoint.
-// No Vec2, Color, or AssetID is redefined here. Time-scale (11.2) lives
-// in this package later under its own frozen names.
+// No Vec2, Color, or AssetID is redefined here.
+//
+// Frozen 2026-09-15 (capability 11.2, P0, S18/W2): Clock, NewClock,
+// MaxScale, SetTimeScale, TimeScale, SetPaused, Paused, Pause, Resume,
+// Split, Advance, WorldElapsed, UIElapsed, Reset. Additive changes only.
+//
+// Layered time (11.2, Godot time-scale): one real frame splits into a
+// scaled world delta and an unscaled UI delta. Pause stops the world
+// only; the UI keeps moving. The frame clamps to [0, MaxFrame] first
+// (shared with Fixed); world may exceed MaxFrame at scale > 1 and the
+// caller feeds it into Fixed.Advance which clamps again. Bad scales
+// clamp to [0, MaxScale] and never error: NaN/zero/negative park at 0.
 //
 // Math (Fix Your Timestep, Gaffer classic):
 //

@@ -3,6 +3,13 @@
 // Frozen 2026-09-15 (capability 4.1, P0, S04/W1): Kind, Ease, Lerp,
 // Name, Parse, Valid. Additive changes only.
 //
+// Frozen 2026-09-15 (capability 4.2, P1b, S17/W2): LoopMode
+// (LoopOnce/LoopLoop/LoopPingPong), Key{At,Value,Ease}, Event{At,Name},
+// Timeline{NewTimeline,SetLoop,AddKey,AddEvent,Sample,Update,OnEvent,
+// Seek,Pos,IsPlaying,Pause,Resume,TrackNames,KeyCount,EventCount}.
+// Time is core.Duration (integer milliseconds); values are plain float64
+// sampled with the frozen 4.1 curves. Additive changes only.
+//
 // This package only computes numbers; it draws nothing. The caller feeds
 // the eased progress into existing draws (positions, alpha, scales).
 // Only core errors are used; no new Vec2/Color/AssetID is defined here.

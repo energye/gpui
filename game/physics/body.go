@@ -191,3 +191,275 @@ func Query(bodies []Body) ([]Contact, error) {
 	}
 	return out, nil
 }
+
+// standingSnap is the contact tolerance for IsStandingOn only. Overlaps
+// keeps its exact edge rule; standing allows this snap so a rider carried
+// by identical float deltas stays grounded across steps.
+const standingSnap = 1e-9
+
+// Ray is one jump probe or bullet line: origin plus direction plus range
+// plus a one-sided layer mask. Dir need not be unit; length never scales
+// the hit distance. MaxDist bounds the hit in world units.
+type Ray struct {
+	Origin  core.Vec2
+	Dir     core.Vec2
+	MaxDist float64
+	Mask    uint32
+}
+
+// NewRay builds a ray. Origin must be finite, Dir finite and non-zero,
+// MaxDist finite and >= 0. Mask accepts any bits (0 hits nothing).
+func NewRay(origin, dir core.Vec2, maxDist float64, mask uint32) (Ray, error) {
+	if !finiteVec(origin) {
+		return Ray{}, core.InvalidArg("physics.NewRay", "origin")
+	}
+	if !finiteVec(dir) || dir.IsZero() {
+		return Ray{}, core.InvalidArg("physics.NewRay", "dir")
+	}
+	if !finite(maxDist) || maxDist < 0 {
+		return Ray{}, core.InvalidArg("physics.NewRay", "maxdist")
+	}
+	return Ray{Origin: origin, Dir: dir, MaxDist: maxDist, Mask: mask}, nil
+}
+
+// Valid reports whether r can cast: finite origin, finite non-zero dir,
+// finite MaxDist >= 0. Mask never affects validity.
+func (r Ray) Valid() bool {
+	return finiteVec(r.Origin) && finiteVec(r.Dir) && !r.Dir.IsZero() &&
+		finite(r.MaxDist) && r.MaxDist >= 0
+}
+
+// Hit is the nearest body a ray meets: input index plus debug name plus
+// distance from Origin along the normalized Dir plus hit point plus the
+// outward face normal plus the body trigger flag. Dist is in world units.
+type Hit struct {
+	Index   int
+	Name    string
+	Dist    float64
+	Pos     core.Vec2
+	Normal  core.Vec2
+	Trigger bool
+}
+
+// rayDirNorm returns the unit direction without overflowing huge inputs.
+func rayDirNorm(d core.Vec2) core.Vec2 {
+	l := math.Hypot(d.X, d.Y)
+	if l == 0 || !finite(l) {
+		return core.Vec2{}
+	}
+	return core.V2(d.X/l, d.Y/l)
+}
+
+// rayHitBox meets an axis box with the slab test. Edge touch counts;
+// origin inside reports t=0 with a zero normal; corner reports t with a
+// zero normal; otherwise the normal is the entry face axis.
+func rayHitBox(origin, dir core.Vec2, maxDist float64, b Body) (float64, core.Vec2, bool) {
+	minX := b.Pos.X - b.Half.X
+	maxX := b.Pos.X + b.Half.X
+	minY := b.Pos.Y - b.Half.Y
+	maxY := b.Pos.Y + b.Half.Y
+	var txmin, txmax float64
+	var nx core.Vec2
+	if dir.X == 0 {
+		if origin.X < minX || origin.X > maxX {
+			return 0, core.Vec2{}, false
+		}
+		txmin, txmax = math.Inf(-1), math.Inf(1)
+	} else {
+		t1 := (minX - origin.X) / dir.X
+		t2 := (maxX - origin.X) / dir.X
+		if t1 < t2 {
+			txmin, txmax = t1, t2
+		} else {
+			txmin, txmax = t2, t1
+		}
+		if dir.X > 0 {
+			nx = core.V2(-1, 0)
+		} else {
+			nx = core.V2(1, 0)
+		}
+		if minX == maxX {
+			nx = core.Vec2{}
+		}
+	}
+	var tymin, tymax float64
+	var ny core.Vec2
+	if dir.Y == 0 {
+		if origin.Y < minY || origin.Y > maxY {
+			return 0, core.Vec2{}, false
+		}
+		tymin, tymax = math.Inf(-1), math.Inf(1)
+	} else {
+		t1 := (minY - origin.Y) / dir.Y
+		t2 := (maxY - origin.Y) / dir.Y
+		if t1 < t2 {
+			tymin, tymax = t1, t2
+		} else {
+			tymin, tymax = t2, t1
+		}
+		if dir.Y > 0 {
+			ny = core.V2(0, -1)
+		} else {
+			ny = core.V2(0, 1)
+		}
+		if minY == maxY {
+			ny = core.Vec2{}
+		}
+	}
+	tmin := math.Max(txmin, tymin)
+	tmax := math.Min(txmax, tymax)
+	if tmax < tmin || tmax < 0 || tmin > maxDist {
+		return 0, core.Vec2{}, false
+	}
+	if tmin < 0 {
+		return 0, core.Vec2{}, true
+	}
+	var n core.Vec2
+	switch {
+	case txmin > tymin:
+		n = nx
+	case tymin > txmin:
+		n = ny
+	default:
+		n = core.Vec2{}
+	}
+	return tmin, n, true
+}
+
+// rayHitCircle meets a disc. Boundary start reports t=0 with a zero
+// normal; tangent counts; otherwise the normal runs center to hit point.
+func rayHitCircle(origin, dir core.Vec2, maxDist float64, b Body) (float64, core.Vec2, bool) {
+	lx := b.Pos.X - origin.X
+	ly := b.Pos.Y - origin.Y
+	l2 := lx*lx + ly*ly
+	r2 := b.Radius * b.Radius
+	if l2 <= r2 {
+		return 0, core.Vec2{}, true
+	}
+	tca := lx*dir.X + ly*dir.Y
+	if tca < 0 {
+		return 0, core.Vec2{}, false
+	}
+	d2 := l2 - tca*tca
+	if d2 > r2 {
+		return 0, core.Vec2{}, false
+	}
+	t := tca - math.Sqrt(r2-d2)
+	if t < 0 || t > maxDist {
+		return 0, core.Vec2{}, false
+	}
+	hx := origin.X + dir.X*t - b.Pos.X
+	hy := origin.Y + dir.Y*t - b.Pos.Y
+	hl := math.Hypot(hx, hy)
+	if hl == 0 || !finite(hl) {
+		return t, core.Vec2{}, true
+	}
+	return t, core.V2(hx/hl, hy/hl), true
+}
+
+// CastRay returns the nearest body the ray meets. Bodies with no layer
+// bit in the ray mask are skipped (one-sided, unlike Query which needs
+// both sides). Ties keep the smaller input index. Empty input reports no
+// hit. An invalid ray or any invalid body is a core InvalidArg error.
+func CastRay(bodies []Body, ray Ray) (Hit, bool, error) {
+	if !ray.Valid() {
+		return Hit{}, false, core.InvalidArg("physics.CastRay", "ray")
+	}
+	for i := range bodies {
+		if !bodies[i].Valid() {
+			return Hit{}, false, core.InvalidArg("physics.CastRay", "bodies")
+		}
+	}
+	if len(bodies) == 0 || ray.Mask == 0 {
+		return Hit{}, false, nil
+	}
+	dir := rayDirNorm(ray.Dir)
+	if dir.IsZero() {
+		return Hit{}, false, core.InvalidArg("physics.CastRay", "ray")
+	}
+	best := math.Inf(1)
+	bestIdx := -1
+	var bestN core.Vec2
+	for i := range bodies {
+		if bodies[i].Layer&ray.Mask == 0 {
+			continue
+		}
+		var t float64
+		var n core.Vec2
+		var ok bool
+		if bodies[i].Shape == ShapeCircle {
+			t, n, ok = rayHitCircle(ray.Origin, dir, ray.MaxDist, bodies[i])
+		} else {
+			t, n, ok = rayHitBox(ray.Origin, dir, ray.MaxDist, bodies[i])
+		}
+		if !ok || !finite(t) || t < 0 || t > ray.MaxDist {
+			continue
+		}
+		if t < best {
+			best, bestIdx, bestN = t, i, n
+		}
+	}
+	if bestIdx < 0 {
+		return Hit{}, false, nil
+	}
+	return Hit{
+		Index:   bestIdx,
+		Name:    bodies[bestIdx].Name,
+		Dist:    best,
+		Pos:     core.V2(ray.Origin.X+dir.X*best, ray.Origin.Y+dir.Y*best),
+		Normal:  bestN,
+		Trigger: bodies[bestIdx].Trigger,
+	}, true, nil
+}
+
+// IsStandingOn reports whether rider stands on top of platform: both
+// valid, rider center at or above the platform center, rider bottom
+// within standingSnap of the platform top, horizontal spans overlapping
+// edge-included. Circles use their bounds footprint. Invalid inputs
+// report false, never a panic.
+func IsStandingOn(rider, platform Body) bool {
+	if !rider.Valid() || !platform.Valid() {
+		return false
+	}
+	if rider.Pos.Y < platform.Pos.Y {
+		return false
+	}
+	rb, ok := Bounds(rider)
+	if !ok {
+		return false
+	}
+	pb, ok := Bounds(platform)
+	if !ok {
+		return false
+	}
+	if math.Abs(rb.Y-(pb.Y+pb.H)) > standingSnap {
+		return false
+	}
+	return rb.X <= pb.X+pb.W && pb.X <= rb.X+rb.W
+}
+
+// CarryRider moves rider by the platform step delta when rider stands on
+// platform before the move. Standing is IsStandingOn on the pre-move
+// pair. Off-platform reports (false, nil) with rider untouched. A nil
+// rider, invalid bodies, a non-finite delta, or a delta pushing rider
+// off finite numbers is a core InvalidArg error with rider untouched.
+func CarryRider(rider *Body, platform Body, delta core.Vec2) (bool, error) {
+	if rider == nil {
+		return false, core.InvalidArg("physics.CarryRider", "rider")
+	}
+	if !rider.Valid() || !platform.Valid() {
+		return false, core.InvalidArg("physics.CarryRider", "body")
+	}
+	if !finiteVec(delta) {
+		return false, core.InvalidArg("physics.CarryRider", "delta")
+	}
+	if !IsStandingOn(*rider, platform) {
+		return false, nil
+	}
+	next := rider.Pos.Add(delta)
+	if !finiteVec(next) {
+		return false, core.InvalidArg("physics.CarryRider", "delta")
+	}
+	rider.Pos = next
+	return true, nil
+}

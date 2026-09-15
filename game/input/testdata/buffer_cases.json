@@ -1,0 +1,149 @@
+{
+  "limits": {"max_buffered": 64, "max_touches": 10, "default_window_ms": 150},
+  "buffer_sequences": [
+    {
+      "name": "combo_hit",
+      "window_ms": 150,
+      "pushes": [
+        {"action": "jump", "at_ms": 0},
+        {"action": "attack", "at_ms": 50}
+      ],
+      "steps": [
+        {"op": "consume", "action": "jump", "now_ms": 100, "want_hit": true},
+        {"op": "consume", "action": "attack", "now_ms": 120, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 130, "want_hit": false}
+      ],
+      "check_at_ms": 200,
+      "want_live": 0,
+      "want_len": 0
+    },
+    {
+      "name": "expire_miss",
+      "window_ms": 150,
+      "pushes": [
+        {"action": "jump", "at_ms": 0}
+      ],
+      "steps": [
+        {"op": "peek", "action": "jump", "now_ms": 100, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 500, "want_hit": false}
+      ],
+      "check_at_ms": 500,
+      "want_live": 0,
+      "want_len": 0
+    },
+    {
+      "name": "consume_removes_order",
+      "window_ms": 150,
+      "pushes": [
+        {"action": "jump", "at_ms": 0},
+        {"action": "jump", "at_ms": 10}
+      ],
+      "steps": [
+        {"op": "consume", "action": "jump", "now_ms": 50, "want_hit": true},
+        {"op": "peek", "action": "jump", "now_ms": 60, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 70, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 80, "want_hit": false},
+        {"op": "peek", "action": "jump", "now_ms": 80, "want_hit": false}
+      ],
+      "check_at_ms": 80,
+      "want_live": 0,
+      "want_len": 0
+    },
+    {
+      "name": "future_skip",
+      "window_ms": 150,
+      "pushes": [
+        {"action": "jump", "at_ms": 200}
+      ],
+      "steps": [
+        {"op": "consume", "action": "jump", "now_ms": 100, "want_hit": false},
+        {"op": "peek", "action": "jump", "now_ms": 100, "want_hit": false},
+        {"op": "consume", "action": "jump", "now_ms": 250, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 260, "want_hit": false}
+      ],
+      "check_at_ms": 260,
+      "want_live": 0,
+      "want_len": 0
+    },
+    {
+      "name": "mixed_order",
+      "window_ms": 150,
+      "pushes": [
+        {"action": "jump", "at_ms": 0},
+        {"action": "attack", "at_ms": 10},
+        {"action": "jump", "at_ms": 20}
+      ],
+      "steps": [
+        {"op": "consume", "action": "attack", "now_ms": 30, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 40, "want_hit": true},
+        {"op": "peek", "action": "jump", "now_ms": 40, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 50, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 60, "want_hit": false}
+      ],
+      "check_at_ms": 60,
+      "want_live": 0,
+      "want_len": 0
+    },
+    {
+      "name": "prune_window",
+      "window_ms": 100,
+      "pushes": [
+        {"action": "jump", "at_ms": 0},
+        {"action": "attack", "at_ms": 50},
+        {"action": "jump", "at_ms": 90}
+      ],
+      "steps": [
+        {"op": "consume", "action": "jump", "now_ms": 120, "want_hit": true},
+        {"op": "consume", "action": "attack", "now_ms": 130, "want_hit": true},
+        {"op": "consume", "action": "jump", "now_ms": 140, "want_hit": false}
+      ],
+      "check_at_ms": 140,
+      "want_live": 0,
+      "want_len": 0
+    }
+  ],
+  "touch_sequences": [
+    {
+      "name": "multi_track",
+      "ops": [
+        {"op": "begin", "id": 1, "x": 10, "y": 20, "at_ms": 0, "want_code": ""},
+        {"op": "begin", "id": 2, "x": 30, "y": 40, "at_ms": 10, "want_code": ""},
+        {"op": "move", "id": 1, "x": 15, "y": 25, "at_ms": 20, "want_code": ""},
+        {"op": "end", "id": 2, "x": 0, "y": 0, "at_ms": 30, "want_code": ""}
+      ],
+      "want_active": [1],
+      "want_touches": [
+        {"id": 1, "x": 15, "y": 25, "at_ms": 20}
+      ]
+    },
+    {
+      "name": "swap_track",
+      "ops": [
+        {"op": "begin", "id": 3, "x": 0, "y": 0, "at_ms": 0, "want_code": ""},
+        {"op": "begin", "id": 4, "x": 100, "y": 100, "at_ms": 5, "want_code": ""},
+        {"op": "move", "id": 4, "x": 110, "y": 90, "at_ms": 10, "want_code": ""},
+        {"op": "move", "id": 3, "x": 5, "y": 5, "at_ms": 10, "want_code": ""},
+        {"op": "end", "id": 3, "x": 0, "y": 0, "at_ms": 15, "want_code": ""}
+      ],
+      "want_active": [4],
+      "want_touches": [
+        {"id": 4, "x": 110, "y": 90, "at_ms": 10}
+      ]
+    },
+    {
+      "name": "broken_touches",
+      "ops": [
+        {"op": "end", "id": 99, "x": 0, "y": 0, "at_ms": 0, "want_code": "not-found"},
+        {"op": "move", "id": 99, "x": 1, "y": 1, "at_ms": 0, "want_code": "not-found"},
+        {"op": "begin", "id": 7, "x": 1, "y": 1, "at_ms": 0, "want_code": ""},
+        {"op": "begin", "id": 7, "x": 2, "y": 2, "at_ms": 1, "want_code": "invalid-arg"},
+        {"op": "end", "id": 7, "x": 0, "y": 0, "at_ms": 2, "want_code": ""},
+        {"op": "end", "id": 7, "x": 0, "y": 0, "at_ms": 3, "want_code": "not-found"}
+      ],
+      "want_active": [],
+      "want_touches": []
+    }
+  ],
+  "perf": {"buffer_pushes": 32, "reps": 5000, "touch_reps": 5000},
+  "longrun": {"reps": 10000}
+}

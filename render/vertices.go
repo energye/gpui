@@ -1,6 +1,52 @@
 package render
 
-import "image"
+import (
+	"errors"
+	"image"
+	"math"
+)
+
+// R2 CPU渐变接口冻结（S16/W2，前置 S01 R1）。
+//
+// 一句话：显卡对三角逐像素插预乘颜色（Gouraud），
+// CPU 必须按同样重心权重逐像素插，不许再取平均填纯色；
+// 两边只差抗锯齿（当前网格管线 SkipAA，两边都是硬边）。
+//
+// 约定：
+//   - 老 DrawVertices/DrawMesh 签名不动；纯色（无逐点色）仍走原 Fill 抗锯齿路。
+//   - 新 DrawVerticesEx/DrawMeshEx 带显式校验加降级标记：
+//     空 mesh 跳过（Skipped），非有限点与越界索引返回哨兵错，
+//     CPU 真渐变时 Degraded=true（仅差抗锯齿），GPU 时 Degraded=false。
+//   - CPU 采样与显卡一致：预乘（R*A/G*A/B*A/A）线性插，
+//     再乘夹子/遮罩覆盖做源覆盖混合；混合恒按 Normal（与显卡凸包管线一致）。
+//   - GOGPU_RENDER_MODE=cpu 强制走 CPU 真渐变，供 C 两边齐离屏对比取 CPU 真值。
+
+// R2 哨兵错与降级标记：调用方用 errors.Is 判定，不许静默画错。
+var (
+	// ErrVertsNonFinite 非有限顶点（NaN/Inf）。
+	ErrVertsNonFinite = errors.New("render: non-finite vertex")
+	// ErrVertsBadIndex 索引越界（DrawMeshEx）。
+	ErrVertsBadIndex = errors.New("render: vertex index out of range")
+)
+
+// VertCPUFallbackReason 是 CPU 真渐变回退的降级标记（与 RenderPathStats 对齐）。
+// CPU 与 GPU 只差抗锯齿时仍记这一条，调用方凭它判定降级。
+const VertCPUFallbackReason = "verts:DrawVertices"
+
+// VertDrawOptions 是 DrawVerticesEx/DrawMeshEx 的选项（R2 预留，零值即默认）。
+type VertDrawOptions struct{}
+
+// VertDrawResult 是 Ex 新函数的降级标记与诊断。
+type VertDrawResult struct {
+	// Degraded 为 true 表示走了 CPU 真渐变（与 GPU 只差抗锯齿）。
+	Degraded bool
+	// Reason 为降级原因（Degraded 时为 VertCPUFallbackReason，否则为空）。
+	Reason string
+	// Skipped 为 true 表示空 mesh/全退化跳过，什么都没画。
+	Skipped bool
+	// Triangles 为实际光栅化的三角数（D/E 诊断用）。
+	Triangles int
+}
 
 // VertexMode selects how DrawVertices interprets the position list (V.01).
 type VertexMode int
@@ -28,7 +74,7 @@ type AtlasSprite struct {
 // fill solid color is used for the mesh.
 //
 // Preferred path: GPU convex tier with per-vertex colors (QueueColoredMesh).
-// CPU fallback fills each triangle with a solid average color (no true Gouraud on CPU).
+// CPU fallback is true Gouraud (R2, per-pixel barycentric on premultiplied colors).
 func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode) {
 	if c == nil || len(positions) < 3 {
 		return
@@ -53,7 +99,7 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 		meshColors = nil
 	}
 
-	if rc := c.gpuCtxOps(); rc != nil {
+	if rc := c.gpuCtxOps(); rc != nil && !CPUOnlyMode() {
 		defer c.setGPUClipRect()()
 		target := c.gpuRenderTarget()
 		triangleList := mode != VertexModeTriangleFan
@@ -79,7 +125,7 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 	}
 
 	if c.gpuPathAvailable() {
-		c.recordCPUFallbackReason("verts:DrawVertices")
+		c.recordCPUFallbackReason(VertCPUFallbackReason)
 	}
 	// CPU path needs its own copy if scratch will be reused later in the frame.
 	devCopy := append([]Point(nil), dev...)
@@ -87,17 +133,20 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 }
 
 func (c *Context) drawVerticesCPU(positions []Point, colors []RGBA, solid RGBA, mode VertexMode) {
+	// R2: true Gouraud goes to the new per-pixel path; solid keeps AA Fill.
+	if len(colors) == len(positions) {
+		if uni, ok := uniformVertColor(colors); ok {
+			// Identical vertex colors interpolate to a constant: keep the
+			// original AA Fill path so solid arrows stay pixel-identical
+			// (CPU keeps AA here; GPU mesh is SkipAA — allowed AA-edge-only diff).
+			solid = uni
+		} else {
+			c.drawVerticesGouraudCPU(positions, colors, mode)
+			return
+		}
+	}
 	emit := func(i0, i1, i2 int) {
 		col := solid
-		if len(colors) == len(positions) {
-			c0, c1, c2 := colors[i0], colors[i1], colors[i2]
-			col = RGBA{
-				R: (c0.R + c1.R + c2.R) / 3,
-				G: (c0.G + c1.G + c2.G) / 3,
-				B: (c0.B + c1.B + c2.B) / 3,
-				A: (c0.A + c1.A + c2.A) / 3,
-			}
-		}
 		c.SetRGBA(col.R, col.G, col.B, col.A)
 		c.drawDeviceTriangle(positions[i0], positions[i1], positions[i2])
 	}
@@ -110,6 +159,308 @@ func (c *Context) drawVerticesCPU(positions []Point, colors []RGBA, solid RGBA, 
 	for i := 0; i+2 < len(positions); i += 3 {
 		emit(i, i+1, i+2)
 	}
+}
+
+// drawVerticesGouraudCPU rasterizes device-space triangles with true Gouraud (R2).
+// New function: old Draw signatures stay, new logic lives here.
+// Premultiplied barycentric matches GPU convex mesh (SkipAA, Normal source-over).
+func (c *Context) drawVerticesGouraudCPU(dev []Point, colors []RGBA, mode VertexMode) {
+	if c == nil || c.pixmap == nil || len(dev) < 3 || len(colors) != len(dev) {
+		return
+	}
+	if c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		c.flushGPUAccelerator()
+	}
+	c.noteLayerCPUDraw()
+	pw, ph := c.pixmap.Width(), c.pixmap.Height()
+	if pw <= 0 || ph <= 0 {
+		return
+	}
+	hasClip := c.clipStack != nil && c.clipStack.Depth() > 0
+	mask := c.mask
+	// Frame damage: union AABB in device space (scale=1 tests; matches R1 quad path).
+	minX, minY := dev[0].X, dev[0].Y
+	maxX, maxY := minX, minY
+	for i := 1; i < len(dev); i++ {
+		if dev[i].X < minX {
+			minX = dev[i].X
+		} else if dev[i].X > maxX {
+			maxX = dev[i].X
+		}
+		if dev[i].Y < minY {
+			minY = dev[i].Y
+		} else if dev[i].Y > maxY {
+			maxY = dev[i].Y
+		}
+	}
+	c.trackDamage(image.Rect(int(math.Floor(minX)), int(math.Floor(minY)), int(math.Ceil(maxX))+1, int(math.Ceil(maxY))+1))
+	emitTri := func(i0, i1, i2 int) {
+		p0, p1, p2 := dev[i0], dev[i1], dev[i2]
+		if !isFinitePt(p0) || !isFinitePt(p1) || !isFinitePt(p2) {
+			return
+		}
+		c0, c1, c2 := colors[i0], colors[i1], colors[i2]
+		if !isFiniteRGBA(c0) || !isFiniteRGBA(c1) || !isFiniteRGBA(c2) {
+			return
+		}
+		tri := newVertTri(p0, p1, p2)
+		if tri.degen {
+			return
+		}
+		pr0, pg0, pb0, pa0 := c0.R*c0.A, c0.G*c0.A, c0.B*c0.A, c0.A
+		pr1, pg1, pb1, pa1 := c1.R*c1.A, c1.G*c1.A, c1.B*c1.A, c1.A
+		pr2, pg2, pb2, pa2 := c2.R*c2.A, c2.G*c2.A, c2.B*c2.A, c2.A
+		tMinX, tMinY, tMaxX, tMaxY := tri.bounds()
+		x0 := int(math.Floor(tMinX))
+		y0 := int(math.Floor(tMinY))
+		x1 := int(math.Ceil(tMaxX))
+		y1 := int(math.Ceil(tMaxY))
+		if x0 < 0 {
+			x0 = 0
+		}
+		if y0 < 0 {
+			y0 = 0
+		}
+		if x1 > pw {
+			x1 = pw
+		}
+		if y1 > ph {
+			y1 = ph
+		}
+		if x0 >= x1 || y0 >= y1 {
+			return
+		}
+		for y := y0; y < y1; y++ {
+			py := float64(y) + 0.5
+			for x := x0; x < x1; x++ {
+				px := float64(x) + 0.5
+				w0, w1, w2, ok := tri.bary(px, py)
+				if !ok {
+					continue
+				}
+				pa := w0*pa0 + w1*pa1 + w2*pa2
+				if pa <= 0 {
+					continue
+				}
+				pr := w0*pr0 + w1*pr1 + w2*pr2
+				pg := w0*pg0 + w1*pg1 + w2*pg2
+				pb := w0*pb0 + w1*pb1 + w2*pb2
+				k := 1.0
+				if hasClip {
+					cover := float64(c.clipStack.Coverage(px, py)) / 255.0
+					if cover <= 0 {
+						continue
+					}
+					k *= cover
+				}
+				if mask != nil {
+					mc := float64(mask.At(x, y)) / 255.0
+					if mc <= 0 {
+						continue
+					}
+					k *= mc
+				}
+				srcA := pa * k
+				if srcA <= 0 {
+					continue
+				}
+				srcR := pr * k
+				srcG := pg * k
+				srcB := pb * k
+				if srcA >= 1 {
+					if srcR < 0 {
+						srcR = 0
+					}
+					if srcG < 0 {
+						srcG = 0
+					}
+					if srcB < 0 {
+						srcB = 0
+					}
+					if srcR > 1 {
+						srcR = 1
+					}
+					if srcG > 1 {
+						srcG = 1
+					}
+					if srcB > 1 {
+						srcB = 1
+					}
+					c.pixmap.SetPixelPremul(x, y, uint8(srcR*255+0.5), uint8(srcG*255+0.5), uint8(srcB*255+0.5), 255)
+					continue
+				}
+				dstR, dstG, dstB, dstA := c.pixmap.getPremul(x, y)
+				inv := 1 - srcA
+				c.pixmap.setPremul(x, y,
+					srcR+dstR*inv,
+					srcG+dstG*inv,
+					srcB+dstB*inv,
+					srcA+dstA*inv,
+				)
+			}
+		}
+	}
+	if mode == VertexModeTriangleFan {
+		for i := 1; i+1 < len(dev); i++ {
+			emitTri(0, i, i+1)
+		}
+		return
+	}
+	for i := 0; i+2 < len(dev); i += 3 {
+		emitTri(i, i+1, i+2)
+	}
+}
+
+// vertTri holds one triangle with hoisted barycentric factors (R2).
+type vertTri struct {
+	x2, y2 float64
+	a0, b0 float64
+	a1, b1 float64
+	den    float64
+	degen  bool
+	minX   float64
+	minY   float64
+	maxX   float64
+	maxY   float64
+}
+
+func newVertTri(p0, p1, p2 Point) vertTri {
+	den := (p1.Y-p2.Y)*(p0.X-p2.X) + (p2.X-p1.X)*(p0.Y-p2.Y)
+	t := vertTri{
+		x2: p2.X, y2: p2.Y,
+		a0: p1.Y - p2.Y, b0: p2.X - p1.X,
+		a1: p2.Y - p0.Y, b1: p0.X - p2.X,
+		den:   den,
+		degen: math.Abs(den) < 1e-12,
+		minX:  math.Min(math.Min(p0.X, p1.X), p2.X),
+		minY:  math.Min(math.Min(p0.Y, p1.Y), p2.Y),
+		maxX:  math.Max(math.Max(p0.X, p1.X), p2.X),
+		maxY:  math.Max(math.Max(p0.Y, p1.Y), p2.Y),
+	}
+	return t
+}
+
+func (t *vertTri) bary(px, py float64) (float64, float64, float64, bool) {
+	if t == nil || t.degen {
+		return 0, 0, 0, false
+	}
+	dx := px - t.x2
+	dy := py - t.y2
+	w0 := (t.a0*dx + t.b0*dy) / t.den
+	w1 := (t.a1*dx + t.b1*dy) / t.den
+	w2 := 1 - w0 - w1
+	const eps = -1e-9
+	if w0 < eps || w1 < eps || w2 < eps {
+		return 0, 0, 0, false
+	}
+	return w0, w1, w2, true
+}
+
+func (t *vertTri) bounds() (float64, float64, float64, float64) {
+	return t.minX, t.minY, t.maxX, t.maxY
+}
+
+func isFiniteRGBA(c RGBA) bool {
+	return !math.IsNaN(c.R) && !math.IsNaN(c.G) && !math.IsNaN(c.B) && !math.IsNaN(c.A) &&
+		!math.IsInf(c.R, 0) && !math.IsInf(c.G, 0) && !math.IsInf(c.B, 0) && !math.IsInf(c.A, 0)
+}
+
+// uniformVertColor reports whether every vertex color is identical (R2).
+// A constant interpolant keeps the original AA Fill path: pixel-identical
+// to the old average fill and within the allowed AA-edge-only GPU diff.
+func uniformVertColor(colors []RGBA) (RGBA, bool) {
+	if len(colors) == 0 {
+		return RGBA{}, false
+	}
+	c0 := colors[0]
+	for i := 1; i < len(colors); i++ {
+		if colors[i] != c0 {
+			return RGBA{}, false
+		}
+	}
+	return c0, true
+}
+
+// DrawVerticesEx validates then draws via the frozen path, returning degradation (R2 new function).
+// Empty (<3) skips with Skipped=true and nil error; non-finite returns ErrVertsNonFinite.
+func (c *Context) DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMode, _ VertDrawOptions) (VertDrawResult, error) {
+	if c == nil || len(positions) < 3 {
+		return VertDrawResult{Skipped: true}, nil
+	}
+	for i := range positions {
+		if !isFinitePt(positions[i]) {
+			return VertDrawResult{}, ErrVertsNonFinite
+		}
+	}
+	if len(colors) == len(positions) {
+		for i := range colors {
+			if !isFiniteRGBA(colors[i]) {
+				return VertDrawResult{}, ErrVertsNonFinite
+			}
+		}
+	}
+	useGPU := !CPUOnlyMode() && c.gpuCtxOps() != nil
+	c.DrawVertices(positions, colors, mode)
+	if len(positions) < 3 {
+		return VertDrawResult{Skipped: true}, nil
+	}
+	nTri := countVertTris(len(positions), mode)
+	if useGPU {
+		return VertDrawResult{Degraded: false, Triangles: nTri}, nil
+	}
+	return VertDrawResult{Degraded: true, Reason: VertCPUFallbackReason, Triangles: nTri}, nil
+}
+
+// DrawMeshEx validates then draws via the frozen path, returning degradation (R2 new function).
+func (c *Context) DrawMeshEx(mesh Mesh, _ VertDrawOptions) (VertDrawResult, error) {
+	if c == nil || len(mesh.Positions) < 3 {
+		return VertDrawResult{Skipped: true}, nil
+	}
+	for i := range mesh.Positions {
+		if !isFinitePt(mesh.Positions[i]) {
+			return VertDrawResult{}, ErrVertsNonFinite
+		}
+	}
+	if len(mesh.Colors) != 0 && len(mesh.Colors) != len(mesh.Positions) {
+		// Mismatched colors fall back to solid, same as DrawMesh.
+	} else if len(mesh.Colors) == len(mesh.Positions) {
+		for i := range mesh.Colors {
+			if !isFiniteRGBA(mesh.Colors[i]) {
+				return VertDrawResult{}, ErrVertsNonFinite
+			}
+		}
+	}
+	if len(mesh.Indices) >= 3 {
+		n := len(mesh.Indices) / 3 * 3
+		for i := 0; i < n; i++ {
+			if int(mesh.Indices[i]) < 0 || int(mesh.Indices[i]) >= len(mesh.Positions) {
+				return VertDrawResult{}, ErrVertsBadIndex
+			}
+		}
+		useGPU := !CPUOnlyMode() && c.gpuCtxOps() != nil
+		c.DrawMesh(mesh)
+		return VertDrawResult{Degraded: !useGPU, Reason: mapDegradedReason(!useGPU), Triangles: n / 3}, nil
+	}
+	useGPU := !CPUOnlyMode() && c.gpuCtxOps() != nil
+	c.DrawMesh(mesh)
+	return VertDrawResult{Degraded: !useGPU, Reason: mapDegradedReason(!useGPU), Triangles: countVertTris(len(mesh.Positions), VertexModeTriangles)}, nil
+}
+
+func mapDegradedReason(degraded bool) string {
+	if degraded {
+		return VertCPUFallbackReason
+	}
+	return ""
+}
+
+func countVertTris(n int, mode VertexMode) int {
+	if n < 3 {
+		return 0
+	}
+	if mode == VertexModeTriangleFan {
+		return n - 2
+	}
+	return n / 3
 }
 
 // drawDeviceTriangle fills a triangle specified in device pixels by mapping
@@ -248,7 +599,7 @@ func (c *Context) DrawMesh(mesh Mesh) {
 
 	// GPU indexed path: CTM → unique device verts + indices (opt22).
 	if hasIdx {
-		if rc := c.gpuCtxOps(); rc != nil {
+		if rc := c.gpuCtxOps(); rc != nil && !CPUOnlyMode() {
 			n := len(positions)
 			ctm := c.totalMatrix()
 			var dev []Point

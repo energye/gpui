@@ -3,11 +3,17 @@
 // Frozen 2026-09-15 (capability 14.1a, P0, S06/W1): Shape, ShapeBox,
 // ShapeCircle, Body, NewBox, NewCircle, Valid, Bounds, CanCollide,
 // Overlaps, Contact, Query. Additive changes only.
+// Frozen 2026-09-15 (capability 14.1b, P2, S21/W2): Ray, NewRay, Hit,
+// CastRay, IsStandingOn, CarryRider. 14.1a overlap semantics unchanged.
+// Frozen 2026-09-15 (capability 14.2, P2, S22/W2): Slope, NewSlope,
+// NewOneWay, GroundYAt, Angle, Walkable, SlideDir, FeetOf, WithFeet,
+// Grounded, Step. 14.1a/b semantics unchanged.
 //
 // This package only computes numbers; it draws nothing and steps nothing.
 // The caller moves bodies (assign Pos or rebuild via NewBox/NewCircle),
-// calls Query, then resolves solids and fires triggers. Rays and riding
-// platforms belong to 14.1b and stay out: no Ray type here.
+// calls Query, then resolves solids and fires triggers. 14.1b adds rays
+// and riding platforms: NewRay/CastRay for jump probes and bullet lines,
+// IsStandingOn/CarryRider for a platform step carrying its rider.
 // Only core numbers are used; no new Vec2/Rect is defined here.
 //
 // Shapes: box is a center plus half extents, circle is a center plus a
@@ -37,4 +43,43 @@
 // Query order: pairs i<j in input order, never sorted, never mutated.
 // The input slice is never mutated; the result is a fresh slice (nil
 // when nothing touches). Bad inputs fail closed, never guessed.
+//
+// Ray rule (14.1b, probe and bullet line): NewRay needs a finite origin,
+// a finite non-zero dir, and a finite MaxDist >= 0, else InvalidArg.
+// CastRay takes the nearest body with a layer bit in the ray mask
+// (one-sided: body.Layer&ray.Mask != 0; the body mask is ignored, unlike
+// Query which needs both sides). Box uses the slab test, circle the
+// quadratic test; edge touch and tangent count, origin inside reports
+// Dist 0 with a zero normal. Dist runs along the normalized dir in world
+// units and must sit within [0, MaxDist]. Ties keep the smaller input
+// index. Empty input or Mask 0 reports no hit without error. An invalid
+// ray or any invalid body is InvalidArg. Tilemap solid cells feed this
+// path as boxes: cell center with half tile/2, no tilemap import here.
+//
+// Platform rule (14.1b, moving platform carries its rider): IsStandingOn
+// is true only when both bodies are valid, the rider center sits at or
+// above the platform center, the rider bottom sits within 1e-9 of the
+// platform top, and the horizontal spans overlap edge-included (circles
+// use their bounds footprint). CarryRider applies the platform step delta
+// to rider.Pos only in that pre-move standing pose, else leaves rider
+// untouched and reports carried=false. Nil rider, invalid bodies,
+// non-finite delta, or a delta pushing rider off finite numbers is
+// InvalidArg with rider untouched.
+//
+// Slope rule (14.2, platform and slope): thin segment A-B with a one-way
+// flag. +Y runs down like tilemap cells; above means smaller Y. NewSlope
+// is solid, NewOneWay is top-only; both need finite distinct endpoints
+// else InvalidArg. GroundYAt interpolates Y at column x inside the
+// inclusive span (vertical reports ok=false). Angle is radians from
+// horizontal in [0, pi/2]. Walkable checks angle <= caller maxAngle.
+// SlideDir is the downhill unit vector (flat reports ok=false, vertical
+// reports (0,1)). FeetOf/WithFeet convert a Body center to the sole point
+// and back, read-only over body.go. Grounded samples the highest surface
+// within 1e-9 at the feet column, invalid slopes skipped. Step integrates
+// feet+vel*dt: falling still lands on the highest crossed surface, rising
+// along the same slope stays grounded, a solid slope crossed from below
+// reports hitHead clamped to the ceiling, one-way never reports head.
+// Any invalid slope in Step is InvalidArg; bad feet/vel/dt is InvalidArg
+// with feet unchanged. Tilemap feeds this path as cell top edges, no
+// tilemap import here. Window intent: game_physics --case=jump.
 package physics
