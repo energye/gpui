@@ -247,6 +247,10 @@ func (r *Recorder) drawArcPath(cx, cy, radius, angle1, angle2 float64) {
 }
 
 // arcSegment adds a single arc segment using cubic Bezier curves.
+// Endpoints and control handles route through MoveTo/CubicTo (which apply
+// the recorder transform), so rotation/scale apply exactly like Context.
+// Previously the raw user-space points were baked, so a rotated arc
+// painted unrotated (loading spinner never animated via Recorder).
 func (r *Recorder) arcSegment(cx, cy, radius, a1, a2 float64) {
 	alpha := math.Sin(a2-a1) * (math.Sqrt(4+3*math.Tan((a2-a1)/2)*math.Tan((a2-a1)/2)) - 1) / 3
 
