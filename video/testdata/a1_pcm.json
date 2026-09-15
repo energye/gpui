@@ -1,0 +1,30 @@
+{
+  "tool": "ffmpeg 4.4.2 -map 0:a -f f32le -acodec pcm_f32le（双声道交织 float32 LE，每帧 1024 样）",
+  "peer": "libavcodec/aac/aacdec.c spectral_to_sample + libavutil/tx IMDCT + float_dsp 交叠（只学思路不搬代码）",
+  "gen": "ffmpeg -v error -i <clip> -map 0:a -f f32le -acodec pcm_f32le <ref全量>，再截前 8 帧（8*2048*4=65536 字节）入库",
+  "clips": [
+    {
+      "file": "vr_oceans.mp4",
+      "decode_from": 0,
+      "decode_count": 8,
+      "ours_first": 0,
+      "ref": "a1_pcm_oceans_8f_f32le.bin",
+      "ref_first_frame": 0,
+      "frames": 8,
+      "note": "无编辑列表，包序对帧序；头 3 包为起止窗过渡（17/20/10 字节）一并比对"
+    },
+    {
+      "file": "vr_f42906.mp4",
+      "decode_from": 0,
+      "decode_count": 10,
+      "ours_first": 2,
+      "ref": "a1_pcm_f42906_8f_f32le.bin",
+      "ref_first_frame": 0,
+      "frames": 8,
+      "note": "编辑列表垫底 2048 样（ffmpeg 裁头 2 帧，参考剩 1457 帧）；包 0/1 只跑状态不比，包 2 起对帧 0"
+    }
+  ],
+  "max_rms": 0.000001,
+  "max_abs": 0.00001,
+  "pass": "逐包 Samples==1024/Channels==2/PTS 透传；8 帧交织波形 rms<=1e-6 且逐样 maxabs<=1e-5（实测 oceans 0/f42906 rms 3e-8，容差留 30 倍以上余量）"
+}

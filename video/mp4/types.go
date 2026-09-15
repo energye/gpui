@@ -30,10 +30,16 @@ type Movie struct {
 	FragCount int
 	Tracks    []*Track
 	Video     *Track
+	// Audio is the first soun/mp4a track when present (A1). Nil means
+	// silent or non-AAC; video open never requires it.
+	Audio *Track
 }
 
 // HasVideo reports whether a video track was found.
 func (m *Movie) HasVideo() bool { return m != nil && m.Video != nil }
+
+// HasAudio reports whether an AAC audio track was parsed.
+func (m *Movie) HasAudio() bool { return m != nil && m.Audio != nil }
 
 // EditEntry is one edit-list row.
 type EditEntry struct {
@@ -66,32 +72,40 @@ type Keyframe struct {
 	PTSMs        int64
 }
 
-// Track is one parsed trak box. Only video tracks carry sample tables.
+// Track is one parsed trak box. Video tracks carry picture tables;
+// audio (soun/mp4a, A1) tracks carry packet tables with the same Sample
+// shape (one sample = one raw_data_block, all marked keyframe).
 // FragCount mirrors Movie.FragCount when this track's samples came from
 // moof assembly (0 = plain moov tables).
 type Track struct {
-	ID           uint32
-	Handler      string
-	Codec        string
-	CodedWidth   uint32
-	CodedHeight  uint32
-	Width        uint32
-	Height       uint32
-	Rotation     int
-	Timescale    uint32
-	Duration     uint64
-	DurationMs   int64
-	FrameRate    float64
-	SampleCount  int
-	Samples      []Sample
-	Keyframes    []Keyframe
-	EditList     []EditEntry
-	AVCConfig    []byte
-	PixelAspectH uint32
-	PixelAspectV uint32
-	HasCTTS      bool
-	HasEditList  bool
-	FragCount    int
+	ID          uint32
+	Handler     string
+	Codec       string
+	CodedWidth  uint32
+	CodedHeight uint32
+	Width       uint32
+	Height      uint32
+	Rotation    int
+	Timescale   uint32
+	Duration    uint64
+	DurationMs  int64
+	FrameRate   float64
+	SampleCount int
+	Samples     []Sample
+	Keyframes   []Keyframe
+	EditList    []EditEntry
+	AVCConfig   []byte
+	// Audio fields (A1, soun/mp4a only): sample rate, channel count,
+	// bits per sample from the mp4a entry, ASC bytes from esds DecSpecific.
+	SampleRate    uint32
+	Channels      uint16
+	BitsPerSample uint16
+	ASC           []byte
+	PixelAspectH  uint32
+	PixelAspectV  uint32
+	HasCTTS       bool
+	HasEditList   bool
+	FragCount     int
 }
 
 // KeyframeCount is a convenience for metrics.

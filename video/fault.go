@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/energye/gpui/video/aac"
 	"github.com/energye/gpui/video/color"
 	"github.com/energye/gpui/video/h264"
 	"github.com/energye/gpui/video/mp4"
@@ -24,6 +25,7 @@ const (
 	KindColor        = "color-unsupported"
 	KindBadClip      = "bad-clip"
 	KindMemOverCap   = "mem-over-cap"
+	KindAudio        = "audio-decode"
 	KindUnknown      = "unknown"
 )
 
@@ -83,6 +85,10 @@ func Classify(err error) Fault {
 	case errors.Is(err, ErrNoVideo) || errors.Is(err, ErrNoFrames) ||
 		errors.Is(err, ErrBadClip) || errors.Is(err, ErrClosed) || errors.Is(err, ErrDecodeEOF):
 		return Fault{Kind: KindBadClip, Layer: "video", Tool: "播放器", CN: "片子打不开（video层：无视频轨/无可解帧/已关闭）"}
+	case errors.Is(err, ErrNoAudio) || errors.Is(err, aac.ErrBadASC) ||
+		errors.Is(err, aac.ErrBadADTS) || errors.Is(err, aac.ErrUnsupportedAOT) ||
+		errors.Is(err, aac.ErrTruncated) || errors.Is(err, aac.ErrUnsupported):
+		return Fault{Kind: KindAudio, Layer: "aac", Tool: "A1", CN: "声音解码A1（ASC/ADTS/包坏或特性不支持）"}
 	case errors.Is(err, ErrMemOverCap):
 		return Fault{Kind: KindMemOverCap, Layer: "video", Tool: "封顶", CN: "装不下（video层：解前预估超内存封顶，见S7按档上限）"}
 	case errors.Is(err, ErrUnsupportedContainer) || errors.Is(err, ErrUnsupportedCodec):

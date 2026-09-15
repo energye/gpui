@@ -1,0 +1,56 @@
+{
+  "tool": "ffprobe 4.4.2 + ffmpeg 4.4.2",
+  "peer": "libavformat/mov_esds.c ff_mov_read_esds + mov.c mov_read_audio + libavcodec/mpeg4audio.c ff_mpeg4audio_get_config_gb + libavcodec/aac/aacdec.c decode_audio_specific_config",
+  "clips": [
+    {
+      "file": "vr_oceans.mp4",
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": 48000,
+      "channels": 2,
+      "nb_frames": 2185,
+      "duration": "46.613333",
+      "asc_hex": "119056e500",
+      "aot": 2,
+      "sampling_index": 3,
+      "chan_config": 2,
+      "mp4a_rate": 48000,
+      "mp4a_channels": 2,
+      "mp4a_bits": 16,
+      "audio_samples": 2185,
+      "audio_timescale": 48000,
+      "audio_duration_ms": 46613,
+      "first_packets": [
+        {"size": 17, "pts_ms": 0},
+        {"size": 20, "pts_ms": 21},
+        {"size": 10, "pts_ms": 42}
+      ]
+    },
+    {
+      "file": "vr_f42906.mp4",
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": 44100,
+      "channels": 2,
+      "nb_frames": 1459,
+      "duration": "33.812993",
+      "asc_hex": "1210",
+      "aot": 2,
+      "sampling_index": 4,
+      "chan_config": 2,
+      "mp4a_rate": 44100,
+      "mp4a_channels": 2,
+      "mp4a_bits": 16,
+      "audio_samples": 1459,
+      "audio_timescale": 44100,
+      "audio_duration_ms": 33859,
+      "duration_tolerance_ms": 50,
+      "first_packets": [
+        {"size": 278, "pts_ms": 0},
+        {"size": 279, "pts_ms": 23},
+        {"size": 278, "pts_ms": 46}
+      ]
+    }
+  ],
+  "pass": "codec/profile/rate/channels/asc exact; samples exact; duration +-50ms; first 3 packet sizes exact; video tables bit-for-bit unchanged (VR0 parity)"
+}

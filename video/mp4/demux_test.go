@@ -525,6 +525,9 @@ func TestErrors(t *testing.T) {
 	})
 
 	t.Run("noVideoTrack", func(t *testing.T) {
+		// Audio-only shell parses since A1 landing 2 (ProbeAudio must
+		// work on m4a files): m.Video stays nil, m.Audio carries the
+		// packet table; video callers nil-check m.Video themselves.
 		audioTrak := mkBox("trak", mkBox("mdia", bytes.Join([][]byte{
 			mkMdhd(48000, 48000),
 			mkHdlr("soun"),
@@ -545,9 +548,15 @@ func TestErrors(t *testing.T) {
 				mkStco([]uint32{1000}),
 			}, nil))),
 		}, nil)))
-		_, err := Parse(buildMP4(audioTrak))
-		if !errors.Is(err, ErrNoVideoTrack) {
-			t.Fatalf("err = %v", err)
+		m, err := Parse(buildMP4(audioTrak))
+		if err != nil {
+			t.Fatalf("audio-only shell should parse: %v", err)
+		}
+		if m.Video != nil {
+			t.Fatal("audio-only shell reports video")
+		}
+		if m.Audio == nil || len(m.Audio.Samples) != 10 {
+			t.Fatalf("audio-only samples = %v, want 10", m.Audio)
 		}
 	})
 

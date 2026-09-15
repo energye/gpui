@@ -19,6 +19,7 @@ import (
 // with errors.Is and show their own localized text on top.
 var (
 	ErrNoVideo   = errors.New("video: no video track")
+	ErrNoAudio   = errors.New("video: no audio track")
 	ErrNoFrames  = errors.New("video: no decodable frames")
 	ErrClosed    = errors.New("video: player closed")
 	ErrBadClip   = errors.New("video: bad clip")

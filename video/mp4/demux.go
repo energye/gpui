@@ -152,8 +152,16 @@ func ParseReader(r io.ReaderAt, total int64) (*Movie, error) {
 				m.Video = t
 			}
 		}
+		if t.Handler == "soun" && t.Codec == "mp4a" && len(t.Samples) > 0 {
+			if m.Audio == nil {
+				m.Audio = t
+			}
+		}
 	}
-	if m.Video == nil {
+	// Audio-only clips (no video track) parse fine; video callers
+	// nil-check m.Video themselves (see video/registry.go). Only a
+	// trackless shell, or one with neither usable track, is an error.
+	if m.Video == nil && m.Audio == nil {
 		return nil, fmt.Errorf("%w", ErrNoVideoTrack)
 	}
 	return m, nil
@@ -183,6 +191,10 @@ type trackBuilder struct {
 	avcConfig    []byte
 	paspH        uint32
 	paspV        uint32
+	audioRate    uint32
+	audioChans   uint16
+	audioBits    uint16
+	audioASC     []byte
 	stts         [][2]uint32
 	stsc         [][3]uint32
 	sampleSizes  []uint32
@@ -600,6 +612,13 @@ func parseStsdPayload(p []byte, tb *trackBuilder) error {
 					parseVideoSample(entry, tb)
 				}
 			}
+		} else if tb.handler == "soun" {
+			if typ == "mp4a" && tb.codec == "" {
+				tb.codec = typ
+				parseAudioSample(entry, tb)
+			} else if tb.codec == "" && i == 0 {
+				tb.codec = typ
+			}
 		} else if tb.codec == "" {
 			tb.codec = typ
 		}
@@ -646,6 +665,89 @@ func parseVideoSample(entry []byte, tb *trackBuilder) {
 		default:
 		}
 	}
+}
+
+// parseAudioSample reads the mp4a entry header (A1). Layout peers
+// mov_read_audio (mov.c): version 0 base is 36 bytes past the entry
+// start (size+type included); version 1/2 carry extra QT fields which
+// are skipped, channels/rate still come from the base.
+func parseAudioSample(entry []byte, tb *trackBuilder) {
+	if len(entry) < 36 {
+		return
+	}
+	ver := binary.BigEndian.Uint16(entry[16:])
+	tb.audioChans = binary.BigEndian.Uint16(entry[24:])
+	tb.audioBits = binary.BigEndian.Uint16(entry[26:])
+	tb.audioRate = binary.BigEndian.Uint32(entry[32:]) >> 16
+	innerOff := 36
+	if ver == 1 {
+		innerOff = 36 + 16
+	} else if ver == 2 {
+		innerOff = 36 + 36
+	}
+	if len(entry) <= innerOff {
+		return
+	}
+	cc := &cursor{buf: entry[innerOff:]}
+	for !cc.done() {
+		typ, p, err := cc.next()
+		if err != nil {
+			return
+		}
+		if typ == "esds" {
+			if asc := parseESDS(p); len(asc) > 0 {
+				tb.audioASC = append([]byte(nil), asc...)
+			}
+		}
+	}
+}
+
+// parseESDS extracts the DecSpecific (ASC) payload from an esds box.
+// Walk peers ff_mov_read_esds (mov_esds.c): version+flags, then ES (0x03)
+// -> DecConfig (0x04) -> DecSpecific (0x05); only the 0x05 bytes matter.
+func parseESDS(p []byte) []byte {
+	if len(p) < 4 {
+		return nil
+	}
+	d := p[4:]
+	i := 0
+	for i < len(d) {
+		tag := d[i]
+		i++
+		ln := 0
+		for k := 0; k < 4 && i < len(d); k++ {
+			c := d[i]
+			i++
+			ln = (ln << 7) | int(c&0x7f)
+			if c&0x80 == 0 {
+				break
+			}
+		}
+		if ln < 0 || i+ln > len(d) {
+			return nil
+		}
+		if tag == 0x03 {
+			if ln < 3 {
+				return nil
+			}
+			i += 3
+			continue
+		}
+		if tag == 0x04 {
+			if ln < 13 {
+				return nil
+			}
+			i += 13
+			continue
+		}
+		if tag == 0x05 {
+			out := make([]byte, ln)
+			copy(out, d[i:i+ln])
+			return out
+		}
+		i += ln
+	}
+	return nil
 }
 
 func parseStts(p []byte) [][2]uint32 {
@@ -807,21 +909,27 @@ func parseCtts(p []byte) ([][2]int64, byte, error) {
 
 func buildTrack(tb *trackBuilder) (*Track, error) {
 	t := &Track{
-		ID:           tb.id,
-		Handler:      tb.handler,
-		Codec:        tb.codec,
-		CodedWidth:   tb.codedW,
-		CodedHeight:  tb.codedH,
-		Width:        tb.tkWidth,
-		Height:       tb.tkHeight,
-		Rotation:     tb.rotation,
-		Timescale:    tb.timescale,
-		Duration:     tb.duration,
-		PixelAspectH: tb.paspH,
-		PixelAspectV: tb.paspV,
-		EditList:     tb.editList,
-		HasEditList:  tb.hasEditList,
-		HasCTTS:      len(tb.ctts) > 0,
+		ID:            tb.id,
+		Handler:       tb.handler,
+		Codec:         tb.codec,
+		CodedWidth:    tb.codedW,
+		CodedHeight:   tb.codedH,
+		Width:         tb.tkWidth,
+		Height:        tb.tkHeight,
+		Rotation:      tb.rotation,
+		Timescale:     tb.timescale,
+		Duration:      tb.duration,
+		PixelAspectH:  tb.paspH,
+		PixelAspectV:  tb.paspV,
+		EditList:      tb.editList,
+		HasEditList:   tb.hasEditList,
+		HasCTTS:       len(tb.ctts) > 0,
+		SampleRate:    tb.audioRate,
+		Channels:      tb.audioChans,
+		BitsPerSample: tb.audioBits,
+	}
+	if len(tb.audioASC) > 0 {
+		t.ASC = append([]byte(nil), tb.audioASC...)
 	}
 	if t.Timescale == 0 {
 		t.Timescale = 1
@@ -836,6 +944,9 @@ func buildTrack(tb *trackBuilder) (*Track, error) {
 		t.AVCConfig = append([]byte(nil), tb.avcConfig...)
 	}
 	t.DurationMs = ticksToMs(int64(t.Duration), t.Timescale)
+	if t.Handler == "soun" {
+		return buildAudioTrack(t, tb)
+	}
 	if t.Handler != "vide" {
 		return t, nil
 	}
@@ -899,6 +1010,57 @@ func buildTrack(tb *trackBuilder) (*Track, error) {
 	}
 	if t.Handler == "vide" {
 		fillFragDuration(t)
+	}
+	return t, nil
+}
+
+// buildAudioTrack assembles the soun/mp4a packet table (A1). One sample
+// is one raw_data_block; every packet decodes independently once the ASC
+// is known, so all samples are marked keyframe. Video tables are untouched.
+func buildAudioTrack(t *Track, tb *trackBuilder) (*Track, error) {
+	if t.Codec == "" {
+		return nil, fmt.Errorf("%w: audio track without codec", ErrNoSampleTable)
+	}
+	sizes, err := expandSizes(tb)
+	if err != nil {
+		return nil, err
+	}
+	n := len(sizes)
+	if n == 0 {
+		return nil, fmt.Errorf("%w: zero samples", ErrNoSampleTable)
+	}
+	offsets, err := expandOffsets(tb, sizes)
+	if err != nil {
+		return nil, err
+	}
+	dts, sttsDur := expandDTS(tb, n)
+	t.SampleCount = n
+	t.Samples = make([]Sample, n)
+	t.Keyframes = t.Keyframes[:0]
+	for i := 0; i < n; i++ {
+		s := Sample{
+			Number:   i + 1,
+			Size:     sizes[i],
+			Offset:   offsets[i],
+			DTS:      dts[i],
+			PTS:      dts[i],
+			DTSMs:    ticksToMs(dts[i], t.Timescale),
+			PTSMs:    ticksToMs(dts[i], t.Timescale),
+			Keyframe: true,
+		}
+		t.Samples[i] = s
+		t.Keyframes = append(t.Keyframes, Keyframe{
+			SampleNumber: s.Number,
+			Offset:       s.Offset,
+			DTSMs:        s.DTSMs,
+			PTSMs:        s.PTSMs,
+		})
+	}
+	dur := int64(t.Duration)
+	if dur == 0 {
+		dur = sttsDur
+		t.Duration = uint64(dur)
+		t.DurationMs = ticksToMs(dur, t.Timescale)
 	}
 	return t, nil
 }
