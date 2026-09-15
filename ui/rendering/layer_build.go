@@ -3,6 +3,7 @@ package rendering
 import (
 	"image"
 	"math"
+	"time"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/scene"
@@ -516,9 +517,16 @@ func typeName(n RenderObject) string {
 
 // BuildFramePacket layouts are assumed already flushed; builds a packet for raster.
 // Overlay band is an empty F13 reserve; use overlay.State.AttachToPacket to fill it.
+//
+// D3 inline mode: this is the synchronous inline path for unit tests (no
+// raster Loop involved). Windows go through the async embedder+raster Loop;
+// the packet shape is identical on both paths.
 func BuildFramePacket(root RenderObject, frameID uint64, dpr, w, h float64) *scene.FramePacket {
+	begin := time.Now().UnixNano()
 	b := BuildLayerTree(root)
-	return b.BuildPacket(frameID, dpr, w, h)
+	pkt := b.BuildPacket(frameID, dpr, w, h)
+	sealBuiltPacket(pkt, begin)
+	return pkt
 }
 
 // BuildFramePacketWithSaveLayer builds the packet like BuildFramePacket while
@@ -537,10 +545,25 @@ func BuildFramePacketWithSaveLayer(root RenderObject, frameID uint64, dpr, w, h 
 // along the single build walk (boundary discovery, picture op total, text
 // measure-cache totals). Old standalone counters stay for other callers.
 func BuildFramePacketWithSaveLayerStats(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget) (*scene.FramePacket, FrameBuildStats) {
+	begin := time.Now().UnixNano()
 	b, st := buildLayerTreeWired(root, &saveLayerWire{stats: stats, budget: budget})
 	pkt := b.BuildPacket(frameID, dpr, w, h)
 	st.PictureOpCount = b.PictureOpCount()
+	sealBuiltPacket(pkt, begin)
 	return pkt, st
+}
+
+// sealBuiltPacket stamps the G10 build pair, tags the G1 producer, and
+// seals the EndFrame point (G3). Raster stamps stay zero until the raster
+// thread marks them (T2). Nil-safe for empty builds.
+func sealBuiltPacket(pkt *scene.FramePacket, beginNs int64) {
+	if pkt == nil {
+		return
+	}
+	pkt.BuildBeginNs = beginNs
+	pkt.MarkBuildEnd()
+	pkt.Producer = scene.ProducerUI
+	pkt.Seal()
 }
 
 func wireStats(w *saveLayerWire) *SaveLayerStats {
@@ -559,10 +582,15 @@ func wireBudget(w *saveLayerWire) *SaveLayerBudget {
 
 // BuildFramePacketOverlay builds the main packet then attaches ov to pkt.Overlay.
 // ov may be nil (empty band). Main DirtyLayerIDs are preserved and overlay dirties appended.
+// The attach callback is the EndFrame tail: it runs before the seal so the
+// handed-off packet already carries both bands.
 func BuildFramePacketOverlay(root RenderObject, frameID uint64, dpr, w, h float64, attach func(pkt *scene.FramePacket)) *scene.FramePacket {
-	pkt := BuildFramePacket(root, frameID, dpr, w, h)
+	begin := time.Now().UnixNano()
+	b := BuildLayerTree(root)
+	pkt := b.BuildPacket(frameID, dpr, w, h)
 	if attach != nil && pkt != nil {
 		attach(pkt)
 	}
+	sealBuiltPacket(pkt, begin)
 	return pkt
 }
