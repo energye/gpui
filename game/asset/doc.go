@@ -21,8 +21,36 @@
 //
 // What is reserved: every other kind name (basis, spine, tmx, atlas,
 // png, ...) parses far enough to name the kind, then reports core
-// Unsupported, never a guessed payload. Atlas packing (12.2) and file
-// watching (12.3) live later under their own frozen names.
+// Unsupported, never a guessed payload.
+//
+// Frozen 2026-09-15 (capability 12.3, P2, S28/W3): MaxWatches,
+// MaxWatchIDLen, MaxWatchPathLen, PollInterval, HotState, HotStats,
+// Watcher, NewWatcher. Additive changes only.
+//
+// Hot reload (12.3, file watch plus single-id swap): Watch pins one id
+// to one file with the load shape Reload replays, Poll stats files and
+// marks changed ids Dirty without loading, Reload re-reads through
+// Manager.LoadFile and swaps only that id. Other ids keep their bytes
+// and claims; a failed Reload keeps the last good snapshot readable and
+// parks the watch at Failed with CauseOf set. Only core numbers are
+// used; the manager and tex paths are only read, never modified.
+//
+// Frozen 2026-09-15 (capability 12.2, P2, S27/W3): CurrentAtlasVersion,
+// MaxSprites, MaxAtlasSize, MaxAtlasNameLen, AtlasPad, MaxAtlasJSONBytes,
+// Input, Entry, Atlas, Pack, Parse, Load, Encode, Save. Additive changes
+// only.
+//
+// Atlas packing (12.2, offline tool plus game pack): small pictures are
+// shelved into one sheet offline, then the game loads the frozen JSON.
+// Frozen JSON is version, width, height, and sprites each holding name,
+// x, y, w, h, pivotX, pivotY, and nine [left, top, right, bottom]. Pack
+// sorts by height, width, then name so the same set always lands on the
+// same rects and keeps AtlasPad transparent pixels around every sprite.
+// Unfrozen JSON keys (rotated, trim, anchor, meta, ...) name the field
+// then report core Unsupported, never a guessed placement. Parsed atlases
+// carry placements only; packed atlases also carry the composed RGBA8
+// sheet. Only core numbers are used (AssetID, Version); rects stay plain
+// ints so no new Vec2 is defined here.
 //
 // Errors use game/core codes: empty id/path/data is InvalidArg, a
 // missing id or file is NotFound with a usable placeholder, torn KTX2

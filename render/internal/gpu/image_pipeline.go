@@ -82,6 +82,17 @@ type ImageDrawCommand struct {
 	// Mutually exclusive with Nearest: Bicubic wins when both are set.
 	Bicubic bool
 
+	// FilterMipmapLinear selects the between-level blend (trilinear) for
+	// this picture (R3 per-picture switch, 3.2 bottom). False (zero) keeps
+	// the historic nearest-level select: old callers that never touch this
+	// field render bit-identically.
+	FilterMipmapLinear bool
+
+	// FilterAniso caps anisotropic filtering for this picture, 1..16.
+	// 0 means 1 (historic default, off): old callers that never touch this
+	// field render bit-identically. Set via SetPerImageFilter (new branch).
+	FilterAniso uint16
+
 	// ContentDirty: GenerationID is stable but pixel bytes changed (ExportImageBuf
 	// reuse). ImageCache re-uploads into the existing GPU texture in place.
 	ContentDirty bool
@@ -140,6 +151,12 @@ type TexturedQuadPipeline struct {
 	sampler *webgpu.Sampler
 	// Nearest-neighbor sampler (I.03).
 	nearestSampler *webgpu.Sampler
+
+	// filterSamplers caches R3 per-picture samplers by effective key.
+	// Default keys reuse sampler/nearestSampler above (never cached here);
+	// only mipmap-linear or aniso>1 keys allocate. Lazily created by
+	// SamplerForFilter, released by destroyPipeline.
+	filterSamplers map[ImageSamplerKey]*webgpu.Sampler
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
@@ -499,6 +516,9 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 		return fmt.Errorf("create nearest image sampler: %w", err)
 	}
 	p.nearestSampler = nearest
+	if p.filterSamplers == nil {
+		p.filterSamplers = map[ImageSamplerKey]*webgpu.Sampler{}
+	}
 
 	// Bind group layout: uniform + texture + sampler.
 	uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
@@ -614,6 +634,14 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 		p.sampler.Release()
 		p.sampler = nil
 	}
+	if p.filterSamplers != nil {
+		for key, s := range p.filterSamplers {
+			if s != nil {
+				s.Release()
+			}
+			delete(p.filterSamplers, key)
+		}
+	}
 	if p.nearestSampler != nil {
 		p.nearestSampler.Release()
 		p.nearestSampler = nil
@@ -649,6 +677,108 @@ func imageDrawVertexCount(dc imageDrawCall) uint32 {
 	return dc.vertexCount
 }
 
+// imageFilterAnisoMin/Max bound the per-picture anisotropy cap (R3).
+// 1 is off (historic behaviour), 16 is the device cap.
+const (
+	imageFilterAnisoMin = 1
+	imageFilterAnisoMax = 16
+)
+
+// ImageSamplerKey names one picture's effective sampling choice (R3).
+// It is the merge and cache key: two pictures share a bind group and a
+// sampler exactly when their keys are equal.
+type ImageSamplerKey struct {
+	Nearest      bool
+	Bicubic      bool
+	MipmapLinear bool
+	Aniso        uint16 // normalized 1..16
+}
+
+// NormalizeImageFilterAniso pins a to [1, 16]; 0 means the historic
+// default 1, so zero-value commands keep historic behaviour.
+func NormalizeImageFilterAniso(a uint16) uint16 {
+	if a == 0 {
+		return imageFilterAnisoMin
+	}
+	if a > imageFilterAnisoMax {
+		return imageFilterAnisoMax
+	}
+	return a
+}
+
+// EffectiveImageSamplerKey folds raw per-picture switches to the sampler
+// that will actually be used. Nearest and bicubic pictures sample with
+// the nearest sampler (bicubic taps are manual), so their mipmap/aniso
+// switches are masked: such pictures always merge with each other.
+func EffectiveImageSamplerKey(nearest, bicubic, mipmapLinear bool, aniso uint16) ImageSamplerKey {
+	if bicubic || nearest {
+		return ImageSamplerKey{Nearest: nearest, Bicubic: bicubic}
+	}
+	return ImageSamplerKey{MipmapLinear: mipmapLinear, Aniso: NormalizeImageFilterAniso(aniso)}
+}
+
+// FilterKey returns cmd's effective sampling key. Nil-safe: a nil command
+// reports the zero key (callers check nil first).
+func (c *ImageDrawCommand) FilterKey() ImageSamplerKey {
+	if c == nil {
+		return ImageSamplerKey{}
+	}
+	return EffectiveImageSamplerKey(c.Nearest, c.Bicubic, c.FilterMipmapLinear, c.FilterAniso)
+}
+
+// SetPerImageFilter records this picture's R3 sampling switch (new
+// branch): mipmapLinear selects the between-level blend, maxAniso caps
+// anisotropy (clamped to [1, 16], 0 means 1). The old Nearest/Bicubic
+// fields stay untouched. Nil-safe no-op.
+func (c *ImageDrawCommand) SetPerImageFilter(mipmapLinear bool, maxAniso uint16) {
+	if c == nil {
+		return
+	}
+	c.FilterMipmapLinear = mipmapLinear
+	c.FilterAniso = NormalizeImageFilterAniso(maxAniso)
+}
+
+// SamplerDescriptorForImageFilter maps a key to its sampler descriptor
+// (pure: no device needed). The default linear key reproduces the
+// historic linear sampler (Linear/Linear/Nearest, anisotropy off) and
+// the nearest/bicubic keys reproduce the historic nearest sampler, so
+// old pictures keep their exact sampling. Contract frozen in
+// game/tex/testdata/mipmap_cases.json ("sampler_contract").
+func SamplerDescriptorForImageFilter(key ImageSamplerKey) webgpu.SamplerDescriptor {
+	if key.Bicubic || key.Nearest {
+		return webgpu.SamplerDescriptor{
+			Label:        "image_sampler_r3_nearest",
+			AddressModeU: types.AddressModeClampToEdge,
+			AddressModeV: types.AddressModeClampToEdge,
+			AddressModeW: types.AddressModeClampToEdge,
+			MagFilter:    types.FilterModeNearest,
+			MinFilter:    types.FilterModeNearest,
+			MipmapFilter: types.MipmapFilterModeNearest,
+			Anisotropy:   imageFilterAnisoMin,
+		}
+	}
+	mip := types.MipmapFilterModeNearest
+	label := "image_sampler_r3_linear"
+	if key.MipmapLinear {
+		mip = types.MipmapFilterModeLinear
+		label = "image_sampler_r3_mipmap_linear"
+	}
+	aniso := NormalizeImageFilterAniso(key.Aniso)
+	if aniso > imageFilterAnisoMin {
+		label += "_aniso"
+	}
+	return webgpu.SamplerDescriptor{
+		Label:        label,
+		AddressModeU: types.AddressModeClampToEdge,
+		AddressModeV: types.AddressModeClampToEdge,
+		AddressModeW: types.AddressModeClampToEdge,
+		MagFilter:    types.FilterModeLinear,
+		MinFilter:    types.FilterModeLinear,
+		MipmapFilter: mip,
+		Anisotropy:   aniso,
+	}
+}
+
 // canMergeImageDraw reports whether two image commands may share one bind group
 // and multi-quad draw (same GPU texture key + sampling + opacity + viewport).
 func canMergeImageDraw(a, b *ImageDrawCommand) bool {
@@ -659,6 +789,12 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 		return false
 	}
 	if a.Nearest != b.Nearest || a.Bicubic != b.Bicubic || a.Opacity != b.Opacity {
+		return false
+	}
+	// R3 per-picture switch: different effective samplers must not share
+	// one bind group. Zero-value commands share the default key, so old
+	// callers merge exactly as before.
+	if a.FilterKey() != b.FilterKey() {
 		return false
 	}
 	if a.ViewportWidth != b.ViewportWidth || a.ViewportHeight != b.ViewportHeight {
@@ -806,9 +942,50 @@ func putImageUniform(dst []byte, viewportW, viewportH uint32, opacity float32) {
 // SamplerFor returns the sampler for the command filter mode (I.03).
 // Bicubic convolution taps samples manually with the nearest sampler
 // (hardware filtering must not re-interpolate between taps).
+// Historic behaviour is frozen: R3 keys that reproduce the two historic
+// samplers return the same pointers; use SamplerForFilter for the full
+// per-picture switch.
 func (p *TexturedQuadPipeline) SamplerFor(nearest bool) *webgpu.Sampler {
 	if nearest && p.nearestSampler != nil {
 		return p.nearestSampler
 	}
 	return p.sampler
+}
+
+// SamplerForFilter returns the sampler for one picture's full R3 switch
+// (new branch for the S32 wiring; the session still calls SamplerFor).
+// Default keys return the two historic samplers (same pointers as
+// SamplerFor); mipmap-linear or aniso>1 keys lazily create cached
+// samplers. Never crashes: nil pipeline, missing device, or a failed
+// allocation all fall back to the historic sampler.
+func (p *TexturedQuadPipeline) SamplerForFilter(key ImageSamplerKey) *webgpu.Sampler {
+	if p == nil {
+		return nil
+	}
+	key.Aniso = NormalizeImageFilterAniso(key.Aniso)
+	if key.Bicubic || key.Nearest {
+		if p.nearestSampler != nil {
+			return p.nearestSampler
+		}
+		return p.sampler
+	}
+	if !key.MipmapLinear && key.Aniso <= imageFilterAnisoMin {
+		return p.sampler
+	}
+	if p.device == nil {
+		return p.sampler
+	}
+	if s, ok := p.filterSamplers[key]; ok && s != nil {
+		return s
+	}
+	desc := SamplerDescriptorForImageFilter(key)
+	s, err := p.device.CreateSampler(&desc)
+	if err != nil {
+		return p.sampler
+	}
+	if p.filterSamplers == nil {
+		p.filterSamplers = map[ImageSamplerKey]*webgpu.Sampler{}
+	}
+	p.filterSamplers[key] = s
+	return s
 }

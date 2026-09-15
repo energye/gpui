@@ -11,6 +11,11 @@
 // ChunkRows. The caller feeds camera VisibleWorldRect in as a core.Rect
 // and draws the returned ids with the existing render draws.
 // Additive changes only.
+// Frozen 2026-09-15 (capability 7.3, P2, S26/W3): Level, LevelNear,
+// LevelFar, LOD, NewLOD, ChunkDist. The caller feeds the camera focus
+// (VisibleWorldRect center as core.Vec2) and draws each chunk at its
+// returned level. The LOD rule file format stays unfrozen (后冻): no
+// file is read, thresholds come from NewLOD only. Additive changes only.
 //
 // The package draws nothing; the caller draws the returned cells and
 // objects in order with the existing render draws. Only core numbers are

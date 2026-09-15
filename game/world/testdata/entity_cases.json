@@ -1,0 +1,72 @@
+{
+  "chains": [
+    {
+      "name": "translate",
+      "nodes": [
+        {"name": "root", "parent": "", "pos": [10, 20], "rot": 0, "scale": [1, 1]},
+        {"name": "child", "parent": "root", "pos": [5, 0], "rot": 0, "scale": [1, 1]},
+        {"name": "grand", "parent": "child", "pos": [0, 7], "rot": 0, "scale": [1, 1]}
+      ],
+      "want_world": [
+        {"name": "root", "pos": [10, 20], "rot": 0, "scale": [1, 1], "mat": [1, 0, 10, 0, 1, 20]},
+        {"name": "child", "pos": [15, 20], "rot": 0, "scale": [1, 1], "mat": [1, 0, 15, 0, 1, 20]},
+        {"name": "grand", "pos": [15, 27], "rot": 0, "scale": [1, 1], "mat": [1, 0, 15, 0, 1, 27]}
+      ]
+    },
+    {
+      "name": "scale",
+      "nodes": [
+        {"name": "root", "parent": "", "pos": [10, 20], "rot": 0, "scale": [2, 3]},
+        {"name": "child", "parent": "root", "pos": [5, 7], "rot": 0, "scale": [1, 1]},
+        {"name": "grand", "parent": "child", "pos": [1, 1], "rot": 0, "scale": [1, 1]}
+      ],
+      "want_world": [
+        {"name": "root", "pos": [10, 20], "rot": 0, "scale": [2, 3], "mat": [2, 0, 10, 0, 3, 20]},
+        {"name": "child", "pos": [20, 41], "rot": 0, "scale": [2, 3], "mat": [2, 0, 20, 0, 3, 41]},
+        {"name": "grand", "pos": [22, 44], "rot": 0, "scale": [2, 3], "mat": [2, 0, 22, 0, 3, 44]}
+      ]
+    },
+    {
+      "name": "rot90",
+      "nodes": [
+        {"name": "root", "parent": "", "pos": [0, 0], "rot": 1.5707963267948966, "scale": [1, 1]},
+        {"name": "child", "parent": "root", "pos": [4, 0], "rot": 0, "scale": [1, 1]},
+        {"name": "grand", "parent": "child", "pos": [0, 2], "rot": 0, "scale": [1, 1]}
+      ],
+      "want_world": [
+        {"name": "root", "pos": [0, 0], "rot": 1.5707963267948966, "scale": [1, 1], "mat": [0, -1, 0, 1, 0, 0]},
+        {"name": "child", "pos": [0, 4], "rot": 1.5707963267948966, "scale": [1, 1], "mat": [0, -1, 0, 1, 0, 4]},
+        {"name": "grand", "pos": [-2, 4], "rot": 1.5707963267948966, "scale": [1, 1], "mat": [0, -1, -2, 1, 0, 4]}
+      ]
+    },
+    {
+      "name": "rot_scale",
+      "nodes": [
+        {"name": "root", "parent": "", "pos": [1, 2], "rot": 1.5707963267948966, "scale": [2, 2]},
+        {"name": "child", "parent": "root", "pos": [3, 0], "rot": 0, "scale": [0.5, 0.5]}
+      ],
+      "want_world": [
+        {"name": "root", "pos": [1, 2], "rot": 1.5707963267948966, "scale": [2, 2], "mat": [0, -2, 1, 2, 0, 2]},
+        {"name": "child", "pos": [1, 8], "rot": 1.5707963267948966, "scale": [1, 1], "mat": [0, -1, 1, 1, 0, 8]}
+      ]
+    }
+  ],
+  "comps": [
+    {
+      "entity": "hero",
+      "add": [
+        {"kind": "sprite", "ref": "tex/hero"},
+        {"kind": "collider", "ref": ""},
+        {"kind": "script", "ref": "lua/ai"}
+      ]
+    },
+    {
+      "entity": "crate",
+      "add": [
+        {"kind": "sprite", "ref": "tex/crate"}
+      ]
+    }
+  ],
+  "perf": {"entities": 1000, "reps": 200},
+  "longrun": {"cycles": 500, "batch": 40}
+}

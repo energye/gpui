@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "width": 27,
+  "height": 27,
+  "sprites": [
+    {"name": "hero/idle0", "x": 1, "y": 1, "w": 16, "h": 16, "pivotX": 0.5, "pivotY": 0.5, "nine": [2, 2, 2, 2]},
+    {"name": "hero/run0", "x": 18, "y": 1, "w": 8, "h": 16, "pivotX": 0.5, "pivotY": 0.9, "nine": [1, 2, 1, 2]},
+    {"name": "item/coin", "x": 14, "y": 18, "w": 8, "h": 8, "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0]},
+    {"name": "ui/button", "x": 1, "y": 18, "w": 12, "h": 8, "pivotX": 0.5, "pivotY": 0.5, "nine": [3, 2, 3, 2]}
+  ]
+}

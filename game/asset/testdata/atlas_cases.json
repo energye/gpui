@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "max_sprites": 1024,
+  "max_size": 4096,
+  "max_name_len": 128,
+  "pad": 1,
+  "max_w": 32,
+  "max_h": 32,
+  "tolerance": 0,
+  "atlas": {"width": 27, "height": 27, "file": "atlas_small.json"},
+  "sprites": [
+    {"name": "hero/idle0", "w": 16, "h": 16, "color": [255, 0, 0, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [2, 2, 2, 2], "x": 1, "y": 1},
+    {"name": "hero/run0", "w": 8, "h": 16, "color": [0, 255, 0, 255], "pivotX": 0.5, "pivotY": 0.9, "nine": [1, 2, 1, 2], "x": 18, "y": 1},
+    {"name": "item/coin", "w": 8, "h": 8, "color": [255, 255, 0, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0], "x": 14, "y": 18},
+    {"name": "ui/button", "w": 12, "h": 8, "color": [0, 0, 255, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [3, 2, 3, 2], "x": 1, "y": 18}
+  ],
+  "bad_files": [
+    {"file": "atlas_bad_overlap.json", "want_code": "bad-data"},
+    {"file": "atlas_bad_truncated.json", "want_code": "bad-data"}
+  ],
+  "unsupported_files": [
+    {"file": "atlas_unsupported_rotated.json", "want_code": "unsupported"}
+  ]
+}

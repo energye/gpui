@@ -1,0 +1,68 @@
+{
+  "lod": {
+    "near": 192,
+    "far": 320,
+    "band": 128
+  },
+  "select": [
+    {"dist": 0, "cur": "near", "want": "near"},
+    {"dist": 100, "cur": "far", "want": "near"},
+    {"dist": 192, "cur": "near", "want": "near"},
+    {"dist": 192, "cur": "far", "want": "near"},
+    {"dist": 192.001, "cur": "near", "want": "near"},
+    {"dist": 192.001, "cur": "far", "want": "far"},
+    {"dist": 256, "cur": "near", "want": "near"},
+    {"dist": 256, "cur": "far", "want": "far"},
+    {"dist": 319.999, "cur": "near", "want": "near"},
+    {"dist": 319.999, "cur": "far", "want": "far"},
+    {"dist": 320, "cur": "near", "want": "far"},
+    {"dist": 320, "cur": "far", "want": "far"},
+    {"dist": 500, "cur": "near", "want": "far"},
+    {"dist": 1000, "cur": "far", "want": "far"}
+  ],
+  "dist": [
+    {"focus": [64, 64], "rect": [0, 0, 128, 128], "want": 0, "ok": true},
+    {"focus": [128, 64], "rect": [0, 0, 128, 128], "want": 0, "ok": true},
+    {"focus": [192, 64], "rect": [0, 0, 128, 128], "want": 64, "ok": true},
+    {"focus": [192, 192], "rect": [0, 0, 128, 128], "want": 90.50966799187809, "ok": true},
+    {"focus": [384, 384], "rect": [0, 0, 128, 128], "want": 362.03867196751236, "ok": true},
+    {"focus": [448, 64], "rect": [0, 0, 128, 128], "want": 320, "ok": true},
+    {"focus": [64, 64], "rect": [0, 0, 0, 0], "want": 0, "ok": false}
+  ],
+  "chunks": [
+    {"name": "near_inside", "focus": [64, 64], "bounds": [0, 0, 128, 128], "cur": "far", "want": "near"},
+    {"name": "near_gap", "focus": [200, 64], "bounds": [0, 0, 128, 128], "cur": "far", "want": "near"},
+    {"name": "band_keep_near", "focus": [384, 64], "bounds": [0, 0, 128, 128], "cur": "near", "want": "near"},
+    {"name": "band_keep_far", "focus": [384, 64], "bounds": [0, 0, 128, 128], "cur": "far", "want": "far"},
+    {"name": "far_edge", "focus": [448, 64], "bounds": [0, 0, 128, 128], "cur": "near", "want": "far"},
+    {"name": "far_diag", "focus": [384, 384], "bounds": [0, 0, 128, 128], "cur": "near", "want": "far"},
+    {"name": "far_other_corner", "focus": [64, 64], "bounds": [384, 384, 128, 128], "cur": "near", "want": "far"}
+  ],
+  "wobble": {
+    "bounds": [0, 0, 128, 128],
+    "band_a": [384, 64],
+    "band_b": [400, 64],
+    "near": [200, 64],
+    "far": [500, 64],
+    "edge_near": [320, 64],
+    "edge_far": [448, 64]
+  },
+  "camera_views": [
+    {
+      "name": "center_close",
+      "view": [128, 128, 256, 256],
+      "bounds": [0, 0, 128, 128],
+      "want_dist": 181.01933598375618,
+      "cur": "far",
+      "want": "near"
+    },
+    {
+      "name": "far_away",
+      "view": [512, 512, 256, 256],
+      "bounds": [0, 0, 128, 128],
+      "want_dist": 724.0773439350247,
+      "cur": "near",
+      "want": "far"
+    }
+  ]
+}
