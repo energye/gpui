@@ -60,6 +60,45 @@ var (
 	layerTufts  = parallaxLayer{1.35, 600}
 )
 
+// 静态瓦片裁剪带（关卡坐标）：只烘有内容的纵带，帧内贴回同位置。
+const (
+	hillTileY0 = 460.0
+	hillTileH  = 240.0 // y 460..700
+	treeTileY0 = 410.0
+	treeTileH  = 190.0 // y 410..600（含最高的树冠 416）
+	tuftTileY0 = 640.0
+	tuftTileH  = 60.0 // y 640..700
+)
+
+// cloudTile 单朵云图块：img 为烘好的图，ox/oy 为图块原点（关卡坐标），
+// w/h 为图块尺寸（关卡 px，贴图时 1:1）。
+type cloudTile struct {
+	img    *render.ImageBuf
+	ox, oy float64
+	w, h   float64
+}
+
+// titleLine 标题行图块：节点按 dx 在图块里原样画一遍（与树节点同一套 Paint），
+// 图块左留 padL、顶留 padT，贴回 (startX-padL, y-padT) 即与原来对齐。
+type titleLine struct {
+	img        *render.ImageBuf
+	total      float64 // 行宽（关卡 px，不含留白）
+	padL, padT float64
+	w, h       float64
+}
+
+// bakeTile 光栅一次静态内容为图块：w×h 关卡像素，paint 在图块坐标里绘制。
+// 图块背景透明，GenerationID 稳定，GPU 只上传一次，帧内只贴图。
+func bakeTile(w, h int, paint func(pc *rendering.PaintContext)) *render.ImageBuf {
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	dc := render.NewContext(w, h)
+	pc := rendering.NewPaintContext(dc, 1)
+	paint(pc)
+	return render.ImageBufFromImage(dc.Image())
+}
+
 // ---- 小工具 ----
 
 func rad(deg float64) float64 { return deg * math.Pi / 180 }
@@ -189,14 +228,39 @@ type pelicanScene struct {
 	speedLabel *rendering.RenderText
 	tip        *rendering.RenderText
 
-	titleGlyphs []titleGlyph // 主标题（含仿粗体副本）
-	subGlyphs   []titleGlyph
-	titleTotal  float64
-	subTotal    float64
-
 	hudX, hudY     float64 // HUD 药丸在窗口中的位置（右下 fixed）
 	btnHover       bool
 	draggingSlider bool
+
+	// 帧内复用的动态路径：DrawPath 同步回放进 Context 自有路径，
+	// 调用方路径不被保留，帧内 Reset 重填零分配，复用安全。
+	// birdScratch/legScratch 每帧重填；spokeUnit/hudTriUnit 只建一次，
+	// 帧内只摆变换（等价于原来的绝对坐标 + RotateAbout）。
+	birdScratch *render.Path
+	legScratch  *render.Path
+	spokeUnit   *render.Path
+	hudTriUnit  *render.Path
+
+	// HUD 按需重绘：暂停/速度/悬停/尺寸任一变化才脏，
+	// 平时跳过 hudBox.MarkNeedsPaint（舞台动画不受影响）。
+	hudPainted bool
+	hudPaused  bool
+	hudSpeed   float64
+	hudHover   bool
+	hudPaintW  float64
+	hudPaintH  float64
+
+	// 第二批：静态瓦片缓存（启动烘一次，帧内只贴图平移）。
+	// GenerationID 稳定，GPU 只上传一次；CPU 纯光栅烘焙与主画布同算法。
+	skyImg  *render.ImageBuf // 整舞台天空渐变（stageW×stageH）
+	hillImg *render.ImageBuf // 远山瓦片（1200×240，覆盖 y 460..700）
+	treeImg *render.ImageBuf // 树木瓦片（800×190，覆盖 y 410..600）
+	tuftImg *render.ImageBuf // 草丛瓦片（600×60，覆盖 y 640..700）
+	clouds  []cloudTile      // 三朵云各一块（漂移只改贴图位置）
+
+	title    titleLine            // 主标题行图块（替代逐字节点）
+	sub      titleLine            // 副标题行图块
+	titleBox *rendering.RenderBox // 标题图块盒（全窗，stageBox 之后绘制）
 
 	speedLabelDup *rendering.RenderText // 仿粗体副本：右移重画一遍加浓笔画
 }
@@ -224,18 +288,18 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.stageBox.OnPaint = sc.paintStage
 	root.Place(sc.stageBox, 0, 0)
 
-	// 标题（SVG 内文字：鹈鹕骑行记 / PELICAN RIDER，带 letter-spacing 居中）
-	sc.titleGlyphs, sc.titleTotal = newTitleLine("鹈鹕骑行记", 30, 6, 0x17456b, .85, face, true)
-	sc.subGlyphs, sc.subTotal = newTitleLine("PELICAN RIDER", 14, 4, 0x4a7ba6, .8, face, false)
-	for i := range sc.titleGlyphs {
-		root.Place(sc.titleGlyphs[i].node, 0, -100)
-		if d := sc.titleGlyphs[i].dup; d != nil {
-			root.Place(d, 0, -100)
-		}
-	}
-	for i := range sc.subGlyphs {
-		root.Place(sc.subGlyphs[i].node, 0, -100)
-	}
+	// 标题（SVG 内文字：鹈鹕骑行记 / PELICAN RIDER，带 letter-spacing 居中）。
+	// 第二批：逐字节点只用来烘出行图块（与原来同一套 Paint 路径），
+	// 树里只留一个标题盒每帧贴两张图，~30 个文本节点不再参与每帧遍历。
+	titleGlyphs, titleTotal := newTitleLine("鹈鹕骑行记", 30, 6, 0x17456b, .85, face, true)
+	subGlyphs, subTotal := newTitleLine("PELICAN RIDER", 14, 4, 0x4a7ba6, .8, face, false)
+	sc.title = bakeTitleLine(titleGlyphs, titleTotal, 30)
+	sc.sub = bakeTitleLine(subGlyphs, subTotal, 14)
+	sc.titleBox = rendering.NewRenderBox()
+	sc.titleBox.FixedWidth = winW
+	sc.titleBox.FixedHeight = winH
+	sc.titleBox.OnPaint = sc.paintTitles
+	root.Place(sc.titleBox, 0, 0)
 
 	// 左下提示（position:fixed left/bottom）
 	sc.tip = rendering.NewRenderText("空格 暂停 · ↑/↓ 调速")
@@ -270,12 +334,102 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.hudBox.FixedHeight = hudH
 	sc.hudBox.OnPaint = sc.paintHUD
 	root.Place(sc.hudBox, winW-18-hudW, winH-18-hudH)
-	root.Place(sc.speedLabel, 0, -100)      // 先建后摆：标签必须晚于药丸入树
+	root.Place(sc.speedLabel, 0, -100) // 先建后摆：标签必须晚于药丸入树
 	root.Place(sc.speedLabelDup, 0, -100)
 	sc.hudX, sc.hudY = winW-18-hudW, winH-18-hudH
 
+	// 动态路径复用：飞鸟/腿每帧 Reset 重填（保容量零分配），
+	// 辐条/播放三角只建一次的单位形状，帧内只摆变换。
+	sc.birdScratch = render.NewPath()
+	sc.legScratch = render.NewPath()
+	sc.spokeUnit = buildSpokesUnit()
+	sc.hudTriUnit = buildHudTriUnit()
+
+	// 第二批：静态内容烘成图块（与帧内直接画同一套绘制调用）。
+	sc.skyImg = bakeTile(int(stageW), int(stageH), func(pc *rendering.PaintContext) {
+		topR, topG, topB := rgb(0x79c7f5)
+		botR, botG, botB := rgb(0xe6f7ff)
+		rendering.FillLinearGradient(pc, 0, 0, stageW, stageH,
+			0, 0, 0, stageH,
+			topR, topG, topB, 1, botR, botG, botB, 1)
+	})
+	sc.hillImg = bakeTile(1200, int(hillTileH), func(pc *rendering.PaintContext) {
+		pc.PushTransform(render.Translate(0, -hillTileY0))
+		hr, hg, hb := rgb(0xb9e28c)
+		rendering.FillPath(pc, pathHillTile, hr, hg, hb, 1)
+		pc.PopTransform()
+	})
+	sc.treeImg = bakeTile(800, int(treeTileH), func(pc *rendering.PaintContext) {
+		pc.PushTransform(render.Translate(0, -treeTileY0))
+		sc.paintTreeTile(pc)
+		pc.PopTransform()
+	})
+	sc.tuftImg = bakeTile(600, int(tuftTileH), func(pc *rendering.PaintContext) {
+		pc.PushTransform(render.Translate(0, -tuftTileY0))
+		paintTuftTile(pc)
+		pc.PopTransform()
+	})
+	sc.clouds = make([]cloudTile, len(cloudDefs))
+	for i, c := range cloudDefs {
+		sc.clouds[i] = bakeCloudTile(c)
+	}
+
 	sc.relayout(winW, winH)
 	return sc
+}
+
+// bakeCloudTile 把一朵云烘成图块：包围盒按椭圆算（+2px 抗锯齿边），
+// 云在图块里原样画，帧内按 (x+ox, oy) 贴回。
+func bakeCloudTile(c cloudDef) cloudTile {
+	minX, minY := math.MaxFloat64, math.MaxFloat64
+	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
+	for _, e := range c.ellipses {
+		if e[0]-e[2] < minX {
+			minX = e[0] - e[2]
+		}
+		if e[1]-e[3] < minY {
+			minY = e[1] - e[3]
+		}
+		if e[0]+e[2] > maxX {
+			maxX = e[0] + e[2]
+		}
+		if e[1]+e[3] > maxY {
+			maxY = e[1] + e[3]
+		}
+	}
+	const pad = 2.0
+	minX -= pad
+	minY -= pad
+	maxX += pad
+	maxY += pad
+	w, h := int(math.Ceil(maxX-minX)), int(math.Ceil(maxY-minY))
+	img := bakeTile(w, h, func(pc *rendering.PaintContext) {
+		pc.PushTransform(render.Translate(-minX, -minY))
+		for _, e := range c.ellipses {
+			rendering.FillOval(pc, e[0]-e[2], e[1]-e[3], e[2]*2, e[3]*2, 1, 1, 1, c.alpha)
+		}
+		pc.PopTransform()
+	})
+	return cloudTile{img: img, ox: minX, oy: minY, w: float64(w), h: float64(h)}
+}
+
+// bakeTitleLine 把一行逐字节点烘成图块：节点按 dx 在图块里原样 Paint 一遍，
+// 仿粗副本右移 1.1（与原来 placeLine 的 f.s=1 同值），无字体时节点画空、
+// 图块即空，与原来树节点行为一致。
+func bakeTitleLine(glyphs []titleGlyph, total, fontSize float64) titleLine {
+	const padL = 2.0
+	padT := math.Ceil(fontSize * 0.5)
+	tileH := int(math.Ceil(fontSize*2 + 4))
+	tileW := int(math.Ceil(total + padL*2 + 2))
+	img := bakeTile(tileW, tileH, func(pc *rendering.PaintContext) {
+		for _, gl := range glyphs {
+			gl.node.Paint(pc.WithOrigin(gl.dx+padL, padT))
+			if gl.dup != nil {
+				gl.dup.Paint(pc.WithOrigin(gl.dx+padL+1.1, padT))
+			}
+		}
+	})
+	return titleLine{img: img, total: total, padL: padL, padT: padT, w: float64(tileW), h: float64(tileH)}
 }
 
 // newTitleLine 构建一行带 letter-spacing 的逐字节点并测量总宽（舞台 px）。
@@ -308,6 +462,32 @@ func newTitleLine(s string, fontSize, letterSpacing float64, hex int64, alpha fl
 	return out, total
 }
 
+// buildSpokesUnit 车轮辐条单位形状（原点为中心，半径 56），帧内经
+// Translate(轴心)+Rotate(转角) 摆放，等价于原来的绝对坐标 + RotateAbout。
+func buildSpokesUnit() *render.Path {
+	p := render.NewPath()
+	p.MoveTo(-56, 0)
+	p.LineTo(56, 0)
+	p.MoveTo(0, -56)
+	p.LineTo(0, 56)
+	p.MoveTo(-40, -40)
+	p.LineTo(40, 40)
+	p.MoveTo(-40, 40)
+	p.LineTo(40, -40)
+	return p
+}
+
+// buildHudTriUnit 暂停按钮里的播放三角单位形状（原点为中心），
+// 帧内经 Translate(按钮中心) 摆放，等价于原来的绝对坐标。
+func buildHudTriUnit() *render.Path {
+	p := render.NewPath()
+	p.MoveTo(-4, -6)
+	p.LineTo(6, 0)
+	p.LineTo(-4, 6)
+	p.Close()
+	return p
+}
+
 // relayout 窗口尺寸变化：更新各盒子尺寸并把标题/HUD/提示摆到位。
 func (sc *pelicanScene) relayout(w, h float64) {
 	if sc == nil || w <= 0 || h <= 0 {
@@ -317,21 +497,11 @@ func (sc *pelicanScene) relayout(w, h float64) {
 	if sc.stageBox != nil {
 		sc.stageBox.FixedWidth, sc.stageBox.FixedHeight = w, h
 	}
-
-	f := stageFitFor(w, h)
-	placeLine := func(glyphs []titleGlyph, total, baselineY, fs float64) {
-		startX := f.ox + f.s*(stageW/2) - f.s*total/2
-		y := f.oy + f.s*(baselineY-fs*0.88) // 基线 → 节点顶
-		for _, gl := range glyphs {
-			x := startX + f.s*gl.dx
-			sc.Root.Place(gl.node, x, y)
-			if gl.dup != nil {
-				sc.Root.Place(gl.dup, x+f.s*1.1, y) // 仿粗体右移 ~3% 字号
-			}
-		}
+	// 标题盒与窗口同尺寸：行图块位置在 paintTitles 里按当前尺寸现算，
+	// 与原来 placeLine 同式（字号固定，只摆位置）。
+	if sc.titleBox != nil {
+		sc.titleBox.FixedWidth, sc.titleBox.FixedHeight = w, h
 	}
-	placeLine(sc.titleGlyphs, sc.titleTotal, 54, 30)
-	placeLine(sc.subGlyphs, sc.subTotal, 82, 14)
 
 	sc.hudX, sc.hudY = w-18-hudW, h-18-hudH
 	sc.Root.Place(sc.hudBox, sc.hudX, sc.hudY)
@@ -342,6 +512,8 @@ func (sc *pelicanScene) relayout(w, h float64) {
 	}
 	sc.Root.Place(sc.tip, 18, h-32)
 	sc.Root.MarkNeedsLayout()
+	// 尺寸变化强制 HUD 下帧重画（onTick 的按需门控会放行一次）。
+	sc.hudPainted = false
 }
 
 func (sc *pelicanScene) onResize(w, h float64) { sc.relayout(w, h) }
@@ -353,7 +525,18 @@ func (sc *pelicanScene) onTick(dt float64) {
 	sc.sim.tick(dt)
 	stepDiagRecord(sc.sim.dist)
 	sc.stageBox.MarkNeedsPaint()
-	sc.hudBox.MarkNeedsPaint()
+	// HUD 按需重绘：暂停/速度/悬停/尺寸任一变化才脏。
+	// HUD 平时静止（药丸+按钮+滑条只在交互时变），跟 60 帧陪跑纯属浪费。
+	if !sc.hudPainted || sc.hudPaused != sc.sim.paused || sc.hudSpeed != sc.sim.speed ||
+		sc.hudHover != sc.btnHover || sc.hudPaintW != sc.hudBox.FixedWidth || sc.hudPaintH != sc.hudBox.FixedHeight {
+		sc.hudPainted = true
+		sc.hudPaused = sc.sim.paused
+		sc.hudSpeed = sc.sim.speed
+		sc.hudHover = sc.btnHover
+		sc.hudPaintW = sc.hudBox.FixedWidth
+		sc.hudPaintH = sc.hudBox.FixedHeight
+		sc.hudBox.MarkNeedsPaint()
+	}
 }
 
 // ---- 交互（对应 HTML HUD 按钮 / 滑条 / 键盘）----
@@ -559,11 +742,8 @@ func (sc *pelicanScene) paintStage(pc *rendering.PaintContext, size rendering.Si
 }
 
 func (sc *pelicanScene) paintSky(pc *rendering.PaintContext) {
-	topR, topG, topB := rgb(0x79c7f5)
-	botR, botG, botB := rgb(0xe6f7ff)
-	rendering.FillLinearGradient(pc, 0, 0, stageW, stageH,
-		0, 0, 0, stageH,
-		topR, topG, topB, 1, botR, botG, botB, 1)
+	// 整舞台渐变烘好一张图，帧内 1:1 贴回（GPU 只上传一次）。
+	rendering.DrawImageBuf(pc, sc.skyImg, 0, 0, stageW, stageH)
 }
 
 func (sc *pelicanScene) paintSun(pc *rendering.PaintContext, t float64) {
@@ -597,14 +777,12 @@ var cloudDefs = []cloudDef{
 }
 
 func (sc *pelicanScene) paintClouds(pc *rendering.PaintContext, t float64) {
-	// CSS drift：translateX 1320 → -460 线性循环，负 delay 表示已播 |delay| 秒
-	for _, c := range cloudDefs {
+	// CSS drift：translateX 1320 → -460 线性循环，负 delay 表示已播 |delay| 秒。
+	// 云烘好图块，帧内只改贴图位置（3 次贴图替代 9 个椭圆填充）。
+	for i, c := range cloudDefs {
 		x := lerp(1320, -460, frac01((t-c.delay)/c.dur))
-		pc.PushTransform(render.Translate(x, 0))
-		for _, e := range c.ellipses {
-			rendering.FillOval(pc, e[0]-e[2], e[1]-e[3], e[2]*2, e[3]*2, 1, 1, 1, c.alpha)
-		}
-		pc.PopTransform()
+		tl := sc.clouds[i]
+		rendering.DrawImageBuf(pc, tl.img, x+tl.ox, tl.oy, tl.w, tl.h)
 	}
 }
 
@@ -622,7 +800,13 @@ func (sc *pelicanScene) paintBirds(pc *rendering.PaintContext, t float64) {
 	for _, b := range birdDefs {
 		x := lerp(-120, 1340, frac01((t-b.flyDelay)/b.flyDur))
 		g := lerp(b.dyFrom, b.dyTo, smilAB(t, b.flapDur, 0))
-		p := render.NewPath()
+		// 复用帧内路径：Reset 保容量，坐标与原来逐字相同。
+		p := sc.birdScratch
+		if p == nil {
+			p = render.NewPath()
+			sc.birdScratch = p
+		}
+		p.Reset()
 		p.MoveTo(x, b.baseY)
 		p.QuadraticTo(x+8, b.baseY+g, x+16, b.baseY)
 		p.QuadraticTo(x+24, b.baseY+g, x+32, b.baseY)
@@ -639,21 +823,16 @@ func (sc *pelicanScene) paintParallaxGround(pc *rendering.PaintContext, sim *pel
 		return -m
 	}
 
-	// 远山 ×2 平铺
-	hr, hg, hb := rgb(0xb9e28c)
+	// 远山 ×2 平铺（图块 1:1 贴回，GPU 只上传一次）
 	oh := off(layerHills)
 	for _, tx := range [2]float64{oh, oh + layerHills.p} {
-		pc.PushTransform(render.Translate(tx, 0))
-		rendering.FillPath(pc, pathHillTile, hr, hg, hb, 1)
-		pc.PopTransform()
+		rendering.DrawImageBuf(pc, sc.hillImg, tx, hillTileY0, 1200, hillTileH)
 	}
 
-	// 树木 ×2 平铺
+	// 树木 ×2 平铺（图块 1:1 贴回）
 	ot := off(layerTrees)
 	for _, tx := range [2]float64{ot, ot + layerTrees.p} {
-		pc.PushTransform(render.Translate(tx, 0))
-		sc.paintTreeTile(pc)
-		pc.PopTransform()
+		rendering.DrawImageBuf(pc, sc.treeImg, tx, treeTileY0, 800, treeTileH)
 	}
 
 	// 草地 / 公路
@@ -722,9 +901,15 @@ func (sc *pelicanScene) paintShadowDust(pc *rendering.PaintContext, t float64) {
 }
 
 // drawLeg IK 腿：hip→knee→ankle 折线 + 脚椭圆（脚踩踏板上方 9px，再偏 (+13,+4)）。
-func drawLeg(pc *rendering.PaintContext, hipX, hipY, ankX, ankY float64, strokeHex int64, lw float64, footRX, footRY float64, footHex, footStrokeHex int64) {
+// 路径复用帧内 legScratch（Reset 保容量），坐标与原来逐字相同。
+func (sc *pelicanScene) drawLeg(pc *rendering.PaintContext, hipX, hipY, ankX, ankY float64, strokeHex int64, lw float64, footRX, footRY float64, footHex, footStrokeHex int64) {
 	kx, ky := knee(hipX, hipY, ankX, ankY, legL1, legL2)
-	p := render.NewPath()
+	p := sc.legScratch
+	if p == nil {
+		p = render.NewPath()
+		sc.legScratch = p
+	}
+	p.Reset()
 	p.MoveTo(hipX, hipY)
 	p.LineTo(kx, ky)
 	p.LineTo(ankX, ankY)
@@ -737,7 +922,7 @@ func drawLeg(pc *rendering.PaintContext, hipX, hipY, ankX, ankY float64, strokeH
 }
 
 func (sc *pelicanScene) paintFarLimb(pc *rendering.PaintContext, sim *pelicanSim, px, py float64) {
-	drawLeg(pc, hipFX, hipFY, px, py-9, 0xdd8f3a, 13, 15, 6.5, 0xd9822b, 0xc26e1d)
+	sc.drawLeg(pc, hipFX, hipFY, px, py-9, 0xdd8f3a, 13, 15, 6.5, 0xd9822b, 0xc26e1d)
 	ar, ag, ab := rgb(0x3a3a3a)
 	rendering.StrokeLine(pc, bbX, bbY, px, py, 8, ar, ag, ab, 1)
 	pr, pg, pb := rgb(0x262626)
@@ -749,7 +934,7 @@ func (sc *pelicanScene) paintNearLimb(pc *rendering.PaintContext, sim *pelicanSi
 	rendering.StrokeLine(pc, bbX, bbY, px, py, 9, ar, ag, ab, 1)
 	pr, pg, pb := rgb(0x141414)
 	rendering.FillRoundRect(pc, px-15, py-5, 30, 10, 3, pr, pg, pb, 1)
-	drawLeg(pc, hipNX, hipNY, px, py-9, 0xf4a94f, 15, 17, 7, 0xf08c2e, 0xd97f26)
+	sc.drawLeg(pc, hipNX, hipNY, px, py-9, 0xf4a94f, 15, 17, 7, 0xf08c2e, 0xd97f26)
 }
 
 func (sc *pelicanScene) paintBike(pc *rendering.PaintContext, sim *pelicanSim) {
@@ -762,18 +947,11 @@ func (sc *pelicanScene) paintBike(pc *rendering.PaintContext, sim *pelicanSim) {
 		ax, ay := wheel[0], wheel[1]
 		rendering.StrokeCircle(pc, ax, ay, 72, 11, tireR, tireG, tireB, 1)
 		rendering.StrokeCircle(pc, ax, ay, 56, 4, rimR, rimG, rimB, 1)
+		// 辐条只建一次的单位形状，帧内平移到轴心再转（等价于原来的绝对坐标 + RotateAbout）。
 		pc.Save()
-		pc.RotateAbout(rad(sim.wheelDeg), ax, ay)
-		spokes := render.NewPath()
-		spokes.MoveTo(ax-56, ay)
-		spokes.LineTo(ax+56, ay)
-		spokes.MoveTo(ax, ay-56)
-		spokes.LineTo(ax, ay+56)
-		spokes.MoveTo(ax-40, ay-40)
-		spokes.LineTo(ax+40, ay+40)
-		spokes.MoveTo(ax-40, ay+40)
-		spokes.LineTo(ax+40, ay-40)
-		rendering.StrokePath(pc, spokes, 3, spokeR, spokeG, spokeB, 1)
+		pc.Translate(ax, ay)
+		pc.Rotate(rad(sim.wheelDeg))
+		rendering.StrokePath(pc, sc.spokeUnit, 3, spokeR, spokeG, spokeB, 1)
 		pc.RestoreCanvas()
 		hubR, hubG, hubB := rgb(0x333333)
 		rendering.FillCircle(pc, ax, ay, 7, hubR, hubG, hubB, 1)
@@ -911,16 +1089,35 @@ func (sc *pelicanScene) paintTufts(pc *rendering.PaintContext, sim *pelicanSim) 
 	}
 	ot := -m
 	for _, tx := range [2]float64{ot, ot + layerTufts.p} {
-		pc.PushTransform(render.Translate(tx, 0))
-		tbr, tbg, tbb := rgb(0x2f7d2a)
-		rendering.StrokePath(pc, pathTuftBlades, 4, tbr, tbg, tbb, 1)
-		f1r, f1g, f1b := rgb(0xff7ab8)
-		f2r, f2g, f2b := rgb(0xffd166)
-		rendering.FillCircle(pc, 112, 682, 4, f1r, f1g, f1b, 1)
-		rendering.FillCircle(pc, 380, 680, 4, f2r, f2g, f2b, 1)
-		rendering.FillCircle(pc, 500, 684, 3.5, f1r, f1g, f1b, 1)
-		pc.PopTransform()
+		rendering.DrawImageBuf(pc, sc.tuftImg, tx, tuftTileY0, 600, tuftTileH)
 	}
+}
+
+// paintTuftTile 前景草丛瓦片内容（叶片描边 + 三朵小花），只在烘焙时调用一次。
+func paintTuftTile(pc *rendering.PaintContext) {
+	tbr, tbg, tbb := rgb(0x2f7d2a)
+	rendering.StrokePath(pc, pathTuftBlades, 4, tbr, tbg, tbb, 1)
+	f1r, f1g, f1b := rgb(0xff7ab8)
+	f2r, f2g, f2b := rgb(0xffd166)
+	rendering.FillCircle(pc, 112, 682, 4, f1r, f1g, f1b, 1)
+	rendering.FillCircle(pc, 380, 680, 4, f2r, f2g, f2b, 1)
+	rendering.FillCircle(pc, 500, 684, 3.5, f1r, f1g, f1b, 1)
+}
+
+// paintTitles 标题盒绘制：两行图块按当前窗口尺寸摆位，与原来 placeLine
+// 同式（字号固定 30/14，只摆位置；图块 1:1 贴，不缩放）。
+func (sc *pelicanScene) paintTitles(pc *rendering.PaintContext, size rendering.Size) {
+	blit := func(line titleLine, baselineY, fs float64) {
+		if line.img == nil {
+			return
+		}
+		f := stageFitFor(size.Width, size.Height)
+		startX := f.ox + f.s*(stageW/2) - f.s*line.total/2
+		y := f.oy + f.s*(baselineY-fs*0.88) // 基线 → 图块顶（减去烘焙留白）
+		rendering.DrawImageBuf(pc, line.img, startX-line.padL, y-line.padT, line.w, line.h)
+	}
+	blit(sc.title, 54, 30)
+	blit(sc.sub, 82, 14)
 }
 
 // ---- HUD 绘制（窗口坐标，对应 HTML #hud）----
@@ -952,13 +1149,10 @@ func (sc *pelicanScene) paintHUD(pc *rendering.PaintContext, size rendering.Size
 	br, bg, bb := rgb(btnCol)
 	rendering.FillCircle(pc, bcx, bcy, hudBtnSize/2, br, bg, bb, 1)
 	if sc.sim.paused {
-		// ▶
-		p := render.NewPath()
-		p.MoveTo(bcx-4, bcy-6)
-		p.LineTo(bcx+6, bcy)
-		p.LineTo(bcx-4, bcy+6)
-		p.Close()
-		rendering.FillPath(pc, p, 1, 1, 1, 1)
+		// ▶（单位三角 + 平移到按钮中心，等价于原来的绝对坐标）
+		pc.PushTransform(render.Translate(bcx, bcy))
+		rendering.FillPath(pc, sc.hudTriUnit, 1, 1, 1, 1)
+		pc.PopTransform()
 	} else {
 		// ⏸ 两根白条
 		rendering.FillRoundRect(pc, bcx-5.5, bcy-5, 3.6, 10, 1.2, 1, 1, 1, 1)

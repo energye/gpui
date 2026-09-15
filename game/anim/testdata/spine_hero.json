@@ -1,0 +1,43 @@
+{
+  "skeleton": {"spine": "4.0.00", "hash": "hero-v1"},
+  "bones": [
+    {"name": "root", "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "length": 0},
+    {"name": "body", "parent": "root", "x": 10, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "length": 20},
+    {"name": "upper", "parent": "body", "x": 20, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "length": 30},
+    {"name": "lower", "parent": "upper", "x": 30, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "length": 30},
+    {"name": "foot", "parent": "lower", "x": 30, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "length": 10},
+    {"name": "target", "parent": "root", "x": 80, "y": 10, "rotation": 40, "scaleX": 1, "scaleY": 1, "length": 0},
+    {"name": "head", "parent": "root", "x": 5, "y": 20, "rotation": -10, "scaleX": 1, "scaleY": 1, "length": 8}
+  ],
+  "slots": [
+    {"name": "body_slot", "bone": "body", "attachment": "body_img", "blend": "normal"},
+    {"name": "leg_slot", "bone": "lower", "attachment": "leg_mesh", "blend": "normal"}
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "body_slot": {
+          "body_img": {"type": "region", "path": "tex/body", "x": 0, "y": 0, "scaleX": 1, "scaleY": 1, "rotation": 0, "width": 20, "height": 10}
+        },
+        "leg_slot": {
+          "leg_mesh": {
+            "type": "mesh",
+            "path": "tex/leg",
+            "vertices": [0, 0, 0.8, 0, 0, 0.2, 30, 0, 0.2, 30, 0, 0.8, 30, 10, 0.2, 30, 10, 0.8, 0, 10, 0.8, 0, 10, 0.2],
+            "bones": [2, 2, 3, 2, 2, 3, 2, 2, 3, 2, 2, 3],
+            "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+            "triangles": [0, 1, 2, 0, 2, 3],
+            "hull": 4
+          }
+        }
+      }
+    }
+  ],
+  "ik": [
+    {"name": "leg_ik", "bones": ["upper", "lower"], "target": "target", "mix": 1, "bendPositive": true}
+  ],
+  "transform": [
+    {"name": "head_look", "bones": ["head"], "target": "target", "mixRotate": 0.5, "mixX": 0.5, "mixY": 0.5, "mixScaleX": 0, "mixScaleY": 0, "mixShearY": 0}
+  ]
+}

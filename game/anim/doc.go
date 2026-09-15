@@ -10,6 +10,37 @@
 // Time is core.Duration (integer milliseconds); values are plain float64
 // sampled with the frozen 4.1 curves. Additive changes only.
 //
+// Frozen 2026-09-15 (capability 4.3, P2 long chain, S42/W6): Skeleton,
+// Bone, Slot, Skin, Attachment, VertexWeight, IKConstraint,
+// TransformConstraint, BoneLocal, Pose, BlendMode
+// (BlendReplace/BlendAdditive), CurrentSkeletonVersion, ParseSkeleton,
+// LoadSkeletonFile, NewPose. Additive changes only.
+//
+// What is frozen (Spine JSON subset, Godot Skeleton2D math): bones
+// (name, parent, x, y, rotation, scale, shear, length, color), slots
+// (name, bone, attachment, blend, color), skins (region plus mesh
+// attachments, uvs, triangles, hull, per-vertex bone weights), draw
+// order (slots order plus SetDrawOrder permutation), IK (one-bone aim
+// plus two-bone analytic with bend and mix) and transform constraints
+// (mix rotate/translate/scale/shear). Pose holds per-bone local
+// overrides plus world matrices; SkinVertices blends mesh vertices in
+// bone space; BlendAdditive is the mix entry the S46 state machine
+// will drive. Only core numbers are used (Vec2, Mat2D, Color,
+// AssetID, Version); render types are reached through the core
+// ToRender helpers at the boundary, never imported here.
+//
+// What is reserved: physics inertia (JSON "physics" plus ApplyPhysics)
+// and path constraints plus linkedmesh/boundingbox/path/point/clipping
+// attachments report core Unsupported, never a guessed pose. Spine
+// 3.x and 4.x both load when the major is 3 or 4; any other major
+// reports VersionMismatch.
+//
+// Errors use game/core codes: empty path is InvalidArg, a missing file
+// is NotFound, torn JSON is BadData, an unfrozen kind is Unsupported,
+// a payload with a foreign major is VersionMismatch, an unknown
+// bone/slot/skin/attachment is NotFound, a bad draw order or NaN/Inf
+// number is InvalidArg. A nil Skeleton or Pose never panics.
+//
 // This package only computes numbers; it draws nothing. The caller feeds
 // the eased progress into existing draws (positions, alpha, scales).
 // Only core errors are used; no new Vec2/Color/AssetID is defined here.

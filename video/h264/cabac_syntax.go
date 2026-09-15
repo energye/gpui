@@ -848,50 +848,60 @@ func (d *Decoder) cabacCoeffData(cat, maxCoeff, scanOff int) ([16]int32, int, er
 	var index [16]int
 	cc := 0
 	last := 0
-	for ; last < maxCoeff-1; last++ {
-		if d.cabBin(sigBase+uint16(last)) == 0 {
-			continue
+	// S3 batch (one call per block, same switch as S1): scalar loop stays
+	// as留守 for GPUI_SCALAR_CONVERT=1 double runs.
+	if cabacScalarForced {
+		for ; last < maxCoeff-1; last++ {
+			if d.cabBin(sigBase+uint16(last)) == 0 {
+				continue
+			}
+			index[cc] = last
+			cc++
+			if d.cabBin(lastBase+uint16(last)) != 0 {
+				last = maxCoeff
+				break
+			}
 		}
-		index[cc] = last
-		cc++
-		if d.cabBin(lastBase+uint16(last)) != 0 {
-			last = maxCoeff
-			break
+		if last == maxCoeff-1 {
+			index[cc] = last
+			cc++
 		}
-	}
-	if last == maxCoeff-1 {
-		index[cc] = last
-		cc++
+	} else {
+		cc, last = cabacSigLastFast4x4(d, sigBase, lastBase, maxCoeff, &index)
 	}
 	tc := cc
-	node := 0
-	for cc > 0 {
-		cc--
-		j := index[cc] + scanOff
-		lvl := 1
-		if d.cabBin(lvlBase+uint16(cabacLevel1Ctx[node])) == 0 {
-			node = int(cabacLevelTrans[node])
-		} else {
-			lvl = 2
-			gctx := lvlBase + uint16(cabacLevelGt1Ctx[node])
-			node = int(cabacLevelTrans[8+node])
-			for lvl < 15 && d.cabBin(gctx) != 0 {
-				lvl++
-			}
-			if lvl >= 15 {
-				k := 0
-				for d.cab.bypass() != 0 && k < 23 {
-					k++
+	if cabacScalarForced {
+		node := 0
+		for cc > 0 {
+			cc--
+			j := index[cc] + scanOff
+			lvl := 1
+			if d.cabBin(lvlBase+uint16(cabacLevel1Ctx[node])) == 0 {
+				node = int(cabacLevelTrans[node])
+			} else {
+				lvl = 2
+				gctx := lvlBase + uint16(cabacLevelGt1Ctx[node])
+				node = int(cabacLevelTrans[8+node])
+				for lvl < 15 && d.cabBin(gctx) != 0 {
+					lvl++
 				}
-				lvl = 1
-				for k > 0 {
-					k--
-					lvl += lvl + d.cab.bypass()
+				if lvl >= 15 {
+					k := 0
+					for d.cab.bypass() != 0 && k < 23 {
+						k++
+					}
+					lvl = 1
+					for k > 0 {
+						k--
+						lvl += lvl + d.cab.bypass()
+					}
+					lvl += 14
 				}
-				lvl += 14
 			}
+			out[j] = d.cab.bypassSign(int32(-lvl))
 		}
-		out[j] = d.cab.bypassSign(int32(-lvl))
+	} else {
+		cabacLevelsFast4x4(d, lvlBase, &index, cc, scanOff, &out)
 	}
 	return out, tc, nil
 }
@@ -903,50 +913,59 @@ func (d *Decoder) cabacCoeffData8x8() ([64]int32, int, error) {
 	const sigBase, lastBase, lvlBase = uint16(402), uint16(417), uint16(426)
 	var index [64]int
 	cc, last := 0, 0
-	for ; last < 63; last++ {
-		if d.cabBin(sigBase+cabacSigOffset8x8[last]) == 0 {
-			continue
+	// S3 batch (same switch as above; scalar loop stays as留守).
+	if cabacScalarForced {
+		for ; last < 63; last++ {
+			if d.cabBin(sigBase+cabacSigOffset8x8[last]) == 0 {
+				continue
+			}
+			index[cc] = last
+			cc++
+			if d.cabBin(lastBase+uint16(cabacLastCoeffOffset8x8[last])) != 0 {
+				last = 64
+				break
+			}
 		}
-		index[cc] = last
-		cc++
-		if d.cabBin(lastBase+uint16(cabacLastCoeffOffset8x8[last])) != 0 {
-			last = 64
-			break
+		if last == 63 {
+			index[cc] = last
+			cc++
 		}
-	}
-	if last == 63 {
-		index[cc] = last
-		cc++
+	} else {
+		cc, last = cabacSigLastFast8x8(d, &index)
 	}
 	tc := cc
-	node := 0
-	for cc > 0 {
-		cc--
-		j := index[cc]
-		lvl := 1
-		if d.cabBin(lvlBase+uint16(cabacLevel1Ctx[node])) == 0 {
-			node = int(cabacLevelTrans[node])
-		} else {
-			lvl = 2
-			gctx := lvlBase + uint16(cabacLevelGt1Ctx[node])
-			node = int(cabacLevelTrans[8+node])
-			for lvl < 15 && d.cabBin(gctx) != 0 {
-				lvl++
-			}
-			if lvl >= 15 {
-				k := 0
-				for d.cab.bypass() != 0 && k < 23 {
-					k++
+	if cabacScalarForced {
+		node := 0
+		for cc > 0 {
+			cc--
+			j := index[cc]
+			lvl := 1
+			if d.cabBin(lvlBase+uint16(cabacLevel1Ctx[node])) == 0 {
+				node = int(cabacLevelTrans[node])
+			} else {
+				lvl = 2
+				gctx := lvlBase + uint16(cabacLevelGt1Ctx[node])
+				node = int(cabacLevelTrans[8+node])
+				for lvl < 15 && d.cabBin(gctx) != 0 {
+					lvl++
 				}
-				lvl = 1
-				for k > 0 {
-					k--
-					lvl += lvl + d.cab.bypass()
+				if lvl >= 15 {
+					k := 0
+					for d.cab.bypass() != 0 && k < 23 {
+						k++
+					}
+					lvl = 1
+					for k > 0 {
+						k--
+						lvl += lvl + d.cab.bypass()
+					}
+					lvl += 14
 				}
-				lvl += 14
 			}
+			out[j] = d.cab.bypassSign(int32(-lvl))
 		}
-		out[j] = d.cab.bypassSign(int32(-lvl))
+	} else {
+		cabacLevelsFast8x8(d, &index, cc, &out)
 	}
 	return out, tc, nil
 }

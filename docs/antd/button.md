@@ -486,7 +486,7 @@ import { Button } from 'antd';
 | 仅图标 + `shape=circle` | 宽=高=h | 内容水平垂直居中 |
 | `shape=round` | 胶囊 | 圆角 ≈ h/2（或 token 大圆角） |
 | `block=true` | 宽=父容器 | 高度仍按 size |
-| Focus ring | 可见 | 半径≈控件圆角；outset ≈ 1.5px（实现可调，但必须可见） |
+| Focus ring | 只键盘亮 | 宽 3（`lineWidthFocus`）、色 `#91caff`（`colorPrimaryBorder`）、偏 1；鼠标点不亮，禁用不亮（见 ACCEPTANCE 第六节通用数） |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -566,7 +566,9 @@ import { Button } from 'antd';
 
 **渐变按钮（官方 demo linear-gradient）**：属 **P1**——允许业务 `Style` 覆盖背景；不强制内置渐变 API。
 
-**波纹 wave**：属 **P1**——P0 可用 press 态色反馈代替；若实现 wave，须尊重 reduced-motion。
+**波纹 wave**：属 **P1**——点完才散开的影子（影子 0 长到 6，0.4 秒散完，2 秒褪干净，一开始两成深），
+颜色跟边框走、边框没有才跟底色；字按钮链按钮没波纹，转圈灰关波纹省动效都没波纹（见 ACCEPTANCE 第六节通用数）。
+转圈要真转（走调度器 `Tick`，`WantsFrame` 没活就歇）。
 
 ### 6.6 无障碍（a11y）最低要求
 
@@ -574,7 +576,7 @@ import { Button } from 'antd';
 | --- | --- |
 | 角色 | 按钮（或等价可激活控件） |
 | 名称 | 默认识别名 = `label`；仅图标时 **必须** 提供无障碍名（API：`AriaLabel` / `SetAriaLabel` 或等价） |
-| 焦点 | Tab 可聚焦；Focus ring 可见（§6.2） |
+| 焦点 | Tab 可聚焦；只键盘亮圈（鼠标点不亮，禁用不亮，§6.2） |
 | 键盘 | Space / Enter 触发 click（B-S5） |
 | 禁用 | disabled/loading 不触发激活；读屏需感知禁用（若平台支持） |
 
@@ -638,6 +640,79 @@ import { Button } from 'antd';
 | debug-color-variant/debug-icon/debug-block/legacy-group/chinese-chars-loading/component-token | 不计 | 内部调试/废弃/Token 预览 |
 
 ### 6.9 验收用例表（可测）
+
+#### 6.9.0 真窗测试说明（七类拆官网 demo，一项一效果，挂一项整窗挂）
+
+> 独立真窗 `go run ./examples/kit/button` 只摆按钮自己，
+> 从上到下按官网 `index.zh-CN.md` 代码演示顺序摆 16 个非 debug 段
+> （语法糖、颜色与变体、按钮图标、按钮图标位置、按钮尺寸、不可用状态、
+> 加载中状态、多个按钮组合、幽灵按钮、危险按钮、Block 按钮、渐变按钮、
+> 自定义按钮波纹、移除两个汉字之间的空格、自定义禁用样式背景、
+> 自定义语义结构的样式和类）；
+> 每段带官网标题 + 描述原文，段内按钮用该 demo 自己的文本、顺序、行列
+> （`Flex gap="small"`=8；block 段每颗撑满整宽；幽灵段整段垫 `#bec8c8`）。
+> 窗固定 1200×900，内容高出屏幕时滚轮滚动（`RenderViewport`，段不裁剪）；
+> 快照用 `-snapshot <png> -snapshot-state <态>`，loading/disabled/wave 三态
+> 自动滚到本段，`-scroll-y <像素>` 可显式定位。
+> 人和机器都按同一份说明亲手点一遍：每颗按钮按它自己的功能点、看它自己的效果，
+> 通用点一下不算数。效果不对即挂一行，挂一行整窗挂。
+> 七类一个不能空，下面每类都列了对应哪个官网 demo、测什么、怎么点、看什么效果。
+
+- 外观形状（看颜色边框圆角对不对）：
+  basic.tsx 点五颗看五种长相，主钮蓝底白字、默认白底灰边、虚线是虚边、文本链接受透明底；
+  color-variant.tsx 看 6 行×6 列 small 变体（default/primary/danger/pink/purple/cyan
+  ×实心/描边/虚线/浅底/文本/链接），都不串色；
+  icon.tsx 看两行各五颗（圆形主图标钮、“A”钮、主搜索钮、圆形钮、默认搜索钮；
+  第二行加虚线版和链接图标钮），图标大小跟着字号走；
+  ghost.tsx 在灰绿底上看底全透、边和字是白色看得见；
+  danger.tsx 看红色系，主危险红底、默认危险红边红字；
+  linear-gradient.tsx（P1）看渐变那颗从 `#6253e1` 到 `#04befe` 左深右浅，
+  左右两端颜色不一样（门禁探针双绘取稳态，见 §6.13 跨线问题）；
+  custom-disabled-bg.tsx（P1）看三颗：Primary 保持默认禁用灰，
+  Default 灰是主题配的 0.1，Dashed 是 0.4；
+  style-class.tsx（P1）看语义覆盖那两颗，底和字是钩子里写的颜色，不是默认色。
+- 点按反馈（点下去有没有反应）：
+  每颗能点的都这样点：鼠标移上去看变浅（悬停色），按住不松看变深（按压色），
+  松开看只调一次回调，还冒一下波纹影子（影子往外散、两秒内褪干净）；按住拖出按钮外再松，看一次也不调、也没影子。
+  wave.tsx（P1）单独看：Disabled 关波纹点完没影子，Default/Inset/Shake/Happy Work
+  四颗点完有影子散开；字按钮链按钮点完也没影子，但每颗松开都只调一次。
+  loading 的防重也算在这里：转圈时再点，一次也不调、也没影子，转圈本身一直在转；
+  转圈是开口圆环（无圆点），整钮按 `opacityLoading=0.65` 组透明（字不发虚，
+  实现见 LoadingOpacity + SaveLayer）。
+- 开关显隐（灰化和转圈出不出现）：
+  disabled.tsx 点十组配对（Primary/Default/Dashed/Text/Link/Href Primary/
+  Danger Default/Danger Text/Danger Link/Ghost）：亮的那颗能点，
+  灰的那颗按下去没反应，移上去颜色也不动，键盘也点不动；
+  loading.tsx 第一排四颗（Loading、small Loading、图标转圈、自定义 sync 图标）
+  圈一直在转，点多少次都不调第二次；第二排五颗平时是普通按钮，
+  点一下进转圈约 3 秒（跟官网 setTimeout 一样）再回来；
+  定制禁用背景那段同样看：灰的是定制灰，而且一样点不动。
+- 值变化（改个开关外观跟着变）：
+  type 和 variant 一起设时看 variant 赢；color 换了下一帧就换色；
+  danger 开关一开就变红；block 开关一开就变宽；
+  chinese-space.tsx（P1）看两颗确定：开插空那颗中间有空格、比关掉那颗宽一截；
+  style-class.tsx（P1）看钩子一挂就换色，拿掉就回去。
+- 键盘焦点（只用键盘能不能玩）：
+  整窗按 Tab，焦点环一颗一颗往下走，每颗都有淡蓝圈（3 像素、偏 1）；
+  鼠标点的那颗不亮圈，只有 Tab 到的那颗才亮；
+  停在哪颗按回车或空格，那颗就调一次，跟鼠标点效果一样；
+  灰的和转圈的按 Tab 直接跳过，按回车空格也不调；
+  只有图标没字的那颗，必须配了名字才算过，不然单测就挂。
+- 布局位置（大小宽窄左右对不对）：
+  size.tsx 看三排：主排 Primary/Default/Dashed、Link 单排、图标排
+  （纯图标、圆形、胶囊空、胶囊 Download、Download），大尺寸高 40；
+  block.tsx 看六颗都撑满父容器宽，高还是原来那档；
+  multiple.tsx 看纵向三排：primary、secondary、Actions+更多，间距一样；
+  icon-placement.tsx 看两排，图标在前和在后各有，字和图标间距不变；
+  圆的那颗宽高相等，胶囊那颗圆角是高的一半；
+  两字插空那颗比不插的宽，就是多了中间那个空格。
+- 特殊映射（图标链接镜像这些杂项）：
+  icon.tsx 看图标和字混排，图标大小跟着字号走；
+  图标那颗带链接地址的，点了先调点击，再调一次跳链接回调，两个各一次；
+  原生类型那颗默认是普通按钮，能切成提交和重置；
+  从右向左那次看，图标前后整好镜像，画出来跟正向不一样；
+  预设色板十三色每颗实心都不透、描边都有色，粉是品红的别名，颜色重是官方就这样；
+  全局默认那次看，不传参就用全局配的尺寸变体颜色，传了参就听传参的。
 
 > 每个用例对应测试名建议：`TestButton_PRD_<ID>` 或 gallery 场景 ID。  
 > **P0+P1 全部通过** 才可宣称 Button 完成 1:1。

@@ -26,4 +26,18 @@
 // hot path OffsetAt stays total instead: strength 0 (including the zero
 // Warp) is the exact identity, and any non-finite input yields the zero
 // offset, never a panic and never a NaN leaking downstream.
+//
+// Frozen 2026-09-15 (capability 5.5, P3, S44/W6): Custom, NewCustom,
+// NewIdentity, NewOutline, NewDissolve, Registry, MaxCustomNameLen,
+// MaxCustomParams, MaxCustomOutlineWidth, MaxCustomSeed, MaxCustomSlots,
+// CustomIdentity, CustomOutline, CustomDissolve. Additive changes only.
+//
+// What it does: artist hooks for outline and dissolve. Custom holds a
+// name plus float params; Registry attaches hooks to handles and calls
+// them by handle. Apply takes an Image and returns a fresh Image plus a
+// degraded bit plus an error: identity is exact (degraded false),
+// outline and dissolve are CPU reference paths the GPU replaces with a
+// filtered shader (degraded true). A valid src with a bad hook still
+// returns a placeholder copy so the main path never breaks. Only core
+// numbers and core codes are used; render is never imported here.
 package fx

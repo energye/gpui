@@ -38,4 +38,26 @@
 // crash the frame. Nil receivers never panic: getters park at zero,
 // writers report InvalidArg. Window intent: game_particle --case=fire
 // (fire cone plus drifting smoke); pure math stays offscreen golden.
+//
+// Frozen 2026-09-15 (capability 5.2, P3, S43/W6): JointKind,
+// JointMiter/JointBevel/JointRound, MiterLimit, RoundArcSteps,
+// MaxTrailPointsCap, String, ParseJoint, TrailConfig, NewTrailConfig,
+// Validate, Trail, NewTrail, Config, Len, Points, Push, Clear, WidthAt,
+// ColorAt, TrailVert, Segments, TrailSegment, Verts, AppendToBatch,
+// MaxPoolTrailsCap, GPUPool, NewGPUPool, Config, TrailConfig, Alive,
+// Spawned, Died, ChildSpawned, Trails, TotalPoints, Particles, ColorOf,
+// TrailOf, Clear, Spawn, Update, AppendToBatch.
+//
+// Trail (main reference Godot Line2D): one trajectory ring oldest to
+// newest. Width lerps TailWidth (oldest) to HeadWidth (newest) so a knife
+// slash reads wide-to-narrow; color lerps Start (head) to End (tail).
+// Miter extends sharp corners up to MiterLimit then cuts to bevel, bevel
+// cuts flat with one pair, round fans RoundArcSteps interior pairs.
+// Verts carries the exact joint geometry; Segments carries the drawable
+// center line (one rotated atlas sprite per segment through the existing
+// sprite AtlasToRender plus DrawAtlasEx, no new submit path). GPUPool
+// (main reference Godot GPUParticles2D) owns one 5.1 Emitter for positions
+// plus one Trail ring per live particle keyed by birth Seed; Spawn/Update
+// semantics are the frozen 5.1 ones. Window intent:
+// game_particle --case=trail (knife slash wide to narrow).
 package particle

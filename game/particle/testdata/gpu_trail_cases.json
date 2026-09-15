@@ -1,0 +1,819 @@
+{
+  "pools": [
+    {
+      "name": "slash_small",
+      "origin": [
+        0,
+        0
+      ],
+      "shape_kind": "point",
+      "dir": [
+        1,
+        0
+      ],
+      "angle_deg": 0,
+      "extents": null,
+      "ring_inner": 0,
+      "ring_outer": 0,
+      "rate": 60,
+      "max": 256,
+      "speed": [
+        40,
+        60
+      ],
+      "life_ms": [
+        800,
+        1200
+      ],
+      "gravity": [
+        0,
+        30
+      ],
+      "start": [
+        1,
+        0.5,
+        0.1,
+        1
+      ],
+      "end": [
+        0.3,
+        0.3,
+        0.3,
+        0
+      ],
+      "turb_strength": 0,
+      "turb_scale": 0,
+      "sub_count": 0,
+      "sub_speed": null,
+      "sub_life_ms": null,
+      "seed": 21,
+      "spawn": 10,
+      "update_ms": 100,
+      "trail_max": 16,
+      "trail_head": 8,
+      "trail_tail": 1,
+      "trail_joint": "miter",
+      "want_spawned": 16,
+      "want_alive": 16,
+      "want_child": 0,
+      "want_trails": 16,
+      "want_points": 26
+    },
+    {
+      "name": "cone_slash",
+      "origin": [
+        0,
+        0
+      ],
+      "shape_kind": "cone",
+      "dir": [
+        0,
+        -1
+      ],
+      "angle_deg": 20,
+      "extents": null,
+      "ring_inner": 0,
+      "ring_outer": 0,
+      "rate": 60,
+      "max": 256,
+      "speed": [
+        50,
+        70
+      ],
+      "life_ms": [
+        700,
+        1100
+      ],
+      "gravity": [
+        0,
+        25
+      ],
+      "start": [
+        1,
+        0.6,
+        0.15,
+        1
+      ],
+      "end": [
+        0.4,
+        0.2,
+        0.1,
+        0
+      ],
+      "turb_strength": 0,
+      "turb_scale": 0,
+      "sub_count": 0,
+      "sub_speed": null,
+      "sub_life_ms": null,
+      "seed": 22,
+      "spawn": 10,
+      "update_ms": 100,
+      "trail_max": 16,
+      "trail_head": 8,
+      "trail_tail": 1,
+      "trail_joint": "round",
+      "want_spawned": 16,
+      "want_alive": 16,
+      "want_child": 0,
+      "want_trails": 16,
+      "want_points": 26
+    },
+    {
+      "name": "zero_rate",
+      "origin": [
+        0,
+        0
+      ],
+      "shape_kind": "point",
+      "dir": [
+        0,
+        -1
+      ],
+      "angle_deg": 0,
+      "extents": null,
+      "ring_inner": 0,
+      "ring_outer": 0,
+      "rate": 0,
+      "max": 64,
+      "speed": [
+        10,
+        20
+      ],
+      "life_ms": [
+        500,
+        800
+      ],
+      "gravity": [
+        0,
+        10
+      ],
+      "start": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "end": [
+        0.5,
+        0.5,
+        0.5,
+        0
+      ],
+      "turb_strength": 0,
+      "turb_scale": 0,
+      "sub_count": 0,
+      "sub_speed": null,
+      "sub_life_ms": null,
+      "seed": 23,
+      "spawn": 0,
+      "update_ms": 100,
+      "trail_max": 16,
+      "trail_head": 8,
+      "trail_tail": 1,
+      "trail_joint": "bevel",
+      "want_spawned": 0,
+      "want_alive": 0,
+      "want_child": 0,
+      "want_trails": 0,
+      "want_points": 0
+    }
+  ],
+  "trails": [
+    {
+      "name": "straight_miter",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "miter",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          20,
+          0
+        ]
+      ],
+      "want_widths": [
+        2,
+        6,
+        10
+      ],
+      "want_colors": [
+        [
+          1,
+          0.19999999999999996,
+          0.1,
+          0
+        ],
+        [
+          1,
+          0.5,
+          0.15000000000000002,
+          0.5
+        ],
+        [
+          1,
+          0.8,
+          0.2,
+          1
+        ]
+      ],
+      "want_lefts": [
+        [
+          0,
+          1
+        ],
+        [
+          10,
+          3
+        ],
+        [
+          20,
+          5
+        ]
+      ],
+      "want_rights": [
+        [
+          0,
+          -1
+        ],
+        [
+          10,
+          -3
+        ],
+        [
+          20,
+          -5
+        ]
+      ],
+      "want_verts": 3
+    },
+    {
+      "name": "corner_miter",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "miter",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          10,
+          10
+        ]
+      ],
+      "want_widths": [
+        2,
+        6,
+        10
+      ],
+      "want_colors": [
+        [
+          1,
+          0.19999999999999996,
+          0.1,
+          0
+        ],
+        [
+          1,
+          0.5,
+          0.15000000000000002,
+          0.5
+        ],
+        [
+          1,
+          0.8,
+          0.2,
+          1
+        ]
+      ],
+      "want_lefts": [
+        [
+          0,
+          1
+        ],
+        [
+          7,
+          3
+        ],
+        [
+          5,
+          10
+        ]
+      ],
+      "want_rights": [
+        [
+          0,
+          -1
+        ],
+        [
+          13,
+          -3
+        ],
+        [
+          15,
+          10
+        ]
+      ],
+      "want_verts": 3
+    },
+    {
+      "name": "corner_bevel",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "bevel",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          10,
+          10
+        ]
+      ],
+      "want_widths": [
+        2,
+        6,
+        10
+      ],
+      "want_colors": [
+        [
+          1,
+          0.19999999999999996,
+          0.1,
+          0
+        ],
+        [
+          1,
+          0.5,
+          0.15000000000000002,
+          0.5
+        ],
+        [
+          1,
+          0.8,
+          0.2,
+          1
+        ]
+      ],
+      "want_lefts": [
+        [
+          0,
+          1
+        ],
+        [
+          7.878679656440358,
+          2.1213203435596424
+        ],
+        [
+          5,
+          10
+        ]
+      ],
+      "want_rights": [
+        [
+          0,
+          -1
+        ],
+        [
+          12.121320343559642,
+          -2.1213203435596424
+        ],
+        [
+          15,
+          10
+        ]
+      ],
+      "want_verts": 3
+    },
+    {
+      "name": "corner_round",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          10,
+          10
+        ]
+      ],
+      "want_widths": [
+        2,
+        6,
+        10
+      ],
+      "want_colors": [
+        [
+          1,
+          0.19999999999999996,
+          0.1,
+          0
+        ],
+        [
+          1,
+          0.5,
+          0.15000000000000002,
+          0.5
+        ],
+        [
+          1,
+          0.8,
+          0.2,
+          1
+        ]
+      ],
+      "want_lefts": [
+        [
+          0,
+          1
+        ],
+        [
+          10,
+          3
+        ],
+        [
+          9.072949016875159,
+          2.853169548885461
+        ],
+        [
+          8.23664424312258,
+          2.4270509831248424
+        ],
+        [
+          7.572949016875158,
+          1.7633557568774196
+        ],
+        [
+          7.146830451114539,
+          0.9270509831248426
+        ],
+        [
+          7,
+          3.6739403974420544e-16
+        ],
+        [
+          5,
+          10
+        ]
+      ],
+      "want_rights": [
+        [
+          0,
+          -1
+        ],
+        [
+          10,
+          -3
+        ],
+        [
+          10.927050983124841,
+          -2.853169548885461
+        ],
+        [
+          11.76335575687742,
+          -2.4270509831248424
+        ],
+        [
+          12.427050983124843,
+          -1.7633557568774196
+        ],
+        [
+          12.853169548885461,
+          -0.9270509831248426
+        ],
+        [
+          13,
+          -3.6739403974420544e-16
+        ],
+        [
+          15,
+          10
+        ]
+      ],
+      "want_verts": 8
+    },
+    {
+      "name": "spike_miter",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "miter",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          0.5,
+          0.5
+        ]
+      ],
+      "want_widths": [
+        2,
+        6,
+        10
+      ],
+      "want_colors": [
+        [
+          1,
+          0.19999999999999996,
+          0.1,
+          0
+        ],
+        [
+          1,
+          0.5,
+          0.15000000000000002,
+          0.5
+        ],
+        [
+          1,
+          0.8,
+          0.2,
+          1
+        ]
+      ],
+      "want_lefts": [
+        [
+          0,
+          1
+        ],
+        [
+          7.001036807162133,
+          0.07886550579122588
+        ],
+        [
+          0.23720583438618165,
+          -4.493089146662549
+        ]
+      ],
+      "want_rights": [
+        [
+          0,
+          -1
+        ],
+        [
+          12.998963192837866,
+          -0.07886550579122588
+        ],
+        [
+          0.7627941656138184,
+          5.493089146662549
+        ]
+      ],
+      "want_verts": 3
+    },
+    {
+      "name": "single",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "miter",
+      "points": [
+        [
+          5,
+          5
+        ]
+      ],
+      "want_widths": [
+        10
+      ],
+      "want_colors": [
+        [
+          1,
+          0.8,
+          0.2,
+          1
+        ]
+      ],
+      "want_lefts": [
+        [
+          5,
+          10
+        ]
+      ],
+      "want_rights": [
+        [
+          5,
+          0
+        ]
+      ],
+      "want_verts": 1
+    },
+    {
+      "name": "dup_miter",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "miter",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ]
+      ],
+      "want_widths": [
+        2,
+        6,
+        10
+      ],
+      "want_colors": [
+        [
+          1,
+          0.19999999999999996,
+          0.1,
+          0
+        ],
+        [
+          1,
+          0.5,
+          0.15000000000000002,
+          0.5
+        ],
+        [
+          1,
+          0.8,
+          0.2,
+          1
+        ]
+      ],
+      "want_lefts": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          10,
+          5
+        ]
+      ],
+      "want_rights": [
+        [
+          0,
+          -1
+        ],
+        [
+          0,
+          -3
+        ],
+        [
+          10,
+          -5
+        ]
+      ],
+      "want_verts": 3
+    },
+    {
+      "name": "empty",
+      "max_points": 8,
+      "head_width": 10,
+      "tail_width": 2,
+      "start": [
+        1,
+        0.8,
+        0.2,
+        1
+      ],
+      "end": [
+        1,
+        0.2,
+        0.1,
+        0
+      ],
+      "joint": "miter",
+      "points": null,
+      "want_widths": null,
+      "want_colors": null,
+      "want_lefts": null,
+      "want_rights": null,
+      "want_verts": 0
+    }
+  ]
+}
