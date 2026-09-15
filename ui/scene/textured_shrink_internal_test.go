@@ -5,7 +5,6 @@ import (
 	"testing"
 	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 )
 
@@ -14,8 +13,12 @@ import (
 var fakeLiveToken byte
 
 // fakeLiveView fakes a live GPU texture view without a device.
-func fakeLiveView() gpucontext.TextureView {
-	return gpucontext.NewTextureView(unsafe.Pointer(&fakeLiveToken))
+// Built via render.TextureView (the ui → render boundary alias) + unsafe,
+// so this test never imports gpu/ directly (G1: ui → render → gpu).
+func fakeLiveView() render.TextureView {
+	var v render.TextureView
+	*(*unsafe.Pointer)(unsafe.Pointer(&v)) = unsafe.Pointer(&fakeLiveToken)
+	return v
 }
 
 // A shrink re-record must keep the previous bounds for the damage union:
