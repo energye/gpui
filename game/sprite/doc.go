@@ -3,6 +3,11 @@
 // Frozen 2026-09-15 (capability 2.3, P1b, S10/W1): LayerWorld, LayerFX,
 // LayerUI, Item, NewItem, Sort, IsSorted. Additive changes only.
 //
+// Frozen 2026-09-15 (capability 2.4, P1b, S11/W1): LoopOnce, LoopLoop,
+// LoopPingPong, Clip, EventKind (EventNone/EventFrame/EventLoop/
+// EventFinished), Event, Flipbook, NewFlipbook, AddClip, Has, Count,
+// OnEvent, Play, Current, IsPlaying, Update. Additive changes only.
+//
 // Ordering (draw first = behind, draw last = front on top):
 //
 //	layer ascending, then feet Y ascending, stable for ties.
