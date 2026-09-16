@@ -106,6 +106,19 @@ func (d *DPB) Store(p *Picture, isRef bool) {
 	}
 }
 
+// frameNumWrap orders short-term pictures across a frame_num wrap
+// (spec 8.2.4.1, all-frame case): pictures numbered above the current
+// one already wrapped around, so they count as older (negative).
+// Sorting by raw FrameNum puts the pre-wrap elder first and silently
+// corrupts every frame after the first wrap (oceans s17).
+func frameNumWrap(fn, cur uint32, maxFN int64) int64 {
+	f := int64(fn)
+	if f > int64(cur) {
+		return f - maxFN
+	}
+	return f
+}
+
 // buildRefList0 constructs reference list 0 for one P slice: buffered
 // pictures newest-first, then the slice-header reordering steps, sized
 // to RefL0Count. Unavailable slots stay nil so refFor fails readable
@@ -120,8 +133,27 @@ func (d *Decoder) buildRefList0(h *SliceHeader) ([]*Picture, error) {
 	if n < 1 {
 		n = 1
 	}
+	bits, err := frameNumBits(d.sps)
+	if err != nil {
+		return nil, err
+	}
+	maxPicNum := int64(1) << uint(bits)
+	cur := h.FrameNum
 	byAge := append([]*Picture(nil), d.dpb.pics...)
-	sort.Slice(byAge, func(i, j int) bool { return byAge[i].FrameNum > byAge[j].FrameNum })
+	// P slices order short-term by wrapped frame number (spec 8.2.4.3):
+	// the picture whose number is closest behind the current one comes
+	// first. Picture order is by PicNum, not decode order — do NOT fall
+	// back to insertion order when the DPB holds fewer than max (a
+	// short early roster still decodes the newest first; insertion
+	// order would predict s100 from a grandparent and smear ±1 edges
+	// exactly like oceans s100).
+	sort.Slice(byAge, func(i, j int) bool {
+		wi, wj := frameNumWrap(byAge[i].FrameNum, cur, maxPicNum), frameNumWrap(byAge[j].FrameNum, cur, maxPicNum)
+		if wi != wj {
+			return wi > wj
+		}
+		return byAge[i].FrameNum > byAge[j].FrameNum
+	})
 	list := make([]*Picture, 0, n)
 	for _, p := range byAge {
 		if len(list) >= n {
@@ -295,6 +327,38 @@ func (d *Decoder) fixPOC(h *SliceHeader, sps *SPS) {
 	}
 }
 
+// fixPOCType12 rebuilds poc type 1/2 display order from the wrap
+// accumulator (spec 8.2.1.2/8.2.1.3, all-frame case): abs bumps by
+// max_frame_num whenever the number goes backwards, poc = 2*abs for
+// references (non-reference reference-identical streams like oceans
+// never take the minus-1 branch, which only applies when the stream
+// actually marks pictures disposable). IDR resets the count.
+func (d *Decoder) fixPOCType12(h *SliceHeader, sps *SPS) {
+	if sps == nil || sps.POCType == 0 {
+		return
+	}
+	bits, err := frameNumBits(sps)
+	if err != nil {
+		return
+	}
+	maxFN := int64(1) << uint(bits)
+	if h.IsIDR {
+		d.fnOffset, d.fnPrev, d.fnHave = 0, h.FrameNum, true
+		h.POC = int32(2 * int64(h.FrameNum))
+		return
+	}
+	if !d.fnHave {
+		d.fnOffset, d.fnPrev, d.fnHave = 0, h.FrameNum, true
+		h.POC = int32(2 * int64(h.FrameNum))
+		return
+	}
+	if h.FrameNum < d.fnPrev {
+		d.fnOffset += maxFN
+	}
+	d.fnPrev = h.FrameNum
+	h.POC = int32(2 * (d.fnOffset + int64(h.FrameNum)))
+}
+
 // buildRefListsB initialises both reference lists for one B slice from
 // display order: list 0 takes past pictures (display order descending)
 // then future ones (ascending); list 1 takes future first, then past.
@@ -352,16 +416,20 @@ func (d *Decoder) buildRefListsB(h *SliceHeader) (l0, l1 []*Picture, err error) 
 	return l0, l1, nil
 }
 
-// evictOldest drops the smallest-FrameNum buffered picture: the
-// sliding-window mark when the buffer already holds its maximum.
-func (d *DPB) evictOldest() {
+// evictOldest drops the smallest-FrameNumWrap buffered picture: the
+// sliding-window victim when the buffer already holds its maximum
+// (spec 8.2.5.3). Raw FrameNum comparison evicts the newest right
+// after a wrap and keeps stale pictures forever; the caller passes the
+// picture being stored as cur.
+func (d *DPB) evictOldest(curFN uint32, maxFN int64) {
 	if d == nil || len(d.pics) == 0 {
 		return
 	}
 	m := 0
+	mw := frameNumWrap(d.pics[0].FrameNum, curFN, maxFN)
 	for i := range d.pics {
-		if d.pics[i].FrameNum < d.pics[m].FrameNum {
-			m = i
+		if w := frameNumWrap(d.pics[i].FrameNum, curFN, maxFN); w < mw {
+			m, mw = i, w
 		}
 	}
 	d.pics = append(d.pics[:m], d.pics[m+1:]...)

@@ -1,0 +1,46 @@
+{
+  "tool": "ffprobe 4.4.2 + pactl/pacat 15.99.1 + aplay 1.2.6",
+  "peer": "fftools/ffplay.c audio_open (2578-2640: SDL_OpenAudioDevice + next_nb_channels/next_sample_rates fallback + AUDIO_S16SYS + samples sizing) + sdl_audio_callback (2533-2576: pull audio_decode_frame, error pads silence, memcpy/Mix, re-anchor audclk assuming 2 periods) + audio_decode_frame (2423-2531: peek readable sampq frame, serial match, swr convert, audio_clock follows played PCM) + SDL_PauseAudioDevice start (2814) + thresholds AV_SYNC_THRESHOLD_MIN/MAX 0.04/0.1 (80-86, owned by A2)",
+  "peer_note": "ffmpeg never hand-writes the Pulse wire protocol: audio_open delegates the last hop to SDL (SDL_OpenAudioDevice), exactly like A4 delegates the last hop to the host PCM writer. The Go pull loop mirrors sdl_audio_callback; the sound clock already follows played PCM inside PollAudio (A2). Raw Pulse-native socket stays future work and is NOT claimed here.",
+  "gen": "same committed gate clip as A2 (video/testdata/vr_a2_av.mp4, 77KB): ffmpeg -hide_banner -y -f lavfi -i testsrc=size=320x240:rate=10:duration=5 -f lavfi -i sine=frequency=440:duration=5 -c:v libx264 -profile:v main -pix_fmt yuv420p -bf 0 -g 10 -c:a aac -b:a 64k -ac 2 -ar 44100 -shortest (see video/testdata/a2_ffmpeg.json)",
+  "clip": "vr_a2_av.mp4",
+  "video": {
+    "codec_name": "h264",
+    "profile": "Main",
+    "width": 320,
+    "height": 240
+  },
+  "audio": {
+    "codec_name": "aac",
+    "profile": "LC",
+    "sample_rate": 44100,
+    "channels": 2,
+    "nb_frames": 217,
+    "duration_ms": 5000,
+    "samples": 217,
+    "asc_hex": "121056e500",
+    "mp4a_rate": 44100,
+    "mp4a_channels": 2,
+    "mp4a_bits": 16,
+    "first_packets": [
+      { "size": 140, "pts_ms": 0 },
+      { "size": 168, "pts_ms": 23 },
+      { "size": 140, "pts_ms": 46 }
+    ]
+  },
+  "device_baseline": {
+    "host": "yanghy-pc 2026-09-16",
+    "pulse_server": "15.99.1",
+    "default_sink": "alsa_output.pci-0000_00_1f.3.analog-stereo",
+    "sink_spec": "s16le 2ch 44100Hz",
+    "channel_map": "front-left,front-right",
+    "native_socket": "/run/user/1000/pulse/native",
+    "paplay": "pacat 15.99.1 (libpulse 15.99.0)",
+    "aplay": "aplay 1.2.6",
+    "note": "gate clip PCM (44100/stereo) matches the sink spec exactly, so A4 needs no resample on this host (A3 owns resample); float [-1,1] -> s16le conversion is the only transform, silence on decode error mirrors sdl_audio_callback"
+  },
+  "duration_tolerance_ms": 50,
+  "diff_budget_ms": 200,
+  "sink_preference": ["paplay-pulse", "aplay-alsa", "wav-file"],
+  "pass": "sound-card host: audible play through the host writer (paplay preferred, aplay fallback) with float->s16le exact on vectors, silence on bad packets, device loss pauses with a readable error and keeps the play thread alive for resume; headless host: honest unavailable (no fake green) + WAV chain verifies the same bytes; A2 sync untouched (master=audio, |avdiff|<=200ms)"
+}

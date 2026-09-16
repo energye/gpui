@@ -246,6 +246,55 @@ func TestInterBSAlias(t *testing.T) {
 	}
 }
 
+// Right-half predictor unit: the directional neighbour of P_8x16's
+// right half is C (above-right) with D (above-left) standing in when C
+// is unavailable (spec 8.4.1.3.2). At the picture's right edge C is
+// always out of frame, so reading it raw mispredicts (oceans s100:
+// median (-10,65) instead of D (-8,65), 176 luma diffs in x950-959).
+func TestPred8x16RightEdgeFallback(t *testing.T) {
+	mk := func() *Decoder {
+		d := NewDecoder(nil)
+		d.mbW, d.mbH = 3, 2
+		n4 := d.mbW * 4 * d.mbH * 4
+		d.mvX = make([]int16, n4)
+		d.mvY = make([]int16, n4)
+		d.refIdx = make([]int8, n4)
+		for i := range d.refIdx {
+			d.refIdx[i] = -1
+		}
+		d.refIdx1 = make([]int8, n4)
+		for i := range d.refIdx1 {
+			d.refIdx1[i] = -1
+		}
+		d.mvX1 = make([]int16, n4)
+		d.mvY1 = make([]int16, n4)
+		d.useM = make([]uint8, n4)
+		d.mbSlice = make([]int, d.mbW*d.mbH)
+		return d
+	}
+	put := func(d *Decoder, bx, by int, mx, my int16, ref int8) {
+		i := by*d.mbW*4 + bx
+		d.mvX[i], d.mvY[i], d.refIdx[i] = mx, my, ref
+		d.useM[i] |= useL0
+	}
+	// Right-edge MB (2,1): C (12,3) is out of frame, D (9,3) matches.
+	// A and B also match (flat neighbours), so the median path would
+	// answer (0,0) — only the D fallback gives (-8,65).
+	d := mk()
+	put(d, 9, 4, 0, 0, 0)
+	put(d, 10, 3, 0, 0, 0)
+	put(d, 9, 3, -8, 65, 0)
+	if mx, my := d.pred8x16Right(10, 4, 0); mx != -8 || my != 65 {
+		t.Fatalf("edge right = (%d,%d) want D (-8,65)", mx, my)
+	}
+	// Interior MB (1,1): C (8,3) matches, returns C directly.
+	d2 := mk()
+	put(d2, 8, 3, 5, 6, 0)
+	if mx, my := d2.pred8x16Right(6, 4, 0); mx != 5 || my != 6 {
+		t.Fatalf("interior right = (%d,%d) want C (5,6)", mx, my)
+	}
+}
+
 // Marking unit: reference roster keeps newest-first order, drops
 // disposable pictures, slides the window, and flushes on IDR.
 func TestDPBMarkingOps(t *testing.T) {

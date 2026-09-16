@@ -80,11 +80,40 @@ func (r *Reader) ReadSE() (int32, error) {
 	return int32((v + 1) / 2), nil
 }
 
-// MoreRBSPData is a small heuristic for trailing optional fields: only a
-// stop bit plus alignment (<= 8 bits) means nothing more follows. Callers
-// use it before PPS extension flags. Exact stop-bit walking is overkill
-// for VR1; the rule is documented and covered by tests both ways.
-func (r *Reader) MoreRBSPData() bool { return r.BitsLeft() > 8 }
+// MoreRBSPData reports whether real data remains past the reader: false
+// only when the rest is exactly rbsp_trailing_bits (stop bit plus
+// alignment zeros) or nothing. This is the H.264 spec more_rbsp_data()
+// behind slice_data()'s moreDataFlag. A byte-count heuristic
+// (BitsLeft > 8) wrongly ends dark flat slices whose last macroblock
+// codes in a handful of bits, dropping the final MB (e.g. 1499/1500 on
+// a 960x400 IDR, VR2d-12). Header callers (SPS/PPS/SEI) are unaffected:
+// trailing never exceeds 8 bits, so their old verdicts already match
+// this one.
+func (r *Reader) MoreRBSPData() bool {
+	left := r.BitsLeft()
+	if left <= 0 {
+		return false
+	}
+	if left > 8 {
+		// Trailing is at most 8 bits (stop + alignment), so a longer
+		// tail always holds data.
+		return true
+	}
+	// Eight or fewer bits left: only trailing iff the stop bit is next
+	// and every bit after it is zero.
+	if r.bitAt(r.pos) != 1 {
+		return true
+	}
+	for i := r.pos + 1; i < len(r.data)*8; i++ {
+		if r.bitAt(i) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// bitAt peeks one bit without consuming it.
+func (r *Reader) bitAt(p int) uint32 { return uint32((r.data[p/8] >> uint(7-(p%8))) & 1) }
 
 // AlignToByte skips to the next byte boundary (rbsp alignment).
 func (r *Reader) AlignToByte() {

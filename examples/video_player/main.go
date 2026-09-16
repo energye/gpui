@@ -4,7 +4,9 @@
 //
 // Window: 1200x800, stays open until you close it (RUN_SECONDS only caps
 // automated runs). Opens one clip through the public video API, shows it
-// as one scene rect, and exposes the standard player controls:
+// as one scene rect, sounds it through the host speaker by default
+// (paplay-pulse, aplay-alsa fallback; silent clips and speaker-less
+// hosts just play video), and exposes the standard player controls:
 // play/pause, progress scrub (drag = fast keyframe jumps, release =
 // exact landing), rate 0.25x-4x, frame step, prev/next keyframe,
 // relative jumps. No JSON gate, no FAIL lines: this is the usage sample,
@@ -28,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/energye/gpui/examples/hostsink"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
@@ -124,9 +127,9 @@ func main() {
 		if bufErr != nil {
 			st.fatal(fmt.Sprintf("显存建不起：%v", bufErr))
 		}
-		fileLabel.SetText(fmt.Sprintf("%s  %dx%d  %.1ffps  %s  %d帧  %s/%s",
+		fileLabel.SetText(fmt.Sprintf("%s  %dx%d  %.1ffps  %s  %d帧  %s/%s  %s",
 			shortName(clip), st.info.Width, st.info.Height, st.info.FrameRate,
-			fmtMs(st.durMs), st.info.Frames, st.info.Container, st.info.Codec))
+			fmtMs(st.durMs), st.info.Frames, st.info.Container, st.info.Codec, audioDesc(st.info)))
 		st.status("播放中")
 		playLabel.SetText("暂停")
 	} else {
@@ -153,6 +156,11 @@ func main() {
 	st.replayLabel, st.helpLabel = replayLabel, helpLabel
 	st.openLabel = openLabel
 	st.applyLayout(float64(winW), float64(winH))
+
+	// Sound on by default under a real window (silent clips and
+	// speaker-less hosts just play video; headless tests keep it off).
+	st.enableAudio = true
+	st.startAudio()
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui video_player — 完整播放小样", Decorations: true})
 	if err != nil {
@@ -241,8 +249,11 @@ func main() {
 		}
 	}
 	t0 := time.Now()
-	if err := app.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "运行失败:", err)
+	runErr := app.Run()
+	audioLine := st.audioSummary()
+	st.stopAudio()
+	if runErr != nil {
+		fmt.Fprintln(os.Stderr, "运行失败:", runErr)
 		os.Exit(1)
 	}
 	elapsed := time.Since(t0).Seconds()
@@ -253,8 +264,8 @@ func main() {
 	}
 	app.Close()
 	win.Close()
-	fmt.Fprintf(os.Stderr, "video_player: 关窗 %s 显示=%d 上屏=%d fps=%.1f 用时=%.1fs\n",
-		shortName(clip), st.shown, presents, fps, elapsed)
+	fmt.Fprintf(os.Stderr, "video_player: 关窗 %s 显示=%d 上屏=%d fps=%.1f 用时=%.1fs 音频=%s\n",
+		shortName(clip), st.shown, presents, fps, elapsed, audioLine)
 }
 
 // state is the demo playback state. The engine SeekTo is async by
@@ -267,6 +278,14 @@ type state struct {
 	info   govideo.Info
 	durMs  int64
 	buf    *render.ImageBuf
+
+	// Sound rides along by default: enableAudio is true under a real
+	// window (main sets it), false in headless tests so tests never
+	// spawn a speaker writer. ab owns the pump goroutine; audioNote is
+	// the one-line speaker state for the status label.
+	enableAudio bool
+	ab          *audioBridge
+	audioNote   string
 
 	paused  bool
 	ended   bool
@@ -407,6 +426,9 @@ func (st *state) refreshStatus() {
 	}
 	stats := st.player.Stats()
 	extra := fmt.Sprintf("解码=%d 显示=%d 丢=%d 队列=%d %.1fx%s", stats.Decoded, stats.Shown, stats.Dropped, stats.QueueDepth, stats.Rate, seekingMark(stats.Seeking))
+	if st.audioNote != "" {
+		extra += "  " + st.audioNote
+	}
 	if s == "" {
 		st.statusLabel.SetText(extra)
 	} else {
@@ -455,6 +477,100 @@ func (st *state) refreshTime() {
 	}
 	st.barFill.Width = 1 + ratio*(st.barW-1)
 	st.barFill.MarkNeedsLayout()
+}
+
+// audioBridge owns the speaker pump goroutine for one player: the pump
+// pulls PollAudio on its own thread (the SDL-audio-thread shape) while
+// the UI tick only polls video. Pause/resume/seek need no pump wiring:
+// the engine clocks freeze and travel together, so silence and
+// continuation fall out of PollAudio itself.
+type audioBridge struct {
+	sink hostsink.Sink
+	pump *hostsink.Pump
+	stop chan struct{}
+	done chan struct{}
+}
+
+// startAudio sounds the current clip when there is anything to sound:
+// silent clips and speaker-less hosts just set the note and play video.
+// Safe to call repeatedly (restarts the pump); UI thread only.
+func (st *state) startAudio() {
+	st.stopAudio()
+	st.audioNote = ""
+	p := st.player
+	if p == nil || st.bad != "" {
+		return
+	}
+	if !st.enableAudio {
+		return
+	}
+	if !p.HasAudio() {
+		st.audioNote = "无音轨"
+		st.refreshStatus()
+		return
+	}
+	ai, err := govideo.ProbeAudio(st.clip)
+	if err != nil {
+		st.audioNote = "声音信息读不出，只播画面"
+		st.refreshStatus()
+		return
+	}
+	sink, err := hostsink.NewHostSink(ai.SampleRate, ai.Channels)
+	if err != nil {
+		// Honest skip, same spirit as the A4 window: video plays on.
+		st.audioNote = "无喇叭，只播画面"
+		st.refreshStatus()
+		return
+	}
+	pm := &hostsink.Pump{Sink: sink}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	st.ab = &audioBridge{sink: sink, pump: pm, stop: stop, done: done}
+	go func() {
+		hostsink.PumpLoop(pm, p, stop, func(q hostsink.Sink) bool { return q.Resume() == nil })
+		close(done)
+	}()
+	st.audioNote = "出声 " + sink.Backend()
+	st.refreshStatus()
+}
+
+// stopAudio parks the pump and closes the speaker. Idempotent and
+// nil-safe; call before closing or swapping the player. UI thread only.
+func (st *state) stopAudio() {
+	ab := st.ab
+	st.ab = nil
+	if ab == nil {
+		return
+	}
+	close(ab.stop)
+	<-ab.done
+	ab.sink.Close()
+}
+
+// audioSummary is the one-line sound evidence for the exit log.
+func (st *state) audioSummary() string {
+	if st.ab == nil {
+		if st.audioNote != "" {
+			return st.audioNote
+		}
+		return "无声"
+	}
+	ps := st.ab.pump.Snapshot()
+	return fmt.Sprintf("出声 %s 包=%d", st.ab.sink.Backend(), ps.PlayedPkts)
+}
+
+// audioDesc names the clip's sound for the file label.
+func audioDesc(info govideo.Info) string {
+	if !info.HasAudio {
+		return "无音轨"
+	}
+	ch := "单声道"
+	if info.AudioChannels == 2 {
+		ch = "立体声"
+	} else if info.AudioChannels > 2 {
+		ch = fmt.Sprintf("%d声道", info.AudioChannels)
+	}
+	return fmt.Sprintf("音频 %.1fkHz%s", float64(info.AudioSampleRate)/1000, ch)
 }
 
 // toggle pauses, resumes, or replays from the end.
@@ -877,6 +993,7 @@ func (st *state) openPath(path string) {
 		return
 	}
 	if st.player != nil {
+		st.stopAudio()
 		st.player.Close()
 	}
 	if st.buf != nil {
@@ -893,9 +1010,9 @@ func (st *state) openPath(path string) {
 	st.lastPTS, st.shown = 0, 0
 	st.bad, st.note = "", ""
 	if st.fileLabel != nil {
-		st.fileLabel.SetText(fmt.Sprintf("%s  %dx%d  %.1ffps  %s  %d帧  %s/%s",
+		st.fileLabel.SetText(fmt.Sprintf("%s  %dx%d  %.1ffps  %s  %d帧  %s/%s  %s",
 			shortName(path), st.info.Width, st.info.Height, st.info.FrameRate,
-			fmtMs(st.durMs), st.info.Frames, st.info.Container, st.info.Codec))
+			fmtMs(st.durMs), st.info.Frames, st.info.Container, st.info.Codec, audioDesc(st.info)))
 	}
 	if st.statusLabel != nil {
 		st.statusLabel.SetColor(0.75, 0.85, 0.9, 1)
@@ -907,6 +1024,7 @@ func (st *state) openPath(path string) {
 		st.refreshTime()
 	}
 	st.applyLayout(st.winW, st.winH)
+	st.startAudio()
 	st.status("播放中")
 }
 

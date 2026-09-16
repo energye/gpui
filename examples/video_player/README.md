@@ -15,6 +15,10 @@ go run ./examples/video_player [clip.mp4]
 ## 人眼可见效果
 
 - 中间大画面播视频，底下是播放/重播按钮 + 进度条 + 时间 + 状态。
+- 有音轨的片子默认就出声（喇叭里直接响，状态栏显示“出声 paplay-pulse”）；
+  文件名后面标着音频规格（如“音频 48.0kHz立体声”）。
+- 没音轨的片子照常播画面（标“无音轨”）；没喇叭的机器也照常播画面
+  （标“无喇叭，只播画面”），从不报错卡死。
 - 点按钮、点进度条、敲键盘，画面立刻有反应，不黑不卡死。
 - 窗口随便拉大拉小，画面跟着等比放大缩小，永远不变形，按钮和进度条贴着底边走。
 
@@ -29,8 +33,12 @@ go run ./examples/video_player [clip.mp4]
 
 ## 架构（一句话）
 
-`video` 只出自有帧（宽高 + 像素 + 时间戳），窗侧转成 `render/ImageBuf`
-再送显示：`OpenFile → Poll 取帧 → 行拷贝上墙 → Pause/Resume/SeekTo`。
+`video` 只出自有帧（宽高 + 像素 + 时间戳）和 PCM（采样 + 时间戳），
+窗侧转成 `render/ImageBuf` 送显示、送系统喇叭：
+`OpenFile → Poll 取帧 → 行拷贝上墙 → Pause/Resume/SeekTo`，
+声音另起泵线程 `PollAudio → 转 s16 → paplay/aplay`（`examples/hostsink`
+包，和 A4 门禁窗同路，门禁演习件除外）。
+暂停/变速/跳转不用管泵：引擎双钟同冻同走，泵自己跟上。
 `video` 本体不碰 `render`/`ui`，桥接只在窗侧（合规门禁同 VR 窗）。
 
 ## 不是门禁窗

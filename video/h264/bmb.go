@@ -718,8 +718,16 @@ func (d *Decoder) predB8x16(list int, left bool, px, py int, ref int8) (int16, i
 		}
 		return d.predMotionL(list, 0, px, py, 2, ref)
 	}
-	if mx, my, cr := d.mvNeighbourL(list, px+2, py-1); cr == ref {
-		return mx, my
+	// Right half: directional neighbour is C (above-right) with D
+	// standing in when C is unavailable (spec 8.4.1.3.2, same fix as
+	// the P-side pred8x16Right).
+	if mx, my, cr := d.diagNeighbourL(list, 4, 2, px, py); true {
+		if cr == partNotAvailable {
+			mx, my, cr = d.topLeftNeighbourL(list, px, py)
+		}
+		if cr == ref {
+			return mx, my
+		}
 	}
 	return d.predMotionL(list, 4, px, py, 2, ref)
 }

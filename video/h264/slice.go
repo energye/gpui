@@ -203,10 +203,13 @@ func parsePOCLSB(r *Reader, h *SliceHeader, pps *PPS, sps *SPS) error {
 			_ = d
 		}
 	case 1:
-		// Full poc_type 1 reconstruction needs stream state; record zero
-		// and let the DPB order by frame_num until VR2d wires B reordering.
+		// POC type 1 needs stream state (cumulative frame_num_offset,
+		// spec 8.2.1.2); DecodeFile/Poll path fixes it in fixPOCType12.
 		h.POC = int32(h.FrameNum) * 2
 	case 2:
+		// POC type 2 needs the wrap accumulator too (spec 8.2.1.3
+		// poc = 2*(frame_num_offset + frame_num), minus 1 for
+		// non-reference); fixed in fixPOCType12.
 		h.POC = int32(h.FrameNum) * 2
 	}
 	return nil

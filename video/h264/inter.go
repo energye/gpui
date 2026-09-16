@@ -295,8 +295,18 @@ func (d *Decoder) pred8x16Left(x0, y0 int, ref int8) (int16, int16) {
 }
 
 // pred8x16Right predicts the right half; px is its 4x4 origin (mbX0+2).
+// The directional neighbour is C (above-right) with D (above-left)
+// standing in when C is unavailable (spec 8.4.1.3.2, the same fallback
+// the median path in predMotion applies); a reference match returns it
+// directly. Testing raw C alone mispredicts the rightmost column, where
+// C is always out of picture (oceans s100: median (-10,65) instead of
+// the correct D (-8,65), 176 luma diffs).
 func (d *Decoder) pred8x16Right(px, py int, ref int8) (int16, int16) {
-	if mx, my, cr := d.mvNeighbour(px+2, py-1); cr == ref {
+	mx, my, cr := d.diagNeighbour(4, 2, px, py)
+	if cr == partNotAvailable {
+		mx, my, cr = d.topLeftNeighbour(px, py)
+	}
+	if cr == ref {
 		return mx, my
 	}
 	return d.predMotion(4, px, py, 2, ref)

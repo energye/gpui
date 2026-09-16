@@ -1,0 +1,17 @@
+{
+  "tool": "pure math (s16 wire format); expectations verified against the clamping/rounding rule in sink.go",
+  "rule": "out = round(clamp(v, -1, 1) * 32768), 32768 clamps to 32767; NaN -> 0",
+  "vectors": [
+    { "in": 0.0, "want": 0 },
+    { "in": 1.0, "want": 32767 },
+    { "in": -1.0, "want": -32768 },
+    { "in": 0.5, "want": 16384 },
+    { "in": -0.5, "want": -16384 },
+    { "in": 0.25, "want": 8192 },
+    { "in": -0.25, "want": -8192 },
+    { "in": 2.0, "want": 32767 },
+    { "in": -2.0, "want": -32768 },
+    { "in": 0.000030518509475997192, "want": 1 },
+    { "in": -0.000030518509475997192, "want": -1 }
+  ]
+}

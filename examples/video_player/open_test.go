@@ -112,6 +112,31 @@ func TestOpenPathBadFileKeepsPlaying(t *testing.T) {
 	_ = render.FormatRGBA8
 }
 
+// TestAudioStaysOffHeadless pins the speaker guard: headless openPath
+// (enableAudio false) never spawns a speaker writer, even for a clip
+// with sound — the pump only starts under a real window (main sets
+// enableAudio). stopAudio stays nil-safe.
+func TestAudioStaysOffHeadless(t *testing.T) {
+	st := newHeadlessState(t, resolveTestClip("vr_oceans.mp4"))
+	st.openPath(resolveTestClip("vr_oceans.mp4"))
+	if st.player == nil || st.bad != "" {
+		t.Fatalf("open oceans: player=%v bad=%q", st.player != nil, st.bad)
+	}
+	defer st.player.Close()
+	defer st.buf.Dispose()
+	if !st.player.HasAudio() {
+		t.Fatal("oceans must carry audio for this guard to mean anything")
+	}
+	if st.ab != nil {
+		st.stopAudio()
+		t.Fatal("headless openPath spawned a speaker pump (must stay off in tests)")
+	}
+	st.stopAudio()
+	if st.audioNote != "" {
+		t.Fatalf("headless audioNote = %q, want empty", st.audioNote)
+	}
+}
+
 // TestCleanDropPath pins the file:// defence (normal Files are clean).
 func TestCleanDropPath(t *testing.T) {
 	if got := cleanDropPath("file:///tmp/a.mp4"); got != "/tmp/a.mp4" {

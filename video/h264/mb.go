@@ -110,6 +110,12 @@ type Decoder struct {
 	pocMSB     int32
 	pocPrevLSB int32
 	pocHave    bool
+	// fnOffset/fnPrev accumulate frame_num wraps for poc type 1/2
+	// (spec 8.2.1.2/8.2.1.3: abs = offset + frame_num, bumped when the
+	// number goes backwards). Reset by IDR.
+	fnOffset int64
+	fnPrev   uint32
+	fnHave   bool
 	// CABAC state (VR2c): arithmetic decoder, packed contexts, and the
 	// per-MB side data that neighbour-dependent contexts read.
 	cab     *cabacDec
@@ -217,6 +223,7 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		return fmt.Errorf("%w: F12 interlace sequence frame needs field-aware decoding", ErrStageScope)
 	}
 	d.fixPOC(h, sps)
+	d.fixPOCType12(h, sps)
 	if d.pic == nil {
 		aw, ah := sps.AlignedWidth, sps.AlignedHeight
 		if aw == 0 || ah == 0 {
@@ -503,9 +510,16 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 		d.bDeblockMVX1(), d.bDeblockMVY1(), d.bDeblockRef1(), d.refList1, d.bDeblockUseM())
 	// Sliding-window marking: a reference picture that finds the
 	// buffer full unmarks the oldest short-term before storing.
+	// The victim is picked by wrapped frame number against the picture
+	// being stored (raw comparison evicts the newest after a wrap).
 	if d.curIsRef && d.sps != nil && d.sps.NumRefFrames > 0 {
+		bits, berr := frameNumBits(d.sps)
+		if berr != nil {
+			return nil, berr
+		}
+		maxPicNum := int64(1) << uint(bits)
 		for d.dpb.Len() >= int(d.sps.NumRefFrames) {
-			d.dpb.evictOldest()
+			d.dpb.evictOldest(d.pic.FrameNum, maxPicNum)
 		}
 	}
 	if d.curIsRef {
