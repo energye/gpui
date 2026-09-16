@@ -7,7 +7,7 @@ package typography
 
 import (
 	"math"
-	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render"
@@ -147,6 +147,9 @@ type Typography struct {
 	node     *rendering.RenderBox
 	lastSize rendering.Size
 	lastMaxW float64
+	// paintSnap holds the last UI-thread PaintSnap (T2 D1): paint loads it
+	// instead of reading live fields, so raster never races UI writes.
+	paintSnap atomic.Value
 }
 
 // NewTypography creates a Text node (kind=Text).
@@ -1369,6 +1372,8 @@ func (t *Typography) Layout(c rendering.Constraints) rendering.Size {
 	}
 	lines := t.LineCount()
 	t.lastLines = lines
+	// T2 D1: laid-out string and size refresh the raster snapshot (UI only).
+	t.refreshSnapshot()
 	return sz
 }
 
@@ -1399,6 +1404,8 @@ func (t *Typography) relayout() {
 		return
 	}
 	t.node.MarkNeedsLayout()
+	// T2 D1: layout-affecting change refreshes the raster snapshot (UI only).
+	t.refreshSnapshot()
 }
 
 func (t *Typography) markPaint() {
@@ -1406,84 +1413,11 @@ func (t *Typography) markPaint() {
 		return
 	}
 	t.node.MarkNeedsPaint()
+	// T2 D1: paint-only change refreshes the raster snapshot (UI only).
+	t.refreshSnapshot()
 }
 
 func (t *Typography) paint(pc *rendering.PaintContext, size rendering.Size) {
-	if t == nil || pc == nil || pc.DC == nil {
-		return
-	}
-	w, h := size.Width, size.Height
-	if w <= 0 || h <= 0 {
-		return
-	}
-	tok := t.themeTokens()
-	if t.style.UseBg {
-		rendering.FillRect(pc, 0, 0, w, h, t.style.Bg.R, t.style.Bg.G, t.style.Bg.B, t.style.Bg.A)
-	} else if t.mark {
-		mb := MarkBg()
-		rendering.FillRect(pc, 0, 0, w, h, mb.R, mb.G, mb.B, mb.A)
-	}
-	if t.code {
-		bg := t.CodeBg()
-		rendering.FillRoundRect(pc, 0, 0, w, h, CodeRadius, bg.R, bg.G, bg.B, bg.A)
-	}
-	if t.keyboard {
-		bg := t.CodeBg()
-		rendering.FillRoundRect(pc, 0, 0, w, h, CodeRadius, bg.R, bg.G, bg.B, bg.A)
-		lc := themeToRGBA(tok.ColorBorder)
-		rendering.StrokeRoundRect(pc, 0, 0, w, h, CodeRadius, LineWidth, lc.R, lc.G, lc.B, lc.A)
-	}
-	col := t.EffectiveColor()
-	disp := t.DisplayText()
-	if disp == "" {
-		disp = t.value
-	}
-	fs := t.EffectiveFontSize()
-	if t.face != nil {
-		pc.DC.SetFont(t.face)
-	}
-	pc.DC.SetRGBA(col.R, col.G, col.B, col.A)
-	x := 0.0
-	if t.code || t.keyboard {
-		x = 4
-	}
-	if t.actionsPlacement == PlacementStart {
-		x += t.ActionWidth()
-	}
-	baseline := h/2 + fs*0.35
-	if baseline < fs*0.8 {
-		baseline = fs * 0.8
-	}
-	ax, ay := pc.Abs(x, baseline)
-	// Keep the draw call behind a non-empty check only; without a loaded
-	// face DrawString is a safe no-op and the chrome above carries pixels.
-	if strings.TrimSpace(disp) != "" || disp != "" {
-		pc.DC.DrawString(disp, ax, ay)
-	}
-	tw := t.TextWidth(disp)
-	if t.underline {
-		y := baseline + 2
-		rendering.StrokeLine(pc, x, y, x+tw, y, 1, col.R, col.G, col.B, col.A)
-	}
-	if t.deleted {
-		y := baseline - fs*0.25
-		rendering.StrokeLine(pc, x, y, x+tw, y, 1, col.R, col.G, col.B, col.A)
-	}
-	if t.FocusRingVisible() {
-		rc := themeToRGBA(tok.ColorPrimary)
-		rendering.StrokeRoundRect(pc, -FocusRingOutset, -FocusRingOutset, w+2*FocusRingOutset, h+2*FocusRingOutset, ContainerRadius, 2, rc.R, rc.G, rc.B, rc.A)
-	}
-	// Action slots: small squares so copy/edit/expand presence is paint-visible.
-	n := t.ActionCount()
-	if n > 0 {
-		ax0 := w - float64(n)*(ActionIconSize+ActionGap) + ActionGap
-		if t.actionsPlacement == PlacementStart {
-			ax0 = 0
-		}
-		ay0 := h/2 - ActionIconSize/2
-		ac := themeToRGBA(tok.ColorTextSecondary)
-		for i := 0; i < n; i++ {
-			rendering.FillRect(pc, ax0+float64(i)*(ActionIconSize+ActionGap), ay0, 6, 6, ac.R, ac.G, ac.B, ac.A)
-		}
-	}
+	// T2 D1: raster-safe dispatch — paint from the last UI snapshot only.
+	PaintTypo(pc, size, t.loadSnap())
 }

@@ -36,6 +36,10 @@ type Loop struct {
 
 	// pending is latest-wins when TrySubmit fails (unstarted frame coalesce).
 	pending PendingSlot
+
+	// inRaster marks raster-thread execution for G5 thread assertions.
+	// Set only by exec on the raster OS thread; UI code must observe false.
+	inRaster atomic.Bool
 }
 
 // NewLoop creates a raster loop with the given max in-flight jobs (min 1).
@@ -86,6 +90,9 @@ func (l *Loop) Start() {
 
 func (l *Loop) exec(job FrameJob) {
 	l.inflight.Add(1)
+	// G5: mark raster-thread entry so UI/raster assertions observe it.
+	l.inRaster.Store(true)
+	defer l.inRaster.Store(false)
 	if l.metrics != nil {
 		l.metrics.SetPipeline(int(l.inflight.Load()), l.depth)
 	}
@@ -166,6 +173,64 @@ func (l *Loop) Depth() int {
 		return 0
 	}
 	return l.depth
+}
+
+// OnRasterThread reports whether the caller runs inside a raster FrameJob
+// (G5 thread assertion helper). UI build code must observe false.
+func (l *Loop) OnRasterThread() bool {
+	if l == nil {
+		return false
+	}
+	return l.inRaster.Load()
+}
+
+// AssertRasterThread panics when called off the raster thread.
+// Raster-only work (draw/composite/present) calls this first (G5).
+func (l *Loop) AssertRasterThread() {
+	if l != nil && !l.inRaster.Load() {
+		panic("raster: AssertRasterThread called off raster thread")
+	}
+}
+
+// AssertUIThread is UI convention only (G5): UI build/event code calls it to
+// document thread intent. It cannot enforce with a shared atomic while a raster
+// job runs concurrently on its own OS thread (a global flag would false-fire
+// on the UI thread mid-job), so it is a no-op. The sound direction —
+// AssertRasterThread inside FrameJob.Run — is enforced via inRaster.
+// (T2 lesson: cross-goroutine UI assertion needs goroutine-local state.)
+func (l *Loop) AssertUIThread() {}
+
+// Full reports G4 backpressure: true when the bounded queue holds depth jobs.
+// The UI thread checks this BEFORE building a packet (build-before-place):
+// full means skip this frame's build and retry next vsync instead of wasting
+// a build that SubmitLatest would only park in pending.
+func (l *Loop) Full() bool {
+	if l == nil {
+		return false
+	}
+	return len(l.jobs) >= cap(l.jobs)
+}
+
+// HasPending reports whether an unstarted latest-wins job waits in pending.
+func (l *Loop) HasPending() bool {
+	if l == nil {
+		return false
+	}
+	return l.pending.Has()
+}
+
+// TryReserve is the G4 build-before-place probe: false when the pipeline has
+// no free slot (queue full or pending occupied). True is advisory only — the
+// caller must still SubmitLatest and handle the pending path — but a false
+// lets the UI skip the expensive build entirely for this frame.
+func (l *Loop) TryReserve() bool {
+	if l == nil {
+		return false
+	}
+	if l.Full() || l.pending.Has() {
+		return false
+	}
+	return true
 }
 
 // InFlight returns approximate number of jobs running or queued.

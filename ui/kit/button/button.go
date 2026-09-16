@@ -4,13 +4,13 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/focus"
-	"github.com/energye/gpui/ui/kit/icon"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
 	"github.com/energye/gpui/ui/theme"
@@ -373,6 +373,11 @@ type Button struct {
 	textFace text.Face
 	node     *rendering.RenderBox
 	lastSize rendering.Size
+	// paintSnap holds the last UI-thread PaintSnapshot (T2 D1): OnPaint
+	// closures load it instead of reading live widget fields, so raster
+	// paint never races UI Tick/Pointer/Focus writes. Refresh on every
+	// dirty/layout via refreshSnapshot (snapshot.go).
+	paintSnap atomic.Value
 	// spinNode is the loading-spinner hot region: a nested repaint boundary
 	// sized to the leading slot. Steady spinner frames dirty only this node;
 	// the parent chrome (fill/border/text + dim group) stays cached and the
@@ -420,6 +425,10 @@ func NewButton(label string) *Button {
 	b.node = rendering.NewRenderBox()
 	b.node.SetRepaintBoundary(true)
 	self := b
+	// T2 D1: stable snapshot dispatchers (never replaced after install, so
+	// force-path FlushPaint reads on raster never race UI writes). They load
+	// the last UI refresh and paint from it; refreshSnapshot (dirty/layout)
+	// keeps the value fresh.
 	b.node.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		self.paint(pc, size)
 	}
@@ -2164,6 +2173,7 @@ func (b *Button) Layout(c rendering.Constraints) rendering.Size {
 	b.lastSize = out
 	b.sync()
 	b.syncSpin()
+	b.refreshSnapshot()
 	return b.node.Layout(c)
 }
 
@@ -2222,6 +2232,7 @@ func (b *Button) dirtySpin() {
 	}
 	b.syncSpin()
 	b.spinNode.MarkNeedsPaint()
+	b.refreshSnapshot()
 }
 
 func (b *Button) dirty() {
@@ -2230,6 +2241,7 @@ func (b *Button) dirty() {
 	}
 	b.sync()
 	b.node.MarkNeedsPaint()
+	b.refreshSnapshot()
 }
 
 func (b *Button) relayout() {
@@ -2238,6 +2250,7 @@ func (b *Button) relayout() {
 	}
 	b.node.MarkNeedsLayout()
 	b.node.MarkNeedsPaint()
+	b.refreshSnapshot()
 }
 
 // slots splits the content row into leading/text centers for paint and tests.
@@ -2327,101 +2340,10 @@ func normalizeIconName(s string) string {
 }
 
 func (b *Button) paint(pc *rendering.PaintContext, size rendering.Size) {
-	if pc == nil || size.Width <= 0 || size.Height <= 0 {
-		return
-	}
-	b.lastSize = size
-	w, h := size.Width, size.Height
-	fill, border, text, dashed, hasBorder := b.chrome()
-	// Loading fades the whole button as one group (antd `opacity` on the
-	// loading class): open the layer first, paint chrome at full strength,
-	// composite once. Wave/focus overlays stay outside (undimmed).
-	layered := b.loading && pc != nil && pc.DC != nil
-	if layered {
-		layered = pc.SaveLayer(w, h, b.LoadingOpacity())
-	}
-	radius := b.Radius()
-	if b.shape == ButtonShapeCircle {
-		radius = h / 2
-	}
-
-	// P1 gradient replaces the solid fill (Style.UseBg still wins above).
-	useGradient := b.HasGradient() && !b.ghost && !b.style.UseBg
-	if useGradient {
-		from, to, _ := b.GradientColors()
-		pc.PushClipRRect(0, 0, w, h, radius)
-		rendering.FillLinearGradient(pc, 0, 0, w, h, 0, 0, w, h,
-			from.R, from.G, from.B, from.A, to.R, to.G, to.B, to.A)
-		pc.PopClip()
-	} else if fill.A > 0 {
-		rendering.FillRoundRect(pc, 0, 0, w, h, radius, fill.R, fill.G, fill.B, fill.A)
-	}
-	if hasBorder && w > 2 && h > 2 {
-		if pc.DC != nil && dashed {
-			pc.DC.SetDash(dashOn, dashOff)
-		}
-		rendering.StrokeRoundRect(pc, 0.5, 0.5, w-1, h-1, math.Max(radius-0.5, 0), 1, border.R, border.G, border.B, border.A)
-		if pc.DC != nil && dashed {
-			pc.DC.SetDash()
-		}
-	}
-
-	leadCX, textCX, _, hasLead, hasText := b.slots(w, h)
-	cy := h / 2
-	// Keep the hot-region offset in sync on every paint (paint-safe: offset
-	// write only, no layout, no dirty; sizing stays on UI-thread syncSpin).
-	// The leading slot itself stays empty while loading: the spinner draws
-	// in the spinNode child so steady frames re-record only that layer.
-	if b.spinNode != nil {
-		x, y, _ := b.spinRect()
-		b.spinNode.SetOffset(rendering.Point{X: x, Y: y})
-	}
-	if hasLead && !b.HasSpinner() {
-		lw := b.leadingWidth()
-		ink := b.IconColor()
-		gx, gy := leadCX-lw/2, cy-lw/2
-		icon.PaintGlyph(pc, normalizeIconName(b.iconName), gx, gy, lw, ink, 0)
-	}
-	disp := b.DisplayLabel()
-	if hasText && pc.DC != nil && disp != "" {
-		if b.textFace != nil {
-			pc.DC.SetFont(b.textFace)
-		}
-		pc.DC.SetRGBA(text.R, text.G, text.B, text.A)
-		// ay=0 anchors the text top; center the font-size block in h.
-		top := (h - b.FontSize()) / 2
-		if top < 0 {
-			top = 0
-		}
-		// True-text chain: SetFont above + DrawStringAnchored via Abs coords.
-		ax, ay := pc.Abs(textCX, top)
-		pc.DC.DrawStringAnchored(disp, ax, ay, 0.5, 0)
-	}
-	if layered {
-		pc.RestoreLayer()
-	}
-	// antd Wave: click-triggered expanding shadow (style.ts wave-motion:
-	// box-shadow 0->6px in 0.4s, opacity 0.2->0 in 2s), never for text/link.
-	if spread, alpha, ok := b.WaveProgress(); ok {
-		wc := b.waveColor
-		rendering.StrokeRoundRect(pc, -spread, -spread, w+2*spread, h+2*spread, radius+spread, 2, wc.R, wc.G, wc.B, alpha)
-	}
-
-	// antd genFocusOutline: 3px solid #91caff, offset 1, only
-	// &:not(:disabled):focus-visible (keyboard focus, never pointer focus).
-	if b.FocusRingVisible() {
-		tok := b.themeTokens()
-		ring := themeToRGBA(tok.ColorPrimaryBorder)
-		if ring.A == 0 {
-			ring = parseHexRender("#91caff")
-		}
-		ringWidth := tok.LineWidthFocus
-		if ringWidth <= 0 {
-			ringWidth = 3
-		}
-		rx, ry, rw, rh := focus.FocusRingRect(0, 0, w, h, focusRingOutset)
-		rendering.StrokeRoundRect(pc, rx, ry, rw, rh, radius+focusRingOutset, ringWidth, ring.R, ring.G, ring.B, ring.A)
-	}
+	// T2 D1: raster-safe dispatch — paint from the last UI snapshot only.
+	// Never read live widget fields or write node state here (old body moved
+	// to PaintButton in snapshot.go, pixel-identical for the same inputs).
+	PaintButton(pc, size, b.loadSnapshot())
 }
 
 // paintSpin draws only the loading indicator in the hot-region child
@@ -2431,20 +2353,8 @@ func (b *Button) paint(pc *rendering.PaintContext, size rendering.Size) {
 // only — the spinner is an isolated layer and would otherwise paint full
 // strength while the button dims (antd `opacity` covers the whole button).
 func (b *Button) paintSpin(pc *rendering.PaintContext, size rendering.Size) {
-	if b == nil || pc == nil || size.Width <= 0 || size.Height <= 0 {
-		return
-	}
-	if !b.HasSpinner() {
-		return
-	}
-	ink := b.IconColor()
-	ink.A *= b.LoadingOpacity()
-	angle := b.spinPhase * 360
-	name := "loading"
-	if b.loadingIcon != "" {
-		name = normalizeIconName(b.loadingIcon)
-	}
-	icon.PaintGlyph(pc, name, 0, 0, size.Width, ink, angle)
+	// T2 D1: raster-safe dispatch — spinner from the last UI snapshot only.
+	PaintButtonSpin(pc, size, b.loadSnapshot())
 }
 
 // ContrastRatio flattens fg over bg (sRGB) and returns the WCAG ratio.

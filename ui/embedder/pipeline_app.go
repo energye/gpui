@@ -88,7 +88,10 @@ type PipelineApp struct {
 	quit      atomic.Bool
 	presents  atomic.Int64
 	frameID   atomic.Uint64
-	lastStats scene.RasterStats
+	// lastStats holds the last raster-thread dirty-layer stats (T2: written
+	// on raster, read on UI via LastRasterStats — guarded, never bare).
+	lastStatsMu sync.Mutex
+	lastStats   scene.RasterStats
 	// layoutFrames counts flushes that actually laid out (for S2 gate).
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
@@ -183,6 +186,28 @@ type PipelineApp struct {
 	// oom tracks consecutive OOM-class present failures for the 1.3
 	// exit-instead-of-black-loop contract (raster notes, Run reads).
 	oom oomExit
+
+	// T2 three-thread state (all atomics; UI writes input side, raster writes
+	// completion side, either side reads without locking).
+	// inputSeq counts routed pointer/key/touch/scroll samples (G9 event frame
+	// numbers: each input sample carries a stream number into the frame).
+	inputSeq atomic.Uint64
+	// lastInputFrame is the next frameID expected to carry the last input
+	// (frameID at input time + 1). Raster completion compares against it for
+	// input_latency_frames (T2 door: point-click stays within 2 frames).
+	lastInputFrame atomic.Uint64
+	// completedFrame is the last raster-completed frameID (D5 completion
+	// receipt via the G9 channel: raster stores, UI gates MaxFrames on it).
+	completedFrame atomic.Uint64
+	// completedInputSeq is the inputSeq captured by the last completed frame.
+	completedInputSeq atomic.Uint64
+	// submitted counts UI submissions (for pending_coalesce_drop honesty:
+	// submitted minus completed minus in-flight equals coalesced away).
+	submitted atomic.Int64
+	// coalesceDrop counts SubmitLatest pending replaces (threw unstarted old,
+	// kept new). preDrop counts G4 build-before-place skips (full, not built).
+	coalesceDrop atomic.Int64
+	preDrop      atomic.Int64
 }
 
 // SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
@@ -653,7 +678,20 @@ func (a *PipelineApp) LastRasterStats() scene.RasterStats {
 	if a == nil {
 		return scene.RasterStats{}
 	}
+	a.lastStatsMu.Lock()
+	defer a.lastStatsMu.Unlock()
 	return a.lastStats
+}
+
+// noteRasterStats publishes raster-thread stats for UI readers (T2: raster
+// writes, UI reads — mutex, never bare).
+func (a *PipelineApp) noteRasterStats(st scene.RasterStats) {
+	if a == nil {
+		return
+	}
+	a.lastStatsMu.Lock()
+	a.lastStats = st
+	a.lastStatsMu.Unlock()
 }
 
 // LayoutFlushCount returns how many times layout actually ran during Run.
@@ -670,6 +708,74 @@ func (a *PipelineApp) PresentCount() int64 {
 		return 0
 	}
 	return a.presents.Load()
+}
+
+// CompletedFrameID returns the last raster-completed frameID (D5 receipt).
+func (a *PipelineApp) CompletedFrameID() uint64 {
+	if a == nil {
+		return 0
+	}
+	return a.completedFrame.Load()
+}
+
+// SubmittedCount returns UI submissions (honesty: submitted vs completed).
+func (a *PipelineApp) SubmittedCount() int64 {
+	if a == nil {
+		return 0
+	}
+	return a.submitted.Load()
+}
+
+// PendingCoalesceDrops returns SubmitLatest pending replaces plus G4 pre-drops.
+func (a *PipelineApp) PendingCoalesceDrops() (pending, pre int64) {
+	if a == nil {
+		return 0, 0
+	}
+	return a.coalesceDrop.Load(), a.preDrop.Load()
+}
+
+// NoteInputEvent stamps one routed input sample with a G9 stream number.
+// Call on the UI thread for each pointer/key/touch/scroll sample; the next
+// built frame carries this seq so raster completion can measure
+// input-to-present frames.
+func (a *PipelineApp) NoteInputEvent() {
+	if a == nil {
+		return
+	}
+	a.inputSeq.Add(1)
+	// Next frameID to be built carries this input (frameID not yet Add(1)).
+	a.lastInputFrame.Store(a.frameID.Load() + 1)
+}
+
+// InputLatencyFrames returns completedFrame minus inputFrame plus 1 for the
+// last input (0 when no input or completion has not caught up yet).
+func (a *PipelineApp) InputLatencyFrames() int64 {
+	if a == nil {
+		return 0
+	}
+	inp := a.lastInputFrame.Load()
+	if inp == 0 {
+		return 0
+	}
+	comp := a.completedFrame.Load()
+	if comp < inp {
+		return 0
+	}
+	return int64(comp-inp) + 1
+}
+
+// cloneFrameBudget returns a per-frame SaveLayer budget copy (D14 single-side
+// decision): the shared template carries only MaxOps/MaxArea config and is
+// never mutated; each frame clones its own budget for packet extras and its
+// raster job alone, so consecutive frames never share mutable ops/area.
+func cloneFrameBudget(shared *rendering.SaveLayerBudget) *rendering.SaveLayerBudget {
+	if shared == nil {
+		return nil
+	}
+	return &rendering.SaveLayerBudget{
+		MaxOps:  shared.MaxOps,
+		MaxArea: shared.MaxArea,
+	}
 }
 
 // ScheduleFrame requests a frame.
@@ -930,6 +1036,11 @@ func (a *PipelineApp) Run() error {
 				if ev.Type == platform.EventStateChanged {
 					a.handleLifecycle(input.FromPlatform(ev, input.Modifiers{}))
 				}
+				// G9: stamp every routed input sample with a stream number so
+				// raster completion can measure input-to-present frames.
+				if ev.Type == platform.EventPointer || ev.Type == platform.EventKey || ev.Type == platform.EventTouch {
+					a.NoteInputEvent()
+				}
 				a.input.RoutePlatform(ev)
 				continue
 			}
@@ -1084,6 +1195,19 @@ func (a *PipelineApp) Run() error {
 			continue
 		}
 
+		// T2 G4 build-before-place: pipeline full means skip this frame's
+		// expensive layout and build entirely and retry next vsync (Flutter
+		// Pipeline.Produce fails when full). SubmitLatest would only park in
+		// pending — do not waste a build to throw the old one away.
+		if a.loop != nil && !a.loop.TryReserve() {
+			a.preDrop.Add(1)
+			continue
+		}
+		// T2 G5: UI-only section must never run on the raster thread.
+		if a.loop != nil {
+			a.loop.AssertUIThread()
+		}
+
 		// Layout only if dirty (S2: spinner phase must not layout).
 		// Apply a deferred resize at the frame boundary, exactly once per
 		// frame (Flutter/Skia model): the drag storm only records the latest
@@ -1146,7 +1270,10 @@ func (a *PipelineApp) Run() error {
 		// CountPictureOps / TreeMeasureCacheStats passes. Those helpers stay
 		// for other callers.
 		a.pipe.UpdateCompositingBits()
-		pkt, fbStats := rendering.BuildFramePacketWithSaveLayerStats(a.root, frameID, scale, float64(w), float64(h), a.saveStats, a.saveBudget)
+		// T2 D14 single-side budget: shared template never mutates; each
+		// frame clones its own budget for packet extras plus raster job alone.
+		frameBudget := cloneFrameBudget(a.saveBudget)
+		pkt, fbStats := rendering.BuildFramePacketWithSaveLayerStats(a.root, frameID, scale, float64(w), float64(h), a.saveStats, frameBudget)
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d viewport=%dx%d dirty=%v\n", frameID, w, h, pkt.DirtyLayerIDs)
 		}
@@ -1172,16 +1299,13 @@ func (a *PipelineApp) Run() error {
 		// clearing there can wipe a mark made after this build (lost update,
 		// e.g. a scroll-band expiry that then never re-records).
 		a.pipe.ConsumeNeedsPaint()
-		hitchRasterStart := time.Now()
-		stats := scene.RasterizeDirty(pkt)
-		if os.Getenv("HITCH_DIAG") == "1" {
-			HitchNoteStageUI("rasterize", time.Since(hitchRasterStart))
-		}
-		a.lastStats = stats
-		a.sched.Metrics().NoteBuildMs(time.Since(t0).Seconds() * 1000)
+		// T2 main move: RasterizeDirty (dirty walk plus NeedsRaster clear plus
+		// RasterExtra texture record via CompositeFramePacketTextured) now runs
+		// inside the raster FrameJob below. UI builds the packet and returns to
+		// the event loop immediately — never blocks on Present.
+		buildMs := time.Since(t0).Seconds() * 1000
+		a.sched.Metrics().NoteBuildMs(buildMs)
 		if m := a.sched.Metrics(); m != nil {
-			m.SetRasterLayerCount(int64(stats.RasterLayerCount))
-			m.SetFilterLayerCount(lastFiltersApplied.Load())
 			// Wave P0: wire cumulative layout/paint flush counters into JSON metrics.
 			if a.pipe != nil {
 				m.SetLayoutCount(a.pipe.LayoutCount)
@@ -1223,11 +1347,10 @@ func (a *PipelineApp) Run() error {
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d comp=%v force=%v recov=%v\n", frameID, compositeOnly, force, a.inFullRecovery())
 		}
-		// Retained textured path: drop stale layer textures on force frames
-		// (bootstrap/resize) so the next retained frame re-records everything.
-		if compositeOnly && a.pictureTex != nil && a.target != nil {
-			a.pictureTex.EndFrame()
-		}
+		// Retained textured path: texture-cache frame reset moved into the
+		// raster job (T2: UI never touches pictureTex; raster serializes
+		// EndFrame and BeginFrame with record and composite, so per-frame
+		// counters cannot be clobbered by a UI running ahead).
 		// Force frames (bootstrap/resize) paint the whole tree directly and do
 		// NOT clear the texture cache: layer views survive a resize (each entry
 		// rebuilds itself on size mismatch) and unchanged layers blit their old
@@ -1235,10 +1358,38 @@ func (a *PipelineApp) Run() error {
 		// 58-layer re-record wave per resize step while dragging — re-record
 		// frames stall 60ms–1.5s because every layer submits independently.
 		jobFrameID := a.frameID.Load()
+		jobInputSeq := a.inputSeq.Load()
 		job := raster.FrameJob{
 			Run: func() error {
+				// T2 G5: raster-only section asserts its thread.
+				if a.loop != nil {
+					a.loop.AssertRasterThread()
+				}
 				if os.Getenv("HITCH_DIAG") == "1" {
 					HitchSpanMark(jobFrameID, "run_start")
+				}
+				// T2 G10 raster stamps: bracket draw and present on this thread
+				// (build stamps were taken on UI at BuildPacket; T1 left these
+				// zero until wired here).
+				if pkt != nil {
+					pkt.MarkRasterBegin()
+				}
+				// T2 main move: dirty walk plus NeedsRaster clear on raster only
+				// (D2/D12 single writer — UI never touches NeedsRaster now,
+				// shared layers stay read-only except here, serialized).
+				var stats scene.RasterStats
+				if pkt != nil {
+					stats = scene.RasterizeDirty(pkt)
+					a.noteRasterStats(stats)
+				}
+				if m := a.sched.Metrics(); m != nil {
+					m.SetRasterLayerCount(int64(stats.RasterLayerCount))
+					m.SetFilterLayerCount(lastFiltersApplied.Load())
+				}
+				// Per-frame texture-cache reset for the retained path,
+				// serialized here with the composite below (see above).
+				if compositeOnly && a.pictureTex != nil && target != nil {
+					a.pictureTex.EndFrame()
 				}
 				var frameDraws int64
 				var frameVisits int64
@@ -1248,7 +1399,7 @@ func (a *PipelineApp) Run() error {
 					paintVisits:   &frameVisits,
 					compositeOnly: compositeOnly,
 					layerStats:    a.saveStats,
-					layerBudget:   a.saveBudget,
+					layerBudget:   frameBudget,
 				}
 				var out render.PresentOutcome
 				var err error
@@ -1324,6 +1475,20 @@ func (a *PipelineApp) Run() error {
 				// End of job: run any §2.7 snapshot requests — after present completed, so
 				// readback sees this frame's composited pixels and cannot race the swapchain.
 				a.drainSnapshots()
+				// T2 G10/G12/D5: close raster stamps, run EndFrame hooks on
+				// raster, then publish the D5 completion receipt (G9 channel)
+				// so UI gates MaxFrames on completed presents, not submits.
+				if pkt != nil {
+					pkt.MarkRasterEnd()
+					for _, h := range pkt.PostFrameHooks {
+						if h != nil {
+							h(jobFrameID)
+						}
+					}
+				}
+				a.completedFrame.Store(jobFrameID)
+				a.completedInputSeq.Store(jobInputSeq)
+				a.presents.Add(1)
 				if os.Getenv("HITCH_DIAG") == "1" {
 					FrameDone(jobFrameID)
 				}
@@ -1339,8 +1504,11 @@ func (a *PipelineApp) Run() error {
 		if os.Getenv("HITCH_DIAG") == "1" {
 			HitchSpanMark(jobFrameID, "submit")
 		}
-		_ = a.loop.SubmitLatest(job)
-		a.presents.Add(1) // count submit as frame produced; present completes on raster thread
+		a.submitted.Add(1)
+		if !a.loop.SubmitLatest(job) {
+			// Backpressure parked in pending (threw unstarted old, kept new).
+			a.coalesceDrop.Add(1)
+		}
 		a.sched.ClearPending()
 		// Keep scheduling while a ticker wants per-frame rendering
 		// (animations; legacy default). Registered-but-quiet pumps (blink,

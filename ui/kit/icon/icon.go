@@ -3,6 +3,7 @@ package icon
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
@@ -263,6 +264,9 @@ type Icon struct {
 
 	node     *rendering.RenderBox
 	attached *scheduler.TickerRegistry
+	// paintSnap holds the last UI-thread PaintSnap (T2 D1): paint loads it
+	// instead of reading live fields, so raster never races UI writes.
+	paintSnap atomic.Value
 }
 
 // NewIcon creates an icon for name (unknown names render a placeholder).
@@ -648,6 +652,8 @@ func (ic *Icon) syncNode() {
 	s := ic.EffectiveSize()
 	ic.node.FixedWidth = s
 	ic.node.FixedHeight = s
+	// T2 D1: every size/state sync refreshes the raster snapshot (UI only).
+	ic.refreshSnapshot()
 }
 
 func (ic *Icon) dirty() {
@@ -659,32 +665,8 @@ func (ic *Icon) dirty() {
 }
 
 func (ic *Icon) paint(pc *rendering.PaintContext, size float64) {
-	if pc == nil || size <= 0 {
-		return
-	}
-	base := ic.EffectiveColor()
-	primary, secondary := ic.TwoToneColors()
-	cx, cy := size/2, size/2
-	pc.Save()
-	pc.RotateAbout(ic.EffectiveAngle()*math.Pi/180, cx, cy)
-	if ic.painter != nil {
-		ic.painter(pc, size, primary, secondary)
-		pc.RestoreCanvas()
-		return
-	}
-	if p, ok := ic.family.lookupPainter(ic.name); ok && p != nil {
-		p(pc, size, primary, secondary)
-		pc.RestoreCanvas()
-		return
-	}
-	d, ok := ic.resolveDef()
-	if !ok {
-		drawPlaceholder(pc, size, base)
-		pc.RestoreCanvas()
-		return
-	}
-	drawGlyph(pc, ic.name, size, base, primary, secondary, d.TwoTone)
-	pc.RestoreCanvas()
+	// T2 D1: raster-safe dispatch — paint from the last UI snapshot only.
+	PaintIcon(pc, size, ic.loadSnap())
 }
 
 // PaintGlyph draws one registered glyph in a size×size box whose top-left
