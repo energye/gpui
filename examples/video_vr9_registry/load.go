@@ -12,7 +12,8 @@ import (
 
 // registryState is the VR9 gate: everything through the tables —
 // probe names, capability lists, same-clip play via registry, a second
-// decoder plugged purely via RegisterDecoder, and readable failures for
+// decoder plugged purely via RegisterDecoder, H.265 headers through the
+// V2-1 entry (box + hvcC + readable refusal), and readable failures for
 // unknown shell/codec/sampling. Numbers always come from the real
 // registry calls, never hand-written.
 type registryState struct {
@@ -39,6 +40,17 @@ type registryState struct {
 	badCodecErr  string
 	badColorErr  string
 	badShellKind string
+	// V2-1 H.265 proof (headers only, no pixels).
+	h265Codec   string
+	h265Profile string
+	h265Level   int
+	h265Length  int
+	h265VPS     int
+	h265SPS     int
+	h265PPS     int
+	h265Samples int
+	h265Units   int
+	h265Kind    string
 	// Case counters.
 	pass  int
 	total int
@@ -99,8 +111,8 @@ func loadRegistry(name, mp4Path string) *registryState {
 	}
 	st.container, st.codec = container, codec
 	st.check("探测", container != "" && codec != "", fmt.Sprintf("容器=%q 编码=%q", container, codec))
-	// 2. capability lists carry the first-stage set.
-	hasC, hasD, hasS := false, false, false
+	// 2. capability lists carry the first-stage set plus the V2-1 H.265 entry.
+	hasC, hasD, hasH265, hasS := false, false, false, false
 	for _, s := range govideo.SupportedContainers() {
 		if s == "mp4" {
 			hasC = true
@@ -110,13 +122,16 @@ func loadRegistry(name, mp4Path string) *registryState {
 		if s == "h264" {
 			hasD = true
 		}
+		if s == govideo.CodecH265 {
+			hasH265 = true
+		}
 	}
 	for _, s := range govideo.SupportedSamplings() {
 		if s == color.SamplingYUV420P {
 			hasS = true
 		}
 	}
-	st.check("能力查询", hasC && hasD && hasS,
+	st.check("能力查询", hasC && hasD && hasH265 && hasS,
 		fmt.Sprintf("容器%v 编码%v 采样%v", govideo.SupportedContainers(), govideo.SupportedCodecs(), govideo.SupportedSamplings()))
 	// 3. same clip walks the registry into a full play to Ended.
 	p, err := govideo.OpenFile(mp4Path, govideo.Options{})
@@ -216,7 +231,39 @@ func loadRegistry(name, mp4Path string) *registryState {
 	_, serr := color.Convert("bogus-sampling-xxx", []byte{1}, []byte{1}, []byte{1}, 2, 2, color.Options{})
 	st.badColorErr = fmt.Sprint(serr)
 	st.check("坏采样可读", serr != nil && errors.Is(serr, color.ErrUnsupportedSampling), fmt.Sprintf("错=%v", serr))
+	// 8. V2-1 H.265 headers walk the registry: probe names the h265 entry,
+	// the hvcC parses, samples split, and the open refuses readably
+	// (headers only, pixels belong to V2-2), zero crash.
+	st.checkH265()
 	return st
+}
+
+// checkH265 is the V2-1 registry proof on the tracked H.265 clip. It only
+// appends H.265 evidence; H.264 gates above keep their verdicts.
+func (st *registryState) checkH265() {
+	path := resolveClip("v2_h265.mp4")
+	container, codec, err := govideo.ProbeFile(path)
+	if err != nil {
+		st.check("H265探测", false, fmt.Sprintf("探测失败: %v", err))
+		return
+	}
+	st.h265Codec = codec
+	st.check("H265探测", container == "mp4" && codec == govideo.CodecH265,
+		fmt.Sprintf("容器=%q 编码=%q", container, codec))
+	mv, err := govideo.ProbeH265Headers(path)
+	if err != nil {
+		st.check("H265头", false, fmt.Sprintf("读头失败: %v", err))
+		return
+	}
+	st.h265Profile, st.h265Level, st.h265Length = mv.Profile, mv.Level, mv.LengthSize
+	st.h265VPS, st.h265SPS, st.h265PPS = mv.VPS, mv.SPS, mv.PPS
+	st.h265Samples, st.h265Units = mv.Samples, mv.Units
+	st.check("H265头", mv.Width == 96 && mv.Height == 96 && mv.Samples == 5 && mv.VPS == 1 && mv.SPS == 1 && mv.PPS == 1 && mv.Units >= mv.Samples,
+		fmt.Sprintf("%dx%d %d采样 头%d/%d/%d 单元%d", mv.Width, mv.Height, mv.Samples, mv.VPS, mv.SPS, mv.PPS, mv.Units))
+	_, oerr := govideo.OpenFile(path, govideo.Options{})
+	st.h265Kind = govideo.Classify(oerr).Kind
+	st.check("H265可读错", oerr != nil && govideo.Classify(oerr).Kind == govideo.KindH265,
+		fmt.Sprintf("错=%v", oerr))
 }
 
 func resolveClip(name string) string {
@@ -237,5 +284,6 @@ func (st *registryState) infoLines() []string {
 		fmt.Sprintf("能力 容器%v 编码%v", govideo.SupportedContainers(), govideo.SupportedCodecs()),
 		fmt.Sprintf("注册播 %d帧到结尾=%v p95%.1fms", st.decoded, st.ended, st.decodeP95),
 		fmt.Sprintf("桩解码 灰桩%v 不改核心 %d/%d", st.stubOK, st.pass, st.total),
+		fmt.Sprintf("H265 头%s/等级%d/长%d 头%d/%d/%d %d采样%d单元 %s", st.h265Profile, st.h265Level, st.h265Length, st.h265VPS, st.h265SPS, st.h265PPS, st.h265Samples, st.h265Units, st.h265Kind),
 	}
 }

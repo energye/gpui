@@ -113,11 +113,12 @@ func main() {
 		liveImg = rendering.NewRenderImage(480, 270)
 		shell.Body.LabelAt("直播（同片走注册表循环，不黑不花）", 13, 20, 180, 0.6, 0.8, 0.95)
 		shell.Body.Place(liveImg, 20, 206)
-		shell.Body.LabelAt(fmt.Sprintf("注册用例 %d/%d（探测+能力+注册名+播出+灰桩+三坏例）", st.pass, st.total), 12, 520, 206, 0.72, 0.8, 0.9)
+		shell.Body.LabelAt(fmt.Sprintf("注册用例 %d/%d（探测+能力+注册名+播出+灰桩+三坏例+H265三项）", st.pass, st.total), 12, 520, 206, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏盒：%s", shortErr(st.badShellErr, 40)), 12, 520, 232, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏编码：%s", shortErr(st.badCodecErr, 40)), 12, 520, 258, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏采样：%s", shortErr(st.badColorErr, 40)), 12, 520, 284, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("灰桩像素 R=%d G=%d B=%d", st.stubR, st.stubG, st.stubB), 12, 520, 310, 0.72, 0.8, 0.9)
+		shell.Body.LabelAt(fmt.Sprintf("H265 %s/等级%d/长%d %d单元 %s", st.h265Profile, st.h265Level, st.h265Length, st.h265Units, st.h265Kind), 12, 520, 334, 0.72, 0.8, 0.9)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -397,6 +398,12 @@ type report struct {
 	ProbeContainer     string  `json:"probe_container"`
 	ProbeCodec         string  `json:"probe_codec"`
 	StubOK             int     `json:"stub_ok"`
+	H265Codec          string  `json:"h265_codec"`
+	H265Profile        string  `json:"h265_profile"`
+	H265Level          int     `json:"h265_level"`
+	H265LengthSize     int     `json:"h265_length_size"`
+	H265Units          int     `json:"h265_units"`
+	H265Kind           string  `json:"h265_kind"`
 	LastVar            float64 `json:"last_var"`
 
 	TimeToFirstFrameMs float64 `json:"time_to_first_frame_ms"`
@@ -441,7 +448,10 @@ func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, s
 		SPSOk: 1, PPSOk: 1, FramesSplit: int64(st.frames), YUVReady: yuvReady, ColorDiffPerChannel: 0, PixelGoldenDiffPct: 0,
 		Clips: st.name, Profile: "",
 		RegistryCasesPass: st.pass, RegistryCasesTotal: st.total,
-		ProbeContainer: st.container, ProbeCodec: st.codec, StubOK: stubOK, LastVar: lastVar,
+		ProbeContainer: st.container, ProbeCodec: st.codec, StubOK: stubOK,
+		H265Codec: st.h265Codec, H265Profile: st.h265Profile, H265Level: st.h265Level,
+		H265LengthSize: st.h265Length, H265Units: st.h265Units, H265Kind: st.h265Kind,
+		LastVar:            lastVar,
 		TimeToFirstFrameMs: snap.TimeToFirstPresentMs,
 		PresentCount:       presents, PaintCount: snap.PaintCount,
 		DecodeError: gateErr, Source: st.path,
@@ -471,7 +481,8 @@ var requiredKeys = []string{
 	"rss_start_kb", "rss_end_kb", "rss_peak_kb", "rss_slope_kb_per_min", "mem_cap_kb", "gc_pauses_ms_p99", "heap_alloc_MB",
 	"gpu_ops", "cpu_fallback_ops", "last_cpu_fallback",
 	"sps_ok", "pps_ok", "frames_split", "yuv_ready", "color_diff_per_channel", "pixel_golden_diff_pct",
-	"clips", "profile",
+	"clips", "profile", "registry_cases_pass", "registry_cases_total",
+	"h265_codec", "h265_profile", "h265_level", "h265_length_size", "h265_units", "h265_kind",
 	"time_to_first_frame_ms", "present_count", "paint_count", "decode_error",
 }
 

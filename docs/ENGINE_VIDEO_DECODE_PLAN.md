@@ -548,6 +548,7 @@ VW0 → VW1 → VW2 → VW3
 | v0.81 STEP-4封口 | §6.3 STEP-4（零代码改动，只动文档）：真窗RUN15显示319/上屏432/fps_wall 25.4/音频669包（内容约0.89x，改前0.34x约2.6x）+ 墙钟双线程诊断15秒0.90x/丢6/差229毫秒（手钟门禁播头差36毫秒绿，229是含吞吐的墙钟数）+ 回归21组19绿（A2跳转批量1红后单跑3/3绿系负载毛刺，VR7D-1080p红3/3系已知9~13毫秒负载带认账红，`h264`整包绿）；§6.2对账0.35→约0.90，剩约10%负载盒余量转S1长活，同步bug已除；公开API零增删（§7免同步）；§2/§5 VW0–VW3状态不动，其余§12行不动。 |
 | v0.82 S1-VR7D收敛 | §6.3 S1行（只动`video/player.go`计时口径，像素零碰）：`openBuffered`批量5帧共用一对墙钟读数（均值入5槽，avg==p95），门禁6/6绿（改前同代码5连2绿3红）；AVX2核试后整体回退（ymm拓宽编成AVX512本机SIGILL，`convert_avx2.s`已删，SSE4.1基线复绿）；回归（`color`+VR7D/T/M+VR2十四片+`h264`整包+VR3/4+播放器核心+A1波形+A2五项+`video_player`示例全绿）+ 真窗15秒fps 25.9满帧未回退；8.8毫秒预算一字未动（不降预算）；公开API零增删（§7免同步）；§2/§5 VW0–VW3状态不动，其余§12行不动。 |
 | v0.83 S1-arm64插值去块双核 | §12 S1项（只动S1一项）：`video/h264`之arm64 NEON插值行核（`qpel_arm64.s`单遍8像素/迭代出未舍入6抽头和+H8一存 + `qpel_arm64.go`与amd64同门同骨架Go内舍入/平均/垂直 + `predict_arm64.go`经共享分发 + `qpel_fallback.go`收敛到`!amd64 && !arm64`）+ arm64 NEON去块四核（`deblock_arm64.s`横竖×弱/强H4直读写画面 + `deblock_arm64.go`直传画面指针 + `deblock_fallback.go`同收敛）+ 门禁同收敛（`qpel_s1_test.go`/`deblock_s1_test.go`取数条件加arm64）；对等 `libavcodec/h264qpel_template.c:317-460`行入暂存再垂直/平均 + `x86/h264_qpel_8bit.asm`向量实例 + `libavcodec/h264_loopfilter.c:100-135`边驱动 + `x86/h264dsp_init.c:216-252`分发 + `x86/h264_deblock.asm`向量实例 + `aarch64/h264dsp_neon.S`之`ff_h264_v/h_loop_filter_luma_neon`与`_intra_neon`同横竖分核（见门禁与源码头注释；只学语义不搬代码）；公开API零增删（全小写，§7免同步）；三道（Docker arm64真跑插值6门禁+去块Dispatch/Taken/ZeroAlloc+真片首帧分发==标量逐位绿 + 本机`video/h264`整包+VR2十四片+三档大片+S2/CABAC/切片头/VR1/VR2对等绿/`vet`+amd64/386/arm/arm64四架构构建过，只验对不计时）全过；§2/§5 VW0–VW3状态不动，§12 S1行与顺序16同步（仍🟨；真窗补验2026-09-17：VR2 RUN15解15/差异0/上屏872/fps57.5绿 + VR4 RUN30解15/显示215/零丢/上屏1744/fps57.9绿，本机amd64老路无回退，S1仍🟨待VR7-D与arm真机计时）。 |
+| v0.84 V2-1头最小闭环 | §12 V2项（只动V2一项，H.264像素零碰）：新包`video/h265`（`h265.go`之hvcC解析+切分+NAL头+`decode.go`头解码器诚实拒像素，`doc.go`对等注）+ `video/mp4`认hvc1/hev1存`HEVCConfig`（`types.go`新字段+`demux.go`三处落盘，avcC路逐位不动，合成hvc1用例）+ 注册`h265`名（`registry.go`之`CodecH265`+`h265Decoder`+`mp4Open`双门，`TestNoHardcodedNames`熔断仍绿）+ `video/v2_headers.go`之`ProbeH265Headers`头接口 + `video/player.go`之H.265头路（`hvcc`字段+`openH265Headers`诚实错，H.264三路逐位不动，`Info`容错守卫）+ `video/fault.go`新桶`KindH265` + 基线`video/testdata/v2_ffmpeg.json`（96x96/5帧/4.8KB进仓，ffprobe+yuv md5+bench全入库，yuv只做V2-2对照源）+ 门禁`video/h265/v2_ffmpeg_test.go`4项绿（头/切分/拒像素/坏盒）+ `video/registry_test.go`能力含h265 + `video/fault_test.go`新桶+H.265三项 + 真窗`examples/video_vr9_registry` RUN15绿（注册11/11/播出5/直播75/上屏866/fps56.9/p95 19.8毫秒/H.265探测头可读错三项全绿+JSON六新键，§2.2全族齐；README门禁同步11项）；对等 `libavcodec/hevc/parse.c:79 ff_hevc_decode_extradata` + `hevcdec.c:4190 hevc_decode_init` + `:4271 ff_hevc_decoder` + `libavformat/mov.c:3419`（见源码与门禁头注释；只学语义不搬代码）；公开API同步（§7：新增 `CodecH265`/`KindH265`/`H265Headers`/`ProbeH265Headers`/`Track.HEVCConfig`，回写本文）；三道（H.264像素：`video/h264`整包+`video`根A1/A2/VR3-6/播放搜流容错注册稳态池+`mp4`/`color`/`clock`绿 + 对等门禁：V2四项+H.265桶+mp4合成+注册能力绿 + `vet`+`CGO_ENABLED=0`构建+`gofmt`干净）全过；A2跳转批量偶发1红（`first video=-1`，单跑5/6绿，负载毛刺，V2零碰A2，与V2无关未动）+ VR7-D连跑3/3绿（本轮无抖动）；§2/§5 VW0–VW3状态不动，其余§12行不动（B2/B3/P3未动）；§11.2 V2差距行同步头通，§12 V2行与顺序22标🟨（像素V2-2另开）。 |
 
 ---
 
@@ -576,7 +577,7 @@ VW0 → VW1 → VW2 → VW3
 | # | 生产级要求（说人话） | 我们现在 | 差距 |
 |---|---------------------|----------|------|
 | V1 | H.264 等级放宽到 4K 档（6.x），高等级片能开 | 等级卡 1–5.2，超限 fail fast | 等级上限是“打不开 4K”级缺口 |
-| V2 | H.265 / VP9 / AV1 新编码能解 | 无（注册表已留解码器插槽，未注册） | 每加一种等于重写一个解码器，最大坑 |
+| V2 | H.265 / VP9 / AV1 新编码能解 | V2-1头已通（2026-09-17，见§12 V2行）：盒子认hvc1/hev1、hvcC解析、注册h265名、播报人话错不崩；像素仍无（V2-2） | 头通像素仍缺，最大坑已开工一半 |
 | V3 | 10 位深色 / HDR 片颜色不错 | 只有 8 位 `yuv420p`，10 位与 HDR 无管线 | 颜色管线缺口 |
 | V4 | 隔行片能看（老采集卡/电视信号） | F12 只认出并报人话错，不解 | 罕见制式三条件留档，未解码 |
 
@@ -726,7 +727,7 @@ VW0 → VW1 → VW2 → VW3
 | A1 | VW6 有声音 | AAC 先行（新包 + 音轨采样表 + 注册） | 🟨 进行中 | 落地2绿（2026-09-16，见§10 v0.73）：谱全通（ICS/段划分/反量化 + Huffman1-11/ESC + M/S/强度/噪声 + TNS + 折叠IMDCT + 四窗交叠，LC立体声1024线）+ `DecodePacket`出真PCM（`ErrSpectralTodo`哨兵退役）+ 波形门禁`video/a1_pcm_test.go`（双仓片头8帧对ffmpeg f32le：oceans逐位一致/f42906 rms 3e-8，线1e-6/1e-5）+ `TestA1AudioInfo`改断真PCM；PCM已出，A2可开 |
 | A2 | VW6 有声音 | 音画对齐（PCM 队列 + 第二时钟 + 双队同 serial） | 🟩 已完成 | 落地绿（2026-09-16，见§10 v0.74）：声领画随（有声片音频主钟/静音回落视频）+ 双队同序号（一次seek双针同搬）+ 变速暂停双钟同走 + 基线`video/testdata/a2_ffmpeg.json` + 门禁`video/a2_ffmpeg_test.go`5项绿 + 真窗`examples/video_a2_sync` RUN15两连绿（对齐8/8/直播111/音约458/差≤170/跳3/恢复≤273ms/上屏约690） |
 | A4 | VW6 有声音 | 宿主音频桥接（系统输出 + 插拔处理） | 🟩 已完成 | 落地绿（2026-09-16，见§10 v0.75）：宿主侧桥接（`examples/video_a4_sink`，`video`零改动，§4纪律）+ 对等`ffplay.c`音频三件（见源码头注释）+ 基线`video/testdata/a4_ffmpeg.json`（同A2门禁片，LC/44.1k/双声道/217包/ASC121056e500/320x240，阈值与差预算沿A2线；本地声卡s16le 2ch 44100Hz，paplay优先/aplay兜底/WAV链；手写Pulse线协议不抄SDL未做，见基线peer_note）+ 门禁`examples/video_a4_sink`6项绿（壳1/向量11/链1/泵1/备1/拔线1，headless可跑，无喇叭诚实跳过不装绿）+ 真窗`examples/video_a4_sink` RUN15复验绿（2026-09-16：探针15/15/播134/音583/主audio/差≤39/拔线杀→停→恢/上屏567/`gpu_backend=integrated`零回退/`display_backend=x11`/§2.2全族齐；报告新增诚实遥测键：队列水位/追帧丢帧/时钟漂移/转色耗时/音频编解水位走播放器真值，构建光栅耗时与present策略走调度快照真值，门禁线零改，`go vet`过）；§2/§5 VW0–VW3状态不动，其余§12行不动（A1/A2未动：A2门禁5项抽查仍绿） |
-| V2 | VW7 片源广 | H.265（新包 + 注册，播放器零改） | ⬜ 未启动 | 可独立并行 |
+| V2 | VW7 片源广 | H.265（新包 + 注册，播放器零改） | 🟨 进行中 | V2-1头已通（2026-09-17）：新包`video/h265`（hvcC解析+切分+头解码器， stub诚实拒像素）+ `video/mp4`认hvc1/hev1存`HEVCConfig`（avcC路逐位不动）+ 注册`h265`名（`CodecH265`，`mp4Open`双门，H.264门禁零碰）+ `ProbeH265Headers`头接口 + 容错新桶`KindH265` + 基线`video/testdata/v2_ffmpeg.json`（96x96/5帧/4.8KB进仓，ffprobe+yuv md5+bench全入库，yuv只做V2-2对照源）+ 门禁`video/h265/v2_ffmpeg_test.go`4项绿（头/切分/拒像素/坏盒）+ `video/registry_test.go`能力含h265 + `video/fault_test.go`新桶+H.265三项 + `video/mp4`合成hvc1用例 + 真窗`examples/video_vr9_registry` RUN15绿（注册11/11/播出5/直播75/上屏866/fps56.9/p95 19.8毫秒/H.265三项全绿，§2.2全族齐）；H.264像素门禁（`video/h264`整包+`video`根+`mp4`/`color`/`clock`）全绿，A2偶发抖动单跑即过（与V2无关）；像素解码V2-2另开，不在本项 |
 | B2 | VW7 片源广 | 新盒子（MOV 先行，其一 + 独立门禁） | ⬜ 未启动 | 可独立并行 |
 | B3 | VW7 片源广 | HLS/DASH（列表 + 分片队列 + 版本选择） | ⬜ 未启动 | 可独立并行 |
 | P3 | VW7 片源广 | 字幕（srt 先行 + 烧录 + 开关） | ⬜ 未启动 | 可独立并行 |
@@ -758,7 +759,7 @@ VW0 → VW1 → VW2 → VW3
 > | 19 | VW6 有声音 | A1 AAC 先行 | §12 A1 行 | 🟨 进行中 | 落地2绿（见§10 v0.73，真PCM+波形门禁；未跑真窗故不标🟩） |
 > | 20 | VW6 有声音 | A2 音画对齐 | §12 A2 行 | 🟩 已完成 | 落地绿（2026-09-16，见§10 v0.74）：门禁5项绿 + 真窗RUN15两连绿（8/8，差≤170ms） |
 > | 21 | VW6 有声音 | A4 宿主音频桥接 | §12 A4 行 | 🟩 已完成 | 宿主桥接+门禁绿+真窗RUN15两连绿（见A4行与§10 v0.75；引擎零改，A2抽查仍绿） |
-> | 22 | VW7 片源广 | V2 H.265 | §12 V2 行 | ⬜ 未启动 | 可独立并行 |
+> | 22 | VW7 片源广 | V2 H.265 V2-1头已通 | §12 V2 行 | 🟨 进行中 | 盒子+hvcC+注册+门禁+VR9真窗RUN15绿（见V2行；像素V2-2另开） |
 > | 23 | VW7 片源广 | B2 新盒子（MOV 先行） | §12 B2 行 | ⬜ 未启动 | 可独立并行 |
 > | 24 | VW7 片源广 | B3 HLS/DASH | §12 B3 行 | ⬜ 未启动 | 可独立并行 |
 > | 25 | VW7 片源广 | P3 字幕 | §12 P3 行 | ⬜ 未启动 | 可独立并行 |
