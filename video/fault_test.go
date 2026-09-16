@@ -9,6 +9,7 @@ import (
 
 	"github.com/energye/gpui/video/color"
 	"github.com/energye/gpui/video/h264"
+	"github.com/energye/gpui/video/h265"
 	"github.com/energye/gpui/video/mp4"
 )
 
@@ -40,6 +41,8 @@ func TestClassifyTable(t *testing.T) {
 		{"f20-lost", fmt.Errorf("x: %w", h264.ErrLostReference), KindF20},
 		{"f20-slice", fmt.Errorf("x: %w", h264.ErrBadSliceHeader), KindF20},
 		{"level", fmt.Errorf("x: %w", h264.ErrUnsupportedLevel), KindLevel},
+		{"h265-headers", fmt.Errorf("x: %w", h265.ErrNotDecodable), KindH265},
+		{"h265-hvcc", fmt.Errorf("x: %w", h265.ErrBadHVCC), KindH265},
 		{"color-matrix", fmt.Errorf("x: %w", color.ErrUnsupportedMatrix), KindColor},
 		{"badclip", fmt.Errorf("x: %w", ErrNoVideo), KindBadClip},
 		{"missing-file", fmt.Errorf("x: %w", os.ErrNotExist), KindBadClip},
@@ -64,6 +67,25 @@ func TestClassifyTable(t *testing.T) {
 		if f.Layer == "" || f.CN == "" {
 			t.Errorf("%s: fault missing layer/text: %+v", c.name, f)
 		}
+	}
+}
+
+// TestFaultH265Headers pins zero false positives on the V2-1 path: the
+// H.265 clip probes as mp4/h265, headers read, and the open refuses with
+// the H.265 bucket (never silent, never a crash); good H.264 clips keep
+// zero concealment.
+func TestFaultH265Headers(t *testing.T) {
+	container, codec, err := ProbeFile("testdata/v2_h265.mp4")
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if container != ContainerMP4 || codec != CodecH265 {
+		t.Fatalf("probe = %q/%q, want mp4/h265", container, codec)
+	}
+	if _, err := OpenFile("testdata/v2_h265.mp4", Options{NowMs: func() int64 { return 0 }}); err == nil {
+		t.Fatal("h265 headers open as pixels")
+	} else if got := Classify(err).Kind; got != KindH265 {
+		t.Fatalf("kind = %q, want %q (%v)", got, KindH265, err)
 	}
 }
 

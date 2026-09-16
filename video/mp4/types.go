@@ -95,6 +95,10 @@ type Track struct {
 	Keyframes   []Keyframe
 	EditList    []EditEntry
 	AVCConfig   []byte
+	// HEVCConfig is the raw hvcC box payload for hvc1/hev1 tracks (V2):
+	// nil on AVC tracks. Carried raw because V2-1 only parses headers;
+	// pixel decode (V2-2) will interpret VPS/SPS/PPS inside video/h265.
+	HEVCConfig []byte
 	// Audio fields (A1, soun/mp4a only): sample rate, channel count,
 	// bits per sample from the mp4a entry, ASC bytes from esds DecSpecific.
 	SampleRate    uint32

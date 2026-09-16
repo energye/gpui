@@ -12,6 +12,7 @@ import (
 	"github.com/energye/gpui/video/clock"
 	"github.com/energye/gpui/video/color"
 	"github.com/energye/gpui/video/h264"
+	"github.com/energye/gpui/video/h265"
 	"github.com/energye/gpui/video/mp4"
 )
 
@@ -194,6 +195,7 @@ type Player struct {
 	// clip path whose tables stay on the old linear scans).
 	sidx      *seekIndex
 	avcc      *h264.AVCC
+	hvcc      *h265.HVCC
 	copt      color.Options
 	frameRate float64
 	// container/codec/sampling ride along for seek re-decode: the
@@ -362,8 +364,17 @@ func OpenWithSource(src Source, opt Options) (*Player, error) {
 
 // openStream builds a streaming player from parsed headers + source.
 // It decodes synchronously only until the first displayable frame, then
-// hands the rest to the background.
+// hands the rest to the background. H.265 clips (V2-1) stop after headers:
+// the box is probed, the hvcC is parsed for Info, and the player reports
+// the honest not-decodable error instead of guessing pixels.
 func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, containerName, codecName string, opt Options) (*Player, error) {
+	if codecName == CodecH265 {
+		hvcc, err := h265.ParseHVCC(v.HEVCConfig)
+		if err != nil {
+			return nil, fmt.Errorf("video: header params %s: %w", nameHint, err)
+		}
+		return openH265Headers(src, nameHint, movie, v, containerName, codecName, hvcc, opt)
+	}
 	avcc, err := h264.ParseAVCC(v.AVCConfig)
 	if err != nil {
 		return nil, fmt.Errorf("video: header params %s: %w", nameHint, err)
@@ -434,6 +445,7 @@ func openStream(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, con
 	p.samples = append([]mp4.Sample(nil), v.Samples...)
 	p.keyframes = append([]mp4.Keyframe(nil), v.Keyframes...)
 	p.avcc = avcc
+	p.hvcc = nil
 	p.copt = copt
 	p.frameRate = v.FrameRate
 	p.container = containerName
@@ -989,6 +1001,8 @@ func (p *Player) decodeStep() (emitted []*pendingPic, done bool, err error) {
 }
 
 // resetDecoderLocked rebuilds a clean decoder (caller holds dmu).
+// H.265 clips never reach here (their open fails before decode threads
+// start), so the AVCC-only feed stays byte-identical for H.264.
 func (p *Player) resetDecoderLocked() {
 	nd, err := NewDecoder(p.codec)
 	if err != nil {
@@ -996,6 +1010,48 @@ func (p *Player) resetDecoderLocked() {
 	}
 	feedParams(nd, p.avcc, p.path, "")
 	p.dec = nd
+}
+
+// openH265Headers is the V2-1 H.265 open: headers only, no pixels. The
+// hvcC is already parsed, so Info carries header truth (dimensions from
+// the box, profile Main, frame count from the sample table) and the open
+// fails with the honest not-decodable error. Callers triage it via
+// Classify (KindH265 bucket), never as a silent empty clip. The source is
+// closed here (no background thread starts); OpenWithSource's contract
+// (caller closes src on failure) still holds.
+func openH265Headers(src Source, nameHint string, movie *mp4.Movie, v *mp4.Track, containerName, codecName string, hvcc *h265.HVCC, opt Options) (*Player, error) {
+	src.Close()
+	_ = movie
+	_ = opt
+	w, h := int(v.Width), int(v.Height)
+	if w == 0 {
+		w = int(v.CodedWidth)
+	}
+	if h == 0 {
+		h = int(v.CodedHeight)
+	}
+	p := &Player{
+		info: Info{
+			Path:         nameHint,
+			Width:        w,
+			Height:       h,
+			Profile:      hvcc.ProfileName,
+			FrameRate:    v.FrameRate,
+			DurMs:        v.DurationMs,
+			Frames:       len(v.Samples),
+			KeyframeN:    v.KeyframeCount(),
+			Container:    containerName,
+			Codec:        codecName,
+			Fault:        Classify(h265.ErrNotDecodable).Readable(),
+			HasAudio:     false,
+			AudioSamples: 0,
+		},
+	}
+	p.hvcc = hvcc
+	p.container = containerName
+	p.codec = codecName
+	p.memCapKB = MemCapKBFor(w, h)
+	return nil, fmt.Errorf("video: codec h265 %s: %w", nameHint, h265.ErrNotDecodable)
 }
 
 // releasePix returns a streaming convert buffer (S6). No-op for nil, for
@@ -1402,6 +1458,9 @@ func (p *Player) S2Windows() int64 {
 }
 
 // Info describes the clip (Concealed/Fault reflect streaming progress).
+// V2-1 H.265 headers-only opens keep their Fault (the open itself fails
+// with the honest error, so Info is only reachable when the caller holds
+// the returned error, not a player); this guard keeps it intact.
 func (p *Player) Info() Info {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -1409,7 +1468,7 @@ func (p *Player) Info() Info {
 	out.Concealed = p.concealed
 	if p.firstFault != nil {
 		out.Fault = Classify(p.firstFault).Readable()
-	} else {
+	} else if out.Fault == "" {
 		out.Fault = ""
 	}
 	return out

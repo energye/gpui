@@ -608,6 +608,49 @@ func TestErrors(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+
+	t.Run("hevcTrackKeepsHVCC", func(t *testing.T) {
+		// V2-1: hvc1 entries keep the raw hvcC apart from avcC (the H.264
+		// path keeps working byte-identical when no hvcC rides along).
+		hvcc := append([]byte{1}, make([]byte, 22)...)
+		hvcc = append(hvcc, 0)
+		entry := make([]byte, 86)
+		binary.BigEndian.PutUint32(entry[0:], 0)
+		copy(entry[4:], "hvc1")
+		entry = append(entry, mkBox("hvcC", hvcc)...)
+		binary.BigEndian.PutUint32(entry[0:], uint32(len(entry)))
+		body := make([]byte, 4)
+		binary.BigEndian.PutUint32(body[0:], 1)
+		body = append(body, entry...)
+		stsd := mkFullBox("stsd", 0, 0, body)
+		stbl := mkBox("stbl", bytes.Join([][]byte{
+			stsd,
+			mkStts([][2]uint32{{200, 1000}}),
+			mkStsc([][3]uint32{{1, 2, 1}}),
+			mkStsz([]uint32{100, 100}),
+			mkStco([]uint32{1000}),
+			mkFullBox("stss", 0, 0, []byte{0, 0, 0, 1, 0, 0, 0, 1}),
+		}, nil))
+		trak := mkBox("trak", bytes.Join([][]byte{
+			mkTkhd(1, 96, 96, 0),
+			mkBox("mdia", bytes.Join([][]byte{
+				mkMdhd(1000, 2000),
+				mkHdlr("vide"),
+				mkBox("minf", stbl),
+			}, nil)),
+		}, nil))
+		m, err := Parse(buildMP4(trak))
+		if err != nil {
+			t.Fatalf("hevc shell: %v", err)
+		}
+		v := m.Video
+		if v == nil || v.Codec != "hvc1" {
+			t.Fatalf("codec = %+v, want hvc1", v)
+		}
+		if len(v.HEVCConfig) == 0 || len(v.AVCConfig) != 0 {
+			t.Fatalf("hevc=%d avc=%d, want hevc>0 avc=0", len(v.HEVCConfig), len(v.AVCConfig))
+		}
+	})
 }
 
 func TestNoForbiddenImports(t *testing.T) {

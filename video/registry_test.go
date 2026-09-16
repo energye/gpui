@@ -45,9 +45,10 @@ func stubGraySplit(buf []byte, lengthSize int) ([][]byte, error) {
 }
 
 // TestRegistrySupported pins the capability query: the first-stage set
-// is present and listed, so UI asks first instead of guessing.
+// plus the V2-1 H.265 header entry is present and listed, so UI asks
+// first instead of guessing.
 func TestRegistrySupported(t *testing.T) {
-	var hasC, hasD, hasS bool
+	var hasC, hasD, hasH265, hasS bool
 	for _, s := range SupportedContainers() {
 		if s == "mp4" {
 			hasC = true
@@ -57,14 +58,17 @@ func TestRegistrySupported(t *testing.T) {
 		if s == "h264" {
 			hasD = true
 		}
+		if s == CodecH265 {
+			hasH265 = true
+		}
 	}
 	for _, s := range SupportedSamplings() {
 		if s == color.SamplingYUV420P {
 			hasS = true
 		}
 	}
-	if !hasC || !hasD || !hasS {
-		t.Fatalf("supported containers=%v codecs=%v samplings=%v, want mp4+h264+yuv420p present",
+	if !hasC || !hasD || !hasH265 || !hasS {
+		t.Fatalf("supported containers=%v codecs=%v samplings=%v, want mp4+h264+h265+yuv420p present",
 			SupportedContainers(), SupportedCodecs(), SupportedSamplings())
 	}
 }

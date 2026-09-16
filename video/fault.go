@@ -8,6 +8,7 @@ import (
 	"github.com/energye/gpui/video/aac"
 	"github.com/energye/gpui/video/color"
 	"github.com/energye/gpui/video/h264"
+	"github.com/energye/gpui/video/h265"
 	"github.com/energye/gpui/video/mp4"
 )
 
@@ -26,6 +27,7 @@ const (
 	KindBadClip      = "bad-clip"
 	KindMemOverCap   = "mem-over-cap"
 	KindAudio        = "audio-decode"
+	KindH265         = "h265-headers-only"
 	KindUnknown      = "unknown"
 )
 
@@ -91,6 +93,9 @@ func Classify(err error) Fault {
 		return Fault{Kind: KindAudio, Layer: "aac", Tool: "A1", CN: "声音解码A1（ASC/ADTS/包坏或特性不支持）"}
 	case errors.Is(err, ErrMemOverCap):
 		return Fault{Kind: KindMemOverCap, Layer: "video", Tool: "封顶", CN: "装不下（video层：解前预估超内存封顶，见S7按档上限）"}
+	case errors.Is(err, h265.ErrNotDecodable) || errors.Is(err, h265.ErrBadHVCC) ||
+		errors.Is(err, h265.ErrNoParamSets) || errors.Is(err, h265.ErrBadNALU):
+		return Fault{Kind: KindH265, Layer: "h265", Tool: "V2", CN: "H.265只认头不解像素（V2-1：盒子+hvcC+注册已通，像素等V2-2）"}
 	case errors.Is(err, ErrUnsupportedContainer) || errors.Is(err, ErrUnsupportedCodec):
 		return Fault{Kind: KindBadClip, Layer: "video", Tool: "注册表", CN: "格式不支持（注册表层：容器/编码不在支持表里，先问能力再开）"}
 	}

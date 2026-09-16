@@ -9,6 +9,7 @@ import (
 
 	"github.com/energye/gpui/video/color"
 	"github.com/energye/gpui/video/h264"
+	"github.com/energye/gpui/video/h265"
 	"github.com/energye/gpui/video/mp4"
 )
 
@@ -28,12 +29,14 @@ var (
 	ErrUnsupportedCodec     = errors.New("video: unsupported codec")
 )
 
-// ContainerMP4 and CodecH264 are the first-stage registry names. They
-// appear as literals exactly once each (the init below); everything else
-// refers to these constants or to names the tables hand back.
+// ContainerMP4 and CodecH264 are the first-stage registry names, plus
+// CodecH265 for the V2-1 header entry. They appear as literals exactly
+// once each (the init below); everything else refers to these constants
+// or to names the tables hand back.
 const (
 	ContainerMP4 = "mp4"
 	CodecH264    = "h264"
+	CodecH265    = "h265"
 )
 
 // Decoder is the codec interface the player decodes through: feed
@@ -253,6 +256,17 @@ func (h *h264Decoder) FinishPicture() (*h264.Picture, error) { return h.d.Finish
 
 func (h *h264Decoder) Sampling() string { return color.SamplingYUV420P }
 
+// h265Decoder adapts the V2-1 H.265 header decoder to the registry
+// interface. The hvcC arrives per open (each clip carries its own sets),
+// so the factory builds an empty shell and feedH265Params fills it.
+type h265Decoder struct{ d *h265.Decoder }
+
+func (h *h265Decoder) DecodeNALU(nalu []byte) error { return h.d.DecodeNALU(nalu) }
+
+func (h *h265Decoder) FinishPicture() (*h264.Picture, error) { return h.d.FinishPicture() }
+
+func (h *h265Decoder) Sampling() string { return color.SamplingYUV420P }
+
 // mp4ProbeFile answers "is this file mine" from head+tail sniffing:
 // mp4.Probe checks the ftyp brand or a moov box, and fast-start files
 // front-load moov while plain files tail-load it, so both ends are read.
@@ -344,10 +358,10 @@ func RejectUnits(codec string, units [][]byte, sampleNum int, path string) error
 	return nil
 }
 
-// mp4Open parses the shell and reports the carried codec. This stage
-// only carries AVC, so the codec answer is the registered H.264 name;
-// a shell without AVC config fails as an unsupported codec with the
-// supported set named.
+// mp4Open parses the shell and reports the carried codec. AVC tracks
+// answer the registered H.264 name, HEVC tracks (hvc1/hev1 + hvcC) answer
+// the V2-1 H.265 name; a shell with neither config fails as an
+// unsupported codec with the supported set named.
 func mp4Open(path string) (*mp4.Movie, string, error) {
 	if IsURL(path) {
 		src, err := NewSource(path)
@@ -361,28 +375,42 @@ func mp4Open(path string) (*mp4.Movie, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	if movie.Video == nil || len(movie.Video.AVCConfig) == 0 {
-		return movie, "", fmt.Errorf("%w: container %s without AVC config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, path, SupportedCodecs())
+	if movie.Video == nil {
+		return movie, "", fmt.Errorf("%w: container %s without video config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, path, SupportedCodecs())
 	}
-	return movie, CodecH264, nil
+	if len(movie.Video.AVCConfig) > 0 {
+		return movie, CodecH264, nil
+	}
+	if len(movie.Video.HEVCConfig) > 0 {
+		return movie, CodecH265, nil
+	}
+	return movie, "", fmt.Errorf("%w: container %s without AVC/HEVC config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, path, SupportedCodecs())
 }
 
 // mp4OpenSource parses a kept-open Source (streaming path): only box
 // headers + moov travel, mdat payload stays on the server until samples
-// stream. Same AVC gate as mp4Open.
+// stream. Same AVC/HEVC gate as mp4Open.
 func mp4OpenSource(src Source) (*mp4.Movie, string, error) {
 	movie, err := mp4.ParseReader(src, src.Size())
 	if err != nil {
 		return nil, "", err
 	}
-	if movie.Video == nil || len(movie.Video.AVCConfig) == 0 {
-		return movie, "", fmt.Errorf("%w: container %s without AVC config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, src.Name(), SupportedCodecs())
+	if movie.Video == nil {
+		return movie, "", fmt.Errorf("%w: container %s without video config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, src.Name(), SupportedCodecs())
 	}
-	return movie, CodecH264, nil
+	if len(movie.Video.AVCConfig) > 0 {
+		return movie, CodecH264, nil
+	}
+	if len(movie.Video.HEVCConfig) > 0 {
+		return movie, CodecH265, nil
+	}
+	return movie, "", fmt.Errorf("%w: container %s without AVC/HEVC config %s (have %v)", ErrUnsupportedCodec, ContainerMP4, src.Name(), SupportedCodecs())
 }
 
 func init() {
 	RegisterContainer(ContainerMP4, mp4ProbeFile, mp4Open)
 	RegisterDecoder(CodecH264, func() Decoder { return &h264Decoder{d: h264.NewDecoder(nil)} },
 		func(buf []byte, lengthSize int) ([][]byte, error) { return h264.SplitAVCC(buf, lengthSize) })
+	RegisterDecoder(CodecH265, func() Decoder { return &h265Decoder{d: h265.NewDecoder(nil)} },
+		func(buf []byte, lengthSize int) ([][]byte, error) { return h265.SplitHVCC(buf, lengthSize) })
 }

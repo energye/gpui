@@ -189,6 +189,7 @@ type trackBuilder struct {
 	codedW       uint32
 	codedH       uint32
 	avcConfig    []byte
+	hevcConfig   []byte
 	paspH        uint32
 	paspV        uint32
 	audioRate    uint32
@@ -288,6 +289,9 @@ func buildEmptyFragTrack(tb *trackBuilder) (*Track, bool) {
 	}
 	if len(tb.avcConfig) > 0 {
 		t.AVCConfig = append([]byte(nil), tb.avcConfig...)
+	}
+	if len(tb.hevcConfig) > 0 {
+		t.HEVCConfig = append([]byte(nil), tb.hevcConfig...)
 	}
 	t.DurationMs = ticksToMs(int64(t.Duration), t.Timescale)
 	return t, true
@@ -656,6 +660,10 @@ func parseVideoSample(entry []byte, tb *trackBuilder) {
 			cp := make([]byte, len(p))
 			copy(cp, p)
 			tb.avcConfig = cp
+		case "hvcC":
+			cp := make([]byte, len(p))
+			copy(cp, p)
+			tb.hevcConfig = cp
 		case "pasp":
 			if len(p) >= 8 {
 				tb.paspH = binary.BigEndian.Uint32(p[0:])
@@ -942,6 +950,9 @@ func buildTrack(tb *trackBuilder) (*Track, error) {
 	}
 	if len(tb.avcConfig) > 0 {
 		t.AVCConfig = append([]byte(nil), tb.avcConfig...)
+	}
+	if len(tb.hevcConfig) > 0 {
+		t.HEVCConfig = append([]byte(nil), tb.hevcConfig...)
 	}
 	t.DurationMs = ticksToMs(int64(t.Duration), t.Timescale)
 	if t.Handler == "soun" {
