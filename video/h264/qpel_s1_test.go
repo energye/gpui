@@ -76,8 +76,9 @@ func TestS1QpelDispatchMatchesScalar(t *testing.T) {
 	}
 }
 
-// qpelBlock fast-path coverage: interior blocks report true on amd64
-// (the kernel runs), edge blocks report false everywhere (留守 clips).
+// qpelBlock fast-path coverage: interior blocks report true where a
+// kernel exists (amd64 SSE4.1, arm64 NEON), edge blocks report false
+// everywhere (留守 clips).
 func TestS1QpelBlockTaken(t *testing.T) {
 	const W, H = 64, 64
 	plane := qpelStimulus(W, H)
@@ -86,11 +87,11 @@ func TestS1QpelBlockTaken(t *testing.T) {
 	if edge {
 		t.Fatal("edge block must fall back to the scalar留守")
 	}
-	if runtime.GOARCH == "amd64" && !interior {
-		t.Fatal("interior block must take the fast path on amd64")
+	if (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") && !interior {
+		t.Fatal("interior block must take the fast path on " + runtime.GOARCH)
 	}
-	if runtime.GOARCH != "amd64" && interior {
-		t.Fatalf("%s has no kernel yet (arm64随后), must stay scalar", runtime.GOARCH)
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" && interior {
+		t.Fatalf("%s has no kernel yet, must stay scalar", runtime.GOARCH)
 	}
 }
 

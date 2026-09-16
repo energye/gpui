@@ -2,8 +2,10 @@ package h264
 
 // S1-D1 gate: deblock dispatch equals the scalar留守 bit for bit.
 // Peer: ffmpeg libavcodec/x86/h264_deblock.asm (SIMD instance) vs our
-// deblock_amd64.s 4-line kernels; oracle is the scalar留守 itself
-// (no new vectors here, VR2 exact pins pixels).
+// deblock_amd64.s 4-line kernels, and libavcodec/aarch64/h264dsp_neon.S
+// (ff_h264_v/h_loop_filter_luma_neon + _intra_neon, same V/H split and
+// 16-line macro) vs our deblock_arm64.s 4-line kernels; oracle is the
+// scalar留守 itself (no new vectors here, VR2 exact pins pixels).
 // Pass lines: bS 0-4 x both directions x QP range x edge/interior agree;
 // taken only on amd64 with bS > 0; hot path allocates zero; VR2 exact
 // stays green.
@@ -84,8 +86,9 @@ func TestS1DeblockDispatchMatchesScalar(t *testing.T) {
 	}
 }
 
-// Fast-path coverage: luma edges with bS > 0 report true on amd64 (the
-// kernel runs), bS == 0 reports false everywhere (caller skips anyway).
+// Fast-path coverage: luma edges with bS > 0 report true where a
+// kernel exists (amd64 SSE2/SSSE3, arm64 NEON), bS == 0 reports false
+// everywhere (caller skips anyway).
 func TestS1DeblockTaken(t *testing.T) {
 	p := deblockStimulus(64, 64, 0)
 	for _, tc := range []struct {
@@ -98,14 +101,14 @@ func TestS1DeblockTaken(t *testing.T) {
 		{0, false, false}, {0, true, false},
 	} {
 		got := deblockLumaFast(p, 64, 32, 32, tc.vertical, tc.bS, 40, 10, 1)
-		want := tc.want && runtime.GOARCH == "amd64" && !deblockScalarForced
+		want := tc.want && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") && !deblockScalarForced
 		if got != want {
 			t.Fatalf("bS=%d vertical=%v taken=%v want %v (arch %s)",
 				tc.bS, tc.vertical, got, want, runtime.GOARCH)
 		}
 	}
-	if runtime.GOARCH != "amd64" {
-		t.Logf("%s has no kernel yet (arm64随后), scalar留守 covers", runtime.GOARCH)
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+		t.Logf("%s has no kernel yet, scalar留守 covers", runtime.GOARCH)
 	}
 }
 
