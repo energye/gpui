@@ -30,7 +30,7 @@ RUN_SECONDS=30 go run ./examples/ui_wr_r10_async_image
 
 | 族 | 门禁 | FAIL 线 |
 |----|------|---------|
-| C 能力专用① | **出图后 rerecord 仅一格** | 任一批到达后 `boundary_rerecord 增量 > 到达格数+1` → 违例 >0 → FAIL（全局重绘时每批增量≈全部格数必炸） |
+| C 能力专用① | **出图后 rerecord 仅一格** | Steady 非连发相位逐批记账：`boundary_rerecord 增量 > 到达格数+1` → 违例 >0 → FAIL（全局重绘时每批增量≈全部格数必炸；Spike 连发 0.05s/张在途多批不可归因，只记账不判——C3 同款相位门禁语义） |
 | C 能力专用② | **局部脏不触布局（paint-only 契约）** | 引擎单测 `TestRenderImage_SetImage_PaintOnly` 证明 SetImage 只标脏绘制、不标脏布局（窗内 `layout_count` 数的是每帧布局趟数——HUD 文本更新等任何脏节点都 +1——不作逐批观测） |
 | C 辅助 | 未出图格保持缓存回放 | `boundary_skip≤0` → FAIL |
 | 前提 | 异步出图完成 | `images_loaded < 20` → FAIL |
@@ -44,7 +44,7 @@ RUN_SECONDS=30 go run ./examples/ui_wr_r10_async_image
 | 维度 | 本窗回答 |
 |------|----------|
 | 正确性 | 占位→出图只翻该格内容；解码走 ui/io worker（真实文件 PNG），结果经 channel 回 UI 线程才变更树 |
-| 脏区 | 每批出图的 boundary_rerecord 增量被记账（≤ 到达格数+1），违例即 FAIL——「仅一格」机器可判 |
+| 脏区 | Steady 逐批记账（≤ 到达格数+1），违例即 FAIL——「仅一格」机器可判；Spike 连发在途多批只记账不判（相位门禁语义见门禁表） |
 | 缓存 | 未出图格 boundary 持续 skip（skip 计数佐证）；出图格重录一次后回到回放 |
 | 边界条件 | Spike 连发多张同 tick 到达（批量上界=到达数+1）；解码失败路径 SetError 兜底；channel 无阻塞丢弃保护 |
 | 失败模式 | 出图引发全局重绘 → 批增量≈全格数 → violations>0 FAIL；SetImage 触发布局 → 引擎单测红；HUD 预览色红 |

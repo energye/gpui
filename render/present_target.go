@@ -391,10 +391,13 @@ func (t *PresentTarget) SetResizeStormWindow(d time.Duration) {
 	t.resizeStormWindow = d
 }
 
-// Resize records a new logical size / scale. The swapchain reconfigure itself
-// is deferred to the raster present boundary (applyPendingSwapchain) so the
-// UI thread never blocks on the surface (and never races the raster thread's
-// present). Same-size calls are no-ops.
+// Resize records a new logical size / scale. Record-only (T3): the UI thread
+// only stores the size and arms swapchainPending; the drawing Context sync
+// (dc.Resize/SetDeviceScale) and the wgpu swapchain reconfigure both run on
+// the raster thread at the present boundary (applyPendingSwapchainLocked),
+// serialized with BeginFrame/EndFrame via mu. Same-size calls are no-ops.
+// This keeps render.Context raster-exclusive: the UI thread never blocks on
+// the surface and never touches dc off raster (T3 render-owns-raster).
 func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 	if t == nil {
 		return errors.New("render: nil PresentTarget")
@@ -417,10 +420,6 @@ func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 		return nil
 	}
 	t.logicW, t.logicH, t.scale = logicalW, logicalH, scale
-	if t.dc != nil {
-		_ = t.dc.Resize(logicalW, logicalH)
-		t.dc.SetDeviceScale(scale)
-	}
 	t.swapchainPending = true
 	return nil
 }
@@ -489,6 +488,14 @@ func (t *PresentTarget) applyPendingSwapchainLocked() error {
 	}
 	if t.swapchainPending {
 		t.swapchainPending = false
+		// T3 raster-exclusive Context sync: the UI thread only recorded the
+		// size above; the dc pixmap realloc + scale switch run here on the
+		// raster thread, serialized with the draw below via mu — the packet
+		// built at the new size is drawn at the new size, no UI/raster race.
+		if t.dc != nil {
+			_ = t.dc.Resize(t.logicW, t.logicH)
+			t.dc.SetDeviceScale(t.scale)
+		}
 		if t.ns.Platform == PresentPlatformX11 {
 			if os.Getenv("WR_RESIZE_DBG") == "1" {
 				pw, ph := physicalSize(t.logicW, t.logicH, t.scale)

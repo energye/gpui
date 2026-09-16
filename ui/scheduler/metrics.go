@@ -58,7 +58,7 @@ type FrameMetrics struct {
 	// Present locality (序13 dirty-rect path; 0/empty when unavailable).
 	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
 	DamageAreaPx   int64  `json:"damage_area_px,omitempty"`
-	PresentMode    string `json:"present_mode,omitempty"` // full|damage_union|damage_multi|idle
+	PresentMode    string `json:"present_mode,omitempty"` // full|damage_union|damage_multi (idle inputs preserve last real)
 	DamageAreaLast int64  `json:"damage_area_last_px,omitempty"`
 
 	// DirtyLayerIDs is the last frame's dirty layer/boundary id list (R4b; the
@@ -255,6 +255,9 @@ func (s *MetricsStore) NotePresent() {
 
 // NotePresentOutcome records present mode + damage area for the last frame (M-DAMAGE-AREA).
 // mode should be render.PresentMode.String(); areaPx is physical dirty union area.
+// Idle presents carry no drawing: they still count as presents but preserve
+// the last real mode + area so JSON/gates observe the true steady-state
+// (damage_union/damage_multi) instead of event-noise zeros.
 func (s *MetricsStore) NotePresentOutcome(mode string, areaPx int64) {
 	if s == nil {
 		return
@@ -263,13 +266,13 @@ func (s *MetricsStore) NotePresentOutcome(mode string, areaPx int64) {
 	s.m.PresentCount++
 	// Idle presents carry no drawing and are not the retained steady-state
 	// mode (e.g. an X11 Expose-triggered frame with nothing dirty). Keep the
-	// last real present mode so JSON/gates observe the true retained
-	// incremental mode (damage_union/damage_multi) instead of event-noise.
+	// last real present mode + area so JSON/gates observe the true retained
+	// incremental outcome (damage_union/damage_multi) instead of event-noise.
 	if mode != "idle" {
 		s.m.PresentMode = mode
+		s.m.DamageAreaPx = areaPx
+		s.m.DamageAreaLast = areaPx
 	}
-	s.m.DamageAreaPx = areaPx
-	s.m.DamageAreaLast = areaPx
 	s.mu.Unlock()
 }
 

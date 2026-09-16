@@ -124,7 +124,8 @@ func (s *ShellChrome) UpdateHUD(ability, phase string, app *embedder.PipelineApp
 	}
 	pol := snap.PresentPolicy
 	if pol == "" {
-		pol = scheduler.PresentPolicyFullPaint
+		// W6 default is retained; empty means "unset", never "full".
+		pol = scheduler.PresentPolicyRetained
 	}
 	s.HUD.Update(Snap{
 		AbilityID:   ability,

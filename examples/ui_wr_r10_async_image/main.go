@@ -203,6 +203,8 @@ func main() {
 	pendingApplied := -1
 	pendingRR := int64(0)
 	rrViolations, maxBatchDelta := int64(0), int64(0)
+	// 调试开关：WR_R10_DBG=1 时逐批打日志，用于核对门禁用 bound。
+	dbg := os.Getenv("WR_R10_DBG") == "1"
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
@@ -221,17 +223,30 @@ func main() {
 
 		snapH := app.Metrics().Snapshot()
 
-		// 结算上一批：rerecord 增量 ≤ 到达格数+1（layout_count 数的是每帧布局
-		// 趟数——HUD 文本更新等任何脏节点都会+1——不构成「SetImage 触发布局」
-		// 的观测；paint-only 契约由 ui/rendering 引擎单测证明）。
+		// 结算上一批：本 tick 的 rerecord 增量 = 常驻脏（纹理逐出重建、
+		// HUD/HOT/相位等，与出图无关）+ 本批出图格。
+		// 门禁语义（§2 R10 行修订）：逐批记账只在 Steady 非连发相位判定——
+		// Steady 每 0.8s 派发一张、上一批未结算不派发下一批，增量可归因；
+		// Spike 连发相位（0.05s/张）在途多批，单批增量不可归因，只记账不判。
+		// 判定线：dRR ≤ 到达格数 + 1（全局重绘时每批增量≈全部格数必炸）。
+		// layout_count 数的是每帧布局趟数——HUD 文本更新等任何脏节点都
+		// 会+1——不构成「SetImage 触发布局」的观测；paint-only 契约由
+		// ui/rendering 引擎单测证明。
 		if pendingApplied >= 0 {
 			dRR := snapH.BoundaryRerecord - pendingRR
 			bound := int64(pendingApplied) + 1
-			if dRR > bound {
-				rrViolations++
+			judged := phase != wrkit.PhaseSpike
+			if dbg {
+				fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: dbg batch t=%.2f phase=%s applied=%d dRR=%d bound=%d judged=%v\n",
+					elapsed, phase, pendingApplied, dRR, bound, judged)
 			}
-			if dRR > maxBatchDelta {
-				maxBatchDelta = dRR
+			if judged {
+				if dRR > bound {
+					rrViolations++
+				}
+				if dRR > maxBatchDelta {
+					maxBatchDelta = dRR
+				}
 			}
 			pendingApplied = -1
 		}
@@ -348,7 +363,7 @@ func main() {
 			"images_loaded":               loaded,
 			"rr_violations":               rrViolations,
 			"max_batch_rr_delta":          maxBatchDelta,
-			"batch_bound":                 "delta <= applied+1",
+			"batch_bound":                 "steady-phase delta <= applied+1 (spike bursts logged only)",
 			"avg_decode_ms":               avgDecode,
 			"boundary_skip":               snap.BoundarySkip,
 			"boundary_rerecord":           snap.BoundaryRerecord,

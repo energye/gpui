@@ -112,7 +112,9 @@ func BuildReport(in BuildInput) Report {
 	}
 	pol := in.Snap.PresentPolicy
 	if pol == "" {
-		pol = scheduler.PresentPolicyFullPaint
+		// W6 default is retained (PipelineApp pins it at construction);
+		// empty means "unset", never "full".
+		pol = scheduler.PresentPolicyRetained
 	}
 	r := Report{
 		AbilityID:         in.AbilityID,
@@ -221,7 +223,9 @@ type GateOptions struct {
 	MinPresents int64
 	// RequireFullPaintPolicy fails when present_policy != full_paint.
 	RequireFullPaintPolicy bool
-	// RequirePersistentFPS applies fps_wall >= MinFPSWall (default 55) when ElapsedSec >= MinFPSElapsed.
+	// RequirePersistentFPS applies fps >= MinFPSWall (default 55) when ElapsedSec >= MinFPSElapsed.
+	// The fps read is interval-preferred (1000/interval_avg_ms steady pace,
+	// wall fps only as fallback including open/close overhead).
 	RequirePersistentFPS bool
 	MinFPSWall           float64
 	MinFPSElapsed        float64 // default 2s — short smokes skip FPS hard gate

@@ -34,7 +34,12 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
-const winW, winH = 1200, 800
+const (
+	winW, winH = 1200, 800
+	// §2.5 Overlay/命中组合关闭用时长: R8 = 15（Steady5 + SpikeCycle5 + Recover沉降；
+	// 短于此时弹窗循环走不完，退出时浮层仍开属于时长误用而非引擎问题）。
+	closeSeconds = 15
+)
 
 var proc scheduler.ProcessTracker
 
@@ -42,6 +47,10 @@ func main() {
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
 		wrkit.RequireMinRun(secs, "R8")
+		if secs < closeSeconds {
+			fmt.Fprintf(os.Stderr, "FAIL: RUN_SECONDS=%d want >=%d (§2.5 Overlay组合关闭用时长)\n", secs, closeSeconds)
+			os.Exit(1)
+		}
 	}
 	_, _, errFace := wrkit.EnsureUIFace()
 	if errFace != nil {
@@ -316,20 +325,20 @@ func main() {
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
 		Extra: map[string]any{
-			"main_dirty_baseline":        baseMainDirty,
-			"main_dirty_excess_frames":   ovFramesMainDirtyExcess, // must be 0
-			"overlay_open_observed":      ovOpenObserved,
-			"overlay_entries_on_open":    ovDirtyOnOpen, // ≥1 expected
-			"overlay_cycles":             cycleKind,     // open/close cycles completed
-			"static_dense_cells":         16,
-			"static_labels":              8,
-			"hot_active_all_phases":      true,
-			"impl_correctness":           "overlay band composites above main (FramePacket.Root then .Overlay); insert/remove touch only overlay entries",
-			"impl_dirty":                 "AttachToPacket mirrors overlay dirties into pkt.OverlayDirtyLayerIDs; main DirtyLayerIDs unchanged by open (D5); band counts sampled pre/post attach",
-			"impl_cache":                 "retained policy: main boundaries replay while overlay open; overlay panel/menu are their own RepaintBoundaries",
-			"impl_edge":                  "cycling opens build FRESH entries per cycle (real-app pattern: new widgets per popup), 3 kinds rotate (modal+menu stack / dropdown / tooltip sheet), sizes+positions vary per cycle",
-			"impl_fail":                  "main_dirty > baseline during open frames → FAIL (leak into main band); no overlay observed → FAIL; fps decay over many cycles → RSS/fps gates catch it",
-			"impl_visible":               "HUD ov=N cyc=K OPEN/closed main_dirty=X/base; popups alternate dialog/menu/tooltip at varying positions through the run",
+			"main_dirty_baseline":      baseMainDirty,
+			"main_dirty_excess_frames": ovFramesMainDirtyExcess, // must be 0
+			"overlay_open_observed":    ovOpenObserved,
+			"overlay_entries_on_open":  ovDirtyOnOpen, // ≥1 expected
+			"overlay_cycles":           cycleKind,     // open/close cycles completed
+			"static_dense_cells":       16,
+			"static_labels":            8,
+			"hot_active_all_phases":    true,
+			"impl_correctness":         "overlay band composites above main (FramePacket.Root then .Overlay); insert/remove touch only overlay entries",
+			"impl_dirty":               "AttachToPacket mirrors overlay dirties into pkt.OverlayDirtyLayerIDs; main DirtyLayerIDs unchanged by open (D5); band counts sampled pre/post attach",
+			"impl_cache":               "retained policy: main boundaries replay while overlay open; overlay panel/menu are their own RepaintBoundaries",
+			"impl_edge":                "cycling opens build FRESH entries per cycle (real-app pattern: new widgets per popup), 3 kinds rotate (modal+menu stack / dropdown / tooltip sheet), sizes+positions vary per cycle",
+			"impl_fail":                "main_dirty > baseline during open frames → FAIL (leak into main band); no overlay observed → FAIL; fps decay over many cycles → RSS/fps gates catch it",
+			"impl_visible":             "HUD ov=N cyc=K OPEN/closed main_dirty=X/base; popups alternate dialog/menu/tooltip at varying positions through the run",
 		},
 	})
 	raw, _ := json.Marshal(report)

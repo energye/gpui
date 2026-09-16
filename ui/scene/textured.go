@@ -46,25 +46,37 @@ import (
 // returns nil) every operation degrades to a no-op and callers fall back to
 // direct vector replay — correctness never depends on the cache.
 //
-// Thread-safety (Flutter raster-thread pattern): the cache lives on the GPU
-// (raster) thread during composite, but the UI thread also touches it for
-// frame-boundary housekeeping (EndFrame/Resize/Clear). Like Skia's GPU
-// resource cache, all map/state access is mutex-guarded; internal helpers
-// (evictForNew/releaseDeferred/drainDeferred) must only be called while the
-// caller already holds mu.
+// Thread-safety (T3 pinned call sites, Flutter raster-thread pattern): the
+// cache draws only on the raster thread — CompositeFramePacketTextured
+// (phase 1 record + phase 2 blit), record/recordWith/recordLocalWith, blit,
+// BeginFrame, allocEntry, evictForNew all run serialized in the raster
+// FrameJob. Frame-boundary housekeeping is record-only from any thread:
+// Resize stores a pending size applied at the next raster BeginFrame, Clear
+// stays mutex-guarded with deferred releases for in-flight views.
+// SetLiveKeys/EnsureCapacity publish the frame working set; production
+// caller is the raster job (presentPacketTextured), tests call directly
+// single-threaded. Like Skia's GPU resource cache, all map/state access is
+// mutex-guarded; internal helpers (evictForNew/releaseDeferred/drainDeferred)
+// must only be called while the caller already holds mu.
 type PictureTextureCache struct {
 	mu     sync.Mutex
 	dc     *render.Context
 	max    int
 	width  int
 	height int
+	// pendingW/pendingH/hasPendingSize implement T3 record-only Resize: any
+	// thread records, the raster thread applies at the next BeginFrame before
+	// any record/blit of that frame, so dimensions never change mid-frame.
+	pendingW       int
+	pendingH       int
+	hasPendingSize bool
 	// filterCache caches FILTERED ColorFilter/ImageFilter subtree results
 	// (R20): unchanged frames blit instead of re-paying the CPU filter pass.
 	filterCache *FilterResultCache
 	// entries keyed by stable CacheKey.
 	entries map[uint64]*pictureTextureEntry
-	// liveKeys is the current frame's in-tree cache keys (UI thread publishes
-	// via SetLiveKeys; evictForNew never victimizes a live key).
+	// liveKeys is the current frame's in-tree cache keys (raster job publishes
+	// via SetLiveKeys before phase 1; evictForNew never victimizes a live key).
 	liveKeys map[uint64]struct{}
 	// stamp is a monotonically-increasing last-use counter for LRU eviction.
 	stamp   uint64
@@ -89,8 +101,8 @@ type PictureTextureCache struct {
 	// session's view→bind-group slot cache) may still reference it.
 	deferred []deferredRelease
 	// FrameRerecord / FrameSkip are per-frame counters for boundary metrics
-	// (texture re-record = rerecord, cached blit = skip). Atomic: EndFrame
-	// (UI thread) resets them while the raster thread may still be reading.
+	// (texture re-record = rerecord, cached blit = skip). Atomic: raster
+	// EndFrame resets them serialized with the composite below.
 	FrameRerecord atomic.Int64
 	FrameSkip     atomic.Int64
 	// Evictions is the cumulative count of entries dropped by the capacity
@@ -166,7 +178,12 @@ func NewPictureTextureCache(dc *render.Context, max int) *PictureTextureCache {
 // frame would otherwise look "old" during phase 1 and get evicted mid-frame,
 // forcing a re-record next frame).
 func (c *PictureTextureCache) EnsureCapacity(n int) {
-	if c == nil || n <= c.max {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if n <= c.max {
 		return
 	}
 	c.max = n
@@ -211,8 +228,8 @@ func (c *PictureTextureCache) effMaxLocked() int {
 	return c.max
 }
 
-// SetLiveKeys publishes the frame's live cache-key set (UI thread, before the
-// raster job runs). Guarded by mu like every other cross-thread field.
+// SetLiveKeys publishes the frame's live cache-key set (raster job, before
+// phase 1 record runs). Guarded by mu like every other cross-thread field.
 func (c *PictureTextureCache) SetLiveKeys(keys []uint64) {
 	if c == nil {
 		return
@@ -278,18 +295,21 @@ func defaultSlotAlloc(c *PictureTextureCache, w, h int) (*pictureTextureSlot, bo
 	return &pictureTextureSlot{view: view, release: release, w: w, h: h}, true
 }
 
-// Resize updates the full-window texture budget. Entries are NOT cleared:
-// recordWith/recordLocalWith rebuild a view when its recorded size no longer
-// matches (w != c.width || h != c.height), so unchanged layers keep their
-// textures across a resize and only affected layers re-record.
+// Resize records the full-window texture budget (record-only, T3). Any thread
+// may call; the size is applied at the next raster BeginFrame before any
+// record/blit of that frame. Entries are NOT cleared: recordWith/
+// recordLocalWith rebuild a view when its recorded size no longer matches,
+// so unchanged layers keep their textures across a resize and only affected
+// layers re-record. Record-only keeps dimensions from changing mid-frame
+// under a concurrent raster record.
 func (c *PictureTextureCache) Resize(w, h int) {
 	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.width = w
-	c.height = h
+	c.pendingW, c.pendingH = w, h
+	c.hasPendingSize = true
 }
 
 // Clear releases all cached textures (force frame / resize / cache drop).
@@ -352,15 +372,20 @@ func (c *PictureTextureCache) drainDeferred(current uint64) {
 	c.deferred = keep
 }
 
-// BeginFrame marks the start of a composite frame (increments the record
-// frame counter used by RecordedThisFrame) and drains releases that are safe
-// to execute now.
+// BeginFrame marks the start of a composite frame (raster thread via
+// CompositeFramePacketTextured): applies any pending Resize first so the
+// whole frame records/blits at one size, then increments the record frame
+// counter used by RecordedThisFrame and drains releases safe to execute now.
 func (c *PictureTextureCache) BeginFrame() {
 	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.hasPendingSize {
+		c.width, c.height = c.pendingW, c.pendingH
+		c.hasPendingSize = false
+	}
 	c.recordFrame++
 	c.stamp++ // advance the LRU clock once per composite frame
 	c.oversized = nil
@@ -442,6 +467,11 @@ func (c *PictureTextureCache) allocEntry(id uint64, w, h int) *pictureTextureEnt
 	}
 	s.lastWriteFrame = c.recordFrame
 	e.contentSlot = slot
+	// T3 pinned LRU: a fresh entry must carry the current stamp so eviction
+	// order is insertion order, not map-iteration luck. Record paths below
+	// re-stamp after replay; direct allocEntry users (tests) still evict
+	// oldest-first deterministically.
+	e.lastUse = c.stamp
 	return e
 }
 

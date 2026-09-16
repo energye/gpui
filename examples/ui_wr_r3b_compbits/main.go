@@ -136,6 +136,9 @@ func main() {
 		},
 	})
 
+	// W6: full_paint correctness window — pin policy explicitly (global default is retained).
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+
 	// Border paint hook: mark boundary nodes with bright outline when they
 	// need compositing (proves bits propagate to root + sibling isolation).
 	clock := wrkit.NewPhaseClock(2, 4)

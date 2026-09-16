@@ -32,9 +32,9 @@
 // baseline semantics; the first run only produces the baseline).
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	RUN_SECONDS=15 go run ./examples/ui_wr_c4_shell_overlay
+//	RUN_SECONDS=25 go run ./examples/ui_wr_c4_shell_overlay
 //
-// Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 15 (§2.5).
+// Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 25 (§2.5).
 // GPU window required (needs_gpu_window otherwise).
 package main
 
@@ -142,6 +142,10 @@ func main() {
 		secs = 0
 	} else {
 		wrkit.RequireMinRun(secs, "C4")
+		if secs < closeSeconds {
+			fmt.Fprintf(os.Stderr, "FAIL: RUN_SECONDS=%d want >=%d (§2.5 C4组合关闭用时长)\n", secs, closeSeconds)
+			os.Exit(1)
+		}
 	}
 	if _, _, errFace := wrkit.EnsureUIFace(); errFace != nil {
 		fmt.Fprintln(os.Stderr, "wrkit: font:", errFace)
