@@ -532,6 +532,8 @@ P5冻结不动：9.1高动态
 
 先只定一关：追车关`examples/game_stage_chase`，镜头跟随（1.3）加排序遮挡（2.3/1.2）加粒子拖尾（5.2）加瓦片分区（7.2）加动态更新（8.3）一起上，跑2分钟，帧率显存像素三数全过才算P3关门。第二关（夜战灯光加后期）等追车绿了再定。
 
+追车关实测（2026-09-16，未关门）：窗已建`examples/game_stage_chase`（README+`testdata/stage_chase_golden.png`离屏金），五引擎全走真包（camera follow+limit、DepthSort/YSort同序、Trail+GPUPool、Chunk Update/Visible、DirtyTracker+scene层双轨）。自检逻辑6/6＋像素5点＋parity图集路0.0000%＋离屏金0差全过。120秒自动（`RUN_SECONDS=120 -auto-only`，940MX/580.178.04/1920x1080/DISPLAY=:0非release）：presents6945 fps_interval57.9 p95约17.4 p99约17.9，moved约24614 vis12 loaded12 sorted约130 trail32 pool活约46点约522 batch1 dirty_max1 full0 boundary_skip175350 gpu_ops445519 fallback0；内存end==peak（377964KB，无峰外漏，起止含字体/GPU预热虚涨，2小时长跑另按起止5%判）；但hitch25（阈值33.4ms，12.5次/分）超严版每分3次，P3不能关门，疑桌面并行构建抖动，待闲时3遍去头尾取最差重测＋减分配优化。常驻30秒（`-manual-seconds 30`，backend=x11）：presents1752 moved约6144 vis15 sorted134 trail32 probe1，事件0（无人点，人工亲眼待补）。回归：camera/sprite/particle/tilemap/step整包PASS＋vet净，render/ui未碰。夜战第二关按约先不开，等追车绿了再定。
+
 ## 长跑接谁（不重造）
 
 - 架子照抄`examples/wrsoak/soak.go`（探针加对比图）配`examples/ui_wr_r15_soak/main.go`（300秒相位循环那套），游戏长跑只换场景不换架子。
