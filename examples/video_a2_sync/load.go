@@ -178,7 +178,7 @@ func checkPlayHead(base a2Baseline) (avdiff int64, vshown, ashown int, err error
 			vpts = append(vpts, vf.PTSMs)
 		}
 		runtime.Gosched()
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(25 * time.Millisecond)
 	}
 	if len(vpts) < 5 || len(apts) < 5 {
 		return 0, len(vpts), len(apts), fmt.Errorf("播出太少")
@@ -221,7 +221,7 @@ func checkSeekSerial(base a2Baseline) (maxAV int64, err error) {
 		p.PollAudio()
 		p.Poll()
 		runtime.Gosched()
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(25 * time.Millisecond)
 	}
 	for i, sk := range base.Seeks {
 		landed, err := p.SeekTo(sk.TargetMs)
@@ -233,7 +233,7 @@ func checkSeekSerial(base a2Baseline) (maxAV int64, err error) {
 		}
 		var firstV, firstA int64 = -1, -1
 		var aSerial int64 = -1
-		for tick := 0; tick < 400 && (firstV < 0 || firstA < 0); tick++ {
+		for tick := 0; tick < 600 && (firstV < 0 || firstA < 0); tick++ {
 			h.now += 10
 			if af, _ := p.PollAudio(); af != nil && firstA < 0 {
 				firstA, aSerial = af.PTSMs, af.Serial
@@ -242,9 +242,12 @@ func checkSeekSerial(base a2Baseline) (maxAV int64, err error) {
 				firstV = vf.PTSMs
 			}
 			runtime.Gosched()
-			time.Sleep(2 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 		}
-		if firstV != sk.VideoFloorMs && firstV != sk.VideoFloorMs+100 {
+		// First-SHOWN catch-up: floor or next grid frame (+41/42ms on
+		// 23.976fps footage), never a rewind, never beyond +100ms.
+		// Exact landing is pinned by landed == floor above.
+		if firstV < sk.VideoFloorMs || firstV-sk.VideoFloorMs > 100 {
 			return maxAV, fmt.Errorf("画面落点对不上")
 		}
 		if firstA < sk.AudioFloorMs || firstA-sk.AudioFloorMs > 100 {
@@ -263,11 +266,12 @@ func checkSeekSerial(base a2Baseline) (maxAV int64, err error) {
 	return maxAV, nil
 }
 
-// checkSilent pins the no-sound fallback: video master, zero gap, the
-// old 5-frame playthrough untouched.
+// checkSilent pins the no-sound fallback on real silent footage
+// (vr_silent.mp4, 240 frames): video master, zero gap, full playthrough
+// in order with zero drops and Ended.
 func checkSilent() error {
 	h := &handClock{}
-	p, err := video.OpenFile(resolveTestdata("vr2_720p.mp4"), video.Options{NowMs: h.at})
+	p, err := video.OpenFile(resolveTestdata("vr_silent.mp4"), video.Options{NowMs: h.at})
 	if err != nil {
 		return fmt.Errorf("打不开: %v", err)
 	}
@@ -275,17 +279,25 @@ func checkSilent() error {
 	if p.HasAudio() || p.Master() != video.MasterVideo || p.AVDiffMs() != 0 {
 		return fmt.Errorf("静音回落不对")
 	}
+	const total = 240
+	var last int64 = -1
 	n := 0
 	ended := false
-	for i := 0; i < 8 && !ended; i++ {
-		h.now += 200
+	for i := 0; i < 600 && !ended; i++ {
+		h.now += 25
 		fr, done := p.Poll()
 		if fr != nil {
+			if fr.Seq <= last {
+				return fmt.Errorf("静音序号不对")
+			}
+			last = fr.Seq
 			n++
 		}
 		ended = done
+		runtime.Gosched()
+		time.Sleep(20 * time.Millisecond)
 	}
-	if !ended || n != 5 {
+	if !ended || n != total {
 		return fmt.Errorf("静音播出不对")
 	}
 	st := p.Stats()
@@ -297,7 +309,7 @@ func checkSilent() error {
 
 // loadA2 runs the four A2 gates: identity 1 + play 1 + seek 5 + silent 1 = 8.
 func loadA2() a2Evidence {
-	ev := a2Evidence{Clips: "vr_a2_av.mp4+vr2_720p.mp4", Profile: "Main+AAC"}
+	ev := a2Evidence{Clips: "vr_oceans.mp4+vr_silent.mp4", Profile: "Constrained Baseline+AAC"}
 	base, err := loadBaseline()
 	if err != nil {
 		ev.ErrText = err.Error()

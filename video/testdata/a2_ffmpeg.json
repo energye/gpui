@@ -1,44 +1,45 @@
 {
   "tool": "ffprobe 4.4.2 + ffmpeg 4.4.2",
   "peer": "fftools/ffplay.c Clock/get_master_sync_type/get_master_clock (139-150/1477-1506) + set_clock/set_clock_speed (1441-1457) + stream_seek/packet_queue_flush (1527/493) + compute_target_delay (1580) + video_refresh (1630) + audio_decode_frame/sdl_audio_callback (2423/2571) + thresholds AV_SYNC_THRESHOLD_MIN/MAX 0.04/0.1 + AV_SYNC_FRAMEDUP_THRESHOLD 0.1 + AV_NOSYNC_THRESHOLD 10.0 (80-86)",
-  "gen": "ffmpeg -hide_banner -y -f lavfi -i testsrc=size=320x240:rate=10:duration=5 -f lavfi -i sine=frequency=440:duration=5 -c:v libx264 -profile:v main -pix_fmt yuv420p -bf 0 -g 10 -c:a aac -b:a 64k -ac 2 -ar 44100 -shortest video/testdata/vr_a2_av.mp4 (77KB, committed: A2 gate + window live clip)",
-  "clip": "vr_a2_av.mp4",
+  "gen": "real footage, committed: video/testdata/vr_oceans.mp4 (22MB, 960x400 Constrained Baseline, 23.976fps, 1116 samples, 28 keys, LC AAC 48kHz stereo 2185 packets). No synthetic gate clip: the old 77KB testsrc+sine clip hid pump-drift (packets too few for the drift to accumulate) and is deleted. vr_silent.mp4 is the same real footage head 10s with sound stripped (ffmpeg -i vr_oceans.mp4 -t 10 -c:v copy -an: 1.6MB, 960x400 Baseline, 240 frames, video-only, full-decode zero-conceal verified) for the silent-fallback leg. Note: f42906 was tried for the silent leg first and rejected — its mid-stream High multi-ref (ref idx 4) trips the open VR2 multi-ref gap (conceal cascade from s5), unrelated to cutting; that gap stays owned by VR2/H.264.",
+  "clip": "vr_oceans.mp4",
   "video": {
     "codec_name": "h264",
-    "profile": "Main",
-    "width": 320,
-    "height": 240,
-    "level": 11,
-    "avg_frame_rate": "10/1",
-    "nb_frames": 50,
-    "duration_ms": 5000,
-    "samples": 50,
-    "keyframes": 5,
-    "key_pts_ms": [0, 1000, 2000, 3000, 4000],
-    "first_pts_ms": [0, 100, 200],
-    "last_pts_ms": 4900
+    "profile": "Constrained Baseline",
+    "profile_idc": 66,
+    "width": 960,
+    "height": 400,
+    "level": 30,
+    "avg_frame_rate": "24000/1001",
+    "nb_frames": 1116,
+    "duration_ms": 46546,
+    "samples": 1116,
+    "keyframes": 28,
+    "key_pts_ms": [0, 5088, 6631, 7757, 8717, 10802, 11886, 13430, 15223, 16433, 17851, 18852, 22397, 23440, 24899, 28737, 29779, 30739, 31698, 32657, 33616, 35035, 36077, 37579, 38830, 39789, 42250, 44836],
+    "first_pts_ms": [0, 41, 83],
+    "last_pts_ms": 46504
   },
   "audio": {
     "codec_name": "aac",
     "profile": "LC",
-    "sample_rate": 44100,
+    "sample_rate": 48000,
     "channels": 2,
-    "nb_frames": 217,
-    "duration_ms": 5000,
-    "samples": 217,
-    "timescale": 44100,
-    "asc_hex": "121056e500",
-    "mp4a_rate": 44100,
+    "nb_frames": 2185,
+    "duration_ms": 46613,
+    "samples": 2185,
+    "timescale": 48000,
+    "asc_hex": "119056e500",
+    "mp4a_rate": 48000,
     "mp4a_channels": 2,
     "mp4a_bits": 16,
     "first_packets": [
-      {"size": 140, "pts_ms": 0},
-      {"size": 168, "pts_ms": 23},
-      {"size": 140, "pts_ms": 46}
+      {"size": 17, "pts_ms": 0},
+      {"size": 20, "pts_ms": 21},
+      {"size": 10, "pts_ms": 42}
     ],
-    "last_pts_ms": 5015
+    "last_pts_ms": 46592
   },
-  "format_duration": "5.000000",
+  "format_duration": "46.613333",
   "duration_tolerance_ms": 50,
   "thresholds_ms": {
     "sync_min": 40,
@@ -49,11 +50,11 @@
   "diff_budget_ms": 200,
   "seeks": [
     {"target_ms": 0, "video_floor_ms": 0, "video_key_ms": 0, "audio_floor_ms": 0},
-    {"target_ms": 1000, "video_floor_ms": 1000, "video_key_ms": 1000, "audio_floor_ms": 998},
-    {"target_ms": 2500, "video_floor_ms": 2500, "video_key_ms": 2000, "audio_floor_ms": 2484},
-    {"target_ms": 4900, "video_floor_ms": 4900, "video_key_ms": 4000, "audio_floor_ms": 4899},
-    {"target_ms": 4999, "video_floor_ms": 4900, "video_key_ms": 4000, "audio_floor_ms": 4992}
+    {"target_ms": 10000, "video_floor_ms": 9968, "video_key_ms": 8717, "audio_floor_ms": 9962},
+    {"target_ms": 25000, "video_floor_ms": 24983, "video_key_ms": 24899, "audio_floor_ms": 24981},
+    {"target_ms": 46000, "video_floor_ms": 45962, "video_key_ms": 44836, "audio_floor_ms": 45952},
+    {"target_ms": 46546, "video_floor_ms": 46504, "video_key_ms": 44836, "audio_floor_ms": 46485}
   ],
-  "boundary_note": "A2 gate clip uses Main profile on purpose (77KB committed file shared by gate + window; no churn). History, corrected 2026-09-16 by VR2d-12: the old note blamed Baseline tiny frames (flat 320x240 IDR F20 at mb 299/300) and lumped vr_oceans with vr_f42906 as High multi-ref B failing at ref idx 4. Re-probed: vr_oceans is Constrained Baseline single-ref no-B, and its failure was the tail-swallow class (IDR 1499/1500, last MB coded in a few bits + trailing, old byte-count heuristic stopped early) — fixed by VR2d-12 (oceans head 10/10, first 5 frames byte-exact vs ffmpeg; synthetic flat Baseline 320x240 now 5/5). vr_f42906 (High 852x480) still conceals from s5 with ref idx 4: a genuine separate VR2 gap, untouched. 160x120 was not re-probed, no claim. A2 itself only adds clocks/queues/sync; video decode bytes unchanged. Repro: direct-decode probes (removed after probing). Owner line VR2/H.264 owns the f42906 remainder.",
-  "pass": "stream identity exact (profile/level/dims/rate/channels/ASC/samples/keys/durations +-50ms/first packets); play head with sound leading: video+audio PTS monotonic, master=audio, |avdiff|<=200ms; seeks land video on floor, audio on floor +0..100ms packet cadence (audio-led picker, catch-up newer-wins), with one shared serial bump; silent clip falls back to video master with AVDiff 0 and old exact behavior"
+  "seek_note": "floors are table math (last sample PTS <= target, keyframe at/before, last audio PTS <= video floor); landings verified against engine SeekTo/SeekInfo on 2026-09-16 (landed==floor, key as listed, serial bumps 1..5, forward 1/31/3/28/41). No B reorder on this clip (single-ref Baseline), so floor == landing on both sides.",
+  "pass": "stream identity exact (profile/level/dims/rate/channels/ASC/samples/keys/durations +-50ms/first packets); play head with sound leading: video+audio PTS monotonic, master=audio, |avdiff|<=200ms; seeks land video on floor, audio on floor +0..100ms packet cadence (audio-led picker, catch-up newer-wins), with one shared serial bump; silent real clip falls back to video master with AVDiff 0 and full playthrough"
 }

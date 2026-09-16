@@ -36,22 +36,25 @@ type a2Seek struct {
 	AudioFloorMs int64 `json:"audio_floor_ms"`
 }
 
+type a2Video struct {
+	Profile    string  `json:"profile"`
+	ProfileIDC int     `json:"profile_idc"`
+	Width      int     `json:"width"`
+	Height     int     `json:"height"`
+	Level      int     `json:"level"`
+	FrameRate  string  `json:"avg_frame_rate"`
+	NbFrames   int     `json:"nb_frames"`
+	DurationMs int64   `json:"duration_ms"`
+	Samples    int     `json:"samples"`
+	Keyframes  int     `json:"keyframes"`
+	KeyPtsMs   []int64 `json:"key_pts_ms"`
+	FirstPtsMs []int64 `json:"first_pts_ms"`
+	LastPtsMs  int64   `json:"last_pts_ms"`
+}
+
 type a2Baseline struct {
-	Clip  string `json:"clip"`
-	Video struct {
-		Profile    string  `json:"profile"`
-		Width      int     `json:"width"`
-		Height     int     `json:"height"`
-		Level      int     `json:"level"`
-		FrameRate  string  `json:"avg_frame_rate"`
-		NbFrames   int     `json:"nb_frames"`
-		DurationMs int64   `json:"duration_ms"`
-		Samples    int     `json:"samples"`
-		Keyframes  int     `json:"keyframes"`
-		KeyPtsMs   []int64 `json:"key_pts_ms"`
-		FirstPtsMs []int64 `json:"first_pts_ms"`
-		LastPtsMs  int64   `json:"last_pts_ms"`
-	} `json:"video"`
+	Clip  string  `json:"clip"`
+	Video a2Video `json:"video"`
 	Audio struct {
 		Profile      string     `json:"profile"`
 		SampleRate   int        `json:"sample_rate"`
@@ -95,8 +98,9 @@ func loadA2Baseline(t *testing.T) a2Baseline {
 }
 
 // TestA2BaselineParity pins the gate clip identity from the real shell:
-// Main video 320x240/10fps/50 samples/5 keys plus LC AAC 44100/stereo,
-// ASC bytes, packet tables and durations against the ffprobe baseline.
+// Constrained Baseline 960x400/23.976fps/1116 samples/28 keys plus LC
+// AAC 48000/stereo, ASC bytes, packet tables and durations against the
+// ffprobe baseline.
 // Thresholds ride along so the sync budget never drifts into a literal.
 func TestA2BaselineParity(t *testing.T) {
 	b := loadA2Baseline(t)
@@ -114,8 +118,8 @@ func TestA2BaselineParity(t *testing.T) {
 	if v.Codec != "avc1" {
 		t.Fatalf("video codec = %q, want avc1", v.Codec)
 	}
-	if len(v.AVCConfig) < 4 || int(v.AVCConfig[1]) != 77 || int(v.AVCConfig[3]) != b.Video.Level {
-		t.Fatalf("avcC profile/level = %v, want Main(77)/%d", v.AVCConfig, b.Video.Level)
+	if len(v.AVCConfig) < 4 || int(v.AVCConfig[1]) != b.Video.ProfileIDC || int(v.AVCConfig[3]) != b.Video.Level {
+		t.Fatalf("avcC profile/level = %v, want %s(%d)/%d", v.AVCConfig, b.Video.Profile, b.Video.ProfileIDC, b.Video.Level)
 	}
 	if len(v.Samples) != b.Video.Samples || len(v.Keyframes) != b.Video.Keyframes {
 		t.Fatalf("video samples/keys = %d/%d, want %d/%d", len(v.Samples), len(v.Keyframes), b.Video.Samples, b.Video.Keyframes)
@@ -193,8 +197,12 @@ func TestA2TargetDelay(t *testing.T) {
 }
 
 // driveA2 steps the hand clock, draining sound then picture each tick
-// (ffplay order: audio callback leads, video_refresh follows). It yields
-// every tick so the backgrounds never starve under test.
+// (ffplay order: audio callback leads, video_refresh follows). The hand
+// advances at wall speed (sleep == step) so the wall-bound background
+// decoders keep up with the stamps: a hand that outruns decode would
+// pile content-domain skew between the two threads into the A-V gap
+// and fail a healthy sync for scheduling reasons, not sync reasons.
+// It yields every tick so the backgrounds never starve under test.
 func driveA2(h *handClock, p *Player, ticks int, step int64) (vpts, apts []int64, vseq, aserial []int64) {
 	for i := 0; i < ticks; i++ {
 		h.now += step
@@ -207,7 +215,7 @@ func driveA2(h *handClock, p *Player, ticks int, step int64) (vpts, apts []int64
 			vseq = append(vseq, vf.Seq)
 		}
 		runtime.Gosched()
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(time.Duration(step) * time.Millisecond)
 	}
 	return vpts, apts, vseq, aserial
 }
@@ -313,9 +321,12 @@ func TestA2SeekSameSerial(t *testing.T) {
 		}
 		// Wall-like drive in small steps: first stamps converge on the
 		// floors (video exact, audio +0..100ms), then the gap settles.
+		// Steps are 10ms of hand per ~5ms of wall so the wall-bound
+		// forward decode (tens of real frames per GOP) lands inside
+		// the tick budget on a loaded box.
 		var firstV, firstA int64 = -1, -1
 		var aSerial int64 = -1
-		for tick := 0; tick < 400 && (firstV < 0 || firstA < 0); tick++ {
+		for tick := 0; tick < 600 && (firstV < 0 || firstA < 0); tick++ {
 			h.now += 10
 			if af, _ := p.PollAudio(); af != nil && firstA < 0 {
 				firstA, aSerial = af.PTSMs, af.Serial
@@ -324,14 +335,16 @@ func TestA2SeekSameSerial(t *testing.T) {
 				firstV = vf.PTSMs
 			}
 			runtime.Gosched()
-			time.Sleep(2 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 		}
 		// Cadence pressure can strand the floor as stale on the *video*
-		// side only (coarse 100ms grid vs 10ms steps, same as the audio
-		// side above): accept the floor or the next grid frame (+100ms),
-		// never a rewind, never further.
-		if firstV != sk.VideoFloorMs && firstV != sk.VideoFloorMs+100 {
-			t.Fatalf("seek %d first video = %d, want floor %d or next grid +100", i, firstV, sk.VideoFloorMs)
+		// side only (same as the audio side above): accept the floor or
+		// the next grid frame (old 10fps clip: +100ms; 23.976fps real
+		// footage: +41/42ms — observed 46004 on floor 45962), never a
+		// rewind, never further than +100ms. Exact landing is already
+		// pinned by landed == floor above; this is first-SHOWN catch-up.
+		if firstV < sk.VideoFloorMs || firstV-sk.VideoFloorMs > 100 {
+			t.Fatalf("seek %d first video = %d, want floor %d +0..100ms (one grid step catch-up)", i, firstV, sk.VideoFloorMs)
 		}
 		if firstA < sk.AudioFloorMs || firstA-sk.AudioFloorMs > 100 {
 			t.Fatalf("seek %d first audio = %d, want floor %d +0..100ms (packet cadence)", i, firstA, sk.AudioFloorMs)
@@ -345,12 +358,13 @@ func TestA2SeekSameSerial(t *testing.T) {
 	}
 }
 
-// TestA2SilentFallback pins the no-sound contract on a silent clip:
-// video master, zero A-V gap, old exact playthrough untouched (5/5,
-// zero drops, Ended).
+// TestA2SilentFallback pins the no-sound contract on a silent REAL clip
+// (vr_silent.mp4: real oceans head 10s, sound stripped, 960x400 Baseline,
+// 23.976fps, 240 frames, video-only): video master, zero A-V gap, full
+// playthrough in order with zero drops and Ended.
 func TestA2SilentFallback(t *testing.T) {
 	h := &handClock{}
-	p, err := OpenFile("testdata/vr2_720p.mp4", Options{NowMs: h.at})
+	p, err := OpenFile("testdata/vr_silent.mp4", Options{NowMs: h.at})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -361,24 +375,31 @@ func TestA2SilentFallback(t *testing.T) {
 	if d := p.AVDiffMs(); d != 0 {
 		t.Fatalf("silent avdiff = %d, want 0", d)
 	}
+	if p.Buffered() {
+		t.Fatal("silent clip must stream (drops only count on the streaming path)")
+	}
+	const total = 240
 	var seqs []int64
 	ended := false
-	for i := 0; i < 8 && !ended; i++ {
-		h.now += 200
+	for i := 0; i < 600 && !ended; i++ {
+		h.now += 25
 		fr, done := p.Poll()
 		if fr != nil {
 			seqs = append(seqs, fr.Seq)
 		}
 		ended = done
+		runtime.Gosched()
+		time.Sleep(20 * time.Millisecond)
 	}
-	if !ended || len(seqs) != 5 {
-		t.Fatalf("silent play = %v ended %v, want 0..4 + ended", seqs, ended)
+	if !ended || len(seqs) != total {
+		t.Fatalf("silent play = %d frames ended %v, want %d + ended", len(seqs), ended, total)
 	}
+	monoInc(t, "silent seq", seqs)
 	st := p.Stats()
 	if st.Master != MasterVideo || st.AVDiffMs != 0 || st.AudioDecoded != 0 || st.AudioShown != 0 {
 		t.Fatalf("silent stats = %+v, want video master + zero audio", st)
 	}
-	if st.Shown != 5 || st.Dropped != 0 || !st.Ended {
-		t.Fatalf("silent stats shown/dropped/ended = %d/%d/%v, want 5/0/true", st.Shown, st.Dropped, st.Ended)
+	if st.Shown != total || st.Dropped != 0 || !st.Ended {
+		t.Fatalf("silent stats shown/dropped/ended = %d/%d/%v, want %d/0/true", st.Shown, st.Dropped, st.Ended, total)
 	}
 }

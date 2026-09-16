@@ -20,7 +20,7 @@ import (
 )
 
 // TestA4BaselineParity pins the gate clip shell from the real file:
-// 320x240 video plus LC AAC 44100/stereo packet tables against the
+// 960x400 video plus LC AAC 48000/stereo packet tables against the
 // ffprobe baseline.
 func TestA4BaselineParity(t *testing.T) {
 	base, err := loadA4Baseline()

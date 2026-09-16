@@ -10,32 +10,33 @@ RUN_SECONDS=15 go run ./examples/video_a4_sink -auto-only
 go run ./examples/video_a4_sink -manual-seconds 30
 ```
 
-放自己的片子（只换直播这一路，探针永远钉在门禁小片上）：
+放自己的片子（只换直播这一路，探针永远钉在门禁真片上）：
 
 ```bash
-RUN_SECONDS=15 go run ./examples/video_a4_sink -auto-only -file video/testdata/vr_oceans.mp4
+RUN_SECONDS=15 go run ./examples/video_a4_sink -auto-only -file video/testdata/vr_silent.mp4
 go run ./examples/video_a4_sink -file /path/to/你的.mp4
 ```
 
 `-file` 是演示档：探针照样全过才开窗，直播的画面和声音走你的片子，
-声画差只如实上报不限 200 毫秒（JSON 里 `live_gate` 会标 `demo`，
-默认门禁片是 `strict`）。原因：200 毫秒线是按 320x240 门禁片标的，
-大片在窗里会系统性落后：窗内解码约 14.6 帧每秒（和渲染抢 CPU，
-背景解码跟不上片子本身的 24 帧），每拍约 52 毫秒而构建加光栅
-不足 0.3 毫秒（present 与上传路的账，归渲染线），声音链路本身
-零丢实时。所以声画差读数报的是画面滞后，不是声音坏。
+声画差只如实上报不限 200 毫秒（JSON 里 `live_gate` 会标 `demo`）。
+默认直播是真片 `vr_oceans.mp4`（960x400，48x200 显示），拔线演习照做；
+它的声画差读数同样只上报不限门禁：真片在这台机器上约 10 帧每秒渲染
+（§6.2 RENDER-SLOW-2，归渲染线），读数报的是画面滞后，不是声音坏，
+200 毫秒线由无头泵门禁（同片）继续卡。原因：旧 200 毫秒线是按 77KB
+合成小片标的，那片渲染能跑满 60Hz，真机上根本盖不住泵漂移和渲染
+短板，所以合成门禁片已删，门禁全换真片。
 
-人眼可见：左边 identity/convert/wav/pump/device 五组全过，右边 320x240
-测试图循环播，喇叭里是 440Hz 正弦声，HUD 显示播了多少声音包；
+人眼可见：左边 identity/convert/wav/pump/device 五组全过，右边真片
+循环播，喇叭里是片子自己的声音，HUD 显示播了多少声音包；
 第 8 秒做一次拔线演习（主动杀掉出声子进程模拟拔耳机），泵暂停并报
 可读错，约 2 秒后自动恢复继续响，画面全程不断。
 声音本身由宿主侧送喇叭：paplay 优先（走 Pulse），没有再走 aplay，
 都没才诚实报缺设备；引擎只出 PCM，不管喇叭（§4 纪律）。
 
 门禁（-auto-only，见 main.go）：探针非设备组全过 + 直播有画面 +
-喇叭吃到包 + 主钟 audio + 声画差≤200ms + 拔线演习走完（杀→停→恢，
+喇叭吃到包 + 主钟 audio + 拔线演习走完（杀→停→恢，
 且留下可读错）+ 首帧≤2000ms + 内存峰值≤上限 + §2.2 全族键齐，
-不达标 `FAIL:` + `exit 1`。演习那几秒和循环绕回那几拍的声画差不计入
+不达标 `FAIL:` + `exit 1`。声画差只上报不限门禁（见上）。演习那几秒和循环绕回那几拍的声画差不计入
 （读数本身是前后两帧相减，故障窗口内采它等于罚演习成功），门禁只看
 平稳期的差。JSON 里能看到 `live_max_av_ms` 是平稳期最大值。
 

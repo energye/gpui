@@ -266,7 +266,9 @@ func checkA4Wav(base a4Baseline) error {
 // checkA4Pump pins sound-led sync through a counting sink (no speaker):
 // both stamps rise monotonically, master reads audio, drops stay zero,
 // the gap ends inside budget. The speaker changes nothing above this:
-// PumpOnce is the only caller of WritePCM.
+// PumpOnce is the only caller of WritePCM. The hand advances at wall
+// speed (25ms/25ms) so the wall-bound background decoders keep up with
+// the stamps on real footage (see video/a2_ffmpeg_test.go driveA2).
 func checkA4Pump(base a4Baseline) (avdiff int64, vshown, ashown int, err error) {
 	h := &handClock{}
 	p, err := govideo.OpenFile(resolveA4(base.Clip), govideo.Options{NowMs: h.at})
@@ -292,7 +294,7 @@ func checkA4Pump(base a4Baseline) (avdiff int64, vshown, ashown int, err error) 
 			vpts = append(vpts, vf.PTSMs)
 		}
 		runtime.Gosched()
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(25 * time.Millisecond)
 	}
 	if len(vpts) < 5 || len(apts) < 5 {
 		return 0, len(vpts), len(apts), fmt.Errorf("播出太少")
@@ -331,7 +333,7 @@ func checkA4Device() (backend string, available bool, reason string) {
 // pump 1 + device 0/1 (device counts only when a writer exists;
 // headless stays honest-unavailable instead of faking a pass).
 func loadA4() a4Evidence {
-	ev := a4Evidence{Clips: "vr_a2_av.mp4"}
+	ev := a4Evidence{Clips: "vr_oceans.mp4"}
 	base, err := loadA4Baseline()
 	if err != nil {
 		ev.ErrText = err.Error()
