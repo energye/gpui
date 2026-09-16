@@ -41,6 +41,15 @@
 // bone/slot/skin/attachment is NotFound, a bad draw order or NaN/Inf
 // number is InvalidArg. A nil Skeleton or Pose never panics.
 //
+// Frozen 2026-09-16 (capability 4.4, P2 long chain, S46/W7): State
+// (Name, CanTo, Blend), Machine (NewMachine, AddState, Has,
+// StateCount, States, Start, Request, Update, Current, From, To,
+// Blending, Progress, Weights, BlendDur, Elapsed). Blend is the outgoing
+// crossfade length in core.Duration (zero cuts instantly); Request on a
+// forbidden hop reports InvalidArg, on an unknown target NotFound, before
+// Start InvalidArg; the machine never moves on error and a nil Machine
+// never panics. Additive changes only.
+//
 // This package only computes numbers; it draws nothing. The caller feeds
 // the eased progress into existing draws (positions, alpha, scales).
 // Only core errors are used; no new Vec2/Color/AssetID is defined here.

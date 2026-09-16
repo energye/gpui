@@ -1,0 +1,72 @@
+{
+  "states": [
+    {"name": "idle", "can_to": ["run", "jump"], "blend_ms": 200},
+    {"name": "run", "can_to": ["idle", "jump"], "blend_ms": 100},
+    {"name": "jump", "can_to": ["idle"], "blend_ms": 0}
+  ],
+  "sequences": [
+    {
+      "name": "idle_to_run",
+      "start": "idle",
+      "steps": [
+        {"dt_ms": 0, "request": "", "want_current": "idle", "want_from": "idle", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 0, "request": "run", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 100, "request": "", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0.5, "want_from_w": 0.5, "want_to_w": 0.5, "want_err": ""},
+        {"dt_ms": 100, "request": "", "want_current": "run", "want_from": "run", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 0, "request": "idle", "want_current": "idle", "want_from": "run", "want_to": "idle", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 50, "request": "", "want_current": "idle", "want_from": "run", "want_to": "idle", "want_blending": true, "want_progress": 0.5, "want_from_w": 0.5, "want_to_w": 0.5, "want_err": ""},
+        {"dt_ms": 50, "request": "", "want_current": "idle", "want_from": "idle", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""}
+      ]
+    },
+    {
+      "name": "jump_cut",
+      "start": "idle",
+      "steps": [
+        {"dt_ms": 0, "request": "jump", "want_current": "jump", "want_from": "idle", "want_to": "jump", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 200, "request": "", "want_current": "jump", "want_from": "jump", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 0, "request": "idle", "want_current": "idle", "want_from": "idle", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 16, "request": "", "want_current": "idle", "want_from": "idle", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""}
+      ]
+    },
+    {
+      "name": "illegal_stays",
+      "start": "jump",
+      "steps": [
+        {"dt_ms": 0, "request": "run", "want_current": "jump", "want_from": "jump", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": "invalid-arg"},
+        {"dt_ms": 0, "request": "ghost", "want_current": "jump", "want_from": "jump", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": "not-found"},
+        {"dt_ms": 0, "request": "", "want_current": "jump", "want_from": "jump", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 100, "request": "", "want_current": "jump", "want_from": "jump", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""}
+      ]
+    },
+    {
+      "name": "retarget",
+      "start": "idle",
+      "steps": [
+        {"dt_ms": 0, "request": "run", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 100, "request": "", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0.5, "want_from_w": 0.5, "want_to_w": 0.5, "want_err": ""},
+        {"dt_ms": 0, "request": "jump", "want_current": "jump", "want_from": "run", "want_to": "jump", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 100, "request": "", "want_current": "jump", "want_from": "jump", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""}
+      ]
+    },
+    {
+      "name": "cancel",
+      "start": "idle",
+      "steps": [
+        {"dt_ms": 0, "request": "run", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 100, "request": "", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0.5, "want_from_w": 0.5, "want_to_w": 0.5, "want_err": ""},
+        {"dt_ms": 0, "request": "idle", "want_current": "idle", "want_from": "idle", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 50, "request": "", "want_current": "idle", "want_from": "idle", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""}
+      ]
+    },
+    {
+      "name": "zero_dt_holds",
+      "start": "idle",
+      "steps": [
+        {"dt_ms": 0, "request": "run", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 0, "request": "", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": -16, "request": "", "want_current": "run", "want_from": "idle", "want_to": "run", "want_blending": true, "want_progress": 0, "want_from_w": 1, "want_to_w": 0, "want_err": ""},
+        {"dt_ms": 200, "request": "", "want_current": "run", "want_from": "run", "want_to": "", "want_blending": false, "want_progress": 1, "want_from_w": 1, "want_to_w": 0, "want_err": ""}
+      ]
+    }
+  ]
+}

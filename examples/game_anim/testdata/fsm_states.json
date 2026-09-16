@@ -1,0 +1,7 @@
+{
+  "states": [
+    {"name": "idle", "can_to": ["run", "jump"], "blend_ms": 200},
+    {"name": "run", "can_to": ["idle", "jump"], "blend_ms": 100},
+    {"name": "jump", "can_to": ["idle"], "blend_ms": 0}
+  ]
+}
