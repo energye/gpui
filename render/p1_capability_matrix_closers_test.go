@@ -3034,6 +3034,13 @@ fn fs_main() -> @location(0) vec4<f32> {
 		Usage:  webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
 	})
 	if err != nil {
+		// K.02 draws nothing without the 8x8 target: under VRAM pressure
+		// (e.g.独显 heap pinned by a prior FlushGPU device) native reports
+		// "Not enough memory left" before any draw runs — environment
+		// shortage, not a DrawIndirect regression (CS02 同例 Skip).
+		if render.IsGPUOutOfMemory(err) {
+			t.Skipf("K.02 8x8 RT OOM, skipping (no draw ran): %v", err)
+		}
 		t.Fatalf("rt: %v", err)
 	}
 	defer rt.Release()

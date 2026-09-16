@@ -3027,17 +3027,16 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		opacity float32
 	}
 	var outs []outBlit
-	// opt32: optional shared encoder for dual-tex multi + composite blit (one Finish).
-	var compositeEnc *webgpu.CommandEncoder
+	// F1: dual-tex passes must not share an encoder with the composite blit
+	// that samples their outputs. Recording both into one encoder resolved
+	// the blend outputs to transparent on wgpu-native (multiply stayed
+	// white, screen stayed black) with no submit error. An external enc
+	// (ADR-017 single-submit) still uses IntoEncoder per caller contract;
+	// otherwise use the R7.3 bundle path (separate dual-tex encoder,
+	// coalesced via the lead queue), then per-op path.
 	if len(viewOps) > 0 {
 		dstView := (*webgpu.TextureView)(target.View.Pointer())
 		recordEnc := enc
-		if recordEnc == nil && device != nil {
-			if ce, eerr := device.CreateCommandEncoder(dualTexCompositeEncoderDesc); eerr == nil {
-				compositeEnc = ce
-				recordEnc = ce
-			}
-		}
 		// Prefer IntoEncoder (opt32 / shared frame enc). Fall back to R7.3
 		// separate dual-tex CB + leading coalesce, then per-op path.
 		var mout []dualTexViewBlendOut
@@ -3049,10 +3048,6 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			derr = fmt.Errorf("dual-tex multi: no encoder")
 		}
 		if derr != nil {
-			if compositeEnc != nil {
-				compositeEnc.DiscardEncoding()
-				compositeEnc = nil
-			}
 			// R7.3: finish dual-tex multi without Submit; coalesce with following
 			// blit Flush into one Queue.Submit (multi CB, ordered).
 			bundle, berr := dualTexAdvancedBlendViewsMultiBundle(device, queue, cache, dstView, viewOps, tw, th, false)
@@ -3083,7 +3078,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			for _, mo := range mout {
 				outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
 			}
-			// Dual-tex passes live on compositeEnc/enc — no separate lead CB.
+			// Dual-tex passes live on enc — no separate lead CB.
 		}
 	}
 
@@ -3153,30 +3148,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 
 	if rc.PendingCount() > 0 {
 		// pendingAdvancedLayers already nil — no recursion into resolve.
-		if compositeEnc != nil && rc.session != nil {
-			// opt32: encode composite blit into the same encoder as dual-tex multi,
-			// one Finish + submitWithLeading (layers + dual+blit).
-			rc.sharedEncoder = compositeEnc
-			ferr := rc.Flush(target)
-			rc.sharedEncoder = nil
-			if ferr != nil {
-				compositeEnc.DiscardEncoding()
-				compositeEnc = nil
-				if err == nil {
-					err = ferr
-				}
-			} else {
-				cmd, ferr := compositeEnc.Finish()
-				compositeEnc = nil
-				if ferr != nil {
-					if err == nil {
-						err = ferr
-					}
-				} else if serr := rc.session.submitWithLeading(cmd); serr != nil && err == nil {
-					err = serr
-				}
-			}
-		} else if enc != nil && rc.session != nil {
+		if enc != nil && rc.session != nil {
 			// opt39: external single-submit encoder owns Finish/Submit.
 			// Encode dual-tex out→scratch blits into enc; do not Finish here.
 			rc.sharedEncoder = enc
@@ -3191,26 +3163,11 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 				err = ferr
 			}
 		}
-	} else if compositeEnc != nil && rc.session != nil {
-		// Dual-tex multi encoded but no blit queued — still Finish+submit.
-		cmd, ferr := compositeEnc.Finish()
-		compositeEnc = nil
-		if ferr != nil {
-			if err == nil {
-				err = ferr
-			}
-		} else if serr := rc.session.submitWithLeading(cmd); serr != nil && err == nil {
-			err = serr
-		}
 	} else if rc.session != nil {
 		// Dual-tex multi finished but no composite blit queued — still submit.
 		if ferr := rc.session.FlushLeadingSubmitsOnly(); ferr != nil && err == nil {
 			err = ferr
 		}
-	}
-	if compositeEnc != nil {
-		compositeEnc.DiscardEncoding()
-		compositeEnc = nil
 	}
 	// When encoding into an external single-submit encoder, layer RT textures
 	// must stay alive until Finish/Submit. Caller drains layerReleaseHold after.
