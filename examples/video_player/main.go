@@ -123,7 +123,7 @@ func main() {
 			st.durMs = int64(st.info.Frames) * 200
 		}
 		var bufErr error
-		st.buf, bufErr = render.NewImageBuf(st.info.Width, st.info.Height, render.FormatRGBA8)
+		st.buf, bufErr = render.NewImageBuf(st.info.Width, st.info.Height, render.FormatRGBAPremul)
 		if bufErr != nil {
 			st.fatal(fmt.Sprintf("显存建不起：%v", bufErr))
 		}
@@ -227,8 +227,16 @@ func main() {
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		_ = dt
-		app.ScheduleFrame()
 		st.tick()
+		// STEP-1 on-demand present: only schedule a frame when the tick
+		// actually showed a new picture (plus HUD text changes ride the
+		// same tick). Poll returns nil most ticks under vsync pacing;
+		// scheduling every tick repaints+reuploads the whole window at
+		// 60Hz for nothing. Pause keeps one frame for controls.
+		if st.dirtyFrame {
+			st.dirtyFrame = false
+			app.ScheduleFrame()
+		}
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -293,6 +301,17 @@ type state struct {
 	shown   int64
 	note    string
 	bad     string
+	// STEP-1 text throttle: shaping+layout per SetText is the per-frame
+	// hog next to upload, so labels only refresh when their text
+	// actually changes (status at most ~4Hz, time/progress ~10Hz).
+	// dirtyFrame drives on-demand present: the ticker only schedules a
+	// frame when a new picture (or a control event) actually changed
+	// something on screen.
+	lastStatusText string
+	lastStatusAt   time.Time
+	lastTimeText   string
+	lastBarRatio   float64
+	dirtyFrame     bool
 
 	// Progress scrub: press-move fires fast keyframe jumps, release
 	// fires the exact landing (standard scrub model).
@@ -416,12 +435,23 @@ func (st *state) refreshStatus() {
 		return
 	}
 	if st.bad != "" {
-		st.statusLabel.SetText(st.bad)
+		if st.lastStatusText != st.bad {
+			st.lastStatusText = st.bad
+			st.statusLabel.SetText(st.bad)
+		}
 		return
 	}
 	s := st.note
 	if st.player == nil {
-		st.statusLabel.SetText(s)
+		if st.lastStatusText != s {
+			st.lastStatusText = s
+			st.statusLabel.SetText(s)
+		}
+		return
+	}
+	// Counters move every frame; the label only needs ~4Hz.
+	now := time.Now()
+	if now.Sub(st.lastStatusAt) < 250*time.Millisecond && st.lastStatusText != "" {
 		return
 	}
 	stats := st.player.Stats()
@@ -429,11 +459,16 @@ func (st *state) refreshStatus() {
 	if st.audioNote != "" {
 		extra += "  " + st.audioNote
 	}
-	if s == "" {
-		st.statusLabel.SetText(extra)
-	} else {
-		st.statusLabel.SetText(s + "  " + extra)
+	text := extra
+	if s != "" {
+		text = s + "  " + extra
 	}
+	if text != st.lastStatusText {
+		st.lastStatusText = text
+		st.statusLabel.SetText(text)
+		st.dirtyFrame = true
+	}
+	st.lastStatusAt = now
 }
 
 func seekingMark(v int) string {
@@ -464,7 +499,8 @@ func (st *state) refreshTime() {
 	if st.player != nil {
 		rate = st.player.Rate()
 	}
-	st.timeLabel.SetText(fmt.Sprintf("%s / %s  (%d帧 %.1fx)", fmtMs(cur), fmtMs(st.durMs), st.shown, rate))
+	// Time/progress only needs ~10Hz; skip shaping when nothing changed.
+	text := fmt.Sprintf("%s / %s  (%d帧 %.1fx)", fmtMs(cur), fmtMs(st.durMs), st.shown, rate)
 	ratio := 0.0
 	if st.durMs > 0 {
 		ratio = float64(cur) / float64(st.durMs)
@@ -475,8 +511,15 @@ func (st *state) refreshTime() {
 	if ratio > 1 {
 		ratio = 1
 	}
+	if text == st.lastTimeText && (ratio-st.lastBarRatio) < 0.002 && (st.lastBarRatio-ratio) < 0.002 {
+		return
+	}
+	st.lastTimeText = text
+	st.lastBarRatio = ratio
+	st.timeLabel.SetText(text)
 	st.barFill.Width = 1 + ratio*(st.barW-1)
 	st.barFill.MarkNeedsLayout()
+	st.dirtyFrame = true
 }
 
 // audioBridge owns the speaker pump goroutine for one player: the pump
@@ -711,6 +754,7 @@ func (st *state) tick() {
 		if st.img != nil {
 			st.img.SetImageShared(st.buf)
 		}
+		st.dirtyFrame = true
 		if st.ended {
 			st.ended = false
 		}
@@ -986,7 +1030,7 @@ func (st *state) openPath(path string) {
 		st.status("打不开：" + govideo.Classify(err).Readable())
 		return
 	}
-	nbuf, err := render.NewImageBuf(next.Info().Width, next.Info().Height, render.FormatRGBA8)
+	nbuf, err := render.NewImageBuf(next.Info().Width, next.Info().Height, render.FormatRGBAPremul)
 	if err != nil {
 		next.Close()
 		st.status(fmt.Sprintf("显存建不起：%v", err))
@@ -1086,7 +1130,10 @@ func cleanDropPath(p string) string {
 
 // fastBlitRGBA copies a player frame into the display buffer row by row
 // (one copy per row instead of w*h SetRGBA calls) and flags it for GPU
-// reupload. Window side only; video core never imports render.
+// reupload. Frames from the player are opaque (alpha 255), so the buffer
+// is FormatRGBAPremul: for opaque pixels premultiplied == straight,
+// which skips the per-frame O(w*h) premultiply pass on upload and its
+// extra buffer. Window side only; video core never imports render.
 func fastBlitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
 	if dst == nil || len(pix) < w*h*4 {
 		return

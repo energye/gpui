@@ -78,6 +78,93 @@ func ensureWindows() {
 	})
 }
 
+// imdctCosTab caches cos((2j+1)*theta) per (L, theta-bin) so the folded
+// IMDCT below never calls math.Cos in steady play: one table build per
+// distinct theta-bin (2 per i per length, built once, reused by every
+// packet), then pure multiply-add. Same math as the naive loops, only
+// the evaluation order changes (Horner-free: plain sum, identical
+// rounding up to float64 associativity — the waveform gate below pins
+// rms<=1e-6/maxabs<=1e-5 end to end, measured bit-identical on the
+// checked-in clips). Peers libavutil/tx precompute (cos tables in
+// tx_template.c), own code.
+var (
+	cosTabMu   sync.RWMutex
+	cosTabLong [2][512][]float64
+	cosTabShor [2][64][]float64
+)
+
+// imdctCosRow returns cos((2j+1)*theta) for j in [0,L), built once per
+// (L, theta-bin). longLen selects the 1024/128 tables; which selects
+// the D/U half.
+func imdctCosRow(longLen bool, which, i int) []float64 {
+	L := 1024
+	phase := math.Pi / 4096.0
+	if !longLen {
+		L = 128
+		phase = math.Pi / 512.0
+	}
+	half := L / 2
+	var theta float64
+	if which == 0 {
+		theta = phase * float64(4*half-2*i-1)
+	} else {
+		theta = phase * float64(6*half+2*i+1)
+	}
+	cosTabMu.RLock()
+	var row []float64
+	if longLen {
+		row = cosTabLong[which][i]
+	} else {
+		row = cosTabShor[which][i]
+	}
+	cosTabMu.RUnlock()
+	if row != nil {
+		return row
+	}
+	row = make([]float64, L)
+	for j := 0; j < L; j++ {
+		row[j] = math.Cos((2*float64(j) + 1) * theta)
+	}
+	cosTabMu.Lock()
+	if longLen {
+		if cosTabLong[which][i] == nil {
+			cosTabLong[which][i] = row
+		} else {
+			row = cosTabLong[which][i]
+		}
+	} else {
+		if cosTabShor[which][i] == nil {
+			cosTabShor[which][i] = row
+		} else {
+			row = cosTabShor[which][i]
+		}
+	}
+	cosTabMu.Unlock()
+	return row
+}
+
+// imdctFolded is the shared folded kernel for both lengths: for each i,
+// sum in[j]*cos((2j+1)*theta) over nonzero coeffs (sparse skip kept:
+// real packets are mostly zeros), times scale. The U half carries the
+// spec minus sign.
+func imdctFolded(in []float64, out []float64, longLen bool, L, half int, scale float64) {
+	for i := 0; i < half; i++ {
+		rowD := imdctCosRow(longLen, 0, i)
+		rowU := imdctCosRow(longLen, 1, i)
+		sumD, sumU := 0.0, 0.0
+		for j := 0; j < L; j++ {
+			c := in[j]
+			if c == 0 {
+				continue
+			}
+			sumD += c * rowD[j]
+			sumU += c * rowU[j]
+		}
+		out[i] = sumD * scale
+		out[i+half] = -sumU * scale
+	}
+}
+
 // imdctLongFolded transforms 1024 coeffs to the 1024 folded time
 // samples ffmpeg chains forward (buf_mdct). It peers the HALF inverse
 // MDCT (libavutil/tx_template.c ff_tx_mdct_naive_inv, len=1024 without
@@ -85,54 +172,24 @@ func ensureWindows() {
 // Scale is (1/1024)/32768: 1/1024 inverts the encoder MDCT and 1/32768
 // undoes its forward gain (aacenc.c scale=32768.0, decoder MDCT_INIT
 // divides sval by 32768 in aacdec.c).
-// Naive O(N^2); landing 2 correctness first, speed later.
+// Steady play costs zero math.Cos: cosine rows are cached per theta-bin
+// (see imdctCosRow); the naive double loop stays as the algorithm's
+// shape, only the trig evaluation is hoisted.
 func imdctLongFolded(in []float64) []float64 {
 	const L = 1024
 	const half = 512
-	const phase = math.Pi / 4096.0
 	out := make([]float64, L)
-	scale := 1.0 / float64(L) / 32768.0
-	for i := 0; i < half; i++ {
-		iD := phase * float64(4*half-2*i-1)
-		iU := phase * float64(6*half+2*i+1)
-		sumD, sumU := 0.0, 0.0
-		for j := 0; j < L; j++ {
-			if in[j] == 0 {
-				continue
-			}
-			a := 2*float64(j) + 1
-			sumD += in[j] * math.Cos(a*iD)
-			sumU += in[j] * math.Cos(a*iU)
-		}
-		out[i] = sumD * scale
-		out[i+half] = -sumU * scale
-	}
+	imdctFolded(in, out, true, L, half, 1.0/float64(L)/32768.0)
 	return out
 }
 
 // imdctShortFolded transforms 128 coeffs to 128 folded samples
-// (same (1/128)/32768 rule).
+// (same (1/128)/32768 rule; cosine rows cached like the long path).
 func imdctShortFolded(in []float64) []float64 {
 	const L = 128
 	const half = 64
-	const phase = math.Pi / 512.0
 	out := make([]float64, L)
-	scale := 1.0 / float64(L) / 32768.0
-	for i := 0; i < half; i++ {
-		iD := phase * float64(4*half-2*i-1)
-		iU := phase * float64(6*half+2*i+1)
-		sumD, sumU := 0.0, 0.0
-		for j := 0; j < L; j++ {
-			if in[j] == 0 {
-				continue
-			}
-			a := 2*float64(j) + 1
-			sumD += in[j] * math.Cos(a*iD)
-			sumU += in[j] * math.Cos(a*iU)
-		}
-		out[i] = sumD * scale
-		out[i+half] = -sumU * scale
-	}
+	imdctFolded(in, out, false, L, half, 1.0/float64(L)/32768.0)
 	return out
 }
 

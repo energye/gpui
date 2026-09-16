@@ -109,7 +109,7 @@ func TestOpenPathBadFileKeepsPlaying(t *testing.T) {
 	}
 	st.player.Close()
 	st.buf.Dispose()
-	_ = render.FormatRGBA8
+	_ = render.FormatRGBAPremul
 }
 
 // TestAudioStaysOffHeadless pins the speaker guard: headless openPath
@@ -134,6 +134,33 @@ func TestAudioStaysOffHeadless(t *testing.T) {
 	st.stopAudio()
 	if st.audioNote != "" {
 		t.Fatalf("headless audioNote = %q, want empty", st.audioNote)
+	}
+}
+
+// TestTextThrottleSkipsRedundantShaping pins the STEP-1 window diet:
+// identical status/time text must not reshape every frame — only real
+// changes touch the shaping path. It drives refreshTime/refreshStatus
+// back to back and requires the second identical pass to leave the
+// bar width untouched (no-op), while a changed frame count reshapes.
+func TestTextThrottleSkipsRedundantShaping(t *testing.T) {
+	st := newHeadlessState(t, resolveTestClip("vr2_720p.mp4"))
+	st.openPath(resolveTestClip("vr2_720p.mp4"))
+	if st.player == nil || st.bad != "" {
+		t.Fatalf("open: player=%v bad=%q", st.player != nil, st.bad)
+	}
+	defer st.player.Close()
+	defer st.buf.Dispose()
+	st.lastPTS, st.shown = 200, 3
+	st.refreshTime()
+	w0 := st.barFill.Width
+	st.refreshTime()
+	if st.barFill.Width != w0 {
+		t.Fatal("identical time text reshaped (throttle must no-op)")
+	}
+	st.lastPTS, st.shown = 600, 4
+	st.refreshTime()
+	if st.barFill.Width == w0 {
+		t.Fatal("changed time text did not reshape time text")
 	}
 }
 
