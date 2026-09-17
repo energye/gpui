@@ -55,12 +55,32 @@ type CUInfo struct {
 }
 
 // TUInfo is one transform unit's coefficient truth (raster levels,
-// pre-dequant; the pixel stage scales and transforms).
+// pre-dequant; the pixel stage scales and transforms). QP carries the
+// luma QP in force for this block (slice QP plus decoded deltas).
 type TUInfo struct {
 	X0, Y0   int
 	Log2Size int
 	CIdx     int
+	QP       int32
 	Coeffs   []int16
+}
+
+// TULeaf is one visited transform leaf: every transform_unit call lands
+// here, including all-zero leaves (no TUInfo rides for those, but the
+// pixel stage still predicts them). Order matches the decode walk.
+// CbX/CbY carry the transform-tree root (CU origin) for the small-TU
+// chroma path, which predicts at the root on the last leaf.
+type TULeaf struct {
+	X0, Y0     int
+	CbX, CbY   int
+	Log2Size   int
+	Blk        int
+	CbfLuma    bool
+	CbfCb      bool
+	CbfCr      bool
+	LumaMode   uint8
+	ChromaMode uint8
+	QP         int32
 }
 
 // FrameSyntax is the full IDR syntax: headers, CUs, TUs, SAO table.
@@ -68,6 +88,7 @@ type FrameSyntax struct {
 	SH       *SliceHeader
 	CUs      []CUInfo
 	TUs      []TUInfo
+	Leaves   []TULeaf
 	SAO      []SAOParams
 	CTUs     int
 	Consumed int
@@ -771,12 +792,23 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 		_ = yBase
 		_ = log2cb
 	}
+	// Every leaf lands in the leaf table (all-zero leaves carry no
+	// TUInfo, but the pixel stage still predicts them). Modes mirror
+	// the peer's tu state: luma from the covering PU, chroma from the
+	// CU's mapped mode; QP is the value in force for this TU.
+	cu := p.frame.CUs[len(p.frame.CUs)-1]
+	p.frame.Leaves = append(p.frame.Leaves, TULeaf{
+		X0: x0, Y0: y0, CbX: xBase, CbY: yBase, Log2Size: log2t, Blk: blk,
+		CbfLuma: cbfLuma, CbfCb: cbfCb, CbfCr: cbfCr,
+		LumaMode: p.intraLumaMode(x0, y0, log2t), ChromaMode: cu.ChromaLuma,
+		QP: p.qpY,
+	})
 	if cbfLuma {
 		coeffs, err := p.residual(x0, y0, log2t, p.scanIdx(p.intraLumaMode(x0, y0, log2t), log2t, 0), 0)
 		if err != nil {
 			return err
 		}
-		p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t, CIdx: 0, Coeffs: coeffs})
+		p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t, CIdx: 0, QP: p.qpY, Coeffs: coeffs})
 	}
 	if p.sps.ChromaFormat != 0 && log2t > 2 {
 		lc := p.frame.CUs[len(p.frame.CUs)-1].ChromaLuma
@@ -787,14 +819,14 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 1, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 1, QP: p.qpY, Coeffs: coeffs})
 		}
 		if cbfCr {
 			coeffs, err := p.residual(x0, y0, log2t-1, p.scanIdx(lc, log2t, 1), 2)
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 2, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 2, QP: p.qpY, Coeffs: coeffs})
 		}
 	}
 	// Small-TU chroma (log2t 2, 4x4 luma): the single 4x4 chroma block
@@ -806,14 +838,14 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 1, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 1, QP: p.qpY, Coeffs: coeffs})
 		}
 		if cbfCr {
 			coeffs, err := p.residual(xBase, yBase, 2, p.scanIdx(lc, 2, 1), 2)
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 2, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 2, QP: p.qpY, Coeffs: coeffs})
 		}
 	}
 	return nil

@@ -230,6 +230,10 @@ func (p *synParser) residual(x0, y0, log2t, scan, cIdx int) ([]int16, error) {
 		signs <<= uint16(16 - nSigns)
 		rice := 0
 		sumAbs := 0
+		// Peer derives shift/scale/add once per block (SPS bit depth 8
+		// + PPS/SPS offsets; our clip: all zeros) but applies the
+		// scaling in the pixel stage (kept pre-dequant here; the v0.87
+		// gate pins these raw levels).
 		for m, n := range idxList {
 			var level int32 = 1
 			if m < len(g1) {
