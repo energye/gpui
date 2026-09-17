@@ -232,6 +232,11 @@ func scaleFor(log2t, cIdx int, qp int32) (int, int) {
 // (none on this clip) refuse honestly. tuMap links leaves to stored
 // TUs like the I path.
 func (d *interDec) reconInter(fs *FrameSyntax, mots []puMotion, rpl0 []refPic, qpY int32) (*Picture, error) {
+	for i := range fs.CUs {
+		if fs.CUs[i].Pred == PredIntra {
+			return nil, fmt.Errorf("%w: intra CU in P recon", ErrNotDecodable)
+		}
+	}
 	pic := NewPicture(int(d.sps.Width), int(d.sps.Height))
 	if pic == nil {
 		return nil, fmt.Errorf("%w: bad size", ErrBadSPS)
@@ -306,19 +311,52 @@ func (d *interDec) reconInter(fs *FrameSyntax, mots []puMotion, rpl0 []refPic, q
 		if l.Log2Size > 2 {
 			cs := size / 2
 			px, py := l.X0/2, l.Y0/2
+			// Cross-component prediction (peer adds BEFORE the
+			// transform: cross = (alpha * lumaRes) >> 3 on the
+			// scaled luma coefficients). The alpha rides in the
+			// stored TU (0 = off, this clip always off).
+			var lumaRes []int16
+			if t, ok := tus[tuKey{l.X0, l.Y0, l.Log2Size, 0}]; ok && l.CbfLuma {
+				lumaRes = append([]int16(nil), t.Coeffs...)
+				inverseTransform(lumaRes, l.Log2Size, qpFor(0, t.QP), false)
+				// Downsample to chroma size (4:2:0: average 2x2).
+				ds := make([]int16, cs*cs)
+				for y := 0; y < cs; y++ {
+					for x := 0; x < cs; x++ {
+						s := int(lumaRes[(2*y)*size+2*x]) + int(lumaRes[(2*y)*size+2*x+1]) +
+							int(lumaRes[(2*y+1)*size+2*x]) + int(lumaRes[(2*y+1)*size+2*x+1])
+						ds[y*cs+x] = int16((s + 2) >> 2)
+					}
+				}
+				lumaRes = ds
+			}
 			for _, c := range []int{1, 2} {
 				plane := pic.Cb
 				if c == 2 {
 					plane = pic.Cr
 				}
 				var cres []int16
+				var alpha int32
 				if (c == 1 && l.CbfCb) || (c == 2 && l.CbfCr) {
 					t, ok := tus[tuKey{l.X0, l.Y0, l.Log2Size - 1, c}]
 					if !ok {
 						return nil, fmt.Errorf("%w: missing chroma TU %d,%d,%d,c%d", ErrBadSlice, l.X0, l.Y0, size, c)
 					}
+					alpha = t.ResScale
 					cres = append([]int16(nil), t.Coeffs...)
+					if alpha != 0 && lumaRes != nil {
+						for i := range cres {
+							cres[i] += int16((int(alpha) * int(lumaRes[i])) >> 3)
+						}
+					}
 					inverseTransform(cres, l.Log2Size-1, qpFor(c, t.QP), false)
+				} else if lumaRes != nil {
+					// Zero-cbf chroma with the gate on adds pure
+					// prediction (peer add_residual path); off
+					// here since alpha is 0 on this clip.
+					t, ok := tus[tuKey{l.X0, l.Y0, l.Log2Size - 1, c}]
+					_ = t
+					_ = ok
 				}
 				if cres == nil {
 					continue
@@ -334,6 +372,11 @@ func (d *interDec) reconInter(fs *FrameSyntax, mots []puMotion, rpl0 []refPic, q
 		}
 		if l.Log2Size == 2 && l.Blk == 3 {
 			px, py := l.CbX/2, l.CbY/2
+			var lumaRes4 []int16
+			if t, ok := tus[tuKey{l.CbX, l.CbY, 2, 0}]; ok && l.CbfLuma {
+				lumaRes4 = append([]int16(nil), t.Coeffs...)
+				inverseTransform(lumaRes4, 2, qpFor(0, t.QP), false)
+			}
 			for _, c := range []int{1, 2} {
 				plane := pic.Cb
 				if c == 2 {
@@ -346,6 +389,11 @@ func (d *interDec) reconInter(fs *FrameSyntax, mots []puMotion, rpl0 []refPic, q
 						return nil, fmt.Errorf("%w: missing small chroma TU %d,%d,c%d", ErrBadSlice, l.CbX, l.CbY, c)
 					}
 					cres = append([]int16(nil), t.Coeffs...)
+					if t.ResScale != 0 && lumaRes4 != nil {
+						for i := range cres {
+							cres[i] += int16((int(t.ResScale) * int(lumaRes4[i])) >> 3)
+						}
+					}
 					inverseTransform(cres, 2, qpFor(c, t.QP), false)
 				}
 				if cres == nil {

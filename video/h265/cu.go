@@ -86,11 +86,14 @@ type CUInfo struct {
 // TUInfo is one transform unit's coefficient truth (raster levels,
 // pre-dequant; the pixel stage scales and transforms). QP carries the
 // luma QP in force for this block (slice QP plus decoded deltas).
+// ResScale carries the cross-component alpha*8 for chroma TUs when the
+// cross gate fires (0 = prediction off); luma TUs keep 0.
 type TUInfo struct {
 	X0, Y0   int
 	Log2Size int
 	CIdx     int
 	QP       int32
+	ResScale int32
 	Coeffs   []int16
 }
 
@@ -1171,7 +1174,9 @@ func (p *synParser) transformTree(x0, y0, xBase, yBase, log2cb, log2t, depth, bl
 }
 
 // transformUnit parses one TU: the QP delta rides here (first TU
-// with coefficients codes it), then one residual block per cbf.
+// with coefficients codes it), cross-component alphas ride on the
+// cross gate (inter + luma-coded, off here until P leaves cover it),
+// then one residual block per cbf.
 // Chroma TUs share the luma origin (peer passes xBase/yBase through;
 // the 4:2:0 subsample applies at prediction/placement, not syntax).
 // blk selects the small-TU chroma path (parsed once at blk 3).
@@ -1223,6 +1228,24 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 		}
 		p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t, CIdx: 0, QP: p.qpY, Coeffs: coeffs})
 	}
+	// Cross-component alpha (peer hls_transform_unit cross gate):
+	// off unless the PPS range extension enables it AND luma coded.
+	// This clip's PPS refuses extensions, so the alpha stays 0 and
+	// consumes no bins; the field rides for the pixel stage and for
+	// future clips that enable the flag.
+	var resScale [3]int32
+	if p.pps.CrossCompPred && cbfLuma {
+		a0, err := p.resScale(0)
+		if err != nil {
+			return err
+		}
+		resScale[1] = a0
+		a1, err := p.resScale(1)
+		if err != nil {
+			return err
+		}
+		resScale[2] = a1
+	}
 	if p.sps.ChromaFormat != 0 && log2t > 2 {
 		lc := p.frame.CUs[len(p.frame.CUs)-1].ChromaLuma
 		// Peer gates the chroma scan on the luma TU size (log2t),
@@ -1232,14 +1255,14 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 1, QP: p.qpY, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 1, QP: p.qpY, ResScale: resScale[1], Coeffs: coeffs})
 		}
 		if cbfCr {
 			coeffs, err := p.residual(x0, y0, log2t-1, p.scanFor(log2t, 2, lc), 2)
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 2, QP: p.qpY, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 2, QP: p.qpY, ResScale: resScale[2], Coeffs: coeffs})
 		}
 	}
 	// Small-TU chroma (log2t 2, 4x4 luma): the single 4x4 chroma block
@@ -1251,17 +1274,46 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 1, QP: p.qpY, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 1, QP: p.qpY, ResScale: resScale[1], Coeffs: coeffs})
 		}
 		if cbfCr {
 			coeffs, err := p.residual(xBase, yBase, 2, p.scanFor(2, 2, lc), 2)
 			if err != nil {
 				return err
 			}
-			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 2, QP: p.qpY, Coeffs: coeffs})
+			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 2, QP: p.qpY, ResScale: resScale[2], Coeffs: coeffs})
 		}
 	}
 	return nil
+}
+
+// resScale reads one cross-component alpha (peer hls_cross_component_
+// pred: log2_res_scale_abs unary, zero means alpha 0 with no sign bin;
+// else one sign bin, alpha = (1<<(abs-1)) * (1-2*sign)).
+func (p *synParser) resScale(idx int) (int32, error) {
+	abs := 0
+	for abs < 4 {
+		v, err := p.bin(ctxLog2ResScaleAbs + 4*idx + abs)
+		if err != nil {
+			return 0, err
+		}
+		if v == 0 {
+			break
+		}
+		abs++
+	}
+	if abs == 0 {
+		return 0, nil
+	}
+	s, err := p.bin(ctxResScaleSignFlag + idx)
+	if err != nil {
+		return 0, err
+	}
+	a := int32(1) << uint(abs-1)
+	if s != 0 {
+		a = -a
+	}
+	return a, nil
 }
 
 // intraLumaMode reads the PU mode covering (x0,y0) for scan choice.

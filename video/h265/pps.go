@@ -46,8 +46,12 @@ type PPS struct {
 	ListsModPresent   bool
 	Log2ParallelMerge uint32
 	SliceExtPresent   bool
-	ExtPresent        bool
-	Raw               []byte
+	// CrossCompPred enables cross-component chroma prediction (PPS
+	// range extension; off on every clip we take since extensions
+	// refuse below — the P pixel stage reads this gate).
+	CrossCompPred bool
+	ExtPresent    bool
+	Raw           []byte
 }
 
 // ParsePPS parses one PPS NALU (2-byte HEVC header included). The SPS
