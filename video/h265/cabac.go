@@ -3,6 +3,7 @@ package h265
 import (
 	"fmt"
 	"math/bits"
+	"os"
 )
 
 // Binary arithmetic decoder (HEVC entropy path; I slices in this clip
@@ -117,7 +118,37 @@ func (c *cabacDec) bypass() int {
 	return 1
 }
 
-// bypassBins reads n equiprobable bins as an unsigned value.
+// binLog decodes one bin, logging BIN/BYP lines when H265BINLOG is
+// set (staged comparison hook while inter syntax converges; the
+// final gate pins CU/PU/TU truth instead of raw bins).
+func (c *cabacDec) binLog(st *uint8, ctx int) (int, error) {
+	v := c.bin(st)
+	if binLogOn() {
+		binLogf("BIN ctx %d -> %d", ctx, v)
+	}
+	return v, nil
+}
+
+func (c *cabacDec) bypassLog() int {
+	v := c.bypass()
+	if binLogOn() {
+		binLogf("BYP -> %d", v)
+	}
+	return v
+}
+
+func (c *cabacDec) bypassBinsLog(n int) (uint32, error) {
+	v, err := c.bypassBins(n)
+	if err != nil {
+		return 0, err
+	}
+	if binLogOn() {
+		for i := n - 1; i >= 0; i-- {
+			binLogf("BYP -> %d", (v>>uint(i))&1)
+		}
+	}
+	return v, nil
+}
 func (c *cabacDec) bypassBins(n int) (uint32, error) {
 	if n < 0 || n > 32 {
 		return 0, fmt.Errorf("%w: bad bypass count %d", ErrBadSlice, n)
@@ -128,6 +159,15 @@ func (c *cabacDec) bypassBins(n int) (uint32, error) {
 	}
 	return v, nil
 }
+
+// binLog helpers: H265BINLOG=1 streams BIN/BYP lines to stderr in the
+// peer's BINLOG shape (ctx numbers are our ctx offsets, which match
+// the peer's OFFSET enum order).
+func binLogOn() bool { return os.Getenv("H265BINLOG") != "" }
+
+func binLogFlag() bool { return os.Getenv("H265BINLOG") != "" }
+
+func binLogf(f string, a ...any) { fmt.Fprintf(os.Stderr, f+"\n", a...) }
 
 // terminate decodes the end-of-slice flag: 0 continues, 1 ends.
 func (c *cabacDec) terminate() int {

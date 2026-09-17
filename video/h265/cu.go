@@ -16,6 +16,17 @@ const (
 	Part2NxN  = 1
 	PartNx2N  = 2
 	PartNxN   = 3
+	Part2NxnU = 4
+	Part2NxnD = 5
+	PartnLx2N = 6
+	PartnRx2N = 7
+)
+
+// Prediction modes for the inter stage (I slices stay PredIntra).
+const (
+	PredIntra = 0
+	PredInter = 1
+	PredSkip  = 2
 )
 
 // SAO type ids (match the peer enum: off/band/edge).
@@ -43,11 +54,29 @@ type SAOParams struct {
 	EOClass   [3]uint8
 }
 
-// CUInfo is one intra coding unit's syntax truth for the pixel stage.
+// PUInfo is one inter prediction unit's motion truth (quarter-pel
+// MV/MVD; merge PUs carry only the index until the merge stage runs).
+type PUInfo struct {
+	X0, Y0     int
+	W, H       int
+	Merge      bool
+	MergeIdx   uint8
+	RefIdx     uint8
+	MVX, MVY   int32
+	MVDX, MVDY int32
+	MVPFlag    uint8
+}
+
+// CUInfo is one coding unit's syntax truth for the pixel stage.
+// Pred selects intra (I slices and intra CUs in P slices) vs inter
+// (PredInter) vs skip (PredSkip); PUs rides only for inter/skip.
 type CUInfo struct {
 	X0, Y0     int
 	Log2Size   int
 	Part       uint8
+	Pred       uint8
+	PUs        []PUInfo
+	NoResid    bool
 	Luma       [4]uint8
 	Chroma     uint8
 	ChromaLuma uint8
@@ -105,24 +134,26 @@ type FrameSyntax struct {
 // hls_sao_param/luma_intra_pred_mode + cabac.c syntax decoders.
 // Only the bin order and context indices travel.
 type synParser struct {
-	cab         *cabacDec
-	st          [199]uint8
-	sps         *SPS
-	pps         *PPS
-	sh          *SliceHeader
-	depth       []uint8 // per min-CB, for split_cu contexts
-	ipm         []uint8 // per min-PU, for MPM derivation
-	minCB       int
-	minPU       int
-	gridW       int // min-CB columns
-	puW         int // min-PU columns
-	picW        int
-	picH        int
-	ctb         int // log2 CTB size
-	qpY         int32
-	qpCoded     bool
-	curMaxDepth int
-	curSplit    bool // intra NxN split of the CU under walk
+	cab          *cabacDec
+	st           [199]uint8
+	sps          *SPS
+	pps          *PPS
+	sh           *SliceHeader
+	depth        []uint8 // per min-CB, for split_cu contexts
+	ipm          []uint8 // per min-PU, for MPM derivation
+	skip         []uint8 // per min-CB, for skip_flag contexts (inter)
+	minCB        int
+	minPU        int
+	gridW        int // min-CB columns
+	puW          int // min-PU columns
+	picW         int
+	picH         int
+	ctb          int // log2 CTB size
+	qpY          int32
+	qpCoded      bool
+	curPredIntra bool // transform tree scans diagonal unless intra
+	curMaxDepth  int
+	curSplit     bool // intra NxN split of the CU under walk
 	// traceTU logs (x0,y0,log2t,cIdx,nbits) per residual call when set.
 	traceTU *[]string
 	frame   *FrameSyntax
@@ -132,21 +163,25 @@ func (p *synParser) bin(ctx int) (int, error) {
 	if ctx < 0 || ctx >= 199 {
 		return 0, fmt.Errorf("%w: ctx %d", ErrBadSlice, ctx)
 	}
-	return p.cab.bin(&p.st[ctx]), nil
+	v, err := p.cab.binLog(&p.st[ctx], ctx)
+	if err != nil {
+		return 0, err
+	}
+	return v, nil
 }
 
-func (p *synParser) bypass() int { return p.cab.bypass() }
+func (p *synParser) bypass() int { return p.cab.bypassLog() }
 
-func (p *synParser) bypassN(n int) (uint32, error) { return p.cab.bypassBins(n) }
+func (p *synParser) bypassN(n int) (uint32, error) { return p.cab.bypassBinsLog(n) }
 
-// ParseFrameSyntax parses one intra slice NALU fully into syntax.
-// Only I slices ride here; P/B return the honest pixel-stage error.
+// ParseFrameSyntax parses one slice NALU fully into syntax.
+// I and P slices ride here; B returns the honest pixel-stage error.
 func ParseFrameSyntax(nalu []byte, ps *ParamSets, pocTid0 int) (*FrameSyntax, error) {
 	sh, err := ParseSliceHeader(nalu, ps, pocTid0)
 	if err != nil {
 		return nil, err
 	}
-	if sh.Type != SliceI {
+	if sh.Type != SliceI && sh.Type != SliceP {
 		return nil, fmt.Errorf("%w: %s slices", ErrNotDecodable, SliceTypeName(sh.Type))
 	}
 	q, ok := ps.PPS[sh.PPSID]
@@ -188,6 +223,7 @@ func ParseFrameSyntax(nalu []byte, ps *ParamSets, pocTid0 int) (*FrameSyntax, er
 	p.puW = (p.picW + p.minPU - 1) / p.minPU
 	puH := (p.picH + p.minPU - 1) / p.minPU
 	p.depth = make([]uint8, p.gridW*gridH)
+	p.skip = make([]uint8, p.gridW*gridH)
 	p.ipm = make([]uint8, p.puW*puH)
 	for i := range p.ipm {
 		p.ipm[i] = IntraDC
@@ -458,8 +494,9 @@ func (p *synParser) splitCU(x0, y0, depth int) (bool, error) {
 	return v != 0, nil
 }
 
-// codingUnit parses one intra CU: transquant-bypass flag first,
-// then part mode, luma/chroma modes, then the transform tree.
+// codingUnit parses one CU: transquant-bypass flag first,
+// then the intra path (I slices) or the inter path (P slices;
+// intra CUs inside P reuse the intra body below).
 func (p *synParser) codingUnit(x0, y0, log2cb int) error {
 	var cu CUInfo
 	cu.X0, cu.Y0, cu.Log2Size = x0, y0, log2cb
@@ -470,6 +507,17 @@ func (p *synParser) codingUnit(x0, y0, log2cb int) error {
 		// Kept as a guard for foreign clips.
 		return fmt.Errorf("%w: transquant bypass tool on", ErrBadSlice)
 	}
+	if p.sh.Type != SliceI {
+		return p.codingUnitInter(x0, y0, log2cb, &cu)
+	}
+	return p.codingUnitIntra(x0, y0, log2cb, &cu)
+}
+
+// codingUnitIntra is the I-slice body: part mode, luma/chroma modes,
+// then the transform tree. Untouched by the inter stage.
+func (p *synParser) codingUnitIntra(x0, y0, log2cb int, cu *CUInfo) error {
+	cu.Pred = PredIntra
+	p.curPredIntra = true
 	// I slices are always intra; part mode splits only at min CB.
 	cu.Part = Part2Nx2N
 	if log2cb == int(p.sps.Log2MinCB) {
@@ -542,7 +590,7 @@ func (p *synParser) codingUnit(x0, y0, log2cb int) error {
 	} else {
 		cu.ChromaLuma = luma0
 	}
-	p.frame.CUs = append(p.frame.CUs, cu)
+	p.frame.CUs = append(p.frame.CUs, *cu)
 	// Transform tree over the whole CB; depth limit is the intra
 	// depth (peer max_trafo_depth; NxN CUs add one, kept below).
 	maxDepth := int(p.sps.MaxTIDepthIntra)
@@ -552,6 +600,346 @@ func (p *synParser) codingUnit(x0, y0, log2cb int) error {
 	p.curMaxDepth = maxDepth
 	p.curSplit = split
 	return p.transformTree(x0, y0, x0, y0, log2cb, log2cb, 0, 0, [2]bool{}, [2]bool{})
+}
+
+// codingUnitInter parses one P-slice CU: skip flag, then pred/part,
+// then per-PU merge or motion data, then the residual gate.
+// Peer (read-only): hevcdec.c hls_coding_unit inter branch +
+// hls_prediction_unit (skip/merge/mvp call order) + cabac.c skip,
+// pred_mode, part_mode, merge, ref_idx, mvd, mvp, no_residual decoders.
+// Only bin order and context indices travel; merge/MVP derivation
+// and motion compensation ride in the pixel stage.
+func (p *synParser) codingUnitInter(x0, y0, log2cb int, cu *CUInfo) error {
+	cb := 1 << log2cb
+	// Skip flag with left/above contexts (single-slice picture:
+	// neighbours are available off the picture edge only).
+	sk, err := p.skipFlag(x0, y0)
+	if err != nil {
+		return err
+	}
+	p.fillSkip(x0, y0, cb, sk)
+	if sk {
+		cu.Pred = PredSkip
+		p.curPredIntra = false
+		pu := PUInfo{X0: x0, Y0: y0, W: cb, H: cb, Merge: true}
+		if p.sh.MergeCand > 1 {
+			m, err := p.mergeIdx()
+			if err != nil {
+				return err
+			}
+			pu.MergeIdx = m
+		}
+		cu.PUs = []PUInfo{pu}
+		p.fillIPM(x0, y0, cb, IntraDC)
+		p.frame.CUs = append(p.frame.CUs, *cu)
+		// Skip CUs carry no residual bins at all (peer returns
+		// right after the prediction unit + boundary strengths).
+		p.curMaxDepth = 0
+		return nil
+	}
+	// Pred mode: 1 = intra (reuses the intra body), 0 = inter.
+	pm, err := p.bin(ctxPredModeFlag)
+	if err != nil {
+		return err
+	}
+	if pm != 0 {
+		return p.codingUnitIntra(x0, y0, log2cb, cu)
+	}
+	cu.Pred = PredInter
+	p.curPredIntra = false
+	part, err := p.partModeInter(log2cb)
+	if err != nil {
+		return err
+	}
+	cu.Part = part
+	rects := interPURects(x0, y0, cb, part)
+	if len(rects) == 0 {
+		return fmt.Errorf("%w: inter part %d", ErrBadSlice, part)
+	}
+	for _, r := range rects {
+		pu := PUInfo{X0: r[0], Y0: r[1], W: r[2], H: r[3]}
+		mf, err := p.bin(ctxMergeFlag)
+		if err != nil {
+			return err
+		}
+		if mf != 0 {
+			pu.Merge = true
+			if p.sh.MergeCand > 1 {
+				m, err := p.mergeIdx()
+				if err != nil {
+					return err
+				}
+				pu.MergeIdx = m
+			}
+			cu.PUs = append(cu.PUs, pu)
+			continue
+		}
+		// AMVP path (P slices: L0 only, no inter_pred_idc on wire).
+		if p.sh.RefL0 > 1 {
+			ri, err := p.refIdxL0(int(p.sh.RefL0))
+			if err != nil {
+				return err
+			}
+			pu.RefIdx = ri
+		}
+		dx, dy, err := p.mvdCoding()
+		if err != nil {
+			return err
+		}
+		pu.MVDX, pu.MVDY = dx, dy
+		mv, err := p.bin(ctxMvpLxFlag)
+		if err != nil {
+			return err
+		}
+		pu.MVPFlag = uint8(mv)
+		cu.PUs = append(cu.PUs, pu)
+	}
+	p.fillIPM(x0, y0, cb, IntraDC)
+	// Residual gate (peer hls_coding_unit): the flag rides only when
+	// the CU is inter and NOT single-PU merge 2Nx2N. Intra reuses the
+	// intra body (no flag, tree follows); single-PU merge 2Nx2N also
+	// skips the flag with the tree following (rqt_root_cbf=1 init).
+	// Flag value 1 means the tree follows, 0 means bare.
+	rqtRoot := true
+	if !(cu.Part == Part2Nx2N && len(cu.PUs) == 1 && cu.PUs[0].Merge) {
+		nr, err := p.bin(ctxNoResidualDataFlag)
+		if err != nil {
+			return err
+		}
+		rqtRoot = nr != 0
+	}
+	if !rqtRoot {
+		cu.NoResid = true
+		p.frame.CUs = append(p.frame.CUs, *cu)
+		p.curMaxDepth = 0
+		return nil
+	}
+	p.frame.CUs = append(p.frame.CUs, *cu)
+	p.curMaxDepth = int(p.sps.MaxTIDepthInter)
+	p.curSplit = false
+	return p.transformTree(x0, y0, x0, y0, log2cb, log2cb, 0, 0, [2]bool{}, [2]bool{})
+}
+
+// skipFlag reads cu_skip_flag with left/above contexts. The peer's
+// x0/y0 are CTB-relative (av_zero_extend), so the left neighbour is
+// gated by the in-CTB offset OR the left-CTB flag, not by the
+// picture edge alone. H265SKIPDBG=1 traces (x0,y0,inc,value).
+func (p *synParser) skipFlag(x0, y0 int) (bool, error) {
+	ctbMask := (1 << p.ctb) - 1
+	x0b, y0b := x0&ctbMask, y0&ctbMask
+	rx, ry := x0>>p.ctb, y0>>p.ctb
+	xcb, ycb := x0/p.minCB, y0/p.minCB
+	inc := 0
+	if rx > 0 || x0b != 0 {
+		if xcb > 0 && p.skip[ycb*p.gridW+xcb-1] != 0 {
+			inc++
+		}
+	}
+	if ry > 0 || y0b != 0 {
+		if ycb > 0 && p.skip[(ycb-1)*p.gridW+xcb] != 0 {
+			inc++
+		}
+	}
+	v, err := p.bin(ctxSkipFlag + inc)
+	if err != nil {
+		return false, err
+	}
+	return v != 0, nil
+}
+
+// fillSkip stores the skip flag over the CB's min-CB cells.
+func (p *synParser) fillSkip(x0, y0, size int, sk bool) {
+	var v uint8
+	if sk {
+		v = 1
+	}
+	for y := y0; y < y0+size && y < p.picH; y += p.minCB {
+		for x := x0; x < x0+size && x < p.picW; x += p.minCB {
+			if x >= 0 && y >= 0 {
+				p.skip[(y/p.minCB)*p.gridW+x/p.minCB] = v
+			}
+		}
+	}
+}
+
+// partModeInter reads part_mode for inter CUs (peer
+// ff_hevc_part_mode_decode; our SPS disables AMP, other clips with
+// AMP sizes refuse honestly below).
+func (p *synParser) partModeInter(log2cb int) (uint8, error) {
+	v, err := p.bin(ctxPartMode)
+	if err != nil {
+		return 0, err
+	}
+	if v != 0 {
+		return Part2Nx2N, nil
+	}
+	if log2cb == int(p.sps.Log2MinCB) {
+		v, err := p.bin(ctxPartMode + 1)
+		if err != nil {
+			return 0, err
+		}
+		if v != 0 {
+			return Part2NxN, nil
+		}
+		if log2cb == 3 {
+			return PartNx2N, nil
+		}
+		v, err = p.bin(ctxPartMode + 2)
+		if err != nil {
+			return 0, err
+		}
+		if v != 0 {
+			return PartNx2N, nil
+		}
+		return PartNxN, nil
+	}
+	if !p.sps.AMPEnabled {
+		v, err := p.bin(ctxPartMode + 1)
+		if err != nil {
+			return 0, err
+		}
+		if v != 0 {
+			return Part2NxN, nil
+		}
+		return PartNx2N, nil
+	}
+	return 0, fmt.Errorf("%w: AMP part modes", ErrBadSlice)
+}
+
+// interPURects splits a CB into PU rects [x,y,w,h] for one part mode.
+func interPURects(x0, y0, cb int, part uint8) [][4]int {
+	switch part {
+	case Part2Nx2N:
+		return [][4]int{{x0, y0, cb, cb}}
+	case Part2NxN:
+		return [][4]int{{x0, y0, cb, cb / 2}, {x0, y0 + cb/2, cb, cb / 2}}
+	case PartNx2N:
+		return [][4]int{{x0, y0, cb / 2, cb}, {x0 + cb/2, y0, cb / 2, cb}}
+	case PartNxN:
+		h := cb / 2
+		return [][4]int{
+			{x0, y0, h, h}, {x0 + h, y0, h, h},
+			{x0, y0 + h, h, h}, {x0 + h, y0 + h, h, h},
+		}
+	}
+	return nil
+}
+
+// mergeIdx reads merge_idx (first bin CABAC, remainder bypass).
+func (p *synParser) mergeIdx() (uint8, error) {
+	v, err := p.bin(ctxMergeIdx)
+	if err != nil {
+		return 0, err
+	}
+	i := v
+	for i != 0 && i < int(p.sh.MergeCand)-1 {
+		if p.bypass() == 0 {
+			break
+		}
+		i++
+	}
+	return uint8(i), nil
+}
+
+// refIdxL0 reads ref_idx_l0 (contexts for the first two, bypass rest).
+func (p *synParser) refIdxL0(numRefs int) (uint8, error) {
+	max := numRefs - 1
+	mc := max
+	if mc > 2 {
+		mc = 2
+	}
+	i := 0
+	for i < mc {
+		v, err := p.bin(ctxRefIdxL0 + i)
+		if err != nil {
+			return 0, err
+		}
+		if v == 0 {
+			return uint8(i), nil
+		}
+		i++
+	}
+	if i == 2 {
+		for i < max {
+			if p.bypass() == 0 {
+				break
+			}
+			i++
+		}
+	}
+	return uint8(i), nil
+}
+
+// mvdCoding reads one PU's motion-vector difference (peer
+// ff_hevc_hls_mvd_coding order: x/y greater0, greater1, then
+// magnitude/sign bypass per component).
+func (p *synParser) mvdCoding() (int32, int32, error) {
+	x0, err := p.bin(ctxAbsMvdGreater0Flag)
+	if err != nil {
+		return 0, 0, err
+	}
+	y0, err := p.bin(ctxAbsMvdGreater0Flag)
+	if err != nil {
+		return 0, 0, err
+	}
+	x, y := x0, y0
+	if x != 0 {
+		// Peer reads greater1 on the second context of its pair
+		// (OFFSET+1), same fixed ctx for both components.
+		g, err := p.bin(ctxAbsMvdGreater1Flag + 1)
+		if err != nil {
+			return 0, 0, err
+		}
+		x += g
+	}
+	if y != 0 {
+		g, err := p.bin(ctxAbsMvdGreater1Flag + 1)
+		if err != nil {
+			return 0, 0, err
+		}
+		y += g
+	}
+	dx, err := p.mvdComponent(x)
+	if err != nil {
+		return 0, 0, err
+	}
+	dy, err := p.mvdComponent(y)
+	if err != nil {
+		return 0, 0, err
+	}
+	return dx, dy, nil
+}
+
+// mvdComponent reads one signed MVD component from its class.
+// Class 1 is a single sign bypass (0->+1, 1->-1). Class 2 is the
+// bypass Exp-Golomb: ret starts 2, prefix ones at k=1.. add 1<<k,
+// then k suffix bits, then the sign bypass (peer's mvd_decode).
+func (p *synParser) mvdComponent(cls int) (int32, error) {
+	switch cls {
+	case 0:
+		return 0, nil
+	case 1:
+		if p.bypass() != 0 {
+			return -1, nil
+		}
+		return 1, nil
+	}
+	ret := 2
+	k := 1
+	for k < 31 && p.bypass() != 0 {
+		ret += 1 << uint(k)
+		k++
+	}
+	if k == 31 {
+		return 0, fmt.Errorf("%w: mvd overflow", ErrBadSlice)
+	}
+	for k--; k >= 0; k-- {
+		ret += p.bypass() << uint(k)
+	}
+	if p.bypass() != 0 {
+		return -int32(ret), nil
+	}
+	return int32(ret), nil
 }
 
 // qpAllows reports whether a CU may code cu_qp_delta (QP block grid).
@@ -717,24 +1105,32 @@ func (p *synParser) transformTree(x0, y0, xBase, yBase, log2cb, log2t, depth, bl
 	split := false
 	// Peer gate (hls_transform_tree): split bin only when the TU fits
 	// in the max, exceeds the min, stays under the CU's depth and is
-	// not the forced NxN depth-0 split.
+	// not the forced NxN depth-0 split. Inter adds one forced case:
+	// with zero inter depth the split bin never rides and the TU
+	// splits iff the CB uses a non-2Nx2N part (peer's inter_split).
+	interSplit := !p.curPredIntra && depth == 0 && p.sps.MaxTIDepthInter == 0 &&
+		len(p.frame.CUs) > 0 && p.frame.CUs[len(p.frame.CUs)-1].Part != Part2Nx2N
 	if log2t <= int(p.sps.Log2MaxTB) && log2t > int(p.sps.Log2MinTB) &&
-		depth < p.curMaxDepth && !(p.curSplit && depth == 0) {
+		depth < p.curMaxDepth && !(p.curSplit && depth == 0) && !interSplit {
 		v, err := p.bin(ctxSplitTransformFlag + 5 - log2t)
 		if err != nil {
 			return err
 		}
 		split = v != 0
-	} else if log2t > int(p.sps.Log2MaxTB) || (p.curSplit && depth == 0) {
+	} else if log2t > int(p.sps.Log2MaxTB) || (p.curSplit && depth == 0) || interSplit {
 		split = true
 	}
-	if p.sps.ChromaFormat != 0 && (log2t > 2) {
+	if p.sps.ChromaFormat != 0 && (log2t > 2 || p.sps.ChromaFormat == 3) {
 		if depth == 0 || cbfCB[0] {
 			v, err := p.bin(ctxCbfCbCr + depth)
 			if err != nil {
 				return err
 			}
 			cbfCB[0] = v != 0
+			if p.sps.ChromaFormat == 2 && (!split && log2t == 3) {
+				// 4:2:2 second chroma block (absent on our path).
+				return fmt.Errorf("%w: 422 second chroma block", ErrBadSlice)
+			}
 		}
 		if depth == 0 || cbfCR[0] {
 			v, err := p.bin(ctxCbfCbCr + depth)
@@ -742,6 +1138,9 @@ func (p *synParser) transformTree(x0, y0, xBase, yBase, log2cb, log2t, depth, bl
 				return err
 			}
 			cbfCR[0] = v != 0
+			if p.sps.ChromaFormat == 2 && (!split && log2t == 3) {
+				return fmt.Errorf("%w: 422 second chroma block", ErrBadSlice)
+			}
 		}
 	}
 	if split {
@@ -753,13 +1152,21 @@ func (p *synParser) transformTree(x0, y0, xBase, yBase, log2cb, log2t, depth, bl
 		}
 		return nil
 	}
-	// Luma flag: intra path always codes it (ctx 1 at depth 0,
-	// ctx 0 deeper), matching the peer's !trafo_depth gate.
-	v, err := p.bin(ctxCbfLuma + boolToInt(depth == 0))
-	if err != nil {
-		return err
+	// Luma flag: intra path always codes it, matching the peer's
+	// pred_mode gate (intra, or inter with depth/cbf cause).
+	// Peer: pred_mode==INTRA || trafo_depth!=0 || cbf_cb || cbf_cr.
+	// When the gate is shut (inter depth-0 all-zero chroma) the
+	// value stays 1 without consuming a bin (peer's cbf_luma=1
+	// init); the transform below then runs with cbf 1/0/0.
+	needLuma := p.curPredIntra || depth != 0 || cbfCB[0] || cbfCR[0]
+	cbfLuma := true
+	if needLuma {
+		v, err := p.bin(ctxCbfLuma + boolToInt(depth == 0))
+		if err != nil {
+			return err
+		}
+		cbfLuma = v != 0
 	}
-	cbfLuma := v != 0
 	return p.transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk, cbfLuma, cbfCB[0], cbfCR[0])
 }
 
@@ -796,15 +1203,21 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 	// TUInfo, but the pixel stage still predicts them). Modes mirror
 	// the peer's tu state: luma from the covering PU, chroma from the
 	// CU's mapped mode; QP is the value in force for this TU.
+	// Inter leaves carry mode 255 (no intra direction; the motion
+	// stage owns them) and always scan diagonal.
 	cu := p.frame.CUs[len(p.frame.CUs)-1]
+	lm := p.intraLumaMode(x0, y0, log2t)
+	if !p.curPredIntra {
+		lm = 255
+	}
 	p.frame.Leaves = append(p.frame.Leaves, TULeaf{
 		X0: x0, Y0: y0, CbX: xBase, CbY: yBase, Log2Size: log2t, Blk: blk,
 		CbfLuma: cbfLuma, CbfCb: cbfCb, CbfCr: cbfCr,
-		LumaMode: p.intraLumaMode(x0, y0, log2t), ChromaMode: cu.ChromaLuma,
+		LumaMode: lm, ChromaMode: cu.ChromaLuma,
 		QP: p.qpY,
 	})
 	if cbfLuma {
-		coeffs, err := p.residual(x0, y0, log2t, p.scanIdx(p.intraLumaMode(x0, y0, log2t), log2t, 0), 0)
+		coeffs, err := p.residual(x0, y0, log2t, p.scanFor(log2t, 0, lm), 0)
 		if err != nil {
 			return err
 		}
@@ -815,14 +1228,14 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 		// Peer gates the chroma scan on the luma TU size (log2t),
 		// not the subsampled chroma size.
 		if cbfCb {
-			coeffs, err := p.residual(x0, y0, log2t-1, p.scanIdx(lc, log2t, 1), 1)
+			coeffs, err := p.residual(x0, y0, log2t-1, p.scanFor(log2t, 1, lc), 1)
 			if err != nil {
 				return err
 			}
 			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: x0, Y0: y0, Log2Size: log2t - 1, CIdx: 1, QP: p.qpY, Coeffs: coeffs})
 		}
 		if cbfCr {
-			coeffs, err := p.residual(x0, y0, log2t-1, p.scanIdx(lc, log2t, 1), 2)
+			coeffs, err := p.residual(x0, y0, log2t-1, p.scanFor(log2t, 2, lc), 2)
 			if err != nil {
 				return err
 			}
@@ -834,14 +1247,14 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 	if p.sps.ChromaFormat == 1 && log2t == 2 && blk == 3 {
 		lc := p.frame.CUs[len(p.frame.CUs)-1].ChromaLuma
 		if cbfCb {
-			coeffs, err := p.residual(xBase, yBase, 2, p.scanIdx(lc, 2, 1), 1)
+			coeffs, err := p.residual(xBase, yBase, 2, p.scanFor(2, 1, lc), 1)
 			if err != nil {
 				return err
 			}
 			p.frame.TUs = append(p.frame.TUs, TUInfo{X0: xBase, Y0: yBase, Log2Size: 2, CIdx: 1, QP: p.qpY, Coeffs: coeffs})
 		}
 		if cbfCr {
-			coeffs, err := p.residual(xBase, yBase, 2, p.scanIdx(lc, 2, 1), 2)
+			coeffs, err := p.residual(xBase, yBase, 2, p.scanFor(2, 2, lc), 2)
 			if err != nil {
 				return err
 			}
@@ -855,6 +1268,16 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 func (p *synParser) intraLumaMode(x0, y0, log2t int) uint8 {
 	_ = log2t
 	return p.ipmAt(x0, y0)
+}
+
+// scanFor picks the scan for one TU: inter blocks always ride
+// diagonal (peer keeps SCAN_DIAG unless intra small-block modes
+// redirect); intra defers to the mode map.
+func (p *synParser) scanFor(log2t, cIdx int, mode uint8) int {
+	if !p.curPredIntra {
+		return ScanDiag
+	}
+	return p.scanIdx(mode, log2t, cIdx)
 }
 
 // scanIdx picks the scan for an intra TU (small blocks follow the mode).

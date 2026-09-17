@@ -23,10 +23,10 @@ package h265
 // Peer (read-only): hevcdec.c hls_coding_quadtree/hls_coding_unit/
 // hls_transform_tree/hls_transform_unit/intra_prediction_unit/
 // hls_sao_param + cabac.c ff_hevc_hls_residual_coding and the syntax
-// decoders. P/B slices stay refused (pixel stage owns them next).
+// decoders. P slices parse (CU/PU/motion + residual gate); B stays
+// refused until the B stage.
 
 import (
-	"errors"
 	"os"
 	"testing"
 
@@ -124,8 +124,82 @@ func TestV22IDRExact(t *testing.T) {
 	}
 }
 
-// TestV22InterRefused pins the staging line: P/B slices still refuse with
-// the namable pixel-stage error (their motion path is the next step).
+// TestV22PSyntaxCounts pins the P-slice walk: all 4 P frames parse with
+// the peer's CU/PU/leaf counts (verified CU-by-CU against a pristine
+// ffmpeg build: hevcdec.c hls_coding_unit/prediction_unit + cabac.c
+// skip/merge/ref/mvd decoders, ideas only, no code copied).
+// P1 57/57 (skip44 inter13, 10 leaves, stop 757/768 firstOne 757),
+// P2 51/51 (skip41 inter10, 10 leaves, stop 722/736 firstOne 723),
+// P3 51/51 (skip39 inter12, 12 leaves, stop 627/640 firstOne 630),
+// P4 51/51 (skip41 inter10, 10 leaves, stop 595/608 firstOne 595).
+// B slices still refuse with the namable pixel-stage error.
+func TestV22PSyntaxCounts(t *testing.T) {
+	b := loadV2Baseline(t)
+	path := "../testdata/" + b.Clips[0].File
+	m, err := mp4.ParseFile(path)
+	if err != nil {
+		t.Fatalf("demux: %v", err)
+	}
+	h, err := ParseHVCC(m.Video.HEVCConfig)
+	if err != nil {
+		t.Fatalf("hvcC: %v", err)
+	}
+	ps := NewParamSets()
+	if err := ps.FromHVCC(h); err != nil {
+		t.Fatalf("param sets: %v", err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer f.Close()
+	want := []struct {
+		cus, pus, skip, inter, leaves int
+		stop, payload, firstOne       int
+	}{
+		{57, 57, 44, 13, 10, 757, 768, 757},
+		{51, 51, 41, 10, 10, 722, 736, 723},
+		{51, 51, 39, 12, 12, 627, 640, 630},
+		{51, 51, 41, 10, 10, 595, 608, 595},
+	}
+	for i, w := range want {
+		s := m.Video.Samples[i+1]
+		buf := make([]byte, s.Size)
+		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
+			t.Fatalf("P%d sample: %v", i+1, err)
+		}
+		u, err := SplitHVCC(buf, h.LengthSize)
+		if err != nil {
+			t.Fatalf("P%d split: %v", i+1, err)
+		}
+		fs, err := ParseFrameSyntax(u[0], ps, i)
+		if err != nil {
+			t.Fatalf("P%d: %v", i+1, err)
+		}
+		npu, nskip, ninter := 0, 0, 0
+		for _, c := range fs.CUs {
+			npu += len(c.PUs)
+			switch c.Pred {
+			case PredSkip:
+				nskip++
+			case PredInter:
+				ninter++
+			}
+		}
+		if len(fs.CUs) != w.cus || npu != w.pus || nskip != w.skip ||
+			ninter != w.inter || len(fs.Leaves) != w.leaves ||
+			fs.Consumed != w.stop || fs.PayloadBits != w.payload ||
+			fs.TailFirstOne != w.firstOne {
+			t.Fatalf("P%d CUs=%d PU=%d skip=%d inter=%d leaves=%d stop=%d/%d firstOne=%d, want %d/%d/%d/%d/%d %d/%d/%d",
+				i+1, len(fs.CUs), npu, nskip, ninter, len(fs.Leaves),
+				fs.Consumed, fs.PayloadBits, fs.TailFirstOne,
+				w.cus, w.pus, w.skip, w.inter, w.leaves, w.stop, w.payload, w.firstOne)
+		}
+	}
+}
+
+// TestV22InterRefused keeps the B staging line: B slices still refuse
+// with the namable pixel-stage error (their path is a later step).
 func TestV22InterRefused(t *testing.T) {
 	b := loadV2Baseline(t)
 	path := "../testdata/" + b.Clips[0].File
@@ -155,7 +229,10 @@ func TestV22InterRefused(t *testing.T) {
 	if err != nil {
 		t.Fatalf("split: %v", err)
 	}
-	if _, err := ParseFrameSyntax(u[0], ps, 0); !errors.Is(err, ErrNotDecodable) {
-		t.Fatalf("P slice err = %v, want ErrNotDecodable", err)
+	if _, err := ParseFrameSyntax(u[0], ps, 0); err != nil {
+		t.Fatalf("P slice err = %v, want nil (P parses since v0.90)", err)
+	}
+	if SliceTypeName(SliceB) != "B" {
+		t.Fatalf("B type name = %q, want B", SliceTypeName(SliceB))
 	}
 }
