@@ -425,7 +425,7 @@ game/core/version.go  数据版本号（存档地图骨头升版能迁）
 
 ## 开发依赖顺序（先做啥、谁卡谁、谁能并行）
 
-看法一句话：上一波没绿，下一波别开。P 是记忆分类（只帮助记忆，不挂开工不挂门禁，能力表里看到 P 只当身份证看）；W 是开工波次（W0→W24，谁卡谁，开工拿活只看 W 块）；S 是单会话序号（一次只做一个，按 S00→S112 拿号，新会话不被干扰）。同一波里标【可并行】的可以一起开也可以一个一个来，标【串行】的必须一个做完再做下一个。标【波内部分串行】的按写明的先后做，其余可并行。W11 的 S 号不连续（S55–S61＋S74–S79），拿活按 W11 块拿，别按 S 号顺序拿。S78 躲避小怪的前置写死等 W11 关门（含 S79 在内全绿），故归 W13。拿活按 W 块拿。
+看法一句话：上一波没绿，下一波别开。P 是记忆分类（只帮助记忆，不挂开工不挂门禁，能力表里看到 P 只当身份证看）；W 是开工波次（W0→W24，谁卡谁，开工拿活只看 W 块）；S 是单会话序号（一次只做一个，按 S00→S112 拿号，新会话不被干扰）。同一波里标【可并行】的可以一起开也可以一个一个来，标【串行】的必须一个做完再做下一个。标【波内部分串行】的按写明的先后做，其余可并行。W11 的 S 号不连续（S55–S61＋S74–S79），拿活按 W11 块拿，别按 S 号顺序拿。S78 躲避小怪的前置写死等 W11 关门（含 S79 在内全绿），故归 W13。拿活按 W 块拿。 V1的S00–S51分到G01–G11，详情见 `docs/2.5D/G01.md`、`docs/2.5D/G02.md`、`docs/2.5D/G03.md`、`docs/2.5D/G04.md`、`docs/2.5D/G05.md`、`docs/2.5D/G06.md`、`docs/2.5D/G07.md`、`docs/2.5D/G08.md`、`docs/2.5D/G09.md`、`docs/2.5D/G10.md`、`docs/2.5D/G11.md`（原话已搬家，状态以本文件能力行为准）。
 
 R 对号：R1=1.4 本体，R2=9.2 本体，R3 是 3.2 的 render 底，R4 是 2.2 的 render 底，R5 是 1.2 的 render 底；R 不占能力行，状态落在对应能力行。8.1/11.1 同一份文件合测，开工一次、状态两行同时改。
 
@@ -565,7 +565,7 @@ P5冻结不动（V1口径）：9.1高动态。V2部分解冻见S66，行状态�
 | 17.1 | 编辑器预览 | tools/levelprev + particleprev | P4 | S50/W8 | W7单项全过 | 关卡/粒子预览，所见即所得 | tools新工具 | 人工看预览；窗tools预览 | A 摆关调粒子所见即所得，B 空工程不崩，C 两边齐，D 大关卡打开时长有数，E 反复开不涨，F 人工看 | 已完成·V1口径（2026-09-16；tools/levelprev/preview_test.go 6项全PASS＋tools/particleprev/preview_test.go 4项全PASS＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A关卡小17瓦片3实体/大14627瓦片2000实体按层设色对象黄框实体红点＋粒子火cone16/16/0烟box15/15/0走真引擎即调即看；B空工程2notes占位照开窗＋坏图保3实体坏场景保17瓦片＋缺特效占位坏特效BadData；C只比数VerifyCounts/VerifyReplay与引擎直解零差＋同工程离屏重画逐字节一致＋三金第二遍changed=0；D大关卡探针约13~18ms窗内重开约18ms＋小工程fps约59；E大工程连开5次零漂移＋粒子连开20次零漂移＋整窗5次maxRSS走低无增长；F自动三窗EXIT0（level小presents472 fps59 p95约17 hitch2 golden0、fire presents474 alive54、smoke presents474 alive51）＋离屏金level_preview_golden.png＋fire/smoke双金；人工常驻2026-09-16用户三窗收JSON全backend=x11探针1：level presents107 ptr49 tiles17 entities3、火 presents438 alive256 spawned512 rate15360 key10 ptr109、烟 presents709 alive256 spawned2427 key10 ptr160，用户亲眼静态方块系布局预览/火锥往上窜/烟盒乱流飘三样全对＋加减倍率即看（rate按到15360活数顶满256符合Max设计）；主会话复跑双包PASS＋三窗自动PASS＋tilemap/world/particle/core回归绿；只动tools两目录game只读render/ui未碰；*_last.png运行快照不入库已删＋proj_empty加.keep；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测；W8关） |
 | 17.2 | 性能崩溃帧分解 | game/debug/stats.go | P4 | S49/W8 | W7单项全过 | Stats{帧/次/存/分解}＋上报 | game新包只出数 | 人工看报表＋长跑在线 | A 帧率画次显存帧分解过绘编译耗时出数对，B 无数据不崩，C 不适用，D 上报耗时有数，E 长跑在线，F 人工看报表定位到谁吃时间 | 已完成·V1口径（2026-09-16；game/debug/stats_test.go 6项全PASS＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A 10帧冻结fps47.62 avg21ms p95 50ms slow2 画次1440 过绘1.395x 显存65/67MB 分解render114ms占53.3%居首 着色器177ms全对＋编解码往返一致；B nil零值/空零超限/坏文件错码分清坏帧不污染台账；D上报encode+parse约35.1us/次624B远小于1MB＋shader约55.7ns/次＋存读约261us；E 5000帧环只留3600总数照计显存钉住＋10秒后台钳250ms记1gap＋超512MB记1OOM旧值不动＋50次存读同字节；C不适用-纯算数以毫秒边界无损＋版本往返＋双建逐位一致即两边同数；F离屏金比对stats_cases.json/stats_report.json逐字节一致＋stats_report_golden.txt逐字节对＋stats_crash.json原因码对＋形状断言render居首；窗免-报表＋长跑即证据（stats_report_golden.txt人看＋stats_report.json机器读）；前置P3复核绿particle12项＋fx18项＋light18项＋step24项＋core16项；只动game/debug新包render/ui/tools未碰；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release纯算数与release无关换机重测） |
 
-规矩：这张表是唯一状态源，做完一项就把那行改成已完成，写清日期、测试文件、真窗名。口头说完不算。
+规矩：这张表是唯一状态源，做完一项就把那行改成已完成，写清日期、测试文件、真窗名。口头说完不算。 V1行分到G01–G11，详情见 `docs/2.5D/G01.md`、`docs/2.5D/G02.md`、`docs/2.5D/G03.md`、`docs/2.5D/G04.md`、`docs/2.5D/G05.md`、`docs/2.5D/G06.md`、`docs/2.5D/G07.md`、`docs/2.5D/G08.md`、`docs/2.5D/G09.md`、`docs/2.5D/G10.md`、`docs/2.5D/G11.md`。
 
 ## 单能力五步与回归红线（做到哪算完）
 
@@ -902,79 +902,49 @@ W10 回炉（串行）→ W11 补12项（可并行）→ W12 立体细腻（S62�
 #### W10 回炉（S52–S54，串行，先把虚绿变实绿）
 
 S52 追车减分配＋帧门打进线：
-- 做什么：在 examples/game_stage_chase 里减分配，逻辑不动，render/ui 不动。
-- 测试：单测复跑 camera/sprite/particle/tilemap/step 整包；120 秒自动 RUN_SECONDS=120 收 JSON；常驻 30 秒收人工 JSON。
-- 指标：presents 6500 以上，fps 57 以上，帧门见§5（旧33.4ms数按20ms重算），moved/vis/loaded/sorted/trail/pool 全对，dirty_max 不超 2，full0，fallback0，内存 end≈peak 无峰外漏，离屏金 0 差，窗金 0 差，parity 图集路 0 差。
+详见 `docs/2.5D/G12.md`（S52原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S53 W7 三窗单窗重测正式包：
-- 做什么：不动引擎，只闲时单窗重跑 game_anim--case=fsm、game_light--case=normal/shadow。
-- 测试：anim/light 单测整包＋三窗自动＋三窗人工常驻 60 秒。
-- 指标：每窗 presents 400 以上单窗 fps 57 以上（帧门见§5），fsm 切换 4 次以上双金 0 差 hitch0；normal 穹顶行朝灯＞平＞背灯（0.97＞0.60＞0.19 量级）lit 3 万像素以上增益 0.7 以上双金 0 差；shadow moved 600 以上双金 0 差 hitch 不超 3/分；三窗同开低帧（50/44/40）必须被单窗正式包数替代，不替代不算过。
+详见 `docs/2.5D/G13.md`（S53原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S54 弱证据重测（8.3＋16.2＋S46）：
-- 做什么：game_step--case=dirty、game_save--case=q123 复测正式包，S46 连带复核。
-- 测试：dirty/quality 单测＋自动＋人工。
-- 指标：dirty moved 千级以上 fps 57 以上（帧门见§5）；q123 三档 fps 58/59/60 量级 switches 3 以上 errors0 切 14 次零失败 frames 千级以上；8.3 那 40 帧低数必须被闲时正式包替代。
+详见 `docs/2.5D/G14.md`（S54原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W10 总指标：三项全正式包，三遍全贴取最差判（帧门见§5，双金全 0 差），换机一遍照样过，每项加一行与 D01–D20 差多少（对不上不许绿），文档回写三处齐。少一项 W11 不开。
 
 #### W11 补 12 项（S55–S61七窗＋S74–S77/S79五口径，靠 W10，波内可并行，一窗一会话，按W块拿活）
 
 S55 game_camera（1.3a/1.3b）：
-- 做什么：新建 examples/game_camera，镜头跟随＋限位＋平滑＋视差长路，调 game/camera 真包。
-- 测试：camera 单测＋自动跟随不飘限位钳住长路无缝 JSON＋人工推镜头。
-- 指标：1080p 60 帧，跟随收敛贴住不超 0.5 秒，边界不穿帮，10 公里缝 1e-9 内，死区＋双位置查询（目标在哪和画面在哪分开）全对，坏限位钳住不崩。
+详见 `docs/2.5D/G15.md`（S55原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S56 game_tex 双 case（3.2/3.3）：
-- 做什么：新建 examples/game_tex--case=far/stream，调 game/tex 真包。
-- 测试：mipmap/stream 单测＋自动远树不抖边走边出 JSON＋人工远近看。
-- 指标：1 倍缩到 0.3 倍无闪无波纹，图集边无黑线漏色，缺图品红占位不崩，后台与同步逐位一致，大图后台 1ms 量级前台 Poll 微秒级。
+详见 `docs/2.5D/G15.md`（S56原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S57 game_tilemap 三 case（7.1/7.2/7.3）：
-- 做什么：新建 examples/game_tilemap--case=map/chunk/lod，调 game/tilemap 真包，认 TMX 子集。
-- 测试：tilemap/chunk/lod 单测＋自动摆怪对边走边装切换不闪 JSON＋人工大地图走。
-- 指标：万级瓦片视口外自动裁，256 块一批 60 帧，地形笔刷连点自接边无断缝，临界回滞不闪（192 算近 320 算远同距抱老档），firstgid 错位 0 容忍。
+详见 `docs/2.5D/G15.md`（S57原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S58 game_world（10.2）：
-- 做什么：新建 examples/game_world--case=open，调 game/world 真包，认场景 JSON。
-- 测试：scene 单测＋自动开局装对 JSON＋人工看开局。
-- 指标：2000 实体解析 10ms 量级开局 2ms 量级，200 轮进出回基线，大关卡连开 5 次零漂移，缺截断错爹重名错版分清不崩。
+详见 `docs/2.5D/G15.md`（S58原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S59 game_asset（12.3）：
-- 做什么：新建 examples/game_asset--case=reload，调 game/asset 真包。
-- 测试：hotreload 单测＋自动一改即换 JSON＋人工改完看。
-- 指标：136B 换图 40us 量级轮询 14us 量级，百次来回字节恒定，看门人与直装逐位一致，坏文件不崩保旧，依赖断报哪条链。
+详见 `docs/2.5D/G15.md`（S59原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S60 game_input 双 case（13.1/13.2）：
-- 做什么：新建 examples/game_input--case=remap/combo，调 game/input 真包。
-- 测试：action/buffer 单测＋自动改键即用连招不丢 JSON＋人工按。
-- 指标：按键到逻辑不到 1 帧，改键不改码，死区可调，漂移门住，断触不崩，满 64 不涨终态归零，19 快照 4 向量冻结对。
+详见 `docs/2.5D/G15.md`（S60原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S61 game_physics 双 case（14.1/14.2）：
-- 做什么：新建 examples/game_physics--case=hit/jump，调 game/physics 真包。
-- 测试：body/ray/platform 单测＋自动撞门准跳得上 JSON＋人工跳。
-- 指标：百盒查询 350us 量级，射线百盒 10us 量级，长坡 0.3us 量级，边触算碰体内 0，单向穿过再落住，卡角不崩，长跑不穿不掉。
+详见 `docs/2.5D/G15.md`（S61原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S74 帧动画窗（等 S11，G05/G33）：
-- 做什么：examples/game_sprite加--case=anim，调flipbook真包，真帧验（dodge人物走跑帧直接用）。
-- 测试：flipbook单测＋自动帧号时长循环回调JSON＋人工看切换。
-- 指标：正式包三遍最差；六序列全对，双金0差，帧门见§5。
+详见 `docs/2.5D/G15.md`（S74原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 S75 时间轴窗（等 S17，G06）：
-- 做什么：examples/game_anim加--case=tl，调timeline真包。
-- 测试：timeline单测＋自动插值循环事件JSON＋人工看准时。
-- 指标：同上帧门；三序列冻结对，事件序对。
+详见 `docs/2.5D/G15.md`（S75原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 S76 角色体对齐（等 S22，G24，窗随S61）：
-- 做什么：game/physics/platform.go补snap＋MOTION_MODE两档口径，对齐CharacterBody2D。
-- 测试：platform单测＋S61窗连带验。
-- 指标：贴地吸附不断，斜坡站得住，单向穿过再落住。
+详见 `docs/2.5D/G15.md`（S76原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 S77 听者跟相机（等 S13，G30，窗随S55）：
-- 做什么：game/audio补AudioListener2D口径（make_current单例，跟相机走）。
-- 测试：positional单测＋S55窗连带听。
-- 指标：中置居中右偏右远处微弱可定位，衰减 bus 覆盖对。
+详见 `docs/2.5D/G15.md`（S77原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 S79 真2.5D基向量窗（等 S08/S09/S10，G01＋misc/2.5d，窗新建game_25d_basis）：
-- 做什么：新建 examples/game_25d_basis，调 game/camera 真包；6种基向量矩阵与 demo 逐位一致，投影逐点对，排序走 YSort25D，影子走 ShadowMath25D。
-- 测试：camera/sprite单测＋自动矩阵逐位对＋人工切换视角。
-- 指标：正式包三遍最差；presents400＋fps57＋，帧门见§5；矩阵0差投影误差1e-9内，双金0差。
+详见 `docs/2.5D/G15.md`（S79原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W11 总指标：12项全建（有目录有main.go才算建，无目录算未建），每窗自动＋人工双 JSON（人工事件0算空转不算过），金图全进 testdata容差写死（静图0容差，金图按窗大小），正式包＋三遍最差＋换机口径，（帧门见§5，双金0差）全过，每项加一行与 D01–D20 差多少（对不上不许绿）。少一项 W12 不开。
 
@@ -989,48 +959,32 @@ W11 总指标：12项全建（有目录有main.go才算建，无目录算未建�
 #### W12 立体细腻 C+（S62–S66，靠 W11，S62–S65 可并行，S66 等前 4）
 
 S62 材质两张图（法线＋粗糙）：
-- 做什么：game/light 扩展粗糙（normal.go 不动，新文件 rough.go 或扩展包），render 主路不动；木箱人物石头三样板先行，每样底色＋法线＋粗糙配齐按 1080p 备。
-- 测试：新单测 6 项（A 受光方向对，B 缺图不崩，C 双重放逐位一致，D 单图帧率有数，E 2000 遍重放一致＋500 坏图错码稳，F 离屏金）＋game_light 三 case 重验自动＋人工。
-- 指标：木头哑光、铁件亮、皮肤中间分得开；鼓包最高比边上亮一半以上；中午看得出鼓，晚上手电脸亮衣稍暗；权重和为 1 误差超 0.001 判坏数据不硬读；D 8 灯打 64x64 2ms 量级 70ns/像素/灯量级；双金 0 差；底纹必须有，均匀灰无轮廓算红。
+详见 `docs/2.5D/G16.md`（S62原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S63 灯影柔边＋大灯收费：
-- 做什么：game/light 柔边三档（无/PCF5/PCF13 中间档默认）＋覆盖像素记账，大灯按盖多少像素收费。
-- 测试：light/shadow 单测＋torch/shadow 窗重验。
-- 指标：十盏以内带阴影 60 帧，PCF13 只许少量灯，大灯超量告警；手电只照人不照背景（bg 与夜色逐位同），夜最暗不黑屏（0.03 以上），lit 像素千级以上增益 0.6 以上；OOM 降档记日志深查，不许悄悄降。
+详见 `docs/2.5D/G16.md`（S63原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S64 压缩第二种＋转码：
-- 做什么：game/tex 在 BC1 之外再冻一种（ASTC 或 ETC2 二选一，先冻一种），头校验＋按卡转码＋粉块兜底，Go 只搬运校验不自写解码。
-- 测试：compressed 单测＋离屏整图＋game_tex 远近重验。
-- 指标：魔数不对拒收，Scheme 不对拒收并给原因；同张图显存压到 1/4–1/8 肉眼无块感；法线不许用最低档；大纹理转码不在主线程；转码失败粉块不闪退。
+详见 `docs/2.5D/G16.md`（S64原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S65 过滤写死＋图集留白扩边：
-- 做什么：game/tex/mipmap＋atlaspack 联动，render 按图采样开关不动老路；写实默认 mipmap＋三线性，斜 45 度 4x 各向异性，图集留白 2–4 扩边 1–2，像素风才 Nearest＋整数坐标。
-- 测试：mipmap/atlaspack 单测＋game_tex/game_sprite 重验。
-- 指标：斜 45 度地面无糊无摩尔纹；图集缝边全透明 maxDiff0；旋转图 UV 反算对，描边无黑线串色；无 mipmap 开各向异性告警为无效配置。
+详见 `docs/2.5D/G16.md`（S65原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S66 亮暗可选管线（9.1 部分解冻）：
-- 做什么：render 新分支浮点目标（R16F/RGBA16F 只走新分支，主 8 位不动）＋曝光可查＋映射曲线可选（Reinhard/ACES/Filmic 三选一，先冻一种）＋game/fx 接入＋CPU 降级标记位＋日志。
-- 测试：新单测 6 项＋game_light/game_fx 重验自动＋人工。
-- 指标：纯白灯 2 倍左右出光晕不过曝成一片，暗场加灯层次还在，截图 sRGB 对设计稿对得上；HDR 与 8 位亮度差可解释；CPU 回退有标记位和日志，无标记静默变灰算假绿；同参数双端像素差在容差内，超差标降级不硬说一致。
+详见 `docs/2.5D/G17.md`（S66原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W12 总指标：四样板（木箱/人物/石头/小场景）并排图亲眼对，白天鼓包见、晚上只照人、暗部和背景分开、不再是一团亮晕；远树拉远不闪，描边无黑线；显存压到 1/4–1/8；正式包＋三遍最差＋换机；双金 0 差；降级有标记。少一样 W13 不开。
 
 #### W13 合验（S67–S68，靠 W12，串行，单项绿合起来也绿才算绿）
 
 S67 追车 2 分钟关门：
-- 做什么：examples/game_stage_chase 不新建，只优化减分配；镜头跟随＋排序遮挡＋粒子拖尾＋瓦片分区＋动态更新一起上。
-- 测试：120 秒自动＋30 秒常驻人工＋2 小时长跑另起（切一次后台缩一次窗口）。
-- 指标：presents 6500 以上 fps57 以上，帧门见§5，dirty_max 不超 2 full0 fallback0，内存 2 小时涨不超 5%，像素三数（逻辑探针＋像素断言＋离屏金）全过；追车顺车不穿，特效不飘界面，边走边装不丢。
+详见 `docs/2.5D/G18.md`（S67原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S68 夜战第二关立项（等 S67 绿才开）：
-- 做什么：只立项冻接口，不写逻辑不建窗；灯＋后期组合，复用追车架子。
-- 测试：接口 doc.go 评审过（无自动/人工窗，建窗后另补数）。
-- 指标：追车不绿不开；接口只加不改，老调用能编过。
+详见 `docs/2.5D/G19.md`（S68原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S78 躲避小怪关（等 W11全项绿含S79，归W13）：
-- 做什么：新建 examples/game_dodge，照抄dodge_the_creeps：玩家400像素/秒八向走，怪Path2D随机点垂直加减45度、150–250速度刷，撞hit进game_over，ScoreTimer每秒＋1，HUD三态＋Music/DeathSound两路音＋最高分存盘；真图真音用原版CC0套（人物走跑各两帧、三怪各两帧）。
-- 测试：flipbook/action/body/positional/world/save单测复跑＋120秒自动＋人工玩2分钟双JSON。
-- 指标：正式包三遍最差；presents6000＋，帧门见§5；速度400分毫不差，怪速分布一致，撞必死死有音分加对；和原版并排手感一致。
+详见 `docs/2.5D/G20.md`（S78原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W13 总指标：120 秒 JSON＋2 小时报表＋三遍最差全贴，不许只贴最好；帧率显存像素三数全过，长跑在线，崩留日志；S78双JSON齐。P3组合关门写已绿才许进 W14。
 
@@ -1050,30 +1004,26 @@ W13 总指标：120 秒 JSON＋2 小时报表＋三遍最差全贴，不许只�
 #### W14 养得住＋扩展对照（S69–S72＋S81–S83七项，靠 W13，波内可并行，按W块拿活）
 
 S69 图集工具定死：max2048/4096、padding2–4、extrude1–2、旋转反算对、DrawCall 随集数线性降，大关卡打开时长有数，连开 5 次零漂移。
+详见 `docs/2.5D/G21.md`（S69原话已搬家，详情以组文件为准）。
 S70 资产轻量＋断链上报：改一张只重载该集，依赖错报哪条链断，线上只整包热更不许边玩边换逻辑，坏档回中档不崩。
+详见 `docs/2.5D/G21.md`（S70原话已搬家，详情以组文件为准）。
 S71 预览＋录帧埋点：tools 关卡/粒子所见即所得，摆完和运行一致；Profiler 录帧定到节点级（采样开销不超5%，时间精度1ms，埋点字段frame/draws/batch/mem必填），关键链路有自定义帧率数量埋点；美术看到的遮挡混合和运行一致。
+详见 `docs/2.5D/G21.md`（S71原话已搬家，详情以组文件为准）。
 S72 平台矩阵：集显（Intel HD520）独显（940MX/580.178.04）各一遍，1920x1080＋X11必测、Wayland按真源表标，符号只用所属文档图例，没做写原因不许空；三档机（高/中/低）各测一遍，低档内存比高档省 40% 以上，切档即生效不重启。
+详见 `docs/2.5D/G21.md`（S72原话已搬家，详情以组文件为准）。
 S81 横版对照窗（等 W11全绿＋S76，照抄platformer，窗新建examples/game_platformer）：
-- 做什么：步速300/加速度1800/跳-725/坠落上限700/二段跳/松键减速×0.6，Camera2D跟随＋分屏口径，调 game/physics＋game/camera 真包。
-- 测试：platform单测＋自动步速跳速坠落上限 JSON＋人工跳。
-- 指标：同上帧门；二段只一次，落地不穿不硬。
+详见 `docs/2.5D/G21.md`（S81原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 S82 灯影对照窗（等 S63，照抄lights_and_shadows，窗新建examples/gfx_light2d）：
-- 做什么：点光＋方向光＋阴影三档切换，调 game/light 真包。
-- 测试：light/shadow单测＋自动开关＋三档 JSON＋人工看光斑影子。
-- 指标：同上帧门；开关前后金图对比对，档位肉眼可辨。
+详见 `docs/2.5D/G21.md`（S82原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 S83 粒子对照窗（等 S43，照抄particles，窗新建examples/gfx_particles2d）：
-- 做什么：火/烟/爆炸＋子发射＋碰撞全家桶，调 game/particle 真包。
-- 测试：emitter/gpu单测＋自动发射器全创建 JSON＋人工看像不像。
-- 指标：同上帧门；帧率不崩，碰撞消失合理。
+详见 `docs/2.5D/G21.md`（S83原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W14 总指标：美术能干活（摆完即看），卡能定位（录帧到节点），换端不翻车（三档机全过），对照窗手感一致（S81–S83双JSON齐），文档平台格无空白。少一项 W15 不开。
 
 #### W15 拍板（S73，靠 W14，串行收尾）
 
 S73 联机脚本接口先冻：
-- 做什么：只冻接口写 doc.go，game 下新包只算数；联机留定点数＋确定性随机＋输入帧号＋快照口，先用主机权威；脚本随包走不下发，只更数据美术配置。
-- 测试：接口评审＋老调用能编过＋版本号不对直接报错不硬读。
-- 指标：单机逻辑帧率固定；线上不许边玩边换逻辑；文档看情况再加改成要/不要，不留糊涂账。
+详见 `docs/2.5D/G22.md`（S73原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者齐才算 V2 关门。（S80已作废并入S87，不在这里验收。）
 
@@ -1149,68 +1099,33 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 #### W16 世界做大（S84–S86，靠W15，波内可并行，一窗一会话）
 
 S84 大地图流式与预算（等 S05/S20/S26＋S33，G12/G34，窗game_tilemap--case=large）：
-- 做什么：100万瓦片建索引＋32x32分区＋视口裁剪＋后台解析前台合入；挂点随实体、出生点随场景（N4并入，不另开S）；firstgid错位0容忍，地形笔刷连点自接边。
-- 改哪几个文件：game/tilemap/large.go新建（索引＋预算＋合入），不动tilemap.go/chunk.go/lod.go语义；testdata加large_map.tmx＋large_budget.json；窗examples/game_tilemap加--case=large。
-- 跑哪几个命令：go test ./game/tilemap -run 'TestChunk|TestLarge|TestLod' -count=1；go vet ./game/tilemap；RUN_SECONDS=60 -auto-only收自动JSON；-manual-seconds 60常驻收人工JSON（必须有按键移动事件）。
-- 数到多少：正式包三遍最差；索引构建≤2s，边走边装每帧≤2ms，帧门见§5，双金0差；快移跳跃镜头不崩，缺块品红占位。
-- 参考谁：Godot modules/tilemap/tile_map_layer.h（set_cell/get_cell/quadrant16）＋packed_scene三表；分层看G01。
-- 五步：接口doc.go先冻→单测testdata→接线（两边齐，坏块占位）→真窗双JSON→回归（tilemap整包＋game_world旧窗重跑）；回写能力行＋W16关门行＋修订。
+详见 `docs/2.5D/G23.md`（S84原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S85 大实体裁剪与排序（等 S25/S33＋S10/S41，G01/G17，窗game_world--case=large）：
-- 做什么：全场2万实体只更新active集（视口内＋ awake），睡眠不跑矩阵，排序只排active集；挂点变换继承不断链。
-- 改哪几个文件：game/world/cull.go新建（active集＋睡眠＋预算），不动entity.go/scene.go语义；testdata加large_scene.json（2万实体）＋large_cull.json；窗examples/game_world加--case=large。
-- 跑哪几个命令：go test ./game/world -count=1；go vet ./game/world；RUN_SECONDS=60自动＋常驻60秒人工（必须有按键/点按事件）。
-- 数到多少：正式包三遍最差；active集1500更新（不含绘制）≤3ms（帧门见§5），双金0差；删爹不崩，200轮进出回基线，大关卡连开5次零漂移。
-- 参考谁：Godot CanvasItem分层＋RendererCanvasCull排序口径（G01/G17）；进屏启停语义按N4并入这里验。
-- 五步同S84；回归加game_sprite旧窗重跑。
+详见 `docs/2.5D/G23.md`（S85原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S86 大物理宽阶段与休眠（等 S06/S21/S22，G23/G24/G26，窗game_physics--case=large）：
-- 做什么：千盒均匀网格宽阶段（格128像素）＋动态休眠＋单向平台＋跳板弹簧（冲量＋衰减，供平台跳跃类型），随S61窗；边触算碰、体内0、掩码静默口径不动。
-- 改哪几个文件：game/physics/broadphase.go新建（网格＋休眠＋候选上限），不动body.go/platform.go语义；testdata加large_yard.json（千盒静态＋200动态）＋large_rays.json；窗examples/game_physics加--case=large。
-- 跑哪几个命令：go test ./game/physics -count=1；go vet ./game/physics；RUN_SECONDS=60自动＋常驻人工跳。
-- 数到多少：正式包三遍最差；单查询≤50us、射线≤30us、每帧候选≤40，长坡0.3us量级，万次重放一致，长跑不穿不掉，同上帧门双金0差。
-- 参考谁：Godot CollisionObject层掩码＋CharacterBody（move_and_slide/snap0.1/45度）＋RayCast（G23/G24/G26）。
-- 五步同S84；回归加platform旧单测。
+详见 `docs/2.5D/G23.md`（S86原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W16总指标：三项全正式包三遍最差（帧门见§5，双金0差），每窗双JSON，金图按窗大小，少一项W17不开。
 
 #### W17 系统做密（S87–S89，靠W16，波内可并行，一窗一会话）
 
 S87 寻路转正（等 S05/S22，G27，窗examples/game_nav新建，S80作废并入本项）：
-- 做什么：网格烘焙确定性（同输入逐字节一致）＋AStarGrid寻路＋同屏100怪分摊排队；点选有路无路皆有终态，到点容差2px，速度200对照navigation demo。
-- 改哪几个文件：game/nav新建（agent.go bake.go queue.go doc.go）；testdata加nav_grid.json＋nav_cases.json；窗examples/game_nav新建main.go＋README＋testdata/金图。
-- 跑哪几个命令：go test ./game/nav -count=1；go vet ./game/nav；RUN_SECONDS=30自动＋常驻人工点选（必须有点按事件，事件0算空转）。
-- 数到多少：正式包三遍最差；256x256烘焙≤200ms，分摊后帧率不崩，同上帧门，双金0差；坏网格报错不崩，无路给终态不卡死。
-- 参考谁：Godot scene/2d/navigation各头＋navigation_polygon（target/next_path/desired_distance/max_speed/bake）。
-- 五步同S84；回归加tilemap/physics整包。
+详见 `docs/2.5D/G24.md`（S87原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S88 大资源包与显存预算（等 S19/S27/S33，G22/G35，窗game_asset--case=large＋tools预览复用）：
-- 做什么：3000张小图/50个图集预算表（高/中/低各档上限MB）＋改一张只重载该集＋断链报哪条链；大关卡（2万实体＋100万瓦片索引）打得开。
-- 改哪几个文件：game/asset/budget.go新建（预算＋重载＋断链），不动asset.go/atlaspack.go/hotreload.go语义；testdata加large_manifest.json＋large_links.json；窗examples/game_asset加--case=large。
-- 跑哪几个命令：go test ./game/asset -count=1；go vet ./game/asset；RUN_SECONDS=30自动＋人工改完看（必须有文件改事件或按键事件）。
-- 数到多少：正式包三遍最差；单集重载≤50ms，大关卡打开≤3s，连开5次零漂移，看门人与直装逐位一致，坏文件保旧，同上帧门。
-- 参考谁：Godot ResourceLoader/UID/PackedScene三表＋ResourceFormatText两表（G34/G35）；压缩头看G22。
-- 五步同S84；回归加asset整包＋tools双预览重跑。
+详见 `docs/2.5D/G24.md`（S88原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S89 大声音复用与动画LOD（等 S13/S14/S42/S77，G28–G31/G13，窗复用不新建）：
-- 做什么：64路复用留最响32（128请求）＋位置音＋听者跟相机＋爆炸压音乐＋节拍时钟（BPM/拍号/节拍回调，供音游演出与timeline事件对拍）；骨骼LOD屏外停更、远半速、近全速；N6子集到此为止，全效果器链仍以后排。
-- 改哪几个文件：game/audio/voices.go新建（复用＋闪避＋预算），不动positional.go/music.go语义；game/anim/lod.go新建（LOD＋裁剪），不动skeleton.go语义；testdata加large_voices.json＋large_lod.json；窗复用game_anim＋S55听者窗，不新建。
-- 跑哪几个命令：go test ./game/audio ./game/anim -count=1（逐个包单跑）；人工听（中置居中/右偏右/远处微弱）＋波形看满刻度不削波；RUN_SECONDS=30自动复用JSON。
-- 数到多少：正式包三遍最差；同屏百骨骼全更新≤1ms，全场千骨骼只更新视口内，64路满刻度不削波，同上帧门，离屏金0差。
-- 参考谁：Godot AudioServer总线＋AudioStreamPlayer2D（max_distance2000/attenuation1）＋AudioListener（G28/G29/G30）＋Skeleton2D（G13）。
-- 五步同S84；回归加audio/anim整包。
+详见 `docs/2.5D/G24.md`（S89原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W17总指标：三项全正式包三遍最差，声音加人工听＋波形，导航人工点选事件非0，少一项W18不开。
 
 #### W18 大包关门（S90，靠W17，串行）
 
 S90 大包长跑与录帧关门（等W16＋W17全绿，窗game_stage_chase--case=large）：
-- 做什么：不新建窗，只加--case=large；镜头＋排序＋拖尾＋分区＋动态＋寻路＋复用一起上，跑10分钟自动＋8小时长跑另起（切后台缩窗口各2次）。
-- 改哪几个文件：examples/game_stage_chase加large case＋testdata/large金图＋large_report.json；不动game各包语义。
-- 跑哪几个命令：单测复跑tilemap/world/physics/nav/asset/audio/anim整包（逐个单跑）；RUN_SECONDS=600自动收JSON；8小时soak另起收report.json＋crash.json；-manual-seconds 60常驻人工（事件非0）。
-- 数到多少：正式包三遍最差全贴；10分钟presents34000＋fps57＋（帧门见§5），dirty_max≤2，8小时内存涨≤5%，录帧采样开销≤5%精度1ms字段frame/draws/batch/mem必填，离屏金＋窗金0差，parity0%。
-- 参考谁：dodge整环＋platformer手感＋lights开关＋particles全家桶＋misc/2.5d六视角，行为和原版一致。
-- 五步：单测→接线→自动→人工→回归（全包＋界面金图性能基线不红）；回写能力行＋W18关门行＋修订。
+详见 `docs/2.5D/G25.md`（S90原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W18总指标：10分钟JSON＋8小时报表＋三遍最差全贴，不许只贴最好；帧率显存像素三数全过，长跑在线，崩留日志；S90双JSON齐才算V3关门。
 
@@ -1271,64 +1186,29 @@ W18总指标：10分钟JSON＋8小时报表＋三遍最差全贴，不许只贴�
 #### W19 机制打底（S91–S94，靠W18，波内可并行，一窗一会话，按W块拿活）
 
 S91 战斗伤害（等 S06/S21/S22，G23/G25，窗examples/game_combat新建）：
-- 做什么：Hitbox/Hurtbox＋伤害＋无敌帧＋冷却＋击退＋死亡掉落；边触沿用体口径，伤害另算，不混进碰撞包。
-- 改哪几个文件：game/combat新建（hitbox.go/damage.go/iframes.go/doc.go）；testdata加combat_cases.json（10组伤害＋5组无敌＋3组击退）；窗新建main.go＋README＋testdata/金图。
-- 跑哪几个命令：go test ./game/combat -count=1；go vet ./game/combat；RUN_SECONDS=30自动（连击/无敌/死亡掉落JSON）＋常驻人工对打（事件非0）。
-- 数到多少：正式包三遍最差；万次结算重放一致，同帧多次命中只算一次，无敌内0伤害，击退位移逐位对，同上帧门双金0差。
-- 参考谁：Godot CollisionObject层掩码＋Area2D触发＋Animation伤害帧事件（G23/G25/G06事件軌）。
-- 五步：接口doc.go先冻→单测testdata→接线（坏档不崩）→真窗双JSON→回归（combat整包＋physics整包）；回写能力行＋W19关门行＋修订。
+详见 `docs/2.5D/G26.md`（S91原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S92 AI感知决策（等 S87＋S46，G27/G26/G07，窗examples/game_ai新建）：
-- 做什么：视野锥＋听觉半径＋巡逻/追击/逃跑/技能CD决策；只输出目标点和动作名，不直改位移（移动仍走寻路/角色体）。
-- 改哪几个文件：game/ai新建（sense.go/decide.go/doc.go）；testdata加ai_cases.json（锥内外/听觉边/巡追逃切换）；窗新建（三怪巡逻追逃）。
-- 跑哪几个命令：go test ./game/ai -count=1；RUN_SECONDS=30自动（发现/丢失/切换JSON）＋人工拉怪。
-- 数到多少：正式包三遍最差；同输入逐位一致，视野边1像素内外分明，丢失目标3秒回巡逻（可配），同上帧门双金0差。
-- 参考谁：Godot NavigationAgent＋RayCast视线＋StateMachine（G27/G26/G07）。
-- 五步同S91；回归加nav/anim整包。
+详见 `docs/2.5D/G26.md`（S92原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S93 对话任务（等 S33＋S78，G34，窗examples/game_rpg_grid新建--case=talk）：
-- 做什么：对话树＋任务推进＋商店买卖数据子集冻JSON；只管数据和推进，不管具体UI画法（HUD调现有接口）。
-- 改哪几个文件：game/quest新建（dialogue.go/quest.go/shop.go/doc.go）；testdata加quest_talk.json＋quest_shop.json；窗新建（走格＋战斗＋对话＋商店）。
-- 跑哪几个命令：go test ./game/quest -count=1；RUN_SECONDS=60自动（走格对齐/战斗胜负/对话推进/买卖结算JSON）＋人工玩通一单。
-- 数到多少：正式包三遍最差；分支全覆盖无死节点（单测断言），坏对话报错不崩，版本升迁老档可读，同上帧门双金0差。
-- 参考谁：Godot PackedScene三表＋resource文本（G34/G35）；rpg demo流程。
-- 五步同S91；回归加world/save整包。
+详见 `docs/2.5D/G26.md`（S93原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S94 背包物品掉落（等 S15＋S33，G33，窗随game_rpg_grid）：
-- 做什么：物品堆叠＋装备槽＋掉落表＋权重随机（走core/rand独立流）；存盘进16.1槽位。
-- 改哪几个文件：game/inventory新建（item.go/drop.go/doc.go）；testdata加drop_cases.json（权重分布＋种子重放一致）；窗随S93。
-- 跑哪几个命令：go test ./game/inventory -count=1；大样本掉落分布对＋同种子逐位一致。
-- 数到多少：正式包三遍最差；堆叠上限外溢报错不丢物，万次编解码一致，同上帧门。
-- 参考谁：Godot SpriteFrames资源容器口径（G33）；rpg掉落。
-- 五步同S91；回归加save整包。
+详见 `docs/2.5D/G26.md`（S94原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W19总指标：四项全正式包三遍最差，每窗双JSON（rpg人工玩通一单事件非0），分支/权重/切换三数全过，少一项W20不开。
 
 #### W20 内容封口（S95–S97，靠W19，波内可并行）
 
 S95 程序化生成（等 core/rand＋S05，窗examples/game_rogue新建--case=dungeon）：
-- 做什么：随机地牢（房间＋走廊＋连通保证）＋种子流隔离（地形/掉落/怪分流）；连通失败报错重投，上限100次。
-- 改哪几个文件：game/procgen新建（dungeon.go/streams.go/doc.go）；testdata加dungeon_cases.json（5种子全连通＋出入口可达）；窗新建（地牢＋永久死亡存盘）。
-- 跑哪几个命令：go test ./game/procgen -count=1；千种子连通率100%，同种子逐字节一致。
-- 数到多少：正式包三遍最差；百房间地牢生成≤50ms，不连通0容忍，同上帧门双金0差。
-- 参考谁：Godot NavigationPolygon烘焙确定性口径（G27）；roguelike地牢做法只抄规则不搬代码。
-- 五步同S91；回归加tilemap/save整包。
+详见 `docs/2.5D/G27.md`（S95原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S96 本地化文本与辅助设置（等 S15，窗复用不新建）：
-- 做什么：文本表（key＋多语言＋缺key回退默认语言＋报错）＋辅助开关数据（色盲安全调色＋震动强度＋难度倍率）；只管数据，不管平台怎么渲染。
-- 改哪几个文件：game/text新建（table.go/settings.go/doc.go）；testdata加text_cases.json；HUD复用game_dodge，窗不新建（离屏＋人工看）。
-- 跑哪几个命令：go test ./game/text -count=1；缺key回退不断言崩，万次查询重放一致。
-- 数到多少：正式包三遍最差；缺语言整表报错不崩，切换即生效不重启，同上帧门。
-- 参考谁：Godot TranslationServer键值口径（只抄做法）；引擎硬编码纪律（用户文案走表，不许写死）。
-- 五步同S91；回归加input/save整包。
+详见 `docs/2.5D/G27.md`（S96原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S97 确定性快照回放（等 S03＋S73，G08，窗game_stage_chase复用--case=replay）：
-- 做什么：输入帧号＋快照存取＋回放逐帧一致；联机回滚的前置，单机先用来录像验bug；联机逻辑仍V5，接口走S73。
-- 改哪几个文件：game/replay新建（snapshot.go/log.go/doc.go）；testdata加replay_cases.json；窗复用追车large。
-- 跑哪几个命令：go test ./game/replay -count=1；千帧回放逐位一致，快照版本不对直接报错。
-- 数到多少：正式包三遍最差；回放与实跑逐帧0差，坏快照不崩，同上帧门。
-- 参考谁：Godot Tween确定性＋fixed步长口径（G08）；Fix Your Timestep。
-- 五步同S91；回归加step整包。
+详见 `docs/2.5D/G27.md`（S97原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W20总指标：三项全正式包三遍最差，千种子/千帧/万次三数全过，rogue人工开一局事件非0，少一项V4不开门。
 
@@ -1383,64 +1263,29 @@ W20总指标：三项全正式包三遍最差，千种子/千帧/万次三数全
 #### W21 画面手感封口（S98–S100，靠W20，波内可并行，一窗一会话，按W块拿活）
 
 S98 水折射真链路（等 S39/S66，扭曲＋管线，窗game_fx--case=refr，N5转正）：
-- 做什么：真折射（读屏拷贝＋扭曲采样＋游戏层隔离），不是中间图假扭曲；坏拷贝占位加报错，不崩主路。
-- 改哪几个文件：game/fx/refraction.go新建（拷贝＋采样＋预算），不动warp.go/bloom_lut.go语义；testdata加refr_cases.json（3组偏移＋2组整图）；窗game_fx加--case=refr。
-- 跑哪几个命令：go test ./game/fx -run 'TestWarp|TestRefraction' -count=1（逐个单跑）；RUN_SECONDS=10自动（水晃折射JSON）＋人工看水像水。
-- 数到多少：正式包三遍最差；1080p一遍≤8ms，坏拷贝粉块兜底不闪退，同上帧门双金0差。
-- 参考谁：Godot BackBufferCopy（rect/copy_mode）＋CanvasItemMaterial只碰游戏层（G20/G16口径）；S66管线是前置。
-- 五步：接口doc.go先冻→单测testdata→接线（坏路占位）→真窗双JSON→回归（fx整包＋game_light旧窗重跑）；回写能力行＋W21关门行＋修订。
+详见 `docs/2.5D/G28.md`（S98原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S99 金属高光＋骨骼全集＋8方向（等 S42/S45/S62，G13/G14/G22，窗game_anim--case=hero＋game_light重验，N8金属部分转正）：
-- 做什么：三张图变四张图（底色＋法线＋粗糙＋金属高光），金属度0/1两档先行，中间值钳住报错；骨骼认全（IK/约束/物理惯性子集补齐，物理惯性从占位转正）；人物8方向（8朝向×站跑砍魔法受击死6套，换装分层拼）。
-- 改哪几个文件：game/light/metal.go新建（金属＋高光），不动normal.go/rough.go语义；game/anim/skeleton.go扩展全集（不动旧语义，只加口）；game/sprite/dir8.go新建（8方向＋分层＋换装）；testdata加metal_cases.json＋dir8_cases.json（8向×6套帧号全对）；窗game_anim加--case=hero（8方向换装人）。
-- 跑哪几个命令：go test ./game/light ./game/anim ./game/sprite -count=1（逐个包单跑）；RUN_SECONDS=30自动（金属开关＋8向切换JSON）＋人工看亮闪闪＋转身对。
-- 数到多少：正式包三遍最差；金属开关前后金图对比对，8向切换无跳变，换装分层逐位对，同上帧门双金0差。
-- 参考谁：Godot Skeleton2D全集（TwoBoneIK/CCDIK/FABRIK/LookAt按需一个）＋Light2D能量超1＋CanvasTexture高光（G13/G14/G16）；Spine JSON全集只抄做法。
-- 五步同S98；回归加light/anim/sprite三整包。
+详见 `docs/2.5D/G28.md`（S99原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S100 关节链条弹簧（等 S06/S21，G23，窗game_physics--case=joints，N2转正）：
-- 做什么：Pin钉住＋DampedSpring弹簧＋Groove滑槽三样，绳子链条弹簧门钩索枪全靠它；断链报错不崩，长链抖动钳住。
-- 改哪几个文件：game/physics/joints.go新建（钉/簧/槽＋解算＋上限），不动body.go/platform.go/broadphase.go语义；testdata加joints_cases.json（3种×5组）；窗game_physics加--case=joints。
-- 跑哪几个命令：go test ./game/physics -count=1；RUN_SECONDS=30自动（链条不断＋弹簧回位JSON）＋人工拉绳子。
-- 数到多少：正式包三遍最差；百关节解算≤1ms，万步重放一致，长链不断不断漂，同上帧门双金0差。
-- 参考谁：Godot scene/2d/physics/joints三样（Pin/DampedSpring/Groove）＋CharacterBody口径（G23/G24）；只抄做法。
-- 五步同S98；回归加physics整包。
+详见 `docs/2.5D/G28.md`（S100原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W21总指标：三项全正式包三遍最差，每窗双JSON（hero人工转身事件非0），金属/折射/关节三数全过，少一项W22不开。（S101已作废，手机端不在本线。）
 
 #### W22 量产封口（S102–S105，靠W21，波内可并行）
 
 S102 脚本内容管线＋游戏UI套件（等 S33/S73/S15，G34/G35，窗tools＋game_rpg_grid复用）：
-- 做什么：二选一拍板（Lua还是可视化脚本，只留一种，不许两套并存）；数值表/技能表/掉率表/对话表冻JSON Schema＋校验＋热更只换数据不换逻辑；游戏UI套件（血条蓝条/小地图/技能栏/背包格/商店/聊天框/结算面板，绑游戏数值，HUD调现有接口）。
-- 改哪几个文件：game/script新建（选型doc＋一种实现＋沙箱＋配额）；tools/tables新建（Schema＋校验＋热更）；game/hud新建（血条/技能栏/背包格/商店/聊天框，绑数值不管平台画法）；testdata加tables_cases.json（4表各3组好坏）＋hud_cases.json。
-- 跑哪几个命令：go test ./game/script ./game/hud -count=1（逐个单跑）；坏表报错指到行，脚本死循环配额杀掉不卡死。
-- 数到多少：正式包三遍最差；万次表查询重放一致，热更只换数据不断连（单机不断帧），UI绑值错位0容忍，同上帧门。
-- 参考谁：Godot PackedScene三表＋resource文本两表（G34/G35）；脚本随包走不下发走S73口径。
-- 五步同S98；回归加world/save/asset三整包。
+详见 `docs/2.5D/G29.md`（S102原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S103 音频全链（等 S13/S14/S89，G28–G31，窗复用不新建，N6全链转正）：
-- 做什么：混响＋均衡＋变声三效果器（先行三样，其余以后加）＋环境声区（进山洞有回音，出洞消失）＋三次插值重采样口径；64路复用不动。
-- 改哪几个文件：game/audio/fx新建（reverb.go/eq.go/pitch.go/zone.go），不动positional.go/music.go/voices.go语义；testdata加audio_fx_cases.json（3器×5组＋2声区）；窗复用听者窗，不新建（离屏＋人工听＋波形）。
-- 跑哪几个命令：go test ./game/audio -count=1；人工听（山洞回音/大招压音乐/变声不错乱）＋波形满刻度不削波。
-- 数到多少：正式包三遍最差；三器全开一帧≤1ms，声区进出无咔哒，万次重放一致，同上帧门。
-- 参考谁：Godot servers/audio/effects＋AudioStream重采样＋area_mask混响区（G28–G31全抄口径）；只抄做法。
-- 五步同S98；回归加audio整包。
+详见 `docs/2.5D/G29.md`（S103原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S104 真编辑器（等 S50/S71/S33，G34，窗tools/editor新建，N7转正）：
-- 做什么：地图摆怪＋技能调参＋遮挡预览＋录帧定位，一体窗；只做2.5D要的，不做Godot 210文件那套全功能。
-- 改哪几个文件：tools/editor新建（mapedit.go/skilledit.go/preview.go）；testdata加editor_cases.json（摆完即运行一致3组）；窗新建。
-- 跑哪几个命令：go test ./tools/editor -count=1；摆完和运行逐位一致，坏工程占位不崩。
-- 数到多少：正式包三遍最差；大关卡打开时长有数（走S88数），录帧采样开销≤5%精度1ms，同上帧门，人工摆一单事件非0。
-- 参考谁：Godot editor只抄做法（摆/调/看三动作），数据走G34/G35三表两表。
-- 五步同S98；回归加tools双预览＋tilemap/world整包。
+详见 `docs/2.5D/G29.md`（S104原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S105 兼容压测与无障碍（等 S49/S51/S72/S96，窗复用不新建）：
-- 做什么：低端机自动降档（粒子/灯/分辨率三档联动）＋动态分辨率（帧不够自动降，帧够升回）＋无障碍真机（色盲安全调色/震动强度/难度倍率走S96数据，人工看）；压测模板（同屏预算＋8小时＋三档机）。
-- 改哪几个文件：game/debug/degrade.go新建（降档＋动态分辨率＋预算），不动stats.go语义；testdata加degrade_cases.json（3档×5组）；窗复用large系列，不新建。
-- 跑哪几个命令：go test ./game/debug -count=1；切档即生效不重启，低档内存比高档省40%以上（走S72数）。
-- 数到多少：正式包三遍最差；降档有标记位＋日志，无标记静默变灰算假绿；动态分辨率上下限写死不穿帮，同上帧门。
-- 参考谁：S49/S51/S72/S96四数全沿用；引擎硬编码纪律（用户文案走表）。
-- 五步同S98；回归加debug/save整包。
+详见 `docs/2.5D/G29.md`（S105原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W22总指标：四项全正式包三遍最差，表校验/声区/编辑器/降档四数全过，editor人工摆一单事件非0，少一项V5不开门。
 
@@ -1484,64 +1329,29 @@ W22总指标：四项全正式包三遍最差，表校验/声区/编辑器/降�
 #### W23 玩法联机打底（S106–S109，靠W22，波内可并行，一窗一会话，按W块拿活）
 
 S106 技能全套（等 S91/S46，G23/G25/G07，窗examples/game_skill新建）：
-- 做什么：点选/方向/范围/链条/召唤物/飞行道具＋冷却/公共冷却＋Buff叠加上限驱散＋伤害公式（攻击防御暴击闪避）；S91 只算单次伤害，本项管整套技能。
-- 改哪几个文件：game/skill新建（target.go/shape.go/cooldown.go/buff.go/formula.go/doc.go）；testdata加skill_cases.json（4目标×3组＋Buff叠加驱散5组＋公式10组）；窗新建main.go＋README＋testdata/金图。
-- 跑哪几个命令：go test ./game/skill -count=1；go vet ./game/skill；RUN_SECONDS=30自动（命中/冷却/Buff/公式JSON）＋常驻人工放技能（事件非0）。
-- 数到多少：正式包三遍最差；万次结算重放一致，同帧多次命中按S91口径只算一次，冷却中放不出且报错不崩，Buff层数逐位对，同上帧门双金0差。
-- 参考谁：Godot CollisionObject层掩码＋Area2D触发＋Animation伤害帧事件＋StateMachine（G23/G25/G07）。
-- 五步：接口doc.go先冻→单测testdata→接线（坏表不崩）→真窗双JSON→回归（skill整包＋combat整包）；回写能力行＋W23关门行＋修订。
+详见 `docs/2.5D/G30.md`（S106原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S107 8方向人物扩展（等 S99/S74，G05/G13，窗game_anim--case=legend）：
-- 做什么：在S99的8方向架子上加传奇要的站/跑/砍/魔法/受击/死6套＋换装分层（衣服武器翅膀披风挂件）＋朝向切换无跳变；只管数据和拼法，不管美术资源。
-- 改哪几个文件：game/sprite/dir8.go扩展（sixset.go新建：6套帧表＋分层＋挂件）；testdata加legend_cases.json（8向×6套帧号全对＋3套换装）；窗game_anim加--case=legend。
-- 跑哪几个命令：go test ./game/sprite -count=1；RUN_SECONDS=30自动（8向切换＋换装JSON）＋人工转身换装（事件非0）。
-- 数到多少：正式包三遍最差；8向切换无跳变，换装分层逐位对，缺帧占位报错不崩，同上帧门双金0差。
-- 参考谁：Godot AnimatedSprite2D＋SpriteFrames 5fps默认＋FlipH镜像（G05/G13）；D03/D04默认值。
-- 五步同S106；回归加sprite/anim整包。
+详见 `docs/2.5D/G30.md`（S107原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S108 地图玩法层（等 S84/S05，G12，窗game_tilemap--case=play）：
-- 做什么：在S84百万瓦片索引上加玩法层：阻挡/传送门/安全区/摆摊区/攻城门/刷怪点；寻路烘焙读阻挡，传送读门点，安全区免战。
-- 改哪几个文件：game/tilemap/play.go新建（阻挡＋门点＋区域＋刷怪点），不动large.go/tilemap.go语义；testdata加play_cases.json（6层各3组）；窗game_tilemap加--case=play。
-- 跑哪几个命令：go test ./game/tilemap -count=1；RUN_SECONDS=30自动（阻挡/传送/区域JSON）＋人工跑图（事件非0）。
-- 数到多少：正式包三遍最差；阻挡错位0容忍，传送落点逐位对，刷怪点出怪可配，同上帧门双金0差。
-- 参考谁：Godot TileMap/TileSet三段寻址＋对象层口径（G12）；D10 tile_size16/quadrant16。
-- 五步同S106；回归加tilemap/nav整包。
+详见 `docs/2.5D/G30.md`（S108原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S109 视野同步（等 S97/S73/S85，窗examples/game_net新建--case=sync；无G号，按MMO通用做法）：
-- 做什么：权威服（服算位置伤害，客户端只表现）＋位置技能同步＋视野管理（看不见不发包）＋断线重连＋定点数（S97快照是前置）；联机逻辑本项转正。
-- 改哪几个文件：game/net新建（authoritative.go/snapshot.go/interest.go/reconnect.go/doc.go）；testdata加sync_cases.json（视野内外/断线重连/定点一致）；窗新建（双端对跑）。
-- 跑哪几个命令：go test ./game/net -count=1；千帧回放逐位一致，快照版本不对直接报错。
-- 数到多少：正式包三遍最差；回放与实跑逐帧0差，视野外0发包（单测断言），断线重连状态一致，同上帧门。
-- 参考谁：无G号（Godot自带多人只够小房间，MMO通用做法：服算＋视野＋帧号对齐）；S97确定性是前置。
-- 五步同S106；回归加replay/world整包。
+详见 `docs/2.5D/G30.md`（S109原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W23总指标：四项全正式包三遍最差，每窗双JSON（skill人工放技能事件非0，net双端对跑事件非0），命中/切换/传送/同步四数全过，少一项W24不开。
 
 #### W24 服侧封口（S110–S112，靠W23，波内可并行）
 
 S110 服存档与社交（等 S15/S93/S94，G33/G34，窗复用不新建）：
-- 做什么：人物/装备/背包全服存（槽位＋版本迁移走16.1口径）＋组队/行会/聊天/邮件/拍卖/排行榜数据；只管数据和推进，不管具体UI画法。
-- 改哪几个文件：game/social新建（party.go/guild.go/chat.go/mail.go/auction.go/rank.go/doc.go）；testdata加social_cases.json（6样各3组）；窗复用game_rpg_grid，不新建（离屏＋人工看）。
-- 跑哪几个命令：go test ./game/social -count=1；万次编解码一致，版本升迁老档可读。
-- 数到多少：正式包三遍最差；脏话过滤可配，刷屏限频，坏档报错不崩，同上帧门。
-- 参考谁：Godot Resource存取＋PackedScene三表（G33/G34）；S15槽位迁移口径。
-- 五步同S106；回归加save/quest/inventory整包。
+详见 `docs/2.5D/G31.md`（S110原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S111 装备数值与掉率（等 S94/S102，G33，窗随game_rpg_grid）：
-- 做什么：装备部位＋强化升星＋套装＋绑定＋掉率表＋爆率验证＋多人拾取归属；数值表走S102 Schema校验。
-- 改哪几个文件：game/inventory/equip.go＋droptable.go新建（部位＋强化＋套装＋归属），不动item.go/drop.go语义；testdata加equip_cases.json（强化成功率分布＋套装3组＋归属5组）；窗随S93。
-- 跑哪几个命令：go test ./game/inventory -count=1；大样本掉率分布对＋同种子逐位一致。
-- 数到多少：正式包三遍最差；强化失败回退不丢物，拾取归属错位0容忍，同上帧门。
-- 参考谁：Godot SpriteFrames资源容器口径（G33）；rpg掉落。
-- 五步同S106；回归加inventory/save整包。
+详见 `docs/2.5D/G31.md`（S111原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 S112 同屏压测与反作弊（等 S105/S90/S109，窗game_stage_chase复用--case=siege）：
-- 做什么：几百真人同屏预算（名字血条/伤害数字/技能特效/结算一帧内）＋伤害服算＋位置校验＋加速刷怪刷钱防护＋GM后台＋热更只换数据；S105单机压测是前置。
-- 改哪几个文件：game/debug/siege.go新建（同屏预算＋校验＋GM）；testdata加siege_cases.json（3档×5组）；窗追车复用--case=siege。
-- 跑哪几个命令：go test ./game/debug -count=1；加速/改伤/刷怪三类作弊单测拦截；压测模板走S105。
-- 数到多少：正式包三遍最差；作弊拦截率100%（单测断言），误伤正常操作0容忍，降档有标记位＋日志，同上帧门。
-- 参考谁：无G号（MMO通用做法）；S105降档口径＋S109服算口径。
-- 五步同S106；回归加debug/net整包。
+详见 `docs/2.5D/G31.md`（S112原话已搬家，详情以组文件为准；状态以本文件能力行为准，门槛只认§5）。
 
 W24总指标：三项全正式包三遍最差，存读/掉率/拦截三数全过，siege人工开一局事件非0，少一项V6不开门。
 
