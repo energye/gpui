@@ -199,11 +199,12 @@ func (p *synParser) residual(x0, y0, log2t, scan, cIdx int) ([]int16, error) {
 				break
 			}
 		}
-		// Reverse idxList to scan order (list built last-first).
-		for a, b := 0, len(idxList)-1; a < b; a, b = a+1, b-1 {
-			idxList[a], idxList[b] = idxList[b], idxList[a]
-		}
-		firstNZ, lastNZ := idxList[0], idxList[len(idxList)-1]
+		// Levels attach in build order (last scan position first),
+		// matching the peer's significant_coeff_flag_idx walk: flag,
+		// remaining, and sign sequences all index last-first.
+		// firstNZ is the scan-first entry (last element), lastNZ the
+		// scan-last entry (first element).
+		firstNZ, lastNZ := idxList[len(idxList)-1], idxList[0]
 		signHidden := lastNZ-firstNZ >= 4
 		if p.pps.SignHiding && signHidden {
 			// kept for the pixel stage's sign recovery

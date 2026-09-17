@@ -50,17 +50,6 @@ func clipPix(v int) byte {
 	return byte(v)
 }
 
-func sprintfDbg(x0, y0, size, c, mode, corner, top0, left0, o0, o1, o2, o3 int) string {
-	_ = x0
-	_ = y0
-	return fmt.Sprintf("PREDOUT mode %d size %d c %d corner %d top0 %d left0 %d out0 %d %d %d %d",
-		mode, size, c, corner, top0, left0, o0, o1, o2, o3)
-}
-
-func sprintfNums(f string, a ...int) string {
-	return fmt.Sprintf(f, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9])
-}
-
 func clip16(v int) int16 {
 	if v < -32768 {
 		return -32768
@@ -229,16 +218,19 @@ func inverseTransform(coeffs []int16, log2t, qp int, luma4 bool) {
 		coeffs[i] = clip16((int(v)*scale*16 + add) >> uint(shift))
 	}
 	size := 1 << log2t
+	// Intra luma 4x4 always rides the DST path (peer checks it before
+	// the DC fast path, so even a lone DC coefficient transforms
+	// through transform_4x4_luma, never idct_dc).
+	if luma4 {
+		transform4x4Luma(coeffs)
+		return
+	}
 	m := maxXY(coeffs, size)
 	if m < 0 {
 		return
 	}
 	if m == 0 {
 		idctDC(coeffs, size)
-		return
-	}
-	if luma4 {
-		transform4x4Luma(coeffs)
 		return
 	}
 	idctGeneric(coeffs, size)
@@ -547,8 +539,12 @@ func predictAngular(out []byte, top, left []int, size, mode, cIdx int) {
 			for x := 0; x <= size; x++ {
 				set(x-1, top[1+x-1])
 			}
+			// Peer extends its ref_tmp[last..-1]; our ref runs one slot
+			// ahead of the peer's (ref[i] holds sample offset i, the
+			// peer's ref[i] holds offset i-1), so the same projected
+			// samples land at x-1 here.
 			for x := last; x <= -1; x++ {
-				set(x, left[0+((x*invAngle[mode-11]+128)>>8)])
+				set(x-1, left[0+((x*invAngle[mode-11]+128)>>8)])
 			}
 		}
 		for y := 0; y < size; y++ {
@@ -556,11 +552,11 @@ func predictAngular(out []byte, top, left []int, size, mode, cIdx int) {
 			fact := ((y + 1) * angle) & 31
 			for x := 0; x < size; x++ {
 				if fact != 0 {
-					a := get(x + idx + 1)
-					b := get(x + idx + 2)
+					a := get(x + idx)
+					b := get(x + idx + 1)
 					out[y*size+x] = byte(((32-fact)*a + fact*b + 16) >> 5)
 				} else {
-					out[y*size+x] = byte(get(x + idx + 1))
+					out[y*size+x] = byte(get(x + idx))
 				}
 			}
 		}
@@ -595,8 +591,9 @@ func predictAngular(out []byte, top, left []int, size, mode, cIdx int) {
 		for x := 0; x <= size; x++ {
 			set(x-1, left[1+x-1])
 		}
+		// Same one-slot shift as the vertical path (see above).
 		for x := last; x <= -1; x++ {
-			set(x, top[0+((x*invAngle[mode-11]+128)>>8)])
+			set(x-1, top[0+((x*invAngle[mode-11]+128)>>8)])
 		}
 	}
 	for x := 0; x < size; x++ {
@@ -604,11 +601,11 @@ func predictAngular(out []byte, top, left []int, size, mode, cIdx int) {
 		fact := ((x + 1) * angle) & 31
 		for y := 0; y < size; y++ {
 			if fact != 0 {
-				a := get(y + idx + 1)
-				b := get(y + idx + 2)
+				a := get(y + idx)
+				b := get(y + idx + 1)
 				out[y*size+x] = byte(((32-fact)*a + fact*b + 16) >> 5)
 			} else {
-				out[y*size+x] = byte(get(y + idx + 1))
+				out[y*size+x] = byte(get(y + idx))
 			}
 		}
 	}
@@ -624,13 +621,7 @@ type recon struct {
 	pic *Picture
 	fs  *FrameSyntax
 	tus map[tuKey]*TUInfo
-	dbg []string
 }
-
-// DbgLog returns per-leaf debug lines from the last Reconstruct when
-// H265PIXDBG is set (empty otherwise). Each line reports the leaf
-// origin/size/mode plus ref corner/top0/left0 and first output row.
-func DbgLog() []string { return lastDbg }
 
 type tuKey struct {
 	x, y, log2, c int
@@ -660,11 +651,8 @@ func Reconstruct(fs *FrameSyntax, s *SPS) (*Picture, error) {
 			return nil, err
 		}
 	}
-	lastDbg = r.dbg
 	return pic, nil
 }
-
-var lastDbg []string
 
 // leaf reconstructs one transform leaf across its components.
 func (r *recon) leaf(l TULeaf, s *SPS) error {
@@ -676,9 +664,6 @@ func (r *recon) leaf(l TULeaf, s *SPS) error {
 	top, left := refSet(pic.Y, pic.Width, pic.Width, pic.Height, l.X0, l.Y0, size, a)
 	top, left = filterRefs(top, left, size, l.Log2Size, int(l.LumaMode), s.SmoothIntra)
 	predictIntra(pred, top, left, size, int(l.LumaMode), 0)
-	if len(r.dbg) < 2000 {
-		r.dbg = append(r.dbg, sprintfDbg(l.X0, l.Y0, size, 0, int(l.LumaMode), top[0], top[1], left[1], int(pred[0]), int(pred[1]), int(pred[2]), int(pred[3])))
-	}
 	var res []int16
 	if l.CbfLuma {
 		t, ok := r.tus[tuKey{l.X0, l.Y0, l.Log2Size, 0}]
