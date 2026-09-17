@@ -300,9 +300,21 @@ const (
 
 // Style is an optional business override (P1 gradient hook, §6.5/§6.7).
 // Zero value disables every field; set a Use flag to enable one.
+// Radius/Padding/Shadow cover the style-class demo (§6.9.0): semantic root
+// border/radius/padding/box-shadow map here via SetSemanticStyle.
 type Style struct {
 	Bg, Border, Text          render.RGBA
 	UseBg, UseBorder, UseText bool
+	// Radius overrides the size-档位 corner radius (round stays h/2).
+	Radius    float64
+	UseRadius bool
+	// Padding overrides the horizontal chrome padding (§6.2.1).
+	Padding    float64
+	UsePadding bool
+	// Shadow paints a 0 1px 2px rgba(0,0,0,0.05) offset silhouette behind
+	// the chrome (style-class Object demo; 2px blur approximated, no
+	// full-surface filter so the shadow stays button-local).
+	UseShadow bool
 }
 
 // Button is the Button widget (docs/antd/button.md §6.10).
@@ -359,6 +371,11 @@ type Button struct {
 	hasWave   bool
 	waveStart time.Time
 	waveColor render.RGBA
+	// waveEffect selects the P1 custom effect (wave.tsx): Default ring,
+	// Inset expanding dot, Shake swing, HappyWork provider tint.
+	// waveAt records the click-local press point for Inset.
+	waveEffect       WaveEffect
+	waveAtX, waveAtY float64
 
 	// OnClick fires once per in-bounds press-release or keyboard activate.
 	OnClick func()
@@ -368,6 +385,9 @@ type Button struct {
 
 	attached  *scheduler.TickerRegistry
 	focusNode *focus.FocusNode
+	// offScreen is the SetOnScreen visibility gate: off-screen buttons sit
+	// out the ticker registry while keeping it (default false = on-screen).
+	offScreen bool
 	// textFace is the paint-only font face (nil keeps headless rune
 	// estimate; gallery sets it via SetTextFace so true windows draw text).
 	textFace text.Face
@@ -704,6 +724,9 @@ func (b *Button) SetLoading(v bool) {
 		b.loadingStart = time.Now()
 		b.ensureAttached()
 	}
+	if b.focusNode != nil {
+		b.focusNode.Enabled = !b.disabled && !v
+	}
 	// Chrome dims as a group and the spinner appears/clears: dirty both the
 	// parent and the hot region (steady frames after this dirty only spin).
 	b.dirty()
@@ -724,6 +747,9 @@ func (b *Button) SetLoadingConfig(cfg LoadingConfig) {
 		b.loading = true
 		b.loadingStart = time.Now()
 		b.ensureAttached()
+	}
+	if b.focusNode != nil {
+		b.focusNode.Enabled = !b.disabled && !b.loading
 	}
 	b.dirty()
 	b.dirtySpin()
@@ -1218,7 +1244,17 @@ func (b *Button) FontSize() float64 {
 }
 
 // PaddingInline is the horizontal chrome padding (§6.2.1).
+// A Style padding override (style-class demo) wins over the size档位;
+// a semantic root padding is the fallback so classNames-driven roots work.
 func (b *Button) PaddingInline() float64 {
+	if b != nil {
+		if b.style.UsePadding && b.style.Padding > 0 {
+			return b.style.Padding
+		}
+		if s, ok := b.SemanticStyle(SemanticRoot); ok && s.UsePadding && s.Padding > 0 {
+			return s.Padding
+		}
+	}
 	if b.Size() == ButtonSmall {
 		return paddingInlineSM
 	}
@@ -1242,10 +1278,21 @@ func (b *Button) IconGap() float64 {
 }
 
 // Radius is the chrome corner radius (round = capsule h/2).
+// A Style radius override (style-class demo) wins over the size档位,
+// except round which stays h/2 by definition; a semantic root radius is
+// the fallback so classNames-driven roots work.
 func (b *Button) Radius() float64 {
 	h := b.Height()
 	if b.Shape() == ButtonShapeRound {
 		return h / 2
+	}
+	if b != nil {
+		if b.style.UseRadius && b.style.Radius >= 0 {
+			return b.style.Radius
+		}
+		if s, ok := b.SemanticStyle(SemanticRoot); ok && s.UseRadius && s.Radius >= 0 {
+			return s.Radius
+		}
 	}
 	tok := b.themeTokens()
 	switch b.Size() {
@@ -1290,10 +1337,15 @@ func (b *Button) textWidth() float64 {
 
 // leadingWidth is the icon-or-spinner paint slot (loading replaces the
 // icon, B-S2). Paint-only: width comes from iconSlot so SetLoading never
-// moves layout (see SetLoading).
+// moves layout (see SetLoading). Loading reserves the slot even while a P1
+// delay still hides the spinner (C7): the label must not jump when the ring
+// appears; painters gate the actual pixels on HasSpinner.
 func (b *Button) leadingWidth() float64 {
 	if b == nil {
 		return 0
+	}
+	if b.loading {
+		return b.IconEdge()
 	}
 	if b.HasSpinner() {
 		return b.IconEdge()
@@ -1519,17 +1571,27 @@ func (b *Button) chrome() (fill, border, text render.RGBA, dashed, hasBorder boo
 	disabledBorder := themeToRGBA(tok.ColorBorder)
 	disabledText := themeToRGBA(tok.ColorTextDisabled)
 
-	if b.Disabled() {
-		if v == VariantText || v == VariantLink {
-			return render.RGBA{}, render.RGBA{}, disabledText, false, false
-		}
-		dashed = v == VariantDashed
-		hasBorder = v == VariantOutlined || v == VariantDashed
-		return disabledFill, disabledBorder, disabledText, dashed, hasBorder
-	}
-
 	isHover := !b.Disabled() && b.hovered && !b.pressed
 	isPress := !b.Disabled() && !b.loading && b.pressed && b.inBound
+
+	disabledBase := b.Disabled()
+	if disabledBase {
+		// Disabled base still flows through applyStyle below so business
+		// Style / semantic hooks can tune the gray (custom-disabled-bg
+		// demo: Default 0.1, Dashed 0.4); unset hooks keep the default gray.
+		if v == VariantText || v == VariantLink {
+			fill, border, text = render.RGBA{}, render.RGBA{}, disabledText
+			dashed, hasBorder = false, false
+		} else {
+			dashed = v == VariantDashed
+			hasBorder = v == VariantOutlined || v == VariantDashed
+			fill, border, text = disabledFill, disabledBorder, disabledText
+		}
+		if !(b.style.UseBg || b.style.UseBorder || b.style.UseText) && b.semanticStyles == nil {
+			return fill, border, text, dashed, hasBorder
+		}
+		goto applyStyle
+	}
 
 	if b.ghost {
 		// Ghost: transparent fill always; default color uses white ink,
@@ -1634,7 +1696,12 @@ func (b *Button) chrome() (fill, border, text render.RGBA, dashed, hasBorder boo
 			fill = render.RGBA{}
 			text = ink
 			if isHover {
-				fill = themeToRGBA(tok.ColorFillTertiary)
+				// antd colorBgTextHover (default rgba(0,0,0,0.06)); the old
+				// FillTertiary (0.04) hovered a touch too light.
+				fill = themeToRGBA(tok.ColorFillSecondary)
+				if fill.A == 0 {
+					fill = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+				}
 			} else if isPress {
 				fill = themeToRGBA(tok.ColorFill)
 			}
@@ -1802,8 +1869,9 @@ func (b *Button) FocusRingVisible() bool {
 // Hovered reports pointer hover.
 func (b *Button) Hovered() bool { return b != nil && b.hovered }
 
-// Focusable is false while disabled (manager skips the node).
-func (b *Button) Focusable() bool { return b != nil && !b.disabled }
+// Focusable is false while disabled or loading (manager skips the node;
+// Tab skips gray and spinning buttons per §6.9.0 keyboard rule).
+func (b *Button) Focusable() bool { return b != nil && !b.disabled && !b.loading }
 
 // FocusNode lazily builds the manager node: activate clicks, focus change
 // repaints the ring without touching layout (C5 dirty path).
@@ -1813,7 +1881,7 @@ func (b *Button) FocusNode() *focus.FocusNode {
 	}
 	if b.focusNode == nil {
 		n := focus.NewFocusNode("button:" + b.AriaName())
-		n.Enabled = !b.disabled
+		n.Enabled = !b.disabled && !b.loading
 		self := b
 		n.OnActivate = func() { self.click() }
 		n.OnFocusChange = func(f bool) {
@@ -1870,6 +1938,35 @@ func (b *Button) waveAllowed() bool {
 	return true
 }
 
+// WaveEffect selects the P1 custom click effect (wave.tsx Inset/Shake).
+type WaveEffect int
+
+const (
+	// WaveEffectDefault is the expanding border shadow ring.
+	WaveEffectDefault WaveEffect = iota
+	// WaveEffectInset grows a white dot from the press point (wave Inset).
+	WaveEffectInset
+	// WaveEffectShake swings a same-fill silhouette (wave Shake approx).
+	WaveEffectShake
+)
+
+// SetWaveEffect installs the P1 custom click effect (default ring).
+func (b *Button) SetWaveEffect(e WaveEffect) {
+	if b == nil {
+		return
+	}
+	b.waveEffect = e
+	b.dirty()
+}
+
+// WaveEffect reports the custom click effect.
+func (b *Button) WaveEffect() WaveEffect {
+	if b == nil {
+		return WaveEffectDefault
+	}
+	return b.waveEffect
+}
+
 // startWave arms the click-triggered expanding shadow (antd WaveEffect).
 func (b *Button) startWave() {
 	if !b.waveAllowed() {
@@ -1878,6 +1975,11 @@ func (b *Button) startWave() {
 	b.waveColor = b.WaveColor()
 	b.waveStart = time.Now()
 	b.hasWave = true
+	// Inset needs the press point: last PointerUp position if fresh,
+	// else the button center (keyboard activation has no pointer).
+	if b.waveAtX == 0 && b.waveAtY == 0 {
+		b.waveAtX, b.waveAtY = b.lastSize.Width/2, b.lastSize.Height/2
+	}
 	b.ensureAttached()
 	b.dirty()
 }
@@ -1983,6 +2085,32 @@ func (b *Button) Detach() {
 	b.attached.Remove(b)
 	b.attached = nil
 }
+
+// SetOnScreen tells the button whether its row is inside the viewport.
+// Shell control verb: the shell owns layout/viewport knowledge, the button
+// owns ticker participation. Off-screen buttons leave the registry but keep
+// it, so scrolling back resumes the phase with no re-attach handshake;
+// brand-new animations still re-register through ensureAttached. Default
+// on-screen.
+func (b *Button) SetOnScreen(v bool) {
+	if b == nil {
+		return
+	}
+	if v == !b.offScreen {
+		return
+	}
+	b.offScreen = !v
+	if b.offScreen {
+		if b.attached != nil {
+			b.attached.Remove(b)
+		}
+		return
+	}
+	b.ensureAttached()
+}
+
+// OnScreen reports the viewport-visibility gate (default true).
+func (b *Button) OnScreen() bool { return b == nil || !b.offScreen }
 
 // Tick advances spinner phase and retires the wave.
 // Spinner keeps vsync pacing but dirties only the hot region (parent chrome
@@ -2126,6 +2254,9 @@ func (b *Button) PointerUp(x, y float64) bool {
 	b.pressed = false
 	in := !b.disabled && !b.loading && b.inside(x, y) && b.inBound
 	b.inBound = false
+	if in {
+		b.waveAtX, b.waveAtY = x, y
+	}
 	b.dirty()
 	if in {
 		b.click()
