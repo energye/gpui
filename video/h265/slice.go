@@ -50,6 +50,12 @@ type SliceHeader struct {
 	RefL0       uint32
 	RefL1       uint32
 	Override    bool
+	// CollocatedRefIdx selects the temporal reference (L0 for P;
+	// B also stores FromL0). ListsModL0 reorders L0 when the flag
+	// rides (empty on the default order). The pixel stage's RPL
+	// build consumes both; the v0.86 gate pins the old fields.
+	CollocatedRefIdx uint32
+	ListsModL0       []uint32
 	// Weight table truth (PPS weighted flags + P/B slices only).
 	LumaDenom    uint32
 	ChromaDenom  uint32
@@ -321,9 +327,11 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 			}
 			if lm0 {
 				for i := uint32(0); i < sh.RefL0; i++ {
-					if _, err := r.ReadBits(ceilLog2(sh.RefL0 + sh.RefL1)); err != nil {
+					e, err := r.ReadBits(ceilLog2(sh.RefL0 + sh.RefL1))
+					if err != nil {
 						return nil, fmt.Errorf("%w: list l0 %d: %v", ErrBadSlice, i, err)
 					}
+					sh.ListsModL0 = append(sh.ListsModL0, e)
 				}
 			}
 			if st == SliceB {
@@ -368,6 +376,7 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 				if c >= sh.RefL0 {
 					return nil, fmt.Errorf("%w: collocated idx %d", ErrBadSlice, c)
 				}
+				sh.CollocatedRefIdx = c
 			}
 		}
 		if (q.WeightedPred && st == SliceP) || (q.WeightedBiPred && st == SliceB) {
