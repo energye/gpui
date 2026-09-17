@@ -102,6 +102,12 @@ func TestNullGuard_Device_Creation(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateDepthTextureErr", func(t *testing.T) {
+		result, err := d.CreateDepthTextureErr(100, 100, types.TextureFormatDepth24Plus)
+		if result != nil || err == nil {
+			t.Error("expected nil result and non-nil error for nil device")
+		}
+	})
 	t.Run("CreateDepthTexture", func(t *testing.T) {
 		result := d.CreateDepthTexture(100, 100, types.TextureFormatDepth24Plus)
 		if result != nil {

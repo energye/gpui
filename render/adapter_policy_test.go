@@ -74,3 +74,40 @@ func TestPresentLevels_Order(t *testing.T) {
 		}
 	}
 }
+
+// TestLowVRAMWaterline_AutoTrip locks the B4 hands-free switch: at/below
+// the 80% ledger waterline a discrete adapter still gets full limits; past
+// it the descriptor flips to LowVRAM without GPUI_LOW_VRAM. Pure ledger
+// accounting via GPUI_VRAM_BUDGET_MB — no GPU needed.
+func TestLowVRAMWaterline_AutoTrip(t *testing.T) {
+	t.Setenv("GPUI_LOW_VRAM", "")
+	t.Setenv("GPUI_LOW_VRAM_WATERLINE_PCT", "")
+	t.Setenv("GPUI_VRAM_BUDGET_MB", "100")
+	t.Setenv("GOGPU_RENDER_MODE", "")
+	resetVramLedgerForTest(t, 0)
+	if lowVRAMWaterlineTripped() {
+		t.Fatal("empty ledger must not trip the waterline")
+	}
+	resetVramLedgerForTest(t, 79*1024*1024)
+	if lowVRAMWaterlineTripped() {
+		t.Fatal("79MB of 100MB must not trip the 80% waterline")
+	}
+	resetVramLedgerForTest(t, 80*1024*1024)
+	if !lowVRAMWaterlineTripped() {
+		t.Fatal("80MB of 100MB must trip the 80% waterline")
+	}
+	t.Setenv("GPUI_LOW_VRAM_WATERLINE_PCT", "50")
+	resetVramLedgerForTest(t, 49*1024*1024)
+	if lowVRAMWaterlineTripped() {
+		t.Fatal("49MB of 100MB must not trip a 50% waterline")
+	}
+	resetVramLedgerForTest(t, 50*1024*1024)
+	if !lowVRAMWaterlineTripped() {
+		t.Fatal("50MB of 100MB must trip a 50% waterline")
+	}
+	t.Setenv("GPUI_VRAM_BUDGET_MB", "0")
+	resetVramLedgerForTest(t, 1<<62)
+	if lowVRAMWaterlineTripped() {
+		t.Fatal("disabled budget must never trip")
+	}
+}

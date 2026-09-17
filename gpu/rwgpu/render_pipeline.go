@@ -433,6 +433,9 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	if err := vramCheck("CreateRenderPipeline", vramPipelineBytes); err != nil {
+		return nil, err
+	}
 	handle, _, _ := procDeviceCreateRenderPipeline.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&nativeDesc)),
@@ -453,6 +456,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 		lab = desc.Label
 	}
 	trackResourceLabel(handle, "RenderPipeline", lab)
+	vramAdd(handle, vramPipelineBytes)
 	return &RenderPipeline{handle: handle, device: d.handle}, nil
 }
 
@@ -518,6 +522,7 @@ func (rp *RenderPipeline) Release() {
 	if rp == nil {
 		return
 	}
+	vramForget(rp.handle)
 	releaseNativeHandle(&rp.handle, isOwnerDeviceLost(rp.device), func(h uintptr) {
 		procRenderPipelineRelease.Call(h) //nolint:errcheck
 	})

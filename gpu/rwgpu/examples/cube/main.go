@@ -340,10 +340,11 @@ func (app *App) configureSurface() error {
 
 // createDepthTexture creates the depth texture and view.
 func (app *App) createDepthTexture() error {
-	app.depthTexture = app.device.CreateDepthTexture(app.width, app.height, rwgpu.TextureFormatDepth24Plus)
-	if app.depthTexture == nil {
-		return fmt.Errorf("failed to create depth texture")
+	depthTexture, err := app.device.CreateDepthTextureErr(app.width, app.height, rwgpu.TextureFormatDepth24Plus)
+	if err != nil {
+		return fmt.Errorf("failed to create depth texture: %w", err)
 	}
+	app.depthTexture = depthTexture
 
 	app.depthTextureView, _ = app.depthTexture.CreateView(nil)
 	if app.depthTextureView == nil {

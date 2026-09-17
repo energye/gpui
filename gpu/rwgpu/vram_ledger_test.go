@@ -98,3 +98,57 @@ func TestVramTextureBytes(t *testing.T) {
 		t.Fatalf("empty extent = %d, want 0", got)
 	}
 }
+
+// TestVramLedgerNonTextureKinds locks the B2 ledger scope: pipelines,
+// samplers, and swapchain surfaces must all charge and refund through the
+// same account — no blind categories. Pure Go, no GPU needed.
+func TestVramLedgerNonTextureKinds(t *testing.T) {
+	t.Setenv("GPUI_VRAM_BUDGET_MB", "0") // disable gate, test accounting only
+	vramLedger.Lock()
+	vramLedger.bytes = make(map[uintptr]uint64)
+	vramLedger.total = 0
+	vramLedger.Unlock()
+	t.Cleanup(func() {
+		vramLedger.Lock()
+		vramLedger.bytes = make(map[uintptr]uint64)
+		vramLedger.total = 0
+		vramLedger.Unlock()
+	})
+
+	if vramSamplerBytes == 0 || vramPipelineBytes == 0 {
+		t.Fatal("fixed estimates must be non-zero or the category is untracked")
+	}
+	// 1200x800 BGRA8 surface ≈ one 3.66MB presented frame.
+	if got, want := vramSurfaceBytes(1200, 800, types.TextureFormatBGRA8Unorm), uint64(1200*800*4); got != want {
+		t.Fatalf("surface bytes = %d, want %d", got, want)
+	}
+	if got := vramSurfaceBytes(0, 800, types.TextureFormatBGRA8Unorm); got != 0 {
+		t.Fatalf("zero-extent surface = %d, want 0", got)
+	}
+
+	vramAdd(11, vramSamplerBytes)
+	vramAdd(12, vramPipelineBytes)
+	vramAdd(13, vramPipelineBytes)
+	vramAdd(14, vramSurfaceBytes(1200, 800, types.TextureFormatBGRA8Unorm))
+	wantTotal := uint64(vramSamplerBytes + 2*vramPipelineBytes + 1200*800*4)
+	if got := VramLiveBytes(); got != wantTotal {
+		t.Fatalf("live bytes = %d, want %d", got, wantTotal)
+	}
+	if got := VramLiveCount(); got != 4 {
+		t.Fatalf("live count = %d, want 4", got)
+	}
+	// Re-charge on the same handle (surface re-Configure) must replace,
+	// never double-count.
+	vramAdd(14, vramSurfaceBytes(640, 480, types.TextureFormatBGRA8Unorm))
+	wantTotal = uint64(vramSamplerBytes+2*vramPipelineBytes) + uint64(640*480*4)
+	if got := VramLiveBytes(); got != wantTotal {
+		t.Fatalf("after re-configure live bytes = %d, want %d", got, wantTotal)
+	}
+	vramForget(11)
+	vramForget(12)
+	vramForget(13)
+	vramForget(14)
+	if got := VramLiveBytes(); got != 0 {
+		t.Fatalf("after full refund live bytes = %d, want 0", got)
+	}
+}

@@ -16,8 +16,8 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
 	t.Cleanup(func() { s.Destroy() })
-	if err := s.ensurePipelines(); err != nil {
-		t.Fatalf("ensurePipelines: %v", err)
+	if err := s.ensureImagePipeline(); err != nil {
+		t.Fatalf("ensureImagePipeline: %v", err)
 	}
 
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {

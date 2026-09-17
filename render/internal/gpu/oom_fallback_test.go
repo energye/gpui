@@ -44,6 +44,46 @@ func TestTextureSet_FailFastLatch(t *testing.T) {
 	}
 }
 
+// TestTextureSet_DegradedLatch exercises the 1x1-fallback re-probe window
+// without a GPU: same size serves inside the window, the window expires
+// exactly once per degradedReprobeFrames calls, a different size bypasses
+// the latch, and clearDegraded drops it. degradedServe is shared by
+// ensureTextures (offscreen) and ensureSurfaceTextures (surface), so one
+// logic test covers both paths; both sizes below are verified to prove the
+// latch is size-keyed (two windows/adapters never share a window).
+func TestTextureSet_DegradedLatch(t *testing.T) {
+	for _, size := range [][2]uint32{{1200, 800}, {800, 600}} {
+		w, h := size[0], size[1]
+		var ts textureSet
+		if ts.degradedServe(w, h) {
+			t.Fatalf("%dx%d: unlatched size must re-probe, got served", w, h)
+		}
+		ts.latchDegraded(w, h)
+		for i := 1; i < degradedReprobeFrames; i++ {
+			if !ts.degradedServe(w, h) {
+				t.Fatalf("%dx%d: frame %d inside window must serve", w, h, i)
+			}
+		}
+		if ts.degradedServe(w, h) {
+			t.Fatalf("%dx%d: window expiry must re-probe once", w, h)
+		}
+		if ts.degradedServe(w, h) {
+			t.Fatalf("%dx%d: expired latch must not serve again", w, h)
+		}
+		ts.latchDegraded(w, h)
+		if ts.degradedServe(w+1, h) {
+			t.Fatalf("%dx%d: different size must bypass the latch", w, h)
+		}
+		if !ts.degradedServe(w, h) {
+			t.Fatalf("%dx%d: bypass must not consume the window", w, h)
+		}
+		ts.clearDegraded()
+		if ts.degradedServe(w, h) {
+			t.Fatalf("%dx%d: clearDegraded must drop the latch", w, h)
+		}
+	}
+}
+
 // TestCreateTextureRetryOOM_SmallHeapInjection is the texture-level OOM
 // injection gate (multiwindow 1.3 验收3). There is no small-heap device
 // fixture in this repo (no fake webgpu.Device injection point), so a live

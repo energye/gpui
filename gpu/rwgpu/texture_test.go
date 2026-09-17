@@ -120,9 +120,12 @@ func TestCreateDepthTexture(t *testing.T) {
 	defer device.Release()
 
 	t.Log("Creating depth texture...")
-	depthTexture := device.CreateDepthTexture(800, 600, types.TextureFormatDepth24Plus)
+	depthTexture, err := device.CreateDepthTextureErr(800, 600, types.TextureFormatDepth24Plus)
+	if err != nil {
+		t.Fatalf("CreateDepthTextureErr failed: %v", err)
+	}
 	if depthTexture == nil {
-		t.Fatal("CreateDepthTexture returned nil")
+		t.Fatal("CreateDepthTextureErr returned nil texture")
 	}
 	defer depthTexture.Release()
 

@@ -795,15 +795,10 @@ type QueueDescriptor struct {
 	Label       StringView
 }
 
-// CreateDepthTexture creates a depth texture with the specified dimensions and format.
-// This is a convenience function for creating depth buffers for render passes.
-// Returns nil on error (use CreateTexture directly for full error handling).
-// The ledger charge in CreateTexture is best-effort: on failure this refunds
-// by handle is impossible (no handle), so the check-then-create gap can
-// strand at most one texture estimate (~4MB at 1080p) until process exit —
-// negligible against the 768MB budget and far cheaper than a ledger mutex
-// around the native call.
-func (d *Device) CreateDepthTexture(width, height uint32, format types.TextureFormat) *Texture {
+// CreateDepthTextureErr creates a depth texture and reports the native error
+// instead of swallowing it, so callers under VRAM pressure can tell OOM
+// (degrade/retry) from misuse (fail fast) instead of blind-retesting nil.
+func (d *Device) CreateDepthTextureErr(width, height uint32, format types.TextureFormat) (*Texture, error) {
 	desc := TextureDescriptor{
 		Usage:         types.TextureUsageRenderAttachment,
 		Dimension:     types.TextureDimension2D,
@@ -812,8 +807,19 @@ func (d *Device) CreateDepthTexture(width, height uint32, format types.TextureFo
 		MipLevelCount: 1,
 		SampleCount:   1,
 	}
+	return d.CreateTexture(&desc)
+}
 
-	t, _ := d.CreateTexture(&desc)
+// CreateDepthTexture creates a depth texture with the specified dimensions and format.
+// This is a convenience function for creating depth buffers for render passes.
+// Returns nil on error (use CreateDepthTextureErr for full error handling).
+// The ledger charge in CreateTexture is best-effort: on failure this refunds
+// by handle is impossible (no handle), so the check-then-create gap can
+// strand at most one texture estimate (~4MB at 1080p) until process exit —
+// negligible against the 768MB budget and far cheaper than a ledger mutex
+// around the native call.
+func (d *Device) CreateDepthTexture(width, height uint32, format types.TextureFormat) *Texture {
+	t, _ := d.CreateDepthTextureErr(width, height, format)
 	return t
 }
 

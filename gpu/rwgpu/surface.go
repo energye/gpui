@@ -148,6 +148,13 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
 
+	// Ledger the presented frame (driver backs Configure with ≥1 surface
+	// image). Re-configure on the same handle refunds the old extent first
+	// (vramAdd replaces stale entries), so resize never double-counts.
+	if err := vramCheck("Surface.Configure", vramSurfaceBytes(config.Width, config.Height, config.Format)); err != nil {
+		return err
+	}
+
 	nativeConfig := surfaceConfigurationWire{
 		nextInChain:     0,
 		device:          dev.handle,
@@ -178,6 +185,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	s.deviceRef = dev
 	// Healthy configure clears abandon so a recovered device can present again.
 	s.abandoned = false
+	vramAdd(s.handle, vramSurfaceBytes(config.Width, config.Height, config.Format))
 	return nil
 }
 
@@ -194,6 +202,7 @@ func (s *Surface) Unconfigure() {
 	if s == nil || s.handle == 0 {
 		return
 	}
+	vramForget(s.handle)
 	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
 	if lost {
 		s.abandoned = true
@@ -422,6 +431,7 @@ func (s *Surface) Release() {
 	if s == nil {
 		return
 	}
+	vramForget(s.handle)
 	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
 	if lost {
 		s.abandoned = true

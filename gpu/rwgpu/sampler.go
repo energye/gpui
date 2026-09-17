@@ -77,6 +77,9 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	if err := vramCheck("CreateSampler", vramSamplerBytes); err != nil {
+		return nil, err
+	}
 	handle, _, _ := procDeviceCreateSampler.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
@@ -89,6 +92,7 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 		lab = desc.Label
 	}
 	trackResourceLabel(handle, "Sampler", lab)
+	vramAdd(handle, vramSamplerBytes)
 	return &Sampler{handle: handle, device: d.handle}, nil
 }
 
@@ -125,6 +129,7 @@ func (s *Sampler) Release() {
 	if s == nil {
 		return
 	}
+	vramForget(s.handle)
 	releaseNativeHandle(&s.handle, isOwnerDeviceLost(s.device), func(h uintptr) {
 		procSamplerRelease.Call(h) //nolint:errcheck
 	})

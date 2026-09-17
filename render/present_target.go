@@ -44,6 +44,9 @@ func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceD
 // allocations or the deadline passes. Deadline from GPUI_GPU_READY_TIMEOUT_MS
 // (default 8000, 0 = skip the gate). Timeout returns an OOM-class error so
 // callers degrade (CPU fallback) instead of dying on the first real texture.
+// Open-time half of the single OOM policy (render.OOMExitThreshold): the gate
+// degrades through present levels here, the runtime present loop exits after
+// the same threshold — one threshold and one OOM phrasing decide both.
 func waitDeviceReady(inst *webgpu.Instance, device *webgpu.Device, label string) error {
 	deadlineMs := int64(8000)
 	if v := os.Getenv("GPUI_GPU_READY_TIMEOUT_MS"); v != "" {
@@ -275,6 +278,16 @@ func (p *sharedDeviceProvider) AdapterInfo() gpucontext.AdapterInfo {
 }
 
 var _ gpucontext.DeviceProvider = (*sharedDeviceProvider)(nil)
+
+// AcquireSharedPresentDevice reports the share state for diagnostics.
+// Borrowable windows go through buildSharedSurface directly; standalone
+// (probe/offscreen) devices borrow through here so only one device is live
+// per process on 1GB cards. Exported for render/internal/gpu; the refcount
+// is owned by PresentTarget Close — borrowers must NOT Release the handle.
+// Only answers "is a shared device open" without taking a refcount.
+func AcquireSharedPresentDevice() (inst *webgpu.Instance, adapter *webgpu.Adapter, device *webgpu.Device, borrowable bool, err error) {
+	return acquireSharedPresentDevice()
+}
 
 // acquireSharedPresentDevice reports the share state for diagnostics.
 // Borrowable windows go through buildSharedSurface directly; this helper

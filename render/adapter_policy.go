@@ -214,15 +214,20 @@ func DeviceDescriptorLowVRAM(label string) *webgpu.DeviceDescriptor {
 }
 
 // DeviceDescriptorForAdapter picks tighter LowVRAM limits for integrated/CPU
-// adapters. Discrete uses full UI defaults. GPUI_LOW_VRAM=1 forces LowVRAM
-// on any adapter: on small fragmented heaps (e.g. 1GB 940MX sharing with a
-// GL desktop) the full 256MiB buffer floors encourage heap reservations the
+// adapters — plus an automatic ledger-waterline trip: when the process VRAM
+// ledger already holds ≥80% of GPUI_VRAM_BUDGET_MB (768MB default), any
+// adapter gets LowVRAM limits even without GPUI_LOW_VRAM=1 (hands-free on
+// 1GB cards; full 256MiB buffer floors encourage heap reservations the
 // driver cannot fit, and even a 3.66MB texture fails while 660MB reads free
-// (measured 2026-09-17; raw vkAllocateMemory of the same size succeeds, so
-// the cliff is reservation sizing, not the heap). No env override for
+// — measured 2026-09-17; raw vkAllocateMemory of the same size succeeds, so
+// the cliff is reservation sizing, not the heap). GPUI_LOW_VRAM=1 forces
+// LowVRAM on any adapter regardless of waterline. No env override for
 // adapter selection (that stays policy-driven).
 func DeviceDescriptorForAdapter(label string, adpt *webgpu.Adapter) *webgpu.DeviceDescriptor {
 	if os.Getenv("GPUI_LOW_VRAM") == "1" || os.Getenv("GPUI_LOW_VRAM") == "true" {
+		return DeviceDescriptorLowVRAM(label)
+	}
+	if lowVRAMWaterlineTripped() {
 		return DeviceDescriptorLowVRAM(label)
 	}
 	if adpt != nil {
@@ -232,4 +237,29 @@ func DeviceDescriptorForAdapter(label string, adpt *webgpu.Adapter) *webgpu.Devi
 		}
 	}
 	return DeviceDescriptor(label)
+}
+
+// lowVRAMWaterlineFraction trips the automatic LowVRAM descriptor at 80% of
+// the process VRAM budget: reservation sizing (not heap exhaustion) is the
+// observed cliff, so the switch must fire while headroom still exists, not
+// after the first OOM. GPUI_LOW_VRAM_WATERLINE_PCT overrides (1–100);
+// GPUI_LOW_VRAM=1 bypasses the waterline entirely (always LowVRAM).
+const lowVRAMWaterlineFraction = 0.8
+
+// lowVRAMWaterlineTripped reports whether the process ledger already holds
+// past the waterline of the budget. Budget ≤0 (disabled) never trips.
+func lowVRAMWaterlineTripped() bool {
+	budget := webgpu.VramBudgetMB()
+	if budget <= 0 {
+		return false
+	}
+	fraction := lowVRAMWaterlineFraction
+	if v := os.Getenv("GPUI_LOW_VRAM_WATERLINE_PCT"); v != "" {
+		var n int64
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n >= 1 && n <= 100 {
+			fraction = float64(n) / 100.0
+		}
+	}
+	live := webgpu.VramLiveBytes()
+	return live >= uint64(float64(budget)*1024*1024*fraction)
 }

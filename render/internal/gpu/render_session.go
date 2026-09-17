@@ -493,6 +493,12 @@ type GPURenderSession struct {
 	// Per-batch uniform buffers and bind groups (pool, grows as needed).
 	textUniformBufs []*webgpu.Buffer
 	textBindGroups  []*webgpu.BindGroup
+	// Stable view keys for text BG reuse — the same view-identity rule as
+	// image (imageBGViews), glyph (glyphMaskBGViews), and gpuTex
+	// (gpuTexBGSlotCache): a rebuilt texture resolves to a different view,
+	// so view-pointer mismatch means rebuild the bind group. Atlas pages
+	// are persistent (identity stable across uploads), so hits are the norm.
+	textBGViews []*webgpu.TextureView
 	// MSDF atlas page views keyed by atlas index. Non-owning references —
 	// textures are owned by GPUShared and shared across sessions; each batch
 	// binds the page matching its AtlasIndex.
@@ -2063,6 +2069,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		}
 	}
 	s.textBindGroups = nil
+	s.textBGViews = nil
 	for _, buf := range s.textUniformBufs {
 		if buf != nil {
 			buf.Release()
@@ -3256,17 +3263,28 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 
 		// Ensure bind group exists for this batch. The batch binds the
 		// atlas page matching its AtlasIndex; fall back to the first
-		// uploaded page if that index hasn't synced yet.
-		if s.textBindGroups[i] == nil {
-			view := s.textAtlasViews[batch.AtlasIndex]
-			if view == nil {
-				for _, v := range s.textAtlasViews {
-					view = v
-					break
-				}
+		// uploaded page if that index hasn't synced yet. View-identity
+		// rule (same as image/glyph/gpuTex): rebuild only when the
+		// resolved view differs — a rebuilt atlas page resolves to a
+		// different view, invalidating the entry naturally.
+		view := s.textAtlasViews[batch.AtlasIndex]
+		if view == nil {
+			for _, v := range s.textAtlasViews {
+				view = v
+				break
 			}
-			if view == nil {
-				return nil, nil //nolint:nilnil // atlas map emptied concurrently
+		}
+		if view == nil {
+			return nil, nil //nolint:nilnil // atlas map emptied concurrently
+		}
+		for len(s.textBGViews) <= i {
+			s.textBGViews = append(s.textBGViews, nil)
+		}
+		if s.textBindGroups[i] == nil || s.textBGViews[i] != view {
+			if old := s.textBindGroups[i]; old != nil {
+				// Defer release until after Submit (BG may still be
+				// referenced by in-flight CBs — same rule as image/glyph).
+				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, old)
 			}
 			bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
 				Label:  fmt.Sprintf("session_text_bind_%d", i),
@@ -3281,6 +3299,7 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 				return nil, fmt.Errorf("create text bind group[%d]: %w", i, err)
 			}
 			s.textBindGroups[i] = bg
+			s.textBGViews[i] = view
 		}
 
 		indexOffset := uint32(quadOffset * 6) //nolint:gosec // bounded by MaxQuadCapacity
@@ -3317,6 +3336,7 @@ func (s *GPURenderSession) ensureTextBatchPools(n int) {
 		}
 		s.textUniformBufs = append(s.textUniformBufs, buf)
 		s.textBindGroups = append(s.textBindGroups, nil) // bind group created lazily
+		s.textBGViews = append(s.textBGViews, nil)
 	}
 }
 
@@ -3328,6 +3348,9 @@ func (s *GPURenderSession) invalidateTextBindGroups() {
 			bg.Release()
 			s.textBindGroups[i] = nil
 		}
+	}
+	for i := range s.textBGViews {
+		s.textBGViews[i] = nil
 	}
 }
 

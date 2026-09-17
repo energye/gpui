@@ -646,7 +646,34 @@ func (s *GPUShared) ensureTextEngine() {
 	}
 }
 
+// initGPU opens the standalone (probe/offscreen) device. Adapter choice
+// follows the window policy and honors a live present share: when a window
+// already published the shared device, reuse it instead of opening a second
+// device on possibly another adapter (single device, N surfaces —
+// present_target.go buildSharedSurface). Window opens publish the share;
+// probe/offscreen passes run before any window exists, borrow when present,
+// open policy-selected only when absent.
 func (s *GPUShared) initGPU() error {
+	// A live window already published the shared present device: borrow it
+	// (same device, N surfaces) instead of opening a second device.
+	if inst, adpt, dev, borrowable, _ := render.AcquireSharedPresentDevice(); borrowable && dev != nil {
+		s.instance = inst
+		s.adapter = adpt
+		s.device = dev
+		s.queue = dev.Queue()
+		s.externalDevice = true
+		s.deviceGen++
+		s.sampleCount = resolveSampleCount(s.device)
+		s.strategy = s.detectStrategy()
+		s.deviceReady = true
+		if s.strategy == strategyRasterAtlas {
+			return nil
+		}
+		s.gpuReady = true
+		s.registerFilterGraphIfNeeded()
+		slogger().Info("gpu-shared: borrowed shared present device for standalone use")
+		return nil
+	}
 	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
 		Backends: webgpu.BackendsVulkan,
 	})
@@ -655,9 +682,15 @@ func (s *GPUShared) initGPU() error {
 	}
 	s.instance = instance
 
-	adapter, err := instance.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference: webgpu.PowerPreferenceHighPerformance,
-	})
+	// Adapter choice follows the same window policy (render.ResolveAdapterPolicy,
+	// GPUI_POWER): Default prefers integrated on hybrid machines so a
+	// standalone/probe device never parks on the small dGPU while windows
+	// present on the iGPU (multi-app OOM on 1GB cards). A hardcoded
+	// HighPerformance here put the chase probe on the 940MX ahead of an
+	// iGPU window — cross-adapter pressure the window downgrade chain
+	// (present_target.go) cannot see. Windows borrow one device via
+	// buildSharedSurface; standalone contexts at least share the adapter.
+	adapter, forceFallback, err := render.RequestAdapterWithPolicy(instance, nil, render.ResolveAdapterPolicy())
 	if err != nil {
 		instance.Release()
 		s.instance = nil
@@ -667,7 +700,7 @@ func (s *GPUShared) initGPU() error {
 
 	// Check for software/CPU adapter before creating device.
 	adapterInfo := adapter.Info()
-	if adapterInfo.DeviceType == types.DeviceTypeCPU {
+	if forceFallback || adapterInfo.DeviceType == types.DeviceTypeCPU {
 		slogger().Info("gpu-shared: software adapter detected, SDF pipeline disabled",
 			"adapter", adapterInfo.Name)
 		s.softwareMode = true

@@ -184,6 +184,9 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*Comput
 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	if err := vramCheck("CreateComputePipeline", vramPipelineBytes); err != nil {
+		return nil, err
+	}
 	handle, _, _ := procDeviceCreateComputePipeline.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
@@ -192,6 +195,7 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*Comput
 		return nil, &WGPUError{Op: "CreateComputePipeline", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "ComputePipeline")
+	vramAdd(handle, vramPipelineBytes)
 	return &ComputePipeline{handle: handle, device: d.handle}, nil
 }
 
@@ -233,6 +237,7 @@ func (cp *ComputePipeline) Release() {
 	if cp == nil {
 		return
 	}
+	vramForget(cp.handle)
 	releaseNativeHandle(&cp.handle, isOwnerDeviceLost(cp.device), func(h uintptr) {
 		procComputePipelineRelease.Call(h) //nolint:errcheck
 	})

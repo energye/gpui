@@ -9,13 +9,14 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-// Process VRAM ledger (Skia setResourceCacheLimit pattern): every texture
-// and buffer creation estimates its bytes from the descriptor and charges a
-// process-wide account; every Release/Destroy refunds it. When an estimate
-// would exceed the budget, creation fails fast with an OOM error WITHOUT
-// calling native — a doomed native attempt can pin driver heap blocks and
-// turn one transient failure into a retry storm (measured 2026-09-17: a
-// 3.66MB depth miss grew driver usage +540MB in 3s on a 1GB card).
+// Process VRAM ledger (Skia setResourceCacheLimit pattern): every texture,
+// buffer, pipeline, sampler, and swapchain-surface creation estimates its
+// bytes from the descriptor and charges a process-wide account; every
+// Release/Destroy/Unconfigure refunds it. When an estimate would exceed the
+// budget, creation fails fast with an OOM error WITHOUT calling native —
+// a doomed native attempt can pin driver heap blocks and turn one transient
+// failure into a retry storm (measured 2026-09-17: a 3.66MB depth miss grew
+// driver usage +540MB in 3s on a 1GB card).
 //
 // The ledger is an estimate, not a driver query: WebGPU exposes no heap
 // totals (WGPUAdapterInfo has no memory fields by spec). It bounds OUR
@@ -75,6 +76,22 @@ func vramTextureBytes(size types.Extent3D, layers, mips, samples uint32, f types
 		n = n * 4 / 3
 	}
 	return n
+}
+
+// Fixed estimates for objects without extents. Samplers are tiny driver
+// handles; pipelines hold compiled shaders (tens of KB). Exact driver cost
+// is opaque — these exist so the ledger has no blind categories, not to
+// predict the heap to the byte. All far below the 768MB budget, so normal
+// windows never trip on them; only runaway creation does.
+const (
+	vramSamplerBytes  = 4 * 1024
+	vramPipelineBytes = 64 * 1024
+)
+
+// vramSurfaceBytes estimates one swapchain surface allocation: the driver
+// backs Configure(w,h) with at least one presented frame (single-sample).
+func vramSurfaceBytes(w, h uint32, f types.TextureFormat) uint64 {
+	return vramTextureBytes(types.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}, 1, 1, 1, f)
 }
 
 // vramCheck charges need bytes against the budget. Nil return means go ahead
@@ -148,4 +165,35 @@ func VramLiveCount() int {
 	vramLedger.Lock()
 	defer vramLedger.Unlock()
 	return len(vramLedger.bytes)
+}
+
+// VramBudgetMB exposes the process VRAM budget (GPUI_VRAM_BUDGET_MB,
+// default 768, 0 = disabled) so upper layers can derive watermarks from the
+// same number the gate enforces — one budget, no second constant.
+func VramBudgetMB() int64 {
+	return vramBudgetMB()
+}
+
+// VramTestReset clears the ledger. Test-only: lets render waterline tests
+// seed exact live totals without a GPU.
+func VramTestReset() {
+	vramLedger.Lock()
+	defer vramLedger.Unlock()
+	vramLedger.bytes = make(map[uintptr]uint64)
+	vramLedger.total = 0
+}
+
+// VramTestAdd records a synthetic live entry. Test-only companion to
+// VramTestReset (bypasses the cpu-mode skip so tests are hermetic).
+func VramTestAdd(handle uintptr, need uint64) {
+	if handle == 0 || need == 0 {
+		return
+	}
+	vramLedger.Lock()
+	defer vramLedger.Unlock()
+	if old, ok := vramLedger.bytes[handle]; ok {
+		vramLedger.total -= old
+	}
+	vramLedger.bytes[handle] = need
+	vramLedger.total += need
 }

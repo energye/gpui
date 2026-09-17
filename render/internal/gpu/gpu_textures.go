@@ -616,6 +616,22 @@ func createTextureRetryOOM(device *webgpu.Device, desc *webgpu.TextureDescriptor
 			err2 = err3
 		}
 	}
+	// Still failing: drop surface-sized attachments process-wide (Skia
+	// freeGpuResources: session MSAA/depth, offscreen pools via
+	// drainOffscreenPool, texture pool; includes pending drains), then retry
+	// once. The current ensure may lose just-built siblings to this purge;
+	// all error paths below destroyTextures (nil-safe), and the render pass
+	// guards nil msaaView (falls back to direct-to-view), so the worst case
+	// is one degraded frame, never a dangling handle.
+	render.PurgeAcceleratorSurfaceResources()
+	if tex, err3 := device.CreateTexture(desc); err3 == nil {
+		oomLogThrottled("CreateTexture OOM surface-purge retry ok label=%s", desc.Label)
+		return tex, nil
+	} else if render.IsGPUOutOfMemory(err3) {
+		err2 = err3
+	} else {
+		return nil, err3
+	}
 	// Last resort: drop MSAA for this allocation.
 	if desc.SampleCount > 1 {
 		d2 := *desc
