@@ -77,6 +77,7 @@ type CUInfo struct {
 	Pred       uint8
 	PUs        []PUInfo
 	NoResid    bool
+	QP         int32
 	Luma       [4]uint8
 	Chroma     uint8
 	ChromaLuma uint8
@@ -154,6 +155,11 @@ type synParser struct {
 	ctb          int // log2 CTB size
 	qpY          int32
 	qpCoded      bool
+	qpDelta      int32
+	qPyPred      int32
+	firstQpGroup bool
+	qpTab        []int
+	gridH        int
 	curPredIntra bool // transform tree scans diagonal unless intra
 	curMaxDepth  int
 	curSplit     bool // intra NxN split of the CU under walk
@@ -223,6 +229,13 @@ func ParseFrameSyntax(nalu []byte, ps *ParamSets, pocTid0 int) (*FrameSyntax, er
 	}
 	p.gridW = (p.picW + p.minCB - 1) / p.minCB
 	gridH := (p.picH + p.minCB - 1) / p.minCB
+	p.gridH = gridH
+	p.qpTab = make([]int, p.gridW*gridH)
+	for i := range p.qpTab {
+		p.qpTab[i] = int(sh.SliceQP)
+	}
+	p.firstQpGroup = true
+	p.qPyPred = sh.SliceQP
 	p.puW = (p.picW + p.minPU - 1) / p.minPU
 	puH := (p.picH + p.minPU - 1) / p.minPU
 	p.depth = make([]uint8, p.gridW*gridH)
@@ -426,6 +439,7 @@ func (p *synParser) quadtree(x0, y0, log2cb, depth int) (bool, error) {
 	}
 	if p.pps.CUQPDelta && log2cb >= p.ctb-int(p.pps.DiffQPDelayDepth) {
 		p.qpCoded = false
+		p.qpDelta = 0
 	}
 	if split {
 		half := cb >> 1
@@ -454,6 +468,13 @@ func (p *synParser) quadtree(x0, y0, log2cb, depth int) (bool, error) {
 		}
 		if !more {
 			return false, nil
+		}
+		// Split node closing a QP group rolls the predictor.
+		if qg := p.ctb - int(p.pps.DiffQPDelayDepth); qg >= 0 {
+			mask := (1 << uint(qg)) - 1
+			if (x0+cb)&mask == 0 && (y0+cb)&mask == 0 {
+				p.qPyPred = p.qpY
+			}
 		}
 		// more==true: the peer reports whether CTUs remain to the
 		// right/below; the CTB loop continues while both hold.
@@ -602,7 +623,11 @@ func (p *synParser) codingUnitIntra(x0, y0, log2cb int, cu *CUInfo) error {
 	}
 	p.curMaxDepth = maxDepth
 	p.curSplit = split
-	return p.transformTree(x0, y0, x0, y0, log2cb, log2cb, 0, 0, [2]bool{}, [2]bool{})
+	if err := p.transformTree(x0, y0, x0, y0, log2cb, log2cb, 0, 0, [2]bool{}, [2]bool{}); err != nil {
+		return err
+	}
+	p.finishCU(x0, y0, log2cb)
+	return nil
 }
 
 // codingUnitInter parses one P-slice CU: skip flag, then pred/part,
@@ -638,6 +663,7 @@ func (p *synParser) codingUnitInter(x0, y0, log2cb int, cu *CUInfo) error {
 		// Skip CUs carry no residual bins at all (peer returns
 		// right after the prediction unit + boundary strengths).
 		p.curMaxDepth = 0
+		p.finishCU(x0, y0, log2cb)
 		return nil
 	}
 	// Pred mode: 1 = intra (reuses the intra body), 0 = inter.
@@ -715,12 +741,17 @@ func (p *synParser) codingUnitInter(x0, y0, log2cb int, cu *CUInfo) error {
 		cu.NoResid = true
 		p.frame.CUs = append(p.frame.CUs, *cu)
 		p.curMaxDepth = 0
+		p.finishCU(x0, y0, log2cb)
 		return nil
 	}
 	p.frame.CUs = append(p.frame.CUs, *cu)
 	p.curMaxDepth = int(p.sps.MaxTIDepthInter)
 	p.curSplit = false
-	return p.transformTree(x0, y0, x0, y0, log2cb, log2cb, 0, 0, [2]bool{}, [2]bool{})
+	if err := p.transformTree(x0, y0, x0, y0, log2cb, log2cb, 0, 0, [2]bool{}, [2]bool{}); err != nil {
+		return err
+	}
+	p.finishCU(x0, y0, log2cb)
+	return nil
 }
 
 // skipFlag reads cu_skip_flag with left/above contexts. The peer's
@@ -954,6 +985,80 @@ func (p *synParser) qpAllows(x0, y0, log2cb int) bool {
 	q := 1 << uint(qg)
 	_ = log2cb
 	return x0%q == 0 && y0%q == 0
+}
+
+// getQPyPred predicts the QP group base from left/above neighbours.
+func (p *synParser) getQPyPred(xBase, yBase int) int32 {
+	qg := p.ctb - int(p.pps.DiffQPDelayDepth)
+	if qg < 0 {
+		qg = 0
+	}
+	mask := (1 << uint(qg)) - 1
+	xQg := xBase - (xBase & mask)
+	yQg := yBase - (yBase & mask)
+	ctbMask := (1 << uint(p.ctb)) - 1
+	availA := (xBase&ctbMask) != 0 && (xQg&ctbMask) != 0
+	availB := (yBase&ctbMask) != 0 && (yQg&ctbMask) != 0
+	var pred int32
+	if p.firstQpGroup || (xQg == 0 && yQg == 0) {
+		p.firstQpGroup = !p.qpCoded
+		pred = p.sh.SliceQP
+	} else {
+		pred = p.qPyPred
+	}
+	a, b := pred, pred
+	if xcb := xQg / p.minCB; availA && xcb > 0 && xcb <= p.gridW && yQg/p.minCB < p.gridH {
+		a = int32(p.qpTab[(yQg/p.minCB)*p.gridW+xcb-1])
+	}
+	if ycb := yQg / p.minCB; availB && ycb > 0 && ycb <= p.gridH && xQg/p.minCB < p.gridW {
+		b = int32(p.qpTab[(ycb-1)*p.gridW+xQg/p.minCB])
+	}
+	return (a + b + 1) >> 1
+}
+
+// setQPy applies the coded delta on top of the prediction.
+func (p *synParser) setQPy(xBase, yBase int) {
+	pred := p.getQPyPred(xBase, yBase)
+	if p.qpDelta == 0 {
+		p.qpY = pred
+		return
+	}
+	off := int32(6) * (int32(p.sps.BitDepth) - 8)
+	if off < 0 {
+		off = 0
+	}
+	m := int64(52 + off)
+	p.qpY = int32((int64(pred)+int64(p.qpDelta)+m+int64(2*off))%m) - off
+}
+
+// finishCU closes one CU: predicted QP when nothing coded, tab fill,
+// predictor roll at group edges. Mirrors the coding_unit tail.
+func (p *synParser) finishCU(x0, y0, log2cb int) {
+	if p.pps.CUQPDelta && !p.qpCoded {
+		p.setQPy(x0, y0)
+	}
+	cb := 1 << uint(log2cb)
+	x1, y1 := x0+cb, y0+cb
+	if x1 > p.picW {
+		x1 = p.picW
+	}
+	if y1 > p.picH {
+		y1 = p.picH
+	}
+	for y := y0; y < y1; y += p.minCB {
+		for x := x0; x < x1; x += p.minCB {
+			p.qpTab[(y/p.minCB)*p.gridW+x/p.minCB] = int(p.qpY)
+		}
+	}
+	if n := len(p.frame.CUs); n > 0 {
+		p.frame.CUs[n-1].QP = p.qpY
+	}
+	if qg := p.ctb - int(p.pps.DiffQPDelayDepth); qg >= 0 {
+		mask := (1 << uint(qg)) - 1
+		if (x0+cb)&mask == 0 && (y0+cb)&mask == 0 {
+			p.qPyPred = p.qpY
+		}
+	}
 }
 
 // partMode reads part_mode (intra path; AMP branch kept for shape).
@@ -1198,11 +1303,9 @@ func (p *synParser) transformUnit(x0, y0, xBase, yBase, log2cb, log2t, blk int, 
 		if d < -26 || d > 25 {
 			return fmt.Errorf("%w: cu qp delta %d", ErrBadSlice, d)
 		}
-		p.qpY = p.qpY + d
+		p.qpDelta = d
 		p.qpCoded = true
-		_ = xBase
-		_ = yBase
-		_ = log2cb
+		p.setQPy(xBase, yBase)
 	}
 	// Every leaf lands in the leaf table (all-zero leaves carry no
 	// TUInfo, but the pixel stage still predicts them). Modes mirror

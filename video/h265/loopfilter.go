@@ -63,9 +63,9 @@ func absDiff(a, b int) int {
 	return a - b
 }
 
-// buildQPYTab spreads each leaf's QP over the min-CB grid it covers.
-// Leaves partition the picture, so every cell lands exactly once;
-// the slice QP backs cells no leaf covers (never on this path).
+// buildQPYTab spreads each CU's QP over the min-CB grid it covers.
+// CUs partition the picture (skip and bare CUs included), matching
+// the peer's per-CU tab fill; the slice QP backs uncovered cells.
 func buildQPYTab(fs *FrameSyntax, s *SPS) ([]int, int, int, int) {
 	minCB := 1 << s.Log2MinCB
 	gw := (int(s.Width) + minCB - 1) / minCB
@@ -73,6 +73,24 @@ func buildQPYTab(fs *FrameSyntax, s *SPS) ([]int, int, int, int) {
 	tab := make([]int, gw*gh)
 	for i := range tab {
 		tab[i] = int(fs.SH.SliceQP)
+	}
+	if len(fs.CUs) > 0 {
+		for _, c := range fs.CUs {
+			sz := 1 << c.Log2Size
+			x1, y1 := c.X0+sz, c.Y0+sz
+			if x1 > int(s.Width) {
+				x1 = int(s.Width)
+			}
+			if y1 > int(s.Height) {
+				y1 = int(s.Height)
+			}
+			for y := c.Y0; y < y1; y += minCB {
+				for x := c.X0; x < x1; x += minCB {
+					tab[(y/minCB)*gw+(x/minCB)] = int(c.QP)
+				}
+			}
+		}
+		return tab, gw, gh, minCB
 	}
 	for _, l := range fs.Leaves {
 		sz := 1 << l.Log2Size
