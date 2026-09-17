@@ -137,16 +137,33 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 		log.Printf("BUF_CREATE label=%q size=%d (%.3f MiB) usage=%d",
 			desc.Label, desc.Size, float64(desc.Size)/(1024*1024), desc.Usage)
 	}
+	// Process VRAM ledger first (same fail-fast rationale as CreateTexture).
+	if err := vramCheck("CreateBuffer", desc.Size); err != nil {
+		return nil, err
+	}
 	handle, _, _ := procDeviceCreateBuffer.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
 	)
 	runtime.KeepAlive(wire)
 	runtime.KeepAlive(desc)
+	// Same uncaptured-callback accounting as CreateTexture: wgpu-native may
+	// report OOM via the callback while returning a handle; using it faults
+	// on Submit. Treat it as hard failure so callers degrade instead.
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if handle != 0 {
+			h := handle
+			releaseNativeHandle(&h, isOwnerDeviceLost(d.handle) || looksLikeDeviceLost(msg), func(hh uintptr) {
+				procBufferRelease.Call(hh) //nolint:errcheck
+			})
+		}
+		return nil, &WGPUError{Op: "CreateBuffer", Type: typ, Message: msg}
+	}
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateBuffer", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "Buffer")
+	vramAdd(handle, desc.Size)
 	mapState := BufferMapStateUnmapped
 	if desc.MappedAtCreation {
 		mapState = BufferMapStateMapped
@@ -237,6 +254,7 @@ func (b *Buffer) Destroy() {
 	if b == nil {
 		return
 	}
+	vramForget(b.handle)
 	lost := b.device != nil && b.device.IsLost()
 	destroyAndReleaseNativeHandle(&b.handle, lost,
 		func(h uintptr) { procBufferDestroy.Call(h) }, //nolint:errcheck
@@ -251,6 +269,7 @@ func (b *Buffer) Release() {
 	if b == nil {
 		return
 	}
+	vramForget(b.handle)
 	lost := b.device != nil && b.device.IsLost()
 	releaseNativeHandle(&b.handle, lost, func(h uintptr) {
 		procBufferRelease.Call(h) //nolint:errcheck

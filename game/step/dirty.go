@@ -169,7 +169,7 @@ func (t *DirtyTracker) Clear() {
 			t.stats.MaxRects = len(t.rects)
 		}
 	}
-	t.rects = nil
+	t.rects = t.rects[:0]
 	t.full = false
 }
 

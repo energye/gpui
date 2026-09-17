@@ -30,11 +30,13 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/examples/wrsoak"
 	"github.com/energye/gpui/game/camera"
 	"github.com/energye/gpui/game/core"
 	"github.com/energye/gpui/game/particle"
@@ -48,7 +50,7 @@ import (
 	"github.com/energye/gpui/ui/scheduler"
 	"github.com/energye/gpui/ui/scene"
 
-	_ "github.com/energye/gpui/render/gpu"
+	rendergpu "github.com/energye/gpui/render/gpu"
 )
 
 const (
@@ -570,6 +572,19 @@ func propColor(k int) (float64, float64, float64) {
 	}
 }
 
+// chaseDrawItem is one painter entry: bigger depth draws first (props),
+// the car/trail/pool ride last. Package level so the frame reuses the
+// backing across ticks instead of growing a fresh slice every paint.
+type chaseDrawItem struct {
+	depth float64
+	feet  float64
+	rs    render.AtlasSprite
+}
+
+// chaseBatchEmit is the per-frame batch drain: same-image proof needs the
+// call count only, sprite contents stay in the batch contract tests.
+func chaseBatchEmit(_ core.AssetID, _ []sprite.Sprite) {}
+
 // chaseSim is the live window state: all five engines advance every tick.
 type chaseSim struct {
 	cam     camera.Camera
@@ -580,6 +595,7 @@ type chaseSim struct {
 	layer   *scene.DirtyLayer
 	props   []prop
 	atlas   *render.ImageBuf
+	batch   *sprite.Batch
 
 	app   *embedder.PipelineApp
 	shell *wrkit.ShellChrome
@@ -588,6 +604,25 @@ type chaseSim struct {
 	worldBox *rendering.RenderBox
 	overlay  *rendering.RenderBox
 	show     []scene.DirtyRect
+
+	// Chunk cache: the view drifts ~3px/frame but the 256px chunk range
+	// flips rarely; equal ranges skip Update/Visible (same loaded set).
+	hasCache       bool
+	cachedCX0      int
+	cachedCY0      int
+	cachedCX1      int
+	cachedCY1      int
+	cachedVis      []tilemap.ChunkID
+	cachedLoaded   int
+	deepScratch    []sprite.DeepItem
+	paintItems     []chaseDrawItem
+	paintFlat      []render.AtlasSprite
+	labelTick      int
+	sortMismatches int
+	hitch20        int64
+	lastTickWall   time.Time
+	haveTickWall   bool
+	memStart       runtime.MemStats
 
 	carX, carY float64
 	dir        float64
@@ -642,11 +677,22 @@ func (t *ticker) Tick(dt float64) bool {
 	// 1.3 follow.
 	_ = s.cam.Follow(core.V2(s.carX+carW/2, s.carY+carH/2))
 	view := s.cam.VisibleWorldRect()
-	// 7.2 chunks: load/unload in one step, draw only Visible.
-	_, _ = s.chunk.Update(view)
-	vis := s.chunk.Visible(view)
-	s.visible = len(vis)
-	s.loaded = s.chunk.LoadedCount()
+	// 7.2 chunks: the 256px range flips rarely; equal ranges reuse the
+	// cached set (Loaded already equals Needed, same numbers, no work).
+	const chunkPx = float64(chunkTilesW) * tileW
+	cx0 := int(math.Floor(view.X / chunkPx))
+	cy0 := int(math.Floor(view.Y / chunkPx))
+	cx1 := int(math.Floor((view.X + view.W) / chunkPx))
+	cy1 := int(math.Floor((view.Y + view.H) / chunkPx))
+	if !s.hasCache || cx0 != s.cachedCX0 || cy0 != s.cachedCY0 || cx1 != s.cachedCX1 || cy1 != s.cachedCY1 {
+		_, _ = s.chunk.Update(view)
+		s.cachedVis = s.chunk.Visible(view)
+		s.cachedLoaded = s.chunk.LoadedCount()
+		s.cachedCX0, s.cachedCY0, s.cachedCX1, s.cachedCY1 = cx0, cy0, cx1, cy1
+		s.hasCache = true
+	}
+	s.visible = len(s.cachedVis)
+	s.loaded = s.cachedLoaded
 	// 5.2 car trail + bonfire pool.
 	_ = s.trail.Push(core.V2(s.carX+4, s.carY+carH/2))
 	s.trailPts = s.trail.Len()
@@ -665,11 +711,22 @@ func (t *ticker) Tick(dt float64) bool {
 	}
 	st := s.tracker.Stats()
 	s.fulls = st.FullFallbacks
-	// 2.3+1.2 sort visible props + car far-to-near.
-	s.sorted = s.countSorted(view)
-	// Batch proof: one image means one call.
-	b := sprite.NewBatch()
-	for _, p := range s.props {
+	// 2.3+1.2 sort: count visible every tick (no per-frame slice or sort);
+	// the order contract is re-proved every 300 ticks, mismatches stay 0.
+	s.sorted = s.countVisible(view)
+	if s.frames%300 == 0 {
+		if !s.validateSort(view) {
+			s.sortMismatches++
+		}
+	}
+	// Batch proof: one image means one call (persistent batch keeps its
+	// backing; the single-image fast path skips the per-frame map).
+	if s.batch == nil {
+		s.batch = sprite.NewBatch()
+	}
+	s.batch.Clear()
+	for i := range s.props {
+		p := &s.props[i]
 		if p.X+p.W < view.X || p.X > view.X+view.W || p.Y+p.H < view.Y || p.Y > view.Y+view.H {
 			continue
 		}
@@ -677,11 +734,11 @@ func (t *ticker) Tick(dt float64) bool {
 		if err != nil {
 			continue
 		}
-		_, _ = b.Add(sp)
+		_, _ = s.batch.Add(sp)
 	}
 	carSp, _ := sprite.NewSprite(stageImageID, stageSrc, newR, 1)
-	_, _ = b.Add(carSp)
-	s.batchCalls = b.Flush(func(_ core.AssetID, _ []sprite.Sprite) {})
+	_, _ = s.batch.Add(carSp)
+	s.batchCalls = s.batch.Flush(chaseBatchEmit)
 	if s.worldBox != nil {
 		s.worldBox.MarkNeedsPaint()
 	}
@@ -692,54 +749,85 @@ func (t *ticker) Tick(dt float64) bool {
 	s.layer.Clear()
 
 	phase := s.phase.Advance(dt)
-	snap := s.app.Metrics().Snapshot()
-	fps := 0.0
-	if snap.AvgFrameIntervalMs > 1e-6 {
-		fps = 1000.0 / snap.AvgFrameIntervalMs
+	// Wall-time hitch over the §5 20ms line (the metrics ring still counts
+	// the old 33.4ms line; this recomputes the strict line per tick).
+	now := time.Now()
+	if s.haveTickWall {
+		if now.Sub(s.lastTickWall) > 20*time.Millisecond {
+			s.hitch20++
+		}
 	}
-	s.camL.SetText(fmt.Sprintf("镜头 %.0f,%.0f 可见%d块", s.cam.Pos().X, s.cam.Pos().Y, s.visible))
-	s.chunkL.SetText(fmt.Sprintf("分区 装载%d 可见%d", s.loaded, s.visible))
-	s.sortL.SetText(fmt.Sprintf("排序 %d 遮挡对", s.sorted))
-	s.trailL.SetText(fmt.Sprintf("拖尾 车%d点 炉%d活%d点", s.trailPts, s.poolAlive, s.poolPts))
-	if s.tracker.NeedsFull() {
-		s.dirtyL.SetText("脏块 FULL")
+	s.lastTickWall = now
+	s.haveTickWall = true
+
+	// Chrome text at ~4Hz: counters still jump, JSON gates read sim fields.
+	s.labelTick++
+	if s.labelTick%15 == 1 {
+		snap := s.app.Metrics().Snapshot()
+		fps := 0.0
+		if snap.AvgFrameIntervalMs > 1e-6 {
+			fps = 1000.0 / snap.AvgFrameIntervalMs
+		}
+		s.camL.SetText(fmt.Sprintf("镜头 %.0f,%.0f 可见%d块", s.cam.Pos().X, s.cam.Pos().Y, s.visible))
+		s.chunkL.SetText(fmt.Sprintf("分区 装载%d 可见%d", s.loaded, s.visible))
+		s.sortL.SetText(fmt.Sprintf("排序 %d 遮挡对", s.sorted))
+		s.trailL.SetText(fmt.Sprintf("拖尾 车%d点 炉%d活%d点", s.trailPts, s.poolAlive, s.poolPts))
+		if s.tracker.NeedsFull() {
+			s.dirtyL.SetText("脏块 FULL")
+		} else {
+			s.dirtyL.SetText(fmt.Sprintf("脏块 %d 回退%d", len(kept), s.fulls))
+		}
+		s.fpsL.SetText(fmt.Sprintf("帧率 %.0f 位移%.0f", fps, s.movedPx))
+		gateOK := s.movedPx > 0 && s.visible > 0 && s.sorted > 0 && s.trailPts > 0
+		s.shell.NoteHUDTick(dt)
+		s.shell.UpdateHUD("stage-chase", phase, s.app, gateOK,
+			fmt.Sprintf("vis=%d sorted=%d trail=%d dirty=%d", s.visible, s.sorted, s.trailPts, len(kept)),
+			fmt.Sprintf("moved=%.0f batch=%d", s.movedPx, s.batchCalls))
 	} else {
-		s.dirtyL.SetText(fmt.Sprintf("脏块 %d 回退%d", len(kept), s.fulls))
+		s.shell.NoteHUDTick(dt)
 	}
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f 位移%.0f", fps, s.movedPx))
-	gateOK := s.movedPx > 0 && s.visible > 0 && s.sorted > 0 && s.trailPts > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("stage-chase", phase, s.app, gateOK,
-		fmt.Sprintf("vis=%d sorted=%d trail=%d dirty=%d", s.visible, s.sorted, s.trailPts, len(kept)),
-		fmt.Sprintf("moved=%.0f batch=%d", s.movedPx, s.batchCalls))
 	s.app.ScheduleFrame()
 	return true
 }
 
-func (s *chaseSim) countSorted(view core.Rect) int {
+func (s *chaseSim) countVisible(view core.Rect) int {
 	n := 0
-	var deep []sprite.DeepItem
-	for _, p := range s.props {
+	for i := range s.props {
+		p := &s.props[i]
 		if p.X+p.W < view.X || p.X > view.X+view.W || p.Y+p.H < view.Y || p.Y > view.Y+view.H {
 			continue
 		}
 		n++
-		if len(deep) < 400 {
-			d, err := sprite.NewDeepItem("", p.Depth, sprite.LayerWorld, p.FeetY)
-			if err == nil {
-				deep = append(deep, d)
-			}
+	}
+	return n + 1 // car always drawn
+}
+
+func (s *chaseSim) validateSort(view core.Rect) bool {
+	s.deepScratch = s.deepScratch[:0]
+	for i := range s.props {
+		p := &s.props[i]
+		if p.X+p.W < view.X || p.X > view.X+view.W || p.Y+p.H < view.Y || p.Y > view.Y+view.H {
+			continue
 		}
+		if len(s.deepScratch) >= 400 {
+			break
+		}
+		d, err := sprite.NewDeepItem("", p.Depth, sprite.LayerWorld, p.FeetY)
+		if err != nil {
+			return false
+		}
+		s.deepScratch = append(s.deepScratch, d)
 	}
 	car, err := sprite.NewDeepItem("car", 4000-(s.carY+carH), sprite.LayerWorld, s.carY+carH)
-	if err == nil {
-		deep = append(deep, car)
-		n++
+	if err != nil {
+		return false
 	}
-	if ordered, err := sprite.DepthSort(deep); err == nil && sprite.IsDepthSorted(ordered) {
-		return n
+	s.deepScratch = append(s.deepScratch, car)
+	ordered, err := sprite.DepthSort(s.deepScratch)
+	if err != nil {
+		return false
 	}
-	return n
+	return sprite.IsDepthSorted(ordered)
 }
 
 type manualSummary struct {
@@ -790,6 +878,12 @@ func main() {
 			fmt.Fprintln(os.Stderr, "game_stage_chase: selftest FAIL, not opening window")
 		}
 		os.Exit(1)
+	}
+	// Probe's offscreen GPU pass used a standalone device; drop it before the
+	// window opens so only one device is live on 1GB cards (dual-device peak
+	// OOMs depth creation). The window re-inits lazily on its own device.
+	if err := rendergpu.ResetAccelerator(); err != nil {
+		fmt.Fprintf(os.Stderr, "game_stage_chase: reset accelerator: %v\n", err)
 	}
 
 	// Build the five live engines (all real packages, no example bypass).
@@ -882,6 +976,7 @@ func main() {
 		props: buildProps(), atlas: atlas,
 		shell: shell, carX: carMinX, carY: carY, dir: 1,
 	}
+	runtime.ReadMemStats(&sim.memStart)
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
@@ -946,6 +1041,8 @@ func main() {
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
+		// Phase 1: snapshot reports the window golden, gates stay loose.
+		SnapshotPath: "examples/game_stage_chase/testdata/chase_final.png",
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose, platform.EventCloseRequested:
@@ -1017,23 +1114,63 @@ func main() {
 	if probe.OK {
 		probeOK = 1
 	}
+	// Window golden over the static legend chrome (the world is live by
+	// design: the car loops forever, so no world pixel is deterministic;
+	// game-pixel determinism rides the offscreen golden instead).
+	goldenRects := []wrsoak.Rect{
+		{X: 20, Y: 320, W: 100, H: 260},
+		{X: 20, Y: 630, W: 100, H: 60},
+		{X: 20, Y: 70, W: 100, H: 14},
+	}
+	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_stage_chase", "examples/game_stage_chase/testdata", "chase_final.png", "chase_final_base.png", goldenRects, winW)
+	var memEnd runtime.MemStats
+	runtime.ReadMemStats(&memEnd)
+	// HeapAlloc is the live heap (TotalAlloc only ever grows); the leak
+	// gate watches end vs peak RSS, this ratio is diagnostic only.
+	var heapGrowth float64
+	if sim.memStart.HeapAlloc > 0 {
+		heapGrowth = float64(memEnd.HeapAlloc-sim.memStart.HeapAlloc) / float64(sim.memStart.HeapAlloc)
+	}
+	var maxPauseMs float64
+	for _, d := range memEnd.PauseNs {
+		if ms := float64(d) / 1e6; ms > maxPauseMs {
+			maxPauseMs = ms
+		}
+	}
+	hitch20Rate := 0.0
+	if elapsed > 0 {
+		hitch20Rate = float64(sim.hitch20) / (elapsed / 60)
+	}
 	extra := map[string]any{
-		"probe_ok":         probeOK,
-		"parity_pct":       probe.ParityPct,
-		"golden_changed":   probe.GoldenChanged,
-		"moved_px":         sim.movedPx,
-		"visible_chunks":   sim.visible,
-		"loaded_chunks":    sim.loaded,
-		"sorted_sprites":   sim.sorted,
-		"trail_points":     sim.trailPts,
-		"pool_alive":       sim.poolAlive,
-		"pool_points":      sim.poolPts,
-		"batch_calls":      sim.batchCalls,
-		"dirty_max":        sim.maxSeen,
-		"full_fallbacks":   sim.fulls,
-		"frames":           sim.frames,
-		"boundary_skip":    snap.BoundarySkip,
-		"case":             "chase",
+		"probe_ok":            probeOK,
+		"parity_pct":          probe.ParityPct,
+		"golden_changed":      probe.GoldenChanged,
+		"win_golden_diff_pct": winGoldenDiff,
+		"win_golden_total_px": winGoldenTotal,
+		"moved_px":            sim.movedPx,
+		"visible_chunks":      sim.visible,
+		"loaded_chunks":       sim.loaded,
+		"sorted_sprites":      sim.sorted,
+		"sort_mismatches":     sim.sortMismatches,
+		"trail_points":        sim.trailPts,
+		"pool_alive":          sim.poolAlive,
+		"pool_points":         sim.poolPts,
+		"batch_calls":         sim.batchCalls,
+		"dirty_max":           sim.maxSeen,
+		"full_fallbacks":      sim.fulls,
+		"frames":              sim.frames,
+		"hitch20":             sim.hitch20,
+		"hitch20_rate":        hitch20Rate,
+		"alloc_total":         memEnd.TotalAlloc,
+		"heap_alloc":          memEnd.HeapAlloc,
+		"heap_growth":         heapGrowth,
+		"num_gc":              memEnd.NumGC - sim.memStart.NumGC,
+		"max_pause_ms":        maxPauseMs,
+		"boundary_skip":       snap.BoundarySkip,
+		"case":                "chase",
+	}
+	if winGoldenFirst {
+		extra["win_golden_first"] = 1
 	}
 	if *autoOnly {
 		report := wrgate.BuildReport(wrgate.BuildInput{
@@ -1051,21 +1188,44 @@ func main() {
 			fmt.Fprintf(os.Stderr, "FAIL: presents=%d moved=%.0f probe=%v (want >=1, >0, true)\n", presents, sim.movedPx, probe.OK)
 			os.Exit(1)
 		}
-		if sim.visible <= 0 || sim.sorted <= 0 || sim.trailPts <= 0 || sim.batchCalls < 1 {
-			fmt.Fprintf(os.Stderr, "FAIL: visible=%d sorted=%d trail=%d batch=%d (want >0, >0, >0, >=1)\n", sim.visible, sim.sorted, sim.trailPts, sim.batchCalls)
+		if sim.visible <= 0 || sim.loaded <= 0 || sim.sorted <= 0 || sim.trailPts <= 0 || sim.poolAlive <= 0 || sim.batchCalls < 1 {
+			fmt.Fprintf(os.Stderr, "FAIL: visible=%d loaded=%d sorted=%d trail=%d pool=%d batch=%d (want >0, >0, >0, >0, >0, >=1)\n", sim.visible, sim.loaded, sim.sorted, sim.trailPts, sim.poolAlive, sim.batchCalls)
 			os.Exit(1)
 		}
-		// 帧率: 稳态帧率不低于55, p95不超25ms (桌面负载留余量, 严版目标60/20ms见README)。
+		// S52 卡面门限（§5 帧门＋本组单数，字面执行，红即红）：
+		// presents6500＋、fps57＋、p95≤16、p99≤20、20ms卡顿≤3/分、
+		// dirty_max≤2、full0、fallback0、内存end≈peak、双金0差、
+		// parity图集路0差、排序零失配、六数全对。
 		fpsInterval := 0.0
 		if snap.AvgFrameIntervalMs > 1e-6 {
 			fpsInterval = 1000.0 / snap.AvgFrameIntervalMs
 		}
-		if fpsInterval < 55 {
-			fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.2f want >=55 (chase 2min)\n", fpsInterval)
+		if presents < 6500 {
+			fmt.Fprintf(os.Stderr, "FAIL: presents=%d want >=6500 (S52)\n", presents)
 			os.Exit(1)
 		}
-		if snap.P95FrameIntervalMs > 25 && snap.P95FrameIntervalMs > 0 {
-			fmt.Fprintf(os.Stderr, "FAIL: p95=%.2f want <=25 (chase 2min)\n", snap.P95FrameIntervalMs)
+		if fpsInterval < 57 {
+			fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.2f want >=57 (S52)\n", fpsInterval)
+			os.Exit(1)
+		}
+		if snap.P95FrameIntervalMs > 16 && snap.P95FrameIntervalMs > 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: p95=%.2f want <=16 (§5)\n", snap.P95FrameIntervalMs)
+			os.Exit(1)
+		}
+		if snap.P99FrameIntervalMs > 20 && snap.P99FrameIntervalMs > 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: p99=%.2f want <=20 (§5)\n", snap.P99FrameIntervalMs)
+			os.Exit(1)
+		}
+		if extra["hitch20_rate"].(float64) > 3 {
+			fmt.Fprintf(os.Stderr, "FAIL: hitch20_rate=%.2f want <=3/min (§5, 20ms recomputed)\n", extra["hitch20_rate"])
+			os.Exit(1)
+		}
+		if sim.maxSeen > 2 {
+			fmt.Fprintf(os.Stderr, "FAIL: dirty_max=%d want <=2 (S52)\n", sim.maxSeen)
+			os.Exit(1)
+		}
+		if sim.sortMismatches != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: sort_mismatches=%d want 0 (S52)\n", sim.sortMismatches)
 			os.Exit(1)
 		}
 		// 显存/内存: 2分钟门看稳态不漏 (end相对peak涨幅<=5%)。
@@ -1077,9 +1237,21 @@ func main() {
 				os.Exit(1)
 			}
 		}
-		// 像素: 离屏金0差且parity<=1%。
-		if probe.GoldenChanged != 0 || probe.ParityPct > 1 {
-			fmt.Fprintf(os.Stderr, "FAIL: pixels golden=%d parity=%.4f (want 0 and <=1)\n", probe.GoldenChanged, probe.ParityPct)
+		// 像素: 离屏金0差、窗金0差、parity图集路0差（S52 卡面字面）。
+		if probe.GoldenChanged != 0 || probe.ParityPct != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: pixels golden=%d parity=%.4f (want 0 and 0)\n", probe.GoldenChanged, probe.ParityPct)
+			os.Exit(1)
+		}
+		if winGoldenDiff != 0 && !winGoldenFirst {
+			fmt.Fprintf(os.Stderr, "FAIL: win_golden diff=%.4f%% over %d px (want 0)\n", winGoldenDiff, winGoldenTotal)
+			os.Exit(1)
+		}
+		if snap.GPUFallbacks != 0 || snap.CPUFallbackOps != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: fallback gpu=%d cpu_ops=%d (want 0 and 0)\n", snap.GPUFallbacks, snap.CPUFallbackOps)
+			os.Exit(1)
+		}
+		if sim.fulls != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: full_fallbacks=%d want 0 (S52)\n", sim.fulls)
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "game_stage_chase: OK presents=%d fps=%.1f p95=%.1f moved=%.0f vis=%d sorted=%d trail=%d batch=%d elapsed=%.1fs\n",
@@ -1112,7 +1284,11 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 	pc.DC.DrawRectangle(ax, ay, worldWW, worldWH)
 	_ = pc.DC.Fill()
 	// Visible chunks checker (world->screen, zoom 1).
-	for _, id := range s.chunk.Visible(view) {
+	vis := s.cachedVis
+	if !s.hasCache {
+		vis = s.chunk.Visible(view)
+	}
+	for _, id := range vis {
 		b, ok := s.chunk.ChunkBounds(id)
 		if !ok {
 			continue
@@ -1137,13 +1313,10 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 		_ = pc.DC.Stroke()
 	}
 	// Sorted atlas sprites: visible props far-to-near + car on top.
-	type drawItem struct {
-		depth float64
-		feet  float64
-		rs    render.AtlasSprite
-	}
-	var items []drawItem
-	for _, p := range s.props {
+	// Frame-owned backings: no per-paint grows after warmup.
+	items := s.paintItems[:0]
+	for i := range s.props {
+		p := &s.props[i]
 		if p.X+p.W < view.X || p.X > view.X+view.W || p.Y+p.H < view.Y || p.Y > view.Y+view.H {
 			continue
 		}
@@ -1152,7 +1325,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 			continue
 		}
 		r, g, b := propColor(p.Kind)
-		items = append(items, drawItem{depth: p.Depth, feet: p.FeetY, rs: render.AtlasSprite{
+		items = append(items, chaseDrawItem{depth: p.Depth, feet: p.FeetY, rs: render.AtlasSprite{
 			SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 			DstX: ax + sc.X, DstY: ay + sc.Y, DstW: p.W, DstH: p.H,
 			Opacity: 1, Tint: render.RGBA{R: r, G: g, B: b, A: 1}, Filter: render.InterpNearest,
@@ -1163,7 +1336,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 	}
 	// Car always drawn (even at wrap edge): screen-clipped.
 	if sc, ok := s.cam.WorldToScreen(core.V2(s.carX, s.carY)); ok {
-		items = append(items, drawItem{depth: -1e9, feet: 1e9, rs: render.AtlasSprite{
+		items = append(items, chaseDrawItem{depth: -1e9, feet: 1e9, rs: render.AtlasSprite{
 			SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 			DstX: ax + sc.X, DstY: ay + sc.Y, DstW: carW, DstH: carH,
 			Opacity: 1, Tint: render.RGBA{R: carR, G: carG, B: carB, A: 1}, Filter: render.InterpNearest,
@@ -1189,7 +1362,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 				continue
 			}
 			rc := c.ToRender()
-			items = append(items, drawItem{depth: -2e9, feet: 2e9, rs: render.AtlasSprite{
+			items = append(items, chaseDrawItem{depth: -2e9, feet: 2e9, rs: render.AtlasSprite{
 				SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 				DstX: ax + sc.X - w/2, DstY: ay + sc.Y - w/2, DstW: w, DstH: w,
 				Opacity: c.A, Tint: render.RGBA{R: rc.R, G: rc.G, B: rc.B, A: rc.A}, Filter: render.InterpNearest,
@@ -1214,7 +1387,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 				continue
 			}
 			rc := c.ToRender()
-			items = append(items, drawItem{depth: -3e9, feet: 3e9, rs: render.AtlasSprite{
+			items = append(items, chaseDrawItem{depth: -3e9, feet: 3e9, rs: render.AtlasSprite{
 				SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 				DstX: ax + sc.X - 3, DstY: ay + sc.Y - 3, DstW: 6, DstH: 6,
 				Opacity: c.A, Tint: render.RGBA{R: rc.R, G: rc.G, B: rc.B, A: rc.A}, Filter: render.InterpNearest,
@@ -1225,6 +1398,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 		}
 	}
 	// Painter far-to-near: bigger depth first (props), car/trail/pool last.
+	// Insertion road, same order as before, now on the reused backing.
 	for i := 1; i < len(items); i++ {
 		j := i
 		for j > 0 && items[j-1].depth < items[j].depth {
@@ -1232,10 +1406,12 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 			j--
 		}
 	}
-	flat := make([]render.AtlasSprite, 0, len(items))
-	for _, it := range items {
-		flat = append(flat, it.rs)
+	s.paintItems = items
+	flat := s.paintFlat[:0]
+	for i := range items {
+		flat = append(flat, items[i].rs)
 	}
+	s.paintFlat = flat
 	if len(flat) > 0 && s.atlas != nil {
 		_, _ = pc.DC.DrawAtlasEx(s.atlas, flat, render.AtlasDrawOptions{})
 	}

@@ -3,6 +3,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"image"
 	"os"
 	"strings"
 	"sync"
@@ -37,6 +38,55 @@ func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceD
 		time.Sleep(time.Second)
 	}
 	return nil, err
+}
+
+// waitDeviceReady polls a 1x1 probe texture until the driver heap accepts
+// allocations or the deadline passes. Deadline from GPUI_GPU_READY_TIMEOUT_MS
+// (default 8000, 0 = skip the gate). Timeout returns an OOM-class error so
+// callers degrade (CPU fallback) instead of dying on the first real texture.
+func waitDeviceReady(inst *webgpu.Instance, device *webgpu.Device, label string) error {
+	deadlineMs := int64(8000)
+	if v := os.Getenv("GPUI_GPU_READY_TIMEOUT_MS"); v != "" {
+		var n int64
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n >= 0 {
+			deadlineMs = n
+		}
+	}
+	if deadlineMs <= 0 || device == nil {
+		return nil
+	}
+	deadline := time.Now().Add(time.Duration(deadlineMs) * time.Millisecond)
+	probed := false
+	for {
+		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+			Label:         label + "_ready_probe",
+			Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+			MipLevelCount: 1,
+			SampleCount:   1,
+			Dimension:     types.TextureDimension2D,
+			Format:        types.TextureFormatBGRA8Unorm,
+			Usage:         types.TextureUsageCopySrc,
+		})
+		if err == nil {
+			tex.Release()
+			if probed {
+				fmt.Fprintf(os.Stderr, "render: device ready after reclaim wait (%s)\n", label)
+			}
+			return nil
+		}
+		if !IsGPUOutOfMemory(err) {
+			return fmt.Errorf("render: device readiness probe failed (%s): %w", label, err)
+		}
+		probed = true
+		if inst != nil {
+			inst.ProcessEvents()
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("render: GPU heap not reclaiming for %s after %dms: %w; close other GPU windows or set GPUI_POWER to a less-loaded GPU",
+				label, deadlineMs, err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 // PresentPlatform identifies the native windowing backend for surface creation.
@@ -399,6 +449,20 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		surf.Release()
 		inst.Release()
 		return nil, fmt.Errorf("render: RequestDevice: %w", err)
+	}
+
+	// Device-readiness gate: a previous GPU user in this process (probe pass,
+	// another window) may still pin driver heap blocks after Release — the
+	// driver reclaims asynchronously. Poll a 1x1 probe alloc until it succeeds
+	// or the deadline passes so the first real texture does not die on a
+	// half-reclaimed heap (measured 2026-09-17: 3.66MB depth dead on arrival
+	// on a 1GB card while 660MB read free). Waits are logged, never silent.
+	if err := waitDeviceReady(inst, device, "ui-l1-present"); err != nil {
+		device.Release()
+		adapter.Release()
+		surf.Release()
+		inst.Release()
+		return nil, err
 	}
 
 	physW, physH := physicalSize(logicalW, logicalH, scale)
@@ -901,8 +965,14 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 
 	// Snapshot damage for metrics before PresentFrameAuto consumes the plan.
+	// Clipped to the physical surface: damage fully outside it (e.g. spinner
+	// rects below the viewport fold) presents nothing — acquiring a buffer
+	// for them only to discard repeats the swapchain poison below every
+	// frame, stalling the raster loop until acquire times out.
 	union := t.dc.FrameDamageUnion()
-	t.lastDamageArea = int64(union.Dx()) * int64(union.Dy())
+	pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
+	clipped := union.Intersect(image.Rect(0, 0, int(pw), int(ph)))
+	t.lastDamageArea = int64(clipped.Dx()) * int64(clipped.Dy())
 	if t.lastDamageArea < 0 {
 		t.lastDamageArea = 0
 	}
@@ -910,7 +980,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// discarding it without present leaves the image unrecycled in the
 	// driver, draining the swapchain until acquire times out (~250ms) and
 	// forces a ~1s reconfigure loop on static windows.
-	if !forceFull && union.Empty() && t.postResizeFull <= 0 && !t.inResizeStormLocked() {
+	if !forceFull && clipped.Empty() && t.postResizeFull <= 0 && !t.inResizeStormLocked() {
 		out = PresentOutcome{Mode: PresentModeIdle, Idle: true}
 		t.lastOutcome = out
 		return out, nil

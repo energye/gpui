@@ -179,28 +179,43 @@ func (p *GPUPool) Update(dt core.Duration) (spawned, died int) {
 	return spawned, died
 }
 
-// syncTrails rebuilds the seed map from the live set: survivors keep their
-// ring and gain one point, newborns start a ring, the dead leave the map.
-// Non-finite positions keep the old ring (never poison the track).
+// syncTrails folds the live set into the seed map in place: survivors keep
+// their ring and gain one point, newborns start a ring, the dead leave the
+// map. Same rings and counts as a rebuild, without a per-frame map plus a
+// live-set copy. Non-finite positions keep the old ring (never poison it).
 func (p *GPUPool) syncTrails() {
 	if p == nil || p.emit == nil {
 		return
 	}
-	live := p.emit.Particles()
-	kept := make(map[float64]*Trail, len(live))
+	if p.trails == nil {
+		p.trails = make(map[float64]*Trail)
+	}
+	live := p.emit.live
 	points := 0
-	for _, pt := range live {
+	for i := range live {
+		pt := &live[i]
 		t, ok := p.trails[pt.Seed]
 		if !ok || t == nil {
 			t = &Trail{cfg: p.trailCfg}
+			p.trails[pt.Seed] = t
 		}
 		if finiteVec(pt.Pos) {
 			_ = t.Push(pt.Pos)
 		}
-		kept[pt.Seed] = t
 		points += t.Len()
 	}
-	p.trails = kept
+	for seed := range p.trails {
+		alive := false
+		for i := range live {
+			if live[i].Seed == seed {
+				alive = true
+				break
+			}
+		}
+		if !alive {
+			delete(p.trails, seed)
+		}
+	}
 	p.points = points
 }
 

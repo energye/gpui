@@ -514,18 +514,34 @@ func (e *Emitter) Update(dt core.Duration) (spawned, died int) {
 	}
 	kept := e.live[:0]
 	var deaths []Particle
-	for i := range e.live {
-		p := &e.live[i]
-		p.step(dtSec, e.cfg.Gravity, e.cfg.Turbulence)
-		if p.Alive() {
-			kept = append(kept, *p)
-		} else {
-			deaths = append(deaths, *p)
+	// Childless emitters (the window hot loop) never read deaths, so skip
+	// the per-frame deaths slice and just compact plus count the dead.
+	if e.cfg.Sub.Count <= 0 {
+		for i := range e.live {
+			p := &e.live[i]
+			p.step(dtSec, e.cfg.Gravity, e.cfg.Turbulence)
+			if p.Alive() {
+				kept = append(kept, *p)
+			} else {
+				died++
+			}
 		}
+		e.live = kept
+		e.died += died
+	} else {
+		for i := range e.live {
+			p := &e.live[i]
+			p.step(dtSec, e.cfg.Gravity, e.cfg.Turbulence)
+			if p.Alive() {
+				kept = append(kept, *p)
+			} else {
+				deaths = append(deaths, *p)
+			}
+		}
+		e.live = kept
+		e.died += len(deaths)
+		died = len(deaths)
 	}
-	e.live = kept
-	e.died += len(deaths)
-	died = len(deaths)
 	// Children first so a death-heavy tick still shows its puff.
 	if e.cfg.Sub.Count > 0 {
 		for _, d := range deaths {

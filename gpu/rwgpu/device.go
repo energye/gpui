@@ -798,6 +798,11 @@ type QueueDescriptor struct {
 // CreateDepthTexture creates a depth texture with the specified dimensions and format.
 // This is a convenience function for creating depth buffers for render passes.
 // Returns nil on error (use CreateTexture directly for full error handling).
+// The ledger charge in CreateTexture is best-effort: on failure this refunds
+// by handle is impossible (no handle), so the check-then-create gap can
+// strand at most one texture estimate (~4MB at 1080p) until process exit —
+// negligible against the 768MB budget and far cheaper than a ledger mutex
+// around the native call.
 func (d *Device) CreateDepthTexture(width, height uint32, format types.TextureFormat) *Texture {
 	desc := TextureDescriptor{
 		Usage:         types.TextureUsageRenderAttachment,

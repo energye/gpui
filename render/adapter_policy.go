@@ -214,8 +214,17 @@ func DeviceDescriptorLowVRAM(label string) *webgpu.DeviceDescriptor {
 }
 
 // DeviceDescriptorForAdapter picks tighter LowVRAM limits for integrated/CPU
-// adapters. Discrete uses full UI defaults. No env override.
+// adapters. Discrete uses full UI defaults. GPUI_LOW_VRAM=1 forces LowVRAM
+// on any adapter: on small fragmented heaps (e.g. 1GB 940MX sharing with a
+// GL desktop) the full 256MiB buffer floors encourage heap reservations the
+// driver cannot fit, and even a 3.66MB texture fails while 660MB reads free
+// (measured 2026-09-17; raw vkAllocateMemory of the same size succeeds, so
+// the cliff is reservation sizing, not the heap). No env override for
+// adapter selection (that stays policy-driven).
 func DeviceDescriptorForAdapter(label string, adpt *webgpu.Adapter) *webgpu.DeviceDescriptor {
+	if os.Getenv("GPUI_LOW_VRAM") == "1" || os.Getenv("GPUI_LOW_VRAM") == "true" {
+		return DeviceDescriptorLowVRAM(label)
+	}
 	if adpt != nil {
 		info := adpt.Info()
 		if info.DeviceType == types.DeviceTypeIntegratedGPU || info.DeviceType == types.DeviceTypeCPU {

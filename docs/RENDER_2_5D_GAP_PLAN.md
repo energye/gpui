@@ -1031,7 +1031,7 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 
 | 编号 | 能力 | 前置 | 窗 | 状态 |
 |---|---|---|---|---|
-| S52 | 追车减分配回炉 | 追车窗现有 | game_stage_chase | 未开工 |
+| S52 | 追车减分配回炉 | 追车窗现有 | game_stage_chase | 进行中（2026-09-17；camera/sprite/particle/tilemap/step共17个_test.go逐个复跑全PASS＋vet净＋CGO_ENABLED=0四包可构建；减分配只动窗＋四包热路径、逻辑数画面不变：batch单图快路＋Clear复用底子、chunk范围缓存、排序计数＋300tick全量校验零失配、标签4Hz、dirty复用、emitter无子发射免deaths片、GPUPool原地sync；正式包go build -trimpath -ldflags="-s -w" 120秒×3取最差：presents7137、fps59.47、p50 16.87、p95 17.53、p99 18.06、h33 0/分、h20重算2.00/分、moved24624、vis/load12、sorted131、trail32、pool48、batch1、dirty1、full0、fb0、RSS止≈峰、离屏金0、窗金静态条33400像素0差、parity图集路0差；人工30秒key4＋ptr12（XTEST合成，同一协议路径）、presents1793、backend=x11；换机独显建窗失败（降级链high→low→software）：首遍940MX 1GB已用673MB，后松到345MB、可用623MB仍卡在session_depth_stencil、连1x1兜底都建不出来；DBG确认选卡对（NVIDIA DiscreteGPU Vulkan，能跑3帧才死）＋最小raw独显测试（自建device＋320窗＋depth＋强制恢复）0.53秒PASS＋最小完整窗game_quad独显8秒同签名失败＋原生判决测试（绕wgpu直调vkAllocateMemory 3.66MB device-local成功0.15秒、D24S8 1200x800建镜像＋绑内存成功0.13秒）——驱动堆本身可用，悬崖在wgpu-native块分配器；1x默认＋1x1闩住＋进程台账＋CreateBuffer回调补口＋探针独立设备释放＋设备就绪门（8秒）＋小规格描述符（GPUI_LOW_VRAM）七件修后，独显仍死在开窗首个3.66MB depth（low/software两级也一样），属wgpu-native侧问题、本线解不了，未过；p95红收敛到屏物理：59.93Hz同步底16.69ms、p50 16.78已贴底、p95三遍17.53/17.17/17.17，≤16在该屏不可达、非代码可解；D表差异：本项只减分配不改数值、D01–D20沿用V1实现差异0，无G号原因见总账非Godot单点注；改文件：examples/game_stage_chase/main.go＋game/sprite/batch.go＋game/tilemap/chunk.go＋game/step/dirty.go＋game/particle/emitter.go＋game/particle/gpu.go＋testdata/chase_final_base.png；G13不开） |
 | S53 | W7三窗单窗正式重测 | S46–S48 | fsm/normal/shadow | 未开工 |
 | S54 | 弱证据重测 | S53 | dirty/q123 | 未开工 |
 | S55 | 相机窗 | S08/S09 | game_camera | 未开工 |
@@ -1405,3 +1405,5 @@ W24总指标：三项全正式包三遍最差，存读/掉率/拦截三数全过
 | 2026-09-17（V6联机补入） | 人和网补入本线；加V6（S106–S112，W23–W24）：技能/8方向扩展/地图玩法层/视野同步/服存档社交/装备数值/同屏压测反作弊；画质不重复加；W扩到W24，S扩到S112；S109/S112无G号按MMO通用做法。 |
 | 2026-09-17（2）（去手机端） | 框架只支持桌面三端，S101作废（N3同步作废，Q5删除后续Q号前移，W21改三项）；历史修订行不动，作废只记本行。 |
 | 2026-09-17（3）（复核修4项） | 结论/V2–V6/号段三处过时改111项口径；压缩安卓苹果句加桌面三端口径；分组加组号与Godot号区分＋D表关门备注。 |
+| 2026-09-17（4）（S52一期） | S52减分配＋卡面门限进窗：只动窗＋game四包热路径，正式包120秒×3取最差除p95外全过（最差presents7137/fps59.47/p95 17.53/p99 18.06/h33 0/分/h20 2.00/分/双金0差/parity0差），人工30秒key4＋ptr12，p95≤16红系59.93Hz屏同步底16.69ms物理不可达、换机独显显存OOM阻塞，S52记进行中，G12转进行中，W10未关门，G13不开。 |
+| 2026-09-17（5）（显存七件） | 独显OOM根因收敛：1x默认（纹理set默认4→1）＋1x1闩住（120帧重探）＋进程台账（GPUI_VRAM_BUDGET_MB默认768）＋CreateBuffer回调补口＋探针独立设备释放＋设备就绪门（8秒）＋小规格描述符（GPUI_LOW_VRAM）；原生判决测试证驱动堆可用（3.66MB直分＋D24S8建镜像双PASS），悬崖在wgpu-native块分配器；独显仍死首个3.66MB depth，S52换机项继续阻塞，G13不开。 |

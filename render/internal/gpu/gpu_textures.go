@@ -17,8 +17,8 @@ import (
 // StencilRenderer to avoid code duplication.
 //
 // The texture set supports stencil-then-cover and SDF rendering:
-//   - MSAA color: 4x samples, BGRA8Unorm, RenderAttachment
-//   - Depth/stencil: 4x samples, Depth24PlusStencil8, RenderAttachment
+//   - MSAA color: 1x default (BGRA8Unorm, RenderAttachment; 4x explicit opt-in)
+//   - Depth/stencil: 1x default (Depth24PlusStencil8, RenderAttachment)
 //   - Resolve: 1x sample, BGRA8Unorm, RenderAttachment | CopySrc
 type textureSet struct {
 	msaaTex     *webgpu.Texture
@@ -56,6 +56,49 @@ type textureSet struct {
 	// size clears the latch for one re-probe; device loss clears it.
 	failedErr        error
 	failedW, failedH uint32
+
+	// degradedW/H latch a single-failure OOM (full size failed, 1x1 fallback
+	// serving): the set keeps serving the 1x1 depth and re-probes full size
+	// at most once per degradedReprobeFrames ensure calls instead of every
+	// frame. Every-frame full-size re-probe after a fallback turned one
+	// transient OOM into a per-frame alloc-fail storm that pinned driver
+	// heap blocks until a 1GB card died (~540MB in 3s measured 2026-09-17).
+	degradedW, degradedH uint32
+	degradedFrames       int
+}
+
+// degradedReprobeFrames bounds full-size re-probes while a 1x1 depth
+// fallback is serving: one re-probe per ~2s at 60fps. A recovered heap
+// clears the latch on success; a still-tight heap costs one failed attempt
+// per window instead of one per frame.
+const degradedReprobeFrames = 120
+
+// degradedServe fast-paths a latched 1x1 fallback: same size within the
+// window keeps serving, expired window clears the latch for one re-probe.
+// Reports served=true when the caller must return nil (keep serving).
+func (ts *textureSet) degradedServe(w, h uint32) (served bool) {
+	if ts.degradedW != w || ts.degradedH != h {
+		return false
+	}
+	ts.degradedFrames++
+	if ts.degradedFrames < degradedReprobeFrames {
+		return true
+	}
+	ts.degradedW, ts.degradedH, ts.degradedFrames = 0, 0, 0
+	return false
+}
+
+// latchDegraded records a serving 1x1 fallback for w,h so later frames stop
+// re-probing full size every frame. ts.width/height stay at w,h so the
+// serving state passes the same-size early-return checks.
+func (ts *textureSet) latchDegraded(w, h uint32) {
+	ts.degradedW, ts.degradedH, ts.degradedFrames = w, h, 0
+	ts.width, ts.height = w, h
+}
+
+// clearDegraded drops the 1x1 latch after a successful full-size re-probe.
+func (ts *textureSet) clearDegraded() {
+	ts.degradedW, ts.degradedH, ts.degradedFrames = 0, 0, 0
 }
 
 // stencilPoolKey identifies a pooled depth/stencil texture.
@@ -137,7 +180,7 @@ func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labe
 // between different owners (e.g., "session" vs "stencil").
 //
 // The samples parameter sets the MSAA sample count for color and depth/stencil
-// textures (typically 4 for MSAA, 1 for non-MSAA fallback).
+// textures (1x default, Skia kCoverage analytic fringe; 4x explicit opt-in).
 func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
 	if device == nil {
 		return fmt.Errorf("ensureTextures: device is nil")
@@ -145,7 +188,10 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	if err := ts.failedFast(w, h); err != nil {
 		return err
 	}
-	sc := uint32(4) // default MSAA sample count
+	if ts.degradedServe(w, h) {
+		return nil
+	}
+	sc := uint32(1) // engine default is 1x; 4x is an explicit opt-in
 	if len(samples) > 0 && samples[0] > 0 {
 		sc = samples[0]
 	}
@@ -221,8 +267,11 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 			ts.destroyTextures()
 			return ts.failTerminal(w, h, "full size and 1x1 fallback", labelPrefix+"_depth_stencil", err)
 		}
-		// Force recreate next frame when heap has reclaimed (size mismatch path).
-		ts.width, ts.height = 0, 0
+		// Latch the 1x1 fallback: keep serving it, re-probe full size at most
+		// once per degradedReprobeFrames instead of every frame.
+		ts.latchDegraded(w, h)
+	} else {
+		ts.clearDegraded()
 	}
 	ts.stencilTex = stencilTex
 
@@ -287,7 +336,10 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	if err := ts.failedFast(w, h); err != nil {
 		return err
 	}
-	sc := uint32(4) // default MSAA sample count
+	if ts.degradedServe(w, h) {
+		return nil
+	}
+	sc := uint32(1) // engine default is 1x; 4x is an explicit opt-in
 	if len(samples) > 0 && samples[0] > 0 {
 		sc = samples[0]
 	}
@@ -390,8 +442,11 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 			ts.destroyTextures()
 			return ts.failTerminal(w, h, "full size and 1x1 fallback", labelPrefix+"_depth_stencil", err)
 		}
-		// Force recreate next frame when heap has reclaimed (size mismatch path).
-		ts.width, ts.height = 0, 0
+		// Latch the 1x1 fallback: keep serving it, re-probe full size at most
+		// once per degradedReprobeFrames instead of every frame.
+		ts.latchDegraded(w, h)
+	} else {
+		ts.clearDegraded()
 	}
 	ts.stencilTex = stencilTex
 

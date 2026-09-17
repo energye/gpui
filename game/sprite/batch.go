@@ -119,11 +119,13 @@ func (b *Batch) Skipped() int {
 }
 
 // Clear drops every stored sprite and resets the skip count.
+// The backing array is retained so a reused Batch does not reallocate
+// every frame; Len reports 0 either way.
 func (b *Batch) Clear() {
 	if b == nil {
 		return
 	}
-	b.items = nil
+	b.items = b.items[:0]
 	b.skipped = 0
 }
 
@@ -141,6 +143,24 @@ func (b *Batch) Flush(emit func(id core.AssetID, sprites []Sprite)) int {
 	}
 	order := make([]core.AssetID, 0, 4)
 	groups := make(map[core.AssetID][]Sprite, 4)
+	// Fast path: every stored sprite shares one image (the sprite-window
+	// hot loop). One emit, no map, same order and count as the grouped road.
+	single := true
+	first := b.items[0].Image
+	for i := 1; i < len(b.items); i++ {
+		if b.items[i].Image != first {
+			single = false
+			break
+		}
+	}
+	if single {
+		cp := make([]Sprite, len(b.items))
+		copy(cp, b.items)
+		emit(first, cp)
+		b.items = b.items[:0]
+		b.skipped = 0
+		return 1
+	}
 	for _, s := range b.items {
 		if _, ok := groups[s.Image]; !ok {
 			order = append(order, s.Image)
@@ -153,7 +173,7 @@ func (b *Batch) Flush(emit func(id core.AssetID, sprites []Sprite)) int {
 		emit(id, cp)
 	}
 	n := len(order)
-	b.items = nil
+	b.items = b.items[:0]
 	b.skipped = 0
 	return n
 }

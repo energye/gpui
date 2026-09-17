@@ -255,18 +255,23 @@ func (c *Chunk) Update(view core.Rect) (loaded, unloaded []ChunkID) {
 	if c.loaded == nil {
 		c.loaded = make(map[ChunkID]struct{}, len(need))
 	}
-	want := make(map[ChunkID]struct{}, len(need))
+	// Loads come straight from need in order; unloads scan need linearly
+	// instead of a want map. Need sets stay tiny (tens of chunks), so the
+	// scan is cheaper than a per-frame map and returns the same sets.
 	for _, id := range need {
-		want[id] = struct{}{}
 		if _, ok := c.loaded[id]; !ok {
 			c.loaded[id] = struct{}{}
 			loaded = append(loaded, id)
 		}
 	}
+loadedLoop:
 	for id := range c.loaded {
-		if _, ok := want[id]; !ok {
-			unloaded = append(unloaded, id)
+		for _, want := range need {
+			if id == want {
+				continue loadedLoop
+			}
 		}
+		unloaded = append(unloaded, id)
 	}
 	for _, id := range unloaded {
 		delete(c.loaded, id)
