@@ -402,8 +402,8 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 			return nil, fmt.Errorf("%w: chroma qp %d/%d", ErrBadSlice, cb, cr)
 		}
 	}
-	if q.DeblockOverride {
-		return nil, fmt.Errorf("%w: deblock override not supported", ErrBadSlice)
+	if q.DeblockControl {
+		return nil, fmt.Errorf("%w: deblock control not supported", ErrBadSlice)
 	}
 	// Loop filter across slices: present when SAO runs or deblocking
 	// runs; ours always run SAO on this path.

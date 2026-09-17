@@ -33,13 +33,21 @@ type PPS struct {
 	TilesEnabled       bool
 	EntropySync        bool
 	LoopAcrossSlices   bool
-	DeblockOverride    bool
-	ScalingPresent     bool
-	ListsModPresent    bool
-	Log2ParallelMerge  uint32
-	SliceExtPresent    bool
-	ExtPresent         bool
-	Raw                []byte
+	// Deblock control (peer ps.c setup_pps order): control-present
+	// gates override-enabled/disable/beta/tc. Our clip sends
+	// control-present 0 (deblock on, zero offsets); other clips
+	// refuse honestly below.
+	DeblockControl    bool
+	DeblockOverrideEn bool
+	DisableDbf        bool
+	BetaOffset        int32
+	TcOffset          int32
+	ScalingPresent    bool
+	ListsModPresent   bool
+	Log2ParallelMerge uint32
+	SliceExtPresent   bool
+	ExtPresent        bool
+	Raw               []byte
 }
 
 // ParsePPS parses one PPS NALU (2-byte HEVC header included). The SPS
@@ -175,18 +183,13 @@ func ParsePPS(nalu []byte, spsOf func(id uint32) *SPS) (*PPS, error) {
 	if p.LoopAcrossSlices, err = flag("loop across slices"); err != nil {
 		return nil, err
 	}
-	if p.DeblockOverride, err = flag("deblock override"); err != nil {
+	if p.DeblockControl, err = flag("deblock control"); err != nil {
 		return nil, err
 	}
-	if p.DeblockOverride {
-		present, err := flag("deblock present")
-		if err != nil {
-			return nil, err
-		}
-		_ = present
-		// deblock override bodies are pixel-stage truth for step 2;
-		// this clip disables the override, other clips refuse below.
-		return nil, fmt.Errorf("%w: deblock override not supported", ErrBadPPS)
+	if p.DeblockControl {
+		// Non-default deblock control stays refused (pixel stage
+		// owns the override path next); this clip sends 0.
+		return nil, fmt.Errorf("%w: deblock control not supported", ErrBadPPS)
 	}
 	if p.ScalingPresent, err = flag("scaling present"); err != nil {
 		return nil, err
