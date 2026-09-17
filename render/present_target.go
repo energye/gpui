@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -62,7 +63,11 @@ type PresentNativeSurface struct {
 }
 
 // PresentTarget is a render-facing present surface for L1 UI (ui must not import gpu).
-// Owns instance/adapter/device/surface/swapchain + a drawing Context.
+// Owns surface/swapchain + a drawing Context. The wgpu instance/adapter/device
+// are shared per process (sharedPresentDevice below, Skia GrDirectContext
+// pattern): every window's surface is created on the same instance and bound
+// to the same device, so N windows present concurrently without N devices.
+// The shared device is released when the last PresentTarget closes.
 type PresentTarget struct {
 	mu sync.Mutex
 
@@ -74,9 +79,12 @@ type PresentTarget struct {
 	inst    *webgpu.Instance
 	adapter *webgpu.Adapter
 	device  *webgpu.Device
-	surf    *webgpu.Surface
-	sc      *webgpu.Swapchain
-	dc      *Context
+	// shared marks instance/adapter/device as borrowed from the process
+	// share (Close must not release them; the share does on last close).
+	shared bool
+	surf   *webgpu.Surface
+	sc     *webgpu.Swapchain
+	dc     *Context
 
 	closed bool
 
@@ -147,6 +155,114 @@ type PresentTarget struct {
 	fallbacks int
 }
 
+// sharedPresentDevice is the process-wide wgpu device share (Skia
+// GrDirectContext pattern): the first PresentTarget opens it, later windows
+// borrow it (own surface + swapchain, shared instance/adapter/device), the
+// last Close releases it. Guarded by shareMu; refcount includes in-flight
+// opens (an open that fails after acquiring never leaks a count).
+var (
+	shareMu      sync.Mutex
+	shareInst    *webgpu.Instance
+	shareAdapter *webgpu.Adapter
+	shareDevice  *webgpu.Device
+	shareRefs    int
+)
+
+// sharedDeviceProvider exposes an already-open shared device through the
+// accelerator's provider SPI (SimpleDeviceProvider takes ownership of its
+// args for Release, so the share needs its own non-releasing adapter).
+type sharedDeviceProvider struct {
+	dev    *webgpu.Device
+	adpt   *webgpu.Adapter
+	format types.TextureFormat
+}
+
+func (p *sharedDeviceProvider) Device() gpucontext.Device {
+	if p == nil || p.dev == nil {
+		return gpucontext.Device{}
+	}
+	return webgpu.DeviceToHandle(p.dev)
+}
+
+func (p *sharedDeviceProvider) Queue() gpucontext.Queue {
+	if p == nil || p.dev == nil {
+		return gpucontext.Queue{}
+	}
+	return webgpu.QueueToHandle(p.dev.Queue())
+}
+
+func (p *sharedDeviceProvider) SurfaceFormat() types.TextureFormat {
+	if p == nil {
+		return types.TextureFormatUndefined
+	}
+	return p.format
+}
+
+func (p *sharedDeviceProvider) Adapter() gpucontext.Adapter {
+	if p == nil || p.adpt == nil {
+		return gpucontext.Adapter{}
+	}
+	return webgpu.AdapterToHandle(p.adpt)
+}
+
+func (p *sharedDeviceProvider) AdapterInfo() gpucontext.AdapterInfo {
+	if p == nil || p.adpt == nil {
+		return gpucontext.AdapterInfo{Type: gpucontext.AdapterTypeUnknown}
+	}
+	info := p.adpt.Info()
+	ai := gpucontext.AdapterInfo{Name: info.Name}
+	switch info.DeviceType {
+	case types.DeviceTypeDiscreteGPU:
+		ai.Type = gpucontext.AdapterTypeDiscrete
+	case types.DeviceTypeIntegratedGPU:
+		ai.Type = gpucontext.AdapterTypeIntegrated
+	case types.DeviceTypeCPU:
+		ai.Type = gpucontext.AdapterTypeSoftware
+	default:
+		ai.Type = gpucontext.AdapterTypeUnknown
+	}
+	return ai
+}
+
+var _ gpucontext.DeviceProvider = (*sharedDeviceProvider)(nil)
+
+// acquireSharedPresentDevice reports the share state for diagnostics.
+// Borrowable windows go through buildSharedSurface directly; this helper
+// only answers "is a shared device open" without taking a refcount.
+func acquireSharedPresentDevice() (inst *webgpu.Instance, adapter *webgpu.Adapter, device *webgpu.Device, borrowable bool, err error) {
+	shareMu.Lock()
+	defer shareMu.Unlock()
+	if shareDevice != nil {
+		return shareInst, shareAdapter, shareDevice, true, nil
+	}
+	return nil, nil, nil, false, errSharedNotOpen
+}
+
+// errSharedNotOpen signals "no shared device yet — open one with a surface".
+var errSharedNotOpen = errors.New("render: shared present device not open")
+
+// releaseShared drops one share refcount; the last one releases the device.
+func releaseShared() {
+	shareMu.Lock()
+	defer shareMu.Unlock()
+	if shareRefs > 0 {
+		shareRefs--
+	}
+	if shareRefs > 0 || shareDevice == nil {
+		return
+	}
+	shareDevice.Release()
+	shareDevice = nil
+	if shareAdapter != nil {
+		shareAdapter.Release()
+		shareAdapter = nil
+	}
+	if shareInst != nil {
+		shareInst.Release()
+		shareInst = nil
+	}
+}
+
 // presentLevel is one step of the open-time downgrade chain
 // (discrete-first → integrated-first → software fallback). Levels reuse
 // RequestAdapterWithPolicy's ordered-try semantics; the last level requests
@@ -210,10 +326,23 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		logicalW, logicalH, strings.Join(tried, " → "), lastErr)
 }
 
-// buildPresentTarget builds one downgrade level: instance → surface →
-// adapter → device → swapchain. Any step's failure releases that level's
-// resources (Close() reverse order) before returning.
+// buildPresentTarget builds one downgrade level: surface → adapter → device
+// → swapchain. The first window in the process opens (instance, adapter,
+// device) and publishes them as the share; later windows create only their
+// own surface + swapchain on the shared device (Skia GrDirectContext: one
+// device, N surfaces). Any step's failure releases that level's resources
+// (Close() reverse order) before returning.
 func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale float64, lv presentLevel) (*PresentTarget, error) {
+	if _, _, _, borrowable, _ := peekShared(); borrowable {
+		if t, err := buildSharedSurface(ns, logicalW, logicalH, scale); err == nil {
+			return t, nil
+		} else if !IsGPUOutOfMemory(err) {
+			return nil, err
+		}
+		// OOM-class borrow failure: fall through to the downgrade chain so
+		// the window can still try a lower-power adapter or software.
+	}
+
 	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
 	if err != nil {
 		return nil, fmt.Errorf("render: CreateInstance: %w", err)
@@ -305,6 +434,13 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		Dev: device, Adpt: adapter, Format: sc.Format,
 	})
 
+	// Publish the first window's chain as the process share (later windows
+	// borrow it; last Close releases it).
+	shareMu.Lock()
+	shareInst, shareAdapter, shareDevice = inst, adapter, device
+	shareRefs = 1
+	shareMu.Unlock()
+
 	dc := NewContext(logicalW, logicalH, WithDeviceScale(scale))
 
 	return &PresentTarget{
@@ -326,6 +462,68 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// (fixedNoVsync) stays non-blocking permanently instead.
 		vsyncOn:      !fixedNoVsync,
 		fixedNoVsync: fixedNoVsync,
+	}, nil
+}
+
+// peekShared snapshots the share state (borrowable = device published).
+func peekShared() (inst *webgpu.Instance, adapter *webgpu.Adapter, device *webgpu.Device, borrowable bool, refs int) {
+	shareMu.Lock()
+	defer shareMu.Unlock()
+	return shareInst, shareAdapter, shareDevice, shareDevice != nil, shareRefs
+}
+
+// buildSharedSurface opens a window on the borrowed share: own surface +
+// swapchain on the shared device. Non-OOM errors return directly; OOM-class
+// errors return for the downgrade chain to try a lower level.
+func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale float64) (*PresentTarget, error) {
+	shareMu.Lock()
+	inst, device := shareInst, shareDevice
+	shareMu.Unlock()
+	if device == nil || inst == nil {
+		return nil, errors.New("render: shared present device not open")
+	}
+	backend := surfaceBackendFor(ns.Platform)
+	surf, err := inst.CreateSurfaceFor(backend, ns.Display, ns.Window)
+	if err != nil {
+		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
+	}
+	physW, physH := physicalSize(logicalW, logicalH, scale)
+	sc := webgpu.NewSwapchain(surf, device, physW, physH)
+	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
+	sc.SetPreferVSync()
+	shareMu.Lock()
+	adapter := shareAdapter
+	shareMu.Unlock()
+	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
+		surf.Release()
+		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
+	}
+	// Same device as the share: take the refcount. Do NOT rebind the
+	// global accelerator provider here: the rebind invalidates every
+	// live GPU session (abandonAllContextGPU) and a concurrent flush on
+	// another window's raster thread rebuilds its session against the
+	// same device anyway (deviceGen unchanged → no rebuild at all).
+	// Rebinding with the identical device is a no-op for correctness
+	// and a crash vector for concurrency (two sessions racing
+	// ensureTexturesForView on the post-abandon rebuild → nil pass).
+	shareMu.Lock()
+	shareRefs++
+	shareMu.Unlock()
+	dc := NewContext(logicalW, logicalH, WithDeviceScale(scale))
+	return &PresentTarget{
+		ns:                ns,
+		logicW:            logicalW,
+		logicH:            logicalH,
+		scale:             scale,
+		inst:              inst,
+		adapter:           adapter,
+		device:            device,
+		shared:            true,
+		surf:              surf,
+		sc:                sc,
+		dc:                dc,
+		resizeStormWindow: 300 * time.Millisecond,
+		vsyncOn:           true,
 	}, nil
 }
 
@@ -816,6 +1014,9 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 }
 
 // Close releases GPU resources. Safe to call multiple times.
+// Windows on the borrowed share release only their own surface/swapchain/
+// context; the shared instance/adapter/device go when the last PresentTarget
+// (first or borrowed) closes.
 func (t *PresentTarget) Close() error {
 	if t == nil {
 		return nil
@@ -838,6 +1039,13 @@ func (t *PresentTarget) Close() error {
 		t.surf.Release()
 		t.surf = nil
 	}
+	if t.shared {
+		t.device = nil
+		t.adapter = nil
+		t.inst = nil
+		releaseShared()
+		return nil
+	}
 	if t.device != nil {
 		t.device.Release()
 		t.device = nil
@@ -850,5 +1058,6 @@ func (t *PresentTarget) Close() error {
 		t.inst.Release()
 		t.inst = nil
 	}
+	releaseShared()
 	return nil
 }
