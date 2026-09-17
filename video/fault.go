@@ -94,7 +94,11 @@ func Classify(err error) Fault {
 	case errors.Is(err, ErrMemOverCap):
 		return Fault{Kind: KindMemOverCap, Layer: "video", Tool: "封顶", CN: "装不下（video层：解前预估超内存封顶，见S7按档上限）"}
 	case errors.Is(err, h265.ErrNotDecodable) || errors.Is(err, h265.ErrBadHVCC) ||
-		errors.Is(err, h265.ErrNoParamSets) || errors.Is(err, h265.ErrBadNALU):
+		errors.Is(err, h265.ErrNoParamSets) || errors.Is(err, h265.ErrBadNALU) ||
+		errors.Is(err, h265.ErrBadVPS) || errors.Is(err, h265.ErrBadSPS) ||
+		errors.Is(err, h265.ErrBadPPS) || errors.Is(err, h265.ErrMissingVPS) ||
+		errors.Is(err, h265.ErrMissingSPS) || errors.Is(err, h265.ErrMissingPPS) ||
+		errors.Is(err, h265.ErrBadSlice):
 		return Fault{Kind: KindH265, Layer: "h265", Tool: "V2", CN: "H.265只认头不解像素（V2-1：盒子+hvcC+注册已通，像素等V2-2）"}
 	case errors.Is(err, ErrUnsupportedContainer) || errors.Is(err, ErrUnsupportedCodec):
 		return Fault{Kind: KindBadClip, Layer: "video", Tool: "注册表", CN: "格式不支持（注册表层：容器/编码不在支持表里，先问能力再开）"}
