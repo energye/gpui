@@ -161,15 +161,15 @@
 | `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（PresentFrameAuto 内部用） |
 | `CoalesceDamageRects` | 把多条损伤矩形合并/裁剪到上限 | 损伤合并 | 🔗 |
 | `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**） |
-| `AdapterPolicy`（PolicyDefault/PolicyHigh/PolicyLow + 别名 PolicyNone/PolicyAuto/PolicyHighPerformance/PolicyLowPower）+ `ResolveAdapterPolicy` + `RequestAdapterWithPolicy` + `DeviceDescriptor/DeviceDescriptorLowVRAM/DeviceDescriptorForAdapter`（adapter_policy.go，2026-09-05 自 render/gpu 搬入，函数名与行为一字不动） | 选卡策略（GPUI_POWER=high/low，默认混搭优先核显）与设备描述符（核显/CPU 走 LowVRAM 紧限） | 适配器策略 | 🔗 NewPresentTarget 建窗调用（render/present_target.go）；forceFallback 时 stderr 如实记日志 |
-| `IsGPUOutOfMemory(err)` + `PurgeEvictable` 接口 + `RegisterPurgeEvictable/UnregisterPurgeEvictable/PurgeEvictables`（oom_purge.go，多窗 1.3）+ `PresentTarget.Fallbacks()` | OOM 统一判定（大小写全匹配三短语）与可重建缓存 purge 链（字形/图片/层池注册、teardown 注销）+ 建窗降级次数上报 | OOM 判定与 purge | 🔗 建窗降级循环 + 建纹理 OOM 恢复轮 + embedder 退出判定在用 |
+| `AdapterPolicy`（PolicyDefault/PolicyHigh/PolicyLow + 别名 PolicyNone/PolicyAuto/PolicyHighPerformance/PolicyLowPower）+ `ResolveAdapterPolicy` + `RequestAdapterWithPolicy` + `DeviceDescriptor/DeviceDescriptorLowVRAM/DeviceDescriptorForAdapter`（adapter_policy.go，2026-09-05 自 render/gpu 搬入，函数名与行为一字不动；2026-09-18 B4：`DeviceDescriptorForAdapter` 加台账水位自动 LowVRAM（≥80% 预算，`GPUI_LOW_VRAM_WATERLINE_PCT` 可调）+ `AcquireSharedPresentDevice`（present_target.go，探针/离屏借共享设备，单设备多表面）） | 选卡策略（GPUI_POWER=high/low，默认混搭优先核显）与设备描述符（核显/CPU/水位超限走 LowVRAM 紧限） | 适配器策略 | 🔗 NewPresentTarget 建窗调用（render/present_target.go）；forceFallback 时 stderr 如实记日志 |
+| `IsGPUOutOfMemory(err)` + `PurgeEvictable` 接口 + `RegisterPurgeEvictable/UnregisterPurgeEvictable/PurgeEvictables`（oom_purge.go，多窗 1.3）+ `PresentTarget.Fallbacks()` + `OOMExitThreshold/OOMExit`（oom_exit.go，2026-09-18 B3：三帧判死与就绪门同一阈值同一文案，ui/embedder 只做委托） | OOM 统一判定（大小写全匹配三短语）与可重建缓存 purge 链（字形/图片/层池注册、teardown 注销）+ 建窗降级次数上报 + 判死阈值 | OOM 判定与 purge | 🔗 建窗降级循环 + 建纹理 OOM 恢复轮 + embedder 退出判定在用 |
 | `PresentNativeSurface` / `PresentPlatform` / var `ErrNilSurfaceView` | 原生表面句柄、平台枚举、空表面错误 | 原生表面/平台 | ✅ |
 
 ### 3.8 text.go（16）+ text_decoration.go（2）+ text_mode.go · 文本族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `SetFont/Font/LoadFontFace/LoadFontFaceWithVariations/FontVariationAxes` | 设置字体、读当前字体、加载 TTF/OTF 与可变字体轴 | 字体管理 | ✅ ui/rendering paint_context 在用 |
-| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/DrawShapedColorGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/已整形彩色字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**DrawShapedColorGlyphs 🔗 生产在用（ui/rendering 彩色段→GPU 颜色图集/CPU 兜底，GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩）**；**StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs 🧪 仅测试**） |
+| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/DrawShapedColorGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/已整形彩色字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**DrawShapedGlyphs 🔗 生产在用（ui/rendering TextLayout 批量主路 + ui/scene 录制回放 + render/scene GPU 解析，见 §7.2 行注）**；**DrawShapedColorGlyphs 🔗 生产在用（ui/rendering 彩色段→GPU 颜色图集/CPU 兜底，GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩）**；**StrokeString/StrokeStringAnchored/TextPath 🧪 仅测试**） |
 | `SplitColorGlyphs(cf,glyphs)`（text.go 顶层函数） | 按字形类型把已整形字形拆成彩色/描边两子集（保序），供 dispatch 入口分流 | 彩色字形分流 | 🔗（dispatchText 在用） |
 | `MeasureString/MeasureMultilineString/WordWrap` | 度量单行/多行文本、按宽度断词换行 | 文本度量 | 🔗 内部用（UI 布局未接，用自研估算） |
 | `TextMode`（Auto/MSDF/Vector/Bitmap/GlyphMask/Aliased）/ `LCDLayout`（None/RGB/BGR）/ `Align` | 文本渲染策略 / LCD 子像素布局 / 对齐枚举 | 文本模式 | ✅ |
@@ -311,7 +311,8 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `SetDither`（m4_extensions） | 仅测试 |
 | `Pattern/ImagePattern` 旧图案接口（SetFillPattern 等） | 仅测试/桥接；生产走 Brush |
 | `Painter/SolidPainter/FuncPainter/PainterFromPaint` | 仅测试 |
-| 文本描边/路径 `StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs` | 仅测试 |
+| 文本描边/路径 `StrokeString/StrokeStringAnchored/TextPath` | 仅测试 |
+| `DrawShapedGlyphs` | 🔗 生产在用（6 处）：`ui/rendering/text.go:988`（RenderText.Paint 批量主路）· `:1077`（复合分区回退路）· `ui/rendering/text_picture.go:205`（分区提交）· `:232`（彩色段分区）· `:244`（偏移重提交）· `ui/scene/picture.go:225`（录制回放 OpDrawShapedGlyphs）· 另 `render/text.go:158`（描边字形回退）与 `render/scene/gpu_renderer.go:247`（Scene→GPU 解析首选） |
 | `DrawMesh`（网格绘制，Context.DrawMesh） | 无生产调用点（仅测试 render/p1_capability_matrix_closers_test.go:2918） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
 | `ui.SetMask` widget API（antd 文献提及） | 未实现（非 render 层） |
