@@ -1,0 +1,57 @@
+{
+ "tool": "ffprobe 4.4.2-0ubuntu0.22.04.1 + ffmpeg 4.4.2",
+ "date": "2026-09-17",
+ "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12 V2行（V2-2 B帧端到端）",
+ "peer": "libavcodec/hevc/hevcdec.c（hls_slice_header双向分支+hls_prediction_unit双向） + mvs.c（双向merge/MVP） + refs.c（L0/L1双表）",
+ "commands": [
+  "ffmpeg -hide_banner -f lavfi -i testsrc2=size=96x96:rate=5:duration=2 -c:v libx265 -preset ultrafast -x265-params keyint=20:min-keyint=20:bframes=2:ref=2:wpp=0:amp=0:open-gop=0 -pix_fmt yuv420p <clip>",
+  "ffmpeg -hide_banner -i <clip> -c:v rawvideo -pix_fmt yuv420p -f rawvideo <clip>.yuv",
+  "ffmpeg -hide_banner -benchmark -i <clip> -f null -"
+ ],
+ "notes": [
+  "V2-2 B帧基线片：闭合GOP、单IDR+3P+6B两层金字塔（解码序poc 0/3/2/1/6/5/4/9/8/7，显示序0..9），wpp与amp双关（我方PPS门 heats 不认波前/非对称划分）",
+  "SAO关闭片（SPS sao off）：切片头跨片滤波开关位按去块开关也读，见slice.go环路门；CTB32/最小块16/变换不划分，深0",
+  "B片参考小表（L0/L1各1-2个），无加权（PPS双关），同位有L0也有L1，merge约2候选",
+  "yuv只做V2-2 B像素门禁的对照源；逐帧md5按显示序（poc序）排列"
+ ],
+ "clips": [
+  {
+   "file": "v2b_h265.mp4",
+   "tracked": true,
+   "bytes": 15356,
+   "mp4_md5": "2afe96ab8a08b1efca07ceabd42f15ac",
+   "stream": {
+    "width": 96,
+    "height": 96,
+    "codec_name": "hevc",
+    "codec_tag": "hev1",
+    "profile": "Main",
+    "level": 30,
+    "avg_frame_rate": "5/1",
+    "nb_frames": 10,
+    "duration": "2.000000"
+   },
+   "decode_order": [0, 3, 2, 1, 6, 5, 4, 9, 8, 7],
+   "frames": [
+    {"poc": 0, "slice": "I", "md5": "7993d0cfece920f10b37c67a1d655f64"},
+    {"poc": 1, "slice": "B", "md5": "c3067976dbbd8caf13689080e3050396"},
+    {"poc": 2, "slice": "B", "md5": "50fe770098bd8ba68d4c9ac1cc138f98"},
+    {"poc": 3, "slice": "P", "md5": "ecb3617944558ecead380d5a90b0bfad"},
+    {"poc": 4, "slice": "B", "md5": "2469a8282964a43e062b5cab0303b011"},
+    {"poc": 5, "slice": "B", "md5": "abecd202f6b57eb4debec8393b7816fa"},
+    {"poc": 6, "slice": "P", "md5": "130a556206c681fbb7e4c5465f93142e"},
+    {"poc": 7, "slice": "B", "md5": "1e587d964620790aab6cf372b4796e81"},
+    {"poc": 8, "slice": "B", "md5": "775780d1424fb90b2a8d36e2d48c07c7"},
+    {"poc": 9, "slice": "P", "md5": "694200100ec08419833a5733cb30635b"}
+   ],
+   "yuv": {
+    "bytes": 138240,
+    "md5": "581354cd8417e4c997d8bf438150055f"
+   },
+   "bench": {
+    "utime_s": 0.005,
+    "maxrss_kb": 46848
+   }
+  }
+ ]
+}

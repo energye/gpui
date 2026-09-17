@@ -119,9 +119,10 @@ func TestV22IDRHeader(t *testing.T) {
 }
 
 // TestV22PHeaders pins the four inter headers: P type, POC 1..4 via
-// chained pocTid0, explicit RPS growing 1..4 (all delta -1, all used),
-// default refs on frame 1 then override 2/3/3, weight denoms 7/6 with
-// all flags off, 3 merge cands, QP 28 throughout.
+// chained pocTid0, explicit RPS growing 1..4 (cumulative deltas
+// -1/-2/-3/-4, all used), default refs on frame 1 then override
+// 2/3/3, weight denoms 7/6 with all flags off, 3 merge cands,
+// QP 28 throughout.
 func TestV22PHeaders(t *testing.T) {
 	_, ps, units := loadStep2Headers(t)
 	wantNeg := []uint32{1, 2, 3, 4}
@@ -147,8 +148,8 @@ func TestV22PHeaders(t *testing.T) {
 			t.Fatalf("p%d rps %d+%d, want %d+0", i, sh.RPS.Neg, sh.RPS.Pos, wantNeg[i-1])
 		}
 		for k, d := range sh.RPS.DeltaPOC {
-			if d != -1 || !sh.RPS.Used[k] {
-				t.Fatalf("p%d rps[%d] %d/%v, want -1/true", i, k, d, sh.RPS.Used[k])
+			if d != int32(-(k+1)) || !sh.RPS.Used[k] {
+				t.Fatalf("p%d rps[%d] %d/%v, want %d/true", i, k, d, sh.RPS.Used[k], -(k + 1))
 			}
 		}
 		if sh.RefL0 != wantRef[i-1] || sh.RefL1 != 0 || sh.Override != wantOver[i-1] {

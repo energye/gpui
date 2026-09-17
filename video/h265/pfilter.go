@@ -14,13 +14,14 @@ import (
 //   Bs 2) + ff_hevc_hls_filter dispatch (luma on Bs>=1, chroma on
 //   Bs==2). Only gates and numbers travel; all code is fresh.
 //
-// Scope: single-slice P pictures, 8-bit 4:2:0, L0-only motion, no
-// tiles, default deblock control. Intra CUs inside P refuse honestly
-// (this clip has none); B slices refuse at the RPL build.
+// Scope: single-slice inter pictures, 8-bit 4:2:0, no tiles, default
+// deblock control. Intra CUs inside inter refuse honestly
+// (our clips have none); L1-only or missing RPL refuses at derive.
 
-// motionBs mirrors boundary_strength for L0-only P motion: different
-// reference POCs give 1; same reference with a quarter-pel diff of 4
-// or more (>= 1 pixel) gives 1; else 0. BI branches never fire here.
+// motionBs mirrors boundary_strength for motion-only compares:
+// different reference POCs give 1; same reference with a quarter-pel
+// diff of 4 or more (>= 1 pixel) gives 1; else 0. Callers resolve BI
+// cross pairs and L1-only picks before landing here.
 func (d *interDec) motionBs(a, b mvCand, rpl []refPic) int {
 	if a.pred == motionIntra || b.pred == motionIntra {
 		return 2
@@ -90,7 +91,7 @@ type bsMaps struct {
 // motion compare) plus internal-PU path for blocks wider than a min
 // PU (pure motion compare, no cbf gate). Single-slice/single-tile
 // pictures skip the slice/tile gating (no boundaries inside).
-func (d *interDec) bsCall(m *bsMaps, fs *FrameSyntax, grid *mvGrid, rpl []refPic, cbf []bool, x0, y0, log2size int) {
+func (d *interDec) bsCall(m *bsMaps, fs *FrameSyntax, grid *mvGrid, rpl0, rpl1 []refPic, cbf []bool, x0, y0, log2size int) {
 	W, H := int(d.sps.Width), int(d.sps.Height)
 	tb := 1 << d.log2MinTB
 	tbW := (W + tb - 1) / tb
@@ -115,10 +116,24 @@ func (d *interDec) bsCall(m *bsMaps, fs *FrameSyntax, grid *mvGrid, rpl []refPic
 		}
 		return mvCand{}
 	}
+	bsMotion := func(a, b mvCand) int {
+		return d.motionBsB(a, b, rpl0, rpl1)
+	}
 	size := 1 << log2size
-	isIntra := false
 	if f := d.gridAt(grid, x0, y0); f != nil && f.pred == motionIntra {
-		isIntra = true
+		// Intra blocks: TU edges carry Bs 2 (chroma filters);
+		// internal PU edges never fire for intra.
+		if y0 > 0 && y0&7 == 0 {
+			for i := 0; i < size; i += 4 {
+				m.h[[2]int{x0 + i, y0}] = 2
+			}
+		}
+		if x0 > 0 && x0&7 == 0 {
+			for i := 0; i < size; i += 4 {
+				m.v[[2]int{x0, y0 + i}] = 2
+			}
+		}
+		return
 	}
 	_ = fs
 	if y0 > 0 && y0&7 == 0 {
@@ -132,7 +147,7 @@ func (d *interDec) bsCall(m *bsMaps, fs *FrameSyntax, grid *mvGrid, rpl []refPic
 			} else if cbfAt(x, yp) || cbfAt(x, yq) {
 				bs = 1
 			} else {
-				bs = d.motionBs(a, b, rpl)
+				bs = bsMotion(a, b)
 			}
 			m.h[[2]int{x, y0}] = bs
 		}
@@ -148,34 +163,104 @@ func (d *interDec) bsCall(m *bsMaps, fs *FrameSyntax, grid *mvGrid, rpl []refPic
 			} else if cbfAt(xp, y) || cbfAt(xq, y) {
 				bs = 1
 			} else {
-				bs = d.motionBs(a, b, rpl)
+				bs = bsMotion(a, b)
 			}
 			m.v[[2]int{x0, y}] = bs
 		}
 	}
-	if log2size > d.log2MinPU && !isIntra {
+	if log2size > d.log2MinPU {
 		for j := 8; j < size; j += 8 {
 			for i := 0; i < size; i += 4 {
 				x := x0 + i
 				a, b := motAt(x, y0+j-1), motAt(x, y0+j)
-				m.h[[2]int{x, y0 + j}] = d.motionBs(a, b, rpl)
+				m.h[[2]int{x, y0 + j}] = bsMotion(a, b)
 			}
 		}
 		for j := 0; j < size; j += 4 {
 			y := y0 + j
 			for i := 8; i < size; i += 8 {
 				a, b := motAt(x0+i-1, y), motAt(x0+i, y)
-				m.v[[2]int{x0 + i, y}] = d.motionBs(a, b, rpl)
+				m.v[[2]int{x0 + i, y}] = bsMotion(a, b)
 			}
 		}
 	}
+}
+
+// pocOf reads an RPL POC (-1 when out of range, never equal).
+func pocOf(rpl []refPic, idx int) int {
+	if idx < 0 || idx >= len(rpl) {
+		return -1
+	}
+	return rpl[idx].poc
+}
+
+// motionBsB mirrors the full boundary_strength: intra on either
+// side gives 2, BI pairs follow the three same/cross/mismatch cases,
+// single-vector pairs compare one active vector each, mixed BI
+// pairings give 1.
+func (d *interDec) motionBsB(a, b mvCand, rpl0, rpl1 []refPic) int {
+	if a.pred == motionIntra || b.pred == motionIntra {
+		return 2
+	}
+	if a.pred == motionBI && b.pred == motionBI {
+		a00 := pocOf(rpl0, a.ref0)
+		a11 := pocOf(rpl1, a.ref1)
+		b00 := pocOf(rpl0, b.ref0)
+		b11 := pocOf(rpl1, b.ref1)
+		if a00 == a11 && b00 == b11 && a00 == b00 {
+			d00 := abs32(a.x0-b.x0) >= 4 || abs32(a.y0-b.y0) >= 4 || abs32(a.x1-b.x1) >= 4 || abs32(a.y1-b.y1) >= 4
+			dX := abs32(a.x1-b.x0) >= 4 || abs32(a.y1-b.y0) >= 4 || abs32(a.x0-b.x1) >= 4 || abs32(a.y0-b.y1) >= 4
+			if d00 && dX {
+				return 1
+			}
+			return 0
+		}
+		if b00 == a00 && b11 == a11 {
+			if abs32(a.x0-b.x0) >= 4 || abs32(a.y0-b.y0) >= 4 || abs32(a.x1-b.x1) >= 4 || abs32(a.y1-b.y1) >= 4 {
+				return 1
+			}
+			return 0
+		}
+		if b11 == a00 && b00 == a11 {
+			if abs32(a.x1-b.x0) >= 4 || abs32(a.y1-b.y0) >= 4 || abs32(a.x0-b.x1) >= 4 || abs32(a.y0-b.y1) >= 4 {
+				return 1
+			}
+			return 0
+		}
+		return 1
+	}
+	if a.pred != motionBI && b.pred != motionBI {
+		ax, ay, ap := a.x0, a.y0, pocOf(rpl0, a.ref0)
+		if a.pred&motionL0 == 0 {
+			ax, ay, ap = a.x1, a.y1, pocOf(rpl1, a.ref1)
+		}
+		bx, by, bp := b.x0, b.y0, pocOf(rpl0, b.ref0)
+		if b.pred&motionL0 == 0 {
+			bx, by, bp = b.x1, b.y1, pocOf(rpl1, b.ref1)
+		}
+		if ap != bp {
+			return 1
+		}
+		if abs32(ax-bx) >= 4 || abs32(ay-by) >= 4 {
+			return 1
+		}
+		return 0
+	}
+	return 1
+}
+
+func abs32(v int32) int32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // buildBs replays the peer's boundary-strength calls in decode order:
 // skip and no-residual CUs file one CB-sized call; CUs with a tree
 // file one call per transform leaf in walk order (later writes win,
 // like the peer's in-place arrays).
-func (d *interDec) buildBs(fs *FrameSyntax, grid *mvGrid, rpl []refPic) *bsMaps {
+func (d *interDec) buildBs(fs *FrameSyntax, grid *mvGrid, rpl0, rpl1 []refPic) *bsMaps {
 	m := &bsMaps{v: map[[2]int]int{}, h: map[[2]int]int{}}
 	cbf := d.buildCbfGrid(fs)
 	leavesOf := func(cu *CUInfo) []TULeaf {
@@ -193,24 +278,25 @@ func (d *interDec) buildBs(fs *FrameSyntax, grid *mvGrid, rpl []refPic) *bsMaps 
 		cb := 1 << cu.Log2Size
 		_ = cb
 		if cu.Pred == PredSkip || cu.NoResid {
-			d.bsCall(m, fs, grid, rpl, cbf, cu.X0, cu.Y0, int(cu.Log2Size))
+			d.bsCall(m, fs, grid, rpl0, rpl1, cbf, cu.X0, cu.Y0, int(cu.Log2Size))
 			continue
 		}
 		for _, l := range leavesOf(cu) {
-			d.bsCall(m, fs, grid, rpl, cbf, l.X0, l.Y0, l.Log2Size)
+			d.bsCall(m, fs, grid, rpl0, rpl1, cbf, l.X0, l.Y0, l.Log2Size)
 		}
 	}
 	return m
 }
 
-// filterPChecks gates the P fast path (mirrors loopFilterChecks plus
-// the motion scope; intra CUs refuse so no block goes black).
+// filterPChecks gates the inter fast path: SAO-off clips (like our
+// B baseline) run deblock only; intra CUs stay allowed (Bs 2 +
+// chroma gate) since B frames carry real intra blocks.
 func (d *interDec) filterPChecks(fs *FrameSyntax, q *PPS) error {
 	if fs == nil || fs.SH == nil || q == nil {
-		return fmt.Errorf("%w: nil P filter args", ErrBadSlice)
+		return fmt.Errorf("%w: nil inter filter args", ErrBadSlice)
 	}
-	if fs.SH.Type != SliceP {
-		return fmt.Errorf("%w: P filter on non-P slice", ErrNotDecodable)
+	if fs.SH.Type != SliceP && fs.SH.Type != SliceB {
+		return fmt.Errorf("%w: inter filter on non-P/B slice", ErrNotDecodable)
 	}
 	if d.sps.BitDepth != 8 || d.sps.BitDepthChroma != 8 {
 		return fmt.Errorf("%w: P filter bit depth", ErrBadSPS)
@@ -221,38 +307,35 @@ func (d *interDec) filterPChecks(fs *FrameSyntax, q *PPS) error {
 	if q.DeblockControl || q.TilesEnabled || q.EntropySync {
 		return fmt.Errorf("%w: P filter control/tiles", ErrBadSlice)
 	}
-	for i := range fs.CUs {
-		if fs.CUs[i].Pred == PredIntra {
-			return fmt.Errorf("%w: intra CU in P filter", ErrNotDecodable)
-		}
-	}
 	return nil
 }
 
 // FilterP runs deblocking (motion/cbf strengths) then SAO over a
-// reconstructed P picture in place. grid holds the derived motion,
-// rpl the frame's L0 list for ref-POC compares.
-func (d *interDec) FilterP(pic *Picture, fs *FrameSyntax, q *PPS, grid *mvGrid, rpl []refPic) error {
+// reconstructed inter picture in place. grid holds the derived
+// motion, rpl0/rpl1 the frame's lists for ref-POC compares. SAO-off
+// clips skip the SAO pass (the shared stage requires SAO bits).
+func (d *interDec) FilterP(pic *Picture, fs *FrameSyntax, q *PPS, grid *mvGrid, rpl0, rpl1 []refPic) error {
 	if err := d.filterPChecks(fs, q); err != nil {
 		return err
 	}
 	if pic == nil || pic.Width != int(d.sps.Width) || pic.Height != int(d.sps.Height) {
 		return fmt.Errorf("%w: P filter picture size", ErrBadSlice)
 	}
-	d.deblockP(pic, fs, grid, rpl)
-	applySAO(pic, fs, d.sps)
+	d.deblockP(pic, fs, grid, rpl0, rpl1)
+	if fs.SH.SAOLuma || fs.SH.SAOChroma {
+		applySAO(pic, fs, d.sps)
+	}
 	return nil
 }
 
-// deblockP filters luma on the 8-grid from the replayed Bs map (peer
-// ff_hevc_hls_filter dispatch: luma runs on Bs>=1 per 4-row chunk,
-// chroma only on Bs 2 — unreachable on P without intra, so luma
-// only). Chroma never filters here.
-func (d *interDec) deblockP(pic *Picture, fs *FrameSyntax, grid *mvGrid, rpl []refPic) {
+// deblockP filters luma on the 8-grid from the replayed Bs map and
+// chroma on Bs 2 (peer ff_hevc_hls_filter dispatch: luma runs on
+// Bs>=1 per 4-row chunk, chroma runs on Bs==2).
+func (d *interDec) deblockP(pic *Picture, fs *FrameSyntax, grid *mvGrid, rpl0, rpl1 []refPic) {
 	W, H := pic.Width, pic.Height
 	tab, gw, gh, minCB := buildQPYTab(fs, d.sps)
 	at := func(x, y int) int { return qpyAt(tab, gw, gh, minCB, W, H, x, y) }
-	bs := d.buildBs(fs, grid, rpl)
+	bs := d.buildBs(fs, grid, rpl0, rpl1)
 	// Luma vertical edges.
 	for x := 8; x < W; x += 8 {
 		for y0 := 0; y0 < H; y0 += 8 {
@@ -299,4 +382,67 @@ func (d *interDec) deblockP(pic *Picture, fs *FrameSyntax, grid *mvGrid, rpl []r
 			}
 		}
 	}
+	// Chroma edges on Bs 2 (peer chroma path: same 8-grid chunks,
+	// chroma QP per side averaged through the 4:2:0 map; one luma
+	// 4-row chunk maps to two chroma rows, one 4-col chunk to two
+	// chroma cols).
+	cw, chH := (W+1)/2, (H+1)/2
+	for x := 8; x < W; x += 8 {
+		for y0 := 0; y0 < H; y0 += 8 {
+			for j := 0; j < 2; j++ {
+				ys := y0 + j*4
+				if ys >= H {
+					continue
+				}
+				if bs.v[[2]int{x, ys}] != 2 {
+					continue
+				}
+				cx := x / 2
+				if cx >= cw {
+					continue
+				}
+				for _, c := range []int{1, 2} {
+					tc := chromaTcFor((at(x-1, ys)+at(x, ys)+1)>>1, c)
+					n := 2
+					if ys/2+n > chH {
+						n = chH - ys/2
+					}
+					chromaChunkVert(picPlane(pic, c), cw, cx, ys/2, n, tc)
+				}
+			}
+		}
+	}
+	for y := 8; y < H; y += 8 {
+		for x0 := 0; x0 < W; x0 += 8 {
+			for j := 0; j < 2; j++ {
+				xs := x0 + j*4
+				if xs >= W {
+					continue
+				}
+				if bs.h[[2]int{xs, y}] != 2 {
+					continue
+				}
+				cy := y / 2
+				if cy >= chH {
+					continue
+				}
+				for _, c := range []int{1, 2} {
+					tc := chromaTcFor((at(xs, y-1)+at(xs, y)+1)>>1, c)
+					n := 2
+					if xs/2+n > cw {
+						n = cw - xs/2
+					}
+					chromaChunkHoriz(picPlane(pic, c), cw, xs/2, cy, n, tc)
+				}
+			}
+		}
+	}
+}
+
+// picPlane selects the chroma plane (1 = Cb, 2 = Cr).
+func picPlane(pic *Picture, c int) []byte {
+	if c == 2 {
+		return pic.Cr
+	}
+	return pic.Cb
 }

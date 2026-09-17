@@ -253,12 +253,14 @@ type avail struct {
 
 // zBefore reports whether the neighbor block at (xN,yN) is decoded
 // before the current block at (xC,yC): above/left CTBs first, else
-// Morton order inside the CTB.
-func zBefore(xN, yN, xC, yC, picW, picH int) bool {
+// Morton order inside the CTB. log2Ctb is the SPS CTB size (the old
+// clip used 64, the B-clip uses 32; hardcoding 64 marks bottom-left
+// neighbours from not-yet-decoded CTB rows available).
+func zBefore(xN, yN, xC, yC, picW, picH, log2Ctb int) bool {
 	if xN < 0 || yN < 0 || xN >= picW || yN >= picH {
 		return false
 	}
-	const ctb = 64
+	ctb := 1 << uint(log2Ctb)
 	xNc, yNc := xN/ctb, yN/ctb
 	xCc, yCc := xC/ctb, yC/ctb
 	if yNc != yCc {
@@ -268,16 +270,17 @@ func zBefore(xN, yN, xC, yC, picW, picH int) bool {
 		return xNc < xCc
 	}
 	const tb = 4
-	n := morton((xN/tb)%16, (yN/tb)%16)
-	c := morton((xC/tb)%16, (yC/tb)%16)
+	n := morton((xN-xNc*ctb)/tb, (yN-yNc*ctb)/tb)
+	c := morton((xC-xCc*ctb)/tb, (yC-yCc*ctb)/tb)
 	return n < c
 }
 
 // neighbours derives candidates for a luma-coord rect (w,h in luma
-// samples) on a tile-free single-slice picture with 64-CTBs.
+// samples) on a tile-free single-slice picture. log2Ctb is the SPS
+// CTB size.
 // Peer: mvs.c set_neighbour_available + the z-scan gates in intra_pred.
-func neighbours(x0, y0, w, h, picW, picH int) avail {
-	const ctb = 64
+func neighbours(x0, y0, w, h, picW, picH, log2Ctb int) avail {
+	ctb := 1 << uint(log2Ctb)
 	cx, cy := x0/ctb, y0/ctb
 	x0b, y0b := x0%ctb, y0%ctb
 	ctbLeft := cx > 0
@@ -308,10 +311,10 @@ func neighbours(x0, y0, w, h, picW, picH int) avail {
 		a.bottomLeft = a.left
 	}
 	const tb = 4
-	if a.bottomLeft && !zBefore(x0-tb, y0+h, x0, y0, picW, picH) {
+	if a.bottomLeft && !zBefore(x0-tb, y0+h, x0, y0, picW, picH, log2Ctb) {
 		a.bottomLeft = false
 	}
-	if a.upRight && !zBefore(x0+w, y0-tb, x0, y0, picW, picH) {
+	if a.upRight && !zBefore(x0+w, y0-tb, x0, y0, picW, picH, log2Ctb) {
 		a.upRight = false
 	}
 	return a
@@ -660,7 +663,7 @@ func (r *recon) leaf(l TULeaf, s *SPS) error {
 	size := 1 << l.Log2Size
 	// Luma always predicts (peer predicts before the cbf gate).
 	pred := make([]byte, size*size)
-	a := neighbours(l.X0, l.Y0, size, size, pic.Width, pic.Height)
+	a := neighbours(l.X0, l.Y0, size, size, pic.Width, pic.Height, int(s.Log2MaxCB))
 	top, left := refSet(pic.Y, pic.Width, pic.Width, pic.Height, l.X0, l.Y0, size, a)
 	top, left = filterRefs(top, left, size, l.Log2Size, int(l.LumaMode), s.SmoothIntra)
 	predictIntra(pred, top, left, size, int(l.LumaMode), 0)
@@ -692,7 +695,7 @@ func (r *recon) leaf(l TULeaf, s *SPS) error {
 	if l.Log2Size > 2 {
 		cs := size / 2
 		px, py := l.X0/2, l.Y0/2
-		ca := neighbours(l.X0, l.Y0, size, size, pic.Width, pic.Height)
+		ca := neighbours(l.X0, l.Y0, size, size, pic.Width, pic.Height, int(s.Log2MaxCB))
 		for _, c := range []int{1, 2} {
 			plane := pic.Cb
 			if c == 2 {
@@ -724,7 +727,7 @@ func (r *recon) leaf(l TULeaf, s *SPS) error {
 	}
 	if l.Log2Size == 2 && l.Blk == 3 {
 		px, py := l.CbX/2, l.CbY/2
-		ca := neighbours(l.CbX, l.CbY, 8, 8, pic.Width, pic.Height)
+		ca := neighbours(l.CbX, l.CbY, 8, 8, pic.Width, pic.Height, int(s.Log2MaxCB))
 		for _, c := range []int{1, 2} {
 			plane := pic.Cb
 			if c == 2 {

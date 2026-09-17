@@ -50,12 +50,16 @@ type SliceHeader struct {
 	RefL0       uint32
 	RefL1       uint32
 	Override    bool
-	// CollocatedRefIdx selects the temporal reference (L0 for P;
-	// B also stores FromL0). ListsModL0 reorders L0 when the flag
-	// rides (empty on the default order). The pixel stage's RPL
-	// build consumes both; the v0.86 gate pins the old fields.
+	// CollocatedRefIdx selects the temporal reference; ColocFromL0
+	// picks the list for B slices (always L0 for P). ListsModL0
+	// reorders L0 when the flag rides (empty on the default order).
+	// The pixel stage's RPL build consumes both; the v0.86 gate
+	// pins the old fields.
 	CollocatedRefIdx uint32
+	ColocFromL0      bool
 	ListsModL0       []uint32
+	ListsModL1       []uint32
+	MvdL1Zero        bool
 	// Weight table truth (PPS weighted flags + P/B slices only).
 	LumaDenom    uint32
 	ChromaDenom  uint32
@@ -117,7 +121,7 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 		return nil, fmt.Errorf("%w: layer %d not supported", ErrBadSlice, layer)
 	}
 	r := NewReader(UnescapeRBSP(nalu[2:]))
-	sh := &SliceHeader{NALType: typ}
+	sh := &SliceHeader{NALType: typ, ColocFromL0: true}
 	bit := func(name string) (bool, error) {
 		b, err := r.ReadBit()
 		if err != nil {
@@ -341,9 +345,11 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 				}
 				if lm1 {
 					for i := uint32(0); i < sh.RefL1; i++ {
-						if _, err := r.ReadBits(ceilLog2(sh.RefL0 + sh.RefL1)); err != nil {
+						e, err := r.ReadBits(ceilLog2(sh.RefL0 + sh.RefL1))
+						if err != nil {
 							return nil, fmt.Errorf("%w: list l1 %d: %v", ErrBadSlice, i, err)
 						}
+						sh.ListsModL1 = append(sh.ListsModL1, e)
 					}
 				}
 			}
@@ -353,7 +359,7 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 			if err != nil {
 				return nil, err
 			}
-			_ = mvd
+			sh.MvdL1Zero = mvd
 		}
 		if q.CabacInitPresent {
 			cabac, err := bit("cabac init")
@@ -363,17 +369,25 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 			_ = cabac
 		}
 		if sh.TemporalMVP {
+			fromL0 := true
 			if st == SliceB {
-				if _, err := bit("collocated from l0"); err != nil {
+				f, err := bit("collocated from l0")
+				if err != nil {
 					return nil, err
 				}
+				fromL0 = f
 			}
-			if sh.RefL0 > 1 {
+			sh.ColocFromL0 = fromL0
+			nrefs := sh.RefL0
+			if !fromL0 {
+				nrefs = sh.RefL1
+			}
+			if nrefs > 1 {
 				c, err := r.ReadUE()
 				if err != nil {
 					return nil, fmt.Errorf("%w: collocated idx: %v", ErrBadSlice, err)
 				}
-				if c >= sh.RefL0 {
+				if c >= nrefs {
 					return nil, fmt.Errorf("%w: collocated idx %d", ErrBadSlice, c)
 				}
 				sh.CollocatedRefIdx = c
@@ -414,10 +428,10 @@ func ParseSliceHeader(nalu []byte, ps *ParamSets, pocTid0 int) (*SliceHeader, er
 	if q.DeblockControl {
 		return nil, fmt.Errorf("%w: deblock control not supported", ErrBadSlice)
 	}
-	// Loop filter across slices: present when SAO runs or deblocking
-	// runs; ours always run SAO on this path.
+	// Loop filter across slices: present when SAO runs or the
+	// deblocking filter runs (spec gate, not SAO alone).
 	sh.LoopAcross = q.LoopAcrossSlices
-	if q.LoopAcrossSlices && (sh.SAOLuma || sh.SAOChroma) {
+	if q.LoopAcrossSlices && (sh.SAOLuma || sh.SAOChroma || !q.DisableDbf) {
 		loop, err := bit("loop across slices")
 		if err != nil {
 			return nil, err
@@ -515,7 +529,10 @@ func decodeSliceRPS(r *Reader, s *SPS, ps *ParamSets) (*SliceRPS, error) {
 		return nil, fmt.Errorf("%w: rps pics %d+%d", ErrBadSlice, neg, pos)
 	}
 	out.Neg, out.Pos = neg, pos
-	for i := uint32(0); i < neg+pos; i++ {
+	// Deltas ride differentially (peer ps.c short-term tail):
+	// negatives accumulate downward from 0, positives upward.
+	prev := int32(0)
+	for i := uint32(0); i < neg; i++ {
 		d, err := r.ReadUE()
 		if err != nil {
 			return nil, fmt.Errorf("%w: rps poc %d: %v", ErrBadSlice, i, err)
@@ -527,13 +544,25 @@ func decodeSliceRPS(r *Reader, s *SPS, ps *ParamSets) (*SliceRPS, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: rps used %d: %v", ErrBadSlice, i, err)
 		}
-		// Deltas run negative-then-positive; keep them signed for
-		// the step-3 reference builder.
-		v := int32(d + 1)
-		if i < neg {
-			v = -v
+		prev -= int32(d + 1)
+		out.DeltaPOC = append(out.DeltaPOC, prev)
+		out.Used = append(out.Used, u != 0)
+	}
+	prev = 0
+	for i := uint32(0); i < pos; i++ {
+		d, err := r.ReadUE()
+		if err != nil {
+			return nil, fmt.Errorf("%w: rps poc %d: %v", ErrBadSlice, neg+i, err)
 		}
-		out.DeltaPOC = append(out.DeltaPOC, v)
+		if d+1 < 1 || d+1 > 32768 {
+			return nil, fmt.Errorf("%w: rps poc %d bad", ErrBadSlice, neg+i)
+		}
+		u, err := r.ReadBit()
+		if err != nil {
+			return nil, fmt.Errorf("%w: rps used %d: %v", ErrBadSlice, neg+i, err)
+		}
+		prev += int32(d + 1)
+		out.DeltaPOC = append(out.DeltaPOC, prev)
 		out.Used = append(out.Used, u != 0)
 	}
 	return out, nil

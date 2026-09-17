@@ -80,15 +80,15 @@ func TestV22PSequenceExact(t *testing.T) {
 			}
 			col := dec.pics[colPOC]
 			grid := &mvGrid{w: dec.minPUW, h: dec.minPUH, f: make([]mvCand, dec.minPUW*dec.minPUH)}
-			mots, err := dec.deriveFrame(fs, sh, rpl, col, grid)
+			mots, err := dec.deriveFrame(fs, sh, rpl, nil, col, nil, grid)
 			if err != nil {
 				t.Fatalf("S%d derive: %v", si, err)
 			}
-			pic, err = dec.reconInter(fs, mots, rpl, sh.SliceQP)
+			pic, err = dec.reconInter(fs, mots, rpl, nil)
 			if err != nil {
 				t.Fatalf("S%d recon: %v", si, err)
 			}
-			if err := dec.FilterP(pic, fs, pps, grid, rpl); err != nil {
+			if err := dec.FilterP(pic, fs, pps, grid, rpl, nil); err != nil {
 				t.Fatalf("S%d filter: %v", si, err)
 			}
 			dec.pics[sh.POC] = &picState{pic: pic, poc: sh.POC, rpl0: rpl, grid: grid}

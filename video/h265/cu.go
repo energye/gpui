@@ -54,17 +54,32 @@ type SAOParams struct {
 	EOClass   [3]uint8
 }
 
+// PU prediction directions (peer's InterPredIdc wire order:
+// PRED_L0=0, PRED_L1=1, PRED_BI=2; PRED_BI is the two-list case).
+const (
+	PredL0 = 0
+	PredL1 = 1
+	PredBI = 2
+)
+
 // PUInfo is one inter prediction unit's motion truth (quarter-pel
 // MV/MVD; merge PUs carry only the index until the merge stage runs).
+// Pred selects the active lists (P slices always L0); Ref1/MVD1/MVP1
+// ride only for L1 and BI predictions.
 type PUInfo struct {
-	X0, Y0     int
-	W, H       int
-	Merge      bool
-	MergeIdx   uint8
-	RefIdx     uint8
-	MVX, MVY   int32
-	MVDX, MVDY int32
-	MVPFlag    uint8
+	X0, Y0       int
+	W, H         int
+	Pred         uint8
+	Merge        bool
+	MergeIdx     uint8
+	RefIdx       uint8
+	MVX, MVY     int32
+	MVDX, MVDY   int32
+	MVPFlag      uint8
+	Ref1         uint8
+	MV1X, MV1Y   int32
+	MVD1X, MVD1Y int32
+	MVPFlag1     uint8
 }
 
 // CUInfo is one coding unit's syntax truth for the pixel stage.
@@ -160,6 +175,7 @@ type synParser struct {
 	firstQpGroup bool
 	qpTab        []int
 	gridH        int
+	curDepth     int
 	curPredIntra bool // transform tree scans diagonal unless intra
 	curMaxDepth  int
 	curSplit     bool // intra NxN split of the CU under walk
@@ -190,7 +206,7 @@ func ParseFrameSyntax(nalu []byte, ps *ParamSets, pocTid0 int) (*FrameSyntax, er
 	if err != nil {
 		return nil, err
 	}
-	if sh.Type != SliceI && sh.Type != SliceP {
+	if sh.Type != SliceI && sh.Type != SliceP && sh.Type != SliceB {
 		return nil, fmt.Errorf("%w: %s slices", ErrNotDecodable, SliceTypeName(sh.Type))
 	}
 	q, ok := ps.PPS[sh.PPSID]
@@ -480,6 +496,7 @@ func (p *synParser) quadtree(x0, y0, log2cb, depth int) (bool, error) {
 		// right/below; the CTB loop continues while both hold.
 		return (x1+half) < p.picW || (y1+half) < p.picH, nil
 	}
+	p.curDepth = depth
 	if err := p.codingUnit(x0, y0, log2cb); err != nil {
 		return false, err
 	}
@@ -703,24 +720,54 @@ func (p *synParser) codingUnitInter(x0, y0, log2cb int, cu *CUInfo) error {
 			cu.PUs = append(cu.PUs, pu)
 			continue
 		}
-		// AMVP path (P slices: L0 only, no inter_pred_idc on wire).
-		if p.sh.RefL0 > 1 {
-			ri, err := p.refIdxL0(int(p.sh.RefL0))
+		// AMVP path (P slices run L0 with no direction bin on wire).
+		if p.sh.Type == SliceB {
+			idc, err := p.interPredIdc(r[2], r[3])
 			if err != nil {
 				return err
 			}
-			pu.RefIdx = ri
+			pu.Pred = idc
 		}
-		dx, dy, err := p.mvdCoding()
-		if err != nil {
-			return err
+		if pu.Pred != PredL1 {
+			if p.sh.RefL0 > 1 {
+				ri, err := p.refIdxL0(int(p.sh.RefL0))
+				if err != nil {
+					return err
+				}
+				pu.RefIdx = ri
+			}
+			dx, dy, err := p.mvdCoding()
+			if err != nil {
+				return err
+			}
+			pu.MVDX, pu.MVDY = dx, dy
+			mv, err := p.bin(ctxMvpLxFlag)
+			if err != nil {
+				return err
+			}
+			pu.MVPFlag = uint8(mv)
 		}
-		pu.MVDX, pu.MVDY = dx, dy
-		mv, err := p.bin(ctxMvpLxFlag)
-		if err != nil {
-			return err
+		if pu.Pred != PredL0 {
+			if p.sh.RefL1 > 1 {
+				ri, err := p.refIdxL1(int(p.sh.RefL1))
+				if err != nil {
+					return err
+				}
+				pu.Ref1 = ri
+			}
+			if !(p.sh.MvdL1Zero && pu.Pred == PredBI) {
+				dx, dy, err := p.mvdCoding()
+				if err != nil {
+					return err
+				}
+				pu.MVD1X, pu.MVD1Y = dx, dy
+			}
+			mv, err := p.bin(ctxMvpLxFlag)
+			if err != nil {
+				return err
+			}
+			pu.MVPFlag1 = uint8(mv)
 		}
-		pu.MVPFlag = uint8(mv)
 		cu.PUs = append(cu.PUs, pu)
 	}
 	p.fillIPM(x0, y0, cb, IntraDC)
@@ -873,6 +920,37 @@ func (p *synParser) mergeIdx() (uint8, error) {
 		i++
 	}
 	return uint8(i), nil
+}
+
+// interPredIdc reads inter_pred_idc for one B PU (peer
+// ff_hevc_inter_pred_idc_decode: 12-pel blocks take one bin,
+// larger blocks take the depth context, BI on top, else one bin).
+func (p *synParser) interPredIdc(w, h int) (uint8, error) {
+	if w+h == 12 {
+		v, err := p.bin(ctxInterPredIdc + 4)
+		if err != nil {
+			return 0, err
+		}
+		return uint8(v), nil
+	}
+	v, err := p.bin(ctxInterPredIdc + p.curDepth)
+	if err != nil {
+		return 0, err
+	}
+	if v != 0 {
+		return PredBI, nil
+	}
+	v, err = p.bin(ctxInterPredIdc + 4)
+	if err != nil {
+		return 0, err
+	}
+	return uint8(v), nil
+}
+
+// refIdxL1 reads ref_idx_l1 on the L0 ref-idx contexts (the peer's
+// ref_idx_lx decoder always addresses REF_IDX_L0_OFFSET).
+func (p *synParser) refIdxL1(numRefs int) (uint8, error) {
+	return p.refIdxL0(numRefs)
 }
 
 // refIdxL0 reads ref_idx_l0 (contexts for the first two, bypass rest).

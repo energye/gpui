@@ -132,7 +132,7 @@ func TestV22PMotionExact(t *testing.T) {
 		}
 		col := dec.pics[colPOC]
 		grid := &mvGrid{w: dec.minPUW, h: dec.minPUH, f: make([]mvCand, dec.minPUW*dec.minPUH)}
-		mots, err := dec.deriveFrame(fs, sh, rpl, col, grid)
+		mots, err := dec.deriveFrame(fs, sh, rpl, nil, col, nil, grid)
 		if err != nil {
 			t.Fatalf("S%d derive: %v", si, err)
 		}
