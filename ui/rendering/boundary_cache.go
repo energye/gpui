@@ -2,6 +2,7 @@ package rendering
 
 import (
 	"reflect"
+	"sync"
 	"sync/atomic"
 
 	"github.com/energye/gpui/ui/scene"
@@ -25,6 +26,14 @@ import (
 // not-cacheable — tryReplay/store are no-ops for it, so the subtree always
 // live-paints and stale-frame content loss is impossible.
 type BoundaryCache struct {
+	// mu guards every field below. Paint runs on the UI thread (inline,
+	// snapshot) and the raster thread (retained record) concurrently
+	// post-T2, and Clear arrives on the UI event thread — an unguarded
+	// map is a fatal concurrent read/write, not just a race (R1).
+	// Methods take the lock for their whole body; none call back into
+	// another locked method (recordOwnContent never touches the cache),
+	// so method-scoped locking cannot deadlock.
+	mu      sync.Mutex
 	entries map[uint64]*boundaryEntry
 	// Cumulative counters (process lifetime of this cache).
 	Rerecord int64
@@ -90,6 +99,8 @@ func (c *BoundaryCache) BeginFrame() {
 	if c == nil {
 		return
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.FrameRerecord = 0
 	c.FrameSkip = 0
 	c.FrameMiss = 0
@@ -116,6 +127,8 @@ func (c *BoundaryCache) SetMaxEntries(n int) {
 	if c == nil {
 		return
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.maxEntries = n
 	c.enforceBudgetLocked()
 }
@@ -125,7 +138,20 @@ func (c *BoundaryCache) MaxEntries() int {
 	if c == nil {
 		return 0
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.maxEntries
+}
+
+// EvictionCount reports cumulative evictions (budget + generational sweep).
+// Lock-guarded: read this, not the bare Evictions field, off the owner thread.
+func (c *BoundaryCache) EvictionCount() int64 {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Evictions
 }
 
 // enforceBudgetLocked drops oldest-lastSeen entries while over the explicit
@@ -183,6 +209,8 @@ func (c *BoundaryCache) Clear() {
 	if c == nil {
 		return
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.entries = make(map[uint64]*boundaryEntry)
 }
 
@@ -191,6 +219,8 @@ func (c *BoundaryCache) Len() int {
 	if c == nil {
 		return 0
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return len(c.entries)
 }
 
@@ -203,6 +233,8 @@ func (c *BoundaryCache) Invalidate(n RenderObject) {
 	if !ok || b.cacheID == 0 {
 		return
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	delete(c.entries, b.cacheID)
 }
 
@@ -215,6 +247,8 @@ func (c *BoundaryCache) HasValid(n RenderObject) bool {
 	if !ok || b.cacheID == 0 {
 		return false
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	e := c.entries[b.cacheID]
 	if e != nil && e.valid && e.cacheable && e.pic.Valid && !e.pic.IsEmpty() {
 		e.lastSeen = c.frame
@@ -246,6 +280,12 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 		return false
 	}
 	id := b.ensureCacheID()
+	// Whole-body lock (see mu doc): entry validation mutates liveness and
+	// counters, and the map itself is shared across threads. Replay draws
+	// but never re-enters the cache, so holding the lock across it cannot
+	// deadlock — only serialize with a concurrent paint.
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	e := c.entries[id]
 	if e == nil || !e.valid || !e.cacheable || !e.pic.Valid || e.pic.IsEmpty() {
 		if e != nil {
@@ -319,6 +359,8 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 	if pic.IsEmpty() {
 		return
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.entries[id] = &boundaryEntry{
 		pic: pic,
 		ox:  ox, oy: oy,
@@ -355,7 +397,21 @@ func (c *BoundaryCache) ShellFrameCounts() (rerecord, skip int64) {
 	if c == nil {
 		return 0, 0
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.FrameShellRerecord, c.FrameShellSkip
+}
+
+// FrameCounts snapshots the per-frame counters (R1: the paint threads write
+// these while metrics/example readers sample them — read the snapshot, not
+// the bare fields).
+func (c *BoundaryCache) FrameCounts() (rerecord, skip, shellRerecord, shellSkip int64) {
+	if c == nil {
+		return 0, 0, 0, 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.FrameRerecord, c.FrameSkip, c.FrameShellRerecord, c.FrameShellSkip
 }
 
 // storeColorBox is the legacy-specific entry point used by RenderColorBox.Paint.

@@ -15,8 +15,8 @@ func TestNewSoftwareRenderer(t *testing.T) {
 	if r.width != 100 || r.height != 50 {
 		t.Errorf("dimensions = %dx%d, want 100x50", r.width, r.height)
 	}
-	if r.deviceScale != 1.0 {
-		t.Errorf("deviceScale = %f, want 1.0", r.deviceScale)
+	if ds := math.Float32frombits(r.deviceScale.Load()); ds != 1.0 {
+		t.Errorf("deviceScale = %f, want 1.0", ds)
 	}
 }
 
@@ -35,8 +35,8 @@ func TestSoftwareRendererResizeWithDeviceScale(t *testing.T) {
 	if r.width != 200 || r.height != 200 {
 		t.Errorf("after Resize: dimensions = %dx%d, want 200x200", r.width, r.height)
 	}
-	if r.deviceScale != 2.0 {
-		t.Errorf("deviceScale = %f, want 2.0", r.deviceScale)
+	if ds := math.Float32frombits(r.deviceScale.Load()); ds != 2.0 {
+		t.Errorf("deviceScale = %f, want 2.0", ds)
 	}
 }
 
@@ -56,8 +56,8 @@ func TestSoftwareRendererSetDeviceScale(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewSoftwareRenderer(100, 100)
 			r.SetDeviceScale(tt.scale)
-			if r.deviceScale != tt.wantScale {
-				t.Errorf("deviceScale = %f, want %f", r.deviceScale, tt.wantScale)
+			if ds := math.Float32frombits(r.deviceScale.Load()); ds != tt.wantScale {
+				t.Errorf("deviceScale = %f, want %f", ds, tt.wantScale)
 			}
 		})
 	}

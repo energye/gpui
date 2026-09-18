@@ -36,7 +36,7 @@ func (c *Context) expandStrokeToPathSpace() *Path {
 			scale = sy
 		}
 	}
-	ds := c.deviceScale
+	ds := c.DeviceScale()
 	if ds <= 0 {
 		ds = 1
 	}

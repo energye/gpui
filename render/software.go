@@ -2,6 +2,7 @@ package render
 
 import (
 	"math"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/energye/gpui/render/internal/raster"
@@ -23,7 +24,9 @@ type SoftwareRenderer struct {
 
 	// HiDPI device scale factor (1.0 = no scaling).
 	// Used to adjust curve flattening tolerance for sharper rendering on Retina.
-	deviceScale float32
+	// R1-3: atomic (math.Float32bits) — rewritten on the raster thread
+	// (SetDeviceScale) while draw paths on either thread read it.
+	deviceScale atomic.Uint32
 
 	// rasterizerMode is set by Context before calling Fill/Stroke
 	// to support forced algorithm selection (RasterizerSparseStrips, etc.).
@@ -50,14 +53,16 @@ type SoftwareRenderer struct {
 // NewSoftwareRenderer creates a new software renderer with analytic anti-aliasing.
 func NewSoftwareRenderer(width, height int) *SoftwareRenderer {
 	eb := raster.NewEdgeBuilder(2) // 4x AA (Skia default), max coord 8191px
-	return &SoftwareRenderer{
+	r := &SoftwareRenderer{
 		edgeBuilder:    eb,
 		analyticFiller: raster.NewAnalyticFiller(width, height),
 		width:          width,
 		height:         height,
-		deviceScale:    1.0,
 		antiAlias:      true,
 	}
+	// Atomic has no literal form: store the documented 1.0 default.
+	r.deviceScale.Store(math.Float32bits(1.0))
+	return r
 }
 
 // Resize updates the renderer dimensions (physical pixels).
@@ -66,8 +71,8 @@ func (r *SoftwareRenderer) Resize(width, height int) {
 	r.width = width
 	r.height = height
 	eb := raster.NewEdgeBuilder(2) // 4x AA (Skia default), max coord 8191px
-	if r.deviceScale > 1.0 {
-		eb.SetFlattenTolerance(0.1 / r.deviceScale)
+	if ds := math.Float32frombits(r.deviceScale.Load()); ds > 1.0 {
+		eb.SetFlattenTolerance(0.1 / ds)
 	}
 	r.edgeBuilder = eb
 	r.analyticFiller = raster.NewAnalyticFiller(width, height)
@@ -94,7 +99,7 @@ func (r *SoftwareRenderer) SetDeviceScale(scale float32) {
 	if scale <= 0 {
 		scale = 1.0
 	}
-	r.deviceScale = scale
+	r.deviceScale.Store(math.Float32bits(scale))
 	if scale > 1.0 {
 		r.edgeBuilder.SetFlattenTolerance(0.1 / scale)
 	}
@@ -451,8 +456,8 @@ func (r *SoftwareRenderer) fillNoAA(pixmap *Pixmap, p *Path, paint *Paint) error
 	// Lazy-init the no-AA edge builder and filler.
 	if r.noAAEdgeBuilder == nil {
 		r.noAAEdgeBuilder = raster.NewEdgeBuilder(0) // aaShift=0: no sub-pixel
-		if r.deviceScale > 1.0 {
-			r.noAAEdgeBuilder.SetFlattenTolerance(0.1 / r.deviceScale)
+		if ds := math.Float32frombits(r.deviceScale.Load()); ds > 1.0 {
+			r.noAAEdgeBuilder.SetFlattenTolerance(0.1 / ds)
 		}
 	}
 	if r.noAAFiller == nil {
@@ -1058,8 +1063,8 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	// 0.1 px base tolerance; on HiDPI, divide by deviceScale for finer curves.
 	expander := stroke.NewStrokeExpander(strokeStyle)
 	strokeTol := float64(0.1)
-	if r.deviceScale > 1.0 {
-		strokeTol = 0.1 / float64(r.deviceScale)
+	if ds := math.Float32frombits(r.deviceScale.Load()); ds > 1.0 {
+		strokeTol = 0.1 / float64(ds)
 	}
 	expander.SetTolerance(strokeTol)
 

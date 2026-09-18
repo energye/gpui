@@ -30,8 +30,8 @@ func TestNewContextWithDeviceScale(t *testing.T) {
 	dc := NewContext(100, 100, WithDeviceScale(2.0))
 	defer func() { _ = dc.Close() }()
 
-	if dc.deviceScale != 2.0 {
-		t.Errorf("deviceScale = %f, want 2.0", dc.deviceScale)
+	if dc.DeviceScale() != 2.0 {
+		t.Errorf("deviceScale = %f, want 2.0", dc.DeviceScale())
 	}
 	// Physical pixel dimensions should be doubled
 	if dc.pixmap.Width() != 200 || dc.pixmap.Height() != 200 {

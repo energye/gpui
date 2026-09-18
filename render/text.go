@@ -150,7 +150,7 @@ func (c *Context) tryGPUColorGlyphText(s string, x, y float64) bool {
 	}
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
-	matrix, ds := c.totalMatrix(), c.deviceScale
+	matrix, ds := c.totalMatrix(), c.DeviceScale()
 	if submitted, _ := c.submitColorGlyphs(target, face, color, x, y, col, matrix, ds); !submitted {
 		return false
 	}
@@ -353,7 +353,7 @@ func (c *Context) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x,
 
 	if rc := c.gpuCtxOps(); rc != nil {
 		if sta, ok := rc.(GPUShapedTextAccelerator); ok {
-			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 				c.recordGPUOp()
 				return
 			}
@@ -363,7 +363,7 @@ func (c *Context) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x,
 	a := Accelerator()
 	if a != nil {
 		if sta, ok := a.(GPUShapedTextAccelerator); ok {
-			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 				c.recordGPUOp()
 				return
 			}
@@ -391,7 +391,7 @@ func (c *Context) DrawShapedColorGlyphs(glyphs []text.ShapedGlyph, face text.Fac
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 
-	if submitted, rcHasColor := c.submitColorGlyphs(target, face, glyphs, x, y, col, c.totalMatrix(), c.deviceScale); submitted {
+	if submitted, rcHasColor := c.submitColorGlyphs(target, face, glyphs, x, y, col, c.totalMatrix(), c.DeviceScale()); submitted {
 		c.recordGPUOp()
 		return
 	} else if rcHasColor {
@@ -419,7 +419,7 @@ func (c *Context) drawShapedColorGlyphsCPU(glyphs []text.ShapedGlyph, face text.
 	if !ok || !cf.HasColorTables() {
 		return
 	}
-	ppem := uint16(face.Size()*c.deviceScale + 0.5)
+	ppem := uint16(face.Size()*c.DeviceScale() + 0.5)
 	if ppem < 1 {
 		ppem = 1
 	}
@@ -512,7 +512,7 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {
-		if rc.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+		if rc.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 			c.recordGPUOp()
 			return true
 		}
@@ -533,7 +533,7 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 		c.recordCPUFallbackReason("text:no-msdf-iface")
 		return false
 	}
-	if ta.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+	if ta.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 		c.recordGPUOp()
 		return true
 	}
@@ -570,7 +570,7 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 		return false
 	}
 	if rc := c.gpuCtxOps(); rc != nil {
-		if rc.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+		if rc.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 			c.trackTextDamage(s, x, y)
 			c.recordGPUOp()
 			return true
@@ -588,7 +588,7 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 		c.recordCPUFallbackReason("text:glyphmask-no-iface")
 		return false
 	}
-	if gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+	if gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 		c.trackTextDamage(s, x, y)
 		c.recordGPUOp()
 		return true
@@ -624,7 +624,7 @@ func (c *Context) tryGPUTransformMask(s string, x, y float64) bool {
 
 	if rc := c.gpuCtxOps(); rc != nil {
 		if ata, ok := rc.(GPUTransformMaskTextAccelerator); ok {
-			if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale, devicePath) == nil {
+			if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale(), devicePath) == nil {
 				c.trackTextDamage(s, x, y)
 				c.recordGPUOp()
 				return true
@@ -636,7 +636,7 @@ func (c *Context) tryGPUTransformMask(s string, x, y float64) bool {
 		return false
 	}
 	if ata, ok := a.(GPUTransformMaskTextAccelerator); ok {
-		if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale, devicePath) == nil {
+		if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale(), devicePath) == nil {
 			c.trackTextDamage(s, x, y)
 			c.recordGPUOp()
 			return true
@@ -690,7 +690,7 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {
-		if rc.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+		if rc.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 			c.recordGPUOp()
 			return true
 		}
@@ -706,7 +706,7 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 		c.recordCPUFallbackReason("text:tryGPUGlyphMaskTextAliased")
 		return false
 	}
-	if ata.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+	if ata.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
 		c.recordGPUOp()
 		return true
 	}
@@ -774,7 +774,7 @@ func (c *Context) shouldUseGlyphMask() bool {
 // glyphMaskDeviceSize returns the effective font size in device pixels,
 // accounting for deviceScale and the Y scale component of the matrix.
 func (c *Context) glyphMaskDeviceSize() float64 {
-	deviceSize := c.face.Size() * c.deviceScale
+	deviceSize := c.face.Size() * c.DeviceScale()
 	absScale := c.matrix.E
 	if absScale < 0 {
 		absScale = -absScale
@@ -1004,7 +1004,7 @@ func (c *Context) drawStringCPU(s string, x, y float64) {
 	// Tier 1: Uniform positive scale ≤256px → bitmap at device size (Strategy A).
 	// Skia threshold: kSkSideTooBigForAtlas = 256.
 	// deviceSize here is in user-scaled units; drawStringScaled multiplies by
-	// c.deviceScale to get the physical pixel size for the face.
+	// c.DeviceScale() to get the physical pixel size for the face.
 	if m.B == 0 && m.D == 0 && m.A == m.E && m.A > 0 {
 		deviceSize := c.face.Size() * m.A
 		if deviceSize > 0 && deviceSize <= 256 {
@@ -1023,9 +1023,9 @@ func (c *Context) drawStringBitmap(s string, x, y float64) {
 	p := c.totalMatrix().TransformPoint(Pt(x, y))
 	c.flushGPUAccelerator()
 	face := c.face
-	if c.deviceScale != 1.0 {
+	if c.DeviceScale() != 1.0 {
 		if source := c.face.Source(); source != nil {
-			face = source.Face(c.face.Size() * c.deviceScale)
+			face = source.Face(c.face.Size() * c.DeviceScale())
 		}
 	}
 	text.DrawWithEmoji(c.pixmap, s, face, p.X, p.Y, c.currentColor())
@@ -1041,7 +1041,7 @@ func (c *Context) drawStringScaled(s string, x, y float64, deviceSize float64) {
 		return
 	}
 	// Scale deviceSize by deviceScale for actual physical pixel rendering.
-	deviceFace := source.Face(deviceSize * c.deviceScale)
+	deviceFace := source.Face(deviceSize * c.DeviceScale())
 	p := c.totalMatrix().TransformPoint(Pt(x, y))
 	c.flushGPUAccelerator()
 	text.Draw(c.pixmap, s, deviceFace, p.X, p.Y, c.currentColor())
@@ -1071,9 +1071,9 @@ func (c *Context) drawStringCPUAliased(s string, x, y float64) {
 	c.flushGPUAccelerator()
 
 	face := c.face
-	if c.deviceScale != 1.0 {
+	if c.DeviceScale() != 1.0 {
 		if source := c.face.Source(); source != nil {
-			face = source.Face(c.face.Size() * c.deviceScale)
+			face = source.Face(c.face.Size() * c.DeviceScale())
 		}
 	}
 
@@ -1081,7 +1081,7 @@ func (c *Context) drawStringCPUAliased(s string, x, y float64) {
 	if !m.IsTranslationOnly() && m.B == 0 && m.D == 0 && m.A == m.E && m.A > 0 {
 		deviceSize := c.face.Size() * m.A
 		if source := c.face.Source(); source != nil {
-			face = source.Face(deviceSize * c.deviceScale)
+			face = source.Face(deviceSize * c.DeviceScale())
 		}
 	}
 

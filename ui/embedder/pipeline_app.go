@@ -481,10 +481,10 @@ func (a *PipelineApp) cacheEntryCount() int64 {
 func (a *PipelineApp) cacheEvictions() int64 {
 	n := int64(0)
 	if c := a.BoundaryCache(); c != nil {
-		n += c.Evictions
+		n += c.EvictionCount()
 	}
 	if t := a.PictureTextures(); t != nil {
-		n += t.Evictions
+		n += t.EvictionCount()
 	}
 	return n
 }
@@ -1626,11 +1626,12 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 		ov.Paint(pc)
 	}
 	// Publish per-frame boundary stats for metrics pickup (NoteBoundaryFrame).
+	rr, sk, shRR, shSk := cache.FrameCounts()
 	lastBoundaryFrame.Store(boundaryFrameSnap{
-		Rerecord:      cache.FrameRerecord,
-		Skip:          cache.FrameSkip,
-		ShellRerecord: cache.FrameShellRerecord,
-		ShellSkip:     cache.FrameShellSkip,
+		Rerecord:      rr,
+		Skip:          sk,
+		ShellRerecord: shRR,
+		ShellSkip:     shSk,
 	})
 }
 

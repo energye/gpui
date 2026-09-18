@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"io"
 	"math"
+	"sync/atomic"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render/internal/clip"
@@ -27,8 +28,11 @@ type Context struct {
 	pixmap   *Pixmap
 	renderer Renderer
 
-	// HiDPI support
-	deviceScale float64 // physical pixels per logical pixel (default 1.0)
+	// HiDPI support.
+	// R1-3: atomic — the raster thread rewrites the scale at the present
+	// boundary (SetDeviceScale) while UI-side readers (snapshot path,
+	// diagnostics) load it concurrently. Plain float64 was a data race.
+	deviceScale atomic.Uint64 // math.Float64bits: physical px per logical px (default 1.0)
 
 	// Current state
 	path        *Path
@@ -307,7 +311,6 @@ func NewContext(width, height int, opts ...ContextOption) *Context {
 	c := &Context{
 		width:                 width,
 		height:                height,
-		deviceScale:           scale,
 		pixmap:                pixmap,
 		renderer:              renderer,
 		path:                  NewPath(),
@@ -320,6 +323,7 @@ func NewContext(width, height int, opts ...ContextOption) *Context {
 		damageTrackingEnabled: true,
 		antiAlias:             true,
 	}
+	c.deviceScale.Store(math.Float64bits(scale))
 	return c
 }
 
@@ -344,10 +348,9 @@ func NewContextForImage(img image.Image, opts ...ContextOption) *Context {
 		renderer = NewSoftwareRenderer(width, height)
 	}
 
-	return &Context{
+	c := &Context{
 		width:          width,
 		height:         height,
-		deviceScale:    1.0,
 		pixmap:         pixmap,
 		renderer:       renderer,
 		path:           NewPath(),
@@ -358,6 +361,9 @@ func NewContextForImage(img image.Image, opts ...ContextOption) *Context {
 		clipStackDepth: make([]int, 0, 8),
 		pipelineMode:   options.pipelineMode,
 	}
+	// Atomic has no literal form: store the documented 1.0 default.
+	c.deviceScale.Store(math.Float64bits(1.0))
+	return c
 }
 
 // NewContextWithScale creates a new drawing context with the given logical
@@ -600,20 +606,20 @@ func (c *Context) Height() int {
 // This equals Width() * DeviceScale(), rounded to int.
 // On non-HiDPI displays (scale=1.0), this equals Width().
 func (c *Context) PixelWidth() int {
-	return int(float64(c.width) * c.deviceScale)
+	return int(float64(c.width) * math.Float64frombits(c.deviceScale.Load()))
 }
 
 // PixelHeight returns the physical pixel height of the internal pixmap.
 // This equals Height() * DeviceScale(), rounded to int.
 // On non-HiDPI displays (scale=1.0), this equals Height().
 func (c *Context) PixelHeight() int {
-	return int(float64(c.height) * c.deviceScale)
+	return int(float64(c.height) * math.Float64frombits(c.deviceScale.Load()))
 }
 
 // DeviceScale returns the device scale factor (physical pixels per logical pixel).
 // Default is 1.0. On Retina/HiDPI displays, typical values are 2.0 or 3.0.
 func (c *Context) DeviceScale() float64 {
-	return c.deviceScale
+	return math.Float64frombits(c.deviceScale.Load())
 }
 
 // SetDeviceScale changes the device scale factor on an existing context.
@@ -624,12 +630,12 @@ func (c *Context) DeviceScale() float64 {
 // Use this when the window moves to a display with a different scale factor.
 // Scale must be > 0; values <= 0 are ignored.
 func (c *Context) SetDeviceScale(scale float64) {
-	if scale <= 0 || scale == c.deviceScale {
+	if scale <= 0 || scale == math.Float64frombits(c.deviceScale.Load()) {
 		return
 	}
 
-	oldScale := c.deviceScale
-	c.deviceScale = scale
+	oldScale := math.Float64frombits(c.deviceScale.Load())
+	c.deviceScale.Store(math.Float64bits(scale))
 
 	// Physical dimensions
 	pw := int(float64(c.width) * scale)
@@ -820,7 +826,7 @@ func (c *Context) trackDamage(bounds image.Rectangle) {
 	// (Vulkan VK_KHR_incremental_present, DX12 Present1, EGL, Wayland damage_buffer).
 	// Floor/Ceil ensures conservative rounding with no pixel gaps.
 	if !c.deviceMatrix.IsIdentity() {
-		s := c.deviceScale
+		s := math.Float64frombits(c.deviceScale.Load())
 		bounds = image.Rect(
 			int(math.Floor(float64(bounds.Min.X)*s)),
 			int(math.Floor(float64(bounds.Min.Y)*s)),
@@ -1734,8 +1740,8 @@ func (c *Context) Resize(width, height int) error {
 	c.height = height
 
 	// Physical dimensions
-	pw := int(float64(width) * c.deviceScale)
-	ph := int(float64(height) * c.deviceScale)
+	pw := int(float64(width) * math.Float64frombits(c.deviceScale.Load()))
+	ph := int(float64(height) * math.Float64frombits(c.deviceScale.Load()))
 
 	// Reallocate pixmap at physical resolution
 	c.pixmap = NewPixmap(pw, ph)
@@ -2505,8 +2511,8 @@ func (c *Context) doStroke() error {
 		origScale := c.paint.TransformScale
 		// When TransformScale is unset, propagate HiDPI so GPU stroke width
 		// matches device-space path coordinates.
-		if origScale <= 0 && c.deviceScale > 0 && c.deviceScale != 1 {
-			c.paint.TransformScale = c.deviceScale
+		if ds := math.Float64frombits(c.deviceScale.Load()); origScale <= 0 && ds > 0 && ds != 1 {
+			c.paint.TransformScale = ds
 		}
 		c.path = devicePath
 		ok, _ := c.tryGPUStrokeWithMode(mode)
