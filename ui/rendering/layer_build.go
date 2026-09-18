@@ -520,7 +520,7 @@ func typeName(n RenderObject) string {
 //
 // D3 inline mode: this is the synchronous inline path for unit tests (no
 // raster Loop involved). Windows go through the async embedder+raster Loop;
-// the packet shape is identical on both paths.
+// the packet shape is identical on both paths (both sealed — R2).
 func BuildFramePacket(root RenderObject, frameID uint64, dpr, w, h float64) *scene.FramePacket {
 	begin := time.Now().UnixNano()
 	b := BuildLayerTree(root)

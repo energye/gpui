@@ -1,5 +1,9 @@
 package scene
 
+import (
+	"github.com/energye/gpui/render"
+)
+
 // LayerBuilder constructs a retained layer tree from paint-time callbacks.
 // P2: used by rendering.BuildLayerTree.
 type LayerBuilder struct {
@@ -168,16 +172,31 @@ func (b *LayerBuilder) BuildPacket(frameID uint64, dpr, w, h float64) *FramePack
 		Generation:    frameID,
 	}
 	// Picture layers that need raster also dirty.
-	// Same walk also sums display-list ops (see PictureOpCount).
+	// Same walk also sums display-list ops (see PictureOpCount) and pins
+	// referenced image buffers on the packet (D15).
 	ops := 0
+	seenImg := make(map[*render.ImageBuf]struct{})
 	Walk(b.root, func(l Layer) {
 		if pl, ok := l.(*PictureLayer); ok {
 			ops += pl.Picture.OpCount()
 			if pl.NeedsRaster {
 				pkt.DirtyLayerIDs = append(pkt.DirtyLayerIDs, pl.LayerID())
 			}
+			for i := range pl.Picture.Ops {
+				if op := &pl.Picture.Ops[i]; op.Kind == OpDrawImage && op.Image != nil {
+					if _, dup := seenImg[op.Image]; !dup {
+						seenImg[op.Image] = struct{}{}
+						pkt.RetainedImages = append(pkt.RetainedImages, op.Image)
+					}
+				}
+			}
 		}
 	})
 	b.pictureOpCount = ops
+	// R2-2: every packet leaves BuildPacket sealed — the bare entry seals
+	// too, so raster-side Sealed checks hold for test-built packets as
+	// well as production (wrapper) ones. Overlay attach stays legal once
+	// via the tail flag; sealBuiltPacket's stamps/producer still apply.
+	pkt.Seal()
 	return pkt
 }

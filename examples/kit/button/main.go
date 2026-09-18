@@ -50,6 +50,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/energye/gpui/examples/pfkit"
@@ -124,25 +125,25 @@ func selftest() []pfkit.ResultRow {
 	b.SetType(button.ButtonPrimary)
 	b.Layout(rendering.Loose(1000, 1000))
 	hex := func(c render.RGBA) string {
-		return fmt.Sprintf("#%02x%02x%02x", uint8(c.R*255+0.5), uint8(c.G*255+0.5), uint8(c.B*255+0.5))
+		return fmt.Sprintf("#%02x%02x%02x%02x", uint8(c.R*255+0.5), uint8(c.G*255+0.5), uint8(c.B*255+0.5), uint8(c.A*255+0.5))
 	}
-	if got := hex(b.Fill()); got != "#1677ff" {
-		fail("Base", "fill="+got+" want #1677ff")
+	if got := hex(b.Fill()); got != "#1677ffff" {
+		fail("Base", "fill="+got+" want #1677ffff")
 	} else {
-		ok("Base", "fill #1677ff")
+		ok("Base", "fill #1677ffff")
 	}
 	w, h := b.LaidOut().Width, b.LaidOut().Height
 	b.PointerMove(w/2, h/2)
-	if got := hex(b.Fill()); got != "#4096ff" {
-		fail("Hover", "fill="+got+" want #4096ff")
+	if got := hex(b.Fill()); got != "#4096ffff" {
+		fail("Hover", "fill="+got+" want #4096ffff")
 	} else {
-		ok("Hover", "fill #4096ff")
+		ok("Hover", "fill #4096ffff")
 	}
 	b.PointerDown(w/2, h/2)
-	if got := hex(b.Fill()); got != "#0958d9" {
-		fail("Active", "fill="+got+" want #0958d9")
+	if got := hex(b.Fill()); got != "#0958d9ff" {
+		fail("Active", "fill="+got+" want #0958d9ff")
 	} else {
-		ok("Active", "fill #0958d9")
+		ok("Active", "fill #0958d9ff")
 	}
 	fired := 0
 	b.OnClick = func() { fired++ }
@@ -171,10 +172,10 @@ func selftest() []pfkit.ResultRow {
 	g.Layout(rendering.Loose(1000, 1000))
 	gw, gh := g.LaidOut().Width, g.LaidOut().Height
 	g.PointerMove(gw/2, gh/2)
-	if got := hex(g.Fill()); got != "#ff7875" {
-		fail("DangerHover", "fill="+got+" want #ff7875")
+	if got := hex(g.Fill()); got != "#ff7875ff" {
+		fail("DangerHover", "fill="+got+" want #ff7875ff")
 	} else {
-		ok("DangerHover", "fill #ff7875")
+		ok("DangerHover", "fill #ff7875ff")
 	}
 	return rows
 }
@@ -775,9 +776,17 @@ func buildItems() *builtWindow {
 // move-out quiet, keyboard via RequestFocus + KeyPress — plus kind extras.
 // One row per instance; any FAIL blocks the component close.
 func verifyEveryInstance(items []item) []pfkit.ResultRow {
+	// R3-3: switch probes drive the real example-level wiring below, which
+	// mutates demo globals — save/restore so verification never changes
+	// what the live window opens with.
+	defer func(savedPlace button.IconPlacement, savedSize button.ButtonSize) {
+		iconPlacePos, curSize = savedPlace, savedSize
+	}(iconPlacePos, curSize)
 	rows := []pfkit.ResultRow{}
 	hex := func(c render.RGBA) string {
-		return fmt.Sprintf("#%02x%02x%02x", uint8(c.R*255+0.5), uint8(c.G*255+0.5), uint8(c.B*255+0.5))
+		// R3-3: alpha included — the old #rrggbb silently equated
+		// translucent fills with opaque ones.
+		return fmt.Sprintf("#%02x%02x%02x%02x", uint8(c.R*255+0.5), uint8(c.G*255+0.5), uint8(c.B*255+0.5), uint8(c.A*255+0.5))
 	}
 	// fireViaKey walks the keyboard blade: RequestFocus then KeyPress.
 	// Returns (fired, pressed): fired counts OnClick, pressed is KeyPress return.
@@ -925,16 +934,15 @@ func verifyEveryInstance(items []item) []pfkit.ResultRow {
 				rows = append(rows, pfkit.ResultRow{Name: name, OK: false, Detail: "switch move-out release fired"})
 				continue
 			}
-			// Flip-flop probe: toggling twice returns to start.
-			flipped := false
-			flipped = !flipped
-			if !flipped {
-				rows = append(rows, pfkit.ResultRow{Name: name, OK: false, Detail: "switch state did not flip"})
-				continue
-			}
-			flipped = !flipped
-			if flipped {
-				rows = append(rows, pfkit.ResultRow{Name: name, OK: false, Detail: "switch state did not flip back"})
+			// Switch wiring probe (R3-3): the old flip-flop toggled a
+			// throwaway local bool and proved nothing. Drive the REAL
+			// example-level switcher — the same applySwitch the live
+			// window runs on release — and require the branch to accept
+			// this button's label. Return-value only (never the global):
+			// globals are idempotent across headless/live runs by design.
+			probeLW := &liveWindow{bw: &builtWindow{items: items}}
+			if !probeLW.applySwitch(i) {
+				rows = append(rows, pfkit.ResultRow{Name: name, OK: false, Detail: "switch wiring rejected label"})
 				continue
 			}
 			if k, ok := fireViaKey(b); k != 1 || !ok {
@@ -1063,7 +1071,7 @@ func verifyEveryInstance(items []item) []pfkit.ResultRow {
 			// Clickables must show hover/press feedback (fill moves off base).
 			// Exempt: transparent fills (text/link) and business Style
 			// overrides (semantic hooks own the chrome by design).
-			if it.kind != "semantic" && hoverGot == base && pressGot == base && base != "#ffffff" && base != "#000000" {
+			if it.kind != "semantic" && hoverGot == base && pressGot == base && base != "#ffffffff" && base != "#000000ff" && !strings.HasSuffix(base, "00") {
 				rows = append(rows, pfkit.ResultRow{Name: name, OK: false, Detail: "no hover/press feedback"})
 				continue
 			}
@@ -1100,11 +1108,22 @@ func kitKey(ev platform.Event) string {
 }
 
 func emitJSON(backend string, rows []pfkit.ResultRow, pass bool, presents int64, m manualSummary) {
+	// R3-3: row census travels with the gate (doc-vs-code count drift
+	// bit us before: 133 vs 138 vs 140). Instance rows carry win-NN/
+	// names; everything else is headless selftest.
+	instanceRows := 0
+	for _, r := range rows {
+		if len(r.Name) > 4 && r.Name[:4] == "win-" {
+			instanceRows++
+		}
+	}
 	b, _ := json.Marshal(map[string]any{
-		"scenario": "kit_button",
-		"tab":      "button",
-		"backend":  backend,
-		"rows":     rows,
+		"scenario":      "kit_button",
+		"tab":           "button",
+		"backend":       backend,
+		"rows":          rows,
+		"instance_rows": instanceRows,
+		"selftest_rows": len(rows) - instanceRows,
 		"manual": map[string]any{
 			"pointer": m.Pointer, "key": m.Key, "resize": m.Resize,
 			"activate": m.Activate, "timed": m.Timed, "note": m.Note,
@@ -1524,11 +1543,13 @@ func main() {
 
 	wrkit.EnsureUIFace()
 	bw := buildItems()
-	// Re-run per-instance verification on the live window nodes so the
-	// reported rows describe exactly what the human sees (fresh nodes;
-	// headless pass above already gated open).
-	liveRows := verifyEveryInstance(bw.items)
-	_ = liveRows
+	// R3-3: no live re-verification. Probing mutates node state (OnClick
+	// hijack, loading flags, hover), so running it on the displayed nodes
+	// would strip their demo handlers and stick hover — and the old code
+	// discarded the live rows anyway. Headless throwaway nodes are the
+	// honest verification target; the live window is covered by pixels +
+	// presents below. (The previous comment claiming live rows were
+	// reported was wrong: liveRows was computed then dropped.)
 	fmgr := focus.NewManager()
 	for _, it := range bw.items {
 		if it.b != nil && it.b.Focusable() {

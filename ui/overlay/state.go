@@ -255,14 +255,23 @@ func (s *State) BuildOverlayBand() (scene.Layer, []uint64) {
 // ids. Main DirtyLayerIDs are left unchanged (D5: overlay open must not
 // replace main dirties); the overlay portion is additionally mirrored into
 // pkt.OverlayDirtyLayerIDs (F13) so consumers can assert band separation.
-func (s *State) AttachToPacket(pkt *scene.FramePacket) {
+//
+// R2-3: the overlay tail is the only legal post-Seal mutation, and it runs
+// exactly once — a second attach is refused (false) instead of silently
+// duplicating overlay dirties. Callers in statement position may ignore the
+// result; tests asserting attach behavior should check it.
+func (s *State) AttachToPacket(pkt *scene.FramePacket) bool {
 	if pkt == nil {
-		return
+		return false
+	}
+	if pkt.OverlaySealed {
+		return false
 	}
 	if s == nil || s.Len() == 0 {
 		pkt.Overlay = scene.EnsureOverlayBand(nil)
 		pkt.OverlayDirtyLayerIDs = nil
-		return
+		pkt.OverlaySealed = true
+		return true
 	}
 	layer, dirty := s.BuildOverlayBand()
 	pkt.Overlay = layer
@@ -270,4 +279,9 @@ func (s *State) AttachToPacket(pkt *scene.FramePacket) {
 	if len(dirty) > 0 {
 		pkt.DirtyLayerIDs = append(pkt.DirtyLayerIDs, dirty...)
 	}
+	// D15: overlay images join the packet's retained set (attached
+	// post-Seal, pre-handoff — same lifetime as main-band images).
+	pkt.RetainImagesFrom(layer)
+	pkt.OverlaySealed = true
+	return true
 }

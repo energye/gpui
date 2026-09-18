@@ -239,11 +239,15 @@ func cancelled(ctx context.Context) bool {
 // deliver invokes done unless the request was cancelled. Cancelled
 // jobs are counted and never call back (the window is gone).
 func (p *Pool) deliver(req decodeReq, res Result) {
-	if req.done == nil {
-		return
-	}
+	// R3-5: a nil listener still completed the work — count it instead of
+	// leaking it out of submitted/completed/cancelled reconciliation.
+	// Cancelled checks first: a dead window's result is cancelled, not done.
 	if cancelled(req.ctx) {
 		p.cancelled.Add(1)
+		return
+	}
+	if req.done == nil {
+		p.completed.Add(1)
 		return
 	}
 	p.completed.Add(1)
@@ -260,6 +264,9 @@ func (p *Pool) serveSmall(req decodeReq) {
 			return
 		}
 		req.fn()
+		// R3-5: bare funcs finish here (never reach deliver) — count them,
+		// or Run() jobs leak out of submitted/completed reconciliation.
+		p.completed.Add(1)
 		return
 	}
 	if cancelled(req.ctx) {
@@ -268,17 +275,19 @@ func (p *Pool) serveSmall(req decodeReq) {
 	}
 	if p.isLarge(req) {
 		// Forward under sendMu so Close cannot close largeJobs mid-send
-		// (R0-4). The count is taken only when the pool is still open.
+		// (R0-4). R3-5: largeRouted counts successful enqueues only — the
+		// old code counted before queueing, so a ctx-cancelled forward
+		// scored routed AND cancelled for work the large lane never saw.
 		p.sendMu.RLock()
 		if p.closed.Load() {
 			p.sendMu.RUnlock()
 			p.cancelled.Add(1)
 			return
 		}
-		p.largeJobsN.Add(1)
 		if req.ctx != nil {
 			select {
 			case p.largeJobs <- req:
+				p.largeJobsN.Add(1)
 			case <-req.ctx.Done():
 				p.cancelled.Add(1)
 			}
@@ -286,6 +295,7 @@ func (p *Pool) serveSmall(req decodeReq) {
 			return
 		}
 		p.largeJobs <- req
+		p.largeJobsN.Add(1)
 		p.sendMu.RUnlock()
 		return
 	}
@@ -300,6 +310,8 @@ func (p *Pool) serveDecode(req decodeReq) {
 			return
 		}
 		req.fn()
+		// R3-5: same completed accounting as the small-lane bare path.
+		p.completed.Add(1)
 		return
 	}
 	if cancelled(req.ctx) {

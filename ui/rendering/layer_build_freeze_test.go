@@ -81,9 +81,7 @@ func TestBuildFramePacket_SealedReadOnly(t *testing.T) {
 	if pkt.RasterBeginNs != 0 || pkt.RasterEndNs != 0 {
 		t.Fatal("raster stamps must stay zero until T2 wires the raster thread")
 	}
-	if pkt.RegenerateFrom != 0 {
-		t.Fatalf("fresh build RegenerateFrom=%d want 0 (G2)", pkt.RegenerateFrom)
-	}
+	// (G2 RegenerateFrom deleted in R2: zero production consumers.)
 }
 
 // TestBuildFramePacket_MutateTreeKeepsHandedOffPacket: changing the RO tree

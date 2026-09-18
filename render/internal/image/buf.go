@@ -42,6 +42,14 @@ var nextImageBufGenID atomic.Uint64
 
 // ImageBuf is a memory-efficient image buffer with support for multiple pixel formats.
 type ImageBuf struct {
+	// mu guards every field Dispose mutates (disposed/data/dims/genID/
+	// gpuDirty). Post-T2 the raster thread reads buffers while the UI
+	// thread may Dispose them (image replace/clear races a retained
+	// record); plain fields were a data race AND torn reads. Writers
+	// stay UI-confined per the package contract (external sync); only
+	// Dispose crosses threads, so readers take RLock and Dispose takes
+	// Lock. Lock order is always mu → premulMu, never the reverse.
+	mu     sync.RWMutex
 	data   []byte
 	width  int
 	height int
@@ -72,7 +80,12 @@ type ImageBuf struct {
 // This does not return the buffer to a pool; it drops CPU backing so GC can
 // reclaim and so accidental draws after release fail closed (no-op / empty).
 func (b *ImageBuf) Dispose() {
-	if b == nil || b.disposed {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.disposed {
 		return
 	}
 	b.disposed = true
@@ -90,7 +103,12 @@ func (b *ImageBuf) Dispose() {
 
 // Disposed reports whether Dispose has been called (or b is nil).
 func (b *ImageBuf) Disposed() bool {
-	return b == nil || b.disposed
+	if b == nil {
+		return true
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.disposed
 }
 
 // NewImageBuf creates a new image buffer with the given dimensions and format.
@@ -176,6 +194,8 @@ func FromRaw(data []byte, width, height int, format Format, stride int) (*ImageB
 
 // Clone creates a deep copy of the image buffer.
 func (b *ImageBuf) Clone() *ImageBuf {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	newData := make([]byte, len(b.data))
 	copy(newData, b.data)
 
@@ -192,7 +212,12 @@ func (b *ImageBuf) Clone() *ImageBuf {
 
 // Width returns the image width in pixels (0 if disposed/nil).
 func (b *ImageBuf) Width() int {
-	if b == nil || b.disposed {
+	if b == nil {
+		return 0
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
 		return 0
 	}
 	return b.width
@@ -200,7 +225,12 @@ func (b *ImageBuf) Width() int {
 
 // Height returns the image height in pixels (0 if disposed/nil).
 func (b *ImageBuf) Height() int {
-	if b == nil || b.disposed {
+	if b == nil {
+		return 0
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
 		return 0
 	}
 	return b.height
@@ -208,12 +238,22 @@ func (b *ImageBuf) Height() int {
 
 // Stride returns the number of bytes per row (including padding).
 func (b *ImageBuf) Stride() int {
+	if b == nil {
+		return 0
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.stride
 }
 
 // GenerationID returns the unique identifier for this image buffer's content.
 // Used by GPU texture cache to avoid stale texture reuse (ADR-014).
 func (b *ImageBuf) GenerationID() uint64 {
+	if b == nil {
+		return 0
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.genID
 }
 
@@ -261,6 +301,8 @@ func (b *ImageBuf) TakeGPUDirty() bool {
 	if b == nil {
 		return false
 	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	d := b.gpuDirty
 	b.gpuDirty = false
 	return d
@@ -271,6 +313,8 @@ func (b *ImageBuf) IsGPUDirty() bool {
 	if b == nil {
 		return false
 	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.gpuDirty
 }
 
@@ -281,7 +325,12 @@ func (b *ImageBuf) Format() Format {
 
 // Bounds returns the image dimensions as (width, height) (0,0 if disposed).
 func (b *ImageBuf) Bounds() (int, int) {
-	if b == nil || b.disposed {
+	if b == nil {
+		return 0, 0
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
 		return 0, 0
 	}
 	return b.width, b.height
@@ -291,7 +340,12 @@ func (b *ImageBuf) Bounds() (int, int) {
 // Modifying this data will affect the image; call InvalidatePremulCache()
 // after modifications if premultiplied data may have been cached.
 func (b *ImageBuf) Data() []byte {
-	if b == nil || b.disposed {
+	if b == nil {
+		return nil
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
 		return nil
 	}
 	return b.data
@@ -300,7 +354,12 @@ func (b *ImageBuf) Data() []byte {
 // RowBytes returns a slice of the pixel data for row y.
 // Returns nil if y is out of bounds.
 func (b *ImageBuf) RowBytes(y int) []byte {
-	if y < 0 || y >= b.height {
+	if b == nil {
+		return nil
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed || y < 0 || y >= b.height {
 		return nil
 	}
 	start := y * b.stride
@@ -311,6 +370,14 @@ func (b *ImageBuf) RowBytes(y int) []byte {
 // PixelOffset returns the byte offset of pixel (x, y) in the data slice.
 // Returns -1 if coordinates are out of bounds.
 func (b *ImageBuf) PixelOffset(x, y int) int {
+	if b == nil {
+		return -1
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
+		return -1
+	}
 	if x < 0 || x >= b.width || y < 0 || y >= b.height {
 		return -1
 	}
@@ -320,10 +387,20 @@ func (b *ImageBuf) PixelOffset(x, y int) int {
 // PixelBytes returns a slice of the raw bytes for pixel (x, y).
 // Returns nil if coordinates are out of bounds.
 func (b *ImageBuf) PixelBytes(x, y int) []byte {
-	offset := b.PixelOffset(x, y)
-	if offset < 0 {
+	if b == nil {
 		return nil
 	}
+	// Single RLock for offset math + backing read (never nest PixelOffset's
+	// lock: recursive RLock deadlocks once a writer waits).
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
+		return nil
+	}
+	if x < 0 || x >= b.width || y < 0 || y >= b.height {
+		return nil
+	}
+	offset := y*b.stride + x*b.format.BytesPerPixel()
 	bpp := b.format.BytesPerPixel()
 	return b.data[offset : offset+bpp]
 }
@@ -440,6 +517,16 @@ func (b *ImageBuf) InvalidatePremulCache() {
 // The result is cached for efficiency; call InvalidatePremulCache() if the
 // original data has been modified.
 func (b *ImageBuf) PremultipliedData() []byte {
+	if b == nil {
+		return nil
+	}
+	// Outer life lock (mu → premulMu order, same as Dispose): a concurrent
+	// Dispose cannot nil the backing mid-compute.
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
+		return nil
+	}
 	// Fast path: format already premultiplied or has no alpha
 	if b.format.IsPremultiplied() || !b.format.HasAlpha() {
 		return b.data
@@ -529,6 +616,16 @@ func (b *ImageBuf) IsPremulCached() bool {
 // Modifications to the sub-image affect the original and vice versa.
 // Returns nil if the bounds are invalid or outside the image.
 func (b *ImageBuf) SubImage(x, y, width, height int) *ImageBuf {
+	if b == nil {
+		return nil
+	}
+	// Validate and slice under one RLock so a concurrent Dispose cannot
+	// move the bounds mid-check.
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.disposed {
+		return nil
+	}
 	// Validate bounds
 	if x < 0 || y < 0 || width <= 0 || height <= 0 {
 		return nil
@@ -555,10 +652,20 @@ func (b *ImageBuf) SubImage(x, y, width, height int) *ImageBuf {
 
 // ByteSize returns the total size of the image data in bytes.
 func (b *ImageBuf) ByteSize() int {
+	if b == nil {
+		return 0
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return len(b.data)
 }
 
 // IsEmpty returns true if the image has zero dimensions.
 func (b *ImageBuf) IsEmpty() bool {
-	return b.width == 0 || b.height == 0
+	if b == nil {
+		return true
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.disposed || b.width == 0 || b.height == 0
 }

@@ -77,29 +77,24 @@ func TestFramePacket_PostFrameHooksSealGate(t *testing.T) {
 	}
 }
 
-// T1 hops table (D10): every UI-thread direct call is listed, unknown refused.
-func TestFramePacket_HopsTableComplete(t *testing.T) {
-	for _, name := range []string{"blink", "ime", "clipboard", "overlay", "input", "focus"} {
-		if !scene.IsAllowedHop(name) {
-			t.Fatalf("hop %q must be listed", name)
-		}
+// T1 thread split (ex-D10): UI-thread work stays on the UI thread; the
+// raster thread never calls back into UI services. The old hops lookup
+// table was deleted in R2 (zero production consumers — documentation by
+// test only); the rule lives on as code placement (ui/* vs raster job).
+func TestFramePacket_SealGateDocumented(t *testing.T) {
+	pkt := &scene.FramePacket{FrameID: 7}
+	if pkt.IsSealed() {
+		t.Fatal("fresh packet must not be sealed")
 	}
-	if scene.IsAllowedHop("gpu-submit") {
-		t.Fatal("gpu-submit must never be an allowed hop (ui never touches gpu)")
-	}
-	hops := scene.ListFrameHops()
-	if len(hops) != len(scene.FrameHops) {
-		t.Fatal("ListFrameHops must mirror the table")
-	}
-	hops[0].Name = "mutated"
-	if scene.FrameHops[0].Name == "mutated" {
-		t.Fatal("ListFrameHops must return a copy")
+	pkt.Seal()
+	if !pkt.IsSealed() {
+		t.Fatal("Seal must stick")
 	}
 }
 
-// T1 CloneShallow carries the new EndFrame state (seal/producer/stamps/regen).
+// T1 CloneShallow carries the new EndFrame state (seal/producer/stamps).
 func TestFramePacket_CloneShallowCarriesSealState(t *testing.T) {
-	pkt := &scene.FramePacket{FrameID: 1, Producer: scene.ProducerUI, RegenerateFrom: 0}
+	pkt := &scene.FramePacket{FrameID: 1, Producer: scene.ProducerUI}
 	pkt.MarkBuildBegin()
 	pkt.MarkBuildEnd()
 	pkt.Seal()

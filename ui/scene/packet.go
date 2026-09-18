@@ -1,6 +1,10 @@
 package scene
 
-import "time"
+import (
+	"time"
+
+	"github.com/energye/gpui/render"
+)
 
 // MutationKind classifies FramePacket mutations (incremental updates).
 type MutationKind int
@@ -81,12 +85,13 @@ type FramePacket struct {
 	// Sealed marks EndFrame (G3): BuildPacket seals the main band.
 	// True = handed-off read-only (overlay tail excepted, see above).
 	Sealed bool
+	// OverlaySealed marks the overlay tail done: AttachToPacket ran once.
+	// A second attach is refused (returns false) — double-attach used to
+	// silently duplicate overlay dirties. Copied by CloneShallow.
+	OverlaySealed bool
 	// Producer names the building thread (G1 platform-line split).
 	// "ui" = interface thread; "" = unknown (pre-T1 packets in tests).
 	Producer string
-	// RegenerateFrom reuses an older packet without rebuilding (G2).
-	// 0 = fresh build; non-zero = pure-composite frame of that FrameID.
-	RegenerateFrom uint64
 
 	// Per-frame four stamps (G10, UnixNano): build begin/end are stamped
 	// by ui/rendering at build time; raster begin/end by the raster thread
@@ -100,6 +105,16 @@ type FramePacket struct {
 	// Registered pre-Seal on the UI thread; executed on the raster thread.
 	// Copied (not shared) by CloneShallow like the dirty slices.
 	PostFrameHooks []func(frameID uint64)
+
+	// RetainedImages pins every ImageBuf referenced by display-list
+	// OpDrawImage ops until the packet is dropped after present (D15).
+	// The ops hold the same pointers (GC liveness), but the explicit list
+	// is the audit trail for "what must survive this frame" and keeps
+	// shared/disowned buffers alive after the tree drops them (image
+	// replace clears the node while the packet is still in flight).
+	// Collected at build (BuildPacket) and overlay attach; carried by
+	// CloneShallow. Nil = no image content (zero cost).
+	RetainedImages []*render.ImageBuf
 }
 
 // Producer identities (G1).
@@ -108,8 +123,9 @@ const (
 	ProducerUI      = "ui"
 )
 
-// Seal marks EndFrame: the packet is handed off read-only (G3).
-// Overlay attach before the handoff is the documented exception.
+// Seal marks EndFrame: the main band is handed off read-only (G3).
+// Idempotent. The overlay tail (AttachToPacket, once) is the only legal
+// post-Seal mutation; everything else must happen pre-Seal.
 func (p *FramePacket) Seal() {
 	if p == nil {
 		return
@@ -178,40 +194,6 @@ func (p *FramePacket) AddPostFrameHook(fn func(frameID uint64)) bool {
 	return true
 }
 
-// FrameHop documents one allowed same-thread direct call (D10).
-// Anything not listed here must go through the packet, never direct.
-type FrameHop struct {
-	Name   string
-	Thread string
-	Note   string
-}
-
-// FrameHops is the T1 hops table (D10): blink/IME/clipboard/overlay stay
-// on the interface thread; the raster thread never calls back into them.
-var FrameHops = []FrameHop{
-	{Name: "blink", Thread: "ui", Note: "blinkPump.TickBlink advances caret phase on the UI thread"},
-	{Name: "ime", Thread: "ui", Note: "platform.IME via InputRouter on the UI thread"},
-	{Name: "clipboard", Thread: "ui", Note: "platform.Clipboard via InputRouter on the UI thread"},
-	{Name: "overlay", Thread: "ui", Note: "overlay.State.AttachToPacket fills the band pre-handoff on the UI thread"},
-	{Name: "input", Thread: "ui", Note: "InputRouter.RoutePlatform normalizes events on the UI thread"},
-	{Name: "focus", Thread: "ui", Note: "focus/gestures/textinput stay on the UI thread"},
-}
-
-// ListFrameHops returns a copy of the hops table (caller may mutate it).
-func ListFrameHops() []FrameHop {
-	return append([]FrameHop(nil), FrameHops...)
-}
-
-// IsAllowedHop reports whether name is in the hops table.
-func IsAllowedHop(name string) bool {
-	for _, h := range FrameHops {
-		if h.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
 // CloneShallow shares Root/Overlay pointers and copies mutation/dirty slices.
 // This is the only supported "copy" path — never deep-clone the layer tree.
 func (p *FramePacket) CloneShallow() *FramePacket {
@@ -234,7 +216,37 @@ func (p *FramePacket) CloneShallow() *FramePacket {
 	if p.PostFrameHooks != nil {
 		out.PostFrameHooks = append([]func(frameID uint64){}, p.PostFrameHooks...)
 	}
+	if p.RetainedImages != nil {
+		out.RetainedImages = append([]*render.ImageBuf(nil), p.RetainedImages...)
+	}
 	return &out
+}
+
+// RetainImagesFrom collects ImageBufs referenced by OpDrawImage ops under l
+// into the packet (D15). Called at build for the main band and by overlay
+// attach for the overlay band (attached post-Seal, pre-handoff).
+func (p *FramePacket) RetainImagesFrom(l Layer) {
+	if p == nil || l == nil {
+		return
+	}
+	seen := make(map[*render.ImageBuf]struct{}, len(p.RetainedImages))
+	for _, img := range p.RetainedImages {
+		seen[img] = struct{}{}
+	}
+	Walk(l, func(n Layer) {
+		pl, ok := n.(*PictureLayer)
+		if !ok {
+			return
+		}
+		for i := range pl.Picture.Ops {
+			if op := &pl.Picture.Ops[i]; op.Kind == OpDrawImage && op.Image != nil {
+				if _, dup := seen[op.Image]; !dup {
+					seen[op.Image] = struct{}{}
+					p.RetainedImages = append(p.RetainedImages, op.Image)
+				}
+			}
+		}
+	})
 }
 
 // ShareRoot reports whether a and b reference the same root pointer (COW share).
