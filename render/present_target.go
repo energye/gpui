@@ -506,21 +506,35 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
 	}
 
-	// Bind shared device for GPU-accelerated draws (blank clear still works if this fails).
-	_ = SetAcceleratorDeviceProvider(&webgpu.SimpleDeviceProvider{
-		Dev: device, Adpt: adapter, Format: sc.Format,
-	})
-
 	// Publish the first window's chain as the process share (later windows
 	// borrow it; last Close releases it).
+	// R0-2: never overwrite an existing share. Concurrent opens that lose
+	// the race drop their own chain and borrow the winner instead of
+	// leaking the first device and resetting its refcount to 1.
 	shareMu.Lock()
+	if shareDevice != nil {
+		shareMu.Unlock()
+		sc.Release()
+		surf.Release()
+		device.Release()
+		adapter.Release()
+		inst.Release()
+		return buildSharedSurface(ns, logicalW, logicalH, scale)
+	}
 	shareInst, shareAdapter, shareDevice = inst, adapter, device
 	shareRefs = 1
 	shareMu.Unlock()
 
+	// Bind shared device for GPU-accelerated draws (blank clear still works
+	// if this fails). Bound only on the winning publish above, so a loser
+	// never rebinds the accelerator to a device it just released.
+	_ = SetAcceleratorDeviceProvider(&webgpu.SimpleDeviceProvider{
+		Dev: device, Adpt: adapter, Format: sc.Format,
+	})
+
 	dc := NewContext(logicalW, logicalH, WithDeviceScale(scale))
 
-	return &PresentTarget{
+	t := &PresentTarget{
 		ns:      ns,
 		logicW:  logicalW,
 		logicH:  logicalH,
@@ -539,7 +553,14 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// (fixedNoVsync) stays non-blocking permanently instead.
 		vsyncOn:      !fixedNoVsync,
 		fixedNoVsync: fixedNoVsync,
-	}, nil
+	}
+	// R0-6: track every live target so a shared recovery can reconfigure
+	// all swapchains exactly once.
+	shareMu.Lock()
+	shareGen++
+	registerSharedTarget(t)
+	shareMu.Unlock()
+	return t, nil
 }
 
 // peekShared snapshots the share state (borrowable = device published).
@@ -553,29 +574,54 @@ func peekShared() (inst *webgpu.Instance, adapter *webgpu.Adapter, device *webgp
 // swapchain on the shared device. Non-OOM errors return directly; OOM-class
 // errors return for the downgrade chain to try a lower level.
 func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale float64) (*PresentTarget, error) {
+	// R0-3: pin a share ref across the slow ops below. Snapshotting the
+	// pointers without a ref lets the owner Close free them mid-build, so
+	// the borrow continues on a dead device and then resurrects the count.
 	shareMu.Lock()
 	inst, device := shareInst, shareDevice
-	shareMu.Unlock()
 	if device == nil || inst == nil {
+		shareMu.Unlock()
 		return nil, errors.New("render: shared present device not open")
+	}
+	adapter := shareAdapter
+	shareRefs++
+	shareMu.Unlock()
+	// dropPin releases the pin taken above; success paths keep it as the
+	// borrower's own ref.
+	dropPin := func() {
+		shareMu.Lock()
+		shareRefs--
+		shareMu.Unlock()
 	}
 	backend := surfaceBackendFor(ns.Platform)
 	surf, err := inst.CreateSurfaceFor(backend, ns.Display, ns.Window)
 	if err != nil {
+		dropPin()
 		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
 	}
 	physW, physH := physicalSize(logicalW, logicalH, scale)
 	sc := webgpu.NewSwapchain(surf, device, physW, physH)
 	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
 	sc.SetPreferVSync()
-	shareMu.Lock()
-	adapter := shareAdapter
-	shareMu.Unlock()
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		surf.Release()
+		dropPin()
 		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
 	}
-	// Same device as the share: take the refcount. Do NOT rebind the
+	// Defensive: the share must still be the chain we pinned. With the pin
+	// held the owner cannot free it, so any mismatch is a logic error —
+	// fail closed instead of counting a dead device.
+	shareMu.Lock()
+	if shareDevice != device || shareInst != inst {
+		shareRefs--
+		shareMu.Unlock()
+		sc.Release()
+		surf.Release()
+		return nil, fmt.Errorf("render: shared present device changed during open: %w", errSharedNotOpen)
+	}
+	shareMu.Unlock()
+	// Same device as the share: the pin above is this borrower's refcount.
+	// Do NOT rebind the
 	// global accelerator provider here: the rebind invalidates every
 	// live GPU session (abandonAllContextGPU) and a concurrent flush on
 	// another window's raster thread rebuilds its session against the
@@ -583,11 +629,8 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	// Rebinding with the identical device is a no-op for correctness
 	// and a crash vector for concurrency (two sessions racing
 	// ensureTexturesForView on the post-abandon rebuild → nil pass).
-	shareMu.Lock()
-	shareRefs++
-	shareMu.Unlock()
 	dc := NewContext(logicalW, logicalH, WithDeviceScale(scale))
-	return &PresentTarget{
+	t := &PresentTarget{
 		ns:                ns,
 		logicW:            logicalW,
 		logicH:            logicalH,
@@ -601,7 +644,13 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		dc:                dc,
 		resizeStormWindow: 300 * time.Millisecond,
 		vsyncOn:           true,
-	}, nil
+	}
+	// R0-6: track every live target so a shared recovery can reconfigure
+	// all swapchains exactly once (the pin above is this borrower's ref).
+	shareMu.Lock()
+	registerSharedTarget(t)
+	shareMu.Unlock()
+	return t, nil
 }
 
 func surfaceBackendFor(p PresentPlatform) webgpu.SurfaceBackend {
@@ -1004,7 +1053,28 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG present BeginFrame err=%v (logic %dx%d)\n", err, t.logicW, t.logicH)
 		}
-		return out, fmt.Errorf("render: BeginFrame: %w", err)
+		// R0-6: a lost shared device recovers once for ALL windows
+		// (abandon once + recreate once + reconfigure every swapchain)
+		// instead of each window racing its own recovery on a device it
+		// does not own. Drop t.mu across the slow recovery, then retry
+		// the acquire exactly once.
+		if t.shouldRecoverSharedLocked(err) {
+			t.mu.Unlock()
+			rerr := RecoverSharedDevice()
+			t.mu.Lock()
+			if rerr != nil {
+				return out, fmt.Errorf("render: shared recovery: %v (present: %w)", rerr, err)
+			}
+			if t.closed || t.sc == nil || t.device == nil {
+				return out, errors.New("render: PresentTarget closed during recovery")
+			}
+			frame, err = t.sc.BeginFrame()
+			if err != nil {
+				return out, fmt.Errorf("render: BeginFrame after recovery: %w", err)
+			}
+		} else {
+			return out, fmt.Errorf("render: BeginFrame: %w", err)
+		}
 	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
 		if d := time.Since(pBegin); d > 20*time.Millisecond {
@@ -1110,6 +1180,8 @@ func (t *PresentTarget) Close() error {
 		return nil
 	}
 	t.closed = true
+	// R0-6: drop the recovery-registry entry on every close path below.
+	defer unregisterSharedTarget(t)
 	if t.dc != nil {
 		_ = t.dc.Close()
 		t.dc = nil
@@ -1129,6 +1201,23 @@ func (t *PresentTarget) Close() error {
 		releaseShared()
 		return nil
 	}
+	// R0-1: the owner window's device is the published share. Never Release
+	// it directly while borrowers may hold refs — that leaves the share
+	// pointer (and every borrower's handle) wild while releaseShared keeps
+	// the non-nil pointer alive. Clear our aliases and let releaseShared
+	// own the lifetime (last close releases).
+	shareMu.Lock()
+	isShare := t.device != nil && t.device == shareDevice
+	shareMu.Unlock()
+	if isShare {
+		t.device = nil
+		t.adapter = nil
+		t.inst = nil
+		releaseShared()
+		return nil
+	}
+	// Orphan device (not the published share): release directly and do NOT
+	// touch the share refcount, which belongs to another chain.
 	if t.device != nil {
 		t.device.Release()
 		t.device = nil
@@ -1141,6 +1230,5 @@ func (t *PresentTarget) Close() error {
 		t.inst.Release()
 		t.inst = nil
 	}
-	releaseShared()
 	return nil
 }

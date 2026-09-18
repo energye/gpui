@@ -151,6 +151,10 @@ type Pool struct {
 	completed  atomic.Int64
 	cancelled  atomic.Int64
 	largeJobsN atomic.Int64
+	// closed marks Close called; sendMu serializes sends vs Close so a
+	// send never races a channel close (R0-4 send-on-closed).
+	closed atomic.Bool
+	sendMu sync.RWMutex
 }
 
 // Default is a process-wide pool with 2 workers. Never Close it:
@@ -194,8 +198,14 @@ func (p *Pool) Close() {
 		return
 	}
 	p.closeOnce.Do(func() {
+		// Mark closed first so late submitters drop without sending;
+		// sendMu guarantees in-flight sends finish before channels close
+		// (R0-4: never send on a closed channel, select+ctx cannot save it).
+		p.closed.Store(true)
+		p.sendMu.Lock()
 		close(p.jobs)
 		close(p.largeJobs)
+		p.sendMu.Unlock()
 	})
 	p.wg.Wait()
 }
@@ -257,6 +267,14 @@ func (p *Pool) serveSmall(req decodeReq) {
 		return
 	}
 	if p.isLarge(req) {
+		// Forward under sendMu so Close cannot close largeJobs mid-send
+		// (R0-4). The count is taken only when the pool is still open.
+		p.sendMu.RLock()
+		if p.closed.Load() {
+			p.sendMu.RUnlock()
+			p.cancelled.Add(1)
+			return
+		}
 		p.largeJobsN.Add(1)
 		if req.ctx != nil {
 			select {
@@ -264,9 +282,11 @@ func (p *Pool) serveSmall(req decodeReq) {
 			case <-req.ctx.Done():
 				p.cancelled.Add(1)
 			}
+			p.sendMu.RUnlock()
 			return
 		}
 		p.largeJobs <- req
+		p.sendMu.RUnlock()
 		return
 	}
 	p.serveDecode(req)
@@ -321,6 +341,14 @@ func (p *Pool) submit(req decodeReq) {
 		p = Default
 	}
 	if cancelled(req.ctx) {
+		p.cancelled.Add(1)
+		return
+	}
+	// Hold RLock across the closed-check and the send so Close (Lock)
+	// cannot close the channel between them (R0-4).
+	p.sendMu.RLock()
+	defer p.sendMu.RUnlock()
+	if p.closed.Load() {
 		p.cancelled.Add(1)
 		return
 	}
@@ -380,6 +408,12 @@ func (p *Pool) Run(fn func()) {
 	if fn == nil {
 		return
 	}
+	p.sendMu.RLock()
+	defer p.sendMu.RUnlock()
+	if p.closed.Load() {
+		p.cancelled.Add(1)
+		return
+	}
 	p.submitted.Add(1)
 	p.jobs <- decodeReq{fn: fn}
 }
@@ -394,6 +428,12 @@ func (p *Pool) RunWithContext(ctx context.Context, fn func()) {
 		return
 	}
 	if cancelled(ctx) {
+		p.cancelled.Add(1)
+		return
+	}
+	p.sendMu.RLock()
+	defer p.sendMu.RUnlock()
+	if p.closed.Load() {
 		p.cancelled.Add(1)
 		return
 	}

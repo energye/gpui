@@ -19,6 +19,13 @@ const defaultImageCacheBudget = 128 // S6.7: raised from 64 for denser UI icon s
 // defaultImageCacheBudgetBytes caps resident image texture bytes (~64 MiB).
 const defaultImageCacheBudgetBytes int64 = 64 << 20
 
+// Fair-share floors (R0-5): per-window image-cache caps never shrink below
+// these, no matter how many windows share the device.
+const (
+	minImageCacheBudget      = 16
+	minImageCacheBudgetBytes = 8 << 20
+)
+
 // imageCacheEntry holds a GPU texture and view for a cached image.
 type imageCacheEntry struct {
 	texture *webgpu.Texture
@@ -51,8 +58,11 @@ type ImageCache struct {
 	entries     map[uint64]*imageCacheEntry // keyed by Pixmap.GenerationID()
 	budget      int
 	budgetBytes int64
-	usedBytes   int64
-	gen         uint64 // global LRU generation counter
+	// explicitBudgets marks SetBudgets overrides: explicit per-cache tuning
+	// wins over the multi-window fair share below (R0-5).
+	explicitBudgets bool
+	usedBytes       int64
+	gen             uint64 // global LRU generation counter
 
 	// Stats
 	hits             uint64
@@ -118,16 +128,56 @@ func NewImageCache(device *webgpu.Device, queue *webgpu.Queue) *ImageCache {
 }
 
 // SetBudgets updates entry and byte soft limits (tests/tuning).
+// Explicit values win over the multi-window fair share (R0-5).
 func (c *ImageCache) SetBudgets(entries int, bytes int64) {
 	if c == nil {
 		return
 	}
 	if entries > 0 {
 		c.budget = entries
+		c.explicitBudgets = true
 	}
 	if bytes > 0 {
 		c.budgetBytes = bytes
+		c.explicitBudgets = true
 	}
+}
+
+// effBudget returns the binding entry cap: explicit SetBudgets wins,
+// otherwise the default divided across live shared-device windows (R0-5
+// fair share — N per-window 128-entry caches would otherwise hold N× the
+// process budget). Single-window behavior is unchanged.
+func (c *ImageCache) effBudget() int {
+	if c != nil && c.explicitBudgets && c.budget > 0 {
+		return c.budget
+	}
+	if w := render.SharedWindowCount(); w > 1 {
+		if fair := defaultImageCacheBudget / w; fair >= minImageCacheBudget {
+			return fair
+		}
+		return minImageCacheBudget
+	}
+	if c != nil && c.budget > 0 {
+		return c.budget
+	}
+	return defaultImageCacheBudget
+}
+
+// effBudgetBytes returns the binding byte cap (same fair-share rule).
+func (c *ImageCache) effBudgetBytes() int64 {
+	if c != nil && c.explicitBudgets && c.budgetBytes > 0 {
+		return c.budgetBytes
+	}
+	if w := render.SharedWindowCount(); w > 1 {
+		if fair := defaultImageCacheBudgetBytes / int64(w); fair >= minImageCacheBudgetBytes {
+			return fair
+		}
+		return minImageCacheBudgetBytes
+	}
+	if c != nil && c.budgetBytes > 0 {
+		return c.budgetBytes
+	}
+	return defaultImageCacheBudgetBytes
 }
 
 // GetOrUpload returns the cached GPU texture view for the given image data,
@@ -403,7 +453,7 @@ func (c *ImageCache) removeEntry(key uint64, entry *imageCacheEntry) {
 
 // evictIfNeeded frees LRU entries until under entry and byte budgets and room for needBytes.
 func (c *ImageCache) evictIfNeeded(needBytes int64) {
-	for len(c.entries) >= c.budget || (c.budgetBytes > 0 && c.usedBytes+needBytes > c.budgetBytes) {
+	for len(c.entries) >= c.effBudget() || (c.effBudgetBytes() > 0 && c.usedBytes+needBytes > c.effBudgetBytes()) {
 		if len(c.entries) == 0 {
 			return
 		}

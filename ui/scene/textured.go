@@ -108,6 +108,10 @@ type PictureTextureCache struct {
 	// Evictions is the cumulative count of entries dropped by the capacity
 	// LRU in evictForNew (R14 observability). Guarded by mu.
 	Evictions int64
+	// budgetRefusals counts EnsureCapacity growth refusals under
+	// multi-window budget pressure (R0-5). Guarded by mu; read via
+	// BudgetRefusals.
+	budgetRefusals int64
 }
 
 type pictureTextureSlot struct {
@@ -186,7 +190,68 @@ func (c *PictureTextureCache) EnsureCapacity(n int) {
 	if n <= c.max {
 		return
 	}
+	// R0-5: N windows share one process VRAM budget, but every window used
+	// to grow its own cap to its full working set — the sum exceeds the
+	// budget with nobody refusing until native alloc fails on all windows
+	// at once. Clamp automatic growth to the per-window fair share and
+	// refuse it past the process waterline; evicted layers re-record
+	// (correctness never depends on the cache). Explicit SetBudget pins
+	// are user intent and keep their R14 semantics (checked at eviction).
+	if fair := render.PictureCacheFairMax(c.avgEntryBytesLocked(), c.fallbackEntryBytesLocked()); fair > 0 && n > fair {
+		n = fair
+		if n <= c.max {
+			c.budgetRefusals++
+			return
+		}
+	}
+	if render.SharedWindowCount() > 1 && render.VramPressureHigh() {
+		c.budgetRefusals++
+		return
+	}
 	c.max = n
+}
+
+// BudgetRefusals reports cumulative EnsureCapacity growth refusals under
+// multi-window budget pressure (R0-5). Lock-guarded (unlike the legacy
+// bare Evictions read — do not add new bare reads).
+func (c *PictureTextureCache) BudgetRefusals() int64 {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.budgetRefusals
+}
+
+// avgEntryBytesLocked estimates one entry from live entries (caller holds
+// mu); 0 when the cache is still empty.
+func (c *PictureTextureCache) avgEntryBytesLocked() uint64 {
+	if len(c.entries) == 0 {
+		return 0
+	}
+	var sum, n uint64
+	for _, e := range c.entries {
+		if e == nil {
+			continue
+		}
+		if w, h := e.bounds.Dx(), e.bounds.Dy(); w > 0 && h > 0 {
+			sum += uint64(w) * uint64(h) * 4
+			n++
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	return sum / n
+}
+
+// fallbackEntryBytesLocked estimates one entry from the window size when
+// the cache is still empty (caller holds mu); 0 when unknown.
+func (c *PictureTextureCache) fallbackEntryBytesLocked() uint64 {
+	if c.width > 0 && c.height > 0 {
+		return uint64(c.width) * uint64(c.height) * 4
+	}
+	return 0
 }
 
 // SetBudget pins an explicit entry budget (R14). 0 = automatic (default: the

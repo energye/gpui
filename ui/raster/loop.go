@@ -28,6 +28,11 @@ type Loop struct {
 	jobs  chan FrameJob
 	quit  chan struct{}
 
+	// mu serializes Start/Stop lifecycle transitions (R0-7): Stop closes
+	// quit, so a later Start must create a fresh quit channel — otherwise
+	// the new goroutine sees the closed quit immediately and exits without
+	// ever consuming jobs. jobs is never closed and survives restarts.
+	mu      sync.Mutex
 	started atomic.Bool
 	wg      sync.WaitGroup
 
@@ -56,10 +61,27 @@ func NewLoop(depth int, metrics *scheduler.MetricsStore) *Loop {
 }
 
 // Start launches the raster goroutine locked to an OS thread.
+// Safe to call after Stop: a fresh quit channel is created so the new
+// goroutine does not exit on the previously closed quit (R0-7). A stale
+// pending latest-wins job is requeued so its Done waiter still fires.
 func (l *Loop) Start() {
-	if l == nil || !l.started.CompareAndSwap(false, true) {
+	if l == nil {
 		return
 	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.started.Load() {
+		return
+	}
+	l.quit = make(chan struct{})
+	if pj, ok := l.pending.Take(); ok {
+		select {
+		case l.jobs <- pj:
+		default:
+			l.pending.Store(pj)
+		}
+	}
+	l.started.Store(true)
 	l.wg.Add(1)
 	go func() {
 		runtime.LockOSThread()
@@ -118,8 +140,14 @@ func (l *Loop) exec(job FrameJob) {
 }
 
 // Stop signals the loop to exit and waits.
+// Safe to call twice and to follow with Start (R0-7 restartable).
 func (l *Loop) Stop() {
-	if l == nil || !l.started.Load() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	if !l.started.Load() {
+		l.mu.Unlock()
 		return
 	}
 	select {
@@ -127,6 +155,7 @@ func (l *Loop) Stop() {
 	default:
 		close(l.quit)
 	}
+	l.mu.Unlock()
 	l.wg.Wait()
 	l.started.Store(false)
 }
