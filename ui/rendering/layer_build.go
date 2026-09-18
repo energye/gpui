@@ -556,6 +556,11 @@ func BuildFramePacketWithSaveLayerStats(root RenderObject, frameID uint64, dpr, 
 // sealBuiltPacket stamps the G10 build pair, tags the G1 producer, and
 // seals the EndFrame point (G3). Raster stamps stay zero until the raster
 // thread marks them (T2). Nil-safe for empty builds.
+//
+// R4: BuildBeginNs is assigned directly (not via MarkBuildBegin) on purpose:
+// the stamp must be the build START, but the packet only exists at seal time
+// — re-stamping at seal would measure the wrong instant. End uses the Mark
+// method since its instant IS seal time.
 func sealBuiltPacket(pkt *scene.FramePacket, beginNs int64) {
 	if pkt == nil {
 		return

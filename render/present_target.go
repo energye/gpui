@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -221,64 +220,6 @@ var (
 	shareRefs    int
 )
 
-// sharedDeviceProvider exposes an already-open shared device through the
-// accelerator's provider SPI (SimpleDeviceProvider takes ownership of its
-// args for Release, so the share needs its own non-releasing adapter).
-type sharedDeviceProvider struct {
-	dev    *webgpu.Device
-	adpt   *webgpu.Adapter
-	format types.TextureFormat
-}
-
-func (p *sharedDeviceProvider) Device() gpucontext.Device {
-	if p == nil || p.dev == nil {
-		return gpucontext.Device{}
-	}
-	return webgpu.DeviceToHandle(p.dev)
-}
-
-func (p *sharedDeviceProvider) Queue() gpucontext.Queue {
-	if p == nil || p.dev == nil {
-		return gpucontext.Queue{}
-	}
-	return webgpu.QueueToHandle(p.dev.Queue())
-}
-
-func (p *sharedDeviceProvider) SurfaceFormat() types.TextureFormat {
-	if p == nil {
-		return types.TextureFormatUndefined
-	}
-	return p.format
-}
-
-func (p *sharedDeviceProvider) Adapter() gpucontext.Adapter {
-	if p == nil || p.adpt == nil {
-		return gpucontext.Adapter{}
-	}
-	return webgpu.AdapterToHandle(p.adpt)
-}
-
-func (p *sharedDeviceProvider) AdapterInfo() gpucontext.AdapterInfo {
-	if p == nil || p.adpt == nil {
-		return gpucontext.AdapterInfo{Type: gpucontext.AdapterTypeUnknown}
-	}
-	info := p.adpt.Info()
-	ai := gpucontext.AdapterInfo{Name: info.Name}
-	switch info.DeviceType {
-	case types.DeviceTypeDiscreteGPU:
-		ai.Type = gpucontext.AdapterTypeDiscrete
-	case types.DeviceTypeIntegratedGPU:
-		ai.Type = gpucontext.AdapterTypeIntegrated
-	case types.DeviceTypeCPU:
-		ai.Type = gpucontext.AdapterTypeSoftware
-	default:
-		ai.Type = gpucontext.AdapterTypeUnknown
-	}
-	return ai
-}
-
-var _ gpucontext.DeviceProvider = (*sharedDeviceProvider)(nil)
-
 // AcquireSharedPresentDevice reports the share state for diagnostics.
 // Borrowable windows go through buildSharedSurface directly; standalone
 // (probe/offscreen) devices borrow through here so only one device is live
@@ -400,6 +341,11 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		if t, err := buildSharedSurface(ns, logicalW, logicalH, scale); err == nil {
 			return t, nil
 		} else if !IsGPUOutOfMemory(err) {
+			// R4: non-OOM borrow failures return as-is on purpose — a
+			// published share means the device is fine, so the failure is
+			// the caller's (bad handles, torn-down window). Falling through
+			// to open a second device would fork the single-device invariant
+			// (one device, N surfaces); only OOM retries at a lower level.
 			return nil, err
 		}
 		// OOM-class borrow failure: fall through to the downgrade chain so

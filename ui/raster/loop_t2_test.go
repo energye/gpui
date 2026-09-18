@@ -119,12 +119,3 @@ func mustPanic(t *testing.T, what string, fn func()) {
 	}()
 	fn()
 }
-
-func mustPanicInJob(what string, fn func()) {
-	defer func() {
-		if recover() == nil {
-			panic("want panic: " + what)
-		}
-	}()
-	fn()
-}

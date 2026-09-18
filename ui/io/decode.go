@@ -329,16 +329,16 @@ func (p *Pool) serveDecode(req decodeReq) {
 
 // isLarge peeks at dimensions only (header decode, no pixels).
 // Peek failures return false so the full decode reports the error.
+// Files at or below readOnceCapBytes share one read with the decode;
+// larger files stream the header (no full read just to route).
 func (p *Pool) isLarge(req decodeReq) bool {
 	var w, h int
 	if req.hasData {
-		_, cfg, ok := sniffFormat(req.data)
-		if !ok {
-			return false
-		}
-		w, h = cfg.Width, cfg.Height
-	} else {
+		_, w, h, _ = dimsOfData(req.data, "")
+	} else if fi, err := os.Stat(filepath.Clean(req.path)); err == nil && fi.Size() > readOnceCapBytes {
 		w, h, _ = configFile(req.path)
+	} else if data, err := loadFileBytes(req.path); err == nil {
+		_, w, h, _ = dimsOfData(data, formatForExt(req.path))
 	}
 	if w <= 0 || h <= 0 {
 		return false
@@ -481,7 +481,59 @@ func DecodeBytesWithContext(ctx context.Context, data []byte, done func(Result))
 	Default.DecodeBytesWithContext(ctx, data, done)
 }
 
+// readOnceCapBytes bounds single-read file loads (R5-1): files at or below
+// decode from one read (header sniff + pixels share the same bytes); larger
+// files keep the legacy two-pass path (streaming header, then decode stream)
+// so a huge image never pins file-bytes plus pixels at once.
+const readOnceCapBytes = 32 << 20
+
+// loadFileBytes reads path fully (single IO for the R5-1 read-once path).
+func loadFileBytes(path string) ([]byte, error) {
+	return os.ReadFile(filepath.Clean(path))
+}
+
+// dimsOfData resolves format + dimensions from in-memory bytes (R5-1/R5-2).
+// An extension hint consults that decoder first (fast path — skips the full
+// registry sniff); unknown/mismatched hints fall back to sniffing, so
+// registry replaceability and content-based detection keep working.
+func dimsOfData(data []byte, extHint string) (name string, w, h int, ok bool) {
+	if d, found := lookupDecoder(extHint); found && extHint != "" {
+		if cfg, err := d.Config(bytes.NewReader(data)); err == nil && cfg.Width > 0 && cfg.Height > 0 {
+			return extHint, cfg.Width, cfg.Height, true
+		}
+	}
+	name, cfg, ok := sniffFormat(data)
+	if !ok {
+		return "", 0, 0, false
+	}
+	return name, cfg.Width, cfg.Height, true
+}
+
+// decodeData runs the full decode of data, routing by extension hint first
+// (R5-2) and content sniffing second. Replaces the file-twice data path;
+// the bytes path funnels through here unchanged.
+func decodeData(data []byte, extHint string) Result {
+	if len(data) == 0 {
+		return Result{Err: errors.New("io: empty image data")}
+	}
+	name, w, h, ok := dimsOfData(data, extHint)
+	if !ok {
+		return Result{Err: errors.New("io: unsupported image format")}
+	}
+	d, found := lookupDecoder(name)
+	if !found {
+		return Result{Format: name, Err: errors.New("io: unsupported image format")}
+	}
+	img, err := d.Decode(bytes.NewReader(data))
+	if err != nil {
+		return Result{Format: name, Err: err}
+	}
+	return resultOfDims(name, img, w, h)
+}
+
 // configFile reports dimensions of path via the registry (header only).
+// Legacy two-pass helper: kept for files above readOnceCapBytes (isLarge
+// routing + big-file decode), where a full read would pin too much.
 func configFile(path string) (int, int, error) {
 	if name := formatForExt(path); name != "" {
 		if d, ok := lookupDecoder(name); ok {
@@ -509,9 +561,24 @@ func configFile(path string) (int, int, error) {
 }
 
 // decodeFile runs the full decode of path via the registry.
+// Files at or below readOnceCapBytes decode from a single read (R5-1);
+// larger files keep the two-pass path (streaming header, then decode).
 // Reported dimensions come from the header peek (the routing view),
 // falling back to the decoded buffer when the peek is unavailable.
 func decodeFile(path string) Result {
+	if fi, err := os.Stat(filepath.Clean(path)); err == nil && fi.Size() > readOnceCapBytes {
+		return decodeFileTwoPass(path)
+	}
+	data, err := loadFileBytes(path)
+	if err != nil {
+		return Result{Err: err}
+	}
+	return decodeData(data, formatForExt(path))
+}
+
+// decodeFileTwoPass is the legacy two-pass file decode for files above
+// readOnceCapBytes (streaming header peek, then a second open for pixels).
+func decodeFileTwoPass(path string) Result {
 	if name := formatForExt(path); name != "" {
 		if d, ok := lookupDecoder(name); ok {
 			w, h := peekFileDims(path, name, d)
@@ -527,31 +594,16 @@ func decodeFile(path string) Result {
 			return resultOfDims(name, img, w, h)
 		}
 	}
-	data, err := os.ReadFile(filepath.Clean(path))
+	data, err := loadFileBytes(path)
 	if err != nil {
 		return Result{Err: err}
 	}
-	return decodeBytes(data)
+	return decodeData(data, "")
 }
 
 // decodeBytes runs the full decode of data via content sniffing.
 func decodeBytes(data []byte) Result {
-	if len(data) == 0 {
-		return Result{Err: errors.New("io: empty image data")}
-	}
-	name, cfg, ok := sniffFormat(data)
-	if !ok {
-		return Result{Err: errors.New("io: unsupported image format")}
-	}
-	d, found := lookupDecoder(name)
-	if !found {
-		return Result{Format: name, Err: errors.New("io: unsupported image format")}
-	}
-	img, err := d.Decode(bytes.NewReader(data))
-	if err != nil {
-		return Result{Format: name, Err: err}
-	}
-	return resultOfDims(name, img, cfg.Width, cfg.Height)
+	return decodeData(data, "")
 }
 
 // peekFileDims reports path dimensions via d (header only, no pixels).

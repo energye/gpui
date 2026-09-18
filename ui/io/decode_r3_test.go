@@ -84,3 +84,28 @@ func TestStats_CancelledForwardNotRouted(t *testing.T) {
 	}
 	p.Close()
 }
+
+// A corrupt file with a valid extension must fail closed, not misroute:
+// the extension hint's Config fails, sniffing finds nothing, one error out.
+func TestDecodeFile_CorruptPNGFailsClosed(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "corrupt.png")
+	if err := os.WriteFile(path, []byte("not a png at all, just text"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := uio.NewPool(2)
+	defer p.Close()
+	done := make(chan uio.Result, 1)
+	p.DecodeFile(path, func(r uio.Result) { done <- r })
+	select {
+	case r := <-done:
+		if r.Err == nil {
+			t.Fatal("corrupt png must error")
+		}
+		if r.Img != nil {
+			t.Fatal("corrupt png must not yield an image")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout")
+	}
+}

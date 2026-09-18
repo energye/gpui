@@ -275,6 +275,9 @@ func main() {
 	bigPaths := make([]string, bigCount)
 	// R3-7: PNG encodes run in parallel (per-file seeds, no shared state)
 	// instead of blocking startup serially — same bytes, less wait.
+	// R5-3: generation cost is metered into the gate JSON (big_gen_ms) so
+	// startup cost stops being invisible.
+	var bigGenMs int64
 	{
 		var wg sync.WaitGroup
 		genErr := make([]error, bigCount)
@@ -298,7 +301,8 @@ func main() {
 				os.Exit(1)
 			}
 		}
-		fmt.Fprintf(os.Stderr, "ui_wr_t_stress: %d big pngs in %s\n", bigCount, time.Since(tGen).Round(time.Millisecond))
+		bigGenMs = time.Since(tGen).Milliseconds()
+		fmt.Fprintf(os.Stderr, "ui_wr_t_stress: %d big pngs in %dms\n", bigCount, bigGenMs)
 	}
 
 	// Input latency probe: stamp a synthetic input, count frames to completion.
@@ -711,6 +715,7 @@ func main() {
 			"images_loaded":        ps.loaded,
 			"scroll_total_px":      ps.scrollTotal,
 			"resize_events":        ps.resizeEvents,
+			"big_gen_ms":           bigGenMs,
 		},
 	})
 	raw, _ := json.Marshal(report)

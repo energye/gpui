@@ -73,7 +73,9 @@ var lastFiltersApplied atomic.Int64
 const resizeCalmWindow = 200 * time.Millisecond
 
 // PipelineApp runs layout/paint → FramePacket → async raster present.
-// UI never blocks on Present (SubmitLatest).
+// Steady-state submits never block the UI (SubmitLatest coalesces); open,
+// close, snapshot, warm-up and surface teardown synchronize with the raster
+// thread by design (R4: "never blocks" covers the submit path only).
 type PipelineApp struct {
 	host  platform.Host
 	sched *scheduler.FrameScheduler
@@ -202,8 +204,6 @@ type PipelineApp struct {
 	// completedFrame is the last raster-completed frameID (D5 completion
 	// receipt via the G9 channel: raster stores, UI gates MaxFrames on it).
 	completedFrame atomic.Uint64
-	// completedInputSeq is the inputSeq captured by the last completed frame.
-	completedInputSeq atomic.Uint64
 	// submitted counts UI submissions (for pending_coalesce_drop honesty:
 	// submitted minus completed minus in-flight equals coalesced away).
 	submitted atomic.Int64
@@ -677,6 +677,10 @@ func (a *PipelineApp) Pipeline() *rendering.PipelineOwner {
 // Target returns the present target (nil before Open). Pixel-verification
 // windows (§2.7/U21) use Target().Context().Image() to sample the composited
 // frame at deterministic phase points — the same readback path SavePNG uses.
+// RASTER THREAD ONLY (R4): render.Context is raster-exclusive and Image()
+// flushes + reads back GPU state. UI-thread callers must go through
+// SnapshotAsync (or another raster-side hook); sampling the dc off raster
+// races the present it observes.
 func (a *PipelineApp) Target() *render.PresentTarget {
 	if a == nil {
 		return nil
@@ -721,7 +725,9 @@ func (a *PipelineApp) LayoutFlushCount() int64 {
 	return a.layoutFrames.Load()
 }
 
-// PresentCount returns completed presents.
+// PresentCount returns completed presents: raster-job completions plus the
+// synchronous warm-up path (presentSyncFull, R4: mixed caliber by design —
+// use CompletedFrameID for the pure raster-completed sequence).
 func (a *PipelineApp) PresentCount() int64 {
 	if a == nil {
 		return 0
@@ -784,9 +790,11 @@ func (a *PipelineApp) InputLatencyFrames() int64 {
 }
 
 // cloneFrameBudget returns a per-frame SaveLayer budget copy (D14 single-side
-// decision): the shared template carries only MaxOps/MaxArea config and is
-// never mutated; each frame clones its own budget for packet extras and its
-// raster job alone, so consecutive frames never share mutable ops/area.
+// decision): the shared template carries only MaxOps/MaxArea config. The hot
+// frame path always clones (consecutive frames never share mutable ops/area);
+// the two synchronous paths (SnapshotPath, presentSyncFull warm-up) pass the
+// template itself and Reset it — serialized with everything else there, so no
+// race, but "never mutated" holds for the frame path only (R4).
 func cloneFrameBudget(shared *rendering.SaveLayerBudget) *rendering.SaveLayerBudget {
 	if shared == nil {
 		return nil
@@ -1377,7 +1385,6 @@ func (a *PipelineApp) Run() error {
 		// 58-layer re-record wave per resize step while dragging — re-record
 		// frames stall 60ms–1.5s because every layer submits independently.
 		jobFrameID := a.frameID.Load()
-		jobInputSeq := a.inputSeq.Load()
 		job := raster.FrameJob{
 			Run: func() error {
 				// T2 G5: raster-only section asserts its thread.
@@ -1506,7 +1513,6 @@ func (a *PipelineApp) Run() error {
 					}
 				}
 				a.completedFrame.Store(jobFrameID)
-				a.completedInputSeq.Store(jobInputSeq)
 				a.presents.Add(1)
 				if os.Getenv("HITCH_DIAG") == "1" {
 					FrameDone(jobFrameID)
