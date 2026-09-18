@@ -51,6 +51,16 @@ func VramLiveBytes() uint64 {
 	return webgpu.VramLiveBytes()
 }
 
+// VramLiveCount reports how many allocations the ledger tracks.
+func VramLiveCount() int {
+	return webgpu.VramLiveCount()
+}
+
+// VramPeakBytes reports the high-water mark (R6 post-fix measurement).
+func VramPeakBytes() uint64 {
+	return webgpu.VramPeakBytes()
+}
+
 // VramPressureHigh reports whether the process ledger already holds past
 // the low-VRAM waterline (same 80% gate the adapter policy uses to switch
 // descriptors). Per-window caches refuse automatic growth past this point

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"os"
+	"sync"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -130,12 +132,27 @@ type GPURenderContext struct {
 	dualTexViewOpsScratch []dualTexViewBlendOp
 
 	// Pool of offscreen layer RTs by size to avoid per-PushLayer alloc/OOM.
-	offscreenPool map[[2]int][]offscreenPooled
+	// Guarded by offscreenPoolMu: takes run on the raster thread while
+	// returns (deferred releases), purges and Close may run elsewhere.
+	offscreenPool   map[[2]int][]offscreenPooled
+	offscreenPoolMu sync.Mutex
 }
+
+// offscreenPoolBucketCap bounds one size bucket: a layer ring holds ≤2
+// same-size slots, plus transient effect/filter users.
+const offscreenPoolBucketCap = 4
+
+// offscreenPoolBytesCap bounds total pooled bytes per context (~8 full-HD
+// RGBA surfaces); overflow falls back to native release (pre-R6-3 behavior).
+const offscreenPoolBytesCap = 32 << 20
 
 type offscreenPooled struct {
 	tex  *webgpu.Texture
 	view *webgpu.TextureView
+	// dev is the device the texture was created on. Takes reject items
+	// from a previous device (shared recovery replaces it) instead of
+	// handing a dead-device texture to a new-device record.
+	dev *webgpu.Device
 }
 
 // pendingAdvancedLayer is a PopLayer advanced blend resolved at Flush.
@@ -3385,25 +3402,52 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		return gpucontext.TextureView{}, nil
 	}
 	key := [2]int{w, h}
-	if rc.offscreenPool == nil {
-		rc.offscreenPool = make(map[[2]int][]offscreenPooled)
+	// Live device read BEFORE the pool lock (lock order: shared.mu never
+	// inside offscreenPoolMu). The pool lock itself is held only for
+	// map surgery below — never across the slow native allocs further
+	// down, so a stalled CreateTexture cannot block pool returns/purges.
+	var liveDev *webgpu.Device
+	poolOn := os.Getenv("GPUI_NO_OFFSCREEN_POOL") != "1"
+	if poolOn && rc.shared != nil {
+		liveDev = rc.shared.Device()
 	}
-	if bucket := rc.offscreenPool[key]; len(bucket) > 0 {
-		item := bucket[len(bucket)-1]
-		rc.offscreenPool[key] = bucket[:len(bucket)-1]
-		// NOTE: pooled reuse is disabled on purpose. A pooled texture may still
-		// be referenced by an earlier command buffer in the same submission
-		// (blit-sampled as RESOURCE) while a re-record takes it as COLOR_TARGET;
-		// wgpu rejects that as conflicting exclusive usages within the same
-		// usage scope (observed as TXFLUSHERR "submit: wgpu: submit failed"
-		// on every re-record frame after a resize). Fresh allocations are only
-		// ever used once per frame (attachment, then sampled), which wgpu
-		// transitions cleanly. Re-enable only with a per-frame usage tracker.
-		release := func() {
-			item.view.Release()
-			item.tex.Release()
+	// R6-3 re-enable (quarantine by construction): every pooled item
+	// entered through a deferred release (scene releaseDeferred: ≥2
+	// composite frames after last use), so no in-flight command buffer can
+	// still sample it — the exact case that forced the disable
+	// (RESOURCE-sampled by an earlier CB while a re-record takes it as
+	// COLOR_TARGET in the same usage scope → TXFLUSHERR submit failed).
+	// Record paths LoadOpClear before drawing, so stale pixels never show.
+	// GPUI_NO_OFFSCREEN_POOL=1 restores always-fresh allocation.
+	if poolOn && liveDev != nil {
+		rc.offscreenPoolMu.Lock()
+		if rc.offscreenPool == nil {
+			rc.offscreenPool = make(map[[2]int][]offscreenPooled)
 		}
-		return gpucontext.NewTextureView(unsafe.Pointer(item.view)), release //nolint:gosec
+		bucket := rc.offscreenPool[key]
+		var hit *offscreenPooled
+		for len(bucket) > 0 {
+			item := bucket[len(bucket)-1]
+			bucket = bucket[:len(bucket)-1]
+			rc.offscreenPool[key] = bucket
+			if item.tex == nil || item.view == nil || item.dev != liveDev {
+				// Previous-device residue (shared recovery replaced it)
+				// or a torn entry: destroy, never hand out.
+				if item.view != nil {
+					item.view.Release()
+				}
+				if item.tex != nil {
+					item.tex.Release()
+				}
+				continue
+			}
+			hit = &offscreenPooled{tex: item.tex, view: item.view, dev: item.dev}
+			break
+		}
+		rc.offscreenPoolMu.Unlock()
+		if hit != nil {
+			return gpucontext.NewTextureView(unsafe.Pointer(hit.view)), rc.makePoolRelease(key, hit.tex, hit.view, hit.dev) //nolint:gosec
+		}
 	}
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
@@ -3436,15 +3480,50 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		return gpucontext.TextureView{}, nil
 	}
 
-	release := func() {
-		// No pooling (see note in the reuse branch above): a re-used offscreen
-		// texture can be sampled (RESOURCE) by an earlier command buffer and
-		// then taken as COLOR_TARGET by a re-record in the same usage scope,
-		// which wgpu rejects. Each allocation is used once per frame only.
-		view.Release()
-		tex.Release()
-	}
+	release := rc.makePoolRelease(key, tex, view, device)
 	return gpucontext.NewTextureView(unsafe.Pointer(view)), release //nolint:gosec // Go spec Rule 1 (ADR-018)
+}
+
+// makePoolRelease returns the release closure for an offscreen texture:
+// back to the pool when there is room (R6-3 reuse), native destroy on
+// overflow (pre-R6-3 behavior). The closure may run on the release path
+// (deferred ≥2 frames after last use), so pooled items are always past
+// in-flight command buffers by construction.
+func (rc *GPURenderContext) makePoolRelease(key [2]int, tex *webgpu.Texture, view *webgpu.TextureView, dev *webgpu.Device) func() {
+	return func() {
+		if rc == nil {
+			if view != nil {
+				view.Release()
+			}
+			if tex != nil {
+				tex.Release()
+			}
+			return
+		}
+		rc.offscreenPoolMu.Lock()
+		defer rc.offscreenPoolMu.Unlock()
+		if rc.offscreenPool != nil &&
+			len(rc.offscreenPool[key]) < offscreenPoolBucketCap &&
+			rc.pooledBytesLocked()+uint64(key[0]*key[1]*4) <= offscreenPoolBytesCap {
+			rc.offscreenPool[key] = append(rc.offscreenPool[key], offscreenPooled{tex: tex, view: view, dev: dev})
+			return
+		}
+		if view != nil {
+			view.Release()
+		}
+		if tex != nil {
+			tex.Release()
+		}
+	}
+}
+
+// pooledBytesLocked estimates pooled bytes (caller holds offscreenPoolMu).
+func (rc *GPURenderContext) pooledBytesLocked() uint64 {
+	var n uint64
+	for key, bucket := range rc.offscreenPool {
+		n += uint64(len(bucket) * key[0] * key[1] * 4)
+	}
+	return n
 }
 
 // Close releases this context's GPU resources. Shared resources are NOT
@@ -3508,7 +3587,12 @@ func (rc *GPURenderContext) Close() {
 
 // drainOffscreenPool releases every pooled layer RT texture/view.
 func (rc *GPURenderContext) drainOffscreenPool() {
-	if rc == nil || rc.offscreenPool == nil {
+	if rc == nil {
+		return
+	}
+	rc.offscreenPoolMu.Lock()
+	defer rc.offscreenPoolMu.Unlock()
+	if rc.offscreenPool == nil {
 		return
 	}
 	for key, bucket := range rc.offscreenPool {

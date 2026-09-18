@@ -112,6 +112,9 @@ type PictureTextureCache struct {
 	// multi-window budget pressure (R0-5). Guarded by mu; read via
 	// BudgetRefusals.
 	budgetRefusals int64
+	// texDbgSeen dedups the WR_TEXDBG full-window probe (R6-1): each
+	// cache key logs once per process.
+	texDbgSeen map[uint64]struct{}
 }
 
 type pictureTextureSlot struct {
@@ -221,6 +224,17 @@ func (c *PictureTextureCache) BudgetRefusals() int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.budgetRefusals
+}
+
+// EvictionCount reports cumulative LRU evictions. Lock-guarded: read this,
+// not the bare Evictions field, off the owner thread (R1-1).
+func (c *PictureTextureCache) EvictionCount() int64 {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Evictions
 }
 
 // avgEntryBytesLocked estimates one entry from live entries (caller holds
@@ -755,6 +769,33 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	return e.bounds, true
 }
 
+// logFullWindow names one full-window (bounds-less) record for the
+// WR_TEXDBG=1 probe (R6-1): each cache key logs once per process — op-kind
+// mix, RasterExtra presence, ExtraBounds and picture Bounds. The why tag
+// tells the phase-1 decision: "skip-extra" (no texture, vector fallback)
+// or "full-record" (~4MB double-buffered texture). Zero cost unless the
+// env var is set.
+func (c *PictureTextureCache) logFullWindow(pl *PictureLayer, why string) {
+	if c == nil || pl == nil || os.Getenv("WR_TEXDBG") != "1" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.texDbgSeen == nil {
+		c.texDbgSeen = make(map[uint64]struct{})
+	}
+	if _, ok := c.texDbgSeen[pl.CacheKey]; ok {
+		return
+	}
+	c.texDbgSeen[pl.CacheKey] = struct{}{}
+	counts := map[PictureOpKind]int{}
+	for i := range pl.Picture.Ops {
+		counts[pl.Picture.Ops[i].Kind]++
+	}
+	fmt.Fprintf(os.Stderr, "TEXDBG why=%s key=%d nops=%d kinds=%v rasterExtra=%v extraBounds=%v picBounds=%v\n",
+		why, pl.CacheKey, len(pl.Picture.Ops), counts, pl.RasterExtra != nil, pl.ExtraBounds, pl.Picture.Bounds)
+}
+
 // pictureRecordBounds resolves the geometry a bounds-sized record of pl
 // would use: tracked picture bounds, measured text bounds, or the OnPaint
 // paint bounds. False when the layer has no bounds (full-surface record).
@@ -833,6 +874,10 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	if b.Empty() {
 		return image.Rectangle{}, false
 	}
+	// R1-2: width/height are cache state (BeginFrame rewrites them) — read
+	// under mu like every other state access per the struct contract.
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	w := b.Dx() + 2
 	h := b.Dy() + 2
 	if b.Dx() > c.width || b.Dy() > c.height {
@@ -840,7 +885,6 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 		// a clipped texture would show blank past the surface edge, so
 		// refuse and let phase 2 replay vector with damage. Full-surface
 		// layers still cache (equal fits; only the +2 AA pad is clamped).
-		c.mu.Lock()
 		if c.oversized == nil {
 			c.oversized = make(map[uint64]image.Rectangle)
 		}
@@ -855,7 +899,6 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 			c.releaseEntryLocked(e)
 			delete(c.entries, id)
 		}
-		c.mu.Unlock()
 		return image.Rectangle{}, false
 	}
 	if w > c.width {
@@ -867,8 +910,6 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	if w <= 0 || h <= 0 {
 		return image.Rectangle{}, false
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	e := c.allocEntry(id, w, h)
 	if e == nil {
 		return image.Rectangle{}, false
@@ -1270,6 +1311,10 @@ type TexturedStats struct {
 	RasterLayerCount  int
 	SkippedLayerCount int
 	ReplayedOps       int
+	// RejectedUnsealed marks a refused composite: the packet never sealed
+	// (R2-1 — every BuildPacket seals, so this only fires on hand-rolled
+	// packets bypassing the builders). Fail closed with zero counts.
+	RejectedUnsealed bool
 	// FiltersApplied counts color/image filter layers applied this frame
 	// (isolated vector fallback path; R20 filter_layer_count).
 	FiltersApplied int
@@ -1294,6 +1339,13 @@ type TexturedStats struct {
 func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *PictureTextureCache) TexturedStats {
 	st := TexturedStats{}
 	if pkt == nil || dc == nil || tex == nil {
+		return st
+	}
+	// R2-1: the handoff is sealed packets only. Unsealed input means a
+	// builder was bypassed — refuse instead of rasterizing a half-built
+	// packet (no draw, honest flag).
+	if !pkt.Sealed {
+		st.RejectedUnsealed = true
 		return st
 	}
 	tex.BeginFrame()
@@ -1370,7 +1422,24 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				// "Not enough memory left" + endless shell re-records).
 				if !b.Empty() {
 					_, ok = tex.recordLocalWith(pl.CacheKey, &pl.Picture, b, pl.RasterExtra)
+				} else if pl.RasterExtra != nil {
+					// R6-1: a bounds-less OnPaint takes NO texture. These
+					// are zero-size nodes (TEXBLD probe: dozens of 0×0
+					// boxes in the button window, ~4MB of double-buffered
+					// full-window texture each). The callback contract
+					// paints within the passed size, so empty size means no
+					// output; phase 2 runs the same callback on the vector
+					// fallback (no hole), damage stays empty exactly as a
+					// bounds-less record would, and the next build
+					// re-establishes bounds (and the texture) once layout
+					// gives the node a size.
+					tex.logFullWindow(pl, "skip-extra")
+					ok = false
 				} else {
+					// R6-1 probe: full-window records are ~4MB each
+					// double-buffered; log each key's shape once so a debug
+					// run names the layers that need bounds.
+					tex.logFullWindow(pl, "full-record")
 					_, ok = tex.recordWith(pl.CacheKey, &pl.Picture, pl.RasterExtra)
 				}
 				if ok {

@@ -33,6 +33,7 @@ var vramLedger = struct {
 	sync.Mutex
 	bytes map[uintptr]uint64
 	total uint64
+	peak  uint64
 }{bytes: make(map[uintptr]uint64)}
 
 // vramBudgetMB reads the budget once per call (cheap env read; creation is
@@ -137,6 +138,10 @@ func vramAdd(handle uintptr, need uint64) {
 	}
 	vramLedger.bytes[handle] = need
 	vramLedger.total += need
+	// R6 peak: high-water mark for post-fix measurement (WR_MEMDIG).
+	if vramLedger.total > vramLedger.peak {
+		vramLedger.peak = vramLedger.total
+	}
 }
 
 // vramForget refunds an allocation. Idempotent; safe to call from both
@@ -167,6 +172,14 @@ func VramLiveCount() int {
 	return len(vramLedger.bytes)
 }
 
+// VramPeakBytes reports the high-water mark since process start (or the
+// last VramTestReset), for R6 post-fix measurement via WR_MEMDIG.
+func VramPeakBytes() uint64 {
+	vramLedger.Lock()
+	defer vramLedger.Unlock()
+	return vramLedger.peak
+}
+
 // VramBudgetMB exposes the process VRAM budget (GPUI_VRAM_BUDGET_MB,
 // default 768, 0 = disabled) so upper layers can derive watermarks from the
 // same number the gate enforces — one budget, no second constant.
@@ -181,6 +194,7 @@ func VramTestReset() {
 	defer vramLedger.Unlock()
 	vramLedger.bytes = make(map[uintptr]uint64)
 	vramLedger.total = 0
+	vramLedger.peak = 0
 }
 
 // VramTestAdd records a synthetic live entry. Test-only companion to

@@ -17,6 +17,16 @@ func VramBudgetMB() int64 {
 	return rwgpu.VramBudgetMB()
 }
 
+// VramLiveCount reports how many allocations the ledger tracks.
+func VramLiveCount() int {
+	return rwgpu.VramLiveCount()
+}
+
+// VramPeakBytes reports the high-water mark (R6 post-fix measurement).
+func VramPeakBytes() uint64 {
+	return rwgpu.VramPeakBytes()
+}
+
 func vramTestResetImpl() {
 	rwgpu.VramTestReset()
 }

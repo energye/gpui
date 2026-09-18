@@ -453,6 +453,14 @@ type GPURenderSession struct {
 	imageVertLastHash  uint64
 	imageVertLastLen   int
 	imageVertLastValid bool
+	// R6-2 shrink hysteresis (same contract as the Tier 3b fields below):
+	// last*Need is the previous frame's peak, calm* counts sustained tiny use.
+	imgLastStagingNeed uint64
+	imgLastVertNeed    uint64
+	imgLastSlabNeed    uint64
+	imgCalmStaging     int
+	imgCalmVert        int
+	imgCalmSlab        int
 	// S6.3 coalesce scratch (grow-only; present path reuses across frames).
 	coalesceTextOut    []TextBatch
 	coalesceTextQuads  []TextQuad
@@ -560,6 +568,22 @@ type GPURenderSession struct {
 	gpuTexBaseVertLastHash  uint64
 	gpuTexBaseVertLastLen   int
 	gpuTexBaseVertLastValid bool
+
+	// R6-2 shrink hysteresis: the texture buffers above only ever grow
+	// (a closed heavy window's peak pins megabytes for the process
+	// lifetime). last*Need records the previous frame's peak need — reset
+	// every BeginFrame after the shrink check, refilled by flushes below;
+	// calm* counts consecutive frames with need < cap/4. At
+	// texShrinkCalmFrames the buffer is retired and lazily recreated at
+	// exact need by the grow path.
+	texLastStagingNeed uint64
+	texLastVertNeed    uint64
+	texLastBaseNeed    uint64
+	texLastSlabNeed    uint64
+	texCalmStaging     int
+	texCalmVert        int
+	texCalmBase        int
+	texCalmSlab        int
 
 	// Bind groups pending release — deferred until after command buffer submit.
 	// WebGPU requires bind groups to be alive at submit time (wgpu-core track/mod.rs:631).
@@ -961,6 +985,124 @@ func (s *GPURenderSession) BeginFrame() {
 
 	s.frameRendered = false
 	s.lastView = nil
+
+	// R6-2: converge grow-only staging/vertex/uniform buffers back down
+	// after sustained low use (safe point: previous frame completed above).
+	// Peak-need trackers reset for the new frame; flushes below refill them.
+	s.maybeShrinkFrameBuffers()
+	s.texLastStagingNeed, s.texLastVertNeed = 0, 0
+	s.texLastBaseNeed, s.texLastSlabNeed = 0, 0
+	s.imgLastStagingNeed, s.imgLastVertNeed, s.imgLastSlabNeed = 0, 0, 0
+}
+
+// texShrinkCalmFrames is ~2s @60fps of tiny use before a grow-only texture
+// buffer is retired (R6-2). Long enough that scroll/zoom transients never
+// trigger shrink churn; short enough that a closed heavy window's peak does
+// not pin megabytes for the process lifetime.
+const texShrinkCalmFrames = 120
+
+// Shrink floors keep hysteresis from churning on trivial sizes.
+const (
+	texVertFloor = 6 * imageVertexStride      // one quad
+	texSlabFloor = 8 * imageUniformSlotStride // grow-path minimum
+)
+
+// shrinkDue is the pure hysteresis core (testable without GPU): usage below
+// a quarter of capacity sustains calm, anything else resets it.
+func shrinkDue(capNow, need, floor uint64, calm int) (newCalm int, due bool) {
+	if capNow <= floor {
+		return 0, false
+	}
+	if need < capNow/4 {
+		if calm+1 >= texShrinkCalmFrames {
+			return 0, true
+		}
+		return calm + 1, false
+	}
+	return 0, false
+}
+
+// maybeShrinkFrameBuffers retires grow-only staging/vertex/uniform buffers
+// idle for texShrinkCalmFrames on both the image and gpu-texture paths;
+// the grow paths recreate them lazily at exact need.
+// Runs at the BeginFrame safe point (previous frame completed, retire queue
+// drained above). Correctness never depends on the buffers: retire defers
+// the native release exactly like a mid-frame grow does.
+func (s *GPURenderSession) maybeShrinkFrameBuffers() {
+	if s == nil {
+		return
+	}
+	calm, due := shrinkDue(uint64(cap(s.gpuTexVertexStaging)), s.texLastStagingNeed, 0, s.texCalmStaging) //nolint:gosec // cap() non-negative
+	s.texCalmStaging = calm
+	if due {
+		s.gpuTexVertexStaging = nil
+	}
+	calm, due = shrinkDue(s.gpuTexVertBufCap, s.texLastVertNeed, texVertFloor, s.texCalmVert)
+	s.texCalmVert = calm
+	if due && s.gpuTexVertBuf != nil {
+		s.RetireBuffer(s.gpuTexVertBuf)
+		s.gpuTexVertBuf, s.gpuTexVertBufCap = nil, 0
+		s.gpuTexVertLastValid = false
+	}
+	calm, due = shrinkDue(s.gpuTexBaseVertBufCap, s.texLastBaseNeed, texVertFloor, s.texCalmBase)
+	s.texCalmBase = calm
+	if due && s.gpuTexBaseVertBuf != nil {
+		s.RetireBuffer(s.gpuTexBaseVertBuf)
+		s.gpuTexBaseVertBuf, s.gpuTexBaseVertBufCap = nil, 0
+		s.gpuTexBaseVertLastValid = false
+	}
+	calm, due = shrinkDue(s.gpuTexUniformSlabCap, s.texLastSlabNeed, texSlabFloor, s.texCalmSlab)
+	s.texCalmSlab = calm
+	if due && s.gpuTexUniformSlab != nil {
+		s.RetireBuffer(s.gpuTexUniformSlab)
+		s.gpuTexUniformSlab, s.gpuTexUniformSlabCap, s.gpuTexUniformSlots = nil, 0, 0
+		// Offsets into the old slab die with it — same ring-drop as the
+		// grow path above (BGs hold slab offsets).
+		for i := range s.gpuTexBGCaches {
+			for j := range s.gpuTexBGCaches[i].entries {
+				if bg := s.gpuTexBGCaches[i].entries[j].bg; bg != nil {
+					s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				}
+				s.gpuTexBGCaches[i].entries[j].view = nil
+				s.gpuTexBGCaches[i].entries[j].bg = nil
+			}
+			s.gpuTexBGCaches[i].next = 0
+		}
+		for i := range s.gpuTexUniformLast {
+			s.gpuTexUniformLast[i].valid = false
+		}
+	}
+	calm, due = shrinkDue(uint64(cap(s.imageVertexStaging)), s.imgLastStagingNeed, 0, s.imgCalmStaging) //nolint:gosec // cap() non-negative
+	s.imgCalmStaging = calm
+	if due {
+		s.imageVertexStaging = nil
+	}
+	calm, due = shrinkDue(s.imageVertBufCap, s.imgLastVertNeed, texVertFloor, s.imgCalmVert)
+	s.imgCalmVert = calm
+	if due && s.imageVertBuf != nil {
+		s.RetireBuffer(s.imageVertBuf)
+		s.imageVertBuf, s.imageVertBufCap = nil, 0
+		s.imageVertLastValid = false
+	}
+	calm, due = shrinkDue(s.imageUniformSlabCap, s.imgLastSlabNeed, texSlabFloor, s.imgCalmSlab)
+	s.imgCalmSlab = calm
+	if due && s.imageUniformSlab != nil {
+		s.RetireBuffer(s.imageUniformSlab)
+		s.imageUniformSlab, s.imageUniformSlabCap, s.imageUniformSlots = nil, 0, 0
+		// Same ring-drop as the grow path above (bind groups hold slab offsets).
+		for i, bg := range s.imageBindGroups {
+			if bg != nil {
+				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				s.imageBindGroups[i] = nil
+			}
+		}
+		for i := range s.imageBGViews {
+			s.imageBGViews[i] = nil
+		}
+		for i := range s.imageUniformLast {
+			s.imageUniformLast[i].valid = false
+		}
+	}
 }
 
 // DigCmdBufStats returns retained command-buffer count for mem digs.
@@ -2008,6 +2150,9 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.imageVertLastHash = 0
 	s.imageVertLastLen = 0
 	s.imageVertLastValid = false
+	// R6-2: drop shrink hysteresis with the buffers.
+	s.imgLastStagingNeed, s.imgLastVertNeed, s.imgLastSlabNeed = 0, 0, 0
+	s.imgCalmStaging, s.imgCalmVert, s.imgCalmSlab = 0, 0, 0
 	if s.imageVertBuf != nil {
 		s.imageVertBuf.Release()
 		s.imageVertBuf = nil
@@ -2051,6 +2196,10 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.gpuTexBaseVertLastHash = 0
 	s.gpuTexBaseVertLastLen = 0
 	s.gpuTexBaseVertLastValid = false
+	// R6-2: drop shrink hysteresis with the buffers.
+	s.texLastStagingNeed, s.texLastVertNeed = 0, 0
+	s.texLastBaseNeed, s.texLastSlabNeed = 0, 0
+	s.texCalmStaging, s.texCalmVert, s.texCalmBase, s.texCalmSlab = 0, 0, 0, 0
 	if s.gpuTexVertBuf != nil {
 		s.gpuTexVertBuf.Release()
 		s.gpuTexVertBuf = nil
@@ -3446,6 +3595,9 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	} else {
 		s.imageVertexStaging = s.imageVertexStaging[:totalVertBytes]
 	}
+	// R6-2: record this frame's peak need for the shrink hysteresis.
+	s.imgLastStagingNeed = uint64(totalVertBytes) //nolint:gosec // bounded
+	s.imgLastVertNeed = uint64(totalVertBytes)    //nolint:gosec // bounded
 	allVertData := s.imageVertexStaging
 	for i := range cmds {
 		off := i * 6 * imageVertexStride
@@ -3529,6 +3681,8 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 
 	nSlot := len(slots)
 	needSlab := uint64(nSlot) * imageUniformSlotStride
+	// R6-2: record this frame's peak need for the shrink hysteresis.
+	s.imgLastSlabNeed = needSlab
 	slabRecreated := false
 	if nSlot > 0 && (s.imageUniformSlab == nil || s.imageUniformSlabCap < needSlab) {
 		if s.imageUniformSlab != nil {
@@ -4051,6 +4205,16 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			}
 		}
 	}()
+	defer func() {
+		if s == nil || s.resReg == nil {
+			return
+		}
+		for i := range cmds {
+			if r := cmds[i].View.Ref; !r.IsNil() {
+				s.resReg.Release(r)
+			}
+		}
+	}()
 	if err := s.ensureImagePipeline(); err != nil {
 		return nil, fmt.Errorf("ensure image pipeline: %w", err)
 	}
@@ -4060,6 +4224,13 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		s.gpuTexVertexStaging = make([]byte, totalVertBytes)
 	} else {
 		s.gpuTexVertexStaging = s.gpuTexVertexStaging[:totalVertBytes]
+	}
+	// R6-2: record this frame's peak need for the shrink hysteresis.
+	s.texLastStagingNeed = uint64(totalVertBytes) //nolint:gosec // bounded
+	if isBaseLayer {
+		s.texLastBaseNeed = uint64(totalVertBytes) //nolint:gosec // bounded
+	} else {
+		s.texLastVertNeed = uint64(totalVertBytes) //nolint:gosec // bounded
 	}
 	allVertData := s.gpuTexVertexStaging
 	for i := range cmds {
@@ -4166,6 +4337,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 
 	nSlot := len(slots)
 	needSlab := uint64(nSlot) * imageUniformSlotStride
+	// R6-2: record this frame's peak need for the shrink hysteresis.
+	s.texLastSlabNeed = needSlab
 	slabRecreated := false
 	if nSlot > 0 && (s.gpuTexUniformSlab == nil || s.gpuTexUniformSlabCap < needSlab) {
 		if s.gpuTexUniformSlab != nil {

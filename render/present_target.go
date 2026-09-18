@@ -1182,6 +1182,16 @@ func (t *PresentTarget) Close() error {
 	t.closed = true
 	// R0-6: drop the recovery-registry entry on every close path below.
 	defer unregisterSharedTarget(t)
+	// R6 measurement: WR_MEMDIG=1 dumps the process VRAM ledger (live,
+	// peak, count, budget) at window close for post-fix comparison.
+	defer func() {
+		if os.Getenv("WR_MEMDIG") == "1" {
+			fmt.Fprintf(os.Stderr, "MEMDIG live=%.2fMiB peak=%.2fMiB count=%d budget=%dMiB\n",
+				float64(VramLiveBytes())/(1024*1024),
+				float64(VramPeakBytes())/(1024*1024),
+				VramLiveCount(), VramBudgetMB())
+		}
+	}()
 	if t.dc != nil {
 		_ = t.dc.Close()
 		t.dc = nil
