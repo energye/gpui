@@ -59,6 +59,13 @@ type FrameMetrics struct {
 	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
 	DamageAreaPx   int64  `json:"damage_area_px,omitempty"`
 	PresentMode    string `json:"present_mode,omitempty"` // full|damage_union|damage_multi (idle inputs preserve last real)
+	// PresentModeAgeSec is seconds since the last REAL (non-idle) present
+	// set the mode (R3-6: idle frames preserve the value, so readers need
+	// its age to tell fresh steady-state from hours-stale residue).
+	PresentModeAgeSec float64 `json:"present_mode_age_s,omitempty"`
+	// PresentModeAtNs is the internal timestamp behind PresentModeAgeSec
+	// (UnixNano, never marshalled).
+	PresentModeAtNs int64 `json:"-"`
 	DamageAreaLast int64  `json:"damage_area_last_px,omitempty"`
 
 	// DirtyLayerIDs is the last frame's dirty layer/boundary id list (R4b; the
@@ -201,6 +208,9 @@ func (s *MetricsStore) Snapshot() FrameMetrics {
 	out.P50FrameIntervalMs, out.P95FrameIntervalMs, out.P99FrameIntervalMs = s.percentilesLocked()
 	out.HitchRatePerMin = s.hitchRatePerMinLocked()
 	out.CPUUIPct, out.CPURasterPct = s.pathCPULocked()
+	if out.PresentModeAtNs > 0 {
+		out.PresentModeAgeSec = time.Since(time.Unix(0, out.PresentModeAtNs)).Seconds()
+	}
 	return out
 }
 
@@ -272,6 +282,7 @@ func (s *MetricsStore) NotePresentOutcome(mode string, areaPx int64) {
 		s.m.PresentMode = mode
 		s.m.DamageAreaPx = areaPx
 		s.m.DamageAreaLast = areaPx
+		s.m.PresentModeAtNs = time.Now().UnixNano()
 	}
 	s.mu.Unlock()
 }

@@ -48,7 +48,7 @@ const (
 	winW, winH = 1200, 800
 	// Second-window probe geometry (X11): deliberately different size so
 	// stream independence is observable, not assumed.
-	win2W, win2H = 640, 480
+	win2W, win2H = 600, 400
 	// Big-picture probe (X3): 10 images above the 2MP large lane.
 	bigCount     = 10
 	bigW, bigH   = 1600, 1400
@@ -273,13 +273,32 @@ func main() {
 	}
 	defer os.RemoveAll(imgDir)
 	bigPaths := make([]string, bigCount)
-	for i := 0; i < bigCount; i++ {
-		p := filepath.Join(imgDir, fmt.Sprintf("big_%02d.png", i))
-		if err := makeBigPNG(p, i); err != nil {
-			fmt.Fprintln(os.Stderr, "FAIL: make big png:", err)
-			os.Exit(1)
+	// R3-7: PNG encodes run in parallel (per-file seeds, no shared state)
+	// instead of blocking startup serially — same bytes, less wait.
+	{
+		var wg sync.WaitGroup
+		genErr := make([]error, bigCount)
+		tGen := time.Now()
+		for i := 0; i < bigCount; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				p := filepath.Join(imgDir, fmt.Sprintf("big_%02d.png", i))
+				if err := makeBigPNG(p, i); err != nil {
+					genErr[i] = err
+					return
+				}
+				bigPaths[i] = p
+			}(i)
 		}
-		bigPaths[i] = p
+		wg.Wait()
+		for i := 0; i < bigCount; i++ {
+			if genErr[i] != nil {
+				fmt.Fprintln(os.Stderr, "FAIL: make big png:", genErr[i])
+				os.Exit(1)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "ui_wr_t_stress: %d big pngs in %s\n", bigCount, time.Since(tGen).Round(time.Millisecond))
 	}
 
 	// Input latency probe: stamp a synthetic input, count frames to completion.
@@ -326,7 +345,7 @@ func main() {
 	// X11 fd and the outer loop never returns).
 	runOverlapEpisode := func() {
 		epSet(true, false)
-		w2, err := platform.Open(platform.Options{Width: 600, Height: 400, Title: "gpui ui_wr_t_stress — 遮挡窗", Decorations: true})
+		w2, err := platform.Open(platform.Options{Width: win2W, Height: win2H, Title: "gpui ui_wr_t_stress — 遮挡窗", Decorations: true})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "ui_wr_t_stress: overlap window open failed: %v\n", err)
 			ps.epMu.Lock()
@@ -345,7 +364,7 @@ func main() {
 			return
 		}
 		defer w2.Close()
-		root2 := rendering.NewAbsoluteBox(600, 400)
+		root2 := rendering.NewAbsoluteBox(win2W, win2H)
 		root2.Background = &rendering.Color{R: 0.14, G: 0.16, B: 0.2, A: 1}
 		for i := 0; i < 6; i++ {
 			c := rendering.NewRenderColorBox(80, 60, 0.3+0.1*float64(i%3), 0.5, 0.7, 1)
@@ -374,18 +393,16 @@ func main() {
 		ps.epMu.Lock()
 		ps.mainAtOpen = app.PresentCount()
 		ps.epMu.Unlock()
-		if err := app2.Open(); err != nil {
-		} else {
-		}
+		// (R3-7 cleanup: a duplicate second Open() sat here as an empty
+		// if/else — the Open above is authoritative.)
 		// Synchronous overlap: the episode goroutine drives the second
 		// window's own Run loop (blocking 1.5s RunFor) while the main
 		// window's Run continues on the main goroutine. app2.Run returns
 		// on its own deadline; no watchdog needed (removed 2026-09-17:
 		// the earlier "no tickers → stall" theory was wrong — the warm-up
 		// present + RunFor deadline suffice, see log below).
-		if err := app2.Run(); err != nil {
-		} else {
-		}
+		// Run errors surface via win2Presents below; nothing else to do.
+		_ = app2.Run()
 		app2.Close()
 		ww, wh := w2.Host().Size()
 		ps.epMu.Lock()
@@ -655,7 +672,7 @@ func main() {
 			ps.epMu.Lock()
 			defer ps.epMu.Unlock()
 			d := fmt.Sprintf("win2 %dx%d presents %d backend %s main-before %d open-err %q", ps.win2W, ps.win2H, ps.win2Presents, ps.win2Backend, ps.mainAtOpen, ps.win2Err)
-			diffSize := ps.win2W == 600 && ps.win2H == 400
+			diffSize := ps.win2W == win2W && ps.win2H == win2H
 			overlap := ps.ovOpened && ps.ovClosed && ps.win2Presents >= 2 && ps.mainAtOpen > 0
 			return d, diffSize && overlap
 		}, true},

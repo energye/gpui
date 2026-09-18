@@ -286,7 +286,10 @@ func main() {
 
 	snapDir := os.Getenv("C5_SNAP_DIR")
 	if snapDir == "" {
-		snapDir = "/tmp/c5_anim_over_static"
+		// R3-6: baselines live in-repo (like C4's golden/) so CI compares
+		// against review instead of seeding-and-passing every fresh
+		// checkout; /tmp stays available via C5_SNAP_DIR for ad-hoc runs.
+		snapDir = filepath.Join("examples", "ui_wr_c5_anim_over_static", "golden")
 	}
 	os.MkdirAll(snapDir, 0o755)
 
@@ -565,6 +568,14 @@ func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int6
 	cur := filepath.Join(snapDir, "c5_final.png")
 	base := filepath.Join(snapDir, "c5_final_base.png")
 	if _, err := os.Stat(base); err != nil {
+		// R3-6: missing baseline fails closed. Seeding happens only under
+		// GPUI_ACCEPT_GOLDEN=1 (conscious act); the seeded file must then
+		// be reviewed and committed — the old flow passed every fresh
+		// checkout unconditionally, so the gate never gated in CI.
+		if os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
+			fmt.Fprintf(os.Stderr, "golden baseline missing: %s (re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit)\n", base)
+			return 100, 0, false
+		}
 		data, err := os.ReadFile(cur)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "golden: current snapshot %s missing (%v)\n", cur, err)

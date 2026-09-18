@@ -166,6 +166,9 @@ type PipelineApp struct {
 	lastDirtyIDs    []uint64
 	maxDirtyIDCount int
 	lastPresentMode string
+	// lastPresentModeAtNs timestamps the last REAL (non-idle) mode above
+	// (R3-6 age companion to scheduler's present_mode_age_s).
+	lastPresentModeAtNs int64
 
 	// R16 H-family first-present observation: wall start of Open; recorded once
 	// at the first present (warm-up full paint or first loop present).
@@ -339,6 +342,21 @@ func (a *PipelineApp) LastPresentMode() string {
 	return a.lastPresentMode
 }
 
+// LastPresentModeAgeSec is seconds since the last REAL (non-idle) present
+// set the mode (R3-6: idle preserves the value, so gate readers can tell
+// fresh steady-state from stale residue instead of trusting it blindly).
+func (a *PipelineApp) LastPresentModeAgeSec() float64 {
+	if a == nil {
+		return -1
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	if a.lastPresentModeAtNs <= 0 {
+		return -1
+	}
+	return time.Since(time.Unix(0, a.lastPresentModeAtNs)).Seconds()
+}
+
 func (a *PipelineApp) noteDamage(area int64, mode string) {
 	if a == nil {
 		return
@@ -357,6 +375,7 @@ func (a *PipelineApp) noteDamage(area int64, mode string) {
 	// event-noise idle frame.
 	if mode != render.PresentModeIdle.String() {
 		a.lastPresentMode = mode
+		a.lastPresentModeAtNs = time.Now().UnixNano()
 	}
 	if mode == "damage_multi" || mode == render.PresentModeDamageMulti.String() {
 		a.damageMultiN++
