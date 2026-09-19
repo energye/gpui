@@ -1439,7 +1439,15 @@ func (a *PipelineApp) Run() error {
 				}
 				var out render.PresentOutcome
 				var err error
-				if compositeOnly && pkt != nil {
+				// X12 fault-injection seam (GPUI_FAULT_OOM="after:count"):
+				// substitute a synthetic OOM-class error for this submit so
+				// the real Note→threshold→quit→RunErr chain is exercised in
+				// tests (X12 was previously stub-only). Default off.
+				fault := gpuFaultOOM.injectOOM(a.submitted.Load())
+				if fault != nil {
+					err = fault
+					out = render.PresentOutcome{}
+				} else if compositeOnly && pkt != nil {
 					out, err = presentPacketTextured(target, pkt, a, clearR, clearG, clearB, clearA, opts)
 				} else {
 					out, err = presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)

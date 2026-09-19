@@ -203,6 +203,10 @@ func main() {
 	pendingApplied := -1
 	pendingRR := int64(0)
 	rrViolations, maxBatchDelta := int64(0), int64(0)
+	// 按格归因（#3 收尾）：RerecordByKeySnapshot 键级差分——每批结算时数
+	// 「本轮重录键数」，与总量 dRR 互相印证；键明细落 JSON 供总量门立数。
+	pendingKeys := map[uint64]map[string]int64{}
+	keyViolations, maxKeyDelta := int64(0), int64(0)
 	// 调试开关：WR_R10_DBG=1 时逐批打日志，用于核对门禁用 bound。
 	dbg := os.Getenv("WR_R10_DBG") == "1"
 
@@ -235,10 +239,24 @@ func main() {
 		if pendingApplied >= 0 {
 			dRR := snapH.BoundaryRerecord - pendingRR
 			bound := int64(pendingApplied) + 1
+			// 按键差分：光栅任务串行改 rerecordBy，但快照读在 UI 侧仍取
+			// 一次一致拷贝；键数增量 = 本轮真正重录的格子数（含 HUD）。
+			curKeys := app.PictureTextures().RerecordByKeySnapshot()
+			changedKeys := int64(0)
+			for k, causes := range curKeys {
+				prev := pendingKeys[k]
+				for cause, n := range causes {
+					if n > prev[cause] {
+						changedKeys++
+						break
+					}
+				}
+			}
+			pendingKeys = curKeys
 			judged := phase != wrkit.PhaseSpike
 			if dbg {
-				fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: dbg batch t=%.2f phase=%s applied=%d dRR=%d bound=%d judged=%v\n",
-					elapsed, phase, pendingApplied, dRR, bound, judged)
+				fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: dbg batch t=%.2f phase=%s applied=%d dRR=%d keys=%d bound=%d judged=%v\n",
+					elapsed, phase, pendingApplied, dRR, changedKeys, bound, judged)
 			}
 			if judged {
 				if dRR > bound {
@@ -246,6 +264,14 @@ func main() {
 				}
 				if dRR > maxBatchDelta {
 					maxBatchDelta = dRR
+				}
+				// 键级门与总量门同线：重录键数也应 ≤ 到达格数+1
+				// （HUD 键 +1 容忍）；全局重绘时键数≈全部格数必炸。
+				if changedKeys > bound {
+					keyViolations++
+				}
+				if changedKeys > maxKeyDelta {
+					maxKeyDelta = changedKeys
 				}
 			}
 			pendingApplied = -1
@@ -270,6 +296,7 @@ func main() {
 		if applied > 0 {
 			pendingApplied = applied
 			pendingRR = snapH.BoundaryRerecord
+			pendingKeys = app.PictureTextures().RerecordByKeySnapshot()
 			statusLabel.SetText(fmt.Sprintf("loaded %02d / %02d", loaded, imageCount))
 			statusLabel.MarkNeedsPaint()
 		}
@@ -364,6 +391,9 @@ func main() {
 			"rr_violations":               rrViolations,
 			"max_batch_rr_delta":          maxBatchDelta,
 			"batch_bound":                 "steady-phase delta <= applied+1 (spike bursts logged only)",
+			"key_violations":              keyViolations,
+			"max_key_delta":               maxKeyDelta,
+			"key_bound":                   "per-key changed-key count <= applied+1, same line as total gate (#3)",
 			"avg_decode_ms":               avgDecode,
 			"boundary_skip":               snap.BoundarySkip,
 			"boundary_rerecord":           snap.BoundaryRerecord,
@@ -391,6 +421,11 @@ func main() {
 	// 族 C 能力专用①: 出图后 rerecord 仅一格。
 	if rrViolations != 0 {
 		fmt.Fprintf(os.Stderr, "FAIL: rr_violations=%d want 0 (存在出图批次引发多格/全局重录)", rrViolations)
+		os.Exit(1)
+	}
+	// 按格归因门（#3）：键级与总量同线，重录键数超 bound 同样 FAIL。
+	if keyViolations != 0 {
+		fmt.Fprintf(os.Stderr, "FAIL: key_violations=%d want 0 (按格归因键数超界，总量与键级不一致)", keyViolations)
 		os.Exit(1)
 	}
 	if snap.BoundarySkip <= 0 {

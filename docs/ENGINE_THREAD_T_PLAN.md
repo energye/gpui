@@ -310,8 +310,8 @@ E2/E3/E5 基线不动。不留双路开关（直接重写，红了 revert）。�
 | # | 是什么 | 现状与证据 |
 |---|--------|------------|
 | 10 | 嵌套 Run 死锁 | ✅ 已关（2026-09-19，真同跑验证通过）：核查根因——每窗各自 `XOpenDisplay` 独立连接独立 fd（`x11Create` per-window display），`WaitEvents` 各 poll 各的 fd + 自管道，Loop 侧 R0-7 可重置已闭环；窗注释「内层偷走唯一 X fd」已过时。一次性双窗探针（两 goroutine 各跑各的 `Run` 3s，600×400 + 1200×800）实跑无死锁双窗齐 present，探针用完即删。T 窗注释里的死锁警告可随下次改动顺手订正 |
-| 11 | X12 退出没真触发过 | 触发器在引擎内；断电项拿桩测冒充（R3-4 已记） |
-| 12 | Hide 真隐藏改走最小化 | present 崩，绕行中 |
+| 11 | X12 退出没真触发过 | ✅ 已关（2026-09-19，注入缝真走退出链）：`ui/embedder/fault_oom.go` 加 GPUI_FAULT_OOM="after:count" 故障注入缝（env 门控默认关闭零开销，present 提交前替换合成 OOM 错误），T 窗带 `GPUI_FAULT_OOM=20:3` 实跑 exit=1 返回人话 "GPU out of memory persists across 3 frames"，Note→阈值→quit→RunErr 整条链真触发；单测 3 项（env 语法/注入窗/喂真退出链）+ embedder 全包绿 | 关闭 |
+| 12 | Hide 真隐藏改走最小化 | ✅ 已关（2026-09-19，复现不出崩溃）：一次性探针（用完即删）真窗 present 中途 Hide，持续 ScheduleFrame 3 秒 Run 存活无崩，Show 恢复正常；历史崩法疑被 R0/R6 present 链修复顺带治好，绕行可撤 | 关闭 |
 | 13 | X11 真卡两项改尺寸单测本地跳过 | 真机 CI 才跑；记录语义无头单测已入库 |
 | 14 | 无界非回调图片仍走全屏老路 | 俩窗实测零出现；`WR_TEXDBG` 探针留着看 |
 | 15 | T 窗 `BudgetRefusals` 无窗侧断言 | ✅ 已关（2026-09-19）：metrics 加 `budget_refusals` 字段 + `SetBudgetRefusals`，embedder 两条采样路径接 `cacheBudgetRefusals()`（PictureTextures 访问器，边界缓存无界不计），T 窗 X9 断言补 `budget_refusals>=0` 输出；T 窗实测 X9 `entries=113 evictions=0 budget_refusals=0`，extremes 12/12 全绿 | 关闭 |
