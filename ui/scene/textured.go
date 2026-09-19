@@ -115,6 +115,44 @@ type PictureTextureCache struct {
 	// texDbgSeen dedups the WR_TEXDBG full-window probe (R6-1): each
 	// cache key logs once per process.
 	texDbgSeen map[uint64]struct{}
+	// rerecordBy attributes each texture re-record to its layer cache key
+	// and record cause (R10 按格归因): a global FrameRerecord counter cannot
+	// tell which grid keeps re-recording (HOT animation vs eviction
+	// thrash). Key = PictureLayer.CacheKey, cause = "full"/"full-extra"/
+	// "local". Guarded by mu; read via RerecordByKeySnapshot.
+	rerecordBy map[uint64]map[string]int64
+}
+
+// noteRerecord attributes one re-record to (key, cause). Callers hold c.mu.
+func (c *PictureTextureCache) noteRerecord(key uint64, cause string) {
+	if c.rerecordBy == nil {
+		c.rerecordBy = make(map[uint64]map[string]int64)
+	}
+	byCause := c.rerecordBy[key]
+	if byCause == nil {
+		byCause = make(map[string]int64)
+		c.rerecordBy[key] = byCause
+	}
+	byCause[cause]++
+}
+
+// RerecordByKeySnapshot returns a copy of the per-key re-record attribution
+// (key → cause → cumulative count), for window-side per-grid gates (R10).
+func (c *PictureTextureCache) RerecordByKeySnapshot() map[uint64]map[string]int64 {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make(map[uint64]map[string]int64, len(c.rerecordBy))
+	for k, byCause := range c.rerecordBy {
+		m := make(map[string]int64, len(byCause))
+		for cause, n := range byCause {
+			m[cause] = n
+		}
+		out[k] = m
+	}
+	return out
 }
 
 type pictureTextureSlot struct {
@@ -765,6 +803,11 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	e.lastUse = c.stamp
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
+	cause := "full"
+	if extra != nil {
+		cause = "full-extra"
+	}
+	c.noteRerecord(id, cause)
 	c.FrameRerecord.Add(1)
 	return e.bounds, true
 }
@@ -976,6 +1019,11 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	e.lastUse = c.stamp
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
+	cause := "local"
+	if extra != nil {
+		cause = "local-extra"
+	}
+	c.noteRerecord(id, cause)
 	c.FrameRerecord.Add(1)
 	return e.bounds, true
 }

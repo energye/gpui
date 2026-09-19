@@ -667,7 +667,10 @@ func main() {
 			return ps.minimizeSeen + fmt.Sprintf(" presents %d", presents), minimizeDone && presents > 0
 		}, true},
 		{"X9", "cache full", func() (string, bool) {
-			return fmt.Sprintf("entries=%d evictions=%d", snap.CacheEntries, snap.CacheEvictions), snap.CacheEntries > 0
+			// #15: BudgetRefusals sampled too (R0-5/X9 observability) — the
+			// count must be present and non-negative; entries prove the
+			// cache is actually loaded.
+			return fmt.Sprintf("entries=%d evictions=%d budget_refusals=%d", snap.CacheEntries, snap.CacheEvictions, snap.BudgetRefusals), snap.CacheEntries > 0 && snap.BudgetRefusals >= 0
 		}, true},
 		{"X10", "snapshot vs frame", func() (string, bool) {
 			return fmt.Sprintf("snap callbacks %d frame %d", ps.snapFired.Load(), ps.snapFrame.Load()), ps.snapFired.Load() >= 1

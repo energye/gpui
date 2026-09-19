@@ -152,6 +152,9 @@ type FrameMetrics struct {
 	// sweep. Sampled per frame by PipelineApp.
 	CacheEntries   int64 `json:"cache_entries,omitempty"`
 	CacheEvictions int64 `json:"cache_evictions,omitempty"`
+	// BudgetRefusals is the cumulative count of EnsureCapacity growth
+	// refusals under multi-window budget pressure (R0-5; X9 observability).
+	BudgetRefusals int64 `json:"budget_refusals,omitempty"`
 
 	// MeasureCacheHit is cumulative text-measure cache hits since last reset
 	// (W1 R9). MeasureCacheMiss is the miss counterpart for hits≥miss proof.
@@ -604,6 +607,17 @@ func (s *MetricsStore) SetCacheBudget(entries, evictions int64) {
 	s.mu.Lock()
 	s.m.CacheEntries = entries
 	s.m.CacheEvictions = evictions
+	s.mu.Unlock()
+}
+
+// SetBudgetRefusals records the cumulative EnsureCapacity growth refusal
+// count (R0-5 / X9 observability). Sampled per frame by PipelineApp.
+func (s *MetricsStore) SetBudgetRefusals(n int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.BudgetRefusals = n
 	s.mu.Unlock()
 }
 

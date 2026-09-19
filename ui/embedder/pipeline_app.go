@@ -508,6 +508,16 @@ func (a *PipelineApp) cacheEvictions() int64 {
 	return n
 }
 
+// cacheBudgetRefusals is the cumulative R0-5 EnsureCapacity growth refusal
+// count (multi-window budget pressure; X9 observability). Only the texture
+// cache refuses growth today; the boundary cache is unbounded by design.
+func (a *PipelineApp) cacheBudgetRefusals() int64 {
+	if t := a.PictureTextures(); t != nil {
+		return t.BudgetRefusals()
+	}
+	return 0
+}
+
 // Overlay returns the overlay stack (may be nil).
 func (a *PipelineApp) Overlay() *overlay.State {
 	if a == nil {
@@ -1474,6 +1484,7 @@ func (a *PipelineApp) Run() error {
 					// W6 R14: cache budget observability (combined entries +
 					// cumulative evictions of both layer caches).
 					metrics.SetCacheBudget(a.cacheEntryCount(), a.cacheEvictions())
+					metrics.SetBudgetRefusals(a.cacheBudgetRefusals())
 					// W2 R18: accumulate SaveLayer budget outcomes this frame
 					// (per-frame delta of the cumulative stats).
 					if a.saveStats != nil {
@@ -1804,6 +1815,7 @@ func (a *PipelineApp) presentSyncFull() {
 		// W6 R14: cache budget observability (same-source sample as the
 		// retained frame path above).
 		m.SetCacheBudget(a.cacheEntryCount(), a.cacheEvictions())
+		m.SetBudgetRefusals(a.cacheBudgetRefusals())
 		if a.saveStats != nil {
 			al, rj := a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
 			m.NoteSaveLayer(al-a.lastSaveAllow, rj-a.lastSaveReject)
