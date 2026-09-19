@@ -22,20 +22,22 @@ func (d *Divider) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	lc := d.LineColor()
-	lw := d.LineWidth()
+	// R2-6: one frozen paint-input load (UI-stored at rebuild/markPaint,
+	// read here on raster) — never live reads of title/face/style.
+	S := d.paintSnapLocked()
+	lc := S.LineColor
+	lw := S.LineWidth
 	if lw <= 0 {
 		lw = 1
 	}
-	if d.IsVertical() {
-		mi := d.MarginInline()
-		x := mi + lw/2
-		d.paintRail(pc, x, 0, x, h, lc, lw)
+	if S.Vertical {
+		x := S.MarginInline + lw/2
+		d.paintRail(pc, x, 0, x, h, lc, lw, S)
 		return
 	}
-	if !d.HasTitle() {
+	if !S.HasTitle {
 		y := h / 2
-		d.paintRail(pc, 0, y, w, y, lc, lw)
+		d.paintRail(pc, 0, y, w, y, lc, lw, S)
 		return
 	}
 	railY := L.railY + lw/2
@@ -51,33 +53,33 @@ func (d *Divider) paint(pc *rendering.PaintContext, size rendering.Size) {
 		if avail < 0 {
 			avail = 0
 		}
-		gs, ge := d.RailGrows()
+		gs, ge := S.RailGrowStart, S.RailGrowEnd
 		sum := gs + ge
 		if sum > 0 {
 			startW = avail * gs / sum
 		}
 	}
 	if startW > 0 {
-		d.paintRail(pc, 0, railY, startW, railY, lc, lw)
+		d.paintRail(pc, 0, railY, startW, railY, lc, lw, S)
 	}
 	sx := startW + titleW
 	if sx < w {
-		d.paintRail(pc, sx, railY, w, railY, lc, lw)
+		d.paintRail(pc, sx, railY, w, railY, lc, lw, S)
 	}
-	d.paintTitle(pc, L)
+	d.paintTitle(pc, L, S)
 }
 
-func (d *Divider) paintTitle(pc *rendering.PaintContext, L dividerLayout) {
-	if d == nil || !d.HasTitle() || d.titleNode != nil {
+func (d *Divider) paintTitle(pc *rendering.PaintContext, L dividerLayout, S paintSnap) {
+	if d == nil || !S.HasTitle || S.HasTitleNod {
 		return
 	}
-	if d.title == "" || pc == nil || pc.DC == nil {
+	if S.Title == "" || pc == nil || pc.DC == nil {
 		return
 	}
-	tc := d.TitleColor()
-	fs := d.TitleFontSize()
-	if d.face != nil {
-		pc.DC.SetFont(d.face)
+	tc := S.TitleColor
+	fs := S.TitleFontSize
+	if S.Face != nil {
+		pc.DC.SetFont(S.Face)
 	}
 	pc.DC.SetRGBA(tc.R, tc.G, tc.B, tc.A)
 	// Baseline sits below the title top; without font metrics use 0.8em.
@@ -86,11 +88,11 @@ func (d *Divider) paintTitle(pc *rendering.PaintContext, L dividerLayout) {
 	y := L.titleY + fs*0.8
 	x := L.titleX + fs
 	ax, ay := pc.Abs(x, y)
-	pc.DC.DrawString(d.title, ax, ay)
+	pc.DC.DrawString(S.Title, ax, ay)
 }
 
-func (d *Divider) paintRail(pc *rendering.PaintContext, x1, y1, x2, y2 float64, lc render.RGBA, lw float64) {
-	switch d.EffectiveVariant() {
+func (d *Divider) paintRail(pc *rendering.PaintContext, x1, y1, x2, y2 float64, lc render.RGBA, lw float64, S paintSnap) {
+	switch S.Variant {
 	case Dotted:
 		paintDotted(pc, x1, y1, x2, y2, lc, lw)
 	case Dashed:

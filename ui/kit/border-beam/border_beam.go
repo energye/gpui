@@ -71,6 +71,11 @@ type BorderBeam struct {
 	ariaLabel string
 	style     Style
 
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored wholesale by refreshSnapshot (UI, inside dirty) and loaded once
+	// per paint on raster.
+	snap atomic.Value // BeamSnap
+
 	attached *scheduler.TickerRegistry
 }
 
@@ -91,6 +96,7 @@ func NewBorderBeam(child rendering.RenderObject) *BorderBeam {
 	}
 	b.host.AddChild(b.beam)
 	b.child = child
+	b.refreshSnapshot()
 	return b
 }
 
@@ -364,10 +370,20 @@ func (b *BorderBeam) EffectivePhase() float64 {
 	if b == nil {
 		return 0
 	}
-	if !b.rtl {
-		return math.Float64frombits(b.phase.Load())
+	return b.effectivePhaseRTL(b.rtl)
+}
+
+// effectivePhaseRTL is EffectivePhase with the direction frozen by the
+// snapshot (paint-side; phase itself stays the atomic read).
+func (b *BorderBeam) effectivePhaseRTL(rtl bool) float64 {
+	if b == nil {
+		return 0
 	}
-	e := 1 - math.Float64frombits(b.phase.Load())
+	p := math.Float64frombits(b.phase.Load())
+	if !rtl {
+		return p
+	}
+	e := 1 - p
 	return e - math.Floor(e)
 }
 
@@ -501,6 +517,7 @@ func (b *BorderBeam) dirty() {
 	if b == nil || b.beam == nil {
 		return
 	}
+	b.refreshSnapshot()
 	b.beam.MarkNeedsPaint()
 }
 
@@ -539,36 +556,43 @@ func (b *BorderBeam) defaultStops() []BorderBeamColorStop {
 
 // paintBeam draws the phase-positioned segment along the host border.
 func (b *BorderBeam) paintBeam(pc *rendering.PaintContext) {
-	if b == nil || pc == nil || !b.IsBeamVisible() {
+	if b == nil || pc == nil {
+		return
+	}
+	// R2-6: one frozen paint-input load (UI-stored in dirty, read here on
+	// raster) — never live reads of stops/geometry; only the atomic phase
+	// is read live (Tick writes it every frame by design).
+	S := b.loadSnapshot()
+	if !S.Visible {
 		return
 	}
 	hs := b.host.Size()
-	o := b.ResolvedOutset()
+	o := S.Outset
 	w, h := hs.Width+2*o, hs.Height+2*o
 	if w <= 0 || h <= 0 {
 		return
 	}
-	lw := b.ResolvedLineWidth()
-	rect := beamRect{x0: -o, y0: -o, w: w, h: h, r: b.ResolvedBorderRadius() + math.Max(0, o)}
+	lw := S.LineWidth
+	rect := beamRect{x0: -o, y0: -o, w: w, h: h, r: S.Radius + math.Max(0, o)}
 	total := rect.perimeter()
 	if total <= 0 {
 		return
 	}
-	seg := b.ResolvedSize()
+	seg := S.Size
 	if seg <= 0 {
 		return
 	}
 	if seg > total {
 		seg = total
 	}
-	stops := b.ResolvedColorStops()
+	stops := S.Stops
 	if len(stops) == 0 {
 		return
 	}
 	if pc.DC != nil {
 		pc.DC.SetLineCap(render.LineCapRound)
 	}
-	start := b.EffectivePhase() * total
+	start := b.effectivePhaseRTL(S.RTL) * total
 	for i := 0; i < beamSteps; i++ {
 		t0 := float64(i) / beamSteps
 		t1 := float64(i+1) / beamSteps

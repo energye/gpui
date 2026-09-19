@@ -96,6 +96,11 @@ type Divider struct {
 	// atomic, never nine bare floats — a torn half-layout on raster is a
 	// wrong rail, not just a race report (R2-6).
 	layoutCache atomic.Value // dividerLayout
+
+	// paintCache is the last frozen paint input (R2-6, button snapshot
+	// paradigm): stored wholesale by refreshSnapshot (UI, inside
+	// rebuild/markPaint) and loaded once per paint on raster.
+	paintCache atomic.Value // paintSnap
 }
 
 // dividerLayout is one consistent laid-out geometry snapshot.
@@ -592,6 +597,7 @@ func (d *Divider) rebuild() {
 	if d == nil || d.root == nil {
 		return
 	}
+	d.refreshSnapshot()
 	// Manage custom title child: string titles draw in OnPaint, no child.
 	cur := d.root.Children()
 	for _, c := range cur {
@@ -623,6 +629,7 @@ func (d *Divider) markPaint() {
 	if d == nil || d.root == nil {
 		return
 	}
+	d.refreshSnapshot()
 	d.root.MarkNeedsPaint()
 }
 

@@ -141,24 +141,25 @@ func (b *FloatButton) BadgeBackground() render.RGBA {
 
 // paintBadge draws the count/dot overlay at the top-right corner. Count text
 // needs textFace; without a face the red shell still paints and no black bar
-// is ever drawn (DrawString no-ops on a nil face).
-func (b *FloatButton) paintBadge(pc *rendering.PaintContext, size rendering.Size) {
-	if b == nil || !b.BadgeVisible() {
+// is ever drawn (DrawString no-ops on a nil face). Reads only the frozen
+// snapshot (R2-6) — never live badge fields on raster.
+func (b *FloatButton) paintBadge(pc *rendering.PaintContext, size rendering.Size, S FloatSnap) {
+	if b == nil || !S.BadgeVisible {
 		return
 	}
-	bg := b.BadgeBackground()
-	if b.badgeDot {
+	bg := S.BadgeBg
+	if S.BadgeDot {
 		rendering.FillCircle(pc, size.Width-5, 5, 5, bg.R, bg.G, bg.B, bg.A)
 		return
 	}
-	label := b.BadgeText()
+	label := S.BadgeLabel
 	if label == "" {
 		return
 	}
 	cx, cy := size.Width-7, 7.0
 	bw, bh := 16.0, 16.0
-	if b.textFace != nil {
-		if w, h := text.Measure(label, b.textFace); w > 0 && h > 0 {
+	if S.TextFace != nil {
+		if w, h := text.Measure(label, S.TextFace); w > 0 && h > 0 {
 			bw = w + 8
 			if bw < 16 {
 				bw = 16
@@ -173,11 +174,11 @@ func (b *FloatButton) paintBadge(pc *rendering.PaintContext, size rendering.Size
 		}
 	}
 	rendering.FillRoundRect(pc, cx-bw/2, cy-bh/2, bw, bh, bh/2, bg.R, bg.G, bg.B, bg.A)
-	if b.textFace == nil || pc.DC == nil {
+	if S.TextFace == nil || pc.DC == nil {
 		return
 	}
 	ax, ay := pc.Abs(cx, cy)
-	pc.DC.SetFont(b.textFace)
+	pc.DC.SetFont(S.TextFace)
 	pc.DC.SetRGBA(1, 1, 1, 1)
 	pc.DC.DrawStringAnchored(label, ax, ay, 0.5, 0.5)
 }

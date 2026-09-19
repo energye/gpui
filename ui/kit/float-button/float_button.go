@@ -89,6 +89,11 @@ type FloatButton struct {
 	// textFace is the paint-only font face (nil keeps headless estimate).
 	textFace text.Face
 
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored wholesale by refreshSnapshot (UI, inside dirty) and loaded once
+	// per paint on raster.
+	snap atomic.Value // FloatSnap
+
 	node     *rendering.RenderBox
 	attached *scheduler.TickerRegistry
 }
@@ -104,6 +109,7 @@ func NewFloatButton() *FloatButton {
 		self.paint(pc, size)
 	}
 	b.syncNode()
+	b.refreshSnapshot()
 	return b
 }
 
@@ -657,6 +663,7 @@ func (b *FloatButton) dirty() {
 		return
 	}
 	b.syncNode()
+	b.refreshSnapshot()
 	b.node.MarkNeedsPaint()
 }
 
@@ -664,13 +671,13 @@ func (b *FloatButton) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	bg := b.EffectiveBackground()
-	bd := b.EffectiveBorder()
-	fg := b.EffectiveForeground()
-	lw := b.EffectiveBorderWidth()
+	// R2-6: one frozen paint-input load (UI-stored in dirty, read here on
+	// raster) — never live reads of shape/colors/content/badge state.
+	S := b.loadSnapshot()
+	bg, bd, fg, lw := S.Bg, S.Bd, S.Fg, S.BorderW
 	cx, cy := size.Width/2, size.Height/2
-	if b.Shape() == FloatButtonShapeSquare {
-		r := b.EffectiveRadius()
+	if S.Shape == FloatButtonShapeSquare {
+		r := S.Radius
 		rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, r, bg.R, bg.G, bg.B, bg.A)
 		rendering.StrokeRoundRect(pc, 0, 0, size.Width, size.Height, r, lw, bd.R, bd.G, bd.B, bd.A)
 	} else {
@@ -681,56 +688,51 @@ func (b *FloatButton) paint(pc *rendering.PaintContext, size rendering.Size) {
 		rendering.FillCircle(pc, cx, cy, r, bg.R, bg.G, bg.B, bg.A)
 		rendering.StrokeCircle(pc, cx, cy, r-lw/2, lw, bd.R, bd.G, bd.B, bd.A)
 	}
-	if b.FocusRingVisible() {
-		tok := b.themeTokens()
-		rc := themeToRGBA(tok.ColorPrimary)
-		rw := tok.ControlOutlineWidth
-		if rw <= 0 {
-			rw = 2
-		}
-		if b.Shape() == FloatButtonShapeSquare {
+	if S.FocusRing {
+		rc, rw := S.RingColor, S.RingWidth
+		if S.Shape == FloatButtonShapeSquare {
 			o := FloatButtonFocusOutset
-			r := b.EffectiveRadius() + o
+			r := S.Radius + o
 			rendering.StrokeRoundRect(pc, -o, -o, size.Width+2*o, size.Height+2*o, r, rw, rc.R, rc.G, rc.B, rc.A)
 		} else {
 			rendering.StrokeCircle(pc, cx, cy, size.Width/2+FloatButtonFocusOutset, rw, rc.R, rc.G, rc.B, rc.A)
 		}
 	}
-	if name := b.EffectiveIcon(); name != "" && !b.loading {
-		s := b.EffectiveIconSize()
+	if S.Icon != "" && !S.Loading {
+		s := S.IconSize
 		ox := (size.Width - s) / 2
 		oy := (size.Height - s) / 2
-		if b.content != "" {
+		if S.Content != "" {
 			oy = size.Height/2 - 7 - s/2
 		}
-		drawFloatIcon(pc, name, ox, oy, s, fg)
+		drawFloatIcon(pc, S.Icon, ox, oy, s, fg)
 	}
-	if b.content != "" {
-		fs := b.ContentFontSize()
-		w, _ := rendering.EstimateTextSize(b.content, fs, 0.55)
+	if S.Content != "" {
+		fs := S.ContentFontSize
+		w, _ := rendering.EstimateTextSize(S.Content, fs, 0.55)
 		x := (size.Width - w) / 2
 		if x < FloatButtonVPadding {
 			x = FloatButtonVPadding
 		}
 		y := size.Height/2 + 4
-		if b.EffectiveIcon() != "" {
+		if S.Icon != "" {
 			y = size.Height/2 + 13
 		}
 		if pc.DC != nil {
 			ax, ay := pc.Abs(x, y)
-			if b.textFace != nil {
-				pc.DC.SetFont(b.textFace)
+			if S.TextFace != nil {
+				pc.DC.SetFont(S.TextFace)
 			}
 			pc.DC.SetRGBA(fg.R, fg.G, fg.B, fg.A)
-			pc.DC.DrawString(b.content, ax, ay)
+			pc.DC.DrawString(S.Content, ax, ay)
 		}
 	}
-	if b.loading {
+	if S.Loading {
 		ang := math.Float64frombits(b.phase.Load()) * 2 * math.Pi
 		rendering.StrokeArc(pc, cx, cy, 9, ang, ang+4.2, 2, fg.R, fg.G, fg.B, fg.A)
 	}
 	// P1 badge overlay (never steals the main click).
-	b.paintBadge(pc, size)
+	b.paintBadge(pc, size, S)
 }
 
 func iconLineWidth(s float64) float64 {

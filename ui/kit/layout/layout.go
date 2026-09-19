@@ -127,6 +127,10 @@ type Header struct {
 	provider *theme.Provider
 	override *theme.Tokens
 	aria     string
+	// bgSnap is the last frozen paint background (R2-6, button snapshot
+	// paradigm): stored wholesale by refreshSnapshot (UI, inside every
+	// paint-affecting setter) and loaded once per paint on raster.
+	bgSnap atomic.Value // render.RGBA
 }
 
 // NewHeader creates a header.
@@ -139,6 +143,7 @@ func NewHeader(children ...rendering.RenderObject) *Header {
 	h.node.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		self.paint(pc, size)
 	}
+	h.refreshSnapshot()
 	h.SetChildren(children...)
 	return h
 }
@@ -162,7 +167,7 @@ func (h *Header) SetHeight(v float64) {
 	}
 	h.height = v
 	h.node.MarkNeedsLayout()
-	h.node.MarkNeedsPaint()
+	h.markPaint()
 }
 
 // EffectiveHeight returns the laid-out height.
@@ -201,7 +206,37 @@ func (h *Header) SetBackground(c render.RGBA) {
 	}
 	h.bg = c
 	h.hasBg = true
+	h.markPaint()
+}
+
+// markPaint refreshes the frozen background then requests repaint.
+func (h *Header) markPaint() {
+	if h == nil || h.node == nil {
+		return
+	}
+	h.refreshSnapshot()
 	h.node.MarkNeedsPaint()
+}
+
+// refreshSnapshot freezes the paint background (UI thread; button snapshot
+// paradigm, R2-6). Pure value build, safe against a concurrent paint.
+func (h *Header) refreshSnapshot() {
+	if h == nil {
+		return
+	}
+	h.bgSnap.Store(h.EffectiveBackground())
+}
+
+// loadBackgroundSnap returns the last frozen background (dark shell default
+// before first refresh).
+func (h *Header) loadBackgroundSnap() render.RGBA {
+	if h == nil {
+		return render.RGBA{}
+	}
+	if v, ok := h.bgSnap.Load().(render.RGBA); ok {
+		return v
+	}
+	return render.RGBA{}
 }
 
 // EffectiveBackground returns header bg (dark shell default).
@@ -218,7 +253,7 @@ func (h *Header) SetProvider(p *theme.Provider) {
 		return
 	}
 	h.provider = p
-	h.node.MarkNeedsPaint()
+	h.markPaint()
 }
 
 // SetTheme pins exact tokens.
@@ -227,7 +262,7 @@ func (h *Header) SetTheme(t *theme.Tokens) {
 		return
 	}
 	h.override = t
-	h.node.MarkNeedsPaint()
+	h.markPaint()
 }
 
 // SetAriaLabel names the container.
@@ -317,7 +352,8 @@ func (h *Header) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	bg := h.EffectiveBackground()
+	// R2-6: frozen background only — never a live read on raster.
+	bg := h.loadBackgroundSnap()
 	rendering.FillRect(pc, 0, 0, size.Width, size.Height, bg.R, bg.G, bg.B, bg.A)
 }
 
@@ -330,6 +366,10 @@ type Footer struct {
 	provider *theme.Provider
 	override *theme.Tokens
 	aria     string
+	// bgSnap is the last frozen paint background (R2-6, button snapshot
+	// paradigm): stored wholesale by refreshSnapshot (UI, inside every
+	// paint-affecting setter) and loaded once per paint on raster.
+	bgSnap atomic.Value // render.RGBA
 }
 
 // NewFooter creates a footer.
@@ -342,6 +382,7 @@ func NewFooter(children ...rendering.RenderObject) *Footer {
 	f.node.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		self.paint(pc, size)
 	}
+	f.refreshSnapshot()
 	f.SetChildren(children...)
 	return f
 }
@@ -373,7 +414,37 @@ func (f *Footer) SetPaddingInsets(in Insets) {
 		return
 	}
 	f.padding = in
+	f.markPaint()
+}
+
+// markPaint refreshes the frozen background then requests repaint.
+func (f *Footer) markPaint() {
+	if f == nil || f.node == nil {
+		return
+	}
+	f.refreshSnapshot()
 	f.node.MarkNeedsPaint()
+}
+
+// refreshSnapshot freezes the paint background (UI thread; button snapshot
+// paradigm, R2-6). Pure value build, safe against a concurrent paint.
+func (f *Footer) refreshSnapshot() {
+	if f == nil {
+		return
+	}
+	f.bgSnap.Store(f.EffectiveBackground())
+}
+
+// loadBackgroundSnap returns the last frozen background (zero before first
+// refresh; paint skips fully transparent).
+func (f *Footer) loadBackgroundSnap() render.RGBA {
+	if f == nil {
+		return render.RGBA{}
+	}
+	if v, ok := f.bgSnap.Load().(render.RGBA); ok {
+		return v
+	}
+	return render.RGBA{}
 }
 
 // Padding returns stored padding.
@@ -391,7 +462,7 @@ func (f *Footer) SetBackground(c render.RGBA) {
 	}
 	f.bg = c
 	f.hasBg = true
-	f.node.MarkNeedsPaint()
+	f.markPaint()
 }
 
 // EffectiveBackground returns footer bg (body bg default).
@@ -408,7 +479,7 @@ func (f *Footer) SetProvider(p *theme.Provider) {
 		return
 	}
 	f.provider = p
-	f.node.MarkNeedsPaint()
+	f.markPaint()
 }
 
 // SetTheme pins exact tokens.
@@ -417,7 +488,7 @@ func (f *Footer) SetTheme(t *theme.Tokens) {
 		return
 	}
 	f.override = t
-	f.node.MarkNeedsPaint()
+	f.markPaint()
 }
 
 // SetAriaLabel names the container.
@@ -507,7 +578,8 @@ func (f *Footer) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	bg := f.EffectiveBackground()
+	// R2-6: frozen background only — never a live read on raster.
+	bg := f.loadBackgroundSnap()
 	if bg.A <= 0 {
 		return
 	}
@@ -524,6 +596,10 @@ type Content struct {
 	provider  *theme.Provider
 	override  *theme.Tokens
 	aria      string
+	// bgSnap is the last frozen paint background (R2-6, button snapshot
+	// paradigm): stored wholesale by refreshSnapshot (UI, inside every
+	// paint-affecting setter) and loaded once per paint on raster.
+	bgSnap atomic.Value // render.RGBA
 }
 
 // NewContent creates content.
@@ -536,6 +612,7 @@ func NewContent(children ...rendering.RenderObject) *Content {
 	c.node.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		self.paint(pc, size)
 	}
+	c.refreshSnapshot()
 	c.SetChildren(children...)
 	return c
 }
@@ -575,7 +652,37 @@ func (c *Content) SetPaddingInsets(in Insets) {
 		return
 	}
 	c.padding = in
+	c.markPaint()
+}
+
+// markPaint refreshes the frozen background then requests repaint.
+func (c *Content) markPaint() {
+	if c == nil || c.node == nil {
+		return
+	}
+	c.refreshSnapshot()
 	c.node.MarkNeedsPaint()
+}
+
+// refreshSnapshot freezes the paint background (UI thread; button snapshot
+// paradigm, R2-6). Pure value build, safe against a concurrent paint.
+func (c *Content) refreshSnapshot() {
+	if c == nil {
+		return
+	}
+	c.bgSnap.Store(c.EffectiveBackground())
+}
+
+// loadBackgroundSnap returns the last frozen background (zero before first
+// refresh; paint skips fully transparent).
+func (c *Content) loadBackgroundSnap() render.RGBA {
+	if c == nil {
+		return render.RGBA{}
+	}
+	if v, ok := c.bgSnap.Load().(render.RGBA); ok {
+		return v
+	}
+	return render.RGBA{}
 }
 
 // Padding returns stored padding.
@@ -593,7 +700,7 @@ func (c *Content) SetBackground(v render.RGBA) {
 	}
 	c.bg = v
 	c.hasBg = true
-	c.node.MarkNeedsPaint()
+	c.markPaint()
 }
 
 // EffectiveBackground returns content bg (transparent default).
@@ -610,7 +717,7 @@ func (c *Content) SetProvider(p *theme.Provider) {
 		return
 	}
 	c.provider = p
-	c.node.MarkNeedsPaint()
+	c.markPaint()
 }
 
 // SetTheme pins exact tokens.
@@ -619,7 +726,7 @@ func (c *Content) SetTheme(t *theme.Tokens) {
 		return
 	}
 	c.override = t
-	c.node.MarkNeedsPaint()
+	c.markPaint()
 }
 
 // SetAriaLabel names the container.
@@ -719,7 +826,8 @@ func (c *Content) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	bg := c.EffectiveBackground()
+	// R2-6: frozen background only — never a live read on raster.
+	bg := c.loadBackgroundSnap()
 	if bg.A <= 0 {
 		return
 	}
