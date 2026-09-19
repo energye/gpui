@@ -230,6 +230,9 @@ E2/E3/E5 基线不动。不留双路开关（直接重写，红了 revert）。�
 | 2026-09-18 | R4/R5 关账 + §18 未关账 | ✅ R0–R5 关账（另议 4 + 存量红 6 + 杂项 7，计 17 项见 §18） | R4：11 条 7 改 2 删 2 翻案（快照三测有料、零快照意图如此），不改行为。R5：文件读一遍（32MB 上保两遍）+ 大图计时进 JSON + 坏文件单测；R10 两轮交替红（账上已知抖）。全档只剩 §18 的账。 |
 | 2026-09-18 | R5 省 IO | 🔄 修理中 | 文件读一遍（分流扩展名快径+内容嗅探兜底，32MB 以上保两遍；内存字节走同路）；坏文件闭门单测；大图生成并行耗时进 T 窗 JSON（`big_gen_ms`≈1000ms/10 张）。内存字节全注册表嗅探保留（3 家内存头解析，微秒级）。R10 两轮交替红（slope/重录各一，账上已知抖），图 20/20 两次全齐。 |
 | 2026-09-18 | R4 文字死码 | 🔄 修理中 | 脏旗总账拆两行（needsPaint 界面/NeedsRaster 光栅）；presents 混口径改注；删 `completedInputSeq`（只写不读）；预算模板注改“同步路直传串行无害”；Target 注改光栅线程限定（现行犯零，全走 SnapshotAsync）；借窗非 OOM 注明单设备理由；删 `sharedDeviceProvider`+`mustPanicInJob`；`BuildBeginNs` 直赋注记原因；快照三测翻案（双向纯度+检查器即断言，有料不碰）；零快照意图如此不碰；submit 路径两处限定属实不动。不改行为。 |
+| 2026-09-19 | §18 修序推进：#2b/#1(watermark)/#3/P2 重跑 | ✅ 四项完成（用户逐项拍板方向） | #2b C4 三张输出图 `git rm --cached`+gitignore（check-ignore 验过）；#1 活闭包：SpaceAddon 紧凑边旗原子化（事件组清零）+ watermark 全快照化（`snapshot.go` WatermarkSnap、dirtyMark/Layout 双刷新点、SnapshotRace/-race 与全量绿，SnapshotPurity 断言无活读；中途修 Layout 后快照冻结 0×0 回归）；#3 R10 按格归因 plumbing（`textured.go` rerecordBy key→cause、`RerecordByKeySnapshot()`、单测2项+race+全量绿）；P2 重跑：R10/M5/S69/c10 存量确认，X8 14s 与 c8/r22/c6/r20 本机全绿（账上红系当时负载）。详见 §18.1/§18.2 当日注 |
+| 2026-09-19 | #10 嵌套 Run 死锁真同跑 | ✅ 已关（§18.3 #10） | 一次性双窗探针实证：两 goroutine 各跑各的 `Run`（600×400 + 1200×800，3s）无死锁双窗齐 present；根因核查每窗独立 X 连接（`x11Create` per-window `XOpenDisplay`），旧「单 fd 被偷」结论过时；Loop R0-7 可重置已闭环。探针用完即删 |
+| 2026-09-19 | #15 T 窗 X9 断言补 BudgetRefusals | ✅ 已关（§18.3 #15） | metrics 加 `budget_refusals` + `SetBudgetRefusals`；embedder 两条采样路径接 `cacheBudgetRefusals()`；T 窗 X9 断言带 `budget_refusals` 输出，实测 entries=113 / refusals=0，extremes 12/12 全绿 |
 
 ## 17. T0–T5 重审分档与修复顺序（2026-09-18，只读复核，未改代码）
 
@@ -284,16 +287,18 @@ E2/E3/E5 基线不动。不留双路开关（直接重写，红了 revert）。�
 
 | # | 是什么 | 现状与证据 | 下一步 |
 |---|--------|------------|--------|
-| 1 | 活闭包 20 组件（R2-4/R2-6） | 光栅读组件肚子里的活字段；按钮/图标/文字已快照，其余约 20 个 `OnPaint` 组件没排。无界无回调图片已跳过纹理（R6-1），落笔那路照跑回调，画面对、 race 敞口仍在 | 逐个组件快照（按钮范式），kit-by-kit 立项 |
-| 2 | C4 金图 11.1% | 比对基线（`*_base`）从未离开（R3-0 订正：`be161b5` 覆盖的是跑次重写输出图，原指控收回）；25s 重跑仅此一项红 `11.1026%`，是代码对真基线的真信号 | 跑对照定修引擎还是重存基线（wr-close/wr-debug 方向） |
-| 2b | C4 每跑必脏 worktree 输出图 | R3-0 复核新发现：`c4_{open,steady,recover}.png` 每次跑重写且被跟踪（`db37853` 入库时带上），任何一次跑窗都弄脏工作区 | 输出图移出跟踪（gitignore）或改写到临时目录，另议 |
-| 3 | 按格归因计数（R10） | 峰值总量 707，主因 HOT 动画按设计逐帧重录，全局计数器分不出归因；总量门试过撤回（代码已恢复原样）。豁免成立有数 | 引擎加按格/按因计数 plumbing 后再立门 |
+| 1 | 活闭包 20 组件（R2-4/R2-6） | 光栅读组件肚子里的活字段；按钮/图标/文字已快照。已修：画中回写消除（Spin 指示尺寸、Popover 触发尺寸，原子值）；相位原子化（Timeline 快照+原子相位、Skeleton×6、Spin、悬浮钮、光束、进度条）；事件开关原子化（Tooltip/Popover/Splitter/Tag/Alert/Sider 悬停按压聚焦选中折叠隐藏，Statistic loading 收尾，SpaceAddon 紧凑边旗 2026-09-19，edge 位包 1 原子 + addon_atomic_test -race 绿）；进度条百分比原子化；PhaseRacesPaint 两测改并发读原子态、串行画（Tick vs Node().Paint 会误伤 rendering 脏旗，非组件错）。剩文案配置类：watermark 已全快照化收口（2026-09-19，用户定全快照按钮范式：`snapshot.go` WatermarkSnap + dirtyMark/Layout 双刷新点，paintMarks/paintTextTileSnap 只读快照，SnapshotRace -race 绿 + SnapshotPurity 无活读断言 + 全量回归绿）。其余组件配置类（labels/颜色/尺寸/节点）同范式逐个啃 | 事件组已清零；剩余配置组按按钮范式逐个快照化 |
+| 2 | C4 金图 11.1% | 用户 verdict（2026-09-18）：旧照片太老不管了，新输出是对的。 excavate 结论：场景未动、整形对等绿、无偏移、送屏无关（full/retained 同值），差异=文字排版演进+全场 1LSB。基线留作历史参照，不重存，红即水位 | 关闭（认新判旧，不改代码） |
+| 2b | C4 每跑必脏 worktree 输出图 | ✅ 已关（2026-09-19，用户定移出跟踪）：三张 `c4_{open,steady,recover}.png` `git rm --cached` + `.gitignore` 收录（check-ignore 验过），工作区文件保留、历史基线不动 | 关闭 |
+| 3 | 按格归因计数（R10） | ✅ plumbing 已落（2026-09-19）：`ui/scene/textured.go` `rerecordBy`（key→cause→累计数，cause=full/full-extra/local/local-extra）挂进两条重录路径（recordWith/recordLocalWith），`RerecordByKeySnapshot()` 拷贝式读取口；单测 `textured_rerecord_by_test.go` 2 项 + race + `ui/scene` 全量绿。总量门仍不立（等窗侧按格断言用上再立） | R10 窗侧按格断言接线后立门 |
 
 ### 18.2 存量红（基线同红，非本轮回归，动之前先重跑对照）
 
+> 2026-09-19 P2 重跑对照（用户批后逐个跑）：#4 R10 rr_viol=1/图20/20/slope 26573 绿——与 T4/T5 记录一致，存量确认；#7 M5 比值 1.70 超门 1.5——真超线性，落 ENGINE_TEXT_SCALE_PLAN §9；#5 S69 contract 6 项红/TierGates 本机 SKIP——存量确认；#9 X8 14s 稳绿（12/12）；#8 c8 30s 绿（scripted 11/11）、r22 30s 绿（golden 0.0000%）、c6 30s 绿（hitch 0）、r20 30s 绿——四扇本机全绿，账上红为当时机器负载；#8 c10 30s 短版拦截（要 300s）照旧。全部维持存量定性，无一本轮回归。
+
 | # | 是什么 | 现状与证据 |
 |---|--------|------------|
-| 4 | R10 重录 1 / slope 超限交替抖 | 图 20/20 正常；两轮各红一边，负载抖，T2/T4/T5 同记录 |
+| 4 | R10 重录 1 / slope 超限交替抖 | 图 20/20 正常；两轮各红一边，负载抖，T2/T4/T5 同记录；2026-09-19 重跑 rr_viol=1 maxRR=6 slope 26573 绿，存量确认 |
 | 5 | S69 两性能门 | 软显卡盒子跑不过阈值；其余 render 红单拎全绿是并行负载抖，逐文件跑才是门 |
 | 6 | render 整包 9 红 259 跳 | 同上：7 个单拎全绿，真红仅 S69；259 跳是并行抢卡门（`offscreen unavailable`），单拎绿 |
 | 7 | M5 击键比值挂账 | `TestKeystrokeRatio_M5` 贴门晃，落位 `ENGINE_TEXT_SCALE_PLAN.md` §9 |
@@ -304,10 +309,10 @@ E2/E3/E5 基线不动。不留双路开关（直接重写，红了 revert）。�
 
 | # | 是什么 | 现状与证据 |
 |---|--------|------------|
-| 10 | 嵌套 Run 死锁 | 循环可重置已修（R0-7），真同跑缺这一步就能试；串行集已证双表面同设备 |
+| 10 | 嵌套 Run 死锁 | ✅ 已关（2026-09-19，真同跑验证通过）：核查根因——每窗各自 `XOpenDisplay` 独立连接独立 fd（`x11Create` per-window display），`WaitEvents` 各 poll 各的 fd + 自管道，Loop 侧 R0-7 可重置已闭环；窗注释「内层偷走唯一 X fd」已过时。一次性双窗探针（两 goroutine 各跑各的 `Run` 3s，600×400 + 1200×800）实跑无死锁双窗齐 present，探针用完即删。T 窗注释里的死锁警告可随下次改动顺手订正 |
 | 11 | X12 退出没真触发过 | 触发器在引擎内；断电项拿桩测冒充（R3-4 已记） |
 | 12 | Hide 真隐藏改走最小化 | present 崩，绕行中 |
 | 13 | X11 真卡两项改尺寸单测本地跳过 | 真机 CI 才跑；记录语义无头单测已入库 |
 | 14 | 无界非回调图片仍走全屏老路 | 俩窗实测零出现；`WR_TEXDBG` 探针留着看 |
-| 15 | T 窗 `BudgetRefusals` 无窗侧断言 | 计数器+访问器已入库，X9 断言待补 |
+| 15 | T 窗 `BudgetRefusals` 无窗侧断言 | ✅ 已关（2026-09-19）：metrics 加 `budget_refusals` 字段 + `SetBudgetRefusals`，embedder 两条采样路径接 `cacheBudgetRefusals()`（PictureTextures 访问器，边界缓存无界不计），T 窗 X9 断言补 `budget_refusals>=0` 输出；T 窗实测 X9 `entries=113 evictions=0 budget_refusals=0`，extremes 12/12 全绿 | 关闭 |
 | 16 | 6 笔本地提交未推 + 别线游戏金图未动 | 推不推、游戏金图归谁，等用户话 |
