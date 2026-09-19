@@ -240,18 +240,22 @@ func (s *Splitter) paintBar(pc *rendering.PaintContext, size rendering.Size, ind
 	if w <= 0 || h <= 0 {
 		return
 	}
-	vertical := s.IsVertical()
-	barW := s.SplitBarSize()
+	S := s.loadSnapshot()
+	if index < 0 || index >= len(S.Resizable) {
+		return
+	}
+	vertical := S.Vertical
+	barW := S.BarSize
 	hov := s.loadHovered()
 	hovered := index < len(hov) && hov[index]
 	active := s.barActive.Load() == int64(index) || s.dragging.Load() == int64(index)
 	focused := s.focusedBar.Load() == int64(index)
-	resizable := s.BarResizable(index)
+	resizable := S.Resizable[index]
 
-	base := toBarRGBA(s.EffectiveBarColor())
-	hoverC := toBarRGBA(s.EffectiveBarHoverColor())
-	activeC := toBarRGBA(s.EffectiveBarActiveColor())
-	handleC := toBarRGBA(s.EffectiveHandleColor())
+	base := toBarRGBA(S.BaseColor)
+	hoverC := toBarRGBA(S.HoverColor)
+	activeC := toBarRGBA(S.ActiveColor)
+	handleC := toBarRGBA(S.HandleColor)
 
 	bg := base
 	if active {
@@ -264,10 +268,10 @@ func (s *Splitter) paintBar(pc *rendering.PaintContext, size rendering.Size, ind
 		rendering.FillRect(pc, cx-barW/2, 0, barW, h, bg.r, bg.g, bg.b, bg.a)
 		if resizable {
 			hw := 2.0
-			if s.draggerIcon != nil {
+			if S.HasDragger {
 				hw = 4
 			}
-			hh := s.SplitBarDraggableSize()
+			hh := S.DraggableSize
 			if hh > h-16 {
 				hh = h - 16
 			}
@@ -277,16 +281,16 @@ func (s *Splitter) paintBar(pc *rendering.PaintContext, size rendering.Size, ind
 			cy := h / 2
 			rendering.FillRoundRect(pc, cx-hw/2, cy-hh/2, hw, hh, 1, handleC.r, handleC.g, handleC.b, handleC.a)
 		}
-		s.paintCollapseMarks(pc, index, false, w, h)
+		s.paintCollapseMarks(pc, index, false, w, h, S)
 		if focused {
-			fc := toBarRGBA(s.EffectiveFocusColor())
+			fc := toBarRGBA(S.FocusColor)
 			rendering.StrokeRect(pc, 0.75, 0.75, w-1.5, h-1.5, 1.5, fc.r, fc.g, fc.b, fc.a)
 		}
 	} else {
 		cy := h / 2
 		rendering.FillRect(pc, 0, cy-barW/2, w, barW, bg.r, bg.g, bg.b, bg.a)
 		if resizable {
-			ww := s.SplitBarDraggableSize()
+			ww := S.DraggableSize
 			if ww > w-16 {
 				ww = w - 16
 			}
@@ -294,44 +298,37 @@ func (s *Splitter) paintBar(pc *rendering.PaintContext, size rendering.Size, ind
 				ww = 8
 			}
 			hh := 2.0
-			if s.draggerIcon != nil {
+			if S.HasDragger {
 				hh = 4
 			}
 			cx := w / 2
 			rendering.FillRoundRect(pc, cx-ww/2, cy-hh/2, ww, hh, 1, handleC.r, handleC.g, handleC.b, handleC.a)
 		}
-		s.paintCollapseMarks(pc, index, true, w, h)
+		s.paintCollapseMarks(pc, index, true, w, h, S)
 		if focused {
-			fc := toBarRGBA(s.EffectiveFocusColor())
+			fc := toBarRGBA(S.FocusColor)
 			rendering.StrokeRect(pc, 0.75, 0.75, w-1.5, h-1.5, 1.5, fc.r, fc.g, fc.b, fc.a)
 		}
 	}
 }
 
-func (s *Splitter) paintCollapseMarks(pc *rendering.PaintContext, index int, horizontalBar bool, w, h float64) {
-	n := len(s.panels)
-	if index < 0 || index+1 >= n {
+func (s *Splitter) paintCollapseMarks(pc *rendering.PaintContext, index int, horizontalBar bool, w, h float64, S SplitterSnap) {
+	if index < 0 || index >= len(S.CollapsibleLeft) || index >= len(S.CollapsibleRight) {
 		return
 	}
-	left := s.panels[index]
-	right := s.panels[index+1]
-	show := func(p *SplitterPanel) bool {
-		if p == nil || !p.collapsible {
-			return false
-		}
-		return p.ShowCollapsibleIcon() != CollapsibleIconNever
-	}
-	handleC := toBarRGBA(s.EffectiveHandleColor())
-	if s.collapseStartIcon != nil || s.collapseEndIcon != nil {
+	leftShow := S.CollapsibleLeft[index]
+	rightShow := S.CollapsibleRight[index]
+	handleC := toBarRGBA(S.HandleColor)
+	if S.HasCollapseStart || S.HasCollapseEnd {
 		cx, cy := w/2, h/2
-		if show(left) && s.collapseStartIcon != nil {
+		if leftShow && S.HasCollapseStart {
 			rendering.FillRect(pc, cx-3, cy-3, 6, 6, handleC.r, handleC.g, handleC.b, handleC.a)
-		} else if show(left) {
+		} else if leftShow {
 			rendering.FillRect(pc, cx-1, cy-5, 2, 10, handleC.r, handleC.g, handleC.b, handleC.a)
 		}
-		if show(right) && s.collapseEndIcon != nil {
+		if rightShow && S.HasCollapseEnd {
 			rendering.FillRect(pc, cx-3, cy-3, 6, 6, handleC.r, handleC.g, handleC.b, handleC.a)
-		} else if show(right) {
+		} else if rightShow {
 			rendering.FillRect(pc, cx-1, cy-5, 2, 10, handleC.r, handleC.g, handleC.b, handleC.a)
 		}
 		return
@@ -339,7 +336,7 @@ func (s *Splitter) paintCollapseMarks(pc *rendering.PaintContext, index int, hor
 	if !horizontalBar {
 		cy := h / 2
 		cx := w / 2
-		if show(left) {
+		if leftShow {
 			p := rendering.NewPath()
 			p.MoveTo(cx+3, cy-5)
 			p.LineTo(cx-2, cy)
@@ -347,7 +344,7 @@ func (s *Splitter) paintCollapseMarks(pc *rendering.PaintContext, index int, hor
 			p.Close()
 			rendering.FillPath(pc, p, handleC.r, handleC.g, handleC.b, handleC.a)
 		}
-		if show(right) {
+		if rightShow {
 			p := rendering.NewPath()
 			p.MoveTo(cx-3, cy-5)
 			p.LineTo(cx+2, cy)
@@ -358,7 +355,7 @@ func (s *Splitter) paintCollapseMarks(pc *rendering.PaintContext, index int, hor
 	} else {
 		cx := w / 2
 		cy := h / 2
-		if show(left) {
+		if leftShow {
 			p := rendering.NewPath()
 			p.MoveTo(cx-5, cy+3)
 			p.LineTo(cx, cy-2)
@@ -366,7 +363,7 @@ func (s *Splitter) paintCollapseMarks(pc *rendering.PaintContext, index int, hor
 			p.Close()
 			rendering.FillPath(pc, p, handleC.r, handleC.g, handleC.b, handleC.a)
 		}
-		if show(right) {
+		if rightShow {
 			p := rendering.NewPath()
 			p.MoveTo(cx-5, cy-3)
 			p.LineTo(cx, cy+2)

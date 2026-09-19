@@ -141,6 +141,11 @@ type Spin struct {
 	// state (R2-6 write-back). Zero value before first layout.
 	indSize atomic.Value // rendering.Size
 
+	// snap freezes every paint input on the UI thread (R2-6 button
+	// paradigm). Raster paint reads only this snapshot plus the phase /
+	// indSize / percent atomics above. See snapshot.go.
+	snap atomic.Value // SpinSnap
+
 	attached *scheduler.TickerRegistry
 }
 
@@ -162,11 +167,12 @@ func NewSpin(content rendering.RenderObject) *Spin {
 	s.overlay = rendering.NewRenderBox()
 	overlaySelf := s
 	s.overlay.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		overlaySelf.paintSection(pc, size)
+		overlaySelf.paintSection(pc, size, overlaySelf.loadSnapshot())
 	}
 	tok := s.tokens()
 	s.mask = rendering.NewRenderColorBox(0, 0, tok.ColorBgContainer.R, tok.ColorBgContainer.G, tok.ColorBgContainer.B, maskAlpha)
 	s.syncStructure()
+	s.refreshSnapshot()
 	s.Layout(rendering.Loose(rendering.Unbounded, rendering.Unbounded))
 	return s
 }
@@ -203,6 +209,7 @@ func (s *Spin) SetContent(n rendering.RenderObject) {
 		s.host.AddChild(n)
 	}
 	s.syncStructure()
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -222,6 +229,7 @@ func (s *Spin) SetSpinning(b bool) {
 		s.delayElaped = 0
 	}
 	s.syncStructure()
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -246,6 +254,7 @@ func (s *Spin) SetDelay(ms float64) {
 		}
 	}
 	s.syncStructure()
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -267,6 +276,7 @@ func (s *Spin) SetSize(sz SpinSize) {
 		return
 	}
 	s.size = n
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -287,6 +297,7 @@ func (s *Spin) SetDescription(d string) {
 		return
 	}
 	s.description = d
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -299,6 +310,7 @@ func (s *Spin) SetTip(t string) {
 		return
 	}
 	s.tip = t
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -308,6 +320,7 @@ func (s *Spin) SetTextFace(f text.Face) {
 		return
 	}
 	s.textFace = f
+	s.refreshSnapshot()
 	s.host.MarkNeedsPaint()
 }
 
@@ -326,6 +339,7 @@ func (s *Spin) SetFullscreen(b bool) {
 	}
 	s.fullscreen = b
 	s.syncStructure()
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -357,6 +371,7 @@ func (s *Spin) SetPercent(v float64) {
 	s.hasPercent = true
 	s.percentAuto = false
 	s.percentVal = v
+	s.refreshSnapshot()
 	s.host.MarkNeedsPaint()
 }
 
@@ -369,6 +384,7 @@ func (s *Spin) SetPercentAuto() {
 	s.percentAuto = true
 	s.autoVal = 0
 	s.autoAccum = 0
+	s.refreshSnapshot()
 	s.host.MarkNeedsPaint()
 }
 
@@ -382,6 +398,7 @@ func (s *Spin) ClearPercent() {
 	s.percentVal = 0
 	s.autoVal = 0
 	s.autoAccum = 0
+	s.refreshSnapshot()
 	s.host.MarkNeedsPaint()
 }
 
@@ -406,6 +423,7 @@ func (s *Spin) SetIndicator(n rendering.RenderObject) {
 		return
 	}
 	s.indicator = n
+	s.refreshSnapshot()
 	s.host.MarkNeedsPaint()
 }
 
@@ -431,6 +449,7 @@ func (s *Spin) SetProvider(p *theme.Provider) {
 		return
 	}
 	s.provider = p
+	s.refreshSnapshot()
 	s.refreshMask()
 	s.host.MarkNeedsPaint()
 }
@@ -441,6 +460,7 @@ func (s *Spin) SetTheme(t *theme.Tokens) {
 		return
 	}
 	s.override = t
+	s.refreshSnapshot()
 	s.refreshMask()
 	s.host.MarkNeedsPaint()
 }
@@ -451,6 +471,7 @@ func (s *Spin) SetStyle(st Style) {
 		return
 	}
 	s.style = st
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -841,6 +862,7 @@ func (s *Spin) Tick(dt float64) bool {
 		if s.delayElaped*1000 >= s.delayMs {
 			s.display = true
 			s.syncStructure()
+			s.refreshSnapshot()
 			s.host.MarkNeedsLayout()
 		}
 		return true
@@ -873,6 +895,7 @@ func (s *Spin) Tick(dt float64) bool {
 			}
 		}
 		if dirty {
+			s.refreshSnapshot()
 			s.host.MarkNeedsPaint()
 		}
 		return true
@@ -929,17 +952,18 @@ func (s *Spin) NextWake() (time.Duration, bool) {
 }
 
 func (s *Spin) paint(pc *rendering.PaintContext, size rendering.Size) {
-	if s == nil || pc == nil || !s.IsDisplaySpinning() {
+	if s == nil || pc == nil {
 		return
 	}
-	if s.wantMask() {
+	S := s.loadSnapshot()
+	if !S.Visible || S.WantMask {
 		return
 	}
-	s.paintSection(pc, size)
+	s.paintSection(pc, size, S)
 }
 
-func (s *Spin) paintSection(pc *rendering.PaintContext, size rendering.Size) {
-	if s == nil || pc == nil || !s.IsDisplaySpinning() {
+func (s *Spin) paintSection(pc *rendering.PaintContext, size rendering.Size, S SpinSnap) {
+	if s == nil || pc == nil || !S.Visible {
 		return
 	}
 	if pc.DC == nil {
@@ -948,21 +972,21 @@ func (s *Spin) paintSection(pc *rendering.PaintContext, size rendering.Size) {
 	if size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	primary := s.EffectiveIndicatorColor()
-	desc := s.EffectiveDescription()
+	primary := S.IndicatorColor
+	desc := S.Description
 	var descH float64
 	if desc != "" {
-		_, descH = rendering.EstimateTextSize(desc, s.EffectiveFontSize(), 0.55)
+		_, descH = rendering.EstimateTextSize(desc, S.FontSize, 0.55)
 	}
-	if s.hasPercent {
-		s.paintRing(pc, size, primary)
-	} else if ind := s.EffectiveIndicator(); ind != nil {
-		s.paintCustom(pc, size, ind, descH)
+	if S.HasPercent {
+		s.paintRing(pc, size, S)
+	} else if ind := S.Indicator; ind != nil {
+		s.paintCustom(pc, size, S, ind, descH)
 	} else {
-		s.paintDots(pc, size, primary, descH)
+		s.paintDots(pc, size, S, primary, descH)
 	}
 	if desc != "" {
-		s.paintDescription(pc, size, desc, s.EffectiveDescriptionColor())
+		s.paintDescription(pc, size, S, desc, S.DescriptionColor)
 	}
 }
 
@@ -978,12 +1002,21 @@ func (s *Spin) indicatorHeight() float64 {
 	return s.DotSize()
 }
 
-func (s *Spin) sectionTop(size rendering.Size, descH float64) float64 {
-	indH := s.indicatorHeight()
-	if s.EffectiveDescription() == "" {
+func (s *Spin) indicatorHeightSnap(S SpinSnap) float64 {
+	if S.Indicator != nil {
+		if v, ok := s.indSize.Load().(rendering.Size); ok && v.Height > 0 {
+			return v.Height
+		}
+	}
+	return S.DotSize
+}
+
+func (s *Spin) sectionTopSnap(S SpinSnap, size rendering.Size, descH float64) float64 {
+	indH := s.indicatorHeightSnap(S)
+	if S.Description == "" {
 		return (size.Height - indH) / 2
 	}
-	total := indH + s.EffectiveGap() + descH
+	total := indH + S.Gap + descH
 	top := (size.Height - total) / 2
 	if top < 0 {
 		top = 0
@@ -991,9 +1024,9 @@ func (s *Spin) sectionTop(size rendering.Size, descH float64) float64 {
 	return top
 }
 
-func (s *Spin) paintDots(pc *rendering.PaintContext, size rendering.Size, primary render.RGBA, descH float64) {
-	dot := s.DotSize()
-	top := s.sectionTop(size, descH)
+func (s *Spin) paintDots(pc *rendering.PaintContext, size rendering.Size, S SpinSnap, primary render.RGBA, descH float64) {
+	dot := S.DotSize
+	top := s.sectionTopSnap(S, size, descH)
 	cx := size.Width / 2
 	cy := top + dot/2
 	orbit := dot * 0.32
@@ -1016,12 +1049,12 @@ func (s *Spin) paintDots(pc *rendering.PaintContext, size rendering.Size, primar
 	}
 }
 
-func (s *Spin) paintRing(pc *rendering.PaintContext, size rendering.Size, primary render.RGBA) {
-	dot := s.DotSize()
-	track := s.EffectiveTrackColor()
+func (s *Spin) paintRing(pc *rendering.PaintContext, size rendering.Size, S SpinSnap) {
+	dot := S.DotSize
+	track := S.TrackColor
 	cx := size.Width / 2
-	top := s.sectionTop(size, 0)
-	if s.content != nil {
+	top := s.sectionTopSnap(S, size, 0)
+	if S.HasContent {
 		top = (size.Height - dot) / 2
 		if top < 0 {
 			top = 0
@@ -1037,7 +1070,7 @@ func (s *Spin) paintRing(pc *rendering.PaintContext, size rendering.Size, primar
 		radius = 1
 	}
 	rendering.StrokeCircle(pc, cx, cy, radius, stroke, track.R, track.G, track.B, track.A)
-	p := s.EffectivePercent()
+	p := S.EffPercent
 	if p <= 0 {
 		return
 	}
@@ -1046,19 +1079,20 @@ func (s *Spin) paintRing(pc *rendering.PaintContext, size rendering.Size, primar
 	}
 	start := -math.Pi / 2
 	end := start + p/100*2*math.Pi
-	rendering.StrokeArc(pc, cx, cy, radius, start, end, stroke, primary.R, primary.G, primary.B, primary.A)
+	arcInk := S.IndicatorColor
+	rendering.StrokeArc(pc, cx, cy, radius, start, end, stroke, arcInk.R, arcInk.G, arcInk.B, arcInk.A)
 }
 
-func (s *Spin) paintCustom(pc *rendering.PaintContext, size rendering.Size, ind rendering.RenderObject, descH float64) {
+func (s *Spin) paintCustom(pc *rendering.PaintContext, size rendering.Size, S SpinSnap, ind rendering.RenderObject, descH float64) {
 	// Size comes from the UI-side Layout cache only (indSize); paint never
 	// lays out nor writes back (R2-6). Unmeasured indicators fall back to
 	// the dot size, matching indicatorHeight.
-	w, h := s.DotSize(), s.DotSize()
+	w, h := S.DotSize, S.DotSize
 	if v, ok := s.indSize.Load().(rendering.Size); ok && v.Width > 0 && v.Height > 0 {
 		w, h = v.Width, v.Height
 	}
-	top := s.sectionTop(size, descH)
-	if s.content != nil {
+	top := s.sectionTopSnap(S, size, descH)
+	if S.HasContent {
 		top = (size.Height - h) / 2
 		if top < 0 {
 			top = 0
@@ -1071,20 +1105,20 @@ func (s *Spin) paintCustom(pc *rendering.PaintContext, size rendering.Size, ind 
 	ind.Paint(pc.WithOrigin(pc.OriginX+x, pc.OriginY+top))
 }
 
-func (s *Spin) paintDescription(pc *rendering.PaintContext, size rendering.Size, desc string, ink render.RGBA) {
-	if s == nil || s.textFace == nil {
+func (s *Spin) paintDescription(pc *rendering.PaintContext, size rendering.Size, S SpinSnap, desc string, ink render.RGBA) {
+	if s == nil || S.Face == nil {
 		return
 	}
-	fs := s.EffectiveFontSize()
+	fs := S.FontSize
 	_, descH := rendering.EstimateTextSize(desc, fs, 0.55)
-	top := s.sectionTop(size, descH)
-	indH := s.indicatorHeight()
-	y := top + indH + s.EffectiveGap()
-	if s.content != nil {
-		y = size.Height/2 + indH/2 + s.EffectiveGap()/2
+	top := s.sectionTopSnap(S, size, descH)
+	indH := s.indicatorHeightSnap(S)
+	y := top + indH + S.Gap
+	if S.HasContent {
+		y = size.Height/2 + indH/2 + S.Gap/2
 	}
 	ax, ay := pc.Abs(size.Width/2, y)
-	pc.DC.SetFont(s.textFace)
+	pc.DC.SetFont(S.Face)
 	pc.DC.SetRGBA(ink.R, ink.G, ink.B, ink.A)
 	pc.DC.DrawStringAnchored(desc, ax, ay, 0.5, 0)
 }

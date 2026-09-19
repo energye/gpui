@@ -179,6 +179,11 @@ type Popover struct {
 	viewportW float64
 	viewportH float64
 
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored by refreshSnapshot (UI, markPaint + New) and loaded once per
+	// paint on raster.
+	snap atomic.Value // PopoverSnap
+
 	focusNode *focus.FocusNode
 
 	root       *rendering.RenderBox
@@ -221,6 +226,7 @@ func NewPopover(triggerLabel string) *Popover {
 		self.paintPanel(pc, size)
 	}
 	p.root.AddChild(p.triggerBox)
+	p.refreshSnapshot()
 	p.Layout(rendering.Loose(rendering.Unbounded, rendering.Unbounded))
 	return p
 }
@@ -237,6 +243,7 @@ func (p *Popover) markPaint() {
 	if p == nil {
 		return
 	}
+	p.refreshSnapshot()
 	if p.triggerBox != nil {
 		p.triggerBox.MarkNeedsPaint()
 	}
@@ -1390,13 +1397,19 @@ func (p *Popover) refreshOverlay() {
 }
 
 func (p *Popover) paintText(pc *rendering.PaintContext, s string, x, y, w, h, fontSize float64, c render.RGBA) {
+	p.paintTextFace(pc, p.loadSnapshot().Face, s, x, y, w, h, fontSize, c)
+}
+
+// paintTextFace draws with the frozen face (raster never reads the live
+// textFace field).
+func (p *Popover) paintTextFace(pc *rendering.PaintContext, face text.Face, s string, x, y, w, h, fontSize float64, c render.RGBA) {
 	if pc == nil || pc.DC == nil || s == "" || w <= 0 || h <= 0 {
 		return
 	}
-	if p == nil || p.textFace == nil {
+	if face == nil {
 		return
 	}
-	pc.DC.SetFont(p.textFace)
+	pc.DC.SetFont(face)
 	pc.DC.SetRGBA(c.R, c.G, c.B, c.A)
 	baseline := y + h/2 + fontSize*0.35
 	ax, ay := pc.Abs(x, baseline)
@@ -1407,32 +1420,29 @@ func (p *Popover) paintTrigger(pc *rendering.PaintContext, size rendering.Size) 
 	if pc == nil || p == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	tok := p.themeTokens()
+	// R2-6: one frozen paint-input load (UI-stored in markPaint/New, read
+	// here on raster) — never live reads of theme/config fields;
+	// disabled/hovered/pressed/focused stay atomic reads.
+	S := p.loadSnapshot()
 	w, h := size.Width, size.Height
-	bg := themeToRGBA(tok.ColorBgContainer)
-	bd := themeToRGBA(tok.ColorBorder)
-	tx := themeToRGBA(tok.ColorText)
+	bg, bd, tx := S.Bg, S.Bd, S.Tx
 	if p.disabled.Load() {
-		bg = themeToRGBA(tok.ColorFillTertiary)
-		tx = themeToRGBA(tok.ColorTextDisabled)
+		bg = S.BgDisabled
+		tx = S.TxDisabled
 	} else if p.hovered.Load() && !p.pressed.Load() {
-		acc := themeToRGBA(tok.ColorPrimary)
-		bd = acc
-		tx = acc
+		bd = S.Accent
+		tx = S.Accent
 	}
-	radius := tok.Radius
-	if radius <= 0 {
-		radius = 6
-	}
+	radius := S.TriggerRadius
 	rendering.FillRoundRect(pc, 0, 0, w, h, radius, bg.R, bg.G, bg.B, bg.A)
 	rendering.StrokeRoundRect(pc, 0.5, 0.5, w-1, h-1, radius, 1, bd.R, bd.G, bd.B, bd.A)
-	if p.triggerNode != nil {
-		p.triggerNode.Paint(pc.WithOrigin(pc.OriginX, pc.OriginY))
+	if S.TriggerNode != nil {
+		S.TriggerNode.Paint(pc.WithOrigin(pc.OriginX, pc.OriginY))
 		return
 	}
-	p.paintText(pc, p.triggerLabel, 4, 0, w-8, h, p.FontSize(), tx)
+	p.paintText(pc, S.TriggerLabel, 4, 0, w-8, h, S.TriggerFontSz, tx)
 	if p.focused.Load() && !p.disabled.Load() {
-		ring := themeToRGBA(tok.ColorPrimary)
+		ring := S.Ring
 		rx, ry, rw, rh := focus.FocusRingRect(0, 0, w, h, focusRingOutset)
 		rendering.StrokeRoundRect(pc, rx, ry, rw, rh, radius+focusRingOutset, 2, ring.R, ring.G, ring.B, ring.A)
 	}
@@ -1442,38 +1452,37 @@ func (p *Popover) paintPanel(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || p == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	tok := p.themeTokens()
+	// R2-6: frozen panel paint input (UI-stored in markPaint/New, read here
+	// on raster) — never live reads of theme/config fields.
+	S := p.loadSnapshot()
 	w, h := size.Width, size.Height
-	bg := p.PanelBackground()
-	bd := p.BorderColor()
-	radius := p.Radius()
-	if radius <= 0 {
-		radius = 8
-	}
+	bg := S.PanelBg
+	bd := S.PanelBd
+	radius := S.PanelRadius
 	rendering.FillRoundRect(pc, 0, 0, w, h, radius, bg.R, bg.G, bg.B, bg.A)
-	lw := p.LineWidth()
+	lw := S.PanelLineW
 	if lw <= 0 {
 		lw = 1
 	}
 	rendering.StrokeRoundRect(pc, lw/2, lw/2, w-lw, h-lw, radius, lw, bd.R, bd.G, bd.B, bd.A)
-	pad := p.InnerPadding()
-	hasTitle := p.title != "" || p.titleNode != nil
-	hasContent := p.content != "" || p.contentNode != nil
+	pad := S.Pad
+	hasTitle := S.Title != "" || S.TitleNode != nil
+	hasContent := S.Content != "" || S.ContentNode != nil
 	y := pad
 	if hasTitle {
 		th := 20.0
-		if p.titleNode != nil {
-			p.titleNode.Paint(pc.WithOrigin(pc.OriginX+pad, pc.OriginY+y))
-			_, nh := measureNode(p.titleNode)
+		if S.TitleNode != nil {
+			S.TitleNode.Paint(pc.WithOrigin(pc.OriginX+pad, pc.OriginY+y))
+			_, nh := measureNode(S.TitleNode)
 			if nh > 0 {
 				th = nh
 			}
 		} else {
-			p.paintText(pc, p.title, pad, y, w-2*pad, th, p.FontSize(), p.TitleColor())
+			p.paintText(pc, S.Title, pad, y, w-2*pad, th, S.FontSize, S.TitleColor)
 		}
 		y += th
 		if hasContent {
-			y += p.TitleMarginBottom()
+			y += S.TitleMarginBottom
 		}
 	}
 	if hasContent {
@@ -1481,21 +1490,21 @@ func (p *Popover) paintPanel(pc *rendering.PaintContext, size rendering.Size) {
 		if ch < 0 {
 			ch = 0
 		}
-		if p.contentNode != nil {
-			p.contentNode.Paint(pc.WithOrigin(pc.OriginX+pad, pc.OriginY+y))
+		if S.ContentNode != nil {
+			S.ContentNode.Paint(pc.WithOrigin(pc.OriginX+pad, pc.OriginY+y))
 		} else {
-			p.paintText(pc, p.content, pad, y, w-2*pad, ch, p.FontSize(), p.ContentColor())
+			p.paintText(pc, S.Content, pad, y, w-2*pad, ch, S.FontSize, S.ContentColor)
 		}
 	}
-	if p.arrow {
-		p.paintArrow(pc, w, h, tok)
+	if S.Arrow {
+		p.paintArrow(pc, w, h, S)
 	}
 }
 
-func (p *Popover) paintArrow(pc *rendering.PaintContext, w, h float64, tok theme.Tokens) {
-	bg := p.PanelBackground()
-	bd := p.BorderColor()
-	s := p.ArrowSize()
+func (p *Popover) paintArrow(pc *rendering.PaintContext, w, h float64, S PopoverSnap) {
+	bg := S.PanelBg
+	bd := S.PanelBd
+	s := S.ArrowSize
 	if s <= 0 {
 		s = 8
 	}
@@ -1533,7 +1542,6 @@ func (p *Popover) paintArrow(pc *rendering.PaintContext, w, h float64, tok theme
 	path.LineTo(cx+half, cy)
 	path.LineTo(cx, cy-half)
 	path.Close()
-	_ = tok
 	rendering.FillPath(pc, path, bg.R, bg.G, bg.B, bg.A)
 	rendering.StrokePath(pc, path, 1, bd.R, bd.G, bd.B, bd.A)
 }

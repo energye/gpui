@@ -111,6 +111,10 @@ type Skeleton struct {
 	styles             SkeletonStyles
 	phase              atomic.Uint64 // math.Float64bits, same threading as active
 	reduceMotion       bool
+	// snap freezes every paint input on the UI thread (R2-6 button
+	// paradigm). Raster paint reads only this snapshot plus the active /
+	// loading / phase atomics. See snapshot.go.
+	snap atomic.Value // SkeletonSnap
 	host               *rendering.RenderBox
 	attached           *scheduler.TickerRegistry
 }
@@ -127,6 +131,7 @@ func NewSkeleton() *Skeleton {
 	s.host = rendering.NewRenderBox()
 	s.host.SetRepaintBoundary(true)
 	s.host.SetRelayoutBoundary(true)
+	s.refreshSnapshot()
 	paint := s
 	s.host.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paint.paint(pc, size)
@@ -708,6 +713,8 @@ func (s *Skeleton) SetReduceMotion(b bool) {
 		return
 	}
 	s.reduceMotion = b
+	s.refreshSnapshot()
+	s.dirtyPaint()
 }
 
 // ReduceMotion reports the flag.
@@ -759,7 +766,7 @@ func (s *Skeleton) Tick(dt float64) bool {
 		ph++
 	}
 	s.phase.Store(math.Float64bits(ph))
-	s.dirtyPaint()
+	s.host.MarkNeedsPaint()
 	return true
 }
 
@@ -835,6 +842,7 @@ func (s *Skeleton) dirty() {
 	if s == nil || s.host == nil {
 		return
 	}
+	s.refreshSnapshot()
 	s.host.MarkNeedsLayout()
 }
 
@@ -842,6 +850,7 @@ func (s *Skeleton) dirtyPaint() {
 	if s == nil || s.host == nil {
 		return
 	}
+	s.refreshSnapshot()
 	s.host.MarkNeedsPaint()
 }
 
@@ -853,34 +862,34 @@ func (s *Skeleton) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if W <= 0 || H <= 0 {
 		return
 	}
-	fill := s.EffectiveFillColor()
-	radius := s.EffectiveRadius()
-	titleH := s.EffectiveTitleHeight()
-	rowH := s.EffectiveRowHeight()
-	widths := s.EffectiveParagraphWidths(W)
-	titleW := s.EffectiveTitleWidth(W)
+	S := s.loadSnapshot()
+	fill := S.Fill
+	radius := S.Radius
+	titleH := S.TitleHeight
+	rowH := S.RowHeight
+	widths := s.effParagraphWidthsSnap(S, W)
+	titleW := s.effTitleWidthSnap(S, W)
 	y := 0.0
 	x0 := 0.0
-	if s.hasAvatar {
-		av := s.EffectiveAvatarSize()
-		drawAvatarBlock(pc, 0, 0, av, s.AvatarShape(), fill)
+	if S.HasAvatar {
+		av := S.AvatarSizePx
+		drawAvatarBlock(pc, 0, 0, av, S.AvatarShape, fill)
 		x0 = av + AvatarGap
 	}
-	if s.hasTitle && titleW > 0 {
+	if S.HasTitle && titleW > 0 {
 		rendering.FillRoundRect(pc, x0, y, titleW, titleH, radius, fill.R, fill.G, fill.B, fill.A)
 		y += titleH + TitleGap
-	} else if s.hasTitle {
+	} else if S.HasTitle {
 		y += 0
 	}
-	for i, w := range widths {
+	for _, w := range widths {
 		if w <= 0 {
 			continue
 		}
-		_ = i
 		rendering.FillRoundRect(pc, x0, y, w, rowH, radius, fill.R, fill.G, fill.B, fill.A)
 		y += rowH + RowGap
 	}
-	if s.active.Load() && !s.reduceMotion {
+	if s.active.Load() && !S.ReduceMotion {
 		hw := 80.0
 		hx := -hw + (math.Float64frombits(s.phase.Load()))*(W+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, H, 1, 1, 1, 0.35)
@@ -980,6 +989,7 @@ type SkeletonAvatar struct {
 	provider     *theme.Provider
 	override     *theme.Tokens
 	style        Style
+	snap         atomic.Value // SkeletonAvatarSnap
 	host         *rendering.RenderBox
 	attached     *scheduler.TickerRegistry
 }
@@ -989,6 +999,7 @@ func NewSkeletonAvatar() *SkeletonAvatar {
 	a := &SkeletonAvatar{size: SizeMiddle, shape: AvatarCircle}
 	a.host = rendering.NewRenderBox()
 	a.host.SetRepaintBoundary(true)
+	a.refreshSnapshot()
 	paint := a
 	a.host.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paint.paint(pc, size)
@@ -1006,6 +1017,7 @@ func (a *SkeletonAvatar) SetSize(sz SkeletonSize) {
 	}
 	a.size = sz
 	a.sizePx = 0
+	a.refreshSnapshot()
 	a.host.MarkNeedsLayout()
 }
 
@@ -1053,6 +1065,7 @@ func (a *SkeletonAvatar) SetSizePx(px float64) {
 		return
 	}
 	a.sizePx = px
+	a.refreshSnapshot()
 	a.host.MarkNeedsLayout()
 }
 
@@ -1076,6 +1089,7 @@ func (a *SkeletonAvatar) SetShape(sh SkeletonAvatarShape) {
 		return
 	}
 	a.shape = sh
+	a.refreshSnapshot()
 	a.host.MarkNeedsPaint()
 }
 
@@ -1105,6 +1119,8 @@ func (a *SkeletonAvatar) SetReduceMotion(b bool) {
 		return
 	}
 	a.reduceMotion = b
+	a.refreshSnapshot()
+	a.host.MarkNeedsPaint()
 }
 
 // Phase returns shimmer phase.
@@ -1121,6 +1137,7 @@ func (a *SkeletonAvatar) SetProvider(p *theme.Provider) {
 		return
 	}
 	a.provider = p
+	a.refreshSnapshot()
 	a.host.MarkNeedsPaint()
 }
 
@@ -1130,6 +1147,7 @@ func (a *SkeletonAvatar) SetTheme(t *theme.Tokens) {
 		return
 	}
 	a.override = t
+	a.refreshSnapshot()
 	a.host.MarkNeedsPaint()
 }
 
@@ -1139,6 +1157,7 @@ func (a *SkeletonAvatar) SetStyle(st Style) {
 		return
 	}
 	a.style = st
+	a.refreshSnapshot()
 	a.host.MarkNeedsPaint()
 }
 
@@ -1232,9 +1251,10 @@ func (a *SkeletonAvatar) paint(pc *rendering.PaintContext, size rendering.Size) 
 	if a == nil || pc == nil || size.Width <= 0 {
 		return
 	}
-	fill := a.fill()
-	drawAvatarBlock(pc, 0, 0, size.Width, a.Shape(), fill)
-	if a.active.Load() && !a.reduceMotion {
+	S := a.loadSnapshot()
+	fill := S.Fill
+	drawAvatarBlock(pc, 0, 0, size.Width, S.Shape, fill)
+	if a.active.Load() && !S.ReduceMotion {
 		hw := size.Width * 0.5
 		hx := -hw + (math.Float64frombits(a.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
@@ -1252,6 +1272,7 @@ type SkeletonButton struct {
 	provider     *theme.Provider
 	override     *theme.Tokens
 	style        Style
+	snap         atomic.Value // SkeletonButtonSnap
 	host         *rendering.RenderBox
 	attached     *scheduler.TickerRegistry
 }
@@ -1261,6 +1282,7 @@ func NewSkeletonButton() *SkeletonButton {
 	b := &SkeletonButton{size: SizeMiddle, shape: ButtonDefault}
 	b.host = rendering.NewRenderBox()
 	b.host.SetRepaintBoundary(true)
+	b.refreshSnapshot()
 	paint := b
 	b.host.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paint.paint(pc, size)
@@ -1274,6 +1296,7 @@ func (b *SkeletonButton) SetSize(sz SkeletonSize) {
 		return
 	}
 	b.size = sz
+	b.refreshSnapshot()
 	b.host.MarkNeedsLayout()
 }
 
@@ -1318,6 +1341,7 @@ func (b *SkeletonButton) SetShape(sh SkeletonButtonShape) {
 		return
 	}
 	b.shape = sh
+	b.refreshSnapshot()
 	b.host.MarkNeedsPaint()
 }
 
@@ -1335,6 +1359,7 @@ func (b *SkeletonButton) SetBlock(v bool) {
 		return
 	}
 	b.block = v
+	b.refreshSnapshot()
 	b.host.MarkNeedsLayout()
 }
 
@@ -1359,6 +1384,8 @@ func (b *SkeletonButton) SetReduceMotion(v bool) {
 		return
 	}
 	b.reduceMotion = v
+	b.refreshSnapshot()
+	b.host.MarkNeedsPaint()
 }
 
 // Phase returns shimmer phase.
@@ -1375,6 +1402,7 @@ func (b *SkeletonButton) SetProvider(p *theme.Provider) {
 		return
 	}
 	b.provider = p
+	b.refreshSnapshot()
 	b.host.MarkNeedsPaint()
 }
 
@@ -1384,6 +1412,7 @@ func (b *SkeletonButton) SetTheme(t *theme.Tokens) {
 		return
 	}
 	b.override = t
+	b.refreshSnapshot()
 	b.host.MarkNeedsPaint()
 }
 
@@ -1393,6 +1422,7 @@ func (b *SkeletonButton) SetStyle(st Style) {
 		return
 	}
 	b.style = st
+	b.refreshSnapshot()
 	b.host.MarkNeedsPaint()
 }
 
@@ -1501,9 +1531,10 @@ func (b *SkeletonButton) paint(pc *rendering.PaintContext, size rendering.Size) 
 	if b == nil || pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	fill := b.fill()
-	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, b.radius(), fill.R, fill.G, fill.B, fill.A)
-	if b.active.Load() && !b.reduceMotion {
+	S := b.loadSnapshot()
+	fill := S.Fill
+	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, S.Radius, fill.R, fill.G, fill.B, fill.A)
+	if b.active.Load() && !S.ReduceMotion {
 		hw := 40.0
 		hx := -hw + (math.Float64frombits(b.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
@@ -1520,6 +1551,7 @@ type SkeletonInput struct {
 	provider     *theme.Provider
 	override     *theme.Tokens
 	style        Style
+	snap         atomic.Value // SkeletonInputSnap
 	host         *rendering.RenderBox
 	attached     *scheduler.TickerRegistry
 }
@@ -1529,6 +1561,7 @@ func NewSkeletonInput() *SkeletonInput {
 	in := &SkeletonInput{size: SizeMiddle}
 	in.host = rendering.NewRenderBox()
 	in.host.SetRepaintBoundary(true)
+	in.refreshSnapshot()
 	paint := in
 	in.host.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paint.paint(pc, size)
@@ -1542,6 +1575,7 @@ func (in *SkeletonInput) SetSize(sz SkeletonSize) {
 		return
 	}
 	in.size = sz
+	in.refreshSnapshot()
 	in.host.MarkNeedsLayout()
 }
 
@@ -1583,6 +1617,7 @@ func (in *SkeletonInput) SetBlock(v bool) {
 		return
 	}
 	in.block = v
+	in.refreshSnapshot()
 	in.host.MarkNeedsLayout()
 }
 
@@ -1607,6 +1642,8 @@ func (in *SkeletonInput) SetReduceMotion(v bool) {
 		return
 	}
 	in.reduceMotion = v
+	in.refreshSnapshot()
+	in.host.MarkNeedsPaint()
 }
 
 // Phase returns shimmer phase.
@@ -1623,6 +1660,7 @@ func (in *SkeletonInput) SetProvider(p *theme.Provider) {
 		return
 	}
 	in.provider = p
+	in.refreshSnapshot()
 	in.host.MarkNeedsPaint()
 }
 
@@ -1632,6 +1670,7 @@ func (in *SkeletonInput) SetTheme(t *theme.Tokens) {
 		return
 	}
 	in.override = t
+	in.refreshSnapshot()
 	in.host.MarkNeedsPaint()
 }
 
@@ -1641,6 +1680,7 @@ func (in *SkeletonInput) SetStyle(st Style) {
 		return
 	}
 	in.style = st
+	in.refreshSnapshot()
 	in.host.MarkNeedsPaint()
 }
 
@@ -1738,9 +1778,10 @@ func (in *SkeletonInput) paint(pc *rendering.PaintContext, size rendering.Size) 
 	if in == nil || pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	fill := in.fill()
+	S := in.loadSnapshot()
+	fill := S.Fill
 	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, BlockRadius, fill.R, fill.G, fill.B, fill.A)
-	if in.active.Load() && !in.reduceMotion {
+	if in.active.Load() && !S.ReduceMotion {
 		hw := 40.0
 		hx := -hw + (math.Float64frombits(in.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
@@ -1755,6 +1796,7 @@ type SkeletonImage struct {
 	provider     *theme.Provider
 	override     *theme.Tokens
 	style        Style
+	snap         atomic.Value // SkeletonImageSnap
 	host         *rendering.RenderBox
 	attached     *scheduler.TickerRegistry
 }
@@ -1764,6 +1806,7 @@ func NewSkeletonImage() *SkeletonImage {
 	im := &SkeletonImage{}
 	im.host = rendering.NewRenderBox()
 	im.host.SetRepaintBoundary(true)
+	im.refreshSnapshot()
 	paint := im
 	im.host.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paint.paint(pc, size)
@@ -1805,6 +1848,8 @@ func (im *SkeletonImage) SetReduceMotion(v bool) {
 		return
 	}
 	im.reduceMotion = v
+	im.refreshSnapshot()
+	im.host.MarkNeedsPaint()
 }
 
 // Phase returns shimmer phase.
@@ -1821,6 +1866,7 @@ func (im *SkeletonImage) SetProvider(p *theme.Provider) {
 		return
 	}
 	im.provider = p
+	im.refreshSnapshot()
 	im.host.MarkNeedsPaint()
 }
 
@@ -1830,6 +1876,7 @@ func (im *SkeletonImage) SetTheme(t *theme.Tokens) {
 		return
 	}
 	im.override = t
+	im.refreshSnapshot()
 	im.host.MarkNeedsPaint()
 }
 
@@ -1839,6 +1886,7 @@ func (im *SkeletonImage) SetStyle(st Style) {
 		return
 	}
 	im.style = st
+	im.refreshSnapshot()
 	im.host.MarkNeedsPaint()
 }
 
@@ -1932,7 +1980,8 @@ func (im *SkeletonImage) paint(pc *rendering.PaintContext, size rendering.Size) 
 	if im == nil || pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	fill := im.fill()
+	S := im.loadSnapshot()
+	fill := S.Fill
 	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, BlockRadius, fill.R, fill.G, fill.B, fill.A)
 	cx, cy := size.Width/2, size.Height/2
 	r := size.Width * 0.18
@@ -1941,7 +1990,7 @@ func (im *SkeletonImage) paint(pc *rendering.PaintContext, size rendering.Size) 
 	}
 	rendering.StrokeCircle(pc, cx, cy, r+6, 2, 0.75, 0.75, 0.75, 1)
 	rendering.FillCircle(pc, cx-4, cy-4, 2, 0.75, 0.75, 0.75, 1)
-	if im.active.Load() && !im.reduceMotion {
+	if im.active.Load() && !S.ReduceMotion {
 		hw := 40.0
 		hx := -hw + (math.Float64frombits(im.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
@@ -1957,6 +2006,7 @@ type SkeletonNode struct {
 	provider     *theme.Provider
 	override     *theme.Tokens
 	style        Style
+	snap         atomic.Value // SkeletonNodeSnap
 	host         *rendering.RenderBox
 	attached     *scheduler.TickerRegistry
 }
@@ -1969,6 +2019,7 @@ func NewSkeletonNode(child rendering.RenderObject) *SkeletonNode {
 	if child != nil {
 		n.host.AddChild(child)
 	}
+	n.refreshSnapshot()
 	paint := n
 	n.host.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paint.paint(pc, size)
@@ -1988,6 +2039,7 @@ func (n *SkeletonNode) SetChild(c rendering.RenderObject) {
 	if c != nil {
 		n.host.AddChild(c)
 	}
+	n.refreshSnapshot()
 	n.host.MarkNeedsLayout()
 }
 
@@ -2033,6 +2085,8 @@ func (n *SkeletonNode) SetReduceMotion(v bool) {
 		return
 	}
 	n.reduceMotion = v
+	n.refreshSnapshot()
+	n.host.MarkNeedsPaint()
 }
 
 // Phase returns shimmer phase.
@@ -2049,6 +2103,7 @@ func (n *SkeletonNode) SetProvider(p *theme.Provider) {
 		return
 	}
 	n.provider = p
+	n.refreshSnapshot()
 	n.host.MarkNeedsPaint()
 }
 
@@ -2058,6 +2113,7 @@ func (n *SkeletonNode) SetTheme(t *theme.Tokens) {
 		return
 	}
 	n.override = t
+	n.refreshSnapshot()
 	n.host.MarkNeedsPaint()
 }
 
@@ -2067,6 +2123,7 @@ func (n *SkeletonNode) SetStyle(st Style) {
 		return
 	}
 	n.style = st
+	n.refreshSnapshot()
 	n.host.MarkNeedsPaint()
 }
 
@@ -2164,12 +2221,13 @@ func (n *SkeletonNode) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if n == nil || pc == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	if n.child != nil {
+	S := n.loadSnapshot()
+	if S.HasChild {
 		return
 	}
-	fill := n.fill()
+	fill := S.Fill
 	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, BlockRadius, fill.R, fill.G, fill.B, fill.A)
-	if n.active.Load() && !n.reduceMotion {
+	if n.active.Load() && !S.ReduceMotion {
 		hw := 40.0
 		hx := -hw + (math.Float64frombits(n.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)

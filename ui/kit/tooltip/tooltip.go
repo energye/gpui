@@ -139,6 +139,10 @@ type Tooltip struct {
 	pendingDelay   float64
 	node           *rendering.RenderBox
 	panelBox       *rendering.RenderBox
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored by refreshSnapshot (UI, markPaint + New) and loaded once per
+	// paint on raster.
+	snap atomic.Value // TooltipSnap
 	overlayState   *overlay.State
 	overlayEntry   *overlay.Entry
 	lastSize       rendering.Size
@@ -167,6 +171,7 @@ func NewTooltip(title string) *Tooltip {
 	t.panelBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		self.paintPanel(pc, size)
 	}
+	t.refreshSnapshot()
 	t.Layout(rendering.Loose(rendering.Unbounded, rendering.Unbounded))
 	return t
 }
@@ -1358,6 +1363,7 @@ func (t *Tooltip) markPaint() {
 	if t == nil {
 		return
 	}
+	t.refreshSnapshot()
 	if t.node != nil {
 		t.node.MarkNeedsPaint()
 	}
@@ -1370,6 +1376,7 @@ func (t *Tooltip) relayout() {
 	if t == nil {
 		return
 	}
+	t.refreshSnapshot()
 	if t.node != nil {
 		t.node.MarkNeedsLayout()
 		t.node.MarkNeedsPaint()
@@ -1381,13 +1388,19 @@ func (t *Tooltip) relayout() {
 }
 
 func (t *Tooltip) paintText(pc *rendering.PaintContext, s string, x, y, w, h, fontSize float64, c render.RGBA) {
+	t.paintTextFace(pc, t.loadSnapshot().Face, s, x, y, w, h, fontSize, c)
+}
+
+// paintTextFace draws with the frozen face (raster never reads the live
+// textFace field).
+func (t *Tooltip) paintTextFace(pc *rendering.PaintContext, face text.Face, s string, x, y, w, h, fontSize float64, c render.RGBA) {
 	if pc == nil || pc.DC == nil || s == "" || w <= 0 || h <= 0 {
 		return
 	}
-	if t == nil || t.textFace == nil {
+	if face == nil {
 		return
 	}
-	pc.DC.SetFont(t.textFace)
+	pc.DC.SetFont(face)
 	pc.DC.SetRGBA(c.R, c.G, c.B, c.A)
 	baseline := y + h/2 + fontSize*0.35
 	ax, ay := pc.Abs(x, baseline)
@@ -1398,54 +1411,39 @@ func (t *Tooltip) paintTrigger(pc *rendering.PaintContext, size rendering.Size) 
 	if pc == nil || t == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	tok := t.themeTokens()
+	// R2-6: one frozen paint-input load (UI-stored in markPaint/New, read
+	// here on raster) — never live reads of theme/config fields;
+	// disabled/hovered/focused stay atomic reads.
+	S := t.loadSnapshot()
 	w, h := size.Width, size.Height
-	bg := themeToRGBA(tok.ColorBgContainer)
-	if bg.A == 0 {
-		bg = render.RGBA{R: 1, G: 1, B: 1, A: 1}
-	}
-	bd := themeToRGBA(tok.ColorBorder)
-	tx := themeToRGBA(tok.ColorText)
+	bg, bd, tx := S.Bg, S.Bd, S.Tx
 	if t.disabled.Load() {
-		bg = themeToRGBA(tok.ColorFillTertiary)
-		tx = themeToRGBA(tok.ColorTextDisabled)
+		bg = S.BgDisabled
+		tx = S.TxDisabled
 	}
-	radius := tok.Radius
-	if radius <= 0 {
-		radius = DefaultTooltipRadius
-	}
-	rendering.FillRoundRect(pc, 0, 0, w, h, radius, bg.R, bg.G, bg.B, bg.A)
-	lw := tok.LineWidth
-	if lw <= 0 {
-		lw = 1
-	}
+	radius := S.TriggerRadius
+	lw := S.TriggerLineW
 	bc := bd
 	if t.hovered.Load() && !t.disabled.Load() {
-		prim := themeToRGBA(tok.ColorPrimary)
-		if prim.A > 0 {
-			bc = prim
+		if S.Accent.A > 0 {
+			bc = S.Accent
 		}
 	}
+	rendering.FillRoundRect(pc, 0, 0, w, h, radius, bg.R, bg.G, bg.B, bg.A)
 	rendering.StrokeRoundRect(pc, lw/2, lw/2, w-lw, h-lw, radius, lw, bc.R, bc.G, bc.B, bc.A)
-	if t.triggerNode != nil {
-		t.triggerNode.Paint(pc.WithOrigin(pc.OriginX, pc.OriginY))
+	if S.TriggerNode != nil {
+		S.TriggerNode.Paint(pc.WithOrigin(pc.OriginX, pc.OriginY))
 	} else {
-		label := t.triggerLabel
+		label := S.TriggerLabel
 		if label == "" {
 			label = "trigger"
 		}
-		t.paintText(pc, label, 8, 0, w-16, h, t.FontSize(), tx)
+		t.paintText(pc, label, 8, 0, w-16, h, S.TriggerFontSz, tx)
 	}
 	if t.focused.Load() && !t.disabled.Load() {
-		ring := themeToRGBA(tok.ColorPrimary)
-		if ring.A == 0 {
-			ring = render.RGBA{R: 0x16 / 255.0, G: 0x77 / 255.0, B: 0xff / 255.0, A: 1}
-		}
+		ring := S.Ring
 		rx, ry, rw, rh := focus.FocusRingRect(0, 0, w, h, 1.5)
-		ow := tok.ControlOutlineWidth
-		if ow <= 0 {
-			ow = 2
-		}
+		ow := S.RingOutlineW
 		rendering.StrokeRoundRect(pc, rx, ry, rw, rh, radius+1.5, ow, ring.R, ring.G, ring.B, ring.A)
 	}
 }
@@ -1454,20 +1452,23 @@ func (t *Tooltip) paintPanel(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || t == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	if !t.hasContent() {
+	// R2-6: frozen paint-input load — never live reads of theme/config
+	// fields on raster.
+	S := t.loadSnapshot()
+	if S.Title == "" && S.TitleNode == nil {
 		return
 	}
 	w, h := size.Width, size.Height
-	bg := t.Background()
-	fg := t.TextColor()
-	rendering.FillRoundRect(pc, 0, 0, w, h, t.Radius(), bg.R, bg.G, bg.B, bg.A)
-	px, py := t.PadX(), t.PadY()
-	if t.titleNode != nil {
-		t.titleNode.Paint(pc.WithOrigin(pc.OriginX+px, pc.OriginY+py))
+	bg := S.PanelBg
+	fg := S.PanelFg
+	rendering.FillRoundRect(pc, 0, 0, w, h, S.PanelRad, bg.R, bg.G, bg.B, bg.A)
+	px, py := S.PadX, S.PadY
+	if S.TitleNode != nil {
+		S.TitleNode.Paint(pc.WithOrigin(pc.OriginX+px, pc.OriginY+py))
 	} else {
-		t.paintText(pc, t.title, px, py, w-2*px, h-2*py, t.FontSize(), fg)
+		t.paintText(pc, S.Title, px, py, w-2*px, h-2*py, S.FontSize, fg)
 	}
-	if t.arrow {
+	if S.Arrow {
 		t.paintArrow(pc, w, h, bg)
 	}
 }

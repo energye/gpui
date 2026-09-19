@@ -378,6 +378,11 @@ type Splitter struct {
 	barHovered bool
 	barActive  atomic.Int64
 
+	// snap freezes every paint input on the UI thread (R2-6 button
+	// paradigm). Raster paint reads only this snapshot plus the hovered /
+	// dragging / barActive / focusedBar atomics. See snapshot.go.
+	snap atomic.Value // SplitterSnap
+
 	onResize      func([]float64)
 	onResizeStart func([]float64)
 	onResizeEnd   func([]float64)
@@ -414,6 +419,7 @@ func NewSplitter(panels ...*SplitterPanel) *Splitter {
 	} else {
 		s.ensureNodes()
 	}
+	s.refreshSnapshot()
 	return s
 }
 
@@ -1697,6 +1703,7 @@ func (s *Splitter) Layout(c rendering.Constraints) rendering.Size {
 	if s == nil || s.root == nil {
 		return rendering.Size{}
 	}
+	s.refreshSnapshot()
 	s.syncBarsLocked()
 	s.ensureNodes()
 	s.layoutRoot(c)
@@ -1707,6 +1714,7 @@ func (s *Splitter) rebuild() {
 	if s == nil || s.root == nil {
 		return
 	}
+	s.refreshSnapshot()
 	s.syncBarsLocked()
 	s.ensureNodes()
 	s.root.MarkNeedsLayout()
@@ -1716,6 +1724,7 @@ func (s *Splitter) markLayout() {
 	if s == nil || s.root == nil {
 		return
 	}
+	s.refreshSnapshot()
 	s.syncBarsLocked()
 	s.ensureNodes()
 	s.root.MarkNeedsLayout()
@@ -1725,6 +1734,7 @@ func (s *Splitter) markPaint() {
 	if s == nil || s.root == nil {
 		return
 	}
+	s.refreshSnapshot()
 	s.root.MarkNeedsPaint()
 }
 

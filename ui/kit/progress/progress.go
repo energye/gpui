@@ -142,11 +142,29 @@ type Progress struct {
 	// phase is atomic bits: Tick writes (UI), paint reads (raster).
 	phase atomic.Uint64
 
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored by refreshSnapshot (UI, markPaint + New) and loaded once per
+	// paint on raster.
+	snap atomic.Value // ProgressSnap
+
 	host  *rendering.AbsoluteBox
 	track *rendering.RenderBox
 	info  *rendering.RenderText
 
 	attached *scheduler.TickerRegistry
+}
+
+// markPaint is the single UI funnel for every paint-affecting setter:
+// refresh the frozen snapshot, then dirty the track (the only node that
+// ever repaints). Tick keeps its direct track mark (phase is atomic live).
+func (p *Progress) markPaint() {
+	if p == nil {
+		return
+	}
+	p.refreshSnapshot()
+	if p.track != nil {
+		p.track.MarkNeedsPaint()
+	}
 }
 
 // NewProgress creates a line/medium progress at percent (clamped 0..100).
@@ -165,6 +183,7 @@ func NewProgress(percent float64) *Progress {
 	p.host.AddChild(p.info)
 	p.percent.Store(math.Float64bits(clampPercent(percent)))
 	p.syncInfo()
+	p.refreshSnapshot()
 	return p
 }
 
@@ -195,7 +214,7 @@ func (p *Progress) SetType(t ProgressType) {
 	p.ptype = t
 	p.syncInfo()
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // Type returns the current type.
@@ -220,7 +239,7 @@ func (p *Progress) SetSize(s ProgressSize) {
 	p.size = s
 	p.syncInfo()
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // Size returns the preset.
@@ -245,7 +264,7 @@ func (p *Progress) SetSizePx(v float64) {
 	p.sizePx = v
 	p.syncInfo()
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // SizePx returns the custom size.
@@ -269,7 +288,7 @@ func (p *Progress) SetWidth(v float64) {
 	}
 	p.width = v
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // Width returns the explicit track width.
@@ -293,7 +312,7 @@ func (p *Progress) SetStrokeWidth(v float64) {
 	}
 	p.strokeWidth = v
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // StrokeWidth returns the configured percent.
@@ -320,7 +339,7 @@ func (p *Progress) SetGapDegree(v float64) {
 	}
 	p.gapDegree = v
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // GapDegree returns the configured gap.
@@ -340,7 +359,7 @@ func (p *Progress) SetGapPlacement(g ProgressGapPlacement) {
 		return
 	}
 	p.gapPlacement = g
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // GapPlacement returns the gap side.
@@ -382,7 +401,7 @@ func (p *Progress) SetPercent(v float64) {
 	}
 	p.percent.Store(math.Float64bits(v))
 	p.syncInfo()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // Percent returns the clamped value.
@@ -411,7 +430,7 @@ func (p *Progress) SetStatus(s ProgressStatus) {
 	}
 	p.status = s
 	p.syncInfo()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // Status returns the explicit status.
@@ -445,7 +464,7 @@ func (p *Progress) SetShowInfo(b bool) {
 	p.syncChildren()
 	p.syncInfo()
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // ShowInfo reports the flag.
@@ -460,7 +479,7 @@ func (p *Progress) SetFormat(f func(percent, successPercent float64) string) {
 	}
 	p.format = f
 	p.syncInfo()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // SetStrokeColor overrides fill color (zero value walks Token).
@@ -469,7 +488,7 @@ func (p *Progress) SetStrokeColor(c render.RGBA) {
 		return
 	}
 	p.strokeColor = c
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // SetRailColor overrides rail color (also covers trailColor alias).
@@ -478,7 +497,7 @@ func (p *Progress) SetRailColor(c render.RGBA) {
 		return
 	}
 	p.railColor = c
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // SetTrailColor is the deprecated alias of SetRailColor.
@@ -498,7 +517,7 @@ func (p *Progress) SetSteps(n int) {
 	}
 	p.steps = n
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // Steps returns the step count (0 = disabled).
@@ -524,7 +543,7 @@ func (p *Progress) SetStepGap(v float64) {
 	p.stepGap = v
 	p.stepGapSet = true
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // StepGap returns the raw gap (0 when unset; see EffectiveStepGap).
@@ -555,7 +574,7 @@ func (p *Progress) SetStrokeLinecap(c StrokeLinecap) {
 		return
 	}
 	p.linecap = c
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // StrokeLinecap returns the raw cap ("" means default round).
@@ -586,12 +605,12 @@ func (p *Progress) SetStrokeGradient(from, to render.RGBA, dir string) {
 			return
 		}
 		p.hasGradient = false
-		p.track.MarkNeedsPaint()
+		p.markPaint()
 		return
 	}
 	p.gradFrom, p.gradTo, p.gradDir = from, to, dir
 	p.hasGradient = true
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // HasStrokeGradient reports whether a gradient override is active.
@@ -613,7 +632,7 @@ func (p *Progress) SetStepColors(cs []render.RGBA) {
 	}
 	cp := append([]render.RGBA(nil), cs...)
 	p.stepColors = cp
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // StepColors returns a copy of the per-step colors.
@@ -641,7 +660,7 @@ func (p *Progress) SetPercentPosition(align PercentAlign, typ PercentPosType) {
 	p.align, p.posType = align, typ
 	p.syncInfo()
 	p.host.MarkNeedsLayout()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // PercentAlign returns the raw align ("" means default end).
@@ -693,7 +712,7 @@ func (p *Progress) SetSuccessPercent(v float64) {
 	}
 	p.successPercent.Store(math.Float64bits(v))
 	p.syncInfo()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // SuccessPercent returns the success split.
@@ -718,7 +737,7 @@ func (p *Progress) SetSuccessStrokeColor(c render.RGBA) {
 		return
 	}
 	p.successColor, p.hasSuccessCol = c, true
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // EffectiveSuccessColor resolves override else success token.
@@ -735,7 +754,7 @@ func (p *Progress) SetRounding(f func(float64) float64) {
 		return
 	}
 	p.rounding = f
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // EffectiveRounding resolves the rounding func (default math.Round).
@@ -768,7 +787,7 @@ func (p *Progress) SetProvider(pr *theme.Provider) {
 	}
 	p.provider = pr
 	p.syncInfo()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // SetTheme pins exact tokens (nil clears to provider).
@@ -778,7 +797,7 @@ func (p *Progress) SetTheme(t *theme.Tokens) {
 	}
 	p.override = t
 	p.syncInfo()
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // SetTextFace sets the paint-only font face for the info text.
@@ -854,7 +873,7 @@ func (p *Progress) SetReduceMotion(b bool) {
 		return
 	}
 	p.reduceMotion = b
-	p.track.MarkNeedsPaint()
+	p.markPaint()
 }
 
 // ReduceMotion reports the flag.
@@ -994,6 +1013,8 @@ func (p *Progress) Tick(dt float64) bool {
 		ph++
 	}
 	p.phase.Store(math.Float64bits(ph))
+	// Phase only: snapshot contents are unchanged, so mark the track
+	// directly (paint reads the atomic phase live).
 	p.track.MarkNeedsPaint()
 	return true
 }
@@ -1459,11 +1480,15 @@ func (p *Progress) paintTrack(pc *rendering.PaintContext, size rendering.Size) {
 	if p == nil || pc == nil {
 		return
 	}
-	if p.ptype == TypeCircle || p.ptype == TypeDashboard {
-		p.paintRing(pc, size)
+	// R2-6: one frozen paint-input load (stored on UI via markPaint/New),
+	// read here on raster — never live reads of theme/config fields.
+	// percent/successPercent/phase stay atomic live reads.
+	S := p.loadSnapshot()
+	if S.Ptype == TypeCircle || S.Ptype == TypeDashboard {
+		p.paintRing(pc, size, S)
 		return
 	}
-	p.paintLine(pc, size)
+	p.paintLine(pc, size, S)
 }
 
 func (p *Progress) solidFillColor() render.RGBA {
@@ -1496,52 +1521,52 @@ func lerpRGBA(a, b render.RGBA, t float64) render.RGBA {
 	}
 }
 
-func (p *Progress) lineRadius(h float64) float64 {
-	if p != nil && p.EffectiveStrokeLinecap() != LinecapRound {
+func lineRadiusFor(linecap StrokeLinecap, h float64) float64 {
+	if linecap != LinecapRound {
 		return 0
 	}
 	return h / 2
 }
 
-func (p *Progress) renderCap() render.LineCap {
-	if p != nil && p.EffectiveStrokeLinecap() == LinecapButt {
+func renderCapFor(linecap StrokeLinecap) render.LineCap {
+	if linecap == LinecapButt {
 		return render.LineCapButt
 	}
-	if p != nil && p.EffectiveStrokeLinecap() == LinecapSquare {
+	if linecap == LinecapSquare {
 		return render.LineCapSquare
 	}
 	return render.LineCapRound
 }
 
-func (p *Progress) paintLine(pc *rendering.PaintContext, size rendering.Size) {
+func (p *Progress) paintLine(pc *rendering.PaintContext, size rendering.Size, S ProgressSnap) {
 	w := size.Width
 	h := size.Height
 	if w <= 0 {
 		w = p.track.FixedWidth
 	}
 	if h <= 0 {
-		h = p.LineHeight()
+		h = S.LineHeight
 	}
 	if w <= 0 || h <= 0 {
 		return
 	}
-	if p.steps > 0 {
-		p.paintStepsLine(pc, w, h)
-		p.paintActiveSweep(pc, w, h)
+	if S.Steps > 0 {
+		p.paintStepsLine(pc, w, h, S)
+		p.paintActiveSweep(pc, w, h, S)
 		return
 	}
-	rail := p.EffectiveRailColor()
-	radius := p.lineRadius(h)
+	rail := S.Rail
+	radius := lineRadiusFor(S.Linecap, h)
 	rendering.FillRoundRect(pc, 0, 0, w, h, radius, rail.R, rail.G, rail.B, rail.A)
 	fillW := w * p.FillRatio()
 	if fillW > w {
 		fillW = w
 	}
 	if fillW > 0 {
-		if p.hasGradient {
-			p.paintGradientFill(pc, w, h, fillW, radius)
+		if S.HasGradient {
+			p.paintGradientFill(pc, w, h, fillW, radius, S)
 		} else {
-			fill := p.solidFillColor()
+			fill := S.SolidFill
 			rendering.FillRoundRect(pc, 0, 0, fillW, h, radius, fill.R, fill.G, fill.B, fill.A)
 		}
 	}
@@ -1551,14 +1576,14 @@ func (p *Progress) paintLine(pc *rendering.PaintContext, size rendering.Size) {
 			sw = w
 		}
 		if sw > 0 {
-			sc := p.EffectiveSuccessColor()
+			sc := S.SuccessColor
 			rendering.FillRoundRect(pc, 0, 0, sw, h, radius, sc.R, sc.G, sc.B, sc.A)
 		}
 	}
-	p.paintActiveSweep(pc, w, h)
+	p.paintActiveSweep(pc, w, h, S)
 }
 
-func (p *Progress) paintGradientFill(pc *rendering.PaintContext, w, h, fillW, radius float64) {
+func (p *Progress) paintGradientFill(pc *rendering.PaintContext, w, h, fillW, radius float64, S ProgressSnap) {
 	if fillW <= 0 {
 		return
 	}
@@ -1575,33 +1600,33 @@ func (p *Progress) paintGradientFill(pc *rendering.PaintContext, w, h, fillW, ra
 		if x1 > fillW {
 			x1 = fillW
 		}
-		c := lerpRGBA(p.gradFrom, p.gradTo, (t0+t1)/2)
+		c := lerpRGBA(S.GradFrom, S.GradTo, (t0+t1)/2)
 		rendering.FillRect(pc, x0, 0, x1-x0, h, c.R, c.G, c.B, c.A)
 	}
 	pc.PopClip()
 }
 
-func (p *Progress) paintStepsLine(pc *rendering.PaintContext, w, h float64) {
-	n := p.steps
+func (p *Progress) paintStepsLine(pc *rendering.PaintContext, w, h float64, S ProgressSnap) {
+	n := S.Steps
 	if n <= 0 {
 		return
 	}
-	gap := p.EffectiveStepGap()
+	gap := S.StepGap
 	blockW := (w - float64(n-1)*gap) / float64(n)
 	if blockW < 0 {
 		blockW = 0
 	}
-	rail := p.EffectiveRailColor()
-	radius := p.lineRadius(h)
+	rail := S.Rail
+	radius := lineRadiusFor(S.Linecap, h)
 	active := p.ActiveSteps()
 	for i := 0; i < n; i++ {
 		x := float64(i) * (blockW + gap)
 		var c render.RGBA
 		if i < active {
-			if i < len(p.stepColors) && p.stepColors[i].A > 0 {
-				c = p.stepColors[i]
+			if i < len(S.StepColors) && S.StepColors[i].A > 0 {
+				c = S.StepColors[i]
 			} else {
-				c = p.solidFillColor()
+				c = S.SolidFill
 			}
 		} else {
 			c = rail
@@ -1613,13 +1638,12 @@ func (p *Progress) paintStepsLine(pc *rendering.PaintContext, w, h float64) {
 	}
 }
 
-func (p *Progress) paintActiveSweep(pc *rendering.PaintContext, w, h float64) {
-	if p.EffectiveStatus() != StatusActive || p.reduceMotion {
+func (p *Progress) paintActiveSweep(pc *rendering.PaintContext, w, h float64, S ProgressSnap) {
+	if S.Status != StatusActive || S.ReduceMotion {
 		return
 	}
-	radius := p.lineRadius(h)
-	tok := p.tokens()
-	sweep := themeToRGBA(tok.ColorBgContainer)
+	radius := lineRadiusFor(S.Linecap, h)
+	sweep := S.SweepLite
 	sweepW := w * 0.25
 	if sweepW < 8 {
 		sweepW = 8
@@ -1633,18 +1657,18 @@ func (p *Progress) paintActiveSweep(pc *rendering.PaintContext, w, h float64) {
 	pc.PopClip()
 }
 
-func (p *Progress) paintRing(pc *rendering.PaintContext, size rendering.Size) {
+func (p *Progress) paintRing(pc *rendering.PaintContext, size rendering.Size, S ProgressSnap) {
 	edge := size.Width
 	if size.Height < edge {
 		edge = size.Height
 	}
 	if edge <= 0 {
-		edge = p.CircleSize()
+		edge = S.CircleSize
 	}
 	if edge <= 0 {
 		return
 	}
-	strokePx := edge * p.EffectiveStrokePct() / 100
+	strokePx := edge * S.StrokePct / 100
 	if strokePx < 3 {
 		strokePx = 3
 	}
@@ -1659,34 +1683,34 @@ func (p *Progress) paintRing(pc *rendering.PaintContext, size rendering.Size) {
 	if radius <= 0 {
 		return
 	}
-	rail := p.EffectiveRailColor()
-	fill := p.solidFillColor()
+	rail := S.Rail
+	fill := S.SolidFill
 	if pc.DC != nil {
-		if p.steps > 0 {
+		if S.Steps > 0 {
 			pc.DC.SetLineCap(render.LineCapButt)
 		} else {
-			pc.DC.SetLineCap(p.renderCap())
+			pc.DC.SetLineCap(renderCapFor(S.Linecap))
 		}
 	}
-	if p.steps > 0 {
-		p.paintRingSteps(pc, cx, cy, radius, strokePx, rail)
+	if S.Steps > 0 {
+		p.paintRingSteps(pc, cx, cy, radius, strokePx, rail, S)
 		return
 	}
-	if p.ptype == TypeDashboard {
-		gapRad := p.EffectiveGapDegree() * math.Pi / 180
+	if S.Ptype == TypeDashboard {
+		gapRad := S.GapDegree * math.Pi / 180
 		total := 2*math.Pi - gapRad
-		center := gapCenterAngle(p.EffectiveGapPlacement())
+		center := gapCenterAngle(S.GapPlacement)
 		start := center + gapRad/2
 		rendering.StrokeArc(pc, cx, cy, radius, start, start+total, strokePx, rail.R, rail.G, rail.B, rail.A)
 		if r := p.FillRatio(); r > 0 {
-			if p.hasGradient {
-				p.paintGradientArc(pc, cx, cy, radius, start, total*r, strokePx)
+			if S.HasGradient {
+				p.paintGradientArc(pc, cx, cy, radius, start, total*r, strokePx, S)
 			} else {
 				rendering.StrokeArc(pc, cx, cy, radius, start, start+total*r, strokePx, fill.R, fill.G, fill.B, fill.A)
 			}
 		}
 		if s := p.EffectiveSuccessPercent(); s > 0 {
-			sc := p.EffectiveSuccessColor()
+			sc := S.SuccessColor
 			rendering.StrokeArc(pc, cx, cy, radius, start, start+total*s/100, strokePx, sc.R, sc.G, sc.B, sc.A)
 		}
 		return
@@ -1694,20 +1718,20 @@ func (p *Progress) paintRing(pc *rendering.PaintContext, size rendering.Size) {
 	rendering.StrokeCircle(pc, cx, cy, radius, strokePx, rail.R, rail.G, rail.B, rail.A)
 	if r := p.FillRatio(); r > 0 {
 		start := -math.Pi / 2
-		if p.hasGradient {
-			p.paintGradientArc(pc, cx, cy, radius, start, 2*math.Pi*r, strokePx)
+		if S.HasGradient {
+			p.paintGradientArc(pc, cx, cy, radius, start, 2*math.Pi*r, strokePx, S)
 		} else {
 			rendering.StrokeArc(pc, cx, cy, radius, start, start+2*math.Pi*r, strokePx, fill.R, fill.G, fill.B, fill.A)
 		}
 	}
 	if s := p.EffectiveSuccessPercent(); s > 0 {
-		sc := p.EffectiveSuccessColor()
+		sc := S.SuccessColor
 		start := -math.Pi / 2
 		rendering.StrokeArc(pc, cx, cy, radius, start, start+2*math.Pi*s/100, strokePx, sc.R, sc.G, sc.B, sc.A)
 	}
 }
 
-func (p *Progress) paintGradientArc(pc *rendering.PaintContext, cx, cy, radius, start, sweep, strokePx float64) {
+func (p *Progress) paintGradientArc(pc *rendering.PaintContext, cx, cy, radius, start, sweep, strokePx float64, S ProgressSnap) {
 	if sweep <= 0 {
 		return
 	}
@@ -1715,23 +1739,23 @@ func (p *Progress) paintGradientArc(pc *rendering.PaintContext, cx, cy, radius, 
 	for i := 0; i < segs; i++ {
 		t0 := float64(i) / segs
 		t1 := float64(i+1) / segs
-		c := lerpRGBA(p.gradFrom, p.gradTo, (t0+t1)/2)
+		c := lerpRGBA(S.GradFrom, S.GradTo, (t0+t1)/2)
 		rendering.StrokeArc(pc, cx, cy, radius, start+sweep*t0, start+sweep*t1+0.02, strokePx, c.R, c.G, c.B, c.A)
 	}
 }
 
-func (p *Progress) paintRingSteps(pc *rendering.PaintContext, cx, cy, radius, strokePx float64, rail render.RGBA) {
-	n := p.steps
+func (p *Progress) paintRingSteps(pc *rendering.PaintContext, cx, cy, radius, strokePx float64, rail render.RGBA, S ProgressSnap) {
+	n := S.Steps
 	if n <= 0 {
 		return
 	}
-	gapDeg := p.EffectiveStepGap()
+	gapDeg := S.StepGap
 	gapRad := gapDeg * math.Pi / 180
 	var start0, total float64
-	if p.ptype == TypeDashboard {
-		gapRad0 := p.EffectiveGapDegree() * math.Pi / 180
+	if S.Ptype == TypeDashboard {
+		gapRad0 := S.GapDegree * math.Pi / 180
 		total = 2*math.Pi - gapRad0
-		center := gapCenterAngle(p.EffectiveGapPlacement())
+		center := gapCenterAngle(S.GapPlacement)
 		start0 = center + gapRad0/2
 	} else {
 		total = 2 * math.Pi
@@ -1746,10 +1770,10 @@ func (p *Progress) paintRingSteps(pc *rendering.PaintContext, cx, cy, radius, st
 		s := start0 + float64(i)*(stepSweep+gapRad)
 		var c render.RGBA
 		if i < active {
-			if i < len(p.stepColors) && p.stepColors[i].A > 0 {
-				c = p.stepColors[i]
+			if i < len(S.StepColors) && S.StepColors[i].A > 0 {
+				c = S.StepColors[i]
 			} else {
-				c = p.solidFillColor()
+				c = S.SolidFill
 			}
 		} else {
 			c = rail
