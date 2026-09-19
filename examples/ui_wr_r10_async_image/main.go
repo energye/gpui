@@ -8,6 +8,8 @@
 // Gates (§2 R10 行 + §2.2 全族):
 //   - 出图后 rerecord 仅一格: 每批到达后的 boundary_rerecord 增量 ≤ 到达格数+1，
 //     违例批数必须为 0（若全局重绘，每批增量≈全部格数即 FAIL）
+//   - 按格归因总量门（§18.1 #3）: RerecordByKeySnapshot 键级差分同线，
+//     changedKeys ≤ 到达格数+1，违例批数必须为 0（实测 keys==dRR 每批一致）
 //   - 局部脏不触布局: paint-only 契约由引擎单测 TestRenderImage_SetImage_PaintOnly
 //     证明（layout_count 数的是每帧布局趟数，不作窗内逐批观测）
 //   - 滚动/持续 tick 60fps 档: fps_interval>=55 且 interval_p95_ms<=22
