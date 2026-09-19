@@ -150,6 +150,11 @@ type Alert struct {
 	closeFocus *focus.FocusNode
 	focused    atomic.Bool
 	cachedSize rendering.Size
+
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored wholesale by refreshSnapshot (UI, inside markPaint) and loaded
+	// once per paint on raster.
+	snap atomic.Value // AlertSnap
 }
 
 // NewAlert creates an alert with title (message alias kept for compat).
@@ -164,6 +169,7 @@ func NewAlert(title string) *Alert {
 	}
 	// Intrinsic size up front so Node() already has content size without an
 	// extra Layout call, same contract as button (New tail pre-layout).
+	a.refreshSnapshot()
 	a.Layout(rendering.Loose(rendering.Unbounded, rendering.Unbounded))
 	return a
 }
@@ -1004,6 +1010,7 @@ func (a *Alert) markPaint() {
 	if a == nil || a.node == nil {
 		return
 	}
+	a.refreshSnapshot()
 	a.node.MarkNeedsPaint()
 }
 
@@ -1011,6 +1018,7 @@ func (a *Alert) markLayout() {
 	if a == nil || a.node == nil {
 		return
 	}
+	a.refreshSnapshot()
 	a.node.MarkNeedsLayout()
 }
 
@@ -1117,76 +1125,69 @@ func (a *Alert) Layout(c rendering.Constraints) rendering.Size {
 type rect struct{ x, y, w, h float64 }
 
 // geometry splits the shell into icon/title/desc/action/close boxes.
-func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, action, close rect) {
-	padH, padV := a.PadH(), a.PadV()
-	titleFont := a.TitleFontSize()
+func (a *Alert) geometry(S AlertSnap, w, h float64) (icon, title, desc, action, close rect) {
+	padH, padV := S.PadH, S.PadV
+	titleFont := S.TitleFontSz
 	var titleW, titleH float64
-	if a.titleNode != nil {
-		if sz := a.titleNode.Size(); sz.Width > 0 {
+	if S.TitleNode != nil {
+		if sz := S.TitleNode.Size(); sz.Width > 0 {
 			titleW, titleH = sz.Width, sz.Height
 		} else {
-			titleW, titleH = measureNode(a.titleNode)
+			titleW, titleH = measureNode(S.TitleNode)
 		}
 	} else {
-		titleW, titleH = rendering.EstimateTextSize(a.title, titleFont, 0.55)
+		titleW, titleH = rendering.EstimateTextSize(S.Title, titleFont, 0.55)
 	}
 	var descW, descH float64
-	hasDesc := a.HasDescription()
+	hasDesc := S.HasDesc
 	if hasDesc {
-		if a.descNode != nil {
-			if sz := a.descNode.Size(); sz.Width > 0 {
+		if S.DescNode != nil {
+			if sz := S.DescNode.Size(); sz.Width > 0 {
 				descW, descH = sz.Width, sz.Height
 			} else {
-				descW, descH = measureNode(a.descNode)
+				descW, descH = measureNode(S.DescNode)
 			}
 		} else {
-			descW, descH = rendering.EstimateTextSize(a.description, tok.FontSize, 0.55)
+			descW, descH = rendering.EstimateTextSize(S.Description, S.DescFontSz, 0.55)
 		}
 	}
 	contentH := titleH
 	if hasDesc {
-		contentH += tok.MarginXXS + descH
+		contentH += S.MarginXXS + descH
 	}
 	rowH := h - padV*2
 	if rowH < 0 {
 		rowH = 0
 	}
-	iconSize := a.IconSize()
+	iconSize := S.IconSize
 	iconW := 0.0
-	if a.IconVisible() {
-		gap := tok.MarginXS
+	if S.IconVisible {
+		gap := S.XS
 		if hasDesc {
-			gap = tok.MarginSM
+			gap = S.SM
 		}
 		iconW = iconSize + gap
 	}
-	var actionW, actionH float64
-	if a.ActionVisible() {
-		if sz := a.action.Size(); sz.Width > 0 {
-			actionW, actionH = sz.Width, sz.Height
-		} else {
-			actionW, actionH = measureNode(a.action)
-		}
-	}
+	actionW, actionH := S.ActionW, S.ActionH
 	closeW := 0.0
 	if a.closable.Load() && !a.hidden.Load() {
-		closeW = closeHitSize + tok.MarginXS
+		closeW = closeHitSize + S.XS
 	}
 	// Right-anchored close/action keep hit == paint when clamped.
 	closeX := w - padH - closeHitSize
 	actionX := closeX
-	if a.ActionVisible() {
+	if S.ActionVisible {
 		actBoxW := actionW
 		if a.closable.Load() {
-			actionX = closeX - tok.MarginXS - actBoxW
+			actionX = closeX - S.XS - actBoxW
 		} else {
 			actionX = w - padH - actBoxW
 		}
 	}
 	left := padH
-	if a.rtl {
+	if S.RTL {
 		// Mirror: icon right, close left.
-		if a.IconVisible() {
+		if S.IconVisible {
 			icon.x = w - padH - iconSize
 			if hasDesc {
 				icon.y = padV
@@ -1204,7 +1205,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 		if a.closable.Load() {
 			cx += closeW
 		}
-		if a.ActionVisible() {
+		if S.ActionVisible {
 			cx += actionW
 		}
 		cy := padV
@@ -1215,7 +1216,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 		title.w, title.h = minF(titleW, contentW), titleH
 		if hasDesc {
 			desc.x = cx
-			desc.y = cy + titleH + tok.MarginXXS
+			desc.y = cy + titleH + S.MarginXXS
 			desc.w, desc.h = minF(descW, contentW), descH
 		}
 		if a.closable.Load() {
@@ -1223,7 +1224,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 			close.y = padV + (rowH-closeHitSize)/2
 			close.w, close.h = closeHitSize, closeHitSize
 		}
-		if a.ActionVisible() {
+		if S.ActionVisible {
 			ax := padH
 			if a.closable.Load() {
 				ax += closeW
@@ -1235,7 +1236,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 		_ = left
 		return icon, title, desc, action, close
 	}
-	if a.IconVisible() {
+	if S.IconVisible {
 		icon.x = left
 		if hasDesc {
 			icon.y = padV
@@ -1257,10 +1258,10 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 	title.w, title.h = minF(titleW, avail), titleH
 	if hasDesc {
 		desc.x = left
-		desc.y = cy + titleH + tok.MarginXXS
+		desc.y = cy + titleH + S.MarginXXS
 		desc.w, desc.h = minF(descW, avail), descH
 	}
-	if a.ActionVisible() {
+	if S.ActionVisible {
 		action.x, action.y = actionX, padV+(rowH-actionH)/2
 		action.w, action.h = actionW, actionH
 	}
@@ -1283,15 +1284,15 @@ func minF(x, y float64) float64 {
 // nothing: headless layout still estimates width, but no black bar is
 // ever painted (black bars are banned; DrawString without a face is a
 // safe no-op so the guard below simply skips).
-func (a *Alert) paintText(pc *rendering.PaintContext, s string, x, y, w, h, fontSize float64, c render.RGBA) {
+func (a *Alert) paintText(pc *rendering.PaintContext, S AlertSnap, s string, x, y, w, h, fontSize float64) {
 	if pc == nil || pc.DC == nil || s == "" || w <= 0 || h <= 0 {
 		return
 	}
-	if a == nil || a.textFace == nil {
+	if a == nil || S.TextFace == nil {
 		return
 	}
-	pc.DC.SetFont(a.textFace)
-	pc.DC.SetRGBA(c.R, c.G, c.B, c.A)
+	pc.DC.SetFont(S.TextFace)
+	pc.DC.SetRGBA(S.TextColor.R, S.TextColor.G, S.TextColor.B, S.TextColor.A)
 	baseline := y + h/2 + fontSize*0.35
 	ax, ay := pc.Abs(x, baseline)
 	pc.DC.DrawString(s, ax, ay)
@@ -1301,21 +1302,22 @@ func (a *Alert) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || a == nil || a.hidden.Load() {
 		return
 	}
-	tok := a.themeTokens()
+	// R2-6: one frozen paint-input load (UI-stored in markPaint, read here
+	// on raster) — never live reads of text/colors/face; node pointers are
+	// snapshot copies; closable/hidden/focused stay atomic reads.
+	S := a.loadSnapshot()
 	w, h := size.Width, size.Height
 	if w <= 0 || h <= 0 {
 		return
 	}
-	bg := a.Background()
-	radius := a.Radius()
+	bg, radius := S.Bg, S.Radius
 	if radius <= 0 {
 		rendering.FillRect(pc, 0, 0, w, h, bg.R, bg.G, bg.B, bg.A)
 	} else {
 		rendering.FillRoundRect(pc, 0, 0, w, h, radius, bg.R, bg.G, bg.B, bg.A)
 	}
-	if a.HasBorder() {
-		bd := a.BorderColor()
-		lw := a.LineWidth()
+	if S.HasBd {
+		bd, lw := S.Bd, S.LineW
 		if lw <= 0 {
 			lw = 1
 		}
@@ -1325,44 +1327,43 @@ func (a *Alert) paint(pc *rendering.PaintContext, size rendering.Size) {
 			rendering.StrokeRoundRect(pc, lw/2, lw/2, w-lw, h-lw, radius, lw, bd.R, bd.G, bd.B, bd.A)
 		}
 	}
-	icon, title, desc, action, close := a.geometry(tok, w, h)
-	if a.IconVisible() && icon.w > 0 {
-		ic := a.IconColor()
-		if a.iconNode != nil {
-			a.iconNode.Paint(pc.WithOrigin(pc.OriginX+icon.x, pc.OriginY+icon.y))
+	icon, title, desc, action, close := a.geometry(S, w, h)
+	if S.IconVisible && icon.w > 0 {
+		ic := S.IconColor
+		if S.IconNode != nil {
+			S.IconNode.Paint(pc.WithOrigin(pc.OriginX+icon.x, pc.OriginY+icon.y))
 		} else {
 			rendering.FillCircle(pc, icon.x+icon.w/2, icon.y+icon.h/2, icon.w*0.32, ic.R, ic.G, ic.B, ic.A)
 			rendering.FillRect(pc, icon.x+icon.w*0.42, icon.y+icon.h*0.30, icon.w*0.16, icon.h*0.40,
 				1, 1, 1, 1)
 		}
 	}
-	textC := themeToRGBA(tok.ColorText)
-	if a.titleNode != nil {
-		a.titleNode.Paint(pc.WithOrigin(pc.OriginX+title.x, pc.OriginY+title.y))
+	if S.TitleNode != nil {
+		S.TitleNode.Paint(pc.WithOrigin(pc.OriginX+title.x, pc.OriginY+title.y))
 	} else {
-		a.paintText(pc, a.title, title.x, title.y, title.w, title.h, a.TitleFontSize(), textC)
+		a.paintText(pc, S, S.Title, title.x, title.y, title.w, title.h, S.TitleFontSz)
 	}
-	if a.HasDescription() {
-		if a.descNode != nil {
-			a.descNode.Paint(pc.WithOrigin(pc.OriginX+desc.x, pc.OriginY+desc.y))
+	if S.HasDesc {
+		if S.DescNode != nil {
+			S.DescNode.Paint(pc.WithOrigin(pc.OriginX+desc.x, pc.OriginY+desc.y))
 		} else {
-			a.paintText(pc, a.description, desc.x, desc.y, desc.w, desc.h, tok.FontSize, textC)
+			a.paintText(pc, S, S.Description, desc.x, desc.y, desc.w, desc.h, S.DescFontSz)
 		}
 	}
-	if a.ActionVisible() {
-		if a.action != nil {
-			a.action.Paint(pc.WithOrigin(pc.OriginX+action.x, pc.OriginY+action.y))
+	if S.ActionVisible {
+		if S.ActionNode != nil {
+			S.ActionNode.Paint(pc.WithOrigin(pc.OriginX+action.x, pc.OriginY+action.y))
 		} else if action.w > 0 {
 			rendering.FillRoundRect(pc, action.x, action.y, action.w, action.h, 4,
-				textC.R, textC.G, textC.B, 0.12)
+				S.TextColor.R, S.TextColor.G, S.TextColor.B, 0.12)
 		}
 		_ = action
 	}
 	if a.closable.Load() && !a.hidden.Load() && close.w > 0 {
-		if effClose := a.EffectiveCloseIcon(); effClose != nil {
-			effClose.Paint(pc.WithOrigin(pc.OriginX+close.x, pc.OriginY+close.y))
+		if S.CloseNode != nil {
+			S.CloseNode.Paint(pc.WithOrigin(pc.OriginX+close.x, pc.OriginY+close.y))
 		} else {
-			cc := themeToRGBA(tok.ColorTextTertiary)
+			cc := S.CloseGlyphColor
 			cx, cy := close.x+close.w/2, close.y+close.h/2
 			rendering.StrokeLine(pc, cx-closeGlyphHalf, cy-closeGlyphHalf, cx+closeGlyphHalf, cy+closeGlyphHalf,
 				1.6, cc.R, cc.G, cc.B, cc.A)
@@ -1370,7 +1371,7 @@ func (a *Alert) paint(pc *rendering.PaintContext, size rendering.Size) {
 				1.6, cc.R, cc.G, cc.B, cc.A)
 		}
 		if a.focused.Load() {
-			fc := themeToRGBA(tok.ColorPrimary)
+			fc := S.FocusRingColor
 			rendering.StrokeRoundRect(pc, close.x-1.5, close.y-1.5, close.w+3, close.h+3, 6, 2, fc.R, fc.G, fc.B, fc.A)
 		}
 	}

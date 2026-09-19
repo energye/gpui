@@ -128,6 +128,11 @@ type Statistic struct {
 	attached *scheduler.TickerRegistry
 
 	node *rendering.RenderBox
+
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored wholesale by refreshSnapshot (UI, inside mark*Dirty) and
+	// loaded once per paint on raster.
+	snap atomic.Value // StatSnap
 }
 
 // NewStatistic creates a plain Statistic with antd defaults.
@@ -146,6 +151,7 @@ func NewStatistic() *Statistic {
 		self.paint(pc, size)
 	}
 	s.syncNode()
+	s.refreshSnapshot()
 	return s
 }
 
@@ -719,6 +725,7 @@ func (s *Statistic) SetTextFace(f text.Face) {
 	}
 	s.textFace = f
 	if s.node != nil {
+		s.refreshSnapshot()
 		s.node.MarkNeedsPaint()
 	}
 }
@@ -940,6 +947,7 @@ func (s *Statistic) markLayoutDirty() {
 	if s == nil || s.node == nil {
 		return
 	}
+	s.refreshSnapshot()
 	s.node.MarkNeedsLayout()
 }
 
@@ -947,6 +955,7 @@ func (s *Statistic) markPaintDirty() {
 	if s == nil || s.node == nil {
 		return
 	}
+	s.refreshSnapshot()
 	s.node.MarkNeedsPaint()
 }
 
@@ -1053,98 +1062,101 @@ func (s *Statistic) paint(pc *rendering.PaintContext, _ rendering.Size) {
 	if pc == nil || s == nil {
 		return
 	}
-	titleFS := s.EffectiveTitleFontSize()
-	contentFS := s.EffectiveContentFontSize()
-	gap := s.Gap()
-	titleCol := s.EffectiveTitleColor()
-	contentCol := s.EffectiveContentColor()
-	tok := s.tokens()
+	// R2-6: one frozen paint-input load (UI-stored in mark*Dirty, read here
+	// on raster) — never live reads of text/colors/face; node pointers are
+	// snapshot copies; loading stays the atomic read on the widget.
+	S := s.loadSnapshot()
+	titleFS := S.TitleFS
+	contentFS := S.ContentFS
+	gap := S.Gap
+	titleCol := S.TitleCol
+	contentCol := S.ContentCol
 
 	y := 0.0
 	var titleH float64
-	if s.HasTitle() {
-		if s.titleNode == nil {
-			_, th := measure(s.title, titleFS)
+	if S.HasTitle {
+		if S.TitleNode == nil {
+			_, th := measure(S.Title, titleFS)
 			titleH = th
-			if pc.DC != nil && s.title != "" {
-				if s.textFace != nil {
-					pc.DC.SetFont(s.textFace)
+			if pc.DC != nil && S.Title != "" {
+				if S.TextFace != nil {
+					pc.DC.SetFont(S.TextFace)
 				}
 				pc.DC.SetRGBA(titleCol.R, titleCol.G, titleCol.B, titleCol.A)
 				ax, ay := pc.Abs(0, titleFS*0.8)
-				pc.DC.DrawString(s.title, ax, ay)
+				pc.DC.DrawString(S.Title, ax, ay)
 			}
 		} else {
-			titleH = s.titleNode.Size().Height
+			titleH = S.TitleNode.Size().Height
 			if titleH <= 0 {
-				_, th := measure(s.title, titleFS)
+				_, th := measure(S.Title, titleFS)
 				titleH = th
 			}
-			s.titleNode.Paint(pc.WithOrigin(pc.OriginX, pc.OriginY))
+			S.TitleNode.Paint(pc.WithOrigin(pc.OriginX, pc.OriginY))
 		}
 		y = titleH + gap
 	}
 	if s.loading.Load() {
 		barW, barH := s.SkeletonBarSize()
-		fill := tok.ColorFillSecondary
-		rendering.FillRoundRect(pc, 0, y+s.SkeletonTopPad(), barW, barH, tok.Radius, fill.R, fill.G, fill.B, fill.A)
+		fill := S.SkelFill
+		rendering.FillRoundRect(pc, 0, y+s.SkeletonTopPad(), barW, barH, S.SkelRad, fill.R, fill.G, fill.B, fill.A)
 		return
 	}
-	valueStr := s.DisplayText()
+	valueStr := S.ValueStr
 	var prefixW, suffixW, valueW float64
-	if s.prefixNode == nil {
-		prefixW, _ = measure(s.prefix, contentFS)
+	if S.PrefixNode == nil {
+		prefixW, _ = measure(S.Prefix, contentFS)
 	} else {
-		prefixW = s.prefixNode.Size().Width
+		prefixW = S.PrefixNode.Size().Width
 	}
 	valueW, _ = measure(valueStr, contentFS)
-	if s.suffixNode == nil {
-		suffixW, _ = measure(s.suffix, contentFS)
+	if S.SuffixNode == nil {
+		suffixW, _ = measure(S.Suffix, contentFS)
 	} else {
-		suffixW = s.suffixNode.Size().Width
+		suffixW = S.SuffixNode.Size().Width
 	}
 	_ = valueW
 	_ = suffixW
 	x := 0.0
 	ascent := contentFS * 0.8
-	if s.HasPrefix() {
-		if s.prefixNode == nil {
-			if pc.DC != nil && s.prefix != "" {
-				if s.textFace != nil {
-					pc.DC.SetFont(s.textFace)
+	if S.HasPrefix {
+		if S.PrefixNode == nil {
+			if pc.DC != nil && S.Prefix != "" {
+				if S.TextFace != nil {
+					pc.DC.SetFont(S.TextFace)
 				}
 				pc.DC.SetRGBA(contentCol.R, contentCol.G, contentCol.B, contentCol.A)
 				ax, ay := pc.Abs(x, y+ascent)
-				pc.DC.DrawString(s.prefix, ax, ay)
+				pc.DC.DrawString(S.Prefix, ax, ay)
 			}
 			x += prefixW + gap
 		} else {
-			s.prefixNode.Paint(pc.WithOrigin(pc.OriginX+x, pc.OriginY+y))
+			S.PrefixNode.Paint(pc.WithOrigin(pc.OriginX+x, pc.OriginY+y))
 			x += prefixW + gap
 		}
 	}
 	if pc.DC != nil && valueStr != "" {
-		if s.textFace != nil {
-			pc.DC.SetFont(s.textFace)
+		if S.TextFace != nil {
+			pc.DC.SetFont(S.TextFace)
 		}
 		pc.DC.SetRGBA(contentCol.R, contentCol.G, contentCol.B, contentCol.A)
 		ax, ay := pc.Abs(x, y+ascent)
 		pc.DC.DrawString(valueStr, ax, ay)
 	}
 	x += valueW
-	if s.HasSuffix() {
+	if S.HasSuffix {
 		x += gap
-		if s.suffixNode == nil {
-			if pc.DC != nil && s.suffix != "" {
-				if s.textFace != nil {
-					pc.DC.SetFont(s.textFace)
+		if S.SuffixNode == nil {
+			if pc.DC != nil && S.Suffix != "" {
+				if S.TextFace != nil {
+					pc.DC.SetFont(S.TextFace)
 				}
 				pc.DC.SetRGBA(contentCol.R, contentCol.G, contentCol.B, contentCol.A)
 				ax, ay := pc.Abs(x, y+ascent)
-				pc.DC.DrawString(s.suffix, ax, ay)
+				pc.DC.DrawString(S.Suffix, ax, ay)
 			}
 		} else {
-			s.suffixNode.Paint(pc.WithOrigin(pc.OriginX+x, pc.OriginY+y))
+			S.SuffixNode.Paint(pc.WithOrigin(pc.OriginX+x, pc.OriginY+y))
 		}
 	}
 }

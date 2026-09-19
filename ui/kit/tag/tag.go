@@ -178,12 +178,18 @@ type Tag struct {
 	ariaLabel string
 	focused   atomic.Bool
 	node      *tagBox
+
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored wholesale by refreshSnapshot (UI, inside markPaint/markLayout)
+	// and loaded once per paint on raster.
+	snap atomic.Value // TagSnap
 }
 
 // NewTag creates a filled non-closable enabled tag.
 func NewTag(label string) *Tag {
 	t := &Tag{label: label, variant: TagVariantFilled, bordered: true}
 	t.node = newTagBox(t)
+	t.refreshSnapshot()
 	return t
 }
 
@@ -759,6 +765,7 @@ func (t *Tag) markLayout() {
 	if t == nil || t.node == nil {
 		return
 	}
+	t.refreshSnapshot()
 	t.node.MarkNeedsLayout()
 }
 
@@ -766,6 +773,7 @@ func (t *Tag) markPaint() {
 	if t == nil || t.node == nil {
 		return
 	}
+	t.refreshSnapshot()
 	t.node.MarkNeedsPaint()
 }
 
@@ -812,45 +820,47 @@ func (b *tagBox) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	ch := t.EffectiveChrome()
-	radius := t.EffectiveRadius()
-	rendering.FillRoundRect(pc, 0, 0, w, h, radius, ch.Bg.R, ch.Bg.G, ch.Bg.B, ch.Bg.A)
-	if ch.BorderWidth > 0 {
-		rendering.StrokeRoundRect(pc, 0, 0, w, h, radius, ch.BorderWidth, ch.Border.R, ch.Border.G, ch.Border.B, ch.Border.A)
+	// R2-6: one frozen paint-input load (UI-stored in markPaint/markLayout,
+	// read here on raster) — never live reads of chrome/label/face;
+	// hidden/focused stay atomic reads.
+	S := t.loadSnapshot()
+	radius := S.Radius
+	rendering.FillRoundRect(pc, 0, 0, w, h, radius, S.Bg.R, S.Bg.G, S.Bg.B, S.Bg.A)
+	if S.BorderW > 0 {
+		rendering.StrokeRoundRect(pc, 0, 0, w, h, radius, S.BorderW, S.Border.R, S.Border.G, S.Border.B, S.Border.A)
 	}
-	padH := t.EffectivePadH()
-	iconSize := t.EffectiveIconSize()
+	padH := S.PadH
+	iconSize := S.IconSize
 	cy := h / 2
 	x := padH
-	if t.HasIcon() {
-		rendering.FillCircle(pc, x+iconSize/2, cy, iconSize*0.35, ch.Text.R, ch.Text.G, ch.Text.B, ch.Text.A)
+	if S.HasIcon {
+		rendering.FillCircle(pc, x+iconSize/2, cy, iconSize*0.35, S.Text.R, S.Text.G, S.Text.B, S.Text.A)
 		x += iconSize + padH
 	}
 	_ = x
-	if t.closable {
-		cs := t.EffectiveIconSize()
+	if S.Closable {
+		cs := S.IconSize
 		cx := w - padH - cs/2
 		r := cs * 0.28
 		lw := 1.2
 		if r < 1 {
 			r = 1
 		}
-		rendering.StrokeLine(pc, cx-r, cy-r, cx+r, cy+r, lw, ch.Text.R, ch.Text.G, ch.Text.B, ch.Text.A)
-		rendering.StrokeLine(pc, cx+r, cy-r, cx-r, cy+r, lw, ch.Text.R, ch.Text.G, ch.Text.B, ch.Text.A)
+		rendering.StrokeLine(pc, cx-r, cy-r, cx+r, cy+r, lw, S.Text.R, S.Text.G, S.Text.B, S.Text.A)
+		rendering.StrokeLine(pc, cx+r, cy-r, cx-r, cy+r, lw, S.Text.R, S.Text.G, S.Text.B, S.Text.A)
 	}
 	if t.FocusRingVisible() {
-		tok := t.themeTokens()
-		c := themeToRGBA(tok.ColorPrimary)
+		c := S.RingColor
 		rendering.StrokeRoundRect(pc, -1.5, -1.5, w+3, h+3, radius+1.5, 2, c.R, c.G, c.B, c.A)
 	}
-	if t.label != "" && pc.DC != nil {
-		if t.face != nil {
-			pc.DC.SetFont(t.face)
+	if S.Label != "" && pc.DC != nil {
+		if S.Face != nil {
+			pc.DC.SetFont(S.Face)
 		}
-		pc.DC.SetRGBA(ch.Text.R, ch.Text.G, ch.Text.B, ch.Text.A)
-		baseline := h/2 + t.EffectiveFontSize()*0.35
+		pc.DC.SetRGBA(S.Text.R, S.Text.G, S.Text.B, S.Text.A)
+		baseline := h/2 + S.FontSize*0.35
 		ax, ay := pc.Abs(x, baseline)
-		pc.DC.DrawString(t.label, ax, ay)
+		pc.DC.DrawString(S.Label, ax, ay)
 	}
 }
 
