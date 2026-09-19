@@ -2,6 +2,7 @@ package watermark
 
 import (
 	"math"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -77,6 +78,10 @@ type Watermark struct {
 	face      text.Face
 	styleHook string
 	ariaLabel string
+
+	// snap is the frozen paint input (R2-6, button snapshot paradigm):
+	// refreshed on UI (dirtyMark/Layout), read on raster (paintMarks).
+	snap atomic.Value // WatermarkSnap
 
 	attached *scheduler.TickerRegistry
 }
@@ -573,7 +578,12 @@ func (w *Watermark) Layout(c rendering.Constraints) rendering.Size {
 	if w == nil || w.host == nil {
 		return rendering.Size{}
 	}
-	return w.host.Layout(c)
+	sz := w.host.Layout(c)
+	// Refresh after layout: setters ran before the host had a size, so the
+	// dirty-time snapshot froze a 0x0 host. Post-layout is the last UI point
+	// before paint (button paradigm: refresh on dirty AND layout).
+	w.refreshSnapshot()
+	return sz
 }
 
 // HasMark reports visible marks (text rows or ready image).
@@ -795,37 +805,40 @@ func (w *Watermark) dirtyMark() {
 	if w == nil || w.mark == nil {
 		return
 	}
+	w.refreshSnapshot()
 	w.mark.MarkNeedsPaint()
 }
 
 // paintMarks tiles rotated text/image marks over the host area.
 // The mark box itself stays 0x0 so the host size follows the child;
 // tiling reads the host size, and the 0x0 box keeps HitTest empty.
+// Raster thread: reads only the frozen snapshot (R2-6), never the live
+// Watermark — see snapshot.go (button snapshot paradigm).
 func (w *Watermark) paintMarks(pc *rendering.PaintContext) {
-	if pc == nil || w == nil || !w.HasMark() {
+	if pc == nil || w == nil {
 		return
 	}
-	hostW, hostH := 0.0, 0.0
-	if w.host != nil {
-		sz := w.host.Size()
-		hostW, hostH = sz.Width, sz.Height
+	s := w.loadSnapshot()
+	if !s.HasMark {
+		return
 	}
+	hostW, hostH := s.Host.Width, s.Host.Height
 	if hostW <= 0 || hostH <= 0 {
 		return
 	}
-	mw, mh := w.ResolvedMarkSize()
+	mw, mh := s.MarkW, s.MarkH
 	if mw <= 0 || mh <= 0 {
 		return
 	}
-	gx, gy := w.ResolvedGap()
-	ox, oy := w.ResolvedOffset()
-	angle := w.rotate * math.Pi / 180
-	if w.IsImageMode() {
+	gx, gy := s.GapX, s.GapY
+	ox, oy := s.OffX, s.OffY
+	angle := s.RotateDeg * math.Pi / 180
+	if s.ImageMode {
 		for y := oy; y < hostH; y += mh + gy {
 			for x := ox; x < hostW; x += mw + gx {
 				pc.Save()
 				pc.RotateAbout(angle, x+mw/2, y+mh/2)
-				rendering.DrawImageBuf(pc, w.imageBuf, x, y, mw, mh)
+				rendering.DrawImageBuf(pc, s.ImageBuf, x, y, mw, mh)
 				pc.RestoreCanvas()
 			}
 		}
@@ -835,47 +848,37 @@ func (w *Watermark) paintMarks(pc *rendering.PaintContext) {
 		for x := ox; x < hostW; x += mw + gx {
 			pc.Save()
 			pc.RotateAbout(angle, x+mw/2, y+mh/2)
-			w.paintTextTile(pc, x, y, mw)
+			paintTextTileSnap(pc, &s, x, y, mw)
 			pc.RestoreCanvas()
 		}
 	}
 }
 
-func (w *Watermark) paintTextTile(pc *rendering.PaintContext, x, y, mw float64) {
-	if pc == nil || w == nil {
+// paintTextTileSnap paints one frozen text row set from the snapshot
+// (raster thread: no live-widget reads).
+func paintTextTileSnap(pc *rendering.PaintContext, s *WatermarkSnap, x, y, mw float64) {
+	if pc == nil || s == nil {
 		return
 	}
 	curY := y
-	for _, ln := range w.lines {
-		if ln.Text == "" {
-			continue
-		}
-		fs := w.lineFontSize(ln)
-		lh := fs * 1.25
-		col := w.lineColor(ln)
-		lw, _ := rendering.EstimateTextSize(ln.Text, fs, approxCharW)
+	for i := range s.Lines {
+		ln := &s.Lines[i]
+		lh := ln.FontSize * 1.25
 		bx := x
-		align := w.font.TextAlign
-		if ln.HasFont && ln.Font.TextAlign != "" {
-			align = ln.Font.TextAlign
-		}
-		if align == "" {
-			align = DefaultTextAlign
-		}
-		switch align {
+		switch ln.Align {
 		case "center":
-			bx = x + (mw-lw)/2
+			bx = x + (mw-ln.Width)/2
 		case "right", "end":
-			bx = x + mw - lw
+			bx = x + mw - ln.Width
 		}
 		if pc.DC != nil {
 			// Real glyphs only: without a face stay empty, never a bar.
-			if face := w.face; face != nil {
-				pc.DC.SetFont(face)
+			if s.Face != nil {
+				pc.DC.SetFont(s.Face)
 			}
 			if pc.DC.Font() != nil {
-				pc.DC.SetRGBA(col.R, col.G, col.B, col.A)
-				ax, ay := pc.Abs(bx, curY+fs)
+				pc.DC.SetRGBA(ln.Color.R, ln.Color.G, ln.Color.B, ln.Color.A)
+				ax, ay := pc.Abs(bx, curY+ln.FontSize)
 				pc.DC.DrawString(ln.Text, ax, ay)
 			}
 		}
