@@ -867,6 +867,10 @@ type Sider struct {
 	focusNode         *focus.FocusNode
 	focused           atomic.Bool
 	hovered           atomic.Bool
+	// snap is the last frozen paint input (R2-6, button snapshot paradigm):
+	// stored by refreshSnapshot (UI, setters + New) and loaded once per
+	// paint on raster.
+	snap atomic.Value // SiderSnap
 }
 
 // NewSider creates a sider.
@@ -887,12 +891,23 @@ func NewSider(children ...rendering.RenderObject) *Sider {
 	s.node.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		self.paint(pc, size)
 	}
+	s.refreshSnapshot()
 	s.SetChildren(children...)
 	s.syncFocusEnabled()
 	return s
 }
 
 func (s *Sider) sectionKind() string { return "sider" }
+
+// markPaint refreshes the frozen paint inputs then requests repaint — the
+// single funnel every paint-affecting Sider setter goes through.
+func (s *Sider) markPaint() {
+	if s == nil || s.node == nil {
+		return
+	}
+	s.refreshSnapshot()
+	s.node.MarkNeedsPaint()
+}
 
 func (s *Sider) themeTokens() theme.Tokens {
 	if s != nil && s.override != nil {
@@ -911,7 +926,7 @@ func (s *Sider) SetWidth(w float64) {
 	}
 	s.width = w
 	s.node.MarkNeedsLayout()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // EffectiveWidth returns expanded width.
@@ -930,7 +945,7 @@ func (s *Sider) SetCollapsedWidth(w float64) {
 	s.collapsedWidth = w
 	s.collapsedWidthSet = true
 	s.node.MarkNeedsLayout()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // EffectiveCollapsedWidth returns collapsed width.
@@ -949,7 +964,7 @@ func (s *Sider) SetCollapsible(b bool) {
 	s.collapsible = b
 	s.syncFocusEnabled()
 	s.updateTriggerChild()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // Collapsible reports the flag.
@@ -968,7 +983,7 @@ func (s *Sider) SetCollapsed(b bool) {
 		s.onCollapse(b, CollapseClickTrigger)
 	}
 	s.node.MarkNeedsLayout()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // SetDefaultCollapsed sets uncontrolled initial collapse.
@@ -980,7 +995,7 @@ func (s *Sider) SetDefaultCollapsed(b bool) {
 	if !s.collapsedSet.Load() {
 		s.internalCollapsed.Store(b)
 		s.node.MarkNeedsLayout()
-		s.node.MarkNeedsPaint()
+		s.markPaint()
 	}
 }
 
@@ -1020,7 +1035,7 @@ func (s *Sider) SetTheme(t SiderTheme) {
 		return
 	}
 	s.siderTheme = t
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // Theme returns the shell.
@@ -1037,7 +1052,7 @@ func (s *Sider) SetReverseArrow(b bool) {
 		return
 	}
 	s.reverseArrow = b
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // ReverseArrow reports the flag.
@@ -1114,7 +1129,7 @@ func (s *Sider) evaluateBreakpoint() {
 				s.onCollapse(broken, CollapseResponsive)
 			}
 			s.node.MarkNeedsLayout()
-			s.node.MarkNeedsPaint()
+			s.markPaint()
 		} else if changed && s.onCollapse != nil {
 			s.onCollapse(broken, CollapseResponsive)
 		}
@@ -1136,7 +1151,7 @@ func (s *Sider) SetTrigger(n rendering.RenderObject) {
 	s.hideTrigger = false
 	s.updateTriggerChild()
 	s.syncFocusEnabled()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // SetHideTrigger hides the trigger (trigger=null).
@@ -1147,7 +1162,7 @@ func (s *Sider) SetHideTrigger() {
 	s.hideTrigger = true
 	s.updateTriggerChild()
 	s.syncFocusEnabled()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // ShowTrigger restores the default trigger.
@@ -1163,7 +1178,7 @@ func (s *Sider) ShowTrigger() {
 	s.hasCustomTrigger = false
 	s.updateTriggerChild()
 	s.syncFocusEnabled()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // TriggerVisible reports whether a trigger shows.
@@ -1251,7 +1266,7 @@ func (s *Sider) FocusTrigger() {
 		return
 	}
 	s.focused.Store(true)
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // BlurTrigger clears focus.
@@ -1260,7 +1275,7 @@ func (s *Sider) BlurTrigger() {
 		return
 	}
 	s.focused.Store(false)
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // TriggerHasFocus reports focus.
@@ -1280,7 +1295,7 @@ func (s *Sider) SetTriggerHovered(b bool) {
 		return
 	}
 	s.hovered.Store(b)
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // TriggerHovered reports hover.
@@ -1301,7 +1316,7 @@ func (s *Sider) ActivateTrigger() {
 		s.onCollapse(next, CollapseClickTrigger)
 	}
 	s.node.MarkNeedsLayout()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // HandleTriggerKey toggles on Enter/Space.
@@ -1347,7 +1362,7 @@ func (s *Sider) SetOverlay(b bool) {
 	}
 	s.overlay = b
 	s.node.MarkNeedsLayout()
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // Overlay reports the flag.
@@ -1376,7 +1391,7 @@ func (s *Sider) SetBackground(c render.RGBA) {
 	}
 	s.bg = c
 	s.hasBg = true
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // EffectiveBackground returns sider bg.
@@ -1413,7 +1428,7 @@ func (s *Sider) SetProvider(p *theme.Provider) {
 		return
 	}
 	s.provider = p
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // SetThemeTokens pins exact tokens.
@@ -1422,7 +1437,7 @@ func (s *Sider) SetThemeTokens(t *theme.Tokens) {
 		return
 	}
 	s.override = t
-	s.node.MarkNeedsPaint()
+	s.markPaint()
 }
 
 // SetTheme is an alias keeping the spec name.
@@ -1543,61 +1558,59 @@ func (s *Sider) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || size.Width < 0 || size.Height <= 0 {
 		return
 	}
+	// R2-6: one frozen paint-input load (UI-stored in refreshSnapshot, read
+	// here on raster) — never live reads of theme/config fields;
+	// collapsed/focused/hovered stay atomic reads via the frozen values.
+	S := s.loadSnapshot()
 	w := size.Width
 	if w < 0 {
 		w = 0
 	}
 	if w > 0 {
-		bg := s.EffectiveBackground()
+		bg := S.Bg
 		rendering.FillRect(pc, 0, 0, w, size.Height, bg.R, bg.G, bg.B, bg.A)
 	}
-	if !s.TriggerVisible() {
+	if !S.TriggerVisible {
 		return
 	}
-	tbg := s.EffectiveTriggerBackground()
-	if s.IsZeroTrigger() {
-		tw := s.EffectiveTriggerWidth()
-		th := s.EffectiveTriggerHeight()
+	tbg := S.TriggerBg
+	if S.ZeroTrigger {
+		tw := S.TriggerW
+		th := S.TriggerH
 		rendering.FillRect(pc, 0, 0, tw, th, tbg.R, tbg.G, tbg.B, tbg.A)
-		s.paintArrow(pc, 0, 0, tw, th)
+		s.paintArrow(pc, S, 0, 0, tw, th)
 		if s.TriggerHasFocus() {
-			s.paintFocusRing(pc, 0, 0, tw, th)
+			s.paintFocusRing(pc, S, 0, 0, tw, th)
 		}
 		return
 	}
 	if w <= 0 {
 		return
 	}
-	th := s.EffectiveTriggerHeight()
+	th := S.TriggerH
 	if th > size.Height {
 		th = size.Height
 	}
 	y := size.Height - th
 	rendering.FillRect(pc, 0, y, w, th, tbg.R, tbg.G, tbg.B, tbg.A)
-	s.paintArrow(pc, 0, y, w, th)
+	s.paintArrow(pc, S, 0, y, w, th)
 	if s.TriggerHasFocus() {
-		s.paintFocusRing(pc, 0, y, w, th)
+		s.paintFocusRing(pc, S, 0, y, w, th)
 	}
 }
 
-func (s *Sider) paintArrow(pc *rendering.PaintContext, x, y, w, h float64) {
+func (s *Sider) paintArrow(pc *rendering.PaintContext, S SiderSnap, x, y, w, h float64) {
 	if pc == nil || w <= 0 || h <= 0 {
 		return
 	}
-	var r, g, b, a float64
-	if s.siderTheme == SiderThemeLight {
-		tok := s.themeTokens()
-		c := themeToRGBA(tok.ColorText)
-		r, g, b, a = c.R, c.G, c.B, 1
-	} else {
-		r, g, b, a = 1, 1, 1, 1
-	}
+	c := S.ArrowCol
+	r, g, b, a := c.R, c.G, c.B, c.A
 	cx, cy := x+w/2, y+h/2
 	arm := 7.0
 	if w < 40 {
 		arm = w * 0.18
 	}
-	if s.ArrowPointsLeft() {
+	if S.ArrowLeft {
 		rendering.StrokeLine(pc, cx+arm*0.6, cy-arm, cx-arm*0.6, cy, 2, r, g, b, a)
 		rendering.StrokeLine(pc, cx-arm*0.6, cy, cx+arm*0.6, cy+arm, 2, r, g, b, a)
 		return
@@ -1606,15 +1619,11 @@ func (s *Sider) paintArrow(pc *rendering.PaintContext, x, y, w, h float64) {
 	rendering.StrokeLine(pc, cx+arm*0.6, cy, cx-arm*0.6, cy+arm, 2, r, g, b, a)
 }
 
-func (s *Sider) paintFocusRing(pc *rendering.PaintContext, x, y, w, h float64) {
+func (s *Sider) paintFocusRing(pc *rendering.PaintContext, S SiderSnap, x, y, w, h float64) {
 	if pc == nil {
 		return
 	}
-	tok := s.themeTokens()
-	c := themeToRGBA(tok.ColorPrimary)
-	if c.A <= 0 {
-		c = render.RGBA{R: 0.09, G: 0.47, B: 1, A: 1}
-	}
+	c := S.RingColor
 	rendering.StrokeRect(pc, x+1.5, y+1.5, w-3, h-3, 2, c.R, c.G, c.B, c.A)
 }
 
