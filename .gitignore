@@ -17,3 +17,8 @@ standardtest/canvaskit/node_modules/
 # visualtest failure dumps (baselines under testdata/visual stay tracked)
 ui/visualtest/testdata/out/*
 !ui/visualtest/testdata/out/.gitkeep
+
+# ui_wr_c4_shell_overlay run-output goldens (rewritten every run; tracked baselines live in git history / *_base)
+examples/ui_wr_c4_shell_overlay/golden/c4_open.png
+examples/ui_wr_c4_shell_overlay/golden/c4_recover.png
+examples/ui_wr_c4_shell_overlay/golden/c4_steady.png
