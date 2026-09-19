@@ -10,6 +10,7 @@ package progress
 import (
 	"fmt"
 	"math"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -101,7 +102,9 @@ const (
 // inner track and info nodes are RepaintBoundaries so color/percent dirt
 // stays local. Put Node() in the tree, drive Tick via AttachTicker.
 type Progress struct {
-	percent      float64
+	// percent/successPercent are atomic bits: SetPercent etc. write (UI),
+	// paint reads (raster).
+	percent      atomic.Uint64 // math.Float64bits
 	ptype        ProgressType
 	size         ProgressSize
 	sizePx       float64
@@ -127,7 +130,7 @@ type Progress struct {
 	stepColors     []render.RGBA
 	align          PercentAlign
 	posType        PercentPosType
-	successPercent float64
+	successPercent atomic.Uint64 // math.Float64bits, same threading
 	successColor   render.RGBA
 	hasSuccessCol  bool
 	rounding       func(float64) float64
@@ -136,7 +139,8 @@ type Progress struct {
 	override     *theme.Tokens
 	ariaLabel    string
 	reduceMotion bool
-	phase        float64
+	// phase is atomic bits: Tick writes (UI), paint reads (raster).
+	phase atomic.Uint64
 
 	host  *rendering.AbsoluteBox
 	track *rendering.RenderBox
@@ -159,7 +163,7 @@ func NewProgress(percent float64) *Progress {
 	p.info.SetRepaintBoundary(true)
 	p.host.AddChild(p.track)
 	p.host.AddChild(p.info)
-	p.percent = clampPercent(percent)
+	p.percent.Store(math.Float64bits(clampPercent(percent)))
 	p.syncInfo()
 	return p
 }
@@ -373,10 +377,10 @@ func (p *Progress) SetPercent(v float64) {
 		return
 	}
 	v = clampPercent(v)
-	if p.percent == v {
+	if math.Float64frombits(p.percent.Load()) == v {
 		return
 	}
-	p.percent = v
+	p.percent.Store(math.Float64bits(v))
 	p.syncInfo()
 	p.track.MarkNeedsPaint()
 }
@@ -386,7 +390,7 @@ func (p *Progress) Percent() float64 {
 	if p == nil {
 		return 0
 	}
-	return p.percent
+	return math.Float64frombits(p.percent.Load())
 }
 
 // FillRatio returns 0..1 fill proportion (PRG-S1/S2 probe).
@@ -394,7 +398,7 @@ func (p *Progress) FillRatio() float64 {
 	if p == nil {
 		return 0
 	}
-	return p.percent / 100
+	return math.Float64frombits(p.percent.Load()) / 100
 }
 
 // SetStatus sets ""=auto | normal | exception | active | success.
@@ -426,7 +430,7 @@ func (p *Progress) EffectiveStatus() ProgressStatus {
 	if p.status != StatusAuto {
 		return p.status
 	}
-	if p.percent >= 100 {
+	if p.Percent() >= 100 {
 		return StatusSuccess
 	}
 	return StatusNormal
@@ -684,10 +688,10 @@ func (p *Progress) SetSuccessPercent(v float64) {
 		return
 	}
 	v = clampPercent(v)
-	if p.successPercent == v {
+	if math.Float64frombits(p.successPercent.Load()) == v {
 		return
 	}
-	p.successPercent = v
+	p.successPercent.Store(math.Float64bits(v))
 	p.syncInfo()
 	p.track.MarkNeedsPaint()
 }
@@ -697,7 +701,7 @@ func (p *Progress) SuccessPercent() float64 {
 	if p == nil {
 		return 0
 	}
-	return p.successPercent
+	return math.Float64frombits(p.successPercent.Load())
 }
 
 // EffectiveSuccessPercent resolves the clamped split.
@@ -705,7 +709,7 @@ func (p *Progress) EffectiveSuccessPercent() float64 {
 	if p == nil {
 		return 0
 	}
-	return clampPercent(p.successPercent)
+	return clampPercent(math.Float64frombits(p.successPercent.Load()))
 }
 
 // SetSuccessStrokeColor overrides the success segment color.
@@ -747,7 +751,7 @@ func (p *Progress) ActiveSteps() int {
 	if p == nil || p.steps <= 0 {
 		return 0
 	}
-	n := int(p.EffectiveRounding()(float64(p.steps) * p.percent / 100))
+	n := int(p.EffectiveRounding()(float64(p.steps) * p.Percent() / 100))
 	if n < 0 {
 		n = 0
 	}
@@ -810,18 +814,18 @@ func (p *Progress) AccessibleName() string {
 		return p.ariaLabel
 	}
 	if !p.showInfo {
-		return fmt.Sprintf("%g percent", p.percent)
+		return fmt.Sprintf("%g percent", p.Percent())
 	}
 	if p.format != nil {
-		return p.format(p.percent, p.EffectiveSuccessPercent())
+		return p.format(p.Percent(), p.EffectiveSuccessPercent())
 	}
 	if st := p.EffectiveStatus(); st == StatusSuccess || st == StatusException {
 		if p.IsInnerInfo() {
-			return fmt.Sprintf("%g percent", p.percent)
+			return fmt.Sprintf("%g percent", p.Percent())
 		}
 		return p.InfoText()
 	}
-	return fmt.Sprintf("%g percent", p.percent)
+	return fmt.Sprintf("%g percent", p.Percent())
 }
 
 // Role is always progressbar (§6.6); Focusable is always false.
@@ -835,7 +839,7 @@ func (p *Progress) AriaValueNow() float64 {
 	if p == nil {
 		return 0
 	}
-	return p.percent
+	return p.Percent()
 }
 
 // AriaValueMin returns 0.
@@ -900,10 +904,10 @@ func (p *Progress) InfoText() string {
 		return ""
 	}
 	if p.format != nil {
-		return p.format(p.percent, p.EffectiveSuccessPercent())
+		return p.format(p.Percent(), p.EffectiveSuccessPercent())
 	}
 	if p.IsInnerInfo() {
-		return formatPercent(p.percent)
+		return formatPercent(p.Percent())
 	}
 	switch p.EffectiveStatus() {
 	case StatusSuccess:
@@ -911,7 +915,7 @@ func (p *Progress) InfoText() string {
 	case StatusException:
 		return "✗"
 	default:
-		return formatPercent(p.percent)
+		return formatPercent(p.Percent())
 	}
 }
 
@@ -984,10 +988,12 @@ func (p *Progress) Tick(dt float64) bool {
 	if dt < 0 {
 		dt = 0
 	}
-	p.phase = math.Mod(p.phase+dt/sweepPeriodSec, 1)
-	if p.phase < 0 {
-		p.phase++
+	ph := math.Float64frombits(p.phase.Load()) + dt/sweepPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	p.phase.Store(math.Float64bits(ph))
 	p.track.MarkNeedsPaint()
 	return true
 }
@@ -1003,7 +1009,7 @@ func (p *Progress) Phase() float64 {
 	if p == nil {
 		return 0
 	}
-	return p.phase
+	return math.Float64frombits(p.phase.Load())
 }
 
 func (p *Progress) tokens() theme.Tokens {
@@ -1621,7 +1627,7 @@ func (p *Progress) paintActiveSweep(pc *rendering.PaintContext, w, h float64) {
 	if sweepW > w {
 		sweepW = w
 	}
-	sweepX := p.phase*(w+sweepW) - sweepW
+	sweepX := math.Float64frombits(p.phase.Load())*(w+sweepW) - sweepW
 	pc.PushClipRRect(0, 0, w, h, radius)
 	rendering.FillRoundRect(pc, sweepX, 0, sweepW, h, radius, sweep.R, sweep.G, sweep.B, 0.45)
 	pc.PopClip()

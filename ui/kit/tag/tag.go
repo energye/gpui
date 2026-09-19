@@ -8,6 +8,7 @@ package tag
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -150,22 +151,23 @@ func defaultChrome(variant TagVariant, tok theme.Tokens) Chrome {
 // Owns a tagBox node: put Node() in the tree, drive Layout through it,
 // read EffectiveChrome for assertions.
 type Tag struct {
-	label    string
-	value    string
-	hasValue bool
-	color    string
-	colorRGBA render.RGBA
-	hasRGBA  bool
-	variant  TagVariant
+	label      string
+	value      string
+	hasValue   bool
+	color      string
+	colorRGBA  render.RGBA
+	hasRGBA    bool
+	variant    TagVariant
 	variantSet bool
-	bordered bool
-	closable bool
-	closeIcon rendering.RenderObject
-	iconName string
-	iconNode rendering.RenderObject
-	disabled bool
-	hidden   bool
-	onClick  func()
+	bordered   bool
+	closable   bool
+	closeIcon  rendering.RenderObject
+	iconName   string
+	iconNode   rendering.RenderObject
+	disabled   bool
+	// hidden/focused are atomic: event writes (UI), paint reads (raster).
+	hidden  atomic.Bool
+	onClick func()
 	// OnClose fires on close press; PreventDefault keeps visible.
 	OnClose   func(*TagCloseEvent)
 	provider  *theme.Provider
@@ -174,7 +176,7 @@ type Tag struct {
 	style     map[string]string
 	className string
 	ariaLabel string
-	focused   bool
+	focused   atomic.Bool
 	node      *tagBox
 }
 
@@ -396,7 +398,7 @@ func (t *Tag) SetOnClick(fn func()) {
 
 // Click simulates a whole-tag press (disabled/hidden swallow).
 func (t *Tag) Click() {
-	if t == nil || t.disabled || t.hidden {
+	if t == nil || t.disabled || t.hidden.Load() {
 		return
 	}
 	if t.onClick != nil {
@@ -409,7 +411,7 @@ func (t *Tag) Press() { t.Click() }
 
 // PressKey activates on Space/Enter when focusable (TAG-S12 for Tag path).
 func (t *Tag) PressKey(key string) {
-	if t == nil || t.disabled || t.hidden || !t.Focusable() {
+	if t == nil || t.disabled || t.hidden.Load() || !t.Focusable() {
 		return
 	}
 	if key == "Space" || key == "Enter" || key == " " || key == "\n" {
@@ -419,7 +421,7 @@ func (t *Tag) PressKey(key string) {
 
 // Close simulates the close-icon press (TAG-S2/S3/S11).
 func (t *Tag) Close() {
-	if t == nil || t.disabled || t.hidden || !t.closable {
+	if t == nil || t.disabled || t.hidden.Load() || !t.closable {
 		return
 	}
 	ev := &TagCloseEvent{Tag: t}
@@ -429,21 +431,21 @@ func (t *Tag) Close() {
 	if ev.prevented {
 		return
 	}
-	t.hidden = true
+	t.hidden.Store(true)
 	t.markLayout()
 }
 
 // Show clears Hidden.
 func (t *Tag) Show() {
-	if t == nil || !t.hidden {
+	if t == nil || !t.hidden.Load() {
 		return
 	}
-	t.hidden = false
+	t.hidden.Store(false)
 	t.markLayout()
 }
 
 // Hidden reports whether the tag is hidden after close.
-func (t *Tag) Hidden() bool { return t != nil && t.hidden }
+func (t *Tag) Hidden() bool { return t != nil && t.hidden.Load() }
 
 // Visible is !Hidden.
 func (t *Tag) Visible() bool { return !t.Hidden() }
@@ -539,7 +541,7 @@ func (t *Tag) Role() string {
 
 // Focusable is closable/clickable when enabled and visible.
 func (t *Tag) Focusable() bool {
-	return t != nil && !t.disabled && !t.hidden && (t.closable || t.onClick != nil)
+	return t != nil && !t.disabled && !t.hidden.Load() && (t.closable || t.onClick != nil)
 }
 
 // Focus sets keyboard focus (paint only).
@@ -547,21 +549,21 @@ func (t *Tag) Focus() {
 	if t == nil || !t.Focusable() {
 		return
 	}
-	t.focused = true
+	t.focused.Store(true)
 	t.markPaint()
 }
 
 // Blur clears focus (paint only).
 func (t *Tag) Blur() {
-	if t == nil || !t.focused {
+	if t == nil || !t.focused.Load() {
 		return
 	}
-	t.focused = false
+	t.focused.Store(false)
 	t.markPaint()
 }
 
 // Focused reports focus.
-func (t *Tag) Focused() bool { return t != nil && t.focused && t.Focusable() }
+func (t *Tag) Focused() bool { return t != nil && t.focused.Load() && t.Focusable() }
 
 // FocusRingVisible requires focusable + focused (must be painted).
 func (t *Tag) FocusRingVisible() bool { return t.Focused() }
@@ -668,7 +670,7 @@ func (t *Tag) TextWidth() float64 {
 
 // PreferredSize is the content size before constraints.
 func (t *Tag) PreferredSize() rendering.Size {
-	if t == nil || t.hidden {
+	if t == nil || t.hidden.Load() {
 		return rendering.Size{}
 	}
 	w := 2*t.EffectivePadH() + t.TextWidth()
@@ -802,7 +804,7 @@ func (b *tagBox) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if b == nil || pc == nil {
 		return
 	}
-	if b.tag == nil || b.tag.hidden {
+	if b.tag == nil || b.tag.hidden.Load() {
 		return
 	}
 	t := b.tag
@@ -854,8 +856,9 @@ func (b *tagBox) paint(pc *rendering.PaintContext, size rendering.Size) {
 
 // CheckableTag is the selectable tag (checkbox semantics).
 type CheckableTag struct {
-	label          string
-	checked        bool
+	label string
+	// checked/focused are atomic: same threading as Tag above.
+	checked        atomic.Bool
 	controlled     bool
 	defaultChecked bool
 	onChange       func(bool)
@@ -866,7 +869,7 @@ type CheckableTag struct {
 	override       *theme.Tokens
 	face           text.Face
 	ariaLabel      string
-	focused        bool
+	focused        atomic.Bool
 	node           *checkableBox
 }
 
@@ -875,7 +878,7 @@ func NewCheckableTag(label string) *CheckableTag {
 	c := &CheckableTag{label: label}
 	c.node = newCheckableBox(c)
 	if c.defaultChecked {
-		c.checked = true
+		c.checked.Store(true)
 	}
 	return c
 }
@@ -898,14 +901,14 @@ func (c *CheckableTag) SetLabel(s string) {
 }
 
 // Checked reports selection.
-func (c *CheckableTag) Checked() bool { return c != nil && c.checked }
+func (c *CheckableTag) Checked() bool { return c != nil && c.checked.Load() }
 
 // SetChecked sets controlled selection (paint only).
 func (c *CheckableTag) SetChecked(b bool) {
 	if c == nil {
 		return
 	}
-	c.checked = b
+	c.checked.Store(b)
 	c.controlled = true
 	c.markPaint()
 }
@@ -917,7 +920,7 @@ func (c *CheckableTag) SetDefaultChecked(b bool) {
 	}
 	c.defaultChecked = b
 	if !c.controlled {
-		c.checked = b
+		c.checked.Store(b)
 		c.markPaint()
 	}
 }
@@ -935,10 +938,10 @@ func (c *CheckableTag) Toggle() {
 	if c == nil || c.disabled {
 		return
 	}
-	c.checked = !c.checked
+	c.checked.Store(!c.checked.Load())
 	c.markPaint()
 	if c.onChange != nil {
-		c.onChange(c.checked)
+		c.onChange(c.checked.Load())
 	}
 }
 
@@ -1046,21 +1049,21 @@ func (c *CheckableTag) Focus() {
 	if c == nil || !c.Focusable() {
 		return
 	}
-	c.focused = true
+	c.focused.Store(true)
 	c.markPaint()
 }
 
 // Blur clears focus (paint only).
 func (c *CheckableTag) Blur() {
-	if c == nil || !c.focused {
+	if c == nil || !c.focused.Load() {
 		return
 	}
-	c.focused = false
+	c.focused.Store(false)
 	c.markPaint()
 }
 
 // Focused reports focus.
-func (c *CheckableTag) Focused() bool { return c != nil && c.focused && c.Focusable() }
+func (c *CheckableTag) Focused() bool { return c != nil && c.focused.Load() && c.Focusable() }
 
 // FocusRingVisible requires focused.
 func (c *CheckableTag) FocusRingVisible() bool { return c.Focused() }
@@ -1159,7 +1162,7 @@ func (c *CheckableTag) PreferredSize() rendering.Size {
 	if tok.FontHeightSM > 0 {
 		ch = tok.FontHeightSM
 	}
-	return rendering.Size{Width: w, Height: ch + 2 * DefaultTagPadV}
+	return rendering.Size{Width: w, Height: ch + 2*DefaultTagPadV}
 }
 
 // EffectiveChrome is primary solid when checked, default filled otherwise.
@@ -1173,7 +1176,7 @@ func (c *CheckableTag) EffectiveChrome() Chrome {
 			Text:        themeToRGBA(tok.ColorTextDisabled),
 		}
 	}
-	if c != nil && c.checked {
+	if c != nil && c.checked.Load() {
 		p := themeToRGBA(tok.ColorPrimary)
 		return Chrome{Bg: p, Border: p, BorderWidth: 0, Text: render.White}
 	}
@@ -1298,21 +1301,21 @@ type TagOption struct {
 
 // CheckableTagGroup is single/multi selection over options.
 type CheckableTagGroup struct {
-	options     []TagOption
-	tags        []*CheckableTag
-	multiple    bool
-	single      string
-	hasSingle   bool
-	multi       []string
-	hasMulti    bool
-	defSingle   string
-	hasDefSingle bool
-	defMulti    []string
-	onChange    func(string)
+	options       []TagOption
+	tags          []*CheckableTag
+	multiple      bool
+	single        string
+	hasSingle     bool
+	multi         []string
+	hasMulti      bool
+	defSingle     string
+	hasDefSingle  bool
+	defMulti      []string
+	onChange      func(string)
 	onChangeMulti func([]string)
-	disabled    bool
-	ariaLabel   string
-	node        *groupBox
+	disabled      bool
+	ariaLabel     string
+	node          *groupBox
 }
 
 // NewCheckableTagGroup creates a group over opts.

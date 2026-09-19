@@ -6,6 +6,8 @@
 package layout
 
 import (
+	"sync/atomic"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/focus"
 	"github.com/energye/gpui/ui/rendering"
@@ -731,9 +733,11 @@ type Sider struct {
 	collapsedWidth    float64
 	collapsedWidthSet bool
 	collapsible       bool
-	collapsed         bool
-	collapsedSet      bool
-	internalCollapsed bool
+	// collapsed/collapsedSet/internalCollapsed/focused/hovered are atomic:
+	// event writes (UI), paint reads (raster).
+	collapsed         atomic.Bool
+	collapsedSet      atomic.Bool
+	internalCollapsed atomic.Bool
 	defaultCollapsed  bool
 	siderTheme        SiderTheme
 	reverseArrow      bool
@@ -753,8 +757,8 @@ type Sider struct {
 	hasBg             bool
 	aria              string
 	focusNode         *focus.FocusNode
-	focused           bool
-	hovered           bool
+	focused           atomic.Bool
+	hovered           atomic.Bool
 }
 
 // NewSider creates a sider.
@@ -769,7 +773,7 @@ func NewSider(children ...rendering.RenderObject) *Sider {
 	self := s
 	s.focusNode.OnActivate = func() { self.ActivateTrigger() }
 	s.focusNode.OnFocusChange = func(f bool) {
-		self.focused = f
+		self.focused.Store(f)
 		self.node.MarkNeedsPaint()
 	}
 	s.node.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
@@ -849,8 +853,8 @@ func (s *Sider) SetCollapsed(b bool) {
 		return
 	}
 	prev := s.CollapsedState()
-	s.collapsed = b
-	s.collapsedSet = true
+	s.collapsed.Store(b)
+	s.collapsedSet.Store(true)
 	s.syncFocusEnabled()
 	if prev != b && s.onCollapse != nil {
 		s.onCollapse(b, CollapseClickTrigger)
@@ -865,8 +869,8 @@ func (s *Sider) SetDefaultCollapsed(b bool) {
 		return
 	}
 	s.defaultCollapsed = b
-	if !s.collapsedSet {
-		s.internalCollapsed = b
+	if !s.collapsedSet.Load() {
+		s.internalCollapsed.Store(b)
 		s.node.MarkNeedsLayout()
 		s.node.MarkNeedsPaint()
 	}
@@ -877,10 +881,10 @@ func (s *Sider) CollapsedState() bool {
 	if s == nil {
 		return false
 	}
-	if s.collapsedSet {
-		return s.collapsed
+	if s.collapsedSet.Load() {
+		return s.collapsed.Load()
 	}
-	return s.internalCollapsed
+	return s.internalCollapsed.Load()
 }
 
 // EffectiveSiderWidth returns painted width.
@@ -995,9 +999,9 @@ func (s *Sider) evaluateBreakpoint() {
 	if changed && s.onBreakpoint != nil {
 		s.onBreakpoint(broken)
 	}
-	if !s.collapsedSet {
-		if s.internalCollapsed != broken {
-			s.internalCollapsed = broken
+	if !s.collapsedSet.Load() {
+		if s.internalCollapsed.Load() != broken {
+			s.internalCollapsed.Store(broken)
 			if s.onCollapse != nil {
 				s.onCollapse(broken, CollapseResponsive)
 			}
@@ -1138,7 +1142,7 @@ func (s *Sider) FocusTrigger() {
 	if s == nil {
 		return
 	}
-	s.focused = true
+	s.focused.Store(true)
 	s.node.MarkNeedsPaint()
 }
 
@@ -1147,7 +1151,7 @@ func (s *Sider) BlurTrigger() {
 	if s == nil {
 		return
 	}
-	s.focused = false
+	s.focused.Store(false)
 	s.node.MarkNeedsPaint()
 }
 
@@ -1159,7 +1163,7 @@ func (s *Sider) TriggerHasFocus() bool {
 	if s.focusNode != nil && s.focusNode.HasFocus() {
 		return true
 	}
-	return s.focused
+	return s.focused.Load()
 }
 
 // SetTriggerHovered sets hover (paint only).
@@ -1167,12 +1171,12 @@ func (s *Sider) SetTriggerHovered(b bool) {
 	if s == nil {
 		return
 	}
-	s.hovered = b
+	s.hovered.Store(b)
 	s.node.MarkNeedsPaint()
 }
 
 // TriggerHovered reports hover.
-func (s *Sider) TriggerHovered() bool { return s != nil && s.hovered }
+func (s *Sider) TriggerHovered() bool { return s != nil && s.hovered.Load() }
 
 // ActivateTrigger toggles collapse (click path).
 func (s *Sider) ActivateTrigger() {
@@ -1180,10 +1184,10 @@ func (s *Sider) ActivateTrigger() {
 		return
 	}
 	next := !s.CollapsedState()
-	if s.collapsedSet {
-		s.collapsed = next
+	if s.collapsedSet.Load() {
+		s.collapsed.Store(next)
 	} else {
-		s.internalCollapsed = next
+		s.internalCollapsed.Store(next)
 	}
 	if s.onCollapse != nil {
 		s.onCollapse(next, CollapseClickTrigger)
@@ -1288,7 +1292,7 @@ func (s *Sider) EffectiveTriggerBackground() render.RGBA {
 		return render.Hex("#d9d9d9")
 	}
 	base := render.Hex(triggerDarkBgHex)
-	if s != nil && s.hovered {
+	if s != nil && s.hovered.Load() {
 		// Hover feedback: lighten slightly.
 		return render.RGBA{R: base.R + 0.08, G: base.G + 0.08, B: base.B + 0.08, A: base.A}
 	}

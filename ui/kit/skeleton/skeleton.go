@@ -8,6 +8,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
@@ -88,8 +89,8 @@ type SkeletonStyles struct {
 
 // Skeleton is the skeleton placeholder (docs/antd/skeleton.md §6.10).
 type Skeleton struct {
-	loading            bool
-	active             bool
+	loading            atomic.Bool // setters write (UI), paint reads (raster)
+	active             atomic.Bool // Tick/setters write (UI), paint reads (raster)
 	hasAvatar          bool
 	hasTitle           bool
 	hasParagraph       bool
@@ -103,26 +104,26 @@ type Skeleton struct {
 	titleWidthStr      string
 	paragraphWidths    []float64
 	paragraphWidthStrs []string
-	provider       *theme.Provider
-	override       *theme.Tokens
-	style          Style
-	classNames     SkeletonClassNames
-	styles         SkeletonStyles
-	phase          float64
-	reduceMotion   bool
-	host           *rendering.RenderBox
-	attached       *scheduler.TickerRegistry
+	provider           *theme.Provider
+	override           *theme.Tokens
+	style              Style
+	classNames         SkeletonClassNames
+	styles             SkeletonStyles
+	phase              atomic.Uint64 // math.Float64bits, same threading as active
+	reduceMotion       bool
+	host               *rendering.RenderBox
+	attached           *scheduler.TickerRegistry
 }
 
 // NewSkeleton creates the basic placeholder (title + 3 rows, last 61%).
 func NewSkeleton() *Skeleton {
 	s := &Skeleton{
-		loading:      true,
 		hasTitle:     true,
 		hasParagraph: true,
 		avatarShape:  AvatarCircle,
 		avatarSize:   SizeLarge,
 	}
+	s.loading.Store(true)
 	s.host = rendering.NewRenderBox()
 	s.host.SetRepaintBoundary(true)
 	s.host.SetRelayoutBoundary(true)
@@ -134,27 +135,27 @@ func NewSkeleton() *Skeleton {
 }
 
 // Loading reports the loading flag.
-func (s *Skeleton) Loading() bool { return s == nil || s.loading }
+func (s *Skeleton) Loading() bool { return s == nil || s.loading.Load() }
 
 // SetLoading toggles skeleton vs children (default true).
 func (s *Skeleton) SetLoading(b bool) {
-	if s == nil || s.loading == b {
+	if s == nil || s.loading.Load() == b {
 		return
 	}
-	s.loading = b
+	s.loading.Store(b)
 	s.syncContent()
 	s.dirty()
 }
 
 // Active reports the shimmer flag.
-func (s *Skeleton) Active() bool { return s != nil && s.active }
+func (s *Skeleton) Active() bool { return s != nil && s.active.Load() }
 
 // SetActive toggles the 1.4s shimmer (default false).
 func (s *Skeleton) SetActive(b bool) {
-	if s == nil || s.active == b {
+	if s == nil || s.active.Load() == b {
 		return
 	}
-	s.active = b
+	s.active.Store(b)
 	s.dirtyPaint()
 }
 
@@ -270,7 +271,7 @@ func (s *Skeleton) Content() rendering.RenderObject {
 
 // IsShowingContent reports loading=false with content attached.
 func (s *Skeleton) IsShowingContent() bool {
-	if s == nil || s.loading || s.content == nil {
+	if s == nil || s.loading.Load() || s.content == nil {
 		return false
 	}
 	return true
@@ -683,7 +684,7 @@ func (s *Skeleton) Layout(c rendering.Constraints) rendering.Size {
 	if s == nil || s.host == nil {
 		return rendering.Size{}
 	}
-	if !s.loading && s.content != nil {
+	if !s.loading.Load() && s.content != nil {
 		s.syncContent()
 		s.host.FixedWidth, s.host.FixedHeight = 0, 0
 		return s.host.Layout(c)
@@ -717,7 +718,7 @@ func (s *Skeleton) Phase() float64 {
 	if s == nil {
 		return 0
 	}
-	return s.phase
+	return math.Float64frombits(s.phase.Load())
 }
 
 // Attach registers the shimmer ticker.
@@ -746,23 +747,25 @@ func (s *Skeleton) Tick(dt float64) bool {
 	if s == nil {
 		return false
 	}
-	if !s.active || s.reduceMotion {
+	if !s.active.Load() || s.reduceMotion {
 		return true
 	}
 	if dt < 0 {
 		dt = 0
 	}
-	s.phase = math.Mod(s.phase+dt/ShimmerPeriodSec, 1)
-	if s.phase < 0 {
-		s.phase++
+	ph := math.Float64frombits(s.phase.Load()) + dt/ShimmerPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	s.phase.Store(math.Float64bits(ph))
 	s.dirtyPaint()
 	return true
 }
 
 // WantsFrame reports shimmer demand.
 func (s *Skeleton) WantsFrame() bool {
-	return s != nil && s.active && !s.reduceMotion && s.loading
+	return s != nil && s.active.Load() && !s.reduceMotion && s.loading.Load()
 }
 
 func (s *Skeleton) rightAvail(totalW float64) float64 {
@@ -817,7 +820,7 @@ func (s *Skeleton) syncContent() {
 			break
 		}
 	}
-	if !s.loading && s.content != nil {
+	if !s.loading.Load() && s.content != nil {
 		if !has {
 			s.host.AddChild(s.content)
 		}
@@ -843,7 +846,7 @@ func (s *Skeleton) dirtyPaint() {
 }
 
 func (s *Skeleton) paint(pc *rendering.PaintContext, size rendering.Size) {
-	if s == nil || pc == nil || s.loading == false {
+	if s == nil || pc == nil || !s.loading.Load() {
 		return
 	}
 	W, H := size.Width, size.Height
@@ -877,9 +880,9 @@ func (s *Skeleton) paint(pc *rendering.PaintContext, size rendering.Size) {
 		rendering.FillRoundRect(pc, x0, y, w, rowH, radius, fill.R, fill.G, fill.B, fill.A)
 		y += rowH + RowGap
 	}
-	if s.active && !s.reduceMotion {
+	if s.active.Load() && !s.reduceMotion {
 		hw := 80.0
-		hx := -hw + s.phase*(W+2*hw)
+		hx := -hw + (math.Float64frombits(s.phase.Load()))*(W+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, H, 1, 1, 1, 0.35)
 	}
 }
@@ -971,8 +974,8 @@ type SkeletonAvatar struct {
 	size         SkeletonSize
 	sizePx       float64
 	shape        SkeletonAvatarShape
-	active       bool
-	phase        float64
+	active       atomic.Bool   // Tick/setters write (UI), paint reads (raster)
+	phase        atomic.Uint64 // math.Float64bits, same threading as active
 	reduceMotion bool
 	provider     *theme.Provider
 	override     *theme.Tokens
@@ -1086,15 +1089,15 @@ func (a *SkeletonAvatar) Shape() SkeletonAvatarShape {
 
 // SetActive toggles shimmer.
 func (a *SkeletonAvatar) SetActive(b bool) {
-	if a == nil || a.active == b {
+	if a == nil || a.active.Load() == b {
 		return
 	}
-	a.active = b
+	a.active.Store(b)
 	a.host.MarkNeedsPaint()
 }
 
 // Active reports the flag.
-func (a *SkeletonAvatar) Active() bool { return a != nil && a.active }
+func (a *SkeletonAvatar) Active() bool { return a != nil && a.active.Load() }
 
 // SetReduceMotion freezes shimmer.
 func (a *SkeletonAvatar) SetReduceMotion(b bool) {
@@ -1109,7 +1112,7 @@ func (a *SkeletonAvatar) Phase() float64 {
 	if a == nil {
 		return 0
 	}
-	return a.phase
+	return math.Float64frombits(a.phase.Load())
 }
 
 // SetProvider selects theme source.
@@ -1193,22 +1196,24 @@ func (a *SkeletonAvatar) Tick(dt float64) bool {
 	if a == nil {
 		return false
 	}
-	if !a.active || a.reduceMotion {
+	if !a.active.Load() || a.reduceMotion {
 		return true
 	}
 	if dt < 0 {
 		dt = 0
 	}
-	a.phase = math.Mod(a.phase+dt/ShimmerPeriodSec, 1)
-	if a.phase < 0 {
-		a.phase++
+	ph := math.Float64frombits(a.phase.Load()) + dt/ShimmerPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	a.phase.Store(math.Float64bits(ph))
 	a.host.MarkNeedsPaint()
 	return true
 }
 
 // WantsFrame reports demand.
-func (a *SkeletonAvatar) WantsFrame() bool { return a != nil && a.active && !a.reduceMotion }
+func (a *SkeletonAvatar) WantsFrame() bool { return a != nil && a.active.Load() && !a.reduceMotion }
 
 func (a *SkeletonAvatar) fill() render.RGBA {
 	var tok theme.Tokens
@@ -1229,9 +1234,9 @@ func (a *SkeletonAvatar) paint(pc *rendering.PaintContext, size rendering.Size) 
 	}
 	fill := a.fill()
 	drawAvatarBlock(pc, 0, 0, size.Width, a.Shape(), fill)
-	if a.active && !a.reduceMotion {
+	if a.active.Load() && !a.reduceMotion {
 		hw := size.Width * 0.5
-		hx := -hw + a.phase*(size.Width+2*hw)
+		hx := -hw + (math.Float64frombits(a.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
 	}
 }
@@ -1241,8 +1246,8 @@ type SkeletonButton struct {
 	size         SkeletonSize
 	shape        SkeletonButtonShape
 	block        bool
-	active       bool
-	phase        float64
+	active       atomic.Bool   // Tick/setters write (UI), paint reads (raster)
+	phase        atomic.Uint64 // math.Float64bits, same threading as active
 	reduceMotion bool
 	provider     *theme.Provider
 	override     *theme.Tokens
@@ -1338,15 +1343,15 @@ func (b *SkeletonButton) Block() bool { return b != nil && b.block }
 
 // SetActive toggles shimmer.
 func (b *SkeletonButton) SetActive(v bool) {
-	if b == nil || b.active == v {
+	if b == nil || b.active.Load() == v {
 		return
 	}
-	b.active = v
+	b.active.Store(v)
 	b.host.MarkNeedsPaint()
 }
 
 // Active reports the flag.
-func (b *SkeletonButton) Active() bool { return b != nil && b.active }
+func (b *SkeletonButton) Active() bool { return b != nil && b.active.Load() }
 
 // SetReduceMotion freezes shimmer.
 func (b *SkeletonButton) SetReduceMotion(v bool) {
@@ -1361,7 +1366,7 @@ func (b *SkeletonButton) Phase() float64 {
 	if b == nil {
 		return 0
 	}
-	return b.phase
+	return math.Float64frombits(b.phase.Load())
 }
 
 // SetProvider selects theme source.
@@ -1449,22 +1454,24 @@ func (b *SkeletonButton) Tick(dt float64) bool {
 	if b == nil {
 		return false
 	}
-	if !b.active || b.reduceMotion {
+	if !b.active.Load() || b.reduceMotion {
 		return true
 	}
 	if dt < 0 {
 		dt = 0
 	}
-	b.phase = math.Mod(b.phase+dt/ShimmerPeriodSec, 1)
-	if b.phase < 0 {
-		b.phase++
+	ph := math.Float64frombits(b.phase.Load()) + dt/ShimmerPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	b.phase.Store(math.Float64bits(ph))
 	b.host.MarkNeedsPaint()
 	return true
 }
 
 // WantsFrame reports demand.
-func (b *SkeletonButton) WantsFrame() bool { return b != nil && b.active && !b.reduceMotion }
+func (b *SkeletonButton) WantsFrame() bool { return b != nil && b.active.Load() && !b.reduceMotion }
 
 func (b *SkeletonButton) fill() render.RGBA {
 	var tok theme.Tokens
@@ -1496,9 +1503,9 @@ func (b *SkeletonButton) paint(pc *rendering.PaintContext, size rendering.Size) 
 	}
 	fill := b.fill()
 	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, b.radius(), fill.R, fill.G, fill.B, fill.A)
-	if b.active && !b.reduceMotion {
+	if b.active.Load() && !b.reduceMotion {
 		hw := 40.0
-		hx := -hw + b.phase*(size.Width+2*hw)
+		hx := -hw + (math.Float64frombits(b.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
 	}
 }
@@ -1507,8 +1514,8 @@ func (b *SkeletonButton) paint(pc *rendering.PaintContext, size rendering.Size) 
 type SkeletonInput struct {
 	size         SkeletonSize
 	block        bool
-	active       bool
-	phase        float64
+	active       atomic.Bool   // Tick/setters write (UI), paint reads (raster)
+	phase        atomic.Uint64 // math.Float64bits, same threading as active
 	reduceMotion bool
 	provider     *theme.Provider
 	override     *theme.Tokens
@@ -1584,15 +1591,15 @@ func (in *SkeletonInput) Block() bool { return in != nil && in.block }
 
 // SetActive toggles shimmer.
 func (in *SkeletonInput) SetActive(v bool) {
-	if in == nil || in.active == v {
+	if in == nil || in.active.Load() == v {
 		return
 	}
-	in.active = v
+	in.active.Store(v)
 	in.host.MarkNeedsPaint()
 }
 
 // Active reports the flag.
-func (in *SkeletonInput) Active() bool { return in != nil && in.active }
+func (in *SkeletonInput) Active() bool { return in != nil && in.active.Load() }
 
 // SetReduceMotion freezes shimmer.
 func (in *SkeletonInput) SetReduceMotion(v bool) {
@@ -1607,7 +1614,7 @@ func (in *SkeletonInput) Phase() float64 {
 	if in == nil {
 		return 0
 	}
-	return in.phase
+	return math.Float64frombits(in.phase.Load())
 }
 
 // SetProvider selects theme source.
@@ -1695,22 +1702,24 @@ func (in *SkeletonInput) Tick(dt float64) bool {
 	if in == nil {
 		return false
 	}
-	if !in.active || in.reduceMotion {
+	if !in.active.Load() || in.reduceMotion {
 		return true
 	}
 	if dt < 0 {
 		dt = 0
 	}
-	in.phase = math.Mod(in.phase+dt/ShimmerPeriodSec, 1)
-	if in.phase < 0 {
-		in.phase++
+	ph := math.Float64frombits(in.phase.Load()) + dt/ShimmerPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	in.phase.Store(math.Float64bits(ph))
 	in.host.MarkNeedsPaint()
 	return true
 }
 
 // WantsFrame reports demand.
-func (in *SkeletonInput) WantsFrame() bool { return in != nil && in.active && !in.reduceMotion }
+func (in *SkeletonInput) WantsFrame() bool { return in != nil && in.active.Load() && !in.reduceMotion }
 
 func (in *SkeletonInput) fill() render.RGBA {
 	var tok theme.Tokens
@@ -1731,17 +1740,17 @@ func (in *SkeletonInput) paint(pc *rendering.PaintContext, size rendering.Size) 
 	}
 	fill := in.fill()
 	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, BlockRadius, fill.R, fill.G, fill.B, fill.A)
-	if in.active && !in.reduceMotion {
+	if in.active.Load() && !in.reduceMotion {
 		hw := 40.0
-		hx := -hw + in.phase*(size.Width+2*hw)
+		hx := -hw + (math.Float64frombits(in.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
 	}
 }
 
 // SkeletonImage is the 96×96 image placeholder.
 type SkeletonImage struct {
-	active       bool
-	phase        float64
+	active       atomic.Bool   // Tick/setters write (UI), paint reads (raster)
+	phase        atomic.Uint64 // math.Float64bits, same threading as active
 	reduceMotion bool
 	provider     *theme.Provider
 	override     *theme.Tokens
@@ -1780,15 +1789,15 @@ func (im *SkeletonImage) EffectiveSize() float64 {
 
 // SetActive toggles shimmer.
 func (im *SkeletonImage) SetActive(v bool) {
-	if im == nil || im.active == v {
+	if im == nil || im.active.Load() == v {
 		return
 	}
-	im.active = v
+	im.active.Store(v)
 	im.host.MarkNeedsPaint()
 }
 
 // Active reports the flag.
-func (im *SkeletonImage) Active() bool { return im != nil && im.active }
+func (im *SkeletonImage) Active() bool { return im != nil && im.active.Load() }
 
 // SetReduceMotion freezes shimmer.
 func (im *SkeletonImage) SetReduceMotion(v bool) {
@@ -1803,7 +1812,7 @@ func (im *SkeletonImage) Phase() float64 {
 	if im == nil {
 		return 0
 	}
-	return im.phase
+	return math.Float64frombits(im.phase.Load())
 }
 
 // SetProvider selects theme source.
@@ -1887,22 +1896,24 @@ func (im *SkeletonImage) Tick(dt float64) bool {
 	if im == nil {
 		return false
 	}
-	if !im.active || im.reduceMotion {
+	if !im.active.Load() || im.reduceMotion {
 		return true
 	}
 	if dt < 0 {
 		dt = 0
 	}
-	im.phase = math.Mod(im.phase+dt/ShimmerPeriodSec, 1)
-	if im.phase < 0 {
-		im.phase++
+	ph := math.Float64frombits(im.phase.Load()) + dt/ShimmerPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	im.phase.Store(math.Float64bits(ph))
 	im.host.MarkNeedsPaint()
 	return true
 }
 
 // WantsFrame reports demand.
-func (im *SkeletonImage) WantsFrame() bool { return im != nil && im.active && !im.reduceMotion }
+func (im *SkeletonImage) WantsFrame() bool { return im != nil && im.active.Load() && !im.reduceMotion }
 
 func (im *SkeletonImage) fill() render.RGBA {
 	var tok theme.Tokens
@@ -1930,9 +1941,9 @@ func (im *SkeletonImage) paint(pc *rendering.PaintContext, size rendering.Size) 
 	}
 	rendering.StrokeCircle(pc, cx, cy, r+6, 2, 0.75, 0.75, 0.75, 1)
 	rendering.FillCircle(pc, cx-4, cy-4, 2, 0.75, 0.75, 0.75, 1)
-	if im.active && !im.reduceMotion {
+	if im.active.Load() && !im.reduceMotion {
 		hw := 40.0
-		hx := -hw + im.phase*(size.Width+2*hw)
+		hx := -hw + (math.Float64frombits(im.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
 	}
 }
@@ -1940,8 +1951,8 @@ func (im *SkeletonImage) paint(pc *rendering.PaintContext, size rendering.Size) 
 // SkeletonNode is the 96×96 custom-node placeholder.
 type SkeletonNode struct {
 	child        rendering.RenderObject
-	active       bool
-	phase        float64
+	active       atomic.Bool   // Tick/setters write (UI), paint reads (raster)
+	phase        atomic.Uint64 // math.Float64bits, same threading as active
 	reduceMotion bool
 	provider     *theme.Provider
 	override     *theme.Tokens
@@ -2006,15 +2017,15 @@ func (n *SkeletonNode) EffectiveSize() float64 {
 
 // SetActive toggles shimmer.
 func (n *SkeletonNode) SetActive(v bool) {
-	if n == nil || n.active == v {
+	if n == nil || n.active.Load() == v {
 		return
 	}
-	n.active = v
+	n.active.Store(v)
 	n.host.MarkNeedsPaint()
 }
 
 // Active reports the flag.
-func (n *SkeletonNode) Active() bool { return n != nil && n.active }
+func (n *SkeletonNode) Active() bool { return n != nil && n.active.Load() }
 
 // SetReduceMotion freezes shimmer.
 func (n *SkeletonNode) SetReduceMotion(v bool) {
@@ -2029,7 +2040,7 @@ func (n *SkeletonNode) Phase() float64 {
 	if n == nil {
 		return 0
 	}
-	return n.phase
+	return math.Float64frombits(n.phase.Load())
 }
 
 // SetProvider selects theme source.
@@ -2117,22 +2128,24 @@ func (n *SkeletonNode) Tick(dt float64) bool {
 	if n == nil {
 		return false
 	}
-	if !n.active || n.reduceMotion {
+	if !n.active.Load() || n.reduceMotion {
 		return true
 	}
 	if dt < 0 {
 		dt = 0
 	}
-	n.phase = math.Mod(n.phase+dt/ShimmerPeriodSec, 1)
-	if n.phase < 0 {
-		n.phase++
+	ph := math.Float64frombits(n.phase.Load()) + dt/ShimmerPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	n.phase.Store(math.Float64bits(ph))
 	n.host.MarkNeedsPaint()
 	return true
 }
 
 // WantsFrame reports demand.
-func (n *SkeletonNode) WantsFrame() bool { return n != nil && n.active && !n.reduceMotion }
+func (n *SkeletonNode) WantsFrame() bool { return n != nil && n.active.Load() && !n.reduceMotion }
 
 func (n *SkeletonNode) fill() render.RGBA {
 	var tok theme.Tokens
@@ -2156,9 +2169,9 @@ func (n *SkeletonNode) paint(pc *rendering.PaintContext, size rendering.Size) {
 	}
 	fill := n.fill()
 	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, BlockRadius, fill.R, fill.G, fill.B, fill.A)
-	if n.active && !n.reduceMotion {
+	if n.active.Load() && !n.reduceMotion {
 		hw := 40.0
-		hx := -hw + n.phase*(size.Width+2*hw)
+		hx := -hw + (math.Float64frombits(n.phase.Load()))*(size.Width+2*hw)
 		rendering.FillRect(pc, hx, 0, hw, size.Height, 1, 1, 1, 0.35)
 	}
 }

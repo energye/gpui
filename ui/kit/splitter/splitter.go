@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
@@ -68,7 +69,7 @@ const (
 // Style is an optional business override (P1 customize.tsx hook).
 // Zero value disables every field; set a Use flag to enable one.
 type Style struct {
-	Bg, Text          render.RGBA
+	Bg, Text       render.RGBA
 	UseBg, UseText bool
 }
 
@@ -368,12 +369,14 @@ type Splitter struct {
 	collapsed    []bool
 	savedSizes   map[int][]float64
 	previewDelta float64
-	dragging     int
+	// dragging/focusedBar/barActive are atomic: pointer-drag/keyboard
+	// writes (UI), bar paint reads (raster).
+	dragging atomic.Int64
 
-	hovered    []bool
-	focusedBar int
+	hovered    atomic.Value // []bool, copy-on-write (see loadHovered)
+	focusedBar atomic.Int64
 	barHovered bool
-	barActive  int
+	barActive  atomic.Int64
 
 	onResize      func([]float64)
 	onResizeStart func([]float64)
@@ -398,7 +401,10 @@ type Splitter struct {
 
 // NewSplitter creates a splitter hosting panels.
 func NewSplitter(panels ...*SplitterPanel) *Splitter {
-	s := &Splitter{dragging: -1, focusedBar: -1, barActive: -1, savedSizes: map[int][]float64{}}
+	s := &Splitter{savedSizes: map[int][]float64{}}
+	s.dragging.Store(-1)
+	s.focusedBar.Store(-1)
+	s.barActive.Store(-1)
 	s.root = rendering.NewAbsoluteBox(0, 0)
 	s.root.SetRepaintBoundary(true)
 	s.root.SetRelayoutBoundary(true)
@@ -422,10 +428,10 @@ func (s *Splitter) SetPanels(panels ...*SplitterPanel) {
 	s.hasExplicit = false
 	s.lastSizes = nil
 	s.collapsed = make([]bool, len(panels))
-	s.hovered = make([]bool, max(0, len(panels)-1))
-	s.dragging = -1
-	s.focusedBar = -1
-	s.barActive = -1
+	s.hovered.Store(make([]bool, max(0, len(panels)-1)))
+	s.dragging.Store(-1)
+	s.focusedBar.Store(-1)
+	s.barActive.Store(-1)
 	s.previewDelta = 0
 	// Drop stale hosts/bars so indices rebuild cleanly.
 	for _, h := range s.hosts {
@@ -700,25 +706,25 @@ func (s *Splitter) FocusBar(i int) bool {
 	if !s.BarFocusable(i) {
 		return false
 	}
-	s.focusedBar = i
+	s.focusedBar.Store(int64(i))
 	s.markPaint()
 	return true
 }
 
 // BlurBar clears bar focus.
 func (s *Splitter) BlurBar() {
-	if s == nil || s.focusedBar < 0 {
+	if s == nil || s.focusedBar.Load() < 0 {
 		return
 	}
-	s.focusedBar = -1
+	s.focusedBar.Store(-1)
 	s.markPaint()
 }
 
 // BarFocused reports whether bar i holds focus.
-func (s *Splitter) BarFocused(i int) bool { return s != nil && s.focusedBar == i }
+func (s *Splitter) BarFocused(i int) bool { return s != nil && s.focusedBar.Load() == int64(i) }
 
 // Focused reports whether any bar holds focus.
-func (s *Splitter) Focused() bool { return s != nil && s.focusedBar >= 0 }
+func (s *Splitter) Focused() bool { return s != nil && s.focusedBar.Load() >= 0 }
 
 // FocusRingVisible reports whether the focus ring paints.
 func (s *Splitter) FocusRingVisible(i int) bool { return s.BarFocused(i) }
@@ -984,8 +990,8 @@ func (s *Splitter) ResetSizes() {
 	s.collapsed = make([]bool, len(s.panels))
 	s.savedSizes = map[int][]float64{}
 	s.previewDelta = 0
-	s.dragging = -1
-	s.barActive = -1
+	s.dragging.Store(-1)
+	s.barActive.Store(-1)
 	s.markLayout()
 }
 
@@ -1029,22 +1035,37 @@ func (s *Splitter) ContentVisible(i int) bool { return !s.IsContentDestroyed(i) 
 
 // SetBarHover sets hover state (paint-only).
 func (s *Splitter) SetBarHover(i int, b bool) {
-	if s == nil || i < 0 || i >= len(s.hovered) {
+	hov := s.loadHovered()
+	if s == nil || i < 0 || i >= len(hov) {
 		return
 	}
-	if s.hovered[i] == b {
+	if hov[i] == b {
 		return
 	}
-	s.hovered[i] = b
+	cp := append([]bool(nil), hov...)
+	cp[i] = b
+	s.hovered.Store(cp)
 	s.markPaint()
 }
 
 // BarHovered reports hover state.
 func (s *Splitter) BarHovered(i int) bool {
-	if s == nil || i < 0 || i >= len(s.hovered) {
+	hov := s.loadHovered()
+	if s == nil || i < 0 || i >= len(hov) {
 		return false
 	}
-	return s.hovered[i]
+	return hov[i]
+}
+
+// loadHovered snapshots the hover vector (nil-safe; empty before first sync).
+func (s *Splitter) loadHovered() []bool {
+	if s == nil {
+		return nil
+	}
+	if v, ok := s.hovered.Load().([]bool); ok {
+		return v
+	}
+	return nil
 }
 
 // KeyboardStep returns arrow step (container 1% or 4px).
@@ -1132,10 +1153,11 @@ func (s *Splitter) HandleBarKey(bar int, key string) bool {
 
 // KeyActivate handles Enter/Space on the focused bar.
 func (s *Splitter) KeyActivate(key string) bool {
-	if s == nil || s.focusedBar < 0 {
+	fb := s.focusedBar.Load()
+	if s == nil || fb < 0 {
 		return false
 	}
-	return s.HandleBarKey(s.focusedBar, key)
+	return s.HandleBarKey(int(fb), key)
 }
 
 // DragBar drags bar i by delta px (single gesture: start/update/end).
@@ -1156,8 +1178,8 @@ func (s *Splitter) BeginDrag(bar int) bool {
 	if !s.barResizable(bar) {
 		return false
 	}
-	s.dragging = bar
-	s.barActive = bar
+	s.dragging.Store(int64(bar))
+	s.barActive.Store(int64(bar))
 	s.previewDelta = 0
 	s.dragStartSizesLocked()
 	s.markPaint()
@@ -1169,10 +1191,11 @@ func (s *Splitter) BeginDrag(bar int) bool {
 
 // UpdateDrag previews/applies delta from drag start.
 func (s *Splitter) UpdateDrag(delta float64) {
-	if s == nil || s.dragging < 0 {
+	bar64 := s.dragging.Load()
+	if s == nil || bar64 < 0 {
 		return
 	}
-	bar := s.dragging
+	bar := int(bar64)
 	start := s.dragStartSizesLocked()
 	L := s.dragLengthLocked()
 	clamped := clampDelta(s, bar, start, L, delta)
@@ -1198,10 +1221,11 @@ func (s *Splitter) UpdateDrag(delta float64) {
 
 // EndDrag commits lazy preview and emits OnResizeEnd once.
 func (s *Splitter) EndDrag() {
-	if s == nil || s.dragging < 0 {
+	bar64 := s.dragging.Load()
+	if s == nil || bar64 < 0 {
 		return
 	}
-	bar := s.dragging
+	bar := int(bar64)
 	var final []float64
 	if s.lazy {
 		start := s.dragStartSizesLocked()
@@ -1230,8 +1254,8 @@ func (s *Splitter) EndDrag() {
 	} else {
 		final = s.snapshotSizes()
 	}
-	s.dragging = -1
-	s.barActive = -1
+	s.dragging.Store(-1)
+	s.barActive.Store(-1)
 	s.previewDelta = 0
 	s.markPaint()
 	if s.onResizeEnd != nil {
@@ -1244,7 +1268,7 @@ func (s *Splitter) DraggingBar() int {
 	if s == nil {
 		return -1
 	}
-	return s.dragging
+	return int(s.dragging.Load())
 }
 
 // PreviewDelta returns the lazy preview offset.

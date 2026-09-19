@@ -171,9 +171,9 @@ func (s *Splitter) layoutRoot(c rendering.Constraints) (float64, float64, []floa
 			b.FixedWidth, b.FixedHeight = trigger, H
 			s.root.Place(b, acc-trigger/2, 0)
 		}
-		if s.dragging >= 0 && s.lazy && s.previewDelta != 0 {
+		if drg := s.dragging.Load(); drg >= 0 && s.lazy && s.previewDelta != 0 {
 			acc := 0.0
-			for i := 0; i <= s.dragging && i < len(sizes); i++ {
+			for i := 0; i <= int(drg) && i < len(sizes); i++ {
 				acc += sizes[i]
 			}
 			x := acc + s.previewDelta
@@ -208,9 +208,9 @@ func (s *Splitter) layoutRoot(c rendering.Constraints) (float64, float64, []floa
 			b.FixedWidth, b.FixedHeight = W, trigger
 			s.root.Place(b, 0, acc-trigger/2)
 		}
-		if s.dragging >= 0 && s.lazy && s.previewDelta != 0 {
+		if drg := s.dragging.Load(); drg >= 0 && s.lazy && s.previewDelta != 0 {
 			acc := 0.0
-			for i := 0; i <= s.dragging && i < len(sizes); i++ {
+			for i := 0; i <= int(drg) && i < len(sizes); i++ {
 				acc += sizes[i]
 			}
 			y := acc + s.previewDelta
@@ -242,9 +242,10 @@ func (s *Splitter) paintBar(pc *rendering.PaintContext, size rendering.Size, ind
 	}
 	vertical := s.IsVertical()
 	barW := s.SplitBarSize()
-	hovered := index < len(s.hovered) && s.hovered[index]
-	active := s.barActive == index || s.dragging == index
-	focused := s.focusedBar == index
+	hov := s.loadHovered()
+	hovered := index < len(hov) && hov[index]
+	active := s.barActive.Load() == int64(index) || s.dragging.Load() == int64(index)
+	focused := s.focusedBar.Load() == int64(index)
 	resizable := s.BarResizable(index)
 
 	base := toBarRGBA(s.EffectiveBarColor())
@@ -385,20 +386,20 @@ func (s *Splitter) syncBarsLocked() {
 		return
 	}
 	want := s.BarCount()
-	if len(s.hovered) != want {
+	if hov := s.loadHovered(); len(hov) != want {
 		nh := make([]bool, want)
-		copy(nh, s.hovered)
-		s.hovered = nh
+		copy(nh, hov)
+		s.hovered.Store(nh)
 	}
 	if len(s.collapsed) != len(s.panels) {
 		nc := make([]bool, len(s.panels))
 		copy(nc, s.collapsed)
 		s.collapsed = nc
 	}
-	if s.focusedBar >= want {
-		s.focusedBar = -1
+	if s.focusedBar.Load() >= int64(want) {
+		s.focusedBar.Store(-1)
 	}
-	if s.dragging >= want {
-		s.dragging = -1
+	if s.dragging.Load() >= int64(want) {
+		s.dragging.Store(-1)
 	}
 }

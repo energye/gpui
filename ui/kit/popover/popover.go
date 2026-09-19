@@ -8,6 +8,7 @@ package popover
 
 import (
 	"math"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -20,12 +21,12 @@ import (
 
 // Geometry fallbacks (§6.2.1). Token-backed accessors prefer theme values.
 const (
-	DefaultPopoverFontSize         = 14.0
-	DefaultPopoverInnerPadding     = 12.0
-	DefaultPopoverTitleMinWidth    = 177.0
+	DefaultPopoverFontSize          = 14.0
+	DefaultPopoverInnerPadding      = 12.0
+	DefaultPopoverTitleMinWidth     = 177.0
 	DefaultPopoverTitleMarginBottom = 8.0
-	DefaultPopoverGap              = 8.0
-	DefaultPopoverArrowSize        = 8.0
+	DefaultPopoverGap               = 8.0
+	DefaultPopoverArrowSize         = 8.0
 
 	focusRingOutset = 1.5
 	minTouchTarget  = 44.0
@@ -131,24 +132,27 @@ func placementFromOverlay(p overlay.Placement) PopoverPlacement {
 
 // Popover is the popover widget (§6.10).
 type Popover struct {
-	triggerLabel string
-	title        string
-	content      string
-	titleNode    rendering.RenderObject
-	contentNode  rendering.RenderObject
-	triggerNode  rendering.RenderObject
-	triggers     []PopoverTrigger
-	placement    PopoverPlacement
-	arrow        bool
+	triggerLabel  string
+	title         string
+	content       string
+	titleNode     rendering.RenderObject
+	contentNode   rendering.RenderObject
+	triggerNode   rendering.RenderObject
+	triggers      []PopoverTrigger
+	placement     PopoverPlacement
+	arrow         bool
 	pointAtCenter bool
-	autoAdjust   bool
-	disabled     bool
-	zIndex       int
+	autoAdjust    bool
+	// disabled/hovered/pressed/focused are atomic: event writes (UI),
+	// paint reads (raster). inBound/hoverIn*/pendingHoverClose stay plain:
+	// UI event tracking only, never read on raster.
+	disabled atomic.Bool
+	zIndex   int
 
-	controlled     bool
-	controlledOpen bool
+	controlled       bool
+	controlledOpen   bool
 	uncontrolledOpen bool
-	onOpenChange   func(bool)
+	onOpenChange     func(bool)
 
 	// Theme 字段: exact tokens pin, provider selects source.
 	Theme    *theme.Tokens
@@ -164,12 +168,12 @@ type Popover struct {
 
 	contentAction func()
 
-	hovered         bool
-	pressed         bool
-	inBound         bool
-	focused         bool
-	hoverInTrigger  bool
-	hoverInPanel    bool
+	hovered           atomic.Bool
+	pressed           atomic.Bool
+	inBound           bool
+	focused           atomic.Bool
+	hoverInTrigger    bool
+	hoverInPanel      bool
 	pendingHoverClose bool
 
 	viewportW float64
@@ -181,7 +185,11 @@ type Popover struct {
 	triggerBox *rendering.RenderBox
 	panelBox   *rendering.RenderBox
 
-	lastTrigger rendering.Size
+	// lastTrigger is the laid-out trigger size. Stored by Layout (UI) and
+	// read on both threads (syncTrigger on UI, paint/resolve on raster):
+	// atomic, never a bare field — paint must not write widget state
+	// (R2-6 write-back). Zero value before first layout.
+	lastTrigger atomic.Value // rendering.Size
 	lastPanel   rendering.Size
 
 	overlayEntry *overlay.Entry
@@ -221,7 +229,8 @@ func (p *Popover) syncTrigger() {
 	if p == nil || p.triggerBox == nil || p.root == nil {
 		return
 	}
-	p.triggerBox.FixedWidth, p.triggerBox.FixedHeight = p.lastTrigger.Width, p.lastTrigger.Height
+	ts := p.LaidOut()
+	p.triggerBox.FixedWidth, p.triggerBox.FixedHeight = ts.Width, ts.Height
 }
 
 func (p *Popover) markPaint() {
@@ -586,10 +595,10 @@ func (p *Popover) EffectiveZIndex() int {
 
 // SetDisabled swallows open intents.
 func (p *Popover) SetDisabled(v bool) *Popover {
-	if p == nil || p.disabled == v {
+	if p == nil || p.disabled.Load() == v {
 		return p
 	}
-	p.disabled = v
+	p.disabled.Store(v)
 	if p.focusNode != nil {
 		p.focusNode.Enabled = !v
 	}
@@ -597,8 +606,8 @@ func (p *Popover) SetDisabled(v bool) *Popover {
 		p.hoverInTrigger = false
 		p.hoverInPanel = false
 		p.pendingHoverClose = false
-		p.hovered = false
-		p.pressed = false
+		p.hovered.Store(false)
+		p.pressed.Store(false)
 		if p.controlled {
 			if p.controlledOpen && p.onOpenChange != nil {
 				p.onOpenChange(false)
@@ -617,7 +626,7 @@ func (p *Popover) SetDisabled(v bool) *Popover {
 }
 
 // Disabled reports the flag.
-func (p *Popover) Disabled() bool { return p != nil && p.disabled }
+func (p *Popover) Disabled() bool { return p != nil && p.disabled.Load() }
 
 // SetProvider selects the theme source.
 func (p *Popover) SetProvider(v *theme.Provider) *Popover {
@@ -777,7 +786,7 @@ func (p *Popover) requestOpen(want bool) {
 	if p == nil {
 		return
 	}
-	if want && p.disabled {
+	if want && p.disabled.Load() {
 		return
 	}
 	if p.controlled {
@@ -799,12 +808,12 @@ func (p *Popover) requestOpen(want bool) {
 
 // HoverEnter opens for hover trigger (instant P0).
 func (p *Popover) HoverEnter() {
-	if p == nil || p.disabled {
+	if p == nil || p.disabled.Load() {
 		return
 	}
 	p.hoverInTrigger = true
 	p.pendingHoverClose = false
-	p.hovered = true
+	p.hovered.Store(true)
 	if p.hasTrigger(TriggerHover) {
 		p.requestOpen(true)
 	} else {
@@ -818,7 +827,7 @@ func (p *Popover) HoverLeave() {
 		return
 	}
 	p.hoverInTrigger = false
-	p.hovered = false
+	p.hovered.Store(false)
 	if p.hasTrigger(TriggerHover) && p.IsOpen() {
 		p.pendingHoverClose = true
 	}
@@ -862,7 +871,7 @@ func (p *Popover) Tick() {
 
 // ClickTrigger toggles for click trigger.
 func (p *Popover) ClickTrigger() bool {
-	if p == nil || p.disabled || !p.hasTrigger(TriggerClick) {
+	if p == nil || p.disabled.Load() || !p.hasTrigger(TriggerClick) {
 		return false
 	}
 	p.requestOpen(!p.IsOpen())
@@ -871,7 +880,7 @@ func (p *Popover) ClickTrigger() bool {
 
 // FocusTrigger opens for focus trigger.
 func (p *Popover) FocusTrigger() {
-	if p == nil || p.disabled {
+	if p == nil || p.disabled.Load() {
 		return
 	}
 	if p.hasTrigger(TriggerFocus) {
@@ -891,7 +900,7 @@ func (p *Popover) BlurTrigger() {
 
 // ContextMenu opens for contextMenu trigger.
 func (p *Popover) ContextMenu() bool {
-	if p == nil || p.disabled || !p.hasTrigger(TriggerContextMenu) {
+	if p == nil || p.disabled.Load() || !p.hasTrigger(TriggerContextMenu) {
 		return false
 	}
 	p.requestOpen(true)
@@ -912,7 +921,7 @@ func (p *Popover) Escape() bool { return p.OutsidePress() }
 
 // PressKey handles keyboard names (Enter/Space/Escape).
 func (p *Popover) PressKey(key string) bool {
-	if p == nil || p.disabled {
+	if p == nil || p.disabled.Load() {
 		return false
 	}
 	switch key {
@@ -922,7 +931,7 @@ func (p *Popover) PressKey(key string) bool {
 		if p.hasTrigger(TriggerClick) {
 			return p.ClickTrigger()
 		}
-		if p.hasTrigger(TriggerFocus) && p.focused {
+		if p.hasTrigger(TriggerFocus) && p.focused.Load() {
 			p.requestOpen(!p.IsOpen())
 			return true
 		}
@@ -931,13 +940,13 @@ func (p *Popover) PressKey(key string) bool {
 }
 
 // Focusable is false while disabled.
-func (p *Popover) Focusable() bool { return p != nil && !p.disabled }
+func (p *Popover) Focusable() bool { return p != nil && !p.disabled.Load() }
 
 // Focused reports keyboard focus.
-func (p *Popover) Focused() bool { return p != nil && p.focused }
+func (p *Popover) Focused() bool { return p != nil && p.focused.Load() }
 
 // Hovered reports pointer hover on the trigger.
-func (p *Popover) Hovered() bool { return p != nil && p.hovered }
+func (p *Popover) Hovered() bool { return p != nil && p.hovered.Load() }
 
 // FocusNode lazily builds the trigger node.
 func (p *Popover) FocusNode() *focus.FocusNode {
@@ -946,11 +955,11 @@ func (p *Popover) FocusNode() *focus.FocusNode {
 	}
 	if p.focusNode == nil {
 		n := focus.NewFocusNode("popover:" + p.AriaName())
-		n.Enabled = !p.disabled
+		n.Enabled = !p.disabled.Load()
 		self := p
 		n.OnActivate = func() { self.PressKey("Enter") }
 		n.OnFocusChange = func(f bool) {
-			self.focused = f
+			self.focused.Store(f)
 			if f {
 				self.FocusTrigger()
 			} else {
@@ -964,7 +973,8 @@ func (p *Popover) FocusNode() *focus.FocusNode {
 }
 
 func (p *Popover) inside(x, y float64) bool {
-	w, h := p.lastTrigger.Width, p.lastTrigger.Height
+	ts := p.LaidOut()
+	w, h := ts.Width, ts.Height
 	var dx, dy float64
 	if w < minTouchTarget {
 		dx = (minTouchTarget - w) / 2
@@ -980,7 +990,8 @@ func (p *Popover) HitSize() rendering.Size {
 	if p == nil {
 		return rendering.Size{Width: minTouchTarget, Height: minTouchTarget}
 	}
-	w, h := p.lastTrigger.Width, p.lastTrigger.Height
+	ts := p.LaidOut()
+	w, h := ts.Width, ts.Height
 	if w < minTouchTarget {
 		w = minTouchTarget
 	}
@@ -992,7 +1003,7 @@ func (p *Popover) HitSize() rendering.Size {
 
 // PointerMove tracks hover with Tick grace.
 func (p *Popover) PointerMove(x, y float64) {
-	if p == nil || p.disabled {
+	if p == nil || p.disabled.Load() {
 		return
 	}
 	in := p.inside(x, y)
@@ -1005,10 +1016,11 @@ func (p *Popover) PointerMove(x, y float64) {
 
 // PointerDown starts a press; click trigger consumes.
 func (p *Popover) PointerDown(x, y float64) bool {
-	if p == nil || p.disabled || !p.inside(x, y) {
+	if p == nil || p.disabled.Load() || !p.inside(x, y) {
 		return false
 	}
-	p.pressed, p.inBound = true, true
+	p.pressed.Store(true)
+	p.inBound = true
 	if p.focusNode != nil {
 		p.focusNode.RequestFocus()
 	}
@@ -1018,11 +1030,11 @@ func (p *Popover) PointerDown(x, y float64) bool {
 
 // PointerUp releases; contained release toggles click trigger.
 func (p *Popover) PointerUp(x, y float64) bool {
-	if p == nil || !p.pressed {
+	if p == nil || !p.pressed.Load() {
 		return false
 	}
-	p.pressed = false
-	in := !p.disabled && p.inside(x, y) && p.inBound
+	p.pressed.Store(false)
+	in := !p.disabled.Load() && p.inside(x, y) && p.inBound
 	p.inBound = false
 	p.markPaint()
 	if in && p.hasTrigger(TriggerClick) {
@@ -1077,12 +1089,15 @@ func (p *Popover) Popup() rendering.RenderObject {
 	return p.panelBox
 }
 
-// LaidOut returns the last trigger size.
+// LaidOut returns the last trigger size (zero before first layout).
 func (p *Popover) LaidOut() rendering.Size {
 	if p == nil {
 		return rendering.Size{}
 	}
-	return p.lastTrigger
+	if v, ok := p.lastTrigger.Load().(rendering.Size); ok {
+		return v
+	}
+	return rendering.Size{}
 }
 
 // PanelLaidOut returns the last panel size.
@@ -1275,7 +1290,7 @@ func (p *Popover) Layout(c rendering.Constraints) rendering.Size {
 	}
 	tw, th := p.triggerIdeal()
 	out := c.Tighten(rendering.Size{Width: tw, Height: th})
-	p.lastTrigger = out
+	p.lastTrigger.Store(out)
 	pw, ph := p.panelIdeal()
 	p.lastPanel = rendering.Size{Width: pw, Height: ph}
 	p.syncTrigger()
@@ -1327,7 +1342,8 @@ func (p *Popover) Resolve(anchor rendering.Rect, ow, oh, vw, vh float64) overlay
 
 // PopupOrigin resolves the open panel origin for a trigger at (tx,ty).
 func (p *Popover) PopupOrigin(tx, ty float64) overlay.Resolved {
-	anchor := rendering.NewRect(tx, ty, p.lastTrigger.Width, p.lastTrigger.Height)
+	ts := p.LaidOut()
+	anchor := rendering.NewRect(tx, ty, ts.Width, ts.Height)
 	return p.Resolve(anchor, p.lastPanel.Width, p.lastPanel.Height, p.viewportW, p.viewportH)
 }
 
@@ -1391,16 +1407,15 @@ func (p *Popover) paintTrigger(pc *rendering.PaintContext, size rendering.Size) 
 	if pc == nil || p == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-	p.lastTrigger = size
 	tok := p.themeTokens()
 	w, h := size.Width, size.Height
 	bg := themeToRGBA(tok.ColorBgContainer)
 	bd := themeToRGBA(tok.ColorBorder)
 	tx := themeToRGBA(tok.ColorText)
-	if p.disabled {
+	if p.disabled.Load() {
 		bg = themeToRGBA(tok.ColorFillTertiary)
 		tx = themeToRGBA(tok.ColorTextDisabled)
-	} else if p.hovered && !p.pressed {
+	} else if p.hovered.Load() && !p.pressed.Load() {
 		acc := themeToRGBA(tok.ColorPrimary)
 		bd = acc
 		tx = acc
@@ -1416,7 +1431,7 @@ func (p *Popover) paintTrigger(pc *rendering.PaintContext, size rendering.Size) 
 		return
 	}
 	p.paintText(pc, p.triggerLabel, 4, 0, w-8, h, p.FontSize(), tx)
-	if p.focused && !p.disabled {
+	if p.focused.Load() && !p.disabled.Load() {
 		ring := themeToRGBA(tok.ColorPrimary)
 		rx, ry, rw, rh := focus.FocusRingRect(0, 0, w, h, focusRingOutset)
 		rendering.StrokeRoundRect(pc, rx, ry, rw, rh, radius+focusRingOutset, 2, ring.R, ring.G, ring.B, ring.A)
@@ -1484,7 +1499,8 @@ func (p *Popover) paintArrow(pc *rendering.PaintContext, w, h float64, tok theme
 	if s <= 0 {
 		s = 8
 	}
-	anchor := rendering.NewRect(0, 0, p.lastTrigger.Width, p.lastTrigger.Height)
+	ts := p.LaidOut()
+	anchor := rendering.NewRect(0, 0, ts.Width, ts.Height)
 	res := p.Resolve(anchor, w, h, 0, 0)
 	ax, ay := res.ArrowX, res.ArrowY
 	if ax < s {

@@ -10,11 +10,14 @@ func (d *Divider) paint(pc *rendering.PaintContext, size rendering.Size) {
 		return
 	}
 	w, h := size.Width, size.Height
+	// R2-6: one frozen geometry load (UI-stored at layout, read here on
+	// raster) — never nine separate live reads.
+	L := d.layoutSnap()
 	if w <= 0 {
-		w = d.lastW
+		w = L.w
 	}
 	if h <= 0 {
-		h = d.lastH
+		h = L.h
 	}
 	if w <= 0 || h <= 0 {
 		return
@@ -35,15 +38,15 @@ func (d *Divider) paint(pc *rendering.PaintContext, size rendering.Size) {
 		d.paintRail(pc, 0, y, w, y, lc, lw)
 		return
 	}
-	railY := d.lastRailY + lw/2
+	railY := L.railY + lw/2
 	if railY <= 0 || railY > h {
 		railY = h / 2
 	}
-	startW := d.lastRailStart
-	titleW := d.lastTitleW
+	startW := L.railStart
+	titleW := L.titleW
 	// Re-derive split from paint size so retained paints stay aligned
 	// even when layout was bypassed by a direct root.Layout call.
-	if w != d.lastW {
+	if w != L.w {
 		avail := w - titleW
 		if avail < 0 {
 			avail = 0
@@ -61,10 +64,10 @@ func (d *Divider) paint(pc *rendering.PaintContext, size rendering.Size) {
 	if sx < w {
 		d.paintRail(pc, sx, railY, w, railY, lc, lw)
 	}
-	d.paintTitle(pc)
+	d.paintTitle(pc, L)
 }
 
-func (d *Divider) paintTitle(pc *rendering.PaintContext) {
+func (d *Divider) paintTitle(pc *rendering.PaintContext, L dividerLayout) {
 	if d == nil || !d.HasTitle() || d.titleNode != nil {
 		return
 	}
@@ -80,8 +83,8 @@ func (d *Divider) paintTitle(pc *rendering.PaintContext) {
 	// Baseline sits below the title top; without font metrics use 0.8em.
 	// No black-bar fallback: without a face DrawString no-ops, layout
 	// keeps the estimate width so the rails stay split.
-	y := d.lastTitleY + fs*0.8
-	x := d.lastTitleX + fs
+	y := L.titleY + fs*0.8
+	x := L.titleX + fs
 	ax, ay := pc.Abs(x, y)
 	pc.DC.DrawString(d.title, ax, ay)
 }

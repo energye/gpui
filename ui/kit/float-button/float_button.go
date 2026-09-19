@@ -2,6 +2,7 @@ package float_button
 
 import (
 	"math"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -75,10 +76,11 @@ type FloatButton struct {
 	tipPlacement  FloatTooltipPlacement
 	tipDelayMs    int
 
-	hovered      bool
-	pressed      bool
-	focused      bool
-	phase        float64
+	hovered bool
+	pressed bool
+	focused bool
+	// phase is atomic bits: Tick writes (UI), paint reads (raster).
+	phase        atomic.Uint64
 	reduceMotion bool
 
 	provider *theme.Provider
@@ -274,7 +276,7 @@ func (b *FloatButton) Phase() float64 {
 	if b == nil {
 		return 0
 	}
-	return b.phase
+	return math.Float64frombits(b.phase.Load())
 }
 
 // SetOnClick sets the click callback.
@@ -623,10 +625,12 @@ func (b *FloatButton) Tick(dt float64) bool {
 	if dt < 0 {
 		dt = 0
 	}
-	b.phase = math.Mod(b.phase+dt/spinPeriodSec, 1)
-	if b.phase < 0 {
-		b.phase++
+	ph := math.Float64frombits(b.phase.Load()) + dt/spinPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	b.phase.Store(math.Float64bits(ph))
 	b.dirty()
 	return true
 }
@@ -722,7 +726,7 @@ func (b *FloatButton) paint(pc *rendering.PaintContext, size rendering.Size) {
 		}
 	}
 	if b.loading {
-		ang := b.phase * 2 * math.Pi
+		ang := math.Float64frombits(b.phase.Load()) * 2 * math.Pi
 		rendering.StrokeArc(pc, cx, cy, 9, ang, ang+4.2, 2, fg.R, fg.G, fg.B, fg.A)
 	}
 	// P1 badge overlay (never steals the main click).

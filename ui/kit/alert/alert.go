@@ -6,6 +6,8 @@
 package alert
 
 import (
+	"sync/atomic"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/focus"
@@ -113,13 +115,14 @@ type Alert struct {
 
 	showIcon    bool
 	showIconSet bool
-	closable    bool
-	closeIcon   rendering.RenderObject
-	closeAria   string
-	closeSet    bool
+	// closable/hidden/focused are atomic: event writes (UI), paint reads (raster).
+	closable  atomic.Bool
+	closeIcon rendering.RenderObject
+	closeAria string
+	closeSet  bool
 
 	action rendering.RenderObject
-	hidden bool
+	hidden atomic.Bool
 	rtl    bool
 
 	provider  *theme.Provider
@@ -145,7 +148,7 @@ type Alert struct {
 
 	node       *rendering.RenderBox
 	closeFocus *focus.FocusNode
-	focused    bool
+	focused    atomic.Bool
 	cachedSize rendering.Size
 }
 
@@ -380,7 +383,7 @@ func (a *Alert) ShowIcon() bool { return a.EffectiveShowIcon() }
 
 // IconVisible reports whether the icon slot paints.
 func (a *Alert) IconVisible() bool {
-	return a != nil && !a.hidden && a.EffectiveShowIcon()
+	return a != nil && !a.hidden.Load() && a.EffectiveShowIcon()
 }
 
 // SetIcon sets a custom icon name (shown when showIcon).
@@ -433,19 +436,19 @@ func (a *Alert) SetClosable(b bool) *Alert {
 	if a == nil {
 		return a
 	}
-	if a.closable == b {
+	if a.closable.Load() == b {
 		return a
 	}
-	a.closable = b
+	a.closable.Store(b)
 	if a.closeFocus != nil {
-		a.closeFocus.Enabled = b && !a.hidden
+		a.closeFocus.Enabled = b && !a.hidden.Load()
 	}
 	a.markLayout()
 	return a
 }
 
 // Closable reports the flag.
-func (a *Alert) Closable() bool { return a != nil && a.closable }
+func (a *Alert) Closable() bool { return a != nil && a.closable.Load() }
 
 // IsClosable is an alias of Closable.
 func (a *Alert) IsClosable() bool { return a.Closable() }
@@ -549,7 +552,7 @@ func (a *Alert) ActionNode() rendering.RenderObject { return a.Action() }
 func (a *Alert) HasAction() bool { return a != nil && a.action != nil }
 
 // ActionVisible reports slot visibility.
-func (a *Alert) ActionVisible() bool { return a != nil && !a.hidden && a.action != nil }
+func (a *Alert) ActionVisible() bool { return a != nil && !a.hidden.Load() && a.action != nil }
 
 // SetProvider selects the theme source (nil selects process default).
 func (a *Alert) SetProvider(p *theme.Provider) *Alert {
@@ -735,22 +738,22 @@ func (a *Alert) SetRTL(b bool) *Alert {
 func (a *Alert) IsRTL() bool { return a != nil && a.rtl }
 
 // Visible reports hide state (false after Close without PreventDefault).
-func (a *Alert) Visible() bool { return a != nil && !a.hidden }
+func (a *Alert) Visible() bool { return a != nil && !a.hidden.Load() }
 
 // Hidden reports the closed state.
-func (a *Alert) Hidden() bool { return a != nil && a.hidden }
+func (a *Alert) Hidden() bool { return a != nil && a.hidden.Load() }
 
 // Reset reopens a closed alert (Queue→Layout→Frame→Reset helper).
 func (a *Alert) Reset() *Alert {
 	if a == nil {
 		return a
 	}
-	if !a.hidden {
+	if !a.hidden.Load() {
 		return a
 	}
-	a.hidden = false
+	a.hidden.Store(false)
 	if a.closeFocus != nil {
-		a.closeFocus.Enabled = a.closable
+		a.closeFocus.Enabled = a.closable.Load()
 	}
 	a.markLayout()
 	return a
@@ -760,7 +763,7 @@ func (a *Alert) Reset() *Alert {
 // P1 staging: onLeaveStart fires before hide when motion is enabled, but
 // hide stays instant (pixel leave animation is staged, hook only).
 func (a *Alert) ClickClose() bool {
-	if a == nil || !a.closable || a.hidden {
+	if a == nil || !a.closable.Load() || a.hidden.Load() {
 		return false
 	}
 	ev := &AlertCloseEvent{alert: a}
@@ -773,7 +776,7 @@ func (a *Alert) ClickClose() bool {
 	if a.motionEnabled && a.onLeaveStart != nil {
 		a.onLeaveStart()
 	}
-	a.hidden = true
+	a.hidden.Store(true)
 	if a.closeFocus != nil {
 		a.closeFocus.Enabled = false
 		if a.closeFocus.HasFocus() {
@@ -792,7 +795,7 @@ func (a *Alert) Close() bool { return a.ClickClose() }
 
 // PressCloseKey activates the close via keyboard (Enter/Space, ALT-19).
 func (a *Alert) PressCloseKey(key string) bool {
-	if a == nil || !a.closable || a.hidden {
+	if a == nil || !a.closable.Load() || a.hidden.Load() {
 		return false
 	}
 	if key == "Enter" || key == "Space" || key == " " || key == "\r" {
@@ -808,12 +811,12 @@ func (a *Alert) CloseFocusNode() *focus.FocusNode {
 	}
 	if a.closeFocus == nil {
 		n := focus.NewFocusNode("alert-close")
-		n.Enabled = a.closable && !a.hidden
+		n.Enabled = a.closable.Load() && !a.hidden.Load()
 		n.TabIndex = 0
 		self := a
 		n.OnActivate = func() { self.ClickClose() }
 		n.OnFocusChange = func(f bool) {
-			self.focused = f
+			self.focused.Store(f)
 			self.markPaint()
 		}
 		a.closeFocus = n
@@ -825,7 +828,7 @@ func (a *Alert) CloseFocusNode() *focus.FocusNode {
 func (a *Alert) Focusable() bool { return false }
 
 // CloseFocusable reports whether the close takes Tab.
-func (a *Alert) CloseFocusable() bool { return a != nil && a.closable && !a.hidden }
+func (a *Alert) CloseFocusable() bool { return a != nil && a.closable.Load() && !a.hidden.Load() }
 
 // Role is the root reader role (a11y §6.6).
 func (a *Alert) Role() string { return "alert" }
@@ -846,7 +849,7 @@ func (a *Alert) Semantics() *semantics.Node {
 	if a.description != "" {
 		root.Add(&semantics.Node{Role: semantics.RoleText, Label: a.description})
 	}
-	if a.closable && !a.hidden {
+	if a.closable.Load() && !a.hidden.Load() {
 		root.Add(&semantics.Node{Role: semantics.RoleButton, Label: a.CloseAria(), Focusable: true})
 	}
 	return root
@@ -935,7 +938,7 @@ func (a *Alert) BorderColor() render.RGBA {
 
 // HasBorder reports outlined && !banner (ALT-S7).
 func (a *Alert) HasBorder() bool {
-	if a == nil || a.hidden {
+	if a == nil || a.hidden.Load() {
 		return false
 	}
 	if a.banner {
@@ -1070,7 +1073,7 @@ func (a *Alert) ideal() (float64, float64) {
 		actionH = ah
 	}
 	closeW, closeH := 0.0, 0.0
-	if a.closable && !a.hidden {
+	if a.closable.Load() && !a.hidden.Load() {
 		closeW = closeHitSize + tok.MarginXS
 		closeH = closeHitSize
 	}
@@ -1093,7 +1096,7 @@ func (a *Alert) Layout(c rendering.Constraints) rendering.Size {
 		return rendering.Size{}
 	}
 	a.syncNode()
-	if a.hidden {
+	if a.hidden.Load() {
 		a.node.FixedWidth, a.node.FixedHeight = 0, 0
 		sz := a.node.Layout(rendering.Tight(0, 0))
 		a.cachedSize = sz
@@ -1166,7 +1169,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 		}
 	}
 	closeW := 0.0
-	if a.closable && !a.hidden {
+	if a.closable.Load() && !a.hidden.Load() {
 		closeW = closeHitSize + tok.MarginXS
 	}
 	// Right-anchored close/action keep hit == paint when clamped.
@@ -1174,7 +1177,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 	actionX := closeX
 	if a.ActionVisible() {
 		actBoxW := actionW
-		if a.closable {
+		if a.closable.Load() {
 			actionX = closeX - tok.MarginXS - actBoxW
 		} else {
 			actionX = w - padH - actBoxW
@@ -1198,7 +1201,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 			contentW = 0
 		}
 		cx := padH
-		if a.closable {
+		if a.closable.Load() {
 			cx += closeW
 		}
 		if a.ActionVisible() {
@@ -1215,14 +1218,14 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 			desc.y = cy + titleH + tok.MarginXXS
 			desc.w, desc.h = minF(descW, contentW), descH
 		}
-		if a.closable {
+		if a.closable.Load() {
 			close.x = padH
 			close.y = padV + (rowH-closeHitSize)/2
 			close.w, close.h = closeHitSize, closeHitSize
 		}
 		if a.ActionVisible() {
 			ax := padH
-			if a.closable {
+			if a.closable.Load() {
 				ax += closeW
 			}
 			action.x = ax
@@ -1261,7 +1264,7 @@ func (a *Alert) geometry(tok theme.Tokens, w, h float64) (icon, title, desc, act
 		action.x, action.y = actionX, padV+(rowH-actionH)/2
 		action.w, action.h = actionW, actionH
 	}
-	if a.closable && !a.hidden {
+	if a.closable.Load() && !a.hidden.Load() {
 		close.x, close.y = closeX, padV+(rowH-closeHitSize)/2
 		close.w, close.h = closeHitSize, closeHitSize
 	}
@@ -1295,7 +1298,7 @@ func (a *Alert) paintText(pc *rendering.PaintContext, s string, x, y, w, h, font
 }
 
 func (a *Alert) paint(pc *rendering.PaintContext, size rendering.Size) {
-	if pc == nil || a == nil || a.hidden {
+	if pc == nil || a == nil || a.hidden.Load() {
 		return
 	}
 	tok := a.themeTokens()
@@ -1355,7 +1358,7 @@ func (a *Alert) paint(pc *rendering.PaintContext, size rendering.Size) {
 		}
 		_ = action
 	}
-	if a.closable && !a.hidden && close.w > 0 {
+	if a.closable.Load() && !a.hidden.Load() && close.w > 0 {
 		if effClose := a.EffectiveCloseIcon(); effClose != nil {
 			effClose.Paint(pc.WithOrigin(pc.OriginX+close.x, pc.OriginY+close.y))
 		} else {
@@ -1366,7 +1369,7 @@ func (a *Alert) paint(pc *rendering.PaintContext, size rendering.Size) {
 			rendering.StrokeLine(pc, cx+closeGlyphHalf, cy-closeGlyphHalf, cx-closeGlyphHalf, cy+closeGlyphHalf,
 				1.6, cc.R, cc.G, cc.B, cc.A)
 		}
-		if a.focused {
+		if a.focused.Load() {
 			fc := themeToRGBA(tok.ColorPrimary)
 			rendering.StrokeRoundRect(pc, close.x-1.5, close.y-1.5, close.w+3, close.h+3, 6, 2, fc.R, fc.G, fc.B, fc.A)
 		}

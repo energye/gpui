@@ -9,6 +9,7 @@ package timeline
 import (
 	"math"
 	"strings"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -98,7 +99,14 @@ type Timeline struct {
 	face         text.Face
 	style        TimelineStyle
 	reduceMotion bool
-	phase        float64
+	// phase is the spinner phase in [0,1), advanced by Tick (UI) and read
+	// by dot paint closures (raster): atomic bits, never a bare float
+	// (R2-6). Single UI writer, so load-compute-store in Tick is exact.
+	phase atomic.Uint64 // math.Float64bits
+	// dotsSnap holds the frozen per-item dot inputs ([]dotSnap, copy on
+	// write). Rebuilt on UI (rebuild paths + per-item setters); dot paint
+	// closures load it on raster. Never mutated in place.
+	dotsSnap atomic.Value
 
 	host     *rendering.AbsoluteBox
 	attached *scheduler.TickerRegistry
@@ -526,7 +534,7 @@ func (t *Timeline) Phase() float64 {
 	if t == nil {
 		return 0
 	}
-	return t.phase
+	return math.Float64frombits(t.phase.Load())
 }
 
 // AttachTicker registers the loading ticker.
@@ -561,11 +569,13 @@ func (t *Timeline) Tick(dt float64) bool {
 	if dt < 0 {
 		dt = 0
 	}
-	t.phase += dt / spinnerPeriodSec
-	t.phase -= float64(int(t.phase))
-	if t.phase < 0 {
-		t.phase++
+	p := math.Float64frombits(t.phase.Load())
+	p += dt / spinnerPeriodSec
+	p -= float64(int(p))
+	if p < 0 {
+		p++
 	}
+	t.phase.Store(math.Float64bits(p))
 	if t.host != nil {
 		t.host.MarkNeedsPaint()
 	}
@@ -610,12 +620,17 @@ func (t *Timeline) SetItemColor(logical int, color string) {
 		return
 	}
 	t.items[logical].Color = color
+	// R2-6: dot paint closures read the frozen dots snapshot, not live
+	// items — refresh it (paint-only dirty preserved) instead of rebuilding
+	// the whole tree. Toggles are user-driven (low frequency).
+	t.refreshDots()
 	if t.host != nil {
 		t.host.MarkNeedsPaint()
 	}
 }
 
-// SetItemLoading toggles one loading flag with paint-only dirty.
+// SetItemLoading toggles one loading flag with paint-only dirty (see
+// SetItemColor: frozen snapshot refreshed for this index).
 func (t *Timeline) SetItemLoading(logical int, loading bool) {
 	if t == nil || logical < 0 || logical >= len(t.items) {
 		return
@@ -624,9 +639,43 @@ func (t *Timeline) SetItemLoading(logical int, loading bool) {
 		return
 	}
 	t.items[logical].Loading = loading
+	t.refreshDots()
 	if t.host != nil {
 		t.host.MarkNeedsPaint()
 	}
+}
+
+// dotSnap is one item's frozen dot paint inputs (R2-6). Stored wholesale in
+// dotsSnap (copy-on-write); dot closures load it per paint instead of
+// reading the live items slice, colors or variant on raster.
+type dotSnap struct {
+	col      render.RGBA
+	loading  bool
+	hasIcon  bool
+	iconNode rendering.RenderObject
+	variant  TimelineVariant
+	border   float64
+}
+
+// refreshDots rebuilds the frozen dot snapshot from current items (UI only:
+// rebuild paths plus the two per-item setters above).
+func (t *Timeline) refreshDots() {
+	if t == nil {
+		return
+	}
+	snap := make([]dotSnap, len(t.items))
+	for li := range t.items {
+		it := t.items[li]
+		snap[li] = dotSnap{
+			col:      t.ItemColor(li),
+			loading:  it.Loading || it.Icon == "loading",
+			hasIcon:  it.IconNode != nil || it.Icon != "",
+			iconNode: it.IconNode,
+			variant:  t.variant,
+			border:   t.DotBorderWidth(),
+		}
+	}
+	t.dotsSnap.Store(snap)
 }
 
 func textWH(s string, fontSize float64) (w, h float64) {
@@ -671,6 +720,8 @@ func (t *Timeline) rebuild() {
 	if t == nil || t.host == nil {
 		return
 	}
+	// Frozen dot inputs refresh with every rebuild (items final here).
+	t.refreshDots()
 	n := len(t.items)
 	if n == 0 {
 		clearHost(t.host)
@@ -787,40 +838,40 @@ func (t *Timeline) rebuildVertical() {
 				contentX = leftW + contentGap + railW + contentGap
 			}
 		}
-		phase := &t.phase
+		// R2-6: dot inputs come from the frozen dots snapshot (UI-stored
+		// on rebuild/setters, loaded here on raster) — never live widget
+		// state. Only the animation phase stays live, via atomic load.
+		liLive := li
 		dotBox := rendering.NewRenderBox()
 		dotBox.FixedWidth, dotBox.FixedHeight = dot, dot
-		liLive := li
 		dotBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || t == nil || liLive < 0 || liLive >= len(t.items) {
+			if pc == nil || t == nil {
 				return
 			}
-			colLive := t.ItemColor(liLive)
-			itLive := t.items[liLive]
-			loadingLive := itLive.Loading || itLive.Icon == "loading"
-			hasIconLive := itLive.IconNode != nil || itLive.Icon != ""
-			variantLive := t.variant
-			borderLive := t.DotBorderWidth()
+			var ds dotSnap
+			if snap, ok := t.dotsSnap.Load().([]dotSnap); ok && liLive >= 0 && liLive < len(snap) {
+				ds = snap[liLive]
+			}
 			cx, cy := dot/2, dot/2
-			if loadingLive {
-				rendering.StrokeCircle(pc, cx, cy, dot/2-1, 1.5, colLive.R, colLive.G, colLive.B, 1)
-				ang := *phase * 6.283185307179586
+			if ds.loading {
+				rendering.StrokeCircle(pc, cx, cy, dot/2-1, 1.5, ds.col.R, ds.col.G, ds.col.B, 1)
+				ang := math.Float64frombits(t.phase.Load()) * 6.283185307179586
 				dx := (dot/2 - 2) * 0.7 * math.Cos(ang)
 				dy := (dot/2 - 2) * 0.7 * math.Sin(ang)
-				rendering.FillCircle(pc, cx+dx, cy+dy, 1.8, colLive.R, colLive.G, colLive.B, 1)
+				rendering.FillCircle(pc, cx+dx, cy+dy, 1.8, ds.col.R, ds.col.G, ds.col.B, 1)
 				return
 			}
-			if hasIconLive {
-				rendering.FillCircle(pc, cx, cy, dot/2, colLive.R, colLive.G, colLive.B, 1)
+			if ds.hasIcon {
+				rendering.FillCircle(pc, cx, cy, dot/2, ds.col.R, ds.col.G, ds.col.B, 1)
 				rendering.FillCircle(pc, cx, cy, dot/4, 1, 1, 1, 1)
 				return
 			}
-			if variantLive == TimelineFilled {
-				rendering.FillCircle(pc, cx, cy, dot/2, colLive.R, colLive.G, colLive.B, 1)
+			if ds.variant == TimelineFilled {
+				rendering.FillCircle(pc, cx, cy, dot/2, ds.col.R, ds.col.G, ds.col.B, 1)
 				return
 			}
 			rendering.FillCircle(pc, cx, cy, dot/2, 1, 1, 1, 1)
-			rendering.StrokeCircle(pc, cx, cy, dot/2-1, borderLive, colLive.R, colLive.G, colLive.B, 1)
+			rendering.StrokeCircle(pc, cx, cy, dot/2-1, ds.border, ds.col.R, ds.col.G, ds.col.B, 1)
 		}
 		t.host.Place(dotBox, dotX, y+2)
 		if d < len(order)-1 {
@@ -922,40 +973,40 @@ func (t *Timeline) rebuildHorizontal() {
 		it := t.items[li]
 		w := blockW[d]
 		side := sides[d]
-		phase := &t.phase
+		// R2-6: dot inputs come from the frozen dots snapshot (UI-stored
+		// on rebuild/setters, loaded here on raster) — never live widget
+		// state. Only the animation phase stays live, via atomic load.
+		liLive := li
 		dotBox := rendering.NewRenderBox()
 		dotBox.FixedWidth, dotBox.FixedHeight = dot, dot
-		liLive := li
 		dotBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || t == nil || liLive < 0 || liLive >= len(t.items) {
+			if pc == nil || t == nil {
 				return
 			}
-			colLive := t.ItemColor(liLive)
-			itLive := t.items[liLive]
-			loadingLive := itLive.Loading || itLive.Icon == "loading"
-			hasIconLive := itLive.IconNode != nil || itLive.Icon != ""
-			variantLive := t.variant
-			borderLive := t.DotBorderWidth()
+			var ds dotSnap
+			if snap, ok := t.dotsSnap.Load().([]dotSnap); ok && liLive >= 0 && liLive < len(snap) {
+				ds = snap[liLive]
+			}
 			cx, cy := dot/2, dot/2
-			if loadingLive {
-				rendering.StrokeCircle(pc, cx, cy, dot/2-1, 1.5, colLive.R, colLive.G, colLive.B, 1)
-				ang := *phase * 6.283185307179586
+			if ds.loading {
+				rendering.StrokeCircle(pc, cx, cy, dot/2-1, 1.5, ds.col.R, ds.col.G, ds.col.B, 1)
+				ang := math.Float64frombits(t.phase.Load()) * 6.283185307179586
 				dx := (dot/2 - 2) * 0.7 * math.Cos(ang)
 				dy := (dot/2 - 2) * 0.7 * math.Sin(ang)
-				rendering.FillCircle(pc, cx+dx, cy+dy, 1.8, colLive.R, colLive.G, colLive.B, 1)
+				rendering.FillCircle(pc, cx+dx, cy+dy, 1.8, ds.col.R, ds.col.G, ds.col.B, 1)
 				return
 			}
-			if hasIconLive {
-				rendering.FillCircle(pc, cx, cy, dot/2, colLive.R, colLive.G, colLive.B, 1)
+			if ds.hasIcon {
+				rendering.FillCircle(pc, cx, cy, dot/2, ds.col.R, ds.col.G, ds.col.B, 1)
 				rendering.FillCircle(pc, cx, cy, dot/4, 1, 1, 1, 1)
 				return
 			}
-			if variantLive == TimelineFilled {
-				rendering.FillCircle(pc, cx, cy, dot/2, colLive.R, colLive.G, colLive.B, 1)
+			if ds.variant == TimelineFilled {
+				rendering.FillCircle(pc, cx, cy, dot/2, ds.col.R, ds.col.G, ds.col.B, 1)
 				return
 			}
 			rendering.FillCircle(pc, cx, cy, dot/2, 1, 1, 1, 1)
-			rendering.StrokeCircle(pc, cx, cy, dot/2-1, borderLive, colLive.R, colLive.G, colLive.B, 1)
+			rendering.StrokeCircle(pc, cx, cy, dot/2-1, ds.border, ds.col.R, ds.col.G, ds.col.B, 1)
 		}
 		dotX := x + (w-dot)/2
 		t.host.Place(dotBox, dotX, railY+(railH-dot)/2)

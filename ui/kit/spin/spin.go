@@ -3,6 +3,7 @@ package spin
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/energye/gpui/render"
@@ -116,8 +117,8 @@ type Spin struct {
 
 	indicator rendering.RenderObject
 
-	provider   *theme.Provider
-	override   *theme.Tokens
+	provider *theme.Provider
+	override *theme.Tokens
 	// textFace is the paint-only font face for the description.
 	textFace   text.Face
 	style      Style
@@ -127,14 +128,18 @@ type Spin struct {
 	fullscreen bool
 
 	reduceMotion bool
-	phase        float64
+	// phase is atomic bits: Tick writes (UI), paint reads (raster).
+	phase atomic.Uint64
 
 	host    *rendering.RenderBox
 	mask    *rendering.RenderColorBox
 	overlay *rendering.RenderBox
 
-	lastIndW float64
-	lastIndH float64
+	// indSize caches the custom-indicator measured size. Stored by Layout
+	// (UI) and read on both threads (measure helpers on UI, paintCustom on
+	// raster): atomic, never bare fields — paint must not write widget
+	// state (R2-6 write-back). Zero value before first layout.
+	indSize atomic.Value // rendering.Size
 
 	attached *scheduler.TickerRegistry
 }
@@ -549,7 +554,7 @@ func (s *Spin) Phase() float64 {
 	if s == nil {
 		return 0
 	}
-	return s.phase
+	return math.Float64frombits(s.phase.Load())
 }
 
 // IsDisplaySpinning reports the post-delay visible state.
@@ -773,9 +778,9 @@ func (s *Spin) Layout(c rendering.Constraints) rendering.Size {
 	if ind := s.EffectiveIndicator(); ind != nil && s.IsDisplaySpinning() {
 		is := ind.Layout(rendering.Constraints{MaxWidth: c.MaxWidth, MaxHeight: c.MaxHeight})
 		indW, indH = is.Width, is.Height
-		s.lastIndW, s.lastIndH = indW, indH
+		s.indSize.Store(rendering.Size{Width: indW, Height: indH})
 	} else {
-		s.lastIndW, s.lastIndH = 0, 0
+		s.indSize.Store(rendering.Size{})
 	}
 	w := indW
 	if descW > w {
@@ -878,10 +883,12 @@ func (s *Spin) Tick(dt float64) bool {
 	if s.EffectiveIndicator() != nil {
 		return true
 	}
-	s.phase = math.Mod(s.phase+dt/SpinPeriodSec, 1)
-	if s.phase < 0 {
-		s.phase++
+	ph := math.Float64frombits(s.phase.Load()) + dt/SpinPeriodSec
+	ph = math.Mod(ph, 1)
+	if ph < 0 {
+		ph++
 	}
+	s.phase.Store(math.Float64bits(ph))
 	s.host.MarkNeedsPaint()
 	return true
 }
@@ -960,8 +967,10 @@ func (s *Spin) paintSection(pc *rendering.PaintContext, size rendering.Size) {
 }
 
 func (s *Spin) indicatorHeight() float64 {
-	if s != nil && s.EffectiveIndicator() != nil && s.lastIndH > 0 {
-		return s.lastIndH
+	if s != nil && s.EffectiveIndicator() != nil {
+		if v, ok := s.indSize.Load().(rendering.Size); ok && v.Height > 0 {
+			return v.Height
+		}
 	}
 	if s == nil {
 		return 20
@@ -992,12 +1001,12 @@ func (s *Spin) paintDots(pc *rendering.PaintContext, size rendering.Size, primar
 	if radius < 1.5 {
 		radius = 1.5
 	}
-	base := s.phase * 2 * math.Pi
+	base := math.Float64frombits(s.phase.Load()) * 2 * math.Pi
 	for i := 0; i < 4; i++ {
 		ang := base + float64(i)*math.Pi/2
 		dx := math.Cos(ang) * orbit
 		dy := math.Sin(ang) * orbit
-		ph := s.phase + float64(i)*0.25
+		ph := math.Float64frombits(s.phase.Load()) + float64(i)*0.25
 		ph -= math.Floor(ph)
 		op := 0.3 + 0.7*math.Abs(0.5-ph)*2
 		if op > 1 {
@@ -1041,11 +1050,12 @@ func (s *Spin) paintRing(pc *rendering.PaintContext, size rendering.Size, primar
 }
 
 func (s *Spin) paintCustom(pc *rendering.PaintContext, size rendering.Size, ind rendering.RenderObject, descH float64) {
-	w, h := s.lastIndW, s.lastIndH
-	if w <= 0 || h <= 0 {
-		is := ind.Layout(rendering.Loose(size.Width, size.Height))
-		w, h = is.Width, is.Height
-		s.lastIndW, s.lastIndH = w, h
+	// Size comes from the UI-side Layout cache only (indSize); paint never
+	// lays out nor writes back (R2-6). Unmeasured indicators fall back to
+	// the dot size, matching indicatorHeight.
+	w, h := s.DotSize(), s.DotSize()
+	if v, ok := s.indSize.Load().(rendering.Size); ok && v.Width > 0 && v.Height > 0 {
+		w, h = v.Width, v.Height
 	}
 	top := s.sectionTop(size, descH)
 	if s.content != nil {
@@ -1068,10 +1078,7 @@ func (s *Spin) paintDescription(pc *rendering.PaintContext, size rendering.Size,
 	fs := s.EffectiveFontSize()
 	_, descH := rendering.EstimateTextSize(desc, fs, 0.55)
 	top := s.sectionTop(size, descH)
-	indH := s.DotSize()
-	if ind := s.EffectiveIndicator(); ind != nil && s.lastIndH > 0 {
-		indH = s.lastIndH
-	}
+	indH := s.indicatorHeight()
 	y := top + indH + s.EffectiveGap()
 	if s.content != nil {
 		y = size.Height/2 + indH/2 + s.EffectiveGap()/2

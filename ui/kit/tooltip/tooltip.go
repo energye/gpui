@@ -10,6 +10,7 @@ package tooltip
 import (
 	"math"
 	"strings"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -116,7 +117,8 @@ type Tooltip struct {
 	onOpenChange   func(bool)
 	enterDelay     float64
 	leaveDelay     float64
-	disabled       bool
+	// disabled/hovered/focused are atomic: event writes (UI), paint reads (raster).
+	disabled       atomic.Bool
 	rtl            bool
 	ariaLabel      string
 	color          string
@@ -127,8 +129,8 @@ type Tooltip struct {
 	provider       *theme.Provider
 	override       *theme.Tokens
 	textFace       text.Face
-	hovered        bool
-	focused        bool
+	hovered        atomic.Bool
+	focused        atomic.Bool
 	focusNode      *focus.FocusNode
 	tickerOwner    *rendering.PipelineOwner
 	pending        bool
@@ -541,7 +543,7 @@ func (t *Tooltip) SetDefaultOpen(v bool) *Tooltip {
 	if t.open == v {
 		return t
 	}
-	if v && (!t.hasContent() || t.disabled) {
+	if v && (!t.hasContent() || t.disabled.Load()) {
 		return t
 	}
 	t.open = v
@@ -607,10 +609,10 @@ func (t *Tooltip) SetDisabled(v bool) *Tooltip {
 	if t == nil {
 		return t
 	}
-	if t.disabled == v {
+	if t.disabled.Load() == v {
 		return t
 	}
-	t.disabled = v
+	t.disabled.Store(v)
 	if t.focusNode != nil {
 		t.focusNode.Enabled = !v
 	}
@@ -627,7 +629,7 @@ func (t *Tooltip) SetDisabled(v bool) *Tooltip {
 }
 
 // Disabled reports the flag.
-func (t *Tooltip) Disabled() bool { return t != nil && t.disabled }
+func (t *Tooltip) Disabled() bool { return t != nil && t.disabled.Load() }
 
 // SetRTL mirrors left/right placements for the RTL snapshot.
 func (t *Tooltip) SetRTL(v bool) *Tooltip {
@@ -777,13 +779,13 @@ func (t *Tooltip) Semantics() *semantics.Node {
 }
 
 // Focusable is false while disabled (manager skips the node).
-func (t *Tooltip) Focusable() bool { return t != nil && !t.disabled }
+func (t *Tooltip) Focusable() bool { return t != nil && !t.disabled.Load() }
 
 // Focused reports keyboard focus on the trigger.
-func (t *Tooltip) Focused() bool { return t != nil && t.focused }
+func (t *Tooltip) Focused() bool { return t != nil && t.focused.Load() }
 
 // Hovered reports pointer hover on the trigger.
-func (t *Tooltip) Hovered() bool { return t != nil && t.hovered }
+func (t *Tooltip) Hovered() bool { return t != nil && t.hovered.Load() }
 
 // FocusNode lazily builds the manager node.
 func (t *Tooltip) FocusNode() *focus.FocusNode {
@@ -792,11 +794,11 @@ func (t *Tooltip) FocusNode() *focus.FocusNode {
 	}
 	if t.focusNode == nil {
 		n := focus.NewFocusNode("tooltip:" + t.AriaName())
-		n.Enabled = !t.disabled
+		n.Enabled = !t.disabled.Load()
 		n.TabIndex = 0
 		self := t
 		n.OnFocusChange = func(f bool) {
-			self.focused = f
+			self.focused.Store(f)
 			if f {
 				self.Focus()
 			} else {
@@ -960,7 +962,7 @@ func (t *Tooltip) Sync() {
 
 // IsOpen reports visible state (empty/disabled never opens).
 func (t *Tooltip) IsOpen() bool {
-	if t == nil || !t.hasContent() || t.disabled {
+	if t == nil || !t.hasContent() || t.disabled.Load() {
 		return false
 	}
 	if t.controlled {
@@ -974,10 +976,10 @@ func (t *Tooltip) Open() bool { return t.IsOpen() }
 
 // HoverEnter starts the hover path (enter delay applies).
 func (t *Tooltip) HoverEnter() {
-	if t == nil || !t.HasTrigger(TriggerHover) || t.disabled || !t.hasContent() {
+	if t == nil || !t.HasTrigger(TriggerHover) || t.disabled.Load() || !t.hasContent() {
 		return
 	}
-	t.hovered = true
+	t.hovered.Store(true)
 	t.markPaint()
 	if t.enterDelay <= 0 {
 		t.cancelPending()
@@ -995,7 +997,7 @@ func (t *Tooltip) HoverLeave() {
 	if t == nil {
 		return
 	}
-	t.hovered = false
+	t.hovered.Store(false)
 	t.markPaint()
 	if !t.HasTrigger(TriggerHover) {
 		return
@@ -1013,7 +1015,7 @@ func (t *Tooltip) HoverLeave() {
 
 // Focus opens immediately on the focus path.
 func (t *Tooltip) Focus() {
-	if t == nil || !t.HasTrigger(TriggerFocus) || t.disabled || !t.hasContent() {
+	if t == nil || !t.HasTrigger(TriggerFocus) || t.disabled.Load() || !t.hasContent() {
 		return
 	}
 	t.cancelPending()
@@ -1031,7 +1033,7 @@ func (t *Tooltip) Blur() {
 
 // Click toggles on the click path.
 func (t *Tooltip) Click() bool {
-	if t == nil || !t.HasTrigger(TriggerClick) || t.disabled || !t.hasContent() {
+	if t == nil || !t.HasTrigger(TriggerClick) || t.disabled.Load() || !t.hasContent() {
 		return false
 	}
 	t.cancelPending()
@@ -1042,7 +1044,7 @@ func (t *Tooltip) Click() bool {
 
 // ContextMenu opens on the right-click path.
 func (t *Tooltip) ContextMenu() bool {
-	if t == nil || !t.HasTrigger(TriggerContextMenu) || t.disabled || !t.hasContent() {
+	if t == nil || !t.HasTrigger(TriggerContextMenu) || t.disabled.Load() || !t.hasContent() {
 		return false
 	}
 	t.cancelPending()
@@ -1072,7 +1074,7 @@ func (t *Tooltip) PressKey(key string) bool {
 	case "Escape", "Esc":
 		return t.Escape()
 	case "Enter", "Space", " ", "\r":
-		if t.HasTrigger(TriggerClick) && (t.focused || t.hovered || t.IsOpen()) {
+		if t.HasTrigger(TriggerClick) && (t.focused.Load() || t.hovered.Load() || t.IsOpen()) {
 			t.Click()
 			return true
 		}
@@ -1098,7 +1100,7 @@ func (t *Tooltip) applyWant(want bool) {
 	if t == nil {
 		return
 	}
-	if want && (!t.hasContent() || t.disabled) {
+	if want && (!t.hasContent() || t.disabled.Load()) {
 		return
 	}
 	if t.controlled {
@@ -1404,7 +1406,7 @@ func (t *Tooltip) paintTrigger(pc *rendering.PaintContext, size rendering.Size) 
 	}
 	bd := themeToRGBA(tok.ColorBorder)
 	tx := themeToRGBA(tok.ColorText)
-	if t.disabled {
+	if t.disabled.Load() {
 		bg = themeToRGBA(tok.ColorFillTertiary)
 		tx = themeToRGBA(tok.ColorTextDisabled)
 	}
@@ -1418,7 +1420,7 @@ func (t *Tooltip) paintTrigger(pc *rendering.PaintContext, size rendering.Size) 
 		lw = 1
 	}
 	bc := bd
-	if t.hovered && !t.disabled {
+	if t.hovered.Load() && !t.disabled.Load() {
 		prim := themeToRGBA(tok.ColorPrimary)
 		if prim.A > 0 {
 			bc = prim
@@ -1434,7 +1436,7 @@ func (t *Tooltip) paintTrigger(pc *rendering.PaintContext, size rendering.Size) 
 		}
 		t.paintText(pc, label, 8, 0, w-16, h, t.FontSize(), tx)
 	}
-	if t.focused && !t.disabled {
+	if t.focused.Load() && !t.disabled.Load() {
 		ring := themeToRGBA(tok.ColorPrimary)
 		if ring.A == 0 {
 			ring = render.RGBA{R: 0x16 / 255.0, G: 0x77 / 255.0, B: 0xff / 255.0, A: 1}

@@ -6,6 +6,8 @@
 package divider
 
 import (
+	"sync/atomic"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/rendering"
@@ -89,15 +91,30 @@ type Divider struct {
 	ariaLabel      string
 	root           *rendering.RenderBox
 
-	lastW        float64
-	lastH        float64
-	lastTitleW   float64
-	lastTitleH   float64
-	lastRailStart float64
-	lastRailEnd   float64
-	lastTitleX   float64
-	lastTitleY   float64
-	lastRailY    float64
+	// layoutCache is the last laid-out geometry, stored wholesale by Layout
+	// (UI) and loaded once per use on either thread (paint reads on raster):
+	// atomic, never nine bare floats — a torn half-layout on raster is a
+	// wrong rail, not just a race report (R2-6).
+	layoutCache atomic.Value // dividerLayout
+}
+
+// dividerLayout is one consistent laid-out geometry snapshot.
+type dividerLayout struct {
+	w, h                  float64
+	titleW, titleH        float64
+	railStart, railEnd    float64
+	titleX, titleY, railY float64
+}
+
+// layoutSnap loads the cached geometry (zero before first layout).
+func (d *Divider) layoutSnap() dividerLayout {
+	if d == nil {
+		return dividerLayout{}
+	}
+	if v, ok := d.layoutCache.Load().(dividerLayout); ok {
+		return v
+	}
+	return dividerLayout{}
 }
 
 // NewDivider creates a horizontal solid divider.
@@ -531,16 +548,18 @@ func (d *Divider) Layout(c rendering.Constraints) rendering.Size {
 		return rendering.Size{}
 	}
 	d.compute(c.MaxWidth)
-	d.root.FixedWidth = d.lastW
-	d.root.FixedHeight = d.lastH
+	L := d.layoutSnap()
+	d.root.FixedWidth = L.w
+	d.root.FixedHeight = L.h
 	sz := d.root.Layout(c)
 	// Keep cached split consistent with the tightened width.
-	if d.HasTitle() && sz.Width != d.lastW {
+	if d.HasTitle() && sz.Width != L.w {
 		d.resplit(sz.Width)
 	}
 	// RenderBox resets custom child offsets to Pad; restore title offset.
 	if d.titleNode != nil {
-		d.titleNode.SetOffset(rendering.Point{X: d.lastTitleX, Y: d.lastTitleY})
+		L = d.layoutSnap()
+		d.titleNode.SetOffset(rendering.Point{X: L.titleX, Y: L.titleY})
 	}
 	return sz
 }
@@ -550,7 +569,7 @@ func (d *Divider) RailStartWidth() float64 {
 	if d == nil {
 		return 0
 	}
-	return d.lastRailStart
+	return d.layoutSnap().railStart
 }
 
 // RailEndWidth returns the last laid-out end rail width.
@@ -558,7 +577,7 @@ func (d *Divider) RailEndWidth() float64 {
 	if d == nil {
 		return 0
 	}
-	return d.lastRailEnd
+	return d.layoutSnap().railEnd
 }
 
 // TitleBlockWidth returns the last laid-out title block width.
@@ -566,7 +585,7 @@ func (d *Divider) TitleBlockWidth() float64 {
 	if d == nil {
 		return 0
 	}
-	return d.lastTitleW
+	return d.layoutSnap().titleW
 }
 
 func (d *Divider) rebuild() {
@@ -619,12 +638,9 @@ func (d *Divider) compute(maxW float64) {
 		}
 		lw := d.LineWidth()
 		mi := d.MarginInline()
-		d.lastW = 2*mi + lw
-		d.lastH = 0.9 * fs
-		d.lastTitleW, d.lastTitleH = 0, 0
-		d.lastRailStart, d.lastRailEnd = 0, 0
-		d.lastTitleX, d.lastTitleY = 0, 0
-		d.lastRailY = 0
+		d.layoutCache.Store(dividerLayout{
+			w: 2*mi + lw, h: 0.9 * fs,
+		})
 		return
 	}
 	mb := d.MarginBlock()
@@ -634,12 +650,11 @@ func (d *Divider) compute(maxW float64) {
 		if w <= 0 || w >= rendering.Unbounded/2 {
 			w = 200
 		}
-		d.lastW = w
-		d.lastH = 2*mb + lw
-		d.lastTitleW, d.lastTitleH = 0, 0
-		d.lastRailStart, d.lastRailEnd = w, 0
-		d.lastTitleX, d.lastTitleY = 0, 0
-		d.lastRailY = mb
+		d.layoutCache.Store(dividerLayout{
+			w: w, h: 2*mb + lw,
+			railStart: w, railEnd: 0,
+			railY: mb,
+		})
 		return
 	}
 	fs := d.TitleFontSize()
@@ -657,17 +672,20 @@ func (d *Divider) compute(maxW float64) {
 	if w < blockW {
 		w = blockW
 	}
-	d.lastW = w
-	d.lastH = 2*mb + blockH
-	d.lastTitleW = blockW
-	d.lastTitleH = blockH
-	d.lastTitleY = mb + (blockH-th)/2
-	d.lastRailY = mb + (blockH-lw)/2
+	d.layoutCache.Store(dividerLayout{
+		w: w, h: 2*mb + blockH,
+		titleW: blockW, titleH: blockH,
+		titleY: mb + (blockH-th)/2,
+		railY:  mb + (blockH-lw)/2,
+	})
 	d.resplit(w)
 }
 
 func (d *Divider) resplit(w float64) {
-	avail := w - d.lastTitleW
+	// Rails derive from the stored title width (same-UI-thread as compute,
+	// which stored just above); the merged snapshot keeps one consistent set.
+	L := d.layoutSnap()
+	avail := w - L.titleW
 	if avail < 0 {
 		avail = 0
 	}
@@ -676,10 +694,11 @@ func (d *Divider) resplit(w float64) {
 	if sum <= 0 {
 		gs, ge, sum = 1, 1, 2
 	}
-	d.lastRailStart = avail * gs / sum
-	d.lastRailEnd = avail * ge / sum
-	d.lastTitleX = d.lastRailStart
-	d.lastW = w
+	L.railStart = avail * gs / sum
+	L.railEnd = avail * ge / sum
+	L.titleX = L.railStart
+	L.w = w
+	d.layoutCache.Store(L)
 }
 
 func (d *Divider) measureTitle(fs float64) (w, h float64) {

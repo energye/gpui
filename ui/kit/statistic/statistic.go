@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/energye/gpui/render/text"
@@ -101,12 +102,13 @@ type Statistic struct {
 	decimalSeparator string
 	groupSeparator   string
 	formatter        func(any) string
-	loading          bool
-	format           string
-	timerType        TimerType
-	onChange         func(diffMs float64)
-	onFinish         func()
-	finished         bool
+	// loading is atomic: SetLoading writes (UI), paint reads (raster).
+	loading   atomic.Bool
+	format    string
+	timerType TimerType
+	onChange  func(diffMs float64)
+	onFinish  func()
+	finished  bool
 
 	titleNode  rendering.RenderObject
 	prefixNode rendering.RenderObject
@@ -120,7 +122,7 @@ type Statistic struct {
 	override  *theme.Tokens
 	ariaLabel string
 	// textFace is the paint-only font face for title/value/affixes.
-	textFace  text.Face
+	textFace text.Face
 
 	nowFunc  func() int64
 	attached *scheduler.TickerRegistry
@@ -432,16 +434,16 @@ func (s *Statistic) SetLoading(b bool) {
 	if s == nil {
 		return
 	}
-	if s.loading == b {
+	if s.loading.Load() == b {
 		return
 	}
-	s.loading = b
+	s.loading.Store(b)
 	s.syncNode()
 	s.markLayoutDirty()
 }
 
 // IsLoading reports skeleton mode.
-func (s *Statistic) IsLoading() bool { return s != nil && s.loading }
+func (s *Statistic) IsLoading() bool { return s != nil && s.loading.Load() }
 
 // SetFormat sets the Timer template ("" restores default).
 func (s *Statistic) SetFormat(f string) {
@@ -928,7 +930,7 @@ func (s *Statistic) WantsFrame() bool {
 	if s == nil {
 		return false
 	}
-	if s.loading {
+	if s.loading.Load() {
 		return true
 	}
 	return s.timerType != TimerNone && !s.finished
@@ -990,7 +992,7 @@ func (s *Statistic) syncNode() {
 	gap := s.Gap()
 	titleW, titleH, prefixW, _, valueW, valueH, suffixW, suffixH := s.measureAll()
 	var contentW, contentH float64
-	if s.loading {
+	if s.loading.Load() {
 		barW, barH := s.SkeletonBarSize()
 		contentW = barW
 		contentH = s.SkeletonTopPad() + barH
@@ -1082,7 +1084,7 @@ func (s *Statistic) paint(pc *rendering.PaintContext, _ rendering.Size) {
 		}
 		y = titleH + gap
 	}
-	if s.loading {
+	if s.loading.Load() {
 		barW, barH := s.SkeletonBarSize()
 		fill := tok.ColorFillSecondary
 		rendering.FillRoundRect(pc, 0, y+s.SkeletonTopPad(), barW, barH, tok.Radius, fill.R, fill.G, fill.B, fill.A)

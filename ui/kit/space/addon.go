@@ -5,6 +5,8 @@
 package space
 
 import (
+	"sync/atomic"
+
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/theme"
 )
@@ -22,9 +24,9 @@ type SpaceAddon struct {
 	children []rendering.RenderObject
 	size     SpaceSize
 	disabled bool
-	first    bool
-	last     bool
-	edgesSet bool
+	// edges packs compact-edge flags as bits (R2-6): bit0 first, bit1 last,
+	// bit2 edgesSet. Layout writes (UI), paintCell reads (raster).
+	edges    atomic.Uint32
 	provider *theme.Provider
 	override *theme.Tokens
 	node     *addonNode
@@ -161,21 +163,41 @@ func (a *SpaceAddon) SetCompactEdges(first, last bool) {
 	if a == nil {
 		return
 	}
-	a.first, a.last, a.edgesSet = first, last, true
+	a.edges.Store(edgeBits(first, last, true))
 	a.node.MarkNeedsPaint()
+}
+
+// edgeBits packs compact-edge flags: bit0 first, bit1 last, bit2 set.
+func edgeBits(first, last, set bool) uint32 {
+	var b uint32
+	if first {
+		b |= 1
+	}
+	if last {
+		b |= 2
+	}
+	if set {
+		b |= 4
+	}
+	return b
 }
 
 // CompactEdges returns the recorded position (ok=false when standalone).
 func (a *SpaceAddon) CompactEdges() (first, last, ok bool) {
-	if a == nil || !a.edgesSet {
+	if a == nil {
 		return false, false, false
 	}
-	return a.first, a.last, true
+	e := a.edges.Load()
+	if e&4 == 0 {
+		return false, false, false
+	}
+	return e&1 != 0, e&2 != 0, true
 }
 
 // EffectiveRadius is 0 for middle-in-compact, else the theme radius.
 func (a *SpaceAddon) EffectiveRadius() float64 {
-	if a != nil && a.edgesSet && !a.first && !a.last {
+	e := a.edges.Load()
+	if e&4 != 0 && e&1 == 0 && e&2 == 0 {
 		return 0
 	}
 	tok := a.themeTokens()

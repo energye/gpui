@@ -3,6 +3,7 @@ package border_beam
 import (
 	"math"
 	"sort"
+	"sync/atomic"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
@@ -62,7 +63,8 @@ type BorderBeam struct {
 	hovered      bool
 	reduceMotion bool
 	rtl          bool
-	phase        float64
+	// phase is atomic bits: Tick writes (UI), paint reads (raster).
+	phase atomic.Uint64
 
 	provider  *theme.Provider
 	override  *theme.Tokens
@@ -354,7 +356,7 @@ func (b *BorderBeam) Phase() float64 {
 	if b == nil {
 		return 0
 	}
-	return b.phase
+	return math.Float64frombits(b.phase.Load())
 }
 
 // EffectivePhase applies the RTL mirror to Phase.
@@ -363,9 +365,9 @@ func (b *BorderBeam) EffectivePhase() float64 {
 		return 0
 	}
 	if !b.rtl {
-		return b.phase
+		return math.Float64frombits(b.phase.Load())
 	}
-	e := 1 - b.phase
+	e := 1 - math.Float64frombits(b.phase.Load())
 	return e - math.Floor(e)
 }
 
@@ -483,8 +485,9 @@ func (b *BorderBeam) Tick(dt float64) bool {
 	if d <= 0 {
 		d = DefaultDuration
 	}
-	b.phase = b.phase + dt/d
-	b.phase -= math.Floor(b.phase)
+	ph := math.Float64frombits(b.phase.Load()) + dt/d
+	ph -= math.Floor(ph)
+	b.phase.Store(math.Float64bits(ph))
 	if dt > 0 {
 		b.dirty()
 	}
