@@ -252,7 +252,7 @@
 | G6 上传语义 | Upload 状态机 | LIST_IGNORE+beforeUpload三返回+受控忽略+uid补齐+maxCount替换截断+defaultRequest+预览管线+宿主三件（选文件/拖放/粘贴） | 受控列表不在列表忽略，大文件队列不卡主树 |
 | G7 二维码编码库 | 二维码版本纠错掩码 | 版本/纠错等级/掩码全套纯 Go，canvas/svg 双通道一套 CustomPaint 实现 | 与官网同值扫出同码，等级掩码逐项对 |
 
-## 7. 波次与依赖（F0 内顺序，前一波不绿后一波不开）
+## 7. 波次与依赖（F0 内顺序，前一波不绿后一波不开；状态只认 PROGRESS.md §1）
 
 | 波 | 内容 | 先决 |
 | --- | --- | --- |
@@ -263,7 +263,7 @@
 | F0-5 | §6 动效语义性能方向 + 门禁收尾（有名角色先行，合并排除动作退回；中央门禁改查 Props/State/接线/Token） | F0-4 |
 | F0-6 | 六个真窗全绿（含 motion 窗规格：转圈波纹Ticker+省动效开关）+ 三套主题 Golden 入库 + 人工签字 | F0-5 |
 
-## 8. 交付清单（F0 做完必须有这些文件）
+## 8. 交付清单（F0 做完必须有这些文件；每项状态只认 PROGRESS.md §1，源码对不上即假绿）
 
 ```text
 ui/kit/internal/prim/{layout,decor,content}.go + 各 _test.go + testdata/*.json
