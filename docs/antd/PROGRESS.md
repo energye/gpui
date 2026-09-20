@@ -27,7 +27,7 @@
 
 | 步骤 | 源码证据（必须存在） | 单测证据 | 真窗证据 | 状态 | 验证 commit | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F0-1 主题与范围 | `ui/theme/seed*.go` + `ui/kit/internal/scope/{ctx,states,resolve}.go` | `seed_ant_test.go`、`scope` 各 `_test.go` 全绿 | `examples/kit_f0_scope/`（三套主题一切换全局生效） | ⬜未开 | — | 种子与 antd 6.5.1 逐项对，差一处即挂 |
+| F0-1 主题与范围 | `ui/theme/seed*.go` + `ui/kit/internal/scope/{ctx,states,resolve}.go` + `ui/kit/scope.go` 公开门面 | `seed_ant_test.go`、`scope` 各 `_test.go` 全绿（逐文件跑） | `examples/kit_f0_scope/`（三套主题一切换全局生效；-auto-only 全绿 + Golden 差异0 + 调大小回基线 + 人工签字） | 🟩已绿 | 本次提交 | 种子与 antd 6.5.1 逐项对；真窗第二跑 3/3 + Golden 0 + resize 回 1200x800 |
 | F0-2 布局+装饰 | `ui/kit/internal/prim/{layout,decor}.go` | `layout_test.go` 约束矩阵、`decor_test.go` 混合公式 | `examples/kit_f0_layout/`、`kit_f0_decor/`（必做调大小回基线） | ⬜未开 | — | 先决 F0-1 |
 | F0-3 内容 | `ui/kit/internal/prim/content.go` | `content_test.go`（真字区域级断言） | `examples/kit_f0_content/`（图片三态只脏一格） | ⬜未开 | — | 先决 F0-2 |
 | F0-4 交互+触发 | `ui/kit/internal/behavior/{interactive,field,overlay_trigger}.go` | 三个 `_test.go`（五态/受控/外点关） | `examples/kit_f0_interact/`（焦点环只键盘亮） | ⬜未开 | — | 先决 F0-3 |
