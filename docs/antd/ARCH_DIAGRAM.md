@@ -26,7 +26,7 @@ flowchart LR
     S --> L["Layout 约束往下<br/>尺寸往上 L1排版"]
     L --> PT["Paint 只调L1<br/>色走Resolve"]
     PT --> C["Composite Layer合成<br/>动画标独立重画"]
-    C --> PR["Present 1200x800<br/>指标A-J+三证据"]
+    C --> PR["Present 基线1200x800可调<br/>指标A-J+三证据"]
     HIT["点哪 HitTest<br/>Hit等绘"] --> S
     S -->|SetState 标脏| L
     TH["主题三级<br/>Props大于组件主题大于种子"] -.Resolve.-> PT

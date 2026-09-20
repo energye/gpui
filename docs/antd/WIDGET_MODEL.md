@@ -198,7 +198,7 @@ func BuildButton(ctx *scope.Ctx, p ButtonProps) *ButtonInstance {
 ## 9. 测试（沿用三证据，断言对象换成新模子）
 
 - 单测：Props 默认值（跟官网默认值逐项对）、`Resolve` 各状态值（跟官网调色板对）、状态机流转、受控/非受控（C 类）、约束矩阵（三种约束全跑，见 ACCEPTANCE）。
-- 真窗：独立窗（`examples/kit/<名>/`，一组件一窗，只摆自己，官网 demo 非 debug 一个不少；段顺序、标题、描述原文、行列、间距跟官网走；高出滚 `RenderViewport`，滚时清悬停防 stuck）；`-auto-only` 按该组件测试说明逐功能验效果（一项一效果，挂一项整窗挂）。
+- 真窗：独立窗（`examples/kit/<名>/`，一组件一窗，只摆自己，官网 demo 非 debug 一个不少；段顺序、标题、描述原文、行列、间距跟官网走；高出滚 `RenderViewport`，滚时清悬停防 stuck；窗可调大小，基线 1200×800 只用于 Golden 对齐，必做一次调大小回基线不错位）；`-auto-only` 按该组件测试说明逐功能验效果（一项一效果，挂一项整窗挂）。
 - Golden：`testdata/showcase_<名>.png`（全 variant/color/size/shape 一张摆完）+ 三主题截图；字是真字（有字体字区有墨，无字体宁可空，不画黑条）；容差显式声明。
 - 测试数据一律 `testdata/`，临时文件只许 `t.TempDir()`，不许硬编码本机路径、不许循环生成标准数据（AGENTS.md 硬规矩）。
 
