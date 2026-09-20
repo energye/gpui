@@ -28,8 +28,8 @@
 | 步骤 | 源码证据（必须存在） | 单测证据 | 真窗证据 | 状态 | 验证 commit | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | F0-1 主题与范围 | `ui/theme/seed*.go` + `ui/kit/internal/scope/{ctx,states,resolve}.go` + `ui/kit/scope.go` 公开门面 | `seed_ant_test.go`、`scope` 各 `_test.go` 全绿（逐文件跑） | `examples/kit_f0_scope/`（三套主题一切换全局生效；-auto-only 全绿 + Golden 差异0 + 调大小回基线 + 人工签字） | 🟩已绿 | 本次提交 | 种子与 antd 6.5.1 逐项对；真窗第二跑 3/3 + Golden 0 + resize 回 1200x800 |
-| F0-2 布局+装饰 | `ui/kit/internal/prim/{layout,decor}.go` | `layout_test.go` 约束矩阵、`decor_test.go` 混合公式 | `examples/kit_f0_layout/`、`kit_f0_decor/`（必做调大小回基线） | ⬜未开 | — | 先决 F0-1 |
-| F0-3 内容 | `ui/kit/internal/prim/content.go` | `content_test.go`（真字区域级断言） | `examples/kit_f0_content/`（图片三态只脏一格） | ⬜未开 | — | 先决 F0-2 |
+| F0-2 布局+装饰 | `ui/kit/internal/prim/{layout,decor}.go` + `ui/kit/prim.go` 公开门面 | `layout_test.go` 约束矩阵、`layout_edge_test.go` 边界、`decor_test.go` 混合公式（逐文件跑全绿） | `examples/kit_f0_layout/`、`kit_f0_decor/`（-auto-only 全绿 + Golden 差异0 + 调大小回基线；F0-1 scope 回归绿） | 🟩已绿 | 本次提交 | layout 3/3探针+bind8/1000+fps57；decor 3/3探针+混合公式+fps采而不判（静态正确性，F0-5再判）；未动他线文件 |
+| F0-3 内容 | `ui/kit/internal/prim/content.go` + `ui/kit/prim.go` 内容门面 | `content_test.go`（估算+合并+三态+图标，逐文件跑全绿） | `examples/kit_f0_content/`（-auto-only 全绿 6/6 + Golden 差异0 + 调大小回基线；F0-1/F0-2回归绿） | 🟩已绿 | 本次提交 | 文字三区墨量≥60+图片到图报错各只标脏一格+fps58；未动他线文件 |
 | F0-4 交互+触发 | `ui/kit/internal/behavior/{interactive,field,overlay_trigger}.go` | 三个 `_test.go`（五态/受控/外点关） | `examples/kit_f0_interact/`（焦点环只键盘亮） | ⬜未开 | — | 先决 F0-3 |
 | F0-5 动效语义性能方向+门禁 | `behavior/motion.go` + 语义/性能/方向门面 + 中央门禁改查四件 | 各 `_test.go` + 门禁自检 | `examples/kit_f0_motion/`（转圈真转+省动效全停） | ⬜未开 | — | 先决 F0-4 |
 | F0-6 六窗全绿签字 | 六窗 `main.go` + 三套主题 Golden | — | 六窗 `-auto-only` 全绿 + 人工签字 | ⬜未开 | — | 先决 F0-5；签字不过 F1 不开 |
