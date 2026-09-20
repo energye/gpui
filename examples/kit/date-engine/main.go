@@ -100,6 +100,44 @@ func main() {
 	rhost.Select(kit.DateEngineDateOf(2024, 3, 10))
 	rhost.Select(kit.DateEngineDateOf(2024, 3, 5))
 	rr := rhost.Range()
+	// Multi: toggle 01-01 on, 01-02 on, 01-01 off leaves 01-02.
+	mprops := kit.DefaultDateEngineProps()
+	mprops.Multiple = true
+	mhost := kit.BuildDateEngine(baseCtx, mprops)
+	mhost.Select(kit.DateEngineDateOf(2024, 1, 1))
+	mhost.Select(kit.DateEngineDateOf(2024, 1, 2))
+	mhost.Select(kit.DateEngineDateOf(2024, 1, 1))
+	multiText := "multi empty"
+	if ml := mhost.Multiple(); len(ml) == 1 {
+		multiText = "multi " + kit.FormatDateEngineDate(ml[0], "YYYY-MM-DD", false, kit.ResolveDateEngineLocale("en-US"), 0)
+	}
+	// Disabled matrix: min plus a custom func kills the 15th.
+	minD := kit.DateEngineDateOf(2024, 3, 1)
+	dprops := kit.DefaultDateEngineProps()
+	dprops.MinDate, dprops.MinDateSet = &minD, true
+	dprops.DisabledDate = func(c kit.DateEngineDate, from *kit.DateEngineDate, p kit.DateEnginePicker) bool {
+		return c.Day == 15
+	}
+	dhost := kit.BuildDateEngine(baseCtx, dprops)
+	tf := func(b bool) string {
+		if b {
+			return "T"
+		}
+		return "F"
+	}
+	disText := fmt.Sprintf("dis 0229=%s 0315=%s 0310=%s",
+		tf(dhost.IsDisabledDate(kit.DateEngineDateOf(2024, 2, 29))),
+		tf(dhost.IsDisabledDate(kit.DateEngineDateOf(2024, 3, 15))),
+		tf(dhost.IsDisabledDate(kit.DateEngineDateOf(2024, 3, 10))))
+	// Parse second format, quarter, decade, drill-down, all live.
+	parsed, parseOK := kit.ParseDateEngineDate("29/02/2024",
+		[]string{"YYYY-MM-DD", "DD/MM/YYYY"}, false, kit.ResolveDateEngineLocale("en-US"))
+	phost := kit.BuildDateEngine(baseCtx, kit.DefaultDateEngineProps())
+	phost.DrillDown()
+	miscText := fmt.Sprintf("parse %s Q%d dec%d %s",
+		tf(parseOK && parsed.SameDay(kit.DateEngineDateOf(2024, 2, 29))),
+		engine.Generate().QuarterOf(kit.DateEngineDateOf(2024, 5, 1)),
+		kit.DecadeStartOf(2024), phost.Mode())
 	skinEngine := kit.BuildDateEngine(skinCtx, props)
 
 	resolved := kit.ResolveDateEngine(baseCtx.Theme)
@@ -169,10 +207,10 @@ func main() {
 		rngText = kit.FormatDateEngineDate(*rr[0], "YYYY-MM-DD", false, loc, ws) + " ~ " +
 			kit.FormatDateEngineDate(*rr[1], "YYYY-MM-DD", false, loc, ws)
 	}
-	rngCard.Place(wrkit.Label("ordered range", 11, 0.62, 0.72, 0.85), 10, 8)
+	rngCard.Place(wrkit.Label("range+multi+preset", 11, 0.62, 0.72, 0.85), 10, 8)
 	rngCard.Place(wrkit.Label(rngText, 11, 0.85, 0.88, 0.94), 10, 30)
-	rngCard.Place(wrkit.Label("preset: Leap day 2024-01-01", 10, 0.55, 0.65, 0.78), 10, 56)
-	rngCard.Place(wrkit.Label("preset func: 2024-06-01", 10, 0.55, 0.65, 0.78), 10, 76)
+	rngCard.Place(wrkit.Label("preset 2024-01-01", 10, 0.55, 0.65, 0.78), 10, 56)
+	rngCard.Place(wrkit.Label("func 2024-06-01 "+multiText, 10, 0.55, 0.65, 0.78), 10, 76)
 	shell.Body.Place(rngCard, 360, 24)
 	// Buddhist line plus reskin card.
 	budd := kit.FormatDateEngineDate(kit.DateEngineDateOf(2024, 2, 29), "BBBB-MM-DD", true, loc, ws)
@@ -180,7 +218,7 @@ func main() {
 	budCard.Background = &rendering.Color{R: dimBG[0], G: dimBG[1], B: dimBG[2], A: 1}
 	budCard.SetDebugName("g4-date-buddhist")
 	budCard.SetRepaintBoundary(true)
-	budCard.Place(wrkit.Label("buddhist era", 11, 0.62, 0.72, 0.85), 10, 8)
+	budCard.Place(wrkit.Label(fmt.Sprintf("buddhist era ws=%d %s", ws, head[0]), 11, 0.62, 0.72, 0.85), 10, 8)
 	budCard.Place(wrkit.Label(budd, 12, 0.85, 0.88, 0.94), 10, 30)
 	budCard.Place(wrkit.Label("weekStart="+fmt.Sprintf("%d", ws)+" header "+head[0], 10, 0.55, 0.65, 0.78), 10, 56)
 	shell.Body.Place(budCard, 360, 156)
@@ -194,8 +232,8 @@ func main() {
 	shell.Body.Place(cS, 640, 24)
 	capNote := rendering.NewAbsoluteBox(200, 120)
 	capNote.Background = &rendering.Color{R: noteBG[0], G: noteBG[1], B: noteBG[2], A: 1}
-	capNote.Place(wrkit.Label("leap matrix + order + func", 11, 0.62, 0.72, 0.85), 8, 8)
-	capNote.Place(wrkit.Label("presets resolve on select", 10, 0.55, 0.65, 0.78), 8, 30)
+	capNote.Place(wrkit.Label(disText, 11, 0.62, 0.72, 0.85), 8, 8)
+	capNote.Place(wrkit.Label(miscText, 10, 0.55, 0.65, 0.78), 8, 30)
 	shell.Body.Place(capNote, 24, 300)
 
 	snapDir := filepath.Join("examples", "kit", "date-engine", "testdata")
