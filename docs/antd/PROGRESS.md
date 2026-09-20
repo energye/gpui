@@ -122,7 +122,7 @@
 | G1 弹窗宿主 | `ui/kit/modal_host_*.go` + `examples/kit/modal-host/`（Modal/Drawer 接入待 F4） | ✅已签字 | 本次提交 | 栈1000/1010/1020+单关保序+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看 |
 | G2 消息队列 | `ui/kit/notice_queue_*.go` + `examples/kit/notice-queue/`（Message/Notification 接入待 F4） | ✅已签字 | 本次提交 | 顶8/宽384/角24+maxCount丢最旧+同key更新+悬停冻结+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看（占位结构已确认，最终像素待F4） |
 | G3 漫游打洞 | `ui/kit/tour_mask_*.go` + `examples/kit/tour-mask/`（Tour 接入待 F4） | ✅已签字 | 本次提交 | 洞跟目标+gap6/r2+面板520/z1001+受控current+mask关仍绘洞+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看（占位结构已确认，最终像素待F4） |
-| G4 日期引擎 | `ui/kit/date_engine_*.go` | ⬜未开 | — | 可换实现 |
+| G4 日期引擎 | `ui/kit/date_engine_*.go` + `examples/kit/date-engine/`（DatePicker/Calendar 接入待 F3/F5） | 🟩已绿 | 本次提交 | 闰年周起始全对+多格式首个展示+佛历+disabled矩阵+Range排序+多选+预设函数+受控面板+可换实现；真窗第二跑3/3+Golden 0+resize回1200x800+待人工看 |
 | G5 颜色模型 | `ui/kit/color_model_*.go` | ⬜未开 | — | 来回转不丢精度 |
 | G6 上传语义 | `ui/kit/upload_*.go`（语义+宿主三件） | ⬜未开 | — | 大文件不卡主树 |
 | G7 二维码编码库 | `ui/kit/qrcode_*.go` | ⬜未开 | — | 同值扫出同码 |
