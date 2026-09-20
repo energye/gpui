@@ -26,7 +26,7 @@
 ## 1. F0 地基（前一波不绿后一波不开）
 
 | 步骤 | 源码证据（必须存在） | 单测证据 | 真窗证据 | 状态 | 验证 commit | 备注 |
-| --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | F0-1 主题与范围 | `ui/theme/seed*.go` + `ui/kit/internal/scope/{ctx,states,resolve}.go` | `seed_ant_test.go`、`scope` 各 `_test.go` 全绿 | `examples/kit_f0_scope/`（三套主题一切换全局生效） | ⬜未开 | — | 种子与 antd 6.5.1 逐项对，差一处即挂 |
 | F0-2 布局+装饰 | `ui/kit/internal/prim/{layout,decor}.go` | `layout_test.go` 约束矩阵、`decor_test.go` 混合公式 | `examples/kit_f0_layout/`、`kit_f0_decor/`（必做调大小回基线） | ⬜未开 | — | 先决 F0-1 |
 | F0-3 内容 | `ui/kit/internal/prim/content.go` | `content_test.go`（真字区域级断言） | `examples/kit_f0_content/`（图片三态只脏一格） | ⬜未开 | — | 先决 F0-2 |
@@ -36,81 +36,84 @@
 
 ## 2. F1–F6 组件（每行一组件，源码对不上即假绿）
 
-证据模板（每行通用）：源码 `ui/kit/<前缀>_*.go`（五段齐）→ 单测 `ui/kit/<前缀>_*_test.go` + `testdata/` → 真窗 `examples/kit/<名>/`（基线 1200×800 可调+指标 A–J+三证据）→ Golden `testdata/showcase*`。
+证据模板（每行通用）：源码 `ui/kit/<前缀>_*.go`（五段齐，多词前缀一律小写下划线）→ 单测 `ui/kit/<前缀>_*_test.go` + `testdata/` → 真窗 `examples/kit/<短横线名>/`（源码下划线、目录短横线，如 `float_button_*.go` ↔ `examples/kit/float-button/`；带限定词的拆窗规则见行备注）→ Golden `testdata/showcase*`。
 
-| 波 | 组件 | 源码前缀 | 状态 | 验证 commit | 备注 |
+| 波 | 组件 | 源码前缀 | 真窗目录 | 状态 | 验证 commit | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| F1 | Icon | `icon_` | ⬜未开 | — | 最先落地，全库引用 |
-| F1 | Typography | `typography_` | ⬜未开 | — | 剪贴板宿主后补 |
-| F1 | Divider | `divider_` | ⬜未开 | — | — |
-| F1 | Tag | `tag_` | ⬜未开 | — | — |
-| F1 | Badge | `badge_` | ⬜未开 | — | — |
-| F1 | Avatar | `avatar_` | ⬜未开 | — | 组popover走D类 |
-| F1 | Card | `card_` | ⬜未开 | — | — |
-| F1 | Empty | `empty_` | ⬜未开 | — | — |
-| F1 | Result | `result_` | ⬜未开 | — | — |
-| F1 | Statistic | `statistic_` | ⬜未开 | — | 倒计时走 Motion 计时 |
-| F1 | Descriptions | `descriptions_` | ⬜未开 | — | — |
-| F1 | Timeline | `timeline_` | ⬜未开 | — | — |
-| F1 | Image（展示态） | `image_` | ⬜未开 | — | 预览浮层走D类 |
-| F1 | Alert | `alert_` | ⬜未开 | — | — |
-| F2 | Button（标杆） | `button_` | ⬜未开 | — | 五样签字缺一不开后续 |
-| F2 | Switch | `switch_` | ⬜未开 | — | — |
-| F2 | Checkbox | `checkbox_` | ⬜未开 | — | — |
-| F2 | Radio | `radio_` | ⬜未开 | — | — |
-| F2 | Rate | `rate_` | ⬜未开 | — | 半区命中 L2 加 |
-| F2 | Slider | `slider_` | ⬜未开 | — | 拖动吸附六项 |
-| F2 | Segmented | `segmented_` | ⬜未开 | — | — |
-| F2 | FloatButton | `float_button_` | ⬜未开 | — | — |
-| F3 | Input | `input_` | ⬜未开 | — | OTP 多框联动 |
-| F3 | InputNumber | `input_number_` | ⬜未开 | — | — |
-| F3 | Select | `select_` | ⬜未开 | — | 虚拟行高耦合+门禁 |
-| F3 | AutoComplete | `auto_complete_` | ⬜未开 | — | — |
-| F3 | Mentions | `mentions_` | ⬜未开 | — | — |
-| F3 | Cascader | `cascader_` | ⬜未开 | — | 懒加载异步 |
-| F3 | TreeSelect | `tree_select_` | ⬜未开 | — | 依赖树 |
-| F3 | DatePicker | `date_picker_` | ⬜未开 | — | 依赖 G4 |
-| F3 | TimePicker | `time_picker_` | ⬜未开 | — | 依赖 G4 |
-| F3 | ColorPicker | `color_picker_` | ⬜未开 | — | 依赖 G5 |
-| F3 | Upload | `upload_` | ⬜未开 | — | 依赖 G6 |
-| F4 | Tooltip | `tooltip_` | ⬜未开 | — | 定位底座先行 |
-| F4 | Popover | `popover_` | ⬜未开 | — | — |
-| F4 | Popconfirm | `popconfirm_` | ⬜未开 | — | — |
-| F4 | Dropdown | `dropdown_` | ⬜未开 | — | 多级延后 |
-| F4 | Menu（弹出态） | `menu_` | ⬜未开 | — | — |
-| F4 | Modal | `modal_` | ⬜未开 | — | 依赖 G1 |
-| F4 | Drawer | `drawer_` | ⬜未开 | — | 依赖 G1 |
-| F4 | Message | `message_` | ⬜未开 | — | 依赖 G2 |
-| F4 | Notification | `notification_` | ⬜未开 | — | 依赖 G2 |
-| F4 | Tour | `tour_` | ⬜未开 | — | 依赖 G3 |
-| F5 | Layout | `layout_` | ⬜未开 | — | — |
-| F5 | Grid | `grid_` | ⬜未开 | — | — |
-| F5 | Flex | `flex_` | ⬜未开 | — | — |
-| F5 | Space | `space_` | ⬜未开 | — | — |
-| F5 | Splitter | `splitter_` | ⬜未开 | — | 拖拽分栏 |
-| F5 | Affix | `affix_` | ⬜未开 | — | 滚动宿主链路 |
-| F5 | Anchor | `anchor_` | ⬜未开 | — | 同上 |
-| F5 | Breadcrumb | `breadcrumb_` | ⬜未开 | — | — |
-| F5 | Pagination | `pagination_` | ⬜未开 | — | — |
-| F5 | Steps | `steps_` | ⬜未开 | — | — |
-| F5 | Tabs | `tabs_` | ⬜未开 | — | 滑动线+溢出 |
-| F5 | Calendar | `calendar_` | ⬜未开 | — | 依赖 G4 |
-| F5 | Table | `table_` | ⬜未开 | — | 标准包法+虚拟 |
-| F5 | List | `list_` | ⬜未开 | — | — |
-| F5 | Tree | `tree_` | ⬜未开 | — | 勾选拖拽虚拟 |
-| F5 | Transfer | `transfer_` | ⬜未开 | — | — |
-| F5 | Collapse | `collapse_` | ⬜未开 | — | 高度动画 |
-| F5 | Carousel | `carousel_` | ⬜未开 | — | 定时切先行 |
-| F5 | Spin | `spin_` | ⬜未开 | — | — |
-| F5 | Skeleton | `skeleton_` | ⬜未开 | — | — |
-| F5 | Watermark | `watermark_` | ⬜未开 | — | 平铺+守卫 |
-| F5 | Progress | `progress_` | ⬜未开 | — | — |
-| F5 | Masonry | `masonry_` | ⬜未开 | — | 瀑布分配 |
-| F5 | Form（联调） | `form_` | ⬜未开 | — | 校验时机+联动 |
-| F6 | ConfigProvider | `config_provider_` | ⬜未开 | — | Ctx 6 件 |
-| F6 | App | `app_` | ⬜未开 | — | 依赖 G1/G2 |
-| F6 | Theme | `theme_` | ⬜未开 | — | 换肤 |
-| F6 | Locale | `locale_` | ⬜未开 | — | 文案表 |
+| F1 | Icon | `icon_` | `examples/kit/icon/` | ⬜未开 | — | 最先落地，全库引用 |
+| F1 | Typography | `typography_` | `examples/kit/typography/` | ⬜未开 | — | 剪贴板宿主后补 |
+| F1 | Divider | `divider_` | `examples/kit/divider/` | ⬜未开 | — | — |
+| F1 | Tag | `tag_` | `examples/kit/tag/` | ⬜未开 | — | — |
+| F1 | Badge | `badge_` | `examples/kit/badge/` | ⬜未开 | — | — |
+| F1 | Avatar | `avatar_` | `examples/kit/avatar/` | ⬜未开 | — | 组popover走D类 |
+| F1 | Card | `card_` | `examples/kit/card/` | ⬜未开 | — | — |
+| F1 | Empty | `empty_` | `examples/kit/empty/` | ⬜未开 | — | — |
+| F1 | Result | `result_` | `examples/kit/result/` | ⬜未开 | — | — |
+| F1 | Statistic | `statistic_` | `examples/kit/statistic/` | ⬜未开 | — | 倒计时走 Motion 计时 |
+| F1 | Descriptions | `descriptions_` | `examples/kit/descriptions/` | ⬜未开 | — | — |
+| F1 | Timeline | `timeline_` | `examples/kit/timeline/` | ⬜未开 | — | — |
+| F1 | Image（展示态） | `image_` | `examples/kit/image/`（展示一窗；预览浮层走 D 类另验，不另起窗） | ⬜未开 | — | 预览浮层走D类 |
+| F1 | Alert | `alert_` | `examples/kit/alert/` | ⬜未开 | — | — |
+| F2 | Button（标杆） | `button_` | `examples/kit/button/` | ⬜未开 | — | 五样签字缺一不开后续 |
+| F2 | Switch | `switch_` | `examples/kit/switch/` | ⬜未开 | — | — |
+| F2 | Checkbox | `checkbox_` | `examples/kit/checkbox/` | ⬜未开 | — | — |
+| F2 | Radio | `radio_` | `examples/kit/radio/` | ⬜未开 | — | — |
+| F2 | Rate | `rate_` | `examples/kit/rate/` | ⬜未开 | — | 半区命中 L2 加 |
+| F2 | Slider | `slider_` | `examples/kit/slider/` | ⬜未开 | — | 拖动吸附六项 |
+| F2 | Segmented | `segmented_` | `examples/kit/segmented/` | ⬜未开 | — | — |
+| F2 | FloatButton | `float_button_` | `examples/kit/float-button/` | ⬜未开 | — | — |
+| F3 | Input | `input_` | `examples/kit/input/` | ⬜未开 | — | OTP 多框联动 |
+| F3 | InputNumber | `input_number_` | `examples/kit/input-number/` | ⬜未开 | — | — |
+| F3 | Select | `select_` | `examples/kit/select/` | ⬜未开 | — | 虚拟行高耦合+`bind_count` 门禁；popupMatch=false 关虚拟、无障碍降级（语义/焦点节点） |
+| F3 | AutoComplete | `auto_complete_` | `examples/kit/auto-complete/` | ⬜未开 | — | — |
+| F3 | Mentions | `mentions_` | `examples/kit/mentions/` | ⬜未开 | — | — |
+| F3 | Cascader | `cascader_` | `examples/kit/cascader/` | ⬜未开 | — | 懒加载异步（树数据，依赖 E 类 Tree 异步小件） |
+| F3 | TreeSelect | `tree_select_` | `examples/kit/tree-select/` | ⬜未开 | — | 依赖 E 类 Tree（勾选联动+异步） |
+| F3 | DatePicker | `date_picker_` | `examples/kit/date-picker/` | ⬜未开 | — | 依赖 G4 |
+| F3 | TimePicker | `time_picker_` | `examples/kit/time-picker/` | ⬜未开 | — | 依赖 G4 |
+| F3 | ColorPicker | `color_picker_` | `examples/kit/color-picker/` | ⬜未开 | — | 依赖 G5 |
+| F3 | Upload | `upload_` | `examples/kit/upload/` | ⬜未开 | — | 依赖 G6 |
+| F4 | Tooltip | `tooltip_` | `examples/kit/tooltip/` | ⬜未开 | — | 定位底座先行 |
+| F4 | Popover | `popover_` | `examples/kit/popover/` | ⬜未开 | — | — |
+| F4 | Popconfirm | `popconfirm_` | `examples/kit/popconfirm/` | ⬜未开 | — | — |
+| F4 | Dropdown | `dropdown_` | `examples/kit/dropdown/` | ⬜未开 | — | 多级延后 |
+| F4 | Menu（弹出态） | `menu_` | `examples/kit/menu/`（内嵌+弹层同一窗分段，弹层挂载另验） | ⬜未开 | — | — |
+| F4 | Modal | `modal_` | `examples/kit/modal/` | ⬜未开 | — | 依赖 G1 |
+| F4 | Drawer | `drawer_` | `examples/kit/drawer/` | ⬜未开 | — | 依赖 G1 |
+| F4 | Message | `message_` | `examples/kit/message/` | ⬜未开 | — | 依赖 G2 |
+| F4 | Notification | `notification_` | `examples/kit/notification/` | ⬜未开 | — | 依赖 G2 |
+| F4 | Tour | `tour_` | `examples/kit/tour/` | ⬜未开 | — | 依赖 G3 |
+| F5 | Layout | `layout_` | `examples/kit/layout/` | ⬜未开 | — | — |
+| F5 | Grid | `grid_` | `examples/kit/grid/` | ⬜未开 | — | — |
+| F5 | Flex | `flex_` | `examples/kit/flex/` | ⬜未开 | — | — |
+| F5 | Space | `space_` | `examples/kit/space/` | ⬜未开 | — | — |
+| F5 | Splitter | `splitter_` | `examples/kit/splitter/` | ⬜未开 | — | 拖拽分栏 |
+| F5 | Affix | `affix_` | `examples/kit/affix/` | ⬜未开 | — | 滚动宿主链路（与 Anchor/表头 sticky 共用，见 Table） |
+| F5 | Anchor | `anchor_` | `examples/kit/anchor/` | ⬜未开 | — | 同上滚动宿主链路 |
+| F5 | Breadcrumb | `breadcrumb_` | `examples/kit/breadcrumb/` | ⬜未开 | — | — |
+| F5 | Pagination | `pagination_` | `examples/kit/pagination/` | ⬜未开 | — | — |
+| F5 | Steps | `steps_` | `examples/kit/steps/` | ⬜未开 | — | — |
+| F5 | Tabs | `tabs_` | `examples/kit/tabs/` | ⬜未开 | — | 滑动线+溢出 |
+| F5 | Calendar | `calendar_` | `examples/kit/calendar/` | ⬜未开 | — | 依赖 G4 |
+| F5 | Table | `table_` | `examples/kit/table/` | ⬜未开 | — | 标准包法+虚拟；sticky 与 Affix/Anchor 共滚动宿主链路 |
+| F5 | List | `list_` | `examples/kit/list/` | ⬜未开 | — | — |
+| F5 | Tree | `tree_` | `examples/kit/tree/` | ⬜未开 | — | 勾选拖拽虚拟 |
+| F5 | Transfer | `transfer_` | `examples/kit/transfer/` | ⬜未开 | — | — |
+| F5 | Collapse | `collapse_` | `examples/kit/collapse/` | ⬜未开 | — | 高度动画 |
+| F5 | Carousel | `carousel_` | `examples/kit/carousel/` | ⬜未开 | — | 定时切先行 |
+| F5 | Spin | `spin_` | `examples/kit/spin/` | ⬜未开 | — | — |
+| F5 | Skeleton | `skeleton_` | `examples/kit/skeleton/` | ⬜未开 | — | — |
+| F5 | Watermark | `watermark_` | `examples/kit/watermark/` | ⬜未开 | — | 平铺+守卫 |
+| F5 | Progress | `progress_` | `examples/kit/progress/` | ⬜未开 | — | — |
+| F5 | Masonry | `masonry_` | `examples/kit/masonry/` | ⬜未开 | — | 瀑布分配 |
+| F5 | Form（联调） | `form_` | `examples/kit/form/` | ⬜未开 | — | 校验时机+联动 |
+| F1 | QRCode | `qrcode_` | `examples/kit/qr-code/` | ⬜未开 | — | 依赖 G7 编码库（G7 无独立消费窗，随本行签字） |
+| F5 | BorderBeam（自有扩展） | `border_beam_` | `examples/kit/border-beam/` | ⬜未开 | — | 自有 Token，不占 antd 对齐口 |
+| F6 | Util（无 UI） | —（不进 kit，按类型对照） | —（无窗，单测即证据） | ⬜未开 | — | 纯函数移植 |
+| F6 | ConfigProvider | `config_provider_` | `examples/kit/config-provider/` | ⬜未开 | — | Ctx 6 件 |
+| F6 | App | `app_` | `examples/kit/app/` | ⬜未开 | — | 依赖 G1/G2 |
+| F6 | Theme | `theme_` | `examples/kit/theme/` | ⬜未开 | — | 换肤 |
+| F6 | Locale | `locale_` | `examples/kit/locale/` | ⬜未开 | — | 文案表 |
 
 ## 3. G1–G7 大件（与 F0 并行，不挡小组件）
 

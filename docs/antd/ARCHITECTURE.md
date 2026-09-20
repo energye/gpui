@@ -52,6 +52,8 @@ L4 组合与全局：Form+Table+Modal 联动、App、ConfigProvider（ui/kit/app
 
 硬规矩（违反即打回）：
 
+- 窗口/事件/资源归引擎层（`ui/embedder` + 窗侧 shell）：窗口创建、事件循环、事件分发、后台冻结、资源释放全归引擎；kit 只收回调（点按/悬停/焦点/值变），`Mount/Update/Unmount` 由窗侧调（见 `WIDGET_MODEL.md` §3），组件不自建窗口、不自起常驻 goroutine。
+
 - 产品组件（L3）**禁止** `import gpu`，**禁止**直调 `render` 画布，只能 import `prim/behavior/scope` + `ui/theme`；`render` 公开 API 只许 `prim` 调，L3 要句柄走 `prim` 转调。
 - 产品组件**禁止**自写布局、手势识别、焦点管理、浮层定位算法，一律调 L1/L2；不够用先补 L1/L2，再给产品用（能力在实际所在位置实现，见 AGENTS.md）。
 - 引擎层（`ui/*`、`render`、`gpu`）**禁止**写死用户文案、业务色、中文空格这类东西；默认值走主题或 Props，见 AGENTS.md 引擎硬编码纪律。
@@ -69,7 +71,7 @@ Seed（种子，原样抄 antd 6.5.1 默认浅色）：主色 #1677ff、成功/�
   → Component（组件 Token，各组件 Theme 段）：比如 button 的各 variant/color 在各状态下的底/边/字色
 ```
 
-- 取值顺序永远是：**这次调用的 Props > Ctx 里的组件主题 > 全局种子默认值**（对标 `ButtonStyle` 的 `style > themeStyleOf > defaultStyleOf`）。
+- 取值顺序永远是：**这次调用的 Props > Ctx 里的组件主题 > 全局种子默认值**（对标 `ButtonStyle` 的 `style > themeStyleOf > defaultStyleOf`）。整树禁用与单组件禁用是或关系（见 `WIDGET_MODEL.md` §6 禁用铁律），尺寸/形态/动效是显式优先（同上）。
 - 状态相关的值全用 `StateResolver[T]` 存（比如“底色”不是一个颜色，是“默认什么色、悬停什么色、按下什么色、禁用什么色”一张表），Render 段只许 `Resolve(当前状态)`，不许写 `if hover … else …` 散装判断。
 - `ConfigProvider` 对标 Flutter 的 `InheritedWidget`（`SizeContext`、`DisabledContext`、`ConfigContext` 在 `components/config-provider/`）：主题、尺寸、禁用、方向、动效、语言、挂载点（popup/target容器）、同宽溢出（popupMatch/Overflow）、空态（renderEmpty）、静态配置（holderRender）、形态变体（variant），全部放进 `Ctx` 往下传，子组件用 `scope.Use(ctx)` 取，不许读全局变量。L2 以本节5件（gestures/focus/overlay/animation/scheduler）为基准，textinput/textbuffer/io 走 Field/图片管线（见 F0），不再各自枚举。
 - 深色、紧凑、品牌色换肤 = 换一套 Seed/Component Token 重跑 `Resolve`，组件代码不动。
@@ -121,7 +123,8 @@ Button 仍是第一个标杆（和原来一样），但标杆的内容变了：�
 ## 6. 文档结构（以后每个组件文档都长这样）
 
 - §1 外观、§2 功能、§3 API：保持现状，照 antd 官网抄，是产品真值，不动。
-- §6 实现：全部按 `WIDGET_MODEL.md` 的模板重写，只写四件事——Props 表（哪些参数、默认值、走哪个 Token）、State 表（哪些状态、谁驱动）、拼装图（用了哪几个 L1/L2）、Token 表（组件 Token 名和值）。不写用例号、不写旧 Go 签名（新签名按 `<Comp>Props/Instance/Build<Comp>` 模板生成）。
+- §6 实现：冻结范围只限工程部分——旧 Go 签名（New+Set 系）、旧用例号（BTN-/FRM- 系）、旧分层（§6.1/§6.11 L1–L4）、旧 gallery 路径（`examples/ui_polish_gallery`）、§2.7 子目录写法（`ui/kit/<名>/`，一律视为 flat 前缀写法，以 `WIDGET_MODEL.md` §1 为准）、§4 旧纪律（Default+Set+rebuild）；§6 的产品增量（度量/状态/Token/平台边界）继续有效。开工某组件前先按 `WIDGET_MODEL.md` §7 新模板重写其 §6 工程部分，重写完才开工。
+- §6 新模板只写四件事——Props 表（哪些参数、默认值、走哪个 Token）、State 表（哪些状态、谁驱动）、拼装图（用了哪几个 L1/L2）、Token 表（组件 Token 名和值）。不写用例号、不写旧 Go 签名（新签名按 `<Comp>Props/Instance/Build<Comp>` 模板生成）。
 - 看板：`README.md` 的旧进度表冻结；新进度唯一认 `PROGRESS.md`（每步状态+源码证据+验证 commit），本文 §5 只写顺序不写状态。
 
 ## 7. 验收方向（三证据不变，门禁要按新模型改）

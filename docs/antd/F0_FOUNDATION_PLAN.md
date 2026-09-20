@@ -75,8 +75,9 @@
 
 ### 1.6 验收
 
-- 上述单测全绿 + 真窗 `-auto-only` 全绿 + 人工看过（布局不错位、滚动不抖、长列表快滑只建可见行）+ Golden 入库。
+- 上述单测全绿 + 真窗 `-auto-only` 全绿 + 人工看过（布局不错位、滚动不抖、长列表快滑只建可见行，`bind_count≪item_count` 按 R7 口径判，超了即 FAIL）+ Golden 入库。
 - 产品包 `import` 检查：只许调 `prim/behavior/scope` + `ui/theme`，直调 `render/gpu` 即打回。
+- 本窗只证布局，不管 R1/R15 关闭（R1/R15 仍 ⬜，关闭另行立项）。
 
 ## 2. P2 装饰绘制（对应 `basic.dart` 装饰段 + `container.dart:63`）
 
@@ -144,7 +145,7 @@
 
 `content_test.go`：多 span 换行高度、省略（`maxLines/ellipsis`）、有字体真测 / 无字体启发式（`t.Skipf` 写清）、图片三态流转、图标尺寸跟主题。文字断言用区域级（包围盒内非背景像素数 ≥ 阈值 + Golden），禁止单点采样断字形。
 
-### 3.5 真窗（`examples/kit_f0_content/`，基线 1200×800 可调大小，5s；图片异步段加长 15s 看占位→图）
+### 3.5 真窗（`examples/kit_f0_content/`，基线 1200×800 可调大小，5s；图片异步段加长 15s 只看三态流转，不代替 R10 关闭）
 
 单行/多行/省略/富文本/图标行/图片三态；出图后主树重录仅一格（`paint_count` 可解释）；A–J 全族 + Golden。
 
@@ -256,14 +257,16 @@
 
 | 波 | 内容 | 先决 |
 | --- | --- | --- |
-| F0-1 | P5 主题与范围（种子对数 + `scope` 做实：ctx/states/resolve 全量 + Provider/Use 按 aspect 订阅 + depcheck/Token 编译期卡） | — |
-| F0-2 | P1 布局 + P2 装饰（+Spacer/IndexedStack/LayoutBuilder/基础 Table去留 + Flexible/约束4件/内在3件去留 + 边界件约束 + 补间Tween随曲线补） | F0-1（尺寸圆角色值全从主题来） |
+| F0-1 | P5 主题与范围（种子对数 + `scope` 做实：ctx/states/resolve 全量 + Provider/Use 按 aspect 订阅 + depcheck/Token 编译期卡 + 命名查重：导出名带前缀，不合打回） | — |
+| F0-2 | P1 布局 + P2 装饰（+Spacer/IndexedStack/LayoutBuilder/基础 Table去留 + Flexible/约束4件/内在3件去留 + 边界件约束 + 补间Tween随曲线补：曲线缺口底层并行补，motion 窗验收加“用到的曲线已补完带单测”） | F0-1（尺寸圆角色值全从主题来） |
 | F0-3 | P3 内容（+TextStyleScope/Picture/EditableText行 + IME 文字门：双向混排/回落/省略不过退回） | F0-2（文字图片都躺在布局盒里） |
 | F0-4 | P4 交互 + P5 表单浮层触发（+遍历快捷键/手势前置门/IME控制器接口 + Follow搬本波 + field/IME不倒挂） | F0-3（触发器要摆内容） |
-| F0-5 | §6 动效语义性能方向 + 门禁收尾（有名角色先行，合并排除动作退回；中央门禁改查 Props/State/接线/Token） | F0-4 |
-| F0-6 | 六个真窗全绿（含 motion 窗规格：转圈波纹Ticker+省动效开关）+ 三套主题 Golden 入库 + 人工签字 | F0-5 |
+| F0-5 | §6 动效语义性能方向 + 门禁收尾（有名角色先行，合并排除动作退回底层另立项，F0 只查有名有角色；中央门禁改查 Props/State/接线/Token；API 总账覆盖检查命令本波钉死，无命令 F1 不开） | F0-4 |
+| F0-6 | 六个真窗全绿（含 motion 窗规格：转圈波纹Ticker+省动效开关+`fps≥55`/hitch 预算按引擎 §2.2.2，时长按 R6 关闭用 30s）+ 三套主题 Golden 入库 + 人工签字 | F0-5 |
 
 ## 8. 交付清单（F0 做完必须有这些文件；每项状态只认 PROGRESS.md §1，源码对不上即假绿）
+
+F0 六窗与引擎证据关系：复用 R3/R4/R7/R10/R14 的能力与门禁口径，C0–C11 只做参考不代替关闭；R1/R15 本次不关。
 
 ```text
 ui/kit/internal/prim/{layout,decor,content}.go + 各 _test.go + testdata/*.json

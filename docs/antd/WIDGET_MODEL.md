@@ -11,7 +11,7 @@ ui/kit/button_props.go, button_state.go, button_render.go, button_theme.go, butt
 ui/kit/alert_props.go, alert_state.go, … → Alert（同理，一个组件可多个文件，文件名带组件前缀）
 ```
 
-- 五段缺一段先问：Props（对标 Widget）/ State（对标 State）/ Render（对标 RenderObject，只拼基础件）/ Theme（对标 ButtonStyle）/ Build（对标 build()，组合点）。
+- 五段缺一段先问：Props（对标 Widget）/ State（对标 State）/ Render（对标 RenderObject，只拼基础件）/ Theme（对标 ButtonStyle）/ Build（对标 build()，组合点）。`Ctx` 是横穿五段的东西（见 §5）：F 类组件（ConfigProvider/App）就是往 `Ctx` 里放东西，其验收以 §5 字段表为准，不只看五段。
 - 全库同包，导出名必须带组件前缀（如 `ButtonProps`、`AlertProps`、`BuildButton`），不许裸用 `Props`/`Instance`/`Build`（会重名编不过）。
 - 公开 API 只有三样：`<Comp>Props`、`<Comp>Instance`、`Build<Comp>(ctx, Props)`；其余全小写。
 - **禁止**：Render 段里出现用户文案、色值、字号数字（全走 Theme 段 + Props）；Props 段里出现悬停/按压判断（那是 State 段的活）；State 段里出现画布调用（那是 Render 段的活）。
@@ -90,6 +90,8 @@ func (in *ButtonInstance) Unmount()
 func (in *ButtonInstance) SetState(f func(*WidgetState)) // 唯一改状态的口：改完标脏，重排重画
 ```
 
+- 生命周期归属（谁调，不许自创）：窗口（窗侧 shell）建→调 `Mount`；Props 变→窗侧调 `Update`；窗口关→窗侧调 `Unmount`，按“浮层/定时器/图片请求先放，状态机后放”顺序；组件内部不许自己开关窗口、不许自己起 goroutine 常驻（动效走 `ui/scheduler` 节拍）。
+
 - 状态机（B 类通用，C/D/E 只加不减）：`idle→hover→pressed→idle`；`disabled` 全吞；`loading` 转且防重（点多少次只算一次）；`delay` 未到不转。
 - 受控 vs 非受控（C 类）：值有 `Value` + `DefaultValue` + `OnChange` 三件（抄 `FormField`/`Input`）；外面给了 `Value` 就是受控（内部不改，只回调），没给就是非受控（内部存一份）。Render 段只读“当前值”（一个 `Value()` 函数），不问受控非受控。
 - 拼写中不调回调（C 类铁律，复核补丁 1）：输入法拼写串（`composing`）只显示不算值，`Value()` 读提交值，`onChange` 只在提交时调一次；计数器、搜索联想、校验全看提交值。
@@ -121,6 +123,8 @@ type ButtonRenderNode interface {
 ```go
 // Ctx 是“往下流的东西”，Build/Layout/Paint 全透传，不读全局。
 // 按 aspect 订阅（对标 InheritedModel）：只刷依赖字段，不是全树重跑。
+// 版本规则：新增字段必须带缺省值，老组件不订阅就不刷；Ctx 建后只读，改就是造新的重跑 Build。
+// 缺省表：Size=medium、Disabled=false、Dir=ltr、Motion=开（跟随系统省动效）、Locale=zh-CN、挂载点=当前位置、同宽=跟随、溢出=viewport、空态/静态=默认实现、Variant=outlined。
 type Ctx struct {
     Theme    ThemeData      // Seed+Alias+各组件主题（各组件 Theme 段的 Resolve 入口）
     Size     SizeType       // ConfigProvider 尺寸（小/中/大）
@@ -157,10 +161,13 @@ type ButtonTheme struct {
 
 // 三级合并（对标 style > themeStyleOf > defaultStyleOf）：这次 Props > Ctx 组件主题 > 全局种子。
 // 合并点在 Resolve 内，调用方只传 Ctx 主题 + Props；ClassNames/Styles 逃生口同级合并，不盖主题结构。
+// 本节三条是全件铁律（纲），细则编号见 ARCH_REVIEW §5（1–6），两边对照不另起号。
 func ResolveButton(st ButtonTheme, p ButtonProps, s WidgetState) ResolvedButton
 ```
 
 - 受控铁律（全件）：所有 `value/open/current/fileList` 受控只回调不回写，非受控才自改；Select 引用不变不更新，Color 用对象保精度，Upload 不在列表忽略，Tour/Modal/Message 的 key/current/open 外部优先。
+- 禁用铁律（全件，或逻辑）：`Ctx.Disabled` 整树禁用与 Props `Disabled` 单组件禁用是或关系，谁禁都禁，单组件 `disabled=false` 不许顶掉整树禁用；整树禁用漏一件即 FAIL。
+- 尺寸/形态/动效优先级：单组件显式值优先于 Ctx 全局值（换肤切尺寸时显式值保留）；主题色值走三级合并；整树禁用走或逻辑。三行各管一行，不混用。
 - 拼写铁律（全输入框）：Input/Search/TextArea/Select搜索/AutoComplete/Mentions/DatePicker/ColorPicker-hex 组字期显示不同步值，`onChange/onSearch` 只提交调；DatePicker `preserveInvalidOnBlur` 与组字期互斥。
 - 键盘铁律（三类）：下拉类复用 Select 顺序（关→开→移→定→关，焦点留触发框）；面板类（日期/颜色/时间）开→方向移→Enter定→Esc关；弹窗类（Modal/Drawer/Tour）Tab圈地+Esc+焦点进出；Message 无键盘不抢焦点。
 
@@ -168,7 +175,7 @@ func ResolveButton(st ButtonTheme, p ButtonProps, s WidgetState) ResolvedButton
 - 焦点环全库统一：宽 3、色 `#91caff`、偏 1、只键盘亮、禁用不亮（抄 `genFocusOutline` + `alias.ts`）；各组件只写“圆按钮环是圆的”这类特例。
 - 转圈图标：开口圆环、无圆点、走节拍真转。
 
-## 7. 开工清单（按类勾，缺一个不开工）
+## 7. 开工清单（按类勾，缺一个不开工；另加 MATRIX 本组件缺口列全部，打勾才算完）
 
 - A 显示类：Props 表 + 拼装图 + Token 表；无障碍名字；三主题截图。
 - B 交互类：A 的全部 + 状态机单测（idle→hover→pressed→idle、禁用全吞、loading 防重）+ 键盘（Tab/回车空格/Esc）+ 焦点环 + 波纹/转圈 + StateResolver 全状态截图。
@@ -204,4 +211,4 @@ func BuildButton(ctx *scope.Ctx, p ButtonProps) *ButtonInstance {
 
 ## 10. 旧代码处理（只一句话：删了重写，不迁移）
 
-F0 定稿后，各组件开工第一步是清空 `ui/kit/<名>/*.go`（`testdata/` 旧图仅备查看效果，不做回归基准），按 §1–§8 在 `ui/kit/<名>_*.go` 重建五段；`examples/kit/<名>/` 同理只摆自己。`coverage.go` 与 README 旧看板冻结不再更新，新进度按 `ARCHITECTURE.md` §5 的 F0–F6 另起表。
+旧 `ui/kit/<子目录>/` 已清（`c79a141`）。各组件开工第一步是在 `ui/kit/<前缀>_*.go`（flat kit，无子目录）按 §1–§9 重建五段；`testdata/` 旧图已删无备查；`examples/kit/<短横线名>/` 同理只摆自己（源码前缀下划线、真窗目录短横线，如 `float_button_*.go` ↔ `examples/kit/float-button/`）。`coverage.go` 与 README 旧看板冻结不再更新，新进度唯一认 `PROGRESS.md`。

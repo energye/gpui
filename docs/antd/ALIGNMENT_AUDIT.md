@@ -43,7 +43,7 @@
 
 - Flutter：`Text: text.dart:497` + `RichText: basic.dart:6496` + `ParagraphBuilder` + 整形换行省略。
 - gpui：`ui/rendering/text.go:32`（`RenderText`）+ `paragraph.go:51`（`ParagraphBuilder`）+ 测量缓存（`text.go:571`）。
-- 结论：单样式多样式两件都在；双向混排、复杂整形、中日韩回落、省略最大行数，以排版单测和 `ui_wr_ime_r2` 为准，能过即用，不过退回文本域补。
+- 结论：单样式多样式两件都在；双向混排、复杂整形、中日韩回落、省略最大行数，以排版单测和 `ui_wr_ime_r2_textlayout`（文本系，非 widget 主表 R 号）为准，能过即用，不过退回文本域补。
 - 处置：**包一层复用**，F0-3 以测试为准。
 
 ## 7. 层合成：基本对齐

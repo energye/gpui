@@ -1,7 +1,8 @@
 # antd 全量组件 × 架构支撑矩阵（源码实核版）
 
 > 目标：回答“现架构能否撑起 antd 全部组件 1:1”。
-> 方法：逐组件看三样——`docs/antd/<名>.md` 的 §1 外观 §2 功能 §3 API（产品真值，demo 数与 API 数见 §8 基数表）+ `ant-design/components/<名>/index.tsx` 主文件（机制：状态/动画/定位/表单/浏览器 API）+ `style/`（Token 面）。
+> 方法：逐组件看三样——`docs/antd/<名>.md` 的 §1 外观 §2 功能 §3 API（产品真值；demo 数以各组件 §2.4 为准，含 debug 与子件，MATRIX 括号数为四舍五入概数，开工以 §2.4逐行勾选为准）+ `ant-design/components/<名>/index.tsx` 主文件（机制：状态/动画/定位/表单/浏览器 API）+ `style/`（Token 面）。
+> 缺口列是机制缺口（缺哪个小件/大件），demo/API 全覆盖以各组件 §6.8 P0/P1 表为准，机制补完不等于 demo 全验。
 > 架构标尺：L0 主题三级 / L1 prim / L2 behavior / L3 package kit（一组件可多文件，内分 Props/State/Render/Theme/Build 五段）/ L4 Ctx + ModalHost + 表单宿主。
 > 结论三档：**撑得住**（L1+L2 直接拼）/ **有条件**（要补小件，见缺口列）/ **撑不住**（要新建大件，见缺口列）。旧 `ui/kit` 实现作废，不计入。
 
@@ -11,8 +12,7 @@
 | --- | --- | --- | --- |
 | Alert（25 demo/16 API：四态/可关/操作/滚动显隐） | 撑得住 | Decorated + Icon + Label + 操作行 + Interactive（关闭/展开）+ Motion（显隐） | 无结构缺口；滚动显隐走 Motion |
 | Icon（11/7：双色/旋转/自定义） | 撑得住（L1 门面本身） | GlyphIcon（尺寸颜色走 Ctx）+ Motion（旋转） | F1 最先落地，供全库引用 |
-| Form（50/23：注册/校验/联动） | 有条件 | Field 注册表 + 校验链 + 联动 | **缺**：校验时机 + 异步防竞态（见铁律）+ 滚到首错 + preserve 联动 |
-| Typography（16 demo/25 API：省略/复制/编辑/多级标题） | 有条件 | Text/RichLabel + 按钮小件 +  Decorated | 省略多行（maxLines/ellipsis）走排版门面；复制编辑是小按钮回调，无缺口；**缺**：中日韩断行与装饰线（下划线/删除线 thickness）以排版单测为准 |
+| Typography（16/25：省略/复制/编辑/多级标题） | 有条件 | Text/RichLabel + 按钮小件 + Decorated | 省略多行走排版门面；复制编辑是小按钮回调；**缺**：中日韩断行与装饰线以排版单测为准；剪贴板宿主（桌面走系统剪贴板接口，F0 不做则 Skip 写清） |
 | Divider（12/12：横竖/虚线/带文） | 撑得住 | SizedBox + Center + Decorated（Border 画线，抄 Flutter `divider.dart:196` 同式） | 无 |
 | Tag（17/9：预设色/可关/可点/边框） | 撑得住 | Decorated + Label + Icon（关闭）+ Interactive | 预设色走组件 Token，无缺口 |
 | Badge（24/13：计数/圆点/状态/缎带/偏移） | 撑得住 | Stack + Positioned + Label/圆点 Decorated | 偏移量走 Token；滚动数字动画走 Motion 小件，无结构缺口 |
@@ -51,9 +51,9 @@ B 类共性：全部可拼；缺口见上表（Rate 半区/函数字符、Slider
 
 | 组件 | 结论 | 拼法 | 缺口 |
 | --- | --- | --- | --- |
-| Input（30/18：受控/清除/前后缀/计数/密码/搜索/多行/OTP/自适应高） | 撑得住 | Field + IME 会话（Editor+排版+会话，焦点驱动）+ 后缀 Icon | 多行自适应高（min/maxRows）走排版量高；OTP 为多框联动（焦点自动跳），以 Field 组补；无结构缺口 |
-| InputNumber（26/14：步进/精度/键盘/格式化） | 撑得住 | 同 Input + 步进按钮 + 解析格式化 | 精度与步进算法为纯函数，无缺口 |
-| Select（40/24：单多/标签/搜索/虚拟/分组/标签收起） | 有条件 | Field + OverlayTrigger 下拉 + 虚拟列表 + 标签行 | **缺**：多选标签收起 + 虚拟行高耦合（listHeight256/行24）+ popupMatch=false关虚拟 + 过滤排序OR + 搜索受控 + responsive损耗 + 无障碍降级（virtual=false绑真元素）+ `bind_count` 门禁 |
+| Input（30/18：受控/清除/前后缀/计数/密码/搜索/多行/OTP/自适应高） | 有条件 | Field + IME 会话（Editor+排版+会话，焦点驱动）+ 后缀 Icon | Field/受控/键盘部分无缺口；多行自适应高走排版量高；OTP 多框联动以 Field 组补；**条件**：真机打字链路以引擎文本系为准（F0 只留接口，见 F0 §6.3），接口未合入前真机打字项 Skip |
+| InputNumber（26/14：步进/精度/键盘/格式化） | 有条件 | 同 Input + 步进按钮 + 解析格式化 | 精度步进纯函数无缺口；真机打字条件同 Input |
+| Select（40/24：单多/标签/搜索/虚拟/分组/标签收起） | 有条件 | Field + OverlayTrigger 下拉 + 虚拟列表 + 标签行 | **缺**：多选标签收起 + 虚拟行高耦合（listHeight256/行24）+ popupMatch=false关虚拟 + 过滤排序OR + 搜索受控 + 无障碍降级（virtual=false 绑语义/焦点节点，桌面无“真元素”概念）+ `bind_count` 门禁 |
 | AutoComplete（23/7：等 Input+联想） | 撑得住 | Input + 联想浮层（Select 简化） | 搜索框拼写铁律同 Select |
 | Mentions（25/11：@人/联想/前后缀） | 撑得住 | 同 AutoComplete + 触发符解析 | 触发符解析纯函数，无缺口 |
 | Cascader（33/19：多级/搜索/懒加载） | 有条件 | Field + 多列浮层 + 树数据 | **缺**：懒加载（loadData 异步子节点）+ 多列联动，以树数据异步小件补 |
@@ -61,7 +61,7 @@ B 类共性：全部可拼；缺口见上表（Rate 半区/函数字符、Slider
 | DatePicker（38/21：面板/范围/预设/确认） | 有条件 | Field + 日历浮层（年月头+星期+格） | **缺**：日期引擎（GenerateConfig可插拔+多格式format+locale/周起始/佛历+disabled矩阵+Range/多选/order/预设函数+受控面板mode/pickerValue） |
 | TimePicker（28/12：滚轮/步进/范围） | 有条件 | Field + 时间滚轮浮层 | **缺**：滚轮列（时分秒列 + 步进禁用）以滚轮小件补；与 Date 共日期引擎 |
 | ColorPicker（27/23：面板/渐变/预设/触发） | 有条件 | Field + 颜色浮层（饱和面板+滑条+输入） | **缺**：颜色模型（渐变多stop+cleared+双回调onChange/Complete+受控对象精度+format/disabled三开关+panelRender）+ 饱和面板拖拽 |
-| Upload（34/11：队列/拖放/手动/图片墙） | 有条件 | Field + 文件队列 + 列表行 | **缺**：上传语义（LIST_IGNORE+beforeUpload三返回+受控忽略+uid补齐+maxCount替换截断+defaultRequest+预览管线previewFile/isImageUrl）+ 宿主三件（选文件/拖放/粘贴）；网络本身不在 F0 内 |
+| Upload（34/11：队列/拖放/手动/图片墙） | 有条件 | Field + 文件队列 + 列表行 | **缺**：上传语义（LIST_IGNORE+beforeUpload三返回+受控忽略+uid补齐+maxCount替换截断+defaultRequest+预览管线previewFile/isImageUrl，F0 内做）+ 宿主三件（选文件对话框/拖放/粘贴，桌面接口另行立项，F0 不做） |
 
 C 类共性：Field + IME + 浮层三件套全覆盖；缺口是日期引擎/颜色模型/上传语义/树异步四个大件 + Select 虚拟耦合门禁。
 
@@ -71,14 +71,16 @@ D 组子结论（`index.tsx` 实核，见任务回执）：气泡三件可直接
 
 | 组件 | 结论 | 拼法 | 缺口 |
 | --- | --- | --- | --- |
-| Tooltip/Popover/Popconfirm（20/19/22） | 撑得住 | B/C 触发 + OverlayTrigger（十二向/翻转/箭头/外点关/Esc/延时） | 右键 contextMenu 对齐点（alignPoint）以触发器补；`fresh` 缓存语义钉死 |
-| Dropdown（30/7：一级/右键/多级） | 有条件 | 同上 + 菜单内容 | **缺**：多级子菜单级联定位 + hover 延时链（P0 只收一级，多级延后）；划词 selection 位置注入 |
+| Tooltip（20/7） | 撑得住 | B/C 触发 + OverlayTrigger（十二向/翻转/箭头/外点关/Esc/延时） | 右键 contextMenu 对齐点（alignPoint，桌面走指针位置注入）以触发器补；`fresh` 缓存语义钉死 |
+| Popover（19/8） | 撑得住 | 同上 | 同上 |
+| Popconfirm（22/9） | 撑得住 | 同上 + 确认按钮 | 同上 |
+| Dropdown（30/7：一级/右键/多级） | 有条件 | 同上 + 菜单内容 | **缺**：多级子菜单级联定位 + hover 延时链（P0 只收一级，多级延后）；划词 selection 位置注入（桌面走选区读回，无选区则居触发器） |
 | Menu 弹出态（23/16：内嵌/横竖/溢出） | 有条件 | 内嵌先行 + 弹层走浮层宿主 | **缺**：弹层挂载（popupOffset/popupRender）+ 折叠 Tooltip 代偿 + 多级 hover 延时 |
 | Modal（30/18：遮罩/脚/确认框/命令式） | 有条件 | 浮层居中遮罩 + 焦点圈地 + Motion 进出 + ModalHost | **缺**：App 级 ModalHost（栈/z1000/嵌套/confirm+contextHolder/update/destroy/destroyAll/Promise/focusable回焦自动聚焦/mask合并/memo销毁/路由/scrollLock） |
 | Drawer（26/30：四向/多层/可调） | 有条件 | 同 Modal + 侧滑 | **缺**：同 ModalHost + 可调拖拽（onResize 系）+ 容器内渲染（局部宿主） |
 | Message（21/11：队列/倒计时/更新） | 撑不住（合队列层立项） | 单条 Entry 可挂 | **缺**：taskQueue/GlobalHolder+三路全局+pauseOnHover冻结+maxCountvsstack+Promise恰一次（见 D 队列层） |
 | Notification（25/17：六方位/进度/悬停暂停） | 撑不住（同队列层） | 同上 | **缺**：同队列层 + 四角独立池 + 进度条 + 悬停暂停 + 固定宽 |
-| Tour（18/12：分步/遮罩/高亮） | 撑不住（单独立项） | 非模态仅参考 | **缺**：RCTour委托+placements自适应+scrollIntoView+语义mask+zIndex上下文+焦点管理+1001盖1000+mask=false仍绘洞 |
+| Tour（18/12：分步/遮罩/高亮） | 撑不住（单独立项） | 非模态仅参考 | **缺**：RCTour委托+placements自适应+scrollIntoView（桌面走滚动宿主 `scrollTo` 对等）+语义mask+zIndex上下文+焦点管理+1001盖1000+mask=false仍绘洞 |
 
 D 类共性缺口（最大的一组）：ModalHost 弹框栈、通用 OverlayTrigger 触发件、消息队列层、Tour 遮罩打洞洞、四缺一不可。
 
@@ -86,9 +88,12 @@ D 类共性缺口（最大的一组）：ModalHost 弹框栈、通用 OverlayTri
 
 | 组件 | 结论 | 拼法 | 缺口 |
 | --- | --- | --- | --- |
-| Layout/Grid/Flex/Space（16/18/9/18） | 撑得住 | Row/Column/Constraint/Gutter/断点 | Sider 折叠动画走 Motion；断点（`responsiveObserver`/`useBreakpoint`）走 Ctx |
+| Layout（16/9） | 撑得住 | Row/Column/Constraint/Gutter/断点 | Sider 折叠动画走 Motion；断点走 Ctx |
+| Grid（18/11） | 撑得住 | 同上 | 同上 |
+| Flex（9/6） | 撑得住 | 同上 | 同上 |
+| Space（18/8） | 撑得住 | 同上 | 同上 |
 | Splitter（17/13：拖拽/折叠/懒） | 有条件 | Row/Column + 柄 Interactive 拖 | **缺**：拖拽分栏（`useResizable/useResize/useSizes` 对等：尺寸分配+折叠+懒更新）+ RTL 反向 |
-| Affix（9/4：固钉/占位） | 有条件 | 占位 SizedBox + 固定 Offset | **缺**：多源监听（scroll/resize/touch/pageshow/load）+ 目标容器注入 + 水平不支持 + resize跟随；与 Anchor/表头sticky共滚动宿主链路 |
+| Affix（9/4：固钉/占位） | 有条件 | 占位 SizedBox + 固定 Offset | **缺**：多源监听（scroll/resize/touch，桌面走滚动宿主+尺寸监听，pageshow/load 无 Web 场景丢弃）+ 目标容器注入 + 水平不支持 + resize跟随；与 Anchor/表头sticky共滚动宿主链路 |
 | Anchor（21/5：滚动联动高亮） | 有条件 | 纵排链接 + 内容滚动 | **缺**：滚动位置回读 + 联动高亮（AnchorLink/Anchor 对） |
 | Breadcrumb（20/5：溢出/下拉） | 撑得住 | Row + 分隔 + 省略 | 溢出省略走排版，分支下拉走 D 类 |
 | Pagination（24/12：页码/省略/跳页） | 撑得住 | Row 页码 + Field 跳页 | 页码省略纯函数，无缺口 |
@@ -115,7 +120,7 @@ E 类共性缺口：拖拽分栏、滚动联动（Affix/Anchor/表头）、高�
 
 | 组件 | 结论 | 拼法 | 缺口 |
 | --- | --- | --- | --- |
-| ConfigProvider（19/9：主题/尺寸/方向/语言/波纹/虚拟/前缀） | 有条件 | Ctx 全字段（见 WIDGET §5，含挂载点/同宽溢出/空态/静态/variant） | **缺**：getPopupContainer/getTargetContainer/popupMatch/Overflow/renderEmpty/holderRender 补6件；波纹进Motion；csp跳过 |
+| ConfigProvider（19/9：主题/尺寸/方向/语言/波纹/虚拟/前缀） | 有条件 | Ctx 全字段（见 WIDGET §5，含挂载点/同宽溢出/空态/静态/variant） | **缺**：getPopupContainer/getTargetContainer（桌面走 TargetContainer 注入，默认当前位置）/popupMatch/Overflow/renderEmpty/holderRender 补6件；波纹进Motion；csp 无 Web 场景丢弃（跨平台格填“桌面无此概念”） |
 | App（7/3：消息/弹窗/通知上下文） | 有条件 | Ctx + ModalHost + 消息队列宿主 | 依赖 D 类 Host/队列先落地；holderRender 同队列层落地 |
 | Locale（语言包） | 撑得住 | Ctx Locale + 文案表 | 空态日期文案走表，无缺口 |
 | Util（无 UI，纯函数） | 撑得住 | 不进 kit，按 §6 做类型对照 | 无 |
@@ -123,7 +128,8 @@ E 类共性缺口：拖拽分栏、滚动联动（Affix/Anchor/表头）、高�
 
 ## 7. 总结论
 
-- **撑得住**（直接拼，约 30 个）：Alert/Divider/Icon/Tag/Badge/Card/Empty/Result/Descriptions/Timeline/Button/Switch/Checkbox/Radio/Segmented/FloatButton/Input/InputNumber/AutoComplete/Mentions/气泡三件/Layout/Grid/Flex/Space/Breadcrumb/Pagination/Steps/List/Spin/Skeleton/Progress/Locale/Util/Theme/BorderBeam。
-- **有条件**（补小件后拼，约 38 个）：Typography/Avatar/Statistic/QRCode/Rate/Slider/Select/Cascader/TreeSelect/DatePicker/TimePicker/ColorPicker/Upload/Dropdown/Menu弹出/Table/Calendar/Tabs/Tree/Transfer/Collapse/Carousel/Watermark/Masonry/Splitter/Affix/Anchor/Modal/Drawer/ConfigProvider/App/Form（见上表）。
-- **撑不住直接拼**（G1–G7 七个大件，已补进 F0 §6.5 单独立项，不阻塞其他 60+ 个）：G1 弹窗宿主（Modal/Drawer）、G2 消息队列（Message+Notification合一项）、G3 漫游打洞（Tour）、G4 日期引擎、G5 颜色模型、G6 上传语义、G7 二维码编码库。
+- **撑得住**（直接拼，约 28 个）：Alert/Divider/Icon/Tag/Badge/Card/Empty/Result/Descriptions/Timeline/Button/Switch/Checkbox/Radio/Segmented/FloatButton/AutoComplete/Mentions/气泡三件/Layout/Grid/Flex/Space/Breadcrumb/Pagination/Steps/List/Spin/Skeleton/Progress/Locale/Util/Theme/BorderBeam。
+- **有条件**（补小件后拼，约 40 个）：Typography/Avatar/Statistic/QRCode/Input/InputNumber/Rate/Slider/Select/Cascader/TreeSelect/DatePicker/TimePicker/ColorPicker/Upload/Dropdown/Menu弹出/Table/Calendar/Tabs/Tree/Transfer/Collapse/Carousel/Watermark/Masonry/Splitter/Affix/Anchor/Modal/Drawer/ConfigProvider/App/Form（见 F 类）。
+- **撑不住直接拼**（G1–G7 七个大件，已补进 F0 §6.5 单独立项，不阻塞其他 60+ 个）：G1 弹窗宿主（Modal/Drawer）、G2 消息队列（Message+Notification合一项）、G3 漫游打洞（Tour）、G4 日期引擎、G5 颜色模型、G6 上传语义（纯语义 F0 内、宿主三件另立项）、G7 二维码编码库。
+- 引擎证据挂载（F0 复用不断线）：长列表挂 R7（`bind_count≪item_count`）、浮层挂 R8（主树 paint 不涨）、图片挂 R10（出图仅一格）、脏区挂 R3/R4、预算挂 R14、打字链路挂文本系（`ui_wr_ime_r2_textlayout` 起）；其余组件暂无专属 R，以 F0 六窗为证据。
 - 无结构性返工：所有缺口都是 L1/L2/F0 范围内的行为小件 + 日期引擎/颜色模型/上传语义/二维码编码四个大库 + 滚动/尺寸/可见性三宿主链路，没有要推翻分层和三件套的项。`border-beam` 为自有扩展，不计 antd 对齐口；`back-top`（源码有、文档无）按 FloatButton 回到顶能力覆盖，不单列。
