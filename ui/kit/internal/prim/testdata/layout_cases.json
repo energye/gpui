@@ -1,0 +1,131 @@
+{
+  "cases": [
+    {
+      "name": "row_tight_two_fixed",
+      "kind": "flex",
+      "horizontal": true,
+      "mainMax": 300,
+      "crossMax": 100,
+      "spacing": 8,
+      "dir": "ltr",
+      "cross": "start",
+      "items": [
+        {"fixedW": 100, "fixedH": 40},
+        {"fixedW": 80, "fixedH": 60}
+      ],
+      "wantOuter": {"w": 300, "h": 60},
+      "wantBoxes": [
+        {"w": 100, "h": 40, "x": 0, "y": 0},
+        {"w": 80, "h": 60, "x": 108, "y": 0}
+      ]
+    },
+    {
+      "name": "row_flex_weights",
+      "kind": "flex",
+      "horizontal": true,
+      "mainMax": 300,
+      "crossMax": 100,
+      "spacing": 8,
+      "dir": "ltr",
+      "cross": "start",
+      "items": [
+        {"fixedW": 100, "fixedH": 40},
+        {"flex": 1, "tight": true},
+        {"flex": 2, "tight": true}
+      ],
+      "wantOuter": {"w": 300, "h": 40},
+      "wantBoxes": [
+        {"w": 100, "h": 40, "x": 0, "y": 0},
+        {"w": 61.333333, "h": 0, "x": 108, "y": 0},
+        {"w": 122.666667, "h": 0, "x": 177.333333, "y": 0}
+      ]
+    },
+    {
+      "name": "column_wrap_content",
+      "kind": "flex",
+      "horizontal": false,
+      "mainMax": 1000000000,
+      "crossMax": 200,
+      "spacing": 10,
+      "dir": "ltr",
+      "cross": "start",
+      "items": [
+        {"fixedW": 120, "fixedH": 30},
+        {"fixedW": 90, "fixedH": 50}
+      ],
+      "wantOuter": {"w": 120, "h": 90},
+      "wantBoxes": [
+        {"w": 120, "h": 30, "x": 0, "y": 0},
+        {"w": 90, "h": 50, "x": 0, "y": 40}
+      ]
+    },
+    {
+      "name": "stack_positioned",
+      "kind": "stack",
+      "parentMaxW": 400,
+      "parentMaxH": 300,
+      "layers": [
+        {"w": 200, "h": 100},
+        {"w": 50, "h": 30, "positioned": true, "x": 10, "y": 20, "pw": 50, "ph": 30}
+      ],
+      "wantOuter": {"w": 200, "h": 100},
+      "wantBoxes": [
+        {"w": 200, "h": 100, "x": 0, "y": 0},
+        {"w": 50, "h": 30, "x": 10, "y": 20}
+      ]
+    },
+    {
+      "name": "wrap_two_runs",
+      "kind": "wrap",
+      "parentMaxW": 220,
+      "parentMaxH": 400,
+      "spacing": 8,
+      "runSpacing": 12,
+      "children": [
+        {"w": 100, "h": 40},
+        {"w": 100, "h": 40},
+        {"w": 100, "h": 40}
+      ],
+      "wantOuter": {"w": 208, "h": 92},
+      "wantBoxes": [
+        {"w": 100, "h": 40, "x": 0, "y": 0},
+        {"w": 100, "h": 40, "x": 108, "y": 0},
+        {"w": 100, "h": 40, "x": 0, "y": 52}
+      ]
+    },
+    {
+      "name": "aspect_fit_wide",
+      "kind": "aspect",
+      "parentMaxW": 300,
+      "parentMaxH": 200,
+      "ratio": 2,
+      "wantOuter": {"w": 300, "h": 150}
+    },
+    {
+      "name": "constrained_clamp",
+      "kind": "constrained",
+      "parentMinW": 0,
+      "parentMaxW": 500,
+      "parentMinH": 0,
+      "parentMaxH": 500,
+      "minW": 50,
+      "maxW": 120,
+      "minH": 20,
+      "maxH": 60,
+      "childW": 200,
+      "childH": 10,
+      "wantOuter": {"w": 120, "h": 20}
+    },
+    {
+      "name": "pad_outer",
+      "kind": "pad",
+      "childW": 100,
+      "childH": 40,
+      "l": 8,
+      "t": 12,
+      "r": 8,
+      "b": 12,
+      "wantOuter": {"w": 116, "h": 64}
+    }
+  ]
+}

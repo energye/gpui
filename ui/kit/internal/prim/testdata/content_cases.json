@@ -1,0 +1,66 @@
+{
+  "estimateCases": [
+    {
+      "name": "single_line",
+      "text": "Hello",
+      "fontSize": 14,
+      "approxW": 0.55,
+      "lineMult": 1.5,
+      "maxWidth": 0,
+      "maxLines": 0,
+      "wantW": 38.5,
+      "wantH": 21
+    },
+    {
+      "name": "multiline_height",
+      "text": "ab\ncde\nf",
+      "fontSize": 14,
+      "approxW": 0.55,
+      "lineMult": 1.5,
+      "maxWidth": 0,
+      "maxLines": 0,
+      "wantW": 23.1,
+      "wantH": 63
+    },
+    {
+      "name": "wrap_caps_width",
+      "text": "abcdefghij",
+      "fontSize": 14,
+      "approxW": 0.55,
+      "lineMult": 1.5,
+      "maxWidth": 40,
+      "maxLines": 0,
+      "wantW": 40,
+      "wantH": 42
+    },
+    {
+      "name": "ellipsis_truncates",
+      "text": "aa\nbb\ncc\ndd",
+      "fontSize": 14,
+      "approxW": 0.55,
+      "lineMult": 1.5,
+      "maxWidth": 0,
+      "maxLines": 2,
+      "wantLines": 2
+    }
+  ],
+  "mergeCases": [
+    {
+      "name": "child_wins_size",
+      "parent": {"fontSize": 12},
+      "child": {"fontSize": 18},
+      "wantSize": 18
+    },
+    {
+      "name": "unset_inherits",
+      "parent": {"fontSize": 12},
+      "child": {},
+      "wantSize": 12
+    }
+  ],
+  "iconCases": [
+    {"name": "small_tier", "size": "small", "disabled": false, "wantPx": 12},
+    {"name": "medium_tier", "size": "medium", "disabled": false, "wantPx": 16},
+    {"name": "large_tier", "size": "large", "disabled": false, "wantPx": 20}
+  ]
+}

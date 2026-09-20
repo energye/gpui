@@ -1,0 +1,45 @@
+{
+  "blendCases": [
+    {
+      "name": "opacity_065_mid_grey",
+      "dst": [0.08, 0.09, 0.11],
+      "src": [0.10, 0.11, 0.13],
+      "opacity": 0.65,
+      "want": [0.093, 0.103, 0.123]
+    },
+    {
+      "name": "opacity_zero_keeps_dst",
+      "dst": [0.2, 0.3, 0.4],
+      "src": [0.9, 0.8, 0.7],
+      "opacity": 0,
+      "want": [0.2, 0.3, 0.4]
+    },
+    {
+      "name": "opacity_one_takes_src",
+      "dst": [0.2, 0.3, 0.4],
+      "src": [0.9, 0.8, 0.7],
+      "opacity": 1,
+      "want": [0.9, 0.8, 0.7]
+    }
+  ],
+  "rrectCases": [
+    {"name": "center_hits", "x": 50, "y": 30, "w": 100, "h": 60, "r": 12, "want": true},
+    {"name": "corner_hole_misses", "x": 1, "y": 1, "w": 100, "h": 60, "r": 12, "want": false},
+    {"name": "corner_inside_arc_hits", "x": 8, "y": 8, "w": 100, "h": 60, "r": 12, "want": true},
+    {"name": "outside_misses", "x": 101, "y": 30, "w": 100, "h": 60, "r": 12, "want": false}
+  ],
+  "ovalCases": [
+    {"name": "oval_center_hits", "x": 50, "y": 30, "w": 100, "h": 60, "want": true},
+    {"name": "oval_corner_misses", "x": 2, "y": 2, "w": 100, "h": 60, "want": false}
+  ],
+  "gradientCases": [
+    {
+      "name": "primary_endpoints",
+      "from": "#1677ff",
+      "to": "#0958d9",
+      "midT": 0.5,
+      "wantFrom": "#1677ff",
+      "wantTo": "#0958d9"
+    }
+  ]
+}
