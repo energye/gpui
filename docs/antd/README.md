@@ -1,6 +1,8 @@
 # Ant Design 6.5.x → gpui 控件规格文档
 
-> 依据 [Ant Design 6.5.x](https://ant.design/components/overview) 官方文档整理。  
+> 依据 [Ant Design 6.5.x](https://ant.design/components/overview) 官方文档整理。
+> **新架构（2026-09-20 起唯一真源）**：先读 [`ARCHITECTURE.md`](./ARCHITECTURE.md)（需求架构，Flutter 对齐）+ [`WIDGET_MODEL.md`](./WIDGET_MODEL.md)（实现模型，三件套 Go 版），再看本目录各组件 §1–§3。
+> 旧 `ui/kit` 实现已推翻作废；各组件 §6 旧实现清单、旧 P0 用例号、旧波次 W0–W5 看板全部冻结备查，不指导开工；新波次 F0–F6 见 `ARCHITECTURE.md` §5。  
 > **每个控件一份 Markdown**，细度对齐 `button.md`（外观 / 功能 / 完整 API / 实现要点）。  
 > 用于产品控件的功能规格与验收清单。  
 > **渲染架构**见上级 [`ENGINE_FLUTTER_SKIA_ARCH.md`](../ENGINE_FLUTTER_SKIA_ARCH.md)（控件实现后置 P7，禁止绕过 Layer/直触 GPU）。
