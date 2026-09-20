@@ -119,7 +119,7 @@
 
 | 大件 | 源码证据 | 状态 | 验证 commit | 备注 |
 | --- | --- | --- | --- | --- |
-| G1 弹窗宿主 | `ui/kit/modal_host_*.go` + Modal/Drawer 接入 | ⬜未开 | — | 栈层叠+命令式+焦点圈地 |
+| G1 弹窗宿主 | `ui/kit/modal_host_*.go` + `examples/kit/modal-host/`（Modal/Drawer 接入待 F4） | ✅已签字 | 本次提交 | 栈1000/1010/1020+单关保序+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看 |
 | G2 消息队列 | `ui/kit/notice_queue_*.go` + Message/Notification 接入 | ⬜未开 | — | 超数丢最旧+悬停冻结 |
 | G3 漫游打洞 | `ui/kit/tour_mask_*.go` | ⬜未开 | — | 洞跟目标+点不透 |
 | G4 日期引擎 | `ui/kit/date_engine_*.go` | ⬜未开 | — | 可换实现 |
