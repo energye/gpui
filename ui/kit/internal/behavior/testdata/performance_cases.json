@@ -1,0 +1,1 @@
+{"budgets": {"maxP95Ms": 22.0, "minFPSWall": 55.0, "p95Ms": 18.0, "wantOK": true, "fpsWall": 58.0}, "cache": {"cap": 2, "keys": ["a", "b", "c"], "wantEvicted": "a", "wantLen": 2}, "isolation": {"animatedDirty": true, "siblingDirty": false, "wantOK": true}, "virtual": {"bound": 8, "total": 1000, "wantOK": true}}

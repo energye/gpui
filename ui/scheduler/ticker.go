@@ -86,7 +86,9 @@ func (r *TickerRegistry) HasActive() bool {
 }
 
 // TickAll advances all tickers with dt seconds; drops those returning false.
-// It also recomputes the frame-demand flag (see FrameWanted).
+// Tickers added from inside a Tick join the registry and survive this
+// round (they tick from the next TickAll). Tickers removed inside a Tick
+// stay removed even when their Tick returned true.
 func (r *TickerRegistry) TickAll(dt float64) {
 	if r == nil {
 		return
@@ -95,6 +97,8 @@ func (r *TickerRegistry) TickAll(dt float64) {
 	list := append([]Ticker(nil), r.tickers...)
 	r.mu.Unlock()
 	alive := make([]Ticker, 0, len(list))
+	aliveSet := make(map[Ticker]struct{}, len(list))
+	deadSet := make(map[Ticker]struct{}, 1)
 	wanted := false
 	var wakeMin time.Duration
 	hasWake := false
@@ -103,9 +107,11 @@ func (r *TickerRegistry) TickAll(dt float64) {
 			continue
 		}
 		if !t.Tick(dt) {
+			deadSet[t] = struct{}{}
 			continue
 		}
 		alive = append(alive, t)
+		aliveSet[t] = struct{}{}
 		if w, ok := t.(FrameWanter); !ok || w.WantsFrame() {
 			wanted = true
 		}
@@ -116,6 +122,27 @@ func (r *TickerRegistry) TickAll(dt float64) {
 		}
 	}
 	r.mu.Lock()
+	for _, cur := range r.tickers {
+		if cur == nil {
+			continue
+		}
+		if _, dropped := deadSet[cur]; dropped {
+			continue
+		}
+		if _, seen := aliveSet[cur]; seen {
+			continue
+		}
+		alive = append(alive, cur)
+		aliveSet[cur] = struct{}{}
+		if w, ok := cur.(FrameWanter); !ok || w.WantsFrame() {
+			wanted = true
+		}
+		if dw, ok := cur.(DeadlineWanter); ok {
+			if d, ok := dw.NextWake(); ok && (!hasWake || d < wakeMin) {
+				wakeMin, hasWake = d, true
+			}
+		}
+	}
 	r.tickers = alive
 	r.mu.Unlock()
 	r.frameWanted.Store(wanted)

@@ -245,8 +245,17 @@ func (s *FrameScheduler) FrameDue() bool {
 	// Software interval pacing (also the floor while a fresh-stamp render is
 	// not due yet): the loop targets this boundary via WaitTimeout, so the
 	// gate opens on the deadline even when the loop only re-checks on events.
-	if !now.Before(s.nextFrameBoundaryLocked()) {
-		s.lastFrameAt = now
+	// Phase-lock: advance by exactly one period (not snap to now) when the
+	// overshoot is less than a period. Snapping to now accumulates every
+	// WaitEvents oversleep (~0.1ms) into a random walk with positive bias
+	// (avg +0.1ms/frame → a missed vsync every ~2.5s at 0.9s/rev animation).
+	// Major stalls (>= period) resync to now to avoid spiral.
+	if boundary := s.nextFrameBoundaryLocked(); !now.Before(boundary) {
+		if period := s.boundaryPeriodLocked(); period > 0 && now.Sub(boundary) < period {
+			s.lastFrameAt = boundary
+		} else {
+			s.lastFrameAt = now
+		}
 		return true
 	}
 	return false

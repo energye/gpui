@@ -13,6 +13,11 @@ const HitchThresholdMs = 33.4
 // intervalRingCap is the sample window for p50/p99 frame intervals.
 const intervalRingCap = 256
 
+// percentilePool reuses the 256-sample sort buffer for Snapshot percentiles.
+// Snapshot runs per tick (60Hz+) in animation windows; allocating a fresh
+// slice each time costs ~250KB/s of pure GC churn for identical results.
+var percentilePool = sync.Pool{New: func() any { return make([]float64, intervalRingCap) }}
+
 // Present-policy names for Metrics JSON (ENGINE_UI_WIDGET_RENDER W0+).
 const (
 	PresentPolicyFullPaint = "full_paint"
@@ -57,8 +62,8 @@ type FrameMetrics struct {
 
 	// Present locality (序13 dirty-rect path; 0/empty when unavailable).
 	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
-	DamageAreaPx   int64  `json:"damage_area_px,omitempty"`
-	PresentMode    string `json:"present_mode,omitempty"` // full|damage_union|damage_multi (idle inputs preserve last real)
+	DamageAreaPx int64  `json:"damage_area_px,omitempty"`
+	PresentMode  string `json:"present_mode,omitempty"` // full|damage_union|damage_multi (idle inputs preserve last real)
 	// PresentModeAgeSec is seconds since the last REAL (non-idle) present
 	// set the mode (R3-6: idle frames preserve the value, so readers need
 	// its age to tell fresh steady-state from hours-stale residue).
@@ -66,7 +71,7 @@ type FrameMetrics struct {
 	// PresentModeAtNs is the internal timestamp behind PresentModeAgeSec
 	// (UnixNano, never marshalled).
 	PresentModeAtNs int64 `json:"-"`
-	DamageAreaLast int64  `json:"damage_area_last_px,omitempty"`
+	DamageAreaLast  int64 `json:"damage_area_last_px,omitempty"`
 
 	// DirtyLayerIDs is the last frame's dirty layer/boundary id list (R4b; the
 	// C-family dirty_layer_ids). Two distant hot spots → two ids. Empty/omitted
@@ -674,7 +679,8 @@ func (s *MetricsStore) percentilesLocked() (p50, p95, p99 float64) {
 	if n == 0 {
 		return 0, 0, 0
 	}
-	tmp := make([]float64, n)
+	tmp := percentilePool.Get().([]float64)[:n]
+	defer percentilePool.Put(tmp[:intervalRingCap])
 	// ring is filled [0,n) until full, then ringI wraps; always copy last n samples.
 	if n < intervalRingCap {
 		copy(tmp, s.ring[:n])

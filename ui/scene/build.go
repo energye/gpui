@@ -175,7 +175,10 @@ func (b *LayerBuilder) BuildPacket(frameID uint64, dpr, w, h float64) *FramePack
 	// Same walk also sums display-list ops (see PictureOpCount) and pins
 	// referenced image buffers on the packet (D15).
 	ops := 0
-	seenImg := make(map[*render.ImageBuf]struct{})
+	// Lazy image set: most frames draw no images (motion windows are solid
+	// boxes plus text). Allocating the dedup map upfront costs one map per
+	// frame (60Hz) for zero benefit; create it on the first image op.
+	var seenImg map[*render.ImageBuf]struct{}
 	Walk(b.root, func(l Layer) {
 		if pl, ok := l.(*PictureLayer); ok {
 			ops += pl.Picture.OpCount()
@@ -184,6 +187,9 @@ func (b *LayerBuilder) BuildPacket(frameID uint64, dpr, w, h float64) *FramePack
 			}
 			for i := range pl.Picture.Ops {
 				if op := &pl.Picture.Ops[i]; op.Kind == OpDrawImage && op.Image != nil {
+					if seenImg == nil {
+						seenImg = make(map[*render.ImageBuf]struct{})
+					}
 					if _, dup := seenImg[op.Image]; !dup {
 						seenImg[op.Image] = struct{}{}
 						pkt.RetainedImages = append(pkt.RetainedImages, op.Image)

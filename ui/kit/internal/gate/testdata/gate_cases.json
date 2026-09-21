@@ -1,0 +1,1 @@
+{"props": {"covered": 4, "missing": [], "total": 4, "wantOK": true}, "state": {"states": ["disabled", "hover", "loading"], "wantOK": true}, "token": {"fromTheme": true, "hardcoded": 0, "wantOK": true}, "wiring": {"imports": ["github.com/energye/gpui/ui/kit/internal/prim", "github.com/energye/gpui/ui/theme"], "wantBad": [], "wantOK": true}}
