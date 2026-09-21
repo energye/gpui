@@ -5,6 +5,10 @@
 // identical 16-bit lanes (same trick as chroma_amd64.s). Pixels widen
 // via PUNPCKLBW; products stay 16-bit (max 64*255+32 = 16352 < 32767).
 // Requires only SSE2 (baseline).
+//
+// S1b-K equal-weight lane (PAVGB, 16 pixels per call): w==32 is
+// (a+b+1)>>1, exactly what PAVGB computes in one instruction — no
+// widen/multiply/shift. Same SSE2 baseline, unaligned-safe (MOVOU).
 
 #include "textflag.h"
 
@@ -38,4 +42,15 @@ TEXT ·bipredRow8Arch(SB), NOSPLIT, $0-32
 	PSRAW $6, X0
 	PACKUSWB X0, X0
 	MOVQ X0, (DI)
+	RET
+
+// func bipredAvg16Arch(dst, src1 unsafe.Pointer)
+// Equal-weight average of 16 bytes in place: dst[i] = (dst[i]+s1[i]+1)>>1.
+TEXT ·bipredAvg16Arch(SB), NOSPLIT, $0-16
+	MOVQ dst+0(FP), DI
+	MOVQ src1+8(FP), SI
+	MOVOU (DI), X0
+	MOVOU (SI), X1
+	PAVGB X1, X0
+	MOVOU X0, (DI)
 	RET
