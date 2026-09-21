@@ -1,0 +1,44 @@
+{
+  "accept": {
+    "empty_pass": true,
+    "ext_case_insensitive": true,
+    "ext_png_match": "a.PNG",
+    "mime_exact_match": true,
+    "mime_prefix_match": true,
+    "reject_pdf": true
+  },
+  "default_props": {
+    "disabled": false,
+    "drag_hint": "Support for a single or bulk upload.",
+    "drag_text": "Click or drag file to this area to upload",
+    "list_type": "text",
+    "max_count": 0,
+    "multiple": false,
+    "show_upload_list": true,
+    "trigger_label": "Click to Upload",
+    "type": "select"
+  },
+  "geometry": {
+    "card_cell": {
+      "columns": 3,
+      "gap": 8,
+      "size": 102.0
+    },
+    "drag_pad": 16.0,
+    "drag_radius": 8.0,
+    "item_h": 32.0,
+    "item_margin": 4.0,
+    "item_pad": 4.0,
+    "progress_line": 2.0,
+    "thumb": 48.0
+  },
+  "tick": {
+    "rate_per_sec": 50.0,
+    "half_sec_percent": 25.0,
+    "secs_to_done": 2
+  },
+  "uid": {
+    "first": "uid-1",
+    "second": "uid-2"
+  }
+}
