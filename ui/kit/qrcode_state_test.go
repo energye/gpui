@@ -93,4 +93,17 @@ func TestQRCode_StateMachineMatchesCases(t *testing.T) {
 	if len(vhost.Values()) != 2 || vhost.Modules() < 21 {
 		t.Fatal("string[] must resolve two inputs and encode the first")
 	}
+	// Update with identical inputs skips re-encode; new value re-encodes.
+	uprops := qrProps("hello")
+	uhost := kit.BuildQRCode(kit.DefaultScopeCtx(), uprops)
+	before := uhost.Modules()
+	uhost.Update(kit.DefaultScopeCtx(), uprops)
+	if uhost.Modules() != before {
+		t.Fatal("same-input Update must keep the matrix")
+	}
+	uprops.Value = "https://ant.design"
+	uhost.Update(kit.DefaultScopeCtx(), uprops)
+	if uhost.Modules() == before {
+		t.Fatal("new-value Update must re-encode")
+	}
 }

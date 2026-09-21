@@ -55,4 +55,11 @@ func TestDateEngine_FormatParseMatchesCases(t *testing.T) {
 	if !ok || got.Month != 4 || got.Year != 2024 {
 		t.Fatalf("quarter parse = %+v,%v", got, ok)
 	}
+	// Repeat parses hit the format cache and stay identical.
+	for i := 0; i < 50; i++ {
+		got, ok = kit.ParseDateEngineDate("2024-02-29", []string{"YYYY-MM-DD"}, false, en)
+		if !ok || !got.SameDay(d) {
+			t.Fatalf("cached parse %d failed", i)
+		}
+	}
 }

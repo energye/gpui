@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // dateEngineToken is one compiled format unit.
@@ -142,8 +143,42 @@ type dateEngineParseGroup struct {
 	buddh bool
 }
 
-// buildDateEngineParser compiles one format into a full-match regex.
+// dateEngineParserCache memoizes compiled format parsers by format
+// string. Parse runs per keystroke; compiling per call wastes
+// milliseconds on every input. Compiled regexes and group tables are
+// read-only after build, so sharing them is race-free.
+var dateEngineParserCache = struct {
+	sync.RWMutex
+	m map[string]*dateEngineCachedParser
+}{m: make(map[string]*dateEngineCachedParser)}
+
+type dateEngineCachedParser struct {
+	re     *regexp.Regexp
+	groups []dateEngineParseGroup
+}
+
+// buildDateEngineParser compiles one format into a full-match regex,
+// reusing the cached build for repeat formats.
 func buildDateEngineParser(format string) (*regexp.Regexp, []dateEngineParseGroup) {
+	dateEngineParserCache.RLock()
+	if c, ok := dateEngineParserCache.m[format]; ok {
+		dateEngineParserCache.RUnlock()
+		return c.re, c.groups
+	}
+	dateEngineParserCache.RUnlock()
+	re, groups := compileDateEngineParser(format)
+	dateEngineParserCache.Lock()
+	if c, ok := dateEngineParserCache.m[format]; ok {
+		dateEngineParserCache.Unlock()
+		return c.re, c.groups
+	}
+	dateEngineParserCache.m[format] = &dateEngineCachedParser{re: re, groups: groups}
+	dateEngineParserCache.Unlock()
+	return re, groups
+}
+
+// compileDateEngineParser builds one format parser from scratch.
+func compileDateEngineParser(format string) (*regexp.Regexp, []dateEngineParseGroup) {
 	var b strings.Builder
 	var groups []dateEngineParseGroup
 	b.WriteString("^")

@@ -73,7 +73,9 @@ func (in *QRCodeInstance) Mount(ctx scope.Ctx) {
 	in.mounted = true
 }
 
-// Update swaps props/ctx snapshots and re-encodes on input change.
+// Update swaps props/ctx snapshots, re-encoding only when the encode
+// inputs (values, level, boost) changed. Theme/status-only updates skip
+// the encode, which dominates Update cost on long content.
 func (in *QRCodeInstance) Update(ctx scope.Ctx, next QRCodeProps) {
 	if in == nil {
 		return
@@ -81,14 +83,33 @@ func (in *QRCodeInstance) Update(ctx scope.Ctx, next QRCodeProps) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	in.ctx = ctx.Normalize()
-	in.props = next
+	if !sameQRCodeEncodeInput(in.props, next) {
+		in.props = next
+		in.reencodeLocked()
+	} else {
+		in.props = next
+	}
 	if !in.ctlStatus {
 		in.status = next.Status
 		if in.status == "" {
 			in.status = QRCodeStatusActive
 		}
 	}
-	in.reencodeLocked()
+}
+
+// sameQRCodeEncodeInput reports whether two prop sets encode identically.
+func sameQRCodeEncodeInput(a, b QRCodeProps) bool {
+	if a.ErrorLevel != b.ErrorLevel || a.BoostLevel != b.BoostLevel ||
+		a.BoostLevelSet != b.BoostLevelSet || a.ValuesSet != b.ValuesSet ||
+		a.Value != b.Value || len(a.Values) != len(b.Values) {
+		return false
+	}
+	for i := range a.Values {
+		if a.Values[i] != b.Values[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Unmount marks the host dead.
