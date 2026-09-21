@@ -97,3 +97,40 @@ func QRCodePaddedSize(modules, margin int) int {
 	}
 	return modules + margin*2
 }
+
+// ExcavateQRCodeIcon clears the modules overlapped by the center icon.
+// iconX/Y/W/H are content-relative logical pixels; module is the module
+// edge from QRCodeModuleSize. Returns a copy; the input matrix is kept.
+// Draw layers call this before rasterizing so the icon sits on white.
+func ExcavateQRCodeIcon(matrix [][]bool, iconX, iconY, iconW, iconH, module float64) [][]bool {
+	out := make([][]bool, len(matrix))
+	for i, row := range matrix {
+		out[i] = append([]bool(nil), row...)
+	}
+	if module <= 0 || iconW <= 0 || iconH <= 0 || len(matrix) == 0 {
+		return out
+	}
+	n := len(matrix)
+	c0 := int(iconX / module)
+	r0 := int(iconY / module)
+	c1 := int((iconX + iconW - 1) / module)
+	r1 := int((iconY + iconH - 1) / module)
+	if c0 < 0 {
+		c0 = 0
+	}
+	if r0 < 0 {
+		r0 = 0
+	}
+	if c1 >= n {
+		c1 = n - 1
+	}
+	if r1 >= n {
+		r1 = n - 1
+	}
+	for r := r0; r <= r1; r++ {
+		for c := c0; c <= c1; c++ {
+			out[r][c] = false
+		}
+	}
+	return out
+}

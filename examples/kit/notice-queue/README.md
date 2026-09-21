@@ -18,7 +18,9 @@ go run ./examples/kit/notice-queue -auto-only
 |------|----------|----------|
 | 顶中两条 | message 轻条纵向堆叠，top=8 起排 | 超数丢最旧，单测断 FIFO |
 | 右两卡 | topRight 独立池 x2，不串池 | 各池独立，单关保邻 |
-| 左下卡 | bottomLeft 独立池 | 六角池占位，后补全引擎 |
+| 池子行 | top/bottom/topLeft/bottomRight 各一，六池全活 | 几何单测断六角定位 |
+| 折叠行 | 5 超 3 只展最新一条加计数 1+4 | VisibleCount 单测 |
+| 左下卡 | bottomLeft 独立池 | 六池全摆，无占位 |
 | 右小卡 | 换肤 `#722ed1` 静态调用 | 只换 Ctx，组件代码不动 |
 | 底细条 | 进度色带 | showProgress 走主题主色 |
 | 说明块 | 单关保邻加悬停冻结文案 | 文字密度探针 |

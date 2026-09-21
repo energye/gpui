@@ -125,7 +125,7 @@
 | G4 日期引擎 | `ui/kit/date_engine_*.go` + `examples/kit/date-engine/`（DatePicker/Calendar 接入待 F3/F5） | ✅已签字 | 本次提交 | 闰年周起始全对+多格式首个展示+佛历+disabled矩阵+Range排序+多选+预设函数+受控面板+可换实现；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看 |
 | G5 颜色模型 | `ui/kit/color_model_*.go` + `examples/kit/color-model/`（ColorPicker 接入待 F3） | ✅已签字 | 本次提交 | HSB来回±1+受控对象精度+拖中回调松手提交+渐变stops排序+三开关+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看（占位结构已确认，最终像素待F3） |
 | G6 上传语义 | `ui/kit/upload_*.go` + `examples/kit/upload/`（Upload 接入待 F3） | 🟩已绿 | 本次提交 | uid补齐+LIST_IGNORE+beforeUpload三返回+受控忽略+maxCount替换截断+默认Tick渐进+业务三回调+宿主三件+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+待人工看 |
-| G7 二维码编码库 | `ui/kit/qrcode_*.go` + `examples/kit/qrcode/`（QRCode 接入待 F5） | ✅已签字 | 本次提交 | skip2纯Go后端可换+白边剥离绘制层加+boost自动抬升+M升H实数+四态cover+刷新一次+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看 |
+| G7 二维码编码库 | `ui/kit/qrcode_*.go` + `examples/kit/qrcode/`（QRCode 接入待 F5） | 🟩已绿 | 本次提交 | skip2纯Go后端可换+白边剥离绘制层加+boost自动抬升+M升H实数+四态cover+刷新一次+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+待人工看 |
 
 ## 4. 新会话定位流程（照做就不丢）
 

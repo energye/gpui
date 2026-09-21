@@ -220,6 +220,44 @@ func main() {
 	capNote.Place(wrkit.Label("same value same code", 10, 0.55, 0.65, 0.78), 8, 52)
 	capNote.Place(wrkit.Label(fmt.Sprintf("backend=%s", qr.Generate().Name()), 10, 0.55, 0.65, 0.78), 8, 74)
 	shell.Body.Place(capNote, 524, 170)
+	// Margin + excavate card: margin-2 raster and icon-dug raster prove
+	// the draw-layer helpers on live matrices (outside golden mask).
+	marginCard := rendering.NewAbsoluteBox(300, 190)
+	marginCard.Background = &rendering.Color{R: dimBG[0], G: dimBG[1], B: dimBG[2], A: 1}
+	marginCard.SetDebugName("g7-qr-margin")
+	marginCard.SetRepaintBoundary(true)
+	shell.Body.Place(marginCard, 24, 250)
+	marginCard.Place(wrkit.Label("margin 2 excavate live", 11, 0.62, 0.72, 0.85), 10, 8)
+	helloMatrix, _ := kit.DefaultQRCodeGenerateConfig().Encode("hello", kit.QRErrorLevelM)
+	if len(helloMatrix) > 0 {
+		mimg := rasterizeQRCode(helloMatrix, 2, resolved.Module, white, 3)
+		if mimg != nil {
+			mnode := rendering.NewRenderImage(75, 75)
+			mnode.SetImage(mimg)
+			mnode.SetDebugName("g7-qr-margin-img")
+			marginCard.Place(mnode, 12, 32)
+		}
+		marginCard.Place(wrkit.Label(fmt.Sprintf("margin2 edge=%d", kit.QRCodePaddedSize(len(helloMatrix), 2)), 10, 0.55, 0.65, 0.78), 95, 40)
+		marginCard.Place(wrkit.Label("origin shifts 2mod", 10, 0.55, 0.65, 0.78), 95, 62)
+		dug := kit.ExcavateQRCodeIcon(helloMatrix, (63-15)/2, (63-15)/2, 15, 15, 3)
+		dimg := rasterizeQRCode(dug, 0, resolved.Module, white, 3)
+		if dimg != nil {
+			dnode := rendering.NewRenderImage(63, 63)
+			dnode.SetImage(dimg)
+			dnode.SetDebugName("g7-qr-dug-img")
+			marginCard.Place(dnode, 12, 115)
+		}
+		cleared := 0
+		for r := range dug {
+			for c := range dug[r] {
+				if helloMatrix[r][c] && !dug[r][c] {
+					cleared++
+				}
+			}
+		}
+		marginCard.Place(wrkit.Label(fmt.Sprintf("dug 5x5 clears %d", cleared), 10, 0.55, 0.65, 0.78), 85, 125)
+		marginCard.Place(wrkit.Label("finder survives", 10, 0.55, 0.65, 0.78), 85, 147)
+	}
 
 	snapDir := filepath.Join("examples", "kit", "qrcode", "testdata")
 	if err := os.MkdirAll(snapDir, 0o755); err != nil {

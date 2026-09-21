@@ -49,4 +49,38 @@ func TestQRCode_GeometryMatchesCases(t *testing.T) {
 	if kit.QRCodeLineWidth != geo["line"].(float64) {
 		t.Fatal("lineWidth must be 1")
 	}
+	// Excavate: center 5x5 of hello clears, finder survives, input kept.
+	gen := kit.DefaultQRCodeGenerateConfig()
+	hello, err := gen.Encode("hello", kit.QRErrorLevelM)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	mod = kit.QRCodeModuleSize(136, len(hello), 0)
+	cx := (136 - 5*mod) / 2
+	dug := kit.ExcavateQRCodeIcon(hello, cx, cx, 5*mod, 5*mod, mod)
+	cleared := 0
+	for r := 0; r < len(dug); r++ {
+		for c := 0; c < len(dug); c++ {
+			if hello[r][c] && !dug[r][c] {
+				cleared++
+			}
+			if !hello[r][c] && dug[r][c] {
+				t.Fatalf("excavate must never darken %d,%d", r, c)
+			}
+		}
+	}
+	if cleared == 0 {
+		t.Fatal("excavate must clear covered dark modules")
+	}
+	if !dug[0][0] || dug[1][1] {
+		t.Fatal("finder must survive excavate")
+	}
+	// Margin 2 pads the edge by 4.
+	if kit.QRCodePaddedSize(len(hello), 2) != len(hello)+4 {
+		t.Fatal("margin 2 must pad 4")
+	}
+	mx, my := kit.QRCodeModuleXY(12, 12, mod, 0, 0, 2)
+	if mx != 12+2*mod || my != 12+2*mod {
+		t.Fatalf("margined origin = %v,%v", mx, my)
+	}
 }

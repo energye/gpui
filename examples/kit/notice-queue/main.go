@@ -128,6 +128,11 @@ func main() {
 	queue.OpenNotification(nk("n1", "topRight card", "topRight", kit.NoticeQueueNotificationSuccess))
 	queue.OpenNotification(nk("n2", "topRight second", "topRight", kit.NoticeQueueNotificationInfo))
 	queue.OpenNotification(nk("n3", "bottomLeft card", "bottomLeft", kit.NoticeQueueNotificationWarning))
+	// Remaining pools: top, bottom, topLeft, bottomRight each hold one.
+	queue.OpenNotification(nk("n4", "top card", "top", kit.NoticeQueueNotificationInfo))
+	queue.OpenNotification(nk("n5", "bottom card", "bottom", kit.NoticeQueueNotificationInfo))
+	queue.OpenNotification(nk("n6", "topLeft card", "topLeft", kit.NoticeQueueNotificationWarning))
+	queue.OpenNotification(nk("n7", "bottomRight card", "bottomRight", kit.NoticeQueueNotificationError))
 	skinQueue := kit.BuildNoticeQueue(skinCtx, kit.DefaultNoticeQueueProps())
 	skinQueue.OpenNotification(nk("s1", "reskin static", "topRight", kit.NoticeQueueNotificationInfo))
 
@@ -139,6 +144,8 @@ func main() {
 		"top center: two stacked tips",
 		"right: topRight pool x2 cards",
 		"left bottom: bottomLeft pool",
+		"row: top bottom topLeft bottomRight live",
+		"stack 5 over 3 shows 1 folds 4",
 		"far right: reskinned holder",
 		"bottom: progress strip frozen",
 		"resize once, restore baseline",
@@ -172,6 +179,17 @@ func main() {
 	capNote.Place(wrkit.Label("destroy one keeps rest", 11, 0.62, 0.72, 0.85), 8, 8)
 	capNote.Place(wrkit.Label("hover freezes clock", 10, 0.55, 0.65, 0.78), 8, 30)
 	shell.Body.Place(capNote, 24, 200)
+	// Pool row: the four unshown pools, each with its live card.
+	poolNames := []string{"top pool", "bottom pool", "topLeft pool", "bottomRight pool"}
+	for i, name := range poolNames {
+		mini := noticeCard(name, resolved.NoticeBg, 150, 64)
+		shell.Body.Place(mini, 24+float64(i)*160, 332)
+	}
+	vis, folded := kit.NoticeQueueVisibleCount(5, true, 3)
+	stackLine := rendering.NewAbsoluteBox(320, 24)
+	stackLine.Background = &rendering.Color{R: noteBG[0], G: noteBG[1], B: noteBG[2], A: 1}
+	stackLine.Place(wrkit.Label(fmt.Sprintf("stack 5 over 3 shows %d folds %d", vis, folded), 10, 0.55, 0.65, 0.78), 8, 4)
+	shell.Body.Place(stackLine, 24, 404)
 
 	snapDir := filepath.Join("examples", "kit", "notice-queue", "testdata")
 	if err := os.MkdirAll(snapDir, 0o755); err != nil {
@@ -309,6 +327,10 @@ func main() {
 			"notification_count":     queue.NotificationCount(),
 			"topright_count":         queue.NotificationCount(kit.NoticeQueuePlacementTopRight),
 			"bottomleft_count":       queue.NotificationCount(kit.NoticeQueuePlacementBottomLeft),
+			"top_count":              queue.NotificationCount(kit.NoticeQueuePlacementTop),
+			"bottom_count":           queue.NotificationCount(kit.NoticeQueuePlacementBottom),
+			"topleft_count":          queue.NotificationCount(kit.NoticeQueuePlacementTopLeft),
+			"bottomright_count":      queue.NotificationCount(kit.NoticeQueuePlacementBottomRight),
 			"skin_holder":            skinQueue.HolderContent("notification"),
 			"scripted_ok":            scriptedOK,
 			"scripted_total":         scriptedTotal,

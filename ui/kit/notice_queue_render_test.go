@@ -24,6 +24,23 @@ func TestNoticeQueue_GeometryMatchesCases(t *testing.T) {
 	if blCard.W != bl["want_w"].(float64) || blCard.X != bl["want_x"].(float64) {
 		t.Fatalf("bottomLeft card = %.1f want x24", blCard.X)
 	}
+	// All six pools anchor correctly: top centers, bottom hugs the edge.
+	topCard := kit.ComputeNoticeQueueNotificationCard(1200, 800, kit.NoticeQueuePlacementTop, 0, 24, 24, kit.ZIndexForNoticeKind(1000, "notification"))
+	if topCard.X != (1200-384)/2 || topCard.Y != 24 {
+		t.Fatalf("top card = %.1f,%.1f want 408,24", topCard.X, topCard.Y)
+	}
+	botCard := kit.ComputeNoticeQueueNotificationCard(1200, 800, kit.NoticeQueuePlacementBottom, 0, 24, 24, kit.ZIndexForNoticeKind(1000, "notification"))
+	if botCard.X != (1200-384)/2 || botCard.Y != 800-24-120 {
+		t.Fatalf("bottom card = %.1f,%.1f want 408,656", botCard.X, botCard.Y)
+	}
+	tlCard := kit.ComputeNoticeQueueNotificationCard(1200, 800, kit.NoticeQueuePlacementTopLeft, 0, 24, 24, kit.ZIndexForNoticeKind(1000, "notification"))
+	if tlCard.X != 24 || tlCard.Y != 24 {
+		t.Fatalf("topLeft card = %.1f,%.1f want 24,24", tlCard.X, tlCard.Y)
+	}
+	brCard := kit.ComputeNoticeQueueNotificationCard(1200, 800, kit.NoticeQueuePlacementBottomRight, 0, 24, 24, kit.ZIndexForNoticeKind(1000, "notification"))
+	if brCard.X != 1200-24-384 || brCard.Y != 800-24-120 {
+		t.Fatalf("bottomRight card = %.1f,%.1f want 792,656", brCard.X, brCard.Y)
+	}
 	z := cases["z"].(map[string]any)
 	if float64(kit.ZIndexForNoticeKind(1000, "message")) != z["message"].(float64) {
 		t.Fatalf("message z = %d want 2010", kit.ZIndexForNoticeKind(1000, "message"))
