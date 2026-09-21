@@ -32,7 +32,7 @@
 | F0-3 内容 | `ui/kit/internal/prim/content.go` + `ui/kit/prim.go` 内容门面 | `content_test.go`（估算+合并+三态+图标，逐文件跑全绿） | `examples/kit_f0_content/`（-auto-only 全绿 6/6 + Golden 差异0 + 调大小回基线；F0-1/F0-2回归绿） | 🟩已绿 | 本次提交 | 文字三区墨量≥60+图片到图报错各只标脏一格+fps58；未动他线文件 |
 | F0-4 交互+触发 | `ui/kit/internal/behavior/{interactive,field,overlay_trigger}.go` + `ui/kit/behavior.go` 公开门面 | 三个 `_test.go`（五态/受控/外点关，逐文件跑全绿） | `examples/kit_f0_interact/`（-auto-only 全绿 15/15 + Golden 差异0 + 调大小回基线；F0-1/F0-2/F0-3回归绿） | 🟩已绿 | 本次提交 | 点击计1/禁用0/防重0+受控只回调+拼写提交一次+四向精确翻转+外点关Esc+焦点锁+环只键盘亮+命中一致+浮层只脏一格+fps58；未动他线文件 |
 | F0-5 动效语义性能方向+门禁 | `ui/kit/internal/behavior/{motion,semantics,performance,direction}.go` + `ui/kit/internal/gate/{props,state,wiring,token}.go` + `ui/kit/{behavior,gate}.go` 门面 + `ui/scheduler/ticker.go` 收尾合并修 + `docs/antd/F0_GATE_CHECK.md` 门禁命令 | 五个 `_test.go` + `ticker_late_add_test.go`（逐文件跑全绿）+ 门禁自检（接线ok/自有硬编码ok/构建ok） | `examples/kit_f0_motion/`（-auto-only 全绿 17/17 + Golden 差异0 + 调大小回基线 + 省画retained/damage_union/damage0.09 + 光栅0.22ms；F0-1~F0-4回归绿） | 🟩已绿 | 本次提交 | 转圈真转+省动效全停+波纹点后散+有名有角色+RTL镜像+四门禁自检+fps59.7；底层修在调度器收尾合并处；未动他线文件 |
-| F0-6 六窗全绿签字 | 六窗 `main.go` + 三套主题 Golden | — | 六窗 `-auto-only` 全绿 + 人工签字 | ⬜未开 | — | 先决 F0-5；签字不过 F1 不开 |
+| F0-6 六窗全绿签字 | 六窗 `main.go` + Golden 基线（各窗 `testdata/showcase_*_base.png` 已入库） | — | 六窗 `-auto-only` 全绿（scope3/3、layout3/3、decor3/3、content6/6、interact15/15、motion17/17，Golden全0差异，调大小回基线）+ 人工签字（用户2026-09-21确认六窗通过） | 🟩已绿 | 本次提交 | 缺口记账：三套主题切换Golden未实现、F0_SIGNOFF.md未建、Wayland双证据未跑；未动他线文件 |
 
 ## 2. F1–F6 组件（每行一组件，源码对不上即假绿）
 
