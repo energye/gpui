@@ -176,7 +176,7 @@ func main() {
 	anchorBox.SetShellBoundary(true)
 	shell.Body.Place(anchorBox, 632, 180)
 	shell.Body.Box.Place(wrkit.Label("Follow anchor+follower", 11, 0.62, 0.72, 0.85), 632, 160)
-	resolved := kit.PrimResolveFollower(anchor, 160, 36, overlay.Placement("bottom"), nil)
+	resolved := kit.BehaviorResolveFollower(anchor, 160, 36, overlay.Bottom, nil)
 	followBox := rendering.NewRenderColorBox(160, 36, tok.ColorSuccess.R, tok.ColorSuccess.G, tok.ColorSuccess.B, 1)
 	followBox.SetRepaintBoundary(true)
 	shell.Body.Place(followBox, resolved.X-440, resolved.Y-160)
@@ -302,6 +302,7 @@ func main() {
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "F0-decor",
 		Scenario:      "kit_f0_decor",
+		Backend:       win.Backend().String(),
 		Snap:          snap,
 		PresentCount:  app.PresentCount(),
 		ElapsedSec:    elapsedSec,

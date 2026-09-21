@@ -14,8 +14,12 @@ import (
 
 // Report is the §2.2 JSON shell emitted by every ui_wr_* window example.
 type Report struct {
-	AbilityID     string  `json:"ability_id"`
-	Scenario      string  `json:"scenario"`
+	AbilityID string `json:"ability_id"`
+	Scenario  string `json:"scenario"`
+	// Backend is the display backend backing the window (x11/wayland/...).
+	// Set from win.Backend() by examples; empty means "not recorded".
+	// Wayland evidence requires backend=wayland (see ENGINE_WAYLAND_NESTED_TEST §4).
+	Backend       string  `json:"backend,omitempty"`
 	PresentPolicy string  `json:"present_policy"`
 	TargetHz      float64 `json:"target_hz"`
 	// FPSWall is present_count/elapsed_sec (includes open/close overhead — often low).
@@ -87,6 +91,7 @@ type Report struct {
 type BuildInput struct {
 	AbilityID     string
 	Scenario      string
+	Backend       string // win.Backend().String(); empty = not recorded
 	Snap          scheduler.FrameMetrics
 	PresentCount  int64
 	ElapsedSec    float64
@@ -119,6 +124,7 @@ func BuildReport(in BuildInput) Report {
 	r := Report{
 		AbilityID:         in.AbilityID,
 		Scenario:          in.Scenario,
+		Backend:           in.Backend,
 		PresentPolicy:     pol,
 		TargetHz:          60,
 		FPSWall:           fpsWall,

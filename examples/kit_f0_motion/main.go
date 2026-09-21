@@ -189,7 +189,6 @@ func main() {
 	resizeDone, resizeBack := false, false
 	phSpin, phFrozen, phWaveStart, phWaveMid, phWaveDone, phAudit, phFinal, phParked := false, false, false, false, false, false, false, false
 	var app *embedder.PipelineApp
-	var regSetup *scheduler.TickerRegistry
 	app = embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: clearBG[0], ClearG: clearBG[1], ClearB: clearBG[2], ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
@@ -238,7 +237,7 @@ func main() {
 	}
 	spinner.Controller().OnValue(func(v float64) { placeAt(v * 360) })
 
-	regSetup = app.Scheduler().Tickers()
+	regSetup := app.Scheduler().Tickers()
 	regSetup.Add(&ticker{on: func(dt float64) {
 		elapsed += dt
 		if ctl != nil && !resizeDone && elapsed >= 2.0 {
@@ -402,6 +401,7 @@ func main() {
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "F0-motion",
 		Scenario:      "kit_f0_motion",
+		Backend:       win.Backend().String(),
 		Snap:          snap,
 		PresentCount:  app.PresentCount(),
 		ElapsedSec:    elapsedSec,

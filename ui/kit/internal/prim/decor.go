@@ -9,7 +9,6 @@
 package prim
 
 import (
-	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/theme"
 )
@@ -303,15 +302,4 @@ func NewCustomPaint(w, h float64, painter Painter, boundary bool, child renderin
 		b.SetRepaintBoundary(true)
 	}
 	return b
-}
-
-// ---- FollowTarget / Follower (overlay定位唯一口) ----
-
-// FollowPlacement re-exports the overlay placement vocabulary.
-type FollowPlacement = overlay.Placement
-
-// ResolveFollower positions a follower rect from an anchor rect without
-// reimplementing placement: the only call is overlay.Resolve.
-func ResolveFollower(anchor rendering.Rect, ow, oh float64, want FollowPlacement, opt *overlay.ResolveOptions) overlay.Resolved {
-	return overlay.Resolve(anchor, ow, oh, want, opt)
 }

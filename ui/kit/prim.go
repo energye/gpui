@@ -2,7 +2,6 @@ package kit
 
 import (
 	"github.com/energye/gpui/ui/kit/internal/prim"
-	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/theme"
 )
@@ -55,8 +54,6 @@ type (
 	PrimIconSpec = prim.IconSpec
 	// PrimTextStyleScope carries one inherited style level.
 	PrimTextStyleScope = prim.TextStyleScope
-	// PrimFollowPlacement is the overlay placement vocabulary.
-	PrimFollowPlacement = prim.FollowPlacement
 )
 
 const (
@@ -236,11 +233,6 @@ func PrimFittedScale(parentW, parentH, childW, childH float64) float64 {
 // PrimNewCustomPaint builds a custom-paint box.
 func PrimNewCustomPaint(w, h float64, painter PrimPainter, boundary bool, child rendering.RenderObject) *rendering.RenderBox {
 	return prim.NewCustomPaint(w, h, painter, boundary, child)
-}
-
-// PrimResolveFollower positions a follower via overlay only.
-func PrimResolveFollower(anchor rendering.Rect, ow, oh float64, want PrimFollowPlacement, opt *overlay.ResolveOptions) overlay.Resolved {
-	return prim.ResolveFollower(anchor, ow, oh, want, opt)
 }
 
 // Content facades.

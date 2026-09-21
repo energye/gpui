@@ -465,6 +465,7 @@ func main() {
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "F0-interact",
 		Scenario:      "kit_f0_interact",
+		Backend:       win.Backend().String(),
 		Snap:          snap,
 		PresentCount:  app.PresentCount(),
 		ElapsedSec:    elapsedSec,
