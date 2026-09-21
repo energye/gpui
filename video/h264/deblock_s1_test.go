@@ -193,12 +193,14 @@ func TestS1DeblockRealFrameMatchesScalar(t *testing.T) {
 		pre0, qps, fIDC, fA, fB := cfg(d0)
 		DeblockPicture(pre0, qps, fIDC, fA, fB, d0.mbW, d0.mbH, d0.cOff0, d0.cOff1,
 			d0.mbIntra, d0.nnzY, d0.mvX, d0.mvY, d0.refIdx, d0.refList, d0.mbT8,
-			d0.bDeblockMVX1(), d0.bDeblockMVY1(), d0.bDeblockRef1(), d0.refList1, d0.bDeblockUseM())
+			d0.bDeblockMVX1(), d0.bDeblockMVY1(), d0.bDeblockRef1(), d0.refList1, d0.bDeblockUseM(),
+			nil, nil)
 		deblockScalarForced = true
 		pre1, _, _, _, _ := cfg(d1)
 		DeblockPicture(pre1, qps, fIDC, fA, fB, d0.mbW, d0.mbH, d0.cOff0, d0.cOff1,
 			d0.mbIntra, d0.nnzY, d0.mvX, d0.mvY, d0.refIdx, d0.refList, d0.mbT8,
-			d0.bDeblockMVX1(), d0.bDeblockMVY1(), d0.bDeblockRef1(), d0.refList1, d0.bDeblockUseM())
+			d0.bDeblockMVX1(), d0.bDeblockMVY1(), d0.bDeblockRef1(), d0.refList1, d0.bDeblockUseM(),
+			nil, nil)
 		for j := range pre0.Y {
 			if pre0.Y[j] != pre1.Y[j] {
 				t.Fatalf("%s frame 0 Y byte %d dispatch=%d scalar=%d", path, j, pre0.Y[j], pre1.Y[j])
@@ -233,5 +235,168 @@ func BenchmarkS1DeblockScalarVsDispatch(b *testing.B) {
 				deblockLumaFast(p, 64, 32, 8, false, tc.bS, 40, 10, 2)
 			}
 		})
+	}
+}
+
+// S1b-E gate: the uniform-edge shortcut equals the per-segment slow
+// path byte for byte, on mixed states that force both hit and fallback
+// edges (uniform skip fields + random-motion zone + coded + intra).
+// Runs P-style (single list) and B-style (dual list) verdict paths.
+func TestS1DeblockUniformMatchesSlow(t *testing.T) {
+	const mbW, mbH = 6, 6
+	const W, H = mbW * 16, mbH * 16
+	stride := mbW * 4
+	nmb := mbW * mbH
+	dmA := [2]bDirectMV{{ref: 0, mx: 4, my: 0, use: true}, {ref: 0, mx: -4, my: 0, use: true}}
+	dmB := [2]bDirectMV{{ref: 1, mx: 8, my: 8, use: true}, {}}
+	inA := func(mbx, mby int) bool { return mbx < 3 }
+	inB := func(mbx, mby int) bool { return mbx >= 3 && mby >= 3 }
+	isIntra := func(mbx, mby int) bool { return mbx == 4 && mby == 4 }
+
+	n4 := stride * mbH * 4
+	mvX := make([]int16, n4)
+	mvY := make([]int16, n4)
+	refIdx := make([]int8, n4)
+	mvX1 := make([]int16, n4)
+	mvY1 := make([]int16, n4)
+	refIdx1 := make([]int8, n4)
+	useM := make([]uint8, n4)
+	mbIntra := make([]bool, nmb)
+	uniSkip := make([]bool, nmb)
+	uniDM := make([][2]bDirectMV, nmb)
+	put := func(bx, by int, dm [2]bDirectMV) {
+		i := by*stride + bx
+		if dm[0].use {
+			mvX[i], mvY[i] = dm[0].mx, dm[0].my
+			refIdx[i] = dm[0].ref
+			useM[i] |= useL0
+		} else {
+			refIdx[i] = -1
+		}
+		if dm[1].use {
+			mvX1[i], mvY1[i] = dm[1].mx, dm[1].my
+			refIdx1[i] = dm[1].ref
+			useM[i] |= useL1
+		} else {
+			refIdx1[i] = -1
+		}
+	}
+	for mby := 0; mby < mbH; mby++ {
+		for mbx := 0; mbx < mbW; mbx++ {
+			addr := mby*mbW + mbx
+			switch {
+			case isIntra(mbx, mby):
+				mbIntra[addr] = true
+				for y := 0; y < 4; y++ {
+					for x := 0; x < 4; x++ {
+						i := (mby*4+y)*stride + mbx*4 + x
+						refIdx[i], refIdx1[i] = -1, -1
+					}
+				}
+			case inA(mbx, mby):
+				uniSkip[addr] = true
+				uniDM[addr] = dmA
+				for y := 0; y < 4; y++ {
+					for x := 0; x < 4; x++ {
+						put(mbx*4+x, mby*4+y, dmA)
+					}
+				}
+			case inB(mbx, mby):
+				uniSkip[addr] = true
+				uniDM[addr] = dmB
+				for y := 0; y < 4; y++ {
+					for x := 0; x < 4; x++ {
+						put(mbx*4+x, mby*4+y, dmB)
+					}
+				}
+			default:
+				for y := 0; y < 4; y++ {
+					for x := 0; x < 4; x++ {
+						bx, by := mbx*4+x, mby*4+y
+						dm := [2]bDirectMV{
+							{ref: int8((bx + by) % 2), mx: int16(bx*3 - by), my: int16(by*5 + bx), use: true},
+							{ref: int8((bx * by) % 2), mx: int16(by*2 - bx), my: int16(bx + by), use: (bx+by)%3 != 0},
+						}
+						put(bx, by, dm)
+					}
+				}
+			}
+		}
+	}
+	nnzY := make([]int8, n4)
+	// Coded block in the random zone forces bS=2 verdicts (slow path
+	// stays active, so the test is not vacuous). Chroma strength
+	// reuses the luma verdict, so only luma nnz feeds the filter.
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			nnzY[(1*4+y)*stride+5*4+x] = 3
+		}
+	}
+	qps := make([]int32, nmb)
+	fIDC := make([]uint32, nmb)
+	fA := make([]int32, nmb)
+	fB := make([]int32, nmb)
+	for i := range qps {
+		qps[i] = 28
+	}
+	mbT8 := make([]bool, nmb)
+	r0, err := NewPicture(16, 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r1, err := NewPicture(16, 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mkPic := func() *Picture {
+		base := deblockStimulus(W, H, 0)
+		p := &Picture{Width: uint32(W), Height: uint32(H),
+			Y:  append([]uint8(nil), base...),
+			Cb: append([]uint8(nil), deblockStimulus(W/2, H/2, 0)...),
+			Cr: append([]uint8(nil), deblockStimulus(W/2, H/2, 1)...)}
+		return p
+	}
+	run := func(useSecondList bool, uni []bool, dm [][2]bDirectMV) *Picture {
+		p := mkPic()
+		var x1, y1 []int16
+		var r1idx []int8
+		var rlist1 []*Picture
+		var um []uint8
+		if useSecondList {
+			x1, y1, r1idx = mvX1, mvY1, refIdx1
+			rlist1 = []*Picture{r0, r1}
+			um = useM
+		}
+		DeblockPicture(p, qps, fIDC, fA, fB, mbW, mbH, 0, 0,
+			mbIntra, nnzY, mvX, mvY, refIdx, []*Picture{r0, r1}, mbT8,
+			x1, y1, r1idx, rlist1, um, uni, dm)
+		return p
+	}
+	for _, second := range []bool{false, true} {
+		slow := run(second, nil, nil)
+		fast := run(second, uniSkip, uniDM)
+		for i := range slow.Y {
+			if slow.Y[i] != fast.Y[i] {
+				t.Fatalf("second=%v Y byte %d slow=%d fast=%d", second, i, slow.Y[i], fast.Y[i])
+			}
+		}
+		for i := range slow.Cb {
+			if slow.Cb[i] != fast.Cb[i] || slow.Cr[i] != fast.Cr[i] {
+				t.Fatalf("second=%v chroma byte %d slow=(%d,%d) fast=(%d,%d)",
+					second, i, slow.Cb[i], slow.Cr[i], fast.Cb[i], fast.Cr[i])
+			}
+		}
+		// Non-vacuous: the slow path filtered something.
+		base := mkPic()
+		same := true
+		for i := range slow.Y {
+			if slow.Y[i] != base.Y[i] {
+				same = false
+				break
+			}
+		}
+		if same {
+			t.Fatalf("second=%v slow path filtered nothing, test vacuous", second)
+		}
 	}
 }

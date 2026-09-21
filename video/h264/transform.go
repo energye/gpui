@@ -94,6 +94,32 @@ func levelScale(m, x, y int) int32 {
 	}
 }
 
+// flatDeqTab holds the fused dequant multiplier per QP for flat scaling
+// lists (weight 16 everywhere, the common case): k = ls*16<<shift folded
+// per scan slot, so the hot loop pays one int64 multiply per nonzero
+// coeff instead of the levelScale branch chain plus two multiplies.
+// Built once at init (52*16 fused mults, no per-block cost). Non-flat
+// lists keep the explicit loop below (exactness first, rare path).
+var flatDeqTab [52][16]int64
+
+// flatW16 is the flat scaling-list row (weight 16 = no custom list).
+var flatW16 = [16]uint8{16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16}
+
+func init() {
+	for qp := 0; qp < 52; qp++ {
+		m := qp % 6
+		shift := uint(qp/6) + 2
+		for scan := 0; scan < 16; scan++ {
+			pos := zigzag4x4[scan]
+			ls := int64(levelScale(m, pos%4, pos/4))
+			flatDeqTab[qp][scan] = ls * 16 << shift
+		}
+	}
+}
+
+// isFlatW16 reports the flat scaling list (no custom weights).
+func isFlatW16(w [16]uint8) bool { return w == flatW16 }
+
 func clipPixel(v int32) uint8 {
 	if v < 0 {
 		return 0
@@ -258,17 +284,48 @@ func ITransformChromaDC(dc [4]int32, qp uint32) [4]int32 {
 // ITransform4x4Scaled inverts one 4x4 block with explicit raster
 // weights w (scaling list, 16 = flat).
 func ITransform4x4Scaled(coeff [16]int32, qp uint32, w [16]uint8) [16]int32 {
+	if qp < 52 && isFlatW16(w) {
+		return itrans4x4Flat(coeff, qp)
+	}
 	m := int(qp % 6)
 	shift := int(qp/6) + 2
 	var c [16]int32
+	nz := false
 	for scan, v := range coeff {
 		if v == 0 {
 			continue
 		}
+		nz = true
 		pos := zigzag4x4[scan]
 		ls := levelScale(m, pos%4, pos/4)
 		q := int64(v) * int64(ls) * int64(w[pos]) << uint(shift)
 		c[pos] = int32((q + 32) >> 6)
+	}
+	if !nz {
+		// Zero in, zero out (the core is linear): skip the butterfly.
+		return c
+	}
+	return itrans4x4Core(c)
+}
+
+// itrans4x4Flat dequantizes with the fused flat-list table (bit-exact:
+// same multiply-then-shift-then-round order as the loop above, since
+// ls*16<<shift is exact in int64 and v*k<<0 == v*ls*16<<shift) and runs
+// the shared core.
+func itrans4x4Flat(coeff [16]int32, qp uint32) [16]int32 {
+	tab := &flatDeqTab[qp]
+	var c [16]int32
+	nz := false
+	for scan, v := range coeff {
+		if v == 0 {
+			continue
+		}
+		nz = true
+		q := int64(v) * tab[scan]
+		c[zigzag4x4[scan]] = int32((q + 32) >> 6)
+	}
+	if !nz {
+		return c
 	}
 	return itrans4x4Core(c)
 }
@@ -276,6 +333,20 @@ func ITransform4x4Scaled(coeff [16]int32, qp uint32, w [16]uint8) [16]int32 {
 // ITransform4x4WithDCScaled inverts one 4x4 block whose DC is already
 // scaled; AC levels use the raster weights (entry 0 ignored).
 func ITransform4x4WithDCScaled(ac [16]int32, dc int32, qp uint32, w [16]uint8) [16]int32 {
+	if qp < 52 && isFlatW16(w) {
+		tab := &flatDeqTab[qp]
+		var c [16]int32
+		c[0] = dc
+		for scan := 1; scan < 16; scan++ {
+			v := ac[scan]
+			if v == 0 {
+				continue
+			}
+			q := int64(v) * tab[scan]
+			c[zigzag4x4[scan]] = int32((q + 32) >> 6)
+		}
+		return itrans4x4Core(c)
+	}
 	m := int(qp % 6)
 	shift := int(qp/6) + 2
 	var c [16]int32

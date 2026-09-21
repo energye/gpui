@@ -355,63 +355,8 @@ func (d *Decoder) cabacMBTypeP(mbx, mby, addr int, h *SliceHeader) (uint32, erro
 }
 
 // cabacIntraSrc provides intra syntax from CABAC bins.
-func (d *Decoder) cabacIntraSrc(addr, mbx, mby int, pps *PPS) *intraSrc {
-	return &intraSrc{
-		t8: func() (bool, error) {
-			if pps == nil || !pps.Transform8x8 {
-				return false, nil
-			}
-			return d.cabBin(399+uint16(d.neighborT8(addr, mbx, mby))) != 0, nil
-		},
-		mode: func(bx, by, _ int) (int, error) {
-			pred := d.intraMostProbable(bx, by)
-			if d.cabBin(68) != 0 {
-				return pred, nil
-			}
-			rem := d.cabBin(69) + 2*d.cabBin(69) + 4*d.cabBin(69)
-			if rem >= pred {
-				rem++
-			}
-			return rem, nil
-		},
-		mode8: func(bx, by int) (int, error) {
-			pred := d.intraMostProbable(bx, by)
-			if d.cabBin(68) != 0 {
-				return pred, nil
-			}
-			rem := d.cabBin(69) + 2*d.cabBin(69) + 4*d.cabBin(69)
-			if rem >= pred {
-				rem++
-			}
-			return rem, nil
-		},
-		chroma: func() (uint32, error) {
-			left, top := d.cabLeftTop(addr, mbx, mby)
-			ctx := uint16(64)
-			if left >= 0 && d.mbIntra[left] && d.cmode[left] != 2 {
-				ctx++
-			}
-			if top >= 0 && d.mbIntra[top] && d.cmode[top] != 2 {
-				ctx++
-			}
-			if d.cabBin(ctx) == 0 {
-				return 2, nil
-			}
-			if d.cabBin(67) == 0 {
-				return 1, nil
-			}
-			if d.cabBin(67) == 0 {
-				return 0, nil
-			}
-			return 3, nil
-		},
-		cbp: func() (uint32, error) {
-			return d.cabacCBP(addr, mbx, mby, true)
-		},
-		qpD: func() (int32, error) {
-			return d.cabacQPDelta()
-		},
-	}
+func (d *Decoder) cabacIntraSrc(addr, mbx, mby int, pps *PPS) intraSrc {
+	return intraSrc{d: d, pps: pps, addr: addr, mbx: mbx, mby: mby, cabac: true}
 }
 
 // cabacMissingCBP is the CABAC unavailable-neighbour default: all luma
@@ -498,131 +443,14 @@ func (d *Decoder) cabacQPDelta() (int32, error) {
 }
 
 // cabacInterSrc provides partition-level syntax from CABAC bins.
-func (d *Decoder) cabacInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) *interSrc {
-	return &interSrc{
-		ref: func(bx, by int) (int8, error) {
-			if h.RefL0Count <= 1 {
-				return 0, nil
-			}
-			return d.cabacRefIdx(addr, mbx, mby, bx, by)
-		},
-		mvd: func(bx, by int, px, py int16) (mx, my, dx, dy int16, err error) {
-			dx, err = d.cabacMVD(bx, by, 0, 0)
-			if err != nil {
-				return 0, 0, 0, 0, err
-			}
-			dy, err = d.cabacMVD(bx, by, 1, 0)
-			if err != nil {
-				return 0, 0, 0, 0, err
-			}
-			return px + dx, py + dy, dx, dy, nil
-		},
-		sub: func() (uint32, error) {
-			if d.cabBin(21) != 0 {
-				return 0, nil
-			}
-			if d.cabBin(22) == 0 {
-				return 1, nil
-			}
-			if d.cabBin(23) != 0 {
-				return 2, nil
-			}
-			return 3, nil
-		},
-		cbp: func() (uint32, error) {
-			return d.cabacCBP(addr, mbx, mby, false)
-		},
-		qpD: func() (int32, error) {
-			return d.cabacQPDelta()
-		},
-		t8: func(cbp uint32, subs []uint32) (bool, error) {
-			if pps == nil || !pps.Transform8x8 || cbp&15 == 0 {
-				return false, nil
-			}
-			if len(subs) == 4 {
-				directInfer := true
-				if d.sps != nil {
-					directInfer = d.sps.Direct8x8Infer
-				}
-				for _, s := range subs {
-					if s == 0 {
-						if !directInfer {
-							return false, nil
-						}
-						continue
-					}
-					if s <= 3 {
-						continue
-					}
-					return false, nil
-				}
-			}
-			return d.cabBin(399+uint16(d.neighborT8(addr, mbx, mby))) != 0, nil
-		},
-	}
+func (d *Decoder) cabacInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) interSrc {
+	return interSrc{d: d, h: h, pps: pps, addr: addr, mbx: mbx, mby: mby, cabac: true}
 }
 
 // cabacBInterSrc reads B inter syntax from bins: per-list reference
 // indices, shared motion differences, B sub-block types.
-func (d *Decoder) cabacBInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) *bInterSrc {
-	return &bInterSrc{
-		ref0: func(bx, by int) (int8, error) {
-			if h.RefL0Count <= 1 {
-				return 0, nil
-			}
-			return d.cabacRefIdxB(addr, mbx, mby, bx, by, 0)
-		},
-		ref1: func(bx, by int) (int8, error) {
-			if h.RefL1Count <= 1 {
-				return 0, nil
-			}
-			return d.cabacRefIdxB(addr, mbx, mby, bx, by, 1)
-		},
-		mvd: func(list, bx, by int, px, py int16) (mx, my, dx, dy int16, err error) {
-			dx, err = d.cabacMVD(bx, by, 0, list)
-			if err != nil {
-				return 0, 0, 0, 0, err
-			}
-			dy, err = d.cabacMVD(bx, by, 1, list)
-			if err != nil {
-				return 0, 0, 0, 0, err
-			}
-			return px + dx, py + dy, dx, dy, nil
-		},
-		sub: func() (uint32, error) {
-			return d.cabacBSubType()
-		},
-		cbp: func() (uint32, error) {
-			return d.cabacCBP(addr, mbx, mby, false)
-		},
-		qpD: func() (int32, error) {
-			return d.cabacQPDelta()
-		},
-		t8: func(cbp uint32, subs []uint32) (bool, error) {
-			if pps == nil || !pps.Transform8x8 || cbp&15 == 0 {
-				return false, nil
-			}
-			if len(subs) == 4 {
-				directInfer := true
-				if d.sps != nil {
-					directInfer = d.sps.Direct8x8Infer
-				}
-				for _, s := range subs {
-					if s == 0 {
-						if !directInfer {
-							return false, nil
-						}
-						continue
-					}
-					if s <= 3 {
-						continue
-					}
-					return false, nil
-				}
-			}
-			return d.cabBin(399+uint16(d.neighborT8(addr, mbx, mby))) != 0, nil
-		},
-	}
+func (d *Decoder) cabacBInterSrc(addr, mbx, mby int, h *SliceHeader, pps *PPS) bInterSrc {
+	return bInterSrc{d: d, h: h, pps: pps, addr: addr, mbx: mbx, mby: mby, cabac: true}
 }
 
 // cabacRefAtB reads one 4x4 reference index of one list for neighbour
@@ -974,106 +802,7 @@ func (d *Decoder) cabacCoeffData8x8() ([64]int32, int, error) {
 // reads its own flag first, so blocks the shared reconstruction loops
 // skip (zero CBP) cost no bins and zero-flagged blocks cost one.
 // intra selects the unavailable-neighbour defaults (full CBP / 64).
-func (d *Decoder) cabacResidSrc(addr, mbx, mby int, intra bool) *residSrc {
-	ys, yh := d.mbW*4, d.mbH*4
-	cs, ch := d.mbW*2, d.mbH*2
-	// dcBit reports one neighbour DC-presence bit for flag contexts.
-	dcBit := func(naddr int, bit uint16) int {
-		if d.cabSameSlice(naddr) {
-			if d.cbpArr[naddr]&bit != 0 {
-				return 1
-			}
-			return 0
-		}
-		if intra {
-			return 1
-		}
-		return 0
-	}
-	return &residSrc{
-		// Shared loops call lumaAC for Intra4x4/inter blocks only,
-		// which always use category 2 (the cat argument stays for
-		// the common signature).
-		lumaAC: func(bx, by, cat int) ([16]int32, int, error) {
-			nza := d.cabacNNZAt(d.nnzY, ys, yh, 4, bx-1, by, intra)
-			nzb := d.cabacNNZAt(d.nnzY, ys, yh, 4, bx, by-1, intra)
-			if !d.cabacCBF(2, nza, nzb) {
-				return [16]int32{}, 0, nil
-			}
-			return d.cabacCoeffData(2, 16, 0)
-		},
-		lumaAC15: func(bx, by int) ([16]int32, int, error) {
-			nza := d.cabacNNZAt(d.nnzY, ys, yh, 4, bx-1, by, intra)
-			nzb := d.cabacNNZAt(d.nnzY, ys, yh, 4, bx, by-1, intra)
-			if !d.cabacCBF(1, nza, nzb) {
-				return [16]int32{}, 0, nil
-			}
-			return d.cabacCoeffData(1, 15, 1)
-		},
-		lumaDC: func(mbx, mby int) ([16]int32, error) {
-			nza, nzb := 0, 0
-			if mbx > 0 {
-				nza = dcBit(addr-1, 0x100)
-			} else if intra {
-				nza = 1
-			}
-			if mby > 0 {
-				nzb = dcBit(addr-d.mbW, 0x100)
-			} else if intra {
-				nzb = 1
-			}
-			if !d.cabacCBF(0, nza, nzb) {
-				return [16]int32{}, nil
-			}
-			// A coded DC block marks presence for later neighbours.
-			d.cbpArr[addr] |= 0x100
-			out, _, err := d.cabacCoeffData(0, 16, 0)
-			return out, err
-		},
-		chromaDC: func(comp int) ([4]int32, error) {
-			bit := uint16(0x40 << uint(comp))
-			nza, nzb := 0, 0
-			if mbx > 0 {
-				nza = dcBit(addr-1, bit)
-			} else if intra {
-				nza = 1
-			}
-			if mby > 0 {
-				nzb = dcBit(addr-d.mbW, bit)
-			} else if intra {
-				nzb = 1
-			}
-			if !d.cabacCBF(3, nza, nzb) {
-				return [4]int32{}, nil
-			}
-			d.cbpArr[addr] |= bit
-			out, _, err := d.cabacCoeffData(3, 4, 0)
-			if err != nil {
-				return [4]int32{}, err
-			}
-			var dc [4]int32
-			copy(dc[:], out[:4])
-			return dc, nil
-		},
-		chromaAC: func(mbx, mby, comp, b int) ([16]int32, int, error) {
-			grid := d.nnzCb
-			if comp == 1 {
-				grid = d.nnzCr
-			}
-			bx, by := mbx*2+b%2, mby*2+b/2
-			nza := d.cabacNNZAt(grid, cs, ch, 2, bx-1, by, intra)
-			nzb := d.cabacNNZAt(grid, cs, ch, 2, bx, by-1, intra)
-			if !d.cabacCBF(4, nza, nzb) {
-				return [16]int32{}, 0, nil
-			}
-			return d.cabacCoeffData(4, 15, 1)
-		},
-		luma8x8: func(mbx, mby, i8 int) ([64]int32, [4]int, error) {
-			out, tc, err := d.cabacCoeffData8x8()
-			if err != nil {
-				return out, [4]int{}, err
-			}
-			return out, [4]int{tc, tc, tc, tc}, nil
-		},
-	}
+// cabacResidSrc builds the CABAC residual source for one macroblock.
+func (d *Decoder) cabacResidSrc(addr, mbx, mby int, intra bool) residSrc {
+	return residSrc{d: d, addr: addr, mbx: mbx, mby: mby, intra: intra, cabac: true}
 }

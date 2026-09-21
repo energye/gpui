@@ -579,6 +579,11 @@ func predictChromaBlock(plane []uint8, w, h, px, py, cw, ch int, mx, my int16, o
 			return
 		}
 	}
+	// S1b-A1 fast path: interior sub-pel blocks run the arch row kernel
+	// (chroma_fast.go); edges and forced-scalar fall to the留守 below.
+	if chromaFast(plane, w, h, px, py, cw, ch, mx, my, out) {
+		return
+	}
 	for dy := 0; dy < ch; dy++ {
 		for dx := 0; dx < cw; dx++ {
 			ex := (px+dx)*8 + int(mx)

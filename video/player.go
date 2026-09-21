@@ -246,6 +246,17 @@ type Player struct {
 	s2starts  []int
 	s2yuv     int
 	s2windows int64
+	// B frame threading inside one IDR group (streaming only, rides the
+	// S2Parallel opt-in; S2 fans whole groups over workers, B fans the
+	// frames inside one long group over workers). bHeld retains completed
+	// reference pictures the remaining frames' snapshots need (group
+	// scope, dropped at group end/seek); bGen tracks the generation they
+	// belong to; bWindows counts parallel laps (atomic, tests only).
+	bHeld     map[int]*h264.Picture
+	bHeldHead int
+	bGen      int64
+	bWindows  int64
+	bTries    int64
 	// wakeCh wakes a decoder parked at end-of-stream (cap 1, coalescing,
 	// never closed): a later seek revives playback on the same thread.
 	wakeCh chan struct{}
@@ -1145,12 +1156,16 @@ func (p *Player) decodeLoop() {
 		default:
 		}
 		gen := atomic.LoadInt64(&p.generation)
-		// S2: serve an already-decoded window first, else claim at most
-		// one new bounded window on a group head per lap; ran=false
-		// means plain sequential below, unchanged. One claim per lap
-		// keeps the needle from racing far ahead of the display while
-		// windows decode (else catch-up drops pile up unseen).
-		emitted, done, ferr, ran := p.maybeDecodeS2Window(gen)
+		// B: frame threading inside one long IDR group first (large
+		// groups where S2 degenerates to one worker per group); S2
+		// covers short groups; ran=false means plain sequential below,
+		// unchanged. One claim per lap keeps the needle from racing
+		// far ahead of the display while windows decode (else catch-up
+		// drops pile up unseen).
+		emitted, done, ferr, ran := p.maybeDecodeBFrame(gen)
+		if !ran {
+			emitted, done, ferr, ran = p.maybeDecodeS2Window(gen)
+		}
 		if !ran {
 			emitted, done, ferr = p.decodeStep()
 		} else if ferr == nil && len(emitted) == 0 && !done {
@@ -1447,6 +1462,14 @@ func (p *Player) ReorderDepth() int {
 	p.dmu.Lock()
 	defer p.dmu.Unlock()
 	return p.reorderDepth
+}
+
+// BWindows reports frame-threaded laps run so far (tests only, atomic).
+func (p *Player) BWindows() int64 {
+	if p == nil {
+		return 0
+	}
+	return atomic.LoadInt64(&p.bWindows)
 }
 
 // S2Windows reports parallel windows run so far (tests only, atomic).

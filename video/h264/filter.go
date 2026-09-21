@@ -230,7 +230,7 @@ func filterChromaIntraEdge(p []uint8, stride int, ex, ey int, vertical bool, alp
 // refList resolves reference indices to pictures: aliased indices into
 // the same picture count as one reference (no strength from the index
 // alone). A nil list keeps plain index comparison.
-func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) {
+func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mbW, mbH int, cOff0, cOff1 int32, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8, uniSkip []bool, uniDM [][2]bDirectMV) {
 	if pic == nil {
 		return
 	}
@@ -306,6 +306,32 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 						mbIntra != nil && nnzY != nil && mvX != nil && mvY != nil &&
 						refIdx != nil && mbT8 != nil &&
 						(useM == nil || (mvX1 != nil && mvY1 != nil && refIdx1 != nil))
+					// S1b-E uniform-edge shortcut: both sides decoded as
+					// skip-uniform this frame (uniSkip, recorded at motion
+					// store time with cbp==0 so nnz is zero by
+					// construction) with identical motion — every segment
+					// verdict is 0 (non-intra, no coefficients, equal refs
+					// and zero motion difference on both lists, cross-list
+					// mirror included), so skip verdicts, filtering and
+					// chroma (bSedge stays 0) together. Anything else
+					// keeps the per-segment path with identical output.
+					// Internal edges (e>0) sit inside one macroblock:
+					// that block alone decides. Nil arrays (tests) stay
+					// on the slow path.
+					if inFast && uniSkip != nil && uniDM != nil {
+						pMB, qMB := mby*mbW+mbx, qy*mbW+qx
+						hit := false
+						if e == 0 {
+							hit = pMB >= 0 && qMB >= 0 && pMB < len(uniSkip) && qMB < len(uniSkip) &&
+								pMB < len(uniDM) && qMB < len(uniDM) &&
+								uniSkip[pMB] && uniSkip[qMB] && uniDM[pMB] == uniDM[qMB]
+						} else if pMB >= 0 && pMB < len(uniSkip) && uniSkip[pMB] {
+							hit = true
+						}
+						if hit {
+							continue
+						}
+					}
 					var bSedge [4]int
 					for seg := 0; seg < 4; seg++ {
 						var sx, sy int
@@ -578,32 +604,78 @@ func interBSInterior(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int
 // bRefsDifferInterior is bRefsDiffer for in-range indexes: no bounds
 // checks, no closures. Shape mirrors bRefsDiffer exactly, including the
 // cross-list mirror pairing.
+//
+// S1b-C: closure-free lane. The old neg1/ge4 closures allocated per
+// call in spirit (inlined, but blocking optimization); inline compares
+// keep identical semantics with no call overhead.
 func bRefsDifferInterior(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []int8, pi, qi int) bool {
 	// NOTE: negative indexes are all "unavailable" (-1, -2 sentinels):
 	// normalize like the safe path's raw() instead of comparing raw.
-	neg1 := func(v int) int {
-		if v < 0 {
-			return -1
-		}
-		return v
+	r0p := int(refIdx[pi])
+	if r0p < 0 {
+		r0p = -1
 	}
-	r0p, r0q := neg1(int(refIdx[pi])), neg1(int(refIdx[qi]))
+	r0q := int(refIdx[qi])
+	if r0q < 0 {
+		r0q = -1
+	}
 	v := r0p != r0q
 	if !v && r0p != -1 {
-		v = ge4(mvX[pi], mvY[pi], mvX[qi], mvY[qi])
+		dx := int(mvX[pi]) - int(mvX[qi])
+		if dx < 0 {
+			dx = -dx
+		}
+		dy := int(mvY[pi]) - int(mvY[qi])
+		if dy < 0 {
+			dy = -dy
+		}
+		v = dx >= 4 || dy >= 4
 	}
 	if !v {
-		r1p, r1q := neg1(int(refIdx1[pi])), neg1(int(refIdx1[qi]))
+		r1p := int(refIdx1[pi])
+		if r1p < 0 {
+			r1p = -1
+		}
+		r1q := int(refIdx1[qi])
+		if r1q < 0 {
+			r1q = -1
+		}
 		v = r1p != r1q
 		if !v && r1p != -1 {
-			v = ge4(mvX1[pi], mvY1[pi], mvX1[qi], mvY1[qi])
+			dx := int(mvX1[pi]) - int(mvX1[qi])
+			if dx < 0 {
+				dx = -dx
+			}
+			dy := int(mvY1[pi]) - int(mvY1[qi])
+			if dy < 0 {
+				dy = -dy
+			}
+			v = dx >= 4 || dy >= 4
 		}
 		if v {
 			if r0p != r1q || r1p != r0q {
 				return true
 			}
-			return ge4(mvX[pi], mvY[pi], mvX1[qi], mvY1[qi]) ||
-				ge4(mvX1[pi], mvY1[pi], mvX[qi], mvY[qi])
+			dx := int(mvX[pi]) - int(mvX1[qi])
+			if dx < 0 {
+				dx = -dx
+			}
+			dy := int(mvY[pi]) - int(mvY1[qi])
+			if dy < 0 {
+				dy = -dy
+			}
+			if dx >= 4 || dy >= 4 {
+				return true
+			}
+			dx = int(mvX1[pi]) - int(mvX[qi])
+			if dx < 0 {
+				dx = -dx
+			}
+			dy = int(mvY1[pi]) - int(mvY[qi])
+			if dy < 0 {
+				dy = -dy
+			}
+			return dx >= 4 || dy >= 4
 		}
 	}
 	return v

@@ -80,115 +80,203 @@ func bSubDirShape(sub uint32) (bDir, int, error) {
 
 // bInterSrc provides B partition-level syntax; CAVLC reads bits, CABAC
 // bins. ref0/ref1 take the partition origin in 4x4 units.
+//
+// S1b-G: zero per-MB heap, same treatment as residSrc (S1b-F): methods
+// on a stack value instead of heap closures per macroblock.
 type bInterSrc struct {
-	ref0 func(bx, by int) (int8, error)
-	ref1 func(bx, by int) (int8, error)
-	mvd  func(list, bx, by int, px, py int16) (mx, my, dx, dy int16, err error)
-	sub  func() (uint32, error)
-	cbp  func() (uint32, error)
-	qpD  func() (int32, error)
-	t8   func(cbp uint32, subs []uint32) (bool, error)
-}
-
-// bRefReader builds one list's CAVLC reference reader: no code for a
-// single reference, one inverted bit for two, Exp-Golomb above that.
-func bRefReader(r *Reader, h *SliceHeader, list int) func(bx, by int) (int8, error) {
-	return func(bx, by int) (int8, error) {
-		var n uint32
-		if list == 0 {
-			n = h.RefL0Count
-		} else {
-			n = h.RefL1Count
-		}
-		if n <= 1 {
-			return 0, nil
-		}
-		if n == 2 {
-			b, err := r.ReadBits(1)
-			if err != nil {
-				return 0, err
-			}
-			return int8(b ^ 1), nil
-		}
-		v, err := r.ReadUE()
-		if err != nil {
-			return 0, err
-		}
-		if v >= n {
-			return 0, fmt.Errorf("%w: B ref l%d idx %d", ErrBadSliceHeader, list, v)
-		}
-		return int8(v), nil
-	}
+	d              *Decoder
+	r              *Reader // CAVLC bitstream (nil for CABAC)
+	h              *SliceHeader
+	pps            *PPS
+	addr, mbx, mby int
+	cabac          bool
 }
 
 // cavlcBInterSrc reads B inter syntax with Exp-Golomb codes.
-func (d *Decoder) cavlcBInterSrc(r *Reader, h *SliceHeader, pps *PPS) *bInterSrc {
-	readMVD := func(list, bx, by int, predX, predY int16) (int16, int16, int16, int16, error) {
-		dx, err := r.ReadSE()
-		if err != nil {
-			return 0, 0, 0, 0, err
+func (d *Decoder) cavlcBInterSrc(r *Reader, h *SliceHeader, pps *PPS) bInterSrc {
+	return bInterSrc{d: d, r: r, h: h, pps: pps}
+}
+
+// ref0 reads one list-0 reference index.
+func (s *bInterSrc) ref0(bx, by int) (int8, error) {
+	if s.cabac {
+		if s.h.RefL0Count <= 1 {
+			return 0, nil
 		}
-		dy, err := r.ReadSE()
-		if err != nil {
-			return 0, 0, 0, 0, err
-		}
-		return predX + int16(dx), predY + int16(dy), int16(dx), int16(dy), nil
+		return s.d.cabacRefIdxB(s.addr, s.mbx, s.mby, bx, by, 0)
 	}
-	return &bInterSrc{
-		ref0: bRefReader(r, h, 0),
-		ref1: bRefReader(r, h, 1),
-		mvd:  readMVD,
-		sub: func() (uint32, error) {
-			v, err := r.ReadUE()
-			if err != nil {
-				return 0, fmt.Errorf("B sub type: %w", err)
+	return s.cavlcBRef(bx, by, 0)
+}
+
+// ref1 reads one list-1 reference index.
+func (s *bInterSrc) ref1(bx, by int) (int8, error) {
+	if s.cabac {
+		if s.h.RefL1Count <= 1 {
+			return 0, nil
+		}
+		return s.d.cabacRefIdxB(s.addr, s.mbx, s.mby, bx, by, 1)
+	}
+	return s.cavlcBRef(bx, by, 1)
+}
+
+// cavlcBRef reads one list's CAVLC reference: no code for a single
+// reference, one inverted bit for two, Exp-Golomb above that.
+func (s *bInterSrc) cavlcBRef(bx, by int, list int) (int8, error) {
+	var n uint32
+	if list == 0 {
+		n = s.h.RefL0Count
+	} else {
+		n = s.h.RefL1Count
+	}
+	if n <= 1 {
+		return 0, nil
+	}
+	if n == 2 {
+		b, err := s.r.ReadBits(1)
+		if err != nil {
+			return 0, err
+		}
+		return int8(b ^ 1), nil
+	}
+	v, err := s.r.ReadUE()
+	if err != nil {
+		return 0, err
+	}
+	if v >= n {
+		return 0, fmt.Errorf("%w: B ref l%d idx %d", ErrBadSliceHeader, list, v)
+	}
+	return int8(v), nil
+}
+
+// mvd reads one motion-vector difference of one list and adds it.
+func (s *bInterSrc) mvd(list, bx, by int, predX, predY int16) (mx, my, dx, dy int16, err error) {
+	if s.cabac {
+		dx, err = s.d.cabacMVD(bx, by, 0, list)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		dy, err = s.d.cabacMVD(bx, by, 1, list)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		return predX + dx, predY + dy, dx, dy, nil
+	}
+	dx32, err := s.r.ReadSE()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	dy32, err := s.r.ReadSE()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	dx, dy = int16(dx32), int16(dy32)
+	return predX + dx, predY + dy, dx, dy, nil
+}
+
+// sub reads the B sub-macroblock type.
+func (s *bInterSrc) sub() (uint32, error) {
+	if s.cabac {
+		return s.d.cabacBSubType()
+	}
+	v, err := s.r.ReadUE()
+	if err != nil {
+		return 0, fmt.Errorf("B sub type: %w", err)
+	}
+	if v > 12 {
+		return 0, fmt.Errorf("%w: B sub type %d", ErrBadSliceHeader, v)
+	}
+	return v, nil
+}
+
+// cbp reads the B coded-block pattern.
+func (s *bInterSrc) cbp() (uint32, error) {
+	if s.cabac {
+		return s.d.cabacCBP(s.addr, s.mbx, s.mby, false)
+	}
+	cbpUE, err := s.r.ReadUE()
+	if err != nil {
+		return 0, fmt.Errorf("cbp: %w", err)
+	}
+	if cbpUE > 47 {
+		return 0, fmt.Errorf("%w: cbp %d", ErrBadSliceHeader, cbpUE)
+	}
+	return uint32(golombToInterCBP[cbpUE]), nil
+}
+
+// qpD reads mb_qp_delta.
+func (s *bInterSrc) qpD() (int32, error) {
+	if s.cabac {
+		return s.d.cabacQPDelta()
+	}
+	delta, err := s.r.ReadSE()
+	if err != nil {
+		return 0, fmt.Errorf("qp delta: %w", err)
+	}
+	return delta, nil
+}
+
+// t8 reads the transform_size_8x8_flag for B blocks.
+func (s *bInterSrc) t8(cbp uint32, subs []uint32) (bool, error) {
+	pps := s.pps
+	if pps == nil || !pps.Transform8x8 || cbp&15 == 0 {
+		return false, nil
+	}
+	if len(subs) == 4 {
+		if s.cabac {
+			directInfer := true
+			if s.d.sps != nil {
+				directInfer = s.d.sps.Direct8x8Infer
 			}
-			if v > 12 {
-				return 0, fmt.Errorf("%w: B sub type %d", ErrBadSliceHeader, v)
-			}
-			return v, nil
-		},
-		cbp: func() (uint32, error) {
-			cbpUE, err := r.ReadUE()
-			if err != nil {
-				return 0, fmt.Errorf("cbp: %w", err)
-			}
-			if cbpUE > 47 {
-				return 0, fmt.Errorf("%w: cbp %d", ErrBadSliceHeader, cbpUE)
-			}
-			return uint32(golombToInterCBP[cbpUE]), nil
-		},
-		qpD: func() (int32, error) {
-			delta, err := r.ReadSE()
-			if err != nil {
-				return 0, fmt.Errorf("qp delta: %w", err)
-			}
-			return delta, nil
-		},
-		t8: func(cbp uint32, subs []uint32) (bool, error) {
-			if pps == nil || !pps.Transform8x8 || cbp&15 == 0 {
-				return false, nil
-			}
-			if len(subs) == 4 {
-				for _, s := range subs {
-					if s != 0 {
+			for _, sb := range subs {
+				if sb == 0 {
+					if !directInfer {
 						return false, nil
 					}
+					continue
+				}
+				if sb <= 3 {
+					continue
+				}
+				return false, nil
+			}
+		} else {
+			for _, sb := range subs {
+				if sb != 0 {
+					return false, nil
 				}
 			}
-			b, err := r.ReadBits(1)
-			if err != nil {
-				return false, fmt.Errorf("t8 flag: %w", err)
-			}
-			return b != 0, nil
-		},
+		}
 	}
+	if s.cabac {
+		return s.d.cabBin(399+uint16(s.d.neighborT8(s.addr, s.mbx, s.mby))) != 0, nil
+	}
+	b, err := s.r.ReadBits(1)
+	if err != nil {
+		return false, fmt.Errorf("t8 flag: %w", err)
+	}
+	return b != 0, nil
 }
 
 // decodeSkipB decodes a B_Skip macroblock: spatial-direct motion, no
 // residual. Every 4x4 records the derived direction for neighbours,
 // deblocking and CABAC contexts.
-func (d *Decoder) decodeSkipB(h *SliceHeader, addr int, rs *residSrc) error {
+//
+// Peer (ffmpeg, read-only, ideas only, no code copied):
+//
+//	libavcodec/h264_mvpred.h:950-984 decode_mb_skip (B path: mark
+//	L0L1|DIRECT2|SKIP, fill_decode_neighbors/caches when spatial,
+//	ff_h264_pred_direct_motion, write_back_motion) +
+//	libavcodec/h264_direct.c:208-494 pred_spatial_direct_motion
+//	(unsigned-minimum ref = FFMIN3, median/single-match motion, zero
+//	fast lane, stationary-colocated zeroing; our bDirectMBBlocks +
+//	applyDirectStationary below); oracle is VR2 exact (pixels).
+//
+// Hot path (S1b-B, ENERGY 1536x864: decodeSkipB ~45% of H.264 math):
+// skip blocks carry no residual, so the whole block is motion +
+// zero-fill + state marks. This entry keeps the slow readable order
+// and delegates the bulk to skipBFast (bulk path below); outputs are
+// bit-identical (skip_b test pins MB state + pixels).
+func (d *Decoder) decodeSkipB(h *SliceHeader, addr int, rs residSrc) error {
 	mbx, mby := addr%d.mbW, addr/d.mbW
 	if len(d.refList1) == 0 || d.refList1[0] == nil {
 		return fmt.Errorf("%w: B skip without list-1 picture", ErrBadSliceHeader)
@@ -197,14 +285,35 @@ func (d *Decoder) decodeSkipB(h *SliceHeader, addr int, rs *residSrc) error {
 	if err != nil {
 		return err
 	}
+	if d.skipBFast(h, addr, mbx, mby, dms, rs) {
+		return nil
+	}
 	x0, y0 := mbx*4, mby*4
 	px0, py0 := mbx*16, mby*16
 	var parts [4]part
 	for i := 0; i < 4; i++ {
+		parts[i] = directPartB8(px0+(i%2)*8, py0+(i/2)*8, dms[i])
+	}
+	// Uniform-motion shortcut: all four 8x8 parts share one motion
+	// (same use flags, refs, vectors). Prediction tiles one 16x16
+	// call instead of four 8x8 calls; motion stores still run per
+	// 8x8 below (neighbours read derived indices per block).
+	dm0 := dms[0]
+	if dms[1] == dm0 && dms[2] == dm0 && dms[3] == dm0 && !d.wBiExpl {
+		for i := 0; i < 4; i++ {
+			qx := x0 + (i%2)*2
+			qy := y0 + (i/2)*2
+			d.storeDirectB8(qx, qy, dms[i])
+		}
+		if d.skipBUniform(h, addr, mbx, mby, dm0, dm0[0].use, dm0[1].use, px0, py0, rs) {
+			return nil
+		}
+		return fmt.Errorf("%w: skip uniform failed", ErrBadSliceHeader)
+	}
+	for i := 0; i < 4; i++ {
 		qx := x0 + (i%2)*2
 		qy := y0 + (i/2)*2
 		d.storeDirectB8(qx, qy, dms[i])
-		parts[i] = directPartB8(px0+(i%2)*8, py0+(i/2)*8, dms[i])
 	}
 	var predY [256]uint8
 	var predCb, predCr [64]uint8
@@ -224,6 +333,258 @@ func (d *Decoder) decodeSkipB(h *SliceHeader, addr int, rs *residSrc) error {
 	}
 	d.skipCnt++
 	return nil
+}
+
+// skipBFast is the S1b-B bulk path for B_Skip: motion stores + MC +
+// zero-residual reconstruction + state marks in one pass. It returns
+// false when it cannot run (explicit bipred weights on this slice),
+// and the caller falls back to the slow readable path above with
+// identical output.
+//
+// Why this shape (not just a faster mcParts): a skip block is four
+// fixed 8x8 direct parts at fixed offsets with cbp==0, so the whole
+// block skips every per-partition branch (no use0/use1 dispatch, no
+// weight dispatch per part, no residual switch, no nnz switch) and
+// folds the three loops (store 4x4 motion + predict + copy + zero-fill)
+// into fixed-offset writes. The implicit-weight call hoists out of
+// the part loop (same poc/ref pair for all four parts here).
+func (d *Decoder) skipBFast(h *SliceHeader, addr, mbx, mby int, dms [4][2]bDirectMV, rs residSrc) bool {
+	// Explicit bipred weights need per-part table lookups; stay slow.
+	if d.wBiExpl {
+		return false
+	}
+	x0, y0 := mbx*4, mby*4
+	px0, py0 := mbx*16, mby*16
+	// Motion stores first (same order as the slow path: all four
+	// 8x8 stores before any prediction, so intra-MB neighbours read
+	// the same derived indices). Unrolled: 4 fixed stores, no loop
+	// counter, no per-iteration offset math.
+	d.storeDirectB8(x0, y0, dms[0])
+	d.storeDirectB8(x0+2, y0, dms[1])
+	d.storeDirectB8(x0, y0+2, dms[2])
+	d.storeDirectB8(x0+2, y0+2, dms[3])
+	// Skip shape fast lane: all four 8x8 parts share one motion shape
+	// (all bipred / all L0 / all L1 — the overwhelming case on still
+	// content where neighbours agree). Reference lookups + implicit
+	// weight hoist out of the part loop; per-part work is predict +
+	// mix + fixed-offset copy only. Mixed shapes fall through to the
+	// per-part loop below (same output, slower).
+	u0 := dms[0][0].use && dms[1][0].use && dms[2][0].use && dms[3][0].use
+	u1 := dms[0][1].use && dms[1][1].use && dms[2][1].use && dms[3][1].use
+	sameRef := dms[0][0].ref == dms[1][0].ref && dms[0][0].ref == dms[2][0].ref && dms[0][0].ref == dms[3][0].ref &&
+		dms[0][1].ref == dms[1][1].ref && dms[0][1].ref == dms[2][1].ref && dms[0][1].ref == dms[3][1].ref
+	sameMV := dms[0][0].mx == dms[1][0].mx && dms[0][0].mx == dms[2][0].mx && dms[0][0].mx == dms[3][0].mx &&
+		dms[0][0].my == dms[1][0].my && dms[0][0].my == dms[2][0].my && dms[0][0].my == dms[3][0].my &&
+		dms[0][1].mx == dms[1][1].mx && dms[0][1].mx == dms[2][1].mx && dms[0][1].mx == dms[3][1].mx &&
+		dms[0][1].my == dms[1][1].my && dms[0][1].my == dms[2][1].my && dms[0][1].my == dms[3][1].my
+	if u0 == (dms[0][0].use || dms[1][0].use || dms[2][0].use || dms[3][0].use) &&
+		u1 == (dms[0][1].use || dms[1][1].use || dms[2][1].use || dms[3][1].use) &&
+		sameRef && sameMV {
+		if d.skipBUniform(h, addr, mbx, mby, dms[0], u0, u1, px0, py0, rs) {
+			return true
+		}
+		return false
+	}
+	// Implicit weight is constant across the four parts here: same
+	// current POC and same ref pair per list when both lists used.
+	// (Mixed use shapes still go per-part below; the common skip
+	// shape is all-four-bipred or all-four-single-list.)
+	var predY [256]uint8
+	var predCb, predCr [64]uint8
+	fillPred(&predY, &predCb, &predCr)
+	rw, rh := int(d.pic.Width/2), int(d.pic.Height/2)
+	var blk [256]uint8
+	var blk1 [256]uint8
+	var cb, cr [64]uint8
+	var cb1, cr1 [64]uint8
+	for i := 0; i < 4; i++ {
+		dm := dms[i]
+		ox, oy := (i%2)*8, (i/2)*8
+		// Luma.
+		switch {
+		case dm[0].use && dm[1].use:
+			rp0, err := d.refFor(dm[0].ref)
+			if err != nil {
+				return false
+			}
+			rp1, err := d.refFor1(dm[1].ref)
+			if err != nil {
+				return false
+			}
+			predictLumaBlock(rp0, px0+ox, py0+oy, 8, 8, dm[0].mx, dm[0].my, blk[:64])
+			predictLumaBlock(rp1, px0+ox, py0+oy, 8, 8, dm[1].mx, dm[1].my, blk1[:64])
+			w := d.bipredWeight(d.pic, rp0, rp1, dm[0].ref, dm[1].ref)
+			bipredAvg(blk[:64], blk1[:64], w)
+			for y := 0; y < 8; y++ {
+				copy(predY[(oy+y)*16+ox:(oy+y)*16+ox+8], blk[y*8:(y+1)*8])
+			}
+		case dm[0].use:
+			rp, err := d.refFor(dm[0].ref)
+			if err != nil {
+				return false
+			}
+			predictLumaBlock(rp, px0+ox, py0+oy, 8, 8, dm[0].mx, dm[0].my, blk[:64])
+			d.weightLuma(blk[:64], dm[0].ref)
+			for y := 0; y < 8; y++ {
+				copy(predY[(oy+y)*16+ox:(oy+y)*16+ox+8], blk[y*8:(y+1)*8])
+			}
+		case dm[1].use:
+			rp, err := d.refFor1(dm[1].ref)
+			if err != nil {
+				return false
+			}
+			predictLumaBlock(rp, px0+ox, py0+oy, 8, 8, dm[1].mx, dm[1].my, blk[:64])
+			d.weightLuma1(blk[:64], dm[1].ref)
+			for y := 0; y < 8; y++ {
+				copy(predY[(oy+y)*16+ox:(oy+y)*16+ox+8], blk[y*8:(y+1)*8])
+			}
+		default:
+			for y := 0; y < 8; y++ {
+				for x := 0; x < 8; x++ {
+					predY[(oy+y)*16+ox+x] = 128
+				}
+			}
+		}
+		// Chroma (half offsets).
+		cw, ch := 4, 4
+		cx, cy := ox/2, oy/2
+		ccx, ccy := mbx*8+cx, mby*8+cy
+		switch {
+		case dm[0].use && dm[1].use:
+			rp0, err := d.refFor(dm[0].ref)
+			if err != nil {
+				return false
+			}
+			rp1, err := d.refFor1(dm[1].ref)
+			if err != nil {
+				return false
+			}
+			predictChromaBlock(rp0.Cb, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, cb[:16])
+			predictChromaBlock(rp0.Cr, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, cr[:16])
+			predictChromaBlock(rp1.Cb, rw, rh, ccx, ccy, cw, ch, dm[1].mx, dm[1].my, cb1[:16])
+			predictChromaBlock(rp1.Cr, rw, rh, ccx, ccy, cw, ch, dm[1].mx, dm[1].my, cr1[:16])
+			w := d.bipredWeight(d.pic, rp0, rp1, dm[0].ref, dm[1].ref)
+			bipredAvg(cb[:16], cb1[:16], w)
+			bipredAvg(cr[:16], cr1[:16], w)
+		case dm[0].use:
+			rp, err := d.refFor(dm[0].ref)
+			if err != nil {
+				return false
+			}
+			predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, cb[:16])
+			predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, cr[:16])
+			d.weightChroma(cb[:16], cr[:16], dm[0].ref)
+		case dm[1].use:
+			rp, err := d.refFor1(dm[1].ref)
+			if err != nil {
+				return false
+			}
+			predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, cw, ch, dm[1].mx, dm[1].my, cb[:16])
+			predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, cw, ch, dm[1].mx, dm[1].my, cr[:16])
+			d.weightChroma1(cb[:16], cr[:16], dm[1].ref)
+		default:
+			for k := range cb[:16] {
+				cb[k], cr[k] = 128, 128
+			}
+		}
+		for y := 0; y < 4; y++ {
+			copy(predCb[(cy+y)*8+cx:(cy+y)*8+cx+4], cb[y*4:(y+1)*4])
+			copy(predCr[(cy+y)*8+cx:(cy+y)*8+cx+4], cr[y*4:(y+1)*4])
+		}
+	}
+	d.finishPMB(h, addr, mbx, mby)
+	d.skipped[addr] = true
+	d.mbDirect[addr] = true
+	d.mbSlice[addr] = d.slices
+	if addr >= 0 && addr < len(d.mbT8) {
+		d.mbT8[addr] = false
+	}
+	if err := d.reconstructInterWith(mbx, mby, 0, &predY, &predCb, &predCr, rs); err != nil {
+		return false
+	}
+	d.skipCnt++
+	return true
+}
+
+// skipBUniform is the uniform-motion lane: all four 8x8 parts share dm
+// (same use flags, refs, vectors — still content, so the four 8x8
+// predictions tile one 16x16 prediction). Reference lookups and the
+// implicit weight resolve once; prediction runs at 16x16 (one call per
+// plane-pair instead of four), then slices into the MB buffers. Output
+// equals four separate 8x8 predictions (same function, adjacent
+// offsets, no overlap), verified by the skip uniform gate.
+func (d *Decoder) skipBUniform(h *SliceHeader, addr, mbx, mby int, dm [2]bDirectMV, u0, u1 bool, px0, py0 int, rs residSrc) bool {
+	var predY [256]uint8
+	var predCb, predCr [64]uint8
+	rw, rh := int(d.pic.Width/2), int(d.pic.Height/2)
+	switch {
+	case u0 && u1:
+		rp0, err := d.refFor(dm[0].ref)
+		if err != nil {
+			return false
+		}
+		rp1, err := d.refFor1(dm[1].ref)
+		if err != nil {
+			return false
+		}
+		var blk1 [256]uint8
+		predictLumaBlock(rp0, px0, py0, 16, 16, dm[0].mx, dm[0].my, predY[:])
+		predictLumaBlock(rp1, px0, py0, 16, 16, dm[1].mx, dm[1].my, blk1[:])
+		w := d.bipredWeight(d.pic, rp0, rp1, dm[0].ref, dm[1].ref)
+		bipredAvg(predY[:], blk1[:], w)
+		ccx, ccy := mbx*8, mby*8
+		var cb1, cr1 [64]uint8
+		predictChromaBlock(rp0.Cb, rw, rh, ccx, ccy, 8, 8, dm[0].mx, dm[0].my, predCb[:])
+		predictChromaBlock(rp0.Cr, rw, rh, ccx, ccy, 8, 8, dm[0].mx, dm[0].my, predCr[:])
+		predictChromaBlock(rp1.Cb, rw, rh, ccx, ccy, 8, 8, dm[1].mx, dm[1].my, cb1[:])
+		predictChromaBlock(rp1.Cr, rw, rh, ccx, ccy, 8, 8, dm[1].mx, dm[1].my, cr1[:])
+		bipredAvg(predCb[:], cb1[:], w)
+		bipredAvg(predCr[:], cr1[:], w)
+	case u0:
+		rp, err := d.refFor(dm[0].ref)
+		if err != nil {
+			return false
+		}
+		predictLumaBlock(rp, px0, py0, 16, 16, dm[0].mx, dm[0].my, predY[:])
+		d.weightLuma(predY[:], dm[0].ref)
+		ccx, ccy := mbx*8, mby*8
+		predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, 8, 8, dm[0].mx, dm[0].my, predCb[:])
+		predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, 8, 8, dm[0].mx, dm[0].my, predCr[:])
+		d.weightChroma(predCb[:], predCr[:], dm[0].ref)
+	case u1:
+		rp, err := d.refFor1(dm[1].ref)
+		if err != nil {
+			return false
+		}
+		predictLumaBlock(rp, px0, py0, 16, 16, dm[1].mx, dm[1].my, predY[:])
+		d.weightLuma1(predY[:], dm[1].ref)
+		ccx, ccy := mbx*8, mby*8
+		predictChromaBlock(rp.Cb, rw, rh, ccx, ccy, 8, 8, dm[1].mx, dm[1].my, predCb[:])
+		predictChromaBlock(rp.Cr, rw, rh, ccx, ccy, 8, 8, dm[1].mx, dm[1].my, predCr[:])
+		d.weightChroma1(predCb[:], predCr[:], dm[1].ref)
+	default:
+		fillPred(&predY, &predCb, &predCr)
+	}
+	d.finishPMB(h, addr, mbx, mby)
+	d.skipped[addr] = true
+	d.mbDirect[addr] = true
+	d.mbSlice[addr] = d.slices
+	if addr >= 0 && addr < len(d.mbT8) {
+		d.mbT8[addr] = false
+	}
+	// S1b-E: all four 8x8 parts share dm (checked by the caller), so
+	// all 16 4x4 motion slots are identical — record it for the
+	// deblocker's uniform-edge shortcut (cbp==0 below zeroes nnz, so
+	// the block is also clean by construction).
+	if addr >= 0 && addr < len(d.uniSkip) {
+		d.uniSkip[addr] = true
+		d.uniDM[addr] = dm
+	}
+	if err := d.reconstructInterWith(mbx, mby, 0, &predY, &predCb, &predCr, rs); err != nil {
+		return false
+	}
+	d.skipCnt++
+	return true
 }
 
 // storeDirectB8 records one 8x8 direct sub-block's motion (2x2 slots at
@@ -296,7 +657,7 @@ func (d *Decoder) decodeMBB(r *Reader, pps *PPS, h *SliceHeader, addr int) error
 // decodeMBBParts decodes one explicit B macroblock: references of both
 // lists first (list 0, then list 1, in partition order), motion
 // differences after, then CBP and residual like P.
-func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, mbType uint32, is *bInterSrc, rs *residSrc) error {
+func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, mbType uint32, is bInterSrc, rs residSrc) error {
 	x0, y0 := mbx*4, mby*4
 	px0, py0 := mbx*16, mby*16
 	d.poisonDiagSlots(mbx, mby)
@@ -560,7 +921,7 @@ const (
 // stores them into early scratch at once (later same-MB partitions read
 // them for neighbour contexts): every list-0 reference first, then
 // every list-1 reference.
-func (d *Decoder) decodeBRefs(is *bInterSrc, descs []bPartDesc) ([]bRefPair, error) {
+func (d *Decoder) decodeBRefs(is bInterSrc, descs []bPartDesc) ([]bRefPair, error) {
 	refs := make([]bRefPair, len(descs))
 	for i, ds := range descs {
 		if !ds.dir.usesL0() {
@@ -599,7 +960,7 @@ type bMVDDiff struct {
 // land in the raw MVD slots at read time, so later same-list partitions
 // see them for neighbour contexts; prediction still runs in partition
 // order afterwards.
-func (d *Decoder) decodeBMVDs(is *bInterSrc, descs []bPartDesc) ([]bMVDDiff, error) {
+func (d *Decoder) decodeBMVDs(is bInterSrc, descs []bPartDesc) ([]bMVDDiff, error) {
 	out := make([]bMVDDiff, len(descs))
 	for i, ds := range descs {
 		if !ds.dir.usesL0() {
