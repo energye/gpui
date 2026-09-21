@@ -1,0 +1,38 @@
+{
+  "boost": {
+    "antdesign_m_boosted_level": "H",
+    "antdesign_m_boosted_modules": 29
+  },
+  "default_props": {
+    "bg_color": "",
+    "bordered": true,
+    "color": "",
+    "error_level": "M",
+    "icon_size": 40.0,
+    "margin": 0,
+    "size": 160.0,
+    "status": "active",
+    "type": "canvas"
+  },
+  "encode": {
+    "antdesign_m_modules": 25,
+    "empty_modules": 0,
+    "hello_modules": 21
+  },
+  "geometry": {
+    "content_160_bordered": 136.0,
+    "icon_default": 40.0,
+    "line": 1.0,
+    "pad_bordered": 12.0,
+    "pad_borderless": 0.0,
+    "radius_bordered": 8.0,
+    "radius_borderless": 0.0,
+    "size": 160.0
+  },
+  "locale": {
+    "expired_en": "QR code expired",
+    "expired_zh": "二维码已过期",
+    "refresh_en": "Refresh",
+    "scanned_en": "Scanned"
+  }
+}
