@@ -298,6 +298,12 @@ func (d *Decoder) decodeSkipB(h *SliceHeader, addr int, rs residSrc) error {
 	// (same use flags, refs, vectors). Prediction tiles one 16x16
 	// call instead of four 8x8 calls; motion stores still run per
 	// 8x8 below (neighbours read derived indices per block).
+	//
+	// NOTE (S1b-J tried, reverted): a 16-slot branch-free bulk store
+	// (storeDirectUniform) measured zero gain — the stores are memory
+	// bound (176 writes/MB), the per-slot branches perfectly
+	// predicted; branch elimination saves nothing measurable. Keep
+	// the simple per-8x8 stores.
 	dm0 := dms[0]
 	if dms[1] == dm0 && dms[2] == dm0 && dms[3] == dm0 && !d.wBiExpl {
 		for i := 0; i < 4; i++ {
@@ -355,20 +361,15 @@ func (d *Decoder) skipBFast(h *SliceHeader, addr, mbx, mby int, dms [4][2]bDirec
 	}
 	x0, y0 := mbx*4, mby*4
 	px0, py0 := mbx*16, mby*16
-	// Motion stores first (same order as the slow path: all four
-	// 8x8 stores before any prediction, so intra-MB neighbours read
-	// the same derived indices). Unrolled: 4 fixed stores, no loop
-	// counter, no per-iteration offset math.
-	d.storeDirectB8(x0, y0, dms[0])
-	d.storeDirectB8(x0+2, y0, dms[1])
-	d.storeDirectB8(x0, y0+2, dms[2])
-	d.storeDirectB8(x0+2, y0+2, dms[3])
-	// Skip shape fast lane: all four 8x8 parts share one motion shape
-	// (all bipred / all L0 / all L1 — the overwhelming case on still
-	// content where neighbours agree). Reference lookups + implicit
-	// weight hoist out of the part loop; per-part work is predict +
-	// mix + fixed-offset copy only. Mixed shapes fall through to the
-	// per-part loop below (same output, slower).
+	// Uniformity first (cheap struct compares): all four 8x8 parts
+	// sharing one motion is the overwhelming case on still content.
+	// Uniform blocks store per 8x8 below like mixed shapes (a 16-slot
+	// branch-free bulk store measured zero gain here — the stores are
+	// memory bound, branches predicted; see the uniform shortcut in
+	// decodeSkipB) and predict once at 16x16 (skipBUniform). Motion
+	// stores run before any prediction either way (same order as the
+	// slow path, so intra-MB neighbours read the same derived
+	// indices).
 	u0 := dms[0][0].use && dms[1][0].use && dms[2][0].use && dms[3][0].use
 	u1 := dms[0][1].use && dms[1][1].use && dms[2][1].use && dms[3][1].use
 	sameRef := dms[0][0].ref == dms[1][0].ref && dms[0][0].ref == dms[2][0].ref && dms[0][0].ref == dms[3][0].ref &&
@@ -380,11 +381,21 @@ func (d *Decoder) skipBFast(h *SliceHeader, addr, mbx, mby int, dms [4][2]bDirec
 	if u0 == (dms[0][0].use || dms[1][0].use || dms[2][0].use || dms[3][0].use) &&
 		u1 == (dms[0][1].use || dms[1][1].use || dms[2][1].use || dms[3][1].use) &&
 		sameRef && sameMV {
+		d.storeDirectB8(x0, y0, dms[0])
+		d.storeDirectB8(x0+2, y0, dms[1])
+		d.storeDirectB8(x0, y0+2, dms[2])
+		d.storeDirectB8(x0+2, y0+2, dms[3])
 		if d.skipBUniform(h, addr, mbx, mby, dms[0], u0, u1, px0, py0, rs) {
 			return true
 		}
 		return false
 	}
+	// Mixed shapes: per-8x8 stores (unrolled, no loop counter), then
+	// the per-part predict loop below.
+	d.storeDirectB8(x0, y0, dms[0])
+	d.storeDirectB8(x0+2, y0, dms[1])
+	d.storeDirectB8(x0, y0+2, dms[2])
+	d.storeDirectB8(x0+2, y0+2, dms[3])
 	// Implicit weight is constant across the four parts here: same
 	// current POC and same ref pair per list when both lists used.
 	// (Mixed use shapes still go per-part below; the common skip
@@ -661,7 +672,8 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 	x0, y0 := mbx*4, mby*4
 	px0, py0 := mbx*16, mby*16
 	d.poisonDiagSlots(mbx, mby)
-	var parts []part
+	// S1b-J: same pre-size as decodeMBPParts (growslice memmove).
+	parts := make([]part, 0, 4)
 	var subList []uint32
 	hasSubs := false
 	allDirect := false

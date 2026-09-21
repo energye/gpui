@@ -538,7 +538,10 @@ func (s *interSrc) t8(cbp uint32, subs []uint32) (bool, error) {
 }
 
 func (d *Decoder) decodeMBPParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, mbType uint32, is interSrc, rs residSrc) error {
-	var parts []part
+	// S1b-J: parts holds at most 4 partitions except sub-8x8 shapes
+	// (up to 16); pre-sizing kills the growslice memmove the profile
+	// pins on this function (~2% on ENERGY).
+	parts := make([]part, 0, 4)
 	var subList []uint32
 	var subTypes [4]uint32
 	hasSubs := false

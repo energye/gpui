@@ -131,16 +131,12 @@ func acquirePicture(w, h uint32) (*Picture, error) {
 		atomic.StoreInt32(&fresh.refs, 1)
 		return fresh, nil
 	}
-	// Same observable state as NewPicture: grey fill + stamps cleared.
-	// Motion arrays keep their capacity (archiveMotion reuses them when
-	// the grid matches).
-	for i := range p.Y {
-		p.Y[i] = 16
-	}
-	for i := range p.Cb {
-		p.Cb[i] = 128
-		p.Cr[i] = 128
-	}
+	// Pooled buffers skip the grey refill: decode overwrites every
+	// pixel (FinishPicture enforces full MB coverage; Crop fully
+	// copies), so the fill is ~2MB of dead stores per 1536x864 frame.
+	// Stamps still clear (cheap, and read before write). Any
+	// read-before-write would surface in the exact gates (they pin
+	// every pixel of B/480p/720p/VR2 clips).
 	p.FrameNum, p.POC, p.IsIDR = 0, 0, false
 	p.MotW4, p.MotH4 = 0, 0
 	atomic.StoreInt32(&p.refs, 1)
