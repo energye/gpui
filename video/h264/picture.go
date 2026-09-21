@@ -3,11 +3,22 @@ package h264
 import (
 	"fmt"
 	"sort"
+	"sync"
+	"sync/atomic"
 )
 
 // Picture is one decoded 8-bit 4:2:0 frame in raster order.
 // Luma is Width x Height; each chroma plane is half width and height.
 // Stride equals plane width (no padding) in this stage.
+//
+// Ownership (S1b-I reference-count pool): a picture's buffers are
+// shared by up to five parties — the decoding decoder (d.pic), the
+// reference buffer (DPB), the player's reorder queue (pending), B
+// worker snapshots (PrimeFrame rosters), and cross-lap carry (bHeld).
+// refs counts live owners atomically (B workers share across
+// goroutines); the last Release returns the buffers to the pool.
+// Owners: Retain on take, Release on drop. A nil picture is a no-op
+// for both, so untested/test paths stay branch-free.
 type Picture struct {
 	Width    uint32
 	Height   uint32
@@ -30,6 +41,110 @@ type Picture struct {
 	MV1y  []int16
 	Rf1   []int8
 	UseM  []uint8
+
+	refs int32 // live owners; 0 == in pool or fresh
+}
+
+// Retain takes one ownership of the picture.
+func (p *Picture) Retain() {
+	if p == nil {
+		return
+	}
+	atomic.AddInt32(&p.refs, 1)
+}
+
+// Release drops one ownership; the last owner returns the buffers to
+// the pool. Never touch the picture after Release.
+func (p *Picture) Release() {
+	if p == nil {
+		return
+	}
+	if atomic.AddInt32(&p.refs, -1) != 0 {
+		return
+	}
+	picPoolPut(p)
+}
+
+// picPoolKey identifies reusable buffers: pixel size. Motion-archive
+// arrays ride along opportunistically (reused when the grid matches,
+// else reallocated on the cold resolution-change path).
+type picPoolKey struct {
+	w, h uint32
+}
+
+var picPool = struct {
+	sync.Mutex
+	bySize map[picPoolKey][]*Picture
+	total  int
+}{bySize: make(map[picPoolKey][]*Picture)}
+
+// picPoolPerKey caps cached frames per size, picPoolTotal caps the
+// whole cache (resolution flapping never parks unbounded memory).
+const picPoolPerKey = 16
+const picPoolTotal = 64
+
+func picPoolPut(p *Picture) {
+	if p == nil || p.Width == 0 || p.Height == 0 {
+		return
+	}
+	// Only pool sane decode sizes (tests use tiny synthetics; pooling
+	// them is harmless but pointless — the cap bounds it either way).
+	k := picPoolKey{w: p.Width, h: p.Height}
+	picPool.Lock()
+	defer picPool.Unlock()
+	if len(picPool.bySize[k]) >= picPoolPerKey || picPool.total >= picPoolTotal {
+		return
+	}
+	picPool.bySize[k] = append(picPool.bySize[k], p)
+	picPool.total++
+}
+
+// acquirePicture hands out a blank (mid-grey) picture like NewPicture,
+// reusing a pooled buffer when one fits. Decode always overwrites every
+// pixel (FinishPicture enforces full coverage), so reuse is exact; the
+// grey refill keeps the observable state identical to NewPicture either
+// way. NewPicture stays fresh-allocating (public contract for tests and
+// synthetic pictures); only the decode hot paths acquire.
+func acquirePicture(w, h uint32) (*Picture, error) {
+	if w == 0 || h == 0 || w > 8192 || h > 8192 {
+		return nil, fmt.Errorf("%w: size %dx%d", ErrBadSPS, w, h)
+	}
+	if w%2 != 0 || h%2 != 0 {
+		return nil, fmt.Errorf("%w: odd size %dx%d", ErrBadSPS, w, h)
+	}
+	k := picPoolKey{w: w, h: h}
+	picPool.Lock()
+	var p *Picture
+	if q := picPool.bySize[k]; len(q) > 0 {
+		p = q[len(q)-1]
+		picPool.bySize[k] = q[:len(q)-1]
+		picPool.total--
+	}
+	picPool.Unlock()
+	if p == nil {
+		fresh, err := NewPicture(w, h)
+		if err != nil {
+			return nil, err
+		}
+		// Fresh pictures carry refs=0 (NewPicture contract); the
+		// decoder owns this one.
+		atomic.StoreInt32(&fresh.refs, 1)
+		return fresh, nil
+	}
+	// Same observable state as NewPicture: grey fill + stamps cleared.
+	// Motion arrays keep their capacity (archiveMotion reuses them when
+	// the grid matches).
+	for i := range p.Y {
+		p.Y[i] = 16
+	}
+	for i := range p.Cb {
+		p.Cb[i] = 128
+		p.Cr[i] = 128
+	}
+	p.FrameNum, p.POC, p.IsIDR = 0, 0, false
+	p.MotW4, p.MotH4 = 0, 0
+	atomic.StoreInt32(&p.refs, 1)
+	return p, nil
 }
 
 // NewPicture allocates a blank (mid-grey) picture.
@@ -90,19 +205,27 @@ func NewDPB(max int) *DPB {
 
 // Store adds a picture, flushing on IDR and evicting the oldest on overflow.
 // Non-reference pictures (disposable) are not kept for prediction.
+// The buffer takes one ownership of stored pictures (Retain); evicted,
+// unmarked and flushed victims are released.
 func (d *DPB) Store(p *Picture, isRef bool) {
 	if d == nil || p == nil {
 		return
 	}
 	if p.IsIDR {
+		for _, q := range d.pics {
+			q.Release()
+		}
 		d.pics = d.pics[:0]
 	}
 	if !isRef {
 		return
 	}
+	p.Retain()
 	d.pics = append(d.pics, p)
 	for len(d.pics) > d.max {
+		victim := d.pics[0]
 		d.pics = d.pics[1:]
+		victim.Release()
 	}
 }
 
@@ -239,15 +362,15 @@ func (p *Picture) Crop(w, h uint32) (*Picture, error) {
 	if w == 0 || h == 0 || w > p.Width || h > p.Height || w%2 != 0 || h%2 != 0 {
 		return nil, fmt.Errorf("%w: crop %dx%d from %dx%d", ErrBadSPS, w, h, p.Width, p.Height)
 	}
-	out := &Picture{Width: w, Height: h}
-	out.Y = make([]uint8, w*h)
+	out, err := acquirePicture(w, h)
+	if err != nil {
+		return nil, err
+	}
 	for y := uint32(0); y < h; y++ {
 		copy(out.Y[y*w:(y+1)*w], p.Y[y*p.Width:y*p.Width+w])
 	}
 	cw, ch := w/2, h/2
 	pw := p.Width / 2
-	out.Cb = make([]uint8, cw*ch)
-	out.Cr = make([]uint8, cw*ch)
 	for y := uint32(0); y < ch; y++ {
 		copy(out.Cb[y*cw:(y+1)*cw], p.Cb[y*pw:y*pw+cw])
 		copy(out.Cr[y*cw:(y+1)*cw], p.Cr[y*pw:y*pw+cw])
@@ -273,6 +396,9 @@ func (p *Picture) coloc(x4, y4 int) (r0 int8, x0, y0 int16, r1 int8, x1, y1 int1
 // archiveMotion snapshots the current picture's per-4x4 motion of both
 // lists for later B direct-mode colocated reads. Only reference pictures
 // call it; the decoder arrays are reused by the next picture.
+//
+// S1b-I: pooled arrays are reused in place when the grid matches (the
+// common steady-resolution case) — no per-frame motion garbage.
 func (p *Picture) archiveMotion(d *Decoder) {
 	if p == nil || d == nil {
 		return
@@ -280,14 +406,49 @@ func (p *Picture) archiveMotion(d *Decoder) {
 	w4, h4 := d.mbW*4, d.mbH*4
 	n := w4 * h4
 	p.MotW4, p.MotH4 = w4, h4
-	p.MV0x = append([]int16(nil), d.mvX...)
-	p.MV0y = append([]int16(nil), d.mvY...)
-	p.Rf0 = append([]int8(nil), d.refIdx...)
-	p.MV1x = append([]int16(nil), d.mvX1...)
-	p.MV1y = append([]int16(nil), d.mvY1...)
-	p.Rf1 = append([]int8(nil), d.refIdx1...)
-	p.UseM = append([]uint8(nil), d.useM...)
+	if len(p.MV0x) != n {
+		p.MV0x = append([]int16(nil), d.mvX...)
+		p.MV0y = append([]int16(nil), d.mvY...)
+		p.Rf0 = append([]int8(nil), d.refIdx...)
+		p.MV1x = append([]int16(nil), d.mvX1...)
+		p.MV1y = append([]int16(nil), d.mvY1...)
+		p.Rf1 = append([]int8(nil), d.refIdx1...)
+		p.UseM = append([]uint8(nil), d.useM...)
+		_ = n
+		return
+	}
+	copy(p.MV0x, d.mvX)
+	copy(p.MV0y, d.mvY)
+	copy(p.Rf0, d.refIdx)
+	copy(p.MV1x, d.mvX1)
+	copy(p.MV1y, d.mvY1)
+	copy(p.Rf1, d.refIdx1)
+	copy(p.UseM, d.useM)
 	_ = n
+}
+
+// DropBuffered releases decoder-held pictures (the in-flight frame plus
+// the reference roster) for teardown paths: worker teardown, sequential
+// decoder replacement, harvest teardown. Display pictures already handed
+// out keep their own counts and stay alive. Safe on nil/empty decoders.
+func (d *Decoder) DropBuffered() {
+	if d == nil {
+		return
+	}
+	if d.pic != nil {
+		p := d.pic
+		d.pic = nil
+		p.Release()
+	}
+	if d.dpb != nil {
+		for _, q := range d.dpb.pics {
+			q.Release()
+		}
+		d.dpb.pics = d.dpb.pics[:0]
+	}
+	d.lastStored = nil
+	d.decoded = 0
+	d.slices = 0
 }
 
 // fixPOC rebuilds the full display order for poc type 0 wrapping
@@ -432,7 +593,9 @@ func (d *DPB) evictOldest(curFN uint32, maxFN int64) {
 			m, mw = i, w
 		}
 	}
+	victim := d.pics[m]
 	d.pics = append(d.pics[:m], d.pics[m+1:]...)
+	victim.Release()
 }
 
 // unmarkShort drops one short-term picture by frame number (explicit
@@ -444,6 +607,7 @@ func (d *DPB) unmarkShort(frameNum uint32) {
 	for i, p := range d.pics {
 		if p.FrameNum == frameNum {
 			d.pics = append(d.pics[:i], d.pics[i+1:]...)
+			p.Release()
 			return
 		}
 	}

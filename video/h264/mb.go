@@ -265,7 +265,7 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 			d.nnzCb != nil && len(d.nnzCb) == nc &&
 			d.skipped != nil && len(d.skipped) == nmb &&
 			d.mvX != nil && len(d.mvX) == n4
-		pic, err := NewPicture(aw, ah)
+		pic, err := acquirePicture(aw, ah)
 		if err != nil {
 			return err
 		}
@@ -604,12 +604,22 @@ func (d *Decoder) LastSEI() []SEIMessage {
 // The frame must be exactly covered by decoded macroblocks.
 // Empty or partial pictures are F20 (lost reference / truncated sample):
 // the caller skips the frame and keeps playing.
+//
+// Ownership: the decoder's share transfers to the display picture on
+// success (no count change); the DPB takes its own share for reference
+// frames inside Store. The caller owns the returned picture (Release
+// after showing/dropping); the cropped view owns its own buffers.
 func (d *Decoder) FinishPicture() (*Picture, error) {
 	if d.pic == nil || d.decoded == 0 {
 		return nil, fmt.Errorf("%w: no slices decoded (%w)", ErrBadSliceHeader, ErrLostReference)
 	}
 	if d.decoded != d.mbW*d.mbH {
-		return nil, fmt.Errorf("%w: %d of %d mbs (%w)", ErrBadSliceHeader, d.decoded, d.mbW*d.mbH, ErrLostReference)
+		got, want := d.decoded, d.mbW*d.mbH
+		d.pic.Release()
+		d.pic = nil
+		d.decoded = 0
+		d.slices = 0
+		return nil, fmt.Errorf("%w: %d of %d mbs (%w)", ErrBadSliceHeader, got, want, ErrLostReference)
 	}
 	DeblockPicture(d.pic, d.qps, d.fIDC, d.fA, d.fB, d.mbW, d.mbH, d.cOff0, d.cOff1,
 		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx, d.refList, d.mbT8,
@@ -640,13 +650,16 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 	}
 	out := d.pic
 	// Cropped display size: references keep the aligned picture, the
-	// caller gets the cropped view (copied; uncropped returns as-is).
+	// caller gets the cropped view (pooled; uncropped returns as-is).
+	// The decoder's share of the aligned picture ends here (the DPB
+	// keeps its own share for reference frames).
 	if d.sps != nil && (d.sps.Width != out.Width || d.sps.Height != out.Height) {
 		cr, err := out.Crop(d.sps.Width, d.sps.Height)
 		if err != nil {
 			return nil, err
 		}
 		cr.FrameNum, cr.POC, cr.IsIDR = out.FrameNum, out.POC, out.IsIDR
+		out.Release()
 		out = cr
 	}
 	d.pic = nil

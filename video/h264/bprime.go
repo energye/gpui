@@ -21,9 +21,28 @@ package h264
 
 // PrimeFrame primes one task: snapshot holds live reference pictures
 // in roster order (aligned with the plan's Snapshot indices).
+//
+// Ownership: the worker takes one share of every snapshot picture
+// (Retain) and drops its previous roster first, so a reused pool
+// decoder never pins the last task's frames. The caller must keep its
+// own shares alive for the call (stored/carry roster); the worker
+// releases its shares at task teardown (DropBuffered).
+//
+// Order matters: retain-new BEFORE releasing old. Consecutive tasks
+// usually share anchors (same picture in both rosters) — releasing
+// first would drop a shared picture to zero, recycle it into the pool,
+// and hand its buffers to another frame while this roster still points
+// at them. Retaining first keeps shared pictures above zero throughout
+// the swap (caught by TestBPlanPrimeMatchesSequential on 1080p).
 func (d *Decoder) PrimeFrame(snapshot []*Picture, seed POCSeed) {
 	if d.dpb == nil {
 		d.dpb = NewDPB(16)
+	}
+	for _, q := range snapshot {
+		q.Retain()
+	}
+	for _, q := range d.dpb.pics {
+		q.Release()
 	}
 	d.dpb.pics = append(d.dpb.pics[:0], snapshot...)
 	d.pocMSB, d.pocPrevLSB, d.pocHave = seed.MSB, seed.PrevLSB, seed.Have

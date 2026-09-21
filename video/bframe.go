@@ -227,6 +227,13 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 	p.dmu.Lock()
 	held := p.bHeld
 	if p.bGen != gen || p.bHeldHead != gHead {
+		// Stale roster from an old generation/group: no future lap
+		// can use it (the audit keys on this group), so drop its
+		// shares now — otherwise they pin pooled buffers forever.
+		for _, q := range p.bHeld {
+			q.Release()
+		}
+		p.bHeld = nil
 		held = nil
 	}
 	p.dmu.Unlock()
@@ -238,6 +245,21 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 	compatible, carry := bAuditHeld(gHead, pos, maxExec, plans, held)
 	if !compatible {
 		return nil, false, nil, false
+	}
+	// Carry owns one share of every pre-window picture from here to
+	// commit/abandon: the harvest decoder is torn down below and the
+	// old held roster is replaced at commit, so borrowed pointers
+	// alone would dangle into recycled buffers.
+	for _, pic := range carry {
+		pic.Retain()
+	}
+	// dropCarry releases carry shares on pre-spawn exits (no workers
+	// or decoded pictures exist yet — the full abandon below covers
+	// post-spawn exits).
+	dropCarry := func() {
+		for _, pic := range carry {
+			pic.Release()
+		}
 	}
 	// Extend execution over forward edges (union, bounded by maxExec —
 	// the walk covers to maxExec; a crosser past it falls back so no
@@ -262,7 +284,7 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 					execEnd = gHead + r + 1
 					extended = true
 				case gHead+r >= maxExec:
-
+					dropCarry()
 					return nil, false, nil, false
 				}
 			}
@@ -272,7 +294,7 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 					execEnd = gHead + s + 1
 					extended = true
 				case gHead+s >= maxExec:
-
+					dropCarry()
 					return nil, false, nil, false
 				}
 			}
@@ -293,6 +315,7 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		}
 	}
 	if execEnd <= pos || execEnd > maxExec {
+		dropCarry()
 		return nil, false, nil, false
 	}
 	// Stream ends only when the emit point reaches the last sample.
@@ -388,6 +411,19 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		}
 		stored[gf] = carry[gi]
 		close(doneCh[gf])
+	}
+	// abandon drops a lap's private shares without touching player
+	// state (needle, pending, held): decoded display pictures, carry
+	// shares, and worker reference rosters. Workers run to completion
+	// first (wg.Wait above), so no task reads while we release.
+	abandon := func() {
+		for _, pic := range disp {
+			pic.Release()
+		}
+		dropCarry()
+		for _, dec := range pool {
+			dec.DropBuffered()
+		}
 	}
 	var wg sync.WaitGroup
 	var needFallback atomic.Bool
@@ -487,11 +523,13 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 	wg.Wait()
 
 	if needFallback.Load() {
+		abandon()
 		return nil, false, nil, false
 	}
 	p.dmu.Lock()
 	defer p.dmu.Unlock()
 	if atomic.LoadInt64(&p.generation) != gen {
+		abandon()
 		return nil, false, nil, true
 	}
 	// Retain the future roster FIRST (no player state touched): snapshots
@@ -513,6 +551,7 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 				if pic := carry[gi]; pic != nil {
 					keep[gi] = pic
 				} else {
+					abandon()
 					return nil, false, nil, false
 				}
 			case gi < execEnd:
@@ -522,6 +561,7 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 			default:
 				// Cannot exist (the extension pass covered the
 				// window): fall back rather than keep a hole.
+				abandon()
 				return nil, false, nil, false
 			}
 		}
@@ -533,6 +573,7 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 	// roster mixes in-window stored pictures with pre-window carry
 	// (audited above).
 	if !p.primeResumeLocked(gHead, segEnd, plans, carry, stored, pos, execEnd) {
+		abandon()
 		return nil, false, nil, false
 	}
 	for k, pic := range disp {
@@ -545,7 +586,10 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		// via primeFirst/earlier laps — appending again double-shows).
 		// Deduplicate by SAMPLE (not PTS: PTS repeats across
 		// loop/seek epochs are legal; spos is the decode-order key).
+		// Non-appended display shares end here (pending owns the
+		// appended ones; reference shares live in keep/workers).
 		if idx < pos || idx >= segEnd {
+			pic.Release()
 			continue
 		}
 		dup := false
@@ -556,14 +600,32 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 			}
 		}
 		if dup {
+			pic.Release()
 			continue
 		}
 		pts := base0 + epoch + (samples[idx].PTSMs - base0)
 		p.pending = append(p.pending, &pendingPic{pic: pic, pts: pts, spos: idx})
 	}
+	// Commit the roster swap: keep takes its own shares first, then the
+	// old held roster and the carry shares drop (a kept picture never
+	// hits zero in between — counts only move down after the new share
+	// lands). Workers are done (their snapshots were borrowed from
+	// stored/carry), so their rosters drop last.
+	for _, pic := range keep {
+		pic.Retain()
+	}
+	for _, pic := range p.bHeld {
+		pic.Release()
+	}
 	p.bHeld = keep
 	p.bHeldHead = gHead
 	p.bGen = gen
+	for _, pic := range carry {
+		pic.Release()
+	}
+	for _, dec := range pool {
+		dec.DropBuffered()
+	}
 	p.pos = segEnd
 	if !tail {
 		for len(p.pending) > depth {
@@ -628,14 +690,20 @@ func (p *Player) primeResumeLocked(gHead, segEnd int, plans []h264.FramePlan, ca
 		case gi < execEnd:
 			pic = stored[gi-gHead]
 		default:
+			dropDecoderPictures(nd)
 			return false
 		}
 		if pic == nil {
+			dropDecoderPictures(nd)
 			return false
 		}
 		roster = append(roster, pic)
 	}
 	hd.d.PrimeFrame(roster, plans[gf].NextSeed)
+	// The continuation decoder takes over: the old decoder's buffered
+	// shares (roster + in-flight) drop — roster pictures stay alive by
+	// their new worker shares plus keep/carry/pending counts.
+	dropDecoderPictures(p.dec)
 	p.dec = nd
 	return true
 }
@@ -706,13 +774,16 @@ func (p *Player) harvestHeadLocked(gHead, pos int, gen int64) (map[int]*h264.Pic
 		s := p.samples[i]
 		buf := make([]byte, s.Size)
 		if _, rerr := readSourceRange(p.source, buf, int64(s.Offset)); rerr != nil {
+			dropDecoderPictures(nd)
 			return nil, false
 		}
 		units, uerr := SplitUnits(p.codec, buf, p.avcc.LengthSize)
 		if uerr != nil {
+			dropDecoderPictures(nd)
 			return nil, false
 		}
 		if rerr := RejectUnits(p.codec, units, s.Number, p.path); rerr != nil {
+			dropDecoderPictures(nd)
 			return nil, false
 		}
 		if !fedUnits(units) {
@@ -726,10 +797,12 @@ func (p *Player) harvestHeadLocked(gHead, pos int, gen int64) (map[int]*h264.Pic
 			for _, u := range units {
 				_, _, typ, terr := h264.NALUHeader(u)
 				if terr != nil {
+					dropDecoderPictures(nd)
 					return nil, false
 				}
 				if typ == h264.NALSPS || typ == h264.NALPPS {
 					if derr := nd.DecodeNALU(u); derr != nil {
+						dropDecoderPictures(nd)
 						return nil, false
 					}
 				}
@@ -737,19 +810,35 @@ func (p *Player) harvestHeadLocked(gHead, pos int, gen int64) (map[int]*h264.Pic
 		}
 		for _, u := range units {
 			if derr := nd.DecodeNALU(u); derr != nil {
+				dropDecoderPictures(nd)
 				return nil, false
 			}
 		}
-		if _, ferr := nd.FinishPicture(); ferr != nil {
+		if disp, ferr := nd.FinishPicture(); ferr != nil {
+			dropDecoderPictures(nd)
 			return nil, false
+		} else {
+			// The display share ends here (already queued via
+			// primeFirst/earlier laps); only reference pictures
+			// travel forward via StoredRef below.
+			disp.Release()
 		}
 		if st := hd.d.StoredRef(); st != nil {
 			out[i] = st
 		}
 		if atomic.LoadInt64(&p.generation) != gen {
+			dropDecoderPictures(nd)
 			return nil, false
 		}
 	}
+	// Carry owns one share of each harvested picture; the throwaway
+	// decoder's shares drop with it. Display pictures decoded here are
+	// already queued via primeFirst/earlier laps — only the reference
+	// pictures travel forward (StoredRef is nil for disposables).
+	for _, pic := range out {
+		pic.Retain()
+	}
+	dropDecoderPictures(nd)
 	return out, true
 }
 

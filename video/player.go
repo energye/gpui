@@ -811,6 +811,10 @@ func (p *Player) primeFirst() error {
 		}
 		for _, e := range emitted {
 			cf, el, cerr := p.convertPic(e.pic)
+			// The picture's pixels are copied into the convert
+			// buffer above (or convert failed) — the pending share
+			// ends here on every path below.
+			e.pic.Release()
 			if cerr != nil {
 				return fmt.Errorf("video: color frame %s: %w", p.path, cerr)
 			}
@@ -1014,7 +1018,10 @@ func (p *Player) decodeStep() (emitted []*pendingPic, done bool, err error) {
 // resetDecoderLocked rebuilds a clean decoder (caller holds dmu).
 // H.265 clips never reach here (their open fails before decode threads
 // start), so the AVCC-only feed stays byte-identical for H.264.
+// The old decoder's buffered shares (roster + in-flight) drop —
+// pictures alive in pending/held keep their own counts.
 func (p *Player) resetDecoderLocked() {
+	dropDecoderPictures(p.dec)
 	nd, err := NewDecoder(p.codec)
 	if err != nil {
 		return
@@ -1193,19 +1200,25 @@ func (p *Player) decodeLoop() {
 			if p.seekActive {
 				if e.pts < p.seekLanded {
 					p.dmu.Unlock()
+					e.pic.Release()
 					continue
 				}
 				p.seekActive = false
 				landing = true
 			} else if p.dropUntil >= 0 && e.pts <= p.dropUntil {
 				p.dmu.Unlock()
+				e.pic.Release()
 				continue
 			}
 			p.dmu.Unlock()
 			if atomic.LoadInt64(&p.generation) != gen {
+				e.pic.Release()
 				break
 			}
 			cf, el, cerr := p.convertPic(e.pic)
+			// Converted (or failed): the pending share ends here —
+			// every path below only touches the convert buffer.
+			e.pic.Release()
 			if cerr != nil {
 				p.mu.Lock()
 				if p.err == "" {
@@ -1272,10 +1285,18 @@ func (p *Player) decodeLoop() {
 				}
 			}
 			// Loop wrap: re-decode from head, stamps keep counting up.
+			// Queued and retained shares end here (fresh group state).
 			p.dmu.Lock()
 			p.epoch += p.spanMs + frameStepMs(p.frameRate)
 			p.pos = 0
+			for _, q := range p.pending {
+				q.pic.Release()
+			}
 			p.pending = nil
+			for _, q := range p.bHeld {
+				q.Release()
+			}
+			p.bHeld = nil
 			p.nextSeq = 0
 			p.dropUntil = -1
 			p.resetDecoderLocked()
@@ -1769,7 +1790,14 @@ func (p *Player) seekStream(keyPos, seekSpos int, landed, delta, targetMs, keyMs
 	wasPaused := p.Paused()
 	p.dmu.Lock()
 	p.resetDecoderLocked()
+	for _, q := range p.pending {
+		q.pic.Release()
+	}
 	p.pending = nil
+	for _, q := range p.bHeld {
+		q.Release()
+	}
+	p.bHeld = nil
 	p.pos = keyPos
 	p.seekActive = true
 	p.seekLanded = landed
@@ -2206,6 +2234,20 @@ func (p *Player) Close() {
 	p.closeAudioQueue()
 	<-p.doneCh
 	p.waitAudioLoop()
+	// Pooled picture shares end here: queued pictures, the retained
+	// roster, and the decoder's buffered shares. Convert buffers
+	// below ride the existing RGBA pool, untouched.
+	p.dmu.Lock()
+	for _, q := range p.pending {
+		q.pic.Release()
+	}
+	p.pending = nil
+	for _, q := range p.bHeld {
+		q.Release()
+	}
+	p.bHeld = nil
+	dropDecoderPictures(p.dec)
+	p.dmu.Unlock()
 	for _, fr := range p.q.Drain() {
 		if fr == nil {
 			continue

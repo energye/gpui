@@ -256,6 +256,18 @@ func (h *h264Decoder) FinishPicture() (*h264.Picture, error) { return h.d.Finish
 
 func (h *h264Decoder) Sampling() string { return color.SamplingYUV420P }
 
+// dropDecoderPictures releases decoder-held pictures (the in-flight
+// frame plus the reference roster) on teardown/replacement paths:
+// worker teardown, sequential decoder replacement, harvest teardown.
+// Display pictures already handed to pending keep their own counts and
+// stay alive. No-op for nil, non-H.264, or empty decoders — and, by
+// design, not part of the Decoder interface (no public API change).
+func dropDecoderPictures(dec Decoder) {
+	if hd, ok := dec.(*h264Decoder); ok && hd != nil && hd.d != nil {
+		hd.d.DropBuffered()
+	}
+}
+
 // h265Decoder adapts the V2-1 H.265 header decoder to the registry
 // interface. The hvcC arrives per open (each clip carries its own sets),
 // so the factory builds an empty shell and feedH265Params fills it.

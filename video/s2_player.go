@@ -204,21 +204,36 @@ func s2DecodeBlobs(codec string, avcc *h264.AVCC, path string, nums []int, blobs
 	if err != nil {
 		return nil, err
 	}
+	// The worker decoder is dropped at return: its reference shares
+	// drop with it (display shares travel in out). Discarded windows
+	// release their display shares at the fallback sites below.
+	defer dropDecoderPictures(dec)
 	if err := feedParams(dec, avcc, path, ""); err != nil {
 		return nil, err
 	}
 	out := make([]*h264.Picture, len(blobs))
+	// A failed window replays sequentially: its partial display
+	// shares end here (the worker's reference shares drop via the
+	// deferred teardown above).
+	discard := func() {
+		for _, pic := range out {
+			pic.Release()
+		}
+	}
 	for k, blob := range blobs {
 		units, err := SplitUnits(codec, blob, avcc.LengthSize)
 		if err != nil {
+			discard()
 			return nil, err
 		}
 		if err := RejectUnits(codec, units, nums[k], path); err != nil {
+			discard()
 			return nil, err
 		}
 		fed := false
 		for _, u := range units {
 			if err := dec.DecodeNALU(u); err != nil {
+				discard()
 				return nil, err
 			}
 			fed = true
@@ -228,6 +243,7 @@ func s2DecodeBlobs(codec string, avcc *h264.AVCC, path string, nums []int, blobs
 		}
 		pic, err := dec.FinishPicture()
 		if err != nil {
+			discard()
 			return nil, err
 		}
 		out[k] = pic
@@ -293,6 +309,9 @@ func (p *Player) decodeS2Window(g0, g1 int, gen int64) (emitted []*pendingPic, d
 		if len(p.pending) > p.reorderDepth {
 			p.dmu.Unlock()
 			return nil, false, nil, false
+		}
+		for _, q := range p.pending {
+			q.pic.Release()
 		}
 		p.pos = p.s2starts[g0]
 		p.pending = nil
@@ -396,6 +415,15 @@ func (p *Player) decodeS2Window(g0, g1 int, gen int64) (emitted []*pendingPic, d
 		return nil, false, firstFatal, true
 	}
 	if needFallback.Load() {
+		// The window replays sequentially: decoded display shares
+		// end here (worker reference shares already dropped with
+		// their decoders). A generation change below is the same
+		// discard with didParallel=true.
+		for _, r := range results {
+			for _, pic := range r.pics {
+				pic.Release()
+			}
+		}
 		p.dmu.Lock()
 		if atomic.LoadInt64(&p.generation) == gen {
 			p.pos = s0
@@ -407,6 +435,11 @@ func (p *Player) decodeS2Window(g0, g1 int, gen int64) (emitted []*pendingPic, d
 	p.dmu.Lock()
 	defer p.dmu.Unlock()
 	if atomic.LoadInt64(&p.generation) != gen {
+		for _, r := range results {
+			for _, pic := range r.pics {
+				pic.Release()
+			}
+		}
 		return nil, false, nil, true
 	}
 	// The window ends on a group head, so the sequential decoder would
