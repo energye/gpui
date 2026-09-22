@@ -127,6 +127,11 @@ func NewRenderText(textStr string) *RenderText {
 
 // SetText updates the string and dirties layout+paint when changed.
 // Clears multi-run content so the single-string path is used.
+// Same-footprint fast path: when the new text measures to the exact same
+// layout size under the last constraints (e.g. fixed-width numeric labels
+// like "rows 1102-1116"), layout output would be identical, so only repaint
+// is marked — ancestors above the text's own repaint boundary stay clean
+// instead of re-recording their backgrounds every keystroke/tick.
 func (t *RenderText) SetText(s string) {
 	if t == nil {
 		return
@@ -135,12 +140,42 @@ func (t *RenderText) SetText(s string) {
 		t.spanHint.ok = false
 		return
 	}
+	oldSz := t.Size()
 	t.Text = s
 	t.Runs = nil
 	t.spanHint.ok = false
 	t.invalidateMeasureCache()
+	if t.sameFootprint(oldSz) {
+		t.MarkNeedsPaint()
+		return
+	}
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
+}
+
+// sameFootprint reports whether the newly installed text measures to oldSz
+// under the last constraints. It probes with measureSize; on mismatch the
+// probe-warmed cache entries and stats are rolled back so the invalidation
+// above stays observable (measure stats must show a cold miss again).
+func (t *RenderText) sameFootprint(oldSz Size) bool {
+	if oldSz.Width <= 0 || oldSz.Height <= 0 || !t.hasLast {
+		return false
+	}
+	t.measureMu.Lock()
+	h0, m0 := t.measureHits, t.measureMiss
+	t.measureMu.Unlock()
+	newW, newH := t.measureSize()
+	if newW > 0 && newH > 0 {
+		if tight := t.lastConstraints.Tighten(Size{Width: newW, Height: newH}); tight.Width == oldSz.Width && tight.Height == oldSz.Height {
+			return true
+		}
+	}
+	t.measureMu.Lock()
+	t.measureCache = nil
+	t.textLayout = nil
+	t.measureHits, t.measureMiss = h0, m0
+	t.measureMu.Unlock()
+	return false
 }
 
 // editSpan是InputBox.sync传来的击键变更区间(旧串→新串),免去引擎逐字节diff.

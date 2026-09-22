@@ -153,14 +153,21 @@ func main() {
 
 	// 滚动条指示器：轨道贴视口右缘，thumb 用 Align 布局驱动（滚动比例 → ay），
 	// resize 时 Layout 自动重算，无手算坐标。
+	// 轨道包一层隔离：thumb 每帧挪位置的脏只到轨道，不冒到 body 和根背景。
 	track := wrkit.NewPanel(10, bodyH, 0.05, 0.06, 0.08, 1)
+	track.Box.SetRepaintBoundary(true)
+	track.Box.SetRelayoutBoundary(true)
 	shell.Body.Place(track.Box, listW-14, 0)
 	thumb := rendering.NewRenderColorBox(6, 56, 0.45, 0.75, 0.95, 1)
+	// thumb 每帧都动，自己包一层隔离：脏只到 thumb，不冒到轨道和 body。
+	thumb.SetRepaintBoundary(true)
 	thumbAlign := track.Align(thumb, 0.5, 0)
 
-	// 右栏静态密集区：标题 + 范围标签（boundary 隔离，仅窗口变化时重录）+
-	// 4×4 色格（嵌套 boundary）+ 8 条静态标签 —— U17 静态密集要求。
+	// 右栏静态密集区：标题 + 范围标签 + 4×4 色格 + 8 条静态标签。
+	// 整个右栏包一层隔离：列表滚动进不来。
 	right := wrkit.NewPanel(rightW, bodyH, 0.11, 0.12, 0.15, 1)
+	right.Box.SetRepaintBoundary(true)
+	right.Box.SetRelayoutBoundary(true)
 	shell.Body.Place(right.Box, listW+16, 0)
 	right.LabelAt("STATIC DENSE (不随滚动重绘)", 12, 12, 10, 0.55, 0.75, 0.95)
 	rangeLabel := right.LabelAt("rows ---- -- ---- / ----", 13, 12, 34, 0.95, 0.9, 0.4)

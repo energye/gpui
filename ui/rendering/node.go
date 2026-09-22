@@ -473,10 +473,40 @@ func (b *Base) ShouldRelayout(c Constraints) bool {
 	return false
 }
 
-// LayoutSkipIfClean returns previous size when layout can be skipped.
-func (b *Base) LayoutSkipIfClean(c Constraints) (Size, bool) {
-	if !b.ShouldRelayout(c) {
-		return b.size, true
+// SubtreeNeedsLayout reports whether n or any descendant needs layout.
+// Relayout boundaries stop the MarkNeedsLayout bubble, so ancestors above
+// them look clean while the bounded subtree is stale — callers must consult
+// this (not just self dirt) before skipping a subtree.
+func SubtreeNeedsLayout(n RenderObject) bool {
+	if n == nil {
+		return false
 	}
-	return Size{}, false
+	if n.NeedsLayout() {
+		return true
+	}
+	for _, ch := range n.Children() {
+		if SubtreeNeedsLayout(ch) {
+			return true
+		}
+	}
+	return false
+}
+
+// LayoutSkipIfClean returns previous size when layout can be skipped: self
+// clean, constraints unchanged, and no descendant needs layout. A clean
+// container above a relayout boundary still returns false so the caller runs
+// its normal walk and reaches the dirty bounded subtree (clean parts skip
+// per node inside that walk).
+func (b *Base) LayoutSkipIfClean(c Constraints) (Size, bool) {
+	if b.ShouldRelayout(c) {
+		return Size{}, false
+	}
+	if b.Self != nil {
+		for _, ch := range b.Self.Children() {
+			if SubtreeNeedsLayout(ch) {
+				return Size{}, false
+			}
+		}
+	}
+	return b.size, true
 }

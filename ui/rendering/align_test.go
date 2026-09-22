@@ -40,8 +40,8 @@ func TestAlignBox_LayoutDrivenOffset(t *testing.T) {
 	}
 }
 
-// TestAlignBox_SetAlignmentDirties ensures alignment change triggers layout
-// re-run (offset recompute) and child repaint.
+// TestAlignBox_SetAlignmentDirties ensures alignment change repositions the
+// child (direct offset, no layout pass) and marks paint on the box + child.
 func TestAlignBox_SetAlignmentDirties(t *testing.T) {
 	hot := NewRenderColorBox(100, 100, 1, 0, 0, 1)
 	align := NewRenderAlignBox(hot, 0.5, 0.5)
@@ -51,13 +51,15 @@ func TestAlignBox_SetAlignmentDirties(t *testing.T) {
 	hot.clearPaintDirty()
 
 	align.SetAlignment(0.9, 0.5)
-	if !align.NeedsLayout() {
-		t.Fatal("SetAlignment must mark layout dirty")
+	if align.NeedsLayout() {
+		t.Fatal("SetAlignment must NOT mark layout dirty (offset moves directly)")
+	}
+	if !align.NeedsPaint() {
+		t.Fatal("SetAlignment must mark paint dirty (child moved)")
 	}
 	if !hot.NeedsPaint() {
 		t.Fatal("SetAlignment must mark child paint dirty (pixels move)")
 	}
-	align.Layout(Constraints{MinWidth: 0, MaxWidth: 900, MinHeight: 0, MaxHeight: 600})
 	if off := hot.Offset(); off.X != 720 || off.Y != 250 {
 		t.Fatalf("after SetAlignment offset = %v, want (720,250)", off)
 	}

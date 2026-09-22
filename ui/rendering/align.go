@@ -27,9 +27,11 @@ func NewRenderAlignBox(child RenderObject, ax, ay float64) *RenderAlignBox {
 	return a
 }
 
-// SetAlignment changes the fractional alignment and dirties layout so the
-// child offset is recomputed on the next layout pass. The child is also
-// marked for repaint (its pixels move).
+// SetAlignment changes the fractional alignment and repositions the child
+// directly (no layout pass: the parent size is unchanged, only the offset
+// moves). The child is marked for repaint (its pixels move); the align box
+// itself marks paint (not layout) so ancestors above a repaint boundary stay
+// clean. Layout still recomputes the offset on parent resize.
 func (a *RenderAlignBox) SetAlignment(ax, ay float64) {
 	if a == nil {
 		return
@@ -38,7 +40,20 @@ func (a *RenderAlignBox) SetAlignment(ax, ay float64) {
 		return
 	}
 	a.AlignX, a.AlignY = ax, ay
-	a.MarkNeedsLayout()
+	positioned := false
+	if sz := a.Size(); a.child != nil && sz.Width > 0 && sz.Height > 0 {
+		csz := a.child.Size()
+		a.child.SetOffset(Point{
+			X: (sz.Width - csz.Width) * a.AlignX,
+			Y: (sz.Height - csz.Height) * a.AlignY,
+		})
+		positioned = true
+	}
+	if !positioned {
+		a.MarkNeedsLayout()
+	} else {
+		a.MarkNeedsPaint()
+	}
 	if a.child != nil {
 		a.child.MarkNeedsPaint()
 	}
