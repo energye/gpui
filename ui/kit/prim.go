@@ -275,3 +275,20 @@ func PrimResolveIcon(ctx ScopeCtx, seed theme.Tokens) PrimIconSpec {
 func PrimIconBoxSize(spec PrimIconSpec) rendering.Size {
 	return prim.IconBoxSize(spec)
 }
+
+// PrimAntdIconCount reports the official library total (848).
+func PrimAntdIconCount() int { return prim.AntdIconCount() }
+
+// PrimAntdIconEntry returns key/name/theme for index i.
+func PrimAntdIconEntry(i int) (key, name, iconTheme string, ok bool) {
+	if i < 0 || i >= len(prim.IconAntdEntries) {
+		return "", "", "", false
+	}
+	e := prim.IconAntdEntries[i]
+	return e.Key, e.Name, e.Theme, true
+}
+
+// PrimPaintAntdIcon draws the official glyph (1:1); false when unknown.
+func PrimPaintAntdIcon(pc *rendering.PaintContext, size float64, name, iconTheme string, main, second theme.Color, hasSecond bool) bool {
+	return prim.PaintAntdIcon(pc, size, name, iconTheme, main, second, hasSecond)
+}

@@ -651,6 +651,7 @@ iconHost (RepaintBoundary 可选；OnMount/OnUnmount 绑 Ticker)
 | 2026-09-15 | E5 落位（待修，见下）；验证 `TestEVerify_E5_IdleIconStaysRegistered`（`ui/kit/icon/e_verify_e5_test.go`）通过 = 问题存在，修完需反转期望。 |
 | 2026-09-15 | 新增公开 API `PaintGlyph`（实现层：按钮前导图标/转圈复用，与 Icon 逐像素一致；未知名画占位不断墨）；新增注册字形 poweroff/download/ellipsis/ant-design（`p0Glyphs`）；锁 `icon_test` 全绿 + E5 验证见上行。 |
 | 2026-09-15 | E5 已修：`Tick` 在 `!spin \|\| reduceMotion` 时回 false（`ui/kit/icon/icon.go:620`），`TickAll` 当场摘除；验证 `TestEVerify_E5_IdleIconAutoDrop`（`ui/kit/icon/e_verify_e5_test.go`，闲摘除/转着留/关转摘除/省动态不占位四断言）绿；图标包全绿。 |
+| 2026-09-21 | E6 落位（待定方向，见下）；证据：`HITCH_DIAG=1` + `GODEBUG=gctrace=1` + `GOGC=800` 三跑对照（`examples/kit/icon`）。 |
 
 **本线问题 E5（调度占位，已修 2026-09-15）：**
 现象：`SetSpin(false)` 关掉转圈后，`Tick` 仍回 true，`TickAll` 后仍占着注册表
@@ -659,3 +660,62 @@ iconHost (RepaintBoundary 可选；OnMount/OnUnmount 绑 Ticker)
 与真值差异：同库 Button 已对齐闲了回 false 自动摘除，Icon 漏了。
 归属：图标组件自身（对齐 Button 惯例即可）。
 待办：~~`Tick` 在 `!spin || reduceMotion` 时回 false；修完把验证测试改成期望摘除。~~已做（`TestEVerify_E5_IdleIconAutoDrop`）。
+
+**本线问题 E6（滚动卡顿，2026-09-21 落位，待定方向）：**
+现象：`examples/kit/icon` 目录滚动（自动巡馆/滚轮）时肉眼随机卡顿；其它滚动列
+表同症，静态大窗（`kit_f0_scope`）也能复现 98ms 级卡顿，小窗（`ui_l1_scroll`
+400x480）干净。
+位置：提交之后（光栅执行 + 阻塞式 Fifo vsync present，`render/present_target.go:434`
+阻塞式 vsync；`ui/embedder/hitch_diag.go` `HITCH_DIAG=1` 显示全部卡顿
+`ui→submit=0.0ms`、`submit→done=40~98ms）。
+与真值差异：60Hz 稳态要求 p95≤22ms；实测滚动帧损伤约 500k px、全屏帧约
+960k~1.26M，iGPU（HD 520，`gpu_backend=integrated`、`gpu_ops` 约 185/帧、
+`cpu_fallback_ops=0`，GPU 路径开着，不是 CPU 光栅）上单帧工作量逼近预算，
+超一次就是 16.7ms 整数倍放大。HUD 是 10Hz 节流（`wrkit/hud.go` 默认
+`minIntervalSec=0.1`），约每 6 帧一次全宽重录，不是逐帧。
+归属：引擎 present/光栅链路（跨 Icon 线，见下方向）。
+排除项（有数据）：GC 不是直接原因——`GODEBUG=gctrace=1` 显示 5 秒 7 次回收、
+STW 均≤0.2ms（并发标记 2~8ms）；`GOGC=800` 近零回收仍 6 卡顿；静态窗仅 3 次
+回收仍卡 98ms。滚动 bind/布局也不是直接原因——卡顿帧 `ui→submit` 全 0。
+STAGE 三段拆分（2026-09-21 续查，`STAGE_DIAG=1` 临时计时，修完即删）：
+慢帧一律 `rasterize≈0ms`、`composite=4~25ms`、`present≈total=20~48ms`；
+逐帧约 14 次纹理重录（新进 1~2 行 × 6 图标 SVG 矢量重录 + 整形 + 转圈 + HUD）
+加约 150 次 blit；`present-composite` 余量约 8~25ms（GPU flush + 阻塞 Fifo）。
+结论：重录的是新行（行为正确、只录一次），贵的是每帧 14 次 SVG 矢量重录 +
+150 次 blit + HUD 全宽逐帧重录；iGPU 上单帧 20ms 起，任何抖动都放大成肉眼卡顿。
+resize 帧 40~98ms 另有 swapchain 重建 + 全屏成分，不计入滚动口径。
+文档订正（2026-09-21 实证复查）：E6 初版两处措辞错，已改——“CPU 光栅”→
+iGPU 负载（GPU 路径开着，见上）；“HUD 全宽逐帧重录”→10Hz 节流重录。
+另两处确认：三跑两两快照对 diff，>48LSB 的 25~235px 全在掩码外（HUD 数字
+y≈741~767、转圈相位 y≈113~121），掩码内 1~7px；掩码内单像素 74 跳变真因未
+证明（候选：快照走纹理缓存，关闭时缓存状态逐跑不同），容差依据仍是假设，
+待确定性修复后收紧。巡馆速度 10472px/1.4s≈136px/帧，约真人滚轮 30~70 倍；
+30s 门禁 p95 主要量的是静止段，“滚动顺畅”声称偏弱，测试已拆分（见下）。
+待办：测试拆分（覆盖巡馆与人速顺畅门禁分离）+ 图集（静态图标录一次全 blit，
+转圈维持重录）+ HUD 慢模式 0.5s；修完重跑门禁 + 落修订行。
+图集结论（2026-09-21，动手后回退）：像素级图集（离屏光栅化一次、
+ImageBuf blit）**未通过像素一致性单测**，已回退——离屏字节正确，
+但 DrawImage blit 把边缘 RGB 从 68 改成 42（同 alpha），最近邻亦然，
+premul 格式亦然；FillPath 写与 DrawImage 写两条路在 alpha/gamma 约定上
+不一致，治要动引擎图片管线全局，得不偿失（人速已绿，见下）。
+替代结论：人速 3px/帧 slow 模式 5s 即全绿（fps 57.6/p95 17.8/损伤 0.09），
+真人使用无需修；fast 巡馆（136px/帧≈50 倍）超 HD 520 预算属预期内，
+门禁改信息性。转圈维持重录（仅 2 小层），文字整形缓存另立项。
+根因续查（2026-09-21，REPLAY/LEAF 逐层排查，临时诊断码已删）：
+前期两个判断被推翻——①“贴图记损伤”错：`DrawGPUTexture` 系从不记损伤，
+suppress 方案未写即弃；②“转圈连带整卡”错：稳帧损伤只有 2 个转圈本身，
+12 个顶部小块另有来源。带名排查（36 个回放键全是 0 尺寸
+`box paint=true`，名如 `f1-icon-AlipayCircleFilled`，链上全是 0 尺寸，
+锚到 `f1-icon-row-N`）：新挂载的行带着 `Init` 的脏位，`rebindWindowLocked`
+只摆位置不做布局，下一轮布局跳过（行在视口外约束不变），行以 0x0 到达
+光栅线程，`RasterExtra` 回放每帧重跑、零像素损伤——5000 次回放/6 秒、
+损伤 0、时间照花。`OnPaint` 实现无罪（motion 窗不用图标同症只是同链路
+拥塞的另一面），病在 `ui/rendering/virtual_list.go` 的 rebind。
+修复（2026-09-21，`ui/rendering/virtual_list.go` 一处约 20 行，引擎层，
+图标代码未动）：`rebindWindowLocked` 接行宽参数，新行当场布局、旧行清
+陈旧脏位。验证：回放 5000→0（REPLAY 日志归零），损伤分布不变
+（271 帧 2 矩形稳帧、66 帧全 0），slow 30s 门禁 fps 59.1/p95 16.9/
+p99 17.2/损伤 0.004/Golden 严格 0/探针 3/3/tour 0/31/bind 7/142/
+resize 回基线全绿；fast 5s 冒烟 Golden 0.0003%（约 2px，容差 10px 内）。
+`ui/kit/prim.go` 的三段门面（总数/条目/绘制）是本次排查顺手补的公开
+入口，无行为变化。
