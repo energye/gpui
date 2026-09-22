@@ -475,6 +475,9 @@ type GPURenderSession struct {
 
 	// S6.2 submit/record path diagnostics (most recent frame).
 	lastSubmitStats SubmitPathStats
+	// E6 pass-bind ledger: one per pass, shared by all tiers, attached to
+	// the SDF pipeline (the 49% tier). Bumped per pass via BeginPassLedger.
+	passLedger PassBindLedger
 	// R7.3: command buffers to prepend on next surface Submit (dual-tex multi).
 	leadSubmitCBs   []*webgpu.CommandBuffer
 	leadSubmitClean []func()
@@ -5227,6 +5230,7 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 	// restrict rendering to the clipped region.
 	if gr.hasDepthClip && gr.depthClipRes != nil {
 		s.depthClipPipeline.RecordDraw(rp, gr.depthClipRes)
+		s.passLedger.Invalidate()
 	}
 
 	// At sampleCount==1, the depth-clip boundary is binary (aliased). When a
@@ -5247,31 +5251,39 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
 	if gr.convexRes != nil {
 		s.convexRenderer.RecordDraws(rp, gr.convexRes, clipBG, maskBG, gr.hasDepthClip)
+		s.passLedger.Invalidate()
 	}
 
 	// Tier 2b: Stencil-then-cover paths.
-	for i, bufs := range gr.stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, maskBG, gr.stencilPaths[i].BlendMode, gr.hasDepthClip)
+	if len(gr.stencilRes) > 0 {
+		for i, bufs := range gr.stencilRes {
+			s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, maskBG, gr.stencilPaths[i].BlendMode, gr.hasDepthClip)
+		}
+		s.passLedger.Invalidate()
 	}
 
 	// Tier 3: Textured quad images (CPU-uploaded).
 	if gr.imageRes != nil && len(gr.imageRes.drawCalls) > 0 {
 		s.imagePipeline.RecordDraws(rp, gr.imageRes, clipBG, gr.hasDepthClip)
+		s.passLedger.Invalidate()
 	}
 
 	// Tier 3b: GPU texture compositing (pre-existing GPU texture, zero upload).
 	if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
 		s.imagePipeline.RecordDraws(rp, gr.gpuTexRes, clipBG, gr.hasDepthClip)
+		s.passLedger.Invalidate()
 	}
 
 	// Tier 4: MSDF text (rendered after shapes).
 	if gr.textRes != nil && len(gr.textRes.drawCalls) > 0 {
 		s.textPipeline.RecordDraws(rp, gr.textRes, clipBG, gr.hasDepthClip)
+		s.passLedger.Invalidate()
 	}
 
 	// Tier 6: Glyph mask text (rendered last, on top of all other geometry).
 	if gr.glyphMaskRes != nil && len(gr.glyphMaskRes.drawCalls) > 0 {
 		s.glyphMaskPipeline.RecordDraws(rp, gr.glyphMaskRes, clipBG, gr.hasDepthClip)
+		s.passLedger.Invalidate()
 	}
 }
 
@@ -5750,10 +5762,22 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
 
+	// E6 ledger: new pass generation for the grouped surface pass; the SDF
+	// tier (49% of Record entries) attaches the session-shared ledger so
+	// consecutive identical SDF binds skip Set* and only Draw. Offscreen
+	// record passes (PictureTextureCache) use their own lifecycle and keep
+	// the ledger detached (full bind path) — this attach point is the
+	// grouped surface pass only.
+	s.passLedger.BeginPassLedger()
+	if s.sdfPipeline != nil {
+		s.sdfPipeline.SetSDFLedger(&s.passLedger)
+	}
+
 	// Base layer: pixmap textured quad drawn FIRST, before all tiers (ADR-015).
 	if baseLayerRes != nil && len(baseLayerRes.drawCalls) > 0 {
 		rp.SetScissorRect(0, 0, w, h)
 		s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
+		s.passLedger.Invalidate()
 	}
 
 	// Render each group with its scissor rect applied.

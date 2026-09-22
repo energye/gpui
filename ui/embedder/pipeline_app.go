@@ -1168,15 +1168,20 @@ func (a *PipelineApp) Run() error {
 			a.sched.WaitFramePace(a.host)
 		}
 
-		// Advance tickers (animations, framework blink pump, example pumps).
+		// Advance tickers (animations, framework blink pump, example pumps)
+		// ONLY when a frame will actually render below (Flutter
+		// vsync-transaction semantics): one Tick per presented frame, with
+		// the display-period dt. Ticking on every event-loop spin advances
+		// sim state 2x per frame on multi-wake iterations (observed 658/1645
+		// pelican ticks <4ms apart) — each spin's dist step lands in the same
+		// frame's build, so the eye sees doubled/uneven steps ("定住再冲").
+		// Tick is placed AFTER the FrameDue gate so skipped iterations do
+		// not advance animation state at all; the phase-locked boundary
+		// keeps cadence and the fixed dt keeps steps uniform.
 		// Ticker aliveness must NOT imply frame demand: an idle window with
 		// a registered ticker (blink pump, HUD budgets) has to cost ~nothing.
 		// Frames follow dirtiness (below), explicit ScheduleFrame calls, and
 		// tickers that opt into per-frame rendering via FrameWanter.
-		a.sched.Tick()
-		if a.sched.FrameWanted() {
-			a.ScheduleFrame()
-		}
 		// Dirty widgets (blink toggles, input edits, HUD budgets) request
 		// their frame here (Flutter markNeedsPaint → scheduleFrame).
 		if a.pipe != nil && a.pipe.NeedsFrame() {
@@ -1221,6 +1226,12 @@ func (a *PipelineApp) Run() error {
 		// (no busy spin).
 		if !a.sched.FrameDue() && !a.pendingResize {
 			continue
+		}
+		// One Tick per presented frame (see above): advance animation state
+		// now that the gate opened, so sim steps map 1:1 to built frames.
+		a.sched.Tick()
+		if a.sched.FrameWanted() {
+			a.ScheduleFrame()
 		}
 
 		// Demand gate: skip the expensive build+raster+present unless

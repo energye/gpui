@@ -103,6 +103,20 @@ type SDFRenderPipeline struct {
 	resolveView *webgpu.TextureView
 
 	width, height uint32
+
+	// E6 pass-bind ledger (correct retry of the reverted pointer-keyed
+	// dedup): the SESSION owns one ledger per render pass and hands the
+	// same pointer to every tier's Record path. The ledger records the
+	// exact bound set after each Draw; a later Draw with a bit-identical
+	// set skips the Set* calls and only issues Draw. Key differences vs
+	// the reverted attempt: (1) keyed by an explicit per-pass frame
+	// sequence number, never by *RenderPassEncoder address reuse; (2) one
+	// ledger shared by SDF/convex/stencil/image/text/glyph tiers, so a
+	// stencil draw between two SDF draws invalidates (no stale skip);
+	// (3) cleared at every pass begin (session calls BeginPassLedger).
+	// Any mismatch (new buffers after realloc, nil-vs-non-nil clip/mask,
+	// different pipeline) takes the full bind path. Pixels bit-identical.
+	ledger *PassBindLedger
 }
 
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
@@ -116,6 +130,12 @@ func (p *SDFRenderPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 func (p *SDFRenderPipeline) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
 	p.maskBindLayout = layout
 	p.maskLayoutOwned = false
+}
+
+// SetSDFLedger attaches the session-owned per-pass bind ledger. Called by
+// the session before encoding; nil detaches (full bind path always).
+func (p *SDFRenderPipeline) SetSDFLedger(l *PassBindLedger) {
+	p.ledger = l
 }
 
 // NewSDFRenderPipeline creates a new SDF render pipeline with the given device
@@ -521,6 +541,13 @@ func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	if pipe == nil {
 		return
 	}
+	// Ledger dedup: bit-identical bound set on this pass → Draw only.
+	// Anything else (new pass/seq, any binding differs, ledger detached)
+	// takes the full path below. Order (pipeline → groups → vertex) kept.
+	if p.ledger != nil && p.ledger.skipBind(rp, pipe, resources.bindGroup, clipBG, maskBG, resources.vertBuf) {
+		rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
+		return
+	}
 	// Order: SetPipeline then bind groups. Always rebind group 0 after any
 	// prior stencil/image/text draw in the same pass.
 	rp.SetPipeline(pipe)
@@ -533,10 +560,16 @@ func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
+	if p.ledger != nil {
+		p.ledger.noteBind(rp, pipe, resources.bindGroup, clipBG, maskBG, resources.vertBuf)
+	}
 }
 
 // destroyPipeline releases all pipeline resources in reverse creation order.
 func (p *SDFRenderPipeline) destroyPipeline() {
+	// Detach ledger: cached pipeline pointers dangle after Release, and
+	// the next pass re-attaches a fresh ledger via the session.
+	p.ledger = nil
 	if p.device == nil {
 		return
 	}

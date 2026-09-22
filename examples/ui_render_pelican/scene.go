@@ -286,6 +286,9 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.stageBox.FixedWidth = winW
 	sc.stageBox.FixedHeight = winH
 	sc.stageBox.OnPaint = sc.paintStage
+	// 脏隔离（复用 R7 同一套）：舞台每帧 MarkNeedsPaint 只脏本层，
+	// 不冒泡到 Root，根背景只录一次、之后只贴。
+	sc.stageBox.SetRepaintBoundary(true)
 	root.Place(sc.stageBox, 0, 0)
 
 	// 标题（SVG 内文字：鹈鹕骑行记 / PELICAN RIDER，带 letter-spacing 居中）。
@@ -299,6 +302,8 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.titleBox.FixedWidth = winW
 	sc.titleBox.FixedHeight = winH
 	sc.titleBox.OnPaint = sc.paintTitles
+	// 标题静层只录一次：独立隔离，舞台重画不连带标题。
+	sc.titleBox.SetRepaintBoundary(true)
 	root.Place(sc.titleBox, 0, 0)
 
 	// 左下提示（position:fixed left/bottom）
@@ -333,6 +338,8 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.hudBox.FixedWidth = hudW
 	sc.hudBox.FixedHeight = hudH
 	sc.hudBox.OnPaint = sc.paintHUD
+	// HUD 按需才脏：独立隔离，平时舞台动不连带 HUD，交互时也不连带根。
+	sc.hudBox.SetRepaintBoundary(true)
 	root.Place(sc.hudBox, winW-18-hudW, winH-18-hudH)
 	root.Place(sc.speedLabel, 0, -100) // 先建后摆：标签必须晚于药丸入树
 	root.Place(sc.speedLabelDup, 0, -100)

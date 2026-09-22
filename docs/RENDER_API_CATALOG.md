@@ -99,6 +99,7 @@
 | `BeginPassScratch(r)` / `CommitPassScratchToView(view)` | retained 纹理重录子通道内的 CPU 暂存交换：Begin 把画布 pixmap 换成同尺寸透明暂存（CPU 回退像素落暂存而非主画布，半路 GPU 提交读回到暂存，顺序精确）；Commit 把脏区经 WriteTexture 直写视图并标已渲染使收尾提交 Load（干净暂存跳过零开销）。只在 GPU 会话有效时武装，CPU 模式零行为变化 | 离屏子通道 | ✅ ui/scene/textured.go recordWith/recordLocalWith 消费（2026-09-15 修染色混画黑卡） |
 | RenderPathStats/ResetRenderPathStats/LastCPUFallbackReason/MemDigCmdBufs/Close | GPU/CPU 路由计数、最近 CPU 回退原因、残留命令缓冲诊断、关闭释放 | 诊断/资源 | 🔗 |
 | `DebugLayerViews()` | 返回 C5VIEWDBG=1 下跟踪的层视图纹理（临时诊断，R20 滤镜线） | 诊断 | 🔗 ui/scene/textured.go 消费 |
+| `PixmapForTest()` / `RecordCPUFallbackForTest(reason)` | 测试接缝：前者暴露实时 pixmap（含子通道暂存交换期的暂存）；后者走生产回退漏斗标脏暂存。仅 deterministic 模拟 CPU 回退落像素，不依赖设备相关 GPU 拒收路径 | 测试接缝 | 🧪 仅测试（render/pass_scratch_test.go E6 懒暂存契约消费，2026-09-23） |
 
 ### 3.2 context_clip.go（5）· 裁剪族
 | 方法 | 功能 | 精简 | 状态 |

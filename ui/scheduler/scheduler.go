@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -68,7 +69,28 @@ type FrameScheduler struct {
 	// animation speeds where each skipped slot doubles the visible step).
 	displayPeriod time.Duration
 	stampCount    int
+	// dispHist* robustly learn the display period from compositor
+	// frame-presented notices (XPresent/Wayland) for the software
+	// boundary (E6-A). X11 has no DRM vblank listener, so without this
+	// the boundary stays at animTick (16ms) while the display runs at
+	// ~16.68ms: the 0.68ms/frame drift walks the submit phase until a
+	// Fifo present straddles a vblank and blocks a full extra cycle
+	// (~33ms gap = visible 定住再冲, ~1 frame in 25). Only steady
+	// signals move the estimate (see learnCompositorPeriod); batched or
+	// delayed notices are ignored, so worst case is today's behavior.
+	dispHist      [dispHistSize]time.Duration
+	dispHistIdx   int
+	dispHistCount int
 }
+
+// Compositor-period estimator tuning (E6-A).
+const (
+	// dispHistSize is the recent-interval window for the median.
+	dispHistSize = 32
+	// dispHistMin is the minimum samples before the estimate may move
+	// (avoids startup poisoning from the first few notices).
+	dispHistMin = 16
+)
 
 // boundaryPeriodLocked returns the software-boundary interval: the learned
 // display period once enough stamps arrived, else DefaultAnimTick.
@@ -94,13 +116,72 @@ func (s *FrameScheduler) boundaryPeriodLocked() time.Duration {
 
 // stampVSyncLocked records a vsync arrival with its interval. Caller holds
 // vsyncMu. Both stamping paths (compositor notice / DRM vblank) go through
-// here so FrameDue sees the same cadence signal.
+// here so FrameDue sees the same cadence signal. Compositor intervals also
+// feed the robust period estimator (E6-A); the DRM path additionally feeds
+// the fast hardware EMA in learnDisplayPeriod.
 func (s *FrameScheduler) stampVSyncLocked(now time.Time) {
 	if !s.lastStampAt.IsZero() {
-		s.lastStampInterval = now.Sub(s.lastStampAt)
+		iv := now.Sub(s.lastStampAt)
+		s.lastStampInterval = iv
+		s.learnCompositorPeriod(iv)
 	}
 	s.lastStampAt = now
 	s.lastVSync = now
+}
+
+// learnCompositorPeriod feeds one compositor-notice interval into the robust
+// display-period estimator used by the software boundary. It takes s.mu
+// (caller holds vsyncMu; same order as FrameDue, so no inversion).
+//
+// Only steady signals move the estimate: the median of the recent window
+// must sit in [8ms,100ms] with (p90-p10) within max(2ms, 20% of median);
+// then displayPeriod eases toward it (α=1/16, immediate on first qualify).
+// Batched/delayed notices show high jitter and are ignored — the estimate
+// can never be poisoned into a stall, worst case it stays at animTick.
+func (s *FrameScheduler) learnCompositorPeriod(iv time.Duration) {
+	if iv < 8*time.Millisecond || iv > 100*time.Millisecond {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dispHist[s.dispHistIdx] = iv
+	s.dispHistIdx = (s.dispHistIdx + 1) % dispHistSize
+	if s.dispHistCount < dispHistSize {
+		s.dispHistCount++
+	}
+	if s.dispHistCount < dispHistMin {
+		return
+	}
+	var tmp []time.Duration
+	if s.dispHistCount < dispHistSize {
+		tmp = append([]time.Duration(nil), s.dispHist[:s.dispHistCount]...)
+	} else {
+		tmp = append([]time.Duration(nil), s.dispHist[:]...)
+	}
+	sort.Slice(tmp, func(i, j int) bool { return tmp[i] < tmp[j] })
+	med := tmp[len(tmp)/2]
+	p10 := tmp[len(tmp)/10]
+	p90 := tmp[len(tmp)*9/10]
+	tol := med / 5
+	if tol < 2*time.Millisecond {
+		tol = 2 * time.Millisecond
+	}
+	if med < 8*time.Millisecond || med > 25*time.Millisecond {
+		// Cap at 25ms: covers 60/120Hz displays; a 33ms+ median means
+		// batched delivery (pairs of notices stamped together read as
+		// ~0ms + ~33ms, the ~0ms rejected at entry) or a 30Hz display —
+		// either way following it would halve the animation rate, so
+		// keep animTick (today's behavior, no regression).
+		return
+	}
+	if p90-p10 > tol {
+		return
+	}
+	if s.displayPeriod <= 0 {
+		s.displayPeriod = med
+	} else {
+		s.displayPeriod += (med - s.displayPeriod) / 16 // EMA α=1/16
+	}
 }
 
 // learnDisplayPeriod feeds a hardware vblank interval into the display-period
@@ -459,25 +540,25 @@ func (s *FrameScheduler) WaitFramePace(host platform.Host) {
 	// Non-blocking: frame pacing is gated by FrameDue at the render point.
 }
 
-// Tick advances tickers with clamped dt; returns whether any remain.
+// Tick advances tickers with the DISPLAY period (Flutter vsync-transaction
+// semantics): the consumed dt is the software pacing boundary
+// (boundaryPeriodLocked), not the wall gap since the last Tick. Wall-gap dt
+// accumulates every WaitEvents oversleep into state (position += speed*dt),
+// so one late wake injects a doubled step and the eye sees a jump. A missed
+// slot keeps the SAME step (deadline advances one period, not snap to now —
+// see FrameDue phase-lock) and the motion stays uniform; the frame simply
+// lands on the next boundary. Zero-dt Ticks are safe: additive physics
+// (scroll offset, sim distance) advances by rate*dt and ballistic Step
+// clamps dt>=0, so a zero step only holds position and never divides.
 func (s *FrameScheduler) Tick() bool {
 	if s == nil {
 		return false
 	}
 	now := time.Now()
-	dt := 1.0 / 60.0
 	s.mu.Lock()
-	if !s.lastTick.IsZero() {
-		dt = now.Sub(s.lastTick).Seconds()
-	}
+	dt := s.boundaryPeriodLocked().Seconds()
 	s.lastTick = now
 	s.mu.Unlock()
-	if dt > 0.066 {
-		dt = 0.066
-	}
-	if dt < 0 {
-		dt = 0
-	}
 	s.tickers.TickAll(dt)
 	return s.tickers.HasActive()
 }

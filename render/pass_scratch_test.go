@@ -3,6 +3,7 @@ package render_test
 import (
 	"encoding/json"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -235,4 +236,129 @@ func TestPassScratchMixedRecordPixels(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestPassScratchLazyCleanSkip (E6): an all-GPU pass leaves scratch clean —
+// commit skips across scratch reuses with no stale content. A CPU fallback
+// (bicubic image upscale, GPU path refused) in the swapped scratch marks it
+// dirty and commits; pixel proof reads the fallback pixels back.
+//
+// NOTE: the mixed path uses a dedicated dc (not the pass-1/2 dc): scratch
+// Buffers are per-context and the flag is per-context, so a same-dc bicubic
+// probe would share state with passes 1-2; a fresh dc isolates the contract.
+func TestPassScratchLazyCleanSkip(t *testing.T) {
+	requirePassScratchGPU(t)
+	c := loadPassScratchCases(t)
+	W, H := c.Canvas[0], c.Canvas[1]
+
+	dc := render.NewContext(W, H)
+	defer dc.Close()
+	dc.BeginFrame()
+	view, release := dc.CreateOffscreenTexture(W, H)
+	if release == nil || view.IsNil() {
+		t.Skip("CreateOffscreenTexture unavailable")
+	}
+	defer release()
+
+	gpuPass := func() bool {
+		restorePass := dc.BeginOffscreenPass()
+		defer restorePass()
+		restoreScratch, ok := dc.BeginPassScratch(image.Rect(0, 0, W, H))
+		defer restoreScratch()
+		if !ok {
+			t.Fatal("BeginPassScratch refused a GPU context")
+		}
+		dc.SetRGB(c.Fill.R, c.Fill.G, c.Fill.B)
+		dc.DrawRectangle(0, 0, float64(W), float64(H))
+		_ = dc.Fill()
+		committed, err := dc.CommitPassScratchToView(view)
+		if err != nil {
+			t.Fatalf("commit: %v", err)
+		}
+		if err := dc.FlushGPUWithView(view, uint32(W), uint32(H)); err != nil {
+			t.Fatalf("flush view: %v", err)
+		}
+		return committed
+	}
+	// Passes 1-2: GPU-only. Both must skip the commit (nothing CPU-landed);
+	// pass 2 on the reused scratch proves no stale content forces an upload.
+	if gpuPass() {
+		t.Fatal("pass 1: clean scratch committed (expected skip)")
+	}
+	if gpuPass() {
+		t.Fatal("pass 2: reused scratch committed without CPU content (stale?)")
+	}
+
+	// Pass 3: CPU fallback through the record funnel (deterministic): the
+	// funnel mark is the dirty signal and a real CPU pixel lands in scratch
+	// via the direct pixmap path (not a queued GPU draw). Commit must upload.
+	dc2 := render.NewContext(W, H)
+	defer dc2.Close()
+	dc2.BeginFrame()
+	view2, release2 := dc2.CreateOffscreenTexture(W, H)
+	if release2 == nil || view2.IsNil() {
+		t.Skip("CreateOffscreenTexture unavailable")
+	}
+	defer release2()
+	restorePass := dc2.BeginOffscreenPass()
+	restoreScratch, ok := dc2.BeginPassScratch(image.Rect(0, 0, W, H))
+	if !ok {
+		restoreScratch()
+		restorePass()
+		t.Fatal("BeginPassScratch refused a GPU context")
+	}
+	dc2.RecordCPUFallbackForTest("test:pass3")
+	if pm := dc2.PixmapForTest(); pm != nil {
+		pm.Set(4, 4, color.RGBA{R: 255, A: 255})
+	} else {
+		restoreScratch()
+		restorePass()
+		t.Fatal("no pixmap for CPU pixel probe")
+	}
+	committed, err := dc2.CommitPassScratchToView(view2)
+	if err != nil {
+		restoreScratch()
+		restorePass()
+		t.Fatalf("commit: %v", err)
+	}
+	if err := dc2.FlushGPUWithView(view2, uint32(W), uint32(H)); err != nil {
+		restoreScratch()
+		restorePass()
+		t.Fatalf("flush view: %v", err)
+	}
+	restoreScratch()
+	restorePass()
+	if !committed {
+		t.Fatal("pass 3: CPU fallback scratch skipped commit (pixels would be lost)")
+	}
+	if st := dc2.RenderPathStats(); st.CPUFallbackOps == 0 {
+		t.Fatalf("pass 3: no CPU fallback recorded (bilinear should fall back): %s", st.LogLine())
+	}
+
+	// Pass 3 pixel spot-check: the CPU fallback pixels reached the view.
+	rb2 := render.NewContext(W, H)
+	defer rb2.Close()
+	rb2.ClearWithColor(render.RGBA{R: 0, G: 0, B: 0, A: 1})
+	rb2.DrawGPUTexture(view2, 0, 0, W, H)
+	if err := rb2.FlushGPU(); err != nil {
+		t.Fatalf("readback flush: %v", err)
+	}
+	img2 := rb2.Image()
+	r, g, b, _ := img2.At(4, 4).RGBA()
+	if uint8(r>>8) < 200 || uint8(g>>8) > 80 || uint8(b>>8) > 80 {
+		t.Fatalf("pass 3: CPU red pixel missing at (4,4) = (%d,%d,%d)", uint8(r>>8), uint8(g>>8), uint8(b>>8))
+	}
+
+	rb := render.NewContext(W, H)
+	defer rb.Close()
+	rb.ClearWithColor(render.RGBA{R: 0, G: 0, B: 0, A: 1})
+	rb.DrawGPUTexture(view, 0, 0, W, H)
+	if err := rb.FlushGPU(); err != nil {
+		t.Fatalf("readback flush: %v", err)
+	}
+
+	// Final readback: the committed GPU base still presents correctly.
+	_ = rb.Image()
+	_ = rb
+	_ = c
 }

@@ -80,9 +80,14 @@ type Context struct {
 	// passScratch / passMain / passRect implement the retained-record CPU
 	// scratch swap (see context_pass_scratch.go). passMain != nil means a
 	// swap is active and c.pixmap currently aliases passScratch.
-	passScratch *Pixmap
-	passMain    *Pixmap
-	passRect    image.Rectangle
+	// passScratchDirty (E6 lazy scratch): set when a CPU-fallback draw lands
+	// in scratch during a pass; Begin clears only then, Commit skips the
+	// zero-scan/upload when unset. Stays set after an upload (content present,
+	// needs clear before reuse).
+	passScratch      *Pixmap
+	passMain         *Pixmap
+	passRect         image.Rectangle
+	passScratchDirty bool
 
 	// Pipeline mode
 	pipelineMode PipelineMode // GPU pipeline selection mode
@@ -215,11 +220,35 @@ func (c *Context) takeBrushBootstrapIfAny() {
 
 // recordCPUFallbackReason increments the CPU fallback counter and records a short reason.
 // Reason is best-effort diagnostic for soak/leak tools (last reason wins).
+// E6 lazy scratch: a fallback while a scratch swap is active lands pixels in
+// scratch — mark it dirty so Commit uploads (and Begin pre-clears) instead of
+// skipping. Single funnel: every CPU-fallback draw records here.
 func (c *Context) recordCPUFallbackReason(reason string) {
 	c.pathStats.CPUFallbackOps++
 	if reason != "" {
 		c.pathStats.LastCPUFallbackReason = reason
 	}
+	if c != nil && c.passMain != nil {
+		c.passScratchDirty = true
+	}
+}
+
+// PixmapForTest exposes the live pixmap (scratch while a pass swap is
+// active). E6 lazy-scratch contract tests land a real CPU pixel in scratch
+// through it. Same package-state rules as all test seams: tests only.
+func (c *Context) PixmapForTest() *Pixmap {
+	if c == nil {
+		return nil
+	}
+	return c.pixmap
+}
+
+// RecordCPUFallbackForTest routes through the production fallback funnel
+// (marks scratch dirty when a pass swap is active). E6 lazy-scratch contract
+// tests use it to deterministically simulate a CPU fallback landing pixels
+// in scratch without depending on device-specific GPU refusal paths.
+func (c *Context) RecordCPUFallbackForTest(reason string) {
+	c.recordCPUFallbackReason(reason)
 }
 
 // LastCPUFallbackReason returns the most recent fallback reason, if any.
