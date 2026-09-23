@@ -201,25 +201,144 @@ func filterChromaEdge(p []uint8, stride int, ex, ey int, vertical bool, bS int, 
 // filterChromaIntraEdge filters 2 lines across a chroma MB edge (bS 4):
 // fixed taps without tc clipping.
 func filterChromaIntraEdge(p []uint8, stride int, ex, ey int, vertical bool, alpha, beta int) {
-	for line := 0; line < 2; line++ {
-		var p1, p0, q0, q1 int
-		if !vertical {
-			p1, p0 = int(p[(ey+line)*stride+ex-2]), int(p[(ey+line)*stride+ex-1])
-			q0, q1 = int(p[(ey+line)*stride+ex]), int(p[(ey+line)*stride+ex+1])
-		} else {
-			p1, p0 = int(p[(ey-2)*stride+ex+line]), int(p[(ey-1)*stride+ex+line])
-			q0, q1 = int(p[(ey)*stride+ex+line]), int(p[(ey+1)*stride+ex+line])
+	if vertical {
+		filterChromaIntraEdgeV(p, stride, ex, ey, alpha, beta)
+		return
+	}
+	filterChromaIntraEdgeH(p, stride, ex, ey, alpha, beta)
+}
+
+// S1b-CIE direction-hoisted intra edge (bit-identical pixels): the old
+// loop branched on vertical per line (2x), called abs 3x and clip3 2x
+// per line. vertical is edge-constant, so each direction gets its own
+// unrolled body: abs inlined (no call), and the final clip3 is dropped
+// (no-op: (2*255+255+255+2)>>2==255, (0+0+0+2)>>2==0, so the value
+// never leaves 0..255). Same taps, same order, same skips.
+func filterChromaIntraEdgeH(p []uint8, stride int, ex, ey int, alpha, beta int) {
+	base0 := ey*stride + ex
+	p1 := int(p[base0-2])
+	p0 := int(p[base0-1])
+	q0 := int(p[base0])
+	q1 := int(p[base0+1])
+	if d := p0 - q0; d < 0 {
+		if -d >= alpha {
+			goto line1
 		}
-		if abs(p0-q0) >= alpha || abs(p1-p0) >= beta || abs(q1-q0) >= beta {
-			continue
+	} else if d >= alpha {
+		goto line1
+	}
+	if d := p1 - p0; d < 0 {
+		if -d >= beta {
+			goto line1
 		}
-		if !vertical {
-			p[(ey+line)*stride+ex-1] = uint8(clip3((2*p1+p0+q1+2)>>2, 0, 255))
-			p[(ey+line)*stride+ex] = uint8(clip3((2*q1+q0+p1+2)>>2, 0, 255))
-		} else {
-			p[(ey-1)*stride+ex+line] = uint8(clip3((2*p1+p0+q1+2)>>2, 0, 255))
-			p[(ey)*stride+ex+line] = uint8(clip3((2*q1+q0+p1+2)>>2, 0, 255))
+	} else if d >= beta {
+		goto line1
+	}
+	if d := q1 - q0; d < 0 {
+		if -d < beta {
+			p[base0-1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+			p[base0] = uint8((2*q1 + q0 + p1 + 2) >> 2)
 		}
+	} else if d < beta {
+		p[base0-1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+		p[base0] = uint8((2*q1 + q0 + p1 + 2) >> 2)
+	}
+line1:
+	base1 := base0 + stride
+	p1 = int(p[base1-2])
+	p0 = int(p[base1-1])
+	q0 = int(p[base1])
+	q1 = int(p[base1+1])
+	if d := p0 - q0; d < 0 {
+		if -d >= alpha {
+			return
+		}
+	} else if d >= alpha {
+		return
+	}
+	if d := p1 - p0; d < 0 {
+		if -d >= beta {
+			return
+		}
+	} else if d >= beta {
+		return
+	}
+	if d := q1 - q0; d < 0 {
+		if -d < beta {
+			p[base1-1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+			p[base1] = uint8((2*q1 + q0 + p1 + 2) >> 2)
+		}
+	} else if d < beta {
+		p[base1-1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+		p[base1] = uint8((2*q1 + q0 + p1 + 2) >> 2)
+	}
+}
+
+// S1b-CIE vertical twin: columns ex/ex+1, rows ey-2..ey+1, same
+// inlining and no-op-clip removal as the horizontal body above.
+func filterChromaIntraEdgeV(p []uint8, stride int, ex, ey int, alpha, beta int) {
+	r0 := (ey-2)*stride + ex
+	r1 := r0 + stride
+	r2 := r1 + stride
+	r3 := r2 + stride
+	p1 := int(p[r0])
+	p0 := int(p[r1])
+	q0 := int(p[r2])
+	q1 := int(p[r3])
+	if d := p0 - q0; d < 0 {
+		if -d >= alpha {
+			goto col1
+		}
+	} else if d >= alpha {
+		goto col1
+	}
+	if d := p1 - p0; d < 0 {
+		if -d >= beta {
+			goto col1
+		}
+	} else if d >= beta {
+		goto col1
+	}
+	if d := q1 - q0; d < 0 {
+		if -d < beta {
+			p[r1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+			p[r2] = uint8((2*q1 + q0 + p1 + 2) >> 2)
+		}
+	} else if d < beta {
+		p[r1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+		p[r2] = uint8((2*q1 + q0 + p1 + 2) >> 2)
+	}
+col1:
+	r0++
+	r1++
+	r2++
+	r3++
+	p1 = int(p[r0])
+	p0 = int(p[r1])
+	q0 = int(p[r2])
+	q1 = int(p[r3])
+	if d := p0 - q0; d < 0 {
+		if -d >= alpha {
+			return
+		}
+	} else if d >= alpha {
+		return
+	}
+	if d := p1 - p0; d < 0 {
+		if -d >= beta {
+			return
+		}
+	} else if d >= beta {
+		return
+	}
+	if d := q1 - q0; d < 0 {
+		if -d < beta {
+			p[r1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+			p[r2] = uint8((2*q1 + q0 + p1 + 2) >> 2)
+		}
+	} else if d < beta {
+		p[r1] = uint8((2*p1 + p0 + q1 + 2) >> 2)
+		p[r2] = uint8((2*q1 + q0 + p1 + 2) >> 2)
 	}
 }
 
@@ -581,8 +700,16 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 								}
 							}
 							if bS == 4 {
-								filterChromaIntraEdge(pic.Cb, W/2, cx, cy, vertical, alphaCb, betaCb)
-								filterChromaIntraEdge(pic.Cr, W/2, cx, cy, vertical, alphaCr, betaCr)
+								// S1b-CIE: direction hoisted once for
+								// both planes (was one branch per
+								// line per plane inside the kernel).
+								if vertical {
+									filterChromaIntraEdgeV(pic.Cb, W/2, cx, cy, alphaCb, betaCb)
+									filterChromaIntraEdgeV(pic.Cr, W/2, cx, cy, alphaCr, betaCr)
+								} else {
+									filterChromaIntraEdgeH(pic.Cb, W/2, cx, cy, alphaCb, betaCb)
+									filterChromaIntraEdgeH(pic.Cr, W/2, cx, cy, alphaCr, betaCr)
+								}
 								continue
 							}
 							filterChromaEdge(pic.Cb, W/2, cx, cy, vertical, bS, alphaCb, betaCb, tcCb)
