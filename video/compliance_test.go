@@ -9,10 +9,9 @@ import (
 	"testing"
 )
 
-// Compliance lock for V-U3 (v0.104): video core stays pure Go and never
-// imports the ui package (player component will live in ui and call
-// video; reverse would cycle). render/gpu are allowed for GPU compute
-// with CPU fallback. Fails the package on CGO or ui imports.
+// Compliance lock for V-U3: video core stays pure Go with zero reverse
+// dependencies. Fails the package when any file imports CGO or the
+// display layers (bridge code lives window-side only).
 func TestNoForbiddenImports(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join(".", "*.go"))
 	if err != nil {
@@ -35,7 +34,7 @@ func TestNoForbiddenImports(t *testing.T) {
 			if p == "C" {
 				t.Fatalf("%s: forbidden import C", f)
 			}
-			for _, ban := range []string{"gpui/ui"} {
+			for _, ban := range []string{"gpui/ui", "gpui/render", "gpui/gpu"} {
 				if strings.Contains(p, ban) {
 					t.Fatalf("%s: forbidden import %s", f, p)
 				}

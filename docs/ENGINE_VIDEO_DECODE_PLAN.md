@@ -14,7 +14,7 @@
 |---|------|
 | V-U1 | 第一阶段只要常用格式里的最小闭环：**MP4 盒子 + H.264 编码**，别的盒子（MKV/AVI/MOV/WebM）和别的编码（H.265/VP9/AV1）一律后置。 |
 | V-U2 | 第一阶段**只要画面**，不要声音、不要字幕。音频（AAC/Opus）、音画对齐后置。 |
-| V-U3 | **纯 Go 实现，不依赖任何第三方库**：只用 Go 标准库；不新增外部 Go 依赖、不调外部 `.so`、**禁止 `import "C"`**，`CGO_ENABLED=0` 必须能编译。**`video` 核心禁止 import `ui`**（播放器组件以后住 `ui` 包，`ui` 调 `video`，`video` 再调 `ui` 就循环了，合规门禁见 §7）；**允许 import `render` / `gpu`**（2026-09-23 修订 v0.104：GPU 算子必须带 CPU 回落，非对应架构与强制标量跑同一像素门禁）；上墙显示走桥接（`video` 只出自有帧，`examples` 真窗侧转成 `render/ImageBuf` 再 `DrawImage`，见 §4）。 |
+| V-U3 | **纯 Go 实现，不依赖任何第三方库**：只用 Go 标准库；不新增外部 Go 依赖、不调外部 `.so`、**禁止 `import "C"`**，`CGO_ENABLED=0` 必须能编译。**`video` 核心禁止 import `ui` / `render` / `gpu`**（根模块独立性，合规门禁见 §7）；上墙显示走桥接（`video` 只出自有帧，`examples` 真窗侧转成 `render/ImageBuf` 再 `DrawImage`，见 §4）。 |
 | V-U4 | 可以对照 ffmpeg 的思路（分层、流程、边界处理），但**自己重写**，不复制 ffmpeg 代码进仓库。 |
 | V-U5 | 做为 `gpui` 里的**独立根模块 `gpui/video`**：不放在渲染层；解码细节藏在模块内，对外只给干净的打开、取帧、跳进度、关闭接口；显示侧由真窗桥接进现有图片链路。 |
 | V-U6 | **每个主能力必须有独立真实窗口验收**（`examples/video_vr_*/`，GPU Present），另设组合窗做集成；单测不能单独标完成。 |
@@ -221,8 +221,8 @@ RUN_SECONDS=60 go run ./examples/video_vr7_perf
 
 ```text
 gpui/video（本立项的新根模块：拆盒/解码/颜色/队列/时钟/API/注册表/数据源）
-  │ 只出自有帧（宽高 + 像素 + 时间戳）；可 import render/gpu（GPU 加速带 CPU 回落，见 V-U3/v0.104），不 import ui
-  ▼（显示桥接仍在真窗侧：video.Frame → render.ImageBuf → DrawImage）
+  │ 只出自有帧（宽高 + 像素 + 时间戳），不 import ui/render/gpu
+  ▼（桥接在真窗侧：video.Frame → render.ImageBuf → DrawImage）
 ui（以后要播视频的控件）→ render → gpu（老链路不动，只管显示送上来的那张图）
 ```
 
@@ -235,7 +235,7 @@ video.Player 取帧 → 转 RGBA 字节 → examples 真窗侧包成 render.Imag
   → DrawImage / GPU 纹理上传 → Present
 ```
 
-**禁止：** `video` import `ui`；`ui` 直调解码内部；示例层绕过模块自己拼解码；`render` 反向依赖 `video`（渲染层不认视频，显示桥接只活在真窗侧）。**允许：** `video` import `render` / `gpu`（GPU 路径必须带 CPU 回落，见 V-U3/v0.104）。
+**禁止：** `video` import `ui` / `render` / `gpu`；`ui` 直调解码内部；解码模块直调 `gpu`；示例层绕过模块自己拼解码；`render` 反向依赖 `video`（渲染层不认视频，桥接只活在真窗侧）。
 
 ### 4.1 包结构（计划）
 
@@ -428,7 +428,7 @@ VW0 → VW1 → VW2 → VW3
 | 真窗 | §2 每个 VR 独立窗 + §3 组合窗 | 1200×800、关闭用时长、§2.2 全族 JSON、`FAIL:` + `exit 1`、README 可见效果 |
 | 画面证据 | 像素断言 + Golden | 按 `UI_PIXEL_ASSERTION_STANDARD.md` 做，逻辑指标绿不代表画面对 |
 | 片源管理 | `video/testdata/` 只放小文件，§2.8 每档至少一片 + §2.9 每行至少一例 | 大片、长片不进仓库；放生成脚本（用小图连成测试流/短片，每档都生成；工具覆盖用合成码流 + 标准一致性向量思路），CI 现场生成；4K 长跑片本地手工验 |
-| 合规 | 无 CGO、无新第三方依赖、根模块零反向依赖 | `CGO_ENABLED=0 go build ./...` 过；`grep import "C"` 空；`video` 禁止 import `ui`（单测锁，参照 `TestNoGPUImport` 做法；`render`/`gpu` 允许，见 V-U3/v0.104，GPU 路径须带 CPU 回落）；`go vet` 过 |
+| 合规 | 无 CGO、无新第三方依赖、根模块零反向依赖 | `CGO_ENABLED=0 go build ./...` 过；`grep import "C"` 空；`video` 禁止 import `ui`/`render`/`gpu`（单测锁，参照 `TestNoGPUImport` 做法）；`go vet` 过 |
 | 文档 | 公开 API 有目录账 | 新增/改动 `video` 公开 API 时，同步本文件 §10 修订行 |
 
 ---
@@ -451,7 +451,7 @@ VW0 → VW1 → VW2 → VW3
 |----|------|------|
 | Q1 | 首批测试片定哪几个（手机/相机/软件导出各一） | 立项后先定片单再开工 VW0 |
 | Q2 | H.264 先到哪个档位（基础档先行还是直接主档） | 不分先行：§2.9 定了 B/M/H 全做，VR1 认档位、VR2 各档解对（已决，关闭本问题） |
-| Q3 | YUV 存法放哪（`video` 自有还是借 `render/ImageBuf`） | `video` 自有帧类型（YUV/RGBA 自带），只在真窗桥接时转 `ImageBuf`；加速允许调 `render`/`gpu`（见 V-U3/v0.104，须带 CPU 回落），`video` 本体不依赖 `ui`（已决，关闭本问题） |
+| Q3 | YUV 存法放哪（`video` 自有还是借 `render/ImageBuf`） | `video` 自有帧类型（YUV/RGBA 自带），只在真窗桥接时转 `ImageBuf`，`video` 本体不依赖 `render` |
 | Q4 | 大片源与长跑片怎么管（不进仓库） | 生成脚本 + 本地大片手工验，不进 git |
 
 ---
@@ -561,7 +561,6 @@ VW0 → VW1 → VW2 → VW3
 | v0.94 V2-2 B帧十帧全对 | §12 V2项（只动V2一项，H.264像素零碰，播放器解码路零改，`decode.go`拒像素原样）：基线`video/testdata/v2b_h265.mp4`（96x96闭合GOP单IDR+3P+6B两层金字塔，解码序0/3/2/1/6/5/4/9/8/7，CTB32/最小块16/SAO关/无加权）+ `video/testdata/v2b_ffmpeg.json`（mp4/yuv md5+bench+显示序10帧md5全入库）+ `video/h265/cu.go`之B语法（方向标识按12像素/深上下文读、`PredL0/L1/BI`双参考双MVD/MVP，L1零差门）+ `video/h265/slice.go`之B头（同位列选择/L1重排/零差开关全存，RPS差分改累计，还修旧P门禁`v22_slice_test.go`之RPS期望-1/-2/-3/-4）+ `video/h265/motion.go`之双向推导（L1表未来优先+双表填充、`combPairs`组合+双向零填、时域未来规则、同列双表、MVP按X先查本列、零候选兜底）+ `video/h265/mc.go`之双向补偿（14位双道+平均结合、帧内块按解码序穿插）+ `video/h265/pfilter.go`之B去块（双向边界强度+帧内边）+ `video/h265/pixel.go`之邻居CTB尺寸参数化（旧64写死致32片底左邻居误可用）+ 新门禁`video/h265/v22_bseq_test.go`之`TestV22BSequenceExact`绿（显示序10帧终值md5全对对端整流dump；修5处真错：帧内穿插顺序/双向单向道多移6位/结合多除2/方向标识当L0/MVP跨列先查，见源码与门禁头注释；只学语义不搬代码）；对等 `hevcdec.c`之切片头双向分支/预测单元双向/双向补偿 + `mvs.c`之双向merge/MVP/组合 + `refs.c`之双表组装 + `ps.c`之差分RPS（见源码与门禁头注释）；公开API同步（§7：新增 `PredL0/PredL1/PredBI` + `PUInfo.Pred/Ref1/MV1/MVD1/MVPFlag1` + `SliceHeader.ColocFromL0/ListsModL1/MvdL1Zero`，回写本行）；三道（新门禁1项 + V2旧20项逐文件绿 + `video/h264`整包 + `video`根合规 + `mp4`/`color`/`clock`绿 + `vet`+`CGO_ENABLED=0`构建+`gofmt`干净）全过；§2/§5 VW0–VW3状态不动，§12 V2行与顺序22仍🟨（独立真窗另开）。 |
 | v0.96 S2 结构验证 + 方向转 S1b | §12 S1b/S2 项（引擎零改动，纯验证）：用户实操片 ENERGY 的 S2 并行可行性验证 FAIL——ENERGY GOP≈240 帧/组（ffprobe 实测 72 个 IDR、间隔 avg 5.04s/max 5.21s，≈5 秒一 IDR），远超 `s2WindowMaxFrames=8`，`s2WindowForPos` 窗帧数一超 8 帧即 2 组缩 1 组（`video/s2_player.go:173-179`），落 ENERGY 上必单组串行；且每帧单 slice + 帧间参考依赖使组内无法切片，S2 并行对长 GOP 高清源结构性无效（只对小 GOP ≤8 帧/组片有效）。结论与用户决议：S2 不再作为 ENERGY 应急手段，直接上 S1b（解码主体 SIMD：残差归量化/归变换/像素重建/熵主核，单帧实测 52–57ms → ≤20.8ms 预算内才行，§12 S1b 行）；S2 保持现有实现不动。 |
 | v0.95 用户实操复测落位（ENERGY 1536x864/48fps/B74%） | §12 S1/S2 项新证据（引擎零改动，纯诊断）：用户实操片 `/home/yanghy/视频/ENERGY Designer-项目新建&恢复.mp4`（即 §11.6 问题片，外部未入仓，17297帧/21.2MB/h264 High@4.2/48fps/B帧占74%/AAC48k双声道）播放慢卡一发，`ffprobe` 确认参数后写临时探针 `diagproc/`（跑完即删）直连公开 API 量 H.264 数学段：同机（nproc4）单核 avg 52.1–57.5ms/帧、p50 52.6–55.7、p95 67–86ms、吞吐 19.2fps，steady 段 54ms；转色段 3.04ms/帧（探针每次新 make 未走池，口径略偏，池化真值见 S6）；全链路 ≈60.5ms/帧 vs 预算 20.83ms/帧 → 慢 2.9x，与用户"1秒要2~3秒"观感一致；对等 ffmpeg 4.4.2 同机同片：`-threads 1` utime 52.76s/17297=3.05ms/帧、默认4核 rtime 42.59s=2.46ms/帧（utime/帧4.09）→ 我方解码段为 ffmpeg 单核约17x、为4核约21x；转色已基本追平。指向：S1 解码主体（残差逆量化/逆变换/像素重建 + CAVLC/CABAC 主核）仍是纯标量 Go，为最大单项缺口；S2 虽🟩但 `Options.S2Parallel` 默认关 + 小片（21MB）走缓冲顺序路径不开窗，实际未吃到并行。定方向后在 S1/S2 行以独立真窗闭合（如反攻 ENERGY：跟得上=全片播到尾零丢 + CPU 按目标收敛）。 |
-| v0.104 架构口径修订：video 可调 render/gpu | 架构口径修订（引擎零改动，纯文档）：`video` 允许 import `render` / `gpu`（GPU 算子必须带 CPU 回落，非对应架构与强制标量跑同一像素门禁），仍禁止 import `ui`（播放器组件以后住 `ui` 包，`ui` 调 `video`，反向会循环）。同步 V-U3、§4 落点图、§4 禁止清单、§7 合规行、§9 Q3（已决关闭）；v0.4 修订行是历史不动。公开API同步（§7）：新增 `h264.Picture.ColFN0/ColFN1`（时域直接按帧号回映射的同位参考帧号表，`fillColFN` 随存档写，`bTempDirect8` 读；回写本行）。三道：引擎零改故像素门禁沿用（VR2 十四片绿）+ `CGO_ENABLED=0` 构建过 + 全文 `import` 口径一致（`grep` 无 `video` import `ui`）；§2/§5 VW0–VW3 状态不动，S1b 仍🟨（单核收尾中），其余§12行不动。 |
 | v0.103 B2-b持久crew | §12 S2项（只动S2一项，像素零改，VW0–VW3状态不动）：每lap一帧一协程 + 抢位空转（`take`互斥+`Gosched`打转）+ 每帧`waited`去重表，换成一worker一协程整lap + 会合通道按帧序派发（等待在派发前解完，worker只解；快照缓冲worker内复用，`PrimeFrame`调用即拷故复切片安全；调度序==旧序故输出同序）；门禁（`video/h264`整包 + 强制标量双跑 + `video` B/S2 + `TestBPlayerExact`原值（显示74轮2像素全对）+ race + `vet` + `CGO_ENABLED=0` amd64/arm64构建过 + `gofmt`干净）全过；数（2026-09-21同机，负载约1.6）：crew曲线1/2/3/4/6/8 → 17.55/11.00/9.31/9.57/9.55/9.16ms（改前19.10/11.22/9.12/9.26/9.55/9.34ms），3 worker封顶相沿（依赖 bound），1 worker开销未动——开销不在协程数，在`decodeBFrame`每lap重建crew+重喂参数集+`take/give`换`tasks`通道三处仍在，120fps预算8.3ms仍差约一成；整管能量主片并行240解码14.5ms/解码（顺序暖态16.7ms，约1.15x，探针口径含转色排队）；§2/§5 VW0–VW3状态不动，其余§12行不动（S2保持🟩附B注记）。 |
 | v0.102 B2-b墙钟真吞吐 | §12 S2项（只动S2一项，引擎零改，VW0–VW3状态不动）：解码层同帧同机墙钟对打（ENERGY头120帧全fed，一次性探针用完即删）：顺序三连13.46/12.92/13.01ms vs 4核并行三连10.09/9.74/9.76ms，加速约1.33x，并行120帧逐字节==顺序零差；加速比老实话：B链依赖深（等参考），属依赖 bound 非 worker bound，同类内容核再多也难线性；档位结论（1536x864本机4核，负载约1.5）：48fps预算21ms顺序已顺、60fps预算16.7ms顺序紧顺并行稳、90fps预算11ms顺序掉并行顺、120fps预算8.3ms并行9.8ms差约1.2x（6核以上或更快单核可翻）；§2/§5 VW0–VW3状态不动，其余§12行不动（S2保持🟩附B注记）。 |
 | v0.101 S1b-K等权混音PAVGB | §12 S1b项（只动S1b一项，VW0–VW3状态不动）：等权（w==32）混音走`PAVGB`一指令16字节（`bipred_amd64.s:bipredAvg16Arch` + `bipred_amd64.go`分发，尾巴沿用8宽核+标量；同SSE2基线，arm64/标量留守不动；公式与`(a+b+1)>>1`逐位一致，`TestS1Bipred`全权重全尺寸钉死）；门禁（`video/h264`整包 + 强制标量双跑 + `video` B/S2 + `TestBPlayerExact` race + `vet` + `CGO_ENABLED=0` amd64/arm64构建过（386红系`video/aac`旧溢出，别线未动）+ `gofmt`干净）全过；数（2026-09-21同机）：H.264纯数学段约14.7ms（改前约15.9ms，约快一成）+ 整管ENERGY主片11.4ms/短片11.0ms（预算21ms，60/60零丢）；ffmpeg单核3.05ms仍差约5x；§2/§5 VW0–VW3状态不动，其余§12行不动（S1b保持🟨）。 |
