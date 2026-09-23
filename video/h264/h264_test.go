@@ -538,6 +538,10 @@ func TestFrameSplitRejects(t *testing.T) {
 }
 
 func TestNoForbiddenImports(t *testing.T) {
+	// V-U3 (v0.104): h264 core never imports the ui package (the
+	// future ui player component will call video; reverse would
+	// cycle). render/gpu are allowed for GPU compute with CPU
+	// fallback.
 	dir := "."
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -546,8 +550,6 @@ func TestNoForbiddenImports(t *testing.T) {
 	prefix := "github.com/energye/gpui/"
 	forbidden := []string{
 		prefix + "ui",
-		prefix + "render",
-		prefix + "gpu",
 		"import " + "\"C\"",
 	}
 	for _, e := range entries {
