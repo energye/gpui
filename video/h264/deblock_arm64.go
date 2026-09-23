@@ -58,3 +58,10 @@ func deblockLumaArch(p []uint8, stride, ex, ey int, vertical bool, bS, alpha, be
 	}
 	return true
 }
+
+// deblockLumaEdge16 stays on the per-segment path on arm64 (the NEON
+// 16-line twin of deblockVWeak16/deblockHWeak16 is open work; output
+// is identical via the 4-line kernels, only the call count differs).
+func deblockLumaEdge16(p []uint8, stride, ex, ey int, vertical bool, bS, tc [4]int, alpha, beta int) bool {
+	return false
+}

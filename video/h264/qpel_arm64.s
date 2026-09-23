@@ -98,3 +98,59 @@ top:
 	SUB $8, R2
 	CBNZ R2, top
 	RET
+
+// S1-A vertical sums kernel (NEON, 8 unrounded 6-tap sums per call).
+// Same sum as halfV pre-round, int16-exact, same add-chain as
+// neonQpelHorSums above (no multiplies: 20c via c16+c4, 5b via b4+b).
+// Unlike the horizontal kernel (sliding window inside one row), each
+// tap comes from its own row pointer (rows ay-2..ay+3, 8 columns
+// each), so the 8 lanes are element-wise and no cursor stepping is
+// needed. Rounding/clip/avg stay in Go, so this kernel cannot drift
+// the output bits.
+
+// func neonQpelVerSums(sums, r0, r1, r2, r3, r4, r5 unsafe.Pointer)
+// sums: *int16, 8 outputs; rN: 8 bytes each (one row's 8 columns).
+TEXT ·neonQpelVerSums(SB), NOSPLIT, $0-56
+	MOVD sums+0(FP), R0
+	MOVD r0+8(FP), R1
+	MOVD r1+16(FP), R2
+	MOVD r2+24(FP), R3
+	MOVD r3+32(FP), R4
+	MOVD r4+40(FP), R5
+	MOVD r5+48(FP), R6
+	VLD1 (R1), [V0.B8]
+	VLD1 (R2), [V1.B8]
+	VLD1 (R3), [V2.B8]
+	VLD1 (R4), [V3.B8]
+	VLD1 (R5), [V4.B8]
+	VLD1 (R6), [V5.B8]
+	VUXTL V0.B8, V0.H8
+	VUXTL V1.B8, V1.H8
+	VUXTL V2.B8, V2.H8
+	VUXTL V3.B8, V3.H8
+	VUXTL V4.B8, V4.H8
+	VUXTL V5.B8, V5.H8
+	// Pairs, all 8 lanes live: a=S0+S5 (V6), b=S1+S4 (V7),
+	// c=S2+S3 (V2).
+	VADD V0.H8, V5.H8, V6.H8
+	VADD V1.H8, V4.H8, V7.H8
+	VADD V2.H8, V3.H8, V2.H8
+	// c2 (V4), c4 (V0), c8 (V1), c16 (V3). V0/V1/V3/V4 are dead
+	// taps/pairs by now (a=V6, b=V7, c=V2 stay alive).
+	VADD V2.H8, V2.H8, V4.H8
+	VADD V4.H8, V4.H8, V0.H8
+	VADD V0.H8, V0.H8, V1.H8
+	VADD V1.H8, V1.H8, V3.H8
+	// V5 = c16+c4 (=20c); V5 += a.
+	VADD V3.H8, V0.H8, V5.H8
+	VADD V5.H8, V6.H8, V5.H8
+	// 5b: b2 (V0, c4 dead), b4 (V1, c8 dead), 5b=b4+b (V1).
+	VADD V7.H8, V7.H8, V0.H8
+	VADD V0.H8, V0.H8, V1.H8
+	VADD V1.H8, V7.H8, V1.H8
+	// sum = (20c+a)-5b. Order load-bearing: V5=V5-V1 (minuend is
+	// the middle operand).
+	VSUB V1.H8, V5.H8, V5.H8
+	// All 8 lanes hold outputs 0..7; one H8 store writes 8 int16.
+	VST1 [V5.H8], (R0)
+	RET

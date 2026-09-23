@@ -68,6 +68,40 @@ func TestS1DeqFlatMatchesLoop(t *testing.T) {
 	}
 }
 
+// TestS18x8ZeroSkipsCore pins the 8x8 zero fast lane: all-zero coeff
+// must return all-zero residual (same bytes as the full core path,
+// which rounds the +32 DC offset back to zero through the two IDCT
+// passes). Flat and custom lists, every QP.
+func TestS18x8ZeroSkipsCore(t *testing.T) {
+	var zero [64]int32
+	var flat [64]uint8
+	for i := range flat {
+		flat[i] = 16
+	}
+	custom := flat
+	custom[0], custom[27], custom[63] = 6, 33, 42
+	var coreIn [64]int32
+	wantCore := itrans8x8Core(coreIn)
+	for i := range wantCore {
+		if wantCore[i] != 0 {
+			t.Fatalf("core(zero) byte %d = %d, want 0", i, wantCore[i])
+		}
+	}
+	for qp := uint32(0); qp < 52; qp++ {
+		for _, w := range [2][64]uint8{flat, custom} {
+			got := ITransform8x8Scaled(zero, qp, w)
+			for i := range got {
+				if got[i] != 0 {
+					t.Fatalf("qp=%d byte %d got=%d want 0", qp, i, got[i])
+				}
+				if got[i] != wantCore[i] {
+					t.Fatalf("qp=%d byte %d got=%d core=%d", qp, i, got[i], wantCore[i])
+				}
+			}
+		}
+	}
+}
+
 // deqLoopRef runs the pre-A4 explicit loop verbatim.
 func deqLoopRef(coeff [16]int32, qp uint32, w [16]uint8) [16]int32 {
 	m := int(qp % 6)

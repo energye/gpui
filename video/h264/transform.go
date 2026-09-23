@@ -130,12 +130,28 @@ func clipPixel(v int32) uint8 {
 	return uint8(v)
 }
 
-// itrans4x4Core is the exact integer inverse transform (8.5.12) on
-// de-quantized coefficients in raster order, yielding residual samples.
-// Pass order is horizontal (rows) first, then vertical (columns): the
-// intermediate >>1 floors make the two orders differ by a rounding bit,
-// and this order matches the reference decoder bit-for-bit.
+// itrans4x4Core runs the exact integer inverse transform (8.5.12)
+// through the arch entry (one amd64 kernel call; scalar留守
+// elsewhere, same output). All six scaled callers below funnel
+// through here, so one hook covers luma, chroma and intra paths.
+// Set GPUI_SCALAR_CONVERT=1 to force scalar (same switch as the 8x8
+// path in itrans_fast.go).
 func itrans4x4Core(c [16]int32) [16]int32 {
+	if !itransScalarForced {
+		var out [16]int32
+		itrans4x4Arch(&c, &out)
+		return out
+	}
+	return itrans4x4CoreScalar(c)
+}
+
+// itrans4x4CoreScalar is the exact integer inverse transform (8.5.12)
+// on de-quantized coefficients in raster order, yielding residual
+// samples. Pass order is horizontal (rows) first, then vertical
+// (columns): the intermediate >>1 floors make the two orders differ
+// by a rounding bit, and this order matches the reference decoder
+// bit-for-bit.
+func itrans4x4CoreScalar(c [16]int32) [16]int32 {
 	var e, f [16]int32
 	for i := 0; i < 4; i++ {
 		s0 := c[4*i] + c[4*i+2]
@@ -492,15 +508,32 @@ func ITransform8x8Scaled(coeff [64]int32, qp uint32, w [64]uint8) [64]int32 {
 	m := int(qp % 6)
 	shift := int(qp / 6)
 	var c [64]int32
+	nz := false
 	for scan, v := range coeff {
 		if v == 0 {
 			continue
 		}
+		nz = true
 		pos := zigzag8x8[scan]
 		tp := (pos >> 3) | ((pos & 7) << 3)
 		ls := levelScale8(m, pos%8, pos/8)
 		q := int64(v) * int64(ls) * int64(w[pos]) << uint(shift)
 		c[tp] = int32((q + 32) >> 6)
+	}
+	if !nz {
+		// Zero in, zero out (the core is linear up to the +32 DC
+		// offset, which rounds back to zero through the two IDCT
+		// passes and the >>6 shifts): skip 16 idct8_1d calls.
+		// Same bytes as the full path (zero-block test pins it);
+		// pure Go so amd64/arm64/fallback share one path.
+		return c
+	}
+	// S1-T vector path: one fused asm call (column pass, transpose,
+	// column pass with >>6) replaces 16 idct8_1d calls plus all
+	// gather/scatter. Bit-identical (itrans_s1_test.go pins it);
+	// scalar留守 runs when forced or off-amd64.
+	if fast, ok := itrans8x8Fast(c); ok {
+		return fast
 	}
 	return itrans8x8Core(c)
 }

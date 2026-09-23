@@ -167,9 +167,8 @@ func PlanFrameGroup(avcc *AVCC, frames [][][]byte) ([]FramePlan, bool) {
 			curRef = h.NalRefIDC != 0
 			sh.fixPOC(h, sps)
 			sh.fixPOCType12(h, sps)
-			if err := sh.applyMarking(h); err != nil {
-				return nil, false
-			}
+			// Lists decode from the pre-marking roster (spec 8.2.5):
+			// this frame's own marking applies after, in shadowStore.
 			var l0, l1 []*Picture
 			var lerr error
 			switch {
@@ -232,7 +231,7 @@ func PlanFrameGroup(avcc *AVCC, frames [][][]byte) ([]FramePlan, bool) {
 		}
 		dummies[f] = dummy
 		byPtr[dummy] = f
-		if err := shadowStore(sh, lastSPS, dummy, curRef); err != nil {
+		if err := shadowStore(sh, lastSPS, dummy, curRef, lastH); err != nil {
 			return nil, false
 		}
 		// Post-store continuation state (roster order + POC
@@ -253,10 +252,20 @@ func PlanFrameGroup(avcc *AVCC, frames [][][]byte) ([]FramePlan, bool) {
 	return plans, true
 }
 
-// shadowStore replays FinishPicture's buffer side (sliding-window
-// eviction + store, no pixels, no motion archive) on the shadow roster.
-func shadowStore(sh *Decoder, sps *SPS, dummy *Picture, curRef bool) error {
-	if curRef && sps != nil && sps.NumRefFrames > 0 {
+// shadowStore replays FinishPicture's buffer side (marking + store,
+// no pixels, no motion archive) on the shadow roster: adaptive executes
+// its ops on the old roster, non-adaptive slides the window when full.
+func shadowStore(sh *Decoder, sps *SPS, dummy *Picture, curRef bool, h *SliceHeader) error {
+	if h != nil && h.AdaptiveMarking {
+		for _, m := range h.MMCO {
+			switch m.Op {
+			case 1:
+				sh.dpb.unmarkShort(uint32(m.Arg1))
+			case 2:
+			default:
+			}
+		}
+	} else if curRef && sps != nil && sps.NumRefFrames > 0 {
 		bits, err := frameNumBits(sps)
 		if err != nil {
 			return err

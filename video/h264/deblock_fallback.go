@@ -9,3 +9,8 @@ package h264
 func deblockLumaArch(p []uint8, stride, ex, ey int, vertical bool, bS, alpha, beta, tc int) bool {
 	return false
 }
+
+// deblockLumaEdge16 stays scalar off amd64/arm64 (scalar留守 runs).
+func deblockLumaEdge16(p []uint8, stride, ex, ey int, vertical bool, bS, tc [4]int, alpha, beta int) bool {
+	return false
+}

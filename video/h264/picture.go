@@ -41,6 +41,15 @@ type Picture struct {
 	MV1y  []int16
 	Rf1   []int8
 	UseM  []uint8
+	// ColFN0/ColFN1 hold, per 4x4, the FrameNum of the reference picture
+	// the archived motion pointed at (list 0 / list 1, -1 when the slot
+	// used no reference). Temporal direct maps the colocated block's
+	// reference back into the current list by FrameNum (ffmpeg
+	// fill_colmap, frames-only short-term path); without these the map
+	// would compare bare indices across different lists. Same grid and
+	// reuse rule as the motion arrays above.
+	ColFN0 []int32
+	ColFN1 []int32
 
 	refs int32 // live owners; 0 == in pool or fresh
 }
@@ -351,6 +360,12 @@ func (d *Decoder) applyRefMod(list []*Picture, ops []RefModOp, frameNum uint32, 
 
 // Crop returns the top-left w×h view as an owned copy (display size
 // after sequence cropping; references keep the aligned original).
+//
+// S1-G: equal strides copy in one memmove (first w*h bytes are exactly
+// the top h rows when w==p.Width: rows sit back-to-back with no gap,
+// so one copy equals the row loop byte for byte). Differing strides
+// keep the row loop. Same bytes either way (prefix parity pins every
+// pixel); pure Go so amd64/arm64/fallback share one path.
 func (p *Picture) Crop(w, h uint32) (*Picture, error) {
 	if p == nil {
 		return nil, fmt.Errorf("%w: crop of nil picture", ErrBadSPS)
@@ -362,14 +377,23 @@ func (p *Picture) Crop(w, h uint32) (*Picture, error) {
 	if err != nil {
 		return nil, err
 	}
-	for y := uint32(0); y < h; y++ {
-		copy(out.Y[y*w:(y+1)*w], p.Y[y*p.Width:y*p.Width+w])
+	if w == p.Width {
+		copy(out.Y, p.Y[:uint64(w)*uint64(h)])
+	} else {
+		for y := uint32(0); y < h; y++ {
+			copy(out.Y[y*w:(y+1)*w], p.Y[y*p.Width:y*p.Width+w])
+		}
 	}
 	cw, ch := w/2, h/2
 	pw := p.Width / 2
-	for y := uint32(0); y < ch; y++ {
-		copy(out.Cb[y*cw:(y+1)*cw], p.Cb[y*pw:y*pw+cw])
-		copy(out.Cr[y*cw:(y+1)*cw], p.Cr[y*pw:y*pw+cw])
+	if cw == pw {
+		copy(out.Cb, p.Cb[:uint64(cw)*uint64(ch)])
+		copy(out.Cr, p.Cr[:uint64(cw)*uint64(ch)])
+	} else {
+		for y := uint32(0); y < ch; y++ {
+			copy(out.Cb[y*cw:(y+1)*cw], p.Cb[y*pw:y*pw+cw])
+			copy(out.Cr[y*cw:(y+1)*cw], p.Cr[y*pw:y*pw+cw])
+		}
 	}
 	return out, nil
 }
@@ -393,6 +417,12 @@ func (p *Picture) coloc(x4, y4 int) (r0 int8, x0, y0 int16, r1 int8, x1, y1 int1
 // lists for later B direct-mode colocated reads. Only reference pictures
 // call it; the decoder arrays are reused by the next picture.
 //
+// ColFN0/ColFN1 snapshot, per slot, the FrameNum of the reference the
+// slot pointed at (-1 when unused/missing): temporal direct maps the
+// colocated reference into the current list by FrameNum, and bare
+// indices are meaningless across lists. d.refList/d.refList1 must still
+// hold this picture's lists (true at the FinishPicture call site).
+//
 // S1b-I: pooled arrays are reused in place when the grid matches (the
 // common steady-resolution case) — no per-frame motion garbage.
 func (p *Picture) archiveMotion(d *Decoder) {
@@ -410,6 +440,9 @@ func (p *Picture) archiveMotion(d *Decoder) {
 		p.MV1y = append([]int16(nil), d.mvY1...)
 		p.Rf1 = append([]int8(nil), d.refIdx1...)
 		p.UseM = append([]uint8(nil), d.useM...)
+		p.ColFN0 = make([]int32, n)
+		p.ColFN1 = make([]int32, n)
+		p.fillColFN(d)
 		_ = n
 		return
 	}
@@ -420,7 +453,51 @@ func (p *Picture) archiveMotion(d *Decoder) {
 	copy(p.MV1y, d.mvY1)
 	copy(p.Rf1, d.refIdx1)
 	copy(p.UseM, d.useM)
+	p.fillColFN(d)
 	_ = n
+}
+
+// fillColFN resolves every archived slot's reference index to the
+// referenced picture's FrameNum (-1 when unused or missing). Called
+// with the archiving picture's own lists still installed.
+func (p *Picture) fillColFN(d *Decoder) {
+	n := p.MotW4 * p.MotH4
+	if len(p.ColFN0) != n || len(p.ColFN1) != n {
+		return
+	}
+	for i := 0; i < n; i++ {
+		fn := int32(-1)
+		if i < len(p.Rf0) && p.Rf0[i] >= 0 && int(p.Rf0[i]) < len(d.refList) && d.refList[p.Rf0[i]] != nil {
+			fn = int32(d.refList[p.Rf0[i]].FrameNum)
+		}
+		p.ColFN0[i] = fn
+		fn = int32(-1)
+		if i < len(p.Rf1) && p.Rf1[i] >= 0 && int(p.Rf1[i]) < len(d.refList1) && d.refList1[p.Rf1[i]] != nil {
+			fn = int32(d.refList1[p.Rf1[i]].FrameNum)
+		}
+		p.ColFN1[i] = fn
+	}
+}
+
+// colocFN returns the colocated block's reference FrameNums alongside
+// coloc(): fn0/fn1 are -1 when the slot used no reference or the
+// archive predates the ColFN extension (nil grids).
+func (p *Picture) colocFN(x4, y4 int) (fn0, fn1 int32) {
+	fn0, fn1 = -1, -1
+	if p == nil || p.MotW4 <= 0 || p.MotH4 <= 0 {
+		return fn0, fn1
+	}
+	if x4 < 0 || y4 < 0 || x4 >= p.MotW4 || y4 >= p.MotH4 {
+		return fn0, fn1
+	}
+	i := y4*p.MotW4 + x4
+	if i < len(p.ColFN0) {
+		fn0 = p.ColFN0[i]
+	}
+	if i < len(p.ColFN1) {
+		fn1 = p.ColFN1[i]
+	}
+	return fn0, fn1
 }
 
 // DropBuffered releases decoder-held pictures (the in-flight frame plus

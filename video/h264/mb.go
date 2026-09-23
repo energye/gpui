@@ -108,6 +108,12 @@ type Decoder struct {
 	slices   int
 	curIsRef bool
 	curIsB   bool
+	// pendMark holds the current picture's explicit marking (first
+	// slice wins; single-slice frames are the common case): executed
+	// at FinishPicture after the lists are built, not before. Building
+	// lists from post-marking state drops valid references (1080p s9).
+	pendMark  []MMCOOp
+	pendAdapt bool
 	// lastSEI holds the most recent supplemental messages (timing and
 	// user data ride along for the player; decoding never depends on
 	// them).
@@ -441,10 +447,15 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	d.pic.IsIDR = h.IsIDR
 	d.curIsRef = h.NalRefIDC != 0
 	d.curIsB = h.IsB()
-	// Explicit marking runs before list construction (the new decode
-	// consumes the lists shaped by it, like the reference decoder).
-	if err := d.applyMarking(h); err != nil {
-		return err
+	// Marking runs at FinishPicture after this picture's lists are
+	// built (spec 8.2.5): the lists decode from the pre-marking roster.
+	// First slice wins; later slices of one picture share the marking.
+	if d.slices == 0 && d.decoded == 0 {
+		d.pendMark = d.pendMark[:0]
+		if h.AdaptiveMarking {
+			d.pendMark = append(d.pendMark, h.MMCO...)
+		}
+		d.pendAdapt = h.AdaptiveMarking
 	}
 	// Reference list 0: buffered pictures newest-first, reshaped by
 	// the slice-header reordering steps. Multi-ref clips address
@@ -607,17 +618,29 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 		d.pic = nil
 		d.decoded = 0
 		d.slices = 0
+		d.pendMark = d.pendMark[:0]
+		d.pendAdapt = false
 		return nil, fmt.Errorf("%w: %d of %d mbs (%w)", ErrBadSliceHeader, got, want, ErrLostReference)
 	}
 	DeblockPicture(d.pic, d.qps, d.fIDC, d.fA, d.fB, d.mbW, d.mbH, d.cOff0, d.cOff1,
 		d.mbIntra, d.nnzY, d.mvX, d.mvY, d.refIdx, d.refList, d.mbT8,
 		d.bDeblockMVX1(), d.bDeblockMVY1(), d.bDeblockRef1(), d.refList1, d.bDeblockUseM(),
 		d.uniSkip, d.uniDM)
-	// Sliding-window marking: a reference picture that finds the
-	// buffer full unmarks the oldest short-term before storing.
-	// The victim is picked by wrapped frame number against the picture
-	// being stored (raw comparison evicts the newest after a wrap).
-	if d.curIsRef && d.sps != nil && d.sps.NumRefFrames > 0 {
+	// Marking runs here, after this picture decoded (spec 8.2.5):
+	// adaptive executes its ops on the old roster, then the current
+	// picture stores; non-adaptive slides the window when full. The
+	// lists above decoded from the pre-marking roster, so s9 keeps
+	// fn0/fn1 for its own prediction before dropping them.
+	if d.pendAdapt {
+		for _, m := range d.pendMark {
+			switch m.Op {
+			case 1:
+				d.dpb.unmarkShort(uint32(m.Arg1))
+			case 2:
+			default:
+			}
+		}
+	} else if d.curIsRef && d.sps != nil && d.sps.NumRefFrames > 0 {
 		bits, berr := frameNumBits(d.sps)
 		if berr != nil {
 			return nil, berr
@@ -653,6 +676,8 @@ func (d *Decoder) FinishPicture() (*Picture, error) {
 	d.pic = nil
 	d.decoded = 0
 	d.slices = 0
+	d.pendMark = d.pendMark[:0]
+	d.pendAdapt = false
 	return out, nil
 }
 

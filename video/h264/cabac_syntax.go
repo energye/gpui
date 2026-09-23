@@ -474,22 +474,24 @@ func (d *Decoder) cabacRefAtB(bx, by, list int) int {
 
 // cabacRefIdxB reads one B reference index of one list: neighbours above
 // zero count unless direct-derived; unary bins from 54+i. Slots inside
-// the current macroblock come from early scratch.
+// the current macroblock come from early scratch, with the same
+// direct exclusion (direct sub-blocks store before explicit reads,
+// like the reference direct_cache).
 func (d *Decoder) cabacRefIdxB(addr, mbx, mby, bx, by, list int) (int8, error) {
 	at := func(x, y int) (int, bool) {
 		if x < 0 || y < 0 || x >= d.mbW*4 || y >= d.mbH*4 {
 			return -1, false
 		}
+		i := y*d.mbW*4 + x
 		if x/4 == mbx && y/4 == mby {
 			if list == 0 {
-				return int(d.refTmp[y*d.mbW*4+x]), true
+				return int(d.refTmp[i]), !d.direct4[i]
 			}
-			return int(d.refTmp1[y*d.mbW*4+x]), true
+			return int(d.refTmp1[i]), !d.direct4[i]
 		}
 		if !d.cabSameSlice((y/4)*d.mbW + x/4) {
 			return -1, false
 		}
-		i := y*d.mbW*4 + x
 		var r int8
 		if list == 0 {
 			r = d.refIdx[i]

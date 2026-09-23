@@ -61,6 +61,8 @@ func (d *Decoder) PrimeFrame(snapshot []*Picture, seed POCSeed) {
 	d.pic = nil
 	d.decoded = 0
 	d.slices = 0
+	d.pendMark = d.pendMark[:0]
+	d.pendAdapt = false
 	// Residual-scratch audit (decoder fields the per-frame reset does
 	// NOT cover, enumerated 2026-09-21 by grepping d.* writes outside
 	// the reset block + init): every field below is written before

@@ -1,6 +1,9 @@
 package h264
 
-import "os"
+import (
+	"os"
+	"sync/atomic"
+)
 
 // S1 deblock fast path, step D1 (edge dispatch, scalar留守).
 //
@@ -53,4 +56,120 @@ func deblockLumaFast(p []uint8, stride, ex, ey int, vertical bool, bS, alpha, be
 		return false
 	}
 	return deblockLumaArch(p, stride, ex, ey, vertical, bS, alpha, beta, tc)
+}
+
+// edge16Kind classifies one 16-line luma edge for the whole-edge
+// dispatch. Single source for the taken matrix: the amd64 dispatch
+// (deblock_amd64.go) switches on this, and the filter.go call site
+// recounts with it when deblockStatsOn. Keep both callers on this
+// helper; a second inline copy will drift.
+type edge16Kind int
+
+const (
+	edge16Zero   edge16Kind = iota // all four bS == 0: nothing would filter
+	edge16Gated                    // alpha/beta closed: every line gates out
+	edge16Weak                     // all bS < 4 with some filtering: one weak call
+	edge16Strong                   // all bS == 4: one strong call
+	edge16Mixed                    // weak/strong blend: per-segment fallback
+)
+
+func classifyEdge16(bS [4]int, alpha, beta int) edge16Kind {
+	any := false
+	allStrong := true
+	allWeakOrSkip := true
+	for _, v := range bS {
+		if v != 4 {
+			allStrong = false
+		}
+		if v >= 4 {
+			allWeakOrSkip = false
+		}
+		if v > 0 {
+			any = true
+		}
+	}
+	if !any {
+		return edge16Zero
+	}
+	if alpha == 0 || beta == 0 {
+		return edge16Gated
+	}
+	if allStrong {
+		return edge16Strong
+	}
+	if allWeakOrSkip {
+		return edge16Weak
+	}
+	return edge16Mixed
+}
+
+// Whole-edge hit-rate census (step C1: measure before cutting further).
+// deblockStatsOn is test-only: the filter.go call site bumps one
+// counter per edge while on. Off (production + timing runs) the hot
+// path pays a single predictable branch per edge and nothing else.
+// Counters are atomic so S2-parallel decodes stay race-clean.
+var deblockStatsOn bool
+
+var edge16Counters struct {
+	total         atomic.Uint64
+	zero          atomic.Uint64
+	gated         atomic.Uint64
+	weakTaken     atomic.Uint64
+	strongTaken   atomic.Uint64
+	mixedFallback atomic.Uint64
+	otherFallback atomic.Uint64
+}
+
+// edge16Note records one whole-edge dispatch: its class plus whether
+// the single call ran (taken) or the per-segment path ran (fallback).
+// On amd64 unforced, weak/strong always take and mixed always falls
+// back, so otherFallback > 0 flags forced-scalar or non-amd64 runs.
+func edge16Note(kind edge16Kind, taken bool) {
+	edge16Counters.total.Add(1)
+	switch kind {
+	case edge16Zero:
+		edge16Counters.zero.Add(1)
+	case edge16Gated:
+		edge16Counters.gated.Add(1)
+	case edge16Weak:
+		if taken {
+			edge16Counters.weakTaken.Add(1)
+		} else {
+			edge16Counters.otherFallback.Add(1)
+		}
+	case edge16Strong:
+		if taken {
+			edge16Counters.strongTaken.Add(1)
+		} else {
+			edge16Counters.otherFallback.Add(1)
+		}
+	default:
+		edge16Counters.mixedFallback.Add(1)
+	}
+}
+
+type edge16Stats struct {
+	total, zero, gated, weakTaken, strongTaken, mixedFallback, otherFallback uint64
+}
+
+func edge16Snapshot() edge16Stats {
+	return edge16Stats{
+		total:         edge16Counters.total.Load(),
+		zero:          edge16Counters.zero.Load(),
+		gated:         edge16Counters.gated.Load(),
+		weakTaken:     edge16Counters.weakTaken.Load(),
+		strongTaken:   edge16Counters.strongTaken.Load(),
+		mixedFallback: edge16Counters.mixedFallback.Load(),
+		otherFallback: edge16Counters.otherFallback.Load(),
+	}
+}
+
+func edge16Reset() {
+	edge16Counters.total.Store(0)
+	edge16Counters.zero.Store(0)
+	edge16Counters.gated.Store(0)
+	edge16Counters.weakTaken.Store(0)
+	edge16Counters.strongTaken.Store(0)
+	edge16Counters.mixedFallback.Store(0)
+	edge16Counters.otherFallback.Store(0)
 }

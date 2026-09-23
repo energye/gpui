@@ -78,9 +78,46 @@ func TestBDirectSpatial(t *testing.T) {
 	if got[0].mx != 0 || got[0].my != 0 {
 		t.Fatalf("still l0 mv = (%d,%d), want (0,0)", got[0].mx, got[0].my)
 	}
-	// Temporal direct stops readable.
-	hT := &SliceHeader{DirectSpatial: false}
-	if _, err := d.bDirectMB(1, 1, hT, still); err == nil {
-		t.Fatal("temporal direct: want stage error")
+	// Temporal direct scales the colocated block: colPic L0 ref (mapped
+	// to list 0 by FrameNum) with mv (6,0); cur POC 5, p0 POC 2, p1 POC
+	// 8: td=6, tb=3, tx=2731, scale=(3*2731+32)>>6=128, so L0 mv (3,0),
+	// L1 mv (-3,0).
+	hT := &SliceHeader{DirectSpatial: false, POC: 5}
+	d.sps = &SPS{FrameMBsOnly: true}
+	d.refList = []*Picture{{FrameNum: 7, POC: 0}, {FrameNum: 9, POC: 2}}
+	d.refList1 = []*Picture{{FrameNum: 8, POC: 8}}
+	colT := mkP(2, 2)
+	colT.Rf0[(1*4)*8+1*4] = 2
+	colT.MV0x[(1*4)*8+1*4] = 6
+	colT.ColFN0 = make([]int32, 8*8)
+	colT.ColFN1 = make([]int32, 8*8)
+	for i := range colT.ColFN0 {
+		colT.ColFN0[i], colT.ColFN1[i] = -1, -1
+	}
+	colT.ColFN0[(1*4)*8+1*4] = 9
+	gotT, err := d.bDirectMB(1, 1, hT, colT)
+	if err != nil {
+		t.Fatalf("temporal direct: %v", err)
+	}
+	if gotT[0].ref != 1 || !gotT[0].use || gotT[0].mx != 3 || gotT[0].my != 0 {
+		t.Fatalf("temporal l0 = %+v, want ref 1 mv (3,0)", gotT[0])
+	}
+	if gotT[1].ref != 0 || !gotT[1].use || gotT[1].mx != -3 || gotT[1].my != 0 {
+		t.Fatalf("temporal l1 = %+v, want ref 0 mv (-3,0)", gotT[1])
+	}
+	// Intra colocated yields zero motion at ref 0 both lists.
+	colI := mkP(2, 2)
+	for i := range colI.Rf0 {
+		colI.Rf0[i], colI.Rf1[i] = -1, -1
+	}
+	gotI, err := d.bDirectMB(1, 1, hT, colI)
+	if err != nil {
+		t.Fatalf("temporal intra: %v", err)
+	}
+	if !gotI[0].use || gotI[0].ref != 0 || gotI[0].mx != 0 || gotI[0].my != 0 {
+		t.Fatalf("temporal intra l0 = %+v, want ref 0 zero", gotI[0])
+	}
+	if !gotI[1].use || gotI[1].ref != 0 || gotI[1].mx != 0 || gotI[1].my != 0 {
+		t.Fatalf("temporal intra l1 = %+v, want ref 0 zero", gotI[1])
 	}
 }

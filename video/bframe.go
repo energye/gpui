@@ -25,7 +25,6 @@ package video
 // Workers touch no Player locks and no shared decoder state.
 
 import (
-	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -363,31 +362,6 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		}
 		pool[w] = dec
 	}
-	var poolMu sync.Mutex
-	free := make([]bool, workers)
-	for w := range free {
-		free[w] = true
-	}
-	take := func() (int, *h264.Decoder) {
-		for {
-			poolMu.Lock()
-			for w := range pool {
-				if free[w] {
-					free[w] = false
-					d := pool[w]
-					poolMu.Unlock()
-					return w, d
-				}
-			}
-			poolMu.Unlock()
-			runtime.Gosched()
-		}
-	}
-	give := func(w int) {
-		poolMu.Lock()
-		free[w] = true
-		poolMu.Unlock()
-	}
 
 	n := execEnd - gHead
 	doneCh := make([]chan struct{}, n)
@@ -427,99 +401,138 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 	}
 	var wg sync.WaitGroup
 	var needFallback atomic.Bool
+	// Union wait lists: Snapshot ∪ Refs per frame, computed once. The
+	// dispatcher walks them in order instead of every frame
+	// allocating a dedup map.
+	waits := make([][]int, n)
+	for f := pos; f < execEnd; f++ {
+		gf := f - gHead
+		if gf < 0 || gf >= len(plans) || !plans[gf].Fed {
+			continue
+		}
+		seen := make(map[int]bool, len(plans[gf].Snapshot)+len(plans[gf].Refs))
+		for _, s := range plans[gf].Snapshot {
+			if !seen[s] {
+				seen[s] = true
+				waits[gf] = append(waits[gf], s)
+			}
+		}
+		for _, r := range plans[gf].Refs {
+			if !seen[r] {
+				seen[r] = true
+				waits[gf] = append(waits[gf], r)
+			}
+		}
+	}
+	// Persistent crew (B2-b): one goroutine per worker for the whole
+	// lap; tasks flow in frame order through a rendezvous channel. The
+	// dispatcher below waits each frame's roster BEFORE handing it
+	// out, so workers only decode — no per-frame goroutines, no
+	// Gosched spin, no take/give mutex storm. Each worker owns its
+	// decoder for the lap (PrimeFrame re-primes per task; the commit
+	// drops all worker rosters at the end).
+	type bTask struct {
+		f, gf int
+	}
+	tasks := make(chan bTask)
+	for w := range pool {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			dec := pool[w]
+			// Snapshot buffer reused across this worker's tasks:
+			// PrimeFrame copies the pointers into the DPB at call
+			// time, so reslicing afterwards is safe.
+			var snapBuf []*h264.Picture
+			for t := range tasks {
+				if needFallback.Load() {
+					close(doneCh[t.f-gHead])
+					continue
+				}
+				pl := plans[t.gf]
+				if cap(snapBuf) < len(pl.Snapshot) {
+					snapBuf = make([]*h264.Picture, len(pl.Snapshot))
+				} else {
+					snapBuf = snapBuf[:len(pl.Snapshot)]
+				}
+				ok := true
+				for i, s := range pl.Snapshot {
+					pic := stored[gHead+s-gHead]
+					if pic == nil {
+						ok = false
+						break
+					}
+					snapBuf[i] = pic
+				}
+				var pic *h264.Picture
+				var st *h264.Picture
+				failed := !ok
+				if !failed {
+					dec.PrimeFrame(snapBuf, pl.Seed)
+					for _, u := range ins[t.gf].units {
+						_, _, typ, terr := h264.NALUHeader(u)
+						if terr != nil {
+							failed = true
+							break
+						}
+						if typ == h264.NALSPS || typ == h264.NALPPS {
+							continue
+						}
+						if derr := dec.DecodeNALU(u); derr != nil {
+							failed = true
+							break
+						}
+					}
+				}
+				if !failed {
+					var ferr error
+					pic, ferr = dec.FinishPicture()
+					if ferr != nil {
+						failed = true
+					} else {
+						st = dec.StoredRef()
+					}
+				}
+				if failed {
+					needFallback.Store(true)
+				} else {
+					disp[t.f-gHead] = pic
+					stored[t.f-gHead] = st
+				}
+				close(doneCh[t.f-gHead])
+			}
+		}(w)
+	}
+	// Ordered dispatch: frame order, waits resolved before handoff.
+	// All waits point strictly earlier (planner invariant) at frames
+	// already dispatched or pre-window-closed, so the dispatcher never
+	// blocks on an unsent task — no wait cycle. A closed doneCh on the
+	// fallback path unblocks dependents, which then skip via the
+	// needFallback check (worker side and below).
 	for f := pos; f < execEnd; f++ {
 		gf := f - gHead
 		if gf < 0 || gf >= len(plans) || !plans[gf].Fed {
 			close(doneCh[f-gHead])
 			continue
 		}
-		wg.Add(1)
-		go func(f, gf int) {
-			defer wg.Done()
-			// Wait for the full roster (snapshot ∪ refs): all members
-			// complete before the worker reads them. Indices run
-			// strictly earlier (planner invariant): acyclic. Waiting
-			// never holds a pool slot (acquired after), so deep
-			// chains cannot deadlock the crew.
-			waited := make(map[int]bool)
-			wait := func(gx int) bool {
-				if waited[gx] {
-					return true
-				}
-				waited[gx] = true
-				if gx < 0 || gHead+gx < gHead || gHead+gx >= execEnd {
-					return false
-				}
-				<-doneCh[gHead+gx-gHead]
-				return true
+		badWait := false
+		for _, s := range waits[gf] {
+			if gHead+s < gHead || gHead+s >= execEnd {
+				badWait = true
+				break
 			}
-			for _, s := range plans[gf].Snapshot {
-				if !wait(s) {
-					needFallback.Store(true)
-					close(doneCh[f-gHead])
-					return
-				}
-			}
-			for _, r := range plans[gf].Refs {
-				if !wait(r) {
-					needFallback.Store(true)
-					close(doneCh[f-gHead])
-					return
-				}
-			}
-			if needFallback.Load() {
-				close(doneCh[f-gHead])
-				return
-			}
-			w, dec := take()
-			snap := make([]*h264.Picture, 0, len(plans[gf].Snapshot))
-			for _, s := range plans[gf].Snapshot {
-				pic := stored[gHead+s-gHead]
-				if pic == nil {
-					give(w)
-					needFallback.Store(true)
-					close(doneCh[f-gHead])
-					return
-				}
-				snap = append(snap, pic)
-			}
-			dec.PrimeFrame(snap, plans[gf].Seed)
-			var pic *h264.Picture
-			failed := false
-			for _, u := range ins[gf].units {
-				_, _, typ, terr := h264.NALUHeader(u)
-				if terr != nil {
-					failed = true
-					break
-				}
-				if typ == h264.NALSPS || typ == h264.NALPPS {
-					continue
-				}
-				if derr := dec.DecodeNALU(u); derr != nil {
-					failed = true
-					break
-				}
-			}
-			var st *h264.Picture
-			if !failed {
-				var ferr error
-				pic, ferr = dec.FinishPicture()
-				if ferr != nil {
-					failed = true
-				} else {
-					st = dec.StoredRef()
-				}
-			}
-			give(w)
-			if failed {
+			<-doneCh[gHead+s-gHead]
+		}
+		if badWait || needFallback.Load() {
+			if badWait {
 				needFallback.Store(true)
-			} else {
-				disp[f-gHead] = pic
-				stored[f-gHead] = st
 			}
 			close(doneCh[f-gHead])
-		}(f, gf)
+			continue
+		}
+		tasks <- bTask{f, gf}
 	}
+	close(tasks)
 	wg.Wait()
 
 	if needFallback.Load() {
