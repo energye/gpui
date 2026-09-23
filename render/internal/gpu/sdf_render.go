@@ -104,18 +104,8 @@ type SDFRenderPipeline struct {
 
 	width, height uint32
 
-	// E6 pass-bind ledger (correct retry of the reverted pointer-keyed
-	// dedup): the SESSION owns one ledger per render pass and hands the
-	// same pointer to every tier's Record path. The ledger records the
-	// exact bound set after each Draw; a later Draw with a bit-identical
-	// set skips the Set* calls and only issues Draw. Key differences vs
-	// the reverted attempt: (1) keyed by an explicit per-pass frame
-	// sequence number, never by *RenderPassEncoder address reuse; (2) one
-	// ledger shared by SDF/convex/stencil/image/text/glyph tiers, so a
-	// stencil draw between two SDF draws invalidates (no stale skip);
-	// (3) cleared at every pass begin (session calls BeginPassLedger).
-	// Any mismatch (new buffers after realloc, nil-vs-non-nil clip/mask,
-	// different pipeline) takes the full bind path. Pixels bit-identical.
+	// Session-owned per-pass bind ledger: a Draw with a bit-identical set
+	// skips Set* and only Draws (see PassBindLedger for the rules).
 	ledger *PassBindLedger
 }
 
@@ -541,9 +531,7 @@ func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	if pipe == nil {
 		return
 	}
-	// Ledger dedup: bit-identical bound set on this pass → Draw only.
-	// Anything else (new pass/seq, any binding differs, ledger detached)
-	// takes the full path below. Order (pipeline → groups → vertex) kept.
+	// Ledger dedup: identical bound set → Draw only, else full bind path.
 	if p.ledger != nil && p.ledger.skipBind(rp, pipe, resources.bindGroup, clipBG, maskBG, resources.vertBuf) {
 		rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
 		return
@@ -567,8 +555,7 @@ func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 
 // destroyPipeline releases all pipeline resources in reverse creation order.
 func (p *SDFRenderPipeline) destroyPipeline() {
-	// Detach ledger: cached pipeline pointers dangle after Release, and
-	// the next pass re-attaches a fresh ledger via the session.
+	// Detach ledger: cached pipeline pointers dangle after Release.
 	p.ledger = nil
 	if p.device == nil {
 		return

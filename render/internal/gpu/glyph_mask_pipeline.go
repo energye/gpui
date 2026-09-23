@@ -476,8 +476,8 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 		if pipeline == nil || dc.indexCount == 0 || dc.bindGroup == nil {
 			return
 		}
-		// Same-pipe consecutive draws share clip layout: skip SetPipeline
-		// + clip rebind, only SetBindGroup(0) + Draw. Pixels identical.
+		// Same-pipe consecutive draws share clip layout: skip SetPipeline +
+		// clip rebind, only SetBindGroup(0) + Draw.
 		if pipeline == lastPipe {
 			rp.SetBindGroup(0, dc.bindGroup, nil)
 			rp.DrawIndexed(dc.indexCount, 1, dc.indexOffset, 0, 0)

@@ -436,10 +436,7 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 		if pipe == nil {
 			continue
 		}
-		// SetPipeline then bind groups (Vulkan requires a pipeline layout for
-		// vkCmdBindDescriptorSets). Re-bind after every pipeline switch.
-		// Same-pipe ranges share bindGroup/clip/mask/vertBuf: skip rebind,
-		// Draw only. Pixels identical, fewer crossings.
+		// Same-pipe ranges share all bindings: Draw only, skip rebind.
 		if pipe == lastPipe {
 			if rg.indexed {
 				if rg.indexCount == 0 {

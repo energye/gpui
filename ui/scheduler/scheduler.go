@@ -76,22 +76,12 @@ type FrameScheduler struct {
 	displayPeriod time.Duration
 	stampCount    int
 	// basePeriod is the platform-reported display refresh interval (see
-	// SeedDisplayRefreshHz, from platform.DisplayRefreshReporter). It is
-	// the pacing baseline when no learned displayPeriod exists yet; the
-	// learned value only trims it afterwards. 0 = host reported nothing,
-	// fall back to animTick.
+	// SeedDisplayRefreshHz). Pacing baseline until learned displayPeriod
+	// trims it. 0 = host reported nothing, fall back to animTick.
 	basePeriod time.Duration
-	// dispHist* robustly learn the display period from compositor
-	// frame-presented notices (XPresent/Wayland) for the software
-	// boundary (E6-A). Without any learned or reported period, the
-	// boundary stays at animTick (16ms nominal) while the display runs at
-	// its own rate (e.g. ~16.68ms): the ~0.7ms/frame drift walks the
-	// submit phase until a Fifo present straddles a vblank and blocks a
-	// full extra cycle (~33ms gap = visible 定住再冲, ~1 frame in 25).
-	// The platform-reported baseline (SeedDisplayRefreshHz) now covers
-	// the no-signal case; only steady
-	// signals move the estimate (see learnCompositorPeriod); batched or
-	// delayed notices are ignored, so worst case is today's behavior.
+	// dispHist* learn the display period from compositor frame-presented
+	// notices. Only steady signals move the estimate (see
+	// learnCompositorPeriod); jittered batches are ignored.
 	dispHist      [dispHistSize]time.Duration
 	dispHistIdx   int
 	dispHistCount int
@@ -106,34 +96,29 @@ const (
 	dispHistMin = 16
 )
 
-// boundaryPeriodLocked returns the software-boundary interval, preferred
-// first learned display period, then the platform-reported baseline, then
-// DefaultAnimTick. Clamped to [baseline*0.8, 100ms] so a bogus source
-// cannot stall frames; the floor follows the known baseline (seeded
-// 120Hz => ~6.7ms floor, not the nominal 12.8ms). Caller holds s.mu.
+// boundaryPeriodLocked returns the software-boundary interval: learned
+// display period first, then the platform-reported baseline, then
+// DefaultAnimTick. Clamped to [baseline*0.8, 100ms]; the floor follows the
+// known baseline. Caller holds s.mu.
 func (s *FrameScheduler) boundaryPeriodLocked() time.Duration {
 	ref := s.animTick
 	if s.basePeriod > 0 {
 		ref = s.basePeriod
 	}
+	p := s.displayPeriod
+	if p <= 0 {
+		p = ref
+	}
+	return clampPeriod(p, ref)
+}
+
+// clampPeriod keeps a pacing interval inside [ref*0.8, 100ms] (floor 4ms)
+// so a bogus source cannot stall frames.
+func clampPeriod(p, ref time.Duration) time.Duration {
 	min := ref * 8 / 10
 	if min < 4*time.Millisecond {
 		min = 4 * time.Millisecond
 	}
-	if s.displayPeriod <= 0 {
-		if s.basePeriod <= 0 {
-			return s.animTick
-		}
-		p := s.basePeriod
-		if p < min {
-			p = min
-		}
-		if p > 100*time.Millisecond {
-			p = 100 * time.Millisecond
-		}
-		return p
-	}
-	p := s.displayPeriod
 	if p < min {
 		p = min
 	}
@@ -144,10 +129,8 @@ func (s *FrameScheduler) boundaryPeriodLocked() time.Duration {
 }
 
 // stampVSyncLocked records a vsync arrival with its interval. Caller holds
-// vsyncMu. Both stamping paths (compositor notice / DRM vblank) go through
-// here so FrameDue sees the same cadence signal. Compositor intervals also
-// feed the robust period estimator (E6-A); the DRM path additionally feeds
-// the fast hardware EMA in learnDisplayPeriod.
+// vsyncMu. Compositor intervals also feed learnCompositorPeriod; the DRM
+// path additionally feeds the fast hardware EMA in learnDisplayPeriod.
 func (s *FrameScheduler) stampVSyncLocked(now time.Time) {
 	if !s.lastStampAt.IsZero() {
 		iv := now.Sub(s.lastStampAt)
@@ -158,15 +141,14 @@ func (s *FrameScheduler) stampVSyncLocked(now time.Time) {
 	s.lastVSync = now
 }
 
-// learnCompositorPeriod feeds one compositor-notice interval into the robust
-// display-period estimator used by the software boundary. It takes s.mu
-// (caller holds vsyncMu; same order as FrameDue, so no inversion).
+// learnCompositorPeriod feeds one compositor-notice interval into the
+// display-period estimate. It takes s.mu (caller holds vsyncMu; same order
+// as FrameDue, so no inversion).
 //
-// Only steady signals move the estimate: the median of the recent window
-// must sit in [8ms,100ms] with (p90-p10) within max(2ms, 20% of median);
-// then displayPeriod eases toward it (α=1/16, immediate on first qualify).
-// Batched/delayed notices show high jitter and are ignored — the estimate
-// can never be poisoned into a stall, worst case it stays at animTick.
+// Only steady signals move the estimate: window median in [8ms,25ms] with
+// (p90-p10) within max(2ms, 20% of median); then displayPeriod eases toward
+// it (α=1/16). Jittered batches are ignored, so the estimate can never be
+// poisoned into a stall.
 func (s *FrameScheduler) learnCompositorPeriod(iv time.Duration) {
 	if iv < 8*time.Millisecond || iv > 100*time.Millisecond {
 		return
@@ -196,11 +178,8 @@ func (s *FrameScheduler) learnCompositorPeriod(iv time.Duration) {
 		tol = 2 * time.Millisecond
 	}
 	if med < 8*time.Millisecond || med > 25*time.Millisecond {
-		// Cap at 25ms: covers 60/120Hz displays; a 33ms+ median means
-		// batched delivery (pairs of notices stamped together read as
-		// ~0ms + ~33ms, the ~0ms rejected at entry) or a 30Hz display —
-		// either way following it would halve the animation rate, so
-		// keep animTick (today's behavior, no regression).
+		// Above 25ms means batched delivery or a 30Hz display; following
+		// it would halve the animation rate, so keep the old behavior.
 		return
 	}
 	if p90-p10 > tol {
@@ -426,11 +405,9 @@ func (s *FrameScheduler) SetAnimTick(d time.Duration) {
 }
 
 // SeedDisplayRefreshHz sets the pacing baseline from the display's real
-// refresh rate (platform.DisplayRefreshReporter: Wayland wl_output mode,
-// X11 RandR current mode). Sane range 20–240Hz; anything else (0 =
-// unknown, absurd) is ignored and the nominal floor stays. The learned
-// displayPeriod keeps trimming on top of this baseline afterwards.
-// Called once at window open; safe to re-call on output/mode changes.
+// refresh rate. 20–240Hz only; 0/unknown keeps the nominal floor. The
+// learned displayPeriod keeps trimming on top. Safe to re-call on
+// output/mode changes.
 func (s *FrameScheduler) SeedDisplayRefreshHz(hz float64) {
 	if s == nil || hz < 20 || hz > 240 {
 		return
@@ -584,16 +561,9 @@ func (s *FrameScheduler) WaitFramePace(host platform.Host) {
 	// Non-blocking: frame pacing is gated by FrameDue at the render point.
 }
 
-// Tick advances tickers with the DISPLAY period (Flutter vsync-transaction
-// semantics): the consumed dt is the software pacing boundary
-// (boundaryPeriodLocked), not the wall gap since the last Tick. Wall-gap dt
-// accumulates every WaitEvents oversleep into state (position += speed*dt),
-// so one late wake injects a doubled step and the eye sees a jump. A missed
-// slot keeps the SAME step (deadline advances one period, not snap to now —
-// see FrameDue phase-lock) and the motion stays uniform; the frame simply
-// lands on the next boundary. Zero-dt Ticks are safe: additive physics
-// (scroll offset, sim distance) advances by rate*dt and ballistic Step
-// clamps dt>=0, so a zero step only holds position and never divides.
+// Tick advances tickers with the display-period dt (boundaryPeriodLocked),
+// not the wall gap: wall-gap dt turns one late wake into a doubled step.
+// A missed slot keeps the same step and lands on the next boundary.
 func (s *FrameScheduler) Tick() bool {
 	if s == nil {
 		return false

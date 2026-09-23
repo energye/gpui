@@ -1606,8 +1606,7 @@ func (h *wlHost) ScaleFactor() float64 {
 }
 
 // DisplayRefreshHz implements platform.DisplayRefreshReporter: the
-// compositor-advertised refresh of the entered output (0 = unknown,
-// e.g. old compositor or mode event not arrived yet).
+// compositor-advertised refresh of the entered output. 0 = unknown.
 func (h *wlHost) DisplayRefreshHz() float64 {
 	if h == nil {
 		return 0

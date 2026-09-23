@@ -130,10 +130,8 @@ type PipelineApp struct {
 	// While set, the frame gate is bypassed (resize-storm immediate render).
 	pendingResize bool
 	// refreshSeeded marks the pacing baseline as fed from the display's
-	// real refresh (platform.DisplayRefreshReporter). The Wayland output
-	// mode/enter events carrying it typically arrive after Open(), so the
-	// Run loop retries the seed until the host reports a sane rate, then
-	// stops asking (the stamp learner owns later adaptation).
+	// real refresh. Wayland mode/enter events arrive after Open(), so the
+	// Run loop retries until the host reports a sane rate.
 	refreshSeeded bool
 	// lowLatency / lastResizeAt drive the swapchain present-mode switch
 	// during resize storms: while a resize is fresher than resizeCalmWindow,
@@ -880,15 +878,29 @@ func (a *PipelineApp) Open() error {
 	if m := a.Metrics(); m != nil {
 		m.NoteGPUBackend(t.GPUBackend(), t.Fallbacks())
 	}
-	// Pacing baseline follows the display's real refresh (Flutter/Chromium
-	// standard: content frequency uses the display frequency, never a
-	// hardcoded guess). The host reports it when the platform exposes it
-	// (Wayland wl_output mode / X11 RandR); 0/unknown keeps the nominal
-	// floor and the stamp learner still trims on top.
-	if r, ok := a.host.(platform.DisplayRefreshReporter); ok {
-		a.sched.SeedDisplayRefreshHz(r.DisplayRefreshHz())
-	}
+	// Pacing baseline follows the display's real refresh; 0/unknown keeps
+	// the nominal floor and the stamp learner still trims on top.
+	a.seedRefreshFromHost()
 	return nil
+}
+
+// seedRefreshFromHost feeds the scheduler baseline from the display's real
+// refresh when the host reports it. Reports false until a sane rate lands,
+// so the Run loop keeps retrying (Wayland mode/enter arrives late).
+func (a *PipelineApp) seedRefreshFromHost() bool {
+	if a == nil || a.sched == nil || a.host == nil {
+		return true
+	}
+	r, ok := a.host.(platform.DisplayRefreshReporter)
+	if !ok {
+		return true // host never reports; stop asking
+	}
+	hz := r.DisplayRefreshHz()
+	if hz < 20 || hz > 240 {
+		return false
+	}
+	a.sched.SeedDisplayRefreshHz(hz)
+	return true
 }
 
 // handleLifecycle serves the unified window-lifecycle trio (S6-P0 step 4):
@@ -1066,17 +1078,9 @@ func (a *PipelineApp) Run() error {
 		}
 
 		evs := a.host.WaitEvents(timeout)
-		// Pacing baseline catch-up (see refreshSeeded): one interface
-		// assert + one host read per loop until the real refresh lands.
+		// Pacing baseline catch-up: retries until the real refresh lands.
 		if !a.refreshSeeded {
-			if r, ok := a.host.(platform.DisplayRefreshReporter); ok {
-				if hz := r.DisplayRefreshHz(); hz >= 20 && hz <= 240 {
-					a.sched.SeedDisplayRefreshHz(hz)
-					a.refreshSeeded = true
-				}
-			} else {
-				a.refreshSeeded = true // host never reports; stop asking
-			}
+			a.refreshSeeded = a.seedRefreshFromHost()
 		}
 		for _, ev := range evs {
 			// Unified input routing (plan §4): when an InputRouter is
@@ -1194,16 +1198,11 @@ func (a *PipelineApp) Run() error {
 			a.sched.WaitFramePace(a.host)
 		}
 
-		// Advance tickers (animations, framework blink pump, example pumps)
-		// ONLY when a frame will actually render below (Flutter
-		// vsync-transaction semantics): one Tick per presented frame, with
-		// the display-period dt. Ticking on every event-loop spin advances
-		// sim state 2x per frame on multi-wake iterations (observed 658/1645
-		// pelican ticks <4ms apart) — each spin's dist step lands in the same
-		// frame's build, so the eye sees doubled/uneven steps ("定住再冲").
-		// Tick is placed AFTER the FrameDue gate so skipped iterations do
-		// not advance animation state at all; the phase-locked boundary
-		// keeps cadence and the fixed dt keeps steps uniform.
+		// Advance tickers ONLY when a frame will actually render below: one
+		// Tick per presented frame with the display-period dt. Ticking on
+		// every loop spin advances sim state twice per frame on multi-wake
+		// iterations, so the eye sees doubled steps. Tick sits AFTER the
+		// FrameDue gate so skipped iterations never advance animation.
 		// Ticker aliveness must NOT imply frame demand: an idle window with
 		// a registered ticker (blink pump, HUD budgets) has to cost ~nothing.
 		// Frames follow dirtiness (below), explicit ScheduleFrame calls, and
@@ -1253,8 +1252,8 @@ func (a *PipelineApp) Run() error {
 		if !a.sched.FrameDue() && !a.pendingResize {
 			continue
 		}
-		// One Tick per presented frame (see above): advance animation state
-		// now that the gate opened, so sim steps map 1:1 to built frames.
+		// One Tick per presented frame: gate opened, so sim steps map 1:1
+		// to built frames.
 		a.sched.Tick()
 		if a.sched.FrameWanted() {
 			a.ScheduleFrame()

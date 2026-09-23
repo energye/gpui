@@ -5,18 +5,17 @@ import (
 )
 
 // PassBindLedger records the exact bound set after each Draw within ONE
-// render pass, shared by all tiers (SDF/convex/stencil/image/text/glyph).
-// A later Draw with a bit-identical set skips the Set* calls and only
-// issues Draw — identical pixels, fewer cgo + validation crossings.
+// render pass. A later Draw with a bit-identical set skips the Set* calls
+// and only issues Draw — identical pixels, fewer cgo + validation
+// crossings.
 //
-// Correctness vs the reverted pointer-keyed attempt:
-//   - seq keys the pass: BeginPassLedger bumps it per pass, so a recycled
+// Correctness rules:
+//   - Pass generations: BeginPassLedger runs per pass, so a recycled
 //     *RenderPassEncoder address never aliases a stale entry.
-//   - ONE ledger per pass across tiers: any tier's Draw updates it, so a
-//     stencil/image/text draw between two SDF draws invalidates (no stale
-//     skip across tier switches).
-//   - Nil-vs-non-nil clip/mask are distinct states; any difference takes
-//     the full bind path. New buffers after realloc differ by pointer.
+//   - One ledger shared across tiers: any tier's Draw updates it, so a
+//     stencil/image/text draw between two SDF draws invalidates.
+//   - Any difference (nil-vs-non-nil clip/mask, new buffers after realloc,
+//     different pipeline) takes the full bind path.
 //   - Destroy/detach clears: stale pipeline pointers never compare equal.
 type PassBindLedger struct {
 	seq   uint64

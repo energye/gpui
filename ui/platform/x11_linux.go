@@ -997,8 +997,8 @@ func (h *x11Host) ScaleFactor() float64 {
 }
 
 // DisplayRefreshHz implements platform.DisplayRefreshReporter: the current
-// RandR mode refresh (0 = unknown). Probed once, re-probed after
-// RRScreenChangeNotify; never per frame (X round-trip).
+// RandR mode refresh. 0 = unknown. Probed once, re-probed after
+// RRScreenChangeNotify; never per frame.
 func (h *x11Host) DisplayRefreshHz() float64 {
 	if h == nil || h.st == nil {
 		return 0

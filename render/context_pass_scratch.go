@@ -83,9 +83,9 @@ func (c *Context) BeginPassScratch(r image.Rectangle) (restore func(), ok bool) 
 		// Fresh pixmap is zeroed by construction; matches cleared state.
 		c.passScratchDirty = false
 	}
-	// E6 lazy scratch: clear only when a previous pass left content behind.
-	// A clean-reused scratch (the common all-GPU pass) skips the fullscreen
-	// memset here and the zero-scan/upload at commit.
+	// Clear only when a previous pass left content behind. A clean-reused
+	// scratch (the common all-GPU pass) skips the memset here and the
+	// zero-scan/upload at commit.
 	if c.passScratchDirty {
 		clearPixmapRect(c.passScratch, r)
 		c.passScratchDirty = false
@@ -102,11 +102,10 @@ func (c *Context) BeginPassScratch(r image.Rectangle) (restore func(), ok bool) 
 }
 
 // CommitPassScratchToView uploads a dirty scratch region into the pass view.
-// It also discharges the scratch debt: after an upload the region holds
-// content that a later pass must clear before reuse, so the dirty flag stays
-// set (Begin pre-clears while set). A clean skip leaves the flag unset.
-// Call only between BeginPassScratch and its restore; without an active
-// swap it returns committed=false, nil.
+// After an upload the region holds content a later pass must clear, so the
+// dirty flag stays set (Begin pre-clears while set). A clean skip leaves it
+// unset. Call only between BeginPassScratch and its restore; without an
+// active swap it returns committed=false, nil.
 func (c *Context) CommitPassScratchToView(view gpucontext.TextureView) (committed bool, err error) {
 	if c == nil || c.passMain == nil || c.passScratch == nil {
 		return false, nil
@@ -115,9 +114,9 @@ func (c *Context) CommitPassScratchToView(view gpucontext.TextureView) (committe
 	if r.Empty() || view.IsNil() {
 		return false, nil
 	}
-	// E6 lazy scratch: no CPU fallback landed (flag unset) → scratch holds
-	// nothing new; skip the zero-scan and upload entirely. Stale content is
-	// impossible: any previous content forced a clear at Begin (flag was set).
+	// No CPU fallback landed (flag unset) → scratch holds nothing new; skip
+	// the zero-scan and upload. Stale content is impossible: any previous
+	// content forced a clear at Begin (flag was set).
 	if !c.passScratchDirty {
 		return false, nil
 	}

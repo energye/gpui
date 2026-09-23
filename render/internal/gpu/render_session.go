@@ -475,8 +475,9 @@ type GPURenderSession struct {
 
 	// S6.2 submit/record path diagnostics (most recent frame).
 	lastSubmitStats SubmitPathStats
-	// E6 pass-bind ledger: one per pass, shared by all tiers, attached to
-	// the SDF pipeline (the 49% tier). Bumped per pass via BeginPassLedger.
+	// passLedger dedups identical binds within one pass (all tiers share
+	// it; each tier's Draw invalidates). Bumped per pass via
+	// BeginPassLedger; attached to the SDF tier at encode time.
 	passLedger PassBindLedger
 	// R7.3: command buffers to prepend on next surface Submit (dual-tex multi).
 	leadSubmitCBs   []*webgpu.CommandBuffer
@@ -5243,7 +5244,8 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 		maskBG = gr.depthClipRes.maskBG
 	}
 
-	// Tier 1: SDF shapes (no stencil interaction).
+	// Tier 1: SDF shapes (no stencil interaction). SDF carries the shared
+	// ledger, so its Draws update it; every other tier invalidates below.
 	if gr.sdfRes != nil && len(gr.sdfShapes) > 0 {
 		s.sdfPipeline.RecordDraws(rp, gr.sdfRes, clipBG, maskBG, gr.hasDepthClip)
 	}
@@ -5762,12 +5764,8 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
 
-	// E6 ledger: new pass generation for the grouped surface pass; the SDF
-	// tier (49% of Record entries) attaches the session-shared ledger so
-	// consecutive identical SDF binds skip Set* and only Draw. Offscreen
-	// record passes (PictureTextureCache) use their own lifecycle and keep
-	// the ledger detached (full bind path) — this attach point is the
-	// grouped surface pass only.
+	// New pass generation; SDF attaches the shared ledger (offscreen record
+	// passes keep it detached and take the full bind path).
 	s.passLedger.BeginPassLedger()
 	if s.sdfPipeline != nil {
 		s.sdfPipeline.SetSDFLedger(&s.passLedger)

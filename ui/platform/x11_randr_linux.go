@@ -232,7 +232,7 @@ const (
 
 // xrrModeRefreshHz computes refresh rate from one XRRModeInfo timing:
 // rate = dotClock / (hTotal × vTotal), dotClock in kHz. 0 on degenerate
-// timing. Pure function so unit tests pin it without an X server.
+// timing.
 func xrrModeRefreshHz(dotClockKHz uint64, hTotal, vTotal uint32) float64 {
 	if dotClockKHz == 0 || hTotal == 0 || vTotal == 0 {
 		return 0
@@ -242,14 +242,11 @@ func xrrModeRefreshHz(dotClockKHz uint64, hTotal, vTotal uint32) float64 {
 
 // x11DisplayRefreshHz probes the current display refresh via RandR: for
 // each active CRTC, match its current mode against the screen's mode list
-// and take the max sane rate (20–240Hz). Returns 0 when unknown (no
-// RandR, no active CRTC, insane values) — callers fall back to the next
-// timing source. Called rarely (startup + screen-change notice), never
-// per frame: XRRGetScreenResources round-trips the X server.
+// and take the max sane rate (20–240Hz). 0 = unknown. Called rarely
+// (startup + screen-change notice), never per frame.
 func x11DisplayRefreshHz(dpy, root uintptr) (hz float64) {
 	// A mismatched XRR struct layout would fault on wild pointers — never
-	// let a probe crash the app or return half-parsed garbage: on panic
-	// the rate is unknown and callers fall back to the next timing source.
+	// let a probe crash the app: on panic the rate is unknown.
 	defer func() {
 		if recover() != nil {
 			hz = 0

@@ -152,13 +152,9 @@ func (w *wlWin) evaluateScale() {
 	}
 }
 
-// evaluateRefresh recomputes the effective display refresh from entered
-// outputs (max, same pattern as evaluateScale) and publishes it on the
-// host for the scheduler baseline. Before the surface entered any output
-// (startup, mode events already in), it falls back to the max over all
-// bound outputs — single-monitor setups report correctly from the first
-// frame; multi-monitor refines on enter. 0/unknown when nothing advertised
-// a current-mode refresh yet. Runs on the event thread.
+// evaluateRefresh publishes the effective display refresh on the host for
+// the scheduler baseline: max over entered outputs, or over all bound
+// outputs before enter. 0 = unknown yet. Runs on the event thread.
 func (w *wlWin) evaluateRefresh() {
 	if w == nil {
 		return
@@ -166,15 +162,11 @@ func (w *wlWin) evaluateRefresh() {
 	var mhz int32
 	if len(w.enteredOutputs) == 0 {
 		for _, st := range w.outputs {
-			if st != nil && st.refreshMhz > mhz {
-				mhz = st.refreshMhz
-			}
+			mhz = maxRefreshMhz(mhz, st)
 		}
 	} else {
 		for name := range w.enteredOutputs {
-			if st, ok := w.outputs[name]; ok && st != nil && st.refreshMhz > mhz {
-				mhz = st.refreshMhz
-			}
+			mhz = maxRefreshMhz(mhz, w.outputs[name])
 		}
 	}
 	h := w.hostRef
@@ -184,6 +176,15 @@ func (w *wlWin) evaluateRefresh() {
 	h.mu.Lock()
 	h.refreshHz = float64(mhz) / 1000.0
 	h.mu.Unlock()
+}
+
+// maxRefreshMhz returns the larger of mhz and st's advertised current-mode
+// refresh (nil-safe for missing outputs).
+func maxRefreshMhz(mhz int32, st *wlOutputState) int32 {
+	if st != nil && st.refreshMhz > mhz {
+		return st.refreshMhz
+	}
+	return mhz
 }
 
 // wlOutputScaleCB: scale(int32 factor).
@@ -231,10 +232,8 @@ func wlOutputGeometryCB(data, output, x, y, pw, ph, sub, make, model, transform 
 }
 
 // wlOutputModeCB: mode(uint flags, int width, int height, int refresh).
-// flags bit 0x1 = current mode; refresh is in mHz (e.g. 59940 = 59.94Hz).
-// Only the current mode's refresh is kept; it feeds DisplayRefreshHz so
-// frame pacing uses the display's own frequency (no guessing).
-// Runs on the event thread.
+// flags bit 0x1 = current mode; refresh is in mHz. Only the current mode
+// is kept. Runs on the event thread.
 func wlOutputModeCB(data, output, flags, width, height, refresh uintptr) {
 	st := outputFrom(data)
 	if st == nil || st.win == nil {

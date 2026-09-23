@@ -287,11 +287,8 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.stageBox.FixedWidth = winW
 	sc.stageBox.FixedHeight = winH
 	sc.stageBox.OnPaint = sc.paintStage
-	// 脏隔离（复用 R7 同一套）：舞台每帧 MarkNeedsPaint 只脏本层，
-	// 不冒泡到 Root，根背景只录一次、之后只贴。
 	sc.stageBox.SetRepaintBoundary(true)
-	// 静层（天空+太阳圆盘+草地公路底色）：独立隔离，只录一次，之后只贴。
-	// onTick 从不标脏它，与动层同一套 GPU 光栅，像素逐位一致。
+	// 静层（天空+太阳圆盘）：独立隔离只录一次，onTick 从不标脏它。
 	sc.staticBox = rendering.NewRenderBox()
 	sc.staticBox.FixedWidth = winW
 	sc.staticBox.FixedHeight = winH
@@ -311,7 +308,7 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.titleBox.FixedWidth = winW
 	sc.titleBox.FixedHeight = winH
 	sc.titleBox.OnPaint = sc.paintTitles
-	// 标题静层只录一次：独立隔离，舞台重画不连带标题。
+	// 标题静层只录一次，舞台重画不连带标题。
 	sc.titleBox.SetRepaintBoundary(true)
 	root.Place(sc.titleBox, 0, 0)
 
@@ -347,7 +344,7 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.hudBox.FixedWidth = hudW
 	sc.hudBox.FixedHeight = hudH
 	sc.hudBox.OnPaint = sc.paintHUD
-	// HUD 按需才脏：独立隔离，平时舞台动不连带 HUD，交互时也不连带根。
+	// HUD 按需才脏，舞台动不连带它。
 	sc.hudBox.SetRepaintBoundary(true)
 	root.Place(sc.hudBox, winW-18-hudW, winH-18-hudH)
 	root.Place(sc.speedLabel, 0, -100) // 先建后摆：标签必须晚于药丸入树
@@ -760,8 +757,8 @@ func (sc *pelicanScene) paintStage(pc *rendering.PaintContext, size rendering.Si
 }
 
 // paintStatic 静层：天空+太阳圆盘，只录一次（onTick 从不标脏）。
-// 天空在最底、圆盘在光芒下，与动层顺序（先静后动）与原来同层逐位一致。
-// 草地公路底色留动层（它盖在山树上，顺序不能反）。
+// 天空最底、圆盘在光芒下（先静后动与原来同序）；草地公路底色留动层
+// （盖在山树上，顺序不能反）。
 func (sc *pelicanScene) paintStatic(pc *rendering.PaintContext, size rendering.Size) {
 	w, h := size.Width, size.Height
 	f := stageFitFor(w, h)
@@ -780,7 +777,7 @@ func (sc *pelicanScene) paintSunDiscs(pc *rendering.PaintContext) {
 }
 
 func (sc *pelicanScene) paintSky(pc *rendering.PaintContext) {
-	// 整舞台渐变烘好一张图，帧内 1:1 贴回（GPU 只上传一次）。
+	// 整舞台渐变烘好一张图，帧内 1:1 贴回。
 	rendering.DrawImageBuf(pc, sc.skyImg, 0, 0, stageW, stageH)
 }
 
@@ -870,7 +867,7 @@ func (sc *pelicanScene) paintParallaxDynamic(pc *rendering.PaintContext, sim *pe
 		rendering.DrawImageBuf(pc, sc.treeImg, tx, treeTileY0, 800, treeTileH)
 	}
 
-	// 草地 / 公路底色（留动层：盖在山树上，顺序不能反；与原来同层同序）。
+	// 草地 / 公路底色（留动层：盖在山树上，顺序不能反）。
 	gr, gg, gb := rgb(0x6cc24a)
 	rendering.FillRect(pc, 0, 544, stageW, 156, gr, gg, gb, 1)
 	rd, rg_, rb := rgb(0x45454e)
@@ -880,9 +877,8 @@ func (sc *pelicanScene) paintParallaxDynamic(pc *rendering.PaintContext, sim *pe
 	br, bg2, bb := rgb(0x2e2e35)
 	rendering.FillRect(pc, 0, 649, stageW, 5, br, bg2, bb, 1)
 
-	// 车道虚线（周期 130）：形不变只摆位置，位移走变换矩阵，
-	// 几何缓存命中、不重算，只改 uniforms 重画，像素与绝对坐标逐位一致。
-	// 逐格单画（不并路）：并路改抗锯齿，像素对不上，实测差769点，已退回。
+	// 车道虚线（周期 130）：形不变只摆位置，位移走变换矩阵（几何缓存
+	// 命中、不重算）。逐格单画：并路改抗锯齿，像素对不上。
 	dr, dg, db := rgb(0xf4f4f4)
 	od := off(layerDashes)
 	pc.PushTransform(render.Translate(od, 0))
