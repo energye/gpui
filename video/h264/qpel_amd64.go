@@ -154,6 +154,27 @@ func roundHalfRow(dst []uint8, sums []int16, n int) {
 	}
 }
 
+// verRoundTail1 fuses the fx==3 hv1 column (one call per block kills
+// the per-row verSumsRow+roundHalfRow wrappers: two calls plus Go row
+// loop per row, ~30ms flat per 90f profile on corner pairs). Same taps
+// as the verSumsRow scalar tail, same roundHalf — bit-identical to the
+// split 1-wide path (pinned by TestS1QpelDispatchMatchesScalar on all
+// fx==3 pairs; arm64 never had this tail — its needHV loop covers
+// cols in one pass, so no stub needed there).
+func verRoundTail1(hv *[qpelMaxH][qpelMaxW + 1]uint8, plane []byte, stride, ax, iy, bw, bh int) {
+	for dy := 0; dy < bh; dy++ {
+		ay := iy + dy
+		p0 := int(plane[(ay-2)*stride+ax])
+		p1 := int(plane[(ay-1)*stride+ax])
+		p2 := int(plane[ay*stride+ax])
+		p3 := int(plane[(ay+1)*stride+ax])
+		p4 := int(plane[(ay+2)*stride+ax])
+		p5 := int(plane[(ay+3)*stride+ax])
+		s := p0 + p5 - 5*(p1+p4) + 20*(p2+p3)
+		hv[dy][bw] = roundHalf(int16(s))
+	}
+}
+
 // copyRowInto writes n copied bytes: dst[i] = a[i], bit-identical to
 // the copy builtin (plain moves, no arithmetic, so pixels cannot
 // drift). Widths 16/8/4 go through one kernel call per row; odd tails
@@ -510,11 +531,7 @@ func qpelGeneralInto(dst []byte, dstStride int, plane []byte, stride, ix, iy, bw
 			// vertical wrapper win. Taps stay inside the frame by the
 			// same interior gate (ix+bw+4<=w covers taps ix+bw-2..+3).
 			if cols == bw+1 {
-				for dy := 0; dy < bh; dy++ {
-					ay := iy + dy
-					verSumsRow(vsums[:], plane, stride, ix+bw, ay, 1)
-					roundHalfRow(hv[dy][bw:bw+1], vsums[:], 1)
-				}
+				verRoundTail1(&hv, plane, stride, ix+bw, iy, bw, bh)
 			}
 		} else {
 			for dy := 0; dy < bh; dy++ {
