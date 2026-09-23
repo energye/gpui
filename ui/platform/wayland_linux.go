@@ -443,17 +443,17 @@ type wlWin struct {
 	csMgrVer          uint32
 	decoMgr           uintptr
 	decoTop           uintptr
-	tiMgrName         uint32  // zwp_text_input_manager_v3 global name (0 = absent)
-	seatName          uint32  // wl_seat global name (0 = absent)
-	seatVer           uint32  // wl_seat advertised version (v2+ carries name)
-	shmName           uint32  // wl_shm global name (0 = absent)
-	subcompName       uint32  // wl_subcompositor global name (0 = absent)
-	ddMgrName         uint32  // wl_data_device_manager global name (0 = absent)
+	tiMgrName         uint32 // zwp_text_input_manager_v3 global name (0 = absent)
+	seatName          uint32 // wl_seat global name (0 = absent)
+	seatVer           uint32 // wl_seat advertised version (v2+ carries name)
+	shmName           uint32 // wl_shm global name (0 = absent)
+	subcompName       uint32 // wl_subcompositor global name (0 = absent)
+	ddMgrName         uint32 // wl_data_device_manager global name (0 = absent)
 	// outGlobals captures wl_output globals for scale tracking (bound once
 	// after the registry roundtrip; see bindOutputs).
 	outGlobals []wlOutputGlobal
-	seat              uintptr // bound wl_seat proxy (via seatState)
-	seatState         *wlSeatState
+	seat       uintptr // bound wl_seat proxy (via seatState)
+	seatState  *wlSeatState
 	// hostRef is set by waylandCreate so seat callbacks can wake the loop.
 	hostRef *wlHost
 
@@ -556,7 +556,7 @@ type wlWin struct {
 	devMu     sync.Mutex
 	devEvents []Event
 
-	regListener  [2]uintptr
+	regListener [2]uintptr
 	// surfListener carries wl_surface enter/leave for output-scale tracking
 	// (created once, re-installed on every surface-stack re-create).
 	surfListener [2]uintptr
@@ -1466,6 +1466,9 @@ type wlHost struct {
 	win   *wlWin
 	mu    sync.Mutex
 	scale float64
+	// refreshHz is the effective display refresh from entered wl_outputs
+	// (current-mode mHz, see evaluateRefresh; 0 = unknown yet).
+	refreshHz float64
 
 	// displayFD is wl_display_get_fd (cached at first use).
 	displayFD int
@@ -1600,6 +1603,21 @@ func (h *wlHost) ScaleFactor() float64 {
 		return 1
 	}
 	return h.scale
+}
+
+// DisplayRefreshHz implements platform.DisplayRefreshReporter: the
+// compositor-advertised refresh of the entered output (0 = unknown,
+// e.g. old compositor or mode event not arrived yet).
+func (h *wlHost) DisplayRefreshHz() float64 {
+	if h == nil {
+		return 0
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.refreshHz <= 0 {
+		return 0
+	}
+	return h.refreshHz
 }
 
 // OnSurfaceResized implements platform.SurfacePresenter: the renderer's

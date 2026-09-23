@@ -19,6 +19,8 @@ type xrandrLib struct {
 	freeMonitors  func(monitors uintptr) int
 	getResources  func(dpy uintptr, win uintptr) uintptr
 	freeResources func(res uintptr) int
+	getCrtcInfo   func(dpy uintptr, res uintptr, crtc uintptr) uintptr
+	freeCrtcInfo  func(info uintptr) int
 	// S6-P0 scale notices: extension event base + root selection.
 	queryExtension func(dpy uintptr, eventBase, errorBase *int32) int
 	selectInput    func(dpy, win uintptr, mask int) int
@@ -54,6 +56,11 @@ func xrandrLoad() *xrandrLib {
 			if _, err := purego.Dlsym(lib, "XRRGetScreenResources"); err == nil {
 				purego.RegisterLibFunc(&x.getResources, lib, "XRRGetScreenResources")
 				purego.RegisterLibFunc(&x.freeResources, lib, "XRRFreeScreenResources")
+				hasAny = true
+			}
+			if _, err := purego.Dlsym(lib, "XRRGetCrtcInfo"); err == nil {
+				purego.RegisterLibFunc(&x.getCrtcInfo, lib, "XRRGetCrtcInfo")
+				purego.RegisterLibFunc(&x.freeCrtcInfo, lib, "XRRFreeCrtcInfo")
 				hasAny = true
 			}
 			if _, err := purego.Dlsym(lib, "XRRQueryExtension"); err == nil {
@@ -200,4 +207,103 @@ func x11CString(p *byte) string {
 // 之前每帧 XRRGetMonitors 查询已移除以免高频开销，需要时再按需缓存。
 func x11RandRAdjust(st *x11State, x, y int) (int, int) {
 	return x, y
+}
+
+// XRR struct layouts (X11 RandR, 64-bit Linux; Time/XID = 8 bytes):
+//
+//	XRRScreenResources: timestamp@0(8) configTimestamp@8(8) ncrtc@16(4)
+//	  noutput@24(4) nmode@32(4) crtcs@40(8) outputs@48(8) modes@56(8)
+//	XRRModeInfo (stride 72): id@0(8) width@8(4) height@12(4)
+//	  dotClock@16(8, kHz) hSyncStart@24 hSyncEnd@28 hTotal@32 hSkew@36
+//	  vSyncStart@40 vSyncEnd@44 vTotal@48 name@56(8) nameLength@64
+//	XRRCrtcInfo: mode (current RRMode, 0 = disabled) @24(8)
+const (
+	xrrResNcrtcOff = 16
+	xrrResNmodeOff = 32
+	xrrResCrtcsOff = 40
+	xrrResModesOff = 56
+	xrrModeStride  = 72
+	xrrModeIDOff   = 0
+	xrrModeDotOff  = 16
+	xrrModeHTotOff = 32
+	xrrModeVTotOff = 48
+	xrrCrtcModeOff = 24
+)
+
+// xrrModeRefreshHz computes refresh rate from one XRRModeInfo timing:
+// rate = dotClock / (hTotal × vTotal), dotClock in kHz. 0 on degenerate
+// timing. Pure function so unit tests pin it without an X server.
+func xrrModeRefreshHz(dotClockKHz uint64, hTotal, vTotal uint32) float64 {
+	if dotClockKHz == 0 || hTotal == 0 || vTotal == 0 {
+		return 0
+	}
+	return float64(dotClockKHz) * 1000.0 / float64(hTotal) / float64(vTotal)
+}
+
+// x11DisplayRefreshHz probes the current display refresh via RandR: for
+// each active CRTC, match its current mode against the screen's mode list
+// and take the max sane rate (20–240Hz). Returns 0 when unknown (no
+// RandR, no active CRTC, insane values) — callers fall back to the next
+// timing source. Called rarely (startup + screen-change notice), never
+// per frame: XRRGetScreenResources round-trips the X server.
+func x11DisplayRefreshHz(dpy, root uintptr) (hz float64) {
+	// A mismatched XRR struct layout would fault on wild pointers — never
+	// let a probe crash the app or return half-parsed garbage: on panic
+	// the rate is unknown and callers fall back to the next timing source.
+	defer func() {
+		if recover() != nil {
+			hz = 0
+		}
+	}()
+	lib := xrandrLoad()
+	if lib == nil || !xrandrOK || lib.getResources == nil || lib.getCrtcInfo == nil {
+		return 0
+	}
+	if dpy == 0 {
+		return 0
+	}
+	res := lib.getResources(dpy, root)
+	if res == 0 {
+		return 0
+	}
+	defer lib.freeResources(res)
+	ncrtc := int(int32(*(*int32)(unsafe.Pointer(res + xrrResNcrtcOff))))
+	nmode := int(int32(*(*int32)(unsafe.Pointer(res + xrrResNmodeOff))))
+	if ncrtc <= 0 || ncrtc > 64 || nmode <= 0 || nmode > 4096 {
+		return 0
+	}
+	crtcsPtr := *(*uintptr)(unsafe.Pointer(res + xrrResCrtcsOff))
+	modesPtr := *(*uintptr)(unsafe.Pointer(res + xrrResModesOff))
+	if crtcsPtr == 0 || modesPtr == 0 {
+		return 0
+	}
+	for i := 0; i < ncrtc; i++ {
+		crtc := *(*uintptr)(unsafe.Pointer(crtcsPtr + uintptr(i*8)))
+		if crtc == 0 {
+			continue
+		}
+		info := lib.getCrtcInfo(dpy, res, crtc)
+		if info == 0 {
+			continue
+		}
+		mode := *(*uint64)(unsafe.Pointer(info + xrrCrtcModeOff))
+		lib.freeCrtcInfo(info)
+		if mode == 0 {
+			continue // CRTC disabled
+		}
+		for j := 0; j < nmode; j++ {
+			base := modesPtr + uintptr(j*xrrModeStride)
+			if *(*uint64)(unsafe.Pointer(base + xrrModeIDOff)) != mode {
+				continue
+			}
+			dot := *(*uint64)(unsafe.Pointer(base + xrrModeDotOff))
+			ht := *(*uint32)(unsafe.Pointer(base + xrrModeHTotOff))
+			vt := *(*uint32)(unsafe.Pointer(base + xrrModeVTotOff))
+			if r := xrrModeRefreshHz(dot, ht, vt); r >= 20 && r <= 240 && r > hz {
+				hz = r
+			}
+			break
+		}
+	}
+	return hz
 }

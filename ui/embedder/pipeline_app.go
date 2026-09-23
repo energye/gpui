@@ -87,9 +87,9 @@ type PipelineApp struct {
 
 	target *render.PresentTarget
 
-	quit      atomic.Bool
-	presents  atomic.Int64
-	frameID   atomic.Uint64
+	quit     atomic.Bool
+	presents atomic.Int64
+	frameID  atomic.Uint64
 	// lastStats holds the last raster-thread dirty-layer stats (T2: written
 	// on raster, read on UI via LastRasterStats — guarded, never bare).
 	lastStatsMu sync.Mutex
@@ -129,6 +129,12 @@ type PipelineApp struct {
 	// loop and rendering keeps its pace while tracking the final size.
 	// While set, the frame gate is bypassed (resize-storm immediate render).
 	pendingResize bool
+	// refreshSeeded marks the pacing baseline as fed from the display's
+	// real refresh (platform.DisplayRefreshReporter). The Wayland output
+	// mode/enter events carrying it typically arrive after Open(), so the
+	// Run loop retries the seed until the host reports a sane rate, then
+	// stops asking (the stamp learner owns later adaptation).
+	refreshSeeded bool
 	// lowLatency / lastResizeAt drive the swapchain present-mode switch
 	// during resize storms: while a resize is fresher than resizeCalmWindow,
 	// the target presents with Mailbox/Immediate (SetVsync(false)) so content
@@ -874,6 +880,14 @@ func (a *PipelineApp) Open() error {
 	if m := a.Metrics(); m != nil {
 		m.NoteGPUBackend(t.GPUBackend(), t.Fallbacks())
 	}
+	// Pacing baseline follows the display's real refresh (Flutter/Chromium
+	// standard: content frequency uses the display frequency, never a
+	// hardcoded guess). The host reports it when the platform exposes it
+	// (Wayland wl_output mode / X11 RandR); 0/unknown keeps the nominal
+	// floor and the stamp learner still trims on top.
+	if r, ok := a.host.(platform.DisplayRefreshReporter); ok {
+		a.sched.SeedDisplayRefreshHz(r.DisplayRefreshHz())
+	}
 	return nil
 }
 
@@ -1052,6 +1066,18 @@ func (a *PipelineApp) Run() error {
 		}
 
 		evs := a.host.WaitEvents(timeout)
+		// Pacing baseline catch-up (see refreshSeeded): one interface
+		// assert + one host read per loop until the real refresh lands.
+		if !a.refreshSeeded {
+			if r, ok := a.host.(platform.DisplayRefreshReporter); ok {
+				if hz := r.DisplayRefreshHz(); hz >= 20 && hz <= 240 {
+					a.sched.SeedDisplayRefreshHz(hz)
+					a.refreshSeeded = true
+				}
+			} else {
+				a.refreshSeeded = true // host never reports; stop asking
+			}
+		}
 		for _, ev := range evs {
 			// Unified input routing (plan §4): when an InputRouter is
 			// attached, normalized events are dispatched by the framework;

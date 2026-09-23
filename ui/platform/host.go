@@ -353,6 +353,19 @@ type VSyncWaiter interface {
 	WaitVSync() error
 }
 
+// DisplayRefreshReporter is optional; a Host implementing it reports the
+// display's real refresh rate so frame pacing uses the display's own
+// frequency instead of guessing (Flutter/Chromium/Gio standard: content
+// frequency follows the display). The scheduler uses it as the pacing
+// baseline and only trims it with measured vsync stamps.
+// Returns 0 when unknown (old compositor, probe failed) — the scheduler
+// then falls back to its nominal 60Hz floor. Thread-safe.
+type DisplayRefreshReporter interface {
+	// DisplayRefreshHz reports the current display refresh rate in Hz,
+	// e.g. 59.88, 60, 120. 0 means unknown.
+	DisplayRefreshHz() float64
+}
+
 // FrameSync is optional; a Host implementing it is notified after each
 // presented frame so the windowing system can advance its resize-sync
 // state. On X11 this is the _NET_WM_SYNC_REQUEST counter: without it the

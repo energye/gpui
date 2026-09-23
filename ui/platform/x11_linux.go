@@ -895,6 +895,13 @@ type x11Host struct {
 	// imeMu guards the pending IME event queue drained by WaitEvents.
 	imeMu     sync.Mutex
 	imeEvents []Event
+	// refreshMu guards the cached RandR refresh rate: probed once on
+	// first DisplayRefreshHz, invalidated on RRScreenChangeNotify
+	// (outputs/modes changed). Probing round-trips the X server, so it
+	// never runs per frame.
+	refreshMu     sync.Mutex
+	refreshHz     float64
+	refreshProbed bool
 
 	// keyMu guards the pending key event queue for async ProcessKeyEvent.
 	// When IME is active, keys are not emitted directly from drainX but
@@ -987,6 +994,36 @@ func (h *x11Host) ScaleFactor() float64 {
 		return 1
 	}
 	return h.st.scale
+}
+
+// DisplayRefreshHz implements platform.DisplayRefreshReporter: the current
+// RandR mode refresh (0 = unknown). Probed once, re-probed after
+// RRScreenChangeNotify; never per frame (X round-trip).
+func (h *x11Host) DisplayRefreshHz() float64 {
+	if h == nil || h.st == nil {
+		return 0
+	}
+	h.refreshMu.Lock()
+	defer h.refreshMu.Unlock()
+	if !h.refreshProbed {
+		h.refreshHz = x11DisplayRefreshHz(h.st.display, h.st.root)
+		h.refreshProbed = true
+	}
+	if h.refreshHz <= 0 {
+		return 0
+	}
+	return h.refreshHz
+}
+
+// invalidateRefresh drops the cached RandR refresh so the next
+// DisplayRefreshHz re-probes (outputs/modes changed).
+func (h *x11Host) invalidateRefresh() {
+	if h == nil {
+		return
+	}
+	h.refreshMu.Lock()
+	h.refreshProbed = false
+	h.refreshMu.Unlock()
 }
 
 // WaitVSync uses DRM vblank when available; the scheduler falls back to a
@@ -1318,6 +1355,7 @@ func (h *x11Host) drainX() []Event {
 			}
 		case st.rrBase: // RRScreenChangeNotify (base + 0): outputs/modes changed
 			if st.rrOK {
+				h.invalidateRefresh()
 				if ev, ok := h.reconcileScale(); ok {
 					out = append(out, ev)
 				}

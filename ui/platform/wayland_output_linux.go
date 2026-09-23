@@ -40,12 +40,13 @@ type wlOutputGlobal struct {
 
 // wlOutputState tracks one bound wl_output global.
 type wlOutputState struct {
-	win      *wlWin
-	proxy    uintptr
-	name     uint32 // registry global id
-	scale    int32  // last advertised factor (default 1)
-	listener [6]uintptr
-	selfPtr  uintptr
+	win        *wlWin
+	proxy      uintptr
+	name       uint32 // registry global id
+	scale      int32  // last advertised factor (default 1)
+	refreshMhz int32  // last advertised current-mode refresh, mHz (0 = unknown)
+	listener   [6]uintptr
+	selfPtr    uintptr
 }
 
 func outputFrom(data uintptr) *wlOutputState {
@@ -151,6 +152,40 @@ func (w *wlWin) evaluateScale() {
 	}
 }
 
+// evaluateRefresh recomputes the effective display refresh from entered
+// outputs (max, same pattern as evaluateScale) and publishes it on the
+// host for the scheduler baseline. Before the surface entered any output
+// (startup, mode events already in), it falls back to the max over all
+// bound outputs — single-monitor setups report correctly from the first
+// frame; multi-monitor refines on enter. 0/unknown when nothing advertised
+// a current-mode refresh yet. Runs on the event thread.
+func (w *wlWin) evaluateRefresh() {
+	if w == nil {
+		return
+	}
+	var mhz int32
+	if len(w.enteredOutputs) == 0 {
+		for _, st := range w.outputs {
+			if st != nil && st.refreshMhz > mhz {
+				mhz = st.refreshMhz
+			}
+		}
+	} else {
+		for name := range w.enteredOutputs {
+			if st, ok := w.outputs[name]; ok && st != nil && st.refreshMhz > mhz {
+				mhz = st.refreshMhz
+			}
+		}
+	}
+	h := w.hostRef
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	h.refreshHz = float64(mhz) / 1000.0
+	h.mu.Unlock()
+}
+
 // wlOutputScaleCB: scale(int32 factor).
 func wlOutputScaleCB(data, output, factor uintptr) {
 	st := outputFrom(data)
@@ -176,6 +211,7 @@ func wlSurfaceEnterCB(data, surface, output uintptr) {
 	}
 	w.enteredOutputs[name] = true
 	w.evaluateScale()
+	w.evaluateRefresh()
 }
 
 // wlSurfaceLeaveCB: leave(wl_output).
@@ -187,12 +223,32 @@ func wlSurfaceLeaveCB(data, surface, output uintptr) {
 	if name, ok := w.outputsByProxy[output]; ok {
 		delete(w.enteredOutputs, name)
 		w.evaluateScale()
+		w.evaluateRefresh()
 	}
 }
 
 func wlOutputGeometryCB(data, output, x, y, pw, ph, sub, make, model, transform uintptr) {
 }
-func wlOutputModeCB(data, output, flags, width, height, refresh uintptr) {}
-func wlOutputDoneCB(data, output uintptr)                                {}
-func wlOutputNameCB(data, output, name uintptr)                          {}
-func wlOutputDescriptionCB(data, output, description uintptr)            {}
+
+// wlOutputModeCB: mode(uint flags, int width, int height, int refresh).
+// flags bit 0x1 = current mode; refresh is in mHz (e.g. 59940 = 59.94Hz).
+// Only the current mode's refresh is kept; it feeds DisplayRefreshHz so
+// frame pacing uses the display's own frequency (no guessing).
+// Runs on the event thread.
+func wlOutputModeCB(data, output, flags, width, height, refresh uintptr) {
+	st := outputFrom(data)
+	if st == nil || st.win == nil {
+		return
+	}
+	if flags&0x1 == 0 {
+		return // not the current mode — ignore
+	}
+	if refresh <= 0 {
+		return
+	}
+	st.refreshMhz = int32(refresh)
+	st.win.evaluateRefresh()
+}
+func wlOutputDoneCB(data, output uintptr)                     {}
+func wlOutputNameCB(data, output, name uintptr)               {}
+func wlOutputDescriptionCB(data, output, description uintptr) {}

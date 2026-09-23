@@ -21,12 +21,14 @@ const (
 	ModePersistent
 )
 
-// DefaultAnimTick is the fallback period when no VSyncWaiter (~60 Hz).
-// 16.68ms = 60Hz display period: 16ms software pacing drifts 0.68ms/frame
-// against a 16.68ms display until a Fifo present straddles a vblank and
-// blocks a full extra cycle (~33ms+ gap = visible hitch). A/B: 25s pelican
-// Wayland hitches 6→0, p95 -3.6ms when forced to 16.68 (2026-09-23).
-const DefaultAnimTick = 16680 * time.Microsecond
+// DefaultAnimTick is the fallback period when no display timing is known
+// (~60 Hz nominal). It is only a last-resort floor: the scheduler prefers,
+// in order, (1) the learned display period from vsync stamps, (2) the
+// display refresh reported by the platform host (see
+// platform.DisplayRefreshReporter), and only then this constant. Never
+// hardcode a measured machine-specific period here — every display has its
+// own real refresh (59.88Hz, 60Hz, 120Hz, ...).
+const DefaultAnimTick = 16 * time.Millisecond
 
 // vsyncFreshWindow is how recent a vsync signal must be to count as
 // driving frame pacing. Signals arrive every vsync (~16.7ms at 60Hz); a
@@ -73,13 +75,21 @@ type FrameScheduler struct {
 	// animation speeds where each skipped slot doubles the visible step).
 	displayPeriod time.Duration
 	stampCount    int
+	// basePeriod is the platform-reported display refresh interval (see
+	// SeedDisplayRefreshHz, from platform.DisplayRefreshReporter). It is
+	// the pacing baseline when no learned displayPeriod exists yet; the
+	// learned value only trims it afterwards. 0 = host reported nothing,
+	// fall back to animTick.
+	basePeriod time.Duration
 	// dispHist* robustly learn the display period from compositor
 	// frame-presented notices (XPresent/Wayland) for the software
-	// boundary (E6-A). X11 has no DRM vblank listener, so without this
-	// the boundary stays at animTick (16ms) while the display runs at
-	// ~16.68ms: the 0.68ms/frame drift walks the submit phase until a
-	// Fifo present straddles a vblank and blocks a full extra cycle
-	// (~33ms gap = visible 定住再冲, ~1 frame in 25). Only steady
+	// boundary (E6-A). Without any learned or reported period, the
+	// boundary stays at animTick (16ms nominal) while the display runs at
+	// its own rate (e.g. ~16.68ms): the ~0.7ms/frame drift walks the
+	// submit phase until a Fifo present straddles a vblank and blocks a
+	// full extra cycle (~33ms gap = visible 定住再冲, ~1 frame in 25).
+	// The platform-reported baseline (SeedDisplayRefreshHz) now covers
+	// the no-signal case; only steady
 	// signals move the estimate (see learnCompositorPeriod); batched or
 	// delayed notices are ignored, so worst case is today's behavior.
 	dispHist      [dispHistSize]time.Duration
@@ -96,17 +106,32 @@ const (
 	dispHistMin = 16
 )
 
-// boundaryPeriodLocked returns the software-boundary interval: the learned
-// display period once enough stamps arrived, else DefaultAnimTick.
-// Clamped to [animTick*0.8, 100ms] so a bogus source cannot stall frames.
-// Caller holds s.mu.
+// boundaryPeriodLocked returns the software-boundary interval, preferred
+// first learned display period, then the platform-reported baseline, then
+// DefaultAnimTick. Clamped to [baseline*0.8, 100ms] so a bogus source
+// cannot stall frames; the floor follows the known baseline (seeded
+// 120Hz => ~6.7ms floor, not the nominal 12.8ms). Caller holds s.mu.
 func (s *FrameScheduler) boundaryPeriodLocked() time.Duration {
-	if s.displayPeriod <= 0 {
-		return s.animTick
+	ref := s.animTick
+	if s.basePeriod > 0 {
+		ref = s.basePeriod
 	}
-	min := s.animTick * 8 / 10
+	min := ref * 8 / 10
 	if min < 4*time.Millisecond {
 		min = 4 * time.Millisecond
+	}
+	if s.displayPeriod <= 0 {
+		if s.basePeriod <= 0 {
+			return s.animTick
+		}
+		p := s.basePeriod
+		if p < min {
+			p = min
+		}
+		if p > 100*time.Millisecond {
+			p = 100 * time.Millisecond
+		}
+		return p
 	}
 	p := s.displayPeriod
 	if p < min {
@@ -397,6 +422,21 @@ func (s *FrameScheduler) SetAnimTick(d time.Duration) {
 	}
 	s.mu.Lock()
 	s.animTick = d
+	s.mu.Unlock()
+}
+
+// SeedDisplayRefreshHz sets the pacing baseline from the display's real
+// refresh rate (platform.DisplayRefreshReporter: Wayland wl_output mode,
+// X11 RandR current mode). Sane range 20–240Hz; anything else (0 =
+// unknown, absurd) is ignored and the nominal floor stays. The learned
+// displayPeriod keeps trimming on top of this baseline afterwards.
+// Called once at window open; safe to re-call on output/mode changes.
+func (s *FrameScheduler) SeedDisplayRefreshHz(hz float64) {
+	if s == nil || hz < 20 || hz > 240 {
+		return
+	}
+	s.mu.Lock()
+	s.basePeriod = time.Duration(float64(time.Second) / hz)
 	s.mu.Unlock()
 }
 
