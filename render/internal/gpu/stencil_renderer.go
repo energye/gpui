@@ -277,11 +277,25 @@ type stencilCoverBuffers struct {
 	coverUniBuf      *webgpu.Buffer
 	stencilBindGroup *webgpu.BindGroup
 	coverBindGroup   *webgpu.BindGroup
+	// slabStencilBG marks stencilBindGroup as session-slab-owned (shared
+	// stencil fill uniform slab, one upload per frame). destroy() and the
+	// layout-epoch drop must NOT release it — the session owns and retires
+	// it. Set by GPURenderSession.buildStencilResourcesBatch each frame.
+	slabStencilBG bool
 	// F2 sticky marks (per pool entry): last uploaded stencil uniform bytes
 	// (viewport + matrix + color) and band content fingerprints. Static draws
 	// skip their WriteBuffers after the first frame.
-	lastStencilUni                      []byte
-	stencilUniValid                     bool
+	lastStencilUni  []byte
+	stencilUniValid bool
+	// Cover uniform sticky: makeCoverUniform is viewport + color only, so
+	// a moving path with unchanged color re-uploads identical bytes every
+	// frame. Skip the WriteBuffer when bytes match the entry's last
+	// plain-cover upload. The coverBindGroup != nil guard keeps
+	// textured/pattern-cover frames honest: those paths release the plain
+	// bind group (and overwrite the buffer), so a nil group always takes
+	// the upload path below.
+	lastCoverUni                        []byte
+	coverUniValid                       bool
 	bandLastHash, bandLastLen           uint64
 	innerBandLastHash, innerBandLastLen uint64
 	bandFingerValid                     bool
@@ -326,8 +340,13 @@ func (b *stencilCoverBuffers) destroy() {
 		b.coverBindGroup.Release()
 	}
 	if b.stencilBindGroup != nil {
-		b.stencilBindGroup.Release()
+		// Session-slab-owned (shared uniform slab): never release here.
+		if !b.slabStencilBG {
+			b.stencilBindGroup.Release()
+		}
+		b.stencilBindGroup = nil
 	}
+	b.slabStencilBG = false
 	if b.coverUniBuf != nil {
 		b.coverUniBuf.Release()
 	}
@@ -482,12 +501,12 @@ func (sr *StencilRenderer) createRenderBuffers(
 func (sr *StencilRenderer) updateRenderBuffers(
 	b *stencilCoverBuffers, w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
 ) (*stencilCoverBuffers, error) {
-	return sr.updateRenderBuffersSticky(b, w, h, fanVerts, coverQuad, color, render.Identity(), false)
+	return sr.updateRenderBuffersSticky(b, w, h, fanVerts, coverQuad, color, render.Identity(), false, false)
 }
 
 func (sr *StencilRenderer) updateRenderBuffersSticky(
 	b *stencilCoverBuffers, w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
-	matrix render.Matrix, skipFan bool,
+	matrix render.Matrix, skipFan bool, skipStencilUni bool,
 ) (*stencilCoverBuffers, error) {
 	if b == nil {
 		b = &stencilCoverBuffers{}
@@ -497,11 +516,16 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 	// Shared StencilRenderer pipelines may have been destroyed/recreated by
 	// another session (DetachExternalLayouts on Context.Close). Drop bind groups
 	// that still point at the old uniformLayout before creating new ones.
+	// Session-slab stencil bind groups are session-owned: nil without release
+	// (the session drops its own on epoch change).
 	if b.layoutEpoch != sr.pipelineEpoch {
 		if b.stencilBindGroup != nil {
-			b.stencilBindGroup.Release()
+			if !b.slabStencilBG {
+				b.stencilBindGroup.Release()
+			}
 			b.stencilBindGroup = nil
 		}
+		b.slabStencilBG = false
 		if b.coverBindGroup != nil {
 			b.coverBindGroup.Release()
 			b.coverBindGroup = nil
@@ -533,29 +557,47 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 	// F2: stencil uniform is viewport + matrix + color (64B, shared by the
 	// fill and AA band pipelines). Upload only when bytes differ from the
 	// entry's last upload — static draws go silent after the first frame.
+	// skipStencilUni (session slab path): the session packs and uploads all
+	// stencil uniforms in one WriteBuffer; per-entry upload is skipped and
+	// the caller assigns the slab bind group afterwards.
 	pmul := [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)}
 	stencilUni := makeStencilUniform(w, h, matrix, pmul)
-	if !b.stencilUniValid || len(b.lastStencilUni) != len(stencilUni) || !equalBytes(b.lastStencilUni, stencilUni) {
-		if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
-			"stencil_fill", stencilUni, stencilFillUniformSize); err != nil {
-			return nil, err
-		}
-		if b.lastStencilUni == nil {
-			b.lastStencilUni = make([]byte, 0, stencilFillUniformSize)
-		}
-		b.lastStencilUni = append(b.lastStencilUni[:0], stencilUni...)
-		b.stencilUniValid = true
-	} else if b.stencilBindGroup == nil {
-		// Stale-entry corner: content matches but bind group is gone (e.g.
-		// pool grew / pipelines recreated). Re-create without re-upload.
-		if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
-			"stencil_fill", stencilUni, stencilFillUniformSize); err != nil {
-			return nil, err
+	if !skipStencilUni {
+		if !b.stencilUniValid || len(b.lastStencilUni) != len(stencilUni) || !equalBytes(b.lastStencilUni, stencilUni) {
+			if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
+				"stencil_fill", stencilUni, stencilFillUniformSize); err != nil {
+				return nil, err
+			}
+			if b.lastStencilUni == nil {
+				b.lastStencilUni = make([]byte, 0, stencilFillUniformSize)
+			}
+			b.lastStencilUni = append(b.lastStencilUni[:0], stencilUni...)
+			b.stencilUniValid = true
+		} else if b.stencilBindGroup == nil && !b.slabStencilBG {
+			// Stale-entry corner: content matches but bind group is gone (e.g.
+			// pool grew / pipelines recreated). Re-create without re-upload.
+			// Slab entries skip this: the session assigns the slab bind group.
+			if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
+				"stencil_fill", stencilUni, stencilFillUniformSize); err != nil {
+				return nil, err
+			}
 		}
 	}
-	if err := sr.updateUniformAndBindGroup(&b.coverUniBuf, &b.coverBindGroup,
-		"cover", makeCoverUniform(w, h, color), coverUniformSize); err != nil {
-		return nil, err
+	// Cover uniform is viewport + color only (no path position): skip the
+	// upload when bytes match the entry's last plain-cover upload.
+	coverUni := makeCoverUniform(w, h, color)
+	if b.coverUniValid && b.coverBindGroup != nil && len(b.lastCoverUni) == len(coverUni) && equalBytes(b.lastCoverUni, coverUni) {
+		// Identical viewport + color already bound: skip the upload.
+	} else {
+		if err := sr.updateUniformAndBindGroup(&b.coverUniBuf, &b.coverBindGroup,
+			"cover", coverUni, coverUniformSize); err != nil {
+			return nil, err
+		}
+		if b.lastCoverUni == nil {
+			b.lastCoverUni = make([]byte, 0, coverUniformSize)
+		}
+		b.lastCoverUni = append(b.lastCoverUni[:0], coverUni...)
+		b.coverUniValid = true
 	}
 
 	return b, nil

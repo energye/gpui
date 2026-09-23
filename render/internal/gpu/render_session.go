@@ -617,6 +617,18 @@ type GPURenderSession struct {
 	// per-entry inside StencilRenderer (lastStencilUni).
 	stencilFanLastHash []uint64
 	stencilFanLastLen  []int
+	// Stencil fill uniform slab: one WriteBuffer uploads every path's
+	// viewport+matrix+color instead of N per-entry uploads (same pattern as
+	// imageUniformSlab). Applies to all paths (stencil fill is identical
+	// for plain/textured/pattern covers); only the cover side keeps
+	// per-entry buffers.
+	stencilUniSlab       *webgpu.Buffer
+	stencilUniSlabCap    uint64 // bytes
+	stencilUniSlots      int    // slots currently addressed in slab
+	stencilUniBindGroups []*webgpu.BindGroup
+	stencilUniScratch    []byte
+	stencilUniLast       [][]byte // last packed bytes per slot (any-changed check)
+	stencilUniBGEpoch    uint64   // sr.pipelineEpoch when slab BGs were built
 
 	// In-flight command buffers from the previous frame. Freed at the
 	// start of the next frame, when VSync guarantees the GPU is done.
@@ -2282,6 +2294,22 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		b.destroy()
 	}
 	s.stencilBufPool = s.stencilBufPool[:0]
+	// Stencil fill uniform slab (session-owned; entries never hold it).
+	for i, bg := range s.stencilUniBindGroups {
+		if bg != nil {
+			bg.Release()
+			s.stencilUniBindGroups[i] = nil
+		}
+	}
+	s.stencilUniBindGroups = nil
+	if s.stencilUniSlab != nil {
+		s.stencilUniSlab.Release()
+		s.stencilUniSlab = nil
+		s.stencilUniSlabCap = 0
+	}
+	s.stencilUniSlots = 0
+	s.stencilUniScratch = nil
+	s.stencilUniLast = nil
 
 	// Clip bind group pool.
 	for i, bg := range s.clipBindPool {
@@ -3197,6 +3225,17 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 	if err := s.ensureStencilPipelines(); err != nil {
 		return nil, err
 	}
+	// Slab bind groups reference sr.uniformLayout: drop them when pipelines
+	// were recreated (same rule as the per-entry layoutEpoch check).
+	if s.stencilUniBGEpoch != s.stencilRenderer.pipelineEpoch {
+		for i, bg := range s.stencilUniBindGroups {
+			if bg != nil {
+				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				s.stencilUniBindGroups[i] = nil
+			}
+		}
+		s.stencilUniBGEpoch = s.stencilRenderer.pipelineEpoch
+	}
 
 	// Grow pool if needed.
 	for len(s.stencilBufPool) < len(paths) {
@@ -3216,6 +3255,53 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 	}
 
 	result := make([]*stencilCoverBuffers, len(paths))
+	// Slab setup (same pattern as imageUniformSlab): one buffer, 256B
+	// stride, per-slot bind groups with baked offsets. Grows with headroom;
+	// bind groups are dropped on realloc (below) and epoch change (above).
+	nSlot := len(paths)
+	needSlab := uint64(nSlot) * stencilUniSlabStride
+	slabRecreated := false
+	if s.stencilUniSlab == nil || s.stencilUniSlabCap < needSlab {
+		if s.stencilUniSlab != nil {
+			s.RetireBuffer(s.stencilUniSlab) // old BGs may still be in-flight
+			s.stencilUniSlab = nil
+		}
+		alloc := needSlab * 2
+		if alloc < stencilUniSlabStride*16 {
+			alloc = stencilUniSlabStride * 16
+		}
+		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+			Label: "stencil_uni_slab",
+			Size:  alloc,
+			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create stencil uniform slab: %w", err)
+		}
+		s.stencilUniSlab = buf
+		s.stencilUniSlabCap = alloc
+		slabRecreated = true
+		for i, bg := range s.stencilUniBindGroups {
+			if bg != nil {
+				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				s.stencilUniBindGroups[i] = nil
+			}
+		}
+	}
+	for len(s.stencilUniBindGroups) < nSlot {
+		s.stencilUniBindGroups = append(s.stencilUniBindGroups, nil)
+	}
+	for len(s.stencilUniLast) < nSlot {
+		s.stencilUniLast = append(s.stencilUniLast, nil)
+	}
+	packBytes := uint64(nSlot) * stencilUniSlabStride
+	if uint64(cap(s.stencilUniScratch)) < packBytes {
+		s.stencilUniScratch = make([]byte, packBytes)
+	} else {
+		s.stencilUniScratch = s.stencilUniScratch[:packBytes]
+	}
+	// NOTE: only the 64B payload per 256B slot is shader-visible (bind
+	// Size); padding is never read, so no zeroing — stale pad is harmless.
 	for i := range paths {
 		cmd := &paths[i]
 		color := render.RGBA{
@@ -3226,14 +3312,21 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		}
 
 		// Sticky uploads: skip the fan WriteBuffer when packed bytes match
-		// the entry fingerprint; uniform/bands compare per-entry inside
-		// the renderer. Cover uniform (color) always uploads.
+		// the entry fingerprint; bands compare per-entry inside the
+		// renderer; stencil fill uniforms pack into the session slab
+		// (single upload after the loop); cover uniforms compare
+		// per-entry inside the renderer.
 		fanBytes := float32SliceToBytes(cmd.Vertices)
 		skipFan := false
 		if h0, l0 := s.stencilFanLastHash[i], s.stencilFanLastLen[i]; l0 == len(fanBytes) && h0 == indexBytesFingerprint(fanBytes) {
 			skipFan = true
 		}
-		bufs, err := s.stencilRenderer.updateRenderBuffersSticky(s.stencilBufPool[i], w, h, cmd.Vertices, cmd.CoverQuad, color, cmd.Matrix, skipFan)
+		// Slab pack: stencil fill uniform bytes for this slot (same
+		// viewport+matrix+color formula as updateRenderBuffersSticky).
+		pmul := [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)}
+		uni := makeStencilUniform(w, h, cmd.Matrix, pmul)
+		copy(s.stencilUniScratch[i*stencilUniSlabStride:], uni)
+		bufs, err := s.stencilRenderer.updateRenderBuffersSticky(s.stencilBufPool[i], w, h, cmd.Vertices, cmd.CoverQuad, color, cmd.Matrix, skipFan, true)
 		if err != nil {
 			// Clean up buffers created in this batch.
 			for j := 0; j < i; j++ {
@@ -3287,6 +3380,57 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 			fanBytes2 := float32SliceToBytes(cmd.Vertices)
 			s.stencilFanLastHash[i], s.stencilFanLastLen[i] = indexBytesFingerprint(fanBytes2), len(fanBytes2)
 		}
+	}
+
+	// Single slab upload when any slot changed (last holds last-uploaded
+	// bytes; untouched on error above, so a failed frame can never poison
+	// the next frame into a false skip).
+	needUpload := slabRecreated || s.stencilUniSlots != nSlot
+	if !needUpload {
+		for i := range paths {
+			slot := s.stencilUniScratch[i*stencilUniSlabStride : i*stencilUniSlabStride+stencilFillUniformSize]
+			if len(s.stencilUniLast[i]) != stencilFillUniformSize || !equalBytes(s.stencilUniLast[i], slot) {
+				needUpload = true
+				break
+			}
+		}
+	}
+	s.stencilUniSlots = nSlot
+	if needUpload {
+		if err := s.queueWriteBuffer(s.stencilUniSlab, 0, s.stencilUniScratch[:packBytes]); err != nil {
+			return nil, fmt.Errorf("upload stencil uniform slab: %w", err)
+		}
+		for i := range paths {
+			slot := s.stencilUniScratch[i*stencilUniSlabStride : i*stencilUniSlabStride+stencilFillUniformSize]
+			if s.stencilUniLast[i] == nil {
+				s.stencilUniLast[i] = make([]byte, stencilFillUniformSize)
+			}
+			copy(s.stencilUniLast[i], slot)
+		}
+	}
+
+	// Bind groups (reused across frames; recreated only after slab realloc
+	// or epoch change, both of which nilled them above) then assign to
+	// entries. Session-owned: entries must not release (slabStencilBG).
+	for i, bufs := range result {
+		bg := s.stencilUniBindGroups[i]
+		if bg == nil {
+			var err error
+			off := uint64(i) * stencilUniSlabStride
+			bg, err = s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+				Label:  fmt.Sprintf("stencil_uni_slab_%d", i),
+				Layout: s.stencilRenderer.uniformLayout,
+				Entries: []webgpu.BindGroupEntry{
+					{Binding: 0, Buffer: s.stencilUniSlab, Offset: off, Size: stencilFillUniformSize},
+				},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("create stencil slab bind group %d: %w", i, err)
+			}
+			s.stencilUniBindGroups[i] = bg
+		}
+		bufs.stencilBindGroup = bg
+		bufs.slabStencilBG = true
 	}
 
 	return result, nil

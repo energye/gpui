@@ -31,6 +31,12 @@ const stencilFillUniformSize = 64
 // Layout: viewport (vec2<f32>) + padding (vec2<f32>) + color (vec4<f32>) = 32 bytes.
 const coverUniformSize = 32
 
+// stencilUniSlabStride is the bytes reserved per stencil fill uniform in a
+// shared slab buffer. Must be a multiple of minUniformBufferOffsetAlignment
+// (default 256) so BindGroup entries may use non-zero Offset (same pattern
+// as imageUniformSlotStride).
+const stencilUniSlabStride = 256
+
 // vertexStride is the byte stride per vertex: 2 x float32 (x, y) = 8 bytes.
 const vertexStride = 8
 

@@ -334,6 +334,27 @@ func TestMakeCoverUniform(t *testing.T) {
 	}
 }
 
+// TestCoverUniformStickyContract pins the property the cover-uniform
+// sticky skip in updateRenderBuffersSticky relies on: bytes are a pure
+// function of viewport + color (no path position), so a moving path with
+// unchanged color re-uploads identical bytes and the skip is pixel-safe.
+func TestCoverUniformStickyContract(t *testing.T) {
+	color := render.RGBA{R: 0.2, G: 0.4, B: 0.6, A: 1.0}
+	a := makeCoverUniform(1200, 700, color)
+	b := makeCoverUniform(1200, 700, color)
+	if !equalBytes(a, b) {
+		t.Fatal("same viewport+color must encode identical bytes (sticky skip correctness)")
+	}
+	moved := render.RGBA{R: 0.2, G: 0.4, B: 0.6, A: 1.0}
+	if !equalBytes(a, makeCoverUniform(1200, 700, moved)) {
+		t.Fatal("same color after a move must encode identical bytes")
+	}
+	other := render.RGBA{R: 0.9, G: 0.1, B: 0.1, A: 1.0}
+	if equalBytes(a, makeCoverUniform(1200, 700, other)) {
+		t.Fatal("changed color must encode different bytes (skip must upload)")
+	}
+}
+
 func TestConvertBGRAToRGBA(t *testing.T) {
 	// 2 pixels: BGRA format.
 	src := []byte{
