@@ -471,10 +471,19 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.SetIndexBuffer(resources.idxBuf, types.IndexFormatUint16, 0)
 
+	var lastPipe *webgpu.RenderPipeline
 	drawOne := func(pipeline *webgpu.RenderPipeline, dc glyphMaskDrawCall) {
 		if pipeline == nil || dc.indexCount == 0 || dc.bindGroup == nil {
 			return
 		}
+		// Same-pipe consecutive draws share clip layout: skip SetPipeline
+		// + clip rebind, only SetBindGroup(0) + Draw. Pixels identical.
+		if pipeline == lastPipe {
+			rp.SetBindGroup(0, dc.bindGroup, nil)
+			rp.DrawIndexed(dc.indexCount, 1, dc.indexOffset, 0, 0)
+			return
+		}
+		lastPipe = pipeline
 		// Clear prior bind groups before pipeline switch (LCD two-pass and
 		// grayscale share different uniform min_binding_size layouts).
 		clearPassBindGroups(rp)

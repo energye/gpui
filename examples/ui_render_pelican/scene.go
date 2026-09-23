@@ -219,8 +219,9 @@ func knee(hx, hy, tx, ty, l1, l2 float64) (kx, ky float64) {
 type pelicanScene struct {
 	Root *rendering.AbsoluteBox
 
-	stageBox *rendering.RenderBox
-	hudBox   *rendering.RenderBox
+	stageBox  *rendering.RenderBox
+	staticBox *rendering.RenderBox
+	hudBox    *rendering.RenderBox
 
 	sim *pelicanSim
 
@@ -281,7 +282,7 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	face, _, faceErr := wrkit.EnsureUIFace()
 	sc.face = face
 
-	// 全屏舞台
+	// 全屏舞台（动态层）：每帧重录，只含动的内容；静的部分另起静层只录一次。
 	sc.stageBox = rendering.NewRenderBox()
 	sc.stageBox.FixedWidth = winW
 	sc.stageBox.FixedHeight = winH
@@ -289,6 +290,14 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	// 脏隔离（复用 R7 同一套）：舞台每帧 MarkNeedsPaint 只脏本层，
 	// 不冒泡到 Root，根背景只录一次、之后只贴。
 	sc.stageBox.SetRepaintBoundary(true)
+	// 静层（天空+太阳圆盘+草地公路底色）：独立隔离，只录一次，之后只贴。
+	// onTick 从不标脏它，与动层同一套 GPU 光栅，像素逐位一致。
+	sc.staticBox = rendering.NewRenderBox()
+	sc.staticBox.FixedWidth = winW
+	sc.staticBox.FixedHeight = winH
+	sc.staticBox.OnPaint = sc.paintStatic
+	sc.staticBox.SetRepaintBoundary(true)
+	root.Place(sc.staticBox, 0, 0)
 	root.Place(sc.stageBox, 0, 0)
 
 	// 标题（SVG 内文字：鹈鹕骑行记 / PELICAN RIDER，带 letter-spacing 居中）。
@@ -501,6 +510,9 @@ func (sc *pelicanScene) relayout(w, h float64) {
 		return
 	}
 	sc.Root.FixedWidth, sc.Root.FixedHeight = w, h
+	if sc.staticBox != nil {
+		sc.staticBox.FixedWidth, sc.staticBox.FixedHeight = w, h
+	}
 	if sc.stageBox != nil {
 		sc.stageBox.FixedWidth, sc.stageBox.FixedHeight = w, h
 	}
@@ -733,11 +745,10 @@ func (sc *pelicanScene) paintStage(pc *rendering.PaintContext, size rendering.Si
 
 	t := sim.ambientT
 
-	sc.paintSky(pc)
-	sc.paintSun(pc, t)
+	sc.paintSunRays(pc, t)
 	sc.paintClouds(pc, t)
 	sc.paintBirds(pc, t)
-	sc.paintParallaxGround(pc, sim)
+	sc.paintParallaxDynamic(pc, sim)
 	sc.paintShadowDust(pc, t)
 
 	p1x, p1y, p2x, p2y := sim.pedal()
@@ -748,16 +759,33 @@ func (sc *pelicanScene) paintStage(pc *rendering.PaintContext, size rendering.Si
 	sc.paintTufts(pc, sim)
 }
 
+// paintStatic 静层：天空+太阳圆盘，只录一次（onTick 从不标脏）。
+// 天空在最底、圆盘在光芒下，与动层顺序（先静后动）与原来同层逐位一致。
+// 草地公路底色留动层（它盖在山树上，顺序不能反）。
+func (sc *pelicanScene) paintStatic(pc *rendering.PaintContext, size rendering.Size) {
+	w, h := size.Width, size.Height
+	f := stageFitFor(w, h)
+	rendering.SetStrokeStyle(pc, 0, render.LineCapRound, render.LineJoinRound)
+	pc.PushTransform(render.Translate(f.ox, f.oy).Multiply(render.Scale(f.s, f.s)))
+	defer pc.PopTransform()
+	sc.paintSky(pc)
+	sc.paintSunDiscs(pc)
+}
+
+func (sc *pelicanScene) paintSunDiscs(pc *rendering.PaintContext) {
+	hr, hg, hb := rgb(0xffdf6b)
+	cr, cg, cb := rgb(0xffd93b)
+	rendering.FillCircle(pc, sunX, sunY, 88, hr, hg, hb, .28)
+	rendering.FillCircle(pc, sunX, sunY, 46, cr, cg, cb, 1)
+}
+
 func (sc *pelicanScene) paintSky(pc *rendering.PaintContext) {
 	// 整舞台渐变烘好一张图，帧内 1:1 贴回（GPU 只上传一次）。
 	rendering.DrawImageBuf(pc, sc.skyImg, 0, 0, stageW, stageH)
 }
 
-func (sc *pelicanScene) paintSun(pc *rendering.PaintContext, t float64) {
-	hr, hg, hb := rgb(0xffdf6b)
+func (sc *pelicanScene) paintSunRays(pc *rendering.PaintContext, t float64) {
 	cr, cg, cb := rgb(0xffd93b)
-	rendering.FillCircle(pc, sunX, sunY, 88, hr, hg, hb, .28)
-	rendering.FillCircle(pc, sunX, sunY, 46, cr, cg, cb, 1)
 
 	// 光芒整组绕太阳心旋转（SMIL rotate 0→360 / 60s）
 	pc.Save()
@@ -821,7 +849,7 @@ func (sc *pelicanScene) paintBirds(pc *rendering.PaintContext, t float64) {
 	}
 }
 
-func (sc *pelicanScene) paintParallaxGround(pc *rendering.PaintContext, sim *pelicanSim) {
+func (sc *pelicanScene) paintParallaxDynamic(pc *rendering.PaintContext, sim *pelicanSim) {
 	off := func(l parallaxLayer) float64 {
 		m := math.Mod(sim.dist*l.f, l.p)
 		if m < 0 {
@@ -842,7 +870,7 @@ func (sc *pelicanScene) paintParallaxGround(pc *rendering.PaintContext, sim *pel
 		rendering.DrawImageBuf(pc, sc.treeImg, tx, treeTileY0, 800, treeTileH)
 	}
 
-	// 草地 / 公路
+	// 草地 / 公路底色（留动层：盖在山树上，顺序不能反；与原来同层同序）。
 	gr, gg, gb := rgb(0x6cc24a)
 	rendering.FillRect(pc, 0, 544, stageW, 156, gr, gg, gb, 1)
 	rd, rg_, rb := rgb(0x45454e)
@@ -852,17 +880,21 @@ func (sc *pelicanScene) paintParallaxGround(pc *rendering.PaintContext, sim *pel
 	br, bg2, bb := rgb(0x2e2e35)
 	rendering.FillRect(pc, 0, 649, stageW, 5, br, bg2, bb, 1)
 
-	// 车道虚线（周期 130）
+	// 车道虚线（周期 130）：形不变只摆位置，位移走变换矩阵，
+	// 几何缓存命中、不重算，只改 uniforms 重画，像素与绝对坐标逐位一致。
+	// 逐格单画（不并路）：并路改抗锯齿，像素对不上，实测差769点，已退回。
 	dr, dg, db := rgb(0xf4f4f4)
 	od := off(layerDashes)
+	pc.PushTransform(render.Translate(od, 0))
 	first := math.Floor(-od/130) - 1 // 覆盖左缘的起始序号
 	for i := first; ; i++ {
-		x := i*130 + od
-		if x > stageW {
+		x0 := float64(i * 130)
+		if x0+od > stageW {
 			break
 		}
-		rendering.FillRoundRect(pc, x, 618, 64, 9, 4, dr, dg, db, .9)
+		rendering.FillRoundRect(pc, x0, 618, 64, 9, 4, dr, dg, db, .9)
 	}
+	pc.PopTransform()
 
 	vr, vg, vb := rgb(0x58b53e)
 	rendering.FillRect(pc, 0, 656, stageW, 44, vr, vg, vb, 1)
@@ -1135,6 +1167,7 @@ func (sc *pelicanScene) renderGolden(path string) {
 	dc.SetRGBA(0.47, 0.78, 0.96, 1)
 	dc.Clear()
 	pc := rendering.NewPaintContext(dc, 1)
+	sc.paintStatic(pc, rendering.Size{Width: stageW, Height: stageH})
 	sc.paintStage(pc, rendering.Size{Width: stageW, Height: stageH})
 	if err := dc.SavePNG(path); err != nil {
 		fmt.Fprintf(os.Stderr, "ui_render_pelican: golden save: %v\n", err)

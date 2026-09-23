@@ -415,6 +415,7 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 			blendMode:   render.BlendNormal,
 		}}
 	}
+	var lastPipe *webgpu.RenderPipeline
 	for _, rg := range ranges {
 		var pipe *webgpu.RenderPipeline
 		if resources.meshCompact {
@@ -437,6 +438,23 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 		}
 		// SetPipeline then bind groups (Vulkan requires a pipeline layout for
 		// vkCmdBindDescriptorSets). Re-bind after every pipeline switch.
+		// Same-pipe ranges share bindGroup/clip/mask/vertBuf: skip rebind,
+		// Draw only. Pixels identical, fewer crossings.
+		if pipe == lastPipe {
+			if rg.indexed {
+				if rg.indexCount == 0 {
+					continue
+				}
+				rp.DrawIndexed(rg.indexCount, 1, rg.firstIndex, int32(rg.firstVertex), 0) //nolint:gosec
+				continue
+			}
+			if rg.vertCount == 0 {
+				continue
+			}
+			rp.Draw(rg.vertCount, 1, rg.firstVertex, 0)
+			continue
+		}
+		lastPipe = pipe
 		rp.SetPipeline(pipe)
 		rp.SetBindGroup(0, resources.bindGroup, nil)
 		if clipBG != nil {
