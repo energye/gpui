@@ -564,13 +564,15 @@ func predictLumaBlockInto(ref *Picture, px, py, w, h int, mx, my int16, dst []ui
 		// row): the width switch sits outside the loop so each row
 		// pays two slices + inline moves only — no per-row switch,
 		// no memmove call. Constant widths compile to inline moves.
+		// S1b-J: the 16-wide lane (the hot one, ~70ms flat per 90f
+		// profile) runs one copyBlock kernel call for the whole
+		// block (peer ffmpeg ff_put_pixels16_sse2, same plain copy);
+		// 8/4 lanes keep their row loops (near-zero flat).
+		if w == 16 {
+			copyBlockInto(dst, dstStride, ref.Y[sy*rw+sx:], rw, 16, h)
+			return
+		}
 		switch w {
-		case 16:
-			for dy := 0; dy < h; dy++ {
-				di := dy * dstStride
-				si := (sy+dy)*rw + sx
-				copy(dst[di:di+16], ref.Y[si:si+16])
-			}
 		case 8:
 			for dy := 0; dy < h; dy++ {
 				di := dy * dstStride

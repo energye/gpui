@@ -53,6 +53,9 @@ func avgRow4(dst, a, b unsafe.Pointer)
 //go:noescape
 func avgBlock(dst unsafe.Pointer, dstStride uintptr, a unsafe.Pointer, aStride uintptr, b unsafe.Pointer, bStride uintptr, w, h int)
 
+//go:noescape
+func copyBlock(dst unsafe.Pointer, dstStride uintptr, src unsafe.Pointer, srcStride uintptr, w, h int)
+
 const (
 	qpelMaxW = 16
 	qpelMaxH = 16
@@ -148,6 +151,45 @@ func roundHalfRow(dst []uint8, sums []int16, n int) {
 	}
 	for i := bulk; i < n; i++ {
 		dst[i] = roundHalf(sums[i])
+	}
+}
+
+// copyRowInto writes n copied bytes: dst[i] = a[i], bit-identical to
+// the copy builtin (plain moves, no arithmetic, so pixels cannot
+// drift). Widths 16/8/4 go through one kernel call per row; odd tails
+// stay scalar (cover: all live widths are multiples of 4). Zero-alloc:
+// noescape kernel, no heap. Peer (ffmpeg, read-only, ideas only):
+// libavcodec/x86/hpeldsp_init.c put_pixels_tab[0][0] =
+// ff_put_pixels16_sse2 — integer motion is a plain 16-wide block copy.
+func copyRowInto(dst, a []byte) {
+	n := len(dst)
+	if n == 16 {
+		copyBlock(unsafe.Pointer(&dst[0]), 16, unsafe.Pointer(&a[0]), 16, 16, 1)
+		return
+	}
+	if n == 8 {
+		copyBlock(unsafe.Pointer(&dst[0]), 8, unsafe.Pointer(&a[0]), 8, 8, 1)
+		return
+	}
+	if n == 4 {
+		copyBlock(unsafe.Pointer(&dst[0]), 4, unsafe.Pointer(&a[0]), 4, 4, 1)
+		return
+	}
+	copy(dst, a)
+}
+
+// copyBlockInto copies a w*h block with strides in one kernel call
+// (S1b-J int-pel fusion): the old path ran a Go copy() per row (a
+// memmove call + bounds checks per row). w in {4,8,16} (kernel-gated);
+// anything else falls back to per-row copyRowInto (same bytes).
+func copyBlockInto(dst []byte, dstStride int, src []byte, srcStride int, w, h int) {
+	switch w {
+	case 16, 8, 4:
+		copyBlock(unsafe.Pointer(&dst[0]), uintptr(dstStride), unsafe.Pointer(&src[0]), uintptr(srcStride), w, h)
+	default:
+		for dy := 0; dy < h; dy++ {
+			copyRowInto(dst[dy*dstStride:dy*dstStride+w], src[dy*srcStride:dy*srcStride+w])
+		}
 	}
 }
 

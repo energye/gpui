@@ -79,6 +79,15 @@ func qpelBlockInto(dst []byte, dstStride int, plane []byte, w, h, ix, iy, bw, bh
 	return true
 }
 
+// copyBlockInto copies a w*h block (scalar留守 for arm64; amd64
+// runs the copyBlock kernel in qpel_amd64.go/s): same bytes as the
+// per-row copy builtin, bit for bit.
+func copyBlockInto(dst []byte, dstStride int, src []byte, srcStride int, w, h int) {
+	for dy := 0; dy < h; dy++ {
+		copy(dst[dy*dstStride:dy*dstStride+w], src[dy*srcStride:dy*srcStride+w])
+	}
+}
+
 func qpelArmHorSumsRow(sums []int16, plane []byte, stride, ax, ay, bw int) {
 	// The NEON kernel writes exactly 8 int16 sums per call (one H8
 	// store). Feed it full-8 windows only; the scalar tail covers

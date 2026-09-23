@@ -975,3 +975,57 @@ ablk16:
 	SUBQ $1, R9
 	JGT ablk16
 	RET
+
+// S1b-J int-pel block copy (SSE2, one call per block; peer ffmpeg,
+// read-only, ideas only: libavcodec/x86/hpeldsp_init.c put_pixels_tab
+// [0][0] = ff_put_pixels16_sse2 — integer motion is a plain 16-wide
+// block copy, no filter. The old path ran a Go copy() per row (a
+// memmove call + bounds checks per row, ~70ms flat per 90f profile
+// on the w==16 lane). One kernel call moves the whole block with
+// 16-byte vector loads/stores — same bytes, no arithmetic, so pixels
+// cannot drift (gated by qpel_copy_s1_test.go copyBlock16-vs-copy +
+// zero-alloc). w in {4,8,16} (Go-gated); 4-wide stores exactly 4
+// bytes via AX, 8-wide exactly 8 via MOVQ (same exact-width rule as
+// ablk4/avgRow4: a direct 16-byte store would paint neighbours).
+// Unaligned-safe (MOVOU both sides).
+
+// func copyBlock(dst unsafe.Pointer, dstStride uintptr, src unsafe.Pointer, srcStride uintptr, w, h int)
+// dst/src: byte rows (strides dstStride/srcStride BYTES).
+TEXT ·copyBlock(SB), NOSPLIT, $0-48
+	MOVQ dst+0(FP), DI
+	MOVQ dstStride+8(FP), DX
+	MOVQ src+16(FP), SI
+	MOVQ srcStride+24(FP), R10
+	MOVQ w+32(FP), R8
+	MOVQ h+40(FP), R9
+	CMPQ R8, $4
+	JEQ cblk4
+	CMPQ R8, $16
+	JEQ cblk16
+
+cblk8:
+	MOVQ (SI), X0
+	MOVQ X0, (DI)
+	ADDQ R10, SI
+	ADDQ DX, DI
+	SUBQ $1, R9
+	JGT cblk8
+	RET
+
+cblk4:
+	MOVL (SI), AX
+	MOVL AX, (DI)
+	ADDQ R10, SI
+	ADDQ DX, DI
+	SUBQ $1, R9
+	JGT cblk4
+	RET
+
+cblk16:
+	MOVOU (SI), X0
+	MOVOU X0, (DI)
+	ADDQ R10, SI
+	ADDQ DX, DI
+	SUBQ $1, R9
+	JGT cblk16
+	RET

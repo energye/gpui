@@ -108,6 +108,75 @@ func TestS1FusedBlockMatchesSplit(t *testing.T) {
 	}
 }
 
+// S1b-J pin: copyBlock equals the copy builtin bit for bit on every
+// live width (4/8/16) x height (4/8/16), over stimulus and edge-heavy
+// (0/255 runs) planes. Strided dst/src (stride > w) pins the row-end
+// pointer math; the +1 column offset pins unaligned reads. Sentinel
+// bytes around a 4-wide dst pin the exact-width store rule (no
+// neighbour paint). Zero-alloc: one noescape call, no heap.
+func TestS1CopyBlockMatchesCopy(t *testing.T) {
+	mkPlane := func(edge bool) []byte {
+		W, H := 64, 64
+		plane := make([]byte, W*H)
+		for y := 0; y < H; y++ {
+			for x := 0; x < W; x++ {
+				if edge {
+					if (x+y)&1 == 0 {
+						plane[y*W+x] = 0
+					} else {
+						plane[y*W+x] = 255
+					}
+				} else {
+					plane[y*W+x] = byte((x*37 + y*11 + x*y) & 0xFF)
+				}
+			}
+		}
+		return plane
+	}
+	for _, edge := range []bool{false, true} {
+		plane := mkPlane(edge)
+		const W = 64
+		for _, bw := range []int{4, 8, 16} {
+			for _, bh := range []int{4, 8, 16} {
+				const dstStride = 24
+				dst := make([]byte, dstStride*bh)
+				for dy := 0; dy < bh; dy++ {
+					copy(dst[dy*dstStride:dy*dstStride+bw], plane[(20+dy)*W+21:][:bw])
+				}
+				got := make([]byte, dstStride*bh)
+				copyBlock(unsafe.Pointer(&got[0]), uintptr(dstStride),
+					unsafe.Pointer(&plane[20*W+21]), uintptr(W), bw, bh)
+				for dy := 0; dy < bh; dy++ {
+					for dx := 0; dx < bw; dx++ {
+						if got[dy*dstStride+dx] != dst[dy*dstStride+dx] {
+							t.Fatalf("edge=%v bw=%d bh=%d dy=%d dx=%d got=%d want=%d",
+								edge, bw, bh, dy, dx, got[dy*dstStride+dx], dst[dy*dstStride+dx])
+						}
+					}
+				}
+				// 4-wide sentinel: bytes right of each row must stay put.
+				if bw == 4 {
+					for dy := 0; dy < bh; dy++ {
+						for dx := bw; dx < dstStride; dx++ {
+							if got[dy*dstStride+dx] != 0 {
+								t.Fatalf("edge=%v bh=%d dy=%d dx=%d painted=%d",
+									edge, bh, dy, dx, got[dy*dstStride+dx])
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if n := testing.AllocsPerRun(20, func() {
+		var dst [16 * 16]byte
+		var src [16 * 16]byte
+		copyBlock(unsafe.Pointer(&dst[0]), 16, unsafe.Pointer(&src[0]), 16, 16, 16)
+	}); n != 0 {
+		t.Fatalf("copyBlock allocs = %v want 0", n)
+	}
+}
+
 // S1b-V pin: centerAvgBlock equals centerRowAvg4+avgRowInto bit for
 // bit on every live width (4/8/16) x height (4/8/16). The jt window
 // spans the live hor-sum band plus full-int16 extremes (32-bit math
