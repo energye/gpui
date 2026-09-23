@@ -971,13 +971,15 @@ func predictChromaBlockInto(plane []uint8, w, h, px, py, cw, ch int, mx, my int1
 	// copy (bilinear weights collapse to the top-left tap).
 	if sx, sy, ok := chromaIntSrc(w, h, px, py, cw, ch, mx, my); ok {
 		// S1b-C width-hoisted (same shape as the luma integer path).
+		// S1b-J: the 8-wide lane (the hot one, ~40-110ms flat per 90f
+		// profile) runs one copyBlock kernel call for the whole block
+		// (peer ffmpeg chroma put_pixels8, same plain copy); 4/2 lanes
+		// keep their row loops (near-zero flat).
+		if cw == 8 {
+			copyBlockInto(dst, dstStride, plane[sy*w+sx:], w, 8, ch)
+			return
+		}
 		switch cw {
-		case 8:
-			for dy := 0; dy < ch; dy++ {
-				di := dy * dstStride
-				si := (sy+dy)*w + sx
-				copy(dst[di:di+8], plane[si:si+8])
-			}
 		case 4:
 			for dy := 0; dy < ch; dy++ {
 				di := dy * dstStride
