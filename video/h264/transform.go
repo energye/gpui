@@ -541,7 +541,7 @@ func itrans8x8Core(c [64]int32) [64]int32 {
 // in the horizontal pass lands residual in raster order.
 func ITransform8x8Scaled(coeff [64]int32, qp uint32, w [64]uint8) [64]int32 {
 	if qp < 52 && isFlatW64(w) {
-		return itrans8x8Flat(coeff, qp)
+		return itrans8x8Flat(&coeff, qp)
 	}
 	m := int(qp % 6)
 	shift := int(qp / 6)
@@ -581,11 +581,16 @@ func ITransform8x8Scaled(coeff [64]int32, qp uint32, w [64]uint8) [64]int32 {
 // ls*16<<shift is exact in int64 and v*k == v*ls*16<<shift) and runs
 // the shared vector path. tp8x8 folds the zigzag + transpose per scan
 // slot, so the hot loop pays one multiply + one store per nonzero.
-func itrans8x8Flat(coeff [64]int32, qp uint32) [64]int32 {
+// S1b-SP pointer param (bit-identical): coeff arrives by pointer so
+// the 256B array copy into this helper goes away (the exported entry
+// keeps its value signature; only this internal hop changes). Ranging
+// over *[64]int32 visits the caller's array in place, no copy.
+func itrans8x8Flat(coeff *[64]int32, qp uint32) [64]int32 {
 	tab := &flatDeqTab8[qp]
 	var c [64]int32
 	nz := false
-	for scan, v := range coeff {
+	for scan := range coeff {
+		v := coeff[scan]
 		if v == 0 {
 			continue
 		}

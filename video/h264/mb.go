@@ -1509,16 +1509,23 @@ func (d *Decoder) reconstructI8x8With(mbx, mby int, modes8 [4]int, chromaMode in
 		if err != nil {
 			return err
 		}
-		var coeff [64]int32
+		// S1b-SP empty-block skip (bit-identical): ITransform8x8Scaled
+		// of an all-zero block returns zeros on every path (the flat
+		// and explicit loops both early-return their zero buffer when
+		// no nonzero is seen, pinned by TestS18x8ZeroSkipsCore), so an
+		// unset cbp bit means res stays zero with no call and no 256B
+		// copies at all. Set blocks decode straight from the return
+		// value (no local copy, same as the pdec lane).
 		var tcs [4]int
+		var res [64]int32
 		if cbp&(1<<uint(i8)) != 0 {
 			c, t, err := rs.luma8x8(mbx, mby, i8)
 			if err != nil {
 				return err
 			}
-			coeff, tcs = c, t
+			tcs = t
+			res = ITransform8x8Scaled(c, uint32(d.qpY), w8)
 		}
-		res := ITransform8x8Scaled(coeff, uint32(d.qpY), w8)
 		if !addResidBlock(d.pic.Y, d.pic.Width, uint32(mbx*16+(i8%2)*8), uint32(mby*16+(i8/2)*8), pred[:], 8, res[:], 8, 8) {
 			for y := 0; y < 8; y++ {
 				for x := 0; x < 8; x++ {

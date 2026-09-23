@@ -969,14 +969,17 @@ func (d *Decoder) reconstructInter8x8With(mbx, mby int, cbp uint32, predY *[256]
 			}
 			continue
 		}
-		var coeff [64]int32
 		var tcs [4]int
 		c, t, err := rs.luma8x8(mbx, mby, i8)
 		if err != nil {
 			return err
 		}
-		coeff, tcs = c, t
-		res := ITransform8x8Scaled(coeff, uint32(d.qpY), w8)
+		tcs = t
+		// S1b-SP dead-copy kill (bit-identical): the old code copied
+		// the 256B return array into a local before the by-value call
+		// (two 256B copies per block); the return value feeds the call
+		// directly now (one copy: the param itself).
+		res := ITransform8x8Scaled(c, uint32(d.qpY), w8)
 		bx0, by0 := mbx*4+(grouped[i8*4]%4), mby*4+(grouped[i8*4]/4)
 		_ = bx0
 		_ = by0
