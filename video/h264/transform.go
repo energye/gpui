@@ -105,6 +105,28 @@ var flatDeqTab [52][16]int64
 // flatW16 is the flat scaling-list row (weight 16 = no custom list).
 var flatW16 = [16]uint8{16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16}
 
+// flatDeqTab8 holds the fused 8x8 dequant multiplier per QP for flat
+// scaling lists (weight 16 everywhere, the common case): k =
+// ls*16<<shift folded per scan slot, so the hot loop pays one int64
+// multiply per nonzero coeff instead of the levelScale8 table chain
+// (dequant8Init + dequant8Scan + bit ops) plus two multiplies. Built
+// once at init (52*64 fused mults, no per-block cost). Non-flat lists
+// keep the explicit loop below (exactness first, rare path). Shift
+// here is qp/6 (no +2: the 8x8 path normalizes with (q+32)>>6 after a
+// shorter shift than the 4x4 path).
+var flatDeqTab8 [52][64]int64
+
+// flatW64 is the flat 8x8 scaling list (weight 16 = no custom list).
+var flatW64 = [64]uint8{16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+	16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+	16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+	16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16}
+
+// tp8x8 precomputes the transposed store index per scan slot:
+// tp = (pos>>3)|((pos&7)<<3) where pos = zigzag8x8[scan]. The hot loop
+// then pays no shift/or per nonzero coeff.
+var tp8x8 [64]int
+
 func init() {
 	for qp := 0; qp < 52; qp++ {
 		m := qp % 6
@@ -114,8 +136,21 @@ func init() {
 			ls := int64(levelScale(m, pos%4, pos/4))
 			flatDeqTab[qp][scan] = ls * 16 << shift
 		}
+		shift8 := uint(qp / 6)
+		for scan := 0; scan < 64; scan++ {
+			pos := zigzag8x8[scan]
+			ls := int64(levelScale8(m, pos%8, pos/8))
+			flatDeqTab8[qp][scan] = ls * 16 << shift8
+		}
+	}
+	for scan := 0; scan < 64; scan++ {
+		pos := zigzag8x8[scan]
+		tp8x8[scan] = (pos >> 3) | ((pos & 7) << 3)
 	}
 }
+
+// isFlatW64 reports the flat 8x8 scaling list (no custom weights).
+func isFlatW64(w [64]uint8) bool { return w == flatW64 }
 
 // isFlatW16 reports the flat scaling list (no custom weights).
 func isFlatW16(w [16]uint8) bool { return w == flatW16 }
@@ -505,6 +540,9 @@ func itrans8x8Core(c [64]int32) [64]int32 {
 // storage is transposed (raster position transpose) so the transpose
 // in the horizontal pass lands residual in raster order.
 func ITransform8x8Scaled(coeff [64]int32, qp uint32, w [64]uint8) [64]int32 {
+	if qp < 52 && isFlatW64(w) {
+		return itrans8x8Flat(coeff, qp)
+	}
 	m := int(qp % 6)
 	shift := int(qp / 6)
 	var c [64]int32
@@ -532,6 +570,32 @@ func ITransform8x8Scaled(coeff [64]int32, qp uint32, w [64]uint8) [64]int32 {
 	// column pass with >>6) replaces 16 idct8_1d calls plus all
 	// gather/scatter. Bit-identical (itrans_s1_test.go pins it);
 	// scalar留守 runs when forced or off-amd64.
+	if fast, ok := itrans8x8Fast(c); ok {
+		return fast
+	}
+	return itrans8x8Core(c)
+}
+
+// itrans8x8Flat dequantizes with the fused flat-list table (bit-exact:
+// same multiply-then-shift-then-round order as the loop above, since
+// ls*16<<shift is exact in int64 and v*k == v*ls*16<<shift) and runs
+// the shared vector path. tp8x8 folds the zigzag + transpose per scan
+// slot, so the hot loop pays one multiply + one store per nonzero.
+func itrans8x8Flat(coeff [64]int32, qp uint32) [64]int32 {
+	tab := &flatDeqTab8[qp]
+	var c [64]int32
+	nz := false
+	for scan, v := range coeff {
+		if v == 0 {
+			continue
+		}
+		nz = true
+		q := int64(v) * tab[scan]
+		c[tp8x8[scan]] = int32((q + 32) >> 6)
+	}
+	if !nz {
+		return c
+	}
 	if fast, ok := itrans8x8Fast(c); ok {
 		return fast
 	}
