@@ -1604,23 +1604,15 @@ func (d *Decoder) reconstructChromaBlocks(mbx, mby int, cbpC uint32, predCb, pre
 	// straight through (row shape unchanged: 8 plain byte stores
 	// per row, bounds checked once), nnz slots identical values.
 	// Bit-identical on every arch.
+	// S1b-K: each 8x8 plane above runs as one copyBlock call
+	// (same plain bytes): one kernel call per plane kills the 8
+	// per-row slice+branch overhead (~20ms flat per 90f profile
+	// on this lane). arm64/other run the scalar留守, same bytes.
 	if cbpC == 0 {
 		cw := int(d.pic.Width / 2)
 		ox, oy := mbx*8, mby*8
-		for y := 0; y < 8; y++ {
-			o := (oy+y)*cw + ox
-			d8 := d.pic.Cb[o : o+8]
-			s8 := predCb[y*8 : y*8+8]
-			d8[0], d8[1], d8[2], d8[3], d8[4], d8[5], d8[6], d8[7] =
-				s8[0], s8[1], s8[2], s8[3], s8[4], s8[5], s8[6], s8[7]
-		}
-		for y := 0; y < 8; y++ {
-			o := (oy+y)*cw + ox
-			d8 := d.pic.Cr[o : o+8]
-			s8 := predCr[y*8 : y*8+8]
-			d8[0], d8[1], d8[2], d8[3], d8[4], d8[5], d8[6], d8[7] =
-				s8[0], s8[1], s8[2], s8[3], s8[4], s8[5], s8[6], s8[7]
-		}
+		copyBlockInto(d.pic.Cb[oy*cw+ox:], cw, predCb[:], 8, 8, 8)
+		copyBlockInto(d.pic.Cr[oy*cw+ox:], cw, predCr[:], 8, 8, 8)
 		cstride := d.mbW * 2
 		base := (mby*2)*cstride + mbx*2
 		d.nnzCb[base], d.nnzCb[base+1], d.nnzCb[base+cstride], d.nnzCb[base+cstride+1] = 0, 0, 0, 0

@@ -877,14 +877,12 @@ func (d *Decoder) reconstructInterWith(mbx, mby int, cbp uint32, predY *[256]uin
 		// bounds checks eliminated (row sliced once, indices
 		// 0..15 proven in range), bit-identical bytes on every
 		// arch (same shape as the chroma S1b-C lane in mb.go).
-		for y := 0; y < 16; y++ {
-			d8 := d.pic.Y[base+y*stride : base+y*stride+16]
-			s8 := predY[y*16 : y*16+16]
-			d8[0], d8[1], d8[2], d8[3], d8[4], d8[5], d8[6], d8[7],
-				d8[8], d8[9], d8[10], d8[11], d8[12], d8[13], d8[14], d8[15] =
-				s8[0], s8[1], s8[2], s8[3], s8[4], s8[5], s8[6], s8[7],
-				s8[8], s8[9], s8[10], s8[11], s8[12], s8[13], s8[14], s8[15]
-		}
+		// S1b-K: the 16 rows above run as one copyBlock call
+		// (same plain bytes, no arithmetic): one kernel call per
+		// 16x16 block kills the 16 per-row slice+branch overhead
+		// (~20ms flat per 90f profile on this lane). arm64/other
+		// run the scalar copyBlockInto留守, same bytes.
+		copyBlockInto(d.pic.Y[base:], stride, predY[:], 16, 16, 16)
 		// S1b-Z nnz shape (same 16 zero slots as the double loop,
 		// no per-element bounds checks): the 4x4 luma slots sit
 		// at four row slices, one slice each, identical values.
