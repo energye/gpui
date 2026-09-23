@@ -46,40 +46,47 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 	rawC, hasCorner := get(bx-1, by-1)
 
 	// Low-passed references; missing top-right replicates raw p7.
+	// S1b-IB extended tap arrays (bit-identical pixels): the old
+	// at/al closures re-checked hasCorner/hasTR per tap (~70 branchy
+	// calls per block across the low-pass loops + corner blend, ~60ms
+	// flat per 90f profile). extT/extL bake the replication once:
+	// extT[i+1] == old at(i) for i in -1..16, extL[i+1] == old al(i)
+	// for i in -1..8 (peer ffmpeg h264pred row preload, same idea:
+	// references contiguous first, filter branchless after). The nine
+	// mode bodies below are untouched this round (S1b-IA proved their
+	// closure inline neutral; T/L/set stay as the shared shape).
 	var t [16]int
 	var l [8]int
-	at := func(i int) int {
-		if i < 0 {
-			if hasCorner {
-				return int(rawC)
-			}
-			return int(rawT[0])
-		}
-		if i >= 8 && !hasTR {
-			return int(rawT[7])
-		}
-		return int(rawT[i])
+	var extT [18]int
+	var extL [10]int
+	if hasCorner {
+		extT[0], extL[0] = int(rawC), int(rawC)
+	} else {
+		extT[0], extL[0] = int(rawT[0]), int(rawL[0])
 	}
-	al := func(i int) int {
-		if i < 0 {
-			if hasCorner {
-				return int(rawC)
-			}
-			return int(rawL[0])
+	for i := 0; i < 8; i++ {
+		extT[i+1], extL[i+1] = int(rawT[i]), int(rawL[i])
+	}
+	if hasTR {
+		for i := 8; i < 16; i++ {
+			extT[i+1] = int(rawT[i])
 		}
-		return int(rawL[i])
+	} else {
+		for i := 8; i < 16; i++ {
+			extT[i+1] = int(rawT[7])
+		}
 	}
 	for i := 0; i < 7; i++ {
-		t[i] = (at(i-1) + 2*at(i) + at(i+1) + 2) >> 2
-		l[i] = (al(i-1) + 2*al(i) + al(i+1) + 2) >> 2
+		t[i] = (extT[i] + 2*extT[i+1] + extT[i+2] + 2) >> 2
+		l[i] = (extL[i] + 2*extL[i+1] + extL[i+2] + 2) >> 2
 	}
-	t[7] = (at(6) + 2*at(7) + at(8) + 2) >> 2
-	l[7] = (al(6) + 3*al(7) + 2) >> 2
+	t[7] = (extT[7] + 2*extT[8] + extT[9] + 2) >> 2
+	l[7] = (extL[7] + 3*extL[8] + 2) >> 2
 	if hasTR {
 		for i := 8; i < 15; i++ {
-			t[i] = (at(i-1) + 2*at(i) + at(i+1) + 2) >> 2
+			t[i] = (extT[i] + 2*extT[i+1] + extT[i+2] + 2) >> 2
 		}
-		t[15] = (at(14) + 3*at(15) + 2) >> 2
+		t[15] = (extT[15] + 3*extT[16] + 2) >> 2
 	} else {
 		for i := 8; i < 16; i++ {
 			t[i] = int(rawT[7])
@@ -87,7 +94,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 	}
 	lt := 128
 	if hasCorner {
-		lt = (al(0) + 2*int(rawC) + at(0) + 2) >> 2
+		lt = (extL[1] + 2*int(rawC) + extT[1] + 2) >> 2
 	}
 	// Extended taps: T[-1] and L[-1] read the corner blend.
 	T := func(i int) int {
