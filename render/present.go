@@ -22,7 +22,15 @@ var (
 	FrameAcquireWaitMs float64
 )
 
-// notePresentWaitMs records present-wait duration (F期尺子：等显示器单记)。
+// F期三段尺子计时都落这里：干活(Flush)/等缓冲(Acquire)/等显示(PresentWait)各记各的。
+func noteFlushMs(tFlush time.Time) {
+	FrameFlushMs = time.Since(tFlush).Seconds() * 1000
+}
+
+func noteAcquireWaitMs(tAcquire time.Time) {
+	FrameAcquireWaitMs = time.Since(tAcquire).Seconds() * 1000
+}
+
 func notePresentWaitMs(tWait time.Time) {
 	FramePresentWaitMs = time.Since(tWait).Seconds() * 1000
 }

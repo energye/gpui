@@ -1023,10 +1023,10 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 			return out, fmt.Errorf("render: BeginFrame: %w", err)
 		}
 	}
-	// F期尺子：Acquire 等空闲缓冲(Fifo 背压睡这儿)单记，不掺进干活。
+	// Acquire 等空闲缓冲(Fifo 背压睡这儿)单记，不掺进干活。
 	// 恢复重试也在内：慢恢复属于等，不属于干活。失败路径直接返回，
 	// 不记 (调用方 err != nil 时不采样)。
-	FrameAcquireWaitMs = time.Since(tAcquire).Seconds() * 1000
+	noteAcquireWaitMs(tAcquire)
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
 		if d := time.Since(pBegin); d > 20*time.Millisecond {
 			fmt.Fprintf(os.Stderr, "DBG phase begin=%dms (frame %dx%d)\n", d.Milliseconds(), frame.Width, frame.Height)

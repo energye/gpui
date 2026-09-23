@@ -1995,17 +1995,16 @@ func (c *Context) flushGPUWithViewCore(view gpucontext.TextureView, width, heigh
 //
 // This is the per-pass render target path for ggcanvas.RenderDirect.
 // When view is nil/zero, behaves identically to FlushGPU (CPU readback).
-// noteFlushMs records GPU work duration (F期尺子：干活单记，不含 present 等)。
-func noteFlushMs(tFlush time.Time) {
-	FrameFlushMs = time.Since(tFlush).Seconds() * 1000
+// flushWithTiming走一遍上屏干活并单记耗时：三个Flush入口共用，不含 present 等。
+func (c *Context) flushWithTiming(view gpucontext.TextureView, width, height uint32, damage []image.Rectangle, op string, full bool) error {
+	tFlush := time.Now()
+	err := c.flushGPUWithViewCore(view, width, height, damage, op, full)
+	noteFlushMs(tFlush)
+	return err
 }
 
 func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height uint32) error {
-	// F期尺子：干活耗时单记（不含 present 等显示器）。
-	tFlush := time.Now()
-	err := c.flushGPUWithViewCore(view, width, height, nil, "FlushGPUWithView", true)
-	noteFlushMs(tFlush)
-	return err
+	return c.flushWithTiming(view, width, height, nil, "FlushGPUWithView", true)
 }
 
 // BeginOffscreenPass isolates an offscreen recording sub-pass from the main
@@ -2096,11 +2095,7 @@ func (c *Context) FlushGPUWithViewDamage(view gpucontext.TextureView, width, hei
 	if !damageRect.Empty() {
 		damage = []image.Rectangle{damageRect}
 	}
-	// F期尺子：干活耗时单记。
-	tFlush := time.Now()
-	err := c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamage", false)
-	noteFlushMs(tFlush)
-	return err
+	return c.flushWithTiming(view, width, height, damage, "FlushGPUWithViewDamage", false)
 }
 
 // FlushGPUWithViewDamageRects renders to a surface view with multiple damage rects
@@ -2111,11 +2106,7 @@ func (c *Context) FlushGPUWithViewDamageRects(view gpucontext.TextureView, width
 	if len(rects) > 0 {
 		damage = rects
 	}
-	// F期尺子：干活耗时单记。
-	tFlush := time.Now()
-	err := c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamageRects", false)
-	noteFlushMs(tFlush)
-	return err
+	return c.flushWithTiming(view, width, height, damage, "FlushGPUWithViewDamageRects", false)
 }
 
 // gpuContextOps is the per-context GPU rendering interface.

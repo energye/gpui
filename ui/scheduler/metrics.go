@@ -374,32 +374,37 @@ func (s *MetricsStore) NoteRasterMs(ms float64) {
 	s.mu.Unlock()
 }
 
-// noteSplitMs records one F期 split timing (flush/acquire/present-wait).
-func (s *MetricsStore) noteSplitMs(ms float64, set func(m *FrameMetrics, v float64)) {
+// NoteFlushMs records GPU work duration (Flush, no present wait).
+// 6ms口径看这个数。
+func (s *MetricsStore) NoteFlushMs(ms float64) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
-	set(&s.m, ms)
+	s.m.LastFlushMs = ms
 	s.mu.Unlock()
 }
 
-// NoteFlushMs records GPU work duration (Flush, no present wait).
-// F期尺子：6ms口径看这个数。
-func (s *MetricsStore) NoteFlushMs(ms float64) {
-	s.noteSplitMs(ms, func(m *FrameMetrics, v float64) { m.LastFlushMs = v })
-}
-
 // NotePresentWaitMs records present-wait duration (Fifo wait for display).
-// F期尺子：等的耗时记这里，不掺进干活。
+// 等的耗时记这里，不掺进干活。
 func (s *MetricsStore) NotePresentWaitMs(ms float64) {
-	s.noteSplitMs(ms, func(m *FrameMetrics, v float64) { m.LastPresentWaitMs = v })
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.LastPresentWaitMs = ms
+	s.mu.Unlock()
 }
 
 // NoteAcquireWaitMs records BeginFrame acquire-wait duration.
-// F期尺子之三：等空闲缓冲的耗时。
+// 等空闲缓冲的耗时。
 func (s *MetricsStore) NoteAcquireWaitMs(ms float64) {
-	s.noteSplitMs(ms, func(m *FrameMetrics, v float64) { m.LastAcquireWaitMs = v })
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.LastAcquireWaitMs = ms
+	s.mu.Unlock()
 }
 
 // pathCPULocked returns UI/Raster CPU proxies from cumulative build/raster ms.
