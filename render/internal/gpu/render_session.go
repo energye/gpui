@@ -434,7 +434,7 @@ type GPURenderSession struct {
 	imageVertBuf    *webgpu.Buffer
 	imageVertBufCap uint64
 	// opt29: single slab for all image uniforms (stride imageUniformSlotStride).
-	// One WriteBuffer uploads every slot instead of N×80B cgocalls (atlas opacity).
+	// One WriteBuffer uploads every slot instead of N×80B native calls (atlas opacity).
 	imageUniformSlab    *webgpu.Buffer
 	imageUniformSlabCap uint64 // bytes
 	imageUniformSlots   int    // slots currently addressed in slab
@@ -549,7 +549,7 @@ type GPURenderSession struct {
 	gpuTexBaseVertBuf    *webgpu.Buffer // base layer only (1 quad, never shares with overlays)
 	gpuTexBaseVertBufCap uint64
 	// opt40: single slab for all gpu-tex uniforms (stride imageUniformSlotStride).
-	// Mirrors opt29 image path — one WriteBuffer instead of N×80B cgocalls when
+	// Mirrors opt29 image path — one WriteBuffer instead of N×80B native calls when
 	// multi-quad glow/layer blits share a frame.
 	gpuTexUniformSlab    *webgpu.Buffer
 	gpuTexUniformSlabCap uint64

@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"sync/atomic"
+	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render/internal/clip"
@@ -1994,8 +1995,17 @@ func (c *Context) flushGPUWithViewCore(view gpucontext.TextureView, width, heigh
 //
 // This is the per-pass render target path for ggcanvas.RenderDirect.
 // When view is nil/zero, behaves identically to FlushGPU (CPU readback).
+// noteFlushMs records GPU work duration (F期尺子：干活单记，不含 present 等)。
+func noteFlushMs(tFlush time.Time) {
+	FrameFlushMs = time.Since(tFlush).Seconds() * 1000
+}
+
 func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height uint32) error {
-	return c.flushGPUWithViewCore(view, width, height, nil, "FlushGPUWithView", true)
+	// F期尺子：干活耗时单记（不含 present 等显示器）。
+	tFlush := time.Now()
+	err := c.flushGPUWithViewCore(view, width, height, nil, "FlushGPUWithView", true)
+	noteFlushMs(tFlush)
+	return err
 }
 
 // BeginOffscreenPass isolates an offscreen recording sub-pass from the main
@@ -2086,7 +2096,11 @@ func (c *Context) FlushGPUWithViewDamage(view gpucontext.TextureView, width, hei
 	if !damageRect.Empty() {
 		damage = []image.Rectangle{damageRect}
 	}
-	return c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamage", false)
+	// F期尺子：干活耗时单记。
+	tFlush := time.Now()
+	err := c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamage", false)
+	noteFlushMs(tFlush)
+	return err
 }
 
 // FlushGPUWithViewDamageRects renders to a surface view with multiple damage rects
@@ -2097,7 +2111,11 @@ func (c *Context) FlushGPUWithViewDamageRects(view gpucontext.TextureView, width
 	if len(rects) > 0 {
 		damage = rects
 	}
-	return c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamageRects", false)
+	// F期尺子：干活耗时单记。
+	tFlush := time.Now()
+	err := c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamageRects", false)
+	noteFlushMs(tFlush)
+	return err
 }
 
 // gpuContextOps is the per-context GPU rendering interface.

@@ -1573,8 +1573,13 @@ func (a *PipelineApp) Run() error {
 				// into two ~17ms samples and hides judder.
 				// err == nil only: failed presents display nothing, and
 				// coalesced jobs never run (no sample, interval spans).
+				// F期尺子：Flush(干活)/Acquire(等缓冲)/PresentWait(等显示)分开记。
 				if err == nil {
-					a.sched.Metrics().NoteFrameInterval(time.Now())
+					m := a.sched.Metrics()
+					m.NoteFrameInterval(time.Now())
+					m.NoteFlushMs(render.FrameFlushMs)
+					m.NotePresentWaitMs(render.FramePresentWaitMs)
+					m.NoteAcquireWaitMs(render.FrameAcquireWaitMs)
 				}
 				if os.Getenv("HITCH_DIAG") == "1" {
 					FrameDone(jobFrameID)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 )
@@ -11,9 +12,25 @@ import (
 // ErrNilSurfaceView is returned when PresentFrame receives a nil texture view.
 var ErrNilSurfaceView = errors.New("render: nil surface texture view")
 
+// FrameFlushMs / FramePresentWaitMs / FrameAcquireWaitMs carry the last
+// F期 split timings from render to the embedder metrics. Flush = GPU干活
+// (重录+画画); Acquire = BeginFrame 等空闲缓冲(Fifo 背压睡这儿);
+// PresentWait = EndFrame 等显示器. Last-write-wins, raster-thread only.
+var (
+	FrameFlushMs       float64
+	FramePresentWaitMs float64
+	FrameAcquireWaitMs float64
+)
+
+// notePresentWaitMs records present-wait duration (F期尺子：等显示器单记)。
+func notePresentWaitMs(tWait time.Time) {
+	FramePresentWaitMs = time.Since(tWait).Seconds() * 1000
+}
+
 // presentAfterFlush runs the present callback (or marks the view for later readback)
 // after a successful GPU flush into view.
 func (c *Context) presentAfterFlush(view gpucontext.TextureView, width, height uint32, present func() error) error {
+	tWait := time.Now()
 	if present != nil {
 		// Swapchain EndFrame releases the surface view — do not keep it for
 		// SavePNG/Image readback (would sample a freed view → black pixmap).
@@ -25,6 +42,8 @@ func (c *Context) presentAfterFlush(view gpucontext.TextureView, width, height u
 		// Offscreen / no-op present: view remains readable for Image/SavePNG.
 		c.markViewFlush(view, int(width), int(height)) //nolint:gosec
 	}
+	// F期尺子：等显示器的耗时（Fifo 被动等）。Flush(干活)由调用方单记。
+	notePresentWaitMs(tWait)
 	return nil
 }
 

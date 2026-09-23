@@ -51,6 +51,14 @@ type FrameMetrics struct {
 	P99FrameIntervalMs  float64 `json:"frame_interval_p99_ms,omitempty"`
 	LastBuildMs         float64 `json:"frame_build_ms"`
 	LastRasterMs        float64 `json:"frame_raster_ms"`
+	// F期干活计时独立：Flush(干活)与present(等显示器)分开记。
+	// LastFlushMs = GPU干活耗时(重录+画画)；LastPresentWaitMs = 等显示器耗时。
+	// 6ms口径看 LastFlushMs，不被 Fifo 等待带偏。
+	LastFlushMs       float64 `json:"frame_flush_ms,omitempty"`
+	LastPresentWaitMs float64 `json:"frame_present_wait_ms,omitempty"`
+	// LastAcquireWaitMs = BeginFrame 等空闲缓冲(Fifo 背压)。F期三段尺子
+	// 之三：干活(Flush) / 等缓冲(Acquire) / 等显示(PresentWait)。
+	LastAcquireWaitMs float64 `json:"frame_acquire_wait_ms,omitempty"`
 
 	// Layout/paint flush counters (cumulative; wired by PipelineApp)
 	LayoutCount         int64 `json:"layout_count"`
@@ -364,6 +372,34 @@ func (s *MetricsStore) NoteRasterMs(ms float64) {
 		s.rasterSumMs += ms
 	}
 	s.mu.Unlock()
+}
+
+// noteSplitMs records one F期 split timing (flush/acquire/present-wait).
+func (s *MetricsStore) noteSplitMs(ms float64, set func(m *FrameMetrics, v float64)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	set(&s.m, ms)
+	s.mu.Unlock()
+}
+
+// NoteFlushMs records GPU work duration (Flush, no present wait).
+// F期尺子：6ms口径看这个数。
+func (s *MetricsStore) NoteFlushMs(ms float64) {
+	s.noteSplitMs(ms, func(m *FrameMetrics, v float64) { m.LastFlushMs = v })
+}
+
+// NotePresentWaitMs records present-wait duration (Fifo wait for display).
+// F期尺子：等的耗时记这里，不掺进干活。
+func (s *MetricsStore) NotePresentWaitMs(ms float64) {
+	s.noteSplitMs(ms, func(m *FrameMetrics, v float64) { m.LastPresentWaitMs = v })
+}
+
+// NoteAcquireWaitMs records BeginFrame acquire-wait duration.
+// F期尺子之三：等空闲缓冲的耗时。
+func (s *MetricsStore) NoteAcquireWaitMs(ms float64) {
+	s.noteSplitMs(ms, func(m *FrameMetrics, v float64) { m.LastAcquireWaitMs = v })
 }
 
 // pathCPULocked returns UI/Raster CPU proxies from cumulative build/raster ms.

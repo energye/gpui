@@ -6,7 +6,7 @@ import (
 
 // PassBindLedger records the exact bound set after each Draw within ONE
 // render pass. A later Draw with a bit-identical set skips the Set* calls
-// and only issues Draw — identical pixels, fewer cgo + validation
+// and only issues Draw — identical pixels, fewer native + validation
 // crossings.
 //
 // Correctness rules:
