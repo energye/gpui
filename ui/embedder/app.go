@@ -220,8 +220,8 @@ func (a *App) Run() error {
 		}
 
 		// Build + submit clear frame (P0). UI does not Wait Present.
+		// Display interval: sampled at present completion below, not submit.
 		t0 := time.Now()
-		a.sched.Metrics().NoteFrameInterval(t0)
 		clearR, clearG, clearB, clearA := a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA
 		target := a.target
 		done := make(chan error, 1)
@@ -230,7 +230,11 @@ func (a *App) Run() error {
 				if target == nil {
 					return errors.New("embedder: nil target")
 				}
-				return target.PresentClear(clearR, clearG, clearB, clearA)
+				if err := target.PresentClear(clearR, clearG, clearB, clearA); err != nil {
+					return err
+				}
+				a.sched.Metrics().NoteFrameInterval(time.Now())
+				return nil
 			},
 			Done: done,
 		}

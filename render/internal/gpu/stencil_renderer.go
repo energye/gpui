@@ -282,6 +282,21 @@ type stencilCoverBuffers struct {
 	// layout-epoch drop must NOT release it — the session owns and retires
 	// it. Set by GPURenderSession.buildStencilResourcesBatch each frame.
 	slabStencilBG bool
+	// slabFan/slabBand/slabInner mark the vertex buffers below as views
+	// into the session vertex slab (shared buffer + byte offset, one
+	// upload per frame). Session-owned: destroy() must NOT release the
+	// buffer — the session owns and retires it. Valid only when the
+	// matching slabValid flag is set (per frame; cleared on destroy and
+	// layout-epoch drop).
+	slabFanBuf     *webgpu.Buffer
+	slabFanOff     uint64
+	slabFanValid   bool
+	slabBandBuf    *webgpu.Buffer
+	slabBandOff    uint64
+	slabBandValid  bool
+	slabInnerBuf   *webgpu.Buffer
+	slabInnerOff   uint64
+	slabInnerValid bool
 	// F2 sticky marks (per pool entry): last uploaded stencil uniform bytes
 	// (viewport + matrix + color) and band content fingerprints. Static draws
 	// skip their WriteBuffers after the first frame.
@@ -322,6 +337,43 @@ type stencilCoverBuffers struct {
 	coverUniCap     uint64 // capacity of coverUniBuf
 }
 
+// clearSlabViews drops session-slab vertex views (buffer owned by the
+// session, never released here). Call on destroy and layout-epoch drop.
+func (b *stencilCoverBuffers) clearSlabViews() {
+	if b == nil {
+		return
+	}
+	b.slabFanBuf, b.slabFanValid = nil, false
+	b.slabBandBuf, b.slabBandValid = nil, false
+	b.slabInnerBuf, b.slabInnerValid = nil, false
+}
+
+// bindFan/band/inner bind the slab view when valid, else the per-entry
+// buffer. The three draw sites shared this if/else; one helper each.
+func (b *stencilCoverBuffers) bindFan(rp *webgpu.RenderPassEncoder) {
+	if b.slabFanValid && b.slabFanBuf != nil {
+		rp.SetVertexBuffer(0, b.slabFanBuf, b.slabFanOff)
+		return
+	}
+	rp.SetVertexBuffer(0, b.fanVertBuf, 0)
+}
+
+func (b *stencilCoverBuffers) bindBand(rp *webgpu.RenderPassEncoder) {
+	if b.slabBandValid && b.slabBandBuf != nil {
+		rp.SetVertexBuffer(0, b.slabBandBuf, b.slabBandOff)
+		return
+	}
+	rp.SetVertexBuffer(0, b.bandVertBuf, 0)
+}
+
+func (b *stencilCoverBuffers) bindInner(rp *webgpu.RenderPassEncoder) {
+	if b.slabInnerValid && b.slabInnerBuf != nil {
+		rp.SetVertexBuffer(0, b.slabInnerBuf, b.slabInnerOff)
+		return
+	}
+	rp.SetVertexBuffer(0, b.innerBandVertBuf, 0)
+}
+
 // destroy releases all GPU resources.
 func (b *stencilCoverBuffers) destroy() {
 	if b.texturedCoverBG != nil {
@@ -347,6 +399,7 @@ func (b *stencilCoverBuffers) destroy() {
 		b.stencilBindGroup = nil
 	}
 	b.slabStencilBG = false
+	b.clearSlabViews()
 	if b.coverUniBuf != nil {
 		b.coverUniBuf.Release()
 	}
@@ -395,7 +448,7 @@ func equalBytes(a, b []byte) bool {
 // (bandVerts, d ∈ [-aa, 0]) and the interior half (innerBandVerts, d ∈
 // [0, +aa]). Called every frame with the command's geometry; empty slices
 // reset the counts so a frame without AA data falls back to the binary cover.
-func (sr *StencilRenderer) updateAACoverBuffers(b *stencilCoverBuffers, bandVerts, innerBandVerts []float32) error {
+func (sr *StencilRenderer) updateAACoverBuffers(b *stencilCoverBuffers, bandVerts, innerBandVerts []float32, slabBand *slabVertView, slabInner *slabVertView) error {
 	if b == nil {
 		return nil
 	}
@@ -405,22 +458,32 @@ func (sr *StencilRenderer) updateAACoverBuffers(b *stencilCoverBuffers, bandVert
 		return nil
 	}
 	if len(bandVerts) > 0 {
-		bb := float32SliceToBytes(bandVerts)
-		if h, l := indexBytesFingerprint(bb), uint64(len(bb)); !b.bandFingerValid || b.bandLastHash != h || b.bandLastLen != l {
-			if err := sr.updateVertexBuffer(&b.bandVertBuf, &b.bandVertBufCap, "stencil_aa_band_verts", bb); err != nil {
-				return err
+		if slabBand != nil && slabBand.buf != nil {
+			b.slabBandBuf, b.slabBandOff, b.slabBandValid = slabBand.buf, slabBand.off, true
+		} else {
+			b.slabBandValid = false
+			bb := float32SliceToBytes(bandVerts)
+			if h, l := indexBytesFingerprint(bb), uint64(len(bb)); !b.bandFingerValid || b.bandLastHash != h || b.bandLastLen != l {
+				if err := sr.updateVertexBuffer(&b.bandVertBuf, &b.bandVertBufCap, "stencil_aa_band_verts", bb); err != nil {
+					return err
+				}
+				b.bandLastHash, b.bandLastLen = h, l
 			}
-			b.bandLastHash, b.bandLastLen = h, l
 		}
 		b.bandVertexCount = uint32(len(bandVerts) / 3) //nolint:gosec // triple floats
 	}
 	if len(innerBandVerts) > 0 {
-		bb := float32SliceToBytes(innerBandVerts)
-		if h, l := indexBytesFingerprint(bb), uint64(len(bb)); !b.bandFingerValid || b.innerBandLastHash != h || b.innerBandLastLen != l {
-			if err := sr.updateVertexBuffer(&b.innerBandVertBuf, &b.innerBandVertBufCap, "stencil_aa_inner_band_verts", bb); err != nil {
-				return err
+		if slabInner != nil && slabInner.buf != nil {
+			b.slabInnerBuf, b.slabInnerOff, b.slabInnerValid = slabInner.buf, slabInner.off, true
+		} else {
+			b.slabInnerValid = false
+			bb := float32SliceToBytes(innerBandVerts)
+			if h, l := indexBytesFingerprint(bb), uint64(len(bb)); !b.bandFingerValid || b.innerBandLastHash != h || b.innerBandLastLen != l {
+				if err := sr.updateVertexBuffer(&b.innerBandVertBuf, &b.innerBandVertBufCap, "stencil_aa_inner_band_verts", bb); err != nil {
+					return err
+				}
+				b.innerBandLastHash, b.innerBandLastLen = h, l
 			}
-			b.innerBandLastHash, b.innerBandLastLen = h, l
 		}
 		b.innerBandVertexCount = uint32(len(innerBandVerts) / 3) //nolint:gosec // triple floats
 	}
@@ -498,15 +561,27 @@ func (sr *StencilRenderer) createRenderBuffers(
 // fanVerts are USER-space (transform in the uniform); coverQuad is
 // device-space (pre-placed, shader has no cover transform). matrix maps
 // user → device; Identity reproduces the pre-F2 baked behavior exactly.
+// slabVertView is one entry's view into a session vertex slab: shared
+// buffer + byte offset. Nil buf = entry keeps its own per-entry buffer.
+type slabVertView struct {
+	buf *webgpu.Buffer
+	off uint64
+}
+
 func (sr *StencilRenderer) updateRenderBuffers(
 	b *stencilCoverBuffers, w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
 ) (*stencilCoverBuffers, error) {
-	return sr.updateRenderBuffersSticky(b, w, h, fanVerts, coverQuad, color, render.Identity(), false, false)
+	return sr.updateRenderBuffersSticky(b, w, h, fanVerts, coverQuad, color, render.Identity(), false, false, nil, nil, nil)
 }
 
 func (sr *StencilRenderer) updateRenderBuffersSticky(
 	b *stencilCoverBuffers, w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
 	matrix render.Matrix, skipFan bool, skipStencilUni bool,
+	// slabFan/slabBand/slabInner carry the session vertex-slab views for
+	// this entry (shared buffer + byte offset; nil buf = entry keeps its
+	// own per-entry buffer). Set alongside skipFan=true by the session
+	// batch path; updateAACoverBuffers takes the band pair the same way.
+	slabFan *slabVertView, slabBand *slabVertView, slabInner *slabVertView,
 ) (*stencilCoverBuffers, error) {
 	if b == nil {
 		b = &stencilCoverBuffers{}
@@ -526,6 +601,7 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 			b.stencilBindGroup = nil
 		}
 		b.slabStencilBG = false
+		b.clearSlabViews()
 		if b.coverBindGroup != nil {
 			b.coverBindGroup.Release()
 			b.coverBindGroup = nil
@@ -543,8 +619,13 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 		}
 	}
 
-	// Vertex buffers.
-	if !skipFan {
+	// Vertex buffers. Slab views (session batch path) bypass per-entry
+	// buffers; the view (buffer+offset) is recorded on the entry and the
+	// draw call binds it. Otherwise the classic per-entry path below.
+	if slabFan != nil && slabFan.buf != nil {
+		b.slabFanBuf, b.slabFanOff, b.slabFanValid = slabFan.buf, slabFan.off, true
+	} else if !skipFan {
+		b.slabFanValid = false
 		if err := sr.updateVertexBuffer(&b.fanVertBuf, &b.fanVertBufCap, "stencil_fan_verts", float32SliceToBytes(fanVerts)); err != nil {
 			return nil, err
 		}
@@ -1027,7 +1108,7 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	}
 	rp.SetPipeline(stencilPipeline)
 	rp.SetBindGroup(0, bufs.stencilBindGroup, nil)
-	rp.SetVertexBuffer(0, bufs.fanVertBuf, 0)
+	bufs.bindFan(rp)
 	rp.Draw(bufs.fanVertexCount, 1, 0, 0)
 
 	// Analytic-AA fringe (solid SrcOver paths; MSAA surfaces also get the
@@ -1059,7 +1140,7 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 				rp.SetBindGroup(2, maskBG, nil)
 			}
 			rp.SetStencilReference(0)
-			rp.SetVertexBuffer(0, bufs.bandVertBuf, 0)
+			bufs.bindBand(rp)
 			rp.Draw(bufs.bandVertexCount, 1, 0, 0)
 		}
 		if bufs.innerBandVertexCount > 0 && sr.aaInnerBandPipeline != nil && bufs.stencilBindGroup != nil {
@@ -1072,7 +1153,7 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 				rp.SetBindGroup(2, maskBG, nil)
 			}
 			rp.SetStencilReference(0)
-			rp.SetVertexBuffer(0, bufs.innerBandVertBuf, 0)
+			bufs.bindInner(rp)
 			rp.Draw(bufs.innerBandVertexCount, 1, 0, 0)
 		}
 	}

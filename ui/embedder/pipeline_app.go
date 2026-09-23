@@ -1330,7 +1330,6 @@ func (a *PipelineApp) Run() error {
 		}
 
 		t0 := time.Now()
-		a.sched.Metrics().NoteFrameInterval(t0)
 		frameID := a.frameID.Add(1)
 		scale = a.host.ScaleFactor()
 		if scale <= 0 {
@@ -1569,6 +1568,14 @@ func (a *PipelineApp) Run() error {
 				}
 				a.completedFrame.Store(jobFrameID)
 				a.presents.Add(1)
+				// Display interval (standard): sample at present completion,
+				// not submit. Submit-time sampling splits one 34ms stall
+				// into two ~17ms samples and hides judder.
+				// err == nil only: failed presents display nothing, and
+				// coalesced jobs never run (no sample, interval spans).
+				if err == nil {
+					a.sched.Metrics().NoteFrameInterval(time.Now())
+				}
 				if os.Getenv("HITCH_DIAG") == "1" {
 					FrameDone(jobFrameID)
 				}

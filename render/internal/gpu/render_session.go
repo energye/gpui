@@ -629,6 +629,12 @@ type GPURenderSession struct {
 	stencilUniScratch    []byte
 	stencilUniLast       [][]byte // last packed bytes per slot (any-changed check)
 	stencilUniBGEpoch    uint64   // sr.pipelineEpoch when slab BGs were built
+	// Stencil vertex slab: fan (vec2) + bands (vec3) packed contiguously,
+	// one upload per frame; draws bind with byte offsets. 4B alignment
+	// suffices for vertex input (no 256B padding unlike uniforms).
+	stencilVertSlab    *webgpu.Buffer
+	stencilVertSlabCap uint64 // bytes
+	stencilVertScratch []byte
 
 	// In-flight command buffers from the previous frame. Freed at the
 	// start of the next frame, when VSync guarantees the GPU is done.
@@ -2310,6 +2316,13 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.stencilUniSlots = 0
 	s.stencilUniScratch = nil
 	s.stencilUniLast = nil
+	// Stencil vertex slab (session-owned; entries hold views only).
+	if s.stencilVertSlab != nil {
+		s.stencilVertSlab.Release()
+		s.stencilVertSlab = nil
+		s.stencilVertSlabCap = 0
+	}
+	s.stencilVertScratch = nil
 
 	// Clip bind group pool.
 	for i, bg := range s.clipBindPool {
@@ -3215,6 +3228,90 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	}, nil
 }
 
+// packStencilVertexSlabs packs fan (vec2, 8B/vert) + bands (vec3,
+// 12B/vert) contiguously into the session vertex slab and uploads once.
+// Returns per-path byte offsets into the slab (missing key = empty
+// mesh, entry keeps its own buffer). 4B alignment suffices.
+func (s *GPURenderSession) packStencilVertexSlabs(paths []StencilPathCommand) (fanOff, bandOff, innerOff map[int]uint64) {
+	fanOff, bandOff, innerOff = map[int]uint64{}, map[int]uint64{}, map[int]uint64{}
+	var total uint64
+	type span struct {
+		idx  int
+		kind int // 0 fan, 1 band, 2 inner
+		data []byte
+	}
+	var spans []span
+	for i := range paths {
+		if b := float32SliceToBytes(paths[i].Vertices); len(b) > 0 {
+			spans = append(spans, span{i, 0, b})
+			total += uint64(len(b))
+		}
+		if b := float32SliceToBytes(paths[i].BandAA); len(b) > 0 {
+			spans = append(spans, span{i, 1, b})
+			total += uint64(len(b))
+		}
+		if b := float32SliceToBytes(paths[i].InnerBandAA); len(b) > 0 {
+			spans = append(spans, span{i, 2, b})
+			total += uint64(len(b))
+		}
+	}
+	if total == 0 {
+		return fanOff, bandOff, innerOff
+	}
+	if s.stencilVertSlab == nil || s.stencilVertSlabCap < total {
+		if s.stencilVertSlab != nil {
+			s.RetireBuffer(s.stencilVertSlab) // old views may be in-flight
+			s.stencilVertSlab = nil
+		}
+		alloc := total * 2
+		if alloc < 64*1024 {
+			alloc = 64 * 1024
+		}
+		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+			Label: "stencil_vert_slab",
+			Size:  alloc,
+			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			return fanOff, bandOff, innerOff // fall back: per-entry path
+		}
+		s.stencilVertSlab = buf
+		s.stencilVertSlabCap = alloc
+	}
+	if uint64(cap(s.stencilVertScratch)) < total {
+		s.stencilVertScratch = make([]byte, total)
+	} else {
+		s.stencilVertScratch = s.stencilVertScratch[:total]
+	}
+	var off uint64
+	for _, sp := range spans {
+		copy(s.stencilVertScratch[off:], sp.data)
+		switch sp.kind {
+		case 0:
+			fanOff[sp.idx] = off
+		case 1:
+			bandOff[sp.idx] = off
+		case 2:
+			innerOff[sp.idx] = off
+		}
+		off += uint64(len(sp.data))
+	}
+	if err := s.queueWriteBuffer(s.stencilVertSlab, 0, s.stencilVertScratch[:total]); err != nil {
+		return map[int]uint64{}, map[int]uint64{}, map[int]uint64{}
+	}
+	return fanOff, bandOff, innerOff
+}
+
+// slabViewOf returns a slab view for path idx, or nil when the span is
+// empty (entry keeps its own per-entry buffer).
+func slabViewOf(buf *webgpu.Buffer, off map[int]uint64, idx int) *slabVertView {
+	v, ok := off[idx]
+	if !ok {
+		return nil
+	}
+	return &slabVertView{buf: buf, off: v}
+}
+
 // buildStencilResourcesBatch builds stencil GPU buffers for all paths,
 // reusing pooled buffer sets where possible. Unused pool entries beyond the
 // current path count are kept alive for future frames.
@@ -3237,6 +3334,7 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		s.stencilUniBGEpoch = s.stencilRenderer.pipelineEpoch
 	}
 
+	// Vertex slab offsets are packed above; pool grows to path count.
 	// Grow pool if needed.
 	for len(s.stencilBufPool) < len(paths) {
 		s.stencilBufPool = append(s.stencilBufPool, nil)
@@ -3302,6 +3400,7 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 	}
 	// NOTE: only the 64B payload per 256B slot is shader-visible (bind
 	// Size); padding is never read, so no zeroing — stale pad is harmless.
+	fanOff, bandOff, innerOff := s.packStencilVertexSlabs(paths)
 	for i := range paths {
 		cmd := &paths[i]
 		color := render.RGBA{
@@ -3311,11 +3410,9 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 			A: float64(cmd.Color[3]),
 		}
 
-		// Sticky uploads: skip the fan WriteBuffer when packed bytes match
-		// the entry fingerprint; bands compare per-entry inside the
-		// renderer; stencil fill uniforms pack into the session slab
-		// (single upload after the loop); cover uniforms compare
-		// per-entry inside the renderer.
+		// Sticky uploads: fan skips when bytes match the entry fingerprint;
+		// bands and cover compare per-entry inside the renderer; stencil
+		// fill uniforms pack into the session slab (single upload below).
 		fanBytes := float32SliceToBytes(cmd.Vertices)
 		skipFan := false
 		if h0, l0 := s.stencilFanLastHash[i], s.stencilFanLastLen[i]; l0 == len(fanBytes) && h0 == indexBytesFingerprint(fanBytes) {
@@ -3326,7 +3423,10 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		pmul := [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)}
 		uni := makeStencilUniform(w, h, cmd.Matrix, pmul)
 		copy(s.stencilUniScratch[i*stencilUniSlabStride:], uni)
-		bufs, err := s.stencilRenderer.updateRenderBuffersSticky(s.stencilBufPool[i], w, h, cmd.Vertices, cmd.CoverQuad, color, cmd.Matrix, skipFan, true)
+		fanView := slabViewOf(s.stencilVertSlab, fanOff, i)
+		bandView := slabViewOf(s.stencilVertSlab, bandOff, i)
+		innerView := slabViewOf(s.stencilVertSlab, innerOff, i)
+		bufs, err := s.stencilRenderer.updateRenderBuffersSticky(s.stencilBufPool[i], w, h, cmd.Vertices, cmd.CoverQuad, color, cmd.Matrix, skipFan, true, fanView, bandView, innerView)
 		if err != nil {
 			// Clean up buffers created in this batch.
 			for j := 0; j < i; j++ {
@@ -3337,7 +3437,7 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 			}
 			return nil, fmt.Errorf("build stencil resources for path %d: %w", i, err)
 		}
-		if err := s.stencilRenderer.updateAACoverBuffers(bufs, cmd.BandAA, cmd.InnerBandAA); err != nil {
+		if err := s.stencilRenderer.updateAACoverBuffers(bufs, cmd.BandAA, cmd.InnerBandAA, bandView, innerView); err != nil {
 			for j := 0; j < i; j++ {
 				if s.stencilBufPool[j] != nil {
 					s.stencilBufPool[j].destroy()
