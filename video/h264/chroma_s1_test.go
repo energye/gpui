@@ -10,6 +10,7 @@ package h264
 // interior 8x8 dispatch allocates zero; VR2 exact stays green.
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -148,4 +149,159 @@ func BenchmarkS1ChromaScalarVsDispatch(b *testing.B) {
 			chromaScalarOracle(plane, W, H, 100, 100, 8, 8, 3, 5, out)
 		}
 	})
+}
+
+// S1-D gate: one whole-edge chroma call equals four per-segment scalar
+// calls bit for bit, both directions, weak-only strength patterns
+// (uniform and mixed with skips), the full QP range, and two stimulus
+// fields. Intra/mixed-bS==4 edges stay scalar (covered by the taken
+// test below and the production fallback).
+func TestS1ChromaDebEdgeMatchesScalar(t *testing.T) {
+	const W, H = 64, 64
+	type placement struct {
+		cx, cy   int
+		vertical bool
+	}
+	placements := []placement{
+		{16, 8, false}, // interior vertical edge
+		{32, 24, false},
+		{8, 16, true}, // interior horizontal edge
+		{24, 32, true},
+	}
+	patterns := [][4]int{
+		{0, 0, 0, 0},
+		{1, 1, 1, 1},
+		{2, 2, 2, 2},
+		{3, 3, 3, 3},
+		{1, 0, 2, 0},
+		{3, 2, 1, 0},
+		{0, 3, 0, 3},
+		{2, 1, 0, 3},
+	}
+	old := deblockScalarForced
+	defer func() { deblockScalarForced = old }()
+	for _, force := range []bool{false, true} {
+		deblockScalarForced = force
+		for _, qp := range []int32{0, 10, 28, 40, 51} {
+			for _, off := range [][2]int32{{0, 0}, {6, -6}, {-6, 6}} {
+				alpha, beta := filterAlphaBeta(qp, off[0], off[1])
+				for _, pat := range patterns {
+					var tcEdge [4]int
+					for g := 0; g < 4; g++ {
+						if pat[g] < 1 {
+							tcEdge[g] = -1
+						} else {
+							tcEdge[g] = filterTC(qp, off[0], pat[g]) + 1
+						}
+					}
+					for _, pl := range placements {
+						for seed := 0; seed < 2; seed++ {
+							base := chromaStimulus(W, H)
+							if seed == 1 {
+								for i, v := range base {
+									base[i] = 255 - v
+								}
+							}
+							a := append([]uint8(nil), base...)
+							b := append([]uint8(nil), base...)
+							if chromaDebEdge16(a, W, pl.cx, pl.cy, pl.vertical, pat, tcEdge, alpha, beta) {
+								// Edge call ran (or skip).
+							} else {
+								// Per-segment production fallback.
+								for seg := 0; seg < 4; seg++ {
+									sx, sy := pl.cx, pl.cy
+									if pl.vertical {
+										sx = pl.cx + seg*2
+									} else {
+										sy = pl.cy + seg*2
+									}
+									if pat[seg] < 1 {
+										continue
+									}
+									filterChromaEdge(a, W, sx, sy, pl.vertical, pat[seg], alpha, beta, tcEdge[seg]-1)
+								}
+							}
+							for seg := 0; seg < 4; seg++ {
+								sx, sy := pl.cx, pl.cy
+								if pl.vertical {
+									sx = pl.cx + seg*2
+								} else {
+									sy = pl.cy + seg*2
+								}
+								if pat[seg] < 1 {
+									continue
+								}
+								filterChromaEdge(b, W, sx, sy, pl.vertical, pat[seg], alpha, beta, tcEdge[seg]-1)
+							}
+							for i := range a {
+								if a[i] != b[i] {
+									t.Fatalf("force=%v qp=%d off=%v bS=%v alpha=%d beta=%d edge=(%d,%d,v=%v) seed=%d byte %d edge=%d scalar=%d",
+										force, qp, off, pat, alpha, beta, pl.cx, pl.cy, pl.vertical, seed, i, a[i], b[i])
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// S1-D taken: weak-only edges with any filtering report true on amd64
+// (one asm call) and false under forced-scalar; any bS==4 reports
+// false everywhere (intra scalar path); other arches report false
+// except the all-zero skip, which reports true without touching the
+// plane.
+func TestS1ChromaDebEdgeTaken(t *testing.T) {
+	p := chromaStimulus(64, 64)
+	mkTC := func(pat [4]int) [4]int {
+		var tc [4]int
+		for g := 0; g < 4; g++ {
+			if pat[g] < 1 {
+				tc[g] = -1
+			} else {
+				tc[g] = filterTC(28, 0, pat[g]) + 1
+			}
+		}
+		return tc
+	}
+	for _, tc := range []struct {
+		name     string
+		bS       [4]int
+		vertical bool
+	}{
+		{"weak", [4]int{1, 1, 1, 1}, false},
+		{"mixed", [4]int{3, 0, 2, 1}, true},
+		{"strong", [4]int{4, 4, 4, 4}, false},
+		{"halfstrong", [4]int{1, 4, 1, 1}, true},
+		{"zero", [4]int{0, 0, 0, 0}, false},
+	} {
+		got := chromaDebEdge16(p, 64, 16, 16, tc.vertical, tc.bS, mkTC(tc.bS), 40, 10)
+		weakOnly := true
+		anyFilter := false
+		for _, v := range tc.bS {
+			if v == 4 {
+				weakOnly = false
+			}
+			if v > 0 {
+				anyFilter = true
+			}
+		}
+		want := weakOnly && anyFilter && (runtime.GOARCH == "amd64") && !deblockScalarForced
+		// All-zero edges short-circuit before any arch check.
+		if tc.name == "zero" && !deblockScalarForced {
+			want = true
+		}
+		if got != want {
+			t.Fatalf("%s bS=%v vertical=%v taken=%v want %v (arch %s)",
+				tc.name, tc.bS, tc.vertical, got, want, runtime.GOARCH)
+		}
+	}
+	old := deblockScalarForced
+	deblockScalarForced = true
+	defer func() { deblockScalarForced = old }()
+	weak := [4]int{1, 2, 3, 1}
+	if chromaDebEdge16(p, 64, 16, 16, false, weak, mkTC(weak), 40, 10) {
+		t.Fatalf("forced scalar chroma edge taken, want fallback")
+	}
 }

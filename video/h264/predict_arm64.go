@@ -15,6 +15,9 @@ func predictLumaBlockArm(ref *Picture, px, py, w, h int, mx, my int16, out []uin
 		return
 	}
 	rw, rh := int(ref.Width), int(ref.Height)
+	if predictStatsOn {
+		notePredictClass(rw, rh, px, py, w, h, mx, my)
+	}
 	qx0 := px*4 + int(mx)
 	qy0 := py*4 + int(my)
 	ix0 := qx0 >> 2

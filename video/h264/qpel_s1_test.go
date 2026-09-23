@@ -9,6 +9,7 @@ package h264
 // interior 16x16 dispatch allocates zero; VR2 exact stays green.
 
 import (
+	"os"
 	"runtime"
 	"testing"
 )
@@ -107,6 +108,86 @@ func TestS1QpelZeroAlloc(t *testing.T) {
 			predictLumaBlock(ref, 100, 100, 16, 16, mx, my, out)
 		}); n != 0 {
 			t.Fatalf("frac=%d,%d allocs = %v want 0", mx, my, n)
+		}
+	}
+	// Stats switch on: classify + atomic bumps only, still zero.
+	old := predictStatsOn
+	predictStatsOn = true
+	defer func() { predictStatsOn = old }()
+	out := make([]byte, 16*16)
+	if n := testing.AllocsPerRun(20, func() {
+		predictLumaBlock(ref, 100, 100, 16, 16, 2, 0, out)
+		predictLumaBlock(ref, 100, 100, 16, 16, 0, 0, out)
+	}); n != 0 {
+		t.Fatalf("stats path allocs = %v want 0", n)
+	}
+	predictReset()
+}
+
+// Prediction census (step C4: measure before cutting interpolation).
+// Decodes both reference clips end to end with the stats switch on
+// and logs how luma prediction splits: integer row-copy vs sub-pel
+// interior (arch block path) vs sub-pel edge-touching (scalar留守).
+// Decides whether the next cut hits interpolation (high sub-pel
+// share) or must move elsewhere (integer-dominated). No pixel
+// assertions here: prefix parity and the full-compare tools pin
+// pixels; this pins the split.
+func TestS1PredictHitRate(t *testing.T) {
+	if qpelScalarForced {
+		t.Skipf("forced scalar takes nothing: census would read all-scalar")
+	}
+	old := predictStatsOn
+	predictStatsOn = true
+	defer func() { predictStatsOn = old }()
+	for _, c := range refClips {
+		path := "../testdata/" + c.file
+		if _, err := os.Stat(path); err != nil {
+			t.Skipf("clip absent: %v", err)
+		}
+		predictReset()
+		decodeRefClipCount(t, path, c.w, c.h, c.samples)
+		st := predictSnapshot()
+		predictReset()
+		if st.total == 0 {
+			t.Fatalf("%s: no blocks counted", c.file)
+		}
+		parts := st.intCopy + st.qpelTaken + st.qpelEdge
+		if parts != st.total {
+			t.Fatalf("%s: buckets %d != total %d", c.file, parts, st.total)
+		}
+		fam := st.horOnly + st.verOnly + st.general
+		if fam != st.qpelTaken {
+			t.Fatalf("%s: frac families %d != taken %d", c.file, fam, st.qpelTaken)
+		}
+		sub := st.center22 + st.halfCentr + st.corner111
+		if sub != st.general {
+			t.Fatalf("%s: general split %d != general %d", c.file, sub, st.general)
+		}
+		pct := func(v uint64) float64 { return 100 * float64(v) / float64(st.total) }
+		t.Logf("%s: blocks=%d intCopy=%.1f%% qpelTaken=%.1f%% qpelEdge=%.1f%%",
+			c.file, st.total, pct(st.intCopy), pct(st.qpelTaken), pct(st.qpelEdge))
+		pctT := func(v uint64) float64 { return 100 * float64(v) / float64(st.qpelTaken) }
+		t.Logf("%s: of taken: horOnly=%.1f%% verOnly=%.1f%% general=%.1f%%",
+			c.file, pctT(st.horOnly), pctT(st.verOnly), pctT(st.general))
+		pctG := func(v uint64) float64 { return 100 * float64(v) / float64(st.general) }
+		t.Logf("%s: of general: center22=%.1f%% halfCenter=%.1f%% corner=%.1f%% (temp-users=%.1f%% of taken)",
+			c.file, pctG(st.center22), pctG(st.halfCentr), pctG(st.corner111),
+			100*float64(st.center22+st.halfCentr)/float64(st.qpelTaken))
+	}
+}
+
+// clipU8 equals clipInt(v, 0, 255) on the whole filter-output domain
+// (dense sweep plus spot extremes within the documented |v| < 2^30
+// range): the branchless combine may never change a pixel.
+func TestClipU8MatchesClipInt(t *testing.T) {
+	for v := -4096; v <= 4096; v++ {
+		if got, want := clipU8(v), clipInt(v, 0, 255); got != want {
+			t.Fatalf("clipU8(%d) = %d want %d", v, got, want)
+		}
+	}
+	for _, v := range []int{-(1 << 20), -100000, -511, 256, 511, 100000, 1<<20 - 1} {
+		if got, want := clipU8(v), clipInt(v, 0, 255); got != want {
+			t.Fatalf("clipU8(%d) = %d want %d", v, got, want)
 		}
 	}
 }
