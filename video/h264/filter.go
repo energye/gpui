@@ -235,21 +235,11 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 		return
 	}
 	W := int(pic.Width)
-	qpAt := func(mbx, mby int) int32 {
-		if mbx < 0 {
-			mbx = 0
-		}
-		if mby < 0 {
-			mby = 0
-		}
-		if mbx >= mbW {
-			mbx = mbW - 1
-		}
-		if mby >= mbH {
-			mby = mbH - 1
-		}
-		return qps[mby*mbW+mbx]
-	}
+	// S1b-AD qpAt inlined at its 3 call sites below (closure call +
+	// 4 clamp branches each, ~30ms flat per 90f profile): qC is always
+	// in range (addr itself); qL/qT clamp only on the first column/row
+	// (then they equal qC, same as the closure). No closure, two
+	// predictable branches per macroblock.
 	// Per-macroblock order like the reference: vertical edges (left
 	// then internal) followed by horizontal edges (top then internal),
 	// in MB raster order. Edges share one picture, so order matters.
@@ -257,6 +247,39 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 		for mbx := 0; mbx < mbW; mbx++ {
 			addr := mby*mbW + mbx
 			is8 := addr >= 0 && addr < len(mbT8) && mbT8[addr]
+			// idc==1 skips every edge of this MB (same verdict as the
+			// per-edge gate below, which has no side effects): skip
+			// before computing any thresholds.
+			if fIDC[addr] == 1 {
+				continue
+			}
+			// S1b-AD lazy thresholds: the old code evaluated all 3
+			// cases (C/L/T) x (luma + chroma Cb/Cr) per macroblock up
+			// front (~19 table lookups: filterAlphaBeta + ChromaQP,
+			// ~110ms flat per 90f profile), but near-half the edges
+			// are all-zero strength and skip before any threshold is
+			// read (S1-Z census: 47% on 1080p), plus closed-gate and
+			// uniform-skip edges. So only q's (plain loads) and fa/fb
+			// stay hoisted; every filterAlphaBeta/ChromaQP runs on
+			// demand after the bS verdict, at most one case per edge
+			// (e==0 takes L/T, internal edges share one cached C).
+			// Same values, same order of reads — pure scheduling.
+			qC := qps[addr]
+			qL := qC
+			if mbx > 0 {
+				qL = qps[addr-1]
+			}
+			qT := qC
+			if mby > 0 {
+				qT = qps[addr-mbW]
+			}
+			fa := fA[mby*mbW+mbx]
+			fb := fB[mby*mbW+mbx]
+			var alphaC, betaC int
+			var haveC bool
+			var qpcCbC, qpcCrC int32
+			var alphaCbC, betaCbC, alphaCrC, betaCrC int
+			var haveChromaC bool
 			// NOTE: plain index loop, not `range []bool{...}` — the
 			// slice literal allocates per macroblock (5k+ allocs per
 			// 1536x864 frame straight into GC).
@@ -298,8 +321,10 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 							qy = mby - 1
 						}
 					}
-					qp := (qpAt(mbx, mby) + qpAt(qx, qy) + 1) >> 1
-					alpha, beta := filterAlphaBeta(qp, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
+					// S1b-AD: luma thresholds resolve below, after the
+					// bS verdict (zero edges never pay for them).
+					var qp int32
+					var alpha, beta int
 					// Interior edges skip per-segment bounds checks (same
 					// results, no branches). Border edges keep the safe path.
 					inFast := edgeInterior(ex, ey, vertical, mbW, mbH) &&
@@ -332,34 +357,123 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 							continue
 						}
 					}
+					// Whole-edge batch (ffmpeg filter_mb_edgev pattern:
+					// bS[4] for the edge, one gate, then filter): bS feeds
+					// luma and chroma, so it is always computed; the gate
+					// below skips tc + kernel setup for all 4 segments at
+					// once. Closed gates write nothing (every filter path
+					// gates each line on alpha/beta first), so skipping the
+					// whole edge equals skipping per segment, bit for bit.
+					// Pure Go so amd64/arm64/fallback share one path.
 					var bSedge [4]int
+					var segX, segY [4]int
 					for seg := 0; seg < 4; seg++ {
-						var sx, sy int
 						if !vertical {
-							sx, sy = ex, ey+seg*4
+							segX[seg], segY[seg] = ex, ey+seg*4
 						} else {
-							sx, sy = ex+seg*4, ey
+							segX[seg], segY[seg] = ex+seg*4, ey
 						}
-						var bS int
-						if inFast {
-							bS = interBSInterior(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+					}
+					if inFast {
+						// S1-D edge batch: one call verdicts all 4
+						// segments (divisions + MB-intra verdict hoisted;
+						// identical outputs, see interBSEdge).
+						interBSEdge(&bSedge, mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, ex, ey, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+					} else {
+						for seg := 0; seg < 4; seg++ {
+							bSedge[seg] = interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, segX[seg], segY[seg], vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+						}
+					}
+					// S1-Z zero-edge skip: all four strengths zero means no
+					// filter on the edge writes anything, luma or chroma.
+					// deblockLumaEdge16 reports true untouched for zero
+					// edges (see its doc), the per-segment luma path skips
+					// bS==0 segments, the chroma batched entry reports true
+					// untouched for all-zero bS (see its doc), and the
+					// per-segment chroma path skips bS<1 segments, so the
+					// tc loops, kernel setups and both filter calls below
+					// are dead work. Census 2026-09-22: zero edges are 47%
+					// of counted luma edges on 1080p (57% on 2K), all with
+					// open gates (gated=0%), i.e. half the edges pay full
+					// dispatch for zero output. The stats note replicates
+					// the original call site exactly (it only fires when
+					// the luma gate below is open; closed-gate zero edges
+					// were never counted). Zero-alloc: one OR-chain, one
+					// predictable branch (skip areas cluster spatially).
+					if bSedge[0]|bSedge[1]|bSedge[2]|bSedge[3] == 0 {
+						// S1b-AD: zero edges skip threshold work in
+						// production; the census (test-only,
+						// deblockStatsOn) resolves the same case the
+						// eager code read, so its counts stay exact.
+						if deblockStatsOn {
+							if e == 0 {
+								if vertical {
+									qp = (qC + qT + 1) >> 1
+								} else {
+									qp = (qC + qL + 1) >> 1
+								}
+								alpha, beta = filterAlphaBeta(qp, fa, fb)
+							} else {
+								if !haveC {
+									alphaC, betaC = filterAlphaBeta(qC, fa, fb)
+									haveC = true
+								}
+								qp, alpha, beta = qC, alphaC, betaC
+							}
+							if alpha != 0 && beta != 0 {
+								edge16Note(edge16Zero, true)
+							}
+						}
+						continue
+					}
+					// S1b-AD lazy resolve: same per-case values the
+					// hoisted tables held (e==0 takes the L/T neighbour
+					// average, internal edges share one cached C).
+					if e == 0 {
+						if vertical {
+							qp = (qC + qT + 1) >> 1
 						} else {
-							bS = interBS(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+							qp = (qC + qL + 1) >> 1
 						}
-						bSedge[seg] = bS
-						if bS == 0 {
-							continue
+						alpha, beta = filterAlphaBeta(qp, fa, fb)
+					} else {
+						if !haveC {
+							alphaC, betaC = filterAlphaBeta(qC, fa, fb)
+							haveC = true
 						}
-						tc := filterTC(qp, fA[mby*mbW+mbx], bS)
-						// S1 dispatch: closed gates skip (scalar would
-						// filter nothing), the arch kernel filters
-						// directly in the picture, chroma stays scalar
-						// (2 lines are too narrow to win back setup).
-						if alpha == 0 || beta == 0 {
-							continue
+						qp, alpha, beta = qC, alphaC, betaC
+					}
+					if alpha != 0 && beta != 0 {
+						var tcEdge [4]int
+						for seg := 0; seg < 4; seg++ {
+							tcEdge[seg] = filterTC(qp, fa, bSedge[seg])
 						}
-						if !deblockLumaFast(pic.Y, W, sx, sy, vertical, bS, alpha, beta, tc) {
-							filterLumaEdge(pic.Y, W, sx, sy, vertical, bS, alpha, beta, tc)
+						// S1-E16 whole-edge call (ffmpeg filter_mb_edgev
+						// shape): one asm call filters all 16 lines;
+						// uniform weak edges run the per-segment-tc kernel
+						// and uniform strong (all-4, e.g. intra) runs the
+						// strong kernel. Mixed, scalar-forced and
+						// non-amd64 edges report false and run the
+						// per-segment path below with identical output;
+						// chroma stays scalar per segment (2 lines are too
+						// narrow to win back setup).
+						taken := deblockLumaEdge16(pic.Y, W, ex, ey, vertical, bSedge, tcEdge, alpha, beta)
+						if deblockStatsOn {
+							edge16Note(classifyEdge16(bSedge, alpha, beta), taken)
+						}
+						if !taken {
+							for seg := 0; seg < 4; seg++ {
+								bS := bSedge[seg]
+								if bS == 0 {
+									continue
+								}
+								tc := tcEdge[seg]
+								// S1 dispatch: the arch kernel filters
+								// directly in the picture.
+								if !deblockLumaFast(pic.Y, W, segX[seg], segY[seg], vertical, bS, alpha, beta, tc) {
+									filterLumaEdge(pic.Y, W, segX[seg], segY[seg], vertical, bS, alpha, beta, tc)
+								}
+							}
 						}
 					}
 					// Chroma edges sit on even luma edges only (4:2:0: every
@@ -367,11 +481,84 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 					// Cb and Cr average separately: the second plane has its
 					// own offset.
 					if e%2 == 0 {
-						qpcCb := (ChromaQP(qpAt(mbx, mby), cOff0) + ChromaQP(qpAt(qx, qy), cOff0) + 1) >> 1
-						qpcCr := (ChromaQP(qpAt(mbx, mby), cOff1) + ChromaQP(qpAt(qx, qy), cOff1) + 1) >> 1
-						alphaCb, betaCb := filterAlphaBeta(qpcCb, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
-						alphaCr, betaCr := filterAlphaBeta(qpcCr, fA[mby*mbW+mbx], fB[mby*mbW+mbx])
-						for seg := 0; seg < 4; seg++ {
+						// S1b-AD lazy resolve, chroma (same per-case
+						// values the hoisted tables held; e==2 shares
+						// one cached C). Reached only with non-zero bS
+						// (zero edges continued above), so at most one
+						// case's ChromaQP + AlphaBeta runs per edge.
+						var qpcCb, qpcCr int32
+						var alphaCb, betaCb, alphaCr, betaCr int
+						if e == 0 {
+							if vertical {
+								qpcCb = (ChromaQP(qC, cOff0) + ChromaQP(qT, cOff0) + 1) >> 1
+								qpcCr = (ChromaQP(qC, cOff1) + ChromaQP(qT, cOff1) + 1) >> 1
+							} else {
+								qpcCb = (ChromaQP(qC, cOff0) + ChromaQP(qL, cOff0) + 1) >> 1
+								qpcCr = (ChromaQP(qC, cOff1) + ChromaQP(qL, cOff1) + 1) >> 1
+							}
+							alphaCb, betaCb = filterAlphaBeta(qpcCb, fa, fb)
+							alphaCr, betaCr = filterAlphaBeta(qpcCr, fa, fb)
+						} else {
+							if !haveChromaC {
+								qpcCbC = ChromaQP(qC, cOff0)
+								qpcCrC = ChromaQP(qC, cOff1)
+								alphaCbC, betaCbC = filterAlphaBeta(qpcCbC, fa, fb)
+								alphaCrC, betaCrC = filterAlphaBeta(qpcCrC, fa, fb)
+								haveChromaC = true
+							}
+							qpcCb, qpcCr = qpcCbC, qpcCrC
+							alphaCb, betaCb = alphaCbC, betaCbC
+							alphaCr, betaCr = alphaCrC, betaCrC
+						}
+						// Whole-edge chroma gate (same pattern as luma): both
+						// planes gate every line on alpha/beta first, so two
+						// closed gates mean no writes on any segment.
+						chromaOpen := (alphaCb != 0 && betaCb != 0) || (alphaCr != 0 && betaCr != 0)
+						// S1-D chroma whole-edge call: one asm call per
+						// plane filters all 8 lines with per-segment tc.
+						// Weak edges only (no bS==4: the intra formula
+						// differs); intra, mixed, scalar-forced and
+						// non-amd64 edges run the per-segment path below
+						// with identical output. The picture-border skip
+						// (e==0 on the outer row/column) is edge-wide:
+						// every segment shares mbx/mby.
+						batched := false
+						if chromaOpen {
+							weakOnly := true
+							for seg := 0; seg < 4; seg++ {
+								if bSedge[seg] == 4 {
+									weakOnly = false
+									break
+								}
+							}
+							border := e == 0 && ((!vertical && mbx == 0) || (vertical && mby == 0))
+							if weakOnly && !border {
+								var tcCb, tcCr [4]int
+								for seg := 0; seg < 4; seg++ {
+									if bSedge[seg] < 1 {
+										tcCb[seg], tcCr[seg] = -1, -1
+									} else {
+										tcCb[seg] = filterTC(qpcCb, fa, bSedge[seg]) + 1
+										tcCr[seg] = filterTC(qpcCr, fa, bSedge[seg]) + 1
+									}
+								}
+								var cx, cy int
+								if !vertical {
+									cx, cy = mbx*8+e*2, mby*8
+								} else {
+									cx, cy = mbx*8, mby*8+e*2
+								}
+								cbOK := alphaCb == 0 || betaCb == 0 ||
+									chromaDebEdge16(pic.Cb, W/2, cx, cy, vertical, bSedge, tcCb, alphaCb, betaCb)
+								crOK := alphaCr == 0 || betaCr == 0 ||
+									chromaDebEdge16(pic.Cr, W/2, cx, cy, vertical, bSedge, tcCr, alphaCr, betaCr)
+								batched = cbOK && crOK
+							}
+						}
+						if batched {
+							continue
+						}
+						for seg := 0; seg < 4 && chromaOpen; seg++ {
 							// Chroma strength reuses the luma edge result:
 							// identical derivation inputs, so no second
 							// interBS call is needed.
@@ -379,8 +566,8 @@ func DeblockPicture(pic *Picture, qps []int32, fIDC []uint32, fA, fB []int32, mb
 							if bS < 1 {
 								continue
 							}
-							tcCb := filterTC(qpcCb, fA[mby*mbW+mbx], bS)
-							tcCr := filterTC(qpcCr, fA[mby*mbW+mbx], bS)
+							tcCb := filterTC(qpcCb, fa, bS)
+							tcCr := filterTC(qpcCr, fa, bS)
 							var cx, cy int
 							if !vertical {
 								cx, cy = mbx*8+e*2, mby*8+seg*2
@@ -485,7 +672,7 @@ func interBS(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refLi
 	}
 	if refIdx != nil {
 		if useM != nil {
-			if bRefsDiffer(mvX, mvY, refIdx, mvX1, mvY1, refIdx1, pi, qi) {
+			if bRefsDiffer(mvX, mvY, refIdx, mvX1, mvY1, refIdx1, refList, refList1, pi, qi) {
 				return 1
 			}
 		} else if refList != nil {
@@ -538,34 +725,346 @@ func edgeInterior(ex, ey int, vertical bool, mbW, mbH int) bool {
 	return ex >= 4 && ex+16 <= mbW*16 && ey >= 0 && ey+16 <= mbH*16
 }
 
-// interBSInterior is interBS for interior edges: identical results with
-// no bounds checks and no closures. Callers must check edgeInterior
-// first and pass full-length arrays.
-func interBSInterior(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) int {
-	var pBX, pBY, qBX, qBY int
-	if !vertical {
-		pBX, pBY = (sx-1)/4, sy/4
-		qBX, qBY = sx/4, sy/4
-	} else {
-		pBX, pBY = sx/4, (sy-1)/4
-		qBX, qBY = sx/4, sy/4
+// interBSEdge verdicts all four 4-line segments of one 16-pixel edge.
+// Exact batch of 4x interBSInterior: identical outputs segment by
+// segment. The DeblockPicture loop hands MB-aligned origins (ex/ey are
+// multiples of 4: ex=mbx*16+e*4 / ey=mby*16, or the transpose), so the
+// four segments step exactly one 4x4 block each and share one MB pair:
+// divisions and the MB-intra verdict run once, per-segment block work
+// (t8count, ref/mv compares) keeps the Interior body verbatim via
+// running indexes (no multiplies, no divisions per segment).
+// Non-aligned origins fall back to 4x Interior calls (one predictable
+// branch per edge; no caller passes those today).
+// Precondition (same as interBSInterior): edgeInterior checked,
+// full-length arrays.
+func interBSEdge(bSedge *[4]int, mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, ex, ey int, vertical bool, edgeMB bool, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) {
+	if ex&3 != 0 || ey&3 != 0 {
+		for seg := 0; seg < 4; seg++ {
+			sx, sy := ex, ey+seg*4
+			if vertical {
+				sx, sy = ex+seg*4, ey
+			}
+			bSedge[seg] = interBSInterior(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+		}
+		return
 	}
 	stride := mbW * 4
-	pMB := (pBY/4)*mbW + pBX/4
-	qMB := (qBY/4)*mbW + qBX/4
-	if mbIntra[pMB] || mbIntra[qMB] {
-		if edgeMB {
-			return 4
-		}
-		return 3
+	var pBX0, pBY0, qBX0, qBY0 int
+	// S1b-W div-to-shift: all dividends are non-negative here
+	// (fast path guarantees edgeInterior: horizontal needs ex>=4
+	// and ey>=0, vertical needs ey>=4 and ex>=0, so ex-1>=3 and
+	// ey-1>=3 where subtracted), and for x>=0, x/4 == x>>2 exactly
+	// (truncation and floor agree). Same values, no DIV sequence.
+	if !vertical {
+		pBX0, pBY0 = (ex-1)>>2, ey>>2
+		qBX0, qBY0 = ex>>2, ey>>2
+	} else {
+		pBX0, pBY0 = ex>>2, (ey-1)>>2
+		qBX0, qBY0 = ex>>2, ey>>2
 	}
-	pi, qi := pBY*stride+pBX, qBY*stride+qBX
+	// One MB pair for all four segments (origins MB-aligned, steps of
+	// one block stay inside the pair): a single intra verdict decides
+	// all four, exactly like 4x Interior returning 4/3 each.
+	pMB := (pBY0>>2)*mbW + (pBX0 >> 2)
+	qMB := (qBY0>>2)*mbW + (qBX0 >> 2)
+	if mbIntra[pMB] || mbIntra[qMB] {
+		v := 3
+		if edgeMB {
+			v = 4
+		}
+		bSedge[0], bSedge[1], bSedge[2], bSedge[3] = v, v, v, v
+		return
+	}
+	pi0, qi0 := pBY0*stride+pBX0, qBY0*stride+qBX0
+	step := stride
+	if vertical {
+		step = 1
+	}
+	// S1b-S segment-inline: the per-segment call overhead (19 args,
+	// call + bounds recheck per segment) was ~130ms flat per 90f
+	// profile — a third of this function's total. The loop below runs
+	// the interBSSegment body verbatim per segment (t8count, B-ref
+	// compare, ref/mv compares), same order, same values; the helper
+	// stays as the shared tail for the non-aligned entry so the two
+	// cannot drift apart (gated by TestS1InterBSEdgeMatchesSegments).
+	nnzn := len(nnzY)
+	pT8 := pMB >= 0 && pMB < mbW*mbH && pMB < len(mbT8) && mbT8[pMB]
+	qT8 := qMB >= 0 && qMB < mbW*mbH && qMB < len(mbT8) && mbT8[qMB]
+	useB := useM != nil
+	hasList := refList != nil
+	l0n := len(refList)
+	l1n := len(refList1)
+	// S1b-V running indices: pi/qi were recomputed per segment as
+	// pi0+seg*step (a multiply each, ~30ms flat per 90f profile).
+	// Precompute the four offsets once (2 multiplies total) and add
+	// per segment; values bit-identical to the old form (same start,
+	// same step, 4 steps). Offset table (not running vars) because
+	// the body below uses continue per verdict — a trailing
+	// pi+=step would be skipped by every continue and drift.
+	o1, o2, o3 := step, step*2, step*3
+	off := [4]int{0, o1, o2, o3}
+	// S1b-AA edge-level validation (one predictable branch per edge):
+	// the fast caller guarantees edgeInterior + full-length arrays,
+	// so all four pi/qi land in [0,nnzn) and pMB/qMB in range; the
+	// loops below then run without per-segment bounds checks
+	// (identical values — the checks never fired). Anything off
+	// (border probes in tests) falls back to 4x checked Interior
+	// calls with identical verdicts, so the contract holds.
+	nmb := len(mbT8)
+	needP, needQ := pi0+3*step, qi0+3*step
+	if pMB < 0 || pMB >= nmb || qMB < 0 || qMB >= nmb ||
+		pi0 < 0 || qi0 < 0 || needP >= nnzn || needQ >= nnzn ||
+		needP >= len(mvX) || needQ >= len(mvX) ||
+		needP >= len(mvY) || needQ >= len(mvY) ||
+		needP >= len(refIdx) || needQ >= len(refIdx) ||
+		(useB && (needP >= len(mvX1) || needQ >= len(mvX1) ||
+			needP >= len(mvY1) || needQ >= len(mvY1) ||
+			needP >= len(refIdx1) || needQ >= len(refIdx1))) {
+		for seg := 0; seg < 4; seg++ {
+			sx, sy := ex, ey+seg*4
+			if vertical {
+				sx, sy = ex+seg*4, ey
+			}
+			bSedge[seg] = interBSInterior(mbIntra, nnzY, mvX, mvY, refIdx, refList, mbW, mbH, sx, sy, vertical, edgeMB, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+		}
+		return
+	}
+	// S1b-AA mode-split loops: useB/hasList are edge-constant, so
+	// each edge runs exactly one loop with no per-segment mode
+	// branches. Bodies are the verbatim S1b-S inline (t8count, B-ref
+	// compare, ref/mv compares), only the bounds checks dropped per
+	// the validation above; the helpers stay as shared tails.
+	if useB {
+		for seg := 0; seg < 4; seg++ {
+			pi, qi := pi0+off[seg], qi0+off[seg]
+			var pv, qv int
+			// S1b-AC lazy coords: pBX/pBY/qBX/qBY are only used
+			// on the t8 path (8x8 transform merges 2x2 nnz slots).
+			// The common non-t8 path reads nnzY[pi]/nnzY[qi]
+			// directly, so the per-segment vertical branch + 4
+			// assigns are dead work there. Compute coords only
+			// inside the t8 else, same values as before.
+			if !pT8 {
+				pv = int(nnzY[pi])
+			} else {
+				var pBX, pBY int
+				if !vertical {
+					pBX, pBY = pBX0, pBY0+seg
+				} else {
+					pBX, pBY = pBX0+seg, pBY0
+				}
+				pv = int(nnzY[(pBY&^1)*stride+(pBX&^1)])
+			}
+			if pv > 0 {
+				bSedge[seg] = 2
+				continue
+			}
+			if !qT8 {
+				qv = int(nnzY[qi])
+			} else {
+				var qBX, qBY int
+				if !vertical {
+					qBX, qBY = qBX0, qBY0+seg
+				} else {
+					qBX, qBY = qBX0+seg, qBY0
+				}
+				qv = int(nnzY[(qBY&^1)*stride+(qBX&^1)])
+			}
+			if qv > 0 {
+				bSedge[seg] = 2
+				continue
+			}
+			// S1b-AB B-ref unchecked inline: edge validation above
+			// guarantees pi/qi in range for all motion/ref arrays
+			// (short arrays fell back to checked Interior), so the
+			// per-segment pi/qi range + nil checks in
+			// bRefsDifferInterior never fire. Only the value guards
+			// stay: negative ref index (unused list slot) and list
+			// index past a short/duplicate-reordered list. Verbatim
+			// the bRefsDifferInterior verdicts; the helper stays the
+			// shared tail for the fallback path (gated by
+			// TestS1InterBSEdgeMatchesSegments).
+			var p0p, p0q, p1p, p1q *Picture
+			if rp := refIdx[pi]; rp >= 0 {
+				if idx := int(rp); idx < l0n {
+					p0p = refList[idx]
+				}
+			}
+			if rq := refIdx[qi]; rq >= 0 {
+				if idx := int(rq); idx < l0n {
+					p0q = refList[idx]
+				}
+			}
+			if rp := refIdx1[pi]; rp >= 0 {
+				if idx := int(rp); idx < l1n {
+					p1p = refList1[idx]
+				}
+			}
+			if rq := refIdx1[qi]; rq >= 0 {
+				if idx := int(rq); idx < l1n {
+					p1q = refList1[idx]
+				}
+			}
+			v := p0p != p0q
+			if !v && p0p != nil {
+				// S1b-AC branchless threshold (same as hasList lane).
+				dx := int(mvX[pi]) - int(mvX[qi])
+				dy := int(mvY[pi]) - int(mvY[qi])
+				v = dx >= 4 || dx <= -4 || dy >= 4 || dy <= -4
+			}
+			if v {
+				bSedge[seg] = 1
+				continue
+			}
+			v = p1p != p1q
+			if !v && p1p != nil {
+				dx := int(mvX1[pi]) - int(mvX1[qi])
+				dy := int(mvY1[pi]) - int(mvY1[qi])
+				v = dx >= 4 || dx <= -4 || dy >= 4 || dy <= -4
+			}
+			if !v {
+				bSedge[seg] = 0
+				continue
+			}
+			if p0p != p1q || p1p != p0q {
+				bSedge[seg] = 1
+				continue
+			}
+			dx := int(mvX[pi]) - int(mvX1[qi])
+			dy := int(mvY[pi]) - int(mvY1[qi])
+			if dx >= 4 || dx <= -4 || dy >= 4 || dy <= -4 {
+				bSedge[seg] = 1
+				continue
+			}
+			dx = int(mvX1[pi]) - int(mvX[qi])
+			dy = int(mvY1[pi]) - int(mvY[qi])
+			if dx >= 4 || dx <= -4 || dy >= 4 || dy <= -4 {
+				bSedge[seg] = 1
+			} else {
+				bSedge[seg] = 0
+			}
+		}
+		return
+	}
+	if hasList {
+		for seg := 0; seg < 4; seg++ {
+			pi, qi := pi0+off[seg], qi0+off[seg]
+			var pv, qv int
+			// S1b-AC lazy coords (same as useB lane above).
+			if !pT8 {
+				pv = int(nnzY[pi])
+			} else {
+				var pBX, pBY int
+				if !vertical {
+					pBX, pBY = pBX0, pBY0+seg
+				} else {
+					pBX, pBY = pBX0+seg, pBY0
+				}
+				pv = int(nnzY[(pBY&^1)*stride+(pBX&^1)])
+			}
+			if pv > 0 {
+				bSedge[seg] = 2
+				continue
+			}
+			if !qT8 {
+				qv = int(nnzY[qi])
+			} else {
+				var qBX, qBY int
+				if !vertical {
+					qBX, qBY = qBX0, qBY0+seg
+				} else {
+					qBX, qBY = qBX0+seg, qBY0
+				}
+				qv = int(nnzY[(qBY&^1)*stride+(qBX&^1)])
+			}
+			if qv > 0 {
+				bSedge[seg] = 2
+				continue
+			}
+			var pp, qq *Picture
+			if rp := refIdx[pi]; rp >= 0 && int(rp) < l0n {
+				pp = refList[rp]
+			}
+			if rq := refIdx[qi]; rq >= 0 && int(rq) < l0n {
+				qq = refList[rq]
+			}
+			if pp != qq {
+				bSedge[seg] = 1
+				continue
+			}
+			// S1b-AC branchless threshold: abs(dx)>=4 is exactly
+			// dx>=4||dx<=-4 (same for dy), so the two abs branches
+			// go away with identical verdicts.
+			dx := int(mvX[pi]) - int(mvX[qi])
+			dy := int(mvY[pi]) - int(mvY[qi])
+			if dx >= 4 || dx <= -4 || dy >= 4 || dy <= -4 {
+				bSedge[seg] = 1
+				continue
+			}
+			bSedge[seg] = 0
+		}
+		return
+	}
+	for seg := 0; seg < 4; seg++ {
+		pi, qi := pi0+off[seg], qi0+off[seg]
+		var pv, qv int
+		// S1b-AC lazy coords (same as the two lanes above).
+		if !pT8 {
+			pv = int(nnzY[pi])
+		} else {
+			var pBX, pBY int
+			if !vertical {
+				pBX, pBY = pBX0, pBY0+seg
+			} else {
+				pBX, pBY = pBX0+seg, pBY0
+			}
+			pv = int(nnzY[(pBY&^1)*stride+(pBX&^1)])
+		}
+		if pv > 0 {
+			bSedge[seg] = 2
+			continue
+		}
+		if !qT8 {
+			qv = int(nnzY[qi])
+		} else {
+			var qBX, qBY int
+			if !vertical {
+				qBX, qBY = qBX0, qBY0+seg
+			} else {
+				qBX, qBY = qBX0+seg, qBY0
+			}
+			qv = int(nnzY[(qBY&^1)*stride+(qBX&^1)])
+		}
+		if qv > 0 {
+			bSedge[seg] = 2
+			continue
+		}
+		if refIdx[pi] != refIdx[qi] {
+			bSedge[seg] = 1
+			continue
+		}
+		// S1b-AC branchless threshold (same as hasList lane above).
+		dx := int(mvX[pi]) - int(mvX[qi])
+		dy := int(mvY[pi]) - int(mvY[qi])
+		if dx >= 4 || dx <= -4 || dy >= 4 || dy <= -4 {
+			bSedge[seg] = 1
+			continue
+		}
+		bSedge[seg] = 0
+	}
+}
+
+// interBSSegment is the per-segment tail of interBSInterior after the
+// coordinate divisions and the MB-intra verdict: t8count, ref/mv
+// compares. Byte-for-byte the same body; factored so the edge batch
+// and the per-segment entry share it instead of drifting apart.
+func interBSSegment(nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, pBX, pBY, qBX, qBY, pMB, qMB, pi, qi, stride int, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) int {
 	if t8count(nnzY, stride, mbT8, mbW, mbH, pBX, pBY, pMB) > 0 ||
 		t8count(nnzY, stride, mbT8, mbW, mbH, qBX, qBY, qMB) > 0 {
 		return 2
 	}
 	if useM != nil {
-		if bRefsDifferInterior(mvX, mvY, refIdx, mvX1, mvY1, refIdx1, pi, qi) {
+		if bRefsDifferInterior(mvX, mvY, refIdx, mvX1, mvY1, refIdx1, refList, refList1, pi, qi) {
 			return 1
 		}
 		return 0
@@ -601,26 +1100,80 @@ func interBSInterior(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int
 	return 0
 }
 
+// interBSInterior is interBS for interior edges: identical results with
+// no bounds checks and no closures. Callers must check edgeInterior
+// first and pass full-length arrays. Thin entry over interBSSegment
+// (same coordinates, same intra verdict, shared tail); the edge batch
+// calls the batch entry instead.
+func interBSInterior(mbIntra []bool, nnzY []int8, mvX, mvY []int16, refIdx []int8, refList []*Picture, mbW, mbH int, sx, sy int, vertical bool, edgeMB bool, mbT8 []bool, mvX1, mvY1 []int16, refIdx1 []int8, refList1 []*Picture, useM []uint8) int {
+	var pBX, pBY, qBX, qBY int
+	if !vertical {
+		pBX, pBY = (sx-1)/4, sy/4
+		qBX, qBY = sx/4, sy/4
+	} else {
+		pBX, pBY = sx/4, (sy-1)/4
+		qBX, qBY = sx/4, sy/4
+	}
+	stride := mbW * 4
+	pMB := (pBY/4)*mbW + pBX/4
+	qMB := (qBY/4)*mbW + qBX/4
+	if mbIntra[pMB] || mbIntra[qMB] {
+		if edgeMB {
+			return 4
+		}
+		return 3
+	}
+	pi, qi := pBY*stride+pBX, qBY*stride+qBX
+	return interBSSegment(nnzY, mvX, mvY, refIdx, refList, mbW, mbH, pBX, pBY, qBX, qBY, pMB, qMB, pi, qi, stride, mbT8, mvX1, mvY1, refIdx1, refList1, useM)
+}
+
 // bRefsDifferInterior is bRefsDiffer for in-range indexes: no bounds
 // checks, no closures. Shape mirrors bRefsDiffer exactly, including the
 // cross-list mirror pairing.
 //
+// Reference identity compares pictures, not bare list indexes: list 0
+// index 0 and list 1 index 0 are different pictures, and the reference
+// decoder's filter caches carry the same picture identity
+// (h264_slice.c fill_filter_caches_inter ref2frm, read by
+// h264_loopfilter.c check_mv). Bare-index compare reports the B-skip
+// edge equal when it is not, dropping a bS=1 filter.
+//
 // S1b-C: closure-free lane. The old neg1/ge4 closures allocated per
 // call in spirit (inlined, but blocking optimization); inline compares
 // keep identical semantics with no call overhead.
-func bRefsDifferInterior(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []int8, pi, qi int) bool {
-	// NOTE: negative indexes are all "unavailable" (-1, -2 sentinels):
-	// normalize like the safe path's raw() instead of comparing raw.
-	r0p := int(refIdx[pi])
-	if r0p < 0 {
-		r0p = -1
+func bRefsDifferInterior(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []int8, refList, refList1 []*Picture, pi, qi int) bool {
+	// S1b-R at-inline (bit-identical to 4x the at closure, no calls):
+	// the closure ran 4 guarded loads per segment through a call each
+	// (~80ms flat per 90f profile for the body alone); explicit blocks
+	// let the call overhead vanish and the compiler CSE the repeated
+	// refIdx[pi]/refIdx[qi] loads. Same nil/negative/range verdicts.
+	var p0p, p0q, p1p, p1q *Picture
+	if refIdx != nil {
+		if pi >= 0 && pi < len(refIdx) && refIdx[pi] >= 0 {
+			if idx := int(refIdx[pi]); idx >= 0 && idx < len(refList) {
+				p0p = refList[idx]
+			}
+		}
+		if qi >= 0 && qi < len(refIdx) && refIdx[qi] >= 0 {
+			if idx := int(refIdx[qi]); idx >= 0 && idx < len(refList) {
+				p0q = refList[idx]
+			}
+		}
 	}
-	r0q := int(refIdx[qi])
-	if r0q < 0 {
-		r0q = -1
+	if refIdx1 != nil {
+		if pi >= 0 && pi < len(refIdx1) && refIdx1[pi] >= 0 {
+			if idx := int(refIdx1[pi]); idx >= 0 && idx < len(refList1) {
+				p1p = refList1[idx]
+			}
+		}
+		if qi >= 0 && qi < len(refIdx1) && refIdx1[qi] >= 0 {
+			if idx := int(refIdx1[qi]); idx >= 0 && idx < len(refList1) {
+				p1q = refList1[idx]
+			}
+		}
 	}
-	v := r0p != r0q
-	if !v && r0p != -1 {
+	v := p0p != p0q
+	if !v && p0p != nil {
 		dx := int(mvX[pi]) - int(mvX[qi])
 		if dx < 0 {
 			dx = -dx
@@ -632,16 +1185,8 @@ func bRefsDifferInterior(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, re
 		v = dx >= 4 || dy >= 4
 	}
 	if !v {
-		r1p := int(refIdx1[pi])
-		if r1p < 0 {
-			r1p = -1
-		}
-		r1q := int(refIdx1[qi])
-		if r1q < 0 {
-			r1q = -1
-		}
-		v = r1p != r1q
-		if !v && r1p != -1 {
+		v = p1p != p1q
+		if !v && p1p != nil {
 			dx := int(mvX1[pi]) - int(mvX1[qi])
 			if dx < 0 {
 				dx = -dx
@@ -653,7 +1198,7 @@ func bRefsDifferInterior(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, re
 			v = dx >= 4 || dy >= 4
 		}
 		if v {
-			if r0p != r1q || r1p != r0q {
+			if p0p != p1q || p1p != p0q {
 				return true
 			}
 			dx := int(mvX[pi]) - int(mvX1[qi])
@@ -693,17 +1238,21 @@ func ge4(ax, ay, bx, by int16) bool {
 	return dx >= 4 || dy >= 4
 }
 
-// bRefsDiffer compares one inter edge across both reference lists with
-// raw index semantics (unavailable reads -1, like the reference;
-// callers zero unused-list motion, so cross-list compares stay
-// deterministic): list-0 pictures-or-motion, then list 1, then the
-// cross-list pairing when one side's lists mirror the other's.
-func bRefsDiffer(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []int8, pi, qi int) bool {
-	raw := func(ref []int8, i int) int {
+// bRefsDiffer compares one inter edge across both reference lists by
+// picture identity (nil for unused slots, like the reference's
+// LIST_NOT_USED; callers zero unused-list motion, so cross-list
+// compares stay deterministic): list-0 pictures-or-motion, then list 1,
+// then the cross-list pairing when one side's lists mirror the other's.
+// Same peer as bRefsDifferInterior above.
+func bRefsDiffer(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []int8, refList, refList1 []*Picture, pi, qi int) bool {
+	at := func(list []*Picture, ref []int8, i int) *Picture {
 		if ref == nil || i < 0 || i >= len(ref) || ref[i] < 0 {
-			return -1
+			return nil
 		}
-		return int(ref[i])
+		if idx := int(ref[i]); idx >= 0 && idx < len(list) {
+			return list[idx]
+		}
+		return nil
 	}
 	mvGe4 := func(ax, ay, bx, by int16) bool {
 		dx, dy := int(ax)-int(bx), int(ay)-int(by)
@@ -725,15 +1274,15 @@ func bRefsDiffer(mvX, mvY []int16, refIdx []int8, mvX1, mvY1 []int16, refIdx1 []
 		mv1p = [2]int16{mvX1[pi], mvY1[pi]}
 		mv1q = [2]int16{mvX1[qi], mvY1[qi]}
 	}
-	r0p, r0q := raw(refIdx, pi), raw(refIdx, qi)
-	r1p, r1q := raw(refIdx1, pi), raw(refIdx1, qi)
+	r0p, r0q := at(refList, refIdx, pi), at(refList, refIdx, qi)
+	r1p, r1q := at(refList1, refIdx1, pi), at(refList1, refIdx1, qi)
 	v := r0p != r0q
-	if !v && r0p != -1 {
+	if !v && r0p != nil {
 		v = mvGe4(mv0p[0], mv0p[1], mv0q[0], mv0q[1])
 	}
 	if !v {
 		v = r1p != r1q
-		if !v && r1p != -1 {
+		if !v && r1p != nil {
 			v = mvGe4(mv1p[0], mv1p[1], mv1q[0], mv1q[1])
 		}
 		if v {
