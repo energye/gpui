@@ -38,6 +38,19 @@ func clipInt(v, lo, hi int) int {
 	return v
 }
 
+// clipU8 clips v to [0,255] without branches. Bit-identical to
+// clipInt(v, 0, 255) for |v| < 2^30 (all filter outputs here stay
+// within a few thousand): negative values yield 0, values above 255
+// yield 255, the rest pass through. Arithmetic shift plus masks only,
+// so quarter-pel combine loops pay no branch mispredicts.
+func clipU8(v int) int {
+	t := v >> 31
+	v &= ^t
+	t = (255 - v) >> 31
+	v |= t
+	return v & 255
+}
+
 // partNotAvailable marks neighbours outside the picture: only those fall
 // back to the top-left diagonal and force the median default. Intra
 // neighbours report ref -1 with a zero vector.
@@ -422,7 +435,7 @@ func halfH(plane []uint8, w, h, x, y int) int {
 	p3 := fullPel(plane, w, h, x+1, y)
 	p4 := fullPel(plane, w, h, x+2, y)
 	p5 := fullPel(plane, w, h, x+3, y)
-	return clipInt((p0+p5-5*(p1+p4)+20*(p2+p3)+16)>>5, 0, 255)
+	return clipU8((p0 + p5 - 5*(p1+p4) + 20*(p2+p3) + 16) >> 5)
 }
 
 // halfV is the 6-tap half-pel filter vertically.
@@ -433,7 +446,7 @@ func halfV(plane []uint8, w, h, x, y int) int {
 	p3 := fullPel(plane, w, h, x, y+1)
 	p4 := fullPel(plane, w, h, x, y+2)
 	p5 := fullPel(plane, w, h, x, y+3)
-	return clipInt((p0+p5-5*(p1+p4)+20*(p2+p3)+16)>>5, 0, 255)
+	return clipU8((p0 + p5 - 5*(p1+p4) + 20*(p2+p3) + 16) >> 5)
 }
 
 // centerJ is the half-half position: cascaded 6-tap without intermediate
@@ -451,7 +464,7 @@ func centerJ(plane []uint8, w, h, x, y int) int {
 		tmp[i] = p0 + p5 - 5*(p1+p4) + 20*(p2+p3)
 	}
 	sum := tmp[0] + tmp[5] - 5*(tmp[1]+tmp[4]) + 20*(tmp[2]+tmp[3])
-	return clipInt((sum+512)>>10, 0, 255)
+	return clipU8((sum + 512) >> 10)
 }
 
 func avg2(a, b int) int { return (a + b + 1) >> 1 }
@@ -522,26 +535,133 @@ func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16, out []uint8)
 		}
 		return
 	}
+	predictLumaBlockInto(ref, px, py, w, h, mx, my, out, w)
+}
+
+// predictLumaBlockInto is the strided entry (S1-W direct-write):
+// output row dy lands at dst[dy*dstStride:dy*dstStride+w]. Same
+// source rect, same filter, same bytes; the dense entry above is one
+// call with dstStride == w. The nil-ref fill (128) also strides.
+func predictLumaBlockInto(ref *Picture, px, py, w, h int, mx, my int16, dst []uint8, dstStride int) {
+	if ref == nil {
+		for dy := 0; dy < h; dy++ {
+			base := dy * dstStride
+			for dx := 0; dx < w; dx++ {
+				dst[base+dx] = 128
+			}
+		}
+		return
+	}
 	rw, rh := int(ref.Width), int(ref.Height)
+	if predictStatsOn {
+		notePredictClass(rw, rh, px, py, w, h, mx, my)
+	}
 	// Fast path: integer-pel motion inside the frame is a plain row copy
 	// (no 6-tap filter, no per-pixel clipping). Static content — the
 	// common case for screen recordings — lands here for every block.
-	if int(mx)&3 == 0 && int(my)&3 == 0 {
-		sx := px + int(mx>>2)
-		sy := py + int(my>>2)
-		if sx >= 0 && sy >= 0 && sx+w <= rw && sy+h <= rh {
+	if sx, sy, ok := lumaIntSrc(rw, rh, px, py, w, h, mx, my); ok {
+		// S1b-C width-hoisted row loops (same bytes as copyRow per
+		// row): the width switch sits outside the loop so each row
+		// pays two slices + inline moves only — no per-row switch,
+		// no memmove call. Constant widths compile to inline moves.
+		switch w {
+		case 16:
 			for dy := 0; dy < h; dy++ {
-				copy(out[dy*w:(dy+1)*w], ref.Y[(sy+dy)*rw+sx:(sy+dy)*rw+sx+w])
+				di := dy * dstStride
+				si := (sy+dy)*rw + sx
+				copy(dst[di:di+16], ref.Y[si:si+16])
 			}
-			return
+		case 8:
+			for dy := 0; dy < h; dy++ {
+				di := dy * dstStride
+				si := (sy+dy)*rw + sx
+				copy(dst[di:di+8], ref.Y[si:si+8])
+			}
+		case 4:
+			for dy := 0; dy < h; dy++ {
+				di := dy * dstStride
+				si := (sy+dy)*rw + sx
+				copy(dst[di:di+4], ref.Y[si:si+4])
+			}
+		default:
+			for dy := 0; dy < h; dy++ {
+				di := dy * dstStride
+				si := (sy+dy)*rw + sx
+				copyRow(dst[di:], ref.Y[si:], w)
+			}
 		}
+		return
 	}
 	// S1 fast path: interior sub-pel blocks run the arch row kernel
 	// (qpel_fast.go); edges and forced-scalar fall to the留守 below.
-	if qpelFast(ref.Y, rw, rh, px, py, w, h, mx, my, out) {
+	if qpelFastInto(ref.Y, rw, rh, px, py, w, h, mx, my, dst, dstStride) {
 		return
 	}
-	predictLumaBlockScalar(ref.Y, rw, rh, px, py, w, h, mx, my, out)
+	predictLumaBlockScalarInto(ref.Y, rw, rh, px, py, w, h, mx, my, dst, dstStride)
+}
+
+// lumaIntSrc reports the integer source origin when (mx,my) is
+// integer-pel and the source rect sits fully inside the frame (same
+// condition as the predictLumaBlock row-copy fast path). Single source
+// for both the dense path above and the direct-write path in pdec.go;
+// keep callers on this helper so the gate never drifts.
+func lumaIntSrc(rw, rh, px, py, w, h int, mx, my int16) (sx, sy int, ok bool) {
+	if int(mx)&3 != 0 || int(my)&3 != 0 {
+		return 0, 0, false
+	}
+	sx = px + int(mx>>2)
+	sy = py + int(my>>2)
+	if sx < 0 || sy < 0 || sx+w > rw || sy+h > rh {
+		return 0, 0, false
+	}
+	return sx, sy, true
+}
+
+// copyRow copies one w-byte row without a runtime.memmove call.
+// Live partition widths are 2/4/8/16; constant-size copy compiles to
+// inline moves (bounds checks eliminated, same bytes on every arch).
+// Other widths keep the generic copy. Covers the thousands of small
+// row copies per frame (luma/chroma integer paths, strided block
+// copies) whose call overhead dominated the move itself.
+func copyRow(dst, src []byte, w int) {
+	switch w {
+	case 2:
+		copy(dst[:2], src[:2])
+	case 4:
+		copy(dst[:4], src[:4])
+	case 8:
+		copy(dst[:8], src[:8])
+	case 16:
+		copy(dst[:16], src[:16])
+	default:
+		copy(dst[:w], src[:w])
+	}
+}
+
+// copyBlockStrided copies w*h bytes from src (stride srcStride, origin
+// sx,sy) to dst (stride dstStride, origin dx,dy) row by row (copyRow
+// per row, no memmove calls). Bit-identical to predict-then-copy; the
+// win is one fewer touch of every byte (no intermediate block).
+func copyBlockStrided(dst []uint8, dstStride, dx, dy int, src []uint8, srcStride, sx, sy, w, h int) {
+	for r := 0; r < h; r++ {
+		di := (dy+r)*dstStride + dx
+		si := (sy+r)*srcStride + sx
+		copyRow(dst[di:], src[si:], w)
+	}
+}
+
+// chromaIntSrc mirrors lumaIntSrc for chroma (eighth-pel-exact: both
+// fracs zero, same gate as predictChromaBlock).
+func chromaIntSrc(w, h, px, py, cw, ch int, mx, my int16) (sx, sy int, ok bool) {
+	if int(mx)&7 != 0 || int(my)&7 != 0 {
+		return 0, 0, false
+	}
+	sx = px + int(mx>>3)
+	sy = py + int(my>>3)
+	if sx < 0 || sy < 0 || sx+cw > w || sy+ch > h {
+		return 0, 0, false
+	}
+	return sx, sy, true
 }
 
 // predictLumaBlockScalar is the scalar留守 (C版留守): per-pixel 6-tap
@@ -549,42 +669,341 @@ func predictLumaBlock(ref *Picture, px, py, w, h int, mx, my int16, out []uint8)
 // S1 fast paths: SIMD缺席/贴边/强制标量时回落到此, 输出逐位一致由
 // qpel_s1_test.go 锁死. Do not optimize here; optimize in qpel_*.
 func predictLumaBlockScalar(plane []uint8, w, h, px, py, bw, bh int, mx, my int16, out []uint8) {
+	predictLumaBlockScalarInto(plane, w, h, px, py, bw, bh, mx, my, out, bw)
+}
+
+// predictLumaBlockScalarInto is the strided scalar留守 (S1-W
+// direct-write): same per-pixel taps as the dense留守, rows stride out.
+//
+// S1b-E row-band shape (bit-identical pixels): edge-touching blocks
+// used to run every pixel through the per-tap-clipping scalar loop,
+// ~15x the interior cost per pixel (clipInt+fullPel dominate the
+// profile on the 1.5% edge blocks). Motion is linear in the pixel
+// (ix = px+dx+m with m = mx>>2 floor, fx constant per block), so the
+// interior pixels form a sub-run per row: rows vertically interior
+// run their interior dx-run through the vector kernel (bh=1 block),
+// rim pixels keep the scalar taps. The kernel gate double-checks the
+// taps; a false verdict falls back to the scalar row, so a
+// conservative run can only cost speed, never pixels. Peer (ffmpeg,
+// read-only, ideas only): emulated-edge buffers (ours keeps exact
+// per-tap clip on the rim instead).
+func predictLumaBlockScalarInto(plane []uint8, w, h, px, py, bw, bh int, mx, my int16, dst []uint8, dstStride int) {
+	m := int(mx) >> 2
+	n := int(my) >> 2
+	fx := int(mx) - (m << 2)
+	fy := int(my) - (n << 2)
 	for dy := 0; dy < bh; dy++ {
-		for dx := 0; dx < bw; dx++ {
-			qx := (px+dx)*4 + int(mx)
-			qy := (py+dy)*4 + int(my)
-			// Floor divide by 4 for possibly negative vectors.
-			ix := qx >> 2
-			iy := qy >> 2
-			fx := qx - (ix << 2)
-			fy := qy - (iy << 2)
-			out[dy*bw+dx] = uint8(lumaSample(plane, w, h, ix, iy, fx, fy))
+		base := dy * dstStride
+		iy := py + dy + n
+		// Vertical taps interior for this row (6-tap needs iy-2..iy+3;
+		// conservative for all fy, gate verifies)?
+		if iy-2 >= 0 && iy+3 < h {
+			// Interior dx-run: ix(dx)=px+dx+m monotonic, need
+			// ix-2>=0 && ix+3<w (superset of taps for any fx).
+			a := 2 - m - px
+			if a < 0 {
+				a = 0
+			}
+			b := w - 4 - m - px
+			if b > bw-1 {
+				b = bw - 1
+			}
+			if a <= b {
+				runW := b - a + 1
+				// Integer run (fx==fy==0): the kernel has no
+				// integer lane (its fy==0 leg assumes fx!=0), but
+				// the run is tap-interior by construction, so the
+				// scalar fullPel clips are no-ops: plain copy.
+				if fx == 0 && fy == 0 {
+					copyRow(dst[base+a:], plane[iy*w+px+a+m:], runW)
+					// S1b-AE rim direct: ix/iy from hoisted m/n,
+					// same pixels as scalarPel (fx/fy constant).
+					for dx := 0; dx < a; dx++ {
+						dst[base+dx] = scalarPelDirect(plane, w, h, px+dx+m, iy, 0, 0)
+					}
+					for dx := b + 1; dx < bw; dx++ {
+						dst[base+dx] = scalarPelDirect(plane, w, h, px+dx+m, iy, 0, 0)
+					}
+					continue
+				}
+				if qpelBlockInto(dst[base+a:base+a+runW], runW, plane, w, h, px+a+m, iy, runW, 1, fx, fy) {
+					// S1b-AE rim direct (same as above).
+					for dx := 0; dx < a; dx++ {
+						dst[base+dx] = scalarPelDirect(plane, w, h, px+dx+m, iy, fx, fy)
+					}
+					for dx := b + 1; dx < bw; dx++ {
+						dst[base+dx] = scalarPelDirect(plane, w, h, px+dx+m, iy, fx, fy)
+					}
+					continue
+				}
+			}
+		}
+		// S1b-AE family-hoisted fallback: fx/fy block-constant, so the
+		// lumaSample family switch runs once per block, not per pixel.
+		// Bodies are the verbatim tap trees (same helpers, same order).
+		switch {
+		case fx == 0 && fy == 0:
+			for dx := 0; dx < bw; dx++ {
+				dst[base+dx] = uint8(fullPel(plane, w, h, px+dx+m, iy))
+			}
+		case fy == 0:
+			for dx := 0; dx < bw; dx++ {
+				dst[base+dx] = uint8(lumaSampleHor(plane, w, h, px+dx+m, iy, fx))
+			}
+		case fx == 0:
+			for dx := 0; dx < bw; dx++ {
+				dst[base+dx] = uint8(lumaSampleVer(plane, w, h, px+dx+m, iy, fy))
+			}
+		default:
+			// S1b-AF pair dispatch (same nine verdicts as
+			// lumaSampleGen, one branch per block): each pixel
+			// evaluates only its pair's trees.
+			switch {
+			case fx == 2 && fy == 2:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen22(plane, w, h, px+dx+m, iy))
+				}
+			case fx == 1 && fy == 1:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen11(plane, w, h, px+dx+m, iy))
+				}
+			case fx == 2 && fy == 1:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen21(plane, w, h, px+dx+m, iy))
+				}
+			case fx == 3 && fy == 1:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen31(plane, w, h, px+dx+m, iy))
+				}
+			case fx == 1 && fy == 2:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen12(plane, w, h, px+dx+m, iy))
+				}
+			case fx == 3 && fy == 2:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen32(plane, w, h, px+dx+m, iy))
+				}
+			case fx == 1 && fy == 3:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen13(plane, w, h, px+dx+m, iy))
+				}
+			case fx == 2 && fy == 3:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen23(plane, w, h, px+dx+m, iy))
+				}
+			default:
+				for dx := 0; dx < bw; dx++ {
+					dst[base+dx] = uint8(lumaSampleGen33(plane, w, h, px+dx+m, iy))
+				}
+			}
 		}
 	}
+}
+
+// scalarPel is one pixel of the scalar留守 (extracted so the S1b-E row
+// band can reuse it for rim pixels): floor quarter-pel split plus the
+// full lumaSample tap tree with per-tap edge clipping.
+func scalarPel(plane []uint8, w, h, px, py int, mx, my int16, dx, dy int) uint8 {
+	qx := (px+dx)*4 + int(mx)
+	qy := (py+dy)*4 + int(my)
+	// Floor divide by 4 for possibly negative vectors.
+	ix := qx >> 2
+	iy := qy >> 2
+	fx := qx - (ix << 2)
+	fy := qy - (iy << 2)
+	return uint8(lumaSample(plane, w, h, ix, iy, fx, fy))
+}
+
+// S1b-AE frac-hoisted rim (bit-identical pixels): fx/fy are
+// block-constant (mx/my constant, so (px+dx)*4+mx mod 4 never changes
+// with dx/dy), but scalarPel recomputed them per pixel with two
+// multiplies + two shifts + two subtracts, and lumaSample re-switched
+// the family per pixel. The outer scalar driver already holds m/n/fx/fy,
+// so rim pixels pass ix=px+dx+m, iy=py+dy+n straight into the tap tree
+// with the family hoisted once per block. scalarPel/lumaSample stay as
+// the shared oracle (gated by qpel_s1_test.go all-frac pins).
+func scalarPelDirect(plane []uint8, w, h, ix, iy, fx, fy int) uint8 {
+	// S1b-AF: same dispatch as the fallback above, so row-band rim
+	// pixels (few per edge block) also skip unused trees.
+	switch {
+	case fx == 0 && fy == 0:
+		return uint8(fullPel(plane, w, h, ix, iy))
+	case fy == 0:
+		return uint8(lumaSampleHor(plane, w, h, ix, iy, fx))
+	case fx == 0:
+		return uint8(lumaSampleVer(plane, w, h, ix, iy, fy))
+	case fx == 2 && fy == 2:
+		return uint8(lumaSampleGen22(plane, w, h, ix, iy))
+	case fx == 1 && fy == 1:
+		return uint8(lumaSampleGen11(plane, w, h, ix, iy))
+	case fx == 2 && fy == 1:
+		return uint8(lumaSampleGen21(plane, w, h, ix, iy))
+	case fx == 3 && fy == 1:
+		return uint8(lumaSampleGen31(plane, w, h, ix, iy))
+	case fx == 1 && fy == 2:
+		return uint8(lumaSampleGen12(plane, w, h, ix, iy))
+	case fx == 3 && fy == 2:
+		return uint8(lumaSampleGen32(plane, w, h, ix, iy))
+	case fx == 1 && fy == 3:
+		return uint8(lumaSampleGen13(plane, w, h, ix, iy))
+	case fx == 2 && fy == 3:
+		return uint8(lumaSampleGen23(plane, w, h, ix, iy))
+	default:
+		return uint8(lumaSampleGen33(plane, w, h, ix, iy))
+	}
+}
+
+// S1b-AF gen-pair specializers (bit-identical pixels): lumaSampleGen
+// above evaluates all five tap trees per pixel (hh+hv+jj+hh1+hv1, ~60
+// fullPel clips) then selects one verdict, but each (fx,fy) pair needs
+// at most two trees (below: verbatim taps from lumaSampleGen, same
+// helpers, same order). The scalar fallback dispatches once per block,
+// rim pixels reuse the same pair. lumaSampleGen stays as the shared
+// oracle (gated by qpel_s1_test.go all-frac pins).
+func lumaSampleGen22(plane []uint8, w, h, x, y int) int {
+	return centerJ(plane, w, h, x, y)
+}
+
+func lumaSampleGen11(plane []uint8, w, h, x, y int) int {
+	return avg2(halfH(plane, w, h, x, y), halfV(plane, w, h, x, y))
+}
+
+func lumaSampleGen21(plane []uint8, w, h, x, y int) int {
+	return avg2(halfH(plane, w, h, x, y), centerJ(plane, w, h, x, y))
+}
+
+func lumaSampleGen31(plane []uint8, w, h, x, y int) int {
+	return avg2(halfH(plane, w, h, x, y), halfV(plane, w, h, x+1, y))
+}
+
+func lumaSampleGen12(plane []uint8, w, h, x, y int) int {
+	return avg2(halfV(plane, w, h, x, y), centerJ(plane, w, h, x, y))
+}
+
+func lumaSampleGen32(plane []uint8, w, h, x, y int) int {
+	return avg2(centerJ(plane, w, h, x, y), halfV(plane, w, h, x+1, y))
+}
+
+func lumaSampleGen13(plane []uint8, w, h, x, y int) int {
+	return avg2(halfV(plane, w, h, x, y), halfH(plane, w, h, x, y+1))
+}
+
+func lumaSampleGen23(plane []uint8, w, h, x, y int) int {
+	return avg2(halfH(plane, w, h, x, y+1), centerJ(plane, w, h, x, y))
+}
+
+func lumaSampleGen33(plane []uint8, w, h, x, y int) int {
+	return avg2(halfH(plane, w, h, x, y+1), halfV(plane, w, h, x+1, y))
+}
+
+func lumaSampleHor(plane []uint8, w, h, x, y, fx int) int {
+	f := fullPel(plane, w, h, x, y)
+	hh := halfH(plane, w, h, x, y)
+	switch fx {
+	case 1:
+		return avg2(f, hh)
+	case 2:
+		return hh
+	default:
+		return avg2(hh, fullPel(plane, w, h, x+1, y))
+	}
+}
+
+func lumaSampleVer(plane []uint8, w, h, x, y, fy int) int {
+	f := fullPel(plane, w, h, x, y)
+	hv := halfV(plane, w, h, x, y)
+	switch fy {
+	case 1:
+		return avg2(f, hv)
+	case 2:
+		return hv
+	default:
+		return avg2(hv, fullPel(plane, w, h, x, y+1))
+	}
+}
+
+func lumaSampleGen(plane []uint8, w, h, x, y, fx, fy int) int {
+	hh := halfH(plane, w, h, x, y)
+	hv := halfV(plane, w, h, x, y)
+	jj := centerJ(plane, w, h, x, y)
+	hh1 := halfH(plane, w, h, x, y+1)
+	hv1 := halfV(plane, w, h, x+1, y)
+	switch {
+	case fx == 2 && fy == 2:
+		return jj
+	case fy == 1 && fx == 1:
+		return avg2(hh, hv)
+	case fy == 1 && fx == 2:
+		return avg2(hh, jj)
+	case fy == 1:
+		if fx == 3 {
+			return avg2(hh, hv1)
+		}
+	case fy == 2 && fx == 1:
+		return avg2(hv, jj)
+	case fy == 2 && fx == 3:
+		return avg2(jj, hv1)
+	case fy == 3 && fx == 1:
+		return avg2(hv, hh1)
+	case fy == 3 && fx == 2:
+		return avg2(hh1, jj)
+	case fy == 3 && fx == 3:
+		return avg2(hh1, hv1)
+	}
+	return avg2(hh, hv)
 }
 
 // predictChromaBlock interpolates one chroma partition into out (length
 // cw*ch). The chroma vector shares the luma integer (quarter units double
 // as eighth units).
 func predictChromaBlock(plane []uint8, w, h, px, py, cw, ch int, mx, my int16, out []uint8) {
+	predictChromaBlockInto(plane, w, h, px, py, cw, ch, mx, my, out, cw)
+}
+
+// predictChromaBlockInto is the strided entry (S1-W direct-write):
+// output row dy lands at dst[dy*dstStride:dy*dstStride+cw]. Same
+// source rect, same bilinear weights, same bytes; the dense entry
+// above is one call with dstStride == cw.
+func predictChromaBlockInto(plane []uint8, w, h, px, py, cw, ch int, mx, my int16, dst []uint8, dstStride int) {
 	// Fast path: eighth-pel-exact motion inside the frame is a plain row
 	// copy (bilinear weights collapse to the top-left tap).
-	if int(mx)&7 == 0 && int(my)&7 == 0 {
-		sx := px + int(mx>>3)
-		sy := py + int(my>>3)
-		if sx >= 0 && sy >= 0 && sx+cw <= w && sy+ch <= h {
+	if sx, sy, ok := chromaIntSrc(w, h, px, py, cw, ch, mx, my); ok {
+		// S1b-C width-hoisted (same shape as the luma integer path).
+		switch cw {
+		case 8:
 			for dy := 0; dy < ch; dy++ {
-				copy(out[dy*cw:(dy+1)*cw], plane[(sy+dy)*w+sx:(sy+dy)*w+sx+cw])
+				di := dy * dstStride
+				si := (sy+dy)*w + sx
+				copy(dst[di:di+8], plane[si:si+8])
 			}
-			return
+		case 4:
+			for dy := 0; dy < ch; dy++ {
+				di := dy * dstStride
+				si := (sy+dy)*w + sx
+				copy(dst[di:di+4], plane[si:si+4])
+			}
+		case 2:
+			for dy := 0; dy < ch; dy++ {
+				di := dy * dstStride
+				si := (sy+dy)*w + sx
+				copy(dst[di:di+2], plane[si:si+2])
+			}
+		default:
+			for dy := 0; dy < ch; dy++ {
+				di := dy * dstStride
+				si := (sy+dy)*w + sx
+				copyRow(dst[di:], plane[si:], cw)
+			}
 		}
+		return
 	}
 	// S1b-A1 fast path: interior sub-pel blocks run the arch row kernel
 	// (chroma_fast.go); edges and forced-scalar fall to the留守 below.
-	if chromaFast(plane, w, h, px, py, cw, ch, mx, my, out) {
+	if chromaFastInto(plane, w, h, px, py, cw, ch, mx, my, dst, dstStride) {
 		return
 	}
 	for dy := 0; dy < ch; dy++ {
+		base := dy * dstStride
 		for dx := 0; dx < cw; dx++ {
 			ex := (px+dx)*8 + int(mx)
 			ey := (py+dy)*8 + int(my)
@@ -597,7 +1016,7 @@ func predictChromaBlock(plane []uint8, w, h, px, py, cw, ch int, mx, my int16, o
 			c := fullPel(plane, w, h, ix, iy+1)
 			d := fullPel(plane, w, h, ix+1, iy+1)
 			v := ((8-fx)*(8-fy)*a + fx*(8-fy)*b + (8-fx)*fy*c + fx*fy*d + 32) >> 6
-			out[dy*cw+dx] = uint8(clipInt(v, 0, 255))
+			dst[base+dx] = uint8(clipU8(v))
 		}
 	}
 }
