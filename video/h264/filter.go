@@ -1011,25 +1011,49 @@ func interBSEdge(bSedge *[4]int, mbIntra []bool, nnzY []int8, mvX, mvY []int16, 
 			// the bRefsDifferInterior verdicts; the helper stays the
 			// shared tail for the fallback path (gated by
 			// TestS1InterBSEdgeMatchesSegments).
+			// S1b-AD equal-index shortcut (bit-identical): neighbours
+			// usually share the reference (same index -> same
+			// pointer, same nil-ness), so one list load serves both
+			// sides; only differing indexes pay the second load.
+			// Out-of-range/negative indexes stay nil on both sides,
+			// exactly like two independent guarded loads.
 			var p0p, p0q, p1p, p1q *Picture
-			if rp := refIdx[pi]; rp >= 0 {
-				if idx := int(rp); idx < l0n {
-					p0p = refList[idx]
+			if rp, rq := refIdx[pi], refIdx[qi]; rp == rq {
+				if rp >= 0 {
+					if idx := int(rp); idx < l0n {
+						p0p = refList[idx]
+					}
+				}
+				p0q = p0p
+			} else {
+				if rp >= 0 {
+					if idx := int(rp); idx < l0n {
+						p0p = refList[idx]
+					}
+				}
+				if rq >= 0 {
+					if idx := int(rq); idx < l0n {
+						p0q = refList[idx]
+					}
 				}
 			}
-			if rq := refIdx[qi]; rq >= 0 {
-				if idx := int(rq); idx < l0n {
-					p0q = refList[idx]
+			if rp, rq := refIdx1[pi], refIdx1[qi]; rp == rq {
+				if rp >= 0 {
+					if idx := int(rp); idx < l1n {
+						p1p = refList1[idx]
+					}
 				}
-			}
-			if rp := refIdx1[pi]; rp >= 0 {
-				if idx := int(rp); idx < l1n {
-					p1p = refList1[idx]
+				p1q = p1p
+			} else {
+				if rp >= 0 {
+					if idx := int(rp); idx < l1n {
+						p1p = refList1[idx]
+					}
 				}
-			}
-			if rq := refIdx1[qi]; rq >= 0 {
-				if idx := int(rq); idx < l1n {
-					p1q = refList1[idx]
+				if rq >= 0 {
+					if idx := int(rq); idx < l1n {
+						p1q = refList1[idx]
+					}
 				}
 			}
 			v := p0p != p0q
@@ -1109,11 +1133,20 @@ func interBSEdge(bSedge *[4]int, mbIntra []bool, nnzY []int8, mvX, mvY []int16, 
 				continue
 			}
 			var pp, qq *Picture
-			if rp := refIdx[pi]; rp >= 0 && int(rp) < l0n {
-				pp = refList[rp]
-			}
-			if rq := refIdx[qi]; rq >= 0 && int(rq) < l0n {
-				qq = refList[rq]
+			// S1b-AD equal-index shortcut (same as useB lane):
+			// one list load serves both sides when indexes match.
+			if rp, rq := refIdx[pi], refIdx[qi]; rp == rq {
+				if rp >= 0 && int(rp) < l0n {
+					pp = refList[rp]
+				}
+				qq = pp
+			} else {
+				if rp >= 0 && int(rp) < l0n {
+					pp = refList[rp]
+				}
+				if rq >= 0 && int(rq) < l0n {
+					qq = refList[rq]
+				}
 			}
 			if pp != qq {
 				bSedge[seg] = 1
