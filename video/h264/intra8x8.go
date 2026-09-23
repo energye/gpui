@@ -17,7 +17,9 @@ import "fmt"
 // I-heavy 1080p frame; make() x4 per call showed as GC pressure).
 func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 	var out [64]uint8
-	set := func(x, y, v int) { out[y*8+x] = uint8(v) }
+	// S1b-IC direct stores (bit-identical): the old set() closure ran
+	// once per pixel (64 calls per block); every mode below writes
+	// out[y*8+x] directly with the same value.
 	var rawT [16]uint8
 	var rawL [8]uint8
 	hasTop, hasTR, hasLeft := true, true, true
@@ -136,7 +138,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 		}
 		for y := 0; y < 8; y++ {
 			for x := 0; x < 8; x++ {
-				set(x, y, t[x])
+				out[y*8+x] = uint8(t[x])
 			}
 		}
 	case Intra4x4Horizontal:
@@ -145,7 +147,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 		}
 		for y := 0; y < 8; y++ {
 			for x := 0; x < 8; x++ {
-				set(x, y, l[y])
+				out[y*8+x] = uint8(l[y])
 			}
 		}
 	case Intra4x4DC:
@@ -179,12 +181,12 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 			v := (t[s] + 2*t[s+1] + t[s+2] + 2) >> 2
 			for x := 0; x < 8; x++ {
 				if y := s - x; y >= 0 && y < 8 {
-					set(x, y, v)
+					out[y*8+x] = uint8(v)
 				}
 			}
 		}
 		v := (t[14] + 3*t[15] + 2) >> 2
-		set(7, 7, v)
+		out[7*8+7] = uint8(v)
 	case Intra4x4DiagDownRight:
 		if err := needTop(); err != nil {
 			return out, err
@@ -207,7 +209,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 				default:
 					v = (T(d-2) + 2*T(d-1) + T(d) + 2) >> 2
 				}
-				set(x, y, v)
+				out[y*8+x] = uint8(v)
 			}
 		}
 	case Intra4x4VerticalRight:
@@ -236,7 +238,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 					m := k / 2
 					v = (T(m-1) + T(m) + 1) >> 1
 				}
-				set(x, y, v)
+				out[y*8+x] = uint8(v)
 			}
 		}
 	case Intra4x4HorizontalDown:
@@ -266,7 +268,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 					m := k / 2
 					v = (L(m-1) + L(m) + 1) >> 1
 				}
-				set(x, y, v)
+				out[y*8+x] = uint8(v)
 			}
 		}
 	case Intra4x4VerticalLeft:
@@ -283,7 +285,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 					m := (k - 1) / 2
 					v = (t[m] + 2*t[m+1] + t[m+2] + 2) >> 2
 				}
-				set(x, y, v)
+				out[y*8+x] = uint8(v)
 			}
 		}
 	case Intra4x4HorizontalUp:
@@ -305,7 +307,7 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 					m := (k - 1) / 2
 					v = (l[m] + 2*l[m+1] + l[m+2] + 2) >> 2
 				}
-				set(x, y, v)
+				out[y*8+x] = uint8(v)
 			}
 		}
 	default:
