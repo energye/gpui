@@ -1,4 +1,4 @@
-//go:build (!amd64 && !arm64)
+//go:build !amd64 && !arm64
 
 package h264
 
@@ -7,5 +7,11 @@ package h264
 // (qpel_arm64.go/s, wired via qpelFast below); i386 and 32-bit arm
 // stay on the scalar path by design (see plan §12 S1).
 func qpelBlock(dst, plane []byte, w, h, ix, iy, bw, bh, fx, fy int) bool {
+	return false
+}
+
+// qpelBlockInto reports unavailable off amd64/arm64 (the strided
+// scalar留守 in inter.go runs instead).
+func qpelBlockInto(dst []byte, dstStride int, plane []byte, w, h, ix, iy, bw, bh, fx, fy int) bool {
 	return false
 }

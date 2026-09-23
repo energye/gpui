@@ -329,6 +329,12 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 	}
 	// New picture starts at FirstMB 0: reset per-frame motion state.
 	// Multi-slice frames keep accumulating; slices all share the arrays.
+	//
+	// S1b-R reset shape (values identical to the old per-element
+	// loops): zero-fills run through the clear builtin (one runtime
+	// memclr per array: wide stores, no per-element bounds checks);
+	// -1 fills and the -2 poison scan keep explicit loops (clear only
+	// writes zero). No pixel effect (bookkeeping only).
 	if h.FirstMB == 0 && d.decoded == 0 {
 		for i := range d.refIdx {
 			d.refIdx[i] = -1
@@ -336,41 +342,25 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 		for i := range d.refIdx1 {
 			d.refIdx1[i] = -1
 		}
-		for i := range d.useM {
-			d.useM[i] = 0
-		}
-		for i := range d.direct4 {
-			d.direct4[i] = false
-		}
-		for i := range d.mbDirect {
-			d.mbDirect[i] = false
-		}
-		for i := range d.modes {
-			d.modes[i] = -1
-		}
-		for i := range d.mbIntra {
-			d.mbIntra[i] = false
-		}
-		for i := range d.skipped {
-			d.skipped[i] = false
-			d.uniSkip[i] = false
-			d.mbI16[i] = false
-			d.cmode[i] = 0
-			d.cbpArr[i] = 0
+		clear(d.useM)
+		clear(d.direct4)
+		clear(d.mbDirect)
+		// modes keeps its -1 fill in the staleness block below.
+		clear(d.mbIntra)
+		clear(d.skipped)
+		clear(d.uniSkip)
+		clear(d.mbI16)
+		clear(d.cmode)
+		clear(d.cbpArr)
+		for i := range d.mbSlice {
 			d.mbSlice[i] = -1
 		}
-		for i := range d.mbT8 {
-			d.mbT8[i] = false
-		}
+		clear(d.mbT8)
 		// S1b-H: fresh allocation zeroes refTmp/refTmp1; reused scratch
 		// must match (CABAC early-scratch reads current-MB slots that a
 		// single-list block never writes).
-		for i := range d.refTmp {
-			d.refTmp[i] = 0
-		}
-		for i := range d.refTmp1 {
-			d.refTmp1[i] = 0
-		}
+		clear(d.refTmp)
+		clear(d.refTmp1)
 		// S1b-H: stale diagonals (poisonDiagSlots) and stale refs are
 		// per-FRAME state, not per-MB: a reused frame inherits the
 		// previous frame's diagonals/refs, and -2 (unavailable) is a
@@ -427,12 +417,10 @@ func (d *Decoder) decodeSlice(nalu []byte) error {
 			d.fA[i] = 0
 			d.fB[i] = 0
 		}
-		for i := range d.mvdX {
-			d.mvdX[i] = 0
-			d.mvdY[i] = 0
-			d.mvdX1[i] = 0
-			d.mvdY1[i] = 0
-		}
+		clear(d.mvdX)
+		clear(d.mvdY)
+		clear(d.mvdX1)
+		clear(d.mvdY1)
 		d.skipCnt = 0
 	}
 	d.qpY = 26 + pps.PicInitQP + h.QPDelta
@@ -1585,41 +1573,41 @@ func (d *Decoder) reconstructChromaWith(mbx, mby, chromaMode int, cbpC uint32, r
 // prediction and adds it into the picture. Both intra and inter macroblocks
 // share this tail; only the prediction source differs.
 func (d *Decoder) reconstructChromaBlocks(mbx, mby int, cbpC uint32, predCb, predCr *[64]uint8, rs residSrc, intra bool) error {
+	// S1b-Z chroma zero lane (same bytes as the comp-loop form, no
+	// array setup): the [2] planes/preds/grids literals cost ~30ms
+	// flat per 90f profile for construction alone. Cb/Cr written
+	// straight through (row shape unchanged: 8 plain byte stores
+	// per row, bounds checked once), nnz slots identical values.
+	// Bit-identical on every arch.
+	if cbpC == 0 {
+		cw := int(d.pic.Width / 2)
+		ox, oy := mbx*8, mby*8
+		for y := 0; y < 8; y++ {
+			o := (oy+y)*cw + ox
+			d8 := d.pic.Cb[o : o+8]
+			s8 := predCb[y*8 : y*8+8]
+			d8[0], d8[1], d8[2], d8[3], d8[4], d8[5], d8[6], d8[7] =
+				s8[0], s8[1], s8[2], s8[3], s8[4], s8[5], s8[6], s8[7]
+		}
+		for y := 0; y < 8; y++ {
+			o := (oy+y)*cw + ox
+			d8 := d.pic.Cr[o : o+8]
+			s8 := predCr[y*8 : y*8+8]
+			d8[0], d8[1], d8[2], d8[3], d8[4], d8[5], d8[6], d8[7] =
+				s8[0], s8[1], s8[2], s8[3], s8[4], s8[5], s8[6], s8[7]
+		}
+		cstride := d.mbW * 2
+		base := (mby*2)*cstride + mbx*2
+		d.nnzCb[base], d.nnzCb[base+1], d.nnzCb[base+cstride], d.nnzCb[base+cstride+1] = 0, 0, 0, 0
+		d.nnzCr[base], d.nnzCr[base+1], d.nnzCr[base+cstride], d.nnzCr[base+cstride+1] = 0, 0, 0, 0
+		return nil
+	}
 	planes := [2][]uint8{d.pic.Cb, d.pic.Cr}
 	preds := [2]*[64]uint8{predCb, predCr}
 	grids := [2][]int8{d.nnzCb, d.nnzCr}
 	cstride := d.mbW * 2
-	// S1b-D zero fast lane: no chroma coefficients anywhere (skip /
-	// zero-cbp blocks, the common case on still content). The slow
-	// path below would run 8 zero-input inverse transforms
-	// (ITransform4x4WithDCScaled of all-zero coeff + zero DC is all
-	// zero: the dequant butterfly is linear) and add all-zero
-	// residual onto prediction (clipPixel identity) — so prediction
-	// IS the reconstruction. Copy rows and mark zero, no transform,
-	// no bitstream reads (the slow path reads nothing either when
-	// cbpC==0: chromaDC/AC sit behind cbpC>0 / ==2 gates).
-	//
-	// Peer (ffmpeg, read-only, ideas only, no code copied):
-	//   libavcodec/h264_mb.c:762 hl_decode_mb_idct_luma
-	//   (else-if sl->cbp & 15 gates the whole IDCT-add on coded
-	//   blocks; zero-pattern blocks output prediction untouched;
-	//   our cbpC==0 gate below); oracle is VR2 exact (pixels).
-	if cbpC == 0 {
-		cw := int(d.pic.Width / 2)
-		ox, oy := mbx*8, mby*8
-		for comp := 0; comp < 2; comp++ {
-			dst := planes[comp]
-			src := preds[comp]
-			for y := 0; y < 8; y++ {
-				copy(dst[(oy+y)*cw+ox:(oy+y)*cw+ox+8], src[y*8:(y+1)*8])
-			}
-			for b := 0; b < 4; b++ {
-				bx, by := mbx*2+b%2, mby*2+b/2
-				d.setNnz(grids[comp], cstride, bx, by, 0)
-			}
-		}
-		return nil
-	}
+	// (S1b-D zero lane moved above in S1b-Z form: same bytes, no
+	// array setup. Slow path below unchanged.)
 	qps := [2]int32{
 		ChromaQP(d.qpY, d.cOff0),
 		ChromaQP(d.qpY, d.cOff1),

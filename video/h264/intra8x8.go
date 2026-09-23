@@ -11,11 +11,15 @@ import "fmt"
 
 // PredIntra8x8 predicts one 8x8 luma block whose top-left 4x4 sits at
 // 4x4 coords (bx, by). Returns 64 samples in raster order.
+//
+// No heap per call: reference/low-pass buffers are stack arrays, not
+// make() slices (this runs once per 8x8 intra block — ~24k calls on an
+// I-heavy 1080p frame; make() x4 per call showed as GC pressure).
 func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 	var out [64]uint8
 	set := func(x, y, v int) { out[y*8+x] = uint8(v) }
-	rawT := make([]uint8, 16)
-	rawL := make([]uint8, 8)
+	var rawT [16]uint8
+	var rawL [8]uint8
 	hasTop, hasTR, hasLeft := true, true, true
 	for i := 0; i < 8; i++ {
 		v, ok := get(bx+int32(i), by-1)
@@ -42,8 +46,8 @@ func PredIntra8x8(get sampler, bx, by int32, mode int) ([64]uint8, error) {
 	rawC, hasCorner := get(bx-1, by-1)
 
 	// Low-passed references; missing top-right replicates raw p7.
-	t := make([]int, 16)
-	l := make([]int, 8)
+	var t [16]int
+	var l [8]int
 	at := func(i int) int {
 		if i < 0 {
 			if hasCorner {
