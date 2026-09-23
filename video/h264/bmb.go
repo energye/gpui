@@ -422,12 +422,15 @@ func (d *Decoder) skipBFast(h *SliceHeader, addr, mbx, mby int, dms [4][2]bDirec
 			if err != nil {
 				return false
 			}
-			predictLumaBlock(rp0, px0+ox, py0+oy, 8, 8, dm[0].mx, dm[0].my, blk[:64])
+			// S1b-W2 dual direct-write, mixed 8x8 (same shape as
+			// mcParts dual: list 0 straight into predY, list 1
+			// into one temp, per-row mix in place; implicit only
+			// here, explicit stays on the slow mcParts path).
+			predictLumaBlockInto(rp0, px0+ox, py0+oy, 8, 8, dm[0].mx, dm[0].my, predY[oy*16+ox:], 16)
 			predictLumaBlock(rp1, px0+ox, py0+oy, 8, 8, dm[1].mx, dm[1].my, blk1[:64])
 			w := d.bipredWeight(d.pic, rp0, rp1, dm[0].ref, dm[1].ref)
-			bipredAvg(blk[:64], blk1[:64], w)
 			for y := 0; y < 8; y++ {
-				copy(predY[(oy+y)*16+ox:(oy+y)*16+ox+8], blk[y*8:(y+1)*8])
+				bipredAvg(predY[(oy+y)*16+ox:(oy+y)*16+ox+8], blk1[y*8:(y+1)*8], w)
 			}
 		case dm[0].use:
 			rp, err := d.refFor(dm[0].ref)
@@ -470,13 +473,22 @@ func (d *Decoder) skipBFast(h *SliceHeader, addr, mbx, mby int, dms [4][2]bDirec
 			if err != nil {
 				return false
 			}
-			predictChromaBlock(rp0.Cb, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, cb[:16])
-			predictChromaBlock(rp0.Cr, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, cr[:16])
+			// S1b-W2 dual direct-write, mixed chroma (same shape as
+			// luma above, stride 8).
+			predictChromaBlockInto(rp0.Cb, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, predCb[cy*8+cx:], 8)
+			predictChromaBlockInto(rp0.Cr, rw, rh, ccx, ccy, cw, ch, dm[0].mx, dm[0].my, predCr[cy*8+cx:], 8)
 			predictChromaBlock(rp1.Cb, rw, rh, ccx, ccy, cw, ch, dm[1].mx, dm[1].my, cb1[:16])
 			predictChromaBlock(rp1.Cr, rw, rh, ccx, ccy, cw, ch, dm[1].mx, dm[1].my, cr1[:16])
 			w := d.bipredWeight(d.pic, rp0, rp1, dm[0].ref, dm[1].ref)
-			bipredAvg(cb[:16], cb1[:16], w)
-			bipredAvg(cr[:16], cr1[:16], w)
+			for y := 0; y < 4; y++ {
+				bipredAvg(predCb[(cy+y)*8+cx:(cy+y)*8+cx+4], cb1[y*4:(y+1)*4], w)
+				bipredAvg(predCr[(cy+y)*8+cx:(cy+y)*8+cx+4], cr1[y*4:(y+1)*4], w)
+			}
+			// Already mixed in place at its final address: skip the
+			// shared trailing copy below (it moves cb/cr, which this
+			// lane never filled, and would clobber the result).
+			// continue here targets the part loop, not the switch.
+			continue
 		case dm[0].use:
 			rp, err := d.refFor(dm[0].ref)
 			if err != nil {
@@ -601,33 +613,107 @@ func (d *Decoder) skipBUniform(h *SliceHeader, addr, mbx, mby int, dm [2]bDirect
 // storeDirectB8 records one 8x8 direct sub-block's motion (2x2 slots at
 // 4x4 origin (qx, qy)), including early scratch so same-MB CABAC
 // reference contexts read the derived indices.
+// storeDirectB8 records one 8x8 direct sub-block's motion (2x2 slots at
+// 4x4 origin (qx, qy)), including early scratch so same-MB CABAC
+// reference contexts read the derived indices.
+//
+// S1b-M loop shape (values bit-identical to the old y/x loop): the two
+// list-use flags are block-invariant, so the per-slot branches hoist
+// out of the slot loop; the four slot indices unroll from one base
+// (the old inner recompute of (qy+y)*stride+qx+x per store is gone,
+// and refTmp reuses the same slot index instead of recomputing it);
+// the two useM read-modify-writes fuse into one OR (sequential |= of
+// disjoint bits equals one |= of their union; |=0 is a no-op so the
+// neither-list case stores the same value). No pixel writes: motion
+// bookkeeping only, so the win cannot drift the picture (B-direct
+// pixel locks in bdirect/bframes tests pin the downstream effect).
 func (d *Decoder) storeDirectB8(qx, qy int, dm [2]bDirectMV) {
 	stride := d.mbW * 4
-	for y := 0; y < 2; y++ {
-		for x := 0; x < 2; x++ {
-			i := (qy+y)*stride + qx + x
-			if dm[0].use {
-				d.mvX[i], d.mvY[i] = dm[0].mx, dm[0].my
-				d.mvdX[i], d.mvdY[i] = 0, 0
-				d.refIdx[i] = dm[0].ref
-				d.refTmp[(qy+y)*stride+qx+x] = dm[0].ref
-				d.useM[i] |= useL0
-			} else {
-				d.mvX[i], d.mvY[i] = 0, 0
-				d.mvdX[i], d.mvdY[i] = 0, 0
-			}
-			if dm[1].use {
-				d.mvX1[i], d.mvY1[i] = dm[1].mx, dm[1].my
-				d.mvdX1[i], d.mvdY1[i] = 0, 0
-				d.refIdx1[i] = dm[1].ref
-				d.refTmp1[(qy+y)*stride+qx+x] = dm[1].ref
-				d.useM[i] |= useL1
-			} else {
-				d.mvX1[i], d.mvY1[i] = 0, 0
-				d.mvdX1[i], d.mvdY1[i] = 0, 0
-			}
-			d.direct4[i] = true
+	base := qy*stride + qx
+	u0, u1 := dm[0].use, dm[1].use
+	mx0, my0, rf0 := dm[0].mx, dm[0].my, dm[0].ref
+	mx1, my1, rf1 := dm[1].mx, dm[1].my, dm[1].ref
+	var bits uint8
+	if u0 {
+		bits |= useL0
+	}
+	if u1 {
+		bits |= useL1
+	}
+	// Unrolled 2x2 slots (offsets fixed: 0, 1, stride, stride+1).
+	i0 := base
+	i1 := base + 1
+	i2 := base + stride
+	i3 := base + stride + 1
+	if u0 && u1 {
+		d.mvX[i0], d.mvY[i0] = mx0, my0
+		d.mvdX[i0], d.mvdY[i0] = 0, 0
+		d.refIdx[i0] = rf0
+		d.refTmp[i0] = rf0
+		d.mvX1[i0], d.mvY1[i0] = mx1, my1
+		d.mvdX1[i0], d.mvdY1[i0] = 0, 0
+		d.refIdx1[i0] = rf1
+		d.refTmp1[i0] = rf1
+		d.useM[i0] |= bits
+		d.direct4[i0] = true
+		d.mvX[i1], d.mvY[i1] = mx0, my0
+		d.mvdX[i1], d.mvdY[i1] = 0, 0
+		d.refIdx[i1] = rf0
+		d.refTmp[i1] = rf0
+		d.mvX1[i1], d.mvY1[i1] = mx1, my1
+		d.mvdX1[i1], d.mvdY1[i1] = 0, 0
+		d.refIdx1[i1] = rf1
+		d.refTmp1[i1] = rf1
+		d.useM[i1] |= bits
+		d.direct4[i1] = true
+		d.mvX[i2], d.mvY[i2] = mx0, my0
+		d.mvdX[i2], d.mvdY[i2] = 0, 0
+		d.refIdx[i2] = rf0
+		d.refTmp[i2] = rf0
+		d.mvX1[i2], d.mvY1[i2] = mx1, my1
+		d.mvdX1[i2], d.mvdY1[i2] = 0, 0
+		d.refIdx1[i2] = rf1
+		d.refTmp1[i2] = rf1
+		d.useM[i2] |= bits
+		d.direct4[i2] = true
+		d.mvX[i3], d.mvY[i3] = mx0, my0
+		d.mvdX[i3], d.mvdY[i3] = 0, 0
+		d.refIdx[i3] = rf0
+		d.refTmp[i3] = rf0
+		d.mvX1[i3], d.mvY1[i3] = mx1, my1
+		d.mvdX1[i3], d.mvdY1[i3] = 0, 0
+		d.refIdx1[i3] = rf1
+		d.refTmp1[i3] = rf1
+		d.useM[i3] |= bits
+		d.direct4[i3] = true
+		return
+	}
+	// Single-list (or neither) lanes keep the exact old semantics:
+	// used list stores motion+ref+scratch, unused list zeroes mv/mvd
+	// only (ref/useM untouched), useM ORs once, direct4 always set.
+	for _, i := range [4]int{i0, i1, i2, i3} {
+		if u0 {
+			d.mvX[i], d.mvY[i] = mx0, my0
+			d.mvdX[i], d.mvdY[i] = 0, 0
+			d.refIdx[i] = rf0
+			d.refTmp[i] = rf0
+		} else {
+			d.mvX[i], d.mvY[i] = 0, 0
+			d.mvdX[i], d.mvdY[i] = 0, 0
 		}
+		if u1 {
+			d.mvX1[i], d.mvY1[i] = mx1, my1
+			d.mvdX1[i], d.mvdY1[i] = 0, 0
+			d.refIdx1[i] = rf1
+			d.refTmp1[i] = rf1
+		} else {
+			d.mvX1[i], d.mvY1[i] = 0, 0
+			d.mvdX1[i], d.mvdY1[i] = 0, 0
+		}
+		if bits != 0 {
+			d.useM[i] |= bits
+		}
+		d.direct4[i] = true
 	}
 }
 
@@ -815,6 +901,24 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 			if dir != bDirect {
 				continue
 			}
+			bx8, by8 := i%2, i/2
+			qx, qy := x0+bx8*2, y0+by8*2
+			ox, oy := px0+bx8*8, py0+by8*8
+			// Temporal direct has no macroblock-level derivation: each
+			// 8x8 scales its own colocated block (bTempDirect8), so it
+			// derives per sub-block here instead of sharing mbDM.
+			if !h.DirectSpatial {
+				if len(d.refList1) == 0 || d.refList1[0] == nil {
+					return fmt.Errorf("%w: B direct without list-1 picture", ErrBadSliceHeader)
+				}
+				dm, err := d.bTempDirect8(qx, qy, h, d.refList1[0])
+				if err != nil {
+					return err
+				}
+				d.storeDirectB8(qx, qy, dm)
+				parts = append(parts, directPartB8(ox, oy, dm))
+				continue
+			}
 			if !mbDMDone {
 				if len(d.refList1) == 0 || d.refList1[0] == nil {
 					return fmt.Errorf("%w: B direct without list-1 picture", ErrBadSliceHeader)
@@ -825,9 +929,6 @@ func (d *Decoder) decodeMBBParts(h *SliceHeader, pps *PPS, addr, mbx, mby int, m
 				}
 				mbDMDone = true
 			}
-			bx8, by8 := i%2, i/2
-			qx, qy := x0+bx8*2, y0+by8*2
-			ox, oy := px0+bx8*8, py0+by8*8
 			dm := d.bDirectB8(mbDM, qx, qy, d.refList1[0])
 			d.storeDirectB8(qx, qy, dm)
 			parts = append(parts, directPartB8(ox, oy, dm))
