@@ -928,17 +928,19 @@ func interBSEdge(bSedge *[4]int, mbIntra []bool, nnzY []int8, mvX, mvY []int16, 
 	// same step, 4 steps). Offset table (not running vars) because
 	// the body below uses continue per verdict — a trailing
 	// pi+=step would be skipped by every continue and drift.
-	o1, o2, o3 := step, step*2, step*3
-	off := [4]int{0, o1, o2, o3}
-	// S1b-AA edge-level validation (one predictable branch per edge):
-	// the fast caller guarantees edgeInterior + full-length arrays,
-	// so all four pi/qi land in [0,nnzn) and pMB/qMB in range; the
-	// loops below then run without per-segment bounds checks
-	// (identical values — the checks never fired). Anything off
-	// (border probes in tests) falls back to 4x checked Interior
-	// calls with identical verdicts, so the contract holds.
+	// S1b-J2 index pre-store (bit-identical): the three mode-split
+	// loops below each recomputed pi0+off[seg], qi0+off[seg] per
+	// segment (2 adds + 2 off loads × 4 segs, ~40ms flat, the top
+	// single line in this function). Fold to two index arrays once
+	// per edge — 3 adds per side, reusing needP/needQ for slot 3 —
+	// then each loop loads piArr[seg], qiArr[seg]. Same values,
+	// same order; the helpers stay as shared tails.
 	nmb := len(mbT8)
 	needP, needQ := pi0+3*step, qi0+3*step
+	pi1, qi1 := pi0+step, qi0+step
+	pi2, qi2 := pi1+step, qi1+step
+	piArr := [4]int{pi0, pi1, pi2, needP}
+	qiArr := [4]int{qi0, qi1, qi2, needQ}
 	if pMB < 0 || pMB >= nmb || qMB < 0 || qMB >= nmb ||
 		pi0 < 0 || qi0 < 0 || needP >= nnzn || needQ >= nnzn ||
 		needP >= len(mvX) || needQ >= len(mvX) ||
@@ -963,7 +965,7 @@ func interBSEdge(bSedge *[4]int, mbIntra []bool, nnzY []int8, mvX, mvY []int16, 
 	// the validation above; the helpers stay as shared tails.
 	if useB {
 		for seg := 0; seg < 4; seg++ {
-			pi, qi := pi0+off[seg], qi0+off[seg]
+			pi, qi := piArr[seg], qiArr[seg]
 			var pv, qv int
 			// S1b-AC lazy coords: pBX/pBY/qBX/qBY are only used
 			// on the t8 path (8x8 transform merges 2x2 nnz slots).
@@ -1099,7 +1101,7 @@ func interBSEdge(bSedge *[4]int, mbIntra []bool, nnzY []int8, mvX, mvY []int16, 
 	}
 	if hasList {
 		for seg := 0; seg < 4; seg++ {
-			pi, qi := pi0+off[seg], qi0+off[seg]
+			pi, qi := piArr[seg], qiArr[seg]
 			var pv, qv int
 			// S1b-AC lazy coords (same as useB lane above).
 			if !pT8 {
@@ -1166,7 +1168,7 @@ func interBSEdge(bSedge *[4]int, mbIntra []bool, nnzY []int8, mvX, mvY []int16, 
 		return
 	}
 	for seg := 0; seg < 4; seg++ {
-		pi, qi := pi0+off[seg], qi0+off[seg]
+		pi, qi := piArr[seg], qiArr[seg]
 		var pv, qv int
 		// S1b-AC lazy coords (same as the two lanes above).
 		if !pT8 {
