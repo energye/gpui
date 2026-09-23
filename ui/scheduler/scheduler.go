@@ -22,7 +22,11 @@ const (
 )
 
 // DefaultAnimTick is the fallback period when no VSyncWaiter (~60 Hz).
-const DefaultAnimTick = 16 * time.Millisecond
+// 16.68ms = 60Hz display period: 16ms software pacing drifts 0.68ms/frame
+// against a 16.68ms display until a Fifo present straddles a vblank and
+// blocks a full extra cycle (~33ms+ gap = visible hitch). A/B: 25s pelican
+// Wayland hitches 6→0, p95 -3.6ms when forced to 16.68 (2026-09-23).
+const DefaultAnimTick = 16680 * time.Microsecond
 
 // vsyncFreshWindow is how recent a vsync signal must be to count as
 // driving frame pacing. Signals arrive every vsync (~16.7ms at 60Hz); a
