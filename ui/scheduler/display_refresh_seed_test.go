@@ -40,8 +40,9 @@ func TestSeedDisplayRefreshHz_RejectsGarbage(t *testing.T) {
 	}
 }
 
-// Measured vsync stamps keep trimming on top of the seeded baseline.
-func TestSeedDisplayRefreshHz_LearnedOverrides(t *testing.T) {
+// Matching measured stamps agree with the seeded baseline (reported rate
+// wins when they diverge — see TestGears_ReportedWinsOverLearnedDrift).
+func TestSeedDisplayRefreshHz_LearnedMatchesSeed(t *testing.T) {
 	s := New()
 	s.SeedDisplayRefreshHz(120)
 	s.learnDisplayPeriod(8333 * time.Microsecond) // 120Hz DRM stamp

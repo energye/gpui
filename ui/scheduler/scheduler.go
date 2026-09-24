@@ -113,6 +113,12 @@ func (s *FrameScheduler) boundaryPeriodLocked() time.Duration {
 	p := s.displayPeriod
 	if p <= 0 {
 		p = ref
+	} else if p < ref {
+		// Steady-learned fast rate with no platform report (e.g. 120Hz):
+		// let the clamp floor follow it instead of pinning to the 16ms
+		// default. Genuineness is already gated (32-sample median + jitter
+		// gate); the 4ms absolute floor still blocks busy-spin.
+		ref = p
 	}
 	return clampPeriod(p, ref)
 }
