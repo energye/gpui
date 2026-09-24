@@ -1078,10 +1078,10 @@ func (a *PipelineApp) Run() error {
 		}
 
 		evs := a.host.WaitEvents(timeout)
-		// Pacing baseline catch-up: retries until the real refresh lands.
-		if !a.refreshSeeded {
-			a.refreshSeeded = a.seedRefreshFromHost()
-		}
+		// Pacing baseline follows the live display refresh: re-seed every
+		// loop so output/mode changes (e.g. window moved to a 120Hz monitor)
+		// update the scheduler baseline. Unknown (0) keeps the last good.
+		a.refreshSeeded = a.seedRefreshFromHost() || a.refreshSeeded
 		for _, ev := range evs {
 			// Unified input routing (plan §4): when an InputRouter is
 			// attached, normalized events are dispatched by the framework;

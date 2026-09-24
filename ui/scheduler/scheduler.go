@@ -96,15 +96,20 @@ const (
 	dispHistMin = 16
 )
 
-// boundaryPeriodLocked returns the software-boundary interval: learned
-// display period first, then the platform-reported baseline, then
-// DefaultAnimTick. Clamped to [baseline*0.8, 100ms]; the floor follows the
-// known baseline. Caller holds s.mu.
+// boundaryPeriodLocked returns the software-boundary interval: the
+// platform-reported baseline first (wl_output mHz / X11 RandR — the display's
+// own number), then the learned display period, then DefaultAnimTick.
+// Clamped to [baseline*0.8, 100ms]; the floor follows the known baseline.
+// Caller holds s.mu.
+//
+// The reported rate is truth: compositor frame-done notices arrive delayed
+// and batched, so letting the learned estimate override the reported rate
+// drifts the boundary slow (observed +0.2ms/frame) and tails every interval.
 func (s *FrameScheduler) boundaryPeriodLocked() time.Duration {
-	ref := s.animTick
 	if s.basePeriod > 0 {
-		ref = s.basePeriod
+		return clampPeriod(s.basePeriod, s.basePeriod)
 	}
+	ref := s.animTick
 	p := s.displayPeriod
 	if p <= 0 {
 		p = ref
