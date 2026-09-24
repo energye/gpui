@@ -206,10 +206,28 @@ func (p *Player) decodeBFrame(starts []int, g, pos int, gen int64, workers, yuv 
 			maxExec = gEnd
 		}
 	}
+	// Plan horizon: the walk plans one extra budget past the emit
+	// point WITHOUT executing it (headers + shadow DPB only, no
+	// pixels, no workers). The commit keeps the already-decoded
+	// pictures the next lap's snapshots need; without this lookahead
+	// a cap-bound lap (segEnd == maxExec, e.g. 1080p's 21-frame YUV
+	// cap) keeps nothing, the next audit fails deterministically, and
+	// every later lap burns a full walk just to fall back. Planning is
+	// header-cheap; executing stays capped by maxExec above.
+	planEnd := segEnd + budget
+	if planEnd > len(samples) {
+		planEnd = len(samples)
+	}
+	if !span && planEnd > gEnd {
+		planEnd = gEnd
+	}
+	if planEnd < maxExec {
+		planEnd = maxExec
+	}
 	// Span lap: the walk covers [gHead, gEnd) plus the next group's
-	// head section [gEnd, maxExec). The second group is planned from
+	// head section [gEnd, planEnd). The second group is planned from
 	// its own head (group-head shaped, IDR clears), so its frames wait
-	// only inside their own group.
+	// only inside their own group. Execution still ends at maxExec.
 
 	// Read blobs + split units sync (Source stays single-threaded).
 	type frameIn struct {
@@ -223,8 +241,8 @@ func (p *Player) decodeBFrame(starts []int, g, pos int, gen int64, workers, yuv 
 	// needle inside the group can fan — every wait resolves to held
 	// (pre-window, complete) or doneCh (window, completing).
 	walkFrom := gHead
-	ins := make([]frameIn, 0, maxExec-walkFrom)
-	for i := walkFrom; i < maxExec; i++ {
+	ins := make([]frameIn, 0, planEnd-walkFrom)
+	for i := walkFrom; i < planEnd; i++ {
 		buf := make([]byte, samples[i].Size)
 		if _, rerr := readSourceRange(src, buf, int64(samples[i].Offset)); rerr != nil {
 			return nil, false, nil, false
@@ -257,10 +275,12 @@ func (p *Player) decodeBFrame(starts []int, g, pos int, gen int64, workers, yuv 
 	// resolves to held (pre-window, complete) or doneCh (window,
 	// completing). No cross-lap mutable state — held is rebuilt from
 	// completed pictures each commit. A span lap appends sector B
-	// [gEnd, maxExec) planned from its own head (next IDR clears, so B
+	// [gEnd, planEnd) planned from its own head (next IDR clears, so B
 	// waits only inside B); nextHead/sectB mark that second sector
-	// (sectA is plans itself, walk-relative to gHead).
-	walkAEnd := maxExec
+	// (sectA is plans itself, walk-relative to gHead). The walk runs
+	// to planEnd (one budget past the emit point) so the commit can
+	// keep the next lap's references; execution still ends at maxExec.
+	walkAEnd := planEnd
 	if span && walkAEnd > gEnd {
 		walkAEnd = gEnd
 	}
@@ -278,7 +298,7 @@ func (p *Player) decodeBFrame(starts []int, g, pos int, gen int64, workers, yuv 
 	nextHead, sectB := -1, []h264.FramePlan(nil)
 	if span {
 		nextHead = gEnd
-		bRaw := make([][][]byte, 0, maxExec-gEnd)
+		bRaw := make([][][]byte, 0, planEnd-gEnd)
 		for _, in := range ins[gEnd-walkFrom:] {
 			bRaw = append(bRaw, in.units)
 		}
@@ -694,13 +714,19 @@ func (p *Player) decodeBFrame(starts []int, g, pos int, gen int64, workers, yuv 
 		if f < 0 {
 			continue
 		}
+		// Lookahead-only frames (at/past the executed horizon) are
+		// retained opportunistically: their references decode on a
+		// later lap, so a miss here is ignored — the next audit
+		// fails closed if it truly needs the picture. Only the
+		// executed horizon must account exactly.
+		beyondExec := gHead+f >= maxExec
 		for _, s := range plans[f].Snapshot {
 			gi := gHead + s
 			switch {
 			case gi < pos:
 				if pic := carry[gi]; pic != nil {
 					keep[gi] = pic
-				} else {
+				} else if !beyondExec {
 					abandon()
 					return nil, false, nil, false
 				}
@@ -709,10 +735,11 @@ func (p *Player) decodeBFrame(starts []int, g, pos int, gen int64, workers, yuv 
 					keep[gi] = stored[gi-gHead]
 				}
 			default:
-				// Cannot exist (the extension pass covered the
-				// window): fall back rather than keep a hole.
-				abandon()
-				return nil, false, nil, false
+				// Planned but not executed (the planEnd lookahead
+				// past maxExec): the next lap decodes these itself
+				// when its window reaches them, so there is nothing
+				// to keep. Under-retention is fail-closed (the next
+				// audit falls back), never a wrong picture.
 			}
 		}
 	}
