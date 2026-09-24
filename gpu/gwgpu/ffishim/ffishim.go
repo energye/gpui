@@ -1,23 +1,24 @@
 // Package ffishim is gpui's self-maintained replacement for the external
-// goffi C-ABI call layer used by the ported GLES backend (gpu/gwgpu).
+// goffi C-ABI call layer used by the ported backends (gpu/gwgpu/gles,
+// gpu/gwgpu/metal).
 //
-// What it is: the same four operations the ported code needs — LoadLibrary,
-// GetSymbol, PrepareCallInterface, CallFunction — plus the type-descriptor
-// vocabulary, implemented on top of the purego FFI already used by
-// gpu/rwgpu. No libffi, no external goffi dependency.
+// What it is: the same operations the ported code needs — LoadLibrary,
+// GetSymbol, PrepareCallInterface, CallFunction, NewCallback — plus the
+// type-descriptor vocabulary (including struct descriptors), implemented on
+// top of the purego FFI already used by gpu/rwgpu. No libffi, no external
+// goffi dependency.
 //
 // How calls run: integer/pointer signatures go through purego.SyscallN.
-// Signatures with float32 arguments (glClearColor, glClearDepthf,
-// glDepthRangef, glSamplerParameterf) go through cached purego.RegisterFunc
-// trampolines, because SysV passes floats in XMM registers, not integer
-// registers. Returns are never float in the GLES call set; that case errors.
+// Signatures containing floats, doubles, or structs go through cached
+// purego.RegisterFunc trampolines built per exact signature (see abi.go),
+// because those ride in SIMD registers or split across registers. Only the
+// signatures the ported backends actually emit are supported; anything else
+// errors loudly so it can be added deliberately.
 package ffishim
 
 import (
 	"fmt"
-	"math"
 	"runtime"
-	"sync"
 	"unsafe"
 
 	purego "github.com/ebitengine/purego"
@@ -50,13 +51,22 @@ const (
 	FloatType
 	DoubleType
 	PointerType
+	// StructType is a small fixed-layout C struct (Metal ObjC bridge:
+	// CGSize, MTLOrigin/Size/Region, viewports, scissor rects, ranges).
+	// Members holds the member descriptors in order; all members used
+	// by the ported code are 8 bytes (uint64 or double), naturally
+	// aligned, without padding.
+	StructType
 )
 
 // TypeDescriptor describes one C ABI type (size/alignment/kind).
+// For StructType, Members holds the member descriptors in order.
+// Size/Alignment are uintptr, matching the upstream goffi vocabulary.
 type TypeDescriptor struct {
-	Size      int
-	Alignment int
+	Size      uintptr
+	Alignment uintptr
 	Kind      TypeKind
+	Members   []*TypeDescriptor
 }
 
 var (
@@ -80,9 +90,6 @@ var (
 type CallInterface struct {
 	ArgTypes   []*TypeDescriptor
 	ReturnType *TypeDescriptor
-
-	mu    sync.Mutex
-	float map[unsafe.Pointer]any // fn -> RegisterFunc trampoline (float sigs)
 }
 
 // ptrOf converts a uintptr handle to unsafe.Pointer without tripping
@@ -151,8 +158,8 @@ func CallFunction(
 	if len(avalue) != len(cif.ArgTypes) {
 		return 0, fmt.Errorf("ffishim: got %d args, signature wants %d", len(avalue), len(cif.ArgTypes))
 	}
-	if hasFloat(cif) {
-		return 0, callFloat(cif, fn, avalue)
+	if needsABI(cif) {
+		return 0, callABI(cif, fn, rvalue, avalue)
 	}
 	vals := make([]uintptr, len(avalue))
 	for i, t := range cif.ArgTypes {
@@ -167,26 +174,18 @@ func CallFunction(
 	return 0, nil
 }
 
-func hasFloat(cif *CallInterface) bool {
-	for _, t := range cif.ArgTypes {
-		if t.Kind == FloatType || t.Kind == DoubleType {
-			return true
-		}
-	}
-	return cif.ReturnType.Kind == FloatType || cif.ReturnType.Kind == DoubleType
-}
-
+// loadArg reads one integer/pointer argument value for the SyscallN path.
+// Float, double, and struct arguments never reach here (needsABI routes
+// them to trampolines).
 func loadArg(t *TypeDescriptor, p unsafe.Pointer) uintptr {
 	switch t.Kind {
-	case UInt32Type, SInt32Type, IntType, FloatType:
+	case UInt32Type, SInt32Type, IntType:
 		return uintptr(*(*uint32)(p))
 	case UInt8Type, SInt8Type:
 		return uintptr(*(*uint8)(p))
 	case UInt16Type, SInt16Type:
 		return uintptr(*(*uint16)(p))
-	case UInt64Type, SInt64Type, PointerType, DoubleType:
-		return *(*uintptr)(p)
-	default:
+	default: // UInt64, SInt64, Pointer: full width
 		return *(*uintptr)(p)
 	}
 }
@@ -198,102 +197,22 @@ func storeRet(t *TypeDescriptor, rvalue unsafe.Pointer, r1 uintptr) {
 	switch t.Kind {
 	case VoidType:
 		return
-	case UInt32Type, SInt32Type, IntType, FloatType:
+	case UInt32Type, SInt32Type, IntType:
 		*(*uint32)(rvalue) = uint32(r1)
 	case UInt8Type, SInt8Type:
 		*(*uint8)(rvalue) = uint8(r1)
 	case UInt16Type, SInt16Type:
 		*(*uint16)(rvalue) = uint16(r1)
-	default: // UInt64, SInt64, Pointer, Double: full width
+	default: // UInt64, SInt64, Pointer: full width
 		*(*uintptr)(rvalue) = r1
 	}
 }
 
-// callFloat handles the four float-argument signatures in the GLES call set
-// via cached RegisterFunc trampolines (all void-returning):
-// (f32), (f32,f32), (f32,f32,f32,f32), (u32,u32,f32).
-func callFloat(cif *CallInterface, fn unsafe.Pointer, avalue []unsafe.Pointer) error {
-	if cif.ReturnType.Kind != VoidType {
-		return fmt.Errorf("ffishim: float return unsupported")
-	}
-	key := sigKey(cif.ArgTypes)
-	cif.mu.Lock()
-	if cif.float == nil {
-		cif.float = make(map[unsafe.Pointer]any)
-	}
-	t, ok := cif.float[fn]
-	if !ok {
-		var err error
-		t, err = makeFloatTrampoline(key, fn)
-		if err != nil {
-			cif.mu.Unlock()
-			return err
-		}
-		cif.float[fn] = t
-	}
-	cif.mu.Unlock()
-	switch key {
-	case "f":
-		t.(func(float32))(
-			math.Float32frombits(*(*uint32)(avalue[0])))
-	case "ff":
-		t.(func(float32, float32))(
-			math.Float32frombits(*(*uint32)(avalue[0])),
-			math.Float32frombits(*(*uint32)(avalue[1])))
-	case "ffff":
-		t.(func(float32, float32, float32, float32))(
-			math.Float32frombits(*(*uint32)(avalue[0])),
-			math.Float32frombits(*(*uint32)(avalue[1])),
-			math.Float32frombits(*(*uint32)(avalue[2])),
-			math.Float32frombits(*(*uint32)(avalue[3])))
-	case "uuf":
-		t.(func(uint32, uint32, float32))(
-			*(*uint32)(avalue[0]),
-			*(*uint32)(avalue[1]),
-			math.Float32frombits(*(*uint32)(avalue[2])))
-	default:
-		return fmt.Errorf("ffishim: float signature %q unsupported", key)
-	}
-	runtime.KeepAlive(avalue)
-	return nil
-}
-
-func sigKey(args []*TypeDescriptor) string {
-	var b []byte
-	for _, t := range args {
-		switch t.Kind {
-		case FloatType:
-			b = append(b, 'f')
-		case UInt32Type, SInt32Type, IntType:
-			b = append(b, 'u')
-		case PointerType, UInt64Type, SInt64Type, DoubleType:
-			b = append(b, 'p')
-		default:
-			b = append(b, '?')
-		}
-	}
-	return string(b)
-}
-
-func makeFloatTrampoline(key string, fn unsafe.Pointer) (any, error) {
-	switch key {
-	case "f":
-		var f func(float32)
-		purego.RegisterFunc(&f, uintptr(fn))
-		return f, nil
-	case "ff":
-		var f func(float32, float32)
-		purego.RegisterFunc(&f, uintptr(fn))
-		return f, nil
-	case "ffff":
-		var f func(float32, float32, float32, float32)
-		purego.RegisterFunc(&f, uintptr(fn))
-		return f, nil
-	case "uuf":
-		var f func(uint32, uint32, float32)
-		purego.RegisterFunc(&f, uintptr(fn))
-		return f, nil
-	default:
-		return nil, fmt.Errorf("ffishim: float signature %q unsupported", key)
-	}
+// NewCallback converts a Go function to a C function pointer (ObjC block
+// trampolines in the ported Metal backend). Backed by purego.NewCallback:
+// the function must take uintptr-sized arguments with zero or one
+// uintptr-sized result. At least 1024 callbacks can always be created;
+// memory for created callbacks is never released.
+func NewCallback(fn any) uintptr {
+	return purego.NewCallback(fn)
 }
