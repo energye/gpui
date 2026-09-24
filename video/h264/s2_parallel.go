@@ -17,9 +17,10 @@ package h264
 //
 // Rule: GOPs starting with IDR decode independently (IDR clears the DPB,
 // h264dec.c:660-667), so each GOP runs on a fresh Decoder and the outputs
-// concatenate in GOP order to the sequential bit stream. Anything else
-// (empty starts, unsorted starts, first start != 0) falls back to the
-// sequential path with no goroutines. Pure Go goroutines: correctness is
+// concatenate in GOP order to the sequential bit stream. Long GOPs nest
+// frame-DAG threading inside (s2_nested.go); short ones stay sequential.
+// Anything else (empty starts, unsorted starts, first start != 0) falls
+// back to the sequential path with no goroutines. Pure Go goroutines: correctness is
 // arch-independent (amd64/arm64/i386); speedup varies by core count and is
 // only logged, never a hard line (see the gate).
 
@@ -109,7 +110,7 @@ func decodeGOPsParallel(blobs [][]byte, starts []int, avcc *AVCC, workers int, s
 	}
 	w := s2WorkerCount(workers)
 	if len(starts) <= 1 || w <= 1 {
-		pics, err := decodeS2GOP(blobs, avcc)
+		pics, err := decodeS2GOPNested(blobs, avcc)
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +145,7 @@ func decodeGOPsParallel(blobs [][]byte, starts []int, avcc *AVCC, workers int, s
 			if g+1 < nGOP {
 				s1 = starts[g+1]
 			}
-			pics, err := decodeS2GOP(blobs[s0:s1], avcc)
+			pics, err := decodeS2GOPNested(blobs[s0:s1], avcc)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

@@ -1,12 +1,16 @@
 package video
 
-// B player wiring: frame threading inside one long IDR group.
+// B player wiring: frame threading inside one long IDR group, one lap
+// may straddle the next IDR boundary.
 //
 // Say it plain: S2 already runs whole groups on workers, but a group of
 // 250 frames still decodes on one worker (nothing inside may run
 // alone). B splits that group by reference DAG: a frame starts as soon
 // as its anchors finish, on a private decoder primed with its reference
-// roster. P backbones stay ordered, B seas run wide.
+// roster. P backbones stay ordered, B seas run wide. Near a group tail
+// the lap keeps walking into the next IDR group (its head frame waits
+// on nothing, so both sides run together) and emits across the boundary
+// in order; the roster rekeys to the new group at commit.
 //
 // Peer (ffmpeg, read-only, no vendoring): same pthread_frame.c notes as
 // s2_player.go (thread_count rule, delay line) plus :645
@@ -95,10 +99,17 @@ func (p *Player) maybeDecodeBFrame(gen int64) (emitted []*pendingPic, done bool,
 	if g+1 < len(starts) {
 		gEnd = starts[g+1]
 	}
-	if pos < gHead || pos >= gEnd || gEnd-pos < bMinRemain {
+	if pos < gHead || pos >= gEnd {
 		return nil, false, nil, false
 	}
-	return p.decodeBFrame(gHead, gEnd, pos, gen, workers, yuv)
+	// Total work gates the lap, not the current group's tail: near the
+	// boundary the segment straddles into the next IDR group (span),
+	// so a short tail still runs with the next head. A short final
+	// tail (no next group) stays sequential.
+	if len(samples)-pos < bMinRemain {
+		return nil, false, nil, false
+	}
+	return p.decodeBFrame(starts, g, pos, gen, workers, yuv)
 }
 
 // decodeBFrame decodes [pos, segEnd) in parallel (execution may reach
@@ -106,7 +117,13 @@ func (p *Player) maybeDecodeBFrame(gen int64) (emitted []*pendingPic, done bool,
 // didParallel=false means nothing was claimed: run S2/sequential.
 // A generation change mid-lap discards the work (the seeker owns the
 // needle now) and reports didParallel=true with no emissions.
-func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int) (emitted []*pendingPic, done bool, err error, didParallel bool) {
+//
+// starts/g locate the group holding pos; the segment may straddle into
+// the next IDR group (span): the next head is an IDR (empty wait set),
+// so both sides run on the one crew and emit in order. Groups stay
+// independent (IDR clears the DPB, same contract as the S2 kernel), so
+// no frame ever waits across the boundary.
+func (p *Player) decodeBFrame(starts []int, g, pos int, gen int64, workers, yuv int) (emitted []*pendingPic, done bool, err error, didParallel bool) {
 	samples := p.samples
 	src := p.source
 	avcc := p.avcc
@@ -128,38 +145,71 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		p.dmu.Unlock()
 		return nil, false, nil, false
 	}
-	if pos < 0 || pos >= len(samples) || gHead < 0 || gEnd > len(samples) || gHead >= gEnd || pos < gHead || pos >= gEnd {
-		p.dmu.Unlock()
+	p.dmu.Unlock()
+
+	if g < 0 || g >= len(starts) || pos < 0 || pos >= len(samples) {
 		return nil, false, nil, false
 	}
-	p.dmu.Unlock()
+	gHead := starts[g]
+	gEnd := len(samples)
+	if g+1 < len(starts) {
+		gEnd = starts[g+1]
+	}
+	if gHead < 0 || gEnd > len(samples) || gHead >= gEnd || pos < gHead || pos >= gEnd {
+		return nil, false, nil, false
+	}
+	// Execution budget from pos (frames), same caps as ever: the span
+	// shares one budget across the boundary, so transient memory stays
+	// flat whether the lap straddles or not.
+	budget := bExecCapFrames
+	if yuv > 0 {
+		if bf := int(bExecCapBytes / int64(yuv)); bf < budget {
+			budget = bf
+			if budget <= 0 {
+				return nil, false, nil, false
+			}
+		}
+	}
+	maxSpan := pos + budget
+	if maxSpan > len(samples) {
+		maxSpan = len(samples)
+	}
+	if maxSpan <= pos {
+		return nil, false, nil, false
+	}
 
 	// Segment: emit [pos, segEnd). Execution may extend past it for
 	// forward-edge cover (below). Segments are sized to cover the
 	// reorder tail (S2's windows cover depth+group for the same
 	// reason): a lap that cannot satisfy the emit rule emits nothing
 	// and must not claim — the sequential path grows pending until the
-	// rule fires, then B resumes.
+	// rule fires, then B resumes. segEnd may pass gEnd (span); the walk
+	// below covers every executed frame either way.
 	segEnd := pos + bSegFrames
-	if segEnd > gEnd {
-		segEnd = gEnd
+	if segEnd > maxSpan {
+		segEnd = maxSpan
 	}
 	if segEnd-pos <= depth {
 		return nil, false, nil, false
 	}
-	maxExec := pos + bExecCapFrames
-	if maxExec > gEnd {
-		maxExec = gEnd
-	}
-	if yuv > 0 && int64(bExecCapBytes)/int64(yuv) < int64(maxExec-pos) {
-		maxExec = pos + int(bExecCapBytes/int64(yuv))
-		if maxExec <= pos {
+	maxExec := maxSpan
+	span := segEnd > gEnd
+	if !span {
+		// Single-group lap, exactly today's shape: the walk ends at
+		// the execution budget (or sooner at the group end). A short
+		// tail without a crossing stays sequential (setup costs more
+		// than the win, same family as bMinRemain).
+		if gEnd-pos < bMinRemain {
 			return nil, false, nil, false
 		}
+		if maxExec > gEnd {
+			maxExec = gEnd
+		}
 	}
-	if segEnd > maxExec {
-		segEnd = maxExec
-	}
+	// Span lap: the walk covers [gHead, gEnd) plus the next group's
+	// head section [gEnd, maxExec). The second group is planned from
+	// its own head (group-head shaped, IDR clears), so its frames wait
+	// only inside their own group.
 
 	// Read blobs + split units sync (Source stays single-threaded).
 	type frameIn struct {
@@ -201,17 +251,104 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		}
 		ins = append(ins, frameIn{units: units, num: samples[i].Number, fed: fed})
 	}
-	// Group-head shaped entry (full DPB/POC state known at gHead);
-	// sub-laps chain through held (audited carry below): every wait
+	// Plan the walk. Sector A is the group-head shaped plan over
+	// [gHead, walkAEnd): full DPB/POC state is known at gHead, and
+	// sub-laps chain through held (audited carry below), so every wait
 	// resolves to held (pre-window, complete) or doneCh (window,
 	// completing). No cross-lap mutable state — held is rebuilt from
-	// completed pictures each commit.
-	raws := make([][][]byte, len(ins))
-	for i, in := range ins {
-		raws[i] = in.units
+	// completed pictures each commit. A span lap appends sector B
+	// [gEnd, maxExec) planned from its own head (next IDR clears, so B
+	// waits only inside B); nextHead/sectB mark that second sector
+	// (sectA is plans itself, walk-relative to gHead).
+	walkAEnd := maxExec
+	if span && walkAEnd > gEnd {
+		walkAEnd = gEnd
+	}
+	raws := make([][][]byte, 0, walkAEnd-walkFrom)
+	for _, in := range ins {
+		if len(raws) >= walkAEnd-walkFrom {
+			break
+		}
+		raws = append(raws, in.units)
 	}
 	plans, ok := h264.PlanFrameGroup(avcc, raws)
 	if !ok {
+		return nil, false, nil, false
+	}
+	nextHead, sectB := -1, []h264.FramePlan(nil)
+	if span {
+		nextHead = gEnd
+		bRaw := make([][][]byte, 0, maxExec-gEnd)
+		for _, in := range ins[gEnd-walkFrom:] {
+			bRaw = append(bRaw, in.units)
+		}
+		if len(bRaw) == 0 {
+			return nil, false, nil, false
+		}
+		var bok bool
+		sectB, bok = h264.PlanFrameGroup(avcc, bRaw)
+		if !bok {
+			return nil, false, nil, false
+		}
+		// Sector B's first plan must be the IDR head (empty wait set
+		// proves the boundary needs no cross-sector wait — the two
+		// sectors are independent by construction).
+		if len(sectB) == 0 || !sectB[0].Fed || !sectB[0].IsIDR ||
+			len(sectB[0].Refs) != 0 || len(sectB[0].Snapshot) != 0 {
+			return nil, false, nil, false
+		}
+		// In-band parameter sets ride on each group head (standard
+		// muxing repeats avcc there). Workers pre-feed heads once and
+		// skip in-band sets inside frames, so the two heads must carry
+		// identical SPS/PPS — otherwise one sector would parse with
+		// the other's tables. Anything else falls back (exact, just
+		// less parallel).
+		if !bSameHeadSets(ins[0].units, ins[gEnd-walkFrom].units) {
+			return nil, false, nil, false
+		}
+		// Stitch sector B after A with walk-relative indices: B's
+		// planner ran from its own head, so every index shifts by the
+		// sector-A length. B waits stay inside B by construction
+		// (fresh DPB); anything crossing back falls back.
+		off := gEnd - gHead
+		for _, pl := range sectB {
+			for _, r := range pl.Refs {
+				if r < 0 || r >= len(sectB) {
+					return nil, false, nil, false
+				}
+			}
+			for _, s := range pl.Snapshot {
+				if s < 0 || s >= len(sectB) {
+					return nil, false, nil, false
+				}
+			}
+			cp := pl
+			for i := range cp.Refs {
+				cp.Refs[i] += off
+			}
+			for i := range cp.Snapshot {
+				cp.Snapshot[i] += off
+			}
+			for i := range cp.Roster {
+				cp.Roster[i] += off
+			}
+			// No cross-sector waits: B frames reference B only
+			// (the head's empty set above proves the boundary).
+			for _, r := range cp.Refs {
+				if gHead+r < gEnd {
+					return nil, false, nil, false
+				}
+			}
+			for _, s := range cp.Snapshot {
+				if gHead+s < gEnd {
+					return nil, false, nil, false
+				}
+			}
+			plans = append(plans, cp)
+		}
+		_ = nextHead
+	}
+	if len(plans) != len(ins) {
 		return nil, false, nil, false
 	}
 	// Held-sector audit: reconcile the retained roster against the
@@ -631,7 +768,15 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		pic.Release()
 	}
 	p.bHeld = keep
-	p.bHeldHead = gHead
+	if span {
+		// The needle crossed into the next IDR group: rekey the
+		// roster to the new head so the next lap audits against it.
+		// keep holds B-sector pictures only (stitching verified B
+		// waits never cross back), keyed by global sample index.
+		p.bHeldHead = gEnd
+	} else {
+		p.bHeldHead = gHead
+	}
 	p.bGen = gen
 	for _, pic := range carry {
 		pic.Release()
@@ -640,6 +785,9 @@ func (p *Player) decodeBFrame(gHead, gEnd, pos int, gen int64, workers, yuv int)
 		dec.DropBuffered()
 	}
 	p.pos = segEnd
+	if span {
+		atomic.AddInt64(&p.bSpans, 1)
+	}
 	if !tail {
 		for len(p.pending) > depth {
 			best := 0
@@ -863,4 +1011,39 @@ func fedUnits(units [][]byte) bool {
 		}
 	}
 	return false
+}
+
+// bSameHeadSets reports whether two group heads carry identical
+// in-band SPS/PPS (standard muxing repeats avcc on each head).
+// Workers pre-feed heads once and skip in-band sets inside frames,
+// so a span lap needs both heads to parse with identical tables.
+func bSameHeadSets(aUnits, bUnits [][]byte) bool {
+	collect := func(units [][]byte) [][]byte {
+		var out [][]byte
+		for _, u := range units {
+			_, _, typ, err := h264.NALUHeader(u)
+			if err != nil {
+				continue
+			}
+			if typ == h264.NALSPS || typ == h264.NALPPS {
+				out = append(out, u)
+			}
+		}
+		return out
+	}
+	a, b := collect(aUnits), collect(bUnits)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if len(a[i]) != len(b[i]) {
+			return false
+		}
+		for j := range a[i] {
+			if a[i][j] != b[i][j] {
+				return false
+			}
+		}
+	}
+	return true
 }

@@ -257,6 +257,9 @@ type Player struct {
 	bGen      int64
 	bWindows  int64
 	bTries    int64
+	// bSpans counts laps whose segment straddled an IDR boundary
+	// (atomic, tests only).
+	bSpans int64
 	// wakeCh wakes a decoder parked at end-of-stream (cap 1, coalescing,
 	// never closed): a later seek revives playback on the same thread.
 	wakeCh chan struct{}

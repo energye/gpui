@@ -30,8 +30,8 @@ type bShown struct {
 // bPlayAll plays name to Ended and copies every shown Pix (streaming
 // Pix is recycled on the next Poll, so copy during the tick). parallel
 // toggles Options.S2Parallel (B rides that opt-in). Returns shown
-// frames + B laps fired.
-func bPlayAll(t *testing.T, name string, parallel bool) ([]bShown, int64) {
+// frames + B laps fired + laps whose segment straddled an IDR boundary.
+func bPlayAll(t *testing.T, name string, parallel bool) ([]bShown, int64, int64) {
 	t.Helper()
 	h := &handClock{}
 	p, err := OpenFile(name, Options{NowMs: h.at, S2Parallel: parallel})
@@ -53,7 +53,7 @@ func bPlayAll(t *testing.T, name string, parallel bool) ([]bShown, int64) {
 			out = append(out, bShown{pts: fr.PTSMs, pix: cp})
 		}
 		if done {
-			return out, atomic.LoadInt64(&p.bWindows)
+			return out, atomic.LoadInt64(&p.bWindows), atomic.LoadInt64(&p.bSpans)
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("not ended %s parallel=%v, shown %d", name, parallel, len(out))
@@ -208,23 +208,29 @@ func TestBPlayerExact(t *testing.T) {
 		t.Fatalf("long clip bytes %d want 20110 (re-record baseline if the clip changed)", fi.Size())
 	}
 	oracle := bOracle(t, name)
-	shown, laps := bPlayAll(t, name, true)
+	shown, laps, spans := bPlayAll(t, name, true)
 	bCheckShown(t, shown, oracle)
 	if laps < 1 {
 		t.Fatalf("B never fired on the long-group clip")
 	}
-	t.Logf("B player 80f/2gops: shown=%d laps=%d oracle=%d", len(shown), laps, len(oracle))
+	if spans < 1 {
+		t.Fatalf("B never straddled the IDR boundary (spans=0, want >=1 on 80f/2gops)")
+	}
+	t.Logf("B player 80f/2gops: shown=%d laps=%d spans=%d oracle=%d", len(shown), laps, spans, len(oracle))
 }
 
 // TestBPlayerOffParity pins the kill switch: GPUI_B_OFF=1 with the
-// opt-in on plays oracle-exact with zero laps.
+// opt-in on plays oracle-exact with zero laps and zero spans.
 func TestBPlayerOffParity(t *testing.T) {
 	name := filepath.Join("testdata", "vr_b_long.mp4")
 	t.Setenv("GPUI_B_OFF", "1")
 	oracle := bOracle(t, name)
-	shown, laps := bPlayAll(t, name, true)
+	shown, laps, spans := bPlayAll(t, name, true)
 	if laps != 0 {
 		t.Fatalf("B fired with GPUI_B_OFF=1")
+	}
+	if spans != 0 {
+		t.Fatalf("B spanned with GPUI_B_OFF=1")
 	}
 	bCheckShown(t, shown, oracle)
 }
