@@ -14,7 +14,7 @@ import (
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
-	"github.com/energye/gpui/gpu/gwgpu/hal"
+	"github.com/energye/gpui/gpu/hal"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 

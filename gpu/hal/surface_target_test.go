@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/energye/gpui/gpu/gwgpu/hal"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 func TestSurfaceTargetCarriesExplicitPlatformKind(t *testing.T) {

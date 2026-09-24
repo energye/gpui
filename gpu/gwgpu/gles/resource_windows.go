@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/wgl"
-	"github.com/energye/gpui/gpu/gwgpu/hal"
+	"github.com/energye/gpui/gpu/hal"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 

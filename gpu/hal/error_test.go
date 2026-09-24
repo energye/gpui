@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/energye/gpui/gpu/gwgpu/hal"
-	_ "github.com/energye/gpui/gpu/gwgpu/hal/noop" // Import for side effect of registering noop backend
+	"github.com/energye/gpui/gpu/hal"
+	_ "github.com/energye/gpui/gpu/hal/noop" // Import for side effect of registering noop backend
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 

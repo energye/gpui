@@ -16,9 +16,9 @@ import (
 	"strings"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
-	"github.com/energye/gpui/gpu/gwgpu/hal"
-	gputypes "github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
+	"github.com/energye/gpui/gpu/hal"
+	gputypes "github.com/energye/gpui/gpu/types"
 )
 
 // AdapterCapabilities holds parsed adapter information queried from GL at

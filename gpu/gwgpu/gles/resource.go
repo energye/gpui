@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
-	"github.com/energye/gpui/gpu/gwgpu/hal"
-	gputypes "github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
+	"github.com/energye/gpui/gpu/hal"
+	gputypes "github.com/energye/gpui/gpu/types"
 )
 
 // Surface and SurfaceTexture are defined in platform-specific files (resource_windows.go, resource_linux.go)

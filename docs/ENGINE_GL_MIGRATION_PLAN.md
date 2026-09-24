@@ -34,6 +34,7 @@
 ## 4. 分期
 
 - P0 验证（已完，未提交）：34 个实现文件 + 21 个单测文件搬进 `gpu/gwgpu/`（hal/hal-noop/gles/egl/gl/wgl 原样摆）；断根三条全落实（goffi→自研 ffishim 走 purego，gputypes→`gpu/types`+补 7 类小类型，naga 留依赖 v0.19.0）；格式/vet 全干净；单测全绿；真机 EGL 1.5 初始化一次过（Mesa，surfaceless）。
+- P1 三角验证（已完，未提交）：离屏 FBO 红三角蓝底一次过（中心 255,0,0、四角 0,0,255），WGSL→GLSL 经自养 naga（161 字节）；GL 上报 NVIDIA 940MX；驻留时整卡 6/1024M（桌面待机 3M，GL 上下文约 3M），相对 WebGPU 空白窗 300M+、鹈鹕 655M 差两个数量级。验证程序放 /tmp 未进仓。
 - P1 单窗打通：鹈鹕单窗 GL 上屏，像素零差，帧数和同步正常。
 - P2 三窗回归：图标/鹈鹕/列表各按现有时长重跑，像素加帧间隔加人工看，三证据齐。
 - P3 双后端并存：默认不动（还是现在这套），`GPUI_BACKEND=gl` 切换，不支持自动回退。Windows 同样走一遍 P0-P2。

@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/energye/gpui/gpu/gwgpu/hal"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // benchRTSink prevents the compiler from optimizing away benchmark results.

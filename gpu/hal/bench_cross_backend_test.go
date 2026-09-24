@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/energye/gpui/gpu/gwgpu/hal"
-	"github.com/energye/gpui/gpu/gwgpu/hal/noop"
+	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/hal/noop"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 

@@ -11,10 +11,10 @@ import (
 	"log/slog"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
-	"github.com/energye/gpui/gpu/gwgpu/hal"
-	gputypes "github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/gwgpu/naga"
 	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
+	"github.com/energye/gpui/gpu/hal"
+	gputypes "github.com/energye/gpui/gpu/types"
 )
 
 // compileWGSLToGLSL compiles a WGSL shader source to GLSL for the given entry point.

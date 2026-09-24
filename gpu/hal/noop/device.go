@@ -7,7 +7,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/energye/gpui/gpu/gwgpu/hal"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // Device implements hal.Device for the noop backend.

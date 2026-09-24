@@ -111,8 +111,8 @@ var (
 	procCommandBufferRelease Proc
 
 	// Function pointers - Queue (additional)
-	procQueueSubmit         Proc
-	procQueueSubmitForIndex Proc // wgpu-native extension: returns WGPUSubmissionIndex (uint64)
+	procQueueSubmit              Proc
+	procQueueSubmitForIndex      Proc // wgpu-native extension: returns WGPUSubmissionIndex (uint64)
 	procQueueOnSubmittedWorkDone Proc // wgpuQueueOnSubmittedWorkDone → WGPUFuture
 
 	// Function pointers - Surface

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/energye/gpui/gpu/gwgpu/hal"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // Queue implements hal.Queue for the noop backend.

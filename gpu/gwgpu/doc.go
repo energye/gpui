@@ -1,9 +1,9 @@
 // Package gwgpu hosts gpui's self-maintained pure-Go GPU backend family.
 //
 // Layout mirrors the ported source so fixes stay comparable:
-//   - hal/      — HAL interfaces (ported from gogpu wgpu/hal; gputypes
-//     references rewritten to gpu/types, plus gwgpu_compat additions).
-//   - hal/noop  — test-double backend for hal conformance tests.
+//   - gpu/hal (+noop) — HAL interfaces live one level up (sibling of
+//     gpu/types); gputypes references rewritten to gpu/types, plus
+//     gwgpu_compat additions.
 //   - gles/     — OpenGL ES backend (ported from gogpu wgpu/hal/gles).
 //   - gles/egl  — EGL display/context/surface on Linux.
 //   - gles/gl   — GL entry-point table.

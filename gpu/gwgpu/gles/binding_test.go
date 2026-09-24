@@ -8,9 +8,9 @@ package gles
 import (
 	"testing"
 
-	gputypes "github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
 	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
+	gputypes "github.com/energye/gpui/gpu/types"
 )
 
 // =============================================================================
