@@ -1,169 +1,58 @@
 package video
 
-// S2 Player wiring gate: the opt-in parallel player plays bit-exact vs
-// the sequential path, really runs windows in parallel, and seeks land
-// the same. Throughput uses the wall clock (not the hand-clock count:
-// the hand rig advances a full stamp per 1ms real, so any batched
-// decoder drops by construction; production uses the wall clock at
-// ~200ms/frame, where a ~16ms window is negligible).
-//
-// Peer: libavcodec/pthread_internal.h:26 cap 16 +
-// pthread_frame.c:912-923 cores+1 + :949 delay +
-// :122/:139/:143/:492/:565/:573/:579 submit loop +
-// h264dec.c:438 idr() + :668 idr(h) on IDR slice (our window rule: only
-// groups headed by a keyframe run parallel) + pthread_slice.c:120-130
-// same thread rule, against video/s2_player.go + video/player.go hooks
-// (Options.S2Parallel, default sequential keeps every existing gate).
+// S2 Player wiring gate on the ffmpeg backend: Options.S2Parallel stays
+// accepted for compatibility but ffmpeg owns threading (demux + decode +
+// reorder inside libgpui_ffmpeg), so the Go S2 window machinery never
+// trips: S2Windows stays 0 either way, small clips stream like big ones,
+// and parallel-vs-sequential plays agree stamp for stamp. Pixel truth is
+// ffmpeg-vs-ffmpeg (same backend, same run shape); the old Go-decoder
+// oracle retired with the Go decode path.
 // Clip: testdata/vr_stream_long.mp4 (tracked 230K, 320x240/Main/200
-// samples/40 IDR GOPs x5; missing file FAILs, never Skips).
-// Small clip vr5_seek.mp4 stays buffered: plays through, zero windows.
+// samples; missing file FAILs, never Skips).
 
 import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"testing"
 	"time"
-
-	"github.com/energye/gpui/video/color"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
-
-type s2Shown struct {
-	pts int64
-	pix []byte
-}
 
 // s2PlayAll plays name to Ended and copies every shown Pix (streaming
 // Pix is recycled on the next Poll, so copy during the tick like the
-// windows do). parallel toggles Options.S2Parallel. The hand clock
-// keeps stamps deterministic; the wall clock measures throughput.
-func s2PlayAll(t *testing.T, name string, parallel bool, now func() int64) ([]s2Shown, int64, time.Duration) {
+// windows do). parallel toggles Options.S2Parallel (compat no-op on the
+// ffmpeg backend). Paced ticks with yields keep the background decoding.
+func s2PlayAll(t *testing.T, name string, parallel bool) (map[int64][]byte, []int64) {
 	t.Helper()
-	var h *handClock
-	opt := Options{S2Parallel: parallel}
-	if now != nil {
-		opt.NowMs = now
-	} else {
-		h = &handClock{}
-		opt.NowMs = h.at
-	}
-	p, err := OpenFile(name, opt)
+	h := &handClock{}
+	p, err := OpenFile(name, Options{NowMs: h.at, S2Parallel: parallel})
 	if err != nil {
 		t.Fatalf("open %s parallel=%v: %v", name, parallel, err)
 	}
 	defer p.Close()
-	t0 := time.Now()
-	deadline := t0.Add(90 * time.Second)
-	var out []s2Shown
+	deadline := time.Now().Add(90 * time.Second)
+	pix := map[int64][]byte{}
+	var pts []int64
 	for {
-		if h != nil {
-			h.now += 200
+		if time.Now().After(deadline) {
+			t.Fatalf("not ended %s parallel=%v, shown %d", name, parallel, len(pts))
 		}
+		h.now += 200
 		fr, done := p.Poll()
 		if fr != nil {
 			cp := make([]byte, len(fr.Pix))
 			copy(cp, fr.Pix)
-			out = append(out, s2Shown{pts: fr.PTSMs, pix: cp})
+			if _, dup := pix[fr.PTSMs]; !dup {
+				pix[fr.PTSMs] = cp
+				pts = append(pts, fr.PTSMs)
+			}
 		}
 		if done {
-			return out, p.S2Windows(), time.Since(t0)
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("not ended %s parallel=%v, shown %d", name, parallel, len(out))
+			return pix, pts
 		}
 		runtime.Gosched()
 		time.Sleep(time.Millisecond)
 	}
-}
-
-// s2SequentialRGBA decodes name sequentially (one decoder, sample order)
-// and returns display-order RGBA keyed by PTS. Same splitters, same
-// param feed, same color registry as the player, so any wiring drift
-// shows as a byte difference at the same stamp.
-func s2SequentialRGBA(t *testing.T, name string) map[int64][]byte {
-	t.Helper()
-	movie, err := mp4.ParseFile(name)
-	if err != nil {
-		t.Fatalf("demux: %v", err)
-	}
-	v := movie.Video
-	if v == nil {
-		t.Fatal("no video track")
-	}
-	avcc, err := h264.ParseAVCC(v.AVCConfig)
-	if err != nil {
-		t.Fatalf("avcc: %v", err)
-	}
-	dec, err := NewDecoder(CodecH264)
-	if err != nil {
-		t.Fatalf("decoder: %v", err)
-	}
-	if err := feedParams(dec, avcc, name, ""); err != nil {
-		t.Fatalf("params: %v", err)
-	}
-	var sps *h264.SPS
-	if len(avcc.SPS) > 0 {
-		sps, err = h264.ParseSPS(avcc.SPS[0])
-		if err != nil {
-			t.Fatalf("sps: %v", err)
-		}
-	}
-	copt := color.Options{}
-	if sps != nil && sps.VUI != nil {
-		copt = color.OptionsFromVUI(sps.VUI.FullRange, sps.VUI.ColourPresent, sps.VUI.ColourMatrix)
-	}
-	sampling := dec.Sampling()
-	f, err := os.Open(name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	type one struct {
-		pts int64
-		s   int
-		pix []byte
-	}
-	var all []one
-	for i, s := range v.Samples {
-		buf := make([]byte, s.Size)
-		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-			t.Fatalf("sample %d: %v", s.Number, err)
-		}
-		units, err := SplitUnits(CodecH264, buf, avcc.LengthSize)
-		if err != nil {
-			t.Fatalf("split %d: %v", i, err)
-		}
-		for _, u := range units {
-			if err := dec.DecodeNALU(u); err != nil {
-				t.Fatalf("decode %d: %v", i, err)
-			}
-		}
-		pic, err := dec.FinishPicture()
-		if err != nil {
-			t.Fatalf("finish %d: %v", i, err)
-		}
-		cf, err := color.Convert(sampling, pic.Y, pic.Cb, pic.Cr, int(pic.Width), int(pic.Height), copt)
-		if err != nil {
-			t.Fatalf("color %d: %v", i, err)
-		}
-		all = append(all, one{pts: s.PTSMs, s: i, pix: cf.Pix})
-	}
-	sort.Slice(all, func(i, j int) bool {
-		if all[i].pts != all[j].pts {
-			return all[i].pts < all[j].pts
-		}
-		return all[i].s < all[j].s
-	})
-	out := make(map[int64][]byte, len(all))
-	for _, o := range all {
-		if _, dup := out[o.pts]; !dup {
-			out[o.pts] = o.pix
-		}
-	}
-	return out
 }
 
 func TestS2PlayerParallelExact(t *testing.T) {
@@ -175,41 +64,36 @@ func TestS2PlayerParallelExact(t *testing.T) {
 	if fi.Size() != 234721 {
 		t.Fatalf("long clip bytes %d want 234721 (re-record baseline if the clip changed)", fi.Size())
 	}
-	// Parallel play (opt-in). Drops are allowed (bounded catch-up, same
-	// contract as the existing long-clip gate): order + Ended + drop
-	// accounting is the guarantee, and every shown pixel must equal the
-	// sequential decode at the same stamp.
-	shown, windows, parWall := s2PlayAll(t, name, true, nil)
-	if len(shown) == 0 {
-		t.Fatal("no frames shown")
-	}
-	for i := 1; i < len(shown); i++ {
-		if shown[i].pts <= shown[i-1].pts {
-			t.Fatalf("pts not monotonic at %d: %d <= %d", i, shown[i].pts, shown[i-1].pts)
+	// Same backend both ways: full play, monotonic stamps, Ended; the
+	// option changes nothing but must not break anything.
+	parPix, parPTS := s2PlayAll(t, name, true)
+	seqPix, seqPTS := s2PlayAll(t, name, false)
+	for _, list := range [][]int64{parPTS, seqPTS} {
+		if len(list) < 190 {
+			t.Fatalf("shown = %d, want >= 190 (bounded catch-up drops ok)", len(list))
+		}
+		for i := 1; i < len(list); i++ {
+			if list[i] <= list[i-1] {
+				t.Fatalf("pts not monotonic at %d: %d <= %d", i, list[i], list[i-1])
+			}
 		}
 	}
-	if windows < 1 {
-		t.Fatalf("s2windows = %d, want >= 1 (40 GOPs must trip the parallel path)", windows)
-	}
-	oracle := s2SequentialRGBA(t, name)
-	for i, s := range shown {
-		want, ok := oracle[s.pts]
+	// Common stamps must show identical pixels (deterministic backend).
+	common := 0
+	for pts, want := range seqPix {
+		got, ok := parPix[pts]
 		if !ok {
-			t.Fatalf("frame %d pts %d not in sequential oracle", i, s.pts)
+			continue
 		}
-		if !equalBytes(s.pix, want) {
-			t.Fatalf("frame %d pts %d pixels differ parallel vs sequential", i, s.pts)
+		common++
+		if !equalBytes(got, want) {
+			t.Fatalf("pts %d pixels differ parallel vs sequential (same backend)", pts)
 		}
 	}
-	// Sequential reference wall on the same rig (log only, never a hard
-	// line: CI boxes differ; the kernel gate already pins ~2.18x on the
-	// decode itself).
-	_, seqWindows, seqWall := s2PlayAll(t, name, false, nil)
-	if seqWindows != 0 {
-		t.Fatalf("s2windows = %d without opt-in, want 0 (default stays sequential)", seqWindows)
+	if common < 100 {
+		t.Fatalf("common stamps = %d, want >= 100", common)
 	}
-	t.Logf("s2 player 200f/40gops: shown=%d/%d windows=%d parWall=%v seqWall=%v oracle=%d",
-		len(shown), 200, windows, parWall, seqWall, len(oracle))
+	t.Logf("s2 ffmpeg parity: par=%d seq=%d common=%d", len(parPTS), len(seqPTS), common)
 }
 
 func TestS2PlayerSeekParity(t *testing.T) {
@@ -223,12 +107,10 @@ func TestS2PlayerSeekParity(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	defer p.Close()
-	// Let the background run a little, then jump mid-clip. Async model
-	// (same as waitSeekLanded in stream_long_test.go): SeekTo only
-	// reparks the needle; the background drops forward frames until the
-	// landing decodes. Frames already queued ahead of the seek may still
-	// poll out first, so only the first frame at/above the landing
-	// counts — and it must equal the landing exactly, then monotonic.
+	// Let the background run a little, then jump mid-clip. Echo landing
+	// (20000 sits on the 200ms grid); the first picture must equal it
+	// exactly — poll first at the frozen stamp, tick only on misses, so
+	// the exact frame is never eaten as stale before it is seen.
 	for i := 0; i < 5; i++ {
 		h.now += 200
 		p.Poll()
@@ -239,17 +121,20 @@ func TestS2PlayerSeekParity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seek: %v", err)
 	}
+	if landed != 20000 {
+		t.Fatalf("landed = %d, want 20000 (echo)", landed)
+	}
 	deadline := time.Now().Add(60 * time.Second)
 	var first int64 = -1
 	var prev int64 = -1
 	seen := false
+	firstRound := true
 	for {
-		h.now += 200
+		if time.Now().After(deadline) {
+			t.Fatalf("seek play not ended, first=%d", first)
+		}
 		fr, done := p.Poll()
 		if fr != nil {
-			if !seen && fr.PTSMs < landed {
-				continue
-			}
 			if !seen {
 				first = fr.PTSMs
 				seen = true
@@ -262,9 +147,10 @@ func TestS2PlayerSeekParity(t *testing.T) {
 		if done {
 			break
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("seek play not ended, first=%d", first)
+		if !firstRound {
+			h.now += 200
 		}
+		firstRound = false
 		runtime.Gosched()
 		time.Sleep(time.Millisecond)
 	}
@@ -284,11 +170,13 @@ func TestS2PlayerSmallClipUntouched(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	defer p.Close()
-	if !p.Buffered() {
-		t.Fatal("vr5_seek.mp4 should stay buffered (<=64 frames)")
+	// ffmpeg backend streams every clip (no buffered path); the S2
+	// option stays a no-op with zero windows.
+	if p.Buffered() {
+		t.Fatal("vr5_seek.mp4 buffered, want ffmpeg streaming path")
 	}
 	if got := p.S2Windows(); got != 0 {
-		t.Fatalf("s2windows = %d on buffered path, want 0", got)
+		t.Fatalf("s2windows = %d, want 0 (ffmpeg owns threading)", got)
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	var n int

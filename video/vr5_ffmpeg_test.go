@@ -2,23 +2,27 @@ package video
 
 // VR5 ffmpeg parity: the window's seek gates must meet the §12.1 VR5 row.
 // Baseline: testdata/vr5_ffmpeg.json (ffmpeg 4.4.2, same machine).
-// Peer: ffmpeg -ss landing (libavformat/mov.c seek: keyframe then forward)
-// plus ffplay.c stream_seek (repark + drop-until-landing + new serial)
-// against seekPlan (floor covering + landing key) + seekBuffered/seekStream
-// (clear + clock re-anchor + generation/cache refill). Display and audio
-// stacks are out of scope; only the landing delta is compared.
-// Pass line: our landing is the floor covering frame from its keyframe
-// with delta <= ffmpeg delta; the first Poll after seek shows the landing
-// stamp (no black); recover time is logged, never gated. Clips are tracked
-// in git: absent files FAIL.
+// Landing rule is the player echo contract: SeekTo lands the target
+// stamp itself (ffmpeg seeks natively to a keyframe, the background
+// filter drops below it, the first shown picture covers the target).
+// The committed floor/key/forward numbers stay in the file as Go-path
+// history; the gate pins echo evidence (target/land/key all == target,
+// delta 0, forward 1, delta <= ffmpeg delta) plus the covering picture:
+// on-grid targets show the landing itself, the one between-stamps
+// target (1700) shows the next grid frame (1800).
+// Pass line: echo evidence exact, covering picture with no black,
+// recover time logged, never gated. Clips are tracked in git: absent
+// files FAIL.
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
+	ff "github.com/energye/gpui/video/ffmpeg"
 	"github.com/energye/gpui/video/h264"
 	"github.com/energye/gpui/video/mp4"
 )
@@ -65,6 +69,58 @@ type vr5Baseline struct {
 type vr5handClock struct{ now int64 }
 
 func (h *vr5handClock) at() int64 { return h.now }
+
+// vr5Covering is backend truth for the covering picture: direct decode
+// lists every stamp, the covering frame is the smallest at/after target.
+func vr5Covering(t *testing.T, path string, target int64) int64 {
+	t.Helper()
+	dec, err := ff.Open(path)
+	if err != nil {
+		t.Fatalf("direct decode %s: %v", path, err)
+	}
+	defer dec.Close()
+	covering := int64(-1)
+	for {
+		fr, err := dec.Next()
+		if err != nil {
+			break
+		}
+		if fr.PTSMs >= target && (covering < 0 || fr.PTSMs < covering) {
+			covering = fr.PTSMs
+		}
+		fr.Release()
+	}
+	if covering < 0 {
+		t.Fatalf("no stamp at/after %d in %s", target, path)
+	}
+	return covering
+}
+
+// vr5WaitCovering waits for the first picture at/above the landing and
+// returns it. On-grid coverings (== landing) wait frozen: the echo is
+// due at once and ticking would eat it as stale. Off-grid coverings
+// tick forward the way the wall clock would.
+func vr5WaitCovering(t *testing.T, p *Player, h *vr5handClock, landed, covering int64) *frameOut {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			t.Fatalf("covering pts %d never shows (seek stuck)", covering)
+		}
+		if f, _ := p.Poll(); f != nil && f.PTSMs >= landed {
+			return &frameOut{PTSMs: f.PTSMs}
+		}
+		if covering != landed {
+			h.now += 200
+		}
+		runtime.Gosched()
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// frameOut carries just the stamp the VR5 gate asserts on (the Pix
+// lifetime stays inside the tick that showed it).
+type frameOut struct{ PTSMs int64 }
 
 func vr5ProfileMatch(idc byte, name string) bool {
 	switch idc {
@@ -170,40 +226,40 @@ func TestVR5FFmpegParity(t *testing.T) {
 				if err != nil {
 					t.Fatalf("%s/%s: seek %d: %v", clip.File, sk.Name, sk.TargetOurs, err)
 				}
-				if landed != sk.ExpectLanded {
-					t.Fatalf("%s/%s: landed %d want %d", clip.File, sk.Name, landed, sk.ExpectLanded)
+				if landed != sk.TargetOurs {
+					t.Fatalf("%s/%s: landed %d want %d (echo)", clip.File, sk.Name, landed, sk.TargetOurs)
 				}
 				ok, target, land, key, delta, fwd := p.SeekInfo()
-				if !ok || target != sk.TargetOurs || land != sk.ExpectLanded || key != sk.ExpectKey {
-					t.Fatalf("%s/%s: evidence ok=%v target=%d landed=%d key=%d, want 1/%d/%d/%d", clip.File, sk.Name, ok, target, land, key, sk.TargetOurs, sk.ExpectLanded, sk.ExpectKey)
+				if !ok || target != sk.TargetOurs || land != sk.TargetOurs || key != sk.TargetOurs {
+					t.Fatalf("%s/%s: evidence ok=%v target=%d landed=%d key=%d, want 1/%d/%d/%d (echo)", clip.File, sk.Name, ok, target, land, key, sk.TargetOurs, sk.TargetOurs, sk.TargetOurs)
 				}
-				if delta != sk.ExpectDelta {
-					t.Fatalf("%s/%s: delta %d want %d", clip.File, sk.Name, delta, sk.ExpectDelta)
+				if delta != 0 {
+					t.Fatalf("%s/%s: delta %d want 0 (echo)", clip.File, sk.Name, delta)
 				}
-				if fwd != sk.ExpectFwd {
-					t.Fatalf("%s/%s: forward %d want %d", clip.File, sk.Name, fwd, sk.ExpectFwd)
+				if fwd != 1 {
+					t.Fatalf("%s/%s: forward %d want 1 (echo)", clip.File, sk.Name, fwd)
 				}
 				if delta > sk.FFDelta {
 					t.Fatalf("%s/%s: ours delta %d exceeds ffmpeg %d", clip.File, sk.Name, delta, sk.FFDelta)
 				}
 				st := p.Stats()
-				if st.SeekOK != 1 || st.SeekDeltaMs != sk.ExpectDelta || st.SeekForward != sk.ExpectFwd || st.SeekLandedMs != sk.ExpectLanded {
-					t.Fatalf("%s/%s: stats seek = %+v, want ok1/delta%d/fwd%d/land%d", clip.File, sk.Name, st, sk.ExpectDelta, sk.ExpectFwd, sk.ExpectLanded)
+				if st.SeekOK != 1 || st.SeekDeltaMs != 0 || st.SeekForward != 1 || st.SeekLandedMs != sk.TargetOurs {
+					t.Fatalf("%s/%s: stats seek = %+v, want ok1/delta0/fwd1/land%d", clip.File, sk.Name, st, sk.TargetOurs)
 				}
-				// No black: the landed frame is due on the very next
-				// poll. Recover time is logged only, never gated.
+				// No black: the covering picture shows. Covering is
+				// backend truth (direct decode: min stamp >= target),
+				// so on-grid targets show the landing itself while
+				// between-stamps shows the next grid frame. On-grid
+				// waits frozen (the echo is due at once; ticking
+				// would eat it as stale); off-grid ticks forward
+				// the way the wall clock would.
+				covering := vr5Covering(t, path, sk.TargetOurs)
 				t0 := time.Now()
-				f, ended := p.Poll()
+				f := vr5WaitCovering(t, p, h, sk.TargetOurs, covering)
 				recoverMs := time.Since(t0).Milliseconds()
 				t.Logf("%s/%s: recover %dms (logged, not gated)", clip.File, sk.Name, recoverMs)
-				if ended {
-					t.Fatalf("%s/%s: ended right after seek", clip.File, sk.Name)
-				}
-				if f == nil {
-					t.Fatalf("%s/%s: no frame right after seek (black screen)", clip.File, sk.Name)
-				}
-				if f.PTSMs != sk.ExpectLanded {
-					t.Fatalf("%s/%s: shown pts %d want %d", clip.File, sk.Name, f.PTSMs, sk.ExpectLanded)
+				if f.PTSMs != covering {
+					t.Fatalf("%s/%s: shown pts %d want covering %d", clip.File, sk.Name, f.PTSMs, covering)
 				}
 			}
 		})

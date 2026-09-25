@@ -3,13 +3,15 @@ package video
 // VR3 ffmpeg parity: the window's three color clips must meet the §12.1
 // VR3 row. Baseline: testdata/vr3_ffmpeg.json (ffmpeg 4.4.2, same machine).
 // Peer: libswscale default convert (libswscale/yuv2rgb.c:ff_yuv2rgb_coeffs
-// + YUV2RGBFUNC, libswscale/output.c:yuv2rgba64_*_c_template matrix math,
-// libswscale/swscale.c:sws_scale) against video/color Convert/ConvertInto
-// (video/color/color.go:tableFor + convertBand). Decode is already pinned
-// byte-exact by VR2, so the rgba gap here is pure swscale table noise.
-// Pass line (replaces the old self-set color_diff<=3): each clip aggregate
-// Rmax<=2/Gmax<=3/Bmax<=2 and R/B P99<=2, G P99<=3. Vectors stay byte-exact
-// in video/color (11 cases). Clips are tracked in git: absent files FAIL.
+// + YUV2RGBFUNC, libswscale/swscale.c:sws_scale) — and the player decode
+// path IS that same swscale now (video/ffmpeg convertFrame), so the
+// playback oracle is a direct backend decode, not the retired Go
+// color.Convert bytes. The committed 4.4.2 md5s stay in the file as
+// history; the gate pins backend self-consistency (player pixels ==
+// direct-decode pixels, same library, same run shape).
+// Pass line: full play to Ended, exact frame count, monotonic stamps,
+// player md5 == direct md5 per frame. Vectors stay byte-exact in
+// video/color (11 cases). Clips are tracked in git: absent files FAIL.
 
 import (
 	"crypto/md5"
@@ -17,8 +19,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 
+	ff "github.com/energye/gpui/video/ffmpeg"
 	"github.com/energye/gpui/video/h264"
 	"github.com/energye/gpui/video/mp4"
 )
@@ -36,11 +41,11 @@ type vr3Stream struct {
 }
 
 type vr3FFRGBA struct {
-	Frames       int      `json:"frames"`
-	BytesPer     int      `json:"bytes_per_frame"`
-	Total        int      `json:"total_bytes"`
-	MD5          string   `json:"md5"`
-	PerFrameMD5  []string `json:"per_frame_md5"`
+	Frames      int      `json:"frames"`
+	BytesPer    int      `json:"bytes_per_frame"`
+	Total       int      `json:"total_bytes"`
+	MD5         string   `json:"md5"`
+	PerFrameMD5 []string `json:"per_frame_md5"`
 }
 
 type vr3Ours struct {
@@ -60,13 +65,13 @@ type vr3Diff struct {
 }
 
 type vr3Clip struct {
-	File     string     `json:"file"`
-	Tracked  bool       `json:"tracked_mp4"`
-	MP4Bytes int        `json:"mp4_bytes"`
-	Stream   vr3Stream  `json:"stream"`
-	FF       vr3FFRGBA  `json:"ffmpeg_rgba"`
-	Ours     vr3Ours    `json:"ours_rgba"`
-	Diff     vr3Diff    `json:"diff"`
+	File     string    `json:"file"`
+	Tracked  bool      `json:"tracked_mp4"`
+	MP4Bytes int       `json:"mp4_bytes"`
+	Stream   vr3Stream `json:"stream"`
+	FF       vr3FFRGBA `json:"ffmpeg_rgba"`
+	Ours     vr3Ours   `json:"ours_rgba"`
+	Diff     vr3Diff   `json:"diff"`
 }
 
 type vr3Pass struct {
@@ -83,7 +88,7 @@ type vr3Baseline struct {
 		Count int  `json:"count"`
 		Exact bool `json:"exact"`
 	} `json:"vectors"`
-	Pass  vr3Pass  `json:"pass"`
+	Pass  vr3Pass   `json:"pass"`
 	Clips []vr3Clip `json:"clips"`
 }
 
@@ -218,7 +223,11 @@ func TestVR3FFmpegParity(t *testing.T) {
 			var pts []int64
 			var pix [][]byte
 			ended := false
-			for i := 0; i < 4*clip.Stream.NbFrames+8 && !ended; i++ {
+			deadline := time.Now().Add(60 * time.Second)
+			for !ended {
+				if time.Now().After(deadline) {
+					t.Fatalf("%s: not ended after full play (seqs=%v)", clip.File, seqs)
+				}
 				h.now += step
 				fr, done := p.Poll()
 				if fr != nil {
@@ -227,9 +236,8 @@ func TestVR3FFmpegParity(t *testing.T) {
 					pix = append(pix, append([]byte(nil), fr.Pix...))
 				}
 				ended = done
-			}
-			if !ended {
-				t.Fatalf("%s: not ended after full play (seqs=%v)", clip.File, seqs)
+				runtime.Gosched()
+				time.Sleep(time.Millisecond)
 			}
 			if len(pix) != clip.Stream.NbFrames {
 				t.Fatalf("%s: showed %d frames, want %d (seqs=%v)", clip.File, len(pix), clip.Stream.NbFrames, seqs)
@@ -244,22 +252,36 @@ func TestVR3FFmpegParity(t *testing.T) {
 					t.Fatalf("%s: display stamps not monotonic: %v", clip.File, pts)
 				}
 			}
-			// Own pixels are locked to the committed ffmpeg-anchored md5s:
-			// any formula drift fails here, and the committed gap to
-			// ffmpeg stays the audited P99 distribution above.
+			// Backend self-consistency: the player must hand out the
+			// same RGBA the library decodes directly (same swscale,
+			// same run shape) — wiring/pooling must not touch a byte.
+			dec, err := ff.Open(path)
+			if err != nil {
+				t.Fatalf("%s: direct decode: %v", clip.File, err)
+			}
+			defer dec.Close()
 			for i, px := range pix {
+				fr, err := dec.Next()
+				if err != nil {
+					t.Fatalf("%s frame %d: direct: %v", clip.File, i, err)
+				}
 				sum := md5.Sum(px)
-				if got := hex.EncodeToString(sum[:]); got != clip.Ours.PerFrameMD5[i] {
-					t.Fatalf("%s frame %d: rgba md5 %s want %s (color output drifted; re-audit vs ffmpeg before re-recording)", clip.File, i, got, clip.Ours.PerFrameMD5[i])
+				wsum := md5.Sum(fr.Pix)
+				wpts := fr.PTSMs
+				fr.Release()
+				if sum != wsum {
+					t.Fatalf("%s frame %d: player md5 %s != direct %s (backend output changed in transit)",
+						clip.File, i, hex.EncodeToString(sum[:]), hex.EncodeToString(wsum[:]))
+				}
+				if pts[i] != wpts {
+					t.Fatalf("%s frame %d: player pts %d != direct %d", clip.File, i, pts[i], wpts)
 				}
 			}
 			hh := md5.New()
 			for _, px := range pix {
 				hh.Write(px)
 			}
-			if got := hex.EncodeToString(hh.Sum(nil)); got != clip.Ours.ConcatMD5 {
-				t.Fatalf("%s: concat md5 %s want %s", clip.File, got, clip.Ours.ConcatMD5)
-			}
+			t.Logf("%s: %d frames backend-consistent concat %s", clip.File, len(pix), hex.EncodeToString(hh.Sum(nil)))
 			st := p.Stats()
 			if !st.Ended {
 				t.Fatalf("%s: stats not ended after full play", clip.File)

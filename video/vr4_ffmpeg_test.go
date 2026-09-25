@@ -14,7 +14,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 )
 
 type vr4Stream struct {
@@ -119,7 +121,11 @@ func TestVR4FFmpegParity(t *testing.T) {
 			var seqs []int64
 			var pts []int64
 			ended := false
-			for i := 0; i < 4*clip.Stream.NbFrames+8 && !ended; i++ {
+			deadline := time.Now().Add(90 * time.Second)
+			for !ended {
+				if time.Now().After(deadline) {
+					t.Fatalf("%s: not ended after full play (seqs=%v)", clip.File, seqs)
+				}
 				h.now += step
 				fr, done := p.Poll()
 				if fr != nil {
@@ -127,6 +133,8 @@ func TestVR4FFmpegParity(t *testing.T) {
 					pts = append(pts, fr.PTSMs)
 				}
 				ended = done
+				runtime.Gosched()
+				time.Sleep(time.Millisecond)
 			}
 			if !clip.Expect.Ended || !ended {
 				if !ended {

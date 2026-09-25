@@ -208,9 +208,9 @@ func TestS8StepsLogarithmic(t *testing.T) {
 	}
 }
 
-// TestS8PlayerWiring pins the paths: streaming clips build the index and
-// seek through it with identical evidence, small clips keep the buffered
-// path with no index (fast path untouched).
+// TestS8PlayerWiring pins the paths on ffmpeg: every clip streams with
+// no Go seek index (ffmpeg owns demux + seek natively), and SeekTo lands
+// the echo on long and small clips alike.
 func TestS8PlayerWiring(t *testing.T) {
 	h := &handClock{}
 	long, err := OpenFile("testdata/vr_stream_long.mp4", Options{NowMs: h.at})
@@ -219,32 +219,17 @@ func TestS8PlayerWiring(t *testing.T) {
 	}
 	defer long.Close()
 	if long.Buffered() {
-		t.Fatal("long clip buffered, want streaming index path")
+		t.Fatal("long clip buffered, want ffmpeg streaming path")
 	}
-	if long.sidx == nil {
-		t.Fatal("streaming player has no seek index")
-	}
-	for _, target := range []int64{0, 199, 200, 399, 4000, 20000, 39999, 40000, 100000} {
-		wantPos, wantLanded := s8LinearCovering(long.samples, target)
-		wantKey := s8LinearKey(long.keyframes, target)
-		gotPos, gotLanded, _, gotKey, gotKeyPos, err := long.seekPlan(target)
-		if err != nil {
-			t.Fatalf("seekPlan(%d): %v", target, err)
-		}
-		if gotPos != wantPos || gotLanded != wantLanded || gotKey != wantKey {
-			t.Fatalf("seekPlan(%d) = pos %d pts %d key %+v, want pos %d pts %d key %+v",
-				target, gotPos, gotLanded, gotKey, wantPos, wantLanded, wantKey)
-		}
-		if wantKeyPos, ok := keyDecodePos(long.samples, wantKey); !ok || gotKeyPos != wantKeyPos {
-			t.Fatalf("seekPlan(%d) keyPos = %d, want %d", target, gotKeyPos, wantKeyPos)
-		}
+	if long.sidx != nil {
+		t.Fatal("ffmpeg player built a Go seek index, want nil (ffmpeg owns seek)")
 	}
 	landed, err := long.SeekTo(20000)
 	if err != nil {
 		t.Fatalf("SeekTo 20000: %v", err)
 	}
-	if wantPos, wantLanded := s8LinearCovering(long.samples, 20000); landed != wantLanded {
-		t.Fatalf("SeekTo landed = %d, want linear %d (pos %d)", landed, wantLanded, wantPos)
+	if landed != 20000 {
+		t.Fatalf("SeekTo landed = %d, want 20000 (echo)", landed)
 	}
 
 	small, err := OpenFile("testdata/vr5_seek.mp4", Options{NowMs: h.at})
@@ -252,10 +237,10 @@ func TestS8PlayerWiring(t *testing.T) {
 		t.Fatalf("open small: %v", err)
 	}
 	defer small.Close()
-	if !small.Buffered() {
-		t.Fatal("small clip streaming, want buffered fast path")
+	if small.Buffered() {
+		t.Fatal("small clip buffered, want ffmpeg streaming path")
 	}
 	if small.sidx != nil {
-		t.Fatal("buffered player built an index, want fast path untouched")
+		t.Fatal("ffmpeg player built a Go seek index, want nil (ffmpeg owns seek)")
 	}
 }

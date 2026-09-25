@@ -74,36 +74,47 @@ func TestS6StreamingPoolSteady(t *testing.T) {
 	}
 }
 
-// TestS6BufferedUnaffected pins the S6 boundary: small clips keep the
-// exact old path (owned pixels, no pool), reporting 0 hit% honestly
-// instead of a faked number.
-func TestS6BufferedUnaffected(t *testing.T) {
+// TestS6SmallClipPooled pins the S6 boundary on ffmpeg: small clips
+// stream exactly like big ones (no buffered path anymore), so their
+// buffers also come from the RGBA pool and come back (zero outstanding
+// after Close).
+func TestS6SmallClipPooled(t *testing.T) {
 	h := &handClock{}
 	p, err := OpenFile("testdata/vr2_m_bframes.mp4", Options{NowMs: h.at})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	defer p.Close()
-	if !p.Buffered() {
-		t.Fatal("want buffered small-clip path")
+	if p.Buffered() {
+		t.Fatal("want ffmpeg streaming path, not buffered")
 	}
 	ended := false
 	var shown int64
-	for i := 0; i < 8 && !ended; i++ {
+	deadline := time.Now().Add(30 * time.Second)
+	for !ended {
+		if time.Now().After(deadline) {
+			t.Fatalf("small clip not ended, shown %d", shown)
+		}
 		h.now += 200
 		fr, done := p.Poll()
 		if fr != nil {
 			shown++
 		}
 		ended = done
+		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
-	if !ended || shown != 5 {
-		t.Fatalf("shown=%d ended=%v, want 5/true", shown, ended)
+	if shown != 5 {
+		t.Fatalf("shown=%d, want 5", shown)
 	}
-	if got := p.Stats().PoolHitPct; got != 0 {
-		t.Fatalf("buffered pool_hit_pct = %v, want 0 (honest unavailable)", got)
+	lv := p.pooled.Load()
+	if lv == nil || lv.pools == nil || lv.pools.RGBA == nil {
+		t.Fatal("streaming player holds no RGBA pool")
 	}
-	if p.pooled.Load() != nil {
-		t.Fatal("buffered player built a pool, want nil (owned pixels)")
+	// Leak verdict: Close recycles the queued tail and the displayed
+	// frame, so nothing stays borrowed.
+	p.Close()
+	if n := lv.pools.OutstandingTotal(); n != 0 {
+		t.Fatalf("outstanding = %d after Close, want 0 (no leak)", n)
 	}
 }

@@ -41,8 +41,17 @@ func TestLoopSteadyBytes(t *testing.T) {
 		t.Skipf("1080p clip missing (run video/testdata/gen_vr2.sh): %v", err)
 	}
 	defer p.Close()
-	// Warm up past open + first pass so the measurement is steady only.
-	WallSleep(1500)
+	// Warm up past open + first passes with real display polling, so the
+	// measurement is steady only. The ffmpeg backend streams with
+	// backpressure (bounded queue, pooled RGBA reuse): the pool reaches
+	// its steady size only through full borrow-display-return cycles, so
+	// sleeping without Poll would leave pool-growth misses inside the
+	// window. Poll through warmup the same way the window does.
+	warmEnd := WallDeadline(2000)
+	for !WallPast(warmEnd) {
+		p.Poll()
+		WallSleep(5)
+	}
 	runtime.GC()
 	var m0 runtime.MemStats
 	runtime.ReadMemStats(&m0)

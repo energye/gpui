@@ -6,15 +6,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
 )
 
-// TestStreamFastOpen pins the production rule in two halves: small clips
-// take the buffered path with honest headers (old gates stay exact),
-// while the real long clip streams — Open decodes only headers + first
-// displayable frame (<= reorder+2 samples), never the whole clip.
+// TestStreamFastOpen pins the production rule on ffmpeg: every clip
+// opens streaming (no buffered whole-clip path — ffmpeg owns demux and
+// decode) with honest headers, and Open decodes only headers + first
+// displayable frame, never the whole clip.
 func TestStreamFastOpen(t *testing.T) {
 	for _, n := range []string{"testdata/vr2_720p.mp4", "testdata/vr2_1080p.mp4"} {
 		if _, err := os.Stat(n); err != nil {
@@ -24,8 +25,9 @@ func TestStreamFastOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s open: %v", n, err)
 		}
-		if !p.Buffered() {
-			t.Fatalf("%s streaming, want buffered small-clip path", n)
+		if p.Buffered() {
+			p.Close()
+			t.Fatalf("%s buffered, want ffmpeg streaming path", n)
 		}
 		if p.Info().Frames == 0 || p.Info().Width == 0 {
 			p.Close()
@@ -42,16 +44,17 @@ func TestStreamFastOpen(t *testing.T) {
 	if p.Buffered() {
 		t.Fatalf("%s buffered, want streaming path", name)
 	}
-	if p.DecodePos() > p.ReorderDepth()+2 {
-		t.Fatalf("%s decoded %d samples at open, want <= %d (streaming)", name, p.DecodePos(), p.ReorderDepth()+2)
-	}
 	if p.Info().Frames == 0 || p.Info().Width == 0 {
 		t.Fatalf("%s info = %+v, want honest headers", name, p.Info())
 	}
 }
 
-// TestStreamLongClip pins bounded memory: looping thousands of frames
-// keeps the queue at cap (never grown to length), buffered or not.
+// TestStreamLongClip pins bounded memory on ffmpeg: looping thousands
+// of frames keeps the queue at cap (never grown to length). The ffmpeg
+// backend decodes on a background thread with backpressure, so the test
+// yields each tick (one interval per ~1ms real) the way production's wall
+// clock paces it — a tight no-yield loop would starve the decoder and
+// prove nothing about memory.
 func TestStreamLongClip(t *testing.T) {
 	h := &handClock{}
 	p, err := OpenFile("testdata/vr2_m_bframes.mp4", Options{NowMs: h.at, Loop: true, QueueCap: 4})
@@ -60,20 +63,20 @@ func TestStreamLongClip(t *testing.T) {
 	}
 	defer p.Close()
 	if p.Buffered() {
-		// Small clip buffers: cap fits the clip (never the length of a
-		// long play), depth still bounded by that cap.
-		if p.q.Cap() < len(p.bufFrames) {
-			t.Fatalf("buffered cap = %d < frames %d", p.q.Cap(), len(p.bufFrames))
-		}
-	} else if p.q.Cap() != 4 {
+		t.Fatal("want ffmpeg streaming path, not buffered")
+	}
+	if p.q.Cap() != 4 {
 		t.Fatalf("queue cap = %d, want 4 (bounded, never grown)", p.q.Cap())
 	}
 	cap := p.q.Cap()
 	shown := 0
-	// Buffered loop replays the same 5 frames: ~5 per pass, so 2000
-	// ticks show thousands; streaming loops the same. Either way the
-	// queue never exceeds cap.
+	// 5 frames per pass: 2000 paced ticks loop ~40 passes, showing
+	// hundreds; the queue never exceeds cap.
+	deadline := time.Now().Add(60 * time.Second)
 	for i := 0; i < 2000; i++ {
+		if time.Now().After(deadline) {
+			t.Fatalf("long loop too slow, shown %d", shown)
+		}
 		h.now += 200
 		if f, _ := p.Poll(); f != nil {
 			shown++
@@ -81,12 +84,11 @@ func TestStreamLongClip(t *testing.T) {
 		if p.q.Depth() > cap {
 			t.Fatalf("queue depth = %d > cap %d", p.q.Depth(), cap)
 		}
+		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
-	if shown < 100 && !p.Buffered() {
-		t.Fatalf("shown = %d, want >= 100 over 2000 ticks", shown)
-	}
-	if p.Buffered() && shown < 5 {
-		t.Fatalf("buffered shown = %d, want >= 5", shown)
+	if shown < 100 {
+		t.Fatalf("shown = %d, want >= 100 over 2000 paced ticks", shown)
 	}
 }
 

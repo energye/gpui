@@ -74,7 +74,9 @@ func TestRegistrySupported(t *testing.T) {
 }
 
 // TestRegistryOpenClip pins the registry play path: the same clip that
-// probes also opens and plays, and Info carries the registry names.
+// probes also opens and plays. Probe still answers mp4/h264 from the Go
+// registry (reference path intact); the player reports the ffmpeg backend
+// ("ffmpeg" container, real codec name) since it decodes natively now.
 func TestRegistryOpenClip(t *testing.T) {
 	container, codec, err := ProbeFile("testdata/vr2_720p.mp4")
 	if err != nil {
@@ -88,8 +90,8 @@ func TestRegistryOpenClip(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	defer p.Close()
-	if p.Info().Container != container || p.Info().Codec != codec {
-		t.Fatalf("info = %q/%q, probe = %q/%q", p.Info().Container, p.Info().Codec, container, codec)
+	if p.Info().Container != "ffmpeg" || p.Info().Codec == "" {
+		t.Fatalf("info = %q/%q, want ffmpeg/<codec> (probe = %q/%q)", p.Info().Container, p.Info().Codec, container, codec)
 	}
 	deadline := WallDeadline(15000)
 	var shown int64
@@ -170,9 +172,11 @@ func diff(a, b uint8) uint8 {
 	return b - a
 }
 
-// TestRegistryUnsupported pins readable failure: junk shells and unknown
-// codecs name the supported set and land in the bad-clip bucket, never a
-// panic and never an empty error.
+// TestRegistryUnsupported pins readable failure: junk shells fail
+// readably in the bad-clip bucket (ffmpeg owns the box now, so the open
+// carries ErrBadClip, not the registry's ErrUnsupportedContainer), unknown
+// codecs still name the supported set via the registry — never a panic
+// and never an empty error.
 func TestRegistryUnsupported(t *testing.T) {
 	dir := t.TempDir()
 	junk := filepath.Join(dir, "junk.bin")
@@ -183,8 +187,8 @@ func TestRegistryUnsupported(t *testing.T) {
 	if err == nil {
 		t.Fatal("junk shell opens")
 	}
-	if !errors.Is(err, ErrUnsupportedContainer) {
-		t.Fatalf("junk err = %v, want %v", err, ErrUnsupportedContainer)
+	if !errors.Is(err, ErrBadClip) {
+		t.Fatalf("junk err = %v, want %v", err, ErrBadClip)
 	}
 	if got := Classify(err).Kind; got != KindBadClip {
 		t.Fatalf("junk kind = %q, want %q", got, KindBadClip)

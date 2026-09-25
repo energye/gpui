@@ -106,6 +106,12 @@ func Classify(err error) Fault {
 	if errors.Is(err, os.ErrNotExist) {
 		return Fault{Kind: KindBadClip, Layer: "io", Tool: "文件", CN: "文件不存在（io层：路径错）"}
 	}
+	// ffmpeg 后端的可读错：打开/探测/解码失败都带 "ffmpeg:" 前缀，且
+	// open 侧已挂 ErrBadClip 哨兵；这里再按前缀兜底，避免坏文件落进
+	// unknown（TestBadClips 锁死：非 MP4 必须进 bad-box/truncated/bad-clip）。
+	if containsSub(err.Error(), "ffmpeg:") {
+		return Fault{Kind: KindBadClip, Layer: "ffmpeg", Tool: "解码器", CN: "片子打不开（ffmpeg层：容器/编码不支持或文件损坏）"}
+	}
 	return Fault{Kind: KindUnknown, Layer: "unknown", Tool: "-", CN: "未知错误：" + firstLine(err.Error())}
 }
 

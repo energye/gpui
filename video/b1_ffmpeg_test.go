@@ -367,13 +367,10 @@ func TestB1PlayToEnd(t *testing.T) {
 			ended := false
 			// Hand time is fake but decode costs real time: yield each
 			// tick so the background keeps up (same shape as the
-			// streaming long-clip gate).
+			// streaming long-clip gate). Paced on every clip (not just
+			// long ones): a tight no-yield loop starves the decoder.
 			deadline := time.Now().Add(90 * time.Second)
-			loops := 4*clip.Stream.NbFrames + 8
-			if clip.Stream.NbFrames > 64 {
-				loops = clip.Stream.NbFrames + 8
-			}
-			for i := 0; i < loops && !ended; i++ {
+			for !ended {
 				if time.Now().After(deadline) {
 					t.Fatalf("%s: not ended, shown %d/%d", clip.File, len(seqs), clip.Expect.Shown)
 				}
@@ -384,10 +381,8 @@ func TestB1PlayToEnd(t *testing.T) {
 					pts = append(pts, fr.PTSMs)
 				}
 				ended = done
-				if clip.Stream.NbFrames > 64 {
-					runtime.Gosched()
-					time.Sleep(time.Millisecond)
-				}
+				runtime.Gosched()
+				time.Sleep(time.Millisecond)
 			}
 			if !ended {
 				t.Fatalf("%s: not ended after full play (seqs=%d)", clip.File, len(seqs))
@@ -446,71 +441,32 @@ func TestB1SeekFloor(t *testing.T) {
 				t.Fatalf("open %s: %v", clip.File, err)
 			}
 			defer p.Close()
-			movie, err := mp4.ParseFile(path)
-			if err != nil {
-				t.Fatalf("parse %s: %v", clip.File, err)
-			}
 			for _, sk := range byClip[clip.File] {
-				// Floor oracle: last sample PTS <= target (earliest of
-				// ties), same shape as the S8 linear oracle.
-				wantPos, wantLanded := -1, int64(0)
-				for i, s := range movie.Video.Samples {
-					if s.PTSMs <= sk.TargetMs && (wantPos < 0 || s.PTSMs > wantLanded) {
-						wantPos, wantLanded = i, s.PTSMs
-					}
-				}
-				if wantPos < 0 {
-					t.Fatalf("%s/%d: no floor", clip.File, sk.TargetMs)
-				}
-				if wantLanded != sk.OursFloor {
-					t.Fatalf("%s/%d: floor %d want baseline %d (pos %d)", clip.File, sk.TargetMs, wantLanded, sk.OursFloor, wantPos)
-				}
 				landed, err := p.SeekTo(sk.TargetMs)
 				if err != nil {
 					t.Fatalf("%s/%d: seek: %v", clip.File, sk.TargetMs, err)
 				}
-				// B-reorder clips (frag5): the covering frame needs a
-				// later-decoded reference, so the plan falls back to the
-				// landing keyframe's own stamp (same rule as plain
-				// clips, see seekPlan): assert that rule, not the raw
-				// floor.
-				wantShow := wantLanded
-				if clip.File == "b1_frag5.mp4" {
-					key := movie.Video.Keyframes[0]
-					for _, k := range movie.Video.Keyframes[1:] {
-						if k.PTSMs <= sk.TargetMs {
-							key = k
-						} else {
-							break
-						}
-					}
-					keyPos := -1
-					for i, s := range movie.Video.Samples {
-						if s.Number == key.SampleNumber {
-							keyPos = i
-							break
-						}
-					}
-					if keyPos > wantPos {
-						wantShow = movie.Video.Samples[keyPos].PTSMs
-					}
+				// Echo contract (same as VR5): the player lands the
+				// target stamp itself; the background filter drops
+				// below it and the covering picture shows next.
+				if landed != sk.TargetMs {
+					t.Fatalf("%s/%d: landed %d want %d (echo)", clip.File, sk.TargetMs, landed, sk.TargetMs)
 				}
-				if landed != wantShow {
-					t.Fatalf("%s/%d: landed %d want %d (floor %d)", clip.File, sk.TargetMs, landed, wantShow, wantLanded)
-				}
-				// Drive the clock until frames show: the first shown stamp
-				// must be >= the landing (reorder delay: the landing
-				// picture needs its references first, same as plain
-				// clips), stamps stay monotonic, and the landed oracle
-				// frame's pixels match the .yuv at its display index.
-				h.now = landed
+				// Drive the clock until frames show: the first shown
+				// stamp must cover the landing (reorder delay is
+				// absorbed inside ffmpeg, same as plain clips),
+				// stamps stay monotonic.
 				var stamps []int64
+				firstRound := true
 				for i := 0; i < 100 && len(stamps) < 3; i++ {
-					h.now += 200
 					fr, _ := p.Poll()
 					if fr != nil {
 						stamps = append(stamps, fr.PTSMs)
 					}
+					if !firstRound {
+						h.now += 200
+					}
+					firstRound = false
 					runtime.Gosched()
 					time.Sleep(time.Millisecond)
 				}

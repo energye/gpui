@@ -5,16 +5,23 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/energye/gpui/video/clock"
 	"github.com/energye/gpui/video/color"
+	ff "github.com/energye/gpui/video/ffmpeg"
 	"github.com/energye/gpui/video/h264"
 	"github.com/energye/gpui/video/h265"
 	"github.com/energye/gpui/video/mp4"
 )
+
+// ffDecoder is the small surface of the ffmpeg backend the player
+// drives (kept as a named type so tests can stub it; production value
+// is always *ff.Decoder wrapped without copying its methods here).
+type ffDecoder = ff.Decoder
 
 // Sentinel errors. Messages stay in plain English so callers can match
 // with errors.Is and show their own localized text on top.
@@ -160,6 +167,12 @@ type pendingPic struct {
 // Only the tiny buffered path still decodes synchronously (deterministic
 // gates, pixel-verified).
 //
+// Decode backend: ffmpeg (video/ffmpeg, libgpui_ffmpeg via purego) is the
+// only decode path. The old Go mp4/h264/aac packages stay in the repo
+// marked deprecated for reference; the player no longer drives them.
+// Only the tiny buffered path still decodes synchronously (deterministic
+// gates, pixel-verified).
+//
 // Streaming (production): Open parses only headers (moov) and decodes
 // just enough for the first displayable frame, then returns — seconds
 // for gigabytes, not minutes. The background decodes ahead with a
@@ -217,6 +230,10 @@ type Player struct {
 	firstFault error
 
 	// Streaming decode state (dmu guards decoder + position + reorder).
+	// The Go-decode fields below (dec, pos, pending, S2/B state) are
+	// legacy: they stay for the deprecated path but the ffmpeg backend
+	// drives ffdec instead. Seek state (seekActive/seekLanded) is shared
+	// by both paths; epoch/loop accounting is shared too.
 	dmu          sync.Mutex
 	dec          Decoder
 	source       Source
@@ -310,6 +327,24 @@ type Player struct {
 	// until the next Poll or Close, then recycled. Guarded by mu (Poll
 	// is one display thread, Close races it).
 	lastPix []byte
+	// ffdec is the ffmpeg backend decoder (the only decode path now).
+	// Non-nil on the ffmpeg path; the legacy Go-decode fields above
+	// stay zero there.
+	ffdec *ffDecoder
+	// ffmpeg seek handshake (dmu-guarded, see ff_player.go): the caller
+	// thread only posts a request, the background thread runs the actual
+	// av_seek_frame between two Next calls (ffmpeg contexts are not
+	// thread-safe). ffSeekMu serializes concurrent SeekTo callers.
+	ffSeekReq    bool
+	ffSeekTarget int64
+	ffSeekDone   chan struct{}
+	ffSeekLanded int64
+	ffSeekErr    error
+	ffSeekMu     sync.Mutex
+	// ffTemp is a spooled temp file for memory sources (BytesSource):
+	// ffmpeg opens paths/URLs itself, so bytes are staged here and the
+	// file is removed on Close. Empty on the normal path/URL path.
+	ffTemp string
 
 	stopCh  chan struct{}
 	doneCh  chan struct{}
@@ -324,56 +359,73 @@ func (p *Player) announceReady() {
 }
 
 // OpenFile opens path and starts the background decoder. The player owns
-// nothing caller-side; Close must be called. Container and codec are
-// resolved through the registry: the same clip that probes also plays,
-// and unknown shells/codecs fail with the supported set named.
-//
-// Fast open: only headers + first displayable frame(s) decode here
-// (reorder delay + 1); the rest streams in the background. path may be
-// a local file or an http(s) URL (Range streaming, never full download).
+// nothing caller-side; Close must be called. Decoding runs on ffmpeg
+// (video/ffmpeg): its demuxer opens the path directly, so any container,
+// codec, protocol or URL the bundled libgpui_ffmpeg supports plays —
+// local files, http(s), rtmp and friends included. Missing files keep
+// their os error; unopenable inputs fail readably, never silently.
 func OpenFile(path string, opt Options) (*Player, error) {
-	src, err := NewSource(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+	// Same cleaning as NewSource: drag-drop file://, spaces, brackets.
+	p := strings.TrimSpace(path)
+	p = strings.Trim(p, "<>")
+	if strings.HasPrefix(p, "file://") {
+		p = strings.TrimPrefix(p, "file://")
+	}
+	if p == "" {
+		return nil, fmt.Errorf("%w: empty path", ErrBadClip)
+	}
+	if !IsURL(p) {
+		if _, err := os.Stat(p); err != nil {
 			return nil, err
 		}
-		// Probe for a namable bucket (unsupported vs unreadable).
-		if _, _, perr := ProbeFile(path); perr != nil {
-			if errors.Is(perr, ErrUnsupportedContainer) || errors.Is(perr, ErrUnsupportedCodec) {
-				return nil, perr
-			}
-		}
-		return nil, err
 	}
-	p, err := OpenWithSource(src, opt)
-	if err != nil {
-		src.Close()
-		// Keep the path in errors for triage (source name is the URL
-		// already; file errors keep os chain for KindBadClip).
-		return nil, err
-	}
-	return p, nil
+	return openFFmpeg(p, opt)
 }
 
 // OpenWithSource opens a kept-open Source (file, memory, HTTP Range) and
 // starts the background decoder. Caller must not Close src after success
 // (Player owns it); on failure src is left open for the caller to close.
+//
+// Backend note: ffmpeg opens the path/URL itself. File and URL sources
+// route by name; memory sources are spooled to a temp .mp4 which is
+// removed on Close, so old callers keep working.
 func OpenWithSource(src Source, opt Options) (*Player, error) {
-	movie, containerName, codecName, err := openViaSource(src, src.Name())
+	if src == nil {
+		return nil, fmt.Errorf("%w: nil source", ErrBadClip)
+	}
+	if bs, ok := src.(*BytesSource); ok {
+		f, err := os.CreateTemp("", "gpui-ffmpeg-*.mp4")
+		if err != nil {
+			return nil, fmt.Errorf("video: spool memory source %s: %w", src.Name(), err)
+		}
+		fname := f.Name()
+		if _, err := f.Write(bs.b); err != nil {
+			f.Close()
+			os.Remove(fname)
+			return nil, fmt.Errorf("video: spool memory source %s: %w", src.Name(), err)
+		}
+		if err := f.Close(); err != nil {
+			os.Remove(fname)
+			return nil, fmt.Errorf("video: spool memory source %s: %w", src.Name(), err)
+		}
+		p, err := openFFmpeg(fname, opt)
+		if err != nil {
+			os.Remove(fname)
+			return nil, err
+		}
+		p.ffTemp = fname
+		src.Close()
+		return p, nil
+	}
+	p, err := openFFmpeg(src.Name(), opt)
 	if err != nil {
-		if errors.Is(err, ErrUnsupportedContainer) || errors.Is(err, ErrUnsupportedCodec) {
-			return nil, err
-		}
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("video: box unreadable %s: %w", src.Name(), err)
+		return nil, err
 	}
-	v := movie.Video
-	if v == nil || len(v.Samples) == 0 {
-		return nil, fmt.Errorf("%w: %s", ErrNoVideo, src.Name())
-	}
-	return openStream(src, src.Name(), movie, v, containerName, codecName, opt)
+	// The ffmpeg demuxer owns its own handle; the passed Source is no
+	// longer needed, so close it here to keep the old ownership rule
+	// (caller must not close after success) leak-free.
+	src.Close()
+	return p, nil
 }
 
 // openStream builds a streaming player from parsed headers + source.
@@ -1634,16 +1686,14 @@ func feedParams(dec Decoder, avcc *h264.AVCC, path, tag string) error {
 	return nil
 }
 
-// SeekTo jumps to targetMs (container PTS milliseconds) and returns the
-// covering frame's stamp at once — but decodes nothing itself (ffplay
-// stream_seek model). It lands on the last sample at or before the target,
-// flushes the decoder, parks the read needle on the landing keyframe,
-// re-anchors the clock and lets the background drop forward frames until
-// the landing shows. The caller keeps polling; the old picture holds
-// meanwhile (never black). A second seek supersedes the first, so dragging
-// the progress bar stays responsive. Buffered clips still verify
-// pixel-exact against the cache and show instantly (deterministic gates).
-// Loop players are refused in VR5 (loop+seek goes to VC1).
+// SeekTo jumps to targetMs and returns the landing stamp at once —
+// but decodes nothing itself (ffplay stream_seek model). It asks ffmpeg
+// to jump to the keyframe at or before the target, flushes the decoder
+// state, re-anchors the clock and lets the background drop stale tail
+// frames until the landing shows. The caller keeps polling; the old
+// picture holds meanwhile (never black). A second seek supersedes the
+// first, so dragging the progress bar stays responsive.
+// Loop players are refused (loop+seek goes to VC1).
 func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	p.mu.Lock()
 	if p.closed {
@@ -1658,6 +1708,9 @@ func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error) {
 	}
 	if streamErr != "" {
 		return 0, fmt.Errorf("%w: stream dead %s: %s", ErrBadClip, p.path, streamErr)
+	}
+	if p.ffdec != nil {
+		return p.seekFFmpeg(targetMs, false)
 	}
 	if len(p.samples) == 0 {
 		return 0, fmt.Errorf("%w: nothing to seek", ErrNoFrames)
@@ -1855,7 +1908,7 @@ func (p *Player) seekAllowed() error {
 		return fmt.Errorf("%w: seek in loop mode goes to VC1", ErrBadClip)
 	case streamErr != "":
 		return fmt.Errorf("%w: stream dead %s: %s", ErrBadClip, p.path, streamErr)
-	case len(p.samples) == 0:
+	case len(p.samples) == 0 && p.ffdec == nil:
 		return fmt.Errorf("%w: nothing to seek", ErrNoFrames)
 	}
 	return nil
@@ -1868,6 +1921,9 @@ func (p *Player) seekAllowed() error {
 func (p *Player) SeekFast(targetMs int64) (int64, error) {
 	if err := p.seekAllowed(); err != nil {
 		return 0, err
+	}
+	if p.ffdec != nil {
+		return p.seekFFmpeg(targetMs, true)
 	}
 	if p.buffered {
 		_, _, _, key, _, err := p.seekPlan(targetMs)
@@ -1915,15 +1971,28 @@ func (p *Player) seekKeyframe(next bool) (int64, error) {
 	if err := p.seekAllowed(); err != nil {
 		return 0, err
 	}
-	if len(p.keyframes) == 0 {
-		return 0, fmt.Errorf("%w: no keyframes", ErrBadClip)
-	}
 	ref := p.PositionMs()
 	p.mu.Lock()
 	if !p.hasShown && p.seekOK {
 		ref = p.seekLandedMs
 	}
 	p.mu.Unlock()
+	if p.ffdec != nil {
+		// The ffmpeg demuxer owns keyframes; approximate next/prev by
+		// stepping one frame interval from the current position (SeekTo
+		// lands on the keyframe anyway, forward = keyframe granularity).
+		step := frameStepMs(p.frameRate)
+		if next {
+			return p.seekFFmpeg(ref+step, true)
+		}
+		if ref-step < 0 {
+			return p.seekFFmpeg(0, true)
+		}
+		return p.seekFFmpeg(ref-step, true)
+	}
+	if len(p.keyframes) == 0 {
+		return 0, fmt.Errorf("%w: no keyframes", ErrBadClip)
+	}
 	var key mp4.Keyframe
 	if p.sidx != nil {
 		// S8: binary next/prev over the sorted keys.
@@ -2238,7 +2307,8 @@ func (p *Player) Close() {
 	<-p.doneCh
 	p.waitAudioLoop()
 	// Pooled picture shares end here: queued pictures, the retained
-	// roster, and the decoder's buffered shares. Convert buffers
+	// roster, and the decoder's buffered shares (legacy Go path only;
+	// the ffmpeg backend frees its own objects below). Convert buffers
 	// below ride the existing RGBA pool, untouched.
 	p.dmu.Lock()
 	for _, q := range p.pending {
@@ -2250,6 +2320,8 @@ func (p *Player) Close() {
 	}
 	p.bHeld = nil
 	dropDecoderPictures(p.dec)
+	ffdec := p.ffdec
+	p.ffdec = nil
 	p.dmu.Unlock()
 	for _, fr := range p.q.Drain() {
 		if fr == nil {
@@ -2264,5 +2336,15 @@ func (p *Player) Close() {
 	p.releasePix(last)
 	if p.source != nil {
 		p.source.Close()
+	}
+	if ffdec != nil {
+		ffdec.Close()
+	}
+	p.mu.Lock()
+	ffTemp := p.ffTemp
+	p.ffTemp = ""
+	p.mu.Unlock()
+	if ffTemp != "" {
+		os.Remove(ffTemp)
 	}
 }
