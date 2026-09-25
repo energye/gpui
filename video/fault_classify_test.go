@@ -119,7 +119,7 @@ func TestFaultMissingFile(t *testing.T) {
 // TestFaultNonMP4 pins junk input: any readable failure with a known
 // bucket counts (ffmpeg reports bad-clip for junk bytes).
 func TestFaultNonMP4(t *testing.T) {
-	_, err := faultProbe("fault.go")
+	_, err := faultProbe("fault_classify.go")
 	if err == nil {
 		t.Fatal("go source opens as mp4")
 	}

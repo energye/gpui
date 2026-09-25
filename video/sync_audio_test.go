@@ -1,8 +1,7 @@
 // A2 AV sync gate (VW6 §11.3 A2, §12 A2 row): sound leads, picture
 // follows, one serial moves both queues.
 //
-// ffmpeg peers (read-only, no code copied), see video/a2_sync.go and
-// video/a2_player.go headers for the line map:
+// ffmpeg peers (read-only, no code copied), see video/sync_audio.go header for the line map:
 //
 //	fftools/ffplay.c Clock + get_master_sync_type/get_master_clock +
 //	set_clock/set_clock_speed + stream_seek/packet_queue_flush +

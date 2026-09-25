@@ -240,23 +240,31 @@ video.Player 取帧 → 转 RGBA 字节 → examples 真窗侧包成 render.Imag
 ### 4.1 包结构（计划）
 
 ```text
-video/                   # 根模块对外 API：打开/取帧/跳进度/关闭 + 自有帧类型 + 错误类型 + 注册表 + 播放器编排
-video/mp4/               # MP4 拆盒（盒子嵌套、目录表、取视频包、时间戳；首个容器实现，注册进 registry）
-video/h264/              # H.264 解码（参数集、帧切分、熵解码、预测、反变换、滤波；首个解码实现，注册进 registry）
-video/color/             # YUV 存法 + YUV 转 RGBA（含转换注册表：以后新采样格式只加注册）
-video/clock/             # 帧队列 + 时间戳时钟 + 播/停/跳进度调度（与容器/解码解耦，只认接口）
-video/testdata/          # 小测试片源与生成脚本（大文件不进仓库，见 §7）
-examples/video_vr*/      # 单能力真窗（§2，内含 video.Frame → render.ImageBuf 桥接）
-examples/video_vc*/      # 组合真窗（§3，同上桥接）
+video/                        # 根模块对外 API（package video 不变）：打开/取帧/跳进度/关闭 + 播放器编排
+video/player_types.go         # 哨兵错误 + Info/Stats/Options + Player 结构体
+video/player_open.go          # 打开/关闭（OpenFile/OpenWithSource/Close）
+video/player_playback.go      # 播放（Poll/暂停/速率/Stats/池借还）
+video/player_seek.go          # 跳进度（SeekTo/SeekFast/SeekBy/关键帧/单步）
+video/backend_ffmpeg.go       # ffmpeg 后端接线（后台单线程拥有全部 ffmpeg 调用）
+video/registry_probe.go       # 能力查询 + 壳/编码探测
+video/fault_classify.go       # 坏输入分类（Classify）
+video/mem_pool.go             # 定长池 + 内存封顶
+video/io_source.go            # 数据源（本地文件/内存/HTTP Range）
+video/sync_audio.go           # 音画同步数学 + 视频-only 音频桩（t-audio-ffmpeg 接声音）
+video/ffmpeg/                 # purego 绑定自建单文件 libgpui_ffmpeg（demux/解码/sws 转 RGBA）
+video/clock/                  # 帧队列 + 时间戳时钟 + 播/停/跳进度调度（与容器/解码解耦，只认接口）
+video/testdata/               # 小测试片源与生成脚本（大文件不进仓库，见 §7）
+examples/video_vr*/           # 单能力真窗（§2，内含 clock.Frame → render.ImageBuf 桥接）
+examples/video_vc*/           # 组合真窗（§3，同上桥接）
 ```
 
 ### 4.2 对照 ffmpeg 的看图（只学思路）
 
 | ffmpeg 那块 | 对应我们哪块 | 第一阶段看什么 |
 |-------------|--------------|----------------|
-| 拆 MP4 盒子 | `video/mp4` | 盒子嵌套、目录表、关键帧位置、时间戳换算 |
-| H.264 解码主流程 | `video/h264` | 参数集 → 帧切分 → 熵解码 → 预测 → 反变换 → 滤波 |
-| 颜色转换 | `video/color` | YUV 转 RGBA 的公式与精度、灰阶肤色不断层 |
+| 拆盒 + 解码 + 转色 | `video/ffmpeg`（demux/解码/sws 转 RGBA，原生；`video/backend_ffmpeg.go` 接线） | 盒子嵌套、目录表、关键帧位置、时间戳换算；参数集 → 熵解码 → 预测 → 反变换 → 滤波；YUV 转 RGBA 的精度、灰阶肤色不断层 |
+| 能力问询 + 坏输入分类 | `video/registry_probe.go` + `video/fault_classify.go` | 问完再开，坏片说人话 |
+| 播放器编排 | `video/player_*.go` + `video/clock` | 按时间戳显示、跟不上丢旧帧、跳进度落关键帧 |
 | 播放调度思想 | `video/clock` | 按时间戳显示、跟不上丢旧帧、跳进度落关键帧 |
 
 ### 4.3 ffmpeg 库信息（自建单文件 · 进 gpui 仓库）
@@ -565,6 +573,7 @@ VW0 → VW1 → VW2 → VW3
 | v0.99 S1b-I引用计数帧池+B2-b调度合刀 | §12 S1b/S2项（只动S1b/S2两项，VW0–VW3状态不动）：`Picture.refs`原子计数+按尺寸池（`picture.go:Retain/Release/acquirePicture`，键宽高、每键16全局64封顶，`NewPicture`保持新开语义只热路径取池）+ 交接账（`FinishPicture`解码份转显示份、DPB存取淘汰/冲刷各计一份、裁边视图自备一份对齐份解码份即还、残次帧解码份即还；`archiveMotion`同格原位拷；`PrimeFrame`先拿后放——新旧名单交集锚帧先放会瞬间归零被池回收再写，1080p门禁抓现行已钉`TestPoolPrimeOverlapKeepsShared`+`TestPoolRecyclesBuffers`两门禁；`DropBuffered`拆解码器私藏供worker/顺序/收获三条拆线；播放器侧排队播出转完/过滤丢弃/跳转循环换卷/关闭四处还，B侧携带保持新旧交接+lap散伙全还+收获显示份即还，S2侧窗散伙显示份还+重定针排队还；公开API零增（`DropBuffered/Retain/Release`全包内或未导出方法，§7免同步；`Decoder`接口不动）；门禁（`video/h264`整包 + 双池门禁 + 强制标量双跑 + `video` B/S2/播放核心 + `TestBPlayerExact` race+3连 + `vet` + `CGO_ENABLED=0` amd64/arm64构建过 + `gofmt`干净）全过；数（2026-09-21同机）：H.264纯数学段约18.3ms（改前约21ms，连带快约12%，GC少了）+ 每帧垃圾约5.3MB→约0.6MB（整帧12x+存档4x，剩有界活集与一次性填充）+ 整管ENERGY主片14.2ms/短片14.0ms/oceans 10.4ms（60/60零丢全顺）+ 整片直解17297帧平均15.86ms（顺序YUV无丢帧口径，池化后）+ 对打头120帧顺序14.6ms零丢 vs 并行显示零饿120全播5轮（17追帧丢系手钟探针口径，真机另算；像素由门禁锁）；ffmpeg单核3.05ms仍差约6x，剩纯算法硬骨头（`storeDirectB8`/色度预测/熵核）；帧率预算规则落位：墙预算=1000/帧率（48fps→21ms，60→16.7ms，90→11ms，120→8.3ms；§2.8分辨率五档不动，帧率折墙预算逐片算）；§2/§5 VW0–VW3状态不动，其余§12行不动（S1b保持🟨，S2保持🟩附B注记）。 |
 | v0.98 S1b-B~H单核七连+B2-b对打 | §12 S1b/S2项（只动S1b/S2两项，VW0–VW3状态不动）：S1b-B跳过块双向拼（`bmb.go:skipBUniform`四8x8同运动按16x16拼一次+原位写，`TestDecodeB*`绿）+ S1b-C去块判定直写（`filter.go:bRefsDifferInterior`拆`neg1/ge4`闭包，整边一次定试两版更慢已撤，逻辑逐字不动）+ S1b-D色度零快道（`mb.go:reconstructChromaBlocks` cbpC==0直拷预测+零标记，省8次零变换，对等`h264_mb.c:762`门控思想）+ S1b-E去块一致边跳过（`mb.go:uniSkip/uniDM`解码记一致运动+`filter.go`两边同运动边 verdict 全零跳过，`TestS1DeblockUniformMatchesSlow`快慢逐字节一致+164命中验过，对等`h264_loopfilter.c:check_mv`+`h264dsp.c:133`强度表思想）+ S1b-F残差闭包去堆（`residSrc` 6闭包改栈值+直调方法，`cabacResidSrc` `cavlcSrc` 同构，8x8倒查表提包级；内存画像`cabacResidSrc` 114.5MB→0，每帧总垃圾少28%，`mallocgc`出画像）+ S1b-G语法闭包去堆（`intraSrc/interSrc/bInterSrc`三套同刀法，`bRefReader`工厂删，`cabacIntraSrc`预测值口径对原闭包逐行掰回；`cabacIntraSrc` 3MB→0）+ S1b-H解码器暂存复用（同分辨率帧间复用nnz/modes/qps/运动全套暂存，复用条件先验+逐层重置：refTmp零+毒对角-2清零+modes/nnz/qps/mvd复位，480p门禁抓回三处漏重置；内存画像解码暂存~19MB/帧→0，只剩整帧+运动存档；对等均为源码头注释，只学语义不搬代码）+ B2-b顺序对并行对打（ENERGY头120帧：顺序管线17ms零丢laps=0，并行显示零饿（管线0.1ms）120全播5轮+28追帧丢（手钟快探针口径水分，真机墙钟不如此；像素由`TestBPlayerExact`锁）；门禁（`video/h264`整包 + 强制标量双跑（B/CAVLC/480p/720p/S2）+ `video` B/S2 + `TestBPlayerExact` race + `vet` + `CGO_ENABLED=0` amd64/arm64构建过 + `gofmt`干净）全过；公开API零增（`DeblockPicture`加两参系未导出函数签名调整，`§7`免同步）；整管（2026-09-21同机）：ENERGY主片17.2ms/短片17.1ms（预算21ms，60/60零丢全顺，改前1.8~2.4x卡）；H.264纯数学段约21ms（改前52~57ms，约2.5x；ffmpeg同机单核3.05ms，仍差约7x，剩整帧+存档结构性开销）；§2/§5 VW0–VW3状态不动，其余§12行不动（S1b保持🟨，S2保持🟩附B注记）。 |
 | v0.97 S1b-A四核+B组内帧级初绿 | §12 S1b/S2项（只动S1b/S2两项，VW0–VW3状态不动）：S1b-A解码主体SIMD四核（`video/h264/chroma_fast.go`色度双线性行核 + `bipred_fast.go`双向平均 + `addpix_fast.go`残差重建 + `transform.go`反量化平表+零块跳过，amd64 SSE2/SSSE3 + arm64 NEON + 标量留守，`GPUI_SCALAR_CONVERT=1`可强制标量；蝴蝶SIMD试后否决；对等见各源码头注释，只学语义不搬代码）+ B组内帧级 threading（`video/h264/bframe.go:PlanFrameGroup`影子解码器+哑图快照/Seed/Roster/NextSeed链 + `bprime.go:PrimeFrame/StoredRef/DPBList` + `video/bframe.go`分段S7封顶lap/收获/审计/携带/保持/恢复/组头SPS/PPS预喂+跳过 + `Player.BWindows`探针；对等`pthread_frame.c`帧线程思想，只学语义不搬代码）+ 门禁（`video/h264` S1四核分发==标量逐位+零分配、`TestBPlanPrimeMatchesSequential` + `TestBEnergyHead`绿、`video/bframe_test.go:TestBPlayerExact`显示67帧逐字节==顺序oracle（追帧丢允许，单调）+ laps=2 + `TestBPlayerOffParity`杀开关绿；公开API同步§7：新增`h264.PlanFrameGroup/FramePlan/POCSeed/Decoder.PrimeFrame/StoredRef/DPBList` + `Player.BWindows`，回写本行）；三道（`video/h264`整包 + `video`根B/S2/播放搜流容错注册池稳态绿（VR7-D合跑9.62>8.8红系旧抖动，单跑绿，不降预算）+ `mp4/color/clock`绿 + `vet` + `CGO_ENABLED=0` amd64/arm64构建过（386红系`video/aac`旧溢出，别线未动）+ `gofmt`干净）全过 + 真窗`video_vr2_decode` RUN15复验绿（解15/差异0/上屏883）；9片诚实管数（2026-09-21同机整管去睡）：7个1536x864/48fps预算21ms实测37–51ms（1.8–2.4x卡，ENERGY三片在内）+ oceans 960x400/24fps预算42ms实测约15ms顺 + f42906仅21帧实测约60ms供参考；旧`DecodeMs`只计时转色（约2ms顺系口径artifact，本轮整管数作废旧顺结论）；§2/§5 VW0–VW3状态不动，其余§12行不动（S1b翻🟨，S2保持🟩附B注记）。 |
+| v0.106 按功能改名 | 结构性规范调整（零逻辑改动，`git mv` 保历史）：`player.go` 拆四件（types/open/playback/seek，SetRate 归播放，ffDecoder 别名归后端）+ `ff_player/registry/fault/pool/source` 按功能改名 + `a2_sync/a2_player/audio_stub` 三合一 `sync_audio.go` + 22 个测试文件归组改名（player_*/playback_*/mem_*/gate_*/sync_audio/backend）；熔断锁改扫 `player_*.go` 四文件 + 坏输入换新路径 + `doc.go` 重写 ffmpeg 口径；门禁（19 文件绿 + 3 项已知抖动复现：S2 搜进度偶发错位、VR7-T 预算红、HTTP 全播偶发少帧 + `clock/ffmpeg` 绿 + `vet` + `CGO_ENABLED=0` + 19 真窗示例全构建过）；§4 包结构表同步新名；§2/§5 状态不动。 |
 | v0.105 收敛删Go重写 | 收敛优化（只动本线，git 历史可恢复）：删 `video/mp4/h264/h265/aac/color` + 根 `bframe/s2_player/seek_index/v2_headers/audio` + A1 两测试，根包瘦为 ffmpeg 口径（`registry/fault/player/a2_player` + `audio_stub`），测试/示例逐 ffmpeg 口径改完（`registry/fault/b1/vr3/vr5/vr6/a2` 等 + 19 真窗示例）；门禁（`video` 根播搜容错注册稳态流/S2/S6/B/VR3-6/A2/B1 逐文件绿 + S8 索引测试随包删除 + 示例全 `go build` 过 + `vet` 过；已知抖动：S2 偶发首现错位、VR7-T 预算红记 S1 攻坚、HTTP 全播偶发少帧，见遗留）；待办（t-vr7d-base、t-audio-ffmpeg 延续）；§2/§5 VW0–VW3状态不动。 |
 | v0.104 ffmpeg后端切换 | 解码切 ffmpeg 后端：新包`video/ffmpeg`（purego 绑定自建单文件 `libgpui_ffmpeg` 7.1.5，demux/codec/packet/frame/sws/swr/hwdevice/dict 约 40+ 接口，偏移按 7.1 头文件钉死）+ 新文件`video/ff_player.go`（`openFFmpeg/ffDecodeLoop/takeFFSeek/seekFFmpeg`：后台单线程拥有全部 ffmpeg 调用，Next+SeekTo 握手，队列=clock.Queue，循环 SeekTo(0)+epoch，S6 池借还）+ `video/player.go` 最小钩子（OpenFile/OpenWithSource 走 ffmpeg，SeekTo/SeekFast 分支，内存源 spool 临时 .mp4）；旧 Go `mp4/h264/aac` 留仓标 deprecated，播放器不再驱动；门禁（`video/ffmpeg` 解码 3 帧 + `ff_play` 播搜关 + `video` 根播放/搜进度/容错/注册/稳态/流/S2/S6/S8/B/VR3-7/A1/A2/B1 逐文件绿 + `clock/color/ffmpeg/aac` 绿 + `vet` + `CGO_ENABLED=0` 构建过）全过；口径（标题/V-U3/V-U4/§4.3/§7 合规同步本行：第三方只认 purego + `lib/ffmpeg` 自建二进制 LGPL 2.1）；待办（t-vr7d-base：VR7-D 需重定含 sws 的新基线，暂 log-only；t-audio-ffmpeg：音频解码未接线，A2 门禁暂 video-only）；§2/§5 VW0–VW3状态不动。 |
 

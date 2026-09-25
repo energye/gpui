@@ -5,8 +5,8 @@ package video
 // Peer: libavutil/mem.c:76-77 av_max_alloc + :102/:158 refuse over-limit
 // against openStream pre-decode estimate gate (over-cap fails fast with
 // ErrMemOverCap); libavutil/buffer.h:266 av_buffer_pool_init +
-// buffer.c:390 av_buffer_pool_get borrow/reuse against pool.go Acquire/
-// Release + player.go convertPic/remakeLive/releasePix; fftools/ffplay.c
+// buffer.c:390 av_buffer_pool_get borrow/reuse against mem_pool.go Acquire/
+// Release + player_playback.go remakeLive/releasePix; fftools/ffplay.c
 // :126 VIDEO_PICTURE_QUEUE_SIZE 3 + :129 FRAME_QUEUE_SIZE + :705 max_size
 // cap + :751 peek_writable waits when full + :789 next unrefs against
 // clock/queue.go NewQueue/Push(block)/PollDue(drop-oldest+Dropped).

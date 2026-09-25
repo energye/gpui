@@ -41,11 +41,16 @@
 //   - Audio trim (synchronize_audio swr compensation) only runs when
 //     audio is NOT the master; we always run audio-master-when-present
 //     (ffplay default), so the trim path stays parked. A3 owns resample.
+//
+// This file also carries the Player audio stubs (old a2_player.go) and
+// the ProbeAudio stubs (old audio_stub.go): video-only until
+// t-audio-ffmpeg wires native audio decode.
 package video
 
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // A2 sync thresholds in milliseconds. Direct copies of ffplay.c:80-86
@@ -303,4 +308,128 @@ func (q *AudioQueue) Drain() []*AudioFrame {
 	}
 	q.buf = q.buf[:0]
 	return out
+}
+
+// Player audio stubs (video-only): the ffmpeg backend decodes pictures
+// only, so the A2 public shape stays honest at zero and callers never
+// branch on a removed mode.
+// HasAudio reports the A2 sound path runs. Always false on the
+// video-only ffmpeg backend.
+func (p *Player) HasAudio() bool { return false }
+
+// Master names the leading clock. Always video until audio lands.
+func (p *Player) Master() string {
+	if p == nil {
+		return MasterVideo
+	}
+	return MasterVideo
+}
+
+// Serial is the shared seek serial both queues would retire on.
+// The video queue still bumps it on every seek, so tests can prove one
+// seek moved the picture line.
+func (p *Player) Serial() int64 {
+	if p == nil {
+		return 0
+	}
+	return atomic.LoadInt64(&p.generation)
+}
+
+// AVDiffMs is sound stamp minus picture stamp. Always zero: no sound.
+func (p *Player) AVDiffMs() int64 { return 0 }
+
+// masterDue is the schedule Poll serves pictures against: the picture
+// clock. The audio-master branch retired with the Go AAC path.
+func (p *Player) masterDue() int64 {
+	if p == nil || p.clk == nil {
+		return 0
+	}
+	return p.clk.DuePTSMS()
+}
+
+// PollAudio returns the newest due PCM frame. Always (nil, ended): the
+// backend carries no sound, so silent clips report video end, and live
+// clips report not-ended. ended mirrors the picture line so callers
+// waiting on sound end still terminate.
+func (p *Player) PollAudio() (f *AudioFrame, ended bool) {
+	if p == nil {
+		return nil, true
+	}
+	select {
+	case <-p.stopCh:
+		return nil, false
+	default:
+	}
+	select {
+	case <-p.readyCh:
+	default:
+		select {
+		case <-p.readyCh:
+		case <-p.stopCh:
+			return nil, false
+		}
+	}
+	p.mu.Lock()
+	done := p.decodeDone && p.q.Depth() == 0 && p.hasShown
+	loop := p.loop
+	p.mu.Unlock()
+	if !loop && done {
+		return nil, true
+	}
+	return nil, false
+}
+
+// fillAudioStats rides the A2 waterline onto Stats: video master with
+// zero audio, honest unavailable, never faked.
+func (p *Player) fillAudioStats(st *Stats) {
+	if p == nil || st == nil {
+		return
+	}
+	st.Master = MasterVideo
+}
+
+// The lifecycle helpers below are no-ops kept for API shape: the Go AAC
+// thread retired, ffmpeg owns threading natively. Seek/Close/Pause/Rate
+// paths no longer call them; they stay so external callers do not break.
+
+func (p *Player) startAudioLoop()             {}
+func (p *Player) clearAudioQueue()            {}
+func (p *Player) closeAudioQueue()            {}
+func (p *Player) waitAudioLoop()              {}
+func (p *Player) wakeAudioLoop()              {}
+func (p *Player) parkAudioLocked(int64)       {}
+func (p *Player) startAudioClockAtSeek(int64) {}
+func (p *Player) pauseAudioClock()            {}
+func (p *Player) resumeAudioClock()           {}
+func (p *Player) setAudioRate(float64)        {}
+func (p *Player) streamAudioDrained() bool    { return true }
+
+// Audio probe stubs (video-only): sound decode is not wired yet
+// (see t-audio-ffmpeg), so every clip reports no audio.
+// AudioInfo describes one audio track. Fields stay for the callers;
+// values are always zero on the video-only backend.
+type AudioInfo struct {
+	Path       string
+	Codec      string
+	Profile    string
+	SampleRate int
+	Channels   int
+	Samples    int
+	DurationMs int64
+	ASC        []byte
+}
+
+// ProbeAudio reports the audio track without decoding. Always ErrNoAudio
+// on the video-only backend (honest unavailable, never faked).
+func ProbeAudio(path string) (AudioInfo, error) {
+	return AudioInfo{Path: path}, ErrNoAudio
+}
+
+// ProbeAudioSource is the Source twin of ProbeAudio. Always ErrNoAudio.
+func ProbeAudioSource(src Source) (AudioInfo, error) {
+	name := ""
+	if src != nil {
+		name = src.Name()
+	}
+	return AudioInfo{Path: name}, ErrNoAudio
 }

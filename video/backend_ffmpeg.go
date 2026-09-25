@@ -9,10 +9,13 @@ import (
 	ff "github.com/energye/gpui/video/ffmpeg"
 )
 
-// This file wires the ffmpeg backend behind the existing Player: same
-// Open/Poll/Seek/Stats surface, frames decoded by libgpui_ffmpeg instead
-// of the Go mp4/h264 path. The old Go packages stay in the repo, marked
-// deprecated, until the ffmpeg gates below cover every stage.
+// This file wires the ffmpeg backend behind the Player: ffmpeg owns
+// demux, decode, reorder and seek natively; the Player only does
+// queue/clock/seek orchestration on top.
+
+// ffDecoder is the ffmpeg backend decoder the player drives
+// (production value is always *ff.Decoder).
+type ffDecoder = ff.Decoder
 
 // openFFmpeg opens path through libgpui_ffmpeg and starts the background
 // decoder. The player fields it reuses: queue + clock + ready/stop/done

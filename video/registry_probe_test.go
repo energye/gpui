@@ -103,36 +103,46 @@ func TestRegistryUnsupported(t *testing.T) {
 	}
 }
 
-// TestNoHardcodedNames is the VR9熔断 lock: the core flow (player.go)
-// never switches on a container/codec/sampling name literal. Package
-// import paths (video/ffmpeg) are the wiring the backend owns; the
-// player only handles the names the demuxer hands back.
-// fault.go triage labels are outside this gate on purpose.
+// TestNoHardcodedNames is the VR9熔断 lock: the player core flow
+// (player_types/open/playback/seek) never switches on a
+// container/codec/sampling name literal. Package import paths
+// (video/ffmpeg) are the wiring the backend owns; the player only
+// handles the names the demuxer hands back.
+// fault_classify.go triage labels are outside this gate on purpose.
 func TestNoHardcodedNames(t *testing.T) {
 	// Only string literals count: branch/switch/compare operands that
 	// name a format. Import paths are backend wiring, not flow logic.
 	banned := []string{"\"mp4\"", "\"h264\"", "\"yuv420p\"", "\"avc\"", "\"avc1\"", "\"hevc\"", "\"h265\"", "\"vp8\"", "\"vp9\"", "\"av1\"", "\"mkv\"", "\"webm\"", "\"mov\""}
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "player.go", nil, 0)
+	files, err := filepath.Glob("player_*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(files) == 0 {
+		t.Fatal("no player_*.go files found")
+	}
 	var bad []string
-	ast.Inspect(f, func(n ast.Node) bool {
-		lit, ok := n.(*ast.BasicLit)
-		if !ok || lit.Kind != token.STRING {
-			return true
+	for _, name := range files {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatal(err)
 		}
-		low := strings.ToLower(lit.Value)
-		for _, b := range banned {
-			if strings.Contains(low, b) {
-				pos := fset.Position(lit.Pos())
-				bad = append(bad, pos.String()+": "+lit.Value)
+		ast.Inspect(f, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
 			}
-		}
-		return true
-	})
+			low := strings.ToLower(lit.Value)
+			for _, b := range banned {
+				if strings.Contains(low, b) {
+					pos := fset.Position(lit.Pos())
+					bad = append(bad, pos.String()+": "+lit.Value)
+				}
+			}
+			return true
+		})
+	}
 	if len(bad) > 0 {
-		t.Fatalf("player.go hardcodes format names:\n%s", strings.Join(bad, "\n"))
+		t.Fatalf("player core hardcodes format names:\n%s", strings.Join(bad, "\n"))
 	}
 }
