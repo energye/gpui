@@ -19,7 +19,11 @@
 ## 库文件在哪
 
 - 缺省在 `gpui/lib/ffmpeg/<系统>-<架构>/` 下找（共 6 个构建：linux 四架构 + win 双架构，mac 待补）。
-- 环境变量 `GPUI_FFMPEG_PATH` 可以指定路径，测试和特殊目录用它。
+- 两个版本：基础版 `libgpui_ffmpeg.(so|dll|dylib)` 只管看片（解码+拆盒），
+  默认加载；高级版 `libgpui_ffmpeg_full.(so|dll|dylib)` 加写文件
+  （复用+编码+烧字），`GPUI_FFMPEG_VARIANT=full` 才加载。
+  `Variant()` 报当前是哪个版本，`IsFull()` 报是不是高级版。
+- 环境变量 `GPUI_FFMPEG_PATH` 可以指定路径，测试和特殊目录用它（指哪加载哪，不受版本限制）。
 - 库不在就别硬调：先问 `Available()`，回来 false 说明库没加载上。
 - `LibPath()` 告诉你最后用的是哪个文件，`Version()` 报版本号（7.1.5）。
 

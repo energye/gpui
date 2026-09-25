@@ -41,33 +41,68 @@ var (
 )
 
 // libRelName returns the repository-relative library path for this platform.
-func libRelName() string {
+// 基础版文件名（旧名不动，默认加载）。
+func libRelName() string { return libRelNameFor("base") }
+
+// libRelNameFull returns the full-version path (same dir, _full suffix).
+// 高级版文件名（同目录 _full 后缀，显式指定才加载）。
+func libRelNameFull() string { return libRelNameFor("full") }
+
+// libRelNameFor maps variant to file name: base keeps the old name,
+// full adds _full before the extension.
+func libRelNameFor(variant string) string {
+	full := variant == "full"
 	switch runtime.GOOS {
 	case "windows":
-		if runtime.GOARCH == "arm64" {
-			return filepath.Join("lib", "ffmpeg", "win-arm64", "libgpui_ffmpeg.dll")
+		name := "libgpui_ffmpeg.dll"
+		if full {
+			name = "libgpui_ffmpeg_full.dll"
 		}
-		return filepath.Join("lib", "ffmpeg", "win-x64", "libgpui_ffmpeg.dll")
+		if runtime.GOARCH == "arm64" {
+			return filepath.Join("lib", "ffmpeg", "win-arm64", name)
+		}
+		return filepath.Join("lib", "ffmpeg", "win-x64", name)
 	case "darwin":
-		if runtime.GOARCH == "arm64" {
-			return filepath.Join("lib", "ffmpeg", "darwin-arm64", "libgpui_ffmpeg.dylib")
+		name := "libgpui_ffmpeg.dylib"
+		if full {
+			name = "libgpui_ffmpeg_full.dylib"
 		}
-		return filepath.Join("lib", "ffmpeg", "darwin-x64", "libgpui_ffmpeg.dylib")
+		if runtime.GOARCH == "arm64" {
+			return filepath.Join("lib", "ffmpeg", "darwin-arm64", name)
+		}
+		return filepath.Join("lib", "ffmpeg", "darwin-x64", name)
 	default:
+		name := "libgpui_ffmpeg.so"
+		if full {
+			name = "libgpui_ffmpeg_full.so"
+		}
 		switch runtime.GOARCH {
 		case "arm64":
-			return filepath.Join("lib", "ffmpeg", "linux-arm64", "libgpui_ffmpeg.so")
+			return filepath.Join("lib", "ffmpeg", "linux-arm64", name)
 		case "386":
-			return filepath.Join("lib", "ffmpeg", "linux-386", "libgpui_ffmpeg.so")
+			return filepath.Join("lib", "ffmpeg", "linux-386", name)
 		case "arm":
-			return filepath.Join("lib", "ffmpeg", "linux-arm", "libgpui_ffmpeg.so")
+			return filepath.Join("lib", "ffmpeg", "linux-arm", name)
 		default:
-			return filepath.Join("lib", "ffmpeg", "linux-x64", "libgpui_ffmpeg.so")
+			return filepath.Join("lib", "ffmpeg", "linux-x64", name)
 		}
 	}
 }
 
+// ffmpegVariant reads GPUI_FFMPEG_VARIANT: "full" enters full version,
+// anything else (including empty) stays on base version.
+// 默认基础版，GPUI_FFMPEG_VARIANT=full 才进高级版。
+// GPUI_FFMPEG_PATH 直接指文件时不受此限制（指哪加载哪）。
+func ffmpegVariant() string {
+	if v := os.Getenv("GPUI_FFMPEG_VARIANT"); v == "full" || v == "FULL" || v == "Full" {
+		return "full"
+	}
+	return "base"
+}
+
 // candidatePaths lists library locations to try in order.
+// 默认只找基础版；GPUI_FFMPEG_VARIANT=full 才找高级版；
+// GPUI_FFMPEG_PATH 直接指文件时指哪找哪（基础高级都行）。
 func candidatePaths() []string {
 	if p := os.Getenv("GPUI_FFMPEG_PATH"); p != "" {
 		return []string{p}
@@ -81,7 +116,7 @@ func candidatePaths() []string {
 		seen[p] = true
 		out = append(out, p)
 	}
-	rel := libRelName()
+	rel := libRelNameFor(ffmpegVariant())
 	if exe, err := os.Executable(); err == nil {
 		add(filepath.Join(filepath.Dir(exe), rel))
 		// go test binaries live deep in /tmp; walk up a few levels too.
@@ -167,12 +202,25 @@ func ensureLoaded() error {
 // Available reports whether the shared library loads on this machine.
 func Available() bool { return ensureLoaded() == nil }
 
+// Variant reports which library version loads: "base" or "full".
+// 默认 base；GPUI_FFMPEG_VARIANT=full 切 full。
+func Variant() string { return ffmpegVariant() }
+
 // LibPath reports the loaded file, "" when unavailable.
 func LibPath() string {
 	if ensureLoaded() != nil {
 		return ""
 	}
 	return libPath
+}
+
+// IsFull reports whether the loaded library is the full version.
+// 高级版才有写文件（复用+编码+烧字），基础版调写接口会报可读错。
+func IsFull() bool {
+	if ensureLoaded() != nil {
+		return false
+	}
+	return ffmpegVariant() == "full"
 }
 
 // Version returns the ffmpeg version string (for example "7.1.5").

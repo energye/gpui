@@ -1,0 +1,92 @@
+name: ffmpeg-dual
+
+# 双版本单文件构建（基础版 base + 高级版 full）。
+# 本机 docker 和这里跑同一套脚本（tools/ffmpeg/），产物同名。
+# 触发：手动 dispatch，或 tools/ffmpeg/** 改了。
+# 产物：lib/ffmpeg/<平台>/libgpui_ffmpeg.(so|dll|dylib)（基础版，旧名不动）
+#       lib/ffmpeg/<平台>/libgpui_ffmpeg_full.(so|dll|dylib)（高级版）
+# 许可门禁：两档都不许含 x264/x265/fdk（GPL/nonfree），LGPL 2.1 不变。
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "编哪个目标（all 或 linux-x64 等）"
+        required: false
+        default: "all"
+  push:
+    paths:
+      - "tools/ffmpeg/**"
+      - "tools/ffmpeg-recipe/**"
+
+jobs:
+  linux-win:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [linux-x64, linux-arm64, linux-386, linux-arm, win-x64, win-arm64]
+        variant: [base, full]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: 取 ffmpeg 7.1.5 源码
+        run: |
+          curl -sSL -o /tmp/ffmpeg.tar.gz https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.gz
+          mkdir -p /tmp/ffsrc && tar -xzf /tmp/ffmpeg.tar.gz -C /tmp/ffsrc --strip-components=1
+      - name: 取配方
+        run: |
+          go run ./tools/ffmpeg-recipe -variant ${{ matrix.variant }} > /tmp/recipe.flags
+          cat /tmp/recipe.flags | head -c 300; echo
+      - name: 取外库源码（仅 full，master 备份源优先）
+        if: matrix.variant == 'full'
+        run: |
+          mkdir -p /tmp/deps
+          cd /tmp/deps
+          get() { # file url fallback-url
+            curl -sSL --max-time 60 -o "$1" "$2" || curl -sSL --max-time 120 -o "$1" "$3"
+          }
+          get fribidi.tar.xz \
+            https://github.com/fribidi/fribidi/releases/download/v1.0.13/fribidi-1.0.13.tar.xz \
+            https://download-mirror.savannah.gnu.org/releases/fribidi/fribidi-1.0.13.tar.xz
+          get ass.tar.gz \
+            https://github.com/libass/libass/releases/download/0.17.1/libass-0.17.1.tar.gz \
+            https://ftp.osuosl.org/pub/blfs/conglomeration/libass/libass-0.17.1.tar.gz
+          get h264.tar.gz \
+            https://github.com/cisco/openh264/archive/refs/tags/v2.4.1.tar.gz \
+            https://ftp.osuosl.org/pub/blfs/conglomeration/openh264/v2.4.1.tar.gz
+          ls -la /tmp/deps/
+      - name: 编单文件
+        run: |
+          docker build -t gpui-ffbuild tools/ffmpeg
+          docker run --rm \
+            -v /tmp/ffsrc:/src \
+            -v /tmp/recipe.flags:/tmp/recipe-${{ matrix.variant }}.flags \
+            -v ${{ github.workspace }}/lib/ffmpeg:/out \
+            -e RECIPE_FLAGS="$(cat /tmp/recipe.flags)" \
+            gpui-ffbuild /build-one.sh ${{ matrix.target }} ${{ matrix.variant }}
+      - name: 许可门禁（禁 GPL/nonfree 字样）
+        run: |
+          f=$(find lib/ffmpeg -name "*${{ matrix.variant }}*" | head -1)
+          echo "checking $f"
+          if strings "$f" | grep -iE "libx264|libx265|libfdk_aac" | head -3; then
+            echo "GPL/nonfree 库混入，拒绝入库"; exit 1
+          fi
+          strings "$f" | grep -i "LGPL version 2.1" | head -2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-${{ matrix.variant }}
+          path: lib/ffmpeg/${{ matrix.target }}/
+
+  mac:
+    runs-on: macos-14
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+        variant: [base, full]
+    steps:
+      - uses: actions/checkout@v4
+      - name: 装工具链
+        run: brew install nasm pkg-config freetype harfbuzz fontconfig fribidi libass openh264 || true
+      - name: 编单文件（mac 脚本后续补齐，本 job 先占位）
+        run: echo "mac build placeholder"
