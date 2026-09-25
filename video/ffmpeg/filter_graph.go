@@ -195,6 +195,7 @@ func registerFilterGraph(h uintptr) {
 	purego.RegisterLibFunc(&fAvfilterVersion, h, "avfilter_version")
 }
 
+// GetChannels 从滤镜出口问参数或取帧（对 av_buffersink_get_channels；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) GetChannels() int32 {
 	if x == nil {
 		return 0
@@ -202,6 +203,7 @@ func (x *FilterContext) GetChannels() int32 {
 	return fAvBuffersinkGetChannels(x.ptr)
 }
 
+// GetChLayout 从滤镜出口问参数或取帧（对 av_buffersink_get_ch_layout；参数 ch_layout；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetChLayout(ch_layout unsafe.Pointer) int32 {
 	if x == nil {
 		return 0
@@ -209,6 +211,7 @@ func (x *FilterSink) GetChLayout(ch_layout unsafe.Pointer) int32 {
 	return fAvBuffersinkGetChLayout(x.ptr, ch_layout)
 }
 
+// GetColorRange 从滤镜出口问参数或取帧（对 av_buffersink_get_color_range；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetColorRange() int32 {
 	if x == nil {
 		return -1
@@ -216,6 +219,7 @@ func (x *FilterSink) GetColorRange() int32 {
 	return fAvBuffersinkGetColorRange(x.ptr)
 }
 
+// GetColorspace 从滤镜出口问参数或取帧（对 av_buffersink_get_colorspace；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetColorspace() int32 {
 	if x == nil {
 		return -1
@@ -223,6 +227,7 @@ func (x *FilterSink) GetColorspace() int32 {
 	return fAvBuffersinkGetColorspace(x.ptr)
 }
 
+// GetFormat 从滤镜出口问参数或取帧（对 av_buffersink_get_format；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetFormat() int32 {
 	if x == nil {
 		return 0
@@ -230,6 +235,7 @@ func (x *FilterSink) GetFormat() int32 {
 	return fAvBuffersinkGetFormat(x.ptr)
 }
 
+// GetFrame 从滤镜出口问参数或取帧（对 av_buffersink_get_frame；参数 frame；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetFrame(frame unsafe.Pointer) int32 {
 	if x == nil {
 		return 0
@@ -237,6 +243,7 @@ func (x *FilterSink) GetFrame(frame unsafe.Pointer) int32 {
 	return fAvBuffersinkGetFrame(x.ptr, frame)
 }
 
+// GetFrameFlags 从滤镜出口问参数或取帧（对 av_buffersink_get_frame_flags；参数 frame、flags；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetFrameFlags(frame unsafe.Pointer, flags int32) unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -244,6 +251,7 @@ func (x *FilterSink) GetFrameFlags(frame unsafe.Pointer, flags int32) unsafe.Poi
 	return fAvBuffersinkGetFrameFlags(x.ptr, frame, flags)
 }
 
+// GetFrameRate 从滤镜出口问参数或取帧（对 av_buffersink_get_frame_rate；无参数；回分数（分子分母）；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetFrameRate() AVRational {
 	if x == nil {
 		return AVRational{}
@@ -251,6 +259,7 @@ func (x *FilterSink) GetFrameRate() AVRational {
 	return fAvBuffersinkGetFrameRate(x.ptr)
 }
 
+// GetH 从滤镜出口问参数或取帧（对 av_buffersink_get_h；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetH() int32 {
 	if x == nil {
 		return 0
@@ -258,6 +267,7 @@ func (x *FilterSink) GetH() int32 {
 	return fAvBuffersinkGetH(x.ptr)
 }
 
+// GetHwFramesCtx 从滤镜出口问参数或取帧（对 av_buffersink_get_hw_frames_ctx；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetHwFramesCtx() unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -265,6 +275,7 @@ func (x *FilterSink) GetHwFramesCtx() unsafe.Pointer {
 	return fAvBuffersinkGetHwFramesCtx(x.ptr)
 }
 
+// GetSampleAspectRatio 从滤镜出口问参数或取帧（对 av_buffersink_get_sample_aspect_ratio；无参数；回分数（分子分母）；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetSampleAspectRatio() AVRational {
 	if x == nil {
 		return AVRational{}
@@ -272,6 +283,7 @@ func (x *FilterSink) GetSampleAspectRatio() AVRational {
 	return fAvBuffersinkGetSampleAspectRatio(x.ptr)
 }
 
+// GetSampleRate 从滤镜出口问参数或取帧（对 av_buffersink_get_sample_rate；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetSampleRate() int32 {
 	if x == nil {
 		return 0
@@ -279,6 +291,7 @@ func (x *FilterSink) GetSampleRate() int32 {
 	return fAvBuffersinkGetSampleRate(x.ptr)
 }
 
+// GetSamples 从滤镜出口问参数或取帧（对 av_buffersink_get_samples；参数 frame、nb_samples；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetSamples(frame unsafe.Pointer, nb_samples int32) int32 {
 	if x == nil {
 		return 0
@@ -286,6 +299,7 @@ func (x *FilterSink) GetSamples(frame unsafe.Pointer, nb_samples int32) int32 {
 	return fAvBuffersinkGetSamples(x.ptr, frame, nb_samples)
 }
 
+// GetTimeBase 从滤镜出口问参数或取帧（对 av_buffersink_get_time_base；无参数；回分数（分子分母）；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetTimeBase() AVRational {
 	if x == nil {
 		return AVRational{}
@@ -293,6 +307,7 @@ func (x *FilterSink) GetTimeBase() AVRational {
 	return fAvBuffersinkGetTimeBase(x.ptr)
 }
 
+// GetType 从滤镜出口问参数或取帧（对 av_buffersink_get_type；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetType() unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -300,6 +315,7 @@ func (x *FilterSink) GetType() unsafe.Pointer {
 	return fAvBuffersinkGetType(x.ptr)
 }
 
+// GetW 从滤镜出口问参数或取帧（对 av_buffersink_get_w；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) GetW() int32 {
 	if x == nil {
 		return 0
@@ -307,6 +323,7 @@ func (x *FilterSink) GetW() int32 {
 	return fAvBuffersinkGetW(x.ptr)
 }
 
+// SetFrameSize 设出口每次吐几帧的量（对 av_buffersink_set_frame_size；参数 frame_size；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterSink) SetFrameSize(frame_size uint32) unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -314,6 +331,7 @@ func (x *FilterSink) SetFrameSize(frame_size uint32) unsafe.Pointer {
 	return fAvBuffersinkSetFrameSize(x.ptr, frame_size)
 }
 
+// AddFrame 往滤镜入口推帧（对 av_buffersrc_add_frame；参数 frame；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterSource) AddFrame(frame unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -324,6 +342,7 @@ func (x *FilterSource) AddFrame(frame unsafe.Pointer) error {
 	return nil
 }
 
+// AddFrameFlags 往滤镜入口推帧（对 av_buffersrc_add_frame_flags；参数 frame、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) AddFrameFlags(frame unsafe.Pointer, flags int32) error {
 	if x == nil {
 		return errNilFF
@@ -334,6 +353,7 @@ func (x *FilterContext) AddFrameFlags(frame unsafe.Pointer, flags int32) error {
 	return nil
 }
 
+// Close 往滤镜入口推帧（对 av_buffersrc_close；参数 pts、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) Close(pts int64, flags uint32) error {
 	if x == nil {
 		return errNilFF
@@ -344,6 +364,7 @@ func (x *FilterContext) Close(pts int64, flags uint32) error {
 	return nil
 }
 
+// GetNbFailedRequests 往滤镜入口推帧（对 av_buffersrc_get_nb_failed_requests；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) GetNbFailedRequests() uint32 {
 	if x == nil {
 		return 0
@@ -351,6 +372,7 @@ func (x *FilterContext) GetNbFailedRequests() uint32 {
 	return fAvBuffersrcGetNbFailedRequests(x.ptr)
 }
 
+// GetStatus 往滤镜入口推帧（对 av_buffersrc_get_status；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *FilterSource) GetStatus() int32 {
 	if x == nil {
 		return 0
@@ -358,10 +380,12 @@ func (x *FilterSource) GetStatus() int32 {
 	return fAvBuffersrcGetStatus(x.ptr)
 }
 
+// ParametersAlloc 往滤镜入口推帧（对 av_buffersrc_parameters_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (x *FilterSource) ParametersAlloc() unsafe.Pointer {
 	return fAvBuffersrcParametersAlloc()
 }
 
+// ParametersSet 往滤镜入口推帧（对 av_buffersrc_parameters_set；参数 param；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterSource) ParametersSet(param unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -372,6 +396,7 @@ func (x *FilterSource) ParametersSet(param unsafe.Pointer) error {
 	return nil
 }
 
+// WriteFrame 往滤镜入口推帧（对 av_buffersrc_write_frame；参数 frame；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) WriteFrame(frame unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -382,6 +407,7 @@ func (x *FilterContext) WriteFrame(frame unsafe.Pointer) error {
 	return nil
 }
 
+// ConfigLinks 让连好的图协商参数（对 avfilter_config_links；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) ConfigLinks() unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -389,10 +415,12 @@ func (x *FilterContext) ConfigLinks() unsafe.Pointer {
 	return fAvfilterConfigLinks(x.ptr)
 }
 
+// Configuration 问滤镜库编译配置（对 avfilter_configuration；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) Configuration() unsafe.Pointer {
 	return fAvfilterConfiguration()
 }
 
+// FilterPadCount 问滤镜有几个端口（对 avfilter_filter_pad_count；参数 is_output；回数值或个数；nil 接收器直接回零值，不崩）。
 func (x *Filter) FilterPadCount(is_output int32) uint32 {
 	if x == nil {
 		return 0
@@ -400,6 +428,7 @@ func (x *Filter) FilterPadCount(is_output int32) uint32 {
 	return fAvfilterFilterPadCount(x.ptr, is_output)
 }
 
+// Free 释放滤镜实例（对 avfilter_free；无参数；按签名取回值；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) Free() {
 	if x == nil {
 		return
@@ -407,18 +436,22 @@ func (x *FilterContext) Free() {
 	fAvfilterFree(x.ptr)
 }
 
+// GetByName 按名字找滤镜（对 avfilter_get_by_name；参数 name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GetByName(name unsafe.Pointer) unsafe.Pointer {
 	return fAvfilterGetByName(name)
 }
 
+// GetClass 取滤镜的选项类（对 avfilter_get_class；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GetClass() unsafe.Pointer {
 	return fAvfilterGetClass()
 }
 
+// GraphAlloc 建图配图连图跑图（对 avfilter_graph_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphAlloc() unsafe.Pointer {
 	return fAvfilterGraphAlloc()
 }
 
+// GraphAllocFilter 建图配图连图跑图（对 avfilter_graph_alloc_filter；参数 filter、name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphAllocFilter(filter unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -426,6 +459,7 @@ func (x *FilterGraph) GraphAllocFilter(filter unsafe.Pointer, name unsafe.Pointe
 	return fAvfilterGraphAllocFilter(x.ptr, filter, name)
 }
 
+// GraphConfig 建图配图连图跑图（对 avfilter_graph_config；参数 log_ctx；回数值；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphConfig(log_ctx unsafe.Pointer) int32 {
 	if x == nil {
 		return 0
@@ -433,6 +467,7 @@ func (x *FilterGraph) GraphConfig(log_ctx unsafe.Pointer) int32 {
 	return fAvfilterGraphConfig(x.ptr, log_ctx)
 }
 
+// GraphCreateFilter 建图配图连图跑图（对 avfilter_graph_create_filter；参数 filt_ctx、filt、name、args、opaque、graph_ctx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphCreateFilter(filt_ctx *unsafe.Pointer, filt unsafe.Pointer, name unsafe.Pointer, args unsafe.Pointer, opaque unsafe.Pointer, graph_ctx unsafe.Pointer) error {
 	if ret := fAvfilterGraphCreateFilter(filt_ctx, filt, name, args, opaque, graph_ctx); ret < 0 {
 		return codeErr("avfilter_graph_create_filter", ret)
@@ -440,6 +475,7 @@ func (x *FilterGraph) GraphCreateFilter(filt_ctx *unsafe.Pointer, filt unsafe.Po
 	return nil
 }
 
+// GraphDump 建图配图连图跑图（对 avfilter_graph_dump；参数 options；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphDump(options unsafe.Pointer) unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -447,10 +483,12 @@ func (x *FilterGraph) GraphDump(options unsafe.Pointer) unsafe.Pointer {
 	return fAvfilterGraphDump(x.ptr, options)
 }
 
+// GraphFree 建图配图连图跑图（对 avfilter_graph_free；参数 graph；按签名取回值；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphFree(graph *unsafe.Pointer) {
 	fAvfilterGraphFree(graph)
 }
 
+// GraphGetFilter 建图配图连图跑图（对 avfilter_graph_get_filter；参数 name；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphGetFilter(name unsafe.Pointer) unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -458,6 +496,7 @@ func (x *FilterGraph) GraphGetFilter(name unsafe.Pointer) unsafe.Pointer {
 	return fAvfilterGraphGetFilter(x.ptr, name)
 }
 
+// GraphParse 建图配图连图跑图（对 avfilter_graph_parse；参数 filters、inputs、outputs、log_ctx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphParse(filters unsafe.Pointer, inputs unsafe.Pointer, outputs unsafe.Pointer, log_ctx unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -468,6 +507,7 @@ func (x *FilterGraph) GraphParse(filters unsafe.Pointer, inputs unsafe.Pointer, 
 	return nil
 }
 
+// GraphParse2 建图配图连图跑图（对 avfilter_graph_parse2；参数 filters、inputs、outputs；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphParse2(filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -478,6 +518,7 @@ func (x *FilterGraph) GraphParse2(filters unsafe.Pointer, inputs *unsafe.Pointer
 	return nil
 }
 
+// GraphParsePtr 建图配图连图跑图（对 avfilter_graph_parse_ptr；参数 filters、inputs、outputs、log_ctx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphParsePtr(filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer, log_ctx unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -488,6 +529,7 @@ func (x *FilterGraph) GraphParsePtr(filters unsafe.Pointer, inputs *unsafe.Point
 	return nil
 }
 
+// GraphQueueCommand 建图配图连图跑图（对 avfilter_graph_queue_command；参数 target、cmd、arg、flags、ts；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphQueueCommand(target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, flags int32, ts float64) error {
 	if x == nil {
 		return errNilFF
@@ -498,6 +540,7 @@ func (x *FilterGraph) GraphQueueCommand(target unsafe.Pointer, cmd unsafe.Pointe
 	return nil
 }
 
+// GraphRequestOldest 建图配图连图跑图（对 avfilter_graph_request_oldest；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphRequestOldest() error {
 	if x == nil {
 		return errNilFF
@@ -508,6 +551,7 @@ func (x *FilterGraph) GraphRequestOldest() error {
 	return nil
 }
 
+// GraphSegmentApply 建图配图连图跑图（对 avfilter_graph_segment_apply；参数 seg、flags、inputs、outputs；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentApply(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
 	if ret := fAvfilterGraphSegmentApply(seg, flags, inputs, outputs); ret < 0 {
 		return codeErr("avfilter_graph_segment_apply", ret)
@@ -515,6 +559,7 @@ func (x *FilterGraph) GraphSegmentApply(seg unsafe.Pointer, flags int32, inputs 
 	return nil
 }
 
+// GraphSegmentApplyOpts 建图配图连图跑图（对 avfilter_graph_segment_apply_opts；参数 seg、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentApplyOpts(seg unsafe.Pointer, flags int32) error {
 	if ret := fAvfilterGraphSegmentApplyOpts(seg, flags); ret < 0 {
 		return codeErr("avfilter_graph_segment_apply_opts", ret)
@@ -522,6 +567,7 @@ func (x *FilterGraph) GraphSegmentApplyOpts(seg unsafe.Pointer, flags int32) err
 	return nil
 }
 
+// GraphSegmentCreateFilters 建图配图连图跑图（对 avfilter_graph_segment_create_filters；参数 seg、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentCreateFilters(seg unsafe.Pointer, flags int32) error {
 	if ret := fAvfilterGraphSegmentCreateFilters(seg, flags); ret < 0 {
 		return codeErr("avfilter_graph_segment_create_filters", ret)
@@ -529,10 +575,12 @@ func (x *FilterGraph) GraphSegmentCreateFilters(seg unsafe.Pointer, flags int32)
 	return nil
 }
 
+// GraphSegmentFree 建图配图连图跑图（对 avfilter_graph_segment_free；参数 seg；按签名取回值；无状态调用）。
 func (x *FilterGraph) GraphSegmentFree(seg *unsafe.Pointer) {
 	fAvfilterGraphSegmentFree(seg)
 }
 
+// GraphSegmentInit 建图配图连图跑图（对 avfilter_graph_segment_init；参数 seg、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentInit(seg unsafe.Pointer, flags int32) error {
 	if ret := fAvfilterGraphSegmentInit(seg, flags); ret < 0 {
 		return codeErr("avfilter_graph_segment_init", ret)
@@ -540,6 +588,7 @@ func (x *FilterGraph) GraphSegmentInit(seg unsafe.Pointer, flags int32) error {
 	return nil
 }
 
+// GraphSegmentLink 建图配图连图跑图（对 avfilter_graph_segment_link；参数 seg、flags、inputs、outputs；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphSegmentLink(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
 	if ret := fAvfilterGraphSegmentLink(seg, flags, inputs, outputs); ret < 0 {
 		return codeErr("avfilter_graph_segment_link", ret)
@@ -547,6 +596,7 @@ func (x *FilterGraph) GraphSegmentLink(seg unsafe.Pointer, flags int32, inputs *
 	return nil
 }
 
+// GraphSegmentParse 建图配图连图跑图（对 avfilter_graph_segment_parse；参数 graph_str、flags、seg；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphSegmentParse(graph_str unsafe.Pointer, flags int32, seg *unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -557,6 +607,7 @@ func (x *FilterGraph) GraphSegmentParse(graph_str unsafe.Pointer, flags int32, s
 	return nil
 }
 
+// GraphSendCommand 建图配图连图跑图（对 avfilter_graph_send_command；参数 target、cmd、arg、res、res_len、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphSendCommand(target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) error {
 	if x == nil {
 		return errNilFF
@@ -567,6 +618,7 @@ func (x *FilterGraph) GraphSendCommand(target unsafe.Pointer, cmd unsafe.Pointer
 	return nil
 }
 
+// GraphSetAutoConvert 建图配图连图跑图（对 avfilter_graph_set_auto_convert；参数 flags；按签名取回值；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphSetAutoConvert(flags uint32) {
 	if x == nil {
 		return
@@ -574,6 +626,7 @@ func (x *FilterGraph) GraphSetAutoConvert(flags uint32) {
 	fAvfilterGraphSetAutoConvert(x.ptr, flags)
 }
 
+// InitDict 初始化滤镜实例（对 avfilter_init_dict；参数 options；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) InitDict(options *unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -584,6 +637,7 @@ func (x *FilterContext) InitDict(options *unsafe.Pointer) error {
 	return nil
 }
 
+// InitStr 初始化滤镜实例（对 avfilter_init_str；参数 args；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) InitStr(args unsafe.Pointer) error {
 	if x == nil {
 		return errNilFF
@@ -594,14 +648,17 @@ func (x *FilterContext) InitStr(args unsafe.Pointer) error {
 	return nil
 }
 
+// InoutAlloc 分配或释放图的进出口端点（对 avfilter_inout_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
 func (x *FilterGraph) InoutAlloc() unsafe.Pointer {
 	return fAvfilterInoutAlloc()
 }
 
+// InoutFree 分配或释放图的进出口端点（对 avfilter_inout_free；参数 inout；按签名取回值；无状态调用）。
 func (x *FilterGraph) InoutFree(inout *unsafe.Pointer) {
 	fAvfilterInoutFree(inout)
 }
 
+// InsertFilter 在连好的链中间插一个滤镜（对 avfilter_insert_filter；参数 link、filt、filt_srcpad_idx、filt_dstpad_idx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) InsertFilter(link unsafe.Pointer, filt unsafe.Pointer, filt_srcpad_idx uint32, filt_dstpad_idx uint32) error {
 	if ret := fAvfilterInsertFilter(link, filt, filt_srcpad_idx, filt_dstpad_idx); ret < 0 {
 		return codeErr("avfilter_insert_filter", ret)
@@ -609,10 +666,12 @@ func (x *FilterGraph) InsertFilter(link unsafe.Pointer, filt unsafe.Pointer, fil
 	return nil
 }
 
+// License 问滤镜库许可证（对 avfilter_license；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) License() unsafe.Pointer {
 	return fAvfilterLicense()
 }
 
+// Link 把两个滤镜连起来（对 avfilter_link；参数 srcpad、dst、dstpad；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) Link(srcpad uint32, dst unsafe.Pointer, dstpad uint32) error {
 	if x == nil {
 		return errNilFF
@@ -623,18 +682,22 @@ func (x *FilterContext) Link(srcpad uint32, dst unsafe.Pointer, dstpad uint32) e
 	return nil
 }
 
+// LinkFree 把两个滤镜连起来（对 avfilter_link_free；参数 link；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) LinkFree(link *unsafe.Pointer) unsafe.Pointer {
 	return fAvfilterLinkFree(link)
 }
 
+// PadGetName 问滤镜端口名字或类型（对 avfilter_pad_get_name；参数 pads、pad_idx；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) PadGetName(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer {
 	return fAvfilterPadGetName(pads, pad_idx)
 }
 
+// PadGetType 问滤镜端口名字或类型（对 avfilter_pad_get_type；参数 pads、pad_idx；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) PadGetType(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer {
 	return fAvfilterPadGetType(pads, pad_idx)
 }
 
+// ProcessCommand 给跑着的滤镜发命令（对 avfilter_process_command；参数 cmd、arg、res、res_len、flags；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) ProcessCommand(cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) unsafe.Pointer {
 	if x == nil {
 		return nil
@@ -642,6 +705,7 @@ func (x *FilterContext) ProcessCommand(cmd unsafe.Pointer, arg unsafe.Pointer, r
 	return fAvfilterProcessCommand(x.ptr, cmd, arg, res, res_len, flags)
 }
 
+// Version 问滤镜库版本号（对 avfilter_version；无参数；回 C 指针，失败回 nil；无状态调用）。
 func (x *FilterGraph) Version() unsafe.Pointer {
 	return fAvfilterVersion()
 }

@@ -13,11 +13,10 @@
 // (tests and CI use this when the working directory differs).
 //
 // Coverage: every public av_/sws_/swr_ symbol the shared library exports
-// is bound (13 modules by feature + data_const.go for data): 991
-// functions via RegisterLibFunc, 16 data via Dlsym. Four C variadic
-// functions are deliberately skipped because purego cannot express
-// varargs:
-// av_asprintf, avio_printf, av_log_once, av_strlcatf. Alternatives:
-// format strings in Go and pass the result, or use the non-variadic
-// siblings (av_bprintf + BPrint, av_log with a plain message).
+// is bound (13 modules by feature + data_const.go for data +
+// variadic_go.go for C variadics): 991 functions via RegisterLibFunc,
+// 16 data via Dlsym, 4 C variadics via Go-format wrappers
+// (Asprintf, Util.Strlcatf, IOContext.Printf, Log.Logf, Log.Once,
+// BPrint.BprintfF; Go formats first, then calls the non-variadic
+// sibling, so float args stay correct on all platforms).
 package ffmpeg

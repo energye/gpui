@@ -156,6 +156,7 @@ func ensureLoaded() error {
 		registerMediaDesc(h)
 		registerCryptoHashMisc(h)
 		registerScaleColor(h)
+		registerVariadicGo(h)
 		fLogSetLevel(LogError)
 		return nil
 	}

@@ -388,22 +388,27 @@ func (self *Scaler) SwscaleVersion() uint32 {
 	return fSwscaleVersionNum()
 }
 
+// SwsAllocVec 新建向量（对 sws_allocVec；参数 length；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
 func (self *Scaler) SwsAllocVec(length int32) unsafe.Pointer {
 	return fSwsAllocVec(length)
 }
 
+// SwsConvertPalette8ToPacked24 调色板转 packed 像素（对 sws_convertPalette8ToPacked24；参数 src、dst、num_pixels、palette；按签名取回值；无状态调用）。
 func (self *Scaler) SwsConvertPalette8ToPacked24(src unsafe.Pointer, dst unsafe.Pointer, num_pixels int32, palette unsafe.Pointer) {
 	fSwsConvertPalette8ToPacked24(src, dst, num_pixels, palette)
 }
 
+// SwsConvertPalette8ToPacked32 调色板转 packed 像素（对 sws_convertPalette8ToPacked32；参数 src、dst、num_pixels、palette；按签名取回值；无状态调用）。
 func (self *Scaler) SwsConvertPalette8ToPacked32(src unsafe.Pointer, dst unsafe.Pointer, num_pixels int32, palette unsafe.Pointer) {
 	fSwsConvertPalette8ToPacked32(src, dst, num_pixels, palette)
 }
 
+// SwsFrameEnd 切片帧结束（对 sws_frame_end；参数 c；按签名取回值；无状态调用）。
 func (self *Scaler) SwsFrameEnd(c unsafe.Pointer) {
 	fSwsFrameEnd(c)
 }
 
+// SwsFrameStart 切片帧开始（对 sws_frame_start；参数 c、dst、src；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsFrameStart(c unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer) error {
 	if ret := fSwsFrameStart(c, dst, src); ret < 0 {
 		return codeErr("sws_frame_start", ret)
@@ -411,22 +416,27 @@ func (self *Scaler) SwsFrameStart(c unsafe.Pointer, dst unsafe.Pointer, src unsa
 	return nil
 }
 
+// SwsFreeFilter 释放滤波器（对 sws_freeFilter；参数 filter；按签名取回值；无状态调用）。
 func (self *Scaler) SwsFreeFilter(filter unsafe.Pointer) {
 	fSwsFreeFilter(filter)
 }
 
+// SwsFreeVec 释放向量（对 sws_freeVec；参数 a；按签名取回值；无状态调用）。
 func (self *Scaler) SwsFreeVec(a unsafe.Pointer) {
 	fSwsFreeVec(a)
 }
 
+// SwsGetClass 取转色器选项类（对 sws_get_class；无参数；回 C 指针，失败回 nil；无状态调用）。
 func (self *Scaler) SwsGetClass() unsafe.Pointer {
 	return fSwsGetClass()
 }
 
+// SwsGetCoefficients 取色空间系数表（对 sws_getCoefficients；参数 colorspace；回 C 指针，失败回 nil；无状态调用）。
 func (self *Scaler) SwsGetCoefficients(colorspace int32) unsafe.Pointer {
 	return fSwsGetCoefficients(colorspace)
 }
 
+// SwsGetColorspaceDetails 取出色空间转换细节（对 sws_getColorspaceDetails；参数 c、inv_table、srcRange、table、dstRange、brightness、contrast、saturation；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsGetColorspaceDetails(c unsafe.Pointer, inv_table *unsafe.Pointer, srcRange *int32, table *unsafe.Pointer, dstRange *int32, brightness *int32, contrast *int32, saturation *int32) error {
 	if ret := fSwsGetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
 		return codeErr("sws_getColorspaceDetails", ret)
@@ -434,18 +444,22 @@ func (self *Scaler) SwsGetColorspaceDetails(c unsafe.Pointer, inv_table *unsafe.
 	return nil
 }
 
+// SwsGetDefaultFilter 取默认缩放滤波器（对 sws_getDefaultFilter；参数 lumaGBlur、chromaGBlur、lumaSharpen、chromaSharpen、chromaHShift、chromaVShift、verbose；回 C 指针，失败回 nil；无状态调用）。
 func (self *Scaler) SwsGetDefaultFilter(lumaGBlur float32, chromaGBlur float32, lumaSharpen float32, chromaSharpen float32, chromaHShift float32, chromaVShift float32, verbose int32) unsafe.Pointer {
 	return fSwsGetDefaultFilter(lumaGBlur, chromaGBlur, lumaSharpen, chromaSharpen, chromaHShift, chromaVShift, verbose)
 }
 
+// SwsGetGaussianVec 生成高斯向量（对 sws_getGaussianVec；参数 variance、quality；回 C 指针，失败回 nil；无状态调用）。
 func (self *Scaler) SwsGetGaussianVec(variance float64, quality float64) unsafe.Pointer {
 	return fSwsGetGaussianVec(variance, quality)
 }
 
+// SwsNormalizeVec 向量归一化（对 sws_normalizeVec；参数 a、height；按签名取回值；无状态调用）。
 func (self *Scaler) SwsNormalizeVec(a unsafe.Pointer, height float64) {
 	fSwsNormalizeVec(a, height)
 }
 
+// SwsReceiveSlice 切片模式取一行（对 sws_receive_slice；参数 c、slice_start、slice_height；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsReceiveSlice(c unsafe.Pointer, slice_start uint32, slice_height uint32) error {
 	if ret := fSwsReceiveSlice(c, slice_start, slice_height); ret < 0 {
 		return codeErr("sws_receive_slice", ret)
@@ -453,14 +467,17 @@ func (self *Scaler) SwsReceiveSlice(c unsafe.Pointer, slice_start uint32, slice_
 	return nil
 }
 
+// SwsReceiveSliceAlignment 切片模式取一行（对 sws_receive_slice_alignment；参数 c；回数值；无状态调用）。
 func (self *Scaler) SwsReceiveSliceAlignment(c unsafe.Pointer) uint32 {
 	return fSwsReceiveSliceAlignment(c)
 }
 
+// SwsScaleVec 转一批行，解码主路用它（对 sws_scaleVec；参数 a、scalar；按签名取回值；无状态调用）。
 func (self *Scaler) SwsScaleVec(a unsafe.Pointer, scalar float64) {
 	fSwsScaleVec(a, scalar)
 }
 
+// SwsSendSlice 切片模式喂一行（对 sws_send_slice；参数 c、slice_start、slice_height；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsSendSlice(c unsafe.Pointer, slice_start uint32, slice_height uint32) error {
 	if ret := fSwsSendSlice(c, slice_start, slice_height); ret < 0 {
 		return codeErr("sws_send_slice", ret)
@@ -468,6 +485,7 @@ func (self *Scaler) SwsSendSlice(c unsafe.Pointer, slice_start uint32, slice_hei
 	return nil
 }
 
+// SwsSetColorspaceDetails 设置色空间转换细节（对 sws_setColorspaceDetails；参数 c、inv_table、srcRange、table、dstRange、brightness、contrast、saturation；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsSetColorspaceDetails(c unsafe.Pointer, inv_table unsafe.Pointer, srcRange int32, table unsafe.Pointer, dstRange int32, brightness int32, contrast int32, saturation int32) error {
 	if ret := fSwsSetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
 		return codeErr("sws_setColorspaceDetails", ret)

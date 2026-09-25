@@ -660,14 +660,17 @@ func ParseBSFList(s string) (*BitStreamFilter, error) {
 	return &BitStreamFilter{ptr: ctx}, nil
 }
 
+// BsfGetClass 取码流过滤器的选项类（对 av_bsf_get_class；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (self *BitStreamFilter) BsfGetClass() unsafe.Pointer {
 	return fAvBsfGetClass()
 }
 
+// BsfGetNullFilter 取空过滤器（直通）（对 av_bsf_get_null_filter；参数 bsf；回数值或个数；nil 接收器直接回零值，不崩）。
 func (self *BitStreamFilter) BsfGetNullFilter(bsf *unsafe.Pointer) int32 {
 	return fAvBsfGetNullFilter(bsf)
 }
 
+// BsfIterate 逐个列出码流过滤器（对 av_bsf_iterate；参数 opaque；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (self *BitStreamFilter) BsfIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 	// NOTE: opaque 传 nil 会撞空指针 — 用 IterateBSFFilters.
 	if opaque == nil {
@@ -693,26 +696,32 @@ func IterateBSFFilters() []unsafe.Pointer {
 	return out
 }
 
+// AvcodecAlignDimensions 按编码要求对齐宽高（对 avcodec_align_dimensions；参数 s、width、height；按签名取回值；无状态调用）。
 func (self *Codec) AvcodecAlignDimensions(s unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer) {
 	fAvcodecAlignDimensions(s, width, height)
 }
 
+// AvcodecAlignDimensions2 按编码要求对齐宽高（对 avcodec_align_dimensions2；参数 s、width、height、arg3；按签名取回值；无状态调用）。
 func (self *Codec) AvcodecAlignDimensions2(s unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer, arg3 unsafe.Pointer) {
 	fAvcodecAlignDimensions2(s, width, height, arg3)
 }
 
+// AvcodecConfiguration 问编解码库编译配置（对 avcodec_configuration；无参数；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecConfiguration() unsafe.Pointer {
 	return fAvcodecConfiguration()
 }
 
+// AvcodecDctAlloc 新建 DCT 上下文（对 avcodec_dct_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
 func (self *Codec) AvcodecDctAlloc() unsafe.Pointer {
 	return fAvcodecDctAlloc()
 }
 
+// AvcodecDctGetClass 取 DCT 的选项类（对 avcodec_dct_get_class；无参数；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecDctGetClass() unsafe.Pointer {
 	return fAvcodecDctGetClass()
 }
 
+// AvcodecDctInit 初始化 DCT 上下文（对 avcodec_dct_init；参数 arg0；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecDctInit(arg0 unsafe.Pointer) error {
 	if ret := fAvcodecDctInit(arg0); ret < 0 {
 		return codeErr("avcodec_dct_init", ret)
@@ -720,6 +729,7 @@ func (self *Codec) AvcodecDctInit(arg0 unsafe.Pointer) error {
 	return nil
 }
 
+// AvcodecDecodeSubtitle2 解一包字幕（对 avcodec_decode_subtitle2；参数 avctx、sub、got_sub_ptr、avpkt；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (self *Codec) AvcodecDecodeSubtitle2(avctx unsafe.Pointer, sub unsafe.Pointer, got_sub_ptr unsafe.Pointer, avpkt unsafe.Pointer) error {
 	if ret := fAvcodecDecodeSubtitle2(avctx, sub, got_sub_ptr, avpkt); ret < 0 {
 		return codeErr("avcodec_decode_subtitle2", ret)
@@ -736,6 +746,7 @@ func (self *Codec) SubtitleFree(sub unsafe.Pointer) {
 	fSubtitleFree(sub)
 }
 
+// AvcodecDefaultExecute 默认多线程执行一批任务（对 avcodec_default_execute；参数 c、fn、arg、ret、count、size；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecDefaultExecute(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32, size int32) error {
 	if ret := fAvcodecDefaultExecute(c, fn, arg, ret, count, size); ret < 0 {
 		return codeErr("avcodec_default_execute", ret)
@@ -743,6 +754,7 @@ func (self *Codec) AvcodecDefaultExecute(c unsafe.Pointer, fn unsafe.Pointer, ar
 	return nil
 }
 
+// AvcodecDefaultExecute2 默认多线程执行一批任务（新版）（对 avcodec_default_execute2；参数 c、fn、arg、ret、count；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecDefaultExecute2(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32) error {
 	if ret := fAvcodecDefaultExecute2(c, fn, arg, ret, count); ret < 0 {
 		return codeErr("avcodec_default_execute2", ret)
@@ -750,30 +762,37 @@ func (self *Codec) AvcodecDefaultExecute2(c unsafe.Pointer, fn unsafe.Pointer, a
 	return nil
 }
 
+// AvcodecDefaultGetBuffer2 默认申请解码帧缓冲（对 avcodec_default_get_buffer2；参数 s、frame、flags；回数值或个数；无状态调用）。
 func (self *Codec) AvcodecDefaultGetBuffer2(s unsafe.Pointer, frame unsafe.Pointer, flags int32) int32 {
 	return fAvcodecDefaultGetBuffer2(s, frame, flags)
 }
 
+// AvcodecDefaultGetEncodeBuffer 默认申请编码包缓冲（对 avcodec_default_get_encode_buffer；参数 s、pkt、flags；回数值或个数；无状态调用）。
 func (self *Codec) AvcodecDefaultGetEncodeBuffer(s unsafe.Pointer, pkt unsafe.Pointer, flags int32) int32 {
 	return fAvcodecDefaultGetEncodeBuffer(s, pkt, flags)
 }
 
+// AvcodecDefaultGetFormat 默认协商像素格式（对 avcodec_default_get_format；参数 s、fmt；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecDefaultGetFormat(s unsafe.Pointer, fmt unsafe.Pointer) unsafe.Pointer {
 	return fAvcodecDefaultGetFormat(s, fmt)
 }
 
+// AvcodecDescriptorGet 查编码描述（对 avcodec_descriptor_get；参数 id；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecDescriptorGet(id unsafe.Pointer) unsafe.Pointer {
 	return fAvcodecDescriptorGet(id)
 }
 
+// AvcodecDescriptorGetByName 查编码描述（对 avcodec_descriptor_get_by_name；参数 name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
 func (self *Codec) AvcodecDescriptorGetByName(name unsafe.Pointer) unsafe.Pointer {
 	return fAvcodecDescriptorGetByName(name)
 }
 
+// AvcodecDescriptorNext 查编码描述（对 avcodec_descriptor_next；参数 prev；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecDescriptorNext(prev unsafe.Pointer) unsafe.Pointer {
 	return fAvcodecDescriptorNext(prev)
 }
 
+// AvcodecEncodeSubtitle 编一帧字幕（对 avcodec_encode_subtitle；参数 avctx、buf、buf_size、sub；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecEncodeSubtitle(avctx unsafe.Pointer, buf unsafe.Pointer, buf_size int32, sub unsafe.Pointer) error {
 	if ret := fAvcodecEncodeSubtitle(avctx, buf, buf_size, sub); ret < 0 {
 		return codeErr("avcodec_encode_subtitle", ret)
@@ -781,50 +800,62 @@ func (self *Codec) AvcodecEncodeSubtitle(avctx unsafe.Pointer, buf unsafe.Pointe
 	return nil
 }
 
+// AvcodecFillAudioFrame 给音频帧填缓冲（对 avcodec_fill_audio_frame；参数 frame、nb_channels、sample_fmt、buf、buf_size、align；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecFillAudioFrame(frame unsafe.Pointer, nb_channels int32, sample_fmt unsafe.Pointer, buf unsafe.Pointer, buf_size int32, align int32) unsafe.Pointer {
 	return fAvcodecFillAudioFrame(frame, nb_channels, sample_fmt, buf, buf_size, align)
 }
 
+// AvcodecFindBestPixFmtOfList 在列表里挑损失最小的像素格式（对 avcodec_find_best_pix_fmt_of_list；参数 pix_fmt_list、src_pix_fmt、has_alpha、loss_ptr；回数值或个数；无状态调用）。
 func (self *Codec) AvcodecFindBestPixFmtOfList(pix_fmt_list unsafe.Pointer, src_pix_fmt int32, has_alpha int32, loss_ptr *int32) int32 {
 	return fAvcodecFindBestPixFmtOfList(pix_fmt_list, src_pix_fmt, has_alpha, loss_ptr)
 }
 
+// AvcodecGetClass 取编解码上下文的选项类（对 avcodec_get_class；无参数；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecGetClass() unsafe.Pointer {
 	return fAvcodecGetClass()
 }
 
+// AvcodecGetHwConfig 查编码器的硬解配置（对 avcodec_get_hw_config；参数 codec、index；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecGetHwConfig(codec unsafe.Pointer, index int32) unsafe.Pointer {
 	return fAvcodecGetHwConfig(codec, index)
 }
 
+// AvcodecGetHwFramesParameters 取硬解帧参数（对 avcodec_get_hw_frames_parameters；参数 avctx、device_ref、hw_pix_fmt、out_frames_ref；回数值或个数；无状态调用）。
 func (self *Codec) AvcodecGetHwFramesParameters(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt unsafe.Pointer, out_frames_ref *unsafe.Pointer) int32 {
 	return fAvcodecGetHwFramesParameters(avctx, device_ref, hw_pix_fmt, out_frames_ref)
 }
 
+// CodecGetId 按标签查编码编号（对 av_codec_get_id；参数 tags、tag；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) CodecGetId(tags unsafe.Pointer, tag uint32) unsafe.Pointer {
 	return fAvCodecGetId(tags, tag)
 }
 
+// AvcodecGetSubtitleRectClass 取字幕矩形的选项类（对 avcodec_get_subtitle_rect_class；无参数；回 C 指针，失败回 nil；无状态调用）。
 func (self *Codec) AvcodecGetSubtitleRectClass() unsafe.Pointer {
 	return fAvcodecGetSubtitleRectClass()
 }
 
+// AvcodecGetSupportedConfig 查编码器支持的配置（对 avcodec_get_supported_config；参数 avctx、codec、config、flags、out_configs、out_num_configs；回数值或个数；无状态调用）。
 func (self *Codec) AvcodecGetSupportedConfig(avctx unsafe.Pointer, codec unsafe.Pointer, config unsafe.Pointer, flags uint32, out_configs *unsafe.Pointer, out_num_configs unsafe.Pointer) int32 {
 	return fAvcodecGetSupportedConfig(avctx, codec, config, flags, out_configs, out_num_configs)
 }
 
+// CodecGetTag 按编码查标签（对 av_codec_get_tag；参数 tags、id；回数值或个数；无状态调用）。
 func (self *Codec) CodecGetTag(tags unsafe.Pointer, id unsafe.Pointer) uint32 {
 	return fAvCodecGetTag(tags, id)
 }
 
+// CodecGetTag2 按编码查标签（对 av_codec_get_tag2；参数 tags、id、tag；回数值或个数；无状态调用）。
 func (self *Codec) CodecGetTag2(tags unsafe.Pointer, id unsafe.Pointer, tag unsafe.Pointer) int32 {
 	return fAvCodecGetTag2(tags, id, tag)
 }
 
+// AvcodecLicense 问编解码库许可证（对 avcodec_license；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
 func (self *Codec) AvcodecLicense() unsafe.Pointer {
 	return fAvcodecLicense()
 }
 
+// AvcodecPixFmtToCodecTag 按像素格式查编码标签（对 avcodec_pix_fmt_to_codec_tag；参数 pix_fmt；回数值或个数；nil 接收器直接回零值，不崩）。
 func (self *Codec) AvcodecPixFmtToCodecTag(pix_fmt int32) uint32 {
 	return fAvcodecPixFmtToCodecTag(pix_fmt)
 }
@@ -884,18 +915,22 @@ func IterateAll() []*Codec {
 	return out
 }
 
+// AvcodecProfileName 查档次名字（对 avcodec_profile_name；参数 codec_id、profile；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
 func (self *Codec) AvcodecProfileName(codec_id unsafe.Pointer, profile int32) unsafe.Pointer {
 	return fAvcodecProfileName(codec_id, profile)
 }
 
+// AvcodecString 把编解码信息拼成人话（对 avcodec_string；参数 buf、buf_size、enc、encode；按签名取回值；nil 接收器直接回零值，不崩）。
 func (self *Codec) AvcodecString(buf unsafe.Pointer, buf_size int32, enc unsafe.Pointer, encode int32) {
 	fAvcodecString(buf, buf_size, enc, encode)
 }
 
+// AvcodecVersion 问编解码库版本号（对 avcodec_version；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
 func (self *Codec) AvcodecVersion() uint32 {
 	return fAvcodecVersion()
 }
 
+// ParserIterate 逐个列出切帧器（对 av_parser_iterate；参数 opaque；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (self *Parser) ParserIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 	// NOTE: opaque 传 nil 会撞空指针 — 用 IterateParsers.
 	if opaque == nil {

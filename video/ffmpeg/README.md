@@ -32,8 +32,9 @@
 | `lib.go`    | 加载 so + 注册全部函数 + 存 so 句柄（数据符号走 `Dlsym` 读） + 解码直连的老接口（和模块指同一个 so 函数） |
 | `types.go`  | `AVRational` 分数（时间换算用，偏移按 7.1 头文件钉死）              |
 | `err_go.go` | 内部帮手：空指针哨兵、C 字符串转 Go、错误码翻人话                   |
-| `doc.go`    | 包说明 + 覆盖口径（4 个变参函数主动跳过 + 16 个数据符号走 `Dlsym` 读，见下）                      |
+| `doc.go`    | 包说明 + 覆盖口径（4 个变参走 Go 拼串版 + 16 个数据符号走 `Dlsym` 读，见下）                      |
 | `data_const.go` | 数据常量：16 个数据符号的 Go 入口（10 个上下文大小 + 6 个版本串），走 `Dlsym` 读，不是函数调用 |
+| `variadic_go.go` | 变参四件套的 Go 拼串版：`Asprintf` / `Util.Strlcatf` / `IOContext.Printf` / `Log.Logf` / `Log.Once` / `BPrint.BprintfF`（先拼好再调不带变参的函数，浮点也对） |
 
 ## 13 个功能模块一览
 
@@ -57,6 +58,8 @@
 
 - 第一个参数是“谁的”指针，就挂成那个结构体的方法。
   比如 `avcodec_send_packet(解码器, 包)` 写成 `codecCtx.SendPacket(pkt)`。
+- 每个方法头上都有一句中文说明：干什么、对哪个 ffmpeg 函数、参数传什么、
+  返回什么、nil 会不会崩。看代码时 `go doc` 直接出，不用来回翻本文。
 - 返回错误码的函数：名字在 keep 名单里的留 `int32`，
   剩下的直接转 Go 的 `error`，负数就是出错，不用自己查表。
 - 空指针安全：接收器是 nil 时直接返回零值或哨兵错，不会崩。
@@ -65,14 +68,16 @@
 
 ## 覆盖口径：绑了多少、没绑哪几个
 
-- so 里 `av*`（除 `avpriv` 内部）/`sws_*` / `swr_*` 开头的符号一共 1011 个：991 个函数全绑了 + 16 个数据全包了 + 4 个变参函数主动跳过。
+- so 里 `av*`（除 `avpriv` 内部）/`sws_*` / `swr_*` 开头的符号一共 1011 个：991 个函数全绑了 + 16 个数据全包了 + 4 个变参全有 Go 拼串版可用。
 - 另外 11 个周边符号也在 so 里导出了，顺手一起绑了：
   `swscale_*` / `swresample_*` 的版本配置（各 3 个），
   加 5 个 `swri_*` 重采样帮手。函数注册 1005 行、去重后 1002 个（`lib.go` 解码直连 14 个与模块重复，属同一函数两个入口），`nm -D` 双向对过。
-- 4 个函数主动没绑，都是 C 的变参函数（参数个数不定），purego 写不出来：
-  `av_asprintf`、`avio_printf`、`av_log_once`、`av_strlcatf`。
-  替代写法：字符串先在 Go 里拼好再传；拼串用 `BPrint` 那套；
-  日志用 `Log.SetLevel` + 定长消息。
+- 4 个 C 变参函数（参数个数不定）不直调，都有 Go 拼串版可用（`variadic_go.go`，`TestVariadicGo` 全钉死）：
+  `av_asprintf` → `Asprintf`（Go 里拼好直接回字符串，不用管 C 内存）；
+  `av_strlcatf` → `Util.Strlcatf`（拼好调 `av_strlcat` 接到 C 缓冲尾巴）；
+  `avio_printf` → `IOContext.Printf`（拼好调 `avio_write` 写进动态流，`CloseDynBuf` 收尾取内容）；
+  `av_log_once` → `Log.Once`（拼好调定长 `av_log`，首打一次走首级、之后走次级），另有 `Log.Logf` / `BPrint.BprintfF` 同走拼串。
+  为啥不直调：purego 的 `...any` 只是把 Go 参数一个个放进寄存器，不是 C 变参，实测整数和字符串能混过去、浮点必错（1.5 变 0.0）。4 个函数全是 printf 风格，早晚收到浮点，直调就是埋错。
 - 16 个数据符号全包了（`data_const.go`）：10 个 `const int` 上下文大小（`Crypto.AesSize` 等 9 个 + `Util.TreeNodeSize`）走 `Dlsym` 读数字，
   6 个 `const char[]` 版本串（`Library.CodecFfversion` 等）走 `Dlsym` 读字符串。
   函数用 `RegisterLibFunc` 绑，数据用 `Dlsym` 取地址再读，两条路都能用（`TestDataConst` 全钉死）。
