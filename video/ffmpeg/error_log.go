@@ -142,6 +142,24 @@ func (Log) SetFlags(flags int32) { fLogSetFlags(flags) }
 // 回调签名 void(*)(void*, int, const char*, va_list), 纯地址透传).
 func (Log) SetCallback(cb unsafe.Pointer) { fLogSetCb(cb) }
 
+// DefaultCallback runs ffmpeg's own log callback for one message
+// (all pointers pass through; level 用 Log* 常量).
+func (Log) DefaultCallback(ptr unsafe.Pointer, level int32, fmt, args unsafe.Pointer) {
+	fLogDefaultCb(ptr, level, fmt, args)
+}
+
+// FormatLine formats one log message into line (调用方给 1KB+ 缓冲;
+// printPrefix 传 nil 或 *int32, 无返回值, 见 av_log_format_line).
+func (Log) FormatLine(ptr unsafe.Pointer, level int32, fmt, args unsafe.Pointer, line unsafe.Pointer, lineSize int32, printPrefix *int32) {
+	fLogFmtLine(ptr, level, fmt, args, line, lineSize, printPrefix)
+}
+
+// FormatLine2 behaves like FormatLine but returns the bytes written
+// (negative means the message was dropped by flags/level).
+func (Log) FormatLine2(ptr unsafe.Pointer, level int32, fmt, args unsafe.Pointer, line unsafe.Pointer, lineSize int32, printPrefix *int32) int32 {
+	return fLogFmtLine2(ptr, level, fmt, args, line, lineSize, printPrefix)
+}
+
 // Rescale computes a*b/c (时间戳换算, 上溢钳位).
 func (Math) Rescale(a, b, c int64) int64 { return fRescale(a, b, c) }
 
@@ -159,16 +177,35 @@ func (Math) RescaleQRnd(a int64, bq, cq AVRational, rnd int32) int64 {
 // AddQ adds two rationals.
 func (Math) AddQ(b, c AVRational) AVRational { return fAddQ(b, c) }
 
+// AddStable adds inc (in incTb) to ts (in tsTb) without mid overflow
+// (帧率换算走它, 比手算 a*b/c 稳).
+func (Math) AddStable(tsTb AVRational, ts int64, incTb AVRational, inc int64) int64 {
+	return fAddStable(tsTb, ts, incTb, inc)
+}
+
+// RescaleDelta rescales ts from inTb to fsTb and rounds the leftover
+// toward outTb (自适应帧率用; last 传上次余数指针, 可传 nil).
+func (Math) RescaleDelta(inTb AVRational, inTs int64, fsTb AVRational, duration int32, last *int64, outTb AVRational) int64 {
+	return fRescaleDelta(inTb, inTs, fsTb, duration, last, outTb)
+}
+
 // CompareTs compares ts_a/tb_a vs ts_b/tb_b (-1/0/1).
 func (Math) CompareTs(tsA int64, tbA AVRational, tsB int64, tbB AVRational) int32 {
 	return fCompareTs(tsA, tbA, tsB, tbB)
 }
+
+// CompareMod compares (a-b) mod mod (取模比较, 返回 -1/0/1).
+func (Math) CompareMod(a, b, mod uint64) int64 { return fCompareMod(a, b, mod) }
 
 // NowUs returns wall microseconds.
 func (Clock) NowUs() int64 { return fGettime() }
 
 // NowRelativeUs returns monotonic microseconds.
 func (Clock) NowRelativeUs() int64 { return fGettimeRel() }
+
+// IsMonotonic reports whether the relative clock is monotonic
+// (正常机器恒为 1, 返回 0 说明时钟不可靠).
+func (Clock) IsMonotonic() bool { return fGettimeMono() != 0 }
 
 // SleepUs sleeps usec microseconds.
 func (Clock) SleepUs(usec uint32) error {
@@ -180,6 +217,9 @@ func (Clock) SleepUs(usec uint32) error {
 
 // Count returns logical cpu count.
 func (Cpu) Count() int { return int(fCpuCount()) }
+
+// ForceCount overrides the cpu count (传 0 恢复自动检测, 调试压测用).
+func (Cpu) ForceCount(n int) { fCpuForceCount(int32(n)) }
 
 // MaxAlign returns malloc alignment.
 func (Cpu) MaxAlign() int { return int(fCpuMaxAlign()) }
