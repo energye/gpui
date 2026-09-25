@@ -101,12 +101,53 @@ var baseProtocols = []string{
 }
 
 // 高级版在基础版上加的三层（全原生 + BSD/LGPL 外库，GPL 三个一个不开）。
-// 写盒 181 个全开：configure 不支持 --enable-muxer=all？支持，写 all。
-// 原生编码 182 个全开：--enable-encoder=all 会把外库编码也选上吗？
-// 不会，没开的外库 configure 直接跳过，只开原生的，所以用 all 安全。
+// 写盒 181 个 + 原生编码 179 个，全部显式点名（实测 --enable-muxer=all 在
+// --disable-everything 后是空操作，一个都开不出来，必须逐个点名）。
 // GPL 三个（libx264/libx265/libfdk_aac）连开关都不加，许可保持 LGPL。
 // 烧字四个（freetype/harfbuzz/fontconfig/libass）+ fribidi 建议 + openh264：
 // 全静态编进单文件，用户机器不用装。
+// 高级版写盒与编码名单（显式点名，实测 --enable-muxer=all 在
+// --disable-everything 后是空操作，必须逐个点名；外库件已剔除）。
+// 写盒 181 个（源码 allformats.c 全量），原生编码 179 个
+// （allcodecs.c 全量减外库 8 个：libjxl/lc3/openjpeg/rav1e/shine/vvenc/x262/xeve）。
+// GPL 三个（libx264/libx265/libfdk_aac）不在名单里，许可保持 LGPL。
+var fullMuxers = []string{
+	"a64", "ac3", "ac4", "adts", "adx", "aea", "aiff", "alp", "amr", "amv", "apm", "apng",
+	"aptx", "aptx_hd", "argo_asf", "argo_cvg", "asf", "asf_stream", "ass", "ast", "au", "avi", "avif", "avm2",
+	"avs2", "avs3", "bit", "caf", "cavsvideo", "chromaprint", "codec2", "codec2raw", "crc", "dash", "data", "daud",
+	"dfpwm", "dirac", "dnxhd", "dts", "dv", "eac3", "evc", "f4v", "ffmetadata", "fifo", "filmstrip", "fits",
+	"flac", "flv", "framecrc", "framehash", "framemd5", "g722", "g723_1", "g726", "g726le", "gif", "gsm", "gxf",
+	"h261", "h263", "h264", "hash", "hds", "hevc", "hls", "iamf", "ico", "ilbc", "image2", "image2pipe",
+	"ipod", "ircam", "ismv", "ivf", "jacosub", "kvag", "latm", "lc3", "lrc", "m4v", "matroska", "matroska_audio",
+	"md5", "microdvd", "mjpeg", "mkvtimestamp_v2", "mlp", "mmf", "mov", "mp2", "mp3", "mp4", "mpeg1system", "mpeg1vcd",
+	"mpeg1video", "mpeg2dvd", "mpeg2svcd", "mpeg2video", "mpeg2vob", "mpegts", "mpjpeg", "mxf", "mxf_d10", "mxf_opatom", "null", "nut",
+	"obu", "oga", "ogg", "ogv", "oma", "opus", "pcm_alaw", "pcm_f32be", "pcm_f32le", "pcm_f64be", "pcm_f64le", "pcm_mulaw",
+	"pcm_s16be", "pcm_s16le", "pcm_s24be", "pcm_s24le", "pcm_s32be", "pcm_s32le", "pcm_s8", "pcm_u16be", "pcm_u16le", "pcm_u24be", "pcm_u24le", "pcm_u32be",
+	"pcm_u32le", "pcm_u8", "pcm_vidc", "psp", "rawvideo", "rcwt", "rm", "roq", "rso", "rtp", "rtp_mpegts", "rtsp",
+	"sap", "sbc", "scc", "segafilm", "segment", "smjpeg", "smoothstreaming", "sox", "spdif", "spx", "srt", "stream_segment",
+	"streamhash", "sup", "swf", "tee", "tg2", "tgp", "truehd", "tta", "ttml", "uncodedframecrc", "vc1", "vc1t",
+	"voc", "vvc", "w64", "wav", "webm", "webm_chunk", "webm_dash_manifest", "webp", "webvtt", "wsaud", "wtv", "wv",
+	"yuv4mpegpipe",
+}
+
+var fullEncoders = []string{
+	"a64multi", "a64multi5", "aac", "ac3", "ac3_fixed", "adpcm_adx", "adpcm_argo", "adpcm_g722", "adpcm_g726", "adpcm_g726le", "adpcm_ima_alp", "adpcm_ima_amv",
+	"adpcm_ima_apm", "adpcm_ima_qt", "adpcm_ima_ssi", "adpcm_ima_wav", "adpcm_ima_ws", "adpcm_ms", "adpcm_swf", "adpcm_yamaha", "alac", "alias_pix", "amv", "anull",
+	"apng", "aptx", "aptx_hd", "ass", "asv1", "asv2", "avrp", "avui", "bitpacked", "bmp", "cfhd", "cinepak",
+	"cljr", "comfortnoise", "dca", "dfpwm", "dnxhd", "dpx", "dvbsub", "dvdsub", "dvvideo", "dxv", "eac3", "exr",
+	"ffv1", "ffvhuff", "fits", "flac", "flashsv", "flashsv2", "flv", "g723_1", "gif", "h261", "h263", "h263p",
+	"hap", "hdr", "huffyuv", "jpeg2000", "jpegls", "ljpeg", "magicyuv", "mjpeg", "mlp", "movtext", "mp2", "mp2fixed",
+	"mpeg1video", "mpeg2video", "mpeg4", "msmpeg4v2", "msmpeg4v3", "msrle", "msvideo1", "nellymoser", "opus", "pam", "pbm", "pcm_alaw",
+	"pcm_bluray", "pcm_dvd", "pcm_f32be", "pcm_f32le", "pcm_f64be", "pcm_f64le", "pcm_mulaw", "pcm_s16be", "pcm_s16be_planar", "pcm_s16le", "pcm_s16le_planar", "pcm_s24be",
+	"pcm_s24daud", "pcm_s24le", "pcm_s24le_planar", "pcm_s32be", "pcm_s32le", "pcm_s32le_planar", "pcm_s64be", "pcm_s64le", "pcm_s8", "pcm_s8_planar", "pcm_u16be", "pcm_u16le",
+	"pcm_u24be", "pcm_u24le", "pcm_u32be", "pcm_u32le", "pcm_u8", "pcm_vidc", "pcx", "pfm", "pgm", "pgmyuv", "phm", "png",
+	"ppm", "prores", "prores_aw", "prores_ks", "qoi", "qtrle", "r10k", "r210", "ra_144", "rawvideo", "roq", "roq_dpcm",
+	"rpza", "rv10", "rv20", "s302m", "sbc", "sgi", "smc", "snow", "sonic", "sonic_ls", "speedhq", "srt",
+	"ssa", "subrip", "sunrast", "svq1", "targa", "text", "tiff", "truehd", "tta", "ttml", "utvideo", "v210",
+	"v308", "v408", "v410", "vbn", "vc2", "vnull", "vorbis", "wavpack", "wbmp", "webvtt", "wmav1", "wmav2",
+	"wmv1", "wmv2", "wrapped_avframe", "xbm", "xface", "xsub", "xwd", "y41p", "yuv4", "zlib", "zmbv",
+}
+
 var fullExtraDecoders = []string{} // 基础版已是全原生解码，高级版不用再加。
 var fullExtraDemuxers = []string{} // 同上。
 
@@ -145,8 +186,8 @@ func baseFlags() string {
 func fullFlags() string {
 	return strings.Join([]string{
 		"--disable-everything --disable-programs --disable-doc",
-		// 高级版开写：复用器全开（181 个，原生），编码器全开（没开的外库自动跳过）。
-		"--enable-muxer=all --enable-encoder=all",
+		join("--enable-muxer=", fullMuxers),
+		join("--enable-encoder=", fullEncoders),
 		"--enable-avdevice --enable-avfilter --enable-network --enable-zlib",
 		join("--enable-decoder=", baseDecoders),
 		join("--enable-demuxer=", baseDemuxers),

@@ -35,9 +35,43 @@ fi
 #   A. 容器内 apt 装 -dev 包（编完即验，网络要通外网）；
 #   B. 预置源码包（/tmp/deps/*.tar.*，离线可编，见 build-deps.sh）。
 # 各 /opt/<name>-<arch> 由 Dockerfile 或 build-deps.sh 预装。
+# 容错：哪个外库的 pkg-config 找不到，就自动丢掉对应 --enable 开关并告警，
+# 本次编出“缺啥少啥”的 full（复用+原生编码一定在，烧字看命），
+# 不让一次缺料卡死整版。Actions 上料全时自然是完整 full。
 FULL_DEPS_LINUX=""
+FULL_DROP=""
 if [ "$V" = "full" ]; then
-  FULL_DEPS_LINUX="--enable-libfreetype --enable-libharfbuzz --enable-libfontconfig --enable-libfribidi --enable-libass --enable-libopenh264"
+  want_pc="libfreetype:libfreetype libharfbuzz:libharfbuzz libfontconfig:libfontconfig libfribidi:libfribidi libass:libass libopenh264:libopenh264"
+  for pair in $want_pc; do
+    lib="${pair%%:*}"; pc="${pair##*:}"
+    if pkg-config --exists "$pc" 2>/dev/null; then
+      FULL_DEPS_LINUX="$FULL_DEPS_LINUX --enable-$lib"
+    else
+      echo "WARN: 缺外库 $pc，丢掉 --enable-$lib（本次 full 无此功能）" >&2
+      FULL_DROP="$FULL_DROP --enable-$lib"
+    fi
+  done
+  # 连带滤镜：subtitles/ass 要 libass；drawtext 要 freetype+harfbuzz。
+  # 缺库时把对应 --enable-filter= 一起丢掉，否则 configure 直接报错退出。
+  case "$FULL_DROP" in
+    *--enable-libass*) FULL_DROP="$FULL_DROP --enable-filter=subtitles --enable-filter=ass" ;;
+  esac
+  case "$FULL_DROP" in
+    *--enable-libfreetype*|*--enable-libharfbuzz*) FULL_DROP="$FULL_DROP --enable-filter=drawtext" ;;
+  esac
+  # 从配方 COMMON 里剔掉丢弃项（配方是意愿，实际以本机料为准）。
+  if [ -n "$FULL_DROP" ]; then
+    NEW_COMMON=""
+    for tok in $COMMON; do
+      skip=0
+      for d in $FULL_DROP; do
+        if [ "$tok" = "$d" ]; then skip=1; break; fi
+      done
+      if [ "$skip" = "0" ]; then NEW_COMMON="$NEW_COMMON $tok"; fi
+    done
+    COMMON="$NEW_COMMON"
+    echo "WARN: 本次 full 丢掉:$FULL_DROP" >&2
+  fi
 fi
 
 LIB=libgpui_ffmpeg.so
@@ -123,6 +157,29 @@ WHOLE="-Wl,--whole-archive libavformat/libavformat.a libavcodec/libavcodec.a lib
 # 同名文件重复定义（内容一样）。--whole-archive 下两份都进包，ld 默认报错，
 # 加 allow-multiple-definition 取第一份（ffmpeg 官方单文件同款做法）。
 MULDEFS="-Wl,--allow-multiple-definition"
+# FULL_EXT: 高级版外库链接（有就链，没有就空）。
+# 现阶段系统三件（freetype/harfbuzz/fontconfig）走动态链（桌面机自带，
+# 和现基础版动态链 xml2/va 一个做法）；/opt 预置静态 .a 落地后切 -Bstatic。
+# libass/openh264 的 .a 就绪后同样静态打进（用户机器不用装）。
+FULL_EXT=""
+if [ "$V" = "full" ]; then
+  case "$T" in
+    win-*) FULL_EXT="" ;; # Windows mingw 静态烧字后续备好再加，先只开写盒+原生编码。
+    *)
+      FULL_PC=""
+      for pc in freetype2 harfbuzz fontconfig fribidi libass; do
+        if pkg-config --exists "$pc" 2>/dev/null; then
+          FULL_PC="$FULL_PC $(pkg-config --libs "$pc" 2>/dev/null)"
+        fi
+      done
+      FULL_OH=""
+      for od in /opt/openh264-x64/lib/libopenh264.a /opt/openh264-arm64/lib/libopenh264.a /opt/openh264-386/lib/libopenh264.a /opt/openh264-arm/lib/libopenh264.a; do
+        if [ -f "$od" ]; then FULL_OH="$od"; break; fi
+      done
+      FULL_EXT="$FULL_PC $FULL_OH"
+      ;;
+  esac
+fi
 case "$T" in
   win-x64|win-arm64)
     # shellcheck disable=SC2086
@@ -131,10 +188,10 @@ case "$T" in
   *)
     case "$T" in
       linux-x64)
-        $CC -shared -Wl,-soname,$LIB -o "$OUT/$LIB" -Wl,-Bsymbolic $WHOLE $MULDEFS -lm -pthread $(ossl_lib $OSSL)/libssl.a $(ossl_lib $OSSL)/libcrypto.a $ZLIB/lib/libz.a -ldl -lxml2 -lva -lva-drm -lvdpau -ldrm
+        $CC -shared -Wl,-soname,$LIB -o "$OUT/$LIB" -Wl,-Bsymbolic $WHOLE $MULDEFS $FULL_EXT -lm -pthread $(ossl_lib $OSSL)/libssl.a $(ossl_lib $OSSL)/libcrypto.a $ZLIB/lib/libz.a -ldl -lxml2 -lva -lva-drm -lvdpau -ldrm
         ;;
       *)
-        $CC -shared -Wl,-soname,$LIB -o "$OUT/$LIB" -Wl,-Bsymbolic $WHOLE $MULDEFS -lm -pthread $(ossl_lib $OSSL)/libssl.a $(ossl_lib $OSSL)/libcrypto.a -ldl $ZLIB/lib/libz.a
+        $CC -shared -Wl,-soname,$LIB -o "$OUT/$LIB" -Wl,-Bsymbolic $WHOLE $MULDEFS $FULL_EXT -lm -pthread $(ossl_lib $OSSL)/libssl.a $(ossl_lib $OSSL)/libcrypto.a -ldl $ZLIB/lib/libz.a
         ;;
     esac
     ;;
