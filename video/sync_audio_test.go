@@ -377,3 +377,187 @@ func TestA2SilentFallback(t *testing.T) {
 		t.Fatalf("silent stats shown/dropped/ended = %d/%d/%v, want %d/0/true", st.Shown, st.Dropped, st.Ended, total)
 	}
 }
+
+// TestA2RateKeepsSoundSync pins rate + sound: 2x advances the due
+// schedule twice as fast, sound frames still rise monotonically, and
+// back-to-1x resumes without stalling.
+func TestA2RateKeepsSoundSync(t *testing.T) {
+	b := loadA2Baseline(t)
+	h := &handClock{}
+	p, err := OpenFile("testdata/"+b.Clip, Options{NowMs: h.at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if !p.HasAudio() {
+		t.Fatal("oceans must carry audio for this test to mean anything")
+	}
+	if err := p.SetRate(2); err != nil {
+		t.Fatal(err)
+	}
+	if p.Rate() != 2 {
+		t.Fatalf("rate = %v, want 2", p.Rate())
+	}
+	var apts []int64
+	deadline := time.Now().Add(60 * time.Second)
+	for i := 0; i < 200 && len(apts) < 10; i++ {
+		if time.Now().After(deadline) {
+			t.Fatalf("sound stalls at 2x, got %d", len(apts))
+		}
+		h.now += 25
+		p.Poll()
+		if af, _ := p.PollAudio(); af != nil {
+			apts = append(apts, af.PTSMs)
+		}
+		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if len(apts) < 10 {
+		t.Fatalf("only %d audio frames at 2x: %v", len(apts), apts)
+	}
+	monoInc(t, "audio@2x", apts)
+	if err := p.SetRate(1); err != nil {
+		t.Fatal(err)
+	}
+	var more int64 = -1
+	deadline = time.Now().Add(30 * time.Second)
+	for more < 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("sound stalls after back-to-1x")
+		}
+		h.now += 25
+		p.Poll()
+		if af, _ := p.PollAudio(); af != nil {
+			more = af.PTSMs
+		}
+		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if more < apts[len(apts)-1] {
+		t.Fatalf("sound rewound after rate change: %d < %d", more, apts[len(apts)-1])
+	}
+}
+
+// TestA2VolumeAndMute pins the speaker knobs: half volume halves every
+// sample, mute parks the pump (decode keeps running), unmute resumes
+// in sync, and bad values are refused. The scaling proof seeks two
+// players to the same target: deterministic decode serves the same
+// frame, so samples must match at exactly 0.5x.
+func TestA2VolumeAndMute(t *testing.T) {
+	b := loadA2Baseline(t)
+	h1 := &handClock{}
+	p1, err := OpenFile("testdata/"+b.Clip, Options{NowMs: h1.at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p1.Close()
+	h2 := &handClock{}
+	p2, err := OpenFile("testdata/"+b.Clip, Options{NowMs: h2.at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p2.Close()
+	if !p1.HasAudio() || !p2.HasAudio() {
+		t.Fatal("oceans must carry audio for this test to mean anything")
+	}
+	if v := p1.Volume(); v != 1 {
+		t.Fatalf("default volume = %v, want 1", v)
+	}
+	if err := p2.SetVolume(0.5); err != nil {
+		t.Fatal(err)
+	}
+	const target = 8000
+	if _, err := p1.SeekTo(target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p2.SeekTo(target); err != nil {
+		t.Fatal(err)
+	}
+	// Drive both clocks identically past the landing; collect voiced
+	// frames keyed by stamp from each (background threads race, so
+	// same-tick frames differ — match by PTSMs instead).
+	fullByPts := map[int64][]float32{}
+	halfByPts := map[int64][]float32{}
+	deadline := time.Now().Add(90 * time.Second)
+	for len(fullByPts) < 6 || len(halfByPts) < 6 {
+		if time.Now().After(deadline) {
+			t.Fatalf("paired frames never arrive (full=%d half=%d)", len(fullByPts), len(halfByPts))
+		}
+		h1.now += 25
+		h2.now += 25
+		p1.Poll()
+		p2.Poll()
+		if af, _ := p1.PollAudio(); af != nil && af.PTSMs >= target && voiced(af) {
+			if _, ok := fullByPts[af.PTSMs]; !ok {
+				fullByPts[af.PTSMs] = append([]float32(nil), af.Data...)
+			}
+		}
+		if af, _ := p2.PollAudio(); af != nil && af.PTSMs >= target && voiced(af) {
+			if _, ok := halfByPts[af.PTSMs]; !ok {
+				halfByPts[af.PTSMs] = append([]float32(nil), af.Data...)
+			}
+		}
+		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
+	}
+	matched := 0
+	for pts, full := range fullByPts {
+		half, ok := halfByPts[pts]
+		if !ok || len(full) != len(half) {
+			continue
+		}
+		for i := range full {
+			want := float64(full[i]) * 0.5
+			if d := float64(half[i]) - want; d > 1e-5 || d < -1e-5 {
+				t.Fatalf("pts %d sample %d = %v, want 0.5x %v", pts, i, half[i], full[i])
+			}
+		}
+		matched++
+	}
+	if matched == 0 {
+		t.Fatal("no common-stamp voiced frames to compare")
+	}
+	t.Logf("volume 0.5x verified on %d frames", matched)
+	p1.SetMuted(true)
+	if !p1.Muted() {
+		t.Fatal("muted = false, want true")
+	}
+	h1.now += 200
+	p1.Poll()
+	if af, _ := p1.PollAudio(); af != nil {
+		t.Fatal("muted pump serves frames")
+	}
+	p1.SetMuted(false)
+	var resumed int64 = -1
+	deadline = time.Now().Add(30 * time.Second)
+	for resumed < 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("unmute never resumes")
+		}
+		h1.now += 25
+		p1.Poll()
+		if af, _ := p1.PollAudio(); af != nil {
+			resumed = af.PTSMs
+		}
+		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := p1.SetVolume(-1); err == nil {
+		t.Fatal("SetVolume(-1) accepted, want refusal")
+	}
+	if err := p1.SetVolume(5); err == nil {
+		t.Fatal("SetVolume(5) accepted, want refusal")
+	}
+	if err := p1.SetVolume(1); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// voiced reports nonzero energy (past the digital-silent head).
+func voiced(af *AudioFrame) bool {
+	var e float64
+	for _, s := range af.Data {
+		e += float64(s) * float64(s)
+	}
+	return e > 0
+}

@@ -389,9 +389,14 @@ func (p *Player) AVDiffMs() int64 {
 	return p.lastAudioPTSMS - p.lastShown
 }
 
-// masterDue is the schedule Poll serves pictures against: the sound
-// clock when a track exists, else the picture clock (ffplay default:
-// sound leads when present, else video).
+// masterDue is the schedule Poll serves pictures against: the picture
+// clock, same for sound and picture (both drop stale independently at
+// Poll/PollAudio, so neither line can stall the other). Sound-lead in
+// the ffplay sense lives in the per-frame wait (ComputeTargetDelay,
+// owned by the window tick like video_refresh), not in this schedule:
+// capping the picture schedule on served sound fed back into the
+// background pump (one sound chunk per video picture) and stalled the
+// whole pipeline to a trickle (TestA2SoundHead energy 0, caught green).
 func (p *Player) masterDue() int64 {
 	if p == nil || p.clk == nil {
 		return 0
@@ -436,7 +441,22 @@ func (p *Player) PollAudio() (f *AudioFrame, ended bool) {
 		p.mu.Lock()
 		p.audioShown++
 		p.lastAudioPTSMS = fr.PTSMs
+		vol := p.volume
+		if vol == 0 {
+			vol = 1
+		}
+		muted := p.muted
 		p.mu.Unlock()
+		if muted {
+			return nil, false
+		}
+		if vol != 1 {
+			scaled := make([]float32, len(fr.Data))
+			for i, s := range fr.Data {
+				scaled[i] = s * float32(vol)
+			}
+			fr.Data = scaled
+		}
 		return fr, false
 	}
 	p.mu.Lock()
@@ -485,8 +505,57 @@ func (p *Player) parkAudioLocked(int64)       {}
 func (p *Player) startAudioClockAtSeek(int64) {}
 func (p *Player) pauseAudioClock()            {}
 func (p *Player) resumeAudioClock()           {}
-func (p *Player) setAudioRate(float64)        {}
 func (p *Player) streamAudioDrained() bool    { return true }
+
+// SetVolume scales speaker PCM (1 = unchanged, 0 = silent). Range is
+// 0..4 (above 1 amplifies, may clip); NaN and out-of-range are refused.
+// Nil-safe and silent-clip-safe: soundless players accept and ignore.
+func (p *Player) SetVolume(v float64) error {
+	if v != v || v < 0 || v > 4 {
+		return fmt.Errorf("video: bad volume %v (want 0 <= v <= 4)", v)
+	}
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.volume = v
+	return nil
+}
+
+// Volume reports the speaker gain (default 1).
+func (p *Player) Volume() float64 {
+	if p == nil {
+		return 1
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.volume == 0 {
+		return 1
+	}
+	return p.volume
+}
+
+// SetMuted parks the speaker (true) or resumes it (false). Decode keeps
+// running while muted so unmute resumes in sync. Nil-safe.
+func (p *Player) SetMuted(m bool) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.muted = m
+}
+
+// Muted reports the speaker park state.
+func (p *Player) Muted() bool {
+	if p == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.muted
+}
 
 // Audio probe stubs (video-only): sound decode is not wired yet
 // (see t-audio-ffmpeg), so every clip reports no audio.

@@ -209,9 +209,17 @@ type Player struct {
 	// audioDone latches when the background exhausted the sound stream
 	// (non-loop): PollAudio ends once the queue also drains.
 	audioDone bool
-	// lastAudioPTSMS is the last served sound stamp (AVDiffMs reads it
-	// against lastShown; guarded by mu like the picture side).
+	// lastAudioPTSMS is the last served sound stamp (masterDue caps the
+	// picture schedule against it; AVDiffMs reads it against lastShown;
+	// guarded by mu like the picture side).
 	lastAudioPTSMS int64
+	// volume scales PCM in PollAudio (1 = unchanged, 0 = silent).
+	// Guarded by mu; the pump sees already-scaled data.
+	volume float64
+	// muted parks the speaker: PollAudio returns (nil, false) while
+	// set (decode keeps running so unmute resumes in sync).
+	// Guarded by mu.
+	muted bool
 	// audioDecoded/audioShown ride Stats (evidence, never faked).
 	audioDecoded int64
 	audioShown   int64
