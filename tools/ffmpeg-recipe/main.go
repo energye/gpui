@@ -208,6 +208,11 @@ func fullFlags() string {
 		// openh264 做 H264 编码（BSD）。
 		"--enable-libfreetype --enable-libharfbuzz --enable-libfontconfig",
 		"--enable-libfribidi --enable-libass --enable-libopenh264",
+		// 注意：--enable-libopenh264 只备好库，编解码这两个“件”要点名
+		// （实测只开库不点名，编出来的件里没有 Wels 符号）。
+		// 只要 H264 编码（写文件用），解码仍走原生 h264（更快更准），
+		// 所以只点名 encoder，不点 decoder。
+		"--enable-encoder=libopenh264",
 		"--disable-x86asm --enable-pic --enable-small",
 		"--disable-autodetect --disable-debug",
 	}, " ")

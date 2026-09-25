@@ -41,7 +41,22 @@ fi
 FULL_DEPS_LINUX=""
 FULL_DROP=""
 if [ "$V" = "full" ]; then
-  want_pc="libfreetype:libfreetype libharfbuzz:libharfbuzz libfontconfig:libfontconfig libfribidi:libfribidi libass:libass libopenh264:libopenh264"
+  # 先把当前目标的外库 .pc 目录加进搜索路径（不存在的目录会被忽略）。
+  # 注意：只加当前目标的后缀，不加全套——win 下要是把 linux-x64 的
+  # .pc 混进来，pkg-config 会误判库存在，configure 拿 linux 的 .a
+  # 去给 mingw 用，直接报错（实测 win-x64 full 挂在 libass 上）。
+  # case 分支里的按目标追加只是去重兜底。
+  case "$T" in
+    linux-x64) DETSFX=x64 ;; linux-arm64) DETSFX=arm64 ;;
+    linux-386) DETSFX=386 ;; linux-arm) DETSFX=arm ;;
+    *) DETSFX="" ;;
+  esac
+  if [ -n "$DETSFX" ]; then
+    for d in freetype harfbuzz fontconfig fribidi ass openh264 expat zlib; do
+      export PKG_CONFIG_PATH="/opt/$d-$DETSFX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+    done
+  fi
+  want_pc="libfreetype:freetype2 libharfbuzz:harfbuzz libfontconfig:fontconfig libfribidi:fribidi libass:libass libopenh264:openh264"
   for pair in $want_pc; do
     lib="${pair%%:*}"; pc="${pair##*:}"
     if pkg-config --exists "$pc" 2>/dev/null; then
@@ -106,7 +121,7 @@ case "$T" in
     ZLIB=/opt/zlib-x64
     export PKG_CONFIG_PATH=$(ossl_lib $OSSL)/pkgconfig:${PKG_CONFIG_PATH:-}
     if [ "$V" = "full" ]; then
-      for d in freetype harfbuzz fontconfig fribidi ass openh264; do
+      for d in freetype harfbuzz fontconfig fribidi ass openh264 expat; do
         export PKG_CONFIG_PATH="/opt/$d-x64/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
       done
     fi
@@ -117,7 +132,9 @@ case "$T" in
     ZLIB=/opt/zlib-arm64
     export PKG_CONFIG_LIBDIR=$(ossl_lib $OSSL)/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig
     if [ "$V" = "full" ]; then
-      for d in freetype harfbuzz fontconfig fribidi ass openh264; do
+      # freetype2 的 .pc 写了 Requires: zlib，搜索路径必须带上自建 zlib-$TAG，
+      # 否则 libass 的传递依赖解析直接炸（实测 arm64/arm 全挂在 libass 检测上）。
+      for d in freetype harfbuzz fontconfig fribidi ass openh264 expat zlib; do
         PKG_CONFIG_LIBDIR="/opt/$d-arm64/lib/pkgconfig:${PKG_CONFIG_LIBDIR:-}"
       done
       export PKG_CONFIG_LIBDIR
@@ -130,24 +147,54 @@ case "$T" in
     OSSL=/opt/ossl-386
     ZLIB=/opt/zlib-386
     export PKG_CONFIG_LIBDIR=$(ossl_lib $OSSL)/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
+    if [ "$V" = "full" ]; then
+      for d in freetype harfbuzz fontconfig fribidi ass openh264 expat zlib; do
+        PKG_CONFIG_LIBDIR="/opt/$d-386/lib/pkgconfig:${PKG_CONFIG_LIBDIR:-}"
+      done
+      export PKG_CONFIG_LIBDIR
+    fi
     CFG="$COMMON $FULL_DEPS_LINUX $CROSS_LINUX --extra-cflags=-I$OSSL/include --extra-cflags=-I$ZLIB/include --extra-ldflags=-L$(ossl_lib $OSSL) --extra-ldflags=-L$ZLIB/lib --arch=x86_32 --target-os=linux --cc=$BLD/gcc-m32"
     CC="$BLD/gcc-m32" ;;
   linux-arm)
     OSSL=/opt/ossl-arm
     ZLIB=/opt/zlib-arm
     export PKG_CONFIG_LIBDIR=$(ossl_lib $OSSL)/pkgconfig:/usr/lib/arm-linux-gnueabihf/pkgconfig
+    if [ "$V" = "full" ]; then
+      for d in freetype harfbuzz fontconfig fribidi ass openh264 expat zlib; do
+        PKG_CONFIG_LIBDIR="/opt/$d-arm/lib/pkgconfig:${PKG_CONFIG_LIBDIR:-}"
+      done
+      export PKG_CONFIG_LIBDIR
+    fi
     CFG="$COMMON $FULL_DEPS_LINUX $CROSS_LINUX --extra-cflags=-I$OSSL/include --extra-cflags=-I$ZLIB/include --extra-ldflags=-L$(ossl_lib $OSSL) --extra-ldflags=-L$ZLIB/lib --enable-cross-compile --cross-prefix=arm-linux-gnueabihf- --arch=arm --target-os=linux"
     CC=arm-linux-gnueabihf-gcc ;;
-  win-x64|win-arm64)
+  win-x64)
     ZLIB=/opt/zlib-w64
     # Windows 高级版烧字：mingw 静态 freetype/harfbuzz/libass（后续备好再加，
     # 缺则高级版暂只开写盒+原生编码，drawtext/subtitles 自动跳过）。
     CFG="$COMMON $FULL_DEPS_LINUX $HW_WIN --extra-cflags=-I$ZLIB/include --extra-ldflags=-L$ZLIB/lib --enable-cross-compile --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw64"
     CC=x86_64-w64-mingw32-gcc; LIB="libgpui_ffmpeg.dll"
     if [ "$V" = "full" ]; then LIB="libgpui_ffmpeg_full.dll"; fi ;;
+  win-arm64)
+    ZLIB=/opt/zlib-w64arm
+    # win-arm64 必须真 ARM64：用 llvm-mingw 的 clang（x86_64 mingw 打不出
+    # arm64，之前复用 x86_64 前缀是错的，已拆开）。同样先只开写盒+原生编码。
+    CFG="$COMMON $FULL_DEPS_LINUX $HW_WIN --extra-cflags=-I$ZLIB/include --extra-ldflags=-L$ZLIB/lib --enable-cross-compile --cross-prefix=aarch64-w64-mingw32- --arch=aarch64 --target-os=mingw64 --cc=aarch64-w64-mingw32-clang"
+    CC=aarch64-w64-mingw32-clang; LIB="libgpui_ffmpeg.dll"
+    if [ "$V" = "full" ]; then LIB="libgpui_ffmpeg_full.dll"; fi ;;
   *) echo "unknown target $T" >&2; exit 2 ;;
 esac
 
+# 静态链：configure 的库存活检测加 --static（只取 Libs 的话，静态
+# fontconfig 因缺 expat 符号被误判为不存在；ffmpeg 官方做法，见 configure
+# 里的 "When building a static binary" 提示）。
+# 最终链接本来就是手拼 .a（下面的 WHOLE/FULL_EXT），这里只影响检测编译。
+CFG="$CFG --pkg-config-flags=--static"
+# 交叉编译（arm64/arm/win）时 configure 会去找 "<前缀>pkg-config"
+#（比如 aarch64-linux-gnu-pkg-config），镜像里没有就回退成 false，
+# 所有外库检测直接全灭（实测 arm64/arm 料全备好却报 libass not found，
+# 日志里 WARNING: aarch64-linux-gnu-pkg-config not found）。
+# 显式钉回系统 pkg-config，搜索路径走上面的 PKG_CONFIG_LIBDIR（全是目标架构的 .pc）。
+CFG="$CFG --pkg-config=pkg-config"
 # shellcheck disable=SC2086
 /src/configure $CFG
 make -j"$(nproc)"
@@ -157,10 +204,8 @@ WHOLE="-Wl,--whole-archive libavformat/libavformat.a libavcodec/libavcodec.a lib
 # 同名文件重复定义（内容一样）。--whole-archive 下两份都进包，ld 默认报错，
 # 加 allow-multiple-definition 取第一份（ffmpeg 官方单文件同款做法）。
 MULDEFS="-Wl,--allow-multiple-definition"
-# FULL_EXT: 高级版外库链接（有就链，没有就空）。
-# 现阶段系统三件（freetype/harfbuzz/fontconfig）走动态链（桌面机自带，
-# 和现基础版动态链 xml2/va 一个做法）；/opt 预置静态 .a 落地后切 -Bstatic。
-# libass/openh264 的 .a 就绪后同样静态打进（用户机器不用装）。
+# FULL_EXT: 高级版外库链接（全静态 .a 打进单文件，用户机器不用装）。
+# 用 pkg-config --static 取静态链（含传递依赖），openh264 直接链 .a。
 FULL_EXT=""
 if [ "$V" = "full" ]; then
   case "$T" in
@@ -169,13 +214,18 @@ if [ "$V" = "full" ]; then
       FULL_PC=""
       for pc in freetype2 harfbuzz fontconfig fribidi libass; do
         if pkg-config --exists "$pc" 2>/dev/null; then
-          FULL_PC="$FULL_PC $(pkg-config --libs "$pc" 2>/dev/null)"
+          FULL_PC="$FULL_PC $(pkg-config --static --libs "$pc" 2>/dev/null)"
         fi
       done
       FULL_OH=""
-      for od in /opt/openh264-x64/lib/libopenh264.a /opt/openh264-arm64/lib/libopenh264.a /opt/openh264-386/lib/libopenh264.a /opt/openh264-arm/lib/libopenh264.a; do
-        if [ -f "$od" ]; then FULL_OH="$od"; break; fi
-      done
+      case "$T" in
+        linux-x64) OHSFX=x64 ;; linux-arm64) OHSFX=arm64 ;;
+        linux-386) OHSFX=386 ;; linux-arm) OHSFX=arm ;;
+        *) OHSFX=x64 ;;
+      esac
+      if [ -f "/opt/openh264-$OHSFX/lib/libopenh264.a" ]; then
+        FULL_OH="/opt/openh264-$OHSFX/lib/libopenh264.a"
+      fi
       FULL_EXT="$FULL_PC $FULL_OH"
       ;;
   esac
@@ -197,13 +247,33 @@ case "$T" in
     ;;
 esac
 ls -la "$OUT/$LIB"
-# 门禁：高级版必须含写盒+字幕编码（nm 查 mp4 复用器与 mov_text 编码器）。
+# 门禁：高级版必须含写盒+编码+烧字（缺一个就报错，不让“缺啥少啥”混入库）。
 if [ "$V" = "full" ]; then
   case "$T" in
-    win-*) tmp_tool="x86_64-w64-mingw32-nm" ;;
+    win-x64) tmp_tool="x86_64-w64-mingw32-nm" ;;
+    win-arm64) tmp_tool="aarch64-w64-mingw32-nm" ;;
     *) tmp_tool="nm" ;;
   esac
-  if ! $tmp_tool -D --defined-only "$OUT/$LIB" 2>/dev/null | grep -q "av_muxer_iterate"; then
-    echo "WARN: full 版缺 av_muxer_iterate 符号" >&2
-  fi
+  case "$T" in
+    win-*) # Windows 暂只要求写盒（烧字后续备好再加）。
+      # 注意：DLL 没有 ELF 动态符号表，nm -D 报 no symbols，
+      # 必须用不带 -D 的 nm 查（Linux .so 才用 -D）。
+      if ! $tmp_tool --defined-only "$OUT/$LIB" 2>/dev/null | grep -q "av_muxer_iterate"; then
+        echo "FAIL: full 版缺 av_muxer_iterate 符号" >&2; exit 1
+      fi
+      ;;
+    *)
+      fail=0
+      if ! $tmp_tool -D --defined-only "$OUT/$LIB" 2>/dev/null | grep -q "av_muxer_iterate"; then
+        echo "FAIL: full 版缺 av_muxer_iterate 符号" >&2; fail=1
+      fi
+      for sym in ff_vf_drawtext ff_vf_subtitles ff_vf_ass ff_libopenh264_encoder ff_ass_encoder; do
+        if ! $tmp_tool --defined-only "$OUT/$LIB" 2>/dev/null | grep -q "$sym"; then
+          echo "FAIL: full 版缺 $sym（烧字/openh264 未全进）" >&2; fail=1
+        fi
+      done
+      if [ "$fail" != "0" ]; then exit 1; fi
+      echo "PASS: full 门禁（写盒+烧字三滤镜+openh264+ass 编码全在）"
+      ;;
+  esac
 fi

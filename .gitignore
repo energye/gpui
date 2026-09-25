@@ -9,6 +9,8 @@ lib/ffmpeg/*
 !lib/ffmpeg/linux-arm/
 !lib/ffmpeg/win-x64/
 !lib/ffmpeg/win-arm64/
+!lib/ffmpeg/darwin-arm64/
+!lib/ffmpeg/darwin-x64/
 !lib/ffmpeg/linux-x64/libgpui_ffmpeg.so
 !lib/ffmpeg/linux-arm64/libgpui_ffmpeg.so
 !lib/ffmpeg/linux-386/libgpui_ffmpeg.so
@@ -21,6 +23,10 @@ lib/ffmpeg/*
 !lib/ffmpeg/linux-arm/libgpui_ffmpeg_full.so
 !lib/ffmpeg/win-x64/libgpui_ffmpeg_full.dll
 !lib/ffmpeg/win-arm64/libgpui_ffmpeg_full.dll
+!lib/ffmpeg/darwin-arm64/libgpui_ffmpeg.dylib
+!lib/ffmpeg/darwin-x64/libgpui_ffmpeg.dylib
+!lib/ffmpeg/darwin-arm64/libgpui_ffmpeg_full.dylib
+!lib/ffmpeg/darwin-x64/libgpui_ffmpeg_full.dylib
 node_modules
 
 # standardtest generated images (keep directory via .gitkeep)

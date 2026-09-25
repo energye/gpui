@@ -6,14 +6,11 @@ name: ffmpeg-dual
 # 产物：lib/ffmpeg/<平台>/libgpui_ffmpeg.(so|dll|dylib)（基础版，旧名不动）
 #       lib/ffmpeg/<平台>/libgpui_ffmpeg_full.(so|dll|dylib)（高级版）
 # 许可门禁：两档都不许含 x264/x265/fdk（GPL/nonfree），LGPL 2.1 不变。
+# 备料：build-deps.sh 负责下载+完整性门禁（坏包直接 exit 3，不让半截包混进编译）；
+# fribidi 有官方 savannah 备份源，libass 走 build-deps 默认源（osuosl 已 404，不再用）。
 
 on:
   workflow_dispatch:
-    inputs:
-      target:
-        description: "编哪个目标（all 或 linux-x64 等）"
-        required: false
-        default: "all"
   push:
     paths:
       - "tools/ffmpeg/**"
@@ -23,6 +20,7 @@ jobs:
   linux-win:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target: [linux-x64, linux-arm64, linux-386, linux-arm, win-x64, win-arm64]
         variant: [base, full]
@@ -30,45 +28,110 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: false
-      - name: 取 ffmpeg 7.1.5 源码
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: 取 ffmpeg 7.1.5 源码（含完整性门禁）
         run: |
-          curl -sSL -o /tmp/ffmpeg.tar.gz https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.gz
+          curl -sSL --retry 3 --retry-all-errors -o /tmp/ffmpeg.tar.gz https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.gz
+          tar tzf /tmp/ffmpeg.tar.gz > /dev/null || { echo "BAD ffmpeg tarball"; exit 3; }
           mkdir -p /tmp/ffsrc && tar -xzf /tmp/ffmpeg.tar.gz -C /tmp/ffsrc --strip-components=1
-      - name: 取配方
+          grep -q '7.1.5' /tmp/ffsrc/RELEASE || { echo "ffmpeg version mismatch"; exit 1; }
+      - name: 取配方（唯一真源 tools/ffmpeg-recipe）
         run: |
           go run ./tools/ffmpeg-recipe -variant ${{ matrix.variant }} > /tmp/recipe.flags
           cat /tmp/recipe.flags | head -c 300; echo
-      - name: 取外库源码（仅 full，master 备份源优先）
+      - name: 备外库料（仅 full：build-deps 下载+验包，fribidi 有 savannah 备份源）
         if: matrix.variant == 'full'
         run: |
-          mkdir -p /tmp/deps
-          cd /tmp/deps
-          get() { # file url fallback-url
-            curl -sSL --max-time 60 -o "$1" "$2" || curl -sSL --max-time 120 -o "$1" "$3"
-          }
-          get fribidi.tar.xz \
-            https://github.com/fribidi/fribidi/releases/download/v1.0.13/fribidi-1.0.13.tar.xz \
-            https://download-mirror.savannah.gnu.org/releases/fribidi/fribidi-1.0.13.tar.xz
-          get ass.tar.gz \
-            https://github.com/libass/libass/releases/download/0.17.1/libass-0.17.1.tar.gz \
-            https://ftp.osuosl.org/pub/blfs/conglomeration/libass/libass-0.17.1.tar.gz
-          get h264.tar.gz \
-            https://github.com/cisco/openh264/archive/refs/tags/v2.4.1.tar.gz \
-            https://ftp.osuosl.org/pub/blfs/conglomeration/openh264/v2.4.1.tar.gz
+          docker build -t gpui-ffbuild tools/ffmpeg
+          docker run --rm \
+            -v /tmp/deps:/tmp/deps \
+            -e FREETYPE_VER=2.13.2 -e HARFBUZZ_VER=8.3.0 -e FRIBIDI_VER=1.0.13 \
+            -e FONTCONFIG_VER=2.15.0 -e LIBASS_VER=0.17.1 -e OPENH264_VER=2.4.1 \
+            -e OPENSSL_VER=3.0.16 -e ZLIB_VER=1.3.1 -e EXPAT_VER=2.6.4 \
+            gpui-ffbuild bash -c 'cd /tmp/deps && /build-deps.sh need-only; ls -la /tmp/deps/'
           ls -la /tmp/deps/
+      - name: 编外库静态 .a（仅 full：build-deps.sh x64/arm64/386/arm/w64 对号入座）
+        if: matrix.variant == 'full'
+        run: |
+          case "${{ matrix.target }}" in
+            linux-x64) DEPARCH=x64 ;; linux-arm64) DEPARCH=arm64 ;;
+            linux-386) DEPARCH=386 ;; linux-arm) DEPARCH=arm ;;
+            win-x64) DEPARCH=w64 ;; win-arm64) DEPARCH=w64arm ;;
+          esac
+          docker run --rm \
+            -v /tmp/deps:/tmp/deps \
+            -v /tmp/depopt:/opt \
+            -e FREETYPE_VER=2.13.2 -e HARFBUZZ_VER=8.3.0 -e FRIBIDI_VER=1.0.13 \
+            -e FONTCONFIG_VER=2.15.0 -e LIBASS_VER=0.17.1 -e OPENH264_VER=2.4.1 \
+            -e OPENSSL_VER=3.0.16 -e ZLIB_VER=1.3.1 -e EXPAT_VER=2.6.4 \
+            gpui-ffbuild /build-deps.sh $DEPARCH
       - name: 编单文件
         run: |
           docker build -t gpui-ffbuild tools/ffmpeg
           docker run --rm \
             -v /tmp/ffsrc:/src \
             -v /tmp/recipe.flags:/tmp/recipe-${{ matrix.variant }}.flags \
+            -v /tmp/deps:/tmp/deps \
+            -v /tmp/depopt:/opt \
             -v ${{ github.workspace }}/lib/ffmpeg:/out \
-            -e RECIPE_FLAGS="$(cat /tmp/recipe.flags)" \
             gpui-ffbuild /build-one.sh ${{ matrix.target }} ${{ matrix.variant }}
+      - name: 功能门禁（full：写盒+烧字三滤镜+openh264+ass 编码全在，缺一即 FAIL）
+        if: matrix.variant == 'full'
+        run: |
+          f=$(find lib/ffmpeg/${{ matrix.target }} -name "*full*" | head -1)
+          echo "checking $f"
+          test -n "$f" || { echo "FAIL: 产物没落盘"; exit 1; }
+          # 注意：DLL 没有 ELF 动态符号表，nm -D 报 no symbols，必须用不带 -D 的 nm 查。
+          # runner 本机没有 win 的 nm，走 docker 镜像里的工具链查（x64 用 mingw，arm64 用 llvm-mingw）。
+          case "${{ matrix.target }}" in
+            win-x64) tool=x86_64-w64-mingw32-nm; cf=/out/${{ matrix.target }}/$(basename "$f") ;;
+            win-arm64) tool=aarch64-w64-mingw32-nm; cf=/out/${{ matrix.target }}/$(basename "$f") ;;
+          esac
+          case "${{ matrix.target }}" in
+            win-*)
+              syms() { docker run --rm -v "${{ github.workspace }}/lib/ffmpeg:/out" gpui-ffbuild $tool --defined-only "$cf"; } ;;
+            *)
+              syms() { nm -D --defined-only "$f"; } ;;
+          esac
+          fail=0
+          syms | grep -q "av_muxer_iterate" || { echo "FAIL: 缺 av_muxer_iterate"; fail=1; }
+          case "${{ matrix.target }}" in
+            win-*) ;; # win 高级版暂只要写盒（烧字 mingw 链备好再加，与 build-one.sh 门禁同口径）
+            *)
+              for sym in ff_vf_drawtext ff_vf_subtitles ff_vf_ass ff_libopenh264_encoder ff_ass_encoder; do
+                syms | grep -q "$sym" || { echo "FAIL: 缺 $sym"; fail=1; }
+              done
+              ;;
+          esac
+          [ "$fail" = "0" ] || exit 1
+          echo "PASS: full 门禁全在"
+      - name: 功能门禁（base：解码器在，能看片）
+        if: matrix.variant == 'base'
+        run: |
+          f=$(find lib/ffmpeg/${{ matrix.target }} -maxdepth 1 -type f ! -name "*full*" | head -1)
+          echo "checking $f"
+          test -n "$f" || { echo "FAIL: 产物没落盘"; exit 1; }
+          case "${{ matrix.target }}" in
+            win-x64) docker run --rm -v "${{ github.workspace }}/lib/ffmpeg:/out" gpui-ffbuild x86_64-w64-mingw32-nm --defined-only "/out/${{ matrix.target }}/$(basename "$f")" | grep -q "avcodec_find_decoder" || { echo "FAIL: base 缺 avcodec_find_decoder"; exit 1; } ;;
+            win-arm64) docker run --rm -v "${{ github.workspace }}/lib/ffmpeg:/out" gpui-ffbuild aarch64-w64-mingw32-nm --defined-only "/out/${{ matrix.target }}/$(basename "$f")" | grep -q "avcodec_find_decoder" || { echo "FAIL: base 缺 avcodec_find_decoder"; exit 1; } ;;
+            *) nm -D --defined-only "$f" | grep -q "avcodec_find_decoder" || { echo "FAIL: base 缺 avcodec_find_decoder"; exit 1; } ;;
+          esac
+          echo "PASS: base 门禁（解码器在）"
       - name: 许可门禁（禁 GPL/nonfree 字样）
         run: |
-          f=$(find lib/ffmpeg -name "*${{ matrix.variant }}*" | head -1)
+          case "${{ matrix.variant }}" in
+            full) pat="*full*" ;;
+            *) pat="libgpui_ffmpeg.so libgpui_ffmpeg.dll";;
+          esac
+          f=""
+          for p in $pat; do
+            f=$(find lib/ffmpeg/${{ matrix.target }} -name "$p" | head -1)
+            test -n "$f" && break
+          done
           echo "checking $f"
+          test -n "$f" || { echo "FAIL: 产物没落盘"; exit 1; }
           if strings "$f" | grep -iE "libx264|libx265|libfdk_aac" | head -3; then
             echo "GPL/nonfree 库混入，拒绝入库"; exit 1
           fi
@@ -81,12 +144,60 @@ jobs:
   mac:
     runs-on: macos-14
     strategy:
+      fail-fast: false
       matrix:
         arch: [arm64, x64]
         variant: [base, full]
     steps:
       - uses: actions/checkout@v4
-      - name: 装工具链
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: 装工具链（含 full 烧字件）
         run: brew install nasm pkg-config freetype harfbuzz fontconfig fribidi libass openh264 || true
-      - name: 编单文件（mac 脚本后续补齐，本 job 先占位）
-        run: echo "mac build placeholder"
+      - name: 取 ffmpeg 7.1.5 源码（含完整性门禁）
+        run: |
+          curl -sSL --retry 3 --retry-all-errors -o /tmp/ffmpeg.tar.gz https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.gz
+          tar tzf /tmp/ffmpeg.tar.gz > /dev/null || { echo "BAD ffmpeg tarball"; exit 3; }
+          mkdir -p /tmp/ffsrc && tar -xzf /tmp/ffmpeg.tar.gz -C /tmp/ffsrc --strip-components=1
+      - name: 取配方并编单文件
+        run: |
+          go run ./tools/ffmpeg-recipe -variant ${{ matrix.variant }} > /tmp/recipe.flags
+          bash tools/ffmpeg/build-one-mac.sh ${{ matrix.arch }} ${{ matrix.variant }}
+      - name: 功能门禁（full：写盒+烧字三滤镜+openh264+ass 编码全在）
+        if: matrix.variant == 'full'
+        run: |
+          f=$(find lib/ffmpeg/darwin-${{ matrix.arch }} -name "*full*.dylib" | head -1)
+          echo "checking $f"
+          test -n "$f" || { echo "FAIL: 产物没落盘"; exit 1; }
+          fail=0
+          nm -gU "$f" | grep -q "av_muxer_iterate" || { echo "FAIL: 缺 av_muxer_iterate"; fail=1; }
+          for sym in drawtext subtitles ass libopenh264; do
+            nm "$f" | grep -qi "$sym" || { echo "FAIL: 缺 $sym"; fail=1; }
+          done
+          [ "$fail" = "0" ] || exit 1
+          echo "PASS: mac full 门禁全在"
+      - name: 功能门禁（base：解码器在，能看片）
+        if: matrix.variant == 'base'
+        run: |
+          f=$(find lib/ffmpeg/darwin-${{ matrix.arch }} -maxdepth 1 -name "*.dylib" ! -name "*full*" | head -1)
+          echo "checking $f"
+          test -n "$f" || { echo "FAIL: 产物没落盘"; exit 1; }
+          nm -gU "$f" | grep -q "avcodec_find_decoder" || { echo "FAIL: base 缺 avcodec_find_decoder"; exit 1; }
+          echo "PASS: mac base 门禁（解码器在）"
+      - name: 许可门禁（禁 GPL/nonfree 字样）
+        run: |
+          case "${{ matrix.variant }}" in
+            full) pat="*full*.dylib" ;;
+            *) pat="libgpui_ffmpeg.dylib" ;;
+          esac
+          f=$(find lib/ffmpeg/darwin-${{ matrix.arch }} -maxdepth 1 -name "$pat" | head -1)
+          echo "checking $f"
+          test -n "$f" || { echo "FAIL: 产物没落盘"; exit 1; }
+          if strings "$f" | grep -iE "libx264|libx265|libfdk_aac" | head -3; then
+            echo "GPL/nonfree 库混入，拒绝入库"; exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: darwin-${{ matrix.arch }}-${{ matrix.variant }}
+          path: lib/ffmpeg/darwin-${{ matrix.arch }}/
