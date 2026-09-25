@@ -1,6 +1,20 @@
 tmp/
 out/
-lib/
+lib/*
+!lib/ffmpeg/
+lib/ffmpeg/*
+!lib/ffmpeg/linux-x64/
+!lib/ffmpeg/linux-arm64/
+!lib/ffmpeg/linux-386/
+!lib/ffmpeg/linux-arm/
+!lib/ffmpeg/win-x64/
+!lib/ffmpeg/win-arm64/
+!lib/ffmpeg/linux-x64/libgpui_ffmpeg.so
+!lib/ffmpeg/linux-arm64/libgpui_ffmpeg.so
+!lib/ffmpeg/linux-386/libgpui_ffmpeg.so
+!lib/ffmpeg/linux-arm/libgpui_ffmpeg.so
+!lib/ffmpeg/win-x64/libgpui_ffmpeg.dll
+!lib/ffmpeg/win-arm64/libgpui_ffmpeg.dll
 node_modules
 
 # standardtest generated images (keep directory via .gitkeep)
