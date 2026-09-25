@@ -45,14 +45,10 @@ const (
 	frameDuration   = 432
 )
 
-// Constants mirrored from the C headers (names shortened, values exact).
+// Shared constants (C 头文件值, 新模块各有归属, 这里只留解码器直用):
+// 媒体类型见 codec_encode.go, 像素格式见 scale_color.go,
+// 日志等级见 error_log.go.
 const (
-	MediaTypeVideo = 0
-	MediaTypeAudio = 1
-
-	PixFmtYUV420P = 0
-	PixFmtRGBA    = 26
-
 	// No timestamp (AV_NOPTS_VALUE).
 	NoPTS = int64(-9223372036854775808)
 
@@ -60,8 +56,6 @@ const (
 	SeekByte     = 2
 	SeekAny      = 4
 	SeekFrame    = 8
-
-	SWSBilinear = 2
 
 	AvErrorEOF    = int32(-541478725)
 	AvErrorEAGAIN = int32(-11)

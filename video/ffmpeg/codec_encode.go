@@ -1,0 +1,730 @@
+package ffmpeg
+
+import (
+	"unsafe"
+
+	"github.com/ebitengine/purego"
+)
+
+// CodecEncode 编解码模块: AVCodecContext/AVCodec/AVCodecParameters/
+// Parser/BSF 全量导出, 结构体方法直接可用.
+//
+// Say it plain: 先按编码名字找到解码器, 开个上下文, 把流参数灌进去,
+// 打开后一包进一帧出 (发送包、收帧两步走, EAGAIN 说明要先收再送).
+// 编码反过来一帧进一包出. 切包过滤 (比如 h264_mp4toannexb) 走 BSF.
+
+// CodecContext owns one AVCodecContext* (nil-safe, 记得 FreeContext).
+type CodecContext struct{ ptr unsafe.Pointer }
+
+// Ptr exposes the raw handle.
+func (c *CodecContext) Ptr() unsafe.Pointer {
+	if c == nil {
+		return nil
+	}
+	return c.ptr
+}
+
+// Codec owns one AVCodec* (跟着库走, 不释放).
+type Codec struct{ ptr unsafe.Pointer }
+
+// Ptr exposes the raw handle.
+func (c *Codec) Ptr() unsafe.Pointer {
+	if c == nil {
+		return nil
+	}
+	return c.ptr
+}
+
+// CodecParameters owns one AVCodecParameters* (跟着流走或独立分配,
+// 不单独释放; 独立分配的用 Free).
+type CodecParameters struct{ ptr unsafe.Pointer }
+
+// Ptr exposes the raw handle.
+func (c *CodecParameters) Ptr() unsafe.Pointer {
+	if c == nil {
+		return nil
+	}
+	return c.ptr
+}
+
+// Parser owns one AVCodecParserContext* (记得 Close).
+type Parser struct{ ptr unsafe.Pointer }
+
+// Ptr exposes the raw handle.
+func (p *Parser) Ptr() unsafe.Pointer {
+	if p == nil {
+		return nil
+	}
+	return p.ptr
+}
+
+// BitStreamFilter owns one AVBSFContext* (记得 Free).
+type BitStreamFilter struct{ ptr unsafe.Pointer }
+
+// Ptr exposes the raw handle.
+func (b *BitStreamFilter) Ptr() unsafe.Pointer {
+	if b == nil {
+		return nil
+	}
+	return b.ptr
+}
+
+// 常用编码 id (codec_id.h 枚举值, 头文件钉死):
+// NONE=0, MPEG1VIDEO=1, MPEG2VIDEO=2, MPEG4=12, H264=27, HEVC=173,
+// VP9=167, AV1=225, MP3=86018, AAC=86019.
+const (
+	CodecIDNone  int32 = 0
+	CodecIDMPEG4 int32 = 12
+	CodecIDH264  int32 = 27
+	CodecIDHEVC  int32 = 173
+	CodecIDH265  int32 = 173
+	CodecIDVP9   int32 = 167
+	CodecIDAV1   int32 = 225
+	CodecIDMP3   int32 = 86018
+	CodecIDAAC   int32 = 86019
+	CodecIDOpus  int32 = 86021
+)
+
+// 媒体类型 (avutil.h 枚举: UNKNOWN=-1, VIDEO=0, AUDIO=1, ...).
+const (
+	MediaTypeUnknown  int32 = -1
+	MediaTypeVideo    int32 = 0
+	MediaTypeAudio    int32 = 1
+	MediaTypeData     int32 = 2
+	MediaTypeSubtitle int32 = 3
+)
+
+var (
+	fCodecAllocCtx                 func(unsafe.Pointer) unsafe.Pointer
+	fCodecClose                    func(unsafe.Pointer) int32
+	fCodecFindDecoder              func(int32) unsafe.Pointer
+	fCodecFindDecByNam             func(string) unsafe.Pointer
+	fCodecFindEncoder              func(int32) unsafe.Pointer
+	fCodecFindEncByNam             func(string) unsafe.Pointer
+	fCodecFlushBuf                 func(unsafe.Pointer)
+	fCodecFreeCtx                  func(*unsafe.Pointer)
+	fCodecGetName                  func(int32) string
+	fCodecGetType                  func(int32) int32
+	fCodecIsOpen                   func(unsafe.Pointer) int32
+	fCodecOpen2                    func(unsafe.Pointer, unsafe.Pointer, unsafe.Pointer) int32
+	fCodecSendPacket               func(unsafe.Pointer, unsafe.Pointer) int32
+	fCodecRecvFrame                func(unsafe.Pointer, unsafe.Pointer) int32
+	fCodecSendFrame                func(unsafe.Pointer, unsafe.Pointer) int32
+	fCodecRecvPacket               func(unsafe.Pointer, unsafe.Pointer) int32
+	fCodecParAlloc                 func() unsafe.Pointer
+	fCodecParFree                  func(*unsafe.Pointer)
+	fCodecParCopy                  func(unsafe.Pointer, unsafe.Pointer) int32
+	fCodecParFromCtx               func(unsafe.Pointer, unsafe.Pointer) int32
+	fCodecParToCtx                 func(unsafe.Pointer, unsafe.Pointer) int32
+	fCodecIsDecoder                func(unsafe.Pointer) int32
+	fCodecIsEncoder                func(unsafe.Pointer) int32
+	fCodecIterate                  func(*unsafe.Pointer) unsafe.Pointer
+	fParserInit                    func(int32) unsafe.Pointer
+	fParserParse2                  func(unsafe.Pointer, unsafe.Pointer, *unsafe.Pointer, *int32, unsafe.Pointer, int32, int64, int64, int64) int32
+	fParserClose                   func(unsafe.Pointer)
+	fBSFAlloc                      func(unsafe.Pointer, *unsafe.Pointer) int32
+	fBSFInit                       func(unsafe.Pointer) int32
+	fBSFSendPacket                 func(unsafe.Pointer, unsafe.Pointer) int32
+	fBSFRecvPacket                 func(unsafe.Pointer, unsafe.Pointer) int32
+	fBSFFlush                      func(unsafe.Pointer)
+	fBSFFree                       func(*unsafe.Pointer)
+	fBSFGetByName                  func(string) unsafe.Pointer
+	fBSFListAlloc                  func() unsafe.Pointer
+	fBSFListAppend                 func(unsafe.Pointer, unsafe.Pointer) int32
+	fBSFListAppend2                func(unsafe.Pointer, string, *unsafe.Pointer) int32
+	fBSFListFinalize               func(unsafe.Pointer, *unsafe.Pointer) int32
+	fBSFListFree                   func(*unsafe.Pointer)
+	fBSFListParseStr               func(string, *unsafe.Pointer) int32
+	fAvBsfGetClass                 func() unsafe.Pointer
+	fAvBsfGetNullFilter            func(bsf *unsafe.Pointer) int32
+	fAvBsfIterate                  func(opaque *unsafe.Pointer) unsafe.Pointer
+	fAvcodecAlignDimensions        func(s unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer)
+	fAvcodecAlignDimensions2       func(s unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer, arg3 unsafe.Pointer)
+	fAvcodecConfiguration          func() unsafe.Pointer
+	fAvcodecDctAlloc               func() unsafe.Pointer
+	fAvcodecDctGetClass            func() unsafe.Pointer
+	fAvcodecDctInit                func(arg0 unsafe.Pointer) int32
+	fAvcodecDecodeSubtitle2        func(avctx unsafe.Pointer, sub unsafe.Pointer, got_sub_ptr unsafe.Pointer, avpkt unsafe.Pointer) int32
+	fAvcodecDefaultExecute         func(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32, size int32) int32
+	fAvcodecDefaultExecute2        func(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32) int32
+	fAvcodecDefaultGetBuffer2      func(s unsafe.Pointer, frame unsafe.Pointer, flags int32) int32
+	fAvcodecDefaultGetEncodeBuffer func(s unsafe.Pointer, pkt unsafe.Pointer, flags int32) int32
+	fAvcodecDefaultGetFormat       func(s unsafe.Pointer, fmt unsafe.Pointer) unsafe.Pointer
+	fAvcodecDescriptorGet          func(id unsafe.Pointer) unsafe.Pointer
+	fAvcodecDescriptorGetByName    func(name unsafe.Pointer) unsafe.Pointer
+	fAvcodecDescriptorNext         func(prev unsafe.Pointer) unsafe.Pointer
+	fAvcodecEncodeSubtitle         func(avctx unsafe.Pointer, buf unsafe.Pointer, buf_size int32, sub unsafe.Pointer) int32
+	fAvcodecFillAudioFrame         func(frame unsafe.Pointer, nb_channels int32, sample_fmt unsafe.Pointer, buf unsafe.Pointer, buf_size int32, align int32) unsafe.Pointer
+	fAvcodecFindBestPixFmtOfList   func(pix_fmt_list unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32, loss_ptr unsafe.Pointer) unsafe.Pointer
+	fAvcodecGetClass               func() unsafe.Pointer
+	fAvcodecGetHwConfig            func(codec unsafe.Pointer, index int32) unsafe.Pointer
+	fAvcodecGetHwFramesParameters  func(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt unsafe.Pointer, out_frames_ref *unsafe.Pointer) int32
+	fAvCodecGetId                  func(tags unsafe.Pointer, tag uint32) unsafe.Pointer
+	fAvcodecGetSubtitleRectClass   func() unsafe.Pointer
+	fAvcodecGetSupportedConfig     func(avctx unsafe.Pointer, codec unsafe.Pointer, config unsafe.Pointer, flags uint32, out_configs *unsafe.Pointer, out_num_configs unsafe.Pointer) int32
+	fAvCodecGetTag                 func(tags unsafe.Pointer, id unsafe.Pointer) uint32
+	fAvCodecGetTag2                func(tags unsafe.Pointer, id unsafe.Pointer, tag unsafe.Pointer) int32
+	fAvcodecLicense                func() unsafe.Pointer
+	fAvcodecPixFmtToCodecTag       func(pix_fmt unsafe.Pointer) uint32
+	fAvcodecProfileName            func(codec_id unsafe.Pointer, profile int32) unsafe.Pointer
+	fAvcodecString                 func(buf unsafe.Pointer, buf_size int32, enc unsafe.Pointer, encode int32)
+	fAvcodecVersion                func() uint32
+	fAvParserIterate               func(opaque *unsafe.Pointer) unsafe.Pointer
+	fSubtitleFree                  func(sub unsafe.Pointer)
+)
+
+func registerCodecEncode(h uintptr) {
+	purego.RegisterLibFunc(&fCodecAllocCtx, h, "avcodec_alloc_context3")
+	purego.RegisterLibFunc(&fCodecClose, h, "avcodec_close")
+	purego.RegisterLibFunc(&fCodecFindDecoder, h, "avcodec_find_decoder")
+	purego.RegisterLibFunc(&fCodecFindDecByNam, h, "avcodec_find_decoder_by_name")
+	purego.RegisterLibFunc(&fCodecFindEncoder, h, "avcodec_find_encoder")
+	purego.RegisterLibFunc(&fCodecFindEncByNam, h, "avcodec_find_encoder_by_name")
+	purego.RegisterLibFunc(&fCodecFlushBuf, h, "avcodec_flush_buffers")
+	purego.RegisterLibFunc(&fCodecFreeCtx, h, "avcodec_free_context")
+	purego.RegisterLibFunc(&fCodecGetName, h, "avcodec_get_name")
+	purego.RegisterLibFunc(&fCodecGetType, h, "avcodec_get_type")
+	purego.RegisterLibFunc(&fCodecIsOpen, h, "avcodec_is_open")
+	purego.RegisterLibFunc(&fCodecOpen2, h, "avcodec_open2")
+	purego.RegisterLibFunc(&fCodecSendPacket, h, "avcodec_send_packet")
+	purego.RegisterLibFunc(&fCodecRecvFrame, h, "avcodec_receive_frame")
+	purego.RegisterLibFunc(&fCodecSendFrame, h, "avcodec_send_frame")
+	purego.RegisterLibFunc(&fCodecRecvPacket, h, "avcodec_receive_packet")
+	purego.RegisterLibFunc(&fCodecParAlloc, h, "avcodec_parameters_alloc")
+	purego.RegisterLibFunc(&fCodecParFree, h, "avcodec_parameters_free")
+	purego.RegisterLibFunc(&fCodecParCopy, h, "avcodec_parameters_copy")
+	purego.RegisterLibFunc(&fCodecParFromCtx, h, "avcodec_parameters_from_context")
+	purego.RegisterLibFunc(&fCodecParToCtx, h, "avcodec_parameters_to_context")
+	purego.RegisterLibFunc(&fCodecIsDecoder, h, "av_codec_is_decoder")
+	purego.RegisterLibFunc(&fCodecIsEncoder, h, "av_codec_is_encoder")
+	purego.RegisterLibFunc(&fCodecIterate, h, "av_codec_iterate")
+	purego.RegisterLibFunc(&fParserInit, h, "av_parser_init")
+	purego.RegisterLibFunc(&fParserParse2, h, "av_parser_parse2")
+	purego.RegisterLibFunc(&fParserClose, h, "av_parser_close")
+	purego.RegisterLibFunc(&fBSFAlloc, h, "av_bsf_alloc")
+	purego.RegisterLibFunc(&fBSFInit, h, "av_bsf_init")
+	purego.RegisterLibFunc(&fBSFSendPacket, h, "av_bsf_send_packet")
+	purego.RegisterLibFunc(&fBSFRecvPacket, h, "av_bsf_receive_packet")
+	purego.RegisterLibFunc(&fBSFFlush, h, "av_bsf_flush")
+	purego.RegisterLibFunc(&fBSFFree, h, "av_bsf_free")
+	purego.RegisterLibFunc(&fBSFGetByName, h, "av_bsf_get_by_name")
+	purego.RegisterLibFunc(&fBSFListAlloc, h, "av_bsf_list_alloc")
+	purego.RegisterLibFunc(&fBSFListAppend, h, "av_bsf_list_append")
+	purego.RegisterLibFunc(&fBSFListAppend2, h, "av_bsf_list_append2")
+	purego.RegisterLibFunc(&fBSFListFinalize, h, "av_bsf_list_finalize")
+	purego.RegisterLibFunc(&fBSFListFree, h, "av_bsf_list_free")
+	purego.RegisterLibFunc(&fBSFListParseStr, h, "av_bsf_list_parse_str")
+	purego.RegisterLibFunc(&fAvBsfGetClass, h, "av_bsf_get_class")
+	purego.RegisterLibFunc(&fAvBsfGetNullFilter, h, "av_bsf_get_null_filter")
+	purego.RegisterLibFunc(&fAvBsfIterate, h, "av_bsf_iterate")
+	purego.RegisterLibFunc(&fAvcodecAlignDimensions, h, "avcodec_align_dimensions")
+	purego.RegisterLibFunc(&fAvcodecAlignDimensions2, h, "avcodec_align_dimensions2")
+	purego.RegisterLibFunc(&fAvcodecConfiguration, h, "avcodec_configuration")
+	purego.RegisterLibFunc(&fAvcodecDctAlloc, h, "avcodec_dct_alloc")
+	purego.RegisterLibFunc(&fAvcodecDctGetClass, h, "avcodec_dct_get_class")
+	purego.RegisterLibFunc(&fAvcodecDctInit, h, "avcodec_dct_init")
+	purego.RegisterLibFunc(&fAvcodecDecodeSubtitle2, h, "avcodec_decode_subtitle2")
+	purego.RegisterLibFunc(&fAvcodecDefaultExecute, h, "avcodec_default_execute")
+	purego.RegisterLibFunc(&fAvcodecDefaultExecute2, h, "avcodec_default_execute2")
+	purego.RegisterLibFunc(&fAvcodecDefaultGetBuffer2, h, "avcodec_default_get_buffer2")
+	purego.RegisterLibFunc(&fAvcodecDefaultGetEncodeBuffer, h, "avcodec_default_get_encode_buffer")
+	purego.RegisterLibFunc(&fAvcodecDefaultGetFormat, h, "avcodec_default_get_format")
+	purego.RegisterLibFunc(&fAvcodecDescriptorGet, h, "avcodec_descriptor_get")
+	purego.RegisterLibFunc(&fAvcodecDescriptorGetByName, h, "avcodec_descriptor_get_by_name")
+	purego.RegisterLibFunc(&fAvcodecDescriptorNext, h, "avcodec_descriptor_next")
+	purego.RegisterLibFunc(&fAvcodecEncodeSubtitle, h, "avcodec_encode_subtitle")
+	purego.RegisterLibFunc(&fAvcodecFillAudioFrame, h, "avcodec_fill_audio_frame")
+	purego.RegisterLibFunc(&fAvcodecFindBestPixFmtOfList, h, "avcodec_find_best_pix_fmt_of_list")
+	purego.RegisterLibFunc(&fAvcodecGetClass, h, "avcodec_get_class")
+	purego.RegisterLibFunc(&fAvcodecGetHwConfig, h, "avcodec_get_hw_config")
+	purego.RegisterLibFunc(&fAvcodecGetHwFramesParameters, h, "avcodec_get_hw_frames_parameters")
+	purego.RegisterLibFunc(&fAvCodecGetId, h, "av_codec_get_id")
+	purego.RegisterLibFunc(&fAvcodecGetSubtitleRectClass, h, "avcodec_get_subtitle_rect_class")
+	purego.RegisterLibFunc(&fAvcodecGetSupportedConfig, h, "avcodec_get_supported_config")
+	purego.RegisterLibFunc(&fAvCodecGetTag, h, "av_codec_get_tag")
+	purego.RegisterLibFunc(&fAvCodecGetTag2, h, "av_codec_get_tag2")
+	purego.RegisterLibFunc(&fAvcodecLicense, h, "avcodec_license")
+	purego.RegisterLibFunc(&fAvcodecPixFmtToCodecTag, h, "avcodec_pix_fmt_to_codec_tag")
+	purego.RegisterLibFunc(&fAvcodecProfileName, h, "avcodec_profile_name")
+	purego.RegisterLibFunc(&fAvcodecString, h, "avcodec_string")
+	purego.RegisterLibFunc(&fAvcodecVersion, h, "avcodec_version")
+	purego.RegisterLibFunc(&fAvParserIterate, h, "av_parser_iterate")
+	purego.RegisterLibFunc(&fSubtitleFree, h, "avsubtitle_free")
+}
+
+// FindDecoder finds a decoder by codec id (nil when absent).
+func FindDecoder(id int32) *Codec {
+	if err := ensureLoaded(); err != nil {
+		return nil
+	}
+	ptr := fCodecFindDecoder(id)
+	if ptr == nil {
+		return nil
+	}
+	return &Codec{ptr: ptr}
+}
+
+// FindDecoderByName finds a decoder by name, e.g. "h264" (nil when absent).
+func FindDecoderByName(name string) *Codec {
+	if err := ensureLoaded(); err != nil {
+		return nil
+	}
+	ptr := fCodecFindDecByNam(name)
+	if ptr == nil {
+		return nil
+	}
+	return &Codec{ptr: ptr}
+}
+
+// FindEncoder finds an encoder by codec id (nil when absent).
+func FindEncoder(id int32) *Codec {
+	if err := ensureLoaded(); err != nil {
+		return nil
+	}
+	ptr := fCodecFindEncoder(id)
+	if ptr == nil {
+		return nil
+	}
+	return &Codec{ptr: ptr}
+}
+
+// IsDecoder reports the codec decodes.
+func (c *Codec) IsDecoder() bool {
+	if c == nil || c.ptr == nil {
+		return false
+	}
+	return fCodecIsDecoder(c.ptr) > 0
+}
+
+// IsEncoder reports the codec encodes.
+func (c *Codec) IsEncoder() bool {
+	if c == nil || c.ptr == nil {
+		return false
+	}
+	return fCodecIsEncoder(c.ptr) > 0
+}
+
+// AllocContext opens a context holder for codec (记得 FreeContext).
+func (c *Codec) AllocContext() *CodecContext {
+	if c == nil || c.ptr == nil {
+		return nil
+	}
+	ptr := fCodecAllocCtx(c.ptr)
+	if ptr == nil {
+		return nil
+	}
+	return &CodecContext{ptr: ptr}
+}
+
+// FreeContext releases the context and nils the holder.
+func (c *CodecContext) FreeContext() {
+	if c == nil || c.ptr == nil {
+		return
+	}
+	ptr := c.ptr
+	c.ptr = nil
+	fCodecFreeCtx(&ptr)
+}
+
+// Open opens the context (options 传 nil 用默认).
+func (c *CodecContext) Open(codec *Codec, options unsafe.Pointer) error {
+	if c == nil || codec == nil {
+		return errNilCodec
+	}
+	if ret := fCodecOpen2(c.ptr, codec.ptr, options); ret < 0 {
+		return codeErr("avcodec_open2", ret)
+	}
+	return nil
+}
+
+// IsOpen reports the context is opened.
+func (c *CodecContext) IsOpen() bool {
+	if c == nil || c.ptr == nil {
+		return false
+	}
+	return fCodecIsOpen(c.ptr) > 0
+}
+
+// SendPacket feeds one packet (nil flushes; EAGAIN 先收一帧再送).
+func (c *CodecContext) SendPacket(p *Packet) error {
+	if c == nil {
+		return errNilCodec
+	}
+	var pp unsafe.Pointer
+	if p != nil {
+		pp = p.ptr
+	}
+	if ret := fCodecSendPacket(c.ptr, pp); ret < 0 {
+		return codeErr("avcodec_send_packet", ret)
+	}
+	return nil
+}
+
+// ReceiveFrame pulls one decoded frame (EAGAIN 说明要先送包).
+func (c *CodecContext) ReceiveFrame(f *Frame) error {
+	if c == nil || f == nil {
+		return errNilCodec
+	}
+	if ret := fCodecRecvFrame(c.ptr, f.ptr); ret < 0 {
+		return codeErr("avcodec_receive_frame", ret)
+	}
+	return nil
+}
+
+// SendFrame feeds one frame for encoding (nil flushes).
+func (c *CodecContext) SendFrame(f *Frame) error {
+	if c == nil {
+		return errNilCodec
+	}
+	var fp unsafe.Pointer
+	if f != nil {
+		fp = f.ptr
+	}
+	if ret := fCodecSendFrame(c.ptr, fp); ret < 0 {
+		return codeErr("avcodec_send_frame", ret)
+	}
+	return nil
+}
+
+// ReceivePacket pulls one encoded packet.
+func (c *CodecContext) ReceivePacket(p *Packet) error {
+	if c == nil || p == nil {
+		return errNilCodec
+	}
+	if ret := fCodecRecvPacket(c.ptr, p.ptr); ret < 0 {
+		return codeErr("avcodec_receive_packet", ret)
+	}
+	return nil
+}
+
+// FlushBuffers resets the codec (seek 后调, 丢掉内部缓存).
+func (c *CodecContext) FlushBuffers() {
+	if c == nil || c.ptr == nil {
+		return
+	}
+	fCodecFlushBuf(c.ptr)
+}
+
+// NewCodecParameters allocates empty parameters (记得 Free).
+func NewCodecParameters() *CodecParameters {
+	if err := ensureLoaded(); err != nil {
+		return nil
+	}
+	ptr := fCodecParAlloc()
+	if ptr == nil {
+		return nil
+	}
+	return &CodecParameters{ptr: ptr}
+}
+
+// Free releases the parameters holder.
+func (p *CodecParameters) Free() {
+	if p == nil || p.ptr == nil {
+		return
+	}
+	ptr := p.ptr
+	p.ptr = nil
+	fCodecParFree(&ptr)
+}
+
+// Copy duplicates src parameters.
+func (p *CodecParameters) Copy(src *CodecParameters) error {
+	if p == nil || src == nil {
+		return errNilCodec
+	}
+	if ret := fCodecParCopy(p.ptr, src.ptr); ret < 0 {
+		return codeErr("avcodec_parameters_copy", ret)
+	}
+	return nil
+}
+
+// FromContext fills parameters from an opened context.
+func (p *CodecParameters) FromContext(c *CodecContext) error {
+	if p == nil || c == nil {
+		return errNilCodec
+	}
+	if ret := fCodecParFromCtx(p.ptr, c.ptr); ret < 0 {
+		return codeErr("avcodec_parameters_from_context", ret)
+	}
+	return nil
+}
+
+// ToContext fills a fresh context from parameters (open 前调).
+func (p *CodecParameters) ToContext(c *CodecContext) error {
+	if p == nil || c == nil {
+		return errNilCodec
+	}
+	if ret := fCodecParToCtx(c.ptr, p.ptr); ret < 0 {
+		return codeErr("avcodec_parameters_to_context", ret)
+	}
+	return nil
+}
+
+// CodecName returns the short name, e.g. "h264".
+func CodecName(id int32) string {
+	if ensureLoaded() != nil {
+		return ""
+	}
+	return fCodecGetName(id)
+}
+
+// CodecType returns the media type of a codec id.
+func CodecType(id int32) int32 {
+	if ensureLoaded() != nil {
+		return MediaTypeUnknown
+	}
+	return fCodecGetType(id)
+}
+
+// NewParser opens a parser for codec id (记得 Close; 如 H264 喂裸流切帧).
+func NewParser(id int32) *Parser {
+	if err := ensureLoaded(); err != nil {
+		return nil
+	}
+	ptr := fParserInit(id)
+	if ptr == nil {
+		return nil
+	}
+	return &Parser{ptr: ptr}
+}
+
+// Close releases the parser.
+func (p *Parser) Close() {
+	if p == nil || p.ptr == nil {
+		return
+	}
+	fParserClose(p.ptr)
+	p.ptr = nil
+}
+
+// NewBitStreamFilter allocates a filter by name,
+// e.g. "h264_mp4toannexb" (记得 Free, 用前 Init + CopyParameters).
+func NewBitStreamFilter(name string) *BitStreamFilter {
+	if err := ensureLoaded(); err != nil {
+		return nil
+	}
+	filter := fBSFGetByName(name)
+	if filter == nil {
+		return nil
+	}
+	var ctx unsafe.Pointer
+	if ret := fBSFAlloc(filter, &ctx); ret < 0 || ctx == nil {
+		return nil
+	}
+	return &BitStreamFilter{ptr: ctx}
+}
+
+// Init initializes the filter (参数配好后调).
+func (b *BitStreamFilter) Init() error {
+	if b == nil {
+		return errNilCodec
+	}
+	if ret := fBSFInit(b.ptr); ret < 0 {
+		return codeErr("av_bsf_init", ret)
+	}
+	return nil
+}
+
+// SendPacket feeds one packet into the filter.
+func (b *BitStreamFilter) SendPacket(p *Packet) error {
+	if b == nil || p == nil {
+		return errNilCodec
+	}
+	if ret := fBSFSendPacket(b.ptr, p.ptr); ret < 0 {
+		return codeErr("av_bsf_send_packet", ret)
+	}
+	return nil
+}
+
+// ReceivePacket pulls one filtered packet.
+func (b *BitStreamFilter) ReceivePacket(p *Packet) error {
+	if b == nil || p == nil {
+		return errNilCodec
+	}
+	if ret := fBSFRecvPacket(b.ptr, p.ptr); ret < 0 {
+		return codeErr("av_bsf_receive_packet", ret)
+	}
+	return nil
+}
+
+// Flush resets the filter.
+func (b *BitStreamFilter) Flush() {
+	if b == nil || b.ptr == nil {
+		return
+	}
+	fBSFFlush(b.ptr)
+}
+
+// Free releases the filter.
+func (b *BitStreamFilter) Free() {
+	if b == nil || b.ptr == nil {
+		return
+	}
+	ptr := b.ptr
+	b.ptr = nil
+	fBSFFree(&ptr)
+}
+
+func (self *BitStreamFilter) BsfGetClass() unsafe.Pointer {
+	return fAvBsfGetClass()
+}
+
+func (self *BitStreamFilter) BsfGetNullFilter(bsf *unsafe.Pointer) int32 {
+	return fAvBsfGetNullFilter(bsf)
+}
+
+func (self *BitStreamFilter) BsfIterate(opaque *unsafe.Pointer) unsafe.Pointer {
+	return fAvBsfIterate(opaque)
+}
+
+func (self *Codec) AvcodecAlignDimensions(s unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer) {
+	fAvcodecAlignDimensions(s, width, height)
+}
+
+func (self *Codec) AvcodecAlignDimensions2(s unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer, arg3 unsafe.Pointer) {
+	fAvcodecAlignDimensions2(s, width, height, arg3)
+}
+
+func (self *Codec) AvcodecConfiguration() unsafe.Pointer {
+	return fAvcodecConfiguration()
+}
+
+func (self *Codec) AvcodecDctAlloc() unsafe.Pointer {
+	return fAvcodecDctAlloc()
+}
+
+func (self *Codec) AvcodecDctGetClass() unsafe.Pointer {
+	return fAvcodecDctGetClass()
+}
+
+func (self *Codec) AvcodecDctInit(arg0 unsafe.Pointer) error {
+	if ret := fAvcodecDctInit(arg0); ret < 0 {
+		return codeErr("avcodec_dct_init", ret)
+	}
+	return nil
+}
+
+func (self *Codec) AvcodecDecodeSubtitle2(avctx unsafe.Pointer, sub unsafe.Pointer, got_sub_ptr unsafe.Pointer, avpkt unsafe.Pointer) error {
+	if ret := fAvcodecDecodeSubtitle2(avctx, sub, got_sub_ptr, avpkt); ret < 0 {
+		return codeErr("avcodec_decode_subtitle2", ret)
+	}
+	return nil
+}
+
+// SubtitleFree frees all allocated data in a decoded AVSubtitle struct
+// (pair with AvcodecDecodeSubtitle2 when got_sub is set).
+func (self *Codec) SubtitleFree(sub unsafe.Pointer) {
+	if sub == nil {
+		return
+	}
+	fSubtitleFree(sub)
+}
+
+func (self *Codec) AvcodecDefaultExecute(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32, size int32) error {
+	if ret := fAvcodecDefaultExecute(c, fn, arg, ret, count, size); ret < 0 {
+		return codeErr("avcodec_default_execute", ret)
+	}
+	return nil
+}
+
+func (self *Codec) AvcodecDefaultExecute2(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32) error {
+	if ret := fAvcodecDefaultExecute2(c, fn, arg, ret, count); ret < 0 {
+		return codeErr("avcodec_default_execute2", ret)
+	}
+	return nil
+}
+
+func (self *Codec) AvcodecDefaultGetBuffer2(s unsafe.Pointer, frame unsafe.Pointer, flags int32) int32 {
+	return fAvcodecDefaultGetBuffer2(s, frame, flags)
+}
+
+func (self *Codec) AvcodecDefaultGetEncodeBuffer(s unsafe.Pointer, pkt unsafe.Pointer, flags int32) int32 {
+	return fAvcodecDefaultGetEncodeBuffer(s, pkt, flags)
+}
+
+func (self *Codec) AvcodecDefaultGetFormat(s unsafe.Pointer, fmt unsafe.Pointer) unsafe.Pointer {
+	return fAvcodecDefaultGetFormat(s, fmt)
+}
+
+func (self *Codec) AvcodecDescriptorGet(id unsafe.Pointer) unsafe.Pointer {
+	return fAvcodecDescriptorGet(id)
+}
+
+func (self *Codec) AvcodecDescriptorGetByName(name unsafe.Pointer) unsafe.Pointer {
+	return fAvcodecDescriptorGetByName(name)
+}
+
+func (self *Codec) AvcodecDescriptorNext(prev unsafe.Pointer) unsafe.Pointer {
+	return fAvcodecDescriptorNext(prev)
+}
+
+func (self *Codec) AvcodecEncodeSubtitle(avctx unsafe.Pointer, buf unsafe.Pointer, buf_size int32, sub unsafe.Pointer) error {
+	if ret := fAvcodecEncodeSubtitle(avctx, buf, buf_size, sub); ret < 0 {
+		return codeErr("avcodec_encode_subtitle", ret)
+	}
+	return nil
+}
+
+func (self *Codec) AvcodecFillAudioFrame(frame unsafe.Pointer, nb_channels int32, sample_fmt unsafe.Pointer, buf unsafe.Pointer, buf_size int32, align int32) unsafe.Pointer {
+	return fAvcodecFillAudioFrame(frame, nb_channels, sample_fmt, buf, buf_size, align)
+}
+
+func (self *Codec) AvcodecFindBestPixFmtOfList(pix_fmt_list unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32, loss_ptr unsafe.Pointer) unsafe.Pointer {
+	return fAvcodecFindBestPixFmtOfList(pix_fmt_list, src_pix_fmt, has_alpha, loss_ptr)
+}
+
+func (self *Codec) AvcodecGetClass() unsafe.Pointer {
+	return fAvcodecGetClass()
+}
+
+func (self *Codec) AvcodecGetHwConfig(codec unsafe.Pointer, index int32) unsafe.Pointer {
+	return fAvcodecGetHwConfig(codec, index)
+}
+
+func (self *Codec) AvcodecGetHwFramesParameters(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt unsafe.Pointer, out_frames_ref *unsafe.Pointer) int32 {
+	return fAvcodecGetHwFramesParameters(avctx, device_ref, hw_pix_fmt, out_frames_ref)
+}
+
+func (self *Codec) CodecGetId(tags unsafe.Pointer, tag uint32) unsafe.Pointer {
+	return fAvCodecGetId(tags, tag)
+}
+
+func (self *Codec) AvcodecGetSubtitleRectClass() unsafe.Pointer {
+	return fAvcodecGetSubtitleRectClass()
+}
+
+func (self *Codec) AvcodecGetSupportedConfig(avctx unsafe.Pointer, codec unsafe.Pointer, config unsafe.Pointer, flags uint32, out_configs *unsafe.Pointer, out_num_configs unsafe.Pointer) int32 {
+	return fAvcodecGetSupportedConfig(avctx, codec, config, flags, out_configs, out_num_configs)
+}
+
+func (self *Codec) CodecGetTag(tags unsafe.Pointer, id unsafe.Pointer) uint32 {
+	return fAvCodecGetTag(tags, id)
+}
+
+func (self *Codec) CodecGetTag2(tags unsafe.Pointer, id unsafe.Pointer, tag unsafe.Pointer) int32 {
+	return fAvCodecGetTag2(tags, id, tag)
+}
+
+func (self *Codec) AvcodecLicense() unsafe.Pointer {
+	return fAvcodecLicense()
+}
+
+func (self *Codec) AvcodecPixFmtToCodecTag(pix_fmt unsafe.Pointer) uint32 {
+	return fAvcodecPixFmtToCodecTag(pix_fmt)
+}
+
+func (self *Codec) AvcodecProfileName(codec_id unsafe.Pointer, profile int32) unsafe.Pointer {
+	return fAvcodecProfileName(codec_id, profile)
+}
+
+func (self *Codec) AvcodecString(buf unsafe.Pointer, buf_size int32, enc unsafe.Pointer, encode int32) {
+	fAvcodecString(buf, buf_size, enc, encode)
+}
+
+func (self *Codec) AvcodecVersion() uint32 {
+	return fAvcodecVersion()
+}
+
+func (self *Parser) ParserIterate(opaque *unsafe.Pointer) unsafe.Pointer {
+	return fAvParserIterate(opaque)
+}

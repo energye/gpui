@@ -17,8 +17,6 @@ var (
 	loadErr error
 	libPath string
 
-	fVersion   func() string
-	fLogLevel  func(int32)
 	fNetInit   func() int32
 	fNetDeinit func() int32
 	// Handles stay as unsafe.Pointer end to end: purego passes them
@@ -39,27 +37,6 @@ var (
 	fCloseInput  func(*unsafe.Pointer)
 	fFreeCtx     func(*unsafe.Pointer)
 	fFlushBuf    func(unsafe.Pointer)
-	fPktAlloc    func() unsafe.Pointer
-	fPktFree     func(*unsafe.Pointer)
-	fPktUnref    func(unsafe.Pointer)
-	fFrameAlloc  func() unsafe.Pointer
-	fFrameFree   func(*unsafe.Pointer)
-	fFrameUnref  func(unsafe.Pointer)
-	fRescaleQ    func(int64, AVRational, AVRational) int64
-	fStrerror    func(int32, unsafe.Pointer, uintptr) int32
-	fSwsGet      func(int32, int32, int32, int32, int32, int32, int32, unsafe.Pointer, unsafe.Pointer, unsafe.Pointer) unsafe.Pointer
-	fSwsScale    func(unsafe.Pointer, *unsafe.Pointer, *int32, int32, int32, *unsafe.Pointer, *int32) int32
-	fSwsFree     func(unsafe.Pointer)
-	fImgBufSize  func(int32, int32, int32, int32) int32
-	fDictSet     func(*unsafe.Pointer, string, string, int32) int32
-	fDictGet     func(unsafe.Pointer, string, unsafe.Pointer, int32) unsafe.Pointer
-	fDictFree    func(*unsafe.Pointer)
-	fDictCopy    func(*unsafe.Pointer, unsafe.Pointer, int32) int32
-	fSwrAlloc    func(*unsafe.Pointer, unsafe.Pointer, int32, int32, unsafe.Pointer, int32, int32, int32, unsafe.Pointer) int32
-	fSwrInit     func(unsafe.Pointer) int32
-	fSwrConvert  func(unsafe.Pointer, *unsafe.Pointer, int32, *unsafe.Pointer, int32) int32
-	fSwrFree     func(*unsafe.Pointer)
-	fSwrClose    func(unsafe.Pointer) int32
 	fBufUnref    func(*unsafe.Pointer)
 	fHWCreate    func(*unsafe.Pointer, int32, string, unsafe.Pointer, int32) int32
 )
@@ -151,8 +128,6 @@ func ensureLoaded() error {
 			return loadErr
 		}
 		libPath = p
-		purego.RegisterLibFunc(&fVersion, h, "av_version_info")
-		purego.RegisterLibFunc(&fLogLevel, h, "av_log_set_level")
 		purego.RegisterLibFunc(&fNetInit, h, "avformat_network_init")
 		purego.RegisterLibFunc(&fNetDeinit, h, "avformat_network_deinit")
 		purego.RegisterLibFunc(&fOpenInput, h, "avformat_open_input")
@@ -170,30 +145,22 @@ func ensureLoaded() error {
 		purego.RegisterLibFunc(&fCloseInput, h, "avformat_close_input")
 		purego.RegisterLibFunc(&fFreeCtx, h, "avcodec_free_context")
 		purego.RegisterLibFunc(&fFlushBuf, h, "avcodec_flush_buffers")
-		purego.RegisterLibFunc(&fPktAlloc, h, "av_packet_alloc")
-		purego.RegisterLibFunc(&fPktFree, h, "av_packet_free")
-		purego.RegisterLibFunc(&fPktUnref, h, "av_packet_unref")
-		purego.RegisterLibFunc(&fFrameAlloc, h, "av_frame_alloc")
-		purego.RegisterLibFunc(&fFrameFree, h, "av_frame_free")
-		purego.RegisterLibFunc(&fFrameUnref, h, "av_frame_unref")
-		purego.RegisterLibFunc(&fRescaleQ, h, "av_rescale_q")
-		purego.RegisterLibFunc(&fStrerror, h, "av_strerror")
-		purego.RegisterLibFunc(&fSwsGet, h, "sws_getContext")
-		purego.RegisterLibFunc(&fSwsScale, h, "sws_scale")
-		purego.RegisterLibFunc(&fSwsFree, h, "sws_freeContext")
-		purego.RegisterLibFunc(&fImgBufSize, h, "av_image_get_buffer_size")
-		purego.RegisterLibFunc(&fDictSet, h, "av_dict_set")
-		purego.RegisterLibFunc(&fDictGet, h, "av_dict_get")
-		purego.RegisterLibFunc(&fDictFree, h, "av_dict_free")
-		purego.RegisterLibFunc(&fDictCopy, h, "av_dict_copy")
-		purego.RegisterLibFunc(&fSwrAlloc, h, "swr_alloc_set_opts2")
-		purego.RegisterLibFunc(&fSwrInit, h, "swr_init")
-		purego.RegisterLibFunc(&fSwrConvert, h, "swr_convert")
-		purego.RegisterLibFunc(&fSwrFree, h, "swr_free")
-		purego.RegisterLibFunc(&fSwrClose, h, "swr_close")
 		purego.RegisterLibFunc(&fBufUnref, h, "av_buffer_unref")
 		purego.RegisterLibFunc(&fHWCreate, h, "av_hwdevice_ctx_create")
-		fLogLevel(LogError)
+		registerPacket(h)
+		registerFrame(h)
+		registerDictOpt(h)
+		registerBufferMem(h)
+		registerErrorLog(h)
+		registerFormatDemux(h)
+		registerCodecEncode(h)
+		registerFilterGraph(h)
+		registerDeviceIo(h)
+		registerResampleAudio(h)
+		registerMediaDesc(h)
+		registerCryptoHashMisc(h)
+		registerScaleColor(h)
+		fLogSetLevel(LogError)
 		return nil
 	}
 	loadErr = fmt.Errorf("ffmpeg: library not found (tried %q... last %s)", libRelName(), last)
@@ -216,13 +183,13 @@ func Version() (string, error) {
 	if err := ensureLoaded(); err != nil {
 		return "", err
 	}
-	return fVersion(), nil
+	return fVerInfo(), nil
 }
 
 // errText turns a negative AVERROR into a readable string.
 func errText(code int32) string {
 	buf := make([]byte, 256)
-	ret := fStrerror(code, unsafe.Pointer(&buf[0]), uintptr(len(buf)))
+	ret := fErrStrerror(code, unsafe.Pointer(&buf[0]), uintptr(len(buf)))
 	if ret != 0 {
 		return fmt.Sprintf("ffmpeg error %d", code)
 	}

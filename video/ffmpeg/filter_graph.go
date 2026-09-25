@@ -1,0 +1,647 @@
+package ffmpeg
+
+import (
+	"unsafe"
+
+	"github.com/ebitengine/purego"
+)
+
+// FilterGraph 滤镜模块: FilterGraph/FilterContext/Filter/FilterSink/FilterSource 全量导出, 结构体方法直接可用.
+//
+// Say it plain: 把解出来的帧丢进滤镜图里加工 (缩放裁剪调色混音), 图配好推帧进去拉帧出来.
+
+// FilterGraph holder.
+type FilterGraph struct{ ptr unsafe.Pointer }
+
+func (x *FilterGraph) Ptr() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return x.ptr
+}
+
+// FilterContext holder.
+type FilterContext struct{ ptr unsafe.Pointer }
+
+func (x *FilterContext) Ptr() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return x.ptr
+}
+
+// Filter holder.
+type Filter struct{ ptr unsafe.Pointer }
+
+// FilterSink owns one sink AVFilterContext* (buffersink 端, 拉帧出来).
+type FilterSink struct{ ptr unsafe.Pointer }
+
+// Ptr exposes the raw handle.
+func (x *FilterSink) Ptr() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return x.ptr
+}
+
+// FilterSource owns one source AVFilterContext* (buffersrc 端, 推帧进去).
+type FilterSource struct{ ptr unsafe.Pointer }
+
+// Ptr exposes the raw handle.
+func (x *FilterSource) Ptr() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return x.ptr
+}
+func (x *Filter) Ptr() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return x.ptr
+}
+
+var (
+	fAvBuffersinkGetChannels           func(ctx unsafe.Pointer) int32
+	fAvBuffersinkGetChLayout           func(ctx unsafe.Pointer, ch_layout unsafe.Pointer) int32
+	fAvBuffersinkGetColorRange         func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvBuffersinkGetColorspace         func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvBuffersinkGetFormat             func(ctx unsafe.Pointer) int32
+	fAvBuffersinkGetFrame              func(ctx unsafe.Pointer, frame unsafe.Pointer) int32
+	fAvBuffersinkGetFrameFlags         func(ctx unsafe.Pointer, frame unsafe.Pointer, flags int32) unsafe.Pointer
+	fAvBuffersinkGetFrameRate          func(ctx unsafe.Pointer) AVRational
+	fAvBuffersinkGetH                  func(ctx unsafe.Pointer) int32
+	fAvBuffersinkGetHwFramesCtx        func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvBuffersinkGetSampleAspectRatio  func(ctx unsafe.Pointer) AVRational
+	fAvBuffersinkGetSampleRate         func(ctx unsafe.Pointer) int32
+	fAvBuffersinkGetSamples            func(ctx unsafe.Pointer, frame unsafe.Pointer, nb_samples int32) int32
+	fAvBuffersinkGetTimeBase           func(ctx unsafe.Pointer) AVRational
+	fAvBuffersinkGetType               func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvBuffersinkGetW                  func(ctx unsafe.Pointer) int32
+	fAvBuffersinkSetFrameSize          func(ctx unsafe.Pointer, frame_size uint32) unsafe.Pointer
+	fAvBuffersrcAddFrame               func(ctx unsafe.Pointer, frame unsafe.Pointer) int32
+	fAvBuffersrcAddFrameFlags          func(buffer_src unsafe.Pointer, frame unsafe.Pointer, flags int32) int32
+	fAvBuffersrcClose                  func(ctx unsafe.Pointer, pts int64, flags uint32) int32
+	fAvBuffersrcGetNbFailedRequests    func(buffer_src unsafe.Pointer) uint32
+	fAvBuffersrcGetStatus              func(ctx unsafe.Pointer) int32
+	fAvBuffersrcParametersAlloc        func() unsafe.Pointer
+	fAvBuffersrcParametersSet          func(ctx unsafe.Pointer, param unsafe.Pointer) int32
+	fAvBuffersrcWriteFrame             func(ctx unsafe.Pointer, frame unsafe.Pointer) int32
+	fAvfilterConfigLinks               func(filter unsafe.Pointer) unsafe.Pointer
+	fAvfilterConfiguration             func() unsafe.Pointer
+	fAvfilterFilterPadCount            func(filter unsafe.Pointer, is_output int32) uint32
+	fAvfilterFree                      func(filter unsafe.Pointer)
+	fAvfilterGetByName                 func(name unsafe.Pointer) unsafe.Pointer
+	fAvfilterGetClass                  func() unsafe.Pointer
+	fAvfilterGraphAlloc                func() unsafe.Pointer
+	fAvfilterGraphAllocFilter          func(graph unsafe.Pointer, filter unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer
+	fAvfilterGraphConfig               func(graphctx unsafe.Pointer, log_ctx unsafe.Pointer) int32
+	fAvfilterGraphCreateFilter         func(filt_ctx *unsafe.Pointer, filt unsafe.Pointer, name unsafe.Pointer, args unsafe.Pointer, opaque unsafe.Pointer, graph_ctx unsafe.Pointer) int32
+	fAvfilterGraphDump                 func(graph unsafe.Pointer, options unsafe.Pointer) unsafe.Pointer
+	fAvfilterGraphFree                 func(graph *unsafe.Pointer)
+	fAvfilterGraphGetFilter            func(graph unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer
+	fAvfilterGraphParse                func(graph unsafe.Pointer, filters unsafe.Pointer, inputs unsafe.Pointer, outputs unsafe.Pointer, log_ctx unsafe.Pointer) int32
+	fAvfilterGraphParse2               func(graph unsafe.Pointer, filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer) int32
+	fAvfilterGraphParsePtr             func(graph unsafe.Pointer, filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer, log_ctx unsafe.Pointer) int32
+	fAvfilterGraphQueueCommand         func(graph unsafe.Pointer, target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, flags int32, ts float64) int32
+	fAvfilterGraphRequestOldest        func(graph unsafe.Pointer) int32
+	fAvfilterGraphSegmentApply         func(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) int32
+	fAvfilterGraphSegmentApplyOpts     func(seg unsafe.Pointer, flags int32) int32
+	fAvfilterGraphSegmentCreateFilters func(seg unsafe.Pointer, flags int32) int32
+	fAvfilterGraphSegmentFree          func(seg *unsafe.Pointer)
+	fAvfilterGraphSegmentInit          func(seg unsafe.Pointer, flags int32) int32
+	fAvfilterGraphSegmentLink          func(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) int32
+	fAvfilterGraphSegmentParse         func(graph unsafe.Pointer, graph_str unsafe.Pointer, flags int32, seg *unsafe.Pointer) int32
+	fAvfilterGraphSendCommand          func(graph unsafe.Pointer, target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) int32
+	fAvfilterGraphSetAutoConvert       func(graph unsafe.Pointer, flags uint32)
+	fAvfilterInitDict                  func(ctx unsafe.Pointer, options *unsafe.Pointer) int32
+	fAvfilterInitStr                   func(ctx unsafe.Pointer, args unsafe.Pointer) int32
+	fAvfilterInoutAlloc                func() unsafe.Pointer
+	fAvfilterInoutFree                 func(inout *unsafe.Pointer)
+	fAvfilterInsertFilter              func(link unsafe.Pointer, filt unsafe.Pointer, filt_srcpad_idx uint32, filt_dstpad_idx uint32) int32
+	fAvfilterLicense                   func() unsafe.Pointer
+	fAvfilterLink                      func(src unsafe.Pointer, srcpad uint32, dst unsafe.Pointer, dstpad uint32) int32
+	fAvfilterLinkFree                  func(link *unsafe.Pointer) unsafe.Pointer
+	fAvfilterPadGetName                func(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer
+	fAvfilterPadGetType                func(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer
+	fAvfilterProcessCommand            func(filter unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) unsafe.Pointer
+	fAvfilterVersion                   func() unsafe.Pointer
+)
+
+func registerFilterGraph(h uintptr) {
+	purego.RegisterLibFunc(&fAvBuffersinkGetChannels, h, "av_buffersink_get_channels")
+	purego.RegisterLibFunc(&fAvBuffersinkGetChLayout, h, "av_buffersink_get_ch_layout")
+	purego.RegisterLibFunc(&fAvBuffersinkGetColorRange, h, "av_buffersink_get_color_range")
+	purego.RegisterLibFunc(&fAvBuffersinkGetColorspace, h, "av_buffersink_get_colorspace")
+	purego.RegisterLibFunc(&fAvBuffersinkGetFormat, h, "av_buffersink_get_format")
+	purego.RegisterLibFunc(&fAvBuffersinkGetFrame, h, "av_buffersink_get_frame")
+	purego.RegisterLibFunc(&fAvBuffersinkGetFrameFlags, h, "av_buffersink_get_frame_flags")
+	purego.RegisterLibFunc(&fAvBuffersinkGetFrameRate, h, "av_buffersink_get_frame_rate")
+	purego.RegisterLibFunc(&fAvBuffersinkGetH, h, "av_buffersink_get_h")
+	purego.RegisterLibFunc(&fAvBuffersinkGetHwFramesCtx, h, "av_buffersink_get_hw_frames_ctx")
+	purego.RegisterLibFunc(&fAvBuffersinkGetSampleAspectRatio, h, "av_buffersink_get_sample_aspect_ratio")
+	purego.RegisterLibFunc(&fAvBuffersinkGetSampleRate, h, "av_buffersink_get_sample_rate")
+	purego.RegisterLibFunc(&fAvBuffersinkGetSamples, h, "av_buffersink_get_samples")
+	purego.RegisterLibFunc(&fAvBuffersinkGetTimeBase, h, "av_buffersink_get_time_base")
+	purego.RegisterLibFunc(&fAvBuffersinkGetType, h, "av_buffersink_get_type")
+	purego.RegisterLibFunc(&fAvBuffersinkGetW, h, "av_buffersink_get_w")
+	purego.RegisterLibFunc(&fAvBuffersinkSetFrameSize, h, "av_buffersink_set_frame_size")
+	purego.RegisterLibFunc(&fAvBuffersrcAddFrame, h, "av_buffersrc_add_frame")
+	purego.RegisterLibFunc(&fAvBuffersrcAddFrameFlags, h, "av_buffersrc_add_frame_flags")
+	purego.RegisterLibFunc(&fAvBuffersrcClose, h, "av_buffersrc_close")
+	purego.RegisterLibFunc(&fAvBuffersrcGetNbFailedRequests, h, "av_buffersrc_get_nb_failed_requests")
+	purego.RegisterLibFunc(&fAvBuffersrcGetStatus, h, "av_buffersrc_get_status")
+	purego.RegisterLibFunc(&fAvBuffersrcParametersAlloc, h, "av_buffersrc_parameters_alloc")
+	purego.RegisterLibFunc(&fAvBuffersrcParametersSet, h, "av_buffersrc_parameters_set")
+	purego.RegisterLibFunc(&fAvBuffersrcWriteFrame, h, "av_buffersrc_write_frame")
+	purego.RegisterLibFunc(&fAvfilterConfigLinks, h, "avfilter_config_links")
+	purego.RegisterLibFunc(&fAvfilterConfiguration, h, "avfilter_configuration")
+	purego.RegisterLibFunc(&fAvfilterFilterPadCount, h, "avfilter_filter_pad_count")
+	purego.RegisterLibFunc(&fAvfilterFree, h, "avfilter_free")
+	purego.RegisterLibFunc(&fAvfilterGetByName, h, "avfilter_get_by_name")
+	purego.RegisterLibFunc(&fAvfilterGetClass, h, "avfilter_get_class")
+	purego.RegisterLibFunc(&fAvfilterGraphAlloc, h, "avfilter_graph_alloc")
+	purego.RegisterLibFunc(&fAvfilterGraphAllocFilter, h, "avfilter_graph_alloc_filter")
+	purego.RegisterLibFunc(&fAvfilterGraphConfig, h, "avfilter_graph_config")
+	purego.RegisterLibFunc(&fAvfilterGraphCreateFilter, h, "avfilter_graph_create_filter")
+	purego.RegisterLibFunc(&fAvfilterGraphDump, h, "avfilter_graph_dump")
+	purego.RegisterLibFunc(&fAvfilterGraphFree, h, "avfilter_graph_free")
+	purego.RegisterLibFunc(&fAvfilterGraphGetFilter, h, "avfilter_graph_get_filter")
+	purego.RegisterLibFunc(&fAvfilterGraphParse, h, "avfilter_graph_parse")
+	purego.RegisterLibFunc(&fAvfilterGraphParse2, h, "avfilter_graph_parse2")
+	purego.RegisterLibFunc(&fAvfilterGraphParsePtr, h, "avfilter_graph_parse_ptr")
+	purego.RegisterLibFunc(&fAvfilterGraphQueueCommand, h, "avfilter_graph_queue_command")
+	purego.RegisterLibFunc(&fAvfilterGraphRequestOldest, h, "avfilter_graph_request_oldest")
+	purego.RegisterLibFunc(&fAvfilterGraphSegmentApply, h, "avfilter_graph_segment_apply")
+	purego.RegisterLibFunc(&fAvfilterGraphSegmentApplyOpts, h, "avfilter_graph_segment_apply_opts")
+	purego.RegisterLibFunc(&fAvfilterGraphSegmentCreateFilters, h, "avfilter_graph_segment_create_filters")
+	purego.RegisterLibFunc(&fAvfilterGraphSegmentFree, h, "avfilter_graph_segment_free")
+	purego.RegisterLibFunc(&fAvfilterGraphSegmentInit, h, "avfilter_graph_segment_init")
+	purego.RegisterLibFunc(&fAvfilterGraphSegmentLink, h, "avfilter_graph_segment_link")
+	purego.RegisterLibFunc(&fAvfilterGraphSegmentParse, h, "avfilter_graph_segment_parse")
+	purego.RegisterLibFunc(&fAvfilterGraphSendCommand, h, "avfilter_graph_send_command")
+	purego.RegisterLibFunc(&fAvfilterGraphSetAutoConvert, h, "avfilter_graph_set_auto_convert")
+	purego.RegisterLibFunc(&fAvfilterInitDict, h, "avfilter_init_dict")
+	purego.RegisterLibFunc(&fAvfilterInitStr, h, "avfilter_init_str")
+	purego.RegisterLibFunc(&fAvfilterInoutAlloc, h, "avfilter_inout_alloc")
+	purego.RegisterLibFunc(&fAvfilterInoutFree, h, "avfilter_inout_free")
+	purego.RegisterLibFunc(&fAvfilterInsertFilter, h, "avfilter_insert_filter")
+	purego.RegisterLibFunc(&fAvfilterLicense, h, "avfilter_license")
+	purego.RegisterLibFunc(&fAvfilterLink, h, "avfilter_link")
+	purego.RegisterLibFunc(&fAvfilterLinkFree, h, "avfilter_link_free")
+	purego.RegisterLibFunc(&fAvfilterPadGetName, h, "avfilter_pad_get_name")
+	purego.RegisterLibFunc(&fAvfilterPadGetType, h, "avfilter_pad_get_type")
+	purego.RegisterLibFunc(&fAvfilterProcessCommand, h, "avfilter_process_command")
+	purego.RegisterLibFunc(&fAvfilterVersion, h, "avfilter_version")
+}
+
+func (x *FilterContext) GetChannels() int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetChannels(x.ptr)
+}
+
+func (x *FilterSink) GetChLayout(ch_layout unsafe.Pointer) int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetChLayout(x.ptr, ch_layout)
+}
+
+func (x *FilterSink) GetColorRange() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvBuffersinkGetColorRange(x.ptr)
+}
+
+func (x *FilterSink) GetColorspace() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvBuffersinkGetColorspace(x.ptr)
+}
+
+func (x *FilterSink) GetFormat() int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetFormat(x.ptr)
+}
+
+func (x *FilterSink) GetFrame(frame unsafe.Pointer) int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetFrame(x.ptr, frame)
+}
+
+func (x *FilterSink) GetFrameFlags(frame unsafe.Pointer, flags int32) unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvBuffersinkGetFrameFlags(x.ptr, frame, flags)
+}
+
+func (x *FilterSink) GetFrameRate() AVRational {
+	if x == nil {
+		return AVRational{}
+	}
+	return fAvBuffersinkGetFrameRate(x.ptr)
+}
+
+func (x *FilterSink) GetH() int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetH(x.ptr)
+}
+
+func (x *FilterSink) GetHwFramesCtx() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvBuffersinkGetHwFramesCtx(x.ptr)
+}
+
+func (x *FilterSink) GetSampleAspectRatio() AVRational {
+	if x == nil {
+		return AVRational{}
+	}
+	return fAvBuffersinkGetSampleAspectRatio(x.ptr)
+}
+
+func (x *FilterSink) GetSampleRate() int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetSampleRate(x.ptr)
+}
+
+func (x *FilterSink) GetSamples(frame unsafe.Pointer, nb_samples int32) int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetSamples(x.ptr, frame, nb_samples)
+}
+
+func (x *FilterSink) GetTimeBase() AVRational {
+	if x == nil {
+		return AVRational{}
+	}
+	return fAvBuffersinkGetTimeBase(x.ptr)
+}
+
+func (x *FilterSink) GetType() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvBuffersinkGetType(x.ptr)
+}
+
+func (x *FilterSink) GetW() int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersinkGetW(x.ptr)
+}
+
+func (x *FilterSink) SetFrameSize(frame_size uint32) unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvBuffersinkSetFrameSize(x.ptr, frame_size)
+}
+
+func (x *FilterSource) AddFrame(frame unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvBuffersrcAddFrame(x.ptr, frame); ret < 0 {
+		return codeErr("av_buffersrc_add_frame", ret)
+	}
+	return nil
+}
+
+func (x *FilterContext) AddFrameFlags(frame unsafe.Pointer, flags int32) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvBuffersrcAddFrameFlags(x.ptr, frame, flags); ret < 0 {
+		return codeErr("av_buffersrc_add_frame_flags", ret)
+	}
+	return nil
+}
+
+func (x *FilterContext) Close(pts int64, flags uint32) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvBuffersrcClose(x.ptr, pts, flags); ret < 0 {
+		return codeErr("av_buffersrc_close", ret)
+	}
+	return nil
+}
+
+func (x *FilterContext) GetNbFailedRequests() uint32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersrcGetNbFailedRequests(x.ptr)
+}
+
+func (x *FilterSource) GetStatus() int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvBuffersrcGetStatus(x.ptr)
+}
+
+func (x *FilterSource) ParametersAlloc() unsafe.Pointer {
+	return fAvBuffersrcParametersAlloc()
+}
+
+func (x *FilterSource) ParametersSet(param unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvBuffersrcParametersSet(x.ptr, param); ret < 0 {
+		return codeErr("av_buffersrc_parameters_set", ret)
+	}
+	return nil
+}
+
+func (x *FilterContext) WriteFrame(frame unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvBuffersrcWriteFrame(x.ptr, frame); ret < 0 {
+		return codeErr("av_buffersrc_write_frame", ret)
+	}
+	return nil
+}
+
+func (x *FilterContext) ConfigLinks() unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvfilterConfigLinks(x.ptr)
+}
+
+func (x *FilterGraph) Configuration() unsafe.Pointer {
+	return fAvfilterConfiguration()
+}
+
+func (x *Filter) FilterPadCount(is_output int32) uint32 {
+	if x == nil {
+		return 0
+	}
+	return fAvfilterFilterPadCount(x.ptr, is_output)
+}
+
+func (x *FilterContext) Free() {
+	if x == nil {
+		return
+	}
+	fAvfilterFree(x.ptr)
+}
+
+func (x *FilterGraph) GetByName(name unsafe.Pointer) unsafe.Pointer {
+	return fAvfilterGetByName(name)
+}
+
+func (x *FilterGraph) GetClass() unsafe.Pointer {
+	return fAvfilterGetClass()
+}
+
+func (x *FilterGraph) GraphAlloc() unsafe.Pointer {
+	return fAvfilterGraphAlloc()
+}
+
+func (x *FilterGraph) GraphAllocFilter(filter unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvfilterGraphAllocFilter(x.ptr, filter, name)
+}
+
+func (x *FilterGraph) GraphConfig(log_ctx unsafe.Pointer) int32 {
+	if x == nil {
+		return 0
+	}
+	return fAvfilterGraphConfig(x.ptr, log_ctx)
+}
+
+func (x *FilterGraph) GraphCreateFilter(filt_ctx *unsafe.Pointer, filt unsafe.Pointer, name unsafe.Pointer, args unsafe.Pointer, opaque unsafe.Pointer, graph_ctx unsafe.Pointer) error {
+	if ret := fAvfilterGraphCreateFilter(filt_ctx, filt, name, args, opaque, graph_ctx); ret < 0 {
+		return codeErr("avfilter_graph_create_filter", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphDump(options unsafe.Pointer) unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvfilterGraphDump(x.ptr, options)
+}
+
+func (x *FilterGraph) GraphFree(graph *unsafe.Pointer) {
+	fAvfilterGraphFree(graph)
+}
+
+func (x *FilterGraph) GraphGetFilter(name unsafe.Pointer) unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvfilterGraphGetFilter(x.ptr, name)
+}
+
+func (x *FilterGraph) GraphParse(filters unsafe.Pointer, inputs unsafe.Pointer, outputs unsafe.Pointer, log_ctx unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterGraphParse(x.ptr, filters, inputs, outputs, log_ctx); ret < 0 {
+		return codeErr("avfilter_graph_parse", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphParse2(filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterGraphParse2(x.ptr, filters, inputs, outputs); ret < 0 {
+		return codeErr("avfilter_graph_parse2", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphParsePtr(filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer, log_ctx unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterGraphParsePtr(x.ptr, filters, inputs, outputs, log_ctx); ret < 0 {
+		return codeErr("avfilter_graph_parse_ptr", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphQueueCommand(target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, flags int32, ts float64) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterGraphQueueCommand(x.ptr, target, cmd, arg, flags, ts); ret < 0 {
+		return codeErr("avfilter_graph_queue_command", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphRequestOldest() error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterGraphRequestOldest(x.ptr); ret < 0 {
+		return codeErr("avfilter_graph_request_oldest", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSegmentApply(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
+	if ret := fAvfilterGraphSegmentApply(seg, flags, inputs, outputs); ret < 0 {
+		return codeErr("avfilter_graph_segment_apply", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSegmentApplyOpts(seg unsafe.Pointer, flags int32) error {
+	if ret := fAvfilterGraphSegmentApplyOpts(seg, flags); ret < 0 {
+		return codeErr("avfilter_graph_segment_apply_opts", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSegmentCreateFilters(seg unsafe.Pointer, flags int32) error {
+	if ret := fAvfilterGraphSegmentCreateFilters(seg, flags); ret < 0 {
+		return codeErr("avfilter_graph_segment_create_filters", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSegmentFree(seg *unsafe.Pointer) {
+	fAvfilterGraphSegmentFree(seg)
+}
+
+func (x *FilterGraph) GraphSegmentInit(seg unsafe.Pointer, flags int32) error {
+	if ret := fAvfilterGraphSegmentInit(seg, flags); ret < 0 {
+		return codeErr("avfilter_graph_segment_init", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSegmentLink(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
+	if ret := fAvfilterGraphSegmentLink(seg, flags, inputs, outputs); ret < 0 {
+		return codeErr("avfilter_graph_segment_link", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSegmentParse(graph_str unsafe.Pointer, flags int32, seg *unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterGraphSegmentParse(x.ptr, graph_str, flags, seg); ret < 0 {
+		return codeErr("avfilter_graph_segment_parse", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSendCommand(target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterGraphSendCommand(x.ptr, target, cmd, arg, res, res_len, flags); ret < 0 {
+		return codeErr("avfilter_graph_send_command", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) GraphSetAutoConvert(flags uint32) {
+	if x == nil {
+		return
+	}
+	fAvfilterGraphSetAutoConvert(x.ptr, flags)
+}
+
+func (x *FilterContext) InitDict(options *unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterInitDict(x.ptr, options); ret < 0 {
+		return codeErr("avfilter_init_dict", ret)
+	}
+	return nil
+}
+
+func (x *FilterContext) InitStr(args unsafe.Pointer) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterInitStr(x.ptr, args); ret < 0 {
+		return codeErr("avfilter_init_str", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) InoutAlloc() unsafe.Pointer {
+	return fAvfilterInoutAlloc()
+}
+
+func (x *FilterGraph) InoutFree(inout *unsafe.Pointer) {
+	fAvfilterInoutFree(inout)
+}
+
+func (x *FilterGraph) InsertFilter(link unsafe.Pointer, filt unsafe.Pointer, filt_srcpad_idx uint32, filt_dstpad_idx uint32) error {
+	if ret := fAvfilterInsertFilter(link, filt, filt_srcpad_idx, filt_dstpad_idx); ret < 0 {
+		return codeErr("avfilter_insert_filter", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) License() unsafe.Pointer {
+	return fAvfilterLicense()
+}
+
+func (x *FilterContext) Link(srcpad uint32, dst unsafe.Pointer, dstpad uint32) error {
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterLink(x.ptr, srcpad, dst, dstpad); ret < 0 {
+		return codeErr("avfilter_link", ret)
+	}
+	return nil
+}
+
+func (x *FilterGraph) LinkFree(link *unsafe.Pointer) unsafe.Pointer {
+	return fAvfilterLinkFree(link)
+}
+
+func (x *FilterGraph) PadGetName(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer {
+	return fAvfilterPadGetName(pads, pad_idx)
+}
+
+func (x *FilterGraph) PadGetType(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer {
+	return fAvfilterPadGetType(pads, pad_idx)
+}
+
+func (x *FilterContext) ProcessCommand(cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) unsafe.Pointer {
+	if x == nil {
+		return nil
+	}
+	return fAvfilterProcessCommand(x.ptr, cmd, arg, res, res_len, flags)
+}
+
+func (x *FilterGraph) Version() unsafe.Pointer {
+	return fAvfilterVersion()
+}

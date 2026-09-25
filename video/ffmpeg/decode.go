@@ -143,11 +143,11 @@ func Open(path string) (*Decoder, error) {
 		fFreeCtx(&cc)
 		return nil, fmt.Errorf("ffmpeg: open decoder %s: %s", path, errText(ret))
 	}
-	pkt := fPktAlloc()
+	pkt := fPacketAlloc()
 	fr := fFrameAlloc()
 	if pkt == nil || fr == nil {
 		if pkt != nil {
-			fPktFree(&pkt)
+			fPacketFree(&pkt)
 		}
 		if fr != nil {
 			fFrameFree(&fr)
@@ -172,7 +172,7 @@ func Open(path string) (*Decoder, error) {
 	w := loadInt32(par, parWidth)
 	h := loadInt32(par, parHeight)
 	if w <= 0 || h <= 0 {
-		fPktFree(&pkt)
+		fPacketFree(&pkt)
 		fFrameFree(&fr)
 		fFreeCtx(&cc)
 		return nil, fmt.Errorf("ffmpeg: bad size %dx%d %s", w, h, path)
@@ -222,10 +222,10 @@ func (d *Decoder) ensureSws(w, h, srcFmt int32) error {
 		return nil
 	}
 	if d.sws != nil {
-		fSwsFree(d.sws)
+		fSwsFreeCtx(d.sws)
 		d.sws = nil
 	}
-	sws := fSwsGet(w, h, srcFmt, w, h, PixFmtRGBA, SWSBilinear, nil, nil, nil)
+	sws := fSwsGetCtx(w, h, srcFmt, w, h, PixFmtRGBA, SWSBilinear, nil, nil, nil)
 	if sws == nil {
 		return fmt.Errorf("ffmpeg: no scaler %dx%d fmt %d", w, h, srcFmt)
 	}
@@ -300,11 +300,11 @@ func (d *Decoder) Next() (*VideoFrame, error) {
 				return nil, fmt.Errorf("ffmpeg: read: %s", errText(ret))
 			} else {
 				if loadInt32(d.pkt, pktStreamIndex) != d.vidIdx {
-					fPktUnref(d.pkt)
+					fPacketUnref(d.pkt)
 					continue
 				}
 				ret := fSendPacket(d.codecCtx, d.pkt)
-				fPktUnref(d.pkt)
+				fPacketUnref(d.pkt)
 				if ret == AvErrorEAGAIN {
 					// Decoder full: receive one frame below, then keep
 					// looping to read again.
@@ -416,11 +416,11 @@ func (d *Decoder) Close() {
 	}
 	d.closed = true
 	if d.sws != nil {
-		fSwsFree(d.sws)
+		fSwsFreeCtx(d.sws)
 		d.sws = nil
 	}
 	if d.pkt != nil {
-		fPktFree(&d.pkt)
+		fPacketFree(&d.pkt)
 	}
 	if d.frame != nil {
 		fFrameFree(&d.frame)
