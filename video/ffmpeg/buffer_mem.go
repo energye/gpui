@@ -79,6 +79,7 @@ var (
 	fBufPoolUninit func(*unsafe.Pointer)
 	fBufRealloc    func(*unsafe.Pointer, uintptr) int32
 	fBufRef        func(unsafe.Pointer) unsafe.Pointer
+	fBufUnref      func(*unsafe.Pointer)
 	fBufReplace    func(*unsafe.Pointer, unsafe.Pointer) int32
 	fMemMalloc     func(uintptr) unsafe.Pointer
 	fMemMallocArr  func(uintptr, uintptr) unsafe.Pointer
@@ -134,6 +135,7 @@ func registerBufferMem(h uintptr) {
 	purego.RegisterLibFunc(&fBufPoolUninit, h, "av_buffer_pool_uninit")
 	purego.RegisterLibFunc(&fBufRealloc, h, "av_buffer_realloc")
 	purego.RegisterLibFunc(&fBufRef, h, "av_buffer_ref")
+	purego.RegisterLibFunc(&fBufUnref, h, "av_buffer_unref")
 	purego.RegisterLibFunc(&fBufReplace, h, "av_buffer_replace")
 	purego.RegisterLibFunc(&fMemMalloc, h, "av_malloc")
 	purego.RegisterLibFunc(&fMemMallocArr, h, "av_malloc_array")

@@ -64,8 +64,8 @@ func (x *Filter) Ptr() unsafe.Pointer {
 var (
 	fAvBuffersinkGetChannels           func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetChLayout           func(ctx unsafe.Pointer, ch_layout unsafe.Pointer) int32
-	fAvBuffersinkGetColorRange         func(ctx unsafe.Pointer) unsafe.Pointer
-	fAvBuffersinkGetColorspace         func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvBuffersinkGetColorRange         func(ctx unsafe.Pointer) int32
+	fAvBuffersinkGetColorspace         func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetFormat             func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetFrame              func(ctx unsafe.Pointer, frame unsafe.Pointer) int32
 	fAvBuffersinkGetFrameFlags         func(ctx unsafe.Pointer, frame unsafe.Pointer, flags int32) unsafe.Pointer
@@ -209,16 +209,16 @@ func (x *FilterSink) GetChLayout(ch_layout unsafe.Pointer) int32 {
 	return fAvBuffersinkGetChLayout(x.ptr, ch_layout)
 }
 
-func (x *FilterSink) GetColorRange() unsafe.Pointer {
+func (x *FilterSink) GetColorRange() int32 {
 	if x == nil {
-		return nil
+		return -1
 	}
 	return fAvBuffersinkGetColorRange(x.ptr)
 }
 
-func (x *FilterSink) GetColorspace() unsafe.Pointer {
+func (x *FilterSink) GetColorspace() int32 {
 	if x == nil {
-		return nil
+		return -1
 	}
 	return fAvBuffersinkGetColorspace(x.ptr)
 }

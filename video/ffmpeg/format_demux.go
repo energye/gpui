@@ -94,7 +94,7 @@ var (
 	fAvGuessSampleAspectRatio           func(format unsafe.Pointer, stream unsafe.Pointer, frame unsafe.Pointer) AVRational
 	fAvIndexSearchTimestamp             func(st unsafe.Pointer, timestamp int64, flags int32) int32
 	fAvioAccept                         func(s unsafe.Pointer, c *unsafe.Pointer) int32
-	fAvioAllocContext                   func(buffer unsafe.Pointer, buffer_size int32, write_flag int32, opaque unsafe.Pointer) unsafe.Pointer
+	fAvioAllocContext                   func(buffer unsafe.Pointer, buffer_size int32, write_flag int32, opaque unsafe.Pointer, readPacket unsafe.Pointer, writePacket unsafe.Pointer, seek unsafe.Pointer) unsafe.Pointer
 	fAvioCheck                          func(url unsafe.Pointer, flags int32) int32
 	fAvioClose                          func(s unsafe.Pointer) int32
 	fAvioCloseDir                       func(s *unsafe.Pointer) int32
@@ -520,8 +520,8 @@ func (x *IOContext) Accept(c *unsafe.Pointer) error {
 	return nil
 }
 
-func (x *FormatContext) AllocIOContext(buffer unsafe.Pointer, buffer_size int32, write_flag int32, opaque unsafe.Pointer) unsafe.Pointer {
-	return fAvioAllocContext(buffer, buffer_size, write_flag, opaque)
+func (x *FormatContext) AllocIOContext(buffer unsafe.Pointer, buffer_size int32, write_flag int32, opaque unsafe.Pointer, readPacket unsafe.Pointer, writePacket unsafe.Pointer, seek unsafe.Pointer) unsafe.Pointer {
+	return fAvioAllocContext(buffer, buffer_size, write_flag, opaque, readPacket, writePacket, seek)
 }
 
 func (x *FormatContext) Check(url unsafe.Pointer, flags int32) error {

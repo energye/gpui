@@ -139,8 +139,29 @@ func (Log) Flags() int32 { return fLogGetFlags() }
 func (Log) SetFlags(flags int32) { fLogSetFlags(flags) }
 
 // SetCallback installs a custom log callback (传 nil 恢复默认;
-// 回调签名 void(*)(void*, int, const char*, va_list), 纯地址透传).
+// 回调签名 void(*)(void*, int, const char*, va_list), 纯地址透传;
+// 想从 Go 写回调先经 NewLogCallback 包一层, 见下).
 func (Log) SetCallback(cb unsafe.Pointer) { fLogSetCb(cb) }
+
+// NewLogCallback wraps a Go log func into a C function pointer
+// (purego.NewCallback 跳板, 最多约 2000 个, 建一次反复用别放循环里.
+// 返回的 uintptr 记得存好别丢, 丢了回调就悬空; 传 nil 恢复默认).
+func NewLogCallback(fn func(ptr unsafe.Pointer, level int32, fmt, msg unsafe.Pointer)) uintptr {
+	if fn == nil {
+		return 0
+	}
+	return purego.NewCallback(fn)
+}
+
+// SetGoCallback installs a Go log func directly (NewLogCallback 的薄包装,
+// cb 传 NewLogCallback 的返回值; 传 0 恢复默认).
+func (Log) SetGoCallback(cb uintptr) {
+	if cb == 0 {
+		fLogSetCb(nil)
+		return
+	}
+	fLogSetCb(*(*unsafe.Pointer)(unsafe.Pointer(&cb)))
+}
 
 // DefaultCallback runs ffmpeg's own log callback for one message
 // (all pointers pass through; level 用 Log* 常量).

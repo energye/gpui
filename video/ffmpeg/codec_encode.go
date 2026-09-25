@@ -155,7 +155,7 @@ var (
 	fAvcodecDescriptorNext         func(prev unsafe.Pointer) unsafe.Pointer
 	fAvcodecEncodeSubtitle         func(avctx unsafe.Pointer, buf unsafe.Pointer, buf_size int32, sub unsafe.Pointer) int32
 	fAvcodecFillAudioFrame         func(frame unsafe.Pointer, nb_channels int32, sample_fmt unsafe.Pointer, buf unsafe.Pointer, buf_size int32, align int32) unsafe.Pointer
-	fAvcodecFindBestPixFmtOfList   func(pix_fmt_list unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32, loss_ptr unsafe.Pointer) unsafe.Pointer
+	fAvcodecFindBestPixFmtOfList   func(pix_fmt_list unsafe.Pointer, src_pix_fmt int32, has_alpha int32, loss_ptr *int32) int32
 	fAvcodecGetClass               func() unsafe.Pointer
 	fAvcodecGetHwConfig            func(codec unsafe.Pointer, index int32) unsafe.Pointer
 	fAvcodecGetHwFramesParameters  func(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt unsafe.Pointer, out_frames_ref *unsafe.Pointer) int32
@@ -165,7 +165,7 @@ var (
 	fAvCodecGetTag                 func(tags unsafe.Pointer, id unsafe.Pointer) uint32
 	fAvCodecGetTag2                func(tags unsafe.Pointer, id unsafe.Pointer, tag unsafe.Pointer) int32
 	fAvcodecLicense                func() unsafe.Pointer
-	fAvcodecPixFmtToCodecTag       func(pix_fmt unsafe.Pointer) uint32
+	fAvcodecPixFmtToCodecTag       func(pix_fmt int32) uint32
 	fAvcodecProfileName            func(codec_id unsafe.Pointer, profile int32) unsafe.Pointer
 	fAvcodecString                 func(buf unsafe.Pointer, buf_size int32, enc unsafe.Pointer, encode int32)
 	fAvcodecVersion                func() uint32
@@ -669,7 +669,7 @@ func (self *Codec) AvcodecFillAudioFrame(frame unsafe.Pointer, nb_channels int32
 	return fAvcodecFillAudioFrame(frame, nb_channels, sample_fmt, buf, buf_size, align)
 }
 
-func (self *Codec) AvcodecFindBestPixFmtOfList(pix_fmt_list unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32, loss_ptr unsafe.Pointer) unsafe.Pointer {
+func (self *Codec) AvcodecFindBestPixFmtOfList(pix_fmt_list unsafe.Pointer, src_pix_fmt int32, has_alpha int32, loss_ptr *int32) int32 {
 	return fAvcodecFindBestPixFmtOfList(pix_fmt_list, src_pix_fmt, has_alpha, loss_ptr)
 }
 
@@ -709,7 +709,7 @@ func (self *Codec) AvcodecLicense() unsafe.Pointer {
 	return fAvcodecLicense()
 }
 
-func (self *Codec) AvcodecPixFmtToCodecTag(pix_fmt unsafe.Pointer) uint32 {
+func (self *Codec) AvcodecPixFmtToCodecTag(pix_fmt int32) uint32 {
 	return fAvcodecPixFmtToCodecTag(pix_fmt)
 }
 

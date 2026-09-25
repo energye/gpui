@@ -47,11 +47,11 @@ var (
 	fAvChannelName                             func(buf unsafe.Pointer, buf_size uintptr, channel unsafe.Pointer) int32
 	fAvChannelNameBprint                       func(bp unsafe.Pointer, channel_id unsafe.Pointer)
 	fAvColorPrimariesFromName                  func(name unsafe.Pointer) int32
-	fAvColorPrimariesName                      func(primaries unsafe.Pointer) unsafe.Pointer
-	fAvColorRangeFromName                      func(name unsafe.Pointer) int32
-	fAvColorRangeName                          func(rng unsafe.Pointer) unsafe.Pointer
-	fAvColorSpaceFromName                      func(name unsafe.Pointer) int32
-	fAvColorSpaceName                          func(space unsafe.Pointer) unsafe.Pointer
+	fAvColorPrimariesName                      func(primaries int32) unsafe.Pointer
+	fAvColorRangeFromName                      func(name string) int32
+	fAvColorRangeName                          func(rng int32) unsafe.Pointer
+	fAvColorSpaceFromName                      func(name string) int32
+	fAvColorSpaceName                          func(space int32) unsafe.Pointer
 	fAvColorTransferFromName                   func(name unsafe.Pointer) int32
 	fAvColorTransferName                       func(transfer unsafe.Pointer) unsafe.Pointer
 	fAvContentLightMetadataAlloc               func(size unsafe.Pointer) unsafe.Pointer
@@ -70,10 +70,10 @@ var (
 	fAvFilmGrainParamsCreateSideData           func(frame unsafe.Pointer) unsafe.Pointer
 	fAvFilmGrainParamsSelect                   func(frame unsafe.Pointer) unsafe.Pointer
 	fAvGetBitsPerPixel                         func(pixdesc unsafe.Pointer) unsafe.Pointer
-	fAvGetPixFmt                               func(name unsafe.Pointer) unsafe.Pointer
-	fAvGetPixFmtLoss                           func(dst_pix_fmt unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32) unsafe.Pointer
-	fAvGetPixFmtName                           func(pix_fmt unsafe.Pointer) unsafe.Pointer
-	fAvGetPixFmtString                         func(buf unsafe.Pointer, buf_size int32, pix_fmt unsafe.Pointer) unsafe.Pointer
+	fAvGetPixFmt                               func(name string) int32
+	fAvGetPixFmtLoss                           func(dst_pix_fmt int32, src_pix_fmt int32, has_alpha int32) int32
+	fAvGetPixFmtName                           func(pix_fmt int32) unsafe.Pointer
+	fAvGetPixFmtString                         func(buf unsafe.Pointer, buf_size int32, pix_fmt int32) unsafe.Pointer
 	fAvMasteringDisplayMetadataAlloc           func() unsafe.Pointer
 	fAvMasteringDisplayMetadataAllocSize       func(size unsafe.Pointer) unsafe.Pointer
 	fAvMasteringDisplayMetadataCreateSideData  func(frame unsafe.Pointer) unsafe.Pointer
@@ -82,8 +82,8 @@ var (
 	fAvParseTime                               func(timeval unsafe.Pointer, timestr unsafe.Pointer, duration int32) int32
 	fAvParseVideoRate                          func(rate unsafe.Pointer, str unsafe.Pointer) int32
 	fAvParseVideoSize                          func(width_ptr unsafe.Pointer, height_ptr unsafe.Pointer, str unsafe.Pointer) unsafe.Pointer
-	fAvPixFmtDescGet                           func(pix_fmt unsafe.Pointer) unsafe.Pointer
-	fAvPixFmtDescGetId                         func(desc unsafe.Pointer) unsafe.Pointer
+	fAvPixFmtDescGet                           func(pix_fmt int32) unsafe.Pointer
+	fAvPixFmtDescGetId                         func(desc unsafe.Pointer) int32
 	fAvPixFmtDescNext                          func(prev unsafe.Pointer) unsafe.Pointer
 	fAvSphericalAlloc                          func(size unsafe.Pointer) unsafe.Pointer
 	fAvSphericalFromName                       func(name unsafe.Pointer) int32
@@ -342,23 +342,23 @@ func (x *MediaDesc) ColorPrimariesFromName(name unsafe.Pointer) int32 {
 	return fAvColorPrimariesFromName(name)
 }
 
-func (x *MediaDesc) ColorPrimariesName(primaries unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) ColorPrimariesName(primaries int32) unsafe.Pointer {
 	return fAvColorPrimariesName(primaries)
 }
 
-func (x *MediaDesc) ColorRangeFromName(name unsafe.Pointer) int32 {
+func (x *MediaDesc) ColorRangeFromName(name string) int32 {
 	return fAvColorRangeFromName(name)
 }
 
-func (x *MediaDesc) ColorRangeName(rng unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) ColorRangeName(rng int32) unsafe.Pointer {
 	return fAvColorRangeName(rng)
 }
 
-func (x *MediaDesc) ColorSpaceFromName(name unsafe.Pointer) int32 {
+func (x *MediaDesc) ColorSpaceFromName(name string) int32 {
 	return fAvColorSpaceFromName(name)
 }
 
-func (x *MediaDesc) ColorSpaceName(space unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) ColorSpaceName(space int32) unsafe.Pointer {
 	return fAvColorSpaceName(space)
 }
 
@@ -437,19 +437,19 @@ func (x *MediaDesc) GetBitsPerPixel(pixdesc unsafe.Pointer) unsafe.Pointer {
 	return fAvGetBitsPerPixel(pixdesc)
 }
 
-func (x *MediaDesc) GetPixFmt(name unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) GetPixFmt(name string) int32 {
 	return fAvGetPixFmt(name)
 }
 
-func (x *MediaDesc) GetPixFmtLoss(dst_pix_fmt unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32) unsafe.Pointer {
+func (x *MediaDesc) GetPixFmtLoss(dst_pix_fmt int32, src_pix_fmt int32, has_alpha int32) int32 {
 	return fAvGetPixFmtLoss(dst_pix_fmt, src_pix_fmt, has_alpha)
 }
 
-func (x *MediaDesc) GetPixFmtName(pix_fmt unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) GetPixFmtName(pix_fmt int32) unsafe.Pointer {
 	return fAvGetPixFmtName(pix_fmt)
 }
 
-func (x *MediaDesc) GetPixFmtString(buf unsafe.Pointer, buf_size int32, pix_fmt unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) GetPixFmtString(buf unsafe.Pointer, buf_size int32, pix_fmt int32) unsafe.Pointer {
 	return fAvGetPixFmtString(buf, buf_size, pix_fmt)
 }
 
@@ -494,11 +494,11 @@ func (x *MediaDesc) ParseVideoSize(width_ptr unsafe.Pointer, height_ptr unsafe.P
 	return fAvParseVideoSize(width_ptr, height_ptr, str)
 }
 
-func (x *MediaDesc) PixFmtDescGet(pix_fmt unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) PixFmtDescGet(pix_fmt int32) unsafe.Pointer {
 	return fAvPixFmtDescGet(pix_fmt)
 }
 
-func (x *MediaDesc) PixFmtDescGetId(desc unsafe.Pointer) unsafe.Pointer {
+func (x *MediaDesc) PixFmtDescGetId(desc unsafe.Pointer) int32 {
 	return fAvPixFmtDescGetId(desc)
 }
 

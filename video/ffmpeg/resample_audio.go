@@ -43,12 +43,12 @@ var (
 	fAvAudioFifoSpace     func(af unsafe.Pointer) int32
 	fAvAudioFifoWrite     func(af unsafe.Pointer, data unsafe.Pointer, nb_samples int32) int32
 	fAvGetBytesPerSample  func(sample_fmt unsafe.Pointer) int32
-	fAvGetPackedSampleFmt func(sample_fmt unsafe.Pointer) unsafe.Pointer
-	fAvGetPlanarSampleFmt func(sample_fmt unsafe.Pointer) unsafe.Pointer
-	fAvGetSampleFmt       func(name unsafe.Pointer) unsafe.Pointer
-	fAvGetSampleFmtName   func(sample_fmt unsafe.Pointer) unsafe.Pointer
-	fAvGetSampleFmtString func(buf unsafe.Pointer, buf_size int32, sample_fmt unsafe.Pointer) unsafe.Pointer
-	fAvSampleFmtIsPlanar  func(sample_fmt unsafe.Pointer) int32
+	fAvGetPackedSampleFmt func(sample_fmt int32) int32
+	fAvGetPlanarSampleFmt func(sample_fmt int32) int32
+	fAvGetSampleFmt       func(name string) int32
+	fAvGetSampleFmtName   func(sample_fmt int32) unsafe.Pointer
+	fAvGetSampleFmtString func(buf unsafe.Pointer, buf_size int32, sample_fmt int32) unsafe.Pointer
+	fAvSampleFmtIsPlanar  func(sample_fmt int32) int32
 	fSwrAlloc             func() unsafe.Pointer
 	fSwrAllocSetOpts2     func(ps *unsafe.Pointer, out_ch_layout unsafe.Pointer, out_sample_fmt unsafe.Pointer, out_sample_rate int32, in_ch_layout unsafe.Pointer, in_sample_fmt unsafe.Pointer, in_sample_rate int32, log_offset int32, log_ctx unsafe.Pointer) int32
 	fSwrBuildMatrix2      func(in_layout unsafe.Pointer, out_layout unsafe.Pointer, center_mix_level float64, surround_mix_level float64, lfe_mix_level float64, maxval float64, rematrix_volume float64, matrix unsafe.Pointer, stride unsafe.Pointer, matrix_encoding unsafe.Pointer, log_context unsafe.Pointer) int32
@@ -209,27 +209,27 @@ func (x *Resampler) GetBytesPerSample(sample_fmt unsafe.Pointer) int32 {
 	return fAvGetBytesPerSample(sample_fmt)
 }
 
-func (x *Resampler) GetPackedSampleFmt(sample_fmt unsafe.Pointer) unsafe.Pointer {
+func (x *Resampler) GetPackedSampleFmt(sample_fmt int32) int32 {
 	return fAvGetPackedSampleFmt(sample_fmt)
 }
 
-func (x *Resampler) GetPlanarSampleFmt(sample_fmt unsafe.Pointer) unsafe.Pointer {
+func (x *Resampler) GetPlanarSampleFmt(sample_fmt int32) int32 {
 	return fAvGetPlanarSampleFmt(sample_fmt)
 }
 
-func (x *Resampler) GetSampleFmt(name unsafe.Pointer) unsafe.Pointer {
+func (x *Resampler) GetSampleFmt(name string) int32 {
 	return fAvGetSampleFmt(name)
 }
 
-func (x *Resampler) GetSampleFmtName(sample_fmt unsafe.Pointer) unsafe.Pointer {
+func (x *Resampler) GetSampleFmtName(sample_fmt int32) unsafe.Pointer {
 	return fAvGetSampleFmtName(sample_fmt)
 }
 
-func (x *Resampler) GetSampleFmtString(buf unsafe.Pointer, buf_size int32, sample_fmt unsafe.Pointer) unsafe.Pointer {
+func (x *Resampler) GetSampleFmtString(buf unsafe.Pointer, buf_size int32, sample_fmt int32) unsafe.Pointer {
 	return fAvGetSampleFmtString(buf, buf_size, sample_fmt)
 }
 
-func (x *Resampler) SampleFmtIsPlanar(sample_fmt unsafe.Pointer) int32 {
+func (x *Resampler) SampleFmtIsPlanar(sample_fmt int32) int32 {
 	return fAvSampleFmtIsPlanar(sample_fmt)
 }
 

@@ -17,8 +17,7 @@ var (
 	loadErr error
 	libPath string
 
-	fNetInit   func() int32
-	fNetDeinit func() int32
+	fNetInit func() int32
 	// Handles stay as unsafe.Pointer end to end: purego passes them
 	// straight through and the load helpers read fields with unsafe.Add,
 	// so go vet's unsafeptr check stays quiet.
@@ -33,12 +32,9 @@ var (
 	fRecvFrame   func(unsafe.Pointer, unsafe.Pointer) int32
 	fReadFrame   func(unsafe.Pointer, unsafe.Pointer) int32
 	fSeekFrame   func(unsafe.Pointer, int32, int64, int32) int32
-	fSeekFile    func(unsafe.Pointer, int32, int64, int64, int64, int32) int32
 	fCloseInput  func(*unsafe.Pointer)
 	fFreeCtx     func(*unsafe.Pointer)
 	fFlushBuf    func(unsafe.Pointer)
-	fBufUnref    func(*unsafe.Pointer)
-	fHWCreate    func(*unsafe.Pointer, int32, string, unsafe.Pointer, int32) int32
 )
 
 // libRelName returns the repository-relative library path for this platform.
@@ -129,7 +125,6 @@ func ensureLoaded() error {
 		}
 		libPath = p
 		purego.RegisterLibFunc(&fNetInit, h, "avformat_network_init")
-		purego.RegisterLibFunc(&fNetDeinit, h, "avformat_network_deinit")
 		purego.RegisterLibFunc(&fOpenInput, h, "avformat_open_input")
 		purego.RegisterLibFunc(&fFindInfo, h, "avformat_find_stream_info")
 		purego.RegisterLibFunc(&fBestStream, h, "av_find_best_stream")
@@ -141,12 +136,9 @@ func ensureLoaded() error {
 		purego.RegisterLibFunc(&fRecvFrame, h, "avcodec_receive_frame")
 		purego.RegisterLibFunc(&fReadFrame, h, "av_read_frame")
 		purego.RegisterLibFunc(&fSeekFrame, h, "av_seek_frame")
-		purego.RegisterLibFunc(&fSeekFile, h, "avformat_seek_file")
 		purego.RegisterLibFunc(&fCloseInput, h, "avformat_close_input")
 		purego.RegisterLibFunc(&fFreeCtx, h, "avcodec_free_context")
 		purego.RegisterLibFunc(&fFlushBuf, h, "avcodec_flush_buffers")
-		purego.RegisterLibFunc(&fBufUnref, h, "av_buffer_unref")
-		purego.RegisterLibFunc(&fHWCreate, h, "av_hwdevice_ctx_create")
 		registerPacket(h)
 		registerFrame(h)
 		registerDictOpt(h)

@@ -79,10 +79,10 @@ var (
 	fAvCast5Crypt2                            func(ctx unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
 	fAvAdler32Update                          func(adler uint32, buf unsafe.Pointer, ln uintptr) uint32
 	fAvCast5Init                              func(ctx unsafe.Pointer, key unsafe.Pointer, key_bits int32) int32
-	fAvChromaLocationEnumToPos                func(xpos unsafe.Pointer, ypos unsafe.Pointer, pos unsafe.Pointer) int32
-	fAvChromaLocationFromName                 func(name unsafe.Pointer) int32
-	fAvChromaLocationName                     func(location unsafe.Pointer) unsafe.Pointer
-	fAvChromaLocationPosToEnum                func(xpos int32, ypos int32) unsafe.Pointer
+	fAvChromaLocationEnumToPos                func(xpos *int32, ypos *int32, pos int32) int32
+	fAvChromaLocationFromName                 func(name string) int32
+	fAvChromaLocationName                     func(location int32) unsafe.Pointer
+	fAvChromaLocationPosToEnum                func(xpos int32, ypos int32) int32
 	fAvCmpI                                   func(a unsafe.Pointer, b unsafe.Pointer) int32
 	fAvCpbPropertiesAlloc                     func(size unsafe.Pointer) unsafe.Pointer
 	fAvCrcGetTable                            func(crc_id unsafe.Pointer) unsafe.Pointer
@@ -152,7 +152,7 @@ var (
 	fAvFilenameNumberTest                     func(filename unsafe.Pointer) int32
 	fAvFileUnmap                              func(bufptr unsafe.Pointer, size uintptr)
 	fAvFilterIterate                          func(opaque *unsafe.Pointer) unsafe.Pointer
-	fAvFindBestPixFmtOf2                      func(dst_pix_fmt1 unsafe.Pointer, dst_pix_fmt2 unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32, loss_ptr unsafe.Pointer) unsafe.Pointer
+	fAvFindBestPixFmtOf2                      func(dst_pix_fmt1 int32, dst_pix_fmt2 int32, src_pix_fmt int32, has_alpha int32, loss_ptr *int32) int32
 	fAvFindDefaultStreamIndex                 func(s unsafe.Pointer) int32
 	fAvFindInfoTag                            func(arg unsafe.Pointer, arg_size int32, tag1 unsafe.Pointer, info unsafe.Pointer) int32
 	fAvFindInputFormat                        func(short_name unsafe.Pointer) unsafe.Pointer
@@ -164,7 +164,7 @@ var (
 	fAvFourccMakeString                       func(buf unsafe.Pointer, fourcc uint32) unsafe.Pointer
 	fAvGcd                                    func(a int64, b int64) int64
 	fAvGcdQ                                   func(a AVRational, b AVRational, max_den int32, def AVRational) AVRational
-	fAvGetAltSampleFmt                        func(sample_fmt unsafe.Pointer, planar int32) unsafe.Pointer
+	fAvGetAltSampleFmt                        func(sample_fmt int32, planar int32) int32
 	fAvGetAudioFrameDuration                  func(avctx unsafe.Pointer, frame_bytes int32) int32
 	fAvGetAudioFrameDuration2                 func(par unsafe.Pointer, frame_bytes int32) int32
 	fAvGetBitsPerSample                       func(codec_id unsafe.Pointer) int32
@@ -173,7 +173,7 @@ var (
 	fAvGetFrameFilename                       func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32) int32
 	fAvGetFrameFilename2                      func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32, flags int32) unsafe.Pointer
 	fAvGetKnownColorName                      func(color_idx int32, rgb *unsafe.Pointer) unsafe.Pointer
-	fAvGetMediaTypeString                     func(media_type unsafe.Pointer) unsafe.Pointer
+	fAvGetMediaTypeString                     func(media_type int32) unsafe.Pointer
 	fAvGetOutputTimestamp                     func(s unsafe.Pointer, stream int32, dts unsafe.Pointer, wall unsafe.Pointer) int32
 	fAvGetPacket                              func(s unsafe.Pointer, pkt unsafe.Pointer, size int32) int32
 	fAvGetPaddedBitsPerPixel                  func(pixdesc unsafe.Pointer) int32
@@ -203,15 +203,15 @@ var (
 	fAvHmacInit                               func(ctx unsafe.Pointer, key unsafe.Pointer, keylen uint32)
 	fAvHmacUpdate                             func(ctx unsafe.Pointer, data unsafe.Pointer, len uint32)
 	fAvHwdeviceCtxAlloc                       func(typ unsafe.Pointer) unsafe.Pointer
-	fAvHwdeviceCtxCreate                      func(device_ctx *unsafe.Pointer, typ unsafe.Pointer, device unsafe.Pointer, opts unsafe.Pointer, flags int32) int32
-	fAvHwdeviceCtxCreateDerived               func(dst_ctx *unsafe.Pointer, typ unsafe.Pointer, src_ctx unsafe.Pointer, flags int32) int32
-	fAvHwdeviceCtxCreateDerivedOpts           func(dst_ctx *unsafe.Pointer, typ unsafe.Pointer, src_ctx unsafe.Pointer, options unsafe.Pointer, flags int32) int32
+	fAvHwdeviceCtxCreate                      func(device_ctx *unsafe.Pointer, typ int32, device unsafe.Pointer, opts unsafe.Pointer, flags int32) int32
+	fAvHwdeviceCtxCreateDerived               func(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, flags int32) int32
+	fAvHwdeviceCtxCreateDerivedOpts           func(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, options unsafe.Pointer, flags int32) int32
 	fAvHwdeviceCtxInit                        func(ref unsafe.Pointer) int32
-	fAvHwdeviceFindTypeByName                 func(name unsafe.Pointer) unsafe.Pointer
+	fAvHwdeviceFindTypeByName                 func(name string) int32
 	fAvHwdeviceGetHwframeConstraints          func(ref unsafe.Pointer, hwconfig unsafe.Pointer) unsafe.Pointer
-	fAvHwdeviceGetTypeName                    func(typ unsafe.Pointer) unsafe.Pointer
+	fAvHwdeviceGetTypeName                    func(typ int32) unsafe.Pointer
 	fAvHwdeviceHwconfigAlloc                  func(device_ctx unsafe.Pointer) unsafe.Pointer
-	fAvHwdeviceIterateTypes                   func(prev unsafe.Pointer) unsafe.Pointer
+	fAvHwdeviceIterateTypes                   func(prev int32) int32
 	fAvHwframeConstraintsFree                 func(constraints *unsafe.Pointer)
 	fAvHwframeCtxAlloc                        func(device_ctx unsafe.Pointer) unsafe.Pointer
 	fAvHwframeCtxCreateDerived                func(derived_frame_ctx *unsafe.Pointer, format unsafe.Pointer, derived_device_ctx unsafe.Pointer, source_frame_ctx unsafe.Pointer, flags int32) int32
@@ -386,7 +386,7 @@ var (
 	fAvVideoEncParamsCreateSideData           func(frame unsafe.Pointer, typ unsafe.Pointer, nb_blocks uint32) unsafe.Pointer
 	fAvVideoHintAlloc                         func(nb_rects uintptr, out_size unsafe.Pointer) unsafe.Pointer
 	fAvVideoHintCreateSideData                func(frame unsafe.Pointer, nb_rects uintptr) unsafe.Pointer
-	fAvVkfmtFromPixfmt                        func(p unsafe.Pointer) unsafe.Pointer
+	fAvVkfmtFromPixfmt                        func(p int32) unsafe.Pointer
 	fAvVkFrameAlloc                           func() unsafe.Pointer
 	fAvVlog                                   func(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer, vl unsafe.Pointer)
 	fAvVorbisParseFrame                       func(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32) int32
@@ -414,9 +414,6 @@ var (
 	fSwriAudioConvertFree                     func(ctx *unsafe.Pointer)
 	fSwriResampleDspInit                      func(c unsafe.Pointer)
 	fSwriResampleDspX86Init                   func(c unsafe.Pointer)
-	fSwscaleConfiguration                     func() unsafe.Pointer
-	fSwscaleLicense                           func() unsafe.Pointer
-	fSwscaleVersion                           func() unsafe.Pointer
 	fAvAddI                                   func(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer
 	fAvDynamicHdrVividAlloc                   func(size unsafe.Pointer) unsafe.Pointer
 	fAvDynamicHdrVividCreateSideData          func(frame unsafe.Pointer) unsafe.Pointer
@@ -437,9 +434,9 @@ var (
 	fAvLog216bit                              func(v uint32) unsafe.Pointer
 	fAvLog2I                                  func(a unsafe.Pointer) int32
 	fAvParseCpuCaps                           func(flags unsafe.Pointer, s unsafe.Pointer) int32
-	fAvPixFmtCountPlanes                      func(pix_fmt unsafe.Pointer) int32
-	fAvPixFmtGetChromaSubSample               func(pix_fmt unsafe.Pointer, h_shift unsafe.Pointer, v_shift unsafe.Pointer) int32
-	fAvPixFmtSwapEndianness                   func(pix_fmt unsafe.Pointer) unsafe.Pointer
+	fAvPixFmtCountPlanes                      func(pix_fmt int32) int32
+	fAvPixFmtGetChromaSubSample               func(pix_fmt int32, h_shift *int32, v_shift *int32) int32
+	fAvPixFmtSwapEndianness                   func(pix_fmt int32) int32
 )
 
 func registerCryptoHashMisc(h uintptr) {
@@ -815,9 +812,6 @@ func registerCryptoHashMisc(h uintptr) {
 	purego.RegisterLibFunc(&fSwriAudioConvertFree, h, "swri_audio_convert_free")
 	purego.RegisterLibFunc(&fSwriResampleDspInit, h, "swri_resample_dsp_init")
 	purego.RegisterLibFunc(&fSwriResampleDspX86Init, h, "swri_resample_dsp_x86_init")
-	purego.RegisterLibFunc(&fSwscaleConfiguration, h, "swscale_configuration")
-	purego.RegisterLibFunc(&fSwscaleLicense, h, "swscale_license")
-	purego.RegisterLibFunc(&fSwscaleVersion, h, "swscale_version")
 	purego.RegisterLibFunc(&fAvAddI, h, "av_add_i")
 	purego.RegisterLibFunc(&fAvDynamicHdrVividAlloc, h, "av_dynamic_hdr_vivid_alloc")
 	purego.RegisterLibFunc(&fAvDynamicHdrVividCreateSideData, h, "av_dynamic_hdr_vivid_create_side_data")
@@ -841,24 +835,6 @@ func registerCryptoHashMisc(h uintptr) {
 	purego.RegisterLibFunc(&fAvPixFmtCountPlanes, h, "av_pix_fmt_count_planes")
 	purego.RegisterLibFunc(&fAvPixFmtGetChromaSubSample, h, "av_pix_fmt_get_chroma_sub_sample")
 	purego.RegisterLibFunc(&fAvPixFmtSwapEndianness, h, "av_pix_fmt_swap_endianness")
-	purego.RegisterLibFunc(&fSwsAllocVec, h, "sws_allocVec")
-	purego.RegisterLibFunc(&fSwsConvertPalette8ToPacked24, h, "sws_convertPalette8ToPacked24")
-	purego.RegisterLibFunc(&fSwsConvertPalette8ToPacked32, h, "sws_convertPalette8ToPacked32")
-	purego.RegisterLibFunc(&fSwsFrameEnd, h, "sws_frame_end")
-	purego.RegisterLibFunc(&fSwsFrameStart, h, "sws_frame_start")
-	purego.RegisterLibFunc(&fSwsFreeFilter, h, "sws_freeFilter")
-	purego.RegisterLibFunc(&fSwsFreeVec, h, "sws_freeVec")
-	purego.RegisterLibFunc(&fSwsGetClass, h, "sws_get_class")
-	purego.RegisterLibFunc(&fSwsGetCoefficients, h, "sws_getCoefficients")
-	purego.RegisterLibFunc(&fSwsGetColorspaceDetails, h, "sws_getColorspaceDetails")
-	purego.RegisterLibFunc(&fSwsGetDefaultFilter, h, "sws_getDefaultFilter")
-	purego.RegisterLibFunc(&fSwsGetGaussianVec, h, "sws_getGaussianVec")
-	purego.RegisterLibFunc(&fSwsNormalizeVec, h, "sws_normalizeVec")
-	purego.RegisterLibFunc(&fSwsReceiveSlice, h, "sws_receive_slice")
-	purego.RegisterLibFunc(&fSwsReceiveSliceAlignment, h, "sws_receive_slice_alignment")
-	purego.RegisterLibFunc(&fSwsScaleVec, h, "sws_scaleVec")
-	purego.RegisterLibFunc(&fSwsSendSlice, h, "sws_send_slice")
-	purego.RegisterLibFunc(&fSwsSetColorspaceDetails, h, "sws_setColorspaceDetails")
 }
 
 func (self *Util) Ac3ParseHeader(buf unsafe.Pointer, size uintptr, bitstream_id unsafe.Pointer, frame_size unsafe.Pointer) unsafe.Pointer {
@@ -1020,25 +996,25 @@ func (self *Crypto) Cast5Init(ctx unsafe.Pointer, key unsafe.Pointer, key_bits i
 	return nil
 }
 
-func (self *Util) ChromaLocationEnumToPos(xpos unsafe.Pointer, ypos unsafe.Pointer, pos unsafe.Pointer) error {
+func (self *Util) ChromaLocationEnumToPos(xpos *int32, ypos *int32, pos int32) error {
 	if ret := fAvChromaLocationEnumToPos(xpos, ypos, pos); ret < 0 {
 		return codeErr("av_chroma_location_enum_to_pos", ret)
 	}
 	return nil
 }
 
-func (self *Util) ChromaLocationFromName(name unsafe.Pointer) error {
+func (self *Util) ChromaLocationFromName(name string) error {
 	if ret := fAvChromaLocationFromName(name); ret < 0 {
 		return codeErr("av_chroma_location_from_name", ret)
 	}
 	return nil
 }
 
-func (self *Util) ChromaLocationName(location unsafe.Pointer) unsafe.Pointer {
+func (self *Util) ChromaLocationName(location int32) unsafe.Pointer {
 	return fAvChromaLocationName(location)
 }
 
-func (self *Util) ChromaLocationPosToEnum(xpos int32, ypos int32) unsafe.Pointer {
+func (self *Util) ChromaLocationPosToEnum(xpos int32, ypos int32) int32 {
 	return fAvChromaLocationPosToEnum(xpos, ypos)
 }
 
@@ -1350,7 +1326,7 @@ func (self *Util) FilterIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 	return fAvFilterIterate(opaque)
 }
 
-func (self *Prober) FindBestPixFmtOf2(dst_pix_fmt1 unsafe.Pointer, dst_pix_fmt2 unsafe.Pointer, src_pix_fmt unsafe.Pointer, has_alpha int32, loss_ptr unsafe.Pointer) unsafe.Pointer {
+func (self *Prober) FindBestPixFmtOf2(dst_pix_fmt1 int32, dst_pix_fmt2 int32, src_pix_fmt int32, has_alpha int32, loss_ptr *int32) int32 {
 	return fAvFindBestPixFmtOf2(dst_pix_fmt1, dst_pix_fmt2, src_pix_fmt, has_alpha, loss_ptr)
 }
 
@@ -1407,7 +1383,7 @@ func (self *Util) GcdQ(a AVRational, b AVRational, max_den int32, def AVRational
 	return fAvGcdQ(a, b, max_den, def)
 }
 
-func (self *Util) GetAltSampleFmt(sample_fmt unsafe.Pointer, planar int32) unsafe.Pointer {
+func (self *Util) GetAltSampleFmt(sample_fmt int32, planar int32) int32 {
 	return fAvGetAltSampleFmt(sample_fmt, planar)
 }
 
@@ -1443,7 +1419,7 @@ func (self *Util) GetKnownColorName(color_idx int32, rgb *unsafe.Pointer) unsafe
 	return fAvGetKnownColorName(color_idx, rgb)
 }
 
-func (self *Util) GetMediaTypeString(media_type unsafe.Pointer) unsafe.Pointer {
+func (self *Util) GetMediaTypeString(media_type int32) unsafe.Pointer {
 	return fAvGetMediaTypeString(media_type)
 }
 
@@ -1572,21 +1548,21 @@ func (self *HWDevice) HwdeviceCtxAlloc(typ unsafe.Pointer) unsafe.Pointer {
 	return fAvHwdeviceCtxAlloc(typ)
 }
 
-func (self *HWDevice) HwdeviceCtxCreate(device_ctx *unsafe.Pointer, typ unsafe.Pointer, device unsafe.Pointer, opts unsafe.Pointer, flags int32) error {
+func (self *HWDevice) HwdeviceCtxCreate(device_ctx *unsafe.Pointer, typ int32, device unsafe.Pointer, opts unsafe.Pointer, flags int32) error {
 	if ret := fAvHwdeviceCtxCreate(device_ctx, typ, device, opts, flags); ret < 0 {
 		return codeErr("av_hwdevice_ctx_create", ret)
 	}
 	return nil
 }
 
-func (self *HWDevice) HwdeviceCtxCreateDerived(dst_ctx *unsafe.Pointer, typ unsafe.Pointer, src_ctx unsafe.Pointer, flags int32) error {
+func (self *HWDevice) HwdeviceCtxCreateDerived(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, flags int32) error {
 	if ret := fAvHwdeviceCtxCreateDerived(dst_ctx, typ, src_ctx, flags); ret < 0 {
 		return codeErr("av_hwdevice_ctx_create_derived", ret)
 	}
 	return nil
 }
 
-func (self *HWDevice) HwdeviceCtxCreateDerivedOpts(dst_ctx *unsafe.Pointer, typ unsafe.Pointer, src_ctx unsafe.Pointer, options unsafe.Pointer, flags int32) error {
+func (self *HWDevice) HwdeviceCtxCreateDerivedOpts(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, options unsafe.Pointer, flags int32) error {
 	if ret := fAvHwdeviceCtxCreateDerivedOpts(dst_ctx, typ, src_ctx, options, flags); ret < 0 {
 		return codeErr("av_hwdevice_ctx_create_derived_opts", ret)
 	}
@@ -1600,7 +1576,7 @@ func (self *HWDevice) HwdeviceCtxInit(ref unsafe.Pointer) error {
 	return nil
 }
 
-func (self *HWDevice) HwdeviceFindTypeByName(name unsafe.Pointer) unsafe.Pointer {
+func (self *HWDevice) HwdeviceFindTypeByName(name string) int32 {
 	return fAvHwdeviceFindTypeByName(name)
 }
 
@@ -1608,7 +1584,7 @@ func (self *HWDevice) HwdeviceGetHwframeConstraints(ref unsafe.Pointer, hwconfig
 	return fAvHwdeviceGetHwframeConstraints(ref, hwconfig)
 }
 
-func (self *HWDevice) HwdeviceGetTypeName(typ unsafe.Pointer) unsafe.Pointer {
+func (self *HWDevice) HwdeviceGetTypeName(typ int32) unsafe.Pointer {
 	return fAvHwdeviceGetTypeName(typ)
 }
 
@@ -1616,7 +1592,7 @@ func (self *HWDevice) HwdeviceHwconfigAlloc(device_ctx unsafe.Pointer) unsafe.Po
 	return fAvHwdeviceHwconfigAlloc(device_ctx)
 }
 
-func (self *HWDevice) HwdeviceIterateTypes(prev unsafe.Pointer) unsafe.Pointer {
+func (self *HWDevice) HwdeviceIterateTypes(prev int32) int32 {
 	return fAvHwdeviceIterateTypes(prev)
 }
 
@@ -2457,7 +2433,7 @@ func (self *Util) VideoHintCreateSideData(frame unsafe.Pointer, nb_rects uintptr
 	return fAvVideoHintCreateSideData(frame, nb_rects)
 }
 
-func (self *Util) VkfmtFromPixfmt(p unsafe.Pointer) unsafe.Pointer {
+func (self *Util) VkfmtFromPixfmt(p int32) unsafe.Pointer {
 	return fAvVkfmtFromPixfmt(p)
 }
 
@@ -2587,18 +2563,6 @@ func (self *Util) SwriResampleDspX86Init(c unsafe.Pointer) {
 	fSwriResampleDspX86Init(c)
 }
 
-func (self *Util) SwscaleConfiguration() unsafe.Pointer {
-	return fSwscaleConfiguration()
-}
-
-func (self *Util) SwscaleLicense() unsafe.Pointer {
-	return fSwscaleLicense()
-}
-
-func (self *Util) SwscaleVersion() unsafe.Pointer {
-	return fSwscaleVersion()
-}
-
 func (self *Util) AddI(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer {
 	return fAvAddI(a, b)
 }
@@ -2700,101 +2664,14 @@ func (self *Util) ParseCpuCaps(flags unsafe.Pointer, s unsafe.Pointer) error {
 	return nil
 }
 
-func (self *Util) PixFmtCountPlanes(pix_fmt unsafe.Pointer) int32 {
+func (self *Util) PixFmtCountPlanes(pix_fmt int32) int32 {
 	return fAvPixFmtCountPlanes(pix_fmt)
 }
 
-func (self *Util) PixFmtGetChromaSubSample(pix_fmt unsafe.Pointer, h_shift unsafe.Pointer, v_shift unsafe.Pointer) int32 {
+func (self *Util) PixFmtGetChromaSubSample(pix_fmt int32, h_shift *int32, v_shift *int32) int32 {
 	return fAvPixFmtGetChromaSubSample(pix_fmt, h_shift, v_shift)
 }
 
-func (self *Util) PixFmtSwapEndianness(pix_fmt unsafe.Pointer) unsafe.Pointer {
+func (self *Util) PixFmtSwapEndianness(pix_fmt int32) int32 {
 	return fAvPixFmtSwapEndianness(pix_fmt)
-}
-
-func (self *Util) SwsAllocVec(length int32) unsafe.Pointer {
-	return fSwsAllocVec(length)
-}
-
-func (self *Util) SwsConvertPalette8ToPacked24(src unsafe.Pointer, dst unsafe.Pointer, num_pixels int32, palette unsafe.Pointer) {
-	fSwsConvertPalette8ToPacked24(src, dst, num_pixels, palette)
-}
-
-func (self *Util) SwsConvertPalette8ToPacked32(src unsafe.Pointer, dst unsafe.Pointer, num_pixels int32, palette unsafe.Pointer) {
-	fSwsConvertPalette8ToPacked32(src, dst, num_pixels, palette)
-}
-
-func (self *Util) SwsFrameEnd(c unsafe.Pointer) {
-	fSwsFrameEnd(c)
-}
-
-func (self *Util) SwsFrameStart(c unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer) error {
-	if ret := fSwsFrameStart(c, dst, src); ret < 0 {
-		return codeErr("sws_frame_start", ret)
-	}
-	return nil
-}
-
-func (self *Util) SwsFreeFilter(filter unsafe.Pointer) {
-	fSwsFreeFilter(filter)
-}
-
-func (self *Util) SwsFreeVec(a unsafe.Pointer) {
-	fSwsFreeVec(a)
-}
-
-func (self *Util) SwsGetClass() unsafe.Pointer {
-	return fSwsGetClass()
-}
-
-func (self *Util) SwsGetCoefficients(colorspace int32) unsafe.Pointer {
-	return fSwsGetCoefficients(colorspace)
-}
-
-func (self *Util) SwsGetColorspaceDetails(c unsafe.Pointer, inv_table *unsafe.Pointer, srcRange unsafe.Pointer, table *unsafe.Pointer, dstRange unsafe.Pointer, brightness unsafe.Pointer, contrast unsafe.Pointer, saturation unsafe.Pointer) error {
-	if ret := fSwsGetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
-		return codeErr("sws_getColorspaceDetails", ret)
-	}
-	return nil
-}
-
-func (self *Util) SwsGetDefaultFilter(lumaGBlur float32, chromaGBlur float32, lumaSharpen float32, chromaSharpen float32, chromaHShift float32, chromaVShift float32, verbose int32) unsafe.Pointer {
-	return fSwsGetDefaultFilter(lumaGBlur, chromaGBlur, lumaSharpen, chromaSharpen, chromaHShift, chromaVShift, verbose)
-}
-
-func (self *Util) SwsGetGaussianVec(variance float64, quality float64) unsafe.Pointer {
-	return fSwsGetGaussianVec(variance, quality)
-}
-
-func (self *Util) SwsNormalizeVec(a unsafe.Pointer, height float64) {
-	fSwsNormalizeVec(a, height)
-}
-
-func (self *Util) SwsReceiveSlice(c unsafe.Pointer, slice_start uint32, slice_height uint32) error {
-	if ret := fSwsReceiveSlice(c, slice_start, slice_height); ret < 0 {
-		return codeErr("sws_receive_slice", ret)
-	}
-	return nil
-}
-
-func (self *Util) SwsReceiveSliceAlignment(c unsafe.Pointer) uint32 {
-	return fSwsReceiveSliceAlignment(c)
-}
-
-func (self *Util) SwsScaleVec(a unsafe.Pointer, scalar float64) {
-	fSwsScaleVec(a, scalar)
-}
-
-func (self *Util) SwsSendSlice(c unsafe.Pointer, slice_start uint32, slice_height uint32) error {
-	if ret := fSwsSendSlice(c, slice_start, slice_height); ret < 0 {
-		return codeErr("sws_send_slice", ret)
-	}
-	return nil
-}
-
-func (self *Util) SwsSetColorspaceDetails(c unsafe.Pointer, inv_table int32, srcRange int32, table int32, dstRange int32, brightness int32, contrast int32, saturation int32) error {
-	if ret := fSwsSetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
-		return codeErr("sws_setColorspaceDetails", ret)
-	}
-	return nil
 }

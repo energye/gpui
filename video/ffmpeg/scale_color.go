@@ -76,6 +76,9 @@ var (
 	fPixDescGet                   func(int32) unsafe.Pointer
 	fPixGetName                   func(int32) string
 	fPixFmtFromName               func(string) int32
+	fSwscaleConfiguration         func() string
+	fSwscaleLicense               func() string
+	fSwscaleVersionNum            func() uint32
 	fSwsAllocVec                  func(length int32) unsafe.Pointer
 	fSwsConvertPalette8ToPacked24 func(src unsafe.Pointer, dst unsafe.Pointer, num_pixels int32, palette unsafe.Pointer)
 	fSwsConvertPalette8ToPacked32 func(src unsafe.Pointer, dst unsafe.Pointer, num_pixels int32, palette unsafe.Pointer)
@@ -85,7 +88,7 @@ var (
 	fSwsFreeVec                   func(a unsafe.Pointer)
 	fSwsGetClass                  func() unsafe.Pointer
 	fSwsGetCoefficients           func(colorspace int32) unsafe.Pointer
-	fSwsGetColorspaceDetails      func(c unsafe.Pointer, inv_table *unsafe.Pointer, srcRange unsafe.Pointer, table *unsafe.Pointer, dstRange unsafe.Pointer, brightness unsafe.Pointer, contrast unsafe.Pointer, saturation unsafe.Pointer) int32
+	fSwsGetColorspaceDetails      func(c unsafe.Pointer, inv_table *unsafe.Pointer, srcRange *int32, table *unsafe.Pointer, dstRange *int32, brightness *int32, contrast *int32, saturation *int32) int32
 	fSwsGetDefaultFilter          func(lumaGBlur float32, chromaGBlur float32, lumaSharpen float32, chromaSharpen float32, chromaHShift float32, chromaVShift float32, verbose int32) unsafe.Pointer
 	fSwsGetGaussianVec            func(variance float64, quality float64) unsafe.Pointer
 	fSwsNormalizeVec              func(a unsafe.Pointer, height float64)
@@ -93,7 +96,7 @@ var (
 	fSwsReceiveSliceAlignment     func(c unsafe.Pointer) uint32
 	fSwsScaleVec                  func(a unsafe.Pointer, scalar float64)
 	fSwsSendSlice                 func(c unsafe.Pointer, slice_start uint32, slice_height uint32) int32
-	fSwsSetColorspaceDetails      func(c unsafe.Pointer, inv_table int32, srcRange int32, table int32, dstRange int32, brightness int32, contrast int32, saturation int32) int32
+	fSwsSetColorspaceDetails      func(c unsafe.Pointer, inv_table unsafe.Pointer, srcRange int32, table unsafe.Pointer, dstRange int32, brightness int32, contrast int32, saturation int32) int32
 )
 
 func registerScaleColor(h uintptr) {
@@ -116,6 +119,9 @@ func registerScaleColor(h uintptr) {
 	purego.RegisterLibFunc(&fPixDescGet, h, "av_pix_fmt_desc_get")
 	purego.RegisterLibFunc(&fPixGetName, h, "av_get_pix_fmt_name")
 	purego.RegisterLibFunc(&fPixFmtFromName, h, "av_get_pix_fmt")
+	purego.RegisterLibFunc(&fSwscaleConfiguration, h, "swscale_configuration")
+	purego.RegisterLibFunc(&fSwscaleLicense, h, "swscale_license")
+	purego.RegisterLibFunc(&fSwscaleVersionNum, h, "swscale_version")
 	purego.RegisterLibFunc(&fSwsAllocVec, h, "sws_allocVec")
 	purego.RegisterLibFunc(&fSwsConvertPalette8ToPacked24, h, "sws_convertPalette8ToPacked24")
 	purego.RegisterLibFunc(&fSwsConvertPalette8ToPacked32, h, "sws_convertPalette8ToPacked32")
@@ -229,6 +235,30 @@ func PixFmtFromName(name string) int32 {
 	return fPixFmtFromName(name)
 }
 
+// SwscaleConfiguration returns the libswscale build configuration string.
+func (self *Scaler) SwscaleConfiguration() string {
+	if self == nil || ensureLoaded() != nil {
+		return ""
+	}
+	return fSwscaleConfiguration()
+}
+
+// SwscaleLicense returns the libswscale license string.
+func (self *Scaler) SwscaleLicense() string {
+	if self == nil || ensureLoaded() != nil {
+		return ""
+	}
+	return fSwscaleLicense()
+}
+
+// SwscaleVersion returns the libswscale version number.
+func (self *Scaler) SwscaleVersion() uint32 {
+	if self == nil || ensureLoaded() != nil {
+		return 0
+	}
+	return fSwscaleVersionNum()
+}
+
 func (self *Scaler) SwsAllocVec(length int32) unsafe.Pointer {
 	return fSwsAllocVec(length)
 }
@@ -268,7 +298,7 @@ func (self *Scaler) SwsGetCoefficients(colorspace int32) unsafe.Pointer {
 	return fSwsGetCoefficients(colorspace)
 }
 
-func (self *Scaler) SwsGetColorspaceDetails(c unsafe.Pointer, inv_table *unsafe.Pointer, srcRange unsafe.Pointer, table *unsafe.Pointer, dstRange unsafe.Pointer, brightness unsafe.Pointer, contrast unsafe.Pointer, saturation unsafe.Pointer) error {
+func (self *Scaler) SwsGetColorspaceDetails(c unsafe.Pointer, inv_table *unsafe.Pointer, srcRange *int32, table *unsafe.Pointer, dstRange *int32, brightness *int32, contrast *int32, saturation *int32) error {
 	if ret := fSwsGetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
 		return codeErr("sws_getColorspaceDetails", ret)
 	}
@@ -309,7 +339,7 @@ func (self *Scaler) SwsSendSlice(c unsafe.Pointer, slice_start uint32, slice_hei
 	return nil
 }
 
-func (self *Scaler) SwsSetColorspaceDetails(c unsafe.Pointer, inv_table int32, srcRange int32, table int32, dstRange int32, brightness int32, contrast int32, saturation int32) error {
+func (self *Scaler) SwsSetColorspaceDetails(c unsafe.Pointer, inv_table unsafe.Pointer, srcRange int32, table unsafe.Pointer, dstRange int32, brightness int32, contrast int32, saturation int32) error {
 	if ret := fSwsSetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
 		return codeErr("sws_setColorspaceDetails", ret)
 	}
