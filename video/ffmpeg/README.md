@@ -9,6 +9,9 @@
 - **只想播视频**：只认高层解码器 `decode.go`。`Open(路)` 打开，
   `Next()` 一帧一帧取（RGBA，到手就能显示），`SeekTo(毫秒)` 跳进度，
   `Close()` 关掉。`video` 的播放器就是这么接的，别绕过去。
+- **只想解声音**：认 `audio_decode.go`。`OpenAudio(路)` 打开音轨，
+  `Next()` 一块一块取（48kHz 立体声 float PCM，直接送喇叭），
+  无音轨的片子报 `no audio track`，别当成坏片。
 - **想自己使唤 ffmpeg 干别的**（比如只拆盒不解码、只转音频、挂滤镜）：
   用下面 13 个功能模块，so 里能用的公开函数全导出来了，
   每个都是 Go 写法，直接调就行。
@@ -25,6 +28,7 @@
 | 文件        | 管什么                                                              |
 |-------------|---------------------------------------------------------------------|
 | `decode.go` | 高层解码器：`Open` / `Next` / `SeekTo` / `Close`，播放唯一入口       |
+| `audio_decode.go` | 高层声音解码器：`OpenAudio` / `Next` / `SeekTo` / `Close`，48kHz 立体声 float PCM（无音轨报 no-audio，不是坏片） |
 | `lib.go`    | 加载 so + 注册全部函数 + 解码直连的老接口（和模块指同一个 so 函数） |
 | `types.go`  | `AVRational` 分数（时间换算用，偏移按 7.1 头文件钉死）              |
 | `err_go.go` | 内部帮手：空指针哨兵、C 字符串转 Go、错误码翻人话                   |
@@ -653,7 +657,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Resampler.BuildMatrix2` | `swr_build_matrix2` |
 | `Resampler.Close` | `swr_close` |
 | `Resampler.ConfigFrame` | `swr_config_frame` |
-| `Resampler.Convert` | `swr_convert` |
+| `Resampler.Convert` / `Resampler.ConvertCount` | `swr_convert` |
 | `Resampler.ConvertFrame` | `swr_convert_frame` |
 | `Resampler.DropOutput` | `swr_drop_output` |
 | `Resampler.Free` | `swr_free` |

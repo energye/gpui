@@ -50,7 +50,7 @@ var (
 	fAvGetSampleFmtString func(buf unsafe.Pointer, buf_size int32, sample_fmt int32) unsafe.Pointer
 	fAvSampleFmtIsPlanar  func(sample_fmt int32) int32
 	fSwrAlloc             func() unsafe.Pointer
-	fSwrAllocSetOpts2     func(ps *unsafe.Pointer, out_ch_layout unsafe.Pointer, out_sample_fmt unsafe.Pointer, out_sample_rate int32, in_ch_layout unsafe.Pointer, in_sample_fmt unsafe.Pointer, in_sample_rate int32, log_offset int32, log_ctx unsafe.Pointer) int32
+	fSwrAllocSetOpts2     func(ps *unsafe.Pointer, out_ch_layout unsafe.Pointer, out_sample_fmt int32, out_sample_rate int32, in_ch_layout unsafe.Pointer, in_sample_fmt int32, in_sample_rate int32, log_offset int32, log_ctx unsafe.Pointer) int32
 	fSwrBuildMatrix2      func(in_layout unsafe.Pointer, out_layout unsafe.Pointer, center_mix_level float64, surround_mix_level float64, lfe_mix_level float64, maxval float64, rematrix_volume float64, matrix unsafe.Pointer, stride unsafe.Pointer, matrix_encoding unsafe.Pointer, log_context unsafe.Pointer) int32
 	fSwrClose             func(s unsafe.Pointer)
 	fSwrConfigFrame       func(swr unsafe.Pointer, out unsafe.Pointer, in unsafe.Pointer) int32
@@ -237,7 +237,7 @@ func (x *Resampler) Alloc2() unsafe.Pointer {
 	return fSwrAlloc()
 }
 
-func (x *Resampler) AllocSetOpts2(ps *unsafe.Pointer, out_ch_layout unsafe.Pointer, out_sample_fmt unsafe.Pointer, out_sample_rate int32, in_ch_layout unsafe.Pointer, in_sample_fmt unsafe.Pointer, in_sample_rate int32, log_offset int32, log_ctx unsafe.Pointer) error {
+func (x *Resampler) AllocSetOpts2(ps *unsafe.Pointer, out_ch_layout unsafe.Pointer, out_sample_fmt int32, out_sample_rate int32, in_ch_layout unsafe.Pointer, in_sample_fmt int32, in_sample_rate int32, log_offset int32, log_ctx unsafe.Pointer) error {
 	if ret := fSwrAllocSetOpts2(ps, out_ch_layout, out_sample_fmt, out_sample_rate, in_ch_layout, in_sample_fmt, in_sample_rate, log_offset, log_ctx); ret < 0 {
 		return codeErr("swr_alloc_set_opts2", ret)
 	}
@@ -276,6 +276,19 @@ func (x *Resampler) Convert(out unsafe.Pointer, out_count int32, in unsafe.Point
 		return codeErr("swr_convert", ret)
 	}
 	return nil
+}
+
+// ConvertCount behaves like Convert but returns the produced sample
+// count per channel (swr_convert's non-negative return).
+func (x *Resampler) ConvertCount(out unsafe.Pointer, out_count int32, in unsafe.Pointer, in_count int32) (int32, error) {
+	if x == nil {
+		return 0, errNilFF
+	}
+	ret := fSwrConvert(x.ptr, out, out_count, in, in_count)
+	if ret < 0 {
+		return 0, codeErr("swr_convert", ret)
+	}
+	return ret, nil
 }
 
 func (x *Resampler) ConvertFrame(output unsafe.Pointer, input unsafe.Pointer) error {

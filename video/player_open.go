@@ -97,6 +97,8 @@ func (p *Player) Close() {
 	p.dmu.Lock()
 	ffdec := p.ffdec
 	p.ffdec = nil
+	ffaud := p.ffaud
+	p.ffaud = nil
 	p.dmu.Unlock()
 	for _, fr := range p.q.Drain() {
 		if fr == nil {
@@ -111,6 +113,12 @@ func (p *Player) Close() {
 	p.releasePix(last)
 	if ffdec != nil {
 		ffdec.Close()
+	}
+	if ffaud != nil {
+		ffaud.Close()
+	}
+	if p.aq != nil {
+		p.aq.Close()
 	}
 	p.mu.Lock()
 	ffTemp := p.ffTemp

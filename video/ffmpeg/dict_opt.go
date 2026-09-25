@@ -335,6 +335,8 @@ func (d *Dictionary) Iterate(prev *DictionaryEntry) *DictionaryEntry {
 }
 
 // Set writes a string option by name (flags 一般 0).
+// 字符串能设任何选项: 数字、采样格式名 ("flt")、声道布局名
+// ("stereo") 都按选项类型自动解析, 见 av_opt_set.
 func (o OptObject) Set(name, value string, flags int) error {
 	if o.ptr == nil {
 		return errNilOpt

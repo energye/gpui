@@ -123,16 +123,24 @@ func TestA2BaselineParity(t *testing.T) {
 	if d := info.DurMs - b.Video.DurationMs; d < -b.DurationTolMs || d > b.DurationTolMs {
 		t.Fatalf("video duration = %d, want %d +-%d", info.DurMs, b.Video.DurationMs, b.DurationTolMs)
 	}
-	// Sound-carrying clip, silent backend: open must report no audio
-	// (honest unavailable until t-audio-ffmpeg wires sound).
+	// Sound-carrying clip, sound backend: open reports audio with the
+	// probe identity (AAC stereo 48kHz, same as ffprobe in a2_ffmpeg.json).
 	h := &handClock{}
 	p, err := OpenFile("testdata/"+b.Clip, Options{NowMs: h.at})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	if p.HasAudio() {
-		t.Fatal("hasAudio = true, want false (ffmpeg video-only)")
+	if !p.HasAudio() {
+		t.Fatal("hasAudio = false, want true (oceans carries AAC)")
+	}
+	if p.Master() != MasterAudio {
+		t.Fatalf("master = %s, want audio", p.Master())
+	}
+	if ai, err := ProbeAudio("testdata/" + b.Clip); err != nil {
+		t.Fatalf("probe oceans: %v", err)
+	} else if ai.SampleRate != 48000 || ai.Channels != 2 || ai.Codec != "aac" {
+		t.Fatalf("probe oceans = %+v, want aac 48kHz stereo", ai)
 	}
 	if b.ThresholdsMs.SyncMin != A2SyncThresholdMinMs || b.ThresholdsMs.SyncMax != A2SyncThresholdMaxMs ||
 		b.ThresholdsMs.Framed != A2FramedupMs || b.ThresholdsMs.Nosync != A2NosyncMs {
@@ -178,12 +186,10 @@ func monoInc(t *testing.T, name string, vs []int64) {
 	}
 }
 
-// TestA2VideoOnlyHead pins the ffmpeg video-only head: sound decode is
-// not wired on the ffmpeg backend yet (see t-audio-ffmpeg), so even the
-// sound-carrying A2 clip plays silent — video master, zero A-V gap, head
-// frames rise monotonically. Audio assertions return when the backend
-// decodes sound; until then silence must be honest, never faked.
-func TestA2VideoOnlyHead(t *testing.T) {
+// TestA2SoundHead pins the ffmpeg sound head on the A2 clip: audio
+// master, picture and sound rise monotonically together, the voiced
+// part carries nonzero energy, and Stats reports real audio counts.
+func TestA2SoundHead(t *testing.T) {
 	b := loadA2Baseline(t)
 	h := &handClock{}
 	p, err := OpenFile("testdata/"+b.Clip, Options{NowMs: h.at})
@@ -191,15 +197,16 @@ func TestA2VideoOnlyHead(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	if p.HasAudio() || p.Master() != MasterVideo {
-		t.Fatalf("hasAudio/master = %v/%s, want false/video (ffmpeg video-only)", p.HasAudio(), p.Master())
+	if !p.HasAudio() || p.Master() != MasterAudio {
+		t.Fatalf("hasAudio/master = %v/%s, want true/audio", p.HasAudio(), p.Master())
 	}
-	var vpts []int64
+	var vpts, apts []int64
+	var energy float64
 	ended := false
-	deadline := time.Now().Add(60 * time.Second)
-	for i := 0; i < 120 && !ended; i++ {
+	deadline := time.Now().Add(90 * time.Second)
+	for i := 0; i < 400 && !ended; i++ {
 		if time.Now().After(deadline) {
-			t.Fatalf("head never plays, shown %d", len(vpts))
+			t.Fatalf("head never plays, v=%d a=%d", len(vpts), len(apts))
 		}
 		h.now += 25
 		if vf, done := p.Poll(); vf != nil {
@@ -208,31 +215,40 @@ func TestA2VideoOnlyHead(t *testing.T) {
 			ended = true
 		}
 		if af, _ := p.PollAudio(); af != nil {
-			t.Fatalf("audio frame shows on video-only backend")
+			apts = append(apts, af.PTSMs)
+			for _, s := range af.Data {
+				energy += float64(s) * float64(s)
+			}
 		}
 		runtime.Gosched()
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	if len(vpts) < 5 {
-		t.Fatalf("only %d video frames in 120 ticks: %v", len(vpts), vpts)
+		t.Fatalf("only %d video frames in 400 ticks: %v", len(vpts), vpts)
+	}
+	if len(apts) < 10 {
+		t.Fatalf("only %d audio frames in 400 ticks: %v", len(apts), apts)
 	}
 	monoInc(t, "video", vpts)
+	monoInc(t, "audio", apts)
+	if energy <= 0 {
+		t.Fatal("audio energy 0 (silence on a voiced clip)")
+	}
 	st := p.Stats()
-	if st.Master != MasterVideo {
-		t.Fatalf("stats master = %q, want video", st.Master)
+	if st.Master != MasterAudio {
+		t.Fatalf("stats master = %q, want audio", st.Master)
 	}
-	if d := st.AVDiffMs; d != 0 {
-		t.Fatalf("avdiff = %d, want 0 (silent)", d)
+	if st.AudioDecoded < 10 || st.AudioShown < 10 {
+		t.Fatalf("stats audio dec/shown = %d/%d, want >= 10", st.AudioDecoded, st.AudioShown)
 	}
-	t.Logf("video-only head v=%v avdiff=%d", vpts, st.AVDiffMs)
+	t.Logf("sound head v=%d a=%d energy=%v avdiff=%d", len(vpts), len(apts), energy, st.AVDiffMs)
 }
 
-// TestA2VideoOnlySeeks jumps through the baseline targets on the ffmpeg
-// video-only backend: each SeekTo lands the echo exactly and bumps the
-// shared serial exactly once (generation doubles as serial; sound retires
-// with it when audio lands). The first shown picture covers the landing
-// with no rewind. Audio-floor assertions return with t-audio-ffmpeg.
-func TestA2VideoOnlySeeks(t *testing.T) {
+// TestA2SoundSeeks jumps through the baseline targets with sound on:
+// each SeekTo lands the echo exactly and bumps the shared serial
+// exactly once (sound retires with it). The first shown picture covers
+// the landing with no rewind, and sound flows again after every seek.
+func TestA2SoundSeeks(t *testing.T) {
 	b := loadA2Baseline(t)
 	h := &handClock{}
 	p, err := OpenFile("testdata/"+b.Clip, Options{NowMs: h.at})
@@ -282,8 +298,24 @@ func TestA2VideoOnlySeeks(t *testing.T) {
 		if firstV < landed {
 			t.Fatalf("seek %d first video = %d, want >= landing %d (no rewind)", i, firstV, landed)
 		}
-		if d := p.Stats().AVDiffMs; d != 0 {
-			t.Fatalf("seek %d avdiff = %d, want 0 (silent)", i, d)
+		// Sound flows again after the seek (stamps advance near landing).
+		var firstA int64 = -1
+		deadline = time.Now().Add(30 * time.Second)
+		for firstA < 0 {
+			if time.Now().After(deadline) {
+				t.Fatalf("seek %d first audio never shows", i)
+			}
+			h.now += 25
+			if af, _ := p.PollAudio(); af != nil {
+				firstA = af.PTSMs
+			} else {
+				p.Poll()
+			}
+			runtime.Gosched()
+			time.Sleep(5 * time.Millisecond)
+		}
+		if firstA < landed-500 {
+			t.Fatalf("seek %d first audio = %d, want near landing %d", i, firstA, landed)
 		}
 		_ = i
 	}

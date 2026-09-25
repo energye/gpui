@@ -41,9 +41,9 @@ type Info struct {
 	Concealed int64
 	// Fault names the first problem, "" when clean.
 	Fault string
-	// A2 sound presence: always false, the ffmpeg backend is video-only
-	// until audio decode lands (see t-audio-ffmpeg). Silent-clip
-	// semantics hold bit for bit.
+	// A2 sound presence: true when the clip opened with a sound track
+	// (ffmpeg decodes it to 48kHz stereo float); silent clips stay
+	// false and play video-only bit for bit like before.
 	HasAudio        bool
 	AudioSampleRate int
 	AudioChannels   int
@@ -83,8 +83,8 @@ type Stats struct {
 	MemCapKB      int
 	EstimateB     int64
 	PoolEvictions int64
-	// A2 AV sync evidence: always video master with zero audio on the
-	// video-only backend (honest unavailable, never faked).
+	// A2 AV sync evidence: audio master with real counts when a track
+	// exists, else video master with zero audio (honest, never faked).
 	Master       string
 	AVDiffMs     int64
 	AudioDecoded int64
@@ -97,8 +97,7 @@ type Stats struct {
 // NowMs nil means the wall clock. Loop replays from the first stamp
 // (stamps keep counting up so the clock never jumps back).
 // S2Parallel stays accepted for compatibility but is a no-op: ffmpeg
-// owns threading natively. AudioQueueCap is accepted and ignored
-// (video-only backend).
+// owns threading natively. AudioQueueCap <= 0 means DefaultAudioQueueCap.
 type Options struct {
 	QueueCap      int
 	NowMs         func() int64
@@ -199,6 +198,23 @@ type Player struct {
 	lastPix []byte
 	// ffdec is the ffmpeg backend decoder.
 	ffdec *ffDecoder
+	// ffaud is the ffmpeg backend audio decoder (nil on silent clips).
+	// Same single-thread rule as ffdec: only the background decode loop
+	// touches it (Next and SeekTo alike).
+	ffaud *ffAudio
+	// aq is the decoded PCM line: the background pushes AudioFrames, the
+	// speaker pump (or tests) pulls the newest due via PollAudio. Same
+	// contract as clock.Queue, over sound frames.
+	aq *AudioQueue
+	// audioDone latches when the background exhausted the sound stream
+	// (non-loop): PollAudio ends once the queue also drains.
+	audioDone bool
+	// lastAudioPTSMS is the last served sound stamp (AVDiffMs reads it
+	// against lastShown; guarded by mu like the picture side).
+	lastAudioPTSMS int64
+	// audioDecoded/audioShown ride Stats (evidence, never faked).
+	audioDecoded int64
+	audioShown   int64
 	// ffmpeg seek handshake (dmu-guarded, see backend_ffmpeg.go): the caller
 	// thread only posts a request, the background thread runs the actual
 	// av_seek_frame between two Next calls (ffmpeg contexts are not

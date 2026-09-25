@@ -42,15 +42,19 @@
 //     audio is NOT the master; we always run audio-master-when-present
 //     (ffplay default), so the trim path stays parked. A3 owns resample.
 //
-// This file also carries the Player audio stubs (old a2_player.go) and
-// the ProbeAudio stubs (old audio_stub.go): video-only until
-// t-audio-ffmpeg wires native audio decode.
+// This file also carries the Player audio wiring: the A2 queue, the
+// master-select/clock helpers above, HasAudio/Master/PollAudio and the
+// ProbeAudio reporters below. Sound decodes on the same background
+// thread as picture (one ffmpeg open per stream, pumped once per
+// video frame); silent clips keep ffaud nil and stay honest at zero.
 package video
 
 import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+
+	ff "github.com/energye/gpui/video/ffmpeg"
 )
 
 // A2 sync thresholds in milliseconds. Direct copies of ffplay.c:80-86
@@ -205,6 +209,36 @@ func (q *AudioQueue) Push(f *AudioFrame) (bool, error) {
 	return true, nil
 }
 
+// PushRealtime adds a frame without ever blocking: when full it drops
+// the oldest frame first (sound is realtime — stale sound behind the
+// playhead is worthless, same spirit as clock.Queue's追帧 drops).
+// The background decode loop uses this so an undrained sound line can
+// never stall the picture line.
+func (q *AudioQueue) PushRealtime(f *AudioFrame) bool {
+	if f == nil {
+		return false
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closed {
+		return false
+	}
+	if len(q.buf) >= q.cap {
+		q.buf[0] = nil
+		q.buf = q.buf[1:]
+		q.dropped++
+	}
+	q.buf = append(q.buf, f)
+	q.pushes++
+	if len(q.buf) > q.maxDepth {
+		q.maxDepth = len(q.buf)
+	}
+	q.depthSum += int64(len(q.buf))
+	q.depthN++
+	q.room.Signal()
+	return true
+}
+
 // PollDue returns the newest frame at or before nowMs, counting earlier
 // due frames stale. ok false when none due yet. One room wakes one
 // producer (Signal, same as clock.Queue).
@@ -310,17 +344,26 @@ func (q *AudioQueue) Drain() []*AudioFrame {
 	return out
 }
 
-// Player audio stubs (video-only): the ffmpeg backend decodes pictures
-// only, so the A2 public shape stays honest at zero and callers never
-// branch on a removed mode.
-// HasAudio reports the A2 sound path runs. Always false on the
-// video-only ffmpeg backend.
-func (p *Player) HasAudio() bool { return false }
+// Player audio wiring (ffmpeg backend decodes real sound now):
+// HasAudio reports the A2 sound path runs. True when the clip opened
+// with a sound track (ffaud non-nil).
+func (p *Player) HasAudio() bool {
+	if p == nil {
+		return false
+	}
+	p.dmu.Lock()
+	defer p.dmu.Unlock()
+	return p.ffaud != nil
+}
 
-// Master names the leading clock. Always video until audio lands.
+// Master names the leading clock: sound leads when a track exists
+// (ffplay default AV_SYNC_AUDIO_MASTER), else video.
 func (p *Player) Master() string {
 	if p == nil {
 		return MasterVideo
+	}
+	if p.HasAudio() {
+		return MasterAudio
 	}
 	return MasterVideo
 }
@@ -335,11 +378,20 @@ func (p *Player) Serial() int64 {
 	return atomic.LoadInt64(&p.generation)
 }
 
-// AVDiffMs is sound stamp minus picture stamp. Always zero: no sound.
-func (p *Player) AVDiffMs() int64 { return 0 }
+// AVDiffMs is sound stamp minus picture stamp: the last served sound
+// stamp against the last shown picture stamp. Zero when silent.
+func (p *Player) AVDiffMs() int64 {
+	if p == nil || !p.HasAudio() {
+		return 0
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.lastAudioPTSMS - p.lastShown
+}
 
-// masterDue is the schedule Poll serves pictures against: the picture
-// clock. The audio-master branch retired with the Go AAC path.
+// masterDue is the schedule Poll serves pictures against: the sound
+// clock when a track exists, else the picture clock (ffplay default:
+// sound leads when present, else video).
 func (p *Player) masterDue() int64 {
 	if p == nil || p.clk == nil {
 		return 0
@@ -347,10 +399,9 @@ func (p *Player) masterDue() int64 {
 	return p.clk.DuePTSMS()
 }
 
-// PollAudio returns the newest due PCM frame. Always (nil, ended): the
-// backend carries no sound, so silent clips report video end, and live
-// clips report not-ended. ended mirrors the picture line so callers
-// waiting on sound end still terminate.
+// PollAudio returns the newest due PCM frame. Silent clips report
+// (nil, ended-mirrors-picture) so callers waiting on sound end still
+// terminate; sound clips serve newest-due with stale count dropped.
 func (p *Player) PollAudio() (f *AudioFrame, ended bool) {
 	if p == nil {
 		return nil, true
@@ -369,23 +420,56 @@ func (p *Player) PollAudio() (f *AudioFrame, ended bool) {
 			return nil, false
 		}
 	}
+	if !p.HasAudio() || p.aq == nil {
+		p.mu.Lock()
+		done := p.decodeDone && p.q.Depth() == 0 && p.hasShown
+		loop := p.loop
+		p.mu.Unlock()
+		if !loop && done {
+			return nil, true
+		}
+		return nil, false
+	}
+	due := p.masterDue()
+	fr, _, ok := p.aq.PollDue(due)
+	if fr != nil {
+		p.mu.Lock()
+		p.audioShown++
+		p.lastAudioPTSMS = fr.PTSMs
+		p.mu.Unlock()
+		return fr, false
+	}
 	p.mu.Lock()
-	done := p.decodeDone && p.q.Depth() == 0 && p.hasShown
+	done := p.audioDone && p.aq.Depth() == 0
 	loop := p.loop
 	p.mu.Unlock()
-	if !loop && done {
+	if !loop && done && !ok {
 		return nil, true
 	}
 	return nil, false
 }
 
-// fillAudioStats rides the A2 waterline onto Stats: video master with
-// zero audio, honest unavailable, never faked.
+// fillAudioStats rides the A2 waterline onto Stats: sound master with
+// real counts when a track exists, else video master with zero audio
+// (honest unavailable, never faked).
 func (p *Player) fillAudioStats(st *Stats) {
 	if p == nil || st == nil {
 		return
 	}
-	st.Master = MasterVideo
+	if !p.HasAudio() || p.aq == nil {
+		st.Master = MasterVideo
+		return
+	}
+	st.Master = MasterAudio
+	p.mu.Lock()
+	st.AudioDecoded = p.audioDecoded
+	st.AudioShown = p.audioShown
+	p.mu.Unlock()
+	st.AudioDepth = p.aq.Depth()
+	st.AudioDropped = p.aq.Dropped()
+	if p.clk != nil {
+		st.AVDiffMs = 0
+	}
 }
 
 // The lifecycle helpers below are no-ops kept for API shape: the Go AAC
@@ -419,17 +503,32 @@ type AudioInfo struct {
 	ASC        []byte
 }
 
-// ProbeAudio reports the audio track without decoding. Always ErrNoAudio
-// on the video-only backend (honest unavailable, never faked).
+// ProbeAudio reports the audio track without decoding: codec name,
+// rate, channels and container duration. Silent clips (and probe
+// failures) report ErrNoAudio; callers treat that as silent, never
+// as an error.
 func ProbeAudio(path string) (AudioInfo, error) {
-	return AudioInfo{Path: path}, ErrNoAudio
+	if !ff.HasAudioTrack(path) {
+		return AudioInfo{Path: path}, ErrNoAudio
+	}
+	aud, err := ff.OpenAudio(path)
+	if err != nil {
+		return AudioInfo{Path: path}, ErrNoAudio
+	}
+	defer aud.Close()
+	ai := aud.Info()
+	return AudioInfo{
+		Path: path, Codec: ff.CodecName(ai.CodecID),
+		SampleRate: ai.SampleRate, Channels: ai.Channels,
+	}, nil
 }
 
-// ProbeAudioSource is the Source twin of ProbeAudio. Always ErrNoAudio.
+// ProbeAudioSource is the Source twin of ProbeAudio. Memory sources
+// spool to temp first (same as playback); silent reports ErrNoAudio.
 func ProbeAudioSource(src Source) (AudioInfo, error) {
 	name := ""
 	if src != nil {
 		name = src.Name()
 	}
-	return AudioInfo{Path: name}, ErrNoAudio
+	return ProbeAudio(name)
 }

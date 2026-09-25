@@ -17,6 +17,9 @@ import (
 // (production value is always *ff.Decoder).
 type ffDecoder = ff.Decoder
 
+// ffAudio is the ffmpeg backend audio decoder (nil on silent clips).
+type ffAudio = ff.AudioStream
+
 // openFFmpeg opens path through libgpui_ffmpeg and starts the background
 // decoder. The player fields it reuses: queue + clock + ready/stop/done
 // channels + Info/Stats counters. Everything Go-decode-specific (samples,
@@ -50,6 +53,10 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 	}
 	q := clock.NewQueue(qcap)
 	clk := clock.NewClock(now)
+	acap := opt.AudioQueueCap
+	if acap <= 0 {
+		acap = DefaultAudioQueueCap
+	}
 	p := &Player{
 		info: Info{
 			Path: path, Width: info.Width, Height: info.Height,
@@ -58,10 +65,24 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 			HasAudio: false,
 		},
 		q:      q,
+		aq:     NewAudioQueue(acap),
 		clk:    clk,
 		nowMs:  now,
 		stopCh: make(chan struct{}), doneCh: make(chan struct{}), readyCh: make(chan struct{}),
 		wakeCh: make(chan struct{}, 1),
+	}
+	// Sound rides its own ffmpeg open (demux state is per-open, so a
+	// shared open would serialize seeks): silent clips keep ffaud nil
+	// and the A2 stubs stay honest at zero.
+	if aud, aerr := ff.OpenAudio(path); aerr == nil {
+		ai := aud.Info()
+		p.ffaud = aud
+		p.info.HasAudio = true
+		p.info.AudioSampleRate = ai.SampleRate
+		p.info.AudioChannels = ai.Channels
+	} else {
+		p.audioDone = true
+		p.aq.Close()
 	}
 	if p.info.Frames <= 0 && p.info.DurMs > 0 && p.info.FrameRate > 1 {
 		p.info.Frames = int(p.info.DurMs * int64(p.info.FrameRate) / 1000)
@@ -186,6 +207,10 @@ func (p *Player) ffDecodeLoop() {
 		t0 := time.Now()
 		vf, err := p.ffdec.Next()
 		nextEl := float64(time.Since(t0).Microseconds()) / 1000.0
+		// Sound pumps on the same background pass: one audio chunk per
+		// video picture keeps the PCM line ahead without a second
+		// thread (both ffmpeg opens are touched only here).
+		p.pumpAudio()
 		if err != nil {
 			p.mu.Lock()
 			loop := p.loop
@@ -212,6 +237,13 @@ func (p *Player) ffDecodeLoop() {
 			p.mu.Lock()
 			p.decodeDone = true
 			p.mu.Unlock()
+			// Sound tail plays out before parking: pump until the
+			// sound stream latches done (never blocks — realtime
+			// push), so PollAudio ends on real data, not on the
+			// picture line's schedule.
+			for !p.loadAudioDone() {
+				p.pumpAudio()
+			}
 			select {
 			case <-p.stopCh:
 				return
@@ -275,6 +307,64 @@ func (p *Player) ffDecodeLoop() {
 	}
 }
 
+// pumpAudio decodes one sound chunk into the PCM line. Background
+// thread only (same pass as the video Next above, so both ffmpeg
+// opens stay single-threaded). Silent clips (ffaud nil) no-op. The
+// push never blocks (realtime drop-oldest), so an undrained sound
+// line can never stall the picture line. At end of sound it latches
+// audioDone with the queue left open (same as the video end-park),
+// so a later seek revives sound; loop mode re-seeks sound with picture.
+func (p *Player) pumpAudio() {
+	aud := p.ffaud
+	if aud == nil {
+		return
+	}
+	p.mu.Lock()
+	done := p.audioDone
+	p.mu.Unlock()
+	if done {
+		return
+	}
+	af, err := aud.Next()
+	if err != nil {
+		p.mu.Lock()
+		loop := p.loop
+		p.mu.Unlock()
+		if loop {
+			if _, serr := aud.SeekTo(0); serr != nil {
+				p.mu.Lock()
+				p.audioDone = true
+				p.mu.Unlock()
+			} else {
+				p.aq.Clear()
+			}
+			return
+		}
+		p.mu.Lock()
+		p.audioDone = true
+		p.mu.Unlock()
+		return
+	}
+	fr := &AudioFrame{
+		Data: af.Data, SampleRate: af.SampleRate, Channels: af.Channels,
+		Samples: af.Samples, PTSMs: af.PTSMs, Seq: p.nextSeq,
+		Serial: atomic.LoadInt64(&p.generation),
+	}
+	if !p.aq.PushRealtime(fr) {
+		return
+	}
+	p.mu.Lock()
+	p.audioDecoded++
+	p.mu.Unlock()
+}
+
+// loadAudioDone reports the latched sound-end (background + display).
+func (p *Player) loadAudioDone() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.audioDone
+}
+
 // ffSpanMs reports the clip span for loop wrap (ffmpeg backend: Info).
 func (p *Player) ffSpanMs() int64 {
 	if p.info.DurMs > 0 {
@@ -316,6 +406,25 @@ func (p *Player) takeFFSeek() bool {
 	}
 	landed = target
 	err := error(nil)
+
+	// Sound travels with picture: same target, same background pass.
+	// A sound-seek error never fails the seek (silent fallback); the
+	// PCM line clears and replays from the landing either way.
+	if p.ffaud != nil {
+		if _, aerr := p.ffaud.SeekTo(target); aerr != nil {
+			p.ffaud.Close()
+			p.ffaud = nil
+			p.mu.Lock()
+			p.audioDone = true
+			p.mu.Unlock()
+			p.aq.Close()
+		} else {
+			p.aq.Clear()
+			p.mu.Lock()
+			p.audioDone = false
+			p.mu.Unlock()
+		}
+	}
 
 	p.dmu.Lock()
 	p.seekActive = err == nil
@@ -424,15 +533,15 @@ func ffCodecName(id int32) string {
 		return "mpeg2video"
 	case 139:
 		return "vp8"
-	case 86018:
-		return "mp3"
-	case 86019:
-		return "aac"
-	case 86021:
-		return "opus"
-	case 86028:
-		return "vorbis"
 	case 86017:
+		return "mp3"
+	case 86018:
+		return "aac"
+	case 86076:
+		return "opus"
+	case 86021:
+		return "vorbis"
+	case 86019:
 		return "ac3"
 	default:
 		return fmt.Sprintf("ffmpeg-%d", id)

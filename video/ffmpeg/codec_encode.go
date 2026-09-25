@@ -71,18 +71,21 @@ func (b *BitStreamFilter) Ptr() unsafe.Pointer {
 
 // 常用编码 id (codec_id.h 枚举值, 头文件钉死):
 // NONE=0, MPEG1VIDEO=1, MPEG2VIDEO=2, MPEG4=12, H264=27, HEVC=173,
-// VP9=167, AV1=225, MP3=86018, AAC=86019.
+// VP9=167, AV1=225, MP2=86016, MP3=86017, AAC=86018, AC3=86019,
+// DTS=86020, VORBIS=86021, Opus=86076, FLAC=86028.
 const (
-	CodecIDNone  int32 = 0
-	CodecIDMPEG4 int32 = 12
-	CodecIDH264  int32 = 27
-	CodecIDHEVC  int32 = 173
-	CodecIDH265  int32 = 173
-	CodecIDVP9   int32 = 167
-	CodecIDAV1   int32 = 225
-	CodecIDMP3   int32 = 86018
-	CodecIDAAC   int32 = 86019
-	CodecIDOpus  int32 = 86021
+	CodecIDNone   int32 = 0
+	CodecIDMPEG4  int32 = 12
+	CodecIDH264   int32 = 27
+	CodecIDHEVC   int32 = 173
+	CodecIDH265   int32 = 173
+	CodecIDVP9    int32 = 167
+	CodecIDAV1    int32 = 225
+	CodecIDMP3    int32 = 86017
+	CodecIDAAC    int32 = 86018
+	CodecIDAC3    int32 = 86019
+	CodecIDVorbis int32 = 86021
+	CodecIDOpus   int32 = 86076
 )
 
 // 媒体类型 (avutil.h 枚举: UNKNOWN=-1, VIDEO=0, AUDIO=1, ...).
