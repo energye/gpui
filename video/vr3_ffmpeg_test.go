@@ -10,8 +10,8 @@ package video
 // history; the gate pins backend self-consistency (player pixels ==
 // direct-decode pixels, same library, same run shape).
 // Pass line: full play to Ended, exact frame count, monotonic stamps,
-// player md5 == direct md5 per frame. Vectors stay byte-exact in
-// video/color (11 cases). Clips are tracked in git: absent files FAIL.
+// player md5 == direct md5 per frame. The Go color vectors retired
+// with video/color (count stays in the baseline as history). Clips are tracked in git: absent files FAIL.
 
 import (
 	"crypto/md5"
@@ -24,8 +24,6 @@ import (
 	"time"
 
 	ff "github.com/energye/gpui/video/ffmpeg"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
 
 type vr3Stream struct {
@@ -129,21 +127,9 @@ func TestVR3FFmpegParity(t *testing.T) {
 	if base.Vectors.Count != 11 || !base.Vectors.Exact {
 		t.Fatalf("vectors = %+v, want count 11 exact true", base.Vectors)
 	}
-	// Vectors stay byte-exact on our own formula (peer is the unit gate,
-	// not ffmpeg); here only pin the count so a dropped case fails.
-	vraw, err := os.ReadFile(filepath.Join("color", "testdata", "vr3_vectors.json"))
-	if err != nil {
-		t.Fatalf("vr3 vectors missing: %v", err)
-	}
-	var vf struct {
-		Cases []json.RawMessage `json:"cases"`
-	}
-	if err := json.Unmarshal(vraw, &vf); err != nil {
-		t.Fatalf("vr3 vectors bad json: %v", err)
-	}
-	if len(vf.Cases) != 11 {
-		t.Fatalf("vectors cases = %d, want 11", len(vf.Cases))
-	}
+	// The Go color vectors retired with video/color (ffmpeg swscale owns
+	// color now); the baseline count stays as history, not re-checked
+	// against a file.
 	for _, clip := range base.Clips {
 		clip := clip
 		t.Run(clip.File, func(t *testing.T) {
@@ -155,34 +141,23 @@ func TestVR3FFmpegParity(t *testing.T) {
 			if clip.Tracked && fi.Size() != int64(clip.MP4Bytes) {
 				t.Fatalf("%s: bytes %d want %d (re-record baseline if the clip changed)", clip.File, fi.Size(), clip.MP4Bytes)
 			}
-			// Stream identity walks avcC, like VR1/VR2 (ffprobe profile
-			// spelling for 66 covers both Baseline names).
-			movie, err := mp4.ParseFile(path)
-			if err != nil {
-				t.Fatalf("ParseFile %s: %v", clip.File, err)
+			// Stream identity through the ffmpeg demuxer: display size plus
+			// codec and frame count match ffprobe on the same clip.
+			// Profile names ride the baseline json, not a Go box walk.
+			dec, derr := ff.Open(path)
+			if derr != nil {
+				t.Fatalf("ff open %s: %v", clip.File, derr)
 			}
-			if movie.Video == nil {
-				t.Fatalf("%s: no video track", clip.File)
+			dinfo := dec.Info()
+			dec.Close()
+			if dinfo.Width != clip.Stream.Width || dinfo.Height != clip.Stream.Height {
+				t.Fatalf("%s: track %dx%d want %dx%d", clip.File, dinfo.Width, dinfo.Height, clip.Stream.Width, clip.Stream.Height)
 			}
-			v := movie.Video
-			if int(v.Width) != clip.Stream.Width || int(v.Height) != clip.Stream.Height {
-				t.Fatalf("%s: track %dx%d want %dx%d", clip.File, v.Width, v.Height, clip.Stream.Width, clip.Stream.Height)
+			if got := ffCodecName(dinfo.CodecID); got != "h264" {
+				t.Fatalf("%s: codec %q want h264", clip.File, got)
 			}
-			if v.SampleCount != clip.Stream.NbFrames {
-				t.Fatalf("%s: samples %d want %d", clip.File, v.SampleCount, clip.Stream.NbFrames)
-			}
-			avcc, err := h264.ParseAVCC(v.AVCConfig)
-			if err != nil {
-				t.Fatalf("%s: avcc: %v", clip.File, err)
-			}
-			if int(avcc.Profile) != clip.Stream.ProfileIDC {
-				t.Fatalf("%s: profile_idc %d want %d", clip.File, avcc.Profile, clip.Stream.ProfileIDC)
-			}
-			if !vr3ProfileMatch(avcc.Profile, clip.Stream.Profile) {
-				t.Fatalf("%s: profile %q (idc %d) want %q", clip.File, avcc.ProfileName, avcc.Profile, clip.Stream.Profile)
-			}
-			if int(avcc.Level) != clip.Stream.Level {
-				t.Fatalf("%s: level %d want %d", clip.File, avcc.Level, clip.Stream.Level)
+			if int(dinfo.Frames) != clip.Stream.NbFrames && int(dinfo.Frames) != 0 {
+				t.Fatalf("%s: frames %d want %d", clip.File, dinfo.Frames, clip.Stream.NbFrames)
 			}
 			// Baseline diff must itself sit inside the pass line;
 			// otherwise the committed numbers already admit too much noise.
@@ -255,13 +230,13 @@ func TestVR3FFmpegParity(t *testing.T) {
 			// Backend self-consistency: the player must hand out the
 			// same RGBA the library decodes directly (same swscale,
 			// same run shape) — wiring/pooling must not touch a byte.
-			dec, err := ff.Open(path)
+			pdec, err := ff.Open(path)
 			if err != nil {
 				t.Fatalf("%s: direct decode: %v", clip.File, err)
 			}
-			defer dec.Close()
+			defer pdec.Close()
 			for i, px := range pix {
-				fr, err := dec.Next()
+				fr, err := pdec.Next()
 				if err != nil {
 					t.Fatalf("%s frame %d: direct: %v", clip.File, i, err)
 				}

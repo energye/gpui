@@ -4,7 +4,7 @@
 //	RUN_SECONDS=5 go run ./examples/video_vr3_color
 //
 // Window: 1200x800. RUN_SECONDS>=5 (close uses 5). GPU window required.
-// Left: vector gates from the real video/color engine (grey ramp, RGB
+// Left: retired vector count (history) plus backend self-consistency,
 // patches, skin, both ranges, 601+709). Right: ours-vs-theory patches plus
 // one real decoded I frame in color.
 package main
@@ -24,7 +24,6 @@ import (
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
-	"github.com/energye/gpui/video/color"
 
 	_ "github.com/energye/gpui/render/gpu"
 )
@@ -131,9 +130,9 @@ func main() {
 	// Real decoded I frame in color.
 	fx := 560.0
 	shell.Body.LabelAt("真解码I帧转色", 13, fx, patchY-26, 0.6, 0.8, 0.95)
-	if gate.realFrame != nil {
+	if len(gate.realRGBA) > 0 {
 		fr := rendering.NewRenderImage(240, 240)
-		fr.SetImageShared(frameImage(gate.realFrame))
+		fr.SetImageShared(frameImage(gate.realRGBA, gate.realW, gate.realH))
 		shell.Body.Place(fr, fx, patchY)
 		shell.Body.LabelAt(fmt.Sprintf("%dx%d %s", gate.realW, gate.realH, gate.profile), 11, fx, patchY+252, 0.65, 0.75, 0.85)
 	} else {
@@ -174,7 +173,7 @@ func main() {
 		snapH := app.Metrics().Snapshot()
 		gatePreview := colorErr == "" && yuvReady == 1 && snapH.PresentCount > 0
 		shell.UpdateHUD("VR3", phaseCN(phase), app, gatePreview,
-			fmt.Sprintf("向量=%d组 差%d 对等%s", len(gate.vectors), gate.maxDiff, gate.parityLine),
+			fmt.Sprintf("向量退役 差%d 对等%s", gate.maxDiff, gate.parityLine),
 			fmt.Sprintf("真帧解码%.1f毫秒", gate.decodeMs))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
@@ -273,20 +272,20 @@ func stripImage(pix []uint8, sw, sh, w, h int) *render.ImageBuf {
 	return img
 }
 
-// frameImage bridges a converted frame to the display (window side only;
-// the converter never touches render).
-func frameImage(f *color.Frame) *render.ImageBuf {
-	if f == nil || f.Width <= 0 || f.Height <= 0 || len(f.Pix) < f.Width*f.Height*4 {
+// frameImage bridges a decoded RGBA picture to the display (window side
+// only; the backend owns color, the window only shows it).
+func frameImage(pix []byte, w, h int) *render.ImageBuf {
+	if w <= 0 || h <= 0 || len(pix) < w*h*4 {
 		return nil
 	}
-	img, err := render.NewImageBuf(f.Width, f.Height, render.FormatRGBA8)
+	img, err := render.NewImageBuf(w, h, render.FormatRGBA8)
 	if err != nil {
 		return nil
 	}
-	for yy := 0; yy < f.Height; yy++ {
-		for xx := 0; xx < f.Width; xx++ {
-			o := (yy*f.Width + xx) * 4
-			_ = img.SetRGBA(xx, yy, f.Pix[o], f.Pix[o+1], f.Pix[o+2], 255)
+	for yy := 0; yy < h; yy++ {
+		for xx := 0; xx < w; xx++ {
+			o := (yy*w + xx) * 4
+			_ = img.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], 255)
 		}
 	}
 	return img
@@ -452,7 +451,7 @@ func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, g
 		Clips: fmt.Sprintf("vectors=%d parity=%s", len(gate.vectors), gate.parityLine), Profile: gate.profile,
 		TimeToFirstFrameMs: snap.TimeToFirstPresentMs,
 		PresentCount:       presents, PaintCount: snap.PaintCount,
-		DecodeError: colorErr, Source: "video/testdata/vr3_ffmpeg.json+video/color/testdata/vr3_vectors.json",
+		DecodeError: colorErr, Source: "video/testdata/vr3_ffmpeg.json",
 		NANote: "color-only: queue/clock/seek N/A in VR3; vectors exact + 3-clip rgba md5 parity (R/B P99<=2 G P99<=3) are the gates",
 	}
 }

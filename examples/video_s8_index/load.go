@@ -7,14 +7,12 @@ import (
 	"time"
 
 	"github.com/energye/gpui/video"
-	"github.com/energye/gpui/video/mp4"
 )
 
-// S8 gate clips: one buffered small clip (fast path, no index) plus one
-// streaming long clip (segment + binary index). Same two files as
-// video/s8_index_test.go's player-wiring half, so the window never drifts
-// from the gate. Steps stay pinned by the gate (log bound 20/24/26,
-// actual 10/11/12); the window pins landing parity plus visible recovery.
+// S8 gate clips, ffmpeg backend: every clip streams (no Go seek index;
+// ffmpeg owns demux + seek natively). Same two files as the player-wiring
+// gate, so the window never drifts from it. The window pins echo landing
+// plus visible recovery.
 
 type s8Target struct {
 	Clip   string
@@ -61,75 +59,17 @@ func s8Targets() []s8Target {
 	}
 }
 
-// linearWant mirrors the pre-S8 scan (floor covering + earliest-of-ties)
-// plus the B-reorder fallback (key after target lands on the key itself),
-// identical to video.seekPlan's contract. The index must answer the same.
-func linearWant(samples []mp4.Sample, keyframes []mp4.Keyframe, target int64) (wantPos int, wantLanded int64, wantKey mp4.Keyframe, wantKeyPos int, wantShow int64) {
-	wantPos = -1
-	for i, s := range samples {
-		if s.PTSMs <= target && (wantPos < 0 || s.PTSMs > wantLanded) {
-			wantPos, wantLanded = i, s.PTSMs
-		}
-	}
-	if wantPos < 0 {
-		best := 0
-		for i := 1; i < len(samples); i++ {
-			if samples[i].PTSMs < samples[best].PTSMs {
-				best = i
-			}
-		}
-		wantPos, wantLanded = best, samples[best].PTSMs
-	}
-	wantKey = keyframes[0]
-	if target >= wantKey.PTSMs {
-		best := keyframes[0]
-		for _, k := range keyframes[1:] {
-			if k.PTSMs <= target {
-				best = k
-			} else {
-				break
-			}
-		}
-		wantKey = best
-	}
-	wantKeyPos = -1
-	for i, s := range samples {
-		if s.Number == wantKey.SampleNumber {
-			wantKeyPos = i
-			break
-		}
-	}
-	wantShow = wantLanded
-	if wantKeyPos > wantPos {
-		wantShow = samples[wantKeyPos].PTSMs
-	}
-	return wantPos, wantLanded, wantKey, wantKeyPos, wantShow
-}
-
 type handClock struct{ now int64 }
 
 func (h *handClock) at() int64 { return h.now }
 
-// checkSeekOne pins one jump: landing equals the linear oracle (indexed
-// and linear scans identical), forward sane (no head replay), and the
-// tail shows promptly from at/after the landing (never black, never
-// backwards). The first shown stamp may lag the landing by the stream's
-// reorder delay (same rule as video/b1_ffmpeg_test.go TestB1SeekFloor:
-// stamps[0] >= landed, stamps monotonic, stamps[0]-landed <= 800ms),
-// because a covering P/B picture needs its later-decoded reference first.
-// Buffered clips emit the landing itself; streaming delay frames still
-// prove the index put the needle on the right key.
+// checkSeekOne pins one jump on the echo contract: SeekTo lands the
+// target itself; SeekInfo echoes it back; the tail shows promptly from
+// at/after the landing (never black, never backwards). The first shown
+// stamp may lag by reorder delay (stamps[0] >= landed, monotonic,
+// stamps[0]-landed <= 800ms).
 func checkSeekOne(clip string, target int64) (landed, keyMs, delta, forward int64, shown bool, err error) {
 	path := resolveTestdata(clip)
-	movie, err := mp4.ParseFile(path)
-	if err != nil {
-		return 0, 0, 0, 0, false, fmt.Errorf("拆盒失败: %v", err)
-	}
-	v := movie.Video
-	if v == nil || len(v.Samples) == 0 || len(v.Keyframes) == 0 {
-		return 0, 0, 0, 0, false, fmt.Errorf("没视频表")
-	}
-	_, _, wantKey, _, wantShow := linearWant(v.Samples, v.Keyframes, target)
 	h := &handClock{}
 	p, err := video.OpenFile(path, video.Options{NowMs: h.at})
 	if err != nil {
@@ -140,20 +80,12 @@ func checkSeekOne(clip string, target int64) (landed, keyMs, delta, forward int6
 	if err != nil {
 		return 0, 0, 0, 0, false, fmt.Errorf("跳不动: %v", err)
 	}
-	if landed != wantShow {
-		return landed, 0, 0, 0, false, fmt.Errorf("落点%d要%d(键%d)", landed, wantShow, wantKey.PTSMs)
+	if landed != target {
+		return landed, 0, 0, 0, false, fmt.Errorf("落点%d要回声%d", landed, target)
 	}
 	_, _, _, keyMs, delta, forward = p.SeekInfo()
-	if keyMs != wantKey.PTSMs {
-		return landed, keyMs, delta, forward, false, fmt.Errorf("落键%d要%d", keyMs, wantKey.PTSMs)
-	}
-	if forward < 1 || forward > int64(len(v.Samples)) {
-		return landed, keyMs, delta, forward, false, fmt.Errorf("前解%d越界(共%d)", forward, len(v.Samples))
-	}
-	// Head-replay guard: even the longest jump must decode far fewer
-	// samples than the whole clip (long 200 frames, GOP 5).
-	if forward >= int64(len(v.Samples)) {
-		return landed, keyMs, delta, forward, false, fmt.Errorf("疑似从头解: 前解%d不小于全片%d", forward, len(v.Samples))
+	if keyMs != target || delta != 0 || forward != 1 {
+		return landed, keyMs, delta, forward, false, fmt.Errorf("回声证据不对(键%d差%d前解%d)", keyMs, delta, forward)
 	}
 	// Show: drive the clock until frames appear; the first shown stamp
 	// must be at/after the landing (reorder delay allowed), stamps stay
@@ -220,7 +152,7 @@ func loadS8() s8Evidence {
 		}
 	}
 	if seekNote == "" {
-		seekNote = "落点全对线性"
+		seekNote = "落点全对回声"
 	}
 	if showNote == "" {
 		showNote = "跳后尾帧即现"
@@ -229,8 +161,8 @@ func loadS8() s8Evidence {
 	ev.Groups = append(ev.Groups, s8Group{Name: "show", Passed: showPass, Total: len(targets), Note: showNote})
 	ev.ForwardMax = forwardMax
 
-	// Group path: small stays buffered (fast path untouched), long streams
-	// (index path built). Buffered() is the public witness for sidx.
+	// Group path: every clip streams on the ffmpeg backend (no Go seek
+	// index; ffmpeg owns seek). Buffered() stays false as the witness.
 	pathPass := 0
 	pathNote := ""
 	func() {
@@ -240,8 +172,8 @@ func loadS8() s8Evidence {
 			return
 		}
 		defer small.Close()
-		if !small.Buffered() {
-			pathNote = "小片走了流式,要走缓冲快路"
+		if small.Buffered() {
+			pathNote = "小片走了缓冲,要走流式"
 			return
 		}
 		pathPass++
@@ -252,13 +184,13 @@ func loadS8() s8Evidence {
 		}
 		defer long.Close()
 		if long.Buffered() {
-			pathNote = "长片走了缓冲,要走索引流式"
+			pathNote = "长片走了缓冲,要走流式"
 			return
 		}
 		pathPass++
 	}()
 	if pathNote == "" {
-		pathNote = "小缓冲长索引"
+		pathNote = "全片流式"
 	}
 	ev.Groups = append(ev.Groups, s8Group{Name: "path", Passed: pathPass, Total: 2, Note: pathNote})
 

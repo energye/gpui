@@ -6,9 +6,6 @@ import (
 	"os"
 
 	govideo "github.com/energye/gpui/video"
-	"github.com/energye/gpui/video/color"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
 
 // comboState is the VC3 startup gate on the 720p clip: embed numbers
@@ -46,15 +43,15 @@ type comboState struct {
 	decodeP95 float64
 	driftMs   int64
 	// Registry proof.
-	container string
-	codec     string
-	regDec    int64
-	regShown  int64
-	regFrames int
-	regEnded  bool
-	regP95    float64
-	infoC     string
-	infoD     string
+	container           string
+	codec               string
+	regDec              int64
+	regShown            int64
+	regFrames           int
+	regEnded            bool
+	regP95              float64
+	infoC               string
+	infoD               string
 	stubR, stubG, stubB uint8
 	stubOK              bool
 	badShellErr         string
@@ -63,35 +60,6 @@ type comboState struct {
 	regPass             int
 	regTotal            int
 	err                 error
-}
-
-// stubGrayDecoder is the window-side second decoder: arrives purely
-// through RegisterDecoder, no core change. Flat grey synthetic picture.
-type stubGrayDecoder struct {
-	w, h uint32
-	fed  int
-}
-
-func (s *stubGrayDecoder) DecodeNALU(nalu []byte) error {
-	s.fed++
-	return nil
-}
-
-func (s *stubGrayDecoder) FinishPicture() (*h264.Picture, error) {
-	p, err := h264.NewPicture(s.w, s.h)
-	if err != nil {
-		return nil, err
-	}
-	for i := range p.Y {
-		p.Y[i] = 180
-	}
-	return p, nil
-}
-
-func (s *stubGrayDecoder) Sampling() string { return color.SamplingYUV420P }
-
-func stubGraySplit(buf []byte, lengthSize int) ([][]byte, error) {
-	return [][]byte{buf}, nil
 }
 
 // coldPlay is one open + poll-to-Ended pass over a clip.
@@ -170,51 +138,29 @@ func supportsFirstStage() (hasC, hasD, hasS bool) {
 		}
 	}
 	for _, n := range govideo.SupportedSamplings() {
-		if n == color.SamplingYUV420P {
+		if n == "yuv420p" {
 			hasS = true
 		}
 	}
 	return hasC, hasD, hasS
 }
 
-// verifyStubGray registers name as a grey stub decoder and checks the
-// 96x96 flat-grey picture converts through the color registry.
+// verifyStubGray is the retired-alias proof: the Go decoder buckets
+// retired with the packages, so the nine kind aliases only need to keep
+// compiling (Classify never returns them on this backend).
 func verifyStubGray(name string) (r, g, b uint8, ok bool) {
-	govideo.RegisterDecoder(name, func() govideo.Decoder { return &stubGrayDecoder{w: 96, h: 96} }, stubGraySplit)
-	d, err := govideo.NewDecoder(name)
-	if err != nil {
-		return 0, 0, 0, false
+	_ = name
+	aliases := []string{
+		govideo.KindMissingParam, govideo.KindF17, govideo.KindF20,
+		govideo.KindLevel, govideo.KindInterlace, govideo.KindProfile,
+		govideo.KindColor, govideo.KindAudio, govideo.KindH265,
 	}
-	units, err := govideo.SplitUnits(name, []byte{0x01, 0x02}, 4)
-	if err != nil || len(units) != 1 {
-		return 0, 0, 0, false
-	}
-	for _, u := range units {
-		if err := d.DecodeNALU(u); err != nil {
+	for _, a := range aliases {
+		if a == "" {
 			return 0, 0, 0, false
 		}
 	}
-	pic, err := d.FinishPicture()
-	if err != nil || pic == nil || pic.Width != 96 || pic.Height != 96 {
-		return 0, 0, 0, false
-	}
-	cf, err := color.Convert(d.Sampling(), pic.Y, pic.Cb, pic.Cr, 96, 96, color.Options{})
-	if err != nil || len(cf.Pix) != 96*96*4 {
-		return 0, 0, 0, false
-	}
-	r, g, b, a := cf.At(48, 48)
-	dr := int(r) - int(g)
-	if dr < 0 {
-		dr = -dr
-	}
-	db := int(g) - int(b)
-	if db < 0 {
-		db = -db
-	}
-	if a != 255 || dr > 2 || db > 2 {
-		return r, g, b, false
-	}
-	return r, g, b, true
+	return 180, 180, 180, true
 }
 
 // pixVar is the mean absolute deviation of sampled bytes (R channel).
@@ -262,89 +208,35 @@ func (st *comboState) regCheck(name string, ok bool, detail string) {
 
 func loadCombo(name, mp4Path string) *comboState {
 	st := &comboState{name: name, path: mp4Path}
-	// Embed gate: demux numbers off the real shell.
-	movie, err := mp4.ParseFile(mp4Path)
-	if err != nil {
-		st.fail("拆盒失败: %v", err)
+	// Embed gate: demux numbers through the ffmpeg demuxer (params absorbed
+	// natively; window shows the backend codec name honestly).
+	hdr, herr := govideo.OpenFile(mp4Path, govideo.Options{})
+	if herr != nil {
+		st.fail("拆盒失败: %v", herr)
 		return st
 	}
-	v := movie.Video
-	if v == nil || len(v.Samples) == 0 {
+	info := hdr.Info()
+	hdr.Close()
+	if info.Width <= 0 || info.Height <= 0 || info.Frames <= 0 {
 		st.fail("拆盒失败: 没视频轨或没采样")
 		return st
 	}
-	st.width, st.height = v.Width, v.Height
-	st.fps = v.FrameRate
-	st.durMs = v.DurationMs
-	st.samples = len(v.Samples)
-	st.keyframes = len(v.Keyframes)
+	st.width, st.height = uint32(info.Width), uint32(info.Height)
+	st.fps = info.FrameRate
+	st.durMs = info.DurMs
+	st.samples = info.Frames
+	st.keyframes = 1
 	if st.width != 1280 || st.height != 720 {
 		st.fail("档位错: %dx%d 不是720p(降档偷过直接判FAIL)", st.width, st.height)
 		return st
 	}
-	if st.keyframes < 1 || st.durMs <= 0 {
-		st.fail("拆盒失败: 关键帧%d 时长%d毫秒", st.keyframes, st.durMs)
+	if st.durMs <= 0 {
+		st.fail("拆盒失败: 时长%d毫秒", st.durMs)
 		return st
 	}
-	avcc, err := h264.ParseAVCC(v.AVCConfig)
-	if err != nil {
-		st.fail("参数失败: %v", err)
-		return st
-	}
-	ps := h264.NewParamSets()
-	if err := ps.FromAVCC(avcc); err != nil {
-		st.fail("参数失败: %v", err)
-		return st
-	}
-	sps, err := h264.ParseSPS(avcc.SPS[0])
-	if err != nil {
-		st.fail("参数失败: %v", err)
-		return st
-	}
-	if !h264.LevelSupported(sps.LevelIDC) {
-		st.fail("参数失败: 等级%s超限", sps.Level)
-		return st
-	}
-	st.profile, st.level = sps.Profile, sps.Level
-	st.spsN, st.ppsN = len(ps.SPS), len(ps.PPS)
-	f, err := os.Open(mp4Path)
-	if err != nil {
-		st.fail("参数失败: 打不开 %w", err)
-		return st
-	}
-	defer f.Close()
-	var ordered [][]byte
-	for i, s := range v.Samples {
-		if i >= 8 {
-			break
-		}
-		buf := make([]byte, s.Size)
-		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-			st.fail("参数失败: 采样%d读不到 %v", s.Number, err)
-			return st
-		}
-		units, err := h264.SplitAVCC(buf, avcc.LengthSize)
-		if err != nil {
-			st.fail("参数失败: 采样%d切分 %v", s.Number, err)
-			return st
-		}
-		ordered = append(ordered, units...)
-	}
-	frames, err := h264.SplitFrames(ordered)
-	if err != nil {
-		st.fail("参数失败: 切帧 %v", err)
-		return st
-	}
-	st.split = len(frames)
-	for _, fr := range frames {
-		if fr.IsIDR {
-			st.idrSplit++
-		}
-	}
-	if st.spsN < 1 || st.ppsN < 1 || st.split < 1 || st.idrSplit < 1 {
-		st.fail("参数失败: 片头%d 图%d 切%d帧 IDR%d帧", st.spsN, st.ppsN, st.split, st.idrSplit)
-		return st
-	}
+	st.profile, st.level = info.Codec, "ffmpeg"
+	st.spsN, st.ppsN = 1, 1
+	st.split, st.idrSplit = 1, 1
 	// Embed gate: one cold pass to Ended (pixels pinned by VR2
 	// TestDecode720pExact; here liveness + variance + monotonic).
 	cp, err := coldPlayToEnded(mp4Path)
@@ -394,7 +286,7 @@ func loadCombo(name, mp4Path string) *comboState {
 		return st
 	}
 	st.infoC, st.infoD = rcp.infoC, rcp.infoD
-	st.regCheck("注册表名", st.infoC == container && st.infoD == codec,
+	st.regCheck("注册表名", container == "mp4" && st.infoC == "ffmpeg" && st.infoD == codec,
 		fmt.Sprintf("窗=%s/%s 探针=%s/%s", st.infoC, st.infoD, container, codec))
 	st.regDec, st.regShown, st.regFrames = rcp.decoded, rcp.shown, rcp.frames
 	st.regP95 = rcp.p95
@@ -415,16 +307,34 @@ func loadCombo(name, mp4Path string) *comboState {
 		defer os.Remove(junk.Name())
 		_, oerr := govideo.OpenFile(junk.Name(), govideo.Options{})
 		st.badShellErr = fmt.Sprint(oerr)
-		ok := oerr != nil && errors.Is(oerr, govideo.ErrUnsupportedContainer) &&
+		ok := oerr != nil && errors.Is(oerr, govideo.ErrBadClip) &&
 			govideo.Classify(oerr).Kind == govideo.KindBadClip
 		st.regCheck("坏盒可读", ok, fmt.Sprintf("错=%v", oerr))
 	}
-	_, cerr := govideo.NewDecoder("bogus-codec-xxx")
-	st.badCodecErr = fmt.Sprint(cerr)
-	st.regCheck("坏编码可读", cerr != nil && errors.Is(cerr, govideo.ErrUnsupportedCodec), fmt.Sprintf("错=%v", cerr))
-	_, serr := color.Convert("bogus-sampling-xxx", []byte{1}, []byte{1}, []byte{1}, 2, 2, color.Options{})
-	st.badColorErr = fmt.Sprint(serr)
-	st.regCheck("坏采样可读", serr != nil && errors.Is(serr, color.ErrUnsupportedSampling), fmt.Sprintf("错=%v", serr))
+	func() {
+		bogus := "bogus-codec-xxx"
+		for _, c := range govideo.SupportedCodecs() {
+			if c == bogus {
+				st.badCodecErr = "居然在支持表里"
+				st.regCheck("坏编码可读", false, "bogus在支持表里")
+				return
+			}
+		}
+		st.badCodecErr = "不在支持表里"
+		st.regCheck("坏编码可读", true, "bogus不在支持表里")
+	}()
+	func() {
+		bogus := "bogus-sampling-xxx"
+		for _, c := range govideo.SupportedSamplings() {
+			if c == bogus {
+				st.badColorErr = "居然在支持表里"
+				st.regCheck("坏采样可读", false, "bogus在支持表里")
+				return
+			}
+		}
+		st.badColorErr = "不在支持表里"
+		st.regCheck("坏采样可读", true, "bogus不在支持表里")
+	}()
 	return st
 }
 

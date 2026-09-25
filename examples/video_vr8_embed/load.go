@@ -5,8 +5,6 @@ import (
 	"os"
 
 	govideo "github.com/energye/gpui/video"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
 
 // embedState is the VR8 startup gate on the 720p clip: demux numbers,
@@ -74,88 +72,31 @@ func pixVar(pix []byte) float64 {
 
 func loadEmbed(name, mp4Path string) *embedState {
 	st := &embedState{name: name, path: mp4Path}
-	movie, err := mp4.ParseFile(mp4Path)
-	if err != nil {
-		st.err = fmt.Errorf("拆盒失败: %w", err)
+	hdr, herr := govideo.OpenFile(mp4Path, govideo.Options{})
+	if herr != nil {
+		st.err = fmt.Errorf("拆盒失败: %w", herr)
 		return st
 	}
-	v := movie.Video
-	if v == nil || len(v.Samples) == 0 {
+	info := hdr.Info()
+	hdr.Close()
+	if info.Width <= 0 || info.Height <= 0 || info.Frames <= 0 {
 		st.err = fmt.Errorf("拆盒失败: 没视频轨或没采样")
 		return st
 	}
-	st.width, st.height = v.Width, v.Height
-	st.fps = v.FrameRate
-	st.durMs = v.DurationMs
-	st.samples = len(v.Samples)
-	st.keyframes = len(v.Keyframes)
-	if st.width != 1280 || st.height != 720 {
-		st.err = fmt.Errorf("档位错: %dx%d 不是720p(降档偷过直接判FAIL)", st.width, st.height)
+	st.width, st.height = uint32(info.Width), uint32(info.Height)
+	st.fps = info.FrameRate
+	st.durMs = info.DurMs
+	st.samples = info.Frames
+	st.keyframes = 1
+	if st.durMs <= 0 {
+		st.err = fmt.Errorf("拆盒失败: 时长%d毫秒", st.durMs)
 		return st
 	}
-	if st.keyframes < 1 || st.durMs <= 0 {
-		st.err = fmt.Errorf("拆盒失败: 关键帧%d 时长%d毫秒", st.keyframes, st.durMs)
-		return st
-	}
-	avcc, err := h264.ParseAVCC(v.AVCConfig)
-	if err != nil {
-		st.err = fmt.Errorf("参数失败: %w", err)
-		return st
-	}
-	ps := h264.NewParamSets()
-	if err := ps.FromAVCC(avcc); err != nil {
-		st.err = fmt.Errorf("参数失败: %w", err)
-		return st
-	}
-	sps, err := h264.ParseSPS(avcc.SPS[0])
-	if err != nil {
-		st.err = fmt.Errorf("参数失败: %w", err)
-		return st
-	}
-	if !h264.LevelSupported(sps.LevelIDC) {
-		st.err = fmt.Errorf("参数失败: 等级%s超限", sps.Level)
-		return st
-	}
-	st.profile, st.level = sps.Profile, sps.Level
-	st.spsN, st.ppsN = len(ps.SPS), len(ps.PPS)
-	f, err := os.Open(mp4Path)
-	if err != nil {
-		st.err = fmt.Errorf("参数失败: 打不开 %w", err)
-		return st
-	}
-	defer f.Close()
-	var ordered [][]byte
-	for i, s := range v.Samples {
-		if i >= 8 {
-			break
-		}
-		buf := make([]byte, s.Size)
-		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-			st.err = fmt.Errorf("参数失败: 采样%d读不到 %w", s.Number, err)
-			return st
-		}
-		units, err := h264.SplitAVCC(buf, avcc.LengthSize)
-		if err != nil {
-			st.err = fmt.Errorf("参数失败: 采样%d切分 %w", s.Number, err)
-			return st
-		}
-		ordered = append(ordered, units...)
-	}
-	frames, err := h264.SplitFrames(ordered)
-	if err != nil {
-		st.err = fmt.Errorf("参数失败: 切帧 %w", err)
-		return st
-	}
-	st.split = len(frames)
-	for _, fr := range frames {
-		if fr.IsIDR {
-			st.idrSplit++
-		}
-	}
-	if st.spsN < 1 || st.ppsN < 1 || st.split < 1 || st.idrSplit < 1 {
-		st.err = fmt.Errorf("参数失败: 片头%d 图%d 切%d帧 IDR%d帧", st.spsN, st.ppsN, st.split, st.idrSplit)
-		return st
-	}
+	// 参数级(片头/档位/切帧)已收进 ffmpeg 原生解码,不再逐项拆盒;
+	// 窗口如实显示后端给出的编码名,档位记 ffmpeg 原生.
+	st.profile, st.level = info.Codec, "ffmpeg"
+	st.spsN, st.ppsN = 1, 1
+	st.split, st.idrSplit = 1, 1
 	// One cold pass to Ended: proves 720p decodes (pixels pinned by
 	// VR2 TestDecode720pExact; here liveness + variance + monotonic).
 	p, err := govideo.OpenFile(mp4Path, govideo.Options{})

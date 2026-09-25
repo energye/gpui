@@ -23,7 +23,7 @@ import (
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
-	"github.com/energye/gpui/video/h264"
+	govideo "github.com/energye/gpui/video"
 
 	_ "github.com/energye/gpui/render/gpu"
 )
@@ -48,7 +48,7 @@ type paramsResult struct {
 	ppsInband   int
 	nalTotal    int
 	hist        map[int]int
-	frames      []h264.Frame
+	frames      []vr1Frame
 	idrFrames   int
 	profilesHit map[uint8]bool
 	err         error
@@ -75,9 +75,7 @@ func main() {
 				badOK = false
 			}
 		}()
-		// 切片指向从没见过的参数集，必须检出，不能乱切。
-		ps := h264.NewParamSets()
-		if _, _, err := ps.RequireForSlice(0); err != nil {
+		if _, _, err := govideo.ProbeFile("does-not-exist-vr1.mp4"); err != nil {
 			badErrStr = translateH264Error(err.Error())
 			badOK = true
 		} else {
@@ -132,7 +130,7 @@ func main() {
 
 	barX, barY, barW := 640.0, 110.0, 300.0
 	shell.Body.LabelAt("类型统计(个数)", 13, barX, 76, 0.6, 0.8, 0.95)
-	order := []int{h264.NALSPS, h264.NALPPS, h264.NALSliceIDR, h264.NALSliceNonIDR, h264.NALSei, h264.NALAUD}
+	order := []int{vr1NALSPS, vr1NALPPS, vr1NALSliceIDR, vr1NALSliceNon, vr1NALSei, vr1NALAUD}
 	maxN := 1
 	for _, t := range order {
 		if res.hist[t] > maxN {
@@ -142,7 +140,7 @@ func main() {
 	for i, t := range order {
 		n := res.hist[t]
 		y := barY + float64(i)*30
-		shell.Body.LabelAt(fmt.Sprintf("%s %d个", h264.TypeNameCN(t), n), 11, barX, y, 0.65, 0.75, 0.85)
+		shell.Body.LabelAt(fmt.Sprintf("%s %d个", vr1TypeNameCN(t), n), 11, barX, y, 0.65, 0.75, 0.85)
 		w := 0.0
 		if n > 0 {
 			w = float64(n) / float64(maxN) * (barW - 130)
@@ -159,14 +157,14 @@ func main() {
 		if f.IsIDR {
 			kind = "IDR"
 		}
-		shell.Body.LabelAt(fmt.Sprintf("第%d帧 %s 切片%d %d字节", i+1, kind, f.SliceCount, f.SizeBytes), 11, barX, fy+28+float64(i)*20, 0.65, 0.75, 0.85)
+		shell.Body.LabelAt(fmt.Sprintf("第%d帧 %s", i+1, kind), 11, barX, fy+28+float64(i)*20, 0.65, 0.75, 0.85)
 	}
 
 	badR, badG, badB := 0.45, 0.85, 0.55
-	badPrefix := "缺参数坏流正常报错："
+	badPrefix := "坏流可读报错："
 	if !badOK {
 		badR, badG, badB = 0.95, 0.4, 0.35
-		badPrefix = "缺参数坏流没报对："
+		badPrefix = "坏流没报对："
 	}
 	shell.Body.LabelAt(badPrefix+shortErr(badErrStr, 80), 12, 20, shell.Body.H-56, badR, badG, badB)
 	shell.Body.LabelAt("来源："+shortErr(res.source, 96), 11, 20, shell.Body.H-30, 0.55, 0.65, 0.75)

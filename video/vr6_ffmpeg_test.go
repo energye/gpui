@@ -4,7 +4,7 @@ package video
 // Baseline: testdata/vr6_ffmpeg.json (ffmpeg 4.4.2, same machine).
 // Peer: ffmpeg -v error -i <bad> -f null - (exit + stderr) plus
 // -f framehash - (decoded dts+hash) against Classify buckets plus the
-// player isolation (F20 conceal-and-continue, F17/F12/F2 fail-fast).
+// player isolation (ffmpeg absorbs corrupt frames natively).
 // Pass line: ffmpeg errors map to the same layer bucket; ffmpeg
 // completions play to Ended with concealed <= ffmpeg affected
 // (missing + hash-differing); F12/F17 tri-condition and the level
@@ -19,9 +19,6 @@ import (
 	"runtime"
 	"testing"
 	"time"
-
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
 
 type vr6FFMPEG struct {
@@ -256,159 +253,55 @@ func TestVR6FFmpegParity(t *testing.T) {
 		})
 	}
 
-	t.Run("unit/missing-params", func(t *testing.T) {
-		m, err := mp4.ParseFile(filepath.Join("testdata", "vr2_m_bframes.mp4"))
-		if err != nil {
-			t.Fatalf("parse base: %v", err)
+	// Backend triage units: the Go decoder buckets retired with
+	// video/mp4+video/h264 (ffmpeg absorbs decode details natively), so
+	// these pin the live Classify contract instead: readable buckets for
+	// backend failures, unknown for everything else, and the retired
+	// kind names still compiling as deprecated aliases.
+	t.Run("unit/backend-buckets", func(t *testing.T) {
+		cases := []struct {
+			name string
+			err  error
+			want string
+		}{
+			{"badclip", fmt.Errorf("x: %w", ErrBadClip), KindBadClip},
+			{"no-frames", fmt.Errorf("x: %w", ErrNoFrames), KindBadClip},
+			{"memovercap", fmt.Errorf("x: %w", ErrMemOverCap), KindMemOverCap},
+			{"ffmpeg-layer", fmt.Errorf("x: ffmpeg: native decode failed"), KindBadClip},
+			{"truncated", fmt.Errorf("x: unexpected EOF in stream"), KindTruncated},
 		}
-		avcc, err := h264.ParseAVCC(m.Video.AVCConfig)
-		if err != nil {
-			t.Fatalf("avcc: %v", err)
-		}
-		f, err := os.Open(filepath.Join("testdata", "vr2_m_bframes.mp4"))
-		if err != nil {
-			t.Fatalf("open base: %v", err)
-		}
-		defer f.Close()
-		s := m.Video.Samples[1]
-		raw := make([]byte, s.Size)
-		if _, err := f.ReadAt(raw, int64(s.Offset)); err != nil {
-			t.Fatalf("read sample: %v", err)
-		}
-		units, err := h264.SplitAVCC(raw, avcc.LengthSize)
-		if err != nil || len(units) == 0 {
-			t.Fatalf("split: %v", err)
-		}
-		dec := h264.NewDecoder(nil)
-		err = dec.DecodeNALU(units[0])
-		if !errors.Is(err, h264.ErrMissingPPS) && !errors.Is(err, h264.ErrMissingSPS) {
-			t.Fatalf("err = %v, want missing params", err)
-		}
-		if got := Classify(err).Kind; got != "missing-params" {
-			t.Fatalf("kind = %q, want missing-params", got)
-		}
-	})
-
-	t.Run("unit/f20-lostref", func(t *testing.T) {
-		m, err := mp4.ParseFile(filepath.Join("testdata", "vr2_m_bframes.mp4"))
-		if err != nil {
-			t.Fatalf("parse base: %v", err)
-		}
-		avcc, err := h264.ParseAVCC(m.Video.AVCConfig)
-		if err != nil {
-			t.Fatalf("avcc: %v", err)
-		}
-		f, err := os.Open(filepath.Join("testdata", "vr2_m_bframes.mp4"))
-		if err != nil {
-			t.Fatalf("open base: %v", err)
-		}
-		defer f.Close()
-		s := m.Video.Samples[1]
-		raw := make([]byte, s.Size)
-		if _, err := f.ReadAt(raw, int64(s.Offset)); err != nil {
-			t.Fatalf("read sample: %v", err)
-		}
-		units, err := h264.SplitAVCC(raw, avcc.LengthSize)
-		if err != nil || len(units) == 0 {
-			t.Fatalf("split: %v", err)
-		}
-		dec := h264.NewDecoder(nil)
-		for _, b := range avcc.SPS {
-			if err := dec.DecodeNALU(b); err != nil {
-				t.Fatalf("sps: %v", err)
+		for _, c := range cases {
+			if got := Classify(c.err).Kind; got != c.want {
+				t.Fatalf("%s: kind = %q, want %q", c.name, got, c.want)
 			}
 		}
-		for _, b := range avcc.PPS {
-			if err := dec.DecodeNALU(b); err != nil {
-				t.Fatalf("pps: %v", err)
+		if got := Classify(fmt.Errorf("x: some brand new failure")).Kind; got != KindUnknown {
+			t.Fatalf("unknown kind = %q, want %q", got, KindUnknown)
+		}
+	})
+
+	t.Run("unit/retired-aliases", func(t *testing.T) {
+		// Deprecated aliases stay compiling so old callers do not
+		// break; Classify never returns them on this backend.
+		aliases := []string{
+			KindMissingParam, KindF17, KindF20, KindLevel,
+			KindInterlace, KindProfile, KindColor, KindAudio, KindH265,
+		}
+		for _, a := range aliases {
+			if a == "" {
+				t.Fatal("retired alias empty")
 			}
 		}
-		err = dec.DecodeNALU(units[0])
-		if !errors.Is(err, h264.ErrLostReference) {
-			t.Fatalf("err = %v, want lost reference", err)
-		}
-		if got := Classify(err).Kind; got != "f20-lost-reference" {
-			t.Fatalf("kind = %q, want f20-lost-reference", got)
-		}
+		_ = errors.Is
 	})
 
-	t.Run("unit/f17-partition-ext", func(t *testing.T) {
-		if _, err := h264.SplitFrames([][]byte{{0x42, 0x00}}); !errors.Is(err, h264.ErrDataPartitioning) {
-			t.Fatalf("partition err = %v, want F17", err)
-		} else if got := Classify(err).Kind; got != "f17-old-tools" {
-			t.Fatalf("partition kind = %q, want f17-old-tools", got)
-		}
-		if _, err := h264.SplitFrames([][]byte{{0x74, 0x00}}); !errors.Is(err, h264.ErrUnsupportedNAL) {
-			t.Fatalf("ext err = %v, want F17", err)
-		} else if got := Classify(err).Kind; got != "f17-old-tools" {
-			t.Fatalf("ext kind = %q, want f17-old-tools", got)
-		}
-	})
-
-	t.Run("unit/f17-groups-redundant", func(t *testing.T) {
-		g := fmt.Errorf("x: %w", h264.ErrSliceGroups)
-		if got := Classify(g).Kind; got != "f17-old-tools" {
-			t.Fatalf("groups kind = %q, want f17-old-tools", got)
-		}
-		r := fmt.Errorf("x: %w", h264.ErrRedundantPic)
-		if got := Classify(r).Kind; got != "f17-old-tools" {
-			t.Fatalf("redundant kind = %q, want f17-old-tools", got)
-		}
-	})
-
-	t.Run("unit/f20-badslice", func(t *testing.T) {
-		b := fmt.Errorf("x: %w", h264.ErrBadSliceHeader)
-		if got := Classify(b).Kind; got != "f20-lost-reference" {
-			t.Fatalf("badslice kind = %q, want f20-lost-reference", got)
-		}
-	})
-
-	t.Run("unit/f12-interlace", func(t *testing.T) {
-		f12 := fmt.Errorf("x: %w: F12 interlace field picture", h264.ErrStageScope)
-		if got := Classify(f12).Kind; got != "f12-interlace" {
-			t.Fatalf("f12 kind = %q, want f12-interlace", got)
-		}
-	})
-
-	t.Run("unit/profile-level", func(t *testing.T) {
-		lv := fmt.Errorf("x: %w", h264.ErrUnsupportedLevel)
-		if got := Classify(lv).Kind; got != "level-over-limit" {
-			t.Fatalf("level kind = %q, want level-over-limit", got)
-		}
-		prof := fmt.Errorf("x: %w: profile High10 needs later", h264.ErrStageScope)
-		if got := Classify(prof).Kind; got != "profile-beyond-stage" {
-			t.Fatalf("profile kind = %q, want profile-beyond-stage", got)
-		}
-		// Stream limits split the same way: level vs profile buckets.
-		sps := &h264.SPS{ProfileIDC: 77, Profile: "Main", LevelIDC: 60, Level: "6.0"}
-		if err := checkStreamLimits(sps, "test.mp4"); !errors.Is(err, h264.ErrUnsupportedLevel) {
-			t.Fatalf("level limit err = %v, want unsupported level", err)
-		}
-		sps = &h264.SPS{ProfileIDC: 110, Profile: "High10", LevelIDC: 40, Level: "4.0"}
-		if err := checkStreamLimits(sps, "test.mp4"); !errors.Is(err, h264.ErrStageScope) {
-			t.Fatalf("profile limit err = %v, want stage scope", err)
-		}
-	})
-
-	// Every unit case in the baseline must have a matching subtest above
-	// so the ffmpeg peer text cannot drift silently.
-	wantUnits := map[string]bool{
-		"missing-params": false, "f17-partition": false, "f17-ext": false,
-		"f17-groups": false, "f17-redundant": false, "f20-lostref": false,
-		"f20-badslice": false, "f12-interlace": false, "profile-beyond": false,
-	}
+	// Every unit case in the baseline keeps kind + ffmpeg peer text so
+	// the peer documentation cannot drift silently. The retired Go unit
+	// names stay in the file as history; no per-name subtest is required
+	// anymore since the Go decoder paths are gone.
 	for _, u := range base.UnitCases {
-		if _, ok := wantUnits[u.Name]; !ok {
-			t.Fatalf("baseline unit %q has no subtest", u.Name)
-		}
-		wantUnits[u.Name] = true
 		if u.OursKind == "" || u.FFPeer == "" {
 			t.Fatalf("baseline unit %q missing kind/peer", u.Name)
-		}
-	}
-	for n, seen := range wantUnits {
-		if !seen {
-			t.Fatalf("subtest %q missing from baseline", n)
 		}
 	}
 }

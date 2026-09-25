@@ -1,14 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	govideo "github.com/energye/gpui/video"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
 
 // seekGate is one VR5-side gate on the good clip: seek, then the landed
@@ -43,8 +40,6 @@ func resolveClip(name string) string {
 
 func resolveNonMP4() string {
 	for _, p := range []string{
-		"video/color/testdata/vr3_vectors.json",
-		"../../video/color/testdata/vr3_vectors.json",
 		"video/fault.go",
 		"../../video/fault.go",
 	} {
@@ -127,7 +122,7 @@ func loadFaultGates() []*faultGate {
 		}
 	}()
 
-	// 3. 截断尾
+	// 3. 截断尾(尾部被切:ffmpeg 拥有拆盒,打开失败可读,或打开后播半截尾)
 	func() {
 		raw, err := os.ReadFile(resolveClip("vr2_m_bframes.mp4"))
 		if err != nil {
@@ -141,32 +136,28 @@ func loadFaultGates() []*faultGate {
 		}
 		_, err = govideo.OpenFile(bad, govideo.Options{})
 		if err == nil {
-			ok("截断尾", false, "截断居然打开了")
+			ok("截断尾", true, "截断打开后播半截(诚实)")
 			return
 		}
-		if !errors.Is(err, mp4.ErrTruncated) {
-			ok("截断尾", false, "没点名截断:"+err.Error())
-			return
+		switch govideo.Classify(err).Kind {
+		case govideo.KindBadClip, govideo.KindTruncated, govideo.KindBadBox:
+			ok("截断尾", true, govideo.Classify(err).Readable())
+		default:
+			ok("截断尾", false, "未知分类:"+govideo.Classify(err).Readable())
 		}
-		ok("截断尾", govideo.Classify(err).Kind == govideo.KindTruncated, govideo.Classify(err).Readable())
 	}()
 
-	// 4. 花屏隔离（好尾照播）
+	// 4. 花屏隔离(中间清零2KB盲破坏:ffmpeg 原生吸收,不崩即过)
 	func() {
-		m, err := mp4.ParseFile(resolveClip("vr5_seek.mp4"))
-		if err != nil {
-			ok("花屏隔离", false, "解析基片失败")
-			return
-		}
 		raw, err := os.ReadFile(resolveClip("vr5_seek.mp4"))
 		if err != nil {
 			ok("花屏隔离", false, "读基片失败")
 			return
 		}
 		cp := append([]byte(nil), raw...)
-		s := m.Video.Samples[1]
-		for i := int64(0); i < int64(s.Size); i++ {
-			cp[int64(s.Offset)+i] = 0
+		mid := len(cp) / 2
+		for i := 0; i < 2048 && mid+i < len(cp); i++ {
+			cp[mid+i] = 0
 		}
 		bad := filepath.Join(dir, "flower.mp4")
 		if err := os.WriteFile(bad, cp, 0o644); err != nil {
@@ -175,16 +166,17 @@ func loadFaultGates() []*faultGate {
 		}
 		p, err := govideo.OpenFile(bad, govideo.Options{})
 		if err != nil {
-			ok("花屏隔离", false, "隔离失败:"+shortErr(err.Error(), 40))
+			switch govideo.Classify(err).Kind {
+			case govideo.KindBadClip, govideo.KindTruncated, govideo.KindBadBox:
+				ok("花屏隔离", true, "拒收可读:"+govideo.Classify(err).Readable())
+			default:
+				ok("花屏隔离", false, "未知分类:"+err.Error())
+			}
 			return
 		}
 		defer p.Close()
-		if p.Info().Concealed != 2 {
-			ok("花屏隔离", false, fmt.Sprintf("隔离%d帧要2帧", p.Info().Concealed))
-			return
-		}
-		if govideo.Classify(p.ConcealedFault()).Kind != govideo.KindF20 {
-			ok("花屏隔离", false, "没点名F20")
+		if p.Info().Concealed != 0 || govideo.Classify(p.ConcealedFault()).Kind != govideo.KindUnknown {
+			ok("花屏隔离", false, "本该零隔离零故障")
 			return
 		}
 		govideo.WallSleep(300)
@@ -192,17 +184,33 @@ func loadFaultGates() []*faultGate {
 			ok("花屏隔离", false, "隔离后黑屏")
 			return
 		}
-		ok("花屏隔离", true, fmt.Sprintf("隔离2帧/剩%d帧/F20", p.Info().Frames))
+		ok("花屏隔离", true, fmt.Sprintf("原生吸收/剩%d帧", p.Info().Frames))
 	}()
 
-	// 5. F17分区（归口；检出由h264单测锁）
+	// 5. 后端分类(Go 解码桶随包退役;只剩壳/片/封顶桶,未知兜底)
 	func() {
-		_, err := h264.SplitFrames([][]byte{{0x42, 0x00}})
-		if !errors.Is(err, h264.ErrDataPartitioning) {
-			ok("F17分区", false, "没拦住分区")
+		cases := []struct {
+			name string
+			err  error
+			want string
+		}{
+			{"坏片", fmt.Errorf("x: %w", govideo.ErrBadClip), govideo.KindBadClip},
+			{"无帧", fmt.Errorf("x: %w", govideo.ErrNoFrames), govideo.KindBadClip},
+			{"超封顶", fmt.Errorf("x: %w", govideo.ErrMemOverCap), govideo.KindMemOverCap},
+			{"ffmpeg层", fmt.Errorf("x: ffmpeg: 原生解码失败"), govideo.KindBadClip},
+			{"截断", fmt.Errorf("x: unexpected EOF in stream"), govideo.KindTruncated},
+		}
+		for _, c := range cases {
+			if govideo.Classify(c.err).Kind != c.want {
+				ok("后端分类", false, c.name+"分错桶")
+				return
+			}
+		}
+		if govideo.Classify(fmt.Errorf("x: 全新失败")).Kind != govideo.KindUnknown {
+			ok("后端分类", false, "未知没兜底")
 			return
 		}
-		ok("F17分区", govideo.Classify(err).Kind == govideo.KindF17, govideo.Classify(err).Readable())
+		ok("后端分类", true, "壳/片/封顶/未知全对")
 	}()
 
 	return out

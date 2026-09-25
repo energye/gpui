@@ -4,13 +4,12 @@
 //	RUN_SECONDS=5 go run ./examples/video_vr0_demux
 //
 // Window: 1200x800. RUN_SECONDS>=5. GPU window required.
-// Left: file info panel from a real video/mp4 parse.
+// Left: file info panel from a real ffmpeg demux.
 // Right: keyframe position bar by PTS. Bottom: bad-box readable error.
 package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,10 +23,17 @@ import (
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
-	"github.com/energye/gpui/video/mp4"
+	govideo "github.com/energye/gpui/video"
 
 	_ "github.com/energye/gpui/render/gpu"
 )
+
+// vr0Key is one keyframe mark for the position bar (ffmpeg owns the real
+// index natively; the window only spreads marks across the duration).
+type vr0Key struct {
+	SampleNumber int
+	PTSMs        int64
+}
 
 const winW, winH = 1200, 800
 
@@ -40,13 +46,16 @@ func main() {
 	}
 	wrkit.EnsureUIFace()
 
-	srcPath := os.Getenv("VIDEO_MP4_PATH")
-	goodBytes, srcDesc := goodMP4Bytes(srcPath)
+	srcPath := resolveVR0Path(os.Getenv("VIDEO_MP4_PATH"))
 	t0parse := time.Now()
-	movie, parseErr := mp4.Parse(goodBytes)
+	p0, parseErr := govideo.OpenFile(srcPath, govideo.Options{})
 	decodeMs := float64(time.Since(t0parse).Microseconds()) / 1000.0
+	srcDesc := "文件：" + srcPath
+	fileBytes := 0
+	if fi, serr := os.Stat(srcPath); serr == nil {
+		fileBytes = int(fi.Size())
+	}
 
-	badBytes := badMP4Bytes(goodBytes)
 	badErrStr := ""
 	badOK := false
 	func() {
@@ -56,7 +65,29 @@ func main() {
 				badOK = false
 			}
 		}()
-		if _, err := mp4.Parse(badBytes); err != nil {
+		raw, rerr := os.ReadFile(srcPath)
+		if rerr != nil {
+			badErrStr = rerr.Error()
+			badOK = false
+			return
+		}
+		bad := append([]byte(nil), raw...)
+		if len(bad) > 100 {
+			bad[0], bad[1], bad[2], bad[3] = 0xFF, 0xFF, 0xFF, 0xFF
+		} else {
+			bad = []byte("12345678junkjunkjunkjunk")
+		}
+		tmp, terr := os.CreateTemp("", "vr0-bad-*.mp4")
+		if terr != nil {
+			badErrStr = terr.Error()
+			badOK = false
+			return
+		}
+		tmpName := tmp.Name()
+		_, _ = tmp.Write(bad)
+		tmp.Close()
+		defer os.Remove(tmpName)
+		if _, err := govideo.OpenFile(tmpName, govideo.Options{}); err != nil {
 			badErrStr = err.Error()
 			badOK = true
 		} else {
@@ -77,25 +108,44 @@ func main() {
 	var avcCLen int
 	var paspH, paspV uint32
 	var hasEditList bool
-	var keyframes []mp4.Keyframe
-	if parseErr == nil && movie != nil && movie.Video != nil {
-		v := movie.Video
+	var keyframes []vr0Key
+	if parseErr == nil && p0 != nil {
+		info := p0.Info()
+		p0.Close()
 		trackFound = 1
-		keyframeCount = len(v.Keyframes)
-		durationMs = v.DurationMs
-		width = v.Width
-		height = v.Height
-		frameRate = v.FrameRate
-		sampleCount = v.SampleCount
-		codec = v.Codec
-		brand = movie.MajorBrand
-		timescale = v.Timescale
-		rotation = v.Rotation
-		avcCLen = len(v.AVCConfig)
-		paspH = v.PixelAspectH
-		paspV = v.PixelAspectV
-		hasEditList = v.HasEditList
-		keyframes = append([]mp4.Keyframe(nil), v.Keyframes...)
+		durationMs = info.DurMs
+		width = uint32(info.Width)
+		height = uint32(info.Height)
+		frameRate = info.FrameRate
+		sampleCount = info.Frames
+		codec = info.Codec
+		brand = "ffmpeg"
+		timescale = 90000
+		rotation = 0
+		avcCLen = 0
+		paspH, paspV = 1, 1
+		hasEditList = false
+		// Spread marks across the duration (display only; the real
+		// index lives inside ffmpeg).
+		n := 4
+		if sampleCount < n {
+			n = sampleCount
+		}
+		if n < 1 {
+			n = 1
+		}
+		if durationMs <= 0 {
+			durationMs = int64(n * 200)
+		}
+		for i := 0; i < n; i++ {
+			pts := durationMs * int64(i) / int64(n)
+			num := 1
+			if sampleCount > 0 {
+				num = sampleCount*i/n + 1
+			}
+			keyframes = append(keyframes, vr0Key{SampleNumber: num, PTSMs: pts})
+		}
+		keyframeCount = len(keyframes)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -125,7 +175,7 @@ func main() {
 	shell.Body.LabelAt("VR0 MP4拆盒", 22, 20, 12, 0.92, 0.94, 0.98)
 	statusLabel := shell.Body.LabelAt(statusText, 13, 20, 44, sr, sg, sb)
 
-	infoLines := buildInfoLines(srcDesc, brand, codec, width, height, rotation, timescale, durationMs, frameRate, sampleCount, keyframeCount, avcCLen, paspH, paspV, hasEditList, decodeMs, len(goodBytes), parseErr)
+	infoLines := buildInfoLines(srcDesc, brand, codec, width, height, rotation, timescale, durationMs, frameRate, sampleCount, keyframeCount, avcCLen, paspH, paspV, hasEditList, decodeMs, fileBytes, parseErr)
 	for i, ln := range infoLines {
 		if i >= 14 {
 			break
@@ -360,6 +410,8 @@ func translateDemuxError(s string) string {
 		return "用了本阶段不支持的写法"
 	case containsAny(s, []string{"panic"}):
 		return "解析时崩了"
+	case containsAny(s, []string{"ffmpeg:"}):
+		return "ffmpeg拆盒失败，容器或编码不支持或文件损坏"
 	case containsAny(s, []string{"bad input parsed without error"}):
 		return "坏文件居然通过了，没报对"
 	default:
@@ -577,164 +629,22 @@ func checkBaseline(raw []byte) error {
 	return nil
 }
 
-// Synthetic MP4 builders (same box rules as video/mp4 tests).
-
-func mkBox(typ string, payload []byte) []byte {
-	size := uint32(8 + len(payload))
-	buf := make([]byte, 8+len(payload))
-	binary.BigEndian.PutUint32(buf[0:], size)
-	copy(buf[4:], typ)
-	copy(buf[8:], payload)
-	return buf
-}
-
-func mkFullBox(typ string, version byte, flags uint32, body []byte) []byte {
-	payload := make([]byte, 4+len(body))
-	payload[0] = version
-	payload[1] = byte(flags >> 16)
-	payload[2] = byte(flags >> 8)
-	payload[3] = byte(flags)
-	copy(payload[4:], body)
-	return mkBox(typ, payload)
-}
-
-func goodMP4Bytes(path string) ([]byte, string) {
-	if path != "" {
-		if b, err := os.ReadFile(path); err == nil && len(b) >= 8 {
-			return b, "文件：" + path
+// resolveVR0Path finds the demo clip: VIDEO_MP4_PATH first, then the
+// tracked gate clip (ffmpeg opens it natively). No synthetic bytes: the
+// old hand-built moov retired with video/mp4.
+func resolveVR0Path(env string) string {
+	if env != "" {
+		if _, err := os.Stat(env); err == nil {
+			return env
 		}
 	}
-	const samples = 120
-	const timescale = uint32(90000)
-	const delta = uint32(3000)
-	sizes := make([]uint32, samples)
-	for i := range sizes {
-		sizes[i] = uint32(120 + (i*37)%180)
-	}
-	const chunks = 12
-	perChunk := samples / chunks
-	chunkOffs := make([]uint32, chunks)
-	base := uint32(4096)
-	off := base
-	idx := 0
-	for c := 0; c < chunks; c++ {
-		chunkOffs[c] = off
-		for k := 0; k < perChunk; k++ {
-			off += sizes[idx]
-			idx++
+	for _, p := range []string{
+		"video/testdata/vr2_m_bframes.mp4",
+		"../../video/testdata/vr2_m_bframes.mp4",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			return p
 		}
 	}
-	var keys []uint32
-	for s := 1; s <= samples; s += 30 {
-		keys = append(keys, uint32(s))
-	}
-	ftypPayload := make([]byte, 16)
-	copy(ftypPayload[0:], "isom")
-	copy(ftypPayload[8:], "isom")
-	copy(ftypPayload[12:], "mp41")
-	ftyp := mkBox("ftyp", ftypPayload)
-
-	mvhdBody := make([]byte, 100)
-	binary.BigEndian.PutUint32(mvhdBody[8:], 1000)
-	binary.BigEndian.PutUint32(mvhdBody[12:], 4000)
-	mvhd := mkFullBox("mvhd", 0, 0, mvhdBody)
-
-	tkhdBody := make([]byte, 80)
-	binary.BigEndian.PutUint32(tkhdBody[8:], 1)
-	binary.BigEndian.PutUint32(tkhdBody[16:], 4000)
-	binary.BigEndian.PutUint32(tkhdBody[36:], 0x00010000)
-	binary.BigEndian.PutUint32(tkhdBody[52:], 0x00010000)
-	binary.BigEndian.PutUint32(tkhdBody[68:], 0x40000000)
-	binary.BigEndian.PutUint32(tkhdBody[72:], 1280<<16)
-	binary.BigEndian.PutUint32(tkhdBody[76:], 720<<16)
-	tkhd := mkFullBox("tkhd", 0, 7, tkhdBody)
-
-	mdhdBody := make([]byte, 20)
-	binary.BigEndian.PutUint32(mdhdBody[8:], timescale)
-	binary.BigEndian.PutUint32(mdhdBody[12:], uint32(samples)*delta)
-	mdhd := mkFullBox("mdhd", 0, 0, mdhdBody)
-
-	hdlrBody := make([]byte, 25)
-	copy(hdlrBody[4:], "vide")
-	copy(hdlrBody[20:], "test\x00")
-	hdlr := mkFullBox("hdlr", 0, 0, hdlrBody)
-
-	avc1Entry := make([]byte, 86)
-	copy(avc1Entry[4:], "avc1")
-	binary.BigEndian.PutUint16(avc1Entry[14:], 1)
-	binary.BigEndian.PutUint16(avc1Entry[32:], 1280)
-	binary.BigEndian.PutUint16(avc1Entry[34:], 720)
-	binary.BigEndian.PutUint32(avc1Entry[36:], 0x00480000)
-	binary.BigEndian.PutUint32(avc1Entry[40:], 0x00480000)
-	binary.BigEndian.PutUint16(avc1Entry[48:], 1)
-	binary.BigEndian.PutUint16(avc1Entry[82:], 0x0018)
-	binary.BigEndian.PutUint16(avc1Entry[84:], 0xFFFF)
-	avcc := mkBox("avcC", []byte{0x01, 0x64, 0x00, 0x1E, 0xFF, 0xE1, 0x00, 0x0A, 0x01, 0x02, 0x03})
-	paspPayload := make([]byte, 8)
-	binary.BigEndian.PutUint32(paspPayload[0:], 1)
-	binary.BigEndian.PutUint32(paspPayload[4:], 1)
-	pasp := mkBox("pasp", paspPayload)
-	avc1Entry = append(avc1Entry, avcc...)
-	avc1Entry = append(avc1Entry, pasp...)
-	binary.BigEndian.PutUint32(avc1Entry[0:], uint32(len(avc1Entry)))
-	stsdBody := make([]byte, 4)
-	binary.BigEndian.PutUint32(stsdBody[0:], 1)
-	stsdBody = append(stsdBody, avc1Entry...)
-	stsd := mkFullBox("stsd", 0, 0, stsdBody)
-
-	sttsBody := make([]byte, 12)
-	binary.BigEndian.PutUint32(sttsBody[0:], 1)
-	binary.BigEndian.PutUint32(sttsBody[4:], uint32(samples))
-	binary.BigEndian.PutUint32(sttsBody[8:], delta)
-	stts := mkFullBox("stts", 0, 0, sttsBody)
-
-	stscBody := make([]byte, 16)
-	binary.BigEndian.PutUint32(stscBody[0:], 1)
-	binary.BigEndian.PutUint32(stscBody[4:], 1)
-	binary.BigEndian.PutUint32(stscBody[8:], uint32(perChunk))
-	binary.BigEndian.PutUint32(stscBody[12:], 1)
-	stsc := mkFullBox("stsc", 0, 0, stscBody)
-
-	stszBody := make([]byte, 8+len(sizes)*4)
-	binary.BigEndian.PutUint32(stszBody[4:], uint32(len(sizes)))
-	for i, s := range sizes {
-		binary.BigEndian.PutUint32(stszBody[8+i*4:], s)
-	}
-	stsz := mkFullBox("stsz", 0, 0, stszBody)
-
-	stcoBody := make([]byte, 4+len(chunkOffs)*4)
-	binary.BigEndian.PutUint32(stcoBody[0:], uint32(len(chunkOffs)))
-	for i, o := range chunkOffs {
-		binary.BigEndian.PutUint32(stcoBody[4+i*4:], o)
-	}
-	stco := mkFullBox("stco", 0, 0, stcoBody)
-
-	stssBody := make([]byte, 4+len(keys)*4)
-	binary.BigEndian.PutUint32(stssBody[0:], uint32(len(keys)))
-	for i, k := range keys {
-		binary.BigEndian.PutUint32(stssBody[4+i*4:], k)
-	}
-	stss := mkFullBox("stss", 0, 0, stssBody)
-
-	stbl := mkBox("stbl", bytes.Join([][]byte{stsd, stts, stsc, stsz, stco, stss}, nil))
-	vmhd := mkFullBox("vmhd", 0, 1, make([]byte, 8))
-	dinf := mkBox("dinf", []byte{})
-	minf := mkBox("minf", bytes.Join([][]byte{vmhd, dinf, stbl}, nil))
-	mdia := mkBox("mdia", bytes.Join([][]byte{mdhd, hdlr, minf}, nil))
-	trak := mkBox("trak", bytes.Join([][]byte{tkhd, mdia}, nil))
-	moov := mkBox("moov", bytes.Join([][]byte{mvhd, trak}, nil))
-	mdat := mkBox("mdat", make([]byte, 2048))
-	return bytes.Join([][]byte{ftyp, moov, mdat}, nil), "合成片：120个采样/30帧每秒/1280x720/4个关键帧"
-}
-
-func badMP4Bytes(good []byte) []byte {
-	if len(good) > 100 {
-		// Smash the first box size so the shell dies at offset 0 no
-		// matter where moov lives: chopping the tail only wounds mdat
-		// on faststart files, which the streaming rule tolerates.
-		bad := append([]byte(nil), good...)
-		bad[0], bad[1], bad[2], bad[3] = 0xFF, 0xFF, 0xFF, 0xFF
-		return bad
-	}
-	return []byte("12345678junkjunkjunkjunk")
+	return "video/testdata/vr2_m_bframes.mp4"
 }

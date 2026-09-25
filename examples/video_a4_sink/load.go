@@ -22,7 +22,6 @@ import (
 	"time"
 
 	govideo "github.com/energye/gpui/video"
-	"github.com/energye/gpui/video/mp4"
 )
 
 type a4Packet struct {
@@ -119,35 +118,24 @@ func abs64(n int64) int64 {
 	return n
 }
 
-// checkA4Identity pins the gate clip shell against the baseline: video
-// dims plus LC AAC rate/channels/packet tables.
+// checkA4Identity pins the gate clip shell through the ffmpeg demuxer:
+// video dims match the baseline. The Go box walk (AAC rate/channels,
+// packet tables) retired with video/mp4+video/aac; the baseline json
+// keeps those numbers as history. Sound stays honest-unavailable until
+// t-audio-ffmpeg wires native decode.
 func checkA4Identity(base a4Baseline) error {
-	m, err := mp4.ParseFile(resolveA4(base.Clip))
+	h := &handClock{}
+	p, err := govideo.OpenFile(resolveA4(base.Clip), govideo.Options{NowMs: h.at})
 	if err != nil {
 		return fmt.Errorf("打不开: %v", err)
 	}
-	v := m.Video
-	if v == nil {
-		return fmt.Errorf("没视频轨")
-	}
-	if int(v.Width) != base.Video.Width || int(v.Height) != base.Video.Height {
+	defer p.Close()
+	info := p.Info()
+	if info.Width != base.Video.Width || info.Height != base.Video.Height {
 		return fmt.Errorf("尺寸对不上")
 	}
-	a := m.Audio
-	if a == nil {
-		return fmt.Errorf("没声音轨")
-	}
-	if int(a.SampleRate) != base.Audio.SampleRate || int(a.Channels) != base.Audio.Channels {
-		return fmt.Errorf("声道对不上")
-	}
-	if len(a.Samples) != base.Audio.Samples {
-		return fmt.Errorf("声音包数对不上")
-	}
-	for i, want := range base.Audio.FirstPackets {
-		s, ok := a.SampleAt(i)
-		if !ok || int(s.Size) != want.Size || s.PTSMs != want.PTSMs {
-			return fmt.Errorf("声音包%d对不上", i)
-		}
+	if p.HasAudio() {
+		return fmt.Errorf("本该静音却有声")
 	}
 	return nil
 }

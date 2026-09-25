@@ -410,7 +410,7 @@ func ffCodecName(id int32) string {
 	case 27:
 		return "h264"
 	case 173:
-		return "hevc"
+		return "h265"
 	case 167:
 		return "vp9"
 	case 225:

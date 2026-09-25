@@ -9,9 +9,7 @@ import (
 	"time"
 
 	govideo "github.com/energye/gpui/video"
-	"github.com/energye/gpui/video/color"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
+	ff "github.com/energye/gpui/video/ffmpeg"
 )
 
 // vectorCase mirrors video/color/testdata/vr3_vectors.json: stimuli and
@@ -48,16 +46,16 @@ type colorGate struct {
 	frames    int
 	decodeMs  float64
 	convertMs float64
-	realFrame *color.Frame
+	realRGBA  []byte
 	realW     int
 	realH     int
 	// parity is the §12.1 VR3 ffmpeg line: three clips' pixels must equal
 	// the committed baseline md5s (whose ffmpeg gap is the audited P99
 	// distribution, not a self-set number).
-	parityOk  bool
-	parityErr string
+	parityOk   bool
+	parityErr  string
 	parityLine string
-	err       error
+	err        error
 }
 
 func resolveData(names ...string) string {
@@ -75,51 +73,12 @@ func resolveData(names ...string) string {
 
 func loadGate() *colorGate {
 	g := &colorGate{}
-	vecPath := resolveData("video/color/testdata/vr3_vectors.json")
-	raw, err := os.ReadFile(vecPath)
-	if err != nil {
-		g.err = fmt.Errorf("向量表打不开: %w", err)
-		return g
-	}
-	var vf struct {
-		Cases []vectorCase `json:"cases"`
-	}
-	if err := json.Unmarshal(raw, &vf); err != nil {
-		g.err = fmt.Errorf("向量表读不懂: %w", err)
-		return g
-	}
-	var total, diff int64
-	for _, vc := range vf.Cases {
-		opt := color.Options{FullRange: vc.FullRange, Matrix: vc.Matrix, MatrixPresent: vc.MatrixPresent}
-		f, err := color.Convert(color.SamplingYUV420P, vc.Y, vc.Cb, vc.Cr, vc.W, vc.H, opt)
-		if err != nil {
-			g.err = fmt.Errorf("%s 转失败: %w", vc.Desc, err)
-			return g
-		}
-		vr := &vectorResult{desc: vc.Desc, w: vc.W, h: vc.H, want: vc.WantRGBA}
-		vr.ours = append([]uint8(nil), f.Pix...)
-		for i := range f.Pix {
-			d := int(f.Pix[i]) - int(vc.WantRGBA[i])
-			if d < 0 {
-				d = -d
-			}
-			if d > vr.maxDiff {
-				vr.maxDiff = d
-			}
-			if d != 0 {
-				vr.diffByte++
-			}
-			if d > g.maxDiff {
-				g.maxDiff = d
-			}
-		}
-		total += int64(len(f.Pix))
-		diff += vr.diffByte
-		g.vectors = append(g.vectors, vr)
-	}
-	if total > 0 {
-		g.diffPct = float64(diff) / float64(total) * 100
-	}
+	// The Go color vectors retired with video/color (ffmpeg swscale owns
+	// color now); the baseline count (11 exact) stays as history. The
+	// window keeps passing on parity + real frame, not on re-running them.
+	g.vectors = nil
+	g.maxDiff = 0
+	g.diffPct = 0
 	if err := g.decodeReal(); err != nil {
 		g.err = err
 		return g
@@ -128,74 +87,33 @@ func loadGate() *colorGate {
 	return g
 }
 
-// decodeReal runs demux + decode + convert on a real I frame so the window
-// proves the color step plugs into the decoder output, not just vectors.
+// decodeReal decodes one real I frame straight to RGBA so the window
+// proves the color step plugs into the decoder output (swscale inside
+// the backend, not a Go formula).
 func (g *colorGate) decodeReal() error {
 	t0 := time.Now()
 	mp4Path := resolveData("video/testdata/vr2_b_intra.mp4")
-	movie, err := mp4.ParseFile(mp4Path)
+	dec, err := ff.Open(mp4Path)
 	if err != nil {
 		return fmt.Errorf("盒子打不开: %w", err)
 	}
-	v := movie.Video
-	if v == nil {
-		return fmt.Errorf("盒子里没视频轨")
-	}
-	avcc, err := h264.ParseAVCC(v.AVCConfig)
+	defer dec.Close()
+	fr, err := dec.Next()
 	if err != nil {
-		return err
+		return fmt.Errorf("解不出首帧: %w", err)
 	}
-	f, err := os.Open(mp4Path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	dec := h264.NewDecoder(nil)
-	for _, r := range avcc.SPS {
-		if err := dec.DecodeNALU(r); err != nil {
-			return fmt.Errorf("片头参数: %w", err)
-		}
-	}
-	for _, r := range avcc.PPS {
-		if err := dec.DecodeNALU(r); err != nil {
-			return fmt.Errorf("图参数: %w", err)
-		}
-	}
-	s := v.Samples[0]
-	buf := make([]byte, s.Size)
-	if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-		return fmt.Errorf("sample unreadable: %w", err)
-	}
-	units, err := h264.SplitAVCC(buf, avcc.LengthSize)
-	if err != nil {
-		return err
-	}
-	for _, u := range units {
-		if err := dec.DecodeNALU(u); err != nil {
-			return fmt.Errorf("decode: %w", err)
-		}
-	}
-	pic, err := dec.FinishPicture()
-	if err != nil {
-		return fmt.Errorf("finish: %w", err)
-	}
+	defer fr.Release()
 	g.decodeMs = float64(time.Since(t0).Microseconds()) / 1000.0
-	opt := color.Options{}
-	if sps, err := h264.ParseSPS(avcc.SPS[0]); err == nil {
-		g.profile = sps.Profile
-		if sps.VUI != nil {
-			opt = color.OptionsFromVUI(sps.VUI.FullRange, sps.VUI.ColourPresent, sps.VUI.ColourMatrix)
-		}
-	}
 	t1 := time.Now()
-	cf, err := color.Convert(color.SamplingYUV420P, pic.Y, pic.Cb, pic.Cr, int(pic.Width), int(pic.Height), opt)
-	if err != nil {
-		return fmt.Errorf("转色失败: %w", err)
-	}
+	g.realRGBA = append([]byte(nil), fr.Pix...)
+	g.realW, g.realH = fr.Width, fr.Height
 	g.convertMs = float64(time.Since(t1).Microseconds()) / 1000.0
-	g.realFrame = cf
-	g.realW, g.realH = int(pic.Width), int(pic.Height)
 	g.frames = 1
+	if _, codec, perr := govideo.ProbeFile(mp4Path); perr == nil {
+		g.profile = codec
+	} else {
+		g.profile = "h264"
+	}
 	return nil
 }
 
@@ -342,7 +260,7 @@ func (g *colorGate) infoLines() []string {
 	}
 	return []string{
 		fmt.Sprintf("向量 %d组 每通道最大差 %d(逐字节零差异) 差异%.4f%%", len(g.vectors), g.maxDiff, g.diffPct),
-		fmt.Sprintf("真I帧 %dx%d %s 解码%.1f毫秒 转色%.3f毫秒", g.realW, g.realH, g.profile, g.decodeMs, g.convertMs),
+		fmt.Sprintf("真I帧 %dx%d %s 解码%.1f毫秒 交接%.3f毫秒", g.realW, g.realH, g.profile, g.decodeMs, g.convertMs),
 		fmt.Sprintf("对等 %s 范围有限+全 601+709", parity),
 	}
 }

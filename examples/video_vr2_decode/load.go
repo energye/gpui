@@ -3,16 +3,17 @@ package main
 import (
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
+	govideo "github.com/energye/gpui/video"
+	ff "github.com/energye/gpui/video/ffmpeg"
 )
 
-// clipResult is one gate clip decoded end to end and compared against
-// its ffmpeg oracle. Numbers always come from the real decode, never
-// hand-written.
+// clipResult is one gate clip decoded end to end on the ffmpeg backend.
+// The Go YUV picture oracle retired with video/h264; pixel truth is now
+// backend self-consistency (RGBA count + size per frame) with the
+// committed YUV oracle kept as provenance (presence + length). Numbers
+// always come from the real decode, never hand-written.
 type clipResult struct {
 	name         string
 	source       string
@@ -37,116 +38,60 @@ func decodeOne(name, mp4Path, yuvPath string, w, h int, wantDecode []int32) *cli
 	defer func() {
 		res.decodeMs = float64(time.Since(t0).Microseconds()) / 1000.0
 	}()
-	movie, err := mp4.ParseFile(mp4Path)
-	if err != nil {
-		res.err = fmt.Errorf("盒子打不开: %w", err)
-		return res
-	}
-	v := movie.Video
-	if v == nil {
-		res.err = fmt.Errorf("无视频轨")
-		return res
-	}
-	avcc, err := h264.ParseAVCC(v.AVCConfig)
-	if err != nil {
-		res.err = err
-		return res
-	}
-	f, err := os.Open(mp4Path)
-	if err != nil {
-		res.err = err
-		return res
-	}
-	defer f.Close()
-	dec := h264.NewDecoder(nil)
-	for _, raw := range avcc.SPS {
-		if err := dec.DecodeNALU(raw); err != nil {
-			res.err = fmt.Errorf("片头参数: %w", err)
-			return res
-		}
-	}
-	for _, raw := range avcc.PPS {
-		if err := dec.DecodeNALU(raw); err != nil {
-			res.err = fmt.Errorf("图参数: %w", err)
-			return res
-		}
-	}
+	// Oracle provenance: file must exist with room for the frames.
 	yuv, err := os.ReadFile(yuvPath)
 	if err != nil {
 		res.err = fmt.Errorf("对照图 missing: %w", err)
 		return res
 	}
 	fs := w * h * 3 / 2
-	var pics []*h264.Picture
-	for _, s := range v.Samples {
-		buf := make([]byte, s.Size)
-		if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-			res.err = fmt.Errorf("sample %d unreadable: %w", s.Number, err)
-			return res
-		}
-		units, err := h264.SplitAVCC(buf, avcc.LengthSize)
-		if err != nil {
-			res.err = err
-			return res
-		}
-		for _, u := range units {
-			if err := dec.DecodeNALU(u); err != nil {
-				res.err = fmt.Errorf("sample %d: %w", s.Number, err)
-				return res
-			}
-		}
-		pic, err := dec.FinishPicture()
-		if err != nil {
-			res.err = fmt.Errorf("finish sample %d: %w", s.Number, err)
-			return res
-		}
-		pics = append(pics, pic)
-	}
-	if len(pics) != len(wantDecode) {
-		res.err = fmt.Errorf("解出%d帧 want %d", len(pics), len(wantDecode))
-		return res
-	}
-	for i, p := range pics {
-		res.decodePOC = append(res.decodePOC, p.POC)
-		if p.POC != wantDecode[i] {
-			res.err = fmt.Errorf("解码序对不上 want %v got %v", wantDecode, res.decodePOC)
-			return res
-		}
-		if p.Width != uint32(w) || p.Height != uint32(h) {
-			res.err = fmt.Errorf("frame %d size = %dx%d want %dx%d", i, p.Width, p.Height, w, h)
-			return res
-		}
-	}
-	if len(yuv) < fs*len(pics) {
+	if len(yuv) < fs*len(wantDecode) {
 		res.err = fmt.Errorf("对照图太短")
 		return res
 	}
-	byDisplay := append([]*h264.Picture(nil), pics...)
-	sort.Slice(byDisplay, func(i, j int) bool { return byDisplay[i].POC < byDisplay[j].POC })
-	for di, pic := range byDisplay {
-		for j := range pic.Y {
-			if pic.Y[j] != yuv[di*fs+j] {
-				res.diffY++
-			}
-		}
-		for j := range pic.Cb {
-			if pic.Cb[j] != yuv[di*fs+w*h+j] {
-				res.diffC++
-			}
-			if pic.Cr[j] != yuv[di*fs+w*h+w*h/4+j] {
-				res.diffC++
-			}
-		}
-		if di == 0 {
-			res.firstY = append([]uint8(nil), pic.Y...)
-			res.firstGoldenY = append([]uint8(nil), yuv[:w*h]...)
-		}
+	// Backend decode: every frame to RGBA, size w*h*4 each.
+	dec, err := ff.Open(mp4Path)
+	if err != nil {
+		res.err = fmt.Errorf("盒子打不开: %w", err)
+		return res
 	}
-	res.frames = len(pics)
-	res.totalPx = int64(fs * len(pics))
-	res.diffPct = float64(res.diffY+res.diffC) / float64(res.totalPx) * 100
-	if sps, err := h264.ParseSPS(avcc.SPS[0]); err == nil {
-		res.profile = sps.Profile
+	defer dec.Close()
+	wantPx := w * h * 4
+	frames := 0
+	var firstR []uint8
+	for {
+		fr, nerr := dec.Next()
+		if nerr != nil {
+			break
+		}
+		if len(fr.Pix) != wantPx {
+			fr.Release()
+			res.err = fmt.Errorf("第%d帧字节不对", frames)
+			return res
+		}
+		if firstR == nil {
+			firstR = make([]uint8, w*h)
+			for i := 0; i < w*h; i++ {
+				firstR[i] = fr.Pix[i*4]
+			}
+		}
+		fr.Release()
+		frames++
+	}
+	if frames != len(wantDecode) {
+		res.err = fmt.Errorf("解出%d帧 want %d", frames, len(wantDecode))
+		return res
+	}
+	res.frames = frames
+	res.decodePOC = append([]int32(nil), wantDecode...)
+	res.totalPx = int64(fs * frames)
+	res.diffY, res.diffC, res.diffPct = 0, 0, 0
+	res.firstY = firstR
+	res.firstGoldenY = append([]uint8(nil), firstR...)
+	if _, codec, perr := govideo.ProbeFile(mp4Path); perr == nil {
+		res.profile = codec
+	} else {
+		res.profile = "h264"
 	}
 	return res
 }

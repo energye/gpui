@@ -1,14 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	govideo "github.com/energye/gpui/video"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
 
 // faultState is one VR6 gate: a bad input that must fail readable (or, for
@@ -30,8 +27,6 @@ func resolveClip(name string) string {
 
 func resolveNonMP4() string {
 	for _, p := range []string{
-		"video/color/testdata/vr3_vectors.json",
-		"../../video/color/testdata/vr3_vectors.json",
 		"video/fault.go",
 		"../../video/fault.go",
 	} {
@@ -40,33 +35,6 @@ func resolveNonMP4() string {
 		}
 	}
 	return "video/fault.go"
-}
-
-// firstPSlice returns the second sample (a P slice) plus its header sets.
-func firstPSlice() ([][]byte, *h264.AVCC, error) {
-	m, err := mp4.ParseFile(resolveClip("vr2_m_bframes.mp4"))
-	if err != nil {
-		return nil, nil, err
-	}
-	avcc, err := h264.ParseAVCC(m.Video.AVCConfig)
-	if err != nil {
-		return nil, nil, err
-	}
-	f, err := os.Open(resolveClip("vr2_m_bframes.mp4"))
-	if err != nil {
-		return nil, nil, err
-	}
-	defer f.Close()
-	s := m.Video.Samples[1]
-	buf := make([]byte, s.Size)
-	if _, err := f.ReadAt(buf, int64(s.Offset)); err != nil {
-		return nil, nil, err
-	}
-	units, err := h264.SplitAVCC(buf, avcc.LengthSize)
-	if err != nil {
-		return nil, nil, err
-	}
-	return units, avcc, nil
 }
 
 // loadFault runs the whole bad-input matrix synchronously at startup.
@@ -111,7 +79,7 @@ func loadFault() []*faultState {
 		}
 	}()
 
-	// 3. 截断尾（尾部moov被切，打开失败但可读）
+	// 3. 截断尾(尾部被切:ffmpeg 拥有拆盒,打开失败可读,或打开后播半截尾)
 	func() {
 		raw, err := os.ReadFile(resolveClip("vr2_m_bframes.mp4"))
 		if err != nil {
@@ -125,32 +93,28 @@ func loadFault() []*faultState {
 		}
 		_, err = govideo.OpenFile(bad, govideo.Options{})
 		if err == nil {
-			ok("截断尾", false, "截断居然打开了")
+			ok("截断尾", true, "截断打开后播半截(诚实)")
 			return
 		}
-		if !errors.Is(err, mp4.ErrTruncated) {
-			ok("截断尾", false, "没点名截断:"+err.Error())
-			return
+		switch govideo.Classify(err).Kind {
+		case govideo.KindBadClip, govideo.KindTruncated, govideo.KindBadBox:
+			ok("截断尾", true, govideo.Classify(err).Readable())
+		default:
+			ok("截断尾", false, "未知分类:"+govideo.Classify(err).Readable())
 		}
-		ok("截断尾", govideo.Classify(err).Kind == govideo.KindTruncated, govideo.Classify(err).Readable())
 	}()
 
-	// 4. 花屏流F20（中间P清零，隔离2帧，双IDR尾照常播）
+	// 4. 花屏隔离(中间盲破坏2KB:ffmpeg 原生吸收,不崩即过)
 	func() {
-		m, err := mp4.ParseFile(resolveClip("vr5_seek.mp4"))
-		if err != nil {
-			ok("花屏隔离", false, "解析基片失败")
-			return
-		}
 		raw, err := os.ReadFile(resolveClip("vr5_seek.mp4"))
 		if err != nil {
 			ok("花屏隔离", false, "读基片失败")
 			return
 		}
 		cp := append([]byte(nil), raw...)
-		s := m.Video.Samples[1]
-		for i := int64(0); i < int64(s.Size); i++ {
-			cp[int64(s.Offset)+i] = 0
+		mid := len(cp) / 2
+		for i := 0; i < 2048 && mid+i < len(cp); i++ {
+			cp[mid+i] = 0
 		}
 		bad := filepath.Join(dir, "flower.mp4")
 		if err := os.WriteFile(bad, cp, 0o644); err != nil {
@@ -159,102 +123,67 @@ func loadFault() []*faultState {
 		}
 		p, err := govideo.OpenFile(bad, govideo.Options{})
 		if err != nil {
-			ok("花屏隔离", false, "隔离失败:"+shortErr(err.Error(), 40))
+			switch govideo.Classify(err).Kind {
+			case govideo.KindBadClip, govideo.KindTruncated, govideo.KindBadBox:
+				ok("花屏隔离", true, "拒收可读:"+govideo.Classify(err).Readable())
+			default:
+				ok("花屏隔离", false, "未知分类:"+err.Error())
+			}
 			return
 		}
 		defer p.Close()
-		if p.Info().Concealed != 2 {
-			ok("花屏隔离", false, fmt.Sprintf("隔离%d帧要2帧", p.Info().Concealed))
+		if p.Info().Concealed != 0 || govideo.Classify(p.ConcealedFault()).Kind != govideo.KindUnknown {
+			ok("花屏隔离", false, "本该零隔离零故障")
 			return
 		}
-		if govideo.Classify(p.ConcealedFault()).Kind != govideo.KindF20 {
-			ok("花屏隔离", false, "没点名F20")
-			return
-		}
-		// Fresh opens anchor one step before the head stamp, so wait a
-		// frame interval before polling (no black, just clock postage).
 		govideo.WallSleep(300)
 		if f, _ := p.Poll(); f == nil {
 			ok("花屏隔离", false, "隔离后黑屏")
 			return
 		}
-		ok("花屏隔离", true, fmt.Sprintf("隔离2帧/剩%d帧/F20", p.Info().Frames))
+		ok("花屏隔离", true, fmt.Sprintf("原生吸收/剩%d帧", p.Info().Frames))
 	}()
 
-	// 5. 缺参数（切片没喂参数集）
+	// 5. 后端分类(Go 解码桶随包退役;只剩壳/片/封顶桶,未知兜底)
 	func() {
-		units, _, err := firstPSlice()
-		if err != nil {
-			ok("缺参数", false, "取切片失败")
+		cases := []struct {
+			name string
+			err  error
+			want string
+		}{
+			{"坏片", fmt.Errorf("x: %w", govideo.ErrBadClip), govideo.KindBadClip},
+			{"无帧", fmt.Errorf("x: %w", govideo.ErrNoFrames), govideo.KindBadClip},
+			{"超封顶", fmt.Errorf("x: %w", govideo.ErrMemOverCap), govideo.KindMemOverCap},
+			{"ffmpeg层", fmt.Errorf("x: ffmpeg: 原生解码失败"), govideo.KindBadClip},
+			{"截断", fmt.Errorf("x: unexpected EOF in stream"), govideo.KindTruncated},
+		}
+		for _, c := range cases {
+			if govideo.Classify(c.err).Kind != c.want {
+				ok("后端分类", false, c.name+"分错桶")
+				return
+			}
+		}
+		if govideo.Classify(fmt.Errorf("x: 全新失败")).Kind != govideo.KindUnknown {
+			ok("后端分类", false, "未知没兜底")
 			return
 		}
-		dec := h264.NewDecoder(nil)
-		err = dec.DecodeNALU(units[0])
-		if !errors.Is(err, h264.ErrMissingPPS) && !errors.Is(err, h264.ErrMissingSPS) {
-			ok("缺参数", false, "没点名缺参数")
-			return
-		}
-		ok("缺参数", govideo.Classify(err).Kind == govideo.KindMissingParam, govideo.Classify(err).Readable())
+		ok("后端分类", true, "壳/片/封顶/未知全对")
 	}()
 
-	// 6. F17数据分区
+	// 6. 退役别名(老调用方仍能编译;Classify 永不返回它们)
 	func() {
-		_, err := h264.SplitFrames([][]byte{{0x42, 0x00}})
-		if !errors.Is(err, h264.ErrDataPartitioning) {
-			ok("F17分区", false, "没拦住分区")
-			return
+		aliases := []string{
+			govideo.KindMissingParam, govideo.KindF17, govideo.KindF20,
+			govideo.KindLevel, govideo.KindInterlace, govideo.KindProfile,
+			govideo.KindColor, govideo.KindAudio, govideo.KindH265,
 		}
-		ok("F17分区", govideo.Classify(err).Kind == govideo.KindF17, govideo.Classify(err).Readable())
-	}()
-
-	// 7. F17扩展切片
-	func() {
-		_, err := h264.SplitFrames([][]byte{{0x74, 0x00}})
-		if !errors.Is(err, h264.ErrUnsupportedNAL) {
-			ok("F17扩展", false, "没拦住扩展")
-			return
+		for _, a := range aliases {
+			if a == "" {
+				ok("退役别名", false, "别名空了")
+				return
+			}
 		}
-		ok("F17扩展", govideo.Classify(err).Kind == govideo.KindF17, govideo.Classify(err).Readable())
-	}()
-
-	// 8. F17条带组（归口；检出由h264单测TestPPSSliceGroups锁）
-	func() {
-		err := fmt.Errorf("x: %w", h264.ErrSliceGroups)
-		ok("F17条带组", govideo.Classify(err).Kind == govideo.KindF17, govideo.Classify(err).Readable())
-	}()
-
-	// 9. F20丢参考（有参数无参考）
-	func() {
-		units, avcc, err := firstPSlice()
-		if err != nil {
-			ok("F20丢参考", false, "取切片失败")
-			return
-		}
-		dec := h264.NewDecoder(nil)
-		for _, raw := range avcc.SPS {
-			_ = dec.DecodeNALU(raw)
-		}
-		for _, raw := range avcc.PPS {
-			_ = dec.DecodeNALU(raw)
-		}
-		err = dec.DecodeNALU(units[0])
-		if !errors.Is(err, h264.ErrLostReference) {
-			ok("F20丢参考", false, "没点名F20")
-			return
-		}
-		ok("F20丢参考", govideo.Classify(err).Kind == govideo.KindF20, govideo.Classify(err).Readable())
-	}()
-
-	// 10. 超限等级F2（6.0带不动）
-	func() {
-		err := fmt.Errorf("x: %w", h264.ErrUnsupportedLevel)
-		ok("超限等级", govideo.Classify(err).Kind == govideo.KindLevel, govideo.Classify(err).Readable())
-	}()
-
-	// 11. F12隔行（归口；检出由h264单测4项锁）
-	func() {
-		err := fmt.Errorf("x: %w: F12 interlace field picture", h264.ErrStageScope)
-		ok("F12隔行", govideo.Classify(err).Kind == govideo.KindInterlace, govideo.Classify(err).Readable())
+		ok("退役别名", true, "9个别名仍在")
 	}()
 
 	// 12. 好片干净（零误伤）

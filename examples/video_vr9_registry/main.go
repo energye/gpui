@@ -113,12 +113,12 @@ func main() {
 		liveImg = rendering.NewRenderImage(480, 270)
 		shell.Body.LabelAt("直播（同片走注册表循环，不黑不花）", 13, 20, 180, 0.6, 0.8, 0.95)
 		shell.Body.Place(liveImg, 20, 206)
-		shell.Body.LabelAt(fmt.Sprintf("注册用例 %d/%d（探测+能力+注册名+播出+灰桩+三坏例+H265三项）", st.pass, st.total), 12, 520, 206, 0.72, 0.8, 0.9)
+		shell.Body.LabelAt(fmt.Sprintf("注册用例 %d/%d（探测+能力+注册名+播出+别名+三坏例+H265三项）", st.pass, st.total), 12, 520, 206, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏盒：%s", shortErr(st.badShellErr, 40)), 12, 520, 232, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏编码：%s", shortErr(st.badCodecErr, 40)), 12, 520, 258, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏采样：%s", shortErr(st.badColorErr, 40)), 12, 520, 284, 0.72, 0.8, 0.9)
-		shell.Body.LabelAt(fmt.Sprintf("灰桩像素 R=%d G=%d B=%d", st.stubR, st.stubG, st.stubB), 12, 520, 310, 0.72, 0.8, 0.9)
-		shell.Body.LabelAt(fmt.Sprintf("H265 %s/等级%d/长%d %d单元 %s", st.h265Profile, st.h265Level, st.h265Length, st.h265Units, st.h265Kind), 12, 520, 334, 0.72, 0.8, 0.9)
+		shell.Body.LabelAt(fmt.Sprintf("退役别名 R=%d G=%d B=%d", st.stubR, st.stubG, st.stubB), 12, 520, 310, 0.72, 0.8, 0.9)
+		shell.Body.LabelAt(fmt.Sprintf("H265 %s %d帧 %s", st.h265Profile, st.h265Samples, st.h265Kind), 12, 520, 334, 0.72, 0.8, 0.9)
 	}
 
 	var proc scheduler.ProcessTracker

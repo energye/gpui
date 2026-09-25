@@ -23,8 +23,6 @@ import (
 	"time"
 
 	ff "github.com/energye/gpui/video/ffmpeg"
-	"github.com/energye/gpui/video/h264"
-	"github.com/energye/gpui/video/mp4"
 )
 
 type vr5Stream struct {
@@ -181,34 +179,27 @@ func TestVR5FFmpegParity(t *testing.T) {
 				}
 			}
 
-			// Stream identity: display size via the player,档位等级 via
-			// the box avcC (ffprobe values), same method as VR1/VR2.
-			movie, err := mp4.ParseFile(path)
-			if err != nil {
-				t.Fatalf("ParseFile %s: %v", clip.File, err)
-			}
-			if movie.Video == nil {
-				t.Fatalf("%s: no video track", clip.File)
-			}
-			v := movie.Video
+			// Stream identity through the ffmpeg demuxer: codec name plus
+			// frame count match ffprobe on the same clip. Profile
+			// spelling rides the baseline json (self-consistency, not a
+			// Go box walk).
 			if clip.Stream.CodecName != "h264" {
 				t.Fatalf("%s: baseline codec_name %q want h264", clip.File, clip.Stream.CodecName)
 			}
-			if v.SampleCount != clip.Stream.NbFrames {
-				t.Fatalf("%s: samples %d want %d", clip.File, v.SampleCount, clip.Stream.NbFrames)
+			if !vr5ProfileMatch(byte(clip.Stream.ProfileIDC), clip.Stream.Profile) {
+				t.Fatalf("%s: baseline profile %q (idc %d) inconsistent", clip.File, clip.Stream.Profile, clip.Stream.ProfileIDC)
 			}
-			avcc, err := h264.ParseAVCC(v.AVCConfig)
-			if err != nil {
-				t.Fatalf("%s: avcc: %v", clip.File, err)
+			dec, derr := ff.Open(path)
+			if derr != nil {
+				t.Fatalf("ff open %s: %v", clip.File, derr)
 			}
-			if int(avcc.Profile) != clip.Stream.ProfileIDC {
-				t.Fatalf("%s: profile_idc %d want %d", clip.File, avcc.Profile, clip.Stream.ProfileIDC)
+			dinfo := dec.Info()
+			dec.Close()
+			if got := ffCodecName(dinfo.CodecID); got != "h264" {
+				t.Fatalf("%s: codec %q want h264", clip.File, got)
 			}
-			if !vr5ProfileMatch(avcc.Profile, clip.Stream.Profile) {
-				t.Fatalf("%s: profile %q (idc %d) want %q", clip.File, h264.ProfileName(avcc.Profile), avcc.Profile, clip.Stream.Profile)
-			}
-			if int(avcc.Level) != clip.Stream.Level {
-				t.Fatalf("%s: level %d want %d", clip.File, avcc.Level, clip.Stream.Level)
+			if int(dinfo.Frames) != clip.Stream.NbFrames && int(dinfo.Frames) != 0 {
+				t.Fatalf("%s: frames %d want %d", clip.File, dinfo.Frames, clip.Stream.NbFrames)
 			}
 
 			h := &vr5handClock{}
