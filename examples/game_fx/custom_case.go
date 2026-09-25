@@ -2,7 +2,7 @@
 //
 // Frozen look: transparent sheet, steel-blue block, white chip. Outline
 // rings the block red, dissolve eats it with an orange edge. Only frozen
-// game/fx constructors are called here; render is only fed buffers.
+// engine/fx constructors are called here; render is only fed buffers.
 package main
 
 import (
@@ -13,8 +13,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/fx"
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/fx"
 )
 
 // Frozen custom-case params (review visible, never silent).

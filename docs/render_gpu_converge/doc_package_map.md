@@ -54,8 +54,8 @@
 | `ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md` | `ui/` 输入法 | 文本编辑 + IME 需求，复盘范围在 `ui/textinput` 等 |
 | `ENGINE_TEXT_X11_IME_REQUIREMENT.md` | `ui/` 输入法 | Wayland 版的 X11 完整镜像 |
 | `ENGINE_VIDEO_DECODE_PLAN.md` | `video/` | 范围原话：只做 `MP4 + H.264` 独立根模块 |
-| `RENDER_2_5D_GAP_PLAN.md` | `game/` | 范围原话：生产级 2.5D 游戏引擎；`render/` 只是它用的底层 |
-| `RENDER_2_5D_PARALLEL_GROUPS.md` | `game/` | 来源原话：源自 GAP_PLAN 的并行分组 |
+| `RENDER_2_5D_GAP_PLAN.md` | `engine/` | 范围原话：生产级 2.5D 游戏引擎；`render/` 只是它用的底层 |
+| `RENDER_2_5D_PARALLEL_GROUPS.md` | `engine/` | 来源原话：源自 GAP_PLAN 的并行分组 |
 | `ENGINE_TEXT_SCALE_CHANGELOG.md` | `render/text/` 过程存档 | 变更过程存档，非需求口径 |
 | `TEXT_EDIT_PROBLEMS.md` | 输入框线问题单 | 用途原话：只定义要解决什么，不记改法 |
 | `REWRITE_ROUND_NOTES.md` | 输入框线存档 | 状态原话：本轮改动未能解决问题，已回滚 |

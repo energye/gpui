@@ -7,10 +7,10 @@
 //
 // Window: 1200x800, title game_anim. Three cards WALK/RUN/JUMP paint the
 // same 13-bone upright person from the window-local testdata/sk_hero.json
-// (window-owned art for a readable person; game/anim keeps its own
-// 7-bone math hero untouched). Bones call game/anim read-only
+// (window-owned art for a readable person; engine/anim keeps its own
+// 7-bone math hero untouched). Bones call engine/anim read-only
 // (Pose/Skin/IK), drawing uses only existing render shapes; render/ and
-// game/anim/ stay untouched.
+// engine/anim/ stay untouched.
 //
 // Flags:
 //
@@ -25,7 +25,7 @@
 // (three-pose replay bitwise + draw order file order, the pure-math
 // C-both-sides: raster AA is a known CPU/GPU divergence owned by 9.2,
 // 4.3 owns numbers not pixels), logic probes pass (joints match the
-// game/anim offscreen goldens, draw order file order, walk/run/jump
+// engine/anim offscreen goldens, draw order file order, walk/run/jump
 // switch without combine), pixel assertions pass (joint red, bone dark,
 // background white, head on its transform spot), Golden zero tolerance
 // (offscreen sk_golden.png plus window sk_final_base.png, second run on),
@@ -43,11 +43,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/energye/gpui/engine/anim"
+	"github.com/energye/gpui/engine/core"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/examples/wrsoak"
-	"github.com/energye/gpui/game/anim"
-	"github.com/energye/gpui/game/core"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -84,7 +84,7 @@ const (
 
 // Hardcoded tolerances (review visible, never silent).
 const (
-	logicEps     = 1e-9 // joint match vs game/anim offscreen goldens
+	logicEps     = 1e-9 // joint match vs engine/anim offscreen goldens
 	ikMaxDist    = 1e-9 // solved tip must sit on the target
 	pixelByteTol = 10   // per-channel byte tolerance for probes
 	goldenTol    = 0.0  // zero tolerance once the baseline exists
@@ -329,7 +329,7 @@ func runLogicProbes(skel *anim.Skeleton) (map[string]any, bool) {
 	} else {
 		out["transform_ok"] = true
 	}
-	// Setup joints match the game/anim offscreen goldens exactly.
+	// Setup joints match the engine/anim offscreen goldens exactly.
 	setup, err := anim.NewPose(skel)
 	if err != nil {
 		out["setup_pose"] = err.Error()
@@ -940,7 +940,7 @@ func main() {
 	}
 	wrkit.EnsureUIFace()
 
-	// Window-local true art only: never read across into game/anim/testdata.
+	// Window-local true art only: never read across into engine/anim/testdata.
 	skel, err := anim.LoadSkeletonFile(filepath.Join(testdataDir, "sk_hero.json"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "FAIL: load %s: %v\n", filepath.Join(testdataDir, "sk_hero.json"), err)
@@ -1017,7 +1017,7 @@ func main() {
 	}
 	status := wrkit.Label("POSE walk switches=0", 12, 0.70, 0.78, 0.88)
 	shell.Body.Place(status, 8, 360)
-	chain := wrkit.Label("game/anim只算数: Pose+Skin+IK直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
+	chain := wrkit.Label("engine/anim只算数: Pose+Skin+IK直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
 	shell.Body.Place(chain, 8, 384)
 
 	var summary manualSummary
@@ -1834,7 +1834,7 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 	shell.Body.Place(liveBox, 8, 470)
 	status := wrkit.Label("FSM idle switches=0", 12, 0.70, 0.78, 0.88)
 	shell.Body.Place(status, 424, 470)
-	chain := wrkit.Label("game/anim只算数: State+Machine直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
+	chain := wrkit.Label("engine/anim只算数: State+Machine直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
 	shell.Body.Place(chain, 424, 494)
 
 	var summary manualSummary

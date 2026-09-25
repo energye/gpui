@@ -28,7 +28,7 @@ RUN_SECONDS=8 go run ./examples/game_fx --case=all
 
 ## 接的冻接口（只用，不重冻）
 
-- warp：`game/fx` `Warp/NewWarp/DefaultNoise/OffsetAt/WarpPoint/WarpRGBA/SampleClamped`
+- warp：`engine/fx` `Warp/NewWarp/DefaultNoise/OffsetAt/WarpPoint/WarpRGBA/SampleClamped`
  （强度 6.0，水晃，强度条可见）。
 - grade 整链：`Bloom/Vignette/LUT/Grade`，顺序发光→暗角→查表→映射
  （`Threshold=0.8/Radius=2/Intensity=0.9`，`Inner=0.25/Outer=0.85/Strength=0.45`，
@@ -58,4 +58,4 @@ RUN_SECONDS=8 go run ./examples/game_fx --case=all
 - `examples/game_fx/testdata/fx_final.png` / `fx_final_base.png`（窗口终帧快照，首跑自动产出）
 - `examples/game_fx/README.md`（本文件）
 
-只动这三处；`docs` 表、`render/game/ui` 实现、其他 `examples/` 一律不动。
+只动这三处；`docs` 表、`render/engine/ui` 实现、其他 `examples/` 一律不动。

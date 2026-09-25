@@ -31,11 +31,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/sprite"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/examples/wrsoak"
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/sprite"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"

@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/particle"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/particle"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"

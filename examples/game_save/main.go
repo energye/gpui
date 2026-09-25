@@ -3,7 +3,7 @@
 // Three cards side by side, one per frozen tier (high 1000 particles plus
 // 8 lights plus scale 1.00, medium 500 plus 4 plus 0.75, low 200 plus 2
 // plus 0.50). The live scene highlights one card at a time and switches
-// the real game/save Quality handle every 2s; the switch only replaces
+// the real engine/save Quality handle every 2s; the switch only replaces
 // the level, the scene never reloads, nothing flashes.
 //
 // Modes:
@@ -29,9 +29,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/engine/save"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
-	"github.com/energye/gpui/game/save"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -49,7 +49,7 @@ const (
 
 	// frozenPath is the engine-side frozen tier table. The window never
 	// hardcodes tier numbers; it replays this file through the real API.
-	frozenPath = "game/save/testdata/quality_cases.json"
+	frozenPath = "engine/save/testdata/quality_cases.json"
 
 	// switchEveryS flips the live tier this often; an 8s auto run flips
 	// at least 3 times (one full high->medium->low cycle plus one).

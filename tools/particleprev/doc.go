@@ -15,7 +15,7 @@
 //	  name, origin[2], shape{kind,dir,angle_deg,extents,ring_inner,ring_outer},
 //	  rate, max, speed[2], life_ms[2], gravity[2], start[4], end[4],
 //	  strength, scale, sub_count, sub_speed[2], sub_life_ms[2], seed,
-//	  spawn, update_ms. The shape names match game/particle
+//	  spawn, update_ms. The shape names match engine/particle
 //	  (point, cone, box, ring). A "want" section may sit beside the recipe
 //	  for tests; the preview ignores it.
 //
@@ -33,11 +33,11 @@
 // path is core InvalidArg, a missing directory is core NotFound.
 //
 // Parity口径 (C两边齐): the number layer matches the engine bit for bit.
-// The window and the preview replay through game/particle itself
+// The window and the preview replay through engine/particle itself
 // (NewEmitter/Spawn/Update), so Effect.Spawned/Alive/Child equal a direct
 // engine replay of the same file with zero difference. Pixels are NOT
 // hard-compared against game windows (different scenes); instead the
 // same effect painted twice offscreen is byte-identical. Numbers only
-// use game/core types; this tool defines no Vec2, Color, or AssetID of
+// use engine/core types; this tool defines no Vec2, Color, or AssetID of
 // its own.
 package main

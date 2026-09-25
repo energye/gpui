@@ -19,7 +19,7 @@ RUN_SECONDS=8 go run ./examples/game_step --case=dirty -auto-only
 
 - 顶栏 + 图例 + 身体 + HUD 照 `wrkit.NewShell`。
 - 身体左侧静态区：两个大色块，挂 `RepaintBoundary`，对应 `ui/scene` 静态层全程零标记，右栏 `静态skip` 为 live 回放证据。
-- 身体中间追车跑道：红色追车块每帧按 `game/step` 的 `DirtyTracker` 算旧并新，镜像写入 `ui/scene` 的 `DirtyLayer`（`MaxDirtyRects=16`），黄框描边即本帧脏区；每 240 帧（另第 60 帧保底一次）突发 17+ 移动退整屏，青条为整屏对照。
+- 身体中间追车跑道：红色追车块每帧按 `engine/step` 的 `DirtyTracker` 算旧并新，镜像写入 `ui/scene` 的 `DirtyLayer`（`MaxDirtyRects=16`），黄框描边即本帧脏区；每 240 帧（另第 60 帧保底一次）突发 17+ 移动退整屏，青条为整屏对照。
 - 身体右侧计数器：脏块数 / 整屏回退数 / 帧率，另带静态 skip 与位移。
 
 ## 三证据

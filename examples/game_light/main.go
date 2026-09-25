@@ -3,7 +3,7 @@
 //
 // Window: 1200x800, title game_light. Body left day, middle night-only,
 // right torch (night + warm point light with round cookie, world layer
-// only). Light math calls game/light Scene Apply (frozen, direct use);
+// only). Light math calls engine/light Scene Apply (frozen, direct use);
 // the lit picture is drawn with the existing render DrawImageEx, render
 // main path untouched (light covers after fx).
 //
@@ -40,11 +40,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/light"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/examples/wrsoak"
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/light"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"

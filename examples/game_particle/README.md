@@ -24,7 +24,7 @@ RUN_SECONDS=8 go run ./examples/game_particle --case=fire -auto-only
 
 ## 三证据
 
-- 逻辑探针：全量回放 `game/particle/testdata/emitter_cases.json`，`spawned/alive/child` 逐例对金数据。
+- 逻辑探针：全量回放 `engine/particle/testdata/emitter_cases.json`，`spawned/alive/child` 逐例对金数据。
 - 像素断言：火心亮、锥外暗、烟区灰，容差写死 `probePixelTol=8`（0-255 阶）。
 - Golden 静态掩码零容差：`testdata/particle_fire_golden.png`，首跑产生基线，后续逐位比对；`particle_fire_last.png` 为当次终帧快照。
 

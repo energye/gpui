@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/tilemap"
-	"github.com/energye/gpui/game/world"
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/tilemap"
+	"github.com/energye/gpui/engine/world"
 )
 
 // Preview is one opened level project: engine counts plus placeholders.

@@ -2,7 +2,7 @@
 //
 // Chase scene: retained static blocks (never dirtied, boundary replay) plus
 // one chase car whose old+new union alone is dirtied every frame through the
-// real game/step DirtyTracker and ui/scene DirtyLayer. Burst full-motion
+// real engine/step DirtyTracker and ui/scene DirtyLayer. Burst full-motion
 // frames fall back to full repaint and raise the cyan对照条.
 //
 // Modes:
@@ -28,10 +28,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/step"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/step"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"

@@ -11,7 +11,7 @@
 //
 // Project layout (both files optional, never required):
 //
-//	<dir>/map.tmx    Tiled TMX subset frozen by game/tilemap (orthogonal or
+//	<dir>/map.tmx    Tiled TMX subset frozen by engine/tilemap (orthogonal or
 //	                 isometric, csv layers, objectgroup). Missing means an
 //	                 empty map placeholder, never an error.
 //	<dir>/scene.json world.SceneFile JSON version 1.0 (entities with parent
@@ -40,6 +40,6 @@
 // equal a direct engine parse of the same files with zero difference.
 // Pixels are NOT hard-compared against game windows (different scenes);
 // instead the same project painted twice offscreen is byte-identical.
-// Numbers only use game/core types; this tool defines no Vec2, Color,
+// Numbers only use engine/core types; this tool defines no Vec2, Color,
 // or AssetID of its own.
 package main

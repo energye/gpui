@@ -1,7 +1,7 @@
 // Command game_particle is the 5.1 particle-emitter independent window.
 //
 // Fire cone (cone upward) plus smoke (box slow rise plus turbulence) use the
-// real game/particle Emitter Spawn/Update/AppendToBatch and draw through the
+// real engine/particle Emitter Spawn/Update/AppendToBatch and draw through the
 // sprite batch. Sprites carry position plus opacity only; color goes through
 // ColorOf into the atlas tint.
 //
@@ -29,11 +29,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/particle"
+	"github.com/energye/gpui/engine/sprite"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/particle"
-	"github.com/energye/gpui/game/sprite"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -237,7 +237,7 @@ func buildCaseEmitter(c emitterCase) (*particle.Emitter, error) {
 
 // probeLogic replays every frozen engine case and checks spawned/alive/child.
 func probeLogic() (cases, passed, spawned, alive, child int, ok bool, detail string) {
-	raw, err := os.ReadFile("game/particle/testdata/emitter_cases.json")
+	raw, err := os.ReadFile("engine/particle/testdata/emitter_cases.json")
 	if err != nil {
 		return 0, 0, 0, 0, 0, false, "read emitter_cases.json: " + err.Error()
 	}

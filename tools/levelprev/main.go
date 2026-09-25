@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/engine/tilemap"
+	"github.com/energye/gpui/engine/world"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
-	"github.com/energye/gpui/game/tilemap"
-	"github.com/energye/gpui/game/world"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"

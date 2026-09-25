@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/tilemap"
-	"github.com/energye/gpui/game/world"
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/tilemap"
+	"github.com/energye/gpui/engine/world"
 )
 
 type levelCase struct {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/energye/gpui/game/core"
+	"github.com/energye/gpui/engine/core"
 )
 
 type particleCase struct {

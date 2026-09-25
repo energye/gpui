@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/particle"
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/particle"
 )
 
 // Effect is one opened particle effect: the filed recipe echo plus one
@@ -50,7 +50,7 @@ func (e *Effect) Config() particle.EmitterConfig {
 
 // BuildEmitter builds a fresh engine emitter from the filed recipe with
 // the filed seed. The window and the tests replay through this so the
-// numbers always come from game/particle itself.
+// numbers always come from engine/particle itself.
 func (e *Effect) BuildEmitter() (*particle.Emitter, error) {
 	if e == nil || !e.HasFile {
 		return nil, core.InvalidArg("particleprev.BuildEmitter", "effect")

@@ -1,8 +1,8 @@
 // Command game_fx is the 5.3/5.4 independent real window: warp water wobble + grade film look.
 //
 // Window: 1200x800, title game_fx. Body left original, middle warp, right grade.
-// Warp calls game/fx Warp OffsetAt/WarpRGBA (frozen, direct use). Grade calls
-// game/fx Bloom/Vignette/LUT/Grade full chain bloom->vignette->lut->tonemap.
+// Warp calls engine/fx Warp OffsetAt/WarpRGBA (frozen, direct use). Grade calls
+// engine/fx Bloom/Vignette/LUT/Grade full chain bloom->vignette->lut->tonemap.
 //
 // Flags:
 //
@@ -31,11 +31,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/fx"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/examples/wrsoak"
-	"github.com/energye/gpui/game/core"
-	"github.com/energye/gpui/game/fx"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"

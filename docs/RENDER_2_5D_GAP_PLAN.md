@@ -6,7 +6,7 @@
 
 ## §0 冻结目标（全文档唯一目标口径，2026-09-17；目标数只在这里，门槛数只在§5）
 
-- 范围：本线只做 2.5D 游戏引擎 `game/` 侧。V1 算对→V2 做像→V3 做大→V4 玩法机制→V5 量产工具→V6 联机多人。平台层（窗口、显卡后端、声音后端、打包签名、跨端重测）归别线，本线只定接口与数的口子（见“平台口子”一节）。玩法以 Godot 4 为唯一实现参考（G01–G35＋D01–D20），底层只用自家 `render/`，只抄做法不搬代码。网同步无 Godot 现成答案处按 MMO 通用做法写并注明不标 G 号。
+- 范围：本线只做 2.5D 游戏引擎 `engine/` 侧。V1 算对→V2 做像→V3 做大→V4 玩法机制→V5 量产工具→V6 联机多人。平台层（窗口、显卡后端、声音后端、打包签名、跨端重测）归别线，本线只定接口与数的口子（见“平台口子”一节）。玩法以 Godot 4 为唯一实现参考（G01–G35＋D01–D20），底层只用自家 `render/`，只抄做法不搬代码。网同步无 Godot 现成答案处按 MMO 通用做法写并注明不标 G 号。
 - 做成算完：W0–W24 共 25 波全绿；S00–S112 共 113 号（S80、S101 作废，实做 111 项）每项走完五步，带日期＋测试文件＋真窗名；真窗每窗自动＋人工双 JSON（人工事件非 0），纯算数留离屏对比、音频加人工听；帧门、量门、像素门、长跑门、换机门、坏路门全见§5（阈值数只在§5出现一次，这里不重写）。
 - 非目标：音频效果器除 S103 三样外其余以后；平台层实现与跨端重测归别线；框架只支持 linux/windows/macos 桌面三端，手机端不在本线范围；具体示例画法、美术资源、关卡设计；窗口、输入法、文字排版（别线管）。人和网原单独立项，现 V6 已补入本线（S106–S112，W23–W24）。
 - 规矩：上一波没绿下一波别开；拿活按 W 块拿，P 只帮助记忆；能力行是唯一状态源；修订只记文末 log，行内不再散记。
@@ -80,7 +80,7 @@
 - 存：长跑 2 小时涨不超 5%（V3 大包 8 小时），漏一次不过；切一次后台、缩一次窗口，回来黑屏直接红。
 - GC（2026-09-17 定稿，Go 1.25 为准，W10 先跑基线，后面每项照着守，只许降不许涨）：
   - 目标：热路径少分配，不是零内存。卡顿多半是每帧不停 new，GC 突然扫一大片帧就掉了；管住分配，帧就稳。
-  - 池子分两种：每帧用的走有界留存池（像 `game/step/pool.go`，上锁、有上限、GC 来了也在）；冷路径（解码、中转、加载）才走 `sync.Pool`（GC 来了可倒掉）。`Put` 前先清空引用，`Get` 出来先重写，取用还三动作齐，不许取了不还。
+  - 池子分两种：每帧用的走有界留存池（像 `engine/step/pool.go`，上锁、有上限、GC 来了也在）；冷路径（解码、中转、加载）才走 `sync.Pool`（GC 来了可倒掉）。`Put` 前先清空引用，`Get` 出来先重写，取用还三动作齐，不许取了不还。
   - 值指针分冷热：小东西（坐标/颜色/帧号几十字节）传值不进堆；大东西（实体/地图块/骨骼几百字节以上）全程传指针，池里放指针、还的还是同一个。热结构做小做扁，里面不塞切片/哈希表/接口。冷路径（加载/存盘/报错）该返回 error 就返回；热路径（更新/排序/碰撞/粒子）不许接口装箱、不许循环里写闭包、不许 `Sprintf`/JSON。
   - 容器与字符串：热路径不用哈希表（能砍就砍，换切片加下标或整数编号；`map[float64]` 禁止）；字符串只认整数编号，不拼串、不转字节；切片提前按量申请、复用底子（切到 0 长再写），`make` 只许在初始化和扩容时出现。
   - 量法三件套：热点函数加分配断言（`testing.AllocsPerRun`，先预热池子、结果要用掉防优化）；长跑看 `runtime.MemStats` 的分配总量、GC 次数、最大停顿；再加 `-benchmem` 基准。只看次数不看停顿不算过。
@@ -132,7 +132,7 @@
 
 近大远小、镜头推拉跟随震动、远近景错开动，游戏叫相机和视差。
 
-- 1.1 上层透视投影（已完成）：老矩阵还是 6 个数，只能平移缩放旋转错切，算不出透视除法（位置：`render/matrix.go`、`render/internal/image/affine.go`），底层不动；游戏侧在 `game/camera/project.go` 另算好屏坐标和深浅，再喂现有梯形三角，CPU 和显卡两条路算出同一个数。
+- 1.1 上层透视投影（已完成）：老矩阵还是 6 个数，只能平移缩放旋转错切，算不出透视除法（位置：`render/matrix.go`、`render/internal/image/affine.go`），底层不动；游戏侧在 `engine/camera/project.go` 另算好屏坐标和深浅，再喂现有梯形三角，CPU 和显卡两条路算出同一个数。
 - 1.2 前后遮挡：游戏要的深浅值排序接口现在没有，画出来只看谁后画谁盖谁。源码里显卡确实用了深度比较，但只给任意路径裁剪用（`render/internal/gpu/shaders/depth_clip.wgsl`、`stencil_renderer.go`、`glyph_mask_pipeline.go`、`convex_renderer.go`里的 `DepthCompare=GreaterEqual`），不对游戏开放。要做：加深度值，远的先画近的后画，显卡打开深度比较。
 - 1.3 镜头能力：推拉、跟随、震动、变焦、远近景错开动，外加限位、平滑跟随、锚点、无限重复衔接。现在场景层只有平移加旋转加缩放（`ui/scene/layer.go` 的 `TransformLayer`：`TX,TY,Rotation,SX,SY,CX,CY`，另有 `OffsetLayer`），不是相机，只能每个示例自己手算。要做：引擎里给一套镜头，位置、缩放、角度、震动、限位、平滑、锚点一次说清；视差层支持重复镜像，长路不露缝。
 - 1.4 梯形贴图对齐：`render/m4_extensions.go` 的 `DrawImageQuad`，显卡能画梯形，CPU 直接拉成方块。要做：CPU 补真透视采样，或者明确不支持时报错，不要静默画错。
@@ -218,7 +218,7 @@
 
 | 参考谁 | 用来定什么 | 怎么用 |
 |---|---|---|
-| Godot 4（Camera2D、ParallaxBackground、Sprite2D、AnimatedSprite2D、AnimationPlayer、AnimationTree、CPUParticles2D、GPUParticles2D、Line2D、TileMap、TileSet、Skeleton2D、PointLight2D、LightOccluder2D、CanvasModulate） | 镜头、视差、前后排序、序列帧、变速曲线、时间轴、状态机、粒子、拖尾、瓦片、骨头、2D 灯光影子、固定步长 | 唯一玩法参考。只看节点有哪些属性、数怎么算，Go 重写接到 game/ 包，不搬 C++ 代码，参数名默认值对齐 |
+| Godot 4（Camera2D、ParallaxBackground、Sprite2D、AnimatedSprite2D、AnimationPlayer、AnimationTree、CPUParticles2D、GPUParticles2D、Line2D、TileMap、TileSet、Skeleton2D、PointLight2D、LightOccluder2D、CanvasModulate） | 镜头、视差、前后排序、序列帧、变速曲线、时间轴、状态机、粒子、拖尾、瓦片、骨头、2D 灯光影子、固定步长 | 唯一玩法参考。只看节点有哪些属性、数怎么算，Go 重写接到 engine/ 包，不搬 C++ 代码，参数名默认值对齐 |
 | Skia（含 SkCanvas、SkParticles、SkImageFilter） | 透视矩阵思想、贴图多级渐远加各向异性、合批思路、滤镜链、粒子模块思想 | 只看接口和算法，Go 重写一遍接到现有 `render/` 接口上 |
 | Cocos Creator（含 Sprite、Animation、TiledMap、Spine 挂接） | 同一份玩法的第二意见，防只看一家走偏 | Godot 看不懂的地方拿它对一遍 |
 | Spine 数据格式（含骨骼、插槽、蒙皮、IK、权重） | 骨头数据长啥样 | 只认 JSON 结构，保证以后美术资源能直接用 |
@@ -238,7 +238,7 @@
 - 10.2 预制和场景：策划摆好的东西存成文件，开局一次装出来。现在没有。要做：预制文件、场景文件、加载存盘。
 - 10.3 生命周期：出生、激活、休眠、销毁，跨关不漏不炸。现在没有。要做：统一开关，销毁清资源。
 
-### 缺口11. 主循环和时间（`game/step` 的另一半）
+### 缺口11. 主循环和时间（`engine/step` 的另一半）
 
 逻辑跑多快、卡了追不追、暂停慢放加速怎么做。
 
@@ -286,63 +286,63 @@
 美术导表卡了谁看、掉帧是谁的锅、线上崩了怎么查。
 
 - 17.1 编辑器预览：摆关卡、调粒子、看瓦片。现在没有。要做：`tools/` 下先给关卡预览和粒子预览。
-- 17.2 性能和崩溃：帧率、画次数、显存、长跑不涨、崩了留日志，外加帧分解（谁吃时间）、过绘、着色器编译耗时。现在只有界面那套指标和真窗，没有游戏这套。要做：`game/debug` 统一出数，接长跑和崩溃上报。
+- 17.2 性能和崩溃：帧率、画次数、显存、长跑不涨、崩了留日志，外加帧分解（谁吃时间）、过绘、着色器编译耗时。现在只有界面那套指标和真窗，没有游戏这套。要做：`engine/debug` 统一出数，接长跑和崩溃上报。
 
 看情况再加（不急）：联机同步回滚、策划脚本（Go 加 Lua 二选一，带热重载）。要联机、要改逻辑不编译，这两样才做。
 
-## 包设计（新能力全放 `game/`，跟 `render/`、`ui/` 平级）
+## 包设计（新能力全放 `engine/`，跟 `render/`、`ui/` 平级）
 
-原则：`game/` 只算数，算完调现有画图接口。`render/` 只修画错的地方，不放大改。
+原则：`engine/` 只算数，算完调现有画图接口。`render/` 只修画错的地方，不放大改。
 
 ```text
-game/camera/camera.go      镜头位置缩放角度震动限位平滑锚点（对 1.3，主抄 Godot Camera2D）
-game/camera/project.go     上层透视投影 helper（对 1.1，老 6 数矩阵不动，另算好再喂梯形三角）
-game/camera/parallax.go    远近景错开加重复镜像（对 1.3，主抄 Godot ParallaxBackground）
-game/sprite/batch.go       同图合批一次提交（对 2.1，主抄 Godot Sprite 配 Skia 合批思路）
-game/sprite/atlas.go       图集扩展旋转染色翻转轴心单图过滤（对 2.2，主抄 Skia drawAtlas 加旋转）
-game/sprite/ysort.go       按脚底高度排序加层号分层（对 2.3，主抄 Godot YSort）
-game/sprite/flipbook.go    序列帧多动作库帧号时长循环回调（对 2.4，主抄 Godot AnimatedSprite2D）
-game/tex/compressed.go     压缩图加载（对 3.1，主抄 Basis、KTX2、ASTC 格式）
-game/tex/stream.go         后台边玩边加载（对 3.3，主抄 Godot 后台加载）
-game/tex/mipmap.go         远处防闪开关（对 3.2，主抄 Skia 采样做法）
-game/anim/easing.go        变速曲线（对 4.1，主抄 Godot 缓动曲线）
-game/anim/timeline.go      关键帧时间轴加事件軌（对 4.2，主抄 Godot AnimationPlayer；注意 ui/kit/timeline 是界面组件，不是这个）
-game/anim/skeleton.go      骨骼插槽皮肤网格权重IK约束物理惯性（对 4.3，主抄 Spine 数据格式加 Godot Skeleton2D）
-game/anim/statemachine.go  动作混合状态机（对 4.4，主抄 Godot AnimationTree）
-game/particle/emitter.go   发射数量速度寿命重力颜色形状乱流子发射（对 5.1，主抄 Godot 粒子节点）
-game/particle/cpu.go       普通粒子（对 5.1，同上）
-game/particle/gpu.go       显卡粒子（对 5.2，主抄 Godot GPUParticles2D）
-game/particle/trail.go     拖尾轨迹宽窄渐变接头（对 5.2，主抄 Godot Line2D）
-game/fx/bloom.go           发光（对 5.4，主抄 Skia 滤镜链）
-game/fx/vignette.go        暗角（对 5.4，同上）
-game/fx/lut.go             调色颜色查找表（对 5.4，同上）
-game/fx/warp.go            扭曲热浪噪声偏移（对 5.3，主抄游戏引擎扭曲做法）
-game/fx/custom.go          自定义材质钩子（对 5.5，主抄 Godot CanvasItemMaterial）
-game/light/light.go        点光方向光范围衰减灯片强度分层全局夜色（对 6.1，主抄 Godot PointLight2D）
-game/light/normal.go       法线受光（对 6.2，主抄游戏引擎法线做法）
-game/light/shadow.go       投影遮挡（对 6.3，主抄 Godot LightOccluder2D）
-game/tilemap/tilemap.go    瓦片对象层碰撞导航自动拼（对 7.1，主抄 Tiled TMX 加 Godot TileMap）
-game/tilemap/iso.go        斜 45 度投影（对 7.1，同上）
-game/tilemap/chunk.go      分区加载视野剔除（对 7.2，主抄游戏引擎分区做法）
-game/tilemap/lod.go        远近切换（对 7.3，同上）
-game/step/fixed.go         固定步长加补间（对 8.1 和 11.1，主抄 Fix Your Timestep）
-game/step/pool.go          路径顶点复用（对 8.2，不抄谁，纯工程池化）
-game/step/time.go          时间倍率暂停慢放（对 11.2，主抄 Godot 时间缩放）
-game/world/entity.go       实体挂件父子变换（对 10.1，主抄 Godot 节点做法）
-game/world/prefab.go       预制加载（对 10.2，主抄 Godot 预制做法）
-game/world/scene.go        场景加载存盘生命周期（对 10.2 和 10.3，同上）
-game/asset/asset.go        资产号异步加载引用计数依赖版本（对 12.1，主抄 Godot 后台加载）
-game/asset/atlaspack.go    图集离线打包（对 12.2，主抄游戏引擎打包做法）
-game/asset/hotreload.go    文件一变就重载（对 12.3，同上）
-game/input/action.go       动作映射改键死区震动手势（对 13.1，主抄 Godot 输入映射）
-game/input/buffer.go       输入缓冲多点跟踪（对 13.2，主抄游戏引擎做法）
-game/physics/body.go       碰撞盒层分组触发器射线移动平台（对 14.1，主抄 Godot 碰撞做法）
-game/physics/platform.go   斜坡平台单向上跳（对 14.2，同上）
-game/audio/positional.go   2D 位置音范围衰减（对 15.1，主抄 Godot 位置音）
-game/audio/music.go        音乐栈混音上限总线闪避（对 15.2，同上）
-game/save/save.go          存档槽位版本迁移坏档不崩（对 16.1，主抄游戏引擎存档做法）
-game/save/quality.go       高中低画质分档（对 16.2，同上）
-game/debug/stats.go        帧率画次数显存帧分解长跑（对 17.2，主抄游戏引擎看病做法）
+engine/camera/camera.go      镜头位置缩放角度震动限位平滑锚点（对 1.3，主抄 Godot Camera2D）
+engine/camera/project.go     上层透视投影 helper（对 1.1，老 6 数矩阵不动，另算好再喂梯形三角）
+engine/camera/parallax.go    远近景错开加重复镜像（对 1.3，主抄 Godot ParallaxBackground）
+engine/sprite/batch.go       同图合批一次提交（对 2.1，主抄 Godot Sprite 配 Skia 合批思路）
+engine/sprite/atlas.go       图集扩展旋转染色翻转轴心单图过滤（对 2.2，主抄 Skia drawAtlas 加旋转）
+engine/sprite/ysort.go       按脚底高度排序加层号分层（对 2.3，主抄 Godot YSort）
+engine/sprite/flipbook.go    序列帧多动作库帧号时长循环回调（对 2.4，主抄 Godot AnimatedSprite2D）
+engine/tex/compressed.go     压缩图加载（对 3.1，主抄 Basis、KTX2、ASTC 格式）
+engine/tex/stream.go         后台边玩边加载（对 3.3，主抄 Godot 后台加载）
+engine/tex/mipmap.go         远处防闪开关（对 3.2，主抄 Skia 采样做法）
+engine/anim/easing.go        变速曲线（对 4.1，主抄 Godot 缓动曲线）
+engine/anim/timeline.go      关键帧时间轴加事件軌（对 4.2，主抄 Godot AnimationPlayer；注意 ui/kit/timeline 是界面组件，不是这个）
+engine/anim/skeleton.go      骨骼插槽皮肤网格权重IK约束物理惯性（对 4.3，主抄 Spine 数据格式加 Godot Skeleton2D）
+engine/anim/statemachine.go  动作混合状态机（对 4.4，主抄 Godot AnimationTree）
+engine/particle/emitter.go   发射数量速度寿命重力颜色形状乱流子发射（对 5.1，主抄 Godot 粒子节点）
+engine/particle/cpu.go       普通粒子（对 5.1，同上）
+engine/particle/gpu.go       显卡粒子（对 5.2，主抄 Godot GPUParticles2D）
+engine/particle/trail.go     拖尾轨迹宽窄渐变接头（对 5.2，主抄 Godot Line2D）
+engine/fx/bloom.go           发光（对 5.4，主抄 Skia 滤镜链）
+engine/fx/vignette.go        暗角（对 5.4，同上）
+engine/fx/lut.go             调色颜色查找表（对 5.4，同上）
+engine/fx/warp.go            扭曲热浪噪声偏移（对 5.3，主抄游戏引擎扭曲做法）
+engine/fx/custom.go          自定义材质钩子（对 5.5，主抄 Godot CanvasItemMaterial）
+engine/light/light.go        点光方向光范围衰减灯片强度分层全局夜色（对 6.1，主抄 Godot PointLight2D）
+engine/light/normal.go       法线受光（对 6.2，主抄游戏引擎法线做法）
+engine/light/shadow.go       投影遮挡（对 6.3，主抄 Godot LightOccluder2D）
+engine/tilemap/tilemap.go    瓦片对象层碰撞导航自动拼（对 7.1，主抄 Tiled TMX 加 Godot TileMap）
+engine/tilemap/iso.go        斜 45 度投影（对 7.1，同上）
+engine/tilemap/chunk.go      分区加载视野剔除（对 7.2，主抄游戏引擎分区做法）
+engine/tilemap/lod.go        远近切换（对 7.3，同上）
+engine/step/fixed.go         固定步长加补间（对 8.1 和 11.1，主抄 Fix Your Timestep）
+engine/step/pool.go          路径顶点复用（对 8.2，不抄谁，纯工程池化）
+engine/step/time.go          时间倍率暂停慢放（对 11.2，主抄 Godot 时间缩放）
+engine/world/entity.go       实体挂件父子变换（对 10.1，主抄 Godot 节点做法）
+engine/world/prefab.go       预制加载（对 10.2，主抄 Godot 预制做法）
+engine/world/scene.go        场景加载存盘生命周期（对 10.2 和 10.3，同上）
+engine/asset/asset.go        资产号异步加载引用计数依赖版本（对 12.1，主抄 Godot 后台加载）
+engine/asset/atlaspack.go    图集离线打包（对 12.2，主抄游戏引擎打包做法）
+engine/asset/hotreload.go    文件一变就重载（对 12.3，同上）
+engine/input/action.go       动作映射改键死区震动手势（对 13.1，主抄 Godot 输入映射）
+engine/input/buffer.go       输入缓冲多点跟踪（对 13.2，主抄游戏引擎做法）
+engine/physics/body.go       碰撞盒层分组触发器射线移动平台（对 14.1，主抄 Godot 碰撞做法）
+engine/physics/platform.go   斜坡平台单向上跳（对 14.2，同上）
+engine/audio/positional.go   2D 位置音范围衰减（对 15.1，主抄 Godot 位置音）
+engine/audio/music.go        音乐栈混音上限总线闪避（对 15.2，同上）
+engine/save/save.go          存档槽位版本迁移坏档不崩（对 16.1，主抄游戏引擎存档做法）
+engine/save/quality.go       高中低画质分档（对 16.2，同上）
+engine/debug/stats.go        帧率画次数显存帧分解长跑（对 17.2，主抄游戏引擎看病做法）
 tools/levelprev/main.go    关卡预览（对 17.1，先顶一个能看的）
 tools/particleprev/main.go 粒子预览（对 17.1，同上）
 ```
@@ -366,18 +366,18 @@ render 新分支 ysort 深度比较（对 1.2 的 render 底，即 R5，隔离�
 
 实施顺序：以“开发依赖顺序”一节的 W0–W24 为准（W 是开工波次，S 是单会话序号，一次只做一个按 S00→S112 拿号）。
 
-## 开工底座 game/core（先立起来，谁都靠它）
+## 开工底座 engine/core（先立起来，谁都靠它）
 
 一句话：不先立底座，17个包各写一套数，后面合不上。P0开工前先把这个包立住。
 
 ```text
-game/core/vec.go      Vec2、Rect、Mat2D（只管2D数，不管渲染矩阵）
-game/core/color.go    Color（浮点存、8位出，和render对得上）
-game/core/time.go     Duration、Step（毫秒存，秒浮点算，防漂）
-game/core/rand.go     可播种随机（测试能重放，粒子不玄学）
-game/core/asset.go    AssetID、Handle（字符串ID加引用计数，资源对得上）
-game/core/result.go   统一错（缺文件、坏数据、显存不够，分得清）
-game/core/version.go  数据版本号（存档地图骨头升版能迁）
+engine/core/vec.go      Vec2、Rect、Mat2D（只管2D数，不管渲染矩阵）
+engine/core/color.go    Color（浮点存、8位出，和render对得上）
+engine/core/time.go     Duration、Step（毫秒存，秒浮点算，防漂）
+engine/core/rand.go     可播种随机（测试能重放，粒子不玄学）
+engine/core/asset.go    AssetID、Handle（字符串ID加引用计数，资源对得上）
+engine/core/result.go   统一错（缺文件、坏数据、显存不够，分得清）
+engine/core/version.go  数据版本号（存档地图骨头升版能迁）
 ```
 
 铁规矩：game下所有包只许用core的数，不许自己再定一套Vec2、Color、AssetID。render里老类型不动，game调render时在边界转一次。
@@ -386,12 +386,12 @@ game/core/version.go  数据版本号（存档地图骨头升版能迁）
 
 | 数据 | 认谁 | 冻到哪 | 文件放哪 |
 |---|---|---|---|
-| 骨头 | Spine JSON子集 | 骨头、插槽、皮肤、网格附件、权重、绘制次序、IK和约束先冻，物理惯性后冻 | `game/anim/testdata/spine_*.json` |
-| 地图 | Tiled TMX子集 | 图块、图层、对象层、碰撞导航遮挡先冻，自动拼规则后冻 | `game/tilemap/testdata/*.tmx` |
-| 图集 | 自定JSON | 图名、大图XY宽高、轴心、九宫格先冻 | `game/asset/testdata/atlas_*.json` |
-| 预制场景 | 自定JSON | 实体、挂件、父子、引用资产号先冻 | `game/world/testdata/scene_*.json` |
-| 存档 | 自定JSON | 槽位、版本、升版迁移先冻 | `game/save/testdata/save_*.json` |
-| 压缩图 | KTX2/Basis头 | 先只冻一种，后加一种冻一种 | `game/tex/testdata/*.ktx2` |
+| 骨头 | Spine JSON子集 | 骨头、插槽、皮肤、网格附件、权重、绘制次序、IK和约束先冻，物理惯性后冻 | `engine/anim/testdata/spine_*.json` |
+| 地图 | Tiled TMX子集 | 图块、图层、对象层、碰撞导航遮挡先冻，自动拼规则后冻 | `engine/tilemap/testdata/*.tmx` |
+| 图集 | 自定JSON | 图名、大图XY宽高、轴心、九宫格先冻 | `engine/asset/testdata/atlas_*.json` |
+| 预制场景 | 自定JSON | 实体、挂件、父子、引用资产号先冻 | `engine/world/testdata/scene_*.json` |
+| 存档 | 自定JSON | 槽位、版本、升版迁移先冻 | `engine/save/testdata/save_*.json` |
+| 压缩图 | KTX2/Basis头 | 先只冻一种，后加一种冻一种 | `engine/tex/testdata/*.ktx2` |
 
 没冻的格式，代码不许写死解析，先报错占位。
 
@@ -399,29 +399,29 @@ game/core/version.go  数据版本号（存档地图骨头升版能迁）
 
 - 每个能力开工第一步先冻接口：结构体长啥样、函数进啥出啥、错怎么报，写进对应`doc.go`，评审过才写逻辑。
 - 接口只加不改：要改先升版，老调用还能编过。render老接口一个不许改，新分支走新函数。
-- game只调render现有公开接口：要新画法先走`game/fx/custom.go`钩子，不直接改render主路。
+- engine只调render现有公开接口：要新画法先走`engine/fx/custom.go`钩子，不直接改render主路。
 
 ## 一整张工业级表（9 块画画加 8 块支撑）
 
 | 块 | 管啥 | 包 | 现状 |
 |---|---|---|---|
-| 1 镜头远近 | 近大远小推拉震动视差 | `game/camera` | 1.1已完成，其余未做 |
-| 2 小图多画 | 合批旋转染色排序序列帧 | `game/sprite` | 只有单张和按块取，要新做 |
-| 3 大图显存 | 压缩后台加载防闪 | `game/tex` | 只有三种格式同步读，要新做 |
-| 4 动作 | 变速时间轴骨头状态机 | `game/anim` | 只有一声 Tick，要新做 |
-| 5 粒子后期 | 火烟水气发光暗角调色扭曲加材质钩子 | `game/particle`、`game/fx` | 只有 6 种滤镜，要新做 |
-| 6 灯光 | 亮暗法线影子 | `game/light` | 没有，要新做 |
-| 7 大地图 | 瓦片斜 45 度分区远近切换 | `game/tilemap` | 没有，要新做 |
-| 8 帧内存 | 步长复用局部更新 | `game/step` | 只有跟随双缓冲复用池清理，要补 |
+| 1 镜头远近 | 近大远小推拉震动视差 | `engine/camera` | 1.1已完成，其余未做 |
+| 2 小图多画 | 合批旋转染色排序序列帧 | `engine/sprite` | 只有单张和按块取，要新做 |
+| 3 大图显存 | 压缩后台加载防闪 | `engine/tex` | 只有三种格式同步读，要新做 |
+| 4 动作 | 变速时间轴骨头状态机 | `engine/anim` | 只有一声 Tick，要新做 |
+| 5 粒子后期 | 火烟水气发光暗角调色扭曲加材质钩子 | `engine/particle`、`engine/fx` | 只有 6 种滤镜，要新做 |
+| 6 灯光 | 亮暗法线影子 | `engine/light` | 没有，要新做 |
+| 7 大地图 | 瓦片斜 45 度分区远近切换 | `engine/tilemap` | 没有，要新做 |
+| 8 帧内存 | 步长复用局部更新 | `engine/step` | 只有跟随双缓冲复用池清理，要补 |
 | 9 颜色一致 | 高动态两边对齐 | `render/` 小修 | 主路 8 位分叉，要小修 |
-| 10 世界对象 | 实体预制场景生命周期 | `game/world` | 没有，要新做 |
-| 11 时间 | 步长时缩放暂停 | `game/step` | 没有，要新做 |
-| 12 资源 | 资产打包热重载 | `game/asset` | 没有，要新做 |
-| 13 输入 | 动作改键缓冲 | `game/input` | 只有界面点键，要新做 |
-| 14 碰撞 | 碰撞盒平台斜坡 | `game/physics` | 没有，要新做 |
-| 15 音频 | 位置音音乐混音 | `game/audio` | 没有，要新做 |
-| 16 存档设置 | 存档画质档 | `game/save` | 没有，要新做 |
-| 17 工具看病 | 预览性能崩溃 | `game/debug`、`tools/` | 只有界面指标真窗，要新做 |
+| 10 世界对象 | 实体预制场景生命周期 | `engine/world` | 没有，要新做 |
+| 11 时间 | 步长时缩放暂停 | `engine/step` | 没有，要新做 |
+| 12 资源 | 资产打包热重载 | `engine/asset` | 没有，要新做 |
+| 13 输入 | 动作改键缓冲 | `engine/input` | 只有界面点键，要新做 |
+| 14 碰撞 | 碰撞盒平台斜坡 | `engine/physics` | 没有，要新做 |
+| 15 音频 | 位置音音乐混音 | `engine/audio` | 没有，要新做 |
+| 16 存档设置 | 存档画质档 | `engine/save` | 没有，要新做 |
+| 17 工具看病 | 预览性能崩溃 | `engine/debug`、`tools/` | 只有界面指标真窗，要新做 |
 
 ## 开发依赖顺序（先做啥、谁卡谁、谁能并行）
 
@@ -512,58 +512,58 @@ P5冻结不动（V1口径）：9.1高动态。V2部分解冻见S66，行状态�
 
 | 编号 | 能力 | 所属模块 | 归属(P) | 开工(S/W) | 前置 | 接口约定 | 实现方式 | 测试与真窗 | 全场景测啥 | 状态 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 0.0 | 共用底座core | game/core（7文件） | P0最前 | S00/W0 | 无（已绿，可开工） | Vec2/Rect/Color/Time/Rand/AssetID/Result/Version | game新包，render老类型边界转 | 测core_test；窗免 | A数对，B空零超大不崩，D万次耗时有数，E长跑不漂 | 已完成·V1口径（2026-09-14；game/core/core_test.go 16项全PASS＋CGO_ENABLED=0可构建；D万次约10.5ns/op；窗免-纯算数，边界往返等价即离屏依据） |
-| 1.1 | 上层透视投影 | game/camera/project.go | P1b | S00/W0 | 0.0 | Project(world)→screen，DepthToScale | game新包只算数，算好喂现有梯形三角 | 测camera_project_test＋离屏；窗免 | A 算出的屏坐标对，B 深度零和负不崩，C 两边齐，D 56 段路全量重投影帧率有数，E 环线跑千圈闭合，F 离屏对比 | 已完成·V1口径（2026-09-14；game/camera/camera_project_test.go 6项全PASS＋CGO_ENABLED=0可构建；D56段路114点约48.7ns/op远窄于近单调收敛；E千圈逐位一致＋往返1e-9闭合；C边界往返无损＋重放一致即两边同数；F离屏金比对project_cases.json梯形近宽远窄；窗免-纯算数） |
-| 1.2 | 前后遮挡 | game/sprite/ysort.go（深度扩展）+ render | P1b | S41/W5（R5底S35/W5先行） | core＋R5深度分支 | SetDepth＋Sort()，远先近后 | game排序为主，需动显卡走隔离新分支 | 测ysort_depth_test；窗game_sprite--case=depth | A 远先近后盖对，B 同深不闪，C 两边齐，D 百个遮挡帧率有数，E 长跑顺序不乱，F 真窗看盖对 | 已完成·V1口径（2026-09-15 R5底＋本体＋真卡＋正式窗全过：render/depth_r5.go+depth_r5_test.go 7项＋depth_r5_cases.json真卡far_first 0/1024 mean0＋three_layers 0/1024 mean0.022 max2；本体game/sprite/depth.go+depth_test.go 6项全PASS＋depth_cases.json 10组＋D百遮挡约5.6us/sort＋E万次重放一致；窗examples/game_sprite--case=depth自动10秒presents589 fps58.2/58.9 p95 17.5 parity0% sorted1 probe1 golden0% PASS，真机截图上红盖绿+中红盖绿+下蓝同深三组全亮；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测） |
-| 1.3a | 镜头纯算 | game/camera/camera.go | P0 | S08/W1 | 0.0 | Camera{pos,zoom,rot,shake,limit}＋View() | game新包只算数，不碰渲染 | 测camera_test＋离屏；窗免 | A位置缩放角度震动限位平滑锚点数对，B零负钳住，D万次耗时有数，E长跑不漂 | 已完成·V1口径（2026-09-15；game/camera/camera_test.go 7项全PASS＋CGO_ENABLED=0可构建；D万次约260ns/op；E十万步跟随收敛重放一致；C边界往返无损即离屏依据；F离屏金比对camera_cases.json 7视图冻结；窗免-纯算数） |
-| 1.3b | 视差画出 | game/camera/parallax.go＋project.go | P1b | S09/W1 | 0.0＋1.1 | Parallax＋Project(world)→screen | game新包算好喂梯形三角 | 测parallax_test；窗game_camera--case=follow | A错开重复镜像对，B零负不崩，C两边齐，D全屏帧率有数，E跑千米不飘无缝，F真窗看跟随长路 | 已完成·V1口径（2026-09-15；game/camera/parallax_test.go 6项全PASS＋CGO_ENABLED=0可构建；D 7层x13点x8机728屏约45ns/op；E 10公里101步缝1e-9内＋千圈重放逐位一致；C边界往返无损＋重放一致即两边同数；F离屏金比对parallax_cases.json四角梯形近宽远窄＋双镜像缝；窗免-W1纯算数，跟随窗game_camera后建） |
+| 0.0 | 共用底座core | engine/core（7文件） | P0最前 | S00/W0 | 无（已绿，可开工） | Vec2/Rect/Color/Time/Rand/AssetID/Result/Version | engine新包，render老类型边界转 | 测core_test；窗免 | A数对，B空零超大不崩，D万次耗时有数，E长跑不漂 | 已完成·V1口径（2026-09-14；engine/core/core_test.go 16项全PASS＋CGO_ENABLED=0可构建；D万次约10.5ns/op；窗免-纯算数，边界往返等价即离屏依据） |
+| 1.1 | 上层透视投影 | engine/camera/project.go | P1b | S00/W0 | 0.0 | Project(world)→screen，DepthToScale | engine新包只算数，算好喂现有梯形三角 | 测camera_project_test＋离屏；窗免 | A 算出的屏坐标对，B 深度零和负不崩，C 两边齐，D 56 段路全量重投影帧率有数，E 环线跑千圈闭合，F 离屏对比 | 已完成·V1口径（2026-09-14；engine/camera/camera_project_test.go 6项全PASS＋CGO_ENABLED=0可构建；D56段路114点约48.7ns/op远窄于近单调收敛；E千圈逐位一致＋往返1e-9闭合；C边界往返无损＋重放一致即两边同数；F离屏金比对project_cases.json梯形近宽远窄；窗免-纯算数） |
+| 1.2 | 前后遮挡 | engine/sprite/ysort.go（深度扩展）+ render | P1b | S41/W5（R5底S35/W5先行） | core＋R5深度分支 | SetDepth＋Sort()，远先近后 | engine排序为主，需动显卡走隔离新分支 | 测ysort_depth_test；窗game_sprite--case=depth | A 远先近后盖对，B 同深不闪，C 两边齐，D 百个遮挡帧率有数，E 长跑顺序不乱，F 真窗看盖对 | 已完成·V1口径（2026-09-15 R5底＋本体＋真卡＋正式窗全过：render/depth_r5.go+depth_r5_test.go 7项＋depth_r5_cases.json真卡far_first 0/1024 mean0＋three_layers 0/1024 mean0.022 max2；本体engine/sprite/depth.go+depth_test.go 6项全PASS＋depth_cases.json 10组＋D百遮挡约5.6us/sort＋E万次重放一致；窗examples/game_sprite--case=depth自动10秒presents589 fps58.2/58.9 p95 17.5 parity0% sorted1 probe1 golden0% PASS，真机截图上红盖绿+中红盖绿+下蓝同深三组全亮；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测） |
+| 1.3a | 镜头纯算 | engine/camera/camera.go | P0 | S08/W1 | 0.0 | Camera{pos,zoom,rot,shake,limit}＋View() | engine新包只算数，不碰渲染 | 测camera_test＋离屏；窗免 | A位置缩放角度震动限位平滑锚点数对，B零负钳住，D万次耗时有数，E长跑不漂 | 已完成·V1口径（2026-09-15；engine/camera/camera_test.go 7项全PASS＋CGO_ENABLED=0可构建；D万次约260ns/op；E十万步跟随收敛重放一致；C边界往返无损即离屏依据；F离屏金比对camera_cases.json 7视图冻结；窗免-纯算数） |
+| 1.3b | 视差画出 | engine/camera/parallax.go＋project.go | P1b | S09/W1 | 0.0＋1.1 | Parallax＋Project(world)→screen | engine新包算好喂梯形三角 | 测parallax_test；窗game_camera--case=follow | A错开重复镜像对，B零负不崩，C两边齐，D全屏帧率有数，E跑千米不飘无缝，F真窗看跟随长路 | 已完成·V1口径（2026-09-15；engine/camera/parallax_test.go 6项全PASS＋CGO_ENABLED=0可构建；D 7层x13点x8机728屏约45ns/op；E 10公里101步缝1e-9内＋千圈重放逐位一致；C边界往返无损＋重放一致即两边同数；F离屏金比对parallax_cases.json四角梯形近宽远窄＋双镜像缝；窗免-W1纯算数，跟随窗game_camera后建） |
 | 1.4 | 梯形贴图对齐 | render/m4_extensions.go | P1a-R1 | S01/W1 | 0.0 | DrawImageQuad透视回退，错报错 | render小修CPU回退 | 测quad_cpu_test＋离屏；窗game_quad | A 梯形贴对，B 退化四边形不崩，C 两边齐（重点），D 单图帧率有数，E 长跑不漏，F 真窗加离屏对比 | 已完成·V1口径（2026-09-15；render/quad_cpu_test.go 8项全PASS：A梯形/矩形探针全对＋F离屏golden 0%/C parity nearest逐位一致bilinear 0%/D单图约0.2ms/E500次交替终绿＋B退化/自交/非有限哨兵错不崩；真窗examples/game_quad RUN_SECONDS=8自动判OK presents约470 parity 0% outside_white=1 golden 0% gpu_ops>0；前置0.0复核绿；R1接口冻结QuadKind/QuadDrawOptions/DrawImageQuadEx/ClassifyQuad＋哨兵错5个，老DrawImageQuad签名不动） |
-| 2.1 | 精灵合批 | game/sprite/batch.go | P1b | S31/W4 | 0.0＋R3采样开关 | Batch{Add,Flush}，同图一次交 | game新包攒批，只调现有接口 | 测batch_test；窗game_sprite--case=batch千树 | A 同图一批画对，B 空批零尺寸跳过，C 两边齐，D 千个精灵帧率调用次数有数，E 长跑不涨，F 真窗看千树 | 已完成·V1口径（2026-09-15；game/sprite/batch_test.go 6项全PASS＋sprite整包18项PASS＋go vet净＋CGO_ENABLED=0可构建；D千精灵Flush约550us/2次调用；E5000次重放一致200轮回零；C分组无损重放一致即两边同数；F离屏金比对batch_cases.json 4组冻结；窗意向game_sprite--case=batch随P2建；前置S24复核绿） |
-| 2.2 | 图集旋转染色翻转轴心 | game/sprite/atlas.go + render扩展 | P1b | S36/W5（R4底S30/W4先行） | 0.0＋R4图集扩展 | AtlasSprite＋rot/flip/pivot/tint/filter | render加新分支+game包，老路不动 | 测atlas_test；窗game_sprite--case=rot | A 角度颜色翻转轴心单图过滤对，B 空块跳过，C 两边齐，D 百块帧率有数，E 长跑不漏，F 真窗看转和换色转身脚底对齐 | 已完成·V1口径（2026-09-15 R4底＋本体＋真卡＋正式窗全过，染色已上显卡逐顶点颜色混画根因修后复验三卡齐亮：game/sprite/atlas_test.go 6项全PASS＋atlas_cases.json 13组＋R4真卡identity 0/1024 rot90 0/1024 mean0.003 max1＋本体真卡双0/1024；半透明三组显卡/CPU最大差1；D百块转换约23us/批；窗examples/game_sprite--case=all自动10秒presents591 fps58.3/59.0 p95 17.5 cpuFb0 parity0% probe1 golden0% PASS，真机截图ROT白底+红块+橙染色+红条+梯形+绿批量全亮；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测） |
-| 2.3 | 按高低排序加层号分层 | game/sprite/ysort.go | P1b | S10/W1 | 0.0 | YSort(feetY)＋Layer{world,fx,ui} | game新包只算数 | 测ysort_test；窗game_sprite--case=ysort | A 脚底高度加层号排对、界面层不被盖，B 同高稳定不闪，C 两边齐，D 百个排序耗时有数，E 长跑不乱，F 真窗看前后盖特效不飘界面 | 已完成·V1口径（2026-09-15；game/sprite/ysort_test.go 6项全PASS＋CGO_ENABLED=0可构建；D百精灵2000次约38.9us/sort；E万次重放逐位一致＋走格往返不粘；C输入不改＋结果新片＋重放一致即两边同数；F离屏金比对ysort_cases.json 7组冻结＋world<fx<ui＋Y递增断言；窗免-W1纯算数，排序窗game_sprite后建） |
-| 2.4 | 序列帧多动作库 | game/sprite/flipbook.go | P1b | S11/W1 | 0.0 | Flipbook{Play,Update,OnEvent}＋动作库 | game新包只算数 | 测flipbook_test；窗game_sprite--case=anim | A 帧号时长循环回调多套动作切换对，B 缺帧不崩，C 两边齐，D 多路播放帧率有数，E 长跑不漂，F 真窗看待机跑跳切换 | 已完成·V1口径（2026-09-15；game/sprite/flipbook_test.go 6项全PASS＋sprite全包12项全PASS＋go vet净＋CGO_ENABLED=0可构建；A六序列全对（循环/单次/乒乓/切换/单帧）回调与返回逐事件一致；B坏clip七类invalid-arg零入库、坏Play不动位、零负dt静默、百万毫秒级dt收敛单事件、nil接收器不崩；D千路x200次约40.6ns/op；E十万步双重放逐位一致＋单次播完恒守尾帧；C纯算数不画画以库拷贝隔离＋重放逐位一致即两边同数；F离屏金比对flipbook_cases.json循环回0/单次守22/乒乓双端＋帧号归属断言；窗免-W1纯算数，动画窗game_sprite后建；前置0.0复核绿core 16项全PASS） |
-| 3.1 | 压缩图 | game/tex/compressed.go | P2长链首 | S02/W1 | 0.0 | LoadKTX2/Basis→上传，坏报Result错 | game新包独立解码，不碰老8位路 | 测compressed_test＋离屏；窗免 | A 解码上传对，B 坏文件报错不崩，C 画出来和原图差在容差内，D 大图显存有数，E 反复加载释放不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；game/tex/compressed_test.go 6项全PASS＋CGO_ENABLED=0可构建；A三文件头尺寸块数上传像素全对＋红绿蓝白象限逐像素一致＋13处At抽点一致；B空零截断坏头零维非4倍类型错层长错9类bad-data＋vk超压3D数组立方mipmap9类unsupported＋16384超限out-of-memory＋Basis保留unsupported缺文件not-found＋At越界闭合；C容差0下65616像素maxDiff0 bad0＋At与字节片逐像素一致即两边同数；D256图20次约0.5ms每parse上传32768B解码262144B比8；E千次重放逐位一致＋块像素拷贝隔离＋复读文件一致；F离屏金比对compressed_cases.json三文件＋13 spots＋块缝锐边＋4倍网格断言；窗免-纯解码不建窗；前置0.0复核绿core/camera/sprite全PASS；只动game/tex新包render老8位路未碰） |
-| 3.2 | 远处防闪开关 | game/tex/mipmap.go + render/image_pipeline.go | P1b | S32/W4（R3底S24/W3先行） | 0.0＋R3采样开关 | SetFilter(near/far,aniso)，按图开关 | render按图开关+game开关 | 测mipmap_test；窗game_tex--case=far | A 近清远稳，B 超小尺寸不崩，C 两边齐（重点），D 远景帧率有数，E 长跑不抖，F 真窗看远树 | 已完成·V1口径（2026-09-15；game/tex/mipmap_test.go 5项全PASS＋tex全包17项PASS＋render金图quad/verts parity绿＋CGO_ENABLED=0可构建；D千图set+get约0.65ms、2万次取级约75ns/op；E千次重放一致Clear归零；C压缩tol0下maxDiff0＋sampler_contract5组全对＋零值命令合并逐位一致；F离屏金比对mipmap_cases.json；窗意向game_tex--case=far随P2建；前置0.0+S16复核绿；只动mipmap+doc+单测+金数据+image_pipeline新分支老路不动） |
-| 3.3 | 后台边玩边加载 | game/tex/stream.go + game/asset | P2 | S29/W3 | 0.0＋12.1 | Stream{Request,Poll}，缺占位 | game新包后台链 | 测stream_test；窗game_tex--case=stream | A 到边加载不卡，B 缺图占位不崩，C 两边齐，D 加载时帧率有数，E 跑大地图不涨，F 真窗看边走边出 | 已完成·V1口径（2026-09-15；game/tex/stream_test.go 6项全PASS＋compressed老6项回归绿＋race无竞争＋CGO_ENABLED=0可构建；D64块小图后台约1.6ms前台Poll约0.8us/次、大图约1.1ms/张；E千次重放一致200块装卸回基线；C后台与同步逐位一致；F离屏金比对stream_cases.json 8冻结＋品红占位16像素全对；窗意向game_tex--case=stream随P2建；前置0.0+S19复核绿；只动stream+doc+单测+金数据老同步路未碰） |
-| 4.1 | 变速曲线 | game/anim/easing.go | P0 | S04/W1 | 0.0 | Ease(t)→v，曲线库冻名 | game新包只算数 | 测easing_test＋离屏；窗免 | A 曲线值对，B 时间越界钳住，C 不适用，D 万次求值耗时有数，E 长跑不漂，F 离屏对比 | 已完成·V1口径（2026-09-15；game/anim/easing_test.go 6项全PASS＋CGO_ENABLED=0可构建；D万次约153ns/op；E20万x31重放逐位一致＋端点精确；C重放一致＋Name/Parse往返无损即两边同数（C不适用-纯算数）；F离屏金比对easing_cases.json 31种冻结＋单调/超调/镜像形状断言；窗免-纯算数） |
-| 4.2 | 关键帧时间轴加事件軌 | game/anim/timeline.go | P1b | S17/W2 | 0.0＋4.1 | Timeline{AddKey,Sample,OnEvent} | game新包只算数 | 测timeline_test；窗game_anim--case=tl | A 插值循环事件回调（出刀光播声调方法显隐）对，B 空轨不崩，C 两边齐，D 多轨帧率有数，E 长跑不漂，F 真窗看动作事件准时 | 已完成·V1口径（2026-09-15；game/anim/timeline_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D八轨20万采样约156.8ns/op＋2.5万次Update约52ns/op；E十万步双重放一致循环落回0＋单次播完守尾；C纯算数以双重放逐位一致＋输入不改即两边同数；F离屏金比对timeline_cases.json三序列冻结＋键位命中/线性中点/回绕反弹事件序断言；窗免-W2纯算数，真窗game_anim--case=tl随P2建；前置0.0＋S04复核绿） |
-| 4.3 | 骨骼蒙皮对齐 Spine | game/anim/skeleton.go | P2长链 | S42/W6 | 0.0＋12.1＋2.2 | Skeleton{Pose,Skin,IK}，认Spine子集 | game新包+认Spine JSON | 测skeleton_test；窗game_anim--case=sk真资源 | A 骨头插槽皮肤网格权重绘制次序IK约束物理惯性对，B 缺骨不崩，C 两边齐，D 单角色帧率有数，E 长跑不错位，F 真窗看走跑跳真资源 | 已完成·V1口径（2026-09-15；game/anim/skeleton_test.go 6项全PASS，主会话复核过＋本包easing/timeline回归绿＋前置core/asset/sprite复核绿＋CGO_ENABLED=0可构建＋go vet净；D单角色姿态+IK+两块蒙皮2万次约73.3ms约3666ns/op；E5万步双重放一致IK吸住误差约5e-15；C双重放逐位一致＋边界往返无损即两边同数；F离屏金比对spine_cases.json＋spine_hero.json冻结7骨姿态＋绘制次序；窗examples/game_anim--case=sk已建并改成双腿人形（2026-09-15改：窗自有13骨直立人，头顶圆脸＋衬衫躯干＋双臂＋双腿裤管＋鞋＋地面线，走并腿跑分腿跳收腿三态可分；引擎7骨链 hero 未动，窗13骨走同一套 Pose/Skin/IK/Transform 接口，双腿 IK 各自吸住误差约1e-9；主会话复跑自动8秒门禁EXIT0 presents454 fps52.9/56.6 p95 17.5 parity真 golden0 当窗金图0，切4次；首遍基线重冻后第二遍即0差；另有负载高抖动遍已注明环境原因；C为纯算数三姿态逐位重放＋5槽次序对即两边同数，窗线画走path/fill跨后端像素比归9.2管故不硬比；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测）；物理惯性占位报Unsupported未写死） |
-| 4.4 | 动作混合状态机 | game/anim/statemachine.go | P2长链 | S46/W7 | 4.2＋2.4＋4.3 | State{CanTo,Blend}，混合时长 | game新包只算数 | 测statemachine_test；窗game_anim--case=fsm | A 切换混合对，B 非法切换不崩，C 两边齐，D 切百次耗时有数，E 长跑不卡死，F 真窗看切换 | 已完成·V1口径（2026-09-16；game/anim/statemachine_test.go 6项全PASS＋statemachine_cases.json三态六序列＋fsm_golden.png离屏基线；D settled切100次共16us约160ns/次；E20万步双机重放逐位一致＋500次非法风暴错码稳定；C六序列双重放逐位一致＋拷贝隔离即两边同数；F窗examples/game_anim--case=fsm自动 presents474 fps59.1/57.0 p95 18.1 hitch0 离屏金0% 128000像素 窗金0% 559840像素 切换4次 PASS，三卡＋交叉曲线＋活条亲眼验对；环境DISPLAY=:0 940MX/580.178.04 integrated后端 gpu_ops16748 1920x1080非release换机重测；前置S17/S11/S42各6项复核绿＋sk旧窗重跑EXIT0 presents424双金0差切换3次未红（sk_final.png快照顺手重写像素0差，主会话定夺留不留）；render未碰；主会话复跑go test ./game/anim整包PASS；人工常驻2026-09-16 presents3296 switches32 ptr515 双金0差 backend=x11，用户关窗收JSON，三窗同开fps约50.8偏低待闲时单窗复测） |
-| 5.1 | 粒子发射形状乱流子发射 | game/particle/emitter.go + cpu.go | P3 | S38/W5 | 0.0＋2.1 | Emitter{Spawn,Update}＋形状乱流子发射 | game新包+靠sprite画 | 测emitter_test；窗game_particle--case=fire | A 数量速度寿命重力颜色形状乱流子发射对，B 零发射不崩，C 两边齐，D 千粒子帧率有数，E 长跑不涨，F 真窗看火锥烟飘 | 已完成·V1口径（2026-09-15 引擎混画根因已修＋染色上显卡后复验全过：emitter_test.go 6项全PASS＋emitter_cases.json 7例；窗examples/game_particle--case=fire自动10秒presents578 fire447 smoke559 batch1 fps57.1/57.7 p95 18.2 raster 8.9ms cpuFb0 hitch2 PASS，真机截图火锥亮黄红上升＋烟灰缓飘乱流摆动；根因render混合提交错目标致全黑，修render/context_pass_scratch.go+gpu提交+scene两record接线＋新单测pass_scratch 2项；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
-| 5.2 | 显卡粒子拖尾宽窄渐变 | game/particle/gpu.go + trail.go | P3 | S43/W6 | 5.1＋render新管线 | GPUPool＋Trail{width,grad,joint} | game新包+新管线隔离做 | 测gpu_trail_test；窗game_particle--case=trail | A 轨迹宽窄颜色接头对，B 空轨不崩，C 两边齐，D 数千点帧率有数，E 长跑不涨，F 真窗看刀光由宽到窄 | 已完成·V1口径（2026-09-15；game/particle/gpu_trail_test.go 6项全PASS，主会话复核过＋老emitter 6项回归绿＋sprite整包绿＋CGO_ENABLED=0可构建＋go vet净；D3000粒子6000点spawn约2.1ms/update约0.9ms/append约5.7ms/flush约2.8ms一次提交draws=1；E2000次重放一致200轮装满清空回零；C同种子池子与CPU发射器逐位一致即两边同数；F离屏金比对gpu_trail_cases.json 8轨迹＋3池子；窗examples/game_particle--case=trail自动8秒主会话复跑probes 3/3 golden changed=0 presents467 fps57.4/58.3 p95 17.9 hitch0 gpu_ops12903 cpu回退0 alive45 trails45 points494 batch1 PASS，真机刀光头宽尾窄亮黄拖红；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测；render主路未碰，只加trail case＋main.go 8行门放行） |
-| 5.3 | 扭曲热浪 | game/fx/warp.go | P3 | S39/W5 | 0.0＋2.1 | Warp{strength,noise}，偏移采样 | game新包+新中间图隔离做 | 测warp_test；窗game_fx--case=warp | A 偏移方向对，B 强度零不崩，C 两边齐，D 全屏帧率有数，E 长跑不花，F 真窗看水晃 | 已完成·V1口径（2026-09-15 数算+单测+正式窗全过，混画修后复验仍全亮：warp_test.go 6项全PASS＋fx整包12项PASS；D全屏1920x1080约179ms最优、单点约67ns/次；金数据warp_cases.json 9偏移+2整图逐字节命中；窗examples/game_fx--case=all自动10秒presents591 parity0% moved32499 corner0.07 halo0.33 fps57.3/58.9 p95 17.4 PASS，真机截图左原图+中水晃+右胶片三卡齐亮；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
-| 5.4 | 发光暗角调色 | game/fx/bloom.go + vignette.go + lut.go | P3 | S40/W5 | 0.0＋2.1 | Bloom/Vignette/LUT，接滤镜链 | game新包+新中间图隔离做 | 测bloom_lut_test；窗game_fx--case=grade | A 发光暗角表对，B 空表不崩，C 两边齐（重点），D 全屏帧率有数，E 长跑不漏，F 真窗看气氛 | 已完成·V1口径（2026-09-15 引擎层+单测+正式窗全过：bloom_lut_test.go 6项全PASS＋fx整包12项PASS＋金数据bloom_lut_cases.json；C真卡parity 0% mean0；窗examples/game_fx--case=all自动10秒presents591 parity0% corner0.07 halo0.33 fps57.3/58.9 p95 17.4 PASS＋基线fx_final_base.png落盘，真机截图三卡齐亮；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
-| 5.5 | 自定义材质钩子 | game/fx/custom.go | P3 | S44/W6 | 0.0＋5.4 | Custom{name,params}，只碰游戏层 | game新钩子只碰游戏层 | 测custom_test；窗game_fx--case=custom | A 钩子进出数对、只碰游戏层，B 坏着色器报错不崩主路，C 两边齐（CPU 明确降级标记），D 单钩子全屏帧率有数，E 反复装卸不漏，F 真窗看描边溶解 | 已完成·V1口径（2026-09-15；game/fx/custom_test.go 6项全PASS，主会话复核过＋本包warp/bloom_lut回归共18项全PASS＋CGO_ENABLED=0可构建＋go vet净；D1080p一遍identity约70ms/outline最优约26ms纯CPU参考路；E200轮x16装卸回零2000次重放一致500次坏图错码稳定；C纯算数同一套数重放一致＋identity不降级outline/dissolve标CPU降级即两边约定；F离屏金比对custom_cases.json 7组identity＋outline＋dissolve；窗examples/game_fx--case=custom自动约8秒主会话复跑EXIT0 presents471 fps57.0/58.8 p95 18.2 parity0% golden0% 当窗金图差0 kept3138/edge3710/gone31552 outline356 PASS，真机左原片＋中红圈描边＋右橙边溶解三卡齐亮；回归all窗复跑EXIT0 golden0% hitch0老窗未红；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测；render主路未碰，老case走custom分支外默认不动；入库fx_custom_golden.png＋fx_custom_base.png，fx_custom_last.png为运行快照不入库） |
-| 6.1 | 2D 灯光灯片分层夜色 | game/light/light.go | P3 | S45/W6 | 0.0＋5.4 | Light{pos,range,cookie}＋分层＋夜色 | game新包盖在fx之后 | 测light_test；窗game_light--case=torch | A 位置范围衰减灯片强度颜色分层照全局夜色对，B 零灯不黑屏，C 两边齐，D 多灯帧率有数，E 长跑不闪，F 真窗看手电只照人不照背景 | 已完成·V1口径（2026-09-15；game/light/light_test.go 6项全PASS，主会话复核过＋CGO_ENABLED=0可构建＋go vet净；D8灯打64x64一次约1.7ms约52.9ns/像素/灯；E手电组2000遍重放一致坏图500次错码全对；C同一套数CPU与显卡受光系数一致即两边同数；F离屏金比对light_cases.json 8组系数＋7组整图；窗examples/game_light--case=torch自动8秒主会话复跑EXIT0 presents474 fps57.4/59.2 p95 17.7 hitch0 parity0% golden0% 当窗金图34万像素差0 lit2059 gain0.66 bg与夜色逐位同 夜最暗0.069不黑屏 PASS，真机左白天＋中夜色＋右手电只照人不照背景；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测；render主路未碰，新包＋独立窗） |
-| 6.2 | 法线受光 | game/light/normal.go | P3 | S47/W7 | 6.1 | NormalMap＋光向，受光系数 | game新包盖在fx之后 | 测normal_test；窗game_light--case=normal | A 受光方向对，B 缺法线不崩，C 两边齐，D 单图帧率有数，E 长跑不花，F 真窗看立体 | 已完成·V1口径（2026-09-16；game/light/normal_test.go 6项全PASS＋normal_cases.json 5组整图＋8组系数＋6组点积＋窗小金图normal_dome_golden.png；D 8灯打64x64约2.5ms约75.5ns/像素/灯；E2000遍重放逐位一致＋500次坏图错码稳定＋穹顶左亮右暗形状保持；C双重放逐位一致＋存取往返无损即两边同数；F窗examples/game_light--case=normal自动 presents476 fps56.9/59.3 p95 18.2 hitch0 parity0% 探针朝灯0.984>平0.880>背灯0 穹顶行0.975>0.609>0.193 lit17228像素44.9% 增益0.78 离屏金0% 6144像素 窗金0% 343360像素 PASS；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测；首遍窗探针取数小错修窗后第二遍即绿引擎数未动；前置S45 light_test 6项复核绿＋torch旧窗重跑PASS；render主路＋light.go本体未碰；主会话复跑go test ./game/light整包18项全PASS＋vet净；人工常驻2026-09-16 presents2240 ptr194 双金0差 backend=x11，用户关窗收JSON，三窗同开fps约44.2偏低待闲时单窗复测；人工2026-09-16发现窗表现问题待修：中卡底是均匀0.75灰、无穹顶轮廓无底纹，右暗部沉到与背景同色，人眼看不见穹顶形状，只能看见一团亮晕化开，方向用户2026-09-16确认先放着后面再说，人工待定，W7暂不关门，引擎数不动；窗表现真实修2026-09-16（只动examples/game_light/main.go的makeDomeNormals：圈内起坡、圈外贴平，底仍均匀灰、灯仍侧光，game/light/normal.go引擎数未动）：normal单测6项全PASS＋整包PASS＋vet净，自动窗第二遍presents474 fps57.2/59.1 p95约17.2 hitch0 parity0% 探针朝灯0.984>平0.880>背灯0 穹顶行0.975>0.609>0.193 lit33557像素87.4% 增益0.78 离屏金0% 6144像素 窗金0% 343360像素 PASS，中卡穹顶圈已露、右暗部浮在亮底上不再沉底，小金图normal_dome_golden.png＋窗基线normal_final_base.png因窗法线重冻一次（改谁为啥哪天已记），torch/shadow旧窗重跑双0未红，人工常驻90秒2026-09-16 presents5316 p95约17.3 hitch0 parity0% 双金0差 backend=x11 ptr0 key0 rs0 已留人工看；圆边锯齿修2026-09-16（只动examples/game_light/main.go：圈口2像素滑到平＋中卡4倍超采样再缩回，game/light/normal.go引擎数未动）：单测6项＋整包PASS＋vet净，自动窗第二遍presents471 p95约17.5 hitch1 parity0% 穹顶行0.975＞0.602＞0.193 lit33762像素87.9% 增益0.78 双金0差 PASS，三倍放大看圆边已是软过渡，小金normal_dome_golden.png＋窗基线normal_final_base.png因窗法线重冻一次，torch/shadow重跑双0未红；以上两次“暂不关门/仍不关门”为修前记录，2026-09-16 W7已关，见W7关门行） |
-| 6.3 | 投影遮挡 | game/light/shadow.go | P3 | S48/W7 | 6.1 | Occluder＋Shadow，挡变暗 | game新包盖在fx之后 | 测shadow_test；窗game_light--case=shadow | A 影子方向对，B 无挡不崩，C 两边齐，D 多挡帧率有数，E 长跑不错位，F 真窗看影子 | 已完成·V1口径（2026-09-16；game/light/shadow_test.go 6项全PASS＋shadow_cases.json 11组系数＋3组整图＋窗小金图shadow_wall_golden.png；D单手电32墙打64x64约14.87ms约114ns/像素/挡；E2000遍重放逐位一致＋500次坏图错码稳定；C同一套数CPU与显卡逐位一致；F窗examples/game_light--case=shadow自动 presents453 fps约54/57 p95 18.3ms parity0% 小金图6144像素0差 窗金图343360像素0差 PASS，真机右卡人左半亮右半黑影子方向对；环境940MX/1920x1080/DISPLAY=:0非release hitch7系桌面并行构建偏高换机重测；前置S45 light_test 6项复核绿＋torch旧窗重跑EXIT0全0未红；render主路未碰；主会话静态复核JSON合法＋6测齐＋图落盘，S47完工后补跑go test ./game/light整包18项全PASS＋vet净三窗分支共存无干扰；人工常驻2026-09-16 presents1672 ptr276 moved639 双金0差 backend=x11，用户关窗收JSON，三窗同开fps约40.8＋启动时深度图OOM降档各一次待闲时单窗复测） |
-| 7.1 | 瓦片斜45度对象自动拼 | game/tilemap/tilemap.go + iso.go | P2 | S05/W1 | 0.0 | Tilemap＋对象层＋自动拼，认TMX子集 | game新包只算数+认TMX | 测tilemap_test；窗game_tilemap--case=map | A 格子号对象摆位碰撞导航自动拼对，B 缺块占位不崩，C 两边齐，D 大图帧率有数，E 反复进出不涨，F 真窗看地图摆怪路沿自接 | 已完成·V1口径（2026-09-15；game/tilemap/tilemap_test.go 6项全PASS＋CGO_ENABLED=0 go build ./...过；D128x128 2000次约0.2us/op；E万次掩码重放一致＋200次重解析一致；C边界往返无损＋重放一致即两边同数；F离屏金比对tilemap_cases.json正交4x3＋斜45度3x3冻结＋形状断言；窗免-W1纯算数，地图窗game_tilemap后建） |
-| 7.2 | 分区加载剔除 | game/tilemap/chunk.go | P2 | S20/W2 | 7.1＋1.3a视口 | Chunk{Load,Unload}＋视口剔除 | game新包只算数 | 测chunk_test；窗game_tilemap--case=chunk | A 镜头内外装卸对，B 跳跃镜头不崩，C 两边齐，D 快移帧率有数，E 跑大圈不涨，F 真窗看边走边装 | 已完成·V1口径（2026-09-15；game/tilemap/chunk_test.go 6项全PASS＋老tilemap 6项回归绿＋camera 13项绿＋go vet净＋CGO_ENABLED=0可构建；D六四图八块二千次约23.5us/op可见7988块次；E千来回二千次装载集恒等重建一致；C纯算数以块原点边界逐位无损＋逐位重放即两边同数；F离屏金比对chunk_cases.json格属包络六视口装卸跳跃冻结＋map_chunk16.tmx十六图全1；窗免-W2纯算数，真窗game_tilemap--case=chunk随P2建；前置S05＋S08复核绿，本体只读未写） |
-| 7.3 | 远近切换 | game/tilemap/lod.go | P2 | S26/W3 | 7.2＋1.3a | LOD{near,far}，临界回滞 | game新包只算数 | 测lod_test；窗game_tilemap--case=lod | A 远简近精切换对，B 临界不闪，C 两边齐，D 切换耗时有数，E 长跑不抖，F 真窗看远近 | 已完成·V1口径（2026-09-15；game/tilemap/lod_test.go 6项全PASS＋tilemap/chunk/camera回归绿＋CGO_ENABLED=0可构建＋go vet净；D2万次选档约25.8ns/op近28561远11439；E带内5000次不翻＋远沿抖动1000次只切1次＋2000步重放一致；B192算近320算远同距抱老档；C边界往返无损＋双算一致；F离屏金比对lod_cases.json；窗意向game_tilemap--case=lod随P2建；前置S05+S08复核绿） |
-| 8.1 | 固定步长补间 | game/step/fixed.go | P0 | S03/W1 | 0.0 | Fixed{Step,Interp}，步长冻死 | game新包只算数 | 测fixed_test＋离屏；窗免 | A 快慢机动作一致，B 大步钳住，C 不适用，D 步数耗时有数，E 长跑不漂，F 离屏对比 | 已完成·V1口径（2026-09-15；game/step/fixed_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A八组冻结步数余数blend全对＋48ms两种切分一致＋6组blend冻结；B零负dt拒收nil池不崩＋超大钳MaxFrame＋NaN/Inf blend钳住＋Reset保Dt；D 6万帧约4.6ns/frame＋万次blend约9.3ns/op；E十万帧双重放逐位一致＋台账steps*dt对账；C纯算数不画画以core.Step往返＋重放逐位一致即两边同数；F离屏金比对fixed_cases.json整除无余/半步50/钳制余数冻结；窗免-W1纯算数；前置0.0复核绿core全PASS；只动game/step新包render未碰） |
-| 8.2 | 路径顶点复用 | game/step/pool.go | P0 | S12/W1 | 0.0 | Pool{Get,Put}，路径顶点复用 | game新包纯工程池化 | 测pool_test＋离屏；窗免 | A 复用画对，B 空池不崩，C 两边齐，D 复用率内存有数，E 长跑不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；game/step/pool_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A三尺寸族取放写满读逐位一致＋双活不混＋边界往返无损；B空零负超限nil池错码分清（InvalidArg/OutOfMemory）＋NaN/Inf原样过池；D 2000次x256三族约11.6us/rep命中率1.000留存14336B；E万次1/1/1稳态7168B零增长＋计数器3x对账；C纯池化不画画以边界往返无损＋20轮重放逐位一致即两边同数；F离屏金比对pool_cases.json限额公式＋首样稳定＋LIFO稳命中冻结；窗免-W1纯算数；前置0.0复核绿core全PASS＋camera/sprite/tex/tilemap/anim回归绿；只动game/step新包render未碰） |
-| 8.3 | 动态局部更新 | ui/scene + game/step（动态层） | P2 | S37/W5 | 0.0＋2.1 | DirtyLayer，动哪更哪 | scene动态层+game包 | 测dirty_test；窗game_step--case=dirty追车 | A 动哪更哪，B 全动退整屏不崩，C 两边齐，D 脏块数帧率有数，E 长跑不漏，F 真窗看追车 | 已完成·V1口径（2026-09-15 引擎层+单测+正式窗全过，混画修后复验仍亮：ui/scene/game/step各dirty_test.go 6项全PASS＋两边dirty_cases.json逐字节一致；窗examples/game_step--case=dirty自动10秒presents414 moved1383 dirty_max1 full3 fps40.8/41.3 PASS，真机截图青绿静块+黄追车框+计数器全亮；当时桌面负载高帧率偏低，闲时重测；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
+| 2.1 | 精灵合批 | engine/sprite/batch.go | P1b | S31/W4 | 0.0＋R3采样开关 | Batch{Add,Flush}，同图一次交 | engine新包攒批，只调现有接口 | 测batch_test；窗game_sprite--case=batch千树 | A 同图一批画对，B 空批零尺寸跳过，C 两边齐，D 千个精灵帧率调用次数有数，E 长跑不涨，F 真窗看千树 | 已完成·V1口径（2026-09-15；engine/sprite/batch_test.go 6项全PASS＋sprite整包18项PASS＋go vet净＋CGO_ENABLED=0可构建；D千精灵Flush约550us/2次调用；E5000次重放一致200轮回零；C分组无损重放一致即两边同数；F离屏金比对batch_cases.json 4组冻结；窗意向game_sprite--case=batch随P2建；前置S24复核绿） |
+| 2.2 | 图集旋转染色翻转轴心 | engine/sprite/atlas.go + render扩展 | P1b | S36/W5（R4底S30/W4先行） | 0.0＋R4图集扩展 | AtlasSprite＋rot/flip/pivot/tint/filter | render加新分支+engine包，老路不动 | 测atlas_test；窗game_sprite--case=rot | A 角度颜色翻转轴心单图过滤对，B 空块跳过，C 两边齐，D 百块帧率有数，E 长跑不漏，F 真窗看转和换色转身脚底对齐 | 已完成·V1口径（2026-09-15 R4底＋本体＋真卡＋正式窗全过，染色已上显卡逐顶点颜色混画根因修后复验三卡齐亮：engine/sprite/atlas_test.go 6项全PASS＋atlas_cases.json 13组＋R4真卡identity 0/1024 rot90 0/1024 mean0.003 max1＋本体真卡双0/1024；半透明三组显卡/CPU最大差1；D百块转换约23us/批；窗examples/game_sprite--case=all自动10秒presents591 fps58.3/59.0 p95 17.5 cpuFb0 parity0% probe1 golden0% PASS，真机截图ROT白底+红块+橙染色+红条+梯形+绿批量全亮；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测） |
+| 2.3 | 按高低排序加层号分层 | engine/sprite/ysort.go | P1b | S10/W1 | 0.0 | YSort(feetY)＋Layer{world,fx,ui} | engine新包只算数 | 测ysort_test；窗game_sprite--case=ysort | A 脚底高度加层号排对、界面层不被盖，B 同高稳定不闪，C 两边齐，D 百个排序耗时有数，E 长跑不乱，F 真窗看前后盖特效不飘界面 | 已完成·V1口径（2026-09-15；engine/sprite/ysort_test.go 6项全PASS＋CGO_ENABLED=0可构建；D百精灵2000次约38.9us/sort；E万次重放逐位一致＋走格往返不粘；C输入不改＋结果新片＋重放一致即两边同数；F离屏金比对ysort_cases.json 7组冻结＋world<fx<ui＋Y递增断言；窗免-W1纯算数，排序窗game_sprite后建） |
+| 2.4 | 序列帧多动作库 | engine/sprite/flipbook.go | P1b | S11/W1 | 0.0 | Flipbook{Play,Update,OnEvent}＋动作库 | engine新包只算数 | 测flipbook_test；窗game_sprite--case=anim | A 帧号时长循环回调多套动作切换对，B 缺帧不崩，C 两边齐，D 多路播放帧率有数，E 长跑不漂，F 真窗看待机跑跳切换 | 已完成·V1口径（2026-09-15；engine/sprite/flipbook_test.go 6项全PASS＋sprite全包12项全PASS＋go vet净＋CGO_ENABLED=0可构建；A六序列全对（循环/单次/乒乓/切换/单帧）回调与返回逐事件一致；B坏clip七类invalid-arg零入库、坏Play不动位、零负dt静默、百万毫秒级dt收敛单事件、nil接收器不崩；D千路x200次约40.6ns/op；E十万步双重放逐位一致＋单次播完恒守尾帧；C纯算数不画画以库拷贝隔离＋重放逐位一致即两边同数；F离屏金比对flipbook_cases.json循环回0/单次守22/乒乓双端＋帧号归属断言；窗免-W1纯算数，动画窗game_sprite后建；前置0.0复核绿core 16项全PASS） |
+| 3.1 | 压缩图 | engine/tex/compressed.go | P2长链首 | S02/W1 | 0.0 | LoadKTX2/Basis→上传，坏报Result错 | engine新包独立解码，不碰老8位路 | 测compressed_test＋离屏；窗免 | A 解码上传对，B 坏文件报错不崩，C 画出来和原图差在容差内，D 大图显存有数，E 反复加载释放不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/tex/compressed_test.go 6项全PASS＋CGO_ENABLED=0可构建；A三文件头尺寸块数上传像素全对＋红绿蓝白象限逐像素一致＋13处At抽点一致；B空零截断坏头零维非4倍类型错层长错9类bad-data＋vk超压3D数组立方mipmap9类unsupported＋16384超限out-of-memory＋Basis保留unsupported缺文件not-found＋At越界闭合；C容差0下65616像素maxDiff0 bad0＋At与字节片逐像素一致即两边同数；D256图20次约0.5ms每parse上传32768B解码262144B比8；E千次重放逐位一致＋块像素拷贝隔离＋复读文件一致；F离屏金比对compressed_cases.json三文件＋13 spots＋块缝锐边＋4倍网格断言；窗免-纯解码不建窗；前置0.0复核绿core/camera/sprite全PASS；只动engine/tex新包render老8位路未碰） |
+| 3.2 | 远处防闪开关 | engine/tex/mipmap.go + render/image_pipeline.go | P1b | S32/W4（R3底S24/W3先行） | 0.0＋R3采样开关 | SetFilter(near/far,aniso)，按图开关 | render按图开关+engine开关 | 测mipmap_test；窗game_tex--case=far | A 近清远稳，B 超小尺寸不崩，C 两边齐（重点），D 远景帧率有数，E 长跑不抖，F 真窗看远树 | 已完成·V1口径（2026-09-15；engine/tex/mipmap_test.go 5项全PASS＋tex全包17项PASS＋render金图quad/verts parity绿＋CGO_ENABLED=0可构建；D千图set+get约0.65ms、2万次取级约75ns/op；E千次重放一致Clear归零；C压缩tol0下maxDiff0＋sampler_contract5组全对＋零值命令合并逐位一致；F离屏金比对mipmap_cases.json；窗意向game_tex--case=far随P2建；前置0.0+S16复核绿；只动mipmap+doc+单测+金数据+image_pipeline新分支老路不动） |
+| 3.3 | 后台边玩边加载 | engine/tex/stream.go + engine/asset | P2 | S29/W3 | 0.0＋12.1 | Stream{Request,Poll}，缺占位 | engine新包后台链 | 测stream_test；窗game_tex--case=stream | A 到边加载不卡，B 缺图占位不崩，C 两边齐，D 加载时帧率有数，E 跑大地图不涨，F 真窗看边走边出 | 已完成·V1口径（2026-09-15；engine/tex/stream_test.go 6项全PASS＋compressed老6项回归绿＋race无竞争＋CGO_ENABLED=0可构建；D64块小图后台约1.6ms前台Poll约0.8us/次、大图约1.1ms/张；E千次重放一致200块装卸回基线；C后台与同步逐位一致；F离屏金比对stream_cases.json 8冻结＋品红占位16像素全对；窗意向game_tex--case=stream随P2建；前置0.0+S19复核绿；只动stream+doc+单测+金数据老同步路未碰） |
+| 4.1 | 变速曲线 | engine/anim/easing.go | P0 | S04/W1 | 0.0 | Ease(t)→v，曲线库冻名 | engine新包只算数 | 测easing_test＋离屏；窗免 | A 曲线值对，B 时间越界钳住，C 不适用，D 万次求值耗时有数，E 长跑不漂，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/anim/easing_test.go 6项全PASS＋CGO_ENABLED=0可构建；D万次约153ns/op；E20万x31重放逐位一致＋端点精确；C重放一致＋Name/Parse往返无损即两边同数（C不适用-纯算数）；F离屏金比对easing_cases.json 31种冻结＋单调/超调/镜像形状断言；窗免-纯算数） |
+| 4.2 | 关键帧时间轴加事件軌 | engine/anim/timeline.go | P1b | S17/W2 | 0.0＋4.1 | Timeline{AddKey,Sample,OnEvent} | engine新包只算数 | 测timeline_test；窗game_anim--case=tl | A 插值循环事件回调（出刀光播声调方法显隐）对，B 空轨不崩，C 两边齐，D 多轨帧率有数，E 长跑不漂，F 真窗看动作事件准时 | 已完成·V1口径（2026-09-15；engine/anim/timeline_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D八轨20万采样约156.8ns/op＋2.5万次Update约52ns/op；E十万步双重放一致循环落回0＋单次播完守尾；C纯算数以双重放逐位一致＋输入不改即两边同数；F离屏金比对timeline_cases.json三序列冻结＋键位命中/线性中点/回绕反弹事件序断言；窗免-W2纯算数，真窗game_anim--case=tl随P2建；前置0.0＋S04复核绿） |
+| 4.3 | 骨骼蒙皮对齐 Spine | engine/anim/skeleton.go | P2长链 | S42/W6 | 0.0＋12.1＋2.2 | Skeleton{Pose,Skin,IK}，认Spine子集 | engine新包+认Spine JSON | 测skeleton_test；窗game_anim--case=sk真资源 | A 骨头插槽皮肤网格权重绘制次序IK约束物理惯性对，B 缺骨不崩，C 两边齐，D 单角色帧率有数，E 长跑不错位，F 真窗看走跑跳真资源 | 已完成·V1口径（2026-09-15；engine/anim/skeleton_test.go 6项全PASS，主会话复核过＋本包easing/timeline回归绿＋前置core/asset/sprite复核绿＋CGO_ENABLED=0可构建＋go vet净；D单角色姿态+IK+两块蒙皮2万次约73.3ms约3666ns/op；E5万步双重放一致IK吸住误差约5e-15；C双重放逐位一致＋边界往返无损即两边同数；F离屏金比对spine_cases.json＋spine_hero.json冻结7骨姿态＋绘制次序；窗examples/game_anim--case=sk已建并改成双腿人形（2026-09-15改：窗自有13骨直立人，头顶圆脸＋衬衫躯干＋双臂＋双腿裤管＋鞋＋地面线，走并腿跑分腿跳收腿三态可分；引擎7骨链 hero 未动，窗13骨走同一套 Pose/Skin/IK/Transform 接口，双腿 IK 各自吸住误差约1e-9；主会话复跑自动8秒门禁EXIT0 presents454 fps52.9/56.6 p95 17.5 parity真 golden0 当窗金图0，切4次；首遍基线重冻后第二遍即0差；另有负载高抖动遍已注明环境原因；C为纯算数三姿态逐位重放＋5槽次序对即两边同数，窗线画走path/fill跨后端像素比归9.2管故不硬比；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测）；物理惯性占位报Unsupported未写死） |
+| 4.4 | 动作混合状态机 | engine/anim/statemachine.go | P2长链 | S46/W7 | 4.2＋2.4＋4.3 | State{CanTo,Blend}，混合时长 | engine新包只算数 | 测statemachine_test；窗game_anim--case=fsm | A 切换混合对，B 非法切换不崩，C 两边齐，D 切百次耗时有数，E 长跑不卡死，F 真窗看切换 | 已完成·V1口径（2026-09-16；engine/anim/statemachine_test.go 6项全PASS＋statemachine_cases.json三态六序列＋fsm_golden.png离屏基线；D settled切100次共16us约160ns/次；E20万步双机重放逐位一致＋500次非法风暴错码稳定；C六序列双重放逐位一致＋拷贝隔离即两边同数；F窗examples/game_anim--case=fsm自动 presents474 fps59.1/57.0 p95 18.1 hitch0 离屏金0% 128000像素 窗金0% 559840像素 切换4次 PASS，三卡＋交叉曲线＋活条亲眼验对；环境DISPLAY=:0 940MX/580.178.04 integrated后端 gpu_ops16748 1920x1080非release换机重测；前置S17/S11/S42各6项复核绿＋sk旧窗重跑EXIT0 presents424双金0差切换3次未红（sk_final.png快照顺手重写像素0差，主会话定夺留不留）；render未碰；主会话复跑go test ./engine/anim整包PASS；人工常驻2026-09-16 presents3296 switches32 ptr515 双金0差 backend=x11，用户关窗收JSON，三窗同开fps约50.8偏低待闲时单窗复测） |
+| 5.1 | 粒子发射形状乱流子发射 | engine/particle/emitter.go + cpu.go | P3 | S38/W5 | 0.0＋2.1 | Emitter{Spawn,Update}＋形状乱流子发射 | engine新包+靠sprite画 | 测emitter_test；窗game_particle--case=fire | A 数量速度寿命重力颜色形状乱流子发射对，B 零发射不崩，C 两边齐，D 千粒子帧率有数，E 长跑不涨，F 真窗看火锥烟飘 | 已完成·V1口径（2026-09-15 引擎混画根因已修＋染色上显卡后复验全过：emitter_test.go 6项全PASS＋emitter_cases.json 7例；窗examples/game_particle--case=fire自动10秒presents578 fire447 smoke559 batch1 fps57.1/57.7 p95 18.2 raster 8.9ms cpuFb0 hitch2 PASS，真机截图火锥亮黄红上升＋烟灰缓飘乱流摆动；根因render混合提交错目标致全黑，修render/context_pass_scratch.go+gpu提交+scene两record接线＋新单测pass_scratch 2项；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
+| 5.2 | 显卡粒子拖尾宽窄渐变 | engine/particle/gpu.go + trail.go | P3 | S43/W6 | 5.1＋render新管线 | GPUPool＋Trail{width,grad,joint} | engine新包+新管线隔离做 | 测gpu_trail_test；窗game_particle--case=trail | A 轨迹宽窄颜色接头对，B 空轨不崩，C 两边齐，D 数千点帧率有数，E 长跑不涨，F 真窗看刀光由宽到窄 | 已完成·V1口径（2026-09-15；engine/particle/gpu_trail_test.go 6项全PASS，主会话复核过＋老emitter 6项回归绿＋sprite整包绿＋CGO_ENABLED=0可构建＋go vet净；D3000粒子6000点spawn约2.1ms/update约0.9ms/append约5.7ms/flush约2.8ms一次提交draws=1；E2000次重放一致200轮装满清空回零；C同种子池子与CPU发射器逐位一致即两边同数；F离屏金比对gpu_trail_cases.json 8轨迹＋3池子；窗examples/game_particle--case=trail自动8秒主会话复跑probes 3/3 golden changed=0 presents467 fps57.4/58.3 p95 17.9 hitch0 gpu_ops12903 cpu回退0 alive45 trails45 points494 batch1 PASS，真机刀光头宽尾窄亮黄拖红；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测；render主路未碰，只加trail case＋main.go 8行门放行） |
+| 5.3 | 扭曲热浪 | engine/fx/warp.go | P3 | S39/W5 | 0.0＋2.1 | Warp{strength,noise}，偏移采样 | engine新包+新中间图隔离做 | 测warp_test；窗game_fx--case=warp | A 偏移方向对，B 强度零不崩，C 两边齐，D 全屏帧率有数，E 长跑不花，F 真窗看水晃 | 已完成·V1口径（2026-09-15 数算+单测+正式窗全过，混画修后复验仍全亮：warp_test.go 6项全PASS＋fx整包12项PASS；D全屏1920x1080约179ms最优、单点约67ns/次；金数据warp_cases.json 9偏移+2整图逐字节命中；窗examples/game_fx--case=all自动10秒presents591 parity0% moved32499 corner0.07 halo0.33 fps57.3/58.9 p95 17.4 PASS，真机截图左原图+中水晃+右胶片三卡齐亮；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
+| 5.4 | 发光暗角调色 | engine/fx/bloom.go + vignette.go + lut.go | P3 | S40/W5 | 0.0＋2.1 | Bloom/Vignette/LUT，接滤镜链 | engine新包+新中间图隔离做 | 测bloom_lut_test；窗game_fx--case=grade | A 发光暗角表对，B 空表不崩，C 两边齐（重点），D 全屏帧率有数，E 长跑不漏，F 真窗看气氛 | 已完成·V1口径（2026-09-15 引擎层+单测+正式窗全过：bloom_lut_test.go 6项全PASS＋fx整包12项PASS＋金数据bloom_lut_cases.json；C真卡parity 0% mean0；窗examples/game_fx--case=all自动10秒presents591 parity0% corner0.07 halo0.33 fps57.3/58.9 p95 17.4 PASS＋基线fx_final_base.png落盘，真机截图三卡齐亮；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
+| 5.5 | 自定义材质钩子 | engine/fx/custom.go | P3 | S44/W6 | 0.0＋5.4 | Custom{name,params}，只碰游戏层 | engine新钩子只碰游戏层 | 测custom_test；窗game_fx--case=custom | A 钩子进出数对、只碰游戏层，B 坏着色器报错不崩主路，C 两边齐（CPU 明确降级标记），D 单钩子全屏帧率有数，E 反复装卸不漏，F 真窗看描边溶解 | 已完成·V1口径（2026-09-15；engine/fx/custom_test.go 6项全PASS，主会话复核过＋本包warp/bloom_lut回归共18项全PASS＋CGO_ENABLED=0可构建＋go vet净；D1080p一遍identity约70ms/outline最优约26ms纯CPU参考路；E200轮x16装卸回零2000次重放一致500次坏图错码稳定；C纯算数同一套数重放一致＋identity不降级outline/dissolve标CPU降级即两边约定；F离屏金比对custom_cases.json 7组identity＋outline＋dissolve；窗examples/game_fx--case=custom自动约8秒主会话复跑EXIT0 presents471 fps57.0/58.8 p95 18.2 parity0% golden0% 当窗金图差0 kept3138/edge3710/gone31552 outline356 PASS，真机左原片＋中红圈描边＋右橙边溶解三卡齐亮；回归all窗复跑EXIT0 golden0% hitch0老窗未红；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测；render主路未碰，老case走custom分支外默认不动；入库fx_custom_golden.png＋fx_custom_base.png，fx_custom_last.png为运行快照不入库） |
+| 6.1 | 2D 灯光灯片分层夜色 | engine/light/light.go | P3 | S45/W6 | 0.0＋5.4 | Light{pos,range,cookie}＋分层＋夜色 | engine新包盖在fx之后 | 测light_test；窗game_light--case=torch | A 位置范围衰减灯片强度颜色分层照全局夜色对，B 零灯不黑屏，C 两边齐，D 多灯帧率有数，E 长跑不闪，F 真窗看手电只照人不照背景 | 已完成·V1口径（2026-09-15；engine/light/light_test.go 6项全PASS，主会话复核过＋CGO_ENABLED=0可构建＋go vet净；D8灯打64x64一次约1.7ms约52.9ns/像素/灯；E手电组2000遍重放一致坏图500次错码全对；C同一套数CPU与显卡受光系数一致即两边同数；F离屏金比对light_cases.json 8组系数＋7组整图；窗examples/game_light--case=torch自动8秒主会话复跑EXIT0 presents474 fps57.4/59.2 p95 17.7 hitch0 parity0% golden0% 当窗金图34万像素差0 lit2059 gain0.66 bg与夜色逐位同 夜最暗0.069不黑屏 PASS，真机左白天＋中夜色＋右手电只照人不照背景；环境940MX/580.178.04/1920x1080/DISPLAY=:0，非release，换机需重测；render主路未碰，新包＋独立窗） |
+| 6.2 | 法线受光 | engine/light/normal.go | P3 | S47/W7 | 6.1 | NormalMap＋光向，受光系数 | engine新包盖在fx之后 | 测normal_test；窗game_light--case=normal | A 受光方向对，B 缺法线不崩，C 两边齐，D 单图帧率有数，E 长跑不花，F 真窗看立体 | 已完成·V1口径（2026-09-16；engine/light/normal_test.go 6项全PASS＋normal_cases.json 5组整图＋8组系数＋6组点积＋窗小金图normal_dome_golden.png；D 8灯打64x64约2.5ms约75.5ns/像素/灯；E2000遍重放逐位一致＋500次坏图错码稳定＋穹顶左亮右暗形状保持；C双重放逐位一致＋存取往返无损即两边同数；F窗examples/game_light--case=normal自动 presents476 fps56.9/59.3 p95 18.2 hitch0 parity0% 探针朝灯0.984>平0.880>背灯0 穹顶行0.975>0.609>0.193 lit17228像素44.9% 增益0.78 离屏金0% 6144像素 窗金0% 343360像素 PASS；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测；首遍窗探针取数小错修窗后第二遍即绿引擎数未动；前置S45 light_test 6项复核绿＋torch旧窗重跑PASS；render主路＋light.go本体未碰；主会话复跑go test ./engine/light整包18项全PASS＋vet净；人工常驻2026-09-16 presents2240 ptr194 双金0差 backend=x11，用户关窗收JSON，三窗同开fps约44.2偏低待闲时单窗复测；人工2026-09-16发现窗表现问题待修：中卡底是均匀0.75灰、无穹顶轮廓无底纹，右暗部沉到与背景同色，人眼看不见穹顶形状，只能看见一团亮晕化开，方向用户2026-09-16确认先放着后面再说，人工待定，W7暂不关门，引擎数不动；窗表现真实修2026-09-16（只动examples/game_light/main.go的makeDomeNormals：圈内起坡、圈外贴平，底仍均匀灰、灯仍侧光，engine/light/normal.go引擎数未动）：normal单测6项全PASS＋整包PASS＋vet净，自动窗第二遍presents474 fps57.2/59.1 p95约17.2 hitch0 parity0% 探针朝灯0.984>平0.880>背灯0 穹顶行0.975>0.609>0.193 lit33557像素87.4% 增益0.78 离屏金0% 6144像素 窗金0% 343360像素 PASS，中卡穹顶圈已露、右暗部浮在亮底上不再沉底，小金图normal_dome_golden.png＋窗基线normal_final_base.png因窗法线重冻一次（改谁为啥哪天已记），torch/shadow旧窗重跑双0未红，人工常驻90秒2026-09-16 presents5316 p95约17.3 hitch0 parity0% 双金0差 backend=x11 ptr0 key0 rs0 已留人工看；圆边锯齿修2026-09-16（只动examples/game_light/main.go：圈口2像素滑到平＋中卡4倍超采样再缩回，engine/light/normal.go引擎数未动）：单测6项＋整包PASS＋vet净，自动窗第二遍presents471 p95约17.5 hitch1 parity0% 穹顶行0.975＞0.602＞0.193 lit33762像素87.9% 增益0.78 双金0差 PASS，三倍放大看圆边已是软过渡，小金normal_dome_golden.png＋窗基线normal_final_base.png因窗法线重冻一次，torch/shadow重跑双0未红；以上两次“暂不关门/仍不关门”为修前记录，2026-09-16 W7已关，见W7关门行） |
+| 6.3 | 投影遮挡 | engine/light/shadow.go | P3 | S48/W7 | 6.1 | Occluder＋Shadow，挡变暗 | engine新包盖在fx之后 | 测shadow_test；窗game_light--case=shadow | A 影子方向对，B 无挡不崩，C 两边齐，D 多挡帧率有数，E 长跑不错位，F 真窗看影子 | 已完成·V1口径（2026-09-16；engine/light/shadow_test.go 6项全PASS＋shadow_cases.json 11组系数＋3组整图＋窗小金图shadow_wall_golden.png；D单手电32墙打64x64约14.87ms约114ns/像素/挡；E2000遍重放逐位一致＋500次坏图错码稳定；C同一套数CPU与显卡逐位一致；F窗examples/game_light--case=shadow自动 presents453 fps约54/57 p95 18.3ms parity0% 小金图6144像素0差 窗金图343360像素0差 PASS，真机右卡人左半亮右半黑影子方向对；环境940MX/1920x1080/DISPLAY=:0非release hitch7系桌面并行构建偏高换机重测；前置S45 light_test 6项复核绿＋torch旧窗重跑EXIT0全0未红；render主路未碰；主会话静态复核JSON合法＋6测齐＋图落盘，S47完工后补跑go test ./engine/light整包18项全PASS＋vet净三窗分支共存无干扰；人工常驻2026-09-16 presents1672 ptr276 moved639 双金0差 backend=x11，用户关窗收JSON，三窗同开fps约40.8＋启动时深度图OOM降档各一次待闲时单窗复测） |
+| 7.1 | 瓦片斜45度对象自动拼 | engine/tilemap/tilemap.go + iso.go | P2 | S05/W1 | 0.0 | Tilemap＋对象层＋自动拼，认TMX子集 | engine新包只算数+认TMX | 测tilemap_test；窗game_tilemap--case=map | A 格子号对象摆位碰撞导航自动拼对，B 缺块占位不崩，C 两边齐，D 大图帧率有数，E 反复进出不涨，F 真窗看地图摆怪路沿自接 | 已完成·V1口径（2026-09-15；engine/tilemap/tilemap_test.go 6项全PASS＋CGO_ENABLED=0 go build ./...过；D128x128 2000次约0.2us/op；E万次掩码重放一致＋200次重解析一致；C边界往返无损＋重放一致即两边同数；F离屏金比对tilemap_cases.json正交4x3＋斜45度3x3冻结＋形状断言；窗免-W1纯算数，地图窗game_tilemap后建） |
+| 7.2 | 分区加载剔除 | engine/tilemap/chunk.go | P2 | S20/W2 | 7.1＋1.3a视口 | Chunk{Load,Unload}＋视口剔除 | engine新包只算数 | 测chunk_test；窗game_tilemap--case=chunk | A 镜头内外装卸对，B 跳跃镜头不崩，C 两边齐，D 快移帧率有数，E 跑大圈不涨，F 真窗看边走边装 | 已完成·V1口径（2026-09-15；engine/tilemap/chunk_test.go 6项全PASS＋老tilemap 6项回归绿＋camera 13项绿＋go vet净＋CGO_ENABLED=0可构建；D六四图八块二千次约23.5us/op可见7988块次；E千来回二千次装载集恒等重建一致；C纯算数以块原点边界逐位无损＋逐位重放即两边同数；F离屏金比对chunk_cases.json格属包络六视口装卸跳跃冻结＋map_chunk16.tmx十六图全1；窗免-W2纯算数，真窗game_tilemap--case=chunk随P2建；前置S05＋S08复核绿，本体只读未写） |
+| 7.3 | 远近切换 | engine/tilemap/lod.go | P2 | S26/W3 | 7.2＋1.3a | LOD{near,far}，临界回滞 | engine新包只算数 | 测lod_test；窗game_tilemap--case=lod | A 远简近精切换对，B 临界不闪，C 两边齐，D 切换耗时有数，E 长跑不抖，F 真窗看远近 | 已完成·V1口径（2026-09-15；engine/tilemap/lod_test.go 6项全PASS＋tilemap/chunk/camera回归绿＋CGO_ENABLED=0可构建＋go vet净；D2万次选档约25.8ns/op近28561远11439；E带内5000次不翻＋远沿抖动1000次只切1次＋2000步重放一致；B192算近320算远同距抱老档；C边界往返无损＋双算一致；F离屏金比对lod_cases.json；窗意向game_tilemap--case=lod随P2建；前置S05+S08复核绿） |
+| 8.1 | 固定步长补间 | engine/step/fixed.go | P0 | S03/W1 | 0.0 | Fixed{Step,Interp}，步长冻死 | engine新包只算数 | 测fixed_test＋离屏；窗免 | A 快慢机动作一致，B 大步钳住，C 不适用，D 步数耗时有数，E 长跑不漂，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/step/fixed_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A八组冻结步数余数blend全对＋48ms两种切分一致＋6组blend冻结；B零负dt拒收nil池不崩＋超大钳MaxFrame＋NaN/Inf blend钳住＋Reset保Dt；D 6万帧约4.6ns/frame＋万次blend约9.3ns/op；E十万帧双重放逐位一致＋台账steps*dt对账；C纯算数不画画以core.Step往返＋重放逐位一致即两边同数；F离屏金比对fixed_cases.json整除无余/半步50/钳制余数冻结；窗免-W1纯算数；前置0.0复核绿core全PASS；只动engine/step新包render未碰） |
+| 8.2 | 路径顶点复用 | engine/step/pool.go | P0 | S12/W1 | 0.0 | Pool{Get,Put}，路径顶点复用 | engine新包纯工程池化 | 测pool_test＋离屏；窗免 | A 复用画对，B 空池不崩，C 两边齐，D 复用率内存有数，E 长跑不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/step/pool_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A三尺寸族取放写满读逐位一致＋双活不混＋边界往返无损；B空零负超限nil池错码分清（InvalidArg/OutOfMemory）＋NaN/Inf原样过池；D 2000次x256三族约11.6us/rep命中率1.000留存14336B；E万次1/1/1稳态7168B零增长＋计数器3x对账；C纯池化不画画以边界往返无损＋20轮重放逐位一致即两边同数；F离屏金比对pool_cases.json限额公式＋首样稳定＋LIFO稳命中冻结；窗免-W1纯算数；前置0.0复核绿core全PASS＋camera/sprite/tex/tilemap/anim回归绿；只动engine/step新包render未碰） |
+| 8.3 | 动态局部更新 | ui/scene + engine/step（动态层） | P2 | S37/W5 | 0.0＋2.1 | DirtyLayer，动哪更哪 | scene动态层+engine包 | 测dirty_test；窗game_step--case=dirty追车 | A 动哪更哪，B 全动退整屏不崩，C 两边齐，D 脏块数帧率有数，E 长跑不漏，F 真窗看追车 | 已完成·V1口径（2026-09-15 引擎层+单测+正式窗全过，混画修后复验仍亮：ui/scene/engine/step各dirty_test.go 6项全PASS＋两边dirty_cases.json逐字节一致；窗examples/game_step--case=dirty自动10秒presents414 moved1383 dirty_max1 full3 fps40.8/41.3 PASS，真机截图青绿静块+黄追车框+计数器全亮；当时桌面负载高帧率偏低，闲时重测；环境940MX/580.178.04/1920x1080，非release，换机需重测） |
 | 9.1 | 高动态亮度流程 | — | P5冻结 | 冻结 | — | 冻结不动 | 暂缓不动 | 冻结 | 暂缓，先不动，状态冻结 | 冻结 |
 | 9.2 | CPU 回退画质 | render/vertices.go | P1a-R2 | S16/W2 | 0.0 | CPU真渐变，降级标记 | render小修CPU渐变 | 测vertices_cpu_test＋离屏；窗免 | A 渐变真渐变，B 空 mesh 跳过，C 两边齐（重点），D 回退帧率有数，E 长跑不漏，F 离屏对比 | 已完成·V1口径（2026-09-15；render/vertices_cpu_test.go 10项全PASS真机＋core绿＋S01 quad parity真机PASS＋oom 2项绿＋button showcase绿＋M1两项门禁真机转绿＋go vet净＋CGO_ENABLED=0可构建；D六四三角二百次约138.4us/次；E五百次交替终hub124/0/131冻结；C真机parity 0/4096（0.000%）mean0.015 max1只差抗锯齿＋金图verts_golden.png零改动；F离屏金比对verts_cases.json五组探针冻结；真机2026-09-15：X11 DISPLAY=:0＋NVIDIA 940MX 580.178.04＋Intel HD520＋WGPU_NATIVE_PATH指lib库＋DiscreteGPU探针绿，S01 nearest逐位0/bilinear mean0.019 max2全过；收敛修parity防塌断言取错形心改近红点14,50，逻辑金数据零改；窗免；前置0.0＋S01复核绿，老Draw签名不动） |
-| 10.1 | 实体挂件 | game/world/entity.go | P2 | S25/W3 | 0.0＋8.1/11.2 | Entity＋Comp＋父子变换继承 | game新包只算数 | 测entity_test＋离屏；窗免 | A 父子变换继承对，B 删爹不崩，C 不适用，D 千实体耗时有数，E 反复生灭不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；game/world/entity_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；D千实体20万矩阵约457.7ns/op；E500轮生灭活数回基线逐位一致；C纯算数以双重放逐位一致＋core边界往返无损即两边同数；F离屏金比对entity_cases.json四链冻结；窗免-纯算数；前置0.0+S03+S18复核绿；只动game/world四文件） |
-| 10.2 | 预制场景 | game/world/prefab.go + scene.go | P2 | S33/W4 | 10.1＋1.3a视口 | Prefab/Scene{Load,Save}，认场景JSON | game新包+认预制场景文件 | 测scene_test；窗game_world--case=open | A 摆好装出来对，B 缺文件报错不崩，C 两边齐，D 大场景加载时长有数，E 反复进出不涨，F 真窗看开局 | 已完成·V1口径（2026-09-15；game/world/scene_test.go 6项全PASS＋world整包18项PASS＋go vet净＋CGO_ENABLED=0可构建；A4实体开局slime世界[32,42]对；B缺截断错爹重名错版分清；D2000实体解析约10.7ms开局约1.9ms；E200轮进出回基线；F离屏 scene_open.json逐字节一致；金数据scene_cases.json等8个；有意偏离SceneFile避S34重名用户已确认；窗意向game_world--case=open随P2建；前置S25复核绿） |
-| 10.3 | 生命周期 | game/world/scene.go | P2 | S34/W4 | 10.1 | Spawn/Sleep/Dispose，清资源 | game新包只算数 | 测lifecycle_test＋离屏；窗免 | A 生灭休眠对，B 重复销毁不崩，C 不适用，D 万次生灭耗时有数，E 跨关不漏，F 离屏对比 | 已完成·V1口径（2026-09-15；game/world/lifecycle_test.go 6项全PASS＋world整包12项PASS＋go vet净＋CGO_ENABLED=0可构建；D万次约3.26ms约325.8ns/次；E60关x40暂存回基线发号只涨；C双建逐位一致；F离屏金lifecycle_cases.json活3/激活1/休眠2；窗免；前置S25复核绿） |
-| 11.1 | 逻辑步长 | game/step/fixed.go（同8.1） | P0 | S03/W1 | 同8.1 | 同8.1合测 | game新包只算数，同8.1合测 | 同8.1合测 | 同 8.1，合测 | 已完成·V1口径（2026-09-15；同8.1一次开工一次合测，game/step/fixed_test.go 6项全PASS，窗免-纯算数） |
-| 11.2 | 时间倍率暂停 | game/step/time.go | P0 | S18/W2 | core＋8.1 | TimeScale＋Pause，分层时间 | game新包只算数 | 测time_test；窗game_step--case=pause | A 暂停慢放加速对，B 倍率零负钳住，C 不适用，D 切换耗时有数，E 长跑不漂，F 真窗看暂停 | 已完成·V1口径（2026-09-15；game/step/time_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D八万次切换约15.2ns/op＋万次Split约14.2ns/op；E十万帧双重放一致暂停世界恒0；C纯算数以双重放逐位一致即两边同数；F离屏金比对time_cases.json分流17/钳位9/序列4冻结；窗免-W2纯算数，真窗game_step--case=pause随P2建；前置core＋S03复核绿） |
-| 12.1 | 资产管理依赖版本 | game/asset/asset.go | P2长链 | S19/W2 | 0.0＋3.1 | Asset{Load,Ref,Unload}＋依赖版本 | game新包后台链 | 测asset_test＋离屏；窗免 | A 异步引用计数依赖跟踪版本哈希对，B 缺资产占位不崩，C 两边齐，D 百资产内存有数，E 反复加载不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；game/asset/asset_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D百资产5200B约3.0us/次Count对总字节对；E千次Load/Unload逐位一致字节不动坏档可盖；C同文件双管家重放逐位一致即两边同数；F离屏金比对asset_cases.json总账＋双KTX2＋双raw＋坏截断冻结；窗免-纯管线；前置0.0＋S02复核绿，compressed.go本体未碰） |
-| 12.2 | 图集打包 | game/asset/atlaspack.go | P2 | S27/W3 | 12.1 | AtlasPack工具，拼图出JSON | 离线工具+game包 | 测atlaspack_test＋离屏；窗免 | A 拼图号对，B 超大图报错，C 画出来差在容差内，D 打包时间有数，E 重复打包稳定，F 离屏对比 | 已完成·V1口径（2026-09-15；game/asset/atlaspack_test.go 6项全PASS＋asset老6项回归绿＋CGO_ENABLED=0可构建；D64图50遍约106.6us/pack Encode 6341B进256x86；E500遍逐位一致；C容差0下maxDiff0 bad0/544缝边全透明；F离屏金比对atlas_cases.json+atlas_small.json area544 sheet27x27 util74.6%；窗免-纯打包；前置S19复核绿） |
-| 12.3 | 热重载 | game/asset/hotreload.go | P2 | S28/W3 | 12.1 | Watch＋Reload，只换那块 | game新包文件监听 | 测hotreload_test；窗game_asset--case=reload | A 一改就换，B 坏文件不崩，C 两边齐，D 重载耗时有数，E 反复改不涨，F 真窗看改完即看 | 已完成·V1口径（2026-09-15；game/asset/hotreload_test.go 6项全PASS＋asset整包+core+atlaspack回归绿＋CGO_ENABLED=0可构建＋go vet净；D2000次轮询约14.2us/次、136B换图约38us；E百次来回字节恒定引用不动；C看门人与直装逐位一致；F离屏金比对hotreload_cases.json；窗意向game_asset--case=reload随P2建；前置S19复核绿） |
-| 13.1 | 动作映射改键死区震动 | game/input/action.go | P0 | S07/W1 | 0.0 | Action＋改键＋死区震动 | game新包只算数 | 测action_test；窗game_input--case=remap | A 动作触多键死区震动手势对，B 空绑不崩，C 不适用，D 百次输入耗时有数，E 长跑不丢漂移可调，F 真窗看改键摇杆不漂 | 已完成·V1口径（2026-09-15；game/input/action_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A19快照4向量全对（键/任意柄/摇杆半偏0.375/捏放0.125/ Mean 全死区重映射改键＋死区重调＋震动时序）；B空绑静默＋坏动作/坏绑定10类/坏键坏震动invalid-arg＋NaN/Inf/零负不改旧值＋nil接收器不崩；D20000次x10动作22万求值约225.6ns/op；E万次漂移门住＋死区0放行0.1＋万次捏合钳1重放一致＋百步震动双重放一致＋重置清零留注册；C不适用-纯算数以复算逐位一致＋绑定拷贝隔离即两边同数；F离屏金比对action_cases.json 19快照4向量改键3探针重调2探针冻结＋数字满格/漂移门住/单侧互斥/捏放分向/对角归一形状断言；窗免-W1纯算数，输入窗game_input后建；前置0.0复核绿core全PASS；只动game/input新包render未碰） |
-| 13.2 | 输入缓冲多点 | game/input/buffer.go | P0 | S23/W2 | 13.1 | Buffer＋多点跟踪 | game新包只算数 | 测buffer_test；窗game_input--case=combo | A 连招缓存多点跟踪对，B 断触不崩，C 不适用，D 压力输入有数，E 长跑不乱，F 真窗看连招 | 已完成·V1口径（2026-09-15；game/input/buffer_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D五千轮十六万次约58.1ns/op命中全中＋触摸五千轮约76ns/op终态归零；E万次双重放一致满64不涨终态0；C纯算数以双建重放逐位一致即两边同数；F离屏金比对buffer_cases.json限额64/10/150ms冻结＋过期未来剪枝幸存者断言；窗免-W2纯算数，真窗game_input--case=combo随P2建；前置S07复核绿，action.go语义未碰） |
-| 14.1a | 碰撞体纯算 | game/physics/body.go | P0 | S06/W1 | 0.0 | Body＋层分组＋触发器 | game新包只算数 | 测body_test＋离屏；窗免 | A撞和触发对，B同位不崩，D百盒耗时有数，E长跑不穿 | 已完成·V1口径（2026-09-15；game/physics/body_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A11组相交＋4组掩码＋4组查询全对（边触算碰触发标记层过滤静默）；B空nil单体零点同位不崩＋坏构造invalid-arg＋坏体Query错nil不改输入；D百盒2000次约351.1us/query；E万次重放逐位一致＋实体触发两路走格往返不粘；C不适用像素以边界往返无损＋重放一致即两边同数；F离屏金比对body_cases.json 18体11交4掩码4查询冻结＋形状断言；窗免-W1纯算数，碰撞窗game_physics后建；前置0.0复核绿core 16项全PASS；只动game/physics新包render未碰） |
-| 14.1b | 射线移动平台画出 | game/physics/body.go | P2 | S21/W2 | 14.1a＋7.1 | Ray＋移动平台带着走 | game新包只算数 | 测body_ray_test；窗game_physics--case=hit | A射线平台对，B同位不崩，D百盒耗时有数，E长跑不穿，F真窗看探头子弹线 | 已完成·V1口径（2026-09-15；game/physics/body_ray_test.go 6项全PASS＋同包body 6项＋platform 6项整包18项全PASS＋go vet净＋CGO_ENABLED=0可构建；D二千次x百盒约9.9us/cast命中全中；E万次逐位一致上下车往返翻转对万步链不断触；C纯算数以边界往返无损＋逐位重放即两边同数；F离屏金比对body_ray_cases.json13体13线14casts7站3携冻结＋边触中/体内0/掩码静默/换序取近断言；窗免-W2纯算数，真窗game_physics--case=hit随P2建；前置S06＋S05复核绿，14.1a语义只加未改） |
-| 14.2 | 平台斜坡 | game/physics/platform.go | P2 | S22/W2 | 14.1a＋7.1 | Slope＋单向平台，站滑跳 | game新包只算数 | 测platform_test；窗game_physics--case=jump | A 站滑跳单向上跳对，B 卡角不崩，C 不适用，D 长坡耗时有数，E 长跑不掉，F 真窗看跳 | 已完成·V1口径（2026-09-15；game/physics/platform_test.go 6项全PASS＋同包整包18项全PASS＋go vet净＋CGO_ENABLED=0可构建；D五千高＋二千步约0.3us/op落48和360906.2冻结；E万次逐位一致往返不粘单向穿过再落住；C纯算数以边界往返无损＋逐位重放即两边同数；F离屏金比对platform_cases.json六坡十八高六角八站六滑二脚七贴十一单步冻结＋端点进/半格外/缓站陡滑/Y恒正断言；窗免-W2纯算数，真窗game_physics--case=jump随P2建；前置S06＋S05复核绿；收敛：同包helper重名改platSameFloat，逻辑金数据零改） |
-| 15.1 | 位置音 | game/audio/positional.go | P0 | S13/W1 | 0.0 | PosSound{pos,range}，远小近大 | game新包独立音频链 | 测positional_test；人工听 | A 远近左右对，B 无声不崩，C 不适用，D 多声 CPU 有数，E 长跑不爆，F 人工听 | 已完成·V1口径（2026-09-15；game/audio/positional_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A16混音10立体声全对（中点满格/半程半响/边缘静默/对角/二次衰减/零衰减满响/零范围永响/单声道/强声像/头顶居中/偏置听者）；B坏构造坏听者撕裂结构invalid-arg占位静默＋MixAll坏槽不哑全场＋Stereo坏数归零＋1e308巨距量远静默不爆响；D256声x2000次约23.5us/rep；E万次重放逐位一致＋走近走远往返＋满刻度5000次不爆；C不适用-纯算数以边界往返无损＋逐位重放即两边同数；F离屏金比对positional_cases.json 16混音10立体声冻结＋近响远轻/左右镜像/衰减快慢/波形限幅形状断言＋满刻度不削波；窗免-纯算数＋人工听说明（中置居中/右偏右/远处微弱可定位）；前置0.0复核绿core全PASS；只动game/audio新包render未碰） |
-| 15.2 | 音乐混音总线闪避 | game/audio/music.go | P0 | S14/W1 | 0.0 | Music＋Bus＋Duck，爆炸压音乐 | game新包独立音频链 | 测music_bus_test；人工听 | A 切换淡入淡出总线闪避对，B 缺曲不崩，C 不适用，D 混音上限有数，E 长跑不爆，F 人工听爆炸压音乐 | 已完成·V1口径（2026-09-15；game/audio/music_bus_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A15变换5总线7闪避7混音5叠乘全对（1s交叉0/0.25/0.5/0.75/1单调和为1＋淡入淡出＋推2层弹回1层＋同曲重定无缝＋接线xfade0.5*typical0.8*hold0.5=ducked0.2）；B空曲invalid-arg留栈＋空弹not-found＋超8层out-of-memory＋坏音量/上限/深度/强度invalid-arg保旧值＋nil静默＋坏声忽略输入不改＋叠乘NaN归零超限幅1；D256声x2000次约27.6us/rep留最响32限幅；E万次复读一致＋百步淡入淡出单调收敛0/1＋闪避1000ms回1＋5000次满刻度不削波；C不适用-纯算数以双建重放＋输入不改＋逐位重放即两边同数；F离屏金比对music_bus_cases.json冻结＋形状断言＋满刻度波形不削波；窗免-纯算数＋人工听说明（交叉无咔哒/爆炸压半响可懂0.5s爬回/静音音乐走hits留）；前置0.0复核绿core全PASS＋同包positional 6项全PASS；只动game/audio新包（music.go/doc.go/单测/金数据）render未碰；收敛2026-09-15：淡入淡出收拢settleFading/armFade＋限幅收拢clampGain复用（删clamp01）＋Blend空栈分支压平＋闪避死分支去release<=0＋混音满员免排序加Slice去Stable＋单测手写itoa改strconv＋离屏自比改双建重放＋长跑万次重建改同体复读＋边界死断言去台账/探针，6项仍全PASS，金数据未动） |
-| 16.1 | 存档槽位迁移 | game/save/save.go | P0 | S15/W1 | 0.0 | Save{slot,ver,Migrate}，坏不崩 | game新包文件存读 | 测save_test＋离屏；窗免 | A 存读槽位版本迁移对，B 坏档不崩，C 不适用，D 大档时长有数，E 反复存读不坏，F 离屏对比 | 已完成·V1口径（2026-09-15；game/save/save_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A三档文件加API重建加编解码往返加迁后一致全对（0空新局/1中断/2满贯）＋旧0.9迁1.0只升版数不动；B空零超限五坏档错码分清（bad-data/version-mismatch）＋坏构造invalid-arg＋nil接收器不崩；D 256物64星200次约473us/rep 8773B远小于MaxBytes；E千次编解码逐位一致＋星升降往返不粘＋200次存读同字节；C不适用-纯文件以ms边界无损＋逐位重放即两边同数；F离屏金比对save_cases.json三档冻结＋槽 distinct/新局空/满贯单调/预算内形状断言；窗免-纯文件；前置0.0复核绿core全PASS＋camera/sprite/tex/tilemap/anim/audio/input/physics/step回归绿；只动game/save新包render未碰） |
-| 16.2 | 画质分档 | game/save/quality.go | P4 | S51/W9 | 17.2 | Quality{高/中/低}跟档走 | game新包跟档走 | 测quality_test；窗game_save--case=q123 | A 高中低跟档走，B 切档不闪崩，C 两边齐，D 各档帧率有数，E 长跑不掉档，F 真窗看三档 | 已完成·V1口径（2026-09-16；game/save/quality_test.go 6项全PASS＋老save_test 6项回归绿＋前置debug 6项复核绿＋core整包绿＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A三档高1000粒子8灯1.00/中500/4/0.75/低200/2/0.50单调递减文件与API一致；B 900次轮切回起点一致＋同档切空操作＋8类坏名invalid-arg保旧档＋4类坏文件错码分清；D SpecFor约16~24ns/op＋Switch约7~8ns/对＋编解码34B约3us/次；E万次编解码一致＋万次轮切跟手＋200次存读同字节；C不适用-纯映射数一致像素差归各管；F自动窗EXIT0 presents464 switches3 errors0 fps58/59/60 golden0 dots4000/2000/800 bars1024/768/512；主会话复跑save12项PASS＋debug PASS＋自动窗PASS；只动quality新文件＋examples/game_save老save三件未碰render/ui未碰；人工常驻2026-09-16用户28秒点588次收JSON（backend=x11 presents1672 switches14 errors0 continuous1 probe1 fps约59/59.5/59.5 frames1482/1371/985，用户未报闪与分不清问题）；主会话复跑save12项PASS＋debug PASS＋自动窗PASS；只动quality新文件＋examples/game_save老save三件未碰render/ui未碰；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测；W9关） |
-| 17.1 | 编辑器预览 | tools/levelprev + particleprev | P4 | S50/W8 | W7单项全过 | 关卡/粒子预览，所见即所得 | tools新工具 | 人工看预览；窗tools预览 | A 摆关调粒子所见即所得，B 空工程不崩，C 两边齐，D 大关卡打开时长有数，E 反复开不涨，F 人工看 | 已完成·V1口径（2026-09-16；tools/levelprev/preview_test.go 6项全PASS＋tools/particleprev/preview_test.go 4项全PASS＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A关卡小17瓦片3实体/大14627瓦片2000实体按层设色对象黄框实体红点＋粒子火cone16/16/0烟box15/15/0走真引擎即调即看；B空工程2notes占位照开窗＋坏图保3实体坏场景保17瓦片＋缺特效占位坏特效BadData；C只比数VerifyCounts/VerifyReplay与引擎直解零差＋同工程离屏重画逐字节一致＋三金第二遍changed=0；D大关卡探针约13~18ms窗内重开约18ms＋小工程fps约59；E大工程连开5次零漂移＋粒子连开20次零漂移＋整窗5次maxRSS走低无增长；F自动三窗EXIT0（level小presents472 fps59 p95约17 hitch2 golden0、fire presents474 alive54、smoke presents474 alive51）＋离屏金level_preview_golden.png＋fire/smoke双金；人工常驻2026-09-16用户三窗收JSON全backend=x11探针1：level presents107 ptr49 tiles17 entities3、火 presents438 alive256 spawned512 rate15360 key10 ptr109、烟 presents709 alive256 spawned2427 key10 ptr160，用户亲眼静态方块系布局预览/火锥往上窜/烟盒乱流飘三样全对＋加减倍率即看（rate按到15360活数顶满256符合Max设计）；主会话复跑双包PASS＋三窗自动PASS＋tilemap/world/particle/core回归绿；只动tools两目录game只读render/ui未碰；*_last.png运行快照不入库已删＋proj_empty加.keep；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测；W8关） |
-| 17.2 | 性能崩溃帧分解 | game/debug/stats.go | P4 | S49/W8 | W7单项全过 | Stats{帧/次/存/分解}＋上报 | game新包只出数 | 人工看报表＋长跑在线 | A 帧率画次显存帧分解过绘编译耗时出数对，B 无数据不崩，C 不适用，D 上报耗时有数，E 长跑在线，F 人工看报表定位到谁吃时间 | 已完成·V1口径（2026-09-16；game/debug/stats_test.go 6项全PASS＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A 10帧冻结fps47.62 avg21ms p95 50ms slow2 画次1440 过绘1.395x 显存65/67MB 分解render114ms占53.3%居首 着色器177ms全对＋编解码往返一致；B nil零值/空零超限/坏文件错码分清坏帧不污染台账；D上报encode+parse约35.1us/次624B远小于1MB＋shader约55.7ns/次＋存读约261us；E 5000帧环只留3600总数照计显存钉住＋10秒后台钳250ms记1gap＋超512MB记1OOM旧值不动＋50次存读同字节；C不适用-纯算数以毫秒边界无损＋版本往返＋双建逐位一致即两边同数；F离屏金比对stats_cases.json/stats_report.json逐字节一致＋stats_report_golden.txt逐字节对＋stats_crash.json原因码对＋形状断言render居首；窗免-报表＋长跑即证据（stats_report_golden.txt人看＋stats_report.json机器读）；前置P3复核绿particle12项＋fx18项＋light18项＋step24项＋core16项；只动game/debug新包render/ui/tools未碰；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release纯算数与release无关换机重测） |
+| 10.1 | 实体挂件 | engine/world/entity.go | P2 | S25/W3 | 0.0＋8.1/11.2 | Entity＋Comp＋父子变换继承 | engine新包只算数 | 测entity_test＋离屏；窗免 | A 父子变换继承对，B 删爹不崩，C 不适用，D 千实体耗时有数，E 反复生灭不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/world/entity_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；D千实体20万矩阵约457.7ns/op；E500轮生灭活数回基线逐位一致；C纯算数以双重放逐位一致＋core边界往返无损即两边同数；F离屏金比对entity_cases.json四链冻结；窗免-纯算数；前置0.0+S03+S18复核绿；只动engine/world四文件） |
+| 10.2 | 预制场景 | engine/world/prefab.go + scene.go | P2 | S33/W4 | 10.1＋1.3a视口 | Prefab/Scene{Load,Save}，认场景JSON | engine新包+认预制场景文件 | 测scene_test；窗game_world--case=open | A 摆好装出来对，B 缺文件报错不崩，C 两边齐，D 大场景加载时长有数，E 反复进出不涨，F 真窗看开局 | 已完成·V1口径（2026-09-15；engine/world/scene_test.go 6项全PASS＋world整包18项PASS＋go vet净＋CGO_ENABLED=0可构建；A4实体开局slime世界[32,42]对；B缺截断错爹重名错版分清；D2000实体解析约10.7ms开局约1.9ms；E200轮进出回基线；F离屏 scene_open.json逐字节一致；金数据scene_cases.json等8个；有意偏离SceneFile避S34重名用户已确认；窗意向game_world--case=open随P2建；前置S25复核绿） |
+| 10.3 | 生命周期 | engine/world/scene.go | P2 | S34/W4 | 10.1 | Spawn/Sleep/Dispose，清资源 | engine新包只算数 | 测lifecycle_test＋离屏；窗免 | A 生灭休眠对，B 重复销毁不崩，C 不适用，D 万次生灭耗时有数，E 跨关不漏，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/world/lifecycle_test.go 6项全PASS＋world整包12项PASS＋go vet净＋CGO_ENABLED=0可构建；D万次约3.26ms约325.8ns/次；E60关x40暂存回基线发号只涨；C双建逐位一致；F离屏金lifecycle_cases.json活3/激活1/休眠2；窗免；前置S25复核绿） |
+| 11.1 | 逻辑步长 | engine/step/fixed.go（同8.1） | P0 | S03/W1 | 同8.1 | 同8.1合测 | engine新包只算数，同8.1合测 | 同8.1合测 | 同 8.1，合测 | 已完成·V1口径（2026-09-15；同8.1一次开工一次合测，engine/step/fixed_test.go 6项全PASS，窗免-纯算数） |
+| 11.2 | 时间倍率暂停 | engine/step/time.go | P0 | S18/W2 | core＋8.1 | TimeScale＋Pause，分层时间 | engine新包只算数 | 测time_test；窗game_step--case=pause | A 暂停慢放加速对，B 倍率零负钳住，C 不适用，D 切换耗时有数，E 长跑不漂，F 真窗看暂停 | 已完成·V1口径（2026-09-15；engine/step/time_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D八万次切换约15.2ns/op＋万次Split约14.2ns/op；E十万帧双重放一致暂停世界恒0；C纯算数以双重放逐位一致即两边同数；F离屏金比对time_cases.json分流17/钳位9/序列4冻结；窗免-W2纯算数，真窗game_step--case=pause随P2建；前置core＋S03复核绿） |
+| 12.1 | 资产管理依赖版本 | engine/asset/asset.go | P2长链 | S19/W2 | 0.0＋3.1 | Asset{Load,Ref,Unload}＋依赖版本 | engine新包后台链 | 测asset_test＋离屏；窗免 | A 异步引用计数依赖跟踪版本哈希对，B 缺资产占位不崩，C 两边齐，D 百资产内存有数，E 反复加载不涨，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/asset/asset_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D百资产5200B约3.0us/次Count对总字节对；E千次Load/Unload逐位一致字节不动坏档可盖；C同文件双管家重放逐位一致即两边同数；F离屏金比对asset_cases.json总账＋双KTX2＋双raw＋坏截断冻结；窗免-纯管线；前置0.0＋S02复核绿，compressed.go本体未碰） |
+| 12.2 | 图集打包 | engine/asset/atlaspack.go | P2 | S27/W3 | 12.1 | AtlasPack工具，拼图出JSON | 离线工具+engine包 | 测atlaspack_test＋离屏；窗免 | A 拼图号对，B 超大图报错，C 画出来差在容差内，D 打包时间有数，E 重复打包稳定，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/asset/atlaspack_test.go 6项全PASS＋asset老6项回归绿＋CGO_ENABLED=0可构建；D64图50遍约106.6us/pack Encode 6341B进256x86；E500遍逐位一致；C容差0下maxDiff0 bad0/544缝边全透明；F离屏金比对atlas_cases.json+atlas_small.json area544 sheet27x27 util74.6%；窗免-纯打包；前置S19复核绿） |
+| 12.3 | 热重载 | engine/asset/hotreload.go | P2 | S28/W3 | 12.1 | Watch＋Reload，只换那块 | engine新包文件监听 | 测hotreload_test；窗game_asset--case=reload | A 一改就换，B 坏文件不崩，C 两边齐，D 重载耗时有数，E 反复改不涨，F 真窗看改完即看 | 已完成·V1口径（2026-09-15；engine/asset/hotreload_test.go 6项全PASS＋asset整包+core+atlaspack回归绿＋CGO_ENABLED=0可构建＋go vet净；D2000次轮询约14.2us/次、136B换图约38us；E百次来回字节恒定引用不动；C看门人与直装逐位一致；F离屏金比对hotreload_cases.json；窗意向game_asset--case=reload随P2建；前置S19复核绿） |
+| 13.1 | 动作映射改键死区震动 | engine/input/action.go | P0 | S07/W1 | 0.0 | Action＋改键＋死区震动 | engine新包只算数 | 测action_test；窗game_input--case=remap | A 动作触多键死区震动手势对，B 空绑不崩，C 不适用，D 百次输入耗时有数，E 长跑不丢漂移可调，F 真窗看改键摇杆不漂 | 已完成·V1口径（2026-09-15；engine/input/action_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A19快照4向量全对（键/任意柄/摇杆半偏0.375/捏放0.125/ Mean 全死区重映射改键＋死区重调＋震动时序）；B空绑静默＋坏动作/坏绑定10类/坏键坏震动invalid-arg＋NaN/Inf/零负不改旧值＋nil接收器不崩；D20000次x10动作22万求值约225.6ns/op；E万次漂移门住＋死区0放行0.1＋万次捏合钳1重放一致＋百步震动双重放一致＋重置清零留注册；C不适用-纯算数以复算逐位一致＋绑定拷贝隔离即两边同数；F离屏金比对action_cases.json 19快照4向量改键3探针重调2探针冻结＋数字满格/漂移门住/单侧互斥/捏放分向/对角归一形状断言；窗免-W1纯算数，输入窗game_input后建；前置0.0复核绿core全PASS；只动engine/input新包render未碰） |
+| 13.2 | 输入缓冲多点 | engine/input/buffer.go | P0 | S23/W2 | 13.1 | Buffer＋多点跟踪 | engine新包只算数 | 测buffer_test；窗game_input--case=combo | A 连招缓存多点跟踪对，B 断触不崩，C 不适用，D 压力输入有数，E 长跑不乱，F 真窗看连招 | 已完成·V1口径（2026-09-15；engine/input/buffer_test.go 6项全PASS＋CGO_ENABLED=0可构建＋go vet净；D五千轮十六万次约58.1ns/op命中全中＋触摸五千轮约76ns/op终态归零；E万次双重放一致满64不涨终态0；C纯算数以双建重放逐位一致即两边同数；F离屏金比对buffer_cases.json限额64/10/150ms冻结＋过期未来剪枝幸存者断言；窗免-W2纯算数，真窗game_input--case=combo随P2建；前置S07复核绿，action.go语义未碰） |
+| 14.1a | 碰撞体纯算 | engine/physics/body.go | P0 | S06/W1 | 0.0 | Body＋层分组＋触发器 | engine新包只算数 | 测body_test＋离屏；窗免 | A撞和触发对，B同位不崩，D百盒耗时有数，E长跑不穿 | 已完成·V1口径（2026-09-15；engine/physics/body_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A11组相交＋4组掩码＋4组查询全对（边触算碰触发标记层过滤静默）；B空nil单体零点同位不崩＋坏构造invalid-arg＋坏体Query错nil不改输入；D百盒2000次约351.1us/query；E万次重放逐位一致＋实体触发两路走格往返不粘；C不适用像素以边界往返无损＋重放一致即两边同数；F离屏金比对body_cases.json 18体11交4掩码4查询冻结＋形状断言；窗免-W1纯算数，碰撞窗game_physics后建；前置0.0复核绿core 16项全PASS；只动engine/physics新包render未碰） |
+| 14.1b | 射线移动平台画出 | engine/physics/body.go | P2 | S21/W2 | 14.1a＋7.1 | Ray＋移动平台带着走 | engine新包只算数 | 测body_ray_test；窗game_physics--case=hit | A射线平台对，B同位不崩，D百盒耗时有数，E长跑不穿，F真窗看探头子弹线 | 已完成·V1口径（2026-09-15；engine/physics/body_ray_test.go 6项全PASS＋同包body 6项＋platform 6项整包18项全PASS＋go vet净＋CGO_ENABLED=0可构建；D二千次x百盒约9.9us/cast命中全中；E万次逐位一致上下车往返翻转对万步链不断触；C纯算数以边界往返无损＋逐位重放即两边同数；F离屏金比对body_ray_cases.json13体13线14casts7站3携冻结＋边触中/体内0/掩码静默/换序取近断言；窗免-W2纯算数，真窗game_physics--case=hit随P2建；前置S06＋S05复核绿，14.1a语义只加未改） |
+| 14.2 | 平台斜坡 | engine/physics/platform.go | P2 | S22/W2 | 14.1a＋7.1 | Slope＋单向平台，站滑跳 | engine新包只算数 | 测platform_test；窗game_physics--case=jump | A 站滑跳单向上跳对，B 卡角不崩，C 不适用，D 长坡耗时有数，E 长跑不掉，F 真窗看跳 | 已完成·V1口径（2026-09-15；engine/physics/platform_test.go 6项全PASS＋同包整包18项全PASS＋go vet净＋CGO_ENABLED=0可构建；D五千高＋二千步约0.3us/op落48和360906.2冻结；E万次逐位一致往返不粘单向穿过再落住；C纯算数以边界往返无损＋逐位重放即两边同数；F离屏金比对platform_cases.json六坡十八高六角八站六滑二脚七贴十一单步冻结＋端点进/半格外/缓站陡滑/Y恒正断言；窗免-W2纯算数，真窗game_physics--case=jump随P2建；前置S06＋S05复核绿；收敛：同包helper重名改platSameFloat，逻辑金数据零改） |
+| 15.1 | 位置音 | engine/audio/positional.go | P0 | S13/W1 | 0.0 | PosSound{pos,range}，远小近大 | engine新包独立音频链 | 测positional_test；人工听 | A 远近左右对，B 无声不崩，C 不适用，D 多声 CPU 有数，E 长跑不爆，F 人工听 | 已完成·V1口径（2026-09-15；engine/audio/positional_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A16混音10立体声全对（中点满格/半程半响/边缘静默/对角/二次衰减/零衰减满响/零范围永响/单声道/强声像/头顶居中/偏置听者）；B坏构造坏听者撕裂结构invalid-arg占位静默＋MixAll坏槽不哑全场＋Stereo坏数归零＋1e308巨距量远静默不爆响；D256声x2000次约23.5us/rep；E万次重放逐位一致＋走近走远往返＋满刻度5000次不爆；C不适用-纯算数以边界往返无损＋逐位重放即两边同数；F离屏金比对positional_cases.json 16混音10立体声冻结＋近响远轻/左右镜像/衰减快慢/波形限幅形状断言＋满刻度不削波；窗免-纯算数＋人工听说明（中置居中/右偏右/远处微弱可定位）；前置0.0复核绿core全PASS；只动engine/audio新包render未碰） |
+| 15.2 | 音乐混音总线闪避 | engine/audio/music.go | P0 | S14/W1 | 0.0 | Music＋Bus＋Duck，爆炸压音乐 | engine新包独立音频链 | 测music_bus_test；人工听 | A 切换淡入淡出总线闪避对，B 缺曲不崩，C 不适用，D 混音上限有数，E 长跑不爆，F 人工听爆炸压音乐 | 已完成·V1口径（2026-09-15；engine/audio/music_bus_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A15变换5总线7闪避7混音5叠乘全对（1s交叉0/0.25/0.5/0.75/1单调和为1＋淡入淡出＋推2层弹回1层＋同曲重定无缝＋接线xfade0.5*typical0.8*hold0.5=ducked0.2）；B空曲invalid-arg留栈＋空弹not-found＋超8层out-of-memory＋坏音量/上限/深度/强度invalid-arg保旧值＋nil静默＋坏声忽略输入不改＋叠乘NaN归零超限幅1；D256声x2000次约27.6us/rep留最响32限幅；E万次复读一致＋百步淡入淡出单调收敛0/1＋闪避1000ms回1＋5000次满刻度不削波；C不适用-纯算数以双建重放＋输入不改＋逐位重放即两边同数；F离屏金比对music_bus_cases.json冻结＋形状断言＋满刻度波形不削波；窗免-纯算数＋人工听说明（交叉无咔哒/爆炸压半响可懂0.5s爬回/静音音乐走hits留）；前置0.0复核绿core全PASS＋同包positional 6项全PASS；只动engine/audio新包（music.go/doc.go/单测/金数据）render未碰；收敛2026-09-15：淡入淡出收拢settleFading/armFade＋限幅收拢clampGain复用（删clamp01）＋Blend空栈分支压平＋闪避死分支去release<=0＋混音满员免排序加Slice去Stable＋单测手写itoa改strconv＋离屏自比改双建重放＋长跑万次重建改同体复读＋边界死断言去台账/探针，6项仍全PASS，金数据未动） |
+| 16.1 | 存档槽位迁移 | engine/save/save.go | P0 | S15/W1 | 0.0 | Save{slot,ver,Migrate}，坏不崩 | engine新包文件存读 | 测save_test＋离屏；窗免 | A 存读槽位版本迁移对，B 坏档不崩，C 不适用，D 大档时长有数，E 反复存读不坏，F 离屏对比 | 已完成·V1口径（2026-09-15；engine/save/save_test.go 6项全PASS＋go vet净＋CGO_ENABLED=0可构建；A三档文件加API重建加编解码往返加迁后一致全对（0空新局/1中断/2满贯）＋旧0.9迁1.0只升版数不动；B空零超限五坏档错码分清（bad-data/version-mismatch）＋坏构造invalid-arg＋nil接收器不崩；D 256物64星200次约473us/rep 8773B远小于MaxBytes；E千次编解码逐位一致＋星升降往返不粘＋200次存读同字节；C不适用-纯文件以ms边界无损＋逐位重放即两边同数；F离屏金比对save_cases.json三档冻结＋槽 distinct/新局空/满贯单调/预算内形状断言；窗免-纯文件；前置0.0复核绿core全PASS＋camera/sprite/tex/tilemap/anim/audio/input/physics/step回归绿；只动engine/save新包render未碰） |
+| 16.2 | 画质分档 | engine/save/quality.go | P4 | S51/W9 | 17.2 | Quality{高/中/低}跟档走 | engine新包跟档走 | 测quality_test；窗game_save--case=q123 | A 高中低跟档走，B 切档不闪崩，C 两边齐，D 各档帧率有数，E 长跑不掉档，F 真窗看三档 | 已完成·V1口径（2026-09-16；engine/save/quality_test.go 6项全PASS＋老save_test 6项回归绿＋前置debug 6项复核绿＋core整包绿＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A三档高1000粒子8灯1.00/中500/4/0.75/低200/2/0.50单调递减文件与API一致；B 900次轮切回起点一致＋同档切空操作＋8类坏名invalid-arg保旧档＋4类坏文件错码分清；D SpecFor约16~24ns/op＋Switch约7~8ns/对＋编解码34B约3us/次；E万次编解码一致＋万次轮切跟手＋200次存读同字节；C不适用-纯映射数一致像素差归各管；F自动窗EXIT0 presents464 switches3 errors0 fps58/59/60 golden0 dots4000/2000/800 bars1024/768/512；主会话复跑save12项PASS＋debug PASS＋自动窗PASS；只动quality新文件＋examples/game_save老save三件未碰render/ui未碰；人工常驻2026-09-16用户28秒点588次收JSON（backend=x11 presents1672 switches14 errors0 continuous1 probe1 fps约59/59.5/59.5 frames1482/1371/985，用户未报闪与分不清问题）；主会话复跑save12项PASS＋debug PASS＋自动窗PASS；只动quality新文件＋examples/game_save老save三件未碰render/ui未碰；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测；W9关） |
+| 17.1 | 编辑器预览 | tools/levelprev + particleprev | P4 | S50/W8 | W7单项全过 | 关卡/粒子预览，所见即所得 | tools新工具 | 人工看预览；窗tools预览 | A 摆关调粒子所见即所得，B 空工程不崩，C 两边齐，D 大关卡打开时长有数，E 反复开不涨，F 人工看 | 已完成·V1口径（2026-09-16；tools/levelprev/preview_test.go 6项全PASS＋tools/particleprev/preview_test.go 4项全PASS＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A关卡小17瓦片3实体/大14627瓦片2000实体按层设色对象黄框实体红点＋粒子火cone16/16/0烟box15/15/0走真引擎即调即看；B空工程2notes占位照开窗＋坏图保3实体坏场景保17瓦片＋缺特效占位坏特效BadData；C只比数VerifyCounts/VerifyReplay与引擎直解零差＋同工程离屏重画逐字节一致＋三金第二遍changed=0；D大关卡探针约13~18ms窗内重开约18ms＋小工程fps约59；E大工程连开5次零漂移＋粒子连开20次零漂移＋整窗5次maxRSS走低无增长；F自动三窗EXIT0（level小presents472 fps59 p95约17 hitch2 golden0、fire presents474 alive54、smoke presents474 alive51）＋离屏金level_preview_golden.png＋fire/smoke双金；人工常驻2026-09-16用户三窗收JSON全backend=x11探针1：level presents107 ptr49 tiles17 entities3、火 presents438 alive256 spawned512 rate15360 key10 ptr109、烟 presents709 alive256 spawned2427 key10 ptr160，用户亲眼静态方块系布局预览/火锥往上窜/烟盒乱流飘三样全对＋加减倍率即看（rate按到15360活数顶满256符合Max设计）；主会话复跑双包PASS＋三窗自动PASS＋tilemap/world/particle/core回归绿；只动tools两目录engine只读render/ui未碰；*_last.png运行快照不入库已删＋proj_empty加.keep；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release换机重测；W8关） |
+| 17.2 | 性能崩溃帧分解 | engine/debug/stats.go | P4 | S49/W8 | W7单项全过 | Stats{帧/次/存/分解}＋上报 | engine新包只出数 | 人工看报表＋长跑在线 | A 帧率画次显存帧分解过绘编译耗时出数对，B 无数据不崩，C 不适用，D 上报耗时有数，E 长跑在线，F 人工看报表定位到谁吃时间 | 已完成·V1口径（2026-09-16；engine/debug/stats_test.go 6项全PASS＋go vet净＋gofmt净＋CGO_ENABLED=0可构建；A 10帧冻结fps47.62 avg21ms p95 50ms slow2 画次1440 过绘1.395x 显存65/67MB 分解render114ms占53.3%居首 着色器177ms全对＋编解码往返一致；B nil零值/空零超限/坏文件错码分清坏帧不污染台账；D上报encode+parse约35.1us/次624B远小于1MB＋shader约55.7ns/次＋存读约261us；E 5000帧环只留3600总数照计显存钉住＋10秒后台钳250ms记1gap＋超512MB记1OOM旧值不动＋50次存读同字节；C不适用-纯算数以毫秒边界无损＋版本往返＋双建逐位一致即两边同数；F离屏金比对stats_cases.json/stats_report.json逐字节一致＋stats_report_golden.txt逐字节对＋stats_crash.json原因码对＋形状断言render居首；窗免-报表＋长跑即证据（stats_report_golden.txt人看＋stats_report.json机器读）；前置P3复核绿particle12项＋fx18项＋light18项＋step24项＋core16项；只动engine/debug新包render/ui/tools未碰；环境940MX/580.178.04/1920x1080/DISPLAY=:0非release纯算数与release无关换机重测） |
 
 规矩：这张表是唯一状态源，做完一项就把那行改成已完成，写清日期、测试文件、真窗名。口头说完不算。 V1行分到G01–G11，详情见 `docs/2.5D/G01.md`、`docs/2.5D/G02.md`、`docs/2.5D/G03.md`、`docs/2.5D/G04.md`、`docs/2.5D/G05.md`、`docs/2.5D/G06.md`、`docs/2.5D/G07.md`、`docs/2.5D/G08.md`、`docs/2.5D/G09.md`、`docs/2.5D/G10.md`、`docs/2.5D/G11.md`。
 
@@ -628,7 +628,7 @@ P5冻结不动（V1口径）：9.1高动态。V2部分解冻见S66，行状态�
 
 每波跑啥、谁判，看上一节分期关门条件表；怎么算过，看§5。R1/R2/R3/R4/R5 小修回归界面金图那几行，关门证据不变。
 
-红了谁负责：游戏层红改game/tools，render主路红先回滚游戏分支，不动主路。
+红了谁负责：游戏层红改engine/tools，render主路红先回滚游戏分支，不动主路。
 
 ## 不在这份文档里做的（范围以§0非目标为准，明细看 V2 不含清单 N1–N8＋V3 平台口子；只剩两条线外事）
 
@@ -666,66 +666,66 @@ V2 细节我定死（7 块）：
 
 | # | Godot 叫什么 | 本地源码在哪 | 管什么＋抄哪几个函数 | 对我们哪包 | 落哪个 S |
 |---|---|---|---|---|---|
-| G01 | CanvasItem（所有 2D 的爹） | scene/main/canvas_item.h | 显隐混色材质重画：queue_redraw、z_index/z_as_relative/y_sort_enabled、texture_filter/texture_repeat、set_material、get_canvas_transform | game/sprite＋game/world 分层口径 | 已在S10/S25落实，无新窗（分层规矩，不另开S） |
-| G02 | Camera2D | scene/2d/camera_2d.h | 看向缩放跟随：get_camera_transform、zoom、limit 四边＋limit_smoothing、drag_margin＋drag 开关、position_smoothing＋speed、reset_smoothing；AnchorMode 两档 | game/camera/camera.go | S55/W11 新窗 |
-| G03 | ParallaxBackground/ParallaxLayer/Parallax2D | scene/2d/parallax_background.h＋parallax_layer.h＋parallax_2d.h | 远慢近快：scroll_scale、repeat_size/times、autoscroll、limit_begin/end、follow_viewport | game/camera/parallax.go | S55/W11 同窗 |
-| G04 | Sprite2D | scene/2d/sprite_2d.h | 贴图：set_texture、region 切图＋防串色、hframes/vframes/frame 切帧、flip、is_pixel_opaque 点选 | game/sprite/atlas.go＋batch.go | S31/S36 已绿，W10 正式重测 |
-| G05 | AnimatedSprite2D＋SpriteFrames | scene/2d/animated_sprite_2d.h＋scene/resources/sprite_frames.h | 帧库＋播放器分离：play/backwards/pause/stop、animation/frame/speed_scale、animation_finished/looped 信号、add_animation/get_frame_duration、LOOP_NONE/LINEAR/PINGPONG、MINIMUM_DURATION | game/sprite/flipbook.go | 补 S74/W11（--case=anim 新窗，原计划漏排） |
-| G06 | AnimationPlayer＋AnimationMixer | scene/animation/animation_player.h＋animation_mixer.h | 单轨＋混音总线：play/queue/seek/play_section、blend_time/default_blend_time、capture 抢拍防跳、advance/_blend 四步管线 | game/anim/timeline.go | 补 S75/W11（--case=tl 新窗，原计划漏排） |
-| G07 | AnimationTree（含 Blend2/3、BlendSpace1D/2D、StateMachine） | scene/animation/animation_tree.h＋animation_blend_tree.h＋animation_blend_space_1d/2d.h＋animation_node_state_machine.h | 节点图求值：tree_root、blend_position、travel/start、switch_mode 三档、xfade_time、priority、add_blend_point/add_triangle/auto_triangles、MAX_BLEND_POINTS=64 | game/anim/statemachine.go | S46 已绿，W10 S53 单窗重测 |
-| G08 | Tween（程序化补间） | scene/animation/tween.h | 代码写动画：tween_property/callback/method/interval、set_trans/set_ease/set_loops、TransitionType/EaseType 表 | game/anim/easing.go | S04已绿＋S78复用，无新S |
-| G09 | CPUParticles2D | scene/2d/cpu_particles_2d.h | 小量精确：amount/lifetime/explosiveness/randomness、direction/spread/gravity/初速/阻尼、color＋ramp、发射形状 point/sphere/rect/ring、draw_order | game/particle/emitter.go＋cpu.go | S38 已绿，W10 正式重测 |
-| G10 | GPUParticles2D＋ParticleProcessMaterial | scene/2d/gpu_particles_2d.h＋servers 粒子存储 | 大量＋数量行为分离：amount/amount_ratio（改比例不重启）、fixed_fps＋interpolate、preprocess 预热、visibility_rect 裁剪、trail 开关时长段数、sub_emitter 子发射、seed 可复现 | game/particle/gpu.go＋trail.go | S43已绿；V2万级量在S43复测补数，不新开S |
-| G11 | Line2D（拖尾 ribbon 同源） | scene/2d/line_2d.h（＋line_builder.h） | 可变宽折线：points、width＋width_curve、gradient、joint 三档＋sharp_limit、begin/end_cap、closed、texture tile/stretch、antialiased（掉合批要标） | game/particle/trail.go | S43 已绿，W10 正式复测 |
-| G12 | TileMapLayer＋TileSet（新） | modules/tilemap/tile_map_layer.h＋tile_set.h（注：本快照 scene/resources/2d/tile_set 缺文件，以 modules 为准） | 三段寻址＋分块合批：source_id/atlas_coords/alternative、set_cell/get_cell、rendering_quadrant_size=16（256 块一批）、physics_quadrant 16 合并、地形自动拼（只编辑器跑，运行时只按 gid 画） | game/tilemap 四文件 | S57/W11 新建三 case |
-| G13 | Skeleton2D＋Bone2D＋ModificationStack（IK/抖动/物理骨） | scene/2d/skeleton_2d.h＋scene/resources/2d/skeleton/各 modification 头 | 骨皮分离：rest/apply_rest、local_pose_override＋strength、modification_stack、TwoBoneIK/CCDIK/FABRIK/LookAt 按需抄一个、EXECUTION_MODE 时机 | game/anim/skeleton.go | S42 已绿，W10 S53 重测＋W12 S62 粗糙 |
+| G01 | CanvasItem（所有 2D 的爹） | scene/main/canvas_item.h | 显隐混色材质重画：queue_redraw、z_index/z_as_relative/y_sort_enabled、texture_filter/texture_repeat、set_material、get_canvas_transform | engine/sprite＋engine/world 分层口径 | 已在S10/S25落实，无新窗（分层规矩，不另开S） |
+| G02 | Camera2D | scene/2d/camera_2d.h | 看向缩放跟随：get_camera_transform、zoom、limit 四边＋limit_smoothing、drag_margin＋drag 开关、position_smoothing＋speed、reset_smoothing；AnchorMode 两档 | engine/camera/camera.go | S55/W11 新窗 |
+| G03 | ParallaxBackground/ParallaxLayer/Parallax2D | scene/2d/parallax_background.h＋parallax_layer.h＋parallax_2d.h | 远慢近快：scroll_scale、repeat_size/times、autoscroll、limit_begin/end、follow_viewport | engine/camera/parallax.go | S55/W11 同窗 |
+| G04 | Sprite2D | scene/2d/sprite_2d.h | 贴图：set_texture、region 切图＋防串色、hframes/vframes/frame 切帧、flip、is_pixel_opaque 点选 | engine/sprite/atlas.go＋batch.go | S31/S36 已绿，W10 正式重测 |
+| G05 | AnimatedSprite2D＋SpriteFrames | scene/2d/animated_sprite_2d.h＋scene/resources/sprite_frames.h | 帧库＋播放器分离：play/backwards/pause/stop、animation/frame/speed_scale、animation_finished/looped 信号、add_animation/get_frame_duration、LOOP_NONE/LINEAR/PINGPONG、MINIMUM_DURATION | engine/sprite/flipbook.go | 补 S74/W11（--case=anim 新窗，原计划漏排） |
+| G06 | AnimationPlayer＋AnimationMixer | scene/animation/animation_player.h＋animation_mixer.h | 单轨＋混音总线：play/queue/seek/play_section、blend_time/default_blend_time、capture 抢拍防跳、advance/_blend 四步管线 | engine/anim/timeline.go | 补 S75/W11（--case=tl 新窗，原计划漏排） |
+| G07 | AnimationTree（含 Blend2/3、BlendSpace1D/2D、StateMachine） | scene/animation/animation_tree.h＋animation_blend_tree.h＋animation_blend_space_1d/2d.h＋animation_node_state_machine.h | 节点图求值：tree_root、blend_position、travel/start、switch_mode 三档、xfade_time、priority、add_blend_point/add_triangle/auto_triangles、MAX_BLEND_POINTS=64 | engine/anim/statemachine.go | S46 已绿，W10 S53 单窗重测 |
+| G08 | Tween（程序化补间） | scene/animation/tween.h | 代码写动画：tween_property/callback/method/interval、set_trans/set_ease/set_loops、TransitionType/EaseType 表 | engine/anim/easing.go | S04已绿＋S78复用，无新S |
+| G09 | CPUParticles2D | scene/2d/cpu_particles_2d.h | 小量精确：amount/lifetime/explosiveness/randomness、direction/spread/gravity/初速/阻尼、color＋ramp、发射形状 point/sphere/rect/ring、draw_order | engine/particle/emitter.go＋cpu.go | S38 已绿，W10 正式重测 |
+| G10 | GPUParticles2D＋ParticleProcessMaterial | scene/2d/gpu_particles_2d.h＋servers 粒子存储 | 大量＋数量行为分离：amount/amount_ratio（改比例不重启）、fixed_fps＋interpolate、preprocess 预热、visibility_rect 裁剪、trail 开关时长段数、sub_emitter 子发射、seed 可复现 | engine/particle/gpu.go＋trail.go | S43已绿；V2万级量在S43复测补数，不新开S |
+| G11 | Line2D（拖尾 ribbon 同源） | scene/2d/line_2d.h（＋line_builder.h） | 可变宽折线：points、width＋width_curve、gradient、joint 三档＋sharp_limit、begin/end_cap、closed、texture tile/stretch、antialiased（掉合批要标） | engine/particle/trail.go | S43 已绿，W10 正式复测 |
+| G12 | TileMapLayer＋TileSet（新） | modules/tilemap/tile_map_layer.h＋tile_set.h（注：本快照 scene/resources/2d/tile_set 缺文件，以 modules 为准） | 三段寻址＋分块合批：source_id/atlas_coords/alternative、set_cell/get_cell、rendering_quadrant_size=16（256 块一批）、physics_quadrant 16 合并、地形自动拼（只编辑器跑，运行时只按 gid 画） | engine/tilemap 四文件 | S57/W11 新建三 case |
+| G13 | Skeleton2D＋Bone2D＋ModificationStack（IK/抖动/物理骨） | scene/2d/skeleton_2d.h＋scene/resources/2d/skeleton/各 modification 头 | 骨皮分离：rest/apply_rest、local_pose_override＋strength、modification_stack、TwoBoneIK/CCDIK/FABRIK/LookAt 按需抄一个、EXECUTION_MODE 时机 | engine/anim/skeleton.go | S42 已绿，W10 S53 重测＋W12 S62 粗糙 |
 
 灯影 3 件：
 
 | # | Godot 叫什么 | 本地源码在哪 | 抄哪几个 | 对我们哪包 | 落哪个 S |
 |---|---|---|---|---|---|
-| G14 | PointLight2D/DirectionalLight2D | scene/2d/light_2d.h | color/energy（可超 1）/height、z_range/layer_range、item_cull/shadow_cull_mask、shadow_enabled/color/filter（NONE/PCF5/PCF13）；BlendMode ADD/SUB/MIX | game/light/light.go | S45 已绿，W12 S63 柔边收费 |
-| G15 | LightOccluder2D＋OccluderPolygon2D | scene/2d/light_occluder_2d.h | polygon/closed、cull_mode 三档、occluder_light_mask、as_sdf_collision | game/light/shadow.go | S48 已绿，W10 S53 重测 |
-| G16 | CanvasModulate＋CanvasTexture | scene 等（环境＋纹理头） | 全场底色线性先乘；diffuse/normal/specular＋shininess | game/light/light.go Night＋normal.go | S45/S47，W12 S66 可选管线 |
+| G14 | PointLight2D/DirectionalLight2D | scene/2d/light_2d.h | color/energy（可超 1）/height、z_range/layer_range、item_cull/shadow_cull_mask、shadow_enabled/color/filter（NONE/PCF5/PCF13）；BlendMode ADD/SUB/MIX | engine/light/light.go | S45 已绿，W12 S63 柔边收费 |
+| G15 | LightOccluder2D＋OccluderPolygon2D | scene/2d/light_occluder_2d.h | polygon/closed、cull_mode 三档、occluder_light_mask、as_sdf_collision | engine/light/shadow.go | S48 已绿，W10 S53 重测 |
+| G16 | CanvasModulate＋CanvasTexture | scene 等（环境＋纹理头） | 全场底色线性先乘；diffuse/normal/specular＋shininess | engine/light/light.go Night＋normal.go | S45/S47，W12 S66 可选管线 |
 
 渲染 6 件（servers/rendering，只抄口径，底层仍用自家 render/）：
 
 | # | Godot 叫什么 | 本地源码在哪 | 抄什么 | 对我们哪处 | 落哪个 S |
 |---|---|---|---|---|---|
-| G17 | RendererCanvasCull 可见排序 | servers/rendering/renderer_canvas_cull.h | canvas_item_set_parent/z_index、ItemYSort、ysort_xform/index、_item_queue_update | game/sprite/ysort.go＋depth.go 口径 | S10/S41 已绿 |
+| G17 | RendererCanvasCull 可见排序 | servers/rendering/renderer_canvas_cull.h | canvas_item_set_parent/z_index、ItemYSort、ysort_xform/index、_item_queue_update | engine/sprite/ysort.go＋depth.go 口径 | S10/S41 已绿 |
 | G18 | RendererCanvasRender 命令口 | servers/rendering/renderer_canvas_render.h | add_rect/primitive/polygon/particles、CanvasRectFlags（REGION/TILE/FLIP/CLIP_UV）、Light 结构、texture_filter/repeat 默认值 | render 新分支口径 | R3/R4/R5 已绿 |
-| G19 | RendererCanvasRenderRD 合批真身 | servers/rendering/renderer_rd/renderer_canvas_render_rd.h＋.cpp | 先按 clip→material→command 断批再一缓冲多实例：_record_item_commands/_render_batch/_new_batch、Batch{start,instance_count,material,clip}、item_buffer_size | game/sprite/batch.go 思路 | S31 已绿 |
-| G20 | CanvasItemMaterial 材质 key | scene/resources/canvas_item_material.h | BlendMode 六档（MIX/ADD/SUB/MUL/PREMULT/DISABLED）、LightMode 三档（NORMAL/UNSHADED/LIGHT_ONLY）、particles 翻书 h/v＋loop | game/fx/custom.go | S44 已绿 |
-| G21 | 采样器＋格式＋着色器采样宏 | rendering_server_enums.h＋rendering_device.h＋samplers_inc.glsl＋canvas.glsl | TextureFilter 六档（NEAREST/LINEAR/双 MIPMAP＋各向异性）、Repeat 三档、SamplerFilter/RepeatMode、textureSampler 封装、mipmap_lod | game/tex/mipmap.go＋render 采样开关 | S32/S65，W12 S65 写死 |
-| G22 | Image/CompressedTexture/TextureStorage/Environment 尾巴 | core/io/image.h＋scene/resources/compressed_texture.h＋texture_storage.h＋environment.h＋tone_mapper.h | Format（RGBA8/RF/RGBAH/DXT/ETC/BPTC/ASTC）、CompressMode/Source、generate_mipmaps、DataFormat（IMAGE/PNG/WEBP/BASIS）、use_hdr、ToneMapper 五档（LINEAR/REINHARDT/FILMIC/ACES/AGX）、glow 口径 | game/tex/compressed.go＋S66 可选管线 | S02 已绿（一），S64 第二种，S66 管线 |
+| G19 | RendererCanvasRenderRD 合批真身 | servers/rendering/renderer_rd/renderer_canvas_render_rd.h＋.cpp | 先按 clip→material→command 断批再一缓冲多实例：_record_item_commands/_render_batch/_new_batch、Batch{start,instance_count,material,clip}、item_buffer_size | engine/sprite/batch.go 思路 | S31 已绿 |
+| G20 | CanvasItemMaterial 材质 key | scene/resources/canvas_item_material.h | BlendMode 六档（MIX/ADD/SUB/MUL/PREMULT/DISABLED）、LightMode 三档（NORMAL/UNSHADED/LIGHT_ONLY）、particles 翻书 h/v＋loop | engine/fx/custom.go | S44 已绿 |
+| G21 | 采样器＋格式＋着色器采样宏 | rendering_server_enums.h＋rendering_device.h＋samplers_inc.glsl＋canvas.glsl | TextureFilter 六档（NEAREST/LINEAR/双 MIPMAP＋各向异性）、Repeat 三档、SamplerFilter/RepeatMode、textureSampler 封装、mipmap_lod | engine/tex/mipmap.go＋render 采样开关 | S32/S65，W12 S65 写死 |
+| G22 | Image/CompressedTexture/TextureStorage/Environment 尾巴 | core/io/image.h＋scene/resources/compressed_texture.h＋texture_storage.h＋environment.h＋tone_mapper.h | Format（RGBA8/RF/RGBAH/DXT/ETC/BPTC/ASTC）、CompressMode/Source、generate_mipmaps、DataFormat（IMAGE/PNG/WEBP/BASIS）、use_hdr、ToneMapper 五档（LINEAR/REINHARDT/FILMIC/ACES/AGX）、glow 口径 | engine/tex/compressed.go＋S66 可选管线 | S02 已绿（一），S64 第二种，S66 管线 |
 
 物理 5 件（scene/2d/physics＋navigation，最值得抄 CharacterBody2D）：
 
 | # | Godot 叫什么 | 本地源码在哪 | 抄哪几个 | 对我们哪包 | 落哪个 S |
 |---|---|---|---|---|---|
-| G23 | CollisionObject2D/Shape/Polygon | scene/2d/physics/collision_object/shape/polygon_2d.h | layer/mask、shape_owner_add_shape、one_way＋margin、BUILD_SOLIDS/SEGMENTS、凸分解 | game/physics/body.go | S06/S21 已绿，W11 S61 新窗 |
-| G24 | CharacterBody2D（2.5D 必抄） | scene/2d/physics/character_body_2d.h | move_and_slide、apply_floor_snap、is_on_floor/wall/ceiling、floor_normal、floor_max_angle、snap_length、up_direction、MOTION_MODE 两档 | game/physics/platform.go 扩展对齐 | S22 已绿，对齐补 S76/W11（snap＋mode 口径） |
-| G25 | Area2D 触发区 | scene/2d/physics/area_2d.h | overlapping_bodies/areas、gravity/damp 覆盖、priority、monitoring/monitorable、audio_bus_override | game/physics/body.go 触发口径 | S06已绿＋S78复用 |
-| G26 | RayCast2D＋KinematicCollision2D | scene/2d/physics/ray_cast/kinematic_collision_2d.h | target_position、force_update、is_colliding、point/normal、travel/remainder、collider_velocity | game/physics/body.go ray | S21 已绿 |
-| G27 | NavigationAgent/Region/Link/Obstacle＋NavigationPolygon | scene/2d/navigation/各头＋scene/resources/2d/navigation_polygon.h | target/next_path、desired_distance/max_speed、avoidance、bake_polygon、enter/travel_cost | game/nav 新包（S80已作废并入本项） | S87转正/W17新窗game_nav（V2关门不含，见§0.1与N1去向） |
+| G23 | CollisionObject2D/Shape/Polygon | scene/2d/physics/collision_object/shape/polygon_2d.h | layer/mask、shape_owner_add_shape、one_way＋margin、BUILD_SOLIDS/SEGMENTS、凸分解 | engine/physics/body.go | S06/S21 已绿，W11 S61 新窗 |
+| G24 | CharacterBody2D（2.5D 必抄） | scene/2d/physics/character_body_2d.h | move_and_slide、apply_floor_snap、is_on_floor/wall/ceiling、floor_normal、floor_max_angle、snap_length、up_direction、MOTION_MODE 两档 | engine/physics/platform.go 扩展对齐 | S22 已绿，对齐补 S76/W11（snap＋mode 口径） |
+| G25 | Area2D 触发区 | scene/2d/physics/area_2d.h | overlapping_bodies/areas、gravity/damp 覆盖、priority、monitoring/monitorable、audio_bus_override | engine/physics/body.go 触发口径 | S06已绿＋S78复用 |
+| G26 | RayCast2D＋KinematicCollision2D | scene/2d/physics/ray_cast/kinematic_collision_2d.h | target_position、force_update、is_colliding、point/normal、travel/remainder、collider_velocity | engine/physics/body.go ray | S21 已绿 |
+| G27 | NavigationAgent/Region/Link/Obstacle＋NavigationPolygon | scene/2d/navigation/各头＋scene/resources/2d/navigation_polygon.h | target/next_path、desired_distance/max_speed、avoidance、bake_polygon、enter/travel_cost | engine/nav 新包（S80已作废并入本项） | S87转正/W17新窗game_nav（V2关门不含，见§0.1与N1去向） |
 
 音频 4 件（servers/audio＋scene/audio）：
 
 | # | Godot 叫什么 | 本地源码在哪 | 抄哪几个 | 对我们哪包 | 落哪个 S |
 |---|---|---|---|---|---|
-| G28 | AudioServer 总线混音真源 | servers/audio/audio_server.h | playback_stream、bus volume/mute/solo/send、Bus/Channel 双层、generate_bus_layout | game/audio/music.go | S14 已绿 |
-| G29 | AudioStreamPlayer2D 位置音 | scene/2d/audio_stream_player_2d.h | max_distance/attenuation/panning_strength/area_mask、_update_panning、_get_actual_bus | game/audio/positional.go | S13已绿＋S78复用 |
+| G28 | AudioServer 总线混音真源 | servers/audio/audio_server.h | playback_stream、bus volume/mute/solo/send、Bus/Channel 双层、generate_bus_layout | engine/audio/music.go | S14 已绿 |
+| G29 | AudioStreamPlayer2D 位置音 | scene/2d/audio_stream_player_2d.h | max_distance/attenuation/panning_strength/area_mask、_update_panning、_get_actual_bus | engine/audio/positional.go | S13已绿＋S78复用 |
 | G30 | AudioListener2D | scene/2d/audio_listener_2d.h | make_current 单例，跟相机走 | 同上扩展 | 补 S77/W11（听者跟相机口径） |
-| G31 | AudioStream/Playback/重采样 | scene/resources/audio/audio_stream.h | instantiate_playback、mix/seek、三次插值重采样 | game/audio 底层口径（S13/S14已对齐） | 口径已对齐，无新S；验收只认人工听＋波形（曲目设备声压见S13/S14行） |
+| G31 | AudioStream/Playback/重采样 | scene/resources/audio/audio_stream.h | instantiate_playback、mix/seek、三次插值重采样 | engine/audio 底层口径（S13/S14已对齐） | 口径已对齐，无新S；验收只认人工听＋波形（曲目设备声压见S13/S14行） |
 
 输入存档 4 件（core/input＋scene/resources）：
 
 | # | Godot 叫什么 | 本地源码在哪 | 抄哪几个 | 对我们哪包 | 落哪个 S |
 |---|---|---|---|---|---|
-| G32 | InputMap＋Input 单例 | core/input/input_map.h＋input.h | add_action/action_add_event、deadzone、is_pressed/just_pressed/get_strength/get_axis/get_vector、ALL_DEVICES=-1、joy_vibration、键鼠触屏互顶 | game/input/action.go＋buffer.go | S07/S23 已绿，W11 S60 新窗 |
+| G32 | InputMap＋Input 单例 | core/input/input_map.h＋input.h | add_action/action_add_event、deadzone、is_pressed/just_pressed/get_strength/get_axis/get_vector、ALL_DEVICES=-1、joy_vibration、键鼠触屏互顶 | engine/input/action.go＋buffer.go | S07/S23 已绿，W11 S60 新窗 |
 | G33 | SpriteFrames 资源容器 | scene/resources/sprite_frames.h | add_animation/frame、speed/loop 三档、MINIMUM_DURATION | 同 G05 | 补 S74 同 |
-| G34 | PackedScene＋SceneState（存档主通道） | scene/resources/packed_scene.h | pack/instantiate、add_node/property/connection 三表 | game/world/scene.go＋prefab.go 口径对齐 | S33 已绿 |
-| G35 | ResourceFormatText（tscn/tres 文本格式） | scene/resources/resource_format_text.h | load/save、FORMAT_VERSION=4、ext/int_resources 两表、依赖改名 | game/asset＋world 存盘口径 | 工具链对齐用，不新开 S |
+| G34 | PackedScene＋SceneState（存档主通道） | scene/resources/packed_scene.h | pack/instantiate、add_node/property/connection 三表 | engine/world/scene.go＋prefab.go 口径对齐 | S33 已绿 |
+| G35 | ResourceFormatText（tscn/tres 文本格式） | scene/resources/resource_format_text.h | load/save、FORMAT_VERSION=4、ext/int_resources 两表、依赖改名 | engine/asset＋world 存盘口径 | 工具链对齐用，不新开 S |
 
 补排 9 个号＋1作废（5口径窗归W11＋1小游戏关归W13＋1真2.5D窗归W11＋3扩展对照窗归W14，S80占位作废并入S87；波内可并行；S78等W11全窗故归W13）：
 - S74 帧动画窗（等 flipbook，game_sprite--case=anim，G05/G33，归W11）。
@@ -771,7 +771,7 @@ V2 细节我定死（7 块）：
 ### 真 2.5D 基向量验收（Godot misc/2.5d 路线，2026-09-16 补，落 S79/W11）
 
 一句话：真2.5D不是把2D堆多点，而是3D的数、2D的画。照抄 `godot-demo-projects/misc/2.5d` 的 Node25D 做法：3D坐标经三组基向量压成2D，6种视角（45度/等距/正视/俯视/两种斜视）只换基向量，排序走 YSort25D，影子走 ShadowMath25D。
-- 做什么：新建 `examples/game_25d_basis`，调 game/camera 真包（只读接口不动引擎）；6种基向量矩阵值与 demo 逐位一致，投影公式逐点对。
+- 做什么：新建 `examples/game_25d_basis`，调 engine/camera 真包（只读接口不动引擎）；6种基向量矩阵值与 demo 逐位一致，投影公式逐点对。
 - 自动看什么：6种矩阵值逐位一致、投影点集逐点对、遮挡序对、影子位置对，JSON 判 PASS/FAIL。
 - 人工看什么：一切换视角就像，前后盖对，影子不飘。
 - 指标：正式包三遍最差；presents400＋单窗fps57＋，帧门见§5；矩阵逐位0差，投影点误差1e-9内，双金0差。
@@ -802,7 +802,7 @@ W11 补 12 项（S55–S61七窗＋S74–S77/S79五口径，靠 W10，波内可�
   S79 真2.5D基向量窗（等 S08/S09/S10，game_25d_basis，6视角矩阵逐位对）
 
 W12 立体细腻 C+（S62–S66，靠 W11，波内可并行，S66 串行等前 4 个）
-  S62 材质两张图（法线＋粗糙，木箱人物石头三样板先行，game/light 扩展，render 主路不动）
+  S62 材质两张图（法线＋粗糙，木箱人物石头三样板先行，engine/light 扩展，render 主路不动）
   S63 灯影柔边＋大灯收费（等 6.1，三档柔边＋覆盖像素记账，真灯不超 10 盏）
   S64 压缩第二种＋转码（等 3.1，头校验＋按卡转码＋粉块兜底）
   S65 过滤写死＋图集留白扩边（等 3.2/12.2，mipmap＋三线性默认＋4x 各向异性＋留白 2–4 扩边 1–2）
@@ -949,9 +949,9 @@ S79 真2.5D基向量窗（等 S08/S09/S10，G01＋misc/2.5d，窗新建game_25d_
 W11 总指标：12项全建（有目录有main.go才算建，无目录算未建），每窗自动＋人工双 JSON（人工事件0算空转不算过），金图全进 testdata容差写死（静图0容差，金图按窗大小），正式包＋三遍最差＋换机口径，（帧门见§5，双金0差）全过，每项加一行与 D01–D20 差多少（对不上不许绿）。少一项 W12 不开。
 
 新人S55完整卡示例（照此抄，其余S同模子）：
-- 做什么：新建 examples/game_camera，一个窗验跟随＋限位＋平滑＋视差长路，调 game/camera 真包（camera.go/parallax.go/project.go只读，窗里只调接口不动引擎）。
-- 改哪几个文件：新建 examples/game_camera/main.go＋README.md＋testdata/（camera_follow_golden.png＋camera_cases.json）；不动 game/camera/*.go；回归跑 go test ./game/camera。
-- 跑哪几个命令：go test ./game/camera -count=1；go vet ./game/camera ./...；RUN_SECONDS=10 -auto-only 收自动JSON；-manual-seconds 60 常驻收人工JSON（必须有点按/按键事件）。
+- 做什么：新建 examples/game_camera，一个窗验跟随＋限位＋平滑＋视差长路，调 engine/camera 真包（camera.go/parallax.go/project.go只读，窗里只调接口不动引擎）。
+- 改哪几个文件：新建 examples/game_camera/main.go＋README.md＋testdata/（camera_follow_golden.png＋camera_cases.json）；不动 engine/camera/*.go；回归跑 go test ./engine/camera。
+- 跑哪几个命令：go test ./engine/camera -count=1；go vet ./engine/camera ./...；RUN_SECONDS=10 -auto-only 收自动JSON；-manual-seconds 60 常驻收人工JSON（必须有点按/按键事件）。
 - 数到多少：正式包，预热5秒跑3遍取最差；presents400＋，单窗fps57＋，帧门见§5，parity0%，离屏金0差窗金0差，10公里缝1e-9内，贴住不超0.5秒，坏限位钳住不崩。
 - 参考谁：Godot scene/2d/camera_2d.h（get_camera_transform/zoom/limit/drag/position_smoothing/reset_smoothing/AnchorMode）＋parallax_background.h/parallax_layer.h/parallax_2d.h（scroll_scale/repeat/autoscroll）；分层看G01 canvas_item.h的z_index/y_sort。
 - 五步：接口已冻免评审→单测→接线（两边齐）→真窗双JSON→回归（camera整包＋game_sprite旧窗重跑）；文档回写能力行＋W11关门行＋修订。
@@ -1031,7 +1031,7 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 
 | 编号 | 能力 | 前置 | 窗 | 状态 |
 |---|---|---|---|---|
-| S52 | 追车减分配回炉 | 追车窗现有 | game_stage_chase | 进行中（2026-09-17；camera/sprite/particle/tilemap/step共17个_test.go逐个复跑全PASS＋vet净＋CGO_ENABLED=0四包可构建；减分配只动窗＋四包热路径、逻辑数画面不变：batch单图快路＋Clear复用底子、chunk范围缓存、排序计数＋300tick全量校验零失配、标签4Hz、dirty复用、emitter无子发射免deaths片、GPUPool原地sync；正式包go build -trimpath -ldflags="-s -w" 120秒×3取最差：presents7137、fps59.47、p50 16.87、p95 17.53、p99 18.06、h33 0/分、h20重算2.00/分、moved24624、vis/load12、sorted131、trail32、pool48、batch1、dirty1、full0、fb0、RSS止≈峰、离屏金0、窗金静态条33400像素0差、parity图集路0差；人工30秒key4＋ptr12（XTEST合成，同一协议路径）、presents1793、backend=x11；换机独显建窗失败（降级链high→low→software）：首遍940MX 1GB已用673MB，后松到345MB、可用623MB仍卡在session_depth_stencil、连1x1兜底都建不出来；DBG确认选卡对（NVIDIA DiscreteGPU Vulkan，能跑3帧才死）＋最小raw独显测试（自建device＋320窗＋depth＋强制恢复）0.53秒PASS＋最小完整窗game_quad独显8秒同签名失败＋原生判决测试（绕wgpu直调vkAllocateMemory 3.66MB device-local成功0.15秒、D24S8 1200x800建镜像＋绑内存成功0.13秒）——驱动堆本身可用，悬崖在wgpu-native块分配器；1x默认＋1x1闩住＋进程台账＋CreateBuffer回调补口＋探针独立设备释放＋设备就绪门（8秒）＋小规格描述符（GPUI_LOW_VRAM）七件修后，独显仍死在开窗首个3.66MB depth（low/software两级也一样），属wgpu-native侧问题、本线解不了，未过；p95红收敛到屏物理：59.93Hz同步底16.69ms、p50 16.78已贴底、p95三遍17.53/17.17/17.17，≤16在该屏不可达、非代码可解；D表差异：本项只减分配不改数值、D01–D20沿用V1实现差异0，无G号原因见总账非Godot单点注；改文件：examples/game_stage_chase/main.go＋game/sprite/batch.go＋game/tilemap/chunk.go＋game/step/dirty.go＋game/particle/emitter.go＋game/particle/gpu.go＋testdata/chase_final_base.png；G13不开） |
+| S52 | 追车减分配回炉 | 追车窗现有 | game_stage_chase | 进行中（2026-09-17；camera/sprite/particle/tilemap/step共17个_test.go逐个复跑全PASS＋vet净＋CGO_ENABLED=0四包可构建；减分配只动窗＋四包热路径、逻辑数画面不变：batch单图快路＋Clear复用底子、chunk范围缓存、排序计数＋300tick全量校验零失配、标签4Hz、dirty复用、emitter无子发射免deaths片、GPUPool原地sync；正式包go build -trimpath -ldflags="-s -w" 120秒×3取最差：presents7137、fps59.47、p50 16.87、p95 17.53、p99 18.06、h33 0/分、h20重算2.00/分、moved24624、vis/load12、sorted131、trail32、pool48、batch1、dirty1、full0、fb0、RSS止≈峰、离屏金0、窗金静态条33400像素0差、parity图集路0差；人工30秒key4＋ptr12（XTEST合成，同一协议路径）、presents1793、backend=x11；换机独显建窗失败（降级链high→low→software）：首遍940MX 1GB已用673MB，后松到345MB、可用623MB仍卡在session_depth_stencil、连1x1兜底都建不出来；DBG确认选卡对（NVIDIA DiscreteGPU Vulkan，能跑3帧才死）＋最小raw独显测试（自建device＋320窗＋depth＋强制恢复）0.53秒PASS＋最小完整窗game_quad独显8秒同签名失败＋原生判决测试（绕wgpu直调vkAllocateMemory 3.66MB device-local成功0.15秒、D24S8 1200x800建镜像＋绑内存成功0.13秒）——驱动堆本身可用，悬崖在wgpu-native块分配器；1x默认＋1x1闩住＋进程台账＋CreateBuffer回调补口＋探针独立设备释放＋设备就绪门（8秒）＋小规格描述符（GPUI_LOW_VRAM）七件修后，独显仍死在开窗首个3.66MB depth（low/software两级也一样），属wgpu-native侧问题、本线解不了，未过；p95红收敛到屏物理：59.93Hz同步底16.69ms、p50 16.78已贴底、p95三遍17.53/17.17/17.17，≤16在该屏不可达、非代码可解；D表差异：本项只减分配不改数值、D01–D20沿用V1实现差异0，无G号原因见总账非Godot单点注；改文件：examples/game_stage_chase/main.go＋engine/sprite/batch.go＋engine/tilemap/chunk.go＋engine/step/dirty.go＋engine/particle/emitter.go＋engine/particle/gpu.go＋testdata/chase_final_base.png；G13不开） |
 | S53 | W7三窗单窗正式重测 | S46–S48 | fsm/normal/shadow | 未开工 |
 | S54 | 弱证据重测 | S53 | dirty/q123 | 未开工 |
 | S55 | 相机窗 | S08/S09 | game_camera | 未开工 |
@@ -1068,7 +1068,7 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 
 口径说明（V1历史表以本节为准）：V1分期关门表为历史记录，阈值与换机口径统一见§5（数不重写）。V1历史行里写的旧数一律按§5重算（旧数作废，此处不复述）。
 
-红了谁负责：game/tools 红改 game/tools，render 主路红先回滚游戏分支，不动主路。
+红了谁负责：engine/tools 红改 engine/tools，render 主路红先回滚游戏分支，不动主路。
 
 ### V3 大型化（S84–S90，W16–W18，大游戏档，2026-09-16 补）
 
