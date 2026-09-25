@@ -9,8 +9,8 @@
 // travelling; PositionMs reports the current stamp.
 // Companion controls: SeekFast (keyframe-only, for dragging), SeekBy
 // (relative jump), Next/PrevKeyframe, StepFrame (paused single step) and
-// SetRate/Rate (0 < rate <= 8, speed-scaled clock; video-only, no audio
-// to keep in sync). True reverse decode does not exist.
+// SetRate/Rate (0 < rate <= 8, speed-scaled clock; sound follows the
+// same clock). True reverse decode does not exist.
 //
 // Scope is narrow on purpose: the player wires the pieces without
 // reimplementing them. Decode backend is ffmpeg only
@@ -23,7 +23,7 @@
 // fail readably through Classify (video/fault_classify.go); streaming
 // buffers come from fixed-size pools (video/mem_pool.go) with hit/leak/
 // cap stats. Data sources (file/memory/HTTP Range) are abstracted in
-// video/io_source.go; audio sync math and the video-only audio stubs
+// video/io_source.go; audio sync math and the Player sound wiring
 // live in video/sync_audio.go. Errors name the layer and the file,
 // never a bare code. No CGO, standard library plus purego only.
 package video

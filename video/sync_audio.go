@@ -186,29 +186,6 @@ func NewAudioQueue(cap int) *AudioQueue {
 // Cap reports the configured depth.
 func (q *AudioQueue) Cap() int { return q.cap }
 
-// Push adds a frame, waiting while full. False when stopped (Close).
-func (q *AudioQueue) Push(f *AudioFrame) (bool, error) {
-	if f == nil {
-		return false, fmt.Errorf("video: nil audio frame")
-	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	for len(q.buf) >= q.cap && !q.closed {
-		q.room.Wait()
-	}
-	if q.closed {
-		return false, nil
-	}
-	q.buf = append(q.buf, f)
-	q.pushes++
-	if len(q.buf) > q.maxDepth {
-		q.maxDepth = len(q.buf)
-	}
-	q.depthSum += int64(len(q.buf))
-	q.depthN++
-	return true, nil
-}
-
 // PushRealtime adds a frame without ever blocking: when full it drops
 // the oldest frame first (sound is realtime — stale sound behind the
 // playhead is worthless, same spirit as clock.Queue's追帧 drops).
@@ -278,32 +255,7 @@ func (q *AudioQueue) Dropped() int64 {
 	return q.dropped
 }
 
-// Pushes counts accepted frames.
-func (q *AudioQueue) Pushes() int64 {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.pushes
-}
-
-// MaxDepth is the deepest fill seen.
-func (q *AudioQueue) MaxDepth() int {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.maxDepth
-}
-
-// DepthAvg is the mean fill over sampled operations.
-func (q *AudioQueue) DepthAvg() float64 {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if q.depthN == 0 {
-		return 0
-	}
-	return float64(q.depthSum) / float64(q.depthN)
-}
-
-// Close stops the queue: blocked Push returns false, Drained turns true
-// once remains are eaten.
+// Close stops the queue: PushRealtime returns false afterwards.
 func (q *AudioQueue) Close() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -312,13 +264,6 @@ func (q *AudioQueue) Close() {
 	}
 	q.closed = true
 	q.room.Broadcast()
-}
-
-// Drained reports no more frames will ever come out.
-func (q *AudioQueue) Drained() bool {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.closed && len(q.buf) == 0
 }
 
 // Clear drops every queued frame (seek rewind) and wakes one producer.
@@ -330,18 +275,6 @@ func (q *AudioQueue) Clear() {
 	q.buf = q.buf[:0]
 	q.mu.Unlock()
 	q.room.Signal()
-}
-
-// Drain hands every queued frame to the closer (ownership moves).
-func (q *AudioQueue) Drain() []*AudioFrame {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	out := append([]*AudioFrame(nil), q.buf...)
-	for i := range q.buf {
-		q.buf[i] = nil
-	}
-	q.buf = q.buf[:0]
-	return out
 }
 
 // Player audio wiring (ffmpeg backend decodes real sound now):
@@ -492,21 +425,6 @@ func (p *Player) fillAudioStats(st *Stats) {
 	}
 }
 
-// The lifecycle helpers below are no-ops kept for API shape: the Go AAC
-// thread retired, ffmpeg owns threading natively. Seek/Close/Pause/Rate
-// paths no longer call them; they stay so external callers do not break.
-
-func (p *Player) startAudioLoop()             {}
-func (p *Player) clearAudioQueue()            {}
-func (p *Player) closeAudioQueue()            {}
-func (p *Player) waitAudioLoop()              {}
-func (p *Player) wakeAudioLoop()              {}
-func (p *Player) parkAudioLocked(int64)       {}
-func (p *Player) startAudioClockAtSeek(int64) {}
-func (p *Player) pauseAudioClock()            {}
-func (p *Player) resumeAudioClock()           {}
-func (p *Player) streamAudioDrained() bool    { return true }
-
 // SetVolume scales speaker PCM (1 = unchanged, 0 = silent). Range is
 // 0..4 (above 1 amplifies, may clip); NaN and out-of-range are refused.
 // Nil-safe and silent-clip-safe: soundless players accept and ignore.
@@ -557,10 +475,7 @@ func (p *Player) Muted() bool {
 	return p.muted
 }
 
-// Audio probe stubs (video-only): sound decode is not wired yet
-// (see t-audio-ffmpeg), so every clip reports no audio.
-// AudioInfo describes one audio track. Fields stay for the callers;
-// values are always zero on the video-only backend.
+// AudioInfo describes one audio track.
 type AudioInfo struct {
 	Path       string
 	Codec      string
