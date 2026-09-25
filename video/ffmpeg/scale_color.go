@@ -184,6 +184,135 @@ func (s *Scaler) Free() {
 	s.ptr = nil
 }
 
+// CachedScaler reuses one converter across size/format changes
+// (sws_getCachedContext; 传旧 Scaler 复用, nil 建新; 返回的和入参是
+// 同一个 holder, 别 double-Free).
+func CachedScaler(old *Scaler, srcW, srcH, srcFmt, dstW, dstH, dstFmt, flags int32) *Scaler {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	var ctx unsafe.Pointer
+	if old != nil {
+		ctx = old.ptr
+	}
+	ptr := fSwsGetCachedCtx(ctx, srcW, srcH, srcFmt, dstW, dstH, dstFmt, flags, nil, nil, nil)
+	if ptr == nil {
+		return nil
+	}
+	if old != nil {
+		old.ptr = ptr
+		return old
+	}
+	return &Scaler{ptr: ptr}
+}
+
+// AllocContext allocates an empty converter for manual option setup
+// (sws_alloc_context + sws_init_context; 配好选项后 Init, 记得 Free).
+func AllocScalerContext() *Scaler {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	ptr := fSwsAllocCtx()
+	if ptr == nil {
+		return nil
+	}
+	return &Scaler{ptr: ptr}
+}
+
+// InitContext initializes a manually-configured converter
+// (sws_init_context; srcFilter/dstFilter 传 nil 用默认).
+func (s *Scaler) InitContext(srcFilter, dstFilter unsafe.Pointer) error {
+	if s == nil || s.ptr == nil {
+		return errNilScale
+	}
+	if ret := fSwsInitCtx(s.ptr, srcFilter, dstFilter); ret < 0 {
+		return codeErr("sws_init_context", ret)
+	}
+	return nil
+}
+
+// IsEndianSupported reports whether pixFmt converts with correct byte
+// order on this host (sws_isSupportedEndiannessConversion).
+func IsEndianSupported(pixFmt int32) bool {
+	if ensureLoaded() != nil {
+		return false
+	}
+	return fSwsIsEndian(pixFmt) != 0
+}
+
+// ImageBufferSize returns the byte size of a packed image
+// (av_image_get_buffer_size; align 传 1 最紧, 32 最快).
+func ImageBufferSize(pixFmt, w, h, align int32) int32 {
+	if ensureLoaded() != nil {
+		return 0
+	}
+	return fImgBufSize(pixFmt, w, h, align)
+}
+
+// ImageAlloc allocates a packed image buffer and fills pointers/lines
+// (av_image_alloc; 返回总字节数, pointers/lines 由包内写, 用 Mem.Free 放).
+func ImageAlloc(pointers *unsafe.Pointer, lines *int32, w, h, pixFmt, align int32) int32 {
+	if ensureLoaded() != nil {
+		return AvErrorEAGAIN
+	}
+	return fImgAlloc(pointers, lines, w, h, pixFmt, align)
+}
+
+// ImageCopyPlane copies one plane with stride (av_image_copy_plane).
+func ImageCopyPlane(dst unsafe.Pointer, dstStride int32, src unsafe.Pointer, srcStride, byteWidth, height int32) {
+	if ensureLoaded() != nil {
+		return
+	}
+	fImgCopyPlane(dst, dstStride, src, srcStride, byteWidth, height)
+}
+
+// ImageCheckSize validates w/h for allocation (av_image_check_size;
+// 0 为合法, 负数为错码).
+func ImageCheckSize(w, h uint32) error {
+	var md MediaDesc
+	_ = md
+	if ensureLoaded() != nil {
+		return errNilScale
+	}
+	if ret := fImgCheckSize(w, h, 0, nil); ret < 0 {
+		return codeErr("av_image_check_size", ret)
+	}
+	return nil
+}
+
+// ImageCheckSize2 validates w/h against a pixel budget
+// (av_image_check_size2; maxPixels 传实际像素数, 如 w*h).
+func ImageCheckSize2(w, h uint32, maxPixels int64, pixFmt int32) error {
+	if ensureLoaded() != nil {
+		return errNilScale
+	}
+	if ret := fImgCheckSize2(w, h, maxPixels, pixFmt, nil); ret < 0 {
+		return codeErr("av_image_check_size2", ret)
+	}
+	return nil
+}
+
+// ImageCheckSar validates a sample aspect ratio (av_image_check_sar;
+// 0 为合法).
+func ImageCheckSar(w, h uint32, sar AVRational) error {
+	if ensureLoaded() != nil {
+		return errNilScale
+	}
+	if ret := fImgCheckSar(w, h, sar); ret < 0 {
+		return codeErr("av_image_check_sar", ret)
+	}
+	return nil
+}
+
+// PixFmtDesc gets the pixel format descriptor (av_pix_fmt_desc_get;
+// 常量借用不释放).
+func PixFmtDesc(pixFmt int32) unsafe.Pointer {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	return fPixDescGet(pixFmt)
+}
+
 // IsSupportedInput reports the pixel format converts in.
 func IsSupportedInput(pixFmt int32) bool {
 	if ensureLoaded() != nil {

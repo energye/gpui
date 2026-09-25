@@ -257,3 +257,113 @@ func (f *Frame) RemoveSideData(typ int32) {
 	}
 	fFrameRemoveSideData(f.ptr, typ)
 }
+
+// GetPlaneBuffer borrows the buffer behind one plane (av_frame_get_plane_buffer;
+// 常量持有不释放, 别 Free 它).
+func (f *Frame) GetPlaneBuffer(plane int32) unsafe.Pointer {
+	if f == nil || f.ptr == nil {
+		return nil
+	}
+	return fFrameGetPlaneBuffer(f.ptr, plane)
+}
+
+// NewSideDataFromBuf attaches an existing buffer as typed side data
+// (av_frame_new_side_data_from_buf; buf 归帧管, 别再动).
+func (f *Frame) NewSideDataFromBuf(typ int32, buf *Buffer) *FrameSideData {
+	if f == nil || f.ptr == nil || buf == nil {
+		return nil
+	}
+	ptr := fFrameNewSideDataBuf(f.ptr, typ, buf.ptr)
+	if ptr == nil {
+		return nil
+	}
+	return &FrameSideData{ptr: ptr}
+}
+
+// FrameSideDataAdd appends a typed entry wrapping an existing buffer
+// (av_frame_side_data_add; sd/nb_sd 照族传).
+func FrameSideDataAdd(sd *unsafe.Pointer, nbSd *int32, typ int32, buf *Buffer, flags uint32) *FrameSideData {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	var bp unsafe.Pointer
+	if buf != nil {
+		bp = buf.ptr
+	}
+	ptr := fFrameSideDataAdd(sd, nbSd, typ, &bp, flags)
+	if ptr == nil {
+		return nil
+	}
+	return &FrameSideData{ptr: ptr}
+}
+
+// FrameSideDataClone clones one entry into an array
+// (av_frame_side_data_clone).
+func FrameSideDataClone(dst *unsafe.Pointer, nbDst *int32, src *FrameSideData, flags uint32) error {
+	var sp unsafe.Pointer
+	if src != nil {
+		sp = src.ptr
+	}
+	if ret := fFrameSideDataClone(dst, nbDst, sp, flags); ret < 0 {
+		return codeErr("av_frame_side_data_clone", ret)
+	}
+	return nil
+}
+
+// FrameSideDataDesc describes a side-data type (av_frame_side_data_desc;
+// 常量描述不释放).
+func FrameSideDataDesc(typ int32) unsafe.Pointer {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	return fFrameSideDataDesc(typ)
+}
+
+// FrameSideDataFree frees a side-data array (av_frame_side_data_free).
+func FrameSideDataFree(sd *unsafe.Pointer, nbSd *int32) {
+	if ensureLoaded() != nil {
+		return
+	}
+	fFrameSideDataFree(sd, nbSd)
+}
+
+// FrameSideDataGet finds a typed entry (av_frame_side_data_get_c;
+// 常量借用不释放).
+func FrameSideDataGet(sd unsafe.Pointer, nbSd, typ int32) *FrameSideData {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	ptr := fFrameSideDataGetC(sd, nbSd, typ)
+	if ptr == nil {
+		return nil
+	}
+	return &FrameSideData{ptr: ptr}
+}
+
+// FrameSideDataName names a side-data type (av_frame_side_data_name).
+func FrameSideDataName(typ int32) string {
+	if ensureLoaded() != nil {
+		return ""
+	}
+	return fFrameSideDataName(typ)
+}
+
+// FrameSideDataNew allocates a typed entry (av_frame_side_data_new).
+func FrameSideDataNew(sd *unsafe.Pointer, nbSd *int32, typ int32, size int, flags uint32) *FrameSideData {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	ptr := fFrameSideDataNew(sd, nbSd, typ, uintptr(size), flags)
+	if ptr == nil {
+		return nil
+	}
+	return &FrameSideData{ptr: ptr}
+}
+
+// FrameSideDataRemove deletes a typed entry (av_frame_side_data_remove).
+func FrameSideDataRemove(sd *unsafe.Pointer, nbSd *int32, typ int32) {
+	if ensureLoaded() != nil {
+		return
+	}
+	fFrameSideDataRemove(sd, nbSd, typ)
+}

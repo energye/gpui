@@ -207,6 +207,73 @@ func (m *Mem) Dup(p unsafe.Pointer, size int) unsafe.Pointer {
 	return fMemDup(p, uintptr(size))
 }
 
+// AllocArray allocates nmemb*size bytes with overflow check
+// (av_malloc_array; 0 元素回 nil).
+func (m *Mem) AllocArray(nmemb, size int) unsafe.Pointer {
+	if nmemb <= 0 || size <= 0 {
+		return nil
+	}
+	return fMemMallocArr(uintptr(nmemb), uintptr(size))
+}
+
+// Realloc grows/shrinks a Mem.Alloc block (av_realloc; nil 指针当 Alloc 用).
+func (m *Mem) Realloc(p unsafe.Pointer, size int) unsafe.Pointer {
+	if size < 0 {
+		return nil
+	}
+	return fMemRealloc(p, uintptr(size))
+}
+
+// ReallocArray grows with overflow check (av_realloc_array).
+func (m *Mem) ReallocArray(p unsafe.Pointer, nmemb, size int) unsafe.Pointer {
+	if nmemb < 0 || size < 0 {
+		return nil
+	}
+	return fMemReallocArr(p, uintptr(nmemb), uintptr(size))
+}
+
+// ReallocF frees the old block on failure (av_realloc_f; 比 Realloc 更安全).
+func (m *Mem) ReallocF(p unsafe.Pointer, nelem, elsize int) unsafe.Pointer {
+	if nelem < 0 || elsize < 0 {
+		return nil
+	}
+	return fMemReallocF(p, uintptr(nelem), uintptr(elsize))
+}
+
+// ReallocP reallocs through a pointer slot (av_reallocp; 0 表释放).
+func (m *Mem) ReallocP(pp unsafe.Pointer, size int) error {
+	if ret := fMemReallocP(pp, uintptr(size)); ret < 0 {
+		return codeErr("av_reallocp", ret)
+	}
+	return nil
+}
+
+// ReallocPArray reallocs an array through a slot with overflow check
+// (av_reallocp_array).
+func (m *Mem) ReallocPArray(pp unsafe.Pointer, nmemb, size int) error {
+	if ret := fMemReallocPAr(pp, uintptr(nmemb), uintptr(size)); ret < 0 {
+		return codeErr("av_reallocp_array", ret)
+	}
+	return nil
+}
+
+// Freep frees through a slot and nils it (av_freep; 比 Free 多清指针).
+func (m *Mem) Freep(pp unsafe.Pointer) {
+	if pp == nil {
+		return
+	}
+	fMemFreep(pp)
+}
+
+// MemcpyBackptr repeats the last back bytes forward (av_memcpy_backptr;
+// 解码器内部回拷, 一般用不上).
+func (m *Mem) MemcpyBackptr(dst unsafe.Pointer, back, cnt int32) {
+	if dst == nil {
+		return
+	}
+	fMemCpyBack(dst, back, cnt)
+}
+
 // NewBuffer allocates a refcounted size-byte buffer.
 func NewBuffer(size int) *Buffer {
 	if size <= 0 {
@@ -217,6 +284,60 @@ func NewBuffer(size int) *Buffer {
 		return nil
 	}
 	return &Buffer{ptr: ptr}
+}
+
+// NewBufferZeroed allocates a zeroed refcounted buffer (av_buffer_allocz).
+func NewBufferZeroed(size int) *Buffer {
+	if size <= 0 {
+		return nil
+	}
+	ptr := fBufAllocZ(uintptr(size))
+	if ptr == nil {
+		return nil
+	}
+	return &Buffer{ptr: ptr}
+}
+
+// WrapBuffer wraps external memory without copying (av_buffer_create;
+// free 传 nil 表 ffmpeg 不接管, 传 DefaultFree 走默认释放;
+// 调用后别再碰 data, 归引用计数管).
+func WrapBuffer(data unsafe.Pointer, size int, free, opaque unsafe.Pointer, flags int32) *Buffer {
+	if data == nil || size <= 0 {
+		return nil
+	}
+	ptr := fBufCreate(data, uintptr(size), free, opaque, flags)
+	if ptr == nil {
+		return nil
+	}
+	return &Buffer{ptr: ptr}
+}
+
+// DefaultFree is the stock release for WrapBuffer (av_buffer_default_free).
+func DefaultFree(opaque, data unsafe.Pointer) {
+	fBufDefaultFre(opaque, data)
+}
+
+// Opaque returns the opaque set at WrapBuffer time
+// (av_buffer_get_opaque).
+func (b *Buffer) Opaque() unsafe.Pointer {
+	if b == nil || b.ptr == nil {
+		return nil
+	}
+	return fBufGetOpaque(b.ptr)
+}
+
+// ReallocBuffer grows/shrinks a refcounted buffer (av_buffer_realloc;
+// 独占引用才能改, 共享的先 MakeWritable).
+func ReallocBuffer(buf **Buffer, size int) error {
+	if buf == nil || *buf == nil {
+		return errNilBuffer
+	}
+	var ptr unsafe.Pointer = (*buf).ptr
+	if ret := fBufRealloc(&ptr, uintptr(size)); ret < 0 {
+		return codeErr("av_buffer_realloc", ret)
+	}
+	(*buf).ptr = ptr
+	return nil
 }
 
 // Ref adds one reference (记得 Unref 新引用).
@@ -308,6 +429,29 @@ func (p *BufferPool) Get() *Buffer {
 	return &Buffer{ptr: ptr}
 }
 
+// NewBufferPoolCustom builds a pool with a custom allocator
+// (av_buffer_pool_init2; alloc 传 nil 用默认, poolFree 传 nil 不管;
+// opaque 会在每次 Get 的引用上透出, 见 PoolOpaque).
+func NewBufferPoolCustom(size int, opaque, alloc, poolFree unsafe.Pointer) *BufferPool {
+	if size <= 0 {
+		return nil
+	}
+	ptr := fBufPoolInit2(uintptr(size), opaque, alloc, poolFree)
+	if ptr == nil {
+		return nil
+	}
+	return &BufferPool{ptr: ptr}
+}
+
+// PoolOpaque returns the custom opaque behind a pooled reference
+// (av_buffer_pool_buffer_get_opaque).
+func (b *Buffer) PoolOpaque() unsafe.Pointer {
+	if b == nil || b.ptr == nil {
+		return nil
+	}
+	return fBufPoolOpaque(b.ptr)
+}
+
 // Uninit frees the pool and nils the holder.
 func (p *BufferPool) Uninit() {
 	if p == nil || p.ptr == nil {
@@ -364,6 +508,79 @@ func (f *Fifo) Read(buf unsafe.Pointer, nbElems int) error {
 	}
 	if ret := fFifoRead(f.ptr, buf, uintptr(nbElems)); ret < 0 {
 		return codeErr("av_fifo_read", ret)
+	}
+	return nil
+}
+
+// SetGrowLimit caps auto-growth at maxElems (av_fifo_auto_grow_limit;
+// 0 表不限, 超限的 Write 报错不涨).
+func (f *Fifo) SetGrowLimit(maxElems int) {
+	if f == nil || f.ptr == nil {
+		return
+	}
+	fFifoGrowLimit(f.ptr, uintptr(maxElems))
+}
+
+// ElemSize reports the per-element byte size (av_fifo_elem_size).
+func (f *Fifo) ElemSize() int {
+	if f == nil || f.ptr == nil {
+		return 0
+	}
+	return int(fFifoElemSize(f.ptr))
+}
+
+// Grow2 reserves room for inc more elements (av_fifo_grow2).
+func (f *Fifo) Grow2(inc int) error {
+	if f == nil {
+		return errNilFifo
+	}
+	if ret := fFifoGrow2(f.ptr, uintptr(inc)); ret < 0 {
+		return codeErr("av_fifo_grow2", ret)
+	}
+	return nil
+}
+
+// Peek copies nbElems at offset without popping (av_fifo_peek).
+func (f *Fifo) Peek(buf unsafe.Pointer, nbElems, offset int) error {
+	if f == nil {
+		return errNilFifo
+	}
+	if ret := fFifoPeek(f.ptr, buf, uintptr(nbElems), uintptr(offset)); ret < 0 {
+		return codeErr("av_fifo_peek", ret)
+	}
+	return nil
+}
+
+// PeekToCallback peeks through a Go callback (av_fifo_peek_to_cb;
+// cb 传 purego.NewCallback 做的指针, 不用传 nil; nbElems 传 nil 表全读).
+func (f *Fifo) PeekToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr, offset int) error {
+	if f == nil {
+		return errNilFifo
+	}
+	if ret := fFifoPeekCb(f.ptr, cb, opaque, nbElems, uintptr(offset)); ret < 0 {
+		return codeErr("av_fifo_peek_to_cb", ret)
+	}
+	return nil
+}
+
+// ReadToCallback pops through a Go callback (av_fifo_read_to_cb).
+func (f *Fifo) ReadToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
+	if f == nil {
+		return errNilFifo
+	}
+	if ret := fFifoReadCb(f.ptr, cb, opaque, nbElems); ret < 0 {
+		return codeErr("av_fifo_read_to_cb", ret)
+	}
+	return nil
+}
+
+// WriteFromCallback pushes through a Go callback (av_fifo_write_from_cb).
+func (f *Fifo) WriteFromCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
+	if f == nil {
+		return errNilFifo
+	}
+	if ret := fFifoWriteCb(f.ptr, cb, opaque, nbElems); ret < 0 {
+		return codeErr("av_fifo_write_from_cb", ret)
 	}
 	return nil
 }
@@ -427,4 +644,63 @@ func (b *BPrint) Free() {
 	}
 	fMemFree(b.ptr)
 	b.ptr = nil
+}
+
+// AppendChar appends one byte n times (av_bprint_chars).
+func (b *BPrint) AppendChar(c byte, n uint32) {
+	if b == nil || b.ptr == nil {
+		return
+	}
+	fBpChars(b.ptr, c, n)
+}
+
+// Escape appends src escaping specialChars (av_bprint_escape;
+// mode 用 EscapeMode* 常量, flags 传 0).
+func (b *BPrint) Escape(src, specialChars string, mode, flags int32) {
+	if b == nil || b.ptr == nil {
+		return
+	}
+	fBpEscape(b.ptr, src, specialChars, mode, flags)
+}
+
+// Finalize seals the buffer and hands out the C string
+// (av_bprint_finalize; 返回的指针用 Mem.Free 放).
+func (b *BPrint) Finalize() (unsafe.Pointer, error) {
+	if b == nil || b.ptr == nil {
+		return nil, errNilFF
+	}
+	var out unsafe.Pointer
+	if ret := fBpFinalize(b.ptr, &out); ret < 0 {
+		return nil, codeErr("av_bprint_finalize", ret)
+	}
+	return out, nil
+}
+
+// GetBuffer reserves size bytes and reports the write pointer
+// (av_bprint_get_buffer; actualSize 由包内写).
+func (b *BPrint) GetBuffer(size uint32, actualSize *uint32) unsafe.Pointer {
+	if b == nil || b.ptr == nil {
+		return nil
+	}
+	var mem unsafe.Pointer
+	fBpGetBuffer(b.ptr, size, &mem, actualSize)
+	return mem
+}
+
+// InitForBuffer reuses external memory as the backing store
+// (av_bprint_init_for_buffer; 别 Free 外部内存, 归调用方管).
+func (b *BPrint) InitForBuffer(buf unsafe.Pointer, size uint32) {
+	if b == nil || b.ptr == nil {
+		return
+	}
+	fBpInitBuf(b.ptr, buf, size)
+}
+
+// AppendTime formats tm with fmt (av_bprint_strftime; tm 传 *time.Time
+// 的 C 镜像指针, 一般直接传 nil 用当前时间 — 见 av_bprint_strftime).
+func (b *BPrint) AppendTime(fmtStr string, tm unsafe.Pointer) {
+	if b == nil || b.ptr == nil {
+		return
+	}
+	fBpStrftime(b.ptr, fmtStr, tm)
 }

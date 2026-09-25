@@ -500,6 +500,15 @@ func (p *Parser) Close() {
 	p.ptr = nil
 }
 
+// Parse2 splits raw bytes into frames (av_parser_parse2; CodecContext
+// 传 nil 只切分不解码, poutbuf/outSize 由包内返回, pts/dts/pos 照抄包).
+func (p *Parser) Parse2(codecCtx unsafe.Pointer, outBuf *unsafe.Pointer, outSize *int32, buf unsafe.Pointer, bufSize int32, pts, dts, pos int64) int32 {
+	if p == nil || p.ptr == nil {
+		return AvErrorEAGAIN
+	}
+	return fParserParse2(p.ptr, codecCtx, outBuf, outSize, buf, bufSize, pts, dts, pos)
+}
+
 // NewBitStreamFilter allocates a filter by name,
 // e.g. "h264_mp4toannexb" (记得 Free, 用前 Init + CopyParameters).
 func NewBitStreamFilter(name string) *BitStreamFilter {
@@ -568,6 +577,89 @@ func (b *BitStreamFilter) Free() {
 	fBSFFree(&ptr)
 }
 
+// BitStreamFilterList chains several filters ("h264_mp4toannexb",
+// "null" 等逗号串一次配好): Alloc 建空链, Append/AppendByName 逐个加,
+// Finalize 封口吐单个可用 filter, Free 丢弃整链.
+type BitStreamFilterList struct{ ptr unsafe.Pointer }
+
+// AllocBSFList allocates an empty filter chain (记得 Free/Finalize).
+func AllocBSFList() *BitStreamFilterList {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	ptr := fBSFListAlloc()
+	if ptr == nil {
+		return nil
+	}
+	return &BitStreamFilterList{ptr: ptr}
+}
+
+// Append adds an open filter context to the chain.
+func (l *BitStreamFilterList) Append(bsf *BitStreamFilter) error {
+	if l == nil || l.ptr == nil || bsf == nil {
+		return errNilCodec
+	}
+	if ret := fBSFListAppend(l.ptr, bsf.ptr); ret < 0 {
+		return codeErr("av_bsf_list_append", ret)
+	}
+	return nil
+}
+
+// AppendByName adds a filter by name with options (options 传 nil 用默认).
+func (l *BitStreamFilterList) AppendByName(name string, options *unsafe.Pointer) error {
+	if l == nil || l.ptr == nil {
+		return errNilCodec
+	}
+	if ret := fBSFListAppend2(l.ptr, name, options); ret < 0 {
+		return codeErr("av_bsf_list_append2", ret)
+	}
+	return nil
+}
+
+// Finalize seals the chain into one usable filter (链本身被吃掉, 别再 Free).
+func (l *BitStreamFilterList) Finalize(out **BitStreamFilter) error {
+	var ctx unsafe.Pointer
+	if l == nil || l.ptr == nil || out == nil {
+		return errNilCodec
+	}
+	lst := l.ptr
+	if ret := fBSFListFinalize(unsafe.Pointer(&lst), &ctx); ret < 0 {
+		return codeErr("av_bsf_list_finalize", ret)
+	}
+	l.ptr = nil
+	if ctx == nil {
+		return errNilCodec
+	}
+	*out = &BitStreamFilter{ptr: ctx}
+	return nil
+}
+
+// Free drops the whole chain.
+func (l *BitStreamFilterList) Free() {
+	if l == nil || l.ptr == nil {
+		return
+	}
+	lst := l.ptr
+	l.ptr = nil
+	fBSFListFree(&lst)
+}
+
+// ParseBSFList parses "filter1,filter2" into one usable filter
+// (av_bsf_list_parse_str; 逗号串转单个 filter, 记得 Free).
+func ParseBSFList(s string) (*BitStreamFilter, error) {
+	if ensureLoaded() != nil {
+		return nil, errNilCodec
+	}
+	var ctx unsafe.Pointer
+	if ret := fBSFListParseStr(s, &ctx); ret < 0 {
+		return nil, codeErr("av_bsf_list_parse_str", ret)
+	}
+	if ctx == nil {
+		return nil, errNilCodec
+	}
+	return &BitStreamFilter{ptr: ctx}, nil
+}
+
 func (self *BitStreamFilter) BsfGetClass() unsafe.Pointer {
 	return fAvBsfGetClass()
 }
@@ -577,7 +669,28 @@ func (self *BitStreamFilter) BsfGetNullFilter(bsf *unsafe.Pointer) int32 {
 }
 
 func (self *BitStreamFilter) BsfIterate(opaque *unsafe.Pointer) unsafe.Pointer {
+	// NOTE: opaque 传 nil 会撞空指针 — 用 IterateBSFFilters.
+	if opaque == nil {
+		return nil
+	}
 	return fAvBsfIterate(opaque)
+}
+
+// IterateBSFFilters walks every compiled bitstream filter.
+func IterateBSFFilters() []unsafe.Pointer {
+	var opaque unsafe.Pointer
+	var out []unsafe.Pointer
+	for {
+		ptr := fAvBsfIterate(&opaque)
+		if ptr == nil {
+			break
+		}
+		out = append(out, ptr)
+		if len(out) > 4096 {
+			break
+		}
+	}
+	return out
 }
 
 func (self *Codec) AvcodecAlignDimensions(s unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer) {
@@ -716,6 +829,61 @@ func (self *Codec) AvcodecPixFmtToCodecTag(pix_fmt int32) uint32 {
 	return fAvcodecPixFmtToCodecTag(pix_fmt)
 }
 
+// Close releases a codec context opened by Open (avcodec_close;
+// nil-safe, idempotent — matches FreeContext's guard shape).
+func (c *CodecContext) Close() {
+	if c == nil || c.ptr == nil {
+		return
+	}
+	fCodecClose(c.ptr)
+	c.ptr = nil
+}
+
+// FindEncoderByName looks up an encoder by name, e.g. "aac"
+// (avcodec_find_encoder_by_name; nil when absent, no error signal).
+func FindEncoderByName(name string) *Codec {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	ptr := fCodecFindEncByNam(name)
+	if ptr == nil {
+		return nil
+	}
+	return &Codec{ptr: ptr}
+}
+
+// Iterate walks every compiled codec (av_codec_iterate; opaque 传
+// nil 开头复位, 之后每次把上次的 opaque 传回直到回 nil).
+// NOTE: opaque 必须是有效指针槽, 传 Go nil 会撞空指针 — 用 IterateAll.
+func (self *Codec) Iterate(opaque *unsafe.Pointer) *Codec {
+	if opaque == nil {
+		return nil
+	}
+	ptr := fCodecIterate(opaque)
+	if ptr == nil {
+		return nil
+	}
+	return &Codec{ptr: ptr}
+}
+
+// IterateAll walks every compiled codec and returns them
+// (av_codec_iterate 的 Go 友好版, opaque 槽包内管).
+func IterateAll() []*Codec {
+	var opaque unsafe.Pointer
+	var out []*Codec
+	for {
+		ptr := fCodecIterate(&opaque)
+		if ptr == nil {
+			break
+		}
+		out = append(out, &Codec{ptr: ptr})
+		if len(out) > 4096 {
+			break
+		}
+	}
+	return out
+}
+
 func (self *Codec) AvcodecProfileName(codec_id unsafe.Pointer, profile int32) unsafe.Pointer {
 	return fAvcodecProfileName(codec_id, profile)
 }
@@ -729,5 +897,26 @@ func (self *Codec) AvcodecVersion() uint32 {
 }
 
 func (self *Parser) ParserIterate(opaque *unsafe.Pointer) unsafe.Pointer {
+	// NOTE: opaque 传 nil 会撞空指针 — 用 IterateParsers.
+	if opaque == nil {
+		return nil
+	}
 	return fAvParserIterate(opaque)
+}
+
+// IterateParsers walks every compiled parser.
+func IterateParsers() []unsafe.Pointer {
+	var opaque unsafe.Pointer
+	var out []unsafe.Pointer
+	for {
+		ptr := fAvParserIterate(&opaque)
+		if ptr == nil {
+			break
+		}
+		out = append(out, ptr)
+		if len(out) > 4096 {
+			break
+		}
+	}
+	return out
 }

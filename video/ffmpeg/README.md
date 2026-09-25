@@ -29,10 +29,11 @@
 |-------------|---------------------------------------------------------------------|
 | `decode.go` | 高层解码器：`Open` / `Next` / `SeekTo` / `Close`，播放唯一入口       |
 | `audio_decode.go` | 高层声音解码器：`OpenAudio` / `Next` / `SeekTo` / `Close`，48kHz 立体声 float PCM（无音轨报 no-audio，不是坏片） |
-| `lib.go`    | 加载 so + 注册全部函数 + 解码直连的老接口（和模块指同一个 so 函数） |
+| `lib.go`    | 加载 so + 注册全部函数 + 存 so 句柄（数据符号走 `Dlsym` 读） + 解码直连的老接口（和模块指同一个 so 函数） |
 | `types.go`  | `AVRational` 分数（时间换算用，偏移按 7.1 头文件钉死）              |
 | `err_go.go` | 内部帮手：空指针哨兵、C 字符串转 Go、错误码翻人话                   |
-| `doc.go`    | 包说明 + 覆盖口径（哪 4 个函数主动跳过，见下）                      |
+| `doc.go`    | 包说明 + 覆盖口径（4 个变参函数主动跳过 + 16 个数据符号走 `Dlsym` 读，见下）                      |
+| `data_const.go` | 数据常量：16 个数据符号的 Go 入口（10 个上下文大小 + 6 个版本串），走 `Dlsym` 读，不是函数调用 |
 
 ## 13 个功能模块一览
 
@@ -64,14 +65,17 @@
 
 ## 覆盖口径：绑了多少、没绑哪几个
 
-- so 里 `av*`（除 `avpriv` 内部）/`sws_*` / `swr_*` 开头的符号一共 995 个，绑了 991 个。
+- so 里 `av*`（除 `avpriv` 内部）/`sws_*` / `swr_*` 开头的符号一共 1011 个：991 个函数全绑了 + 16 个数据全包了 + 4 个变参函数主动跳过。
 - 另外 11 个周边符号也在 so 里导出了，顺手一起绑了：
   `swscale_*` / `swresample_*` 的版本配置（各 3 个），
-  加 5 个 `swri_*` 重采样帮手。去重后一共 1002 个，`nm -D` 双向对过。
+  加 5 个 `swri_*` 重采样帮手。函数注册 1005 行、去重后 1002 个（`lib.go` 解码直连 14 个与模块重复，属同一函数两个入口），`nm -D` 双向对过。
 - 4 个函数主动没绑，都是 C 的变参函数（参数个数不定），purego 写不出来：
   `av_asprintf`、`avio_printf`、`av_log_once`、`av_strlcatf`。
   替代写法：字符串先在 Go 里拼好再传；拼串用 `BPrint` 那套；
   日志用 `Log.SetLevel` + 定长消息。
+- 16 个数据符号全包了（`data_const.go`）：10 个 `const int` 上下文大小（`Crypto.AesSize` 等 9 个 + `Util.TreeNodeSize`）走 `Dlsym` 读数字，
+  6 个 `const char[]` 版本串（`Library.CodecFfversion` 等）走 `Dlsym` 读字符串。
+  函数用 `RegisterLibFunc` 绑，数据用 `Dlsym` 取地址再读，两条路都能用（`TestDataConst` 全钉死）。
 - so 里还剩 13 个 `swri_*` 内部帮手没绑（重采样底层的私有函数，
   公开头文件里没有声明，按只导公开 API 的口径不导）。
 - 同一个 so 函数偶尔有两个 Go 入口（比如 `lib.go` 的解码直连和模块方法，
@@ -111,6 +115,10 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 下面 13 节就是全部家当：so 里绑的每个函数都在里面，
 左边是 Go 里怎么写，右边是它对应的 ffmpeg 原函数。点开看就行。
 
+
+下面 14 节就是全部家当：so 里绑的每个函数和每个数据都在里面，
+左边是 Go 里怎么写，右边是它对应的 ffmpeg 原函数或数据符号。点开看就行。
+
 ### packet — 数据包（27 个）
 
 数据包：拆盒吐出来的就是它，一包一包喂给解码器。`NewPacket` 新建一个空包，用完 `Free` 还回去。
@@ -127,7 +135,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Packet.Free` | `av_packet_free` |
 | `Packet.GetSideData` | `av_packet_get_side_data` |
 | `Packet.NewSideData` | `av_packet_new_side_data` |
-| `PacketSideData.Ptr` | `av_packet_pack_dictionary` |
+| `Dictionary.PackDictionary` | `av_packet_pack_dictionary` |
 | `Packet.Ref` | `av_packet_ref` |
 | `Packet.CopyProps` | `av_packet_copy_props` |
 | `Packet.MoveRef` | `av_packet_move_ref` |
@@ -138,19 +146,18 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Packet.NewPacketData` | `av_new_packet` |
 | `Packet.Grow` | `av_grow_packet` |
 | `Packet.Shrink` | `av_shrink_packet` |
-| `PacketSideData.Ptr` | `av_packet_from_data` |
+| `Packet.FromData` | `av_packet_from_data` |
 | `Packet.MakeRefcounted` | `av_packet_make_refcounted` |
 | `Packet.MakeWritable` | `av_packet_make_writable` |
 | `Packet.RescaleTs` | `av_packet_rescale_ts` |
-| `PacketSideData.Ptr` | `av_packet_unpack_dictionary` |
-| `PacketSideData.Ptr` | `av_packet_side_data_add` |
-| `PacketSideData.Ptr` | `av_packet_side_data_free` |
-| `PacketSideData.Ptr` | `av_packet_side_data_get` |
-| `PacketSideData.Ptr` | `av_packet_side_data_name` |
-| `PacketSideData.Ptr` | `av_packet_side_data_new` |
-| `PacketSideData.Ptr` | `av_packet_side_data_remove` |
+| `UnpackDictionary` | `av_packet_unpack_dictionary` |
+| `SideDataAdd` | `av_packet_side_data_add` |
+| `SideDataFree` | `av_packet_side_data_free` |
+| `SideDataGet` | `av_packet_side_data_get` |
+| `SideDataName` | `av_packet_side_data_name` |
+| `SideDataNew` | `av_packet_side_data_new` |
+| `SideDataRemove` | `av_packet_side_data_remove` |
 </details>
-
 ### frame — 帧（26 个）
 
 帧：解出来的画面或声音，一帧就是一张图或一段声。`NewFrame` 新建空帧，用完 `Free` 还回去。
@@ -174,27 +181,26 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Frame.IsWritable` | `av_frame_is_writable` |
 | `Frame.MakeWritable` | `av_frame_make_writable` |
 | `Frame.ApplyCropping` | `av_frame_apply_cropping` |
-| `FrameSideData.Ptr` | `av_frame_get_plane_buffer` |
+| `Frame.GetPlaneBuffer` | `av_frame_get_plane_buffer` |
 | `Frame.GetSideData` | `av_frame_get_side_data` |
 | `Frame.NewSideData` | `av_frame_new_side_data` |
-| `FrameSideData.Ptr` | `av_frame_new_side_data_from_buf` |
+| `Frame.NewSideDataFromBuf` | `av_frame_new_side_data_from_buf` |
 | `Frame.RemoveSideData` | `av_frame_remove_side_data` |
-| `FrameSideData.Ptr` | `av_frame_side_data_add` |
-| `FrameSideData.Ptr` | `av_frame_side_data_clone` |
-| `FrameSideData.Ptr` | `av_frame_side_data_desc` |
-| `FrameSideData.Ptr` | `av_frame_side_data_free` |
-| `FrameSideData.Ptr` | `av_frame_side_data_get_c` |
-| `FrameSideData.Ptr` | `av_frame_side_data_name` |
-| `FrameSideData.Ptr` | `av_frame_side_data_new` |
-| `FrameSideData.Ptr` | `av_frame_side_data_remove` |
+| `FrameSideDataAdd` | `av_frame_side_data_add` |
+| `FrameSideDataClone` | `av_frame_side_data_clone` |
+| `FrameSideDataDesc` | `av_frame_side_data_desc` |
+| `FrameSideDataFree` | `av_frame_side_data_free` |
+| `FrameSideDataGet` | `av_frame_side_data_get_c` |
+| `FrameSideDataName` | `av_frame_side_data_name` |
+| `FrameSideDataNew` | `av_frame_side_data_new` |
+| `FrameSideDataRemove` | `av_frame_side_data_remove` |
 | `Frame.Replace` | `av_frame_replace` |
 </details>
-
 ### dict_opt — 字典和选项（62 个）
 
-字典和选项：打开文件、开解码器时传参数都走它。`NewDictionary` 建空字典，`Opt` 取各对象的可调参数。
+字典和选项：打开文件、开解码器时传参数都走它。
 
-抱着的结构体：`Dictionary`、`DictionaryEntry`、`OptObject`、`Option`、`OptionRanges`。
+抱着的结构体：`Dictionary`（键值对）、`OptObject`（可调参数的对象）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -205,69 +211,68 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Dictionary.Count` | `av_dict_count` |
 | `Dictionary.Free` | `av_dict_free` |
 | `Dictionary.Get` | `av_dict_get` |
-| `OptionRanges.Ptr` | `av_dict_get_string` |
+| `Dictionary.GetString` | `av_dict_get_string` |
 | `Dictionary.Iterate` | `av_dict_iterate` |
 | `Dictionary.ParseString` | `av_dict_parse_string` |
 | `Dictionary.Set` | `av_dict_set` |
 | `Dictionary.SetInt` | `av_dict_set_int` |
-| `OptionRanges.Ptr` | `av_opt_child_class_iterate` |
-| `OptionRanges.Ptr` | `av_opt_child_next` |
+| `ChildClassIterate` | `av_opt_child_class_iterate` |
+| `OptObject.ChildNext` | `av_opt_child_next` |
 | `OptObject.Copy` | `av_opt_copy` |
-| `OptionRanges.Ptr` | `av_opt_eval_double` |
-| `OptionRanges.Ptr` | `av_opt_eval_flags` |
-| `OptionRanges.Ptr` | `av_opt_eval_float` |
-| `OptionRanges.Ptr` | `av_opt_eval_int` |
-| `OptionRanges.Ptr` | `av_opt_eval_int64` |
-| `OptionRanges.Ptr` | `av_opt_eval_q` |
-| `OptionRanges.Ptr` | `av_opt_eval_uint` |
+| `OptObject.EvalDouble` | `av_opt_eval_double` |
+| `OptObject.EvalFlags` | `av_opt_eval_flags` |
+| `OptObject.EvalFloat` | `av_opt_eval_float` |
+| `OptObject.EvalInt` | `av_opt_eval_int` |
+| `OptObject.EvalInt64` | `av_opt_eval_int64` |
+| `OptObject.EvalQ` | `av_opt_eval_q` |
+| `OptObject.EvalUint` | `av_opt_eval_uint` |
 | `OptObject.Find` | `av_opt_find` |
-| `OptionRanges.Ptr` | `av_opt_find2` |
-| `OptionRanges.Ptr` | `av_opt_flag_is_set` |
-| `OptionRanges.Ptr` | `av_opt_free` |
+| `OptObject.Find2` | `av_opt_find2` |
+| `OptObject.FlagIsSet` | `av_opt_flag_is_set` |
+| `FreeOptions` | `av_opt_free` |
 | `OptionRanges.FreeRanges` | `av_opt_freep_ranges` |
-| `OptionRanges.Ptr` | `av_opt_get` |
-| `OptionRanges.Ptr` | `av_opt_get_array` |
-| `OptionRanges.Ptr` | `av_opt_get_array_size` |
-| `OptionRanges.Ptr` | `av_opt_get_chlayout` |
-| `OptionRanges.Ptr` | `av_opt_get_dict_val` |
+| `OptObject.Get` | `av_opt_get` |
+| `OptObject.GetArray` | `av_opt_get_array` |
+| `OptObject.GetArraySize` | `av_opt_get_array_size` |
+| `OptObject.GetChlayout` | `av_opt_get_chlayout` |
+| `OptObject.GetDictVal` | `av_opt_get_dict_val` |
 | `OptObject.GetDouble` | `av_opt_get_double` |
-| `OptionRanges.Ptr` | `av_opt_get_image_size` |
+| `OptObject.GetImageSize` | `av_opt_get_image_size` |
 | `OptObject.GetInt` | `av_opt_get_int` |
-| `OptionRanges.Ptr` | `av_opt_get_key_value` |
-| `OptionRanges.Ptr` | `av_opt_get_pixel_fmt` |
+| `GetKeyValue` | `av_opt_get_key_value` |
+| `OptObject.GetPixFmt` | `av_opt_get_pixel_fmt` |
 | `OptObject.GetQ` | `av_opt_get_q` |
-| `OptionRanges.Ptr` | `av_opt_get_sample_fmt` |
-| `OptionRanges.Ptr` | `av_opt_get_video_rate` |
-| `OptionRanges.Ptr` | `av_opt_is_set_to_default` |
-| `OptionRanges.Ptr` | `av_opt_is_set_to_default_by_name` |
-| `OptionRanges.Ptr` | `av_opt_next` |
-| `OptionRanges.Ptr` | `av_opt_ptr` |
-| `OptionRanges.Ptr` | `av_opt_query_ranges` |
-| `OptionRanges.Ptr` | `av_opt_query_ranges_default` |
-| `OptionRanges.Ptr` | `av_opt_serialize` |
+| `OptObject.GetSampleFmt` | `av_opt_get_sample_fmt` |
+| `OptObject.GetVideoRate` | `av_opt_get_video_rate` |
+| `OptObject.IsDefault` | `av_opt_is_set_to_default` |
+| `OptObject.IsDefaultByName` | `av_opt_is_set_to_default_by_name` |
+| `OptObject.NextOption` | `av_opt_next` |
+| `OptObject.FieldPtr` | `av_opt_ptr` |
+| `OptObject.QueryRanges` | `av_opt_query_ranges` |
+| `OptObject.QueryRangesDefault` | `av_opt_query_ranges_default` |
+| `OptObject.Serialize` | `av_opt_serialize` |
 | `OptObject.Set` | `av_opt_set` |
-| `OptionRanges.Ptr` | `av_opt_set_array` |
-| `OptionRanges.Ptr` | `av_opt_set_bin` |
-| `OptionRanges.Ptr` | `av_opt_set_chlayout` |
+| `OptObject.SetArray` | `av_opt_set_array` |
+| `OptObject.SetBin` | `av_opt_set_bin` |
+| `OptObject.SetChlayout` | `av_opt_set_chlayout` |
 | `OptObject.SetDefaults` | `av_opt_set_defaults` |
-| `OptionRanges.Ptr` | `av_opt_set_defaults2` |
-| `OptionRanges.Ptr` | `av_opt_set_dict` |
-| `OptionRanges.Ptr` | `av_opt_set_dict2` |
-| `OptionRanges.Ptr` | `av_opt_set_dict_val` |
+| `OptObject.SetDefaults2` | `av_opt_set_defaults2` |
+| `OptObject.SetDict` | `av_opt_set_dict` |
+| `OptObject.SetDict2` | `av_opt_set_dict2` |
+| `OptObject.SetDictVal` | `av_opt_set_dict_val` |
 | `OptObject.SetDouble` | `av_opt_set_double` |
-| `OptionRanges.Ptr` | `av_opt_set_from_string` |
-| `OptionRanges.Ptr` | `av_opt_set_image_size` |
+| `OptObject.SetFromString` | `av_opt_set_from_string` |
+| `OptObject.SetImageSize` | `av_opt_set_image_size` |
 | `OptObject.SetInt` | `av_opt_set_int` |
-| `OptionRanges.Ptr` | `av_opt_set_pixel_fmt` |
+| `OptObject.SetPixFmt` | `av_opt_set_pixel_fmt` |
 | `OptObject.SetQ` | `av_opt_set_q` |
-| `OptionRanges.Ptr` | `av_opt_set_sample_fmt` |
-| `OptionRanges.Ptr` | `av_opt_set_video_rate` |
-| `OptionRanges.Ptr` | `av_opt_show2` |
+| `OptObject.SetSampleFmt` | `av_opt_set_sample_fmt` |
+| `OptObject.SetVideoRate` | `av_opt_set_video_rate` |
+| `OptObject.ShowOptions` | `av_opt_show2` |
 </details>
-
 ### buffer_mem — 内存（53 个）
 
-内存：申请、引用计数、缓冲池、队列、拼字符串。`NewBuffer` / `NewBufferPool` / `NewFifo` / `NewBPrint` 四个新建函数。
+内存：申请、引用计数、缓冲池、队列、拼字符串。
 
 抱着的结构体：`Mem`、`Buffer`、`BufferPool`、`Fifo`、`BPrint`。
 
@@ -277,60 +282,59 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | Go 入口 | ffmpeg 函数 |
 |---------|-------------|
 | `NewBuffer` | `av_buffer_alloc` |
-| `BPrint.Ptr` | `av_buffer_allocz` |
-| `BPrint.Ptr` | `av_buffer_create` |
-| `BPrint.Ptr` | `av_buffer_default_free` |
-| `BPrint.Ptr` | `av_buffer_get_opaque` |
+| `NewBufferZeroed` | `av_buffer_allocz` |
+| `WrapBuffer` | `av_buffer_create` |
+| `DefaultFree` | `av_buffer_default_free` |
+| `Buffer.Opaque` | `av_buffer_get_opaque` |
 | `Buffer.RefCount` | `av_buffer_get_ref_count` |
 | `Buffer.IsWritable` | `av_buffer_is_writable` |
 | `Buffer.MakeWritable` | `av_buffer_make_writable` |
-| `BPrint.Ptr` | `av_buffer_pool_buffer_get_opaque` |
+| `Buffer.PoolOpaque` | `av_buffer_pool_buffer_get_opaque` |
 | `BufferPool.Get` | `av_buffer_pool_get` |
 | `NewBufferPool` | `av_buffer_pool_init` |
-| `BPrint.Ptr` | `av_buffer_pool_init2` |
+| `NewBufferPoolCustom` | `av_buffer_pool_init2` |
 | `BufferPool.Uninit` | `av_buffer_pool_uninit` |
-| `BPrint.Ptr` | `av_buffer_realloc` |
+| `ReallocBuffer` | `av_buffer_realloc` |
 | `Buffer.Ref` | `av_buffer_ref` |
 | `Buffer.Unref` | `av_buffer_unref` |
 | `Buffer.Replace` | `av_buffer_replace` |
 | `Mem.Alloc` | `av_malloc` |
-| `BPrint.Ptr` | `av_malloc_array` |
+| `Mem.AllocArray` | `av_malloc_array` |
 | `Mem.AllocZ` | `av_mallocz` |
-| `BPrint.Ptr` | `av_realloc` |
-| `BPrint.Ptr` | `av_realloc_array` |
-| `BPrint.Ptr` | `av_realloc_f` |
-| `BPrint.Ptr` | `av_reallocp` |
-| `BPrint.Ptr` | `av_reallocp_array` |
+| `Mem.Realloc` | `av_realloc` |
+| `Mem.ReallocArray` | `av_realloc_array` |
+| `Mem.ReallocF` | `av_realloc_f` |
+| `Mem.ReallocP` | `av_reallocp` |
+| `Mem.ReallocPArray` | `av_reallocp_array` |
 | `Mem.Free` | `av_free` |
-| `BPrint.Ptr` | `av_freep` |
+| `Mem.Freep` | `av_freep` |
 | `Mem.Dup` | `av_memdup` |
-| `BPrint.Ptr` | `av_memcpy_backptr` |
+| `Mem.MemcpyBackptr` | `av_memcpy_backptr` |
 | `NewFifo` | `av_fifo_alloc2` |
-| `BPrint.Ptr` | `av_fifo_auto_grow_limit` |
+| `Fifo.SetGrowLimit` | `av_fifo_auto_grow_limit` |
 | `Fifo.CanRead` | `av_fifo_can_read` |
 | `Fifo.CanWrite` | `av_fifo_can_write` |
 | `Fifo.Drain` | `av_fifo_drain2` |
-| `BPrint.Ptr` | `av_fifo_elem_size` |
+| `Fifo.ElemSize` | `av_fifo_elem_size` |
 | `Fifo.Freep` | `av_fifo_freep2` |
-| `BPrint.Ptr` | `av_fifo_grow2` |
-| `BPrint.Ptr` | `av_fifo_peek` |
-| `BPrint.Ptr` | `av_fifo_peek_to_cb` |
+| `Fifo.Grow2` | `av_fifo_grow2` |
+| `Fifo.Peek` | `av_fifo_peek` |
+| `Fifo.PeekToCallback` | `av_fifo_peek_to_cb` |
 | `Fifo.Read` | `av_fifo_read` |
-| `BPrint.Ptr` | `av_fifo_read_to_cb` |
+| `Fifo.ReadToCallback` | `av_fifo_read_to_cb` |
 | `Fifo.Reset` | `av_fifo_reset2` |
 | `Fifo.Write` | `av_fifo_write` |
-| `BPrint.Ptr` | `av_fifo_write_from_cb` |
+| `Fifo.WriteFromCallback` | `av_fifo_write_from_cb` |
 | `BPrint.AppendData` | `av_bprint_append_data` |
-| `BPrint.Ptr` | `av_bprint_chars` |
+| `BPrint.AppendChar` | `av_bprint_chars` |
 | `BPrint.Clear` | `av_bprint_clear` |
-| `BPrint.Ptr` | `av_bprint_escape` |
-| `BPrint.Ptr` | `av_bprint_finalize` |
-| `BPrint.Ptr` | `av_bprint_get_buffer` |
+| `BPrint.Escape` | `av_bprint_escape` |
+| `BPrint.Finalize` | `av_bprint_finalize` |
+| `BPrint.GetBuffer` | `av_bprint_get_buffer` |
 | `NewBPrint` | `av_bprint_init` |
-| `BPrint.Ptr` | `av_bprint_init_for_buffer` |
-| `BPrint.Ptr` | `av_bprint_strftime` |
+| `BPrint.InitForBuffer` | `av_bprint_init_for_buffer` |
+| `BPrint.AppendTime` | `av_bprint_strftime` |
 </details>
-
 ### error_log — 报错和杂务（29 个）
 
 报错和杂务：错误码翻人话、日志开关（Go 回调走 `NewLogCallback` + `Log.SetGoCallback`）、版本、时间戳换算、CPU 数。都是无状态的，直接调。
@@ -342,7 +346,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 
 | Go 入口 | ffmpeg 函数 |
 |---------|-------------|
-| `内部：`StrError` 实际走它（lib.go 内部直连）` | `av_strerror` |
+| `StrError`（lib.go 内部直连） | `av_strerror` |
 | `Log.Level` | `av_log_get_level` |
 | `Log.SetLevel` | `av_log_set_level` |
 | `Log.Flags` | `av_log_get_flags` |
@@ -372,7 +376,6 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Cpu.ForceCount` | `av_cpu_force_count` |
 | `Cpu.MaxAlign` | `av_cpu_max_align` |
 </details>
-
 ### format_demux — 拆盒（98 个）
 
 拆盒：打开文件、找音视频流、读包、跳进度。先 `OpenInput` 拿到 `FormatContext`，后面全挂它身上。自定义数据源走 `AllocIOContext`（读写定位三个回调传 `purego.NewCallback` 做的指针，不用就传 nil）。
@@ -483,12 +486,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `FormatContext.SeekFrame` | `av_seek_frame` |
 | `FormatContext.UrlSplit` | `av_url_split` |
 </details>
-
 ### codec_encode — 编解码（76 个）
 
-编解码：找解码器、开解码器、送包取帧、码流过滤。先 `FindDecoder` 拿到 `Codec`，再 `AllocContext` 开实例。
+编解码：找解码器、开解码器、送包取帧、码流过滤。
 
-抱着的结构体：`CodecContext`、`Codec`、`CodecParameters`、`Parser`、`BitStreamFilter`。
+抱着的结构体：`CodecContext`（解码器实例）、`Codec`（解码器本身）、`CodecParameters`（流参数）、`Parser`（切帧）、`BitStreamFilter`（码流滤镜）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -496,11 +498,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | Go 入口 | ffmpeg 函数 |
 |---------|-------------|
 | `Codec.AllocContext` | `avcodec_alloc_context3` |
-| `BitStreamFilter.Ptr` | `avcodec_close` |
+| `CodecContext.Close` | `avcodec_close` |
 | `FindDecoder` | `avcodec_find_decoder` |
 | `FindDecoderByName` | `avcodec_find_decoder_by_name` |
 | `FindEncoder` | `avcodec_find_encoder` |
-| `BitStreamFilter.Ptr` | `avcodec_find_encoder_by_name` |
+| `FindEncoderByName` | `avcodec_find_encoder_by_name` |
 | `CodecContext.FlushBuffers` | `avcodec_flush_buffers` |
 | `CodecContext.FreeContext` | `avcodec_free_context` |
 | `CodecName` | `avcodec_get_name` |
@@ -518,9 +520,9 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `CodecParameters.ToContext` | `avcodec_parameters_to_context` |
 | `Codec.IsDecoder` | `av_codec_is_decoder` |
 | `Codec.IsEncoder` | `av_codec_is_encoder` |
-| `BitStreamFilter.Ptr` | `av_codec_iterate` |
+| `Codec.Iterate` | `av_codec_iterate` |
 | `NewParser` | `av_parser_init` |
-| `BitStreamFilter.Ptr` | `av_parser_parse2` |
+| `Parser.Parse2` | `av_parser_parse2` |
 | `Parser.Close` | `av_parser_close` |
 | `NewBitStreamFilter` | `av_bsf_alloc` |
 | `BitStreamFilter.Init` | `av_bsf_init` |
@@ -529,12 +531,12 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `BitStreamFilter.Flush` | `av_bsf_flush` |
 | `BitStreamFilter.Free` | `av_bsf_free` |
 | `NewBitStreamFilter` | `av_bsf_get_by_name` |
-| `BitStreamFilter.Ptr` | `av_bsf_list_alloc` |
-| `BitStreamFilter.Ptr` | `av_bsf_list_append` |
-| `BitStreamFilter.Ptr` | `av_bsf_list_append2` |
-| `BitStreamFilter.Ptr` | `av_bsf_list_finalize` |
-| `BitStreamFilter.Ptr` | `av_bsf_list_free` |
-| `BitStreamFilter.Ptr` | `av_bsf_list_parse_str` |
+| `AllocBSFList` | `av_bsf_list_alloc` |
+| `BitStreamFilterList.Append` | `av_bsf_list_append` |
+| `BitStreamFilterList.AppendByName` | `av_bsf_list_append2` |
+| `BitStreamFilterList.Finalize` | `av_bsf_list_finalize` |
+| `BitStreamFilterList.Free` | `av_bsf_list_free` |
+| `ParseBSFList` | `av_bsf_list_parse_str` |
 | `BitStreamFilter.BsfGetClass` | `av_bsf_get_class` |
 | `BitStreamFilter.BsfGetNullFilter` | `av_bsf_get_null_filter` |
 | `BitStreamFilter.BsfIterate` | `av_bsf_iterate` |
@@ -572,12 +574,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Parser.ParserIterate` | `av_parser_iterate` |
 | `Codec.SubtitleFree` | `avsubtitle_free` |
 </details>
+### scale_color — 转色和缩放（40 个）
 
-### scale_color — 转色和缩放（37 个）
+转色和缩放：YUV 转屏幕要的 RGBA，尺寸也能顺手改。`NewScaler` 建转色器，`PixFmtName` 查格式名。`sws_*` 全归这里。
 
-转色和缩放：YUV 转屏幕要的 RGBA，尺寸也能顺手改。`NewScaler` 建转色器，`PixFmtName` 查格式名。`sws_*` 全归这里（杂项里的重复已删）。
-
-抱着的结构体：`Scaler`、`Image`。
+抱着的结构体：`Scaler`（转色器）、`Image`（图片帮手）。常用常量：`PixFmt*`（像素格式）、`Sws*`（算法）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -585,24 +586,27 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | Go 入口 | ffmpeg 函数 |
 |---------|-------------|
 | `NewScaler` | `sws_getContext` |
-| `Scaler.Ptr` | `sws_getCachedContext` |
+| `CachedScaler` | `sws_getCachedContext` |
 | `Scaler.Scale` | `sws_scale` |
 | `Scaler.ScaleFrame` | `sws_scale_frame` |
 | `Scaler.Free` | `sws_freeContext` |
-| `Scaler.Ptr` | `sws_alloc_context` |
-| `Scaler.Ptr` | `sws_init_context` |
+| `AllocScalerContext` | `sws_alloc_context` |
+| `Scaler.InitContext` | `sws_init_context` |
 | `IsSupportedInput` | `sws_isSupportedInput` |
 | `IsSupportedOutput` | `sws_isSupportedOutput` |
-| `Scaler.Ptr` | `sws_isSupportedEndiannessConversion` |
-| `Scaler.Ptr` | `av_image_get_buffer_size` |
-| `Scaler.Ptr` | `av_image_alloc` |
-| `Scaler.Ptr` | `av_image_copy_plane` |
-| `Scaler.Ptr` | `av_image_check_size` |
-| `Scaler.Ptr` | `av_image_check_size2` |
-| `Scaler.Ptr` | `av_image_check_sar` |
-| `MediaDesc.PixFmtDescGet` | `av_pix_fmt_desc_get` |
-| `MediaDesc.GetPixFmtName` | `av_get_pix_fmt_name` |
-| `MediaDesc.GetPixFmt` | `av_get_pix_fmt` |
+| `IsEndianSupported` | `sws_isSupportedEndiannessConversion` |
+| `ImageBufferSize` | `av_image_get_buffer_size` |
+| `ImageAlloc` | `av_image_alloc` |
+| `ImageCopyPlane` | `av_image_copy_plane` |
+| `ImageCheckSize` | `av_image_check_size` |
+| `ImageCheckSize2` | `av_image_check_size2` |
+| `ImageCheckSar` | `av_image_check_sar` |
+| `PixFmtDesc` | `av_pix_fmt_desc_get` |
+| `PixFmtName` | `av_get_pix_fmt_name` |
+| `PixFmtFromName` | `av_get_pix_fmt` |
+| `Scaler.SwscaleConfiguration` | `swscale_configuration` |
+| `Scaler.SwscaleLicense` | `swscale_license` |
+| `Scaler.SwscaleVersion` | `swscale_version` |
 | `Scaler.SwsAllocVec` | `sws_allocVec` |
 | `Scaler.SwsConvertPalette8ToPacked24` | `sws_convertPalette8ToPacked24` |
 | `Scaler.SwsConvertPalette8ToPacked32` | `sws_convertPalette8ToPacked32` |
@@ -622,12 +626,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Scaler.SwsSendSlice` | `sws_send_slice` |
 | `Scaler.SwsSetColorspaceDetails` | `sws_setColorspaceDetails` |
 </details>
-
 ### resample_audio — 音频重采样（37 个）
 
-音频重采样：声道、采样率、采样格式不一样时掰成一样。先建 `Resampler`，转好的帧先进 `AudioFifo` 排队。
+音频重采样：声道、采样率、采样格式不一样时掰成一样。
 
-抱着的结构体：`Resampler`、`AudioFifo`。
+抱着的结构体：`Resampler`（重采样器）、`AudioFifo`（音频队列）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -657,7 +660,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Resampler.BuildMatrix2` | `swr_build_matrix2` |
 | `Resampler.Close` | `swr_close` |
 | `Resampler.ConfigFrame` | `swr_config_frame` |
-| `Resampler.Convert` / `Resampler.ConvertCount` | `swr_convert` |
+| `Resampler.Convert` | `swr_convert` |
 | `Resampler.ConvertFrame` | `swr_convert_frame` |
 | `Resampler.DropOutput` | `swr_drop_output` |
 | `Resampler.Free` | `swr_free` |
@@ -672,12 +675,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Resampler.SetCompensation` | `swr_set_compensation` |
 | `Resampler.SetMatrix` | `swr_set_matrix` |
 </details>
-
 ### filter_graph — 滤镜图（64 个）
 
-滤镜图：把多个滤镜连成链（缩放、裁剪、混音都归它）。`buffersrc` 进，`buffersink` 出，别接反。
+滤镜图：把多个滤镜连成链（缩放、裁剪、混音都归它）。
 
-抱着的结构体：`FilterGraph`、`FilterContext`、`Filter`、`FilterSink`、`FilterSource`。
+抱着的结构体：`FilterGraph`（图）、`FilterContext`（滤镜实例）、`Filter`（滤镜本身）、`FilterSink`（出口）、`FilterSource`（入口）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -749,12 +751,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `FilterContext.ProcessCommand` | `avfilter_process_command` |
 | `FilterGraph.Version` | `avfilter_version` |
 </details>
-
 ### device_io — 设备（10 个）
 
-设备：列摄像头、麦克风这些输入输出设备，桌面录制、直播抓源用它找设备。
+设备：列摄像头、麦克风这些输入输出设备。
 
-抱着的结构体：`DeviceList`。
+抱着的结构体：`DeviceList`（设备表）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -762,22 +763,21 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | Go 入口 | ffmpeg 函数 |
 |---------|-------------|
 | `DeviceList.Version` | `avdevice_version` |
-| `DeviceList.Ptr` | `avdevice_configuration` |
-| `DeviceList.Ptr` | `avdevice_license` |
+| `DeviceList.Configuration` | `avdevice_configuration` |
+| `DeviceList.License` | `avdevice_license` |
 | `DeviceList.RegisterAll` | `avdevice_register_all` |
 | `DeviceList.ListDevices` | `avdevice_list_devices` |
 | `DeviceList.FreeList` | `avdevice_free_list_devices` |
 | `DeviceList.ListInputSources` | `avdevice_list_input_sources` |
 | `DeviceList.ListOutputSinks` | `avdevice_list_output_sinks` |
-| `DeviceList.Ptr` | `avdevice_app_to_dev_control_message` |
-| `DeviceList.Ptr` | `avdevice_dev_to_app_control_message` |
+| `DeviceList.AppToDev` | `avdevice_app_to_dev_control_message` |
+| `DeviceList.DevToApp` | `avdevice_dev_to_app_control_message` |
 </details>
-
 ### media_desc — 查资料（88 个）
 
-查资料：像素格式、声道布局、采样率这些只读信息，不干活只问，无状态直接调。枚举参数现在都是 `int32`（比如 `GetPixFmt("rgba")` 回 int32），别再传指针。
+查资料：像素格式、声道布局、采样率这些只读信息，不干活只问。
 
-抱着的结构体：`MediaDesc`。
+抱着的结构体：`MediaDesc`（无状态，全是查询）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -873,12 +873,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `MediaDesc.TimecodeMakeSmpteTcString2` | `av_timecode_make_smpte_tc_string2` |
 | `MediaDesc.TimecodeMakeString` | `av_timecode_make_string` |
 </details>
-
 ### crypto_hash_misc — 杂项工具箱（395 个）
 
 杂项工具箱：硬解设备、哈希校验、写文件、猜格式、零碎小计算。按需直调，用哪个拿哪个。枚举参数同样是 `int32`（比如硬件类型、像素格式）。
 
-抱着的结构体：`HWDevice`、`Crypto`、`Muxer`、`Prober`、`Samples`、`Util`。
+抱着的结构体：`HWDevice`（硬解设备）、`Crypto`（哈希校验）、`Muxer`（写文件）、`Prober`（猜格式）、`Samples`（采样帮手）、`Util`（零碎小函数）。
 
 <details>
 <summary>点开看全部 API（Go 入口 → ffmpeg 函数）</summary>
@@ -1280,4 +1279,33 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Util.PixFmtCountPlanes` | `av_pix_fmt_count_planes` |
 | `Util.PixFmtGetChromaSubSample` | `av_pix_fmt_get_chroma_sub_sample` |
 | `Util.PixFmtSwapEndianness` | `av_pix_fmt_swap_endianness` |
+</details>
+
+### data_const — 数据常量（16 个）
+
+数据常量：so 里剩下 16 个数据符号，全是只读数据，不是函数。10 个上下文大小走 `Dlsym` 读数字，6 个版本串走 `Dlsym` 读字符串。函数用 `RegisterLibFunc` 绑，数据用 `Dlsym` 取地址再读（`TestDataConst` 全钉死）。
+
+抱着的结构体：`Crypto`（9 个大小）、`Util`（1 个大小）、`Library`（6 个版本串）。
+
+<details>
+<summary>点开看全部 API（Go 入口 → 数据符号）</summary>
+
+| Go 入口 | 数据符号 |
+|---------|-------------|
+| `Crypto.AesSize` | `av_aes_size` |
+| `Crypto.CamelliaSize` | `av_camellia_size` |
+| `Crypto.Cast5Size` | `av_cast5_size` |
+| `Crypto.TeaSize` | `av_tea_size` |
+| `Crypto.TwofishSize` | `av_twofish_size` |
+| `Crypto.Md5Size` | `av_md5_size` |
+| `Crypto.RipemdSize` | `av_ripemd_size` |
+| `Crypto.ShaSize` | `av_sha_size` |
+| `Crypto.Sha512Size` | `av_sha512_size` |
+| `Util.TreeNodeSize` | `av_tree_node_size` |
+| `Library.CodecFfversion` | `av_codec_ffversion` |
+| `Library.DeviceFfversion` | `av_device_ffversion` |
+| `Library.FilterFfversion` | `av_filter_ffversion` |
+| `Library.FormatFfversion` | `av_format_ffversion` |
+| `Library.UtilFfversion` | `av_util_ffversion` |
+| `Library.SwrFfversion` | `swr_ffversion` |
 </details>

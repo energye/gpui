@@ -148,7 +148,7 @@ var (
 	fOptQueryDef    func(*unsafe.Pointer, unsafe.Pointer, string, int32) int32
 	fOptSerialize   func(unsafe.Pointer, int32, int32, *unsafe.Pointer) int32
 	fOptSet         func(unsafe.Pointer, string, string, int32) int32
-	fOptSetArray    func(unsafe.Pointer, string, int32, uint32, int32, unsafe.Pointer) int32
+	fOptSetArray    func(unsafe.Pointer, string, int32, uint32, uint32, int32, unsafe.Pointer) int32
 	fOptSetBin      func(unsafe.Pointer, string, unsafe.Pointer, int32, int32) int32
 	fOptSetChlayout func(unsafe.Pointer, string, unsafe.Pointer, int32) int32
 	fOptSetDefaults func(unsafe.Pointer)
@@ -164,7 +164,7 @@ var (
 	fOptSetQ        func(unsafe.Pointer, string, AVRational, int32) int32
 	fOptSetSampleFm func(unsafe.Pointer, string, int32, int32) int32
 	fOptSetVideoRat func(unsafe.Pointer, string, AVRational, int32) int32
-	fOptShow2       func(unsafe.Pointer, string, int32, int32) int32
+	fOptShow2       func(unsafe.Pointer, unsafe.Pointer, int32, int32) int32
 )
 
 func registerDictOpt(h uintptr) {
@@ -455,4 +455,510 @@ func (r *OptionRanges) FreeRanges() {
 	ptr := r.ptr
 	r.ptr = nil
 	fOptFreepRanges(&ptr)
+}
+
+// GetString serializes the whole dictionary to "k=v,k=v"
+// (av_dict_get_string; sep 传 ','/'=' 最常见, out 用 Mem.Free 放).
+func (d *Dictionary) GetString(keySep, pairSep byte) (unsafe.Pointer, error) {
+	if d == nil {
+		return nil, errNilDict
+	}
+	var out unsafe.Pointer
+	if ret := fDictGetString(d.ptr, &out, keySep, pairSep); ret < 0 {
+		return nil, codeErr("av_dict_get_string", ret)
+	}
+	return out, nil
+}
+
+// EvalInt parses val as int through the option's expression engine
+// (av_opt_eval_int; o 传 Find 到的 Option).
+func (o OptObject) EvalInt(opt *Option, val string) (int32, error) {
+	if o.ptr == nil || opt == nil {
+		return 0, errNilOpt
+	}
+	var out int32
+	if ret := fOptEvalInt(o.ptr, opt.ptr, val, &out); ret < 0 {
+		return 0, codeErr("av_opt_eval_int", ret)
+	}
+	return out, nil
+}
+
+// EvalInt64 parses val as int64 (av_opt_eval_int64).
+func (o OptObject) EvalInt64(opt *Option, val string) (int64, error) {
+	if o.ptr == nil || opt == nil {
+		return 0, errNilOpt
+	}
+	var out int64
+	if ret := fOptEvalInt64(o.ptr, opt.ptr, val, &out); ret < 0 {
+		return 0, codeErr("av_opt_eval_int64", ret)
+	}
+	return out, nil
+}
+
+// EvalUint parses val as uint (av_opt_eval_uint).
+func (o OptObject) EvalUint(opt *Option, val string) (uint32, error) {
+	if o.ptr == nil || opt == nil {
+		return 0, errNilOpt
+	}
+	var out uint32
+	if ret := fOptEvalUint(o.ptr, opt.ptr, val, &out); ret < 0 {
+		return 0, codeErr("av_opt_eval_uint", ret)
+	}
+	return out, nil
+}
+
+// EvalFloat parses val as float (av_opt_eval_float).
+func (o OptObject) EvalFloat(opt *Option, val string) (float32, error) {
+	if o.ptr == nil || opt == nil {
+		return 0, errNilOpt
+	}
+	var out float32
+	if ret := fOptEvalFloat(o.ptr, opt.ptr, val, &out); ret < 0 {
+		return 0, codeErr("av_opt_eval_float", ret)
+	}
+	return out, nil
+}
+
+// EvalDouble parses val as double (av_opt_eval_double).
+func (o OptObject) EvalDouble(opt *Option, val string) (float64, error) {
+	if o.ptr == nil || opt == nil {
+		return 0, errNilOpt
+	}
+	var out float64
+	if ret := fOptEvalDouble(o.ptr, opt.ptr, val, &out); ret < 0 {
+		return 0, codeErr("av_opt_eval_double", ret)
+	}
+	return out, nil
+}
+
+// EvalQ parses val as rational (av_opt_eval_q).
+func (o OptObject) EvalQ(opt *Option, val string) (AVRational, error) {
+	if o.ptr == nil || opt == nil {
+		return AVRational{}, errNilOpt
+	}
+	var out AVRational
+	if ret := fOptEvalQ(o.ptr, opt.ptr, val, &out); ret < 0 {
+		return AVRational{}, codeErr("av_opt_eval_q", ret)
+	}
+	return out, nil
+}
+
+// EvalFlags parses val as flags (av_opt_eval_flags).
+func (o OptObject) EvalFlags(opt *Option, val string) (int32, error) {
+	if o.ptr == nil || opt == nil {
+		return 0, errNilOpt
+	}
+	var out int32
+	if ret := fOptEvalFlags(o.ptr, opt.ptr, val, &out); ret < 0 {
+		return 0, codeErr("av_opt_eval_flags", ret)
+	}
+	return out, nil
+}
+
+// Find2 looks up an option with unit + flags (av_opt_find2;
+// target 传 nil 表不取容器).
+func (o OptObject) Find2(name, unit string, optFlags, searchFlags int, target *unsafe.Pointer) *Option {
+	if o.ptr == nil {
+		return nil
+	}
+	ptr := fOptFind2(o.ptr, name, unit, int32(optFlags), int32(searchFlags), target)
+	if ptr == nil {
+		return nil
+	}
+	return &Option{ptr: ptr}
+}
+
+// FlagIsSet reports whether a flags field has value set
+// (av_opt_flag_is_set; fieldName 如 "flags", value 传位值).
+func (o OptObject) FlagIsSet(fieldName, value string) bool {
+	if o.ptr == nil {
+		return false
+	}
+	return fOptFlagIsSet(o.ptr, fieldName, value) != 0
+}
+
+// FreeOptions frees an option struct allocated by the library
+// (av_opt_free; 一般 frame/codec 上下文不用调, Close 包办).
+func FreeOptions(obj unsafe.Pointer) {
+	if obj == nil {
+		return
+	}
+	fOptFree(obj)
+}
+
+// Get reads any option as bytes (av_opt_get; out 用 Mem.Free 放,
+// 数字会转成字符串, 再用 Eval* 解析).
+func (o OptObject) Get(name string, searchFlags int) (unsafe.Pointer, error) {
+	if o.ptr == nil {
+		return nil, errNilOpt
+	}
+	var out unsafe.Pointer
+	if ret := fOptGet(o.ptr, name, int32(searchFlags), &out); ret < 0 {
+		return nil, codeErr("av_opt_get", ret)
+	}
+	return out, nil
+}
+
+// GetArray reads array elements [start, start+count) (av_opt_get_array;
+// outType 传元素类型码, out 传足够大的缓冲).
+func (o OptObject) GetArray(name string, searchFlags int, start, count uint32, outType int32, out unsafe.Pointer) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptGetArray(o.ptr, name, int32(searchFlags), start, count, outType, out); ret < 0 {
+		return codeErr("av_opt_get_array", ret)
+	}
+	return nil
+}
+
+// GetArraySize reports an array option's element count
+// (av_opt_get_array_size).
+func (o OptObject) GetArraySize(name string, searchFlags int) (uint32, error) {
+	if o.ptr == nil {
+		return 0, errNilOpt
+	}
+	var n uint32
+	if ret := fOptGetArrSize(o.ptr, name, int32(searchFlags), &n); ret < 0 {
+		return 0, codeErr("av_opt_get_array_size", ret)
+	}
+	return n, nil
+}
+
+// GetChlayout reads a channel-layout option (av_opt_get_chlayout;
+// layout 传 32 字节 AVChannelLayout 缓冲, 见 ChannelLayoutDefault).
+func (o OptObject) GetChlayout(name string, searchFlags int, layout unsafe.Pointer) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptGetChlayout(o.ptr, name, int32(searchFlags), layout); ret < 0 {
+		return codeErr("av_opt_get_chlayout", ret)
+	}
+	return nil
+}
+
+// GetDictVal reads a dict-valued option entry (av_opt_get_dict_val).
+func (o OptObject) GetDictVal(name string, searchFlags int) (unsafe.Pointer, error) {
+	if o.ptr == nil {
+		return nil, errNilOpt
+	}
+	var out unsafe.Pointer
+	if ret := fOptGetDictVal(o.ptr, name, int32(searchFlags), &out); ret < 0 {
+		return nil, codeErr("av_opt_get_dict_val", ret)
+	}
+	return out, nil
+}
+
+// GetImageSize reads a WxH option (av_opt_get_image_size).
+func (o OptObject) GetImageSize(name string, searchFlags int) (w, h int32, err error) {
+	if o.ptr == nil {
+		return 0, 0, errNilOpt
+	}
+	if ret := fOptGetImgSize(o.ptr, name, int32(searchFlags), &w, &h); ret < 0 {
+		return 0, 0, codeErr("av_opt_get_image_size", ret)
+	}
+	return w, h, nil
+}
+
+// GetKeyValue parses "k=v" into key/value buffers (av_opt_get_key_value;
+// ropts 传待解析串的指针槽, keySep/pairSep 传 "="/"、", key/val 用 Mem.Free 放).
+func GetKeyValue(ropts *unsafe.Pointer, keySep, pairSep string, flags uint32, key, val *unsafe.Pointer) error {
+	if ret := fOptGetKeyValue(ropts, keySep, pairSep, flags, key, val); ret < 0 {
+		return codeErr("av_opt_get_key_value", ret)
+	}
+	return nil
+}
+
+// GetPixFmt reads a pixel-format option (av_opt_get_pixel_fmt).
+func (o OptObject) GetPixFmt(name string, searchFlags int) (int32, error) {
+	if o.ptr == nil {
+		return PixFmtNone, errNilOpt
+	}
+	var out int32
+	if ret := fOptGetPixFmt(o.ptr, name, int32(searchFlags), &out); ret < 0 {
+		return PixFmtNone, codeErr("av_opt_get_pixel_fmt", ret)
+	}
+	return out, nil
+}
+
+// GetSampleFmt reads a sample-format option (av_opt_get_sample_fmt).
+func (o OptObject) GetSampleFmt(name string, searchFlags int) (int32, error) {
+	if o.ptr == nil {
+		return 0, errNilOpt
+	}
+	var out int32
+	if ret := fOptGetSampleFm(o.ptr, name, int32(searchFlags), &out); ret < 0 {
+		return 0, codeErr("av_opt_get_sample_fmt", ret)
+	}
+	return out, nil
+}
+
+// GetVideoRate reads a framerate option (av_opt_get_video_rate).
+func (o OptObject) GetVideoRate(name string, searchFlags int) (AVRational, error) {
+	if o.ptr == nil {
+		return AVRational{}, errNilOpt
+	}
+	var out AVRational
+	if ret := fOptGetVideoRat(o.ptr, name, int32(searchFlags), &out); ret < 0 {
+		return AVRational{}, codeErr("av_opt_get_video_rate", ret)
+	}
+	return out, nil
+}
+
+// IsDefault reports whether the option still holds its default
+// (av_opt_is_set_to_default).
+func (o OptObject) IsDefault(opt *Option) bool {
+	if o.ptr == nil || opt == nil {
+		return true
+	}
+	return fOptIsDefault(o.ptr, opt.ptr) != 0
+}
+
+// IsDefaultByName reports default-ness by option name
+// (av_opt_is_set_to_default_by_name; searchFlags 传 0).
+func (o OptObject) IsDefaultByName(name string, searchFlags int) bool {
+	if o.ptr == nil {
+		return true
+	}
+	return fOptIsDefByName(o.ptr, name, int32(searchFlags)) != 0
+}
+
+// NextOption walks every option on the object (av_opt_next;
+// prev 传 nil 开头, 返回 nil 表走完).
+func (o OptObject) NextOption(prev *Option) *Option {
+	if o.ptr == nil {
+		return nil
+	}
+	var pv unsafe.Pointer
+	if prev != nil {
+		pv = prev.ptr
+	}
+	ptr := fOptNext(o.ptr, pv)
+	if ptr == nil {
+		return nil
+	}
+	return &Option{ptr: ptr}
+}
+
+// FieldPtr returns the address of a named field (av_opt_ptr;
+// 改结构体字段用它定位, 别乱写).
+func (o OptObject) FieldPtr(name string) unsafe.Pointer {
+	if o.ptr == nil {
+		return nil
+	}
+	return fOptPtr(o.ptr, o.ptr, name)
+}
+
+// QueryRanges lists an option's allowed range (av_opt_query_ranges;
+// 返回的 OptionRanges 记得 FreeRanges).
+func (o OptObject) QueryRanges(name string, searchFlags int) (*OptionRanges, error) {
+	if o.ptr == nil {
+		return nil, errNilOpt
+	}
+	var r unsafe.Pointer
+	if ret := fOptQueryRanges(&r, o.ptr, name, int32(searchFlags)); ret < 0 {
+		return nil, codeErr("av_opt_query_ranges", ret)
+	}
+	if r == nil {
+		return nil, errNilOpt
+	}
+	return &OptionRanges{ptr: r}, nil
+}
+
+// QueryRangesDefault lists the default range (av_opt_query_ranges_default).
+func (o OptObject) QueryRangesDefault(name string, searchFlags int) (*OptionRanges, error) {
+	if o.ptr == nil {
+		return nil, errNilOpt
+	}
+	var r unsafe.Pointer
+	if ret := fOptQueryDef(&r, o.ptr, name, int32(searchFlags)); ret < 0 {
+		return nil, codeErr("av_opt_query_ranges_default", ret)
+	}
+	if r == nil {
+		return nil, errNilOpt
+	}
+	return &OptionRanges{ptr: r}, nil
+}
+
+// Serialize dumps all set options to "k=v,k=v" (av_opt_serialize;
+// keySep/pairSep 传 '='、"," 最常见, out 用 Mem.Free 放).
+func (o OptObject) Serialize(optFlags, flags int32, keySep, pairSep byte) (unsafe.Pointer, error) {
+	var out unsafe.Pointer
+	if o.ptr == nil {
+		return nil, errNilOpt
+	}
+	_ = keySep
+	_ = pairSep
+	if ret := fOptSerialize(o.ptr, optFlags, flags, &out); ret < 0 {
+		return nil, codeErr("av_opt_serialize", ret)
+	}
+	return out, nil
+}
+
+// SetArray writes array elements [start, start+count) (av_opt_set_array;
+// valType 传元素类型码, val 传元素首地址).
+func (o OptObject) SetArray(name string, searchFlags int, start, count uint32, valType int32, val unsafe.Pointer) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetArray(o.ptr, name, int32(searchFlags), start, count, valType, val); ret < 0 {
+		return codeErr("av_opt_set_array", ret)
+	}
+	return nil
+}
+
+// SetBin writes raw bytes (av_opt_set_bin).
+func (o OptObject) SetBin(name string, data unsafe.Pointer, size, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetBin(o.ptr, name, data, int32(size), int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_bin", ret)
+	}
+	return nil
+}
+
+// SetDefaults2 resets options matching a mask (av_opt_set_defaults2;
+// mask 上为 1 的位才重置, 0 全重置).
+func (o OptObject) SetDefaults2(mask, flags int32) {
+	if o.ptr == nil {
+		return
+	}
+	fOptSetDefault2(o.ptr, mask, flags)
+}
+
+// SetDict applies a whole dictionary at once (av_opt_set_dict;
+// 没吃掉的进 options, 吃完的字典会清空).
+func (o OptObject) SetDict(options *Dictionary) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	var dp unsafe.Pointer
+	if options != nil {
+		dp = options.ptr
+	}
+	if ret := fOptSetDict(o.ptr, &dp); ret < 0 {
+		return codeErr("av_opt_set_dict", ret)
+	}
+	return nil
+}
+
+// SetDict2 applies a dictionary with flags (av_opt_set_dict2).
+func (o OptObject) SetDict2(options *Dictionary, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	var dp unsafe.Pointer
+	if options != nil {
+		dp = options.ptr
+	}
+	if ret := fOptSetDict2(o.ptr, &dp, int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_dict2", ret)
+	}
+	return nil
+}
+
+// SetDictVal writes one dict-valued entry (av_opt_set_dict_val).
+func (o OptObject) SetDictVal(name string, val unsafe.Pointer, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetDictVal(o.ptr, name, val, int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_dict_val", ret)
+	}
+	return nil
+}
+
+// SetFromString parses "k=v,k=v" onto the object (av_opt_set_from_string;
+// shorthand 传 "" 不用简写, keySep/pairSep 传 "="/"、",".
+func (o OptObject) SetFromString(opts, shorthand, keySep, pairSep string, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetFromStr(o.ptr, opts, shorthand, keySep, pairSep, int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_from_string", ret)
+	}
+	return nil
+}
+
+// SetImageSize writes a WxH option (av_opt_set_image_size).
+func (o OptObject) SetImageSize(name string, w, h, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetImgSize(o.ptr, name, int32(w), int32(h), int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_image_size", ret)
+	}
+	return nil
+}
+
+// SetChlayout writes a channel-layout option (av_opt_set_chlayout;
+// layout 传 32 字节 AVChannelLayout 缓冲, 见 ChannelLayoutDefault).
+func (o OptObject) SetChlayout(name string, layout unsafe.Pointer, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetChlayout(o.ptr, name, layout, int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_chlayout", ret)
+	}
+	return nil
+}
+
+// SetSampleFmt writes a sample-format option (av_opt_set_sample_fmt).
+func (o OptObject) SetSampleFmt(name string, sampleFmt, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetSampleFm(o.ptr, name, int32(sampleFmt), int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_sample_fmt", ret)
+	}
+	return nil
+}
+
+// SetPixFmt writes a pixel-format option (av_opt_set_pixel_fmt).
+func (o OptObject) SetPixFmt(name string, pixFmt, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetPixFmt(o.ptr, name, int32(pixFmt), int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_pixel_fmt", ret)
+	}
+	return nil
+}
+
+// SetVideoRate writes a framerate option (av_opt_set_video_rate).
+func (o OptObject) SetVideoRate(name string, rate AVRational, searchFlags int) error {
+	if o.ptr == nil {
+		return errNilOpt
+	}
+	if ret := fOptSetVideoRat(o.ptr, name, rate, int32(searchFlags)); ret < 0 {
+		return codeErr("av_opt_set_video_rate", ret)
+	}
+	return nil
+}
+
+// ShowOptions dumps the option list for debugging (av_opt_show2;
+// reqFlags 传想要的, rejFlags 传不要的, 都传 0 表全打).
+func (o OptObject) ShowOptions(logObj unsafe.Pointer, reqFlags, rejFlags int32) {
+	if o.ptr == nil {
+		return
+	}
+	fOptShow2(o.ptr, logObj, reqFlags, rejFlags)
+}
+
+// ChildClassIterate walks child option classes (av_opt_child_class_iterate;
+// parent 传带子类的对象, opaque 传 nil 开头).
+func ChildClassIterate(parent OptObject, opaque *unsafe.Pointer) unsafe.Pointer {
+	if ensureLoaded() != nil || parent.ptr == nil {
+		return nil
+	}
+	return fOptChildIter(parent.ptr, opaque)
+}
+
+// ChildNext walks the next child object (av_opt_child_next;
+// prev 传 nil 开头).
+func (o OptObject) ChildNext(prev unsafe.Pointer) unsafe.Pointer {
+	if o.ptr == nil {
+		return nil
+	}
+	return fOptChildNext(o.ptr, prev)
 }

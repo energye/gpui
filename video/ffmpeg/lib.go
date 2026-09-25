@@ -16,6 +16,9 @@ var (
 	loaded  bool
 	loadErr error
 	libPath string
+	// libHandle 留着给数据符号用：函数走 RegisterLibFunc，
+	// 数据（const int / const char[]）走 Dlsym 取地址再读。
+	libHandle uintptr
 
 	fNetInit func() int32
 	// Handles stay as unsafe.Pointer end to end: purego passes them
@@ -124,6 +127,7 @@ func ensureLoaded() error {
 			return loadErr
 		}
 		libPath = p
+		libHandle = h
 		purego.RegisterLibFunc(&fNetInit, h, "avformat_network_init")
 		purego.RegisterLibFunc(&fOpenInput, h, "avformat_open_input")
 		purego.RegisterLibFunc(&fFindInfo, h, "avformat_find_stream_info")

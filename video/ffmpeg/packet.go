@@ -272,3 +272,94 @@ func (p *Packet) ShrinkSideData(typ int32, size int) error {
 	}
 	return nil
 }
+
+// PackDictionary serializes a dictionary into bytes for attaching to a
+// packet (av_packet_pack_dictionary; size 由包内返回, 用完 av_free 风格
+// 的 Mem.Free 释放 — 见 buffer_mem.go).
+func (d *Dictionary) PackDictionary() (unsafe.Pointer, uintptr) {
+	if d == nil {
+		return nil, 0
+	}
+	var size uintptr
+	ptr := fPacketPackDictionary(d.ptr, &size)
+	return ptr, size
+}
+
+// FromData wraps an external data buffer as packet payload without
+// copying (av_packet_from_data; 调用后别再碰 data, 归包管).
+func (p *Packet) FromData(data unsafe.Pointer, size int) error {
+	if p == nil {
+		return errNilPacket
+	}
+	if ret := fPacketFromData(p.ptr, data, int32(size)); ret < 0 {
+		return codeErr("av_packet_from_data", ret)
+	}
+	return nil
+}
+
+// UnpackDictionary deserializes packet-attached bytes back into a fresh
+// dictionary (av_packet_unpack_dictionary).
+func UnpackDictionary(data unsafe.Pointer, size int) (*Dictionary, error) {
+	if ensureLoaded() != nil {
+		return nil, errNilDict
+	}
+	var dict unsafe.Pointer
+	if ret := fPacketUnpackDict(data, uintptr(size), &dict); ret < 0 {
+		return nil, codeErr("av_packet_unpack_dictionary", ret)
+	}
+	if dict == nil {
+		return nil, errNilDict
+	}
+	return &Dictionary{ptr: dict}, nil
+}
+
+// SideDataName names a side-data type id (av_packet_side_data_name).
+func SideDataName(typ int32) string {
+	if ensureLoaded() != nil {
+		return ""
+	}
+	return fPacketSideDataName(typ)
+}
+
+// SideDataAdd appends a typed entry to a side-data array
+// (av_packet_side_data_add; sd/nb_sd 照 av_packet_side_data_* 族传).
+func SideDataAdd(sd *unsafe.Pointer, nbSd *int32, typ int32, data unsafe.Pointer, size int, flags int32) unsafe.Pointer {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	return fPacketSideDataAdd(sd, nbSd, typ, data, uintptr(size), flags)
+}
+
+// SideDataFree frees a side-data array (av_packet_side_data_free).
+func SideDataFree(sd *unsafe.Pointer, nbSd *int32) {
+	if ensureLoaded() != nil {
+		return
+	}
+	fPacketSideDataFree(sd, nbSd)
+}
+
+// SideDataGet finds a typed entry in a side-data array
+// (av_packet_side_data_get; 无状态查询, nil 表安全).
+func SideDataGet(sd unsafe.Pointer, nbSd, typ int32) unsafe.Pointer {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	return fPacketSideDataGet(sd, nbSd, typ)
+}
+
+// SideDataNew allocates a typed entry in a side-data array
+// (av_packet_side_data_new).
+func SideDataNew(sd *unsafe.Pointer, nbSd *int32, typ int32, size int, flags int32) unsafe.Pointer {
+	if ensureLoaded() != nil {
+		return nil
+	}
+	return fPacketSideDataNew(sd, nbSd, typ, uintptr(size), flags)
+}
+
+// SideDataRemove deletes a typed entry (av_packet_side_data_remove).
+func SideDataRemove(sd unsafe.Pointer, nbSd *int32, typ int32) {
+	if ensureLoaded() != nil {
+		return
+	}
+	fPacketSideDataRemove(sd, nbSd, typ)
+}

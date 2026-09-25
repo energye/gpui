@@ -24,8 +24,8 @@ func (d *DeviceList) Ptr() unsafe.Pointer {
 
 var (
 	fDeviceVersion    func() uint32
-	fDeviceConfig     func() unsafe.Pointer
-	fDeviceLicense    func() unsafe.Pointer
+	fDeviceConfig     func() string
+	fDeviceLicense    func() string
 	fDeviceRegister   func()
 	fDeviceListDevs   func(unsafe.Pointer, unsafe.Pointer, *unsafe.Pointer) int32
 	fDeviceFreeList   func(*unsafe.Pointer)
@@ -93,6 +93,45 @@ func (d *DeviceList) ListOutputSinks(format unsafe.Pointer) error {
 	}
 	if ret := fDeviceListOutput(format, &d.ptr); ret < 0 {
 		return codeErr("avdevice_list_output_sinks", ret)
+	}
+	return nil
+}
+
+// Configuration returns the avdevice build configuration string.
+func (d *DeviceList) Configuration() string {
+	if ensureLoaded() != nil {
+		return ""
+	}
+	return fDeviceConfig()
+}
+
+// License returns the avdevice license string.
+func (d *DeviceList) License() string {
+	if ensureLoaded() != nil {
+		return ""
+	}
+	return fDeviceLicense()
+}
+
+// AppToDev sends an app-to-device control message (音量/暂停等走它;
+// type 用 AVAppToDevMessageType 常量, data 传 nil 表无负载).
+func (d *DeviceList) AppToDev(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
+	if d == nil {
+		return errNilDevice
+	}
+	if ret := fDeviceAppToDev(ctx, typ, data, uintptr(size)); ret < 0 {
+		return codeErr("avdevice_app_to_dev_control_message", ret)
+	}
+	return nil
+}
+
+// DevToApp reads a device-to-app control message (设备状态回调用它).
+func (d *DeviceList) DevToApp(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
+	if d == nil {
+		return errNilDevice
+	}
+	if ret := fDeviceDevToApp(ctx, typ, data, uintptr(size)); ret < 0 {
+		return codeErr("avdevice_dev_to_app_control_message", ret)
 	}
 	return nil
 }
