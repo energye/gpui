@@ -66,9 +66,19 @@ fi
 # mac 用系统 VideoToolbox 硬解，不添第三方依赖；openssl 走系统 SecureTransport 思路，
 # 这里保持与 linux 一致开 openssl（brew openssl，有就链，没有 configure 会报错再调）。
 MAC_BASE="--enable-videotoolbox --enable-hwaccel=h264_videotoolbox --enable-hwaccel=hevc_videotoolbox --enable-hwaccel=vp9_videotoolbox --enable-hwaccel=av1_videotoolbox"
+# macos-14 runner 是 ARM64 的机器，编 x64 必须是交叉：
+# 光给 --arch=x86_64 不够，clang 默认还是吐 arm64，configure 的存活检测直接错乱。
+# 这里跟 linux-386 的 gcc-m32 同款做法：包个 -arch x86_64 的 clang 皮，
+# configure 和最后链接都走它（arm64 原生走系统 cc，不动）。
+MAC_CC=cc
 case "$ARCH" in
   arm64) ARCHFLAG="--arch=arm64 --target-os=darwin" ;;
-  x64) ARCHFLAG="--arch=x86_64 --target-os=darwin" ;;
+  x64)
+    printf '#!/bin/sh\nexec clang -arch x86_64 "$@"\n' > "$BLD/clang-x64"
+    chmod +x "$BLD/clang-x64"
+    MAC_CC="$BLD/clang-x64"
+    ARCHFLAG="--arch=x86_64 --target-os=darwin --cc=$BLD/clang-x64"
+    ;;
   *) echo "unknown arch $ARCH" >&2; exit 2 ;;
 esac
 
@@ -88,6 +98,6 @@ if [ "$V" = "full" ]; then
   FULL_EXT="$FULL_EXT $OH"
 fi
 # shellcheck disable=SC2086
-cc -dynamiclib -o "$OUT/$LIB" $WHOLE $FULL_EXT -lm -lpthread -ldl -lz \
+$MAC_CC -dynamiclib -o "$OUT/$LIB" $WHOLE $FULL_EXT -lm -lpthread -ldl -lz \
   -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework Security
 ls -la "$OUT/$LIB"
