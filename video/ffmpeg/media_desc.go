@@ -15,6 +15,7 @@ import (
 type MediaDesc struct{ ptr unsafe.Pointer }
 
 func (x *MediaDesc) Ptr() unsafe.Pointer {
+	mustUse(ensureModMediaDesc())
 	if x == nil {
 		return nil
 	}
@@ -230,7 +231,9 @@ func (x *MediaDesc) AmbientViewingEnvironmentCreateSideData(frame unsafe.Pointer
 
 // ChannelDescription 查单个声道名或描述（对 av_channel_description；参数 buf、buf_size、channel；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelDescription(buf unsafe.Pointer, buf_size uintptr, channel unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelDescription(buf, buf_size, channel); ret < 0 {
 		return codeErr("av_channel_description", ret)
 	}
@@ -251,7 +254,9 @@ func (x *MediaDesc) ChannelFromString(name unsafe.Pointer) unsafe.Pointer {
 
 // ChannelLayoutAmbisonicOrder 查或配声道布局（对 av_channel_layout_ambisonic_order；参数 channel_layout；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutAmbisonicOrder(channel_layout unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutAmbisonicOrder(channel_layout); ret < 0 {
 		return codeErr("av_channel_layout_ambisonic_order", ret)
 	}
@@ -272,7 +277,9 @@ func (x *MediaDesc) ChannelLayoutChannelFromString(channel_layout unsafe.Pointer
 
 // ChannelLayoutCheck 查或配声道布局（对 av_channel_layout_check；参数 channel_layout；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutCheck(channel_layout unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutCheck(channel_layout); ret < 0 {
 		return codeErr("av_channel_layout_check", ret)
 	}
@@ -281,7 +288,9 @@ func (x *MediaDesc) ChannelLayoutCheck(channel_layout unsafe.Pointer) error {
 
 // ChannelLayoutCompare 查或配声道布局（对 av_channel_layout_compare；参数 chl、chl1；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutCompare(chl unsafe.Pointer, chl1 unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutCompare(chl, chl1); ret < 0 {
 		return codeErr("av_channel_layout_compare", ret)
 	}
@@ -290,7 +299,9 @@ func (x *MediaDesc) ChannelLayoutCompare(chl unsafe.Pointer, chl1 unsafe.Pointer
 
 // ChannelLayoutCopy 查或配声道布局（对 av_channel_layout_copy；参数 dst、src；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutCopy(dst unsafe.Pointer, src unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutCopy(dst, src); ret < 0 {
 		return codeErr("av_channel_layout_copy", ret)
 	}
@@ -299,7 +310,9 @@ func (x *MediaDesc) ChannelLayoutCopy(dst unsafe.Pointer, src unsafe.Pointer) er
 
 // ChannelLayoutCustomInit 查或配声道布局（对 av_channel_layout_custom_init；参数 channel_layout、nb_channels；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutCustomInit(channel_layout unsafe.Pointer, nb_channels int32) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutCustomInit(channel_layout, nb_channels); ret < 0 {
 		return codeErr("av_channel_layout_custom_init", ret)
 	}
@@ -314,7 +327,9 @@ func (x *MediaDesc) ChannelLayoutDefault(ch_layout unsafe.Pointer, nb_channels i
 
 // ChannelLayoutDescribe 查或配声道布局（对 av_channel_layout_describe；参数 channel_layout、buf、buf_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutDescribe(channel_layout unsafe.Pointer, buf unsafe.Pointer, buf_size uintptr) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutDescribe(channel_layout, buf, buf_size); ret < 0 {
 		return codeErr("av_channel_layout_describe", ret)
 	}
@@ -323,7 +338,9 @@ func (x *MediaDesc) ChannelLayoutDescribe(channel_layout unsafe.Pointer, buf uns
 
 // ChannelLayoutDescribeBprint 查或配声道布局（对 av_channel_layout_describe_bprint；参数 channel_layout、bp；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutDescribeBprint(channel_layout unsafe.Pointer, bp unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutDescribeBprint(channel_layout, bp); ret < 0 {
 		return codeErr("av_channel_layout_describe_bprint", ret)
 	}
@@ -332,7 +349,9 @@ func (x *MediaDesc) ChannelLayoutDescribeBprint(channel_layout unsafe.Pointer, b
 
 // ChannelLayoutFromMask 查或配声道布局（对 av_channel_layout_from_mask；参数 channel_layout、mask；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutFromMask(channel_layout unsafe.Pointer, mask uint64) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutFromMask(channel_layout, mask); ret < 0 {
 		return codeErr("av_channel_layout_from_mask", ret)
 	}
@@ -341,7 +360,9 @@ func (x *MediaDesc) ChannelLayoutFromMask(channel_layout unsafe.Pointer, mask ui
 
 // ChannelLayoutFromString 查或配声道布局（对 av_channel_layout_from_string；参数 channel_layout、str；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutFromString(channel_layout unsafe.Pointer, str unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutFromString(channel_layout, str); ret < 0 {
 		return codeErr("av_channel_layout_from_string", ret)
 	}
@@ -350,7 +371,9 @@ func (x *MediaDesc) ChannelLayoutFromString(channel_layout unsafe.Pointer, str u
 
 // ChannelLayoutIndexFromChannel 查或配声道布局（对 av_channel_layout_index_from_channel；参数 channel_layout、channel；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutIndexFromChannel(channel_layout unsafe.Pointer, channel unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutIndexFromChannel(channel_layout, channel); ret < 0 {
 		return codeErr("av_channel_layout_index_from_channel", ret)
 	}
@@ -359,7 +382,9 @@ func (x *MediaDesc) ChannelLayoutIndexFromChannel(channel_layout unsafe.Pointer,
 
 // ChannelLayoutIndexFromString 查或配声道布局（对 av_channel_layout_index_from_string；参数 channel_layout、name；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutIndexFromString(channel_layout unsafe.Pointer, name unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvChannelLayoutIndexFromString(channel_layout, name); ret < 0 {
 		return codeErr("av_channel_layout_index_from_string", ret)
 	}
@@ -512,7 +537,9 @@ func (x *MediaDesc) DynamicHdrPlusCreateSideData(frame unsafe.Pointer) unsafe.Po
 
 // DynamicHdrPlusFromT35 HDR10+ 动态元数据操作（对 av_dynamic_hdr_plus_from_t35；参数 s、data、size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) DynamicHdrPlusFromT35(s unsafe.Pointer, data unsafe.Pointer, size uintptr) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvDynamicHdrPlusFromT35(s, data, size); ret < 0 {
 		return codeErr("av_dynamic_hdr_plus_from_t35", ret)
 	}
@@ -593,7 +620,9 @@ func (x *MediaDesc) MasteringDisplayMetadataCreateSideData(frame unsafe.Pointer)
 
 // ParseColor 把颜色字符串解析成数值（对 av_parse_color；参数 rgba_color、color_string、slen、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ParseColor(rgba_color unsafe.Pointer, color_string unsafe.Pointer, slen int32, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvParseColor(rgba_color, color_string, slen, log_ctx); ret < 0 {
 		return codeErr("av_parse_color", ret)
 	}
@@ -608,7 +637,9 @@ func (x *MediaDesc) ParseRatio(q unsafe.Pointer, str unsafe.Pointer, max int32, 
 
 // ParseTime 把时间字符串解析成微秒（对 av_parse_time；参数 timeval、timestr、duration；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ParseTime(timeval unsafe.Pointer, timestr unsafe.Pointer, duration int32) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvParseTime(timeval, timestr, duration); ret < 0 {
 		return codeErr("av_parse_time", ret)
 	}
@@ -617,7 +648,9 @@ func (x *MediaDesc) ParseTime(timeval unsafe.Pointer, timestr unsafe.Pointer, du
 
 // ParseVideoRate 把帧率字符串解析成分数（对 av_parse_video_rate；参数 rate、str；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) ParseVideoRate(rate unsafe.Pointer, str unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvParseVideoRate(rate, str); ret < 0 {
 		return codeErr("av_parse_video_rate", ret)
 	}
@@ -728,7 +761,9 @@ func (x *MediaDesc) Stereo3dViewName(view uint32) unsafe.Pointer {
 
 // TimecodeAdjustNtscFramenum2 时间码初始化换算和拼串（对 av_timecode_adjust_ntsc_framenum2；参数 framenum、fps；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) TimecodeAdjustNtscFramenum2(framenum int32, fps int32) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvTimecodeAdjustNtscFramenum2(framenum, fps); ret < 0 {
 		return codeErr("av_timecode_adjust_ntsc_framenum2", ret)
 	}
@@ -737,7 +772,9 @@ func (x *MediaDesc) TimecodeAdjustNtscFramenum2(framenum int32, fps int32) error
 
 // TimecodeCheckFrameRate 时间码初始化换算和拼串（对 av_timecode_check_frame_rate；参数 rate；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) TimecodeCheckFrameRate(rate AVRational) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvTimecodeCheckFrameRate(rate); ret < 0 {
 		return codeErr("av_timecode_check_frame_rate", ret)
 	}
@@ -758,7 +795,9 @@ func (x *MediaDesc) TimecodeGetSmpteFromFramenum(tc unsafe.Pointer, framenum int
 
 // TimecodeInit 时间码初始化换算和拼串（对 av_timecode_init；参数 tc、rate、flags、frame_start、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) TimecodeInit(tc unsafe.Pointer, rate AVRational, flags int32, frame_start int32, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvTimecodeInit(tc, rate, flags, frame_start, log_ctx); ret < 0 {
 		return codeErr("av_timecode_init", ret)
 	}
@@ -767,7 +806,9 @@ func (x *MediaDesc) TimecodeInit(tc unsafe.Pointer, rate AVRational, flags int32
 
 // TimecodeInitFromComponents 时间码初始化换算和拼串（对 av_timecode_init_from_components；参数 tc、rate、flags、hh、mm、ss、ff、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) TimecodeInitFromComponents(tc unsafe.Pointer, rate AVRational, flags int32, hh int32, mm int32, ss int32, ff int32, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvTimecodeInitFromComponents(tc, rate, flags, hh, mm, ss, ff, log_ctx); ret < 0 {
 		return codeErr("av_timecode_init_from_components", ret)
 	}
@@ -776,7 +817,9 @@ func (x *MediaDesc) TimecodeInitFromComponents(tc unsafe.Pointer, rate AVRationa
 
 // TimecodeInitFromString 时间码初始化换算和拼串（对 av_timecode_init_from_string；参数 tc、rate、str、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (x *MediaDesc) TimecodeInitFromString(tc unsafe.Pointer, rate AVRational, str unsafe.Pointer, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModMediaDesc())
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
 	if ret := fAvTimecodeInitFromString(tc, rate, str, log_ctx); ret < 0 {
 		return codeErr("av_timecode_init_from_string", ret)
 	}

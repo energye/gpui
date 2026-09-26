@@ -51,9 +51,7 @@ func registerVariadicGo(h uintptr) {
 
 // Asprintf 拼出字符串（替 av_asprintf；C 版用 av_malloc 分配，Go 版
 // 直接回 Go 字符串，不用管 C 内存）。
-func Asprintf(format string, args ...any) string {
-	return fmt.Sprintf(format, args...)
-}
+func Asprintf(format string, args ...any) string { return fmt.Sprintf(format, args...) }
 
 // Strlcatf 往 dst 尾巴上拼接拼好的字符串（替 av_strlcatf；dst 是 C
 // 缓冲，size 是总容量，含结尾零；回值和 C 一样是拼接后的总长度）。
@@ -68,6 +66,7 @@ func (Util) Strlcatf(dst unsafe.Pointer, size uintptr, format string, args ...an
 // OpenDynBuf 开流，写完必须 CloseDynBuf 收尾并取内容，CloseDynBuf
 // 会把流连同缓冲一起管好，调用方最后用 Mem.Free 放缓冲，见单测）。
 func (x *IOContext) Printf(format string, args ...any) int {
+	mustUse(ensureModVariadic())
 	if x == nil || x.ptr == nil {
 		return 0
 	}

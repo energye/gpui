@@ -219,7 +219,9 @@ func (d *Decoder) ptsToMs(pts int64) int64 {
 
 // ensureSws rebuilds the RGBA converter when the frame shape changes.
 func (d *Decoder) ensureSws(w, h, srcFmt int32) error {
-	mustUse(ensureModScale())
+	if err := ensureModDecode(); err != nil {
+		return err
+	}
 	if d.sws != nil && d.swsW == w && d.swsH == h && d.swsFmt == srcFmt {
 		return nil
 	}
@@ -238,9 +240,8 @@ func (d *Decoder) ensureSws(w, h, srcFmt int32) error {
 // convertFrame scales one decoded AVFrame into a pooled RGBA buffer when
 // the Decoder runs with a PixPool (player path), else a fresh buffer.
 func (d *Decoder) convertFrame(ms int64) (*VideoFrame, error) {
-	if err := ensureModScale(); err != nil {
-		var z1 *VideoFrame
-		return z1, err
+	if err := ensureModDecode(); err != nil {
+		return nil, err
 	}
 	w := loadInt32(d.frame, frameWidth)
 	h := loadInt32(d.frame, frameHeight)
@@ -289,17 +290,8 @@ func (d *Decoder) convertFrame(ms int64) (*VideoFrame, error) {
 // receive follow the doc/examples/demux_decode shape: read one packet,
 // send it, then drain every ready frame before reading again.
 func (d *Decoder) Next() (*VideoFrame, error) {
-	if err := ensureModCore(); err != nil {
-		var z1 *VideoFrame
-		return z1, err
-	}
-	if err := ensureModFrame(); err != nil {
-		var z1 *VideoFrame
-		return z1, err
-	}
-	if err := ensureModPacket(); err != nil {
-		var z1 *VideoFrame
-		return z1, err
+	if err := ensureModDecode(); err != nil {
+		return nil, err
 	}
 	if d.closed {
 		return nil, fmt.Errorf("ffmpeg: decoder closed")
@@ -403,9 +395,8 @@ func (d *Decoder) Next() (*VideoFrame, error) {
 // decoder, so the next Next call decodes forward from the landing.
 // It mirrors the player contract: millisecond in, landing stamp out.
 func (d *Decoder) SeekTo(targetMs int64) (int64, error) {
-	if err := ensureModCore(); err != nil {
-		var z1 int64
-		return z1, err
+	if err := ensureModDecode(); err != nil {
+		return 0, err
 	}
 	if d.closed {
 		return 0, fmt.Errorf("ffmpeg: decoder closed")
@@ -433,6 +424,7 @@ func (d *Decoder) SeekTo(targetMs int64) (int64, error) {
 
 // Close frees every ffmpeg object owned by this open.
 func (d *Decoder) Close() {
+	mustUse(ensureModDecode())
 	if d.closed {
 		return
 	}

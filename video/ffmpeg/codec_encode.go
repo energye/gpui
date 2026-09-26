@@ -64,6 +64,7 @@ type BitStreamFilter struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (b *BitStreamFilter) Ptr() unsafe.Pointer {
+	mustUse(ensureModCodecEncode())
 	if b == nil {
 		return nil
 	}
@@ -273,9 +274,7 @@ func registerCodecEncode(h uintptr) {
 
 // FindDecoder finds a decoder by codec id (nil when absent).
 func FindDecoder(id int32) *Codec {
-	if err := ensureModCodecEncode(); err != nil {
-		return nil
-	}
+	mustUse(ensureModCodecEncode())
 	ptr := fCodecFindDecoder(id)
 	if ptr == nil {
 		return nil
@@ -285,9 +284,7 @@ func FindDecoder(id int32) *Codec {
 
 // FindDecoderByName finds a decoder by name, e.g. "h264" (nil when absent).
 func FindDecoderByName(name string) *Codec {
-	if err := ensureModCodecEncode(); err != nil {
-		return nil
-	}
+	mustUse(ensureModCodecEncode())
 	ptr := fCodecFindDecByNam(name)
 	if ptr == nil {
 		return nil
@@ -297,9 +294,7 @@ func FindDecoderByName(name string) *Codec {
 
 // FindEncoder finds an encoder by codec id (nil when absent).
 func FindEncoder(id int32) *Codec {
-	if err := ensureModCodecEncode(); err != nil {
-		return nil
-	}
+	mustUse(ensureModCodecEncode())
 	ptr := fCodecFindEncoder(id)
 	if ptr == nil {
 		return nil
@@ -351,7 +346,9 @@ func (c *CodecContext) FreeContext() {
 
 // Open opens the context (options 传 nil 用默认).
 func (c *CodecContext) Open(codec *Codec, options unsafe.Pointer) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if c == nil || codec == nil {
 		return errNilCodec
 	}
@@ -372,7 +369,9 @@ func (c *CodecContext) IsOpen() bool {
 
 // SendPacket feeds one packet (nil flushes; EAGAIN 先收一帧再送).
 func (c *CodecContext) SendPacket(p *Packet) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if c == nil {
 		return errNilCodec
 	}
@@ -388,7 +387,9 @@ func (c *CodecContext) SendPacket(p *Packet) error {
 
 // ReceiveFrame pulls one decoded frame (EAGAIN 说明要先送包).
 func (c *CodecContext) ReceiveFrame(f *Frame) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if c == nil || f == nil {
 		return errNilCodec
 	}
@@ -400,7 +401,9 @@ func (c *CodecContext) ReceiveFrame(f *Frame) error {
 
 // SendFrame feeds one frame for encoding (nil flushes).
 func (c *CodecContext) SendFrame(f *Frame) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if c == nil {
 		return errNilCodec
 	}
@@ -416,7 +419,9 @@ func (c *CodecContext) SendFrame(f *Frame) error {
 
 // ReceivePacket pulls one encoded packet.
 func (c *CodecContext) ReceivePacket(p *Packet) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if c == nil || p == nil {
 		return errNilCodec
 	}
@@ -437,9 +442,7 @@ func (c *CodecContext) FlushBuffers() {
 
 // NewCodecParameters allocates empty parameters (记得 Free).
 func NewCodecParameters() *CodecParameters {
-	if err := ensureModCodecEncode(); err != nil {
-		return nil
-	}
+	mustUse(ensureModCodecEncode())
 	ptr := fCodecParAlloc()
 	if ptr == nil {
 		return nil
@@ -460,7 +463,9 @@ func (p *CodecParameters) Free() {
 
 // Copy duplicates src parameters.
 func (p *CodecParameters) Copy(src *CodecParameters) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if p == nil || src == nil {
 		return errNilCodec
 	}
@@ -472,7 +477,9 @@ func (p *CodecParameters) Copy(src *CodecParameters) error {
 
 // FromContext fills parameters from an opened context.
 func (p *CodecParameters) FromContext(c *CodecContext) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if p == nil || c == nil {
 		return errNilCodec
 	}
@@ -484,7 +491,9 @@ func (p *CodecParameters) FromContext(c *CodecContext) error {
 
 // ToContext fills a fresh context from parameters (open 前调).
 func (p *CodecParameters) ToContext(c *CodecContext) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if p == nil || c == nil {
 		return errNilCodec
 	}
@@ -512,9 +521,7 @@ func CodecType(id int32) int32 {
 
 // NewParser opens a parser for codec id (记得 Close; 如 H264 喂裸流切帧).
 func NewParser(id int32) *Parser {
-	if err := ensureModCodecEncode(); err != nil {
-		return nil
-	}
+	mustUse(ensureModCodecEncode())
 	ptr := fParserInit(id)
 	if ptr == nil {
 		return nil
@@ -545,9 +552,7 @@ func (p *Parser) Parse2(codecCtx unsafe.Pointer, outBuf *unsafe.Pointer, outSize
 // NewBitStreamFilter allocates a filter by name,
 // e.g. "h264_mp4toannexb" (记得 Free, 用前 Init + CopyParameters).
 func NewBitStreamFilter(name string) *BitStreamFilter {
-	if err := ensureModCodecEncode(); err != nil {
-		return nil
-	}
+	mustUse(ensureModCodecEncode())
 	filter := fBSFGetByName(name)
 	if filter == nil {
 		return nil
@@ -561,7 +566,9 @@ func NewBitStreamFilter(name string) *BitStreamFilter {
 
 // Init initializes the filter (参数配好后调).
 func (b *BitStreamFilter) Init() error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if b == nil {
 		return errNilCodec
 	}
@@ -573,7 +580,9 @@ func (b *BitStreamFilter) Init() error {
 
 // SendPacket feeds one packet into the filter.
 func (b *BitStreamFilter) SendPacket(p *Packet) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if b == nil || p == nil {
 		return errNilCodec
 	}
@@ -585,7 +594,9 @@ func (b *BitStreamFilter) SendPacket(p *Packet) error {
 
 // ReceivePacket pulls one filtered packet.
 func (b *BitStreamFilter) ReceivePacket(p *Packet) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if b == nil || p == nil {
 		return errNilCodec
 	}
@@ -634,7 +645,9 @@ func AllocBSFList() *BitStreamFilterList {
 
 // Append adds an open filter context to the chain.
 func (l *BitStreamFilterList) Append(bsf *BitStreamFilter) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if l == nil || l.ptr == nil || bsf == nil {
 		return errNilCodec
 	}
@@ -646,7 +659,9 @@ func (l *BitStreamFilterList) Append(bsf *BitStreamFilter) error {
 
 // AppendByName adds a filter by name with options (options 传 nil 用默认).
 func (l *BitStreamFilterList) AppendByName(name string, options *unsafe.Pointer) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if l == nil || l.ptr == nil {
 		return errNilCodec
 	}
@@ -658,7 +673,9 @@ func (l *BitStreamFilterList) AppendByName(name string, options *unsafe.Pointer)
 
 // Finalize seals the chain into one usable filter (链本身被吃掉, 别再 Free).
 func (l *BitStreamFilterList) Finalize(out **BitStreamFilter) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	var ctx unsafe.Pointer
 	if l == nil || l.ptr == nil || out == nil {
 		return errNilCodec
@@ -689,6 +706,9 @@ func (l *BitStreamFilterList) Free() {
 // ParseBSFList parses "filter1,filter2" into one usable filter
 // (av_bsf_list_parse_str; 逗号串转单个 filter, 记得 Free).
 func ParseBSFList(s string) (*BitStreamFilter, error) {
+	if err := ensureModCodecEncode(); err != nil {
+		return nil, err
+	}
 	if ensureModCodecEncode() != nil {
 		return nil, errNilCodec
 	}
@@ -774,7 +794,9 @@ func (self *Codec) AvcodecDctGetClass() unsafe.Pointer {
 
 // AvcodecDctInit 初始化 DCT 上下文（对 avcodec_dct_init；参数 arg0；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecDctInit(arg0 unsafe.Pointer) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if ret := fAvcodecDctInit(arg0); ret < 0 {
 		return codeErr("avcodec_dct_init", ret)
 	}
@@ -783,7 +805,9 @@ func (self *Codec) AvcodecDctInit(arg0 unsafe.Pointer) error {
 
 // AvcodecDecodeSubtitle2 解一包字幕（对 avcodec_decode_subtitle2；参数 avctx、sub、got_sub_ptr、avpkt；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (self *Codec) AvcodecDecodeSubtitle2(avctx unsafe.Pointer, sub unsafe.Pointer, got_sub_ptr unsafe.Pointer, avpkt unsafe.Pointer) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if ret := fAvcodecDecodeSubtitle2(avctx, sub, got_sub_ptr, avpkt); ret < 0 {
 		return codeErr("avcodec_decode_subtitle2", ret)
 	}
@@ -802,7 +826,9 @@ func (self *Codec) SubtitleFree(sub unsafe.Pointer) {
 
 // AvcodecDefaultExecute 默认多线程执行一批任务（对 avcodec_default_execute；参数 c、fn、arg、ret、count、size；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecDefaultExecute(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32, size int32) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if ret := fAvcodecDefaultExecute(c, fn, arg, ret, count, size); ret < 0 {
 		return codeErr("avcodec_default_execute", ret)
 	}
@@ -811,7 +837,9 @@ func (self *Codec) AvcodecDefaultExecute(c unsafe.Pointer, fn unsafe.Pointer, ar
 
 // AvcodecDefaultExecute2 默认多线程执行一批任务（新版）（对 avcodec_default_execute2；参数 c、fn、arg、ret、count；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecDefaultExecute2(c unsafe.Pointer, fn unsafe.Pointer, arg unsafe.Pointer, ret unsafe.Pointer, count int32) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if ret := fAvcodecDefaultExecute2(c, fn, arg, ret, count); ret < 0 {
 		return codeErr("avcodec_default_execute2", ret)
 	}
@@ -856,7 +884,9 @@ func (self *Codec) AvcodecDescriptorNext(prev unsafe.Pointer) unsafe.Pointer {
 
 // AvcodecEncodeSubtitle 编一帧字幕（对 avcodec_encode_subtitle；参数 avctx、buf、buf_size、sub；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Codec) AvcodecEncodeSubtitle(avctx unsafe.Pointer, buf unsafe.Pointer, buf_size int32, sub unsafe.Pointer) error {
-	mustUse(ensureModCodecEncode())
+	if err := ensureModCodecEncode(); err != nil {
+		return err
+	}
 	if ret := fAvcodecEncodeSubtitle(avctx, buf, buf_size, sub); ret < 0 {
 		return codeErr("avcodec_encode_subtitle", ret)
 	}

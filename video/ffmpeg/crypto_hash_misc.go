@@ -24,6 +24,7 @@ func (self *HWDevice) Ptr() unsafe.Pointer {
 type Crypto struct{ ptr unsafe.Pointer }
 
 func (self *Crypto) Ptr() unsafe.Pointer {
+	mustUse(ensureModCryptoHw())
 	if self == nil {
 		return nil
 	}
@@ -928,7 +929,9 @@ func (self *Crypto) AesCtrIncrementIv(a unsafe.Pointer) {
 
 // AesCtrInit AES-CTR 流模式加解密的小件（对 av_aes_ctr_init；参数 a、key；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) AesCtrInit(a unsafe.Pointer, key unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvAesCtrInit(a, key); ret < 0 {
 		return codeErr("av_aes_ctr_init", ret)
 	}
@@ -955,7 +958,9 @@ func (self *Crypto) AesCtrSetRandomIv(a unsafe.Pointer) {
 
 // AesInit AES 分组加解密的小件（对 av_aes_init；参数 a、key、key_bits、decrypt；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) AesInit(a unsafe.Pointer, key unsafe.Pointer, key_bits int32, decrypt int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvAesInit(a, key, key_bits, decrypt); ret < 0 {
 		return codeErr("av_aes_init", ret)
 	}
@@ -970,7 +975,9 @@ func (self *HWDevice) AllocVdpaucontext() unsafe.Pointer {
 
 // AppendPacket 把新读到的数据追加到包尾巴上（对 av_append_packet；参数 s、pkt、size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) AppendPacket(s unsafe.Pointer, pkt unsafe.Pointer, size int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvAppendPacket(s, pkt, size); ret < 0 {
 		return codeErr("av_append_packet", ret)
 	}
@@ -1069,7 +1076,9 @@ func (self *Crypto) CamelliaCrypt(ctx unsafe.Pointer, dst unsafe.Pointer, src un
 
 // CamelliaInit Camellia 加解密的小件（对 av_camellia_init；参数 ctx、key、key_bits；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) CamelliaInit(ctx unsafe.Pointer, key unsafe.Pointer, key_bits int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvCamelliaInit(ctx, key, key_bits); ret < 0 {
 		return codeErr("av_camellia_init", ret)
 	}
@@ -1096,7 +1105,9 @@ func (self *Crypto) Cast5Crypt2(ctx unsafe.Pointer, dst unsafe.Pointer, src unsa
 
 // Cast5Init CAST5 加解密的小件（对 av_cast5_init；参数 ctx、key、key_bits；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) Cast5Init(ctx unsafe.Pointer, key unsafe.Pointer, key_bits int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvCast5Init(ctx, key, key_bits); ret < 0 {
 		return codeErr("av_cast5_init", ret)
 	}
@@ -1105,7 +1116,9 @@ func (self *Crypto) Cast5Init(ctx unsafe.Pointer, key unsafe.Pointer, key_bits i
 
 // ChromaLocationEnumToPos 把色度位置枚举换算成横竖偏移（对 av_chroma_location_enum_to_pos；参数 xpos、ypos、pos；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ChromaLocationEnumToPos(xpos *int32, ypos *int32, pos int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvChromaLocationEnumToPos(xpos, ypos, pos); ret < 0 {
 		return codeErr("av_chroma_location_enum_to_pos", ret)
 	}
@@ -1114,7 +1127,9 @@ func (self *Util) ChromaLocationEnumToPos(xpos *int32, ypos *int32, pos int32) e
 
 // ChromaLocationFromName 按名字找色度位置编号（对 av_chroma_location_from_name；参数 name；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ChromaLocationFromName(name string) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvChromaLocationFromName(name); ret < 0 {
 		return codeErr("av_chroma_location_from_name", ret)
 	}
@@ -1135,7 +1150,9 @@ func (self *Util) ChromaLocationPosToEnum(xpos int32, ypos int32) int32 {
 
 // CmpI 比较两个整数并回 -1/0/1（对 av_cmp_i；参数 a、b；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) CmpI(a unsafe.Pointer, b unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvCmpI(a, b); ret < 0 {
 		return codeErr("av_cmp_i", ret)
 	}
@@ -1156,7 +1173,9 @@ func (self *Crypto) CrcGetTable(crc_id unsafe.Pointer) unsafe.Pointer {
 
 // CrcInit 初始化一套 CRC 表，后面算校验用（对 av_crc_init；参数 ctx、le、bits、poly、ctx_size；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) CrcInit(ctx unsafe.Pointer, le int32, bits int32, poly uint32, ctx_size int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvCrcInit(ctx, le, bits, poly, ctx_size); ret < 0 {
 		return codeErr("av_crc_init", ret)
 	}
@@ -1269,7 +1288,9 @@ func (self *Crypto) DesCrypt(d unsafe.Pointer, dst unsafe.Pointer, src unsafe.Po
 
 // DesInit DES 加解密的小件（对 av_des_init；参数 d、key、key_bits、decrypt；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) DesInit(d unsafe.Pointer, key unsafe.Pointer, key_bits int32, decrypt int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvDesInit(d, key, key_bits, decrypt); ret < 0 {
 		return codeErr("av_des_init", ret)
 	}
@@ -1296,7 +1317,9 @@ func (self *Util) DetectionBboxCreateSideData(frame unsafe.Pointer, nb_bboxes ui
 
 // DiracParseSequenceHeader 解析 Dirac 序列头（对 av_dirac_parse_sequence_header；参数 dsh、buf、buf_size、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) DiracParseSequenceHeader(dsh *unsafe.Pointer, buf unsafe.Pointer, buf_size uintptr, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvDiracParseSequenceHeader(dsh, buf, buf_size, log_ctx); ret < 0 {
 		return codeErr("av_dirac_parse_sequence_header", ret)
 	}
@@ -1371,7 +1394,9 @@ func (self *Util) DynarrayAdd(tab_ptr unsafe.Pointer, nb_ptr unsafe.Pointer, ele
 
 // DynarrayAddNofree 动态数组追加（对 av_dynarray_add_nofree；参数 tab_ptr、nb_ptr、elem；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) DynarrayAddNofree(tab_ptr unsafe.Pointer, nb_ptr unsafe.Pointer, elem unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvDynarrayAddNofree(tab_ptr, nb_ptr, elem); ret < 0 {
 		return codeErr("av_dynarray_add_nofree", ret)
 	}
@@ -1482,7 +1507,9 @@ func (self *Util) ExprFree(e unsafe.Pointer) {
 
 // ExprParse 表达式解析求值（对 av_expr_parse；参数 expr、s、const_names、func1_names、cb4、func2_names、cb6、log_offset、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ExprParse(expr *unsafe.Pointer, s unsafe.Pointer, const_names unsafe.Pointer, func1_names unsafe.Pointer, cb4 unsafe.Pointer, func2_names unsafe.Pointer, cb6 unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvExprParse(expr, s, const_names, func1_names, cb4, func2_names, cb6, log_offset, log_ctx); ret < 0 {
 		return codeErr("av_expr_parse", ret)
 	}
@@ -1491,7 +1518,9 @@ func (self *Util) ExprParse(expr *unsafe.Pointer, s unsafe.Pointer, const_names 
 
 // ExprParseAndEval 表达式解析求值（对 av_expr_parse_and_eval；参数 res、s、const_names、const_values、func1_names、cb5、func2_names、cb7、opaque、log_offset、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ExprParseAndEval(res unsafe.Pointer, s unsafe.Pointer, const_names unsafe.Pointer, const_values unsafe.Pointer, func1_names unsafe.Pointer, cb5 unsafe.Pointer, func2_names unsafe.Pointer, cb7 unsafe.Pointer, opaque unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvExprParseAndEval(res, s, const_names, const_values, func1_names, cb5, func2_names, cb7, opaque, log_offset, log_ctx); ret < 0 {
 		return codeErr("av_expr_parse_and_eval", ret)
 	}
@@ -1560,7 +1589,9 @@ func (self *Util) FileMap(filename unsafe.Pointer, bufptr *unsafe.Pointer, size 
 
 // FilenameNumberTest 看文件名像不像编号序列（对 av_filename_number_test；参数 filename；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) FilenameNumberTest(filename unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvFilenameNumberTest(filename); ret < 0 {
 		return codeErr("av_filename_number_test", ret)
 	}
@@ -1587,7 +1618,9 @@ func (self *Prober) FindBestPixFmtOf2(dst_pix_fmt1 int32, dst_pix_fmt2 int32, sr
 
 // FindDefaultStreamIndex 找默认播的那条流序号（对 av_find_default_stream_index；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) FindDefaultStreamIndex(s unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvFindDefaultStreamIndex(s); ret < 0 {
 		return codeErr("av_find_default_stream_index", ret)
 	}
@@ -1596,7 +1629,9 @@ func (self *Util) FindDefaultStreamIndex(s unsafe.Pointer) error {
 
 // FindInfoTag 在信息串里按标签取值（对 av_find_info_tag；参数 arg、arg_size、tag1、info；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) FindInfoTag(arg unsafe.Pointer, arg_size int32, tag1 unsafe.Pointer, info unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvFindInfoTag(arg, arg_size, tag1, info); ret < 0 {
 		return codeErr("av_find_info_tag", ret)
 	}
@@ -1611,7 +1646,9 @@ func (self *Prober) FindInputFormat(short_name unsafe.Pointer) unsafe.Pointer {
 
 // FindNearestQIdx 在分数量表里找最接近的那档（对 av_find_nearest_q_idx；参数 q、q_list；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) FindNearestQIdx(q AVRational, q_list unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvFindNearestQIdx(q, q_list); ret < 0 {
 		return codeErr("av_find_nearest_q_idx", ret)
 	}
@@ -1776,7 +1813,9 @@ func (self *Util) GetToken(buf *unsafe.Pointer, term unsafe.Pointer) unsafe.Poin
 
 // HashAlloc 新建一个哈希算子（对 av_hash_alloc；参数 ctx、name；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) HashAlloc(ctx *unsafe.Pointer, name unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHashAlloc(ctx, name); ret < 0 {
 		return codeErr("av_hash_alloc", ret)
 	}
@@ -1863,7 +1902,9 @@ func (self *Crypto) HmacAlloc(typ unsafe.Pointer) unsafe.Pointer {
 
 // HmacCalc 一步算出整块数据的 HMAC（对 av_hmac_calc；参数 ctx、data、len、key、keylen、out、outlen；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) HmacCalc(ctx unsafe.Pointer, data unsafe.Pointer, len uint32, key unsafe.Pointer, keylen uint32, out unsafe.Pointer, outlen uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHmacCalc(ctx, data, len, key, keylen, out, outlen); ret < 0 {
 		return codeErr("av_hmac_calc", ret)
 	}
@@ -1872,7 +1913,9 @@ func (self *Crypto) HmacCalc(ctx unsafe.Pointer, data unsafe.Pointer, len uint32
 
 // HmacFinal 收尾并取出 HMAC 结果（对 av_hmac_final；参数 ctx、out、outlen；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) HmacFinal(ctx unsafe.Pointer, out unsafe.Pointer, outlen uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHmacFinal(ctx, out, outlen); ret < 0 {
 		return codeErr("av_hmac_final", ret)
 	}
@@ -1905,7 +1948,9 @@ func (self *HWDevice) HwdeviceCtxAlloc(typ unsafe.Pointer) unsafe.Pointer {
 
 // HwdeviceCtxCreate 建或配硬解设备上下文（对 av_hwdevice_ctx_create；参数 device_ctx、typ、device、opts、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwdeviceCtxCreate(device_ctx *unsafe.Pointer, typ int32, device unsafe.Pointer, opts unsafe.Pointer, flags int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwdeviceCtxCreate(device_ctx, typ, device, opts, flags); ret < 0 {
 		return codeErr("av_hwdevice_ctx_create", ret)
 	}
@@ -1914,7 +1959,9 @@ func (self *HWDevice) HwdeviceCtxCreate(device_ctx *unsafe.Pointer, typ int32, d
 
 // HwdeviceCtxCreateDerived 建或配硬解设备上下文（对 av_hwdevice_ctx_create_derived；参数 dst_ctx、typ、src_ctx、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwdeviceCtxCreateDerived(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, flags int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwdeviceCtxCreateDerived(dst_ctx, typ, src_ctx, flags); ret < 0 {
 		return codeErr("av_hwdevice_ctx_create_derived", ret)
 	}
@@ -1923,7 +1970,9 @@ func (self *HWDevice) HwdeviceCtxCreateDerived(dst_ctx *unsafe.Pointer, typ int3
 
 // HwdeviceCtxCreateDerivedOpts 建或配硬解设备上下文（对 av_hwdevice_ctx_create_derived_opts；参数 dst_ctx、typ、src_ctx、options、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwdeviceCtxCreateDerivedOpts(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, options unsafe.Pointer, flags int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwdeviceCtxCreateDerivedOpts(dst_ctx, typ, src_ctx, options, flags); ret < 0 {
 		return codeErr("av_hwdevice_ctx_create_derived_opts", ret)
 	}
@@ -1932,7 +1981,9 @@ func (self *HWDevice) HwdeviceCtxCreateDerivedOpts(dst_ctx *unsafe.Pointer, typ 
 
 // HwdeviceCtxInit 建或配硬解设备上下文（对 av_hwdevice_ctx_init；参数 ref；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwdeviceCtxInit(ref unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwdeviceCtxInit(ref); ret < 0 {
 		return codeErr("av_hwdevice_ctx_init", ret)
 	}
@@ -1983,7 +2034,9 @@ func (self *HWDevice) HwframeCtxAlloc(device_ctx unsafe.Pointer) unsafe.Pointer 
 
 // HwframeCtxCreateDerived 申请或搬运硬解帧缓冲（对 av_hwframe_ctx_create_derived；参数 derived_frame_ctx、format、derived_device_ctx、source_frame_ctx、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwframeCtxCreateDerived(derived_frame_ctx *unsafe.Pointer, format unsafe.Pointer, derived_device_ctx unsafe.Pointer, source_frame_ctx unsafe.Pointer, flags int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwframeCtxCreateDerived(derived_frame_ctx, format, derived_device_ctx, source_frame_ctx, flags); ret < 0 {
 		return codeErr("av_hwframe_ctx_create_derived", ret)
 	}
@@ -1992,7 +2045,9 @@ func (self *HWDevice) HwframeCtxCreateDerived(derived_frame_ctx *unsafe.Pointer,
 
 // HwframeCtxInit 申请或搬运硬解帧缓冲（对 av_hwframe_ctx_init；参数 ref；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwframeCtxInit(ref unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwframeCtxInit(ref); ret < 0 {
 		return codeErr("av_hwframe_ctx_init", ret)
 	}
@@ -2007,7 +2062,9 @@ func (self *HWDevice) HwframeGetBuffer(hwframe_ctx unsafe.Pointer, frame unsafe.
 
 // HwframeMap 申请或搬运硬解帧缓冲（对 av_hwframe_map；参数 dst、src、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwframeMap(dst unsafe.Pointer, src unsafe.Pointer, flags int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwframeMap(dst, src, flags); ret < 0 {
 		return codeErr("av_hwframe_map", ret)
 	}
@@ -2016,7 +2073,9 @@ func (self *HWDevice) HwframeMap(dst unsafe.Pointer, src unsafe.Pointer, flags i
 
 // HwframeTransferData 申请或搬运硬解帧缓冲（对 av_hwframe_transfer_data；参数 dst、src、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) HwframeTransferData(dst unsafe.Pointer, src unsafe.Pointer, flags int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvHwframeTransferData(dst, src, flags); ret < 0 {
 		return codeErr("av_hwframe_transfer_data", ret)
 	}
@@ -2145,7 +2204,9 @@ func (self *Util) Int2i(a int64) unsafe.Pointer {
 
 // InterleavedWriteFrame 按时间戳交织排序后写一包（对 av_interleaved_write_frame；参数 s、pkt；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Muxer) InterleavedWriteFrame(s unsafe.Pointer, pkt unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvInterleavedWriteFrame(s, pkt); ret < 0 {
 		return codeErr("av_interleaved_write_frame", ret)
 	}
@@ -2154,7 +2215,9 @@ func (self *Muxer) InterleavedWriteFrame(s unsafe.Pointer, pkt unsafe.Pointer) e
 
 // InterleavedWriteUncodedFrame 交织排序后直接写一帧裸数据（对 av_interleaved_write_uncoded_frame；参数 s、stream_index、frame；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Muxer) InterleavedWriteUncodedFrame(s unsafe.Pointer, stream_index int32, frame unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvInterleavedWriteUncodedFrame(s, stream_index, frame); ret < 0 {
 		return codeErr("av_interleaved_write_uncoded_frame", ret)
 	}
@@ -2181,7 +2244,9 @@ func (self *Util) LfgInit(c unsafe.Pointer, seed uint32) {
 
 // LfgInitFromData 简单随机数发生器（对 av_lfg_init_from_data；参数 c、data、length；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) LfgInitFromData(c unsafe.Pointer, data unsafe.Pointer, length uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvLfgInitFromData(c, data, length); ret < 0 {
 		return codeErr("av_lfg_init_from_data", ret)
 	}
@@ -2202,7 +2267,9 @@ func (self *Util) Lzo1xDecode(out unsafe.Pointer, outlen unsafe.Pointer, in unsa
 
 // MatchExt 看文件名后缀在不在列表里（对 av_match_ext；参数 filename、extensions；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) MatchExt(filename unsafe.Pointer, extensions unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvMatchExt(filename, extensions); ret < 0 {
 		return codeErr("av_match_ext", ret)
 	}
@@ -2211,7 +2278,9 @@ func (self *Util) MatchExt(filename unsafe.Pointer, extensions unsafe.Pointer) e
 
 // MatchList 看名字在不在逗号列表里（对 av_match_list；参数 name、list、separator；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) MatchList(name unsafe.Pointer, list unsafe.Pointer, separator byte) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvMatchList(name, list, separator); ret < 0 {
 		return codeErr("av_match_list", ret)
 	}
@@ -2220,7 +2289,9 @@ func (self *Util) MatchList(name unsafe.Pointer, list unsafe.Pointer, separator 
 
 // MatchName 看名字和模式匹不匹配（对 av_match_name；参数 name、names；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) MatchName(name unsafe.Pointer, names unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvMatchName(name, names); ret < 0 {
 		return codeErr("av_match_name", ret)
 	}
@@ -2295,7 +2366,9 @@ func (self *HWDevice) MediacodecDefaultFree(avctx unsafe.Pointer) {
 
 // MediacodecDefaultInit 安卓 MediaCodec 硬解的小件（对 av_mediacodec_default_init；参数 avctx、ctx、surface；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) MediacodecDefaultInit(avctx unsafe.Pointer, ctx unsafe.Pointer, surface unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvMediacodecDefaultInit(avctx, ctx, surface); ret < 0 {
 		return codeErr("av_mediacodec_default_init", ret)
 	}
@@ -2304,7 +2377,9 @@ func (self *HWDevice) MediacodecDefaultInit(avctx unsafe.Pointer, ctx unsafe.Poi
 
 // MediacodecReleaseBuffer 安卓 MediaCodec 硬解的小件（对 av_mediacodec_release_buffer；参数 buffer、render；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) MediacodecReleaseBuffer(buffer unsafe.Pointer, render int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvMediacodecReleaseBuffer(buffer, render); ret < 0 {
 		return codeErr("av_mediacodec_release_buffer", ret)
 	}
@@ -2313,7 +2388,9 @@ func (self *HWDevice) MediacodecReleaseBuffer(buffer unsafe.Pointer, render int3
 
 // MediacodecRenderBufferAtTime 安卓 MediaCodec 硬解的小件（对 av_mediacodec_render_buffer_at_time；参数 buffer、time；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *HWDevice) MediacodecRenderBufferAtTime(buffer unsafe.Pointer, time int64) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvMediacodecRenderBufferAtTime(buffer, time); ret < 0 {
 		return codeErr("av_mediacodec_render_buffer_at_time", ret)
 	}
@@ -2376,7 +2453,9 @@ func (self *Util) MuxerIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 
 // NearerQ 在两个分数里挑离目标近的（对 av_nearer_q；参数 q、q1、q2；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) NearerQ(q AVRational, q1 AVRational, q2 AVRational) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvNearerQ(q, q1, q2); ret < 0 {
 		return codeErr("av_nearer_q", ret)
 	}
@@ -2421,7 +2500,9 @@ func (self *Util) PktDumpLog2(avcl unsafe.Pointer, level int32, pkt unsafe.Point
 
 // ProbeInputBuffer 看一 buffered 数据像哪种盒子（对 av_probe_input_buffer；参数 pb、fmt、url、logctx、offset、max_probe_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Prober) ProbeInputBuffer(pb unsafe.Pointer, fmt *unsafe.Pointer, url unsafe.Pointer, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvProbeInputBuffer(pb, fmt, url, logctx, offset, max_probe_size); ret < 0 {
 		return codeErr("av_probe_input_buffer", ret)
 	}
@@ -2430,7 +2511,9 @@ func (self *Prober) ProbeInputBuffer(pb unsafe.Pointer, fmt *unsafe.Pointer, url
 
 // ProbeInputBuffer2 看一 buffered 数据像哪种盒子（对 av_probe_input_buffer2；参数 pb、fmt、url、logctx、offset、max_probe_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Prober) ProbeInputBuffer2(pb unsafe.Pointer, fmt *unsafe.Pointer, url unsafe.Pointer, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvProbeInputBuffer2(pb, fmt, url, logctx, offset, max_probe_size); ret < 0 {
 		return codeErr("av_probe_input_buffer2", ret)
 	}
@@ -2475,7 +2558,9 @@ func (self *Util) QsvAllocContext() unsafe.Pointer {
 
 // RandomBytes 取随机字节（对 av_random_bytes；参数 buf、len；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) RandomBytes(buf unsafe.Pointer, len uintptr) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvRandomBytes(buf, len); ret < 0 {
 		return codeErr("av_random_bytes", ret)
 	}
@@ -2496,7 +2581,9 @@ func (self *Crypto) Rc4Crypt(d unsafe.Pointer, dst unsafe.Pointer, src unsafe.Po
 
 // Rc4Init RC4 流加解密的小件（对 av_rc4_init；参数 d、key、key_bits、decrypt；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) Rc4Init(d unsafe.Pointer, key unsafe.Pointer, key_bits int32, decrypt int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvRc4Init(d, key, key_bits, decrypt); ret < 0 {
 		return codeErr("av_rc4_init", ret)
 	}
@@ -2535,7 +2622,9 @@ func (self *Util) ReadImageLine2(dst unsafe.Pointer, data unsafe.Pointer, linesi
 
 // ReadPause 暂停网络读流（对 av_read_pause；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ReadPause(s unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvReadPause(s); ret < 0 {
 		return codeErr("av_read_pause", ret)
 	}
@@ -2544,7 +2633,9 @@ func (self *Util) ReadPause(s unsafe.Pointer) error {
 
 // ReadPlay 恢复网络读流（对 av_read_play；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ReadPlay(s unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvReadPlay(s); ret < 0 {
 		return codeErr("av_read_play", ret)
 	}
@@ -2553,7 +2644,9 @@ func (self *Util) ReadPlay(s unsafe.Pointer) error {
 
 // Reduce 分数约分（对 av_reduce；参数 dst_num、dst_den、num、den、max；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) Reduce(dst_num unsafe.Pointer, dst_den unsafe.Pointer, num int64, den int64, max int64) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvReduce(dst_num, dst_den, num, den, max); ret < 0 {
 		return codeErr("av_reduce", ret)
 	}
@@ -2574,7 +2667,9 @@ func (self *Crypto) RipemdFinal(context unsafe.Pointer, digest unsafe.Pointer) {
 
 // RipemdInit 算 RIPEMD（对 av_ripemd_init；参数 context、bits；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) RipemdInit(context unsafe.Pointer, bits int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvRipemdInit(context, bits); ret < 0 {
 		return codeErr("av_ripemd_init", ret)
 	}
@@ -2589,7 +2684,9 @@ func (self *Crypto) RipemdUpdate(context unsafe.Pointer, data unsafe.Pointer, le
 
 // SamplesAlloc 分配采样缓冲（对 av_samples_alloc；参数 audio_data、linesize、nb_channels、nb_samples、sample_fmt、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Samples) SamplesAlloc(audio_data *unsafe.Pointer, linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSamplesAlloc(audio_data, linesize, nb_channels, nb_samples, sample_fmt, align); ret < 0 {
 		return codeErr("av_samples_alloc", ret)
 	}
@@ -2598,7 +2695,9 @@ func (self *Samples) SamplesAlloc(audio_data *unsafe.Pointer, linesize unsafe.Po
 
 // SamplesAllocArrayAndSamples 分配采样指针数组加缓冲（对 av_samples_alloc_array_and_samples；参数 audio_data、linesize、nb_channels、nb_samples、sample_fmt、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Samples) SamplesAllocArrayAndSamples(audio_data *unsafe.Pointer, linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSamplesAllocArrayAndSamples(audio_data, linesize, nb_channels, nb_samples, sample_fmt, align); ret < 0 {
 		return codeErr("av_samples_alloc_array_and_samples", ret)
 	}
@@ -2607,7 +2706,9 @@ func (self *Samples) SamplesAllocArrayAndSamples(audio_data *unsafe.Pointer, lin
 
 // SamplesCopy 拷采样数据（对 av_samples_copy；参数 dst、src、dst_offset、src_offset、nb_samples、nb_channels、sample_fmt；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Samples) SamplesCopy(dst unsafe.Pointer, src unsafe.Pointer, dst_offset int32, src_offset int32, nb_samples int32, nb_channels int32, sample_fmt unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSamplesCopy(dst, src, dst_offset, src_offset, nb_samples, nb_channels, sample_fmt); ret < 0 {
 		return codeErr("av_samples_copy", ret)
 	}
@@ -2616,7 +2717,9 @@ func (self *Samples) SamplesCopy(dst unsafe.Pointer, src unsafe.Pointer, dst_off
 
 // SamplesFillArrays 把现成内存填成采样指针数组（对 av_samples_fill_arrays；参数 audio_data、linesize、buf、nb_channels、nb_samples、sample_fmt、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Samples) SamplesFillArrays(audio_data *unsafe.Pointer, linesize unsafe.Pointer, buf unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSamplesFillArrays(audio_data, linesize, buf, nb_channels, nb_samples, sample_fmt, align); ret < 0 {
 		return codeErr("av_samples_fill_arrays", ret)
 	}
@@ -2631,7 +2734,9 @@ func (self *Samples) SamplesGetBufferSize(linesize unsafe.Pointer, nb_channels i
 
 // SamplesSetSilence 把采样缓冲置成静音（对 av_samples_set_silence；参数 audio_data、offset、nb_samples、nb_channels、sample_fmt；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Samples) SamplesSetSilence(audio_data unsafe.Pointer, offset int32, nb_samples int32, nb_channels int32, sample_fmt unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSamplesSetSilence(audio_data, offset, nb_samples, nb_channels, sample_fmt); ret < 0 {
 		return codeErr("av_samples_set_silence", ret)
 	}
@@ -2640,7 +2745,9 @@ func (self *Samples) SamplesSetSilence(audio_data unsafe.Pointer, offset int32, 
 
 // SdpCreate 按流拼 SDP 描述串（对 av_sdp_create；参数 ac、n_files、buf、size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) SdpCreate(ac unsafe.Pointer, n_files int32, buf unsafe.Pointer, size int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSdpCreate(ac, n_files, buf, size); ret < 0 {
 		return codeErr("av_sdp_create", ret)
 	}
@@ -2649,7 +2756,9 @@ func (self *Util) SdpCreate(ac unsafe.Pointer, n_files int32, buf unsafe.Pointer
 
 // SetOptionsString 按字符串批量设选项（对 av_set_options_string；参数 ctx、opts、key_val_sep、pairs_sep；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) SetOptionsString(ctx unsafe.Pointer, opts unsafe.Pointer, key_val_sep unsafe.Pointer, pairs_sep unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSetOptionsString(ctx, opts, key_val_sep, pairs_sep); ret < 0 {
 		return codeErr("av_set_options_string", ret)
 	}
@@ -2670,7 +2779,9 @@ func (self *Crypto) Sha512Final(context unsafe.Pointer, digest unsafe.Pointer) {
 
 // Sha512Init 算 SHA（对 av_sha512_init；参数 context、bits；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) Sha512Init(context unsafe.Pointer, bits int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSha512Init(context, bits); ret < 0 {
 		return codeErr("av_sha512_init", ret)
 	}
@@ -2697,7 +2808,9 @@ func (self *Crypto) ShaFinal(context unsafe.Pointer, digest unsafe.Pointer) {
 
 // ShaInit 算 SHA（对 av_sha_init；参数 context、bits；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) ShaInit(context unsafe.Pointer, bits int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvShaInit(context, bits); ret < 0 {
 		return codeErr("av_sha_init", ret)
 	}
@@ -2730,7 +2843,9 @@ func (self *Util) SmallStrptime(p unsafe.Pointer, fmt unsafe.Pointer, dt unsafe.
 
 // Sscanf 按格式从字符串里取值（对 av_sscanf；参数 str、format；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) Sscanf(str unsafe.Pointer, format unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvSscanf(str, format); ret < 0 {
 		return codeErr("av_sscanf", ret)
 	}
@@ -2739,7 +2854,9 @@ func (self *Util) Sscanf(str unsafe.Pointer, format unsafe.Pointer) error {
 
 // Strcasecmp 字符串小工具（对 av_strcasecmp；参数 a、b；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) Strcasecmp(a unsafe.Pointer, b unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvStrcasecmp(a, b); ret < 0 {
 		return codeErr("av_strcasecmp", ret)
 	}
@@ -2755,7 +2872,6 @@ func (self *Util) Strdup(arg0 unsafe.Pointer) unsafe.Pointer {
 // StrNDup copies at most n bytes of s into fresh malloc'd memory and
 // returns it as a Go string (the C copy is freed before returning).
 func (self *Util) StrNDup(s string, n int) string {
-	mustUse(ensureModBufferMem())
 	mustUse(ensureModCrypto())
 	p := fAvStrndup(s, uintptr(n))
 	if p == nil {
@@ -2822,7 +2938,9 @@ func (self *Util) Strireplace(str unsafe.Pointer, from unsafe.Pointer, to unsafe
 
 // Stristart 字符串小工具（对 av_stristart；参数 str、pfx、ptr；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) Stristart(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvStristart(str, pfx, ptr); ret < 0 {
 		return codeErr("av_stristart", ret)
 	}
@@ -2849,7 +2967,9 @@ func (self *Util) Strlcpy(dst unsafe.Pointer, src unsafe.Pointer, size uintptr) 
 
 // Strncasecmp 字符串小工具（对 av_strncasecmp；参数 a、b、n；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) Strncasecmp(a unsafe.Pointer, b unsafe.Pointer, n uintptr) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvStrncasecmp(a, b, n); ret < 0 {
 		return codeErr("av_strncasecmp", ret)
 	}
@@ -2918,7 +3038,9 @@ func (self *Util) ThreadMessageFlush(mq unsafe.Pointer) {
 
 // ThreadMessageQueueAlloc 新建线程消息队列（对 av_thread_message_queue_alloc；参数 mq、nelem、elsize；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ThreadMessageQueueAlloc(mq *unsafe.Pointer, nelem uint32, elsize uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvThreadMessageQueueAlloc(mq, nelem, elsize); ret < 0 {
 		return codeErr("av_thread_message_queue_alloc", ret)
 	}
@@ -2933,7 +3055,9 @@ func (self *Util) ThreadMessageQueueFree(mq *unsafe.Pointer) {
 
 // ThreadMessageQueueNbElems 问队列里攒了几条（对 av_thread_message_queue_nb_elems；参数 mq；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ThreadMessageQueueNbElems(mq unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvThreadMessageQueueNbElems(mq); ret < 0 {
 		return codeErr("av_thread_message_queue_nb_elems", ret)
 	}
@@ -2942,7 +3066,9 @@ func (self *Util) ThreadMessageQueueNbElems(mq unsafe.Pointer) error {
 
 // ThreadMessageQueueRecv 从队列取一条（对 av_thread_message_queue_recv；参数 mq、msg、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ThreadMessageQueueRecv(mq unsafe.Pointer, msg unsafe.Pointer, flags uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvThreadMessageQueueRecv(mq, msg, flags); ret < 0 {
 		return codeErr("av_thread_message_queue_recv", ret)
 	}
@@ -2951,7 +3077,9 @@ func (self *Util) ThreadMessageQueueRecv(mq unsafe.Pointer, msg unsafe.Pointer, 
 
 // ThreadMessageQueueSend 往队列塞一条（对 av_thread_message_queue_send；参数 mq、msg、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ThreadMessageQueueSend(mq unsafe.Pointer, msg unsafe.Pointer, flags uint32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvThreadMessageQueueSend(mq, msg, flags); ret < 0 {
 		return codeErr("av_thread_message_queue_send", ret)
 	}
@@ -3032,7 +3160,9 @@ func (self *Crypto) TwofishCrypt(ctx unsafe.Pointer, dst unsafe.Pointer, src uns
 
 // TwofishInit Twofish 加解密的小件（对 av_twofish_init；参数 ctx、key、key_bits；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Crypto) TwofishInit(ctx unsafe.Pointer, key unsafe.Pointer, key_bits int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvTwofishInit(ctx, key, key_bits); ret < 0 {
 		return codeErr("av_twofish_init", ret)
 	}
@@ -3041,7 +3171,9 @@ func (self *Crypto) TwofishInit(ctx unsafe.Pointer, key unsafe.Pointer, key_bits
 
 // TxInit 新建变换上下文（对 av_tx_init；参数 ctx、tx、typ、inv、len、scale、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) TxInit(ctx *unsafe.Pointer, tx unsafe.Pointer, typ unsafe.Pointer, inv int32, len int32, scale unsafe.Pointer, flags uint64) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvTxInit(ctx, tx, typ, inv, len, scale, flags); ret < 0 {
 		return codeErr("av_tx_init", ret)
 	}
@@ -3062,7 +3194,9 @@ func (self *Util) Utf8Decode(codep unsafe.Pointer, bufp *unsafe.Pointer, buf_end
 
 // UuidParse 解析 UUID 字符串（对 av_uuid_parse；参数 in、uu；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) UuidParse(in unsafe.Pointer, uu unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvUuidParse(in, uu); ret < 0 {
 		return codeErr("av_uuid_parse", ret)
 	}
@@ -3071,7 +3205,9 @@ func (self *Util) UuidParse(in unsafe.Pointer, uu unsafe.Pointer) error {
 
 // UuidParseRange 解析一段 UUID 字符串（对 av_uuid_parse_range；参数 in_start、in_end、uu；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) UuidParseRange(in_start unsafe.Pointer, in_end unsafe.Pointer, uu unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvUuidParseRange(in_start, in_end, uu); ret < 0 {
 		return codeErr("av_uuid_parse_range", ret)
 	}
@@ -3086,7 +3222,9 @@ func (self *Util) UuidUnparse(uu unsafe.Pointer, out unsafe.Pointer) {
 
 // UuidUrnParse 解析 URN 形式的 UUID（对 av_uuid_urn_parse；参数 in、uu；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) UuidUrnParse(in unsafe.Pointer, uu unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvUuidUrnParse(in, uu); ret < 0 {
 		return codeErr("av_uuid_urn_parse", ret)
 	}
@@ -3173,7 +3311,9 @@ func (self *Util) Vlog(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer, vl 
 
 // VorbisParseFrame 解析 Vorbis 帧头（对 av_vorbis_parse_frame；参数 s、buf、buf_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) VorbisParseFrame(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvVorbisParseFrame(s, buf, buf_size); ret < 0 {
 		return codeErr("av_vorbis_parse_frame", ret)
 	}
@@ -3206,7 +3346,9 @@ func (self *Util) VorbisParseReset(s unsafe.Pointer) {
 
 // WriteFrame 写一包数据，不做交织排序（对 av_write_frame；参数 s、pkt；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Muxer) WriteFrame(s unsafe.Pointer, pkt unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvWriteFrame(s, pkt); ret < 0 {
 		return codeErr("av_write_frame", ret)
 	}
@@ -3227,7 +3369,9 @@ func (self *Muxer) WriteImageLine2(src unsafe.Pointer, data unsafe.Pointer, line
 
 // WriteTrailer 写文件尾并收尾（对 av_write_trailer；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Muxer) WriteTrailer(s unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvWriteTrailer(s); ret < 0 {
 		return codeErr("av_write_trailer", ret)
 	}
@@ -3236,7 +3380,9 @@ func (self *Muxer) WriteTrailer(s unsafe.Pointer) error {
 
 // WriteUncodedFrame 直接写一帧裸数据（对 av_write_uncoded_frame；参数 s、stream_index、frame；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Muxer) WriteUncodedFrame(s unsafe.Pointer, stream_index int32, frame unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvWriteUncodedFrame(s, stream_index, frame); ret < 0 {
 		return codeErr("av_write_uncoded_frame", ret)
 	}
@@ -3245,7 +3391,9 @@ func (self *Muxer) WriteUncodedFrame(s unsafe.Pointer, stream_index int32, frame
 
 // WriteUncodedFrameQuery 直接写一帧裸数据（对 av_write_uncoded_frame_query；参数 s、stream_index；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Muxer) WriteUncodedFrameQuery(s unsafe.Pointer, stream_index int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvWriteUncodedFrameQuery(s, stream_index); ret < 0 {
 		return codeErr("av_write_uncoded_frame_query", ret)
 	}
@@ -3308,7 +3456,9 @@ func (self *Util) SwresampleVersion() uint32 {
 
 // SwriAudioConvert 底层采样格式转换（对 swri_audio_convert；参数 ctx、out、in、len；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) SwriAudioConvert(ctx unsafe.Pointer, out unsafe.Pointer, in unsafe.Pointer, len int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fSwriAudioConvert(ctx, out, in, len); ret < 0 {
 		return codeErr("swri_audio_convert", ret)
 	}
@@ -3377,7 +3527,9 @@ func (self *Util) ImageCopyPlaneUcFrom(dst unsafe.Pointer, dst_linesize unsafe.P
 
 // ImageCopyToBuffer 算图片大小或拷图片平面（对 av_image_copy_to_buffer；参数 dst、dst_size、src_data、src_linesize、pix_fmt、width、height、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ImageCopyToBuffer(dst unsafe.Pointer, dst_size int32, src_data unsafe.Pointer, src_linesize int32, pix_fmt unsafe.Pointer, width int32, height int32, align int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvImageCopyToBuffer(dst, dst_size, src_data, src_linesize, pix_fmt, width, height, align); ret < 0 {
 		return codeErr("av_image_copy_to_buffer", ret)
 	}
@@ -3392,7 +3544,9 @@ func (self *Util) ImageCopyUcFrom(dst_data unsafe.Pointer, dst_linesizes unsafe.
 
 // ImageFillArrays 算图片大小或拷图片平面（对 av_image_fill_arrays；参数 dst_data、dst_linesize、src、pix_fmt、width、height、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ImageFillArrays(dst_data unsafe.Pointer, dst_linesize int32, src unsafe.Pointer, pix_fmt unsafe.Pointer, width int32, height int32, align int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvImageFillArrays(dst_data, dst_linesize, src, pix_fmt, width, height, align); ret < 0 {
 		return codeErr("av_image_fill_arrays", ret)
 	}
@@ -3401,7 +3555,9 @@ func (self *Util) ImageFillArrays(dst_data unsafe.Pointer, dst_linesize int32, s
 
 // ImageFillBlack 算图片大小或拷图片平面（对 av_image_fill_black；参数 dst_data、dst_linesize、pix_fmt、rng、width、height；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ImageFillBlack(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt unsafe.Pointer, rng unsafe.Pointer, width int32, height int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvImageFillBlack(dst_data, dst_linesize, pix_fmt, rng, width, height); ret < 0 {
 		return codeErr("av_image_fill_black", ret)
 	}
@@ -3410,7 +3566,9 @@ func (self *Util) ImageFillBlack(dst_data unsafe.Pointer, dst_linesize unsafe.Po
 
 // ImageFillColor 算图片大小或拷图片平面（对 av_image_fill_color；参数 dst_data、dst_linesize、pix_fmt、color、width、height、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ImageFillColor(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt unsafe.Pointer, color uint32, width int32, height int32, flags int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvImageFillColor(dst_data, dst_linesize, pix_fmt, color, width, height, flags); ret < 0 {
 		return codeErr("av_image_fill_color", ret)
 	}
@@ -3437,7 +3595,9 @@ func (self *Util) ImageFillPlaneSizes(size uintptr, pix_fmt unsafe.Pointer, heig
 
 // ImageFillPointers 算图片大小或拷图片平面（对 av_image_fill_pointers；参数 data、pix_fmt、height、ptr、linesizes；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ImageFillPointers(data unsafe.Pointer, pix_fmt unsafe.Pointer, height int32, ptr unsafe.Pointer, linesizes int32) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvImageFillPointers(data, pix_fmt, height, ptr, linesizes); ret < 0 {
 		return codeErr("av_image_fill_pointers", ret)
 	}
@@ -3464,7 +3624,9 @@ func (self *Util) Log216bit(v uint32) unsafe.Pointer {
 
 // Log2I 算以 2 为底的对数（对 av_log2_i；参数 a；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) Log2I(a unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvLog2I(a); ret < 0 {
 		return codeErr("av_log2_i", ret)
 	}
@@ -3473,7 +3635,9 @@ func (self *Util) Log2I(a unsafe.Pointer) error {
 
 // ParseCpuCaps 解析 CPU 特性字符串（对 av_parse_cpu_caps；参数 flags、s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
 func (self *Util) ParseCpuCaps(flags unsafe.Pointer, s unsafe.Pointer) error {
-	mustUse(ensureModCrypto())
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
 	if ret := fAvParseCpuCaps(flags, s); ret < 0 {
 		return codeErr("av_parse_cpu_caps", ret)
 	}

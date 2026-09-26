@@ -293,7 +293,9 @@ func (Clock) IsMonotonic() bool {
 
 // SleepUs sleeps usec microseconds.
 func (Clock) SleepUs(usec uint32) error {
-	mustUse(ensureModErrorLog())
+	if err := ensureModErrorLog(); err != nil {
+		return err
+	}
 	if ret := fUsleep(usec); ret < 0 {
 		return codeErr("av_usleep", ret)
 	}

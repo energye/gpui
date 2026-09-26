@@ -55,6 +55,7 @@ type BPrint struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (b *BPrint) Ptr() unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if b == nil {
 		return nil
 	}
@@ -264,7 +265,9 @@ func (m *Mem) ReallocF(p unsafe.Pointer, nelem, elsize int) unsafe.Pointer {
 
 // ReallocP reallocs through a pointer slot (av_reallocp; 0 表释放).
 func (m *Mem) ReallocP(pp unsafe.Pointer, size int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if ret := fMemReallocP(pp, uintptr(size)); ret < 0 {
 		return codeErr("av_reallocp", ret)
 	}
@@ -274,7 +277,9 @@ func (m *Mem) ReallocP(pp unsafe.Pointer, size int) error {
 // ReallocPArray reallocs an array through a slot with overflow check
 // (av_reallocp_array).
 func (m *Mem) ReallocPArray(pp unsafe.Pointer, nmemb, size int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if ret := fMemReallocPAr(pp, uintptr(nmemb), uintptr(size)); ret < 0 {
 		return codeErr("av_reallocp_array", ret)
 	}
@@ -360,7 +365,9 @@ func (b *Buffer) Opaque() unsafe.Pointer {
 // ReallocBuffer grows/shrinks a refcounted buffer (av_buffer_realloc;
 // 独占引用才能改, 共享的先 MakeWritable).
 func ReallocBuffer(buf **Buffer, size int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if buf == nil || *buf == nil {
 		return errNilBuffer
 	}
@@ -398,7 +405,9 @@ func (b *Buffer) Unref() {
 
 // Replace swaps dst to src (引用计数, 老引用先丢).
 func (b *Buffer) Replace(src *Buffer) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if b == nil {
 		return errNilBuffer
 	}
@@ -423,7 +432,9 @@ func (b *Buffer) IsWritable() bool {
 
 // MakeWritable makes the buffer exclusive (写前调).
 func (b *Buffer) MakeWritable() error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if b == nil {
 		return errNilBuffer
 	}
@@ -538,7 +549,9 @@ func (f *Fifo) CanWrite() int {
 
 // Write appends nbElems elements from buf.
 func (f *Fifo) Write(buf unsafe.Pointer, nbElems int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFifo
 	}
@@ -550,7 +563,9 @@ func (f *Fifo) Write(buf unsafe.Pointer, nbElems int) error {
 
 // Read pops nbElems elements into buf.
 func (f *Fifo) Read(buf unsafe.Pointer, nbElems int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFifo
 	}
@@ -581,7 +596,9 @@ func (f *Fifo) ElemSize() int {
 
 // Grow2 reserves room for inc more elements (av_fifo_grow2).
 func (f *Fifo) Grow2(inc int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFifo
 	}
@@ -593,7 +610,9 @@ func (f *Fifo) Grow2(inc int) error {
 
 // Peek copies nbElems at offset without popping (av_fifo_peek).
 func (f *Fifo) Peek(buf unsafe.Pointer, nbElems, offset int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFifo
 	}
@@ -606,7 +625,9 @@ func (f *Fifo) Peek(buf unsafe.Pointer, nbElems, offset int) error {
 // PeekToCallback peeks through a Go callback (av_fifo_peek_to_cb;
 // cb 传 purego.NewCallback 做的指针, 不用传 nil; nbElems 传 nil 表全读).
 func (f *Fifo) PeekToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr, offset int) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFifo
 	}
@@ -618,7 +639,9 @@ func (f *Fifo) PeekToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr, offse
 
 // ReadToCallback pops through a Go callback (av_fifo_read_to_cb).
 func (f *Fifo) ReadToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFifo
 	}
@@ -630,7 +653,9 @@ func (f *Fifo) ReadToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error
 
 // WriteFromCallback pushes through a Go callback (av_fifo_write_from_cb).
 func (f *Fifo) WriteFromCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
-	mustUse(ensureModBufferMem())
+	if err := ensureModBufferMem(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFifo
 	}
@@ -731,8 +756,7 @@ func (b *BPrint) Escape(src, specialChars string, mode, flags int32) {
 // (av_bprint_finalize; 返回的指针用 Mem.Free 放).
 func (b *BPrint) Finalize() (unsafe.Pointer, error) {
 	if err := ensureModBufferMem(); err != nil {
-		var z1 unsafe.Pointer
-		return z1, err
+		return nil, err
 	}
 	if b == nil || b.ptr == nil {
 		return nil, errNilFF

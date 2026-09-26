@@ -17,6 +17,7 @@ type DeviceList struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (d *DeviceList) Ptr() unsafe.Pointer {
+	mustUse(ensureModDeviceIo())
 	if d == nil {
 		return nil
 	}
@@ -76,7 +77,9 @@ func (d *DeviceList) Version() uint32 {
 
 // ListDevices lists devices of a source/sink context (ctx 传 FormatContext.Ptr()).
 func (d *DeviceList) ListDevices(ctx unsafe.Pointer) error {
-	mustUse(ensureModDeviceIo())
+	if err := ensureModDeviceIo(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDevice
 	}
@@ -99,7 +102,9 @@ func (d *DeviceList) FreeList() {
 
 // ListInputSources lists capture devices for an input format.
 func (d *DeviceList) ListInputSources(format unsafe.Pointer) error {
-	mustUse(ensureModDeviceIo())
+	if err := ensureModDeviceIo(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDevice
 	}
@@ -111,7 +116,9 @@ func (d *DeviceList) ListInputSources(format unsafe.Pointer) error {
 
 // ListOutputSinks lists playback devices for an output format.
 func (d *DeviceList) ListOutputSinks(format unsafe.Pointer) error {
-	mustUse(ensureModDeviceIo())
+	if err := ensureModDeviceIo(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDevice
 	}
@@ -140,7 +147,9 @@ func (d *DeviceList) License() string {
 // AppToDev sends an app-to-device control message (音量/暂停等走它;
 // type 用 AVAppToDevMessageType 常量, data 传 nil 表无负载).
 func (d *DeviceList) AppToDev(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
-	mustUse(ensureModDeviceIo())
+	if err := ensureModDeviceIo(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDevice
 	}
@@ -152,7 +161,9 @@ func (d *DeviceList) AppToDev(ctx unsafe.Pointer, typ int32, data unsafe.Pointer
 
 // DevToApp reads a device-to-app control message (设备状态回调用它).
 func (d *DeviceList) DevToApp(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
-	mustUse(ensureModDeviceIo())
+	if err := ensureModDeviceIo(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDevice
 	}

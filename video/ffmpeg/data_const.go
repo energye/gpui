@@ -42,9 +42,7 @@ func dataInt32(name string) int32 {
 }
 
 // dataString 读 const char[] 数据，拿不到回空串。
-func dataString(name string) string {
-	return cstr(dataAddr(name))
-}
+func dataString(name string) string { return cstr(dataAddr(name)) }
 
 // AesSize 是 AES 上下文占多少字节（av_aes_size，配 av_aes_alloc 用）。
 func (Crypto) AesSize() int { return int(dataInt32("av_aes_size")) }

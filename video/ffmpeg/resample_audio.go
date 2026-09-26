@@ -25,6 +25,7 @@ func (x *Resampler) Ptr() unsafe.Pointer {
 type AudioFifo struct{ ptr unsafe.Pointer }
 
 func (x *AudioFifo) Ptr() unsafe.Pointer {
+	mustUse(ensureModResample())
 	if x == nil {
 		return nil
 	}
@@ -132,7 +133,9 @@ func (x *Resampler) Alloc(sample_fmt unsafe.Pointer, channels int32, nb_samples 
 
 // Drain 音频采样队列存取（对 av_audio_fifo_drain；参数 nb_samples；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *AudioFifo) Drain(nb_samples int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -153,7 +156,9 @@ func (x *AudioFifo) Free() {
 
 // Peek 音频采样队列存取（对 av_audio_fifo_peek；参数 data、nb_samples；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *AudioFifo) Peek(data unsafe.Pointer, nb_samples int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -165,7 +170,9 @@ func (x *AudioFifo) Peek(data unsafe.Pointer, nb_samples int32) error {
 
 // PeekAt 音频采样队列存取（对 av_audio_fifo_peek_at；参数 data、nb_samples、offset；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *AudioFifo) PeekAt(data unsafe.Pointer, nb_samples int32, offset int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -177,7 +184,9 @@ func (x *AudioFifo) PeekAt(data unsafe.Pointer, nb_samples int32, offset int32) 
 
 // Read 音频采样队列存取（对 av_audio_fifo_read；参数 data、nb_samples；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *AudioFifo) Read(data unsafe.Pointer, nb_samples int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -189,7 +198,9 @@ func (x *AudioFifo) Read(data unsafe.Pointer, nb_samples int32) error {
 
 // Realloc 音频采样队列存取（对 av_audio_fifo_realloc；参数 nb_samples；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *AudioFifo) Realloc(nb_samples int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -219,7 +230,9 @@ func (x *AudioFifo) Size() int32 {
 
 // Space 音频采样队列存取（对 av_audio_fifo_space；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *AudioFifo) Space() error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -231,7 +244,9 @@ func (x *AudioFifo) Space() error {
 
 // Write 音频采样队列存取（对 av_audio_fifo_write；参数 data、nb_samples；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *AudioFifo) Write(data unsafe.Pointer, nb_samples int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -291,7 +306,9 @@ func (x *Resampler) Alloc2() unsafe.Pointer {
 
 // AllocSetOpts2 新建重采样器（对 swr_alloc_set_opts2；参数 ps、out_ch_layout、out_sample_fmt、out_sample_rate、in_ch_layout、in_sample_fmt、in_sample_rate、log_offset、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *Resampler) AllocSetOpts2(ps *unsafe.Pointer, out_ch_layout unsafe.Pointer, out_sample_fmt int32, out_sample_rate int32, in_ch_layout unsafe.Pointer, in_sample_fmt int32, in_sample_rate int32, log_offset int32, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if ret := fSwrAllocSetOpts2(ps, out_ch_layout, out_sample_fmt, out_sample_rate, in_ch_layout, in_sample_fmt, in_sample_rate, log_offset, log_ctx); ret < 0 {
 		return codeErr("swr_alloc_set_opts2", ret)
 	}
@@ -300,7 +317,9 @@ func (x *Resampler) AllocSetOpts2(ps *unsafe.Pointer, out_ch_layout unsafe.Point
 
 // BuildMatrix2 按声道布局算混音矩阵（对 swr_build_matrix2；参数 in_layout、out_layout、center_mix_level、surround_mix_level、lfe_mix_level、maxval、rematrix_volume、matrix、stride、matrix_encoding、log_context；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) BuildMatrix2(in_layout unsafe.Pointer, out_layout unsafe.Pointer, center_mix_level float64, surround_mix_level float64, lfe_mix_level float64, maxval float64, rematrix_volume float64, matrix unsafe.Pointer, stride unsafe.Pointer, matrix_encoding unsafe.Pointer, log_context unsafe.Pointer) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if ret := fSwrBuildMatrix2(in_layout, out_layout, center_mix_level, surround_mix_level, lfe_mix_level, maxval, rematrix_volume, matrix, stride, matrix_encoding, log_context); ret < 0 {
 		return codeErr("swr_build_matrix2", ret)
 	}
@@ -318,7 +337,9 @@ func (x *Resampler) Close() {
 
 // ConfigFrame 按输入输出帧配重采样器（对 swr_config_frame；参数 out、in；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) ConfigFrame(out unsafe.Pointer, in unsafe.Pointer) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -330,7 +351,9 @@ func (x *Resampler) ConfigFrame(out unsafe.Pointer, in unsafe.Pointer) error {
 
 // Convert 转一批采样，裸指针版（对 swr_convert；参数 out、out_count、in、in_count；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) Convert(out unsafe.Pointer, out_count int32, in unsafe.Pointer, in_count int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -344,8 +367,7 @@ func (x *Resampler) Convert(out unsafe.Pointer, out_count int32, in unsafe.Point
 // count per channel (swr_convert's non-negative return).
 func (x *Resampler) ConvertCount(out unsafe.Pointer, out_count int32, in unsafe.Pointer, in_count int32) (int32, error) {
 	if err := ensureModResample(); err != nil {
-		var z1 int32
-		return z1, err
+		return 0, err
 	}
 	if x == nil {
 		return 0, errNilFF
@@ -359,7 +381,9 @@ func (x *Resampler) ConvertCount(out unsafe.Pointer, out_count int32, in unsafe.
 
 // ConvertFrame 转一批采样，裸指针版（对 swr_convert_frame；参数 output、input；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) ConvertFrame(output unsafe.Pointer, input unsafe.Pointer) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -371,7 +395,9 @@ func (x *Resampler) ConvertFrame(output unsafe.Pointer, input unsafe.Pointer) er
 
 // DropOutput 丢掉重采样器里攒的输出（对 swr_drop_output；参数 count；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) DropOutput(count int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -413,7 +439,9 @@ func (x *Resampler) GetOutSamples(in_samples int32) int32 {
 
 // Init 初始化重采样器，配好后调（对 swr_init；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) Init() error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -425,7 +453,9 @@ func (x *Resampler) Init() error {
 
 // InjectSilence 往重采样器里塞静音补空（对 swr_inject_silence；参数 count；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) InjectSilence(count int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -455,7 +485,9 @@ func (x *Resampler) NextPts(pts int64) int64 {
 
 // SetChannelMapping 设声道映射表（对 swr_set_channel_mapping；参数 channel_map；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) SetChannelMapping(channel_map unsafe.Pointer) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -467,7 +499,9 @@ func (x *Resampler) SetChannelMapping(channel_map unsafe.Pointer) error {
 
 // SetCompensation 设采样补偿，拉伸或压缩时间（对 swr_set_compensation；参数 sample_delta、compensation_distance；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) SetCompensation(sample_delta int32, compensation_distance int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -479,7 +513,9 @@ func (x *Resampler) SetCompensation(sample_delta int32, compensation_distance in
 
 // SetMatrix 设混音矩阵（对 swr_set_matrix；参数 matrix、stride；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Resampler) SetMatrix(matrix unsafe.Pointer, stride int32) error {
-	mustUse(ensureModResample())
+	if err := ensureModResample(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}

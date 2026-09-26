@@ -28,6 +28,7 @@ type FrameSideData struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (s *FrameSideData) Ptr() unsafe.Pointer {
+	mustUse(ensureModFrame())
 	if s == nil {
 		return nil
 	}
@@ -107,9 +108,7 @@ func registerFrame(h uintptr) {
 
 // NewFrame allocates an empty frame (记得 Free).
 func NewFrame() *Frame {
-	if err := ensureModFrame(); err != nil {
-		return nil
-	}
+	mustUse(ensureModFrame())
 	ptr := fFrameAlloc()
 	if ptr == nil {
 		return nil
@@ -143,7 +142,9 @@ func (f *Frame) Clone() *Frame {
 
 // Ref copies src into dst (引用, dst 需已分配).
 func (f *Frame) Ref(src *Frame) error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -155,7 +156,9 @@ func (f *Frame) Ref(src *Frame) error {
 
 // Replace swaps dst's contents with src's (引用计数, 老数据先丢).
 func (f *Frame) Replace(src *Frame) error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -167,7 +170,9 @@ func (f *Frame) Replace(src *Frame) error {
 
 // Copy copies pixels + metadata (深拷贝).
 func (f *Frame) Copy(src *Frame) error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -179,7 +184,9 @@ func (f *Frame) Copy(src *Frame) error {
 
 // CopyProps copies only metadata (不碰像素).
 func (f *Frame) CopyProps(src *Frame) error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -209,7 +216,9 @@ func (f *Frame) Unref() {
 
 // GetBuffer allocates pixel buffers (解码前调, align 一般 0/32).
 func (f *Frame) GetBuffer(align int) error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFrame
 	}
@@ -230,7 +239,9 @@ func (f *Frame) IsWritable() bool {
 
 // MakeWritable makes pixels writable (独占, 写前调).
 func (f *Frame) MakeWritable() error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFrame
 	}
@@ -242,7 +253,9 @@ func (f *Frame) MakeWritable() error {
 
 // ApplyCropping crops pixels per frame crop fields (flags 一般 0).
 func (f *Frame) ApplyCropping(flags int) error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	if f == nil {
 		return errNilFrame
 	}
@@ -331,7 +344,9 @@ func FrameSideDataAdd(sd *unsafe.Pointer, nbSd *int32, typ int32, buf *Buffer, f
 // FrameSideDataClone clones one entry into an array
 // (av_frame_side_data_clone).
 func FrameSideDataClone(dst *unsafe.Pointer, nbDst *int32, src *FrameSideData, flags uint32) error {
-	mustUse(ensureModFrame())
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
 	var sp unsafe.Pointer
 	if src != nil {
 		sp = src.ptr

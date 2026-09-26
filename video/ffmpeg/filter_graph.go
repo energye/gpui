@@ -56,6 +56,7 @@ func (x *FilterSource) Ptr() unsafe.Pointer {
 	return x.ptr
 }
 func (x *Filter) Ptr() unsafe.Pointer {
+	mustUse(ensureModFilterGraph())
 	if x == nil {
 		return nil
 	}
@@ -364,7 +365,9 @@ func (x *FilterSink) SetFrameSize(frame_size uint32) unsafe.Pointer {
 
 // AddFrame 往滤镜入口推帧（对 av_buffersrc_add_frame；参数 frame；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterSource) AddFrame(frame unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -376,7 +379,9 @@ func (x *FilterSource) AddFrame(frame unsafe.Pointer) error {
 
 // AddFrameFlags 往滤镜入口推帧（对 av_buffersrc_add_frame_flags；参数 frame、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) AddFrameFlags(frame unsafe.Pointer, flags int32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -388,7 +393,9 @@ func (x *FilterContext) AddFrameFlags(frame unsafe.Pointer, flags int32) error {
 
 // Close 往滤镜入口推帧（对 av_buffersrc_close；参数 pts、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) Close(pts int64, flags uint32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -424,7 +431,9 @@ func (x *FilterSource) ParametersAlloc() unsafe.Pointer {
 
 // ParametersSet 往滤镜入口推帧（对 av_buffersrc_parameters_set；参数 param；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterSource) ParametersSet(param unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -436,7 +445,9 @@ func (x *FilterSource) ParametersSet(param unsafe.Pointer) error {
 
 // WriteFrame 往滤镜入口推帧（对 av_buffersrc_write_frame；参数 frame；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) WriteFrame(frame unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -517,7 +528,9 @@ func (x *FilterGraph) GraphConfig(log_ctx unsafe.Pointer) int32 {
 
 // GraphCreateFilter 建图配图连图跑图（对 avfilter_graph_create_filter；参数 filt_ctx、filt、name、args、opaque、graph_ctx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphCreateFilter(filt_ctx *unsafe.Pointer, filt unsafe.Pointer, name unsafe.Pointer, args unsafe.Pointer, opaque unsafe.Pointer, graph_ctx unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if ret := fAvfilterGraphCreateFilter(filt_ctx, filt, name, args, opaque, graph_ctx); ret < 0 {
 		return codeErr("avfilter_graph_create_filter", ret)
 	}
@@ -550,7 +563,9 @@ func (x *FilterGraph) GraphGetFilter(name unsafe.Pointer) unsafe.Pointer {
 
 // GraphParse 建图配图连图跑图（对 avfilter_graph_parse；参数 filters、inputs、outputs、log_ctx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphParse(filters unsafe.Pointer, inputs unsafe.Pointer, outputs unsafe.Pointer, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -562,7 +577,9 @@ func (x *FilterGraph) GraphParse(filters unsafe.Pointer, inputs unsafe.Pointer, 
 
 // GraphParse2 建图配图连图跑图（对 avfilter_graph_parse2；参数 filters、inputs、outputs；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphParse2(filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -574,7 +591,9 @@ func (x *FilterGraph) GraphParse2(filters unsafe.Pointer, inputs *unsafe.Pointer
 
 // GraphParsePtr 建图配图连图跑图（对 avfilter_graph_parse_ptr；参数 filters、inputs、outputs、log_ctx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphParsePtr(filters unsafe.Pointer, inputs *unsafe.Pointer, outputs *unsafe.Pointer, log_ctx unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -586,7 +605,9 @@ func (x *FilterGraph) GraphParsePtr(filters unsafe.Pointer, inputs *unsafe.Point
 
 // GraphQueueCommand 建图配图连图跑图（对 avfilter_graph_queue_command；参数 target、cmd、arg、flags、ts；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphQueueCommand(target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, flags int32, ts float64) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -598,7 +619,9 @@ func (x *FilterGraph) GraphQueueCommand(target unsafe.Pointer, cmd unsafe.Pointe
 
 // GraphRequestOldest 建图配图连图跑图（对 avfilter_graph_request_oldest；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphRequestOldest() error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -610,7 +633,9 @@ func (x *FilterGraph) GraphRequestOldest() error {
 
 // GraphSegmentApply 建图配图连图跑图（对 avfilter_graph_segment_apply；参数 seg、flags、inputs、outputs；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentApply(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if ret := fAvfilterGraphSegmentApply(seg, flags, inputs, outputs); ret < 0 {
 		return codeErr("avfilter_graph_segment_apply", ret)
 	}
@@ -619,7 +644,9 @@ func (x *FilterGraph) GraphSegmentApply(seg unsafe.Pointer, flags int32, inputs 
 
 // GraphSegmentApplyOpts 建图配图连图跑图（对 avfilter_graph_segment_apply_opts；参数 seg、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentApplyOpts(seg unsafe.Pointer, flags int32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if ret := fAvfilterGraphSegmentApplyOpts(seg, flags); ret < 0 {
 		return codeErr("avfilter_graph_segment_apply_opts", ret)
 	}
@@ -628,7 +655,9 @@ func (x *FilterGraph) GraphSegmentApplyOpts(seg unsafe.Pointer, flags int32) err
 
 // GraphSegmentCreateFilters 建图配图连图跑图（对 avfilter_graph_segment_create_filters；参数 seg、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentCreateFilters(seg unsafe.Pointer, flags int32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if ret := fAvfilterGraphSegmentCreateFilters(seg, flags); ret < 0 {
 		return codeErr("avfilter_graph_segment_create_filters", ret)
 	}
@@ -643,7 +672,9 @@ func (x *FilterGraph) GraphSegmentFree(seg *unsafe.Pointer) {
 
 // GraphSegmentInit 建图配图连图跑图（对 avfilter_graph_segment_init；参数 seg、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FilterGraph) GraphSegmentInit(seg unsafe.Pointer, flags int32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if ret := fAvfilterGraphSegmentInit(seg, flags); ret < 0 {
 		return codeErr("avfilter_graph_segment_init", ret)
 	}
@@ -652,7 +683,9 @@ func (x *FilterGraph) GraphSegmentInit(seg unsafe.Pointer, flags int32) error {
 
 // GraphSegmentLink 建图配图连图跑图（对 avfilter_graph_segment_link；参数 seg、flags、inputs、outputs；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphSegmentLink(seg unsafe.Pointer, flags int32, inputs *unsafe.Pointer, outputs *unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if ret := fAvfilterGraphSegmentLink(seg, flags, inputs, outputs); ret < 0 {
 		return codeErr("avfilter_graph_segment_link", ret)
 	}
@@ -661,7 +694,9 @@ func (x *FilterGraph) GraphSegmentLink(seg unsafe.Pointer, flags int32, inputs *
 
 // GraphSegmentParse 建图配图连图跑图（对 avfilter_graph_segment_parse；参数 graph_str、flags、seg；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphSegmentParse(graph_str unsafe.Pointer, flags int32, seg *unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -673,7 +708,9 @@ func (x *FilterGraph) GraphSegmentParse(graph_str unsafe.Pointer, flags int32, s
 
 // GraphSendCommand 建图配图连图跑图（对 avfilter_graph_send_command；参数 target、cmd、arg、res、res_len、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) GraphSendCommand(target unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -694,7 +731,9 @@ func (x *FilterGraph) GraphSetAutoConvert(flags uint32) {
 
 // InitDict 初始化滤镜实例（对 avfilter_init_dict；参数 options；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) InitDict(options *unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -706,7 +745,9 @@ func (x *FilterContext) InitDict(options *unsafe.Pointer) error {
 
 // InitStr 初始化滤镜实例（对 avfilter_init_str；参数 args；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) InitStr(args unsafe.Pointer) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -730,7 +771,9 @@ func (x *FilterGraph) InoutFree(inout *unsafe.Pointer) {
 
 // InsertFilter 在连好的链中间插一个滤镜（对 avfilter_insert_filter；参数 link、filt、filt_srcpad_idx、filt_dstpad_idx；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterGraph) InsertFilter(link unsafe.Pointer, filt unsafe.Pointer, filt_srcpad_idx uint32, filt_dstpad_idx uint32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if ret := fAvfilterInsertFilter(link, filt, filt_srcpad_idx, filt_dstpad_idx); ret < 0 {
 		return codeErr("avfilter_insert_filter", ret)
 	}
@@ -745,7 +788,9 @@ func (x *FilterGraph) License() unsafe.Pointer {
 
 // Link 把两个滤镜连起来（对 avfilter_link；参数 srcpad、dst、dstpad；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FilterContext) Link(srcpad uint32, dst unsafe.Pointer, dstpad uint32) error {
-	mustUse(ensureModFilterGraph())
+	if err := ensureModFilterGraph(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}

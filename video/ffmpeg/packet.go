@@ -29,6 +29,7 @@ type PacketSideData struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (s *PacketSideData) Ptr() unsafe.Pointer {
+	mustUse(ensureModPacket())
 	if s == nil {
 		return nil
 	}
@@ -110,9 +111,7 @@ func registerPacket(h uintptr) {
 
 // NewPacket allocates an empty packet (记得 Free).
 func NewPacket() *Packet {
-	if err := ensureModPacket(); err != nil {
-		return nil
-	}
+	mustUse(ensureModPacket())
 	ptr := fPacketAlloc()
 	if ptr == nil {
 		return nil
@@ -146,7 +145,9 @@ func (p *Packet) Clone() *Packet {
 
 // Ref copies src into dst (引用, dst 需已分配).
 func (p *Packet) Ref(src *Packet) error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil || src == nil {
 		return errNilPacket
 	}
@@ -158,7 +159,9 @@ func (p *Packet) Ref(src *Packet) error {
 
 // CopyProps copies only metadata (不碰数据).
 func (p *Packet) CopyProps(src *Packet) error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil || src == nil {
 		return errNilPacket
 	}
@@ -197,7 +200,9 @@ func (p *Packet) FreeSideData() {
 
 // NewPacketData allocates packet data of size bytes.
 func (p *Packet) NewPacketData(size int) error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil {
 		return errNilPacket
 	}
@@ -209,7 +214,9 @@ func (p *Packet) NewPacketData(size int) error {
 
 // Grow extends packet data by growBy bytes.
 func (p *Packet) Grow(growBy int) error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil {
 		return errNilPacket
 	}
@@ -230,7 +237,9 @@ func (p *Packet) Shrink(size int) {
 
 // MakeRefcounted makes the data refcounted (可共享).
 func (p *Packet) MakeRefcounted() error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil {
 		return errNilPacket
 	}
@@ -242,7 +251,9 @@ func (p *Packet) MakeRefcounted() error {
 
 // MakeWritable makes the data writable (独占, 写前调).
 func (p *Packet) MakeWritable() error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil {
 		return errNilPacket
 	}
@@ -314,7 +325,9 @@ func (p *Packet) NewSideData(typ int32, size int) unsafe.Pointer {
 
 // AddSideData attaches an existing data buffer as side data.
 func (p *Packet) AddSideData(typ int32, data unsafe.Pointer, size int) error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil {
 		return errNilPacket
 	}
@@ -326,7 +339,9 @@ func (p *Packet) AddSideData(typ int32, data unsafe.Pointer, size int) error {
 
 // ShrinkSideData truncates side data of type to size bytes.
 func (p *Packet) ShrinkSideData(typ int32, size int) error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil {
 		return errNilPacket
 	}
@@ -352,7 +367,9 @@ func (d *Dictionary) PackDictionary() (unsafe.Pointer, uintptr) {
 // FromData wraps an external data buffer as packet payload without
 // copying (av_packet_from_data; 调用后别再碰 data, 归包管).
 func (p *Packet) FromData(data unsafe.Pointer, size int) error {
-	mustUse(ensureModPacket())
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
 	if p == nil {
 		return errNilPacket
 	}
@@ -365,6 +382,9 @@ func (p *Packet) FromData(data unsafe.Pointer, size int) error {
 // UnpackDictionary deserializes packet-attached bytes back into a fresh
 // dictionary (av_packet_unpack_dictionary).
 func UnpackDictionary(data unsafe.Pointer, size int) (*Dictionary, error) {
+	if err := ensureModPacket(); err != nil {
+		return nil, err
+	}
 	if ensureModPacket() != nil {
 		return nil, errNilDict
 	}

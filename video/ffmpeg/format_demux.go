@@ -49,6 +49,7 @@ type Format struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (x *Format) Ptr() unsafe.Pointer {
+	mustUse(ensureModFormatDemux())
 	if x == nil {
 		return nil
 	}
@@ -272,7 +273,9 @@ func registerFormatDemux(h uintptr) {
 
 // AddIndexEntry 往流索引里加一条（对 av_add_index_entry；参数 pos、timestamp、size、distance、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Stream) AddIndexEntry(pos int64, timestamp int64, size int32, distance int32, flags int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -308,7 +311,9 @@ func (x *FormatContext) AllocContext() unsafe.Pointer {
 
 // AllocOutputContext2 按格式名新建写盒上下文（对 avformat_alloc_output_context2；format_name 直接传 Go 字符串如 "mp4"；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FormatContext) AllocOutputContext2(ctx *unsafe.Pointer, oformat unsafe.Pointer, format_name string, filename unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvformatAllocOutputContext2(ctx, oformat, format_name, filename); ret < 0 {
 		return codeErr("avformat_alloc_output_context2", ret)
 	}
@@ -329,7 +334,9 @@ func (x *FormatContext) Configuration() unsafe.Pointer {
 
 // FindStreamInfo 读几包把每条流的参数探出来（对 avformat_find_stream_info；参数 options；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) FindStreamInfo(options *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -341,7 +348,9 @@ func (x *FormatContext) FindStreamInfo(options *unsafe.Pointer) error {
 
 // Flush 清掉盒子内部缓冲（对 avformat_flush；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) Flush() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -419,7 +428,9 @@ func (x *Stream) IndexGetEntryFromTimestamp(wanted_timestamp int64, flags int32)
 
 // InitOutput 初始化输出，准备写头（对 avformat_init_output；参数 options；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) InitOutput(options *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -437,7 +448,9 @@ func (x *FormatContext) License() unsafe.Pointer {
 
 // MatchStreamSpecifier 看流匹不匹配选择串（对 avformat_match_stream_specifier；参数 st、spec；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) MatchStreamSpecifier(st unsafe.Pointer, spec unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -449,7 +462,9 @@ func (x *FormatContext) MatchStreamSpecifier(st unsafe.Pointer, spec unsafe.Poin
 
 // NetworkDeinit 反初始化网络（对 avformat_network_deinit；无参数；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FormatContext) NetworkDeinit() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvformatNetworkDeinit(); ret < 0 {
 		return codeErr("avformat_network_deinit", ret)
 	}
@@ -458,7 +473,9 @@ func (x *FormatContext) NetworkDeinit() error {
 
 // NetworkInit 初始化网络，用网路前调一次（对 avformat_network_init；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) NetworkInit() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvformatNetworkInit(); ret < 0 {
 		return codeErr("avformat_network_init", ret)
 	}
@@ -534,7 +551,9 @@ func (s *Stream) TimeBase() AVRational {
 
 // OpenInput 打开输入盒子，文件和网址都行（对 avformat_open_input；参数 ps、url、fmt、options；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) OpenInput(ps *unsafe.Pointer, url unsafe.Pointer, fmt unsafe.Pointer, options *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvformatOpenInput(ps, url, fmt, options); ret < 0 {
 		return codeErr("avformat_open_input", ret)
 	}
@@ -543,7 +562,9 @@ func (x *FormatContext) OpenInput(ps *unsafe.Pointer, url unsafe.Pointer, fmt un
 
 // QueryCodec 问复用器支不支持某个编码（对 avformat_query_codec；参数 codec_id、std_compliance；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *Format) QueryCodec(codec_id unsafe.Pointer, std_compliance int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -555,7 +576,9 @@ func (x *Format) QueryCodec(codec_id unsafe.Pointer, std_compliance int32) error
 
 // QueueAttachedPictures 把封面图排进队列（对 avformat_queue_attached_pictures；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) QueueAttachedPictures() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -567,7 +590,9 @@ func (x *FormatContext) QueueAttachedPictures() error {
 
 // SeekFile 按时间范围跳进度，最灵活的跳法（对 avformat_seek_file；参数 stream_index、min_ts、ts、max_ts、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) SeekFile(stream_index int32, min_ts int64, ts int64, max_ts int64, flags int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -579,7 +604,9 @@ func (x *FormatContext) SeekFile(stream_index int32, min_ts int64, ts int64, max
 
 // StreamGroupAddStream 往流组里加一条流（对 avformat_stream_group_add_stream；参数 stg、st；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) StreamGroupAddStream(stg unsafe.Pointer, st unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvformatStreamGroupAddStream(stg, st); ret < 0 {
 		return codeErr("avformat_stream_group_add_stream", ret)
 	}
@@ -609,7 +636,9 @@ func (x *FormatContext) Version() unsafe.Pointer {
 
 // WriteHeader 写文件头，准备开始写包（对 avformat_write_header；写前 pb 必须已接好；成功回 nil，失败回 error；nil 接收器直接回错，不崩）。
 func (x *FormatContext) WriteHeader(options *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -663,7 +692,9 @@ func (x *Stream) IndexSearchTimestamp(timestamp int64, flags int32) int32 {
 
 // Accept 服务 mason 接受一条新连接（对 avio_accept；参数 c；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) Accept(c *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -681,7 +712,9 @@ func (x *FormatContext) AllocIOContext(buffer unsafe.Pointer, buffer_size int32,
 
 // Check 看网址能不能读写（对 avio_check；参数 url、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) Check(url unsafe.Pointer, flags int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioCheck(url, flags); ret < 0 {
 		return codeErr("avio_check", ret)
 	}
@@ -690,7 +723,9 @@ func (x *FormatContext) Check(url unsafe.Pointer, flags int32) error {
 
 // Close 关闭读写流（对 avio_close；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) Close() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -702,7 +737,9 @@ func (x *IOContext) Close() error {
 
 // CloseDir 关闭读写流（对 avio_close_dir；参数 s；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) CloseDir(s *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioCloseDir(s); ret < 0 {
 		return codeErr("avio_close_dir", ret)
 	}
@@ -712,8 +749,7 @@ func (x *FormatContext) CloseDir(s *unsafe.Pointer) error {
 // CloseDynBuf 关闭读写流（对 avio_close_dyn_buf；参数 pbuffer；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) CloseDynBuf(pbuffer *unsafe.Pointer) (int, error) {
 	if err := ensureModFormatDemux(); err != nil {
-		var z1 int
-		return z1, err
+		return 0, err
 	}
 	if x == nil {
 		return 0, errNilFF
@@ -727,7 +763,9 @@ func (x *IOContext) CloseDynBuf(pbuffer *unsafe.Pointer) (int, error) {
 
 // Closep 关闭读写流（对 avio_closep；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FormatContext) Closep(s *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioClosep(s); ret < 0 {
 		return codeErr("avio_closep", ret)
 	}
@@ -748,7 +786,9 @@ func (x *FormatContext) EnumProtocols(opaque *unsafe.Pointer, output int32) unsa
 
 // Feof 问是不是读到尾了（对 avio_feof；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) Feof() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -817,7 +857,9 @@ func (x *IOContext) GetStr16le(maxlen int32, buf unsafe.Pointer, buflen int32) i
 
 // Handshake 做 TLS 握手（对 avio_handshake；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) Handshake() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -829,7 +871,9 @@ func (x *IOContext) Handshake() error {
 
 // Open 打开读写流，文件和网址都行（对 avio_open；url 直接传 Go 字符串；flags 取 AVIOFlagWrite；成功回 nil 失败回 error；无状态调用）。
 func (x *FormatContext) Open(s *unsafe.Pointer, url string, flags int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioOpen(s, url, flags); ret < 0 {
 		return codeErr("avio_open", ret)
 	}
@@ -838,7 +882,9 @@ func (x *FormatContext) Open(s *unsafe.Pointer, url string, flags int32) error {
 
 // Open2 打开读写流，文件和网址都行（对 avio_open2；url 直接传 Go 字符串；参数 flags、int_cb、options；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FormatContext) Open2(s *unsafe.Pointer, url string, flags int32, int_cb unsafe.Pointer, options *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioOpen2(s, url, flags, int_cb, options); ret < 0 {
 		return codeErr("avio_open2", ret)
 	}
@@ -847,7 +893,9 @@ func (x *FormatContext) Open2(s *unsafe.Pointer, url string, flags int32, int_cb
 
 // OpenDir 打开读写流，文件和网址都行（对 avio_open_dir；参数 s、url、options；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (x *FormatContext) OpenDir(s *unsafe.Pointer, url unsafe.Pointer, options *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioOpenDir(s, url, options); ret < 0 {
 		return codeErr("avio_open_dir", ret)
 	}
@@ -856,7 +904,9 @@ func (x *FormatContext) OpenDir(s *unsafe.Pointer, url unsafe.Pointer, options *
 
 // OpenDynBuf 打开读写流，文件和网址都行（对 avio_open_dyn_buf；参数 s；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) OpenDynBuf(s *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioOpenDynBuf(s); ret < 0 {
 		return codeErr("avio_open_dyn_buf", ret)
 	}
@@ -865,7 +915,9 @@ func (x *FormatContext) OpenDynBuf(s *unsafe.Pointer) error {
 
 // Pause 暂停或恢复网络流（对 avio_pause；参数 pause；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) Pause(pause int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -892,7 +944,9 @@ func (x *FormatContext) ProtocolGetClass(name unsafe.Pointer) unsafe.Pointer {
 
 // PutStr 往流里写字符串（对 avio_put_str；参数 str；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) PutStr(str unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -904,7 +958,9 @@ func (x *IOContext) PutStr(str unsafe.Pointer) error {
 
 // PutStr16be 往流里写字符串（对 avio_put_str16be；参数 str；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) PutStr16be(str unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -916,7 +972,9 @@ func (x *IOContext) PutStr16be(str unsafe.Pointer) error {
 
 // PutStr16le 往流里写字符串（对 avio_put_str16le；参数 str；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) PutStr16le(str unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -928,7 +986,9 @@ func (x *IOContext) PutStr16le(str unsafe.Pointer) error {
 
 // R8 读一个字节（对 avio_r8；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) R8() error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -976,7 +1036,9 @@ func (x *IOContext) Rb64() uint64 {
 
 // Read 从流里读固定字节（对 avio_read；参数 buf、size；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) Read(buf unsafe.Pointer, size int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -988,7 +1050,9 @@ func (x *IOContext) Read(buf unsafe.Pointer, size int32) error {
 
 // ReadDir 从流里读固定字节（对 avio_read_dir；参数 s、next；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) ReadDir(s unsafe.Pointer, next *unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if ret := fAvioReadDir(s, next); ret < 0 {
 		return codeErr("avio_read_dir", ret)
 	}
@@ -997,7 +1061,9 @@ func (x *FormatContext) ReadDir(s unsafe.Pointer, next *unsafe.Pointer) error {
 
 // ReadPartial 从流里读固定字节（对 avio_read_partial；参数 buf、size；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) ReadPartial(buf unsafe.Pointer, size int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -1009,7 +1075,9 @@ func (x *IOContext) ReadPartial(buf unsafe.Pointer, size int32) error {
 
 // ReadToBprint 从流里读固定字节（对 avio_read_to_bprint；参数 pb、max_size；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) ReadToBprint(pb unsafe.Pointer, max_size uintptr) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -1093,7 +1161,9 @@ func (x *IOContext) Skip(offset int64) int64 {
 
 // Vprintf 往流里写格式化字符串（对 avio_vprintf；参数 fmt、ap；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *IOContext) Vprintf(fmt unsafe.Pointer, ap unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -1204,7 +1274,9 @@ func (x *IOContext) WriteMarker(time int64, typ unsafe.Pointer) {
 
 // ReadFrame 从盒子里读出一包（对 av_read_frame；参数 pkt；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) ReadFrame(pkt unsafe.Pointer) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}
@@ -1216,7 +1288,9 @@ func (x *FormatContext) ReadFrame(pkt unsafe.Pointer) error {
 
 // SeekFrame 按帧时间戳跳到附近关键帧（对 av_seek_frame；参数 stream_index、timestamp、flags；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
 func (x *FormatContext) SeekFrame(stream_index int32, timestamp int64, flags int32) error {
-	mustUse(ensureModFormatDemux())
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
 	if x == nil {
 		return errNilFF
 	}

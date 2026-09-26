@@ -68,7 +68,9 @@ func (e *DictionaryEntry) Value() string {
 type OptObject struct{ ptr unsafe.Pointer }
 
 // Opt wraps a target object pointer for option calls.
-func Opt(ptr unsafe.Pointer) OptObject { return OptObject{ptr: ptr} }
+func Opt(ptr unsafe.Pointer) OptObject {
+	return OptObject{ptr: ptr}
+}
 
 // Ptr exposes the raw handle.
 func (o OptObject) Ptr() unsafe.Pointer { return o.ptr }
@@ -97,6 +99,7 @@ type OptionRanges struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (r *OptionRanges) Ptr() unsafe.Pointer {
+	mustUse(ensureModDictOpt())
 	if r == nil {
 		return nil
 	}
@@ -248,11 +251,15 @@ func registerDictOpt(h uintptr) {
 
 // NewDictionary builds an empty dictionary holder (Set 再用,
 // 用完 Free; Take 交给 open 时记得不再碰).
-func NewDictionary() *Dictionary { return &Dictionary{} }
+func NewDictionary() *Dictionary {
+	return &Dictionary{}
+}
 
 // Set writes one key/value pair (value "" 删键, flags 一般 0).
 func (d *Dictionary) Set(key, value string, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDict
 	}
@@ -264,7 +271,9 @@ func (d *Dictionary) Set(key, value string, flags int) error {
 
 // SetInt writes one integer pair.
 func (d *Dictionary) SetInt(key string, value int64, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDict
 	}
@@ -302,7 +311,9 @@ func (d *Dictionary) Count() int {
 
 // Copy duplicates src into dst (flags 一般 0).
 func (d *Dictionary) Copy(src *Dictionary, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDict
 	}
@@ -318,7 +329,9 @@ func (d *Dictionary) Copy(src *Dictionary, flags int) error {
 
 // ParseString parses "k=v:k=v" text into the dictionary.
 func (d *Dictionary) ParseString(s, keySep, pairSep string, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if d == nil {
 		return errNilDict
 	}
@@ -360,7 +373,9 @@ func (d *Dictionary) Iterate(prev *DictionaryEntry) *DictionaryEntry {
 // 字符串能设任何选项: 数字、采样格式名 ("flt")、声道布局名
 // ("stereo") 都按选项类型自动解析, 见 av_opt_set.
 func (o OptObject) Set(name, value string, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -372,7 +387,9 @@ func (o OptObject) Set(name, value string, flags int) error {
 
 // SetInt writes an integer option by name.
 func (o OptObject) SetInt(name string, value int64, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -384,7 +401,9 @@ func (o OptObject) SetInt(name string, value int64, flags int) error {
 
 // SetDouble writes a float option by name.
 func (o OptObject) SetDouble(name string, value float64, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -396,7 +415,9 @@ func (o OptObject) SetDouble(name string, value float64, flags int) error {
 
 // SetQ writes a rational option by name.
 func (o OptObject) SetQ(name string, value AVRational, flags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -409,8 +430,7 @@ func (o OptObject) SetQ(name string, value AVRational, flags int) error {
 // GetInt reads an integer option by name.
 func (o OptObject) GetInt(name string, flags int) (int64, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 int64
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil {
 		return 0, errNilOpt
@@ -425,8 +445,7 @@ func (o OptObject) GetInt(name string, flags int) (int64, error) {
 // GetDouble reads a float option by name.
 func (o OptObject) GetDouble(name string, flags int) (float64, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 float64
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil {
 		return 0, errNilOpt
@@ -478,7 +497,9 @@ func (o OptObject) SetDefaults() {
 
 // Copy copies option values from src.
 func (o OptObject) Copy(src OptObject) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil || src.ptr == nil {
 		return errNilOpt
 	}
@@ -503,8 +524,7 @@ func (r *OptionRanges) FreeRanges() {
 // (av_dict_get_string; sep 传 ','/'=' 最常见, out 用 Mem.Free 放).
 func (d *Dictionary) GetString(keySep, pairSep byte) (unsafe.Pointer, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 unsafe.Pointer
-		return z1, err
+		return nil, err
 	}
 	if d == nil {
 		return nil, errNilDict
@@ -520,8 +540,7 @@ func (d *Dictionary) GetString(keySep, pairSep byte) (unsafe.Pointer, error) {
 // (av_opt_eval_int; o 传 Find 到的 Option).
 func (o OptObject) EvalInt(opt *Option, val string) (int32, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 int32
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil || opt == nil {
 		return 0, errNilOpt
@@ -536,8 +555,7 @@ func (o OptObject) EvalInt(opt *Option, val string) (int32, error) {
 // EvalInt64 parses val as int64 (av_opt_eval_int64).
 func (o OptObject) EvalInt64(opt *Option, val string) (int64, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 int64
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil || opt == nil {
 		return 0, errNilOpt
@@ -552,8 +570,7 @@ func (o OptObject) EvalInt64(opt *Option, val string) (int64, error) {
 // EvalUint parses val as uint (av_opt_eval_uint).
 func (o OptObject) EvalUint(opt *Option, val string) (uint32, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 uint32
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil || opt == nil {
 		return 0, errNilOpt
@@ -568,8 +585,7 @@ func (o OptObject) EvalUint(opt *Option, val string) (uint32, error) {
 // EvalFloat parses val as float (av_opt_eval_float).
 func (o OptObject) EvalFloat(opt *Option, val string) (float32, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 float32
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil || opt == nil {
 		return 0, errNilOpt
@@ -584,8 +600,7 @@ func (o OptObject) EvalFloat(opt *Option, val string) (float32, error) {
 // EvalDouble parses val as double (av_opt_eval_double).
 func (o OptObject) EvalDouble(opt *Option, val string) (float64, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 float64
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil || opt == nil {
 		return 0, errNilOpt
@@ -616,8 +631,7 @@ func (o OptObject) EvalQ(opt *Option, val string) (AVRational, error) {
 // EvalFlags parses val as flags (av_opt_eval_flags).
 func (o OptObject) EvalFlags(opt *Option, val string) (int32, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 int32
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil || opt == nil {
 		return 0, errNilOpt
@@ -667,8 +681,7 @@ func FreeOptions(obj unsafe.Pointer) {
 // 数字会转成字符串, 再用 Eval* 解析).
 func (o OptObject) Get(name string, searchFlags int) (unsafe.Pointer, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 unsafe.Pointer
-		return z1, err
+		return nil, err
 	}
 	if o.ptr == nil {
 		return nil, errNilOpt
@@ -683,7 +696,9 @@ func (o OptObject) Get(name string, searchFlags int) (unsafe.Pointer, error) {
 // GetArray reads array elements [start, start+count) (av_opt_get_array;
 // outType 传元素类型码, out 传足够大的缓冲).
 func (o OptObject) GetArray(name string, searchFlags int, start, count uint32, outType int32, out unsafe.Pointer) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -697,8 +712,7 @@ func (o OptObject) GetArray(name string, searchFlags int, start, count uint32, o
 // (av_opt_get_array_size).
 func (o OptObject) GetArraySize(name string, searchFlags int) (uint32, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 uint32
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil {
 		return 0, errNilOpt
@@ -713,7 +727,9 @@ func (o OptObject) GetArraySize(name string, searchFlags int) (uint32, error) {
 // GetChlayout reads a channel-layout option (av_opt_get_chlayout;
 // layout 传 32 字节 AVChannelLayout 缓冲, 见 ChannelLayoutDefault).
 func (o OptObject) GetChlayout(name string, searchFlags int, layout unsafe.Pointer) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -726,8 +742,7 @@ func (o OptObject) GetChlayout(name string, searchFlags int, layout unsafe.Point
 // GetDictVal reads a dict-valued option entry (av_opt_get_dict_val).
 func (o OptObject) GetDictVal(name string, searchFlags int) (unsafe.Pointer, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 unsafe.Pointer
-		return z1, err
+		return nil, err
 	}
 	if o.ptr == nil {
 		return nil, errNilOpt
@@ -741,7 +756,9 @@ func (o OptObject) GetDictVal(name string, searchFlags int) (unsafe.Pointer, err
 
 // GetImageSize reads a WxH option (av_opt_get_image_size).
 func (o OptObject) GetImageSize(name string, searchFlags int) (w, h int32, err error) {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return 0, 0, err
+	}
 	if o.ptr == nil {
 		return 0, 0, errNilOpt
 	}
@@ -754,7 +771,9 @@ func (o OptObject) GetImageSize(name string, searchFlags int) (w, h int32, err e
 // GetKeyValue parses "k=v" into key/value buffers (av_opt_get_key_value;
 // ropts 传待解析串的指针槽, keySep/pairSep 传 "="/"、", key/val 用 Mem.Free 放).
 func GetKeyValue(ropts *unsafe.Pointer, keySep, pairSep string, flags uint32, key, val *unsafe.Pointer) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if ret := fOptGetKeyValue(ropts, keySep, pairSep, flags, key, val); ret < 0 {
 		return codeErr("av_opt_get_key_value", ret)
 	}
@@ -764,8 +783,7 @@ func GetKeyValue(ropts *unsafe.Pointer, keySep, pairSep string, flags uint32, ke
 // GetPixFmt reads a pixel-format option (av_opt_get_pixel_fmt).
 func (o OptObject) GetPixFmt(name string, searchFlags int) (int32, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 int32
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil {
 		return PixFmtNone, errNilOpt
@@ -780,8 +798,7 @@ func (o OptObject) GetPixFmt(name string, searchFlags int) (int32, error) {
 // GetSampleFmt reads a sample-format option (av_opt_get_sample_fmt).
 func (o OptObject) GetSampleFmt(name string, searchFlags int) (int32, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 int32
-		return z1, err
+		return 0, err
 	}
 	if o.ptr == nil {
 		return 0, errNilOpt
@@ -861,8 +878,7 @@ func (o OptObject) FieldPtr(name string) unsafe.Pointer {
 // 返回的 OptionRanges 记得 FreeRanges).
 func (o OptObject) QueryRanges(name string, searchFlags int) (*OptionRanges, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 *OptionRanges
-		return z1, err
+		return nil, err
 	}
 	if o.ptr == nil {
 		return nil, errNilOpt
@@ -880,8 +896,7 @@ func (o OptObject) QueryRanges(name string, searchFlags int) (*OptionRanges, err
 // QueryRangesDefault lists the default range (av_opt_query_ranges_default).
 func (o OptObject) QueryRangesDefault(name string, searchFlags int) (*OptionRanges, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 *OptionRanges
-		return z1, err
+		return nil, err
 	}
 	if o.ptr == nil {
 		return nil, errNilOpt
@@ -900,8 +915,7 @@ func (o OptObject) QueryRangesDefault(name string, searchFlags int) (*OptionRang
 // keySep/pairSep 传 '='、"," 最常见, out 用 Mem.Free 放).
 func (o OptObject) Serialize(optFlags, flags int32, keySep, pairSep byte) (unsafe.Pointer, error) {
 	if err := ensureModDictOpt(); err != nil {
-		var z1 unsafe.Pointer
-		return z1, err
+		return nil, err
 	}
 	var out unsafe.Pointer
 	if o.ptr == nil {
@@ -918,7 +932,9 @@ func (o OptObject) Serialize(optFlags, flags int32, keySep, pairSep byte) (unsaf
 // SetArray writes array elements [start, start+count) (av_opt_set_array;
 // valType 传元素类型码, val 传元素首地址).
 func (o OptObject) SetArray(name string, searchFlags int, start, count uint32, valType int32, val unsafe.Pointer) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -930,7 +946,9 @@ func (o OptObject) SetArray(name string, searchFlags int, start, count uint32, v
 
 // SetBin writes raw bytes (av_opt_set_bin).
 func (o OptObject) SetBin(name string, data unsafe.Pointer, size, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -953,7 +971,9 @@ func (o OptObject) SetDefaults2(mask, flags int32) {
 // SetDict applies a whole dictionary at once (av_opt_set_dict;
 // 没吃掉的进 options, 吃完的字典会清空).
 func (o OptObject) SetDict(options *Dictionary) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -969,7 +989,9 @@ func (o OptObject) SetDict(options *Dictionary) error {
 
 // SetDict2 applies a dictionary with flags (av_opt_set_dict2).
 func (o OptObject) SetDict2(options *Dictionary, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -985,7 +1007,9 @@ func (o OptObject) SetDict2(options *Dictionary, searchFlags int) error {
 
 // SetDictVal writes one dict-valued entry (av_opt_set_dict_val).
 func (o OptObject) SetDictVal(name string, val unsafe.Pointer, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -998,7 +1022,9 @@ func (o OptObject) SetDictVal(name string, val unsafe.Pointer, searchFlags int) 
 // SetFromString parses "k=v,k=v" onto the object (av_opt_set_from_string;
 // shorthand 传 "" 不用简写, keySep/pairSep 传 "="/"、",".
 func (o OptObject) SetFromString(opts, shorthand, keySep, pairSep string, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -1010,7 +1036,9 @@ func (o OptObject) SetFromString(opts, shorthand, keySep, pairSep string, search
 
 // SetImageSize writes a WxH option (av_opt_set_image_size).
 func (o OptObject) SetImageSize(name string, w, h, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -1023,7 +1051,9 @@ func (o OptObject) SetImageSize(name string, w, h, searchFlags int) error {
 // SetChlayout writes a channel-layout option (av_opt_set_chlayout;
 // layout 传 32 字节 AVChannelLayout 缓冲, 见 ChannelLayoutDefault).
 func (o OptObject) SetChlayout(name string, layout unsafe.Pointer, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -1035,7 +1065,9 @@ func (o OptObject) SetChlayout(name string, layout unsafe.Pointer, searchFlags i
 
 // SetSampleFmt writes a sample-format option (av_opt_set_sample_fmt).
 func (o OptObject) SetSampleFmt(name string, sampleFmt, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -1047,7 +1079,9 @@ func (o OptObject) SetSampleFmt(name string, sampleFmt, searchFlags int) error {
 
 // SetPixFmt writes a pixel-format option (av_opt_set_pixel_fmt).
 func (o OptObject) SetPixFmt(name string, pixFmt, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}
@@ -1059,7 +1093,9 @@ func (o OptObject) SetPixFmt(name string, pixFmt, searchFlags int) error {
 
 // SetVideoRate writes a framerate option (av_opt_set_video_rate).
 func (o OptObject) SetVideoRate(name string, rate AVRational, searchFlags int) error {
-	mustUse(ensureModDictOpt())
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
 	if o.ptr == nil {
 		return errNilOpt
 	}

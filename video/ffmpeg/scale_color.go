@@ -48,6 +48,7 @@ type Scaler struct{ ptr unsafe.Pointer }
 
 // Ptr exposes the raw handle.
 func (s *Scaler) Ptr() unsafe.Pointer {
+	mustUse(ensureModScale())
 	if s == nil {
 		return nil
 	}
@@ -159,9 +160,7 @@ func registerScaleColor(h uintptr) {
 // NewScaler builds a converter srcW x srcH/srcFmt -> dstW x dstH/dstFmt
 // (记得 Free; flags 用 SwsBilinear 等).
 func NewScaler(srcW, srcH, srcFmt, dstW, dstH, dstFmt, flags int32) *Scaler {
-	if err := ensureModScale(); err != nil {
-		return nil
-	}
+	mustUse(ensureModScale())
 	ptr := fSwsGetCtx(srcW, srcH, srcFmt, dstW, dstH, dstFmt, flags, nil, nil, nil)
 	if ptr == nil {
 		return nil
@@ -181,7 +180,9 @@ func (s *Scaler) Scale(srcPtrs *unsafe.Pointer, srcStrides *int32, srcY, srcH in
 
 // ScaleFrame converts src frame into dst frame (帧对帧, 记得两边帧都备好缓冲).
 func (s *Scaler) ScaleFrame(dst, src *Frame) error {
-	mustUse(ensureModScale())
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if s == nil || dst == nil || src == nil {
 		return errNilScale
 	}
@@ -239,7 +240,9 @@ func AllocScalerContext() *Scaler {
 // InitContext initializes a manually-configured converter
 // (sws_init_context; srcFilter/dstFilter 传 nil 用默认).
 func (s *Scaler) InitContext(srcFilter, dstFilter unsafe.Pointer) error {
-	mustUse(ensureModScale())
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if s == nil || s.ptr == nil {
 		return errNilScale
 	}
@@ -287,6 +290,9 @@ func ImageCopyPlane(dst unsafe.Pointer, dstStride int32, src unsafe.Pointer, src
 // ImageCheckSize validates w/h for allocation (av_image_check_size;
 // 0 为合法, 负数为错码).
 func ImageCheckSize(w, h uint32) error {
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	var md MediaDesc
 	_ = md
 	if ensureModScale() != nil {
@@ -301,6 +307,9 @@ func ImageCheckSize(w, h uint32) error {
 // ImageCheckSize2 validates w/h against a pixel budget
 // (av_image_check_size2; maxPixels 传实际像素数, 如 w*h).
 func ImageCheckSize2(w, h uint32, maxPixels int64, pixFmt int32) error {
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ensureModScale() != nil {
 		return errNilScale
 	}
@@ -313,6 +322,9 @@ func ImageCheckSize2(w, h uint32, maxPixels int64, pixFmt int32) error {
 // ImageCheckSar validates a sample aspect ratio (av_image_check_sar;
 // 0 为合法).
 func ImageCheckSar(w, h uint32, sar AVRational) error {
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ensureModScale() != nil {
 		return errNilScale
 	}
@@ -357,6 +369,9 @@ func (Image) BufferSize(w, h, pixFmt, align int32) int {
 
 // CheckSize validates dimensions (0 通过, 负数说明太大或格式不对).
 func (Image) CheckSize(w, h uint32, pixFmt int32) error {
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ensureModScale() != nil {
 		return errNilScale
 	}
@@ -384,6 +399,7 @@ func PixFmtFromName(name string) int32 {
 
 // SwscaleConfiguration returns the libswscale build configuration string.
 func (self *Scaler) SwscaleConfiguration() string {
+	mustUse(ensureModScale())
 	if self == nil || ensureModScale() != nil {
 		return ""
 	}
@@ -392,6 +408,7 @@ func (self *Scaler) SwscaleConfiguration() string {
 
 // SwscaleLicense returns the libswscale license string.
 func (self *Scaler) SwscaleLicense() string {
+	mustUse(ensureModScale())
 	if self == nil || ensureModScale() != nil {
 		return ""
 	}
@@ -400,6 +417,7 @@ func (self *Scaler) SwscaleLicense() string {
 
 // SwscaleVersion returns the libswscale version number.
 func (self *Scaler) SwscaleVersion() uint32 {
+	mustUse(ensureModScale())
 	if self == nil || ensureModScale() != nil {
 		return 0
 	}
@@ -432,7 +450,9 @@ func (self *Scaler) SwsFrameEnd(c unsafe.Pointer) {
 
 // SwsFrameStart 切片帧开始（对 sws_frame_start；参数 c、dst、src；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsFrameStart(c unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer) error {
-	mustUse(ensureModScale())
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ret := fSwsFrameStart(c, dst, src); ret < 0 {
 		return codeErr("sws_frame_start", ret)
 	}
@@ -465,7 +485,9 @@ func (self *Scaler) SwsGetCoefficients(colorspace int32) unsafe.Pointer {
 
 // SwsGetColorspaceDetails 取出色空间转换细节（对 sws_getColorspaceDetails；参数 c、inv_table、srcRange、table、dstRange、brightness、contrast、saturation；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsGetColorspaceDetails(c unsafe.Pointer, inv_table *unsafe.Pointer, srcRange *int32, table *unsafe.Pointer, dstRange *int32, brightness *int32, contrast *int32, saturation *int32) error {
-	mustUse(ensureModScale())
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ret := fSwsGetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
 		return codeErr("sws_getColorspaceDetails", ret)
 	}
@@ -492,7 +514,9 @@ func (self *Scaler) SwsNormalizeVec(a unsafe.Pointer, height float64) {
 
 // SwsReceiveSlice 切片模式取一行（对 sws_receive_slice；参数 c、slice_start、slice_height；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsReceiveSlice(c unsafe.Pointer, slice_start uint32, slice_height uint32) error {
-	mustUse(ensureModScale())
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ret := fSwsReceiveSlice(c, slice_start, slice_height); ret < 0 {
 		return codeErr("sws_receive_slice", ret)
 	}
@@ -513,7 +537,9 @@ func (self *Scaler) SwsScaleVec(a unsafe.Pointer, scalar float64) {
 
 // SwsSendSlice 切片模式喂一行（对 sws_send_slice；参数 c、slice_start、slice_height；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsSendSlice(c unsafe.Pointer, slice_start uint32, slice_height uint32) error {
-	mustUse(ensureModScale())
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ret := fSwsSendSlice(c, slice_start, slice_height); ret < 0 {
 		return codeErr("sws_send_slice", ret)
 	}
@@ -522,7 +548,9 @@ func (self *Scaler) SwsSendSlice(c unsafe.Pointer, slice_start uint32, slice_hei
 
 // SwsSetColorspaceDetails 设置色空间转换细节（对 sws_setColorspaceDetails；参数 c、inv_table、srcRange、table、dstRange、brightness、contrast、saturation；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
 func (self *Scaler) SwsSetColorspaceDetails(c unsafe.Pointer, inv_table unsafe.Pointer, srcRange int32, table unsafe.Pointer, dstRange int32, brightness int32, contrast int32, saturation int32) error {
-	mustUse(ensureModScale())
+	if err := ensureModScale(); err != nil {
+		return err
+	}
 	if ret := fSwsSetColorspaceDetails(c, inv_table, srcRange, table, dstRange, brightness, contrast, saturation); ret < 0 {
 		return codeErr("sws_setColorspaceDetails", ret)
 	}
