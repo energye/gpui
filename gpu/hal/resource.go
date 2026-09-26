@@ -31,6 +31,18 @@ type NativeHandle interface {
 type Buffer interface {
 	Resource
 	NativeHandle
+
+	// Size returns the buffer size in bytes.
+	// Matches webgpu Buffer.Size (gpu/webgpu/buffer.go:22).
+	Size() uint64
+
+	// Usage returns the buffer's usage flags.
+	// Matches webgpu Buffer.Usage (gpu/webgpu/buffer.go:30).
+	Usage() gputypes.BufferUsage
+
+	// Label returns the buffer's debug label.
+	// Matches webgpu Buffer.Label (gpu/webgpu/buffer.go:38).
+	Label() string
 }
 
 // Texture represents a GPU texture.
@@ -38,6 +50,10 @@ type Buffer interface {
 type Texture interface {
 	Resource
 	NativeHandle
+
+	// Format returns the texture format.
+	// Matches webgpu Texture.Format (gpu/webgpu/texture.go:17).
+	Format() gputypes.TextureFormat
 
 	// CurrentUsage returns the texture's tracked usage state for barrier computation.
 	// On DX12, this maps the tracked D3D12 resource state back to gputypes.TextureUsage.
@@ -59,6 +75,10 @@ type Texture interface {
 type TextureView interface {
 	Resource
 	NativeHandle
+
+	// Texture returns the parent Texture that this view was created from.
+	// Matches webgpu TextureView.Texture (gpu/webgpu/texture.go:48).
+	Texture() Texture
 }
 
 // Sampler represents a texture sampler.

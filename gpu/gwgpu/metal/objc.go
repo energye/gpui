@@ -981,7 +981,7 @@ func newFrameCompletionBlock(frameSemaphore chan struct{}) uintptr {
 }
 
 // --------------------------------------------------------------------------
-// GPU Completion Tracking Block — actual GPU completion index for PollCompleted
+// GPU Completion Tracking Block — actual GPU completion index for Poll
 // --------------------------------------------------------------------------
 //
 // addCompletedHandler: expects a block with signature:
@@ -993,7 +993,7 @@ func newFrameCompletionBlock(frameSemaphore chan struct{}) uintptr {
 // When the GPU finishes executing the last command buffer of a Submit batch,
 // Metal invokes the block. We look up the block ID in the registry, retrieve
 // the captured submission index, and atomically store it in the target counter.
-// This provides actual GPU completion tracking for PollCompleted(), matching
+// This provides actual GPU completion tracking for Poll(), matching
 // the Rust wgpu-hal Metal backend pattern (Fence.completed_value: Arc<AtomicU64>
 // updated via addCompletedHandler in Queue::submit).
 
@@ -1063,7 +1063,7 @@ func getGPUCompletionBlockInvoke() uintptr {
 // addCompletedHandler: that atomically stores the given submission index
 // into the target counter when the GPU finishes executing the command buffer.
 //
-// This provides actual GPU completion tracking for PollCompleted(), replacing
+// This provides actual GPU completion tracking for Poll(), replacing
 // the conservative heuristic (submissionIndex - maxFramesInFlight) with
 // precise completion information from the GPU.
 //

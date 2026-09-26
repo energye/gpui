@@ -3016,7 +3016,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		srcWGPU := (*webgpu.TextureView)(pl.srcView.Pointer())
 		var srcTex *webgpu.Texture
 		if srcWGPU != nil {
-			srcTex = srcWGPU.Texture()
+			srcTex, _ = srcWGPU.Texture().(*webgpu.Texture)
 		}
 		if canDual && srcTex != nil && srcWGPU != nil {
 			viewOps = append(viewOps, dualTexViewBlendOp{
@@ -3240,7 +3240,8 @@ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, pay
 	if wgpuView == nil {
 		return fmt.Errorf("gpu: CommitScratchRegion: nil native view")
 	}
-	tex := wgpuView.Texture()
+	texRaw := wgpuView.Texture()
+	tex, _ := texRaw.(*webgpu.Texture)
 	if tex == nil {
 		return fmt.Errorf("gpu: CommitScratchRegion: nil texture")
 	}
@@ -3290,7 +3291,8 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 	if wgpuView == nil {
 		return nil
 	}
-	tex := wgpuView.Texture()
+	texRaw := wgpuView.Texture()
+	tex, _ := texRaw.(*webgpu.Texture)
 	if tex == nil {
 		return nil
 	}

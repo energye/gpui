@@ -8,7 +8,9 @@ import (
 	"image"
 	"strings"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+	"github.com/energye/gpui/gpu/types"
 )
 
 // isDeviceLostErr reports whether err indicates a permanently lost GPU device.
@@ -411,3 +413,28 @@ func (st *SurfaceTexture) Release() {
 	}
 	st.r = nil
 }
+
+// Destroy implements hal.SurfaceTexture: same as Release.
+func (st *SurfaceTexture) Destroy() { st.Release() }
+
+// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
+func (st *SurfaceTexture) NativeHandle() uintptr { return 0 }
+
+// Format implements hal.Texture: delegates to underlying texture.
+func (st *SurfaceTexture) Format() TextureFormat {
+	if st.texture != nil {
+		return st.texture.Format()
+	}
+	return types.TextureFormatUndefined
+}
+
+// CurrentUsage implements hal.Texture: Rust manages barriers internally, returns 0.
+func (st *SurfaceTexture) CurrentUsage() TextureUsage { return 0 }
+
+// AddPendingRef implements hal.Texture: no-op on Rust.
+func (st *SurfaceTexture) AddPendingRef() {}
+
+// DecPendingRef implements hal.Texture: no-op on Rust.
+func (st *SurfaceTexture) DecPendingRef() {}
+
+var _ hal.SurfaceTexture = (*SurfaceTexture)(nil)

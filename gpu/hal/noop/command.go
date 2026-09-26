@@ -39,7 +39,9 @@ func (c *CommandEncoder) TransitionTextures(_ []hal.TextureBarrier) {}
 func (c *CommandEncoder) ClearBuffer(_ hal.Buffer, _, _ uint64) {}
 
 // CopyBufferToBuffer is a no-op.
-func (c *CommandEncoder) CopyBufferToBuffer(_, _ hal.Buffer, _ []hal.BufferCopy) {}
+// Matches webgpu CommandEncoder.CopyBufferToBuffer flat shape.
+func (c *CommandEncoder) CopyBufferToBuffer(_ hal.Buffer, _ uint64, _ hal.Buffer, _ uint64, _ uint64) {
+}
 
 // CopyBufferToTexture is a no-op.
 func (c *CommandEncoder) CopyBufferToTexture(_ hal.Buffer, _ hal.Texture, _ []hal.BufferTextureCopy) {
@@ -70,20 +72,23 @@ func (c *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.Acceleration
 }
 
 // BeginRenderPass returns a noop render pass encoder.
-func (c *CommandEncoder) BeginRenderPass(_ *hal.RenderPassDescriptor) hal.RenderPassEncoder {
-	return &RenderPassEncoder{}
+// Matches webgpu CommandEncoder.BeginRenderPass error shape.
+func (c *CommandEncoder) BeginRenderPass(_ *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error) {
+	return &RenderPassEncoder{}, nil
 }
 
 // BeginComputePass returns a noop compute pass encoder.
-func (c *CommandEncoder) BeginComputePass(_ *hal.ComputePassDescriptor) hal.ComputePassEncoder {
-	return &ComputePassEncoder{}
+// Matches webgpu CommandEncoder.BeginComputePass error shape.
+func (c *CommandEncoder) BeginComputePass(_ *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error) {
+	return &ComputePassEncoder{}, nil
 }
 
 // RenderPassEncoder implements hal.RenderPassEncoder for the noop backend.
 type RenderPassEncoder struct{}
 
 // End is a no-op.
-func (r *RenderPassEncoder) End() {}
+// Matches webgpu RenderPassEncoder.End error shape.
+func (r *RenderPassEncoder) End() error { return nil }
 
 // SetPipeline is a no-op.
 func (r *RenderPassEncoder) SetPipeline(_ hal.RenderPipeline) {}
@@ -98,10 +103,12 @@ func (r *RenderPassEncoder) SetVertexBuffer(_ uint32, _ hal.Buffer, _ uint64) {}
 func (r *RenderPassEncoder) SetIndexBuffer(_ hal.Buffer, _ gputypes.IndexFormat, _ uint64) {}
 
 // SetViewport is a no-op.
-func (r *RenderPassEncoder) SetViewport(_ gputypes.Viewport) {}
+// Matches webgpu RenderPassEncoder.SetViewport flat shape.
+func (r *RenderPassEncoder) SetViewport(_, _, _, _, _, _ float32) {}
 
 // SetScissorRect is a no-op.
-func (r *RenderPassEncoder) SetScissorRect(_ gputypes.ScissorRect) {}
+// Matches webgpu RenderPassEncoder.SetScissorRect flat shape.
+func (r *RenderPassEncoder) SetScissorRect(_, _, _, _ uint32) {}
 
 // SetBlendConstant is a no-op.
 func (r *RenderPassEncoder) SetBlendConstant(_ *gputypes.Color) {}
@@ -110,16 +117,20 @@ func (r *RenderPassEncoder) SetBlendConstant(_ *gputypes.Color) {}
 func (r *RenderPassEncoder) SetStencilReference(_ uint32) {}
 
 // Draw is a no-op.
-func (r *RenderPassEncoder) Draw(_ gputypes.DrawArgs) {}
+// Matches webgpu RenderPassEncoder.Draw flat shape.
+func (r *RenderPassEncoder) Draw(_, _, _, _ uint32) {}
 
 // DrawIndexed is a no-op.
-func (r *RenderPassEncoder) DrawIndexed(_ gputypes.DrawIndexedArgs) {}
+// Matches webgpu RenderPassEncoder.DrawIndexed flat shape.
+func (r *RenderPassEncoder) DrawIndexed(_, _, _ uint32, _ int32, _ uint32) {}
 
 // DrawIndirect is a no-op.
-func (r *RenderPassEncoder) DrawIndirect(_ hal.Buffer, _ uint64, _ uint32) {}
+// Matches webgpu RenderPassEncoder.DrawIndirect two-arg shape.
+func (r *RenderPassEncoder) DrawIndirect(_ hal.Buffer, _ uint64) {}
 
 // DrawIndexedIndirect is a no-op.
-func (r *RenderPassEncoder) DrawIndexedIndirect(_ hal.Buffer, _ uint64, _ uint32) {}
+// Matches webgpu RenderPassEncoder.DrawIndexedIndirect two-arg shape.
+func (r *RenderPassEncoder) DrawIndexedIndirect(_ hal.Buffer, _ uint64) {}
 
 // DrawIndirectCount is a no-op.
 func (r *RenderPassEncoder) DrawIndirectCount(_ hal.Buffer, _ uint64, _ hal.Buffer, _ uint64, _ uint32) {
@@ -136,7 +147,8 @@ func (r *RenderPassEncoder) ExecuteBundle(_ hal.RenderBundle) {}
 type ComputePassEncoder struct{}
 
 // End is a no-op.
-func (c *ComputePassEncoder) End() {}
+// Matches webgpu ComputePassEncoder.End error shape.
+func (c *ComputePassEncoder) End() error { return nil }
 
 // SetPipeline is a no-op.
 func (c *ComputePassEncoder) SetPipeline(_ hal.ComputePipeline) {}

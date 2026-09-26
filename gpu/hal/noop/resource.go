@@ -23,17 +23,32 @@ func (r *Resource) NativeHandle() uintptr { return 0 }
 // Buffer implements hal.Buffer with in-memory data storage.
 type Buffer struct {
 	Resource
-	data []byte
-	size uint64
+	data  []byte
+	size  uint64
+	usage gputypes.BufferUsage
+	label string
 }
 
 // NativeHandle returns 0 for noop buffers.
 func (b *Buffer) NativeHandle() uintptr { return 0 }
 
+// Size returns the buffer size in bytes.
+func (b *Buffer) Size() uint64 { return b.size }
+
+// Usage returns the buffer's usage flags.
+func (b *Buffer) Usage() gputypes.BufferUsage { return b.usage }
+
+// Label returns the buffer's debug label.
+func (b *Buffer) Label() string { return b.label }
+
 // Texture implements hal.Texture.
 type Texture struct {
 	Resource
+	format gputypes.TextureFormat
 }
+
+// Format returns the texture format.
+func (t *Texture) Format() gputypes.TextureFormat { return t.format }
 
 // CurrentUsage returns 0 — noop backend has no resource state tracking.
 func (t *Texture) CurrentUsage() gputypes.TextureUsage { return 0 }
@@ -42,6 +57,15 @@ func (t *Texture) DecPendingRef()                      {}
 
 // NativeHandle returns 0 for noop textures.
 func (t *Texture) NativeHandle() uintptr { return 0 }
+
+// TextureView implements hal.TextureView for the noop backend.
+type TextureView struct {
+	Resource
+	parent hal.Texture
+}
+
+// Texture returns the parent texture.
+func (v *TextureView) Texture() hal.Texture { return v.parent }
 
 // Surface implements hal.Surface for the noop backend.
 type Surface struct {

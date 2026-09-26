@@ -84,15 +84,15 @@ func mapFilterMode(mode gputypes.FilterMode) int32 {
 
 // mapMinFilter maps WebGPU min filter + mipmap filter to a combined GL filter constant.
 // GL_TEXTURE_MIN_FILTER uses combined values like GL_LINEAR_MIPMAP_LINEAR.
-func mapMinFilter(minFilter, mipmapFilter gputypes.FilterMode) int32 {
+func mapMinFilter(minFilter gputypes.FilterMode, mipmapFilter gputypes.MipmapFilterMode) int32 {
 	switch {
-	case minFilter == gputypes.FilterModeNearest && (mipmapFilter == gputypes.FilterModeNearest || mipmapFilter == gputypes.FilterModeUndefined):
+	case minFilter == gputypes.FilterModeNearest && (mipmapFilter == gputypes.MipmapFilterModeNearest || mipmapFilter == gputypes.MipmapFilterModeUndefined):
 		return gl.NEAREST_MIPMAP_NEAREST
-	case minFilter == gputypes.FilterModeNearest && mipmapFilter == gputypes.FilterModeLinear:
+	case minFilter == gputypes.FilterModeNearest && mipmapFilter == gputypes.MipmapFilterModeLinear:
 		return gl.NEAREST_MIPMAP_LINEAR
-	case minFilter == gputypes.FilterModeLinear && (mipmapFilter == gputypes.FilterModeNearest || mipmapFilter == gputypes.FilterModeUndefined):
+	case minFilter == gputypes.FilterModeLinear && (mipmapFilter == gputypes.MipmapFilterModeNearest || mipmapFilter == gputypes.MipmapFilterModeUndefined):
 		return gl.LINEAR_MIPMAP_NEAREST
-	case minFilter == gputypes.FilterModeLinear && mipmapFilter == gputypes.FilterModeLinear:
+	case minFilter == gputypes.FilterModeLinear && mipmapFilter == gputypes.MipmapFilterModeLinear:
 		return gl.LINEAR_MIPMAP_LINEAR
 	default:
 		return gl.NEAREST_MIPMAP_NEAREST

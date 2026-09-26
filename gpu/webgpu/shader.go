@@ -2,7 +2,10 @@
 
 package webgpu
 
-import rwgpu "github.com/energye/gpui/gpu/rwgpu"
+import (
+	"github.com/energye/gpui/gpu/hal"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+)
 
 // ShaderModule represents a compiled shader module.
 // On the wgpu-native backend, this wraps rwgpu ShaderModule.
@@ -22,3 +25,8 @@ func (m *ShaderModule) Release() {
 		m.r.Release()
 	}
 }
+
+// Destroy implements hal.ShaderModule: same as Release.
+func (m *ShaderModule) Destroy() { m.Release() }
+
+var _ hal.ShaderModule = (*ShaderModule)(nil)

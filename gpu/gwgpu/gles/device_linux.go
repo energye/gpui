@@ -26,6 +26,9 @@ type Device struct {
 	vao             uint32 // persistent VAO (Core Profile requires one bound)
 	maxTextureUnits int32  // GL_MAX_TEXTURE_IMAGE_UNITS (queried at init)
 	maxMSAA         int32  // GL_MAX_SAMPLES (validate MSAA in CreateTexture)
+	features        gputypes.Features
+	limits          gputypes.Limits
+	queue           hal.Queue
 
 	// glslVersion is the target GLSL version for shader compilation, detected
 	// from the adapter's GL_SHADING_LANGUAGE_VERSION at Open time.
@@ -39,6 +42,15 @@ type Device struct {
 	// Mirrors Rust wgpu-hal PrivateCapabilities::SHADER_BINDING_LAYOUT.
 	shaderBindingLayout bool
 }
+
+// Queue returns the device's command queue.
+func (d *Device) Queue() hal.Queue { return d.queue }
+
+// Features returns the device's enabled features.
+func (d *Device) Features() gputypes.Features { return d.features }
+
+// Limits returns the device's resource limits.
+func (d *Device) Limits() gputypes.Limits { return d.limits }
 
 // CreateBuffer creates a GPU buffer.
 func (d *Device) CreateBuffer(desc *BufferDescriptor) (hal.Buffer, error) {
@@ -81,6 +93,7 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (hal.Buffer, error) {
 		target: target,
 		size:   desc.Size,
 		usage:  desc.Usage,
+		label:  desc.Label,
 		glCtx:  glCtx,
 	}
 
@@ -430,8 +443,9 @@ func (d *Device) DestroyPipelineLayout(layout hal.PipelineLayout) {}
 func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (hal.ShaderModule, error) {
 	// For now, store the source - compilation happens at pipeline creation
 	return &ShaderModule{
-		source: desc.Source,
-		glCtx:  d.ctx.GL(),
+		wgsl:  desc.WGSL,
+		spirv: desc.SPIRV,
+		glCtx: d.ctx.GL(),
 	}, nil
 }
 
@@ -470,7 +484,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 	}
 
 	// Compile WGSL → GLSL for vertex stage.
-	vertexGLSL, vertexTranslationInfo, err := compileWGSLToGLSL(d.glslVersion, vertexModule.source, desc.Vertex.EntryPoint, layout.bindingMap)
+	vertexGLSL, vertexTranslationInfo, err := compileWGSLToGLSL(d.glslVersion, vertexModule.wgsl, desc.Vertex.EntryPoint, layout.bindingMap)
 	if err != nil {
 		return nil, fmt.Errorf("gles: vertex shader: %w", err)
 	}
@@ -610,15 +624,6 @@ func (d *Device) DestroyRenderPipeline(pipeline hal.RenderPipeline) {
 }
 
 // CreateComputePipeline creates a compute pipeline.
-//
-// TODO(compute-constants): Apply desc.Compute.Constants via naga's
-// pipeline_constants::process_overrides before GLSL emission. Rust wgpu-hal
-// GLES calls naga::back::pipeline_constants::process_overrides() in
-// create_shader (gles/device.rs:226).
-//
-// TODO(zero-init-workgroup): Pass desc.Compute.ZeroInitializeWorkgroupMemory
-// to naga GLSL options. Rust wgpu-hal sets naga_options.zero_initialize_workgroup_memory
-// per-stage (gles/device.rs:268).
 func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (hal.ComputePipeline, error) {
 	glCtx := d.ctx.Lock()
 	defer d.ctx.Unlock()
@@ -629,13 +634,13 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (hal.Com
 		return nil, fmt.Errorf("gles: invalid pipeline layout type")
 	}
 
-	computeModule, ok := desc.Compute.Module.(*ShaderModule)
+	computeModule, ok := desc.Module.(*ShaderModule)
 	if !ok {
 		return nil, fmt.Errorf("gles: invalid compute shader module type")
 	}
 
 	// Compile WGSL → GLSL for compute stage.
-	computeGLSL, computeTranslationInfo, err := compileWGSLToGLSL(d.glslVersion, computeModule.source, desc.Compute.EntryPoint, layout.bindingMap)
+	computeGLSL, computeTranslationInfo, err := compileWGSLToGLSL(d.glslVersion, computeModule.wgsl, desc.EntryPoint, layout.bindingMap)
 	if err != nil {
 		return nil, fmt.Errorf("gles: compute shader: %w", err)
 	}
@@ -684,7 +689,7 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (hal.Com
 
 	hal.Logger().Debug("gles: compute pipeline created",
 		"programID", programID,
-		"entryPoint", desc.Compute.EntryPoint,
+		"entryPoint", desc.EntryPoint,
 		"elapsed", time.Since(start),
 	)
 
@@ -753,8 +758,9 @@ func (d *Device) DestroyFence(fence hal.Fence) {
 	f.Destroy()
 }
 
-// Wait waits for a fence to reach the specified value.
-func (d *Device) Wait(fence hal.Fence, value uint64, timeout time.Duration) (bool, error) {
+// WaitForFence waits for a fence to reach the specified value.
+// Matches webgpu Device.WaitForFence.
+func (d *Device) WaitForFence(fence hal.Fence, value uint64, timeout time.Duration) (bool, error) {
 	f, ok := fence.(*Fence)
 	if !ok {
 		return false, fmt.Errorf("gles: invalid fence type")
@@ -826,6 +832,21 @@ func (d *Device) WaitIdle() error {
 	}
 	return nil
 }
+
+// Poll returns true (GLES is synchronous after Finish).
+func (d *Device) Poll(_ hal.PollType) bool { return true }
+
+// IsLost returns false (GLES has no device-lost tracking yet).
+func (d *Device) IsLost() bool { return false }
+
+// FlushCallbacks is a no-op for GLES.
+func (d *Device) FlushCallbacks() {}
+
+// PushErrorScope is a no-op for GLES.
+func (d *Device) PushErrorScope(_ hal.ErrorFilter) {}
+
+// PopErrorScope returns nil (GLES never captures errors).
+func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
 // Destroy releases the device.
 func (d *Device) Destroy() {
@@ -912,7 +933,7 @@ func (d *Device) compileFragmentShader(frag *hal.FragmentState, bindingMap map[g
 		return 0, glsl.TranslationInfo{}, fmt.Errorf("gles: invalid fragment shader module type")
 	}
 
-	fragmentGLSL, translationInfo, err := compileWGSLToGLSL(d.glslVersion, fragmentModule.source, frag.EntryPoint, bindingMap)
+	fragmentGLSL, translationInfo, err := compileWGSLToGLSL(d.glslVersion, fragmentModule.wgsl, frag.EntryPoint, bindingMap)
 	if err != nil {
 		return 0, glsl.TranslationInfo{}, fmt.Errorf("gles: fragment shader: %w", err)
 	}

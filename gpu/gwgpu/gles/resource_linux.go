@@ -313,6 +313,14 @@ func (t *SurfaceTexture) CurrentUsage() gputypes.TextureUsage { return 0 }
 func (t *SurfaceTexture) AddPendingRef()                      {}
 func (t *SurfaceTexture) DecPendingRef()                      {}
 
+// Format returns the surface configuration format, or Undefined if unconfigured.
+func (t *SurfaceTexture) Format() gputypes.TextureFormat {
+	if t.surface != nil && t.surface.config != nil {
+		return t.surface.config.Format
+	}
+	return gputypes.TextureFormatUndefined
+}
+
 // Destroy is a no-op for surface textures.
 func (t *SurfaceTexture) Destroy() {}
 

@@ -18,9 +18,19 @@ type Buffer struct {
 	raw     ID // id<MTLBuffer>
 	size    uint64
 	usage   gputypes.BufferUsage
+	label   string
 	options MTLResourceOptions
 	device  *Device
 }
+
+// Size returns the buffer size in bytes.
+func (b *Buffer) Size() uint64 { return b.size }
+
+// Usage returns the buffer's usage flags.
+func (b *Buffer) Usage() gputypes.BufferUsage { return b.usage }
+
+// Label returns the buffer's debug label.
+func (b *Buffer) Label() string { return b.label }
 
 // Destroy releases the buffer.
 func (b *Buffer) Destroy() {
@@ -71,6 +81,9 @@ func (t *Texture) CurrentUsage() gputypes.TextureUsage { return 0 }
 func (t *Texture) AddPendingRef()                      {}
 func (t *Texture) DecPendingRef()                      {}
 
+// Format returns the texture format.
+func (t *Texture) Format() gputypes.TextureFormat { return t.format }
+
 // Destroy releases the texture.
 func (t *Texture) Destroy() {
 	if t.device != nil {
@@ -93,6 +106,14 @@ func (v *TextureView) Destroy() {
 	if v.device != nil {
 		v.device.DestroyTextureView(v)
 	}
+}
+
+// Texture returns the parent texture.
+func (v *TextureView) Texture() hal.Texture {
+	if v.texture == nil {
+		return nil
+	}
+	return v.texture
 }
 
 // NativeHandle returns the raw MTLTexture handle (view is also a texture).
@@ -123,7 +144,8 @@ func (s *Sampler) NativeHandle() uintptr { return uintptr(s.raw) }
 // Reference: Rust wgpu-hal metal/device.rs:138-145 (load_shader takes
 // `layout: &super::PipelineLayout`).
 type ShaderModule struct {
-	source         hal.ShaderSource
+	wgsl           string
+	spirv          []uint32
 	irModule       *ir.Module // nil unless the module was created from WGSL
 	device         *Device
 	workgroupSizes map[string][3]uint32 // entry point name -> workgroup size

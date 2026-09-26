@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -4198,7 +4199,13 @@ func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
 	s.lastSubmitStats.CoalescedCBs = len(all)
 	var subIdx uint64
 	err := s.withSubmitErrorScope("submitWithLeading", func() error {
-		idx, serr := s.queue.Submit(all...)
+		// Queue.Submit takes hal.CommandBuffer: convert element-wise (same
+		// elements, same order, behavior unchanged).
+		halAll := make([]hal.CommandBuffer, 0, len(all))
+		for _, cb := range all {
+			halAll = append(halAll, cb)
+		}
+		idx, serr := s.queue.Submit(halAll...)
 		subIdx = idx
 		return serr
 	})

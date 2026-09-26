@@ -103,38 +103,31 @@ func TestCommandEncoder_CopyBufferToBuffer(t *testing.T) {
 	src := &Buffer{id: 1}
 	dst := &Buffer{id: 2}
 
-	regions := []hal.BufferCopy{
-		{SrcOffset: 0, DstOffset: 100, Size: 256},
-		{SrcOffset: 512, DstOffset: 0, Size: 128},
+	enc.CopyBufferToBuffer(src, 0, dst, 100, 256)
+
+	if len(enc.commands) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(enc.commands))
 	}
 
-	enc.CopyBufferToBuffer(src, dst, regions)
-
-	if len(enc.commands) != 2 {
-		t.Fatalf("expected 2 commands, got %d", len(enc.commands))
+	cmd, ok := enc.commands[0].(*CopyBufferCommand)
+	if !ok {
+		t.Fatalf("expected CopyBufferCommand, got %T", enc.commands[0])
 	}
 
-	for i, r := range regions {
-		cmd, ok := enc.commands[i].(*CopyBufferCommand)
-		if !ok {
-			t.Fatalf("command %d: expected CopyBufferCommand, got %T", i, enc.commands[i])
-		}
-
-		if cmd.srcID != 1 {
-			t.Errorf("command %d: srcID = %d, want 1", i, cmd.srcID)
-		}
-		if cmd.dstID != 2 {
-			t.Errorf("command %d: dstID = %d, want 2", i, cmd.dstID)
-		}
-		if cmd.srcOffset != r.SrcOffset {
-			t.Errorf("command %d: srcOffset = %d, want %d", i, cmd.srcOffset, r.SrcOffset)
-		}
-		if cmd.dstOffset != r.DstOffset {
-			t.Errorf("command %d: dstOffset = %d, want %d", i, cmd.dstOffset, r.DstOffset)
-		}
-		if cmd.size != r.Size {
-			t.Errorf("command %d: size = %d, want %d", i, cmd.size, r.Size)
-		}
+	if cmd.srcID != 1 {
+		t.Errorf("srcID = %d, want 1", cmd.srcID)
+	}
+	if cmd.dstID != 2 {
+		t.Errorf("dstID = %d, want 2", cmd.dstID)
+	}
+	if cmd.srcOffset != 0 {
+		t.Errorf("srcOffset = %d, want 0", cmd.srcOffset)
+	}
+	if cmd.dstOffset != 100 {
+		t.Errorf("dstOffset = %d, want 100", cmd.dstOffset)
+	}
+	if cmd.size != 256 {
+		t.Errorf("size = %d, want 256", cmd.size)
 	}
 }
 
@@ -145,9 +138,9 @@ func TestRenderPassEncoder_Draw(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc)
+	rpe, _ := enc.BeginRenderPass(desc)
 
-	rpe.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
+	rpe.Draw(3, 1, 0, 0)
 
 	if len(enc.commands) != 1 {
 		t.Fatalf("expected 1 command, got %d", len(enc.commands))
@@ -173,13 +166,13 @@ func TestRenderPassEncoder_DrawIndexed(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc)
+	rpe, _ := enc.BeginRenderPass(desc)
 
 	// Set index format
 	idxBuf := &Buffer{id: 5}
 	rpe.SetIndexBuffer(idxBuf, gputypes.IndexFormatUint32, 0)
 
-	rpe.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: 36, InstanceCount: 2})
+	rpe.DrawIndexed(36, 2, 0, 0, 0)
 
 	// Should have SetIndexBufferCommand and DrawIndexedCommand
 	if len(enc.commands) < 2 {
@@ -209,9 +202,9 @@ func TestRenderPassEncoder_SetViewport(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc)
+	rpe, _ := enc.BeginRenderPass(desc)
 
-	rpe.SetViewport(gputypes.Viewport{X: 10, Y: 20, Width: 800, Height: 600, MinDepth: 0.0, MaxDepth: 1.0})
+	rpe.SetViewport(10, 20, 800, 600, 0.0, 1.0)
 
 	if len(enc.commands) != 1 {
 		t.Fatalf("expected 1 command, got %d", len(enc.commands))
@@ -237,9 +230,9 @@ func TestRenderPassEncoder_SetScissorRect(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc)
+	rpe, _ := enc.BeginRenderPass(desc)
 
-	rpe.SetScissorRect(gputypes.ScissorRect{X: 50, Y: 50, Width: 400, Height: 300})
+	rpe.SetScissorRect(50, 50, 400, 300)
 
 	if len(enc.commands) != 1 {
 		t.Fatalf("expected 1 command, got %d", len(enc.commands))
@@ -296,9 +289,10 @@ func TestRenderPassEncoder_SetScissorRect_PassThrough(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc).(*RenderPassEncoder)
+	rpeRaw, _ := enc.BeginRenderPass(desc)
+	rpe := rpeRaw.(*RenderPassEncoder)
 
-	rpe.SetScissorRect(gputypes.ScissorRect{X: 50, Y: 100, Width: 400, Height: 200})
+	rpe.SetScissorRect(50, 100, 400, 200)
 
 	if len(enc.commands) != 1 {
 		t.Fatalf("expected 1 command, got %d", len(enc.commands))
@@ -325,7 +319,8 @@ func TestRenderPassEncoder_SetVertexBuffer(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc).(*RenderPassEncoder)
+	rpeRaw, _ := enc.BeginRenderPass(desc)
+	rpe := rpeRaw.(*RenderPassEncoder)
 
 	buf := &Buffer{id: 10}
 	rpe.SetVertexBuffer(0, buf, 64)
@@ -366,7 +361,7 @@ func TestRenderPassEncoder_ClearColorOnLoad(t *testing.T) {
 			},
 		},
 	}
-	_ = enc.BeginRenderPass(desc)
+	_, _ = enc.BeginRenderPass(desc)
 
 	// BeginRenderPass emits: SetDrawColorBuffersCommand + ClearColorBufferCommand
 	if len(enc.commands) != 2 {
@@ -400,7 +395,7 @@ func TestComputePassEncoder_Dispatch(t *testing.T) {
 	enc := &CommandEncoder{}
 	_ = enc.BeginEncoding("test")
 
-	cpe := enc.BeginComputePass(nil)
+	cpe, _ := enc.BeginComputePass(nil)
 	cpe.Dispatch(16, 8, 4)
 
 	if len(enc.commands) != 1 {
@@ -424,7 +419,7 @@ func TestRenderPassEncoder_SetBlendConstant(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc)
+	rpe, _ := enc.BeginRenderPass(desc)
 
 	color := &gputypes.Color{R: 0.2, G: 0.4, B: 0.6, A: 0.8}
 	rpe.SetBlendConstant(color)
@@ -451,7 +446,7 @@ func TestRenderPassEncoder_SetStencilReference(t *testing.T) {
 	desc := &hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{},
 	}
-	rpe := enc.BeginRenderPass(desc)
+	rpe, _ := enc.BeginRenderPass(desc)
 
 	rpe.SetStencilReference(128)
 

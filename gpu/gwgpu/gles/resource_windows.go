@@ -184,3 +184,11 @@ func (t *SurfaceTexture) AddPendingRef()                      {}
 func (t *SurfaceTexture) DecPendingRef()                      {}
 func (t *SurfaceTexture) Destroy()                            {}
 func (t *SurfaceTexture) NativeHandle() uintptr               { return 0 }
+
+// Format returns the surface configuration format, or Undefined if unconfigured.
+func (t *SurfaceTexture) Format() gputypes.TextureFormat {
+	if t.surface != nil && t.surface.config != nil {
+		return t.surface.config.Format
+	}
+	return gputypes.TextureFormatUndefined
+}

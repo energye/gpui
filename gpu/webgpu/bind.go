@@ -2,7 +2,10 @@
 
 package webgpu
 
-import rwgpu "github.com/energye/gpui/gpu/rwgpu"
+import (
+	"github.com/energye/gpui/gpu/hal"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+)
 
 // BindGroupLayout defines the structure of resource bindings for shaders.
 // On the wgpu-native backend, this wraps rwgpu BindGroupLayout.
@@ -23,6 +26,9 @@ func (l *BindGroupLayout) Release() {
 	}
 }
 
+// Destroy implements hal.BindGroupLayout: same as Release.
+func (l *BindGroupLayout) Destroy() { l.Release() }
+
 // PipelineLayout defines the bind group layout arrangement for a pipeline.
 // On the wgpu-native backend, this wraps rwgpu PipelineLayout.
 type PipelineLayout struct {
@@ -41,6 +47,9 @@ func (l *PipelineLayout) Release() {
 		l.r.Release()
 	}
 }
+
+// Destroy implements hal.PipelineLayout: same as Release.
+func (l *PipelineLayout) Destroy() { l.Release() }
 
 // LateBufferBindingInfo records the actual buffer binding size for a layout entry
 // with MinBindingSize == 0.
@@ -67,3 +76,12 @@ func (g *BindGroup) Release() {
 		g.r.Release()
 	}
 }
+
+// Destroy implements hal.BindGroup: same as Release.
+func (g *BindGroup) Destroy() { g.Release() }
+
+var (
+	_ hal.BindGroupLayout = (*BindGroupLayout)(nil)
+	_ hal.PipelineLayout  = (*PipelineLayout)(nil)
+	_ hal.BindGroup       = (*BindGroup)(nil)
+)

@@ -156,7 +156,7 @@ func TestGLESComputeDispatch(t *testing.T) {
 			enc := &CommandEncoder{}
 			_ = enc.BeginEncoding("test")
 
-			cpe := enc.BeginComputePass(nil)
+			cpe, _ := enc.BeginComputePass(nil)
 			cpe.Dispatch(tt.x, tt.y, tt.z)
 
 			if len(enc.commands) != 1 {
@@ -212,7 +212,7 @@ func TestGLESComputeDispatchIndirect(t *testing.T) {
 			_ = enc.BeginEncoding("test")
 
 			buf := &Buffer{id: tt.bufferID}
-			cpe := enc.BeginComputePass(nil)
+			cpe, _ := enc.BeginComputePass(nil)
 			cpe.DispatchIndirect(buf, tt.offset)
 
 			if len(enc.commands) != 1 {
@@ -238,7 +238,7 @@ func TestGLESComputeDispatchIndirect(t *testing.T) {
 		enc := &CommandEncoder{}
 		_ = enc.BeginEncoding("test")
 
-		cpe := enc.BeginComputePass(nil)
+		cpe, _ := enc.BeginComputePass(nil)
 		// Pass nil - should not add command
 		cpe.DispatchIndirect(nil, 0)
 
@@ -277,7 +277,7 @@ func TestGLESComputePassEncoder(t *testing.T) {
 		enc := &CommandEncoder{}
 		_ = enc.BeginEncoding("test")
 
-		cpe := enc.BeginComputePass(nil)
+		cpe, _ := enc.BeginComputePass(nil)
 		if cpe == nil {
 			t.Error("BeginComputePass returned nil")
 		}
@@ -287,9 +287,9 @@ func TestGLESComputePassEncoder(t *testing.T) {
 		enc := &CommandEncoder{}
 		_ = enc.BeginEncoding("test")
 
-		cpe := enc.BeginComputePass(nil)
+		cpe, _ := enc.BeginComputePass(nil)
 		cpe.Dispatch(1, 1, 1)
-		cpe.End() // Should not panic
+		_ = cpe.End() // Should not panic
 
 		// Verify dispatch was recorded
 		if len(enc.commands) != 1 {
@@ -302,7 +302,8 @@ func TestGLESComputePassEncoder(t *testing.T) {
 		_ = enc.BeginEncoding("test")
 
 		pipeline := &ComputePipeline{programID: 42}
-		cpe := enc.BeginComputePass(nil).(*ComputePassEncoder)
+		cpeRaw, _ := enc.BeginComputePass(nil)
+		cpe := cpeRaw.(*ComputePassEncoder)
 		cpe.SetPipeline(pipeline)
 
 		if cpe.pipeline != pipeline {
@@ -328,7 +329,7 @@ func TestGLESComputePassEncoder(t *testing.T) {
 		enc := &CommandEncoder{}
 		_ = enc.BeginEncoding("test")
 
-		cpe := enc.BeginComputePass(nil)
+		cpe, _ := enc.BeginComputePass(nil)
 		// Pass nil - should not set pipeline
 		cpe.SetPipeline(nil)
 
@@ -342,7 +343,7 @@ func TestGLESComputePassEncoder(t *testing.T) {
 		_ = enc.BeginEncoding("test")
 
 		bg := &BindGroup{}
-		cpe := enc.BeginComputePass(nil)
+		cpe, _ := enc.BeginComputePass(nil)
 		cpe.SetBindGroup(0, bg, nil)
 
 		if len(enc.commands) != 1 {
@@ -368,7 +369,7 @@ func TestGLESComputePassEncoder(t *testing.T) {
 
 		bg := &BindGroup{}
 		offsets := []uint32{256, 512}
-		cpe := enc.BeginComputePass(nil)
+		cpe, _ := enc.BeginComputePass(nil)
 		cpe.SetBindGroup(1, bg, offsets)
 
 		if len(enc.commands) != 1 {
@@ -391,7 +392,7 @@ func TestGLESComputePassEncoder(t *testing.T) {
 		enc := &CommandEncoder{}
 		_ = enc.BeginEncoding("test")
 
-		cpe := enc.BeginComputePass(nil)
+		cpe, _ := enc.BeginComputePass(nil)
 		// Pass nil - should not add command
 		cpe.SetBindGroup(0, nil, nil)
 
@@ -431,7 +432,7 @@ func TestGLESComputeFullWorkflow(t *testing.T) {
 	_ = enc.BeginEncoding("compute_workflow")
 
 	// Begin compute pass
-	cpe := enc.BeginComputePass(&hal.ComputePassDescriptor{
+	cpe, _ := enc.BeginComputePass(&hal.ComputePassDescriptor{
 		Label: "test_compute_pass",
 	})
 
@@ -449,7 +450,7 @@ func TestGLESComputeFullWorkflow(t *testing.T) {
 	cpe.Dispatch(64, 64, 1)
 
 	// End pass
-	cpe.End()
+	_ = cpe.End()
 
 	// End encoding
 	cmdBuf, err := enc.EndEncoding()

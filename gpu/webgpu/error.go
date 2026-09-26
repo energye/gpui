@@ -4,7 +4,8 @@ package webgpu
 
 import (
 	"errors"
-	"fmt"
+
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // Public API sentinel errors.
@@ -92,42 +93,18 @@ var (
 )
 
 // GPUError represents a captured GPU error from an error scope.
-// Matches the core.GPUError structure used by the native backend.
-type GPUError struct {
-	// Type identifies the category of the error.
-	Type ErrorFilter
-
-	// Message provides a human-readable description of the error.
-	Message string
-}
-
-// Error implements the error interface.
-func (e *GPUError) Error() string {
-	return fmt.Sprintf("GPU %s error: %s", e.Type, e.Message)
-}
+// Alias of hal.GPUError (identical shape: Type/Message, same Error text).
+type GPUError = hal.GPUError
 
 // ErrorFilter selects which errors an error scope captures.
-type ErrorFilter int
+// Alias of hal.ErrorFilter (same values 1/2/3, same String text).
+type ErrorFilter = hal.ErrorFilter
 
 const (
 	// ErrorFilterValidation captures validation errors (WGPUErrorFilter_Validation).
-	ErrorFilterValidation ErrorFilter = 0x00000001
+	ErrorFilterValidation = hal.ErrorFilterValidation
 	// ErrorFilterOutOfMemory captures out-of-memory errors.
-	ErrorFilterOutOfMemory ErrorFilter = 0x00000002
+	ErrorFilterOutOfMemory = hal.ErrorFilterOutOfMemory
 	// ErrorFilterInternal captures internal errors.
-	ErrorFilterInternal ErrorFilter = 0x00000003
+	ErrorFilterInternal = hal.ErrorFilterInternal
 )
-
-// String returns a human-readable name for the error filter.
-func (f ErrorFilter) String() string {
-	switch f {
-	case ErrorFilterValidation:
-		return "Validation"
-	case ErrorFilterOutOfMemory:
-		return "OutOfMemory"
-	case ErrorFilterInternal:
-		return "Internal"
-	default:
-		return fmt.Sprintf("ErrorFilter(%d)", int(f))
-	}
-}

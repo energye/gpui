@@ -30,7 +30,7 @@ type Adapter struct {
 }
 
 // Open creates a logical device with the requested features and limits.
-func (a *Adapter) Open(_ gputypes.Features, _ gputypes.Limits) (hal.OpenDevice, error) {
+func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.OpenDevice, error) {
 	// EnumerateAdapters(nil) path returns an adapter with nil ctx because no
 	// EGL context can be created without a display/window handle. Return a
 	// descriptive error instead of a nil pointer dereference at GenVertexArrays.
@@ -70,6 +70,8 @@ func (a *Adapter) Open(_ gputypes.Features, _ gputypes.Limits) (hal.OpenDevice, 
 		vao:                 vao,
 		maxTextureUnits:     maxTexUnits,
 		maxMSAA:             a.caps.MaxMSAASamples,
+		features:            features,
+		limits:              limits,
 		glslVersion:         glslVer,
 		shaderBindingLayout: glslVer.SupportsExplicitLocations(),
 	}
@@ -78,6 +80,7 @@ func (a *Adapter) Open(_ gputypes.Features, _ gputypes.Limits) (hal.OpenDevice, 
 		ctx:   a.ctx,
 		fence: NewFence(glCtx),
 	}
+	device.queue = queue
 
 	return hal.OpenDevice{
 		Device: device,
@@ -91,8 +94,46 @@ func (a *Adapter) TextureFormatCapabilities(format gputypes.TextureFormat) hal.T
 	return queryTextureFormatCapabilities(format, a.caps.Features, a.caps.MaxMSAASamples, a.caps.Extensions)
 }
 
-// SurfaceCapabilities returns surface capabilities.
-func (a *Adapter) SurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities {
+// Info returns adapter metadata built from probed GL strings.
+func (a *Adapter) Info() gputypes.AdapterInfo {
+	return gputypes.AdapterInfo{
+		Name:       a.renderer,
+		Vendor:     a.caps.Vendor,
+		VendorID:   a.caps.VendorID,
+		DeviceType: a.caps.DeviceType,
+		Driver:     a.version,
+		DriverInfo: a.version,
+		Backend:    gputypes.BackendGL,
+	}
+}
+
+// Features returns probed GL features.
+func (a *Adapter) Features() gputypes.Features { return a.caps.Features }
+
+// Limits returns probed GL limits.
+func (a *Adapter) Limits() gputypes.Limits { return a.caps.Limits }
+
+// RequestDevice opens a device with the requested features and limits.
+// Queue is accessible via the returned Device.Queue().
+func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error) {
+	var features gputypes.Features
+	var limits gputypes.Limits = gputypes.DefaultLimits()
+	if desc != nil {
+		features = desc.RequiredFeatures
+		if desc.RequiredLimits != (gputypes.Limits{}) {
+			limits = desc.RequiredLimits
+		}
+	}
+	opened, err := a.Open(features, limits)
+	if err != nil {
+		return nil, err
+	}
+	return opened.Device, nil
+}
+
+// GetSurfaceCapabilities returns surface capabilities.
+// Matches webgpu Adapter.GetSurfaceCapabilities name.
+func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities {
 	return &hal.SurfaceCapabilities{
 		Formats: []gputypes.TextureFormat{
 			gputypes.TextureFormatBGRA8Unorm,

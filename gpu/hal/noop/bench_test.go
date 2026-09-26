@@ -54,7 +54,7 @@ func BenchmarkNoopSubmitEmpty(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := queue.Submit(nil)
+		_, err := queue.Submit()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func BenchmarkNoopSubmitSingle(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := queue.Submit(cmdBuffers)
+		_, err := queue.Submit(cmdBuffers...)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -247,8 +247,8 @@ func BenchmarkNoopRenderPassBeginEnd(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 		_ = encoder.BeginEncoding("bench")
-		rp := encoder.BeginRenderPass(desc)
-		rp.End()
+		rp, _ := encoder.BeginRenderPass(desc)
+		_ = rp.End()
 		cb, _ := encoder.EndEncoding()
 		benchResult = cb
 	}
@@ -266,9 +266,9 @@ func BenchmarkNoopComputePassBeginEnd(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 		_ = encoder.BeginEncoding("bench")
-		cp := encoder.BeginComputePass(desc)
+		cp, _ := encoder.BeginComputePass(desc)
 		cp.Dispatch(1, 1, 1)
-		cp.End()
+		_ = cp.End()
 		cb, _ := encoder.EndEncoding()
 		benchResult = cb
 	}
@@ -304,7 +304,7 @@ func BenchmarkNoopFullFrame(b *testing.B) {
 	defer device.DestroyPipelineLayout(layout)
 
 	module, _ := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
-		Source: hal.ShaderSource{WGSL: "@vertex fn vs() {}"},
+		WGSL: "@vertex fn vs() {}",
 	})
 	defer device.DestroyShaderModule(module)
 
@@ -335,16 +335,16 @@ func BenchmarkNoopFullFrame(b *testing.B) {
 		encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 		_ = encoder.BeginEncoding("frame")
 
-		rp := encoder.BeginRenderPass(rpDesc)
+		rp, _ := encoder.BeginRenderPass(rpDesc)
 		rp.SetPipeline(pipeline)
 		rp.SetVertexBuffer(0, buffer, 0)
-		rp.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
-		rp.End()
+		rp.Draw(3, 1, 0, 0)
+		_ = rp.End()
 
 		cmdBuffer, _ := encoder.EndEncoding()
 
 		// Submit
-		_, _ = queue.Submit([]hal.CommandBuffer{cmdBuffer})
+		_, _ = queue.Submit(cmdBuffer)
 	}
 }
 
@@ -370,13 +370,13 @@ func BenchmarkNoopCommandRecording(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 				_ = encoder.BeginEncoding("bench")
-				rp := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+				rp, _ := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 					ColorAttachments: []hal.RenderPassColorAttachment{{}},
 				})
 				for d := 0; d < dc.draws; d++ {
-					rp.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
+					rp.Draw(3, 1, 0, 0)
 				}
-				rp.End()
+				_ = rp.End()
 				cb, _ := encoder.EndEncoding()
 				benchResult = cb
 			}

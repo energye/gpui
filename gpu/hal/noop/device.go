@@ -8,10 +8,29 @@ import (
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
+	gputypes "github.com/energye/gpui/gpu/types"
 )
 
 // Device implements hal.Device for the noop backend.
-type Device struct{}
+type Device struct {
+	queue    *Queue
+	features gputypes.Features
+	limits   gputypes.Limits
+}
+
+// Queue returns the device's command queue.
+func (d *Device) Queue() hal.Queue {
+	if d.queue == nil {
+		return &Queue{}
+	}
+	return d.queue
+}
+
+// Features returns the device's enabled features.
+func (d *Device) Features() gputypes.Features { return d.features }
+
+// Limits returns the device's resource limits.
+func (d *Device) Limits() gputypes.Limits { return d.limits }
 
 // CreateBuffer creates a noop buffer with in-memory backing storage.
 //
@@ -21,7 +40,7 @@ func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error) {
 	if desc == nil {
 		return nil, fmt.Errorf("BUG: buffer descriptor is nil in Noop.CreateBuffer — core validation gap")
 	}
-	return &Buffer{data: make([]byte, desc.Size), size: desc.Size}, nil
+	return &Buffer{data: make([]byte, desc.Size), size: desc.Size, usage: desc.Usage, label: desc.Label}, nil
 }
 
 // DestroyBuffer is a no-op.
@@ -50,15 +69,15 @@ func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (hal.Texture, error)
 	if desc == nil {
 		return nil, fmt.Errorf("BUG: texture descriptor is nil in Noop.CreateTexture — core validation gap")
 	}
-	return &Texture{}, nil
+	return &Texture{format: desc.Format}, nil
 }
 
 // DestroyTexture is a no-op.
 func (d *Device) DestroyTexture(_ hal.Texture) {}
 
 // CreateTextureView creates a noop texture view.
-func (d *Device) CreateTextureView(_ hal.Texture, _ *hal.TextureViewDescriptor) (hal.TextureView, error) {
-	return &Resource{}, nil
+func (d *Device) CreateTextureView(parent hal.Texture, _ *hal.TextureViewDescriptor) (hal.TextureView, error) {
+	return &TextureView{parent: parent}, nil
 }
 
 // DestroyTextureView is a no-op.
@@ -141,9 +160,10 @@ func (d *Device) CreateFence() (hal.Fence, error) {
 // DestroyFence is a no-op.
 func (d *Device) DestroyFence(_ hal.Fence) {}
 
-// Wait simulates waiting for a fence value.
+// WaitForFence simulates waiting for a fence value.
 // Always returns true immediately (fence reached).
-func (d *Device) Wait(fence hal.Fence, value uint64, _ time.Duration) (bool, error) {
+// Matches webgpu Device.WaitForFence.
+func (d *Device) WaitForFence(fence hal.Fence, value uint64, _ time.Duration) (bool, error) {
 	f, ok := fence.(*Fence)
 	if !ok {
 		return true, nil
@@ -206,6 +226,21 @@ func (d *Device) TlasInstanceToBytes(_ hal.TlasInstance) []byte { return nil }
 
 // WaitIdle is a no-op for the noop device.
 func (d *Device) WaitIdle() error { return nil }
+
+// Poll returns true (noop backend is synchronous, all work complete).
+func (d *Device) Poll(_ hal.PollType) bool { return true }
+
+// IsLost returns false (noop device is never lost).
+func (d *Device) IsLost() bool { return false }
+
+// FlushCallbacks is a no-op for the noop device.
+func (d *Device) FlushCallbacks() {}
+
+// PushErrorScope is a no-op for the noop device.
+func (d *Device) PushErrorScope(_ hal.ErrorFilter) {}
+
+// PopErrorScope returns nil (noop backend never captures errors).
+func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
 // Destroy is a no-op for the noop device.
 func (d *Device) Destroy() {}

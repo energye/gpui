@@ -3,12 +3,14 @@
 package webgpu
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"sync"
 	"time"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
@@ -359,7 +361,8 @@ func (d *Device) CreateCommandEncoder(desc *CommandEncoderDescriptor) (*CommandE
 // CreateFence creates a GPU synchronization fence.
 // On the wgpu-native backend, fences are not exposed by wgpu-native.
 // Returns a no-op fence for API compatibility.
-func (d *Device) CreateFence() (*Fence, error) {
+// Implements hal.Device (returns hal.Fence interface).
+func (d *Device) CreateFence() (hal.Fence, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -368,21 +371,24 @@ func (d *Device) CreateFence() (*Fence, error) {
 
 // DestroyFence destroys a fence.
 // On the wgpu-native backend, fences are no-ops — this is a no-op.
+// Implements hal.Device (takes hal.Fence interface, internal unpack).
 //
 // Deprecated: Use Fence.Release() instead.
-func (d *Device) DestroyFence(f *Fence) {
-	if f != nil {
-		f.Release()
+func (d *Device) DestroyFence(fence hal.Fence) {
+	if wf, ok := fence.(*Fence); ok && wf != nil {
+		wf.Release()
 	}
 }
 
 // ResetFence resets a fence to the unsignaled state.
 // On the wgpu-native backend, fences are no-ops — this always succeeds.
-func (d *Device) ResetFence(f *Fence) error {
+// Implements hal.Device (takes hal.Fence interface, internal unpack).
+func (d *Device) ResetFence(fence hal.Fence) error {
 	if d.released {
 		return ErrReleased
 	}
-	if f == nil || f.released {
+	wf, ok := fence.(*Fence)
+	if !ok || wf == nil || wf.released {
 		return ErrReleased
 	}
 	return nil
@@ -390,11 +396,13 @@ func (d *Device) ResetFence(f *Fence) error {
 
 // GetFenceStatus returns true if the fence is signaled (non-blocking).
 // On the wgpu-native backend, fences are no-ops — always reports signaled.
-func (d *Device) GetFenceStatus(f *Fence) (bool, error) {
+// Implements hal.Device (takes hal.Fence interface, internal unpack).
+func (d *Device) GetFenceStatus(fence hal.Fence) (bool, error) {
 	if d.released {
 		return false, ErrReleased
 	}
-	if f == nil || f.released {
+	wf, ok := fence.(*Fence)
+	if !ok || wf == nil || wf.released {
 		return false, ErrReleased
 	}
 	return true, nil
@@ -402,11 +410,13 @@ func (d *Device) GetFenceStatus(f *Fence) (bool, error) {
 
 // WaitForFence waits for a fence to reach the specified value.
 // On the wgpu-native backend, fences are no-ops — polls the device and returns immediately.
-func (d *Device) WaitForFence(f *Fence, _ uint64, _ time.Duration) (bool, error) {
+// Implements hal.Device (takes hal.Fence interface, internal unpack).
+func (d *Device) WaitForFence(fence hal.Fence, _ uint64, _ time.Duration) (bool, error) {
 	if d.released {
 		return false, ErrReleased
 	}
-	if f == nil || f.released {
+	wf, ok := fence.(*Fence)
+	if !ok || wf == nil || wf.released {
 		return false, ErrReleased
 	}
 	// Poll device to ensure GPU work has progressed.
@@ -415,7 +425,8 @@ func (d *Device) WaitForFence(f *Fence, _ uint64, _ time.Duration) (bool, error)
 }
 
 // PushErrorScope pushes a new error scope onto the device's error scope stack.
-func (d *Device) PushErrorScope(filter ErrorFilter) {
+// Implements hal.Device (takes hal.ErrorFilter; ErrorFilter is aliased so no conversion needed).
+func (d *Device) PushErrorScope(filter hal.ErrorFilter) {
 	if d.r != nil {
 		d.r.PushErrorScope(rwgpu.ErrorFilter(filter)) //nolint:gosec // G115: ErrorFilter values are small enum constants that fit uint32
 	}
@@ -423,7 +434,8 @@ func (d *Device) PushErrorScope(filter ErrorFilter) {
 
 // PopErrorScope pops the most recently pushed error scope.
 // Returns the captured error, or nil if no error occurred.
-func (d *Device) PopErrorScope() *GPUError {
+// Implements hal.Device (returns *hal.GPUError; GPUError is aliased so construction is unchanged).
+func (d *Device) PopErrorScope() *hal.GPUError {
 	if d.r == nil || d.instance == nil || d.instance.r == nil {
 		return nil
 	}
@@ -537,15 +549,120 @@ func (d *Device) IsLost() bool {
 // completed (or after WaitIdle). wgpu-native command buffers hold device
 // resources; leaving them unreleased prevents Device.Release from reclaiming
 // VRAM and causes subsequent CreateTexture failures under ResetAccelerator.
-func (d *Device) FreeCommandBuffer(cb *CommandBuffer) {
+func (d *Device) FreeCommandBuffer(cb hal.CommandBuffer) {
 	if cb == nil {
 		return
 	}
-	cb.Release()
+	wcb, ok := cb.(*CommandBuffer)
+	if !ok || wcb == nil {
+		return
+	}
+	wcb.Release()
 }
 
 // HalDevice returns nil on wgpu-native backend. There is no HAL layer.
 func (d *Device) HalDevice() any { return nil }
+
+// DestroyBuffer implements hal.Device: unwraps hal.Buffer.
+func (d *Device) DestroyBuffer(buffer hal.Buffer) {
+	if wb, ok := buffer.(*Buffer); ok {
+		wb.Release()
+	}
+}
+
+// DestroyTexture implements hal.Device: unwraps hal.Texture.
+func (d *Device) DestroyTexture(texture hal.Texture) {
+	if wt, ok := texture.(*Texture); ok {
+		wt.Release()
+	}
+}
+
+// DestroyTextureView implements hal.Device: unwraps hal.TextureView.
+func (d *Device) DestroyTextureView(view hal.TextureView) {
+	if wv, ok := view.(*TextureView); ok {
+		wv.Release()
+	}
+}
+
+// DestroySampler implements hal.Device: unwraps hal.Sampler.
+func (d *Device) DestroySampler(sampler hal.Sampler) {
+	if ws, ok := sampler.(*Sampler); ok {
+		ws.Release()
+	}
+}
+
+// DestroyBindGroupLayout implements hal.Device: unwraps hal.BindGroupLayout.
+func (d *Device) DestroyBindGroupLayout(layout hal.BindGroupLayout) {
+	if wl, ok := layout.(*BindGroupLayout); ok {
+		wl.Release()
+	}
+}
+
+// DestroyBindGroup implements hal.Device: unwraps hal.BindGroup.
+func (d *Device) DestroyBindGroup(group hal.BindGroup) {
+	if wg, ok := group.(*BindGroup); ok {
+		wg.Release()
+	}
+}
+
+// DestroyPipelineLayout implements hal.Device: unwraps hal.PipelineLayout.
+func (d *Device) DestroyPipelineLayout(layout hal.PipelineLayout) {
+	if wl, ok := layout.(*PipelineLayout); ok {
+		wl.Release()
+	}
+}
+
+// DestroyShaderModule implements hal.Device: unwraps hal.ShaderModule.
+func (d *Device) DestroyShaderModule(module hal.ShaderModule) {
+	if wm, ok := module.(*ShaderModule); ok {
+		wm.Release()
+	}
+}
+
+// DestroyRenderPipeline implements hal.Device: unwraps hal.RenderPipeline.
+func (d *Device) DestroyRenderPipeline(pipeline hal.RenderPipeline) {
+	if wp, ok := pipeline.(*RenderPipeline); ok {
+		wp.Release()
+	}
+}
+
+// DestroyComputePipeline implements hal.Device: unwraps hal.ComputePipeline.
+func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline) {
+	if wp, ok := pipeline.(*ComputePipeline); ok {
+		wp.Release()
+	}
+}
+
+// MapBuffer implements hal.Device: blocking map via Buffer.Map.
+func (d *Device) MapBuffer(buffer hal.Buffer, offset, size uint64) (hal.BufferMapping, error) {
+	wb, ok := buffer.(*Buffer)
+	if !ok {
+		return hal.BufferMapping{}, hal.ErrInvalidMapRange
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := wb.Map(ctx, MapModeRead, offset, size); err != nil {
+		return hal.BufferMapping{}, err
+	}
+	mr, err := wb.MappedRange(offset, size)
+	if err != nil {
+		return hal.BufferMapping{}, err
+	}
+	data := mr.BytesMut()
+	if len(data) == 0 {
+		return hal.BufferMapping{}, hal.ErrInvalidMapRange
+	}
+	return hal.BufferMapping{Ptr: unsafe.Pointer(&data[0]), IsCoherent: true}, nil //nolint:gosec // ADR-018 opaque handle
+}
+
+// UnmapBuffer implements hal.Device: unwraps hal.Buffer.
+func (d *Device) UnmapBuffer(buffer hal.Buffer) error {
+	wb, ok := buffer.(*Buffer)
+	if !ok {
+		return hal.ErrInvalidMapRange
+	}
+	return wb.Unmap()
+}
 
 // Release releases the device and all associated resources.
 func (d *Device) Release() {

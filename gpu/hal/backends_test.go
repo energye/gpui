@@ -38,7 +38,11 @@ func (i *factoryTestInstance) CreateSurface(_ hal.SurfaceTarget) (hal.Surface, e
 func (i *factoryTestInstance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter {
 	return nil
 }
-func (i *factoryTestInstance) Destroy() {}
+func (i *factoryTestInstance) RequestAdapter(_ *hal.RequestAdapterOptions) (hal.Adapter, error) {
+	return nil, hal.ErrBackendNotFound
+}
+func (i *factoryTestInstance) ProcessEvents() {}
+func (i *factoryTestInstance) Destroy()       {}
 
 // TestRegisterBackendFactory tests factory registration.
 func TestRegisterBackendFactory(t *testing.T) {

@@ -50,7 +50,7 @@ type Queue struct {
 // completion handler on the last command buffer signals the semaphore when the
 // GPU finishes, releasing the slot for the next frame. This prevents unbounded
 // memory growth from queued command buffers and avoids drawable pool exhaustion.
-func (q *Queue) Submit(commandBuffers []hal.CommandBuffer) (uint64, error) {
+func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	// Acquire a frame slot — blocks if maxFramesInFlight frames are in-flight.
 	// This is the CPU-side throttle point.
 	if q.frameSemaphore != nil {
@@ -76,7 +76,7 @@ func (q *Queue) Submit(commandBuffers []hal.CommandBuffer) (uint64, error) {
 
 		// On the last command buffer, register completion handlers.
 		if i == lastIdx {
-			// Track actual GPU completion for PollCompleted().
+			// Track actual GPU completion for Poll().
 			// Uses addCompletedHandler to atomically store the submission index
 			// when the GPU finishes, matching Rust wgpu-hal Fence.completed_value.
 			q.registerSubmissionCompletionHandler(cb.raw, subIdx)
@@ -101,17 +101,24 @@ func (q *Queue) Submit(commandBuffers []hal.CommandBuffer) (uint64, error) {
 	return subIdx, nil
 }
 
-// PollCompleted returns the highest submission index known to be completed by the GPU.
+// Poll returns the highest submission index known to be completed by the GPU.
 // Updated atomically by addCompletedHandler blocks registered in Submit.
 // This matches Rust wgpu-hal's Fence.get_latest() / Device.get_fence_value() pattern.
-func (q *Queue) PollCompleted() uint64 {
+// Matches webgpu Queue.Poll.
+func (q *Queue) Poll() uint64 {
 	return q.completedIndex.Load()
+}
+
+// LastSubmissionIndex returns the most recent submission index.
+// Matches webgpu Queue.LastSubmissionIndex.
+func (q *Queue) LastSubmissionIndex() uint64 {
+	return q.submissionIndex
 }
 
 // registerSubmissionCompletionHandler attaches an addCompletedHandler: block to
 // the command buffer that atomically stores the submission index when the GPU
 // finishes execution. This provides accurate GPU completion tracking for
-// PollCompleted(), replacing the conservative heuristic that returned
+// Poll(), replacing the conservative heuristic that returned
 // submissionIndex - maxFramesInFlight.
 //
 // If block creation fails, the completedIndex is updated immediately as a

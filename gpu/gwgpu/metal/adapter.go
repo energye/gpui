@@ -15,6 +15,9 @@ type Adapter struct {
 	instance              *Instance
 	raw                   ID   // id<MTLDevice>
 	formatDepth24Stencil8 bool // true if Depth24UnormStencil8 supported (Intel-era AMD only)
+	info                  gputypes.AdapterInfo
+	features              gputypes.Features
+	limits                gputypes.Limits
 }
 
 // mapTextureFormat converts a WebGPU texture format to Metal pixel format,
@@ -61,6 +64,8 @@ func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.
 
 	// Back-reference so Device.WaitIdle can drain the frame semaphore.
 	device.queue = queue
+	device.features = features
+	device.limits = limits
 
 	hal.Logger().Debug("metal: adapter opened",
 		"maxFramesInFlight", maxFramesInFlight,
@@ -106,8 +111,36 @@ func (a *Adapter) TextureFormatCapabilities(format gputypes.TextureFormat) hal.T
 	}
 }
 
-// SurfaceCapabilities returns capabilities for a specific surface.
-func (a *Adapter) SurfaceCapabilities(surface hal.Surface) *hal.SurfaceCapabilities {
+// Info returns adapter metadata cached at enumeration.
+func (a *Adapter) Info() gputypes.AdapterInfo { return a.info }
+
+// Features returns enumerated features.
+func (a *Adapter) Features() gputypes.Features { return a.features }
+
+// Limits returns enumerated limits.
+func (a *Adapter) Limits() gputypes.Limits { return a.limits }
+
+// RequestDevice opens a device with the requested features and limits.
+// Queue is accessible via the returned Device.Queue().
+func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error) {
+	var features gputypes.Features
+	var limits gputypes.Limits = gputypes.DefaultLimits()
+	if desc != nil {
+		features = desc.RequiredFeatures
+		if desc.RequiredLimits != (gputypes.Limits{}) {
+			limits = desc.RequiredLimits
+		}
+	}
+	opened, err := a.Open(features, limits)
+	if err != nil {
+		return nil, err
+	}
+	return opened.Device, nil
+}
+
+// GetSurfaceCapabilities returns capabilities for a specific surface.
+// Matches webgpu Adapter.GetSurfaceCapabilities name.
+func (a *Adapter) GetSurfaceCapabilities(surface hal.Surface) *hal.SurfaceCapabilities {
 	if surface == nil {
 		return nil
 	}

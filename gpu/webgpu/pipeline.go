@@ -2,7 +2,10 @@
 
 package webgpu
 
-import rwgpu "github.com/energye/gpui/gpu/rwgpu"
+import (
+	"github.com/energye/gpui/gpu/hal"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+)
 
 // LateSizedBufferGroup holds the shader-required minimum buffer sizes for
 // bind group entries whose layout specifies MinBindingSize == 0.
@@ -29,6 +32,9 @@ func (p *RenderPipeline) Release() {
 	}
 }
 
+// Destroy implements hal.RenderPipeline: same as Release.
+func (p *RenderPipeline) Destroy() { p.Release() }
+
 // ComputePipeline represents a configured compute pipeline.
 // On the wgpu-native backend, this wraps rwgpu ComputePipeline.
 type ComputePipeline struct {
@@ -47,3 +53,11 @@ func (p *ComputePipeline) Release() {
 		p.r.Release()
 	}
 }
+
+// Destroy implements hal.ComputePipeline: same as Release.
+func (p *ComputePipeline) Destroy() { p.Release() }
+
+var (
+	_ hal.RenderPipeline  = (*RenderPipeline)(nil)
+	_ hal.ComputePipeline = (*ComputePipeline)(nil)
+)

@@ -32,13 +32,13 @@ import (
 //
 // Returns the GLSL source and TranslationInfo containing TextureMappings for
 // SamplerBindMap construction (which sampler goes with which texture unit).
-func compileWGSLToGLSL(version glsl.Version, source hal.ShaderSource, entryPoint string, bindingMap map[glsl.BindingMapKey]uint8) (string, glsl.TranslationInfo, error) {
-	if source.WGSL == "" {
+func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bindingMap map[glsl.BindingMapKey]uint8) (string, glsl.TranslationInfo, error) {
+	if wgsl == "" {
 		return "", glsl.TranslationInfo{}, fmt.Errorf("gles: shader source has no WGSL code")
 	}
 
 	// Parse WGSL to AST.
-	ast, err := naga.Parse(source.WGSL)
+	ast, err := naga.Parse(wgsl)
 	if err != nil {
 		return "", glsl.TranslationInfo{}, fmt.Errorf("gles: WGSL parse error: %w", err)
 	}

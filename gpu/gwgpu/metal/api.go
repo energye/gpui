@@ -88,6 +88,54 @@ func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapt
 
 		maxBuf := DeviceMaxBufferLength(device)
 
+		info := gputypes.AdapterInfo{
+			Name:       deviceName,
+			Vendor:     "Apple",
+			VendorID:   0x106b, // Apple Inc.
+			DeviceID:   uint32(DeviceRegistryID(device) & 0xFFFFFFFF),
+			DeviceType: deviceType,
+			Driver:     "Metal",
+			DriverInfo: "Metal API",
+			Backend:    gputypes.BackendMetal,
+		}
+		limits := gputypes.Limits{
+			MaxTextureDimension1D:                     16384,
+			MaxTextureDimension2D:                     16384,
+			MaxTextureDimension3D:                     2048,
+			MaxTextureArrayLayers:                     2048,
+			MaxBindGroups:                             4,
+			MaxBindGroupsPlusVertexBuffers:            24,
+			MaxBindingsPerBindGroup:                   1000,
+			MaxDynamicUniformBuffersPerPipelineLayout: 12,
+			MaxDynamicStorageBuffersPerPipelineLayout: 4,
+			MaxSampledTexturesPerShaderStage:          128,
+			MaxSamplersPerShaderStage:                 16,
+			MaxStorageBuffersPerShaderStage:           8,
+			MaxStorageTexturesPerShaderStage:          8,
+			MaxUniformBuffersPerShaderStage:           12,
+			MaxUniformBufferBindingSize:               maxBuf,
+			MaxStorageBufferBindingSize:               maxBuf,
+			MinUniformBufferOffsetAlignment:           256,
+			MinStorageBufferOffsetAlignment:           256,
+			MaxVertexBuffers:                          maxVertexBuffers,
+			MaxBufferSize:                             maxBuf,
+			MaxVertexAttributes:                       31,
+			MaxVertexBufferArrayStride:                2048,
+
+			MaxInterStageShaderVariables:      60,
+			MaxColorAttachments:               8,
+			MaxColorAttachmentBytesPerSample:  128,
+			MaxComputeWorkgroupStorageSize:    32768,
+			MaxComputeInvocationsPerWorkgroup: 1024,
+			MaxComputeWorkgroupSizeX:          1024,
+			MaxComputeWorkgroupSizeY:          1024,
+			MaxComputeWorkgroupSizeZ:          1024,
+			MaxComputeWorkgroupsPerDimension:  65535,
+		}
+		adapter.info = info
+		adapter.features = features
+		adapter.limits = limits
+
 		hal.Logger().Info("metal: adapter found",
 			"name", deviceName,
 			"type", deviceType,
@@ -99,53 +147,11 @@ func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapt
 		)
 
 		adapters = append(adapters, hal.ExposedAdapter{
-			Adapter: adapter,
-			Info: gputypes.AdapterInfo{
-				Name:       deviceName,
-				Vendor:     "Apple",
-				VendorID:   0x106b, // Apple Inc.
-				DeviceID:   uint32(DeviceRegistryID(device) & 0xFFFFFFFF),
-				DeviceType: deviceType,
-				Driver:     "Metal",
-				DriverInfo: "Metal API",
-				Backend:    gputypes.BackendMetal,
-			},
+			Adapter:  adapter,
+			Info:     info,
 			Features: features,
 			Capabilities: hal.Capabilities{
-				Limits: gputypes.Limits{
-					MaxTextureDimension1D:                     16384,
-					MaxTextureDimension2D:                     16384,
-					MaxTextureDimension3D:                     2048,
-					MaxTextureArrayLayers:                     2048,
-					MaxBindGroups:                             4,
-					MaxBindGroupsPlusVertexBuffers:            24,
-					MaxBindingsPerBindGroup:                   1000,
-					MaxDynamicUniformBuffersPerPipelineLayout: 12,
-					MaxDynamicStorageBuffersPerPipelineLayout: 4,
-					MaxSampledTexturesPerShaderStage:          128,
-					MaxSamplersPerShaderStage:                 16,
-					MaxStorageBuffersPerShaderStage:           8,
-					MaxStorageTexturesPerShaderStage:          8,
-					MaxUniformBuffersPerShaderStage:           12,
-					MaxUniformBufferBindingSize:               maxBuf,
-					MaxStorageBufferBindingSize:               maxBuf,
-					MinUniformBufferOffsetAlignment:           256,
-					MinStorageBufferOffsetAlignment:           256,
-					MaxVertexBuffers:                          maxVertexBuffers,
-					MaxBufferSize:                             maxBuf,
-					MaxVertexAttributes:                       31,
-					MaxVertexBufferArrayStride:                2048,
-
-					MaxInterStageShaderVariables:      60,
-					MaxColorAttachments:               8,
-					MaxColorAttachmentBytesPerSample:  128,
-					MaxComputeWorkgroupStorageSize:    32768,
-					MaxComputeInvocationsPerWorkgroup: 1024,
-					MaxComputeWorkgroupSizeX:          1024,
-					MaxComputeWorkgroupSizeY:          1024,
-					MaxComputeWorkgroupSizeZ:          1024,
-					MaxComputeWorkgroupsPerDimension:  65535,
-				},
+				Limits: limits,
 				AlignmentsMask: hal.Alignments{
 					BufferCopyOffset: 4,
 					BufferCopyPitch:  256,
@@ -174,3 +180,21 @@ func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapt
 func (i *Instance) Destroy() {
 	// Nothing to release
 }
+
+// RequestAdapter returns the first enumerated adapter.
+// Matches webgpu Instance.RequestAdapter shape; CompatibleSurface is
+// forwarded as the enumerate hint.
+func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
+	var hint hal.Surface
+	if opts != nil {
+		hint = opts.CompatibleSurface
+	}
+	adapters := i.EnumerateAdapters(hint)
+	if len(adapters) == 0 {
+		return nil, fmt.Errorf("metal: no adapters available")
+	}
+	return adapters[0].Adapter, nil
+}
+
+// ProcessEvents is a no-op for Metal (synchronous, no async callbacks).
+func (i *Instance) ProcessEvents() {}

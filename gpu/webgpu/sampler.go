@@ -2,7 +2,10 @@
 
 package webgpu
 
-import rwgpu "github.com/energye/gpui/gpu/rwgpu"
+import (
+	"github.com/energye/gpui/gpu/hal"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+)
 
 // Sampler represents a texture sampler.
 // On the wgpu-native backend, this wraps rwgpu Sampler.
@@ -22,3 +25,11 @@ func (s *Sampler) Release() {
 		s.r.Release()
 	}
 }
+
+// Destroy implements hal.Sampler: same as Release.
+func (s *Sampler) Destroy() { s.Release() }
+
+// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
+func (s *Sampler) NativeHandle() uintptr { return 0 }
+
+var _ hal.Sampler = (*Sampler)(nil)

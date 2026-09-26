@@ -2,102 +2,43 @@
 
 package webgpu
 
-import "github.com/energye/gpui/gpu/types"
+import (
+	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/types"
+)
 
 // Extent3D is a 3D size.
-type Extent3D struct {
-	Width              uint32
-	Height             uint32
-	DepthOrArrayLayers uint32
-}
+type Extent3D = hal.Extent3D
 
 // Origin3D is a 3D origin point.
-type Origin3D struct {
-	X uint32
-	Y uint32
-	Z uint32
-}
+type Origin3D = hal.Origin3D
 
 // ImageDataLayout describes the layout of image data in a buffer.
-type ImageDataLayout struct {
-	Offset       uint64
-	BytesPerRow  uint32
-	RowsPerImage uint32
-}
+type ImageDataLayout = hal.ImageDataLayout
 
 // BufferDescriptor describes buffer creation parameters.
-type BufferDescriptor struct {
-	Label            string
-	Size             uint64
-	Usage            BufferUsage
-	MappedAtCreation bool
-}
+type BufferDescriptor = hal.BufferDescriptor
 
 // TextureDescriptor describes texture creation parameters.
-type TextureDescriptor struct {
-	Label         string
-	Size          Extent3D
-	MipLevelCount uint32
-	SampleCount   uint32
-	Dimension     TextureDimension
-	Format        TextureFormat
-	Usage         TextureUsage
-	ViewFormats   []TextureFormat
-}
+type TextureDescriptor = hal.TextureDescriptor
 
 // TextureViewDescriptor describes texture view creation parameters.
-type TextureViewDescriptor struct {
-	Label           string
-	Format          TextureFormat
-	Dimension       TextureViewDimension
-	Aspect          TextureAspect
-	BaseMipLevel    uint32
-	MipLevelCount   uint32
-	BaseArrayLayer  uint32
-	ArrayLayerCount uint32
-}
+type TextureViewDescriptor = hal.TextureViewDescriptor
 
 // SamplerDescriptor describes sampler creation parameters.
-type SamplerDescriptor struct {
-	Label        string
-	AddressModeU AddressMode
-	AddressModeV AddressMode
-	AddressModeW AddressMode
-	MagFilter    FilterMode
-	MinFilter    FilterMode
-	MipmapFilter MipmapFilterMode
-	LodMinClamp  float32
-	LodMaxClamp  float32
-	Compare      CompareFunction
-	Anisotropy   uint16
-}
+type SamplerDescriptor = hal.SamplerDescriptor
 
 // ShaderModuleDescriptor describes shader module creation parameters.
-type ShaderModuleDescriptor struct {
-	Label string
-	WGSL  string   // WGSL source code
-	SPIRV []uint32 // SPIR-V bytecode (alternative to WGSL)
-}
+type ShaderModuleDescriptor = hal.ShaderModuleDescriptor
 
 // CommandEncoderDescriptor describes command encoder creation.
-type CommandEncoderDescriptor struct {
-	Label string
-}
+type CommandEncoderDescriptor = hal.CommandEncoderDescriptor
 
 // ComputePassDescriptor describes compute pass creation.
-type ComputePassDescriptor struct {
-	Label string
-}
+type ComputePassDescriptor = hal.ComputePassDescriptor
 
 // SurfaceConfiguration configures surface presentation.
-type SurfaceConfiguration struct {
-	Width       uint32
-	Height      uint32
-	Format      TextureFormat
-	Usage       TextureUsage
-	PresentMode PresentMode
-	AlphaMode   CompositeAlphaMode
-}
+type SurfaceConfiguration = hal.SurfaceConfiguration
 
 // StencilOperation describes a stencil operation.
 type StencilOperation = types.StencilOperation
@@ -116,61 +57,27 @@ const (
 )
 
 // StencilFaceState describes stencil operations for a face.
-type StencilFaceState struct {
-	Compare     CompareFunction
-	FailOp      StencilOperation
-	DepthFailOp StencilOperation
-	PassOp      StencilOperation
-}
+type StencilFaceState = hal.StencilFaceState
 
 // DepthStencilState describes depth and stencil testing configuration.
-type DepthStencilState struct {
-	Format              TextureFormat
-	DepthWriteEnabled   bool
-	DepthCompare        CompareFunction
-	StencilFront        StencilFaceState
-	StencilBack         StencilFaceState
-	StencilReadMask     uint32
-	StencilWriteMask    uint32
-	DepthBias           int32
-	DepthBiasSlopeScale float32
-	DepthBiasClamp      float32
-}
+type DepthStencilState = hal.DepthStencilState
 
 // RenderPassDescriptor describes a render pass.
-type RenderPassDescriptor struct {
-	Label                  string
-	ColorAttachments       []RenderPassColorAttachment
-	DepthStencilAttachment *RenderPassDepthStencilAttachment
-}
+// Alias of hal.RenderPassDescriptor (adds TimestampWrites vs old webgpu shape;
+// webgpu backend reads Label/ColorAttachments/DepthStencilAttachment only).
+type RenderPassDescriptor = hal.RenderPassDescriptor
 
 // RenderPassColorAttachment describes a color attachment for a render pass.
-type RenderPassColorAttachment struct {
-	View          *TextureView
-	ResolveTarget *TextureView
-	LoadOp        LoadOp
-	StoreOp       StoreOp
-	ClearValue    Color
-}
+// Alias of hal's (View/ResolveTarget are hal.TextureView interfaces;
+// concrete *Texture implements it, keyed literals unchanged).
+type RenderPassColorAttachment = hal.RenderPassColorAttachment
 
 // RenderPassDepthStencilAttachment describes a depth/stencil attachment.
-type RenderPassDepthStencilAttachment struct {
-	View              *TextureView
-	DepthLoadOp       LoadOp
-	DepthStoreOp      StoreOp
-	DepthClearValue   float32
-	DepthReadOnly     bool
-	StencilLoadOp     LoadOp
-	StencilStoreOp    StoreOp
-	StencilClearValue uint32
-	StencilReadOnly   bool
-}
+// Alias of hal's (View is hal.TextureView interface).
+type RenderPassDepthStencilAttachment = hal.RenderPassDepthStencilAttachment
 
 // BindGroupLayoutDescriptor describes a bind group layout.
-type BindGroupLayoutDescriptor struct {
-	Label   string
-	Entries []BindGroupLayoutEntry
-}
+type BindGroupLayoutDescriptor = hal.BindGroupLayoutDescriptor
 
 // PipelineLayoutDescriptor describes a pipeline layout.
 type PipelineLayoutDescriptor struct {
@@ -229,45 +136,20 @@ type ComputePipelineDescriptor struct {
 }
 
 // ImageCopyTexture specifies a texture subresource for copy operations.
-type ImageCopyTexture struct {
-	Texture  *Texture
-	MipLevel uint32
-	Origin   Origin3D
-	Aspect   TextureAspect
-}
+// Texture is hal.Texture interface (concrete *Texture implements it, callers unchanged).
+type ImageCopyTexture = hal.ImageCopyTexture
 
 // TextureUsageTransition defines a texture usage state transition.
-type TextureUsageTransition struct {
-	OldUsage TextureUsage
-	NewUsage TextureUsage
-}
+type TextureUsageTransition = hal.TextureUsageTransition
 
 // TextureRange specifies a range of texture subresources.
-type TextureRange struct {
-	Aspect          TextureAspect
-	BaseMipLevel    uint32
-	MipLevelCount   uint32
-	BaseArrayLayer  uint32
-	ArrayLayerCount uint32
-}
+type TextureRange = hal.TextureRange
 
 // TextureBarrier defines a texture state transition for synchronization.
-type TextureBarrier struct {
-	Texture *Texture
-	Range   TextureRange
-	Usage   TextureUsageTransition
-}
+type TextureBarrier = hal.TextureBarrier
 
 // TextureCopy describes a texture-to-texture copy region.
-type TextureCopy struct {
-	Source      ImageCopyTexture
-	Destination ImageCopyTexture
-	Size        Extent3D
-}
+type TextureCopy = hal.TextureCopy
 
 // BufferTextureCopy defines a buffer-texture copy region.
-type BufferTextureCopy struct {
-	BufferLayout ImageDataLayout
-	TextureBase  ImageCopyTexture
-	Size         Extent3D
-}
+type BufferTextureCopy = hal.BufferTextureCopy

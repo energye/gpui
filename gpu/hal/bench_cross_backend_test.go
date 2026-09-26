@@ -58,7 +58,7 @@ func BenchmarkHALSubmitOverhead(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := queue.Submit(cmdBuffers)
+		_, err := queue.Submit(cmdBuffers...)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -174,9 +174,9 @@ func BenchmarkHALRenderPassEncoding(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 		_ = encoder.BeginEncoding("bench")
-		rp := encoder.BeginRenderPass(rpDesc)
-		rp.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
-		rp.End()
+		rp, _ := encoder.BeginRenderPass(rpDesc)
+		rp.Draw(3, 1, 0, 0)
+		_ = rp.End()
 		cb, _ := encoder.EndEncoding()
 		benchHALSink = cb
 	}
@@ -195,9 +195,9 @@ func BenchmarkHALComputePassEncoding(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 		_ = encoder.BeginEncoding("bench")
-		cp := encoder.BeginComputePass(cpDesc)
+		cp, _ := encoder.BeginComputePass(cpDesc)
 		cp.Dispatch(1, 1, 1)
-		cp.End()
+		_ = cp.End()
 		cb, _ := encoder.EndEncoding()
 		benchHALSink = cb
 	}
@@ -239,14 +239,14 @@ func BenchmarkHALFullFrameSimulation(b *testing.B) {
 		encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 		_ = encoder.BeginEncoding("frame")
 
-		rp := encoder.BeginRenderPass(rpDesc)
-		rp.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
-		rp.Draw(gputypes.DrawArgs{VertexCount: 6, InstanceCount: 1})
-		rp.Draw(gputypes.DrawArgs{VertexCount: 36, InstanceCount: 1})
-		rp.End()
+		rp, _ := encoder.BeginRenderPass(rpDesc)
+		rp.Draw(3, 1, 0, 0)
+		rp.Draw(6, 1, 0, 0)
+		rp.Draw(36, 1, 0, 0)
+		_ = rp.End()
 
 		cb, _ := encoder.EndEncoding()
-		_, _ = queue.Submit([]hal.CommandBuffer{cb})
+		_, _ = queue.Submit(cb)
 	}
 }
 

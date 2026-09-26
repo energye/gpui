@@ -48,7 +48,9 @@ type CommandEncoder interface {
 	ClearBuffer(buffer Buffer, offset, size uint64)
 
 	// CopyBufferToBuffer copies data between buffers.
-	CopyBufferToBuffer(src, dst Buffer, regions []BufferCopy)
+	// Matches webgpu CommandEncoder.CopyBufferToBuffer flat five-arg shape
+	// (gpu/webgpu/encoder.go:106).
+	CopyBufferToBuffer(src Buffer, srcOffset uint64, dst Buffer, dstOffset uint64, size uint64)
 
 	// CopyBufferToTexture copies data from a buffer to a texture.
 	CopyBufferToTexture(src Buffer, dst Texture, regions []BufferTextureCopy)
@@ -69,11 +71,13 @@ type CommandEncoder interface {
 
 	// BeginRenderPass begins a render pass.
 	// Returns a render pass encoder for recording draw commands.
-	BeginRenderPass(desc *RenderPassDescriptor) RenderPassEncoder
+	// Matches webgpu CommandEncoder.BeginRenderPass (gpu/webgpu/encoder.go:23).
+	BeginRenderPass(desc *RenderPassDescriptor) (RenderPassEncoder, error)
 
 	// BeginComputePass begins a compute pass.
 	// Returns a compute pass encoder for recording dispatch commands.
-	BeginComputePass(desc *ComputePassDescriptor) ComputePassEncoder
+	// Matches webgpu CommandEncoder.BeginComputePass (gpu/webgpu/encoder.go:86).
+	BeginComputePass(desc *ComputePassDescriptor) (ComputePassEncoder, error)
 
 	// BuildAccelerationStructures builds one or more acceleration structures.
 	// Batched to match Vulkan vkCmdBuildAccelerationStructuresKHR.
@@ -96,7 +100,8 @@ type CommandEncoder interface {
 type RenderPassEncoder interface {
 	// End finishes the render pass.
 	// After this call, the encoder cannot be used again.
-	End()
+	// Matches webgpu RenderPassEncoder.End (gpu/webgpu/renderpass.go:117).
+	End() error
 
 	// SetPipeline sets the active render pipeline.
 	SetPipeline(pipeline RenderPipeline)
@@ -112,10 +117,14 @@ type RenderPassEncoder interface {
 	SetIndexBuffer(buffer Buffer, format gputypes.IndexFormat, offset uint64)
 
 	// SetViewport sets the viewport transformation.
-	SetViewport(vp gputypes.Viewport)
+	// Matches webgpu RenderPassEncoder.SetViewport flat six-arg shape
+	// (gpu/webgpu/renderpass.go:60).
+	SetViewport(x, y, width, height, minDepth, maxDepth float32)
 
 	// SetScissorRect sets the scissor rectangle for clipping.
-	SetScissorRect(rect gputypes.ScissorRect)
+	// Matches webgpu RenderPassEncoder.SetScissorRect flat four-arg shape
+	// (gpu/webgpu/renderpass.go:65).
+	SetScissorRect(x, y, width, height uint32)
 
 	// SetBlendConstant sets the blend constant color.
 	SetBlendConstant(color *gputypes.Color)
@@ -124,18 +133,24 @@ type RenderPassEncoder interface {
 	SetStencilReference(reference uint32)
 
 	// Draw draws primitives.
-	Draw(args gputypes.DrawArgs)
+	// Matches webgpu RenderPassEncoder.Draw flat four-arg shape
+	// (gpu/webgpu/renderpass.go:87).
+	Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32)
 
 	// DrawIndexed draws indexed primitives.
-	DrawIndexed(args gputypes.DrawIndexedArgs)
+	// Matches webgpu RenderPassEncoder.DrawIndexed flat five-arg shape
+	// (gpu/webgpu/renderpass.go:92).
+	DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32)
 
 	// DrawIndirect draws primitives with GPU-generated parameters.
-	// buffer contains drawCount consecutive 16-byte DrawIndirectArgs records.
-	DrawIndirect(buffer Buffer, offset uint64, drawCount uint32)
+	// Matches webgpu RenderPassEncoder.DrawIndirect two-arg shape
+	// (gpu/webgpu/renderpass.go:98).
+	DrawIndirect(buffer Buffer, offset uint64)
 
 	// DrawIndexedIndirect draws indexed primitives with GPU-generated parameters.
-	// buffer contains drawCount consecutive 20-byte DrawIndexedIndirectArgs records.
-	DrawIndexedIndirect(buffer Buffer, offset uint64, drawCount uint32)
+	// Matches webgpu RenderPassEncoder.DrawIndexedIndirect two-arg shape
+	// (gpu/webgpu/renderpass.go:106).
+	DrawIndexedIndirect(buffer Buffer, offset uint64)
 
 	// DrawIndirectCount draws primitives using a GPU count buffer (Vulkan 1.2+).
 	// countBuffer holds a single uint32 draw count at countOffset.
@@ -153,7 +168,8 @@ type RenderPassEncoder interface {
 type ComputePassEncoder interface {
 	// End finishes the compute pass.
 	// After this call, the encoder cannot be used again.
-	End()
+	// Matches webgpu ComputePassEncoder.End (gpu/webgpu/computepass.go:46).
+	End() error
 
 	// SetPipeline sets the active compute pipeline.
 	SetPipeline(pipeline ComputePipeline)
@@ -246,13 +262,6 @@ type TextureRange struct {
 	ArrayLayerCount uint32
 }
 
-// BufferCopy defines a buffer-to-buffer copy region.
-type BufferCopy struct {
-	SrcOffset uint64
-	DstOffset uint64
-	Size      uint64
-}
-
 // BufferTextureCopy defines a buffer-texture copy region.
 type BufferTextureCopy struct {
 	BufferLayout ImageDataLayout
@@ -261,10 +270,11 @@ type BufferTextureCopy struct {
 }
 
 // TextureCopy defines a texture-to-texture copy region.
+// Matches webgpu TextureCopy field names (gpu/webgpu/descriptor.go:262).
 type TextureCopy struct {
-	SrcBase ImageCopyTexture
-	DstBase ImageCopyTexture
-	Size    Extent3D
+	Source      ImageCopyTexture
+	Destination ImageCopyTexture
+	Size        Extent3D
 }
 
 // ImageDataLayout describes the layout of image data in a buffer.

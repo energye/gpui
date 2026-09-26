@@ -28,6 +28,26 @@ type InstanceDescriptor struct {
 	GLBackend gputypes.GLBackend
 }
 
+// RequestAdapterOptions controls adapter selection.
+// Mirrors gpu/webgpu RequestAdapterOptions (gpu/webgpu/types.go:150).
+type RequestAdapterOptions struct {
+	// PowerPreference indicates power consumption preference.
+	PowerPreference gputypes.PowerPreference
+	// ForceFallbackAdapter forces the use of a fallback (software) adapter.
+	ForceFallbackAdapter bool
+	// CompatibleSurface, if non-nil, indicates that the adapter must support
+	// rendering to this surface.
+	CompatibleSurface Surface
+}
+
+// DeviceDescriptor configures device creation.
+// Mirrors gpu/webgpu DeviceDescriptor (gpu/webgpu/adapter.go:15).
+type DeviceDescriptor struct {
+	Label            string
+	RequiredFeatures gputypes.Features
+	RequiredLimits   gputypes.Limits
+}
+
 // Capabilities contains detailed adapter capabilities.
 type Capabilities struct {
 	// Limits are the maximum supported limits.
@@ -117,6 +137,7 @@ const (
 )
 
 // SurfaceConfiguration describes surface settings.
+// Mirrors gpu/webgpu SurfaceConfiguration (Width/Height/Format/Usage/PresentMode/AlphaMode).
 type SurfaceConfiguration struct {
 	// Width of the surface in pixels.
 	Width uint32
@@ -135,18 +156,6 @@ type SurfaceConfiguration struct {
 
 	// AlphaMode controls alpha compositing.
 	AlphaMode gputypes.CompositeAlphaMode
-
-	// EnableDamagePresent requests the backend to configure for damage-aware
-	// presentation. On DX12, this selects DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
-	// instead of FLIP_DISCARD, enabling IDXGISwapChain1::Present1 with dirty
-	// rects. On other backends this flag is ignored (they handle damage rects
-	// without special surface configuration).
-	//
-	// Default false = current behavior (FLIP_DISCARD on DX12).
-	// Should only be set for GUI/widget workloads where partial surface
-	// updates are common. Games and full-screen renderers should leave this
-	// false because FLIP_DISCARD has lower overhead.
-	EnableDamagePresent bool
 }
 
 // BufferDescriptor describes how to create a buffer.
@@ -242,7 +251,7 @@ type SamplerDescriptor struct {
 	MinFilter gputypes.FilterMode
 
 	// MipmapFilter is the mipmap filter.
-	MipmapFilter gputypes.FilterMode
+	MipmapFilter gputypes.MipmapFilterMode
 
 	// LodMinClamp is the minimum LOD clamp.
 	LodMinClamp float32
@@ -306,21 +315,15 @@ type Range struct {
 }
 
 // ShaderModuleDescriptor describes a shader module.
+// Mirrors gpu/webgpu ShaderModuleDescriptor flat shape (Label/WGSL/SPIRV).
 type ShaderModuleDescriptor struct {
 	// Label is an optional debug name.
 	Label string
 
-	// Source is the shader source code.
-	// Can be WGSL source code or SPIR-V bytecode.
-	Source ShaderSource
-}
-
-// ShaderSource represents shader source code or bytecode.
-type ShaderSource struct {
-	// WGSL is the WGSL source code (if present).
+	// WGSL is WGSL source code.
 	WGSL string
 
-	// SPIRV is the SPIR-V bytecode (if present).
+	// SPIRV is SPIR-V bytecode (alternative to WGSL).
 	SPIRV []uint32
 }
 
@@ -373,6 +376,9 @@ type FragmentState struct {
 }
 
 // ComputePipelineDescriptor describes a compute pipeline.
+// Mirrors gpu/webgpu ComputePipelineDescriptor flat shape
+// (gpu/webgpu/descriptor.go:224); browser variant adds Constants at
+// gpu/webgpu/descriptor_browser.go:180 (unsupported in hal, H4 定).
 type ComputePipelineDescriptor struct {
 	// Label is an optional debug name.
 	Label string
@@ -380,56 +386,11 @@ type ComputePipelineDescriptor struct {
 	// Layout is the pipeline layout.
 	Layout PipelineLayout
 
-	// Compute is the compute shader stage.
-	Compute ComputeState
-}
-
-// ComputeState describes the compute shader stage.
-//
-// Matches Rust wgpu-hal ProgrammableStage (wgpu-hal/src/lib.rs:2266).
-type ComputeState struct {
-	// Module is the shader module.
+	// Module is the compute shader module.
 	Module ShaderModule
 
 	// EntryPoint is the shader entry point function name.
 	EntryPoint string
-
-	// Constants are pipeline-overridable constants (WebGPU spec: "pipeline constants").
-	// Keys are constant names defined in the shader with @id or by identifier,
-	// values are their overridden float64 values.
-	//
-	// Rust wgpu-hal passes these as &naga::back::PipelineConstants and calls
-	// naga::back::pipeline_constants::process_overrides() in each backend before
-	// shader compilation (Vulkan device.rs:783, DX12 device.rs:328, Metal device.rs:134,
-	// GLES device.rs:226).
-	//
-	// TODO(compute-constants): Each backend must apply these constants during shader
-	// compilation via naga's override processing. Currently plumbed but not consumed.
-	// - Vulkan: map to VkSpecializationInfo or naga override processing
-	// - DX12: apply via naga pipeline_constants::process_overrides before HLSL/DXIL emit
-	// - Metal: apply via MTLFunctionConstantValues or naga override processing
-	// - GLES: apply via naga override processing before GLSL emit
-	Constants map[string]float64
-
-	// ZeroInitializeWorkgroupMemory controls whether workgroup-scoped shared memory
-	// is zero-initialized before compute shader execution.
-	//
-	// WebGPU spec requires this to be true by default. Setting it to false may
-	// improve performance for cross-platform applications that do not rely on
-	// zero-initialized workgroup memory, but exposes stale data from previous
-	// dispatches.
-	//
-	// Rust wgpu-hal: ProgrammableStage.zero_initialize_workgroup_memory (lib.rs:2278).
-	// - Vulkan: maps to VK_KHR_zero_initialize_workgroup_memory device feature
-	//   (promoted to Vulkan 1.3). When the feature is unavailable, naga inserts
-	//   explicit zero-stores in the shader.
-	// - DX12: passed to naga HLSL/DXIL options.zero_initialize_workgroup_memory
-	// - Metal: passed to naga MSL options
-	// - GLES: passed to naga GLSL options
-	//
-	// TODO(zero-init-workgroup): Each backend must pass this flag to naga shader
-	// compilation options. Currently plumbed but not consumed by backends.
-	ZeroInitializeWorkgroupMemory bool
 }
 
 // CommandEncoderDescriptor describes a command encoder.

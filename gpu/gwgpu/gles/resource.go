@@ -24,10 +24,20 @@ type Buffer struct {
 	target uint32 // GL_ARRAY_BUFFER, GL_UNIFORM_BUFFER, etc.
 	size   uint64
 	usage  gputypes.BufferUsage
+	label  string
 	glCtx  *gl.Context
 	mapped []byte // For mapped buffers
 	data   []byte // CPU-side storage for readback (populated by CopyTextureToBuffer)
 }
+
+// Size returns the buffer size in bytes.
+func (b *Buffer) Size() uint64 { return b.size }
+
+// Usage returns the buffer's usage flags.
+func (b *Buffer) Usage() gputypes.BufferUsage { return b.usage }
+
+// Label returns the buffer's debug label.
+func (b *Buffer) Label() string { return b.label }
 
 // Destroy releases the buffer.
 func (b *Buffer) Destroy() {
@@ -57,6 +67,9 @@ type Texture struct {
 func (t *Texture) CurrentUsage() gputypes.TextureUsage { return 0 }
 func (t *Texture) AddPendingRef()                      {}
 func (t *Texture) DecPendingRef()                      {}
+
+// Format returns the texture format.
+func (t *Texture) Format() gputypes.TextureFormat { return t.format }
 
 // Destroy releases the texture and any associated framebuffer object.
 func (t *Texture) Destroy() {
@@ -90,6 +103,14 @@ type TextureView struct {
 // Destroy is a no-op for texture views in OpenGL.
 func (v *TextureView) Destroy() {}
 
+// Texture returns the parent texture.
+func (v *TextureView) Texture() hal.Texture {
+	if v.texture == nil {
+		return nil
+	}
+	return v.texture
+}
+
 // NativeHandle returns the underlying texture's GL object ID.
 func (v *TextureView) NativeHandle() uintptr {
 	if v.texture != nil {
@@ -120,7 +141,8 @@ type ShaderModule struct {
 	vertexID   uint32 // GL shader object ID for vertex
 	fragmentID uint32 // GL shader object ID for fragment
 	computeID  uint32 // GL shader object ID for compute
-	source     hal.ShaderSource
+	wgsl       string
+	spirv      []uint32
 	glCtx      *gl.Context
 }
 

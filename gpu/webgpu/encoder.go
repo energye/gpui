@@ -5,7 +5,9 @@ package webgpu
 import (
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+	"github.com/energye/gpui/gpu/types"
 )
 
 // CommandEncoder records GPU commands for later submission.
@@ -20,6 +22,7 @@ type CommandEncoder struct {
 // R7.0: convert attachments on the caller's stack so the common 1-color-target
 // path does not allocate. Descriptors are only live for the duration of the
 // rwgpu BeginRenderPass call (native copies immediately).
+// Param RenderPassDescriptor is aliased to hal (callers' keyed literals unchanged).
 func (e *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPassEncoder, error) {
 	if e.released {
 		return nil, ErrReleased
@@ -48,10 +51,14 @@ func (e *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPas
 				},
 			}
 			if ca.View != nil {
-				att.View = ca.View.r
+				if wv, ok := ca.View.(*TextureView); ok && wv != nil && wv.r != nil {
+					att.View = wv.r
+				}
 			}
 			if ca.ResolveTarget != nil {
-				att.ResolveTarget = ca.ResolveTarget.r
+				if wv, ok := ca.ResolveTarget.(*TextureView); ok && wv != nil && wv.r != nil {
+					att.ResolveTarget = wv.r
+				}
 			}
 			cas[i] = att
 		}
@@ -69,7 +76,9 @@ func (e *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPas
 				StencilReadOnly:   dsa.StencilReadOnly,
 			}
 			if dsa.View != nil {
-				depthStack.View = dsa.View.r
+				if wv, ok := dsa.View.(*TextureView); ok && wv != nil && wv.r != nil {
+					depthStack.View = wv.r
+				}
 			}
 			rDesc.DepthStencilAttachment = &depthStack
 		}
@@ -83,6 +92,7 @@ func (e *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPas
 }
 
 // BeginComputePass begins a compute pass.
+// Param ComputePassDescriptor is aliased to hal (render passes Label only).
 func (e *CommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*ComputePassEncoder, error) {
 	if e.released {
 		return nil, ErrReleased
@@ -103,21 +113,38 @@ func (e *CommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*Compute
 }
 
 // CopyBufferToBuffer copies data between buffers.
-func (e *CommandEncoder) CopyBufferToBuffer(src *Buffer, srcOffset uint64, dst *Buffer, dstOffset uint64, size uint64) {
-	if e.released || src == nil || dst == nil {
+// Implements hal.CommandEncoder (takes hal.Buffer interfaces, internal unpack).
+func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, dst hal.Buffer, dstOffset uint64, size uint64) {
+	if e.released {
 		return
 	}
-	e.r.CopyBufferToBuffer(src.r, srcOffset, dst.r, dstOffset, size)
+	wsrc, ok1 := src.(*Buffer)
+	wdst, ok2 := dst.(*Buffer)
+	if !ok1 || !ok2 || wsrc == nil || wdst == nil {
+		return
+	}
+	e.r.CopyBufferToBuffer(wsrc.r, srcOffset, wdst.r, dstOffset, size)
 }
 
 // CopyBufferToTexture copies data from a buffer to a texture.
-func (e *CommandEncoder) CopyBufferToTexture(src *Buffer, dst *Texture, regions []BufferTextureCopy) {
-	if e.released || src == nil || dst == nil {
+// Implements hal.CommandEncoder (BufferTextureCopy is aliased to hal; region
+// .TextureBase.Texture is hal.Texture, unpacked per region).
+func (e *CommandEncoder) CopyBufferToTexture(src hal.Buffer, dst hal.Texture, regions []hal.BufferTextureCopy) {
+	if e.released {
+		return
+	}
+	wsrc, ok1 := src.(*Buffer)
+	wdst, ok2 := dst.(*Texture)
+	if !ok1 || !ok2 || wsrc == nil || wdst == nil {
 		return
 	}
 	for _, r := range regions {
+		tex, ok := r.TextureBase.Texture.(*Texture)
+		if !ok || tex == nil || tex.r == nil {
+			continue
+		}
 		rSrc := &rwgpu.TexelCopyBufferInfo{
-			Buffer: src.r.Handle(),
+			Buffer: wsrc.r.Handle(),
 			Layout: rwgpu.TexelCopyBufferLayout{
 				Offset:       r.BufferLayout.Offset,
 				BytesPerRow:  r.BufferLayout.BytesPerRow,
@@ -125,7 +152,7 @@ func (e *CommandEncoder) CopyBufferToTexture(src *Buffer, dst *Texture, regions 
 			},
 		}
 		rDst := &rwgpu.TexelCopyTextureInfo{
-			Texture:  dst.r.Handle(),
+			Texture:  wdst.r.Handle(),
 			MipLevel: r.TextureBase.MipLevel,
 			Origin:   rwgpu.Origin3D{X: r.TextureBase.Origin.X, Y: r.TextureBase.Origin.Y, Z: r.TextureBase.Origin.Z},
 		}
@@ -139,16 +166,28 @@ func (e *CommandEncoder) CopyBufferToTexture(src *Buffer, dst *Texture, regions 
 }
 
 // ClearBuffer clears a buffer region to zero.
-func (e *CommandEncoder) ClearBuffer(buffer *Buffer, offset, size uint64) {
-	if e.released || buffer == nil {
+// Implements hal.CommandEncoder (takes hal.Buffer interface, internal unpack).
+func (e *CommandEncoder) ClearBuffer(buffer hal.Buffer, offset, size uint64) {
+	if e.released {
 		return
 	}
-	e.r.ClearBuffer(buffer.r, offset, size)
+	wb, ok := buffer.(*Buffer)
+	if !ok || wb == nil {
+		return
+	}
+	e.r.ClearBuffer(wb.r, offset, size)
 }
 
 // CopyTextureToBuffer copies data from a texture to a buffer.
-func (e *CommandEncoder) CopyTextureToBuffer(src *Texture, dst *Buffer, regions []BufferTextureCopy) {
-	if e.released || src == nil || dst == nil {
+// Implements hal.CommandEncoder (BufferTextureCopy is aliased to hal; region
+// .TextureBase.Texture is hal.Texture, unpacked per region).
+func (e *CommandEncoder) CopyTextureToBuffer(src hal.Texture, dst hal.Buffer, regions []hal.BufferTextureCopy) {
+	if e.released {
+		return
+	}
+	wsrc, ok1 := src.(*Texture)
+	wdst, ok2 := dst.(*Buffer)
+	if !ok1 || !ok2 || wsrc == nil || wdst == nil {
 		return
 	}
 	// R7.6: ≤4 regions on stack (glyph atlas / readback common case is 1).
@@ -161,10 +200,14 @@ func (e *CommandEncoder) CopyTextureToBuffer(src *Texture, dst *Buffer, regions 
 		rRegions = make([]rwgpu.BufferTextureCopy, n)
 	}
 	for i, r := range regions {
+		tex, ok := r.TextureBase.Texture.(*Texture)
+		if !ok || tex == nil || tex.r == nil {
+			continue
+		}
 		rRegions[i] = rwgpu.BufferTextureCopy{
 			BufferLayout: rwgpu.ImageDataLayout(r.BufferLayout),
 			TextureBase: rwgpu.ImageCopyTexture{
-				Texture:  r.TextureBase.Texture.r,
+				Texture:  tex.r,
 				MipLevel: r.TextureBase.MipLevel,
 				Origin:   rwgpu.Origin3D(r.TextureBase.Origin),
 				Aspect:   rwgpu.TextureAspect(r.TextureBase.Aspect),
@@ -172,12 +215,19 @@ func (e *CommandEncoder) CopyTextureToBuffer(src *Texture, dst *Buffer, regions 
 			Size: rwgpu.Extent3D{Width: r.Size.Width, Height: r.Size.Height, DepthOrArrayLayers: r.Size.DepthOrArrayLayers},
 		}
 	}
-	e.r.CopyTextureToBuffer(src.r, dst.r, rRegions)
+	e.r.CopyTextureToBuffer(wsrc.r, wdst.r, rRegions)
 }
 
 // CopyTextureToTexture copies data between textures.
-func (e *CommandEncoder) CopyTextureToTexture(src, dst *Texture, regions []TextureCopy) {
-	if e.released || src == nil || dst == nil {
+// Implements hal.CommandEncoder (TextureCopy is aliased to hal; region
+// .Source/.Destination.Texture are hal.Texture, unpacked per region).
+func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []hal.TextureCopy) {
+	if e.released {
+		return
+	}
+	wsrc, ok1 := src.(*Texture)
+	wdst, ok2 := dst.(*Texture)
+	if !ok1 || !ok2 || wsrc == nil || wdst == nil {
 		return
 	}
 	// R7.6: ≤4 regions on stack.
@@ -190,15 +240,20 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst *Texture, regions []Textu
 		rRegions = make([]rwgpu.TextureCopy, n)
 	}
 	for i, r := range regions {
+		stex, ok1 := r.Source.Texture.(*Texture)
+		dtex, ok2 := r.Destination.Texture.(*Texture)
+		if !ok1 || !ok2 || stex == nil || dtex == nil || stex.r == nil || dtex.r == nil {
+			continue
+		}
 		rRegions[i] = rwgpu.TextureCopy{
 			Source: rwgpu.ImageCopyTexture{
-				Texture:  r.Source.Texture.r,
+				Texture:  stex.r,
 				MipLevel: r.Source.MipLevel,
 				Origin:   rwgpu.Origin3D(r.Source.Origin),
 				Aspect:   rwgpu.TextureAspect(r.Source.Aspect),
 			},
 			Destination: rwgpu.ImageCopyTexture{
-				Texture:  r.Destination.Texture.r,
+				Texture:  dtex.r,
 				MipLevel: r.Destination.MipLevel,
 				Origin:   rwgpu.Origin3D(r.Destination.Origin),
 				Aspect:   rwgpu.TextureAspect(r.Destination.Aspect),
@@ -206,12 +261,13 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst *Texture, regions []Textu
 			Size: rwgpu.Extent3D{Width: r.Size.Width, Height: r.Size.Height, DepthOrArrayLayers: r.Size.DepthOrArrayLayers},
 		}
 	}
-	e.r.CopyTextureToTexture(src.r, dst.r, rRegions)
+	e.r.CopyTextureToTexture(wsrc.r, wdst.r, rRegions)
 }
 
 // TransitionTextures transitions texture states for synchronization.
 // On the wgpu-native backend, this is a no-op. wgpu-native handles barriers internally.
-func (e *CommandEncoder) TransitionTextures(_ []TextureBarrier) {
+// Implements hal.CommandEncoder (TextureBarrier is aliased to hal; body ignores barriers).
+func (e *CommandEncoder) TransitionTextures(_ []hal.TextureBarrier) {
 	// No-op: wgpu-native manages resource state transitions automatically.
 }
 
@@ -249,6 +305,41 @@ func (e *CommandEncoder) Finish() (*CommandBuffer, error) {
 	return &CommandBuffer{r: rcb}, nil
 }
 
+// BeginEncoding implements hal.CommandEncoder: Rust has no Begin step, no-op.
+func (e *CommandEncoder) BeginEncoding(_ string) error { return nil }
+
+// EndEncoding implements hal.CommandEncoder: same as Finish.
+func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error) { return e.Finish() }
+
+// ResetAll implements hal.CommandEncoder: Rust has no pooling, no-op.
+func (e *CommandEncoder) ResetAll(_ []hal.CommandBuffer) {}
+
+// Destroy implements hal.CommandEncoder: same as DiscardEncoding.
+func (e *CommandEncoder) Destroy() { e.DiscardEncoding() }
+
+// TransitionBuffers implements hal.CommandEncoder: no-op on Rust.
+func (e *CommandEncoder) TransitionBuffers(_ []hal.BufferBarrier) {}
+
+// ResolveQuerySet implements hal.CommandEncoder: no-op on Rust (no timestamp queries).
+func (e *CommandEncoder) ResolveQuerySet(_ hal.QuerySet, _, _ uint32, _ hal.Buffer, _ uint64) {
+}
+
+// BuildAccelerationStructures implements hal.CommandEncoder: no-op on Rust.
+func (e *CommandEncoder) BuildAccelerationStructures(_ []hal.BuildAccelerationStructureDescriptor) {
+}
+
+// PlaceAccelerationStructureBarrier implements hal.CommandEncoder: no-op on Rust.
+func (e *CommandEncoder) PlaceAccelerationStructureBarrier(_ hal.AccelerationStructureBarrier) {
+}
+
+// CopyAccelerationStructure implements hal.CommandEncoder: no-op on Rust.
+func (e *CommandEncoder) CopyAccelerationStructure(_, _ hal.AccelerationStructure, _ types.AccelerationStructureCopyMode) {
+}
+
+// ReadAccelerationStructureCompactSize implements hal.CommandEncoder: no-op on Rust.
+func (e *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.AccelerationStructure, _ hal.Buffer, _ uint64) {
+}
+
 // CommandBuffer holds recorded GPU commands ready for submission.
 // On the wgpu-native backend, this wraps rwgpu CommandBuffer.
 type CommandBuffer struct {
@@ -265,6 +356,11 @@ func (cb *CommandBuffer) Release() {
 	cb.r.Release()
 	cb.r = nil
 }
+
+// Destroy implements hal.CommandBuffer: same as Release.
+func (cb *CommandBuffer) Destroy() { cb.Release() }
+
+var _ hal.CommandBuffer = (*CommandBuffer)(nil)
 
 // --- Render pass descriptor conversion ---
 
@@ -290,10 +386,14 @@ func convertRenderPassDescriptorRust(desc *RenderPassDescriptor) *rwgpu.RenderPa
 			},
 		}
 		if ca.View != nil {
-			att.View = ca.View.r
+			if wv, ok := ca.View.(*TextureView); ok && wv != nil && wv.r != nil {
+				att.View = wv.r
+			}
 		}
 		if ca.ResolveTarget != nil {
-			att.ResolveTarget = ca.ResolveTarget.r
+			if wv, ok := ca.ResolveTarget.(*TextureView); ok && wv != nil && wv.r != nil {
+				att.ResolveTarget = wv.r
+			}
 		}
 		rDesc.ColorAttachments[i] = att
 	}
@@ -311,7 +411,9 @@ func convertRenderPassDescriptorRust(desc *RenderPassDescriptor) *rwgpu.RenderPa
 			StencilReadOnly:   dsa.StencilReadOnly,
 		}
 		if dsa.View != nil {
-			rDSA.View = dsa.View.r
+			if wv, ok := dsa.View.(*TextureView); ok && wv != nil && wv.r != nil {
+				rDSA.View = wv.r
+			}
 		}
 		rDesc.DepthStencilAttachment = rDSA
 	}

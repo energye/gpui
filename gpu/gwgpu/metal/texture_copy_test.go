@@ -241,9 +241,9 @@ func TestCommandEncoderRejectsWrappedCopyBeforeMetalCall(t *testing.T) {
 		Size:         size,
 	}})
 	encoder.CopyTextureToTexture(volume, array, []hal.TextureCopy{{
-		SrcBase: hal.ImageCopyTexture{Texture: volume, Origin: hal.Origin3D{Z: math.MaxUint32}},
-		DstBase: hal.ImageCopyTexture{Texture: array},
-		Size:    size,
+		Source:      hal.ImageCopyTexture{Texture: volume, Origin: hal.Origin3D{Z: math.MaxUint32}},
+		Destination: hal.ImageCopyTexture{Texture: array},
+		Size:        size,
 	}})
 }
 
@@ -438,7 +438,7 @@ func TestCommandEncoderCopiesBetweenLayeredTextures(t *testing.T) {
 				t.Fatalf("BeginEncoding failed: %v", err)
 			}
 			encoder.CopyBufferToTexture(upload, source, []hal.BufferTextureCopy{{BufferLayout: layout, TextureBase: hal.ImageCopyTexture{Texture: source, Origin: sourceOrigin}, Size: size}})
-			encoder.CopyTextureToTexture(source, destination, []hal.TextureCopy{{SrcBase: hal.ImageCopyTexture{Texture: source, Origin: sourceOrigin}, DstBase: hal.ImageCopyTexture{Texture: destination, Origin: destinationOrigin}, Size: size}})
+			encoder.CopyTextureToTexture(source, destination, []hal.TextureCopy{{Source: hal.ImageCopyTexture{Texture: source, Origin: sourceOrigin}, Destination: hal.ImageCopyTexture{Texture: destination, Origin: destinationOrigin}, Size: size}})
 			encoder.CopyTextureToBuffer(destination, readback, []hal.BufferTextureCopy{{BufferLayout: layout, TextureBase: hal.ImageCopyTexture{Texture: destination, Origin: destinationOrigin}, Size: size}})
 			submitMetalTextureCopyTestEncoder(t, device, queue, encoder)
 
@@ -520,7 +520,7 @@ func TestQueueWriteTextureLayeredShapes(t *testing.T) {
 					t.Fatalf("EndEncoding failed: %v", err)
 				}
 				defer commandBuffer.Destroy()
-				if _, err := queue.Submit([]hal.CommandBuffer{commandBuffer}); err != nil {
+				if _, err := queue.Submit(commandBuffer); err != nil {
 					t.Fatalf("Submit failed: %v", err)
 				}
 				if err := device.WaitIdle(); err != nil {
@@ -604,7 +604,7 @@ func submitMetalTextureCopyTestEncoder(t *testing.T, device *Device, queue *Queu
 		t.Fatalf("EndEncoding failed: %v", err)
 	}
 	defer commandBuffer.Destroy()
-	if _, err := queue.Submit([]hal.CommandBuffer{commandBuffer}); err != nil {
+	if _, err := queue.Submit(commandBuffer); err != nil {
 		t.Fatalf("Submit failed: %v", err)
 	}
 	if err := device.WaitIdle(); err != nil {

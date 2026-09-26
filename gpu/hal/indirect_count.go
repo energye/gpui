@@ -2,8 +2,8 @@
 
 package hal
 
-// IndirectCountRecorder issues a multi-draw indirect call with a fixed draw count.
-type IndirectCountRecorder func(buffer Buffer, offset uint64, drawCount uint32)
+// IndirectCountRecorder issues a multi-draw indirect call.
+type IndirectCountRecorder func(buffer Buffer, offset uint64)
 
 // RecordIndirectCountMax records an indirect draw using maxDrawCount when the
 // backend cannot consume a GPU-provided count buffer.
@@ -17,8 +17,6 @@ func RecordIndirectCountMax(
 ) {
 	_ = countBuffer
 	_ = countOffset
-	if maxDrawCount == 0 {
-		return
-	}
-	record(buffer, offset, maxDrawCount)
+	_ = maxDrawCount
+	record(buffer, offset)
 }

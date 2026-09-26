@@ -176,8 +176,9 @@ func (e *CommandEncoder) ClearBuffer(buffer hal.Buffer, offset, size uint64) {
 }
 
 // CopyBufferToBuffer copies data between buffers.
-func (e *CommandEncoder) CopyBufferToBuffer(src, dst hal.Buffer, regions []hal.BufferCopy) {
-	if e.cmdBuffer == 0 || len(regions) == 0 {
+// Matches webgpu CommandEncoder.CopyBufferToBuffer flat shape.
+func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, dst hal.Buffer, dstOffset uint64, size uint64) {
+	if e.cmdBuffer == 0 {
 		return
 	}
 	srcBuf, ok := src.(*Buffer)
@@ -194,10 +195,8 @@ func (e *CommandEncoder) CopyBufferToBuffer(src, dst hal.Buffer, regions []hal.B
 	if blitEncoder == 0 {
 		return
 	}
-	for _, region := range regions {
-		_ = MsgSend(blitEncoder, Sel("copyFromBuffer:sourceOffset:toBuffer:destinationOffset:size:"),
-			uintptr(srcBuf.raw), uintptr(region.SrcOffset), uintptr(dstBuf.raw), uintptr(region.DstOffset), uintptr(region.Size))
-	}
+	_ = MsgSend(blitEncoder, Sel("copyFromBuffer:sourceOffset:toBuffer:destinationOffset:size:"),
+		uintptr(srcBuf.raw), uintptr(srcOffset), uintptr(dstBuf.raw), uintptr(dstOffset), uintptr(size))
 	_ = MsgSend(blitEncoder, Sel("endEncoding"))
 }
 
@@ -307,7 +306,7 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 		return
 	}
 	for _, region := range regions {
-		if _, ok := validateMetalTextureCopyPlan(srcTex.dimension, dstTex.dimension, region.SrcBase.Origin, region.DstBase.Origin, region.Size); !ok {
+		if _, ok := validateMetalTextureCopyPlan(srcTex.dimension, dstTex.dimension, region.Source.Origin, region.Destination.Origin, region.Size); !ok {
 			return
 		}
 	}
@@ -318,19 +317,19 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 		return
 	}
 	for _, region := range regions {
-		plan, _ := validateMetalTextureCopyPlan(srcTex.dimension, dstTex.dimension, region.SrcBase.Origin, region.DstBase.Origin, region.Size)
+		plan, _ := validateMetalTextureCopyPlan(srcTex.dimension, dstTex.dimension, region.Source.Origin, region.Destination.Origin, region.Size)
 		for operation := uint32(0); operation < plan.operationCount; operation++ {
-			source, _ := plan.textureRegion(srcTex.dimension, region.SrcBase.Origin, region.Size, operation)
-			destination, _ := plan.textureRegion(dstTex.dimension, region.DstBase.Origin, region.Size, operation)
+			source, _ := plan.textureRegion(srcTex.dimension, region.Source.Origin, region.Size, operation)
+			destination, _ := plan.textureRegion(dstTex.dimension, region.Destination.Origin, region.Size, operation)
 			msgSendVoid(blitEncoder, Sel("copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:"),
 				argPointer(uintptr(srcTex.raw)),
 				argUint64(uint64(source.slice)),
-				argUint64(uint64(region.SrcBase.MipLevel)),
+				argUint64(uint64(region.Source.MipLevel)),
 				argStruct(source.origin, mtlOriginType),
 				argStruct(source.size, mtlSizeType),
 				argPointer(uintptr(dstTex.raw)),
 				argUint64(uint64(destination.slice)),
-				argUint64(uint64(region.DstBase.MipLevel)),
+				argUint64(uint64(region.Destination.MipLevel)),
 				argStruct(destination.origin, mtlOriginType),
 			)
 		}
@@ -393,10 +392,11 @@ func (e *CommandEncoder) ReadAccelerationStructureCompactSize(accelStruct hal.Ac
 }
 
 // BeginRenderPass begins a render pass.
-// Returns nil if encoder is not recording (cmdBuffer == 0).
-func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) hal.RenderPassEncoder {
+// Returns error if encoder is not recording (cmdBuffer == 0).
+// Matches webgpu CommandEncoder.BeginRenderPass error shape.
+func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error) {
 	if e.cmdBuffer == 0 {
-		return nil
+		return nil, fmt.Errorf("metal: BeginRenderPass: encoder not recording")
 	}
 	// Keep any temporary Objective-C objects scoped to descriptor construction.
 	// rpDesc is created with new, so it remains owned after this pool drains and
@@ -405,39 +405,41 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) hal.Ren
 	defer pool.Drain()
 	rpDesc := MsgSend(ID(GetClass("MTLRenderPassDescriptor")), Sel("new"))
 	if rpDesc == 0 {
-		return nil
+		return nil, fmt.Errorf("metal: BeginRenderPass: failed to create render pass descriptor")
 	}
 	colorAttachments := MsgSend(rpDesc, Sel("colorAttachments"))
-	for i, ca := range desc.ColorAttachments {
-		attachment := MsgSend(colorAttachments, Sel("objectAtIndexedSubscript:"), uintptr(i))
-		if attachment == 0 {
-			continue
-		}
-		if tv, ok := ca.View.(*TextureView); ok && tv != nil {
-			_ = MsgSend(attachment, Sel("setTexture:"), uintptr(tv.raw))
-		}
-		_ = MsgSend(attachment, Sel("setLoadAction:"), uintptr(loadOpToMTL(ca.LoadOp)))
-		if ca.LoadOp == gputypes.LoadOpClear {
-			clearColor := MTLClearColor{Red: ca.ClearValue.R, Green: ca.ClearValue.G, Blue: ca.ClearValue.B, Alpha: ca.ClearValue.A}
-			msgSendClearColor(attachment, Sel("setClearColor:"), clearColor)
-		}
-		storeAction := storeOpToMTL(ca.StoreOp)
-		if ca.ResolveTarget != nil {
-			if rtv, ok := ca.ResolveTarget.(*TextureView); ok && rtv != nil {
-				_ = MsgSend(attachment, Sel("setResolveTexture:"), uintptr(rtv.raw))
-				// Metal requires MultisampleResolve store action when a resolve
-				// texture is set. Without this, Metal silently skips the MSAA
-				// resolve and the surface stays uninitialized (purple screen).
-				if storeAction == MTLStoreActionStore {
-					storeAction = MTLStoreActionStoreAndMultisampleResolve
-				} else {
-					storeAction = MTLStoreActionMultisampleResolve
+	if desc != nil {
+		for i, ca := range desc.ColorAttachments {
+			attachment := MsgSend(colorAttachments, Sel("objectAtIndexedSubscript:"), uintptr(i))
+			if attachment == 0 {
+				continue
+			}
+			if tv, ok := ca.View.(*TextureView); ok && tv != nil {
+				_ = MsgSend(attachment, Sel("setTexture:"), uintptr(tv.raw))
+			}
+			_ = MsgSend(attachment, Sel("setLoadAction:"), uintptr(loadOpToMTL(ca.LoadOp)))
+			if ca.LoadOp == gputypes.LoadOpClear {
+				clearColor := MTLClearColor{Red: ca.ClearValue.R, Green: ca.ClearValue.G, Blue: ca.ClearValue.B, Alpha: ca.ClearValue.A}
+				msgSendClearColor(attachment, Sel("setClearColor:"), clearColor)
+			}
+			storeAction := storeOpToMTL(ca.StoreOp)
+			if ca.ResolveTarget != nil {
+				if rtv, ok := ca.ResolveTarget.(*TextureView); ok && rtv != nil {
+					_ = MsgSend(attachment, Sel("setResolveTexture:"), uintptr(rtv.raw))
+					// Metal requires MultisampleResolve store action when a resolve
+					// texture is set. Without this, Metal silently skips the MSAA
+					// resolve and the surface stays uninitialized (purple screen).
+					if storeAction == MTLStoreActionStore {
+						storeAction = MTLStoreActionStoreAndMultisampleResolve
+					} else {
+						storeAction = MTLStoreActionMultisampleResolve
+					}
 				}
 			}
+			_ = MsgSend(attachment, Sel("setStoreAction:"), uintptr(storeAction))
 		}
-		_ = MsgSend(attachment, Sel("setStoreAction:"), uintptr(storeAction))
 	}
-	if desc.DepthStencilAttachment != nil {
+	if desc != nil && desc.DepthStencilAttachment != nil {
 		dsa := desc.DepthStencilAttachment
 
 		// Depth attachment
@@ -474,21 +476,22 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) hal.Ren
 	// encoder before the render encoder exists; retaining the descriptor gives
 	// that backend-private lowering a narrow seam without journaling draw calls.
 	e.passState = renderPassPendingState{}
-	return &RenderPassEncoder{descriptor: rpDesc, commandEncoder: e, device: e.device, pending: &e.passState}
+	return &RenderPassEncoder{descriptor: rpDesc, commandEncoder: e, device: e.device, pending: &e.passState}, nil
 }
 
 // BeginComputePass begins a compute pass.
-// Returns nil if encoder is not recording (cmdBuffer == 0).
-func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) hal.ComputePassEncoder {
+// Returns error if encoder is not recording (cmdBuffer == 0).
+// Matches webgpu CommandEncoder.BeginComputePass error shape.
+func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error) {
 	if e.cmdBuffer == 0 {
-		return nil
+		return nil, fmt.Errorf("metal: BeginComputePass: encoder not recording")
 	}
 	// Scoped pool: encoder is Retained to survive pool drain.
 	pool := NewAutoreleasePool()
 	defer pool.Drain()
 	encoder := MsgSend(e.cmdBuffer, Sel("computeCommandEncoder"))
 	if encoder == 0 {
-		return nil
+		return nil, fmt.Errorf("metal: BeginComputePass: failed to create compute encoder")
 	}
 	Retain(encoder)
 	if desc != nil && desc.Label != "" {
@@ -496,7 +499,7 @@ func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) hal.C
 		_ = MsgSend(encoder, Sel("setLabel:"), uintptr(nsLabel))
 		Release(nsLabel)
 	}
-	return &ComputePassEncoder{raw: encoder, device: e.device}
+	return &ComputePassEncoder{raw: encoder, device: e.device}, nil
 }
 
 // CommandBuffer implements hal.CommandBuffer for Metal.
@@ -637,7 +640,8 @@ func (e *RenderPassEncoder) replayPendingState() {
 }
 
 // End finishes the render pass.
-func (e *RenderPassEncoder) End() {
+// Matches webgpu RenderPassEncoder.End error shape.
+func (e *RenderPassEncoder) End() error {
 	e.beginNative()
 	if e.raw != 0 {
 		_ = MsgSend(e.raw, Sel("endEncoding"))
@@ -648,6 +652,7 @@ func (e *RenderPassEncoder) End() {
 		Release(e.descriptor)
 		e.descriptor = 0
 	}
+	return nil
 }
 
 // SetPipeline sets the render pipeline.
@@ -815,8 +820,9 @@ func (e *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format gputypes.In
 }
 
 // SetViewport sets the viewport.
-func (e *RenderPassEncoder) SetViewport(vp gputypes.Viewport) {
-	viewport := MTLViewport{OriginX: float64(vp.X), OriginY: float64(vp.Y), Width: float64(vp.Width), Height: float64(vp.Height), ZNear: float64(vp.MinDepth), ZFar: float64(vp.MaxDepth)}
+// Matches webgpu RenderPassEncoder.SetViewport flat shape.
+func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32) {
+	viewport := MTLViewport{OriginX: float64(x), OriginY: float64(y), Width: float64(width), Height: float64(height), ZNear: float64(minDepth), ZFar: float64(maxDepth)}
 	if e.pending != nil {
 		e.pending.viewport = viewport
 		e.pending.viewportSet = true
@@ -828,8 +834,9 @@ func (e *RenderPassEncoder) SetViewport(vp gputypes.Viewport) {
 }
 
 // SetScissorRect sets the scissor rectangle.
-func (e *RenderPassEncoder) SetScissorRect(rect gputypes.ScissorRect) {
-	scissor := MTLScissorRect{X: NSUInteger(rect.X), Y: NSUInteger(rect.Y), Width: NSUInteger(rect.Width), Height: NSUInteger(rect.Height)}
+// Matches webgpu RenderPassEncoder.SetScissorRect flat shape.
+func (e *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
+	scissor := MTLScissorRect{X: NSUInteger(x), Y: NSUInteger(y), Width: NSUInteger(width), Height: NSUInteger(height)}
 	if e.pending != nil {
 		e.pending.scissor = scissor
 		e.pending.scissorSet = true
@@ -877,16 +884,18 @@ func (e *RenderPassEncoder) SetStencilReference(ref uint32) {
 }
 
 // Draw draws primitives.
-func (e *RenderPassEncoder) Draw(args gputypes.DrawArgs) {
+// Matches webgpu RenderPassEncoder.Draw flat shape.
+func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32) {
 	if !e.beginNative() {
 		return
 	}
 	_ = MsgSend(e.raw, Sel("drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:"),
-		uintptr(MTLPrimitiveTypeTriangle), uintptr(args.FirstVertex), uintptr(args.VertexCount), uintptr(args.InstanceCount), uintptr(args.FirstInstance))
+		uintptr(MTLPrimitiveTypeTriangle), uintptr(firstVertex), uintptr(vertexCount), uintptr(instanceCount), uintptr(firstInstance))
 }
 
 // DrawIndexed draws indexed primitives.
-func (e *RenderPassEncoder) DrawIndexed(args gputypes.DrawIndexedArgs) {
+// Matches webgpu RenderPassEncoder.DrawIndexed flat shape.
+func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32) {
 	if e.indexBuffer == nil || !e.beginNative() {
 		return
 	}
@@ -895,63 +904,48 @@ func (e *RenderPassEncoder) DrawIndexed(args gputypes.DrawIndexedArgs) {
 	if e.indexFormat == gputypes.IndexFormatUint32 {
 		indexSize = 4
 	}
-	offset := e.indexOffset + uint64(args.FirstIndex)*uint64(indexSize)
+	offset := e.indexOffset + uint64(firstIndex)*uint64(indexSize)
 	_ = MsgSend(e.raw, Sel("drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:"),
-		uintptr(MTLPrimitiveTypeTriangle), uintptr(args.IndexCount), uintptr(indexType),
-		uintptr(e.indexBuffer.raw), uintptr(offset), uintptr(args.InstanceCount), uintptr(args.BaseVertex), uintptr(args.FirstInstance))
+		uintptr(MTLPrimitiveTypeTriangle), uintptr(indexCount), uintptr(indexType),
+		uintptr(e.indexBuffer.raw), uintptr(offset), uintptr(instanceCount), uintptr(baseVertex), uintptr(firstInstance))
 }
 
-// DrawIndirect draws primitives with GPU-generated parameters.
-func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64, drawCount uint32) {
+// DrawIndirect draws a single indirect record (webgpu has no drawCount).
+// Matches webgpu RenderPassEncoder.DrawIndirect two-arg shape.
+func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64) {
 	buf, ok := buffer.(*Buffer)
-	if !ok || buf == nil || drawCount == 0 {
+	if !ok || buf == nil {
 		return
 	}
-	if !indirect.RangeFits(buf.size, offset, 16, drawCount) {
-		return
-	}
-	if _, ok := indirect.RecordOffset(offset, 16, drawCount-1); !ok {
+	if !indirect.RangeFits(buf.size, offset, 16, 1) {
 		return
 	}
 	if !e.beginNative() {
 		return
 	}
-	for i := uint32(0); i < drawCount; i++ {
-		recordOffset, _ := indirect.RecordOffset(offset, 16, i)
-		_ = MsgSend(e.raw, Sel("drawPrimitives:indirectBuffer:indirectBufferOffset:"),
-			uintptr(MTLPrimitiveTypeTriangle), uintptr(buf.raw), uintptr(recordOffset))
-	}
+	_ = MsgSend(e.raw, Sel("drawPrimitives:indirectBuffer:indirectBufferOffset:"),
+		uintptr(MTLPrimitiveTypeTriangle), uintptr(buf.raw), uintptr(offset))
 }
 
-// DrawIndexedIndirect draws indexed primitives with GPU-generated parameters.
-// Metal exposes only the single-record indirect operation, so count is lowered
-// to consecutive 20-byte calls.
-func (e *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64, drawCount uint32) {
+// DrawIndexedIndirect draws a single indexed indirect record.
+// Matches webgpu RenderPassEncoder.DrawIndexedIndirect two-arg shape.
+func (e *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64) {
 	buf, ok := buffer.(*Buffer)
-	if !ok || buf == nil || e.indexBuffer == nil || drawCount == 0 {
+	if !ok || buf == nil || e.indexBuffer == nil {
 		return
 	}
-	if !indirect.RangeFits(buf.size, offset, 20, drawCount) {
+	if !indirect.RangeFits(buf.size, offset, 20, 1) {
 		return
 	}
-	if _, ok := indirect.RecordOffset(offset, 20, drawCount-1); !ok {
-		return
-	}
-	if e.tryFirstIndexedICB(buf, offset, drawCount) {
+	if e.tryFirstIndexedICB(buf, offset, 1) {
 		return
 	}
 	if !e.beginNative() {
 		return
 	}
 	indexType := indexFormatToMTL(e.indexFormat)
-	for i := uint32(0); i < drawCount; i++ {
-		recordOffset, ok := indirect.RecordOffset(offset, 20, i)
-		if !ok {
-			return
-		}
-		_ = MsgSend(e.raw, Sel("drawIndexedPrimitives:indexType:indexBuffer:indexBufferOffset:indirectBuffer:indirectBufferOffset:"),
-			uintptr(MTLPrimitiveTypeTriangle), uintptr(indexType), uintptr(e.indexBuffer.raw), uintptr(e.indexOffset), uintptr(buf.raw), uintptr(recordOffset))
-	}
+	_ = MsgSend(e.raw, Sel("drawIndexedPrimitives:indexType:indexBuffer:indexBufferOffset:indirectBuffer:indirectBufferOffset:"),
+		uintptr(MTLPrimitiveTypeTriangle), uintptr(indexType), uintptr(e.indexBuffer.raw), uintptr(e.indexOffset), uintptr(buf.raw), uintptr(offset))
 }
 
 // DrawIndirectCount falls back to maxDrawCount sequential indirect draws on Metal.
@@ -1004,12 +998,14 @@ type ComputePassEncoder struct {
 }
 
 // End finishes the compute pass.
-func (e *ComputePassEncoder) End() {
+// Matches webgpu ComputePassEncoder.End error shape.
+func (e *ComputePassEncoder) End() error {
 	if e.raw != 0 {
 		_ = MsgSend(e.raw, Sel("endEncoding"))
 		Release(e.raw)
 		e.raw = 0
 	}
+	return nil
 }
 
 // SetPipeline sets the compute pipeline.

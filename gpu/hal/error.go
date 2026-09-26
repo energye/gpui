@@ -2,7 +2,10 @@
 
 package hal
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Common HAL errors representing unrecoverable GPU states.
 var (
@@ -80,3 +83,38 @@ var (
 	// so it cannot be mapped on the CPU.
 	ErrInvalidMapRange = errors.New("hal: invalid buffer map range or non-mappable buffer")
 )
+
+// GPUError represents a captured GPU error from an error scope.
+// Mirrors gpu/webgpu GPUError (gpu/webgpu/error.go:96).
+type GPUError struct {
+	Type    ErrorFilter
+	Message string
+}
+
+// Error implements the error interface.
+func (e *GPUError) Error() string {
+	return fmt.Sprintf("GPU %s error: %s", e.Type, e.Message)
+}
+
+// ErrorFilter selects which errors an error scope captures.
+// Mirrors gpu/webgpu ErrorFilter (gpu/webgpu/error.go:110).
+type ErrorFilter int
+
+const (
+	ErrorFilterValidation  ErrorFilter = 0x00000001
+	ErrorFilterOutOfMemory ErrorFilter = 0x00000002
+	ErrorFilterInternal    ErrorFilter = 0x00000003
+)
+
+func (f ErrorFilter) String() string {
+	switch f {
+	case ErrorFilterValidation:
+		return "Validation"
+	case ErrorFilterOutOfMemory:
+		return "OutOfMemory"
+	case ErrorFilterInternal:
+		return "Internal"
+	default:
+		return fmt.Sprintf("ErrorFilter(%d)", int(f))
+	}
+}

@@ -1710,7 +1710,8 @@ func readTextureViewRegionRGBA(
 	if wgpuView == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil view ptr")
 	}
-	tex := wgpuView.Texture()
+	texRaw := wgpuView.Texture()
+	tex, _ := texRaw.(*webgpu.Texture)
 	if tex == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil texture")
 	}
@@ -1830,7 +1831,8 @@ func readTextureViewRegionStraightRGBA(
 	if wgpuView == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil view ptr")
 	}
-	tex := wgpuView.Texture()
+	texRaw := wgpuView.Texture()
+	tex, _ := texRaw.(*webgpu.Texture)
 	if tex == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil texture")
 	}

@@ -37,16 +37,16 @@ func TestMapMinFilter(t *testing.T) {
 	tests := []struct {
 		name         string
 		minFilter    gputypes.FilterMode
-		mipmapFilter gputypes.FilterMode
+		mipmapFilter gputypes.MipmapFilterMode
 		want         int32
 	}{
-		{"Nearest+Nearest", gputypes.FilterModeNearest, gputypes.FilterModeNearest, gl.NEAREST_MIPMAP_NEAREST},
-		{"Nearest+Linear", gputypes.FilterModeNearest, gputypes.FilterModeLinear, gl.NEAREST_MIPMAP_LINEAR},
-		{"Linear+Nearest", gputypes.FilterModeLinear, gputypes.FilterModeNearest, gl.LINEAR_MIPMAP_NEAREST},
-		{"Linear+Linear", gputypes.FilterModeLinear, gputypes.FilterModeLinear, gl.LINEAR_MIPMAP_LINEAR},
-		{"Nearest+Undefined", gputypes.FilterModeNearest, gputypes.FilterModeUndefined, gl.NEAREST_MIPMAP_NEAREST},
-		{"Linear+Undefined", gputypes.FilterModeLinear, gputypes.FilterModeUndefined, gl.LINEAR_MIPMAP_NEAREST},
-		{"Default (both zero)", gputypes.FilterMode(0), gputypes.FilterMode(0), gl.NEAREST_MIPMAP_NEAREST},
+		{"Nearest+Nearest", gputypes.FilterModeNearest, gputypes.MipmapFilterModeNearest, gl.NEAREST_MIPMAP_NEAREST},
+		{"Nearest+Linear", gputypes.FilterModeNearest, gputypes.MipmapFilterModeLinear, gl.NEAREST_MIPMAP_LINEAR},
+		{"Linear+Nearest", gputypes.FilterModeLinear, gputypes.MipmapFilterModeNearest, gl.LINEAR_MIPMAP_NEAREST},
+		{"Linear+Linear", gputypes.FilterModeLinear, gputypes.MipmapFilterModeLinear, gl.LINEAR_MIPMAP_LINEAR},
+		{"Nearest+Undefined", gputypes.FilterModeNearest, gputypes.MipmapFilterModeUndefined, gl.NEAREST_MIPMAP_NEAREST},
+		{"Linear+Undefined", gputypes.FilterModeLinear, gputypes.MipmapFilterModeUndefined, gl.LINEAR_MIPMAP_NEAREST},
+		{"Default (both zero)", gputypes.FilterMode(0), gputypes.MipmapFilterMode(0), gl.NEAREST_MIPMAP_NEAREST},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

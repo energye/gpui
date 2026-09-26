@@ -262,3 +262,21 @@ func (i *Instance) Destroy() {
 		i.ctx = nil
 	}
 }
+
+// RequestAdapter returns the first enumerated adapter.
+// Matches webgpu Instance.RequestAdapter shape; CompatibleSurface is
+// forwarded as the enumerate hint (Wayland deferred enumeration).
+func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
+	var hint hal.Surface
+	if opts != nil {
+		hint = opts.CompatibleSurface
+	}
+	adapters := i.EnumerateAdapters(hint)
+	if len(adapters) == 0 {
+		return nil, fmt.Errorf("gles: no adapters available")
+	}
+	return adapters[0].Adapter, nil
+}
+
+// ProcessEvents is a no-op for GLES (synchronous, no async callbacks).
+func (i *Instance) ProcessEvents() {}

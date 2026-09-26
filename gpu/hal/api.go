@@ -57,6 +57,16 @@ type Instance interface {
 	// the surface are returned.
 	EnumerateAdapters(surfaceHint Surface) []ExposedAdapter
 
+	// RequestAdapter requests a GPU adapter matching the options.
+	// If opts is nil, the best available adapter is returned.
+	// Matches webgpu Instance.RequestAdapter (gpu/webgpu/instance.go:61).
+	RequestAdapter(opts *RequestAdapterOptions) (Adapter, error)
+
+	// ProcessEvents pumps pending async callbacks (device-lost, map async, etc.).
+	// Matches webgpu Instance.ProcessEvents (gpu/webgpu/instance.go:119).
+	// Synchronous backends (noop/gles/metal) are no-ops.
+	ProcessEvents()
+
 	// Destroy releases the instance.
 	// All adapters and surfaces created from this instance must be destroyed first.
 	Destroy()
@@ -88,9 +98,28 @@ type Adapter interface {
 	// TextureFormatCapabilities returns capabilities for a specific texture format.
 	TextureFormatCapabilities(format gputypes.TextureFormat) TextureFormatCapabilities
 
-	// SurfaceCapabilities returns capabilities for a specific surface.
+	// Info returns adapter metadata.
+	// Matches webgpu Adapter.Info (gpu/webgpu/adapter.go:32).
+	Info() gputypes.AdapterInfo
+
+	// Features returns supported features.
+	// Matches webgpu Adapter.Features (gpu/webgpu/adapter.go:35).
+	Features() gputypes.Features
+
+	// Limits returns the adapter's resource limits.
+	// Matches webgpu Adapter.Limits (gpu/webgpu/adapter.go:38).
+	Limits() gputypes.Limits
+
+	// RequestDevice creates a logical device from this adapter.
+	// If desc is nil, default features and limits are used.
+	// Matches webgpu Adapter.RequestDevice (gpu/webgpu/adapter.go:42).
+	// Queue is accessible via the returned Device.Queue().
+	RequestDevice(desc *DeviceDescriptor) (Device, error)
+
+	// GetSurfaceCapabilities returns capabilities for a specific surface.
 	// Returns nil if the adapter is not compatible with the surface.
-	SurfaceCapabilities(surface Surface) *SurfaceCapabilities
+	// Matches webgpu Adapter.GetSurfaceCapabilities (gpu/webgpu/adapter.go:87).
+	GetSurfaceCapabilities(surface Surface) *SurfaceCapabilities
 
 	// Destroy releases the adapter.
 	// Any devices created from this adapter must be destroyed first.
@@ -107,9 +136,33 @@ type OpenDevice struct {
 	Queue Queue
 }
 
+// PollType selects the blocking behavior of Device.Poll.
+// Mirrors gpu/webgpu PollType (gpu/webgpu/map_types.go:26).
+type PollType uint8
+
+const (
+	PollPoll PollType = iota
+	PollWait
+)
+
 // Device represents a logical GPU device.
 // Devices are used to create resources and command encoders.
+//
+// Mirrors gpu/webgpu Device accessors (gpu/webgpu/device.go:27,32,37):
+// Queue/Features/Limits are part of H1 row 2.
 type Device interface {
+	// Queue returns the device's command queue.
+	// Matches webgpu Device.Queue.
+	Queue() Queue
+
+	// Features returns the device's enabled features.
+	// Matches webgpu Device.Features.
+	Features() gputypes.Features
+
+	// Limits returns the device's resource limits.
+	// Matches webgpu Device.Limits.
+	Limits() gputypes.Limits
+
 	// CreateBuffer creates a GPU buffer.
 	CreateBuffer(desc *BufferDescriptor) (Buffer, error)
 
@@ -231,10 +284,11 @@ type Device interface {
 	// DestroyFence destroys a fence.
 	DestroyFence(fence Fence)
 
-	// Wait waits for a fence to reach the specified value.
+	// WaitForFence waits for a fence to reach the specified value.
 	// Returns true if the fence reached the value, false if timeout.
 	// Returns ErrDeviceLost if the device is lost.
-	Wait(fence Fence, value uint64, timeout time.Duration) (bool, error)
+	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:405).
+	WaitForFence(fence Fence, value uint64, timeout time.Duration) (bool, error)
 
 	// ResetFence resets a fence to the unsignaled state.
 	// The fence must not be in use by the GPU.
@@ -246,7 +300,28 @@ type Device interface {
 
 	// WaitIdle waits for all GPU work to complete.
 	// Call this before destroying resources to ensure the GPU is not using them.
+	// Matches webgpu Device.WaitIdle.
 	WaitIdle() error
+
+	// Poll drives pending work and pumps callbacks.
+	// Matches webgpu Device.Poll (gpu/webgpu/device.go:456).
+	Poll(pollType PollType) bool
+
+	// IsLost reports whether the device was marked lost.
+	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:529).
+	IsLost() bool
+
+	// FlushCallbacks pumps pending callbacks and folds lost signals.
+	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:468).
+	FlushCallbacks()
+
+	// PushErrorScope pushes a new error scope onto the device's error scope stack.
+	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:418).
+	PushErrorScope(filter ErrorFilter)
+
+	// PopErrorScope pops the most recently pushed error scope.
+	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:426).
+	PopErrorScope() *GPUError
 
 	// CreateAccelerationStructure creates an acceleration structure (BLAS or TLAS).
 	// Requires FeatureRayQuery. Returns ErrUnsupported if RT is not available.
@@ -276,13 +351,19 @@ type Device interface {
 type Queue interface {
 	// Submit submits command buffers to the GPU for execution.
 	// Returns a monotonically increasing submission index that can be used
-	// with PollCompleted to determine when the GPU has finished the work.
+	// with Poll to determine when the GPU has finished the work.
 	// The HAL manages its own internal fences/synchronization.
-	Submit(commandBuffers []CommandBuffer) (submissionIndex uint64, err error)
+	// Matches webgpu Queue.Submit variadic shape (gpu/webgpu/queue.go:40).
+	Submit(commandBuffers ...CommandBuffer) (submissionIndex uint64, err error)
 
-	// PollCompleted returns the highest submission index known to be completed
+	// Poll returns the highest submission index known to be completed
 	// by the GPU. Non-blocking. Returns 0 if no submissions have completed.
-	PollCompleted() uint64
+	// Matches webgpu Queue.Poll (gpu/webgpu/queue.go:122).
+	Poll() uint64
+
+	// LastSubmissionIndex returns the most recent submission index.
+	// Matches webgpu Queue.LastSubmissionIndex (gpu/webgpu/queue.go:195).
+	LastSubmissionIndex() uint64
 
 	// WriteBuffer writes data to a buffer immediately.
 	// This is a convenience method that creates a staging buffer internally.
@@ -337,7 +418,7 @@ type Queue interface {
 	//
 	//   queue.SetSwapchainSuppressed(true)
 	//   defer queue.SetSwapchainSuppressed(false)
-	//   queue.Submit(offscreenCmds)
+	//   queue.Submit(offscreenCmds...)
 	//
 	// Precedent: VK-004 save/restore pattern in WriteTexture (queue.go:620-634).
 	// Long-term: Phase B (ADR-019) will add surface_textures to Submit signature

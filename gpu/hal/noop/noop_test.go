@@ -205,7 +205,7 @@ func TestNoopAdapterCapabilities(t *testing.T) {
 	surface, _ := instance.CreateSurface(hal.SurfaceTarget{Kind: hal.SurfaceTargetHeadless})
 	defer surface.Destroy()
 
-	surfaceCaps := adapter.SurfaceCapabilities(surface)
+	surfaceCaps := adapter.GetSurfaceCapabilities(surface)
 	if surfaceCaps == nil {
 		t.Fatal("expected non-nil surface capabilities")
 		return
@@ -354,7 +354,7 @@ func TestNoopCreateSampler(t *testing.T) {
 				AddressModeW: gputypes.AddressModeClampToEdge,
 				MagFilter:    gputypes.FilterModeLinear,
 				MinFilter:    gputypes.FilterModeLinear,
-				MipmapFilter: gputypes.FilterModeLinear,
+				MipmapFilter: gputypes.MipmapFilterModeLinear,
 			},
 		},
 		{
@@ -424,18 +424,14 @@ func TestNoopCreateShaderModule(t *testing.T) {
 			"WGSL shader",
 			&hal.ShaderModuleDescriptor{
 				Label: "wgsl shader",
-				Source: hal.ShaderSource{
-					WGSL: "@vertex fn main() -> @builtin(position) vec4<f32> { return vec4<f32>(0.0); }",
-				},
+				WGSL:  "@vertex fn main() -> @builtin(position) vec4<f32> { return vec4<f32>(0.0); }",
 			},
 		},
 		{
 			"SPIR-V shader",
 			&hal.ShaderModuleDescriptor{
 				Label: "spirv shader",
-				Source: hal.ShaderSource{
-					SPIRV: []uint32{0x07230203, 0x00010000}, // Magic number + version
-				},
+				SPIRV: []uint32{0x07230203, 0x00010000}, // Magic number + version
 			},
 		},
 	}
@@ -464,7 +460,7 @@ func TestNoopCreateRenderPipeline(t *testing.T) {
 	defer device.DestroyPipelineLayout(layout)
 
 	module, _ := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
-		Source: hal.ShaderSource{WGSL: "@vertex fn vs() {}"},
+		WGSL: "@vertex fn vs() {}",
 	})
 	defer device.DestroyShaderModule(module)
 
@@ -504,17 +500,15 @@ func TestNoopCreateComputePipeline(t *testing.T) {
 	defer device.DestroyPipelineLayout(layout)
 
 	module, _ := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
-		Source: hal.ShaderSource{WGSL: "@compute fn main() {}"},
+		WGSL: "@compute fn main() {}",
 	})
 	defer device.DestroyShaderModule(module)
 
 	desc := &hal.ComputePipelineDescriptor{
-		Label:  "test compute pipeline",
-		Layout: layout,
-		Compute: hal.ComputeState{
-			Module:     module,
-			EntryPoint: "main",
-		},
+		Label:      "test compute pipeline",
+		Layout:     layout,
+		Module:     module,
+		EntryPoint: "main",
 	}
 
 	pipeline, err := device.CreateComputePipeline(desc)
@@ -542,12 +536,12 @@ func TestNoopCreateFence(t *testing.T) {
 	defer device.DestroyFence(fence)
 
 	// Test fence wait (should return immediately)
-	ok, err := device.Wait(fence, 0, 100*time.Millisecond)
+	ok, err := device.WaitForFence(fence, 0, 100*time.Millisecond)
 	if err != nil {
-		t.Fatalf("Wait failed: %v", err)
+		t.Fatalf("WaitForFence failed: %v", err)
 	}
 	if !ok {
-		t.Error("expected Wait to succeed immediately for value 0")
+		t.Error("expected WaitForFence to succeed immediately for value 0")
 	}
 }
 
@@ -562,7 +556,7 @@ func TestNoopQueueSubmit(t *testing.T) {
 	cmdBuffer, _ := encoder.EndEncoding()
 
 	// Submit
-	subIdx, err := queue.Submit([]hal.CommandBuffer{cmdBuffer})
+	subIdx, err := queue.Submit(cmdBuffer)
 	if err != nil {
 		t.Fatalf("Submit failed: %v", err)
 	}
@@ -571,7 +565,7 @@ func TestNoopQueueSubmit(t *testing.T) {
 	}
 
 	// Poll completed — noop is synchronous, should be immediately complete
-	completed := queue.PollCompleted()
+	completed := queue.Poll()
 	if completed < subIdx {
 		t.Errorf("expected completed >= %d, got %d", subIdx, completed)
 	}
@@ -651,9 +645,7 @@ func TestNoopCommandEncoder(t *testing.T) {
 	defer device.DestroyBuffer(buffer)
 
 	encoder.ClearBuffer(buffer, 0, 256)
-	encoder.CopyBufferToBuffer(buffer, buffer, []hal.BufferCopy{
-		{SrcOffset: 0, DstOffset: 128, Size: 64},
-	})
+	encoder.CopyBufferToBuffer(buffer, 0, buffer, 128, 64)
 
 	// End encoding
 	cmdBuffer, err := encoder.EndEncoding()
@@ -688,7 +680,7 @@ func TestNoopRenderPass(t *testing.T) {
 	_ = encoder.BeginEncoding("test")
 
 	// Begin render pass
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{
 			{
 				View:       view,
@@ -700,10 +692,10 @@ func TestNoopRenderPass(t *testing.T) {
 	})
 
 	// Test render pass commands
-	renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: 256, Height: 256, MinDepth: 0, MaxDepth: 1})
-	renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: 256, Height: 256})
-	renderPass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
-	renderPass.End()
+	renderPass.SetViewport(0, 0, 256, 256, 0, 1)
+	renderPass.SetScissorRect(0, 0, 256, 256)
+	renderPass.Draw(3, 1, 0, 0)
+	_ = renderPass.End()
 
 	_, _ = encoder.EndEncoding()
 }
@@ -717,13 +709,13 @@ func TestNoopComputePass(t *testing.T) {
 	_ = encoder.BeginEncoding("test")
 
 	// Begin compute pass
-	computePass := encoder.BeginComputePass(&hal.ComputePassDescriptor{
+	computePass, _ := encoder.BeginComputePass(&hal.ComputePassDescriptor{
 		Label: "test compute",
 	})
 
 	// Test compute pass commands
 	computePass.Dispatch(8, 8, 1)
-	computePass.End()
+	_ = computePass.End()
 
 	_, _ = encoder.EndEncoding()
 }
@@ -737,12 +729,10 @@ func TestNoopComputeE2E(t *testing.T) {
 	// 1. Create compute shader module
 	module, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "compute-shader",
-		Source: hal.ShaderSource{
-			WGSL: `@group(0) @binding(0) var<storage, read_write> data: array<u32>;
+		WGSL: `@group(0) @binding(0) var<storage, read_write> data: array<u32>;
 @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   data[id.x] = id.x * 2u;
 }`,
-		},
 	})
 	if err != nil {
 		t.Fatalf("CreateShaderModule failed: %v", err)
@@ -814,12 +804,10 @@ func TestNoopComputeE2E(t *testing.T) {
 
 	// 6. Create compute pipeline
 	pipeline, err := device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
-		Label:  "compute-pipeline",
-		Layout: pipelineLayout,
-		Compute: hal.ComputeState{
-			Module:     module,
-			EntryPoint: "main",
-		},
+		Label:      "compute-pipeline",
+		Layout:     pipelineLayout,
+		Module:     module,
+		EntryPoint: "main",
 	})
 	if err != nil {
 		t.Fatalf("CreateComputePipeline failed: %v", err)
@@ -838,13 +826,13 @@ func TestNoopComputeE2E(t *testing.T) {
 		t.Fatalf("BeginEncoding failed: %v", err)
 	}
 
-	computePass := encoder.BeginComputePass(&hal.ComputePassDescriptor{
+	computePass, _ := encoder.BeginComputePass(&hal.ComputePassDescriptor{
 		Label: "compute",
 	})
 	computePass.SetPipeline(pipeline)
 	computePass.SetBindGroup(0, bg, nil)
 	computePass.Dispatch(4, 1, 1) // 4 workgroups × 64 threads = 256 invocations
-	computePass.End()
+	_ = computePass.End()
 
 	cmdBuffer, err := encoder.EndEncoding()
 	if err != nil {
@@ -852,7 +840,7 @@ func TestNoopComputeE2E(t *testing.T) {
 	}
 
 	// 8. Submit
-	if _, err := queue.Submit([]hal.CommandBuffer{cmdBuffer}); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		t.Fatalf("Submit failed: %v", err)
 	}
 
@@ -1078,21 +1066,21 @@ func TestNoopFenceWait(t *testing.T) {
 	defer device.DestroyFence(fence)
 
 	// Wait with timeout (should return immediately)
-	ok, err := device.Wait(fence, 0, 100*time.Millisecond)
+	ok, err := device.WaitForFence(fence, 0, 100*time.Millisecond)
 	if err != nil {
-		t.Fatalf("Wait failed: %v", err)
+		t.Fatalf("WaitForFence failed: %v", err)
 	}
 	if !ok {
-		t.Error("expected Wait to succeed for value 0")
+		t.Error("expected WaitForFence to succeed for value 0")
 	}
 
 	// Wait for future value (should fail)
-	ok, err = device.Wait(fence, 100, 10*time.Millisecond)
+	ok, err = device.WaitForFence(fence, 100, 10*time.Millisecond)
 	if err != nil {
-		t.Fatalf("Wait failed: %v", err)
+		t.Fatalf("WaitForFence failed: %v", err)
 	}
 	if ok {
-		t.Error("expected Wait to timeout for future value")
+		t.Error("expected WaitForFence to timeout for future value")
 	}
 }
 
@@ -1166,7 +1154,7 @@ func TestNoopFullLifecycle(t *testing.T) {
 	defer device.DestroyPipelineLayout(layout)
 
 	module, _ := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
-		Source: hal.ShaderSource{WGSL: "@vertex fn vs() -> @builtin(position) vec4<f32> { return vec4<f32>(); }"},
+		WGSL: "@vertex fn vs() -> @builtin(position) vec4<f32> { return vec4<f32>(); }",
 	})
 	defer device.DestroyShaderModule(module)
 
@@ -1185,7 +1173,7 @@ func TestNoopFullLifecycle(t *testing.T) {
 	encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 	_ = encoder.BeginEncoding("frame")
 
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		ColorAttachments: []hal.RenderPassColorAttachment{
 			{
 				View:       view,
@@ -1197,13 +1185,13 @@ func TestNoopFullLifecycle(t *testing.T) {
 	})
 	renderPass.SetPipeline(pipeline)
 	renderPass.SetVertexBuffer(0, buffer, 0)
-	renderPass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
-	renderPass.End()
+	renderPass.Draw(3, 1, 0, 0)
+	_ = renderPass.End()
 
 	cmdBuffer, _ := encoder.EndEncoding()
 
 	// Submit
-	_, err = queue.Submit([]hal.CommandBuffer{cmdBuffer})
+	_, err = queue.Submit(cmdBuffer)
 	if err != nil {
 		t.Fatalf("Submit failed: %v", err)
 	}
@@ -1240,7 +1228,7 @@ func TestNoopConcurrentAccess(t *testing.T) {
 				encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
 				_ = encoder.BeginEncoding("test")
 				cmdBuffer, _ := encoder.EndEncoding()
-				_, _ = queue.Submit([]hal.CommandBuffer{cmdBuffer})
+				_, _ = queue.Submit(cmdBuffer)
 			}
 		}()
 	}
@@ -1358,7 +1346,7 @@ func TestNoopResetFence(t *testing.T) {
 	}
 }
 
-// TestNoopDeviceWaitWithNonNoopFence tests Wait/GetFenceStatus/ResetFence with non-noop fence.
+// TestNoopDeviceWaitWithNonNoopFence tests WaitForFence/GetFenceStatus/ResetFence with non-noop fence.
 func TestNoopDeviceWaitWithNonNoopFence(t *testing.T) {
 	device, cleanup := createTestDevice(t)
 	defer cleanup()
@@ -1367,9 +1355,9 @@ func TestNoopDeviceWaitWithNonNoopFence(t *testing.T) {
 	var fake hal.Fence
 
 	// Wait with nil fence should not panic
-	ok, err := device.Wait(fake, 0, time.Millisecond)
+	ok, err := device.WaitForFence(fake, 0, time.Millisecond)
 	if err != nil {
-		t.Errorf("Wait with nil fence should not error: %v", err)
+		t.Errorf("WaitForFence with nil fence should not error: %v", err)
 	}
 	// ok is true since type assertion fails and returns true
 	_ = ok
@@ -1522,7 +1510,7 @@ func TestNoopCommandEncoderCopyOps(t *testing.T) {
 	defer device.DestroyTexture(tex1)
 	defer device.DestroyTexture(tex2)
 
-	encoder.CopyBufferToBuffer(buf1, buf2, []hal.BufferCopy{{Size: 64}})
+	encoder.CopyBufferToBuffer(buf1, 0, buf2, 0, 64)
 	encoder.CopyBufferToTexture(buf1, tex1, []hal.BufferTextureCopy{})
 	encoder.CopyTextureToBuffer(tex1, buf1, []hal.BufferTextureCopy{})
 	encoder.CopyTextureToTexture(tex1, tex2, []hal.TextureCopy{})
@@ -1546,7 +1534,7 @@ func TestNoopRenderPassEncoder(t *testing.T) {
 	defer cleanup()
 
 	encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
-	pass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{Label: "test-rp"})
+	pass, _ := encoder.BeginRenderPass(&hal.RenderPassDescriptor{Label: "test-rp"})
 	if pass == nil {
 		t.Fatal("BeginRenderPass returned nil")
 	}
@@ -1560,16 +1548,16 @@ func TestNoopRenderPassEncoder(t *testing.T) {
 	pass.SetBindGroup(1, nil, []uint32{0, 256})
 	pass.SetVertexBuffer(0, buf, 0)
 	pass.SetIndexBuffer(buf, gputypes.IndexFormatUint16, 0)
-	pass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: 800, Height: 600, MinDepth: 0, MaxDepth: 1})
-	pass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: 800, Height: 600})
+	pass.SetViewport(0, 0, 800, 600, 0, 1)
+	pass.SetScissorRect(0, 0, 800, 600)
 	pass.SetBlendConstant(&gputypes.Color{R: 1, G: 0, B: 0, A: 1})
 	pass.SetStencilReference(0xFF)
-	pass.Draw(gputypes.DrawArgs{VertexCount: 6, InstanceCount: 1})
-	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: 6, InstanceCount: 1})
-	pass.DrawIndirect(buf, 0, 1)
-	pass.DrawIndexedIndirect(buf, 0, 1)
+	pass.Draw(6, 1, 0, 0)
+	pass.DrawIndexed(6, 1, 0, 0, 0)
+	pass.DrawIndirect(buf, 0)
+	pass.DrawIndexedIndirect(buf, 0)
 	pass.ExecuteBundle(nil)
-	pass.End()
+	_ = pass.End()
 }
 
 // TestNoopComputePassEncoder tests all compute pass encoder methods.
@@ -1578,7 +1566,7 @@ func TestNoopComputePassEncoder(t *testing.T) {
 	defer cleanup()
 
 	encoder, _ := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{})
-	pass := encoder.BeginComputePass(&hal.ComputePassDescriptor{Label: "test-cp"})
+	pass, _ := encoder.BeginComputePass(&hal.ComputePassDescriptor{Label: "test-cp"})
 	if pass == nil {
 		t.Fatal("BeginComputePass returned nil")
 	}
@@ -1590,7 +1578,7 @@ func TestNoopComputePassEncoder(t *testing.T) {
 	pass.Dispatch(1, 1, 1)
 	pass.Dispatch(64, 32, 16)
 	pass.DispatchIndirect(nil, 0)
-	pass.End()
+	_ = pass.End()
 }
 
 // =============================================================================

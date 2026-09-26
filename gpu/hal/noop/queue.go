@@ -16,33 +16,36 @@ type Queue struct {
 
 // Submit simulates command buffer submission.
 // Returns a monotonically increasing submission index.
-func (q *Queue) Submit(_ []hal.CommandBuffer) (uint64, error) {
+// Matches webgpu Queue.Submit variadic shape.
+func (q *Queue) Submit(_ ...hal.CommandBuffer) (uint64, error) {
 	q.submissionIndex++
 	return q.submissionIndex, nil
 }
 
-// PollCompleted returns the highest submission index known to be completed.
+// Poll returns the highest submission index known to be completed.
 // Noop backend is synchronous — all submissions are immediately complete.
-func (q *Queue) PollCompleted() uint64 {
+// Matches webgpu Queue.Poll.
+func (q *Queue) Poll() uint64 {
+	return q.submissionIndex
+}
+
+// LastSubmissionIndex returns the most recent submission index.
+// Matches webgpu Queue.LastSubmissionIndex.
+func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
 }
 
 // WriteBuffer simulates immediate buffer writes.
 // If the buffer has storage, copies data to it.
 func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error {
-	switch b := buffer.(type) {
-	case *Buffer:
-		if b.data != nil {
-			copy(b.data[offset:], data)
-		}
-		return nil
-	case *Resource:
-		// Non-mapped buffer — no data to write, just a no-op.
-		_ = b
-		return nil
-	default:
+	b, ok := buffer.(*Buffer)
+	if !ok {
 		return fmt.Errorf("noop: WriteBuffer: invalid buffer type %T", buffer)
 	}
+	if b.data != nil {
+		copy(b.data[offset:], data)
+	}
+	return nil
 }
 
 // WriteTexture simulates immediate texture writes.

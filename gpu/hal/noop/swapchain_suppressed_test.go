@@ -77,7 +77,7 @@ func TestSetSwapchainSuppressed_SubmitDuringSuppression(t *testing.T) {
 
 	// Suppress -> Submit -> Unsuppress -> Submit.
 	queue.SetSwapchainSuppressed(true)
-	idx1, err := queue.Submit([]hal.CommandBuffer{cmdBuffer})
+	idx1, err := queue.Submit(cmdBuffer)
 	if err != nil {
 		t.Fatalf("Submit during suppression failed: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestSetSwapchainSuppressed_SubmitDuringSuppression(t *testing.T) {
 	_ = encoder2.BeginEncoding("test2")
 	cmdBuffer2, _ := encoder2.EndEncoding()
 
-	idx2, err := queue.Submit([]hal.CommandBuffer{cmdBuffer2})
+	idx2, err := queue.Submit(cmdBuffer2)
 	if err != nil {
 		t.Fatalf("Submit after unsuppression failed: %v", err)
 	}

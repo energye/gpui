@@ -32,7 +32,11 @@ func (m *mockInstance) CreateSurface(_ hal.SurfaceTarget) (hal.Surface, error) {
 func (m *mockInstance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter {
 	return nil
 }
-func (m *mockInstance) Destroy() {}
+func (m *mockInstance) RequestAdapter(_ *hal.RequestAdapterOptions) (hal.Adapter, error) {
+	return nil, hal.ErrBackendNotFound
+}
+func (m *mockInstance) ProcessEvents() {}
+func (m *mockInstance) Destroy()       {}
 
 // mockSurface is a minimal surface implementation for testing.
 type mockSurface struct{}
@@ -57,6 +61,7 @@ func (m *mockSurfaceTexture) NativeHandle() uintptr               { return 0 }
 func (m *mockSurfaceTexture) CurrentUsage() gputypes.TextureUsage { return 0 }
 func (m *mockSurfaceTexture) AddPendingRef()                      {}
 func (m *mockSurfaceTexture) DecPendingRef()                      {}
+func (m *mockSurfaceTexture) Format() gputypes.TextureFormat      { return gputypes.TextureFormatUndefined }
 
 func TestRegisterBackend(t *testing.T) {
 	// Register a custom backend

@@ -2,7 +2,10 @@
 
 package webgpu
 
-import rwgpu "github.com/energye/gpui/gpu/rwgpu"
+import (
+	"github.com/energye/gpui/gpu/hal"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+)
 
 // Texture represents a GPU texture.
 // On the wgpu-native backend, this wraps rwgpu Texture.
@@ -34,6 +37,21 @@ func (t *Texture) Release() {
 	}
 }
 
+// Destroy implements hal.Texture: same as Release.
+func (t *Texture) Destroy() { t.Release() }
+
+// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
+func (t *Texture) NativeHandle() uintptr { return 0 }
+
+// CurrentUsage implements hal.Texture: Rust manages barriers internally, returns 0.
+func (t *Texture) CurrentUsage() TextureUsage { return 0 }
+
+// AddPendingRef implements hal.Texture: no-op on Rust.
+func (t *Texture) AddPendingRef() {}
+
+// DecPendingRef implements hal.Texture: no-op on Rust.
+func (t *Texture) DecPendingRef() {}
+
 // TextureView represents a view into a texture.
 // On the wgpu-native backend, this wraps rwgpu TextureView.
 type TextureView struct {
@@ -44,8 +62,14 @@ type TextureView struct {
 }
 
 // Texture returns the parent Texture that this view was created from.
-// Returns nil if the view has been released.
-func (v *TextureView) Texture() *Texture { return v.texture }
+// Implements hal.TextureView (returns hal.Texture interface).
+// Callers needing the concrete type can assert to *Texture.
+func (v *TextureView) Texture() hal.Texture {
+	if v.texture == nil {
+		return nil
+	}
+	return v.texture
+}
 
 // Released reports whether Release has been called (diagnostics/tests).
 func (v *TextureView) Released() bool { return v != nil && v.released }
@@ -60,3 +84,14 @@ func (v *TextureView) Release() {
 		v.r.Release()
 	}
 }
+
+// Destroy implements hal.TextureView: same as Release.
+func (v *TextureView) Destroy() { v.Release() }
+
+// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
+func (v *TextureView) NativeHandle() uintptr { return 0 }
+
+var (
+	_ hal.Texture     = (*Texture)(nil)
+	_ hal.TextureView = (*TextureView)(nil)
+)

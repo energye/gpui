@@ -4,7 +4,9 @@ package webgpu
 
 import (
 	"fmt"
+	"image"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
@@ -37,11 +39,26 @@ func (q *Queue) OnSubmittedWorkDone() (rwgpu.Future, error) {
 // R7.0: avoid per-submit heap allocation on the dominant 1-CB path and for
 // small multi-CB submits (≤8). Semantics unchanged: non-nil CBs are marked
 // submitted; only CBs with a live native handle are passed to rwgpu.
-func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
+// Implements hal.Queue (takes hal.CommandBuffer interfaces, internal unpack;
+// wrong-type elements fail before anything is marked or submitted).
+func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	if err := prepareQueueCall(q); err != nil {
 		return 0, err
 	}
-	n := len(commandBuffers)
+	// First pass: unpack interfaces (atomic type check before any marking).
+	native := make([]*CommandBuffer, 0, len(commandBuffers))
+	for _, cb := range commandBuffers {
+		if cb == nil {
+			native = append(native, nil)
+			continue
+		}
+		wcb, ok := cb.(*CommandBuffer)
+		if !ok {
+			return 0, fmt.Errorf("wgpu: Submit: not a webgpu command buffer (%T)", cb)
+		}
+		native = append(native, wcb)
+	}
+	n := len(native)
 	if n == 0 {
 		idx, err := q.r.Submit()
 		if err != nil {
@@ -54,7 +71,7 @@ func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
 	}
 	// Dominant present/flush path: a single command buffer.
 	if n == 1 {
-		cb := commandBuffers[0]
+		cb := native[0]
 		if cb == nil {
 			idx, err := q.r.Submit()
 			if err != nil {
@@ -93,7 +110,7 @@ func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
 	} else {
 		rBuffers = make([]*rwgpu.CommandBuffer, 0, n)
 	}
-	for _, cb := range commandBuffers {
+	for _, cb := range native {
 		if cb == nil {
 			continue
 		}
@@ -123,14 +140,19 @@ func (q *Queue) Poll() uint64 {
 }
 
 // WriteBuffer writes data to a buffer.
-func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
+// Implements hal.Queue (takes hal.Buffer interface, internal unpack).
+func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error {
 	if err := prepareQueueCall(q); err != nil {
 		return err
 	}
-	if buffer == nil || buffer.r == nil {
+	wb, ok := buffer.(*Buffer)
+	if !ok {
+		return fmt.Errorf("wgpu: WriteBuffer: not a webgpu buffer (%T)", buffer)
+	}
+	if wb == nil || wb.r == nil {
 		return fmt.Errorf("wgpu: WriteBuffer: buffer is nil")
 	}
-	if err := q.r.WriteBuffer(buffer.r, offset, data); err != nil {
+	if err := q.r.WriteBuffer(wb.r, offset, data); err != nil {
 		if e := mapRWGPUErr(err); e != err {
 			return e
 		}
@@ -141,16 +163,21 @@ func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 
 // WriteTexture writes data to a texture.
 // R7.0: stack-allocate destination/layout/size descriptors (no per-call heap).
-func (q *Queue) WriteTexture(dst *ImageCopyTexture, data []byte, layout *ImageDataLayout, size *Extent3D) error {
+// Implements hal.Queue (ImageCopyTexture aliased to hal; .Texture unpacked).
+func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal.ImageDataLayout, size *hal.Extent3D) error {
 	if err := prepareQueueCall(q); err != nil {
 		return err
 	}
-	if dst == nil || dst.Texture == nil || dst.Texture.r == nil {
+	if dst == nil {
+		return fmt.Errorf("wgpu: WriteTexture: destination is nil")
+	}
+	tex, ok := dst.Texture.(*Texture)
+	if !ok || tex == nil || tex.r == nil {
 		return fmt.Errorf("wgpu: WriteTexture: destination is nil")
 	}
 
 	rDst := rwgpu.ImageCopyTexture{
-		Texture:  dst.Texture.r,
+		Texture:  tex.r,
 		MipLevel: dst.MipLevel,
 		Origin:   rwgpu.Origin3D(dst.Origin),
 		Aspect:   rwgpu.TextureAspect(dst.Aspect),
@@ -209,3 +236,28 @@ func (q *Queue) Release() {
 		q.r = nil
 	}
 }
+
+// Present presents a surface texture (hal.Queue conformance).
+// The Rust backend owns swapchain timing through Surface.Present; this
+// delegates to the given surface and ignores damage rects (wgpu-native
+// has no damage-aware present). Surface/texture are unpacked; wrong types
+// or nils fail without touching GPU state.
+func (q *Queue) Present(surface hal.Surface, texture hal.SurfaceTexture, _ []image.Rectangle) error {
+	if err := prepareQueueCall(q); err != nil {
+		return err
+	}
+	ws, ok1 := any(surface).(*Surface)
+	wst, ok2 := texture.(*SurfaceTexture)
+	if !ok1 || !ok2 || ws == nil || wst == nil {
+		return fmt.Errorf("wgpu: Present: not a webgpu surface/texture (%T/%T)", surface, texture)
+	}
+	return ws.Present(wst)
+}
+
+// GetTimestampPeriod implements hal.Queue: wgpu-native does not expose it, returns 0.
+func (q *Queue) GetTimestampPeriod() float32 { return 0 }
+
+// SupportsCommandBufferCopies implements hal.Queue: Rust submits via command buffers.
+func (q *Queue) SupportsCommandBufferCopies() bool { return true }
+
+var _ hal.Queue = (*Queue)(nil)

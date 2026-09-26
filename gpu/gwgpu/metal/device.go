@@ -35,6 +35,8 @@ type Device struct {
 	adapter       *Adapter
 	eventListener ID     // id<MTLSharedEventListener> — created lazily, reused
 	queue         *Queue // back-reference for WaitIdle semaphore draining
+	features      gputypes.Features
+	limits        gputypes.Limits
 	// hasUnifiedMemory is true on Apple Silicon (UMA). On UMA, MTLStorageModeShared
 	// textures are physically identical to Private but allow setPurgeableState(empty)
 	// and direct CPU writes without a staging blit, which eliminates the main source
@@ -88,6 +90,15 @@ func newDevice(adapter *Adapter) (*Device, error) {
 	}, nil
 }
 
+// Queue returns the device's command queue.
+func (d *Device) Queue() hal.Queue { return d.queue }
+
+// Features returns the device's enabled features.
+func (d *Device) Features() gputypes.Features { return d.features }
+
+// Limits returns the device's resource limits.
+func (d *Device) Limits() gputypes.Limits { return d.limits }
+
 // CreateBuffer creates a GPU buffer.
 func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error) {
 	if desc == nil {
@@ -132,6 +143,7 @@ func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error) {
 		raw:     raw,
 		size:    desc.Size,
 		usage:   desc.Usage,
+		label:   desc.Label,
 		options: options,
 		device:  d,
 	}, nil
@@ -525,21 +537,21 @@ func (d *Device) DestroyPipelineLayout(layout hal.PipelineLayout) {
 // Reference: Rust wgpu-hal metal/device.rs:138-145 (load_shader takes the
 // pipeline layout and is called from create_*_pipeline).
 func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (hal.ShaderModule, error) {
-	if desc.Source.WGSL == "" {
+	if desc.WGSL == "" {
 		// No WGSL source - just store the descriptor for later
-		return &ShaderModule{source: desc.Source, device: d}, nil
+		return &ShaderModule{wgsl: desc.WGSL, spirv: desc.SPIRV, device: d}, nil
 	}
 
 	start := time.Now()
 
 	// Parse WGSL to AST
-	ast, err := naga.Parse(desc.Source.WGSL)
+	ast, err := naga.Parse(desc.WGSL)
 	if err != nil {
 		return nil, fmt.Errorf("metal: failed to parse WGSL: %w", err)
 	}
 
 	// Lower AST to IR
-	irModule, err := naga.LowerWithSource(ast, desc.Source.WGSL)
+	irModule, err := naga.LowerWithSource(ast, desc.WGSL)
 	if err != nil {
 		return nil, fmt.Errorf("metal: failed to lower WGSL to IR: %w", err)
 	}
@@ -553,7 +565,8 @@ func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (hal.Shade
 	)
 
 	return &ShaderModule{
-		source:         desc.Source,
+		wgsl:           desc.WGSL,
+		spirv:          desc.SPIRV,
 		irModule:       irModule,
 		device:         d,
 		workgroupSizes: workgroupSizes,
@@ -969,17 +982,6 @@ func (d *Device) DestroyRenderPipeline(pipeline hal.RenderPipeline) {
 }
 
 // CreateComputePipeline creates a compute pipeline.
-//
-// TODO(compute-constants): Apply desc.Compute.Constants via naga's
-// pipeline_constants::process_overrides before MSL emission, or use Metal's
-// MTLFunctionConstantValues API for runtime specialization. Rust wgpu-hal
-// Metal calls naga::back::pipeline_constants::process_overrides() in
-// create_shader (metal/device.rs:134) and passes the processed module to
-// the MSL writer.
-//
-// TODO(zero-init-workgroup): Pass desc.Compute.ZeroInitializeWorkgroupMemory
-// to naga MSL options. Rust wgpu-hal sets pipeline_options.zero_initialize_workgroup_memory
-// per-stage (metal/device.rs:179).
 func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (hal.ComputePipeline, error) {
 	pool := NewAutoreleasePool()
 	defer pool.Drain()
@@ -990,7 +992,7 @@ func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (hal
 	}
 
 	// Get shader module
-	computeModule, ok := desc.Compute.Module.(*ShaderModule)
+	computeModule, ok := desc.Module.(*ShaderModule)
 	if !ok || computeModule == nil {
 		return nil, fmt.Errorf("metal: invalid compute shader module")
 	}
@@ -1003,7 +1005,7 @@ func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (hal
 	defer Release(lib.library)
 
 	// Resolve translated entrypoint name
-	entrypointName := desc.Compute.EntryPoint
+	entrypointName := desc.EntryPoint
 	if translated, ok := lib.entrypointNames[entrypointName]; ok {
 		entrypointName = translated
 	}
@@ -1035,10 +1037,10 @@ func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (hal
 	}
 
 	// Get workgroup size from shader module metadata
-	workgroupSize := getWorkgroupSize(computeModule, desc.Compute.EntryPoint)
+	workgroupSize := getWorkgroupSize(computeModule, desc.EntryPoint)
 
 	hal.Logger().Debug("metal: compute pipeline created",
-		"entryPoint", desc.Compute.EntryPoint,
+		"entryPoint", desc.EntryPoint,
 		"workgroupSize", fmt.Sprintf("%dx%dx%d", workgroupSize.Width, workgroupSize.Height, workgroupSize.Depth),
 	)
 
@@ -1159,7 +1161,8 @@ func (d *Device) getOrCreateEventListener() ID {
 	return d.eventListener
 }
 
-// Wait waits for a fence to reach the specified value.
+// WaitForFence waits for a fence to reach the specified value.
+// Matches webgpu Device.WaitForFence.
 //
 // Uses Metal's MTLSharedEvent.notifyListener:atValue:block: for event-driven
 // notification when available. This avoids CPU polling and reduces latency
@@ -1167,7 +1170,7 @@ func (d *Device) getOrCreateEventListener() ID {
 //
 // Falls back to polling with progressive backoff if block infrastructure
 // is unavailable (e.g., _NSConcreteStackBlock symbol not loaded).
-func (d *Device) Wait(fence hal.Fence, value uint64, timeout time.Duration) (bool, error) {
+func (d *Device) WaitForFence(fence hal.Fence, value uint64, timeout time.Duration) (bool, error) {
 	mtlFence, ok := fence.(*Fence)
 	if !ok || mtlFence == nil {
 		return false, fmt.Errorf("metal: invalid fence")
@@ -1192,7 +1195,7 @@ func (d *Device) Wait(fence hal.Fence, value uint64, timeout time.Duration) (boo
 // Returns (result, true, nil/error) if the event-driven path was used.
 // Returns (false, false, nil) if the path is unavailable and caller should fall back.
 func (d *Device) waitEventDriven(mtlFence *Fence, value uint64, timeout time.Duration) (bool, bool, error) {
-	hal.Logger().Debug("metal: Wait", "value", value, "timeout", timeout, "path", "event-driven")
+	hal.Logger().Debug("metal: WaitForFence", "value", value, "timeout", timeout, "path", "event-driven")
 	listener := d.getOrCreateEventListener()
 	if listener == 0 {
 		return false, false, nil
@@ -1235,7 +1238,7 @@ func (d *Device) waitEventDriven(mtlFence *Fence, value uint64, timeout time.Dur
 // waitPolling waits for a fence using progressive backoff polling.
 // This is the fallback path when event-driven notification is unavailable.
 func (d *Device) waitPolling(mtlFence *Fence, value uint64, timeout time.Duration) (bool, error) {
-	hal.Logger().Debug("metal: Wait (polling)", "value", value, "timeout", timeout)
+	hal.Logger().Debug("metal: WaitForFence (polling)", "value", value, "timeout", timeout)
 	deadline := time.Now().Add(timeout)
 	spins := 0
 	for {
@@ -1411,7 +1414,7 @@ func (d *Device) WaitIdle() error {
 
 	// GPU is idle — all previously submitted command buffers have completed.
 	// Explicitly advance completedIndex to submissionIndex so that
-	// PollCompleted() returns the correct value immediately, without waiting
+	// Poll() returns the correct value immediately, without waiting
 	// for addCompletedHandler blocks to fire on Metal's dispatch thread.
 	// Those blocks fire asynchronously and may not have run yet even though
 	// waitUntilCompleted has returned (Metal runs handlers on a separate queue).
@@ -1451,6 +1454,21 @@ func (d *Device) WaitIdle() error {
 	hal.Logger().Debug("metal: WaitIdle complete")
 	return nil
 }
+
+// Poll returns completed status (Metal is synchronous after WaitIdle).
+func (d *Device) Poll(_ hal.PollType) bool { return true }
+
+// IsLost returns false (Metal has no device-lost tracking yet).
+func (d *Device) IsLost() bool { return false }
+
+// FlushCallbacks is a no-op for Metal.
+func (d *Device) FlushCallbacks() {}
+
+// PushErrorScope is a no-op for Metal.
+func (d *Device) PushErrorScope(_ hal.ErrorFilter) {}
+
+// PopErrorScope returns nil (Metal never captures errors).
+func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
 // Destroy releases the device and associated resources.
 func (d *Device) Destroy() {

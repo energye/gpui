@@ -5,6 +5,7 @@ package webgpu
 import (
 	"math"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
@@ -16,44 +17,59 @@ type RenderPassEncoder struct {
 }
 
 // SetPipeline sets the active render pipeline.
-func (p *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
-	if pipeline == nil || pipeline.r == nil {
+// Implements hal.RenderPassEncoder (takes hal.RenderPipeline interface, internal unpack).
+func (p *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline) {
+	wp, ok := pipeline.(*RenderPipeline)
+	if !ok || wp == nil || wp.r == nil {
 		return
 	}
-	p.r.SetPipeline(pipeline.r)
+	p.r.SetPipeline(wp.r)
 }
 
 // SetBindGroup sets a bind group for the given index.
 // Passing group == nil unsets the bind group (required before switching to a
 // pipeline with an incompatible bind-group layout in the same render pass).
-func (p *RenderPassEncoder) SetBindGroup(index uint32, group *BindGroup, offsets []uint32) {
+// Implements hal.RenderPassEncoder (takes hal.BindGroup interface, internal unpack).
+func (p *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32) {
 	if p == nil || p.r == nil {
 		return
 	}
-	if group == nil || group.r == nil {
+	if group == nil {
 		p.r.SetBindGroup(index, nil, nil)
 		return
 	}
-	p.r.SetBindGroup(index, group.r, offsets)
+	wg, ok := group.(*BindGroup)
+	if !ok {
+		return
+	}
+	if wg == nil || wg.r == nil {
+		p.r.SetBindGroup(index, nil, nil)
+		return
+	}
+	p.r.SetBindGroup(index, wg.r, offsets)
 }
 
 // SetVertexBuffer sets a vertex buffer for the given slot.
 // Offset is in bytes.
-func (p *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offset uint64) {
-	if buffer == nil || buffer.r == nil {
+// Implements hal.RenderPassEncoder (takes hal.Buffer interface, internal unpack).
+func (p *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer hal.Buffer, offset uint64) {
+	wb, ok := buffer.(*Buffer)
+	if !ok || wb == nil || wb.r == nil {
 		return
 	}
 	// rwgpu takes (slot, buffer, offset, size). Pass MaxUint64 for "rest of buffer".
-	p.r.SetVertexBuffer(slot, buffer.r, offset, math.MaxUint64)
+	p.r.SetVertexBuffer(slot, wb.r, offset, math.MaxUint64)
 }
 
 // SetIndexBuffer sets the index buffer.
-func (p *RenderPassEncoder) SetIndexBuffer(buffer *Buffer, format IndexFormat, offset uint64) {
-	if buffer == nil || buffer.r == nil {
+// Implements hal.RenderPassEncoder (takes hal.Buffer interface, internal unpack).
+func (p *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format IndexFormat, offset uint64) {
+	wb, ok := buffer.(*Buffer)
+	if !ok || wb == nil || wb.r == nil {
 		return
 	}
 	// rwgpu takes (buffer, format, offset, size). Pass MaxUint64 for "rest of buffer".
-	p.r.SetIndexBuffer(buffer.r, format, offset, math.MaxUint64)
+	p.r.SetIndexBuffer(wb.r, format, offset, math.MaxUint64)
 }
 
 // SetViewport sets the viewport transformation.
@@ -95,19 +111,23 @@ func (p *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex ui
 }
 
 // DrawIndirect draws primitives with GPU-generated parameters.
-func (p *RenderPassEncoder) DrawIndirect(buffer *Buffer, offset uint64) {
-	if buffer == nil || buffer.r == nil {
+// Implements hal.RenderPassEncoder (takes hal.Buffer interface, internal unpack).
+func (p *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64) {
+	wb, ok := buffer.(*Buffer)
+	if !ok || wb == nil || wb.r == nil {
 		return
 	}
-	p.r.DrawIndirect(buffer.r, offset)
+	p.r.DrawIndirect(wb.r, offset)
 }
 
 // DrawIndexedIndirect draws indexed primitives with GPU-generated parameters.
-func (p *RenderPassEncoder) DrawIndexedIndirect(buffer *Buffer, offset uint64) {
-	if buffer == nil || buffer.r == nil {
+// Implements hal.RenderPassEncoder (takes hal.Buffer interface, internal unpack).
+func (p *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64) {
+	wb, ok := buffer.(*Buffer)
+	if !ok || wb == nil || wb.r == nil {
 		return
 	}
-	p.r.DrawIndexedIndirect(buffer.r, offset)
+	p.r.DrawIndexedIndirect(wb.r, offset)
 }
 
 // End ends the render pass and drops the native pass-encoder reference.
@@ -125,3 +145,18 @@ func (p *RenderPassEncoder) End() error {
 	}
 	return nil
 }
+
+// DrawIndirectCount implements hal.RenderPassEncoder: Rust has no count buffer, lowers to max.
+func (p *RenderPassEncoder) DrawIndirectCount(buffer hal.Buffer, offset uint64, countBuffer hal.Buffer, countOffset uint64, maxDrawCount uint32) {
+	hal.RecordIndirectCountMax(p.DrawIndirect, buffer, offset, countBuffer, countOffset, maxDrawCount)
+}
+
+// DrawIndexedIndirectCount implements hal.RenderPassEncoder: lowers to max.
+func (p *RenderPassEncoder) DrawIndexedIndirectCount(buffer hal.Buffer, offset uint64, countBuffer hal.Buffer, countOffset uint64, maxDrawCount uint32) {
+	hal.RecordIndirectCountMax(p.DrawIndexedIndirect, buffer, offset, countBuffer, countOffset, maxDrawCount)
+}
+
+// ExecuteBundle implements hal.RenderPassEncoder: Rust has no bundles, no-op.
+func (p *RenderPassEncoder) ExecuteBundle(_ hal.RenderBundle) {}
+
+var _ hal.RenderPassEncoder = (*RenderPassEncoder)(nil)

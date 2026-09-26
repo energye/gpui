@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -1237,7 +1238,13 @@ func runGPUFilterGraphEx(
 		all = append(all, leading...)
 		all = append(all, cmd)
 	}
-	if _, err := queue.Submit(all...); err != nil {
+	// Queue.Submit takes hal.CommandBuffer: convert element-wise (same
+	// elements, same order, behavior unchanged).
+	halAll := make([]hal.CommandBuffer, 0, len(all))
+	for _, cb := range all {
+		halAll = append(halAll, cb)
+	}
+	if _, err := queue.Submit(halAll...); err != nil {
 		for _, c := range leading {
 			if c != nil {
 				c.Release()

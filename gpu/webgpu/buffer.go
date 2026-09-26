@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
@@ -52,6 +53,12 @@ func (b *Buffer) Release() {
 		b.r.Release()
 	}
 }
+
+// Destroy implements hal.Buffer: same as Release.
+func (b *Buffer) Destroy() { b.Release() }
+
+// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
+func (b *Buffer) NativeHandle() uintptr { return 0 }
 
 // MapState returns the current mapping state of the buffer.
 func (b *Buffer) MapState() MapState {
@@ -142,3 +149,5 @@ func (b *Buffer) Unmap() error {
 	b.mapped = false
 	return nil
 }
+
+var _ hal.Buffer = (*Buffer)(nil)

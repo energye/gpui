@@ -2,7 +2,10 @@
 
 package webgpu
 
-import rwgpu "github.com/energye/gpui/gpu/rwgpu"
+import (
+	"github.com/energye/gpui/gpu/hal"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+)
 
 // ComputePassEncoder records compute dispatch commands.
 // On the wgpu-native backend, this wraps rwgpu ComputePassEncoder.
@@ -12,19 +15,23 @@ type ComputePassEncoder struct {
 }
 
 // SetPipeline sets the active compute pipeline.
-func (p *ComputePassEncoder) SetPipeline(pipeline *ComputePipeline) {
-	if pipeline == nil || pipeline.r == nil {
+// Implements hal.ComputePassEncoder (takes hal.ComputePipeline interface, internal unpack).
+func (p *ComputePassEncoder) SetPipeline(pipeline hal.ComputePipeline) {
+	wp, ok := pipeline.(*ComputePipeline)
+	if !ok || wp == nil || wp.r == nil {
 		return
 	}
-	p.r.SetPipeline(pipeline.r)
+	p.r.SetPipeline(wp.r)
 }
 
 // SetBindGroup sets a bind group for the given index.
-func (p *ComputePassEncoder) SetBindGroup(index uint32, group *BindGroup, offsets []uint32) {
-	if group == nil || group.r == nil {
+// Implements hal.ComputePassEncoder (takes hal.BindGroup interface, internal unpack).
+func (p *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32) {
+	wg, ok := group.(*BindGroup)
+	if !ok || wg == nil || wg.r == nil {
 		return
 	}
-	p.r.SetBindGroup(index, group.r, offsets)
+	p.r.SetBindGroup(index, wg.r, offsets)
 }
 
 // Dispatch dispatches compute work.
@@ -34,11 +41,13 @@ func (p *ComputePassEncoder) Dispatch(x, y, z uint32) {
 }
 
 // DispatchIndirect dispatches compute work with GPU-generated parameters.
-func (p *ComputePassEncoder) DispatchIndirect(buffer *Buffer, offset uint64) {
-	if buffer == nil || buffer.r == nil {
+// Implements hal.ComputePassEncoder (takes hal.Buffer interface, internal unpack).
+func (p *ComputePassEncoder) DispatchIndirect(buffer hal.Buffer, offset uint64) {
+	wb, ok := buffer.(*Buffer)
+	if !ok || wb == nil || wb.r == nil {
 		return
 	}
-	p.r.DispatchWorkgroupsIndirect(buffer.r, offset)
+	p.r.DispatchWorkgroupsIndirect(wb.r, offset)
 }
 
 // End ends the compute pass.
@@ -54,3 +63,5 @@ func (p *ComputePassEncoder) End() error {
 	}
 	return nil
 }
+
+var _ hal.ComputePassEncoder = (*ComputePassEncoder)(nil)

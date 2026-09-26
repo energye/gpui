@@ -88,7 +88,8 @@ func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data [
 	if wgpuView == nil {
 		return fmt.Errorf("UploadRGBAToView: nil view ptr")
 	}
-	tex := wgpuView.Texture()
+	texRaw := wgpuView.Texture()
+	tex, _ := texRaw.(*webgpu.Texture)
 	if tex == nil {
 		return fmt.Errorf("UploadRGBAToView: nil texture")
 	}

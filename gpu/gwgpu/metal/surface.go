@@ -265,6 +265,14 @@ func (st *SurfaceTexture) CurrentUsage() gputypes.TextureUsage { return 0 }
 func (st *SurfaceTexture) AddPendingRef()                      {}
 func (st *SurfaceTexture) DecPendingRef()                      {}
 
+// Format returns the underlying texture format, or Undefined if released.
+func (st *SurfaceTexture) Format() gputypes.TextureFormat {
+	if st.texture != nil {
+		return st.texture.format
+	}
+	return gputypes.TextureFormatUndefined
+}
+
 // Destroy releases the surface texture.
 func (st *SurfaceTexture) Destroy() {
 	st.releaseAcquired()

@@ -119,22 +119,21 @@ func (e *CommandEncoder) ClearBuffer(buffer hal.Buffer, offset, size uint64) {
 }
 
 // CopyBufferToBuffer copies data between buffers.
-func (e *CommandEncoder) CopyBufferToBuffer(src, dst hal.Buffer, regions []hal.BufferCopy) {
+// Matches webgpu CommandEncoder.CopyBufferToBuffer flat shape.
+func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, dst hal.Buffer, dstOffset uint64, size uint64) {
 	srcBuf, srcOk := src.(*Buffer)
 	dstBuf, dstOk := dst.(*Buffer)
 	if !srcOk || !dstOk {
 		return
 	}
 
-	for _, r := range regions {
-		e.commands = append(e.commands, &CopyBufferCommand{
-			srcID:     srcBuf.id,
-			srcOffset: r.SrcOffset,
-			dstID:     dstBuf.id,
-			dstOffset: r.DstOffset,
-			size:      r.Size,
-		})
-	}
+	e.commands = append(e.commands, &CopyBufferCommand{
+		srcID:     srcBuf.id,
+		srcOffset: srcOffset,
+		dstID:     dstBuf.id,
+		dstOffset: dstOffset,
+		size:      size,
+	})
 }
 
 // CopyBufferToTexture copies buffer data to a texture via PBO (pixel unpack buffer).
@@ -197,11 +196,11 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 		e.commands = append(e.commands, &CopyTextureToTextureCommand{
 			srcTex:    srcTex,
 			dstTex:    dstTex,
-			srcOrigin: [3]uint32{region.SrcBase.Origin.X, region.SrcBase.Origin.Y, region.SrcBase.Origin.Z},
-			dstOrigin: [3]uint32{region.DstBase.Origin.X, region.DstBase.Origin.Y, region.DstBase.Origin.Z},
+			srcOrigin: [3]uint32{region.Source.Origin.X, region.Source.Origin.Y, region.Source.Origin.Z},
+			dstOrigin: [3]uint32{region.Destination.Origin.X, region.Destination.Origin.Y, region.Destination.Origin.Z},
 			copySize:  [3]uint32{region.Size.Width, region.Size.Height, region.Size.DepthOrArrayLayers},
-			srcMip:    region.SrcBase.MipLevel,
-			dstMip:    region.DstBase.MipLevel,
+			srcMip:    region.Source.MipLevel,
+			dstMip:    region.Destination.MipLevel,
 		})
 	}
 }
@@ -241,7 +240,8 @@ func (e *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.Acceleration
 }
 
 // BeginRenderPass begins a render pass.
-func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) hal.RenderPassEncoder {
+// Matches webgpu CommandEncoder.BeginRenderPass error shape.
+func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error) {
 	rpe := &RenderPassEncoder{
 		encoder: e,
 		desc:    desc,
@@ -256,13 +256,13 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) hal.Ren
 
 	// Bind the correct framebuffer and set viewport.
 	// Reference wgpu sets viewport at render pass start — required for correct rendering.
-	if len(desc.ColorAttachments) > 0 {
+	if desc != nil && len(desc.ColorAttachments) > 0 {
 		e.setupColorAttachment(desc, rpe)
 	}
 
 	// Set draw buffers for MRT. Matches Rust wgpu-hal GLES
 	// SetDrawColorBuffers (command.rs:643-646, queue.rs:1202-1207).
-	if len(desc.ColorAttachments) > 0 {
+	if desc != nil && len(desc.ColorAttachments) > 0 {
 		e.commands = append(e.commands, &SetDrawColorBuffersCommand{
 			count: len(desc.ColorAttachments),
 		})
@@ -271,43 +271,45 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) hal.Ren
 	// Record per-buffer clear commands. Uses glClearBufferfv for per-target
 	// clearing instead of global glClearColor+glClear(GL_COLOR_BUFFER_BIT).
 	// Matches Rust wgpu-hal GLES ClearColorF (command.rs:648-676, queue.rs:1222).
-	for i, ca := range desc.ColorAttachments {
-		if ca.LoadOp == gputypes.LoadOpClear {
-			clearColor := ca.ClearValue
-			e.commands = append(e.commands, &ClearColorBufferCommand{
-				drawBuffer: int32(i),
-				color: [4]float32{
-					float32(clearColor.R),
-					float32(clearColor.G),
-					float32(clearColor.B),
-					float32(clearColor.A),
-				},
-			})
+	if desc != nil {
+		for i, ca := range desc.ColorAttachments {
+			if ca.LoadOp == gputypes.LoadOpClear {
+				clearColor := ca.ClearValue
+				e.commands = append(e.commands, &ClearColorBufferCommand{
+					drawBuffer: int32(i),
+					color: [4]float32{
+						float32(clearColor.R),
+						float32(clearColor.G),
+						float32(clearColor.B),
+						float32(clearColor.A),
+					},
+				})
+			}
+		}
+
+		if desc.DepthStencilAttachment != nil {
+			dsa := desc.DepthStencilAttachment
+			if dsa.DepthLoadOp == gputypes.LoadOpClear {
+				e.commands = append(e.commands, &ClearDepthCommand{
+					depth: float64(dsa.DepthClearValue),
+				})
+			}
+			if dsa.StencilLoadOp == gputypes.LoadOpClear {
+				e.commands = append(e.commands, &ClearStencilCommand{
+					stencil: int32(dsa.StencilClearValue),
+				})
+			}
+		}
+
+		// Emit beginning-of-pass timestamp if requested.
+		if desc.TimestampWrites != nil {
+			e.emitTimestamp(desc.TimestampWrites.QuerySet, desc.TimestampWrites.BeginningOfPassWriteIndex)
+			rpe.endTimestampQuerySet = desc.TimestampWrites.QuerySet
+			rpe.endTimestampIndex = desc.TimestampWrites.EndOfPassWriteIndex
 		}
 	}
 
-	if desc.DepthStencilAttachment != nil {
-		dsa := desc.DepthStencilAttachment
-		if dsa.DepthLoadOp == gputypes.LoadOpClear {
-			e.commands = append(e.commands, &ClearDepthCommand{
-				depth: float64(dsa.DepthClearValue),
-			})
-		}
-		if dsa.StencilLoadOp == gputypes.LoadOpClear {
-			e.commands = append(e.commands, &ClearStencilCommand{
-				stencil: int32(dsa.StencilClearValue),
-			})
-		}
-	}
-
-	// Emit beginning-of-pass timestamp if requested.
-	if desc.TimestampWrites != nil {
-		e.emitTimestamp(desc.TimestampWrites.QuerySet, desc.TimestampWrites.BeginningOfPassWriteIndex)
-		rpe.endTimestampQuerySet = desc.TimestampWrites.QuerySet
-		rpe.endTimestampIndex = desc.TimestampWrites.EndOfPassWriteIndex
-	}
-
-	return rpe
+	return rpe, nil
 }
 
 // setupColorAttachment configures framebuffer, viewport, and MSAA resolve for
@@ -430,7 +432,8 @@ func (e *CommandEncoder) setupOffscreenTarget(
 }
 
 // BeginComputePass begins a compute pass.
-func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) hal.ComputePassEncoder {
+// Matches webgpu CommandEncoder.BeginComputePass error shape.
+func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error) {
 	cpe := &ComputePassEncoder{
 		encoder: e,
 	}
@@ -442,7 +445,7 @@ func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) hal.C
 		cpe.endTimestampIndex = desc.TimestampWrites.EndOfPassWriteIndex
 	}
 
-	return cpe
+	return cpe, nil
 }
 
 // emitTimestamp records a glQueryCounter command for a timestamp write index.
@@ -528,7 +531,8 @@ func (e *RenderPassEncoder) emitMSAAResolve() {
 // If MSAA resolve is needed, blits the MSAA FBO to the resolve target FBO.
 // If the pass was rendering to an offscreen FBO, rebinds the default framebuffer
 // so subsequent operations do not accidentally target the offscreen texture.
-func (e *RenderPassEncoder) End() {
+// Matches webgpu RenderPassEncoder.End error shape.
+func (e *RenderPassEncoder) End() error {
 	if e.msaaTexture != nil {
 		e.emitMSAAResolve()
 	}
@@ -539,13 +543,14 @@ func (e *RenderPassEncoder) End() {
 	}
 
 	// Check if we were rendering to an offscreen target.
-	if len(e.desc.ColorAttachments) > 0 {
+	if e.desc != nil && len(e.desc.ColorAttachments) > 0 {
 		if tv, ok := e.desc.ColorAttachments[0].View.(*TextureView); ok {
 			if !tv.isSurface && tv.texture != nil {
 				e.encoder.commands = append(e.encoder.commands, &BindFramebufferCommand{fbo: 0})
 			}
 		}
 	}
+	return nil
 }
 
 // SetPipeline sets the render pipeline.
@@ -639,18 +644,20 @@ func (e *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format gputypes.In
 }
 
 // SetViewport sets the viewport.
-func (e *RenderPassEncoder) SetViewport(vp gputypes.Viewport) {
+// Matches webgpu RenderPassEncoder.SetViewport flat shape.
+func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32) {
 	e.encoder.commands = append(e.encoder.commands, &SetViewportCommand{
-		x: vp.X, y: vp.Y, width: vp.Width, height: vp.Height,
-		minDepth: vp.MinDepth, maxDepth: vp.MaxDepth,
+		x: x, y: y, width: width, height: height,
+		minDepth: minDepth, maxDepth: maxDepth,
 	})
 }
 
 // SetScissorRect sets the scissor rectangle.
 // With ADJUST_COORDINATE_SPACE, no Y-flip is needed — coordinates pass through directly.
-func (e *RenderPassEncoder) SetScissorRect(rect gputypes.ScissorRect) {
+// Matches webgpu RenderPassEncoder.SetScissorRect flat shape.
+func (e *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
 	e.encoder.commands = append(e.encoder.commands, &SetScissorCommand{
-		x: rect.X, y: rect.Y, width: rect.Width, height: rect.Height,
+		x: x, y: y, width: width, height: height,
 	})
 }
 
@@ -678,51 +685,51 @@ func (e *RenderPassEncoder) SetStencilReference(ref uint32) {
 }
 
 // Draw draws primitives.
-func (e *RenderPassEncoder) Draw(args gputypes.DrawArgs) {
+// Matches webgpu RenderPassEncoder.Draw flat shape.
+func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32) {
 	topology := gputypes.PrimitiveTopologyTriangleList // default
 	if e.pipeline != nil {
 		topology = e.pipeline.primitiveTopology
 	}
 	e.encoder.commands = append(e.encoder.commands, &DrawCommand{
-		vertexCount:   args.VertexCount,
-		instanceCount: args.InstanceCount,
-		firstVertex:   args.FirstVertex,
-		firstInstance: args.FirstInstance,
+		vertexCount:   vertexCount,
+		instanceCount: instanceCount,
+		firstVertex:   firstVertex,
+		firstInstance: firstInstance,
 		topology:      topology,
 	})
 }
 
 // DrawIndexed draws indexed primitives.
-func (e *RenderPassEncoder) DrawIndexed(args gputypes.DrawIndexedArgs) {
+// Matches webgpu RenderPassEncoder.DrawIndexed flat shape.
+func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32) {
 	topology := gputypes.PrimitiveTopologyTriangleList // default
 	if e.pipeline != nil {
 		topology = e.pipeline.primitiveTopology
 	}
 	e.encoder.commands = append(e.encoder.commands, &DrawIndexedCommand{
-		indexCount:    args.IndexCount,
-		instanceCount: args.InstanceCount,
-		firstIndex:    args.FirstIndex,
-		baseVertex:    args.BaseVertex,
-		firstInstance: args.FirstInstance,
+		indexCount:    indexCount,
+		instanceCount: instanceCount,
+		firstIndex:    firstIndex,
+		baseVertex:    baseVertex,
+		firstInstance: firstInstance,
 		indexFormat:   e.indexFormat,
 		topology:      topology,
 	})
 }
 
-// DrawIndirect is not implemented by the GLES backend.
-func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64, drawCount uint32) {
+// DrawIndirect draws a single indirect record (webgpu has no drawCount).
+// Matches webgpu RenderPassEncoder.DrawIndirect two-arg shape.
+func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64) {
 	_ = buffer
 	_ = offset
-	_ = drawCount
 }
 
-// DrawIndexedIndirect is not implemented by the GLES backend.
-// OpenGL cannot apply a WebGPU index-buffer base offset to an indirect record
-// without translating that record or the bound index buffer.
-func (e *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64, drawCount uint32) {
+// DrawIndexedIndirect draws a single indexed indirect record.
+// Matches webgpu RenderPassEncoder.DrawIndexedIndirect two-arg shape.
+func (e *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64) {
 	_ = buffer
 	_ = offset
-	_ = drawCount
 }
 
 // DrawIndirectCount is not supported by the GLES backend.
@@ -752,11 +759,13 @@ type ComputePassEncoder struct {
 }
 
 // End finishes the compute pass.
-func (e *ComputePassEncoder) End() {
+// Matches webgpu ComputePassEncoder.End error shape.
+func (e *ComputePassEncoder) End() error {
 	// Emit end-of-pass timestamp if requested.
 	if e.endTimestampIndex != nil {
 		e.encoder.emitTimestamp(e.endTimestampQuerySet, e.endTimestampIndex)
 	}
+	return nil
 }
 
 // SetPipeline sets the compute pipeline.
