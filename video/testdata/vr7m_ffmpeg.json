@@ -1,0 +1,55 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR7-M行（只做M，D/T/A/P/G不动）",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,codec_name,profile,level,nb_frames,duration -of default=nw=1 <clip>",
+    "ffmpeg -hide_banner -benchmark -i <clip> -f null -  (take bench: utime + bench: maxrss)",
+    "/usr/bin/time -v ffmpeg -hide_banner -benchmark -i <clip> -f null -  (take Maximum resident set size, cross-check)"
+  ],
+  "notes": [
+    "VR7-M对等点（只做封顶接线S7）：ffmpeg 单块上限 libavutil/mem.c:76-77 av_max_alloc + :102 av_malloc/:158 av_realloc 拒超限，对我方 video/pool.go:EstimateLiveBytes + video/player.go:openStream 解前预估拦（超限报 ErrMemOverCap）；帧池借还 libavutil/buffer.h:266 av_buffer_pool_init + buffer.c:390 av_buffer_pool_get，对我方 video/pool.go:Pool Acquire/Release + player.go:convertPic/remakeLive/releasePix 借还；有界队列 fftools/ffplay.c:126 VIDEO_PICTURE_QUEUE_SIZE 3 + :129 FRAME_QUEUE_SIZE + :705 max_size 封顶 + :751 peek_writable 满则等（有界不涨到片长）+ :789 frame_queue_next 归还 + :1694 framedrop late/:1843 early 丢旧保时间线，对我方 video/clock/queue.go:NewQueue/Push(满则等)/PollDue(丢旧+计数Dropped) + player decodeLoop 背压。",
+    "通过线：解前 EstimateB≤MemCapKB 才开播（超限秒报 ErrMemOverCap + Classify=mem-over-cap，不解码不涨内存）；正常片播到 Ended 且 shown+dropped==decoded、显示序单调、池 evictions 上报（健康0，不静默）、关窗零泄漏；同片 RSS 峰值只看趋势与封顶（Go GC 不对绝对值，见 VR7-M 行），本基线 bench:maxrss 50228kB 仅作参照，不设绝对数；输出逐位不变（VR2/VR3 parity 另锁）。",
+    "口径诚实备注：ffmpeg maxrss 含解码+县（本片 bench:maxrss 6 次最大 50228kB，time 最大 53172kB，取 bench 最大保守值）；我方门禁二进制同片约 15.7MB（见 S6 尺子），VR7 窗 1080p 峰值 499MB<512MB（见 S6 行），长稳趋势交 S9，只看封顶不涨。",
+    "档上限推导（S7 §11.7，按 EstimateLive 重算写死，不拍数）：live=(YUV+RGBA)*(refs16+queue4+备3)+work256KB；480p 854x480 live约49.7MB→128MB；720p约111.4MB→256MB；1080p约250.4MB→512MB（存量保留，约2倍）；1440p约445MB→1024MB；4K约1000.9MB→2048MB。每档约2倍余量给 Go 堆/GPU/UI，随像素单调，4K 有顶；短边归档（竖屏按短边）。",
+    "本片与 S6/VR7-T 同片（320x240/5fps/40秒/200采样，streaming 路，>64帧不走缓冲快路）。mp4 已进 git（234721B），缺文件即 FAIL 不 Skip；yuv 不进仓，正确性另由 VR2/VR3 锁，本项只看封顶。"
+  ],
+  "budget_note": "无自定预算；上限即各档 MemCapKB（见 grade_caps）。门禁只断言 EstimateB≤Cap、超限秒报、同片播完有界（evictions 上报+零泄漏）；RSS 峰值只记录趋势，不设绝对线（Go GC 不对线）。",
+  "vr7_m": {
+    "clips": [
+      {
+        "file": "vr_stream_long.mp4",
+        "tracked_mp4": true,
+        "mp4_bytes": 234721,
+        "stream": {
+          "width": 320,
+          "height": 240,
+          "codec_name": "h264",
+          "profile": "Main",
+          "profile_idc": 77,
+          "level": 11,
+          "nb_frames": 200,
+          "avg_frame_rate": "5/1",
+          "duration": "40.000000"
+        },
+        "benchmark": {
+          "frames": 200,
+          "utime_s_max": 0.108,
+          "utime_per_frame_ms": 0.54,
+          "samples": [0.101, 0.108, 0.105, 0.1, 0.102, 0.097],
+          "maxrss_kb_max": 50228,
+          "maxrss_samples_kb": [50228, 50100, 50184, 49964, 50092, 50224],
+          "time_maxrss_kb_max": 53172,
+          "time_maxrss_samples_kb": [53172, 52788, 52872, 52652, 52908, 53040]
+        }
+      }
+    ],
+    "grade_caps": [
+      {"grade": "480p", "width": 854, "height": 480, "live_max_B": 52117024, "cap_kb": 131072},
+      {"grade": "720p", "width": 1280, "height": 720, "live_max_B": 116844544, "cap_kb": 262144},
+      {"grade": "1080p", "width": 1920, "height": 1080, "live_max_B": 262572544, "cap_kb": 524288},
+      {"grade": "1440p", "width": 2560, "height": 1440, "live_max_B": 466591744, "cap_kb": 1048576},
+      {"grade": "4K", "width": 3840, "height": 2160, "live_max_B": 1049503744, "cap_kb": 2097152}
+    ]
+  }
+}

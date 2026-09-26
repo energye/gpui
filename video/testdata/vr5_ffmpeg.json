@@ -1,0 +1,143 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR5行",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,codec_name,profile,level,duration,nb_frames -of default=nw=1 <clip>",
+    "ffmpeg -ss <t_s> -i <clip> -frames:v 1 -f hash -  (content hash, identifies the landing frame)",
+    "ffmpeg -copyts -ss <t_s> -i <clip> -frames:v 1 -f framehash -  (landing pts in stream tb, confirms ceiling)"
+  ],
+  "notes": [
+    "VR5对等点：ffmpeg -ss 落点（libavformat/mov.c seek：先定段再定采样，落关键帧往前解）+ ffplay.c 的 stream_seek（拨针 + 顺手丢帧 + 新 serial）对我方 seekPlan（覆盖帧落地 + 落键）+ seekBuffered/seekStream（清队 + 时钟重锚 + 世代号/缓存重填）。",
+    "端到端显示与声音不对线；只对跳点：同片同命令同目标，比较落点差，不比绝对戳。",
+    "时间坐标：ffmpeg 按盒内 timescale 从 0 起（首帧 0.0s）；我方 PTSMs 含编辑列表偏移（vr5_seek/bframes 首帧 400ms，480p 首帧 200ms，见 elst），故 target_ours_ms = target_ffmpeg_s*1000 + shift_ms；差值比较与覆盖语义不受平移影响。",
+    "覆盖语义：我方落覆盖帧（最后一个 PTS<=目标的帧，floor，播放器惯例：显示覆盖目标时刻的画面）；ffmpeg -ss 输入/输出均落天花板（第一个 PTS>=目标的帧，ceiling，命令行取下一帧惯例）。在格点上两者一致（差0）；在格点间两者各差一格（如 vr5 1.3s：我方 1.2s/差100ms，ffmpeg 1.4s/差100ms），通过线只要求我方差值 <= ffmpeg 差值，不要求同帧。",
+    "三片与 VR5 真窗 loadSeek 同片（双IDR 96x96、 rearrangement B帧96x96、480p裁边），均为小片走缓冲快路（<=64帧），.mp4 已进 git，无 yuv 依赖，缺文件即 FAIL 不 Skip。",
+    "480p 是裁边片：编码 864x480、显示 854x480，ffprobe 报显示尺寸，播放器 Info 宽高对显示尺寸，不对编码尺寸，与 VR4 基线同法。",
+    "恢复耗时只记录不设线：缓冲 seeks 同步完成（Poll 下一拍即现），流式 seeks 走后台顺手丢帧；门禁只断言跳后首现帧 PTS == 落点（不黑屏），耗时记 log 不 FAIL。"
+  ],
+  "clips": [
+    {
+      "file": "vr5_seek.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 6002,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 10,
+        "avg_frame_rate": "5/1",
+        "duration": "2.000000"
+      },
+      "shift_ms": 400,
+      "seeks": [
+        {
+          "name": "second-gop",
+          "target_ours_ms": 1800,
+          "target_ffmpeg_s": 1.4,
+          "ffmpeg_landed_s": 1.4,
+          "ffmpeg_frame_idx": 7,
+          "ffmpeg_hash": "SHA256=359727ceddf0645272d9267d733d318c4235212c6e2c83758e49d475293d1a01",
+          "ffmpeg_delta_ms": 0,
+          "expect_landed_ours_ms": 1800,
+          "expect_key_ours_ms": 1400,
+          "expect_delta_ours_ms": 0,
+          "expect_forward": 4
+        },
+        {
+          "name": "first-gop",
+          "target_ours_ms": 600,
+          "target_ffmpeg_s": 0.2,
+          "ffmpeg_landed_s": 0.2,
+          "ffmpeg_frame_idx": 1,
+          "ffmpeg_hash": "SHA256=9f9057deb5e4e3843c33490145bb01590a0f1983748699f13140ed2f5e980691",
+          "ffmpeg_delta_ms": 0,
+          "expect_landed_ours_ms": 600,
+          "expect_key_ours_ms": 400,
+          "expect_delta_ours_ms": 0,
+          "expect_forward": 3
+        },
+        {
+          "name": "between-stamps",
+          "target_ours_ms": 1700,
+          "target_ffmpeg_s": 1.3,
+          "ffmpeg_landed_s": 1.4,
+          "ffmpeg_frame_idx": 7,
+          "ffmpeg_hash": "SHA256=359727ceddf0645272d9267d733d318c4235212c6e2c83758e49d475293d1a01",
+          "ffmpeg_delta_ms": 100,
+          "expect_landed_ours_ms": 1600,
+          "expect_key_ours_ms": 1400,
+          "expect_delta_ours_ms": 100,
+          "expect_forward": 3
+        }
+      ]
+    },
+    {
+      "file": "vr2_m_bframes.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 3714,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1",
+        "duration": "1.000000"
+      },
+      "shift_ms": 400,
+      "seeks": [
+        {
+          "name": "b-reorder",
+          "target_ours_ms": 800,
+          "target_ffmpeg_s": 0.4,
+          "ffmpeg_landed_s": 0.4,
+          "ffmpeg_frame_idx": 2,
+          "ffmpeg_hash": "SHA256=7a7fd240200b5b42866c2a247d49a0026e726d05cba68c4fe97c902df3627c7c",
+          "ffmpeg_delta_ms": 0,
+          "expect_landed_ours_ms": 800,
+          "expect_key_ours_ms": 400,
+          "expect_delta_ours_ms": 0,
+          "expect_forward": 4
+        }
+      ]
+    },
+    {
+      "file": "vr2_480p.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 11057,
+      "stream": {
+        "width": 854,
+        "height": 480,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 22,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1",
+        "duration": "1.000000"
+      },
+      "shift_ms": 200,
+      "seeks": [
+        {
+          "name": "crop-480p",
+          "target_ours_ms": 800,
+          "target_ffmpeg_s": 0.6,
+          "ffmpeg_landed_s": 0.6,
+          "ffmpeg_frame_idx": 3,
+          "ffmpeg_hash": "SHA256=ed892903ecb98f57ccb577c6affaf1e15bfc0b61825bc276dc9bd6b0f8fd4e5a",
+          "ffmpeg_delta_ms": 0,
+          "expect_landed_ours_ms": 800,
+          "expect_key_ours_ms": 200,
+          "expect_delta_ours_ms": 0,
+          "expect_forward": 5
+        }
+      ]
+    }
+  ]
+}

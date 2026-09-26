@@ -1,0 +1,50 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR7-T行（只做T，D/M/A/P/G不动）",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,codec_name,profile,level,duration,nb_frames -of default=nw=1 <clip>",
+    "ffmpeg -hide_banner -benchmark -i <clip> -pix_fmt rgba -f null -  (take bench: utime, utime_per_frame_ms = utime_s*1000/frames)",
+    "reference only: ffmpeg -hide_banner -benchmark -i <clip> -f null -  (decode to YUV, no convert; delta shows the swscale slice)"
+  ],
+  "notes": [
+    "VR7-T对等点：ffmpeg 转色管线 libswscale（swscale.c 的 SwsContext/sws_scale，C版矩阵 yuv2rgb.c，见§11.6 S1）对我方 video/color 的 ConvertInto（convert420Into，双像素复用，exact向量锁死）。",
+    "通过线：我方转色段（Player Stats.DecodeMsAvg 口径，streaming 路只计 ConvertInto 墙钟，不含 H264 数学）≤ 同片 ffmpeg rgba 总 utime/帧才过；未达记 S1 攻坚，不自降预算。",
+    "口径诚实备注：ffmpeg 侧是解码+转色总 CPU 时间，我方侧只是转色一段墙钟，对我方宽松；即便如此当前仍未达（见下），差距不在口径里。",
+    "本片与 S6 稳态同片（320x240/5fps/40秒/200采样，streaming 路，>64帧不走缓冲快路）。mp4 已进 git（230K），缺文件即 FAIL 不 Skip；yuv 不进仓，转色正确性另由 VR3 向量与窗容差锁，本项只看耗时。",
+    "小片 utime 抖动小（200帧平均抹平），基线取 6 次实测最大值（保守）：rgba samples 见本文件，max 0.126s/200帧 = 0.63ms/帧；yuv 参考 max 0.108s/200帧 = 0.54ms/帧，swscale 切片约 0.09ms/帧。",
+    "现状（2026-09-14 同机）：真帧隔离 bench 约 0.63ms/帧（零帧约 0.57ms，分支可预测性差，见 VR7-T 探针小记），整播 Stats.DecodeMsAvg 约 0.69ms/帧、p95 约 0.98ms/帧（池命中 98.5%）。avg 差约 0.06ms（约 1.1 倍），p95 只记录不设线。"
+  ],
+  "budget_note": "无自定预算；上限即同片 ffmpeg rgba utime/帧（本基线 0.63ms/帧）。门禁只断言 DecodeMsAvg，p95 只打 log 不判（抖动大，S1 收敛时再看）。",
+  "vr7_t": {
+    "clips": [
+      {
+        "file": "vr_stream_long.mp4",
+        "tracked_mp4": true,
+        "mp4_bytes": 234721,
+        "stream": {
+          "width": 320,
+          "height": 240,
+          "codec_name": "h264",
+          "profile": "Main",
+          "profile_idc": 77,
+          "level": 11,
+          "nb_frames": 200,
+          "avg_frame_rate": "5/1",
+          "duration": "40.000000"
+        },
+        "benchmark": {
+          "frames": 200,
+          "utime_s_max": 0.126,
+          "utime_per_frame_ms": 0.63,
+          "samples": [0.123, 0.115, 0.121, 0.12, 0.117, 0.126],
+          "yuv_reference": {
+            "utime_s_max": 0.108,
+            "utime_per_frame_ms": 0.54,
+            "samples": [0.108, 0.1, 0.1, 0.103, 0.106, 0.1]
+          }
+        }
+      }
+    ]
+  }
+}

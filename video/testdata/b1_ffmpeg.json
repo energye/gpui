@@ -1,0 +1,113 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-15",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 B1行",
+  "notes": [
+    "B1对等点：libavformat/mov.c 的 mov_read_moof（记 moof_offset、调 update_frag_index、再递归吃 traf）+ mov_read_tfhd / mov_read_trex（默认采样参数）/ mov_read_tfdt（本段起始解码时间）/ mov_read_trun（拼本段采样表）+ mov_read_sidx + update_frag_index（段表预建）对 video/mp4/frag.go（trex→tfhd→trun 缺省链、base 优先级、tfdt 否则 track_end、PTS=DTS+shift+CTS、关键帧判 NON_SYNC|DEPENDS_YES）。",
+    "取包二选一（普通 stsc/stts/ctts/stco 索引与 frag 索引）对我方 attachFragments：moov 有表用 moov 表、空 moov 用 moof 拼、无表无段仍报 ErrFragmented 旧桶。",
+    "跳转先定段后下钻（mov_seek_fragment + search_frag_timestamp）对我方 S8 段表 + 二分（video/seek_index.go，frag 样本进同一张表，不另起索引）。",
+    "frag5 与 vr2_m_bframes 同像素内容（x264 同参数重打包，载荷逐字节一致），frag100 为 100 帧 Main 档 I/P 长片（流式路径，GOP 8，无 B 帧：x264 长 GOP 的 B  pyramid 含解码器未覆盖的 MMCO 5（VR2d-11 只覆盖短片形状），B1 门禁不越界，先用 I/P 形状锁分段能力）；两片 .mp4/.yuv 均进 git（小文件，B1 门禁硬依赖，缺文件即 FAIL 不 Skip）。",
+    "时长坐标：frag 无 elst，PTS 从 tfdt=0 起（frag5 首帧 400ms 系 B 帧 cts，非编辑偏移）；ffmpeg -ss 落天花板，我方覆盖帧 floor，格点同帧差 0（见 seeks）。",
+    "frag100 的 IDR 每 8 帧（x264 GOP），ffmpeg -ss 落到覆盖帧所在 GOP 的 IDR 再前向解码，落帧 = 目标前覆盖帧的 GOP 首 IDR 对应显示帧（下表 ff_frame 列）；我方 SeekTo 落覆盖帧 floor，差值比较只要求我方落点为 floor 且播出帧与 .yuv 同序号帧逐字节一致。"
+  ],
+  "budget_ms_per_frame": 16.6,
+  "clips": [
+    {
+      "file": "b1_frag5.mp4",
+      "yuv_file": "b1_frag5.yuv",
+      "tracked_mp4": true,
+      "mp4_bytes": 3805,
+      "yuv_bytes": 69120,
+      "yuv_md5": "b71bd92ca12dde359010683c374a6f44",
+      "frag_count": 1,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "codec_tag": "avc1",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1",
+        "time_base": "1/10240",
+        "duration": "1.000000"
+      },
+      "format": {
+        "duration": "1.000000",
+        "size": 3805
+      },
+      "benchmark": {
+        "frames": 5,
+        "utime_s_max": 0.004,
+        "utime_per_frame_ms": 0.8,
+        "samples": [0.004, 0.002, 0.002],
+        "meets_budget": true
+      },
+      "expect": {
+        "samples": 5,
+        "keyframes": 1,
+        "has_ctts": true,
+        "timescale": 10240,
+        "duration_ms": 1400,
+        "decoded": 5,
+        "shown": 5,
+        "dropped": 0,
+        "ended": true,
+        "pts_monotonic": true
+      }
+    },
+    {
+      "file": "b1_frag100.mp4",
+      "yuv_file": "b1_frag100.yuv",
+      "tracked_mp4": true,
+      "mp4_bytes": 46138,
+      "yuv_bytes": 1382400,
+      "yuv_md5": "09021fa28bc7befc35548c97f271e811",
+      "frag_count": 13,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "codec_tag": "avc1",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 100,
+        "avg_frame_rate": "5/1",
+        "time_base": "1/10240",
+        "duration": "20.000000"
+      },
+      "format": {
+        "duration": "20.000000",
+        "size": 46138
+      },
+      "benchmark": {
+        "frames": 100,
+        "utime_s_max": 0.023,
+        "utime_per_frame_ms": 0.23,
+        "samples": [0.021, 0.02, 0.023],
+        "meets_budget": true
+      },
+      "expect": {
+        "samples": 100,
+        "keyframes": 13,
+        "has_ctts": false,
+        "timescale": 10240,
+        "duration_ms": 20000,
+        "decoded": 100,
+        "shown": 100,
+        "dropped": 0,
+        "ended": true,
+        "pts_monotonic": true
+      }
+    }
+  ],
+  "seeks": [
+    {"clip": "b1_frag5.mp4", "target_ms": 500, "ff_frame": 3, "ours_floor_ms": 400},
+    {"clip": "b1_frag100.mp4", "target_ms": 500, "ff_frame": 3, "ours_floor_ms": 400},
+    {"clip": "b1_frag100.mp4", "target_ms": 1100, "ff_frame": 6, "ours_floor_ms": 1000},
+    {"clip": "b1_frag100.mp4", "target_ms": 10000, "ff_frame": 50, "ours_floor_ms": 10000},
+    {"clip": "b1_frag100.mp4", "target_ms": 19500, "ff_frame": 98, "ours_floor_ms": 19400}
+  ]
+}

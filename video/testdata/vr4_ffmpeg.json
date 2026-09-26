@@ -1,0 +1,109 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR4行",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,codec_name,profile,level,duration,nb_frames -of default=nw=1 <clip>",
+    "ffmpeg -hide_banner -benchmark -i <clip> -f null -  (take bench: utime, utime_per_frame_ms = utime_s*1000/frames)"
+  ],
+  "notes": [
+    "VR4对等点：ffplay.c 的 video_refresh（diff/sync_threshold/compute_target_delay 丢帧保时间线，update_video_pts）对我方 video.Player + clock.Queue.PollDue（到期取最新、过期计 dropped_old_frames）。",
+    "端到端 fps 不对线（ffplay 带显示和声音，窗口合成器不同）；只对解码段：同片 ffmpeg -benchmark utime/帧 ≤16.6ms 则我方须零丢满帧，否则允许按 ffplay 语义丢旧保时间线，但丢数=应丢数自洽 + 显示序单调 + Ended 才过。",
+    "三片与 VR4 真窗 loadPlay 同片（B帧重排96x96、480p裁边、720p），均为 5帧/5fps/1秒小片，走缓冲快路（≤64帧），.mp4 已进 git，无 yuv 依赖，缺文件即 FAIL 不 Skip。",
+    "小片 utime 绝对值抖动大（B帧片 0.001~0.005s），基线取多次实测最大值（保守），三片仍远小于 16.6ms，故本期通过线为零丢满帧；若后继换大片超预算，走允许丢帧分支（shown+dropped=decoded 自洽 + PTS 单调 + Ended）。",
+    "480p 是裁边片：编码 864x480、显示 854x480，ffprobe 报显示尺寸，播放器 Info 宽高对显示尺寸，不对编码尺寸。"
+  ],
+  "budget_ms_per_frame": 16.6,
+  "clips": [
+    {
+      "file": "vr2_m_bframes.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 3714,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1",
+        "duration": "1.000000"
+      },
+      "benchmark": {
+        "frames": 5,
+        "utime_s_max": 0.005,
+        "utime_per_frame_ms": 1.0,
+        "samples": [0.001, 0.002, 0.002, 0.005],
+        "meets_budget": true
+      },
+      "expect": {
+        "decoded": 5,
+        "shown": 5,
+        "dropped": 0,
+        "ended": true,
+        "pts_monotonic": true
+      }
+    },
+    {
+      "file": "vr2_480p.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 11057,
+      "stream": {
+        "width": 854,
+        "height": 480,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 22,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1",
+        "duration": "1.000000"
+      },
+      "benchmark": {
+        "frames": 5,
+        "utime_s_max": 0.013,
+        "utime_per_frame_ms": 2.6,
+        "samples": [0.01, 0.013, 0.011, 0.011],
+        "meets_budget": true
+      },
+      "expect": {
+        "decoded": 5,
+        "shown": 5,
+        "dropped": 0,
+        "ended": true,
+        "pts_monotonic": true
+      }
+    },
+    {
+      "file": "vr2_720p.mp4",
+      "tracked_mp4": true,
+      "mp4_bytes": 14378,
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 31,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1",
+        "duration": "1.000000"
+      },
+      "benchmark": {
+        "frames": 5,
+        "utime_s_max": 0.019,
+        "utime_per_frame_ms": 3.8,
+        "samples": [0.018, 0.015, 0.016, 0.019],
+        "meets_budget": true
+      },
+      "expect": {
+        "decoded": 5,
+        "shown": 5,
+        "dropped": 0,
+        "ended": true,
+        "pts_monotonic": true
+      }
+    }
+  ]
+}

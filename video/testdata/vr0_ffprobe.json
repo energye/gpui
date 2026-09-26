@@ -1,0 +1,90 @@
+{
+  "tool": "ffprobe 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR0行",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,codec_name,profile,level,duration,nb_frames -of default=nw=1 <clip>",
+    "ffprobe -v error -show_entries format=duration -of default=nw=1 <clip>",
+    "ffprobe -v error -skip_frame nokey -select_streams v:0 -show_entries frame=pict_type -of csv=p=0 <clip> | grep -c ^I$"
+  ],
+  "notes": [
+    "codec_name h264 对应盒子内 sample entry tag avc1，属同一编码两种叫法，门禁按映射断言，不算差异。",
+    "profile 断言走盒内 avcC[1]（66=Baseline 系，含 Constrained Baseline/77=Main/100=High），level 走 avcC[3]（ffprobe level 原值，如 42=4.2），引擎不新增字段，测试内映射。",
+    "时长配对：流时长对视频轨时长（mdhd），格式时长对电影头时长（mvhd），容差各 50ms；两级时长本来就可以不一样（如 oceans 流 46.55s、格式 46.61s），不对错位。",
+    "关键帧数法：stss 同步表对 key_frame（即 skip_frame nokey 后数 I），不对全量 pict_type I；后者含非随机接入 I 切片（如 oceans 全量 I 有 83，key 只有 28），数错会假红。",
+    "ENERGY-Designer-Tab.mp4（v0.48 基线片）已不在仓内，本文件 v0.49 起改以两新片 + 720p 为准；v0.48 历史见文档修订行。",
+    "两新片与 720p 均未进 git（大片不进仓），缺文件时测试 Skip，不装绿。"
+  ],
+  "clips": [
+    {
+      "file": "vr_oceans.mp4",
+      "tracked": false,
+      "bytes": 23014356,
+      "missing": "skip",
+      "stream": {
+        "width": 960,
+        "height": 400,
+        "avg_frame_rate": "24000/1001",
+        "codec_name": "h264",
+        "codec_tag": "avc1",
+        "profile": "Constrained Baseline",
+        "profile_idc": 66,
+        "level": 30,
+        "duration": "46.546500",
+        "nb_frames": "1116"
+      },
+      "format": {
+        "duration": "46.613333"
+      },
+      "keyframes": {
+        "count": 28
+      }
+    },
+    {
+      "file": "vr_f42906.mp4",
+      "tracked": false,
+      "bytes": 3350316,
+      "missing": "skip",
+      "stream": {
+        "width": 852,
+        "height": 480,
+        "avg_frame_rate": "24/1",
+        "codec_name": "h264",
+        "codec_tag": "avc1",
+        "profile": "High",
+        "profile_idc": 100,
+        "level": 30,
+        "duration": "33.833333",
+        "nb_frames": "812"
+      },
+      "format": {
+        "duration": "33.860000"
+      },
+      "keyframes": {
+        "count": 5
+      }
+    },
+    {
+      "file": "vr2_720p.mp4",
+      "tracked": true,
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "avg_frame_rate": "5/1",
+        "codec_name": "h264",
+        "codec_tag": "avc1",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 31,
+        "duration": "1.000000",
+        "nb_frames": "5"
+      },
+      "format": {
+        "duration": "1.000000"
+      },
+      "keyframes": {
+        "count": 1
+      }
+    }
+  ]
+}

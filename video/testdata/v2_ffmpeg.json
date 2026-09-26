@@ -1,0 +1,53 @@
+{
+  "tool": "ffprobe 4.4.2-0ubuntu0.22.04.1 + ffmpeg 4.4.2",
+  "date": "2026-09-17",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12 V2行（V2-1最小闭环）",
+  "peer": "libavcodec/hevc/parse.c:79 ff_hevc_decode_extradata（hvcC盒形） + libavcodec/hevc/hevcdec.c:4190 hevc_decode_init + :4271 ff_hevc_decoder（解码器入口形） + libavformat/mov.c:3419（hvcC随avcC读）",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,codec_name,codec_tag_string,profile,level,avg_frame_rate,nb_frames,duration -of default=nw=1 <clip>",
+    "ffmpeg -hide_banner -i <clip> -c:v rawvideo -pix_fmt yuv420p -f rawvideo <clip>.yuv",
+    "ffmpeg -hide_banner -benchmark -i <clip> -f null -"
+  ],
+  "notes": [
+    "V2-1只做到头：盒子认hvc1/hev1、hvcC解析、注册h265名、播报人话错不崩；像素解码是V2-2，不在本项。",
+    "profile_idc 96系libx265格式扩展值（非Main），ffprobe显示Main是按兼容性归一，引擎按盒内原值诚实报profile-96，门禁用ffprobe profile+level+宽高+帧数，不卡profile_idc数字。",
+    "yuv与md5入库只做V2-2像素门禁的对照源，V2-1门禁只断言头（宽高/编码/帧数/参数集/切分），不断像素。",
+    "时长对格式头（format duration），帧率对视频流avg_frame_rate，关键帧对盒内stss（本片单关键帧），与VR0同数法。"
+  ],
+  "clips": [
+    {
+      "file": "v2_h265.mp4",
+      "tracked": true,
+      "bytes": 4884,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "hevc",
+        "codec_tag": "hvc1",
+        "profile": "Main",
+        "level": 30,
+        "avg_frame_rate": "5/1",
+        "nb_frames": 5,
+        "duration": "1.000000"
+      },
+      "hvcc": {
+        "version": 1,
+        "profile_idc": 96,
+        "level_idc": 30,
+        "length_size": 4,
+        "vps_count": 1,
+        "sps_count": 1,
+        "pps_count": 1,
+        "arrays": 4
+      },
+      "yuv": {
+        "bytes": 69120,
+        "md5": "4ec471e15e71a71baaf19c71fc7a7bfa"
+      },
+      "bench": {
+        "utime_s": 0.003,
+        "maxrss_kb": 46720
+      }
+    }
+  ]
+}

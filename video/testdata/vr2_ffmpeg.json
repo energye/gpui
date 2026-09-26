@@ -1,0 +1,476 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR2行",
+  "commands": [
+    "ffmpeg -v error -y -i <clip>.mp4 -f rawvideo -pix_fmt yuv420p <clip>.yuv  (video/testdata/gen_vr2.sh)",
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,codec_name,profile,level,nb_frames,avg_frame_rate -of default=nw=1 <clip>",
+    "regen check: ffmpeg -v error -y -i <clip>.mp4 -f rawvideo -pix_fmt yuv420p /tmp/check.yuv && md5sum /tmp/check.yuv <clip>.yuv (must match yuv_md5)"
+  ],
+  "notes": [
+    "VR2对等点：ffmpeg解码器YUV输出（libavcodec/h264*解码）对我方video/h264 Decoder.DecodeNALU+FinishPicture；通过线每帧逐字节零差异，不定容差。",
+    "compare=file：解码序即显示序（无B帧），.yuv按文件序比；compare=display：含B帧重排序，按POC排序后与.yuv比（.yuv本身即显示序）。",
+    "480p是裁边片：编码864x480、显示854x480，解码器报显示尺寸，.yuv按854x480排；参考帧不受裁边影响。",
+    "h_8x8/h_cavlc/h_scale为mandelbrot素材+scenecut，片内多个IDR（解码POC 0/0/2/0/2），文件序比对即可，不按POC排序。",
+    "m_fadeout是前后两个GOP（第二个GOP重用POC 0/2），文件序比对，不排序。b_intra全IDR（POC全0）同理文件序。",
+    "profile断言走盒内avcC[1]（66=Baseline系（含Constrained Baseline）/77=Main/100=High），level走avcC[3]（ffprobe level原值），与VR0/VR1同法，引擎零改动。",
+    ".yuv全部未进git（gen_vr2.sh现场生成），缺失时测试Skip不装绿；1080p的.mp4+.yuv均本地生成（.yuv约15MB），同理Skip。",
+    "vr2_flat.mp4是旧遗留（不在gen_vr2.sh），解码报F20丢参考，本基线排除不录；手术b_explicit.h264/.yuv在video/h264/testdata另有专门门禁，不在本表。",
+    "1440p/4K本地片按§6.1.4 VR2d-5另验（同样逐字节对，不定容差），不进本基线。"
+  ],
+  "clips": [
+    {
+      "file": "vr2_b_intra.mp4",
+      "yuv_file": "vr2_b_intra.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 10823,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "profile_idc": 66,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "52339cba5e038ccca7c1cee7036d231a"
+      }
+    },
+    {
+      "file": "vr2_b_mixed.mp4",
+      "yuv_file": "vr2_b_mixed.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 4013,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "profile_idc": 66,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          2,
+          4,
+          6,
+          8
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "e588ccb8ae165bee66d21ece5b225bc8"
+      }
+    },
+    {
+      "file": "vr2_b_skip.mp4",
+      "yuv_file": "vr2_b_skip.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 1581,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "profile_idc": 66,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          2,
+          4,
+          6,
+          8
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "e3628d882f151dde720f2efaf7616d67"
+      }
+    },
+    {
+      "file": "vr2_m_main.mp4",
+      "yuv_file": "vr2_m_main.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 3730,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          2,
+          4,
+          6,
+          8
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "14425c43e3e68aaa8ddcb76a2cf996d8"
+      }
+    },
+    {
+      "file": "vr2_h_8x8.mp4",
+      "yuv_file": "vr2_h_8x8.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 12760,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "High",
+        "profile_idc": 100,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          0,
+          2,
+          0,
+          2
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "378dddb37feb991a2ff4427cfdd7b622"
+      }
+    },
+    {
+      "file": "vr2_h_cavlc.mp4",
+      "yuv_file": "vr2_h_cavlc.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 13573,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "High",
+        "profile_idc": 100,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          0,
+          2,
+          0,
+          2
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "01ef1b759dfd4d2b25bb4081affba27d"
+      }
+    },
+    {
+      "file": "vr2_h_scale.mp4",
+      "yuv_file": "vr2_h_scale.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 12036,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "High",
+        "profile_idc": 100,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          0,
+          2,
+          0,
+          2
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "75bcc929e7027214d965ff3d86dcfb49"
+      }
+    },
+    {
+      "file": "vr2_m_bframes.mp4",
+      "yuv_file": "vr2_m_bframes.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 3714,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "display",
+        "decode_poc": [
+          0,
+          6,
+          2,
+          4,
+          8
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "b71bd92ca12dde359010683c374a6f44"
+      }
+    },
+    {
+      "file": "vr2_m_bpyr.mp4",
+      "yuv_file": "vr2_m_bpyr.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 4564,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "display",
+        "decode_poc": [
+          0,
+          8,
+          4,
+          2,
+          6
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "684b13b9d228370dca663792d6e36feb"
+      }
+    },
+    {
+      "file": "vr2_m_bcavlc.mp4",
+      "yuv_file": "vr2_m_bcavlc.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 4603,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "display",
+        "decode_poc": [
+          0,
+          6,
+          2,
+          4,
+          8
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 69120,
+        "yuv_md5": "54c5310f949d29b924c4466534ff0be6"
+      }
+    },
+    {
+      "file": "vr2_m_fadeout.mp4",
+      "yuv_file": "vr2_m_fadeout.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 5348,
+      "stream": {
+        "width": 96,
+        "height": 96,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 10,
+        "nb_frames": 10,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 10,
+        "compare": "file",
+        "decode_poc": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14,
+          0,
+          2
+        ],
+        "display_width": 96,
+        "display_height": 96,
+        "yuv_bytes": 138240,
+        "yuv_md5": "fc64fe85d712f1a00213f897c6acbffb"
+      }
+    },
+    {
+      "file": "vr2_480p.mp4",
+      "yuv_file": "vr2_480p.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 11057,
+      "stream": {
+        "width": 854,
+        "height": 480,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 22,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "display",
+        "decode_poc": [
+          0,
+          4,
+          2,
+          8,
+          6
+        ],
+        "display_width": 854,
+        "display_height": 480,
+        "yuv_bytes": 3074400,
+        "yuv_md5": "e5d270c9143bb43724a841fdb9c397a1"
+      }
+    },
+    {
+      "file": "vr2_720p.mp4",
+      "yuv_file": "vr2_720p.yuv",
+      "tracked_mp4": true,
+      "yuv_tracked": false,
+      "mp4_bytes": 14378,
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 31,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "display",
+        "decode_poc": [
+          0,
+          4,
+          2,
+          8,
+          6
+        ],
+        "display_width": 1280,
+        "display_height": 720,
+        "yuv_bytes": 6912000,
+        "yuv_md5": "2bc1d4e0981e6b8ec4e27da997342841"
+      }
+    },
+    {
+      "file": "vr2_1080p.mp4",
+      "yuv_file": "vr2_1080p.yuv",
+      "tracked_mp4": false,
+      "yuv_tracked": false,
+      "mp4_bytes": 19865,
+      "stream": {
+        "width": 1920,
+        "height": 1080,
+        "codec_name": "h264",
+        "profile": "Main",
+        "profile_idc": 77,
+        "level": 40,
+        "nb_frames": 5,
+        "avg_frame_rate": "5/1"
+      },
+      "decode": {
+        "frames": 5,
+        "compare": "display",
+        "decode_poc": [
+          0,
+          4,
+          2,
+          8,
+          6
+        ],
+        "display_width": 1920,
+        "display_height": 1080,
+        "yuv_bytes": 15552000,
+        "yuv_md5": "37f189ec37760b0e5cb2c18ac2d770c0"
+      }
+    }
+  ]
+}

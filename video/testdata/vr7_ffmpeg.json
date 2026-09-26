@@ -1,0 +1,43 @@
+{
+  "tool": "ffmpeg 4.4.2-0ubuntu0.22.04.1",
+  "date": "2026-09-14",
+  "spec": "docs/ENGINE_VIDEO_DECODE_PLAN.md §12.1 VR7-D行（只做D，T/M/A/P/G不动）",
+  "commands": [
+    "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,codec_name,profile,level,duration,nb_frames -of default=nw=1 <clip>",
+    "ffmpeg -hide_banner -benchmark -i <clip> -f null -  (take bench: utime, utime_per_frame_ms = utime_s*1000/frames)"
+  ],
+  "notes": [
+    "VR7-D对等点：ffmpeg 解码器（-f null 解到 YUV，不转 RGBA）对我方 video.Player Stats.DecodeMsP95（Stats 口径，当前只计转色 Convert 段，H264 数学另计，见 note）。",
+    "端到端 fps 不对线；只对解码段：同片 utime/帧即上限，我方 decode_ms_p95 ≤ 该数才过；未达记 S1/S2 攻坚，不自降预算。",
+    "本片与 VR7 真窗同片（video_vr7_perf loadPerf 用 vr2_1080p.mp4，1920x1080/5fps/5采样）。mp4 与 yuv 均本地生成不进仓（video/testdata/gen_vr2.sh gen vr2_1080p），缺文件测试 Skip 不装绿。",
+    "小片 utime 绝对值抖动大，基线取 6 次实测最大值（保守）：samples 见本文件，max 0.044s/5帧 = 8.8ms/帧。",
+    "诚实口径备注（2026-09-14 同机实测）：我方 Stats.DecodeMsP95 约 24~27ms（仅转色段）；另用 h264 Decoder 直接计时 H264 段约 65~170ms/帧（抖动大，均值约 85ms），全链路约 110ms/帧。ffmpeg 解码段 8.8ms/帧。两段都未达，差距记 S1（SIMD）/S2（多线程）攻坚，本项不实现。"
+  ],
+  "vr7_d": {
+    "budget_note": "无自定预算；上限即同片 ffmpeg utime/帧（本基线 8.8ms/帧）。VR7 窗内旧 50ms 自定线本次不动（见测试注释）。",
+    "clips": [
+      {
+        "file": "vr2_1080p.mp4",
+        "tracked_mp4": false,
+        "mp4_bytes": 19865,
+        "stream": {
+          "width": 1920,
+          "height": 1080,
+          "codec_name": "h264",
+          "profile": "Main",
+          "profile_idc": 77,
+          "level": 40,
+          "nb_frames": 5,
+          "avg_frame_rate": "5/1",
+          "duration": "1.000000"
+        },
+        "benchmark": {
+          "frames": 5,
+          "utime_s_max": 0.044,
+          "utime_per_frame_ms": 8.8,
+          "samples": [0.033, 0.035, 0.044, 0.042, 0.039, 0.038]
+        }
+      }
+    ]
+  }
+}
