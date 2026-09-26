@@ -33,7 +33,7 @@
 |-------------|---------------------------------------------------------------------|
 | `decode.go` | 高层解码器：`Open` / `Next` / `SeekTo` / `Close`，播放唯一入口       |
 | `audio_decode.go` | 高层声音解码器：`OpenAudio` / `Next` / `SeekTo` / `Close`，48kHz 立体声 float PCM（无音轨报 no-audio，不是坏片） |
-| `lib.go`    | 加载 so + 注册全部函数 + 存 so 句柄（数据符号走 `Dlsym` 读） + 解码直连的老接口（和模块指同一个 so 函数） |
+| `lib.go`    | 打开 so + 按需绑定各模块（哪个模块第一次用才绑它，用 `sync.Once`，开过不再开） + 存 so 句柄（数据符号走 `Dlsym` 读） + 解码直连的老接口（和模块指同一个 so 函数） |
 | `types.go`  | `AVRational` 分数（时间换算用，偏移按 7.1 头文件钉死）              |
 | `err_go.go` | 内部帮手：空指针哨兵、C 字符串转 Go、错误码翻人话                   |
 | `doc.go`    | 包说明 + 覆盖口径（4 个变参走 Go 拼串版 + 16 个数据符号走 `Dlsym` 读，见下）                      |
@@ -56,7 +56,7 @@
 | `filter_graph.go` | 滤镜图：把多个滤镜连成链（缩放、裁剪、混音都归它） | `FilterGraph`（图）、`FilterContext`（滤镜实例）、`Filter`（滤镜本身）、`FilterSink`（出口）、`FilterSource`（入口） |
 | `device_io.go` | 设备：列摄像头、麦克风这些输入输出设备 | `DeviceList`（设备表） |
 | `media_desc.go` | 查资料：像素格式、声道布局、采样率这些只读信息，不干活只问 | `MediaDesc`（无状态，全是查询） |
-| `crypto_hash_misc.go` | 杂项工具箱：硬解设备、哈希加密、写文件、猜格式、小计算 | `HWDevice`（硬解设备）、`Crypto`（哈希校验）、`Muxer`（写文件）、`Prober`（猜格式）、`Samples`（采样帮手）、`Util`（零碎小函数） |
+| `crypto_hash_misc.go` | 杂项工具箱：硬解设备、哈希加密、写文件、猜格式、小计算 | `HWDevice`（硬解设备，其中 VDPAU 六件 + x86 重采样一件只在 x86-linux 上有，单独成组按需绑）、`Crypto`（哈希校验）、`Muxer`（写文件）、`Prober`（猜格式）、`Samples`（采样帮手）、`Util`（零碎小函数） |
 
 ## 用法约定（13 个模块统一）
 
@@ -69,6 +69,11 @@
 - 空指针安全：接收器是 nil 时直接返回零值或哨兵错，不会崩。
 - `Free` / `Unref` / `Close` 结尾的就是“用完还回去”，记得调，不然漏内存。
 - 传字符串只管传 Go 的 `string`，取回来的 C 字符串包里已经转好了。
+- 按需绑定：打开库时只开门不绑函数，用哪个模块的功能才绑哪个模块（`ensureModPacket` 这类入口，每个函数开头第一行就是它）。
+  同一个模块绑一次（`sync.Once`），后面再调直接过。
+  好处是缺符号的平台不连累：比如 VDPAU 六件 + x86 重采样一件只在 x86-linux 上有，单独成组，
+  ARM/386/win 上解码转码烧字照常用，只有真调那 7 个函数那一刻才报错。
+- 不返回 `error` 的小函数（取名字、读数字这类）库不在时直接报人话 panic，不玩野指针那套。
 
 ## 覆盖口径：绑了多少、没绑哪几个
 
@@ -128,7 +133,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 下面 14 节就是全部家当：so 里绑的每个函数和每个数据都在里面，
 左边是 Go 里怎么写，右边是它对应的 ffmpeg 原函数或数据符号。点开看就行。
 
-### packet — 数据包（27 个）
+### packet — 数据包（32 个）
 
 数据包：拆盒吐出来的就是它，一包一包喂给解码器。`NewPacket` 新建一个空包，用完 `Free` 还回去。
 
@@ -166,8 +171,13 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `SideDataName` | `av_packet_side_data_name` |
 | `SideDataNew` | `av_packet_side_data_new` |
 | `SideDataRemove` | `av_packet_side_data_remove` |
+| `Packet.Ptr` | Go 帮手（无 C 对应） |
+| `Packet.StreamIndex` | Go 帮手（无 C 对应） |
+| `Packet.SetStreamIndex` | Go 帮手（无 C 对应） |
+| `Packet.IsKey` | Go 帮手（无 C 对应） |
+| `Packet.DurationMs` | Go 帮手（无 C 对应） |
 </details>
-### frame — 帧（26 个）
+### frame — 帧（27 个）
 
 帧：解出来的画面或声音，一帧就是一张图或一段声。`NewFrame` 新建空帧，用完 `Free` 还回去。
 
@@ -204,8 +214,9 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `FrameSideDataNew` | `av_frame_side_data_new` |
 | `FrameSideDataRemove` | `av_frame_side_data_remove` |
 | `Frame.Replace` | `av_frame_replace` |
+| `Frame.Ptr` | Go 帮手（无 C 对应） |
 </details>
-### dict_opt — 字典和选项（62 个）
+### dict_opt — 字典和选项（69 个）
 
 字典和选项：打开文件、开解码器时传参数都走它。
 
@@ -278,6 +289,13 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `OptObject.SetSampleFmt` | `av_opt_set_sample_fmt` |
 | `OptObject.SetVideoRate` | `av_opt_set_video_rate` |
 | `OptObject.ShowOptions` | `av_opt_show2` |
+| `Dictionary.Ptr` | Go 帮手（无 C 对应） |
+| `Dictionary.NewDictionary` | Go 帮手（无 C 对应） |
+| `Dictionary.Take` | Go 帮手（无 C 对应） |
+| `DictionaryEntry.Key` | Go 帮手（无 C 对应） |
+| `DictionaryEntry.Value` | Go 帮手（无 C 对应） |
+| `OptObject.Ptr` | Go 帮手（无 C 对应） |
+| `Opt` | Go 帮手（无 C 对应） |
 </details>
 ### buffer_mem — 内存（53 个）
 
@@ -343,8 +361,9 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `NewBPrint` | `av_bprint_init` |
 | `BPrint.InitForBuffer` | `av_bprint_init_for_buffer` |
 | `BPrint.AppendTime` | `av_bprint_strftime` |
+| `Mem.Ptr`/`Buffer.Ptr` 等取指针帮手 | Go 帮手（无 C 对应） |
 </details>
-### error_log — 报错和杂务（29 个）
+### error_log — 报错和杂务（31 个）
 
 报错和杂务：错误码翻人话、日志开关（Go 回调走 `NewLogCallback` + `Log.SetGoCallback`）、版本、时间戳换算、CPU 数。都是无状态的，直接调。
 
@@ -384,8 +403,11 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Cpu.Count` | `av_cpu_count` |
 | `Cpu.ForceCount` | `av_cpu_force_count` |
 | `Cpu.MaxAlign` | `av_cpu_max_align` |
+| `Log.NewLogCallback` | Go 帮手（无 C 对应） |
+| `Log.SetGoCallback` | Go 帮手（无 C 对应） |
+| `StrError` | Go 帮手（无 C 对应） |
 </details>
-### format_demux — 拆盒（98 个）
+### format_demux — 拆盒（105 个）
 
 拆盒：打开文件、找音视频流、读包、跳进度。先 `OpenInput` 拿到 `FormatContext`，后面全挂它身上。自定义数据源走 `AllocIOContext`（读写定位三个回调传 `purego.NewCallback` 做的指针，不用就传 nil）。
 
@@ -494,8 +516,15 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `FormatContext.ReadFrame` | `av_read_frame` |
 | `FormatContext.SeekFrame` | `av_seek_frame` |
 | `FormatContext.UrlSplit` | `av_url_split` |
+| `FormatContext.Ptr` | Go 帮手（无 C 对应） |
+| `FormatContext.NbStreams` | Go 帮手（无 C 对应） |
+| `FormatContext.StreamAt` | Go 帮手（无 C 对应） |
+| `Stream.Ptr` | Go 帮手（无 C 对应） |
+| `Stream.Index` | Go 帮手（无 C 对应） |
+| `Stream.CodecPar` | Go 帮手（无 C 对应） |
+| `Stream.TimeBase` | Go 帮手（无 C 对应） |
 </details>
-### codec_encode — 编解码（76 个）
+### codec_encode — 编解码（80 个）
 
 编解码：找解码器、开解码器、送包取帧、码流过滤。
 
@@ -582,6 +611,10 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Codec.AvcodecVersion` | `avcodec_version` |
 | `Parser.ParserIterate` | `av_parser_iterate` |
 | `Codec.SubtitleFree` | `avsubtitle_free` |
+| `CodecContext.Ptr` | Go 帮手（无 C 对应） |
+| `CodecParameters.Ptr` | Go 帮手（无 C 对应） |
+| `Codec.Ptr` | Go 帮手（无 C 对应） |
+| `Codec.IterateAll` | Go 帮手（无 C 对应） |
 </details>
 ### scale_color — 转色和缩放（40 个）
 
@@ -634,8 +667,9 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Scaler.SwsScaleVec` | `sws_scaleVec` |
 | `Scaler.SwsSendSlice` | `sws_send_slice` |
 | `Scaler.SwsSetColorspaceDetails` | `sws_setColorspaceDetails` |
+| `Image`（图片尺寸帮手，见 scale_color.go） | Go 帮手（无 C 对应） |
 </details>
-### resample_audio — 音频重采样（37 个）
+### resample_audio — 音频重采样（39 个）
 
 音频重采样：声道、采样率、采样格式不一样时掰成一样。
 
@@ -683,8 +717,10 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Resampler.SetChannelMapping` | `swr_set_channel_mapping` |
 | `Resampler.SetCompensation` | `swr_set_compensation` |
 | `Resampler.SetMatrix` | `swr_set_matrix` |
+| `Resampler.Ptr` | Go 帮手（无 C 对应） |
+| `AudioFifo.Ptr` | Go 帮手（无 C 对应） |
 </details>
-### filter_graph — 滤镜图（64 个）
+### filter_graph — 滤镜图（65 个）
 
 滤镜图：把多个滤镜连成链（缩放、裁剪、混音都归它）。
 
@@ -759,8 +795,9 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `FilterGraph.PadGetType` | `avfilter_pad_get_type` |
 | `FilterContext.ProcessCommand` | `avfilter_process_command` |
 | `FilterGraph.Version` | `avfilter_version` |
+| `FilterContext.Ptr` | Go 帮手（无 C 对应） |
 </details>
-### device_io — 设备（10 个）
+### device_io — 设备（11 个）
 
 设备：列摄像头、麦克风这些输入输出设备。
 
@@ -781,6 +818,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `DeviceList.ListOutputSinks` | `avdevice_list_output_sinks` |
 | `DeviceList.AppToDev` | `avdevice_app_to_dev_control_message` |
 | `DeviceList.DevToApp` | `avdevice_dev_to_app_control_message` |
+| `DeviceList.Ptr` | Go 帮手（无 C 对应） |
 </details>
 ### media_desc — 查资料（88 个）
 
@@ -881,6 +919,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `MediaDesc.TimecodeMakeSmpteTcString` | `av_timecode_make_smpte_tc_string` |
 | `MediaDesc.TimecodeMakeSmpteTcString2` | `av_timecode_make_smpte_tc_string2` |
 | `MediaDesc.TimecodeMakeString` | `av_timecode_make_string` |
+| `MediaDesc`（无状态查询，见 media_desc.go） | Go 帮手（无 C 对应） |
 </details>
 ### crypto_hash_misc — 杂项工具箱（395 个）
 
@@ -1288,6 +1327,7 @@ name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 | `Util.PixFmtCountPlanes` | `av_pix_fmt_count_planes` |
 | `Util.PixFmtGetChromaSubSample` | `av_pix_fmt_get_chroma_sub_sample` |
 | `Util.PixFmtSwapEndianness` | `av_pix_fmt_swap_endianness` |
+| `Muxer/Prober/Util`（写文件/猜格式/小计算，见 crypto_hash_misc.go） | Go 帮手（无 C 对应） |
 </details>
 
 ### data_const — 数据常量（16 个）
