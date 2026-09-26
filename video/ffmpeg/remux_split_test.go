@@ -115,7 +115,7 @@ func remuxSegment(src string, startMs, endMs int64, dst, text string, t *testing
 		}
 		outIdx[i] = int32(outSt.Index())
 	}
-	// 新建字幕流：mov_text 编码，时基取毫秒。
+	// 新建字幕流：mov_text 编码，时基由复用器定（实测 mov 为 1/90000，写包时按实际时基换算）。
 	subStPtr := outFc.NewStream(nil)
 	if subStPtr == nil {
 		return fmt.Errorf("ffmpeg: new subtitle stream")
@@ -201,8 +201,13 @@ func remuxSegment(src string, startMs, endMs int64, dst, text string, t *testing
 		}
 		wrote++
 	}
-	// 写字幕包：一句覆盖整段（mov_text 按毫秒时基）。
-	if err := writeSubPacket(outPtr, subIdx, text, 0, endMs-startMs, &mux); err != nil {
+	// 写字幕包：一句覆盖整段（按字幕流实际时基换算，实测 mov 复用后为 1/90000）。
+	subTb := subSt.TimeBase()
+	var subDur int64 = endMs - startMs
+	if subTb.Num > 0 && subTb.Den > 0 {
+		subDur = (endMs - startMs) * int64(subTb.Den) / (1000 * int64(subTb.Num))
+	}
+	if err := writeSubPacket(outPtr, subIdx, text, 0, subDur, &mux); err != nil {
 		outIO.Close()
 		return err
 	}
@@ -237,14 +242,24 @@ func setSubPar(par unsafe.Pointer, codecID int32) {
 	*(*int32)(unsafe.Add(par, parCodecID)) = codecID
 }
 
-// writeSubPacket 写一句字幕包（payload 为 UTF-8 文本，pts/duration 按毫秒时基）。
+// writeSubPacket 写一句字幕包（pts/duration 按字幕流时基来，调用方换算好）。
+// 大白话：mov_text 每个字幕 sample 开头要先写两个字节的长度（文本字节数，大端），
+// 后面才是 UTF-8 正文；不写这个头，老播放器会把正文前两个字节当长度吃掉，
+// 中文直接报 invalid UTF-8、英文少前两个字母。
 func writeSubPacket(outPtr unsafe.Pointer, subIdx int32, text string, startMs, durMs int64, mux *Muxer) error {
 	pkt := NewPacket()
 	if pkt == nil {
 		return fmt.Errorf("ffmpeg: no sub packet")
 	}
 	defer pkt.Free()
-	raw := append([]byte(text), 0)
+	body := []byte(text)
+	if len(body) > 0xFFFF {
+		return fmt.Errorf("ffmpeg: sub text too long %d", len(body))
+	}
+	raw := make([]byte, 2+len(body))
+	raw[0] = byte(len(body) >> 8)
+	raw[1] = byte(len(body))
+	copy(raw[2:], body)
 	var mem Mem
 	buf := mem.Alloc(len(raw))
 	if buf == nil {
@@ -252,14 +267,14 @@ func writeSubPacket(outPtr unsafe.Pointer, subIdx int32, text string, startMs, d
 	}
 	// buf 交给包接管（FromData 后别 Free，包释放时一并走）。
 	copy(unsafe.Slice((*byte)(buf), len(raw)), raw)
-	if err := pkt.FromData(buf, len(raw)-1); err != nil {
+	if err := pkt.FromData(buf, len(raw)); err != nil {
 		mem.Free(buf)
 		return fmt.Errorf("ffmpeg: sub from_data: %w", err)
 	}
 	*(*int64)(unsafe.Add(pkt.ptr, pktPTS)) = startMs
+	*(*int64)(unsafe.Add(pkt.ptr, pktDTS)) = startMs
 	*(*int64)(unsafe.Add(pkt.ptr, pktDuration)) = durMs
 	pkt.SetStreamIndex(int(subIdx))
-	// 字幕流时基视为 1/1000，包时基直写毫秒。
 	if err := mux.InterleavedWriteFrame(outPtr, pkt.ptr); err != nil {
 		return fmt.Errorf("ffmpeg: sub write: %w", err)
 	}

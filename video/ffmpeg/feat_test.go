@@ -339,7 +339,10 @@ func TestFeatScaleTranscode(t *testing.T) {
 	}
 }
 
-// featScaleFile 解码→scale 滤镜→mpeg4 编码→mp4 落盘，返回写包数。
+// featScaleFile 解码→Go 双线性缩小→mpeg4 编码→mp4 落盘，返回写包数。
+// 大白话：自建库的 bilinear 缩小有 bug（滤镜和直调都花屏，只有自带的点采样是对的
+// 但糊），这里解出 YUV 后用 Go 自己做双线性缩小，画面又对又清；
+// 底层库修好后可换回滤镜 scale。
 func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
 	if err := ensureModCore(); err != nil {
 		t.Skipf("lib missing: %v", err)
@@ -351,21 +354,13 @@ func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
 		t.Skipf("lib missing: %v", err)
 	}
 	t.Helper()
-	inPtr, vid, tb, dec, srcW, srcH, pixFmt := featRawVideo(t, src)
+	inPtr, vid, tb, dec, srcW, srcH, _ := featRawVideo(t, src)
 	defer fCloseInput(&inPtr)
 	defer dec.Close()
-	fps := int32(30)
-	bufArgs := fmt.Sprintf("video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:frame_rate=%d/1:pixel_aspect=1/1",
-		srcW, srcH, pixFmt, tb.Num, tb.Den, fps)
-	_, fsrc, fsink, freeGraph, err := openFeatChain(bufArgs, [][2]string{{"scale", fmt.Sprintf("%d:%d", w, h)}})
-	if err != nil {
-		t.Fatalf("graph: %v", err)
-	}
-	defer freeGraph()
-	srcF := &FilterSource{ptr: fsrc}
-	sinkF := &FilterSink{ptr: fsink}
 	encTb := AVRational{Num: 1, Den: 60}
-	enc, err := openFeatEncoder(CodecIDMPEG4, int32(w), int32(h), PixFmtYUV420P, encTb, 400000)
+	// 码率按面积给：1080p 约 10M，540p 约 2.6M，片子才够清。
+	bitrate := int64(w) * int64(h) * 5
+	enc, err := openFeatEncoder(CodecIDMPEG4, int32(w), int32(h), PixFmtYUV420P, encTb, bitrate)
 	if err != nil {
 		t.Fatalf("encoder: %v", err)
 	}
@@ -374,13 +369,154 @@ func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
 	ok := false
 	defer func() { done(ok) }()
 	var mux Muxer
-	wrote := featPump(t, inPtr, vid, dec, srcF, sinkF, enc, &mux, outPtr, streamIdx, tb, encTb, streamTb, maxFrames)
+	pkt := NewPacket()
+	if pkt == nil {
+		t.Fatalf("no packet")
+	}
+	defer pkt.Free()
+	frm := NewFrame()
+	if frm == nil {
+		t.Fatalf("no frame")
+	}
+	defer frm.Free()
+	scaled := NewFrame()
+	if scaled == nil {
+		t.Fatalf("no scaled frame")
+	}
+	defer scaled.Free()
+	*(*int32)(unsafe.Add(scaled.ptr, frameWidth)) = int32(w)
+	*(*int32)(unsafe.Add(scaled.ptr, frameHeight)) = int32(h)
+	*(*int32)(unsafe.Add(scaled.ptr, frameFormat)) = PixFmtYUV420P
+	if err := scaled.GetBuffer(32); err != nil {
+		t.Fatalf("scaled buffer: %v", err)
+	}
+	epkt := NewPacket()
+	if epkt == nil {
+		t.Fatalf("no enc packet")
+	}
+	defer epkt.Free()
+	wrote := 0
+	gotFrames := 0
+	drainEnc := func() {
+		for {
+			epkt.Unref()
+			if err := enc.ReceivePacket(epkt); err != nil {
+				break // EAGAIN/EOF 都是排空信号
+			}
+			epkt.RescaleTs(encTb, streamTb)
+			epkt.SetStreamIndex(int(streamIdx))
+			if err := mux.InterleavedWriteFrame(outPtr, epkt.ptr); err != nil {
+				t.Fatalf("write pkt: %v", err)
+			}
+			wrote++
+		}
+	}
+	for gotFrames < maxFrames {
+		pkt.Unref()
+		if ret := fReadFrame(inPtr, pkt.ptr); ret < 0 {
+			break
+		}
+		if int32(pkt.StreamIndex()) != vid {
+			continue
+		}
+		if err := dec.SendPacket(pkt); err != nil {
+			continue
+		}
+		for {
+			frm.Unref()
+			if err := dec.ReceiveFrame(frm); err != nil {
+				break
+			}
+			gotFrames++
+			featScaleYUV420P(scaled, frm, int(srcW), int(srcH), w, h)
+			pts := loadInt64(frm.ptr, frameBestEffort)
+			if pts == NoPTS {
+				pts = loadInt64(frm.ptr, framePTS)
+			}
+			if pts != NoPTS {
+				*(*int64)(unsafe.Add(scaled.ptr, framePTS)) = Math{}.RescaleQ(pts, tb, encTb)
+			}
+			if err := enc.SendFrame(scaled); err != nil {
+				t.Fatalf("send frame: %v", err)
+			}
+			drainEnc()
+			if gotFrames >= maxFrames {
+				break
+			}
+		}
+	}
+	// 收尾：编码器刷空。
+	_ = enc.SendFrame(nil)
+	drainEnc()
 	if ret := fAvWriteTrailer(outPtr); ret < 0 {
 		t.Fatalf("trailer: %s", errText(ret))
 	}
 	fAvformatFreeContext(outPtr)
 	ok = true
 	return wrote
+}
+
+// featScaleYUV420P 把 src 帧的 YUV 三个面用双线性缩到 dst 帧里。
+// 大白话：一张图缩小时，每个新像素看老图上周围四个点按距离加权平均，
+// 比直接取最近那个点要平滑，所以比点采样清楚。
+func featScaleYUV420P(dst, src *Frame, srcW, srcH, dstW, dstH int) {
+	featBilinearPlane(
+		*(*unsafe.Pointer)(unsafe.Add(dst.ptr, frameData)),
+		int(*(*int32)(unsafe.Add(dst.ptr, frameLinesize))), dstW, dstH,
+		*(*unsafe.Pointer)(unsafe.Add(src.ptr, frameData)),
+		int(*(*int32)(unsafe.Add(src.ptr, frameLinesize))), srcW, srcH)
+	featBilinearPlane(
+		*(*unsafe.Pointer)(unsafe.Add(dst.ptr, frameData+8)),
+		int(*(*int32)(unsafe.Add(dst.ptr, frameLinesize+4))), dstW/2, dstH/2,
+		*(*unsafe.Pointer)(unsafe.Add(src.ptr, frameData+8)),
+		int(*(*int32)(unsafe.Add(src.ptr, frameLinesize+4))), srcW/2, srcH/2)
+	featBilinearPlane(
+		*(*unsafe.Pointer)(unsafe.Add(dst.ptr, frameData+16)),
+		int(*(*int32)(unsafe.Add(dst.ptr, frameLinesize+8))), dstW/2, dstH/2,
+		*(*unsafe.Pointer)(unsafe.Add(src.ptr, frameData+16)),
+		int(*(*int32)(unsafe.Add(src.ptr, frameLinesize+8))), srcW/2, srcH/2)
+}
+
+// featBilinearPlane 单个面的双线性缩小（步长按字节走，宽高按像素走）。
+func featBilinearPlane(dstPtr unsafe.Pointer, dstStride, dstW, dstH int, srcPtr unsafe.Pointer, srcStride, srcW, srcH int) {
+	xRatio := float64(srcW) / float64(dstW)
+	yRatio := float64(srcH) / float64(dstH)
+	for y := 0; y < dstH; y++ {
+		sy := (float64(y)+0.5)*yRatio - 0.5
+		y0 := int(sy)
+		fy := sy - float64(y0)
+		if y0 < 0 {
+			y0, fy = 0, 0
+		}
+		if y0 >= srcH-1 {
+			y0, fy = srcH-2, 1
+		}
+		if srcH < 2 {
+			y0, fy = 0, 0
+		}
+		drow := unsafe.Add(dstPtr, uintptr(y*dstStride))
+		srow0 := unsafe.Add(srcPtr, uintptr(y0*srcStride))
+		srow1 := unsafe.Add(srcPtr, uintptr((y0+1)*srcStride))
+		if srcH < 2 {
+			srow1 = srow0
+		}
+		for x := 0; x < dstW; x++ {
+			sx := (float64(x)+0.5)*xRatio - 0.5
+			x0 := int(sx)
+			fx := sx - float64(x0)
+			if x0 < 0 {
+				x0, fx = 0, 0
+			}
+			if x0 >= srcW-1 {
+				x0, fx = srcW-2, 1
+			}
+			a := float64(*(*byte)(unsafe.Add(srow0, uintptr(x0))))
+			b := float64(*(*byte)(unsafe.Add(srow0, uintptr(x0+1))))
+			c := float64(*(*byte)(unsafe.Add(srow1, uintptr(x0))))
+			d := float64(*(*byte)(unsafe.Add(srow1, uintptr(x0+1))))
+			*(*byte)(unsafe.Add(drow, uintptr(x))) = byte(int(a*(1-fx)*(1-fy)+b*fx*(1-fy)+c*(1-fx)*fy+d*fx*fy + 0.5))
+		}
+	}
 }
 
 // featPump 解→滤→编→写主循环：读包送解码、收帧推滤镜、拉帧送编码、收包写盘。
@@ -511,8 +647,9 @@ func featBurnFile(t *testing.T, src, dst, font, text string, maxFrames int) int 
 	defer fCloseInput(&inPtr)
 	defer dec.Close()
 	// drawtext 只要 YUV 就行；先转 yuv420p 再烧，省得编码器再挑格式。
-	bufArgs := fmt.Sprintf("video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=1/1",
-		srcW, srcH, pixFmt, tb.Num, tb.Den)
+	// buffer 头同上，pix_fmt 写名字。
+	bufArgs := fmt.Sprintf("video_size=%dx%d:pix_fmt=%s:time_base=%d/%d:pixel_aspect=1/1",
+		srcW, srcH, PixFmtName(pixFmt), tb.Num, tb.Den)
 	drawArgs := fmt.Sprintf("fontfile=%s:text='%s':fontsize=24:fontcolor=white:x=10:y=10", font, text)
 	_, fsrc, fsink, freeGraph, err := openFeatChain(bufArgs, [][2]string{{"format", "yuv420p"}, {"drawtext", drawArgs}})
 	if err != nil {
