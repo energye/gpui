@@ -58,7 +58,7 @@ func RemuxSegment(src string, startMs, endMs int64, dst, text string) error {
 }
 
 func remuxSegment(src string, startMs, endMs int64, dst, text string, t *testing.T) error {
-	if err := ensureLoaded(); err != nil {
+	if err := ensureModFormatDemux(); err != nil {
 		return err
 	}
 	if startMs < 0 || endMs <= startMs {
@@ -268,6 +268,9 @@ func writeSubPacket(outPtr unsafe.Pointer, subIdx int32, text string, startMs, d
 
 // verifySegment 重开输出验证：时长对、字幕轨在、能解出帧。
 func verifySegment(t *testing.T, path string, bound [2]int64, wantSub string) {
+	if err := ensureModCore(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	t.Helper()
 	d, err := Open(path)
 	if err != nil {

@@ -41,7 +41,7 @@ func cstr(p unsafe.Pointer) string {
 
 // codeErr turns a negative AVERROR into a readable Go error.
 func codeErr(op string, code int32) error {
-	if ensureLoaded() != nil {
+	if ensureModErrorLog() != nil {
 		return fmt.Errorf("ffmpeg: %s: error %d", op, code)
 	}
 	return fmt.Errorf("ffmpeg: %s: %s", op, errText(code))

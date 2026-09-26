@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -35,6 +36,19 @@ var (
 	fDeviceDevToApp   func(unsafe.Pointer, int32, unsafe.Pointer, uintptr) int32
 )
 
+// ensureModDeviceIo 开本模块的灯：先保核心房亮，再开依赖房，最后开自己这间。
+// 大白话：用到这间房的功能才进来开灯（sync.Once，开过不再开）;
+// 缺符号只在这间第一次用时报错，不连累别的功能。
+var modDeviceIoOnce sync.Once
+
+func ensureModDeviceIo() error {
+	if err := ensureModCore(); err != nil {
+		return err
+	}
+	modDeviceIoOnce.Do(func() { registerDeviceIo(libHandle) })
+	return nil
+}
+
 func registerDeviceIo(h uintptr) {
 	purego.RegisterLibFunc(&fDeviceVersion, h, "avdevice_version")
 	purego.RegisterLibFunc(&fDeviceConfig, h, "avdevice_configuration")
@@ -49,13 +63,20 @@ func registerDeviceIo(h uintptr) {
 }
 
 // RegisterAll registers all input/output devices (用设备前调一次).
-func (d *DeviceList) RegisterAll() { fDeviceRegister() }
+func (d *DeviceList) RegisterAll() {
+	mustUse(ensureModDeviceIo())
+	fDeviceRegister()
+}
 
 // Version returns the avdevice version number.
-func (d *DeviceList) Version() uint32 { return fDeviceVersion() }
+func (d *DeviceList) Version() uint32 {
+	mustUse(ensureModDeviceIo())
+	return fDeviceVersion()
+}
 
 // ListDevices lists devices of a source/sink context (ctx 传 FormatContext.Ptr()).
 func (d *DeviceList) ListDevices(ctx unsafe.Pointer) error {
+	mustUse(ensureModDeviceIo())
 	if d == nil {
 		return errNilDevice
 	}
@@ -67,6 +88,7 @@ func (d *DeviceList) ListDevices(ctx unsafe.Pointer) error {
 
 // FreeList releases the list and nils the holder.
 func (d *DeviceList) FreeList() {
+	mustUse(ensureModDeviceIo())
 	if d == nil || d.ptr == nil {
 		return
 	}
@@ -77,6 +99,7 @@ func (d *DeviceList) FreeList() {
 
 // ListInputSources lists capture devices for an input format.
 func (d *DeviceList) ListInputSources(format unsafe.Pointer) error {
+	mustUse(ensureModDeviceIo())
 	if d == nil {
 		return errNilDevice
 	}
@@ -88,6 +111,7 @@ func (d *DeviceList) ListInputSources(format unsafe.Pointer) error {
 
 // ListOutputSinks lists playback devices for an output format.
 func (d *DeviceList) ListOutputSinks(format unsafe.Pointer) error {
+	mustUse(ensureModDeviceIo())
 	if d == nil {
 		return errNilDevice
 	}
@@ -99,7 +123,7 @@ func (d *DeviceList) ListOutputSinks(format unsafe.Pointer) error {
 
 // Configuration returns the avdevice build configuration string.
 func (d *DeviceList) Configuration() string {
-	if ensureLoaded() != nil {
+	if ensureModDeviceIo() != nil {
 		return ""
 	}
 	return fDeviceConfig()
@@ -107,7 +131,7 @@ func (d *DeviceList) Configuration() string {
 
 // License returns the avdevice license string.
 func (d *DeviceList) License() string {
-	if ensureLoaded() != nil {
+	if ensureModDeviceIo() != nil {
 		return ""
 	}
 	return fDeviceLicense()
@@ -116,6 +140,7 @@ func (d *DeviceList) License() string {
 // AppToDev sends an app-to-device control message (音量/暂停等走它;
 // type 用 AVAppToDevMessageType 常量, data 传 nil 表无负载).
 func (d *DeviceList) AppToDev(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
+	mustUse(ensureModDeviceIo())
 	if d == nil {
 		return errNilDevice
 	}
@@ -127,6 +152,7 @@ func (d *DeviceList) AppToDev(ctx unsafe.Pointer, typ int32, data unsafe.Pointer
 
 // DevToApp reads a device-to-app control message (设备状态回调用它).
 func (d *DeviceList) DevToApp(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
+	mustUse(ensureModDeviceIo())
 	if d == nil {
 		return errNilDevice
 	}

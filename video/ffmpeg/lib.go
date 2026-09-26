@@ -140,9 +140,10 @@ func candidatePaths() []string {
 	return out
 }
 
-// ensureLoaded dlopens the library once and registers every function.
-// It returns a readable error when the file is missing so callers can
-// skip instead of crashing.
+// ensureLoaded 只负责 dlopen（找到库、打开、记住句柄），不再绑任何函数。
+// 大白话：开门只开门，屋里 13 间房的灯各房自己开——谁用谁开，开过不再开。
+// 之前一次全绑 1024 个，ARM/386/win 上缺 6-7 个 x86 专有符号（VDPAU 等）
+// 直接 panic，连解码都用不了；现在缺的符号只在真用到它那间房时才报错。
 func ensureLoaded() error {
 	loadMu.Lock()
 	defer loadMu.Unlock()
@@ -163,6 +164,22 @@ func ensureLoaded() error {
 		}
 		libPath = p
 		libHandle = h
+		return nil
+	}
+	loadErr = fmt.Errorf("ffmpeg: library not found (tried %q... last %s)", libRelName(), last)
+	return loadErr
+}
+
+// modCoreOnce 守 16 个核心函数：只开库、读包、送包收帧，解码看片全靠它们。
+// 各模块 ensure 进门先调它（sync.Once，开过即过）。
+var modCoreOnce sync.Once
+
+func ensureModCore() error {
+	if err := ensureLoaded(); err != nil {
+		return err
+	}
+	modCoreOnce.Do(func() {
+		h := libHandle
 		purego.RegisterLibFunc(&fNetInit, h, "avformat_network_init")
 		purego.RegisterLibFunc(&fOpenInput, h, "avformat_open_input")
 		purego.RegisterLibFunc(&fFindInfo, h, "avformat_find_stream_info")
@@ -178,25 +195,17 @@ func ensureLoaded() error {
 		purego.RegisterLibFunc(&fCloseInput, h, "avformat_close_input")
 		purego.RegisterLibFunc(&fFreeCtx, h, "avcodec_free_context")
 		purego.RegisterLibFunc(&fFlushBuf, h, "avcodec_flush_buffers")
-		registerPacket(h)
-		registerFrame(h)
-		registerDictOpt(h)
-		registerBufferMem(h)
-		registerErrorLog(h)
-		registerFormatDemux(h)
-		registerCodecEncode(h)
-		registerFilterGraph(h)
-		registerDeviceIo(h)
-		registerResampleAudio(h)
-		registerMediaDesc(h)
-		registerCryptoHashMisc(h)
-		registerScaleColor(h)
-		registerVariadicGo(h)
-		fLogSetLevel(LogError)
-		return nil
+	})
+	return nil
+}
+
+// mustUse 给不返回 error 的小函数用：库不在就直接报人话 panic。
+// 大白话：取指针、读名字这类小函数没法返回值报错，库没加载还硬调
+// 原来是野指针崩，现在直接说库没找到，不玩神秘崩溃。
+func mustUse(err error) {
+	if err != nil {
+		panic(err)
 	}
-	loadErr = fmt.Errorf("ffmpeg: library not found (tried %q... last %s)", libRelName(), last)
-	return loadErr
 }
 
 // Available reports whether the shared library loads on this machine.
@@ -225,7 +234,7 @@ func IsFull() bool {
 
 // Version returns the ffmpeg version string (for example "7.1.5").
 func Version() (string, error) {
-	if err := ensureLoaded(); err != nil {
+	if err := ensureModErrorLog(); err != nil {
 		return "", err
 	}
 	return fVerInfo(), nil
@@ -233,6 +242,9 @@ func Version() (string, error) {
 
 // errText turns a negative AVERROR into a readable string.
 func errText(code int32) string {
+	if ensureModErrorLog() != nil {
+		return fmt.Sprintf("ffmpeg error %d", code)
+	}
 	buf := make([]byte, 256)
 	ret := fErrStrerror(code, unsafe.Pointer(&buf[0]), uintptr(len(buf)))
 	if ret != 0 {

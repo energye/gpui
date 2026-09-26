@@ -10,6 +10,9 @@ import (
 // empty holders. The so ships a trimmed codec set (34 codecs, 4
 // encoders, no aac), so encoder asserts only check path shape.
 func TestWrapCover(t *testing.T) {
+	if err := ensureModResample(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	if !Available() {
 		t.Skipf("lib missing: %s", LibPath())
 	}

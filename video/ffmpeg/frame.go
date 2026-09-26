@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -62,6 +63,19 @@ var (
 	fFrameReplace        func(unsafe.Pointer, unsafe.Pointer) int32
 )
 
+// ensureModFrame 开本模块的灯：先保核心房亮，再开依赖房，最后开自己这间。
+// 大白话：用到这间房的功能才进来开灯（sync.Once，开过不再开）;
+// 缺符号只在这间第一次用时报错，不连累别的功能。
+var modFrameOnce sync.Once
+
+func ensureModFrame() error {
+	if err := ensureModCore(); err != nil {
+		return err
+	}
+	modFrameOnce.Do(func() { registerFrame(libHandle) })
+	return nil
+}
+
 func registerFrame(h uintptr) {
 	purego.RegisterLibFunc(&fFrameAlloc, h, "av_frame_alloc")
 	purego.RegisterLibFunc(&fFrameFree, h, "av_frame_free")
@@ -93,7 +107,7 @@ func registerFrame(h uintptr) {
 
 // NewFrame allocates an empty frame (记得 Free).
 func NewFrame() *Frame {
-	if err := ensureLoaded(); err != nil {
+	if err := ensureModFrame(); err != nil {
 		return nil
 	}
 	ptr := fFrameAlloc()
@@ -105,6 +119,7 @@ func NewFrame() *Frame {
 
 // Free releases the frame and nils the handle.
 func (f *Frame) Free() {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return
 	}
@@ -115,6 +130,7 @@ func (f *Frame) Free() {
 
 // Clone copies the frame (引用计数, 记得 Free 新帧).
 func (f *Frame) Clone() *Frame {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return nil
 	}
@@ -127,6 +143,7 @@ func (f *Frame) Clone() *Frame {
 
 // Ref copies src into dst (引用, dst 需已分配).
 func (f *Frame) Ref(src *Frame) error {
+	mustUse(ensureModFrame())
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -138,6 +155,7 @@ func (f *Frame) Ref(src *Frame) error {
 
 // Replace swaps dst's contents with src's (引用计数, 老数据先丢).
 func (f *Frame) Replace(src *Frame) error {
+	mustUse(ensureModFrame())
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -149,6 +167,7 @@ func (f *Frame) Replace(src *Frame) error {
 
 // Copy copies pixels + metadata (深拷贝).
 func (f *Frame) Copy(src *Frame) error {
+	mustUse(ensureModFrame())
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -160,6 +179,7 @@ func (f *Frame) Copy(src *Frame) error {
 
 // CopyProps copies only metadata (不碰像素).
 func (f *Frame) CopyProps(src *Frame) error {
+	mustUse(ensureModFrame())
 	if f == nil || src == nil {
 		return errNilFrame
 	}
@@ -171,6 +191,7 @@ func (f *Frame) CopyProps(src *Frame) error {
 
 // MoveRef steals src's data (src 被清空, dst 接管).
 func (f *Frame) MoveRef(src *Frame) {
+	mustUse(ensureModFrame())
 	if f == nil || src == nil {
 		return
 	}
@@ -179,6 +200,7 @@ func (f *Frame) MoveRef(src *Frame) {
 
 // Unref drops the data reference (帧壳留着复用).
 func (f *Frame) Unref() {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return
 	}
@@ -187,6 +209,7 @@ func (f *Frame) Unref() {
 
 // GetBuffer allocates pixel buffers (解码前调, align 一般 0/32).
 func (f *Frame) GetBuffer(align int) error {
+	mustUse(ensureModFrame())
 	if f == nil {
 		return errNilFrame
 	}
@@ -198,6 +221,7 @@ func (f *Frame) GetBuffer(align int) error {
 
 // IsWritable reports whether pixels can be written directly.
 func (f *Frame) IsWritable() bool {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return false
 	}
@@ -206,6 +230,7 @@ func (f *Frame) IsWritable() bool {
 
 // MakeWritable makes pixels writable (独占, 写前调).
 func (f *Frame) MakeWritable() error {
+	mustUse(ensureModFrame())
 	if f == nil {
 		return errNilFrame
 	}
@@ -217,6 +242,7 @@ func (f *Frame) MakeWritable() error {
 
 // ApplyCropping crops pixels per frame crop fields (flags 一般 0).
 func (f *Frame) ApplyCropping(flags int) error {
+	mustUse(ensureModFrame())
 	if f == nil {
 		return errNilFrame
 	}
@@ -228,6 +254,7 @@ func (f *Frame) ApplyCropping(flags int) error {
 
 // GetSideData returns side data of type (nil when absent).
 func (f *Frame) GetSideData(typ int32) *FrameSideData {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return nil
 	}
@@ -240,6 +267,7 @@ func (f *Frame) GetSideData(typ int32) *FrameSideData {
 
 // NewSideData allocates size bytes of side data of type.
 func (f *Frame) NewSideData(typ int32, size int) *FrameSideData {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return nil
 	}
@@ -252,6 +280,7 @@ func (f *Frame) NewSideData(typ int32, size int) *FrameSideData {
 
 // RemoveSideData drops side data of type.
 func (f *Frame) RemoveSideData(typ int32) {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return
 	}
@@ -261,6 +290,7 @@ func (f *Frame) RemoveSideData(typ int32) {
 // GetPlaneBuffer borrows the buffer behind one plane (av_frame_get_plane_buffer;
 // 常量持有不释放, 别 Free 它).
 func (f *Frame) GetPlaneBuffer(plane int32) unsafe.Pointer {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil {
 		return nil
 	}
@@ -270,6 +300,7 @@ func (f *Frame) GetPlaneBuffer(plane int32) unsafe.Pointer {
 // NewSideDataFromBuf attaches an existing buffer as typed side data
 // (av_frame_new_side_data_from_buf; buf 归帧管, 别再动).
 func (f *Frame) NewSideDataFromBuf(typ int32, buf *Buffer) *FrameSideData {
+	mustUse(ensureModFrame())
 	if f == nil || f.ptr == nil || buf == nil {
 		return nil
 	}
@@ -283,7 +314,7 @@ func (f *Frame) NewSideDataFromBuf(typ int32, buf *Buffer) *FrameSideData {
 // FrameSideDataAdd appends a typed entry wrapping an existing buffer
 // (av_frame_side_data_add; sd/nb_sd 照族传).
 func FrameSideDataAdd(sd *unsafe.Pointer, nbSd *int32, typ int32, buf *Buffer, flags uint32) *FrameSideData {
-	if ensureLoaded() != nil {
+	if ensureModFrame() != nil {
 		return nil
 	}
 	var bp unsafe.Pointer
@@ -300,6 +331,7 @@ func FrameSideDataAdd(sd *unsafe.Pointer, nbSd *int32, typ int32, buf *Buffer, f
 // FrameSideDataClone clones one entry into an array
 // (av_frame_side_data_clone).
 func FrameSideDataClone(dst *unsafe.Pointer, nbDst *int32, src *FrameSideData, flags uint32) error {
+	mustUse(ensureModFrame())
 	var sp unsafe.Pointer
 	if src != nil {
 		sp = src.ptr
@@ -313,7 +345,7 @@ func FrameSideDataClone(dst *unsafe.Pointer, nbDst *int32, src *FrameSideData, f
 // FrameSideDataDesc describes a side-data type (av_frame_side_data_desc;
 // 常量描述不释放).
 func FrameSideDataDesc(typ int32) unsafe.Pointer {
-	if ensureLoaded() != nil {
+	if ensureModFrame() != nil {
 		return nil
 	}
 	return fFrameSideDataDesc(typ)
@@ -321,7 +353,7 @@ func FrameSideDataDesc(typ int32) unsafe.Pointer {
 
 // FrameSideDataFree frees a side-data array (av_frame_side_data_free).
 func FrameSideDataFree(sd *unsafe.Pointer, nbSd *int32) {
-	if ensureLoaded() != nil {
+	if ensureModFrame() != nil {
 		return
 	}
 	fFrameSideDataFree(sd, nbSd)
@@ -330,7 +362,7 @@ func FrameSideDataFree(sd *unsafe.Pointer, nbSd *int32) {
 // FrameSideDataGet finds a typed entry (av_frame_side_data_get_c;
 // 常量借用不释放).
 func FrameSideDataGet(sd unsafe.Pointer, nbSd, typ int32) *FrameSideData {
-	if ensureLoaded() != nil {
+	if ensureModFrame() != nil {
 		return nil
 	}
 	ptr := fFrameSideDataGetC(sd, nbSd, typ)
@@ -342,7 +374,7 @@ func FrameSideDataGet(sd unsafe.Pointer, nbSd, typ int32) *FrameSideData {
 
 // FrameSideDataName names a side-data type (av_frame_side_data_name).
 func FrameSideDataName(typ int32) string {
-	if ensureLoaded() != nil {
+	if ensureModFrame() != nil {
 		return ""
 	}
 	return fFrameSideDataName(typ)
@@ -350,7 +382,7 @@ func FrameSideDataName(typ int32) string {
 
 // FrameSideDataNew allocates a typed entry (av_frame_side_data_new).
 func FrameSideDataNew(sd *unsafe.Pointer, nbSd *int32, typ int32, size int, flags uint32) *FrameSideData {
-	if ensureLoaded() != nil {
+	if ensureModFrame() != nil {
 		return nil
 	}
 	ptr := fFrameSideDataNew(sd, nbSd, typ, uintptr(size), flags)
@@ -362,7 +394,7 @@ func FrameSideDataNew(sd *unsafe.Pointer, nbSd *int32, typ int32, size int, flag
 
 // FrameSideDataRemove deletes a typed entry (av_frame_side_data_remove).
 func FrameSideDataRemove(sd *unsafe.Pointer, nbSd *int32, typ int32) {
-	if ensureLoaded() != nil {
+	if ensureModFrame() != nil {
 		return
 	}
 	fFrameSideDataRemove(sd, nbSd, typ)

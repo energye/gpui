@@ -28,7 +28,7 @@ func featCStr(s string) (unsafe.Pointer, func()) {
 // 大白话：编码器好比印片机，先告诉它纸多大（宽高）、墨什么色（像素格式）、
 // 钟怎么走（时基），再开机。参数走 av_opt_set 系列，不碰结构体偏移。
 func openFeatEncoder(codecID, w, h, pixFmt int32, tb AVRational, bitrate int64) (*CodecContext, error) {
-	if err := ensureLoaded(); err != nil {
+	if err := ensureModCodecEncode(); err != nil {
 		return nil, err
 	}
 	enc := FindEncoder(codecID)
@@ -66,7 +66,7 @@ func openFeatEncoder(codecID, w, h, pixFmt int32, tb AVRational, bitrate int64) 
 // bufArgs 是 buffer 头参数（宽高、像素格式、时基）；mids 是中间滤镜名和参数；
 // 返回图和两端，后面推帧拉帧就靠它们。
 func openFeatChain(bufArgs string, mids [][2]string) (graph, src, sink unsafe.Pointer, freeAll func(), err error) {
-	if err := ensureLoaded(); err != nil {
+	if err := ensureModFilterGraph(); err != nil {
 		return nil, nil, nil, nil, err
 	}
 	freeAll = func() {}

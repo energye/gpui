@@ -50,6 +50,9 @@ func featProbe(t *testing.T, path string) {
 
 // featSubProbe 数盒子里字幕轨条数。
 func featSubProbe(t *testing.T, path string) int {
+	if err := ensureModCore(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	t.Helper()
 	var inPtr unsafe.Pointer
 	if ret := fOpenInput(&inPtr, path, nil, nil); ret < 0 {
@@ -228,6 +231,9 @@ func featWriteWAV(path string, pcm []int16, rate, ch int) error {
 // featRawVideo 开原片视频解码（裸包路子）：返回输入盒、视频流序号、时基、
 // 解码器，以及流参数里的宽高和像素格式（直接读，不走选项查询）。
 func featRawVideo(t *testing.T, src string) (inPtr unsafe.Pointer, vid int32, tb AVRational, dec *CodecContext, w, h, pixFmt int32) {
+	if err := ensureModCore(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	t.Helper()
 	fNetInit()
 	if ret := fOpenInput(&inPtr, src, nil, nil); ret < 0 {
@@ -273,6 +279,9 @@ func featRawVideo(t *testing.T, src string) (inPtr unsafe.Pointer, vid int32, tb
 
 // featMuxEncoder 给编码器配输出盒：mp4 盒 + 一条视频流，参数从编码器拷。
 func featMuxEncoder(t *testing.T, dst string, enc *CodecContext) (outPtr unsafe.Pointer, streamIdx int32, streamTb AVRational, done func(ok bool)) {
+	if err := ensureModFormatDemux(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	t.Helper()
 	if ret := fAvformatAllocOutputContext2(&outPtr, nil, "mp4", nil); ret < 0 {
 		t.Fatalf("alloc mp4: %s", errText(ret))
@@ -332,6 +341,15 @@ func TestFeatScaleTranscode(t *testing.T) {
 
 // featScaleFile 解码→scale 滤镜→mpeg4 编码→mp4 落盘，返回写包数。
 func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
+	if err := ensureModCore(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
+	if err := ensureModCrypto(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
+	if err := ensureModFormatDemux(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	t.Helper()
 	inPtr, vid, tb, dec, srcW, srcH, pixFmt := featRawVideo(t, src)
 	defer fCloseInput(&inPtr)
@@ -370,6 +388,9 @@ func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
 // mpeg4 不收 1/90000 这种大分母）；帧序号进编码前先换算，包序号出编码后再换到流时基。
 // 最多处理 maxFrames 个解码帧。
 func featPump(t *testing.T, inPtr unsafe.Pointer, vid int32, dec *CodecContext, srcF *FilterSource, sinkF *FilterSink, enc *CodecContext, mux *Muxer, outPtr unsafe.Pointer, streamIdx int32, tb, encTb, streamTb AVRational, maxFrames int) int {
+	if err := ensureModCore(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	t.Helper()
 	pkt := NewPacket()
 	if pkt == nil {
@@ -476,6 +497,15 @@ func TestFeatBurnSubtitle(t *testing.T) {
 
 // featBurnFile 解码→drawtext 烧字→mpeg4 编码→mp4 落盘。
 func featBurnFile(t *testing.T, src, dst, font, text string, maxFrames int) int {
+	if err := ensureModCore(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
+	if err := ensureModCrypto(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
+	if err := ensureModFormatDemux(); err != nil {
+		t.Skipf("lib missing: %v", err)
+	}
 	t.Helper()
 	inPtr, vid, tb, dec, srcW, srcH, pixFmt := featRawVideo(t, src)
 	defer fCloseInput(&inPtr)

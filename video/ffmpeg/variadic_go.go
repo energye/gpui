@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -27,6 +28,22 @@ var (
 	fAvStrlcatStr func(unsafe.Pointer, string, uintptr) uintptr
 )
 
+// ensureModVariadic 开本模块的灯：先保核心房亮，再开依赖房，最后开自己这间。
+// 大白话：用到这间房的功能才进来开灯（sync.Once，开过不再开）;
+// 缺符号只在这间第一次用时报错，不连累别的功能。
+var modVariadicOnce sync.Once
+
+func ensureModVariadic() error {
+	if err := ensureModCore(); err != nil {
+		return err
+	}
+	if err := ensureModFormatDemux(); err != nil {
+		return err
+	}
+	modVariadicOnce.Do(func() { registerVariadicGo(libHandle) })
+	return nil
+}
+
 func registerVariadicGo(h uintptr) {
 	purego.RegisterLibFunc(&fAvLogPlain, h, "av_log")
 	purego.RegisterLibFunc(&fAvStrlcatStr, h, "av_strlcat")
@@ -41,7 +58,7 @@ func Asprintf(format string, args ...any) string {
 // Strlcatf 往 dst 尾巴上拼接拼好的字符串（替 av_strlcatf；dst 是 C
 // 缓冲，size 是总容量，含结尾零；回值和 C 一样是拼接后的总长度）。
 func (Util) Strlcatf(dst unsafe.Pointer, size uintptr, format string, args ...any) uintptr {
-	if ensureLoaded() != nil || dst == nil || size == 0 {
+	if ensureModVariadic() != nil || dst == nil || size == 0 {
 		return 0
 	}
 	return fAvStrlcatStr(dst, fmt.Sprintf(format, args...), size)
@@ -54,7 +71,7 @@ func (x *IOContext) Printf(format string, args ...any) int {
 	if x == nil || x.ptr == nil {
 		return 0
 	}
-	if ensureLoaded() != nil {
+	if ensureModVariadic() != nil {
 		return 0
 	}
 	b := []byte(fmt.Sprintf(format, args...))
@@ -68,7 +85,7 @@ func (x *IOContext) Printf(format string, args ...any) int {
 // Logf 发一条日志（替 av_log(fmt, ...)；拼好的字符串里有百分号就先
 // 转成双百分号再传，C 那边不再读变参，就不会乱读寄存器）。
 func (Log) Logf(avcl unsafe.Pointer, level int32, format string, args ...any) {
-	if ensureLoaded() != nil {
+	if ensureModVariadic() != nil {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -81,7 +98,7 @@ func (Log) Logf(avcl unsafe.Pointer, level int32, format string, args ...any) {
 // Once 只打一次日志（替 av_log_once；state 传计数器指针，nil 当已打
 // 过；第一次走 initialLevel，之后走 subsequentLevel，打完置 1）。
 func (Log) Once(avcl unsafe.Pointer, initialLevel, subsequentLevel int32, state *int32, format string, args ...any) {
-	if ensureLoaded() != nil {
+	if ensureModVariadic() != nil {
 		return
 	}
 	level := subsequentLevel

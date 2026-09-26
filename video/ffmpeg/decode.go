@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"unsafe"
 )
 
@@ -94,7 +95,7 @@ func (d *Decoder) Info() StreamInfo { return d.info }
 // The build enables file, http, https, tcp, udp, tls, rtmp and friends,
 // so network URLs work without Go-side fetching.
 func Open(path string) (*Decoder, error) {
-	if err := ensureLoaded(); err != nil {
+	if err := ensureModDecode(); err != nil {
 		return nil, err
 	}
 	if path == "" {
@@ -218,6 +219,7 @@ func (d *Decoder) ptsToMs(pts int64) int64 {
 
 // ensureSws rebuilds the RGBA converter when the frame shape changes.
 func (d *Decoder) ensureSws(w, h, srcFmt int32) error {
+	mustUse(ensureModScale())
 	if d.sws != nil && d.swsW == w && d.swsH == h && d.swsFmt == srcFmt {
 		return nil
 	}
@@ -236,6 +238,10 @@ func (d *Decoder) ensureSws(w, h, srcFmt int32) error {
 // convertFrame scales one decoded AVFrame into a pooled RGBA buffer when
 // the Decoder runs with a PixPool (player path), else a fresh buffer.
 func (d *Decoder) convertFrame(ms int64) (*VideoFrame, error) {
+	if err := ensureModScale(); err != nil {
+		var z1 *VideoFrame
+		return z1, err
+	}
 	w := loadInt32(d.frame, frameWidth)
 	h := loadInt32(d.frame, frameHeight)
 	srcFmt := loadInt32(d.frame, frameFormat)
@@ -283,6 +289,18 @@ func (d *Decoder) convertFrame(ms int64) (*VideoFrame, error) {
 // receive follow the doc/examples/demux_decode shape: read one packet,
 // send it, then drain every ready frame before reading again.
 func (d *Decoder) Next() (*VideoFrame, error) {
+	if err := ensureModCore(); err != nil {
+		var z1 *VideoFrame
+		return z1, err
+	}
+	if err := ensureModFrame(); err != nil {
+		var z1 *VideoFrame
+		return z1, err
+	}
+	if err := ensureModPacket(); err != nil {
+		var z1 *VideoFrame
+		return z1, err
+	}
 	if d.closed {
 		return nil, fmt.Errorf("ffmpeg: decoder closed")
 	}
@@ -385,6 +403,10 @@ func (d *Decoder) Next() (*VideoFrame, error) {
 // decoder, so the next Next call decodes forward from the landing.
 // It mirrors the player contract: millisecond in, landing stamp out.
 func (d *Decoder) SeekTo(targetMs int64) (int64, error) {
+	if err := ensureModCore(); err != nil {
+		var z1 int64
+		return z1, err
+	}
 	if d.closed {
 		return 0, fmt.Errorf("ffmpeg: decoder closed")
 	}
@@ -431,4 +453,26 @@ func (d *Decoder) Close() {
 	if d.fmtCtx != nil {
 		fCloseInput(&d.fmtCtx)
 	}
+}
+
+// ensureModDecode 开本模块的灯：先保核心房亮，再开依赖房，最后开自己这间。
+// 大白话：用到这间房的功能才进来开灯（sync.Once，开过不再开）;
+// 缺符号只在这间第一次用时报错，不连累别的功能。
+var modDecodeOnce sync.Once
+
+func ensureModDecode() error {
+	if err := ensureModCore(); err != nil {
+		return err
+	}
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
+	if err := ensureModScale(); err != nil {
+		return err
+	}
+	modDecodeOnce.Do(func() {})
+	return nil
 }

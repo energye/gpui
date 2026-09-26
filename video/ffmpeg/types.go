@@ -36,6 +36,7 @@ const (
 	fmtNbStreams = 44
 	fmtStreams   = 48
 	fmtDuration  = 104
+	fmtPb        = 32
 
 	streamIndex    = 8
 	streamCodecPar = 16
@@ -60,6 +61,7 @@ const (
 	pktData        = 24
 	pktSize        = 32
 	pktStreamIndex = 36
+	pktFlags       = 40
 	pktDuration    = 64
 
 	frameData       = 0

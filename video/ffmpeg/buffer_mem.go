@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -119,6 +120,19 @@ var (
 	fBpStrftime    func(unsafe.Pointer, string, unsafe.Pointer)
 )
 
+// ensureModBufferMem 开本模块的灯：先保核心房亮，再开依赖房，最后开自己这间。
+// 大白话：用到这间房的功能才进来开灯（sync.Once，开过不再开）;
+// 缺符号只在这间第一次用时报错，不连累别的功能。
+var modBufferMemOnce sync.Once
+
+func ensureModBufferMem() error {
+	if err := ensureModCore(); err != nil {
+		return err
+	}
+	modBufferMemOnce.Do(func() { registerBufferMem(libHandle) })
+	return nil
+}
+
 func registerBufferMem(h uintptr) {
 	purego.RegisterLibFunc(&fBufAlloc, h, "av_buffer_alloc")
 	purego.RegisterLibFunc(&fBufAllocZ, h, "av_buffer_allocz")
@@ -177,6 +191,7 @@ func registerBufferMem(h uintptr) {
 
 // Alloc allocates size bytes (记得 Free, 对齐 32).
 func (m *Mem) Alloc(size int) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if size <= 0 {
 		return nil
 	}
@@ -185,6 +200,7 @@ func (m *Mem) Alloc(size int) unsafe.Pointer {
 
 // AllocZ allocates zeroed size bytes.
 func (m *Mem) AllocZ(size int) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if size <= 0 {
 		return nil
 	}
@@ -193,6 +209,7 @@ func (m *Mem) AllocZ(size int) unsafe.Pointer {
 
 // Free releases a Mem.Alloc block (nil-safe).
 func (m *Mem) Free(p unsafe.Pointer) {
+	mustUse(ensureModBufferMem())
 	if p == nil {
 		return
 	}
@@ -201,6 +218,7 @@ func (m *Mem) Free(p unsafe.Pointer) {
 
 // Dup copies size bytes (记得 Free).
 func (m *Mem) Dup(p unsafe.Pointer, size int) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if p == nil || size <= 0 {
 		return nil
 	}
@@ -210,6 +228,7 @@ func (m *Mem) Dup(p unsafe.Pointer, size int) unsafe.Pointer {
 // AllocArray allocates nmemb*size bytes with overflow check
 // (av_malloc_array; 0 元素回 nil).
 func (m *Mem) AllocArray(nmemb, size int) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if nmemb <= 0 || size <= 0 {
 		return nil
 	}
@@ -218,6 +237,7 @@ func (m *Mem) AllocArray(nmemb, size int) unsafe.Pointer {
 
 // Realloc grows/shrinks a Mem.Alloc block (av_realloc; nil 指针当 Alloc 用).
 func (m *Mem) Realloc(p unsafe.Pointer, size int) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if size < 0 {
 		return nil
 	}
@@ -226,6 +246,7 @@ func (m *Mem) Realloc(p unsafe.Pointer, size int) unsafe.Pointer {
 
 // ReallocArray grows with overflow check (av_realloc_array).
 func (m *Mem) ReallocArray(p unsafe.Pointer, nmemb, size int) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if nmemb < 0 || size < 0 {
 		return nil
 	}
@@ -234,6 +255,7 @@ func (m *Mem) ReallocArray(p unsafe.Pointer, nmemb, size int) unsafe.Pointer {
 
 // ReallocF frees the old block on failure (av_realloc_f; 比 Realloc 更安全).
 func (m *Mem) ReallocF(p unsafe.Pointer, nelem, elsize int) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if nelem < 0 || elsize < 0 {
 		return nil
 	}
@@ -242,6 +264,7 @@ func (m *Mem) ReallocF(p unsafe.Pointer, nelem, elsize int) unsafe.Pointer {
 
 // ReallocP reallocs through a pointer slot (av_reallocp; 0 表释放).
 func (m *Mem) ReallocP(pp unsafe.Pointer, size int) error {
+	mustUse(ensureModBufferMem())
 	if ret := fMemReallocP(pp, uintptr(size)); ret < 0 {
 		return codeErr("av_reallocp", ret)
 	}
@@ -251,6 +274,7 @@ func (m *Mem) ReallocP(pp unsafe.Pointer, size int) error {
 // ReallocPArray reallocs an array through a slot with overflow check
 // (av_reallocp_array).
 func (m *Mem) ReallocPArray(pp unsafe.Pointer, nmemb, size int) error {
+	mustUse(ensureModBufferMem())
 	if ret := fMemReallocPAr(pp, uintptr(nmemb), uintptr(size)); ret < 0 {
 		return codeErr("av_reallocp_array", ret)
 	}
@@ -259,6 +283,7 @@ func (m *Mem) ReallocPArray(pp unsafe.Pointer, nmemb, size int) error {
 
 // Freep frees through a slot and nils it (av_freep; 比 Free 多清指针).
 func (m *Mem) Freep(pp unsafe.Pointer) {
+	mustUse(ensureModBufferMem())
 	if pp == nil {
 		return
 	}
@@ -268,6 +293,7 @@ func (m *Mem) Freep(pp unsafe.Pointer) {
 // MemcpyBackptr repeats the last back bytes forward (av_memcpy_backptr;
 // 解码器内部回拷, 一般用不上).
 func (m *Mem) MemcpyBackptr(dst unsafe.Pointer, back, cnt int32) {
+	mustUse(ensureModBufferMem())
 	if dst == nil {
 		return
 	}
@@ -276,6 +302,7 @@ func (m *Mem) MemcpyBackptr(dst unsafe.Pointer, back, cnt int32) {
 
 // NewBuffer allocates a refcounted size-byte buffer.
 func NewBuffer(size int) *Buffer {
+	mustUse(ensureModBufferMem())
 	if size <= 0 {
 		return nil
 	}
@@ -288,6 +315,7 @@ func NewBuffer(size int) *Buffer {
 
 // NewBufferZeroed allocates a zeroed refcounted buffer (av_buffer_allocz).
 func NewBufferZeroed(size int) *Buffer {
+	mustUse(ensureModBufferMem())
 	if size <= 0 {
 		return nil
 	}
@@ -302,6 +330,7 @@ func NewBufferZeroed(size int) *Buffer {
 // free 传 nil 表 ffmpeg 不接管, 传 DefaultFree 走默认释放;
 // 调用后别再碰 data, 归引用计数管).
 func WrapBuffer(data unsafe.Pointer, size int, free, opaque unsafe.Pointer, flags int32) *Buffer {
+	mustUse(ensureModBufferMem())
 	if data == nil || size <= 0 {
 		return nil
 	}
@@ -314,12 +343,14 @@ func WrapBuffer(data unsafe.Pointer, size int, free, opaque unsafe.Pointer, flag
 
 // DefaultFree is the stock release for WrapBuffer (av_buffer_default_free).
 func DefaultFree(opaque, data unsafe.Pointer) {
+	mustUse(ensureModBufferMem())
 	fBufDefaultFre(opaque, data)
 }
 
 // Opaque returns the opaque set at WrapBuffer time
 // (av_buffer_get_opaque).
 func (b *Buffer) Opaque() unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return nil
 	}
@@ -329,6 +360,7 @@ func (b *Buffer) Opaque() unsafe.Pointer {
 // ReallocBuffer grows/shrinks a refcounted buffer (av_buffer_realloc;
 // 独占引用才能改, 共享的先 MakeWritable).
 func ReallocBuffer(buf **Buffer, size int) error {
+	mustUse(ensureModBufferMem())
 	if buf == nil || *buf == nil {
 		return errNilBuffer
 	}
@@ -342,6 +374,7 @@ func ReallocBuffer(buf **Buffer, size int) error {
 
 // Ref adds one reference (记得 Unref 新引用).
 func (b *Buffer) Ref() *Buffer {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return nil
 	}
@@ -354,6 +387,7 @@ func (b *Buffer) Ref() *Buffer {
 
 // Unref drops one reference (归零自动释放).
 func (b *Buffer) Unref() {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}
@@ -364,6 +398,7 @@ func (b *Buffer) Unref() {
 
 // Replace swaps dst to src (引用计数, 老引用先丢).
 func (b *Buffer) Replace(src *Buffer) error {
+	mustUse(ensureModBufferMem())
 	if b == nil {
 		return errNilBuffer
 	}
@@ -379,6 +414,7 @@ func (b *Buffer) Replace(src *Buffer) error {
 
 // IsWritable reports exclusive ownership.
 func (b *Buffer) IsWritable() bool {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return false
 	}
@@ -387,6 +423,7 @@ func (b *Buffer) IsWritable() bool {
 
 // MakeWritable makes the buffer exclusive (写前调).
 func (b *Buffer) MakeWritable() error {
+	mustUse(ensureModBufferMem())
 	if b == nil {
 		return errNilBuffer
 	}
@@ -398,6 +435,7 @@ func (b *Buffer) MakeWritable() error {
 
 // RefCount reports current references.
 func (b *Buffer) RefCount() int {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return 0
 	}
@@ -407,6 +445,7 @@ func (b *Buffer) RefCount() int {
 // NewBufferPool builds a pool of size-byte buffers (记得 Uninit).
 // alloc 传 nil 用默认分配器.
 func NewBufferPool(size int, allocFn unsafe.Pointer) *BufferPool {
+	mustUse(ensureModBufferMem())
 	if size <= 0 {
 		return nil
 	}
@@ -419,6 +458,7 @@ func NewBufferPool(size int, allocFn unsafe.Pointer) *BufferPool {
 
 // Get borrows one buffer from the pool (记得 Unref).
 func (p *BufferPool) Get() *Buffer {
+	mustUse(ensureModBufferMem())
 	if p == nil || p.ptr == nil {
 		return nil
 	}
@@ -433,6 +473,7 @@ func (p *BufferPool) Get() *Buffer {
 // (av_buffer_pool_init2; alloc 传 nil 用默认, poolFree 传 nil 不管;
 // opaque 会在每次 Get 的引用上透出, 见 PoolOpaque).
 func NewBufferPoolCustom(size int, opaque, alloc, poolFree unsafe.Pointer) *BufferPool {
+	mustUse(ensureModBufferMem())
 	if size <= 0 {
 		return nil
 	}
@@ -446,6 +487,7 @@ func NewBufferPoolCustom(size int, opaque, alloc, poolFree unsafe.Pointer) *Buff
 // PoolOpaque returns the custom opaque behind a pooled reference
 // (av_buffer_pool_buffer_get_opaque).
 func (b *Buffer) PoolOpaque() unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return nil
 	}
@@ -454,6 +496,7 @@ func (b *Buffer) PoolOpaque() unsafe.Pointer {
 
 // Uninit frees the pool and nils the holder.
 func (p *BufferPool) Uninit() {
+	mustUse(ensureModBufferMem())
 	if p == nil || p.ptr == nil {
 		return
 	}
@@ -464,6 +507,7 @@ func (p *BufferPool) Uninit() {
 
 // NewFifo builds an element queue (elemSize 字节 x nbElems 个, 记得 Freep).
 func NewFifo(nbElems, elemSize int, flags uint32) *Fifo {
+	mustUse(ensureModBufferMem())
 	if nbElems <= 0 || elemSize <= 0 {
 		return nil
 	}
@@ -476,6 +520,7 @@ func NewFifo(nbElems, elemSize int, flags uint32) *Fifo {
 
 // CanRead reports readable elements.
 func (f *Fifo) CanRead() int {
+	mustUse(ensureModBufferMem())
 	if f == nil || f.ptr == nil {
 		return 0
 	}
@@ -484,6 +529,7 @@ func (f *Fifo) CanRead() int {
 
 // CanWrite reports writable slots without growing.
 func (f *Fifo) CanWrite() int {
+	mustUse(ensureModBufferMem())
 	if f == nil || f.ptr == nil {
 		return 0
 	}
@@ -492,6 +538,7 @@ func (f *Fifo) CanWrite() int {
 
 // Write appends nbElems elements from buf.
 func (f *Fifo) Write(buf unsafe.Pointer, nbElems int) error {
+	mustUse(ensureModBufferMem())
 	if f == nil {
 		return errNilFifo
 	}
@@ -503,6 +550,7 @@ func (f *Fifo) Write(buf unsafe.Pointer, nbElems int) error {
 
 // Read pops nbElems elements into buf.
 func (f *Fifo) Read(buf unsafe.Pointer, nbElems int) error {
+	mustUse(ensureModBufferMem())
 	if f == nil {
 		return errNilFifo
 	}
@@ -515,6 +563,7 @@ func (f *Fifo) Read(buf unsafe.Pointer, nbElems int) error {
 // SetGrowLimit caps auto-growth at maxElems (av_fifo_auto_grow_limit;
 // 0 表不限, 超限的 Write 报错不涨).
 func (f *Fifo) SetGrowLimit(maxElems int) {
+	mustUse(ensureModBufferMem())
 	if f == nil || f.ptr == nil {
 		return
 	}
@@ -523,6 +572,7 @@ func (f *Fifo) SetGrowLimit(maxElems int) {
 
 // ElemSize reports the per-element byte size (av_fifo_elem_size).
 func (f *Fifo) ElemSize() int {
+	mustUse(ensureModBufferMem())
 	if f == nil || f.ptr == nil {
 		return 0
 	}
@@ -531,6 +581,7 @@ func (f *Fifo) ElemSize() int {
 
 // Grow2 reserves room for inc more elements (av_fifo_grow2).
 func (f *Fifo) Grow2(inc int) error {
+	mustUse(ensureModBufferMem())
 	if f == nil {
 		return errNilFifo
 	}
@@ -542,6 +593,7 @@ func (f *Fifo) Grow2(inc int) error {
 
 // Peek copies nbElems at offset without popping (av_fifo_peek).
 func (f *Fifo) Peek(buf unsafe.Pointer, nbElems, offset int) error {
+	mustUse(ensureModBufferMem())
 	if f == nil {
 		return errNilFifo
 	}
@@ -554,6 +606,7 @@ func (f *Fifo) Peek(buf unsafe.Pointer, nbElems, offset int) error {
 // PeekToCallback peeks through a Go callback (av_fifo_peek_to_cb;
 // cb 传 purego.NewCallback 做的指针, 不用传 nil; nbElems 传 nil 表全读).
 func (f *Fifo) PeekToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr, offset int) error {
+	mustUse(ensureModBufferMem())
 	if f == nil {
 		return errNilFifo
 	}
@@ -565,6 +618,7 @@ func (f *Fifo) PeekToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr, offse
 
 // ReadToCallback pops through a Go callback (av_fifo_read_to_cb).
 func (f *Fifo) ReadToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
+	mustUse(ensureModBufferMem())
 	if f == nil {
 		return errNilFifo
 	}
@@ -576,6 +630,7 @@ func (f *Fifo) ReadToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error
 
 // WriteFromCallback pushes through a Go callback (av_fifo_write_from_cb).
 func (f *Fifo) WriteFromCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
+	mustUse(ensureModBufferMem())
 	if f == nil {
 		return errNilFifo
 	}
@@ -587,6 +642,7 @@ func (f *Fifo) WriteFromCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) er
 
 // Drain drops size elements from the head.
 func (f *Fifo) Drain(size int) {
+	mustUse(ensureModBufferMem())
 	if f == nil || f.ptr == nil {
 		return
 	}
@@ -595,6 +651,7 @@ func (f *Fifo) Drain(size int) {
 
 // Reset empties the queue (内存留着复用).
 func (f *Fifo) Reset() {
+	mustUse(ensureModBufferMem())
 	if f == nil || f.ptr == nil {
 		return
 	}
@@ -603,6 +660,7 @@ func (f *Fifo) Reset() {
 
 // Freep frees the queue and nils the holder.
 func (f *Fifo) Freep() {
+	mustUse(ensureModBufferMem())
 	if f == nil || f.ptr == nil {
 		return
 	}
@@ -613,6 +671,7 @@ func (f *Fifo) Freep() {
 
 // NewBPrint builds a print buffer (Init 挂上, 记得 Free).
 func NewBPrint(sizeInit, sizeMax uint32) *BPrint {
+	mustUse(ensureModBufferMem())
 	mem := fMemMalloc(BPrintSize)
 	if mem == nil {
 		return nil
@@ -623,6 +682,7 @@ func NewBPrint(sizeInit, sizeMax uint32) *BPrint {
 
 // AppendData appends bytes.
 func (b *BPrint) AppendData(s string) {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}
@@ -631,6 +691,7 @@ func (b *BPrint) AppendData(s string) {
 
 // Clear empties without freeing.
 func (b *BPrint) Clear() {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}
@@ -639,6 +700,7 @@ func (b *BPrint) Clear() {
 
 // Free finalizes and frees the blob.
 func (b *BPrint) Free() {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}
@@ -648,6 +710,7 @@ func (b *BPrint) Free() {
 
 // AppendChar appends one byte n times (av_bprint_chars).
 func (b *BPrint) AppendChar(c byte, n uint32) {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}
@@ -657,6 +720,7 @@ func (b *BPrint) AppendChar(c byte, n uint32) {
 // Escape appends src escaping specialChars (av_bprint_escape;
 // mode 用 EscapeMode* 常量, flags 传 0).
 func (b *BPrint) Escape(src, specialChars string, mode, flags int32) {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}
@@ -666,6 +730,10 @@ func (b *BPrint) Escape(src, specialChars string, mode, flags int32) {
 // Finalize seals the buffer and hands out the C string
 // (av_bprint_finalize; 返回的指针用 Mem.Free 放).
 func (b *BPrint) Finalize() (unsafe.Pointer, error) {
+	if err := ensureModBufferMem(); err != nil {
+		var z1 unsafe.Pointer
+		return z1, err
+	}
 	if b == nil || b.ptr == nil {
 		return nil, errNilFF
 	}
@@ -679,6 +747,7 @@ func (b *BPrint) Finalize() (unsafe.Pointer, error) {
 // GetBuffer reserves size bytes and reports the write pointer
 // (av_bprint_get_buffer; actualSize 由包内写).
 func (b *BPrint) GetBuffer(size uint32, actualSize *uint32) unsafe.Pointer {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return nil
 	}
@@ -690,6 +759,7 @@ func (b *BPrint) GetBuffer(size uint32, actualSize *uint32) unsafe.Pointer {
 // InitForBuffer reuses external memory as the backing store
 // (av_bprint_init_for_buffer; 别 Free 外部内存, 归调用方管).
 func (b *BPrint) InitForBuffer(buf unsafe.Pointer, size uint32) {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}
@@ -699,6 +769,7 @@ func (b *BPrint) InitForBuffer(buf unsafe.Pointer, size uint32) {
 // AppendTime formats tm with fmt (av_bprint_strftime; tm 传 *time.Time
 // 的 C 镜像指针, 一般直接传 nil 用当前时间 — 见 av_bprint_strftime).
 func (b *BPrint) AppendTime(fmtStr string, tm unsafe.Pointer) {
+	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
 		return
 	}

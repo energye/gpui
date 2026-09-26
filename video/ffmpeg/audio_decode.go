@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"fmt"
 	"math"
+	"sync"
 	"unsafe"
 )
 
@@ -69,7 +70,7 @@ func (a *AudioStream) Info() AudioInfo2 { return a.info }
 // float interleaved stereo at 48000Hz. Silent clips report
 // errNoAudioTrack (callers map it to video.ErrNoAudio).
 func OpenAudio(path string) (*AudioStream, error) {
-	if err := ensureLoaded(); err != nil {
+	if err := ensureModAudio(); err != nil {
 		return nil, err
 	}
 	if path == "" {
@@ -165,6 +166,18 @@ func (a *AudioStream) ptsToMs(pts int64) int64 {
 // interleaved stereo at 48000Hz). It returns ErrNoAudioDone after the
 // drained tail.
 func (a *AudioStream) Next() (*AudioFrame2, error) {
+	if err := ensureModCore(); err != nil {
+		var z1 *AudioFrame2
+		return z1, err
+	}
+	if err := ensureModFrame(); err != nil {
+		var z1 *AudioFrame2
+		return z1, err
+	}
+	if err := ensureModPacket(); err != nil {
+		var z1 *AudioFrame2
+		return z1, err
+	}
 	if a.closed {
 		return nil, fmt.Errorf("ffmpeg: audio closed")
 	}
@@ -236,6 +249,10 @@ func (a *AudioStream) Next() (*AudioFrame2, error) {
 // SeekTo jumps to the keyframe at or before targetMs and flushes the
 // decoder, so the next Next call decodes forward from the landing.
 func (a *AudioStream) SeekTo(targetMs int64) (int64, error) {
+	if err := ensureModCore(); err != nil {
+		var z1 int64
+		return z1, err
+	}
 	if a.closed {
 		return 0, fmt.Errorf("ffmpeg: audio closed")
 	}
@@ -255,6 +272,10 @@ func (a *AudioStream) SeekTo(targetMs int64) (int64, error) {
 
 // Close frees every ffmpeg object owned by this open.
 func (a *AudioStream) Close() {
+	mustUse(ensureModCore())
+	mustUse(ensureModFrame())
+	mustUse(ensureModPacket())
+	mustUse(ensureModResample())
 	if a.closed {
 		return
 	}
@@ -282,6 +303,8 @@ func (a *AudioStream) Close() {
 // by channel count); rates and formats ride av_opt_set_int/_sample_fmt
 // exactly like the swresample.h doc example; then swr_init locks in.
 func (a *AudioStream) ensureSwr(inFmt, inRate, inCh int32) error {
+	mustUse(ensureModDictOpt())
+	mustUse(ensureModResample())
 	if a.swr != nil && a.swrFmt == inFmt && a.swrRate == inRate && a.swrCh == inCh {
 		return nil
 	}
@@ -419,7 +442,7 @@ func float32FromLE(b []byte) float32 {
 // only, no decode). False on any probe failure: callers treat that as
 // silent, never as an error.
 func HasAudioTrack(path string) bool {
-	if path == "" || ensureLoaded() != nil {
+	if path == "" || ensureModAudio() != nil {
 		return false
 	}
 	fNetInit()
@@ -433,4 +456,29 @@ func HasAudioTrack(path string) bool {
 	}
 	var decPtr unsafe.Pointer
 	return fBestStream(fmtCtx, MediaTypeAudio, -1, -1, &decPtr, 0) >= 0
+}
+
+// ensureModAudio 开本模块的灯：先保核心房亮，再开依赖房，最后开自己这间。
+// 大白话：用到这间房的功能才进来开灯（sync.Once，开过不再开）;
+// 缺符号只在这间第一次用时报错，不连累别的功能。
+var modAudioOnce sync.Once
+
+func ensureModAudio() error {
+	if err := ensureModCore(); err != nil {
+		return err
+	}
+	if err := ensureModPacket(); err != nil {
+		return err
+	}
+	if err := ensureModFrame(); err != nil {
+		return err
+	}
+	if err := ensureModDictOpt(); err != nil {
+		return err
+	}
+	if err := ensureModResample(); err != nil {
+		return err
+	}
+	modAudioOnce.Do(func() {})
+	return nil
 }
