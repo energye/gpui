@@ -59,6 +59,29 @@
   - H4 `gwgpu` 补实现并收官（未开始）：`render` 跑通后再做，对照新 `hal` 改、对照 `webgpu` 功能补；三端构建+全量单测+鹈鹕单窗真上屏（像素零差+显存对照）。
 - 历史留档：2026-09-25 前的 H1/H2/H3 交货记录已回退干净（`gpu` 58 改回+18 新增删，`render` 100 改回+2 新增删，备份在 `/tmp/opencode`），待按新 H1-H4 重做，明细见 git 历史与备份 patch。
 
+## 附：H1 对照表（以源码为准，2026-09-26 拉取，改动中发现随时补）
+
+> 读法：第一列是 `render` 现在调的 `webgpu` 方法（源码数过）；第二列是 `hal` 现状；第三列是 H1 对 `hal` 的动作。`hal` 只改接口不写实现，对不上直接改 `hal`，不改 `webgpu`。
+
+| render 用的 webgpu 方法 | hal 现状 | H1 动作 |
+|---|---|---|
+| `Device.CreateBuffer/CreateTexture/CreateTextureView/CreateSampler/CreateShaderModule/CreateBindGroupLayout/CreatePipelineLayout/CreateBindGroup/CreateRenderPipeline/CreateComputePipeline/CreateCommandEncoder`（各约 20-70 处） | `hal.Device` 同名创建全有，返回 `hal` 接口（`webgpu` 返回具体指针） | `hal` 不动形状；H2 把 `webgpu` 返回改成 `hal` 接口 |
+| `device.Queue()`（5 处）、`device.Features()/Limits()`（各约 20 处） | `hal.Device` 无 `Queue/Features/Limits`（`Adapter.Open` 一次给 `Device+Queue`） | `hal.Device` 补 `Queue()/Features()/Limits()`，按 `webgpu` 签名 |
+| `device.Poll(PollWait)`（10 处）、`device.WaitIdle()`（8 处）、`device.IsLost()`（4 处）、`device.FlushCallbacks()`（2 处） | `hal.Device` 有 `WaitIdle`，无 `Poll/IsLost/FlushCallbacks` | `hal.Device` 补 `Poll/IsLost/FlushCallbacks`，按 `webgpu` 签名 |
+| `device.PushErrorScope(ErrorFilterValidation)/PopErrorScope()`（各 1 处） | `hal` 无错误作用域口 | `hal.Device` 补 `PushErrorScope/PopErrorScope`，按 `webgpu` 签名 |
+| `device.MapAsync/MapState/MappedRange/Map/Unmap`（`Buffer` 上各约 17 处，经 `MapHal` 三帮手） | `hal` 是 `Device.MapBuffer/UnmapBuffer`（同步阻塞，后端消化） | `hal` 保留 `Map/Unmap`，删门面三帮手，`render` 直调 `hal.Device` 方法 |
+| `device.Destroy()/Release()/FreeCommandBuffer()` | `hal.Device` 有 `Destroy/FreeCommandBuffer`，另有 `DestroyBuffer` 等逐资源销毁 | `hal` 补 `Release` 语义说明（与 `Destroy` 二选一，按 `webgpu` 定一名），`render` 跟改 |
+| `device.CreateFence/DestroyFence/ResetFence/GetFenceStatus/WaitForFence` | `hal.Device` 有 `CreateFence/DestroyFence/Wait/ResetFence/GetFenceStatus`（`Wait` 对 `WaitForFence`） | `hal` 把 `Wait` 改名对齐 `webgpu` 或注明对应关系，老调用一起改 |
+| `queue.Submit(...)`（38 处，变参）、`queue.WriteBuffer`（42 处）、`queue.WriteTexture`（35 处） | `hal.Queue.Submit([]CommandBuffer)` 切片形，`WriteBuffer/WriteTexture` 收 `hal` 形 | `hal.Queue.Submit` 改变参对齐 `webgpu`；`Write` 系只换接口形，字段不动 |
+| `queue.Poll()`、`queue.LastSubmissionIndex()`、`queue.OnSubmittedWorkDone()` | `hal.Queue` 是 `PollCompleted()`，无后两者 | `hal.Queue` 补 `Poll/LastSubmissionIndex` 按 `webgpu` 改名，`OnSubmittedWorkDone` 留门面（hal 不收 future） |
+| `encoder.BeginRenderPass/BeginComputePass`（约 17 处，回 `(*Pass, error)`） | `hal` 回 `RenderPassEncoder/ComputePassEncoder` 无 error | `hal` 按 `webgpu` 加 error（或 `webgpu` 去 error，二选一，定完全量改） |
+| `encoder.CopyBufferToBuffer(src,srcOff,dst,dstOff,size)` 扁平五参、`CopyBufferToTexture/CopyTextureToBuffer/CopyTextureToTexture/ClearBuffer/TransitionTextures/DiscardEncoding/Finish/Status` | `hal` 是 `regions` 数组形（`CopyBufferToBuffer(src,dst,regions)`），另有 `BeginEncoding/EndEncoding/ResetAll/ResolveQuerySet` 等 `webgpu` 没有的 | 拷贝按 `webgpu` 扁平签名改 `hal`；`hal` 多出来的 `Begin/EndEncoding` 等删或注明去向，`Finish/Status/Discard` 按 `webgpu` 补进 `hal` |
+| `pass.SetPipeline/SetBindGroup/SetVertexBuffer/SetIndexBuffer/SetViewport/SetScissorRect/SetBlendConstant/SetStencilReference/Draw/DrawIndexed/DrawIndirect/DrawIndexedIndirect/End/Dispatch/DispatchIndirect` | `hal` 的 `Draw` 收结构体（`DrawArgs`）、`SetViewport/SetScissorRect` 收结构体、有 `DrawIndirectCount/ExecuteBundle`，`End()` 无 error | 画法与视口按 `webgpu` 扁平签名改 `hal`；`Count/ExecuteBundle` 留 `hal`（`webgpu` 照补或注明不用）；`End` 回错按 `webgpu` 加 error |
+| `Buffer.Size/Usage/Label/Release/MapState`、`Texture.Format/Release`、`TextureView.Texture/Release`、`Sampler/ShaderModule/Adapter/Instance` 创建与查询系 | `hal` 资源口只有 `Release/CurrentUsage/PendingRef/NativeHandle`，无 `Size/Usage/Label/Format/Texture()` 查询 | `hal` 资源口按 `webgpu` 补查询方法（`Size/Usage/Label/Format/ParentTexture` 等），只读不改状态 |
+| `CreateInstance/RequestAdapter/RequestDevice/DeviceDescriptor/RequestAdapterOptions/BackendsPrimary/PowerPreference*`（各约 10 处） | `hal.Instance` 是 `CreateSurface/EnumerateAdapters`，`hal.Adapter` 是 `Open`，层级与 `webgpu` 不一样 | `hal` 按 `webgpu` 补创建入口形态（`CreateInstance/RequestAdapter/RequestDevice`），或注明 `hal` 注册表如何对应，定完 `render` 创建入口一起换 |
+| `NewSwapchain/DeviceFromHandle/AdapterFromHandle/NativeViewToHandle/SimpleDeviceProvider/VramLiveBytes/SetLogger/AfterSurfaceUnconfigure/BeforeDeviceRecover` | `hal` 无这批（创建/观测/桥接归门面） | 留门面最小形态，不进 `hal`；`hal` 丢设备报错统一 `ErrDeviceLost`，两边一致 |
+| 描述符/枚举（`Extent3D/TextureDescriptor/BufferDescriptor/RenderPassDescriptor/StencilOperation*/TextureFormat/BufferUsage` 等，约 60 类） | `hal` 描述符字段与 `webgpu` 基本同构，枚举多经 `types` | 逐字段对，差一字段就按 `webgpu` 改 `hal`；`render` 直写 `hal.Xxx`/`types.Xxx`，删冗余别名 |
+
 ## 5. 门禁
 
 - 像素：T5/T12 两时刻 Golden 逐位对（T5 `58315c5278c968e2e57aa7f801ddbfde`、T12 `840ffe6d4f16baf1f16b26013e4de46e`，`cmp` 零差），容差写明；逻辑探针加像素断言加 Golden，缺一不可。
