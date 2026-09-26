@@ -1,9 +1,10 @@
 package ffmpeg
 
-// 五个视频功能演示测试：每个功能产一个文件，全放 ../testdata/ 里，方便直接打开看。
+// 五个视频功能演示测试：全部以 1080p_1920_1080_60fps.mp4 为基准。
 //
-// 大白话：拆段、字幕、提音频、缩放转码、烧字，一个功能一个测试，
-// 产五个小文件。片源用仓里现成小片，输出也都是小文件。
+// 大白话：先把 1080p 原片切成两段（都在 testdata 里），
+// 后面的字幕、缩放、烧字都在切出来的段上再加工，各存新文件。
+// 原片只有视频轨没有音频轨，提音频这项只能诚实跳过。
 // 写文件要高级版库，没有就 Skip；缺字体（烧字用）也 Skip，不硬撑。
 
 import (
@@ -71,38 +72,74 @@ func featSubProbe(t *testing.T, path string) int {
 	return n
 }
 
-// TestFeatSplitRanges 多区间拆段：同一原片切头尾两段，各存一个 mp4。
-// 原片用仓里 22M 的 vr_oceans（已有），每段只取 1 秒，输出几百 KB。
-func TestFeatSplitRanges(t *testing.T) {
-	featGate(t)
-	src := "../testdata/vr_oceans.mp4"
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("clip missing: %s", src)
+// 基准片和切段落盘位置：全在 ../testdata/ 里，方便直接打开看。
+// 原片 10.68 秒，关键帧在 0 / 4.167 / 8.333 秒（250 帧一个，实测），
+// 两段都从关键帧起切：第一段 0-5 秒，第二段 4.167 秒到片尾（约 6.5 秒），
+// 每段都不短于 5 秒，时长不一样，第二段不在开头。
+const (
+	featSrc1080p = "../testdata/1080p_1920_1080_60fps.mp4"
+	featSegHead  = "../testdata/feat_split_head.mp4"
+	featSegMid   = "../testdata/feat_split_mid.mp4"
+)
+
+// featEnsureSplits 保证两段切好：已存在就直接用，缺了就现切。
+// 大白话：各测试单独跑也要能工作，不依赖执行顺序。
+func featEnsureSplits(t *testing.T) {
+	t.Helper()
+	if _, err := os.Stat(featSrc1080p); err != nil {
+		t.Skipf("clip missing: %s", featSrc1080p)
 	}
-	bounds := [][2]int64{{0, 1000}, {1000, 2000}}
-	names := []string{"feat_split_head.mp4", "feat_split_mid.mp4"}
+	bounds := [][2]int64{{0, 5000}, {4167, 10683}}
+	outs := []string{featSegHead, featSegMid}
 	for i, b := range bounds {
-		out := filepath.Join("../testdata", names[i])
-		if err := RemuxSegment(src, b[0], b[1], out, fmt.Sprintf("split seg %d", i)); err != nil {
-			t.Fatalf("seg %d: %v", i, err)
+		if _, err := os.Stat(outs[i]); err == nil {
+			continue
 		}
-		featProbe(t, out)
+		if err := RemuxSegment(featSrc1080p, b[0], b[1], outs[i], fmt.Sprintf("1080p seg %d", i)); err != nil {
+			t.Fatalf("ensure seg %d: %v", i, err)
+		}
 	}
 }
 
-// TestFeatSubtitles 多字幕版本：同一段挂不同字幕，各存一个 mp4。
+// TestFeatSplitRanges 多区间拆段：1080p 原片切两段，各存一个 mp4。
+// 第一段从开头取 5 秒，第二段从 4.167 秒关键帧取到片尾（约 6.5 秒），
+// 时长不一样，且第二段不在开头。
+func TestFeatSplitRanges(t *testing.T) {
+	featGate(t)
+	if _, err := os.Stat(featSrc1080p); err != nil {
+		t.Skipf("clip missing: %s", featSrc1080p)
+	}
+	bounds := [][2]int64{{0, 5000}, {4167, 10683}}
+	names := []string{featSegHead, featSegMid}
+	for i, b := range bounds {
+		out := names[i]
+		if err := RemuxSegment(featSrc1080p, b[0], b[1], out, fmt.Sprintf("1080p seg %d", i)); err != nil {
+			t.Fatalf("seg %d: %v", i, err)
+		}
+		featProbe(t, out)
+		// 时长粗验：切点落关键帧，前后差几秒正常，允许 ±3 秒。
+		d, err := Open(out)
+		if err != nil {
+			t.Fatalf("reopen %s: %v", out, err)
+		}
+		got, want := d.Info().DurMs, b[1]-b[0]
+		d.Close()
+		if got < want-3000 || got > want+3000 {
+			t.Fatalf("%s dur %d want ~%d", out, got, want)
+		}
+	}
+}
+
+// TestFeatSubtitles 多字幕版本：在切出来的第一段上挂不同字幕，各存一个 mp4。
 // 中英文各一句，验证 mov_text 字幕轨写进去且能认出来。
 func TestFeatSubtitles(t *testing.T) {
 	featGate(t)
-	src := "../testdata/vr_oceans.mp4"
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("clip missing: %s", src)
-	}
+	featEnsureSplits(t)
 	subs := []string{"第一段测试字幕", "hello feature test"}
-	names := []string{"feat_sub_cn.mp4", "feat_sub_en.mp4"}
+	names := []string{"../testdata/feat_sub_cn.mp4", "../testdata/feat_sub_en.mp4"}
 	for i, text := range subs {
-		out := filepath.Join("../testdata", names[i])
-		if err := RemuxSegment(src, 0, 1000, out, text); err != nil {
+		out := names[i]
+		if err := RemuxSegment(featSegHead, 0, 5000, out, text); err != nil {
 			t.Fatalf("sub %d: %v", i, err)
 		}
 		if n := featSubProbe(t, out); n < 1 {
@@ -112,16 +149,17 @@ func TestFeatSubtitles(t *testing.T) {
 	}
 }
 
-// TestFeatAudioExtract 音频单独提取：取原片头 1 秒声音，存成 wav。
-// 大白话：音频接口吐的是 48k 双声道浮点，转成 16 位整型按 wav 格式落盘，
-// 播放器都能直接放。
+// TestFeatAudioExtract 音频单独提取：在切出来的第一段上取声音，存成 wav。
+// 大白话：音频接口吐的是 48k 双声道浮点，转成 16 位整型按 wav 格式落盘。
+// 现状：1080p 原片没有音频轨，切出来的段也没有，这项只能跳过，
+// 不造假数据。哪天换有声片来，这套路子直接能用。
 func TestFeatAudioExtract(t *testing.T) {
 	featGate(t)
-	src := "../testdata/vr_oceans.mp4"
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("clip missing: %s", src)
+	featEnsureSplits(t)
+	if !HasAudioTrack(featSegHead) {
+		t.Skipf("no audio track in 1080p splits (source has video only), skip")
 	}
-	a, err := OpenAudio(src)
+	a, err := OpenAudio(featSegHead)
 	if err != nil {
 		t.Fatalf("open audio: %v", err)
 	}
@@ -130,10 +168,7 @@ func TestFeatAudioExtract(t *testing.T) {
 	for {
 		fr, err := a.Next()
 		if err != nil {
-			break // 读完或到尾都停，有多少算多少
-		}
-		if fr.PTSMs >= 1000 {
-			break
+			break // 读完或到尾都停，有多少算多少（整段全提）
 		}
 		for _, s := range fr.Data {
 			if s > 1 {
@@ -274,16 +309,13 @@ func featMuxEncoder(t *testing.T, dst string, enc *CodecContext) (outPtr unsafe.
 	return outPtr, streamIdx, streamTb, done
 }
 
-// TestFeatScaleTranscode 缩放转码：480p 原片解 5 帧，缩成 320x180，
-// 用 mpeg4 重编码存成小 mp4。验证编码链路真能出片。
+// TestFeatScaleTranscode 缩放转码：在切出来的第二段上做，缩成 960x540，
+// 用 mpeg4 重编码存成新 mp4。整段全转，验证编码链路真能出片。
 func TestFeatScaleTranscode(t *testing.T) {
 	featGate(t)
-	src := "../testdata/vr2_480p.mp4"
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("clip missing: %s", src)
-	}
-	dst := filepath.Join("../testdata", "feat_small.mp4")
-	n := featScaleFile(t, src, dst, 320, 180, 5)
+	featEnsureSplits(t)
+	dst := "../testdata/feat_small.mp4"
+	n := featScaleFile(t, featSegMid, dst, 960, 540, 10000)
 	if n <= 0 {
 		t.Fatalf("wrote 0 packets")
 	}
@@ -293,8 +325,8 @@ func TestFeatScaleTranscode(t *testing.T) {
 		t.Fatalf("reopen: %v", err)
 	}
 	defer d.Close()
-	if d.Info().Width != 320 || d.Info().Height != 180 {
-		t.Fatalf("size %dx%d want 320x180", d.Info().Width, d.Info().Height)
+	if d.Info().Width != 960 || d.Info().Height != 540 {
+		t.Fatalf("size %dx%d want 960x540", d.Info().Width, d.Info().Height)
 	}
 }
 
@@ -314,7 +346,8 @@ func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
 	defer freeGraph()
 	srcF := &FilterSource{ptr: fsrc}
 	sinkF := &FilterSink{ptr: fsink}
-	enc, err := openFeatEncoder(CodecIDMPEG4, int32(w), int32(h), PixFmtYUV420P, tb, 400000)
+	encTb := AVRational{Num: 1, Den: 60}
+	enc, err := openFeatEncoder(CodecIDMPEG4, int32(w), int32(h), PixFmtYUV420P, encTb, 400000)
 	if err != nil {
 		t.Fatalf("encoder: %v", err)
 	}
@@ -323,7 +356,7 @@ func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
 	ok := false
 	defer func() { done(ok) }()
 	var mux Muxer
-	wrote := featPump(t, inPtr, vid, dec, srcF, sinkF, enc, &mux, outPtr, streamIdx, tb, streamTb, maxFrames)
+	wrote := featPump(t, inPtr, vid, dec, srcF, sinkF, enc, &mux, outPtr, streamIdx, tb, encTb, streamTb, maxFrames)
 	if ret := fAvWriteTrailer(outPtr); ret < 0 {
 		t.Fatalf("trailer: %s", errText(ret))
 	}
@@ -333,8 +366,10 @@ func featScaleFile(t *testing.T, src, dst string, w, h, maxFrames int) int {
 }
 
 // featPump 解→滤→编→写主循环：读包送解码、收帧推滤镜、拉帧送编码、收包写盘。
-// 时基全程同一套（解码流时基），帧序号直传，最多处理 maxFrames 个解码帧。
-func featPump(t *testing.T, inPtr unsafe.Pointer, vid int32, dec *CodecContext, srcF *FilterSource, sinkF *FilterSink, enc *CodecContext, mux *Muxer, outPtr unsafe.Pointer, streamIdx int32, tb, streamTb AVRational, maxFrames int) int {
+// 解码侧走 tb（原片流时基），编码侧走 encTb（自选的安全时基，
+// mpeg4 不收 1/90000 这种大分母）；帧序号进编码前先换算，包序号出编码后再换到流时基。
+// 最多处理 maxFrames 个解码帧。
+func featPump(t *testing.T, inPtr unsafe.Pointer, vid int32, dec *CodecContext, srcF *FilterSource, sinkF *FilterSink, enc *CodecContext, mux *Muxer, outPtr unsafe.Pointer, streamIdx int32, tb, encTb, streamTb AVRational, maxFrames int) int {
 	t.Helper()
 	pkt := NewPacket()
 	if pkt == nil {
@@ -358,14 +393,14 @@ func featPump(t *testing.T, inPtr unsafe.Pointer, vid int32, dec *CodecContext, 
 	defer epkt.Free()
 	wrote := 0
 	gotFrames := 0
-	// 拉编码包写盘小闭包。
+	// 拉编码包写盘小闭包（编码包序号走编码时基，先换到流时基再写）。
 	drainEnc := func() {
 		for {
 			epkt.Unref()
 			if err := enc.ReceivePacket(epkt); err != nil {
 				break // EAGAIN/EOF 都是排空信号
 			}
-			epkt.RescaleTs(tb, streamTb)
+			epkt.RescaleTs(encTb, streamTb)
 			epkt.SetStreamIndex(int(streamIdx))
 			if err := mux.InterleavedWriteFrame(outPtr, epkt.ptr); err != nil {
 				t.Fatalf("write pkt: %v", err)
@@ -373,12 +408,15 @@ func featPump(t *testing.T, inPtr unsafe.Pointer, vid int32, dec *CodecContext, 
 			wrote++
 		}
 	}
-	// 拉滤镜帧送编码小闭包。
+	// 拉滤镜帧送编码小闭包（滤镜帧序号走解码时基，先换到编码时基再送）。
 	drainSink := func() {
 		for {
 			out.Unref()
 			if ret := sinkF.GetFrame(out.ptr); ret < 0 {
 				break
+			}
+			if pts := loadInt64(out.ptr, framePTS); pts != NoPTS {
+				*(*int64)(unsafe.Add(out.ptr, framePTS)) = Math{}.RescaleQ(pts, tb, encTb)
 			}
 			if err := enc.SendFrame(out); err != nil {
 				t.Fatalf("send frame: %v", err)
@@ -418,8 +456,8 @@ func featPump(t *testing.T, inPtr unsafe.Pointer, vid int32, dec *CodecContext, 
 	return wrote
 }
 
-// TestFeatBurnSubtitle 画面烧字：解 5 帧，每帧右下角烧一行字，重编码存盘。
-// 大白话：字幕轨的字能开关，烧进画面的字关不掉，抖音水印就是这个路子。
+// TestFeatBurnSubtitle 画面烧字：在切出来的第一段上做，整段每帧左上角烧一行字，
+// 重编码存新盘。大白话：字幕轨的字能开关，烧进画面的字关不掉，抖音水印就是这个路子。
 // 要系统字库，没有就 Skip。
 func TestFeatBurnSubtitle(t *testing.T) {
 	featGate(t)
@@ -427,12 +465,9 @@ func TestFeatBurnSubtitle(t *testing.T) {
 	if _, err := os.Stat(font); err != nil {
 		t.Skipf("font missing: %s", font)
 	}
-	src := "../testdata/vr2_480p.mp4"
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("clip missing: %s", src)
-	}
-	dst := filepath.Join("../testdata", "feat_burn.mp4")
-	n := featBurnFile(t, src, dst, font, "feat burn test", 5)
+	featEnsureSplits(t)
+	dst := "../testdata/feat_burn.mp4"
+	n := featBurnFile(t, featSegHead, dst, font, "feat burn test", 10000)
 	if n <= 0 {
 		t.Fatalf("wrote 0 packets")
 	}
@@ -456,7 +491,8 @@ func featBurnFile(t *testing.T, src, dst, font, text string, maxFrames int) int 
 	defer freeGraph()
 	srcF := &FilterSource{ptr: fsrc}
 	sinkF := &FilterSink{ptr: fsink}
-	enc, err := openFeatEncoder(CodecIDMPEG4, srcW, srcH, PixFmtYUV420P, tb, 400000)
+	encTb := AVRational{Num: 1, Den: 60}
+	enc, err := openFeatEncoder(CodecIDMPEG4, srcW, srcH, PixFmtYUV420P, encTb, 400000)
 	if err != nil {
 		t.Fatalf("encoder: %v", err)
 	}
@@ -465,7 +501,7 @@ func featBurnFile(t *testing.T, src, dst, font, text string, maxFrames int) int 
 	ok := false
 	defer func() { done(ok) }()
 	var mux Muxer
-	wrote := featPump(t, inPtr, vid, dec, srcF, sinkF, enc, &mux, outPtr, streamIdx, tb, streamTb, maxFrames)
+	wrote := featPump(t, inPtr, vid, dec, srcF, sinkF, enc, &mux, outPtr, streamIdx, tb, encTb, streamTb, maxFrames)
 	if ret := fAvWriteTrailer(outPtr); ret < 0 {
 		t.Fatalf("trailer: %s", errText(ret))
 	}
