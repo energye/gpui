@@ -14,6 +14,11 @@ const MaxColorAttachments = 8
 const MaxTotalAttachments = MaxColorAttachments*2 + 1
 
 // InstanceDescriptor describes how to create a GPU instance.
+// Superset of gpu/webgpu InstanceDescriptor: backend selectors plus the
+// X11 connection fields (XlibDisplay/XlibScreen, X11-only, ignored by
+// non-X11 backends). Matches gpu/webgpu/instance.go:16 shapes.
+// Wayland/Windows/macOS need no instance fields: their handles ride the
+// SurfaceTarget at surface creation (hal/surface_target.go:19).
 type InstanceDescriptor struct {
 	// Backends specifies which backends to enable.
 	Backends gputypes.Backends
@@ -26,10 +31,21 @@ type InstanceDescriptor struct {
 
 	// GLBackend specifies the OpenGL backend flavor (GL or GLES).
 	GLBackend gputypes.GLBackend
+
+	// XlibDisplay is Display* for GL/X11 instance association (optional,
+	// X11-only; 0 means use the default display).
+	XlibDisplay uintptr
+
+	// XlibScreen is the X11 screen index (DefaultScreen), X11-only.
+	XlibScreen int32
 }
 
 // RequestAdapterOptions controls adapter selection.
 // Mirrors gpu/webgpu RequestAdapterOptions (gpu/webgpu/types.go:101).
+// CompatibleSurface stays the hal.Surface interface: hal cannot name
+// *webgpu.Surface (webgpu already imports hal, so that would be an import
+// cycle). It is the hal-side equivalent of webgpu's *Surface (nilable
+// surface reference); full unification waits for slice 7 creation entry.
 type RequestAdapterOptions struct {
 	// PowerPreference indicates power consumption preference.
 	PowerPreference gputypes.PowerPreference
@@ -41,7 +57,7 @@ type RequestAdapterOptions struct {
 }
 
 // DeviceDescriptor configures device creation.
-// Mirrors gpu/webgpu DeviceDescriptor (gpu/webgpu/adapter.go:15).
+// Mirrors gpu/webgpu DeviceDescriptor (gpu/webgpu/adapter.go:14).
 type DeviceDescriptor struct {
 	Label            string
 	RequiredFeatures gputypes.Features

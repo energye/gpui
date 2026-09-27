@@ -152,6 +152,9 @@ func (p PowerPreference) String() string {
 }
 
 // RequestAdapterOptions controls adapter selection.
+// Raw-handle form: CompatibleSurface is a plain uintptr (0 if none).
+// Typed forms live in gpu/hal (hal.Surface interface) and gpu/webgpu
+// (*Surface); unification waits for slice 7 creation entry.
 type RequestAdapterOptions struct {
 	// PowerPreference indicates power consumption preference.
 	PowerPreference PowerPreference
@@ -161,46 +164,22 @@ type RequestAdapterOptions struct {
 	CompatibleSurface uintptr
 }
 
-// MemoryHints provides memory allocation hints for device creation.
-type MemoryHints uint8
-
-const (
-	// MemoryHintsPerformance optimizes for performance (may use more memory).
-	MemoryHintsPerformance MemoryHints = iota
-	// MemoryHintsMemoryUsage optimizes for low memory usage.
-	MemoryHintsMemoryUsage
-)
-
-// String returns the memory hints name.
-func (h MemoryHints) String() string {
-	switch h {
-	case MemoryHintsPerformance:
-		return "Performance"
-	case MemoryHintsMemoryUsage:
-		return "MemoryUsage"
-	default:
-		return "Unknown"
-	}
-}
-
 // DeviceDescriptor describes how to create a GPU device.
+// Matches gpu/webgpu DeviceDescriptor and gpu/hal DeviceDescriptor:
+// RequiredFeatures is a feature bitmask (not a list).
 type DeviceDescriptor struct {
 	// Label is an optional debug label.
 	Label string
 	// RequiredFeatures lists features the device must support.
-	RequiredFeatures []Feature
+	RequiredFeatures Features
 	// RequiredLimits specifies limits the device must meet.
 	RequiredLimits Limits
-	// MemoryHints provides memory allocation hints.
-	MemoryHints MemoryHints
 }
 
 // DefaultDeviceDescriptor returns a device descriptor with default settings.
 func DefaultDeviceDescriptor() DeviceDescriptor {
 	return DeviceDescriptor{
-		RequiredFeatures: nil,
-		RequiredLimits:   DefaultLimits(),
-		MemoryHints:      MemoryHintsPerformance,
+		RequiredLimits: DefaultLimits(),
 	}
 }
 
@@ -265,6 +244,8 @@ const (
 )
 
 // InstanceDescriptor describes how to create a GPU instance.
+// Backend selectors only; the X11 connection (XlibDisplay/XlibScreen)
+// lives in gpu/hal and gpu/webgpu instance descriptors (X11-only).
 type InstanceDescriptor struct {
 	// Backends specifies which backends to enable.
 	Backends Backends

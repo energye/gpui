@@ -287,7 +287,7 @@ type Device interface {
 	// WaitForFence waits for a fence to reach the specified value.
 	// Returns true if the fence reached the value, false if timeout.
 	// Returns ErrDeviceLost if the device is lost.
-	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:405).
+	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:421).
 	WaitForFence(fence Fence, value uint64, timeout time.Duration) (bool, error)
 
 	// ResetFence resets a fence to the unsignaled state.
@@ -304,23 +304,23 @@ type Device interface {
 	WaitIdle() error
 
 	// Poll drives pending work and pumps callbacks.
-	// Matches webgpu Device.Poll (gpu/webgpu/device.go:456).
+	// Matches webgpu Device.Poll (gpu/webgpu/device.go:475).
 	Poll(pollType PollType) bool
 
 	// IsLost reports whether the device was marked lost.
-	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:529).
+	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:548).
 	IsLost() bool
 
 	// FlushCallbacks pumps pending callbacks and folds lost signals.
-	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:468).
+	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:487).
 	FlushCallbacks()
 
 	// PushErrorScope pushes a new error scope onto the device's error scope stack.
-	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:418).
+	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:436).
 	PushErrorScope(filter ErrorFilter)
 
 	// PopErrorScope pops the most recently pushed error scope.
-	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:426).
+	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:442).
 	PopErrorScope() *GPUError
 
 	// CreateAccelerationStructure creates an acceleration structure (BLAS or TLAS).

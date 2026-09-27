@@ -88,12 +88,12 @@ func (s BufferMapState) String() string {
 
 // MapMode describes the access mode for buffer mapping.
 //
-// This is a bit flag type.
+// This is a bit flag type. Matches gpu/webgpu MapMode
+// (gpu/webgpu/map_types.go:8, no None member); a zero value means
+// no access and is invalid for map operations.
 type MapMode uint32
 
 const (
-	// MapModeNone indicates no mapping (invalid for map operations).
-	MapModeNone MapMode = 0x00000000
 	// MapModeRead maps the buffer for reading.
 	MapModeRead MapMode = 0x00000001
 	// MapModeWrite maps the buffer for writing.
