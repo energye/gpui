@@ -5,6 +5,8 @@ package webgpu_test
 import (
 	"testing"
 
+	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -93,5 +95,35 @@ func TestS68_Swapchain_PresentModeForVsync(t *testing.T) {
 	sc.SetSupportedPresentModesForTest([]types.PresentMode{webgpu.PresentModeFifo})
 	if m := sc.PresentModeForVsync(false); m != webgpu.PresentModeFifo {
 		t.Fatalf("off w/ fifo only → %v, want fifo", m)
+	}
+}
+
+// TestS68_FrameHandleUnpacksToSameView guards the H3片7d black-screen
+// regression: the swapchain packs Frame.Handle with TextureViewToHandle and
+// render decodes it with unpackView (shared box in gpu/context). The decoded
+// view must be the exact view that was packed — previously the swapchain
+// packed the concrete pointer while render decoded the box layout, yielding
+// garbage non-nil views: presents counted, every window stayed black.
+func TestS68_FrameHandleUnpacksToSameView(t *testing.T) {
+	v := &webgpu.TextureView{}
+	h := webgpu.TextureViewToHandle(v)
+	if h.IsNil() {
+		t.Fatal("TextureViewToHandle returned nil handle for non-nil view")
+	}
+	got := gpucontext.UnpackTextureView(h)
+	if got == nil {
+		t.Fatal("UnpackTextureView(swapchain handle) = nil, want the packed view")
+	}
+	if got != hal.TextureView(v) {
+		t.Fatalf("UnpackTextureView(swapchain handle) = %p, want %p", got, v)
+	}
+	if back := webgpu.TextureViewFromHandle(h); back != v {
+		t.Fatalf("TextureViewFromHandle(roundtrip) = %p, want %p", back, v)
+	}
+}
+
+func TestS68_TextureViewToHandleNil(t *testing.T) {
+	if h := webgpu.TextureViewToHandle(nil); !h.IsNil() {
+		t.Fatalf("TextureViewToHandle(nil) = non-nil handle")
 	}
 }

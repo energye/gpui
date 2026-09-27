@@ -84,17 +84,27 @@ func InstanceToHandle(i *Instance) gpucontext.Instance {
 }
 
 // TextureViewToHandle wraps *TextureView into a gpucontext.TextureView handle.
+// The view is packed as a hal interface via the shared box in gpu/context —
+// the same encoding render decodes with unpackView. Packing the concrete
+// pointer directly here once blacked out every window (presents counted,
+// nothing drawn), so always go through the box.
 func TextureViewToHandle(v *TextureView) gpucontext.TextureView {
 	if v == nil {
 		return gpucontext.TextureView{}
 	}
-	return gpucontext.NewTextureView(unsafe.Pointer(v)) //nolint:gosec // ADR-018 opaque handle
+	return gpucontext.PackTextureView(v)
 }
 
 // TextureViewFromHandle extracts *TextureView from a gpucontext.TextureView handle.
+// Boxed handles unbox first; legacy direct-pointer handles fall back to the
+// concrete cast. Returns nil when the handle carries another backend's view.
 func TextureViewFromHandle(h gpucontext.TextureView) *TextureView {
 	if h.IsNil() {
 		return nil
+	}
+	if v := gpucontext.UnpackTextureView(h); v != nil {
+		cv, _ := v.(*TextureView)
+		return cv
 	}
 	return (*TextureView)(h.Pointer())
 }
