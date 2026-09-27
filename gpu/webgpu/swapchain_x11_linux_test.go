@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -93,7 +94,7 @@ func TestSwapchain_WindowPresentE2E(t *testing.T) {
 	xw := tryOpenX11Window(t, 128, 96)
 	defer xw.close()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestS68_Swapchain_X11_MultiFramePresent(t *testing.T) {
 	xw := tryOpenX11Window(t, 160, 120)
 	defer xw.close()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
@@ -225,7 +226,7 @@ func TestS68_Swapchain_X11_SuboptimalReconfigureFlag(t *testing.T) {
 	}
 	xw := tryOpenX11Window(t, 96, 64)
 	defer xw.close()
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skip(err)
 	}

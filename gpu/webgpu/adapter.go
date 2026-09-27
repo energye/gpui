@@ -14,7 +14,7 @@ import (
 // DeviceDescriptor configures device creation.
 // Canonical form lives in gpu/hal (mirrors webgpu shape, 片4已对齐);
 // alias keeps webgpu callers compiling while render uses hal.* directly.
-// Full removal waits for slice 7c收尾.
+// Full removal waits for slice 7f收尾.
 type DeviceDescriptor = hal.DeviceDescriptor
 
 // Adapter represents a physical GPU.

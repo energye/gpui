@@ -15,7 +15,7 @@ import (
 // Canonical form lives in gpu/hal (superset: backend selectors plus X11
 // XlibDisplay/XlibScreen, 片4已加；Backends/Flags 与 webgpu 同形).
 // Alias keeps webgpu callers compiling while render uses hal.* directly.
-// Full removal waits for slice 7c收尾.
+// Full removal waits for slice 7f收尾.
 type InstanceDescriptor = hal.InstanceDescriptor
 
 // Instance is the entry point for GPU operations.

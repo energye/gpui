@@ -23,7 +23,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 			_ = os.Setenv("LD_LIBRARY_PATH", "lib:"+os.Getenv("LD_LIBRARY_PATH"))
 		}
 	}
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skip(err)
 	}
@@ -48,7 +48,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 		})
 	}
 
-	dev, err := adpt.RequestDevice(&webgpu.DeviceDescriptor{Label: "recover-old"})
+	dev, err := adpt.RequestDevice(&hal.DeviceDescriptor{Label: "recover-old"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	inst.ProcessEvents()
 
-	dev2, err := adpt.RequestDevice(&webgpu.DeviceDescriptor{Label: "recover-new"})
+	dev2, err := adpt.RequestDevice(&hal.DeviceDescriptor{Label: "recover-new"})
 	if err != nil {
 		t.Fatalf("RequestDevice after Release: %v", err)
 	}

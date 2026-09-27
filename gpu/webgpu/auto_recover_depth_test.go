@@ -38,7 +38,7 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 	}
 	defer closeX()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skip(err)
 	}
@@ -59,7 +59,7 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 	}
 	defer adpt.Release()
 
-	dev, err := adpt.RequestDevice(&webgpu.DeviceDescriptor{Label: "auto-recover-old"})
+	dev, err := adpt.RequestDevice(&hal.DeviceDescriptor{Label: "auto-recover-old"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -33,7 +34,7 @@ func TestSwapchain_CreateSurfaceInvalidHandles(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Log("WGPU_NATIVE_PATH unset; relying on default discovery")
 	}
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
