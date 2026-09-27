@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -111,7 +112,7 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 				t.Logf("frame %d: ErrRecovered (grace)", i)
 				continue
 			}
-			if errors.Is(err, webgpu.ErrDeviceLost) {
+			if errors.Is(err, hal.ErrDeviceLost) {
 				t.Logf("frame %d: still lost/recovering: %v", i, err)
 				time.Sleep(20 * time.Millisecond)
 				sc.ClearRecoverCooldown()

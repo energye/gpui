@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
@@ -23,13 +24,13 @@ func prepareDeviceCall(d *Device) error {
 		return ErrInvalidHandle
 	}
 	if d.IsLost() {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	return nil
 }
 
 // prepareQueueCall enforces nil → released → invalid handle → lost for Queue APIs.
-// Returns webgpu.ErrDeviceLost (not the raw rwgpu sentinel) for facade callers.
+// Returns hal.ErrDeviceLost (not the raw rwgpu sentinel) for facade callers.
 func prepareQueueCall(q *Queue) error {
 	if q == nil {
 		return fmt.Errorf("wgpu: queue is nil")
@@ -41,22 +42,22 @@ func prepareQueueCall(q *Queue) error {
 		return ErrInvalidHandle
 	}
 	if q.device != nil && q.device.IsLost() {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	return nil
 }
 
-// mapRWGPUErr rewrites rwgpu device-lost / invalid-handle sentinels to webgpu
-// public errors so facade callers can errors.Is against ErrDeviceLost.
+// mapRWGPUErr rewrites rwgpu device-lost / invalid-handle sentinels to hal
+// public errors so facade callers can errors.Is against hal.ErrDeviceLost.
 func mapRWGPUErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, ErrDeviceLost) {
-		return ErrDeviceLost
+	if errors.Is(err, hal.ErrDeviceLost) {
+		return hal.ErrDeviceLost
 	}
 	if errors.Is(err, rwgpu.ErrDeviceLost) || errors.Is(err, rwgpu.ErrSurfaceDeviceLost) {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	if errors.Is(err, rwgpu.ErrInvalidHandle) {
 		return ErrInvalidHandle
@@ -76,7 +77,7 @@ func prepareSurfaceCall(s *Surface) error {
 		return ErrInvalidHandle
 	}
 	if s.device != nil && s.device.IsLost() {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	return nil
 }

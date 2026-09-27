@@ -18,7 +18,7 @@ func isDeviceLostErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, ErrDeviceLost) {
+	if errors.Is(err, hal.ErrDeviceLost) {
 		return true
 	}
 	if errors.Is(err, rwgpu.ErrDeviceLost) || errors.Is(err, rwgpu.ErrSurfaceDeviceLost) {
@@ -30,23 +30,23 @@ func isDeviceLostErr(err error) bool {
 }
 
 // mapSurfaceAcquireErr maps rwgpu surface acquire failures to public webgpu
-// sentinels so callers can errors.Is against ErrDeviceLost / ErrTimeout / etc.
+// sentinels so callers can errors.Is against hal.ErrDeviceLost / hal.ErrTimeout / etc.
 func mapSurfaceAcquireErr(err error) error {
 	if err == nil {
 		return nil
 	}
 	if isDeviceLostErr(err) {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	switch {
 	case errors.Is(err, rwgpu.ErrSurfaceOccluded):
 		return ErrSurfaceOccluded
 	case errors.Is(err, rwgpu.ErrSurfaceTimeout):
-		return ErrTimeout
+		return hal.ErrTimeout
 	case errors.Is(err, rwgpu.ErrSurfaceNeedsReconfigure):
-		return ErrSurfaceOutdated
+		return hal.ErrSurfaceOutdated
 	case errors.Is(err, rwgpu.ErrSurfaceLost):
-		return ErrSurfaceLost
+		return hal.ErrSurfaceLost
 	case errors.Is(err, rwgpu.ErrSurfaceOutOfMemory):
 		return ErrOutOfMemory
 	}
@@ -56,11 +56,11 @@ func mapSurfaceAcquireErr(err error) error {
 	case strings.Contains(msg, "occluded"):
 		return ErrSurfaceOccluded
 	case strings.Contains(msg, "timeout"):
-		return ErrTimeout
+		return hal.ErrTimeout
 	case strings.Contains(msg, "needs reconfigure") || strings.Contains(msg, "outdated"):
-		return ErrSurfaceOutdated
+		return hal.ErrSurfaceOutdated
 	case strings.Contains(msg, "surface lost"):
-		return ErrSurfaceLost
+		return hal.ErrSurfaceLost
 	}
 	return fmt.Errorf("wgpu: %w", err)
 }
@@ -71,7 +71,7 @@ func isSkipFrameSurfaceErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, ErrSurfaceOccluded) || errors.Is(err, ErrTimeout) ||
+	return errors.Is(err, ErrSurfaceOccluded) || errors.Is(err, hal.ErrTimeout) ||
 		errors.Is(err, rwgpu.ErrSurfaceOccluded) || errors.Is(err, rwgpu.ErrSurfaceTimeout)
 }
 
@@ -80,7 +80,7 @@ func isOutdatedSurfaceErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, ErrSurfaceOutdated) || errors.Is(err, ErrSurfaceLost) ||
+	return errors.Is(err, hal.ErrSurfaceOutdated) || errors.Is(err, hal.ErrSurfaceLost) ||
 		errors.Is(err, rwgpu.ErrSurfaceNeedsReconfigure) || errors.Is(err, rwgpu.ErrSurfaceLost)
 }
 
@@ -192,7 +192,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		return fmt.Errorf("wgpu: device is nil")
 	}
 	if device.IsLost() {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	if config.Width == 0 || config.Height == 0 {
 		return fmt.Errorf("wgpu: surface extent must be non-zero (got %dx%d)", config.Width, config.Height)
@@ -211,7 +211,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 
 	if err := s.r.Configure(device.r, rConfig); err != nil {
 		if isDeviceLostErr(err) {
-			return ErrDeviceLost
+			return hal.ErrDeviceLost
 		}
 		return fmt.Errorf("wgpu: failed to configure surface: %w", err)
 	}
@@ -251,18 +251,18 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	}
 	// Skia: abandon sticky → refuse; FlushCallbacks folds pending lost signals.
 	if s.device.IsLost() {
-		return nil, false, ErrDeviceLost
+		return nil, false, hal.ErrDeviceLost
 	}
 	s.device.FlushCallbacks()
 	if s.device.IsLost() {
-		return nil, false, ErrDeviceLost
+		return nil, false, hal.ErrDeviceLost
 	}
 	// One in-flight surface texture at a time (lost-safe Release on textures).
 	// rwgpu.GetCurrentTexture also absorbs sticky uncaptured "Parent device is lost".
 	s.DiscardTexture()
 	// Re-check after DiscardTexture / flush — never enter native when lost.
 	if s.device.IsLost() {
-		return nil, false, ErrDeviceLost
+		return nil, false, hal.ErrDeviceLost
 	}
 
 	rst, suboptimal, err := s.r.GetCurrentTexture()
@@ -292,12 +292,12 @@ func (s *Surface) Present(texture *SurfaceTexture) error {
 		return fmt.Errorf("wgpu: surface texture is nil")
 	}
 	if s.device != nil && s.device.IsLost() {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	// rwgpu Present takes variadic *SurfaceTexture.
 	if err := s.r.Present(texture.r); err != nil {
 		if isDeviceLostErr(err) {
-			return ErrDeviceLost
+			return hal.ErrDeviceLost
 		}
 		return err
 	}

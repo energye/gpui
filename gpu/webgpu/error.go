@@ -4,8 +4,6 @@ package webgpu
 
 import (
 	"errors"
-
-	"github.com/energye/gpui/gpu/hal"
 )
 
 // Public API sentinel errors.
@@ -19,8 +17,7 @@ var (
 	// ErrNoBackends is returned when no backends are registered.
 	ErrNoBackends = errors.New("wgpu: no backends registered (import a backend package)")
 
-	// ErrDeviceLost is returned when the GPU device is lost.
-	ErrDeviceLost = errors.New("wgpu: device lost")
+	// ErrDeviceLost 见 hal.ErrDeviceLost（去别名：直接用 hal. 前缀）。
 
 	// ErrRecovered: one skip after AutoRecover (VRAM/driver settle).
 	ErrRecovered = errors.New("wgpu: device recovered, skip frame")
@@ -38,19 +35,13 @@ var (
 	// ErrNoFrame is returned when EndFrame/Present is called without a live frame.
 	ErrNoFrame = errors.New("wgpu: no frame in flight")
 
-	// ErrSurfaceLost is returned when the surface is lost.
-	ErrSurfaceLost = errors.New("wgpu: surface lost")
-
-	// ErrSurfaceOutdated is returned when the surface is outdated and needs reconfigure.
-	ErrSurfaceOutdated = errors.New("wgpu: surface outdated")
+	// ErrSurfaceLost / ErrSurfaceOutdated 见 hal 同名（去别名：直接用 hal. 前缀）。
 
 	// ErrSurfaceOccluded is returned when the window is minimized/covered and
 	// no surface texture is available. Callers should skip the frame (do not reconfigure).
 	ErrSurfaceOccluded = errors.New("wgpu: surface occluded")
 
-	// ErrTimeout is returned when an operation times out.
-	// For surface acquire, callers should skip the frame rather than thrash Configure.
-	ErrTimeout = errors.New("wgpu: timeout")
+	// ErrTimeout 见 hal.ErrTimeout（去别名：直接用 hal. 前缀）。
 
 	// ErrSubmitCommandBufferInvalid is returned when a command buffer is submitted twice.
 	ErrSubmitCommandBufferInvalid = errors.New("wgpu: command buffer already submitted")
@@ -92,19 +83,5 @@ var (
 	ErrDispatchIndirectBufferOverrun   = errors.New("wgpu: indirect dispatch args exceed buffer size")
 )
 
-// GPUError represents a captured GPU error from an error scope.
-// Alias of hal.GPUError (identical shape: Type/Message, same Error text).
-type GPUError = hal.GPUError
-
-// ErrorFilter selects which errors an error scope captures.
-// Alias of hal.ErrorFilter (same values 1/2/3, same String text).
-type ErrorFilter = hal.ErrorFilter
-
-const (
-	// ErrorFilterValidation captures validation errors (WGPUErrorFilter_Validation).
-	ErrorFilterValidation = hal.ErrorFilterValidation
-	// ErrorFilterOutOfMemory captures out-of-memory errors.
-	ErrorFilterOutOfMemory = hal.ErrorFilterOutOfMemory
-	// ErrorFilterInternal captures internal errors.
-	ErrorFilterInternal = hal.ErrorFilterInternal
-)
+// GPUError / ErrorFilter（含 Validation/OutOfMemory/Internal）见 hal 同名
+//（去别名：直接用 hal. 前缀；wasm 侧见 error_browser.go 独立定义）。

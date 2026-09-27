@@ -4147,7 +4147,7 @@ func (s *GPURenderSession) withSubmitErrorScope(label string, fn func() error) e
 		}
 		return nil
 	}
-	s.device.PushErrorScope(webgpu.ErrorFilterValidation)
+	s.device.PushErrorScope(hal.ErrorFilterValidation)
 	err := fn()
 	if gerr := s.device.PopErrorScope(); gerr != nil {
 		s.lastSubmitStats.ErrorScopeErrors++

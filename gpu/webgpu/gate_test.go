@@ -40,10 +40,10 @@ func TestPrepareDeviceCall_NilReleasedLost(t *testing.T) {
 		t.Fatalf("nil handle: %v", prepareDeviceCall(d))
 	}
 
-	// Sticky lost must return webgpu.ErrDeviceLost (facade contract).
+	// Sticky lost must return hal.ErrDeviceLost (facade contract).
 	d = lostTestDevice(0xface)
-	if !errors.Is(prepareDeviceCall(d), ErrDeviceLost) {
-		t.Fatalf("lost: %v want ErrDeviceLost", prepareDeviceCall(d))
+	if !errors.Is(prepareDeviceCall(d), hal.ErrDeviceLost) {
+		t.Fatalf("lost: %v want hal.ErrDeviceLost", prepareDeviceCall(d))
 	}
 	if !d.IsLost() {
 		t.Fatal("Device.IsLost must be true after MarkLost")
@@ -52,8 +52,8 @@ func TestPrepareDeviceCall_NilReleasedLost(t *testing.T) {
 
 func TestPrepareQueueCall_LostReturnsErrDeviceLost(t *testing.T) {
 	d := lostTestDevice(0xbeef)
-	if err := prepareQueueCall(d.queue); !errors.Is(err, ErrDeviceLost) {
-		t.Fatalf("lost queue: %v want ErrDeviceLost", err)
+	if err := prepareQueueCall(d.queue); !errors.Is(err, hal.ErrDeviceLost) {
+		t.Fatalf("lost queue: %v want hal.ErrDeviceLost", err)
 	}
 }
 
@@ -77,24 +77,24 @@ func TestDeviceCreate_LostReturnsErrDeviceLost(t *testing.T) {
 	d := lostTestDevice(0x1001)
 
 	buf, err := d.CreateBuffer(&hal.BufferDescriptor{Size: 16, Usage: 1})
-	if buf != nil || !errors.Is(err, ErrDeviceLost) {
+	if buf != nil || !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("CreateBuffer after lost: buf=%v err=%v", buf, err)
 	}
 
 	tex, err := d.CreateTexture(&hal.TextureDescriptor{
 		Size: hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	})
-	if tex != nil || !errors.Is(err, ErrDeviceLost) {
+	if tex != nil || !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("CreateTexture after lost: tex=%v err=%v", tex, err)
 	}
 
 	mod, err := d.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: "@vertex fn vs() {}"})
-	if mod != nil || !errors.Is(err, ErrDeviceLost) {
+	if mod != nil || !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("CreateShaderModule after lost: mod=%v err=%v", mod, err)
 	}
 
 	sm, err := d.CreateSampler(nil)
-	if sm != nil || !errors.Is(err, ErrDeviceLost) {
+	if sm != nil || !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("CreateSampler after lost: sm=%v err=%v", sm, err)
 	}
 }
@@ -102,10 +102,10 @@ func TestDeviceCreate_LostReturnsErrDeviceLost(t *testing.T) {
 func TestQueueSubmit_LostReturnsErrDeviceLost(t *testing.T) {
 	d := lostTestDevice(0x1002)
 	idx, err := d.queue.Submit()
-	if idx != 0 || !errors.Is(err, ErrDeviceLost) {
+	if idx != 0 || !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("Submit after lost: idx=%d err=%v", idx, err)
 	}
-	if err := d.queue.WriteBuffer(&Buffer{r: &rwgpu.Buffer{}}, 0, []byte{1}); !errors.Is(err, ErrDeviceLost) {
+	if err := d.queue.WriteBuffer(&Buffer{r: &rwgpu.Buffer{}}, 0, []byte{1}); !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("WriteBuffer after lost: %v", err)
 	}
 }
@@ -116,11 +116,11 @@ func TestSurfacePresent_LostReturnsErrDeviceLost(t *testing.T) {
 		r:      &rwgpu.Surface{},
 		device: d,
 	}
-	if err := s.Present(&SurfaceTexture{}); !errors.Is(err, ErrDeviceLost) {
+	if err := s.Present(&SurfaceTexture{}); !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("Present after lost: %v", err)
 	}
 	st, _, err := s.GetCurrentTexture()
-	if st != nil || !errors.Is(err, ErrDeviceLost) {
+	if st != nil || !errors.Is(err, hal.ErrDeviceLost) {
 		t.Fatalf("GetCurrentTexture after lost: st=%v err=%v", st, err)
 	}
 }
@@ -183,10 +183,10 @@ func TestDeviceRelease_NilSafeIdempotent(t *testing.T) {
 }
 
 func TestMapRWGPUErr_DeviceLost(t *testing.T) {
-	if !errors.Is(mapRWGPUErr(rwgpu.ErrDeviceLost), ErrDeviceLost) {
+	if !errors.Is(mapRWGPUErr(rwgpu.ErrDeviceLost), hal.ErrDeviceLost) {
 		t.Fatal("mapRWGPUErr must rewrite rwgpu.ErrDeviceLost")
 	}
-	if !errors.Is(mapRWGPUErr(rwgpu.ErrSurfaceDeviceLost), ErrDeviceLost) {
+	if !errors.Is(mapRWGPUErr(rwgpu.ErrSurfaceDeviceLost), hal.ErrDeviceLost) {
 		t.Fatal("mapRWGPUErr must rewrite ErrSurfaceDeviceLost")
 	}
 }

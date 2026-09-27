@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -162,7 +163,7 @@ func (t *PresentTarget) shouldRecoverSharedLocked(err error) bool {
 	if err == nil || t == nil || t.device == nil {
 		return false
 	}
-	if !errors.Is(err, webgpu.ErrDeviceLost) {
+	if !errors.Is(err, hal.ErrDeviceLost) {
 		return false
 	}
 	shareMu.Lock()

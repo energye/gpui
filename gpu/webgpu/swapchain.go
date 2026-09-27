@@ -456,7 +456,7 @@ func (sc *Swapchain) MarkNeedsReconfigure() {
 //
 // Error policy:
 //   - DeviceLost + EnableAutoRecover → recreate device and retry
-//   - DeviceLost without recovery → ErrDeviceLost (no native abort)
+//   - DeviceLost without recovery → hal.ErrDeviceLost (no native abort)
 //   - Occluded / Timeout → skip frame
 //   - Outdated / other → reconfigure once and retry
 // Window visibility policy is host-side, not here.
@@ -648,13 +648,13 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 		return fmt.Errorf("wgpu: swapchain is nil")
 	}
 	if sc.RecoveryAdapter == nil {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	if sc.recoverCooldown <= 0 {
 		sc.recoverCooldown = time.Second
 	}
 	if !sc.lastRecoverAt.IsZero() && time.Since(sc.lastRecoverAt) < sc.recoverCooldown {
-		return fmt.Errorf("%w: recovery rate-limited", ErrDeviceLost)
+		return fmt.Errorf("%w: recovery rate-limited", hal.ErrDeviceLost)
 	}
 	sc.lastRecoverAt = time.Now()
 
@@ -733,18 +733,18 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	}
 	dev, err := sc.requestDeviceWithVRAMProbe(label, nil)
 	if err != nil {
-		return fmt.Errorf("%w: RequestDevice: %v", ErrDeviceLost, err)
+		return fmt.Errorf("%w: RequestDevice: %v", hal.ErrDeviceLost, err)
 	}
 	sc.Device = dev
 
 	if canRecreateSurf {
 		ns, err := inst.CreateSurface(disp, win)
 		if err != nil {
-			return fmt.Errorf("%w: recreate surface: %v", ErrDeviceLost, err)
+			return fmt.Errorf("%w: recreate surface: %v", hal.ErrDeviceLost, err)
 		}
 		sc.Surface = ns
 	} else if sc.Surface == nil {
-		return fmt.Errorf("%w: surface is nil after recover", ErrDeviceLost)
+		return fmt.Errorf("%w: surface is nil after recover", hal.ErrDeviceLost)
 	}
 
 	if sc.OnDeviceRecreated != nil {
@@ -753,7 +753,7 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 
 	if err := sc.ConfigureFromCapabilities(sc.RecoveryAdapter); err != nil {
 		if err2 := sc.Configure(); err2 != nil {
-			return fmt.Errorf("%w: reconfigure: %v (caps: %v)", ErrDeviceLost, err2, err)
+			return fmt.Errorf("%w: reconfigure: %v (caps: %v)", hal.ErrDeviceLost, err2, err)
 		}
 	}
 	sc.recoverAttempts++
@@ -768,7 +768,7 @@ func (sc *Swapchain) ensureDeviceLocked() error {
 		return nil
 	}
 	if sc.RecoveryAdapter == nil {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	return sc.tryRecoverDeviceLocked()
 }
@@ -803,7 +803,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		return nil, fmt.Errorf("wgpu: swapchain extent must be non-zero")
 	}
 
-	// Ensure device is healthy (DeviceLostCallback → recover or ErrDeviceLost).
+	// Ensure device is healthy (DeviceLostCallback → recover or hal.ErrDeviceLost).
 	if err := sc.ensureDeviceLocked(); err != nil {
 		return nil, err
 	}
@@ -1077,11 +1077,11 @@ func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 	if sc.Device != nil {
 		sc.Device.FlushCallbacks()
 		if err == nil && sc.Device.IsLost() {
-			err = ErrDeviceLost
+			err = hal.ErrDeviceLost
 		}
 	}
 	if isDeviceLostErr(err) {
-		return ErrDeviceLost
+		return hal.ErrDeviceLost
 	}
 	return err
 }

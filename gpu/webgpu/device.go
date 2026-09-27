@@ -436,7 +436,7 @@ func (d *Device) WaitForFence(fence hal.Fence, _ uint64, _ time.Duration) (bool,
 }
 
 // PushErrorScope pushes a new error scope onto the device's error scope stack.
-// Implements hal.Device (takes hal.ErrorFilter; ErrorFilter is aliased so no conversion needed).
+// Implements hal.Device (takes hal.ErrorFilter).
 func (d *Device) PushErrorScope(filter hal.ErrorFilter) {
 	if d.r != nil {
 		d.r.PushErrorScope(rwgpu.ErrorFilter(filter)) //nolint:gosec // G115: ErrorFilter values are small enum constants that fit uint32
@@ -445,19 +445,19 @@ func (d *Device) PushErrorScope(filter hal.ErrorFilter) {
 
 // PopErrorScope pops the most recently pushed error scope.
 // Returns the captured error, or nil if no error occurred.
-// Implements hal.Device (returns *hal.GPUError; GPUError is aliased so construction is unchanged).
+// Implements hal.Device (returns *hal.GPUError).
 func (d *Device) PopErrorScope() *hal.GPUError {
 	if d.r == nil || d.instance == nil || d.instance.r == nil {
 		return nil
 	}
 	errType, message, err := d.r.PopErrorScopeAsync(d.instance.r)
 	if err != nil {
-		return nil //nolint:nilerr // PopErrorScope returns *GPUError not error; infrastructure failure = no captured error
+		return nil //nolint:nilerr // PopErrorScope returns *hal.GPUError not error; infrastructure failure = no captured error
 	}
 	if errType == rwgpu.ErrorTypeNoError {
 		return nil
 	}
-	return &GPUError{
+	return &hal.GPUError{
 		Type:    convertErrorType(errType),
 		Message: message,
 	}
@@ -525,7 +525,7 @@ func (d *Device) MarkLost() {
 }
 
 // Destroy marks the device sticky-lost and drops the queue ref (Skia/Flutter abandon).
-// After Destroy, IsLost is true and create/submit return ErrDeviceLost.
+// After Destroy, IsLost is true and create/submit return hal.ErrDeviceLost.
 //
 // Does NOT call wgpuDeviceDestroy: on current libwgpu_native that API leaves the
 // adapter in a state where later RequestDevice/CreateTexture report
@@ -1059,16 +1059,16 @@ func convertFragmentStateInto(sc *rplConvertScratch, fs *hal.FragmentState) {
 	sc.fragment.Targets = targets
 }
 
-// convertErrorType maps rwgpu ErrorType to our ErrorFilter.
-func convertErrorType(et rwgpu.ErrorType) ErrorFilter {
+// convertErrorType maps rwgpu ErrorType to hal.ErrorFilter.
+func convertErrorType(et rwgpu.ErrorType) hal.ErrorFilter {
 	switch et {
 	case rwgpu.ErrorTypeValidation:
-		return ErrorFilterValidation
+		return hal.ErrorFilterValidation
 	case rwgpu.ErrorTypeOutOfMemory:
-		return ErrorFilterOutOfMemory
+		return hal.ErrorFilterOutOfMemory
 	case rwgpu.ErrorTypeInternal:
-		return ErrorFilterInternal
+		return hal.ErrorFilterInternal
 	default:
-		return ErrorFilterInternal
+		return hal.ErrorFilterInternal
 	}
 }
