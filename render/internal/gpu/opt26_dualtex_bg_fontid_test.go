@@ -9,7 +9,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/text"
 	"golang.org/x/image/font/gofont/goregular"
 )
@@ -60,7 +59,7 @@ func TestOpt26_DualTexMultiBindGroup_ReusesSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Minimal 1x1 BGRA textures + views for bind group entries.
-	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mkView := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -82,10 +81,10 @@ func TestOpt26_DualTexMultiBindGroup_ReusesSlot(t *testing.T) {
 	dstTex, dstView := mkView("dst")
 	srcTex, srcView := mkView("src")
 	t.Cleanup(func() {
-		dstView.Release()
-		dstTex.Release()
-		srcView.Release()
-		srcTex.Release()
+		dstView.Destroy()
+		dstTex.Destroy()
+		srcView.Destroy()
+		srcTex.Destroy()
 	})
 	slab, err := cache.ensureUniformSlab(device, 1)
 	if err != nil {

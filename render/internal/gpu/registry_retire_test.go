@@ -4,7 +4,6 @@ package gpu
 
 import (
 	"testing"
-	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -38,12 +37,12 @@ func TestRegTransientView_LifecycleClosesAtFrameBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { tex.Release() })
+	t.Cleanup(func() { tex.Destroy() })
 	v, err := device.CreateTextureView(tex, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { v.Release() })
+	t.Cleanup(func() { v.Destroy() })
 
 	if got := s.Reg().Count(); got != 0 {
 		t.Fatalf("registry should start empty, got %d entries", got)
@@ -142,9 +141,8 @@ func TestRegTransientView_RawResolvePathRetired(t *testing.T) {
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
 	t.Cleanup(func() { s.Destroy() })
 
-	// Raw fallback: viewToResView carries the *webgpu.TextureView Go pointer
-	// (brush_advanced/filter_gpu_graph use gpucontext.NewTextureView(unsafe.
-	// Pointer(view))), and ResolveCommandView registers it at flush time.
+	// Raw fallback: viewToResView carries the packView holder pointer,
+	// and ResolveCommandView registers it at flush time.
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "raw_view_test",
 		Size:          hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
@@ -157,14 +155,14 @@ func TestRegTransientView_RawResolvePathRetired(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { tex.Release() })
+	t.Cleanup(func() { tex.Destroy() })
 	v, err := device.CreateTextureView(tex, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { v.Release() })
+	t.Cleanup(func() { v.Destroy() })
 
-	view := res.ViewFromRaw(unsafe.Pointer(v))
+	view := res.ViewFromRaw(packView(v).Pointer())
 	tv, ok := s.ResolveCommandView(&view)
 	if !ok {
 		t.Fatalf("ResolveCommandView raw path failed: ok=false")

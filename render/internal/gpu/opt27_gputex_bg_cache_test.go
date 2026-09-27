@@ -21,7 +21,7 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 		t.Fatalf("ensureImagePipeline: %v", err)
 	}
 
-	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mkView := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -45,12 +45,12 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 	t2, v2 := mkView("g2")
 	t3, v3 := mkView("g3")
 	t.Cleanup(func() {
-		v1.Release()
-		t1.Release()
-		v2.Release()
-		t2.Release()
-		v3.Release()
-		t3.Release()
+		v1.Destroy()
+		t1.Destroy()
+		v2.Destroy()
+		t2.Destroy()
+		v3.Destroy()
+		t3.Destroy()
 	})
 
 	ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
@@ -116,7 +116,7 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
 	t.Cleanup(func() { s.Destroy() })
 
-	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mkView := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -139,10 +139,10 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 	t1, v1 := mkView("ov1")
 	t2, v2 := mkView("ov2")
 	t.Cleanup(func() {
-		v1.Release()
-		t1.Release()
-		v2.Release()
-		t2.Release()
+		v1.Destroy()
+		t1.Destroy()
+		v2.Destroy()
+		t2.Destroy()
 	})
 	// P3: register test views under deferred SourceKeys so build resolution
 	// succeeds (each build re-resolves and releases its transient ref).

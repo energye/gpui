@@ -5,12 +5,9 @@ package gpu
 import (
 	"os"
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -88,7 +85,7 @@ func TestOpt38_EnsurePipelines_WarmRenderFrame(t *testing.T) {
 	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
 
 	const w, h uint32 = 64, 64
-	mk := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mk := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := shared.device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -114,9 +111,9 @@ func TestOpt38_EnsurePipelines_WarmRenderFrame(t *testing.T) {
 	groups := []ScissorGroup{{ConvexCommands: []ConvexDrawCommand{cmd}}}
 	for i, label := range []string{"opt38_a", "opt38_b"} {
 		tex, view := mk(label)
-		t.Cleanup(func() { view.Release(); tex.Release() })
+		t.Cleanup(func() { view.Destroy(); tex.Destroy() })
 		target := render.GPURenderTarget{
-			View:      gpucontext.NewTextureView(unsafe.Pointer(view)),
+			View:      packView(view),
 			ViewWidth: w, ViewHeight: h, Width: int(w), Height: int(h),
 		}
 		if err := s.RenderFrameGrouped(target, groups, nil, nil); err != nil {

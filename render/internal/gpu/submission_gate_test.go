@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // testBuffer is a hal.Buffer stub that records Destroy calls.
@@ -16,6 +15,23 @@ type testBuffer struct {
 }
 
 func (b *testBuffer) Destroy() { b.destroyed = true }
+
+// testTexture is a hal.Texture stub that records Destroy calls (片7d:
+// replaces concrete texture fakes so render names no concrete type).
+type testTexture struct {
+	hal.Texture
+	destroyed bool
+}
+
+func (t *testTexture) Destroy() { t.destroyed = true }
+
+// testTextureView is a hal.TextureView stub that records Destroy calls.
+type testTextureView struct {
+	hal.TextureView
+	destroyed bool
+}
+
+func (v *testTextureView) Destroy() { v.destroyed = true }
 
 // P6: submission-tracked deferred release — buffers retired during grow-only
 // rebuilds stay alive until the next safe point; device-loss invalidation
@@ -53,7 +69,7 @@ func TestP6_InvalidateForDeviceLoss_DropsBookkeeping(t *testing.T) {
 	// Populate bookkeeping with fake resources (never reaches native).
 	b := &testBuffer{}
 	s.RetireBuffer(b)
-	s.pendingTexRetire.Add(&webgpu.TextureView{}, &webgpu.Texture{})
+	s.pendingTexRetire.Add(&testTextureView{}, &testTexture{})
 	if s.pendingTexRetire.PendingCount() == 0 || s.pendingBufRetire.PendingCount() == 0 {
 		t.Fatalf("expected non-empty retire queues before invalidation")
 	}

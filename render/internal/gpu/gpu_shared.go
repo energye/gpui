@@ -95,8 +95,8 @@ type GPUShared struct {
 	// matches its AtlasIndex (Latin 0.., CJK cjkAtlasOffset..) instead of a
 	// single shared view — a single view meant the last-uploaded page
 	// shadowed all others when Latin and CJK text shared a frame.
-	msdfAtlasTexes map[int]*webgpu.Texture
-	msdfAtlasViews map[int]*webgpu.TextureView
+	msdfAtlasTexes map[int]hal.Texture
+	msdfAtlasViews map[int]hal.TextureView
 
 	// Compute pipeline.
 	velloAccel *VelloAccelerator
@@ -123,8 +123,8 @@ type GPUShared struct {
 	maskData   []byte
 	maskW      int
 	maskH      int
-	maskTex    *webgpu.Texture
-	maskView   *webgpu.TextureView
+	maskTex    hal.Texture
+	maskView   hal.TextureView
 	maskActive bool
 
 	// CPU SDF fallback accelerator.
@@ -164,8 +164,8 @@ func NewGPUShared() *GPUShared {
 	return &GPUShared{
 		texturePool:    NewTexturePool(defaultTexturePoolBudgetMB),
 		liveCtxs:       make(map[*GPURenderContext]struct{}),
-		msdfAtlasTexes: make(map[int]*webgpu.Texture),
-		msdfAtlasViews: make(map[int]*webgpu.TextureView),
+		msdfAtlasTexes: make(map[int]hal.Texture),
+		msdfAtlasViews: make(map[int]hal.TextureView),
 	}
 }
 
@@ -451,10 +451,10 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 
 	s.textEngine = nil
 	for _, v := range s.msdfAtlasViews {
-		v.Release()
+		v.Destroy()
 	}
 	for _, t := range s.msdfAtlasTexes {
-		t.Release()
+		t.Destroy()
 	}
 	s.msdfAtlasViews = nil
 	s.msdfAtlasTexes = nil
@@ -819,11 +819,11 @@ func (s *GPUShared) MemoryStats() GPUMemoryStats {
 // clearMaskLocked releases GPU mask resources. Caller must hold s.mu.
 func (s *GPUShared) clearMaskLocked() {
 	if s.maskView != nil {
-		s.maskView.Release()
+		s.maskView.Destroy()
 		s.maskView = nil
 	}
 	if s.maskTex != nil {
-		s.maskTex.Release()
+		s.maskTex.Destroy()
 		s.maskTex = nil
 	}
 	s.maskData = nil
@@ -877,7 +877,7 @@ func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 		MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return
 	}
 	tight := uint32(width) //nolint:gosec
@@ -896,8 +896,8 @@ func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(height)},           //nolint:gosec
 		&hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return
 	}
 	s.maskTex = tex
@@ -932,7 +932,7 @@ func (s *GPUShared) HasGPUMask() bool {
 
 // MaskTextureView returns the active R8 mask view when a GPU mask is bound.
 // Caller must not release the view; ownership remains with GPUShared.
-func (s *GPUShared) MaskTextureView() (*webgpu.TextureView, bool) {
+func (s *GPUShared) MaskTextureView() (hal.TextureView, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.maskActive || s.maskView == nil {

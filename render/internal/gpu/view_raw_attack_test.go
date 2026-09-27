@@ -5,7 +5,6 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
@@ -54,19 +53,19 @@ func TestViewToResView_RawEquality(t *testing.T) {
 }
 
 // TestResolveCommandView_RawStaleNeverPanics: a raw pointer whose view was
-// already released must not panic. Raw pointers in the real flow are live Go
-// *webgpu.TextureView objects owned by the render context; the registry keeps
-// them alive, so session teardown ReleaseAll is idempotent (released-guard).
+// already released must not panic. Raw pointers in the real flow are live
+// hal views owned by the render context; the registry keeps them alive,
+// so session teardown ReleaseAll is idempotent (released-guard).
 // Use a real (zero-value) object to model a released view — an arbitrary fake
 // address would SIGSEGV on ReleaseAll, which is out of contract.
 func TestResolveCommandView_RawStaleNeverPanics(t *testing.T) {
 	s := NewGPURenderSession(nil, nil, 4) // no device; resolution path only
 	t.Cleanup(func() { s.Destroy() })
 
-	// A released view: object alive, Release already called.
-	viewObj := &webgpu.TextureView{}
-	viewObj.Release()
-	view := res.ViewFromRaw(unsafe.Pointer(viewObj))
+	// A released view: object alive, Destroy already called.
+	viewObj := &testTextureView{}
+	viewObj.Destroy()
+	view := res.ViewFromRaw(packView(viewObj).Pointer())
 	tv, ok := s.ResolveCommandView(&view)
 	// Resolution completes without panicking; teardown ReleaseAll is safe
 	// because the registry holds a real Go object.

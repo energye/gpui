@@ -63,7 +63,7 @@ func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error) {
 }
 
 // CreateTexture creates a GPU texture.
-func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (*Texture, error) {
+func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (hal.Texture, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -89,11 +89,13 @@ func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (*Texture, error) {
 
 // CreateTextureView creates a view into a texture.
 // In rwgpu, CreateView is a method on Texture, not Device.
-func (d *Device) CreateTextureView(texture *Texture, desc *hal.TextureViewDescriptor) (*TextureView, error) {
+// Takes hal.Texture (片7d); internal unpack to concrete handle.
+func (d *Device) CreateTextureView(texture hal.Texture, desc *hal.TextureViewDescriptor) (hal.TextureView, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
-	if texture == nil || texture.r == nil {
+	wt, ok := texture.(*Texture)
+	if !ok || wt == nil || wt.r == nil {
 		return nil, fmt.Errorf("wgpu: texture is nil")
 	}
 
@@ -121,12 +123,12 @@ func (d *Device) CreateTextureView(texture *Texture, desc *hal.TextureViewDescri
 		}
 	}
 
-	rv, err := texture.r.CreateView(rDesc)
+	rv, err := wt.r.CreateView(rDesc)
 	if err != nil {
 		return nil, fmt.Errorf("wgpu: failed to create texture view: %w", err)
 	}
 
-	return &TextureView{r: rv, device: d, texture: texture}, nil
+	return &TextureView{r: rv, device: d, texture: wt}, nil
 }
 
 // CreateSampler creates a texture sampler.

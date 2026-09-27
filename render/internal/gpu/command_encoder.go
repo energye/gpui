@@ -655,7 +655,7 @@ func (d *RenderPassDescriptor) toWebGPUDescriptor() *hal.RenderPassDescriptor {
 	return gpuDesc
 }
 
-func rawTextureView(view *TextureView) *webgpu.TextureView {
+func rawTextureView(view *TextureView) hal.TextureView {
 	if view == nil {
 		return nil
 	}

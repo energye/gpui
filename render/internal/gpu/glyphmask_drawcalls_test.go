@@ -183,7 +183,7 @@ func createMockBindGroup(t *testing.T, device *webgpu.Device, s *GPURenderSessio
 	if err != nil {
 		t.Fatalf("CreateTexture failed: %v", err)
 	}
-	t.Cleanup(func() { tex.Release() })
+	t.Cleanup(func() { tex.Destroy() })
 
 	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Format:        types.TextureFormatR8Unorm,
@@ -193,7 +193,7 @@ func createMockBindGroup(t *testing.T, device *webgpu.Device, s *GPURenderSessio
 	if err != nil {
 		t.Fatalf("CreateTextureView failed: %v", err)
 	}
-	t.Cleanup(func() { view.Release() })
+	t.Cleanup(func() { view.Destroy() })
 
 	s.SetGlyphMaskAtlasView(0, view, false)
 	s.materializeGlyphMaskBindGroups()

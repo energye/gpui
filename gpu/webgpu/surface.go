@@ -362,10 +362,10 @@ type SurfaceTexture struct {
 }
 
 // AsTexture returns the underlying Texture for direct WriteTexture access.
-func (st *SurfaceTexture) AsTexture() *Texture { return st.texture }
+func (st *SurfaceTexture) AsTexture() hal.Texture { return st.texture }
 
 // CreateView creates a texture view of this surface texture.
-func (st *SurfaceTexture) CreateView(desc *hal.TextureViewDescriptor) (*TextureView, error) {
+func (st *SurfaceTexture) CreateView(desc *hal.TextureViewDescriptor) (hal.TextureView, error) {
 	if st.texture == nil || st.texture.r == nil {
 		return nil, ErrReleased
 	}
@@ -389,11 +389,11 @@ func (st *SurfaceTexture) CreateView(desc *hal.TextureViewDescriptor) (*TextureV
 		return nil, fmt.Errorf("wgpu: failed to create surface texture view: %w", err)
 	}
 
-	return &TextureView{r: rv, device: st.surface.device, texture: st.AsTexture()}, nil
+	return &TextureView{r: rv, device: st.surface.device, texture: st.texture}, nil
 }
 
 // Texture returns the underlying Texture.
-func (st *SurfaceTexture) Texture() *Texture {
+func (st *SurfaceTexture) Texture() hal.Texture {
 	return st.texture
 }
 

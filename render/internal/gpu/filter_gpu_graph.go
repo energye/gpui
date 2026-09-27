@@ -154,8 +154,8 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 `
 
 type filterPublishSlot struct {
-	tex  *webgpu.Texture
-	view *webgpu.TextureView
+	tex  hal.Texture
+	view hal.TextureView
 	w, h int
 }
 
@@ -166,13 +166,13 @@ type filterGPUCache struct {
 	pipeline  *webgpu.RenderPipeline
 	bgl       *webgpu.BindGroupLayout
 	sampler   hal.Sampler
-	dummyTex  *webgpu.Texture
-	dummyView *webgpu.TextureView
+	dummyTex  hal.Texture
+	dummyView hal.TextureView
 
 	// Pooled ping-pong RTs for continuous effect frames.
 	poolW, poolH        int
-	texA, texB, texH    *webgpu.Texture
-	viewA, viewB, viewH *webgpu.TextureView
+	texA, texB, texH    hal.Texture
+	viewA, viewB, viewH hal.TextureView
 
 	// Reused uniform + CPU staging/readback buffers.
 	uniform    hal.Buffer
@@ -209,7 +209,7 @@ type filterGPUCache struct {
 }
 
 type filterBGKey struct {
-	src, aux uintptr
+	src, aux hal.TextureView
 	ubuf     hal.Buffer
 	offset   uint64
 }
@@ -223,27 +223,27 @@ func (c *filterGPUCache) release() {
 func (c *filterGPUCache) releasePoolUnlocked() {
 	c.clearBGCacheUnlocked()
 	if c.viewA != nil {
-		c.viewA.Release()
+		c.viewA.Destroy()
 		c.viewA = nil
 	}
 	if c.texA != nil {
-		c.texA.Release()
+		c.texA.Destroy()
 		c.texA = nil
 	}
 	if c.viewB != nil {
-		c.viewB.Release()
+		c.viewB.Destroy()
 		c.viewB = nil
 	}
 	if c.texB != nil {
-		c.texB.Release()
+		c.texB.Destroy()
 		c.texB = nil
 	}
 	if c.viewH != nil {
-		c.viewH.Release()
+		c.viewH.Destroy()
 		c.viewH = nil
 	}
 	if c.texH != nil {
-		c.texH.Release()
+		c.texH.Destroy()
 		c.texH = nil
 	}
 	c.poolW, c.poolH = 0, 0
@@ -262,10 +262,10 @@ func (c *filterGPUCache) releaseUnlocked() {
 	}
 	for i := range c.publishFree {
 		if c.publishFree[i].view != nil {
-			c.publishFree[i].view.Release()
+			c.publishFree[i].view.Destroy()
 		}
 		if c.publishFree[i].tex != nil {
-			c.publishFree[i].tex.Release()
+			c.publishFree[i].tex.Destroy()
 		}
 	}
 	c.publishFree = nil
@@ -292,11 +292,11 @@ func (c *filterGPUCache) releaseUnlocked() {
 		c.sampler = nil
 	}
 	if c.dummyView != nil {
-		c.dummyView.Release()
+		c.dummyView.Destroy()
 		c.dummyView = nil
 	}
 	if c.dummyTex != nil {
-		c.dummyTex.Release()
+		c.dummyTex.Destroy()
 		c.dummyTex = nil
 	}
 	c.device = nil
@@ -307,7 +307,7 @@ func (c *filterGPUCache) releaseUnlocked() {
 
 // filterPassRenderPassDesc fills a reused RenderPassDescriptor for one filter
 // full-screen pass (opt44). Warm path is 0-alloc.
-func (c *filterGPUCache) filterPassRenderPassDesc(dst *webgpu.TextureView) *hal.RenderPassDescriptor {
+func (c *filterGPUCache) filterPassRenderPassDesc(dst hal.TextureView) *hal.RenderPassDescriptor {
 	if c == nil {
 		return nil
 	}
@@ -427,7 +427,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		dtex.Release()
+		dtex.Destroy()
 		samp.Destroy()
 		pipe.Release()
 		bgl.Release()
@@ -439,8 +439,8 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		dview.Release()
-		dtex.Release()
+		dview.Destroy()
+		dtex.Destroy()
 		samp.Destroy()
 		pipe.Release()
 		bgl.Release()
@@ -463,7 +463,7 @@ func (c *filterGPUCache) ensurePool(device *webgpu.Device, w, h int) error {
 	}
 	c.releasePoolUnlocked()
 	usageRT := types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst
-	mk := func(label string) (*webgpu.Texture, *webgpu.TextureView, error) {
+	mk := func(label string) (hal.Texture, hal.TextureView, error) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         label,
 			Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
@@ -479,7 +479,7 @@ func (c *filterGPUCache) ensurePool(device *webgpu.Device, w, h int) error {
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
 		if err != nil {
-			tex.Release()
+			tex.Destroy()
 			return nil, nil, err
 		}
 		return tex, view, nil
@@ -542,14 +542,14 @@ func (c *filterGPUCache) clearBGCacheUnlocked() {
 }
 
 func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupLayout, samp hal.Sampler,
-	src, dst, aux *webgpu.TextureView, ubuf hal.Buffer, offset uint64,
+	src, dst, aux hal.TextureView, ubuf hal.Buffer, offset uint64,
 ) (*webgpu.BindGroup, error) {
 	if device == nil || bgl == nil || samp == nil || src == nil || dst == nil || aux == nil || ubuf == nil {
 		return nil, fmt.Errorf("filter bg: nil arg")
 	}
 	key := filterBGKey{
-		src:    uintptr(unsafe.Pointer(src)),
-		aux:    uintptr(unsafe.Pointer(aux)),
+		src:    src,
+		aux:    aux,
 		ubuf:   ubuf,
 		offset: offset,
 	}
@@ -635,7 +635,7 @@ func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int
 // steady-state glow frames do not CopyTextureToTexture or allocate VRAM.
 // Safe to call after encode and before Submit: the command buffer retains the
 // promoted texture; the pool receives a recycled/new RT for the next graph.
-func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex *webgpu.Texture, view *webgpu.TextureView, w, h int) (filterPublishSlot, error) {
+func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex hal.Texture, view hal.TextureView, w, h int) (filterPublishSlot, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if device == nil || tex == nil || view == nil || c.poolW != w || c.poolH != h {
@@ -646,8 +646,8 @@ func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex *
 	}
 
 	// Recycle a free publish slot as the new pool RT (steady-state: no alloc).
-	var replTex *webgpu.Texture
-	var replView *webgpu.TextureView
+	var replTex hal.Texture
+	var replView hal.TextureView
 	for i := range c.publishFree {
 		s := c.publishFree[i]
 		if s.w == w && s.h == h && s.tex != nil && s.view != nil {
@@ -673,7 +673,7 @@ func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex *
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
 		if err != nil {
-			texNew.Release()
+			texNew.Destroy()
 			return filterPublishSlot{}, err
 		}
 		replTex, replView = texNew, viewNew
@@ -717,7 +717,7 @@ func (c *filterGPUCache) acquirePublish(device *webgpu.Device, w, h int) (filter
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return filterPublishSlot{}, err
 	}
 	return filterPublishSlot{tex: tex, view: view, w: w, h: h}, nil
@@ -734,8 +734,8 @@ func (c *filterGPUCache) releasePublish(slot filterPublishSlot) {
 		c.publishFree = append(c.publishFree, slot)
 		return
 	}
-	slot.view.Release()
-	slot.tex.Release()
+	slot.view.Destroy()
+	slot.tex.Destroy()
 }
 
 // runGPUFilterGraph executes multi-RT ping-pong filter nodes on GPU and readbacks.
@@ -768,8 +768,8 @@ func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue hal.Queue
 	if srcView.IsNil() {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
-	wgpuView := (*webgpu.TextureView)(srcView.Pointer())
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, wgpuView, w, h, nodes, false, leading, nil)
+	halView := unpackView(srcView)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, halView, w, h, nodes, false, leading, nil)
 	return view, release, err
 }
 
@@ -784,14 +784,14 @@ func runGPUFilterGraphFromViewIntoEncoder(device *webgpu.Device, queue hal.Queue
 	if sharedEnc == nil {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil shared encoder")
 	}
-	wgpuView := (*webgpu.TextureView)(srcView.Pointer())
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, wgpuView, w, h, nodes, false, nil, sharedEnc)
+	halView := unpackView(srcView)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, halView, w, h, nodes, false, nil, sharedEnc)
 	return view, release, err
 }
 
 func runGPUFilterGraphEx(
 	device *webgpu.Device, queue hal.Queue, cache *filterGPUCache,
-	src []byte, srcView *webgpu.TextureView, w, h int, nodes []render.ImageFilterNode, wantPixels bool,
+	src []byte, srcView hal.TextureView, w, h int, nodes []render.ImageFilterNode, wantPixels bool,
 	leading []*webgpu.CommandBuffer, sharedEnc *webgpu.CommandEncoder,
 ) (out []byte, pubView gpucontext.TextureView, pubRelease func(), err error) {
 	if device == nil || queue == nil || cache == nil || w <= 0 || h <= 0 {
@@ -867,9 +867,9 @@ func runGPUFilterGraphEx(
 		offX, offY             float32
 		colR, colG, colB, colA float32
 		matrix                 [20]float32
-		auxView                *webgpu.TextureView
-		dstView                *webgpu.TextureView
-		srcView                *webgpu.TextureView
+		auxView                hal.TextureView
+		dstView                hal.TextureView
+		srcView                hal.TextureView
 	}
 
 	// One command encoder for all passes + publish copy (single queue submit).
@@ -1266,7 +1266,7 @@ func runGPUFilterGraphEx(
 	cleanupPasses()
 
 	if !wantPixels {
-		view := gpucontext.NewTextureView(unsafe.Pointer(slot.view)) //nolint:gosec
+		view := packView(slot.view)
 		release := func() { cache.releasePublish(slot) }
 		return nil, view, release, nil
 	}

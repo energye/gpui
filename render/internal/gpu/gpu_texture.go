@@ -96,8 +96,8 @@ type GPUTexture struct {
 	// GPU resources. These are nil only for legacy tests that create textures
 	// without an initialized backend.
 	device  *webgpu.Device
-	texture *webgpu.Texture
-	view    *webgpu.TextureView
+	texture hal.Texture
+	view    hal.TextureView
 	queue   hal.Queue
 
 	// Texture properties
@@ -263,7 +263,7 @@ func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) 
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		wtex.Release()
+		wtex.Destroy()
 		return nil, err
 	}
 
@@ -330,15 +330,15 @@ func (t *GPUTexture) IsReleased() bool {
 	return t.released.Load()
 }
 
-// Texture returns the underlying WebGPU texture.
-func (t *GPUTexture) Texture() *webgpu.Texture {
+// Texture returns the underlying hal texture.
+func (t *GPUTexture) Texture() hal.Texture {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.texture
 }
 
-// View returns the default WebGPU texture view.
-func (t *GPUTexture) View() *webgpu.TextureView {
+// View returns the default hal texture view.
+func (t *GPUTexture) View() hal.TextureView {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.view
@@ -586,10 +586,10 @@ func (t *GPUTexture) Close() {
 	t.mu.Unlock()
 
 	if view != nil {
-		view.Release()
+		view.Destroy()
 	}
 	if texture != nil {
-		texture.Release()
+		texture.Destroy()
 	}
 }
 

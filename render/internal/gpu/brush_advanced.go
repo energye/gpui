@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
@@ -174,7 +173,7 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 					1.0, vpW, vpH, 0, 0, 1, 1, false, false)
 			} else {
 				rc.retainBrushCoverResult(outTex, outView)
-				rc.QueueGPUTextureDraw(target, gpucontext.NewTextureView(unsafe.Pointer(outView)), //nolint:gosec
+				rc.QueueGPUTextureDraw(target, packView(outView),
 					float32(tb.Min.X), float32(tb.Min.Y), float32(tbw), float32(tbh), 1.0, vpW, vpH)
 			}
 			tileIdx++

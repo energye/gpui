@@ -328,7 +328,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, fmt.Errorf("pattern tex: %w", err)
 	}
-	defer patTex.Release()
+	defer patTex.Destroy()
 	patView, err := device.CreateTextureView(patTex, &hal.TextureViewDescriptor{
 		Label: "pattern_mask_pat_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -336,7 +336,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer patView.Release()
+	defer patView.Destroy()
 	tightPat := uint32(srcW * 4) //nolint:gosec
 	alignedPat := alignTextureBytesPerRow(tightPat)
 	patUpload := tile
@@ -367,7 +367,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, fmt.Errorf("pattern mask tex: %w", err)
 	}
-	defer maskTex.Release()
+	defer maskTex.Destroy()
 	maskView, err := device.CreateTextureView(maskTex, &hal.TextureViewDescriptor{
 		Label: "pattern_mask_cov_view", Format: types.TextureFormatR8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -375,7 +375,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer maskView.Release()
+	defer maskView.Destroy()
 	maskTight := uint32(nw) //nolint:gosec
 	maskAligned := alignTextureBytesPerRow(maskTight)
 	maskUpload := maskR8
@@ -405,7 +405,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, fmt.Errorf("pattern out: %w", err)
 	}
-	defer outTex.Release()
+	defer outTex.Destroy()
 	outView, err := device.CreateTextureView(outTex, &hal.TextureViewDescriptor{
 		Label: "pattern_mask_out_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -413,7 +413,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer outView.Release()
+	defer outView.Destroy()
 
 	uData := encodePatternMaskSampleUniform(params)
 	uBuf, err := device.CreateBuffer(&hal.BufferDescriptor{

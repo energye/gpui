@@ -40,12 +40,12 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("color tex: %v", err)
 	}
-	defer colorTex.Release()
+	defer colorTex.Destroy()
 	colorView, err := device.CreateTextureView(colorTex, nil)
 	if err != nil {
 		t.Fatalf("color view: %v", err)
 	}
-	defer colorView.Release()
+	defer colorView.Destroy()
 
 	dsTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:  "bg_switch_ds",
@@ -56,12 +56,12 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ds tex: %v", err)
 	}
-	defer dsTex.Release()
+	defer dsTex.Destroy()
 	dsView, err := device.CreateTextureView(dsTex, nil)
 	if err != nil {
 		t.Fatalf("ds view: %v", err)
 	}
-	defer dsView.Release()
+	defer dsView.Destroy()
 
 	fan := []float32{10, 10, 50, 10, 50, 50, 10, 50}
 	coverQuad := [12]float32{0, 0, float32(w), 0, float32(w), float32(h), 0, 0, float32(w), float32(h), 0, float32(h)}

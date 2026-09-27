@@ -8,7 +8,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -22,7 +21,7 @@ func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 		t.Fatal(err)
 	}
 	const w, h uint32 = 16, 16
-	mk := func(label string, fill byte) (*webgpu.Texture, *webgpu.TextureView) {
+	mk := func(label string, fill byte) (hal.Texture, hal.TextureView) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -51,10 +50,10 @@ func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 	dstTex, dstView := mk("opt32_dst", 255)
 	srcTex, srcView := mk("opt32_src", 128)
 	t.Cleanup(func() {
-		dstView.Release()
-		dstTex.Release()
-		srcView.Release()
-		srcTex.Release()
+		dstView.Destroy()
+		dstTex.Destroy()
+		srcView.Destroy()
+		srcTex.Destroy()
 	})
 
 	enc, err := device.CreateCommandEncoder(dualTexCompositeEncoderDesc)

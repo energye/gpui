@@ -217,7 +217,7 @@ func maskR8Modulate(
 		return nil, err
 	}
 
-	mkRGBA := func(label string, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
+	mkRGBA := func(label string, data []byte, usage types.TextureUsage) (hal.Texture, hal.TextureView, error) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         label,
 			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
@@ -232,7 +232,7 @@ func maskR8Modulate(
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
 		if err != nil {
-			tex.Release()
+			tex.Destroy()
 			return nil, nil, err
 		}
 		if data != nil {
@@ -252,15 +252,15 @@ func maskR8Modulate(
 				&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
 				&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			); err != nil {
-				view.Release()
-				tex.Release()
+				view.Destroy()
+				tex.Destroy()
 				return nil, nil, err
 			}
 		}
 		return tex, view, nil
 	}
 
-	mkR8 := func(label string, data []byte) (*webgpu.Texture, *webgpu.TextureView, error) {
+	mkR8 := func(label string, data []byte) (hal.Texture, hal.TextureView, error) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         label,
 			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
@@ -276,7 +276,7 @@ func maskR8Modulate(
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
 		if err != nil {
-			tex.Release()
+			tex.Destroy()
 			return nil, nil, err
 		}
 		tight := uint32(bw) //nolint:gosec
@@ -300,8 +300,8 @@ func maskR8Modulate(
 			&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
 			&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 		); err != nil {
-			view.Release()
-			tex.Release()
+			view.Destroy()
+			tex.Destroy()
 			return nil, nil, err
 		}
 		return tex, view, nil
@@ -311,23 +311,23 @@ func maskR8Modulate(
 	if err != nil {
 		return nil, fmt.Errorf("mask r8 src: %w", err)
 	}
-	defer srcView.Release()
-	defer srcTex.Release()
+	defer srcView.Destroy()
+	defer srcTex.Destroy()
 
 	maskTex, maskView, err := mkR8("mask_r8_mask", maskR8)
 	if err != nil {
 		return nil, fmt.Errorf("mask r8 mask: %w", err)
 	}
-	defer maskView.Release()
-	defer maskTex.Release()
+	defer maskView.Destroy()
+	defer maskTex.Destroy()
 
 	outTex, outView, err := mkRGBA("mask_r8_out", nil,
 		types.TextureUsageRenderAttachment|types.TextureUsageCopySrc|types.TextureUsageTextureBinding)
 	if err != nil {
 		return nil, fmt.Errorf("mask r8 out: %w", err)
 	}
-	defer outView.Release()
-	defer outTex.Release()
+	defer outView.Destroy()
+	defer outTex.Destroy()
 
 	cache.mu.Lock()
 	bgl, pipeline, sampler := cache.bgl, cache.pipeline, cache.sampler

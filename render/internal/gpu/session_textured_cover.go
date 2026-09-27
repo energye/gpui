@@ -205,11 +205,11 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 		b.texturedCoverBG = nil
 	}
 	if b.rampView != nil {
-		b.rampView.Release()
+		b.rampView.Destroy()
 		b.rampView = nil
 	}
 	if b.rampTex != nil {
-		b.rampTex.Release()
+		b.rampTex.Destroy()
 		b.rampTex = nil
 	}
 
@@ -229,7 +229,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		rampTex.Release()
+		rampTex.Destroy()
 		return err
 	}
 	rbpr := alignTextureBytesPerRow(uint32(n * 4)) //nolint:gosec
@@ -245,8 +245,8 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 		&hal.ImageDataLayout{BytesPerRow: rbpr, RowsPerImage: 1},
 		&hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
-		rampView.Release()
-		rampTex.Release()
+		rampView.Destroy()
+		rampTex.Destroy()
 		return err
 	}
 
@@ -267,16 +267,16 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 		})
 		if err != nil {
-			rampView.Release()
-			rampTex.Release()
+			rampView.Destroy()
+			rampTex.Destroy()
 			return err
 		}
 		b.coverUniBuf = ub
 		b.coverUniCap = texturedCoverUniformSize
 	}
 	if err := sr.queue.WriteBuffer(b.coverUniBuf, 0, uni); err != nil {
-		rampView.Release()
-		rampTex.Release()
+		rampView.Destroy()
+		rampTex.Destroy()
 		return err
 	}
 
@@ -290,8 +290,8 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 		},
 	})
 	if err != nil {
-		rampView.Release()
-		rampTex.Release()
+		rampView.Destroy()
+		rampTex.Destroy()
 		return err
 	}
 
@@ -546,11 +546,11 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 		b.texturedCoverBG = nil
 	}
 	if b.rampView != nil {
-		b.rampView.Release()
+		b.rampView.Destroy()
 		b.rampView = nil
 	}
 	if b.rampTex != nil {
-		b.rampTex.Release()
+		b.rampTex.Destroy()
 		b.rampTex = nil
 	}
 
@@ -570,7 +570,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		patTex.Release()
+		patTex.Destroy()
 		return err
 	}
 	bpr := alignTextureBytesPerRow(uint32(srcW * 4)) //nolint:gosec
@@ -589,8 +589,8 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 		&hal.ImageDataLayout{BytesPerRow: bpr, RowsPerImage: uint32(srcH)},              //nolint:gosec
 		&hal.Extent3D{Width: uint32(srcW), Height: uint32(srcH), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
-		patView.Release()
-		patTex.Release()
+		patView.Destroy()
+		patTex.Destroy()
 		return err
 	}
 
@@ -609,16 +609,16 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 		})
 		if err != nil {
-			patView.Release()
-			patTex.Release()
+			patView.Destroy()
+			patTex.Destroy()
 			return err
 		}
 		b.coverUniBuf = ub
 		b.coverUniCap = patternCoverUniformSize
 	}
 	if err := sr.queue.WriteBuffer(b.coverUniBuf, 0, uni); err != nil {
-		patView.Release()
-		patTex.Release()
+		patView.Destroy()
+		patTex.Destroy()
 		return err
 	}
 	bg, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
@@ -631,8 +631,8 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 		},
 	})
 	if err != nil {
-		patView.Release()
-		patTex.Release()
+		patView.Destroy()
+		patTex.Destroy()
 		return err
 	}
 	b.rampTex = patTex

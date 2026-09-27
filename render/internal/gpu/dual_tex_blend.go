@@ -268,7 +268,7 @@ type dualTexBlendCache struct {
 }
 
 type dualTexBGKey struct {
-	dst, src uintptr
+	dst, src hal.TextureView
 	ubuf     hal.Buffer
 	offset   uint64
 }
@@ -279,8 +279,8 @@ type dualTexMultiBGSlot struct {
 }
 
 type dualTexPooledTex struct {
-	tex  *webgpu.Texture
-	view *webgpu.TextureView
+	tex  hal.Texture
+	view hal.TextureView
 }
 
 func (c *dualTexBlendCache) release() {
@@ -324,10 +324,10 @@ func (c *dualTexBlendCache) release() {
 	for _, bucket := range c.outPool {
 		for _, it := range bucket {
 			if it.view != nil {
-				it.view.Release()
+				it.view.Destroy()
 			}
 			if it.tex != nil {
-				it.tex.Release()
+				it.tex.Destroy()
 			}
 		}
 	}
@@ -627,7 +627,7 @@ func dualTexAdvancedBlend(
 		return nil, fmt.Errorf("dual-tex uniform write: %w", err)
 	}
 
-	mkTex := func(label string, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
+	mkTex := func(label string, data []byte, usage types.TextureUsage) (hal.Texture, hal.TextureView, error) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label,
 			Size: hal.Extent3D{
@@ -652,7 +652,7 @@ func dualTexAdvancedBlend(
 			MipLevelCount: 1,
 		})
 		if err != nil {
-			tex.Release()
+			tex.Destroy()
 			return nil, nil, err
 		}
 		if data != nil {
@@ -677,8 +677,8 @@ func dualTexAdvancedBlend(
 				},
 				&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			); err != nil {
-				view.Release()
-				tex.Release()
+				view.Destroy()
+				tex.Destroy()
 				return nil, nil, err
 			}
 		}
@@ -690,24 +690,24 @@ func dualTexAdvancedBlend(
 	if err != nil {
 		return nil, fmt.Errorf("dual-tex dst tex: %w", err)
 	}
-	defer dstView.Release()
-	defer dstTex.Release()
+	defer dstView.Destroy()
+	defer dstTex.Destroy()
 
 	srcTex, srcView, err := mkTex("dual_tex_src", srcRGBA,
 		types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
 	if err != nil {
 		return nil, fmt.Errorf("dual-tex src tex: %w", err)
 	}
-	defer srcView.Release()
-	defer srcTex.Release()
+	defer srcView.Destroy()
+	defer srcTex.Destroy()
 
 	outTex, outView, err := mkTex("dual_tex_out", nil,
 		types.TextureUsageRenderAttachment|types.TextureUsageCopySrc|types.TextureUsageTextureBinding)
 	if err != nil {
 		return nil, fmt.Errorf("dual-tex out tex: %w", err)
 	}
-	defer outView.Release()
-	defer outTex.Release()
+	defer outView.Destroy()
+	defer outTex.Destroy()
 
 	cache.mu.Lock()
 	bgl := cache.bgl
@@ -845,11 +845,11 @@ func dualTexModeU(mode render.BlendMode) uint32 {
 }
 
 // dualTexCreateTex creates an RGBA8 2D texture (+view). optional upload of tight RGBA.
-func dualTexCreateTex(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
+func dualTexCreateTex(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage) (hal.Texture, hal.TextureView, error) {
 	return dualTexCreateTexFmt(device, queue, label, bw, bh, data, usage, types.TextureFormatRGBA8Unorm)
 }
 
-func dualTexCreateTexFmt(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (*webgpu.Texture, *webgpu.TextureView, error) {
+func dualTexCreateTexFmt(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (hal.Texture, hal.TextureView, error) {
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label: label,
 		Size: hal.Extent3D{
@@ -874,7 +874,7 @@ func dualTexCreateTexFmt(device *webgpu.Device, queue hal.Queue, label string, b
 		MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return nil, nil, err
 	}
 	if data != nil && queue != nil {
@@ -904,8 +904,8 @@ func dualTexCreateTexFmt(device *webgpu.Device, queue hal.Queue, label string, b
 		)
 		releaseImageStaging(padScratch)
 		if err != nil {
-			view.Release()
-			tex.Release()
+			view.Destroy()
+			tex.Destroy()
 			return nil, nil, err
 		}
 	}
@@ -969,7 +969,7 @@ func dualTexAdvancedBlendNoReadback(
 	dstRGBA, srcRGBA []byte,
 	bw, bh int,
 	mode render.BlendMode,
-) (*webgpu.Texture, *webgpu.TextureView, error) {
+) (hal.Texture, hal.TextureView, error) {
 	if device == nil || queue == nil || cache == nil {
 		return nil, nil, fmt.Errorf("dual-tex: nil device/queue/cache")
 	}
@@ -993,16 +993,16 @@ func dualTexAdvancedBlendNoReadback(
 	if err != nil {
 		return nil, nil, err
 	}
-	defer dstView.Release()
-	defer dstTex.Release()
+	defer dstView.Destroy()
+	defer dstTex.Destroy()
 
 	srcTex, srcView, err := dualTexCreateTex(device, queue, "dual_tex_src", bw, bh, srcRGBA,
 		types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer srcView.Release()
-	defer srcTex.Release()
+	defer srcView.Destroy()
+	defer srcTex.Destroy()
 
 	outTex, outView, err := dualTexCreateTex(device, queue, "dual_tex_out", bw, bh, nil,
 		types.TextureUsageRenderAttachment|types.TextureUsageCopySrc|types.TextureUsageTextureBinding)
@@ -1028,16 +1028,16 @@ func dualTexAdvancedBlendNoReadback(
 		},
 	})
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, fmt.Errorf("dual-tex bind: %w", err)
 	}
 	defer bg.Release()
 
 	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "dual_tex_nr_enc"})
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
@@ -1050,8 +1050,8 @@ func dualTexAdvancedBlendNoReadback(
 		}},
 	})
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	rp.SetPipeline(pipeline)
@@ -1060,14 +1060,14 @@ func dualTexAdvancedBlendNoReadback(
 	rp.End()
 	cmd, err := enc.Finish()
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	defer cmd.Release()
 	if _, err := queue.Submit(cmd); err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	// No Poll/Map — result stays on GPU for QueueGPUTextureDraw.
@@ -1097,7 +1097,7 @@ func dualTexQuantizeWH(w, h int) (int, int) {
 	return w, h
 }
 
-func (c *dualTexBlendCache) getOutBGRA(device *webgpu.Device, queue hal.Queue, w, h int) (*webgpu.Texture, *webgpu.TextureView, error) {
+func (c *dualTexBlendCache) getOutBGRA(device *webgpu.Device, queue hal.Queue, w, h int) (hal.Texture, hal.TextureView, error) {
 	if c == nil || device == nil || w <= 0 || h <= 0 {
 		return nil, nil, fmt.Errorf("dual-tex out pool: bad args")
 	}
@@ -1127,13 +1127,13 @@ func (c *dualTexBlendCache) getOutBGRA(device *webgpu.Device, queue hal.Queue, w
 // putOutBGRA returns an out texture to the pool after the frame no longer needs it.
 // Currently retainBrushCoverResult owns lifetime until flush; pooling is hooked via
 // release path when hold list is drained — callers may put after QueueGPUTextureDraw flush.
-func (c *dualTexBlendCache) putOutBGRA(tex *webgpu.Texture, view *webgpu.TextureView, w, h int) {
+func (c *dualTexBlendCache) putOutBGRA(tex hal.Texture, view hal.TextureView, w, h int) {
 	if c == nil || tex == nil || view == nil || w <= 0 || h <= 0 {
 		if view != nil {
-			view.Release()
+			view.Destroy()
 		}
 		if tex != nil {
-			tex.Release()
+			tex.Destroy()
 		}
 		return
 	}
@@ -1146,8 +1146,8 @@ func (c *dualTexBlendCache) putOutBGRA(tex *webgpu.Texture, view *webgpu.Texture
 	}
 	b := c.outPool[key]
 	if len(b) >= 8 {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return
 	}
 	c.outPool[key] = append(b, dualTexPooledTex{tex: tex, view: view})
@@ -1170,10 +1170,10 @@ func (c *dualTexBlendCache) releasePooledVRAM() {
 	for _, bucket := range c.outPool {
 		for _, it := range bucket {
 			if it.view != nil {
-				it.view.Release()
+				it.view.Destroy()
 			}
 			if it.tex != nil {
-				it.tex.Release()
+				it.tex.Destroy()
 			}
 		}
 	}
@@ -1208,10 +1208,10 @@ func (c *dualTexBlendCache) enforceOutPoolBudgetLocked() {
 		b := c.outPool[worstKey]
 		it := b[len(b)-1]
 		if it.view != nil {
-			it.view.Release()
+			it.view.Destroy()
 		}
 		if it.tex != nil {
-			it.tex.Release()
+			it.tex.Destroy()
 		}
 		b = b[:len(b)-1]
 		if len(b) == 0 {
@@ -1228,15 +1228,15 @@ func (c *dualTexBlendCache) enforceOutPoolBudgetLocked() {
 
 // dualTexViewBlendOp is one advanced-blend layer for multi-pass single Submit.
 type dualTexViewBlendOp struct {
-	srcView *webgpu.TextureView
+	srcView hal.TextureView
 	bounds  image.Rectangle
 	mode    render.BlendMode
 	opacity float32
 }
 
 type dualTexViewBlendOut struct {
-	tex     *webgpu.Texture
-	view    *webgpu.TextureView
+	tex     hal.Texture
+	view    hal.TextureView
 	bounds  image.Rectangle
 	opacity float32
 }
@@ -1301,7 +1301,7 @@ func (c *dualTexBlendCache) multiBindGroup(
 	device *webgpu.Device,
 	bgl *webgpu.BindGroupLayout,
 	sampler hal.Sampler,
-	dst, src *webgpu.TextureView,
+	dst, src hal.TextureView,
 	ubuf hal.Buffer,
 	offset uint64,
 	slot int,
@@ -1310,8 +1310,8 @@ func (c *dualTexBlendCache) multiBindGroup(
 		return nil, fmt.Errorf("dual-tex multi bg: nil arg")
 	}
 	key := dualTexBGKey{
-		dst:    uintptr(unsafe.Pointer(dst)),
-		src:    uintptr(unsafe.Pointer(src)),
+		dst:    dst,
+		src:    src,
 		ubuf:   ubuf,
 		offset: offset,
 	}
@@ -1364,7 +1364,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	device *webgpu.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
-	dstView *webgpu.TextureView,
+	dstView hal.TextureView,
 	ops []dualTexViewBlendOp,
 	dstW, dstH int,
 	enc *webgpu.CommandEncoder,
@@ -1399,8 +1399,8 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	type preparedOp struct {
 		op      dualTexViewBlendOp
 		bounds  image.Rectangle
-		outTex  *webgpu.Texture
-		outView *webgpu.TextureView
+		outTex  hal.Texture
+		outView hal.TextureView
 		slot    int
 		offset  uint64
 	}
@@ -1419,8 +1419,8 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 		outTex, outView, oerr := cache.getOutBGRA(device, queue, bw, bh)
 		if oerr != nil {
 			for _, p := range prepared {
-				p.outView.Release()
-				p.outTex.Release()
+				p.outView.Destroy()
+				p.outTex.Destroy()
 			}
 			return nil, oerr
 		}
@@ -1443,8 +1443,8 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	packBytes := len(prepared) * dualTexUniformSlotStride
 	if err := queue.WriteBuffer(slab, 0, paramsScratch[:packBytes]); err != nil {
 		for _, p := range prepared {
-			p.outView.Release()
-			p.outTex.Release()
+			p.outView.Destroy()
+			p.outTex.Destroy()
 		}
 		return nil, err
 	}
@@ -1457,11 +1457,11 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	for _, p := range prepared {
 		bg, berr := cache.multiBindGroup(device, bgl, sampler, dstView, p.op.srcView, slab, p.offset, p.slot)
 		if berr != nil {
-			p.outView.Release()
-			p.outTex.Release()
+			p.outView.Destroy()
+			p.outTex.Destroy()
 			for _, o := range outs {
-				o.view.Release()
-				o.tex.Release()
+				o.view.Destroy()
+				o.tex.Destroy()
 			}
 			return nil, berr
 		}
@@ -1475,11 +1475,11 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 			}},
 		})
 		if rerr != nil {
-			p.outView.Release()
-			p.outTex.Release()
+			p.outView.Destroy()
+			p.outTex.Destroy()
 			for _, o := range outs {
-				o.view.Release()
-				o.tex.Release()
+				o.view.Destroy()
+				o.tex.Destroy()
 			}
 			return nil, rerr
 		}
@@ -1503,7 +1503,7 @@ func dualTexAdvancedBlendViewsMultiBundle(
 	device *webgpu.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
-	dstView *webgpu.TextureView,
+	dstView hal.TextureView,
 	ops []dualTexViewBlendOp,
 	dstW, dstH int,
 	submitNow bool,
@@ -1524,10 +1524,10 @@ func dualTexAdvancedBlendViewsMultiBundle(
 	if err != nil {
 		for _, o := range outs {
 			if o.view != nil {
-				o.view.Release()
+				o.view.Destroy()
 			}
 			if o.tex != nil {
-				o.tex.Release()
+				o.tex.Destroy()
 			}
 		}
 		return dualTexMultiBundle{}, err
@@ -1538,10 +1538,10 @@ func dualTexAdvancedBlendViewsMultiBundle(
 		if _, err := queue.Submit(cmd); err != nil {
 			for _, o := range outs {
 				if o.view != nil {
-					o.view.Release()
+					o.view.Destroy()
 				}
 				if o.tex != nil {
-					o.tex.Release()
+					o.tex.Destroy()
 				}
 			}
 			return dualTexMultiBundle{}, err
@@ -1565,11 +1565,11 @@ func dualTexAdvancedBlendViewsRegionSized(
 	device *webgpu.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
-	dstView, srcView *webgpu.TextureView,
+	dstView, srcView hal.TextureView,
 	bounds image.Rectangle,
 	mode render.BlendMode,
 	dstW, dstH int,
-) (*webgpu.Texture, *webgpu.TextureView, error) {
+) (hal.Texture, hal.TextureView, error) {
 	if device == nil || queue == nil || cache == nil || dstView == nil || srcView == nil {
 		return nil, nil, fmt.Errorf("dual-tex views: nil args")
 	}
@@ -1615,8 +1615,8 @@ func dualTexAdvancedBlendViewsRegionSized(
 	// (bounds in pixel space, UV y down). textureSample uses top-left 0,0.
 	modeU := dualTexModeU(mode)
 	if err := dualTexWriteParams(queue, cache.uniform, modeU, u0, v0, u1, v1, 1, false); err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 
@@ -1638,16 +1638,16 @@ func dualTexAdvancedBlendViewsRegionSized(
 		},
 	})
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	defer bg.Release()
 
 	enc, err := device.CreateCommandEncoder(dualTexViewsEncoderDesc)
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
@@ -1660,8 +1660,8 @@ func dualTexAdvancedBlendViewsRegionSized(
 		}},
 	})
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	rp.SetPipeline(pipeline)
@@ -1670,14 +1670,14 @@ func dualTexAdvancedBlendViewsRegionSized(
 	rp.End()
 	cmd, err := enc.Finish()
 	if err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	defer cmd.Release()
 	if _, err := queue.Submit(cmd); err != nil {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 		return nil, nil, err
 	}
 	return outTex, outView, nil
@@ -1702,12 +1702,11 @@ func readTextureViewRegionRGBA(
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: empty bounds")
 	}
 	bw, bh := bounds.Dx(), bounds.Dy()
-	wgpuView := (*webgpu.TextureView)(view.Pointer())
-	if wgpuView == nil {
+	halView := unpackView(view)
+	if halView == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil view ptr")
 	}
-	texRaw := wgpuView.Texture()
-	tex, _ := texRaw.(*webgpu.Texture)
+	tex := halView.Texture()
 	if tex == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil texture")
 	}
@@ -1818,12 +1817,11 @@ func readTextureViewRegionStraightRGBA(
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: empty bounds")
 	}
 	bw, bh := bounds.Dx(), bounds.Dy()
-	wgpuView := (*webgpu.TextureView)(view.Pointer())
-	if wgpuView == nil {
+	halView := unpackView(view)
+	if halView == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil view ptr")
 	}
-	texRaw := wgpuView.Texture()
-	tex, _ := texRaw.(*webgpu.Texture)
+	tex := halView.Texture()
 	if tex == nil {
 		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil texture")
 	}

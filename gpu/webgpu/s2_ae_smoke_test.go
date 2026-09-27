@@ -135,7 +135,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTexture: %v", err)
 	}
-	defer tex.Release()
+	defer tex.Destroy()
 
 	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Format:    types.TextureFormatRGBA8Unorm,
@@ -146,7 +146,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTextureView: %v", err)
 	}
-	defer view.Release()
+	defer view.Destroy()
 
 	sampler, err := device.CreateSampler(&hal.SamplerDescriptor{
 		AddressModeU: types.AddressModeClampToEdge,
@@ -285,7 +285,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("rt: %v", err)
 	}
-	defer rt.Release()
+	defer rt.Destroy()
 	view, err := device.CreateTextureView(rt, &hal.TextureViewDescriptor{
 		Format:          types.TextureFormatRGBA8Unorm,
 		Dimension:       types.TextureViewDimension2D,
@@ -296,7 +296,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("view: %v", err)
 	}
-	defer view.Release()
+	defer view.Destroy()
 
 	enc, err := device.CreateCommandEncoder(nil)
 	if err != nil {

@@ -505,7 +505,7 @@ func (sc *Swapchain) requestDeviceWithVRAMProbe(label string, lim *types.Limits)
 				Usage:         types.TextureUsageRenderAttachment,
 			})
 			if err2 == nil {
-				tex.Release()
+				tex.Destroy()
 				return dev, nil
 			}
 			last = err2
@@ -922,6 +922,8 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		}
 		return nil, fmt.Errorf("wgpu: surface texture CreateView: %w", err)
 	}
+	// Internal unpack (片7d): Frame carries the concrete view; hal iface stays at API boundary.
+	cv, _ := view.(*TextureView)
 	if suboptimal {
 		sc.suboptimal++
 		// Act once per extent. Continuous reconfigure of the same size causes
@@ -933,8 +935,8 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	sc.frameOpen = true
 	return &Frame{
 		SurfaceTexture: st,
-		View:           view,
-		Handle:         TextureViewToHandle(view),
+		View:           cv,
+		Handle:         TextureViewToHandle(cv),
 		Suboptimal:     suboptimal,
 		Width:          sc.Width,
 		Height:         sc.Height,

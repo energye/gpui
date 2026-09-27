@@ -29,8 +29,8 @@ type ColorGlyphEngine struct {
 	quadScratch []GlyphMaskQuad
 
 	// GPU textures for color atlas pages. Index matches atlas page index.
-	pageTextures []*webgpu.Texture
-	pageViews    []*webgpu.TextureView
+	pageTextures []hal.Texture
+	pageViews    []hal.TextureView
 }
 
 // NewColorGlyphEngine creates a color glyph engine with default atlas pages.
@@ -306,7 +306,7 @@ func (e *ColorGlyphEngine) SyncColorAtlasTextures(device *webgpu.Device, queue h
 
 // PageTextureView returns the GPU texture view for the given color page.
 // Returns nil if the page has not been uploaded.
-func (e *ColorGlyphEngine) PageTextureView(index int) *webgpu.TextureView {
+func (e *ColorGlyphEngine) PageTextureView(index int) hal.TextureView {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if index < 0 || index >= len(e.pageViews) {
@@ -322,14 +322,14 @@ func (e *ColorGlyphEngine) Destroy(device *webgpu.Device) {
 
 	for _, v := range e.pageViews {
 		if v != nil {
-			v.Release()
+			v.Destroy()
 		}
 	}
 	e.pageViews = nil
 
 	for _, t := range e.pageTextures {
 		if t != nil {
-			t.Release()
+			t.Destroy()
 		}
 	}
 	e.pageTextures = nil

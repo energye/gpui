@@ -1,10 +1,6 @@
 package gpu
 
-import (
-	"testing"
-
-	"github.com/energye/gpui/gpu/webgpu"
-)
+import "testing"
 
 // TestOffscreenPool_ReuseAndStaleGuard locks the R6-3 re-enable (needs a
 // native device; skips headless like the other native tests). One shared
@@ -43,7 +39,7 @@ func TestOffscreenPool_ReuseAndStaleGuard(t *testing.T) {
 	// texture); the take must destroy it and allocate fresh.
 	rc.offscreenPoolMu.Lock()
 	rc.offscreenPool = map[[2]int][]offscreenPooled{
-		{64, 32}: {{tex: &webgpu.Texture{}, view: &webgpu.TextureView{}, dev: nil}},
+		{64, 32}: {{tex: &testTexture{}, view: &testTextureView{}, dev: nil}},
 	}
 	rc.offscreenPoolMu.Unlock()
 	v3, rel3 := rc.CreateOffscreenTexture(64, 32)

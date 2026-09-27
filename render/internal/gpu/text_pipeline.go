@@ -930,9 +930,9 @@ type TextRenderer struct {
 	// Atlas management
 	atlasManager *msdf.AtlasManager
 
-	// Cached atlas textures (*wgpu.Texture + *wgpu.TextureView)
-	atlasTextures     []*webgpu.Texture
-	atlasTextureViews []*webgpu.TextureView
+	// Cached atlas textures (hal.Texture + hal.TextureView)
+	atlasTextures     []hal.Texture
+	atlasTextureViews []hal.TextureView
 
 	// State
 	initialized bool
@@ -1067,8 +1067,8 @@ func (r *TextRenderer) SyncAtlases() error {
 			},
 			&hal.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 		); err != nil {
-			r.atlasTextureViews[idx].Release()
-			r.atlasTextures[idx].Release()
+			r.atlasTextureViews[idx].Destroy()
+			r.atlasTextures[idx].Destroy()
 			r.atlasTextureViews[idx] = nil
 			r.atlasTextures[idx] = nil
 			return fmt.Errorf("upload text atlas %d: %w", idx, err)
@@ -1103,7 +1103,7 @@ func (r *TextRenderer) Close() {
 	// Close texture views.
 	for _, v := range r.atlasTextureViews {
 		if v != nil {
-			v.Release()
+			v.Destroy()
 		}
 	}
 	r.atlasTextureViews = nil
@@ -1111,7 +1111,7 @@ func (r *TextRenderer) Close() {
 	// Close textures.
 	for _, t := range r.atlasTextures {
 		if t != nil {
-			t.Release()
+			t.Destroy()
 		}
 	}
 	r.atlasTextures = nil

@@ -370,7 +370,7 @@ func linearRampMaskExpand(
 	if err != nil {
 		return nil, fmt.Errorf("linear ramp tex: %w", err)
 	}
-	defer rampTex.Release()
+	defer rampTex.Destroy()
 	rampView, err := device.CreateTextureView(rampTex, &hal.TextureViewDescriptor{
 		Label: "linear_ramp_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -378,7 +378,7 @@ func linearRampMaskExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer rampView.Release()
+	defer rampView.Destroy()
 	rampBPR := alignTextureBytesPerRow(uint32(n * 4)) //nolint:gosec
 	rampUpload := ramp
 	if rampBPR != uint32(n*4) { //nolint:gosec
@@ -406,7 +406,7 @@ func linearRampMaskExpand(
 	if err != nil {
 		return nil, fmt.Errorf("linear ramp mask tex: %w", err)
 	}
-	defer maskTex.Release()
+	defer maskTex.Destroy()
 	maskView, err := device.CreateTextureView(maskTex, &hal.TextureViewDescriptor{
 		Label: "linear_ramp_mask_view", Format: types.TextureFormatR8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -414,7 +414,7 @@ func linearRampMaskExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer maskView.Release()
+	defer maskView.Destroy()
 	maskTight := uint32(nw) //nolint:gosec
 	maskAligned := alignTextureBytesPerRow(maskTight)
 	maskUpload := maskR8
@@ -445,7 +445,7 @@ func linearRampMaskExpand(
 	if err != nil {
 		return nil, fmt.Errorf("linear ramp out: %w", err)
 	}
-	defer outTex.Release()
+	defer outTex.Destroy()
 	outView, err := device.CreateTextureView(outTex, &hal.TextureViewDescriptor{
 		Label: "linear_ramp_out_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -453,7 +453,7 @@ func linearRampMaskExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer outView.Release()
+	defer outView.Destroy()
 
 	// Uniform.
 	uData := encodeLinearRampMaskUniform(params)

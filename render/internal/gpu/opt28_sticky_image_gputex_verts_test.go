@@ -85,7 +85,7 @@ func TestOpt28_GPUTexVertSticky_SkipsRepeatWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { view.Release(); tex.Release() })
+	t.Cleanup(func() { view.Destroy(); tex.Destroy() })
 
 	// P3: register the test view under a deferred SourceKey so build
 	// resolution succeeds on every repeated build (transient refs are

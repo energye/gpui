@@ -36,7 +36,7 @@ var (
 
 // Texture represents a GPU texture resource.
 //
-// Texture wraps a *wgpu.Texture and provides Go-idiomatic access with
+// Texture wraps a hal.Texture and provides Go-idiomatic access with
 // lazy default view creation using sync.Once. This follows the wgpu pattern
 // where textures have a default view that is created on-demand.
 //
@@ -56,7 +56,7 @@ type Texture struct {
 	mu sync.RWMutex
 
 	// gpuTexture is the underlying texture handle.
-	gpuTexture *webgpu.Texture
+	gpuTexture hal.Texture
 
 	// device is the parent device.
 	device *webgpu.Device
@@ -115,7 +115,7 @@ type TextureDescriptor struct {
 //   - desc: The texture descriptor (copied)
 //
 // Returns the new Texture.
-func NewTexture(gpuTexture *webgpu.Texture, device *webgpu.Device, desc *TextureDescriptor) *Texture {
+func NewTexture(gpuTexture hal.Texture, device *webgpu.Device, desc *TextureDescriptor) *Texture {
 	return &Texture{
 		gpuTexture: gpuTexture,
 		device:     device,
@@ -190,7 +190,7 @@ func (t *Texture) IsDestroyed() bool {
 // Returns nil if the texture has been destroyed.
 // Use with caution - the caller should ensure the texture is not destroyed
 // while the handle is in use.
-func (t *Texture) Raw() *webgpu.Texture {
+func (t *Texture) Raw() hal.Texture {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if t.destroyed {
@@ -369,7 +369,7 @@ func (t *Texture) Destroy() {
 
 	// Destroy the texture
 	if device != nil && gpuTex != nil {
-		gpuTex.Release()
+		gpuTex.Destroy()
 	}
 }
 
@@ -389,7 +389,7 @@ type TextureView struct {
 	mu sync.RWMutex
 
 	// gpuView is the underlying texture view handle.
-	gpuView *webgpu.TextureView
+	gpuView hal.TextureView
 
 	// texture is the parent texture (retained reference).
 	texture *Texture
@@ -503,7 +503,7 @@ func (v *TextureView) IsDestroyed() bool {
 // Returns nil if the view has been destroyed.
 // Use with caution - the caller should ensure the view is not destroyed
 // while the handle is in use.
-func (v *TextureView) Raw() *webgpu.TextureView {
+func (v *TextureView) Raw() hal.TextureView {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	if v.destroyed {
@@ -541,7 +541,7 @@ func (v *TextureView) destroy() {
 	v.mu.Unlock()
 
 	if device != nil && gpuView != nil {
-		gpuView.Release()
+		gpuView.Destroy()
 	}
 }
 

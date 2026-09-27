@@ -93,7 +93,7 @@ type GPURenderContext struct {
 	// Set when Flush absorbed pending into target.Data (View-nil). Context
 	// ApplyImageFilterGraph must re-seed from pixmap afterward (Multiply+filter).
 	flushedPendingToData bool
-	lastView             *webgpu.TextureView
+	lastView             hal.TextureView
 
 	// Per-context scene stats (for Auto pipeline mode).
 	sceneStats render.SceneStats
@@ -124,8 +124,8 @@ type GPURenderContext struct {
 	// frameScratch is a BGRA offscreen with CopySrc|TextureBinding used when
 	// advanced blends must sample dest. Swapchain textures are RENDER_ATTACHMENT
 	// only and cannot be dual-tex sources.
-	frameScratchTex  *webgpu.Texture
-	frameScratchView *webgpu.TextureView
+	frameScratchTex  hal.Texture
+	frameScratchView hal.TextureView
 	frameScratchW    int
 	frameScratchH    int
 	layerReleaseHold []func()
@@ -148,8 +148,8 @@ const offscreenPoolBucketCap = 4
 const offscreenPoolBytesCap = 32 << 20
 
 type offscreenPooled struct {
-	tex  *webgpu.Texture
-	view *webgpu.TextureView
+	tex  hal.Texture
+	view hal.TextureView
 	// dev is the device the texture was created on. Takes reject items
 	// from a previous device (shared recovery replaces it) instead of
 	// handing a dead-device texture to a new-device record.
@@ -513,7 +513,7 @@ type offscreenPass struct {
 	textBatchSealed  bool
 	glyphBatchSealed bool
 	frameRendered    bool
-	lastView         *webgpu.TextureView
+	lastView         hal.TextureView
 	flushedToData    bool
 	pendingAdvLayers []pendingAdvancedLayer
 	layerReleaseHold []func()
@@ -1384,17 +1384,17 @@ func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view g
 
 // brushCoverResult owns a per-draw stencil-cover texture until Flush finishes.
 type brushCoverResult struct {
-	tex  *webgpu.Texture
-	view *webgpu.TextureView
+	tex  hal.Texture
+	view hal.TextureView
 	// recycle, if set, returns tex/view to a pool instead of Release.
-	recycle func(tex *webgpu.Texture, view *webgpu.TextureView)
+	recycle func(tex hal.Texture, view hal.TextureView)
 }
 
-func (rc *GPURenderContext) retainBrushCoverResult(tex *webgpu.Texture, view *webgpu.TextureView) {
+func (rc *GPURenderContext) retainBrushCoverResult(tex hal.Texture, view hal.TextureView) {
 	rc.retainBrushCoverResultRecycle(tex, view, nil)
 }
 
-func (rc *GPURenderContext) retainBrushCoverResultRecycle(tex *webgpu.Texture, view *webgpu.TextureView, recycle func(*webgpu.Texture, *webgpu.TextureView)) {
+func (rc *GPURenderContext) retainBrushCoverResultRecycle(tex hal.Texture, view hal.TextureView, recycle func(hal.Texture, hal.TextureView)) {
 	if rc == nil || tex == nil || view == nil {
 		return
 	}
@@ -1413,11 +1413,11 @@ func (rc *GPURenderContext) releaseBrushCoverResults() {
 			continue
 		}
 		if r.view != nil {
-			r.view.Release()
+			r.view.Destroy()
 			r.view = nil
 		}
 		if r.tex != nil {
-			r.tex.Release()
+			r.tex.Destroy()
 			r.tex = nil
 		}
 	}
@@ -1428,14 +1428,14 @@ func (rc *GPURenderContext) releaseBrushCoverResults() {
 // session via GPU-to-GPU draw (no CPU readback / re-upload).
 func (rc *GPURenderContext) queueBrushCoverTexture(
 	target render.GPURenderTarget,
-	view *webgpu.TextureView,
+	view hal.TextureView,
 	x0, y0, x1, y1 float32,
 	vpW, vpH uint32,
 ) {
 	if rc == nil || view == nil {
 		return
 	}
-	rc.QueueGPUTextureDraw(target, gpucontext.NewTextureView(unsafe.Pointer(view)), //nolint:gosec
+	rc.QueueGPUTextureDraw(target, packView(view),
 		x0, y0, x1-x0, y1-y0, 1.0, vpW, vpH)
 }
 
@@ -2263,7 +2263,7 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 		MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return nil
 	}
 	// Align pitch for multi-row WriteTexture.
@@ -2283,12 +2283,12 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(th)},        //nolint:gosec
 		&hal.Extent3D{Width: uint32(tw), Height: uint32(th), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return nil
 	}
 	rc.baseLayer = &GPUTextureDrawCommand{
-		View:           rc.viewToResView(gpucontext.NewTextureView(unsafe.Pointer(view))), //nolint:gosec
+		View:           rc.viewToResView(packView(view)), //nolint:gosec
 		DstX:           0,
 		DstY:           0,
 		DstW:           float32(tw),
@@ -2298,8 +2298,8 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 		ViewportHeight: uint32(th), //nolint:gosec
 	}
 	return func() {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 	}
 }
 
@@ -2558,7 +2558,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			if serr := rc.ensureFrameScratch(sw, sh); serr != nil {
 				useScratch = false
 			} else {
-				target.View = gpucontext.NewTextureView(unsafe.Pointer(rc.frameScratchView)) //nolint:gosec
+				target.View = packView(rc.frameScratchView)
 				// Force LoadOpClear on scratch for this frame.
 				rc.frameRendered = false
 				rc.lastView = nil
@@ -2660,7 +2660,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.hasPendingTarget = false
 
 		rc.QueueGPUTextureDraw(blitTarget,
-			gpucontext.NewTextureView(unsafe.Pointer(rc.frameScratchView)), //nolint:gosec
+			packView(rc.frameScratchView),
 			0, 0, float32(vpW), float32(vpH), 1.0, vpW, vpH)
 
 		if singleSubmit && frameEnc != nil {
@@ -2832,10 +2832,10 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 			rc.session.RetireTexture(rc.frameScratchTex, rc.frameScratchView)
 		} else {
 			if rc.frameScratchView != nil {
-				rc.frameScratchView.Release()
+				rc.frameScratchView.Destroy()
 			}
 			if rc.frameScratchTex != nil {
-				rc.frameScratchTex.Release()
+				rc.frameScratchTex.Destroy()
 			}
 		}
 		rc.frameScratchView = nil
@@ -2868,7 +2868,7 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 		MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return err
 	}
 	rc.frameScratchTex = tex
@@ -2947,9 +2947,9 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		// First paint base pixmap into scratch if we have CPU data (prior draws).
 		// Callers often FlushGPU after PopLayer with empty pending; base already
 		// lives in target.Data from previous flushes.
-		target.View = gpucontext.NewTextureView(unsafe.Pointer(rc.frameScratchView)) //nolint:gosec
-		target.ViewWidth = uint32(tw)                                                //nolint:gosec
-		target.ViewHeight = uint32(th)                                               //nolint:gosec
+		target.View = packView(rc.frameScratchView)
+		target.ViewWidth = uint32(tw)  //nolint:gosec
+		target.ViewHeight = uint32(th) //nolint:gosec
 		readbackToData = true
 		// Seed scratch from CPU pixmap so dual-tex has a real dest.
 		if len(target.Data) >= tw*th*4 {
@@ -2971,7 +2971,10 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	cache := &rc.shared.dualTexBlend
 	rc.shared.mu.Unlock()
 
-	dstTex := (*webgpu.TextureView)(target.View.Pointer()).Texture()
+	var dstTex hal.Texture
+	if !target.View.IsNil() {
+		dstTex = unpackView(target.View).Texture()
+	}
 	canDual := device != nil && queue != nil && dstTex != nil
 
 	// F1: batch advanced layers into one dual-tex Submit writing directly into
@@ -3014,14 +3017,14 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			}
 			continue
 		}
-		srcWGPU := (*webgpu.TextureView)(pl.srcView.Pointer())
-		var srcTex *webgpu.Texture
-		if srcWGPU != nil {
-			srcTex, _ = srcWGPU.Texture().(*webgpu.Texture)
+		srcHalView := unpackView(pl.srcView)
+		var srcTex hal.Texture
+		if srcHalView != nil {
+			srcTex = srcHalView.Texture()
 		}
-		if canDual && srcTex != nil && srcWGPU != nil {
+		if canDual && srcTex != nil && srcHalView != nil {
 			viewOps = append(viewOps, dualTexViewBlendOp{
-				srcView: srcWGPU,
+				srcView: srcHalView,
 				bounds:  bounds,
 				mode:    pl.mode,
 				opacity: op,
@@ -3039,8 +3042,8 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	// Live path: dualTexAdvancedBlendViewsRegionSized / multi bundle → out RT → blit.
 	// opt12: batch all layers into one dual-tex Submit when possible.
 	type outBlit struct {
-		view    *webgpu.TextureView
-		tex     *webgpu.Texture
+		view    hal.TextureView
+		tex     hal.Texture
 		bounds  image.Rectangle
 		opacity float32
 	}
@@ -3053,7 +3056,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	// otherwise use the R7.3 bundle path (separate dual-tex encoder,
 	// coalesced via the lead queue), then per-op path.
 	if len(viewOps) > 0 {
-		dstView := (*webgpu.TextureView)(target.View.Pointer())
+		dstView := unpackView(target.View)
 		recordEnc := enc
 		// Prefer IntoEncoder (opt32 / shared frame enc). Fall back to R7.3
 		// separate dual-tex CB + leading coalesce, then per-op path.
@@ -3129,7 +3132,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	for i := range outs {
 		o := &outs[i]
 		u0, v0, u1, v1 := float32(0), float32(0), float32(1), float32(1)
-		gv := gpucontext.NewTextureView(unsafe.Pointer(o.view)) //nolint:gosec
+		gv := packView(o.view)
 		rc.QueueGPUTextureDrawUV(target, gv,
 			float32(o.bounds.Min.X), float32(o.bounds.Min.Y),
 			float32(o.bounds.Dx()), float32(o.bounds.Dy()),
@@ -3143,10 +3146,10 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 				return
 			}
 			if view != nil {
-				view.Release()
+				view.Destroy()
 			}
 			if tex != nil {
-				tex.Release()
+				tex.Destroy()
 			}
 		})
 	}
@@ -3237,12 +3240,11 @@ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, pay
 	if queue == nil {
 		return fmt.Errorf("gpu: CommitScratchRegion: no queue")
 	}
-	wgpuView := (*webgpu.TextureView)(view.Pointer())
-	if wgpuView == nil {
+	halView := unpackView(view)
+	if halView == nil {
 		return fmt.Errorf("gpu: CommitScratchRegion: nil native view")
 	}
-	texRaw := wgpuView.Texture()
-	tex, _ := texRaw.(*webgpu.Texture)
+	tex := halView.Texture()
 	if tex == nil {
 		return fmt.Errorf("gpu: CommitScratchRegion: nil texture")
 	}
@@ -3273,7 +3275,7 @@ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, pay
 	// session setup); this also covers a lazily created session, which
 	// inherits the state instead of defaulting to Clear.
 	rc.frameRendered = true
-	rc.lastView = wgpuView
+	rc.lastView = halView
 	return nil
 }
 
@@ -3288,12 +3290,11 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 		return nil
 	}
 
-	wgpuView := (*webgpu.TextureView)(target.View.Pointer())
-	if wgpuView == nil {
+	halView := unpackView(target.View)
+	if halView == nil {
 		return nil
 	}
-	texRaw := wgpuView.Texture()
-	tex, _ := texRaw.(*webgpu.Texture)
+	tex := halView.Texture()
 	if tex == nil {
 		return nil
 	}
@@ -3437,10 +3438,10 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 				// Previous-device residue (shared recovery replaced it)
 				// or a torn entry: destroy, never hand out.
 				if item.view != nil {
-					item.view.Release()
+					item.view.Destroy()
 				}
 				if item.tex != nil {
-					item.tex.Release()
+					item.tex.Destroy()
 				}
 				continue
 			}
@@ -3449,7 +3450,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		}
 		rc.offscreenPoolMu.Unlock()
 		if hit != nil {
-			return gpucontext.NewTextureView(unsafe.Pointer(hit.view)), rc.makePoolRelease(key, hit.tex, hit.view, hit.dev) //nolint:gosec
+			return packView(hit.view), rc.makePoolRelease(key, hit.tex, hit.view, hit.dev) //nolint:gosec
 		}
 	}
 
@@ -3479,12 +3480,12 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 	if err != nil {
 		slogger().Warn("CreateOffscreenTexture: CreateTextureView failed",
 			"error", err, "width", w, "height", h)
-		tex.Release()
+		tex.Destroy()
 		return gpucontext.TextureView{}, nil
 	}
 
 	release := rc.makePoolRelease(key, tex, view, device)
-	return gpucontext.NewTextureView(unsafe.Pointer(view)), release //nolint:gosec // Go spec Rule 1 (ADR-018)
+	return packView(view), release //nolint:gosec // Go spec Rule 1 (ADR-018)
 }
 
 // makePoolRelease returns the release closure for an offscreen texture:
@@ -3492,14 +3493,14 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 // overflow (pre-R6-3 behavior). The closure may run on the release path
 // (deferred ≥2 frames after last use), so pooled items are always past
 // in-flight command buffers by construction.
-func (rc *GPURenderContext) makePoolRelease(key [2]int, tex *webgpu.Texture, view *webgpu.TextureView, dev *webgpu.Device) func() {
+func (rc *GPURenderContext) makePoolRelease(key [2]int, tex hal.Texture, view hal.TextureView, dev *webgpu.Device) func() {
 	return func() {
 		if rc == nil {
 			if view != nil {
-				view.Release()
+				view.Destroy()
 			}
 			if tex != nil {
-				tex.Release()
+				tex.Destroy()
 			}
 			return
 		}
@@ -3512,10 +3513,10 @@ func (rc *GPURenderContext) makePoolRelease(key [2]int, tex *webgpu.Texture, vie
 			return
 		}
 		if view != nil {
-			view.Release()
+			view.Destroy()
 		}
 		if tex != nil {
-			tex.Release()
+			tex.Destroy()
 		}
 	}
 }
@@ -3557,11 +3558,11 @@ func (rc *GPURenderContext) Close() {
 	// VRAM across AutoRecover if not drained — measured 3×tex+view after abandon.
 	rc.drainOffscreenPool()
 	if rc.frameScratchView != nil {
-		rc.frameScratchView.Release()
+		rc.frameScratchView.Destroy()
 		rc.frameScratchView = nil
 	}
 	if rc.frameScratchTex != nil {
-		rc.frameScratchTex.Release()
+		rc.frameScratchTex.Destroy()
 		rc.frameScratchTex = nil
 	}
 	rc.frameScratchW, rc.frameScratchH = 0, 0
@@ -3601,11 +3602,11 @@ func (rc *GPURenderContext) drainOffscreenPool() {
 	for key, bucket := range rc.offscreenPool {
 		for i := range bucket {
 			if bucket[i].view != nil {
-				bucket[i].view.Release()
+				bucket[i].view.Destroy()
 				bucket[i].view = nil
 			}
 			if bucket[i].tex != nil {
-				bucket[i].tex.Release()
+				bucket[i].tex.Destroy()
 				bucket[i].tex = nil
 			}
 		}
@@ -3879,7 +3880,7 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 				MipLevelCount: 1,
 			})
 			if err != nil {
-				tex.Release()
+				tex.Destroy()
 				return fmt.Errorf("create atlas texture view %d: %w", idx, err)
 			}
 			s.msdfAtlasTexes[idx] = tex

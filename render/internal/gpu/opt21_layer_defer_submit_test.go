@@ -5,12 +5,9 @@ package gpu
 import (
 	"os"
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -34,7 +31,7 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
 
 	const w, h uint32 = 64, 64
-	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mkView := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := shared.device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -57,8 +54,8 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 	for i, label := range []string{"opt21_layer0", "opt21_layer1"} {
 		tex, view := mkView(label)
 		t.Cleanup(func() {
-			view.Release()
-			tex.Release()
+			view.Destroy()
+			tex.Destroy()
 		})
 		cmd := ConvexDrawCommand{
 			Points: []render.Point{{X: 8, Y: 8}, {X: 40, Y: 8}, {X: 24, Y: 40}},
@@ -68,7 +65,7 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 			ConvexCommands: []ConvexDrawCommand{cmd},
 		}}
 		target := render.GPURenderTarget{
-			View:       gpucontext.NewTextureView(unsafe.Pointer(view)),
+			View:       packView(view),
 			ViewWidth:  w,
 			ViewHeight: h,
 			Width:      int(w),
@@ -103,15 +100,15 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 	// A following present encode must not see stranded leadings and must succeed.
 	tex, view := mkView("opt21_present")
 	t.Cleanup(func() {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 	})
 	cmd := ConvexDrawCommand{
 		Points: []render.Point{{X: 4, Y: 4}, {X: 20, Y: 4}, {X: 12, Y: 20}},
 		Color:  [4]float32{0, 1, 0, 1},
 	}
 	target := render.GPURenderTarget{
-		View:       gpucontext.NewTextureView(unsafe.Pointer(view)),
+		View:       packView(view),
 		ViewWidth:  w,
 		ViewHeight: h,
 		Width:      int(w),

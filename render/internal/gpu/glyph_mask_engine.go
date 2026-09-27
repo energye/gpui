@@ -42,8 +42,8 @@ type GlyphMaskEngine struct {
 	lcdFilter text.LCDFilter
 
 	// GPU textures for atlas pages. Index matches atlas page index.
-	pageTextures []*webgpu.Texture
-	pageViews    []*webgpu.TextureView
+	pageTextures []hal.Texture
+	pageViews    []hal.TextureView
 
 	// S4.2 upload convergence stats (last SyncAtlasTextures call).
 	lastUploadBytes    int64
@@ -934,7 +934,7 @@ func (e *GlyphMaskEngine) AtlasStats() (hits, misses uint64, entries, pages int)
 
 // PageTextureView returns the GPU texture view for the given atlas page.
 // Returns nil if the page has not been uploaded.
-func (e *GlyphMaskEngine) PageTextureView(index int) *webgpu.TextureView {
+func (e *GlyphMaskEngine) PageTextureView(index int) hal.TextureView {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if index < 0 || index >= len(e.pageViews) {
@@ -950,14 +950,14 @@ func (e *GlyphMaskEngine) Destroy(device *webgpu.Device) {
 
 	for _, v := range e.pageViews {
 		if v != nil {
-			v.Release()
+			v.Destroy()
 		}
 	}
 	e.pageViews = nil
 
 	for _, t := range e.pageTextures {
 		if t != nil {
-			t.Release()
+			t.Destroy()
 		}
 	}
 	e.pageTextures = nil

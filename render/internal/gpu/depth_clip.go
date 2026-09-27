@@ -394,8 +394,8 @@ type DepthClipResources struct {
 	// of content pipelines, which multiply the fragment alpha by the sampled
 	// coverage. Nil at sampleCount>1 (MSAA already provides sub-sample edge
 	// coverage through the depth test).
-	maskTex  *webgpu.Texture
-	maskView *webgpu.TextureView
+	maskTex  hal.Texture
+	maskView hal.TextureView
 	maskBG   *webgpu.BindGroup
 
 	// bandBuf / bandCount hold the analytic-AA exterior fringe mesh
@@ -430,11 +430,11 @@ func (r *DepthClipResources) Release() {
 		r.maskBG = nil
 	}
 	if r.maskView != nil {
-		r.maskView.Release()
+		r.maskView.Destroy()
 		r.maskView = nil
 	}
 	if r.maskTex != nil {
-		r.maskTex.Release()
+		r.maskTex.Destroy()
 		r.maskTex = nil
 	}
 }
@@ -563,7 +563,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return fmt.Errorf("create depth clip mask view: %w", err)
 	}
 	if err := p.queue.WriteTexture(
@@ -572,8 +572,8 @@ func (p *DepthClipPipeline) BuildClipMask(
 		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h}, //nolint:gosec
 		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},   //nolint:gosec
 	); err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("upload depth clip mask: %w", err)
 	}
 
@@ -587,8 +587,8 @@ func (p *DepthClipPipeline) BuildClipMask(
 		},
 	})
 	if err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("create depth clip mask bind group: %w", err)
 	}
 
@@ -597,10 +597,10 @@ func (p *DepthClipPipeline) BuildClipMask(
 		res.maskBG.Release()
 	}
 	if res.maskView != nil {
-		res.maskView.Release()
+		res.maskView.Destroy()
 	}
 	if res.maskTex != nil {
-		res.maskTex.Release()
+		res.maskTex.Destroy()
 	}
 	res.maskTex, res.maskView, res.maskBG = tex, view, bg
 	return nil

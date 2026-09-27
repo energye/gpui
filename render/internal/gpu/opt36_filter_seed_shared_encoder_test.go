@@ -5,9 +5,7 @@ package gpu
 import (
 	"os"
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
@@ -37,7 +35,7 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { tex.Release() })
+	t.Cleanup(func() { tex.Destroy() })
 	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Format: types.TextureFormatBGRA8Unorm, Dimension: types.TextureViewDimension2D,
 		Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -45,7 +43,7 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { view.Release() })
+	t.Cleanup(func() { view.Destroy() })
 
 	// Seed: solid fill via session sharedEncoder (mesh half of FlushAndFilter).
 	enc, err := device.CreateCommandEncoder(filterSeedMeshEncoderDesc)
@@ -58,7 +56,7 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 	s.SetSDFPipeline(NewSDFRenderPipeline(device, queue, 1))
 	s.SetStencilRenderer(NewStencilRenderer(device, queue, 1))
 
-	srcView := gpucontext.NewTextureView(unsafe.Pointer(view))
+	srcView := packView(view)
 	target := render.GPURenderTarget{
 		Width: int(w), Height: int(h), View: srcView, ViewWidth: w, ViewHeight: h,
 	}

@@ -8,7 +8,6 @@ import (
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -85,12 +84,11 @@ func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data [
 	if queue == nil {
 		return fmt.Errorf("UploadRGBAToView: nil queue")
 	}
-	wgpuView := (*webgpu.TextureView)(view.Pointer())
-	if wgpuView == nil {
+	halView := unpackView(view)
+	if halView == nil {
 		return fmt.Errorf("UploadRGBAToView: nil view ptr")
 	}
-	texRaw := wgpuView.Texture()
-	tex, _ := texRaw.(*webgpu.Texture)
+	tex := halView.Texture()
 	if tex == nil {
 		return fmt.Errorf("UploadRGBAToView: nil texture")
 	}
@@ -136,8 +134,8 @@ func (rc *GPURenderContext) MarkViewHasContent(view gpucontext.TextureView) {
 		return
 	}
 	rc.frameRendered = true
-	if ptr := view.Pointer(); ptr != nil {
-		rc.lastView = (*webgpu.TextureView)(ptr)
+	if v := unpackView(view); v != nil {
+		rc.lastView = v
 	}
 	if rc.session != nil {
 		rc.session.SetFrameState(rc.frameRendered, rc.lastView)

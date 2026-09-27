@@ -4,9 +4,7 @@ package gpu
 
 import (
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -488,7 +486,7 @@ func TestSDFRenderPipelineDestroyWithStencilVariant(t *testing.T) {
 // createMockSurfaceView creates a texture and view that simulates a window
 // surface for testing surface rendering mode. The caller must release the
 // texture view when done.
-func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (*webgpu.Texture, *webgpu.TextureView) {
+func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (hal.Texture, hal.TextureView) {
 	t.Helper()
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "mock_surface",
@@ -506,7 +504,7 @@ func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (*w
 		Label: "mock_surface_view",
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		t.Fatalf("create mock surface view: %v", err)
 	}
 	return tex, view
@@ -526,8 +524,8 @@ func TestRenderSessionSurfaceMode(t *testing.T) {
 
 	// Set surface target.
 	tex, view := createMockSurfaceView(t, device, 800, 600)
-	defer view.Release()
-	defer tex.Release()
+	defer view.Destroy()
+	defer tex.Destroy()
 
 	s.SetSurfaceTarget(view, 800, 600)
 
@@ -538,7 +536,7 @@ func TestRenderSessionSurfaceMode(t *testing.T) {
 	// Render a frame with SDF shapes in surface mode.
 	// Pass the view through GPURenderTarget.View (per-pass routing).
 	target := render.GPURenderTarget{
-		View:       gpucontext.NewTextureView(unsafe.Pointer(view)),
+		View:       packView(view),
 		ViewWidth:  800,
 		ViewHeight: 600,
 		Width:      800,
@@ -572,8 +570,8 @@ func TestRenderSessionSurfaceModeReset(t *testing.T) {
 
 	// Enter surface mode.
 	tex, view := createMockSurfaceView(t, device, 640, 480)
-	defer view.Release()
-	defer tex.Release()
+	defer view.Destroy()
+	defer tex.Destroy()
 
 	s.SetSurfaceTarget(view, 640, 480)
 	if s.RenderMode() != RenderModeSurface {
@@ -621,8 +619,8 @@ func TestRenderSessionSurfaceModeTextures(t *testing.T) {
 	defer s.Destroy()
 
 	tex, view := createMockSurfaceView(t, device, 1024, 768)
-	defer view.Release()
-	defer tex.Release()
+	defer view.Destroy()
+	defer tex.Destroy()
 
 	s.SetSurfaceTarget(view, 1024, 768)
 
@@ -648,8 +646,8 @@ func TestRenderSessionSurfaceModeResize(t *testing.T) {
 	defer s.Destroy()
 
 	tex1, view1 := createMockSurfaceView(t, device, 800, 600)
-	defer view1.Release()
-	defer tex1.Release()
+	defer view1.Destroy()
+	defer tex1.Destroy()
 
 	s.SetSurfaceTarget(view1, 800, 600)
 
@@ -665,8 +663,8 @@ func TestRenderSessionSurfaceModeResize(t *testing.T) {
 
 	// Simulate window resize: new surface view with different dimensions.
 	tex2, view2 := createMockSurfaceView(t, device, 1920, 1080)
-	defer view2.Release()
-	defer tex2.Release()
+	defer view2.Destroy()
+	defer tex2.Destroy()
 
 	s.SetSurfaceTarget(view2, 1920, 1080)
 
@@ -698,8 +696,8 @@ func TestRenderSessionSurfaceModeStencilPaths(t *testing.T) {
 	defer s.Destroy()
 
 	tex, view := createMockSurfaceView(t, device, 400, 300)
-	defer view.Release()
-	defer tex.Release()
+	defer view.Destroy()
+	defer tex.Destroy()
 
 	s.SetSurfaceTarget(view, 400, 300)
 
@@ -742,8 +740,8 @@ func TestRenderSessionDestroyClearsSurface(t *testing.T) {
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
 
 	tex, view := createMockSurfaceView(t, device, 640, 480)
-	defer view.Release()
-	defer tex.Release()
+	defer view.Destroy()
+	defer tex.Destroy()
 
 	s.SetSurfaceTarget(view, 640, 480)
 	if s.RenderMode() != RenderModeSurface {
@@ -1032,13 +1030,13 @@ func TestRenderSession_EncoderLifecycleSurface(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTexture failed: %v", err)
 	}
-	defer tex.Release()
+	defer tex.Destroy()
 
 	view, err := device.CreateTextureView(tex, nil)
 	if err != nil {
 		t.Fatalf("CreateTextureView failed: %v", err)
 	}
-	defer view.Release()
+	defer view.Destroy()
 
 	s.SetSurfaceTarget(view, 128, 128)
 

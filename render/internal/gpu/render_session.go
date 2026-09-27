@@ -90,12 +90,12 @@ var (
 // rebuild must not immediately destroy old views still referenced by queued
 // commands; that was the resize-crash root cause).
 type pendingTexRetire struct {
-	views []*webgpu.TextureView
-	texs  []*webgpu.Texture
+	views []hal.TextureView
+	texs  []hal.Texture
 }
 
 // Add queues a retired texture and/or view for deferred release.
-func (q *pendingTexRetire) Add(view *webgpu.TextureView, tex *webgpu.Texture) {
+func (q *pendingTexRetire) Add(view hal.TextureView, tex hal.Texture) {
 	if view != nil {
 		q.views = append(q.views, view)
 	}
@@ -109,12 +109,12 @@ func (q *pendingTexRetire) Add(view *webgpu.TextureView, tex *webgpu.Texture) {
 func (q *pendingTexRetire) Drain() {
 	for _, v := range q.views {
 		if v != nil {
-			v.Release()
+			v.Destroy()
 		}
 	}
 	for _, t := range q.texs {
 		if t != nil {
-			t.Release()
+			t.Destroy()
 		}
 	}
 	q.views = q.views[:0]
@@ -194,7 +194,7 @@ type imageUniformLastKey struct {
 // different view, invalidating the entry naturally (P3).
 type gpuTexBGSlotCache struct {
 	entries [4]struct {
-		view *webgpu.TextureView
+		view hal.TextureView
 		bg   *webgpu.BindGroup
 	}
 	next int // round-robin insert
@@ -388,7 +388,7 @@ type GPURenderSession struct {
 
 	// Surface rendering mode fields. When surfaceView is non-nil, the session
 	// renders directly to the surface instead of reading back to CPU.
-	surfaceView   *webgpu.TextureView
+	surfaceView   hal.TextureView
 	surfaceWidth  uint32
 	surfaceHeight uint32
 
@@ -441,7 +441,7 @@ type GPURenderSession struct {
 	// Per-draw bind groups (pool, grows as needed); uniforms live in the slab.
 	imageBindGroups []*webgpu.BindGroup
 	// Stable-key reuse: recreate bind groups only when texture/sampler changes.
-	imageBGViews          []*webgpu.TextureView
+	imageBGViews          []hal.TextureView
 	imageBGNearest        []bool
 	imageVertexStaging    []byte
 	imageUniformScratch   []byte
@@ -510,11 +510,11 @@ type GPURenderSession struct {
 	// (gpuTexBGSlotCache): a rebuilt texture resolves to a different view,
 	// so view-pointer mismatch means rebuild the bind group. Atlas pages
 	// are persistent (identity stable across uploads), so hits are the norm.
-	textBGViews []*webgpu.TextureView
+	textBGViews []hal.TextureView
 	// MSDF atlas page views keyed by atlas index. Non-owning references —
 	// textures are owned by GPUShared and shared across sessions; each batch
 	// binds the page matching its AtlasIndex.
-	textAtlasViews map[int]*webgpu.TextureView
+	textAtlasViews map[int]hal.TextureView
 	// CPU staging reuse (dynamic HUD rewrites verts every frame).
 	textQuadScratch      []TextQuad
 	textVertStaging      []byte
@@ -530,7 +530,7 @@ type GPURenderSession struct {
 	glyphMaskIdxBufCap    uint64
 	glyphMaskUniformBufs  []hal.Buffer
 	glyphMaskBindGroups   []*webgpu.BindGroup
-	glyphMaskBGViews      []*webgpu.TextureView // stable atlas view keys for BG reuse
+	glyphMaskBGViews      []hal.TextureView // stable atlas view keys for BG reuse
 	glyphMaskBGIsLCD      []bool
 	glyphMaskPendingViews []glyphMaskPendingView // deferred bind group creation (BUG-GPU-001)
 	// CPU staging reuse (avoid per-frame make for HUD/text quads).
@@ -671,7 +671,7 @@ type GPURenderSession struct {
 	// When the view changes between Flush calls (e.g., two render.Context
 	// instances rendering to different targets), frameRendered is reset
 	// so the new view gets a LoadOpClear on its first render pass.
-	lastView *webgpu.TextureView
+	lastView hal.TextureView
 
 	// scissorRect holds the current scissor rect in device pixels.
 	// When non-nil, all draw commands are clipped to this rectangle.
@@ -687,8 +687,8 @@ type GPURenderSession struct {
 
 	// L.06 cover-inline R8 mask (@group(2) on convex + SDF).
 	maskBindLayout  *webgpu.BindGroupLayout // session-owned, shared by pipelines
-	noMaskTex       *webgpu.Texture
-	noMaskView      *webgpu.TextureView
+	noMaskTex       hal.Texture
+	noMaskView      hal.TextureView
 	maskSampler     hal.Sampler
 	noMaskUniform   hal.Buffer
 	noMaskBindGroup *webgpu.BindGroup
@@ -722,7 +722,7 @@ func NewGPURenderSession(device *webgpu.Device, queue hal.Queue, sampleCount uin
 	// P4: rebuild must not immediately destroy old texture views — commands
 	// queued earlier in the frame may still reference them. Route retired
 	// session textures through the deferred-release queue instead.
-	s.textures.retireFn = func(tex *webgpu.Texture, view *webgpu.TextureView) {
+	s.textures.retireFn = func(tex hal.Texture, view hal.TextureView) {
 		s.pendingTexRetire.Add(view, tex)
 	}
 	return s
@@ -794,7 +794,7 @@ func (s *GPURenderSession) ResolveStats() (hits, misses uint64) {
 //   - direct Ref → the registered resource, still owned by the command.
 //
 // Returns (nil, false) when the view cannot be resolved (skip the draw).
-func (s *GPURenderSession) ResolveCommandView(view *res.View) (*webgpu.TextureView, bool) {
+func (s *GPURenderSession) ResolveCommandView(view *res.View) (hal.TextureView, bool) {
 	if s == nil || view == nil || view.IsNil() || s.resReg == nil {
 		return nil, false
 	}
@@ -811,7 +811,7 @@ func (s *GPURenderSession) ResolveCommandView(view *res.View) (*webgpu.TextureVi
 		// that the session exists, resolve, and release the transient ref.
 		// Borrowed: the raw view is owned by its producer (texture cache),
 		// never destroyed by registry retire.
-		tv := (*webgpu.TextureView)(view.Raw)
+		tv := unpackRawView(view.Raw)
 		if tv == nil {
 			return nil, false
 		}
@@ -848,8 +848,8 @@ func (s *GPURenderSession) retirePendingViews() {
 	s.pendingViewRetires = s.pendingViewRetires[:0]
 }
 
-// commandViewOf unwraps a registered resource to its *webgpu.TextureView.
-func (s *GPURenderSession) commandViewOf(ref res.Ref) *webgpu.TextureView {
+// commandViewOf unwraps a registered resource to its hal.TextureView.
+func (s *GPURenderSession) commandViewOf(ref res.Ref) hal.TextureView {
 	if s == nil || s.resReg == nil || ref.IsNil() {
 		return nil
 	}
@@ -867,13 +867,13 @@ func (s *GPURenderSession) commandViewOf(ref res.Ref) *webgpu.TextureView {
 // released once the GPU has finished the frame that may still reference it
 // (next BeginFrame / after a drainQueue). With a nil receiver the resources
 // are released immediately (fallback).
-func (s *GPURenderSession) RetireTexture(tex *webgpu.Texture, view *webgpu.TextureView) {
+func (s *GPURenderSession) RetireTexture(tex hal.Texture, view hal.TextureView) {
 	if s == nil {
 		if view != nil {
-			view.Release()
+			view.Destroy()
 		}
 		if tex != nil {
-			tex.Release()
+			tex.Destroy()
 		}
 		return
 	}
@@ -900,7 +900,7 @@ func (s *GPURenderSession) PendingTexRetireCount() int {
 //
 // Call with nil view to return to offscreen mode. The caller retains
 // ownership of the surface view -- the session will not destroy it.
-func (s *GPURenderSession) SetSurfaceTarget(view *webgpu.TextureView, width, height uint32) {
+func (s *GPURenderSession) SetSurfaceTarget(view hal.TextureView, width, height uint32) {
 	// If switching modes or resizing, invalidate cached textures so they
 	// are recreated on the next RenderFrame call.
 	modeChanged := (view == nil) != (s.surfaceView == nil)
@@ -1138,14 +1138,14 @@ func (s *GPURenderSession) DigCmdBufStats() (prev int, usedSurface bool) {
 // SetFrameState sets the per-context frame tracking state before a render pass.
 // GPURenderContext transfers its frameRendered/lastView into the session so the
 // session can compute the correct LoadOp (Clear vs Load) for this context.
-func (s *GPURenderSession) SetFrameState(frameRendered bool, lastView *webgpu.TextureView) {
+func (s *GPURenderSession) SetFrameState(frameRendered bool, lastView hal.TextureView) {
 	s.frameRendered = frameRendered
 	s.lastView = lastView
 }
 
 // FrameState returns the current frame tracking state after a render pass.
 // GPURenderContext reads this back to maintain per-context LoadOp tracking.
-func (s *GPURenderSession) FrameState() (frameRendered bool, lastView *webgpu.TextureView) {
+func (s *GPURenderSession) FrameState() (frameRendered bool, lastView hal.TextureView) {
 	return s.frameRendered, s.lastView
 }
 
@@ -1155,7 +1155,7 @@ func (s *GPURenderSession) FrameState() (frameRendered bool, lastView *webgpu.Te
 // that still use SetSurfaceTarget).
 //
 // Returns nil when rendering should use the CPU readback path.
-func (s *GPURenderSession) resolveActiveView(target render.GPURenderTarget) *webgpu.TextureView {
+func (s *GPURenderSession) resolveActiveView(target render.GPURenderTarget) hal.TextureView {
 	if !target.View.IsNil() {
 		if v := extractTextureView(target.View); v != nil {
 			return v
@@ -1167,13 +1167,13 @@ func (s *GPURenderSession) resolveActiveView(target render.GPURenderTarget) *web
 	return nil
 }
 
-// extractTextureView converts a gpucontext.TextureView opaque handle to
-// the concrete *wgpu.TextureView via unsafe.Pointer (Go spec Rule 1).
-func extractTextureView(view gpucontext.TextureView) *webgpu.TextureView {
+// extractTextureView recovers the hal.TextureView boxed by packView
+// from a gpucontext.TextureView opaque handle (no concrete type named).
+func extractTextureView(view gpucontext.TextureView) hal.TextureView {
 	if view.IsNil() {
 		return nil
 	}
-	return (*webgpu.TextureView)(view.Pointer())
+	return unpackView(view)
 }
 
 // colorAttachment returns the render pass color attachment descriptor.
@@ -1182,7 +1182,7 @@ func extractTextureView(view gpucontext.TextureView) *webgpu.TextureView {
 // This fixes BUG-GPU-002: on llvmpipe, ResolveTarget with sampleCount=1 is
 // spec-invalid (Vulkan backend skips resolve → content stays in msaaView, target empty).
 // Also avoids Mesa 23.2.1 lavapipe MSAA resolve regression for offscreen textures.
-func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadOp types.LoadOp) hal.RenderPassColorAttachment {
+func (s *GPURenderSession) colorAttachment(targetView hal.TextureView, loadOp types.LoadOp) hal.RenderPassColorAttachment {
 	if s.sampleCount > 1 && s.textures.msaaView != nil {
 		// Guard against invalid resolve wiring (same view/texture as MSAA color).
 		if targetView == nil || targetView == s.textures.msaaView {
@@ -1215,7 +1215,7 @@ func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadO
 // every frame (opt41 class A).
 func (s *GPURenderSession) surfaceRenderPassDesc(
 	label string,
-	view *webgpu.TextureView,
+	view hal.TextureView,
 	colorLoadOp, stencilLoadOp, depthLoadOp types.LoadOp,
 ) *hal.RenderPassDescriptor {
 	if !s.surfaceRPInited {
@@ -1240,7 +1240,7 @@ func (s *GPURenderSession) surfaceRenderPassDesc(
 // effectiveDimensions returns the width and height to use for MSAA textures
 // and viewport. When rendering to a view, uses the view dimensions; otherwise
 // uses the CPU readback target dimensions.
-func (s *GPURenderSession) effectiveDimensions(target render.GPURenderTarget, activeView *webgpu.TextureView) (uint32, uint32) {
+func (s *GPURenderSession) effectiveDimensions(target render.GPURenderTarget, activeView hal.TextureView) (uint32, uint32) {
 	if activeView != nil {
 		// Per-pass view dimensions from target take priority.
 		if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
@@ -1264,7 +1264,7 @@ func (s *GPURenderSession) effectiveDimensions(target render.GPURenderTarget, ac
 // destroyed. If there are in-flight command buffers from earlier flushes in
 // the same frame, we must drain the GPU first — otherwise destroying MSAA
 // textures referenced by in-flight render passes is undefined behavior.
-func (s *GPURenderSession) ensureTexturesForView(activeView *webgpu.TextureView, w, h uint32) error {
+func (s *GPURenderSession) ensureTexturesForView(activeView hal.TextureView, w, h uint32) error {
 	// Drain before destroying session textures when size OR mode changes.
 	// Surface mode drops resolve; offscreen mode recreates it. Destroying
 	// textures still referenced by in-flight surface CBs is undefined and
@@ -2705,7 +2705,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return fmt.Errorf("create no-mask view: %w", err)
 	}
 	if err := s.queue.WriteTexture(
@@ -2714,8 +2714,8 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		&hal.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
 		&hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	); err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("upload no-mask texel: %w", err)
 	}
 
@@ -2729,8 +2729,8 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		MipmapFilter: types.MipmapFilterModeNearest,
 	})
 	if err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("create mask sampler: %w", err)
 	}
 
@@ -2742,15 +2742,15 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	})
 	if err != nil {
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("create no-mask uniform: %w", err)
 	}
 	if err := s.queue.WriteBuffer(ubuf, 0, uOff.Bytes()); err != nil {
 		ubuf.Destroy()
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("write no-mask uniform: %w", err)
 	}
 
@@ -2766,8 +2766,8 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	if err != nil {
 		ubuf.Destroy()
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("create no-mask bind group: %w", err)
 	}
 
@@ -2782,8 +2782,8 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		bg.Release()
 		ubuf.Destroy()
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("create mask-on uniform: %w", err)
 	}
 	if err := s.queue.WriteBuffer(ubufOn, 0, uOn.Bytes()); err != nil {
@@ -2791,8 +2791,8 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		bg.Release()
 		ubuf.Destroy()
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return fmt.Errorf("write mask-on uniform: %w", err)
 	}
 
@@ -2882,11 +2882,11 @@ func (s *GPURenderSession) releaseMaskResources() {
 		s.maskSampler = nil
 	}
 	if s.noMaskView != nil {
-		s.noMaskView.Release()
+		s.noMaskView.Destroy()
 		s.noMaskView = nil
 	}
 	if s.noMaskTex != nil {
-		s.noMaskTex.Release()
+		s.noMaskTex.Destroy()
 		s.noMaskTex = nil
 	}
 }
@@ -3759,7 +3759,7 @@ func (s *GPURenderSession) invalidateTextBindGroups() {
 //
 // Call this after uploading atlas data to the GPU (e.g., from
 // GPURenderContext.syncTextAtlases).
-func (s *GPURenderSession) SetTextAtlasPages(views map[int]*webgpu.TextureView) {
+func (s *GPURenderSession) SetTextAtlasPages(views map[int]hal.TextureView) {
 	if sameTextAtlasViews(s.textAtlasViews, views) {
 		return
 	}
@@ -3767,7 +3767,7 @@ func (s *GPURenderSession) SetTextAtlasPages(views map[int]*webgpu.TextureView) 
 	s.invalidateTextBindGroups()
 }
 
-func sameTextAtlasViews(a, b map[int]*webgpu.TextureView) bool {
+func sameTextAtlasViews(a, b map[int]hal.TextureView) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -3891,7 +3891,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	// opt29: first collect coalesced slots, pack uniforms into one slab, one WriteBuffer.
 	type imageSlot struct {
 		opacity              float32
-		texView              *webgpu.TextureView
+		texView              hal.TextureView
 		nearest              bool
 		bicubic              bool
 		firstVertex, vertCnt uint32
@@ -4275,7 +4275,7 @@ func (c *gpuTexBGSlotCache) getOrCreate(
 	layout *webgpu.BindGroupLayout,
 	uniform hal.Buffer,
 	uniformOffset uint64,
-	texView *webgpu.TextureView,
+	texView hal.TextureView,
 	sampler hal.Sampler,
 	pendingRelease *[]*webgpu.BindGroup,
 ) (*webgpu.BindGroup, error) {
@@ -4553,7 +4553,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	// opt40: collect coalesced slots first, pack uniforms into one slab WriteBuffer.
 	type gpuTexSlot struct {
 		opacity              float32
-		texView              *webgpu.TextureView
+		texView              hal.TextureView
 		firstVertex, vertCnt uint32
 	}
 	slots := make([]gpuTexSlot, 0, len(cmds))
@@ -4996,7 +4996,7 @@ func (s *GPURenderSession) ensureGlyphMaskBatchPools(n int) {
 // BUG-GPU-001: on llvmpipe (strict), stale bind groups cause text to be invisible.
 type glyphMaskPendingView struct {
 	batchIndex int
-	atlasView  *webgpu.TextureView
+	atlasView  hal.TextureView
 	isLCD      bool
 	isColor    bool
 }
@@ -5006,17 +5006,17 @@ type glyphMaskPendingView struct {
 // AFTER pipeline stabilization inside RenderFrameGrouped/RenderFrame. This prevents
 // the stale bind group bug where destroyPipeline releases uniformLayout but bind
 // groups still reference the old layout (BUG-GPU-001).
-func (s *GPURenderSession) SetGlyphMaskAtlasView(batchIndex int, atlasView *webgpu.TextureView, isLCD bool) {
+func (s *GPURenderSession) SetGlyphMaskAtlasView(batchIndex int, atlasView hal.TextureView, isLCD bool) {
 	s.setGlyphAtlasView(batchIndex, atlasView, isLCD, false)
 }
 
 // SetColorGlyphAtlasView records an RGBA color atlas view for a color batch.
 // Same deferred bind group contract as SetGlyphMaskAtlasView.
-func (s *GPURenderSession) SetColorGlyphAtlasView(batchIndex int, atlasView *webgpu.TextureView) {
+func (s *GPURenderSession) SetColorGlyphAtlasView(batchIndex int, atlasView hal.TextureView) {
 	s.setGlyphAtlasView(batchIndex, atlasView, false, true)
 }
 
-func (s *GPURenderSession) setGlyphAtlasView(batchIndex int, atlasView *webgpu.TextureView, isLCD, isColor bool) {
+func (s *GPURenderSession) setGlyphAtlasView(batchIndex int, atlasView hal.TextureView, isLCD, isColor bool) {
 	if atlasView == nil {
 		slogger().Warn("SetGlyphMaskAtlasView: nil atlas view", "batchIndex", batchIndex)
 		return
@@ -5341,7 +5341,7 @@ func (s *GPURenderSession) copySubmitAndReadback(
 // CopyTextureToBuffer, no ReadBuffer, no fence wait (presentation handles
 // synchronization).
 func (s *GPURenderSession) encodeSubmitSurface(
-	view *webgpu.TextureView,
+	view hal.TextureView,
 	w, h uint32,
 	sdfRes *sdfFrameResources,
 	sdfShapes []SDFRenderShape,
@@ -5827,7 +5827,7 @@ func (s *GPURenderSession) blitClipBG(gr *groupResources) *webgpu.BindGroup {
 // in a non-MSAA (1x) render pass. No MSAA texture, no depth/stencil, no resolve.
 // This is the compositor fast path (ADR-016) — 93% bandwidth reduction vs 4x MSAA.
 func (s *GPURenderSession) encodeBlitOnlyPass(
-	view *webgpu.TextureView, w, h uint32,
+	view hal.TextureView, w, h uint32,
 	grpRes []groupResources,
 	baseLayerRes *imageFrameResources,
 	damageRects []image.Rectangle,
@@ -5950,7 +5950,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 // scissor state changes, resolving directly to the given view. No readback
 // occurs. This is the grouped version of encodeSubmitSurface.
 func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
-	view *webgpu.TextureView,
+	view hal.TextureView,
 	w, h uint32,
 	grpRes []groupResources,
 	baseLayerRes *imageFrameResources,
@@ -6059,7 +6059,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 // where multiple contexts share one encoder (ADR-017, Flutter Impeller pattern).
 func (s *GPURenderSession) encodeToEncoder(
 	encoder *webgpu.CommandEncoder,
-	view *webgpu.TextureView,
+	view hal.TextureView,
 	w, h uint32,
 	grpRes []groupResources,
 	baseLayerRes *imageFrameResources,
@@ -6121,7 +6121,7 @@ func (s *GPURenderSession) encodeToEncoder(
 // Same as encodeBlitOnlyPass but without encoder creation or submit.
 func (s *GPURenderSession) encodeBlitToEncoder(
 	encoder *webgpu.CommandEncoder,
-	view *webgpu.TextureView,
+	view hal.TextureView,
 	w, h uint32,
 	grpRes []groupResources,
 	baseLayerRes *imageFrameResources,

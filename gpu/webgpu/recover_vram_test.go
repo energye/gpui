@@ -34,7 +34,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 	}
 	defer adpt.Release()
 
-	mkDepth := func(dev *webgpu.Device, w, h uint32) (*webgpu.Texture, error) {
+	mkDepth := func(dev *webgpu.Device, w, h uint32) (hal.Texture, error) {
 		return dev.CreateTexture(&hal.TextureDescriptor{
 			Label: "session_depth_stencil",
 			Size: hal.Extent3D{
@@ -53,7 +53,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Allocate like a live session (multiple depth targets).
-	var texs []*webgpu.Texture
+	var texs []hal.Texture
 	for i := 0; i < 3; i++ {
 		tex, err := mkDepth(dev, 1280, 720)
 		if err != nil {
@@ -62,7 +62,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 		texs = append(texs, tex)
 	}
 	for _, tex := range texs {
-		tex.Release()
+		tex.Destroy()
 	}
 	_ = dev.WaitIdle()
 	// Critical: Release only (no native DeviceDestroy).
@@ -79,5 +79,5 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTexture after recover (would be session_depth_stencil OOM): %v", err)
 	}
-	tex.Release()
+	tex.Destroy()
 }

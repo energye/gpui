@@ -43,7 +43,7 @@ func TestR73_DualTexMultiBundle_DeferredSubmit(t *testing.T) {
 	}
 
 	const w, h = 32, 32
-	mkRT := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mkRT := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -63,11 +63,11 @@ func TestR73_DualTexMultiBundle_DeferredSubmit(t *testing.T) {
 		return tex, view
 	}
 	dstTex, dstView := mkRT("r73_dst")
-	defer dstTex.Release()
-	defer dstView.Release()
+	defer dstTex.Destroy()
+	defer dstView.Destroy()
 	srcTex, srcView := mkRT("r73_src")
-	defer srcTex.Release()
-	defer srcView.Release()
+	defer srcTex.Destroy()
+	defer srcView.Destroy()
 
 	px := make([]byte, w*h*4)
 	for i := 0; i < len(px); i += 4 {

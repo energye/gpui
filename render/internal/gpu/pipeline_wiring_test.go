@@ -8,7 +8,6 @@ package gpu
 import (
 	"errors"
 	"testing"
-	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
@@ -865,8 +864,8 @@ func TestUploadPixmapToView_RasterAtlas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTextureView: %v", err)
 	}
-	defer view.Release()
-	defer tex.Release()
+	defer view.Destroy()
+	defer tex.Destroy()
 	_ = sc
 
 	rc := s.NewRenderContext()
@@ -885,7 +884,7 @@ func TestUploadPixmapToView_RasterAtlas(t *testing.T) {
 		Width:     4,
 		Height:    4,
 		Stride:    16,
-		View:      gpucontext.NewTextureView(unsafe.Pointer(view)),
+		View:      packView(view),
 		ViewWidth: 4, ViewHeight: 4,
 	}
 
@@ -989,8 +988,8 @@ func TestFlush_RasterAtlas_OffscreenTriggersUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTextureView: %v", err)
 	}
-	defer view.Release()
-	defer tex.Release()
+	defer view.Destroy()
+	defer tex.Destroy()
 
 	rc := s.NewRenderContext()
 
@@ -1004,7 +1003,7 @@ func TestFlush_RasterAtlas_OffscreenTriggersUpload(t *testing.T) {
 		Width:      4,
 		Height:     4,
 		Stride:     16,
-		View:       gpucontext.NewTextureView(unsafe.Pointer(view)),
+		View:       packView(view),
 		ViewWidth:  4,
 		ViewHeight: 4,
 	}

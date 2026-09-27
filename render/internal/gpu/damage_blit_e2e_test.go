@@ -33,13 +33,13 @@ func TestDamageBlit_LoadOpLoad_PreservesContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTexture: %v", err)
 	}
-	defer tex.Release()
+	defer tex.Destroy()
 
 	view, err := device.CreateTextureView(tex, nil)
 	if err != nil {
 		t.Fatalf("CreateTextureView: %v", err)
 	}
-	defer view.Release()
+	defer view.Destroy()
 
 	// Frame 1: LoadOpClear red — fills entire 8x8.
 	enc1, _ := device.CreateCommandEncoder(nil)
@@ -124,7 +124,7 @@ func TestDamageBlit_NBufferAccumulation(t *testing.T) {
 
 // --- Helpers ---
 
-func readbackTexture(t *testing.T, device *webgpu.Device, queue hal.Queue, tex *webgpu.Texture, w, h int) []byte {
+func readbackTexture(t *testing.T, device *webgpu.Device, queue hal.Queue, tex hal.Texture, w, h int) []byte {
 	t.Helper()
 	rowBytes := uint32(w * 4)
 	paddedRowBytes := alignTo(rowBytes, 256)

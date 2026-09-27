@@ -58,8 +58,8 @@ type StencilRenderer struct {
 
 	// Standalone RenderPath: disabled mask BG (1x1 white R8, mask_enabled=0).
 	// Cover pipeline always samples @group(2); encodeAndReadback must bind this.
-	noMaskTex  *webgpu.Texture
-	noMaskView *webgpu.TextureView
+	noMaskTex  hal.Texture
+	noMaskView hal.TextureView
 	noMaskSamp hal.Sampler
 	noMaskUni  hal.Buffer
 	noMaskBG   *webgpu.BindGroup
@@ -255,7 +255,7 @@ func (sr *StencilRenderer) RenderPassDescriptor() *hal.RenderPassDescriptor {
 // This texture contains the final rendered output after MSAA resolve and
 // has CopySrc usage for GPU-to-CPU readback.
 // Returns nil if textures have not been allocated via EnsureTextures.
-func (sr *StencilRenderer) ResolveTexture() *webgpu.Texture {
+func (sr *StencilRenderer) ResolveTexture() hal.Texture {
 	return sr.textures.resolveTex
 }
 
@@ -331,8 +331,8 @@ type stencilCoverBuffers struct {
 	// Textured cover extras (session-inline gradient or pattern).
 	isTextured      bool
 	isPattern       bool
-	rampTex         *webgpu.Texture
-	rampView        *webgpu.TextureView
+	rampTex         hal.Texture
+	rampView        hal.TextureView
 	texturedCoverBG *webgpu.BindGroup
 	coverUniCap     uint64 // capacity of coverUniBuf
 }
@@ -381,11 +381,11 @@ func (b *stencilCoverBuffers) destroy() {
 		b.texturedCoverBG = nil
 	}
 	if b.rampView != nil {
-		b.rampView.Release()
+		b.rampView.Destroy()
 		b.rampView = nil
 	}
 	if b.rampTex != nil {
-		b.rampTex.Release()
+		b.rampTex.Destroy()
 		b.rampTex = nil
 	}
 	if b.coverBindGroup != nil {
@@ -802,7 +802,7 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return err
 	}
 	if err := sr.queue.WriteTexture(
@@ -811,8 +811,8 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		&hal.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
 		&hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	); err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return err
 	}
 	samp, err := sr.device.CreateSampler(&hal.SamplerDescriptor{
@@ -824,8 +824,8 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		MipmapFilter: types.MipmapFilterModeNearest, Anisotropy: 1,
 	})
 	if err != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return err
 	}
 	ubuf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
@@ -834,15 +834,15 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 	})
 	if err != nil {
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return err
 	}
 	if err := sr.queue.WriteBuffer(ubuf, 0, NoMaskParams().Bytes()); err != nil {
 		ubuf.Destroy()
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return err
 	}
 	bg, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
@@ -857,8 +857,8 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 	if err != nil {
 		ubuf.Destroy()
 		samp.Destroy()
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return err
 	}
 	sr.noMaskTex, sr.noMaskView, sr.noMaskSamp, sr.noMaskUni, sr.noMaskBG = tex, view, samp, ubuf, bg
@@ -879,11 +879,11 @@ func (sr *StencilRenderer) releaseNoMask() {
 		sr.noMaskSamp = nil
 	}
 	if sr.noMaskView != nil {
-		sr.noMaskView.Release()
+		sr.noMaskView.Destroy()
 		sr.noMaskView = nil
 	}
 	if sr.noMaskTex != nil {
-		sr.noMaskTex.Release()
+		sr.noMaskTex.Destroy()
 		sr.noMaskTex = nil
 	}
 }

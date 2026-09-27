@@ -507,8 +507,8 @@ func texturedStencilCoverLinear(
 ) ([]byte, error) {
 	px, tex, view, err := texturedStencilCoverLinearEx(device, queue, cache, localPath, fillRule, nw, nh, ramp, n, params, sampleCount, false)
 	if tex != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 	}
 	return px, err
 }
@@ -526,7 +526,7 @@ func texturedStencilCoverLinearRetain(
 	n int,
 	params texturedStencilLinearParams,
 	sampleCount uint32,
-) (*webgpu.Texture, *webgpu.TextureView, error) {
+) (hal.Texture, hal.TextureView, error) {
 	px, tex, view, err := texturedStencilCoverLinearEx(device, queue, cache, localPath, fillRule, nw, nh, ramp, n, params, sampleCount, true)
 	if err != nil {
 		return nil, nil, err
@@ -551,7 +551,7 @@ func texturedStencilCoverLinearEx(
 	params texturedStencilLinearParams,
 	sampleCount uint32,
 	retain bool,
-) ([]byte, *webgpu.Texture, *webgpu.TextureView, error) {
+) ([]byte, hal.Texture, hal.TextureView, error) {
 	if device == nil || queue == nil || cache == nil || localPath == nil || n < 1 || nw <= 0 || nh <= 0 {
 		return nil, nil, nil, fmt.Errorf("tex stencil: bad args")
 	}
@@ -599,12 +599,12 @@ func texturedStencilCoverLinearEx(
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		outTex.Release()
+		outTex.Destroy()
 		return nil, nil, nil, err
 	}
 	releaseOut := func() {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 	}
 
 	// Upload geometry.
@@ -676,7 +676,7 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer rampTex.Release()
+	defer rampTex.Destroy()
 	rampView, err := device.CreateTextureView(rampTex, &hal.TextureViewDescriptor{
 		Label: "tex_stencil_ramp_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -685,7 +685,7 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer rampView.Release()
+	defer rampView.Destroy()
 	rbpr := alignTextureBytesPerRow(uint32(n * 4)) //nolint:gosec
 	rampUp := ramp
 	if rbpr != uint32(n*4) { //nolint:gosec

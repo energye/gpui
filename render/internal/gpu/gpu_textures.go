@@ -22,12 +22,12 @@ import (
 //   - Depth/stencil: 1x default (Depth24PlusStencil8, RenderAttachment)
 //   - Resolve: 1x sample, BGRA8Unorm, RenderAttachment | CopySrc
 type textureSet struct {
-	msaaTex     *webgpu.Texture
-	msaaView    *webgpu.TextureView
-	stencilTex  *webgpu.Texture
-	stencilView *webgpu.TextureView
-	resolveTex  *webgpu.Texture
-	resolveView *webgpu.TextureView
+	msaaTex     hal.Texture
+	msaaView    hal.TextureView
+	stencilTex  hal.Texture
+	stencilView hal.TextureView
+	resolveTex  hal.Texture
+	resolveView hal.TextureView
 	width       uint32
 	height      uint32
 
@@ -36,7 +36,7 @@ type textureSet struct {
 	// on rebuild the old views may still be referenced by commands queued
 	// earlier in the frame, so releasing them right away leaves dangling
 	// handles (the resize-crash root cause).
-	retireFn func(tex *webgpu.Texture, view *webgpu.TextureView)
+	retireFn func(tex hal.Texture, view hal.TextureView)
 
 	// stencilPool caches depth/stencil textures by size for sc==1 surface
 	// passes (R8 engine hole). Within one retained frame, per-layer offscreen
@@ -109,8 +109,8 @@ type stencilPoolKey struct {
 
 // pooledStencil is one cached depth/stencil texture + its last-use stamp.
 type pooledStencil struct {
-	tex   *webgpu.Texture
-	view  *webgpu.TextureView
+	tex   hal.Texture
+	view  hal.TextureView
 	stamp uint64
 }
 
@@ -123,7 +123,7 @@ const stencilPoolCap = 8
 // takePooledStencil fetches (or creates) a depth/stencil texture for (w,h).
 // Returns nil when the caller should fall back to direct creation (pool
 // disabled / OOM fallback path). sc must be 1 — MSAA textures are not pooled.
-func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labelPrefix string) *webgpu.TextureView {
+func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labelPrefix string) hal.TextureView {
 	if ts.stencilPool == nil {
 		ts.stencilPool = make(map[stencilPoolKey]*pooledStencil)
 	}
@@ -153,7 +153,7 @@ func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labe
 		MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return nil
 	}
 	// Evict LRU when at capacity (never the entry we are about to add).
@@ -350,21 +350,21 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	// view, so only depth/stencil is required (positive VRAM save on low-GPU hosts).
 	if ts.width == w && ts.height == h && ts.stencilView != nil && (!needMSAA || haveMSAA) {
 		if ts.resolveView != nil {
-			ts.resolveView.Release()
+			ts.resolveView.Destroy()
 			ts.resolveView = nil
 		}
 		if ts.resolveTex != nil {
-			ts.resolveTex.Release()
+			ts.resolveTex.Destroy()
 			ts.resolveTex = nil
 		}
 		// Drop leftover MSAA when switching into sc==1.
 		if !needMSAA && haveMSAA {
 			if ts.msaaView != nil {
-				ts.msaaView.Release()
+				ts.msaaView.Destroy()
 				ts.msaaView = nil
 			}
 			if ts.msaaTex != nil {
-				ts.msaaTex.Release()
+				ts.msaaTex.Destroy()
 				ts.msaaTex = nil
 			}
 		}
@@ -561,22 +561,22 @@ func (ts *textureSet) destroyTextures() {
 
 // releaseOrRetire releases the resource immediately, or hands it to the
 // retire callback when one is installed (deferred release on rebuild).
-func (ts *textureSet) releaseOrRetire(tex *webgpu.Texture, view *webgpu.TextureView) {
+func (ts *textureSet) releaseOrRetire(tex hal.Texture, view hal.TextureView) {
 	if ts.retireFn != nil {
 		ts.retireFn(tex, view)
 		return
 	}
 	if view != nil {
-		view.Release()
+		view.Destroy()
 	}
 	if tex != nil {
-		tex.Release()
+		tex.Destroy()
 	}
 }
 
 // createTextureRetryOOM creates a texture; on OOM-like errors flushes and retries.
 // Second try forces SampleCount=1 when the failed desc used MSAA (post-TDR reclaim).
-func createTextureRetryOOM(device *webgpu.Device, desc *hal.TextureDescriptor) (*webgpu.Texture, error) {
+func createTextureRetryOOM(device *webgpu.Device, desc *hal.TextureDescriptor) (hal.Texture, error) {
 	if device == nil || desc == nil {
 		return nil, fmt.Errorf("createTextureRetryOOM: nil device/desc")
 	}

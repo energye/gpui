@@ -71,7 +71,7 @@ func waitDeviceReady(inst *webgpu.Instance, device *webgpu.Device, label string)
 			Usage:         types.TextureUsageCopySrc,
 		})
 		if err == nil {
-			tex.Release()
+			tex.Destroy()
 			if probed {
 				fmt.Fprintf(os.Stderr, "render: device ready after reclaim wait (%s)\n", label)
 			}

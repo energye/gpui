@@ -9,7 +9,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -35,7 +34,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	const w, h uint32 = 32, 32
-	mk := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mk := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -58,12 +57,12 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	src0Tex, src0View := mk("opt37_src0")
 	src1Tex, src1View := mk("opt37_src1")
 	t.Cleanup(func() {
-		dstView.Release()
-		dstTex.Release()
-		src0View.Release()
-		src0Tex.Release()
-		src1View.Release()
-		src1Tex.Release()
+		dstView.Destroy()
+		dstTex.Destroy()
+		src0View.Destroy()
+		src0Tex.Destroy()
+		src1View.Destroy()
+		src1Tex.Destroy()
 	})
 	// Seed solid colors.
 	px := make([]byte, w*h*4)

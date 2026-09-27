@@ -3,19 +3,19 @@
 package gpu
 
 import (
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
-// texViewNative adapts a *webgpu.TextureView to res.Native (P3). Release is
+// texViewNative adapts a hal.TextureView to res.Native (P3). Destroy is
 // idempotent at the webgpu layer (released-guard), so registering the same
 // view for multiple commands is safe.
-type texViewNative struct{ v *webgpu.TextureView }
+type texViewNative struct{ v hal.TextureView }
 
 func (n texViewNative) Release() {
 	if n.v != nil {
-		n.v.Release()
+		n.v.Destroy()
 	}
 }
 

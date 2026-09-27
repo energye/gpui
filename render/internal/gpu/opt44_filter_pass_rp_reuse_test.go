@@ -6,14 +6,13 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // TestOpt44_FilterPassRenderPassDesc_NoAllocWarm ensures filter-pass RP desc
 // reuses backing storage after first init (class A opt44 / R8.3).
 func TestOpt44_FilterPassRenderPassDesc_NoAllocWarm(t *testing.T) {
 	c := &filterGPUCache{}
-	fakeView := &webgpu.TextureView{}
+	fakeView := &testTextureView{}
 
 	desc := c.filterPassRenderPassDesc(fakeView)
 	if desc == nil {
@@ -35,7 +34,7 @@ func TestOpt44_FilterPassRenderPassDesc_NoAllocWarm(t *testing.T) {
 		t.Fatal("store op")
 	}
 
-	fake2 := &webgpu.TextureView{}
+	fake2 := &testTextureView{}
 	allocs := testing.AllocsPerRun(200, func() {
 		d := c.filterPassRenderPassDesc(fake2)
 		if d == nil || d.ColorAttachments[0].View != fake2 {

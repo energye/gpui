@@ -452,8 +452,8 @@ func texturedStencilCoverPattern(
 ) ([]byte, error) {
 	px, tex, view, err := texturedStencilCoverPatternEx(device, queue, cache, localPath, fillRule, nw, nh, tile, srcW, srcH, params, sampleCount, false)
 	if tex != nil {
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 	}
 	return px, err
 }
@@ -471,7 +471,7 @@ func texturedStencilCoverPatternRetain(
 	srcW, srcH int,
 	params texturedStencilPatternParams,
 	sampleCount uint32,
-) (*webgpu.Texture, *webgpu.TextureView, error) {
+) (hal.Texture, hal.TextureView, error) {
 	px, tex, view, err := texturedStencilCoverPatternEx(device, queue, cache, localPath, fillRule, nw, nh, tile, srcW, srcH, params, sampleCount, true)
 	if err != nil {
 		return nil, nil, err
@@ -494,7 +494,7 @@ func texturedStencilCoverPatternEx(
 	params texturedStencilPatternParams,
 	sampleCount uint32,
 	retain bool,
-) ([]byte, *webgpu.Texture, *webgpu.TextureView, error) {
+) ([]byte, hal.Texture, hal.TextureView, error) {
 	if device == nil || queue == nil || cache == nil || localPath == nil || nw <= 0 || nh <= 0 {
 		return nil, nil, nil, fmt.Errorf("tex stencil pat: bad args")
 	}
@@ -540,12 +540,12 @@ func texturedStencilCoverPatternEx(
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
 	if err != nil {
-		outTex.Release()
+		outTex.Destroy()
 		return nil, nil, nil, err
 	}
 	releaseOut := func() {
-		outView.Release()
-		outTex.Release()
+		outView.Destroy()
+		outTex.Destroy()
 	}
 
 	fanBytes := float32SliceToBytes(fan)
@@ -614,7 +614,7 @@ func texturedStencilCoverPatternEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer patTex.Release()
+	defer patTex.Destroy()
 	patView, err := device.CreateTextureView(patTex, &hal.TextureViewDescriptor{
 		Label: "tex_stencil_pat_src_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
@@ -623,7 +623,7 @@ func texturedStencilCoverPatternEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer patView.Release()
+	defer patView.Destroy()
 	patBPR := alignTextureBytesPerRow(uint32(srcW * 4)) //nolint:gosec
 	patUp := tile
 	if patBPR != uint32(srcW*4) { //nolint:gosec

@@ -29,8 +29,8 @@ const (
 
 // imageCacheEntry holds a GPU texture and view for a cached image.
 type imageCacheEntry struct {
-	texture *webgpu.Texture
-	view    *webgpu.TextureView
+	texture hal.Texture
+	view    hal.TextureView
 	width   int
 	height  int
 	bytes   int64
@@ -184,7 +184,7 @@ func (c *ImageCache) effBudgetBytes() int64 {
 // GetOrUpload returns the cached GPU texture view for the given image data,
 // uploading it if not already cached. The cache key is ImageDrawCommand.GenerationID
 // (from Pixmap.GenerationID()), not a pointer.
-func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (*webgpu.TextureView, error) {
+func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error) {
 	if len(cmd.PixelData) == 0 {
 		return nil, fmt.Errorf("empty pixel data")
 	}
@@ -251,19 +251,19 @@ func (c *ImageCache) ReleaseEphemeral() {
 	}
 	for _, entry := range c.ephemeral {
 		if entry.view != nil {
-			entry.view.Release()
+			entry.view.Destroy()
 		}
 		if entry.texture != nil {
-			entry.texture.Release()
+			entry.texture.Destroy()
 		}
 	}
 	c.ephemeral = c.ephemeral[:0]
 	for _, entry := range c.pending {
 		if entry.view != nil {
-			entry.view.Release()
+			entry.view.Destroy()
 		}
 		if entry.texture != nil {
-			entry.texture.Release()
+			entry.texture.Destroy()
 		}
 	}
 	c.pending = c.pending[:0]
@@ -325,8 +325,8 @@ func (c *ImageCache) Destroy() {
 	c.destroyed.Store(true)
 	c.ReleaseEphemeral()
 	for key, entry := range c.entries {
-		entry.view.Release()
-		entry.texture.Release()
+		entry.view.Destroy()
+		entry.texture.Destroy()
 		delete(c.entries, key)
 	}
 	c.usedBytes = 0
@@ -376,7 +376,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 		MipLevelCount: 1,
 	})
 	if err != nil {
-		tex.Release()
+		tex.Destroy()
 		return nil, fmt.Errorf("create image texture view: %w", err)
 	}
 
@@ -415,8 +415,8 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 		if staging != nil {
 			releaseImageStaging(staging)
 		}
-		view.Release()
-		tex.Release()
+		view.Destroy()
+		tex.Destroy()
 		return nil, fmt.Errorf("upload image pixels: %w", err)
 	}
 	if staging != nil {

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // TestOpt41_SurfaceRenderPassDesc_NoAllocWarm ensures surfaceRenderPassDesc
@@ -12,7 +11,7 @@ import (
 func TestOpt41_SurfaceRenderPassDesc_NoAllocWarm(t *testing.T) {
 	s := &GPURenderSession{}
 	// stencil view pointer only used as identity; no native calls.
-	fakeView := &webgpu.TextureView{}
+	fakeView := &testTextureView{}
 	s.textures.stencilView = fakeView
 	s.sampleCount = 1
 

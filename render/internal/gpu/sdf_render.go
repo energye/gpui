@@ -98,10 +98,10 @@ type SDFRenderPipeline struct {
 
 	// MSAA and resolve textures for offscreen rendering (standalone mode).
 	// When used via GPURenderSession, these are nil -- the session owns textures.
-	msaaTex     *webgpu.Texture
-	msaaView    *webgpu.TextureView
-	resolveTex  *webgpu.Texture
-	resolveView *webgpu.TextureView
+	msaaTex     hal.Texture
+	msaaView    hal.TextureView
+	resolveTex  hal.Texture
+	resolveView hal.TextureView
 
 	width, height uint32
 
@@ -291,19 +291,19 @@ func (p *SDFRenderPipeline) ensureTextures(w, h uint32) error {
 // destroyTextures releases all texture resources and resets dimensions.
 func (p *SDFRenderPipeline) destroyTextures() {
 	if p.resolveView != nil {
-		p.resolveView.Release()
+		p.resolveView.Destroy()
 		p.resolveView = nil
 	}
 	if p.resolveTex != nil {
-		p.resolveTex.Release()
+		p.resolveTex.Destroy()
 		p.resolveTex = nil
 	}
 	if p.msaaView != nil {
-		p.msaaView.Release()
+		p.msaaView.Destroy()
 		p.msaaView = nil
 	}
 	if p.msaaTex != nil {
-		p.msaaTex.Release()
+		p.msaaTex.Destroy()
 		p.msaaTex = nil
 	}
 	p.width = 0

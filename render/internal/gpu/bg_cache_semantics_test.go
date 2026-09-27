@@ -32,7 +32,7 @@ func TestP5_GlyphMaskBindGroup_KeySemantics(t *testing.T) {
 		t.Skipf("glyph mask pipeline unavailable: %v", err)
 	}
 
-	mkView := func(label string) *webgpu.TextureView {
+	mkView := func(label string) hal.TextureView {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -42,18 +42,18 @@ func TestP5_GlyphMaskBindGroup_KeySemantics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { tex.Release() })
+		t.Cleanup(func() { tex.Destroy() })
 		v, err := device.CreateTextureView(tex, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { v.Release() })
+		t.Cleanup(func() { v.Destroy() })
 		return v
 	}
 	v1, v2 := mkView("p5_glyph_v1"), mkView("p5_glyph_v2")
 
 	s.glyphMaskBindGroups = make([]*webgpu.BindGroup, 1)
-	s.glyphMaskBGViews = make([]*webgpu.TextureView, 1)
+	s.glyphMaskBGViews = make([]hal.TextureView, 1)
 	s.glyphMaskBGIsLCD = make([]bool, 1)
 	s.ensureGlyphMaskBatchPools(1)
 

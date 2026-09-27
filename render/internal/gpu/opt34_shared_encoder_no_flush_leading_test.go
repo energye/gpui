@@ -5,9 +5,7 @@ package gpu
 import (
 	"os"
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -31,7 +29,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
 
 	const w, h uint32 = 64, 64
-	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mkView := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := shared.device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -73,8 +71,8 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 	// opt32 composite: record present/blit into sharedEncoder while leads pending.
 	dstTex, dstView := mkView("opt34_composite_dst")
 	t.Cleanup(func() {
-		dstView.Release()
-		dstTex.Release()
+		dstView.Destroy()
+		dstTex.Destroy()
 	})
 	sharedEnc, err := shared.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "opt34_composite"})
 	if err != nil {
@@ -85,7 +83,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 		Color:  [4]float32{0, 1, 0, 1},
 	}
 	target := render.GPURenderTarget{
-		View:       gpucontext.NewTextureView(unsafe.Pointer(dstView)),
+		View:       packView(dstView),
 		ViewWidth:  w,
 		ViewHeight: h,
 		Width:      int(w),
@@ -135,7 +133,7 @@ func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
 
 	const w, h uint32 = 64, 64
-	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
+	mkView := func(label string) (hal.Texture, hal.TextureView) {
 		tex, err := shared.device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -174,15 +172,15 @@ func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 
 	dstTex, dstView := mkView("opt34_present")
 	t.Cleanup(func() {
-		dstView.Release()
-		dstTex.Release()
+		dstView.Destroy()
+		dstTex.Destroy()
 	})
 	cmd := ConvexDrawCommand{
 		Points: []render.Point{{X: 4, Y: 4}, {X: 20, Y: 4}, {X: 12, Y: 20}},
 		Color:  [4]float32{1, 0, 0, 1},
 	}
 	target := render.GPURenderTarget{
-		View:       gpucontext.NewTextureView(unsafe.Pointer(dstView)),
+		View:       packView(dstView),
 		ViewWidth:  w,
 		ViewHeight: h,
 		Width:      int(w),

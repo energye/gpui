@@ -8,7 +8,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
@@ -26,7 +25,7 @@ func TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mkView := func(label string) *webgpu.TextureView {
+	mkView := func(label string) hal.TextureView {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -36,12 +35,12 @@ func TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { tex.Release() })
+		t.Cleanup(func() { tex.Destroy() })
 		v, err := device.CreateTextureView(tex, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { v.Release() })
+		t.Cleanup(func() { v.Destroy() })
 		return v
 	}
 	v1, v2 := mkView("opt40a"), mkView("opt40b")

@@ -3,19 +3,19 @@ package gpu
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // P4: rebuild must not immediately destroy old texture views — commands
 // queued earlier in the frame may still reference them. These tests pin the
 // deferred-release queue and the textureSet retire-fn behavior with fake
-// resources (webgpu objects are zero-constructible and Release is guarded).
+// resources (Destroy-recording stubs; no concrete type named).
 
 func TestPendingTexRetire_AddDrain(t *testing.T) {
 	var q pendingTexRetire
-	v1 := &webgpu.TextureView{}
-	v2 := &webgpu.TextureView{}
-	tx1 := &webgpu.Texture{}
+	v1 := &testTextureView{}
+	v2 := &testTextureView{}
+	tx1 := &testTexture{}
 	q.Add(v1, nil)
 	q.Add(v2, tx1)
 	if got := q.PendingCount(); got != 3 {
@@ -25,7 +25,7 @@ func TestPendingTexRetire_AddDrain(t *testing.T) {
 	if got := q.PendingCount(); got != 0 {
 		t.Fatalf("expected 0 pending after drain, got %d", got)
 	}
-	if !v1.Released() || !v2.Released() || !tx1.Released() {
+	if !v1.destroyed || !v2.destroyed || !tx1.destroyed {
 		t.Fatalf("drain must release every queued resource")
 	}
 	// Idempotent + nil-safe.
@@ -38,15 +38,15 @@ func TestPendingTexRetire_AddDrain(t *testing.T) {
 
 func TestTextureSet_DestroyWithRetireFnDefersRelease(t *testing.T) {
 	ts := &textureSet{}
-	view := &webgpu.TextureView{}
-	tex := &webgpu.Texture{}
+	view := &testTextureView{}
+	tex := &testTexture{}
 	retired := 0
-	ts.retireFn = func(tx *webgpu.Texture, tv *webgpu.TextureView) {
+	ts.retireFn = func(tx hal.Texture, tv hal.TextureView) {
 		retired++
-		if tv != nil && tv.Released() {
+		if view.destroyed {
 			t.Fatalf("view must NOT be released while deferred")
 		}
-		if tx != nil && tx.Released() {
+		if tex.destroyed {
 			t.Fatalf("texture must NOT be released while deferred")
 		}
 	}
@@ -58,7 +58,7 @@ func TestTextureSet_DestroyWithRetireFnDefersRelease(t *testing.T) {
 	if retired != 2 {
 		t.Fatalf("expected retireFn called for both resources, got %d", retired)
 	}
-	if view.Released() || tex.Released() {
+	if view.destroyed || tex.destroyed {
 		t.Fatalf("resources must remain alive when retireFn installed (deferred)")
 	}
 	if ts.msaaView != nil || ts.msaaTex != nil {
@@ -72,22 +72,22 @@ func TestTextureSet_DestroyWithRetireFnDefersRelease(t *testing.T) {
 func TestTextureSet_DestroyWithoutRetireFnReleasesImmediately(t *testing.T) {
 	// Default (stencil/SDF textureSets have no retireFn): destroy releases now.
 	ts := &textureSet{}
-	v := &webgpu.TextureView{}
-	tx := &webgpu.Texture{}
+	v := &testTextureView{}
+	tx := &testTexture{}
 	ts.resolveView = v
 	ts.resolveTex = tx
 	ts.destroyTextures()
-	if !v.Released() || !tx.Released() {
+	if !v.destroyed || !tx.destroyed {
 		t.Fatalf("default destroy must release immediately")
 	}
 }
 
 func TestSessionRetireTextureNilSafe(t *testing.T) {
 	// Nil session → immediate release fallback, no panic.
-	v := &webgpu.TextureView{}
+	v := &testTextureView{}
 	var s *GPURenderSession
 	s.RetireTexture(nil, v)
-	if !v.Released() {
+	if !v.destroyed {
 		t.Fatalf("nil-session fallback must release immediately")
 	}
 }
