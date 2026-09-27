@@ -59,7 +59,7 @@ func TestPrepareQueueCall_LostReturnsErrDeviceLost(t *testing.T) {
 
 func TestDeviceCreateBuffer_NilDevice(t *testing.T) {
 	var d *Device
-	buf, err := d.CreateBuffer(&BufferDescriptor{Size: 16, Usage: 1})
+	buf, err := d.CreateBuffer(&hal.BufferDescriptor{Size: 16, Usage: 1})
 	if buf != nil || err == nil {
 		t.Fatalf("nil device CreateBuffer: buf=%v err=%v", buf, err)
 	}
@@ -67,7 +67,7 @@ func TestDeviceCreateBuffer_NilDevice(t *testing.T) {
 
 func TestDeviceCreateBuffer_Released(t *testing.T) {
 	d := &Device{released: true, r: &rwgpu.Device{}}
-	buf, err := d.CreateBuffer(&BufferDescriptor{Size: 16, Usage: 1})
+	buf, err := d.CreateBuffer(&hal.BufferDescriptor{Size: 16, Usage: 1})
 	if buf != nil || !errors.Is(err, ErrReleased) {
 		t.Fatalf("released CreateBuffer: buf=%v err=%v", buf, err)
 	}
@@ -76,19 +76,19 @@ func TestDeviceCreateBuffer_Released(t *testing.T) {
 func TestDeviceCreate_LostReturnsErrDeviceLost(t *testing.T) {
 	d := lostTestDevice(0x1001)
 
-	buf, err := d.CreateBuffer(&BufferDescriptor{Size: 16, Usage: 1})
+	buf, err := d.CreateBuffer(&hal.BufferDescriptor{Size: 16, Usage: 1})
 	if buf != nil || !errors.Is(err, ErrDeviceLost) {
 		t.Fatalf("CreateBuffer after lost: buf=%v err=%v", buf, err)
 	}
 
-	tex, err := d.CreateTexture(&TextureDescriptor{
+	tex, err := d.CreateTexture(&hal.TextureDescriptor{
 		Size: hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	})
 	if tex != nil || !errors.Is(err, ErrDeviceLost) {
 		t.Fatalf("CreateTexture after lost: tex=%v err=%v", tex, err)
 	}
 
-	mod, err := d.CreateShaderModule(&ShaderModuleDescriptor{WGSL: "@vertex fn vs() {}"})
+	mod, err := d.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: "@vertex fn vs() {}"})
 	if mod != nil || !errors.Is(err, ErrDeviceLost) {
 		t.Fatalf("CreateShaderModule after lost: mod=%v err=%v", mod, err)
 	}
@@ -127,7 +127,7 @@ func TestSurfacePresent_LostReturnsErrDeviceLost(t *testing.T) {
 
 func TestDeviceCreateTexture_NilDevice(t *testing.T) {
 	var d *Device
-	tex, err := d.CreateTexture(&TextureDescriptor{
+	tex, err := d.CreateTexture(&hal.TextureDescriptor{
 		Size: hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	})
 	if tex != nil || err == nil {

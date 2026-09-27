@@ -5,7 +5,7 @@ package gpu
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 func TestStencilPipelineCreation(t *testing.T) {
@@ -159,7 +159,7 @@ func TestShaderCompilation(t *testing.T) {
 		t.Fatal("stencil fill shader source is empty")
 	}
 
-	stencilModule, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	stencilModule, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "test_stencil_fill",
 		WGSL:  stencilFillShaderSource,
 	})
@@ -175,7 +175,7 @@ func TestShaderCompilation(t *testing.T) {
 		t.Fatal("cover shader source is empty")
 	}
 
-	coverModule, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	coverModule, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "test_cover",
 		WGSL:  coverShaderSource,
 	})

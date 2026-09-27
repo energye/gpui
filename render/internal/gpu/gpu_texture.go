@@ -235,7 +235,7 @@ func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) 
 		return nil, ErrNotInitialized
 	}
 
-	wtex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	wtex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label: config.Label,
 		Size: hal.Extent3D{
 			Width:              uint32(config.Width),  //nolint:gosec // dimensions are validated positive
@@ -252,7 +252,7 @@ func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) 
 		return nil, err
 	}
 
-	view, err := device.CreateTextureView(wtex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(wtex, &hal.TextureViewDescriptor{
 		Label:           config.Label + "-view",
 		Format:          config.Format.ToWGPUFormat(),
 		Dimension:       types.TextureViewDimension2D,
@@ -467,7 +467,7 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 	alignedBytesPerRow := alignTextureBytesPerRow(bytesPerRow)
 	stagingBufSize := uint64(alignedBytesPerRow) * uint64(height)
 
-	stagingBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	stagingBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "gpu_texture_readback_staging",
 		Size:  stagingBufSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
@@ -477,7 +477,7 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 	}
 	defer stagingBuf.Release()
 
-	encoder, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "gpu_texture_readback_encoder",
 	})
 	if err != nil {

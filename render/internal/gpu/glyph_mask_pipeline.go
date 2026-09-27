@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -183,7 +184,7 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 	// (shared across stencil/clip rebuilds). Only create missing pieces so we
 	// never overwrite a live GPU object (sampler leak → AutoRecover OOM).
 	if p.shader == nil {
-		shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: "glyph_mask_shader",
 			WGSL:  glyphMaskShaderSource,
 		})
@@ -198,7 +199,7 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 	//   Binding 1: R8 atlas texture (texture_2d, fragment)
 	//   Binding 2: Sampler (fragment)
 	if p.uniformLayout == nil {
-		uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		uniformLayout, err := p.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 			Label: "glyph_mask_uniform_layout",
 			Entries: []types.BindGroupLayoutEntry{
 				{
@@ -248,7 +249,7 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 	// Nearest filtering: glyph masks are CPU-rasterized at exact device pixel size
 	// with subpixel hinting. Linear filtering would blur the already-hinted bitmaps.
 	if p.sampler == nil {
-		sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+		sampler, err := p.device.CreateSampler(&hal.SamplerDescriptor{
 			Label:        "glyph_mask_sampler",
 			AddressModeU: types.AddressModeClampToEdge,
 			AddressModeV: types.AddressModeClampToEdge,
@@ -266,7 +267,7 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 	// Linear sampler for RGBA color atlas textures: color bitmaps are
 	// scaled from strike size, so nearest would show blocky texels.
 	if p.colorSampler == nil {
-		sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+		sampler, err := p.device.CreateSampler(&hal.SamplerDescriptor{
 			Label:        "glyph_color_sampler",
 			AddressModeU: types.AddressModeClampToEdge,
 			AddressModeV: types.AddressModeClampToEdge,
@@ -368,7 +369,7 @@ func (p *GlyphMaskPipeline) ensureColorPipelineWithStencil() error {
 	if glyphColorShaderSource == "" {
 		return fmt.Errorf("glyph_color shader source is empty")
 	}
-	shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "glyph_color_shader",
 		WGSL:  glyphColorShaderSource,
 	})
@@ -546,7 +547,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 		return fmt.Errorf("glyph_mask_lcd shader source is empty")
 	}
 
-	lcdShader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	lcdShader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "glyph_mask_lcd_shader",
 		WGSL:  glyphMaskLCDShaderSource,
 	})
@@ -557,7 +558,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 
 	// LCD bind group layout: same bindings as grayscale (uniform, texture, sampler)
 	// but with a larger uniform buffer (96 bytes instead of 80).
-	lcdUniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	lcdUniformLayout, err := p.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "glyph_mask_lcd_uniform_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{

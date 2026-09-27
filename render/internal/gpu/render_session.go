@@ -80,9 +80,9 @@ type ScissorGroup struct {
 
 // S6.2: static encoder descriptors avoid per-frame descriptor heap allocs.
 var (
-	sessionSurfaceEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "session_surface_encoder"}
-	sessionEncoderDesc        = &webgpu.CommandEncoderDescriptor{Label: "session_encoder"}
-	sessionBlitEncoderDesc    = &webgpu.CommandEncoderDescriptor{Label: "session_blit_encoder"}
+	sessionSurfaceEncoderDesc = &hal.CommandEncoderDescriptor{Label: "session_surface_encoder"}
+	sessionEncoderDesc        = &hal.CommandEncoderDescriptor{Label: "session_encoder"}
+	sessionBlitEncoderDesc    = &hal.CommandEncoderDescriptor{Label: "session_blit_encoder"}
 )
 
 // pendingTexRetire holds textures/views retired during a rebuild. They are
@@ -379,9 +379,9 @@ type GPURenderSession struct {
 	ensurePipelinesFastN uint64
 	ensurePipelinesFullN uint64
 	// opt41: reuse surface render-pass descriptor + attachments (no per-encode alloc).
-	surfaceColorAtt [1]webgpu.RenderPassColorAttachment
-	surfaceDSAtt    webgpu.RenderPassDepthStencilAttachment
-	surfaceRPDesc   webgpu.RenderPassDescriptor
+	surfaceColorAtt [1]hal.RenderPassColorAttachment
+	surfaceDSAtt    hal.RenderPassDepthStencilAttachment
+	surfaceRPDesc   hal.RenderPassDescriptor
 	surfaceRPInited bool
 	imagePipeline   *TexturedQuadPipeline
 	imageCache      *ImageCache
@@ -1183,18 +1183,18 @@ func extractTextureView(view gpucontext.TextureView) *webgpu.TextureView {
 // This fixes BUG-GPU-002: on llvmpipe, ResolveTarget with sampleCount=1 is
 // spec-invalid (Vulkan backend skips resolve → content stays in msaaView, target empty).
 // Also avoids Mesa 23.2.1 lavapipe MSAA resolve regression for offscreen textures.
-func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadOp types.LoadOp) webgpu.RenderPassColorAttachment {
+func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadOp types.LoadOp) hal.RenderPassColorAttachment {
 	if s.sampleCount > 1 && s.textures.msaaView != nil {
 		// Guard against invalid resolve wiring (same view/texture as MSAA color).
 		if targetView == nil || targetView == s.textures.msaaView {
-			return webgpu.RenderPassColorAttachment{
+			return hal.RenderPassColorAttachment{
 				View:       s.textures.msaaView,
 				LoadOp:     loadOp,
 				StoreOp:    types.StoreOpStore,
 				ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 			}
 		}
-		return webgpu.RenderPassColorAttachment{
+		return hal.RenderPassColorAttachment{
 			View:          s.textures.msaaView,
 			ResolveTarget: targetView,
 			LoadOp:        loadOp,
@@ -1203,7 +1203,7 @@ func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadO
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 		}
 	}
-	return webgpu.RenderPassColorAttachment{
+	return hal.RenderPassColorAttachment{
 		View:       targetView,
 		LoadOp:     loadOp,
 		StoreOp:    types.StoreOpStore,
@@ -1218,7 +1218,7 @@ func (s *GPURenderSession) surfaceRenderPassDesc(
 	label string,
 	view *webgpu.TextureView,
 	colorLoadOp, stencilLoadOp, depthLoadOp types.LoadOp,
-) *webgpu.RenderPassDescriptor {
+) *hal.RenderPassDescriptor {
 	if !s.surfaceRPInited {
 		s.surfaceRPDesc.ColorAttachments = s.surfaceColorAtt[:]
 		s.surfaceRPDesc.DepthStencilAttachment = &s.surfaceDSAtt
@@ -1226,7 +1226,7 @@ func (s *GPURenderSession) surfaceRenderPassDesc(
 	}
 	s.surfaceRPDesc.Label = label
 	s.surfaceColorAtt[0] = s.colorAttachment(view, colorLoadOp)
-	s.surfaceDSAtt = webgpu.RenderPassDepthStencilAttachment{
+	s.surfaceDSAtt = hal.RenderPassDepthStencilAttachment{
 		View:              s.textures.stencilView,
 		DepthLoadOp:       depthLoadOp,
 		DepthStoreOp:      types.StoreOpDiscard,
@@ -2585,7 +2585,7 @@ func (s *GPURenderSession) ensureClipBindLayout() error {
 
 	// Create the no-clip uniform buffer (clip_enabled=0.0).
 	noClip := NoClipParams()
-	buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+	buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "clip_no_clip_uniform",
 		Size:  clipParamsSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -2634,7 +2634,7 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 	}
 
 	// Grow pool: create new buffer and bind group.
-	buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+	buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: fmt.Sprintf("clip_uniform_%d", idx),
 		Size:  clipParamsSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -2691,7 +2691,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	layout := s.maskBindLayout
 
 	// 1x1 white R8 — samples as coverage 1.0 when mask_enabled=0 path still samples.
-	tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := s.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "convex_nomask_r8",
 		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -2701,7 +2701,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	if err != nil {
 		return fmt.Errorf("create no-mask texture: %w", err)
 	}
-	view, err := s.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := s.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label: "convex_nomask_view", Format: types.TextureFormatR8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -2720,7 +2720,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		return fmt.Errorf("upload no-mask texel: %w", err)
 	}
 
-	samp, err := s.device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := s.device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "convex_mask_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -2736,7 +2736,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	}
 
 	uOff := NoMaskParams()
-	ubuf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+	ubuf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "convex_nomask_uniform",
 		Size:  maskParamsSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -2774,7 +2774,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 
 	// Enabled mask uniform (reused; view changes per frame).
 	uOn := &MaskParams{Enabled: 1}
-	ubufOn, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+	ubufOn, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "convex_mask_on_uniform",
 		Size:  maskParamsSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -2927,7 +2927,7 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 			s.RetireBuffer(s.sdfVertBuf) // P6 grow fix: previous frame's CBs may still reference it
 		}
 		allocSize := vertSize * 2
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_sdf_verts",
 			Size:  allocSize,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -2951,7 +2951,7 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 		s.uniformBytesScratch = uniformData
 	}
 	if s.sdfUniformBuf == nil {
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_sdf_uniform",
 			Size:  sdfRenderUniformSize,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -3046,7 +3046,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 			s.convexVertBufCaps[slot] = 0
 		}
 		allocSize := vertSize * 2
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_convex_verts",
 			Size:  allocSize,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -3089,7 +3089,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		s.uniformBytesScratch = uniformData
 	}
 	if s.convexUniformBuf == nil {
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_convex_uniform",
 			Size:  sdfRenderUniformSize,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -3191,7 +3191,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 				if alloc < 4096 {
 					alloc = 4096
 				}
-				buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+				buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 					Label: "session_convex_indices",
 					Size:  alloc,
 					Usage: types.BufferUsageIndex | types.BufferUsageCopyDst,
@@ -3268,7 +3268,7 @@ func (s *GPURenderSession) packStencilVertexSlabs(paths []StencilPathCommand) (f
 		if alloc < 64*1024 {
 			alloc = 64 * 1024
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "stencil_vert_slab",
 			Size:  alloc,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -3369,7 +3369,7 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		if alloc < stencilUniSlabStride*16 {
 			alloc = stencilUniSlabStride * 16
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "stencil_uni_slab",
 			Size:  alloc,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -3582,7 +3582,7 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 			s.RetireBuffer(s.textVertBuf) // P6 grow fix
 		}
 		allocSize := vertSize * 2
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_text_verts",
 			Size:  allocSize,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -3610,7 +3610,7 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 		if allocSize < 256 {
 			allocSize = 256
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_text_indices",
 			Size:  allocSize,
 			Usage: types.BufferUsageIndex | types.BufferUsageCopyDst,
@@ -3723,7 +3723,7 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 // least n entries. Existing entries are preserved.
 func (s *GPURenderSession) ensureTextBatchPools(n int) {
 	for len(s.textUniformBufs) < n {
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: fmt.Sprintf("session_text_uniform_%d", len(s.textUniformBufs)),
 			Size:  textUniformSize,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -3859,7 +3859,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		if s.imageVertBuf != nil {
 			s.RetireBuffer(s.imageVertBuf) // P6 grow fix
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "image_vert_buf",
 			Size:  needed,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -3943,7 +3943,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		if alloc < imageUniformSlotStride*16 {
 			alloc = imageUniformSlotStride * 16
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "image_uniform_slab",
 			Size:  alloc,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -4527,7 +4527,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		if *vertBufPtr != nil {
 			s.RetireBuffer(*vertBufPtr) // P6 grow fix
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: label,
 			Size:  needed,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -4604,7 +4604,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		if alloc < imageUniformSlotStride*8 {
 			alloc = imageUniformSlotStride * 8
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "gpu_tex_uniform_slab",
 			Size:  alloc,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -4821,7 +4821,7 @@ func (s *GPURenderSession) buildGlyphMaskResources(batches []GlyphMaskBatch) (*g
 			s.RetireBuffer(s.glyphMaskVertBuf) // P6 grow fix
 		}
 		allocSize := vertSize * 2
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_glyph_mask_verts",
 			Size:  allocSize,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -4848,7 +4848,7 @@ func (s *GPURenderSession) buildGlyphMaskResources(batches []GlyphMaskBatch) (*g
 		if allocSize < 256 {
 			allocSize = 256
 		}
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "session_glyph_mask_indices",
 			Size:  allocSize,
 			Usage: types.BufferUsageIndex | types.BufferUsageCopyDst,
@@ -4977,7 +4977,7 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 // (96 bytes) for all buffers so they work for both grayscale and LCD modes.
 func (s *GPURenderSession) ensureGlyphMaskBatchPools(n int) {
 	for len(s.glyphMaskUniformBufs) < n {
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: fmt.Sprintf("session_glyph_mask_uniform_%d", len(s.glyphMaskUniformBufs)),
 			Size:  glyphMaskLCDUniformSize,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -5138,10 +5138,10 @@ func (s *GPURenderSession) encodeSubmitReadback(
 	}()
 
 	// Unified render pass descriptor with MSAA color + stencil + resolve.
-	rpDesc := &webgpu.RenderPassDescriptor{
+	rpDesc := &hal.RenderPassDescriptor{
 		Label:            "session_unified_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{s.colorAttachment(s.textures.resolveView, types.LoadOpClear)},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
+		ColorAttachments: []hal.RenderPassColorAttachment{s.colorAttachment(s.textures.resolveView, types.LoadOpClear)},
+		DepthStencilAttachment: &hal.RenderPassDepthStencilAttachment{
 			View:              s.textures.stencilView,
 			DepthLoadOp:       types.LoadOpClear,
 			DepthStoreOp:      types.StoreOpDiscard,
@@ -5197,9 +5197,9 @@ func (s *GPURenderSession) encodeSubmitReadback(
 	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
 	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
 	// This is a no-op on Metal, GLES, software, and native backends.
-	encoder.TransitionTextures([]webgpu.TextureBarrier{{
+	encoder.TransitionTextures([]hal.TextureBarrier{{
 		Texture: s.textures.resolveTex,
-		Usage: webgpu.TextureUsageTransition{
+		Usage: hal.TextureUsageTransition{
 			OldUsage: types.TextureUsageRenderAttachment,
 			NewUsage: types.TextureUsageCopySrc,
 		},
@@ -5241,7 +5241,7 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	alignedBytesPerRow := (bytesPerRow + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
 	stagingBufSize := uint64(alignedBytesPerRow) * uint64(h)
 
-	stagingBuf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+	stagingBuf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "session_staging",
 		Size:  stagingBufSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
@@ -5261,9 +5261,9 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	// render pass End() can transition from RENDER_TARGET → RESOLVE_DEST.
 	// Without this, the texture remains in COPY_SOURCE and the next resolve
 	// barrier (which expects RENDER_TARGET) would be invalid on DX12.
-	encoder.TransitionTextures([]webgpu.TextureBarrier{{
+	encoder.TransitionTextures([]hal.TextureBarrier{{
 		Texture: s.textures.resolveTex,
-		Usage: webgpu.TextureUsageTransition{
+		Usage: hal.TextureUsageTransition{
 			OldUsage: types.TextureUsageCopySrc,
 			NewUsage: types.TextureUsageRenderAttachment,
 		},
@@ -5737,10 +5737,10 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 	}()
 
 	// Unified render pass descriptor with MSAA color + stencil + resolve.
-	rpDesc := &webgpu.RenderPassDescriptor{
+	rpDesc := &hal.RenderPassDescriptor{
 		Label:            "session_unified_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{s.colorAttachment(s.textures.resolveView, types.LoadOpClear)},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
+		ColorAttachments: []hal.RenderPassColorAttachment{s.colorAttachment(s.textures.resolveView, types.LoadOpClear)},
+		DepthStencilAttachment: &hal.RenderPassDepthStencilAttachment{
 			View:              s.textures.stencilView,
 			DepthLoadOp:       types.LoadOpClear,
 			DepthStoreOp:      types.StoreOpDiscard,
@@ -5778,9 +5778,9 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 	// VK-LAYOUT-001: After MSAA resolve the texture is in
 	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
 	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
-	encoder.TransitionTextures([]webgpu.TextureBarrier{{
+	encoder.TransitionTextures([]hal.TextureBarrier{{
 		Texture: s.textures.resolveTex,
-		Usage: webgpu.TextureUsageTransition{
+		Usage: hal.TextureUsageTransition{
 			OldUsage: types.TextureUsageRenderAttachment,
 			NewUsage: types.TextureUsageCopySrc,
 		},
@@ -5870,9 +5870,9 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 		loadOp = types.LoadOpLoad
 	}
 
-	rp, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "session_blit_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       view,
 			LoadOp:     loadOp,
 			StoreOp:    types.StoreOpStore,
@@ -6086,10 +6086,10 @@ func (s *GPURenderSession) encodeToEncoder(
 	// Depth always cleared (see encodeSubmitSurfaceGrouped comment).
 	depthLoadOp := types.LoadOpClear
 
-	rp, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label:            "session_shared_surface_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{s.colorAttachment(view, colorLoadOp)},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
+		ColorAttachments: []hal.RenderPassColorAttachment{s.colorAttachment(view, colorLoadOp)},
+		DepthStencilAttachment: &hal.RenderPassDepthStencilAttachment{
 			View:              s.textures.stencilView,
 			DepthLoadOp:       depthLoadOp,
 			DepthStoreOp:      types.StoreOpDiscard,
@@ -6150,9 +6150,9 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 		loadOp = types.LoadOpLoad
 	}
 
-	rp, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "session_shared_blit_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       view,
 			LoadOp:     loadOp,
 			StoreOp:    types.StoreOpStore,

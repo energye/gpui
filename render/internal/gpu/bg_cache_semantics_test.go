@@ -33,7 +33,7 @@ func TestP5_GlyphMaskBindGroup_KeySemantics(t *testing.T) {
 	}
 
 	mkView := func(label string) *webgpu.TextureView {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatR8Unorm,

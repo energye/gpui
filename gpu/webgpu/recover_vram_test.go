@@ -35,7 +35,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 	defer adpt.Release()
 
 	mkDepth := func(dev *webgpu.Device, w, h uint32) (*webgpu.Texture, error) {
-		return dev.CreateTexture(&webgpu.TextureDescriptor{
+		return dev.CreateTexture(&hal.TextureDescriptor{
 			Label: "session_depth_stencil",
 			Size: hal.Extent3D{
 				Width: w, Height: h, DepthOrArrayLayers: 1,

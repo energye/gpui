@@ -251,7 +251,7 @@ func (t *Texture) createDefaultView() (*TextureView, error) {
 	}
 
 	// Create default view descriptor - use zero values to inherit from texture
-	gpuDesc := &webgpu.TextureViewDescriptor{
+	gpuDesc := &hal.TextureViewDescriptor{
 		Label:           t.descriptor.Label + " (default view)",
 		Format:          types.TextureFormatUndefined, // Inherit from texture
 		Dimension:       types.TextureViewDimensionUndefined,
@@ -316,7 +316,7 @@ func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) 
 	}
 
 	// Convert to descriptor
-	gpuDesc := &webgpu.TextureViewDescriptor{
+	gpuDesc := &hal.TextureViewDescriptor{
 		Label:           desc.Label,
 		Format:          desc.Format,
 		Dimension:       desc.Dimension,
@@ -546,7 +546,7 @@ func (v *TextureView) destroy() {
 }
 
 // gpuViewDescToViewDesc converts a wgpu.TextureViewDescriptor to TextureViewDescriptor.
-func gpuViewDescToViewDesc(gpuDesc *webgpu.TextureViewDescriptor, tex *Texture) TextureViewDescriptor {
+func gpuViewDescToViewDesc(gpuDesc *hal.TextureViewDescriptor, tex *Texture) TextureViewDescriptor {
 	desc := TextureViewDescriptor{
 		Label:           gpuDesc.Label,
 		Format:          gpuDesc.Format,
@@ -640,7 +640,7 @@ func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture
 	}
 
 	// Convert to descriptor
-	gpuDesc := &webgpu.TextureDescriptor{
+	gpuDesc := &hal.TextureDescriptor{
 		Label: desc.Label,
 		Size: hal.Extent3D{
 			Width:              desc.Size.Width,

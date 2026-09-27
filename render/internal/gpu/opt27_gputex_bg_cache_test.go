@@ -22,7 +22,7 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 	}
 
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
@@ -31,7 +31,7 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Label: label + "_v", Format: types.TextureFormatBGRA8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -53,7 +53,7 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 		t3.Release()
 	})
 
-	ubuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "opt27_u", Size: imageUniformSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -117,7 +117,7 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 	t.Cleanup(func() { s.Destroy() })
 
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
@@ -126,7 +126,7 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Label: label + "_v", Format: types.TextureFormatBGRA8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})

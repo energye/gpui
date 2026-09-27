@@ -199,7 +199,7 @@ func (e *ColorGlyphEngine) SyncColorAtlasTextures(device *webgpu.Device, queue *
 		size := uint32(pageSize) //nolint:gosec // atlas size always fits uint32
 
 		if e.pageTextures[idx] == nil {
-			tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+			tex, err := device.CreateTexture(&hal.TextureDescriptor{
 				Label:         fmt.Sprintf("glyph_color_atlas_%d", idx),
 				Size:          hal.Extent3D{Width: size, Height: size, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,
@@ -213,7 +213,7 @@ func (e *ColorGlyphEngine) SyncColorAtlasTextures(device *webgpu.Device, queue *
 			}
 			e.pageTextures[idx] = tex
 
-			view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+			view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 				Label:         fmt.Sprintf("glyph_color_atlas_%d_view", idx),
 				Format:        types.TextureFormatRGBA8Unorm,
 				Dimension:     types.TextureViewDimension2D,

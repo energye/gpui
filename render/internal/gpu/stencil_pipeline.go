@@ -76,7 +76,7 @@ func aaVertexBufferLayout() []types.VertexBufferLayout {
 // It is shared by both fill rules.
 func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipeline descriptors are inherently verbose
 	// Compile shaders.
-	stencilShader, err := sr.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	stencilShader, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "stencil_fill_shader",
 		WGSL:  stencilFillShaderSource,
 	})
@@ -85,7 +85,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	}
 	sr.stencilFillShader = stencilShader
 
-	coverShader, err := sr.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	coverShader, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "cover_shader",
 		WGSL:  coverShaderSource,
 	})
@@ -99,7 +99,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	// MinBindingSize left as 0 (None): fill is 16 bytes, cover is 32; a non-zero
 	// min that matches only one of them forces late-size mismatches. Pipeline
 	// switches after stencil re-bind group 0 explicitly in each Record* method.
-	uniformLayout, err := sr.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	uniformLayout, err := sr.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "stencil_cover_uniform_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -203,7 +203,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 				},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,
@@ -258,7 +258,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 				},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,
@@ -310,7 +310,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 				},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,
@@ -364,7 +364,7 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 		return nil // base pipelines not created yet — retried via createPipelines
 	}
 	if sr.aaCoverShader == nil {
-		sh, err := sr.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		sh, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: "cover_aa_shader",
 			WGSL:  coverAAShaderSource,
 		})
@@ -401,7 +401,7 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 					},
 				},
 			},
-			DepthStencil: &webgpu.DepthStencilState{
+			DepthStencil: &hal.DepthStencilState{
 				Format:            types.TextureFormatDepth24PlusStencil8,
 				DepthWriteEnabled: false,
 				DepthCompare:      types.CompareFunctionAlways,
@@ -500,7 +500,7 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 				{Format: types.TextureFormatBGRA8Unorm, WriteMask: types.ColorWriteMaskNone},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionGreaterEqual,
@@ -541,7 +541,7 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 				{Format: types.TextureFormatBGRA8Unorm, WriteMask: types.ColorWriteMaskNone},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionGreaterEqual,
@@ -585,7 +585,7 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 				},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionGreaterEqual,

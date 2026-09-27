@@ -103,9 +103,9 @@ func TestH2B_PassGuardsNoop(t *testing.T) {
 }
 
 func TestH2B_RenderPassDescriptorAliasCompiles(t *testing.T) {
-	desc := &RenderPassDescriptor{
+	desc := &hal.RenderPassDescriptor{
 		Label: "h2b",
-		ColorAttachments: []RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       &TextureView{},
 			LoadOp:     types.LoadOpClear,
 			StoreOp:    types.StoreOpStore,
@@ -116,7 +116,7 @@ func TestH2B_RenderPassDescriptorAliasCompiles(t *testing.T) {
 	if _, err := er.BeginRenderPass(desc); !errors.Is(err, ErrReleased) {
 		t.Fatalf("BeginRenderPass released: got %v, want ErrReleased", err)
 	}
-	if _, err := er.BeginComputePass(&ComputePassDescriptor{Label: "h2b"}); !errors.Is(err, ErrReleased) {
+	if _, err := er.BeginComputePass(&hal.ComputePassDescriptor{Label: "h2b"}); !errors.Is(err, ErrReleased) {
 		t.Fatalf("BeginComputePass released: got %v, want ErrReleased", err)
 	}
 }

@@ -363,7 +363,7 @@ func (rc *GPURenderContext) CreateEncoder() gpucontext.CommandEncoder {
 	if rc.session == nil {
 		return gpucontext.CommandEncoder{}
 	}
-	enc, err := rc.session.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+	enc, err := rc.session.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "shared_frame_encoder",
 	})
 	if err != nil {
@@ -2241,7 +2241,7 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 	if device == nil || queue == nil {
 		return nil
 	}
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label: "lcd_dest_base",
 		Size: hal.Extent3D{
 			Width: uint32(tw), Height: uint32(th), DepthOrArrayLayers: 1, //nolint:gosec
@@ -2255,7 +2255,7 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 	if err != nil {
 		return nil
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "lcd_dest_base_view",
 		Format:        types.TextureFormatRGBA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
@@ -2580,7 +2580,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.session != nil && rc.session.device != nil && rc.session.queue != nil
 	var frameEnc *webgpu.CommandEncoder
 	if singleSubmit {
-		enc, eerr := rc.session.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "f1_frame_enc"})
+		enc, eerr := rc.session.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "f1_frame_enc"})
 		if eerr == nil && enc != nil {
 			frameEnc = enc
 			rc.sharedEncoder = enc
@@ -2848,7 +2848,7 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 		return render.ErrFallbackToCPU
 	}
 	usage := types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "adv_blend_frame_scratch",
 		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1,
@@ -2860,7 +2860,7 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 	if err != nil {
 		return err
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "adv_blend_frame_scratch_view",
 		Format:        types.TextureFormatBGRA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
@@ -3258,7 +3258,7 @@ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, pay
 	// later submit may present the uninitialized view (same hazard documented
 	// in uploadPixmapToView). An empty command buffer submit flushes the
 	// write queue.
-	if enc, err := rc.shared.Device().CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "pass_scratch_commit"}); err != nil {
+	if enc, err := rc.shared.Device().CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "pass_scratch_commit"}); err != nil {
 		return err
 	} else if cmdBuf, err := enc.Finish(); err != nil {
 		return err
@@ -3335,7 +3335,7 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 	// The queued texture write only executes on a queue submit; without it the
 	// swapchain presents the uninitialized surface texture (black window).
 	// An empty command buffer submit flushes the write queue.
-	if enc, err := rc.shared.Device().CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "cpu_present_flush"}); err != nil {
+	if enc, err := rc.shared.Device().CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "cpu_present_flush"}); err != nil {
 		return err
 	} else if cmdBuf, err := enc.Finish(); err != nil {
 		return err
@@ -3453,7 +3453,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		}
 	}
 
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "offscreen_cache",
 		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // bounded
 		MipLevelCount: 1,
@@ -3469,7 +3469,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		return gpucontext.TextureView{}, nil
 	}
 
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "offscreen_cache_view",
 		Format:        types.TextureFormatBGRA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
@@ -3858,7 +3858,7 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 		tex := s.msdfAtlasTexes[idx]
 		if tex == nil {
 			var err error
-			tex, err = s.device.CreateTexture(&webgpu.TextureDescriptor{
+			tex, err = s.device.CreateTexture(&hal.TextureDescriptor{
 				Label:         fmt.Sprintf("msdf_atlas_%d", idx),
 				Size:          hal.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,
@@ -3871,7 +3871,7 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 				return fmt.Errorf("create atlas texture %d: %w", idx, err)
 			}
 
-			view, err := s.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+			view, err := s.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 				Label:         fmt.Sprintf("msdf_atlas_%d_view", idx),
 				Format:        types.TextureFormatRGBA8Unorm,
 				Dimension:     types.TextureViewDimension2D,

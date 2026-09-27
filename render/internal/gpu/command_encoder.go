@@ -132,7 +132,7 @@ func NewCoreCommandEncoder(backend *Backend, label string) (*CoreCommandEncoder,
 	if device == nil {
 		return nil, ErrNilDevice
 	}
-	gpuEncoder, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: label})
+	gpuEncoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: label})
 	if err != nil {
 		return nil, fmt.Errorf("create command encoder: %w", err)
 	}
@@ -280,7 +280,7 @@ func (e *CoreCommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*Com
 	}
 
 	if e.gpuEncoder != nil {
-		gpuDesc := &webgpu.ComputePassDescriptor{}
+		gpuDesc := &hal.ComputePassDescriptor{}
 		if desc != nil {
 			gpuDesc.Label = desc.Label
 		}
@@ -618,17 +618,17 @@ type RenderPassDescriptor struct {
 }
 
 // toWebGPUDescriptor converts to a WebGPU render pass descriptor.
-func (d *RenderPassDescriptor) toWebGPUDescriptor() *webgpu.RenderPassDescriptor {
+func (d *RenderPassDescriptor) toWebGPUDescriptor() *hal.RenderPassDescriptor {
 	if d == nil {
 		return nil
 	}
 
-	gpuDesc := &webgpu.RenderPassDescriptor{
+	gpuDesc := &hal.RenderPassDescriptor{
 		Label: d.Label,
 	}
 
 	for _, ca := range d.ColorAttachments {
-		gpuCA := webgpu.RenderPassColorAttachment{
+		gpuCA := hal.RenderPassColorAttachment{
 			LoadOp:        ca.LoadOp,
 			StoreOp:       ca.StoreOp,
 			ClearValue:    ca.ClearValue,
@@ -639,7 +639,7 @@ func (d *RenderPassDescriptor) toWebGPUDescriptor() *webgpu.RenderPassDescriptor
 	}
 
 	if d.DepthStencilAttachment != nil {
-		gpuDesc.DepthStencilAttachment = &webgpu.RenderPassDepthStencilAttachment{
+		gpuDesc.DepthStencilAttachment = &hal.RenderPassDepthStencilAttachment{
 			View:              rawTextureView(d.DepthStencilAttachment.View),
 			DepthLoadOp:       d.DepthStencilAttachment.DepthLoadOp,
 			DepthStoreOp:      d.DepthStencilAttachment.DepthStoreOp,

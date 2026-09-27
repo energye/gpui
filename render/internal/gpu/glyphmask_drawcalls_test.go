@@ -171,7 +171,7 @@ func createMockBindGroup(t *testing.T, device *webgpu.Device, s *GPURenderSessio
 		t.Fatalf("ensureGlyphMaskPipeline failed: %v", err)
 	}
 
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "test_atlas",
 		Size:          hal.Extent3D{Width: 64, Height: 64, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
@@ -185,7 +185,7 @@ func createMockBindGroup(t *testing.T, device *webgpu.Device, s *GPURenderSessio
 	}
 	t.Cleanup(func() { tex.Release() })
 
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Format:        types.TextureFormatR8Unorm,
 		Dimension:     types.TextureViewDimension2D,
 		MipLevelCount: 1,

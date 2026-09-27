@@ -27,7 +27,7 @@ func TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot(t *testing.T) {
 	}
 
 	mkView := func(label string) *webgpu.TextureView {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,

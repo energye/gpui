@@ -7,7 +7,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/render"
 )
 
@@ -152,7 +152,7 @@ func TestConvexRendererShaderCompilation(t *testing.T) {
 	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
-	module, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	module, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "test_convex_shader",
 		WGSL:  convexShaderSource,
 	})

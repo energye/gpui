@@ -220,14 +220,14 @@ func (c *linearRampMaskCache) ensure(device *webgpu.Device) error {
 	if c.pipeline != nil {
 		return nil
 	}
-	shader, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "linear_ramp_mask",
 		WGSL:  linearRampMaskWGSL,
 	})
 	if err != nil {
 		return fmt.Errorf("linear ramp mask shader: %w", err)
 	}
-	bgl, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "linear_ramp_mask_bgl",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -288,7 +288,7 @@ func (c *linearRampMaskCache) ensure(device *webgpu.Device) error {
 		return fmt.Errorf("linear ramp mask pipeline: %w", err)
 	}
 	// Linear along ramp; mask uses textureLoad (no filter).
-	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "linear_ramp_mask_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -360,7 +360,7 @@ func linearRampMaskExpand(
 	}
 
 	// Ramp texture: n×1 RGBA8.
-	rampTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	rampTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "linear_ramp_tex",
 		Size:          hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -371,7 +371,7 @@ func linearRampMaskExpand(
 		return nil, fmt.Errorf("linear ramp tex: %w", err)
 	}
 	defer rampTex.Release()
-	rampView, err := device.CreateTextureView(rampTex, &webgpu.TextureViewDescriptor{
+	rampView, err := device.CreateTextureView(rampTex, &hal.TextureViewDescriptor{
 		Label: "linear_ramp_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -396,7 +396,7 @@ func linearRampMaskExpand(
 	}
 
 	// Coverage R8.
-	maskTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	maskTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "linear_ramp_mask_tex",
 		Size:          hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -407,7 +407,7 @@ func linearRampMaskExpand(
 		return nil, fmt.Errorf("linear ramp mask tex: %w", err)
 	}
 	defer maskTex.Release()
-	maskView, err := device.CreateTextureView(maskTex, &webgpu.TextureViewDescriptor{
+	maskView, err := device.CreateTextureView(maskTex, &hal.TextureViewDescriptor{
 		Label: "linear_ramp_mask_view", Format: types.TextureFormatR8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -435,7 +435,7 @@ func linearRampMaskExpand(
 	}
 
 	// Output RT.
-	outTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	outTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "linear_ramp_out",
 		Size:          hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -446,7 +446,7 @@ func linearRampMaskExpand(
 		return nil, fmt.Errorf("linear ramp out: %w", err)
 	}
 	defer outTex.Release()
-	outView, err := device.CreateTextureView(outTex, &webgpu.TextureViewDescriptor{
+	outView, err := device.CreateTextureView(outTex, &hal.TextureViewDescriptor{
 		Label: "linear_ramp_out_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -457,7 +457,7 @@ func linearRampMaskExpand(
 
 	// Uniform.
 	uData := encodeLinearRampMaskUniform(params)
-	uBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	uBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "linear_ramp_uniform", Size: uint64(len(uData)),
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -488,13 +488,13 @@ func linearRampMaskExpand(
 	}
 	defer bg.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "linear_ramp_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "linear_ramp_enc"})
 	if err != nil {
 		return nil, err
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "linear_ramp_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View: outView, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 		}},
@@ -510,7 +510,7 @@ func linearRampMaskExpand(
 	tightRow := uint32(nw * 4) //nolint:gosec
 	alignedRow := alignTextureBytesPerRow(tightRow)
 	stagingSize := uint64(alignedRow) * uint64(nh)
-	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "linear_ramp_readback", Size: stagingSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
 	})

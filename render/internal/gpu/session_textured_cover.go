@@ -59,7 +59,7 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		return fmt.Errorf("textured cover: no mask layout")
 	}
 
-	shader, err := sr.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "cover_textured_linear",
 		WGSL:  coverTexturedLinearShaderSource,
 	})
@@ -67,7 +67,7 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		return fmt.Errorf("textured cover shader: %w", err)
 	}
 
-	bgl0, err := sr.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl0, err := sr.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "textured_cover_g0",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -124,7 +124,7 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 				Format: types.TextureFormatBGRA8Unorm, Blend: &premul, WriteMask: types.ColorWriteMaskAll,
 			}},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 			DepthCompare: types.CompareFunctionAlways,
 			StencilFront: hal.StencilFaceState{
@@ -147,7 +147,7 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		return fmt.Errorf("textured cover pipe: %w", err)
 	}
 
-	samp, err := sr.device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := sr.device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "textured_cover_ramp_samp",
 		AddressModeU: types.AddressModeClampToEdge, AddressModeV: types.AddressModeClampToEdge,
 		AddressModeW: types.AddressModeClampToEdge,
@@ -215,7 +215,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 	}
 
 	n := cmd.RampN
-	rampTex, err := sr.device.CreateTexture(&webgpu.TextureDescriptor{
+	rampTex, err := sr.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "session_tex_cover_ramp",
 		Size:          hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -225,7 +225,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 	if err != nil {
 		return err
 	}
-	rampView, err := sr.device.CreateTextureView(rampTex, &webgpu.TextureViewDescriptor{
+	rampView, err := sr.device.CreateTextureView(rampTex, &hal.TextureViewDescriptor{
 		Label: "session_tex_cover_ramp_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -263,7 +263,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 			b.coverBindGroup.Release()
 			b.coverBindGroup = nil
 		}
-		ub, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+		ub, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "tex_cover_uni", Size: texturedCoverUniformSize,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 		})
@@ -406,14 +406,14 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		return fmt.Errorf("pattern cover: no mask layout")
 	}
 
-	shader, err := sr.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "cover_textured_pattern",
 		WGSL:  coverTexturedPatternShaderSource,
 	})
 	if err != nil {
 		return fmt.Errorf("pattern cover shader: %w", err)
 	}
-	bgl0, err := sr.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl0, err := sr.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "pattern_cover_g0",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -465,7 +465,7 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 				Format: types.TextureFormatBGRA8Unorm, Blend: &premul, WriteMask: types.ColorWriteMaskAll,
 			}},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 			DepthCompare: types.CompareFunctionAlways,
 			StencilFront: hal.StencilFaceState{
@@ -487,7 +487,7 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		shader.Release()
 		return fmt.Errorf("pattern cover pipe: %w", err)
 	}
-	samp, err := sr.device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := sr.device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "pattern_cover_samp",
 		AddressModeU: types.AddressModeClampToEdge, AddressModeV: types.AddressModeClampToEdge,
 		AddressModeW: types.AddressModeClampToEdge,
@@ -556,7 +556,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 	}
 
 	srcW, srcH := cmd.PatW, cmd.PatH
-	patTex, err := sr.device.CreateTexture(&webgpu.TextureDescriptor{
+	patTex, err := sr.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "session_pat_cover_src",
 		Size:          hal.Extent3D{Width: uint32(srcW), Height: uint32(srcH), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -566,7 +566,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 	if err != nil {
 		return err
 	}
-	patView, err := sr.device.CreateTextureView(patTex, &webgpu.TextureViewDescriptor{
+	patView, err := sr.device.CreateTextureView(patTex, &hal.TextureViewDescriptor{
 		Label: "session_pat_cover_src_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -605,7 +605,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 			b.coverBindGroup.Release()
 			b.coverBindGroup = nil
 		}
-		ub, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+		ub, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "pat_cover_uni", Size: patternCoverUniformSize,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 		})

@@ -36,7 +36,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	}
 	const w, h uint32 = 32, 32
 	mk := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
@@ -45,7 +45,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Format: types.TextureFormatBGRA8Unorm, Dimension: types.TextureViewDimension2D,
 			Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})

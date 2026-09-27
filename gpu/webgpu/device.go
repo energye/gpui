@@ -41,7 +41,7 @@ func (d *Device) Limits() Limits {
 }
 
 // CreateBuffer creates a GPU buffer.
-func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
+func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (*Buffer, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 }
 
 // CreateTexture creates a GPU texture.
-func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
+func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (*Texture, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 
 // CreateTextureView creates a view into a texture.
 // In rwgpu, CreateView is a method on Texture, not Device.
-func (d *Device) CreateTextureView(texture *Texture, desc *TextureViewDescriptor) (*TextureView, error) {
+func (d *Device) CreateTextureView(texture *Texture, desc *hal.TextureViewDescriptor) (*TextureView, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (d *Device) CreateTextureView(texture *Texture, desc *TextureViewDescriptor
 }
 
 // CreateSampler creates a texture sampler.
-func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
+func (d *Device) CreateSampler(desc *hal.SamplerDescriptor) (*Sampler, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 }
 
 // CreateShaderModule creates a shader module.
-func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (*ShaderModule, error) {
+func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (*ShaderModule, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (*ShaderModule
 }
 
 // CreateBindGroupLayout creates a bind group layout.
-func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGroupLayout, error) {
+func (d *Device) CreateBindGroupLayout(desc *hal.BindGroupLayoutDescriptor) (*BindGroupLayout, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -339,7 +339,7 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*Comput
 }
 
 // CreateCommandEncoder creates a command encoder for recording GPU commands.
-func (d *Device) CreateCommandEncoder(desc *CommandEncoderDescriptor) (*CommandEncoder, error) {
+func (d *Device) CreateCommandEncoder(desc *hal.CommandEncoderDescriptor) (*CommandEncoder, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -936,13 +936,13 @@ func convertVertexBufferLayoutsInto(sc *rplConvertScratch, layouts []VertexBuffe
 }
 
 // convertDepthStencilState converts depth-stencil state (heap).
-func convertDepthStencilState(ds *DepthStencilState) *rwgpu.DepthStencilState {
+func convertDepthStencilState(ds *hal.DepthStencilState) *rwgpu.DepthStencilState {
 	out := &rwgpu.DepthStencilState{}
 	convertDepthStencilStateInto(out, ds)
 	return out
 }
 
-func convertDepthStencilStateInto(out *rwgpu.DepthStencilState, ds *DepthStencilState) {
+func convertDepthStencilStateInto(out *rwgpu.DepthStencilState, ds *hal.DepthStencilState) {
 	*out = rwgpu.DepthStencilState{
 		Format:              ds.Format,
 		DepthWriteEnabled:   ds.DepthWriteEnabled,

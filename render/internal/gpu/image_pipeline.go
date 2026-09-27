@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -294,7 +295,7 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 		return err
 	}
 	if p.bicubicShader == nil {
-		shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: "textured_quad_bicubic_shader",
 			WGSL:  texturedQuadBicubicShaderSource,
 		})
@@ -489,7 +490,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 	}
 
 	// Shader module.
-	shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "textured_quad_shader",
 		WGSL:  texturedQuadShaderSource,
 	})
@@ -499,7 +500,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 	p.shader = shader
 
 	// Samplers: bilinear default + nearest (I.03), clamp-to-edge.
-	sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+	sampler, err := p.device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "image_sampler_linear",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -512,7 +513,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 		return fmt.Errorf("create image sampler: %w", err)
 	}
 	p.sampler = sampler
-	nearest, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+	nearest, err := p.device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "image_sampler_nearest",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -530,7 +531,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 	}
 
 	// Bind group layout: uniform + texture + sampler.
-	uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	uniformLayout, err := p.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "textured_quad_bind_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -753,9 +754,9 @@ func (c *ImageDrawCommand) SetPerImageFilter(mipmapLinear bool, maxAniso uint16)
 // the nearest/bicubic keys reproduce the historic nearest sampler, so
 // old pictures keep their exact sampling. Contract frozen in
 // game/tex/testdata/mipmap_cases.json ("sampler_contract").
-func SamplerDescriptorForImageFilter(key ImageSamplerKey) webgpu.SamplerDescriptor {
+func SamplerDescriptorForImageFilter(key ImageSamplerKey) hal.SamplerDescriptor {
 	if key.Bicubic || key.Nearest {
-		return webgpu.SamplerDescriptor{
+		return hal.SamplerDescriptor{
 			Label:        "image_sampler_r3_nearest",
 			AddressModeU: types.AddressModeClampToEdge,
 			AddressModeV: types.AddressModeClampToEdge,
@@ -776,7 +777,7 @@ func SamplerDescriptorForImageFilter(key ImageSamplerKey) webgpu.SamplerDescript
 	if aniso > imageFilterAnisoMin {
 		label += "_aniso"
 	}
-	return webgpu.SamplerDescriptor{
+	return hal.SamplerDescriptor{
 		Label:        label,
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,

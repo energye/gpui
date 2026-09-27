@@ -365,7 +365,7 @@ type SurfaceTexture struct {
 func (st *SurfaceTexture) AsTexture() *Texture { return st.texture }
 
 // CreateView creates a texture view of this surface texture.
-func (st *SurfaceTexture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) {
+func (st *SurfaceTexture) CreateView(desc *hal.TextureViewDescriptor) (*TextureView, error) {
 	if st.texture == nil || st.texture.r == nil {
 		return nil, ErrReleased
 	}

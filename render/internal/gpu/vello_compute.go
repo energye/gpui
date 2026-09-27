@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -597,7 +598,7 @@ func (d *VelloComputeDispatcher) Init() error {
 		stageName := fmt.Sprintf("vello_%s", i)
 
 		// 1. Create shader module from WGSL source.
-		module, err := d.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		module, err := d.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: stageName,
 			WGSL:  src,
 		})
@@ -609,7 +610,7 @@ func (d *VelloComputeDispatcher) Init() error {
 
 		// 2. Create bind group layout for this stage's bindings.
 		entries := stageBindGroupLayoutEntries(i)
-		bgLayout, err := d.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		bgLayout, err := d.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 			Label:   stageName + "_bgl",
 			Entries: entries,
 		})
@@ -845,7 +846,7 @@ func (d *VelloComputeDispatcher) createVelloBuffer(label string, size uint64, us
 	if size < minBufSize {
 		size = minBufSize
 	}
-	return d.device.CreateBuffer(&webgpu.BufferDescriptor{
+	return d.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: label,
 		Size:  size,
 		Usage: usage,
@@ -913,7 +914,7 @@ func (d *VelloComputeDispatcher) AllocateBuffers(
 		{&bufs.DrawReduced, "vello_draw_reduced", sz.drawReduced, storageGPU, false},
 		{&bufs.DrawMonoids, "vello_draw_monoids", sz.drawMonoids, storageGPU | types.BufferUsageCopySrc, false},
 		{&bufs.Info, "vello_info", sz.info, storageGPU, false},
-		{&bufs.ClipInp, "vello_clip_inp", sz.clipInp, storageGPU, false},                       // written by draw_leaf
+		{&bufs.ClipInp, "vello_clip_inp", sz.clipInp, storageGPU, false}, // written by draw_leaf
 		{&bufs.Lines, "vello_lines", sz.lines, storageCPU | types.BufferUsageCopySrc, false},
 		{&bufs.Paths, "vello_paths", sz.paths, storageCPU | types.BufferUsageCopySrc, false},
 		{&bufs.Tiles, "vello_tiles", sz.tiles, storageZero | types.BufferUsageCopySrc, true},              // atomicAdd in path_count
@@ -1198,7 +1199,7 @@ func (d *VelloComputeDispatcher) encodeComputeStages(
 	bufs *VelloComputeBuffers,
 	stages []stageDispatch,
 ) error {
-	encoder, err := d.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+	encoder, err := d.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "vello_compute",
 	})
 	if err != nil {
@@ -1231,7 +1232,7 @@ func (d *VelloComputeDispatcher) encodeComputeStages(
 		}
 		res.bindGroups = append(res.bindGroups, bg)
 
-		pass, cpErr := encoder.BeginComputePass(&webgpu.ComputePassDescriptor{
+		pass, cpErr := encoder.BeginComputePass(&hal.ComputePassDescriptor{
 			Label: fmt.Sprintf("vello_%s", sd.stage),
 		})
 		if cpErr != nil {

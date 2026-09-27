@@ -227,7 +227,7 @@ func (p *SDFRenderPipeline) ensureTextures(w, h uint32) error {
 	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
 	// MSAA color texture (BGRA8Unorm, sample count from GPUShared).
-	msaaTex, err := p.device.CreateTexture(&webgpu.TextureDescriptor{
+	msaaTex, err := p.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "sdf_render_msaa",
 		Size:          size,
 		MipLevelCount: 1,
@@ -241,7 +241,7 @@ func (p *SDFRenderPipeline) ensureTextures(w, h uint32) error {
 	}
 	p.msaaTex = msaaTex
 
-	msaaView, err := p.device.CreateTextureView(msaaTex, &webgpu.TextureViewDescriptor{
+	msaaView, err := p.device.CreateTextureView(msaaTex, &hal.TextureViewDescriptor{
 		Label:         "sdf_render_msaa_view",
 		Format:        types.TextureFormatBGRA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
@@ -255,7 +255,7 @@ func (p *SDFRenderPipeline) ensureTextures(w, h uint32) error {
 	p.msaaView = msaaView
 
 	// Single-sample resolve target (CopySrc for readback).
-	resolveTex, err := p.device.CreateTexture(&webgpu.TextureDescriptor{
+	resolveTex, err := p.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "sdf_render_resolve",
 		Size:          size,
 		MipLevelCount: 1,
@@ -270,7 +270,7 @@ func (p *SDFRenderPipeline) ensureTextures(w, h uint32) error {
 	}
 	p.resolveTex = resolveTex
 
-	resolveView, err := p.device.CreateTextureView(resolveTex, &webgpu.TextureViewDescriptor{
+	resolveView, err := p.device.CreateTextureView(resolveTex, &hal.TextureViewDescriptor{
 		Label:         "sdf_render_resolve_view",
 		Format:        types.TextureFormatBGRA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
@@ -317,7 +317,7 @@ func (p *SDFRenderPipeline) createPipeline() error {
 		return fmt.Errorf("sdf_render shader source is empty")
 	}
 
-	shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "sdf_render_shader",
 		WGSL:  sdfRenderShaderSource,
 	})
@@ -326,7 +326,7 @@ func (p *SDFRenderPipeline) createPipeline() error {
 	}
 	p.shader = shader
 
-	uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	uniformLayout, err := p.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "sdf_render_uniform_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -603,21 +603,21 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	w, h uint32, vertBuf *webgpu.Buffer, vertexCount uint32,
 	bindGroup *webgpu.BindGroup, target render.GPURenderTarget,
 ) error {
-	encoder, err := p.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+	encoder, err := p.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "sdf_render_encoder",
 	})
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
 	// Render pass with MSAA resolve (only when sampleCount>1).
-	colorAtt := webgpu.RenderPassColorAttachment{
+	colorAtt := hal.RenderPassColorAttachment{
 		View:       p.resolveView,
 		LoadOp:     types.LoadOpClear,
 		StoreOp:    types.StoreOpStore,
 		ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 	}
 	if p.sampleCount > 1 && p.msaaView != nil {
-		colorAtt = webgpu.RenderPassColorAttachment{
+		colorAtt = hal.RenderPassColorAttachment{
 			View:          p.msaaView,
 			ResolveTarget: p.resolveView,
 			LoadOp:        types.LoadOpClear,
@@ -625,9 +625,9 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 			ClearValue:    types.Color{R: 0, G: 0, B: 0, A: 0},
 		}
 	}
-	rpDesc := &webgpu.RenderPassDescriptor{
+	rpDesc := &hal.RenderPassDescriptor{
 		Label: "sdf_render_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{
+		ColorAttachments: []hal.RenderPassColorAttachment{
 			colorAtt,
 		},
 	}
@@ -645,9 +645,9 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
 	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
 	// This is a no-op on Metal, GLES, software, and native backends.
-	encoder.TransitionTextures([]webgpu.TextureBarrier{{
+	encoder.TransitionTextures([]hal.TextureBarrier{{
 		Texture: p.resolveTex,
-		Usage: webgpu.TextureUsageTransition{
+		Usage: hal.TextureUsageTransition{
 			OldUsage: types.TextureUsageRenderAttachment,
 			NewUsage: types.TextureUsageCopySrc,
 		},
@@ -655,7 +655,7 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 
 	// Copy resolve texture to staging buffer for readback.
 	pixelBufSize := uint64(w) * uint64(h) * 4
-	stagingBuf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+	stagingBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "sdf_render_staging",
 		Size:  pixelBufSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
@@ -707,7 +707,7 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 
 // createAndUploadBuffer creates a GPU buffer and uploads data.
 func (p *SDFRenderPipeline) createAndUploadBuffer(label string, data []byte, usage types.BufferUsage) (*webgpu.Buffer, error) {
-	buf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+	buf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: label,
 		Size:  uint64(len(data)),
 		Usage: usage,

@@ -61,7 +61,7 @@ func TestOpt26_DualTexMultiBindGroup_ReusesSlot(t *testing.T) {
 	}
 	// Minimal 1x1 BGRA textures + views for bind group entries.
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
@@ -70,7 +70,7 @@ func TestOpt26_DualTexMultiBindGroup_ReusesSlot(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Label: label + "_v", Format: types.TextureFormatBGRA8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})

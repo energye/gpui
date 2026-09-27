@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
@@ -146,7 +147,7 @@ func CompileShaders(device *webgpu.Device) (*ShaderModules, error) {
 	}
 
 	var err error
-	modules.BlitModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	modules.BlitModule, err = device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "gg-blit",
 		WGSL:  blitShaderSource,
 	})
@@ -155,7 +156,7 @@ func CompileShaders(device *webgpu.Device) (*ShaderModules, error) {
 		return nil, fmt.Errorf("compile blit shader: %w", err)
 	}
 
-	modules.BlendModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	modules.BlendModule, err = device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "gg-blend",
 		WGSL:  blendShaderSource,
 	})
@@ -164,7 +165,7 @@ func CompileShaders(device *webgpu.Device) (*ShaderModules, error) {
 		return nil, fmt.Errorf("compile blend shader: %w", err)
 	}
 
-	modules.StripModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	modules.StripModule, err = device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "gg-strip",
 		WGSL:  stripShaderSource,
 	})
@@ -173,7 +174,7 @@ func CompileShaders(device *webgpu.Device) (*ShaderModules, error) {
 		return nil, fmt.Errorf("compile strip shader: %w", err)
 	}
 
-	modules.CompositeModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	modules.CompositeModule, err = device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "gg-composite",
 		WGSL:  compositeShaderSource,
 	})

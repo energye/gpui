@@ -2966,7 +2966,7 @@ func TestP1_Capability_K02_DrawIndirectGPU(t *testing.T) {
 	const bpp = 4
 	const bytesPerRow = 256
 
-	shader, err := dev.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := dev.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		WGSL: `
 @vertex
 fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
@@ -3016,7 +3016,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	binary.LittleEndian.PutUint32(args[4:], 1)
 	binary.LittleEndian.PutUint32(args[8:], 0)
 	binary.LittleEndian.PutUint32(args[12:], 0)
-	indBuf, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
+	indBuf, err := dev.CreateBuffer(&hal.BufferDescriptor{
 		Size:  16,
 		Usage: types.BufferUsageIndirect | types.BufferUsageCopyDst,
 	})
@@ -3028,7 +3028,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 		t.Fatalf("WriteBuffer indirect: %v", err)
 	}
 
-	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
+	rt, err := dev.CreateTexture(&hal.TextureDescriptor{
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
@@ -3045,7 +3045,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 		t.Fatalf("rt: %v", err)
 	}
 	defer rt.Release()
-	view, err := dev.CreateTextureView(rt, &webgpu.TextureViewDescriptor{
+	view, err := dev.CreateTextureView(rt, &hal.TextureViewDescriptor{
 		Format: types.TextureFormatRGBA8Unorm, Dimension: types.TextureViewDimension2D,
 		Aspect: types.TextureAspectAll, MipLevelCount: 1, ArrayLayerCount: 1,
 	})
@@ -3058,8 +3058,8 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("enc: %v", err)
 	}
-	pass, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+	pass, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View: view, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 1, G: 0, B: 0, A: 1},
 		}},
@@ -3076,7 +3076,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	}
 
 	stagingSize := uint64(bytesPerRow * h)
-	staging, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := dev.CreateBuffer(&hal.BufferDescriptor{
 		Size: stagingSize, Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {
@@ -3139,7 +3139,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	queue := dev.Queue()
 
 	const w, h = uint32(4), uint32(4)
-	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
+	rt, err := dev.CreateTexture(&hal.TextureDescriptor{
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA16Float,
@@ -3149,7 +3149,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 		t.Skipf("RGBA16Float RT unsupported: %v", err)
 	}
 	defer rt.Release()
-	view, err := dev.CreateTextureView(rt, &webgpu.TextureViewDescriptor{
+	view, err := dev.CreateTextureView(rt, &hal.TextureViewDescriptor{
 		Format: types.TextureFormatRGBA16Float, Dimension: types.TextureViewDimension2D,
 		Aspect: types.TextureAspectAll, MipLevelCount: 1, ArrayLayerCount: 1,
 	})
@@ -3163,8 +3163,8 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	if err != nil {
 		t.Fatalf("enc: %v", err)
 	}
-	pass, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+	pass, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View: view, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 0.25, G: 0.5, B: 0.75, A: 1},
 		}},
@@ -3178,7 +3178,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	// Copy to staging — 8 bytes/pixel for RGBA16Float, padded row.
 	const bytesPerRow = 256
 	stagingSize := uint64(bytesPerRow * h)
-	staging, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := dev.CreateBuffer(&hal.BufferDescriptor{
 		Size: stagingSize, Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {

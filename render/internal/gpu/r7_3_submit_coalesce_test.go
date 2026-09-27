@@ -44,7 +44,7 @@ func TestR73_DualTexMultiBundle_DeferredSubmit(t *testing.T) {
 
 	const w, h = 32, 32
 	mkRT := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
@@ -53,7 +53,7 @@ func TestR73_DualTexMultiBundle_DeferredSubmit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Format: types.TextureFormatBGRA8Unorm, Dimension: types.TextureViewDimension2D,
 			Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -116,7 +116,7 @@ func TestR73_DualTexMultiBundle_DeferredSubmit(t *testing.T) {
 func TestR73_SubmitWithLeading_TwoCBs(t *testing.T) {
 	_, s := r73Session(t)
 	mk := func(label string) *webgpu.CommandBuffer {
-		enc, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: label})
+		enc, err := s.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: label})
 		if err != nil {
 			t.Fatal(err)
 		}

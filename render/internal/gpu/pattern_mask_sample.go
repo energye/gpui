@@ -176,14 +176,14 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 	if c.pipeline != nil {
 		return nil
 	}
-	shader, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "pattern_mask_sample",
 		WGSL:  patternMaskSampleWGSL,
 	})
 	if err != nil {
 		return fmt.Errorf("pattern mask shader: %w", err)
 	}
-	bgl, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "pattern_mask_bgl",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -243,7 +243,7 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 		shader.Release()
 		return fmt.Errorf("pattern mask pipeline: %w", err)
 	}
-	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "pattern_mask_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -318,7 +318,7 @@ func patternMaskSampleExpand(
 	}
 
 	// Pattern texture.
-	patTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	patTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "pattern_mask_pat",
 		Size:          hal.Extent3D{Width: uint32(srcW), Height: uint32(srcH), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -329,7 +329,7 @@ func patternMaskSampleExpand(
 		return nil, fmt.Errorf("pattern tex: %w", err)
 	}
 	defer patTex.Release()
-	patView, err := device.CreateTextureView(patTex, &webgpu.TextureViewDescriptor{
+	patView, err := device.CreateTextureView(patTex, &hal.TextureViewDescriptor{
 		Label: "pattern_mask_pat_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -357,7 +357,7 @@ func patternMaskSampleExpand(
 	}
 
 	// Coverage R8.
-	maskTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	maskTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "pattern_mask_cov",
 		Size:          hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -368,7 +368,7 @@ func patternMaskSampleExpand(
 		return nil, fmt.Errorf("pattern mask tex: %w", err)
 	}
 	defer maskTex.Release()
-	maskView, err := device.CreateTextureView(maskTex, &webgpu.TextureViewDescriptor{
+	maskView, err := device.CreateTextureView(maskTex, &hal.TextureViewDescriptor{
 		Label: "pattern_mask_cov_view", Format: types.TextureFormatR8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -395,7 +395,7 @@ func patternMaskSampleExpand(
 		return nil, fmt.Errorf("pattern mask upload: %w", err)
 	}
 
-	outTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	outTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "pattern_mask_out",
 		Size:          hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -406,7 +406,7 @@ func patternMaskSampleExpand(
 		return nil, fmt.Errorf("pattern out: %w", err)
 	}
 	defer outTex.Release()
-	outView, err := device.CreateTextureView(outTex, &webgpu.TextureViewDescriptor{
+	outView, err := device.CreateTextureView(outTex, &hal.TextureViewDescriptor{
 		Label: "pattern_mask_out_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -416,7 +416,7 @@ func patternMaskSampleExpand(
 	defer outView.Release()
 
 	uData := encodePatternMaskSampleUniform(params)
-	uBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	uBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "pattern_mask_uniform", Size: uint64(len(uData)),
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -447,13 +447,13 @@ func patternMaskSampleExpand(
 	}
 	defer bg.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "pattern_mask_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "pattern_mask_enc"})
 	if err != nil {
 		return nil, err
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "pattern_mask_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View: outView, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 		}},
@@ -469,7 +469,7 @@ func patternMaskSampleExpand(
 	tightRow := uint32(nw * 4) //nolint:gosec
 	alignedRow := alignTextureBytesPerRow(tightRow)
 	stagingSize := uint64(alignedRow) * uint64(nh)
-	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "pattern_mask_readback", Size: stagingSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
 	})

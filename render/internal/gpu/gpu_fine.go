@@ -9,6 +9,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
@@ -177,7 +178,7 @@ func (r *GPUFineRasterizer) init() error {
 // createBindGroupLayouts creates the bind group layouts for the pipeline.
 func (r *GPUFineRasterizer) createBindGroupLayouts() error {
 	// Input bind group layout (group 0)
-	inputLayout, err := r.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	inputLayout, err := r.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "fine_input_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -217,7 +218,7 @@ func (r *GPUFineRasterizer) createBindGroupLayouts() error {
 	r.inputBindLayout = inputLayout
 
 	// Output bind group layout (group 1)
-	outputLayout, err := r.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	outputLayout, err := r.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "fine_output_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{

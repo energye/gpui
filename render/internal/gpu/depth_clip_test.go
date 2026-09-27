@@ -6,8 +6,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -734,7 +734,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 		t.Fatalf("mask layout: %v", err)
 	}
 	defer layout.Release()
-	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "test_mask_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -748,7 +748,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 	}
 	defer samp.Release()
 	uOn := &MaskParams{Enabled: 1}
-	ubuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "test_mask_uniform", Size: maskParamsSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})

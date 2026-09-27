@@ -145,7 +145,7 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 	}
 
 	// Compile shader (shared by both pipelines — same vertex transform, same no-op fragment).
-	shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "depth_clip_shader",
 		WGSL:  depthClipShaderSource,
 	})
@@ -155,7 +155,7 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 	p.shader = shader
 
 	// Bind group layout: one uniform buffer at group(0) binding(0).
-	bgl, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl, err := p.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "depth_clip_uniform_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -225,7 +225,7 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 				},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,                       // don't write depth in Phase 1
 			DepthCompare:      types.CompareFunctionAlways, // pass all depth tests
@@ -292,7 +292,7 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 					},
 				},
 			},
-			DepthStencil: &webgpu.DepthStencilState{
+			DepthStencil: &hal.DepthStencilState{
 				Format:            types.TextureFormatDepth24PlusStencil8,
 				DepthWriteEnabled: false,
 				DepthCompare:      types.CompareFunctionAlways,
@@ -344,7 +344,7 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 				},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: true,                        // write depth Z=0.0
 			DepthCompare:      types.CompareFunctionAlways, // always pass depth test
@@ -548,7 +548,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 		upload = padded
 	}
 
-	tex, err := p.device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := p.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "depth_clip_mask",
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -558,7 +558,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 	if err != nil {
 		return fmt.Errorf("create depth clip mask texture: %w", err)
 	}
-	view, err := p.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := p.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label: "depth_clip_mask_view", Format: types.TextureFormatR8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -666,7 +666,7 @@ func (p *DepthClipPipeline) BuildClipResources(
 
 	// Create per-call vertex buffers so multiple groups don't overwrite each other.
 	// The pipeline-level buffers (p.vertBuf, p.coverBuf) are staging — copy to owned buffers.
-	ownedVertBuf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+	ownedVertBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "depth_clip_fan_owned",
 		Size:  uint64(len(p.tessellator.Vertices())) * 4, //nolint:gosec // bounded
 		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -684,7 +684,7 @@ func (p *DepthClipPipeline) BuildClipResources(
 	}
 
 	coverQuad := p.tessellator.CoverQuad()
-	ownedCoverBuf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+	ownedCoverBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "depth_clip_cover_owned",
 		Size:  12 * 4,
 		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -715,7 +715,7 @@ func (p *DepthClipPipeline) BuildClipResources(
 	}
 	if bandCount > 0 {
 		band := p.tessellator.BandVerts()
-		ownedBandBuf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+		ownedBandBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "depth_clip_band_owned",
 			Size:  uint64(len(band)) * 4, //nolint:gosec // bounded by tessellator
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -754,7 +754,7 @@ func (p *DepthClipPipeline) uploadFanVertices() error {
 		if newCap < 4096 {
 			newCap = 4096 // minimum 4KB
 		}
-		buf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "depth_clip_vert",
 			Size:  newCap,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -791,7 +791,7 @@ func (p *DepthClipPipeline) uploadCoverQuad() error {
 		if p.coverBuf != nil {
 			p.coverBuf.Release()
 		}
-		buf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "depth_clip_cover_vert",
 			Size:  coverBytes,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
@@ -818,7 +818,7 @@ func (p *DepthClipPipeline) uploadCoverQuad() error {
 // dimensions to it.
 func (p *DepthClipPipeline) uploadUniforms(w, h uint32) error {
 	if p.uniformBuf == nil {
-		buf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+		buf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "depth_clip_uniform",
 			Size:  depthClipUniformSize,
 			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,

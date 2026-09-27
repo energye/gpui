@@ -41,7 +41,7 @@ func TestStencilOperationValuesMatchNativeTypes(t *testing.T) {
 }
 
 func TestConvertDepthStencilStateUsesNativeStencilValues(t *testing.T) {
-	ds := &DepthStencilState{
+	ds := &hal.DepthStencilState{
 		Format:            types.TextureFormatDepth24Plus,
 		DepthWriteEnabled: true,
 		DepthCompare:      types.CompareFunctionLess,

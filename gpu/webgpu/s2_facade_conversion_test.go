@@ -184,7 +184,7 @@ func TestS2ConvertVertexLayoutsKeepAliveAndFormats(t *testing.T) {
 }
 
 func TestS2ConvertDepthStencilComplete(t *testing.T) {
-	ds := &DepthStencilState{
+	ds := &hal.DepthStencilState{
 		Format:            types.TextureFormatDepth24PlusStencil8,
 		DepthWriteEnabled: true,
 		DepthCompare:      types.CompareFunctionLessEqual,

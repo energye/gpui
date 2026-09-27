@@ -137,7 +137,7 @@ func (p *MSDFTextPipeline) createPipeline() error {
 		return fmt.Errorf("msdf_text shader source is empty")
 	}
 
-	shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "msdf_text_shader",
 		WGSL:  msdfTextShaderSource,
 	})
@@ -150,7 +150,7 @@ func (p *MSDFTextPipeline) createPipeline() error {
 	//   Binding 0: TextUniforms (uniform buffer, vertex+fragment)
 	//   Binding 1: MSDF atlas texture (texture_2d, fragment)
 	//   Binding 2: Sampler (fragment)
-	uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	uniformLayout, err := p.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "msdf_text_uniform_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -197,7 +197,7 @@ func (p *MSDFTextPipeline) createPipeline() error {
 	// distance field interpolation). Keep existing sampler across
 	// destroyPipeline+createPipeline clip rebuilds (same leak class as glyph_mask).
 	if p.sampler == nil {
-		sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+		sampler, err := p.device.CreateSampler(&hal.SamplerDescriptor{
 			Label:        "msdf_text_sampler",
 			AddressModeU: types.AddressModeClampToEdge,
 			AddressModeV: types.AddressModeClampToEdge,
@@ -1023,7 +1023,7 @@ func (r *TextRenderer) SyncAtlases() error {
 
 		// Create or recreate texture.
 		if r.atlasTextures[idx] == nil {
-			tex, err := r.device.CreateTexture(&webgpu.TextureDescriptor{
+			tex, err := r.device.CreateTexture(&hal.TextureDescriptor{
 				Label:         fmt.Sprintf("msdf_atlas_%d", idx),
 				Size:          hal.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,
@@ -1037,7 +1037,7 @@ func (r *TextRenderer) SyncAtlases() error {
 			}
 			r.atlasTextures[idx] = tex
 
-			view, err := r.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+			view, err := r.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 				Label:         fmt.Sprintf("msdf_atlas_%d_view", idx),
 				Format:        types.TextureFormatRGBA8Unorm,
 				Dimension:     types.TextureViewDimension2D,

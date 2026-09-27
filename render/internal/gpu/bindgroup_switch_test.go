@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -32,7 +31,7 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 		t.Fatalf("stencil pipelines: %v", err)
 	}
 
-	colorTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	colorTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:  "bg_switch_color",
 		Size:   hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		Format: types.TextureFormatBGRA8Unorm,
@@ -48,7 +47,7 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 	}
 	defer colorView.Release()
 
-	dsTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	dsTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:  "bg_switch_ds",
 		Size:   hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		Format: types.TextureFormatDepth24PlusStencil8,
@@ -87,17 +86,17 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 		t.Fatalf("sdf resources: %v", err)
 	}
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "bg_switch"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "bg_switch"})
 	if err != nil {
 		t.Fatalf("encoder: %v", err)
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "bg_switch_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View: colorView, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 1},
 		}},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
+		DepthStencilAttachment: &hal.RenderPassDepthStencilAttachment{
 			View:              dsView,
 			DepthLoadOp:       types.LoadOpClear,
 			DepthStoreOp:      types.StoreOpDiscard,

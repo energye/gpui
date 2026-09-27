@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -598,7 +599,7 @@ func CreateBuffer(device *webgpu.Device, desc *BufferDescriptor) (*Buffer, error
 	alignedSize := (desc.Size + copyBufferAlignment - 1) &^ (copyBufferAlignment - 1)
 
 	// Convert to descriptor
-	gpuDesc := &webgpu.BufferDescriptor{
+	gpuDesc := &hal.BufferDescriptor{
 		Label:            desc.Label,
 		Size:             alignedSize,
 		Usage:            desc.Usage,

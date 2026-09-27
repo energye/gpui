@@ -355,7 +355,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 		return nil, fmt.Errorf("empty image (%dx%d)", w, h)
 	}
 
-	tex, err := c.device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := c.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "image_cache_tex",
 		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // image dimensions fit uint32
 		MipLevelCount: 1,
@@ -368,7 +368,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 		return nil, fmt.Errorf("create image texture: %w", err)
 	}
 
-	view, err := c.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := c.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "image_cache_view",
 		Format:        types.TextureFormatRGBA8Unorm,
 		Dimension:     types.TextureViewDimension2D,

@@ -61,7 +61,7 @@ func waitDeviceReady(inst *webgpu.Instance, device *webgpu.Device, label string)
 	deadline := time.Now().Add(time.Duration(deadlineMs) * time.Millisecond)
 	probed := false
 	for {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         label + "_ready_probe",
 			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1,

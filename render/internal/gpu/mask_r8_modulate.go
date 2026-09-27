@@ -112,14 +112,14 @@ func (c *maskR8Cache) ensure(device *webgpu.Device) error {
 	if c.pipeline != nil {
 		return nil
 	}
-	shader, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "mask_r8_modulate",
 		WGSL:  maskR8ModulateWGSL,
 	})
 	if err != nil {
 		return fmt.Errorf("mask r8 shader: %w", err)
 	}
-	bgl, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "mask_r8_bgl",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -175,7 +175,7 @@ func (c *maskR8Cache) ensure(device *webgpu.Device) error {
 		shader.Release()
 		return fmt.Errorf("mask r8 pipeline: %w", err)
 	}
-	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "mask_r8_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -218,7 +218,7 @@ func maskR8Modulate(
 	}
 
 	mkRGBA := func(label string, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         label,
 			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -227,7 +227,7 @@ func maskR8Modulate(
 		if err != nil {
 			return nil, nil, err
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Label: label + "_view", Format: types.TextureFormatRGBA8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -261,7 +261,7 @@ func maskR8Modulate(
 	}
 
 	mkR8 := func(label string, data []byte) (*webgpu.Texture, *webgpu.TextureView, error) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         label,
 			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -271,7 +271,7 @@ func maskR8Modulate(
 		if err != nil {
 			return nil, nil, err
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Label: label + "_view", Format: types.TextureFormatR8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -347,13 +347,13 @@ func maskR8Modulate(
 	}
 	defer bg.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "mask_r8_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "mask_r8_enc"})
 	if err != nil {
 		return nil, err
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "mask_r8_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View: outView, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 		}},
@@ -369,7 +369,7 @@ func maskR8Modulate(
 	tightRow := uint32(bw * 4) //nolint:gosec
 	alignedRow := alignTextureBytesPerRow(tightRow)
 	stagingSize := uint64(alignedRow) * uint64(bh)
-	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "mask_r8_readback", Size: stagingSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
 	})

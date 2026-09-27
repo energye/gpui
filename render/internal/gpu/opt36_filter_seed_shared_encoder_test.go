@@ -10,7 +10,6 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -29,7 +28,7 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 	cache := &shared.filterGPU
 
 	const w, h uint32 = 48, 48
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label: "opt36_seed", Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatBGRA8Unorm,
@@ -39,7 +38,7 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { tex.Release() })
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Format: types.TextureFormatBGRA8Unorm, Dimension: types.TextureViewDimension2D,
 		Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})

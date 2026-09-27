@@ -230,9 +230,9 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
 // R7.3: static encoder descriptors (no per-call heap for Label string header).
 var (
-	dualTexMultiEncoderDesc     = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_multi_enc"}
-	dualTexCompositeEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_composite_enc"}
-	dualTexViewsEncoderDesc     = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_views_bgra_enc"}
+	dualTexMultiEncoderDesc     = &hal.CommandEncoderDescriptor{Label: "dual_tex_multi_enc"}
+	dualTexCompositeEncoderDesc = &hal.CommandEncoderDescriptor{Label: "dual_tex_composite_enc"}
+	dualTexViewsEncoderDesc     = &hal.CommandEncoderDescriptor{Label: "dual_tex_views_bgra_enc"}
 )
 
 // opt37: multi-op dual-tex uniforms share one slab. Payload is 48B; stride must
@@ -409,14 +409,14 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 			c.uniform = nil
 		}
 	}
-	shader, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "dual_tex_advanced_blend",
 		WGSL:  dualTexBlendWGSL,
 	})
 	if err != nil {
 		return fmt.Errorf("dual-tex blend shader: %w", err)
 	}
-	bgl, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "dual_tex_blend_bgl",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -524,7 +524,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		shader.Release()
 		return fmt.Errorf("dual-tex blend pipeline BGRA: %w", err)
 	}
-	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "dual_tex_blend_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -541,7 +541,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		shader.Release()
 		return fmt.Errorf("dual-tex blend sampler: %w", err)
 	}
-	uni, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	uni, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "dual_tex_blend_uniform",
 		Size:  48,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -628,7 +628,7 @@ func dualTexAdvancedBlend(
 	}
 
 	mkTex := func(label string, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label: label,
 			Size: hal.Extent3D{
 				Width:              uint32(bw), //nolint:gosec
@@ -644,7 +644,7 @@ func dualTexAdvancedBlend(
 		if err != nil {
 			return nil, nil, err
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Label:         label + "_view",
 			Format:        types.TextureFormatRGBA8Unorm,
 			Dimension:     types.TextureViewDimension2D,
@@ -731,13 +731,13 @@ func dualTexAdvancedBlend(
 	}
 	defer bg.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "dual_tex_blend_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "dual_tex_blend_enc"})
 	if err != nil {
 		return nil, fmt.Errorf("dual-tex encoder: %w", err)
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "dual_tex_blend_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       outView,
 			LoadOp:     types.LoadOpClear,
 			StoreOp:    types.StoreOpStore,
@@ -756,7 +756,7 @@ func dualTexAdvancedBlend(
 	tightRow := uint32(bw * 4) //nolint:gosec
 	alignedRow := alignTextureBytesPerRow(tightRow)
 	stagingSize := uint64(alignedRow) * uint64(bh)
-	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "dual_tex_readback",
 		Size:  stagingSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
@@ -855,7 +855,7 @@ func dualTexCreateTex(device *webgpu.Device, queue *webgpu.Queue, label string, 
 }
 
 func dualTexCreateTexFmt(device *webgpu.Device, queue *webgpu.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (*webgpu.Texture, *webgpu.TextureView, error) {
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label: label,
 		Size: hal.Extent3D{
 			Width:              uint32(bw), //nolint:gosec
@@ -871,7 +871,7 @@ func dualTexCreateTexFmt(device *webgpu.Device, queue *webgpu.Queue, label strin
 	if err != nil {
 		return nil, nil, err
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         label + "_view",
 		Format:        format,
 		Dimension:     types.TextureViewDimension2D,
@@ -1039,15 +1039,15 @@ func dualTexAdvancedBlendNoReadback(
 	}
 	defer bg.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "dual_tex_nr_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "dual_tex_nr_enc"})
 	if err != nil {
 		outView.Release()
 		outTex.Release()
 		return nil, nil, err
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "dual_tex_nr_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       outView,
 			LoadOp:     types.LoadOpClear,
 			StoreOp:    types.StoreOpStore,
@@ -1266,7 +1266,7 @@ func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (*we
 	if c.uniformSlabCap > 0 && alloc < c.uniformSlabCap*2 {
 		alloc = c.uniformSlabCap * 2
 	}
-	b, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	b, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "dual_tex_uniform_slab", Size: alloc,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -1470,9 +1470,9 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 			}
 			return nil, berr
 		}
-		rp, rerr := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+		rp, rerr := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 			Label: fmt.Sprintf("dual_tex_multi_pass_%d", p.slot),
-			ColorAttachments: []webgpu.RenderPassColorAttachment{{
+			ColorAttachments: []hal.RenderPassColorAttachment{{
 				View:       p.outView,
 				LoadOp:     types.LoadOpClear,
 				StoreOp:    types.StoreOpStore,
@@ -1655,9 +1655,9 @@ func dualTexAdvancedBlendViewsRegionSized(
 		outTex.Release()
 		return nil, nil, err
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "dual_tex_views_bgra_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       outView,
 			LoadOp:     types.LoadOpClear,
 			StoreOp:    types.StoreOpStore,
@@ -1720,7 +1720,7 @@ func readTextureViewRegionRGBA(
 	tightRow := uint32(bw * 4) //nolint:gosec
 	alignedRow := alignTextureBytesPerRow(tightRow)
 	stagingSize := uint64(alignedRow) * uint64(bh)
-	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "layer_view_readback",
 		Size:  stagingSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
@@ -1730,7 +1730,7 @@ func readTextureViewRegionRGBA(
 	}
 	defer staging.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "layer_view_read_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "layer_view_read_enc"})
 	if err != nil {
 		return nil, err
 	}
@@ -1841,7 +1841,7 @@ func readTextureViewRegionStraightRGBA(
 	tightRow := uint32(bw * 4) //nolint:gosec
 	alignedRow := alignTextureBytesPerRow(tightRow)
 	stagingSize := uint64(alignedRow) * uint64(bh)
-	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "filter_rgba_readback",
 		Size:  stagingSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
@@ -1851,7 +1851,7 @@ func readTextureViewRegionStraightRGBA(
 	}
 	defer staging.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "filter_rgba_read_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "filter_rgba_read_enc"})
 	if err != nil {
 		return nil, err
 	}

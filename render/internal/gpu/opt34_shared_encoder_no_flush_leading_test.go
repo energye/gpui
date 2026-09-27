@@ -32,7 +32,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 
 	const w, h uint32 = 64, 64
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
-		tex, err := shared.device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := shared.device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
@@ -41,7 +41,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := shared.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := shared.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Format: types.TextureFormatBGRA8Unorm, Dimension: types.TextureViewDimension2D,
 			Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -51,7 +51,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 		return tex, view
 	}
 	mkEmptyCB := func(label string) *webgpu.CommandBuffer {
-		enc, err := shared.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: label})
+		enc, err := shared.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: label})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,7 +76,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 		dstView.Release()
 		dstTex.Release()
 	})
-	sharedEnc, err := shared.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "opt34_composite"})
+	sharedEnc, err := shared.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "opt34_composite"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 
 	const w, h uint32 = 64, 64
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
-		tex, err := shared.device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := shared.device.CreateTexture(&hal.TextureDescriptor{
 			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
@@ -145,7 +145,7 @@ func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := shared.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := shared.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Format: types.TextureFormatBGRA8Unorm, Dimension: types.TextureViewDimension2D,
 			Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -155,7 +155,7 @@ func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 		return tex, view
 	}
 	mkEmptyCB := func(label string) *webgpu.CommandBuffer {
-		enc, err := shared.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: label})
+		enc, err := shared.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: label})
 		if err != nil {
 			t.Fatal(err)
 		}

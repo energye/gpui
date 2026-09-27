@@ -13,7 +13,6 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -844,7 +843,7 @@ func TestUploadPixmapToView_RasterAtlas(t *testing.T) {
 	s.gpuReady = false
 
 	sc := testSampleCount(t, device)
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "test_offscreen",
 		Size:          hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
@@ -856,7 +855,7 @@ func TestUploadPixmapToView_RasterAtlas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTexture: %v", err)
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "test_offscreen_view",
 		Format:        types.TextureFormatBGRA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
@@ -968,7 +967,7 @@ func TestFlush_RasterAtlas_OffscreenTriggersUpload(t *testing.T) {
 	s.deviceReady = true
 	s.gpuReady = false
 
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "test_offscreen",
 		Size:          hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
@@ -980,7 +979,7 @@ func TestFlush_RasterAtlas_OffscreenTriggersUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTexture: %v", err)
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "test_offscreen_view",
 		Format:        types.TextureFormatBGRA8Unorm,
 		Dimension:     types.TextureViewDimension2D,

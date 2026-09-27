@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
@@ -120,7 +121,7 @@ func (pc *PipelineCache) createBlitPipeline() error {
 		return nil
 	}
 
-	layout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	layout, err := pc.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "gg_blit_bind_group_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			textureBinding(0),
@@ -173,7 +174,7 @@ func (pc *PipelineCache) createStripPipeline() error {
 		return nil
 	}
 
-	layout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	layout, err := pc.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "gg_strip_bind_group_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			readOnlyStorageBinding(0),
@@ -227,7 +228,7 @@ func (pc *PipelineCache) createCompositePipeline() error {
 		return nil
 	}
 
-	textureLayout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	textureLayout, err := pc.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "gg_composite_texture_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -246,7 +247,7 @@ func (pc *PipelineCache) createCompositePipeline() error {
 	}
 	pc.nativeCompositeLayout = textureLayout
 
-	paramsLayout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	paramsLayout, err := pc.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "gg_composite_params_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			readOnlyStorageBinding(0),
@@ -364,7 +365,7 @@ func (pc *PipelineCache) createBlendPipeline(mode scene.BlendMode) StubPipelineI
 }
 
 func (pc *PipelineCache) createNativeBlendResources() error {
-	layout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	layout, err := pc.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "gg_blend_bind_group_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			textureBinding(0),

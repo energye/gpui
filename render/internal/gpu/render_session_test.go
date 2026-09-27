@@ -490,7 +490,7 @@ func TestSDFRenderPipelineDestroyWithStencilVariant(t *testing.T) {
 // texture view when done.
 func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (*webgpu.Texture, *webgpu.TextureView) {
 	t.Helper()
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "mock_surface",
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
@@ -502,7 +502,7 @@ func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (*w
 	if err != nil {
 		t.Fatalf("create mock surface texture: %v", err)
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label: "mock_surface_view",
 	})
 	if err != nil {
@@ -809,7 +809,7 @@ func TestEnsurePipelines_ClipLayoutRecreation(t *testing.T) {
 
 	// Step 2: Set clip layout and call ensurePipelineWithStencil.
 	// This should detect the mismatch and recreate.
-	clipLayout, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	clipLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "test_clip_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -859,7 +859,7 @@ func TestEnsurePipelines_ConvexClipRecreation(t *testing.T) {
 	}
 
 	// Set clip layout and ensure recreation.
-	clipLayout, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	clipLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "test_clip_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -905,7 +905,7 @@ func TestEnsurePipelines_StencilClipRecreation(t *testing.T) {
 	}
 
 	// Set clip layout and trigger recreation via session's ensurePipelines path.
-	clipLayout, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	clipLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "test_clip_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -1020,7 +1020,7 @@ func TestRenderSession_EncoderLifecycleSurface(t *testing.T) {
 	defer s.Destroy()
 
 	// Create a texture to use as the surface view.
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "test_surface",
 		Size:          hal.Extent3D{Width: 128, Height: 128, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,

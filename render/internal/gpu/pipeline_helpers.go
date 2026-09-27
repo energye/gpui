@@ -32,8 +32,8 @@ func clearPassBindGroups(rp *webgpu.RenderPassEncoder) {
 // DepthCompare=LessEqual — fragments pass only where the clip path previously
 // wrote a depth value >= the fragment's Z. This implements arbitrary path
 // clipping via the depth buffer without touching stencil.
-func stencilPassthroughDepthStencil() *webgpu.DepthStencilState {
-	return &webgpu.DepthStencilState{
+func stencilPassthroughDepthStencil() *hal.DepthStencilState {
+	return &hal.DepthStencilState{
 		Format:            types.TextureFormatDepth24PlusStencil8,
 		DepthWriteEnabled: false,
 		DepthCompare:      types.CompareFunctionAlways,
@@ -68,8 +68,8 @@ func stencilPassthroughDepthStencil() *webgpu.DepthStencilState {
 //   - Content uses DepthCompare=GreaterEqual, fragment Z = 0.0
 //   - Where clip drawn:     buffer=0.0, fragment=0.0 → 0.0 >= 0.0 → PASS
 //   - Where clip NOT drawn: buffer=1.0, fragment=0.0 → 0.0 >= 1.0 → FAIL
-func depthClipDepthStencil() *webgpu.DepthStencilState {
-	return &webgpu.DepthStencilState{
+func depthClipDepthStencil() *hal.DepthStencilState {
+	return &hal.DepthStencilState{
 		Format:            types.TextureFormatDepth24PlusStencil8,
 		DepthWriteEnabled: false,
 		DepthCompare:      types.CompareFunctionGreaterEqual,

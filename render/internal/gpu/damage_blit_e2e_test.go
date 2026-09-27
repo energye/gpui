@@ -21,7 +21,7 @@ func TestDamageBlit_LoadOpLoad_PreservesContent(t *testing.T) {
 	const W, H = 8, 8
 
 	// Create 8x8 target texture (render attachment + copy src for readback).
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "damage-target",
 		Size:          hal.Extent3D{Width: W, Height: H, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
@@ -43,9 +43,9 @@ func TestDamageBlit_LoadOpLoad_PreservesContent(t *testing.T) {
 
 	// Frame 1: LoadOpClear red — fills entire 8x8.
 	enc1, _ := device.CreateCommandEncoder(nil)
-	rp1, _ := enc1.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp1, _ := enc1.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "frame1-clear",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       view,
 			LoadOp:     types.LoadOpClear,
 			StoreOp:    types.StoreOpStore,
@@ -58,9 +58,9 @@ func TestDamageBlit_LoadOpLoad_PreservesContent(t *testing.T) {
 
 	// Frame 2: LoadOpLoad + scissor (2,2,4,4). No draws — just preserve.
 	enc2, _ := device.CreateCommandEncoder(nil)
-	rp2, _ := enc2.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp2, _ := enc2.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "frame2-damage",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:    view,
 			LoadOp:  types.LoadOpLoad,
 			StoreOp: types.StoreOpStore,
@@ -129,7 +129,7 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, t
 	rowBytes := uint32(w * 4)
 	paddedRowBytes := alignTo(rowBytes, 256)
 	bufSize := uint64(paddedRowBytes) * uint64(h)
-	buf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	buf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "readback",
 		Size:  bufSize,
 		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,

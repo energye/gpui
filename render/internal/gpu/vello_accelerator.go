@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -858,7 +859,7 @@ func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint
 	}
 
 	// Create staging buffer for readback.
-	stagingBuffer, err := a.device.CreateBuffer(&webgpu.BufferDescriptor{
+	stagingBuffer, err := a.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "vello_staging_readback",
 		Size:  size,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
@@ -869,7 +870,7 @@ func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint
 	defer stagingBuffer.Release()
 
 	// Record copy command.
-	encoder, err := a.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+	encoder, err := a.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "vello_readback",
 	})
 	if err != nil {

@@ -802,7 +802,7 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue *webgpu
 
 		// Create texture on first use (always full page size).
 		if e.pageTextures[idx] == nil {
-			tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+			tex, err := device.CreateTexture(&hal.TextureDescriptor{
 				Label:         fmt.Sprintf("glyph_mask_atlas_%d", idx),
 				Size:          hal.Extent3D{Width: size, Height: size, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,
@@ -816,7 +816,7 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue *webgpu
 			}
 			e.pageTextures[idx] = tex
 
-			view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+			view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 				Label:         fmt.Sprintf("glyph_mask_atlas_%d_view", idx),
 				Format:        types.TextureFormatR8Unorm,
 				Dimension:     types.TextureViewDimension2D,

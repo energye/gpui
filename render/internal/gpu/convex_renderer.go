@@ -9,6 +9,7 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -552,7 +553,7 @@ func (cr *ConvexRenderer) createPipeline() error {
 		return fmt.Errorf("convex shader source is empty")
 	}
 
-	shader, err := cr.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := cr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "convex_shader",
 		WGSL:  convexShaderSource,
 	})
@@ -561,7 +562,7 @@ func (cr *ConvexRenderer) createPipeline() error {
 	}
 	cr.shader = shader
 
-	uniformLayout, err := cr.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	uniformLayout, err := cr.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "convex_uniform_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{

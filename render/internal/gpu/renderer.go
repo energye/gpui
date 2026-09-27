@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
@@ -782,16 +782,16 @@ func (r *GPUSceneRenderer) clearTexture(tex *GPUTexture) error {
 		return ErrTextureReleased
 	}
 
-	encoder, err := r.backend.Device().CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+	encoder, err := r.backend.Device().CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "scene-renderer-clear",
 	})
 	if err != nil {
 		return fmt.Errorf("create clear encoder: %w", err)
 	}
 
-	pass, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	pass, err := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "scene-renderer-clear-pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       view,
 			LoadOp:     types.LoadOpClear,
 			StoreOp:    types.StoreOpStore,

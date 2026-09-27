@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"math"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -63,7 +64,7 @@ func NoClipParams() *ClipParams {
 }
 
 func createClipBindGroupLayout(device *webgpu.Device, label string) (*webgpu.BindGroupLayout, error) {
-	return device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	return device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: label,
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -109,7 +110,7 @@ func NoMaskParams() *MaskParams {
 }
 
 func createMaskBindGroupLayout(device *webgpu.Device, label string) (*webgpu.BindGroupLayout, error) {
-	return device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	return device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: label,
 		Entries: []types.BindGroupLayoutEntry{
 			{

@@ -31,9 +31,9 @@ const filterPassUniformSlabMinSlots = 16
 
 // Static encoder descriptors (opt36 / R7.0 style — avoid per-call heap labels).
 var (
-	filterGPUBatchEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "filter_gpu_batch_enc"}
-	filterGPUReadEncoderDesc  = &webgpu.CommandEncoderDescriptor{Label: "filter_gpu_read_enc"}
-	filterSeedMeshEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "filter_seed_mesh_enc"}
+	filterGPUBatchEncoderDesc = &hal.CommandEncoderDescriptor{Label: "filter_gpu_batch_enc"}
+	filterGPUReadEncoderDesc  = &hal.CommandEncoderDescriptor{Label: "filter_gpu_read_enc"}
+	filterSeedMeshEncoderDesc = &hal.CommandEncoderDescriptor{Label: "filter_seed_mesh_enc"}
 )
 
 const filterGPUGraphWGSL = `
@@ -204,8 +204,8 @@ type filterGPUCache struct {
 	bgCache map[filterBGKey]*webgpu.BindGroup
 
 	// opt44: reuse filter-pass RP descriptor (no per-pass ColorAttachments alloc).
-	filterPassRPDesc   webgpu.RenderPassDescriptor
-	filterPassColorAtt [1]webgpu.RenderPassColorAttachment
+	filterPassRPDesc   hal.RenderPassDescriptor
+	filterPassColorAtt [1]hal.RenderPassColorAttachment
 	filterPassRPInited bool
 }
 
@@ -307,7 +307,7 @@ func (c *filterGPUCache) releaseUnlocked() {
 
 // filterPassRenderPassDesc fills a reused RenderPassDescriptor for one filter
 // full-screen pass (opt44). Warm path is 0-alloc.
-func (c *filterGPUCache) filterPassRenderPassDesc(dst *webgpu.TextureView) *webgpu.RenderPassDescriptor {
+func (c *filterGPUCache) filterPassRenderPassDesc(dst *webgpu.TextureView) *hal.RenderPassDescriptor {
 	if c == nil {
 		return nil
 	}
@@ -316,7 +316,7 @@ func (c *filterGPUCache) filterPassRenderPassDesc(dst *webgpu.TextureView) *webg
 		c.filterPassRPDesc.ColorAttachments = c.filterPassColorAtt[:]
 		c.filterPassRPInited = true
 	}
-	c.filterPassColorAtt[0] = webgpu.RenderPassColorAttachment{
+	c.filterPassColorAtt[0] = hal.RenderPassColorAttachment{
 		View:       dst,
 		LoadOp:     types.LoadOpClear,
 		StoreOp:    types.StoreOpStore,
@@ -334,7 +334,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	c.releaseUnlocked()
 	c.device = device
 
-	shader, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	shader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "filter_gpu_graph",
 		WGSL:  filterGPUGraphWGSL,
 	})
@@ -343,7 +343,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	}
 	defer shader.Release()
 
-	bgl, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	bgl, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "filter_gpu_bgl",
 		Entries: []types.BindGroupLayoutEntry{
 			{Binding: 0, Visibility: types.ShaderStageFragment, Texture: &types.TextureBindingLayout{
@@ -393,7 +393,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		bgl.Release()
 		return err
 	}
-	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "filter_gpu_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -409,7 +409,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		return err
 	}
 	// 1x1 transparent dummy aux
-	dtex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	dtex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "filter_gpu_dummy",
 		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -422,7 +422,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		bgl.Release()
 		return err
 	}
-	dview, err := device.CreateTextureView(dtex, &webgpu.TextureViewDescriptor{
+	dview, err := device.CreateTextureView(dtex, &hal.TextureViewDescriptor{
 		Label: "filter_gpu_dummy_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -434,7 +434,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		return err
 	}
 
-	ubuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "filter_params_pooled", Size: filterGPUUniformSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -464,7 +464,7 @@ func (c *filterGPUCache) ensurePool(device *webgpu.Device, w, h int) error {
 	c.releasePoolUnlocked()
 	usageRT := types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst
 	mk := func(label string) (*webgpu.Texture, *webgpu.TextureView, error) {
-		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         label,
 			Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -474,7 +474,7 @@ func (c *filterGPUCache) ensurePool(device *webgpu.Device, w, h int) error {
 		if err != nil {
 			return nil, nil, err
 		}
-		view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 			Label: label + "_view", Format: types.TextureFormatRGBA8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -517,7 +517,7 @@ func (c *filterGPUCache) ensureStaging(device *webgpu.Device, size uint64) error
 	if cap < 64*1024 {
 		cap = 64 * 1024
 	}
-	stg, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	stg, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "filter_gpu_readback_pooled", Size: cap,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
 	})
@@ -613,7 +613,7 @@ func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int
 	if alloc < c.passUniformSlabCap*2 && c.passUniformSlabCap*2 > alloc {
 		alloc = c.passUniformSlabCap * 2
 	}
-	b, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	b, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "filter_params_pass_slab", Size: alloc,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -658,7 +658,7 @@ func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex *
 	}
 	if replTex == nil {
 		usageRT := types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst
-		texNew, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		texNew, err := device.CreateTexture(&hal.TextureDescriptor{
 			Label:         "filter_rt_repl",
 			Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -668,7 +668,7 @@ func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex *
 		if err != nil {
 			return filterPublishSlot{}, err
 		}
-		viewNew, err := device.CreateTextureView(texNew, &webgpu.TextureViewDescriptor{
+		viewNew, err := device.CreateTextureView(texNew, &hal.TextureViewDescriptor{
 			Label: "filter_rt_repl_view", Format: types.TextureFormatRGBA8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
@@ -702,7 +702,7 @@ func (c *filterGPUCache) acquirePublish(device *webgpu.Device, w, h int) (filter
 		}
 	}
 	usage := types.TextureUsageTextureBinding | types.TextureUsageCopyDst | types.TextureUsageCopySrc | types.TextureUsageRenderAttachment
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "filter_publish",
 		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -712,7 +712,7 @@ func (c *filterGPUCache) acquirePublish(device *webgpu.Device, w, h int) (filter
 	if err != nil {
 		return filterPublishSlot{}, err
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label: "filter_publish_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})

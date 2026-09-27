@@ -215,19 +215,19 @@ func (sr *StencilRenderer) destroyTextures() {
 //
 // EnsureTextures must be called before this method. Returns nil if textures
 // have not been allocated.
-func (sr *StencilRenderer) RenderPassDescriptor() *webgpu.RenderPassDescriptor {
+func (sr *StencilRenderer) RenderPassDescriptor() *hal.RenderPassDescriptor {
 	if sr.textures.msaaView == nil || sr.textures.stencilView == nil || sr.textures.resolveView == nil {
 		return nil
 	}
 	// sampleCount==1: ResolveTarget is invalid (source and dest both 1-sample).
-	colorAtt := webgpu.RenderPassColorAttachment{
+	colorAtt := hal.RenderPassColorAttachment{
 		View:       sr.textures.resolveView,
 		LoadOp:     types.LoadOpClear,
 		StoreOp:    types.StoreOpStore,
 		ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 	}
 	if sr.sampleCount > 1 {
-		colorAtt = webgpu.RenderPassColorAttachment{
+		colorAtt = hal.RenderPassColorAttachment{
 			View:          sr.textures.msaaView,
 			ResolveTarget: sr.textures.resolveView,
 			LoadOp:        types.LoadOpClear,
@@ -235,12 +235,12 @@ func (sr *StencilRenderer) RenderPassDescriptor() *webgpu.RenderPassDescriptor {
 			ClearValue:    types.Color{R: 0, G: 0, B: 0, A: 0},
 		}
 	}
-	return &webgpu.RenderPassDescriptor{
+	return &hal.RenderPassDescriptor{
 		Label: "stencil_cover_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{
+		ColorAttachments: []hal.RenderPassColorAttachment{
 			colorAtt,
 		},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
+		DepthStencilAttachment: &hal.RenderPassDepthStencilAttachment{
 			View:              sr.textures.stencilView,
 			DepthLoadOp:       types.LoadOpClear,
 			DepthStoreOp:      types.StoreOpDiscard,
@@ -696,7 +696,7 @@ func (sr *StencilRenderer) updateVertexBuffer(buf **webgpu.Buffer, capBytes *uin
 		if allocSize == 0 {
 			allocSize = 4
 		}
-		newBuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+		newBuf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: label, Size: allocSize,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 		})
@@ -721,7 +721,7 @@ func (sr *StencilRenderer) updateVertexBuffer(buf **webgpu.Buffer, capBytes *uin
 func (sr *StencilRenderer) createUniformAndBindGroup(
 	label string, data []byte, size uint64,
 ) (*webgpu.Buffer, *webgpu.BindGroup, error) {
-	buf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+	buf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: label + "_uniform", Size: size,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -788,7 +788,7 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		sr.maskBindLayout = layout
 		sr.maskLayoutOwned = true
 	}
-	tex, err := sr.device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := sr.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "stencil_nomask_r8",
 		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -798,7 +798,7 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 	if err != nil {
 		return fmt.Errorf("no-mask tex: %w", err)
 	}
-	view, err := sr.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := sr.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label: "stencil_nomask_view", Format: types.TextureFormatR8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -816,7 +816,7 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		tex.Release()
 		return err
 	}
-	samp, err := sr.device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := sr.device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "stencil_nomask_samp",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
@@ -829,7 +829,7 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		tex.Release()
 		return err
 	}
-	ubuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+	ubuf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "stencil_nomask_uniform", Size: maskParamsSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -895,7 +895,7 @@ func (sr *StencilRenderer) releaseNoMask() {
 func (sr *StencilRenderer) encodeAndReadback(
 	w, h uint32, bufs *stencilCoverBuffers, target render.GPURenderTarget, fillRule render.FillRule,
 ) error {
-	encoder, err := sr.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+	encoder, err := sr.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "stencil_cover_encoder",
 	})
 	if err != nil {
@@ -923,7 +923,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 		encoder.DiscardEncoding()
 		return fmt.Errorf("stencil no-mask bind: %w", err)
 	}
-	noClipBuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+	noClipBuf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "stencil_no_clip_uniform",
 		Size:  clipParamsSize,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -978,9 +978,9 @@ func (sr *StencilRenderer) encodeAndReadback(
 	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
 	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
 	// This is a no-op on Metal, GLES, software, and native backends.
-	encoder.TransitionTextures([]webgpu.TextureBarrier{{
+	encoder.TransitionTextures([]hal.TextureBarrier{{
 		Texture: sr.textures.resolveTex,
-		Usage: webgpu.TextureUsageTransition{
+		Usage: hal.TextureUsageTransition{
 			OldUsage: types.TextureUsageRenderAttachment,
 			NewUsage: types.TextureUsageCopySrc,
 		},
@@ -992,7 +992,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 	const copyPitchAlignment = 256
 	alignedBytesPerRow := (bytesPerRow + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
 	stagingBufSize := uint64(alignedBytesPerRow) * uint64(h)
-	stagingBuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+	stagingBuf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "stencil_staging", Size: stagingBufSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
 	})
@@ -1237,7 +1237,7 @@ func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (*web
 				},
 			},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,

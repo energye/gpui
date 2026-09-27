@@ -855,7 +855,7 @@ func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 		return
 	}
 
-	tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
+	tex, err := s.device.CreateTexture(&hal.TextureDescriptor{
 		Label: "l06_mask_r8",
 		Size: hal.Extent3D{
 			Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1, //nolint:gosec
@@ -869,7 +869,7 @@ func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 	if err != nil {
 		return
 	}
-	view, err := s.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := s.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "l06_mask_r8_view",
 		Format:        types.TextureFormatR8Unorm,
 		Dimension:     types.TextureViewDimension2D,

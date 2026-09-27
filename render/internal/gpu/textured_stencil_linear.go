@@ -252,13 +252,13 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 		return nil
 	}
 
-	fillShader, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	fillShader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "tex_stencil_fill", WGSL: texturedStencilFillWGSL,
 	})
 	if err != nil {
 		return fmt.Errorf("tex stencil fill shader: %w", err)
 	}
-	coverShader, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	coverShader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "tex_stencil_cover_linear", WGSL: texturedStencilCoverLinearWGSL,
 	})
 	if err != nil {
@@ -266,7 +266,7 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 		return fmt.Errorf("tex stencil cover shader: %w", err)
 	}
 
-	fillBGL, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	fillBGL, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "tex_stencil_fill_bgl",
 		Entries: []types.BindGroupLayoutEntry{{
 			Binding: 0, Visibility: types.ShaderStageVertex | types.ShaderStageFragment,
@@ -278,7 +278,7 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 		coverShader.Release()
 		return err
 	}
-	coverBGL, err := device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+	coverBGL, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "tex_stencil_cover_bgl",
 		Entries: []types.BindGroupLayoutEntry{
 			{
@@ -353,7 +353,7 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 					Format: types.TextureFormatBGRA8Unorm, WriteMask: types.ColorWriteMaskNone,
 				}},
 			},
-			DepthStencil: &webgpu.DepthStencilState{
+			DepthStencil: &hal.DepthStencilState{
 				Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 				DepthCompare: types.CompareFunctionAlways,
 				StencilFront: hal.StencilFaceState{
@@ -406,7 +406,7 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 				Format: types.TextureFormatBGRA8Unorm, Blend: &replace, WriteMask: types.ColorWriteMaskAll,
 			}},
 		},
-		DepthStencil: &webgpu.DepthStencilState{
+		DepthStencil: &hal.DepthStencilState{
 			Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 			DepthCompare: types.CompareFunctionAlways,
 			StencilFront: hal.StencilFaceState{
@@ -433,7 +433,7 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 		coverShader.Release()
 		return fmt.Errorf("cover pipe: %w", err)
 	}
-	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "tex_stencil_ramp_samp",
 		AddressModeU: types.AddressModeClampToEdge, AddressModeV: types.AddressModeClampToEdge,
 		AddressModeW: types.AddressModeClampToEdge,
@@ -584,7 +584,7 @@ func texturedStencilCoverLinearEx(
 
 	// Dedicated result texture (TextureBinding) so we can QueueGPUTextureDraw
 	// without sampling the shared resolve target (which is reused per frame).
-	outTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	outTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "tex_stencil_lin_result",
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -594,7 +594,7 @@ func texturedStencilCoverLinearEx(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	outView, err := device.CreateTextureView(outTex, &webgpu.TextureViewDescriptor{
+	outView, err := device.CreateTextureView(outTex, &hal.TextureViewDescriptor{
 		Label: "tex_stencil_lin_result_view", Format: types.TextureFormatBGRA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -609,7 +609,7 @@ func texturedStencilCoverLinearEx(
 
 	// Upload geometry.
 	fanBytes := float32SliceToBytes(fan)
-	fanBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	fanBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "tex_stencil_fan", Size: uint64(len(fanBytes)),
 		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 	})
@@ -623,7 +623,7 @@ func texturedStencilCoverLinearEx(
 		return nil, nil, nil, err
 	}
 	cqBytes := float32SliceToBytes(cover[:])
-	coverBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	coverBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "tex_stencil_cover_quad", Size: uint64(len(cqBytes)),
 		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 	})
@@ -641,7 +641,7 @@ func texturedStencilCoverLinearEx(
 	fillUni := make([]byte, 16)
 	binary.LittleEndian.PutUint32(fillUni[0:], math.Float32bits(float32(w)))
 	binary.LittleEndian.PutUint32(fillUni[4:], math.Float32bits(float32(h)))
-	fillUBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	fillUBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "tex_stencil_fill_uni", Size: 16,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -665,7 +665,7 @@ func texturedStencilCoverLinearEx(
 	defer fillBG.Release()
 
 	// Ramp texture.
-	rampTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	rampTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "tex_stencil_ramp",
 		Size:          hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
@@ -677,7 +677,7 @@ func texturedStencilCoverLinearEx(
 		return nil, nil, nil, err
 	}
 	defer rampTex.Release()
-	rampView, err := device.CreateTextureView(rampTex, &webgpu.TextureViewDescriptor{
+	rampView, err := device.CreateTextureView(rampTex, &hal.TextureViewDescriptor{
 		Label: "tex_stencil_ramp_view", Format: types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 	})
@@ -704,7 +704,7 @@ func texturedStencilCoverLinearEx(
 	}
 
 	coverUni := encodeTexturedStencilCoverUniform(w, h, params)
-	coverUBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	coverUBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "tex_stencil_cover_uni", Size: uint64(len(coverUni)),
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
@@ -731,28 +731,28 @@ func texturedStencilCoverLinearEx(
 	}
 	defer coverBG.Release()
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "tex_stencil_enc"})
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "tex_stencil_enc"})
 	if err != nil {
 		releaseOut()
 		return nil, nil, nil, err
 	}
 	// sampleCount==1: ResolveTarget is WebGPU-invalid (both views 1-sample).
-	colorAtt := webgpu.RenderPassColorAttachment{
+	colorAtt := hal.RenderPassColorAttachment{
 		View:   outView,
 		LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 		ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 	}
 	if cache.sampleCount > 1 && msaaView != nil {
-		colorAtt = webgpu.RenderPassColorAttachment{
+		colorAtt = hal.RenderPassColorAttachment{
 			View: msaaView, ResolveTarget: outView,
 			LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 		}
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label:            "tex_stencil_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{colorAtt},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
+		ColorAttachments: []hal.RenderPassColorAttachment{colorAtt},
+		DepthStencilAttachment: &hal.RenderPassDepthStencilAttachment{
 			View:        stencilView,
 			DepthLoadOp: types.LoadOpClear, DepthStoreOp: types.StoreOpDiscard, DepthClearValue: 1,
 			StencilLoadOp: types.LoadOpClear, StencilStoreOp: types.StoreOpDiscard, StencilClearValue: 0,
@@ -780,9 +780,9 @@ func texturedStencilCoverLinearEx(
 
 	if retain {
 		// Resolve complete; transition for sampling in session GPUTextureDraw.
-		enc.TransitionTextures([]webgpu.TextureBarrier{{
+		enc.TransitionTextures([]hal.TextureBarrier{{
 			Texture: outTex,
-			Usage: webgpu.TextureUsageTransition{
+			Usage: hal.TextureUsageTransition{
 				OldUsage: types.TextureUsageRenderAttachment,
 				NewUsage: types.TextureUsageTextureBinding,
 			},
@@ -802,9 +802,9 @@ func texturedStencilCoverLinearEx(
 	}
 
 	// Readback path (legacy GPU* bootstrap).
-	enc.TransitionTextures([]webgpu.TextureBarrier{{
+	enc.TransitionTextures([]hal.TextureBarrier{{
 		Texture: outTex,
-		Usage: webgpu.TextureUsageTransition{
+		Usage: hal.TextureUsageTransition{
 			OldUsage: types.TextureUsageRenderAttachment,
 			NewUsage: types.TextureUsageCopySrc,
 		},
@@ -813,7 +813,7 @@ func texturedStencilCoverLinearEx(
 	bytesPerRow := w * 4
 	aligned := alignTextureBytesPerRow(bytesPerRow)
 	stagingSize := uint64(aligned) * uint64(h)
-	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "tex_stencil_readback", Size: stagingSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
 	})

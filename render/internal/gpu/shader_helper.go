@@ -5,6 +5,7 @@ package gpu
 import (
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/shader"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -33,7 +34,7 @@ func CompileShaderToSPIRV(wgslSource string) ([]uint32, error) {
 
 // CreateShaderModule creates a shader module from WGSL source.
 func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) (*webgpu.ShaderModule, error) {
-	return device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+	return device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: label,
 		WGSL:  wgslSource,
 	})

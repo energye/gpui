@@ -495,7 +495,7 @@ func (sc *Swapchain) requestDeviceWithVRAMProbe(label string, lim *types.Limits)
 		if err != nil {
 			last = err
 		} else {
-			tex, err2 := dev.CreateTexture(&TextureDescriptor{
+			tex, err2 := dev.CreateTexture(&hal.TextureDescriptor{
 				Label:         "recover_vram_probe",
 				Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,

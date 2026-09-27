@@ -22,8 +22,8 @@ type CommandEncoder struct {
 // R7.0: convert attachments on the caller's stack so the common 1-color-target
 // path does not allocate. Descriptors are only live for the duration of the
 // rwgpu BeginRenderPass call (native copies immediately).
-// Param RenderPassDescriptor is aliased to hal (callers' keyed literals unchanged).
-func (e *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPassEncoder, error) {
+// Param is hal.RenderPassDescriptor (callers' keyed literals unchanged).
+func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (*RenderPassEncoder, error) {
 	if e.released {
 		return nil, ErrReleased
 	}
@@ -92,8 +92,8 @@ func (e *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPas
 }
 
 // BeginComputePass begins a compute pass.
-// Param ComputePassDescriptor is aliased to hal (render passes Label only).
-func (e *CommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*ComputePassEncoder, error) {
+// Param is hal.ComputePassDescriptor (render passes Label only).
+func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (*ComputePassEncoder, error) {
 	if e.released {
 		return nil, ErrReleased
 	}
@@ -266,7 +266,7 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 
 // TransitionTextures transitions texture states for synchronization.
 // On the wgpu-native backend, this is a no-op. wgpu-native handles barriers internally.
-// Implements hal.CommandEncoder (TextureBarrier is aliased to hal; body ignores barriers).
+// Implements hal.CommandEncoder (param is hal.TextureBarrier; body ignores barriers).
 func (e *CommandEncoder) TransitionTextures(_ []hal.TextureBarrier) {
 	// No-op: wgpu-native manages resource state transitions automatically.
 }
@@ -364,7 +364,7 @@ var _ hal.CommandBuffer = (*CommandBuffer)(nil)
 
 // --- Render pass descriptor conversion ---
 
-func convertRenderPassDescriptorRust(desc *RenderPassDescriptor) *rwgpu.RenderPassDescriptor {
+func convertRenderPassDescriptorRust(desc *hal.RenderPassDescriptor) *rwgpu.RenderPassDescriptor {
 	if desc == nil {
 		return &rwgpu.RenderPassDescriptor{}
 	}

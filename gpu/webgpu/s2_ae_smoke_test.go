@@ -62,7 +62,7 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 	for i := range want {
 		want[i] = byte(i + 1)
 	}
-	src, err := device.CreateBuffer(&BufferDescriptor{
+	src, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Size:  size,
 		Usage: types.BufferUsageCopyDst | types.BufferUsageCopySrc,
 	})
@@ -70,7 +70,7 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 		t.Fatalf("src: %v", err)
 	}
 	defer src.Release()
-	dst, err := device.CreateBuffer(&BufferDescriptor{
+	dst, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Size:  size,
 		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
@@ -130,7 +130,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 		}
 	}
 
-	tex, err := device.CreateTexture(&TextureDescriptor{
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
@@ -143,7 +143,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	}
 	defer tex.Release()
 
-	view, err := device.CreateTextureView(tex, &TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Format:    types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D,
 		Aspect:    types.TextureAspectAll,
@@ -154,7 +154,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	}
 	defer view.Release()
 
-	sampler, err := device.CreateSampler(&SamplerDescriptor{
+	sampler, err := device.CreateSampler(&hal.SamplerDescriptor{
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
 		MagFilter:    types.FilterModeNearest,
@@ -177,7 +177,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	}
 
 	stagingSize := uint64(bytesPerRow * h)
-	staging, err := device.CreateBuffer(&BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Size:  stagingSize,
 		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
@@ -229,7 +229,7 @@ func TestS2AE_DrawReadback(t *testing.T) {
 	const bpp = 4
 	const bytesPerRow = 256
 
-	shader, err := device.CreateShaderModule(&ShaderModuleDescriptor{
+	shader, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		WGSL: `
 @vertex
 fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
@@ -285,7 +285,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	}
 	defer pipeline.Release()
 
-	rt, err := device.CreateTexture(&TextureDescriptor{
+	rt, err := device.CreateTexture(&hal.TextureDescriptor{
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
@@ -297,7 +297,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 		t.Fatalf("rt: %v", err)
 	}
 	defer rt.Release()
-	view, err := device.CreateTextureView(rt, &TextureViewDescriptor{
+	view, err := device.CreateTextureView(rt, &hal.TextureViewDescriptor{
 		Format:          types.TextureFormatRGBA8Unorm,
 		Dimension:       types.TextureViewDimension2D,
 		Aspect:          types.TextureAspectAll,
@@ -313,8 +313,8 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("enc: %v", err)
 	}
-	pass, err := enc.BeginRenderPass(&RenderPassDescriptor{
-		ColorAttachments: []RenderPassColorAttachment{{
+	pass, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
 			View:       view,
 			LoadOp:     types.LoadOpClear,
 			StoreOp:    types.StoreOpStore,
@@ -335,7 +335,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	}
 
 	stagingSize := uint64(bytesPerRow * h)
-	staging, err := device.CreateBuffer(&BufferDescriptor{
+	staging, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Size:  stagingSize,
 		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})

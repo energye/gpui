@@ -133,7 +133,7 @@ func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labe
 		e.stamp = ts.stencilStamp
 		return e.view
 	}
-	tex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+	tex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
 		Label:         labelPrefix + "_depth_stencil",
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
@@ -145,7 +145,7 @@ func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labe
 	if err != nil {
 		return nil
 	}
-	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         labelPrefix + "_depth_stencil_view",
 		Format:        types.TextureFormatDepth24PlusStencil8,
 		Dimension:     types.TextureViewDimension2D,
@@ -213,7 +213,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
 	if needMSAA {
-		msaaTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+		msaaTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
 			Label:         labelPrefix + "_msaa_color",
 			Size:          size,
 			MipLevelCount: 1,
@@ -227,7 +227,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 		}
 		ts.msaaTex = msaaTex
 
-		msaaView, err := device.CreateTextureView(msaaTex, &webgpu.TextureViewDescriptor{
+		msaaView, err := device.CreateTextureView(msaaTex, &hal.TextureViewDescriptor{
 			Label:         labelPrefix + "_msaa_color_view",
 			Format:        types.TextureFormatBGRA8Unorm,
 			Dimension:     types.TextureViewDimension2D,
@@ -242,7 +242,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	}
 
 	// Depth/stencil texture (sc samples, Depth24PlusStencil8).
-	stencilTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+	stencilTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
 		Label:         labelPrefix + "_depth_stencil",
 		Size:          size,
 		MipLevelCount: 1,
@@ -255,7 +255,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 		// Post-TDR / AutoRecover: full-size depth may OOM while device heap is
 		// still reclaiming. Fall back to 1x1 depth (stencil Always/Keep still valid).
 		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
-		stencilTex, err = createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+		stencilTex, err = createTextureRetryOOM(device, &hal.TextureDescriptor{
 			Label:         labelPrefix + "_depth_stencil_1x1",
 			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1,
@@ -276,7 +276,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	}
 	ts.stencilTex = stencilTex
 
-	stencilView, err := device.CreateTextureView(stencilTex, &webgpu.TextureViewDescriptor{
+	stencilView, err := device.CreateTextureView(stencilTex, &hal.TextureViewDescriptor{
 		Label:         labelPrefix + "_depth_stencil_view",
 		Format:        types.TextureFormatDepth24PlusStencil8,
 		Dimension:     types.TextureViewDimension2D,
@@ -291,7 +291,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 
 	// Single-sample resolve target (CopySrc for readback). For sc==1 this is
 	// also the color attachment (no MSAA resolve).
-	resolveTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+	resolveTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
 		Label:         labelPrefix + "_resolve",
 		Size:          size,
 		MipLevelCount: 1,
@@ -306,7 +306,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	}
 	ts.resolveTex = resolveTex
 
-	resolveView, err := device.CreateTextureView(resolveTex, &webgpu.TextureViewDescriptor{
+	resolveView, err := device.CreateTextureView(resolveTex, &hal.TextureViewDescriptor{
 		Label:         labelPrefix + "_resolve_view",
 		Format:        types.TextureFormatBGRA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
@@ -389,7 +389,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	}
 
 	if needMSAA {
-		msaaTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+		msaaTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
 			Label:         labelPrefix + "_msaa_color",
 			Size:          size,
 			MipLevelCount: 1,
@@ -403,7 +403,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		}
 		ts.msaaTex = msaaTex
 
-		msaaView, err := device.CreateTextureView(msaaTex, &webgpu.TextureViewDescriptor{
+		msaaView, err := device.CreateTextureView(msaaTex, &hal.TextureViewDescriptor{
 			Label:         labelPrefix + "_msaa_color_view",
 			Format:        types.TextureFormatBGRA8Unorm,
 			Dimension:     types.TextureViewDimension2D,
@@ -417,7 +417,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		ts.msaaView = msaaView
 	}
 
-	stencilTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+	stencilTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
 		Label:         labelPrefix + "_depth_stencil",
 		Size:          size,
 		MipLevelCount: 1,
@@ -430,7 +430,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		// Post-TDR / AutoRecover: full-size depth may OOM while device heap is
 		// still reclaiming. Fall back to 1x1 depth (stencil Always/Keep still valid).
 		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
-		stencilTex, err = createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+		stencilTex, err = createTextureRetryOOM(device, &hal.TextureDescriptor{
 			Label:         labelPrefix + "_depth_stencil_1x1",
 			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1,
@@ -451,7 +451,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	}
 	ts.stencilTex = stencilTex
 
-	stencilView, err := device.CreateTextureView(stencilTex, &webgpu.TextureViewDescriptor{
+	stencilView, err := device.CreateTextureView(stencilTex, &hal.TextureViewDescriptor{
 		Label:         labelPrefix + "_depth_stencil_view",
 		Format:        types.TextureFormatDepth24PlusStencil8,
 		Dimension:     types.TextureViewDimension2D,
@@ -576,7 +576,7 @@ func (ts *textureSet) releaseOrRetire(tex *webgpu.Texture, view *webgpu.TextureV
 
 // createTextureRetryOOM creates a texture; on OOM-like errors flushes and retries.
 // Second try forces SampleCount=1 when the failed desc used MSAA (post-TDR reclaim).
-func createTextureRetryOOM(device *webgpu.Device, desc *webgpu.TextureDescriptor) (*webgpu.Texture, error) {
+func createTextureRetryOOM(device *webgpu.Device, desc *hal.TextureDescriptor) (*webgpu.Texture, error) {
 	if device == nil || desc == nil {
 		return nil, fmt.Errorf("createTextureRetryOOM: nil device/desc")
 	}
