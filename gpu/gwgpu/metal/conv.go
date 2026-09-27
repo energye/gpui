@@ -195,11 +195,11 @@ func filterModeToMTL(mode gputypes.FilterMode) MTLSamplerMinMagFilter {
 }
 
 // mipmapFilterModeToMTL converts WebGPU mipmap filter mode to Metal sampler mip filter.
-func mipmapFilterModeToMTL(mode gputypes.FilterMode) MTLSamplerMipFilter {
+func mipmapFilterModeToMTL(mode gputypes.MipmapFilterMode) MTLSamplerMipFilter {
 	switch mode {
-	case gputypes.FilterModeNearest:
+	case gputypes.MipmapFilterModeNearest:
 		return MTLSamplerMipFilterNearest
-	case gputypes.FilterModeLinear:
+	case gputypes.MipmapFilterModeLinear:
 		return MTLSamplerMipFilterLinear
 	default:
 		return MTLSamplerMipFilterNotMipmapped

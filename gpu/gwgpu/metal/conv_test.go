@@ -242,12 +242,12 @@ func TestFilterModeToMTL(t *testing.T) {
 func TestMipmapFilterModeToMTL(t *testing.T) {
 	tests := []struct {
 		name   string
-		mode   gputypes.FilterMode
+		mode   gputypes.MipmapFilterMode
 		expect MTLSamplerMipFilter
 	}{
-		{"Nearest", gputypes.FilterModeNearest, MTLSamplerMipFilterNearest},
-		{"Linear", gputypes.FilterModeLinear, MTLSamplerMipFilterLinear},
-		{"Unknown defaults to NotMipmapped", gputypes.FilterMode(99), MTLSamplerMipFilterNotMipmapped},
+		{"Nearest", gputypes.MipmapFilterModeNearest, MTLSamplerMipFilterNearest},
+		{"Linear", gputypes.MipmapFilterModeLinear, MTLSamplerMipFilterLinear},
+		{"Unknown defaults to NotMipmapped", gputypes.MipmapFilterMode(99), MTLSamplerMipFilterNotMipmapped},
 	}
 
 	for _, tt := range tests {
