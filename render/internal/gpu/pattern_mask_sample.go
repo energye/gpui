@@ -118,10 +118,10 @@ type patternMaskSampleParams struct {
 type patternMaskSampleCache struct {
 	mu       sync.Mutex
 	device   *webgpu.Device
-	shader   *webgpu.ShaderModule
-	bgl      *webgpu.BindGroupLayout
-	pipeLay  *webgpu.PipelineLayout
-	pipeline *webgpu.RenderPipeline
+	shader   hal.ShaderModule
+	bgl      hal.BindGroupLayout
+	pipeLay  hal.PipelineLayout
+	pipeline hal.RenderPipeline
 	sampler  hal.Sampler
 }
 
@@ -129,19 +129,19 @@ func (c *patternMaskSampleCache) release() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.pipeline != nil {
-		c.pipeline.Release()
+		c.pipeline.Destroy()
 		c.pipeline = nil
 	}
 	if c.pipeLay != nil {
-		c.pipeLay.Release()
+		c.pipeLay.Destroy()
 		c.pipeLay = nil
 	}
 	if c.bgl != nil {
-		c.bgl.Release()
+		c.bgl.Destroy()
 		c.bgl = nil
 	}
 	if c.shader != nil {
-		c.shader.Release()
+		c.shader.Destroy()
 		c.shader = nil
 	}
 	if c.sampler != nil {
@@ -156,16 +156,16 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 	defer c.mu.Unlock()
 	if c.device != nil && c.device != device {
 		if c.pipeline != nil {
-			c.pipeline.Release()
+			c.pipeline.Destroy()
 		}
 		if c.pipeLay != nil {
-			c.pipeLay.Release()
+			c.pipeLay.Destroy()
 		}
 		if c.bgl != nil {
-			c.bgl.Release()
+			c.bgl.Destroy()
 		}
 		if c.shader != nil {
-			c.shader.Release()
+			c.shader.Destroy()
 		}
 		if c.sampler != nil {
 			c.sampler.Destroy()
@@ -209,15 +209,15 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 		},
 	})
 	if err != nil {
-		shader.Release()
+		shader.Destroy()
 		return fmt.Errorf("pattern mask bgl: %w", err)
 	}
 	pipeLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label: "pattern_mask_pipe_layout", BindGroupLayouts: []hal.BindGroupLayout{bgl},
 	})
 	if err != nil {
-		bgl.Release()
-		shader.Release()
+		bgl.Destroy()
+		shader.Destroy()
 		return err
 	}
 	replace := types.BlendState{
@@ -238,9 +238,9 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 		Multisample: types.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 	})
 	if err != nil {
-		pipeLay.Release()
-		bgl.Release()
-		shader.Release()
+		pipeLay.Destroy()
+		bgl.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("pattern mask pipeline: %w", err)
 	}
 	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
@@ -254,10 +254,10 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 		Anisotropy:   1,
 	})
 	if err != nil {
-		pipe.Release()
-		pipeLay.Release()
-		bgl.Release()
-		shader.Release()
+		pipe.Destroy()
+		pipeLay.Destroy()
+		bgl.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("pattern mask sampler: %w", err)
 	}
 	c.shader = shader
@@ -445,7 +445,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, fmt.Errorf("pattern mask bg: %w", err)
 	}
-	defer bg.Release()
+	defer bg.Destroy()
 
 	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "pattern_mask_enc"})
 	if err != nil {

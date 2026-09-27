@@ -63,7 +63,7 @@ func NoClipParams() *ClipParams {
 	return &ClipParams{Enabled: 0}
 }
 
-func createClipBindGroupLayout(device *webgpu.Device, label string) (*webgpu.BindGroupLayout, error) {
+func createClipBindGroupLayout(device *webgpu.Device, label string) (hal.BindGroupLayout, error) {
 	return device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: label,
 		Entries: []types.BindGroupLayoutEntry{
@@ -109,7 +109,7 @@ func NoMaskParams() *MaskParams {
 	return &MaskParams{Enabled: 0}
 }
 
-func createMaskBindGroupLayout(device *webgpu.Device, label string) (*webgpu.BindGroupLayout, error) {
+func createMaskBindGroupLayout(device *webgpu.Device, label string) (hal.BindGroupLayout, error) {
 	return device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: label,
 		Entries: []types.BindGroupLayoutEntry{

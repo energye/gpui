@@ -76,21 +76,21 @@ type GlyphMaskPipeline struct {
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
-	shader        *webgpu.ShaderModule
-	uniformLayout *webgpu.BindGroupLayout
-	pipeLayout    *webgpu.PipelineLayout
-	pipeline      *webgpu.RenderPipeline
+	shader        hal.ShaderModule
+	uniformLayout hal.BindGroupLayout
+	pipeLayout    hal.PipelineLayout
+	pipeline      hal.RenderPipeline
 
 	// Session-compatible pipeline variant with depth/stencil state.
 	// Used when text participates in a unified render pass that includes
 	// a stencil attachment (for stencil-then-cover paths).
 	// Stencil test is Always/Keep (text does not interact with stencil).
-	pipelineWithStencil *webgpu.RenderPipeline
+	pipelineWithStencil hal.RenderPipeline
 
 	// Depth-clipped pipeline variant (GPU-CLIP-003a). Same as pipelineWithStencil
 	// but with DepthCompare=GreaterEqual to test against the depth clip buffer.
 	// Created on demand when a ScissorGroup has ClipPath set.
-	pipelineWithDepthClip *webgpu.RenderPipeline
+	pipelineWithDepthClip hal.RenderPipeline
 
 	// Default sampler for R8 atlas textures (linear filtering for smooth
 	// alpha interpolation at subpixel positions).
@@ -101,8 +101,8 @@ type GlyphMaskPipeline struct {
 	// uniform layout, and pipeline layout; only the shader, sampler
 	// (linear: color bitmaps are scaled from strike size), and pipeline
 	// differ.
-	colorShader   *webgpu.ShaderModule
-	colorPipeline *webgpu.RenderPipeline
+	colorShader   hal.ShaderModule
+	colorPipeline hal.RenderPipeline
 	colorSampler  hal.Sampler
 
 	// LCD pipeline: separate shader + pipeline for ClearType rendering.
@@ -110,20 +110,20 @@ type GlyphMaskPipeline struct {
 	// different fragment shader (per-channel alpha compositing).
 	// This avoids the Intel Vulkan null pipeline handle bug caused by
 	// adding is_lcd to the grayscale uniform struct.
-	lcdShader        *webgpu.ShaderModule
-	lcdUniformLayout *webgpu.BindGroupLayout
-	lcdPipeLayout    *webgpu.PipelineLayout
+	lcdShader        hal.ShaderModule
+	lcdUniformLayout hal.BindGroupLayout
+	lcdPipeLayout    hal.PipelineLayout
 	// Two-pass LCD (true per-channel ClearType without dual-source blending):
 	// 1) darken: out = dst * (1 - cov_rgb)   blend Zero / OneMinusSrc
 	// 2) add:    out = dst + color * cov_rgb blend One / One
-	lcdPipelineDarken *webgpu.RenderPipeline
-	lcdPipelineAdd    *webgpu.RenderPipeline
+	lcdPipelineDarken hal.RenderPipeline
+	lcdPipelineAdd    hal.RenderPipeline
 	// lcdPipelineWithStencil is kept as an alias of lcdPipelineAdd for older checks.
-	lcdPipelineWithStencil *webgpu.RenderPipeline
+	lcdPipelineWithStencil hal.RenderPipeline
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
-	clipBindLayout *webgpu.BindGroupLayout
+	clipBindLayout hal.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
 	// with clipBindLayout included. If clipBindLayout is set after the
 	// layout was created, the pipeline must be recreated.
@@ -146,7 +146,7 @@ func NewGlyphMaskPipeline(device *webgpu.Device, queue hal.Queue, sampleCount ui
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil. The layout is
 // owned by the session and must not be destroyed by the pipeline.
-func (p *GlyphMaskPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
+func (p *GlyphMaskPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
 	p.clipBindLayout = layout
 }
 
@@ -347,11 +347,11 @@ func (p *GlyphMaskPipeline) destroyColorPipeline() {
 		return
 	}
 	if p.colorPipeline != nil {
-		p.colorPipeline.Release()
+		p.colorPipeline.Destroy()
 		p.colorPipeline = nil
 	}
 	if p.colorShader != nil {
-		p.colorShader.Release()
+		p.colorShader.Destroy()
 		p.colorShader = nil
 	}
 }
@@ -462,7 +462,7 @@ func (p *GlyphMaskPipeline) ensureDepthClipPipeline() error {
 // The resources parameter holds pre-built vertex/index buffers, uniform buffer,
 // and bind group for the current frame. If isLCD is true and the LCD pipeline
 // is available, the LCD pipeline is used for per-channel alpha compositing.
-func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *glyphMaskFrameResources, clipBG *webgpu.BindGroup, depthClipped ...bool) {
+func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *glyphMaskFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || len(resources.drawCalls) == 0 {
 		return
 	}
@@ -472,8 +472,8 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.SetIndexBuffer(resources.idxBuf, types.IndexFormatUint16, 0)
 
-	var lastPipe *webgpu.RenderPipeline
-	drawOne := func(pipeline *webgpu.RenderPipeline, dc glyphMaskDrawCall) {
+	var lastPipe hal.RenderPipeline
+	drawOne := func(pipeline hal.RenderPipeline, dc glyphMaskDrawCall) {
 		if pipeline == nil || dc.indexCount == 0 || dc.bindGroup == nil {
 			return
 		}
@@ -627,7 +627,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 		},
 	}
 
-	mkLCD := func(label, entry string, blend types.BlendState) (*webgpu.RenderPipeline, error) {
+	mkLCD := func(label, entry string, blend types.BlendState) (hal.RenderPipeline, error) {
 		b := blend
 		return p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 			Label:  label,
@@ -660,7 +660,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 	}
 	addPipe, err := mkLCD("glyph_mask_lcd_add", "fs_add", addBlend)
 	if err != nil {
-		darkenPipe.Release()
+		darkenPipe.Destroy()
 		return fmt.Errorf("create glyph mask LCD add pipeline: %w", err)
 	}
 	p.lcdPipelineDarken = darkenPipe
@@ -675,28 +675,28 @@ func (p *GlyphMaskPipeline) destroyPipeline() {
 		return
 	}
 	if p.pipelineWithDepthClip != nil {
-		p.pipelineWithDepthClip.Release()
+		p.pipelineWithDepthClip.Destroy()
 		p.pipelineWithDepthClip = nil
 	}
 	if p.pipelineWithStencil != nil {
-		p.pipelineWithStencil.Release()
+		p.pipelineWithStencil.Destroy()
 		p.pipelineWithStencil = nil
 	}
 	if p.pipeline != nil {
-		p.pipeline.Release()
+		p.pipeline.Destroy()
 		p.pipeline = nil
 	}
 	if p.pipeLayout != nil {
-		p.pipeLayout.Release()
+		p.pipeLayout.Destroy()
 		p.pipeLayout = nil
 		p.pipeLayoutHasClip = false
 	}
 	if p.uniformLayout != nil {
-		p.uniformLayout.Release()
+		p.uniformLayout.Destroy()
 		p.uniformLayout = nil
 	}
 	if p.shader != nil {
-		p.shader.Release()
+		p.shader.Destroy()
 		p.shader = nil
 	}
 }
@@ -714,25 +714,25 @@ func (p *GlyphMaskPipeline) destroyLCDPipeline() {
 	p.lcdPipelineAdd = nil
 	p.lcdPipelineWithStencil = nil
 	if darken != nil {
-		darken.Release()
+		darken.Destroy()
 	}
 	if add != nil && add != darken {
-		add.Release()
+		add.Destroy()
 	}
 	if stencil != nil && stencil != darken && stencil != add {
-		stencil.Release()
+		stencil.Destroy()
 	}
 	if p.lcdPipeLayout != nil {
-		p.lcdPipeLayout.Release()
+		p.lcdPipeLayout.Destroy()
 		p.lcdPipeLayout = nil
 		p.lcdPipeLayoutHasClip = false
 	}
 	if p.lcdUniformLayout != nil {
-		p.lcdUniformLayout.Release()
+		p.lcdUniformLayout.Destroy()
 		p.lcdUniformLayout = nil
 	}
 	if p.lcdShader != nil {
-		p.lcdShader.Release()
+		p.lcdShader.Destroy()
 		p.lcdShader = nil
 	}
 }
@@ -743,7 +743,7 @@ func (p *GlyphMaskPipeline) destroyLCDPipeline() {
 type glyphMaskDrawCall struct {
 	indexOffset uint32 // first index in the shared index buffer
 	indexCount  uint32 // number of indices for this draw
-	bindGroup   *webgpu.BindGroup
+	bindGroup   hal.BindGroup
 	// isLCD selects LCD vs grayscale pipeline for THIS draw only.
 	// Mixed LCD/grayscale batches in one frame must not share a frame-level pipeline
 	// (LCD BGL minBindingSize=96 vs grayscale=80 → wgpu validation abort).

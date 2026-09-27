@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -99,7 +100,7 @@ type RenderPassEncoder struct {
 	// mu protects mutable state.
 	mu sync.Mutex
 
-	// gpuPass is the underlying WebGPU render pass encoder.
+	// gpuPass is the underlying render pass encoder.
 	gpuPass *webgpu.RenderPassEncoder
 
 	// encoder is the parent command encoder.
@@ -585,11 +586,10 @@ func (p *RenderPassEncoder) End() error {
 //   - Depth/stencil state
 //   - Blend state
 //
-// RenderPipeline is a placeholder type that will be expanded when
-// pipeline creation is implemented.
+// RenderPipeline wraps a hal render pipeline with session-local bookkeeping.
 type RenderPipeline struct {
-	// gpuPipeline is the underlying WebGPU render pipeline.
-	gpuPipeline *webgpu.RenderPipeline
+	// gpuPipeline is the underlying render pipeline.
+	gpuPipeline hal.RenderPipeline
 
 	// id is a unique identifier for the pipeline.
 	id uint64
@@ -604,8 +604,8 @@ type RenderPipeline struct {
 	mu sync.RWMutex
 }
 
-// Raw returns the underlying WebGPU render pipeline.
-func (p *RenderPipeline) Raw() *webgpu.RenderPipeline {
+// Raw returns the underlying render pipeline.
+func (p *RenderPipeline) Raw() hal.RenderPipeline {
 	if p == nil {
 		return nil
 	}
@@ -649,11 +649,10 @@ func (p *RenderPipeline) Destroy() {
 //   - Texture bindings
 //   - Sampler bindings
 //
-// BindGroup is a placeholder type that will be expanded when
-// bind group creation is implemented.
+// BindGroup wraps a hal bind group with session-local bookkeeping.
 type BindGroup struct {
-	// gpuBindGroup is the underlying WebGPU bind group.
-	gpuBindGroup *webgpu.BindGroup
+	// gpuBindGroup is the underlying bind group.
+	gpuBindGroup hal.BindGroup
 
 	// id is a unique identifier for the bind group.
 	id uint64
@@ -668,8 +667,8 @@ type BindGroup struct {
 	mu sync.RWMutex
 }
 
-// Raw returns the underlying WebGPU bind group.
-func (bg *BindGroup) Raw() *webgpu.BindGroup {
+// Raw returns the underlying bind group.
+func (bg *BindGroup) Raw() hal.BindGroup {
 	if bg == nil {
 		return nil
 	}

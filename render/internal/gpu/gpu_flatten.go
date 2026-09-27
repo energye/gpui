@@ -91,17 +91,17 @@ type GPUFlattenRasterizer struct {
 	queue  hal.Queue
 
 	// Compute pipelines
-	preparePipeline      *webgpu.ComputePipeline
-	flattenPipeline      *webgpu.ComputePipeline
-	clearCounterPipeline *webgpu.ComputePipeline
+	preparePipeline      hal.ComputePipeline
+	flattenPipeline      hal.ComputePipeline
+	clearCounterPipeline hal.ComputePipeline
 
 	// Shader module (cached)
-	shaderModule *webgpu.ShaderModule
+	shaderModule hal.ShaderModule
 
 	// Pipeline layout and bind group layouts
-	pipelineLayout   *webgpu.PipelineLayout
-	inputBindLayout  *webgpu.BindGroupLayout
-	outputBindLayout *webgpu.BindGroupLayout
+	pipelineLayout   hal.PipelineLayout
+	inputBindLayout  hal.BindGroupLayout
+	outputBindLayout hal.BindGroupLayout
 
 	// Compiled SPIR-V (cached for verification)
 	spirvCode []uint32
@@ -626,37 +626,37 @@ func (r *GPUFlattenRasterizer) Destroy() {
 
 	// Destroy pipelines
 	if r.preparePipeline != nil {
-		r.preparePipeline.Release()
+		r.preparePipeline.Destroy()
 		r.preparePipeline = nil
 	}
 	if r.flattenPipeline != nil {
-		r.flattenPipeline.Release()
+		r.flattenPipeline.Destroy()
 		r.flattenPipeline = nil
 	}
 	if r.clearCounterPipeline != nil {
-		r.clearCounterPipeline.Release()
+		r.clearCounterPipeline.Destroy()
 		r.clearCounterPipeline = nil
 	}
 
 	// Destroy pipeline layout
 	if r.pipelineLayout != nil {
-		r.pipelineLayout.Release()
+		r.pipelineLayout.Destroy()
 		r.pipelineLayout = nil
 	}
 
 	// Destroy bind group layouts
 	if r.inputBindLayout != nil {
-		r.inputBindLayout.Release()
+		r.inputBindLayout.Destroy()
 		r.inputBindLayout = nil
 	}
 	if r.outputBindLayout != nil {
-		r.outputBindLayout.Release()
+		r.outputBindLayout.Destroy()
 		r.outputBindLayout = nil
 	}
 
 	// Destroy shader module
 	if r.shaderModule != nil {
-		r.shaderModule.Release()
+		r.shaderModule.Destroy()
 		r.shaderModule = nil
 	}
 

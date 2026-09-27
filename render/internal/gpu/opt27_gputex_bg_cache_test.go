@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
@@ -63,11 +62,11 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 	t.Cleanup(func() { ubuf.Destroy() })
 
 	var cache gpuTexBGSlotCache
-	var pending []*webgpu.BindGroup
+	var pending []hal.BindGroup
 	t.Cleanup(func() {
 		for _, bg := range pending {
 			if bg != nil {
-				bg.Release()
+				bg.Destroy()
 			}
 		}
 		cache.releaseAll()
@@ -186,7 +185,7 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 
 	for _, bg := range s.pendingBindGroupRelease {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 		}
 	}
 	s.pendingBindGroupRelease = s.pendingBindGroupRelease[:0]

@@ -63,28 +63,28 @@ type SDFRenderPipeline struct {
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
-	shader        *webgpu.ShaderModule
-	uniformLayout *webgpu.BindGroupLayout
-	pipeLayout    *webgpu.PipelineLayout
-	pipeline      *webgpu.RenderPipeline
+	shader        hal.ShaderModule
+	uniformLayout hal.BindGroupLayout
+	pipeLayout    hal.PipelineLayout
+	pipeline      hal.RenderPipeline
 
 	// Session-compatible pipeline variant with depth/stencil state.
 	// This is used when the SDF pipeline participates in a unified render
 	// pass that includes a stencil attachment (for stencil-then-cover paths).
 	// The stencil test is Always/Keep (SDF shapes don't interact with stencil).
-	pipelineWithStencil *webgpu.RenderPipeline
+	pipelineWithStencil hal.RenderPipeline
 
 	// Depth-clipped pipeline variant (GPU-CLIP-003a). Same as pipelineWithStencil
 	// but with DepthCompare=GreaterEqual to test against the depth clip buffer.
 	// Created on demand when a ScissorGroup has ClipPath set.
-	pipelineWithDepthClip *webgpu.RenderPipeline
+	pipelineWithDepthClip hal.RenderPipeline
 
 	// Clip bind group layout for @group(1). Set by the session before
 	// pipeline creation. When non-nil, included in the pipeline layout.
-	clipBindLayout *webgpu.BindGroupLayout
+	clipBindLayout hal.BindGroupLayout
 	// defaultClipBindLayout is owned by this pipeline and used only when a
 	// standalone pipeline is created before the session supplies its layout.
-	defaultClipBindLayout *webgpu.BindGroupLayout
+	defaultClipBindLayout hal.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
 	// with clipBindLayout included. If clipBindLayout is set after the
 	// layout was created, the pipeline must be recreated.
@@ -93,7 +93,7 @@ type SDFRenderPipeline struct {
 	// maskBindLayout is @group(2) for L.06 R8 mask sampling. Usually set by
 	// the session (not owned). maskLayoutOwned is true only for standalone
 	// pipelines that create their own layout.
-	maskBindLayout  *webgpu.BindGroupLayout
+	maskBindLayout  hal.BindGroupLayout
 	maskLayoutOwned bool
 
 	// MSAA and resolve textures for offscreen rendering (standalone mode).
@@ -113,12 +113,12 @@ type SDFRenderPipeline struct {
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil. The layout is
 // owned by the session and must not be destroyed by the pipeline.
-func (p *SDFRenderPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
+func (p *SDFRenderPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
 	p.clipBindLayout = layout
 }
 
 // SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
-func (p *SDFRenderPipeline) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
+func (p *SDFRenderPipeline) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	p.maskBindLayout = layout
 	p.maskLayoutOwned = false
 }
@@ -197,7 +197,7 @@ func (p *SDFRenderPipeline) RenderShapes(target render.GPURenderTarget, shapes [
 	if err != nil {
 		return fmt.Errorf("create bind group: %w", err)
 	}
-	defer bindGroup.Release()
+	defer bindGroup.Destroy()
 
 	// Encode render pass + readback.
 	return p.encodeAndReadback(w, h, vertBuf, vertexCount, bindGroup, target)
@@ -515,7 +515,7 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 //
 // The resources parameter holds pre-built vertex buffer, uniform buffer,
 // and bind group for the current frame.
-func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *sdfFrameResources, clipBG *webgpu.BindGroup, maskBG *webgpu.BindGroup, depthClipped ...bool) {
+func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *sdfFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || resources.vertCount == 0 {
 		return
 	}
@@ -562,37 +562,37 @@ func (p *SDFRenderPipeline) destroyPipeline() {
 		return
 	}
 	if p.pipelineWithDepthClip != nil {
-		p.pipelineWithDepthClip.Release()
+		p.pipelineWithDepthClip.Destroy()
 		p.pipelineWithDepthClip = nil
 	}
 	if p.pipelineWithStencil != nil {
-		p.pipelineWithStencil.Release()
+		p.pipelineWithStencil.Destroy()
 		p.pipelineWithStencil = nil
 	}
 	if p.pipeline != nil {
-		p.pipeline.Release()
+		p.pipeline.Destroy()
 		p.pipeline = nil
 	}
 	if p.pipeLayout != nil {
-		p.pipeLayout.Release()
+		p.pipeLayout.Destroy()
 		p.pipeLayout = nil
 		p.pipeLayoutHasClip = false
 	}
 	if p.defaultClipBindLayout != nil {
-		p.defaultClipBindLayout.Release()
+		p.defaultClipBindLayout.Destroy()
 		p.defaultClipBindLayout = nil
 	}
 	if p.maskLayoutOwned && p.maskBindLayout != nil {
-		p.maskBindLayout.Release()
+		p.maskBindLayout.Destroy()
 	}
 	p.maskBindLayout = nil
 	p.maskLayoutOwned = false
 	if p.uniformLayout != nil {
-		p.uniformLayout.Release()
+		p.uniformLayout.Destroy()
 		p.uniformLayout = nil
 	}
 	if p.shader != nil {
-		p.shader.Release()
+		p.shader.Destroy()
 		p.shader = nil
 	}
 }
@@ -601,7 +601,7 @@ func (p *SDFRenderPipeline) destroyPipeline() {
 // to a staging buffer, submits, waits, and reads back pixels.
 func (p *SDFRenderPipeline) encodeAndReadback(
 	w, h uint32, vertBuf hal.Buffer, vertexCount uint32,
-	bindGroup *webgpu.BindGroup, target render.GPURenderTarget,
+	bindGroup hal.BindGroup, target render.GPURenderTarget,
 ) error {
 	encoder, err := p.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "sdf_render_encoder",

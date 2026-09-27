@@ -195,7 +195,7 @@ type imageUniformLastKey struct {
 type gpuTexBGSlotCache struct {
 	entries [4]struct {
 		view hal.TextureView
-		bg   *webgpu.BindGroup
+		bg   hal.BindGroup
 	}
 	next int // round-robin insert
 }
@@ -372,8 +372,8 @@ type GPURenderSession struct {
 	ownsShapePipelines bool
 	// opt38: skip ensurePipelines body when pipelines already match clip/mask layouts.
 	pipelinesReady       bool
-	pipelinesReadyClip   *webgpu.BindGroupLayout
-	pipelinesReadyMask   *webgpu.BindGroupLayout
+	pipelinesReadyClip   hal.BindGroupLayout
+	pipelinesReadyMask   hal.BindGroupLayout
 	lastEnsurePipelines  int // diagnostic: 0=skipped fast, 1=full ensure (last call)
 	ensurePipelinesFastN uint64
 	ensurePipelinesFullN uint64
@@ -402,7 +402,7 @@ type GPURenderSession struct {
 	sdfVertBuf    hal.Buffer
 	sdfVertBufCap uint64
 	sdfUniformBuf hal.Buffer
-	sdfBindGroup  *webgpu.BindGroup
+	sdfBindGroup  hal.BindGroup
 	// Convex vertex buffer ring (opt20 dual + opt21 defer-submit):
 	// WriteBuffer must not overwrite a buffer still referenced by an
 	// unsubmitted leading CB (mid-frame layer RT fills). Ring size covers
@@ -428,7 +428,7 @@ type GPURenderSession struct {
 	convexIndexSlotHash [4]uint64
 	convexIndexSlotLen  [4]int
 	convexUniformBuf    hal.Buffer
-	convexBindGroup     *webgpu.BindGroup
+	convexBindGroup     hal.BindGroup
 
 	// Tier 3: Image textured quad persistent buffers.
 	imageVertBuf    hal.Buffer
@@ -439,7 +439,7 @@ type GPURenderSession struct {
 	imageUniformSlabCap uint64 // bytes
 	imageUniformSlots   int    // slots currently addressed in slab
 	// Per-draw bind groups (pool, grows as needed); uniforms live in the slab.
-	imageBindGroups []*webgpu.BindGroup
+	imageBindGroups []hal.BindGroup
 	// Stable-key reuse: recreate bind groups only when texture/sampler changes.
 	imageBGViews          []hal.TextureView
 	imageBGNearest        []bool
@@ -504,7 +504,7 @@ type GPURenderSession struct {
 	textIdxBufCap  uint64
 	// Per-batch uniform buffers and bind groups (pool, grows as needed).
 	textUniformBufs []hal.Buffer
-	textBindGroups  []*webgpu.BindGroup
+	textBindGroups  []hal.BindGroup
 	// Stable view keys for text BG reuse — the same view-identity rule as
 	// image (imageBGViews), glyph (glyphMaskBGViews), and gpuTex
 	// (gpuTexBGSlotCache): a rebuilt texture resolves to a different view,
@@ -529,7 +529,7 @@ type GPURenderSession struct {
 	glyphMaskIdxBuf       hal.Buffer
 	glyphMaskIdxBufCap    uint64
 	glyphMaskUniformBufs  []hal.Buffer
-	glyphMaskBindGroups   []*webgpu.BindGroup
+	glyphMaskBindGroups   []hal.BindGroup
 	glyphMaskBGViews      []hal.TextureView // stable atlas view keys for BG reuse
 	glyphMaskBGIsLCD      []bool
 	glyphMaskPendingViews []glyphMaskPendingView // deferred bind group creation (BUG-GPU-001)
@@ -592,7 +592,7 @@ type GPURenderSession struct {
 	// Bind groups pending release — deferred until after command buffer submit.
 	// WebGPU requires bind groups to be alive at submit time (wgpu-core track/mod.rs:631).
 	// Skia Graphite pattern: batch-release after GPU completion.
-	pendingBindGroupRelease []*webgpu.BindGroup
+	pendingBindGroupRelease []hal.BindGroup
 
 	// Depth clip pipeline (GPU-CLIP-003a): fan-tessellated clip path rendered
 	// to depth buffer before content draws. Lazily created on first use.
@@ -625,7 +625,7 @@ type GPURenderSession struct {
 	stencilUniSlab       hal.Buffer
 	stencilUniSlabCap    uint64 // bytes
 	stencilUniSlots      int    // slots currently addressed in slab
-	stencilUniBindGroups []*webgpu.BindGroup
+	stencilUniBindGroups []hal.BindGroup
 	stencilUniScratch    []byte
 	stencilUniLast       [][]byte // last packed bytes per slot (any-changed check)
 	stencilUniBGEpoch    uint64   // sr.pipelineEpoch when slab BGs were built
@@ -681,23 +681,23 @@ type GPURenderSession struct {
 	// RRect clip bind group infrastructure. All 5 pipelines share the same
 	// clip bind group layout at @group(1) @binding(0). A no-clip bind group
 	// (clip_enabled=0.0) is created once and reused for groups without RRect clip.
-	clipBindLayout   *webgpu.BindGroupLayout
+	clipBindLayout   hal.BindGroupLayout
 	noClipUniformBuf hal.Buffer
-	noClipBindGroup  *webgpu.BindGroup
+	noClipBindGroup  hal.BindGroup
 
 	// L.06 cover-inline R8 mask (@group(2) on convex + SDF).
-	maskBindLayout  *webgpu.BindGroupLayout // session-owned, shared by pipelines
+	maskBindLayout  hal.BindGroupLayout // session-owned, shared by pipelines
 	noMaskTex       hal.Texture
 	noMaskView      hal.TextureView
 	maskSampler     hal.Sampler
 	noMaskUniform   hal.Buffer
-	noMaskBindGroup *webgpu.BindGroup
-	maskUniform     hal.Buffer        // enabled=1
-	maskBindGroup   *webgpu.BindGroup // frame-active (noMask or real)
-	maskBGOwned     bool              // true when maskBindGroup is not noMask
+	noMaskBindGroup hal.BindGroup
+	maskUniform     hal.Buffer    // enabled=1
+	maskBindGroup   hal.BindGroup // frame-active (noMask or real)
+	maskBGOwned     bool          // true when maskBindGroup is not noMask
 	// Pool of per-group clip uniform buffers and bind groups.
 	clipUniformPool []hal.Buffer
-	clipBindPool    []*webgpu.BindGroup
+	clipBindPool    []hal.BindGroup
 	clipPoolUsed    int // number of pool entries used in current frame
 }
 
@@ -1440,7 +1440,7 @@ func (s *GPURenderSession) RenderFrame(
 // groupResources holds pre-built GPU resources for a single ScissorGroup.
 type groupResources struct {
 	scissorRect   *[4]uint32
-	clipBindGroup *webgpu.BindGroup // @group(1) bind group for RRect clip (or no-clip)
+	clipBindGroup hal.BindGroup // @group(1) bind group for RRect clip (or no-clip)
 	depthClipRes  *DepthClipResources
 	hasDepthClip  bool
 	sdfRes        *sdfFrameResources
@@ -1928,7 +1928,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 func (s *GPURenderSession) releasePendingBindGroups() {
 	for _, bg := range s.pendingBindGroupRelease {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 		}
 	}
 	s.pendingBindGroupRelease = s.pendingBindGroupRelease[:0]
@@ -2108,7 +2108,7 @@ func (s *GPURenderSession) drainQueue() {
 
 func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,funlen,gocognit // sequential resource cleanup across 6 tiers
 	if s.sdfBindGroup != nil {
-		s.sdfBindGroup.Release()
+		s.sdfBindGroup.Destroy()
 		s.sdfBindGroup = nil
 	}
 	if s.sdfUniformBuf != nil {
@@ -2121,7 +2121,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.sdfVertBufCap = 0
 	}
 	if s.convexBindGroup != nil {
-		s.convexBindGroup.Release()
+		s.convexBindGroup.Destroy()
 		s.convexBindGroup = nil
 	}
 	if s.convexUniformBuf != nil {
@@ -2153,7 +2153,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	// Tier 3: Image per-draw pools.
 	for i, bg := range s.imageBindGroups {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 			s.imageBindGroups[i] = nil
 		}
 	}
@@ -2235,7 +2235,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	// Tier 4: Text per-batch pools.
 	for i, bg := range s.textBindGroups {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 			s.textBindGroups[i] = nil
 		}
 	}
@@ -2263,7 +2263,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	// Tier 6: Glyph mask text per-batch pools.
 	for i, bg := range s.glyphMaskBindGroups {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 			s.glyphMaskBindGroups[i] = nil
 		}
 	}
@@ -2303,7 +2303,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	// Stencil fill uniform slab (session-owned; entries never hold it).
 	for i, bg := range s.stencilUniBindGroups {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 			s.stencilUniBindGroups[i] = nil
 		}
 	}
@@ -2327,7 +2327,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	// Clip bind group pool.
 	for i, bg := range s.clipBindPool {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 			s.clipBindPool[i] = nil
 		}
 	}
@@ -2340,7 +2340,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.clipUniformPool = nil
 	s.clipPoolUsed = 0
 	if s.noClipBindGroup != nil {
-		s.noClipBindGroup.Release()
+		s.noClipBindGroup.Destroy()
 		s.noClipBindGroup = nil
 	}
 	if s.noClipUniformBuf != nil {
@@ -2349,7 +2349,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	}
 	s.releaseMaskResources()
 	if s.clipBindLayout != nil {
-		s.clipBindLayout.Release()
+		s.clipBindLayout.Destroy()
 		s.clipBindLayout = nil
 	}
 }
@@ -2358,7 +2358,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 type sdfFrameResources struct {
 	vertBuf     hal.Buffer
 	uniformBuf  hal.Buffer
-	bindGroup   *webgpu.BindGroup
+	bindGroup   hal.BindGroup
 	vertCount   uint32
 	firstVertex uint32 // offset into shared vertex buffer (for scissor group sub-ranges)
 }
@@ -2615,7 +2615,7 @@ func (s *GPURenderSession) ensureClipBindLayout() error {
 // getClipBindGroup returns a bind group for the given ClipParams. If params
 // is nil, returns the shared no-clip bind group. Otherwise, allocates from
 // a pool of per-frame clip uniform buffers.
-func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGroup, error) {
+func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (hal.BindGroup, error) {
 	if params == nil {
 		return s.noClipBindGroup, nil
 	}
@@ -2779,7 +2779,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		bg.Release()
+		bg.Destroy()
 		ubuf.Destroy()
 		samp.Destroy()
 		view.Destroy()
@@ -2788,7 +2788,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	}
 	if err := s.queue.WriteBuffer(ubufOn, 0, uOn.Bytes()); err != nil {
 		ubufOn.Destroy()
-		bg.Release()
+		bg.Destroy()
 		ubuf.Destroy()
 		samp.Destroy()
 		view.Destroy()
@@ -2815,7 +2815,7 @@ func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error {
 	}
 	// Drop previous owned active BG (not the shared noMask one).
 	if s.maskBGOwned && s.maskBindGroup != nil && s.maskBindGroup != s.noMaskBindGroup {
-		s.maskBindGroup.Release()
+		s.maskBindGroup.Destroy()
 	}
 	s.maskBindGroup = s.noMaskBindGroup
 	s.maskBGOwned = false
@@ -2848,7 +2848,7 @@ func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error {
 	return nil
 }
 
-func (s *GPURenderSession) frameMaskBindGroup() *webgpu.BindGroup {
+func (s *GPURenderSession) frameMaskBindGroup() hal.BindGroup {
 	if s.maskBindGroup != nil {
 		return s.maskBindGroup
 	}
@@ -2857,16 +2857,16 @@ func (s *GPURenderSession) frameMaskBindGroup() *webgpu.BindGroup {
 
 func (s *GPURenderSession) releaseMaskResources() {
 	if s.maskBGOwned && s.maskBindGroup != nil && s.maskBindGroup != s.noMaskBindGroup {
-		s.maskBindGroup.Release()
+		s.maskBindGroup.Destroy()
 	}
 	s.maskBindGroup = nil
 	s.maskBGOwned = false
 	if s.maskBindLayout != nil {
-		s.maskBindLayout.Release()
+		s.maskBindLayout.Destroy()
 		s.maskBindLayout = nil
 	}
 	if s.noMaskBindGroup != nil {
-		s.noMaskBindGroup.Release()
+		s.noMaskBindGroup.Destroy()
 		s.noMaskBindGroup = nil
 	}
 	if s.noMaskUniform != nil {
@@ -2891,7 +2891,7 @@ func (s *GPURenderSession) releaseMaskResources() {
 	}
 }
 
-func (s *GPURenderSession) ClipBindLayout() *webgpu.BindGroupLayout {
+func (s *GPURenderSession) ClipBindLayout() hal.BindGroupLayout {
 	return s.clipBindLayout
 }
 
@@ -2919,7 +2919,7 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 
 	if s.sdfVertBuf == nil || s.sdfVertBufCap < vertSize {
 		if s.sdfBindGroup != nil {
-			s.sdfBindGroup.Release()
+			s.sdfBindGroup.Destroy()
 			s.sdfBindGroup = nil
 		}
 		if s.sdfVertBuf != nil {
@@ -2961,7 +2961,7 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 		s.sdfUniformBuf = buf
 		// Bind group must be recreated with the new uniform buffer.
 		if s.sdfBindGroup != nil {
-			s.sdfBindGroup.Release()
+			s.sdfBindGroup.Destroy()
 			s.sdfBindGroup = nil
 		}
 		needSDFUniform = true
@@ -3098,7 +3098,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		}
 		s.convexUniformBuf = buf
 		if s.convexBindGroup != nil {
-			s.convexBindGroup.Release()
+			s.convexBindGroup.Destroy()
 			s.convexBindGroup = nil
 		}
 		needUniform = true
@@ -3742,7 +3742,7 @@ func (s *GPURenderSession) ensureTextBatchPools(n int) {
 func (s *GPURenderSession) invalidateTextBindGroups() {
 	for i, bg := range s.textBindGroups {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 			s.textBindGroups[i] = nil
 		}
 	}
@@ -4272,13 +4272,13 @@ func indexBytesFingerprint(b []byte) uint64 {
 
 func (c *gpuTexBGSlotCache) getOrCreate(
 	device *webgpu.Device,
-	layout *webgpu.BindGroupLayout,
+	layout hal.BindGroupLayout,
 	uniform hal.Buffer,
 	uniformOffset uint64,
 	texView hal.TextureView,
 	sampler hal.Sampler,
-	pendingRelease *[]*webgpu.BindGroup,
-) (*webgpu.BindGroup, error) {
+	pendingRelease *[]hal.BindGroup,
+) (hal.BindGroup, error) {
 	if c == nil || device == nil || layout == nil || uniform == nil || texView == nil || sampler == nil {
 		return nil, fmt.Errorf("gpu tex bg: nil arg")
 	}
@@ -4316,7 +4316,7 @@ func (c *gpuTexBGSlotCache) releaseAll() {
 	}
 	for i := range c.entries {
 		if c.entries[i].bg != nil {
-			c.entries[i].bg.Release()
+			c.entries[i].bg.Destroy()
 			c.entries[i].bg = nil
 		}
 		c.entries[i].view = nil
@@ -5816,7 +5816,7 @@ func (s *GPURenderSession) isBlitOnly(grpRes []groupResources, baseLayerRes *ima
 
 // blitClipBG returns the bind group a compositor blit must bind at @group(1):
 // the group's RRect clip when present, else the shared no-clip group.
-func (s *GPURenderSession) blitClipBG(gr *groupResources) *webgpu.BindGroup {
+func (s *GPURenderSession) blitClipBG(gr *groupResources) hal.BindGroup {
 	if gr != nil && gr.clipBindGroup != nil {
 		return gr.clipBindGroup
 	}

@@ -86,7 +86,7 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		},
 	})
 	if err != nil {
-		shader.Release()
+		shader.Destroy()
 		return err
 	}
 
@@ -97,8 +97,8 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		},
 	})
 	if err != nil {
-		bgl0.Release()
-		shader.Release()
+		bgl0.Destroy()
+		shader.Destroy()
 		return err
 	}
 
@@ -140,9 +140,9 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		Primitive:   prim,
 	})
 	if err != nil {
-		pipeLay.Release()
-		bgl0.Release()
-		shader.Release()
+		pipeLay.Destroy()
+		bgl0.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("textured cover pipe: %w", err)
 	}
 
@@ -154,10 +154,10 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		MipmapFilter: types.MipmapFilterModeNearest, Anisotropy: 1,
 	})
 	if err != nil {
-		pipe.Release()
-		pipeLay.Release()
-		bgl0.Release()
-		shader.Release()
+		pipe.Destroy()
+		pipeLay.Destroy()
+		bgl0.Destroy()
+		shader.Destroy()
 		return err
 	}
 
@@ -201,7 +201,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 
 	// Release previous textured resources.
 	if b.texturedCoverBG != nil {
-		b.texturedCoverBG.Release()
+		b.texturedCoverBG.Destroy()
 		b.texturedCoverBG = nil
 	}
 	if b.rampView != nil {
@@ -259,7 +259,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 		}
 		// Solid coverBindGroup referenced old uni — invalidate.
 		if b.coverBindGroup != nil {
-			b.coverBindGroup.Release()
+			b.coverBindGroup.Destroy()
 			b.coverBindGroup = nil
 		}
 		ub, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
@@ -432,7 +432,7 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		},
 	})
 	if err != nil {
-		shader.Release()
+		shader.Destroy()
 		return err
 	}
 	pipeLay, err := sr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
@@ -440,8 +440,8 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		BindGroupLayouts: []hal.BindGroupLayout{bgl0, clipLay, maskLay},
 	})
 	if err != nil {
-		bgl0.Release()
-		shader.Release()
+		bgl0.Destroy()
+		shader.Destroy()
 		return err
 	}
 	vbl := []types.VertexBufferLayout{{
@@ -481,9 +481,9 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		Primitive:   prim,
 	})
 	if err != nil {
-		pipeLay.Release()
-		bgl0.Release()
-		shader.Release()
+		pipeLay.Destroy()
+		bgl0.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("pattern cover pipe: %w", err)
 	}
 	samp, err := sr.device.CreateSampler(&hal.SamplerDescriptor{
@@ -494,10 +494,10 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		MipmapFilter: types.MipmapFilterModeNearest, Anisotropy: 1,
 	})
 	if err != nil {
-		pipe.Release()
-		pipeLay.Release()
-		bgl0.Release()
-		shader.Release()
+		pipe.Destroy()
+		pipeLay.Destroy()
+		bgl0.Destroy()
+		shader.Destroy()
 		return err
 	}
 	sr.patternCoverShader = shader
@@ -542,7 +542,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 		return err
 	}
 	if b.texturedCoverBG != nil {
-		b.texturedCoverBG.Release()
+		b.texturedCoverBG.Destroy()
 		b.texturedCoverBG = nil
 	}
 	if b.rampView != nil {
@@ -601,7 +601,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 			b.coverUniBuf = nil
 		}
 		if b.coverBindGroup != nil {
-			b.coverBindGroup.Release()
+			b.coverBindGroup.Destroy()
 			b.coverBindGroup = nil
 		}
 		ub, err := sr.device.CreateBuffer(&hal.BufferDescriptor{

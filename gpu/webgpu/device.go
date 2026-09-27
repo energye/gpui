@@ -162,7 +162,7 @@ func (d *Device) CreateSampler(desc *hal.SamplerDescriptor) (hal.Sampler, error)
 }
 
 // CreateShaderModule creates a shader module.
-func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (*ShaderModule, error) {
+func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (hal.ShaderModule, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (*ShaderMo
 }
 
 // CreateBindGroupLayout creates a bind group layout.
-func (d *Device) CreateBindGroupLayout(desc *hal.BindGroupLayoutDescriptor) (*BindGroupLayout, error) {
+func (d *Device) CreateBindGroupLayout(desc *hal.BindGroupLayoutDescriptor) (hal.BindGroupLayout, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func (d *Device) CreateBindGroupLayout(desc *hal.BindGroupLayoutDescriptor) (*Bi
 }
 
 // CreatePipelineLayout creates a pipeline layout.
-func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (*PipelineLayout, error) {
+func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (hal.PipelineLayout, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (*Pipe
 // CreateBindGroup creates a bind group.
 // Takes hal.BindGroupDescriptor (片5, hal 以 webgpu 扁平形为准);
 // internal unpack of hal interfaces to concrete handles.
-func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (*BindGroup, error) {
+func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (hal.BindGroup, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -297,7 +297,7 @@ func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (*BindGroup, err
 }
 
 // CreateRenderPipeline creates a render pipeline.
-func (d *Device) CreateRenderPipeline(desc *hal.RenderPipelineDescriptor) (*RenderPipeline, error) {
+func (d *Device) CreateRenderPipeline(desc *hal.RenderPipelineDescriptor) (hal.RenderPipeline, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (d *Device) CreateRenderPipeline(desc *hal.RenderPipelineDescriptor) (*Rend
 }
 
 // CreateComputePipeline creates a compute pipeline.
-func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (*ComputePipeline, error) {
+func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (hal.ComputePipeline, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}

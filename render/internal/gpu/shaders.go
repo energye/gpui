@@ -51,10 +51,10 @@ type ShaderModules struct {
 
 	// Native modules are populated when CompileShaders is called with a real
 	// WebGPU device.
-	BlitModule      *webgpu.ShaderModule
-	BlendModule     *webgpu.ShaderModule
-	StripModule     *webgpu.ShaderModule
-	CompositeModule *webgpu.ShaderModule
+	BlitModule      hal.ShaderModule
+	BlendModule     hal.ShaderModule
+	StripModule     hal.ShaderModule
+	CompositeModule hal.ShaderModule
 }
 
 // IsValid returns true if all shader modules are initialized.
@@ -90,19 +90,19 @@ func (s *ShaderModules) Release() {
 		return
 	}
 	if s.BlitModule != nil {
-		s.BlitModule.Release()
+		s.BlitModule.Destroy()
 		s.BlitModule = nil
 	}
 	if s.BlendModule != nil {
-		s.BlendModule.Release()
+		s.BlendModule.Destroy()
 		s.BlendModule = nil
 	}
 	if s.StripModule != nil {
-		s.StripModule.Release()
+		s.StripModule.Destroy()
 		s.StripModule = nil
 	}
 	if s.CompositeModule != nil {
-		s.CompositeModule.Release()
+		s.CompositeModule.Destroy()
 		s.CompositeModule = nil
 	}
 	s.Blit = InvalidShaderModule

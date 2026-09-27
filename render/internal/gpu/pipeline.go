@@ -30,33 +30,33 @@ type PipelineCache struct {
 	// Cached render pipelines
 	blitPipeline            StubPipelineID
 	compositePipeline       StubPipelineID
-	nativeBlitPipeline      *webgpu.RenderPipeline
-	nativeCompositePipeline *webgpu.RenderPipeline
+	nativeBlitPipeline      hal.RenderPipeline
+	nativeCompositePipeline hal.RenderPipeline
 
 	// Blend mode pipelines (one per blend mode for now)
 	blendPipelines       map[scene.BlendMode]StubPipelineID
-	nativeBlendPipelines map[scene.BlendMode]*webgpu.RenderPipeline
+	nativeBlendPipelines map[scene.BlendMode]hal.RenderPipeline
 
 	// Compute pipeline for strip rasterization
 	stripPipeline       StubComputePipelineID
-	nativeStripPipeline *webgpu.ComputePipeline
+	nativeStripPipeline hal.ComputePipeline
 
 	// Bind group layouts
 	blitLayout                  StubBindGroupLayoutID
 	blendLayout                 StubBindGroupLayoutID
 	stripLayout                 StubBindGroupLayoutID
 	compositeLayout             StubBindGroupLayoutID
-	nativeBlitLayout            *webgpu.BindGroupLayout
-	nativeBlendLayout           *webgpu.BindGroupLayout
-	nativeStripLayout           *webgpu.BindGroupLayout
-	nativeCompositeLayout       *webgpu.BindGroupLayout
-	nativeCompositeParamsLayout *webgpu.BindGroupLayout
+	nativeBlitLayout            hal.BindGroupLayout
+	nativeBlendLayout           hal.BindGroupLayout
+	nativeStripLayout           hal.BindGroupLayout
+	nativeCompositeLayout       hal.BindGroupLayout
+	nativeCompositeParamsLayout hal.BindGroupLayout
 
 	// Pipeline layouts and shared resources.
-	blitPipelineLayout      *webgpu.PipelineLayout
-	blendPipelineLayout     *webgpu.PipelineLayout
-	stripPipelineLayout     *webgpu.PipelineLayout
-	compositePipelineLayout *webgpu.PipelineLayout
+	blitPipelineLayout      hal.PipelineLayout
+	blendPipelineLayout     hal.PipelineLayout
+	stripPipelineLayout     hal.PipelineLayout
+	compositePipelineLayout hal.PipelineLayout
 	defaultSampler          hal.Sampler
 
 	// State
@@ -92,7 +92,7 @@ func NewPipelineCache(device *webgpu.Device, shaders *ShaderModules) (*PipelineC
 		device:               device,
 		shaders:              shaders,
 		blendPipelines:       make(map[scene.BlendMode]StubPipelineID),
-		nativeBlendPipelines: make(map[scene.BlendMode]*webgpu.RenderPipeline),
+		nativeBlendPipelines: make(map[scene.BlendMode]hal.RenderPipeline),
 	}
 
 	// Create base pipelines
@@ -405,28 +405,28 @@ func (pc *PipelineCache) GetCompositePipeline() StubPipelineID {
 }
 
 // NativeBlitPipeline returns the WebGPU blit pipeline for runtime rendering.
-func (pc *PipelineCache) NativeBlitPipeline() *webgpu.RenderPipeline {
+func (pc *PipelineCache) NativeBlitPipeline() hal.RenderPipeline {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
 	return pc.nativeBlitPipeline
 }
 
 // NativeBlendPipeline returns the WebGPU blend pipeline for the specified mode.
-func (pc *PipelineCache) NativeBlendPipeline(mode scene.BlendMode) *webgpu.RenderPipeline {
+func (pc *PipelineCache) NativeBlendPipeline(mode scene.BlendMode) hal.RenderPipeline {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
 	return pc.nativeBlendPipelines[mode]
 }
 
 // NativeStripPipeline returns the WebGPU strip compute pipeline.
-func (pc *PipelineCache) NativeStripPipeline() *webgpu.ComputePipeline {
+func (pc *PipelineCache) NativeStripPipeline() hal.ComputePipeline {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
 	return pc.nativeStripPipeline
 }
 
 // NativeCompositePipeline returns the WebGPU composite render pipeline.
-func (pc *PipelineCache) NativeCompositePipeline() *webgpu.RenderPipeline {
+func (pc *PipelineCache) NativeCompositePipeline() hal.RenderPipeline {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
 	return pc.nativeCompositePipeline
@@ -478,12 +478,12 @@ func (pc *PipelineCache) Close() {
 	releaseRenderPipeline(&pc.nativeCompositePipeline)
 	for mode, p := range pc.nativeBlendPipelines {
 		if p != nil {
-			p.Release()
+			p.Destroy()
 		}
 		delete(pc.nativeBlendPipelines, mode)
 	}
 	if pc.nativeStripPipeline != nil {
-		pc.nativeStripPipeline.Release()
+		pc.nativeStripPipeline.Destroy()
 		pc.nativeStripPipeline = nil
 	}
 	releaseBindGroupLayout(&pc.nativeBlitLayout)
@@ -649,23 +649,23 @@ func defaultColorTarget() types.ColorTargetState {
 	}
 }
 
-func releaseRenderPipeline(p **webgpu.RenderPipeline) {
+func releaseRenderPipeline(p *hal.RenderPipeline) {
 	if *p != nil {
-		(*p).Release()
+		(*p).Destroy()
 		*p = nil
 	}
 }
 
-func releaseBindGroupLayout(l **webgpu.BindGroupLayout) {
+func releaseBindGroupLayout(l *hal.BindGroupLayout) {
 	if *l != nil {
-		(*l).Release()
+		(*l).Destroy()
 		*l = nil
 	}
 }
 
-func releasePipelineLayout(l **webgpu.PipelineLayout) {
+func releasePipelineLayout(l *hal.PipelineLayout) {
 	if *l != nil {
-		(*l).Release()
+		(*l).Destroy()
 		*l = nil
 	}
 }

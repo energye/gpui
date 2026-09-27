@@ -86,18 +86,18 @@ type DepthClipPipeline struct {
 
 	// shader is the vertex/fragment shader for the cover-to-depth pass.
 	// Reuses the same depth_clip.wgsl (vertex: NDC transform, Z=0.0; fragment: no-op).
-	shader *webgpu.ShaderModule
+	shader hal.ShaderModule
 
 	// uniformBGL is the bind group layout for the uniform buffer (@group(0) @binding(0)).
-	uniformBGL *webgpu.BindGroupLayout
+	uniformBGL hal.BindGroupLayout
 
 	// pipeLayout is the pipeline layout for the stencil fill phase (uniform only).
-	pipeLayout *webgpu.PipelineLayout
+	pipeLayout hal.PipelineLayout
 
 	// stencilFillPipeline performs Phase 1: fan triangles → stencil buffer.
 	// Non-zero winding: front IncrementWrap, back DecrementWrap.
 	// DepthWriteEnabled=false, ColorWriteMask=None.
-	stencilFillPipeline *webgpu.RenderPipeline
+	stencilFillPipeline hal.RenderPipeline
 
 	// stencilExpandPipeline (sampleCount==1 only) performs the geometric
 	// stencil expansion half of GPU-CLIP-003a-AA: it paints the analytic-AA
@@ -107,16 +107,16 @@ type DepthClipPipeline struct {
 	// edge is tighter than the mask fringe: boundary pixels are rejected by
 	// the depth test before the mask can fade them, leaving aliased edges.
 	// DepthWriteEnabled=false, ColorWriteMask=None.
-	stencilExpandPipeline *webgpu.RenderPipeline
+	stencilExpandPipeline hal.RenderPipeline
 
 	// depthCoverPipeline performs Phase 2: cover quad → depth write.
 	// StencilCompare=NotEqual(0), DepthCompare=Always, DepthWriteEnabled=true.
 	// StencilPassOp=Zero (cleanup for Tier 2b). ColorWriteMask=None.
-	depthCoverPipeline *webgpu.RenderPipeline
+	depthCoverPipeline hal.RenderPipeline
 
 	tessellator  *FanTessellator
 	uniformBuf   hal.Buffer
-	bindGroup    *webgpu.BindGroup
+	bindGroup    hal.BindGroup
 	vertBuf      hal.Buffer
 	vertBufCap   uint64
 	coverBuf     hal.Buffer // vertex buffer for cover quad (6 vertices)
@@ -378,12 +378,12 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 // Contains both the fan tessellation vertices (Phase 1: stencil fill) and
 // the cover quad vertices (Phase 2: depth write).
 type DepthClipResources struct {
-	vertBuf    hal.Buffer        // fan triangle vertices for stencil fill
-	coverBuf   hal.Buffer        // bounding box quad vertices for cover pass
-	bindGroup  *webgpu.BindGroup // uniform bind group (viewport)
-	vertCount  uint32            // number of fan vertices (Phase 1)
-	coverCount uint32            // number of cover quad vertices (Phase 2, always 6)
-	owned      bool              // if true, vertBuf and coverBuf are per-call (must be released)
+	vertBuf    hal.Buffer    // fan triangle vertices for stencil fill
+	coverBuf   hal.Buffer    // bounding box quad vertices for cover pass
+	bindGroup  hal.BindGroup // uniform bind group (viewport)
+	vertCount  uint32        // number of fan vertices (Phase 1)
+	coverCount uint32        // number of cover quad vertices (Phase 2, always 6)
+	owned      bool          // if true, vertBuf and coverBuf are per-call (must be released)
 
 	// maskTex / maskView / maskBG hold the analytic-AA coverage mask for the
 	// clip path when rendering at sampleCount==1 (Skia kCoverage / Flutter
@@ -396,7 +396,7 @@ type DepthClipResources struct {
 	// coverage through the depth test).
 	maskTex  hal.Texture
 	maskView hal.TextureView
-	maskBG   *webgpu.BindGroup
+	maskBG   hal.BindGroup
 
 	// bandBuf / bandCount hold the analytic-AA exterior fringe mesh
 	// (stride-12 x,y,d triples) for the stencil-expansion pass at
@@ -426,7 +426,7 @@ func (r *DepthClipResources) Release() {
 		r.bandCount = 0
 	}
 	if r.maskBG != nil {
-		r.maskBG.Release()
+		r.maskBG.Destroy()
 		r.maskBG = nil
 	}
 	if r.maskView != nil {
@@ -520,7 +520,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 	res *DepthClipResources,
 	clipPath *render.Path,
 	w, h uint32,
-	maskLayout *webgpu.BindGroupLayout,
+	maskLayout hal.BindGroupLayout,
 	sampler hal.Sampler,
 	uniformOn hal.Buffer,
 ) error {
@@ -594,7 +594,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 
 	// Replace previous mask (idempotent re-call).
 	if res.maskBG != nil {
-		res.maskBG.Release()
+		res.maskBG.Destroy()
 	}
 	if res.maskView != nil {
 		res.maskView.Destroy()
@@ -899,7 +899,7 @@ func (p *DepthClipPipeline) RecordDraw(rp *webgpu.RenderPassEncoder, res *DepthC
 // Destroy releases all GPU resources held by the depth clip pipeline.
 func (p *DepthClipPipeline) Destroy() {
 	if p.bindGroup != nil {
-		p.bindGroup.Release()
+		p.bindGroup.Destroy()
 		p.bindGroup = nil
 	}
 	if p.uniformBuf != nil {
@@ -917,27 +917,27 @@ func (p *DepthClipPipeline) Destroy() {
 		p.vertBufCap = 0
 	}
 	if p.depthCoverPipeline != nil {
-		p.depthCoverPipeline.Release()
+		p.depthCoverPipeline.Destroy()
 		p.depthCoverPipeline = nil
 	}
 	if p.stencilFillPipeline != nil {
-		p.stencilFillPipeline.Release()
+		p.stencilFillPipeline.Destroy()
 		p.stencilFillPipeline = nil
 	}
 	if p.stencilExpandPipeline != nil {
-		p.stencilExpandPipeline.Release()
+		p.stencilExpandPipeline.Destroy()
 		p.stencilExpandPipeline = nil
 	}
 	if p.pipeLayout != nil {
-		p.pipeLayout.Release()
+		p.pipeLayout.Destroy()
 		p.pipeLayout = nil
 	}
 	if p.uniformBGL != nil {
-		p.uniformBGL.Release()
+		p.uniformBGL.Destroy()
 		p.uniformBGL = nil
 	}
 	if p.shader != nil {
-		p.shader.Release()
+		p.shader.Destroy()
 		p.shader = nil
 	}
 }

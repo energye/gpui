@@ -14,9 +14,9 @@ func TestPassBindLedger_SkipIdenticalInvalidatesOnChange(t *testing.T) {
 	var l PassBindLedger
 	rp := &webgpu.RenderPassEncoder{}
 	rp2 := &webgpu.RenderPassEncoder{}
-	pipe := &webgpu.RenderPipeline{}
-	pipe2 := &webgpu.RenderPipeline{}
-	bg0 := &webgpu.BindGroup{}
+	pipe := hal.RenderPipeline(&noop.Buffer{})
+	pipe2 := hal.RenderPipeline(&noop.Buffer{})
+	bg0 := hal.BindGroup(&noop.Buffer{})
 	vert := hal.Buffer(&noop.Buffer{})
 
 	if l.skipBind(rp, pipe, bg0, nil, nil, vert) {

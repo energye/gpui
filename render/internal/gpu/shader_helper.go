@@ -33,7 +33,7 @@ func CompileShaderToSPIRV(wgslSource string) ([]uint32, error) {
 }
 
 // CreateShaderModule creates a shader module from WGSL source.
-func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) (*webgpu.ShaderModule, error) {
+func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) (hal.ShaderModule, error) {
 	return device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: label,
 		WGSL:  wgslSource,
@@ -44,10 +44,10 @@ func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) 
 // GPU rasterizers; released via DestroyGPUResources.
 type GPUResources struct {
 	Device         *webgpu.Device
-	ShaderModule   *webgpu.ShaderModule
-	PipelineLayout *webgpu.PipelineLayout
-	BindLayouts    []*webgpu.BindGroupLayout
-	Pipelines      []*webgpu.ComputePipeline
+	ShaderModule   hal.ShaderModule
+	PipelineLayout hal.PipelineLayout
+	BindLayouts    []hal.BindGroupLayout
+	Pipelines      []hal.ComputePipeline
 }
 
 // Destroy cleans up all GPU resources in the correct order.
@@ -59,24 +59,24 @@ func (r *GPUResources) Destroy() {
 	// Destroy pipelines first
 	for _, p := range r.Pipelines {
 		if p != nil {
-			p.Release()
+			p.Destroy()
 		}
 	}
 
 	// Destroy pipeline layout
 	if r.PipelineLayout != nil {
-		r.PipelineLayout.Release()
+		r.PipelineLayout.Destroy()
 	}
 
 	// Destroy bind group layouts
 	for _, l := range r.BindLayouts {
 		if l != nil {
-			l.Release()
+			l.Destroy()
 		}
 	}
 
 	// Destroy shader module
 	if r.ShaderModule != nil {
-		r.ShaderModule.Release()
+		r.ShaderModule.Destroy()
 	}
 }

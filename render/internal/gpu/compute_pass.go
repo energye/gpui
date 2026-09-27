@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
@@ -90,7 +91,7 @@ type ComputePassEncoder struct {
 	// mu protects mutable state.
 	mu sync.Mutex
 
-	// gpuPass is the underlying WebGPU compute pass encoder.
+	// gpuPass is the underlying compute pass encoder.
 	gpuPass *webgpu.ComputePassEncoder
 
 	// encoder is the parent command encoder.
@@ -332,11 +333,10 @@ func (p *ComputePassEncoder) DispatchCount() uint32 {
 //   - Bind group layouts for resource bindings
 //   - Pipeline layout
 //
-// ComputePipeline is a placeholder type that will be expanded when
-// pipeline creation is implemented.
+// ComputePipeline wraps a hal compute pipeline with session-local bookkeeping.
 type ComputePipeline struct {
-	// gpuPipeline is the underlying WebGPU compute pipeline.
-	gpuPipeline *webgpu.ComputePipeline
+	// gpuPipeline is the underlying compute pipeline.
+	gpuPipeline hal.ComputePipeline
 
 	// id is a unique identifier for the pipeline.
 	id uint64
@@ -354,8 +354,8 @@ type ComputePipeline struct {
 	mu sync.RWMutex
 }
 
-// Raw returns the underlying WebGPU compute pipeline.
-func (p *ComputePipeline) Raw() *webgpu.ComputePipeline {
+// Raw returns the underlying compute pipeline.
+func (p *ComputePipeline) Raw() hal.ComputePipeline {
 	if p == nil {
 		return nil
 	}

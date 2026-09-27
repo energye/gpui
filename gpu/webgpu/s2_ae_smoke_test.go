@@ -238,7 +238,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("shader: %v", err)
 	}
-	defer shader.Release()
+	defer shader.Destroy()
 
 	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Vertex: hal.VertexState{Module: shader, EntryPoint: "vs_main"},
@@ -272,7 +272,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("pipeline: %v", err)
 	}
-	defer pipeline.Release()
+	defer pipeline.Destroy()
 
 	rt, err := device.CreateTexture(&hal.TextureDescriptor{
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},

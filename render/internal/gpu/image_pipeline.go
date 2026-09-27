@@ -125,34 +125,34 @@ type TexturedQuadPipeline struct {
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
-	shader        *webgpu.ShaderModule
-	uniformLayout *webgpu.BindGroupLayout
-	pipeLayout    *webgpu.PipelineLayout
+	shader        hal.ShaderModule
+	uniformLayout hal.BindGroupLayout
+	pipeLayout    hal.PipelineLayout
 
 	// Bicubic sampling shader (textured_quad_bicubic.wgsl) — 16-tap cubic
 	// convolution, same bind group layout as the linear shader.
-	bicubicShader *webgpu.ShaderModule
+	bicubicShader hal.ShaderModule
 
 	// Session-compatible pipeline variant with depth/stencil state.
 	// Used when images participate in a unified render pass that includes
 	// a stencil attachment. Stencil test is Always/Keep (images do not
 	// interact with stencil).
-	pipelineWithStencil *webgpu.RenderPipeline
+	pipelineWithStencil hal.RenderPipeline
 
 	// Depth-clipped pipeline variant (GPU-CLIP-003a). Same as pipelineWithStencil
 	// but with DepthCompare=GreaterEqual to test against the depth clip buffer.
-	pipelineWithDepthClip *webgpu.RenderPipeline
+	pipelineWithDepthClip hal.RenderPipeline
 
 	// Bicubic sampling variants (I.03): stencil + depth-clip, same depth/stencil
 	// state as their linear counterparts, different fragment shader.
-	pipelineWithBicubic          *webgpu.RenderPipeline
-	pipelineWithBicubicDepthClip *webgpu.RenderPipeline
+	pipelineWithBicubic          hal.RenderPipeline
+	pipelineWithBicubicDepthClip hal.RenderPipeline
 
 	// Non-MSAA blit pipeline for compositor fast path (ADR-016).
 	// SampleCount=1, no depth/stencil — used when the frame contains
 	// only textured quads (base layer + overlays) with no vector shapes.
-	blitPipeline *webgpu.RenderPipeline
-	blitLayout   *webgpu.PipelineLayout // uniform group (+ @group(1) clip when wired)
+	blitPipeline hal.RenderPipeline
+	blitLayout   hal.PipelineLayout // uniform group (+ @group(1) clip when wired)
 	// blitLayoutHasClip tracks whether blitLayout includes the @group(1)
 	// RRect clip layout, so a SetClipBindLayout after creation rebuilds it.
 	blitLayoutHasClip bool
@@ -170,7 +170,7 @@ type TexturedQuadPipeline struct {
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
-	clipBindLayout    *webgpu.BindGroupLayout
+	clipBindLayout    hal.BindGroupLayout
 	pipeLayoutHasClip bool
 }
 
@@ -185,7 +185,7 @@ func NewTexturedQuadPipeline(device *webgpu.Device, queue hal.Queue, sampleCount
 
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil.
-func (p *TexturedQuadPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
+func (p *TexturedQuadPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
 	p.clipBindLayout = layout
 }
 
@@ -360,7 +360,7 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 		Multisample:  multisampleState(p.sampleCount),
 	})
 	if err != nil {
-		p.pipelineWithBicubic.Release()
+		p.pipelineWithBicubic.Destroy()
 		p.pipelineWithBicubic = nil
 		return fmt.Errorf("create textured quad bicubic depth clip pipeline: %w", err)
 	}
@@ -370,7 +370,7 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 
 // pipelineForDraw returns the render pipeline for a draw call, honoring
 // bicubic sampling and the depth-clip variant (GPU-CLIP-003a).
-func (p *TexturedQuadPipeline) pipelineForDraw(dc imageDrawCall, useDepthClip bool) *webgpu.RenderPipeline {
+func (p *TexturedQuadPipeline) pipelineForDraw(dc imageDrawCall, useDepthClip bool) hal.RenderPipeline {
 	if dc.bicubic {
 		if useDepthClip && p.pipelineWithBicubicDepthClip != nil {
 			return p.pipelineWithBicubicDepthClip
@@ -399,11 +399,11 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 	// stale layout and pipeline so the blit path picks up (or drops) the
 	// @group(1) RRect clip group.
 	if p.blitPipeline != nil {
-		p.blitPipeline.Release()
+		p.blitPipeline.Destroy()
 		p.blitPipeline = nil
 	}
 	if p.blitLayout != nil {
-		p.blitLayout.Release()
+		p.blitLayout.Destroy()
 		p.blitLayout = nil
 	}
 
@@ -463,7 +463,7 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 // clipBG must be non-nil whenever the blit layout includes the @group(1)
 // RRect clip group (callers pass the group's clip bind group or the shared
 // no-clip one); it is ignored otherwise.
-func (p *TexturedQuadPipeline) RecordBlitDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG *webgpu.BindGroup) {
+func (p *TexturedQuadPipeline) RecordBlitDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup) {
 	if p.blitPipeline == nil || res == nil {
 		return
 	}
@@ -582,7 +582,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 // Each draw call renders one textured quad with its own bind group (texture + uniform).
 // When depthClipped is true (GPU-CLIP-003a), the depth-clipped pipeline
 // variant is used to test fragments against the depth clip buffer.
-func (p *TexturedQuadPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG *webgpu.BindGroup, depthClipped ...bool) {
+func (p *TexturedQuadPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
 	// Clear prior bind groups before pipeline switch (incompatible group-0 layouts).
 	clearPassBindGroups(rp)
@@ -590,7 +590,7 @@ func (p *TexturedQuadPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, res *im
 		rp.SetBindGroup(1, clipBG, nil)
 	}
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
-	var lastPipe *webgpu.RenderPipeline
+	var lastPipe hal.RenderPipeline
 	for _, dc := range res.drawCalls {
 		pipe := p.pipelineForDraw(dc, useDepthClip)
 		if pipe == nil {
@@ -616,28 +616,28 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 		return
 	}
 	if p.pipelineWithDepthClip != nil {
-		p.pipelineWithDepthClip.Release()
+		p.pipelineWithDepthClip.Destroy()
 		p.pipelineWithDepthClip = nil
 	}
 	if p.pipelineWithStencil != nil {
-		p.pipelineWithStencil.Release()
+		p.pipelineWithStencil.Destroy()
 		p.pipelineWithStencil = nil
 	}
 	if p.blitPipeline != nil {
-		p.blitPipeline.Release()
+		p.blitPipeline.Destroy()
 		p.blitPipeline = nil
 	}
 	if p.blitLayout != nil {
-		p.blitLayout.Release()
+		p.blitLayout.Destroy()
 		p.blitLayout = nil
 	}
 	if p.pipeLayout != nil {
-		p.pipeLayout.Release()
+		p.pipeLayout.Destroy()
 		p.pipeLayout = nil
 		p.pipeLayoutHasClip = false
 	}
 	if p.uniformLayout != nil {
-		p.uniformLayout.Release()
+		p.uniformLayout.Destroy()
 		p.uniformLayout = nil
 	}
 	if p.sampler != nil {
@@ -657,7 +657,7 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 		p.nearestSampler = nil
 	}
 	if p.shader != nil {
-		p.shader.Release()
+		p.shader.Destroy()
 		p.shader = nil
 	}
 }
@@ -673,7 +673,7 @@ type imageFrameResources struct {
 // S4.1: consecutive quads with identical texture/opacity/filter share one bind
 // group and one Draw(vertexCount) spanning vertexCount/6 quads.
 type imageDrawCall struct {
-	bindGroup   *webgpu.BindGroup
+	bindGroup   hal.BindGroup
 	firstVertex uint32
 	vertexCount uint32 // 0 means 6 (single quad, backward compatible)
 	bicubic     bool   // uses bicubic pipeline variant (I.03), no merge with linear

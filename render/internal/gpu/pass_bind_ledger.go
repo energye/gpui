@@ -22,10 +22,10 @@ type PassBindLedger struct {
 	seq   uint64
 	valid bool
 	rp    *webgpu.RenderPassEncoder
-	pipe  *webgpu.RenderPipeline
-	bg0   *webgpu.BindGroup
-	clip  *webgpu.BindGroup
-	mask  *webgpu.BindGroup
+	pipe  hal.RenderPipeline
+	bg0   hal.BindGroup
+	clip  hal.BindGroup
+	mask  hal.BindGroup
 	vert  hal.Buffer
 }
 
@@ -48,7 +48,7 @@ func (l *PassBindLedger) BeginPassLedger() {
 // skipBind reports whether the exact set is already bound on this pass.
 // The pass encoder must match: offscreen record passes share the session
 // ledger object, and a different rp means bindings were never set there.
-func (l *PassBindLedger) skipBind(rp *webgpu.RenderPassEncoder, pipe *webgpu.RenderPipeline, bg0, clip, mask *webgpu.BindGroup, vert hal.Buffer) bool {
+func (l *PassBindLedger) skipBind(rp *webgpu.RenderPassEncoder, pipe hal.RenderPipeline, bg0, clip, mask hal.BindGroup, vert hal.Buffer) bool {
 	if l == nil || rp == nil || pipe == nil || bg0 == nil || vert == nil {
 		return false
 	}
@@ -71,7 +71,7 @@ func (l *PassBindLedger) Invalidate() {
 }
 
 // noteBind records the bound set after a full-bind Draw.
-func (l *PassBindLedger) noteBind(rp *webgpu.RenderPassEncoder, pipe *webgpu.RenderPipeline, bg0, clip, mask *webgpu.BindGroup, vert hal.Buffer) {
+func (l *PassBindLedger) noteBind(rp *webgpu.RenderPassEncoder, pipe hal.RenderPipeline, bg0, clip, mask hal.BindGroup, vert hal.Buffer) {
 	if l == nil || rp == nil {
 		return
 	}

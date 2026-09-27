@@ -38,14 +38,14 @@ type StencilRenderer struct {
 	textures textureSet
 
 	// Shader modules for stencil-then-cover rendering.
-	stencilFillShader *webgpu.ShaderModule
-	coverShader       *webgpu.ShaderModule
-	aaCoverShader     *webgpu.ShaderModule
+	stencilFillShader hal.ShaderModule
+	coverShader       hal.ShaderModule
+	aaCoverShader     hal.ShaderModule
 
 	// Bind group layout and pipeline layouts shared by both passes.
-	uniformLayout     *webgpu.BindGroupLayout
-	stencilPipeLayout *webgpu.PipelineLayout
-	coverPipeLayout   *webgpu.PipelineLayout
+	uniformLayout     hal.BindGroupLayout
+	stencilPipeLayout hal.PipelineLayout
+	coverPipeLayout   hal.PipelineLayout
 	// pipelineEpoch increments on every destroyPipelines. Pooled bind groups
 	// that reference a released uniformLayout must be recreated when epochs differ
 	// (shared StencilRenderer can be torn down by another session's DetachExternalLayouts).
@@ -53,7 +53,7 @@ type StencilRenderer struct {
 
 	// maskBindLayout is @group(2) for L.06 R8 mask on the cover pass.
 	// Session-owned when set via SetMaskBindLayout.
-	maskBindLayout  *webgpu.BindGroupLayout
+	maskBindLayout  hal.BindGroupLayout
 	maskLayoutOwned bool
 
 	// Standalone RenderPath: disabled mask BG (1x1 white R8, mask_enabled=0).
@@ -62,15 +62,15 @@ type StencilRenderer struct {
 	noMaskView hal.TextureView
 	noMaskSamp hal.Sampler
 	noMaskUni  hal.Buffer
-	noMaskBG   *webgpu.BindGroup
+	noMaskBG   hal.BindGroup
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before createPipelines. Only the cover pipeline needs
 	// it (stencil fill has no color output, so clip is irrelevant there).
-	clipBindLayout *webgpu.BindGroupLayout
+	clipBindLayout hal.BindGroupLayout
 	// defaultClipBindLayout is owned by this renderer and used only when cover
 	// pipelines are created before the session supplies its layout.
-	defaultClipBindLayout *webgpu.BindGroupLayout
+	defaultClipBindLayout hal.BindGroupLayout
 	// coverPipeLayoutHasClip tracks whether coverPipeLayout was created with
 	// clipBindLayout included. If clip is set after creation, pipelines must
 	// be recreated to avoid SetBindGroup(1) crashes on AMD/NVIDIA.
@@ -78,53 +78,53 @@ type StencilRenderer struct {
 	// coverPipeMaskLayout is the exact @group(2) BGL object used when cover
 	// pipelines were created. Session must recreate when it injects a different
 	// mask layout; after session Destroy the pointer may be freed — DetachExternalLayouts.
-	coverPipeMaskLayout *webgpu.BindGroupLayout
+	coverPipeMaskLayout hal.BindGroupLayout
 
 	// Render pipelines.
 	// nonZeroStencilPipeline implements the non-zero winding fill rule:
 	// front faces increment stencil, back faces decrement.
-	nonZeroStencilPipeline *webgpu.RenderPipeline
+	nonZeroStencilPipeline hal.RenderPipeline
 
 	// evenOddStencilPipeline implements the even-odd fill rule:
 	// both front and back faces invert the stencil value.
-	evenOddStencilPipeline *webgpu.RenderPipeline
+	evenOddStencilPipeline hal.RenderPipeline
 
 	// nonZeroCoverPipeline draws the fill color where stencil != 0,
 	// then resets stencil to zero via PassOp. Shared by both fill rules.
-	nonZeroCoverPipeline *webgpu.RenderPipeline
+	nonZeroCoverPipeline hal.RenderPipeline
 
 	// Analytic-AA fringe pipelines (sampleCount==1 only, Skia-style fringe):
 	// aaBandPipeline — exterior half, SrcOver + stencil Equal(0), pre-cover.
 	// aaInnerBandPipeline — interior half, SrcOver + stencil NotEqual(0) with
 	// PassOp=Zero, also pre-cover (blends over the intact background, then
 	// clears its pixels' stencil so the binary cover skips them).
-	aaBandPipeline      *webgpu.RenderPipeline
-	aaInnerBandPipeline *webgpu.RenderPipeline
+	aaBandPipeline      hal.RenderPipeline
+	aaInnerBandPipeline hal.RenderPipeline
 
 	// coverBlendPipelines caches cover pipelines for non-SourceOver modes (B.02).
-	coverBlendPipelines map[render.BlendMode]*webgpu.RenderPipeline
+	coverBlendPipelines map[render.BlendMode]hal.RenderPipeline
 
 	// Session-inline textured cover (gradient ramp) — v3.7 GPU_FIRST.
-	texturedCoverShader   *webgpu.ShaderModule
-	texturedCoverBGL0     *webgpu.BindGroupLayout
-	texturedCoverPipeLay  *webgpu.PipelineLayout
-	texturedCoverPipeline *webgpu.RenderPipeline
+	texturedCoverShader   hal.ShaderModule
+	texturedCoverBGL0     hal.BindGroupLayout
+	texturedCoverPipeLay  hal.PipelineLayout
+	texturedCoverPipeline hal.RenderPipeline
 	texturedCoverSampler  hal.Sampler
 
 	// Session-inline pattern cover (ImagePattern) — v3.8 GPU_FIRST.
-	patternCoverShader   *webgpu.ShaderModule
-	patternCoverBGL0     *webgpu.BindGroupLayout
-	patternCoverPipeLay  *webgpu.PipelineLayout
-	patternCoverPipeline *webgpu.RenderPipeline
+	patternCoverShader   hal.ShaderModule
+	patternCoverBGL0     hal.BindGroupLayout
+	patternCoverPipeLay  hal.PipelineLayout
+	patternCoverPipeline hal.RenderPipeline
 	patternCoverSampler  hal.Sampler
 
 	// GPU-CLIP-003a: depth-clipped pipeline variants for depth-based clipping.
 	// These use DepthCompare=GreaterEqual to restrict stencil/cover rendering
 	// to only pixels where the depth clip geometry wrote Z=0.0.
 	// Created lazily by ensureDepthClipPipelines().
-	pipelineWithDepthClipNZ    *webgpu.RenderPipeline // non-zero stencil fill + depth test
-	pipelineWithDepthClipEO    *webgpu.RenderPipeline // even-odd stencil fill + depth test
-	pipelineWithDepthClipCover *webgpu.RenderPipeline // cover + depth test
+	pipelineWithDepthClipNZ    hal.RenderPipeline // non-zero stencil fill + depth test
+	pipelineWithDepthClipEO    hal.RenderPipeline // even-odd stencil fill + depth test
+	pipelineWithDepthClipCover hal.RenderPipeline // cover + depth test
 }
 
 // NewStencilRenderer creates a new StencilRenderer with the given device, queue,
@@ -141,12 +141,12 @@ func NewStencilRenderer(device *webgpu.Device, queue hal.Queue, sampleCount uint
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before createPipelines. The layout is owned by the
 // session and must not be destroyed by the renderer.
-func (sr *StencilRenderer) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
+func (sr *StencilRenderer) SetClipBindLayout(layout hal.BindGroupLayout) {
 	sr.clipBindLayout = layout
 }
 
 // SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
-func (sr *StencilRenderer) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
+func (sr *StencilRenderer) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	if sr.maskBindLayout != layout {
 		sr.releaseNoMask()
 	}
@@ -275,8 +275,8 @@ type stencilCoverBuffers struct {
 	coverVertBufCap  uint64
 	stencilUniBuf    hal.Buffer
 	coverUniBuf      hal.Buffer
-	stencilBindGroup *webgpu.BindGroup
-	coverBindGroup   *webgpu.BindGroup
+	stencilBindGroup hal.BindGroup
+	coverBindGroup   hal.BindGroup
 	// slabStencilBG marks stencilBindGroup as session-slab-owned (shared
 	// stencil fill uniform slab, one upload per frame). destroy() and the
 	// layout-epoch drop must NOT release it — the session owns and retires
@@ -333,7 +333,7 @@ type stencilCoverBuffers struct {
 	isPattern       bool
 	rampTex         hal.Texture
 	rampView        hal.TextureView
-	texturedCoverBG *webgpu.BindGroup
+	texturedCoverBG hal.BindGroup
 	coverUniCap     uint64 // capacity of coverUniBuf
 }
 
@@ -377,7 +377,7 @@ func (b *stencilCoverBuffers) bindInner(rp *webgpu.RenderPassEncoder) {
 // destroy releases all GPU resources.
 func (b *stencilCoverBuffers) destroy() {
 	if b.texturedCoverBG != nil {
-		b.texturedCoverBG.Release()
+		b.texturedCoverBG.Destroy()
 		b.texturedCoverBG = nil
 	}
 	if b.rampView != nil {
@@ -389,12 +389,12 @@ func (b *stencilCoverBuffers) destroy() {
 		b.rampTex = nil
 	}
 	if b.coverBindGroup != nil {
-		b.coverBindGroup.Release()
+		b.coverBindGroup.Destroy()
 	}
 	if b.stencilBindGroup != nil {
 		// Session-slab-owned (shared uniform slab): never release here.
 		if !b.slabStencilBG {
-			b.stencilBindGroup.Release()
+			b.stencilBindGroup.Destroy()
 		}
 		b.stencilBindGroup = nil
 	}
@@ -596,18 +596,18 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 	if b.layoutEpoch != sr.pipelineEpoch {
 		if b.stencilBindGroup != nil {
 			if !b.slabStencilBG {
-				b.stencilBindGroup.Release()
+				b.stencilBindGroup.Destroy()
 			}
 			b.stencilBindGroup = nil
 		}
 		b.slabStencilBG = false
 		b.clearSlabViews()
 		if b.coverBindGroup != nil {
-			b.coverBindGroup.Release()
+			b.coverBindGroup.Destroy()
 			b.coverBindGroup = nil
 		}
 		if b.texturedCoverBG != nil {
-			b.texturedCoverBG.Release()
+			b.texturedCoverBG.Destroy()
 			b.texturedCoverBG = nil
 		}
 		b.layoutEpoch = sr.pipelineEpoch
@@ -719,7 +719,7 @@ func (sr *StencilRenderer) updateVertexBuffer(buf *hal.Buffer, capBytes *uint64,
 // a bind group with a single buffer binding at group(0) binding(0).
 func (sr *StencilRenderer) createUniformAndBindGroup(
 	label string, data []byte, size uint64,
-) (hal.Buffer, *webgpu.BindGroup, error) {
+) (hal.Buffer, hal.BindGroup, error) {
 	buf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: label + "_uniform", Size: size,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -745,7 +745,7 @@ func (sr *StencilRenderer) createUniformAndBindGroup(
 	return buf, bg, nil
 }
 
-func (sr *StencilRenderer) updateUniformAndBindGroup(buf *hal.Buffer, bg **webgpu.BindGroup, label string, data []byte, size uint64) error {
+func (sr *StencilRenderer) updateUniformAndBindGroup(buf *hal.Buffer, bg *hal.BindGroup, label string, data []byte, size uint64) error {
 	if *buf == nil {
 		newBuf, newBG, err := sr.createUniformAndBindGroup(label, data, size)
 		if err != nil {
@@ -867,7 +867,7 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 
 func (sr *StencilRenderer) releaseNoMask() {
 	if sr.noMaskBG != nil {
-		sr.noMaskBG.Release()
+		sr.noMaskBG.Destroy()
 		sr.noMaskBG = nil
 	}
 	if sr.noMaskUni != nil {
@@ -950,7 +950,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 		encoder.DiscardEncoding()
 		return fmt.Errorf("create stencil no-clip bind group: %w", err)
 	}
-	defer noClipBG.Release()
+	defer noClipBG.Destroy()
 
 	// Select stencil pipeline based on fill rule.
 	stencilPipeline := sr.nonZeroStencilPipeline
@@ -1068,12 +1068,12 @@ func (sr *StencilRenderer) submitAndReadback(
 // When depthClipped is true (GPU-CLIP-003a), depth-clipped pipeline variants
 // are used. These add DepthCompare=GreaterEqual to restrict both stencil
 // fill and cover passes to pixels where the clip geometry wrote depth=0.0.
-func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG *webgpu.BindGroup, maskBG *webgpu.BindGroup, blendMode render.BlendMode, depthClipped ...bool) {
+func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG hal.BindGroup, maskBG hal.BindGroup, blendMode render.BlendMode, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0]
 
 	// Select stencil pipeline based on fill rule and depth clip state.
-	var stencilPipeline *webgpu.RenderPipeline
-	var coverPipeline *webgpu.RenderPipeline
+	var stencilPipeline hal.RenderPipeline
+	var coverPipeline hal.RenderPipeline
 
 	if useDepthClip && sr.pipelineWithDepthClipNZ != nil {
 		// Depth-clipped variants: DepthCompare=GreaterEqual restricts to clip region.
@@ -1179,7 +1179,7 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.Draw(6, 1, 0, 0)
 }
 
-func (sr *StencilRenderer) coverPipelineForBlend(mode render.BlendMode) *webgpu.RenderPipeline {
+func (sr *StencilRenderer) coverPipelineForBlend(mode render.BlendMode) hal.RenderPipeline {
 	if mode == render.BlendNormal || mode == 0 {
 		return sr.nonZeroCoverPipeline
 	}
@@ -1194,7 +1194,7 @@ func (sr *StencilRenderer) coverPipelineForBlend(mode render.BlendMode) *webgpu.
 	return pipe
 }
 
-func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (*webgpu.RenderPipeline, error) {
+func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (hal.RenderPipeline, error) {
 	if sr.coverPipeLayout == nil || sr.coverShader == nil {
 		return nil, fmt.Errorf("stencil cover resources not ready")
 	}
@@ -1256,7 +1256,7 @@ func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (*web
 		return nil, err
 	}
 	if sr.coverBlendPipelines == nil {
-		sr.coverBlendPipelines = make(map[render.BlendMode]*webgpu.RenderPipeline)
+		sr.coverBlendPipelines = make(map[render.BlendMode]hal.RenderPipeline)
 	}
 	sr.coverBlendPipelines[mode] = pipeline
 	return pipeline, nil

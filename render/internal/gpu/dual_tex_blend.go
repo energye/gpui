@@ -244,11 +244,11 @@ const dualTexUniformSlabMinSlots = 8
 type dualTexBlendCache struct {
 	mu           sync.Mutex
 	device       *webgpu.Device
-	shader       *webgpu.ShaderModule
-	bgl          *webgpu.BindGroupLayout
-	pipeLay      *webgpu.PipelineLayout
-	pipeline     *webgpu.RenderPipeline // RGBA8 target
-	pipelineBGRA *webgpu.RenderPipeline // BGRA8 target (layers/swapchain)
+	shader       hal.ShaderModule
+	bgl          hal.BindGroupLayout
+	pipeLay      hal.PipelineLayout
+	pipeline     hal.RenderPipeline // RGBA8 target
+	pipelineBGRA hal.RenderPipeline // BGRA8 target (layers/swapchain)
 	sampler      hal.Sampler
 	uniform      hal.Buffer
 	// opt37: multi-op uniform slab (stride dualTexUniformSlotStride); one WriteBuffer.
@@ -260,7 +260,7 @@ type dualTexBlendCache struct {
 	// F1: pool bounds-sized BGRA temps (out / dest snaps).
 	outPool map[[2]int][]dualTexPooledTex
 	// Bind groups keyed by dst/src/uniform view pointers (opt26 multi-slot reuse).
-	bgCache map[dualTexBGKey]*webgpu.BindGroup
+	bgCache map[dualTexBGKey]hal.BindGroup
 	// multiBG: per-op slot reuse for dualTexAdvancedBlendViewsMultiBundle.
 	// After Queue.Submit of the previous frame, slot BGs are safe to replace.
 	multiBG       []dualTexMultiBGSlot
@@ -275,7 +275,7 @@ type dualTexBGKey struct {
 
 type dualTexMultiBGSlot struct {
 	key dualTexBGKey
-	bg  *webgpu.BindGroup
+	bg  hal.BindGroup
 }
 
 type dualTexPooledTex struct {
@@ -287,23 +287,23 @@ func (c *dualTexBlendCache) release() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.pipeline != nil {
-		c.pipeline.Release()
+		c.pipeline.Destroy()
 		c.pipeline = nil
 	}
 	if c.pipelineBGRA != nil {
-		c.pipelineBGRA.Release()
+		c.pipelineBGRA.Destroy()
 		c.pipelineBGRA = nil
 	}
 	if c.pipeLay != nil {
-		c.pipeLay.Release()
+		c.pipeLay.Destroy()
 		c.pipeLay = nil
 	}
 	if c.bgl != nil {
-		c.bgl.Release()
+		c.bgl.Destroy()
 		c.bgl = nil
 	}
 	if c.shader != nil {
-		c.shader.Release()
+		c.shader.Destroy()
 		c.shader = nil
 	}
 	if c.sampler != nil {
@@ -334,13 +334,13 @@ func (c *dualTexBlendCache) release() {
 	c.outPool = nil
 	for _, bg := range c.bgCache {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 		}
 	}
 	c.bgCache = nil
 	for i := range c.multiBG {
 		if c.multiBG[i].bg != nil {
-			c.multiBG[i].bg.Release()
+			c.multiBG[i].bg.Destroy()
 			c.multiBG[i].bg = nil
 		}
 	}
@@ -355,16 +355,16 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 	if c.device != nil && c.device != device {
 		// Device changed — drop cache.
 		if c.pipeline != nil {
-			c.pipeline.Release()
+			c.pipeline.Destroy()
 		}
 		if c.pipeLay != nil {
-			c.pipeLay.Release()
+			c.pipeLay.Destroy()
 		}
 		if c.bgl != nil {
-			c.bgl.Release()
+			c.bgl.Destroy()
 		}
 		if c.shader != nil {
-			c.shader.Release()
+			c.shader.Destroy()
 		}
 		if c.sampler != nil {
 			c.sampler.Destroy()
@@ -381,23 +381,23 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 	// Partial cache (e.g. pre-BGRA builds): drop and rebuild both pipelines.
 	if c.pipeline != nil || c.pipelineBGRA != nil || c.shader != nil {
 		if c.pipeline != nil {
-			c.pipeline.Release()
+			c.pipeline.Destroy()
 			c.pipeline = nil
 		}
 		if c.pipelineBGRA != nil {
-			c.pipelineBGRA.Release()
+			c.pipelineBGRA.Destroy()
 			c.pipelineBGRA = nil
 		}
 		if c.pipeLay != nil {
-			c.pipeLay.Release()
+			c.pipeLay.Destroy()
 			c.pipeLay = nil
 		}
 		if c.bgl != nil {
-			c.bgl.Release()
+			c.bgl.Destroy()
 			c.bgl = nil
 		}
 		if c.shader != nil {
-			c.shader.Release()
+			c.shader.Destroy()
 			c.shader = nil
 		}
 		if c.sampler != nil {
@@ -448,7 +448,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		},
 	})
 	if err != nil {
-		shader.Release()
+		shader.Destroy()
 		return fmt.Errorf("dual-tex blend bgl: %w", err)
 	}
 	pipeLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
@@ -456,8 +456,8 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		BindGroupLayouts: []hal.BindGroupLayout{bgl},
 	})
 	if err != nil {
-		bgl.Release()
-		shader.Release()
+		bgl.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("dual-tex blend pipe layout: %w", err)
 	}
 	// Replace blend: write fully composited result.
@@ -493,9 +493,9 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		Multisample: types.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 	})
 	if err != nil {
-		pipeLay.Release()
-		bgl.Release()
-		shader.Release()
+		pipeLay.Destroy()
+		bgl.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("dual-tex blend pipeline: %w", err)
 	}
 	pipeBGRA, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
@@ -518,10 +518,10 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		Multisample: types.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 	})
 	if err != nil {
-		pipe.Release()
-		pipeLay.Release()
-		bgl.Release()
-		shader.Release()
+		pipe.Destroy()
+		pipeLay.Destroy()
+		bgl.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("dual-tex blend pipeline BGRA: %w", err)
 	}
 	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
@@ -535,10 +535,10 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		Anisotropy:   1,
 	})
 	if err != nil {
-		pipe.Release()
-		pipeLay.Release()
-		bgl.Release()
-		shader.Release()
+		pipe.Destroy()
+		pipeLay.Destroy()
+		bgl.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("dual-tex blend sampler: %w", err)
 	}
 	uni, err := device.CreateBuffer(&hal.BufferDescriptor{
@@ -548,10 +548,10 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 	})
 	if err != nil {
 		samp.Destroy()
-		pipe.Release()
-		pipeLay.Release()
-		bgl.Release()
-		shader.Release()
+		pipe.Destroy()
+		pipeLay.Destroy()
+		bgl.Destroy()
+		shader.Destroy()
 		return fmt.Errorf("dual-tex blend uniform: %w", err)
 	}
 	c.shader = shader
@@ -729,7 +729,7 @@ func dualTexAdvancedBlend(
 	if err != nil {
 		return nil, fmt.Errorf("dual-tex bind group: %w", err)
 	}
-	defer bg.Release()
+	defer bg.Destroy()
 
 	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "dual_tex_blend_enc"})
 	if err != nil {
@@ -1032,7 +1032,7 @@ func dualTexAdvancedBlendNoReadback(
 		outTex.Destroy()
 		return nil, nil, fmt.Errorf("dual-tex bind: %w", err)
 	}
-	defer bg.Release()
+	defer bg.Destroy()
 
 	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "dual_tex_nr_enc"})
 	if err != nil {
@@ -1276,7 +1276,7 @@ func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (hal
 	// Invalidate slot BGs that referenced the previous slab.
 	for i := range c.multiBG {
 		if c.multiBG[i].bg != nil {
-			c.multiBG[i].bg.Release()
+			c.multiBG[i].bg.Destroy()
 			c.multiBG[i].bg = nil
 			c.multiBG[i].key = dualTexBGKey{}
 		}
@@ -1299,13 +1299,13 @@ type dualTexMultiBundle struct {
 // (Cleanup no longer Releases BGs; ownership stays on the cache).
 func (c *dualTexBlendCache) multiBindGroup(
 	device *webgpu.Device,
-	bgl *webgpu.BindGroupLayout,
+	bgl hal.BindGroupLayout,
 	sampler hal.Sampler,
 	dst, src hal.TextureView,
 	ubuf hal.Buffer,
 	offset uint64,
 	slot int,
-) (*webgpu.BindGroup, error) {
+) (hal.BindGroup, error) {
 	if device == nil || bgl == nil || sampler == nil || dst == nil || src == nil || ubuf == nil {
 		return nil, fmt.Errorf("dual-tex multi bg: nil arg")
 	}
@@ -1345,12 +1345,12 @@ func (c *dualTexBlendCache) multiBindGroup(
 	if c.multiBG[slot].bg != nil && c.multiBG[slot].key == key {
 		prev := c.multiBG[slot].bg
 		c.mu.Unlock()
-		bg.Release()
+		bg.Destroy()
 		return prev, nil
 	}
 	if c.multiBG[slot].bg != nil {
 		// Previous frame already submitted — safe to release replaced BG.
-		c.multiBG[slot].bg.Release()
+		c.multiBG[slot].bg.Destroy()
 	}
 	c.multiBG[slot] = dualTexMultiBGSlot{key: key, bg: bg}
 	c.mu.Unlock()
@@ -1642,7 +1642,7 @@ func dualTexAdvancedBlendViewsRegionSized(
 		outTex.Destroy()
 		return nil, nil, err
 	}
-	defer bg.Release()
+	defer bg.Destroy()
 
 	enc, err := device.CreateCommandEncoder(dualTexViewsEncoderDesc)
 	if err != nil {

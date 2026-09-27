@@ -8,7 +8,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Embedded WGSL shader sources for stencil-then-cover rendering.
@@ -381,7 +380,7 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 	premulBlend := types.BlendStatePremultiplied()
 	layout := aaVertexBufferLayout()
 
-	mk := func(label string, blend *types.BlendState, compare types.CompareFunction, passOp types.StencilOperation, writeMask uint32) (*webgpu.RenderPipeline, error) {
+	mk := func(label string, blend *types.BlendState, compare types.CompareFunction, passOp types.StencilOperation, writeMask uint32) (hal.RenderPipeline, error) {
 		return sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 			Label:  label,
 			Layout: sr.coverPipeLayout,
@@ -435,7 +434,7 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 	inner, err := mk("cover_aa_inner_band_pipeline", &premulBlend, types.CompareFunctionNotEqual,
 		types.StencilOperationZero, 0xFF)
 	if err != nil {
-		band.Release()
+		band.Destroy()
 		return fmt.Errorf("create AA inner band pipeline: %w", err)
 	}
 	sr.aaInnerBandPipeline = inner
@@ -624,31 +623,31 @@ func (sr *StencilRenderer) destroyPipelines() {
 	sr.coverPipeMaskLayout = nil
 	// Analytic-AA fringe pipelines (sampleCount==1).
 	if sr.aaBandPipeline != nil {
-		sr.aaBandPipeline.Release()
+		sr.aaBandPipeline.Destroy()
 		sr.aaBandPipeline = nil
 	}
 	if sr.aaInnerBandPipeline != nil {
-		sr.aaInnerBandPipeline.Release()
+		sr.aaInnerBandPipeline.Destroy()
 		sr.aaInnerBandPipeline = nil
 	}
 	if sr.aaCoverShader != nil {
-		sr.aaCoverShader.Release()
+		sr.aaCoverShader.Destroy()
 		sr.aaCoverShader = nil
 	}
 	if sr.texturedCoverPipeline != nil {
-		sr.texturedCoverPipeline.Release()
+		sr.texturedCoverPipeline.Destroy()
 		sr.texturedCoverPipeline = nil
 	}
 	if sr.texturedCoverPipeLay != nil {
-		sr.texturedCoverPipeLay.Release()
+		sr.texturedCoverPipeLay.Destroy()
 		sr.texturedCoverPipeLay = nil
 	}
 	if sr.texturedCoverBGL0 != nil {
-		sr.texturedCoverBGL0.Release()
+		sr.texturedCoverBGL0.Destroy()
 		sr.texturedCoverBGL0 = nil
 	}
 	if sr.texturedCoverShader != nil {
-		sr.texturedCoverShader.Release()
+		sr.texturedCoverShader.Destroy()
 		sr.texturedCoverShader = nil
 	}
 	if sr.texturedCoverSampler != nil {
@@ -656,19 +655,19 @@ func (sr *StencilRenderer) destroyPipelines() {
 		sr.texturedCoverSampler = nil
 	}
 	if sr.patternCoverPipeline != nil {
-		sr.patternCoverPipeline.Release()
+		sr.patternCoverPipeline.Destroy()
 		sr.patternCoverPipeline = nil
 	}
 	if sr.patternCoverPipeLay != nil {
-		sr.patternCoverPipeLay.Release()
+		sr.patternCoverPipeLay.Destroy()
 		sr.patternCoverPipeLay = nil
 	}
 	if sr.patternCoverBGL0 != nil {
-		sr.patternCoverBGL0.Release()
+		sr.patternCoverBGL0.Destroy()
 		sr.patternCoverBGL0 = nil
 	}
 	if sr.patternCoverShader != nil {
-		sr.patternCoverShader.Release()
+		sr.patternCoverShader.Destroy()
 		sr.patternCoverShader = nil
 	}
 	if sr.patternCoverSampler != nil {
@@ -677,67 +676,67 @@ func (sr *StencilRenderer) destroyPipelines() {
 	}
 	// Depth-clipped variants (GPU-CLIP-003a).
 	if sr.pipelineWithDepthClipCover != nil {
-		sr.pipelineWithDepthClipCover.Release()
+		sr.pipelineWithDepthClipCover.Destroy()
 		sr.pipelineWithDepthClipCover = nil
 	}
 	if sr.pipelineWithDepthClipEO != nil {
-		sr.pipelineWithDepthClipEO.Release()
+		sr.pipelineWithDepthClipEO.Destroy()
 		sr.pipelineWithDepthClipEO = nil
 	}
 	if sr.pipelineWithDepthClipNZ != nil {
-		sr.pipelineWithDepthClipNZ.Release()
+		sr.pipelineWithDepthClipNZ.Destroy()
 		sr.pipelineWithDepthClipNZ = nil
 	}
 	// Cached cover pipelines for non-SourceOver blend modes (B.02).
 	// Missing Release pinned Device across AutoRecover (cover_pipeline_blend_Plus).
 	for mode, pipe := range sr.coverBlendPipelines {
 		if pipe != nil {
-			pipe.Release()
+			pipe.Destroy()
 		}
 		delete(sr.coverBlendPipelines, mode)
 	}
 	sr.coverBlendPipelines = nil
 	// Base pipelines.
 	if sr.nonZeroCoverPipeline != nil {
-		sr.nonZeroCoverPipeline.Release()
+		sr.nonZeroCoverPipeline.Destroy()
 		sr.nonZeroCoverPipeline = nil
 	}
 	if sr.evenOddStencilPipeline != nil {
-		sr.evenOddStencilPipeline.Release()
+		sr.evenOddStencilPipeline.Destroy()
 		sr.evenOddStencilPipeline = nil
 	}
 	if sr.nonZeroStencilPipeline != nil {
-		sr.nonZeroStencilPipeline.Release()
+		sr.nonZeroStencilPipeline.Destroy()
 		sr.nonZeroStencilPipeline = nil
 	}
 	if sr.coverPipeLayout != nil {
-		sr.coverPipeLayout.Release()
+		sr.coverPipeLayout.Destroy()
 		sr.coverPipeLayout = nil
 		sr.coverPipeLayoutHasClip = false
 	}
 	if sr.defaultClipBindLayout != nil {
-		sr.defaultClipBindLayout.Release()
+		sr.defaultClipBindLayout.Destroy()
 		sr.defaultClipBindLayout = nil
 	}
 	if sr.maskLayoutOwned && sr.maskBindLayout != nil {
-		sr.maskBindLayout.Release()
+		sr.maskBindLayout.Destroy()
 	}
 	sr.maskBindLayout = nil
 	sr.maskLayoutOwned = false
 	if sr.stencilPipeLayout != nil {
-		sr.stencilPipeLayout.Release()
+		sr.stencilPipeLayout.Destroy()
 		sr.stencilPipeLayout = nil
 	}
 	if sr.uniformLayout != nil {
-		sr.uniformLayout.Release()
+		sr.uniformLayout.Destroy()
 		sr.uniformLayout = nil
 	}
 	if sr.coverShader != nil {
-		sr.coverShader.Release()
+		sr.coverShader.Destroy()
 		sr.coverShader = nil
 	}
 	if sr.stencilFillShader != nil {
-		sr.stencilFillShader.Release()
+		sr.stencilFillShader.Destroy()
 		sr.stencilFillShader = nil
 	}
 }

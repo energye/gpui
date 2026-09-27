@@ -733,7 +733,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mask layout: %v", err)
 	}
-	defer layout.Release()
+	defer layout.Destroy()
 	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
 		Label:        "test_mask_samp",
 		AddressModeU: types.AddressModeClampToEdge,

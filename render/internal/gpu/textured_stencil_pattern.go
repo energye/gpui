@@ -108,15 +108,15 @@ type texturedStencilPatternCache struct {
 	device      *webgpu.Device
 	sampleCount uint32
 
-	fillShader   *webgpu.ShaderModule
-	coverShader  *webgpu.ShaderModule
-	fillBGL      *webgpu.BindGroupLayout
-	coverBGL     *webgpu.BindGroupLayout
-	fillPipeLay  *webgpu.PipelineLayout
-	coverPipeLay *webgpu.PipelineLayout
-	nzFillPipe   *webgpu.RenderPipeline
-	eoFillPipe   *webgpu.RenderPipeline
-	coverPipe    *webgpu.RenderPipeline
+	fillShader   hal.ShaderModule
+	coverShader  hal.ShaderModule
+	fillBGL      hal.BindGroupLayout
+	coverBGL     hal.BindGroupLayout
+	fillPipeLay  hal.PipelineLayout
+	coverPipeLay hal.PipelineLayout
+	nzFillPipe   hal.RenderPipeline
+	eoFillPipe   hal.RenderPipeline
+	coverPipe    hal.RenderPipeline
 	sampler      hal.Sampler
 
 	tex textureSet
@@ -132,39 +132,39 @@ func (c *texturedStencilPatternCache) release() {
 
 func (c *texturedStencilPatternCache) destroyPipelinesLocked() {
 	if c.coverPipe != nil {
-		c.coverPipe.Release()
+		c.coverPipe.Destroy()
 		c.coverPipe = nil
 	}
 	if c.nzFillPipe != nil {
-		c.nzFillPipe.Release()
+		c.nzFillPipe.Destroy()
 		c.nzFillPipe = nil
 	}
 	if c.eoFillPipe != nil {
-		c.eoFillPipe.Release()
+		c.eoFillPipe.Destroy()
 		c.eoFillPipe = nil
 	}
 	if c.fillPipeLay != nil {
-		c.fillPipeLay.Release()
+		c.fillPipeLay.Destroy()
 		c.fillPipeLay = nil
 	}
 	if c.coverPipeLay != nil {
-		c.coverPipeLay.Release()
+		c.coverPipeLay.Destroy()
 		c.coverPipeLay = nil
 	}
 	if c.fillBGL != nil {
-		c.fillBGL.Release()
+		c.fillBGL.Destroy()
 		c.fillBGL = nil
 	}
 	if c.coverBGL != nil {
-		c.coverBGL.Release()
+		c.coverBGL.Destroy()
 		c.coverBGL = nil
 	}
 	if c.fillShader != nil {
-		c.fillShader.Release()
+		c.fillShader.Destroy()
 		c.fillShader = nil
 	}
 	if c.coverShader != nil {
-		c.coverShader.Release()
+		c.coverShader.Destroy()
 		c.coverShader = nil
 	}
 	if c.sampler != nil {
@@ -199,7 +199,7 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 		Label: "tex_stencil_pat_cover", WGSL: texturedStencilCoverPatternWGSL,
 	})
 	if err != nil {
-		fillShader.Release()
+		fillShader.Destroy()
 		return fmt.Errorf("tex stencil pat cover shader: %w", err)
 	}
 
@@ -211,8 +211,8 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 		}},
 	})
 	if err != nil {
-		fillShader.Release()
-		coverShader.Release()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return err
 	}
 	coverBGL, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
@@ -235,30 +235,30 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 		},
 	})
 	if err != nil {
-		fillBGL.Release()
-		fillShader.Release()
-		coverShader.Release()
+		fillBGL.Destroy()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return err
 	}
 	fillLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label: "tex_stencil_pat_fill_lay", BindGroupLayouts: []hal.BindGroupLayout{fillBGL},
 	})
 	if err != nil {
-		coverBGL.Release()
-		fillBGL.Release()
-		fillShader.Release()
-		coverShader.Release()
+		coverBGL.Destroy()
+		fillBGL.Destroy()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return err
 	}
 	coverLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label: "tex_stencil_pat_cover_lay", BindGroupLayouts: []hal.BindGroupLayout{coverBGL},
 	})
 	if err != nil {
-		fillLay.Release()
-		coverBGL.Release()
-		fillBGL.Release()
-		fillShader.Release()
-		coverShader.Release()
+		fillLay.Destroy()
+		coverBGL.Destroy()
+		fillBGL.Destroy()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return err
 	}
 
@@ -272,7 +272,7 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 	ms := multisampleState(sampleCount)
 	prim := triangleListPrimitive()
 
-	makeFill := func(label string, evenOdd bool) (*webgpu.RenderPipeline, error) {
+	makeFill := func(label string, evenOdd bool) (hal.RenderPipeline, error) {
 		frontPass := types.StencilOperationIncrementWrap
 		backPass := types.StencilOperationDecrementWrap
 		writeMask := uint32(0xFF)
@@ -309,23 +309,23 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 	}
 	nz, err := makeFill("tex_stencil_pat_fill_nz", false)
 	if err != nil {
-		coverLay.Release()
-		fillLay.Release()
-		coverBGL.Release()
-		fillBGL.Release()
-		fillShader.Release()
-		coverShader.Release()
+		coverLay.Destroy()
+		fillLay.Destroy()
+		coverBGL.Destroy()
+		fillBGL.Destroy()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return fmt.Errorf("nz fill pipe: %w", err)
 	}
 	eo, err := makeFill("tex_stencil_pat_fill_eo", true)
 	if err != nil {
-		nz.Release()
-		coverLay.Release()
-		fillLay.Release()
-		coverBGL.Release()
-		fillBGL.Release()
-		fillShader.Release()
-		coverShader.Release()
+		nz.Destroy()
+		coverLay.Destroy()
+		fillLay.Destroy()
+		coverBGL.Destroy()
+		fillBGL.Destroy()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return fmt.Errorf("eo fill pipe: %w", err)
 	}
 
@@ -364,14 +364,14 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 		Primitive:   prim,
 	})
 	if err != nil {
-		eo.Release()
-		nz.Release()
-		coverLay.Release()
-		fillLay.Release()
-		coverBGL.Release()
-		fillBGL.Release()
-		fillShader.Release()
-		coverShader.Release()
+		eo.Destroy()
+		nz.Destroy()
+		coverLay.Destroy()
+		fillLay.Destroy()
+		coverBGL.Destroy()
+		fillBGL.Destroy()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return fmt.Errorf("cover pipe: %w", err)
 	}
 	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
@@ -382,15 +382,15 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 		MipmapFilter: types.MipmapFilterModeNearest, Anisotropy: 1,
 	})
 	if err != nil {
-		cover.Release()
-		eo.Release()
-		nz.Release()
-		coverLay.Release()
-		fillLay.Release()
-		coverBGL.Release()
-		fillBGL.Release()
-		fillShader.Release()
-		coverShader.Release()
+		cover.Destroy()
+		eo.Destroy()
+		nz.Destroy()
+		coverLay.Destroy()
+		fillLay.Destroy()
+		coverBGL.Destroy()
+		fillBGL.Destroy()
+		fillShader.Destroy()
+		coverShader.Destroy()
 		return err
 	}
 
@@ -601,7 +601,7 @@ func texturedStencilCoverPatternEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer fillBG.Release()
+	defer fillBG.Destroy()
 
 	patTex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "tex_stencil_pat_src",
@@ -670,7 +670,7 @@ func texturedStencilCoverPatternEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer coverBG.Release()
+	defer coverBG.Destroy()
 
 	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "tex_stencil_pat_enc"})
 	if err != nil {

@@ -163,8 +163,8 @@ type filterGPUCache struct {
 	runMu     sync.Mutex // serializes full graph runs (pooled RTs)
 	mu        sync.Mutex
 	device    *webgpu.Device
-	pipeline  *webgpu.RenderPipeline
-	bgl       *webgpu.BindGroupLayout
+	pipeline  hal.RenderPipeline
+	bgl       hal.BindGroupLayout
 	sampler   hal.Sampler
 	dummyTex  hal.Texture
 	dummyView hal.TextureView
@@ -200,7 +200,7 @@ type filterGPUCache struct {
 
 	// Stable bind-group cache for continuous effect frames (glow).
 	// Keyed by view/uniform pointer + slab offset; cleared when pool/slab rebuilds.
-	bgCache map[filterBGKey]*webgpu.BindGroup
+	bgCache map[filterBGKey]hal.BindGroup
 
 	// opt44: reuse filter-pass RP descriptor (no per-pass ColorAttachments alloc).
 	filterPassRPDesc   hal.RenderPassDescriptor
@@ -280,11 +280,11 @@ func (c *filterGPUCache) releaseUnlocked() {
 	c.lastGraphFinishes = 0
 	c.lastUsedSharedEnc = false
 	if c.pipeline != nil {
-		c.pipeline.Release()
+		c.pipeline.Destroy()
 		c.pipeline = nil
 	}
 	if c.bgl != nil {
-		c.bgl.Release()
+		c.bgl.Destroy()
 		c.bgl = nil
 	}
 	if c.sampler != nil {
@@ -341,7 +341,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	if err != nil {
 		return err
 	}
-	defer shader.Release()
+	defer shader.Destroy()
 
 	bgl, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: "filter_gpu_bgl",
@@ -367,10 +367,10 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		Label: "filter_gpu_pipe_layout", BindGroupLayouts: []hal.BindGroupLayout{bgl},
 	})
 	if err != nil {
-		bgl.Release()
+		bgl.Destroy()
 		return err
 	}
-	defer layout.Release()
+	defer layout.Destroy()
 
 	replace := types.BlendState{
 		Color: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero, Operation: types.BlendOperationAdd},
@@ -390,7 +390,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		Multisample: types.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 	})
 	if err != nil {
-		bgl.Release()
+		bgl.Destroy()
 		return err
 	}
 	samp, err := device.CreateSampler(&hal.SamplerDescriptor{
@@ -404,8 +404,8 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		Anisotropy:   1,
 	})
 	if err != nil {
-		pipe.Release()
-		bgl.Release()
+		pipe.Destroy()
+		bgl.Destroy()
 		return err
 	}
 	// 1x1 transparent dummy aux
@@ -418,8 +418,8 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	})
 	if err != nil {
 		samp.Destroy()
-		pipe.Release()
-		bgl.Release()
+		pipe.Destroy()
+		bgl.Destroy()
 		return err
 	}
 	dview, err := device.CreateTextureView(dtex, &hal.TextureViewDescriptor{
@@ -429,8 +429,8 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	if err != nil {
 		dtex.Destroy()
 		samp.Destroy()
-		pipe.Release()
-		bgl.Release()
+		pipe.Destroy()
+		bgl.Destroy()
 		return err
 	}
 
@@ -442,8 +442,8 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		dview.Destroy()
 		dtex.Destroy()
 		samp.Destroy()
-		pipe.Release()
-		bgl.Release()
+		pipe.Destroy()
+		bgl.Destroy()
 		return err
 	}
 
@@ -532,18 +532,18 @@ func (c *filterGPUCache) ensureStaging(device *webgpu.Device, size uint64) error
 func (c *filterGPUCache) clearBGCacheUnlocked() {
 	for k, bg := range c.bgCache {
 		if bg != nil {
-			bg.Release()
+			bg.Destroy()
 		}
 		delete(c.bgCache, k)
 	}
 	if c.bgCache == nil {
-		c.bgCache = make(map[filterBGKey]*webgpu.BindGroup)
+		c.bgCache = make(map[filterBGKey]hal.BindGroup)
 	}
 }
 
-func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupLayout, samp hal.Sampler,
+func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl hal.BindGroupLayout, samp hal.Sampler,
 	src, dst, aux hal.TextureView, ubuf hal.Buffer, offset uint64,
-) (*webgpu.BindGroup, error) {
+) (hal.BindGroup, error) {
 	if device == nil || bgl == nil || samp == nil || src == nil || dst == nil || aux == nil || ubuf == nil {
 		return nil, fmt.Errorf("filter bg: nil arg")
 	}
@@ -556,7 +556,7 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupL
 	// dst is render attachment, not bind-group entry — key is src/aux/ubuf/offset.
 	c.mu.Lock()
 	if c.bgCache == nil {
-		c.bgCache = make(map[filterBGKey]*webgpu.BindGroup)
+		c.bgCache = make(map[filterBGKey]hal.BindGroup)
 	}
 	if bg := c.bgCache[key]; bg != nil {
 		c.mu.Unlock()
@@ -581,7 +581,7 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupL
 	// Another runner may have filled the slot; keep one, release duplicate.
 	if prev := c.bgCache[key]; prev != nil {
 		c.mu.Unlock()
-		bg.Release()
+		bg.Destroy()
 		return prev, nil
 	}
 	c.bgCache[key] = bg

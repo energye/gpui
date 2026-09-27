@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -402,7 +403,7 @@ type ShaderModule struct {
 	codeHash uint64
 
 	// gpuModule is the underlying shader module (when available).
-	gpuModule *webgpu.ShaderModule
+	gpuModule hal.ShaderModule
 
 	// destroyed indicates whether the module has been destroyed.
 	destroyed bool
@@ -418,7 +419,7 @@ type ShaderModule struct {
 //   - label: Debug label.
 //   - code: SPIR-V bytecode.
 //   - gpuModule: The underlying module (may be nil for testing).
-func NewShaderModule(id uint64, label string, code []byte, gpuModule *webgpu.ShaderModule) *ShaderModule {
+func NewShaderModule(id uint64, label string, code []byte, gpuModule hal.ShaderModule) *ShaderModule {
 	return &ShaderModule{
 		id:        id,
 		label:     label,
@@ -443,7 +444,7 @@ func (m *ShaderModule) CodeHash() uint64 {
 }
 
 // Raw returns the underlying shader module.
-func (m *ShaderModule) Raw() *webgpu.ShaderModule {
+func (m *ShaderModule) Raw() hal.ShaderModule {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.destroyed {

@@ -387,16 +387,16 @@ type VelloComputeDispatcher struct {
 	queue hal.Queue
 
 	// pipelines are the compiled compute pipelines, one per stage.
-	pipelines [VelloStageCount]*webgpu.ComputePipeline
+	pipelines [VelloStageCount]hal.ComputePipeline
 
 	// pipelineLayouts are the pipeline layouts, one per stage.
-	pipelineLayouts [VelloStageCount]*webgpu.PipelineLayout
+	pipelineLayouts [VelloStageCount]hal.PipelineLayout
 
 	// bgLayouts are the bind group layouts, one per stage.
-	bgLayouts [VelloStageCount]*webgpu.BindGroupLayout
+	bgLayouts [VelloStageCount]hal.BindGroupLayout
 
 	// shaderModules are the compiled shader modules, one per stage.
-	shaderModules [VelloStageCount]*webgpu.ShaderModule
+	shaderModules [VelloStageCount]hal.ShaderModule
 
 	// shaderSources are the embedded WGSL shader sources, indexed by stage.
 	shaderSources [VelloStageCount]string
@@ -662,19 +662,19 @@ func (d *VelloComputeDispatcher) Init() error {
 func (d *VelloComputeDispatcher) destroyPartialInit(upTo VelloComputeStage) {
 	for j := VelloComputeStage(0); j < upTo; j++ {
 		if d.pipelines[j] != nil {
-			d.pipelines[j].Release()
+			d.pipelines[j].Destroy()
 			d.pipelines[j] = nil
 		}
 		if d.pipelineLayouts[j] != nil {
-			d.pipelineLayouts[j].Release()
+			d.pipelineLayouts[j].Destroy()
 			d.pipelineLayouts[j] = nil
 		}
 		if d.bgLayouts[j] != nil {
-			d.bgLayouts[j].Release()
+			d.bgLayouts[j].Destroy()
 			d.bgLayouts[j] = nil
 		}
 		if d.shaderModules[j] != nil {
-			d.shaderModules[j].Release()
+			d.shaderModules[j].Destroy()
 			d.shaderModules[j] = nil
 		}
 	}
@@ -688,19 +688,19 @@ func (d *VelloComputeDispatcher) Close() {
 
 	for i := VelloComputeStage(0); i < VelloStageCount; i++ {
 		if d.pipelines[i] != nil {
-			d.pipelines[i].Release()
+			d.pipelines[i].Destroy()
 			d.pipelines[i] = nil
 		}
 		if d.pipelineLayouts[i] != nil {
-			d.pipelineLayouts[i].Release()
+			d.pipelineLayouts[i].Destroy()
 			d.pipelineLayouts[i] = nil
 		}
 		if d.bgLayouts[i] != nil {
-			d.bgLayouts[i].Release()
+			d.bgLayouts[i].Destroy()
 			d.bgLayouts[i] = nil
 		}
 		if d.shaderModules[i] != nil {
-			d.shaderModules[i].Release()
+			d.shaderModules[i].Destroy()
 			d.shaderModules[i] = nil
 		}
 	}
@@ -1107,7 +1107,7 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 // dispatchResources tracks per-frame GPU resources for cleanup.
 type dispatchResources struct {
 	device     *webgpu.Device
-	bindGroups []*webgpu.BindGroup
+	bindGroups []hal.BindGroup
 	cmdBuf     *webgpu.CommandBuffer
 }
 
@@ -1115,7 +1115,7 @@ type dispatchResources struct {
 func (r *dispatchResources) cleanup() {
 	// cmdBuf is Released in submitAndWait (Submit does not drop the ref).
 	for _, g := range r.bindGroups {
-		g.Release()
+		g.Destroy()
 	}
 }
 

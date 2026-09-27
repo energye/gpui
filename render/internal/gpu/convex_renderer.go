@@ -114,35 +114,35 @@ type ConvexRenderer struct {
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
-	shader        *webgpu.ShaderModule
-	uniformLayout *webgpu.BindGroupLayout
-	pipeLayout    *webgpu.PipelineLayout
-	pipeline      *webgpu.RenderPipeline
+	shader        hal.ShaderModule
+	uniformLayout hal.BindGroupLayout
+	pipeLayout    hal.PipelineLayout
+	pipeline      hal.RenderPipeline
 
 	// Session-compatible pipeline variant with depth/stencil state.
 	// Used when this renderer participates in a unified render pass that
 	// includes a stencil attachment (for stencil-then-cover paths).
 	// The stencil test is Always/Keep (convex draws don't interact with stencil).
-	pipelineWithStencil *webgpu.RenderPipeline
+	pipelineWithStencil hal.RenderPipeline
 
 	// Depth-clipped pipeline variant (GPU-CLIP-003a). Same as pipelineWithStencil
 	// but with DepthCompare=GreaterEqual to test against the depth clip buffer.
-	pipelineWithDepthClip *webgpu.RenderPipeline
+	pipelineWithDepthClip hal.RenderPipeline
 
 	// opt33: SkipAA mesh pipelines (12B verts, vs_mesh, coverage=1 constant).
-	meshPipelineWithStencil   *webgpu.RenderPipeline
-	meshPipelineWithDepthClip *webgpu.RenderPipeline
+	meshPipelineWithStencil   hal.RenderPipeline
+	meshPipelineWithDepthClip hal.RenderPipeline
 
 	// blendPipelinesWithStencil caches SourceOver-alternative cover pipelines
 	// keyed by render.BlendMode (B.02 fixed-function Porter-Duff).
-	blendPipelinesWithStencil map[render.BlendMode]*webgpu.RenderPipeline
+	blendPipelinesWithStencil map[render.BlendMode]hal.RenderPipeline
 
 	// Clip bind group layout for @group(1). Set by the session before
 	// pipeline creation. When non-nil, included in the pipeline layout.
-	clipBindLayout *webgpu.BindGroupLayout
+	clipBindLayout hal.BindGroupLayout
 	// defaultClipBindLayout is owned by this renderer and used only when a
 	// standalone pipeline is created before the session supplies its layout.
-	defaultClipBindLayout *webgpu.BindGroupLayout
+	defaultClipBindLayout hal.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
 	// with clipBindLayout included. If clipBindLayout is set after the
 	// layout was created, the pipeline must be recreated.
@@ -150,25 +150,25 @@ type ConvexRenderer struct {
 
 	// maskBindLayout is @group(2) for L.06 full-surface R8 mask sampling.
 	// Usually session-owned; maskLayoutOwned true only for standalone create.
-	maskBindLayout  *webgpu.BindGroupLayout
+	maskBindLayout  hal.BindGroupLayout
 	maskLayoutOwned bool
 }
 
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil.
-func (cr *ConvexRenderer) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
+func (cr *ConvexRenderer) SetClipBindLayout(layout hal.BindGroupLayout) {
 	cr.clipBindLayout = layout
 }
 
 // SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
-func (cr *ConvexRenderer) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
+func (cr *ConvexRenderer) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	cr.maskBindLayout = layout
 	cr.maskLayoutOwned = false
 }
 
 // MaskBindLayout returns the @group(2) layout for L.06 R8 mask sampling.
 // Creates the pipeline base layouts if needed so the layout is available.
-func (cr *ConvexRenderer) MaskBindLayout() *webgpu.BindGroupLayout {
+func (cr *ConvexRenderer) MaskBindLayout() hal.BindGroupLayout {
 	if cr.maskBindLayout == nil {
 		_ = cr.ensurePipeline()
 	}
@@ -395,7 +395,7 @@ func (cr *ConvexRenderer) ensureMeshDepthClipPipeline() error {
 	return nil
 }
 
-func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *convexFrameResources, clipBG *webgpu.BindGroup, maskBG *webgpu.BindGroup, depthClipped ...bool) {
+func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *convexFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || resources.vertCount == 0 {
 		return
 	}
@@ -416,9 +416,9 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 			blendMode:   render.BlendNormal,
 		}}
 	}
-	var lastPipe *webgpu.RenderPipeline
+	var lastPipe hal.RenderPipeline
 	for _, rg := range ranges {
-		var pipe *webgpu.RenderPipeline
+		var pipe hal.RenderPipeline
 		if resources.meshCompact {
 			if useDepthClip {
 				if cr.meshPipelineWithDepthClip == nil {
@@ -478,7 +478,7 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 // pipelineForBlend returns the stencil-pass-compatible pipeline for mode.
 // Depth-clipped variants currently only exist for SourceOver; non-SO depth-clip
 // falls back to the non-depth-clipped blend pipeline.
-func (cr *ConvexRenderer) pipelineForBlend(mode render.BlendMode, depthClip bool) *webgpu.RenderPipeline {
+func (cr *ConvexRenderer) pipelineForBlend(mode render.BlendMode, depthClip bool) hal.RenderPipeline {
 	if mode == render.BlendNormal {
 		if depthClip && cr.pipelineWithDepthClip != nil {
 			return cr.pipelineWithDepthClip
@@ -500,7 +500,7 @@ func (cr *ConvexRenderer) pipelineForBlend(mode render.BlendMode, depthClip bool
 	return pipe
 }
 
-func (cr *ConvexRenderer) createBlendPipelineWithStencil(mode render.BlendMode) (*webgpu.RenderPipeline, error) {
+func (cr *ConvexRenderer) createBlendPipelineWithStencil(mode render.BlendMode) (hal.RenderPipeline, error) {
 	if cr.pipeLayout == nil || cr.shader == nil {
 		if err := cr.createPipeline(); err != nil {
 			return nil, err
@@ -540,7 +540,7 @@ func (cr *ConvexRenderer) createBlendPipelineWithStencil(mode render.BlendMode) 
 		return nil, fmt.Errorf("create convex blend pipeline %v: %w", mode, err)
 	}
 	if cr.blendPipelinesWithStencil == nil {
-		cr.blendPipelinesWithStencil = make(map[render.BlendMode]*webgpu.RenderPipeline)
+		cr.blendPipelinesWithStencil = make(map[render.BlendMode]hal.RenderPipeline)
 	}
 	cr.blendPipelinesWithStencil[mode] = pipeline
 	return pipeline, nil
@@ -644,51 +644,51 @@ func (cr *ConvexRenderer) destroyPipeline() {
 		return
 	}
 	if cr.pipelineWithDepthClip != nil {
-		cr.pipelineWithDepthClip.Release()
+		cr.pipelineWithDepthClip.Destroy()
 		cr.pipelineWithDepthClip = nil
 	}
 	if cr.pipelineWithStencil != nil {
-		cr.pipelineWithStencil.Release()
+		cr.pipelineWithStencil.Destroy()
 		cr.pipelineWithStencil = nil
 	}
 	if cr.meshPipelineWithStencil != nil {
-		cr.meshPipelineWithStencil.Release()
+		cr.meshPipelineWithStencil.Destroy()
 		cr.meshPipelineWithStencil = nil
 	}
 	if cr.meshPipelineWithDepthClip != nil {
-		cr.meshPipelineWithDepthClip.Release()
+		cr.meshPipelineWithDepthClip.Destroy()
 		cr.meshPipelineWithDepthClip = nil
 	}
 	for mode, pipe := range cr.blendPipelinesWithStencil {
 		if pipe != nil {
-			pipe.Release()
+			pipe.Destroy()
 		}
 		delete(cr.blendPipelinesWithStencil, mode)
 	}
 	if cr.pipeline != nil {
-		cr.pipeline.Release()
+		cr.pipeline.Destroy()
 		cr.pipeline = nil
 	}
 	if cr.pipeLayout != nil {
-		cr.pipeLayout.Release()
+		cr.pipeLayout.Destroy()
 		cr.pipeLayout = nil
 		cr.pipeLayoutHasClip = false
 	}
 	if cr.defaultClipBindLayout != nil {
-		cr.defaultClipBindLayout.Release()
+		cr.defaultClipBindLayout.Destroy()
 		cr.defaultClipBindLayout = nil
 	}
 	if cr.maskLayoutOwned && cr.maskBindLayout != nil {
-		cr.maskBindLayout.Release()
+		cr.maskBindLayout.Destroy()
 	}
 	cr.maskBindLayout = nil
 	cr.maskLayoutOwned = false
 	if cr.uniformLayout != nil {
-		cr.uniformLayout.Release()
+		cr.uniformLayout.Destroy()
 		cr.uniformLayout = nil
 	}
 	if cr.shader != nil {
-		cr.shader.Release()
+		cr.shader.Destroy()
 		cr.shader = nil
 	}
 }
@@ -708,7 +708,7 @@ type convexFrameResources struct {
 	vertBuf     hal.Buffer
 	indexBuf    hal.Buffer // optional; uint16 indices for DrawIndexed ranges
 	uniformBuf  hal.Buffer
-	bindGroup   *webgpu.BindGroup
+	bindGroup   hal.BindGroup
 	vertCount   uint32
 	indexCount  uint32
 	firstVertex uint32 // offset into shared vertex buffer (for scissor group sub-ranges)
@@ -721,7 +721,7 @@ type convexFrameResources struct {
 
 func (r *convexFrameResources) destroy() {
 	if r.bindGroup != nil {
-		r.bindGroup.Release()
+		r.bindGroup.Destroy()
 	}
 	if r.uniformBuf != nil {
 		r.uniformBuf.Destroy()

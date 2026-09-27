@@ -820,7 +820,7 @@ func TestEnsurePipelines_ClipLayoutRecreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create clip layout: %v", err)
 	}
-	defer clipLayout.Release()
+	defer clipLayout.Destroy()
 
 	sdf.SetClipBindLayout(clipLayout)
 	if err := sdf.ensurePipelineWithStencil(); err != nil {
@@ -870,7 +870,7 @@ func TestEnsurePipelines_ConvexClipRecreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create clip layout: %v", err)
 	}
-	defer clipLayout.Release()
+	defer clipLayout.Destroy()
 
 	cr.SetClipBindLayout(clipLayout)
 	if err := cr.ensurePipelineWithStencil(); err != nil {
@@ -916,7 +916,7 @@ func TestEnsurePipelines_StencilClipRecreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create clip layout: %v", err)
 	}
-	defer clipLayout.Release()
+	defer clipLayout.Destroy()
 
 	sr.SetClipBindLayout(clipLayout)
 

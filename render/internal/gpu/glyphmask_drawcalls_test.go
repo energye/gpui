@@ -164,7 +164,7 @@ func TestBuildGlyphMaskDrawCalls_EmptyBatchSkipped(t *testing.T) {
 }
 
 // createMockBindGroup creates a minimal bind group for testing.
-func createMockBindGroup(t *testing.T, device *webgpu.Device, s *GPURenderSession) *webgpu.BindGroup {
+func createMockBindGroup(t *testing.T, device *webgpu.Device, s *GPURenderSession) hal.BindGroup {
 	t.Helper()
 
 	if err := s.ensureGlyphMaskPipeline(false); err != nil {

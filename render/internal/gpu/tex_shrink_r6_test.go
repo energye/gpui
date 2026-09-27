@@ -5,7 +5,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/hal/noop"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // TestShrinkDue_Matrix locks the pure hysteresis core (R6-2, no GPU):
@@ -51,7 +50,7 @@ func TestSessionFrameBufferShrink(t *testing.T) {
 	s.imageUniformSlabCap = big
 	// A live BG ring entry must be dropped with its slab (offsets die).
 	s.gpuTexBGCaches = make([]gpuTexBGSlotCache, 1)
-	s.gpuTexBGCaches[0].entries[0].bg = &webgpu.BindGroup{}
+	s.gpuTexBGCaches[0].entries[0].bg = &noop.Buffer{}
 
 	for i := 0; i < texShrinkCalmFrames; i++ {
 		s.maybeShrinkFrameBuffers()

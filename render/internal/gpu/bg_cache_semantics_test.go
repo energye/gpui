@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // P5: bind-group caches key on the RESOLVED native view identity. A texture
@@ -52,7 +51,7 @@ func TestP5_GlyphMaskBindGroup_KeySemantics(t *testing.T) {
 	}
 	v1, v2 := mkView("p5_glyph_v1"), mkView("p5_glyph_v2")
 
-	s.glyphMaskBindGroups = make([]*webgpu.BindGroup, 1)
+	s.glyphMaskBindGroups = make([]hal.BindGroup, 1)
 	s.glyphMaskBGViews = make([]hal.TextureView, 1)
 	s.glyphMaskBGIsLCD = make([]bool, 1)
 	s.ensureGlyphMaskBatchPools(1)

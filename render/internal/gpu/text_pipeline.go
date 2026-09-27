@@ -76,26 +76,26 @@ type MSDFTextPipeline struct {
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
-	shader        *webgpu.ShaderModule
-	uniformLayout *webgpu.BindGroupLayout
-	pipeLayout    *webgpu.PipelineLayout
-	pipeline      *webgpu.RenderPipeline
+	shader        hal.ShaderModule
+	uniformLayout hal.BindGroupLayout
+	pipeLayout    hal.PipelineLayout
+	pipeline      hal.RenderPipeline
 
 	// Session-compatible pipeline variant with depth/stencil state.
 	// Used when text participates in a unified render pass that includes
 	// a stencil attachment (for stencil-then-cover paths).
 	// Stencil test is Always/Keep (text does not interact with stencil).
-	pipelineWithStencil *webgpu.RenderPipeline
+	pipelineWithStencil hal.RenderPipeline
 
 	// Depth-clipped pipeline variant (GPU-CLIP-003a).
-	pipelineWithDepthClip *webgpu.RenderPipeline
+	pipelineWithDepthClip hal.RenderPipeline
 
 	// Default sampler for MSDF textures (linear filtering).
 	sampler hal.Sampler
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
-	clipBindLayout *webgpu.BindGroupLayout
+	clipBindLayout hal.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
 	// with clipBindLayout included. If clipBindLayout is set after the
 	// layout was created, the pipeline must be recreated.
@@ -116,7 +116,7 @@ func NewMSDFTextPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uin
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil. The layout is
 // owned by the session and must not be destroyed by the pipeline.
-func (p *MSDFTextPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
+func (p *MSDFTextPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
 	p.clipBindLayout = layout
 }
 
@@ -344,7 +344,7 @@ func (p *MSDFTextPipeline) ensureDepthClipPipeline() error {
 // RecordDraws records MSDF text draw commands into an existing render pass.
 // When depthClipped is true (GPU-CLIP-003a), the depth-clipped pipeline
 // variant is used to test fragments against the depth clip buffer.
-func (p *MSDFTextPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *textFrameResources, clipBG *webgpu.BindGroup, depthClipped ...bool) {
+func (p *MSDFTextPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *textFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || len(resources.drawCalls) == 0 {
 		return
 	}
@@ -376,28 +376,28 @@ func (p *MSDFTextPipeline) destroyPipeline() {
 		return
 	}
 	if p.pipelineWithDepthClip != nil {
-		p.pipelineWithDepthClip.Release()
+		p.pipelineWithDepthClip.Destroy()
 		p.pipelineWithDepthClip = nil
 	}
 	if p.pipelineWithStencil != nil {
-		p.pipelineWithStencil.Release()
+		p.pipelineWithStencil.Destroy()
 		p.pipelineWithStencil = nil
 	}
 	if p.pipeline != nil {
-		p.pipeline.Release()
+		p.pipeline.Destroy()
 		p.pipeline = nil
 	}
 	if p.pipeLayout != nil {
-		p.pipeLayout.Release()
+		p.pipeLayout.Destroy()
 		p.pipeLayout = nil
 		p.pipeLayoutHasClip = false
 	}
 	if p.uniformLayout != nil {
-		p.uniformLayout.Release()
+		p.uniformLayout.Destroy()
 		p.uniformLayout = nil
 	}
 	if p.shader != nil {
-		p.shader.Release()
+		p.shader.Destroy()
 		p.shader = nil
 	}
 }
@@ -407,7 +407,7 @@ func (p *MSDFTextPipeline) destroyPipeline() {
 type textDrawCall struct {
 	indexOffset uint32 // first index in the shared index buffer
 	indexCount  uint32 // number of indices for this batch
-	bindGroup   *webgpu.BindGroup
+	bindGroup   hal.BindGroup
 }
 
 type textFrameResources struct {
