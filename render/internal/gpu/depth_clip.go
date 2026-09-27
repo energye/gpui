@@ -172,9 +172,9 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 
 	// Pipeline layout: just the uniform bind group (no clip @group(1) needed
 	// for the clip pipeline itself -- it IS the clip).
-	pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "depth_clip_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{p.uniformBGL},
+		BindGroupLayouts: []hal.BindGroupLayout{p.uniformBGL},
 	})
 	if err != nil {
 		return fmt.Errorf("create depth clip pipeline layout: %w", err)
@@ -207,15 +207,15 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 	// Front faces: IncrementWrap, Back faces: DecrementWrap.
 	// After pass: stencil != 0 inside clip, stencil == 0 outside.
 	// No depth write, no color write.
-	stencilFillPipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	stencilFillPipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "depth_clip_stencil_fill_pipeline",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -274,15 +274,15 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 		},
 	}
 	if p.sampleCount == 1 {
-		stencilExpandPipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		stencilExpandPipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 			Label:  "depth_clip_stencil_expand_pipeline",
 			Layout: p.pipeLayout,
-			Vertex: webgpu.VertexState{
+			Vertex: hal.VertexState{
 				Module:     p.shader,
 				EntryPoint: shaderEntryVS,
 				Buffers:    aaVertexBufLayout,
 			},
-			Fragment: &webgpu.FragmentState{
+			Fragment: &hal.FragmentState{
 				Module:     p.shader,
 				EntryPoint: shaderEntryFS,
 				Targets: []types.ColorTargetState{
@@ -326,15 +326,15 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 	// pass the stencil test. Those pixels get depth = 0.0 written.
 	// StencilPassOp=Zero resets stencil to 0, cleaning up for Tier 2b.
 	// No color output.
-	depthCoverPipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	depthCoverPipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "depth_clip_cover_pipeline",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{

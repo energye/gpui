@@ -212,8 +212,8 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 		shader.Release()
 		return fmt.Errorf("pattern mask bgl: %w", err)
 	}
-	pipeLay, err := device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
-		Label: "pattern_mask_pipe_layout", BindGroupLayouts: []*webgpu.BindGroupLayout{bgl},
+	pipeLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+		Label: "pattern_mask_pipe_layout", BindGroupLayouts: []hal.BindGroupLayout{bgl},
 	})
 	if err != nil {
 		bgl.Release()
@@ -224,11 +224,11 @@ func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
 		Color: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero, Operation: types.BlendOperationAdd},
 		Alpha: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero, Operation: types.BlendOperationAdd},
 	}
-	pipe, err := device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipe, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "pattern_mask_sample_pipe",
 		Layout: pipeLay,
-		Vertex: webgpu.VertexState{Module: shader, EntryPoint: "vs_main"},
-		Fragment: &webgpu.FragmentState{
+		Vertex: hal.VertexState{Module: shader, EntryPoint: "vs_main"},
+		Fragment: &hal.FragmentState{
 			Module: shader, EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{
 				Format: types.TextureFormatRGBA8Unorm, Blend: &replace, WriteMask: types.ColorWriteMaskAll,

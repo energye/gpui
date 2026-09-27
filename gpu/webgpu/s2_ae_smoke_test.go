@@ -251,9 +251,9 @@ fn fs_main() -> @location(0) vec4<f32> {
 	}
 	defer shader.Release()
 
-	pipeline, err := device.CreateRenderPipeline(&RenderPipelineDescriptor{
-		Vertex: VertexState{Module: shader, EntryPoint: "vs_main"},
-		Fragment: &FragmentState{
+	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Vertex: hal.VertexState{Module: shader, EntryPoint: "vs_main"},
+		Fragment: &hal.FragmentState{
 			Module:     shader,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{

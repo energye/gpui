@@ -545,7 +545,7 @@ func (v *TextureView) destroy() {
 	}
 }
 
-// gpuViewDescToViewDesc converts a wgpu.TextureViewDescriptor to TextureViewDescriptor.
+// gpuViewDescToViewDesc converts a hal.TextureViewDescriptor to TextureViewDescriptor.
 func gpuViewDescToViewDesc(gpuDesc *hal.TextureViewDescriptor, tex *Texture) TextureViewDescriptor {
 	desc := TextureViewDescriptor{
 		Label:           gpuDesc.Label,

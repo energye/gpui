@@ -240,8 +240,8 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 		coverShader.Release()
 		return err
 	}
-	fillLay, err := device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
-		Label: "tex_stencil_pat_fill_lay", BindGroupLayouts: []*webgpu.BindGroupLayout{fillBGL},
+	fillLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+		Label: "tex_stencil_pat_fill_lay", BindGroupLayouts: []hal.BindGroupLayout{fillBGL},
 	})
 	if err != nil {
 		coverBGL.Release()
@@ -250,8 +250,8 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 		coverShader.Release()
 		return err
 	}
-	coverLay, err := device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
-		Label: "tex_stencil_pat_cover_lay", BindGroupLayouts: []*webgpu.BindGroupLayout{coverBGL},
+	coverLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+		Label: "tex_stencil_pat_cover_lay", BindGroupLayouts: []hal.BindGroupLayout{coverBGL},
 	})
 	if err != nil {
 		fillLay.Release()
@@ -280,11 +280,11 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 			backPass = types.StencilOperationIncrementWrap
 			writeMask = 0x01
 		}
-		return device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 			Label:  label,
 			Layout: fillLay,
-			Vertex: webgpu.VertexState{Module: fillShader, EntryPoint: shaderEntryVS, Buffers: vbl},
-			Fragment: &webgpu.FragmentState{
+			Vertex: hal.VertexState{Module: fillShader, EntryPoint: shaderEntryVS, Buffers: vbl},
+			Fragment: &hal.FragmentState{
 				Module: fillShader, EntryPoint: shaderEntryFS,
 				Targets: []types.ColorTargetState{{
 					Format: types.TextureFormatBGRA8Unorm, WriteMask: types.ColorWriteMaskNone,
@@ -337,11 +337,11 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 			SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero, Operation: types.BlendOperationAdd,
 		},
 	}
-	cover, err := device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	cover, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "tex_stencil_pat_cover",
 		Layout: coverLay,
-		Vertex: webgpu.VertexState{Module: coverShader, EntryPoint: shaderEntryVS, Buffers: vbl},
-		Fragment: &webgpu.FragmentState{
+		Vertex: hal.VertexState{Module: coverShader, EntryPoint: shaderEntryVS, Buffers: vbl},
+		Fragment: &hal.FragmentState{
 			Module: coverShader, EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{{
 				Format: types.TextureFormatBGRA8Unorm, Blend: &replace, WriteMask: types.ColorWriteMaskAll,

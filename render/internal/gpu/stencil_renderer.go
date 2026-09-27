@@ -1218,15 +1218,15 @@ func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (*web
 			},
 		},
 	}
-	pipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  fmt.Sprintf("cover_pipeline_blend_%v", mode),
 		Layout: sr.coverPipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     sr.coverShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufferLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     sr.coverShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{

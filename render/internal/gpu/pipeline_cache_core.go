@@ -643,14 +643,14 @@ func createRenderPipeline(device *webgpu.Device, desc *RenderPipelineDescriptor)
 	}
 
 	// TODO: When pipeline creation is implemented, create actual pipeline:
-	// gpuDesc := &wgpu.RenderPipelineDescriptor{
+	// gpuDesc := &hal.RenderPipelineDescriptor{
 	//     Label: desc.Label,
-	//     Vertex: wgpu.VertexState{
+	//     Vertex: hal.VertexState{
 	//         Module:     desc.VertexShader.Raw(),
 	//         EntryPoint: vertexEntry,
 	//         Buffers:    convertVertexBufferLayouts(desc.VertexBufferLayouts),
 	//     },
-	//     Fragment: &wgpu.FragmentState{
+	//     Fragment: &hal.FragmentState{
 	//         Module:     desc.FragmentShader.Raw(),
 	//         EntryPoint: fragmentEntry,
 	//         Targets: []hal.ColorTargetState{{
@@ -703,7 +703,7 @@ func createComputePipeline(device *webgpu.Device, desc *ComputePipelineDescripto
 	}
 
 	// TODO: When pipeline creation is implemented, create actual pipeline:
-	// gpuDesc := &wgpu.ComputePipelineDescriptor{
+	// gpuDesc := &hal.ComputePipelineDescriptor{
 	//     Label: desc.Label,
 	//     Compute: hal.ProgrammableStageDescriptor{
 	//         Module:     desc.ComputeShader.Raw(),

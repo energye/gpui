@@ -178,12 +178,12 @@ func (p *MSDFTextPipeline) createPipeline() error {
 	}
 	p.uniformLayout = uniformLayout
 
-	textBGLayouts := []*webgpu.BindGroupLayout{p.uniformLayout}
+	textBGLayouts := []hal.BindGroupLayout{p.uniformLayout}
 	hasClip := p.clipBindLayout != nil
 	if hasClip {
 		textBGLayouts = append(textBGLayouts, p.clipBindLayout)
 	}
-	pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "msdf_text_pipe_layout",
 		BindGroupLayouts: textBGLayouts,
 	})
@@ -214,15 +214,15 @@ func (p *MSDFTextPipeline) createPipeline() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "msdf_text_pipeline",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    textVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -271,15 +271,15 @@ func (p *MSDFTextPipeline) ensurePipelineWithStencil() error { // Ensure base re
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "msdf_text_pipeline_with_stencil",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    textVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -311,15 +311,15 @@ func (p *MSDFTextPipeline) ensureDepthClipPipeline() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "msdf_text_pipeline_depth_clip",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    textVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{

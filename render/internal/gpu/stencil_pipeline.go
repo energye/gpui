@@ -115,9 +115,9 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	sr.uniformLayout = uniformLayout
 
 	// Create pipeline layouts.
-	stencilPipeLayout, err := sr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	stencilPipeLayout, err := sr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "stencil_fill_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{sr.uniformLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{sr.uniformLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create stencil pipeline layout: %w", err)
@@ -144,9 +144,9 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 		sr.maskBindLayout = layout
 		sr.maskLayoutOwned = true
 	}
-	coverPipeLayout, err := sr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	coverPipeLayout, err := sr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "cover_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{sr.uniformLayout, clipLayout, sr.maskBindLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{sr.uniformLayout, clipLayout, sr.maskBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create cover pipeline layout: %w", err)
@@ -185,15 +185,15 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	// Color writes are suppressed (WriteMask=None) since this pass only
 	// updates the stencil buffer. A dummy fragment shader is included for
 	// backend compatibility.
-	nonZeroStencilPipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	nonZeroStencilPipeline, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "stencil_fill_pipeline",
 		Layout: sr.stencilPipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufferLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -240,15 +240,15 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	// fills (#374). Pixels inside an odd number of crossings have stencil=1 (inside),
 	// pixels inside an even number have stencil=0 (outside). Same shader and layout
 	// as the non-zero variant.
-	evenOddStencilPipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	evenOddStencilPipeline, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "stencil_fill_even_odd_pipeline",
 		Layout: sr.stencilPipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufferLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -291,15 +291,15 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	// PassOp=Zero resets stencil to 0 after coloring, clearing it for the
 	// next path. Premultiplied alpha blending composites the fill color.
 	premulBlend := types.BlendStatePremultiplied()
-	nonZeroCoverPipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	nonZeroCoverPipeline, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "cover_pipeline",
 		Layout: sr.coverPipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     sr.coverShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufferLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     sr.coverShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -382,15 +382,15 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 	layout := aaVertexBufferLayout()
 
 	mk := func(label string, blend *types.BlendState, compare types.CompareFunction, passOp types.StencilOperation, writeMask uint32) (*webgpu.RenderPipeline, error) {
-		return sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		return sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 			Label:  label,
 			Layout: sr.coverPipeLayout,
-			Vertex: webgpu.VertexState{
+			Vertex: hal.VertexState{
 				Module:     sr.aaCoverShader,
 				EntryPoint: shaderEntryVS,
 				Buffers:    layout,
 			},
-			Fragment: &webgpu.FragmentState{
+			Fragment: &hal.FragmentState{
 				Module:     sr.aaCoverShader,
 				EntryPoint: shaderEntryFS,
 				Targets: []types.ColorTargetState{
@@ -485,15 +485,15 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 	}
 
 	// --- Non-zero stencil fill + depth clip ---
-	nzPipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	nzPipeline, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "stencil_fill_depth_clip_pipeline",
 		Layout: sr.stencilPipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufferLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -526,15 +526,15 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 	// --- Even-odd stencil fill + depth clip ---
 	// Same IncrementWrap+WriteMask=0x01 approach as the base EvenOdd pipeline
 	// (avoids AMD D3D12 StencilOperationInvert bug, #374).
-	eoPipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	eoPipeline, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "stencil_fill_even_odd_depth_clip_pipeline",
 		Layout: sr.stencilPipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufferLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -566,15 +566,15 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 
 	// --- Cover pipeline + depth clip ---
 	premulBlend := types.BlendStatePremultiplied()
-	coverPipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	coverPipeline, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "cover_depth_clip_pipeline",
 		Layout: sr.coverPipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     sr.coverShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    vertexBufferLayout,
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     sr.coverShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{

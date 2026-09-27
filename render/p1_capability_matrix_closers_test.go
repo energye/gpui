@@ -2988,9 +2988,9 @@ fn fs_main() -> @location(0) vec4<f32> {
 	}
 	defer shader.Release()
 
-	pipeline, err := dev.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
-		Vertex: webgpu.VertexState{Module: shader, EntryPoint: "vs_main"},
-		Fragment: &webgpu.FragmentState{
+	pipeline, err := dev.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Vertex: hal.VertexState{Module: shader, EntryPoint: "vs_main"},
+		Fragment: &hal.FragmentState{
 			Module:     shader,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{

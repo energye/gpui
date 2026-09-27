@@ -187,9 +187,9 @@ func (r *GPUCoarseRasterizer) createBindGroupLayouts() error {
 
 // createPipelineLayout creates the pipeline layout.
 func (r *GPUCoarseRasterizer) createPipelineLayout() error {
-	layout, err := r.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	layout, err := r.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "coarse_pipeline_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{r.inputBindLayout, r.outputBindLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{r.inputBindLayout, r.outputBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("gpu_coarse: failed to create pipeline layout: %w", err)
@@ -201,7 +201,7 @@ func (r *GPUCoarseRasterizer) createPipelineLayout() error {
 // createPipelines creates the compute pipelines.
 func (r *GPUCoarseRasterizer) createPipelines() error {
 	// Main coarse rasterization pipeline
-	coarsePipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	coarsePipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "coarse_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,
@@ -213,7 +213,7 @@ func (r *GPUCoarseRasterizer) createPipelines() error {
 	r.coarsePipeline = coarsePipeline
 
 	// Clear counter pipeline
-	clearPipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	clearPipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "coarse_clear_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,

@@ -217,7 +217,7 @@ func (d *Device) CreateBindGroupLayout(desc *hal.BindGroupLayoutDescriptor) (*Bi
 }
 
 // CreatePipelineLayout creates a pipeline layout.
-func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*PipelineLayout, error) {
+func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (*PipelineLayout, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -233,8 +233,11 @@ func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*Pipeline
 		rLayouts = make([]*rwgpu.BindGroupLayout, n)
 	}
 	for i, l := range desc.BindGroupLayouts {
-		if l != nil {
-			rLayouts[i] = l.r
+		if l == nil {
+			continue
+		}
+		if wl, ok := l.(*BindGroupLayout); ok && wl != nil {
+			rLayouts[i] = wl.r
 		}
 	}
 
@@ -287,7 +290,7 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 }
 
 // CreateRenderPipeline creates a render pipeline.
-func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPipeline, error) {
+func (d *Device) CreateRenderPipeline(desc *hal.RenderPipelineDescriptor) (*RenderPipeline, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -309,7 +312,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 }
 
 // CreateComputePipeline creates a compute pipeline.
-func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*ComputePipeline, error) {
+func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (*ComputePipeline, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -318,11 +321,15 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*Comput
 	}
 	var rLayout *rwgpu.PipelineLayout
 	if desc.Layout != nil {
-		rLayout = desc.Layout.r
+		if wl, ok := desc.Layout.(*PipelineLayout); ok && wl != nil {
+			rLayout = wl.r
+		}
 	}
 	var rModule *rwgpu.ShaderModule
 	if desc.Module != nil {
-		rModule = desc.Module.r
+		if wm, ok := desc.Module.(*ShaderModule); ok && wm != nil {
+			rModule = wm.r
+		}
 	}
 
 	rp, err := d.r.CreateComputePipeline(&rwgpu.ComputePipelineDescriptor{
@@ -771,9 +778,9 @@ func releaseRPLConvertScratch(sc *rplConvertScratch) {
 	rplConvertPool.Put(sc)
 }
 
-// convertRenderPipelineDesc converts our RenderPipelineDescriptor to rwgpu.
+// convertRenderPipelineDesc converts hal RenderPipelineDescriptor to rwgpu.
 // Heap-owning fallback for callers outside CreateRenderPipeline.
-func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
+func convertRenderPipelineDesc(desc *hal.RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
 	sc := acquireRPLConvertScratch()
 	rDesc, keep := convertRenderPipelineDescInto(sc, desc)
 	owned := make([][]rwgpu.VertexAttribute, len(keep))
@@ -820,15 +827,19 @@ func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) (*rwgpu.RenderPip
 
 // convertRenderPipelineDescInto fills sc and returns pointers into it.
 // Caller must runtime.KeepAlive(sc) until after native CreateRenderPipeline returns.
-func convertRenderPipelineDescInto(sc *rplConvertScratch, desc *RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
+func convertRenderPipelineDescInto(sc *rplConvertScratch, desc *hal.RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
 	sc.rDesc = rwgpu.RenderPipelineDescriptor{Label: desc.Label}
 	if desc.Layout != nil {
-		sc.rDesc.Layout = desc.Layout.r
+		if wl, ok := desc.Layout.(*PipelineLayout); ok && wl != nil {
+			sc.rDesc.Layout = wl.r
+		}
 	}
 
 	sc.rDesc.Vertex = rwgpu.VertexState{EntryPoint: desc.Vertex.EntryPoint}
 	if desc.Vertex.Module != nil {
-		sc.rDesc.Vertex.Module = desc.Vertex.Module.r
+		if wm, ok := desc.Vertex.Module.(*ShaderModule); ok && wm != nil {
+			sc.rDesc.Vertex.Module = wm.r
+		}
 	}
 	bufs, keepAlive := convertVertexBufferLayoutsInto(sc, desc.Vertex.Buffers)
 	sc.rDesc.Vertex.Buffers = bufs
@@ -968,7 +979,7 @@ func convertDepthStencilStateInto(out *rwgpu.DepthStencilState, ds *hal.DepthSte
 }
 
 // convertFragmentState converts fragment state (heap-owning).
-func convertFragmentState(fs *FragmentState) *rwgpu.FragmentState {
+func convertFragmentState(fs *hal.FragmentState) *rwgpu.FragmentState {
 	sc := acquireRPLConvertScratch()
 	convertFragmentStateInto(sc, fs)
 	out := sc.fragment
@@ -987,10 +998,12 @@ func convertFragmentState(fs *FragmentState) *rwgpu.FragmentState {
 	return &out
 }
 
-func convertFragmentStateInto(sc *rplConvertScratch, fs *FragmentState) {
+func convertFragmentStateInto(sc *rplConvertScratch, fs *hal.FragmentState) {
 	sc.fragment = rwgpu.FragmentState{EntryPoint: fs.EntryPoint}
 	if fs.Module != nil {
-		sc.fragment.Module = fs.Module.r
+		if wm, ok := fs.Module.(*ShaderModule); ok && wm != nil {
+			sc.fragment.Module = wm.r
+		}
 	}
 	n := len(fs.Targets)
 	if n == 0 {

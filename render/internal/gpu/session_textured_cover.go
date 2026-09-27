@@ -91,9 +91,9 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		return err
 	}
 
-	pipeLay, err := sr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLay, err := sr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label: "textured_cover_lay",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{
+		BindGroupLayouts: []hal.BindGroupLayout{
 			bgl0, clipLay, maskLay,
 		},
 	})
@@ -114,11 +114,11 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 	ms := multisampleState(sr.sampleCount)
 	prim := triangleListPrimitive()
 
-	pipe, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipe, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "textured_cover_pipeline",
 		Layout: pipeLay,
-		Vertex: webgpu.VertexState{Module: shader, EntryPoint: shaderEntryVS, Buffers: vbl},
-		Fragment: &webgpu.FragmentState{
+		Vertex: hal.VertexState{Module: shader, EntryPoint: shaderEntryVS, Buffers: vbl},
+		Fragment: &hal.FragmentState{
 			Module: shader, EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{{
 				Format: types.TextureFormatBGRA8Unorm, Blend: &premul, WriteMask: types.ColorWriteMaskAll,
@@ -436,9 +436,9 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		shader.Release()
 		return err
 	}
-	pipeLay, err := sr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLay, err := sr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "pattern_cover_lay",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{bgl0, clipLay, maskLay},
+		BindGroupLayouts: []hal.BindGroupLayout{bgl0, clipLay, maskLay},
 	})
 	if err != nil {
 		bgl0.Release()
@@ -455,11 +455,11 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 	premul := types.BlendStatePremultiplied()
 	ms := multisampleState(sr.sampleCount)
 	prim := triangleListPrimitive()
-	pipe, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipe, err := sr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "pattern_cover_pipeline",
 		Layout: pipeLay,
-		Vertex: webgpu.VertexState{Module: shader, EntryPoint: shaderEntryVS, Buffers: vbl},
-		Fragment: &webgpu.FragmentState{
+		Vertex: hal.VertexState{Module: shader, EntryPoint: shaderEntryVS, Buffers: vbl},
+		Fragment: &hal.FragmentState{
 			Module: shader, EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{{
 				Format: types.TextureFormatBGRA8Unorm, Blend: &premul, WriteMask: types.ColorWriteMaskAll,

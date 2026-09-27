@@ -240,9 +240,9 @@ func (r *GPUFineRasterizer) createBindGroupLayouts() error {
 
 // createPipelineLayout creates the pipeline layout.
 func (r *GPUFineRasterizer) createPipelineLayout() error {
-	layout, err := r.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	layout, err := r.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "fine_pipeline_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{r.inputBindLayout, r.outputBindLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{r.inputBindLayout, r.outputBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("gpu_fine: failed to create pipeline layout: %w", err)
@@ -254,7 +254,7 @@ func (r *GPUFineRasterizer) createPipelineLayout() error {
 // createPipelines creates the compute pipelines.
 func (r *GPUFineRasterizer) createPipelines() error {
 	// Main fine rasterization pipeline
-	finePipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	finePipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "fine_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,
@@ -266,7 +266,7 @@ func (r *GPUFineRasterizer) createPipelines() error {
 	r.finePipeline = finePipeline
 
 	// Solid tile pipeline
-	solidPipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	solidPipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "fine_solid_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,
@@ -278,7 +278,7 @@ func (r *GPUFineRasterizer) createPipelines() error {
 	r.fineSolidPipeline = solidPipeline
 
 	// Clear coverage pipeline
-	clearPipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	clearPipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "clear_coverage_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,

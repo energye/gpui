@@ -133,23 +133,23 @@ func (pc *PipelineCache) createBlitPipeline() error {
 	}
 	pc.nativeBlitLayout = layout
 
-	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := pc.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "gg_blit_pipeline_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{pc.nativeBlitLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{pc.nativeBlitLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create blit pipeline layout: %w", err)
 	}
 	pc.blitPipelineLayout = pipeLayout
 
-	pipeline, err := pc.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := pc.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "gg_blit_pipeline",
 		Layout: pc.blitPipelineLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     pc.shaders.BlitModule,
 			EntryPoint: "vs_main",
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     pc.shaders.BlitModule,
 			EntryPoint: "fs_main",
 			Targets:    []types.ColorTargetState{defaultColorTarget()},
@@ -196,16 +196,16 @@ func (pc *PipelineCache) createStripPipeline() error {
 	}
 	pc.nativeStripLayout = layout
 
-	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := pc.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "gg_strip_pipeline_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{pc.nativeStripLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{pc.nativeStripLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create strip pipeline layout: %w", err)
 	}
 	pc.stripPipelineLayout = pipeLayout
 
-	pipeline, err := pc.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	pipeline, err := pc.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "gg_strip_pipeline",
 		Layout:     pc.stripPipelineLayout,
 		Module:     pc.shaders.StripModule,
@@ -259,9 +259,9 @@ func (pc *PipelineCache) createCompositePipeline() error {
 	}
 	pc.nativeCompositeParamsLayout = paramsLayout
 
-	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := pc.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label: "gg_composite_pipeline_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{
+		BindGroupLayouts: []hal.BindGroupLayout{
 			pc.nativeCompositeLayout,
 			pc.nativeCompositeParamsLayout,
 		},
@@ -271,14 +271,14 @@ func (pc *PipelineCache) createCompositePipeline() error {
 	}
 	pc.compositePipelineLayout = pipeLayout
 
-	pipeline, err := pc.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := pc.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "gg_composite_pipeline",
 		Layout: pc.compositePipelineLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     pc.shaders.CompositeModule,
 			EntryPoint: "vs_main",
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     pc.shaders.CompositeModule,
 			EntryPoint: "fs_main",
 			Targets:    []types.ColorTargetState{defaultColorTarget()},
@@ -340,14 +340,14 @@ func (pc *PipelineCache) createBlendPipeline(mode scene.BlendMode) StubPipelineI
 	}
 
 	if pc.hasNativeDevice() {
-		pipeline, err := pc.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		pipeline, err := pc.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 			Label:  fmt.Sprintf("gg_blend_pipeline_%d", mode),
 			Layout: pc.blendPipelineLayout,
-			Vertex: webgpu.VertexState{
+			Vertex: hal.VertexState{
 				Module:     pc.shaders.BlendModule,
 				EntryPoint: "vs_main",
 			},
-			Fragment: &webgpu.FragmentState{
+			Fragment: &hal.FragmentState{
 				Module:     pc.shaders.BlendModule,
 				EntryPoint: "fs_main",
 				Targets:    []types.ColorTargetState{defaultColorTarget()},
@@ -379,9 +379,9 @@ func (pc *PipelineCache) createNativeBlendResources() error {
 	}
 	pc.nativeBlendLayout = layout
 
-	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := pc.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "gg_blend_pipeline_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{pc.nativeBlendLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{pc.nativeBlendLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create blend pipeline layout: %w", err)

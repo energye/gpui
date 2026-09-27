@@ -226,15 +226,15 @@ func (cr *ConvexRenderer) ensurePipelineWithStencil() error { // Ensure base res
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := cr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := cr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "convex_pipeline_with_stencil",
 		Layout: cr.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    convexVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -275,15 +275,15 @@ func (cr *ConvexRenderer) ensureDepthClipPipeline() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := cr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := cr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "convex_pipeline_depth_clip",
 		Layout: cr.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    convexVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -326,15 +326,15 @@ func (cr *ConvexRenderer) ensureMeshPipelineWithStencil() error {
 		}
 	}
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := cr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := cr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "convex_mesh_pipeline_with_stencil",
 		Layout: cr.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryVSMesh,
 			Buffers:    convexMeshVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -365,15 +365,15 @@ func (cr *ConvexRenderer) ensureMeshDepthClipPipeline() error {
 		return err
 	}
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := cr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := cr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "convex_mesh_pipeline_depth_clip",
 		Layout: cr.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryVSMesh,
 			Buffers:    convexMeshVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -513,15 +513,15 @@ func (cr *ConvexRenderer) createBlendPipelineWithStencil(mode render.BlendMode) 
 	if !ok {
 		return nil, fmt.Errorf("unsupported convex blend mode %v", mode)
 	}
-	pipeline, err := cr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := cr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  fmt.Sprintf("convex_pipeline_blend_%v", mode),
 		Layout: cr.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    convexVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -597,9 +597,9 @@ func (cr *ConvexRenderer) createPipeline() error {
 		cr.maskBindLayout = layout
 		cr.maskLayoutOwned = true
 	}
-	pipeLayout, err := cr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := cr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "convex_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{cr.uniformLayout, clipLayout, cr.maskBindLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{cr.uniformLayout, clipLayout, cr.maskBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create convex pipeline layout: %w", err)
@@ -608,15 +608,15 @@ func (cr *ConvexRenderer) createPipeline() error {
 	cr.pipeLayout = pipeLayout
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := cr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := cr.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "convex_pipeline",
 		Layout: cr.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    convexVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     cr.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{

@@ -278,9 +278,9 @@ func (r *GPUFlattenRasterizer) createBindGroupLayouts() error {
 
 // createPipelineLayout creates the pipeline layout.
 func (r *GPUFlattenRasterizer) createPipelineLayout() error {
-	layout, err := r.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	layout, err := r.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "flatten_pipeline_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{r.inputBindLayout, r.outputBindLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{r.inputBindLayout, r.outputBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("gpu_flatten: failed to create pipeline layout: %w", err)
@@ -292,7 +292,7 @@ func (r *GPUFlattenRasterizer) createPipelineLayout() error {
 // createPipelines creates the compute pipelines.
 func (r *GPUFlattenRasterizer) createPipelines() error {
 	// Prepare pipeline (count segments)
-	preparePipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	preparePipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "flatten_prepare_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,
@@ -304,7 +304,7 @@ func (r *GPUFlattenRasterizer) createPipelines() error {
 	r.preparePipeline = preparePipeline
 
 	// Flatten pipeline (generate segments)
-	flattenPipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	flattenPipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "flatten_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,
@@ -316,7 +316,7 @@ func (r *GPUFlattenRasterizer) createPipelines() error {
 	r.flattenPipeline = flattenPipeline
 
 	// Clear counter pipeline
-	clearPipeline, err := r.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+	clearPipeline, err := r.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 		Label:      "flatten_clear_pipeline",
 		Layout:     r.pipelineLayout,
 		Module:     r.shaderModule,

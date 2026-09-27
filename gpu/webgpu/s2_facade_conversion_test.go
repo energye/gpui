@@ -16,9 +16,9 @@ import (
 
 func TestS2ConvertRenderPipelinePrimitiveFields(t *testing.T) {
 	strip := types.IndexFormatUint16
-	desc := &RenderPipelineDescriptor{
+	desc := &hal.RenderPipelineDescriptor{
 		Label: "s2-prim",
-		Vertex: VertexState{
+		Vertex: hal.VertexState{
 			EntryPoint: "vs",
 		},
 		Primitive: types.PrimitiveState{
@@ -56,7 +56,7 @@ func TestS2ConvertRenderPipelinePrimitiveFields(t *testing.T) {
 }
 
 func TestS2ConvertFragmentBlendFields(t *testing.T) {
-	fs := &FragmentState{
+	fs := &hal.FragmentState{
 		EntryPoint: "fs",
 		Targets: []types.ColorTargetState{{
 			Format:    types.TextureFormatRGBA8Unorm,

@@ -229,12 +229,12 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 	}
 
 	if p.pipeLayout == nil {
-		glyphBGLayouts := []*webgpu.BindGroupLayout{p.uniformLayout}
+		glyphBGLayouts := []hal.BindGroupLayout{p.uniformLayout}
 		hasClip := p.clipBindLayout != nil
 		if hasClip {
 			glyphBGLayouts = append(glyphBGLayouts, p.clipBindLayout)
 		}
-		pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+		pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 			Label:            "glyph_mask_pipe_layout",
 			BindGroupLayouts: glyphBGLayouts,
 		})
@@ -311,15 +311,15 @@ func (p *GlyphMaskPipeline) ensurePipelineWithStencil() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "glyph_mask_pipeline_with_stencil",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    glyphMaskVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -379,15 +379,15 @@ func (p *GlyphMaskPipeline) ensureColorPipelineWithStencil() error {
 	p.colorShader = shader
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "glyph_color_pipeline_with_stencil",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.colorShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    glyphMaskVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.colorShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -421,15 +421,15 @@ func (p *GlyphMaskPipeline) ensureDepthClipPipeline() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "glyph_mask_pipeline_depth_clip",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    glyphMaskVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -586,12 +586,12 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 	}
 	p.lcdUniformLayout = lcdUniformLayout
 
-	lcdBGLayouts := []*webgpu.BindGroupLayout{p.lcdUniformLayout}
+	lcdBGLayouts := []hal.BindGroupLayout{p.lcdUniformLayout}
 	hasClip := p.clipBindLayout != nil
 	if hasClip {
 		lcdBGLayouts = append(lcdBGLayouts, p.clipBindLayout)
 	}
-	lcdPipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	lcdPipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "glyph_mask_lcd_pipe_layout",
 		BindGroupLayouts: lcdBGLayouts,
 	})
@@ -629,15 +629,15 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 
 	mkLCD := func(label, entry string, blend types.BlendState) (*webgpu.RenderPipeline, error) {
 		b := blend
-		return p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		return p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 			Label:  label,
 			Layout: p.lcdPipeLayout,
-			Vertex: webgpu.VertexState{
+			Vertex: hal.VertexState{
 				Module:     p.lcdShader,
 				EntryPoint: shaderEntryVS,
 				Buffers:    glyphMaskVertexLayout(),
 			},
-			Fragment: &webgpu.FragmentState{
+			Fragment: &hal.FragmentState{
 				Module:     p.lcdShader,
 				EntryPoint: entry,
 				Targets: []types.ColorTargetState{

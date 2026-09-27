@@ -621,9 +621,9 @@ func (d *VelloComputeDispatcher) Init() error {
 		d.bgLayouts[i] = bgLayout
 
 		// 3. Create pipeline layout.
-		pipelineLayout, err := d.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+		pipelineLayout, err := d.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 			Label:            stageName + "_pl",
-			BindGroupLayouts: []*webgpu.BindGroupLayout{bgLayout},
+			BindGroupLayouts: []hal.BindGroupLayout{bgLayout},
 		})
 		if err != nil {
 			d.destroyPartialInit(i + 1)
@@ -632,7 +632,7 @@ func (d *VelloComputeDispatcher) Init() error {
 		d.pipelineLayouts[i] = pipelineLayout
 
 		// 4. Create compute pipeline.
-		pipeline, err := d.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+		pipeline, err := d.device.CreateComputePipeline(&hal.ComputePipelineDescriptor{
 			Label:      stageName,
 			Layout:     pipelineLayout,
 			Module:     module,

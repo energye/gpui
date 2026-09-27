@@ -376,9 +376,9 @@ type FragmentState struct {
 }
 
 // ComputePipelineDescriptor describes a compute pipeline.
-// Mirrors gpu/webgpu ComputePipelineDescriptor flat shape
-// (gpu/webgpu/descriptor.go:61); browser variant adds Constants at
-// gpu/webgpu/descriptor_browser.go:172 (unsupported in hal, H4 定).
+// Canonical flat shape Label/Layout/Module/EntryPoint (native webgpu copy
+// deleted in 片3b, render now uses this hal type); browser variant adds
+// Constants at gpu/webgpu/descriptor_browser.go:172 (unsupported in hal, H4 定).
 type ComputePipelineDescriptor struct {
 	// Label is an optional debug name.
 	Label string

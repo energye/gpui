@@ -5,6 +5,7 @@ package webgpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -36,7 +37,7 @@ func TestR76_ConvertFragment_CommonShape(t *testing.T) {
 		Color: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorOneMinusSrcAlpha, Operation: types.BlendOperationAdd},
 		Alpha: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorOneMinusSrcAlpha, Operation: types.BlendOperationAdd},
 	}
-	fs := &FragmentState{
+	fs := &hal.FragmentState{
 		EntryPoint: "fs_main",
 		Targets: []ColorTargetState{{
 			Format:    types.TextureFormatBGRA8Unorm,
@@ -61,15 +62,15 @@ func TestR76_ConvertFragment_CommonShape(t *testing.T) {
 func TestR76_ConvertPipelineDescInto_NoNilCrash(t *testing.T) {
 	sc := acquireRPLConvertScratch()
 	defer releaseRPLConvertScratch(sc)
-	desc := &RenderPipelineDescriptor{
-		Vertex: VertexState{
+	desc := &hal.RenderPipelineDescriptor{
+		Vertex: hal.VertexState{
 			EntryPoint: "vs_main",
 			Buffers: []VertexBufferLayout{{
 				ArrayStride: 8,
 				Attributes:  []types.VertexAttribute{{Format: types.VertexFormatFloat32x2, ShaderLocation: 0}},
 			}},
 		},
-		Fragment: &FragmentState{
+		Fragment: &hal.FragmentState{
 			EntryPoint: "fs_main",
 			Targets: []ColorTargetState{{
 				Format:    types.TextureFormatBGRA8Unorm,

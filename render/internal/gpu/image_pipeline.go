@@ -213,15 +213,15 @@ func (p *TexturedQuadPipeline) ensurePipelineWithStencil() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "textured_quad_pipeline_with_stencil",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    imageVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -253,15 +253,15 @@ func (p *TexturedQuadPipeline) ensureDepthClipPipeline() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "textured_quad_pipeline_depth_clip",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    imageVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -306,15 +306,15 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	stencilPipe, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	stencilPipe, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "textured_quad_pipeline_bicubic",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.bicubicShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    imageVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.bicubicShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -336,15 +336,15 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 
 	// Depth-clip bicubic variant (GPU-CLIP-003a interaction: bicubic content
 	// must honor arbitrary path clipping like any other content tier).
-	depthPipe, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	depthPipe, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "textured_quad_pipeline_bicubic_depth_clip",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.bicubicShader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    imageVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.bicubicShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -411,11 +411,11 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 	// clip group when the session wired one. Clipped subtrees are cacheable
 	// again since C8, so compositor blits can carry a rounded clip — the old
 	// single-group layout silently dropped it (sharp corners on screen).
-	layouts := []*webgpu.BindGroupLayout{p.uniformLayout}
+	layouts := []hal.BindGroupLayout{p.uniformLayout}
 	if wantClip {
 		layouts = append(layouts, p.clipBindLayout)
 	}
-	layout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	layout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "textured_quad_blit_layout",
 		BindGroupLayouts: layouts,
 	})
@@ -426,15 +426,15 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 	p.blitLayoutHasClip = wantClip
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "textured_quad_blit_pipeline",
 		Layout: p.blitLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    imageVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -560,12 +560,12 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 	p.uniformLayout = uniformLayout
 
 	// Pipeline layout.
-	bgLayouts := []*webgpu.BindGroupLayout{p.uniformLayout}
+	bgLayouts := []hal.BindGroupLayout{p.uniformLayout}
 	hasClip := p.clipBindLayout != nil
 	if hasClip {
 		bgLayouts = append(bgLayouts, p.clipBindLayout)
 	}
-	pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "textured_quad_pipe_layout",
 		BindGroupLayouts: bgLayouts,
 	})

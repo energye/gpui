@@ -81,8 +81,8 @@ func TestConvertDepthStencilStateUsesNativeStencilValues(t *testing.T) {
 }
 
 func TestConvertRenderPipelineDescKeepsVertexAttributesAlive(t *testing.T) {
-	desc := &RenderPipelineDescriptor{
-		Vertex: VertexState{
+	desc := &hal.RenderPipelineDescriptor{
+		Vertex: hal.VertexState{
 			EntryPoint: "vs_main",
 			Buffers: []VertexBufferLayout{
 				{

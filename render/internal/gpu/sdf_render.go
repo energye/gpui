@@ -361,9 +361,9 @@ func (p *SDFRenderPipeline) createPipeline() error {
 		p.maskBindLayout = layout
 		p.maskLayoutOwned = true
 	}
-	pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "sdf_render_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{p.uniformLayout, clipLayout, p.maskBindLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{p.uniformLayout, clipLayout, p.maskBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create pipeline layout: %w", err)
@@ -372,15 +372,15 @@ func (p *SDFRenderPipeline) createPipeline() error {
 	p.pipeLayout = pipeLayout
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "sdf_render_pipeline",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    sdfRenderVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -430,15 +430,15 @@ func (p *SDFRenderPipeline) ensurePipelineWithStencil() error { // Ensure base r
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "sdf_render_pipeline_with_stencil",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    sdfRenderVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
@@ -475,15 +475,15 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 	}
 
 	premulBlend := types.BlendStatePremultiplied()
-	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "sdf_render_pipeline_depth_clip",
 		Layout: p.pipeLayout,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryVS,
 			Buffers:    sdfRenderVertexLayout(),
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     p.shader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{

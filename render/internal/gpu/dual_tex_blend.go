@@ -451,9 +451,9 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		shader.Release()
 		return fmt.Errorf("dual-tex blend bgl: %w", err)
 	}
-	pipeLay, err := device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+	pipeLay, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "dual_tex_blend_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{bgl},
+		BindGroupLayouts: []hal.BindGroupLayout{bgl},
 	})
 	if err != nil {
 		bgl.Release()
@@ -473,14 +473,14 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 			Operation: types.BlendOperationAdd,
 		},
 	}
-	pipe, err := device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipe, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "dual_tex_advanced_blend_pipe",
 		Layout: pipeLay,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     shader,
 			EntryPoint: "vs_main",
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     shader,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{
@@ -498,14 +498,14 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		shader.Release()
 		return fmt.Errorf("dual-tex blend pipeline: %w", err)
 	}
-	pipeBGRA, err := device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+	pipeBGRA, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "dual_tex_advanced_blend_pipe_bgra",
 		Layout: pipeLay,
-		Vertex: webgpu.VertexState{
+		Vertex: hal.VertexState{
 			Module:     shader,
 			EntryPoint: "vs_main",
 		},
-		Fragment: &webgpu.FragmentState{
+		Fragment: &hal.FragmentState{
 			Module:     shader,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{
