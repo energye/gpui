@@ -231,15 +231,15 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 			DepthCompare:      types.CompareFunctionAlways, // pass all depth tests
 			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
-				FailOp:      webgpu.StencilOperationKeep,
-				DepthFailOp: webgpu.StencilOperationKeep,
-				PassOp:      webgpu.StencilOperationIncrementWrap,
+				FailOp:      types.StencilOperationKeep,
+				DepthFailOp: types.StencilOperationKeep,
+				PassOp:      types.StencilOperationIncrementWrap,
 			},
 			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
-				FailOp:      webgpu.StencilOperationKeep,
-				DepthFailOp: webgpu.StencilOperationKeep,
-				PassOp:      webgpu.StencilOperationDecrementWrap,
+				FailOp:      types.StencilOperationKeep,
+				DepthFailOp: types.StencilOperationKeep,
+				PassOp:      types.StencilOperationDecrementWrap,
 			},
 			StencilReadMask:  0xFF,
 			StencilWriteMask: 0xFF,
@@ -298,15 +298,15 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 				DepthCompare:      types.CompareFunctionAlways,
 				StencilFront: hal.StencilFaceState{
 					Compare:     types.CompareFunctionAlways,
-					FailOp:      webgpu.StencilOperationKeep,
-					DepthFailOp: webgpu.StencilOperationKeep,
-					PassOp:      webgpu.StencilOperationReplace,
+					FailOp:      types.StencilOperationKeep,
+					DepthFailOp: types.StencilOperationKeep,
+					PassOp:      types.StencilOperationReplace,
 				},
 				StencilBack: hal.StencilFaceState{
 					Compare:     types.CompareFunctionAlways,
-					FailOp:      webgpu.StencilOperationKeep,
-					DepthFailOp: webgpu.StencilOperationKeep,
-					PassOp:      webgpu.StencilOperationReplace,
+					FailOp:      types.StencilOperationKeep,
+					DepthFailOp: types.StencilOperationKeep,
+					PassOp:      types.StencilOperationReplace,
 				},
 				StencilReadMask:  0xFF,
 				StencilWriteMask: 0xFF,
@@ -350,15 +350,15 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 			DepthCompare:      types.CompareFunctionAlways, // always pass depth test
 			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual, // only where stencil != 0
-				FailOp:      webgpu.StencilOperationKeep,   // outside clip: keep stencil (already 0)
-				DepthFailOp: webgpu.StencilOperationKeep,   // depth always passes, never hit
-				PassOp:      webgpu.StencilOperationZero,   // reset stencil after use
+				FailOp:      types.StencilOperationKeep,    // outside clip: keep stencil (already 0)
+				DepthFailOp: types.StencilOperationKeep,    // depth always passes, never hit
+				PassOp:      types.StencilOperationZero,    // reset stencil after use
 			},
 			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual,
-				FailOp:      webgpu.StencilOperationKeep,
-				DepthFailOp: webgpu.StencilOperationKeep,
-				PassOp:      webgpu.StencilOperationZero,
+				FailOp:      types.StencilOperationKeep,
+				DepthFailOp: types.StencilOperationKeep,
+				PassOp:      types.StencilOperationZero,
 			},
 			StencilReadMask:  0xFF,
 			StencilWriteMask: 0xFF,

@@ -27,8 +27,8 @@ func TestDamageBlit_LoadOpLoad_PreservesContent(t *testing.T) {
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
-		Format:        webgpu.TextureFormatRGBA8Unorm,
-		Usage:         webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
+		Format:        types.TextureFormatRGBA8Unorm,
+		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc,
 	})
 	if err != nil {
 		t.Fatalf("CreateTexture: %v", err)
@@ -132,7 +132,7 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, t
 	buf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
 		Label: "readback",
 		Size:  bufSize,
-		Usage: webgpu.BufferUsageCopyDst | webgpu.BufferUsageMapRead,
+		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {
 		t.Logf("CreateBuffer for readback: %v", err)

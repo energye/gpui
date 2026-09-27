@@ -14,7 +14,7 @@ import (
 const minRenderStorageBuffersPerShaderStage = 9
 
 func renderDeviceDescriptor(label string) *webgpu.DeviceDescriptor {
-	limits := webgpu.DefaultLimits()
+	limits := types.DefaultLimits()
 	if limits.MaxStorageBuffersPerShaderStage < minRenderStorageBuffersPerShaderStage {
 		limits.MaxStorageBuffersPerShaderStage = minRenderStorageBuffersPerShaderStage
 	}

@@ -38,7 +38,7 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 	winW, winH := 320, 240
 	xw := memOpenX11(t, winW, winH)
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		xw.close()
 		t.Skipf("CreateInstance: %v", err)
@@ -52,7 +52,7 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 	}
 
 	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
+		PowerPreference:   types.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})
 	if err != nil {

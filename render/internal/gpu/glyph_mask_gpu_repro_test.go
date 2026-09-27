@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -150,11 +151,11 @@ func TestGlyphMaskGPURepro(t *testing.T) {
 
 func reproRealDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
 	t.Helper()
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("no GPU instance: %v", err)
 	}
-	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: webgpu.PowerPreferenceHighPerformance})
+	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skipf("no adapter: %v", err)
 	}

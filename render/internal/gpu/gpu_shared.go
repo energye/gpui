@@ -676,7 +676,7 @@ func (s *GPUShared) initGPU() error {
 		return nil
 	}
 	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
-		Backends: webgpu.BackendsVulkan,
+		Backends: types.BackendsVulkan,
 	})
 	if err != nil {
 		return fmt.Errorf("create instance: %w", err)

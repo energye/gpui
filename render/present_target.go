@@ -353,7 +353,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// the window can still try a lower-power adapter or software.
 	}
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		return nil, fmt.Errorf("render: CreateInstance: %w", err)
 	}
@@ -372,7 +372,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	var forceFallback bool
 	if lv.software {
 		adapter, err = inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-			PowerPreference:      webgpu.PowerPreferenceNone,
+			PowerPreference:      types.PowerPreferenceNone,
 			ForceFallbackAdapter: true,
 			CompatibleSurface:    surf,
 		})

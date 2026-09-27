@@ -23,16 +23,6 @@ const (
 	BackendGL     = types.BackendGL
 )
 
-// Backends masks
-const (
-	BackendsAll     = types.BackendsAll
-	BackendsPrimary = types.BackendsPrimary
-	BackendsVulkan  = types.BackendsVulkan
-	BackendsMetal   = types.BackendsMetal
-	BackendsDX12    = types.BackendsDX12
-	BackendsGL      = types.BackendsGL
-)
-
 // Feature and limit types
 type Features = types.Features
 type Limits = types.Limits
@@ -40,51 +30,13 @@ type Limits = types.Limits
 // Buffer usage
 type BufferUsage = types.BufferUsage
 
-const (
-	BufferUsageMapRead      = types.BufferUsageMapRead
-	BufferUsageMapWrite     = types.BufferUsageMapWrite
-	BufferUsageCopySrc      = types.BufferUsageCopySrc
-	BufferUsageCopyDst      = types.BufferUsageCopyDst
-	BufferUsageIndex        = types.BufferUsageIndex
-	BufferUsageVertex       = types.BufferUsageVertex
-	BufferUsageUniform      = types.BufferUsageUniform
-	BufferUsageStorage      = types.BufferUsageStorage
-	BufferUsageIndirect     = types.BufferUsageIndirect
-	BufferUsageQueryResolve = types.BufferUsageQueryResolve
-)
-
 // Texture types
 type TextureUsage = types.TextureUsage
-
-const (
-	TextureUsageCopySrc          = types.TextureUsageCopySrc
-	TextureUsageCopyDst          = types.TextureUsageCopyDst
-	TextureUsageTextureBinding   = types.TextureUsageTextureBinding
-	TextureUsageStorageBinding   = types.TextureUsageStorageBinding
-	TextureUsageRenderAttachment = types.TextureUsageRenderAttachment
-)
 
 type TextureFormat = types.TextureFormat
 type TextureDimension = types.TextureDimension
 type TextureViewDimension = types.TextureViewDimension
 type TextureAspect = types.TextureAspect
-
-// Texture dimension constants
-const (
-	TextureDimension1D = types.TextureDimension1D
-	TextureDimension2D = types.TextureDimension2D
-	TextureDimension3D = types.TextureDimension3D
-)
-
-// Commonly used texture format constants
-const (
-	TextureFormatRGBA8Unorm     = types.TextureFormatRGBA8Unorm
-	TextureFormatRGBA8UnormSrgb = types.TextureFormatRGBA8UnormSrgb
-	TextureFormatBGRA8Unorm     = types.TextureFormatBGRA8Unorm
-	TextureFormatBGRA8UnormSrgb = types.TextureFormatBGRA8UnormSrgb
-	TextureFormatDepth24Plus    = types.TextureFormatDepth24Plus
-	TextureFormatDepth32Float   = types.TextureFormatDepth32Float
-)
 
 // Shader types
 type ShaderStages = types.ShaderStages
@@ -139,7 +91,6 @@ const (
 // Adapter types
 type AdapterInfo = types.AdapterInfo
 type DeviceType = types.DeviceType
-type PowerPreference = types.PowerPreference
 
 // RequestAdapterOptions controls adapter selection.
 //
@@ -149,7 +100,7 @@ type PowerPreference = types.PowerPreference
 // enumeration when RequestAdapter is called.
 type RequestAdapterOptions struct {
 	// PowerPreference indicates power consumption preference.
-	PowerPreference PowerPreference
+	PowerPreference types.PowerPreference
 	// ForceFallbackAdapter forces the use of a fallback (software) adapter.
 	ForceFallbackAdapter bool
 	// CompatibleSurface, if non-nil, indicates that the adapter must support
@@ -158,14 +109,7 @@ type RequestAdapterOptions struct {
 	CompatibleSurface *Surface
 }
 
-const (
-	PowerPreferenceNone            = types.PowerPreferenceNone
-	PowerPreferenceLowPower        = types.PowerPreferenceLowPower
-	PowerPreferenceHighPerformance = types.PowerPreferenceHighPerformance
-)
-
 // Default functions (re-exported for convenience)
 var (
-	DefaultLimits             = types.DefaultLimits
 	DefaultInstanceDescriptor = types.DefaultInstanceDescriptor
 )

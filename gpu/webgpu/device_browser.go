@@ -6,6 +6,7 @@ import (
 	"syscall/js"
 	"time"
 
+	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu/internal/browser"
 )
 
@@ -527,23 +528,23 @@ func convertStencilFaceState(s *StencilFaceState) *browser.StencilFaceStateJS {
 }
 
 // stencilOpToJS converts StencilOperation (gputypes, webgpu.h spec values) to WebGPU JS string.
-func stencilOpToJS(op StencilOperation) string {
+func stencilOpToJS(op types.StencilOperation) string {
 	switch op {
-	case StencilOperationKeep:
+	case types.StencilOperationKeep:
 		return "keep"
-	case StencilOperationZero:
+	case types.StencilOperationZero:
 		return "zero"
-	case StencilOperationReplace:
+	case types.StencilOperationReplace:
 		return "replace"
-	case StencilOperationInvert:
+	case types.StencilOperationInvert:
 		return "invert"
-	case StencilOperationIncrementClamp:
+	case types.StencilOperationIncrementClamp:
 		return "increment-clamp"
-	case StencilOperationDecrementClamp:
+	case types.StencilOperationDecrementClamp:
 		return "decrement-clamp"
-	case StencilOperationIncrementWrap:
+	case types.StencilOperationIncrementWrap:
 		return "increment-wrap"
-	case StencilOperationDecrementWrap:
+	case types.StencilOperationDecrementWrap:
 		return "decrement-wrap"
 	default:
 		return "keep"

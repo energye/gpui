@@ -193,15 +193,15 @@ func TestS2ConvertDepthStencilComplete(t *testing.T) {
 		DepthBias:         1,
 		StencilFront: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
-			FailOp:      StencilOperationKeep,
-			DepthFailOp: StencilOperationIncrementClamp,
-			PassOp:      StencilOperationReplace,
+			FailOp:      types.StencilOperationKeep,
+			DepthFailOp: types.StencilOperationIncrementClamp,
+			PassOp:      types.StencilOperationReplace,
 		},
 		StencilBack: hal.StencilFaceState{
 			Compare:     types.CompareFunctionEqual,
-			FailOp:      StencilOperationZero,
-			DepthFailOp: StencilOperationDecrementWrap,
-			PassOp:      StencilOperationInvert,
+			FailOp:      types.StencilOperationZero,
+			DepthFailOp: types.StencilOperationDecrementWrap,
+			PassOp:      types.StencilOperationInvert,
 		},
 	}
 	rd := convertDepthStencilState(ds)

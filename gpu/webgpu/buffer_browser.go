@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu/internal/browser"
 )
 
@@ -220,10 +221,10 @@ func validateMapArgs(b *Buffer, mode MapMode, offset, size uint64) error {
 	}
 
 	// Check usage flags.
-	if mode&MapModeRead != 0 && b.usage&BufferUsageMapRead == 0 {
+	if mode&MapModeRead != 0 && b.usage&types.BufferUsageMapRead == 0 {
 		return ErrMapInvalidMode
 	}
-	if mode&MapModeWrite != 0 && b.usage&BufferUsageMapWrite == 0 {
+	if mode&MapModeWrite != 0 && b.usage&types.BufferUsageMapWrite == 0 {
 		return ErrMapInvalidMode
 	}
 

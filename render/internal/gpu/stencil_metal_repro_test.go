@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
@@ -20,7 +21,7 @@ import (
 func createMetalDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
 	t.Helper()
 	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
-		Backends: webgpu.BackendsMetal,
+		Backends: types.BackendsMetal,
 	})
 	if err != nil {
 		t.Skipf("metal CreateInstance: %v", err)

@@ -1330,7 +1330,7 @@ func (a *VelloAccelerator) InitStandalone() error {
 // SetDeviceProvider (e.g., when gg is used without gogpu).
 func (a *VelloAccelerator) initGPU() error {
 	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
-		Backends: webgpu.BackendsVulkan,
+		Backends: types.BackendsVulkan,
 	})
 	if err != nil {
 		return fmt.Errorf("create instance: %w", err)

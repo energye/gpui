@@ -4,7 +4,6 @@ package webgpu
 
 import (
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/types"
 )
 
 // BufferDescriptor describes buffer creation parameters.
@@ -30,22 +29,6 @@ type ComputePassDescriptor = hal.ComputePassDescriptor
 
 // SurfaceConfiguration configures surface presentation.
 type SurfaceConfiguration = hal.SurfaceConfiguration
-
-// StencilOperation describes a stencil operation.
-type StencilOperation = types.StencilOperation
-
-// Stencil operation constants. Values match webgpu.h / wgpu-native:
-// Undefined=0, Keep=1, Zero=2, ...
-const (
-	StencilOperationKeep           = types.StencilOperationKeep
-	StencilOperationZero           = types.StencilOperationZero
-	StencilOperationReplace        = types.StencilOperationReplace
-	StencilOperationInvert         = types.StencilOperationInvert
-	StencilOperationIncrementClamp = types.StencilOperationIncrementClamp
-	StencilOperationDecrementClamp = types.StencilOperationDecrementClamp
-	StencilOperationIncrementWrap  = types.StencilOperationIncrementWrap
-	StencilOperationDecrementWrap  = types.StencilOperationDecrementWrap
-)
 
 // DepthStencilState describes depth and stencil testing configuration.
 type DepthStencilState = hal.DepthStencilState

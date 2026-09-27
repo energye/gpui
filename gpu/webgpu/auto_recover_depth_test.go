@@ -37,7 +37,7 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 	}
 	defer closeX()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skip(err)
 	}
@@ -50,7 +50,7 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 	defer surf.Release()
 
 	adpt, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
+		PowerPreference:   types.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})
 	if err != nil {

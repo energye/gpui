@@ -14,27 +14,27 @@ import (
 func TestStencilOperationValuesMatchNativeTypes(t *testing.T) {
 	tests := []struct {
 		name string
-		got  StencilOperation
+		got  types.StencilOperation
 		want types.StencilOperation
 	}{
-		{"Keep", StencilOperationKeep, types.StencilOperationKeep},
-		{"Zero", StencilOperationZero, types.StencilOperationZero},
-		{"Replace", StencilOperationReplace, types.StencilOperationReplace},
-		{"Invert", StencilOperationInvert, types.StencilOperationInvert},
-		{"IncrementClamp", StencilOperationIncrementClamp, types.StencilOperationIncrementClamp},
-		{"DecrementClamp", StencilOperationDecrementClamp, types.StencilOperationDecrementClamp},
-		{"IncrementWrap", StencilOperationIncrementWrap, types.StencilOperationIncrementWrap},
-		{"DecrementWrap", StencilOperationDecrementWrap, types.StencilOperationDecrementWrap},
+		{"Keep", types.StencilOperationKeep, types.StencilOperationKeep},
+		{"Zero", types.StencilOperationZero, types.StencilOperationZero},
+		{"Replace", types.StencilOperationReplace, types.StencilOperationReplace},
+		{"Invert", types.StencilOperationInvert, types.StencilOperationInvert},
+		{"IncrementClamp", types.StencilOperationIncrementClamp, types.StencilOperationIncrementClamp},
+		{"DecrementClamp", types.StencilOperationDecrementClamp, types.StencilOperationDecrementClamp},
+		{"IncrementWrap", types.StencilOperationIncrementWrap, types.StencilOperationIncrementWrap},
+		{"DecrementWrap", types.StencilOperationDecrementWrap, types.StencilOperationDecrementWrap},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.got != tt.want {
-				t.Fatalf("StencilOperation%s = %d, want %d", tt.name, tt.got, tt.want)
+				t.Fatalf("types.StencilOperation%s = %d, want %d", tt.name, tt.got, tt.want)
 			}
 			if rwgpu.StencilOperation(tt.got) != rwgpu.StencilOperation(tt.want) {
-				t.Fatalf("StencilOperation%s native cast = %d, want %d", tt.name, tt.got, tt.want)
+				t.Fatalf("types.StencilOperation%s native cast = %d, want %d", tt.name, tt.got, tt.want)
 			}
 		})
 	}
@@ -42,20 +42,20 @@ func TestStencilOperationValuesMatchNativeTypes(t *testing.T) {
 
 func TestConvertDepthStencilStateUsesNativeStencilValues(t *testing.T) {
 	ds := &DepthStencilState{
-		Format:            TextureFormatDepth24Plus,
+		Format:            types.TextureFormatDepth24Plus,
 		DepthWriteEnabled: true,
 		DepthCompare:      types.CompareFunctionLess,
 		StencilFront: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
-			FailOp:      StencilOperationKeep,
-			DepthFailOp: StencilOperationZero,
-			PassOp:      StencilOperationIncrementWrap,
+			FailOp:      types.StencilOperationKeep,
+			DepthFailOp: types.StencilOperationZero,
+			PassOp:      types.StencilOperationIncrementWrap,
 		},
 		StencilBack: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
-			FailOp:      StencilOperationReplace,
-			DepthFailOp: StencilOperationDecrementClamp,
-			PassOp:      StencilOperationDecrementWrap,
+			FailOp:      types.StencilOperationReplace,
+			DepthFailOp: types.StencilOperationDecrementClamp,
+			PassOp:      types.StencilOperationDecrementWrap,
 		},
 	}
 

@@ -273,11 +273,11 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 	prim := triangleListPrimitive()
 
 	makeFill := func(label string, evenOdd bool) (*webgpu.RenderPipeline, error) {
-		frontPass := webgpu.StencilOperationIncrementWrap
-		backPass := webgpu.StencilOperationDecrementWrap
+		frontPass := types.StencilOperationIncrementWrap
+		backPass := types.StencilOperationDecrementWrap
 		writeMask := uint32(0xFF)
 		if evenOdd {
-			backPass = webgpu.StencilOperationIncrementWrap
+			backPass = types.StencilOperationIncrementWrap
 			writeMask = 0x01
 		}
 		return device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
@@ -294,12 +294,12 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 				Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 				DepthCompare: types.CompareFunctionAlways,
 				StencilFront: hal.StencilFaceState{
-					Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
-					DepthFailOp: webgpu.StencilOperationKeep, PassOp: frontPass,
+					Compare: types.CompareFunctionAlways, FailOp: types.StencilOperationKeep,
+					DepthFailOp: types.StencilOperationKeep, PassOp: frontPass,
 				},
 				StencilBack: hal.StencilFaceState{
-					Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
-					DepthFailOp: webgpu.StencilOperationKeep, PassOp: backPass,
+					Compare: types.CompareFunctionAlways, FailOp: types.StencilOperationKeep,
+					DepthFailOp: types.StencilOperationKeep, PassOp: backPass,
 				},
 				StencilReadMask: 0xFF, StencilWriteMask: writeMask,
 			},
@@ -351,12 +351,12 @@ func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount 
 			Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 			DepthCompare: types.CompareFunctionAlways,
 			StencilFront: hal.StencilFaceState{
-				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
-				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
+				Compare: types.CompareFunctionNotEqual, FailOp: types.StencilOperationKeep,
+				DepthFailOp: types.StencilOperationKeep, PassOp: types.StencilOperationZero,
 			},
 			StencilBack: hal.StencilFaceState{
-				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
-				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
+				Compare: types.CompareFunctionNotEqual, FailOp: types.StencilOperationKeep,
+				DepthFailOp: types.StencilOperationKeep, PassOp: types.StencilOperationZero,
 			},
 			StencilReadMask: 0xFF, StencilWriteMask: 0xFF,
 		},

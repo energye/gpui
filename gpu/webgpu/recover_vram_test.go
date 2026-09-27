@@ -23,12 +23,12 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 			_ = os.Setenv("LD_LIBRARY_PATH", "lib:"+os.Getenv("LD_LIBRARY_PATH"))
 		}
 	}
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skip(err)
 	}
 	defer inst.Release()
-	adpt, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: webgpu.PowerPreferenceHighPerformance})
+	adpt, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skip(err)
 	}

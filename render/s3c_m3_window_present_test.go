@@ -74,7 +74,7 @@ func TestS3c_M3_WindowSwapchain_PresentFrame(t *testing.T) {
 	}
 	s3cRequireGPU(t)
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}

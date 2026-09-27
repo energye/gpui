@@ -93,8 +93,8 @@ func (a *Adapter) GetSurfaceCapabilities(surface *Surface) *SurfaceCapabilities 
 	// Browser WebGPU supports these three formats per spec:
 	// https://gpuweb.github.io/gpuweb/#supported-context-formats
 	formats := []TextureFormat{
-		TextureFormatRGBA8Unorm,
-		TextureFormatBGRA8Unorm,
+		types.TextureFormatRGBA8Unorm,
+		types.TextureFormatBGRA8Unorm,
 		types.TextureFormatRGBA16Float,
 	}
 

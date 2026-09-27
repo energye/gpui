@@ -37,7 +37,7 @@ func TestS68_WindowPresent_MultiFrameDraw(t *testing.T) {
 	xw := s68OpenX11(t, winW, winH)
 	defer xw.close()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestS68_WindowPresent_MultiFrameDraw(t *testing.T) {
 	defer surf.Release()
 
 	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
+		PowerPreference:   types.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})
 	if err != nil {
@@ -189,7 +189,7 @@ func TestS68_WindowPresent_IdleSkip(t *testing.T) {
 	xw := s68OpenX11(t, winW, winH)
 	defer xw.close()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skip(err)
 	}

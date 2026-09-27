@@ -113,28 +113,12 @@ type PipelineLayoutDescriptor struct {
 	BindGroupLayouts []*BindGroupLayout
 }
 
-// StencilOperation describes a stencil operation.
-// Canonical definition in gputypes (webgpu.h spec-compliant values).
-type StencilOperation = types.StencilOperation
-
-// Stencil operation constants (webgpu.h spec values).
-const (
-	StencilOperationKeep           = types.StencilOperationKeep
-	StencilOperationZero           = types.StencilOperationZero
-	StencilOperationReplace        = types.StencilOperationReplace
-	StencilOperationInvert         = types.StencilOperationInvert
-	StencilOperationIncrementClamp = types.StencilOperationIncrementClamp
-	StencilOperationDecrementClamp = types.StencilOperationDecrementClamp
-	StencilOperationIncrementWrap  = types.StencilOperationIncrementWrap
-	StencilOperationDecrementWrap  = types.StencilOperationDecrementWrap
-)
-
 // StencilFaceState describes stencil operations for a face.
 type StencilFaceState struct {
 	Compare     CompareFunction
-	FailOp      StencilOperation
-	DepthFailOp StencilOperation
-	PassOp      StencilOperation
+	FailOp      types.StencilOperation
+	DepthFailOp types.StencilOperation
+	PassOp      types.StencilOperation
 }
 
 // DepthStencilState describes depth and stencil testing configuration.

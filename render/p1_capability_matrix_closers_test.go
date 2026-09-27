@@ -2945,12 +2945,12 @@ func TestP1_Capability_K02_DrawIndirectGPU(t *testing.T) {
 		t.Log("WGPU_NATIVE_PATH unset; relying on default discovery")
 	}
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
 	defer inst.Release()
-	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: webgpu.PowerPreferenceHighPerformance})
+	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skipf("RequestAdapter: %v", err)
 	}
@@ -2994,7 +2994,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 			Module:     shader,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{
-				Format:    webgpu.TextureFormatRGBA8Unorm,
+				Format:    types.TextureFormatRGBA8Unorm,
 				WriteMask: types.ColorWriteMaskAll,
 				Blend: &types.BlendState{
 					Color: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero, Operation: types.BlendOperationAdd},
@@ -3018,7 +3018,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	binary.LittleEndian.PutUint32(args[12:], 0)
 	indBuf, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
 		Size:  16,
-		Usage: webgpu.BufferUsageIndirect | webgpu.BufferUsageCopyDst,
+		Usage: types.BufferUsageIndirect | types.BufferUsageCopyDst,
 	})
 	if err != nil {
 		t.Fatalf("indirect buffer: %v", err)
@@ -3030,9 +3030,9 @@ fn fs_main() -> @location(0) vec4<f32> {
 
 	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
-		MipLevelCount: 1, SampleCount: 1, Dimension: webgpu.TextureDimension2D,
-		Format: webgpu.TextureFormatRGBA8Unorm,
-		Usage:  webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+		Format: types.TextureFormatRGBA8Unorm,
+		Usage:  types.TextureUsageRenderAttachment | types.TextureUsageCopySrc,
 	})
 	if err != nil {
 		// K.02 draws nothing without the 8x8 target: under VRAM pressure
@@ -3046,7 +3046,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	}
 	defer rt.Release()
 	view, err := dev.CreateTextureView(rt, &webgpu.TextureViewDescriptor{
-		Format: webgpu.TextureFormatRGBA8Unorm, Dimension: types.TextureViewDimension2D,
+		Format: types.TextureFormatRGBA8Unorm, Dimension: types.TextureViewDimension2D,
 		Aspect: types.TextureAspectAll, MipLevelCount: 1, ArrayLayerCount: 1,
 	})
 	if err != nil {
@@ -3077,7 +3077,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 
 	stagingSize := uint64(bytesPerRow * h)
 	staging, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
-		Size: stagingSize, Usage: webgpu.BufferUsageCopyDst | webgpu.BufferUsageMapRead,
+		Size: stagingSize, Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {
 		t.Fatalf("staging: %v", err)
@@ -3121,12 +3121,12 @@ fn fs_main() -> @location(0) vec4<f32> {
 // CS.02: RGBA16Float render target create + clear via webgpu (F16 surface binding).
 func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	requireNativeGPU(t)
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
 	defer inst.Release()
-	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: webgpu.PowerPreferenceHighPerformance})
+	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skipf("RequestAdapter: %v", err)
 	}
@@ -3141,9 +3141,9 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	const w, h = uint32(4), uint32(4)
 	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
-		MipLevelCount: 1, SampleCount: 1, Dimension: webgpu.TextureDimension2D,
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA16Float,
-		Usage:  webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
+		Usage:  types.TextureUsageRenderAttachment | types.TextureUsageCopySrc,
 	})
 	if err != nil {
 		t.Skipf("RGBA16Float RT unsupported: %v", err)
@@ -3179,7 +3179,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	const bytesPerRow = 256
 	stagingSize := uint64(bytesPerRow * h)
 	staging, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
-		Size: stagingSize, Usage: webgpu.BufferUsageCopyDst | webgpu.BufferUsageMapRead,
+		Size: stagingSize, Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {
 		t.Fatalf("staging: %v", err)

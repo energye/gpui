@@ -177,10 +177,10 @@ func TestDepthClipDepthStencil(t *testing.T) {
 	}
 
 	// Stencil ops must all be Keep (pass-through).
-	if ds.StencilFront.PassOp != webgpu.StencilOperationKeep {
+	if ds.StencilFront.PassOp != types.StencilOperationKeep {
 		t.Errorf("StencilFront.PassOp = %v, want Keep", ds.StencilFront.PassOp)
 	}
-	if ds.StencilBack.PassOp != webgpu.StencilOperationKeep {
+	if ds.StencilBack.PassOp != types.StencilOperationKeep {
 		t.Errorf("StencilBack.PassOp = %v, want Keep", ds.StencilBack.PassOp)
 	}
 }

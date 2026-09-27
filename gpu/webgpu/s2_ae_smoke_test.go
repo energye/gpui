@@ -64,7 +64,7 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 	}
 	src, err := device.CreateBuffer(&BufferDescriptor{
 		Size:  size,
-		Usage: BufferUsageCopyDst | BufferUsageCopySrc,
+		Usage: types.BufferUsageCopyDst | types.BufferUsageCopySrc,
 	})
 	if err != nil {
 		t.Fatalf("src: %v", err)
@@ -72,7 +72,7 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 	defer src.Release()
 	dst, err := device.CreateBuffer(&BufferDescriptor{
 		Size:  size,
-		Usage: BufferUsageCopyDst | BufferUsageMapRead,
+		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {
 		t.Fatalf("dst: %v", err)
@@ -134,9 +134,9 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
-		Dimension:     TextureDimension2D,
-		Format:        TextureFormatRGBA8Unorm,
-		Usage:         TextureUsageCopyDst | TextureUsageCopySrc | TextureUsageTextureBinding,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatRGBA8Unorm,
+		Usage:         types.TextureUsageCopyDst | types.TextureUsageCopySrc | types.TextureUsageTextureBinding,
 	})
 	if err != nil {
 		t.Fatalf("CreateTexture: %v", err)
@@ -144,7 +144,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	defer tex.Release()
 
 	view, err := device.CreateTextureView(tex, &TextureViewDescriptor{
-		Format:    TextureFormatRGBA8Unorm,
+		Format:    types.TextureFormatRGBA8Unorm,
 		Dimension: types.TextureViewDimension2D,
 		Aspect:    types.TextureAspectAll,
 		// MipLevelCount/ArrayLayerCount 0 → UNDEFINED inside facade
@@ -179,7 +179,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	stagingSize := uint64(bytesPerRow * h)
 	staging, err := device.CreateBuffer(&BufferDescriptor{
 		Size:  stagingSize,
-		Usage: BufferUsageCopyDst | BufferUsageMapRead,
+		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {
 		t.Fatalf("staging: %v", err)
@@ -257,7 +257,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 			Module:     shader,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{
-				Format:    TextureFormatRGBA8Unorm,
+				Format:    types.TextureFormatRGBA8Unorm,
 				WriteMask: types.ColorWriteMaskAll,
 				Blend: &types.BlendState{
 					Color: types.BlendComponent{
@@ -289,16 +289,16 @@ fn fs_main() -> @location(0) vec4<f32> {
 		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
-		Dimension:     TextureDimension2D,
-		Format:        TextureFormatRGBA8Unorm,
-		Usage:         TextureUsageRenderAttachment | TextureUsageCopySrc,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatRGBA8Unorm,
+		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc,
 	})
 	if err != nil {
 		t.Fatalf("rt: %v", err)
 	}
 	defer rt.Release()
 	view, err := device.CreateTextureView(rt, &TextureViewDescriptor{
-		Format:          TextureFormatRGBA8Unorm,
+		Format:          types.TextureFormatRGBA8Unorm,
 		Dimension:       types.TextureViewDimension2D,
 		Aspect:          types.TextureAspectAll,
 		MipLevelCount:   1,
@@ -337,7 +337,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	stagingSize := uint64(bytesPerRow * h)
 	staging, err := device.CreateBuffer(&BufferDescriptor{
 		Size:  stagingSize,
-		Usage: BufferUsageCopyDst | BufferUsageMapRead,
+		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
 	})
 	if err != nil {
 		t.Fatalf("staging: %v", err)

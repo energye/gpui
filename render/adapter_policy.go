@@ -107,7 +107,7 @@ func RequestAdapterWithPolicy(
 	if inst == nil {
 		return nil, false, fmt.Errorf("nil instance")
 	}
-	try := func(pref webgpu.PowerPreference, fallback bool) (*webgpu.Adapter, error) {
+	try := func(pref types.PowerPreference, fallback bool) (*webgpu.Adapter, error) {
 		opts := &webgpu.RequestAdapterOptions{
 			PowerPreference:      pref,
 			ForceFallbackAdapter: fallback,
@@ -120,47 +120,47 @@ func RequestAdapterWithPolicy(
 
 	switch policy {
 	case PolicyLow:
-		a, e := try(webgpu.PowerPreferenceLowPower, false)
+		a, e := try(types.PowerPreferenceLowPower, false)
 		if e == nil {
 			return a, false, nil
 		}
-		a, e = try(webgpu.PowerPreferenceHighPerformance, false)
+		a, e = try(types.PowerPreferenceHighPerformance, false)
 		if e == nil {
 			return a, false, nil
 		}
-		a, e = try(webgpu.PowerPreferenceLowPower, true)
+		a, e = try(types.PowerPreferenceLowPower, true)
 		return a, true, e
 	case PolicyHigh:
-		a, e := try(webgpu.PowerPreferenceHighPerformance, false)
+		a, e := try(types.PowerPreferenceHighPerformance, false)
 		if e == nil {
 			return a, false, nil
 		}
-		a, e = try(webgpu.PowerPreferenceLowPower, false)
+		a, e = try(types.PowerPreferenceLowPower, false)
 		if e == nil {
 			return a, false, nil
 		}
-		a, e = try(webgpu.PowerPreferenceLowPower, true)
+		a, e = try(types.PowerPreferenceLowPower, true)
 		return a, true, e
 	default: // PolicyDefault
-		a, e := try(webgpu.PowerPreferenceNone, false)
+		a, e := try(types.PowerPreferenceNone, false)
 		if e == nil {
 			// Hybrid: bare None often returns dGPU first under Optimus/Vulkan.
 			if adapterDeviceType(a) == types.DeviceTypeDiscreteGPU {
-				if b, e2 := try(webgpu.PowerPreferenceLowPower, false); e2 == nil {
+				if b, e2 := try(types.PowerPreferenceLowPower, false); e2 == nil {
 					a = preferIntegratedOverDiscrete(a, b)
 				}
 			}
 			return a, false, nil
 		}
-		a, e = try(webgpu.PowerPreferenceLowPower, false)
+		a, e = try(types.PowerPreferenceLowPower, false)
 		if e == nil {
 			return a, false, nil
 		}
-		a, e = try(webgpu.PowerPreferenceHighPerformance, false)
+		a, e = try(types.PowerPreferenceHighPerformance, false)
 		if e == nil {
 			return a, false, nil
 		}
-		a, e = try(webgpu.PowerPreferenceNone, true)
+		a, e = try(types.PowerPreferenceNone, true)
 		return a, true, e
 	}
 }
@@ -177,7 +177,7 @@ const minStorageBuffersPerShaderStage = 9
 // and requesting those as required can OOM device creation or tiny allocations.
 // This helper starts from WebGPU DefaultLimits and only raises storage buffers.
 func DeviceDescriptor(label string) *webgpu.DeviceDescriptor {
-	limits := webgpu.DefaultLimits()
+	limits := types.DefaultLimits()
 	if limits.MaxStorageBuffersPerShaderStage < minStorageBuffersPerShaderStage {
 		limits.MaxStorageBuffersPerShaderStage = minStorageBuffersPerShaderStage
 	}
@@ -195,7 +195,7 @@ func DeviceDescriptor(label string) *webgpu.DeviceDescriptor {
 // Suitable for solid/UI present + modest meshes. Heavy compute/Vello paths
 // may need the default DeviceDescriptor.
 func DeviceDescriptorLowVRAM(label string) *webgpu.DeviceDescriptor {
-	limits := webgpu.DefaultLimits()
+	limits := types.DefaultLimits()
 	if limits.MaxStorageBuffersPerShaderStage < minStorageBuffersPerShaderStage {
 		limits.MaxStorageBuffersPerShaderStage = minStorageBuffersPerShaderStage
 	}
