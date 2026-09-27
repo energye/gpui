@@ -187,6 +187,28 @@ type BindGroup struct {
 	device  *Device
 }
 
+// convertBindGroupEntries maps hal flat entries (片5, hal 以 webgpu 为准) to
+// internal uintptr-handle entries via NativeHandle. 保绿垫片: runtime path
+// (encoder.go applyBindGroup) untouched; H4收敛时随 gwgpu 补实现移除.
+func convertBindGroupEntries(in []hal.BindGroupEntry) []gputypes.BindGroupEntry {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]gputypes.BindGroupEntry, len(in))
+	for i, e := range in {
+		out[i].Binding = e.Binding
+		switch {
+		case e.Buffer != nil:
+			out[i].Resource = gputypes.BufferBinding{Buffer: e.Buffer.NativeHandle(), Offset: e.Offset, Size: e.Size}
+		case e.TextureView != nil:
+			out[i].Resource = gputypes.TextureViewBinding{TextureView: e.TextureView.NativeHandle()}
+		case e.Sampler != nil:
+			out[i].Resource = gputypes.SamplerBinding{Sampler: e.Sampler.NativeHandle()}
+		}
+	}
+	return out
+}
+
 // Destroy releases the bind group.
 func (g *BindGroup) Destroy() {
 	if g.device != nil {

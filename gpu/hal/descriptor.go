@@ -291,6 +291,30 @@ type BindGroupLayoutDescriptor struct {
 	Entries []gputypes.BindGroupLayoutEntry
 }
 
+// BindGroupEntry describes a single resource binding in a bind group.
+// Canonical hal shape (片5, 以旧 webgpu 扁平形为准: Binding/Buffer/Offset/Size/
+// Sampler/TextureView), 类型提取为 hal 接口以避免 webgpu 循环引用.
+// Exactly one of Buffer, Sampler, TextureView should be set.
+type BindGroupEntry struct {
+	// Binding is the binding number (must match @binding in shader).
+	Binding uint32
+
+	// Buffer binds a buffer range (nil if not a buffer binding).
+	Buffer Buffer
+
+	// Offset is the byte offset into the buffer.
+	Offset uint64
+
+	// Size is the byte size of the binding (0 for entire buffer from offset).
+	Size uint64
+
+	// Sampler binds a sampler (nil if not a sampler binding).
+	Sampler Sampler
+
+	// TextureView binds a texture view (nil if not a texture binding).
+	TextureView TextureView
+}
+
 // BindGroupDescriptor describes a bind group.
 type BindGroupDescriptor struct {
 	// Label is an optional debug name.
@@ -300,7 +324,10 @@ type BindGroupDescriptor struct {
 	Layout BindGroupLayout
 
 	// Entries are the resource bindings.
-	Entries []gputypes.BindGroupEntry
+	// Canonical hal shape (片5, webgpu 为准): []BindGroupEntry above.
+	// gputypes.BindGroupEntry (uintptr 柄形) remains for gwgpu internal
+	// use until H4收敛, see gpu/types/binding.go:106.
+	Entries []BindGroupEntry
 }
 
 // PipelineLayoutDescriptor describes a pipeline layout.

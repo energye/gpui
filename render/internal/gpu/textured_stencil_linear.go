@@ -654,9 +654,9 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	fillBG, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	fillBG, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label: "tex_stencil_fill_bg", Layout: fillBGL,
-		Entries: []webgpu.BindGroupEntry{{Binding: 0, Buffer: fillUBuf, Offset: 0, Size: 16}},
+		Entries: []hal.BindGroupEntry{{Binding: 0, Buffer: fillUBuf, Offset: 0, Size: 16}},
 	})
 	if err != nil {
 		releaseOut()
@@ -717,9 +717,9 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	coverBG, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	coverBG, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label: "tex_stencil_cover_bg", Layout: coverBGL,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: coverUBuf, Offset: 0, Size: uint64(len(coverUni))},
 			{Binding: 1, TextureView: rampView},
 			{Binding: 2, Sampler: sampler},

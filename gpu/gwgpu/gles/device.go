@@ -374,7 +374,7 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (hal.BindGroup, erro
 
 	return &BindGroup{
 		layout:  layout,
-		entries: desc.Entries,
+		entries: convertBindGroupEntries(desc.Entries),
 	}, nil
 }
 

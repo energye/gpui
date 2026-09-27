@@ -716,10 +716,10 @@ func dualTexAdvancedBlend(
 	uniform := cache.uniform
 	cache.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "dual_tex_blend_bg",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: dstView},
 			{Binding: 1, TextureView: srcView},
 			{Binding: 2, Sampler: sampler},
@@ -1022,10 +1022,10 @@ func dualTexAdvancedBlendNoReadback(
 	uniform := cache.uniform
 	cache.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "dual_tex_blend_bg_nr",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: dstView},
 			{Binding: 1, TextureView: srcView},
 			{Binding: 2, Sampler: sampler},
@@ -1328,10 +1328,10 @@ func (c *dualTexBlendCache) multiBindGroup(
 	}
 	c.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "dual_tex_multi_bg_cached",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: dst},
 			{Binding: 1, TextureView: src},
 			{Binding: 2, Sampler: sampler},
@@ -1632,10 +1632,10 @@ func dualTexAdvancedBlendViewsRegionSized(
 	uniform := cache.uniform
 	cache.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "dual_tex_views_bgra_bg",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: dstView},
 			{Binding: 1, TextureView: srcView},
 			{Binding: 2, Sampler: sampler},

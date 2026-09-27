@@ -198,10 +198,9 @@ func BenchmarkNoopCreateDestroyBindGroup(b *testing.B) {
 	desc := &hal.BindGroupDescriptor{
 		Label:  "bench-bg",
 		Layout: bgLayout,
-		Entries: []gputypes.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{
-				Binding:  0,
-				Resource: gputypes.BufferBinding{Buffer: 0, Offset: 0, Size: 256},
+				Binding: 0,
 			},
 		},
 	}

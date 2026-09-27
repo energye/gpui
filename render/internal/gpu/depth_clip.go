@@ -577,10 +577,10 @@ func (p *DepthClipPipeline) BuildClipMask(
 		return fmt.Errorf("upload depth clip mask: %w", err)
 	}
 
-	bg, err := p.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "depth_clip_mask_bg",
 		Layout: maskLayout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: view},
 			{Binding: 1, Sampler: sampler},
 			{Binding: 2, Buffer: uniformOn, Offset: 0, Size: maskParamsSize},
@@ -651,10 +651,10 @@ func (p *DepthClipPipeline) BuildClipResources(
 
 	// Ensure bind group (recreated if uniform buffer changed).
 	if p.bindGroup == nil {
-		bg, err := p.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		bg, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
 			Label:  "depth_clip_bind",
 			Layout: p.uniformBGL,
-			Entries: []webgpu.BindGroupEntry{
+			Entries: []hal.BindGroupEntry{
 				{Binding: 0, Buffer: p.uniformBuf, Offset: 0, Size: depthClipUniformSize},
 			},
 		})

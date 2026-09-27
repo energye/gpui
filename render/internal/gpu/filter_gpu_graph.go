@@ -564,10 +564,10 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupL
 	}
 	c.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "filter_gpu_bg_cached",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: src},
 			{Binding: 1, Sampler: samp},
 			{Binding: 2, Buffer: ubuf, Offset: offset, Size: filterGPUUniformSize},

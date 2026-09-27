@@ -5,6 +5,7 @@ package webgpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
@@ -14,7 +15,7 @@ func TestR70_Submit_MarksSubmitted(t *testing.T) {
 	// Fake queue: only exercise the marking + empty-native path without FFI.
 	// We cannot call into rwgpu without init; instead validate the local
 	// stack-conversion helpers used by CreateBindGroup paths.
-	entries := []BindGroupEntry{
+	entries := []hal.BindGroupEntry{
 		{Binding: 0},
 		{Binding: 1},
 		{Binding: 2},
@@ -33,7 +34,7 @@ func TestR70_Submit_MarksSubmitted(t *testing.T) {
 // TestR70_ConvertBindGroup_NoAllocHot checks convertBindGroupEntry is alloc-free
 // for buffer-less entries (dominant texture/sampler binds still set pointers only).
 func TestR70_ConvertBindGroup_NoAllocHot(t *testing.T) {
-	e := BindGroupEntry{Binding: 3}
+	e := hal.BindGroupEntry{Binding: 3}
 	allocs := testing.AllocsPerRun(1000, func() {
 		_ = convertBindGroupEntry(e)
 	})

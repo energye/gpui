@@ -997,9 +997,9 @@ func (d *VelloComputeDispatcher) DestroyBuffers(bufs *VelloComputeBuffers) {
 
 // stageBindGroupEntries returns the bind group entries for a given stage,
 // mapping each binding index to the correct buffer from VelloComputeBuffers.
-func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) []webgpu.BindGroupEntry {
-	entry := func(binding uint32, buf *webgpu.Buffer) webgpu.BindGroupEntry {
-		return webgpu.BindGroupEntry{
+func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) []hal.BindGroupEntry {
+	entry := func(binding uint32, buf *webgpu.Buffer) hal.BindGroupEntry {
+		return hal.BindGroupEntry{
 			Binding: binding,
 			Buffer:  buf,
 			Offset:  0,
@@ -1009,14 +1009,14 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 
 	switch stage {
 	case VelloStagePathtagReduce:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.Scene),
 			entry(2, bufs.Reduced),
 		}
 
 	case VelloStagePathtagScan:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.Scene),
 			entry(2, bufs.Reduced),
@@ -1024,14 +1024,14 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 		}
 
 	case VelloStageDrawReduce:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.Scene),
 			entry(2, bufs.DrawReduced),
 		}
 
 	case VelloStageDrawLeaf:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.Scene),
 			entry(2, bufs.DrawReduced),
@@ -1041,14 +1041,14 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 		}
 
 	case VelloStageClipLeaf:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.ClipInp),
 			entry(2, bufs.DrawMonoids),
 		}
 
 	case VelloStagePathCount:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.Lines),
 			entry(2, bufs.Paths),
@@ -1058,14 +1058,14 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 		}
 
 	case VelloStageBackdrop:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.Paths),
 			entry(2, bufs.Tiles),
 		}
 
 	case VelloStageCoarse:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.Scene),
 			entry(2, bufs.DrawMonoids),
@@ -1079,7 +1079,7 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 		}
 
 	case VelloStagePathTiling:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.BumpAlloc),
 			entry(2, bufs.SegCounts),
@@ -1090,7 +1090,7 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 		}
 
 	case VelloStageFine:
-		return []webgpu.BindGroupEntry{
+		return []hal.BindGroupEntry{
 			entry(0, bufs.Config),
 			entry(1, bufs.PTCL),
 			entry(2, bufs.Segments),
@@ -1221,7 +1221,7 @@ func (d *VelloComputeDispatcher) encodeComputeStages(
 			continue
 		}
 
-		bg, bgErr := d.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		bg, bgErr := d.device.CreateBindGroup(&hal.BindGroupDescriptor{
 			Label:   fmt.Sprintf("vello_%s_bg", sd.stage),
 			Layout:  d.bgLayouts[sd.stage],
 			Entries: stageBindGroupEntries(sd.stage, bufs),

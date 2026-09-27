@@ -476,7 +476,7 @@ func (d *Device) DestroyBindGroupLayout(layout hal.BindGroupLayout) {
 
 // CreateBindGroup creates a bind group.
 func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (hal.BindGroup, error) {
-	return &BindGroup{layout: desc.Layout.(*BindGroupLayout), entries: desc.Entries, device: d}, nil
+	return &BindGroup{layout: desc.Layout.(*BindGroupLayout), entries: convertBindGroupEntries(desc.Entries), device: d}, nil
 }
 
 // DestroyBindGroup destroys a bind group.

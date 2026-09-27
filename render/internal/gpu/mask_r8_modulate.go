@@ -333,10 +333,10 @@ func maskR8Modulate(
 	bgl, pipeline, sampler := cache.bgl, cache.pipeline, cache.sampler
 	cache.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "mask_r8_bg",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: srcView},
 			{Binding: 1, TextureView: maskView},
 			{Binding: 2, Sampler: sampler},

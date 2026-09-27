@@ -432,10 +432,10 @@ func patternMaskSampleExpand(
 	bgl, pipeline, sampler := cache.bgl, cache.pipeline, cache.sampler
 	cache.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "pattern_mask_bg",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: patView},
 			{Binding: 1, TextureView: maskView},
 			{Binding: 2, Sampler: sampler},

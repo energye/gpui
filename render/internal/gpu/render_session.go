@@ -2599,10 +2599,10 @@ func (s *GPURenderSession) ensureClipBindLayout() error {
 	}
 	s.noClipUniformBuf = buf
 
-	bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "clip_no_clip_bind",
 		Layout: s.clipBindLayout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: buf, Offset: 0, Size: clipParamsSize},
 		},
 	})
@@ -2646,10 +2646,10 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 		buf.Release()
 		return nil, fmt.Errorf("write clip uniform: %w", err)
 	}
-	bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  fmt.Sprintf("clip_bind_%d", idx),
 		Layout: s.clipBindLayout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: buf, Offset: 0, Size: clipParamsSize},
 		},
 	})
@@ -2755,10 +2755,10 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		return fmt.Errorf("write no-mask uniform: %w", err)
 	}
 
-	bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "convex_nomask_bg",
 		Layout: layout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: view},
 			{Binding: 1, Sampler: samp},
 			{Binding: 2, Buffer: ubuf, Offset: 0, Size: maskParamsSize},
@@ -2832,10 +2832,10 @@ func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error {
 	if layout == nil {
 		return nil
 	}
-	bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "frame_mask_active_bg",
 		Layout: layout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: view},
 			{Binding: 1, Sampler: s.maskSampler},
 			{Binding: 2, Buffer: s.maskUniform, Offset: 0, Size: maskParamsSize},
@@ -2976,10 +2976,10 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 	}
 
 	if s.sdfBindGroup == nil {
-		bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 			Label:  "session_sdf_bind",
 			Layout: s.sdfPipeline.uniformLayout,
-			Entries: []webgpu.BindGroupEntry{
+			Entries: []hal.BindGroupEntry{
 				{Binding: 0, Buffer: s.sdfUniformBuf, Offset: 0, Size: sdfRenderUniformSize},
 			},
 		})
@@ -3113,10 +3113,10 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	}
 
 	if s.convexBindGroup == nil {
-		bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 			Label:  "session_convex_bind",
 			Layout: s.convexRenderer.uniformLayout,
-			Entries: []webgpu.BindGroupEntry{
+			Entries: []hal.BindGroupEntry{
 				{Binding: 0, Buffer: s.convexUniformBuf, Offset: 0, Size: sdfRenderUniformSize},
 			},
 		})
@@ -3518,10 +3518,10 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		if bg == nil {
 			var err error
 			off := uint64(i) * stencilUniSlabStride
-			bg, err = s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+			bg, err = s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 				Label:  fmt.Sprintf("stencil_uni_slab_%d", i),
 				Layout: s.stencilRenderer.uniformLayout,
-				Entries: []webgpu.BindGroupEntry{
+				Entries: []hal.BindGroupEntry{
 					{Binding: 0, Buffer: s.stencilUniSlab, Offset: off, Size: stencilFillUniformSize},
 				},
 			})
@@ -3684,10 +3684,10 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 				// referenced by in-flight CBs — same rule as image/glyph).
 				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, old)
 			}
-			bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+			bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 				Label:  fmt.Sprintf("session_text_bind_%d", i),
 				Layout: s.textPipeline.uniformLayout,
-				Entries: []webgpu.BindGroupEntry{
+				Entries: []hal.BindGroupEntry{
 					{Binding: 0, Buffer: s.textUniformBufs[i], Offset: 0, Size: textUniformSize},
 					{Binding: 1, TextureView: view},
 					{Binding: 2, Sampler: s.textPipeline.sampler},
@@ -4025,10 +4025,10 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			}
 			off := uint64(poolIdx) * imageUniformSlotStride
 			var err error
-			bg, err = s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+			bg, err = s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 				Label:  fmt.Sprintf("image_bind_%d", poolIdx),
 				Layout: s.imagePipeline.uniformLayout,
-				Entries: []webgpu.BindGroupEntry{
+				Entries: []hal.BindGroupEntry{
 					{Binding: 0, Buffer: s.imageUniformSlab, Offset: off, Size: imageUniformSize},
 					{Binding: 1, TextureView: slot.texView},
 					{Binding: 2, Sampler: s.imagePipeline.SamplerFor(slot.nearest)},
@@ -4288,10 +4288,10 @@ func (c *gpuTexBGSlotCache) getOrCreate(
 			return c.entries[i].bg, nil
 		}
 	}
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "gpu_tex_bind_cached",
 		Layout: layout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: uniform, Offset: uniformOffset, Size: imageUniformSize},
 			{Binding: 1, TextureView: texView},
 			{Binding: 2, Sampler: sampler},
@@ -5080,10 +5080,10 @@ func (s *GPURenderSession) materializeGlyphMaskBindGroups() {
 			// Uniform buffer contents change in place; atlas view stable → reuse BG.
 			continue
 		}
-		bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 			Label:  fmt.Sprintf("session_glyph_mask_bind_%d", pv.batchIndex),
 			Layout: layout,
-			Entries: []webgpu.BindGroupEntry{
+			Entries: []hal.BindGroupEntry{
 				{Binding: 0, Buffer: s.glyphMaskUniformBufs[pv.batchIndex], Offset: 0, Size: uniformSize},
 				{Binding: 1, TextureView: pv.atlasView},
 				{Binding: 2, Sampler: sampler},

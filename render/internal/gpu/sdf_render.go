@@ -187,10 +187,10 @@ func (p *SDFRenderPipeline) RenderShapes(target render.GPURenderTarget, shapes [
 	}
 	defer uniformBuf.Release()
 
-	bindGroup, err := p.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bindGroup, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "sdf_render_bind",
 		Layout: p.uniformLayout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: uniformBuf, Offset: 0, Size: sdfRenderUniformSize},
 		},
 	})

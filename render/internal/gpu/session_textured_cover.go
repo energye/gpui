@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -281,10 +280,10 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 		return err
 	}
 
-	bg, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "session_tex_cover_bg",
 		Layout: sr.texturedCoverBGL0,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: b.coverUniBuf, Offset: 0, Size: texturedCoverUniformSize},
 			{Binding: 1, TextureView: rampView},
 			{Binding: 2, Sampler: sr.texturedCoverSampler},
@@ -622,10 +621,10 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 		patTex.Release()
 		return err
 	}
-	bg, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "session_pat_cover_bg",
 		Layout: sr.patternCoverBGL0,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: b.coverUniBuf, Offset: 0, Size: patternCoverUniformSize},
 			{Binding: 1, TextureView: patView},
 			{Binding: 2, Sampler: sr.patternCoverSampler},

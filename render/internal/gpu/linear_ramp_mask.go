@@ -473,10 +473,10 @@ func linearRampMaskExpand(
 	bgl, pipeline, sampler := cache.bgl, cache.pipeline, cache.sampler
 	cache.mu.Unlock()
 
-	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "linear_ramp_mask_bg",
 		Layout: bgl,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: rampView},
 			{Binding: 1, TextureView: maskView},
 			{Binding: 2, Sampler: sampler},

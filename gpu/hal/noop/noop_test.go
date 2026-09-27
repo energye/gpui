@@ -780,10 +780,9 @@ func TestNoopComputeE2E(t *testing.T) {
 	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "compute-bg",
 		Layout: bgLayout,
-		Entries: []gputypes.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{
-				Binding:  0,
-				Resource: gputypes.BufferBinding{Buffer: 0, Offset: 0, Size: bufferSize},
+				Binding: 0,
 			},
 		},
 	})

@@ -733,9 +733,9 @@ func (sr *StencilRenderer) createUniformAndBindGroup(
 		return nil, nil, fmt.Errorf("write %s uniform: %w", label, err)
 	}
 
-	bg, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label: label + "_bind", Layout: sr.uniformLayout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: buf, Offset: 0, Size: size},
 		},
 	})
@@ -760,9 +760,9 @@ func (sr *StencilRenderer) updateUniformAndBindGroup(buf **webgpu.Buffer, bg **w
 		return fmt.Errorf("write %s uniform: %w", label, err)
 	}
 	if *bg == nil {
-		newBG, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		newBG, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
 			Label: label + "_bind", Layout: sr.uniformLayout,
-			Entries: []webgpu.BindGroupEntry{
+			Entries: []hal.BindGroupEntry{
 				{Binding: 0, Buffer: *buf, Offset: 0, Size: size},
 			},
 		})
@@ -846,10 +846,10 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		tex.Release()
 		return err
 	}
-	bg, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	bg, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "stencil_nomask_bg",
 		Layout: sr.maskBindLayout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, TextureView: view},
 			{Binding: 1, Sampler: samp},
 			{Binding: 2, Buffer: ubuf, Offset: 0, Size: maskParamsSize},
@@ -939,10 +939,10 @@ func (sr *StencilRenderer) encodeAndReadback(
 		encoder.DiscardEncoding()
 		return fmt.Errorf("write stencil no-clip uniform: %w", err)
 	}
-	noClipBG, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+	noClipBG, err := sr.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "stencil_no_clip_bind",
 		Layout: clipLayout,
-		Entries: []webgpu.BindGroupEntry{
+		Entries: []hal.BindGroupEntry{
 			{Binding: 0, Buffer: noClipBuf, Offset: 0, Size: clipParamsSize},
 		},
 	})

@@ -253,7 +253,9 @@ func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (*Pipe
 }
 
 // CreateBindGroup creates a bind group.
-func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) {
+// Takes hal.BindGroupDescriptor (片5, hal 以 webgpu 扁平形为准);
+// internal unpack of hal interfaces to concrete handles.
+func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (*BindGroup, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -262,7 +264,9 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 	}
 	var rLayout *rwgpu.BindGroupLayout
 	if desc.Layout != nil {
-		rLayout = desc.Layout.r
+		if wl, ok := desc.Layout.(*BindGroupLayout); ok && wl != nil {
+			rLayout = wl.r
+		}
 	}
 
 	n := len(desc.Entries)
@@ -727,21 +731,28 @@ func convertBindGroupLayoutEntry(e BindGroupLayoutEntry) rwgpu.BindGroupLayoutEn
 	return re
 }
 
-// convertBindGroupEntry converts a BindGroupEntry to rwgpu.BindGroupEntry.
-func convertBindGroupEntry(e BindGroupEntry) rwgpu.BindGroupEntry {
+// convertBindGroupEntry converts a hal.BindGroupEntry to rwgpu.BindGroupEntry.
+// Internal unpack: hal interfaces hold *Buffer/*Sampler/*TextureView concretes.
+func convertBindGroupEntry(e hal.BindGroupEntry) rwgpu.BindGroupEntry {
 	re := rwgpu.BindGroupEntry{
 		Binding: e.Binding,
 		Offset:  e.Offset,
 		Size:    e.Size,
 	}
 	if e.Buffer != nil {
-		re.Buffer = e.Buffer.r
+		if wb, ok := e.Buffer.(*Buffer); ok && wb != nil {
+			re.Buffer = wb.r
+		}
 	}
 	if e.Sampler != nil {
-		re.Sampler = e.Sampler.r
+		if ws, ok := e.Sampler.(*Sampler); ok && ws != nil {
+			re.Sampler = ws.r
+		}
 	}
 	if e.TextureView != nil {
-		re.TextureView = e.TextureView.r
+		if wv, ok := e.TextureView.(*TextureView); ok && wv != nil {
+			re.TextureView = wv.r
+		}
 	}
 	return re
 }
