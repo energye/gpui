@@ -513,7 +513,7 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 		return nil, fmt.Errorf("submit texture readback: %w", err)
 	}
 
-	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, stagingBufSize); err != nil {
+	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, stagingBufSize); err != nil {
 		return nil, fmt.Errorf("map texture readback staging buffer: %w", err)
 	}
 	mapped, err := stagingBuf.MappedRange(0, stagingBufSize)

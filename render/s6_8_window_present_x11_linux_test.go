@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -37,7 +38,7 @@ func TestS68_WindowPresent_MultiFrameDraw(t *testing.T) {
 	xw := s68OpenX11(t, winW, winH)
 	defer xw.close()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
@@ -189,7 +190,7 @@ func TestS68_WindowPresent_IdleSkip(t *testing.T) {
 	xw := s68OpenX11(t, winW, winH)
 	defer xw.close()
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skip(err)
 	}

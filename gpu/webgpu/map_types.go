@@ -2,14 +2,22 @@
 
 package webgpu
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/types"
+)
 
 // MapMode selects the type of access requested for a buffer mapping.
-type MapMode uint32
+// Canonical form lives in gpu/types (片4已对齐，以 webgpu/map_types.go:8 为准);
+// this alias keeps webgpu callers compiling while render uses types.* directly.
+// Full removal waits for slice 7c收尾.
+type MapMode = types.MapMode
 
 const (
-	MapModeRead  MapMode = 1
-	MapModeWrite MapMode = 2
+	MapModeRead  = types.MapModeRead
+	MapModeWrite = types.MapModeWrite
 )
 
 // MapState reports the current mapping state of a buffer.
@@ -23,11 +31,14 @@ const (
 )
 
 // PollType selects the blocking behavior of Device.Poll.
-type PollType uint8
+// Canonical form lives in gpu/hal (mirrors webgpu PollType);
+// alias keeps webgpu callers compiling while render uses hal.* directly.
+// Full removal waits for slice 7c收尾.
+type PollType = hal.PollType
 
 const (
-	PollPoll PollType = iota
-	PollWait
+	PollPoll = hal.PollPoll
+	PollWait = hal.PollWait
 )
 
 // Typed buffer mapping errors.

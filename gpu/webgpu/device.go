@@ -12,6 +12,7 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+	"github.com/energye/gpui/gpu/types"
 )
 
 // Device represents a logical GPU device.
@@ -476,14 +477,15 @@ func (d *Device) WaitIdle() error {
 // Poll drives the per-device pending-map triage loop and pumps instance
 // callbacks when available (device-lost / map async). Prefer calling Poll
 // (or Instance.ProcessEvents) once per frame before Swapchain.BeginFrame.
-func (d *Device) Poll(pollType PollType) bool {
+// Takes hal.PollType (canonical, 片7a以 hal 为准).
+func (d *Device) Poll(pollType hal.PollType) bool {
 	if d == nil || d.r == nil {
 		return false
 	}
 	if d.instance != nil {
 		d.instance.ProcessEvents()
 	}
-	return d.r.Poll(pollType == PollWait)
+	return d.r.Poll(pollType == hal.PollWait)
 }
 
 // FlushCallbacks pumps pending wgpu callbacks and folds Uncaptured/DeviceLost
@@ -652,7 +654,7 @@ func (d *Device) MapBuffer(buffer hal.Buffer, offset, size uint64) (hal.BufferMa
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := wb.Map(ctx, MapModeRead, offset, size); err != nil {
+	if err := wb.Map(ctx, types.MapModeRead, offset, size); err != nil {
 		return hal.BufferMapping{}, err
 	}
 	mr, err := wb.MappedRange(offset, size)

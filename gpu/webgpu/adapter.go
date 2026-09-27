@@ -5,17 +5,17 @@ package webgpu
 import (
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
 // DeviceDescriptor configures device creation.
-type DeviceDescriptor struct {
-	Label            string
-	RequiredFeatures Features
-	RequiredLimits   Limits
-}
+// Canonical form lives in gpu/hal (mirrors webgpu shape, 片4已对齐);
+// alias keeps webgpu callers compiling while render uses hal.* directly.
+// Full removal waits for slice 7c收尾.
+type DeviceDescriptor = hal.DeviceDescriptor
 
 // Adapter represents a physical GPU.
 // On the wgpu-native backend, this wraps rwgpu Adapter.
@@ -39,7 +39,8 @@ func (a *Adapter) Limits() Limits { return a.limits }
 
 // RequestDevice creates a logical device from this adapter.
 // If desc is nil, default features and limits are used.
-func (a *Adapter) RequestDevice(desc *DeviceDescriptor) (*Device, error) {
+// Takes hal.DeviceDescriptor (canonical, 片7a以 hal 为准；DeviceDescriptor 是 hal 别名，同形).
+func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (*Device, error) {
 	if a.released {
 		return nil, ErrReleased
 	}

@@ -1301,9 +1301,9 @@ func runGPUFilterGraphEx(
 		return nil, gpucontext.TextureView{}, nil, err
 	}
 	cmd2.Release()
-	device.Poll(webgpu.PollWait)
+	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), webgpu.MapModeRead, 0, stagingSize); err != nil {
+	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
 		return nil, gpucontext.TextureView{}, nil, err
 	}
 	mapped, err := staging.MappedRange(0, stagingSize)

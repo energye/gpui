@@ -892,7 +892,7 @@ func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint
 	}
 
 	// Map staging; blocks until GPU completes via submission tracking.
-	if err := stagingBuffer.Map(context.Background(), webgpu.MapModeRead, 0, size); err != nil {
+	if err := stagingBuffer.Map(context.Background(), types.MapModeRead, 0, size); err != nil {
 		return nil, fmt.Errorf("map staging: %w", err)
 	}
 	rng, err := stagingBuffer.MappedRange(0, size)
@@ -1330,7 +1330,7 @@ func (a *VelloAccelerator) InitStandalone() error {
 // This is the fallback path when no external device is provided via
 // SetDeviceProvider (e.g., when gg is used without gogpu).
 func (a *VelloAccelerator) initGPU() error {
-	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
+	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
 		Backends: types.BackendsVulkan,
 	})
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -62,7 +63,7 @@ func (b *Backend) Init() error {
 	}
 
 	// Step 1: Create Instance
-	desc := &webgpu.InstanceDescriptor{
+	desc := &hal.InstanceDescriptor{
 		Backends: types.BackendsPrimary,
 		Flags:    0,
 	}

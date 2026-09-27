@@ -155,7 +155,7 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, t
 	queue.Submit(cmd)
 
 	// Map buffer synchronously (software backend resolves instantly).
-	if err := buf.Map(context.Background(), webgpu.MapModeRead, 0, bufSize); err != nil {
+	if err := buf.Map(context.Background(), types.MapModeRead, 0, bufSize); err != nil {
 		t.Logf("Buffer.Map failed: %v", err)
 		return nil
 	}

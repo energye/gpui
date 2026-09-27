@@ -787,9 +787,9 @@ func dualTexAdvancedBlend(
 		return nil, fmt.Errorf("dual-tex submit: %w", err)
 	}
 	// Wait for GPU before map (matches texture readback smoke tests).
-	device.Poll(webgpu.PollWait)
+	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), webgpu.MapModeRead, 0, stagingSize); err != nil {
+	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
 		return nil, fmt.Errorf("dual-tex map: %w", err)
 	}
 	mapped, err := staging.MappedRange(0, stagingSize)
@@ -1765,9 +1765,9 @@ func readTextureViewRegionRGBA(
 		return nil, err
 	}
 	cmd.Release()
-	device.Poll(webgpu.PollWait)
+	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), webgpu.MapModeRead, 0, stagingSize); err != nil {
+	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
 		return nil, fmt.Errorf("readback map: %w", err)
 	}
 	mapped, err := staging.MappedRange(0, stagingSize)
@@ -1886,9 +1886,9 @@ func readTextureViewRegionStraightRGBA(
 		return nil, err
 	}
 	cmd.Release()
-	device.Poll(webgpu.PollWait)
+	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), webgpu.MapModeRead, 0, stagingSize); err != nil {
+	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
 		return nil, fmt.Errorf("readback map: %w", err)
 	}
 	mapped, err := staging.MappedRange(0, stagingSize)

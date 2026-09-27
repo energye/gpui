@@ -1030,7 +1030,7 @@ func (sr *StencilRenderer) submitAndReadback(
 		return fmt.Errorf("submit: %w", err)
 	}
 
-	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, stagingBufSize); err != nil {
+	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, stagingBufSize); err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
 	rng, err := stagingBuf.MappedRange(0, stagingBufSize)

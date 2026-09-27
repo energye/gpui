@@ -775,8 +775,8 @@ func texturedStencilCoverPatternEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	device.Poll(webgpu.PollWait)
-	if err := staging.Map(context.Background(), webgpu.MapModeRead, 0, stagingSize); err != nil {
+	device.Poll(hal.PollWait)
+	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
 		releaseOut()
 		return nil, nil, nil, err
 	}

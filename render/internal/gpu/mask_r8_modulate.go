@@ -391,8 +391,8 @@ func maskR8Modulate(
 	if _, err := queue.Submit(cmd); err != nil {
 		return nil, err
 	}
-	device.Poll(webgpu.PollWait)
-	if err := staging.Map(context.Background(), webgpu.MapModeRead, 0, stagingSize); err != nil {
+	device.Poll(hal.PollWait)
+	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
 		return nil, err
 	}
 	mapped, err := staging.MappedRange(0, stagingSize)

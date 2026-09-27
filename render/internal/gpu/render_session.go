@@ -5288,7 +5288,7 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	}
 	// Map the staging buffer. Map blocks until the GPU finishes the copy
 	// via Device.Poll-driven submission tracking (no manual WaitIdle needed).
-	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, stagingBufSize); err != nil {
+	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, stagingBufSize); err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
 	// P4/P6: the synchronous Map is the completion barrier — the GPU has

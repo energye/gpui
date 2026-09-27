@@ -675,7 +675,7 @@ func (s *GPUShared) initGPU() error {
 		slogger().Info("gpu-shared: borrowed shared present device for standalone use")
 		return nil
 	}
-	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
+	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
 		Backends: types.BackendsVulkan,
 	})
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -176,12 +177,12 @@ const minStorageBuffersPerShaderStage = 9
 // backends advertise enormous MaxStorageBuffersPerShaderStage (e.g. 524288)
 // and requesting those as required can OOM device creation or tiny allocations.
 // This helper starts from WebGPU DefaultLimits and only raises storage buffers.
-func DeviceDescriptor(label string) *webgpu.DeviceDescriptor {
+func DeviceDescriptor(label string) *hal.DeviceDescriptor {
 	limits := types.DefaultLimits()
 	if limits.MaxStorageBuffersPerShaderStage < minStorageBuffersPerShaderStage {
 		limits.MaxStorageBuffersPerShaderStage = minStorageBuffersPerShaderStage
 	}
-	return &webgpu.DeviceDescriptor{
+	return &hal.DeviceDescriptor{
 		Label:          label,
 		RequiredLimits: limits,
 	}
@@ -194,7 +195,7 @@ func DeviceDescriptor(label string) *webgpu.DeviceDescriptor {
 //
 // Suitable for solid/UI present + modest meshes. Heavy compute/Vello paths
 // may need the default DeviceDescriptor.
-func DeviceDescriptorLowVRAM(label string) *webgpu.DeviceDescriptor {
+func DeviceDescriptorLowVRAM(label string) *hal.DeviceDescriptor {
 	limits := types.DefaultLimits()
 	if limits.MaxStorageBuffersPerShaderStage < minStorageBuffersPerShaderStage {
 		limits.MaxStorageBuffersPerShaderStage = minStorageBuffersPerShaderStage
@@ -207,7 +208,7 @@ func DeviceDescriptorLowVRAM(label string) *webgpu.DeviceDescriptor {
 	limits.MaxTextureArrayLayers = 64
 	limits.MaxBindingsPerBindGroup = 128
 	limits.MaxNonSamplerBindings = 10000
-	return &webgpu.DeviceDescriptor{
+	return &hal.DeviceDescriptor{
 		Label:          label,
 		RequiredLimits: limits,
 	}
@@ -223,7 +224,7 @@ func DeviceDescriptorLowVRAM(label string) *webgpu.DeviceDescriptor {
 // the cliff is reservation sizing, not the heap). GPUI_LOW_VRAM=1 forces
 // LowVRAM on any adapter regardless of waterline. No env override for
 // adapter selection (that stays policy-driven).
-func DeviceDescriptorForAdapter(label string, adpt *webgpu.Adapter) *webgpu.DeviceDescriptor {
+func DeviceDescriptorForAdapter(label string, adpt *webgpu.Adapter) *hal.DeviceDescriptor {
 	if os.Getenv("GPUI_LOW_VRAM") == "1" || os.Getenv("GPUI_LOW_VRAM") == "true" {
 		return DeviceDescriptorLowVRAM(label)
 	}

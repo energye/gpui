@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -13,12 +14,12 @@ import (
 
 const minRenderStorageBuffersPerShaderStage = 9
 
-func renderDeviceDescriptor(label string) *webgpu.DeviceDescriptor {
+func renderDeviceDescriptor(label string) *hal.DeviceDescriptor {
 	limits := types.DefaultLimits()
 	if limits.MaxStorageBuffersPerShaderStage < minRenderStorageBuffersPerShaderStage {
 		limits.MaxStorageBuffersPerShaderStage = minRenderStorageBuffersPerShaderStage
 	}
-	return &webgpu.DeviceDescriptor{
+	return &hal.DeviceDescriptor{
 		Label:          label,
 		RequiredLimits: limits,
 	}
@@ -90,7 +91,7 @@ func createDevice(adapter *webgpu.Adapter, label string) (*webgpu.Device, error)
 // budget on iGPUs). Other windows/processes may release memory between
 // retries; this mirrors Flutter's degrade-not-crash behavior on transient
 // resource pressure instead of failing the app outright.
-func requestDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceDescriptor, label string) (*webgpu.Device, error) {
+func requestDeviceWithRetry(adapter *webgpu.Adapter, desc *hal.DeviceDescriptor, label string) (*webgpu.Device, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("adapter is nil")
 	}

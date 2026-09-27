@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -74,7 +75,7 @@ func TestS3c_M3_WindowSwapchain_PresentFrame(t *testing.T) {
 	}
 	s3cRequireGPU(t)
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}

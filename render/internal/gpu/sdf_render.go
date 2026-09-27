@@ -685,7 +685,7 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	}
 
 	// Map staging buffer; blocks until GPU completes via submission tracking.
-	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, pixelBufSize); err != nil {
+	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, pixelBufSize); err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
 	rng, err := stagingBuf.MappedRange(0, pixelBufSize)

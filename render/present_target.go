@@ -19,7 +19,7 @@ import (
 // Other windows/processes may release memory between retries; this mirrors
 // Flutter's degrade-not-crash behavior on transient resource pressure.
 // Implemented here rather than render/internal/gpu to avoid an import cycle.
-func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceDescriptor, label string) (*webgpu.Device, error) {
+func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *hal.DeviceDescriptor, label string) (*webgpu.Device, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("adapter is nil")
 	}
@@ -353,7 +353,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// the window can still try a lower-power adapter or software.
 	}
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		return nil, fmt.Errorf("render: CreateInstance: %w", err)
 	}

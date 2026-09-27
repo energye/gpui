@@ -8,6 +8,7 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
+	"github.com/energye/gpui/gpu/types"
 )
 
 // Buffer represents a GPU buffer.
@@ -81,7 +82,8 @@ func (b *Buffer) MapState() MapState {
 
 // Map blocks until a CPU-visible mapping is established for the given
 // byte range, or until ctx is canceled.
-func (b *Buffer) Map(ctx context.Context, mode MapMode, offset, size uint64) error {
+// Mode is types.MapMode (canonical, 片7a以 types 为准).
+func (b *Buffer) Map(ctx context.Context, mode types.MapMode, offset, size uint64) error {
 	if b == nil || b.r == nil {
 		return ErrReleased
 	}
@@ -98,7 +100,7 @@ func (b *Buffer) Map(ctx context.Context, mode MapMode, offset, size uint64) err
 }
 
 // MapAsync initiates a buffer map without blocking the caller.
-func (b *Buffer) MapAsync(mode MapMode, offset, size uint64) (*MapPending, error) {
+func (b *Buffer) MapAsync(mode types.MapMode, offset, size uint64) (*MapPending, error) {
 	if b == nil || b.r == nil {
 		return nil, ErrReleased
 	}

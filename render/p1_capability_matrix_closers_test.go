@@ -2945,7 +2945,7 @@ func TestP1_Capability_K02_DrawIndirectGPU(t *testing.T) {
 		t.Log("WGPU_NATIVE_PATH unset; relying on default discovery")
 	}
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
@@ -2955,7 +2955,7 @@ func TestP1_Capability_K02_DrawIndirectGPU(t *testing.T) {
 		t.Skipf("RequestAdapter: %v", err)
 	}
 	defer ad.Release()
-	dev, err := ad.RequestDevice(&webgpu.DeviceDescriptor{Label: "k02-indirect"})
+	dev, err := ad.RequestDevice(&hal.DeviceDescriptor{Label: "k02-indirect"})
 	if err != nil {
 		t.Fatalf("RequestDevice: %v", err)
 	}
@@ -3096,11 +3096,11 @@ fn fs_main() -> @location(0) vec4<f32> {
 		t.Fatalf("Submit: %v", err)
 	}
 	cmd.Release()
-	dev.Poll(webgpu.PollWait)
+	dev.Poll(hal.PollWait)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := staging.Map(ctx, webgpu.MapModeRead, 0, stagingSize); err != nil {
+	if err := staging.Map(ctx, types.MapModeRead, 0, stagingSize); err != nil {
 		t.Fatalf("Map: %v", err)
 	}
 	mr, err := staging.MappedRange(0, stagingSize)
@@ -3121,7 +3121,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 // CS.02: RGBA16Float render target create + clear via webgpu (F16 surface binding).
 func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	requireNativeGPU(t)
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
 	}
@@ -3131,7 +3131,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 		t.Skipf("RequestAdapter: %v", err)
 	}
 	defer ad.Release()
-	dev, err := ad.RequestDevice(&webgpu.DeviceDescriptor{Label: "cs02-f16"})
+	dev, err := ad.RequestDevice(&hal.DeviceDescriptor{Label: "cs02-f16"})
 	if err != nil {
 		t.Fatalf("RequestDevice: %v", err)
 	}
@@ -3198,11 +3198,11 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 		t.Fatalf("Submit: %v", err)
 	}
 	cmd.Release()
-	dev.Poll(webgpu.PollWait)
+	dev.Poll(hal.PollWait)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := staging.Map(ctx, webgpu.MapModeRead, 0, stagingSize); err != nil {
+	if err := staging.Map(ctx, types.MapModeRead, 0, stagingSize); err != nil {
 		t.Fatalf("Map F16: %v", err)
 	}
 	mr, err := staging.MappedRange(0, stagingSize)

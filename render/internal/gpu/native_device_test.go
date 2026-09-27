@@ -5,6 +5,7 @@ package gpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -12,7 +13,7 @@ import (
 func createNativeTestDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
 	t.Helper()
 
-	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
+	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
 		Backends: types.BackendsPrimary,
 	})
 	if err != nil {

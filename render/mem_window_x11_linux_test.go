@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -38,7 +39,7 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 	winW, winH := 320, 240
 	xw := memOpenX11(t, winW, winH)
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: types.BackendsPrimary})
+	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		xw.close()
 		t.Skipf("CreateInstance: %v", err)

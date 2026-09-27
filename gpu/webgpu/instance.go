@@ -5,22 +5,18 @@ package webgpu
 import (
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
 // InstanceDescriptor configures instance creation.
-// On the wgpu-native backend, Backends and Flags are accepted for API compatibility
-// but the Rust wgpu-native handles backend selection internally.
-type InstanceDescriptor struct {
-	Backends Backends
-	Flags    types.InstanceFlags
-	// XlibDisplay is Display* for GL/X11 instance association (optional).
-	XlibDisplay uintptr
-	// XlibScreen is X11 screen index (DefaultScreen).
-	XlibScreen int32
-}
+// Canonical form lives in gpu/hal (superset: backend selectors plus X11
+// XlibDisplay/XlibScreen, 片4已加；Backends/Flags 与 webgpu 同形).
+// Alias keeps webgpu callers compiling while render uses hal.* directly.
+// Full removal waits for slice 7c收尾.
+type InstanceDescriptor = hal.InstanceDescriptor
 
 // Instance is the entry point for GPU operations.
 // On the wgpu-native backend, this wraps rwgpu Instance.
@@ -32,7 +28,9 @@ type Instance struct {
 // CreateInstance creates a new GPU instance.
 // If desc is nil, all available backends are used (unless GPUI_BACKEND /
 // GPUI_VRAM_BUDGET_PCT env apply — see rwgpu.CreateInstance).
-func CreateInstance(desc *InstanceDescriptor) (*Instance, error) {
+// Takes hal.InstanceDescriptor (canonical, 片7a以 hal 为准；InstanceDescriptor 是 hal 别名，超集；
+// Dx12ShaderCompiler/GLBackend 暂忽略，rwgpu 无对应字段).
+func CreateInstance(desc *hal.InstanceDescriptor) (*Instance, error) {
 	if err := rwgpu.Init(); err != nil {
 		return nil, fmt.Errorf("wgpu: failed to init wgpu-native: %w", err)
 	}
