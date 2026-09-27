@@ -1,10 +1,21 @@
+//go:build !nogpu
+
 package gpu
 
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/webgpu"
 )
+
+// testBuffer is a hal.Buffer stub that records Destroy calls.
+type testBuffer struct {
+	hal.Buffer
+	destroyed bool
+}
+
+func (b *testBuffer) Destroy() { b.destroyed = true }
 
 // P6: submission-tracked deferred release — buffers retired during grow-only
 // rebuilds stay alive until the next safe point; device-loss invalidation
@@ -12,8 +23,8 @@ import (
 
 func TestP6_PendingBufRetire_AddDrain(t *testing.T) {
 	var q pendingBufRetire
-	b1 := &webgpu.Buffer{}
-	b2 := &webgpu.Buffer{}
+	b1 := &testBuffer{}
+	b2 := &testBuffer{}
 	q.Add(b1)
 	q.Add(b2)
 	q.Add(nil) // no-op
@@ -24,7 +35,7 @@ func TestP6_PendingBufRetire_AddDrain(t *testing.T) {
 	if got := q.PendingCount(); got != 0 {
 		t.Fatalf("expected 0 after drain, got %d", got)
 	}
-	if !b1.Released() || !b2.Released() {
+	if !b1.destroyed || !b2.destroyed {
 		t.Fatalf("drain must release every queued buffer")
 	}
 	q.Drain() // idempotent
@@ -40,7 +51,7 @@ func TestP6_InvalidateForDeviceLoss_DropsBookkeeping(t *testing.T) {
 	t.Cleanup(func() { s.Destroy() })
 
 	// Populate bookkeeping with fake resources (never reaches native).
-	b := &webgpu.Buffer{}
+	b := &testBuffer{}
 	s.RetireBuffer(b)
 	s.pendingTexRetire.Add(&webgpu.TextureView{}, &webgpu.Texture{})
 	if s.pendingTexRetire.PendingCount() == 0 || s.pendingBufRetire.PendingCount() == 0 {
@@ -53,7 +64,7 @@ func TestP6_InvalidateForDeviceLoss_DropsBookkeeping(t *testing.T) {
 	if s.pendingTexRetire.PendingCount() != 0 || s.pendingBufRetire.PendingCount() != 0 {
 		t.Fatalf("retire queues must be drained by InvalidateForDeviceLoss")
 	}
-	if b.Released() {
+	if b.destroyed {
 		t.Fatalf("device-loss invalidation must not release native buffers")
 	}
 	if s.resReg != nil && s.resReg.Count() != 0 {

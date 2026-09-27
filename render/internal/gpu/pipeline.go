@@ -57,7 +57,7 @@ type PipelineCache struct {
 	blendPipelineLayout     *webgpu.PipelineLayout
 	stripPipelineLayout     *webgpu.PipelineLayout
 	compositePipelineLayout *webgpu.PipelineLayout
-	defaultSampler          *webgpu.Sampler
+	defaultSampler          hal.Sampler
 
 	// State
 	initialized bool
@@ -496,7 +496,7 @@ func (pc *PipelineCache) Close() {
 	releasePipelineLayout(&pc.stripPipelineLayout)
 	releasePipelineLayout(&pc.compositePipelineLayout)
 	if pc.defaultSampler != nil {
-		pc.defaultSampler.Release()
+		pc.defaultSampler.Destroy()
 		pc.defaultSampler = nil
 	}
 

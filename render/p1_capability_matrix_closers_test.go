@@ -3,13 +3,12 @@
 package render_test
 
 import (
-	"context"
 	"encoding/binary"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -3023,7 +3022,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("indirect buffer: %v", err)
 	}
-	defer indBuf.Release()
+	defer indBuf.Destroy()
 	if err := queue.WriteBuffer(indBuf, 0, args); err != nil {
 		t.Fatalf("WriteBuffer indirect: %v", err)
 	}
@@ -3082,7 +3081,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("staging: %v", err)
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 	enc.CopyTextureToBuffer(rt, staging, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
 		TextureBase:  hal.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
@@ -3098,16 +3097,11 @@ fn fs_main() -> @location(0) vec4<f32> {
 	cmd.Release()
 	dev.Poll(hal.PollWait)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := staging.Map(ctx, types.MapModeRead, 0, stagingSize); err != nil {
+	mapping, err := dev.MapBuffer(staging, 0, stagingSize)
+	if err != nil {
 		t.Fatalf("Map: %v", err)
 	}
-	mr, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		t.Fatalf("MappedRange: %v", err)
-	}
-	got := mr.Bytes()
+	got := unsafe.Slice((*byte)(mapping.Ptr), stagingSize)
 	o := (h/2)*bytesPerRow + (w/2)*bpp
 	r, g, b := got[o], got[o+1], got[o+2]
 	t.Logf("K.02 center rgba=%d,%d,%d", r, g, b)
@@ -3115,7 +3109,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if g < 150 || r > 80 || b > 80 {
 		t.Fatalf("K.02 DrawIndirect expected green over red clear, got %d,%d,%d", r, g, b)
 	}
-	_ = staging.Unmap()
+	_ = dev.UnmapBuffer(staging)
 }
 
 // CS.02: RGBA16Float render target create + clear via webgpu (F16 surface binding).
@@ -3184,7 +3178,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	if err != nil {
 		t.Fatalf("staging: %v", err)
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 	enc.CopyTextureToBuffer(rt, staging, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
 		TextureBase:  hal.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
@@ -3200,16 +3194,11 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	cmd.Release()
 	dev.Poll(hal.PollWait)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := staging.Map(ctx, types.MapModeRead, 0, stagingSize); err != nil {
+	mapping, err := dev.MapBuffer(staging, 0, stagingSize)
+	if err != nil {
 		t.Fatalf("Map F16: %v", err)
 	}
-	mr, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		t.Fatalf("MappedRange: %v", err)
-	}
-	got := mr.Bytes()
+	got := unsafe.Slice((*byte)(mapping.Ptr), stagingSize)
 	// Decode first pixel RGBA16Float little-endian half floats roughly non-zero.
 	if len(got) < 8 {
 		t.Fatalf("staging too small")
@@ -3226,7 +3215,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	if !any {
 		t.Fatalf("CS.02 F16 clear produced all-zero readback")
 	}
-	_ = staging.Unmap()
+	_ = dev.UnmapBuffer(staging)
 }
 
 // CS.03: linear sRGB interpolation mid-stop for black→white gradient should be

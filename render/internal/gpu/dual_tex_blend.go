@@ -3,12 +3,12 @@
 package gpu
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"image"
 	"math"
 	"sync"
+	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 
@@ -16,7 +16,6 @@ import (
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
-	"unsafe"
 )
 
 // dual-tex advanced blend shader: sample dest + src, write composited premul RGBA.
@@ -250,10 +249,10 @@ type dualTexBlendCache struct {
 	pipeLay      *webgpu.PipelineLayout
 	pipeline     *webgpu.RenderPipeline // RGBA8 target
 	pipelineBGRA *webgpu.RenderPipeline // BGRA8 target (layers/swapchain)
-	sampler      *webgpu.Sampler
-	uniform      *webgpu.Buffer
+	sampler      hal.Sampler
+	uniform      hal.Buffer
 	// opt37: multi-op uniform slab (stride dualTexUniformSlotStride); one WriteBuffer.
-	uniformSlab    *webgpu.Buffer
+	uniformSlab    hal.Buffer
 	uniformSlabCap uint64
 	// Diagnostics for unit tests (last multi IntoEncoder run).
 	lastMultiUniformSlots int
@@ -269,8 +268,9 @@ type dualTexBlendCache struct {
 }
 
 type dualTexBGKey struct {
-	dst, src, ubuf uintptr
-	offset         uint64
+	dst, src uintptr
+	ubuf     hal.Buffer
+	offset   uint64
 }
 
 type dualTexMultiBGSlot struct {
@@ -307,15 +307,15 @@ func (c *dualTexBlendCache) release() {
 		c.shader = nil
 	}
 	if c.sampler != nil {
-		c.sampler.Release()
+		c.sampler.Destroy()
 		c.sampler = nil
 	}
 	if c.uniform != nil {
-		c.uniform.Release()
+		c.uniform.Destroy()
 		c.uniform = nil
 	}
 	if c.uniformSlab != nil {
-		c.uniformSlab.Release()
+		c.uniformSlab.Destroy()
 		c.uniformSlab = nil
 		c.uniformSlabCap = 0
 	}
@@ -367,10 +367,10 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 			c.shader.Release()
 		}
 		if c.sampler != nil {
-			c.sampler.Release()
+			c.sampler.Destroy()
 		}
 		if c.uniform != nil {
-			c.uniform.Release()
+			c.uniform.Destroy()
 		}
 		c.pipeline, c.pipelineBGRA, c.pipeLay, c.bgl, c.shader, c.sampler, c.uniform = nil, nil, nil, nil, nil, nil, nil
 	}
@@ -401,11 +401,11 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 			c.shader = nil
 		}
 		if c.sampler != nil {
-			c.sampler.Release()
+			c.sampler.Destroy()
 			c.sampler = nil
 		}
 		if c.uniform != nil {
-			c.uniform.Release()
+			c.uniform.Destroy()
 			c.uniform = nil
 		}
 	}
@@ -547,7 +547,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		samp.Release()
+		samp.Destroy()
 		pipe.Release()
 		pipeLay.Release()
 		bgl.Release()
@@ -764,7 +764,7 @@ func dualTexAdvancedBlend(
 	if err != nil {
 		return nil, fmt.Errorf("dual-tex staging: %w", err)
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 
 	enc.CopyTextureToBuffer(outTex, staging, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{
@@ -789,26 +789,21 @@ func dualTexAdvancedBlend(
 	// Wait for GPU before map (matches texture readback smoke tests).
 	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
-		return nil, fmt.Errorf("dual-tex map: %w", err)
-	}
-	mapped, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		_ = staging.Unmap()
-		return nil, fmt.Errorf("dual-tex mapped range: %w", err)
-	}
-	src := mapped.Bytes()
-	out := make([]byte, need)
-	if alignedRow == tightRow {
-		copy(out, src[:need])
+	if mapping, mErr := device.MapBuffer(staging, 0, stagingSize); mErr != nil {
+		return nil, fmt.Errorf("dual-tex map: %w", mErr)
 	} else {
-		for y := 0; y < bh; y++ {
-			copy(out[y*bw*4:(y+1)*bw*4], src[y*int(alignedRow):y*int(alignedRow)+bw*4])
+		src := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
+		out := make([]byte, need)
+		if alignedRow == tightRow {
+			copy(out, src[:need])
+		} else {
+			for y := 0; y < bh; y++ {
+				copy(out[y*bw*4:(y+1)*bw*4], src[y*int(alignedRow):y*int(alignedRow)+bw*4])
+			}
 		}
+		_ = device.UnmapBuffer(staging)
+		return out, nil
 	}
-	mapped.Release()
-	_ = staging.Unmap()
-	return out, nil
 }
 
 // dualTexModeU maps BlendMode to shader mode code.
@@ -932,7 +927,7 @@ var dualTexParamsPool = sync.Pool{
 
 // dualTexWriteParams writes blend mode + UV sample rect into the dual-tex uniform.
 // uv_min/uv_max are in 0-1 texture space; full texture uses (0,0)-(1,1).
-func dualTexWriteParams(queue hal.Queue, uniform *webgpu.Buffer, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) error {
+func dualTexWriteParams(queue hal.Queue, uniform hal.Buffer, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) error {
 	if queue == nil || uniform == nil {
 		return fmt.Errorf("dual-tex params: nil queue/uniform")
 	}
@@ -1248,7 +1243,7 @@ type dualTexViewBlendOut struct {
 
 // ensureUniformSlab grows/creates the opt37 multi-op uniform slab for n slots.
 // Recreating the slab clears multiBG (entries pin the old buffer+offset).
-func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (*webgpu.Buffer, error) {
+func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (hal.Buffer, error) {
 	if c == nil || device == nil || n <= 0 {
 		return nil, fmt.Errorf("dual-tex uniform slab: bad args")
 	}
@@ -1274,7 +1269,7 @@ func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (*we
 		return nil, err
 	}
 	if c.uniformSlab != nil {
-		c.uniformSlab.Release()
+		c.uniformSlab.Destroy()
 	}
 	c.uniformSlab = b
 	c.uniformSlabCap = alloc
@@ -1305,9 +1300,9 @@ type dualTexMultiBundle struct {
 func (c *dualTexBlendCache) multiBindGroup(
 	device *webgpu.Device,
 	bgl *webgpu.BindGroupLayout,
-	sampler *webgpu.Sampler,
+	sampler hal.Sampler,
 	dst, src *webgpu.TextureView,
-	ubuf *webgpu.Buffer,
+	ubuf hal.Buffer,
 	offset uint64,
 	slot int,
 ) (*webgpu.BindGroup, error) {
@@ -1317,7 +1312,7 @@ func (c *dualTexBlendCache) multiBindGroup(
 	key := dualTexBGKey{
 		dst:    uintptr(unsafe.Pointer(dst)),
 		src:    uintptr(unsafe.Pointer(src)),
-		ubuf:   uintptr(unsafe.Pointer(ubuf)),
+		ubuf:   ubuf,
 		offset: offset,
 	}
 	c.mu.Lock()
@@ -1728,7 +1723,7 @@ func readTextureViewRegionRGBA(
 	if err != nil {
 		return nil, fmt.Errorf("readback staging: %w", err)
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 
 	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "layer_view_read_enc"})
 	if err != nil {
@@ -1767,15 +1762,11 @@ func readTextureViewRegionRGBA(
 	cmd.Release()
 	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
+	mapping, err := device.MapBuffer(staging, 0, stagingSize)
+	if err != nil {
 		return nil, fmt.Errorf("readback map: %w", err)
 	}
-	mapped, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		_ = staging.Unmap()
-		return nil, err
-	}
-	src := mapped.Bytes()
+	src := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
 	out := make([]byte, bw*bh*4)
 	// Offscreen cache textures are BGRA8Unorm; convert to RGBA for dual-tex/CPU.
 	// If source was already RGBA the swizzle is wrong — CreateOffscreenTexture
@@ -1807,8 +1798,7 @@ func readTextureViewRegionRGBA(
 			}
 		}
 	}
-	mapped.Release()
-	_ = staging.Unmap()
+	_ = device.UnmapBuffer(staging)
 	return out, nil
 }
 
@@ -1849,7 +1839,7 @@ func readTextureViewRegionStraightRGBA(
 	if err != nil {
 		return nil, fmt.Errorf("readback staging: %w", err)
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 
 	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "filter_rgba_read_enc"})
 	if err != nil {
@@ -1888,15 +1878,11 @@ func readTextureViewRegionStraightRGBA(
 	cmd.Release()
 	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
+	mapping, err := device.MapBuffer(staging, 0, stagingSize)
+	if err != nil {
 		return nil, fmt.Errorf("readback map: %w", err)
 	}
-	mapped, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		_ = staging.Unmap()
-		return nil, err
-	}
-	src := mapped.Bytes()
+	src := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
 	out := make([]byte, bw*bh*4)
 	// RGBA8Unorm source — no channel swizzle.
 	if alignedRow == tightRow {
@@ -1906,7 +1892,6 @@ func readTextureViewRegionStraightRGBA(
 			copy(out[y*bw*4:(y+1)*bw*4], src[y*int(alignedRow):y*int(alignedRow)+bw*4])
 		}
 	}
-	mapped.Release()
-	_ = staging.Unmap()
+	_ = device.UnmapBuffer(staging)
 	return out, nil
 }

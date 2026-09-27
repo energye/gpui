@@ -3,7 +3,6 @@
 package gpu
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -166,7 +165,7 @@ type filterGPUCache struct {
 	device    *webgpu.Device
 	pipeline  *webgpu.RenderPipeline
 	bgl       *webgpu.BindGroupLayout
-	sampler   *webgpu.Sampler
+	sampler   hal.Sampler
 	dummyTex  *webgpu.Texture
 	dummyView *webgpu.TextureView
 
@@ -176,9 +175,9 @@ type filterGPUCache struct {
 	viewA, viewB, viewH *webgpu.TextureView
 
 	// Reused uniform + CPU staging/readback buffers.
-	uniform    *webgpu.Buffer
+	uniform    hal.Buffer
 	uniformCPU []byte
-	staging    *webgpu.Buffer
+	staging    hal.Buffer
 	stagingCap uint64
 	outScratch []byte
 	uploadPad  []byte
@@ -189,7 +188,7 @@ type filterGPUCache struct {
 	// opt35: single slab for all pass uniforms (stride filterPassUniformSlotStride).
 	// Each pass bind group uses a fixed Offset into the slab; one WriteBuffer
 	// covers all packed slots after encode, before Submit.
-	passUniformSlab    *webgpu.Buffer
+	passUniformSlab    hal.Buffer
 	passUniformSlabCap uint64
 	passUniformScratch []byte
 	// lastPassUniform* — test/pprof diagnostics (updated each graph run).
@@ -210,8 +209,9 @@ type filterGPUCache struct {
 }
 
 type filterBGKey struct {
-	src, aux, ubuf uintptr
-	offset         uint64
+	src, aux uintptr
+	ubuf     hal.Buffer
+	offset   uint64
 }
 
 func (c *filterGPUCache) release() {
@@ -252,11 +252,11 @@ func (c *filterGPUCache) releasePoolUnlocked() {
 func (c *filterGPUCache) releaseUnlocked() {
 	c.releasePoolUnlocked()
 	if c.uniform != nil {
-		c.uniform.Release()
+		c.uniform.Destroy()
 		c.uniform = nil
 	}
 	if c.staging != nil {
-		c.staging.Release()
+		c.staging.Destroy()
 		c.staging = nil
 		c.stagingCap = 0
 	}
@@ -270,7 +270,7 @@ func (c *filterGPUCache) releaseUnlocked() {
 	}
 	c.publishFree = nil
 	if c.passUniformSlab != nil {
-		c.passUniformSlab.Release()
+		c.passUniformSlab.Destroy()
 		c.passUniformSlab = nil
 		c.passUniformSlabCap = 0
 	}
@@ -288,7 +288,7 @@ func (c *filterGPUCache) releaseUnlocked() {
 		c.bgl = nil
 	}
 	if c.sampler != nil {
-		c.sampler.Release()
+		c.sampler.Destroy()
 		c.sampler = nil
 	}
 	if c.dummyView != nil {
@@ -417,7 +417,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
 	})
 	if err != nil {
-		samp.Release()
+		samp.Destroy()
 		pipe.Release()
 		bgl.Release()
 		return err
@@ -428,7 +428,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	})
 	if err != nil {
 		dtex.Release()
-		samp.Release()
+		samp.Destroy()
 		pipe.Release()
 		bgl.Release()
 		return err
@@ -441,7 +441,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	if err != nil {
 		dview.Release()
 		dtex.Release()
-		samp.Release()
+		samp.Destroy()
 		pipe.Release()
 		bgl.Release()
 		return err
@@ -508,7 +508,7 @@ func (c *filterGPUCache) ensureStaging(device *webgpu.Device, size uint64) error
 		return nil
 	}
 	if c.staging != nil {
-		c.staging.Release()
+		c.staging.Destroy()
 		c.staging = nil
 		c.stagingCap = 0
 	}
@@ -541,8 +541,8 @@ func (c *filterGPUCache) clearBGCacheUnlocked() {
 	}
 }
 
-func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupLayout, samp *webgpu.Sampler,
-	src, dst, aux *webgpu.TextureView, ubuf *webgpu.Buffer, offset uint64,
+func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupLayout, samp hal.Sampler,
+	src, dst, aux *webgpu.TextureView, ubuf hal.Buffer, offset uint64,
 ) (*webgpu.BindGroup, error) {
 	if device == nil || bgl == nil || samp == nil || src == nil || dst == nil || aux == nil || ubuf == nil {
 		return nil, fmt.Errorf("filter bg: nil arg")
@@ -550,7 +550,7 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupL
 	key := filterBGKey{
 		src:    uintptr(unsafe.Pointer(src)),
 		aux:    uintptr(unsafe.Pointer(aux)),
-		ubuf:   uintptr(unsafe.Pointer(ubuf)),
+		ubuf:   ubuf,
 		offset: offset,
 	}
 	// dst is render attachment, not bind-group entry — key is src/aux/ubuf/offset.
@@ -591,7 +591,7 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupL
 
 // ensurePassUniformSlab grows/creates the opt35 pass-uniform slab for nSlots.
 // Recreating the slab clears the bind-group cache (entries pin the old buffer).
-func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int) (*webgpu.Buffer, error) {
+func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int) (hal.Buffer, error) {
 	if device == nil {
 		return nil, fmt.Errorf("filter pass uniform slab: nil device")
 	}
@@ -621,7 +621,7 @@ func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int
 		return nil, err
 	}
 	if c.passUniformSlab != nil {
-		c.passUniformSlab.Release()
+		c.passUniformSlab.Destroy()
 		c.passUniformSlab = nil
 	}
 	c.passUniformSlab = b
@@ -1303,15 +1303,11 @@ func runGPUFilterGraphEx(
 	cmd2.Release()
 	device.Poll(hal.PollWait)
 
-	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
-		return nil, gpucontext.TextureView{}, nil, err
+	mapping, mErr := device.MapBuffer(staging, 0, stagingSize)
+	if mErr != nil {
+		return nil, gpucontext.TextureView{}, nil, mErr
 	}
-	mapped, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		_ = staging.Unmap()
-		return nil, gpucontext.TextureView{}, nil, err
-	}
-	srcMapped := mapped.Bytes()
+	srcMapped := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
 	needOut := w * h * 4
 	cache.mu.Lock()
 	if cap(cache.outScratch) < needOut {
@@ -1327,7 +1323,6 @@ func runGPUFilterGraphEx(
 		}
 	}
 	cache.mu.Unlock()
-	mapped.Release()
-	_ = staging.Unmap()
+	_ = device.UnmapBuffer(staging)
 	return out, gpucontext.TextureView{}, nil, nil
 }

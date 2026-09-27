@@ -12,8 +12,8 @@ import (
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
-// createNativeBuffer creates a real wgpu.Buffer via the native device for testing.
-func createNativeBuffer(t *testing.T, device *webgpu.Device, size uint64, usage types.BufferUsage, mapped bool) *webgpu.Buffer {
+// createNativeBuffer creates a real buffer via the native device for testing.
+func createNativeBuffer(t *testing.T, device *webgpu.Device, size uint64, usage types.BufferUsage, mapped bool) hal.Buffer {
 	t.Helper()
 	buf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label:            "native-test-buffer",

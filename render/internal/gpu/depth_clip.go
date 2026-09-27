@@ -115,13 +115,13 @@ type DepthClipPipeline struct {
 	depthCoverPipeline *webgpu.RenderPipeline
 
 	tessellator  *FanTessellator
-	uniformBuf   *webgpu.Buffer
+	uniformBuf   hal.Buffer
 	bindGroup    *webgpu.BindGroup
-	vertBuf      *webgpu.Buffer
+	vertBuf      hal.Buffer
 	vertBufCap   uint64
-	coverBuf     *webgpu.Buffer // vertex buffer for cover quad (6 vertices)
-	coverBufCap  uint64         // capacity of cover buffer in bytes
-	vertexStaged []byte         // CPU staging buffer for vertex data
+	coverBuf     hal.Buffer // vertex buffer for cover quad (6 vertices)
+	coverBufCap  uint64     // capacity of cover buffer in bytes
+	vertexStaged []byte     // CPU staging buffer for vertex data
 }
 
 // NewDepthClipPipeline creates a new depth clip pipeline for the given device.
@@ -378,8 +378,8 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 // Contains both the fan tessellation vertices (Phase 1: stencil fill) and
 // the cover quad vertices (Phase 2: depth write).
 type DepthClipResources struct {
-	vertBuf    *webgpu.Buffer    // fan triangle vertices for stencil fill
-	coverBuf   *webgpu.Buffer    // bounding box quad vertices for cover pass
+	vertBuf    hal.Buffer        // fan triangle vertices for stencil fill
+	coverBuf   hal.Buffer        // bounding box quad vertices for cover pass
 	bindGroup  *webgpu.BindGroup // uniform bind group (viewport)
 	vertCount  uint32            // number of fan vertices (Phase 1)
 	coverCount uint32            // number of cover quad vertices (Phase 2, always 6)
@@ -403,7 +403,7 @@ type DepthClipResources struct {
 	// sampleCount==1: the binary fan stencil edge is tighter than the mask
 	// fringe, so we paint this band with stencil Replace(1) to widen the
 	// depth-pass region to exactly the mask's AA band. Nil when sampleCount>1.
-	bandBuf   *webgpu.Buffer
+	bandBuf   hal.Buffer
 	bandCount uint32
 }
 
@@ -413,15 +413,15 @@ func (r *DepthClipResources) Release() {
 		return
 	}
 	if r.vertBuf != nil {
-		r.vertBuf.Release()
+		r.vertBuf.Destroy()
 		r.vertBuf = nil
 	}
 	if r.coverBuf != nil {
-		r.coverBuf.Release()
+		r.coverBuf.Destroy()
 		r.coverBuf = nil
 	}
 	if r.bandBuf != nil {
-		r.bandBuf.Release()
+		r.bandBuf.Destroy()
 		r.bandBuf = nil
 		r.bandCount = 0
 	}
@@ -521,8 +521,8 @@ func (p *DepthClipPipeline) BuildClipMask(
 	clipPath *render.Path,
 	w, h uint32,
 	maskLayout *webgpu.BindGroupLayout,
-	sampler *webgpu.Sampler,
-	uniformOn *webgpu.Buffer,
+	sampler hal.Sampler,
+	uniformOn hal.Buffer,
 ) error {
 	if res == nil || clipPath == nil || p.sampleCount > 1 {
 		return nil
@@ -679,7 +679,7 @@ func (p *DepthClipPipeline) BuildClipResources(
 		binary.LittleEndian.PutUint32(fanData[i*4:], math.Float32bits(v))
 	}
 	if wErr := p.queue.WriteBuffer(ownedVertBuf, 0, fanData); wErr != nil {
-		ownedVertBuf.Release()
+		ownedVertBuf.Destroy()
 		return nil, fmt.Errorf("write owned fan buffer: %w", wErr)
 	}
 
@@ -690,7 +690,7 @@ func (p *DepthClipPipeline) BuildClipResources(
 		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		ownedVertBuf.Release()
+		ownedVertBuf.Destroy()
 		return nil, fmt.Errorf("create owned cover buffer: %w", err)
 	}
 	coverData := make([]byte, 12*4)
@@ -698,8 +698,8 @@ func (p *DepthClipPipeline) BuildClipResources(
 		binary.LittleEndian.PutUint32(coverData[i*4:], math.Float32bits(v))
 	}
 	if wErr := p.queue.WriteBuffer(ownedCoverBuf, 0, coverData); wErr != nil {
-		ownedVertBuf.Release()
-		ownedCoverBuf.Release()
+		ownedVertBuf.Destroy()
+		ownedCoverBuf.Destroy()
 		return nil, fmt.Errorf("write owned cover buffer: %w", wErr)
 	}
 
@@ -729,7 +729,7 @@ func (p *DepthClipPipeline) BuildClipResources(
 			binary.LittleEndian.PutUint32(bandData[i*4:], math.Float32bits(v))
 		}
 		if wErr := p.queue.WriteBuffer(ownedBandBuf, 0, bandData); wErr != nil {
-			ownedBandBuf.Release()
+			ownedBandBuf.Destroy()
 			res.Release()
 			return nil, fmt.Errorf("write owned band buffer: %w", wErr)
 		}
@@ -748,7 +748,7 @@ func (p *DepthClipPipeline) uploadFanVertices() error {
 	// Ensure fan vertex buffer (grow-only).
 	if p.vertBuf == nil || p.vertBufCap < vertBytes {
 		if p.vertBuf != nil {
-			p.vertBuf.Release()
+			p.vertBuf.Destroy()
 		}
 		newCap := vertBytes
 		if newCap < 4096 {
@@ -789,7 +789,7 @@ func (p *DepthClipPipeline) uploadCoverQuad() error {
 	// Ensure cover vertex buffer.
 	if p.coverBuf == nil || p.coverBufCap < coverBytes {
 		if p.coverBuf != nil {
-			p.coverBuf.Release()
+			p.coverBuf.Destroy()
 		}
 		buf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "depth_clip_cover_vert",
@@ -903,16 +903,16 @@ func (p *DepthClipPipeline) Destroy() {
 		p.bindGroup = nil
 	}
 	if p.uniformBuf != nil {
-		p.uniformBuf.Release()
+		p.uniformBuf.Destroy()
 		p.uniformBuf = nil
 	}
 	if p.coverBuf != nil {
-		p.coverBuf.Release()
+		p.coverBuf.Destroy()
 		p.coverBuf = nil
 		p.coverBufCap = 0
 	}
 	if p.vertBuf != nil {
-		p.vertBuf.Release()
+		p.vertBuf.Destroy()
 		p.vertBuf = nil
 		p.vertBufCap = 0
 	}

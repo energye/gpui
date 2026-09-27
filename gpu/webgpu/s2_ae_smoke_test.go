@@ -6,9 +6,8 @@ package webgpu
 // Proves: CreateInstance → … → Draw → readback works with descriptor conversion.
 
 import (
-	"context"
 	"testing"
-	"time"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -69,7 +68,7 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("src: %v", err)
 	}
-	defer src.Release()
+	defer src.Destroy()
 	dst, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Size:  size,
 		Usage: types.BufferUsageCopyDst | types.BufferUsageMapRead,
@@ -77,7 +76,7 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dst: %v", err)
 	}
-	defer dst.Release()
+	defer dst.Destroy()
 
 	if err := queue.WriteBuffer(src, 0, want); err != nil {
 		t.Fatalf("WriteBuffer: %v", err)
@@ -97,22 +96,17 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 	cmd.Release()
 	device.Poll(PollWait)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := dst.Map(ctx, MapModeRead, 0, size); err != nil {
+	mapping, err := device.MapBuffer(dst, 0, size)
+	if err != nil {
 		t.Fatalf("Map: %v", err)
 	}
-	mr, err := dst.MappedRange(0, size)
-	if err != nil {
-		t.Fatalf("MappedRange: %v", err)
-	}
-	got := mr.Bytes()
+	got := unsafe.Slice((*byte)(mapping.Ptr), size)
 	for i := 0; i < 32; i++ {
 		if got[i] != want[i] {
 			t.Fatalf("got[%d]=%#x want %#x", i, got[i], want[i])
 		}
 	}
-	_ = dst.Unmap()
+	_ = device.UnmapBuffer(dst)
 }
 
 func TestS2AE_TextureWriteCopyMap(t *testing.T) {
@@ -165,7 +159,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSampler: %v", err)
 	}
-	defer sampler.Release()
+	defer sampler.Destroy()
 
 	if err := queue.WriteTexture(
 		&hal.ImageCopyTexture{Texture: tex, Aspect: types.TextureAspectAll},
@@ -184,7 +178,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("staging: %v", err)
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 
 	enc, err := device.CreateCommandEncoder(nil)
 	if err != nil {
@@ -205,20 +199,15 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	cmd.Release()
 	device.Poll(PollWait)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := staging.Map(ctx, MapModeRead, 0, stagingSize); err != nil {
+	mapping, err := device.MapBuffer(staging, 0, stagingSize)
+	if err != nil {
 		t.Fatalf("Map: %v", err)
 	}
-	mr, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		t.Fatalf("MappedRange: %v", err)
-	}
-	got := mr.Bytes()
+	got := unsafe.Slice((*byte)(mapping.Ptr), stagingSize)
 	if got[0] != 0xAA || got[1] != 0xBB || got[2] != 0xCC || got[3] != 0xFF {
 		t.Fatalf("texel = %02x %02x %02x %02x", got[0], got[1], got[2], got[3])
 	}
-	_ = staging.Unmap()
+	_ = device.UnmapBuffer(staging)
 }
 
 func TestS2AE_DrawReadback(t *testing.T) {
@@ -342,7 +331,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("staging: %v", err)
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 	enc.CopyTextureToBuffer(rt, staging, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
 		TextureBase:  hal.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
@@ -358,21 +347,16 @@ fn fs_main() -> @location(0) vec4<f32> {
 	cmd.Release()
 	device.Poll(PollWait)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := staging.Map(ctx, MapModeRead, 0, stagingSize); err != nil {
+	mapping, err := device.MapBuffer(staging, 0, stagingSize)
+	if err != nil {
 		t.Fatalf("Map: %v", err)
 	}
-	mr, err := staging.MappedRange(0, stagingSize)
-	if err != nil {
-		t.Fatalf("MappedRange: %v", err)
-	}
-	got := mr.Bytes()
+	got := unsafe.Slice((*byte)(mapping.Ptr), stagingSize)
 	o := (h/2)*bytesPerRow + (w/2)*bpp
 	r, g, b := got[o], got[o+1], got[o+2]
 	// Expect blue draw over red clear
 	if b < 200 || r > 30 || g > 30 {
 		t.Fatalf("center rgba=%d,%d,%d want blue (facade pipeline/draw broken?)", r, g, b)
 	}
-	_ = staging.Unmap()
+	_ = device.UnmapBuffer(staging)
 }

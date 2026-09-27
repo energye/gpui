@@ -42,7 +42,7 @@ func (d *Device) Limits() Limits {
 }
 
 // CreateBuffer creates a GPU buffer.
-func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (*Buffer, error) {
+func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (d *Device) CreateTextureView(texture *Texture, desc *hal.TextureViewDescri
 }
 
 // CreateSampler creates a texture sampler.
-func (d *Device) CreateSampler(desc *hal.SamplerDescriptor) (*Sampler, error) {
+func (d *Device) CreateSampler(desc *hal.SamplerDescriptor) (hal.Sampler, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}

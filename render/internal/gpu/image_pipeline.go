@@ -158,15 +158,15 @@ type TexturedQuadPipeline struct {
 	blitLayoutHasClip bool
 
 	// Default sampler for image textures (bilinear filtering, clamp-to-edge).
-	sampler *webgpu.Sampler
+	sampler hal.Sampler
 	// Nearest-neighbor sampler (I.03).
-	nearestSampler *webgpu.Sampler
+	nearestSampler hal.Sampler
 
 	// filterSamplers caches R3 per-picture samplers by effective key.
 	// Default keys reuse sampler/nearestSampler above (never cached here);
 	// only mipmap-linear or aniso>1 keys allocate. Lazily created by
 	// SamplerForFilter, released by destroyPipeline.
-	filterSamplers map[ImageSamplerKey]*webgpu.Sampler
+	filterSamplers map[ImageSamplerKey]hal.Sampler
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
@@ -527,7 +527,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 	}
 	p.nearestSampler = nearest
 	if p.filterSamplers == nil {
-		p.filterSamplers = map[ImageSamplerKey]*webgpu.Sampler{}
+		p.filterSamplers = map[ImageSamplerKey]hal.Sampler{}
 	}
 
 	// Bind group layout: uniform + texture + sampler.
@@ -641,19 +641,19 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 		p.uniformLayout = nil
 	}
 	if p.sampler != nil {
-		p.sampler.Release()
+		p.sampler.Destroy()
 		p.sampler = nil
 	}
 	if p.filterSamplers != nil {
 		for key, s := range p.filterSamplers {
 			if s != nil {
-				s.Release()
+				s.Destroy()
 			}
 			delete(p.filterSamplers, key)
 		}
 	}
 	if p.nearestSampler != nil {
-		p.nearestSampler.Release()
+		p.nearestSampler.Destroy()
 		p.nearestSampler = nil
 	}
 	if p.shader != nil {
@@ -665,7 +665,7 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 // imageFrameResources holds pre-built GPU resources for image rendering in
 // a single frame. Created by the render session's buildImageResources.
 type imageFrameResources struct {
-	vertBuf   *webgpu.Buffer
+	vertBuf   hal.Buffer
 	drawCalls []imageDrawCall
 }
 
@@ -970,7 +970,7 @@ func putImageUniform(dst []byte, viewportW, viewportH uint32, opacity float32) {
 // Historic behaviour is frozen: R3 keys that reproduce the two historic
 // samplers return the same pointers; use SamplerForFilter for the full
 // per-picture switch.
-func (p *TexturedQuadPipeline) SamplerFor(nearest bool) *webgpu.Sampler {
+func (p *TexturedQuadPipeline) SamplerFor(nearest bool) hal.Sampler {
 	if nearest && p.nearestSampler != nil {
 		return p.nearestSampler
 	}
@@ -983,7 +983,7 @@ func (p *TexturedQuadPipeline) SamplerFor(nearest bool) *webgpu.Sampler {
 // SamplerFor); mipmap-linear or aniso>1 keys lazily create cached
 // samplers. Never crashes: nil pipeline, missing device, or a failed
 // allocation all fall back to the historic sampler.
-func (p *TexturedQuadPipeline) SamplerForFilter(key ImageSamplerKey) *webgpu.Sampler {
+func (p *TexturedQuadPipeline) SamplerForFilter(key ImageSamplerKey) hal.Sampler {
 	if p == nil {
 		return nil
 	}
@@ -1009,7 +1009,7 @@ func (p *TexturedQuadPipeline) SamplerForFilter(key ImageSamplerKey) *webgpu.Sam
 		return p.sampler
 	}
 	if p.filterSamplers == nil {
-		p.filterSamplers = map[ImageSamplerKey]*webgpu.Sampler{}
+		p.filterSamplers = map[ImageSamplerKey]hal.Sampler{}
 	}
 	p.filterSamplers[key] = s
 	return s

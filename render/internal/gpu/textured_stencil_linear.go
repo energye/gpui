@@ -3,11 +3,11 @@
 package gpu
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"sync"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -180,7 +180,7 @@ type texturedStencilLinearCache struct {
 	nzFillPipe   *webgpu.RenderPipeline
 	eoFillPipe   *webgpu.RenderPipeline
 	coverPipe    *webgpu.RenderPipeline
-	sampler      *webgpu.Sampler
+	sampler      hal.Sampler
 
 	tex textureSet
 }
@@ -231,7 +231,7 @@ func (c *texturedStencilLinearCache) destroyPipelinesLocked() {
 		c.coverShader = nil
 	}
 	if c.sampler != nil {
-		c.sampler.Release()
+		c.sampler.Destroy()
 		c.sampler = nil
 	}
 }
@@ -617,7 +617,7 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer fanBuf.Release()
+	defer fanBuf.Destroy()
 	if err := queue.WriteBuffer(fanBuf, 0, fanBytes); err != nil {
 		releaseOut()
 		return nil, nil, nil, err
@@ -631,7 +631,7 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer coverBuf.Release()
+	defer coverBuf.Destroy()
 	if err := queue.WriteBuffer(coverBuf, 0, cqBytes); err != nil {
 		releaseOut()
 		return nil, nil, nil, err
@@ -649,7 +649,7 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer fillUBuf.Release()
+	defer fillUBuf.Destroy()
 	if err := queue.WriteBuffer(fillUBuf, 0, fillUni); err != nil {
 		releaseOut()
 		return nil, nil, nil, err
@@ -712,7 +712,7 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer coverUBuf.Release()
+	defer coverUBuf.Destroy()
 	if err := queue.WriteBuffer(coverUBuf, 0, coverUni); err != nil {
 		releaseOut()
 		return nil, nil, nil, err
@@ -821,7 +821,7 @@ func texturedStencilCoverLinearEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 	enc.CopyTextureToBuffer(outTex, staging, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h},
 		TextureBase:  hal.ImageCopyTexture{Texture: outTex, MipLevel: 0, Aspect: types.TextureAspectAll},
@@ -838,17 +838,12 @@ func texturedStencilCoverLinearEx(
 		return nil, nil, nil, err
 	}
 	device.Poll(hal.PollWait)
-	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
-		releaseOut()
-		return nil, nil, nil, err
-	}
-	mapped, err := staging.MappedRange(0, stagingSize)
+	mapping, err := device.MapBuffer(staging, 0, stagingSize)
 	if err != nil {
-		_ = staging.Unmap()
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	src := mapped.Bytes()
+	src := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
 	// BGRA resolve → premul RGBA out.
 	out := make([]byte, nw*nh*4)
 	for y := 0; y < nh; y++ {
@@ -862,8 +857,7 @@ func texturedStencilCoverLinearEx(
 			out[di+3] = row[si+3]
 		}
 	}
-	mapped.Release()
-	_ = staging.Unmap()
+	_ = device.UnmapBuffer(staging)
 	releaseOut()
 
 	any := false

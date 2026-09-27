@@ -6,7 +6,6 @@
 package gpu
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"image"
@@ -14,6 +13,7 @@ import (
 	"log/slog"
 	"math"
 	"sync"
+	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
@@ -847,7 +847,7 @@ func (a *VelloAccelerator) uploadPathAuxData(
 // readbackBuffer copies a GPU output buffer to a staging buffer and reads the
 // result back to CPU memory. The output buffer has CopySrc usage but not MapRead;
 // a temporary staging buffer with MapRead|CopyDst is created for the transfer.
-func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint64) ([]byte, error) {
+func (a *VelloAccelerator) readbackBuffer(outputBuffer hal.Buffer, size uint64) ([]byte, error) {
 	if outputBuffer == nil {
 		return nil, fmt.Errorf("output buffer is nil")
 	}
@@ -867,7 +867,7 @@ func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint
 	if err != nil {
 		return nil, fmt.Errorf("create staging buffer: %w", err)
 	}
-	defer stagingBuffer.Release()
+	defer stagingBuffer.Destroy()
 
 	// Record copy command.
 	encoder, err := a.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
@@ -884,7 +884,7 @@ func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint
 		return nil, fmt.Errorf("end readback encoding: %w", err)
 	}
 	// Must Release after Submit (pins device VRAM if leaked across recover).
-	defer cmdBuf.Release()
+	defer cmdBuf.Destroy()
 
 	// Submit (auto-polls pending maps at tail).
 	if _, err := a.queue.Submit(cmdBuf); err != nil {
@@ -892,19 +892,13 @@ func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint
 	}
 
 	// Map staging; blocks until GPU completes via submission tracking.
-	if err := stagingBuffer.Map(context.Background(), types.MapModeRead, 0, size); err != nil {
+	mapping, err := a.device.MapBuffer(stagingBuffer, 0, size)
+	if err != nil {
 		return nil, fmt.Errorf("map staging: %w", err)
 	}
-	rng, err := stagingBuffer.MappedRange(0, size)
-	if err != nil {
-		if err := stagingBuffer.Unmap(); err != nil {
-			slogger().Warn("unmap failed", "err", err)
-		}
-		return nil, fmt.Errorf("mapped range: %w", err)
-	}
 	resultBytes := make([]byte, size)
-	copy(resultBytes, rng.Bytes())
-	if err := stagingBuffer.Unmap(); err != nil {
+	copy(resultBytes, unsafe.Slice((*byte)(mapping.Ptr), size)) //nolint:gosec // hal.BufferMapping opaque pointer
+	if err := a.device.UnmapBuffer(stagingBuffer); err != nil {
 		slogger().Warn("unmap failed", "err", err)
 	}
 

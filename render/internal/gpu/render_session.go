@@ -3,7 +3,6 @@
 package gpu
 
 import (
-	"context"
 	"fmt"
 	"image"
 	"os"
@@ -135,11 +134,11 @@ func (q *pendingTexRetire) PendingCount() int {
 // frame's command buffers, so it is released only at the next safe point
 // (BeginFrame / drainQueue), never immediately (P6, v0.4 grow fix).
 type pendingBufRetire struct {
-	bufs []*webgpu.Buffer
+	bufs []hal.Buffer
 }
 
 // Add queues a retired buffer for deferred release.
-func (q *pendingBufRetire) Add(b *webgpu.Buffer) {
+func (q *pendingBufRetire) Add(b hal.Buffer) {
 	if b != nil {
 		q.bufs = append(q.bufs, b)
 	}
@@ -149,7 +148,7 @@ func (q *pendingBufRetire) Add(b *webgpu.Buffer) {
 func (q *pendingBufRetire) Drain() {
 	for _, b := range q.bufs {
 		if b != nil {
-			b.Release()
+			b.Destroy()
 		}
 	}
 	q.bufs = q.bufs[:0]
@@ -400,15 +399,15 @@ type GPURenderSession struct {
 
 	// Persistent per-frame GPU buffers (survive across frames).
 	// Grow-only: reallocated only when data exceeds current capacity.
-	sdfVertBuf    *webgpu.Buffer
+	sdfVertBuf    hal.Buffer
 	sdfVertBufCap uint64
-	sdfUniformBuf *webgpu.Buffer
+	sdfUniformBuf hal.Buffer
 	sdfBindGroup  *webgpu.BindGroup
 	// Convex vertex buffer ring (opt20 dual + opt21 defer-submit):
 	// WriteBuffer must not overwrite a buffer still referenced by an
 	// unsubmitted leading CB (mid-frame layer RT fills). Ring size covers
 	// several deferred layer flushes + present before a coalesced Submit.
-	convexVertBufs    [4]*webgpu.Buffer
+	convexVertBufs    [4]hal.Buffer
 	convexVertBufCaps [4]uint64
 	convexVertSlot    int
 	// opt39: per-ring-slot vertex content fingerprint (same idea as opt24 indices /
@@ -419,7 +418,7 @@ type GPURenderSession struct {
 	deferredConvexUses int  // builds encoded into leadSubmitCBs since last Submit
 	deferSurfaceSubmit bool // encode+enqueue instead of Queue.Submit
 	// opt22: index buffer ring for DrawIndexed mesh path.
-	convexIndexBufs    [4]*webgpu.Buffer
+	convexIndexBufs    [4]hal.Buffer
 	convexIndexBufCaps [4]uint64
 	convexIndexSlot    int
 	convexIndexStaging []byte
@@ -428,15 +427,15 @@ type GPURenderSession struct {
 	// matches instead of thrashing WriteBuffer (and avoid full snap memcpy).
 	convexIndexSlotHash [4]uint64
 	convexIndexSlotLen  [4]int
-	convexUniformBuf    *webgpu.Buffer
+	convexUniformBuf    hal.Buffer
 	convexBindGroup     *webgpu.BindGroup
 
 	// Tier 3: Image textured quad persistent buffers.
-	imageVertBuf    *webgpu.Buffer
+	imageVertBuf    hal.Buffer
 	imageVertBufCap uint64
 	// opt29: single slab for all image uniforms (stride imageUniformSlotStride).
 	// One WriteBuffer uploads every slot instead of N×80B native calls (atlas opacity).
-	imageUniformSlab    *webgpu.Buffer
+	imageUniformSlab    hal.Buffer
 	imageUniformSlabCap uint64 // bytes
 	imageUniformSlots   int    // slots currently addressed in slab
 	// Per-draw bind groups (pool, grows as needed); uniforms live in the slab.
@@ -499,12 +498,12 @@ type GPURenderSession struct {
 	scratchGrpRes       []groupResources
 
 	// Tier 4: MSDF text persistent buffers.
-	textVertBuf    *webgpu.Buffer
+	textVertBuf    hal.Buffer
 	textVertBufCap uint64
-	textIdxBuf     *webgpu.Buffer
+	textIdxBuf     hal.Buffer
 	textIdxBufCap  uint64
 	// Per-batch uniform buffers and bind groups (pool, grows as needed).
-	textUniformBufs []*webgpu.Buffer
+	textUniformBufs []hal.Buffer
 	textBindGroups  []*webgpu.BindGroup
 	// Stable view keys for text BG reuse — the same view-identity rule as
 	// image (imageBGViews), glyph (glyphMaskBGViews), and gpuTex
@@ -525,11 +524,11 @@ type GPURenderSession struct {
 
 	// Tier 6: Glyph mask text persistent buffers.
 	glyphMaskPipeline     *GlyphMaskPipeline
-	glyphMaskVertBuf      *webgpu.Buffer
+	glyphMaskVertBuf      hal.Buffer
 	glyphMaskVertBufCap   uint64
-	glyphMaskIdxBuf       *webgpu.Buffer
+	glyphMaskIdxBuf       hal.Buffer
 	glyphMaskIdxBufCap    uint64
-	glyphMaskUniformBufs  []*webgpu.Buffer
+	glyphMaskUniformBufs  []hal.Buffer
 	glyphMaskBindGroups   []*webgpu.BindGroup
 	glyphMaskBGViews      []*webgpu.TextureView // stable atlas view keys for BG reuse
 	glyphMaskBGIsLCD      []bool
@@ -545,18 +544,18 @@ type GPURenderSession struct {
 	// Overlay and base layer use SEPARATE vertex buffers to prevent
 	// base layer (full-screen quad) from overwriting overlay vertices.
 	// Both use the same uniform/bind-group pools (indexed independently).
-	gpuTexVertBuf        *webgpu.Buffer // overlay GPU textures
+	gpuTexVertBuf        hal.Buffer // overlay GPU textures
 	gpuTexVertBufCap     uint64
-	gpuTexBaseVertBuf    *webgpu.Buffer // base layer only (1 quad, never shares with overlays)
+	gpuTexBaseVertBuf    hal.Buffer // base layer only (1 quad, never shares with overlays)
 	gpuTexBaseVertBufCap uint64
 	// opt40: single slab for all gpu-tex uniforms (stride imageUniformSlotStride).
 	// Mirrors opt29 image path — one WriteBuffer instead of N×80B native calls when
 	// multi-quad glow/layer blits share a frame.
-	gpuTexUniformSlab    *webgpu.Buffer
+	gpuTexUniformSlab    hal.Buffer
 	gpuTexUniformSlabCap uint64
 	gpuTexUniformSlots   int
 	// Legacy per-slot buffers kept nil after opt40; Destroy still nils the slice.
-	gpuTexUniformBufs []*webgpu.Buffer
+	gpuTexUniformBufs []hal.Buffer
 	// opt27: per-poolIdx small view→BG ring. Filter promote ping-pongs publish
 	// TextureViews; single last-view cache was a guaranteed miss every frame.
 	gpuTexBGCaches        []gpuTexBGSlotCache
@@ -623,7 +622,7 @@ type GPURenderSession struct {
 	// imageUniformSlab). Applies to all paths (stencil fill is identical
 	// for plain/textured/pattern covers); only the cover side keeps
 	// per-entry buffers.
-	stencilUniSlab       *webgpu.Buffer
+	stencilUniSlab       hal.Buffer
 	stencilUniSlabCap    uint64 // bytes
 	stencilUniSlots      int    // slots currently addressed in slab
 	stencilUniBindGroups []*webgpu.BindGroup
@@ -633,7 +632,7 @@ type GPURenderSession struct {
 	// Stencil vertex slab: fan (vec2) + bands (vec3) packed contiguously,
 	// one upload per frame; draws bind with byte offsets. 4B alignment
 	// suffices for vertex input (no 256B padding unlike uniforms).
-	stencilVertSlab    *webgpu.Buffer
+	stencilVertSlab    hal.Buffer
 	stencilVertSlabCap uint64 // bytes
 	stencilVertScratch []byte
 
@@ -683,21 +682,21 @@ type GPURenderSession struct {
 	// clip bind group layout at @group(1) @binding(0). A no-clip bind group
 	// (clip_enabled=0.0) is created once and reused for groups without RRect clip.
 	clipBindLayout   *webgpu.BindGroupLayout
-	noClipUniformBuf *webgpu.Buffer
+	noClipUniformBuf hal.Buffer
 	noClipBindGroup  *webgpu.BindGroup
 
 	// L.06 cover-inline R8 mask (@group(2) on convex + SDF).
 	maskBindLayout  *webgpu.BindGroupLayout // session-owned, shared by pipelines
 	noMaskTex       *webgpu.Texture
 	noMaskView      *webgpu.TextureView
-	maskSampler     *webgpu.Sampler
-	noMaskUniform   *webgpu.Buffer
+	maskSampler     hal.Sampler
+	noMaskUniform   hal.Buffer
 	noMaskBindGroup *webgpu.BindGroup
-	maskUniform     *webgpu.Buffer    // enabled=1
+	maskUniform     hal.Buffer        // enabled=1
 	maskBindGroup   *webgpu.BindGroup // frame-active (noMask or real)
 	maskBGOwned     bool              // true when maskBindGroup is not noMask
 	// Pool of per-group clip uniform buffers and bind groups.
-	clipUniformPool []*webgpu.Buffer
+	clipUniformPool []hal.Buffer
 	clipBindPool    []*webgpu.BindGroup
 	clipPoolUsed    int // number of pool entries used in current frame
 }
@@ -740,7 +739,7 @@ func (s *GPURenderSession) SetTextureOOMHook(fn func()) {
 
 // RetireBuffer hands a buffer to the deferred-release queue (P6 grow fix);
 // released once the GPU has finished the frame that may still reference it.
-func (s *GPURenderSession) RetireBuffer(b *webgpu.Buffer) {
+func (s *GPURenderSession) RetireBuffer(b hal.Buffer) {
 	if s == nil || b == nil {
 		return
 	}
@@ -2113,11 +2112,11 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.sdfBindGroup = nil
 	}
 	if s.sdfUniformBuf != nil {
-		s.sdfUniformBuf.Release()
+		s.sdfUniformBuf.Destroy()
 		s.sdfUniformBuf = nil
 	}
 	if s.sdfVertBuf != nil {
-		s.sdfVertBuf.Release()
+		s.sdfVertBuf.Destroy()
 		s.sdfVertBuf = nil
 		s.sdfVertBufCap = 0
 	}
@@ -2126,12 +2125,12 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.convexBindGroup = nil
 	}
 	if s.convexUniformBuf != nil {
-		s.convexUniformBuf.Release()
+		s.convexUniformBuf.Destroy()
 		s.convexUniformBuf = nil
 	}
 	for i := range s.convexVertBufs {
 		if s.convexVertBufs[i] != nil {
-			s.convexVertBufs[i].Release()
+			s.convexVertBufs[i].Destroy()
 			s.convexVertBufs[i] = nil
 			s.convexVertBufCaps[i] = 0
 		}
@@ -2141,7 +2140,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.convexVertSlot = 0
 	for i := range s.convexIndexBufs {
 		if s.convexIndexBufs[i] != nil {
-			s.convexIndexBufs[i].Release()
+			s.convexIndexBufs[i].Destroy()
 			s.convexIndexBufs[i] = nil
 			s.convexIndexBufCaps[i] = 0
 		}
@@ -2164,7 +2163,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.imageVertexStaging = nil
 	s.imageUniformScratch = nil
 	if s.imageUniformSlab != nil {
-		s.imageUniformSlab.Release()
+		s.imageUniformSlab.Destroy()
 		s.imageUniformSlab = nil
 		s.imageUniformSlabCap = 0
 	}
@@ -2177,7 +2176,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.imgLastStagingNeed, s.imgLastVertNeed, s.imgLastSlabNeed = 0, 0, 0
 	s.imgCalmStaging, s.imgCalmVert, s.imgCalmSlab = 0, 0, 0
 	if s.imageVertBuf != nil {
-		s.imageVertBuf.Release()
+		s.imageVertBuf.Destroy()
 		s.imageVertBuf = nil
 		s.imageVertBufCap = 0
 	}
@@ -2199,14 +2198,14 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.releasePendingBindGroups()
 	s.pendingBindGroupRelease = nil
 	if s.gpuTexUniformSlab != nil {
-		s.gpuTexUniformSlab.Release()
+		s.gpuTexUniformSlab.Destroy()
 		s.gpuTexUniformSlab = nil
 		s.gpuTexUniformSlabCap = 0
 		s.gpuTexUniformSlots = 0
 	}
 	for _, buf := range s.gpuTexUniformBufs {
 		if buf != nil {
-			buf.Release()
+			buf.Destroy()
 		}
 	}
 	s.gpuTexUniformBufs = nil
@@ -2224,12 +2223,12 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.texLastBaseNeed, s.texLastSlabNeed = 0, 0
 	s.texCalmStaging, s.texCalmVert, s.texCalmBase, s.texCalmSlab = 0, 0, 0, 0
 	if s.gpuTexVertBuf != nil {
-		s.gpuTexVertBuf.Release()
+		s.gpuTexVertBuf.Destroy()
 		s.gpuTexVertBuf = nil
 		s.gpuTexVertBufCap = 0
 	}
 	if s.gpuTexBaseVertBuf != nil {
-		s.gpuTexBaseVertBuf.Release()
+		s.gpuTexBaseVertBuf.Destroy()
 		s.gpuTexBaseVertBuf = nil
 		s.gpuTexBaseVertBufCap = 0
 	}
@@ -2244,17 +2243,17 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.textBGViews = nil
 	for _, buf := range s.textUniformBufs {
 		if buf != nil {
-			buf.Release()
+			buf.Destroy()
 		}
 	}
 	s.textUniformBufs = nil
 	if s.textIdxBuf != nil {
-		s.textIdxBuf.Release()
+		s.textIdxBuf.Destroy()
 		s.textIdxBuf = nil
 		s.textIdxBufCap = 0
 	}
 	if s.textVertBuf != nil {
-		s.textVertBuf.Release()
+		s.textVertBuf.Destroy()
 		s.textVertBuf = nil
 		s.textVertBufCap = 0
 	}
@@ -2275,17 +2274,17 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.glyphMaskPendingViews = nil
 	for _, buf := range s.glyphMaskUniformBufs {
 		if buf != nil {
-			buf.Release()
+			buf.Destroy()
 		}
 	}
 	s.glyphMaskUniformBufs = nil
 	if s.glyphMaskIdxBuf != nil {
-		s.glyphMaskIdxBuf.Release()
+		s.glyphMaskIdxBuf.Destroy()
 		s.glyphMaskIdxBuf = nil
 		s.glyphMaskIdxBufCap = 0
 	}
 	if s.glyphMaskVertBuf != nil {
-		s.glyphMaskVertBuf.Release()
+		s.glyphMaskVertBuf.Destroy()
 		s.glyphMaskVertBuf = nil
 		s.glyphMaskVertBufCap = 0
 	}
@@ -2310,7 +2309,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	}
 	s.stencilUniBindGroups = nil
 	if s.stencilUniSlab != nil {
-		s.stencilUniSlab.Release()
+		s.stencilUniSlab.Destroy()
 		s.stencilUniSlab = nil
 		s.stencilUniSlabCap = 0
 	}
@@ -2319,7 +2318,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.stencilUniLast = nil
 	// Stencil vertex slab (session-owned; entries hold views only).
 	if s.stencilVertSlab != nil {
-		s.stencilVertSlab.Release()
+		s.stencilVertSlab.Destroy()
 		s.stencilVertSlab = nil
 		s.stencilVertSlabCap = 0
 	}
@@ -2335,7 +2334,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.clipBindPool = nil
 	for _, buf := range s.clipUniformPool {
 		if buf != nil {
-			buf.Release()
+			buf.Destroy()
 		}
 	}
 	s.clipUniformPool = nil
@@ -2345,7 +2344,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.noClipBindGroup = nil
 	}
 	if s.noClipUniformBuf != nil {
-		s.noClipUniformBuf.Release()
+		s.noClipUniformBuf.Destroy()
 		s.noClipUniformBuf = nil
 	}
 	s.releaseMaskResources()
@@ -2357,8 +2356,8 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 
 // sdfFrameResources holds per-frame GPU resources for SDF rendering.
 type sdfFrameResources struct {
-	vertBuf     *webgpu.Buffer
-	uniformBuf  *webgpu.Buffer
+	vertBuf     hal.Buffer
+	uniformBuf  hal.Buffer
 	bindGroup   *webgpu.BindGroup
 	vertCount   uint32
 	firstVertex uint32 // offset into shared vertex buffer (for scissor group sub-ranges)
@@ -2594,7 +2593,7 @@ func (s *GPURenderSession) ensureClipBindLayout() error {
 		return fmt.Errorf("create no-clip uniform buffer: %w", err)
 	}
 	if err := s.queue.WriteBuffer(buf, 0, noClip.Bytes()); err != nil {
-		buf.Release()
+		buf.Destroy()
 		return fmt.Errorf("write no-clip uniform buffer: %w", err)
 	}
 	s.noClipUniformBuf = buf
@@ -2643,7 +2642,7 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 		return nil, fmt.Errorf("create clip uniform buffer: %w", err)
 	}
 	if err := s.queueWriteBuffer(buf, 0, s.clipBytesScratch); err != nil {
-		buf.Release()
+		buf.Destroy()
 		return nil, fmt.Errorf("write clip uniform: %w", err)
 	}
 	bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
@@ -2654,7 +2653,7 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 		},
 	})
 	if err != nil {
-		buf.Release()
+		buf.Destroy()
 		return nil, fmt.Errorf("create clip bind group: %w", err)
 	}
 	s.clipUniformPool = append(s.clipUniformPool, buf)
@@ -2742,14 +2741,14 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		samp.Release()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return fmt.Errorf("create no-mask uniform: %w", err)
 	}
 	if err := s.queue.WriteBuffer(ubuf, 0, uOff.Bytes()); err != nil {
-		ubuf.Release()
-		samp.Release()
+		ubuf.Destroy()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return fmt.Errorf("write no-mask uniform: %w", err)
@@ -2765,8 +2764,8 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		},
 	})
 	if err != nil {
-		ubuf.Release()
-		samp.Release()
+		ubuf.Destroy()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return fmt.Errorf("create no-mask bind group: %w", err)
@@ -2781,17 +2780,17 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	})
 	if err != nil {
 		bg.Release()
-		ubuf.Release()
-		samp.Release()
+		ubuf.Destroy()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return fmt.Errorf("create mask-on uniform: %w", err)
 	}
 	if err := s.queue.WriteBuffer(ubufOn, 0, uOn.Bytes()); err != nil {
-		ubufOn.Release()
+		ubufOn.Destroy()
 		bg.Release()
-		ubuf.Release()
-		samp.Release()
+		ubuf.Destroy()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return fmt.Errorf("write mask-on uniform: %w", err)
@@ -2871,15 +2870,15 @@ func (s *GPURenderSession) releaseMaskResources() {
 		s.noMaskBindGroup = nil
 	}
 	if s.noMaskUniform != nil {
-		s.noMaskUniform.Release()
+		s.noMaskUniform.Destroy()
 		s.noMaskUniform = nil
 	}
 	if s.maskUniform != nil {
-		s.maskUniform.Release()
+		s.maskUniform.Destroy()
 		s.maskUniform = nil
 	}
 	if s.maskSampler != nil {
-		s.maskSampler.Release()
+		s.maskSampler.Destroy()
 		s.maskSampler = nil
 	}
 	if s.noMaskView != nil {
@@ -3041,7 +3040,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	slot := s.allocConvexVertSlot()
 	if s.convexVertBufs[slot] == nil || s.convexVertBufCaps[slot] < vertSize {
 		if s.convexVertBufs[slot] != nil {
-			s.convexVertBufs[slot].Release()
+			s.convexVertBufs[slot].Destroy()
 			s.convexVertBufs[slot] = nil
 			s.convexVertBufCaps[slot] = 0
 		}
@@ -3129,7 +3128,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	// opt22/opt23: upload uint16 indices for indexed mesh commands.
 	// LE hosts: WriteBuffer directly from []uint16 (zero-copy). Multi-cmd
 	// still concatenates into convexIndexStaging.
-	var indexBuf *webgpu.Buffer
+	var indexBuf hal.Buffer
 	var indexCount uint32
 	totalIdx := 0
 	for i := range commands {
@@ -3183,7 +3182,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 			idxSize := uint64(need)
 			if s.convexIndexBufs[slotI] == nil || s.convexIndexBufCaps[slotI] < idxSize {
 				if s.convexIndexBufs[slotI] != nil {
-					s.convexIndexBufs[slotI].Release()
+					s.convexIndexBufs[slotI].Destroy()
 					s.convexIndexBufs[slotI] = nil
 					s.convexIndexBufCaps[slotI] = 0
 				}
@@ -3305,7 +3304,7 @@ func (s *GPURenderSession) packStencilVertexSlabs(paths []StencilPathCommand) (f
 
 // slabViewOf returns a slab view for path idx, or nil when the span is
 // empty (entry keeps its own per-entry buffer).
-func slabViewOf(buf *webgpu.Buffer, off map[int]uint64, idx int) *slabVertView {
+func slabViewOf(buf hal.Buffer, off map[int]uint64, idx int) *slabVertView {
 	v, ok := off[idx]
 	if !ok {
 		return nil
@@ -4274,10 +4273,10 @@ func indexBytesFingerprint(b []byte) uint64 {
 func (c *gpuTexBGSlotCache) getOrCreate(
 	device *webgpu.Device,
 	layout *webgpu.BindGroupLayout,
-	uniform *webgpu.Buffer,
+	uniform hal.Buffer,
 	uniformOffset uint64,
 	texView *webgpu.TextureView,
-	sampler *webgpu.Sampler,
+	sampler hal.Sampler,
 	pendingRelease *[]*webgpu.BindGroup,
 ) (*webgpu.BindGroup, error) {
 	if c == nil || device == nil || layout == nil || uniform == nil || texView == nil || sampler == nil {
@@ -4341,7 +4340,7 @@ func (s *GPURenderSession) gpuTexBGCacheCount() int {
 }
 
 // queueWriteBuffer wraps Queue.WriteBuffer and accounts S6.2 diagnostics.
-func (s *GPURenderSession) queueWriteBuffer(buf *webgpu.Buffer, offset uint64, data []byte) error {
+func (s *GPURenderSession) queueWriteBuffer(buf hal.Buffer, offset uint64, data []byte) error {
 	s.lastSubmitStats.WriteBuffers++
 	s.lastSubmitStats.WriteBytes += int64(len(data))
 	return s.queue.WriteBuffer(buf, offset, data)
@@ -5249,7 +5248,7 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	if err != nil {
 		return fmt.Errorf("create staging buffer: %w", err)
 	}
-	defer stagingBuf.Release()
+	defer stagingBuf.Destroy()
 
 	encoder.CopyTextureToBuffer(s.textures.resolveTex, stagingBuf, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
@@ -5277,7 +5276,7 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	// Offscreen readback: Submit does not drop the CB ref. Must Release or
 	// CommandBuffers accumulate (~1/frame per effect RT) and pin device VRAM
 	// across AutoRecover (CreateTexture OOM on 1GB cards).
-	defer cmdBuf.Release()
+	defer cmdBuf.Destroy()
 
 	// Submit (auto-polls pending maps at tail).
 	if err := s.withSubmitErrorScope("copySubmitAndReadback", func() error {
@@ -5286,9 +5285,10 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	}); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
-	// Map the staging buffer. Map blocks until the GPU finishes the copy
+	// Map the staging buffer. MapBuffer blocks until the GPU finishes the copy
 	// via Device.Poll-driven submission tracking (no manual WaitIdle needed).
-	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, stagingBufSize); err != nil {
+	mapping, err := s.device.MapBuffer(stagingBuf, 0, stagingBufSize)
+	if err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
 	// P4/P6: the synchronous Map is the completion barrier — the GPU has
@@ -5307,16 +5307,9 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	// Same sync point as BeginFrame: the readback Map proves the GPU finished,
 	// so transient command views registered for this work are safe to retire.
 	s.retirePendingViews()
-	rng, err := stagingBuf.MappedRange(0, stagingBufSize)
-	if err != nil {
-		if err := stagingBuf.Unmap(); err != nil {
-			slogger().Warn("unmap failed", "err", err)
-		}
-		return fmt.Errorf("mapped range: %w", err)
-	}
 	readback := make([]byte, stagingBufSize)
-	copy(readback, rng.Bytes())
-	if err := stagingBuf.Unmap(); err != nil {
+	copy(readback, unsafe.Slice((*byte)(mapping.Ptr), stagingBufSize)) //nolint:gosec // hal.BufferMapping opaque pointer
+	if err := s.device.UnmapBuffer(stagingBuf); err != nil {
 		slogger().Warn("unmap failed", "err", err)
 	}
 

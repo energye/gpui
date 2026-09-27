@@ -3,9 +3,9 @@
 package gpu
 
 import (
-	"context"
 	"fmt"
 	"sync"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -58,7 +58,7 @@ type maskR8Cache struct {
 	bgl      *webgpu.BindGroupLayout
 	pipeLay  *webgpu.PipelineLayout
 	pipeline *webgpu.RenderPipeline
-	sampler  *webgpu.Sampler
+	sampler  hal.Sampler
 }
 
 func (c *maskR8Cache) release() {
@@ -81,7 +81,7 @@ func (c *maskR8Cache) release() {
 		c.shader = nil
 	}
 	if c.sampler != nil {
-		c.sampler.Release()
+		c.sampler.Destroy()
 		c.sampler = nil
 	}
 	c.device = nil
@@ -104,7 +104,7 @@ func (c *maskR8Cache) ensure(device *webgpu.Device) error {
 			c.shader.Release()
 		}
 		if c.sampler != nil {
-			c.sampler.Release()
+			c.sampler.Destroy()
 		}
 		c.pipeline, c.pipeLay, c.bgl, c.shader, c.sampler = nil, nil, nil, nil, nil
 	}
@@ -376,7 +376,7 @@ func maskR8Modulate(
 	if err != nil {
 		return nil, err
 	}
-	defer staging.Release()
+	defer staging.Destroy()
 
 	enc.CopyTextureToBuffer(outTex, staging, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{BytesPerRow: alignedRow, RowsPerImage: uint32(bh)}, //nolint:gosec
@@ -392,15 +392,11 @@ func maskR8Modulate(
 		return nil, err
 	}
 	device.Poll(hal.PollWait)
-	if err := staging.Map(context.Background(), types.MapModeRead, 0, stagingSize); err != nil {
-		return nil, err
-	}
-	mapped, err := staging.MappedRange(0, stagingSize)
+	mapping, err := device.MapBuffer(staging, 0, stagingSize)
 	if err != nil {
-		_ = staging.Unmap()
 		return nil, err
 	}
-	src := mapped.Bytes()
+	src := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
 	out := make([]byte, needRGBA)
 	if alignedRow == tightRow {
 		copy(out, src[:needRGBA])
@@ -409,7 +405,6 @@ func maskR8Modulate(
 			copy(out[y*bw*4:(y+1)*bw*4], src[y*int(alignedRow):y*int(alignedRow)+bw*4])
 		}
 	}
-	mapped.Release()
-	_ = staging.Unmap()
+	_ = device.UnmapBuffer(staging)
 	return out, nil
 }

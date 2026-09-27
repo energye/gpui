@@ -3,9 +3,9 @@
 package gpu
 
 import (
-	"context"
 	"image"
 	"testing"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -138,7 +138,7 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue hal.Queue, tex *
 		t.Logf("CreateBuffer for readback: %v", err)
 		return nil
 	}
-	defer buf.Release()
+	defer buf.Destroy()
 
 	enc, _ := device.CreateCommandEncoder(nil)
 	regions := []hal.BufferTextureCopy{{
@@ -155,25 +155,19 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue hal.Queue, tex *
 	queue.Submit(cmd)
 
 	// Map buffer synchronously (software backend resolves instantly).
-	if err := buf.Map(context.Background(), types.MapModeRead, 0, bufSize); err != nil {
+	mapping, err := device.MapBuffer(buf, 0, bufSize)
+	if err != nil {
 		t.Logf("Buffer.Map failed: %v", err)
 		return nil
 	}
-
-	mr, err := buf.MappedRange(0, bufSize)
-	if err != nil {
-		t.Logf("MappedRange: %v", err)
-		return nil
-	}
-	mapped := mr.Bytes()
+	mapped := unsafe.Slice((*byte)(mapping.Ptr), bufSize)
 	result := make([]byte, w*h*4)
 	for y := 0; y < h; y++ {
 		srcStart := y * int(paddedRowBytes)
 		dstStart := y * int(rowBytes)
 		copy(result[dstStart:dstStart+int(rowBytes)], mapped[srcStart:srcStart+int(rowBytes)])
 	}
-	mr.Release()
-	buf.Unmap()
+	_ = device.UnmapBuffer(buf)
 	return result
 }
 

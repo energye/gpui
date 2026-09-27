@@ -3,6 +3,8 @@ package gpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/hal/noop"
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
@@ -15,7 +17,7 @@ func TestPassBindLedger_SkipIdenticalInvalidatesOnChange(t *testing.T) {
 	pipe := &webgpu.RenderPipeline{}
 	pipe2 := &webgpu.RenderPipeline{}
 	bg0 := &webgpu.BindGroup{}
-	vert := &webgpu.Buffer{}
+	vert := hal.Buffer(&noop.Buffer{})
 
 	if l.skipBind(rp, pipe, bg0, nil, nil, vert) {
 		t.Fatal("fresh ledger must take full bind path")

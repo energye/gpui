@@ -94,7 +94,7 @@ type GlyphMaskPipeline struct {
 
 	// Default sampler for R8 atlas textures (linear filtering for smooth
 	// alpha interpolation at subpixel positions).
-	sampler *webgpu.Sampler
+	sampler hal.Sampler
 
 	// Color pipeline: RGBA color atlas sampling for color glyphs (CBDT
 	// bitmaps, flattened COLR layers). Reuses the mask vertex layout,
@@ -103,7 +103,7 @@ type GlyphMaskPipeline struct {
 	// differ.
 	colorShader   *webgpu.ShaderModule
 	colorPipeline *webgpu.RenderPipeline
-	colorSampler  *webgpu.Sampler
+	colorSampler  hal.Sampler
 
 	// LCD pipeline: separate shader + pipeline for ClearType rendering.
 	// Uses a different uniform struct (96 bytes with atlas_size) and a
@@ -157,11 +157,11 @@ func (p *GlyphMaskPipeline) Destroy() {
 	p.destroyColorPipeline()
 	p.destroyPipeline()
 	if p.sampler != nil {
-		p.sampler.Release()
+		p.sampler.Destroy()
 		p.sampler = nil
 	}
 	if p.colorSampler != nil {
-		p.colorSampler.Release()
+		p.colorSampler.Destroy()
 		p.colorSampler = nil
 	}
 }
@@ -755,8 +755,8 @@ type glyphMaskDrawCall struct {
 
 // glyphMaskFrameResources holds per-frame GPU resources for glyph mask rendering.
 type glyphMaskFrameResources struct {
-	vertBuf   *webgpu.Buffer
-	idxBuf    *webgpu.Buffer
+	vertBuf   hal.Buffer
+	idxBuf    hal.Buffer
 	drawCalls []glyphMaskDrawCall
 	// isLCD is retained for diagnostics; RecordDraws uses per-drawCall isLCD.
 	isLCD bool

@@ -3,11 +3,11 @@
 package gpu
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -475,7 +475,7 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create texture readback staging buffer: %w", err)
 	}
-	defer stagingBuf.Release()
+	defer stagingBuf.Destroy()
 
 	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "gpu_texture_readback_encoder",
@@ -513,19 +513,13 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 		return nil, fmt.Errorf("submit texture readback: %w", err)
 	}
 
-	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, stagingBufSize); err != nil {
+	mapping, err := device.MapBuffer(stagingBuf, 0, stagingBufSize)
+	if err != nil {
 		return nil, fmt.Errorf("map texture readback staging buffer: %w", err)
 	}
-	mapped, err := stagingBuf.MappedRange(0, stagingBufSize)
-	if err != nil {
-		if unmapErr := stagingBuf.Unmap(); unmapErr != nil {
-			return nil, fmt.Errorf("mapped texture readback range: %w (also failed to unmap: %v)", err, unmapErr)
-		}
-		return nil, fmt.Errorf("mapped texture readback range: %w", err)
-	}
 	readback := make([]byte, stagingBufSize)
-	copy(readback, mapped.Bytes())
-	if err := stagingBuf.Unmap(); err != nil {
+	copy(readback, unsafe.Slice((*byte)(mapping.Ptr), stagingBufSize)) //nolint:gosec // hal.BufferMapping opaque pointer
+	if err := device.UnmapBuffer(stagingBuf); err != nil {
 		return nil, fmt.Errorf("unmap texture readback staging buffer: %w", err)
 	}
 

@@ -420,7 +420,8 @@ type Queue interface {
 	//   defer queue.SetSwapchainSuppressed(false)
 	//   queue.Submit(offscreenCmds...)
 	//
-	// Precedent: VK-004 save/restore pattern in WriteTexture (queue.go:620-634).
+	// Precedent: save/restore pattern in webgpu Queue.WriteTexture
+	// (gpu/webgpu/queue.go; original line reference no longer exists).
 	// Long-term: Phase B (ADR-019) will add surface_textures to Submit signature
 	// matching Rust wgpu-hal, eliminating the need for this method.
 	SetSwapchainSuppressed(suppressed bool)

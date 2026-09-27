@@ -60,7 +60,7 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { ubuf.Release() })
+	t.Cleanup(func() { ubuf.Destroy() })
 
 	var cache gpuTexBGSlotCache
 	var pending []*webgpu.BindGroup

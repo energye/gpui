@@ -705,9 +705,9 @@ type convexDrawRange struct {
 }
 
 type convexFrameResources struct {
-	vertBuf     *webgpu.Buffer
-	indexBuf    *webgpu.Buffer // optional; uint16 indices for DrawIndexed ranges
-	uniformBuf  *webgpu.Buffer
+	vertBuf     hal.Buffer
+	indexBuf    hal.Buffer // optional; uint16 indices for DrawIndexed ranges
+	uniformBuf  hal.Buffer
 	bindGroup   *webgpu.BindGroup
 	vertCount   uint32
 	indexCount  uint32
@@ -724,10 +724,10 @@ func (r *convexFrameResources) destroy() {
 		r.bindGroup.Release()
 	}
 	if r.uniformBuf != nil {
-		r.uniformBuf.Release()
+		r.uniformBuf.Destroy()
 	}
 	if r.vertBuf != nil {
-		r.vertBuf.Release()
+		r.vertBuf.Destroy()
 	}
 }
 

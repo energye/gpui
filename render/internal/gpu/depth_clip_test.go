@@ -746,7 +746,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sampler: %v", err)
 	}
-	defer samp.Release()
+	defer samp.Destroy()
 	uOn := &MaskParams{Enabled: 1}
 	ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "test_mask_uniform", Size: maskParamsSize,
@@ -755,7 +755,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("uniform buf: %v", err)
 	}
-	defer ubuf.Release()
+	defer ubuf.Destroy()
 	if err := queue.WriteBuffer(ubuf, 0, uOn.Bytes()); err != nil {
 		t.Fatalf("write uniform: %v", err)
 	}

@@ -3,6 +3,8 @@ package gpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/hal/noop"
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
@@ -37,15 +39,15 @@ func TestSessionFrameBufferShrink(t *testing.T) {
 	const big = 1 << 20
 	s.gpuTexVertexStaging = make([]byte, big)
 	s.imageVertexStaging = make([]byte, big)
-	s.gpuTexVertBuf = &webgpu.Buffer{}
+	s.gpuTexVertBuf = &noop.Buffer{}
 	s.gpuTexVertBufCap = big
-	s.gpuTexBaseVertBuf = &webgpu.Buffer{}
+	s.gpuTexBaseVertBuf = &noop.Buffer{}
 	s.gpuTexBaseVertBufCap = big
-	s.gpuTexUniformSlab = &webgpu.Buffer{}
+	s.gpuTexUniformSlab = &noop.Buffer{}
 	s.gpuTexUniformSlabCap = big
-	s.imageVertBuf = &webgpu.Buffer{}
+	s.imageVertBuf = &noop.Buffer{}
 	s.imageVertBufCap = big
-	s.imageUniformSlab = &webgpu.Buffer{}
+	s.imageUniformSlab = &noop.Buffer{}
 	s.imageUniformSlabCap = big
 	// A live BG ring entry must be dropped with its slab (offsets die).
 	s.gpuTexBGCaches = make([]gpuTexBGSlotCache, 1)
@@ -57,7 +59,7 @@ func TestSessionFrameBufferShrink(t *testing.T) {
 	if s.gpuTexVertexStaging != nil || s.imageVertexStaging != nil {
 		t.Fatal("staging must be freed after sustained disuse")
 	}
-	for name, ptr := range map[string]**webgpu.Buffer{
+	for name, ptr := range map[string]*hal.Buffer{
 		"texVert": &s.gpuTexVertBuf, "texBase": &s.gpuTexBaseVertBuf,
 		"texSlab": &s.gpuTexUniformSlab, "imgVert": &s.imageVertBuf,
 		"imgSlab": &s.imageUniformSlab,
@@ -75,7 +77,7 @@ func TestSessionFrameBufferShrink(t *testing.T) {
 
 	// Steady use never shrinks: fresh peak at capacity stays put.
 	s2 := &GPURenderSession{}
-	s2.gpuTexVertBuf = &webgpu.Buffer{}
+	s2.gpuTexVertBuf = &noop.Buffer{}
 	s2.gpuTexVertBufCap = big
 	s2.texLastVertNeed = big
 	for i := 0; i < texShrinkCalmFrames; i++ {

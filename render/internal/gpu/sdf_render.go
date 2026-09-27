@@ -3,11 +3,11 @@
 package gpu
 
 import (
-	"context"
 	_ "embed"
 	"encoding/binary"
 	"fmt"
 	"math"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -177,7 +177,7 @@ func (p *SDFRenderPipeline) RenderShapes(target render.GPURenderTarget, shapes [
 	if err != nil {
 		return fmt.Errorf("create vertex buffer: %w", err)
 	}
-	defer vertBuf.Release()
+	defer vertBuf.Destroy()
 
 	uniformData := makeSDFRenderUniform(w, h, true)
 	uniformBuf, err := p.createAndUploadBuffer("sdf_render_uniform", uniformData,
@@ -185,7 +185,7 @@ func (p *SDFRenderPipeline) RenderShapes(target render.GPURenderTarget, shapes [
 	if err != nil {
 		return fmt.Errorf("create uniform buffer: %w", err)
 	}
-	defer uniformBuf.Release()
+	defer uniformBuf.Destroy()
 
 	bindGroup, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "sdf_render_bind",
@@ -600,7 +600,7 @@ func (p *SDFRenderPipeline) destroyPipeline() {
 // encodeAndReadback encodes the SDF render pass, copies the resolve texture
 // to a staging buffer, submits, waits, and reads back pixels.
 func (p *SDFRenderPipeline) encodeAndReadback(
-	w, h uint32, vertBuf *webgpu.Buffer, vertexCount uint32,
+	w, h uint32, vertBuf hal.Buffer, vertexCount uint32,
 	bindGroup *webgpu.BindGroup, target render.GPURenderTarget,
 ) error {
 	encoder, err := p.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
@@ -664,7 +664,7 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 		encoder.DiscardEncoding()
 		return fmt.Errorf("create staging buffer: %w", err)
 	}
-	defer stagingBuf.Release()
+	defer stagingBuf.Destroy()
 
 	encoder.CopyTextureToBuffer(p.resolveTex, stagingBuf, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{Offset: 0, BytesPerRow: w * 4, RowsPerImage: h},
@@ -677,7 +677,7 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 		return fmt.Errorf("end encoding: %w", err)
 	}
 	// Must Release after Submit: unreleased CBs pin device VRAM across recover.
-	defer cmdBuf.Release()
+	defer cmdBuf.Destroy()
 
 	// Submit (auto-polls pending maps at tail).
 	if _, err := p.queue.Submit(cmdBuf); err != nil {
@@ -685,19 +685,13 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	}
 
 	// Map staging buffer; blocks until GPU completes via submission tracking.
-	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, pixelBufSize); err != nil {
+	mapping, err := p.device.MapBuffer(stagingBuf, 0, pixelBufSize)
+	if err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
-	rng, err := stagingBuf.MappedRange(0, pixelBufSize)
-	if err != nil {
-		if err := stagingBuf.Unmap(); err != nil {
-			slogger().Warn("unmap failed", "err", err)
-		}
-		return fmt.Errorf("mapped range: %w", err)
-	}
 	readback := make([]byte, pixelBufSize)
-	copy(readback, rng.Bytes())
-	if err := stagingBuf.Unmap(); err != nil {
+	copy(readback, unsafe.Slice((*byte)(mapping.Ptr), pixelBufSize)) //nolint:gosec // hal.BufferMapping opaque pointer
+	if err := p.device.UnmapBuffer(stagingBuf); err != nil {
 		slogger().Warn("unmap failed", "err", err)
 	}
 
@@ -706,7 +700,7 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 }
 
 // createAndUploadBuffer creates a GPU buffer and uploads data.
-func (p *SDFRenderPipeline) createAndUploadBuffer(label string, data []byte, usage types.BufferUsage) (*webgpu.Buffer, error) {
+func (p *SDFRenderPipeline) createAndUploadBuffer(label string, data []byte, usage types.BufferUsage) (hal.Buffer, error) {
 	buf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: label,
 		Size:  uint64(len(data)),
@@ -716,7 +710,7 @@ func (p *SDFRenderPipeline) createAndUploadBuffer(label string, data []byte, usa
 		return nil, fmt.Errorf("create %s: %w", label, err)
 	}
 	if err := p.queue.WriteBuffer(buf, 0, data); err != nil {
-		buf.Release()
+		buf.Destroy()
 		return nil, fmt.Errorf("write %s: %w", label, err)
 	}
 	return buf, nil

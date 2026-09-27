@@ -127,7 +127,7 @@ func (s BufferMapAsyncStatus) String() string {
 
 // Buffer represents a GPU buffer resource.
 //
-// Buffer wraps a *wgpu.Buffer and provides Go-idiomatic access with
+// Buffer wraps a hal.Buffer and provides Go-idiomatic access with
 // async buffer mapping support. This follows the wgpu pattern where
 // buffer mapping is asynchronous and requires device polling.
 //
@@ -148,7 +148,7 @@ type Buffer struct {
 	mu sync.RWMutex
 
 	// gpuBuffer is the underlying buffer handle.
-	gpuBuffer *webgpu.Buffer
+	gpuBuffer hal.Buffer
 
 	// device is the parent device.
 	device *webgpu.Device
@@ -204,7 +204,7 @@ type BufferDescriptor struct {
 //   - desc: The buffer descriptor (copied)
 //
 // Returns the new Buffer.
-func NewBuffer(gpuBuffer *webgpu.Buffer, device *webgpu.Device, desc *BufferDescriptor) *Buffer {
+func NewBuffer(gpuBuffer hal.Buffer, device *webgpu.Device, desc *BufferDescriptor) *Buffer {
 	buf := &Buffer{
 		gpuBuffer:  gpuBuffer,
 		device:     device,
@@ -262,7 +262,7 @@ func (b *Buffer) IsDestroyed() bool {
 // Returns nil if the buffer has been destroyed.
 // Use with caution - the caller should ensure the buffer is not destroyed
 // while the handle is in use.
-func (b *Buffer) Raw() *webgpu.Buffer {
+func (b *Buffer) Raw() hal.Buffer {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	if b.destroyed {
@@ -544,7 +544,7 @@ func (b *Buffer) Destroy() {
 
 	// Destroy the buffer
 	if device != nil && gpuBuf != nil {
-		gpuBuf.Release()
+		gpuBuf.Destroy()
 	}
 }
 

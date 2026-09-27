@@ -3,7 +3,6 @@
 package gpu
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -61,8 +60,8 @@ type StencilRenderer struct {
 	// Cover pipeline always samples @group(2); encodeAndReadback must bind this.
 	noMaskTex  *webgpu.Texture
 	noMaskView *webgpu.TextureView
-	noMaskSamp *webgpu.Sampler
-	noMaskUni  *webgpu.Buffer
+	noMaskSamp hal.Sampler
+	noMaskUni  hal.Buffer
 	noMaskBG   *webgpu.BindGroup
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
@@ -110,14 +109,14 @@ type StencilRenderer struct {
 	texturedCoverBGL0     *webgpu.BindGroupLayout
 	texturedCoverPipeLay  *webgpu.PipelineLayout
 	texturedCoverPipeline *webgpu.RenderPipeline
-	texturedCoverSampler  *webgpu.Sampler
+	texturedCoverSampler  hal.Sampler
 
 	// Session-inline pattern cover (ImagePattern) — v3.8 GPU_FIRST.
 	patternCoverShader   *webgpu.ShaderModule
 	patternCoverBGL0     *webgpu.BindGroupLayout
 	patternCoverPipeLay  *webgpu.PipelineLayout
 	patternCoverPipeline *webgpu.RenderPipeline
-	patternCoverSampler  *webgpu.Sampler
+	patternCoverSampler  hal.Sampler
 
 	// GPU-CLIP-003a: depth-clipped pipeline variants for depth-based clipping.
 	// These use DepthCompare=GreaterEqual to restrict stencil/cover rendering
@@ -270,12 +269,12 @@ func (sr *StencilRenderer) Size() (uint32, uint32) {
 // stencil-then-cover render pass. Created by createRenderBuffers and cleaned
 // up via destroy.
 type stencilCoverBuffers struct {
-	fanVertBuf       *webgpu.Buffer
+	fanVertBuf       hal.Buffer
 	fanVertBufCap    uint64
-	coverVertBuf     *webgpu.Buffer
+	coverVertBuf     hal.Buffer
 	coverVertBufCap  uint64
-	stencilUniBuf    *webgpu.Buffer
-	coverUniBuf      *webgpu.Buffer
+	stencilUniBuf    hal.Buffer
+	coverUniBuf      hal.Buffer
 	stencilBindGroup *webgpu.BindGroup
 	coverBindGroup   *webgpu.BindGroup
 	// slabStencilBG marks stencilBindGroup as session-slab-owned (shared
@@ -289,13 +288,13 @@ type stencilCoverBuffers struct {
 	// buffer — the session owns and retires it. Valid only when the
 	// matching slabValid flag is set (per frame; cleared on destroy and
 	// layout-epoch drop).
-	slabFanBuf     *webgpu.Buffer
+	slabFanBuf     hal.Buffer
 	slabFanOff     uint64
 	slabFanValid   bool
-	slabBandBuf    *webgpu.Buffer
+	slabBandBuf    hal.Buffer
 	slabBandOff    uint64
 	slabBandValid  bool
-	slabInnerBuf   *webgpu.Buffer
+	slabInnerBuf   hal.Buffer
 	slabInnerOff   uint64
 	slabInnerValid bool
 	// F2 sticky marks (per pool entry): last uploaded stencil uniform bytes
@@ -320,9 +319,9 @@ type stencilCoverBuffers struct {
 	// buffers uploaded from StencilPathCommand.BandAA/InnerBandAA. Empty when
 	// the path uses the plain binary cover (4x MSAA, pattern/textured, or AA
 	// disabled).
-	bandVertBuf          *webgpu.Buffer
+	bandVertBuf          hal.Buffer
 	bandVertBufCap       uint64
-	innerBandVertBuf     *webgpu.Buffer
+	innerBandVertBuf     hal.Buffer
 	innerBandVertBufCap  uint64
 	bandVertexCount      uint32
 	innerBandVertexCount uint32
@@ -402,23 +401,23 @@ func (b *stencilCoverBuffers) destroy() {
 	b.slabStencilBG = false
 	b.clearSlabViews()
 	if b.coverUniBuf != nil {
-		b.coverUniBuf.Release()
+		b.coverUniBuf.Destroy()
 	}
 	if b.stencilUniBuf != nil {
-		b.stencilUniBuf.Release()
+		b.stencilUniBuf.Destroy()
 	}
 	if b.coverVertBuf != nil {
-		b.coverVertBuf.Release()
+		b.coverVertBuf.Destroy()
 	}
 	if b.fanVertBuf != nil {
-		b.fanVertBuf.Release()
+		b.fanVertBuf.Destroy()
 	}
 	if b.bandVertBuf != nil {
-		b.bandVertBuf.Release()
+		b.bandVertBuf.Destroy()
 		b.bandVertBuf = nil
 	}
 	if b.innerBandVertBuf != nil {
-		b.innerBandVertBuf.Release()
+		b.innerBandVertBuf.Destroy()
 		b.innerBandVertBuf = nil
 	}
 	b.isTextured = false
@@ -565,7 +564,7 @@ func (sr *StencilRenderer) createRenderBuffers(
 // slabVertView is one entry's view into a session vertex slab: shared
 // buffer + byte offset. Nil buf = entry keeps its own per-entry buffer.
 type slabVertView struct {
-	buf *webgpu.Buffer
+	buf hal.Buffer
 	off uint64
 }
 
@@ -685,11 +684,11 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 	return b, nil
 }
 
-func (sr *StencilRenderer) updateVertexBuffer(buf **webgpu.Buffer, capBytes *uint64, label string, data []byte) error {
+func (sr *StencilRenderer) updateVertexBuffer(buf *hal.Buffer, capBytes *uint64, label string, data []byte) error {
 	needed := uint64(len(data))
 	if *buf == nil || *capBytes < needed {
 		if *buf != nil {
-			(*buf).Release()
+			(*buf).Destroy()
 			*buf = nil
 		}
 		allocSize := needed * 2
@@ -720,7 +719,7 @@ func (sr *StencilRenderer) updateVertexBuffer(buf **webgpu.Buffer, capBytes *uin
 // a bind group with a single buffer binding at group(0) binding(0).
 func (sr *StencilRenderer) createUniformAndBindGroup(
 	label string, data []byte, size uint64,
-) (*webgpu.Buffer, *webgpu.BindGroup, error) {
+) (hal.Buffer, *webgpu.BindGroup, error) {
 	buf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: label + "_uniform", Size: size,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
@@ -729,7 +728,7 @@ func (sr *StencilRenderer) createUniformAndBindGroup(
 		return nil, nil, fmt.Errorf("create %s uniform: %w", label, err)
 	}
 	if err := sr.queue.WriteBuffer(buf, 0, data); err != nil {
-		buf.Release()
+		buf.Destroy()
 		return nil, nil, fmt.Errorf("write %s uniform: %w", label, err)
 	}
 
@@ -740,13 +739,13 @@ func (sr *StencilRenderer) createUniformAndBindGroup(
 		},
 	})
 	if err != nil {
-		buf.Release()
+		buf.Destroy()
 		return nil, nil, fmt.Errorf("create %s bind group: %w", label, err)
 	}
 	return buf, bg, nil
 }
 
-func (sr *StencilRenderer) updateUniformAndBindGroup(buf **webgpu.Buffer, bg **webgpu.BindGroup, label string, data []byte, size uint64) error {
+func (sr *StencilRenderer) updateUniformAndBindGroup(buf *hal.Buffer, bg **webgpu.BindGroup, label string, data []byte, size uint64) error {
 	if *buf == nil {
 		newBuf, newBG, err := sr.createUniformAndBindGroup(label, data, size)
 		if err != nil {
@@ -834,14 +833,14 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		samp.Release()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return err
 	}
 	if err := sr.queue.WriteBuffer(ubuf, 0, NoMaskParams().Bytes()); err != nil {
-		ubuf.Release()
-		samp.Release()
+		ubuf.Destroy()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return err
@@ -856,8 +855,8 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		},
 	})
 	if err != nil {
-		ubuf.Release()
-		samp.Release()
+		ubuf.Destroy()
+		samp.Destroy()
 		view.Release()
 		tex.Release()
 		return err
@@ -872,11 +871,11 @@ func (sr *StencilRenderer) releaseNoMask() {
 		sr.noMaskBG = nil
 	}
 	if sr.noMaskUni != nil {
-		sr.noMaskUni.Release()
+		sr.noMaskUni.Destroy()
 		sr.noMaskUni = nil
 	}
 	if sr.noMaskSamp != nil {
-		sr.noMaskSamp.Release()
+		sr.noMaskSamp.Destroy()
 		sr.noMaskSamp = nil
 	}
 	if sr.noMaskView != nil {
@@ -933,7 +932,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 		encoder.DiscardEncoding()
 		return fmt.Errorf("create stencil no-clip uniform: %w", err)
 	}
-	defer noClipBuf.Release()
+	defer noClipBuf.Destroy()
 	if err := sr.queue.WriteBuffer(noClipBuf, 0, NoClipParams().Bytes()); err != nil {
 		_ = rp.End()
 		encoder.DiscardEncoding()
@@ -1000,7 +999,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 		encoder.DiscardEncoding()
 		return fmt.Errorf("create staging buffer: %w", err)
 	}
-	defer stagingBuf.Release()
+	defer stagingBuf.Destroy()
 
 	encoder.CopyTextureToBuffer(sr.textures.resolveTex, stagingBuf, []hal.BufferTextureCopy{{
 		BufferLayout: hal.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
@@ -1019,30 +1018,24 @@ func (sr *StencilRenderer) encodeAndReadback(
 // submitAndReadback submits the command buffer, waits for GPU completion,
 // reads back pixel data, and converts BGRA to RGBA into the target buffer.
 func (sr *StencilRenderer) submitAndReadback(
-	cmdBuf *webgpu.CommandBuffer, stagingBuf *webgpu.Buffer,
+	cmdBuf *webgpu.CommandBuffer, stagingBuf hal.Buffer,
 	stagingBufSize uint64, bytesPerRow, alignedBytesPerRow, height uint32, target render.GPURenderTarget,
 ) error {
 	if cmdBuf != nil {
 		// Submit does not drop the CB ref on wgpu-native.
-		defer cmdBuf.Release()
+		defer cmdBuf.Destroy()
 	}
 	if _, err := sr.queue.Submit(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
 
-	if err := stagingBuf.Map(context.Background(), types.MapModeRead, 0, stagingBufSize); err != nil {
-		return fmt.Errorf("map staging: %w", err)
-	}
-	rng, err := stagingBuf.MappedRange(0, stagingBufSize)
-	if err != nil {
-		if err := stagingBuf.Unmap(); err != nil {
-			slogger().Warn("unmap failed", "err", err)
-		}
-		return fmt.Errorf("mapped range: %w", err)
+	mapping, mErr := sr.device.MapBuffer(stagingBuf, 0, stagingBufSize)
+	if mErr != nil {
+		return fmt.Errorf("map staging: %w", mErr)
 	}
 	readback := make([]byte, stagingBufSize)
-	copy(readback, rng.Bytes())
-	if err := stagingBuf.Unmap(); err != nil {
+	copy(readback, unsafe.Slice((*byte)(mapping.Ptr), stagingBufSize)) //nolint:gosec // hal.BufferMapping opaque pointer
+	if err := sr.device.UnmapBuffer(stagingBuf); err != nil {
 		slogger().Warn("unmap failed", "err", err)
 	}
 

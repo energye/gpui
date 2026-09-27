@@ -652,7 +652,7 @@ func (sr *StencilRenderer) destroyPipelines() {
 		sr.texturedCoverShader = nil
 	}
 	if sr.texturedCoverSampler != nil {
-		sr.texturedCoverSampler.Release()
+		sr.texturedCoverSampler.Destroy()
 		sr.texturedCoverSampler = nil
 	}
 	if sr.patternCoverPipeline != nil {
@@ -672,7 +672,7 @@ func (sr *StencilRenderer) destroyPipelines() {
 		sr.patternCoverShader = nil
 	}
 	if sr.patternCoverSampler != nil {
-		sr.patternCoverSampler.Release()
+		sr.patternCoverSampler.Destroy()
 		sr.patternCoverSampler = nil
 	}
 	// Depth-clipped variants (GPU-CLIP-003a).

@@ -254,7 +254,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 	uni := encodeTexturedCoverUniform(w, h, cmd)
 	if b.coverUniBuf == nil || b.coverUniCap < texturedCoverUniformSize {
 		if b.coverUniBuf != nil {
-			b.coverUniBuf.Release()
+			b.coverUniBuf.Destroy()
 			b.coverUniBuf = nil
 		}
 		// Solid coverBindGroup referenced old uni — invalidate.
@@ -597,7 +597,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 	uni := encodePatternCoverUniform(w, h, cmd)
 	if b.coverUniBuf == nil || b.coverUniCap < patternCoverUniformSize {
 		if b.coverUniBuf != nil {
-			b.coverUniBuf.Release()
+			b.coverUniBuf.Destroy()
 			b.coverUniBuf = nil
 		}
 		if b.coverBindGroup != nil {

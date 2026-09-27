@@ -91,7 +91,7 @@ type MSDFTextPipeline struct {
 	pipelineWithDepthClip *webgpu.RenderPipeline
 
 	// Default sampler for MSDF textures (linear filtering).
-	sampler *webgpu.Sampler
+	sampler hal.Sampler
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
@@ -125,7 +125,7 @@ func (p *MSDFTextPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 func (p *MSDFTextPipeline) Destroy() {
 	p.destroyPipeline()
 	if p.sampler != nil {
-		p.sampler.Release()
+		p.sampler.Destroy()
 		p.sampler = nil
 	}
 }
@@ -411,8 +411,8 @@ type textDrawCall struct {
 }
 
 type textFrameResources struct {
-	vertBuf   *webgpu.Buffer
-	idxBuf    *webgpu.Buffer
+	vertBuf   hal.Buffer
+	idxBuf    hal.Buffer
 	drawCalls []textDrawCall
 }
 

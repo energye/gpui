@@ -1,6 +1,7 @@
 package gpu
 
 import (
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
@@ -25,7 +26,7 @@ type PassBindLedger struct {
 	bg0   *webgpu.BindGroup
 	clip  *webgpu.BindGroup
 	mask  *webgpu.BindGroup
-	vert  *webgpu.Buffer
+	vert  hal.Buffer
 }
 
 // BeginPassLedger starts a new pass generation: the first Draw of the pass
@@ -47,7 +48,7 @@ func (l *PassBindLedger) BeginPassLedger() {
 // skipBind reports whether the exact set is already bound on this pass.
 // The pass encoder must match: offscreen record passes share the session
 // ledger object, and a different rp means bindings were never set there.
-func (l *PassBindLedger) skipBind(rp *webgpu.RenderPassEncoder, pipe *webgpu.RenderPipeline, bg0, clip, mask *webgpu.BindGroup, vert *webgpu.Buffer) bool {
+func (l *PassBindLedger) skipBind(rp *webgpu.RenderPassEncoder, pipe *webgpu.RenderPipeline, bg0, clip, mask *webgpu.BindGroup, vert hal.Buffer) bool {
 	if l == nil || rp == nil || pipe == nil || bg0 == nil || vert == nil {
 		return false
 	}
@@ -70,7 +71,7 @@ func (l *PassBindLedger) Invalidate() {
 }
 
 // noteBind records the bound set after a full-bind Draw.
-func (l *PassBindLedger) noteBind(rp *webgpu.RenderPassEncoder, pipe *webgpu.RenderPipeline, bg0, clip, mask *webgpu.BindGroup, vert *webgpu.Buffer) {
+func (l *PassBindLedger) noteBind(rp *webgpu.RenderPassEncoder, pipe *webgpu.RenderPipeline, bg0, clip, mask *webgpu.BindGroup, vert hal.Buffer) {
 	if l == nil || rp == nil {
 		return
 	}

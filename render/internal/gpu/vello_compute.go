@@ -257,100 +257,100 @@ func (c VelloComputeConfig) toBytes() []byte {
 type VelloComputeBuffers struct {
 	// Config is the uniform buffer containing VelloComputeConfig.
 	// Bound at group(0) binding(0) in all stages.
-	Config *webgpu.Buffer
+	Config hal.Buffer
 
 	// Scene is the packed scene data buffer containing path tags, path data,
 	// draw tags, draw data, transforms, and styles as a flat u32 array.
 	// Bound as storage(read) in pathtag_reduce, pathtag_scan, draw_reduce,
 	// draw_leaf, coarse.
-	Scene *webgpu.Buffer
+	Scene hal.Buffer
 
 	// Reduced holds per-workgroup PathMonoid sums from pathtag_reduce.
 	// Size: ceil(n_tag_words / 256) * sizeof(PathMonoid).
 	// Written by pathtag_reduce, read by pathtag_scan.
-	Reduced *webgpu.Buffer
+	Reduced hal.Buffer
 
 	// TagMonoids holds per-tag-word PathMonoid exclusive prefix sums.
 	// Size: n_tag_words * sizeof(PathMonoid).
 	// Written by pathtag_scan.
-	TagMonoids *webgpu.Buffer
+	TagMonoids hal.Buffer
 
 	// DrawReduced holds per-workgroup DrawMonoid sums from draw_reduce.
 	// Size: ceil(n_drawobj / 256) * sizeof(DrawMonoid).
 	// Written by draw_reduce, read by draw_leaf.
-	DrawReduced *webgpu.Buffer
+	DrawReduced hal.Buffer
 
 	// DrawMonoids holds per-draw DrawMonoid exclusive prefix sums.
 	// Size: n_drawobj * sizeof(DrawMonoid).
 	// Written by draw_leaf, read by coarse.
-	DrawMonoids *webgpu.Buffer
+	DrawMonoids hal.Buffer
 
 	// Info holds extracted draw info (packed RGBA colors).
 	// Size: n_drawobj * sizeof(u32).
 	// Written by draw_leaf, read by coarse, fine.
-	Info *webgpu.Buffer
+	Info hal.Buffer
 
 	// ClipInp holds clip input data (one ClipInp per clip op, indexed by
 	// the draw monoid's exclusive clip_ix).
 	// Size: n_clip * sizeof(ClipInp) = n_clip * 2 * sizeof(u32).
 	// Written by draw_leaf, read by clip_leaf.
-	ClipInp *webgpu.Buffer
+	ClipInp hal.Buffer
 
 	// Lines holds flattened line segments (LineSoup structs).
 	// Size: n_lines * sizeof(LineSoup) = n_lines * 5 * sizeof(u32).
 	// Read by path_count.
-	Lines *webgpu.Buffer
+	Lines hal.Buffer
 
 	// Paths holds per-path metadata (bounding box + tiles offset).
 	// Size: n_paths * sizeof(Path) = n_paths * 5 * sizeof(u32).
 	// Read by path_count, backdrop, coarse.
-	Paths *webgpu.Buffer
+	Paths hal.Buffer
 
 	// Tiles holds per-tile backdrop and segment count/index.
 	// Size: total_tiles * sizeof(Tile) = total_tiles * 2 * sizeof(u32).
 	// Written by path_count (atomics), modified by backdrop, read by coarse/fine.
-	Tiles *webgpu.Buffer
+	Tiles hal.Buffer
 
 	// SegCounts holds segment counts per tile for path_count.
 	// Size: estimated from segment count heuristic.
 	// Written by path_count.
-	SegCounts *webgpu.Buffer
+	SegCounts hal.Buffer
 
 	// Segments holds clipped path segments (PathSegment, tile-relative coordinates).
 	// Size: total_segments * sizeof(PathSegment) = total_segments * 5 * sizeof(f32).
 	// Written by path_count segment allocation, read by coarse, fine.
-	Segments *webgpu.Buffer
+	Segments hal.Buffer
 
 	// PTCL holds per-tile command lists as a flat u32 stream.
 	// Size: total_tiles * velloPTCLMaxPerTile * sizeof(u32).
 	// Written by coarse, read by fine.
-	PTCL *webgpu.Buffer
+	PTCL hal.Buffer
 
 	// BumpAlloc holds bump allocator counters for dynamic allocation.
 	// Used by path_count (segment counts) and coarse (PTCL offsets).
-	BumpAlloc *webgpu.Buffer
+	BumpAlloc hal.Buffer
 
 	// TilePTCLOffsets holds per-tile PTCL write positions.
 	// Size: total_tiles * sizeof(u32).
 	// Written by coarse.
-	TilePTCLOffsets *webgpu.Buffer
+	TilePTCLOffsets hal.Buffer
 
 	// PathStyles holds style flags per path (bit 1 = even-odd fill rule).
 	// Size: n_paths * sizeof(u32).
 	// Read by coarse.
-	PathStyles *webgpu.Buffer
+	PathStyles hal.Buffer
 
 	// Output holds the output pixel buffer (packed RGBA u32 per pixel).
 	// Size: target_width * target_height * sizeof(u32).
 	// Written by fine.
-	Output *webgpu.Buffer
+	Output hal.Buffer
 
 	// BlendSpill holds spilled blend stack entries for deep clip levels.
 	// When clip_depth >= BLEND_STACK_SPLIT (4), rgba values are packed as
 	// u32 via pack4x8unorm and stored here. Allocated by coarse stage via
 	// atomicAdd on bump.blend. Read/written by fine stage.
 	// Size: estimated from max clip depth × total tiles × TILE_WIDTH × TILE_HEIGHT.
-	BlendSpill *webgpu.Buffer
+	BlendSpill hal.Buffer
 }
 
 // =============================================================================
@@ -841,7 +841,7 @@ func (d *VelloComputeDispatcher) computeBufferSizes(
 }
 
 // createVelloBuffer creates a single GPU buffer with a minimum size guarantee.
-func (d *VelloComputeDispatcher) createVelloBuffer(label string, size uint64, usage types.BufferUsage) (*webgpu.Buffer, error) {
+func (d *VelloComputeDispatcher) createVelloBuffer(label string, size uint64, usage types.BufferUsage) (hal.Buffer, error) {
 	const minBufSize = 4
 	if size < minBufSize {
 		size = minBufSize
@@ -899,7 +899,7 @@ func (d *VelloComputeDispatcher) AllocateBuffers(
 
 	// bufSpec maps a label and size to a target pointer, usage flags, and zero-init flag.
 	type bufSpec struct {
-		target   **webgpu.Buffer
+		target   *hal.Buffer
 		label    string
 		size     uint64
 		usage    types.BufferUsage
@@ -965,9 +965,9 @@ func (d *VelloComputeDispatcher) DestroyBuffers(bufs *VelloComputeBuffers) {
 		return
 	}
 
-	destroyBuf := func(b *webgpu.Buffer) {
+	destroyBuf := func(b hal.Buffer) {
 		if b != nil {
-			b.Release()
+			b.Destroy()
 		}
 	}
 
@@ -998,7 +998,7 @@ func (d *VelloComputeDispatcher) DestroyBuffers(bufs *VelloComputeBuffers) {
 // stageBindGroupEntries returns the bind group entries for a given stage,
 // mapping each binding index to the correct buffer from VelloComputeBuffers.
 func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) []hal.BindGroupEntry {
-	entry := func(binding uint32, buf *webgpu.Buffer) hal.BindGroupEntry {
+	entry := func(binding uint32, buf hal.Buffer) hal.BindGroupEntry {
 		return hal.BindGroupEntry{
 			Binding: binding,
 			Buffer:  buf,
@@ -1274,7 +1274,7 @@ func (d *VelloComputeDispatcher) submitAndWait(res *dispatchResources) error {
 	if res != nil && res.cmdBuf != nil {
 		// wgpu-native: Submit does not consume the CB ref — must Release or
 		// device heaps stay pinned across AutoRecover.
-		defer res.cmdBuf.Release()
+		defer res.cmdBuf.Destroy()
 	}
 	if _, err := d.queue.Submit(res.cmdBuf); err != nil {
 		return fmt.Errorf("vello compute: submit: %w", err)
