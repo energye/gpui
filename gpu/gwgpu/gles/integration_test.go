@@ -200,7 +200,7 @@ func TestGLESBackend(t *testing.T) {
 	}
 
 	// Destroy instance
-	instance.Destroy()
+	instance.Release()
 	t.Log("Instance destroyed")
 }
 

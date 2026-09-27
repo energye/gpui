@@ -11,7 +11,6 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -162,7 +161,7 @@ type filterPublishSlot struct {
 type filterGPUCache struct {
 	runMu     sync.Mutex // serializes full graph runs (pooled RTs)
 	mu        sync.Mutex
-	device    *webgpu.Device
+	device    hal.Device
 	pipeline  hal.RenderPipeline
 	bgl       hal.BindGroupLayout
 	sampler   hal.Sampler
@@ -325,7 +324,7 @@ func (c *filterGPUCache) filterPassRenderPassDesc(dst hal.TextureView) *hal.Rend
 	return &c.filterPassRPDesc
 }
 
-func (c *filterGPUCache) ensure(device *webgpu.Device) error {
+func (c *filterGPUCache) ensure(device hal.Device) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.pipeline != nil && c.device == device {
@@ -457,7 +456,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	return nil
 }
 
-func (c *filterGPUCache) ensurePool(device *webgpu.Device, w, h int) error {
+func (c *filterGPUCache) ensurePool(device hal.Device, w, h int) error {
 	if c.texA != nil && c.poolW == w && c.poolH == h && c.device == device {
 		return nil
 	}
@@ -503,7 +502,7 @@ func (c *filterGPUCache) ensurePool(device *webgpu.Device, w, h int) error {
 	return nil
 }
 
-func (c *filterGPUCache) ensureStaging(device *webgpu.Device, size uint64) error {
+func (c *filterGPUCache) ensureStaging(device hal.Device, size uint64) error {
 	if c.staging != nil && c.stagingCap >= size && c.device == device {
 		return nil
 	}
@@ -541,7 +540,7 @@ func (c *filterGPUCache) clearBGCacheUnlocked() {
 	}
 }
 
-func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl hal.BindGroupLayout, samp hal.Sampler,
+func (c *filterGPUCache) bindGroup(device hal.Device, bgl hal.BindGroupLayout, samp hal.Sampler,
 	src, dst, aux hal.TextureView, ubuf hal.Buffer, offset uint64,
 ) (hal.BindGroup, error) {
 	if device == nil || bgl == nil || samp == nil || src == nil || dst == nil || aux == nil || ubuf == nil {
@@ -591,7 +590,7 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl hal.BindGroupLayou
 
 // ensurePassUniformSlab grows/creates the opt35 pass-uniform slab for nSlots.
 // Recreating the slab clears the bind-group cache (entries pin the old buffer).
-func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int) (hal.Buffer, error) {
+func (c *filterGPUCache) ensurePassUniformSlab(device hal.Device, nSlots int) (hal.Buffer, error) {
 	if device == nil {
 		return nil, fmt.Errorf("filter pass uniform slab: nil device")
 	}
@@ -635,7 +634,7 @@ func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int
 // steady-state glow frames do not CopyTextureToTexture or allocate VRAM.
 // Safe to call after encode and before Submit: the command buffer retains the
 // promoted texture; the pool receives a recycled/new RT for the next graph.
-func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex hal.Texture, view hal.TextureView, w, h int) (filterPublishSlot, error) {
+func (c *filterGPUCache) promotePoolResultToPublish(device hal.Device, tex hal.Texture, view hal.TextureView, w, h int) (filterPublishSlot, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if device == nil || tex == nil || view == nil || c.poolW != w || c.poolH != h {
@@ -691,7 +690,7 @@ func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex h
 	return filterPublishSlot{tex: tex, view: view, w: w, h: h}, nil
 }
 
-func (c *filterGPUCache) acquirePublish(device *webgpu.Device, w, h int) (filterPublishSlot, error) {
+func (c *filterGPUCache) acquirePublish(device hal.Device, w, h int) (filterPublishSlot, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for i := range c.publishFree {
@@ -739,7 +738,7 @@ func (c *filterGPUCache) releasePublish(slot filterPublishSlot) {
 }
 
 // runGPUFilterGraph executes multi-RT ping-pong filter nodes on GPU and readbacks.
-func runGPUFilterGraph(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
+func runGPUFilterGraph(device hal.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
 	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true, nil, nil)
 	return out, err
 }
@@ -747,7 +746,7 @@ func runGPUFilterGraph(device *webgpu.Device, queue hal.Queue, cache *filterGPUC
 // runGPUFilterGraphGPUOnly runs the filter graph and publishes a GPU texture view
 // for zero-copy compositing (DrawGPUTexture). No CPU Map/readback.
 // Caller must invoke release when the view is no longer sampled.
-func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphGPUOnly(device hal.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
 	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false, nil, nil)
 	return view, release, err
 }
@@ -755,7 +754,7 @@ func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue hal.Queue, cache *fil
 // runGPUFilterGraphFromView seeds the graph from an existing GPU texture view
 // (no CPU upload). Source may be BGRA offscreen; first copy pass samples into
 // the RGBA pool (WebGPU returns BGRA samples in RGBA order).
-func runGPUFilterGraphFromView(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphFromView(device hal.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
 	return runGPUFilterGraphFromViewWithLeading(device, queue, cache, srcView, w, h, nodes, nil)
 }
 
@@ -764,7 +763,7 @@ func runGPUFilterGraphFromView(device *webgpu.Device, queue hal.Queue, cache *fi
 // Leading CBs are Released after submit (success or failure). On filter encode
 // failure before Submit, leading CBs are NOT released — caller may submit them
 // alone for recovery.
-func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, leading []*webgpu.CommandBuffer) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphFromViewWithLeading(device hal.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, leading []hal.CommandBuffer) (gpucontext.TextureView, func(), error) {
 	if srcView.IsNil() {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
@@ -777,7 +776,7 @@ func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue hal.Queue
 // encoder that already contains the mesh-seed render passes (opt36). One Finish
 // covers seed+filter. On failure the encoder is left open so the caller can
 // Finish+Submit seed-only recovery (mesh draws are only applied if submitted).
-func runGPUFilterGraphFromViewIntoEncoder(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc *webgpu.CommandEncoder) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphFromViewIntoEncoder(device hal.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc hal.CommandEncoder) (gpucontext.TextureView, func(), error) {
 	if srcView.IsNil() {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
@@ -790,9 +789,9 @@ func runGPUFilterGraphFromViewIntoEncoder(device *webgpu.Device, queue hal.Queue
 }
 
 func runGPUFilterGraphEx(
-	device *webgpu.Device, queue hal.Queue, cache *filterGPUCache,
+	device hal.Device, queue hal.Queue, cache *filterGPUCache,
 	src []byte, srcView hal.TextureView, w, h int, nodes []render.ImageFilterNode, wantPixels bool,
-	leading []*webgpu.CommandBuffer, sharedEnc *webgpu.CommandEncoder,
+	leading []hal.CommandBuffer, sharedEnc hal.CommandEncoder,
 ) (out []byte, pubView gpucontext.TextureView, pubRelease func(), err error) {
 	if device == nil || queue == nil || cache == nil || w <= 0 || h <= 0 {
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: invalid args")
@@ -893,7 +892,7 @@ func runGPUFilterGraphEx(
 	cache.lastUsedSharedEnc = sharedEnc != nil
 	cache.mu.Unlock()
 	nPassSlots := 0
-	var enc *webgpu.CommandEncoder
+	var enc hal.CommandEncoder
 	ownsEncoder := false
 	if sharedEnc != nil {
 		enc = sharedEnc
@@ -1230,11 +1229,11 @@ func runGPUFilterGraphEx(
 	// Single Queue.Submit for optional leading seed CBs + filter CB (opt18).
 	// Leading must run first so FromView samples a populated seed RT.
 	nLead := len(leading)
-	var all []*webgpu.CommandBuffer
+	var all []hal.CommandBuffer
 	if nLead == 0 {
-		all = []*webgpu.CommandBuffer{cmd}
+		all = []hal.CommandBuffer{cmd}
 	} else {
-		all = make([]*webgpu.CommandBuffer, 0, nLead+1)
+		all = make([]hal.CommandBuffer, 0, nLead+1)
 		all = append(all, leading...)
 		all = append(all, cmd)
 	}
@@ -1247,10 +1246,10 @@ func runGPUFilterGraphEx(
 	if _, err := queue.Submit(halAll...); err != nil {
 		for _, c := range leading {
 			if c != nil {
-				c.Release()
+				device.FreeCommandBuffer(c)
 			}
 		}
-		cmd.Release()
+		device.FreeCommandBuffer(cmd)
 		if slot.tex != nil {
 			cache.releasePublish(slot)
 		}
@@ -1259,10 +1258,10 @@ func runGPUFilterGraphEx(
 	}
 	for _, c := range leading {
 		if c != nil {
-			c.Release()
+			device.FreeCommandBuffer(c)
 		}
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	cleanupPasses()
 
 	if !wantPixels {
@@ -1297,10 +1296,10 @@ func runGPUFilterGraphEx(
 		return nil, gpucontext.TextureView{}, nil, err
 	}
 	if _, err := queue.Submit(cmd2); err != nil {
-		cmd2.Release()
+		device.FreeCommandBuffer(cmd2)
 		return nil, gpucontext.TextureView{}, nil, err
 	}
-	cmd2.Release()
+	device.FreeCommandBuffer(cmd2)
 	device.Poll(hal.PollWait)
 
 	mapping, mErr := device.MapBuffer(staging, 0, stagingSize)

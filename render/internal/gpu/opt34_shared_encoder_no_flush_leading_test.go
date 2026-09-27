@@ -8,7 +8,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -48,7 +47,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 		}
 		return tex, view
 	}
-	mkEmptyCB := func(label string) *webgpu.CommandBuffer {
+	mkEmptyCB := func(label string) hal.CommandBuffer {
 		enc, err := shared.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: label})
 		if err != nil {
 			t.Fatal(err)
@@ -152,7 +151,7 @@ func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 		}
 		return tex, view
 	}
-	mkEmptyCB := func(label string) *webgpu.CommandBuffer {
+	mkEmptyCB := func(label string) hal.CommandBuffer {
 		enc, err := shared.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: label})
 		if err != nil {
 			t.Fatal(err)

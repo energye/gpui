@@ -42,7 +42,7 @@ func (i *factoryTestInstance) RequestAdapter(_ *hal.RequestAdapterOptions) (hal.
 	return nil, hal.ErrBackendNotFound
 }
 func (i *factoryTestInstance) ProcessEvents() {}
-func (i *factoryTestInstance) Destroy()       {}
+func (i *factoryTestInstance) Release()       {}
 
 // TestRegisterBackendFactory tests factory registration.
 func TestRegisterBackendFactory(t *testing.T) {

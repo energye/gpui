@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
 
@@ -121,7 +120,7 @@ func (s *ShaderModules) Release() {
 // Returns:
 //   - *ShaderModules: Compiled shader module handles
 //   - error: Compilation error if shader sources are invalid
-func CompileShaders(device *webgpu.Device) (*ShaderModules, error) {
+func CompileShaders(device hal.Device) (*ShaderModules, error) {
 	// Validate shader sources are non-empty
 	if blitShaderSource == "" {
 		return nil, errors.New("blit shader source is empty")

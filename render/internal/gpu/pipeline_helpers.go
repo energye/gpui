@@ -5,7 +5,6 @@ package gpu
 import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 const (
@@ -19,7 +18,7 @@ const (
 // by the WebGPU C API but was observed to leave pipelines invalid on this
 // wgpu-native build when used mid-pass; do not reintroduce without a focused
 // native repro.
-func clearPassBindGroups(rp *webgpu.RenderPassEncoder) {
+func clearPassBindGroups(rp hal.RenderPassEncoder) {
 	_ = rp
 }
 

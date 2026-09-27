@@ -93,5 +93,6 @@ func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities
 	}
 }
 
-// Destroy is a no-op for the noop adapter.
-func (a *Adapter) Destroy() {}
+// Release is a no-op for the noop adapter.
+// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
+func (a *Adapter) Release() {}

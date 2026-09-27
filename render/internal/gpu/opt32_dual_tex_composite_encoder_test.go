@@ -82,7 +82,7 @@ func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 	if _, err := queue.Submit(cmd); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	for _, o := range outs {
 		cache.putOutBGRA(o.tex, o.view, o.bounds.Dx(), o.bounds.Dy())
 	}

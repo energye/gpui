@@ -74,9 +74,9 @@ func (s gpuRenderStrategy) String() string {
 type GPUShared struct {
 	mu sync.Mutex
 
-	instance *webgpu.Instance // standalone mode only; nil when using external device
-	adapter  *webgpu.Adapter  // standalone mode only; must Release on Close
-	device   *webgpu.Device
+	instance hal.Instance // standalone mode only; nil when using external device
+	adapter  hal.Adapter  // standalone mode only; must Release on Close
+	device   hal.Device
 	queue    hal.Queue
 
 	// Pipelines (immutable after creation, safe to share).
@@ -215,7 +215,7 @@ func (s *GPUShared) IsDeviceReady() bool {
 }
 
 // Device returns the shared wgpu device, or nil if not initialized.
-func (s *GPUShared) Device() *webgpu.Device {
+func (s *GPUShared) Device() hal.Device {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.device
@@ -247,7 +247,8 @@ func (s *GPUShared) SetForceSDF(force bool) {
 }
 
 // SetDeviceProvider switches to a shared GPU device from an external provider
-// (e.g., gogpu). The provider's Device() must return a *wgpu.Device.
+// (e.g., gogpu). The provider's Device() must return a gpucontext handle
+// wrapping a hal.Device (see webgpu.DeviceToHandle).
 //
 // Software adapters (llvmpipe, SwiftShader, WARP) are treated as full GPU
 // implementations per enterprise pattern (ADR-046): Skia Graphite runs CI on
@@ -260,10 +261,9 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 		return nil
 	}
 	if adapter := provider.Adapter(); !adapter.IsNil() {
-		wgpuAdapter := webgpu.AdapterFromHandle(adapter)
-		if wgpuAdapter != nil && wgpuAdapter.Info().DeviceType == types.DeviceTypeCPU {
+		if ai := provider.AdapterInfo(); ai.Type == gpucontext.AdapterTypeSoftware {
 			slogger().Info("gpu-shared: software adapter detected — GPU features available, performance may be reduced",
-				"adapter", wgpuAdapter.Info().Name)
+				"adapter", ai.Name)
 			s.mu.Lock()
 			s.softwareMode = true
 			s.mu.Unlock()
@@ -275,12 +275,12 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 		return fmt.Errorf("gpu-shared: provider Device is nil")
 	}
 
-	wgpuDev := webgpu.DeviceFromHandle(dev)
-	if wgpuDev == nil {
+	halDev := webgpu.DeviceFromHandle(dev)
+	if halDev == nil {
 		return fmt.Errorf("gpu-shared: provider Device handle is invalid")
 	}
-	wgpuQueue := wgpuDev.Queue()
-	if wgpuQueue == nil {
+	halQueue := halDev.Queue()
+	if halQueue == nil {
 		return fmt.Errorf("gpu-shared: provider Queue is nil")
 	}
 
@@ -293,8 +293,8 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.abandonDeviceOwnedLocked(false /* releaseOwnedDevice */)
 
 	// Use provided resources (caller owns device/queue lifetime).
-	s.device = wgpuDev
-	s.queue = wgpuQueue
+	s.device = halDev
+	s.queue = halQueue
 	s.externalDevice = true
 	s.deviceGen++
 
@@ -588,7 +588,7 @@ func (s *GPUShared) detectStrategy() gpuRenderStrategy {
 // 1x (analytic fringe coverage, Skia kCoverage). No device probing: the
 // engine default is 1 sample per pixel; 4x is an explicit opt-in via
 // SetMSAASampleCount.
-func resolveSampleCount(_ *webgpu.Device) uint32 {
+func resolveSampleCount(_ hal.Device) uint32 {
 	return render.MSAASampleCount()
 }
 
@@ -751,7 +751,7 @@ func (s *GPUShared) initGPU() error {
 	return nil
 }
 
-func (s *GPUShared) initVelloAccelerator(device *webgpu.Device, queue hal.Queue) {
+func (s *GPUShared) initVelloAccelerator(device hal.Device, queue hal.Queue) {
 	va := &VelloAccelerator{}
 	va.device = device
 	va.queue = queue

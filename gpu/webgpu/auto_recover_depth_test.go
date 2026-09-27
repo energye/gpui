@@ -44,13 +44,13 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 	}
 	defer inst.Release()
 
-	surf, err := inst.CreateSurface(dpy, win)
+	surf, err := inst.CreateSurfaceFromHandles(dpy, win)
 	if err != nil {
 		t.Fatalf("CreateSurface: %v", err)
 	}
-	defer surf.Release()
+	defer surf.Destroy()
 
-	adpt, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+	adpt, err := inst.RequestAdapter(&hal.RequestAdapterOptions{
 		PowerPreference:   types.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})
@@ -77,10 +77,10 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 	}
 	defer sc.Release()
 
-	sc.OnDeviceAbandon = func(_ *webgpu.Device) {
+	sc.OnDeviceAbandon = func(_ hal.Device) {
 		rendgpu.AbandonDevice()
 	}
-	sc.EnableAutoRecover(adpt, "auto-recover-test", func(d *webgpu.Device) {
+	sc.EnableAutoRecover(adpt, "auto-recover-test", func(d hal.Device) {
 		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{Dev: d, Adpt: adpt}); err != nil {
 			t.Errorf("SetDeviceProvider after recover: %v", err)
 		}
@@ -99,7 +99,9 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 	// heap on this libwgpu_native → CreateTexture OOM after recover on 1GB cards.
 	if err := sc.ForceRecoverHealthy(); err != nil {
 		t.Logf("ForceRecoverHealthy: %v — falling back to MarkLost", err)
-		dev.MarkLost()
+		if wd, ok := dev.(*webgpu.Device); ok {
+			wd.MarkLost()
+		}
 	}
 
 	// First BeginFrames after recover return ErrRecovered (grace=12).

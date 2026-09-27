@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -95,7 +94,7 @@ type GPUTexture struct {
 
 	// GPU resources. These are nil only for legacy tests that create textures
 	// without an initialized backend.
-	device  *webgpu.Device
+	device  hal.Device
 	texture hal.Texture
 	view    hal.TextureView
 	queue   hal.Queue
@@ -507,7 +506,7 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("finish texture readback encoder: %w", err)
 	}
-	defer cmdBuf.Release()
+	defer device.FreeCommandBuffer(cmdBuf)
 
 	if _, err := queue.Submit(cmdBuf); err != nil {
 		return nil, fmt.Errorf("submit texture readback: %w", err)

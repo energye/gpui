@@ -178,8 +178,9 @@ func (i *Instance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter {
 	}
 }
 
-// Destroy releases the instance resources.
-func (i *Instance) Destroy() {
+// Release releases the instance resources.
+// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
+func (i *Instance) Release() {
 	if i.ctx != nil {
 		i.ctx.Destroy()
 	}

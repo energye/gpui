@@ -61,7 +61,7 @@ func TestG2_PresentWithDamage_IgnoresRect_Doc(t *testing.T) {
 	// Compile-time / API-level: PresentWithDamage exists and is safe with nil rects.
 	// Runtime ignore is asserted by surface.go comment + zero-length call in present tests.
 	_ = image.Rectangle{}
-	t.Log("G2.c: gpu/webgpu.Surface.PresentWithDamage ignores rects (wgpu-native)")
+	t.Log("G2.c: Surface.PresentWithDamage ignores rects (wgpu-native)")
 }
 
 // TestG2_BlitOnly_DamagePreservesOutsidePixels verifies G2.b: when a frame is

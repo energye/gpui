@@ -13,7 +13,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-func s2Device(t *testing.T) (*Instance, *Adapter, *Device, hal.Queue) {
+func s2Device(t *testing.T) (*Instance, hal.Adapter, hal.Device, hal.Queue) {
 	t.Helper()
 	inst, err := CreateInstance(nil)
 	if err != nil {
@@ -40,7 +40,7 @@ func s2Device(t *testing.T) (*Instance, *Adapter, *Device, hal.Queue) {
 	return inst, adapter, device, q
 }
 
-func s2Release(inst *Instance, adapter *Adapter, device *Device) {
+func s2Release(inst *Instance, adapter hal.Adapter, device hal.Device) {
 	if device != nil {
 		device.Release()
 	}
@@ -93,7 +93,7 @@ func TestS2AE_BufferWriteCopyMap(t *testing.T) {
 	if _, err := queue.Submit(cmd); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	device.Poll(PollWait)
 
 	mapping, err := device.MapBuffer(dst, 0, size)
@@ -196,7 +196,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	if _, err := queue.Submit(cmd); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	device.Poll(PollWait)
 
 	mapping, err := device.MapBuffer(staging, 0, stagingSize)
@@ -344,7 +344,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if _, err := queue.Submit(cmd); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	device.Poll(PollWait)
 
 	mapping, err := device.MapBuffer(staging, 0, stagingSize)

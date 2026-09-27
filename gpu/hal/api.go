@@ -59,17 +59,18 @@ type Instance interface {
 
 	// RequestAdapter requests a GPU adapter matching the options.
 	// If opts is nil, the best available adapter is returned.
-	// Matches webgpu Instance.RequestAdapter (gpu/webgpu/instance.go:61).
+	// Matches webgpu Instance.RequestAdapter (gpu/webgpu/instance.go:54).
 	RequestAdapter(opts *RequestAdapterOptions) (Adapter, error)
 
 	// ProcessEvents pumps pending async callbacks (device-lost, map async, etc.).
-	// Matches webgpu Instance.ProcessEvents (gpu/webgpu/instance.go:119).
+	// Matches webgpu Instance.ProcessEvents (gpu/webgpu/instance.go:112).
 	// Synchronous backends (noop/gles/metal) are no-ops.
 	ProcessEvents()
 
-	// Destroy releases the instance.
+	// Release releases the instance.
 	// All adapters and surfaces created from this instance must be destroyed first.
-	Destroy()
+	// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
+	Release()
 }
 
 // ExposedAdapter bundles an adapter with its capabilities.
@@ -99,31 +100,32 @@ type Adapter interface {
 	TextureFormatCapabilities(format gputypes.TextureFormat) TextureFormatCapabilities
 
 	// Info returns adapter metadata.
-	// Matches webgpu Adapter.Info (gpu/webgpu/adapter.go:32).
+	// Matches webgpu Adapter.Info (gpu/webgpu/adapter.go:26).
 	Info() gputypes.AdapterInfo
 
 	// Features returns supported features.
-	// Matches webgpu Adapter.Features (gpu/webgpu/adapter.go:35).
+	// Matches webgpu Adapter.Features (gpu/webgpu/adapter.go:29).
 	Features() gputypes.Features
 
 	// Limits returns the adapter's resource limits.
-	// Matches webgpu Adapter.Limits (gpu/webgpu/adapter.go:38).
+	// Matches webgpu Adapter.Limits (gpu/webgpu/adapter.go:32).
 	Limits() gputypes.Limits
 
 	// RequestDevice creates a logical device from this adapter.
 	// If desc is nil, default features and limits are used.
-	// Matches webgpu Adapter.RequestDevice (gpu/webgpu/adapter.go:42).
+	// Matches webgpu Adapter.RequestDevice (gpu/webgpu/adapter.go:38).
 	// Queue is accessible via the returned Device.Queue().
 	RequestDevice(desc *DeviceDescriptor) (Device, error)
 
 	// GetSurfaceCapabilities returns capabilities for a specific surface.
 	// Returns nil if the adapter is not compatible with the surface.
-	// Matches webgpu Adapter.GetSurfaceCapabilities (gpu/webgpu/adapter.go:87).
+	// Matches webgpu Adapter.GetSurfaceCapabilities (gpu/webgpu/adapter.go:77).
 	GetSurfaceCapabilities(surface Surface) *SurfaceCapabilities
 
-	// Destroy releases the adapter.
+	// Release releases the adapter.
 	// Any devices created from this adapter must be destroyed first.
-	Destroy()
+	// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
+	Release()
 }
 
 // OpenDevice is returned when Adapter.Open succeeds.
@@ -137,7 +139,7 @@ type OpenDevice struct {
 }
 
 // PollType selects the blocking behavior of Device.Poll.
-// Mirrors gpu/webgpu PollType (gpu/webgpu/map_types.go:37).
+// PollType is canonical here since 7f (webgpu alias removed; browser variant independent).
 type PollType uint8
 
 const (
@@ -287,7 +289,7 @@ type Device interface {
 	// WaitForFence waits for a fence to reach the specified value.
 	// Returns true if the fence reached the value, false if timeout.
 	// Returns ErrDeviceLost if the device is lost.
-	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:426).
+	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:429).
 	WaitForFence(fence Fence, value uint64, timeout time.Duration) (bool, error)
 
 	// ResetFence resets a fence to the unsignaled state.
@@ -304,23 +306,23 @@ type Device interface {
 	WaitIdle() error
 
 	// Poll drives pending work and pumps callbacks.
-	// Matches webgpu Device.Poll (gpu/webgpu/device.go:481).
+	// Matches webgpu Device.Poll (gpu/webgpu/device.go:484).
 	Poll(pollType PollType) bool
 
 	// IsLost reports whether the device was marked lost.
-	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:531).
+	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:534).
 	IsLost() bool
 
 	// FlushCallbacks pumps pending callbacks and folds lost signals.
-	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:493).
+	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:496).
 	FlushCallbacks()
 
 	// PushErrorScope pushes a new error scope onto the device's error scope stack.
-	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:441).
+	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:444).
 	PushErrorScope(filter ErrorFilter)
 
 	// PopErrorScope pops the most recently pushed error scope.
-	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:450).
+	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:453).
 	PopErrorScope() *GPUError
 
 	// CreateAccelerationStructure creates an acceleration structure (BLAS or TLAS).

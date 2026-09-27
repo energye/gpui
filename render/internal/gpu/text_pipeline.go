@@ -12,7 +12,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text/msdf"
 )
@@ -71,7 +70,7 @@ const textUniformSize = 96
 //	MSDFTextPipeline owns shader, layout, pipeline, sampler
 //	bind groups are created per atlas texture (uniform + texture + sampler)
 type MSDFTextPipeline struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -105,7 +104,7 @@ type MSDFTextPipeline struct {
 // NewMSDFTextPipeline creates a new MSDF text pipeline with the given device
 // and queue. The render pipeline and GPU objects are not created until
 // ensurePipeline or ensurePipelineWithStencil is called.
-func NewMSDFTextPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *MSDFTextPipeline {
+func NewMSDFTextPipeline(device hal.Device, queue hal.Queue, sampleCount uint32) *MSDFTextPipeline {
 	return &MSDFTextPipeline{
 		device:      device,
 		queue:       queue,
@@ -344,7 +343,7 @@ func (p *MSDFTextPipeline) ensureDepthClipPipeline() error {
 // RecordDraws records MSDF text draw commands into an existing render pass.
 // When depthClipped is true (GPU-CLIP-003a), the depth-clipped pipeline
 // variant is used to test fragments against the depth clip buffer.
-func (p *MSDFTextPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *textFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
+func (p *MSDFTextPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *textFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || len(resources.drawCalls) == 0 {
 		return
 	}
@@ -732,7 +731,7 @@ type TextPipeline struct {
 	mu sync.RWMutex
 
 	// GPU device and queue references (hal interfaces)
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -748,7 +747,7 @@ type TextPipeline struct {
 
 // NewTextPipeline creates a new text rendering pipeline.
 // The pipeline must be initialized before use.
-func NewTextPipeline(device *webgpu.Device, queue hal.Queue, config TextPipelineConfig) (*TextPipeline, error) {
+func NewTextPipeline(device hal.Device, queue hal.Queue, config TextPipelineConfig) (*TextPipeline, error) {
 	if config.InitialQuadCapacity <= 0 {
 		config.InitialQuadCapacity = DefaultTextPipelineConfig().InitialQuadCapacity
 	}
@@ -768,7 +767,7 @@ func NewTextPipeline(device *webgpu.Device, queue hal.Queue, config TextPipeline
 }
 
 // NewTextPipelineDefault creates a text pipeline with default configuration.
-func NewTextPipelineDefault(device *webgpu.Device, queue hal.Queue) (*TextPipeline, error) {
+func NewTextPipelineDefault(device hal.Device, queue hal.Queue) (*TextPipeline, error) {
 	return NewTextPipeline(device, queue, DefaultTextPipelineConfig())
 }
 
@@ -921,7 +920,7 @@ type TextRenderer struct {
 	mu sync.RWMutex
 
 	// GPU resources
-	device *webgpu.Device
+	device hal.Device
 	queue  hal.Queue
 
 	// Pipeline (legacy wrapper)
@@ -957,7 +956,7 @@ func DefaultTextRendererConfig() TextRendererConfig {
 
 // NewTextRenderer creates a new text renderer with the given GPU device and
 // queue. The renderer manages a TextPipeline and AtlasManager internally.
-func NewTextRenderer(device *webgpu.Device, queue hal.Queue, config TextRendererConfig) (*TextRenderer, error) {
+func NewTextRenderer(device hal.Device, queue hal.Queue, config TextRendererConfig) (*TextRenderer, error) {
 	if device == nil {
 		return nil, ErrNilGPUDevice
 	}

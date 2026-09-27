@@ -102,7 +102,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	if _, err := queue.Submit(cmd); err != nil {
 		t.Fatal(err)
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	for _, o := range outs {
 		cache.putOutBGRA(o.tex, o.view, o.bounds.Dx(), o.bounds.Dy())
 	}
@@ -135,7 +135,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = queue.Submit(cmd2)
-	cmd2.Release()
+	device.FreeCommandBuffer(cmd2)
 	for _, o := range outs2 {
 		cache.putOutBGRA(o.tex, o.view, o.bounds.Dx(), o.bounds.Dy())
 	}

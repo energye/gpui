@@ -9,7 +9,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // L.06: modulate premul source by an R8 mask texture in a fragment shader.
@@ -53,7 +52,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
 type maskR8Cache struct {
 	mu       sync.Mutex
-	device   *webgpu.Device
+	device   hal.Device
 	shader   hal.ShaderModule
 	bgl      hal.BindGroupLayout
 	pipeLay  hal.PipelineLayout
@@ -87,7 +86,7 @@ func (c *maskR8Cache) release() {
 	c.device = nil
 }
 
-func (c *maskR8Cache) ensure(device *webgpu.Device) error {
+func (c *maskR8Cache) ensure(device hal.Device) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.device != nil && c.device != device {
@@ -199,7 +198,7 @@ func (c *maskR8Cache) ensure(device *webgpu.Device) error {
 // maskR8Modulate multiplies premul RGBA source by R8 mask on GPU.
 // srcRGBA is bw*bh*4, maskR8 is bw*bh (tight). Returns premul RGBA result.
 func maskR8Modulate(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *maskR8Cache,
 	srcRGBA, maskR8 []byte,
@@ -387,7 +386,7 @@ func maskR8Modulate(
 	if err != nil {
 		return nil, err
 	}
-	defer cmd.Release()
+	defer device.FreeCommandBuffer(cmd)
 	if _, err := queue.Submit(cmd); err != nil {
 		return nil, err
 	}

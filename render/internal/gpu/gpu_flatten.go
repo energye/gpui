@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
 
@@ -87,7 +86,7 @@ type GPUCursorState struct {
 type GPUFlattenRasterizer struct {
 	mu sync.Mutex
 
-	device *webgpu.Device
+	device hal.Device
 	queue  hal.Queue
 
 	// Compute pipelines
@@ -122,7 +121,7 @@ type GPUFlattenRasterizer struct {
 // NewGPUFlattenRasterizer creates a new GPU flatten rasterizer.
 // maxPaths: Maximum number of path elements to process
 // maxSegments: Maximum number of output segments
-func NewGPUFlattenRasterizer(device *webgpu.Device, queue hal.Queue, maxPaths, maxSegments int) (*GPUFlattenRasterizer, error) {
+func NewGPUFlattenRasterizer(device hal.Device, queue hal.Queue, maxPaths, maxSegments int) (*GPUFlattenRasterizer, error) {
 	if device == nil || queue == nil {
 		return nil, fmt.Errorf("gpu_flatten: device and queue are required")
 	}

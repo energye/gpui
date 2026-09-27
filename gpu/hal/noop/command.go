@@ -20,6 +20,11 @@ func (c *CommandEncoder) EndEncoding() (hal.CommandBuffer, error) {
 	return &Resource{}, nil
 }
 
+// Finish implements hal.CommandEncoder: same as EndEncoding (webgpu parity).
+func (c *CommandEncoder) Finish() (hal.CommandBuffer, error) {
+	return c.EndEncoding()
+}
+
 // DiscardEncoding is a no-op.
 func (c *CommandEncoder) DiscardEncoding() {}
 

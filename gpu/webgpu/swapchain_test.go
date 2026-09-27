@@ -41,7 +41,7 @@ func TestSwapchain_CreateSurfaceInvalidHandles(t *testing.T) {
 	defer inst.Release()
 
 	// Invalid platform handles must fail cleanly (not abort the process).
-	_, err = inst.CreateSurface(0, 0)
+	_, err = inst.CreateSurfaceFromHandles(0, 0)
 	if err == nil {
 		t.Fatal("CreateSurface(0,0) should return an error, not succeed or abort")
 	}
@@ -98,7 +98,7 @@ func TestSwapchain_FramePairing_DiscardClearsOpen(t *testing.T) {
 func TestSwapchain_EnableAutoRecover_Fields(t *testing.T) {
 	sc := webgpu.NewSwapchain(nil, nil, 64, 64)
 	called := false
-	sc.EnableAutoRecover(nil, "label-x", func(d *webgpu.Device) {
+	sc.EnableAutoRecover(nil, "label-x", func(d hal.Device) {
 		called = true
 		_ = d
 	})

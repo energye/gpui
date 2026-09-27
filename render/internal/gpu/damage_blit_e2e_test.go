@@ -9,7 +9,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // TestDamageBlit_LoadOpLoad_PreservesContent verifies that LoadOpLoad + scissor
@@ -124,7 +123,7 @@ func TestDamageBlit_NBufferAccumulation(t *testing.T) {
 
 // --- Helpers ---
 
-func readbackTexture(t *testing.T, device *webgpu.Device, queue hal.Queue, tex hal.Texture, w, h int) []byte {
+func readbackTexture(t *testing.T, device hal.Device, queue hal.Queue, tex hal.Texture, w, h int) []byte {
 	t.Helper()
 	rowBytes := uint32(w * 4)
 	paddedRowBytes := alignTo(rowBytes, 256)

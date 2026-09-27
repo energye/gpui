@@ -36,7 +36,7 @@ func (m *mockInstance) RequestAdapter(_ *hal.RequestAdapterOptions) (hal.Adapter
 	return nil, hal.ErrBackendNotFound
 }
 func (m *mockInstance) ProcessEvents() {}
-func (m *mockInstance) Destroy()       {}
+func (m *mockInstance) Release()       {}
 
 // mockSurface is a minimal surface implementation for testing.
 type mockSurface struct{}
@@ -242,6 +242,6 @@ func TestNoopBackendRegistered(t *testing.T) {
 		t.Errorf("expected CreateInstance to succeed for noop backend, got error: %v", err)
 	}
 	if instance != nil {
-		instance.Destroy()
+		instance.Release()
 	}
 }

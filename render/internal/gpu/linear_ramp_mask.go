@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // N1 textured param cover: sample 1D premul ramp by gradient parameter t
@@ -161,7 +160,7 @@ type linearRampMaskParams struct {
 
 type linearRampMaskCache struct {
 	mu       sync.Mutex
-	device   *webgpu.Device
+	device   hal.Device
 	shader   hal.ShaderModule
 	bgl      hal.BindGroupLayout
 	pipeLay  hal.PipelineLayout
@@ -195,7 +194,7 @@ func (c *linearRampMaskCache) release() {
 	c.device = nil
 }
 
-func (c *linearRampMaskCache) ensure(device *webgpu.Device) error {
+func (c *linearRampMaskCache) ensure(device hal.Device) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.device != nil && c.device != device {
@@ -337,7 +336,7 @@ func encodeLinearRampMaskUniform(p linearRampMaskParams) []byte {
 // linearRampMaskExpand samples 1D premul ramp by projected t and multiplies by
 // R8 coverage on GPU. ramp is n*4 premul RGBA; maskR8 is nw*nh.
 func linearRampMaskExpand(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *linearRampMaskCache,
 	ramp []byte,
@@ -528,7 +527,7 @@ func linearRampMaskExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer cmd.Release()
+	defer device.FreeCommandBuffer(cmd)
 	if _, err := queue.Submit(cmd); err != nil {
 		return nil, err
 	}

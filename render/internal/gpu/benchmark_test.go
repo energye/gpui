@@ -5,7 +5,7 @@ package gpu
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
@@ -23,7 +23,7 @@ func BenchmarkPipelineCreation(b *testing.B) {
 		Composite: ShaderModuleID(4),
 	}
 
-	var device *webgpu.Device
+	var device hal.Device
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -44,7 +44,7 @@ func BenchmarkBlendPipelineCache(b *testing.B) {
 		Composite: ShaderModuleID(4),
 	}
 
-	var device *webgpu.Device
+	var device hal.Device
 	pc, err := NewPipelineCache(device, shaders)
 	if err != nil {
 		b.Fatalf("NewPipelineCache failed: %v", err)

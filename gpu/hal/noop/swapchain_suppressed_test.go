@@ -22,7 +22,7 @@ func TestSetSwapchainSuppressed_NoopNoPanic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	adapters := instance.EnumerateAdapters(nil)
 	if len(adapters) == 0 {
@@ -50,7 +50,7 @@ func TestSetSwapchainSuppressed_SubmitDuringSuppression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, err := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
@@ -106,7 +106,7 @@ func TestSetSwapchainSuppressed_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, err := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
@@ -138,7 +138,7 @@ func BenchmarkSetSwapchainSuppressed(b *testing.B) {
 
 	api := noop.NewBackend()
 	instance, _ := api.CreateInstance(nil)
-	defer instance.Destroy()
+	defer instance.Release()
 
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, _ := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())

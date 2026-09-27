@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 //go:embed shaders/coarse.wgsl
@@ -34,7 +33,7 @@ type GPUCoarseConfig struct {
 type GPUCoarseRasterizer struct {
 	mu sync.Mutex
 
-	device *webgpu.Device
+	device hal.Device
 	queue  hal.Queue
 
 	// Compute pipelines
@@ -67,7 +66,7 @@ type GPUCoarseRasterizer struct {
 
 // NewGPUCoarseRasterizer creates a new GPU coarse rasterizer.
 // Returns an error if GPU compute is not supported.
-func NewGPUCoarseRasterizer(device *webgpu.Device, queue hal.Queue, width, height uint16) (*GPUCoarseRasterizer, error) {
+func NewGPUCoarseRasterizer(device hal.Device, queue hal.Queue, width, height uint16) (*GPUCoarseRasterizer, error) {
 	if device == nil || queue == nil {
 		return nil, fmt.Errorf("gpu_coarse: device and queue are required")
 	}

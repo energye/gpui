@@ -23,7 +23,8 @@ type CommandEncoder struct {
 // path does not allocate. Descriptors are only live for the duration of the
 // rwgpu BeginRenderPass call (native copies immediately).
 // Param is hal.RenderPassDescriptor (callers' keyed literals unchanged).
-func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (*RenderPassEncoder, error) {
+// Implements hal.CommandEncoder (returns hal.RenderPassEncoder interface).
+func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error) {
 	if e.released {
 		return nil, ErrReleased
 	}
@@ -93,7 +94,8 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (*Rende
 
 // BeginComputePass begins a compute pass.
 // Param is hal.ComputePassDescriptor (render passes Label only).
-func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (*ComputePassEncoder, error) {
+// Implements hal.CommandEncoder (returns hal.ComputePassEncoder interface).
+func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error) {
 	if e.released {
 		return nil, ErrReleased
 	}
@@ -287,7 +289,8 @@ func (e *CommandEncoder) DiscardEncoding() {
 // The native command encoder is released after Finish (wgpu refcounting);
 // callers must still FreeCommandBuffer/Release the resulting CommandBuffer
 // after GPU completion.
-func (e *CommandEncoder) Finish() (*CommandBuffer, error) {
+// Implements hal.CommandEncoder (returns hal.CommandBuffer interface).
+func (e *CommandEncoder) Finish() (hal.CommandBuffer, error) {
 	if e.released {
 		return nil, ErrReleased
 	}
@@ -420,3 +423,5 @@ func convertRenderPassDescriptorRust(desc *hal.RenderPassDescriptor) *rwgpu.Rend
 
 	return rDesc
 }
+
+var _ hal.CommandEncoder = (*CommandEncoder)(nil)

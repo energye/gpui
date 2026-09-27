@@ -165,8 +165,9 @@ func (a *Adapter) GetSurfaceCapabilities(surface hal.Surface) *hal.SurfaceCapabi
 	}
 }
 
-// Destroy releases the adapter.
-func (a *Adapter) Destroy() {
+// Release releases the adapter.
+// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
+func (a *Adapter) Release() {
 	if a.raw != 0 {
 		Release(a.raw)
 		a.raw = 0

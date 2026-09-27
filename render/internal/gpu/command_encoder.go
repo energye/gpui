@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Command encoder errors.
@@ -92,7 +91,7 @@ type CoreCommandEncoder struct {
 	mu sync.Mutex
 
 	// gpuEncoder is the underlying WebGPU command encoder.
-	gpuEncoder *webgpu.CommandEncoder
+	gpuEncoder hal.CommandEncoder
 
 	// device is the parent gpu backend device reference.
 	device *Backend
@@ -766,7 +765,7 @@ type ImageCopyTexture struct {
 // to a Queue for execution.
 type CoreCommandBuffer struct {
 	// gpuBuffer is the underlying WebGPU command buffer.
-	gpuBuffer *webgpu.CommandBuffer
+	gpuBuffer hal.CommandBuffer
 
 	// label is the debug label.
 	label string
@@ -781,7 +780,7 @@ func (cb *CoreCommandBuffer) Label() string {
 }
 
 // Raw returns the underlying WebGPU command buffer.
-func (cb *CoreCommandBuffer) Raw() *webgpu.CommandBuffer {
+func (cb *CoreCommandBuffer) Raw() hal.CommandBuffer {
 	if cb == nil {
 		return nil
 	}

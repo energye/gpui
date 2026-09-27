@@ -9,7 +9,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -53,7 +52,7 @@ type imageCacheEntry struct {
 // S6.7: entry + byte budgets, upload diagnostics, ephemeral (gen=0) release,
 // staging scratch pool for non-tight stride copies.
 type ImageCache struct {
-	device *webgpu.Device
+	device hal.Device
 	queue  hal.Queue
 
 	entries     map[uint64]*imageCacheEntry // keyed by Pixmap.GenerationID()
@@ -116,7 +115,7 @@ func releaseImageStaging(p *[]byte) {
 }
 
 // NewImageCache creates a new image texture cache with the given device and queue.
-func NewImageCache(device *webgpu.Device, queue hal.Queue) *ImageCache {
+func NewImageCache(device hal.Device, queue hal.Queue) *ImageCache {
 	c := &ImageCache{
 		device:      device,
 		queue:       queue,

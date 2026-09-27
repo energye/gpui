@@ -19,11 +19,11 @@ import (
 // Other windows/processes may release memory between retries; this mirrors
 // Flutter's degrade-not-crash behavior on transient resource pressure.
 // Implemented here rather than render/internal/gpu to avoid an import cycle.
-func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *hal.DeviceDescriptor, label string) (*webgpu.Device, error) {
+func requestPresentDeviceWithRetry(adapter hal.Adapter, desc *hal.DeviceDescriptor, label string) (hal.Device, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("adapter is nil")
 	}
-	var device *webgpu.Device
+	var device hal.Device
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
 		device, err = adapter.RequestDevice(desc)
@@ -47,7 +47,7 @@ func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *hal.DeviceDesc
 // Open-time half of the single OOM policy (render.OOMExitThreshold): the gate
 // degrades through present levels here, the runtime present loop exits after
 // the same threshold — one threshold and one OOM phrasing decide both.
-func waitDeviceReady(inst *webgpu.Instance, device *webgpu.Device, label string) error {
+func waitDeviceReady(inst hal.Instance, device hal.Device, label string) error {
 	deadlineMs := int64(8000)
 	if v := os.Getenv("GPUI_GPU_READY_TIMEOUT_MS"); v != "" {
 		var n int64
@@ -129,13 +129,13 @@ type PresentTarget struct {
 	logicH int
 	scale  float64
 
-	inst    *webgpu.Instance
-	adapter *webgpu.Adapter
-	device  *webgpu.Device
+	inst    hal.Instance
+	adapter hal.Adapter
+	device  hal.Device
 	// shared marks instance/adapter/device as borrowed from the process
 	// share (Close must not release them; the share does on last close).
 	shared bool
-	surf   *webgpu.Surface
+	surf   hal.Surface
 	sc     *webgpu.Swapchain
 	dc     *Context
 
@@ -215,9 +215,9 @@ type PresentTarget struct {
 // opens (an open that fails after acquiring never leaks a count).
 var (
 	shareMu      sync.Mutex
-	shareInst    *webgpu.Instance
-	shareAdapter *webgpu.Adapter
-	shareDevice  *webgpu.Device
+	shareInst    hal.Instance
+	shareAdapter hal.Adapter
+	shareDevice  hal.Device
 	shareRefs    int
 )
 
@@ -227,14 +227,14 @@ var (
 // per process on 1GB cards. Exported for render/internal/gpu; the refcount
 // is owned by PresentTarget Close — borrowers must NOT Release the handle.
 // Only answers "is a shared device open" without taking a refcount.
-func AcquireSharedPresentDevice() (inst *webgpu.Instance, adapter *webgpu.Adapter, device *webgpu.Device, borrowable bool, err error) {
+func AcquireSharedPresentDevice() (inst hal.Instance, adapter hal.Adapter, device hal.Device, borrowable bool, err error) {
 	return acquireSharedPresentDevice()
 }
 
 // acquireSharedPresentDevice reports the share state for diagnostics.
 // Borrowable windows go through buildSharedSurface directly; this helper
 // only answers "is a shared device open" without taking a refcount.
-func acquireSharedPresentDevice() (inst *webgpu.Instance, adapter *webgpu.Adapter, device *webgpu.Device, borrowable bool, err error) {
+func acquireSharedPresentDevice() (inst hal.Instance, adapter hal.Adapter, device hal.Device, borrowable bool, err error) {
 	shareMu.Lock()
 	defer shareMu.Unlock()
 	if shareDevice != nil {
@@ -360,37 +360,38 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 
 	// Surface backend MUST match handle types (Xlib Display*/Window vs wl_*).
 	// Driven by PresentNativeSurface.Platform — never guess from env alone.
+	// hal.SurfaceTarget carries the kind; webgpu maps it to its backend path.
 	backend := surfaceBackendFor(ns.Platform)
-	surf, err := inst.CreateSurfaceFor(backend, ns.Display, ns.Window)
+	surf, err := inst.CreateSurface(surfaceTargetFor(ns))
 	if err != nil {
 		inst.Release()
 		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
 	}
 
 	policy := lv.policy
-	var adapter *webgpu.Adapter
+	var adapter hal.Adapter
 	var forceFallback bool
 	if lv.software {
-		adapter, err = inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+		adapter, err = inst.RequestAdapter(&hal.RequestAdapterOptions{
 			PowerPreference:      types.PowerPreferenceNone,
 			ForceFallbackAdapter: true,
 			CompatibleSurface:    surf,
 		})
 		forceFallback = err == nil
 		if err != nil {
-			surf.Release()
+			surf.Destroy()
 			inst.Release()
 			return nil, fmt.Errorf("render: RequestAdapter: %w", err)
 		}
 	} else {
 		adapter, forceFallback, err = RequestAdapterWithPolicy(inst, surf, policy)
 		if err != nil {
-			surf.Release()
+			surf.Destroy()
 			inst.Release()
 			return nil, fmt.Errorf("render: RequestAdapter: %w", err)
 		}
 	}
-	ai := webgpu.AdapterInfo{}
+	ai := types.AdapterInfo{}
 	if adapter != nil {
 		ai = adapter.Info()
 	}
@@ -406,7 +407,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	device, err := requestPresentDeviceWithRetry(adapter, DeviceDescriptorForAdapter("ui-l1-present", adapter), "ui-l1-present")
 	if err != nil {
 		adapter.Release()
-		surf.Release()
+		surf.Destroy()
 		inst.Release()
 		return nil, fmt.Errorf("render: RequestDevice: %w", err)
 	}
@@ -420,7 +421,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	if err := waitDeviceReady(inst, device, "ui-l1-present"); err != nil {
 		device.Release()
 		adapter.Release()
-		surf.Release()
+		surf.Destroy()
 		inst.Release()
 		return nil, err
 	}
@@ -446,7 +447,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		sc.SetPreferVSync()
 	}
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
-		surf.Release()
+		surf.Destroy()
 		device.Release()
 		adapter.Release()
 		inst.Release()
@@ -462,7 +463,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	if shareDevice != nil {
 		shareMu.Unlock()
 		sc.Release()
-		surf.Release()
+		surf.Destroy()
 		device.Release()
 		adapter.Release()
 		inst.Release()
@@ -511,7 +512,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 }
 
 // peekShared snapshots the share state (borrowable = device published).
-func peekShared() (inst *webgpu.Instance, adapter *webgpu.Adapter, device *webgpu.Device, borrowable bool, refs int) {
+func peekShared() (inst hal.Instance, adapter hal.Adapter, device hal.Device, borrowable bool, refs int) {
 	shareMu.Lock()
 	defer shareMu.Unlock()
 	return shareInst, shareAdapter, shareDevice, shareDevice != nil, shareRefs
@@ -541,7 +542,7 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		shareMu.Unlock()
 	}
 	backend := surfaceBackendFor(ns.Platform)
-	surf, err := inst.CreateSurfaceFor(backend, ns.Display, ns.Window)
+	surf, err := inst.CreateSurface(surfaceTargetFor(ns))
 	if err != nil {
 		dropPin()
 		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
@@ -551,7 +552,7 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
 	sc.SetPreferVSync()
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
-		surf.Release()
+		surf.Destroy()
 		dropPin()
 		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
 	}
@@ -563,7 +564,7 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		shareRefs--
 		shareMu.Unlock()
 		sc.Release()
-		surf.Release()
+		surf.Destroy()
 		return nil, fmt.Errorf("render: shared present device changed during open: %w", errSharedNotOpen)
 	}
 	shareMu.Unlock()
@@ -611,6 +612,23 @@ func surfaceBackendFor(p PresentPlatform) webgpu.SurfaceBackend {
 	default:
 		return webgpu.SurfaceBackendXlib
 	}
+}
+
+// surfaceTargetFor maps a present platform + raw handles to a hal.SurfaceTarget.
+// Kind selects the window-system path; handles stay caller-owned.
+func surfaceTargetFor(ns PresentNativeSurface) hal.SurfaceTarget {
+	var kind hal.SurfaceTargetKind
+	switch ns.Platform {
+	case PresentPlatformWayland:
+		kind = hal.SurfaceTargetWaylandSurface
+	case PresentPlatformWin32:
+		kind = hal.SurfaceTargetWindowsHWND
+	case PresentPlatformAppKit:
+		kind = hal.SurfaceTargetMetalLayer
+	default:
+		kind = hal.SurfaceTargetXlibWindow
+	}
+	return hal.SurfaceTarget{Kind: kind, DisplayHandle: ns.Display, WindowHandle: ns.Window}
 }
 
 func physicalSize(logicalW, logicalH int, scale float64) (uint32, uint32) {
@@ -1153,7 +1171,7 @@ func (t *PresentTarget) Close() error {
 		t.sc = nil
 	}
 	if t.surf != nil {
-		t.surf.Release()
+		t.surf.Destroy()
 		t.surf = nil
 	}
 	if t.shared {

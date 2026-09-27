@@ -132,7 +132,7 @@ type GPUAccelerator interface {
 // device instead of creating its own.
 //
 // The provider's Device() returns gpucontext.Device (opaque handle).
-// Use wgpu.DeviceFromHandle() to extract the concrete *wgpu.Device:
+// Use wgpu.DeviceFromHandle() to extract the hal.Device:
 //
 //	wgpuDev := wgpu.DeviceFromHandle(provider.Device())
 type DeviceProviderAware interface {

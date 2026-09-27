@@ -156,10 +156,10 @@ func TestSurfaceGate_NilReleasedPresent(t *testing.T) {
 		t.Fatalf("released Present: %v", err)
 	}
 	// Unconfigure / Release must not panic on nil/released.
-	s.Unconfigure()
+	s.Unconfigure(nil)
 	s.Release()
 	var nilSurf *Surface
-	nilSurf.Unconfigure()
+	nilSurf.Unconfigure(nil)
 	nilSurf.Release()
 }
 

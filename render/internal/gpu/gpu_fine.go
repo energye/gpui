@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
 
@@ -85,7 +84,7 @@ func FillRuleToGPU(rule scene.FillStyle) uint32 {
 type GPUFineRasterizer struct {
 	mu sync.Mutex
 
-	device *webgpu.Device
+	device hal.Device
 	queue  hal.Queue
 
 	// Compute pipelines
@@ -115,7 +114,7 @@ type GPUFineRasterizer struct {
 
 // NewGPUFineRasterizer creates a new GPU fine rasterizer.
 // Returns an error if GPU compute is not supported.
-func NewGPUFineRasterizer(device *webgpu.Device, queue hal.Queue, width, height uint16) (*GPUFineRasterizer, error) {
+func NewGPUFineRasterizer(device hal.Device, queue hal.Queue, width, height uint16) (*GPUFineRasterizer, error) {
 	if device == nil || queue == nil {
 		return nil, fmt.Errorf("gpu_fine: device and queue are required")
 	}

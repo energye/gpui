@@ -45,14 +45,14 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 		t.Skipf("CreateInstance: %v", err)
 	}
 
-	surf, err := inst.CreateSurface(xw.display, xw.window)
+	surf, err := inst.CreateSurfaceFromHandles(xw.display, xw.window)
 	if err != nil {
 		inst.Release()
 		xw.close()
 		t.Fatalf("CreateSurface: %v", err)
 	}
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+	adapter, err := inst.RequestAdapter(&hal.RequestAdapterOptions{
 		PowerPreference:   types.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})

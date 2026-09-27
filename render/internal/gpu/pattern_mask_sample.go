@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // N2 textured pattern cover: sample ImagePattern source texture by inverse
@@ -117,7 +116,7 @@ type patternMaskSampleParams struct {
 
 type patternMaskSampleCache struct {
 	mu       sync.Mutex
-	device   *webgpu.Device
+	device   hal.Device
 	shader   hal.ShaderModule
 	bgl      hal.BindGroupLayout
 	pipeLay  hal.PipelineLayout
@@ -151,7 +150,7 @@ func (c *patternMaskSampleCache) release() {
 	c.device = nil
 }
 
-func (c *patternMaskSampleCache) ensure(device *webgpu.Device) error {
+func (c *patternMaskSampleCache) ensure(device hal.Device) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.device != nil && c.device != device {
@@ -295,7 +294,7 @@ func encodePatternMaskSampleUniform(p patternMaskSampleParams) []byte {
 // patternMaskSampleExpand samples pattern tile by inverse map × R8 coverage on GPU.
 // tile is srcW*srcH*4 premul RGBA; maskR8 is nw*nh.
 func patternMaskSampleExpand(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *patternMaskSampleCache,
 	tile []byte,
@@ -487,7 +486,7 @@ func patternMaskSampleExpand(
 	if err != nil {
 		return nil, err
 	}
-	defer cmd.Release()
+	defer device.FreeCommandBuffer(cmd)
 	if _, err := queue.Submit(cmd); err != nil {
 		return nil, err
 	}

@@ -13,7 +13,6 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/internal/gpu/res"
 	"github.com/energye/gpui/render/internal/stroke"
@@ -113,7 +112,7 @@ type GPURenderContext struct {
 	// Shared command encoder for single-command-buffer frames (ADR-017).
 	// When set, Flush records render passes into this encoder instead of
 	// creating its own + submitting. The caller owns Finish + Submit.
-	sharedEncoder *webgpu.CommandEncoder
+	sharedEncoder hal.CommandEncoder
 
 	// Deferred advanced-blend layer pops (Multiply/Screen/…). PopLayer during
 	// draw often has no surface View yet (present View arrives at
@@ -153,7 +152,7 @@ type offscreenPooled struct {
 	// dev is the device the texture was created on. Takes reject items
 	// from a previous device (shared recovery replaces it) instead of
 	// handing a dead-device texture to a new-device record.
-	dev *webgpu.Device
+	dev hal.Device
 }
 
 // pendingAdvancedLayer is a PopLayer advanced blend resolved at Flush.
@@ -353,7 +352,14 @@ func (rc *GPURenderContext) SetSharedEncoder(encoder gpucontext.CommandEncoder) 
 		rc.sharedEncoder = nil
 		return
 	}
-	rc.sharedEncoder = (*webgpu.CommandEncoder)(encoder.Pointer())
+	// gpucontext handle holds a boxed hal.CommandEncoder (see CreateEncoder);
+	// unbox without naming a concrete backend type.
+	boxed := (*hal.CommandEncoder)(encoder.Pointer())
+	if boxed != nil && *boxed != nil {
+		rc.sharedEncoder = *boxed
+		return
+	}
+	rc.sharedEncoder = nil
 }
 
 // CreateEncoder creates a new command encoder for shared use across contexts.
@@ -369,7 +375,11 @@ func (rc *GPURenderContext) CreateEncoder() gpucontext.CommandEncoder {
 	if err != nil {
 		return gpucontext.CommandEncoder{}
 	}
-	return gpucontext.NewCommandEncoder(unsafe.Pointer(enc)) //nolint:gosec // Go spec Rule 1 (ADR-018)
+	// Box the hal interface so the opaque gpucontext handle never names a
+	// concrete backend type; unboxed in SetSharedEncoder/SubmitEncoder.
+	boxed := new(hal.CommandEncoder)
+	*boxed = enc
+	return gpucontext.NewCommandEncoder(unsafe.Pointer(boxed)) //nolint:gosec // Go spec Rule 1 (ADR-018)
 }
 
 // SubmitEncoder finishes the shared encoder and submits the command buffer.
@@ -380,7 +390,11 @@ func (rc *GPURenderContext) SubmitEncoder(encoder gpucontext.CommandEncoder) err
 	if encoder.IsNil() {
 		return fmt.Errorf("nil command encoder")
 	}
-	enc := (*webgpu.CommandEncoder)(encoder.Pointer())
+	boxed := (*hal.CommandEncoder)(encoder.Pointer())
+	if boxed == nil || *boxed == nil {
+		return fmt.Errorf("invalid command encoder handle")
+	}
+	enc := *boxed
 	cmdBuf, err := enc.Finish()
 	if err != nil {
 		return fmt.Errorf("finish shared encoder: %w", err)
@@ -2578,7 +2592,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// opt39 instead applies convex vertex sticky (see buildConvexResources).
 	singleSubmit := false && useScratch && rc.sharedEncoder == nil && len(rc.pendingAdvancedLayers) > 0 &&
 		rc.session != nil && rc.session.device != nil && rc.session.queue != nil
-	var frameEnc *webgpu.CommandEncoder
+	var frameEnc hal.CommandEncoder
 	if singleSubmit {
 		enc, eerr := rc.session.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "f1_frame_enc"})
 		if eerr == nil && enc != nil {
@@ -2885,7 +2899,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayers(target render.GPURender
 	return rc.resolvePendingAdvancedLayersEnc(target, nil)
 }
 
-func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURenderTarget, enc *webgpu.CommandEncoder) error {
+func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURenderTarget, enc hal.CommandEncoder) error {
 	if rc == nil || len(rc.pendingAdvancedLayers) == 0 {
 		return nil
 	}
@@ -3268,7 +3282,7 @@ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, pay
 		return err
 	} else {
 		// wgpu-native does not drop the CB ref on Submit; release manually.
-		cmdBuf.Release()
+		rc.shared.Device().FreeCommandBuffer(cmdBuf)
 	}
 	// The view now holds pass content: the closing flush must load, not
 	// clear. Transfer via per-context frame tracking (consumed by Flush at
@@ -3344,7 +3358,7 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 		return err
 	} else {
 		// wgpu-native does not drop the CB ref on Submit; release manually.
-		cmdBuf.Release()
+		rc.shared.Device().FreeCommandBuffer(cmdBuf)
 	}
 	return nil
 }
@@ -3410,7 +3424,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 	// inside offscreenPoolMu). The pool lock itself is held only for
 	// map surgery below — never across the slow native allocs further
 	// down, so a stalled CreateTexture cannot block pool returns/purges.
-	var liveDev *webgpu.Device
+	var liveDev hal.Device
 	poolOn := os.Getenv("GPUI_NO_OFFSCREEN_POOL") != "1"
 	if poolOn && rc.shared != nil {
 		liveDev = rc.shared.Device()
@@ -3493,7 +3507,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 // overflow (pre-R6-3 behavior). The closure may run on the release path
 // (deferred ≥2 frames after last use), so pooled items are always past
 // in-flight command buffers by construction.
-func (rc *GPURenderContext) makePoolRelease(key [2]int, tex hal.Texture, view hal.TextureView, dev *webgpu.Device) func() {
+func (rc *GPURenderContext) makePoolRelease(key [2]int, tex hal.Texture, view hal.TextureView, dev hal.Device) func() {
 	return func() {
 		if rc == nil {
 			if view != nil {

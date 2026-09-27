@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Render pass errors.
@@ -101,7 +100,7 @@ type RenderPassEncoder struct {
 	mu sync.Mutex
 
 	// gpuPass is the underlying render pass encoder.
-	gpuPass *webgpu.RenderPassEncoder
+	gpuPass hal.RenderPassEncoder
 
 	// encoder is the parent command encoder.
 	encoder *CoreCommandEncoder

@@ -62,8 +62,9 @@ func (i *Instance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter {
 	}
 }
 
-// Destroy is a no-op for the noop instance.
-func (i *Instance) Destroy() {}
+// Release is a no-op for the noop instance.
+// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
+func (i *Instance) Release() {}
 
 // RequestAdapter returns the default noop adapter.
 // Matches webgpu Instance.RequestAdapter shape; options are accepted

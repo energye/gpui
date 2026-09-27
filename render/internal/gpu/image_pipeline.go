@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 //go:embed shaders/textured_quad.wgsl
@@ -120,7 +119,7 @@ type ImageDrawCommand struct {
 //	ImageCache (on GPUShared) owns per-image GPU textures
 //	Bind groups are created per-batch (uniform + texture + sampler)
 type TexturedQuadPipeline struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -175,7 +174,7 @@ type TexturedQuadPipeline struct {
 }
 
 // NewTexturedQuadPipeline creates a new textured quad pipeline.
-func NewTexturedQuadPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *TexturedQuadPipeline {
+func NewTexturedQuadPipeline(device hal.Device, queue hal.Queue, sampleCount uint32) *TexturedQuadPipeline {
 	return &TexturedQuadPipeline{
 		device:      device,
 		queue:       queue,
@@ -463,7 +462,7 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 // clipBG must be non-nil whenever the blit layout includes the @group(1)
 // RRect clip group (callers pass the group's clip bind group or the shared
 // no-clip one); it is ignored otherwise.
-func (p *TexturedQuadPipeline) RecordBlitDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup) {
+func (p *TexturedQuadPipeline) RecordBlitDraws(rp hal.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup) {
 	if p.blitPipeline == nil || res == nil {
 		return
 	}
@@ -582,7 +581,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 // Each draw call renders one textured quad with its own bind group (texture + uniform).
 // When depthClipped is true (GPU-CLIP-003a), the depth-clipped pipeline
 // variant is used to test fragments against the depth clip buffer.
-func (p *TexturedQuadPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
+func (p *TexturedQuadPipeline) RecordDraws(rp hal.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
 	// Clear prior bind groups before pipeline switch (incompatible group-0 layouts).
 	clearPassBindGroups(rp)

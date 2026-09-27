@@ -811,7 +811,7 @@ func (r *GPUSceneRenderer) clearTexture(tex *GPUTexture) error {
 	if err != nil {
 		return fmt.Errorf("finish clear encoder: %w", err)
 	}
-	defer cmdBuf.Release()
+	defer r.backend.Device().FreeCommandBuffer(cmdBuf)
 
 	if _, err := r.backend.Queue().Submit(cmdBuf); err != nil {
 		return fmt.Errorf("submit clear pass: %w", err)

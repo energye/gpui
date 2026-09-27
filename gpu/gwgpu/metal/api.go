@@ -176,8 +176,9 @@ func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapt
 	return adapters
 }
 
-// Destroy releases the instance.
-func (i *Instance) Destroy() {
+// Release releases the instance.
+// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
+func (i *Instance) Release() {
 	// Nothing to release
 }
 

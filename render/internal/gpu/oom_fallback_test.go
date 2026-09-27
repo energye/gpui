@@ -86,11 +86,11 @@ func TestTextureSet_DegradedLatch(t *testing.T) {
 
 // TestCreateTextureRetryOOM_SmallHeapInjection is the texture-level OOM
 // injection gate (multiwindow 1.3 验收3). There is no small-heap device
-// fixture in this repo (no fake webgpu.Device injection point), so a live
+// fixture in this repo (no fake hal.Device injection point), so a live
 // OOM cannot be forced deterministically here — the downgrade path is
 // instead proven by the dual-window pressure真窗 (R6+m5 occupy the 1GB
 // dGPU, accept downgrades with gpu_fallbacks=1) plus the latch unit test
 // above. Explicit skip, never silent green.
 func TestCreateTextureRetryOOM_SmallHeapInjection(t *testing.T) {
-	t.Skipf("no small-heap webgpu.Device fixture: live texture-OOM injection needs a capped-heap device which this repo does not provide; coverage via pressure真窗 (gpu_fallbacks=1) + TestTextureSet_FailFastLatch")
+	t.Skipf("no small-heap hal.Device fixture: live texture-OOM injection needs a capped-heap device which this repo does not provide; coverage via pressure真窗 (gpu_fallbacks=1) + TestTextureSet_FailFastLatch")
 }

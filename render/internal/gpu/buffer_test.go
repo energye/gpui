@@ -9,11 +9,10 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // createNativeBuffer creates a real buffer via the native device for testing.
-func createNativeBuffer(t *testing.T, device *webgpu.Device, size uint64, usage types.BufferUsage, mapped bool) hal.Buffer {
+func createNativeBuffer(t *testing.T, device hal.Device, size uint64, usage types.BufferUsage, mapped bool) hal.Buffer {
 	t.Helper()
 	buf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label:            "native-test-buffer",

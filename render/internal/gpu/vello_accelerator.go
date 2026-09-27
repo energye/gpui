@@ -38,8 +38,8 @@ import (
 type VelloAccelerator struct {
 	mu sync.Mutex
 
-	instance *webgpu.Instance // standalone mode only; nil when using external device
-	device   *webgpu.Device
+	instance hal.Instance // standalone mode only; nil when using external device
+	device   hal.Device
 	queue    hal.Queue
 
 	dispatcher *VelloComputeDispatcher
@@ -136,7 +136,7 @@ func (a *VelloAccelerator) CanCompute() bool {
 
 // SetDeviceProvider switches the accelerator to use a shared GPU device
 // from an external provider (e.g., gogpu). The provider's Device() must
-// return a *wgpu.Device (as gpucontext.Device).
+// return a gpucontext handle wrapping a hal.Device (see webgpu.DeviceToHandle).
 func (a *VelloAccelerator) SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	if provider == nil {
 		return nil
@@ -146,16 +146,16 @@ func (a *VelloAccelerator) SetDeviceProvider(provider gpucontext.DeviceProvider)
 		return fmt.Errorf("vello-compute: provider Device is nil")
 	}
 
-	wgpuDev := webgpu.DeviceFromHandle(dev)
-	if wgpuDev == nil {
+	halDev := webgpu.DeviceFromHandle(dev)
+	if halDev == nil {
 		return fmt.Errorf("vello-compute: provider Device handle is invalid")
 	}
-	wgpuQueue := wgpuDev.Queue()
-	if wgpuQueue == nil {
+	halQueue := halDev.Queue()
+	if halQueue == nil {
 		return fmt.Errorf("vello-compute: provider Queue is nil")
 	}
-	device := wgpuDev
-	queue := wgpuQueue
+	device := halDev
+	queue := halQueue
 
 	a.mu.Lock()
 	defer a.mu.Unlock()

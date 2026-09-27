@@ -8,7 +8,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -45,7 +44,7 @@ func (g *GPUInfo) String() string {
 }
 
 // getGPUInfo retrieves information about the GPU adapter.
-func getGPUInfo(adapter *webgpu.Adapter) (*GPUInfo, error) {
+func getGPUInfo(adapter hal.Adapter) (*GPUInfo, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("adapter is nil")
 	}
@@ -61,7 +60,7 @@ func getGPUInfo(adapter *webgpu.Adapter) (*GPUInfo, error) {
 }
 
 // logGPUInfo logs information about the selected GPU.
-func logGPUInfo(adapter *webgpu.Adapter) {
+func logGPUInfo(adapter hal.Adapter) {
 	info, err := getGPUInfo(adapter)
 	if err != nil {
 		slogger().Warn("failed to get GPU info", "err", err)
@@ -73,7 +72,7 @@ func logGPUInfo(adapter *webgpu.Adapter) {
 
 // createDevice creates a logical device from an adapter.
 // This is a helper function that encapsulates device creation logic.
-func createDevice(adapter *webgpu.Adapter, label string) (*webgpu.Device, error) {
+func createDevice(adapter hal.Adapter, label string) (hal.Device, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("adapter is nil")
 	}
@@ -91,11 +90,11 @@ func createDevice(adapter *webgpu.Adapter, label string) (*webgpu.Device, error)
 // budget on iGPUs). Other windows/processes may release memory between
 // retries; this mirrors Flutter's degrade-not-crash behavior on transient
 // resource pressure instead of failing the app outright.
-func requestDeviceWithRetry(adapter *webgpu.Adapter, desc *hal.DeviceDescriptor, label string) (*webgpu.Device, error) {
+func requestDeviceWithRetry(adapter hal.Adapter, desc *hal.DeviceDescriptor, label string) (hal.Device, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("adapter is nil")
 	}
-	var device *webgpu.Device
+	var device hal.Device
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
 		device, err = adapter.RequestDevice(desc)
@@ -114,7 +113,7 @@ func requestDeviceWithRetry(adapter *webgpu.Adapter, desc *hal.DeviceDescriptor,
 }
 
 // getDeviceQueue retrieves the queue associated with a device.
-func getDeviceQueue(device *webgpu.Device) (hal.Queue, error) {
+func getDeviceQueue(device hal.Device) (hal.Queue, error) {
 	if device == nil {
 		return nil, fmt.Errorf("device is nil")
 	}
@@ -126,7 +125,7 @@ func getDeviceQueue(device *webgpu.Device) (hal.Queue, error) {
 }
 
 // releaseDevice releases a device and its associated resources.
-func releaseDevice(device *webgpu.Device) error {
+func releaseDevice(device hal.Device) error {
 	if device == nil {
 		return nil
 	}
@@ -135,7 +134,7 @@ func releaseDevice(device *webgpu.Device) error {
 }
 
 // releaseAdapter releases an adapter.
-func releaseAdapter(adapter *webgpu.Adapter) error {
+func releaseAdapter(adapter hal.Adapter) error {
 	if adapter == nil {
 		return nil
 	}

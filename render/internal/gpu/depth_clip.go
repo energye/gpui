@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/internal/clip"
 )
@@ -80,7 +79,7 @@ const depthClipUniformSize = 16
 //	  Phase 1: reuses stencil fill pipeline (IncrWrap/DecrWrap, no depth write)
 //	  Phase 2: depthCoverPipeline (stencil NotEqual, depth write, stencil zero)
 type DepthClipPipeline struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -126,7 +125,7 @@ type DepthClipPipeline struct {
 
 // NewDepthClipPipeline creates a new depth clip pipeline for the given device.
 // The pipelines are not created until ensurePipeline() is called.
-func NewDepthClipPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *DepthClipPipeline {
+func NewDepthClipPipeline(device hal.Device, queue hal.Queue, sampleCount uint32) *DepthClipPipeline {
 	return &DepthClipPipeline{
 		device:      device,
 		queue:       queue,
@@ -854,7 +853,7 @@ func (p *DepthClipPipeline) uploadUniforms(w, h uint32) error {
 // This correctly clips arbitrary non-convex paths (stars, bezier shapes, etc.)
 // because the stencil buffer determines interior via winding number, not just
 // triangle coverage.
-func (p *DepthClipPipeline) RecordDraw(rp *webgpu.RenderPassEncoder, res *DepthClipResources) {
+func (p *DepthClipPipeline) RecordDraw(rp hal.RenderPassEncoder, res *DepthClipResources) {
 	if res == nil || res.vertCount == 0 {
 		return
 	}

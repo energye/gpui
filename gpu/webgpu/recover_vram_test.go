@@ -28,13 +28,13 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 		t.Skip(err)
 	}
 	defer inst.Release()
-	adpt, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
+	adpt, err := inst.RequestAdapter(&hal.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skip(err)
 	}
 	defer adpt.Release()
 
-	mkDepth := func(dev *webgpu.Device, w, h uint32) (hal.Texture, error) {
+	mkDepth := func(dev hal.Device, w, h uint32) (hal.Texture, error) {
 		return dev.CreateTexture(&hal.TextureDescriptor{
 			Label: "session_depth_stencil",
 			Size: hal.Extent3D{

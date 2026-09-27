@@ -100,10 +100,10 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 		// (mesh ± partial filter) and submit, then re-run FromView for a clean graph.
 		if cmd, ferr := enc.Finish(); ferr == nil && cmd != nil {
 			if _, serr := queue.Submit(cmd); serr != nil {
-				cmd.Release()
+				device.FreeCommandBuffer(cmd)
 				return gpucontext.TextureView{}, nil, err
 			}
-			cmd.Release()
+			device.FreeCommandBuffer(cmd)
 			view2, rel2, err2 := runGPUFilterGraphFromView(device, queue, cache, srcView, w, h, nodes)
 			if err2 != nil {
 				return gpucontext.TextureView{}, nil, err2

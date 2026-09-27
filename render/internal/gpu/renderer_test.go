@@ -5,14 +5,14 @@ package gpu
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
 
 // testDevice is nil for legacy pipeline-cache unit tests that do not create
 // real GPU objects yet.
-var testDevice *webgpu.Device
+var testDevice hal.Device
 
 // TestPipelineCacheCreation tests PipelineCache creation.
 func TestPipelineCacheCreation(t *testing.T) {

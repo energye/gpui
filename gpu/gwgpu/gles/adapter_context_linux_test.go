@@ -126,14 +126,14 @@ func TestInstance_EnumerateAdapters_NoContextReturnsPlaceholder(t *testing.T) {
 
 func TestInstance_Destroy_NilSafe(t *testing.T) {
 	inst := &Instance{}
-	inst.Destroy() // must not panic
-	inst.Destroy()
+	inst.Release() // must not panic
+	inst.Release()
 }
 
 func TestInstance_Destroy_ClearsOwnedContext(t *testing.T) {
 	glCtx := &gl.Context{}
 	inst := &Instance{ctx: NewAdapterContext(nil, glCtx, true)}
-	inst.Destroy()
+	inst.Release()
 	if inst.ctx != nil {
 		t.Fatal("Instance.Destroy should nil out ctx")
 	}

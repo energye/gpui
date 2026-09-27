@@ -81,13 +81,13 @@ func TestS3c_M3_WindowSwapchain_PresentFrame(t *testing.T) {
 	}
 	defer inst.Release()
 
-	surf, err := inst.CreateSurface(0, 0)
+	surf, err := inst.CreateSurfaceFromHandles(0, 0)
 	if err != nil || surf == nil {
 		t.Skipf("no platform window surface (headless): %v", err)
 	}
 	defer surf.Release()
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+	adapter, err := inst.RequestAdapter(&hal.RequestAdapterOptions{
 		CompatibleSurface: surf,
 	})
 	if err != nil {

@@ -13,7 +13,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Pipeline cache errors.
@@ -91,7 +90,7 @@ func NewPipelineCacheCore() *PipelineCacheCore {
 //   - The descriptor is nil
 //   - Pipeline creation fails
 func (c *PipelineCacheCore) GetOrCreateRenderPipeline(
-	device *webgpu.Device,
+	device hal.Device,
 	desc *RenderPipelineDescriptor,
 ) (*RenderPipeline, error) {
 	if desc == nil {
@@ -147,7 +146,7 @@ func (c *PipelineCacheCore) GetOrCreateRenderPipeline(
 //   - The descriptor is nil
 //   - Pipeline creation fails
 func (c *PipelineCacheCore) GetOrCreateComputePipeline(
-	device *webgpu.Device,
+	device hal.Device,
 	desc *ComputePipelineDescriptor,
 ) (*ComputePipeline, error) {
 	if desc == nil {
@@ -621,7 +620,7 @@ func nextPipelineID() uint64 {
 // createRenderPipeline creates a new render pipeline from a descriptor.
 //
 // This is called by GetOrCreateRenderPipeline when a cache miss occurs.
-func createRenderPipeline(device *webgpu.Device, desc *RenderPipelineDescriptor) (*RenderPipeline, error) {
+func createRenderPipeline(device hal.Device, desc *RenderPipelineDescriptor) (*RenderPipeline, error) {
 	if desc.VertexShader == nil {
 		return nil, ErrPipelineCacheNilShader
 	}
@@ -692,7 +691,7 @@ func createRenderPipeline(device *webgpu.Device, desc *RenderPipelineDescriptor)
 // createComputePipeline creates a new compute pipeline from a descriptor.
 //
 // This is called by GetOrCreateComputePipeline when a cache miss occurs.
-func createComputePipeline(device *webgpu.Device, desc *ComputePipelineDescriptor) (*ComputePipeline, error) {
+func createComputePipeline(device hal.Device, desc *ComputePipelineDescriptor) (*ComputePipeline, error) {
 	if desc.ComputeShader == nil {
 		return nil, ErrPipelineCacheNilShader
 	}

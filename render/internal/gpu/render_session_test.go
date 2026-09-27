@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -486,7 +485,7 @@ func TestSDFRenderPipelineDestroyWithStencilVariant(t *testing.T) {
 // createMockSurfaceView creates a texture and view that simulates a window
 // surface for testing surface rendering mode. The caller must release the
 // texture view when done.
-func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (hal.Texture, hal.TextureView) {
+func createMockSurfaceView(t *testing.T, device hal.Device, w, h uint32) (hal.Texture, hal.TextureView) {
 	t.Helper()
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "mock_surface",

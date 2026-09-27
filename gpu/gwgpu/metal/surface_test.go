@@ -49,7 +49,7 @@ func TestSurfaceTextureCreateView(t *testing.T) {
 		t.Skip("no Metal adapters available")
 	}
 	adapter := adapters[0].Adapter
-	defer adapter.Destroy()
+	defer adapter.Release()
 
 	open, err := adapter.Open(gputypes.Features(0), gputypes.DefaultLimits())
 	if err != nil {

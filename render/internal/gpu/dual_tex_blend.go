@@ -14,7 +14,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -243,7 +242,7 @@ const dualTexUniformSlabMinSlots = 8
 // dualTexBlendCache holds reusable GPU objects for dual-texture advanced blend.
 type dualTexBlendCache struct {
 	mu           sync.Mutex
-	device       *webgpu.Device
+	device       hal.Device
 	shader       hal.ShaderModule
 	bgl          hal.BindGroupLayout
 	pipeLay      hal.PipelineLayout
@@ -349,7 +348,7 @@ func (c *dualTexBlendCache) release() {
 	c.device = nil
 }
 
-func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
+func (c *dualTexBlendCache) ensure(device hal.Device) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.device != nil && c.device != device {
@@ -567,7 +566,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 // dualTexAdvancedBlend composites src over dst using GPU dual-texture sampling.
 // dstRGBA/srcRGBA are tight premul RGBA8 (bw*bh*4). mode is Multiply/Screen/Overlay/HSL.
 func dualTexAdvancedBlend(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstRGBA, srcRGBA []byte,
@@ -782,7 +781,7 @@ func dualTexAdvancedBlend(
 	if err != nil {
 		return nil, fmt.Errorf("dual-tex finish: %w", err)
 	}
-	defer cmd.Release()
+	defer device.FreeCommandBuffer(cmd)
 	if _, err := queue.Submit(cmd); err != nil {
 		return nil, fmt.Errorf("dual-tex submit: %w", err)
 	}
@@ -845,11 +844,11 @@ func dualTexModeU(mode render.BlendMode) uint32 {
 }
 
 // dualTexCreateTex creates an RGBA8 2D texture (+view). optional upload of tight RGBA.
-func dualTexCreateTex(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage) (hal.Texture, hal.TextureView, error) {
+func dualTexCreateTex(device hal.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage) (hal.Texture, hal.TextureView, error) {
 	return dualTexCreateTexFmt(device, queue, label, bw, bh, data, usage, types.TextureFormatRGBA8Unorm)
 }
 
-func dualTexCreateTexFmt(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (hal.Texture, hal.TextureView, error) {
+func dualTexCreateTexFmt(device hal.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (hal.Texture, hal.TextureView, error) {
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label: label,
 		Size: hal.Extent3D{
@@ -963,7 +962,7 @@ func packDualTexParams(dst []byte, modeU uint32, u0, v0, u1, v1, opacity float32
 }
 
 func dualTexAdvancedBlendNoReadback(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstRGBA, srcRGBA []byte,
@@ -1064,7 +1063,7 @@ func dualTexAdvancedBlendNoReadback(
 		outTex.Destroy()
 		return nil, nil, err
 	}
-	defer cmd.Release()
+	defer device.FreeCommandBuffer(cmd)
 	if _, err := queue.Submit(cmd); err != nil {
 		outView.Destroy()
 		outTex.Destroy()
@@ -1097,7 +1096,7 @@ func dualTexQuantizeWH(w, h int) (int, int) {
 	return w, h
 }
 
-func (c *dualTexBlendCache) getOutBGRA(device *webgpu.Device, queue hal.Queue, w, h int) (hal.Texture, hal.TextureView, error) {
+func (c *dualTexBlendCache) getOutBGRA(device hal.Device, queue hal.Queue, w, h int) (hal.Texture, hal.TextureView, error) {
 	if c == nil || device == nil || w <= 0 || h <= 0 {
 		return nil, nil, fmt.Errorf("dual-tex out pool: bad args")
 	}
@@ -1243,7 +1242,7 @@ type dualTexViewBlendOut struct {
 
 // ensureUniformSlab grows/creates the opt37 multi-op uniform slab for n slots.
 // Recreating the slab clears multiBG (entries pin the old buffer+offset).
-func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (hal.Buffer, error) {
+func (c *dualTexBlendCache) ensureUniformSlab(device hal.Device, n int) (hal.Buffer, error) {
 	if c == nil || device == nil || n <= 0 {
 		return nil, fmt.Errorf("dual-tex uniform slab: bad args")
 	}
@@ -1289,7 +1288,7 @@ func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (hal
 // When Cmd is nil, work was already submitted and Cleanup is a no-op.
 type dualTexMultiBundle struct {
 	Outs    []dualTexViewBlendOut
-	Cmd     *webgpu.CommandBuffer
+	Cmd     hal.CommandBuffer
 	Cleanup func()
 }
 
@@ -1298,7 +1297,7 @@ type dualTexMultiBundle struct {
 // Safe to replace a slot after the previous frame's dual-tex CB has been Submitted
 // (Cleanup no longer Releases BGs; ownership stays on the cache).
 func (c *dualTexBlendCache) multiBindGroup(
-	device *webgpu.Device,
+	device hal.Device,
 	bgl hal.BindGroupLayout,
 	sampler hal.Sampler,
 	dst, src hal.TextureView,
@@ -1361,13 +1360,13 @@ func (c *dualTexBlendCache) multiBindGroup(
 // blend passes into enc without Finish/Submit (opt32). Caller owns encoder
 // lifecycle. Out textures must stay alive until Submit samples them.
 func dualTexAdvancedBlendViewsMultiIntoEncoder(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstView hal.TextureView,
 	ops []dualTexViewBlendOp,
 	dstW, dstH int,
-	enc *webgpu.CommandEncoder,
+	enc hal.CommandEncoder,
 ) ([]dualTexViewBlendOut, error) {
 	if device == nil || queue == nil || cache == nil || dstView == nil || enc == nil || len(ops) == 0 {
 		return nil, fmt.Errorf("dual-tex multi into: bad args")
@@ -1500,7 +1499,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 // opt32: prefer dualTexAdvancedBlendViewsMultiIntoEncoder when the next blit
 // can share the same CommandEncoder (one Finish for multi+composite).
 func dualTexAdvancedBlendViewsMultiBundle(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstView hal.TextureView,
@@ -1534,7 +1533,7 @@ func dualTexAdvancedBlendViewsMultiBundle(
 	}
 
 	if submitNow {
-		defer cmd.Release()
+		defer device.FreeCommandBuffer(cmd)
 		if _, err := queue.Submit(cmd); err != nil {
 			for _, o := range outs {
 				if o.view != nil {
@@ -1562,7 +1561,7 @@ func dualTexAdvancedBlendViewsMultiBundle(
 // full texture dimensions (required for correct partial-damage UVs).
 // dstView/srcView must remain alive until Submit returns.
 func dualTexAdvancedBlendViewsRegionSized(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstView, srcView hal.TextureView,
@@ -1674,7 +1673,7 @@ func dualTexAdvancedBlendViewsRegionSized(
 		outTex.Destroy()
 		return nil, nil, err
 	}
-	defer cmd.Release()
+	defer device.FreeCommandBuffer(cmd)
 	if _, err := queue.Submit(cmd); err != nil {
 		outView.Destroy()
 		outTex.Destroy()
@@ -1687,7 +1686,7 @@ func dualTexAdvancedBlendViewsRegionSized(
 // premul RGBA8. Handles BGRA8Unorm offscreen RTs (swizzle) and RGBA8 sources.
 // bounds is in texture pixel space; texW/texH are full texture dimensions.
 func readTextureViewRegionRGBA(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	view gpucontext.TextureView,
 	bounds image.Rectangle,
@@ -1755,10 +1754,10 @@ func readTextureViewRegionRGBA(
 		return nil, err
 	}
 	if _, err := queue.Submit(cmd); err != nil {
-		cmd.Release()
+		device.FreeCommandBuffer(cmd)
 		return nil, err
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	device.Poll(hal.PollWait)
 
 	mapping, err := device.MapBuffer(staging, 0, stagingSize)
@@ -1802,7 +1801,7 @@ func readTextureViewRegionRGBA(
 }
 
 func readTextureViewRegionStraightRGBA(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	view gpucontext.TextureView,
 	bounds image.Rectangle,
@@ -1870,10 +1869,10 @@ func readTextureViewRegionStraightRGBA(
 		return nil, err
 	}
 	if _, err := queue.Submit(cmd); err != nil {
-		cmd.Release()
+		device.FreeCommandBuffer(cmd)
 		return nil, err
 	}
-	cmd.Release()
+	device.FreeCommandBuffer(cmd)
 	device.Poll(hal.PollWait)
 
 	mapping, err := device.MapBuffer(staging, 0, stagingSize)

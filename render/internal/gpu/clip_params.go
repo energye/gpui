@@ -8,7 +8,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // clipParamsSize is the byte size of the ClipParams uniform buffer.
@@ -63,7 +62,7 @@ func NoClipParams() *ClipParams {
 	return &ClipParams{Enabled: 0}
 }
 
-func createClipBindGroupLayout(device *webgpu.Device, label string) (hal.BindGroupLayout, error) {
+func createClipBindGroupLayout(device hal.Device, label string) (hal.BindGroupLayout, error) {
 	return device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: label,
 		Entries: []types.BindGroupLayoutEntry{
@@ -109,7 +108,7 @@ func NoMaskParams() *MaskParams {
 	return &MaskParams{Enabled: 0}
 }
 
-func createMaskBindGroupLayout(device *webgpu.Device, label string) (hal.BindGroupLayout, error) {
+func createMaskBindGroupLayout(device hal.Device, label string) (hal.BindGroupLayout, error) {
 	return device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
 		Label: label,
 		Entries: []types.BindGroupLayoutEntry{

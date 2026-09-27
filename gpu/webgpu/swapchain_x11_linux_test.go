@@ -100,13 +100,13 @@ func TestSwapchain_WindowPresentE2E(t *testing.T) {
 	}
 	defer inst.Release()
 
-	surf, err := inst.CreateSurface(xw.display, xw.window)
+	surf, err := inst.CreateSurfaceFromHandles(xw.display, xw.window)
 	if err != nil {
 		t.Fatalf("CreateSurface: %v", err)
 	}
 	defer surf.Release()
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+	adapter, err := inst.RequestAdapter(&hal.RequestAdapterOptions{
 		PowerPreference:   types.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})
@@ -164,13 +164,13 @@ func TestS68_Swapchain_X11_MultiFramePresent(t *testing.T) {
 	}
 	defer inst.Release()
 
-	surf, err := inst.CreateSurface(xw.display, xw.window)
+	surf, err := inst.CreateSurfaceFromHandles(xw.display, xw.window)
 	if err != nil {
 		t.Fatalf("CreateSurface: %v", err)
 	}
 	defer surf.Release()
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+	adapter, err := inst.RequestAdapter(&hal.RequestAdapterOptions{
 		PowerPreference:   types.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})
@@ -231,12 +231,12 @@ func TestS68_Swapchain_X11_SuboptimalReconfigureFlag(t *testing.T) {
 		t.Skip(err)
 	}
 	defer inst.Release()
-	surf, err := inst.CreateSurface(xw.display, xw.window)
+	surf, err := inst.CreateSurfaceFromHandles(xw.display, xw.window)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer surf.Release()
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{CompatibleSurface: surf})
+	adapter, err := inst.RequestAdapter(&hal.RequestAdapterOptions{CompatibleSurface: surf})
 	if err != nil {
 		t.Fatal(err)
 	}

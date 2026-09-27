@@ -11,7 +11,6 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
@@ -322,7 +321,7 @@ const (
 //	  +-- Single submit + fence wait
 //	  +-- Single readback (offscreen) or resolve to surface (direct)
 type GPURenderSession struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -480,7 +479,7 @@ type GPURenderSession struct {
 	// BeginPassLedger; attached to the SDF tier at encode time.
 	passLedger PassBindLedger
 	// R7.3: command buffers to prepend on next surface Submit (dual-tex multi).
-	leadSubmitCBs   []*webgpu.CommandBuffer
+	leadSubmitCBs   []hal.CommandBuffer
 	leadSubmitClean []func()
 
 	// S6.2 reusable scratch (avoid per-frame concat/uniform allocs).
@@ -644,7 +643,7 @@ type GPURenderSession struct {
 	// Freeing a command buffer while the GPU is still executing it causes
 	// vkResetCommandPool on an in-flight pool — undefined behavior that
 	// manifests as trail artifacts (stale MSAA resolve content).
-	prevCmdBufs []*webgpu.CommandBuffer
+	prevCmdBufs []hal.CommandBuffer
 	// lastSubmitUsedSurface is true when the last retained CB targeted a
 	// surface/swapchain view (present/vsync is the completion barrier).
 	// When false (offscreen readback), BeginFrame must drainQueue before free.
@@ -704,7 +703,7 @@ type GPURenderSession struct {
 // NewGPURenderSession creates a new render session with the given device,
 // queue, and MSAA sample count. Textures and pipelines are not allocated
 // until RenderFrame is called.
-func NewGPURenderSession(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *GPURenderSession {
+func NewGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32) *GPURenderSession {
 	s := &GPURenderSession{
 		device:      device,
 		queue:       queue,
@@ -1305,7 +1304,7 @@ func (s *GPURenderSession) ClearScissorRect() {
 
 // applyScissorRect applies the current scissor rect (if any) to the given
 // render pass encoder. Call this after BeginRenderPass and before draw calls.
-func (s *GPURenderSession) applyScissorRect(rp *webgpu.RenderPassEncoder) {
+func (s *GPURenderSession) applyScissorRect(rp hal.RenderPassEncoder) {
 	if s.scissorRect != nil {
 		rp.SetScissorRect(s.scissorRect[0], s.scissorRect[1], s.scissorRect[2], s.scissorRect[3])
 	}
@@ -1461,7 +1460,7 @@ type groupResources struct {
 //
 // For frames with no scissor changes (single group with nil rect), this
 // behaves identically to the original RenderFrame.
-func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, groups []ScissorGroup, baseLayer *GPUTextureDrawCommand, sharedEncoder *webgpu.CommandEncoder) error { //nolint:gocognit,gocyclo,cyclop,funlen,maintidx // sequential resource setup + group dispatch
+func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, groups []ScissorGroup, baseLayer *GPUTextureDrawCommand, sharedEncoder hal.CommandEncoder) error { //nolint:gocognit,gocyclo,cyclop,funlen,maintidx // sequential resource setup + group dispatch
 	// opt21: deferred layer RT CBs share this session's MSAA/depth textures.
 	// Drain them before encoding a new pass that reuses those attachments
 	// (and before empty early-return) so advanced-blend Present never samples
@@ -1981,7 +1980,7 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	}
 	for _, cb := range s.leadSubmitCBs {
 		if cb != nil {
-			cb.Release()
+			s.device.FreeCommandBuffer(cb)
 		}
 	}
 	s.leadSubmitCBs = s.leadSubmitCBs[:0]
@@ -1994,7 +1993,7 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	s.deferredConvexUses = 0
 	for _, cb := range s.prevCmdBufs {
 		if cb != nil {
-			cb.Release()
+			s.device.FreeCommandBuffer(cb)
 		}
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
@@ -2025,7 +2024,7 @@ func (s *GPURenderSession) Destroy() {
 	// Leading (deferred) CBs first — not tracked in prevCmdBufs.
 	for _, cb := range s.leadSubmitCBs {
 		if cb != nil {
-			cb.Release()
+			s.device.FreeCommandBuffer(cb)
 		}
 	}
 	s.leadSubmitCBs = s.leadSubmitCBs[:0]
@@ -2038,7 +2037,7 @@ func (s *GPURenderSession) Destroy() {
 	s.deferredConvexUses = 0
 	for _, cb := range s.prevCmdBufs {
 		if cb != nil {
-			cb.Release()
+			s.device.FreeCommandBuffer(cb)
 		}
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
@@ -4105,7 +4104,7 @@ func (s *GPURenderSession) SetDeferSurfaceSubmit(v bool) {
 
 // finishSurfaceSubmit either defers the finished surface CB (leading queue)
 // or submits it with any pending leadings. Used by encodeSubmitSurface*.
-func (s *GPURenderSession) finishSurfaceSubmit(cmd *webgpu.CommandBuffer) error {
+func (s *GPURenderSession) finishSurfaceSubmit(cmd hal.CommandBuffer) error {
 	if s == nil {
 		return fmt.Errorf("finishSurfaceSubmit: nil session")
 	}
@@ -4121,7 +4120,7 @@ func (s *GPURenderSession) finishSurfaceSubmit(cmd *webgpu.CommandBuffer) error 
 // EnqueueLeadingSubmit holds a finished command buffer to be submitted together
 // with the next surface/blit Submit (R7.3 dual-tex multi + composite).
 // cleanup runs after a successful or failed submit attempt (bind-group free).
-func (s *GPURenderSession) EnqueueLeadingSubmit(cmd *webgpu.CommandBuffer, cleanup func()) {
+func (s *GPURenderSession) EnqueueLeadingSubmit(cmd hal.CommandBuffer, cleanup func()) {
 	if s == nil || cmd == nil {
 		if cleanup != nil {
 			cleanup()
@@ -4159,7 +4158,7 @@ func (s *GPURenderSession) withSubmitErrorScope(label string, fn func() error) e
 // submitWithLeading submits optional leading CBs then cmd in one Queue.Submit.
 // Leading CBs are Released after submit; cmd is retained in prevCmdBufs on success
 // (same as encodeSubmitSurface). On failure cmd is FreeCommandBuffer'd.
-func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
+func (s *GPURenderSession) submitWithLeading(cmd hal.CommandBuffer) error {
 	if s == nil || s.queue == nil {
 		return fmt.Errorf("submitWithLeading: nil session/queue")
 	}
@@ -4180,15 +4179,15 @@ func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
 			s.imageCache.ReleaseEphemeral()
 		}
 	}
-	var all []*webgpu.CommandBuffer
+	var all []hal.CommandBuffer
 	if len(leads) == 0 {
 		if cmd == nil {
 			runClean()
 			return nil
 		}
-		all = []*webgpu.CommandBuffer{cmd}
+		all = []hal.CommandBuffer{cmd}
 	} else {
-		all = make([]*webgpu.CommandBuffer, 0, len(leads)+1)
+		all = make([]hal.CommandBuffer, 0, len(leads)+1)
 		all = append(all, leads...)
 		if cmd != nil {
 			all = append(all, cmd)
@@ -4215,7 +4214,7 @@ func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
 	// Free leading CBs immediately (not tracked in prevCmdBufs).
 	for _, c := range leads {
 		if c != nil {
-			c.Release()
+			s.device.FreeCommandBuffer(c)
 		}
 	}
 	runClean()
@@ -4271,7 +4270,7 @@ func indexBytesFingerprint(b []byte) uint64 {
 }
 
 func (c *gpuTexBGSlotCache) getOrCreate(
-	device *webgpu.Device,
+	device hal.Device,
 	layout hal.BindGroupLayout,
 	uniform hal.Buffer,
 	uniformOffset uint64,
@@ -5217,7 +5216,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 // into the render target. This is the second half of encodeSubmitReadback,
 // extracted for readability.
 func (s *GPURenderSession) copySubmitAndReadback(
-	encoder *webgpu.CommandEncoder, w, h uint32, target render.GPURenderTarget,
+	encoder hal.CommandEncoder, w, h uint32, target render.GPURenderTarget,
 ) error {
 	if s.textures.resolveTex == nil {
 		return fmt.Errorf("resolve texture nil in copySubmitAndReadback (concurrent resize?)")
@@ -5463,7 +5462,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 // recordGroupDraws records all tier draw commands for a single group into
 // the given render pass encoder. This is the inner loop of the grouped
 // encode methods — called once per scissor group within a single render pass.
-func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *groupResources) {
+func (s *GPURenderSession) recordGroupDraws(rp hal.RenderPassEncoder, gr *groupResources) {
 	// Clip bind group is passed to each RecordDraws so it is bound at @group(1)
 	// AFTER SetPipeline and BEFORE Draw. Vulkan requires a valid pipeline
 	// layout when calling vkCmdBindDescriptorSets.
@@ -5536,7 +5535,7 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 // applyGroupScissor sets or clears the scissor rect on the render pass for
 // a given group. When rect is nil, the scissor is reset to the full
 // framebuffer (w x h). When non-nil, the scissor clips to the given rect.
-func (s *GPURenderSession) applyGroupScissor(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32) bool {
+func (s *GPURenderSession) applyGroupScissor(rp hal.RenderPassEncoder, rect *[4]uint32, w, h uint32) bool {
 	if rect != nil {
 		// Clamp to the render target: wgpu requires scissor ⊆ target bounds
 		// and silently drops the whole encode when violated. Bounds-sized RTs
@@ -5572,7 +5571,7 @@ func minU32(a, b uint32) uint32 {
 // scissor is the intersection of group clip and damage — preventing draws
 // outside the damage region that would corrupt LoadOpLoad preserved content.
 // Returns false when intersection is empty (caller should skip the draw).
-func (s *GPURenderSession) applyGroupScissorWithDamage(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32, damage image.Rectangle) bool {
+func (s *GPURenderSession) applyGroupScissorWithDamage(rp hal.RenderPassEncoder, rect *[4]uint32, w, h uint32, damage image.Rectangle) bool {
 	if damage.Empty() {
 		return s.applyGroupScissor(rp, rect, w, h)
 	}
@@ -5594,7 +5593,7 @@ func (s *GPURenderSession) applyGroupScissorWithDamage(rp *webgpu.RenderPassEnco
 //   - no damage rects → full group scissor (same as empty single damage)
 //   - damage present but none overlaps group → skip draw (return false)
 //   - otherwise → scissor = group ∩ relevant damage union
-func (s *GPURenderSession) applyGroupScissorWithDamageRects(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32, damageRects []image.Rectangle) bool {
+func (s *GPURenderSession) applyGroupScissorWithDamageRects(rp hal.RenderPassEncoder, rect *[4]uint32, w, h uint32, damageRects []image.Rectangle) bool {
 	if len(damageRects) == 0 {
 		return s.applyGroupScissor(rp, rect, w, h)
 	}
@@ -6058,7 +6057,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 // encoder.Finish() + queue.Submit(). Used for single-command-buffer frames
 // where multiple contexts share one encoder (ADR-017, Flutter Impeller pattern).
 func (s *GPURenderSession) encodeToEncoder(
-	encoder *webgpu.CommandEncoder,
+	encoder hal.CommandEncoder,
 	view hal.TextureView,
 	w, h uint32,
 	grpRes []groupResources,
@@ -6120,7 +6119,7 @@ func (s *GPURenderSession) encodeToEncoder(
 // encodeBlitToEncoder records a non-MSAA blit pass into an external encoder.
 // Same as encodeBlitOnlyPass but without encoder creation or submit.
 func (s *GPURenderSession) encodeBlitToEncoder(
-	encoder *webgpu.CommandEncoder,
+	encoder hal.CommandEncoder,
 	view hal.TextureView,
 	w, h uint32,
 	grpRes []groupResources,

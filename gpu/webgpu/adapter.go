@@ -11,12 +11,6 @@ import (
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
-// DeviceDescriptor configures device creation.
-// Canonical form lives in gpu/hal (mirrors webgpu shape, 片4已对齐);
-// alias keeps webgpu callers compiling while render uses hal.* directly.
-// Full removal waits for slice 7f收尾.
-type DeviceDescriptor = hal.DeviceDescriptor
-
 // Adapter represents a physical GPU.
 // On the wgpu-native backend, this wraps rwgpu Adapter.
 type Adapter struct {
@@ -40,7 +34,8 @@ func (a *Adapter) Limits() Limits { return a.limits }
 // RequestDevice creates a logical device from this adapter.
 // If desc is nil, default features and limits are used.
 // Takes hal.DeviceDescriptor (canonical, 片7a以 hal 为准；DeviceDescriptor 是 hal 别名，同形).
-func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (*Device, error) {
+// Implements hal.Adapter (returns hal.Device interface).
+func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error) {
 	if a.released {
 		return nil, ErrReleased
 	}
@@ -77,29 +72,37 @@ func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (*Device, error) {
 	return dev, nil
 }
 
-// SurfaceCapabilities describes what a surface supports on this adapter.
-type SurfaceCapabilities struct {
-	Formats      []TextureFormat
-	PresentModes []PresentMode
-	AlphaModes   []CompositeAlphaMode
-}
-
 // GetSurfaceCapabilities returns the capabilities of a surface for this adapter.
-func (a *Adapter) GetSurfaceCapabilities(surface *Surface) *SurfaceCapabilities {
-	if a.released || surface == nil || surface.r == nil {
+// Implements hal.Adapter (takes hal.Surface interface, internal unpack).
+func (a *Adapter) GetSurfaceCapabilities(surface hal.Surface) *hal.SurfaceCapabilities {
+	ws, ok := surface.(*Surface)
+	if !ok || ws == nil {
+		return nil
+	}
+	if a.released || ws.r == nil {
 		return nil
 	}
 
-	caps, err := surface.r.GetCapabilities(a.r)
+	caps, err := ws.r.GetCapabilities(a.r)
 	if err != nil {
 		return nil
 	}
 
-	return &SurfaceCapabilities{
+	return &hal.SurfaceCapabilities{
 		Formats:      caps.Formats,
 		PresentModes: caps.PresentModes,
 		AlphaModes:   caps.AlphaModes,
 	}
+}
+
+// Open implements hal.Adapter: not supported on wgpu-native (devices come from RequestDevice).
+func (a *Adapter) Open(_ types.Features, _ types.Limits) (hal.OpenDevice, error) {
+	return hal.OpenDevice{}, fmt.Errorf("webgpu: Adapter.Open not supported, use RequestDevice")
+}
+
+// TextureFormatCapabilities implements hal.Adapter: returns a conservative default.
+func (a *Adapter) TextureFormatCapabilities(_ types.TextureFormat) hal.TextureFormatCapabilities {
+	return hal.TextureFormatCapabilities{}
 }
 
 // Release releases the adapter.
@@ -151,3 +154,5 @@ func convertToLimits(gl types.Limits) rwgpu.Limits {
 		MaxComputeInvocationsPerWorkgroup:         gl.MaxComputeInvocationsPerWorkgroup,
 	}
 }
+
+var _ hal.Adapter = (*Adapter)(nil)

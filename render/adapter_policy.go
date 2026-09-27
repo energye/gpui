@@ -73,7 +73,7 @@ func ResolveAdapterPolicy() AdapterPolicy {
 	}
 }
 
-func adapterDeviceType(a *webgpu.Adapter) types.DeviceType {
+func adapterDeviceType(a hal.Adapter) types.DeviceType {
 	if a == nil {
 		return types.DeviceTypeOther
 	}
@@ -82,7 +82,7 @@ func adapterDeviceType(a *webgpu.Adapter) types.DeviceType {
 
 // preferIntegratedOverDiscrete keeps alt when primary is discrete and alt is
 // integrated. Releases the unused adapter.
-func preferIntegratedOverDiscrete(primary, alt *webgpu.Adapter) *webgpu.Adapter {
+func preferIntegratedOverDiscrete(primary, alt hal.Adapter) hal.Adapter {
 	if primary == nil {
 		return alt
 	}
@@ -101,15 +101,15 @@ func preferIntegratedOverDiscrete(primary, alt *webgpu.Adapter) *webgpu.Adapter 
 // RequestAdapterWithPolicy selects an adapter for the instance/surface.
 // forceFallback is set when only the software/CPU adapter is available.
 func RequestAdapterWithPolicy(
-	inst *webgpu.Instance,
-	surf *webgpu.Surface,
+	inst hal.Instance,
+	surf hal.Surface,
 	policy AdapterPolicy,
-) (adpt *webgpu.Adapter, forceFallback bool, err error) {
+) (adpt hal.Adapter, forceFallback bool, err error) {
 	if inst == nil {
 		return nil, false, fmt.Errorf("nil instance")
 	}
-	try := func(pref types.PowerPreference, fallback bool) (*webgpu.Adapter, error) {
-		opts := &webgpu.RequestAdapterOptions{
+	try := func(pref types.PowerPreference, fallback bool) (hal.Adapter, error) {
+		opts := &hal.RequestAdapterOptions{
 			PowerPreference:      pref,
 			ForceFallbackAdapter: fallback,
 		}
@@ -224,7 +224,7 @@ func DeviceDescriptorLowVRAM(label string) *hal.DeviceDescriptor {
 // the cliff is reservation sizing, not the heap). GPUI_LOW_VRAM=1 forces
 // LowVRAM on any adapter regardless of waterline. No env override for
 // adapter selection (that stays policy-driven).
-func DeviceDescriptorForAdapter(label string, adpt *webgpu.Adapter) *hal.DeviceDescriptor {
+func DeviceDescriptorForAdapter(label string, adpt hal.Adapter) *hal.DeviceDescriptor {
 	if os.Getenv("GPUI_LOW_VRAM") == "1" || os.Getenv("GPUI_LOW_VRAM") == "true" {
 		return DeviceDescriptorLowVRAM(label)
 	}

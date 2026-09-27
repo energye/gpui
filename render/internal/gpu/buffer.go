@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Buffer errors.
@@ -151,7 +150,7 @@ type Buffer struct {
 	gpuBuffer hal.Buffer
 
 	// device is the parent device.
-	device *webgpu.Device
+	device hal.Device
 
 	// descriptor holds the buffer configuration (immutable after creation).
 	descriptor BufferDescriptor
@@ -204,7 +203,7 @@ type BufferDescriptor struct {
 //   - desc: The buffer descriptor (copied)
 //
 // Returns the new Buffer.
-func NewBuffer(gpuBuffer hal.Buffer, device *webgpu.Device, desc *BufferDescriptor) *Buffer {
+func NewBuffer(gpuBuffer hal.Buffer, device hal.Device, desc *BufferDescriptor) *Buffer {
 	buf := &Buffer{
 		gpuBuffer:  gpuBuffer,
 		device:     device,
@@ -567,7 +566,7 @@ func (b *Buffer) Destroy() {
 //   - The descriptor is nil
 //   - Buffer size is invalid
 //   - Buffer creation fails
-func CreateBuffer(device *webgpu.Device, desc *BufferDescriptor) (*Buffer, error) {
+func CreateBuffer(device hal.Device, desc *BufferDescriptor) (*Buffer, error) {
 	if device == nil {
 		return nil, ErrNilGPUDevice
 	}
@@ -632,7 +631,7 @@ func CreateBuffer(device *webgpu.Device, desc *BufferDescriptor) (*Buffer, error
 // Returns the new Buffer and nil on success.
 // Returns nil and an error if creation fails.
 func CreateBufferSimple(
-	device *webgpu.Device,
+	device hal.Device,
 	size uint64,
 	usage types.BufferUsage,
 	label string,
@@ -662,7 +661,7 @@ func CreateBufferSimple(
 // Returns the new Buffer and nil on success.
 // Returns nil and an error if creation fails.
 func CreateStagingBuffer(
-	device *webgpu.Device,
+	device hal.Device,
 	size uint64,
 	forUpload bool,
 	label string,

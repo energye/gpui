@@ -43,7 +43,7 @@ var ErrAcquireTimeout = errors.New("wgpu: surface acquire timed out")
 
 type Swapchain struct {
 	Surface     *Surface
-	Device      *Device
+	Device      hal.Device
 	Width       uint32
 	Height      uint32
 	Format      TextureFormat
@@ -102,15 +102,15 @@ type Swapchain struct {
 	// When RecoveryAdapter is set, BeginFrame attempts RequestDevice + reconfigure
 	// instead of permanently failing. Matches desktop hosts that recreate GPU
 	// state after TDR / driver reset without aborting the process.
-	RecoveryAdapter *Adapter
+	RecoveryAdapter hal.Adapter
 	// OnDeviceAbandon is called on the sticky-lost device BEFORE it is Destroy/Release'd
 	// and before RequestDevice. Host must drop all GPU objects (pipelines, pools,
 	// sessions via deviceGen) so VRAM is free for the new device — otherwise the
 	// next CreateTexture hits "Not enough memory left".
-	OnDeviceAbandon func(oldDevice *Device)
+	OnDeviceAbandon func(oldDevice hal.Device)
 	// OnDeviceRecreated is called after a successful recovery with the new device.
 	// Apps rebind accelerators / device providers here.
-	OnDeviceRecreated func(newDevice *Device)
+	OnDeviceRecreated func(newDevice hal.Device)
 	// DeviceLabel is passed to RequestDevice during recovery.
 	DeviceLabel     string
 	recoverAttempts uint64
@@ -151,9 +151,11 @@ type SwapchainStats struct {
 
 // NewSwapchain builds a swapchain for an existing surface + device.
 // Call Configure before BeginFrame.
-func NewSwapchain(surface *Surface, device *Device, width, height uint32) *Swapchain {
+// Implements hal-facing flow (device stored as hal.Device interface).
+func NewSwapchain(surface hal.Surface, device hal.Device, width, height uint32) *Swapchain {
+	ws, _ := surface.(*Surface)
 	return &Swapchain{
-		Surface:         surface,
+		Surface:         ws,
 		Device:          device,
 		Width:           width,
 		Height:          height,
@@ -172,7 +174,8 @@ func NewSwapchain(surface *Surface, device *Device, width, height uint32) *Swapc
 // drop GPUShared/session resources while the old device is still addressable.
 // tryRecover then Destroy/Release's the old device *before* RequestDevice
 // (peak-VRAM safe; Skia abandon-then-recreate).
-func (sc *Swapchain) EnableAutoRecover(adapter *Adapter, deviceLabel string, onRecreated func(*Device)) {
+// Adapter/callback device params use hal interfaces (7f Device→hal.Device).
+func (sc *Swapchain) EnableAutoRecover(adapter hal.Adapter, deviceLabel string, onRecreated func(hal.Device)) {
 	if sc == nil {
 		return
 	}
@@ -314,11 +317,15 @@ func (sc *Swapchain) Configure() error {
 }
 
 // ConfigureFromCapabilities picks a supported format/present/alpha mode then configures.
-func (sc *Swapchain) ConfigureFromCapabilities(adapter *Adapter) error {
+func (sc *Swapchain) ConfigureFromCapabilities(adapter hal.Adapter) error {
 	if sc == nil || adapter == nil {
 		return fmt.Errorf("wgpu: swapchain/adapter nil")
 	}
-	caps := adapter.GetSurfaceCapabilities(sc.Surface)
+	wa, ok := adapter.(*Adapter)
+	if !ok || wa == nil {
+		return fmt.Errorf("wgpu: ConfigureFromCapabilities requires *Adapter")
+	}
+	caps := wa.GetSurfaceCapabilities(sc.Surface)
 	if caps != nil {
 		if len(caps.Formats) > 0 {
 			sc.Format = caps.Formats[0]
@@ -468,7 +475,8 @@ func (sc *Swapchain) deviceKnownLostLocked() bool {
 // requestDeviceWithVRAMProbe requests a device and verifies a 1x1 texture
 // allocation succeeds. Retries when the previous device heap is slow to reclaim
 // after Unconfigure + heavy GPU work (portable across vendors/sizes).
-func (sc *Swapchain) requestDeviceWithVRAMProbe(label string, lim *types.Limits) (*Device, error) {
+// Returns hal.Device (7f Device→hal.Device).
+func (sc *Swapchain) requestDeviceWithVRAMProbe(label string, lim *types.Limits) (hal.Device, error) {
 	if sc == nil || sc.RecoveryAdapter == nil {
 		return nil, fmt.Errorf("wgpu: requestDeviceWithVRAMProbe: nil swapchain/adapter")
 	}
@@ -479,7 +487,7 @@ func (sc *Swapchain) requestDeviceWithVRAMProbe(label string, lim *types.Limits)
 	// Prefer instance from recovery path via adapter's stored instance if needed.
 	var last error
 	for attempt := 0; attempt < 5; attempt++ {
-		devDesc := &DeviceDescriptor{Label: label, RequiredLimits: types.DefaultLimits()}
+		devDesc := &hal.DeviceDescriptor{Label: label, RequiredLimits: types.DefaultLimits()}
 		if lim != nil {
 			devDesc.RequiredLimits = *lim
 		} else {
@@ -562,10 +570,10 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 		oldDev.FlushCallbacks()
 	}
 	if oldSurf != nil {
-		oldSurf.DiscardTexture()
+		oldSurf.DiscardTexture(nil)
 		if oldDev == nil || !oldDev.IsLost() {
 			// Healthy Unconfigure frees swapchain images cleanly.
-			oldSurf.Unconfigure()
+			oldSurf.Unconfigure(nil)
 		}
 		if canRecreateSurf {
 			oldSurf.Release()
@@ -612,7 +620,7 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 	}
 	sc.Device = dev
 	if canRecreateSurf {
-		ns, err := inst.CreateSurface(disp, win)
+		ns, err := inst.CreateSurfaceFromHandles(disp, win)
 		if err != nil {
 			return fmt.Errorf("ForceRecoverHealthy CreateSurface: %w", err)
 		}
@@ -689,7 +697,7 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 			oldDev.FlushCallbacks()
 		}
 		if oldSurf != nil {
-			oldSurf.DiscardTexture()
+			oldSurf.DiscardTexture(nil)
 			// Never Unconfigure-when-lost (SIGSEGV). Always Release when we can recreate.
 			if canRecreateSurf {
 				oldSurf.Release()
@@ -738,7 +746,7 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	sc.Device = dev
 
 	if canRecreateSurf {
-		ns, err := inst.CreateSurface(disp, win)
+		ns, err := inst.CreateSurfaceFromHandles(disp, win)
 		if err != nil {
 			return fmt.Errorf("%w: recreate surface: %v", hal.ErrDeviceLost, err)
 		}
@@ -858,7 +866,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 				fmt.Fprintf(os.Stderr, "DBG bf acquire-fail=%dms err=%v\n", time.Since(t0).Milliseconds(), err)
 			}
 			if sc.Surface != nil {
-				sc.Surface.DiscardTexture()
+				sc.Surface.DiscardTexture(nil)
 			}
 			// The window may have out-paced the last applied size (interactive
 			// resize drag): reconfigure at the CURRENT live window extent so
@@ -959,7 +967,7 @@ func (sc *Swapchain) reconfigureThrottled() error {
 	}
 	// Best-effort drop of any dangling surface output before reconfigure.
 	if sc.Surface != nil {
-		sc.Surface.DiscardTexture()
+		sc.Surface.DiscardTexture(nil)
 	}
 	if err := sc.Configure(); err != nil {
 		return err
@@ -1134,6 +1142,6 @@ func (sc *Swapchain) Release() {
 	if sc == nil || sc.Surface == nil {
 		return
 	}
-	sc.Surface.Unconfigure()
+	sc.Surface.Unconfigure(nil)
 	sc.configured = false
 }

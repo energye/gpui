@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Compute pass errors.
@@ -92,7 +91,7 @@ type ComputePassEncoder struct {
 	mu sync.Mutex
 
 	// gpuPass is the underlying compute pass encoder.
-	gpuPass *webgpu.ComputePassEncoder
+	gpuPass hal.ComputePassEncoder
 
 	// encoder is the parent command encoder.
 	encoder *CoreCommandEncoder

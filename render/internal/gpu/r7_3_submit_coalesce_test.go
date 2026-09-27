@@ -9,7 +9,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -115,7 +114,7 @@ func TestR73_DualTexMultiBundle_DeferredSubmit(t *testing.T) {
 // TestR73_SubmitWithLeading_TwoCBs checks two-CB coalesce counter.
 func TestR73_SubmitWithLeading_TwoCBs(t *testing.T) {
 	_, s := r73Session(t)
-	mk := func(label string) *webgpu.CommandBuffer {
+	mk := func(label string) hal.CommandBuffer {
 		enc, err := s.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: label})
 		if err != nil {
 			t.Fatal(err)

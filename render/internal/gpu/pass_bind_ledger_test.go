@@ -5,15 +5,14 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/hal/noop"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // 账本只记指针一致，不碰 GPU：同 pass 同一套绑定才跳过 Set*，
 // 换管线/换 pass/跨层失效后必须走全绑定。像素无影响，只省调用。
 func TestPassBindLedger_SkipIdenticalInvalidatesOnChange(t *testing.T) {
 	var l PassBindLedger
-	rp := &webgpu.RenderPassEncoder{}
-	rp2 := &webgpu.RenderPassEncoder{}
+	rp := &noop.RenderPassEncoder{}
+	rp2 := &noop.RenderPassEncoder{}
 	pipe := hal.RenderPipeline(&noop.Buffer{})
 	pipe2 := hal.RenderPipeline(&noop.Buffer{})
 	bg0 := hal.BindGroup(&noop.Buffer{})

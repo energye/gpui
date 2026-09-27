@@ -4,7 +4,6 @@ package gpu
 
 import (
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // CommandEncoder is a legacy lightweight command-recording helper kept for
@@ -15,7 +14,7 @@ import (
 // preserves the old stub ID API so existing pure state-machine tests do not
 // require a native GPU device.
 type CommandEncoder struct {
-	device  *webgpu.Device
+	device  hal.Device
 	encoder StubCommandEncoderID
 
 	// State tracking
@@ -30,7 +29,7 @@ type StubCommandEncoderID uint64
 type StubCommandBufferID uint64
 
 // NewCommandEncoder creates a legacy test command encoder.
-func NewCommandEncoder(device *webgpu.Device) *CommandEncoder {
+func NewCommandEncoder(device hal.Device) *CommandEncoder {
 	return &CommandEncoder{
 		device:  device,
 		encoder: StubCommandEncoderID(1),
@@ -318,7 +317,7 @@ type RenderCommandBuilder struct {
 }
 
 // NewRenderCommandBuilder creates a new render command builder.
-func NewRenderCommandBuilder(device *webgpu.Device, target *GPUTexture, clearTarget bool) *RenderCommandBuilder {
+func NewRenderCommandBuilder(device hal.Device, target *GPUTexture, clearTarget bool) *RenderCommandBuilder {
 	encoder := NewCommandEncoder(device)
 	pass := encoder.BeginRenderPass(target, clearTarget)
 
@@ -365,7 +364,7 @@ type ComputeCommandBuilder struct {
 }
 
 // NewComputeCommandBuilder creates a new compute command builder.
-func NewComputeCommandBuilder(device *webgpu.Device) *ComputeCommandBuilder {
+func NewComputeCommandBuilder(device hal.Device) *ComputeCommandBuilder {
 	encoder := NewCommandEncoder(device)
 	pass := encoder.BeginComputePass()
 

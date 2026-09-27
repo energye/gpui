@@ -150,13 +150,13 @@ func TestGlyphMaskGPURepro(t *testing.T) {
 	t.Logf("text (dark) pixels rendered = %d  (BUG: this is ~0; fix makes it large)", textPixels)
 }
 
-func reproRealDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
+func reproRealDevice(t *testing.T) (hal.Device, hal.Queue, func()) {
 	t.Helper()
 	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {
 		t.Skipf("no GPU instance: %v", err)
 	}
-	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
+	ad, err := inst.RequestAdapter(&hal.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skipf("no adapter: %v", err)
 	}

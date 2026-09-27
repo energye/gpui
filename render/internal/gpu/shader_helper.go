@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/shader"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // CompileShaderToSPIRV compiles WGSL source to SPIR-V uint32 slice.
@@ -33,7 +32,7 @@ func CompileShaderToSPIRV(wgslSource string) ([]uint32, error) {
 }
 
 // CreateShaderModule creates a shader module from WGSL source.
-func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) (hal.ShaderModule, error) {
+func CreateShaderModule(device hal.Device, label string, wgslSource string) (hal.ShaderModule, error) {
 	return device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: label,
 		WGSL:  wgslSource,
@@ -43,7 +42,7 @@ func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) 
 // GPUResources holds the device, shader module and pipeline layout common to
 // GPU rasterizers; released via DestroyGPUResources.
 type GPUResources struct {
-	Device         *webgpu.Device
+	Device         hal.Device
 	ShaderModule   hal.ShaderModule
 	PipelineLayout hal.PipelineLayout
 	BindLayouts    []hal.BindGroupLayout

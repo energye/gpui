@@ -10,7 +10,7 @@ import (
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
-func createNativeTestDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
+func createNativeTestDevice(t *testing.T) (hal.Device, hal.Queue, func()) {
 	t.Helper()
 
 	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
@@ -20,7 +20,7 @@ func createNativeTestDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
 		t.Skipf("webgpu CreateInstance unavailable: %v", err)
 	}
 
-	adapter, err := instance.RequestAdapter(&webgpu.RequestAdapterOptions{
+	adapter, err := instance.RequestAdapter(&hal.RequestAdapterOptions{
 		PowerPreference: types.PowerPreferenceHighPerformance,
 	})
 	if err != nil {
@@ -44,7 +44,7 @@ func createNativeTestDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
 	return device, queue, cleanup
 }
 
-func createNativeDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
+func createNativeDevice(t *testing.T) (hal.Device, hal.Queue, func()) {
 	t.Helper()
 	return createNativeTestDevice(t)
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -71,7 +70,7 @@ const glyphMaskLCDUniformSize = 96
 //	GlyphMaskPipeline owns shader, layout, pipeline, sampler
 //	bind groups are created per atlas texture (uniform + texture + sampler)
 type GlyphMaskPipeline struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -135,7 +134,7 @@ type GlyphMaskPipeline struct {
 // NewGlyphMaskPipeline creates a new glyph mask pipeline with the given device
 // and queue. The render pipeline and GPU objects are not created until
 // ensurePipelineWithStencil is called.
-func NewGlyphMaskPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *GlyphMaskPipeline {
+func NewGlyphMaskPipeline(device hal.Device, queue hal.Queue, sampleCount uint32) *GlyphMaskPipeline {
 	return &GlyphMaskPipeline{
 		device:      device,
 		queue:       queue,
@@ -462,7 +461,7 @@ func (p *GlyphMaskPipeline) ensureDepthClipPipeline() error {
 // The resources parameter holds pre-built vertex/index buffers, uniform buffer,
 // and bind group for the current frame. If isLCD is true and the LCD pipeline
 // is available, the LCD pipeline is used for per-channel alpha compositing.
-func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *glyphMaskFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
+func (p *GlyphMaskPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *glyphMaskFrameResources, clipBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || len(resources.drawCalls) == 0 {
 		return
 	}

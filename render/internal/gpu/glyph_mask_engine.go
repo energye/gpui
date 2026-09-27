@@ -13,7 +13,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
@@ -770,7 +769,7 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 // when the dirty area is <50% of the page; otherwise falls back to full-page
 // upload. Advances the atlas frame after upload so LRU compaction can reclaim
 // stale pages (Skia GrAtlasManager::postFlush pattern).
-func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue hal.Queue) error {
+func (e *GlyphMaskEngine) SyncAtlasTextures(device hal.Device, queue hal.Queue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -944,7 +943,7 @@ func (e *GlyphMaskEngine) PageTextureView(index int) hal.TextureView {
 }
 
 // Destroy releases all GPU textures held by the engine.
-func (e *GlyphMaskEngine) Destroy(device *webgpu.Device) {
+func (e *GlyphMaskEngine) Destroy(device hal.Device) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

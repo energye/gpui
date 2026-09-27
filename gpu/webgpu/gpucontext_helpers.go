@@ -1,21 +1,29 @@
+//go:build !(js && wasm)
+
 package webgpu
 
 import (
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"unsafe"
+
+	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // Handle conversion helpers — isolate unsafe.Pointer from consumers.
-// Consumers write wgpu.DeviceFromHandle(dev) instead of (*wgpu.Device)(dev.Pointer()).
+// Consumers write wgpu.DeviceFromHandle(dev) instead of casting dev.Pointer()
+// to a concrete backend type.
 // DIP: wgpu (implementation) depends on gpucontext (abstraction),
 // like database/sql depends on database/sql/driver.
 
-// DeviceFromHandle extracts *Device from a gpucontext.Device handle.
-func DeviceFromHandle(h gpucontext.Device) *Device {
+// DeviceFromHandle extracts the hal.Device from a gpucontext.Device handle.
+// DeviceToHandle stores *Device (which implements hal.Device); the assertion
+// keeps render free of concrete backend types.
+func DeviceFromHandle(h gpucontext.Device) hal.Device {
 	if h.IsNil() {
 		return nil
 	}
-	return (*Device)(h.Pointer())
+	var dev hal.Device = (*Device)(h.Pointer())
+	return dev
 }
 
 // QueueFromHandle extracts *Queue from a gpucontext.Queue handle.

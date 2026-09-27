@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -30,7 +29,7 @@ import (
 // attachment resolves to the single-sample resolve texture, which can be read back
 // to the CPU via CopySrc usage.
 type StencilRenderer struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -130,7 +129,7 @@ type StencilRenderer struct {
 // NewStencilRenderer creates a new StencilRenderer with the given device, queue,
 // and MSAA sample count. Textures are not allocated until EnsureTextures is
 // called with the desired dimensions.
-func NewStencilRenderer(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *StencilRenderer {
+func NewStencilRenderer(device hal.Device, queue hal.Queue, sampleCount uint32) *StencilRenderer {
 	return &StencilRenderer{
 		device:      device,
 		queue:       queue,
@@ -350,7 +349,7 @@ func (b *stencilCoverBuffers) clearSlabViews() {
 
 // bindFan/band/inner bind the slab view when valid, else the per-entry
 // buffer. The three draw sites shared this if/else; one helper each.
-func (b *stencilCoverBuffers) bindFan(rp *webgpu.RenderPassEncoder) {
+func (b *stencilCoverBuffers) bindFan(rp hal.RenderPassEncoder) {
 	if b.slabFanValid && b.slabFanBuf != nil {
 		rp.SetVertexBuffer(0, b.slabFanBuf, b.slabFanOff)
 		return
@@ -358,7 +357,7 @@ func (b *stencilCoverBuffers) bindFan(rp *webgpu.RenderPassEncoder) {
 	rp.SetVertexBuffer(0, b.fanVertBuf, 0)
 }
 
-func (b *stencilCoverBuffers) bindBand(rp *webgpu.RenderPassEncoder) {
+func (b *stencilCoverBuffers) bindBand(rp hal.RenderPassEncoder) {
 	if b.slabBandValid && b.slabBandBuf != nil {
 		rp.SetVertexBuffer(0, b.slabBandBuf, b.slabBandOff)
 		return
@@ -366,7 +365,7 @@ func (b *stencilCoverBuffers) bindBand(rp *webgpu.RenderPassEncoder) {
 	rp.SetVertexBuffer(0, b.bandVertBuf, 0)
 }
 
-func (b *stencilCoverBuffers) bindInner(rp *webgpu.RenderPassEncoder) {
+func (b *stencilCoverBuffers) bindInner(rp hal.RenderPassEncoder) {
 	if b.slabInnerValid && b.slabInnerBuf != nil {
 		rp.SetVertexBuffer(0, b.slabInnerBuf, b.slabInnerOff)
 		return
@@ -1018,7 +1017,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 // submitAndReadback submits the command buffer, waits for GPU completion,
 // reads back pixel data, and converts BGRA to RGBA into the target buffer.
 func (sr *StencilRenderer) submitAndReadback(
-	cmdBuf *webgpu.CommandBuffer, stagingBuf hal.Buffer,
+	cmdBuf hal.CommandBuffer, stagingBuf hal.Buffer,
 	stagingBufSize uint64, bytesPerRow, alignedBytesPerRow, height uint32, target render.GPURenderTarget,
 ) error {
 	if cmdBuf != nil {
@@ -1068,7 +1067,7 @@ func (sr *StencilRenderer) submitAndReadback(
 // When depthClipped is true (GPU-CLIP-003a), depth-clipped pipeline variants
 // are used. These add DepthCompare=GreaterEqual to restrict both stencil
 // fill and cover passes to pixels where the clip geometry wrote depth=0.0.
-func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG hal.BindGroup, maskBG hal.BindGroup, blendMode render.BlendMode, depthClipped ...bool) {
+func (sr *StencilRenderer) RecordPath(rp hal.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG hal.BindGroup, maskBG hal.BindGroup, blendMode render.BlendMode, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0]
 
 	// Select stencil pipeline based on fill rule and depth clip state.

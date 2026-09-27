@@ -33,13 +33,13 @@ func setupNoopDevice(b *testing.B) (hal.Device, hal.Queue, func()) {
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, err := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
 	if err != nil {
-		instance.Destroy()
+		instance.Release()
 		b.Fatalf("Open failed: %v", err)
 	}
 
 	cleanup := func() {
 		openDevice.Device.Release()
-		instance.Destroy()
+		instance.Release()
 	}
 
 	return openDevice.Device, openDevice.Queue, cleanup

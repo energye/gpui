@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -105,7 +104,7 @@ type texturedStencilPatternParams struct {
 
 type texturedStencilPatternCache struct {
 	mu          sync.Mutex
-	device      *webgpu.Device
+	device      hal.Device
 	sampleCount uint32
 
 	fillShader   hal.ShaderModule
@@ -173,7 +172,7 @@ func (c *texturedStencilPatternCache) destroyPipelinesLocked() {
 	}
 }
 
-func (c *texturedStencilPatternCache) ensure(device *webgpu.Device, sampleCount uint32) error {
+func (c *texturedStencilPatternCache) ensure(device hal.Device, sampleCount uint32) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if sampleCount == 0 {
@@ -439,7 +438,7 @@ func encodeTexturedStencilPatternUniform(w, h uint32, p texturedStencilPatternPa
 // texturedStencilCoverPattern stencil-fills localPath and covers with pattern
 // sampling. Returns premul RGBA (readback). Prefer Retain for no-readback path.
 func texturedStencilCoverPattern(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *texturedStencilPatternCache,
 	localPath *render.Path,
@@ -461,7 +460,7 @@ func texturedStencilCoverPattern(
 // texturedStencilCoverPatternRetain keeps the cover result on GPU for
 // QueueGPUTextureDraw. Caller owns tex/view until after Flush.
 func texturedStencilCoverPatternRetain(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *texturedStencilPatternCache,
 	localPath *render.Path,
@@ -483,7 +482,7 @@ func texturedStencilCoverPatternRetain(
 }
 
 func texturedStencilCoverPatternEx(
-	device *webgpu.Device,
+	device hal.Device,
 	queue hal.Queue,
 	cache *texturedStencilPatternCache,
 	localPath *render.Path,
@@ -732,7 +731,7 @@ func texturedStencilCoverPatternEx(
 			releaseOut()
 			return nil, nil, nil, err
 		}
-		defer cmd.Release()
+		defer device.FreeCommandBuffer(cmd)
 		if _, err := queue.Submit(cmd); err != nil {
 			releaseOut()
 			return nil, nil, nil, err
@@ -770,7 +769,7 @@ func texturedStencilCoverPatternEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	defer cmd.Release()
+	defer device.FreeCommandBuffer(cmd)
 	if _, err := queue.Submit(cmd); err != nil {
 		releaseOut()
 		return nil, nil, nil, err

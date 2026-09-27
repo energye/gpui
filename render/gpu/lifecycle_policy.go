@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // SurfaceLifecycle is a portable host policy for unpresentable windows
@@ -65,7 +65,7 @@ func ResetTextureOOMCount() { textureOOMs.Store(0) }
 
 // ResolveSurfaceLifecycle picks the host tier for this process/adapter.
 // adpt is accepted for API stability; auto tier does not branch on adapter type.
-func ResolveSurfaceLifecycle(adpt *webgpu.Adapter) SurfaceLifecycle {
+func ResolveSurfaceLifecycle(adpt hal.Adapter) SurfaceLifecycle {
 	_ = adpt
 	switch strings.ToLower(os.Getenv("GPUI_LIFECYCLE")) {
 	case "normal", "flutter", "light":

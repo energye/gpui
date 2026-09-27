@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -109,7 +108,7 @@ type ConvexDrawCommand struct {
 // which includes a depth/stencil state that ignores the stencil buffer
 // (Compare=Always, all ops=Keep, masks=0x00).
 type ConvexRenderer struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -178,7 +177,7 @@ func (cr *ConvexRenderer) MaskBindLayout() hal.BindGroupLayout {
 // NewConvexRenderer creates a new convex polygon renderer with the given
 // device and queue. Pipelines are not created until ensurePipeline or
 // ensurePipelineWithStencil is called.
-func NewConvexRenderer(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *ConvexRenderer {
+func NewConvexRenderer(device hal.Device, queue hal.Queue, sampleCount uint32) *ConvexRenderer {
 	return &ConvexRenderer{
 		device:      device,
 		queue:       queue,
@@ -395,7 +394,7 @@ func (cr *ConvexRenderer) ensureMeshDepthClipPipeline() error {
 	return nil
 }
 
-func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *convexFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, depthClipped ...bool) {
+func (cr *ConvexRenderer) RecordDraws(rp hal.RenderPassEncoder, resources *convexFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || resources.vertCount == 0 {
 		return
 	}

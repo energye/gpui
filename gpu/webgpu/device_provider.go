@@ -4,16 +4,19 @@ package webgpu
 
 import (
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
-// SimpleDeviceProvider adapts *Device/*Adapter into gpucontext.DeviceProvider
+// SimpleDeviceProvider adapts hal.Device/hal.Adapter into gpucontext.DeviceProvider
 // so apps can inject a window/swapchain device into render (GPUShared).
 // Without this, render creates a second device and MSAA resolve into a
 // foreign surface texture fails validation.
+// Dev/Adpt store hal interfaces (7f Device→hal.Device); concrete access is a
+// direct internal assert to *Device/*Adapter (same package unpack pattern).
 type SimpleDeviceProvider struct {
-	Dev    *Device
-	Adpt   *Adapter
+	Dev    hal.Device
+	Adpt   hal.Adapter
 	Format TextureFormat
 }
 
@@ -22,7 +25,11 @@ func (p *SimpleDeviceProvider) Device() gpucontext.Device {
 	if p == nil || p.Dev == nil {
 		return gpucontext.Device{}
 	}
-	return DeviceToHandle(p.Dev)
+	wd, ok := p.Dev.(*Device)
+	if !ok || wd == nil {
+		return gpucontext.Device{}
+	}
+	return DeviceToHandle(wd)
 }
 
 // Queue implements gpucontext.DeviceProvider.
@@ -51,7 +58,11 @@ func (p *SimpleDeviceProvider) Adapter() gpucontext.Adapter {
 	if p == nil || p.Adpt == nil {
 		return gpucontext.Adapter{}
 	}
-	return AdapterToHandle(p.Adpt)
+	wa, ok := p.Adpt.(*Adapter)
+	if !ok || wa == nil {
+		return gpucontext.Adapter{}
+	}
+	return AdapterToHandle(wa)
 }
 
 // AdapterInfo implements gpucontext.DeviceProvider.

@@ -10,7 +10,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Texture errors.
@@ -59,7 +58,7 @@ type Texture struct {
 	gpuTexture hal.Texture
 
 	// device is the parent device.
-	device *webgpu.Device
+	device hal.Device
 
 	// descriptor holds the texture configuration (immutable after creation).
 	descriptor TextureDescriptor
@@ -115,7 +114,7 @@ type TextureDescriptor struct {
 //   - desc: The texture descriptor (copied)
 //
 // Returns the new Texture.
-func NewTexture(gpuTexture hal.Texture, device *webgpu.Device, desc *TextureDescriptor) *Texture {
+func NewTexture(gpuTexture hal.Texture, device hal.Device, desc *TextureDescriptor) *Texture {
 	return &Texture{
 		gpuTexture: gpuTexture,
 		device:     device,
@@ -395,7 +394,7 @@ type TextureView struct {
 	texture *Texture
 
 	// device is the device (retained for destruction).
-	device *webgpu.Device
+	device hal.Device
 
 	// descriptor holds the view configuration.
 	descriptor TextureViewDescriptor
@@ -608,7 +607,7 @@ func textureViewDimensionFromTexture(dim types.TextureDimension) types.TextureVi
 //   - The descriptor is nil
 //   - Texture dimensions are invalid
 //   - Texture creation fails
-func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture, error) {
+func CreateCoreTexture(device hal.Device, desc *TextureDescriptor) (*Texture, error) {
 	if device == nil {
 		return nil, ErrNilGPUDevice
 	}
@@ -689,7 +688,7 @@ func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture
 // Returns the new Texture and nil on success.
 // Returns nil and an error if creation fails.
 func CreateCoreTextureSimple(
-	device *webgpu.Device,
+	device hal.Device,
 	width, height uint32,
 	format types.TextureFormat,
 	usage types.TextureUsage,

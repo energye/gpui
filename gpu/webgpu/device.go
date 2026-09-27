@@ -353,7 +353,8 @@ func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (hal
 }
 
 // CreateCommandEncoder creates a command encoder for recording GPU commands.
-func (d *Device) CreateCommandEncoder(desc *hal.CommandEncoderDescriptor) (*CommandEncoder, error) {
+// Implements hal.Device (returns hal.CommandEncoder interface).
+func (d *Device) CreateCommandEncoder(desc *hal.CommandEncoderDescriptor) (hal.CommandEncoder, error) {
 	if err := prepareDeviceCall(d); err != nil {
 		return nil, err
 	}
@@ -1095,3 +1096,5 @@ func convertErrorType(et rwgpu.ErrorType) hal.ErrorFilter {
 		return hal.ErrorFilterInternal
 	}
 }
+
+var _ hal.Device = (*Device)(nil)

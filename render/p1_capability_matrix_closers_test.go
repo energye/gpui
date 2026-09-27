@@ -2949,7 +2949,7 @@ func TestP1_Capability_K02_DrawIndirectGPU(t *testing.T) {
 		t.Skipf("CreateInstance: %v", err)
 	}
 	defer inst.Release()
-	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
+	ad, err := inst.RequestAdapter(&hal.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skipf("RequestAdapter: %v", err)
 	}
@@ -2985,7 +2985,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("shader: %v", err)
 	}
-	defer shader.Release()
+	defer shader.Destroy()
 
 	pipeline, err := dev.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Vertex: hal.VertexState{Module: shader, EntryPoint: "vs_main"},
@@ -3007,7 +3007,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("pipeline: %v", err)
 	}
-	defer pipeline.Release()
+	defer pipeline.Destroy()
 
 	// Indirect args: vertexCount=3, instanceCount=1, firstVertex=0, firstInstance=0
 	args := make([]byte, 16)
@@ -3043,7 +3043,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 		}
 		t.Fatalf("rt: %v", err)
 	}
-	defer rt.Release()
+	defer rt.Destroy()
 	view, err := dev.CreateTextureView(rt, &hal.TextureViewDescriptor{
 		Format: types.TextureFormatRGBA8Unorm, Dimension: types.TextureViewDimension2D,
 		Aspect: types.TextureAspectAll, MipLevelCount: 1, ArrayLayerCount: 1,
@@ -3051,7 +3051,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if err != nil {
 		t.Fatalf("view: %v", err)
 	}
-	defer view.Release()
+	defer view.Destroy()
 
 	enc, err := dev.CreateCommandEncoder(nil)
 	if err != nil {
@@ -3094,7 +3094,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	if _, err := queue.Submit(cmd); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	cmd.Release()
+	dev.FreeCommandBuffer(cmd)
 	dev.Poll(hal.PollWait)
 
 	mapping, err := dev.MapBuffer(staging, 0, stagingSize)
@@ -3120,7 +3120,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 		t.Skipf("CreateInstance: %v", err)
 	}
 	defer inst.Release()
-	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
+	ad, err := inst.RequestAdapter(&hal.RequestAdapterOptions{PowerPreference: types.PowerPreferenceHighPerformance})
 	if err != nil {
 		t.Skipf("RequestAdapter: %v", err)
 	}
@@ -3142,7 +3142,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	if err != nil {
 		t.Skipf("RGBA16Float RT unsupported: %v", err)
 	}
-	defer rt.Release()
+	defer rt.Destroy()
 	view, err := dev.CreateTextureView(rt, &hal.TextureViewDescriptor{
 		Format: types.TextureFormatRGBA16Float, Dimension: types.TextureViewDimension2D,
 		Aspect: types.TextureAspectAll, MipLevelCount: 1, ArrayLayerCount: 1,
@@ -3150,7 +3150,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	if err != nil {
 		t.Fatalf("F16 view: %v", err)
 	}
-	defer view.Release()
+	defer view.Destroy()
 
 	// Clear F16 RT to a known color (no fragment shader needed).
 	enc, err := dev.CreateCommandEncoder(nil)
@@ -3191,7 +3191,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 	if _, err := queue.Submit(cmd); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	cmd.Release()
+	dev.FreeCommandBuffer(cmd)
 	dev.Poll(hal.PollWait)
 
 	mapping, err := dev.MapBuffer(staging, 0, stagingSize)

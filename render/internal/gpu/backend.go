@@ -26,9 +26,9 @@ type Backend struct {
 	mu sync.RWMutex
 
 	// GPU resources
-	instance *webgpu.Instance
-	adapter  *webgpu.Adapter
-	device   *webgpu.Device
+	instance hal.Instance
+	adapter  hal.Adapter
+	device   hal.Device
 	queue    hal.Queue
 
 	// GPU information
@@ -74,7 +74,7 @@ func (b *Backend) Init() error {
 	b.instance = instance
 
 	// Step 2: Request Adapter (prefer high performance GPU)
-	adapter, err := b.instance.RequestAdapter(&webgpu.RequestAdapterOptions{
+	adapter, err := b.instance.RequestAdapter(&hal.RequestAdapterOptions{
 		PowerPreference: types.PowerPreferenceHighPerformance,
 	})
 	if err != nil {
@@ -234,7 +234,7 @@ func (b *Backend) GPUInfo() *GPUInfo {
 
 // Device returns the GPU device ID.
 // Returns a zero ID if the backend is not initialized.
-func (b *Backend) Device() *webgpu.Device {
+func (b *Backend) Device() hal.Device {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.device

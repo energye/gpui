@@ -17,7 +17,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // =============================================================================
@@ -381,7 +380,7 @@ type VelloComputeDispatcher struct {
 	mu sync.RWMutex
 
 	// device is the GPU device providing GPU resource creation.
-	device *webgpu.Device
+	device hal.Device
 
 	// queue is the GPU queue for command submission and buffer writes.
 	queue hal.Queue
@@ -411,7 +410,7 @@ type VelloComputeDispatcher struct {
 // NewVelloComputeDispatcher creates a new dispatcher attached to the given
 // GPU device and queue. The dispatcher must be initialized with Init()
 // before Dispatch() can be called.
-func NewVelloComputeDispatcher(device *webgpu.Device, queue hal.Queue) *VelloComputeDispatcher {
+func NewVelloComputeDispatcher(device hal.Device, queue hal.Queue) *VelloComputeDispatcher {
 	d := &VelloComputeDispatcher{
 		device: device,
 		queue:  queue,
@@ -1106,9 +1105,9 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 
 // dispatchResources tracks per-frame GPU resources for cleanup.
 type dispatchResources struct {
-	device     *webgpu.Device
+	device     hal.Device
 	bindGroups []hal.BindGroup
-	cmdBuf     *webgpu.CommandBuffer
+	cmdBuf     hal.CommandBuffer
 }
 
 // cleanup destroys all tracked per-frame resources.

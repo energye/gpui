@@ -9,7 +9,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -123,7 +122,7 @@ const stencilPoolCap = 8
 // takePooledStencil fetches (or creates) a depth/stencil texture for (w,h).
 // Returns nil when the caller should fall back to direct creation (pool
 // disabled / OOM fallback path). sc must be 1 — MSAA textures are not pooled.
-func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labelPrefix string) hal.TextureView {
+func (ts *textureSet) takePooledStencil(device hal.Device, w, h uint32, labelPrefix string) hal.TextureView {
 	if ts.stencilPool == nil {
 		ts.stencilPool = make(map[stencilPoolKey]*pooledStencil)
 	}
@@ -182,7 +181,7 @@ func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labe
 //
 // The samples parameter sets the MSAA sample count for color and depth/stencil
 // textures (1x default, Skia kCoverage analytic fringe; 4x explicit opt-in).
-func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
+func (ts *textureSet) ensureTextures(device hal.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
 	if device == nil {
 		return fmt.Errorf("ensureTextures: device is nil")
 	}
@@ -330,7 +329,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	return nil
 }
 
-func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
+func (ts *textureSet) ensureSurfaceTextures(device hal.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
 	if device == nil {
 		return fmt.Errorf("ensureSurfaceTextures: device is nil")
 	}
@@ -576,7 +575,7 @@ func (ts *textureSet) releaseOrRetire(tex hal.Texture, view hal.TextureView) {
 
 // createTextureRetryOOM creates a texture; on OOM-like errors flushes and retries.
 // Second try forces SampleCount=1 when the failed desc used MSAA (post-TDR reclaim).
-func createTextureRetryOOM(device *webgpu.Device, desc *hal.TextureDescriptor) (hal.Texture, error) {
+func createTextureRetryOOM(device hal.Device, desc *hal.TextureDescriptor) (hal.Texture, error) {
 	if device == nil || desc == nil {
 		return nil, fmt.Errorf("createTextureRetryOOM: nil device/desc")
 	}

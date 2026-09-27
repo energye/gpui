@@ -5,14 +5,14 @@ package gpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // testSampleCount probes the device for 4x MSAA support, falling back to 1x.
 // Mirrors the production resolveSampleCount (Skia Graphite pattern) so tests
 // work on software backends that reject SampleCount=4.
-func testSampleCount(t *testing.T, device *webgpu.Device) uint32 {
+func testSampleCount(t *testing.T, device hal.Device) uint32 {
 	t.Helper()
 	return resolveSampleCount(device)
 }

@@ -11,13 +11,6 @@ import (
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
-// InstanceDescriptor configures instance creation.
-// Canonical form lives in gpu/hal (superset: backend selectors plus X11
-// XlibDisplay/XlibScreen, 片4已加；Backends/Flags 与 webgpu 同形).
-// Alias keeps webgpu callers compiling while render uses hal.* directly.
-// Full removal waits for slice 7f收尾.
-type InstanceDescriptor = hal.InstanceDescriptor
-
 // Instance is the entry point for GPU operations.
 // On the wgpu-native backend, this wraps rwgpu Instance.
 type Instance struct {
@@ -56,7 +49,9 @@ func CreateInstance(desc *hal.InstanceDescriptor) (*Instance, error) {
 
 // RequestAdapter requests a GPU adapter matching the options.
 // If opts is nil, the best available adapter is returned.
-func (i *Instance) RequestAdapter(opts *RequestAdapterOptions) (*Adapter, error) {
+// Takes hal.RequestAdapterOptions (canonical, 7f CompatibleSurface→hal.Surface).
+// Implements hal.Instance (returns hal.Adapter interface).
+func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
 	if i.released {
 		return nil, ErrReleased
 	}
@@ -67,8 +62,8 @@ func (i *Instance) RequestAdapter(opts *RequestAdapterOptions) (*Adapter, error)
 			PowerPreference:      opts.PowerPreference,
 			ForceFallbackAdapter: opts.ForceFallbackAdapter,
 		}
-		if opts.CompatibleSurface != nil {
-			rOpts.CompatibleSurface = opts.CompatibleSurface.r
+		if ws, ok := opts.CompatibleSurface.(*Surface); ok && ws != nil {
+			rOpts.CompatibleSurface = ws.r
 		}
 	}
 
@@ -130,6 +125,31 @@ func (i *Instance) Release() {
 	if i.r != nil {
 		i.r.Release()
 	}
+}
+
+// EnumerateAdapters implements hal.Instance: returns the RequestAdapter result
+// as a single-element list (wgpu-native has no multi-adapter enumeration).
+func (i *Instance) EnumerateAdapters(hint hal.Surface) []hal.ExposedAdapter {
+	var opts *hal.RequestAdapterOptions
+	if hint != nil {
+		if ws, ok := hint.(*Surface); ok && ws != nil && !ws.released {
+			opts = &hal.RequestAdapterOptions{CompatibleSurface: ws}
+		}
+	}
+	a, err := i.RequestAdapter(opts)
+	if err != nil {
+		return nil
+	}
+	wa, ok := a.(*Adapter)
+	if !ok || wa == nil {
+		return nil
+	}
+	return []hal.ExposedAdapter{{
+		Adapter:      wa,
+		Info:         wa.info,
+		Features:     wa.features,
+		Capabilities: hal.Capabilities{Limits: wa.limits},
+	}}
 }
 
 // convertLimits converts rwgpu Limits to gputypes.Limits.
@@ -230,3 +250,5 @@ func convertAdapterType(at rwgpu.AdapterType) types.DeviceType {
 		return types.DeviceTypeOther
 	}
 }
+
+var _ hal.Instance = (*Instance)(nil)

@@ -145,7 +145,7 @@ func RecoverSharedDevice() error {
 
 // detachDeadShare nils a share whose device was released but never
 // replaced, so no pointer aliases freed memory. Callers hold no locks.
-func detachDeadShare(oldDev *webgpu.Device) {
+func detachDeadShare(oldDev hal.Device) {
 	shareMu.Lock()
 	defer shareMu.Unlock()
 	if shareDevice == oldDev {

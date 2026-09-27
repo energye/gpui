@@ -39,7 +39,7 @@ func TestNoopCreateInstance(t *testing.T) {
 	}
 
 	// Cleanup
-	instance.Destroy()
+	instance.Release()
 }
 
 // TestNoopCreateInstance_NilDescriptor tests that nil descriptor is handled.
@@ -52,7 +52,7 @@ func TestNoopCreateInstance_NilDescriptor(t *testing.T) {
 	if instance == nil {
 		t.Fatal("expected non-nil instance even with nil descriptor")
 	}
-	instance.Destroy()
+	instance.Release()
 }
 
 // TestNoopEnumerateAdapters tests adapter enumeration.
@@ -62,7 +62,7 @@ func TestNoopEnumerateAdapters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	adapters := instance.EnumerateAdapters(nil)
 	if len(adapters) == 0 {
@@ -92,7 +92,7 @@ func TestNoopEnumerateAdapters_WithSurfaceHint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	// Create a surface
 	surface, err := instance.CreateSurface(hal.SurfaceTarget{Kind: hal.SurfaceTargetHeadless})
@@ -115,7 +115,7 @@ func TestNoopCreateSurface(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	tests := []struct {
 		name          string
@@ -151,7 +151,7 @@ func TestNoopAdapterOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	adapters := instance.EnumerateAdapters(nil)
 	adapter := adapters[0].Adapter
@@ -190,7 +190,7 @@ func TestNoopAdapterCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	adapters := instance.EnumerateAdapters(nil)
 	adapter := adapters[0].Adapter
@@ -944,7 +944,7 @@ func TestNoopWriteReadBufferWithOffset(t *testing.T) {
 func TestNoopSurfaceConfigure(t *testing.T) {
 	api := noop.NewBackend()
 	instance, _ := api.CreateInstance(nil)
-	defer instance.Destroy()
+	defer instance.Release()
 
 	surface, _ := instance.CreateSurface(hal.SurfaceTarget{Kind: hal.SurfaceTargetHeadless})
 	defer surface.Destroy()
@@ -975,7 +975,7 @@ func TestNoopSurfaceConfigure(t *testing.T) {
 func TestNoopSurfaceAcquireTexture(t *testing.T) {
 	api := noop.NewBackend()
 	instance, _ := api.CreateInstance(nil)
-	defer instance.Destroy()
+	defer instance.Release()
 
 	surface, _ := instance.CreateSurface(hal.SurfaceTarget{Kind: hal.SurfaceTargetHeadless})
 	defer surface.Destroy()
@@ -1091,7 +1091,7 @@ func TestNoopFullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
-	defer instance.Destroy()
+	defer instance.Release()
 
 	// Create surface
 	surface, err := instance.CreateSurface(hal.SurfaceTarget{Kind: hal.SurfaceTargetHeadless})
@@ -1636,13 +1636,13 @@ func createTestDevice(t *testing.T) (hal.Device, func()) {
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, err := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
 	if err != nil {
-		instance.Destroy()
+		instance.Release()
 		t.Fatalf("Open failed: %v", err)
 	}
 
 	cleanup := func() {
 		openDevice.Device.Release()
-		instance.Destroy()
+		instance.Release()
 	}
 
 	return openDevice.Device, cleanup
@@ -1660,13 +1660,13 @@ func createTestDeviceAndQueue(t *testing.T) (hal.Device, hal.Queue, func()) {
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, err := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
 	if err != nil {
-		instance.Destroy()
+		instance.Release()
 		t.Fatalf("Open failed: %v", err)
 	}
 
 	cleanup := func() {
 		openDevice.Device.Release()
-		instance.Destroy()
+		instance.Release()
 	}
 
 	return openDevice.Device, openDevice.Queue, cleanup

@@ -113,17 +113,44 @@ type Surface struct {
 	configHeight uint32
 }
 
-// CreateSurface creates a rendering surface from platform-specific handles.
-// On Linux this uses SurfaceBackendAuto (DISPLAY/WAYLAND_DISPLAY heuristic).
-// Prefer CreateSurfaceFor when the window system is already known (X11 vs
-// Wayland handles must match).
+// CreateSurface creates a rendering surface from a typed platform target.
+// Implements hal.Instance (takes hal.SurfaceTarget, returns hal.Surface).
+// Kind selects the window-system path; handles stay caller-owned.
 //
 // displayHandle and windowHandle are platform-specific:
 //   - Windows: displayHandle=HINSTANCE (can be 0), windowHandle=HWND
 //   - macOS: displayHandle=0, windowHandle=CAMetalLayer*
 //   - Linux/X11: displayHandle=Display*, windowHandle=Window
 //   - Linux/Wayland: displayHandle=wl_display*, windowHandle=wl_surface*
-func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface, error) {
+func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error) {
+	return i.CreateSurfaceFor(surfaceBackendForTarget(target.Kind), target.DisplayHandle, target.WindowHandle)
+}
+
+// surfaceBackendForTarget maps a hal.SurfaceTargetKind to the wgpu-native
+// SurfaceBackend path. Headless/invalid fall back to Auto (env heuristic).
+func surfaceBackendForTarget(kind hal.SurfaceTargetKind) SurfaceBackend {
+	switch kind {
+	case hal.SurfaceTargetXlibWindow:
+		return SurfaceBackendXlib
+	case hal.SurfaceTargetWaylandSurface:
+		return SurfaceBackendWayland
+	case hal.SurfaceTargetWindowsHWND:
+		return SurfaceBackendWin32
+	case hal.SurfaceTargetMetalLayer:
+		return SurfaceBackendMetal
+	default:
+		return SurfaceBackendAuto
+	}
+}
+
+// CreateSurfaceFromHandles creates a rendering surface from platform-specific handles.
+// On Linux this uses SurfaceBackendAuto (DISPLAY/WAYLAND_DISPLAY heuristic).
+// Prefer CreateSurfaceFor when the window system is already known (X11 vs
+// Wayland handles must match).
+//
+// This is the pre-hal entry point kept for existing callers (tests, swapchain
+// recovery); new code should pass a hal.SurfaceTarget to CreateSurface.
+func (i *Instance) CreateSurfaceFromHandles(displayHandle, windowHandle uintptr) (*Surface, error) {
 	return i.CreateSurfaceFor(SurfaceBackendAuto, displayHandle, windowHandle)
 }
 
@@ -174,7 +201,8 @@ func (s *Surface) WindowSize() (width, height uint32, ok bool) {
 }
 
 // Configure configures the surface for presentation.
-func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error {
+// Implements hal.Surface (takes hal.Device interface, internal unpack).
+func (s *Surface) Configure(device hal.Device, config *SurfaceConfiguration) error {
 	// Defense order: nil surface → released → invalid handle → config/device → lost → native.
 	if s == nil {
 		return fmt.Errorf("wgpu: surface is nil")
@@ -191,14 +219,18 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	if device == nil {
 		return fmt.Errorf("wgpu: device is nil")
 	}
-	if device.IsLost() {
+	wd, ok := device.(*Device)
+	if !ok || wd == nil {
+		return fmt.Errorf("wgpu: Configure requires *Device")
+	}
+	if wd.IsLost() {
 		return hal.ErrDeviceLost
 	}
 	if config.Width == 0 || config.Height == 0 {
 		return fmt.Errorf("wgpu: surface extent must be non-zero (got %dx%d)", config.Width, config.Height)
 	}
 	// Drop any in-flight surface output before reconfigure (native contract).
-	s.DiscardTexture()
+	s.DiscardTexture(nil)
 
 	rConfig := &rwgpu.SurfaceConfiguration{
 		Format:      config.Format,
@@ -209,14 +241,14 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		PresentMode: config.PresentMode,
 	}
 
-	if err := s.r.Configure(device.r, rConfig); err != nil {
+	if err := s.r.Configure(wd.r, rConfig); err != nil {
 		if isDeviceLostErr(err) {
 			return hal.ErrDeviceLost
 		}
 		return fmt.Errorf("wgpu: failed to configure surface: %w", err)
 	}
 
-	s.device = device
+	s.device = wd
 	s.configFormat = config.Format
 	s.configWidth = config.Width
 	s.configHeight = config.Height
@@ -224,12 +256,13 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 }
 
 // Unconfigure removes the surface configuration.
+// Implements hal.Surface (takes hal.Device, ignored; device tracked internally).
 // Nil-safe and released-safe. Skips native when device is lost (rwgpu lost-safe path).
-func (s *Surface) Unconfigure() {
+func (s *Surface) Unconfigure(_ hal.Device) {
 	if s == nil || s.released {
 		return
 	}
-	s.DiscardTexture()
+	s.DiscardTexture(nil)
 	if s.r != nil {
 		s.r.Unconfigure()
 	}
@@ -259,7 +292,7 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	}
 	// One in-flight surface texture at a time (lost-safe Release on textures).
 	// rwgpu.GetCurrentTexture also absorbs sticky uncaptured "Parent device is lost".
-	s.DiscardTexture()
+	s.DiscardTexture(nil)
 	// Re-check after DiscardTexture / flush — never enter native when lost.
 	if s.device.IsLost() {
 		return nil, false, hal.ErrDeviceLost
@@ -329,9 +362,10 @@ func (s *Surface) ActualExtent() (width, height uint32) {
 func (s *Surface) SetPrepareFrame(_ any) {}
 
 // DiscardTexture drops the last acquired surface texture without presenting it.
+// Implements hal.Surface (takes hal.SurfaceTexture, ignored when nil; drops current).
 // Safe to call when no texture is held. Must run before Configure if a previous
 // GetCurrentTexture succeeded and the texture was not Released.
-func (s *Surface) DiscardTexture() {
+func (s *Surface) DiscardTexture(_ hal.SurfaceTexture) {
 	if s == nil || s.current == nil {
 		return
 	}
@@ -340,19 +374,33 @@ func (s *Surface) DiscardTexture() {
 	st.Release()
 }
 
+// AcquireTexture acquires the next surface texture for rendering.
+// Implements hal.Surface (fence ignored on wgpu-native; wraps GetCurrentTexture).
+func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error) {
+	st, suboptimal, err := s.GetCurrentTexture()
+	if err != nil {
+		return nil, err
+	}
+	return &hal.AcquiredSurfaceTexture{Texture: st, Suboptimal: suboptimal}, nil
+}
+
 // Release releases the surface.
 // Nil-safe and idempotent.
+// Kept as門面 for existing callers; hal.Surface.Destroy forwards here.
 func (s *Surface) Release() {
 	if s == nil || s.released {
 		return
 	}
-	s.DiscardTexture()
+	s.DiscardTexture(nil)
 	s.released = true
 	if s.r != nil {
 		s.r.Release()
 		s.r = nil
 	}
 }
+
+// Destroy implements hal.Surface (via hal.Resource): same as Release.
+func (s *Surface) Destroy() { s.Release() }
 
 // SurfaceTexture is a texture acquired from a surface for rendering.
 type SurfaceTexture struct {
@@ -438,3 +486,5 @@ func (st *SurfaceTexture) AddPendingRef() {}
 func (st *SurfaceTexture) DecPendingRef() {}
 
 var _ hal.SurfaceTexture = (*SurfaceTexture)(nil)
+
+var _ hal.Surface = (*Surface)(nil)

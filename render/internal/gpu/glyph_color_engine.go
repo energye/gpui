@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
@@ -175,7 +174,7 @@ func renderRGBAToColorRGBA(c render.RGBA) color.RGBA {
 
 // SyncColorAtlasTextures uploads dirty color atlas pages to the GPU as RGBA8
 // textures. Mirrors GlyphMaskEngine.SyncAtlasTextures with 4 bytes per texel.
-func (e *ColorGlyphEngine) SyncColorAtlasTextures(device *webgpu.Device, queue hal.Queue) error {
+func (e *ColorGlyphEngine) SyncColorAtlasTextures(device hal.Device, queue hal.Queue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -316,7 +315,7 @@ func (e *ColorGlyphEngine) PageTextureView(index int) hal.TextureView {
 }
 
 // Destroy releases all GPU textures held by the engine.
-func (e *ColorGlyphEngine) Destroy(device *webgpu.Device) {
+func (e *ColorGlyphEngine) Destroy(device hal.Device) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

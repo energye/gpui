@@ -8,7 +8,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
 
@@ -22,7 +21,7 @@ type PipelineCache struct {
 	mu sync.RWMutex
 
 	// GPU device for pipeline creation
-	device *webgpu.Device
+	device hal.Device
 
 	// Shader modules reference
 	shaders *ShaderModules
@@ -83,7 +82,7 @@ const InvalidPipelineID StubPipelineID = 0
 // It initializes all base pipelines using the provided shader modules.
 //
 // Returns an error if pipeline creation fails.
-func NewPipelineCache(device *webgpu.Device, shaders *ShaderModules) (*PipelineCache, error) {
+func NewPipelineCache(device hal.Device, shaders *ShaderModules) (*PipelineCache, error) {
 	if shaders == nil || !shaders.IsValid() {
 		return nil, ErrNotImplemented
 	}
@@ -541,12 +540,12 @@ func (pc *PipelineCache) WarmupBlendPipelines() {
 
 // BindGroupBuilder helps construct bind groups for rendering.
 type BindGroupBuilder struct {
-	device *webgpu.Device
+	device hal.Device
 	layout StubBindGroupLayoutID
 }
 
 // NewBindGroupBuilder creates a new bind group builder.
-func NewBindGroupBuilder(device *webgpu.Device, layout StubBindGroupLayoutID) *BindGroupBuilder {
+func NewBindGroupBuilder(device hal.Device, layout StubBindGroupLayoutID) *BindGroupBuilder {
 	return &BindGroupBuilder{
 		device: device,
 		layout: layout,

@@ -11,7 +11,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -58,7 +57,7 @@ const sdfRenderAAMargin = 1.5
 // For unified rendering via GPURenderSession, pipelineWithStencil is used
 // when the render pass includes a depth/stencil attachment.
 type SDFRenderPipeline struct {
-	device      *webgpu.Device
+	device      hal.Device
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
@@ -132,7 +131,7 @@ func (p *SDFRenderPipeline) SetSDFLedger(l *PassBindLedger) {
 // NewSDFRenderPipeline creates a new SDF render pipeline with the given device
 // and queue. The render pipeline and textures are not created until
 // ensureReady is called with the desired dimensions.
-func NewSDFRenderPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *SDFRenderPipeline {
+func NewSDFRenderPipeline(device hal.Device, queue hal.Queue, sampleCount uint32) *SDFRenderPipeline {
 	return &SDFRenderPipeline{
 		device:      device,
 		queue:       queue,
@@ -515,7 +514,7 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 //
 // The resources parameter holds pre-built vertex buffer, uniform buffer,
 // and bind group for the current frame.
-func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *sdfFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, depthClipped ...bool) {
+func (p *SDFRenderPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *sdfFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, depthClipped ...bool) {
 	if resources == nil || resources.vertCount == 0 {
 		return
 	}
