@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -223,7 +224,7 @@ func (p *SDFRenderPipeline) ensureTextures(w, h uint32) error {
 	}
 	p.destroyTextures()
 
-	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
+	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
 	// MSAA color texture (BGRA8Unorm, sample count from GPUShared).
 	msaaTex, err := p.device.CreateTexture(&webgpu.TextureDescriptor{
@@ -665,10 +666,10 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	}
 	defer stagingBuf.Release()
 
-	encoder.CopyTextureToBuffer(p.resolveTex, stagingBuf, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{Offset: 0, BytesPerRow: w * 4, RowsPerImage: h},
-		TextureBase:  webgpu.ImageCopyTexture{Texture: p.resolveTex, MipLevel: 0},
-		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	encoder.CopyTextureToBuffer(p.resolveTex, stagingBuf, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{Offset: 0, BytesPerRow: w * 4, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: p.resolveTex, MipLevel: 0},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 
 	cmdBuf, err := encoder.Finish()

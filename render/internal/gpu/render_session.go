@@ -2693,7 +2693,7 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	// 1x1 white R8 — samples as coverage 1.0 when mask_enabled=0 path still samples.
 	tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "convex_nomask_r8",
-		Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatR8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -2710,10 +2710,10 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 		return fmt.Errorf("create no-mask view: %w", err)
 	}
 	if err := s.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		[]byte{255},
-		&webgpu.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
-		&webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		&hal.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
+		&hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	); err != nil {
 		view.Release()
 		tex.Release()
@@ -5251,10 +5251,10 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	}
 	defer stagingBuf.Release()
 
-	encoder.CopyTextureToBuffer(s.textures.resolveTex, stagingBuf, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
-		TextureBase:  webgpu.ImageCopyTexture{Texture: s.textures.resolveTex, MipLevel: 0},
-		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	encoder.CopyTextureToBuffer(s.textures.resolveTex, stagingBuf, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: s.textures.resolveTex, MipLevel: 0},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 
 	// Transition resolve texture back to RenderAttachment so the next frame's

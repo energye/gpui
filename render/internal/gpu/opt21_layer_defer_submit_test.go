@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -35,7 +36,7 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 	const w, h uint32 = 64, 64
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
 		tex, err := shared.device.CreateTexture(&webgpu.TextureDescriptor{
-			Label: label, Size: webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
 			Usage:  types.TextureUsageRenderAttachment | types.TextureUsageTextureBinding | types.TextureUsageCopySrc,

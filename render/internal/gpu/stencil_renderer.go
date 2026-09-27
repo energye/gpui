@@ -9,6 +9,7 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -789,7 +790,7 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 	}
 	tex, err := sr.device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "stencil_nomask_r8",
-		Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatR8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -806,10 +807,10 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 		return err
 	}
 	if err := sr.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		[]byte{255},
-		&webgpu.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
-		&webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		&hal.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
+		&hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	); err != nil {
 		view.Release()
 		tex.Release()
@@ -1001,10 +1002,10 @@ func (sr *StencilRenderer) encodeAndReadback(
 	}
 	defer stagingBuf.Release()
 
-	encoder.CopyTextureToBuffer(sr.textures.resolveTex, stagingBuf, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
-		TextureBase:  webgpu.ImageCopyTexture{Texture: sr.textures.resolveTex, MipLevel: 0},
-		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	encoder.CopyTextureToBuffer(sr.textures.resolveTex, stagingBuf, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: sr.textures.resolveTex, MipLevel: 0},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 
 	cmdBuf, err := encoder.Finish()
@@ -1240,13 +1241,13 @@ func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (*web
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
 				PassOp:      webgpu.StencilOperationZero,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,

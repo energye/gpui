@@ -3,6 +3,7 @@
 package gpu
 
 import (
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -36,13 +37,13 @@ func stencilPassthroughDepthStencil() *webgpu.DepthStencilState {
 		Format:            types.TextureFormatDepth24PlusStencil8,
 		DepthWriteEnabled: false,
 		DepthCompare:      types.CompareFunctionAlways,
-		StencilFront: webgpu.StencilFaceState{
+		StencilFront: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
 			FailOp:      webgpu.StencilOperationKeep,
 			DepthFailOp: webgpu.StencilOperationKeep,
 			PassOp:      webgpu.StencilOperationKeep,
 		},
-		StencilBack: webgpu.StencilFaceState{
+		StencilBack: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
 			FailOp:      webgpu.StencilOperationKeep,
 			DepthFailOp: webgpu.StencilOperationKeep,
@@ -72,13 +73,13 @@ func depthClipDepthStencil() *webgpu.DepthStencilState {
 		Format:            types.TextureFormatDepth24PlusStencil8,
 		DepthWriteEnabled: false,
 		DepthCompare:      types.CompareFunctionGreaterEqual,
-		StencilFront: webgpu.StencilFaceState{
+		StencilFront: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
 			FailOp:      webgpu.StencilOperationKeep,
 			DepthFailOp: webgpu.StencilOperationKeep,
 			PassOp:      webgpu.StencilOperationKeep,
 		},
-		StencilBack: webgpu.StencilFaceState{
+		StencilBack: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
 			FailOp:      webgpu.StencilOperationKeep,
 			DepthFailOp: webgpu.StencilOperationKeep,

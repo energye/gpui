@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -62,7 +63,7 @@ func waitDeviceReady(inst *webgpu.Instance, device *webgpu.Device, label string)
 	for {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 			Label:         label + "_ready_probe",
-			Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1,
 			SampleCount:   1,
 			Dimension:     types.TextureDimension2D,

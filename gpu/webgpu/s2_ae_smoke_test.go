@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -130,7 +131,7 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	}
 
 	tex, err := device.CreateTexture(&TextureDescriptor{
-		Size:          Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     TextureDimension2D,
@@ -167,10 +168,10 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	defer sampler.Release()
 
 	if err := queue.WriteTexture(
-		&ImageCopyTexture{Texture: tex, Aspect: types.TextureAspectAll},
+		&hal.ImageCopyTexture{Texture: tex, Aspect: types.TextureAspectAll},
 		upload,
-		&ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
-		&Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		&hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
+		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	); err != nil {
 		t.Fatalf("WriteTexture: %v", err)
 	}
@@ -189,10 +190,10 @@ func TestS2AE_TextureWriteCopyMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encoder: %v", err)
 	}
-	enc.CopyTextureToBuffer(tex, staging, []BufferTextureCopy{{
-		BufferLayout: ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
-		TextureBase:  ImageCopyTexture{Texture: tex, Aspect: types.TextureAspectAll},
-		Size:         Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	enc.CopyTextureToBuffer(tex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: tex, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 	cmd, err := enc.Finish()
 	if err != nil {
@@ -285,7 +286,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	defer pipeline.Release()
 
 	rt, err := device.CreateTexture(&TextureDescriptor{
-		Size:          Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     TextureDimension2D,
@@ -342,10 +343,10 @@ fn fs_main() -> @location(0) vec4<f32> {
 		t.Fatalf("staging: %v", err)
 	}
 	defer staging.Release()
-	enc.CopyTextureToBuffer(rt, staging, []BufferTextureCopy{{
-		BufferLayout: ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
-		TextureBase:  ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
-		Size:         Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	enc.CopyTextureToBuffer(rt, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 	cmd, err := enc.Finish()
 	if err != nil {

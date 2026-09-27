@@ -5,6 +5,7 @@ package gpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -33,7 +34,7 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 
 	colorTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:  "bg_switch_color",
-		Size:   webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:   hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		Format: types.TextureFormatBGRA8Unorm,
 		Usage:  types.TextureUsageRenderAttachment,
 	})
@@ -49,7 +50,7 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 
 	dsTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:  "bg_switch_ds",
-		Size:   webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:   hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		Format: types.TextureFormatDepth24PlusStencil8,
 		Usage:  types.TextureUsageRenderAttachment,
 	})

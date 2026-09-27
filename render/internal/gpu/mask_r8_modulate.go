@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -219,7 +220,7 @@ func maskR8Modulate(
 	mkRGBA := func(label string, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 			Label:         label,
-			Size:          webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatRGBA8Unorm, Usage: usage,
 		})
@@ -246,10 +247,10 @@ func maskR8Modulate(
 				upload = padded
 			}
 			if err := queue.WriteTexture(
-				&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+				&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 				upload,
-				&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
-				&webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+				&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
+				&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			); err != nil {
 				view.Release()
 				tex.Release()
@@ -262,7 +263,7 @@ func maskR8Modulate(
 	mkR8 := func(label string, data []byte) (*webgpu.Texture, *webgpu.TextureView, error) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 			Label:         label,
-			Size:          webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatR8Unorm,
 			Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -294,10 +295,10 @@ func maskR8Modulate(
 			upload = padded
 		}
 		if err := queue.WriteTexture(
-			&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+			&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 			upload,
-			&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
-			&webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+			&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
+			&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 		); err != nil {
 			view.Release()
 			tex.Release()
@@ -377,10 +378,10 @@ func maskR8Modulate(
 	}
 	defer staging.Release()
 
-	enc.CopyTextureToBuffer(outTex, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: alignedRow, RowsPerImage: uint32(bh)}, //nolint:gosec
-		TextureBase:  webgpu.ImageCopyTexture{Texture: outTex, MipLevel: 0, Aspect: types.TextureAspectAll},
-		Size:         webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+	enc.CopyTextureToBuffer(outTex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: alignedRow, RowsPerImage: uint32(bh)}, //nolint:gosec
+		TextureBase:  hal.ImageCopyTexture{Texture: outTex, MipLevel: 0, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 	}})
 	cmd, err := enc.Finish()
 	if err != nil {

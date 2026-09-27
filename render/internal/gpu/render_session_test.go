@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -491,7 +492,7 @@ func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (*w
 	t.Helper()
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "mock_surface",
-		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -1021,7 +1022,7 @@ func TestRenderSession_EncoderLifecycleSurface(t *testing.T) {
 	// Create a texture to use as the surface view.
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "test_surface",
-		Size:          webgpu.Extent3D{Width: 128, Height: 128, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 128, Height: 128, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,

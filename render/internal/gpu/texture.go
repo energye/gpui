@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -641,7 +642,7 @@ func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture
 	// Convert to descriptor
 	gpuDesc := &webgpu.TextureDescriptor{
 		Label: desc.Label,
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width:              desc.Size.Width,
 			Height:             desc.Size.Height,
 			DepthOrArrayLayers: depthOrArrayLayers,

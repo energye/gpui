@@ -411,7 +411,7 @@ func (c *filterGPUCache) ensure(device *webgpu.Device) error {
 	// 1x1 transparent dummy aux
 	dtex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "filter_gpu_dummy",
-		Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -466,7 +466,7 @@ func (c *filterGPUCache) ensurePool(device *webgpu.Device, w, h int) error {
 	mk := func(label string) (*webgpu.Texture, *webgpu.TextureView, error) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 			Label:         label,
-			Size:          webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+			Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatRGBA8Unorm,
 			Usage:  usageRT,
@@ -660,7 +660,7 @@ func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex *
 		usageRT := types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst
 		texNew, err := device.CreateTexture(&webgpu.TextureDescriptor{
 			Label:         "filter_rt_repl",
-			Size:          webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+			Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatRGBA8Unorm,
 			Usage:  usageRT,
@@ -704,7 +704,7 @@ func (c *filterGPUCache) acquirePublish(device *webgpu.Device, w, h int) (filter
 	usage := types.TextureUsageTextureBinding | types.TextureUsageCopyDst | types.TextureUsageCopySrc | types.TextureUsageRenderAttachment
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "filter_publish",
-		Size:          webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
 		Usage:  usage,
@@ -851,10 +851,10 @@ func runGPUFilterGraphEx(
 			cache.mu.Unlock()
 		}
 		if err := queue.WriteTexture(
-			&webgpu.ImageCopyTexture{Texture: texA, MipLevel: 0},
+			&hal.ImageCopyTexture{Texture: texA, MipLevel: 0},
 			upload,
-			&webgpu.ImageDataLayout{BytesPerRow: bpr, RowsPerImage: uint32(h)},           //nolint:gosec
-			&webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+			&hal.ImageDataLayout{BytesPerRow: bpr, RowsPerImage: uint32(h)},           //nolint:gosec
+			&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 		); err != nil {
 			return nil, gpucontext.TextureView{}, nil, err
 		}
@@ -1176,16 +1176,16 @@ func runGPUFilterGraphEx(
 				return nil, gpucontext.TextureView{}, nil, err
 			}
 			if curTex != nil {
-				enc.CopyTextureToTexture(curTex, slot.tex, []webgpu.TextureCopy{{
-					Source: webgpu.ImageCopyTexture{
+				enc.CopyTextureToTexture(curTex, slot.tex, []hal.TextureCopy{{
+					Source: hal.ImageCopyTexture{
 						Texture: curTex, MipLevel: 0,
-						Origin: webgpu.Origin3D{}, Aspect: types.TextureAspectAll,
+						Origin: hal.Origin3D{}, Aspect: types.TextureAspectAll,
 					},
-					Destination: webgpu.ImageCopyTexture{
+					Destination: hal.ImageCopyTexture{
 						Texture: slot.tex, MipLevel: 0,
-						Origin: webgpu.Origin3D{}, Aspect: types.TextureAspectAll,
+						Origin: hal.Origin3D{}, Aspect: types.TextureAspectAll,
 					},
-					Size: webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+					Size: hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 				}})
 			} else if curView != nil {
 				// External-only: sample-copy into publish via mode-6 pass.
@@ -1287,10 +1287,10 @@ func runGPUFilterGraphEx(
 	if err != nil {
 		return nil, gpucontext.TextureView{}, nil, err
 	}
-	enc2.CopyTextureToBuffer(curTex, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: alignedRow, RowsPerImage: uint32(h)}, //nolint:gosec
-		TextureBase:  webgpu.ImageCopyTexture{Texture: curTex, MipLevel: 0, Aspect: types.TextureAspectAll},
-		Size:         webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+	enc2.CopyTextureToBuffer(curTex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: alignedRow, RowsPerImage: uint32(h)}, //nolint:gosec
+		TextureBase:  hal.ImageCopyTexture{Texture: curTex, MipLevel: 0, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 	}})
 	cmd2, err := enc2.Finish()
 	if err != nil {

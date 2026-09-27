@@ -9,6 +9,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -355,11 +356,11 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 			DepthStencil: &webgpu.DepthStencilState{
 				Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 				DepthCompare: types.CompareFunctionAlways,
-				StencilFront: webgpu.StencilFaceState{
+				StencilFront: hal.StencilFaceState{
 					Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
 					DepthFailOp: webgpu.StencilOperationKeep, PassOp: frontPass,
 				},
-				StencilBack: webgpu.StencilFaceState{
+				StencilBack: hal.StencilFaceState{
 					Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
 					DepthFailOp: webgpu.StencilOperationKeep, PassOp: backPass,
 				},
@@ -408,11 +409,11 @@ func (c *texturedStencilLinearCache) ensure(device *webgpu.Device, sampleCount u
 		DepthStencil: &webgpu.DepthStencilState{
 			Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 			DepthCompare: types.CompareFunctionAlways,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},
@@ -585,7 +586,7 @@ func texturedStencilCoverLinearEx(
 	// without sampling the shared resolve target (which is reused per frame).
 	outTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "tex_stencil_lin_result",
-		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatBGRA8Unorm,
 		Usage:  types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageTextureBinding,
@@ -666,7 +667,7 @@ func texturedStencilCoverLinearEx(
 	// Ramp texture.
 	rampTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "tex_stencil_ramp",
-		Size:          webgpu.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -693,10 +694,10 @@ func texturedStencilCoverLinearEx(
 		rampUp = padded
 	}
 	if err := queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: rampTex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: rampTex, MipLevel: 0},
 		rampUp,
-		&webgpu.ImageDataLayout{BytesPerRow: rbpr, RowsPerImage: 1},
-		&webgpu.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: rbpr, RowsPerImage: 1},
+		&hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		releaseOut()
 		return nil, nil, nil, err
@@ -821,10 +822,10 @@ func texturedStencilCoverLinearEx(
 		return nil, nil, nil, err
 	}
 	defer staging.Release()
-	enc.CopyTextureToBuffer(outTex, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h},
-		TextureBase:  webgpu.ImageCopyTexture{Texture: outTex, MipLevel: 0, Aspect: types.TextureAspectAll},
-		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	enc.CopyTextureToBuffer(outTex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: outTex, MipLevel: 0, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 	cmd, err := enc.Finish()
 	if err != nil {

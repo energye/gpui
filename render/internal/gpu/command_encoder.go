@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -410,15 +411,15 @@ func (e *CoreCommandEncoder) CopyBufferToTexture(source *ImageCopyBuffer, destin
 	}
 
 	if e.gpuEncoder != nil {
-		e.gpuEncoder.CopyBufferToTexture(source.Buffer.Raw(), destination.Texture.Texture(), []webgpu.BufferTextureCopy{{
-			BufferLayout: webgpu.ImageDataLayout(source.Layout),
-			TextureBase: webgpu.ImageCopyTexture{
+		e.gpuEncoder.CopyBufferToTexture(source.Buffer.Raw(), destination.Texture.Texture(), []hal.BufferTextureCopy{{
+			BufferLayout: hal.ImageDataLayout(source.Layout),
+			TextureBase: hal.ImageCopyTexture{
 				Texture:  destination.Texture.Texture(),
 				MipLevel: destination.MipLevel,
-				Origin:   webgpu.Origin3D(destination.Origin),
+				Origin:   hal.Origin3D(destination.Origin),
 				Aspect:   destination.Aspect,
 			},
-			Size: webgpu.Extent3D(copySize),
+			Size: hal.Extent3D(copySize),
 		}})
 	}
 
@@ -452,15 +453,15 @@ func (e *CoreCommandEncoder) CopyTextureToBuffer(source *ImageCopyTexture, desti
 	}
 
 	if e.gpuEncoder != nil {
-		e.gpuEncoder.CopyTextureToBuffer(source.Texture.Texture(), destination.Buffer.Raw(), []webgpu.BufferTextureCopy{{
-			BufferLayout: webgpu.ImageDataLayout(destination.Layout),
-			TextureBase: webgpu.ImageCopyTexture{
+		e.gpuEncoder.CopyTextureToBuffer(source.Texture.Texture(), destination.Buffer.Raw(), []hal.BufferTextureCopy{{
+			BufferLayout: hal.ImageDataLayout(destination.Layout),
+			TextureBase: hal.ImageCopyTexture{
 				Texture:  source.Texture.Texture(),
 				MipLevel: source.MipLevel,
-				Origin:   webgpu.Origin3D(source.Origin),
+				Origin:   hal.Origin3D(source.Origin),
 				Aspect:   source.Aspect,
 			},
-			Size: webgpu.Extent3D(copySize),
+			Size: hal.Extent3D(copySize),
 		}})
 	}
 
@@ -494,20 +495,20 @@ func (e *CoreCommandEncoder) CopyTextureToTexture(source, destination *ImageCopy
 	}
 
 	if e.gpuEncoder != nil {
-		e.gpuEncoder.CopyTextureToTexture(source.Texture.Texture(), destination.Texture.Texture(), []webgpu.TextureCopy{{
-			Source: webgpu.ImageCopyTexture{
+		e.gpuEncoder.CopyTextureToTexture(source.Texture.Texture(), destination.Texture.Texture(), []hal.TextureCopy{{
+			Source: hal.ImageCopyTexture{
 				Texture:  source.Texture.Texture(),
 				MipLevel: source.MipLevel,
-				Origin:   webgpu.Origin3D(source.Origin),
+				Origin:   hal.Origin3D(source.Origin),
 				Aspect:   source.Aspect,
 			},
-			Destination: webgpu.ImageCopyTexture{
+			Destination: hal.ImageCopyTexture{
 				Texture:  destination.Texture.Texture(),
 				MipLevel: destination.MipLevel,
-				Origin:   webgpu.Origin3D(destination.Origin),
+				Origin:   hal.Origin3D(destination.Origin),
 				Aspect:   destination.Aspect,
 			},
-			Size: webgpu.Extent3D(copySize),
+			Size: hal.Extent3D(copySize),
 		}})
 	}
 

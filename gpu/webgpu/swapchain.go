@@ -12,6 +12,7 @@ import (
 	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 )
@@ -496,7 +497,7 @@ func (sc *Swapchain) requestDeviceWithVRAMProbe(label string, lim *types.Limits)
 		} else {
 			tex, err2 := dev.CreateTexture(&TextureDescriptor{
 				Label:         "recover_vram_probe",
-				Size:          Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+				Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,
 				SampleCount:   1,
 				Dimension:     types.TextureDimension2D,

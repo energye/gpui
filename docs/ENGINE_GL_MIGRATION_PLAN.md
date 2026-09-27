@@ -91,7 +91,7 @@
 
 | 片 | 内容 | 规模（render 引用处，约） | 状态 |
 |---|---|---|---|
-| 片1 | 纯数据结构 7 个（`Extent3D` 123、`Origin3D` 14、`ImageDataLayout` 53、`ImageCopyTexture` 57、`BufferTextureCopy` 18、`TextureCopy` 2、`StencilFaceState` 38） | 约 305 | 未开始 |
+| 片1 | 纯数据结构 7 个（`Extent3D` 123、`Origin3D` 14、`ImageDataLayout` 53、`ImageCopyTexture` 57、`BufferTextureCopy` 18、`TextureCopy` 2、`StencilFaceState` 38） | 约 305 | 已完（2026-09-27：`render` 46文件305处换 `hal` 口＋7别名删＋`webgpu`包内5文件跟改；B0全绿：构建/vet/gofmt、`hal/noop/types/gles`、H2B 7过、带库66过1败（已知`TestS68`同基线）、T5离屏200轮过、CPU Golden 6过、断言6处、账本90行2024处；收敛优化：2注释行号跟正＋4格式漂移清零；代码未提交） |
 | 片2 | 枚举常量（住 `types`，`hal` 无；`PollWait` 除外，见片4） | 约 190 | 未开始 |
 | 片3a | 纯别名描述符（`Buffer` 71／`Texture` 73／`View` 62／`ShaderModule` 34／`CommandEncoder` 20／`Sampler` 20／`BindGroupLayout` 36／`ComputePass` 2／`RenderPass` 29／`DepthStencil` 21／`RenderPassColor` 38／`RenderPassDepth` 10／`TextureBarrier/UsageTransition` 各 9） | 约 434 | 未开始 |
 | 片3b | 自有结构体 5 个（`PipelineLayout` 29／`RenderPipeline` 48／`Vertex` 48／`Fragment` 48／`ComputePipeline` 10）：单指针字段赋值兼容，`BindGroupLayouts []*BGL` 切片逐元重建，嵌套 `Vertex/Fragment` 跟换前缀；子描述符经 `types` 同一包不动 | 约 183 | 未开始 |
@@ -231,3 +231,4 @@
 | 日期 | 说明 |
 |---|---|
 | 2026-09-26 | 历史合账：立项→P0（断根三条，EGL 过）→方向重置（hal 以 render 用的 webgpu 为准，四步 hal→webgpu→render→gwgpu）→H1（hal 对齐：Device/Queue/Encoder/资源查询/创建入口/描述符，四家空实现同批保绿）→H2（webgpu 参数侧收官：H2-a 资源 12 件套，H2-b1–b19 别名/围栏/队列/拷贝链，H2B 7 单测；改判：返回侧移 H3 即分片片7）→分片建档（97 符号 2329 处，7 片，见附表；账本命令与验算见附账本；红线见两条红线节；片3 拆 3a/3b）。门禁基线：带库 59 过 1 败（`TestS68 X11` 存量用例）＋T5/T12 零差。明细见备份（`/tmp/opencode`、`git 历史`）。 |
+| 2026-09-27 | 片1关闭：7纯数据结构 `render` 305处换 `hal` 口＋7别名删（附带 `webgpu` 包内裸用5文件＋自家测试1处）。门禁见片1状态格（带库66过1败同基线；T5离屏200轮过；T12仓内无对应命令，待后片定位离屏md5做法）。代码未提交。 |

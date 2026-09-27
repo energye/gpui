@@ -6,6 +6,7 @@ import (
 	"image"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -23,7 +24,7 @@ func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 	const w, h uint32 = 16, 16
 	mk := func(label string, fill byte) (*webgpu.Texture, *webgpu.TextureView) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-			Label: label, Size: webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
 			Usage:  types.TextureUsageRenderAttachment | types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -42,9 +43,9 @@ func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 		for i := 0; i < len(px); i += 4 {
 			px[i], px[i+1], px[i+2], px[i+3] = fill, fill, fill, 255
 		}
-		_ = queue.WriteTexture(&webgpu.ImageCopyTexture{Texture: tex}, px,
-			&webgpu.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
-			&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
+		_ = queue.WriteTexture(&hal.ImageCopyTexture{Texture: tex}, px,
+			&hal.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
+			&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
 		return tex, view
 	}
 	dstTex, dstView := mk("opt32_dst", 255)

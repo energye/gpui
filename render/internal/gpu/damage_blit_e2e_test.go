@@ -7,6 +7,7 @@ import (
 	"image"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -22,7 +23,7 @@ func TestDamageBlit_LoadOpLoad_PreservesContent(t *testing.T) {
 	// Create 8x8 target texture (render attachment + copy src for readback).
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "damage-target",
-		Size:          webgpu.Extent3D{Width: W, Height: H, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: W, Height: H, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -140,14 +141,14 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, t
 	defer buf.Release()
 
 	enc, _ := device.CreateCommandEncoder(nil)
-	regions := []webgpu.BufferTextureCopy{{
-		TextureBase: webgpu.ImageCopyTexture{Texture: tex},
-		BufferLayout: webgpu.ImageDataLayout{
+	regions := []hal.BufferTextureCopy{{
+		TextureBase: hal.ImageCopyTexture{Texture: tex},
+		BufferLayout: hal.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  paddedRowBytes,
 			RowsPerImage: uint32(h),
 		},
-		Size: webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
+		Size: hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
 	}}
 	enc.CopyTextureToBuffer(tex, buf, regions)
 	cmd, _ := enc.Finish()

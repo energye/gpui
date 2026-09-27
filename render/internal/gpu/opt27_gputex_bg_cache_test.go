@@ -5,6 +5,7 @@ package gpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/internal/gpu/res"
@@ -22,7 +23,7 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-			Label: label, Size: webgpu.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
+			Label: label, Size: hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
 			Usage:  types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment,
@@ -117,7 +118,7 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 
 	mkView := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-			Label: label, Size: webgpu.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
+			Label: label, Size: hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
 			Usage:  types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment,

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -856,7 +857,7 @@ func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 
 	tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
 		Label: "l06_mask_r8",
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1, //nolint:gosec
 		},
 		MipLevelCount: 1,
@@ -890,10 +891,10 @@ func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 		upload = padded
 	}
 	if err := s.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		upload,
-		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(height)},           //nolint:gosec
-		&webgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(height)},           //nolint:gosec
+		&hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		view.Release()
 		tex.Release()

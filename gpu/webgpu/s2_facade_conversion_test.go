@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 )
@@ -190,13 +191,13 @@ func TestS2ConvertDepthStencilComplete(t *testing.T) {
 		StencilReadMask:   0x0F,
 		StencilWriteMask:  0xF0,
 		DepthBias:         1,
-		StencilFront: StencilFaceState{
+		StencilFront: hal.StencilFaceState{
 			Compare:     types.CompareFunctionAlways,
 			FailOp:      StencilOperationKeep,
 			DepthFailOp: StencilOperationIncrementClamp,
 			PassOp:      StencilOperationReplace,
 		},
-		StencilBack: StencilFaceState{
+		StencilBack: hal.StencilFaceState{
 			Compare:     types.CompareFunctionEqual,
 			FailOp:      StencilOperationZero,
 			DepthFailOp: StencilOperationDecrementWrap,

@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -29,7 +30,7 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 
 	const w, h uint32 = 48, 48
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-		Label: "opt36_seed", Size: webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Label: "opt36_seed", Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatBGRA8Unorm,
 		Usage:  types.TextureUsageRenderAttachment | types.TextureUsageTextureBinding | types.TextureUsageCopySrc | types.TextureUsageCopyDst,

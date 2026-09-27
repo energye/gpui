@@ -10,6 +10,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -1024,7 +1025,7 @@ func (r *TextRenderer) SyncAtlases() error {
 		if r.atlasTextures[idx] == nil {
 			tex, err := r.device.CreateTexture(&webgpu.TextureDescriptor{
 				Label:         fmt.Sprintf("msdf_atlas_%d", idx),
-				Size:          webgpu.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
+				Size:          hal.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,
 				SampleCount:   1,
 				Dimension:     types.TextureDimension2D,
@@ -1054,17 +1055,17 @@ func (r *TextRenderer) SyncAtlases() error {
 
 		// Upload to GPU via queue.WriteTexture.
 		if err := r.queue.WriteTexture(
-			&webgpu.ImageCopyTexture{
+			&hal.ImageCopyTexture{
 				Texture:  r.atlasTextures[idx],
 				MipLevel: 0,
 			},
 			rgbaData,
-			&webgpu.ImageDataLayout{
+			&hal.ImageDataLayout{
 				Offset:       0,
 				BytesPerRow:  atlasSize * 4,
 				RowsPerImage: atlasSize,
 			},
-			&webgpu.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
+			&hal.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 		); err != nil {
 			r.atlasTextureViews[idx].Release()
 			r.atlasTextures[idx].Release()

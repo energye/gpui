@@ -6,6 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/internal/gpu/res"
@@ -28,7 +29,7 @@ func TestRegTransientView_LifecycleClosesAtFrameBoundary(t *testing.T) {
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "transient_view_test",
-		Size:          webgpu.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -147,7 +148,7 @@ func TestRegTransientView_RawResolvePathRetired(t *testing.T) {
 	// Pointer(view))), and ResolveCommandView registers it at flush time.
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "raw_view_test",
-		Size:          webgpu.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,

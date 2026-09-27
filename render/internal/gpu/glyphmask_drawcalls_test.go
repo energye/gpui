@@ -5,6 +5,7 @@ package gpu
 import (
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -172,7 +173,7 @@ func createMockBindGroup(t *testing.T, device *webgpu.Device, s *GPURenderSessio
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "test_atlas",
-		Size:          webgpu.Extent3D{Width: 64, Height: 64, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 64, Height: 64, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,

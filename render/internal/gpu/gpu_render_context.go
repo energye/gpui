@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -2242,7 +2243,7 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 	}
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label: "lcd_dest_base",
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width: uint32(tw), Height: uint32(th), DepthOrArrayLayers: 1, //nolint:gosec
 		},
 		MipLevelCount: 1,
@@ -2277,10 +2278,10 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 		upload = padded
 	}
 	if err := queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		upload,
-		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(th)},        //nolint:gosec
-		&webgpu.Extent3D{Width: uint32(tw), Height: uint32(th), DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(th)},        //nolint:gosec
+		&hal.Extent3D{Width: uint32(tw), Height: uint32(th), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		view.Release()
 		tex.Release()
@@ -2849,7 +2850,7 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 	usage := types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "adv_blend_frame_scratch",
-		Size:          webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -3246,10 +3247,10 @@ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, pay
 		return fmt.Errorf("gpu: CommitScratchRegion: nil texture")
 	}
 	if err := queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		payload,
-		&webgpu.ImageDataLayout{BytesPerRow: uint32(bytesPerRow), RowsPerImage: uint32(rows)}, //nolint:gosec // view-bounded
-		&webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},          //nolint:gosec // view-bounded
+		&hal.ImageDataLayout{BytesPerRow: uint32(bytesPerRow), RowsPerImage: uint32(rows)}, //nolint:gosec // view-bounded
+		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},          //nolint:gosec // view-bounded
 	); err != nil {
 		return err
 	}
@@ -3324,10 +3325,10 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 		bgra = packed
 	}
 	if err := queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		bgra,
-		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h},
-		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h},
+		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	); err != nil {
 		return err
 	}
@@ -3454,7 +3455,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "offscreen_cache",
-		Size:          webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // bounded
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // bounded
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -3859,7 +3860,7 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 			var err error
 			tex, err = s.device.CreateTexture(&webgpu.TextureDescriptor{
 				Label:         fmt.Sprintf("msdf_atlas_%d", idx),
-				Size:          webgpu.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
+				Size:          hal.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 				MipLevelCount: 1,
 				SampleCount:   1,
 				Dimension:     types.TextureDimension2D,
@@ -3886,14 +3887,14 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 		}
 
 		if err := s.queue.WriteTexture(
-			&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+			&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 			rgbaData,
-			&webgpu.ImageDataLayout{
+			&hal.ImageDataLayout{
 				Offset:       0,
 				BytesPerRow:  atlasSize * 4,
 				RowsPerImage: atlasSize,
 			},
-			&webgpu.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
+			&hal.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 		); err != nil {
 			return fmt.Errorf("upload atlas texture %d: %w", idx, err)
 		}

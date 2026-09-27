@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -206,13 +207,13 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
 				PassOp:      webgpu.StencilOperationIncrementWrap,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
@@ -261,13 +262,13 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
 				PassOp:      webgpu.StencilOperationIncrementWrap,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
@@ -313,13 +314,13 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionAlways,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
 				PassOp:      webgpu.StencilOperationZero,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
@@ -404,13 +405,13 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 				Format:            types.TextureFormatDepth24PlusStencil8,
 				DepthWriteEnabled: false,
 				DepthCompare:      types.CompareFunctionAlways,
-				StencilFront: webgpu.StencilFaceState{
+				StencilFront: hal.StencilFaceState{
 					Compare:     compare,
 					FailOp:      webgpu.StencilOperationKeep,
 					DepthFailOp: webgpu.StencilOperationKeep,
 					PassOp:      passOp,
 				},
-				StencilBack: webgpu.StencilFaceState{
+				StencilBack: hal.StencilFaceState{
 					Compare:     compare,
 					FailOp:      webgpu.StencilOperationKeep,
 					DepthFailOp: webgpu.StencilOperationKeep,
@@ -503,11 +504,11 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionGreaterEqual,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationIncrementWrap,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationDecrementWrap,
 			},
@@ -544,11 +545,11 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionGreaterEqual,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationIncrementWrap,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare: types.CompareFunctionAlways, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationIncrementWrap,
 			},
@@ -588,11 +589,11 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,
 			DepthCompare:      types.CompareFunctionGreaterEqual,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},

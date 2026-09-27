@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -21,7 +22,7 @@ func TestNewTexture(t *testing.T) {
 
 	gpuTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "raw-texture",
-		Size:          webgpu.Extent3D{Width: 256, Height: 256, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 256, Height: 256, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,

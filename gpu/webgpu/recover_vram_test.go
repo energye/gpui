@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -36,7 +37,7 @@ func TestDeviceRecover_CreateTextureAfterRelease(t *testing.T) {
 	mkDepth := func(dev *webgpu.Device, w, h uint32) (*webgpu.Texture, error) {
 		return dev.CreateTexture(&webgpu.TextureDescriptor{
 			Label: "session_depth_stencil",
-			Size: webgpu.Extent3D{
+			Size: hal.Extent3D{
 				Width: w, Height: h, DepthOrArrayLayers: 1,
 			},
 			MipLevelCount: 1,

@@ -7,15 +7,6 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-// Extent3D is a 3D size.
-type Extent3D = hal.Extent3D
-
-// Origin3D is a 3D origin point.
-type Origin3D = hal.Origin3D
-
-// ImageDataLayout describes the layout of image data in a buffer.
-type ImageDataLayout = hal.ImageDataLayout
-
 // BufferDescriptor describes buffer creation parameters.
 type BufferDescriptor = hal.BufferDescriptor
 
@@ -55,9 +46,6 @@ const (
 	StencilOperationIncrementWrap  = types.StencilOperationIncrementWrap
 	StencilOperationDecrementWrap  = types.StencilOperationDecrementWrap
 )
-
-// StencilFaceState describes stencil operations for a face.
-type StencilFaceState = hal.StencilFaceState
 
 // DepthStencilState describes depth and stencil testing configuration.
 type DepthStencilState = hal.DepthStencilState
@@ -135,10 +123,6 @@ type ComputePipelineDescriptor struct {
 	EntryPoint string
 }
 
-// ImageCopyTexture specifies a texture subresource for copy operations.
-// Texture is hal.Texture interface (concrete *Texture implements it, callers unchanged).
-type ImageCopyTexture = hal.ImageCopyTexture
-
 // TextureUsageTransition defines a texture usage state transition.
 type TextureUsageTransition = hal.TextureUsageTransition
 
@@ -147,9 +131,3 @@ type TextureRange = hal.TextureRange
 
 // TextureBarrier defines a texture state transition for synchronization.
 type TextureBarrier = hal.TextureBarrier
-
-// TextureCopy describes a texture-to-texture copy region.
-type TextureCopy = hal.TextureCopy
-
-// BufferTextureCopy defines a buffer-texture copy region.
-type BufferTextureCopy = hal.BufferTextureCopy

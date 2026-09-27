@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
 
@@ -81,7 +82,7 @@ func TestDeviceCreate_LostReturnsErrDeviceLost(t *testing.T) {
 	}
 
 	tex, err := d.CreateTexture(&TextureDescriptor{
-		Size: Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		Size: hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	})
 	if tex != nil || !errors.Is(err, ErrDeviceLost) {
 		t.Fatalf("CreateTexture after lost: tex=%v err=%v", tex, err)
@@ -127,7 +128,7 @@ func TestSurfacePresent_LostReturnsErrDeviceLost(t *testing.T) {
 func TestDeviceCreateTexture_NilDevice(t *testing.T) {
 	var d *Device
 	tex, err := d.CreateTexture(&TextureDescriptor{
-		Size: Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		Size: hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	})
 	if tex != nil || err == nil {
 		t.Fatalf("nil device CreateTexture: tex=%v err=%v", tex, err)

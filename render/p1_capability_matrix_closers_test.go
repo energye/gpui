@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -3028,7 +3029,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 	}
 
 	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
-		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: webgpu.TextureDimension2D,
 		Format: webgpu.TextureFormatRGBA8Unorm,
 		Usage:  webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
@@ -3082,10 +3083,10 @@ fn fs_main() -> @location(0) vec4<f32> {
 		t.Fatalf("staging: %v", err)
 	}
 	defer staging.Release()
-	enc.CopyTextureToBuffer(rt, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
-		TextureBase:  webgpu.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
-		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	enc.CopyTextureToBuffer(rt, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 	cmd, err := enc.Finish()
 	if err != nil {
@@ -3139,7 +3140,7 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 
 	const w, h = uint32(4), uint32(4)
 	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
-		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: webgpu.TextureDimension2D,
 		Format: types.TextureFormatRGBA16Float,
 		Usage:  webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
@@ -3184,10 +3185,10 @@ func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
 		t.Fatalf("staging: %v", err)
 	}
 	defer staging.Release()
-	enc.CopyTextureToBuffer(rt, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
-		TextureBase:  webgpu.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
-		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	enc.CopyTextureToBuffer(rt, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
 	cmd, err := enc.Finish()
 	if err != nil {

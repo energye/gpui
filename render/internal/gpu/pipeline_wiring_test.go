@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -845,7 +846,7 @@ func TestUploadPixmapToView_RasterAtlas(t *testing.T) {
 	sc := testSampleCount(t, device)
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "test_offscreen",
-		Size:          webgpu.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -969,7 +970,7 @@ func TestFlush_RasterAtlas_OffscreenTriggersUpload(t *testing.T) {
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "test_offscreen",
-		Size:          webgpu.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,

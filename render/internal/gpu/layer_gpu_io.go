@@ -7,6 +7,7 @@ import (
 	"image"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
@@ -118,10 +119,10 @@ func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data [
 		upload = padded
 	}
 	err := queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		upload,
-		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uh},
-		&webgpu.Extent3D{Width: uw, Height: uh, DepthOrArrayLayers: 1},
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uh},
+		&hal.Extent3D{Width: uw, Height: uh, DepthOrArrayLayers: 1},
 	)
 	releaseImageStaging(padScratch)
 	releaseImageStaging(bgraScratch)

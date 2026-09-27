@@ -270,7 +270,7 @@ type BufferTextureCopy struct {
 }
 
 // TextureCopy defines a texture-to-texture copy region.
-// Matches webgpu TextureCopy field names (gpu/webgpu/descriptor.go:262).
+// Matches webgpu TextureCopy field names (gpu/webgpu/descriptor_browser.go:270).
 type TextureCopy struct {
 	Source      ImageCopyTexture
 	Destination ImageCopyTexture

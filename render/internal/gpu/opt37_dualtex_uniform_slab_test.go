@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -36,7 +37,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	const w, h uint32 = 32, 32
 	mk := func(label string) (*webgpu.Texture, *webgpu.TextureView) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-			Label: label, Size: webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+			Label: label, Size: hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatBGRA8Unorm,
 			Usage:  types.TextureUsageRenderAttachment | types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -57,27 +58,30 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	src0Tex, src0View := mk("opt37_src0")
 	src1Tex, src1View := mk("opt37_src1")
 	t.Cleanup(func() {
-		dstView.Release(); dstTex.Release()
-		src0View.Release(); src0Tex.Release()
-		src1View.Release(); src1Tex.Release()
+		dstView.Release()
+		dstTex.Release()
+		src0View.Release()
+		src0Tex.Release()
+		src1View.Release()
+		src1Tex.Release()
 	})
 	// Seed solid colors.
 	px := make([]byte, w*h*4)
 	for i := 0; i < len(px); i += 4 {
 		px[i+0], px[i+1], px[i+2], px[i+3] = 0, 0, 255, 255
 	}
-	_ = queue.WriteTexture(&webgpu.ImageCopyTexture{Texture: src0Tex}, px,
-		&webgpu.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
-		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
+	_ = queue.WriteTexture(&hal.ImageCopyTexture{Texture: src0Tex}, px,
+		&hal.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
+		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
 	for i := 0; i < len(px); i += 4 {
 		px[i+0], px[i+1], px[i+2], px[i+3] = 255, 0, 0, 255
 	}
-	_ = queue.WriteTexture(&webgpu.ImageCopyTexture{Texture: src1Tex}, px,
-		&webgpu.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
-		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
-	_ = queue.WriteTexture(&webgpu.ImageCopyTexture{Texture: dstTex}, make([]byte, w*h*4),
-		&webgpu.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
-		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
+	_ = queue.WriteTexture(&hal.ImageCopyTexture{Texture: src1Tex}, px,
+		&hal.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
+		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
+	_ = queue.WriteTexture(&hal.ImageCopyTexture{Texture: dstTex}, make([]byte, w*h*4),
+		&hal.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
+		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1})
 
 	ops := []dualTexViewBlendOp{
 		{srcView: src0View, bounds: image.Rect(0, 0, int(w), int(h)), mode: render.BlendMultiply, opacity: 1},

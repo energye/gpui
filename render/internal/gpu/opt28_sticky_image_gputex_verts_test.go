@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/internal/gpu/res"
@@ -70,7 +71,7 @@ func TestOpt28_GPUTexVertSticky_SkipsRepeatWrite(t *testing.T) {
 	}
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-		Label: "opt28", Size: webgpu.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
+		Label: "opt28", Size: hal.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatBGRA8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment,

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -134,7 +135,7 @@ func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labe
 	}
 	tex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 		Label:         labelPrefix + "_depth_stencil",
-		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -209,7 +210,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	}
 	ts.destroyTextures()
 
-	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
+	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
 	if needMSAA {
 		msaaTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
@@ -256,7 +257,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
 		stencilTex, err = createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 			Label:         labelPrefix + "_depth_stencil_1x1",
-			Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1,
 			SampleCount:   1,
 			Dimension:     types.TextureDimension2D,
@@ -371,7 +372,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	}
 	ts.destroyTextures()
 
-	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
+	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
 	// sc==1 surface passes take depth/stencil from the size-keyed pool:
 	// retained frames alternate the pass target size per layer record (main
@@ -431,7 +432,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
 		stencilTex, err = createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 			Label:         labelPrefix + "_depth_stencil_1x1",
-			Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 			MipLevelCount: 1,
 			SampleCount:   1,
 			Dimension:     types.TextureDimension2D,

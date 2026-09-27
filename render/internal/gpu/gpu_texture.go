@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -236,7 +237,7 @@ func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) 
 
 	wtex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label: config.Label,
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width:              uint32(config.Width),  //nolint:gosec // dimensions are validated positive
 			Height:             uint32(config.Height), //nolint:gosec // dimensions are validated positive
 			DepthOrArrayLayers: 1,
@@ -375,16 +376,16 @@ func (t *GPUTexture) UploadPixmap(pixmap *render.Pixmap) error {
 		return err
 	}
 
-	return queue.WriteTexture(&webgpu.ImageCopyTexture{
+	return queue.WriteTexture(&hal.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
-		Origin:   webgpu.Origin3D{},
+		Origin:   hal.Origin3D{},
 		Aspect:   types.TextureAspectAll,
-	}, data, &webgpu.ImageDataLayout{
+	}, data, &hal.ImageDataLayout{
 		Offset:       0,
 		BytesPerRow:  bytesPerRow,
 		RowsPerImage: uint32(height), //nolint:gosec // dimensions validated
-	}, &webgpu.Extent3D{
+	}, &hal.Extent3D{
 		Width:              uint32(width),  //nolint:gosec // dimensions validated
 		Height:             uint32(height), //nolint:gosec // dimensions validated
 		DepthOrArrayLayers: 1,
@@ -422,20 +423,20 @@ func (t *GPUTexture) UploadRegion(x, y int, pixmap *render.Pixmap) error {
 		return err
 	}
 
-	return queue.WriteTexture(&webgpu.ImageCopyTexture{
+	return queue.WriteTexture(&hal.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
-		Origin: webgpu.Origin3D{
+		Origin: hal.Origin3D{
 			X: uint32(x), //nolint:gosec // bounds checked above
 			Y: uint32(y), //nolint:gosec // bounds checked above
 			Z: 0,
 		},
 		Aspect: types.TextureAspectAll,
-	}, data, &webgpu.ImageDataLayout{
+	}, data, &hal.ImageDataLayout{
 		Offset:       0,
 		BytesPerRow:  bytesPerRow,
 		RowsPerImage: uint32(pixmap.Height()), //nolint:gosec // bounds checked
-	}, &webgpu.Extent3D{
+	}, &hal.Extent3D{
 		Width:              uint32(pixmap.Width()),  //nolint:gosec // bounds checked
 		Height:             uint32(pixmap.Height()), //nolint:gosec // bounds checked
 		DepthOrArrayLayers: 1,
@@ -483,19 +484,19 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 		return nil, fmt.Errorf("create texture readback encoder: %w", err)
 	}
 
-	encoder.CopyTextureToBuffer(texture, stagingBuf, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{
+	encoder.CopyTextureToBuffer(texture, stagingBuf, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  alignedBytesPerRow,
 			RowsPerImage: uint32(height), //nolint:gosec // dimensions validated at creation
 		},
-		TextureBase: webgpu.ImageCopyTexture{
+		TextureBase: hal.ImageCopyTexture{
 			Texture:  texture,
 			MipLevel: 0,
-			Origin:   webgpu.Origin3D{},
+			Origin:   hal.Origin3D{},
 			Aspect:   types.TextureAspectAll,
 		},
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width:              uint32(width),  //nolint:gosec // dimensions validated at creation
 			Height:             uint32(height), //nolint:gosec // dimensions validated at creation
 			DepthOrArrayLayers: 1,

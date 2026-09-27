@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -228,13 +229,13 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: false,                       // don't write depth in Phase 1
 			DepthCompare:      types.CompareFunctionAlways, // pass all depth tests
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
 				PassOp:      webgpu.StencilOperationIncrementWrap,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionAlways,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
@@ -295,13 +296,13 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 				Format:            types.TextureFormatDepth24PlusStencil8,
 				DepthWriteEnabled: false,
 				DepthCompare:      types.CompareFunctionAlways,
-				StencilFront: webgpu.StencilFaceState{
+				StencilFront: hal.StencilFaceState{
 					Compare:     types.CompareFunctionAlways,
 					FailOp:      webgpu.StencilOperationKeep,
 					DepthFailOp: webgpu.StencilOperationKeep,
 					PassOp:      webgpu.StencilOperationReplace,
 				},
-				StencilBack: webgpu.StencilFaceState{
+				StencilBack: hal.StencilFaceState{
 					Compare:     types.CompareFunctionAlways,
 					FailOp:      webgpu.StencilOperationKeep,
 					DepthFailOp: webgpu.StencilOperationKeep,
@@ -347,13 +348,13 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 			Format:            types.TextureFormatDepth24PlusStencil8,
 			DepthWriteEnabled: true,                        // write depth Z=0.0
 			DepthCompare:      types.CompareFunctionAlways, // always pass depth test
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual, // only where stencil != 0
 				FailOp:      webgpu.StencilOperationKeep,   // outside clip: keep stencil (already 0)
 				DepthFailOp: webgpu.StencilOperationKeep,   // depth always passes, never hit
 				PassOp:      webgpu.StencilOperationZero,   // reset stencil after use
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare:     types.CompareFunctionNotEqual,
 				FailOp:      webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep,
@@ -549,7 +550,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 
 	tex, err := p.device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "depth_clip_mask",
-		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatR8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -566,10 +567,10 @@ func (p *DepthClipPipeline) BuildClipMask(
 		return fmt.Errorf("create depth clip mask view: %w", err)
 	}
 	if err := p.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		upload,
-		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h}, //nolint:gosec
-		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},   //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h}, //nolint:gosec
+		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},   //nolint:gosec
 	); err != nil {
 		view.Release()
 		tex.Release()

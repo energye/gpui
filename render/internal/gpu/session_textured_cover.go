@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -126,11 +127,11 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		DepthStencil: &webgpu.DepthStencilState{
 			Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 			DepthCompare: types.CompareFunctionAlways,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},
@@ -216,7 +217,7 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 	n := cmd.RampN
 	rampTex, err := sr.device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "session_tex_cover_ramp",
-		Size:          webgpu.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -240,10 +241,10 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 		rampUp = padded
 	}
 	if err := sr.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: rampTex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: rampTex, MipLevel: 0},
 		rampUp,
-		&webgpu.ImageDataLayout{BytesPerRow: rbpr, RowsPerImage: 1},
-		&webgpu.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: rbpr, RowsPerImage: 1},
+		&hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		rampView.Release()
 		rampTex.Release()
@@ -467,11 +468,11 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		DepthStencil: &webgpu.DepthStencilState{
 			Format: types.TextureFormatDepth24PlusStencil8, DepthWriteEnabled: false,
 			DepthCompare: types.CompareFunctionAlways,
-			StencilFront: webgpu.StencilFaceState{
+			StencilFront: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},
-			StencilBack: webgpu.StencilFaceState{
+			StencilBack: hal.StencilFaceState{
 				Compare: types.CompareFunctionNotEqual, FailOp: webgpu.StencilOperationKeep,
 				DepthFailOp: webgpu.StencilOperationKeep, PassOp: webgpu.StencilOperationZero,
 			},
@@ -557,7 +558,7 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 	srcW, srcH := cmd.PatW, cmd.PatH
 	patTex, err := sr.device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "session_pat_cover_src",
-		Size:          webgpu.Extent3D{Width: uint32(srcW), Height: uint32(srcH), DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(srcW), Height: uint32(srcH), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -584,10 +585,10 @@ func (sr *StencilRenderer) updatePatternCoverResources(b *stencilCoverBuffers, w
 		up = padded
 	}
 	if err := sr.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: patTex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: patTex, MipLevel: 0},
 		up,
-		&webgpu.ImageDataLayout{BytesPerRow: bpr, RowsPerImage: uint32(srcH)},              //nolint:gosec
-		&webgpu.Extent3D{Width: uint32(srcW), Height: uint32(srcH), DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: bpr, RowsPerImage: uint32(srcH)},              //nolint:gosec
+		&hal.Extent3D{Width: uint32(srcW), Height: uint32(srcH), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		patView.Release()
 		patTex.Release()

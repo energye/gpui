@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -295,12 +296,12 @@ func (c *ImageCache) rewriteImage(entry *imageCacheEntry, cmd *ImageDrawCommand)
 		}
 	}
 	if err := c.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: entry.texture, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: entry.texture, MipLevel: 0},
 		pixelData,
-		&webgpu.ImageDataLayout{
+		&hal.ImageDataLayout{
 			Offset: 0, BytesPerRow: bytesPerRow, RowsPerImage: uint32(h), //nolint:gosec
 		},
-		&webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		if staging != nil {
 			releaseImageStaging(staging)
@@ -356,7 +357,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 
 	tex, err := c.device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "image_cache_tex",
-		Size:          webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // image dimensions fit uint32
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // image dimensions fit uint32
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -402,14 +403,14 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 	}
 
 	if err := c.queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		pixelData,
-		&webgpu.ImageDataLayout{
+		&hal.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  bytesPerRow,
 			RowsPerImage: uint32(h), //nolint:gosec // image height fits uint32
 		},
-		&webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // image dimensions fit uint32
+		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // image dimensions fit uint32
 	); err != nil {
 		if staging != nil {
 			releaseImageStaging(staging)

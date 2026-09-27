@@ -9,6 +9,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -361,7 +362,7 @@ func linearRampMaskExpand(
 	// Ramp texture: n×1 RGBA8.
 	rampTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "linear_ramp_tex",
-		Size:          webgpu.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -386,10 +387,10 @@ func linearRampMaskExpand(
 		rampUpload = padded
 	}
 	if err := queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: rampTex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: rampTex, MipLevel: 0},
 		rampUpload,
-		&webgpu.ImageDataLayout{BytesPerRow: rampBPR, RowsPerImage: 1},
-		&webgpu.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: rampBPR, RowsPerImage: 1},
+		&hal.Extent3D{Width: uint32(n), Height: 1, DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		return nil, fmt.Errorf("linear ramp upload: %w", err)
 	}
@@ -397,7 +398,7 @@ func linearRampMaskExpand(
 	// Coverage R8.
 	maskTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "linear_ramp_mask_tex",
-		Size:          webgpu.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatR8Unorm,
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
@@ -425,10 +426,10 @@ func linearRampMaskExpand(
 		maskUpload = padded
 	}
 	if err := queue.WriteTexture(
-		&webgpu.ImageCopyTexture{Texture: maskTex, MipLevel: 0},
+		&hal.ImageCopyTexture{Texture: maskTex, MipLevel: 0},
 		maskUpload,
-		&webgpu.ImageDataLayout{BytesPerRow: maskAligned, RowsPerImage: uint32(nh)},    //nolint:gosec
-		&webgpu.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: maskAligned, RowsPerImage: uint32(nh)},    //nolint:gosec
+		&hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		return nil, fmt.Errorf("linear ramp mask upload: %w", err)
 	}
@@ -436,7 +437,7 @@ func linearRampMaskExpand(
 	// Output RT.
 	outTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "linear_ramp_out",
-		Size:          webgpu.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
+		Size:          hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 		Format: types.TextureFormatRGBA8Unorm,
 		Usage:  types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageTextureBinding,
@@ -518,10 +519,10 @@ func linearRampMaskExpand(
 	}
 	defer staging.Release()
 
-	enc.CopyTextureToBuffer(outTex, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: alignedRow, RowsPerImage: uint32(nh)}, //nolint:gosec
-		TextureBase:  webgpu.ImageCopyTexture{Texture: outTex, MipLevel: 0, Aspect: types.TextureAspectAll},
-		Size:         webgpu.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
+	enc.CopyTextureToBuffer(outTex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{BytesPerRow: alignedRow, RowsPerImage: uint32(nh)}, //nolint:gosec
+		TextureBase:  hal.ImageCopyTexture{Texture: outTex, MipLevel: 0, Aspect: types.TextureAspectAll},
+		Size:         hal.Extent3D{Width: uint32(nw), Height: uint32(nh), DepthOrArrayLayers: 1}, //nolint:gosec
 	}})
 	cmd, err := enc.Finish()
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -629,7 +630,7 @@ func dualTexAdvancedBlend(
 	mkTex := func(label string, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
 		tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 			Label: label,
-			Size: webgpu.Extent3D{
+			Size: hal.Extent3D{
 				Width:              uint32(bw), //nolint:gosec
 				Height:             uint32(bh), //nolint:gosec
 				DepthOrArrayLayers: 1,
@@ -667,14 +668,14 @@ func dualTexAdvancedBlend(
 				upload = padded
 			}
 			if err := queue.WriteTexture(
-				&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+				&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 				upload,
-				&webgpu.ImageDataLayout{
+				&hal.ImageDataLayout{
 					Offset:       0,
 					BytesPerRow:  aligned,
 					RowsPerImage: uint32(bh), //nolint:gosec
 				},
-				&webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+				&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 			); err != nil {
 				view.Release()
 				tex.Release()
@@ -765,16 +766,16 @@ func dualTexAdvancedBlend(
 	}
 	defer staging.Release()
 
-	enc.CopyTextureToBuffer(outTex, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{
+	enc.CopyTextureToBuffer(outTex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  alignedRow,
 			RowsPerImage: uint32(bh), //nolint:gosec
 		},
-		TextureBase: webgpu.ImageCopyTexture{
-			Texture: outTex, MipLevel: 0, Origin: webgpu.Origin3D{}, Aspect: types.TextureAspectAll,
+		TextureBase: hal.ImageCopyTexture{
+			Texture: outTex, MipLevel: 0, Origin: hal.Origin3D{}, Aspect: types.TextureAspectAll,
 		},
-		Size: webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+		Size: hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 	}})
 
 	cmd, err := enc.Finish()
@@ -856,7 +857,7 @@ func dualTexCreateTex(device *webgpu.Device, queue *webgpu.Queue, label string, 
 func dualTexCreateTexFmt(device *webgpu.Device, queue *webgpu.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (*webgpu.Texture, *webgpu.TextureView, error) {
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label: label,
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width:              uint32(bw), //nolint:gosec
 			Height:             uint32(bh), //nolint:gosec
 			DepthOrArrayLayers: 1,
@@ -897,14 +898,14 @@ func dualTexCreateTexFmt(device *webgpu.Device, queue *webgpu.Queue, label strin
 			upload = padded
 		}
 		err := queue.WriteTexture(
-			&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+			&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 			upload,
-			&webgpu.ImageDataLayout{
+			&hal.ImageDataLayout{
 				Offset:       0,
 				BytesPerRow:  aligned,
 				RowsPerImage: uint32(bh), //nolint:gosec
 			},
-			&webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
+			&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
 		)
 		releaseImageStaging(padScratch)
 		if err != nil {
@@ -1733,23 +1734,23 @@ func readTextureViewRegionRGBA(
 	if err != nil {
 		return nil, err
 	}
-	enc.CopyTextureToBuffer(tex, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{
+	enc.CopyTextureToBuffer(tex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  alignedRow,
 			RowsPerImage: uint32(bh), //nolint:gosec
 		},
-		TextureBase: webgpu.ImageCopyTexture{
+		TextureBase: hal.ImageCopyTexture{
 			Texture:  tex,
 			MipLevel: 0,
-			Origin: webgpu.Origin3D{
+			Origin: hal.Origin3D{
 				X: uint32(bounds.Min.X), //nolint:gosec
 				Y: uint32(bounds.Min.Y), //nolint:gosec
 				Z: 0,
 			},
 			Aspect: types.TextureAspectAll,
 		},
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width:              uint32(bw), //nolint:gosec
 			Height:             uint32(bh), //nolint:gosec
 			DepthOrArrayLayers: 1,
@@ -1854,23 +1855,23 @@ func readTextureViewRegionStraightRGBA(
 	if err != nil {
 		return nil, err
 	}
-	enc.CopyTextureToBuffer(tex, staging, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{
+	enc.CopyTextureToBuffer(tex, staging, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  alignedRow,
 			RowsPerImage: uint32(bh), //nolint:gosec
 		},
-		TextureBase: webgpu.ImageCopyTexture{
+		TextureBase: hal.ImageCopyTexture{
 			Texture:  tex,
 			MipLevel: 0,
-			Origin: webgpu.Origin3D{
+			Origin: hal.Origin3D{
 				X: uint32(bounds.Min.X), //nolint:gosec
 				Y: uint32(bounds.Min.Y), //nolint:gosec
 				Z: 0,
 			},
 			Aspect: types.TextureAspectAll,
 		},
-		Size: webgpu.Extent3D{
+		Size: hal.Extent3D{
 			Width:              uint32(bw), //nolint:gosec
 			Height:             uint32(bh), //nolint:gosec
 			DepthOrArrayLayers: 1,
