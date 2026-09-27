@@ -296,7 +296,7 @@ func encodePatternMaskSampleUniform(p patternMaskSampleParams) []byte {
 // tile is srcW*srcH*4 premul RGBA; maskR8 is nw*nh.
 func patternMaskSampleExpand(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *patternMaskSampleCache,
 	tile []byte,
 	srcW, srcH int,

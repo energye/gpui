@@ -38,7 +38,7 @@ func setupNoopDevice(b *testing.B) (hal.Device, hal.Queue, func()) {
 	}
 
 	cleanup := func() {
-		openDevice.Device.Destroy()
+		openDevice.Device.Release()
 		instance.Destroy()
 	}
 

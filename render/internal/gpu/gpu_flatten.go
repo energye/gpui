@@ -88,7 +88,7 @@ type GPUFlattenRasterizer struct {
 	mu sync.Mutex
 
 	device *webgpu.Device
-	queue  *webgpu.Queue
+	queue  hal.Queue
 
 	// Compute pipelines
 	preparePipeline      *webgpu.ComputePipeline
@@ -122,7 +122,7 @@ type GPUFlattenRasterizer struct {
 // NewGPUFlattenRasterizer creates a new GPU flatten rasterizer.
 // maxPaths: Maximum number of path elements to process
 // maxSegments: Maximum number of output segments
-func NewGPUFlattenRasterizer(device *webgpu.Device, queue *webgpu.Queue, maxPaths, maxSegments int) (*GPUFlattenRasterizer, error) {
+func NewGPUFlattenRasterizer(device *webgpu.Device, queue hal.Queue, maxPaths, maxSegments int) (*GPUFlattenRasterizer, error) {
 	if device == nil || queue == nil {
 		return nil, fmt.Errorf("gpu_flatten: device and queue are required")
 	}

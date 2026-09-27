@@ -242,5 +242,5 @@ func (d *Device) PushErrorScope(_ hal.ErrorFilter) {}
 // PopErrorScope returns nil (noop backend never captures errors).
 func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
-// Destroy is a no-op for the noop device.
-func (d *Device) Destroy() {}
+// Release is a no-op for the noop device.
+func (d *Device) Release() {}

@@ -77,7 +77,7 @@ type GPUShared struct {
 	instance *webgpu.Instance // standalone mode only; nil when using external device
 	adapter  *webgpu.Adapter  // standalone mode only; must Release on Close
 	device   *webgpu.Device
-	queue    *webgpu.Queue
+	queue    hal.Queue
 
 	// Pipelines (immutable after creation, safe to share).
 	sdfRenderPipeline *SDFRenderPipeline
@@ -151,7 +151,7 @@ type GPUShared struct {
 	deviceGen uint64
 
 	// liveCtxs: per-window GPURenderContexts that hold session MSAA/depth textures.
-	// AbandonExternalDevice must Destroy these *before* Device.Destroy or VRAM
+	// AbandonExternalDevice must Destroy these *before* Device.Release or VRAM
 	// stays pinned → CreateTexture OOM on the recovered device (minimize recover).
 	liveCtxs map[*GPURenderContext]struct{}
 }
@@ -222,7 +222,7 @@ func (s *GPUShared) Device() *webgpu.Device {
 }
 
 // Queue returns the shared wgpu queue, or nil if not initialized.
-func (s *GPUShared) Queue() *webgpu.Queue {
+func (s *GPUShared) Queue() hal.Queue {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.queue
@@ -335,7 +335,7 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 //
 //	abandon all GrGpuResources → destroy context → recreate.
 //
-// Session MSAA/depth must be Released *before* Device.Destroy; otherwise this
+// Session MSAA/depth must be Released *before* Device.Release; otherwise this
 // native build keeps VRAM pinned and the new device OOMs on CreateTexture.
 
 // PurgeAllSurfaceResources frees surface-bound GPU memory on every live
@@ -751,7 +751,7 @@ func (s *GPUShared) initGPU() error {
 	return nil
 }
 
-func (s *GPUShared) initVelloAccelerator(device *webgpu.Device, queue *webgpu.Queue) {
+func (s *GPUShared) initVelloAccelerator(device *webgpu.Device, queue hal.Queue) {
 	va := &VelloAccelerator{}
 	va.device = device
 	va.queue = queue

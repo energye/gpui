@@ -124,7 +124,7 @@ func TestDamageBlit_NBufferAccumulation(t *testing.T) {
 
 // --- Helpers ---
 
-func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, tex *webgpu.Texture, w, h int) []byte {
+func readbackTexture(t *testing.T, device *webgpu.Device, queue hal.Queue, tex *webgpu.Texture, w, h int) []byte {
 	t.Helper()
 	rowBytes := uint32(w * 4)
 	paddedRowBytes := alignTo(rowBytes, 256)

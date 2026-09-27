@@ -739,7 +739,7 @@ func (c *filterGPUCache) releasePublish(slot filterPublishSlot) {
 }
 
 // runGPUFilterGraph executes multi-RT ping-pong filter nodes on GPU and readbacks.
-func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
+func runGPUFilterGraph(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
 	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true, nil, nil)
 	return out, err
 }
@@ -747,7 +747,7 @@ func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filter
 // runGPUFilterGraphGPUOnly runs the filter graph and publishes a GPU texture view
 // for zero-copy compositing (DrawGPUTexture). No CPU Map/readback.
 // Caller must invoke release when the view is no longer sampled.
-func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
 	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false, nil, nil)
 	return view, release, err
 }
@@ -755,7 +755,7 @@ func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue *webgpu.Queue, cache 
 // runGPUFilterGraphFromView seeds the graph from an existing GPU texture view
 // (no CPU upload). Source may be BGRA offscreen; first copy pass samples into
 // the RGBA pool (WebGPU returns BGRA samples in RGBA order).
-func runGPUFilterGraphFromView(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphFromView(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
 	return runGPUFilterGraphFromViewWithLeading(device, queue, cache, srcView, w, h, nodes, nil)
 }
 
@@ -764,7 +764,7 @@ func runGPUFilterGraphFromView(device *webgpu.Device, queue *webgpu.Queue, cache
 // Leading CBs are Released after submit (success or failure). On filter encode
 // failure before Submit, leading CBs are NOT released — caller may submit them
 // alone for recovery.
-func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, leading []*webgpu.CommandBuffer) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, leading []*webgpu.CommandBuffer) (gpucontext.TextureView, func(), error) {
 	if srcView.IsNil() {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
@@ -777,7 +777,7 @@ func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue *webgpu.Q
 // encoder that already contains the mesh-seed render passes (opt36). One Finish
 // covers seed+filter. On failure the encoder is left open so the caller can
 // Finish+Submit seed-only recovery (mesh draws are only applied if submitted).
-func runGPUFilterGraphFromViewIntoEncoder(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc *webgpu.CommandEncoder) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphFromViewIntoEncoder(device *webgpu.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc *webgpu.CommandEncoder) (gpucontext.TextureView, func(), error) {
 	if srcView.IsNil() {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
@@ -790,7 +790,7 @@ func runGPUFilterGraphFromViewIntoEncoder(device *webgpu.Device, queue *webgpu.Q
 }
 
 func runGPUFilterGraphEx(
-	device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache,
+	device *webgpu.Device, queue hal.Queue, cache *filterGPUCache,
 	src []byte, srcView *webgpu.TextureView, w, h int, nodes []render.ImageFilterNode, wantPixels bool,
 	leading []*webgpu.CommandBuffer, sharedEnc *webgpu.CommandEncoder,
 ) (out []byte, pubView gpucontext.TextureView, pubRelease func(), err error) {

@@ -3,6 +3,7 @@
 package gpu
 
 import (
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
@@ -280,11 +281,11 @@ func (b *CommandBuffer) ID() StubCommandBufferID {
 
 // QueueSubmitter is a legacy logical queue helper for tests.
 type QueueSubmitter struct {
-	queue *webgpu.Queue
+	queue hal.Queue
 }
 
 // NewQueueSubmitter creates a legacy logical queue helper.
-func NewQueueSubmitter(queue *webgpu.Queue) *QueueSubmitter {
+func NewQueueSubmitter(queue hal.Queue) *QueueSubmitter {
 	return &QueueSubmitter{queue: queue}
 }
 

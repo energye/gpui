@@ -110,7 +110,7 @@ type ConvexDrawCommand struct {
 // (Compare=Always, all ops=Keep, masks=0x00).
 type ConvexRenderer struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
@@ -178,7 +178,7 @@ func (cr *ConvexRenderer) MaskBindLayout() *webgpu.BindGroupLayout {
 // NewConvexRenderer creates a new convex polygon renderer with the given
 // device and queue. Pipelines are not created until ensurePipeline or
 // ensurePipelineWithStencil is called.
-func NewConvexRenderer(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *ConvexRenderer {
+func NewConvexRenderer(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *ConvexRenderer {
 	return &ConvexRenderer{
 		device:      device,
 		queue:       queue,

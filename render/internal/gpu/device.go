@@ -114,7 +114,7 @@ func requestDeviceWithRetry(adapter *webgpu.Adapter, desc *hal.DeviceDescriptor,
 }
 
 // getDeviceQueue retrieves the queue associated with a device.
-func getDeviceQueue(device *webgpu.Device) (*webgpu.Queue, error) {
+func getDeviceQueue(device *webgpu.Device) (hal.Queue, error) {
 	if device == nil {
 		return nil, fmt.Errorf("device is nil")
 	}

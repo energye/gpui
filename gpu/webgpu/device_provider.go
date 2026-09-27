@@ -30,7 +30,12 @@ func (p *SimpleDeviceProvider) Queue() gpucontext.Queue {
 	if p == nil || p.Dev == nil {
 		return gpucontext.Queue{}
 	}
-	return QueueToHandle(p.Dev.Queue())
+	hq := p.Dev.Queue()
+	wq, ok := hq.(*Queue)
+	if !ok || wq == nil {
+		return gpucontext.Queue{}
+	}
+	return QueueToHandle(wq)
 }
 
 // SurfaceFormat implements gpucontext.DeviceProvider.

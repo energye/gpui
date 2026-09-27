@@ -175,7 +175,7 @@ func renderRGBAToColorRGBA(c render.RGBA) color.RGBA {
 
 // SyncColorAtlasTextures uploads dirty color atlas pages to the GPU as RGBA8
 // textures. Mirrors GlyphMaskEngine.SyncAtlasTextures with 4 bytes per texel.
-func (e *ColorGlyphEngine) SyncColorAtlasTextures(device *webgpu.Device, queue *webgpu.Queue) error {
+func (e *ColorGlyphEngine) SyncColorAtlasTextures(device *webgpu.Device, queue hal.Queue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

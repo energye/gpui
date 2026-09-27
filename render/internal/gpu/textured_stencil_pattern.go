@@ -440,7 +440,7 @@ func encodeTexturedStencilPatternUniform(w, h uint32, p texturedStencilPatternPa
 // sampling. Returns premul RGBA (readback). Prefer Retain for no-readback path.
 func texturedStencilCoverPattern(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *texturedStencilPatternCache,
 	localPath *render.Path,
 	fillRule render.FillRule,
@@ -462,7 +462,7 @@ func texturedStencilCoverPattern(
 // QueueGPUTextureDraw. Caller owns tex/view until after Flush.
 func texturedStencilCoverPatternRetain(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *texturedStencilPatternCache,
 	localPath *render.Path,
 	fillRule render.FillRule,
@@ -484,7 +484,7 @@ func texturedStencilCoverPatternRetain(
 
 func texturedStencilCoverPatternEx(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *texturedStencilPatternCache,
 	localPath *render.Path,
 	fillRule render.FillRule,

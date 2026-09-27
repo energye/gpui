@@ -848,8 +848,8 @@ func (d *Device) PushErrorScope(_ hal.ErrorFilter) {}
 // PopErrorScope returns nil (GLES never captures errors).
 func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
-// Destroy releases the device.
-func (d *Device) Destroy() {
+// Release releases the device.
+func (d *Device) Release() {
 	if d.vao != 0 && d.ctx != nil {
 		glCtx := d.ctx.Lock()
 		glCtx.DeleteVertexArrays(d.vao)

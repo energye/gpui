@@ -330,7 +330,7 @@ func TestDeviceCreateTexture2DArrayUsesMetalArrayShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newDevice failed: %v", err)
 	}
-	defer device.Destroy()
+	defer device.Release()
 
 	rawTexture, err := device.CreateTexture(&hal.TextureDescriptor{
 		Size:          hal.Extent3D{Width: 8, Height: 8, DepthOrArrayLayers: 4},
@@ -549,7 +549,7 @@ func newMetalTextureCopyTestDevice(t *testing.T) (*Device, *Queue) {
 	if err != nil {
 		t.Fatalf("newDevice failed: %v", err)
 	}
-	t.Cleanup(device.Destroy)
+	t.Cleanup(device.Release)
 	queue := &Queue{device: device, commandQueue: device.commandQueue}
 	device.queue = queue
 	return device, queue

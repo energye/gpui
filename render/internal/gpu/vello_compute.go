@@ -384,7 +384,7 @@ type VelloComputeDispatcher struct {
 	device *webgpu.Device
 
 	// queue is the GPU queue for command submission and buffer writes.
-	queue *webgpu.Queue
+	queue hal.Queue
 
 	// pipelines are the compiled compute pipelines, one per stage.
 	pipelines [VelloStageCount]*webgpu.ComputePipeline
@@ -411,7 +411,7 @@ type VelloComputeDispatcher struct {
 // NewVelloComputeDispatcher creates a new dispatcher attached to the given
 // GPU device and queue. The dispatcher must be initialized with Init()
 // before Dispatch() can be called.
-func NewVelloComputeDispatcher(device *webgpu.Device, queue *webgpu.Queue) *VelloComputeDispatcher {
+func NewVelloComputeDispatcher(device *webgpu.Device, queue hal.Queue) *VelloComputeDispatcher {
 	d := &VelloComputeDispatcher{
 		device: device,
 		queue:  queue,

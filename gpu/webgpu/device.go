@@ -26,8 +26,8 @@ type Device struct {
 	released bool
 }
 
-// Queue returns the device's command queue.
-func (d *Device) Queue() *Queue {
+// Queue returns the device's command queue (hal.Queue conformance).
+func (d *Device) Queue() hal.Queue {
 	return d.queue
 }
 
@@ -526,29 +526,6 @@ func (d *Device) MarkLost() {
 	d.r.MarkLost()
 }
 
-// Destroy marks the device sticky-lost and drops the queue ref (Skia/Flutter abandon).
-// After Destroy, IsLost is true and create/submit return hal.ErrDeviceLost.
-//
-// Does NOT call wgpuDeviceDestroy: on current libwgpu_native that API leaves the
-// adapter in a state where later RequestDevice/CreateTexture report
-// "Not enough memory left" (reproduced in isolation). Dropping the last device
-// ref via Release() reclaims VRAM correctly; AutoRecover uses Release only.
-// Safe on nil / already destroyed / released.
-func (d *Device) Destroy() {
-	if d == nil || d.released {
-		return
-	}
-	// Drop queue while parent is still "not lost" so native QueueRelease runs
-	// (skip-on-lost would otherwise pin the device refcount / VRAM).
-	if d.queue != nil {
-		d.queue.Release()
-		d.queue = nil
-	}
-	if d.r != nil {
-		d.r.MarkLost()
-	}
-}
-
 // IsLost reports whether this device handle was marked lost by WGPUDeviceLostCallback.
 // Per-device only; recreate via RequestDevice (and swapchain auto-recover) to continue.
 func (d *Device) IsLost() bool {
@@ -695,6 +672,48 @@ func (d *Device) Release() {
 		d.r = nil
 	}
 }
+
+// CreateQuerySet implements hal.Device: timestamp queries are not supported
+// on the wgpu-native backend.
+func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error) {
+	return nil, hal.ErrTimestampsNotSupported
+}
+
+// DestroyQuerySet implements hal.Device: no-op (CreateQuerySet never succeeds).
+func (d *Device) DestroyQuerySet(_ hal.QuerySet) {}
+
+// CreateRenderBundleEncoder implements hal.Device: render bundles are not
+// supported on the wgpu-native backend.
+func (d *Device) CreateRenderBundleEncoder(_ *hal.RenderBundleEncoderDescriptor) (hal.RenderBundleEncoder, error) {
+	return nil, fmt.Errorf("webgpu: render bundles not supported")
+}
+
+// DestroyRenderBundle implements hal.Device: no-op (CreateRenderBundleEncoder never succeeds).
+func (d *Device) DestroyRenderBundle(_ hal.RenderBundle) {}
+
+// CreateAccelerationStructure implements hal.Device: ray tracing is not
+// supported on the wgpu-native backend.
+func (d *Device) CreateAccelerationStructure(_ *hal.AccelerationStructureDescriptor) (hal.AccelerationStructure, error) {
+	return nil, fmt.Errorf("webgpu: ray tracing not supported")
+}
+
+// DestroyAccelerationStructure implements hal.Device: no-op (no ray tracing).
+func (d *Device) DestroyAccelerationStructure(_ hal.AccelerationStructure) {}
+
+// GetAccelerationStructureBuildSizes implements hal.Device: no ray tracing,
+// returns zero sizes.
+func (d *Device) GetAccelerationStructureBuildSizes(_ *hal.GetAccelerationStructureBuildSizesDescriptor) hal.AccelerationStructureBuildSizes {
+	return hal.AccelerationStructureBuildSizes{}
+}
+
+// GetAccelerationStructureDeviceAddress implements hal.Device: no ray tracing,
+// returns 0.
+func (d *Device) GetAccelerationStructureDeviceAddress(_ hal.AccelerationStructure) uint64 {
+	return 0
+}
+
+// TlasInstanceToBytes implements hal.Device: no ray tracing, returns nil.
+func (d *Device) TlasInstanceToBytes(_ hal.TlasInstance) []byte { return nil }
 
 // --- Descriptor conversion helpers ---
 

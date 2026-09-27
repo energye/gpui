@@ -71,7 +71,7 @@ func TestSurfaceConfigureZeroDimensions_Vulkan(t *testing.T) {
 	if err != nil {
 		t.Skipf("Device creation failed: %v", err)
 	}
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	// Test with zero width
 	config := &hal.SurfaceConfiguration{
@@ -136,7 +136,7 @@ func TestSurfaceConfigureValidDimensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	// Valid dimensions should succeed
 	config := &hal.SurfaceConfiguration{

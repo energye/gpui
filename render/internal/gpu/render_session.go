@@ -324,7 +324,7 @@ const (
 //	  +-- Single readback (offscreen) or resolve to surface (direct)
 type GPURenderSession struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// onTextureOOM is invoked when a session texture allocation fails with
@@ -705,7 +705,7 @@ type GPURenderSession struct {
 // NewGPURenderSession creates a new render session with the given device,
 // queue, and MSAA sample count. Textures and pipelines are not allocated
 // until RenderFrame is called.
-func NewGPURenderSession(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *GPURenderSession {
+func NewGPURenderSession(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *GPURenderSession {
 	s := &GPURenderSession{
 		device:      device,
 		queue:       queue,

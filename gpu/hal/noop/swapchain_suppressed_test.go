@@ -32,7 +32,7 @@ func TestSetSwapchainSuppressed_NoopNoPanic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	queue := openDevice.Queue
 
@@ -57,7 +57,7 @@ func TestSetSwapchainSuppressed_SubmitDuringSuppression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	queue := openDevice.Queue
 	device := openDevice.Device
@@ -113,7 +113,7 @@ func TestSetSwapchainSuppressed_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	queue := openDevice.Queue
 
@@ -142,7 +142,7 @@ func BenchmarkSetSwapchainSuppressed(b *testing.B) {
 
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, _ := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	queue := openDevice.Queue
 

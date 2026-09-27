@@ -10,7 +10,7 @@ import (
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
-func createNativeTestDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
+func createNativeTestDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
 	t.Helper()
 
 	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
@@ -44,7 +44,7 @@ func createNativeTestDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()
 	return device, queue, cleanup
 }
 
-func createNativeDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
+func createNativeDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
 	t.Helper()
 	return createNativeTestDevice(t)
 }

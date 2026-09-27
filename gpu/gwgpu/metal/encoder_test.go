@@ -206,7 +206,7 @@ func BenchmarkComputePassEncoderBindBufferSizes(b *testing.B) {
 	if err != nil {
 		b.Fatalf("newDevice: %v", err)
 	}
-	b.Cleanup(device.Destroy)
+	b.Cleanup(device.Release)
 
 	command := &CommandEncoder{device: device}
 	if err := command.BeginEncoding("bind-buffer-sizes-benchmark"); err != nil {

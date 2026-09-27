@@ -1470,8 +1470,8 @@ func (d *Device) PushErrorScope(_ hal.ErrorFilter) {}
 // PopErrorScope returns nil (Metal never captures errors).
 func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
-// Destroy releases the device and associated resources.
-func (d *Device) Destroy() {
+// Release releases the device and associated resources.
+func (d *Device) Release() {
 	hal.Logger().Debug("metal: device destroyed")
 	d.releaseIndexedICBTranslators()
 	if d.eventListener != 0 {

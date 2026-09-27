@@ -59,7 +59,7 @@ const sdfRenderAAMargin = 1.5
 // when the render pass includes a depth/stencil attachment.
 type SDFRenderPipeline struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
@@ -132,7 +132,7 @@ func (p *SDFRenderPipeline) SetSDFLedger(l *PassBindLedger) {
 // NewSDFRenderPipeline creates a new SDF render pipeline with the given device
 // and queue. The render pipeline and textures are not created until
 // ensureReady is called with the desired dimensions.
-func NewSDFRenderPipeline(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *SDFRenderPipeline {
+func NewSDFRenderPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *SDFRenderPipeline {
 	return &SDFRenderPipeline{
 		device:      device,
 		queue:       queue,

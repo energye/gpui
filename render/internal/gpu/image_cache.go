@@ -54,7 +54,7 @@ type imageCacheEntry struct {
 // staging scratch pool for non-tight stride copies.
 type ImageCache struct {
 	device *webgpu.Device
-	queue  *webgpu.Queue
+	queue  hal.Queue
 
 	entries     map[uint64]*imageCacheEntry // keyed by Pixmap.GenerationID()
 	budget      int
@@ -116,7 +116,7 @@ func releaseImageStaging(p *[]byte) {
 }
 
 // NewImageCache creates a new image texture cache with the given device and queue.
-func NewImageCache(device *webgpu.Device, queue *webgpu.Queue) *ImageCache {
+func NewImageCache(device *webgpu.Device, queue hal.Queue) *ImageCache {
 	c := &ImageCache{
 		device:      device,
 		queue:       queue,

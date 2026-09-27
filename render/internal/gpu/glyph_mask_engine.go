@@ -770,7 +770,7 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 // when the dirty area is <50% of the page; otherwise falls back to full-page
 // upload. Advances the atlas frame after upload so LRU compaction can reclaim
 // stale pages (Skia GrAtlasManager::postFlush pattern).
-func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue *webgpu.Queue) error {
+func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue hal.Queue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

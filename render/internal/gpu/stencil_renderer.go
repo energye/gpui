@@ -32,7 +32,7 @@ import (
 // to the CPU via CopySrc usage.
 type StencilRenderer struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// Shared MSAA color + depth/stencil + resolve textures.
@@ -131,7 +131,7 @@ type StencilRenderer struct {
 // NewStencilRenderer creates a new StencilRenderer with the given device, queue,
 // and MSAA sample count. Textures are not allocated until EnsureTextures is
 // called with the desired dimensions.
-func NewStencilRenderer(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *StencilRenderer {
+func NewStencilRenderer(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *StencilRenderer {
 	return &StencilRenderer{
 		device:      device,
 		queue:       queue,

@@ -14,7 +14,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-func s2Device(t *testing.T) (*Instance, *Adapter, *Device, *Queue) {
+func s2Device(t *testing.T) (*Instance, *Adapter, *Device, hal.Queue) {
 	t.Helper()
 	inst, err := CreateInstance(nil)
 	if err != nil {

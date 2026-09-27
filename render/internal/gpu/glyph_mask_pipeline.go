@@ -72,7 +72,7 @@ const glyphMaskLCDUniformSize = 96
 //	bind groups are created per atlas texture (uniform + texture + sampler)
 type GlyphMaskPipeline struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
@@ -135,7 +135,7 @@ type GlyphMaskPipeline struct {
 // NewGlyphMaskPipeline creates a new glyph mask pipeline with the given device
 // and queue. The render pipeline and GPU objects are not created until
 // ensurePipelineWithStencil is called.
-func NewGlyphMaskPipeline(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *GlyphMaskPipeline {
+func NewGlyphMaskPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *GlyphMaskPipeline {
 	return &GlyphMaskPipeline{
 		device:      device,
 		queue:       queue,

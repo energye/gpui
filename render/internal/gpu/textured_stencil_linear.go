@@ -495,7 +495,7 @@ func encodeTexturedStencilCoverUniform(w, h uint32, p texturedStencilLinearParam
 // Returns premul RGBA (readback). Prefer texturedStencilCoverLinearRetain.
 func texturedStencilCoverLinear(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *texturedStencilLinearCache,
 	localPath *render.Path,
 	fillRule render.FillRule,
@@ -517,7 +517,7 @@ func texturedStencilCoverLinear(
 // as BGRA TextureBinding for QueueGPUTextureDraw. Caller owns tex/view.
 func texturedStencilCoverLinearRetain(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *texturedStencilLinearCache,
 	localPath *render.Path,
 	fillRule render.FillRule,
@@ -541,7 +541,7 @@ func texturedStencilCoverLinearRetain(
 // result texture (TextureBinding); retain=false maps readback and frees it.
 func texturedStencilCoverLinearEx(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *texturedStencilLinearCache,
 	localPath *render.Path,
 	fillRule render.FillRule,

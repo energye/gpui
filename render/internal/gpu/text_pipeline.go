@@ -72,7 +72,7 @@ const textUniformSize = 96
 //	bind groups are created per atlas texture (uniform + texture + sampler)
 type MSDFTextPipeline struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
@@ -105,7 +105,7 @@ type MSDFTextPipeline struct {
 // NewMSDFTextPipeline creates a new MSDF text pipeline with the given device
 // and queue. The render pipeline and GPU objects are not created until
 // ensurePipeline or ensurePipelineWithStencil is called.
-func NewMSDFTextPipeline(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *MSDFTextPipeline {
+func NewMSDFTextPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *MSDFTextPipeline {
 	return &MSDFTextPipeline{
 		device:      device,
 		queue:       queue,
@@ -733,7 +733,7 @@ type TextPipeline struct {
 
 	// GPU device and queue references (hal interfaces)
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// Underlying real pipeline (nil until Init)
@@ -748,7 +748,7 @@ type TextPipeline struct {
 
 // NewTextPipeline creates a new text rendering pipeline.
 // The pipeline must be initialized before use.
-func NewTextPipeline(device *webgpu.Device, queue *webgpu.Queue, config TextPipelineConfig) (*TextPipeline, error) {
+func NewTextPipeline(device *webgpu.Device, queue hal.Queue, config TextPipelineConfig) (*TextPipeline, error) {
 	if config.InitialQuadCapacity <= 0 {
 		config.InitialQuadCapacity = DefaultTextPipelineConfig().InitialQuadCapacity
 	}
@@ -768,7 +768,7 @@ func NewTextPipeline(device *webgpu.Device, queue *webgpu.Queue, config TextPipe
 }
 
 // NewTextPipelineDefault creates a text pipeline with default configuration.
-func NewTextPipelineDefault(device *webgpu.Device, queue *webgpu.Queue) (*TextPipeline, error) {
+func NewTextPipelineDefault(device *webgpu.Device, queue hal.Queue) (*TextPipeline, error) {
 	return NewTextPipeline(device, queue, DefaultTextPipelineConfig())
 }
 
@@ -922,7 +922,7 @@ type TextRenderer struct {
 
 	// GPU resources
 	device *webgpu.Device
-	queue  *webgpu.Queue
+	queue  hal.Queue
 
 	// Pipeline (legacy wrapper)
 	pipeline *TextPipeline
@@ -957,7 +957,7 @@ func DefaultTextRendererConfig() TextRendererConfig {
 
 // NewTextRenderer creates a new text renderer with the given GPU device and
 // queue. The renderer manages a TextPipeline and AtlasManager internally.
-func NewTextRenderer(device *webgpu.Device, queue *webgpu.Queue, config TextRendererConfig) (*TextRenderer, error) {
+func NewTextRenderer(device *webgpu.Device, queue hal.Queue, config TextRendererConfig) (*TextRenderer, error) {
 	if device == nil {
 		return nil, ErrNilGPUDevice
 	}

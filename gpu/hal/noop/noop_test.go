@@ -178,7 +178,7 @@ func TestNoopAdapterOpen(t *testing.T) {
 			if openDevice.Queue == nil {
 				t.Error("expected non-nil queue")
 			}
-			openDevice.Device.Destroy()
+			openDevice.Device.Release()
 		})
 	}
 }
@@ -951,7 +951,7 @@ func TestNoopSurfaceConfigure(t *testing.T) {
 
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, _ := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	config := &hal.SurfaceConfiguration{
 		Width:       800,
@@ -982,7 +982,7 @@ func TestNoopSurfaceAcquireTexture(t *testing.T) {
 
 	adapters := instance.EnumerateAdapters(nil)
 	openDevice, _ := adapters[0].Adapter.Open(0, gputypes.DefaultLimits())
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	// Configure surface
 	config := &hal.SurfaceConfiguration{
@@ -1111,7 +1111,7 @@ func TestNoopFullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
-	defer openDevice.Device.Destroy()
+	defer openDevice.Device.Release()
 
 	device := openDevice.Device
 	queue := openDevice.Queue
@@ -1405,13 +1405,13 @@ func TestNoopDestroyRenderBundle(t *testing.T) {
 	device.DestroyRenderBundle(nil)
 }
 
-// TestNoopDeviceDestroy tests that Destroy does not panic.
-func TestNoopDeviceDestroy(t *testing.T) {
+// TestNoopDeviceRelease tests that Release does not panic.
+func TestNoopDeviceRelease(t *testing.T) {
 	device, cleanup := createTestDevice(t)
 	defer cleanup()
 
-	// Destroy is a no-op for noop device
-	device.Destroy()
+	// Release is a no-op for noop device
+	device.Release()
 }
 
 // =============================================================================
@@ -1641,7 +1641,7 @@ func createTestDevice(t *testing.T) (hal.Device, func()) {
 	}
 
 	cleanup := func() {
-		openDevice.Device.Destroy()
+		openDevice.Device.Release()
 		instance.Destroy()
 	}
 
@@ -1665,7 +1665,7 @@ func createTestDeviceAndQueue(t *testing.T) (hal.Device, hal.Queue, func()) {
 	}
 
 	cleanup := func() {
-		openDevice.Device.Destroy()
+		openDevice.Device.Release()
 		instance.Destroy()
 	}
 

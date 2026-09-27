@@ -6,6 +6,7 @@ package gpu
 import (
 	"sync"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
@@ -52,7 +53,7 @@ type HybridFineRasterizer struct {
 type HybridFineRasterizerConfig struct {
 	// Device and Queue for GPU operations (nil to use CPU only)
 	Device *webgpu.Device
-	Queue  *webgpu.Queue
+	Queue  hal.Queue
 
 	// SegmentThreshold is the minimum segments to use GPU (0 = use default)
 	SegmentThreshold int
@@ -310,7 +311,7 @@ func (s PipelineStage) String() string {
 type HybridPipelineConfig struct {
 	// Device and Queue for GPU operations (nil to use CPU only)
 	Device *webgpu.Device
-	Queue  *webgpu.Queue
+	Queue  hal.Queue
 
 	// Stage-specific thresholds (0 = use defaults)
 	FlattenThreshold int // Min path elements for GPU flatten

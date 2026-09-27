@@ -98,7 +98,7 @@ type GPUTexture struct {
 	device  *webgpu.Device
 	texture *webgpu.Texture
 	view    *webgpu.TextureView
-	queue   *webgpu.Queue
+	queue   hal.Queue
 
 	// Texture properties
 	width  int

@@ -40,7 +40,7 @@ type VelloAccelerator struct {
 
 	instance *webgpu.Instance // standalone mode only; nil when using external device
 	device   *webgpu.Device
-	queue    *webgpu.Queue
+	queue    hal.Queue
 
 	dispatcher *VelloComputeDispatcher
 

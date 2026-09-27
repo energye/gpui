@@ -29,7 +29,7 @@ type Backend struct {
 	instance *webgpu.Instance
 	adapter  *webgpu.Adapter
 	device   *webgpu.Device
-	queue    *webgpu.Queue
+	queue    hal.Queue
 
 	// GPU information
 	gpuInfo *GPUInfo
@@ -242,7 +242,7 @@ func (b *Backend) Device() *webgpu.Device {
 
 // Queue returns the GPU queue ID.
 // Returns a zero ID if the backend is not initialized.
-func (b *Backend) Queue() *webgpu.Queue {
+func (b *Backend) Queue() hal.Queue {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.queue

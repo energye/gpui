@@ -150,7 +150,7 @@ func TestGlyphMaskGPURepro(t *testing.T) {
 	t.Logf("text (dark) pixels rendered = %d  (BUG: this is ~0; fix makes it large)", textPixels)
 }
 
-func reproRealDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
+func reproRealDevice(t *testing.T) (*webgpu.Device, hal.Queue, func()) {
 	t.Helper()
 	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 	if err != nil {

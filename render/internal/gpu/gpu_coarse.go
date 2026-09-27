@@ -35,7 +35,7 @@ type GPUCoarseRasterizer struct {
 	mu sync.Mutex
 
 	device *webgpu.Device
-	queue  *webgpu.Queue
+	queue  hal.Queue
 
 	// Compute pipelines
 	coarsePipeline *webgpu.ComputePipeline
@@ -67,7 +67,7 @@ type GPUCoarseRasterizer struct {
 
 // NewGPUCoarseRasterizer creates a new GPU coarse rasterizer.
 // Returns an error if GPU compute is not supported.
-func NewGPUCoarseRasterizer(device *webgpu.Device, queue *webgpu.Queue, width, height uint16) (*GPUCoarseRasterizer, error) {
+func NewGPUCoarseRasterizer(device *webgpu.Device, queue hal.Queue, width, height uint16) (*GPUCoarseRasterizer, error) {
 	if device == nil || queue == nil {
 		return nil, fmt.Errorf("gpu_coarse: device and queue are required")
 	}

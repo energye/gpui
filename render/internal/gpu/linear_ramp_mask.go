@@ -338,7 +338,7 @@ func encodeLinearRampMaskUniform(p linearRampMaskParams) []byte {
 // R8 coverage on GPU. ramp is n*4 premul RGBA; maskR8 is nw*nh.
 func linearRampMaskExpand(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *linearRampMaskCache,
 	ramp []byte,
 	n int,

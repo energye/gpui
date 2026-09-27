@@ -200,7 +200,7 @@ func (c *maskR8Cache) ensure(device *webgpu.Device) error {
 // srcRGBA is bw*bh*4, maskR8 is bw*bh (tight). Returns premul RGBA result.
 func maskR8Modulate(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *maskR8Cache,
 	srcRGBA, maskR8 []byte,
 	bw, bh int,

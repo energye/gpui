@@ -121,7 +121,7 @@ type ImageDrawCommand struct {
 //	Bind groups are created per-batch (uniform + texture + sampler)
 type TexturedQuadPipeline struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// GPU objects for the render pipeline.
@@ -175,7 +175,7 @@ type TexturedQuadPipeline struct {
 }
 
 // NewTexturedQuadPipeline creates a new textured quad pipeline.
-func NewTexturedQuadPipeline(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *TexturedQuadPipeline {
+func NewTexturedQuadPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *TexturedQuadPipeline {
 	return &TexturedQuadPipeline{
 		device:      device,
 		queue:       queue,

@@ -568,7 +568,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 // dstRGBA/srcRGBA are tight premul RGBA8 (bw*bh*4). mode is Multiply/Screen/Overlay/HSL.
 func dualTexAdvancedBlend(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstRGBA, srcRGBA []byte,
 	bw, bh int,
@@ -850,11 +850,11 @@ func dualTexModeU(mode render.BlendMode) uint32 {
 }
 
 // dualTexCreateTex creates an RGBA8 2D texture (+view). optional upload of tight RGBA.
-func dualTexCreateTex(device *webgpu.Device, queue *webgpu.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
+func dualTexCreateTex(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage) (*webgpu.Texture, *webgpu.TextureView, error) {
 	return dualTexCreateTexFmt(device, queue, label, bw, bh, data, usage, types.TextureFormatRGBA8Unorm)
 }
 
-func dualTexCreateTexFmt(device *webgpu.Device, queue *webgpu.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (*webgpu.Texture, *webgpu.TextureView, error) {
+func dualTexCreateTexFmt(device *webgpu.Device, queue hal.Queue, label string, bw, bh int, data []byte, usage types.TextureUsage, format types.TextureFormat) (*webgpu.Texture, *webgpu.TextureView, error) {
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label: label,
 		Size: hal.Extent3D{
@@ -932,7 +932,7 @@ var dualTexParamsPool = sync.Pool{
 
 // dualTexWriteParams writes blend mode + UV sample rect into the dual-tex uniform.
 // uv_min/uv_max are in 0-1 texture space; full texture uses (0,0)-(1,1).
-func dualTexWriteParams(queue *webgpu.Queue, uniform *webgpu.Buffer, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) error {
+func dualTexWriteParams(queue hal.Queue, uniform *webgpu.Buffer, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) error {
 	if queue == nil || uniform == nil {
 		return fmt.Errorf("dual-tex params: nil queue/uniform")
 	}
@@ -969,7 +969,7 @@ func packDualTexParams(dst []byte, modeU uint32, u0, v0, u1, v1, opacity float32
 
 func dualTexAdvancedBlendNoReadback(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstRGBA, srcRGBA []byte,
 	bw, bh int,
@@ -1102,7 +1102,7 @@ func dualTexQuantizeWH(w, h int) (int, int) {
 	return w, h
 }
 
-func (c *dualTexBlendCache) getOutBGRA(device *webgpu.Device, queue *webgpu.Queue, w, h int) (*webgpu.Texture, *webgpu.TextureView, error) {
+func (c *dualTexBlendCache) getOutBGRA(device *webgpu.Device, queue hal.Queue, w, h int) (*webgpu.Texture, *webgpu.TextureView, error) {
 	if c == nil || device == nil || w <= 0 || h <= 0 {
 		return nil, nil, fmt.Errorf("dual-tex out pool: bad args")
 	}
@@ -1367,7 +1367,7 @@ func (c *dualTexBlendCache) multiBindGroup(
 // lifecycle. Out textures must stay alive until Submit samples them.
 func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstView *webgpu.TextureView,
 	ops []dualTexViewBlendOp,
@@ -1506,7 +1506,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 // can share the same CommandEncoder (one Finish for multi+composite).
 func dualTexAdvancedBlendViewsMultiBundle(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstView *webgpu.TextureView,
 	ops []dualTexViewBlendOp,
@@ -1568,7 +1568,7 @@ func dualTexAdvancedBlendViewsMultiBundle(
 // dstView/srcView must remain alive until Submit returns.
 func dualTexAdvancedBlendViewsRegionSized(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	cache *dualTexBlendCache,
 	dstView, srcView *webgpu.TextureView,
 	bounds image.Rectangle,
@@ -1693,7 +1693,7 @@ func dualTexAdvancedBlendViewsRegionSized(
 // bounds is in texture pixel space; texW/texH are full texture dimensions.
 func readTextureViewRegionRGBA(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	view gpucontext.TextureView,
 	bounds image.Rectangle,
 	texW, texH int,
@@ -1814,7 +1814,7 @@ func readTextureViewRegionRGBA(
 
 func readTextureViewRegionStraightRGBA(
 	device *webgpu.Device,
-	queue *webgpu.Queue,
+	queue hal.Queue,
 	view gpucontext.TextureView,
 	bounds image.Rectangle,
 	texW, texH int,

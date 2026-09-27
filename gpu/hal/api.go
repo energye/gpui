@@ -137,7 +137,7 @@ type OpenDevice struct {
 }
 
 // PollType selects the blocking behavior of Device.Poll.
-// Mirrors gpu/webgpu PollType (gpu/webgpu/map_types.go:26).
+// Mirrors gpu/webgpu PollType (gpu/webgpu/map_types.go:37).
 type PollType uint8
 
 const (
@@ -148,7 +148,7 @@ const (
 // Device represents a logical GPU device.
 // Devices are used to create resources and command encoders.
 //
-// Mirrors gpu/webgpu Device accessors (gpu/webgpu/device.go:27,32,37):
+// Mirrors gpu/webgpu Device accessors (gpu/webgpu/device.go:30,35,40):
 // Queue/Features/Limits are part of H1 row 2.
 type Device interface {
 	// Queue returns the device's command queue.
@@ -287,7 +287,7 @@ type Device interface {
 	// WaitForFence waits for a fence to reach the specified value.
 	// Returns true if the fence reached the value, false if timeout.
 	// Returns ErrDeviceLost if the device is lost.
-	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:421).
+	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:426).
 	WaitForFence(fence Fence, value uint64, timeout time.Duration) (bool, error)
 
 	// ResetFence resets a fence to the unsignaled state.
@@ -304,23 +304,23 @@ type Device interface {
 	WaitIdle() error
 
 	// Poll drives pending work and pumps callbacks.
-	// Matches webgpu Device.Poll (gpu/webgpu/device.go:475).
+	// Matches webgpu Device.Poll (gpu/webgpu/device.go:481).
 	Poll(pollType PollType) bool
 
 	// IsLost reports whether the device was marked lost.
-	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:548).
+	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:531).
 	IsLost() bool
 
 	// FlushCallbacks pumps pending callbacks and folds lost signals.
-	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:487).
+	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:493).
 	FlushCallbacks()
 
 	// PushErrorScope pushes a new error scope onto the device's error scope stack.
-	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:436).
+	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:441).
 	PushErrorScope(filter ErrorFilter)
 
 	// PopErrorScope pops the most recently pushed error scope.
-	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:442).
+	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:450).
 	PopErrorScope() *GPUError
 
 	// CreateAccelerationStructure creates an acceleration structure (BLAS or TLAS).
@@ -341,9 +341,9 @@ type Device interface {
 	// packed byte representation (64 bytes for Vulkan/DX12/Metal).
 	TlasInstanceToBytes(instance TlasInstance) []byte
 
-	// Destroy releases the device.
+	// Release releases the device.
 	// All resources created from this device must be destroyed first.
-	Destroy()
+	Release()
 }
 
 // Queue handles command submission and presentation.
@@ -353,16 +353,16 @@ type Queue interface {
 	// Returns a monotonically increasing submission index that can be used
 	// with Poll to determine when the GPU has finished the work.
 	// The HAL manages its own internal fences/synchronization.
-	// Matches webgpu Queue.Submit variadic shape (gpu/webgpu/queue.go:40).
+	// Matches webgpu Queue.Submit variadic shape (gpu/webgpu/queue.go:44).
 	Submit(commandBuffers ...CommandBuffer) (submissionIndex uint64, err error)
 
 	// Poll returns the highest submission index known to be completed
 	// by the GPU. Non-blocking. Returns 0 if no submissions have completed.
-	// Matches webgpu Queue.Poll (gpu/webgpu/queue.go:122).
+	// Matches webgpu Queue.Poll (gpu/webgpu/queue.go:138).
 	Poll() uint64
 
 	// LastSubmissionIndex returns the most recent submission index.
-	// Matches webgpu Queue.LastSubmissionIndex (gpu/webgpu/queue.go:195).
+	// Matches webgpu Queue.LastSubmissionIndex (gpu/webgpu/queue.go:222).
 	LastSubmissionIndex() uint64
 
 	// WriteBuffer writes data to a buffer immediately.

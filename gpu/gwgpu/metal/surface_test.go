@@ -55,7 +55,7 @@ func TestSurfaceTextureCreateView(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Adapter.Open failed: %v", err)
 	}
-	defer open.Device.Destroy()
+	defer open.Device.Release()
 
 	config := &hal.SurfaceConfiguration{
 		Format:      gputypes.TextureFormatBGRA8Unorm,

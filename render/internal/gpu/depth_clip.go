@@ -81,7 +81,7 @@ const depthClipUniformSize = 16
 //	  Phase 2: depthCoverPipeline (stencil NotEqual, depth write, stencil zero)
 type DepthClipPipeline struct {
 	device      *webgpu.Device
-	queue       *webgpu.Queue
+	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
 	// shader is the vertex/fragment shader for the cover-to-depth pass.
@@ -126,7 +126,7 @@ type DepthClipPipeline struct {
 
 // NewDepthClipPipeline creates a new depth clip pipeline for the given device.
 // The pipelines are not created until ensurePipeline() is called.
-func NewDepthClipPipeline(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *DepthClipPipeline {
+func NewDepthClipPipeline(device *webgpu.Device, queue hal.Queue, sampleCount uint32) *DepthClipPipeline {
 	return &DepthClipPipeline{
 		device:      device,
 		queue:       queue,
