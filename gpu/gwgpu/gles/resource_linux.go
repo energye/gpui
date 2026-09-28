@@ -144,11 +144,13 @@ func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) erro
 		}
 	}
 
-	// Allocate swapchain FBO on the pbuffer/surfaceless drawable (Lock), matching
-	// Windows Configure which uses Lock(hiddenDC) for FBO — not LockForDC.
-	// Present uses LockForSurface for blit+swap. Avoids Mesa pbuffer↔window
-	// invalidation when Submit (Lock) and Present (LockForSurface) alternate.
-	glCtx := s.ctx.Lock()
+	// Swapchain FBO allocation needs a current context (Lock). A bind
+	// failure used to fall through into 0-handle allocs; stop instead —
+	// the caller surfaces the EGL error instead of a bare Gen failure.
+	glCtx, lockErr := s.ctx.TryLock()
+	if lockErr != nil {
+		return fmt.Errorf("gles: failed to bind GL context for swapchain framebuffer: %w", lockErr)
+	}
 	defer s.ctx.Unlock()
 
 	if err := s.reconfigureSwapchainFBOWith(glCtx, config.Format, config.Width, config.Height); err != nil {

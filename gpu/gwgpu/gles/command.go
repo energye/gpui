@@ -477,6 +477,7 @@ type RenderPassEncoder struct {
 	desc          *hal.RenderPassDescriptor
 	pipeline      *RenderPipeline
 	vertexBuffers []*Buffer
+	vertexOffsets []uint64
 	indexBuffer   *Buffer
 	indexFormat   gputypes.IndexFormat
 	stencilRef    uint32
@@ -577,6 +578,27 @@ func (e *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline) {
 			stencilRef:   e.stencilRef,
 		},
 	)
+	// Vertex setup follows the consuming pipeline: tiers bind the buffer
+	// before switching pipelines, so re-emit with this pipeline's layout.
+	for slot, buf := range e.vertexBuffers {
+		if buf == nil {
+			continue
+		}
+		var layout *gputypes.VertexBufferLayout
+		if slot < len(p.vertexBuffers) {
+			layout = &p.vertexBuffers[slot]
+		}
+		var off uint64
+		if slot < len(e.vertexOffsets) {
+			off = e.vertexOffsets[slot]
+		}
+		e.encoder.commands = append(e.encoder.commands, &SetVertexBufferCommand{
+			slot:   uint32(slot),
+			buffer: buf,
+			offset: off,
+			layout: layout,
+		})
+	}
 }
 
 // SetBindGroup sets a bind group.
@@ -607,6 +629,8 @@ func (e *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offs
 // In OpenGL, vertex attribute configuration (glVertexAttribPointer +
 // glEnableVertexAttribArray) must be done explicitly. The layout is taken
 // from the currently bound render pipeline's vertex buffer descriptors.
+// The offset is remembered so a later SetPipeline can re-emit the setup
+// with the new pipeline's layout (see SetPipeline).
 func (e *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer hal.Buffer, offset uint64) {
 	buf, ok := buffer.(*Buffer)
 	if !ok {
@@ -617,7 +641,11 @@ func (e *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer hal.Buffer, offs
 	for len(e.vertexBuffers) <= int(slot) {
 		e.vertexBuffers = append(e.vertexBuffers, nil)
 	}
+	for len(e.vertexOffsets) <= int(slot) {
+		e.vertexOffsets = append(e.vertexOffsets, 0)
+	}
 	e.vertexBuffers[slot] = buf
+	e.vertexOffsets[slot] = offset
 
 	// Get vertex layout from the current pipeline for this slot.
 	var layout *gputypes.VertexBufferLayout
@@ -1627,13 +1655,25 @@ func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context) {
 		return
 	}
 
-	// Calculate byte sizes. Assume RGBA8 (4 bytes per pixel) for readback.
+	// RGBA8 readback: 4 bytes per pixel.
 	bpp := uint32(4)
 	rowBytes := uint32(width) * bpp
-	totalBytes := uint64(rowBytes) * uint64(height)
+	// Row stride follows the hal BufferTextureCopy contract (WebGPU
+	// copyTextureToBuffer parity): buffer rows sit BytesPerRow apart and
+	// staging rows are 256B-padded. MapBuffer's fast path needs
+	// len(data)==buf.size, so round strided regions up to the buffer size
+	// (exact-size buffers are unaffected).
+	stride := c.bytesPerRow
+	if stride < rowBytes {
+		stride = rowBytes
+	}
+	totalBytes := c.dstOffset + uint64(stride)*uint64(height-1) + uint64(rowBytes)
+	if totalBytes < c.dstBuffer.size {
+		totalBytes = c.dstBuffer.size
+	}
 
 	// Ensure destination buffer has enough CPU-side storage.
-	requiredSize := c.dstOffset + totalBytes
+	requiredSize := totalBytes
 	if uint64(len(c.dstBuffer.data)) < requiredSize {
 		newData := make([]byte, requiredSize)
 		copy(newData, c.dstBuffer.data)
@@ -1664,7 +1704,8 @@ func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context) {
 	ctx.PixelStorei(gl.PACK_ALIGNMENT, 1)
 
 	// Read pixels from the bound FBO into a temporary CPU buffer.
-	tmpBuf := make([]byte, totalBytes)
+	// PACK_ALIGNMENT is 1 above, so GL packs rows tightly.
+	tmpBuf := make([]byte, uint64(rowBytes)*uint64(height))
 	ctx.ReadPixels(
 		int32(c.srcOrigin[0]), int32(c.srcOrigin[1]),
 		width, height,
@@ -1673,13 +1714,12 @@ func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context) {
 	)
 
 	// Copy the pixel data into the destination buffer's CPU-side storage.
-	// OpenGL reads bottom-to-top, but callers expect top-to-bottom order.
-	// Flip the rows during copy.
+	// No row flip: session shaders use WriterFlagAdjustCoordinateSpace
+	// (negated gl_Position.y), so the scene already lands with FBO bottom
+	// row == logical top row; glReadPixels row 0 is the caller's row 0.
 	for row := int32(0); row < height; row++ {
-		// OpenGL row 0 = bottom. We want row 0 = top.
-		srcRow := (height - 1 - row)
-		srcStart := uint64(srcRow) * uint64(rowBytes)
-		dstStart := c.dstOffset + uint64(row)*uint64(rowBytes)
+		srcStart := uint64(row) * uint64(rowBytes)
+		dstStart := c.dstOffset + uint64(row)*uint64(stride)
 		copy(c.dstBuffer.data[dstStart:dstStart+uint64(rowBytes)], tmpBuf[srcStart:srcStart+uint64(rowBytes)])
 	}
 

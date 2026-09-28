@@ -120,8 +120,13 @@ func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) erro
 		wgl.ReleaseDC(s.hwnd, hdc)
 	}
 
-	// Scope 2: Allocate swapchain FBO on hidden DC.
-	glCtx := s.ctx.Lock()
+	// Scope 2: Allocate swapchain FBO on hidden DC. Stop on bind failure
+	// (Linux twin: resource_linux.go); a 0 handle would only fail later
+	// with a bare Gen error and hide the real cause.
+	glCtx, lockErr := s.ctx.TryLock()
+	if lockErr != nil {
+		return fmt.Errorf("gles: failed to bind GL context for swapchain framebuffer: %w", lockErr)
+	}
 	defer s.ctx.Unlock()
 
 	if err := s.reconfigureSwapchainFBOWith(glCtx, config.Format, config.Width, config.Height); err != nil {

@@ -61,6 +61,12 @@ func DefaultContextConfig() ContextConfig {
 
 // NewContext creates a new EGL context. An explicit WindowKind selects that
 // platform directly; otherwise it detects X11, Wayland, or Surfaceless.
+//
+// PRIME note: EGL on X11 follows DRI_PRIME for the render node. Callers that
+// want the discrete GPU set DRI_PRIME=1 in the process env before the first
+// EGL display init (Mesa resolves the node at display bring-up, not per
+// context). No EGL code change needed here; selection lives one layer up
+// (adapter policy), this comment only pins the mechanism.
 func NewContext(config ContextConfig) (*Context, error) {
 	// Get an EGL display for the explicit or detected platform.
 	// displayOwner (non-nil for X11) keeps the native display connection alive.

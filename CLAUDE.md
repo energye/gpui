@@ -48,6 +48,13 @@
 - 用户可控值必须通过 API 传入，引擎默认给空或内部安全默认值，示例/应用层显式设置；
 - 回归检查：用户可控硬编码检查与掩码参数化检查，合入前必跑（具体命令见所属域真源）。
 
+## 渲染层后端解耦（硬）
+
+- **render 层不许出现后端特有类型**：`render/` 只存 `hal.xxx` 接口 + `types.xxx` + `gpucontext` 桥，不许直接写 `webgpu.Xxx` / `gwgpu/gles.Xxx` / `rwgpu` 等具体后端类型（结构体字段、函数签名、类型断言都不许）。
+- 有就统一到 `hal`：需要在 `render` 用的能力，先在 `gpu/hal` 定接口（方法名/签名与 `webgpu` 对齐），再让 `gpu/webgpu` 与 `gpu/gwgpu/*` 两端同步实现，`render` 只调 `hal` 口。
+- 创建那一句话除外：后端二选一只允许出现在创建入口（`SelectBackend` 装实现那一句，P3 前暂用临时开关），之后全走接口无感知；不许双句柄 + 标记分支满天飞。创建入口指：`render/present_swapchain*.go` 的建链、`render/present_target.go` 的 `CreateInstance` 那一行、`_ "…/gwgpu/gles"` 注册行。
+- 合入前必查：`grep -rn "webgpu\.\|gwgpu/\|gles\." render/*.go | grep -v _test.go | grep -v "present_swapchain" | grep -v "CreateInstance" | grep -v "_ \"` 有命中就打回；`Vram*` 账本统一到 `hal` 留 P3（当前 `webgpu.Vram*` 仅 Rust 记账，GL 窗暂不依赖，见迁移计划）。
+
 ## 每次新上下文
 
 - 先读 AGENTS.md（本文），再读 `docs/` 真源，再执行。
@@ -82,6 +89,7 @@
 ## 当前环境（硬）
 
 - 有真机环境时，可运行真窗测试。
+- **X11 环境要测 Wayland 真窗，走 `/gpui-wayland-nested`**：这条只负责提醒，具体步骤与坑归 skill + `docs/ENGINE_WAYLAND_NESTED_TEST.md` 管，不在这里展开。
 - **真窗必须自测 + 人工二合一**：需人工看效果的真窗，先跑自动自检（断言 + 出 JSON，门禁用 `-auto-only` 直接判 PASS/FAIL），再常驻等人工操作（收真事件即打日志并改标题显示状态，关窗或 `-manual-seconds` 超时后出汇总 + JSON）；**跑完即关的一次性验收窗不能代替常驻人工窗**。
 
 ## 参考成熟框架设计与实现

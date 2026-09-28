@@ -8,11 +8,39 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
+
+	// P1 单窗打通临时开关：只为注册 BackendGL，后续 P3 才定 SelectBackend。
+	// 默认 Rust 路零改动，仅 GPUI_P1_GL=1 时走纯 Go GL。
+	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 )
+
+// p1GLRequested reports whether the P1 temporary GL switch is on.
+// P1-0 口径：GPUI_P1_GL=1 切纯 Go GL（X11 先），默认空/其他值走 Rust 不动。
+// SelectBackend 与 GPUI_BACKEND 环境变量认不认随 P3 一起定，这里不碰。
+func p1GLRequested() bool {
+	return os.Getenv("GPUI_P1_GL") == "1"
+}
+
+// p1GLInstance creates a hal.Instance from the registered pure-Go GL backend.
+// Only used when p1GLRequested() is true. Returns a clear error when the
+// backend is not registered (e.g. unsupported GOOS) instead of guessing.
+func p1GLInstance(desc *hal.InstanceDescriptor) (hal.Instance, error) {
+	be, ok := hal.GetBackend(types.BackendGL)
+	if !ok || be == nil {
+		return nil, fmt.Errorf("render: P1 GL backend not registered (BackendGL)")
+	}
+	inst, err := be.CreateInstance(desc)
+	if err != nil {
+		return nil, fmt.Errorf("render: P1 GL CreateInstance: %w", err)
+	}
+	return inst, nil
+}
 
 // requestPresentDeviceWithRetry retries device creation when the adapter is
 // temporarily out of GPU memory (multi-window stolen-memory budget on iGPUs).
@@ -136,7 +164,7 @@ type PresentTarget struct {
 	// share (Close must not release them; the share does on last close).
 	shared bool
 	surf   hal.Surface
-	sc     *webgpu.Swapchain
+	sc     hal.Swapchain
 	dc     *Context
 
 	closed bool
@@ -353,9 +381,25 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// the window can still try a lower-power adapter or software.
 	}
 
-	inst, err := webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
-	if err != nil {
-		return nil, fmt.Errorf("render: CreateInstance: %w", err)
+	instDesc := &hal.InstanceDescriptor{Backends: types.BackendsPrimary}
+	var inst hal.Instance
+	var err error
+	if p1GLRequested() {
+		// P1 临时开关：X11 已验，Wayland 沿共用 hal.Surface 链复用（gles
+		// Wayland 面的 wl_egl_window 建面已在 H4 覆盖）；Windows/macOS 走
+		// 各自 P1 步骤，不在这里顺手扩。
+		if ns.Platform != PresentPlatformX11 && ns.Platform != PresentPlatformWayland {
+			return nil, fmt.Errorf("render: P1 GL only supports X11/Wayland for now (platform=%d)", ns.Platform)
+		}
+		inst, err = p1GLInstance(instDesc)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		inst, err = webgpu.CreateInstance(instDesc)
+		if err != nil {
+			return nil, fmt.Errorf("render: CreateInstance: %w", err)
+		}
 	}
 
 	// Surface backend MUST match handle types (Xlib Display*/Window vs wl_*).
@@ -427,12 +471,19 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	}
 
 	physW, physH := physicalSize(logicalW, logicalH, scale)
-	sc := webgpu.NewSwapchain(surf, device, physW, physH)
+	sc, err := newPresentSwapchain(surf, device, physW, physH)
+	if err != nil {
+		surf.Destroy()
+		device.Release()
+		adapter.Release()
+		inst.Release()
+		return nil, err
+	}
 	// CopyDst allows GOGPU_RENDER_MODE=cpu window presents to upload the CPU
 	// rasterized pixmap directly into the swapchain texture
 	// (uploadPixmapToView — the CPU mode renders shapes on the CPU and the
 	// present no longer depends on the GPU raster pipelines).
-	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
+	sc.SetUsage(types.TextureUsageRenderAttachment | types.TextureUsageCopyDst)
 	// 块3 present 策略：Wayland 与 X11 同为 Fifo 稳态（阻塞式 vsync 把提交
 	// 相位锁到显示刷新）。历史上 Wayland 用 FifoRelaxed 恒不阻塞，但实测
 	// （pelican GNOME/mutter 2026-08-26）UI 软件边界 16.0ms 与显示刷新
@@ -476,8 +527,9 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	// Bind shared device for GPU-accelerated draws (blank clear still works
 	// if this fails). Bound only on the winning publish above, so a loser
 	// never rebinds the accelerator to a device it just released.
-	_ = SetAcceleratorDeviceProvider(&webgpu.SimpleDeviceProvider{
-		Dev: device, Adpt: adapter, Format: sc.Format,
+	// Neutral boxed provider (halDeviceProvider): works for every backend.
+	_ = SetAcceleratorDeviceProvider(&halDeviceProvider{
+		Dev: device, Adpt: adapter, Format: sc.GetFormat(),
 	})
 
 	dc := NewContext(logicalW, logicalH, WithDeviceScale(scale))
@@ -548,8 +600,13 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
 	}
 	physW, physH := physicalSize(logicalW, logicalH, scale)
-	sc := webgpu.NewSwapchain(surf, device, physW, physH)
-	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
+	sc, err := newPresentSwapchain(surf, device, physW, physH)
+	if err != nil {
+		surf.Destroy()
+		dropPin()
+		return nil, err
+	}
+	sc.SetUsage(types.TextureUsageRenderAttachment | types.TextureUsageCopyDst)
 	sc.SetPreferVSync()
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		surf.Destroy()
@@ -601,16 +658,16 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	return t, nil
 }
 
-func surfaceBackendFor(p PresentPlatform) webgpu.SurfaceBackend {
+func surfaceBackendFor(p PresentPlatform) string {
 	switch p {
 	case PresentPlatformWayland:
-		return webgpu.SurfaceBackendWayland
+		return "wayland"
 	case PresentPlatformWin32:
-		return webgpu.SurfaceBackendWin32
+		return "win32"
 	case PresentPlatformAppKit:
-		return webgpu.SurfaceBackendMetal
+		return "metal"
 	default:
-		return webgpu.SurfaceBackendXlib
+		return "xlib"
 	}
 }
 
@@ -825,9 +882,9 @@ func (t *PresentTarget) applyPendingSwapchainLocked() error {
 	if t.vsyncPending {
 		t.vsyncPending = false
 		mode := t.sc.PresentModeForVsync(t.vsyncOn)
-		if mode != t.sc.PresentMode {
+		if mode != t.sc.GetPresentMode() {
 			if os.Getenv("WR_RESIZE_DBG") == "1" {
-				fmt.Fprintf(os.Stderr, "DBG vsync %v -> %v\n", t.sc.PresentMode, mode)
+				fmt.Fprintf(os.Stderr, "DBG vsync %v -> %v\n", t.sc.GetPresentMode(), mode)
 			}
 			if err := t.sc.SetPresentModeForce(mode); err != nil {
 				t.vsyncPending = true
@@ -1110,8 +1167,11 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		}
 		return nil
 	}
+	// hal frame carries the view as a word; rebuild the typed handle here
+	// (render boundary owns the gpucontext type, hal does not).
+	view := gpucontext.NewTextureView(unsafe.Pointer(frame.ViewHandle))
 	if forceFull {
-		if err := t.dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, presentFn); err != nil {
+		if err := t.dc.PresentFrameFull(view, frame.Width, frame.Height, presentFn); err != nil {
 			t.sc.DiscardFrame(frame)
 			return out, fmt.Errorf("render: PresentFrameFull: %w", err)
 		}
@@ -1119,7 +1179,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		t.lastOutcome = out
 		return out, nil
 	}
-	out, err = t.dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, presentFn)
+	out, err = t.dc.PresentFrameAuto(view, frame.Width, frame.Height, presentFn)
 	if err != nil {
 		t.sc.DiscardFrame(frame)
 		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)

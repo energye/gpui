@@ -867,12 +867,19 @@ func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
 // Release releases the device.
 func (d *Device) Release() {
-	if d.vao != 0 {
-		glCtx := d.ctx.Lock()
-		glCtx.DeleteVertexArrays(d.vao)
-		d.ctx.Unlock()
-		d.vao = 0
+	if d == nil || d.vao == 0 {
+		return
 	}
+	if d.ctx == nil || d.ctx.GL() == nil {
+		d.vao = 0
+		return
+	}
+	glCtx := d.ctx.Lock()
+	if glCtx != nil {
+		glCtx.DeleteVertexArrays(d.vao)
+	}
+	d.ctx.Unlock()
+	d.vao = 0
 }
 
 // Type aliases for hal descriptors

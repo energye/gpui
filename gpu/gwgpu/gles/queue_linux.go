@@ -123,6 +123,20 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 	glCtx.BindTexture(tex.target, tex.id)
 
 	if tex.target == gl.TEXTURE_2D {
+		// Padded sources arrive with BytesPerRow > tight width; tell GL
+		// the row length in pixels (UNPACK_ROW_LENGTH) so TexSubImage2D
+		// reads the right row starts.
+		if layout != nil && layout.BytesPerRow > 0 {
+			pixelBytes := uint32(4)
+			switch tex.format {
+			case gputypes.TextureFormatR8Unorm:
+				pixelBytes = 1
+			}
+			if rowLen := layout.BytesPerRow / pixelBytes; rowLen > size.Width {
+				glCtx.PixelStorei(gl.UNPACK_ROW_LENGTH, int32(rowLen))
+				defer glCtx.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+			}
+		}
 		// Set alignment to 1 for single-channel formats (R8) whose row stride
 		// may not be a multiple of the default 4-byte GL_UNPACK_ALIGNMENT.
 		if tex.format == gputypes.TextureFormatR8Unorm {

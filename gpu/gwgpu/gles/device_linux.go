@@ -10,6 +10,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
 	"github.com/energye/gpui/gpu/hal"
@@ -501,6 +502,12 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 	if status == gl.FALSE {
 		log := glCtx.GetShaderInfoLog(vertexID)
 		glCtx.DeleteShader(vertexID)
+		// A not-current context turns every GL call into a no-op with an
+		// empty info log; attach EGL state so the failure points there.
+		if log == "" {
+			log = fmt.Sprintf("(empty info log; eglErr=0x%x glsl=%s entry=%q glslHead=%.256s)",
+				egl.GetError(), d.glslVersion.String(), desc.Vertex.EntryPoint, vertexGLSL)
+		}
 		return nil, fmt.Errorf("gles: vertex shader compilation failed: %s", log)
 	}
 	if infoLog := glCtx.GetShaderInfoLog(vertexID); infoLog != "" {
@@ -855,12 +862,19 @@ func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
 // Release releases the device.
 func (d *Device) Release() {
-	if d.vao != 0 && d.ctx != nil {
-		glCtx := d.ctx.Lock()
-		glCtx.DeleteVertexArrays(d.vao)
-		d.ctx.Unlock()
-		d.vao = 0
+	if d == nil || d.vao == 0 {
+		return
 	}
+	if d.ctx == nil || d.ctx.GL() == nil {
+		d.vao = 0
+		return
+	}
+	glCtx := d.ctx.Lock()
+	if glCtx != nil {
+		glCtx.DeleteVertexArrays(d.vao)
+	}
+	d.ctx.Unlock()
+	d.vao = 0
 }
 
 // Type aliases for hal descriptors
@@ -952,6 +966,11 @@ func (d *Device) compileFragmentShader(frag *hal.FragmentState, bindingMap map[g
 	if status == gl.FALSE {
 		log := glCtx.GetShaderInfoLog(fragmentID)
 		glCtx.DeleteShader(fragmentID)
+		// Same EGL-state attachment as the vertex path above.
+		if log == "" {
+			log = fmt.Sprintf("(empty info log; eglErr=0x%x glsl=%s entry=%q glslHead=%.256s)",
+				egl.GetError(), d.glslVersion.String(), frag.EntryPoint, fragmentGLSL)
+		}
 		return 0, glsl.TranslationInfo{}, fmt.Errorf("gles: fragment shader compilation failed: %s", log)
 	}
 	if infoLog := glCtx.GetShaderInfoLog(fragmentID); infoLog != "" {

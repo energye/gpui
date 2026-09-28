@@ -209,20 +209,13 @@ func x11RandRAdjust(st *x11State, x, y int) (int, int) {
 	return x, y
 }
 
-// XRR struct layouts (X11 RandR, 64-bit Linux; Time/XID = 8 bytes):
-//
-//	XRRScreenResources: timestamp@0(8) configTimestamp@8(8) ncrtc@16(4)
-//	  noutput@24(4) nmode@32(4) crtcs@40(8) outputs@48(8) modes@56(8)
-//	XRRModeInfo (stride 72): id@0(8) width@8(4) height@12(4)
-//	  dotClock@16(8, kHz) hSyncStart@24 hSyncEnd@28 hTotal@32 hSkew@36
-//	  vSyncStart@40 vSyncEnd@44 vTotal@48 name@56(8) nameLength@64
-//	XRRCrtcInfo: mode (current RRMode, 0 = disabled) @24(8)
+// XRR struct layouts (64-bit Linux, gcc offsetof verified).
 const (
 	xrrResNcrtcOff = 16
-	xrrResNmodeOff = 32
-	xrrResCrtcsOff = 40
+	xrrResCrtcsOff = 24
+	xrrResNmodeOff = 48
 	xrrResModesOff = 56
-	xrrModeStride  = 72
+	xrrModeStride  = 80
 	xrrModeIDOff   = 0
 	xrrModeDotOff  = 16
 	xrrModeHTotOff = 32
@@ -230,9 +223,8 @@ const (
 	xrrCrtcModeOff = 24
 )
 
-// xrrModeRefreshHz computes refresh rate from one XRRModeInfo timing:
-// rate = dotClock / (hTotal × vTotal), dotClock in kHz. 0 on degenerate
-// timing.
+// xrrModeRefreshHz: rate = dotClock / (hTotal × vTotal), dotClock in
+// kHz. 0 on degenerate timing.
 func xrrModeRefreshHz(dotClockKHz uint64, hTotal, vTotal uint32) float64 {
 	if dotClockKHz == 0 || hTotal == 0 || vTotal == 0 {
 		return 0
@@ -240,13 +232,11 @@ func xrrModeRefreshHz(dotClockKHz uint64, hTotal, vTotal uint32) float64 {
 	return float64(dotClockKHz) * 1000.0 / float64(hTotal) / float64(vTotal)
 }
 
-// x11DisplayRefreshHz probes the current display refresh via RandR: for
-// each active CRTC, match its current mode against the screen's mode list
-// and take the max sane rate (20–240Hz). 0 = unknown. Called rarely
-// (startup + screen-change notice), never per frame.
+// Probes the display refresh via RandR: max sane rate (20–240Hz) across
+// active CRTCs, 0 = unknown. Startup + screen-change only, never per frame.
 func x11DisplayRefreshHz(dpy, root uintptr) (hz float64) {
-	// A mismatched XRR struct layout would fault on wild pointers — never
-	// let a probe crash the app: on panic the rate is unknown.
+	// A layout slip would fault on wild pointers — probe failures stay
+	// unknown, never crash the app.
 	defer func() {
 		if recover() != nil {
 			hz = 0
@@ -296,7 +286,12 @@ func x11DisplayRefreshHz(dpy, root uintptr) (hz float64) {
 			dot := *(*uint64)(unsafe.Pointer(base + xrrModeDotOff))
 			ht := *(*uint32)(unsafe.Pointer(base + xrrModeHTotOff))
 			vt := *(*uint32)(unsafe.Pointer(base + xrrModeVTotOff))
-			if r := xrrModeRefreshHz(dot, ht, vt); r >= 20 && r <= 240 && r > hz {
+			dotp := dot
+			// Xwayland reports dotClock in Hz (~115MHz raw); normalize.
+			if dotp > 1_000_000 {
+				dotp = dotp / 1000
+			}
+			if r := xrrModeRefreshHz(dotp, ht, vt); r >= 20 && r <= 240 && r > hz {
 				hz = r
 			}
 			break

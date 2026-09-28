@@ -40,6 +40,12 @@ func (Backend) Variant() gputypes.Backend {
 // On Wayland, this may fail (EGL needs wl_display*) — that's OK, CreateSurface
 // provides the proper context later. On X11/headless, this succeeds.
 func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error) {
+	// PRIME selection (GPUI_POWER=high): EGL resolves the render node at
+	// display bring-up, so DRI_PRIME=1 must be in the env before the first
+	// EGL call in this process. Set it here when the caller asked for
+	// discrete; do not override an explicit user value, do not touch it
+	// for low/default (Mesa default is the integrated node).
+	applyPrimeEnvForPower()
 	if err := egl.Init(); err != nil {
 		return nil, fmt.Errorf("gles: failed to initialize EGL: %w", err)
 	}
@@ -78,6 +84,11 @@ func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error) {
 	hal.Logger().Info("gles: instance created with EGL context",
 		"version", glCtx.GetString(gl.VERSION),
 		"renderer", glCtx.GetString(gl.RENDERER))
+
+	// Unbind right after init: a current context stays pinned to this
+	// goroutine's OS thread and later Locks on other threads fail with
+	// EGL_BAD_ACCESS (0x3002), turning later GL calls into silent no-ops.
+	_ = egl.MakeCurrent(eglCtx.Display(), egl.NoSurface, egl.NoSurface, egl.NoContext)
 
 	return &Instance{ctx: NewAdapterContext(eglCtx, glCtx, true)}, nil
 }
@@ -168,6 +179,10 @@ func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error) 
 	renderer := glCtx.GetString(gl.RENDERER)
 	hal.Logger().Info("gles: surface created with owned AdapterContext",
 		"version", version, "renderer", renderer, "gles", config.GLES)
+
+	// Same unbind as CreateInstance: don't pin the new context to the
+	// creation thread.
+	_ = egl.MakeCurrent(eglCtx.Display(), egl.NoSurface, egl.NoSurface, egl.NoContext)
 
 	return &Surface{
 		displayHandle: displayHandle,

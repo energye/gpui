@@ -40,10 +40,38 @@ func NewAdapterContext(eglCtx *egl.Context, glCtx *gl.Context, owns bool) *Adapt
 	}
 }
 
+// LockMakeCurrentErr is returned when the EGL context cannot be made
+// current. Callers must stop: GL calls with no current context are silent
+// no-ops (0 handles, FALSE status, empty info logs).
+var LockMakeCurrentErr = fmt.Errorf("gles: AdapterContext: MakeCurrent failed")
+
+// TryLock is Lock with a usable error: nil gl + nil error means ready,
+// nil gl + LockMakeCurrentErr means the context did not bind (typically
+// EGL_BAD_ACCESS 0x3002: another thread holds it, or the display went
+// away). Callers stop instead of issuing GL calls into the void.
+func (c *AdapterContext) TryLock() (*gl.Context, error) {
+	c.mu.Lock()
+	runtime.LockOSThread()
+
+	if c.eglCtx == nil {
+		c.mu.Unlock()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("gles: AdapterContext: nil egl context")
+	}
+	if err := c.eglCtx.MakeCurrent(); err != nil {
+		c.mu.Unlock()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("%w: %v", LockMakeCurrentErr, err)
+	}
+	return c.gl, nil
+}
+
 // Lock acquires the mutex, pins the goroutine to the current OS thread, and
 // makes the GL context current on the pbuffer / surfaceless draw surface.
 //
 // Mirrors Windows AdapterContext.Lock() (hidden DC) and Rust AdapterContext::lock().
+// A bind failure is logged; callers that need a usable context use TryLock
+// and stop on error instead of running GL calls with nothing current.
 func (c *AdapterContext) Lock() *gl.Context {
 	c.mu.Lock()
 	runtime.LockOSThread()

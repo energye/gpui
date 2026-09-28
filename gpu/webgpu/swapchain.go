@@ -149,6 +149,12 @@ type SwapchainStats struct {
 	LastAcquireMs float64
 }
 
+// NewHalSwapchain builds the hal.Swapchain view of this swapchain so render
+// talks hal only (backend-decouple hard rule: no webgpu types in render).
+func (sc *Swapchain) NewHalSwapchain() hal.Swapchain {
+	return &halSwapchainAdapter{sc: sc}
+}
+
 // NewSwapchain builds a swapchain for an existing surface + device.
 // Call Configure before BeginFrame.
 // Implements hal-facing flow (device stored as hal.Device interface).

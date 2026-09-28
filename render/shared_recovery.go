@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Shared-device recovery (R0-6).
@@ -63,11 +62,11 @@ func RecoverSharedDevice() error {
 		sc := t.sc
 		if sc != nil {
 			if !formatSet {
-				format = sc.Format
+				format = sc.GetFormat()
 				formatSet = true
 			}
-			if sc.OnDeviceAbandon != nil {
-				sc.OnDeviceAbandon(oldDev)
+			if sc.GetOnDeviceAbandon() != nil {
+				sc.GetOnDeviceAbandon()(oldDev)
 			}
 		}
 		t.mu.Unlock()
@@ -108,7 +107,8 @@ func RecoverSharedDevice() error {
 
 	// Sessions rebuild off the accelerator provider switch (deviceGen path
 	// in render/internal/gpu); rebind so every window picks up the device.
-	_ = SetAcceleratorDeviceProvider(&webgpu.SimpleDeviceProvider{
+	// Neutral boxed provider: works for every backend.
+	_ = SetAcceleratorDeviceProvider(&halDeviceProvider{
 		Dev: dev, Adpt: adapter, Format: format,
 	})
 
@@ -123,7 +123,7 @@ func RecoverSharedDevice() error {
 			continue
 		}
 		t.device = dev
-		t.sc.Device = dev
+		t.sc.SetDevice(dev)
 		if cerr := t.sc.ConfigureFromCapabilities(adapter); cerr != nil {
 			if cerr2 := t.sc.Configure(); cerr2 != nil {
 				if firstErr == nil {
@@ -133,9 +133,7 @@ func RecoverSharedDevice() error {
 				continue
 			}
 		}
-		if t.sc.OnDeviceRecreated != nil {
-			t.sc.OnDeviceRecreated(dev)
-		}
+		t.sc.FireOnDeviceRecreated(dev)
 		t.postResizeFull = 3
 		t.swapchainPending = false
 		t.mu.Unlock()

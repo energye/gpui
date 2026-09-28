@@ -82,6 +82,32 @@ func (c *AdapterContext) ensureInit() error {
 	return c.initErr
 }
 
+// LockMakeCurrentErr is returned when the GL context cannot be made
+// current. Callers must stop: GL calls with no current context are silent
+// no-ops. Linux twin: adapter_context_linux.go.
+var LockMakeCurrentErr = fmt.Errorf("gles: AdapterContext: MakeCurrent failed")
+
+// TryLock is Lock with a usable error: (nil, nil) means ready, (nil,
+// LockMakeCurrentErr) means the context did not bind. Callers stop
+// instead of issuing GL calls into the void. Linux twin TryLock mirrors
+// the same contract on EGL.
+func (c *AdapterContext) TryLock() (*gl.Context, error) {
+	c.mu.Lock()
+	runtime.LockOSThread()
+
+	if err := c.ensureInit(); err != nil {
+		c.mu.Unlock()
+		runtime.UnlockOSThread()
+		return nil, err
+	}
+	if err := wgl.MakeCurrent(c.hiddenDC, c.hglrc); err != nil {
+		c.mu.Unlock()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("%w: %v", LockMakeCurrentErr, err)
+	}
+	return c.gl, nil
+}
+
 // Lock acquires the mutex, pins the goroutine to the current OS thread, and
 // makes the GL context current on the hidden window DC.
 //

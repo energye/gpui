@@ -275,7 +275,13 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 		return fmt.Errorf("gpu-shared: provider Device is nil")
 	}
 
-	halDev := webgpu.DeviceFromHandle(dev)
+	// Prefer the boxed hal.Device encoding (PackDevice); legacy raw-pointer
+	// handles fall back to the concrete assert. Foreign boxed handles
+	// fail closed to nil, never garbage.
+	halDev := gpucontext.UnpackDevice(dev)
+	if halDev == nil {
+		halDev = webgpu.DeviceFromHandle(dev)
+	}
 	if halDev == nil {
 		return fmt.Errorf("gpu-shared: provider Device handle is invalid")
 	}
