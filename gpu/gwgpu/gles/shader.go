@@ -9,6 +9,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/gwgpu/naga"
@@ -16,6 +20,103 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
+
+// shaderCache memoizes WGSL→GLSL translation (naga Parse/Lower/Compile).
+// Keyed by source + entry point + GLSL version + binding map: the same WGSL
+// under a different driver version or layout must not share output, since
+// layout(binding=N) emission is version-gated (SupportsExplicitLocations).
+// Mirrors Skia GrShaderCache / Impeller PipelineLibrary keyed caching.
+// Entries are immutable: store and return deep copies of TranslationInfo.
+var shaderCache = struct {
+	sync.RWMutex
+	entries map[string]shaderCacheEntry
+	hits    atomic.Uint64
+	misses  atomic.Uint64
+}{entries: make(map[string]shaderCacheEntry)}
+
+type shaderCacheEntry struct {
+	glsl string
+	info glsl.TranslationInfo
+}
+
+// shaderCacheKey builds the cache key. bindingMap is canonicalized
+// (sorted group:binding=slot) so equal layouts hit regardless of map order.
+func shaderCacheKey(version glsl.Version, wgsl, entryPoint string, bindingMap map[glsl.BindingMapKey]uint8) string {
+	var sb strings.Builder
+	sb.WriteString(version.String())
+	sb.WriteByte(0)
+	sb.WriteString(entryPoint)
+	sb.WriteByte(0)
+	if len(bindingMap) > 0 {
+		keys := make([]glsl.BindingMapKey, 0, len(bindingMap))
+		for k := range bindingMap {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			if keys[i].Group != keys[j].Group {
+				return keys[i].Group < keys[j].Group
+			}
+			return keys[i].Binding < keys[j].Binding
+		})
+		for _, k := range keys {
+			fmt.Fprintf(&sb, "%d:%d=%d;", k.Group, k.Binding, bindingMap[k])
+		}
+	}
+	sb.WriteByte(0)
+	sb.WriteString(wgsl)
+	return sb.String()
+}
+
+// cloneTranslationInfo deep-copies TranslationInfo (maps, slices,
+// and SamplerBinding pointers) so cache entries stay immutable.
+func cloneTranslationInfo(src glsl.TranslationInfo) glsl.TranslationInfo {
+	dst := glsl.TranslationInfo{
+		RequiredVersion: src.RequiredVersion,
+	}
+	if src.EntryPointNames != nil {
+		dst.EntryPointNames = make(map[string]string, len(src.EntryPointNames))
+		for k, v := range src.EntryPointNames {
+			dst.EntryPointNames[k] = v
+		}
+	}
+	if src.UsedExtensions != nil {
+		dst.UsedExtensions = append([]string(nil), src.UsedExtensions...)
+	}
+	if src.TextureSamplerPairs != nil {
+		dst.TextureSamplerPairs = append([]string(nil), src.TextureSamplerPairs...)
+	}
+	if src.TextureMappings != nil {
+		dst.TextureMappings = make(map[string]glsl.TextureMapping, len(src.TextureMappings))
+		for k, v := range src.TextureMappings {
+			cp := v
+			if v.SamplerBinding != nil {
+				sb := *v.SamplerBinding
+				cp.SamplerBinding = &sb
+			}
+			dst.TextureMappings[k] = cp
+		}
+	}
+	if src.Uniforms != nil {
+		dst.Uniforms = append([]glsl.UniformInfo(nil), src.Uniforms...)
+	}
+	return dst
+}
+
+// shaderCacheStats reports hits, misses, and entry count (tests/observability).
+func shaderCacheStats() (hits, misses uint64, size int) {
+	shaderCache.RLock()
+	defer shaderCache.RUnlock()
+	return shaderCache.hits.Load(), shaderCache.misses.Load(), len(shaderCache.entries)
+}
+
+// clearShaderCache empties the cache (tests only).
+func clearShaderCache() {
+	shaderCache.Lock()
+	defer shaderCache.Unlock()
+	shaderCache.entries = make(map[string]shaderCacheEntry)
+	shaderCache.hits.Store(0)
+	shaderCache.misses.Store(0)
+}
 
 // compileWGSLToGLSL compiles a WGSL shader source to GLSL for the given entry point.
 // OpenGL does not understand WGSL, so we use naga to parse WGSL and emit GLSL.
@@ -36,6 +137,16 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 	if wgsl == "" {
 		return "", glsl.TranslationInfo{}, fmt.Errorf("gles: shader source has no WGSL code")
 	}
+
+	// Cache hit: same source + entry + version + layout returns identical output.
+	key := shaderCacheKey(version, wgsl, entryPoint, bindingMap)
+	shaderCache.RLock()
+	if e, ok := shaderCache.entries[key]; ok {
+		shaderCache.RUnlock()
+		shaderCache.hits.Add(1)
+		return e.glsl, cloneTranslationInfo(e.info), nil
+	}
+	shaderCache.RUnlock()
 
 	// Parse WGSL to AST.
 	ast, err := naga.Parse(wgsl)
@@ -86,6 +197,12 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 		}
 		hal.Logger().Debug("gles: GLSL source", "glsl", preview)
 	}
+
+	// Cache miss: store a deep copy for identical future compilations.
+	shaderCache.Lock()
+	shaderCache.entries[key] = shaderCacheEntry{glsl: glslCode, info: cloneTranslationInfo(translationInfo)}
+	shaderCache.Unlock()
+	shaderCache.misses.Add(1)
 
 	return glslCode, translationInfo, nil
 }

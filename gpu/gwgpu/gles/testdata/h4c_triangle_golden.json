@@ -1,0 +1,8 @@
+{
+  "width": 64,
+  "height": 64,
+  "tolerance": 0,
+  "center_rgba": [255, 0, 0, 255],
+  "corner_rgba": [0, 0, 255, 255],
+  "pixels_md5": "59ca40337ff5e016579ea53a09549824"
+}
