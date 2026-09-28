@@ -343,9 +343,8 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 }
 
 // ResolveQuerySet copies query results from a query set into a destination buffer.
-// TODO: implement using Metal counter sample buffer readback.
+// Nil-safe no-op: Metal timestamp queries need counter sample buffers (not wired yet).
 func (e *CommandEncoder) ResolveQuerySet(_ hal.QuerySet, _, _ uint32, _ hal.Buffer, _ uint64) {
-	// Stub: Metal timestamp query implementation pending.
 }
 
 // BuildAccelerationStructures builds one or more acceleration structures.
@@ -999,7 +998,7 @@ func indexedIndirectRecordOffset(offset uint64, index uint32) (uint64, bool) {
 	return indirect.RecordOffset(offset, 20, index)
 }
 
-// ExecuteBundle executes a pre-recorded render bundle.
+// ExecuteBundle is a nil-safe no-op: render bundles are not supported.
 func (e *RenderPassEncoder) ExecuteBundle(_ hal.RenderBundle) {}
 
 // ComputePassEncoder implements hal.ComputePassEncoder for Metal.

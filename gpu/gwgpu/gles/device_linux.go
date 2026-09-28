@@ -714,14 +714,15 @@ func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline) {
 	p.Destroy()
 }
 
-// CreateQuerySet creates a query set.
-// TODO: implement using GL_EXT_disjoint_timer_query for timestamp support.
+// CreateQuerySet always returns hal.ErrTimestampsNotSupported on Windows.
+// Timestamp queries need GL_EXT_disjoint_timer_query (not wired yet);
+// the Linux file (device.go) holds the real GL query implementation.
 func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error) {
 	return nil, hal.ErrTimestampsNotSupported
 }
 
-// DestroyQuerySet destroys a query set.
-// Stub — add Lock when GL query objects are implemented.
+// DestroyQuerySet is a nil-safe no-op (Windows creates nothing;
+// add Lock with GL objects if queries get implemented).
 func (d *Device) DestroyQuerySet(_ hal.QuerySet) {
 }
 
@@ -796,21 +797,22 @@ func (d *Device) FreeCommandBuffer(cmdBuffer hal.CommandBuffer) {
 	// GLES command buffers don't need explicit freeing
 }
 
-// CreateRenderBundleEncoder is not supported in GLES backend.
+// CreateRenderBundleEncoder returns a plain gles error (no sentinel):
+// render bundles are supported on neither GL build.
 func (d *Device) CreateRenderBundleEncoder(desc *hal.RenderBundleEncoderDescriptor) (hal.RenderBundleEncoder, error) {
 	return nil, fmt.Errorf("gles: render bundles not supported")
 }
 
-// DestroyRenderBundle is not supported in GLES backend.
+// DestroyRenderBundle is a nil-safe no-op (creation never succeeds).
 func (d *Device) DestroyRenderBundle(bundle hal.RenderBundle) {}
 
-// CreateAccelerationStructure returns an error because the GLES backend
-// does not support ray tracing. OpenGL ES has no acceleration structure API.
+// CreateAccelerationStructure returns a plain gles error (no sentinel):
+// no ray tracing on OpenGL ES (Metal keeps the real implementation).
 func (d *Device) CreateAccelerationStructure(_ *hal.AccelerationStructureDescriptor) (hal.AccelerationStructure, error) {
 	return nil, fmt.Errorf("gles: ray tracing not supported")
 }
 
-// DestroyAccelerationStructure is a no-op (GLES has no ray tracing).
+// DestroyAccelerationStructure is a nil-safe no-op (GLES has no ray tracing).
 func (d *Device) DestroyAccelerationStructure(_ hal.AccelerationStructure) {}
 
 // GetAccelerationStructureBuildSizes returns zero sizes (GLES has no ray tracing).

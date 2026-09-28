@@ -1094,15 +1094,14 @@ func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline) {
 //
 // The Metal command buffer is NOT created here — it is deferred to BeginEncoding.
 // This matches the two-step pattern used by Vulkan (allocate → vkBeginCommandBuffer)
-// CreateQuerySet creates a query set.
-// TODO: implement using Metal counter sample buffers for timestamp support.
+// CreateQuerySet always returns hal.ErrTimestampsNotSupported.
+// Timestamps need Metal counter sample buffers (not wired yet).
 func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error) {
 	return nil, hal.ErrTimestampsNotSupported
 }
 
-// DestroyQuerySet destroys a query set.
+// DestroyQuerySet is a nil-safe no-op (creation never succeeds).
 func (d *Device) DestroyQuerySet(_ hal.QuerySet) {
-	// Stub: Metal query set implementation pending.
 }
 
 // CreateCommandEncoder creates a command encoder for recording GPU commands.
@@ -1303,12 +1302,13 @@ func (d *Device) FreeCommandBuffer(cmdBuffer hal.CommandBuffer) {
 	cb.Destroy()
 }
 
-// CreateRenderBundleEncoder is not supported in Metal backend.
+// CreateRenderBundleEncoder returns a plain metal error (no sentinel):
+// render bundles are not supported.
 func (d *Device) CreateRenderBundleEncoder(desc *hal.RenderBundleEncoderDescriptor) (hal.RenderBundleEncoder, error) {
 	return nil, fmt.Errorf("metal: render bundles not supported")
 }
 
-// DestroyRenderBundle is not supported in Metal backend.
+// DestroyRenderBundle is a nil-safe no-op (creation never succeeds).
 func (d *Device) DestroyRenderBundle(bundle hal.RenderBundle) {}
 
 // WaitIdle waits for all GPU work to complete.

@@ -213,6 +213,7 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 // ResolveQuerySet copies query results from a query set into a destination buffer.
 // Each result is a uint64 (8 bytes) written starting at destinationOffset.
 // Uses glGetQueryObjectui64v to read results, then glBufferSubData to write them.
+// Nil or foreign query sets/buffers are ignored (nil-safe).
 // Matches Rust wgpu-hal/src/gles/queue.rs CopyQueryResults command (fallback path).
 func (e *CommandEncoder) ResolveQuerySet(querySet hal.QuerySet, firstQuery, queryCount uint32, destination hal.Buffer, destinationOffset uint64) {
 	qs, qsOK := querySet.(*QuerySet)
@@ -749,6 +750,7 @@ func (e *RenderPassEncoder) DrawIndexedIndirectCount(_ hal.Buffer, _ uint64, _ h
 // Note: Render bundles are not natively supported in OpenGL.
 // OpenGL uses display lists (deprecated) or VAO/VBO state caching.
 // This is a no-op - bundles are expanded inline in the command stream.
+// Nil bundles are ignored (nil-safe).
 func (e *RenderPassEncoder) ExecuteBundle(bundle hal.RenderBundle) {
 	_ = bundle
 }
