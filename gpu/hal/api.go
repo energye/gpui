@@ -361,10 +361,18 @@ type Queue interface {
 	// Poll returns the highest submission index known to be completed
 	// by the GPU. Non-blocking. Returns 0 if no submissions have completed.
 	// Matches webgpu Queue.Poll (gpu/webgpu/queue.go:138).
+	// Backend divergence (H4-b3 locked): webgpu always returns 0
+	// (wgpu-native exposes no queue poll); gles returns Fence.GetLatest
+	// (or the submission index when queueless); metal returns the
+	// GPU-callback-driven completedIndex; noop returns the submission
+	// index (synchronous, submitted == completed).
 	Poll() uint64
 
 	// LastSubmissionIndex returns the most recent submission index.
 	// Matches webgpu Queue.LastSubmissionIndex (gpu/webgpu/queue.go:222).
+	// Backend divergence (H4-b3 locked): webgpu always returns 0
+	// (untracked on wgpu-native); gles/metal/noop return their own
+	// monotonically increasing counter.
 	LastSubmissionIndex() uint64
 
 	// WriteBuffer writes data to a buffer immediately.

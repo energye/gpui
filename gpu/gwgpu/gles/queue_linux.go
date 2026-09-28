@@ -73,7 +73,9 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // is guaranteed to be in the GPU command queue by the time we poll it.
 // Maintenance (cleanup of completed sync objects) happens in Submit(), not here
 // (matches Rust wgpu-hal device.rs:1564 get_fence_value).
-// Matches webgpu Queue.Poll.
+// Backend divergence (H4-b3 locked): webgpu Queue.Poll always returns 0,
+// gles returns Fence.GetLatest (or submissionIndex when queueless),
+// metal returns the GPU-callback-driven completedIndex.
 func (q *Queue) Poll() uint64 {
 	if q.fence != nil {
 		return q.fence.GetLatest()

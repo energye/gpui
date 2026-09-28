@@ -24,7 +24,8 @@ func (q *Queue) Submit(_ ...hal.CommandBuffer) (uint64, error) {
 
 // Poll returns the highest submission index known to be completed.
 // Noop backend is synchronous — all submissions are immediately complete.
-// Matches webgpu Queue.Poll.
+// Backend divergence (H4-b3 locked): webgpu Queue.Poll always returns 0,
+// noop returns the submission index (submitted == completed).
 func (q *Queue) Poll() uint64 {
 	return q.submissionIndex
 }

@@ -104,7 +104,9 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // Poll returns the highest submission index known to be completed by the GPU.
 // Updated atomically by addCompletedHandler blocks registered in Submit.
 // This matches Rust wgpu-hal's Fence.get_latest() / Device.get_fence_value() pattern.
-// Matches webgpu Queue.Poll.
+// Backend divergence (H4-b3 locked): webgpu Queue.Poll always returns 0,
+// gles returns Fence.GetLatest (or submissionIndex when queueless),
+// metal returns the GPU-callback-driven completedIndex (lags without GPU).
 func (q *Queue) Poll() uint64 {
 	return q.completedIndex.Load()
 }
