@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
+	"github.com/energye/gpui/gpu/hal"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
@@ -277,18 +278,18 @@ func BenchmarkComputePassEncoderBindBufferSizes(b *testing.B) {
 func TestComputeBindSlots_PerTypeSequentialIndexing(t *testing.T) {
 	tests := []struct {
 		name         string
-		entries      []gputypes.BindGroupEntry
+		entries      []hal.BindGroupEntry
 		wantBuffers  []uintptr // expected slot per buffer entry
 		wantTextures []uintptr // expected slot per texture entry
 		wantSamplers []uintptr // expected slot per sampler entry
 	}{
 		{
 			name: "mixed types: the exact bug scenario",
-			entries: []gputypes.BindGroupEntry{
-				{Binding: 0, Resource: gputypes.BufferBinding{Buffer: 0x100}},
-				{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: 0x200}},
-				{Binding: 2, Resource: gputypes.BufferBinding{Buffer: 0x300}},
-				{Binding: 3, Resource: gputypes.SamplerBinding{Sampler: 0x400}},
+			entries: []hal.BindGroupEntry{
+				{Binding: 0, Buffer: &Buffer{}},
+				{Binding: 1, TextureView: &TextureView{}},
+				{Binding: 2, Buffer: &Buffer{}},
+				{Binding: 3, Sampler: &Sampler{}},
 			},
 			// Bug would produce buffer slots [0, 2], texture slots [1], sampler slots [3]
 			// Fix produces buffer slots [0, 1], texture slots [0], sampler slots [0]
@@ -298,10 +299,10 @@ func TestComputeBindSlots_PerTypeSequentialIndexing(t *testing.T) {
 		},
 		{
 			name: "all buffers",
-			entries: []gputypes.BindGroupEntry{
-				{Binding: 0, Resource: gputypes.BufferBinding{Buffer: 0x100}},
-				{Binding: 1, Resource: gputypes.BufferBinding{Buffer: 0x200}},
-				{Binding: 2, Resource: gputypes.BufferBinding{Buffer: 0x300}},
+			entries: []hal.BindGroupEntry{
+				{Binding: 0, Buffer: &Buffer{}},
+				{Binding: 1, Buffer: &Buffer{}},
+				{Binding: 2, Buffer: &Buffer{}},
 			},
 			wantBuffers:  []uintptr{0, 1, 2},
 			wantTextures: nil,
@@ -309,10 +310,10 @@ func TestComputeBindSlots_PerTypeSequentialIndexing(t *testing.T) {
 		},
 		{
 			name: "texture then sampler then buffer",
-			entries: []gputypes.BindGroupEntry{
-				{Binding: 0, Resource: gputypes.TextureViewBinding{TextureView: 0x100}},
-				{Binding: 1, Resource: gputypes.SamplerBinding{Sampler: 0x200}},
-				{Binding: 2, Resource: gputypes.BufferBinding{Buffer: 0x300}},
+			entries: []hal.BindGroupEntry{
+				{Binding: 0, TextureView: &TextureView{}},
+				{Binding: 1, Sampler: &Sampler{}},
+				{Binding: 2, Buffer: &Buffer{}},
 			},
 			wantBuffers:  []uintptr{0},
 			wantTextures: []uintptr{0},
@@ -320,13 +321,13 @@ func TestComputeBindSlots_PerTypeSequentialIndexing(t *testing.T) {
 		},
 		{
 			name: "multiple textures and samplers interleaved",
-			entries: []gputypes.BindGroupEntry{
-				{Binding: 0, Resource: gputypes.BufferBinding{Buffer: 0x100}},
-				{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: 0x200}},
-				{Binding: 2, Resource: gputypes.SamplerBinding{Sampler: 0x300}},
-				{Binding: 3, Resource: gputypes.TextureViewBinding{TextureView: 0x400}},
-				{Binding: 4, Resource: gputypes.SamplerBinding{Sampler: 0x500}},
-				{Binding: 5, Resource: gputypes.BufferBinding{Buffer: 0x600}},
+			entries: []hal.BindGroupEntry{
+				{Binding: 0, Buffer: &Buffer{}},
+				{Binding: 1, TextureView: &TextureView{}},
+				{Binding: 2, Sampler: &Sampler{}},
+				{Binding: 3, TextureView: &TextureView{}},
+				{Binding: 4, Sampler: &Sampler{}},
+				{Binding: 5, Buffer: &Buffer{}},
 			},
 			wantBuffers:  []uintptr{0, 1},
 			wantTextures: []uintptr{0, 1},
@@ -334,12 +335,12 @@ func TestComputeBindSlots_PerTypeSequentialIndexing(t *testing.T) {
 		},
 		{
 			name: "sparse bindings with gaps",
-			entries: []gputypes.BindGroupEntry{
-				{Binding: 0, Resource: gputypes.BufferBinding{Buffer: 0x100}},
-				{Binding: 5, Resource: gputypes.TextureViewBinding{TextureView: 0x200}},
-				{Binding: 10, Resource: gputypes.BufferBinding{Buffer: 0x300}},
-				{Binding: 15, Resource: gputypes.SamplerBinding{Sampler: 0x400}},
-				{Binding: 20, Resource: gputypes.TextureViewBinding{TextureView: 0x500}},
+			entries: []hal.BindGroupEntry{
+				{Binding: 0, Buffer: &Buffer{}},
+				{Binding: 5, TextureView: &TextureView{}},
+				{Binding: 10, Buffer: &Buffer{}},
+				{Binding: 15, Sampler: &Sampler{}},
+				{Binding: 20, TextureView: &TextureView{}},
 			},
 			// With the bug, these would use binding numbers [0,5,10,15,20] as slots.
 			// With the fix, per-type sequential: buffers [0,1], textures [0,1], samplers [0].
@@ -349,15 +350,15 @@ func TestComputeBindSlots_PerTypeSequentialIndexing(t *testing.T) {
 		},
 		{
 			name:         "empty entries",
-			entries:      []gputypes.BindGroupEntry{},
+			entries:      []hal.BindGroupEntry{},
 			wantBuffers:  nil,
 			wantTextures: nil,
 			wantSamplers: nil,
 		},
 		{
 			name: "single texture",
-			entries: []gputypes.BindGroupEntry{
-				{Binding: 3, Resource: gputypes.TextureViewBinding{TextureView: 0x100}},
+			entries: []hal.BindGroupEntry{
+				{Binding: 3, TextureView: &TextureView{}},
 			},
 			// Bug would use slot 3; fix uses slot 0.
 			wantBuffers:  nil,

@@ -696,17 +696,17 @@ type bindSlotAssignment struct {
 // The naga MSL compiler auto-generates these indices sequentially per type,
 // so we must count each resource type independently instead of using the
 // WGSL @binding(N) number (which is unique across all types in a group).
-func computeBindSlots(entries []gputypes.BindGroupEntry) (bufferSlots, textureSlots, samplerSlots []bindSlotAssignment) {
+func computeBindSlots(entries []hal.BindGroupEntry) (bufferSlots, textureSlots, samplerSlots []bindSlotAssignment) {
 	var bufferIdx, textureIdx, samplerIdx uintptr
 	for i, entry := range entries {
-		switch entry.Resource.(type) {
-		case gputypes.BufferBinding:
+		switch {
+		case entry.Buffer != nil:
 			bufferSlots = append(bufferSlots, bindSlotAssignment{entryIndex: i, slot: bufferIdx})
 			bufferIdx++
-		case gputypes.TextureViewBinding:
+		case entry.TextureView != nil:
 			textureSlots = append(textureSlots, bindSlotAssignment{entryIndex: i, slot: textureIdx})
 			textureIdx++
-		case gputypes.SamplerBinding:
+		case entry.Sampler != nil:
 			samplerSlots = append(samplerSlots, bindSlotAssignment{entryIndex: i, slot: samplerIdx})
 			samplerIdx++
 		}
@@ -760,9 +760,14 @@ func (e *RenderPassEncoder) applyBindGroup(index uint32, bg *BindGroup, offsets 
 
 	var dynamicIdx int
 	for _, entry := range bg.entries {
-		switch res := entry.Resource.(type) {
-		case gputypes.BufferBinding:
-			offset := uintptr(res.Offset)
+		// H4-b1: unpack hal entries to concrete metal types (gpu unpack pattern).
+		switch {
+		case entry.Buffer != nil:
+			buf, ok := entry.Buffer.(*Buffer)
+			if !ok || buf == nil || buf.raw == 0 {
+				continue
+			}
+			offset := uintptr(entry.Offset)
 			// Apply dynamic offset if the layout entry has HasDynamicOffset.
 			if dynamicIdx < len(offsets) && bg.layout != nil {
 				for _, le := range bg.layout.entries {
@@ -773,18 +778,26 @@ func (e *RenderPassEncoder) applyBindGroup(index uint32, bg *BindGroup, offsets 
 					}
 				}
 			}
-			_ = MsgSend(e.raw, Sel("setVertexBuffer:offset:atIndex:"), res.Buffer, offset, bufferSlot)
-			_ = MsgSend(e.raw, Sel("setFragmentBuffer:offset:atIndex:"), res.Buffer, offset, bufferSlot)
+			_ = MsgSend(e.raw, Sel("setVertexBuffer:offset:atIndex:"), uintptr(buf.raw), offset, bufferSlot)
+			_ = MsgSend(e.raw, Sel("setFragmentBuffer:offset:atIndex:"), uintptr(buf.raw), offset, bufferSlot)
 			bufferSlot++
 
-		case gputypes.TextureViewBinding:
-			_ = MsgSend(e.raw, Sel("setVertexTexture:atIndex:"), res.TextureView, textureSlot)
-			_ = MsgSend(e.raw, Sel("setFragmentTexture:atIndex:"), res.TextureView, textureSlot)
+		case entry.TextureView != nil:
+			tv, ok := entry.TextureView.(*TextureView)
+			if !ok || tv == nil || tv.raw == 0 {
+				continue
+			}
+			_ = MsgSend(e.raw, Sel("setVertexTexture:atIndex:"), uintptr(tv.raw), textureSlot)
+			_ = MsgSend(e.raw, Sel("setFragmentTexture:atIndex:"), uintptr(tv.raw), textureSlot)
 			textureSlot++
 
-		case gputypes.SamplerBinding:
-			_ = MsgSend(e.raw, Sel("setVertexSamplerState:atIndex:"), res.Sampler, samplerSlot)
-			_ = MsgSend(e.raw, Sel("setFragmentSamplerState:atIndex:"), res.Sampler, samplerSlot)
+		case entry.Sampler != nil:
+			s, ok := entry.Sampler.(*Sampler)
+			if !ok || s == nil || s.raw == 0 {
+				continue
+			}
+			_ = MsgSend(e.raw, Sel("setVertexSamplerState:atIndex:"), uintptr(s.raw), samplerSlot)
+			_ = MsgSend(e.raw, Sel("setFragmentSamplerState:atIndex:"), uintptr(s.raw), samplerSlot)
 			samplerSlot++
 		}
 	}
@@ -1045,9 +1058,14 @@ func (e *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, off
 
 	var dynamicIdx int
 	for _, entry := range bg.entries {
-		switch res := entry.Resource.(type) {
-		case gputypes.BufferBinding:
-			offset := uintptr(res.Offset)
+		// H4-b1: unpack hal entries to concrete metal types (gpu unpack pattern).
+		switch {
+		case entry.Buffer != nil:
+			buf, ok := entry.Buffer.(*Buffer)
+			if !ok || buf == nil || buf.raw == 0 {
+				continue
+			}
+			offset := uintptr(entry.Offset)
 			if dynamicIdx < len(offsets) && bg.layout != nil {
 				for _, le := range bg.layout.entries {
 					if le.Binding == entry.Binding && le.Buffer != nil && le.Buffer.HasDynamicOffset {
@@ -1057,15 +1075,15 @@ func (e *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, off
 					}
 				}
 			}
-			_ = MsgSend(e.raw, Sel("setBuffer:offset:atIndex:"), res.Buffer, offset, bufferSlot)
+			_ = MsgSend(e.raw, Sel("setBuffer:offset:atIndex:"), uintptr(buf.raw), offset, bufferSlot)
 			bufferSlot++
 
 			// Save the usable byte size for `_buffer_sizes`. A zero
 			// entry size means the rest of the buffer.
-			size := res.Size
+			size := entry.Size
 			if size == 0 {
-				if l := uint64(MsgSend(ID(res.Buffer), Sel("length"))); l > res.Offset {
-					size = l - res.Offset
+				if l := uint64(MsgSend(ID(buf.raw), Sel("length"))); l > entry.Offset {
+					size = l - entry.Offset
 				}
 			}
 			if e.bindingSizes == nil {
@@ -1073,12 +1091,20 @@ func (e *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, off
 			}
 			e.bindingSizes[[2]uint32{index, entry.Binding}] = size
 
-		case gputypes.TextureViewBinding:
-			_ = MsgSend(e.raw, Sel("setTexture:atIndex:"), res.TextureView, textureSlot)
+		case entry.TextureView != nil:
+			tv, ok := entry.TextureView.(*TextureView)
+			if !ok || tv == nil || tv.raw == 0 {
+				continue
+			}
+			_ = MsgSend(e.raw, Sel("setTexture:atIndex:"), uintptr(tv.raw), textureSlot)
 			textureSlot++
 
-		case gputypes.SamplerBinding:
-			_ = MsgSend(e.raw, Sel("setSamplerState:atIndex:"), res.Sampler, samplerSlot)
+		case entry.Sampler != nil:
+			s, ok := entry.Sampler.(*Sampler)
+			if !ok || s == nil || s.raw == 0 {
+				continue
+			}
+			_ = MsgSend(e.raw, Sel("setSamplerState:atIndex:"), uintptr(s.raw), samplerSlot)
 			samplerSlot++
 		}
 	}

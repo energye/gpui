@@ -365,16 +365,19 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (hal.Bin
 // DestroyBindGroupLayout destroys a bind group layout.
 func (d *Device) DestroyBindGroupLayout(layout hal.BindGroupLayout) {}
 
-// CreateBindGroup creates a bind group.
+// CreateBindGroup creates a bind group (H4-b1: stores hal entries verbatim).
 func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (hal.BindGroup, error) {
+	if desc == nil {
+		return nil, fmt.Errorf("gles: bind group descriptor is nil")
+	}
 	layout, ok := desc.Layout.(*BindGroupLayout)
-	if !ok {
+	if !ok || layout == nil {
 		return nil, fmt.Errorf("gles: invalid bind group layout type")
 	}
 
 	return &BindGroup{
 		layout:  layout,
-		entries: convertBindGroupEntries(desc.Entries),
+		entries: desc.Entries,
 	}, nil
 }
 

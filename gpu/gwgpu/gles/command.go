@@ -1285,15 +1285,16 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context) {
 			continue // binding not mapped in pipeline layout
 		}
 
-		switch res := entry.Resource.(type) {
-		case gputypes.BufferBinding:
-			// Buffer handle is the GL buffer object ID (from NativeHandle()).
-			bufID := uint32(res.Buffer)
-			if bufID == 0 {
+		// H4-b1: unpack hal entries to concrete gles types (gpu unpack pattern).
+		switch {
+		case entry.Buffer != nil:
+			buf, ok := entry.Buffer.(*Buffer)
+			if !ok || buf == nil || buf.id == 0 {
 				continue
 			}
-			offset := int(res.Offset)
-			size := int(res.Size)
+			bufID := buf.id
+			offset := int(entry.Offset)
+			size := int(entry.Size)
 
 			// Determine GL buffer target and apply dynamic offset from layout entry.
 			// Storage buffers use GL_SHADER_STORAGE_BUFFER, uniform buffers use GL_UNIFORM_BUFFER.
@@ -1307,12 +1308,12 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context) {
 				ctx.BindBufferBase(target, glBinding, bufID)
 			}
 
-		case gputypes.TextureViewBinding:
-			// TextureView handle is the GL texture object ID (from NativeHandle()).
-			texID := uint32(res.TextureView)
-			if texID == 0 {
+		case entry.TextureView != nil:
+			tv, ok := entry.TextureView.(*TextureView)
+			if !ok || tv == nil || tv.texture == nil || tv.texture.id == 0 {
 				continue
 			}
+			texID := tv.texture.id
 			// Validate texture unit index against hardware limit.
 			// Without this check, textures silently fail to bind when
 			// glBinding >= GL_MAX_TEXTURE_IMAGE_UNITS (typically 8 on Intel).
@@ -1330,12 +1331,12 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context) {
 			ctx.ActiveTexture(gl.TEXTURE0 + glBinding)
 			ctx.BindTexture(gl.TEXTURE_2D, texID)
 
-		case gputypes.SamplerBinding:
-			// Sampler handle is the GL sampler object ID (from NativeHandle()).
-			samplerID := uint32(res.Sampler)
-			if samplerID == 0 {
+		case entry.Sampler != nil:
+			s, ok := entry.Sampler.(*Sampler)
+			if !ok || s == nil || s.id == 0 {
 				continue
 			}
+			samplerID := s.id
 			// Determine the correct texture unit for this sampler.
 			// Naga GLSL generates combined sampler2D on the texture's binding,
 			// so the sampler must be bound to the texture's unit — NOT the

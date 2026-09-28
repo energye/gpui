@@ -168,31 +168,12 @@ type BindGroupLayout struct {
 func (l *BindGroupLayout) Destroy() {}
 
 // BindGroup implements hal.BindGroup for OpenGL.
+// Entries hold the canonical hal flat shape directly (H4-b1, no shim):
+// CreateBindGroup stores desc.Entries verbatim, Execute unpacks to *Buffer/
+// *TextureView/*Sampler internally (gpu unpack pattern, not red-line assert).
 type BindGroup struct {
 	layout  *BindGroupLayout
-	entries []gputypes.BindGroupEntry
-}
-
-// convertBindGroupEntries maps hal flat entries (片5, hal 以 webgpu 为准) to
-// internal uintptr-handle entries via NativeHandle. 保绿垫片: runtime path
-// (command.go Execute) untouched; H4收敛时随 gwgpu 补实现移除.
-func convertBindGroupEntries(in []hal.BindGroupEntry) []gputypes.BindGroupEntry {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]gputypes.BindGroupEntry, len(in))
-	for i, e := range in {
-		out[i].Binding = e.Binding
-		switch {
-		case e.Buffer != nil:
-			out[i].Resource = gputypes.BufferBinding{Buffer: e.Buffer.NativeHandle(), Offset: e.Offset, Size: e.Size}
-		case e.TextureView != nil:
-			out[i].Resource = gputypes.TextureViewBinding{TextureView: e.TextureView.NativeHandle()}
-		case e.Sampler != nil:
-			out[i].Resource = gputypes.SamplerBinding{Sampler: e.Sampler.NativeHandle()}
-		}
-	}
-	return out
+	entries []hal.BindGroupEntry
 }
 
 // Destroy is a no-op for bind groups.

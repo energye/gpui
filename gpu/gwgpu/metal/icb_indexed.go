@@ -385,8 +385,12 @@ func (e *RenderPassEncoder) declareIndexedICBResources(arguments *Buffer) {
 			continue
 		}
 		for _, entry := range state.group.entries {
-			if binding, ok := entry.Resource.(gputypes.BufferBinding); ok {
-				declare(ID(binding.Buffer))
+			// H4-b1: hal entries unpack to *Buffer (gpu unpack pattern).
+			if entry.Buffer == nil {
+				continue
+			}
+			if buf, ok := entry.Buffer.(*Buffer); ok && buf != nil && buf.raw != 0 {
+				declare(ID(buf.raw))
 			}
 		}
 	}
@@ -411,8 +415,12 @@ func (e *RenderPassEncoder) retainIndexedICBResources(owner *indexedICBOwnership
 			continue
 		}
 		for _, entry := range state.group.entries {
-			binding, ok := entry.Resource.(gputypes.BufferBinding)
-			if !ok || binding.Buffer == 0 || !owner.retainReference(ID(binding.Buffer)) {
+			// H4-b1: hal entries unpack to *Buffer (gpu unpack pattern).
+			if entry.Buffer == nil {
+				return false
+			}
+			buf, ok := entry.Buffer.(*Buffer)
+			if !ok || buf == nil || buf.raw == 0 || !owner.retainReference(ID(buf.raw)) {
 				return false
 			}
 		}
