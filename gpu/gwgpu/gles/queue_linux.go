@@ -163,7 +163,7 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 // eglSwapBuffersWithDamageKHR as compositor hints. EGL uses bottom-left
 // origin, so Y coordinates are flipped here. When the extension is unavailable
 // or no rects are provided, the standard eglSwapBuffers path is used.
-func (q *Queue) Present(surface hal.Surface, _ hal.SurfaceTexture, damageRects []image.Rectangle) error {
+func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) error {
 	surf, ok := surface.(*Surface)
 	if !ok {
 		return fmt.Errorf("gles: invalid surface type")
@@ -196,6 +196,7 @@ func (q *Queue) Present(surface hal.Surface, _ hal.SurfaceTexture, damageRects [
 		if result == egl.False {
 			return fmt.Errorf("gles: eglSwapBuffersWithDamageKHR failed: error 0x%x", egl.GetError())
 		}
+		surf.DiscardTexture(tex)
 		return nil
 	}
 
@@ -204,6 +205,7 @@ func (q *Queue) Present(surface hal.Surface, _ hal.SurfaceTexture, damageRects [
 	if result == egl.False {
 		return fmt.Errorf("gles: eglSwapBuffers failed: error 0x%x", egl.GetError())
 	}
+	surf.DiscardTexture(tex)
 
 	return nil
 }

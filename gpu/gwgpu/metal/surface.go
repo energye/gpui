@@ -161,6 +161,7 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 	hal.Logger().Debug("metal: surface unconfigured")
 	// Nothing to release for Metal layer
 	s.device = nil
+	s.configured = false
 }
 
 // SetPresentsWithTransaction toggles Core Animation transaction-based present.
@@ -182,7 +183,17 @@ func (s *Surface) SetPresentsWithTransaction(enabled bool) {
 }
 
 // AcquireTexture acquires the next surface texture for rendering.
+//
+// Strict codes (H4-d, gles parity): nil receiver or an unconfigured
+// surface reports hal.ErrSurfaceLost (errors.Is-compatible). Timeout does
+// not apply: nextDrawable blocks until a drawable is free (backpressure).
 func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error) {
+	if s == nil {
+		return nil, fmt.Errorf("metal: surface is nil: %w", hal.ErrSurfaceLost)
+	}
+	if !s.configured {
+		return nil, fmt.Errorf("metal: surface not configured: %w", hal.ErrSurfaceLost)
+	}
 	pool := NewAutoreleasePool()
 	defer pool.Drain()
 
@@ -242,6 +253,9 @@ func (s *Surface) DiscardTexture(tex hal.SurfaceTexture) {
 // Metal does not clamp the extent, so these always match the requested values.
 // Returns (0, 0) if the surface is not configured.
 func (s *Surface) ActualExtent() (width, height uint32) {
+	if s == nil || !s.configured {
+		return 0, 0
+	}
 	return s.width, s.height
 }
 

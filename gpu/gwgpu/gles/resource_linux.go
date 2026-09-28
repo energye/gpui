@@ -30,6 +30,12 @@ type Surface struct {
 	configured    bool
 	config        *hal.SurfaceConfiguration
 
+	// current tracks the single in-flight acquired frame (webgpu parity:
+	// one frame at a time — Acquire discards the previous one, Discard or
+	// a successful Present drops it). SurfaceTexture carries no GL
+	// resources, so this is API strictness only, no GPU behavior change.
+	current *SurfaceTexture
+
 	// Wayland-specific: wl_egl_window handle. On Wayland, EGL cannot use
 	// the raw wl_surface* directly — it needs a wl_egl_window wrapper.
 	// Created in Configure via libwayland-egl.so, destroyed in Destroy.
@@ -234,6 +240,7 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 	s.colorRenderbuffer = 0
 	s.fboWidth = 0
 	s.fboHeight = 0
+	s.current = nil
 
 	// Destroy EGL surface before wl_egl_window (order matters).
 	if s.eglSurface != 0 && s.eglDisplay != 0 {
@@ -250,17 +257,50 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 }
 
 // AcquireTexture returns the next surface texture for rendering.
+//
+// Strict codes (H4-d, webgpu parity): nil receiver, unconfigured surface
+// (!configured/config==nil) or a lost context (ctx==nil) all report
+// hal.ErrSurfaceLost (errors.Is-compatible); a previous in-flight frame is
+// discarded first (one frame at a time, like webgpu GetCurrentTexture).
+// Timeout/NotReady do not apply: GL acquire is synchronous and always
+// succeeds once configured.
 func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error) {
+	if s == nil {
+		return nil, fmt.Errorf("gles: surface is nil: %w", hal.ErrSurfaceLost)
+	}
+	if !s.configured || s.config == nil {
+		return nil, fmt.Errorf("gles: surface not configured: %w", hal.ErrSurfaceLost)
+	}
+	if s.ctx == nil {
+		return nil, fmt.Errorf("gles: surface context lost: %w", hal.ErrSurfaceLost)
+	}
+	// One in-flight frame at a time: drop the previous one first.
+	s.current = nil
+	st := &SurfaceTexture{
+		surface: s,
+	}
+	s.current = st
 	return &hal.AcquiredSurfaceTexture{
-		Texture: &SurfaceTexture{
-			surface: s,
-		},
+		Texture:    st,
 		Suboptimal: false,
 	}, nil
 }
 
-// DiscardTexture discards a previously acquired texture.
-func (s *Surface) DiscardTexture(_ hal.SurfaceTexture) {}
+// DiscardTexture discards a previously acquired texture without presenting.
+// Nil-safe; drops the tracked in-flight frame when tex is nil or matches it,
+// ignores foreign textures.
+func (s *Surface) DiscardTexture(tex hal.SurfaceTexture) {
+	if s == nil || s.current == nil {
+		return
+	}
+	if tex == nil {
+		s.current = nil
+		return
+	}
+	if st, ok := tex.(*SurfaceTexture); ok && st == s.current {
+		s.current = nil
+	}
+}
 
 // ActualExtent returns the configured surface dimensions.
 // GLES does not clamp the extent, so these always match the requested values.
@@ -283,6 +323,9 @@ func (s *Surface) Destroy() {
 	}
 	s.swapchainFBO = 0
 	s.colorRenderbuffer = 0
+	s.fboWidth = 0
+	s.fboHeight = 0
+	s.current = nil
 
 	// Destroy EGL surface before wl_egl_window (order matters per Wayland spec).
 	if s.eglSurface != 0 && s.eglDisplay != 0 {

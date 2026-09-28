@@ -149,7 +149,7 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 //
 // damageRects is accepted but ignored on Windows WGL — WGL has no
 // damage-aware swap API.
-func (q *Queue) Present(surface hal.Surface, _ hal.SurfaceTexture, _ []image.Rectangle) error {
+func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, _ []image.Rectangle) error {
 	surf, ok := surface.(*Surface)
 	if !ok {
 		return fmt.Errorf("gles: invalid surface type")
@@ -168,7 +168,12 @@ func (q *Queue) Present(surface hal.Surface, _ hal.SurfaceTexture, _ []image.Rec
 
 	surf.blitSwapchainToDefaultWith(glCtx)
 
-	return wgl.SwapBuffers(hdc)
+	if err := wgl.SwapBuffers(hdc); err != nil {
+		return err
+	}
+	surf.DiscardTexture(tex)
+
+	return nil
 }
 
 // GetTimestampPeriod returns the timestamp period in nanoseconds.
