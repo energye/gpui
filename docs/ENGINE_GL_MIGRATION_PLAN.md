@@ -49,9 +49,10 @@
 
 - P0 验证（已完）：34 实现 + 21 单测搬进 `gpu/gwgpu/`；断根三条落实；格式/vet 全干净；单测全绿；真机 EGL 1.5 初始化一次过（Mesa，surfaceless）。
 - P1 三角验证（已完）：离屏 FBO 红三角蓝底一次过（中心 255,0,0、四角 0,0,255），WGSL→GLSL 经自养 naga（161 字节）；GL 上报 NVIDIA 940MX；驻留整卡 6/1024M（桌面待机 3M，GL 上下文约 3M），相对 WebGPU 空白窗 300M+、鹈鹕 655M 差两个数量级。验证程序放 /tmp 未进仓。
-- P1 单窗打通（待开始，H4已完具备开工条件）：鹈鹕单窗 GL 上屏，像素零差，帧数和同步正常。
-- P2 三窗回归（未开始）：图标/鹈鹕/列表各按现有时长重跑，像素加帧间隔加人工看，三证据齐。
-- P3 双后端并存（未开始）：默认不动，`SelectBackend` 函数切换（`BackendNative` 默认，`BackendPureGo` 切纯 Go），不支持自动回退。`SelectBackend` 源码尚无此名（现仅 `hal.SelectBestBackend` 注册表帮手，非后端切换），待 H3 定。Windows 同样走一遍 P0-P2。
+- P1 单窗打通（待开始，H4已完具备开工条件）：完整鹈鹕场景单窗 GL 上屏（`examples/ui_render_pelican` 真场景，不再用 H4 三角占位），走在线链路（`render/present_target.go`，不再走 H4 临时架子），像素零差，帧数和同步正常；平台按 X11 先、Wayland 后补（沿 H4-e）；正式验收按真窗自测加人工二合一，时长/帧间隔/人工看三证据齐，像素容差 0。
+- P2 三窗回归（未开始）：图标/鹈鹕/列表三扇独立真窗各按现有时长重跑，像素加帧间隔加人工看，三证据齐；开工前先把三扇窗的例子路径、时长、金文件、帧间隔门限一次写死，不拿组合窗代替单窗。
+- P3 双后端并存（未开始）：默认不动，`SelectBackend` 函数切换（`BackendNative` 默认，`BackendPureGo` 切纯 Go），不支持自动回退；分支只留在创建那一句话，不留双句柄；`GPUI_BACKEND` 环境变量认不认随 P3 一起定。`SelectBackend` 源码尚无此名（现仅 `hal.SelectBestBackend` 注册表帮手，非后端切换），待 P3 定。
+- Windows 同样走一遍 P0-P2。
 - H 无感知收敛（2026-09-26 已重置按新顺序重做，旧 H1/H2/H3 记录转历史，备份在 `/tmp/opencode`；每批格式+vet+单测+T5/T12 逐位零差，差一像素就停）：
   - H1 `hal` 对齐 `webgpu`（已完，2026-09-26 门禁收：`gofmt` 零输出+`go vet ./gpu/hal/... ./gpu/gwgpu/...` 绿+`hal/noop/gles/types` 整包绿+`go build ./gpu/... ./render/...` 绿+T5/T12 离屏 `md5` 对文档指纹（T5 `58315c52…`、T12 `840ffe6d…`，`render` 未动故画面无影响）；`webgpu` 包带库（`WGPU_NATIVE_PATH=lib/libwgpu_native.so` 指到文件）59 过 1 败，败的是 `TestS68_Swapchain_X11_MultiFramePresent`（重跑复现，`gpu/webgpu` 零改动，与本批无关，H2 前需另看），`metal` 包本机无测试文件跳过；对照表 16 行行行有下落）：
   - H2 `webgpu` 实现新 `hal` 口（已完，参数侧收官，返回侧移 H3）：H2-a 资源 12 件套＋H2-b1–b19（描述符别名、围栏、队列、拷贝链、断言），明细与门禁见 §7 同名行；`*HAL` 残留仅浏览器占位与注释；`Device/CommandEncoder/Surface/Adapter/Instance` 5 断言缺口属返回侧，移分片片7。
