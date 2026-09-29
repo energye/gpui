@@ -375,6 +375,11 @@ func (b *stencilCoverBuffers) bindInner(rp hal.RenderPassEncoder) {
 
 // destroy releases all GPU resources.
 func (b *stencilCoverBuffers) destroy() {
+	// Pool entries may be nil after a failed build (e.g. TexImage2D OOM
+	// under memory pressure) — same guard as clearSlabViews.
+	if b == nil {
+		return
+	}
 	if b.texturedCoverBG != nil {
 		b.texturedCoverBG.Destroy()
 		b.texturedCoverBG = nil
