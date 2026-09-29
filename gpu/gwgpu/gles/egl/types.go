@@ -78,6 +78,8 @@ const (
 	DepthSize             EGLInt = 0x3025
 	StencilSize           EGLInt = 0x3026
 	ConfigCaveat          EGLInt = 0x3027
+	SlowConfig            EGLInt = 0x3050
+	NonConformantConfig   EGLInt = 0x3051
 	ConfigID              EGLInt = 0x3028
 	Level                 EGLInt = 0x3029
 	MaxPbufferHeight      EGLInt = 0x302A

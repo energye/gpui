@@ -6,8 +6,10 @@
 package gles
 
 import (
+	"context"
 	"fmt"
 	"image"
+	"log/slog"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
@@ -38,14 +40,26 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 		}
 
 		// Execute recorded commands with GL error checking.
+		// Per-command GetError is a full FFI round trip each: only pay it
+		// in debug (hal debug logger on); otherwise one check per command
+		// buffer below. Error detection is preserved, per-command index is
+		// debug-only detail.
+		cmdDbg := hal.Logger().Enabled(context.Background(), slog.LevelDebug)
 		for i, cmd := range cmdBuf.commands {
 			cmd.Execute(glCtx)
-			if glErr := glCtx.GetError(); glErr != 0 {
-				detail := fmt.Sprintf("%T", cmd)
-				if vaoCmd, ok := cmd.(*BindVAOCommand); ok {
-					detail = fmt.Sprintf("%T{vao=%d}", cmd, vaoCmd.vao)
+			if cmdDbg {
+				if glErr := glCtx.GetError(); glErr != 0 {
+					detail := fmt.Sprintf("%T", cmd)
+					if vaoCmd, ok := cmd.(*BindVAOCommand); ok {
+						detail = fmt.Sprintf("%T{vao=%d}", cmd, vaoCmd.vao)
+					}
+					hal.Logger().Warn("gles: GL error after command", "error", fmt.Sprintf("0x%x", glErr), "index", i, "command", detail)
 				}
-				hal.Logger().Warn("gles: GL error after command", "error", fmt.Sprintf("0x%x", glErr), "index", i, "command", detail)
+			}
+		}
+		if !cmdDbg {
+			if glErr := glCtx.GetError(); glErr != 0 {
+				hal.Logger().Warn("gles: GL error in submit", "error", fmt.Sprintf("0x%x", glErr))
 			}
 		}
 	}

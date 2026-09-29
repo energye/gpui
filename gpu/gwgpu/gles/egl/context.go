@@ -178,6 +178,10 @@ func chooseEGLConfig(display EGLDisplay, config ContextConfig) (EGLConfig, error
 	// Rust's top tier = WindowBit alone (never combined with PbufferBit).
 	// Mesa Wayland EGL does NOT support PbufferBit — any tier requiring it
 	// returns 0 configs. WindowBit alone = 48 configs on Mesa Wayland.
+	// Caveat: prefer hardware configs first (skia Ganesh GR_GL_CONFIG..
+	// style: SLOW_CONFIG means software/less-direct). Tiers that only
+	// yield EGL_SLOW_CONFIG fall through to the next tier, so a software
+	// rasterizer never shadows a real GPU (PRIME dGPU vs llvmpipe).
 	tiers := []EGLInt{
 		WindowBit | PbufferBit, // Tier 2: X11/headless (window + pbuffer)
 		WindowBit,              // Tier 1: Wayland (no pbuffer support in Mesa)
@@ -195,9 +199,18 @@ func chooseEGLConfig(display EGLDisplay, config ContextConfig) (EGLConfig, error
 	}
 
 	for _, surfaceType := range tiers {
-		attribs := make([]EGLInt, 0, len(baseAttribs)+3)
+		attribs := make([]EGLInt, 0, len(baseAttribs)+5)
 		attribs = append(attribs, SurfaceType, surfaceType)
 		attribs = append(attribs, baseAttribs...)
+		// Prefer hardware rasterization: skip tiers whose best config is
+		// EGL_SLOW_CONFIG (software rasterizer), so llvmpipe never shadows
+		// a real GPU on hybrid boxes (PRIME dGPU / iGPU present).
+		// Hard-fail the tier instead of DontCare filtering here: probing a
+		// cold eglChooseConfig on some drivers (observed: NVIDIA 580 X11,
+		// uninitialized display) returns 0 configs with 0x3001 for ANY
+		// attribute set, so filtering must not turn a driver quirk into
+		// "no configs". The caveat check below inspects the winner.
+		attribs = append(attribs, ConfigCaveat, DontCare)
 		attribs = append(attribs, None)
 
 		var eglConfig EGLConfig
@@ -205,12 +218,23 @@ func chooseEGLConfig(display EGLDisplay, config ContextConfig) (EGLConfig, error
 		if ChooseConfig(display, &attribs[0], &eglConfig, 1, &numConfigs) == False {
 			continue
 		}
-		if numConfigs > 0 {
+		if numConfigs > 0 && configCaveatIsHardware(display, eglConfig) {
 			return eglConfig, nil
 		}
 	}
 
 	return 0, fmt.Errorf("no suitable EGL configs found (tried window+pbuffer and pbuffer-only)")
+}
+
+// configCaveatIsHardware reports whether a config is hardware-accelerated
+// (caveat is neither SLOW nor NON_CONFORMANT). Query failures fail open:
+// rejecting a config we cannot inspect is worse than trying it.
+func configCaveatIsHardware(display EGLDisplay, config EGLConfig) bool {
+	var caveat EGLInt
+	if GetConfigAttrib(display, config, ConfigCaveat, &caveat) == False {
+		return true
+	}
+	return caveat != SlowConfig && caveat != NonConformantConfig
 }
 
 // createEGLContext creates an EGL rendering context.

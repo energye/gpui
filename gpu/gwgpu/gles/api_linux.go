@@ -45,7 +45,10 @@ func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error) {
 	// EGL call in this process. Set it here when the caller asked for
 	// discrete; do not override an explicit user value, do not touch it
 	// for low/default (Mesa default is the integrated node).
+	// P2-0 vendor pinning rides the same hook: __EGL_VENDOR_LIBRARY_FILENAMES
+	// narrows libglvnd arbitration to the policy vendor before first use.
 	applyPrimeEnvForPower()
+	applyVendorPinForPower()
 	if err := egl.Init(); err != nil {
 		return nil, fmt.Errorf("gles: failed to initialize EGL: %w", err)
 	}
