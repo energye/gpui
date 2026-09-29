@@ -121,9 +121,14 @@ func TestInferDeviceType(t *testing.T) {
 		{"NVIDIA Corporation", "NVIDIA Tegra X1", gputypes.DeviceTypeIntegratedGPU},
 		{"Apple", "Apple M1 Pro", gputypes.DeviceTypeIntegratedGPU},
 
-		// Default (likely discrete but we report Other)
-		{"NVIDIA Corporation", "NVIDIA GeForce RTX 4090", gputypes.DeviceTypeOther},
-		{"ATI Technologies Inc.", "AMD Radeon RX 7900 XT", gputypes.DeviceTypeOther},
+		// Discrete desktop GPUs (P2-2: real dGPU label, not Other)
+		{"NVIDIA Corporation", "NVIDIA GeForce RTX 4090", gputypes.DeviceTypeDiscreteGPU},
+		{"NVIDIA Corporation", "NVIDIA GeForce 940MX/PCIe/SSE2", gputypes.DeviceTypeDiscreteGPU},
+		{"ATI Technologies Inc.", "AMD Radeon RX 7900 XT", gputypes.DeviceTypeDiscreteGPU},
+		{"Intel", "Intel(R) Arc(TM) A770 Graphics", gputypes.DeviceTypeDiscreteGPU},
+
+		// Unknown mobile numbering stays Other (fail-safe, not wrong-discrete)
+		{"AMD", "AMD Radeon 780M Graphics", gputypes.DeviceTypeOther},
 	}
 
 	for _, tt := range tests {

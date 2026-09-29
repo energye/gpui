@@ -192,7 +192,9 @@ func (i *Instance) Release() {
 
 // RequestAdapter returns the first enumerated adapter.
 // Matches webgpu Instance.RequestAdapter shape; PowerPreference/
-// ForceFallback are moot (single GL adapter), CompatibleSurface is
+// ForceFallback are moot (single GL adapter on Windows: single card
+// straight through, no branches — P2-2 multi-adapter selection is
+// Linux-only via EGL device enumeration), CompatibleSurface is
 // forwarded as the enumerate hint.
 func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
 	var hint hal.Surface

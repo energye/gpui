@@ -40,6 +40,12 @@ type ContextConfig struct {
 	// a second connection, which makes wl_surface proxies mismatched on configure.
 	// On X11: the X11 Display*. Zero uses the default display.
 	NativeDisplay uintptr
+	// AllowSoftwareConfigs lifts the P2-0 hardware-caveat filter: configs
+	// marked SLOW/NON_CONFORMANT become eligible. Default false (a software
+	// rasterizer must never shadow a real GPU on the shared display); set it
+	// only when the caller explicitly picked a software device display
+	// (P2-2 ForceFallback materialize), where slow is the honest answer.
+	AllowSoftwareConfigs bool
 	// WindowKind selects the native window system explicitly. Nil preserves
 	// automatic environment-based detection and keeps ContextConfig's zero value
 	// independent of WindowKind's numeric constants.
@@ -75,6 +81,25 @@ func NewContext(config ContextConfig) (*Context, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get EGL display: %w", err)
 	}
+	return newContextOnDisplay(display, windowKind, displayOwner, config)
+}
+
+// NewContextOnDisplay creates an EGL context on an already-opened EGL display
+// (e.g. PlatformDisplayForDevice for a picked GPU from device enumeration).
+// Takes over the display: Destroy terminates it, and error paths terminate
+// it too — same ownership as NewContext. The display is reported as
+// surfaceless: device displays have no window system, so the context must
+// never be mistaken for a shareable window context (P2-3 owns that split).
+func NewContextOnDisplay(display EGLDisplay, config ContextConfig) (*Context, error) {
+	if display == NoDisplay {
+		return nil, fmt.Errorf("no display")
+	}
+	return newContextOnDisplay(display, WindowKindSurfaceless, nil, config)
+}
+
+// newContextOnDisplay runs the shared Initialize→BindAPI→chooseConfig→
+// createContext→pbuffer flow on a known display.
+func newContextOnDisplay(display EGLDisplay, windowKind WindowKind, displayOwner *DisplayOwner, config ContextConfig) (*Context, error) {
 
 	// closeOwner is a helper to close the display owner on error paths.
 	closeOwner := func() {
@@ -210,6 +235,9 @@ func chooseEGLConfig(display EGLDisplay, config ContextConfig) (EGLConfig, error
 		// uninitialized display) returns 0 configs with 0x3001 for ANY
 		// attribute set, so filtering must not turn a driver quirk into
 		// "no configs". The caveat check below inspects the winner.
+		// AllowSoftwareConfigs (P2-2 software-device path only) skips the
+		// winner check: on an explicitly picked software display, slow is
+		// the honest answer, not a shadow.
 		attribs = append(attribs, ConfigCaveat, DontCare)
 		attribs = append(attribs, None)
 
@@ -218,7 +246,7 @@ func chooseEGLConfig(display EGLDisplay, config ContextConfig) (EGLConfig, error
 		if ChooseConfig(display, &attribs[0], &eglConfig, 1, &numConfigs) == False {
 			continue
 		}
-		if numConfigs > 0 && configCaveatIsHardware(display, eglConfig) {
+		if numConfigs > 0 && (config.AllowSoftwareConfigs || configCaveatIsHardware(display, eglConfig)) {
 			return eglConfig, nil
 		}
 	}

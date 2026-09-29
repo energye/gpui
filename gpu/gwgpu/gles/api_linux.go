@@ -107,6 +107,10 @@ type Instance struct {
 	// Display* and creates the context, later windows add window surfaces
 	// on it. Wayland surfaces keep per-surface contexts (per wl_display).
 	x11 *x11Shared
+	// P2-2 materialized device contexts (one per picked EGL device).
+	// Drained in Release; Adapter.Release stays a no-op (shared-ownership
+	// rule, same as ctx/x11 above).
+	devCtxs []*AdapterContext
 }
 
 type x11Shared struct {
@@ -261,19 +265,29 @@ func (i *Instance) createX11Surface(displayHandle, windowHandle uintptr) (hal.Su
 	}, nil
 }
 
-// EnumerateAdapters returns available OpenGL adapters.
-// Uses surface context (preferred), instance context (X11/headless), or placeholder.
+// EnumerateAdapters returns available OpenGL adapters: the live
+// default-display adapter first (surface hint or instance context, existing
+// behavior), then one info-only entry per usable enumerated EGL device
+// (P2-2, correct family types, no contexts — live adapters come from
+// RequestAdapter). Devices from the live family are skipped (already
+// represented live); displays that fail init are skipped (fail-soft).
 func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapter {
 	// Priority 1: surface provides the best context (has window handle)
 	if surface, ok := surfaceHint.(*Surface); ok {
 		return []hal.ExposedAdapter{surface.GetAdapterInfo()}
 	}
 
+	var out []hal.ExposedAdapter
+	liveFam := familyOther
 	// Priority 2: instance-level AdapterContext (created in CreateInstance via pbuffer/surfaceless)
 	if i.ctx != nil && i.ctx.GL() != nil {
-		return []hal.ExposedAdapter{
-			makeAdapterFromContext(i.ctx),
-		}
+		live := makeAdapterFromContext(i.ctx)
+		liveFam = liveFamilyOf(live.Info.Vendor, live.Info.Name)
+		out = append(out, live)
+	}
+	out = append(out, i.enumerateDeviceAdapters(liveFam)...)
+	if len(out) > 0 {
+		return out
 	}
 
 	// Priority 3: no context available (Wayland without surface hint)
@@ -304,6 +318,10 @@ func placeholderExposedAdapter(driverInfo string) hal.ExposedAdapter {
 }
 
 // makeAdapterFromContext creates an ExposedAdapter using a live AdapterContext.
+// The Adapter carries probed caps (not just the exposed Info): later Info()
+// calls on the returned hal.Adapter must answer the same truth — an empty
+// caps meant every RequestAdapter result reported vendor "" and type Other
+// (P2-2 found it: the online window's "software" label).
 func makeAdapterFromContext(ctx *AdapterContext) hal.ExposedAdapter {
 	glCtx := ctx.Lock()
 	defer ctx.Unlock()
@@ -311,17 +329,19 @@ func makeAdapterFromContext(ctx *AdapterContext) hal.ExposedAdapter {
 	version := glCtx.GetString(gl.VERSION)
 	renderer := glCtx.GetString(gl.RENDERER)
 	vendor := glCtx.GetString(gl.VENDOR)
+	caps := queryAdapterCapabilities(glCtx)
 
 	return hal.ExposedAdapter{
 		Adapter: &Adapter{
 			ctx:      ctx,
 			version:  version,
 			renderer: renderer,
+			caps:     caps,
 		},
 		Info: gputypes.AdapterInfo{
 			Name:       renderer,
 			Vendor:     vendor,
-			DeviceType: gputypes.DeviceTypeIntegratedGPU,
+			DeviceType: inferDeviceType(vendor, renderer),
 			Driver:     driverOpenGL,
 			DriverInfo: version,
 			Backend:    gputypes.BackendGL,
@@ -350,21 +370,54 @@ func (i *Instance) Release() {
 		}
 		i.x11 = nil
 	}
+	for _, c := range i.devCtxs {
+		if c != nil {
+			c.Destroy()
+		}
+	}
+	i.devCtxs = nil
 }
 
-// RequestAdapter returns the first enumerated adapter.
-// Matches webgpu Instance.RequestAdapter shape; CompatibleSurface is
-// forwarded as the enumerate hint (Wayland deferred enumeration).
+// RequestAdapter honors PowerPreference (P2-2, same knob as WebGPU):
+// HighPerformance → NVIDIA device, LowPower → Mesa hardware device,
+// ForceFallbackAdapter → software device, None → live default-display
+// adapter (existing behavior). Surface hints win over everything (the
+// window's display decides the GPU). Each family is strict: no usable
+// device is an error, and the render-layer presentLevels chain tries the
+// next family — selection never silently substitutes across families.
 func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
 	var hint hal.Surface
+	pref := gputypes.PowerPreferenceNone
+	fallback := false
 	if opts != nil {
 		hint = opts.CompatibleSurface
+		pref = opts.PowerPreference
+		fallback = opts.ForceFallbackAdapter
 	}
-	adapters := i.EnumerateAdapters(hint)
-	if len(adapters) == 0 {
-		return nil, fmt.Errorf("gles: no adapters available")
+	if surface, ok := hint.(*Surface); ok {
+		return surface.GetAdapterInfo().Adapter, nil
 	}
-	return adapters[0].Adapter, nil
+	if fallback {
+		return i.materializeDeviceAdapter(familySoftware)
+	}
+	switch pref {
+	case gputypes.PowerPreferenceHighPerformance:
+		if live := i.liveAdapterIf(familyNVIDIA); live != nil {
+			return live.Adapter, nil
+		}
+		return i.materializeDeviceAdapter(familyNVIDIA)
+	case gputypes.PowerPreferenceLowPower:
+		if live := i.liveAdapterIf(familyMesaHW); live != nil {
+			return live.Adapter, nil
+		}
+		return i.materializeDeviceAdapter(familyMesaHW)
+	default:
+		adapters := i.EnumerateAdapters(hint)
+		if len(adapters) == 0 {
+			return nil, fmt.Errorf("gles: no adapters available")
+		}
+		return adapters[0].Adapter, nil
+	}
 }
 
 // ProcessEvents is a no-op for GLES (synchronous, no async callbacks).

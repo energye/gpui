@@ -31,6 +31,10 @@ type DeviceInfo struct {
 	IsNVIDIA bool
 	// IsMesa reports a Mesa/Intel/AMD string (integrated on this box).
 	IsMesa bool
+	// IsSoftware reports a software-rasterizer marker (llvmpipe/swrast/
+	// SwiftShader/MESA_device_software). P2-2 uses it to route
+	// ForceFallbackAdapter; kept alongside IsMesa (family) on purpose.
+	IsSoftware bool
 }
 
 // DeviceEnumerationSupported reports whether the loader exposes device
@@ -166,6 +170,10 @@ func classifyDevice(dev uintptr) DeviceInfo {
 	info.Name = queryDeviceString(strAddr, dev, drmDeviceFileEXT)
 	exts := queryDeviceString(strAddr, dev, Extensions)
 	lower := strings.ToLower(exts + " " + info.Name)
+	if strings.Contains(lower, "software") || strings.Contains(lower, "swrast") ||
+		strings.Contains(lower, "llvmpipe") || strings.Contains(lower, "swiftshader") {
+		info.IsSoftware = true
+	}
 	switch {
 	case strings.Contains(lower, "nvidia") || strings.Contains(lower, "nv_device_cuda"):
 		info.IsNVIDIA = true

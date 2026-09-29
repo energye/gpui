@@ -22,6 +22,11 @@ type Adapter struct {
 	windowHandle  uintptr
 	version       string
 	renderer      string
+	// eglDevice is the P2-1 enumerated EGLDeviceEXT this adapter was picked
+	// from (0 = default display / surface context, no device). Info-only
+	// enumeration entries carry it without a context; materialized adapters
+	// carry both.
+	eglDevice uintptr
 
 	// caps holds the probed adapter capabilities (extensions, features,
 	// limits, MSAA support). Populated by queryAdapterCapabilities during

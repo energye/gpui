@@ -12,10 +12,12 @@ import (
 
 // primeEnvForPower maps the shared GPUI_POWER policy to X11 GL env.
 //
-// high → DRI_PRIME=1 (Mesa render-node select). The NVIDIA proprietary
-// offload pair is deliberately unset: it only redirects GLX while our
-// path is EGL, and on Xwayland it fails window creation with 0x3005
-// (NVIDIA EGL cannot present an Xwayland pixmap).
+// high → DRI_PRIME=1 (Mesa render-node select: Mesa 有效). The NVIDIA
+// proprietary offload pair is deliberately unset: 闭源 NVIDIA 无效 — it
+// only redirects GLX while our path is EGL, and on Xwayland it fails
+// window creation with 0x3005 (NVIDIA EGL cannot present an Xwayland
+// pixmap). Discrete selection on the proprietary stack rides P2-0 vendor
+// pinning + P2-2 device enumeration instead; this knob stays Mesa-only.
 // low/default → untouched (integrated default). Explicit user values win.
 // Applies before the first EGL display init in this process.
 func primeEnvForPower() (pairs [][2]string, apply bool) {

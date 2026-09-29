@@ -601,7 +601,12 @@ func queryDownlevelFlags(glCtx *gl.Context, exts map[string]bool, glMajor, glMin
 // ---------------------------------------------------------------------------
 
 // inferDeviceType infers the device type from vendor and renderer strings.
-// Adapted from Rust wgpu-hal adapter.rs make_info.
+// Adapted from Rust wgpu-hal adapter.rs make_info, plus a desktop-discrete
+// rule P2-2 added: GL_RENDERER names that only exist on separate cards
+// (GeForce/Quadro/RTX/GTX, Radeon RX/Pro/VII, Intel Arc) report DiscreteGPU
+// instead of Other, so the shared policy chain (RequestAdapterWithPolicy,
+// GPUBackend) sees the real dGPU. Mobile-numbered Radeons (780M etc.) stay
+// Other: fail-safe beats a wrong discrete label.
 func inferDeviceType(vendor, renderer string) gputypes.DeviceType {
 	v := strings.ToLower(vendor)
 	r := strings.ToLower(renderer)
@@ -611,6 +616,19 @@ func inferDeviceType(vendor, renderer string) gputypes.DeviceType {
 	for _, s := range cpuStrings {
 		if strings.Contains(r, s) {
 			return gputypes.DeviceTypeCPU
+		}
+	}
+
+	// Discrete desktop GPUs (checked before the integrated-vendor shortcut
+	// so Intel Arc escapes the vendor-Intel rule below).
+	discreteStrings := []string{
+		"geforce", "quadro", "rtx", "gtx",
+		"radeon rx", "radeon pro", "radeon vii",
+		"arc",
+	}
+	for _, s := range discreteStrings {
+		if strings.Contains(r, s) {
+			return gputypes.DeviceTypeDiscreteGPU
 		}
 	}
 
@@ -641,7 +659,8 @@ func inferDeviceType(vendor, renderer string) gputypes.DeviceType {
 	}
 
 	// Default to Other (not DiscreteGPU) to avoid incorrect assumptions,
-	// matching the Rust wgpu-hal approach.
+	// matching the Rust wgpu-hal approach. Only the discreteStrings above
+	// promote to DiscreteGPU.
 	return gputypes.DeviceTypeOther
 }
 
