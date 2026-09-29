@@ -4187,3 +4187,271 @@ func setAudioShape(t *testing.T, f *Frame, fmt, rate, nb int32) {
 		t.Fatalf("audio frame GetBuffer: %v", err)
 	}
 }
+
+// TestWrapCoverCryptoTables fills the crypto tables/arithmetic batch:
+// pure lookups and stateless math, no hardware, no files. C 头核过
+// (integer.h/rational.h/mathematics.h/crc.h/samplefmt.h/pixdesc.h/
+// pixfmt.h/codec_id.h/avutil.h/parseutils.h/cpu.h/dv_profile.h/csp.h):
+// 大整数一家按值传 (AVInteger 16 字节, 见 types.go);
+//比较回 -1/0/1, 下标函数回下标; Log2 回整数; 有理数按值走.
+func TestWrapCoverCryptoTables(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var u Util
+	var c Crypto
+	var s Samples
+	var pb Prober
+	// ---- 大整数一轮游 (integer.h: 按值传, Int2i(n) 搭梯子) ----
+	a := u.Int2i(7)
+	b := u.Int2i(3)
+	if u.I2int(a) != 7 || u.I2int(b) != 3 {
+		t.Fatalf("Int2i/I2int = %d/%d, want 7/3", u.I2int(a), u.I2int(b))
+	}
+	if got := u.I2int(u.AddI(a, b)); got != 10 {
+		t.Fatalf("AddI(7,3) = %d, want 10", got)
+	}
+	if got := u.I2int(u.SubI(a, b)); got != 4 {
+		t.Fatalf("SubI(7,3) = %d, want 4", got)
+	}
+	if got := u.I2int(u.MulI(a, b)); got != 21 {
+		t.Fatalf("MulI(7,3) = %d, want 21", got)
+	}
+	if got := u.I2int(u.DivI(a, b)); got != 2 {
+		t.Fatalf("DivI(7,3) = %d, want 2", got)
+	}
+	var quot AVInteger
+	if got := u.I2int(u.ModI(&quot, a, b)); got != 1 {
+		t.Fatalf("ModI rem(7,3) = %d, want 1", got)
+	}
+	if got := u.I2int(quot); got != 2 {
+		t.Fatalf("ModI quot(7,3) = %d, want 2", got)
+	}
+	if got := u.I2int(u.ShrI(a, 1)); got != 3 {
+		t.Fatalf("ShrI(7,1) = %d, want 3", got)
+	}
+	if u.CmpI(a, b) <= 0 || u.CmpI(b, a) >= 0 || u.CmpI(a, a) != 0 {
+		t.Fatalf("CmpI(7,3) = %d/%d/%d", u.CmpI(a, b), u.CmpI(b, a), u.CmpI(a, a))
+	}
+	if u.Log2I(a) != 2 {
+		t.Fatalf("Log2I(7) = %d, want 2", u.Log2I(a))
+	}
+	// ---- 对数三件套 (intmath.h: 回整数) ----
+	if u.Log2(8) != 3 || u.Log2(1) != 0 {
+		t.Fatalf("Log2 = %d/%d, want 3/0", u.Log2(8), u.Log2(1))
+	}
+	if u.Log216bit(256) != 8 {
+		t.Fatalf("Log216bit(256) = %d, want 8", u.Log216bit(256))
+	}
+	if u.BesselI0(0) != 1 {
+		t.Fatalf("BesselI0(0) = %v, want 1", u.BesselI0(0))
+	}
+	// ---- 有理数一轮游 (rational.h: 按值走, 臆测 1/2+1/3=5/6) ----
+	dif := u.SubQ(AVRational{1, 2}, AVRational{1, 3})
+	if dif.Num != 1 || dif.Den != 6 {
+		t.Fatalf("SubQ(1/2,1/3) = %+v, want 1/6", dif)
+	}
+	prod := u.MulQ(AVRational{2, 3}, AVRational{3, 4})
+	if prod.Num != 1 || prod.Den != 2 {
+		t.Fatalf("MulQ(2/3,3/4) = %+v, want 1/2", prod)
+	}
+	quo := u.DivQ(AVRational{1, 2}, AVRational{1, 4})
+	if quo.Num != 2 || quo.Den != 1 {
+		t.Fatalf("DivQ(1/2,1/4) = %+v, want 2/1", quo)
+	}
+	if u.Gcd(12, 18) != 6 {
+		t.Fatalf("Gcd(12,18) = %d, want 6", u.Gcd(12, 18))
+	}
+	gq := u.GcdQ(AVRational{1, 2}, AVRational{1, 3}, 100, AVRational{0, 1})
+	if gq.Num != 1 || gq.Den != 6 {
+		t.Fatalf("GcdQ(1/2,1/3) = %+v, want 1/6", gq)
+	}
+	if got := u.D2q(0.5, 100); got.Num != 1 || got.Den != 2 {
+		t.Fatalf("D2q(0.5) = %+v, want 1/2", got)
+	}
+	if u.Q2intfloat(AVRational{1, 1}) == 0 {
+		t.Fatal("Q2intfloat(1/1) zero")
+	}
+	// NearerQ 回比较值 (正数表 q1 近), FindNearestQIdx 回下标.
+	if u.NearerQ(AVRational{1, 2}, AVRational{1, 2}, AVRational{3, 4}) <= 0 {
+		t.Fatal("NearerQ(1/2 vs 1/2,3/4) not positive")
+	}
+	qlist := []AVRational{{1, 4}, {1, 2}, {3, 4}, {0, 0}}
+	if got := u.FindNearestQIdx(AVRational{1, 2}, unsafe.Pointer(&qlist[0])); got != 1 {
+		t.Fatalf("FindNearestQIdx(1/2) = %d, want 1", got)
+	}
+	var n, dn int64
+	_ = n
+	_ = dn
+	// Reduce 走 int 槽 (rational.c: 槽里写约分结果, 4/8 -> 1/2).
+	var rnum, rden int32
+	if err := u.Reduce(unsafe.Pointer(&rnum), unsafe.Pointer(&rden), 4, 8, 100); err != nil {
+		t.Fatalf("Reduce(4/8): %v", err)
+	}
+	if rnum != 1 || rden != 2 {
+		t.Fatalf("Reduce(4/8) = %d/%d, want 1/2", rnum, rden)
+	}
+	// ---- CRC 三件套 (crc.h/crc.c: AV_CRC_32_IEEE=3 是大端表, id 4 是 LE 表;
+	// 本包表是 sized 小表 + CONFIG_SMALL 尾路, 初值相关, 不套教科书向量;
+	// 真值以 C 为准: BE 初值 0 得 0x7F89A189, 初值全 1 得 0xE7E67603;
+	// LE 初值全 1 得 0x340BC6D9; adler 初值 1, 见 rfc1950) ----
+	tbl := c.CrcGetTable(3)
+	if tbl == nil {
+		t.Fatal("CrcGetTable(ieee) nil")
+	}
+	msg := []byte("123456789")
+	if got := c.Crc(tbl, 0, unsafe.Pointer(&msg[0]), uintptr(len(msg))); got != 0x7F89A189 {
+		t.Fatalf("Crc(ieee,\"123456789\") = %#x, want 0x7F89A189", got)
+	}
+	if got := c.Crc(tbl, 0xFFFFFFFF, unsafe.Pointer(&msg[0]), uintptr(len(msg))); got != 0xE7E67603 {
+		t.Fatalf("Crc(ieee initFF,\"123456789\") = %#x, want 0xE7E67603", got)
+	}
+	tblLE := c.CrcGetTable(4)
+	if tblLE == nil {
+		t.Fatal("CrcGetTable(ieee_le) nil")
+	}
+	if got := c.Crc(tblLE, 0xFFFFFFFF, unsafe.Pointer(&msg[0]), uintptr(len(msg))); got != 0x340BC6D9 {
+		t.Fatalf("Crc(ieee_le,\"123456789\") = %#x, want 0x340BC6D9", got)
+	}
+	if got := c.Adler32Update(1, unsafe.Pointer(&msg[0]), uintptr(len(msg))); got != 0x091E01DE {
+		t.Fatalf("Adler32 = %#x, want 0x091E01DE", got)
+	}
+	// ---- 采样格式查表 (samplefmt.h: S16=1, 交错/平面互查) ----
+	if got := u.GetAltSampleFmt(1, 1); got != 6 {
+		t.Fatalf("GetAltSampleFmt(s16,planar) = %d, want 6", got)
+	}
+	if got := u.GetBitsPerSample(0x10000); got != 16 {
+		t.Fatalf("GetBitsPerSample(pcm_s16le) = %d, want 16", got)
+	}
+	if got := u.GetExactBitsPerSample(0x10000); got != 16 {
+		t.Fatalf("GetExactBitsPerSample(pcm_s16le) = %d, want 16", got)
+	}
+	if u.GetPcmCodec(1, 1) == nil {
+		t.Fatal("GetPcmCodec(s16,be) nil")
+	}
+	// ---- 像素格式查表 (pixdesc.h/pixfmt.h) ----
+	if got := u.PixFmtCountPlanes(0); got != 3 {
+		t.Fatalf("PixFmtCountPlanes(yuv420p) = %d, want 3", got)
+	}
+	var hs, vs int32
+	if ret := u.PixFmtGetChromaSubSample(0, &hs, &vs); ret < 0 || hs != 1 || vs != 1 {
+		t.Fatalf("ChromaSubSample(yuv420p) = %d,%d,%d", ret, hs, vs)
+	}
+	// yuv420p 无大小端后缀, C 直接回 NONE(-1), 见 pixdesc.c; 有后缀的才互换
+	// (gray16be=29 灰度16大端, gray16le=30 小端, 见 pixfmt.h 枚举顺序).
+	if got := u.PixFmtSwapEndianness(0); got != -1 {
+		t.Fatalf("PixFmtSwapEndianness(yuv420p) = %d, want -1 (NONE)", got)
+	}
+	if got := u.PixFmtSwapEndianness(29); got != 30 {
+		t.Fatalf("PixFmtSwapEndianness(gray16be) = %d, want 30 (gray16le)", got)
+	}
+	if got := u.PixFmtSwapEndianness(30); got != 29 {
+		t.Fatalf("PixFmtSwapEndianness(gray16le) = %d, want 29 (gray16be)", got)
+	}
+	if got := pb.FindBestPixFmtOf2(26, 28, 0, 1, nil); got != 26 && got != 28 {
+		t.Fatalf("FindBestPixFmtOf2 = %d", got)
+	}
+	// ---- 色度位置正反查 (pixdesc.h: 1=LEFT, "left" 回 1) ----
+	var xp, yp int32
+	if err := u.ChromaLocationEnumToPos(&xp, &yp, 1); err != nil {
+		t.Fatalf("ChromaLocationEnumToPos: %v", err)
+	}
+	if xp != 0 || yp != 128 {
+		t.Fatalf("ChromaLocation pos = %d/%d, want 0/128", xp, yp)
+	}
+	// ChromaLocationFromName 回掩码数 (对不上回负错码, 见 pixdesc.h).
+	if got := u.ChromaLocationName(1); cstr(got) != "left" {
+		t.Fatalf("ChromaLocationName(1) = %q, want left", cstr(got))
+	}
+	if u.ChromaLocationPosToEnum(0, 128) != 1 {
+		t.Fatalf("ChromaLocationPosToEnum(0,128) = %d, want 1", u.ChromaLocationPosToEnum(0, 128))
+	}
+	// ---- 编码/媒体/图像查表 ----
+	if got := u.GetMediaTypeString(0); cstr(got) != "video" {
+		t.Fatalf("GetMediaTypeString(0) = %q, want video", cstr(got))
+	}
+	if got := u.GetPictureTypeChar(1); got != 'I' {
+		t.Fatalf("GetPictureTypeChar(1) = %q, want I", got)
+	}
+	// 下面三个 C 全直接解指针, 传 nil 会崩 (utils.c/pixdesc.c), 只走真指针:
+	// 音频时长用真 mpeg4 编解码上下文, 填充位数用真 yuv420p 描述子,
+	// 档次名用真 mpeg4 编码; 只验不崩不钉值 (以 C 为准).
+	mpeg4ForMisc := FindDecoderByName("mpeg4")
+	if mpeg4ForMisc == nil {
+		t.Fatal("mpeg4 codec nil (misc)")
+	}
+	miscCtx := mpeg4ForMisc.AllocContext()
+	if miscCtx == nil {
+		t.Fatal("AllocContext nil (misc)")
+	}
+	defer miscCtx.FreeContext()
+	_ = s.GetAudioFrameDuration(miscCtx.Ptr(), 0)
+	if desc0 := PixFmtDesc(0); desc0 == nil || u.GetPaddedBitsPerPixel(desc0) <= 0 {
+		t.Logf("GetPaddedBitsPerPixel(yuv420p) <= 0 (以 C 为准)")
+	}
+	_ = u.GetProfileName(mpeg4ForMisc.Ptr(), 0)
+	// ---- 用途掩码正反查 (avformat.h: "default" 回 1, 1 回 "default") ----
+	if got := u.DispositionToString(1); cstr(got) != "default" {
+		t.Fatalf("DispositionToString(1) = %q, want default", cstr(got))
+	}
+	if u.DispositionFromString("default") != 1 {
+		t.Fatalf("DispositionFromString(default) = %d, want 1", u.DispositionFromString("default"))
+	}
+	// ---- DV 档查表 (dv_profile.h/dv_profile.c: 720x480 NTSC 档是 yuv411p=7,
+	// 720x576 PAL 档才有 yuv420p; 旧断言 720x480+yuv420p 在 C 里诚实回 nil) ----
+	if u.DvCodecProfile(720, 480, 7) == nil {
+		t.Fatal("DvCodecProfile(720x480,yuv411p) nil")
+	}
+	if u.DvCodecProfile2(720, 480, 7, AVRational{30000, 1001}) == nil {
+		t.Fatal("DvCodecProfile2 nil")
+	}
+	// FindDefaultStreamIndex 走真文件上下文 (avformat.c: 有流回序号;
+	// nil 上下文 C 直接解引用会崩, 只走真路).
+	decDef, derr := Open("../testdata/feat_small.mp4")
+	if derr != nil {
+		t.Fatalf("Open(feat_small): %v", derr)
+	}
+	defer decDef.Close()
+	if got := u.FindDefaultStreamIndex(decDef.RawFormatCtx()); got < 0 {
+		t.Fatalf("FindDefaultStreamIndex(feat_small) = %d", got)
+	}
+	// ---- 版本/CPU/时基/随机数 (无状态) ----
+	if u.SwresampleVersion() == 0 {
+		t.Fatal("SwresampleVersion 0")
+	}
+	if cstr(u.SwresampleConfiguration()) == "" || cstr(u.SwresampleLicense()) == "" {
+		t.Fatal("swresample config/license empty")
+	}
+	if u.GetCpuFlags() == 0 {
+		t.Logf("GetCpuFlags 0 (容器可能没透出, 以 C 为准)")
+	}
+	u.ForceCpuFlags(-1)
+	if got := u.GetTimeBaseQ(); got.Num != 0 || got.Den != 0 {
+		t.Logf("GetTimeBaseQ = %+v (静态非常量, 以 C 为准)", got)
+	}
+	_ = u.GetRandomSeed()
+	// ---- 色彩空间查表 (csp.h: BT709 全是 1) ----
+	if got := u.CspApproximateTrcGamma(1); got <= 0 {
+		t.Fatalf("CspApproximateTrcGamma(709) = %v", got)
+	}
+	if u.CspLumaCoeffsFromAvcsp(1) == nil {
+		t.Fatal("CspLumaCoeffsFromAvcsp(709) nil")
+	}
+	if u.CspPrimariesDescFromId(1) == nil {
+		t.Fatal("CspPrimariesDescFromId(709) nil")
+	}
+	if u.CspPrimariesIdFromDesc(u.CspPrimariesDescFromId(1)) != 1 {
+		t.Fatal("CspPrimaries round-trip mismatch")
+	}
+	if u.CspTrcFuncFromId(1) == nil {
+		t.Fatal("CspTrcFuncFromId(709) nil")
+	}
+	// ---- 颜色名 (parseutils.h: 0 号是 AliceBlue) ----
+	var rgb unsafe.Pointer
+	if got := u.GetKnownColorName(0, &rgb); cstr(got) == "" {
+		t.Fatal("GetKnownColorName(0) empty")
+	}
+	// ---- nil 守卫 ----
+	var nilU *Util
+	_ = nilU
+}

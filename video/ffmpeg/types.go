@@ -102,6 +102,15 @@ type AVRational struct {
 	Den int32
 }
 
+// AVInteger is one C AVInteger (eight uint16 limbs, 16 bytes, integer.h).
+// The C int-math family (av_add_i/av_cmp_i/...) takes and returns it
+// BY VALUE. purego walks struct fields one by one and cannot see inside
+// an array field, so the limbs are spelled out flat (L0..L7).
+type AVInteger struct {
+	L0, L1, L2, L3 uint16
+	L4, L5, L6, L7 uint16
+}
+
 // The load helpers below read C struct fields through unsafe.Add.
 // Handles stay as unsafe.Pointer end to end (purego returns them that
 // way), so go vet's unsafeptr check stays quiet: no uintptr-to-pointer

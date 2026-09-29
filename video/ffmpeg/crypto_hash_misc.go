@@ -85,16 +85,16 @@ var (
 	fAvChromaLocationFromName                 func(name string) int32
 	fAvChromaLocationName                     func(location int32) unsafe.Pointer
 	fAvChromaLocationPosToEnum                func(xpos int32, ypos int32) int32
-	fAvCmpI                                   func(a unsafe.Pointer, b unsafe.Pointer) int32
+	fAvCmpI                                   func(a AVInteger, b AVInteger) int32
 	fAvCpbPropertiesAlloc                     func(size unsafe.Pointer) unsafe.Pointer
-	fAvCrcGetTable                            func(crc_id unsafe.Pointer) unsafe.Pointer
+	fAvCrcGetTable                            func(crc_id int32) unsafe.Pointer
 	fAvCrc                                    func(ctx unsafe.Pointer, crc uint32, buf unsafe.Pointer, ln uintptr) uint32
 	fAvCrcInit                                func(ctx unsafe.Pointer, le int32, bits int32, poly uint32, ctx_size int32) int32
-	fAvCspApproximateTrcGamma                 func(trc unsafe.Pointer) float64
-	fAvCspLumaCoeffsFromAvcsp                 func(csp unsafe.Pointer) unsafe.Pointer
-	fAvCspPrimariesDescFromId                 func(prm unsafe.Pointer) unsafe.Pointer
-	fAvCspPrimariesIdFromDesc                 func(prm unsafe.Pointer) unsafe.Pointer
-	fAvCspTrcFuncFromId                       func(trc unsafe.Pointer) unsafe.Pointer
+	fAvCspApproximateTrcGamma                 func(trc int32) float64
+	fAvCspLumaCoeffsFromAvcsp                 func(csp int32) unsafe.Pointer
+	fAvCspPrimariesDescFromId                 func(prm int32) unsafe.Pointer
+	fAvCspPrimariesIdFromDesc                 func(prm unsafe.Pointer) int32
+	fAvCspTrcFuncFromId                       func(trc int32) unsafe.Pointer
 	fAvD2q                                    func(d float64, max int32) AVRational
 	fAvD3d11vaAllocContext                    func() unsafe.Pointer
 	fAvDctCalc                                func(s unsafe.Pointer, data unsafe.Pointer) unsafe.Pointer
@@ -111,13 +111,13 @@ var (
 	fAvDetectionBboxCreateSideData            func(frame unsafe.Pointer, nb_bboxes uint32) unsafe.Pointer
 	fAvDiracParseSequenceHeader               func(dsh *unsafe.Pointer, buf unsafe.Pointer, buf_size uintptr, log_ctx unsafe.Pointer) int32
 	fAvDirname                                func(path unsafe.Pointer) unsafe.Pointer
-	fAvDispositionFromString                  func(disp unsafe.Pointer) unsafe.Pointer
+	fAvDispositionFromString                  func(disp string) int32
 	fAvDispositionToString                    func(disposition int32) unsafe.Pointer
-	fAvDivI                                   func(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer
+	fAvDivI                                   func(a AVInteger, b AVInteger) AVInteger
 	fAvDivQ                                   func(b AVRational, c AVRational) AVRational
 	fAvDownmixInfoUpdateSideData              func(frame unsafe.Pointer) unsafe.Pointer
-	fAvDvCodecProfile                         func(width int32, height int32, pix_fmt unsafe.Pointer) unsafe.Pointer
-	fAvDvCodecProfile2                        func(width int32, height int32, pix_fmt unsafe.Pointer, frame_rate AVRational) unsafe.Pointer
+	fAvDvCodecProfile                         func(width int32, height int32, pix_fmt int32) unsafe.Pointer
+	fAvDvCodecProfile2                        func(width int32, height int32, pix_fmt int32, frame_rate AVRational) unsafe.Pointer
 	fAvDvFrameProfile                         func(sys unsafe.Pointer, frame unsafe.Pointer, buf_size uint32) unsafe.Pointer
 	fAvDynarray2Add                           func(tab_ptr *unsafe.Pointer, nb_ptr unsafe.Pointer, elem_size uintptr, elem_data unsafe.Pointer) unsafe.Pointer
 	fAvDynarrayAdd                            func(tab_ptr unsafe.Pointer, nb_ptr unsafe.Pointer, elem unsafe.Pointer)
@@ -169,9 +169,9 @@ var (
 	fAvGetAltSampleFmt                        func(sample_fmt int32, planar int32) int32
 	fAvGetAudioFrameDuration                  func(avctx unsafe.Pointer, frame_bytes int32) int32
 	fAvGetAudioFrameDuration2                 func(par unsafe.Pointer, frame_bytes int32) int32
-	fAvGetBitsPerSample                       func(codec_id unsafe.Pointer) int32
-	fAvGetCpuFlags                            func() unsafe.Pointer
-	fAvGetExactBitsPerSample                  func(codec_id unsafe.Pointer) int32
+	fAvGetBitsPerSample                       func(codec_id int32) int32
+	fAvGetCpuFlags                            func() int32
+	fAvGetExactBitsPerSample                  func(codec_id int32) int32
 	fAvGetFrameFilename                       func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32) int32
 	fAvGetFrameFilename2                      func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32, flags int32) unsafe.Pointer
 	fAvGetKnownColorName                      func(color_idx int32, rgb *unsafe.Pointer) unsafe.Pointer
@@ -179,11 +179,11 @@ var (
 	fAvGetOutputTimestamp                     func(s unsafe.Pointer, stream int32, dts unsafe.Pointer, wall unsafe.Pointer) int32
 	fAvGetPacket                              func(s unsafe.Pointer, pkt unsafe.Pointer, size int32) int32
 	fAvGetPaddedBitsPerPixel                  func(pixdesc unsafe.Pointer) int32
-	fAvGetPcmCodec                            func(fmt unsafe.Pointer, be int32) unsafe.Pointer
-	fAvGetPictureTypeChar                     func(pict_type unsafe.Pointer) byte
+	fAvGetPcmCodec                            func(fmt int32, be int32) unsafe.Pointer
+	fAvGetPictureTypeChar                     func(pict_type int32) byte
 	fAvGetProfileName                         func(codec unsafe.Pointer, profile int32) unsafe.Pointer
-	fAvGetRandomSeed                          func() unsafe.Pointer
-	fAvGetTimeBaseQ                           func() unsafe.Pointer
+	fAvGetRandomSeed                          func() uint32
+	fAvGetTimeBaseQ                           func() AVRational
 	fAvGetToken                               func(buf *unsafe.Pointer, term unsafe.Pointer) unsafe.Pointer
 	fAvHashAlloc                              func(ctx *unsafe.Pointer, name unsafe.Pointer) int32
 	fAvHashFinal                              func(ctx unsafe.Pointer, dst unsafe.Pointer)
@@ -222,7 +222,7 @@ var (
 	fAvHwframeMap                             func(dst unsafe.Pointer, src unsafe.Pointer, flags int32) int32
 	fAvHwframeTransferData                    func(dst unsafe.Pointer, src unsafe.Pointer, flags int32) int32
 	fAvHwframeTransferGetFormats              func(hwframe_ctx unsafe.Pointer, dir unsafe.Pointer, formats *unsafe.Pointer, flags int32) int32
-	fAvI2int                                  func(a unsafe.Pointer) int64
+	fAvI2int                                  func(a AVInteger) int64
 	fAvIamfAudioElementAddLayer               func(audio_element unsafe.Pointer) unsafe.Pointer
 	fAvIamfAudioElementAlloc                  func() unsafe.Pointer
 	fAvIamfAudioElementFree                   func(audio_element *unsafe.Pointer)
@@ -240,7 +240,7 @@ var (
 	fAvInitPacket                             func(pkt unsafe.Pointer) unsafe.Pointer
 	fAvInputAudioDeviceNext                   func(d unsafe.Pointer) unsafe.Pointer
 	fAvInputVideoDeviceNext                   func(d unsafe.Pointer) unsafe.Pointer
-	fAvInt2i                                  func(a int64) unsafe.Pointer
+	fAvInt2i                                  func(a int64) AVInteger
 	fAvIntListLengthForSize                   func(elsize uint32, list unsafe.Pointer, term uint64) uint32
 	fAvInterleavedWriteFrame                  func(s unsafe.Pointer, pkt unsafe.Pointer) int32
 	fAvInterleavedWriteUncodedFrame           func(s unsafe.Pointer, stream_index int32, frame unsafe.Pointer) int32
@@ -267,8 +267,8 @@ var (
 	fAvMediacodecDefaultInit                  func(avctx unsafe.Pointer, ctx unsafe.Pointer, surface unsafe.Pointer) int32
 	fAvMediacodecReleaseBuffer                func(buffer unsafe.Pointer, render int32) int32
 	fAvMediacodecRenderBufferAtTime           func(buffer unsafe.Pointer, time int64) int32
-	fAvModI                                   func(quot unsafe.Pointer, a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer
-	fAvMulI                                   func(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer
+	fAvModI                                   func(quot *AVInteger, a AVInteger, b AVInteger) AVInteger
+	fAvMulI                                   func(a AVInteger, b AVInteger) AVInteger
 	fAvMulQ                                   func(b AVRational, c AVRational) AVRational
 	fAvMurmur3Alloc                           func() unsafe.Pointer
 	fAvMurmur3Final                           func(c unsafe.Pointer, dst unsafe.Pointer)
@@ -323,7 +323,7 @@ var (
 	fAvShaFinal                               func(context unsafe.Pointer, digest unsafe.Pointer)
 	fAvShaInit                                func(context unsafe.Pointer, bits int32) int32
 	fAvShaUpdate                              func(ctx unsafe.Pointer, data unsafe.Pointer, len uintptr)
-	fAvShrI                                   func(a unsafe.Pointer, s int32) unsafe.Pointer
+	fAvShrI                                   func(a AVInteger, s int32) AVInteger
 	fAvSizeMult                               func(a uintptr, b uintptr, r unsafe.Pointer) int32
 	fAvSmallStrptime                          func(p unsafe.Pointer, fmt unsafe.Pointer, dt unsafe.Pointer) unsafe.Pointer
 	fAvSscanf                                 func(str unsafe.Pointer, format unsafe.Pointer) int32
@@ -347,7 +347,7 @@ var (
 	fAvStrstart                               func(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) unsafe.Pointer
 	fAvStrtod                                 func(numstr unsafe.Pointer, tail *unsafe.Pointer) float64
 	fAvStrtok                                 func(s unsafe.Pointer, delim unsafe.Pointer, saveptr *unsafe.Pointer) unsafe.Pointer
-	fAvSubI                                   func(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer
+	fAvSubI                                   func(a AVInteger, b AVInteger) AVInteger
 	fAvSubQ                                   func(b AVRational, c AVRational) AVRational
 	fAvTeaAlloc                               func() unsafe.Pointer
 	fAvTeaCrypt                               func(ctx unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
@@ -416,7 +416,7 @@ var (
 	fSwriAudioConvertFree                     func(ctx *unsafe.Pointer)
 	fSwriResampleDspInit                      func(c unsafe.Pointer)
 	fSwriResampleDspX86Init                   func(c unsafe.Pointer)
-	fAvAddI                                   func(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer
+	fAvAddI                                   func(a AVInteger, b AVInteger) AVInteger
 	fAvDynamicHdrVividAlloc                   func(size unsafe.Pointer) unsafe.Pointer
 	fAvDynamicHdrVividCreateSideData          func(frame unsafe.Pointer) unsafe.Pointer
 	fAvformatTransferInternalStreamTimingInfo func(ofmt unsafe.Pointer, ost unsafe.Pointer, ist unsafe.Pointer, copy_tb unsafe.Pointer) unsafe.Pointer
@@ -432,9 +432,9 @@ var (
 	fAvImageFillPlaneSizes                    func(size uintptr, pix_fmt unsafe.Pointer, height int32, linesizes unsafe.Pointer) int32
 	fAvImageFillPointers                      func(data unsafe.Pointer, pix_fmt unsafe.Pointer, height int32, ptr unsafe.Pointer, linesizes int32) int32
 	fAvImageGetLinesize                       func(pix_fmt unsafe.Pointer, width int32, plane int32) int32
-	fAvLog2                                   func(cb0 unsafe.Pointer) unsafe.Pointer
-	fAvLog216bit                              func(v uint32) unsafe.Pointer
-	fAvLog2I                                  func(a unsafe.Pointer) int32
+	fAvLog2                                   func(v uint32) int32
+	fAvLog216bit                              func(v uint32) int32
+	fAvLog2I                                  func(a AVInteger) int32
 	fAvParseCpuCaps                           func(flags unsafe.Pointer, s unsafe.Pointer) int32
 	fAvPixFmtCountPlanes                      func(pix_fmt int32) int32
 	fAvPixFmtGetChromaSubSample               func(pix_fmt int32, h_shift *int32, v_shift *int32) int32
@@ -1148,15 +1148,11 @@ func (self *Util) ChromaLocationPosToEnum(xpos int32, ypos int32) int32 {
 	return fAvChromaLocationPosToEnum(xpos, ypos)
 }
 
-// CmpI 比较两个整数并回 -1/0/1（对 av_cmp_i；参数 a、b；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) CmpI(a unsafe.Pointer, b unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvCmpI(a, b); ret < 0 {
-		return codeErr("av_cmp_i", ret)
-	}
-	return nil
+// CmpI compares two integers, -1/0/1 (av_cmp_i takes AVInteger BY VALUE;
+// pass Int2i(n) results, never pointers).
+func (self *Util) CmpI(a AVInteger, b AVInteger) int32 {
+	mustUse(ensureModCrypto())
+	return fAvCmpI(a, b)
 }
 
 // CpbPropertiesAlloc 码率平滑缓冲属性操作（对 av_cpb_properties_alloc；参数 size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
@@ -1165,8 +1161,8 @@ func (self *Util) CpbPropertiesAlloc(size unsafe.Pointer) unsafe.Pointer {
 	return fAvCpbPropertiesAlloc(size)
 }
 
-// CrcGetTable 取 ffmpeg 内置的标准 CRC 表，不用自己初始化（对 av_crc_get_table；参数 crc_id；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
-func (self *Crypto) CrcGetTable(crc_id unsafe.Pointer) unsafe.Pointer {
+// CrcGetTable 取 ffmpeg 内置的标准 CRC 表，不用自己初始化（对 av_crc_get_table；参数 crc_id（枚举数，如 3=AV_CRC_32_IEEE）；回静态表借用不释放；无状态调用）。
+func (self *Crypto) CrcGetTable(crc_id int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvCrcGetTable(crc_id)
 }
@@ -1196,32 +1192,32 @@ func (self *Crypto) Crc(ctx unsafe.Pointer, crc uint32, buf unsafe.Pointer, ln u
 	return fAvCrc(ctx, crc, buf, ln)
 }
 
-// CspApproximateTrcGamma 颜色空间系数查询（对 av_csp_approximate_trc_gamma；参数 trc；回浮点数；无状态，可用零值直接调）。
-func (self *Util) CspApproximateTrcGamma(trc unsafe.Pointer) float64 {
+// CspApproximateTrcGamma 颜色空间系数查询（对 av_csp_approximate_trc_gamma；参数 trc（传输特性枚举数）；回浮点数；无状态，可用零值直接调）。
+func (self *Util) CspApproximateTrcGamma(trc int32) float64 {
 	mustUse(ensureModCrypto())
 	return fAvCspApproximateTrcGamma(trc)
 }
 
-// CspLumaCoeffsFromAvcsp 颜色空间系数查询（对 av_csp_luma_coeffs_from_avcsp；参数 csp；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) CspLumaCoeffsFromAvcsp(csp unsafe.Pointer) unsafe.Pointer {
+// CspLumaCoeffsFromAvcsp 颜色空间系数查询（对 av_csp_luma_coeffs_from_avcsp；参数 csp（颜色空间枚举数）；回静态表借用不释放；无状态，可用零值直接调）。
+func (self *Util) CspLumaCoeffsFromAvcsp(csp int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvCspLumaCoeffsFromAvcsp(csp)
 }
 
-// CspPrimariesDescFromId 颜色空间系数查询（对 av_csp_primaries_desc_from_id；参数 prm；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) CspPrimariesDescFromId(prm unsafe.Pointer) unsafe.Pointer {
+// CspPrimariesDescFromId 颜色空间系数查询（对 av_csp_primaries_desc_from_id；参数 prm（色原色枚举数）；回静态表借用不释放；无状态，可用零值直接调）。
+func (self *Util) CspPrimariesDescFromId(prm int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvCspPrimariesDescFromId(prm)
 }
 
-// CspPrimariesIdFromDesc 颜色空间系数查询（对 av_csp_primaries_id_from_desc；参数 prm；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) CspPrimariesIdFromDesc(prm unsafe.Pointer) unsafe.Pointer {
+// CspPrimariesIdFromDesc 色原色描述反查枚举（对 av_csp_primaries_id_from_desc；参数 prm（描述表指针）；回枚举数，对不上回 0（UNSPECIFIED）；无状态，可用零值直接调）。
+func (self *Util) CspPrimariesIdFromDesc(prm unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
 	return fAvCspPrimariesIdFromDesc(prm)
 }
 
-// CspTrcFuncFromId 颜色空间系数查询（对 av_csp_trc_func_from_id；参数 trc；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) CspTrcFuncFromId(trc unsafe.Pointer) unsafe.Pointer {
+// CspTrcFuncFromId 颜色空间系数查询（对 av_csp_trc_func_from_id；参数 trc（传输特性枚举数）；回静态函数指针不释放；无状态，可用零值直接调）。
+func (self *Util) CspTrcFuncFromId(trc int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvCspTrcFuncFromId(trc)
 }
@@ -1332,8 +1328,8 @@ func (self *Util) Dirname(path unsafe.Pointer) unsafe.Pointer {
 	return fAvDirname(path)
 }
 
-// DispositionFromString 把用途字符串换成用途掩码（对 av_disposition_from_string；参数 disp；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) DispositionFromString(disp unsafe.Pointer) unsafe.Pointer {
+// DispositionFromString 把用途字符串换成用途掩码（对 av_disposition_from_string；参数 disp（如 "default"）；回掩码数，对不上回负错码；无状态，可用零值直接调）。
+func (self *Util) DispositionFromString(disp string) int32 {
 	mustUse(ensureModCrypto())
 	return fAvDispositionFromString(disp)
 }
@@ -1344,8 +1340,8 @@ func (self *Util) DispositionToString(disposition int32) unsafe.Pointer {
 	return fAvDispositionToString(disposition)
 }
 
-// DivI 整数相除，回商和余数结构体（对 av_div_i；参数 a、b；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) DivI(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer {
+// DivI divides two integers by value (av_div_i takes AVInteger BY VALUE).
+func (self *Util) DivI(a AVInteger, b AVInteger) AVInteger {
 	mustUse(ensureModCrypto())
 	return fAvDivI(a, b)
 }
@@ -1362,14 +1358,14 @@ func (self *Util) DownmixInfoUpdateSideData(frame unsafe.Pointer) unsafe.Pointer
 	return fAvDownmixInfoUpdateSideData(frame)
 }
 
-// DvCodecProfile DV 格式描述查询（对 av_dv_codec_profile；参数 width、height、pix_fmt；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) DvCodecProfile(width int32, height int32, pix_fmt unsafe.Pointer) unsafe.Pointer {
+// DvCodecProfile DV 格式描述查询（对 av_dv_codec_profile；参数 width、height、pix_fmt（像素枚举数）；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+func (self *Util) DvCodecProfile(width int32, height int32, pix_fmt int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDvCodecProfile(width, height, pix_fmt)
 }
 
-// DvCodecProfile2 DV 格式描述查询（对 av_dv_codec_profile2；参数 width、height、pix_fmt、frame_rate；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) DvCodecProfile2(width int32, height int32, pix_fmt unsafe.Pointer, frame_rate AVRational) unsafe.Pointer {
+// DvCodecProfile2 DV 格式描述查询（对 av_dv_codec_profile2；参数 width、height、pix_fmt（像素枚举数）、frame_rate；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+func (self *Util) DvCodecProfile2(width int32, height int32, pix_fmt int32, frame_rate AVRational) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDvCodecProfile2(width, height, pix_fmt, frame_rate)
 }
@@ -1616,15 +1612,10 @@ func (self *Prober) FindBestPixFmtOf2(dst_pix_fmt1 int32, dst_pix_fmt2 int32, sr
 	return fAvFindBestPixFmtOf2(dst_pix_fmt1, dst_pix_fmt2, src_pix_fmt, has_alpha, loss_ptr)
 }
 
-// FindDefaultStreamIndex 找默认播的那条流序号（对 av_find_default_stream_index；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) FindDefaultStreamIndex(s unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvFindDefaultStreamIndex(s); ret < 0 {
-		return codeErr("av_find_default_stream_index", ret)
-	}
-	return nil
+// FindDefaultStreamIndex 找默认播的那条流序号（对 av_find_default_stream_index；参数 s（格式上下文）；回流序号，无流回 -1；nil 上下文会崩，传真对象）.
+func (self *Util) FindDefaultStreamIndex(s unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvFindDefaultStreamIndex(s)
 }
 
 // FindInfoTag 在信息串里按标签取值（对 av_find_info_tag；参数 arg、arg_size、tag1、info；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
@@ -1644,15 +1635,11 @@ func (self *Prober) FindInputFormat(short_name unsafe.Pointer) unsafe.Pointer {
 	return fAvFindInputFormat(short_name)
 }
 
-// FindNearestQIdx 在分数量表里找最接近的那档（对 av_find_nearest_q_idx；参数 q、q_list；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) FindNearestQIdx(q AVRational, q_list unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvFindNearestQIdx(q, q_list); ret < 0 {
-		return codeErr("av_find_nearest_q_idx", ret)
-	}
-	return nil
+// FindNearestQIdx returns the index of the table entry nearest to q
+// (av_find_nearest_q_idx returns an index; q_list ends with a zero-den entry).
+func (self *Util) FindNearestQIdx(q AVRational, q_list unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvFindNearestQIdx(q, q_list)
 }
 
 // FindProgramFromStream 按流序号找它属于哪个节目（对 av_find_program_from_stream；参数 ic、last、s；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
@@ -1715,20 +1702,20 @@ func (self *Samples) GetAudioFrameDuration2(par unsafe.Pointer, frame_bytes int3
 	return fAvGetAudioFrameDuration2(par, frame_bytes)
 }
 
-// GetBitsPerSample 问采样格式每个采样占几位（对 av_get_bits_per_sample；参数 codec_id；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) GetBitsPerSample(codec_id unsafe.Pointer) int32 {
+// GetBitsPerSample 问编码每采样占几位（对 av_get_bits_per_sample；参数 codec_id（编码枚举数）；回位数；无状态，可用零值直接调）。
+func (self *Util) GetBitsPerSample(codec_id int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvGetBitsPerSample(codec_id)
 }
 
-// GetCpuFlags 问 CPU 支持哪些指令集（对 av_get_cpu_flags；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) GetCpuFlags() unsafe.Pointer {
+// GetCpuFlags 问 CPU 支持哪些指令集（对 av_get_cpu_flags；无参数；回标志位掩码；无状态，可用零值直接调）。
+func (self *Util) GetCpuFlags() int32 {
 	mustUse(ensureModCrypto())
 	return fAvGetCpuFlags()
 }
 
-// GetExactBitsPerSample 问编码每采样精确占几位（对 av_get_exact_bits_per_sample；参数 codec_id；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) GetExactBitsPerSample(codec_id unsafe.Pointer) int32 {
+// GetExactBitsPerSample 问编码每采样精确占几位（对 av_get_exact_bits_per_sample；参数 codec_id（编码枚举数）；回位数；无状态，可用零值直接调）。
+func (self *Util) GetExactBitsPerSample(codec_id int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvGetExactBitsPerSample(codec_id)
 }
@@ -1775,14 +1762,14 @@ func (self *Util) GetPaddedBitsPerPixel(pixdesc unsafe.Pointer) int32 {
 	return fAvGetPaddedBitsPerPixel(pixdesc)
 }
 
-// GetPcmCodec 按采样格式位宽端序找对应 PCM 编码（对 av_get_pcm_codec；参数 fmt、be；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) GetPcmCodec(fmt unsafe.Pointer, be int32) unsafe.Pointer {
+// GetPcmCodec 按采样格式位宽端序找对应 PCM 编码（对 av_get_pcm_codec；参数 fmt（采样枚举数）、be；回编码指针，失败回 nil；无状态，可用零值直接调）。
+func (self *Util) GetPcmCodec(fmt int32, be int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvGetPcmCodec(fmt, be)
 }
 
-// GetPictureTypeChar 把图像类型换成单字母（I/P/B）（对 av_get_picture_type_char；参数 pict_type；按签名取回值；无状态，可用零值直接调）。
-func (self *Util) GetPictureTypeChar(pict_type unsafe.Pointer) byte {
+// GetPictureTypeChar 把图像类型换成单字母（I/P/B）（对 av_get_picture_type_char；参数 pict_type（图像类型枚举数）；回单字母；无状态，可用零值直接调）。
+func (self *Util) GetPictureTypeChar(pict_type int32) byte {
 	mustUse(ensureModCrypto())
 	return fAvGetPictureTypeChar(pict_type)
 }
@@ -1793,14 +1780,14 @@ func (self *Util) GetProfileName(codec unsafe.Pointer, profile int32) unsafe.Poi
 	return fAvGetProfileName(codec, profile)
 }
 
-// GetRandomSeed 取随机种子（对 av_get_random_seed；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) GetRandomSeed() unsafe.Pointer {
+// GetRandomSeed 取随机种子（对 av_get_random_seed；无参数；回 uint32 种子；无状态，可用零值直接调）。
+func (self *Util) GetRandomSeed() uint32 {
 	mustUse(ensureModCrypto())
 	return fAvGetRandomSeed()
 }
 
-// GetTimeBaseQ 问编码对应的时基分数（对 av_get_time_base_q；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) GetTimeBaseQ() unsafe.Pointer {
+// GetTimeBaseQ 问编码对应的时基分数（对 av_get_time_base_q；无参数；回分数值；无状态，可用零值直接调）。
+func (self *Util) GetTimeBaseQ() AVRational {
 	mustUse(ensureModCrypto())
 	return fAvGetTimeBaseQ()
 }
@@ -2089,7 +2076,7 @@ func (self *HWDevice) HwframeTransferGetFormats(hwframe_ctx unsafe.Pointer, dir 
 }
 
 // I2int 把整数换成内部 int 表示（对 av_i2int；参数 a；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) I2int(a unsafe.Pointer) int64 {
+func (self *Util) I2int(a AVInteger) int64 {
 	mustUse(ensureModCrypto())
 	return fAvI2int(a)
 }
@@ -2197,7 +2184,7 @@ func (self *Util) InputVideoDeviceNext(d unsafe.Pointer) unsafe.Pointer {
 }
 
 // Int2i 把内部 int 表示换回整数（对 av_int2i；参数 a；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Int2i(a int64) unsafe.Pointer {
+func (self *Util) Int2i(a int64) AVInteger {
 	mustUse(ensureModCrypto())
 	return fAvInt2i(a)
 }
@@ -2397,14 +2384,15 @@ func (self *HWDevice) MediacodecRenderBufferAtTime(buffer unsafe.Pointer, time i
 	return nil
 }
 
-// ModI 整数取模（对 av_mod_i；参数 quot、a、b；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) ModI(quot unsafe.Pointer, a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer {
+// ModI divides and writes the quotient through quot (av_mod_i takes
+// AVInteger BY VALUE and returns the remainder BY VALUE).
+func (self *Util) ModI(quot *AVInteger, a AVInteger, b AVInteger) AVInteger {
 	mustUse(ensureModCrypto())
 	return fAvModI(quot, a, b)
 }
 
-// MulI 整数相乘（对 av_mul_i；参数 a、b；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) MulI(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer {
+// MulI multiplies two integers by value (av_mul_i takes AVInteger BY VALUE).
+func (self *Util) MulI(a AVInteger, b AVInteger) AVInteger {
 	mustUse(ensureModCrypto())
 	return fAvMulI(a, b)
 }
@@ -2451,15 +2439,11 @@ func (self *Util) MuxerIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 	return fAvMuxerIterate(opaque)
 }
 
-// NearerQ 在两个分数里挑离目标近的（对 av_nearer_q；参数 q、q1、q2；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) NearerQ(q AVRational, q1 AVRational, q2 AVRational) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvNearerQ(q, q1, q2); ret < 0 {
-		return codeErr("av_nearer_q", ret)
-	}
-	return nil
+// NearerQ picks the nearer of q1/q2 to q: >0 means q1 wins, <0 means q2
+// wins (av_nearer_q returns a comparison, never an error).
+func (self *Util) NearerQ(q AVRational, q1 AVRational, q2 AVRational) int32 {
+	mustUse(ensureModCrypto())
+	return fAvNearerQ(q, q1, q2)
 }
 
 // NewProgram 在盒子里新建一个节目（对 av_new_program；参数 s、id；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
@@ -2824,7 +2808,7 @@ func (self *Crypto) ShaUpdate(ctx unsafe.Pointer, data unsafe.Pointer, len uintp
 }
 
 // ShrI 整数右移（对 av_shr_i；参数 a、s；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) ShrI(a unsafe.Pointer, s int32) unsafe.Pointer {
+func (self *Util) ShrI(a AVInteger, s int32) AVInteger {
 	mustUse(ensureModCrypto())
 	return fAvShrI(a, s)
 }
@@ -3001,7 +2985,7 @@ func (self *Util) Strtok(s unsafe.Pointer, delim unsafe.Pointer, saveptr *unsafe
 }
 
 // SubI 整数相减（对 av_sub_i；参数 a、b；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) SubI(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer {
+func (self *Util) SubI(a AVInteger, b AVInteger) AVInteger {
 	mustUse(ensureModCrypto())
 	return fAvSubI(a, b)
 }
@@ -3489,8 +3473,8 @@ func (self *Util) SwriResampleDspX86Init(c unsafe.Pointer) {
 	fSwriResampleDspX86Init(c)
 }
 
-// AddI 整数相加（对 av_add_i；参数 a、b；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) AddI(a unsafe.Pointer, b unsafe.Pointer) unsafe.Pointer {
+// AddI adds two integers by value (av_add_i takes AVInteger BY VALUE).
+func (self *Util) AddI(a AVInteger, b AVInteger) AVInteger {
 	mustUse(ensureModCrypto())
 	return fAvAddI(a, b)
 }
@@ -3610,27 +3594,22 @@ func (self *Util) ImageGetLinesize(pix_fmt unsafe.Pointer, width int32, plane in
 	return fAvImageGetLinesize(pix_fmt, width, plane)
 }
 
-// Log2 算以 2 为底的对数（对 av_log2；参数 cb0；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Log2(cb0 unsafe.Pointer) unsafe.Pointer {
+// Log2 is floor(log2(v)) (av_log2 is a macro/inline over an unsigned int).
+func (self *Util) Log2(v uint32) int32 {
 	mustUse(ensureModCrypto())
-	return fAvLog2(cb0)
+	return fAvLog2(v)
 }
 
-// Log216bit 算以 2 为底的对数（对 av_log2_16bit；参数 v；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Log216bit(v uint32) unsafe.Pointer {
+// Log216bit is floor(log2(v)) for 16-bit values (av_log2_16bit).
+func (self *Util) Log216bit(v uint32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvLog216bit(v)
 }
 
-// Log2I 算以 2 为底的对数（对 av_log2_i；参数 a；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) Log2I(a unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvLog2I(a); ret < 0 {
-		return codeErr("av_log2_i", ret)
-	}
-	return nil
+// Log2I is floor(log2(a)) for big integers (av_log2_i takes AVInteger BY VALUE).
+func (self *Util) Log2I(a AVInteger) int32 {
+	mustUse(ensureModCrypto())
+	return fAvLog2I(a)
 }
 
 // ParseCpuCaps 解析 CPU 特性字符串（对 av_parse_cpu_caps；参数 flags、s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
