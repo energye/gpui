@@ -378,13 +378,15 @@ func (i *Instance) Release() {
 	i.devCtxs = nil
 }
 
-// RequestAdapter honors PowerPreference (P2-2, same knob as WebGPU):
+// RequestAdapter honors PowerPreference (same knob as WebGPU):
 // HighPerformance → NVIDIA device, LowPower → Mesa hardware device,
-// ForceFallbackAdapter → software device, None → live default-display
-// adapter (existing behavior). Surface hints win over everything (the
-// window's display decides the GPU). Each family is strict: no usable
-// device is an error, and the render-layer presentLevels chain tries the
-// next family — selection never silently substitutes across families.
+// ForceFallbackAdapter → software device, None → the live default-display
+// adapter (the screen's own GPU: zero-copy, no app-level transfer).
+// Surface hints win over everything (the window's display decides the GPU).
+// A family pick that cannot serve a window surface warns and falls back to
+// the live screen adapter so the window still lights; the log names the
+// final adapter (no silent substitution). Cross-family ordering stays in
+// render (presentLevels).
 func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
 	var hint hal.Surface
 	pref := gputypes.PowerPreferenceNone
@@ -400,17 +402,32 @@ func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter,
 	if fallback {
 		return i.materializeDeviceAdapter(familySoftware)
 	}
+	// requestFamilyWithScreenFallback tries one family and, on failure,
+	// warns and falls back to the live screen adapter so the window still
+	// lights. The log names the final adapter (no silent substitution).
+	requestFamilyWithScreenFallback := func(want deviceFamily) (hal.Adapter, error) {
+		if live := i.liveAdapterIf(want); live != nil {
+			return live.Adapter, nil
+		}
+		a, err := i.materializeDeviceAdapter(want)
+		if err == nil {
+			return a, nil
+		}
+		screen := i.EnumerateAdapters(hint)
+		if len(screen) > 0 {
+			first := screen[0]
+			hal.Logger().Warn("gles: requested GPU family unavailable, falling back to screen adapter",
+				"want", want.String(), "err", err.Error(),
+				"fallback", first.Info.Name, "type", first.Info.DeviceType.String())
+			return first.Adapter, nil
+		}
+		return nil, err
+	}
 	switch pref {
 	case gputypes.PowerPreferenceHighPerformance:
-		if live := i.liveAdapterIf(familyNVIDIA); live != nil {
-			return live.Adapter, nil
-		}
-		return i.materializeDeviceAdapter(familyNVIDIA)
+		return requestFamilyWithScreenFallback(familyNVIDIA)
 	case gputypes.PowerPreferenceLowPower:
-		if live := i.liveAdapterIf(familyMesaHW); live != nil {
-			return live.Adapter, nil
-		}
-		return i.materializeDeviceAdapter(familyMesaHW)
+		return requestFamilyWithScreenFallback(familyMesaHW)
 	default:
 		adapters := i.EnumerateAdapters(hint)
 		if len(adapters) == 0 {
