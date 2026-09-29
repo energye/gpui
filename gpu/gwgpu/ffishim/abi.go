@@ -211,6 +211,36 @@ func makeABIInvoker(key string, fn unsafe.Pointer) (func([]unsafe.Pointer, unsaf
 			runtime.KeepAlive(a)
 			return nil
 		}, nil
+	// -- EGL device enumeration (int/pointer-only, but routed here
+	// deliberately): libglvnd dispatch for eglQueryDevicesEXT answers
+	// through the RegisterFunc trampoline (ok=1) while the same bytes
+	// through the SyscallN/cgocall path come back EGL_FALSE or fault —
+	// verified 2026-09 on NVIDIA 580 + Mesa 25 (suspected al/XMM-state
+	// sensitivity in loader dispatch forwarding; normal callees ignore
+	// it, dispatch forwarders apparently do not). Callers must use
+	// CallTrampoline, never CallFunction, for these two shapes.
+	case "u|uPP": // EGLBoolean (u32, ptr, ptr): eglQueryDevicesEXT
+		var f func(uint32, uintptr, uintptr) uint32
+		purego.RegisterFunc(&f, uintptr(fn))
+		return func(a []unsafe.Pointer, r unsafe.Pointer) error {
+			v := f(rdU32(a[0]), rdPtr(a[1]), rdPtr(a[2]))
+			if r != nil {
+				*(*uint32)(r) = v
+			}
+			runtime.KeepAlive(a)
+			return nil
+		}, nil
+	case "P|Pu": // const char * (device, u32): eglQueryDeviceStringEXT
+		var f func(uintptr, uint32) uintptr
+		purego.RegisterFunc(&f, uintptr(fn))
+		return func(a []unsafe.Pointer, r unsafe.Pointer) error {
+			v := f(rdPtr(a[0]), rdU32(a[1]))
+			if r != nil {
+				wrPtr(r, v)
+			}
+			runtime.KeepAlive(a)
+			return nil
+		}, nil
 	// -- Metal scalar-float signatures (all void) --
 	case "V|PPD": // setClearDepth:
 		var f func(uintptr, uintptr, float64)

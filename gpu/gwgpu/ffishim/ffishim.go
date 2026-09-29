@@ -140,6 +140,31 @@ func PrepareCallInterface(
 	return nil
 }
 
+// CallTrampoline invokes fn through the cached RegisterFunc trampoline
+// for its exact signature (see abi.go), bypassing the SyscallN/cgocall
+// path. Argument and return conventions match CallFunction (avalue
+// elements point at argument values, rvalue at the return buffer).
+// Use it only for signatures with a trampoline case in abi.go whose
+// callee is verified sensitive to the SyscallN path state
+// (EGL device dispatch); anything else errors loudly like callABI.
+func CallTrampoline(
+	cif *CallInterface,
+	fn unsafe.Pointer,
+	rvalue unsafe.Pointer,
+	avalue []unsafe.Pointer,
+) error {
+	if cif == nil {
+		return fmt.Errorf("ffishim: cif must not be nil")
+	}
+	if fn == nil {
+		return fmt.Errorf("ffishim: fn must not be nil")
+	}
+	if len(avalue) != len(cif.ArgTypes) {
+		return fmt.Errorf("ffishim: got %d args, signature wants %d", len(avalue), len(cif.ArgTypes))
+	}
+	return callABI(cif, fn, rvalue, avalue)
+}
+
 // CallFunction invokes fn with the prepared signature. Each avalue element
 // is a pointer to the argument value; rvalue points at the return buffer
 // (nil for void). Returns the C errno (always 0 here) and error.
