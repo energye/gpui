@@ -663,6 +663,381 @@ t.Fatal("nil IOContext not safe")
 nilIO.Flush()
 }
 
+// TestWrapCoverCodec fills the codec_encode module gap: descriptor/name/type
+// tables, tag maps, buffer negotiation helpers, parser/BSF lifecycles, real
+// open-decode-flush on feat_small.mp4 via Open. C 头核过: 描述表越界回 nil;
+// GetId(nil 标签表)直接回 NONE; 错位/丢值 10 处已修 (见 codec_encode.go).
+// 推包前 Open 先把盒子握在手里, 不用裸 ctx 撞空指针.
+func TestWrapCoverCodec(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var cc Codec
+var mem Mem
+// ---- 描述/名字/类型表 (codec_desc.h/codec_id.h, 纯查表) ----
+if cc.AvcodecDescriptorGet(27) == nil {
+t.Fatal("AvcodecDescriptorGet(H264) nil")
+}
+if cc.AvcodecDescriptorGet(-999) != nil {
+t.Fatal("AvcodecDescriptorGet(-999) non-nil")
+}
+h264Desc, freeH264Desc := featCStr("h264")
+defer freeH264Desc()
+if cc.AvcodecDescriptorGetByName(h264Desc) == nil {
+t.Fatal("AvcodecDescriptorGetByName(h264) nil")
+}
+bogusDesc, freeBogusDesc := featCStr("no-such-codec-xyz")
+defer freeBogusDesc()
+if cc.AvcodecDescriptorGetByName(bogusDesc) != nil {
+t.Fatal("AvcodecDescriptorGetByName(bogus) non-nil")
+}
+if cc.AvcodecDescriptorNext(nil) == nil {
+t.Fatal("AvcodecDescriptorNext(nil) nil (want first)")
+}
+if got := CodecName(27); got != "h264" {
+t.Fatalf("CodecName(27) = %q, want h264", got)
+}
+if got := CodecName(-999); got != "unknown_codec" {
+t.Fatalf("CodecName(-999) = %q, want unknown_codec", got)
+}
+if got := CodecType(27); got != 0 {
+t.Fatalf("CodecType(H264) = %d, want 0 (video)", got)
+}
+if cc.AvcodecProfileName(27, 77) != nil {
+t.Logf("AvcodecProfileName(H264,77) non-nil (本机构了描述表)")
+}
+if cc.AvcodecProfileName(27, -999) != nil {
+t.Fatal("AvcodecProfileName(bogus profile) non-nil")
+}
+if cc.AvcodecProfileName(-999, 100) != nil {
+t.Fatal("AvcodecProfileName(bogus id) non-nil")
+}
+// ---- 标签表 (utils.c: nil 表直接回 NONE/0, 不崩) ----
+if got := cc.CodecGetId(nil, 0x31637661); got != 0 {
+t.Fatalf("CodecGetId(nil) = %d, want 0 (NONE)", got)
+}
+if got := cc.CodecGetTag(nil, 27); got != 0 {
+t.Fatalf("CodecGetTag(nil) = %d, want 0", got)
+}
+var tagSlot uint32
+if got := cc.CodecGetTag2(nil, 27, &tagSlot); got != 0 {
+t.Fatalf("CodecGetTag2(nil) = %d, want 0", got)
+}
+// ---- 配置/许可证/版本串 (纯元数据) ----
+if cstr(cc.AvcodecConfiguration()) == "" {
+t.Fatal("AvcodecConfiguration empty")
+}
+if cstr(cc.AvcodecLicense()) == "" {
+t.Fatal("AvcodecLicense empty")
+}
+if got := cc.AvcodecVersion(); got>>16 != 61 {
+t.Fatalf("AvcodecVersion = %#x, want major 61 (7.x)", got)
+}
+if cc.AvcodecGetClass() == nil {
+t.Fatal("AvcodecGetClass nil")
+}
+if cc.AvcodecGetSubtitleRectClass() == nil {
+t.Fatal("AvcodecGetSubtitleRectClass nil")
+}
+var bsfProbe BitStreamFilter
+if bsfProbe.BsfGetClass() == nil {
+t.Fatal("BsfGetClass nil")
+}
+if cc.AvcodecDctGetClass() == nil {
+t.Fatal("AvcodecDctGetClass nil")
+}
+if cc.AvcodecDctAlloc() == nil {
+t.Fatal("AvcodecDctAlloc nil")
+} else {
+mem.Free(cc.AvcodecDctAlloc())
+}
+dctCtx := cc.AvcodecDctAlloc()
+if dctCtx == nil {
+t.Fatal("AvcodecDctAlloc nil (init)")
+}
+defer mem.Free(dctCtx)
+if err := cc.AvcodecDctInit(dctCtx); err != nil {
+t.Fatalf("AvcodecDctInit(fresh): %v", err)
+}
+// ---- 解析器/BSF 生命周期 (野名字诚实回 nil) ----
+h264Par := NewParser(27)
+if h264Par == nil {
+t.Fatal("NewParser(H264) nil")
+}
+defer h264Par.Close()
+if NewParser(-999) != nil {
+t.Fatal("NewParser(-999) non-nil")
+}
+if IterateParsers() == nil {
+t.Fatal("IterateParsers empty")
+}
+if IterateAll() == nil {
+t.Fatal("IterateAll empty")
+}
+if FindDecoder(27) == nil {
+t.Fatal("FindDecoder(H264) nil")
+}
+if FindDecoder(-999) != nil {
+t.Fatal("FindDecoder(-999) non-nil")
+}
+if FindDecoderByName("h264") == nil {
+t.Fatal("FindDecoderByName(h264) nil")
+}
+if FindDecoderByName("no-such-decoder-xyz") != nil {
+t.Fatal("FindDecoderByName(bogus) non-nil")
+}
+mpeg4Codec := FindDecoderByName("mpeg4")
+if mpeg4Codec == nil {
+t.Fatal("mpeg4 codec nil")
+}
+if !mpeg4Codec.IsDecoder() || mpeg4Codec.IsEncoder() {
+t.Fatal("mpeg4 IsDecoder/IsEncoder wrong")
+}
+if got := mpeg4Codec.AvcodecGetHwConfig(mpeg4Codec.Ptr(), 999); got != nil {
+t.Fatal("GetHwConfig(999) non-nil")
+}
+if FindEncoderByName("no-such-encoder-xyz") != nil {
+t.Fatal("FindEncoderByName(bogus) non-nil")
+}
+if FindEncoder(27) != nil {
+t.Logf("FindEncoder(H264) non-nil (本机构了 H264 编码, 以 C 为准)")
+}
+bsfNull := NewBitStreamFilter("null")
+if bsfNull == nil {
+t.Fatal("NewBitStreamFilter(null) nil")
+}
+defer bsfNull.Free()
+if NewBitStreamFilter("no-such-bsf-xyz") != nil {
+t.Fatal("NewBitStreamFilter(bogus) non-nil")
+}
+var nullSlot unsafe.Pointer
+if bsfProbe.BsfGetNullFilter(&nullSlot) != 0 {
+t.Fatal("BsfGetNullFilter failed")
+}
+var bsfOpaque unsafe.Pointer
+if bsfProbe.BsfIterate(&bsfOpaque) == nil {
+t.Fatal("BsfIterate first nil")
+}
+// ---- 对齐/格式协商小工具 (AvcodecDefaultGetFormat/FindBestPixFmtOfList
+// 都要真 ctx/真数组, 空指针会崩, 这里先验纯查表的 Tag) ----
+if got := cc.AvcodecPixFmtToCodecTag(0); got == 0 {
+t.Fatal("AvcodecPixFmtToCodecTag(yuv420p) zero")
+}
+pixList := []int32{0, -1}
+var pixLoss int32
+if got := cc.AvcodecFindBestPixFmtOfList(unsafe.Pointer(&pixList[0]), 0, 0, &pixLoss); got != 0 {
+t.Fatalf("AvcodecFindBestPixFmtOfList([yuv420p]) = %d, want 0", got)
+}
+// ---- 真开真解: feat_small.mp4 开盒灌参开解码, 送包收帧走 EAGAIN 循环 ----
+dec, err := Open("../testdata/feat_small.mp4")
+if err != nil {
+t.Fatalf("Open(feat_small): %v", err)
+}
+defer dec.Close()
+if !dec.IsOpen() {
+t.Fatal("IsOpen false after Open")
+}
+if dec.CodecID() != 12 {
+t.Fatalf("CodecID = %d, want 12 (MPEG4, feat_small 测得)", dec.CodecID())
+}
+par := NewCodecParameters()
+if par == nil {
+t.Fatal("NewCodecParameters nil")
+}
+defer par.Free()
+if err := par.FromContext(dec.CodecCtx()); err != nil {
+t.Fatalf("FromContext: %v", err)
+}
+fresh := FindDecoderByName("mpeg4")
+if fresh == nil {
+t.Fatal("fresh mpeg4 nil")
+}
+freshCtx := fresh.AllocContext()
+if freshCtx == nil {
+t.Fatal("AllocContext nil")
+}
+defer freshCtx.FreeContext()
+if err := par.ToContext(freshCtx); err != nil {
+t.Fatalf("ToContext: %v", err)
+}
+if err := freshCtx.Open(fresh, nil); err != nil {
+t.Fatalf("Open(fresh mpeg4): %v", err)
+}
+if !freshCtx.IsOpen() {
+t.Fatal("fresh IsOpen false")
+}
+par2 := NewCodecParameters()
+if par2 == nil {
+t.Fatal("NewCodecParameters2 nil")
+}
+defer par2.Free()
+if err := par2.Copy(par); err != nil {
+t.Fatalf("Copy: %v", err)
+}
+var w, h int32 = 320, 240
+fresh.AvcodecAlignDimensions(freshCtx.Ptr(), &w, &h)
+if w <= 0 || h <= 0 {
+t.Fatalf("AlignDimensions = %dx%d", w, h)
+}
+// 同一个 ctx 开过就别二次 Open (avcodec_open2 内部状态机, 二次开直接崩;
+// 二次开的路 L3 的 Open 包了, 这里直接刷缓冲继续).
+freshCtx.FlushBuffers()
+// AlignDimensions2 要 8 个 int 的对齐数组 (C 直接写 linesize_align[0..3],
+// 传 nil 会崩; 旧注释说 nil 用默认是错的, 已改注释).
+alignArr := mem.Alloc(32)
+if alignArr == nil {
+t.Fatal("align array nil")
+}
+defer mem.Free(alignArr)
+fresh.AvcodecAlignDimensions2(freshCtx.Ptr(), &w, &h, alignArr)
+// GetSupportedConfig 要 out_configs/out_num_configs 指 texture，nil 会崩；
+// config 传 nil 等于 0(像素格式), mpeg4 没配这项回 0 但 out 空 (以 C 为准,
+// 只验不崩); 传 2(采样率, 视频编码不支持)诚实回 -22.
+var supConfigs unsafe.Pointer
+var supNum int32
+var cfgSampleRate int32 = 2
+if got := fresh.AvcodecGetSupportedConfig(freshCtx.Ptr(), fresh.Ptr(), unsafe.Pointer(&cfgSampleRate), 0, &supConfigs, unsafe.Pointer(&supNum)); got != -22 {
+t.Fatalf("GetSupportedConfig(samplerate on video) = %d, want -22 (EINVAL)", got)
+}
+hwFmt, freeHwFmt := featCStr("cuda")
+defer freeHwFmt()
+_ = hwFmt
+if got := fresh.AvcodecGetHwConfig(fresh.Ptr(), 999); got != nil {
+t.Fatal("GetHwConfig(999) non-nil")
+}
+pkt := NewPacket()
+if pkt == nil {
+t.Fatal("NewPacket nil")
+}
+defer pkt.Free()
+fr := NewFrame()
+if fr == nil {
+t.Fatal("NewFrame nil")
+}
+defer fr.Free()
+if err := freshCtx.SendPacket(nil); err != nil {
+t.Logf("SendPacket(nil flush) honest: %v", err)
+}
+// ---- DCT/执行器/缓冲协商走野路 (DefaultGetBuffer2/EncodeBuffer 要真
+// ctx+真帧/真包, 空指针会崩; 这里只验 DCT/执行器两条, 缓冲协商真值走
+// 上面的 GetBuffer(32) 和 L3 解码路; DctInit 要真 DCT 上下文, 传 nil 会崩,
+// 上面 dctCtx 那块已验过, 这里不再调).
+if err := cc.AvcodecDefaultExecute(nil, nil, nil, nil, 0, 0); err != nil {
+t.Fatalf("AvcodecDefaultExecute(zeros): %v", err)
+}
+if err := cc.AvcodecDefaultExecute2(nil, nil, nil, nil, 0); err != nil {
+t.Fatalf("AvcodecDefaultExecute2(zeros): %v", err)
+}
+audioFr := NewFrame()
+if audioFr == nil {
+t.Fatal("NewFrame(audio) nil")
+}
+defer audioFr.Free()
+// FillAudioFrame 要 2ch/s16/1024 采样配 8KB 真缓冲 (C 先拿采样数算
+// 需要大小, 缓冲不够大直接回 EINVAL; nb_samples 先写进帧里).
+*(*int32)(unsafe.Add(audioFr.Ptr(), frameNbSamples)) = 1024
+audioBuf := mem.Alloc(8192)
+if audioBuf == nil {
+t.Fatal("audio buf nil")
+}
+defer mem.Free(audioBuf)
+if cc.AvcodecFillAudioFrame(audioFr.Ptr(), 2, 1, audioBuf, 8192, 0) == nil {
+t.Fatal("FillAudioFrame(2ch,s16,8K) nil")
+}
+subBuf := mem.Alloc(64)
+if subBuf == nil {
+t.Fatal("subtitle buf nil")
+}
+defer mem.Free(subBuf)
+// EncodeSubtitle/DecodeSubtitle2 空 ctx 会崩 (C 直接解 codec/status),
+// 只验 SubtitleFree(nil) 不崩; 字幕真路走 L3 的 TestFeatSubtitles.
+var nilSub unsafe.Pointer
+cc.SubtitleFree(nilSub)
+cc.SubtitleFree(nil)
+// ---- 剩下 10 个都在真 ctx 上补 (C 直接解, 传 nil 会崩) ----
+strOut := mem.Alloc(256)
+if strOut == nil {
+t.Fatal("avcodec_string buf nil")
+}
+defer mem.Free(strOut)
+cc.AvcodecString(strOut, 256, freshCtx.Ptr(), 0)
+if cstr(strOut) == "" {
+t.Fatal("AvcodecString empty")
+}
+// 剩 9 个走真 ctx/真包真帧补: 9 个 C 全直接解, 传 nil 会崩, 不走野路.
+// AvcodecDefaultGetFormat 要真像素格式数组 (C 直接读 fmt[0], 传 nil 会崩),
+// 这里给 [yuv420p + NONE 结尾] 两格, MPEG4 回 yuv420p(0).
+fmtChoices := mem.Alloc(8)
+if fmtChoices == nil {
+t.Fatal("pixfmt choices nil")
+}
+defer mem.Free(fmtChoices)
+*(*int32)(fmtChoices) = 0
+*(*int32)(unsafe.Add(fmtChoices, 4)) = -1
+if got := cc.AvcodecDefaultGetFormat(freshCtx.Ptr(), fmtChoices); got != 0 {
+t.Fatalf("AvcodecDefaultGetFormat([yuv420p]) = %d, want 0", got)
+}
+if got := cc.AvcodecDefaultGetBuffer2(freshCtx.Ptr(), fr.Ptr(), 0); got != 0 {
+t.Logf("AvcodecDefaultGetBuffer2(bare frame) = %d (要宽高格式先配好才给缓冲, 以 C 为准)", got)
+}
+if got := cc.AvcodecDefaultGetEncodeBuffer(freshCtx.Ptr(), pkt.Ptr(), 0); got != 0 {
+t.Logf("AvcodecDefaultGetEncodeBuffer(decode ctx) = %d (C 语义为准)", got)
+}
+// GetHwFramesParameters 要真 device_ref, 传 nil 会崩, 只验不传它的野路不验它;
+// 硬解参数真值走 L3 真机路, 这里只钉住野 device 必报错的那半句 —— 传 nil
+// 必崩所以连野路都不走, 注释留给后人.
+// EncodeSubtitle sub 传 nil 会崩 (C 直接读 start_display_time), 野路不走,
+// 真路走 L3 的 TestFeatSubtitles; DecodeSubtitle2 同理 (C 直接读包 data).
+if mpeg4Codec.Iterate(nil) != nil {
+t.Fatal("Codec.Iterate(nil) non-nil")
+}
+if h264Par.ParserIterate(nil) != nil {
+t.Fatal("ParserIterate(nil) non-nil")
+}
+appList := AllocBSFList()
+if appList == nil {
+t.Fatal("AllocBSFList nil")
+}
+defer appList.Free()
+// Append 把 bsf 吃进链里 (C 直接挂指针, 链 Free 时连 bsf 一起放),
+// 传进去的那个 Go 壳就别再 Free 了, 不然 double free.
+nullBsf := NewBitStreamFilter("null")
+if nullBsf == nil {
+t.Fatal("NewBitStreamFilter(null) nil (append)")
+}
+if err := appList.Append(nullBsf); err != nil {
+t.Fatalf("BSFList.Append: %v", err)
+}
+nullBsf.ptr = nil
+// ---- nil-safe: 空 holder 不崩 ----
+var nilCodec *Codec
+if nilCodec.IsDecoder() || nilCodec.IsEncoder() || nilCodec.AllocContext() != nil {
+t.Fatal("nil Codec not safe")
+}
+var nilCtx *CodecContext
+if nilCtx.IsOpen() {
+t.Fatal("nil CodecContext IsOpen true")
+}
+nilCtx.FlushBuffers()
+nilCtx.FreeContext()
+nilCtx.Close()
+var nilPar *CodecParameters
+if nilPar.Copy(nil) == nil {
+t.Fatal("Copy(nil) accepted")
+}
+var nilParser *Parser
+nilParser.Close()
+if nilParser.Parse2(nil, nil, nil, nil, 0, 0, 0, 0) == 0 {
+t.Fatal("Parse2(nil) zero")
+}
+var nilBsf *BitStreamFilter
+nilBsf.Flush()
+nilBsf.Free()
+if err := nilBsf.Init(); err == nil {
+t.Fatal("Bsf Init(nil) accepted")
+}
+}
+
 // TestWrapCoverFilter fills the filter_graph module gap: metadata queries,
 // wrapper-built buffer->scale->sink chain, frame push/pull with value pins
 // (W/H/Format/Type/SAR/TB from link negotiation), segment API full cycle,

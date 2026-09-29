@@ -98,6 +98,32 @@ func (d *Decoder) RawFormatCtx() unsafe.Pointer {
 	return d.fmtCtx
 }
 
+// CodecID reports the video codec id gathered at open (如 27=H264).
+func (d *Decoder) CodecID() int32 {
+	if d == nil {
+		return CodecIDNone
+	}
+	return d.info.CodecID
+}
+
+// IsOpen reports the decoder is opened (!) and not closed.
+func (d *Decoder) IsOpen() bool {
+	if d == nil || d.closed || d.codecCtx == nil {
+		return false
+	}
+	return true
+}
+
+// CodecCtx exposes the opened AVCodecContext* for codec-layer probes
+// (CodecContext wrapper). The Decoder keeps ownership; do not close or
+// free it, it dies with Close.
+func (d *Decoder) CodecCtx() *CodecContext {
+	if d == nil {
+		return nil
+	}
+	return &CodecContext{ptr: d.codecCtx}
+}
+
 // Info returns the stream facts gathered at open.
 func (d *Decoder) Info() StreamInfo { return d.info }
 
