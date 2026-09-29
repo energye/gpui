@@ -849,7 +849,7 @@ VW0 → VW1 → VW2 → VW3
 > | L2-4 | codec_encode（47） | 47 | 中 | ef6a958d：修 11 处签名错位 + decode.go 加 CodecID/IsOpen/CodecCtx 只读口；剩 3 个（字幕编解码、硬解参数）要真字幕上下文/真硬解设备，见 L2-13 | TestWrapCoverCodec | 🟩 已完成 |
 > | L2-5 | frame（15）+ packet（15） | 30 | 最容易 | 签名全对得上零修改，只加 TestWrapCoverFramePacket（真帧真包 + 空槽数组边数据 + 字典打包解包一轮游） | TestWrapCoverFramePacket | 🟩 已完成 |
 > | L2-6 | buffer_mem（36） | 36 | 容易 | 7d56a54d：36 签名全对零修改，只修注释（Realloc/Free 谁吃旧块、InitForBuffer 被 Finalize 吃掉外部、BPrint 回调跳板签名）+ TestWrapCoverBufferMem 清零 | TestWrapCoverBufferMem | 🟩 已完成 |
-> | L2-7 | device_io（7）+ decode（1） | 8 | 容易 | 枚举列表类 + 一个 setter，一轮带走 | TestWrapCoverDeviceIO | ⬜ 未启动 |
+> | L2-7 | device_io（7）+ decode（1） | 8 | 容易 | 修 3 处签名错位（ListDevices 3 参改 2 参回设备数，ListInputSources/ListOutputSinks 2 参补 4 参回设备数）+ TestWrapCoverDeviceIO 清零 | TestWrapCoverDeviceIO | 🟩 已完成 |
 > | L2-8 | dict_opt（36） | 36 | 中 | 字典选项读写，要真对象，注意字符串生命周期，可能分两批 | TestWrapCoverDictOpt | ⬜ 未启动 |
 > | L2-9 | scale_color（33）+ resample_audio（27） | 60 | 中 | 缩放与重采样，feat 里有现成搭法（feat_test.go/feat_setup_test.go），照着配真帧真音频 | TestWrapCoverScaleResample | ⬜ 未启动 |
 > | L2-10 | crypto 查表算术批 | 约60 | 容易 | 像素/采样格式表、版本串、CRC 表，纯查表无状态 | TestWrapCoverCryptoTables | ⬜ 未启动 |

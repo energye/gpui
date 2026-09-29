@@ -3064,3 +3064,132 @@ if nilMd.Ptr() != nil {
 t.Fatal("nil MediaDesc Ptr non-nil")
 }
 }
+
+// TestWrapCoverDeviceIO fills the device_io+decode-pool gap: every
+// remaining wrapper runs on real objects. C 头核过 (avdevice.h/avdevice.c):
+// ListDevices 2 参回设备数, ListInput/ListOutput 4 参 (格式/名/选项/表) 回设备数,
+// AppToDev/DevToApp 4 参, 空数据在 ENOSYS 路上 C 碰都不碰;
+// 瞎写设备名 C 干净报 EINVAL (utils.c: !iformat && !format 直接拦).
+// SetPixPool 是纯 Go 开关, 走真解码验缓冲真被复用.
+func TestWrapCoverDeviceIO(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	// ---- 注册走真路 (avdevice_register_all, 无参无回, 跑过不崩为准) ----
+	var reg DeviceList
+	reg.RegisterAll()
+	if reg.Version() == 0 {
+		t.Fatal("Device Version 0")
+	}
+	if reg.Configuration() == "" {
+		t.Logf("Configuration empty (自建库未埋配置串, 以 C 为准)")
+	}
+	if reg.License() == "" {
+		t.Logf("License empty (以 C 为准)")
+	}
+	// ---- 真文件解复用上下文当设备上下文调 (c 有 oformat/iformat 但无取表口,
+	// 走 ENOSYS 报错不给表, 以 C 为准: 报错但不崩, d 里没表) ----
+	dec, err := Open("../testdata/feat_small.mp4")
+	if err != nil {
+		t.Fatalf("Open(feat_small): %v", err)
+	}
+	defer dec.Close()
+	fmtPtr := dec.RawFormatCtx()
+	if fmtPtr == nil {
+		t.Fatal("FormatCtx nil")
+	}
+	var dl DeviceList
+	if n, err := dl.ListDevices(fmtPtr); err == nil {
+		t.Fatalf("ListDevices(file ctx) accepted, n=%d", n)
+	} else {
+		t.Logf("ListDevices(file ctx) err (ENOSYS 符合预期, 以 C 为准): %v", err)
+	}
+	if dl.Ptr() != nil {
+		t.Fatal("ListDevices 失败还给了表 (C 置 NULL, 见 avdevice.c)")
+	}
+	dl.FreeList()
+	// ---- 控制消息走同一文件上下文 (无输出设备口/无回调, 双 ENOSYS, 空数据不碰) ----
+	var cm DeviceList
+	if err := cm.AppToDev(fmtPtr, 1, nil, 0); err == nil {
+		t.Fatal("AppToDev(file ctx) accepted")
+	} else {
+		t.Logf("AppToDev(file ctx) err (ENOSYS 符合预期): %v", err)
+	}
+	if err := cm.DevToApp(fmtPtr, 0, nil, 0); err == nil {
+		t.Fatal("DevToApp(no cb) accepted")
+	} else {
+		t.Logf("DevToApp(no cb) err (ENOSYS 符合预期): %v", err)
+	}
+	// ---- 瞎写设备名调输入输出源 (utils.c 直接拦, EINVAL 干净回来不崩,
+	// 证明 4 个参数传对了: 名是真 C 串, 不是野指针) ----
+	var in DeviceList
+	if n, err := in.ListInputSources(nil, "no-such-device-xyz", nil); err == nil {
+		t.Fatalf("ListInputSources(bogus) accepted, n=%d", n)
+	} else {
+		t.Logf("ListInputSources(bogus) err (EINVAL 符合预期): %v", err)
+	}
+	if in.Ptr() != nil {
+		t.Fatal("ListInputSources 失败还给了表")
+	}
+	in.FreeList()
+	var out DeviceList
+	if n, err := out.ListOutputSinks(nil, "no-such-device-xyz", nil); err == nil {
+		t.Fatalf("ListOutputSinks(bogus) accepted, n=%d", n)
+	} else {
+		t.Logf("ListOutputSinks(bogus) err (EINVAL 符合预期): %v", err)
+	}
+	if out.Ptr() != nil {
+		t.Fatal("ListOutputSinks 失败还给了表")
+	}
+	out.FreeList()
+	// ---- SetPixPool 纯 Go 开关: 接上计数池, 真解一帧, 缓冲必须被借走 ----
+	var borrowed, returned int
+	dec.SetPixPool(
+		func(size int) []byte { borrowed++; return make([]byte, size) },
+		func(b []byte) { returned++; _ = b },
+	)
+	fr, derr := dec.Next()
+	if derr != nil {
+		t.Fatalf("Next with pool: %v", derr)
+	}
+	if fr.Pix == nil {
+		t.Fatal("Decode Pix nil")
+	}
+	if borrowed == 0 {
+		t.Fatal("SetPixPool get 没被调 (池没接上)")
+	}
+	// nil 清回裸分配: 再解一帧不断链为准.
+	dec.SetPixPool(nil, nil)
+	fr2, derr := dec.Next()
+	if derr != nil {
+		t.Fatalf("Next after pool clear: %v", derr)
+	}
+	if fr2.Pix == nil {
+		t.Fatal("Decode after pool clear Pix nil")
+	}
+	_ = returned
+	// ---- nil 守卫: 空 holder 调啥都不崩 ----
+	var nilDl *DeviceList
+	if nilDl.Ptr() != nil {
+		t.Fatal("nil DeviceList Ptr non-nil")
+	}
+	if _, err := nilDl.ListDevices(fmtPtr); err == nil {
+		t.Fatal("nil ListDevices accepted")
+	}
+	if _, err := nilDl.ListInputSources(nil, "", nil); err == nil {
+		t.Fatal("nil ListInputSources accepted")
+	}
+	if _, err := nilDl.ListOutputSinks(nil, "", nil); err == nil {
+		t.Fatal("nil ListOutputSinks accepted")
+	}
+	if err := nilDl.AppToDev(fmtPtr, 0, nil, 0); err == nil {
+		t.Fatal("nil AppToDev accepted")
+	}
+	if err := nilDl.DevToApp(fmtPtr, 0, nil, 0); err == nil {
+		t.Fatal("nil DevToApp accepted")
+	}
+	nilDl.FreeList()
+	nilDl.RegisterAll()
+	var nilDec *Decoder
+	nilDec.SetPixPool(nil, nil)
+}

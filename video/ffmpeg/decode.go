@@ -82,8 +82,11 @@ type Decoder struct {
 }
 
 // SetPixPool wires pooled RGBA reuse: get borrows a size-byte buffer,
-// put returns it. Nil clears back to fresh buffers.
+// put returns it. Nil clears back to fresh buffers (nil 接收器直接回, 不崩).
 func (d *Decoder) SetPixPool(get func(int) []byte, put func([]byte)) {
+	if d == nil {
+		return
+	}
 	d.pixGet = get
 	d.pixPut = put
 }

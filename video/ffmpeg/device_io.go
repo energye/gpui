@@ -29,10 +29,10 @@ var (
 	fDeviceConfig     func() string
 	fDeviceLicense    func() string
 	fDeviceRegister   func()
-	fDeviceListDevs   func(unsafe.Pointer, unsafe.Pointer, *unsafe.Pointer) int32
+	fDeviceListDevs   func(unsafe.Pointer, *unsafe.Pointer) int32
 	fDeviceFreeList   func(*unsafe.Pointer)
-	fDeviceListInput  func(unsafe.Pointer, *unsafe.Pointer) int32
-	fDeviceListOutput func(unsafe.Pointer, *unsafe.Pointer) int32
+	fDeviceListInput  func(unsafe.Pointer, string, unsafe.Pointer, *unsafe.Pointer) int32
+	fDeviceListOutput func(unsafe.Pointer, string, unsafe.Pointer, *unsafe.Pointer) int32
 	fDeviceAppToDev   func(unsafe.Pointer, int32, unsafe.Pointer, uintptr) int32
 	fDeviceDevToApp   func(unsafe.Pointer, int32, unsafe.Pointer, uintptr) int32
 )
@@ -75,18 +75,21 @@ func (d *DeviceList) Version() uint32 {
 	return fDeviceVersion()
 }
 
-// ListDevices lists devices of a source/sink context (ctx 传 FormatContext.Ptr()).
-func (d *DeviceList) ListDevices(ctx unsafe.Pointer) error {
+// ListDevices lists devices of a device context and returns the count
+// (avdevice_list_devices; ctx 须是设备上下文 (c->oformat/c->iformat 带取表口),
+// 文件解复用上下文走 ENOSYS 报错不给表; 成功才把表存进 d, 记得 FreeList).
+func (d *DeviceList) ListDevices(ctx unsafe.Pointer) (int, error) {
 	if err := ensureModDeviceIo(); err != nil {
-		return err
+		return 0, err
 	}
 	if d == nil {
-		return errNilDevice
+		return 0, errNilDevice
 	}
-	if ret := fDeviceListDevs(ctx, ctx, &d.ptr); ret < 0 {
-		return codeErr("avdevice_list_devices", ret)
+	if ret := fDeviceListDevs(ctx, &d.ptr); ret < 0 {
+		return 0, codeErr("avdevice_list_devices", ret)
+	} else {
+		return int(ret), nil
 	}
-	return nil
 }
 
 // FreeList releases the list and nils the holder.
@@ -100,32 +103,39 @@ func (d *DeviceList) FreeList() {
 	fDeviceFreeList(&ptr)
 }
 
-// ListInputSources lists capture devices for an input format.
-func (d *DeviceList) ListInputSources(format unsafe.Pointer) error {
+// ListInputSources lists capture devices for an input format and returns
+// the count (avdevice_list_input_sources; format 传 AVInputFormat 指针 (可 nil),
+// name 是设备名 (可 ""), options 传 Dictionary.Ptr() (可 nil); 瞎写名字 C 干净报
+// EINVAL 不崩; 成功才把表存进 d, 记得 FreeList).
+func (d *DeviceList) ListInputSources(format unsafe.Pointer, name string, options unsafe.Pointer) (int, error) {
 	if err := ensureModDeviceIo(); err != nil {
-		return err
+		return 0, err
 	}
 	if d == nil {
-		return errNilDevice
+		return 0, errNilDevice
 	}
-	if ret := fDeviceListInput(format, &d.ptr); ret < 0 {
-		return codeErr("avdevice_list_input_sources", ret)
+	if ret := fDeviceListInput(format, name, options, &d.ptr); ret < 0 {
+		return 0, codeErr("avdevice_list_input_sources", ret)
+	} else {
+		return int(ret), nil
 	}
-	return nil
 }
 
-// ListOutputSinks lists playback devices for an output format.
-func (d *DeviceList) ListOutputSinks(format unsafe.Pointer) error {
+// ListOutputSinks lists playback devices for an output format and returns
+// the count (avdevice_list_output_sinks; 参数与 ListInputSources 同理,
+// format 传 AVOutputFormat 指针).
+func (d *DeviceList) ListOutputSinks(format unsafe.Pointer, name string, options unsafe.Pointer) (int, error) {
 	if err := ensureModDeviceIo(); err != nil {
-		return err
+		return 0, err
 	}
 	if d == nil {
-		return errNilDevice
+		return 0, errNilDevice
 	}
-	if ret := fDeviceListOutput(format, &d.ptr); ret < 0 {
-		return codeErr("avdevice_list_output_sinks", ret)
+	if ret := fDeviceListOutput(format, name, options, &d.ptr); ret < 0 {
+		return 0, codeErr("avdevice_list_output_sinks", ret)
+	} else {
+		return int(ret), nil
 	}
-	return nil
 }
 
 // Configuration returns the avdevice build configuration string.
@@ -144,8 +154,9 @@ func (d *DeviceList) License() string {
 	return fDeviceLicense()
 }
 
-// AppToDev sends an app-to-device control message (音量/暂停等走它;
-// type 用 AVAppToDevMessageType 常量, data 传 nil 表无负载).
+// AppToDev sends an app-to-device control message (avdevice_app_to_dev_control_message;
+// ctx 须是输出设备上下文, 文件/输入上下问走 ENOSYS; type 用 AVAppToDevMessageType
+// 常量 (0=无消息/1=暂停/2=播放...), data 传 nil 表无负载 (ENOSYS 路上 C 碰都不碰)).
 func (d *DeviceList) AppToDev(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
 	if err := ensureModDeviceIo(); err != nil {
 		return err
@@ -159,7 +170,8 @@ func (d *DeviceList) AppToDev(ctx unsafe.Pointer, typ int32, data unsafe.Pointer
 	return nil
 }
 
-// DevToApp reads a device-to-app control message (设备状态回调用它).
+// DevToApp reads a device-to-app control message (avdevice_dev_to_app_control_message;
+// 没装回调的上下文走 ENOSYS, data 传 nil 可 (C 只转发指针不读)).
 func (d *DeviceList) DevToApp(ctx unsafe.Pointer, typ int32, data unsafe.Pointer, size int) error {
 	if err := ensureModDeviceIo(); err != nil {
 		return err
