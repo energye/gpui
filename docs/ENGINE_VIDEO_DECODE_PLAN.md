@@ -823,3 +823,90 @@ VW0 → VW1 → VW2 → VW3
 ## 13. 声音模块（原 §11 · 本期不做，并入 VW6 候选）
 
 > 状态：**未立项**。本期（VW0–VW3）只做画面，声音等后继分期单独立项成篇，不在本文件里施工。原 §11 暂定范围（AAC 先行/Opus 随后、复用音频轨、音频另起队列、宿主侧桥接、独立声表+组合窗验收）整体并入 §12 VW6 候选，原文保留本节备查，不算本期承诺。
+
+---
+
+## 14. L2 绑定缺口填补分期（video/ffmpeg Go 包装逐模块补全 · 硬）
+
+## 14. L2 绑定缺口填补分期（video/ffmpeg Go 包装逐模块补全 · 硬）
+
+> 本节是可直接执行的工作单：新会话从头读到尾就能开工，一轮一轮往下走，每轮结束自动提交一次（含本表状态格更新）。
+>
+> ### 14.0 开工环境
+>
+> - 仓库：/home/yanghy/app/projects/gogpu/gpui，分支 feat/ime-x11；C 头在 /home/yanghy/app/projects/gogpu/ffmpeg（libavutil/libavformat/libavfilter/libavcodec，只读不改）。
+> - 背景：L1 符号存在已全（1002 个绑定名 base/full 双过 + 16 数据符号 + 4 变参包装）。L2 可调用从约 150 个起步往上填。
+> - 起手三件事：`git status --short`（认清别线改动，绝不动）→ `git log --oneline -3`（确认基线）→ 跑一遍 §14.3 缺口脚本（确认本轮起点数）。
+>
+> ### 14.1 轮次表（维护表 · 硬 · 每填完一轮把状态格改成 🟩 已完成 + 落点提交号）
+>
+> | 轮次 | 模块 | 缺口 | 难度 | 打法 / 落点 | 探针名 | 状态 |
+> |------|------|------|------|-------------|--------|------|
+> | L2-0 | 三层验证基线 | — | — | da78fef4：L1 新建 symbol_cover_test.go + wrap_cover_test 加 5 batch；修 ChannelFromString（回指针改回 int32）、ChannelLayoutCheck（ret<0 改 ret==0） | TestWrapCover/TestWrapCoverMath | 🟩 已完成 |
+> | L2-1 | error_log（11）+ media_desc（85） | 96 | 中 | ce472837：修 18 处签名错位 + 注释同步 | TestWrapCoverErrorLog/TestWrapCoverMediaDesc | 🟩 已完成 |
+> | L2-2 | format_demux（80） | 80 | 中 | faf04504：修 12 处签名错位 + decode.go 加 RawFormatCtx 只读口 | TestWrapCoverDemux/TestWrapCoverDemuxFree | 🟩 已完成 |
+> | L2-3 | filter_graph（55） | 55 | 中 | 859b0689：修 8 处签名错位（buffer->scale->sink 真链搭法见 feat_setup_test.go openFeatChain） | TestWrapCoverFilter | 🟩 已完成 |
+> | L2-4 | codec_encode（47） | 47 | 中 | ef6a958d：修 11 处签名错位 + decode.go 加 CodecID/IsOpen/CodecCtx 只读口；剩 3 个（字幕编解码、硬解参数）要真字幕上下文/真硬解设备，见 L2-13 | TestWrapCoverCodec | 🟩 已完成 |
+> | L2-5 | frame（15）+ packet（15） | 30 | 最容易 | 真帧真包都在手里，NewFrame/NewPacket 直接调，一轮清完 | TestWrapCoverFramePacket | ⬜ 未启动 |
+> | L2-6 | buffer_mem（36） | 36 | 容易 | 内存申请释放配对、BPrint、FIFO，全自包含，不碰文件 | TestWrapCoverBufferMem | ⬜ 未启动 |
+> | L2-7 | device_io（7）+ decode（1） | 8 | 容易 | 枚举列表类 + 一个 setter，一轮带走 | TestWrapCoverDeviceIO | ⬜ 未启动 |
+> | L2-8 | dict_opt（36） | 36 | 中 | 字典选项读写，要真对象，注意字符串生命周期，可能分两批 | TestWrapCoverDictOpt | ⬜ 未启动 |
+> | L2-9 | scale_color（33）+ resample_audio（27） | 60 | 中 | 缩放与重采样，feat 里有现成搭法（feat_test.go/feat_setup_test.go），照着配真帧真音频 | TestWrapCoverScaleResample | ⬜ 未启动 |
+> | L2-10 | crypto 查表算术批 | 约60 | 容易 | 像素/采样格式表、版本串、CRC 表，纯查表无状态 | TestWrapCoverCryptoTables | ⬜ 未启动 |
+> | L2-11 | crypto 字符串内存批 | 约60 | 容易 | base64、uuid、字符串小工具，自包含 | TestWrapCoverCryptoStr | ⬜ 未启动 |
+> | L2-12 | crypto 哈希加密批 | 约150 | 中 | aes/sha/md5/hmac 都是申请、喂数据、收结果三步走，模式统一，量大分两批 | TestWrapCoverCryptoHash | ⬜ 未启动 |
+> | L2-13 | crypto 硬件批 + codec 剩 3 个 | 约120 | 难 | 硬解设备、字幕编解码要真硬件真上下文，调不通按老规矩 t.Skipf 注明原因，不硬测假绿 | TestWrapCoverCryptoHw | ⬜ 未启动 |
+>
+> ### 14.2 每轮标准动作（S1–S7，一轮走完才算完）
+>
+> - S1 拉缺口：跑 §14.3 脚本，记下本模块起点数。
+> - S2 查头文件：逐个缺口函数对照 ffmpeg 头文件定 C 语义（参数类型、返回值含义、NULL 能不能传），先写在纸上再动代码，禁止凭印象写断言。
+> - S3 影响面评估：`grep -rn "\.函数名(" video/ examples/` 查外部调用者，无调用者才能改签名；有调用者先停下问用户。
+> - S4 修签名 + 注释：类型错位直接改（外面没人调就是安全的）；注释同步写清（收指针的不传 NULL、要真对象还是零值能用、谁拥有释放权）。
+> - S5 加探针：新测试函数名见上表，一次点全名；断言答案必须能在 C 源码里找到出处；崩溃类只验守卫不走真路，真路走真对象。
+> - S6 跑验证：§14.4 四条命令全绿（base 整包 + full 子集，一个 FAIL 都不行）。
+> - S7 提交：`git status` 对照，只 `git add` 本轮自己文件（禁止 `add .`/`add -A`/`commit -am`），提交信息格式 `video/ffmpeg L2补全<模块>：修N处签名错位，加<探针名>探针清M缺口`，本表状态格改 🟩 + 落点提交号，**代码和状态格同一次提交**。
+>
+> ### 14.3 缺口脚本（现拉，不凭印象）
+>
+> ```
+> cd /home/yanghy/app/projects/gogpu/gpui && python3 - <<'EOF'
+> import re, glob, os
+> wrap_re = re.compile(r'^func (?:\([^)]+\) )?([A-Z][A-Za-z0-9]+)\s*\(')
+> wrappers = {}
+> for f in glob.glob('video/ffmpeg/*.go'):
+>     if f.endswith('_test.go'): continue
+>     for line in open(f):
+>         m = wrap_re.match(line)
+>         if m: wrappers.setdefault(m.group(1), os.path.basename(f))
+> used = set()
+> for f in glob.glob('video/ffmpeg/*_test.go'):
+>     for m in re.finditer(r'[A-Za-z][A-Za-z0-9]+\(', open(f).read()):
+>         used.add(m.group(0)[:-1])
+> gap = {n: mod for n, mod in wrappers.items() if n not in used}
+> print(f"wrappers={len(wrappers)} gap={len(gap)}")
+> from collections import Counter
+> for mod, n in Counter(gap.values()).most_common():
+>     print(f"{n:4d} {mod}")
+> EOF
+> ```
+>
+> ### 14.4 四条验证（gpui 目录下跑，shell 经常停在 ffmpeg 仓库，go test 前一定先 cd；长命令套 timeout 防卡死，卡住直接杀了查行号再改）
+>
+> ```
+> cd /home/yanghy/app/projects/gogpu/gpui
+> go vet ./video/ffmpeg/
+> timeout 100 go test ./video/ffmpeg/ -run 'TestWrapCover|TestSymbolCover|TestDataConst|TestVariadicGo' -count=1
+> timeout 300 go test ./video/ffmpeg/ -count=1
+> timeout 200 env GPUI_FFMPEG_VARIANT=full go test ./video/ffmpeg/ -run 'TestWrapCover|TestSymbolCover' -count=1
+> ```
+>
+> ### 14.5 已知坑位（前人踩过，新会话先读再动手，注释里同步写清）
+>
+> - 往只读 AVIO 流写字会在 C 的 flush_buffer 里转圈出不来（卡 40 分钟）：写类探针只许调在写流上，读流只验读和状态。
+> - C 里直接解指针的函数一律不传 NULL：Handshake（解 opaque）、ProtocolGetClass/PrintStringArray（strcmp/解数组）、二次 FindStreamInfo（内部状态）、二次 avcodec_open2（状态机）、GetHwConfig/DefaultGetFormat/字幕编解码（直接解 ctx）。野路不走，真路给真对象，守卫只验 nil 接收器。
+> - BSF 链吃掉过滤器所有权：Append 进去的壳别再 Free，不然 double free。
+> - 小包描述表是 NULL_IF_CONFIG_SMALL 裁过的：档次表不在里面，只验越界回空。
+> - base 版无复用器：GuessFormat 回空符合预期，真断言只在 full 版跑；mp4 默认视频编码无 x264 版是 MPEG4（12），见 movenc.c。
+> - 顺时针设 90 度读出来是 -90（读的是逆时针角）；ParseRatio 的 max 传 0 会压成 0/1，传 1001000；`go vet` 报 `possible misuse of unsafe.Pointer`（如整数转指针）必须改掉。
+> - 调不通的（要真硬件/真上下文）用 `t.Skipf` 注明原因跳过，禁止静默假绿；`t.TempDir()` 放临时文件，禁止写死绝对路径。
