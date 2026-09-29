@@ -61,8 +61,8 @@ var (
 	fAvAllocVdpaucontext                      func() unsafe.Pointer
 	fAvAppendPacket                           func(s unsafe.Pointer, pkt unsafe.Pointer, size int32) int32
 	fAvAppendPathComponent                    func(path unsafe.Pointer, component unsafe.Pointer) unsafe.Pointer
-	fAvAssert0Fpu                             func() unsafe.Pointer
-	fAvBase64Decode                           func(out unsafe.Pointer, in unsafe.Pointer, out_size int32) unsafe.Pointer
+	fAvAssert0Fpu                             func()
+	fAvBase64Decode                           func(out unsafe.Pointer, in unsafe.Pointer, out_size int32) int32
 	fAvBase64Encode                           func(out unsafe.Pointer, out_size int32, in unsafe.Pointer, in_size int32) unsafe.Pointer
 	fAvBasename                               func(path unsafe.Pointer) unsafe.Pointer
 	fAvBesselI0                               func(x float64) float64
@@ -71,8 +71,8 @@ var (
 	fAvBlowfishCryptEcb                       func(ctx unsafe.Pointer, xl unsafe.Pointer, xr unsafe.Pointer, decrypt int32)
 	fAvBlowfishInit                           func(ctx unsafe.Pointer, key unsafe.Pointer, key_len int32)
 	fAvBmgGet                                 func(lfg unsafe.Pointer, out float64)
-	fAvBprintf                                func(src unsafe.Pointer, cb1 unsafe.Pointer) unsafe.Pointer
-	fAvCalloc                                 func(arg0 unsafe.Pointer, cb1 unsafe.Pointer) unsafe.Pointer
+	fAvBprintf                                func(buf unsafe.Pointer, fmt unsafe.Pointer)
+	fAvCalloc                                 func(nmemb uintptr, size uintptr) unsafe.Pointer
 	fAvCamelliaAlloc                          func() unsafe.Pointer
 	fAvCamelliaCrypt                          func(ctx unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
 	fAvCamelliaInit                           func(ctx unsafe.Pointer, key unsafe.Pointer, key_bits int32) int32
@@ -150,7 +150,7 @@ var (
 	fAvFftEnd                                 func(s unsafe.Pointer) unsafe.Pointer
 	fAvFftInit                                func(nbits int32, inverse int32) unsafe.Pointer
 	fAvFftPermute                             func(s unsafe.Pointer, z unsafe.Pointer) unsafe.Pointer
-	fAvFileMap                                func(filename unsafe.Pointer, bufptr *unsafe.Pointer, size unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) unsafe.Pointer
+	fAvFileMap                                func(filename unsafe.Pointer, bufptr *unsafe.Pointer, size unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) int32
 	fAvFilenameNumberTest                     func(filename unsafe.Pointer) int32
 	fAvFileUnmap                              func(bufptr unsafe.Pointer, size uintptr)
 	fAvFilterIterate                          func(opaque *unsafe.Pointer) unsafe.Pointer
@@ -173,7 +173,7 @@ var (
 	fAvGetCpuFlags                            func() int32
 	fAvGetExactBitsPerSample                  func(codec_id int32) int32
 	fAvGetFrameFilename                       func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32) int32
-	fAvGetFrameFilename2                      func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32, flags int32) unsafe.Pointer
+	fAvGetFrameFilename2                      func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32, flags int32) int32
 	fAvGetKnownColorName                      func(color_idx int32, rgb *unsafe.Pointer) unsafe.Pointer
 	fAvGetMediaTypeString                     func(media_type int32) unsafe.Pointer
 	fAvGetOutputTimestamp                     func(s unsafe.Pointer, stream int32, dts unsafe.Pointer, wall unsafe.Pointer) int32
@@ -248,7 +248,7 @@ var (
 	fAvJniSetJavaVm                           func(vm unsafe.Pointer, log_ctx unsafe.Pointer) unsafe.Pointer
 	fAvLfgInit                                func(c unsafe.Pointer, seed uint32)
 	fAvLfgInitFromData                        func(c unsafe.Pointer, data unsafe.Pointer, length uint32) int32
-	fAvLog                                    func(arg0 unsafe.Pointer, arg1 unsafe.Pointer, cb2 unsafe.Pointer, cb3 unsafe.Pointer) unsafe.Pointer
+	fAvLog                                    func(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer)
 	fAvLzo1xDecode                            func(out unsafe.Pointer, outlen unsafe.Pointer, in unsafe.Pointer, inlen unsafe.Pointer) unsafe.Pointer
 	fAvMatchExt                               func(filename unsafe.Pointer, extensions unsafe.Pointer) int32
 	fAvMatchList                              func(name unsafe.Pointer, list unsafe.Pointer, separator byte) int32
@@ -328,7 +328,7 @@ var (
 	fAvSmallStrptime                          func(p unsafe.Pointer, fmt unsafe.Pointer, dt unsafe.Pointer) unsafe.Pointer
 	fAvSscanf                                 func(str unsafe.Pointer, format unsafe.Pointer) int32
 	fAvStrcasecmp                             func(a unsafe.Pointer, b unsafe.Pointer) int32
-	fAvStrdup                                 func(arg0 unsafe.Pointer) unsafe.Pointer
+	fAvStrdup                                 func(s unsafe.Pointer) unsafe.Pointer
 	fAvStrndup                                func(s string, ln uintptr) unsafe.Pointer
 	fAvStreamAddSideData                      func(st unsafe.Pointer, typ unsafe.Pointer, data unsafe.Pointer, size uintptr) unsafe.Pointer
 	fAvStreamGetClass                         func() unsafe.Pointer
@@ -344,7 +344,7 @@ var (
 	fAvStrlcpy                                func(dst unsafe.Pointer, src unsafe.Pointer, size uintptr) uintptr
 	fAvStrncasecmp                            func(a unsafe.Pointer, b unsafe.Pointer, n uintptr) int32
 	fAvStrnstr                                func(haystack unsafe.Pointer, needle unsafe.Pointer, hay_length uintptr) unsafe.Pointer
-	fAvStrstart                               func(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) unsafe.Pointer
+	fAvStrstart                               func(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) int32
 	fAvStrtod                                 func(numstr unsafe.Pointer, tail *unsafe.Pointer) float64
 	fAvStrtok                                 func(s unsafe.Pointer, delim unsafe.Pointer, saveptr *unsafe.Pointer) unsafe.Pointer
 	fAvSubI                                   func(a AVInteger, b AVInteger) AVInteger
@@ -361,7 +361,7 @@ var (
 	fAvThreadMessageQueueSetErrRecv           func(mq unsafe.Pointer, err int32)
 	fAvThreadMessageQueueSetErrSend           func(mq unsafe.Pointer, err int32)
 	fAvThreadMessageQueueSetFreeFunc          func(mq unsafe.Pointer, free_func unsafe.Pointer)
-	fAvTimegm                                 func(tm unsafe.Pointer) unsafe.Pointer
+	fAvTimegm                                 func(tm unsafe.Pointer) int64
 	fAvTreeDestroy                            func(t unsafe.Pointer)
 	fAvTreeEnumerate                          func(t unsafe.Pointer, opaque unsafe.Pointer, cmp unsafe.Pointer, enu unsafe.Pointer)
 	fAvTreeFind                               func(root unsafe.Pointer, key unsafe.Pointer, cmp unsafe.Pointer, next unsafe.Pointer) unsafe.Pointer
@@ -373,7 +373,7 @@ var (
 	fAvTwofishInit                            func(ctx unsafe.Pointer, key unsafe.Pointer, key_bits int32) int32
 	fAvTxInit                                 func(ctx *unsafe.Pointer, tx unsafe.Pointer, typ unsafe.Pointer, inv int32, len int32, scale unsafe.Pointer, flags uint64) int32
 	fAvTxUninit                               func(ctx *unsafe.Pointer)
-	fAvUtf8Decode                             func(codep unsafe.Pointer, bufp *unsafe.Pointer, buf_end unsafe.Pointer, flags uint32) unsafe.Pointer
+	fAvUtf8Decode                             func(codep unsafe.Pointer, bufp *unsafe.Pointer, buf_end unsafe.Pointer, flags uint32) int32
 	fAvUuidParse                              func(in unsafe.Pointer, uu unsafe.Pointer) int32
 	fAvUuidParseRange                         func(in_start unsafe.Pointer, in_end unsafe.Pointer, uu unsafe.Pointer) int32
 	fAvUuidUnparse                            func(uu unsafe.Pointer, out unsafe.Pointer)
@@ -990,14 +990,14 @@ func (self *Util) AppendPathComponent(path unsafe.Pointer, component unsafe.Poin
 	return fAvAppendPathComponent(path, component)
 }
 
-// Assert0Fpu 断言浮点单元状态正常，排查看用（对 av_assert0_fpu；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Assert0Fpu() unsafe.Pointer {
+// Assert0Fpu 断言浮点单元状态正常，排查看用（对 av_assert0_fpu；无参数无回值；错了直接崩进程，只在可疑时调）。
+func (self *Util) Assert0Fpu() {
 	mustUse(ensureModCrypto())
-	return fAvAssert0Fpu()
+	fAvAssert0Fpu()
 }
 
-// Base64Decode 把 Base64 字符串解回原始字节（对 av_base64_decode；参数 out、in、out_size；回 C 指针，失败回 nil；无状态调用）。
-func (self *Crypto) Base64Decode(out unsafe.Pointer, in unsafe.Pointer, out_size int32) unsafe.Pointer {
+// Base64Decode 把 Base64 字符串解回原始字节（对 av_base64_decode；参数 out、in、out_size；回解出的字节数，负数是出错码；in 传 nil 会崩，out 得事先备好够大的地方）。
+func (self *Crypto) Base64Decode(out unsafe.Pointer, in unsafe.Pointer, out_size int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvBase64Decode(out, in, out_size)
 }
@@ -1050,16 +1050,16 @@ func (self *Util) BmgGet(lfg unsafe.Pointer, out float64) {
 	fAvBmgGet(lfg, out)
 }
 
-// Bprintf 往打印缓冲里追加格式化字符串（对 av_bprintf；参数 src、cb1；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Bprintf(src unsafe.Pointer, cb1 unsafe.Pointer) unsafe.Pointer {
+// Bprintf 往打印缓冲里追加格式化字符串（对 av_bprintf；参数 buf、fmt，后面跟的变参 purego 传不准所以没接，只能干拼好的无百分号字串；变参版走 variadic_go.go 的拼串路；buf 传 nil 会崩，得传真 BPrint）。
+func (self *Util) Bprintf(buf unsafe.Pointer, fmt unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvBprintf(src, cb1)
+	fAvBprintf(buf, fmt)
 }
 
-// Calloc 按元素个数清零分配内存（对 av_calloc；参数 arg0、cb1；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) Calloc(arg0 unsafe.Pointer, cb1 unsafe.Pointer) unsafe.Pointer {
+// Calloc 按元素个数清零分配内存（对 av_calloc；参数 nmemb、size；回新内存块，申请不到回 nil，用完拿 Mem.Free 放；无状态，可用零值直接调）。
+func (self *Util) Calloc(nmemb uintptr, size uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
-	return fAvCalloc(arg0, cb1)
+	return fAvCalloc(nmemb, size)
 }
 
 // CamelliaAlloc Camellia 加解密的小件（对 av_camellia_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
@@ -1577,21 +1577,21 @@ func (self *Util) FftPermute(s unsafe.Pointer, z unsafe.Pointer) unsafe.Pointer 
 	return fAvFftPermute(s, z)
 }
 
-// FileMap 把文件映射进内存（对 av_file_map；参数 filename、bufptr、size、log_offset、log_ctx；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) FileMap(filename unsafe.Pointer, bufptr *unsafe.Pointer, size unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) unsafe.Pointer {
-	mustUse(ensureModCrypto())
-	return fAvFileMap(filename, bufptr, size, log_offset, log_ctx)
-}
-
-// FilenameNumberTest 看文件名像不像编号序列（对 av_filename_number_test；参数 filename；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) FilenameNumberTest(filename unsafe.Pointer) error {
+// FileMap 把文件映射进内存（对 av_file_map；参数 filename、bufptr、size、log_offset、log_ctx；回 0 是成，负数是出错码；bufptr/size 两个槽都得给真内存，不能传 nil；拿到的缓冲用完拿 FileUnmap 放；filename 传 nil 会崩）。
+func (self *Util) FileMap(filename unsafe.Pointer, bufptr *unsafe.Pointer, size unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
-	if ret := fAvFilenameNumberTest(filename); ret < 0 {
-		return codeErr("av_filename_number_test", ret)
+	if ret := fAvFileMap(filename, bufptr, size, log_offset, log_ctx); ret < 0 {
+		return codeErr("av_file_map", ret)
 	}
 	return nil
+}
+
+// FilenameNumberTest 看文件名像不像编号序列（对 av_filename_number_test；参数 filename；回 1 是像、0 是不像（C 源码里 >=0 都是正常回值，不是出错）；filename 传 nil 会崩）。
+func (self *Util) FilenameNumberTest(filename unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvFilenameNumberTest(filename)
 }
 
 // FileUnmap 释放文件映射的内存（对 av_file_unmap；参数 bufptr、size；按签名取回值；无状态，可用零值直接调）。
@@ -1618,15 +1618,10 @@ func (self *Util) FindDefaultStreamIndex(s unsafe.Pointer) int32 {
 	return fAvFindDefaultStreamIndex(s)
 }
 
-// FindInfoTag 在信息串里按标签取值（对 av_find_info_tag；参数 arg、arg_size、tag1、info；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) FindInfoTag(arg unsafe.Pointer, arg_size int32, tag1 unsafe.Pointer, info unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvFindInfoTag(arg, arg_size, tag1, info); ret < 0 {
-		return codeErr("av_find_info_tag", ret)
-	}
-	return nil
+// FindInfoTag 在信息串里按标签取值（对 av_find_info_tag；参数 arg、arg_size、tag1、info；找着回 1、没找着回 0（C 源码里 >=0 都是正常回值，不是出错）；arg 得是真缓冲，arg_size 含结尾零；info 传 nil 会崩）。
+func (self *Util) FindInfoTag(arg unsafe.Pointer, arg_size int32, tag1 unsafe.Pointer, info unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvFindInfoTag(arg, arg_size, tag1, info)
 }
 
 // FindInputFormat 按名字找输入格式（对 av_find_input_format；参数 short_name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
@@ -1726,10 +1721,15 @@ func (self *Util) GetFrameFilename(buf unsafe.Pointer, buf_size int32, path unsa
 	return fAvGetFrameFilename(buf, buf_size, path, number)
 }
 
-// GetFrameFilename2 按编号拼帧文件名（对 av_get_frame_filename2；参数 buf、buf_size、path、number、flags；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) GetFrameFilename2(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32, flags int32) unsafe.Pointer {
-	mustUse(ensureModCrypto())
-	return fAvGetFrameFilename2(buf, buf_size, path, number, flags)
+// GetFrameFilename2 按编号拼帧文件名（对 av_get_frame_filename2；参数 buf、buf_size、path、number、flags；回 0 是成、-1 是格式不对；buf/buf_size/path 都得是真的，传 nil 会崩）。
+func (self *Util) GetFrameFilename2(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32, flags int32) error {
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
+	if ret := fAvGetFrameFilename2(buf, buf_size, path, number, flags); ret < 0 {
+		return codeErr("av_get_frame_filename2", ret)
+	}
+	return nil
 }
 
 // GetKnownColorName 按编号查已知颜色名（对 av_get_known_color_name；参数 color_idx、rgb；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
@@ -2240,10 +2240,10 @@ func (self *Util) LfgInitFromData(c unsafe.Pointer, data unsafe.Pointer, length 
 	return nil
 }
 
-// Log 发一条日志（定长版，不带变参）（对 av_log；参数 arg0、arg1、cb2、cb3；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Log(arg0 unsafe.Pointer, arg1 unsafe.Pointer, cb2 unsafe.Pointer, cb3 unsafe.Pointer) unsafe.Pointer {
+// Log 发一条日志（定长三参版，不带变参）（对 av_log；参数 avcl、level、fmt；fmt 里别带百分号，不然 C 会乱读寄存器，真要拼串走 variadic_go.go 的 Logf；avcl 传 nil 是整条不打）。
+func (self *Util) Log(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvLog(arg0, arg1, cb2, cb3)
+	fAvLog(avcl, level, fmt)
 }
 
 // Lzo1xDecode 解 LZO 压缩块（对 av_lzo1x_decode；参数 out、outlen、in、inlen；回 C 指针，失败回 nil；无状态，可用零值直接调）。
@@ -2252,37 +2252,22 @@ func (self *Util) Lzo1xDecode(out unsafe.Pointer, outlen unsafe.Pointer, in unsa
 	return fAvLzo1xDecode(out, outlen, in, inlen)
 }
 
-// MatchExt 看文件名后缀在不在列表里（对 av_match_ext；参数 filename、extensions；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) MatchExt(filename unsafe.Pointer, extensions unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvMatchExt(filename, extensions); ret < 0 {
-		return codeErr("av_match_ext", ret)
-	}
-	return nil
+// MatchExt 看文件名后缀在不在列表里（对 av_match_ext；参数 filename、extensions；后缀名对上回 1、对不上回 0（C 源码 format.c 里 filename 传 nil 直接回 0 不崩）；extensions 传 nil 会崩）。
+func (self *Util) MatchExt(filename unsafe.Pointer, extensions unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvMatchExt(filename, extensions)
 }
 
-// MatchList 看名字在不在逗号列表里（对 av_match_list；参数 name、list、separator；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) MatchList(name unsafe.Pointer, list unsafe.Pointer, separator byte) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvMatchList(name, list, separator); ret < 0 {
-		return codeErr("av_match_list", ret)
-	}
-	return nil
+// MatchList 看名字在不在分隔符列表里（对 av_match_list；参数 name、list、separator；找着回 1、找不着回 0（C 源码里 >=0 都是正常回值，不是出错）；separator 是单个字符比如逗号；name/list 传 nil 会崩）。
+func (self *Util) MatchList(name unsafe.Pointer, list unsafe.Pointer, separator byte) int32 {
+	mustUse(ensureModCrypto())
+	return fAvMatchList(name, list, separator)
 }
 
-// MatchName 看名字和模式匹不匹配（对 av_match_name；参数 name、names；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) MatchName(name unsafe.Pointer, names unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvMatchName(name, names); ret < 0 {
-		return codeErr("av_match_name", ret)
-	}
-	return nil
+// MatchName 看名字和逗号分隔的模式串匹不匹配（对 av_match_name；参数 name、names；对上回 1、对不上回 0（C 源码 avstring.c 里 name 或 names 传 nil 直接回 0 不崩）；"ALL" 通配全对上，前头带减号的是反选）。
+func (self *Util) MatchName(name unsafe.Pointer, names unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvMatchName(name, names)
 }
 
 // MaxAlloc 问单次最多能申请多少内存（对 av_max_alloc；参数 max；按签名取回值；无状态，可用零值直接调）。
@@ -2825,32 +2810,22 @@ func (self *Util) SmallStrptime(p unsafe.Pointer, fmt unsafe.Pointer, dt unsafe.
 	return fAvSmallStrptime(p, fmt, dt)
 }
 
-// Sscanf 按格式从字符串里取值（对 av_sscanf；参数 str、format；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) Sscanf(str unsafe.Pointer, format unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvSscanf(str, format); ret < 0 {
-		return codeErr("av_sscanf", ret)
-	}
-	return nil
-}
-
-// Strcasecmp 字符串小工具（对 av_strcasecmp；参数 a、b；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) Strcasecmp(a unsafe.Pointer, b unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvStrcasecmp(a, b); ret < 0 {
-		return codeErr("av_strcasecmp", ret)
-	}
-	return nil
-}
-
-// Strdup 字符串小工具（对 av_strdup；参数 arg0；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Strdup(arg0 unsafe.Pointer) unsafe.Pointer {
+// Sscanf 按格式从字符串里取值（对 av_sscanf；参数 str、format，后面跟的变参 purego 传不准所以没接，只能数格式里本来就不带取值的情形；真要取值走 Go 的 fmt.Sscanf；str/format 传 nil 会崩）。
+func (self *Util) Sscanf(str unsafe.Pointer, format unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
-	return fAvStrdup(arg0)
+	return fAvSscanf(str, format)
+}
+
+// Strcasecmp 字符串小工具（对 av_strcasecmp；参数 a、b；回 0 是两串一样（只认 ASCII 大小写，中文等多字节按字节比），负数是 a 小、正数是 a 大；a/b 传 nil 会崩）。
+func (self *Util) Strcasecmp(a unsafe.Pointer, b unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvStrcasecmp(a, b)
+}
+
+// Strdup 字符串小工具（对 av_strdup；参数 s；回新串（C 里拿 av_malloc 分的），用完拿 Mem.Free 放；s 传 nil 回 nil 不崩）。
+func (self *Util) Strdup(s unsafe.Pointer) unsafe.Pointer {
+	mustUse(ensureModCrypto())
+	return fAvStrdup(s)
 }
 
 // StrNDup copies at most n bytes of s into fresh malloc'd memory and
@@ -2920,15 +2895,10 @@ func (self *Util) Strireplace(str unsafe.Pointer, from unsafe.Pointer, to unsafe
 	return fAvStrireplace(str, from, to)
 }
 
-// Stristart 字符串小工具（对 av_stristart；参数 str、pfx、ptr；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) Stristart(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvStristart(str, pfx, ptr); ret < 0 {
-		return codeErr("av_stristart", ret)
-	}
-	return nil
+// Stristart 字符串小工具（对 av_stristart；参数 str、pfx、ptr；前头对上回 1、对不上回 0（只认 ASCII 大小写），对上了 ptr 才会被填成前缀后头的位置；str/pfx 传 nil 会崩，ptr 传 nil 是只问对没对上不取位置）。
+func (self *Util) Stristart(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvStristart(str, pfx, ptr)
 }
 
 // Stristr 字符串小工具（对 av_stristr；参数 haystack、needle；回 C 指针，失败回 nil；无状态，可用零值直接调）。
@@ -2949,15 +2919,10 @@ func (self *Util) Strlcpy(dst unsafe.Pointer, src unsafe.Pointer, size uintptr) 
 	return fAvStrlcpy(dst, src, size)
 }
 
-// Strncasecmp 字符串小工具（对 av_strncasecmp；参数 a、b、n；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) Strncasecmp(a unsafe.Pointer, b unsafe.Pointer, n uintptr) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvStrncasecmp(a, b, n); ret < 0 {
-		return codeErr("av_strncasecmp", ret)
-	}
-	return nil
+// Strncasecmp 字符串小工具（对 av_strncasecmp；参数 a、b、n；只比前 n 个，只认 ASCII 大小写；回 0 是前 n 个一样，n 传 0 直接回 0 不比；a/b 传 nil 会崩）。
+func (self *Util) Strncasecmp(a unsafe.Pointer, b unsafe.Pointer, n uintptr) int32 {
+	mustUse(ensureModCrypto())
+	return fAvStrncasecmp(a, b, n)
 }
 
 // Strnstr 字符串小工具（对 av_strnstr；参数 haystack、needle、hay_length；回 C 指针，失败回 nil；无状态，可用零值直接调）。
@@ -2966,8 +2931,8 @@ func (self *Util) Strnstr(haystack unsafe.Pointer, needle unsafe.Pointer, hay_le
 	return fAvStrnstr(haystack, needle, hay_length)
 }
 
-// Strstart 字符串小工具（对 av_strstart；参数 str、pfx、ptr；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Strstart(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) unsafe.Pointer {
+// Strstart 字符串小工具（对 av_strstart；参数 str、pfx、ptr；前头对上回 1、对不上回 0，对上了 ptr 才会被填成前缀后头的位置；str/pfx 传 nil 会崩，ptr 传 nil 是只问对没对上不取位置）。
+func (self *Util) Strstart(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
 	return fAvStrstart(str, pfx, ptr)
 }
@@ -3088,8 +3053,8 @@ func (self *Util) ThreadMessageQueueSetFreeFunc(mq unsafe.Pointer, free_func uns
 	fAvThreadMessageQueueSetFreeFunc(mq, free_func)
 }
 
-// Timegm 把时间结构体换成秒数（对 av_timegm；参数 tm；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Timegm(tm unsafe.Pointer) unsafe.Pointer {
+// Timegm 把时间结构体换成秒数（对 av_timegm；参数 tm；回自 1970 年起的秒数；tm 传 nil 会崩，得传真 struct tm）。
+func (self *Util) Timegm(tm unsafe.Pointer) int64 {
 	mustUse(ensureModCrypto())
 	return fAvTimegm(tm)
 }
@@ -3170,8 +3135,8 @@ func (self *Util) TxUninit(ctx *unsafe.Pointer) {
 	fAvTxUninit(ctx)
 }
 
-// Utf8Decode 解一个 UTF8 字符（对 av_utf8_decode；参数 codep、bufp、buf_end、flags；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Utf8Decode(codep unsafe.Pointer, bufp *unsafe.Pointer, buf_end unsafe.Pointer, flags uint32) unsafe.Pointer {
+// Utf8Decode 解一个 UTF8 字符（对 av_utf8_decode；参数 codep、bufp、buf_end、flags；回读到的字节数，0 是缓冲到头了没得读，负数是字节流坏了；bufp 会被推到下一个字符开头；四个指针槽都得是真的，传 nil 会崩）。
+func (self *Util) Utf8Decode(codep unsafe.Pointer, bufp *unsafe.Pointer, buf_end unsafe.Pointer, flags uint32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvUtf8Decode(codep, bufp, buf_end, flags)
 }

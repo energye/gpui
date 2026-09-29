@@ -853,7 +853,7 @@ VW0 → VW1 → VW2 → VW3
 > | L2-8 | dict_opt（36） | 36 | 中 | 46b3378b：修 4 处签名错位（FieldPtr/ChildClassIterate 改传 AVClass 表，Serialize 补 2 个分隔符，Find/Find2 unit 空串改指针）+ SetDict/SetDict2 标消费语义 + TestWrapCoverDictOpt 清零 | TestWrapCoverDictOpt | 🟩 已完成 |
 > | L2-9 | scale_color（33）+ resample_audio（27） | 60 | 中 | 236251e1：修 6 处签名错位（ImageCheckSize2 补 log_offset，BufferSize 传参顺序，Alloc/BytesPerSample 枚举改 int32，BuildMatrix2 步长/编码改值类型，Space/读写回采样数）+ TestWrapCoverScaleResample 清 56 缺口 | TestWrapCoverScaleResample | 🟩 已完成 |
 > | L2-10 | crypto 查表算术批 | 约60 | 容易 | 226bf2e9：修 31 处签名错位（AVInteger 按值传扁平 L0-L7、大整数/有理数/对数回 int32、枚举改 int32、DispositionFromString 改 string 回 int32、FindDefaultStreamIndex 回 int32）+ TestWrapCoverCryptoTables 清 60 缺口 | TestWrapCoverCryptoTables | 🟩 已完成 |
-> | L2-11 | crypto 字符串内存批 | 约60 | 容易 | base64、uuid、字符串小工具，自包含 | TestWrapCoverCryptoStr | ⬜ 未启动 |
+> | L2-11 | crypto 字符串内存批 | 约60 | 容易 | 待落点：修 20 处签名错位（回0/1的是非判断非出错：Match/Strstart/Stristart/FilenameNumberTest/FindInfoTag/Sscanf/Strcasecmp/Strncasecmp 改回 int32，Base64Decode 回字节数 int32，Calloc 改 nmemb/size uintptr，GetFrameFilename2/FileMap 改 error，Assert0Fpu/Bprintf/Log 改无回值，Strdup 改名 s，Timegm 回 int64，Utf8Decode 回 int32）+ TestWrapCoverCryptoStr 清 56 缺口 | TestWrapCoverCryptoStr | 🟩 已完成 |
 > | L2-12 | crypto 哈希加密批 | 约150 | 中 | aes/sha/md5/hmac 都是申请、喂数据、收结果三步走，模式统一，量大分两批 | TestWrapCoverCryptoHash | ⬜ 未启动 |
 > | L2-13 | crypto 硬件批 + codec 剩 3 个 | 约120 | 难 | 硬解设备、字幕编解码要真硬件真上下文，调不通按老规矩 t.Skipf 注明原因，不硬测假绿 | TestWrapCoverCryptoHw | ⬜ 未启动 |
 >
