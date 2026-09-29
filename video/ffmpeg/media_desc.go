@@ -25,12 +25,12 @@ func (x *MediaDesc) Ptr() unsafe.Pointer {
 var (
 	fAvAmbientViewingEnvironmentAlloc          func(size unsafe.Pointer) unsafe.Pointer
 	fAvAmbientViewingEnvironmentCreateSideData func(frame unsafe.Pointer) unsafe.Pointer
-	fAvChannelDescription                      func(buf unsafe.Pointer, buf_size uintptr, channel unsafe.Pointer) int32
-	fAvChannelDescriptionBprint                func(bp unsafe.Pointer, channel_id unsafe.Pointer)
+	fAvChannelDescription                      func(buf unsafe.Pointer, buf_size uintptr, channel int32) int32
+	fAvChannelDescriptionBprint                func(bp unsafe.Pointer, channel_id int32)
 	fAvChannelFromString                       func(name unsafe.Pointer) int32
 	fAvChannelLayoutAmbisonicOrder             func(channel_layout unsafe.Pointer) int32
-	fAvChannelLayoutChannelFromIndex           func(channel_layout unsafe.Pointer, idx uint32) unsafe.Pointer
-	fAvChannelLayoutChannelFromString          func(channel_layout unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer
+	fAvChannelLayoutChannelFromIndex           func(channel_layout unsafe.Pointer, idx uint32) int32
+	fAvChannelLayoutChannelFromString          func(channel_layout unsafe.Pointer, name unsafe.Pointer) int32
 	fAvChannelLayoutCheck                      func(channel_layout unsafe.Pointer) int32
 	fAvChannelLayoutCompare                    func(chl unsafe.Pointer, chl1 unsafe.Pointer) int32
 	fAvChannelLayoutCopy                       func(dst unsafe.Pointer, src unsafe.Pointer) int32
@@ -40,14 +40,14 @@ var (
 	fAvChannelLayoutDescribeBprint             func(channel_layout unsafe.Pointer, bp unsafe.Pointer) int32
 	fAvChannelLayoutFromMask                   func(channel_layout unsafe.Pointer, mask uint64) int32
 	fAvChannelLayoutFromString                 func(channel_layout unsafe.Pointer, str unsafe.Pointer) int32
-	fAvChannelLayoutIndexFromChannel           func(channel_layout unsafe.Pointer, channel unsafe.Pointer) int32
+	fAvChannelLayoutIndexFromChannel           func(channel_layout unsafe.Pointer, channel int32) int32
 	fAvChannelLayoutIndexFromString            func(channel_layout unsafe.Pointer, name unsafe.Pointer) int32
-	fAvChannelLayoutRetype                     func(channel_layout unsafe.Pointer, order unsafe.Pointer, flags int32) unsafe.Pointer
+	fAvChannelLayoutRetype                     func(channel_layout unsafe.Pointer, order int32, flags int32) int32
 	fAvChannelLayoutStandard                   func(opaque *unsafe.Pointer) unsafe.Pointer
 	fAvChannelLayoutSubset                     func(channel_layout unsafe.Pointer, mask uint64) uint64
 	fAvChannelLayoutUninit                     func(channel_layout unsafe.Pointer)
-	fAvChannelName                             func(buf unsafe.Pointer, buf_size uintptr, channel unsafe.Pointer) int32
-	fAvChannelNameBprint                       func(bp unsafe.Pointer, channel_id unsafe.Pointer)
+	fAvChannelName                             func(buf unsafe.Pointer, buf_size uintptr, channel int32) int32
+	fAvChannelNameBprint                       func(bp unsafe.Pointer, channel_id int32)
 	fAvColorPrimariesFromName                  func(name unsafe.Pointer) int32
 	fAvColorPrimariesName                      func(primaries int32) unsafe.Pointer
 	fAvColorRangeFromName                      func(name string) int32
@@ -55,23 +55,23 @@ var (
 	fAvColorSpaceFromName                      func(name string) int32
 	fAvColorSpaceName                          func(space int32) unsafe.Pointer
 	fAvColorTransferFromName                   func(name unsafe.Pointer) int32
-	fAvColorTransferName                       func(transfer unsafe.Pointer) unsafe.Pointer
+	fAvColorTransferName                       func(transfer int32) unsafe.Pointer
 	fAvContentLightMetadataAlloc               func(size unsafe.Pointer) unsafe.Pointer
 	fAvContentLightMetadataCreateSideData      func(frame unsafe.Pointer) unsafe.Pointer
-	fAvDisplayMatrixFlip                       func(matrix int32, hflip int32, vflip int32)
-	fAvDisplayRotationGet                      func(matrix int32) unsafe.Pointer
-	fAvDisplayRotationSet                      func(matrix int32, angle float64)
+	fAvDisplayMatrixFlip                       func(matrix unsafe.Pointer, hflip int32, vflip int32)
+	fAvDisplayRotationGet                      func(matrix unsafe.Pointer) float64
+	fAvDisplayRotationSet                      func(matrix unsafe.Pointer, angle float64)
 	fAvDoviAlloc                               func(size unsafe.Pointer) unsafe.Pointer
-	fAvDoviFindLevel                           func(data unsafe.Pointer, level unsafe.Pointer) unsafe.Pointer
+	fAvDoviFindLevel                           func(data unsafe.Pointer, level uint8) unsafe.Pointer
 	fAvDoviMetadataAlloc                       func(size unsafe.Pointer) unsafe.Pointer
 	fAvDynamicHdrPlusAlloc                     func(size unsafe.Pointer) unsafe.Pointer
 	fAvDynamicHdrPlusCreateSideData            func(frame unsafe.Pointer) unsafe.Pointer
 	fAvDynamicHdrPlusFromT35                   func(s unsafe.Pointer, data unsafe.Pointer, size uintptr) int32
-	fAvDynamicHdrPlusToT35                     func(s unsafe.Pointer, data *unsafe.Pointer, size unsafe.Pointer) unsafe.Pointer
+	fAvDynamicHdrPlusToT35                     func(s unsafe.Pointer, data *unsafe.Pointer, size unsafe.Pointer) int32
 	fAvFilmGrainParamsAlloc                    func(size unsafe.Pointer) unsafe.Pointer
 	fAvFilmGrainParamsCreateSideData           func(frame unsafe.Pointer) unsafe.Pointer
 	fAvFilmGrainParamsSelect                   func(frame unsafe.Pointer) unsafe.Pointer
-	fAvGetBitsPerPixel                         func(pixdesc unsafe.Pointer) unsafe.Pointer
+	fAvGetBitsPerPixel                         func(pixdesc unsafe.Pointer) int32
 	fAvGetPixFmt                               func(name string) int32
 	fAvGetPixFmtLoss                           func(dst_pix_fmt int32, src_pix_fmt int32, has_alpha int32) int32
 	fAvGetPixFmtName                           func(pix_fmt int32) unsafe.Pointer
@@ -80,16 +80,16 @@ var (
 	fAvMasteringDisplayMetadataAllocSize       func(size unsafe.Pointer) unsafe.Pointer
 	fAvMasteringDisplayMetadataCreateSideData  func(frame unsafe.Pointer) unsafe.Pointer
 	fAvParseColor                              func(rgba_color unsafe.Pointer, color_string unsafe.Pointer, slen int32, log_ctx unsafe.Pointer) int32
-	fAvParseRatio                              func(q unsafe.Pointer, str unsafe.Pointer, max int32, log_offset int32, log_ctx unsafe.Pointer) unsafe.Pointer
+	fAvParseRatio                              func(q unsafe.Pointer, str unsafe.Pointer, max int32, log_offset int32, log_ctx unsafe.Pointer) int32
 	fAvParseTime                               func(timeval unsafe.Pointer, timestr unsafe.Pointer, duration int32) int32
 	fAvParseVideoRate                          func(rate unsafe.Pointer, str unsafe.Pointer) int32
-	fAvParseVideoSize                          func(width_ptr unsafe.Pointer, height_ptr unsafe.Pointer, str unsafe.Pointer) unsafe.Pointer
+	fAvParseVideoSize                          func(width_ptr unsafe.Pointer, height_ptr unsafe.Pointer, str unsafe.Pointer) int32
 	fAvPixFmtDescGet                           func(pix_fmt int32) unsafe.Pointer
 	fAvPixFmtDescGetId                         func(desc unsafe.Pointer) int32
 	fAvPixFmtDescNext                          func(prev unsafe.Pointer) unsafe.Pointer
 	fAvSphericalAlloc                          func(size unsafe.Pointer) unsafe.Pointer
 	fAvSphericalFromName                       func(name unsafe.Pointer) int32
-	fAvSphericalProjectionName                 func(projection unsafe.Pointer) unsafe.Pointer
+	fAvSphericalProjectionName                 func(projection int32) unsafe.Pointer
 	fAvSphericalTileBounds                     func(mp unsafe.Pointer, width uintptr, height uintptr, left unsafe.Pointer, top unsafe.Pointer, right unsafe.Pointer, bottom unsafe.Pointer)
 	fAvStereo3dAlloc                           func() unsafe.Pointer
 	fAvStereo3dAllocSize                       func(size unsafe.Pointer) unsafe.Pointer
@@ -229,19 +229,21 @@ func (x *MediaDesc) AmbientViewingEnvironmentCreateSideData(frame unsafe.Pointer
 	return fAvAmbientViewingEnvironmentCreateSideData(frame)
 }
 
-// ChannelDescription 查单个声道名或描述（对 av_channel_description；参数 buf、buf_size、channel；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelDescription(buf unsafe.Pointer, buf_size uintptr, channel unsafe.Pointer) error {
+// ChannelDescription 查单个声道名或描述（对 av_channel_description；参数 buf、buf_size、channel(传 AVChannel 枚举数, 如 0=FL)；
+// 回 (需字节数, error), 截断时回值大于 buf_size；buf 须是可写内存不可传 nil, channel 传 int32 不可传指针）.
+func (x *MediaDesc) ChannelDescription(buf unsafe.Pointer, buf_size uintptr, channel int32) (int32, error) {
 	if err := ensureModMediaDesc(); err != nil {
-		return err
+		return 0, err
 	}
 	if ret := fAvChannelDescription(buf, buf_size, channel); ret < 0 {
-		return codeErr("av_channel_description", ret)
+		return 0, codeErr("av_channel_description", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
-// ChannelDescriptionBprint 查单个声道名或描述（对 av_channel_description_bprint；参数 bp、channel_id；按签名取回值；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelDescriptionBprint(bp unsafe.Pointer, channel_id unsafe.Pointer) {
+// ChannelDescriptionBprint 查单个声道名或描述（对 av_channel_description_bprint；参数 bp(须是 NewBPrint 建的, 不可传 nil)、channel_id(AVChannel 枚举数)；无返回值，往 bp 里追加）.
+func (x *MediaDesc) ChannelDescriptionBprint(bp unsafe.Pointer, channel_id int32) {
 	mustUse(ensureModMediaDesc())
 	fAvChannelDescriptionBprint(bp, channel_id)
 }
@@ -253,25 +255,29 @@ func (x *MediaDesc) ChannelFromString(name unsafe.Pointer) int32 {
 	return fAvChannelFromString(name)
 }
 
-// ChannelLayoutAmbisonicOrder 查或配声道布局（对 av_channel_layout_ambisonic_order；参数 channel_layout；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutAmbisonicOrder(channel_layout unsafe.Pointer) error {
+// ChannelLayoutAmbisonicOrder 查声道布局的 ambisonic 阶数（对 av_channel_layout_ambisonic_order；参数 channel_layout(须是有效布局指针, 不可传 nil)；
+// 回 (阶数, error), 非 ambisonic 布局回 error；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutAmbisonicOrder(channel_layout unsafe.Pointer) (int32, error) {
 	if err := ensureModMediaDesc(); err != nil {
-		return err
+		return 0, err
 	}
 	if ret := fAvChannelLayoutAmbisonicOrder(channel_layout); ret < 0 {
-		return codeErr("av_channel_layout_ambisonic_order", ret)
+		return 0, codeErr("av_channel_layout_ambisonic_order", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
-// ChannelLayoutChannelFromIndex 查或配声道布局（对 av_channel_layout_channel_from_index；参数 channel_layout、idx；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutChannelFromIndex(channel_layout unsafe.Pointer, idx uint32) unsafe.Pointer {
+// ChannelLayoutChannelFromIndex 按下标查声道（对 av_channel_layout_channel_from_index；参数 channel_layout(有效布局指针)、idx；
+// 回 AVChannel 枚举数, 失败回 AV_CHAN_NONE(-1)；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutChannelFromIndex(channel_layout unsafe.Pointer, idx uint32) int32 {
 	mustUse(ensureModMediaDesc())
 	return fAvChannelLayoutChannelFromIndex(channel_layout, idx)
 }
 
-// ChannelLayoutChannelFromString 查或配声道布局（对 av_channel_layout_channel_from_string；参数 channel_layout、name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutChannelFromString(channel_layout unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer {
+// ChannelLayoutChannelFromString 按名查布局里的声道（对 av_channel_layout_channel_from_string；参数 channel_layout(有效布局指针)、name(C 字符串指针)；
+// 回 AVChannel 枚举数, 失败回 AV_CHAN_NONE(-1)；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutChannelFromString(channel_layout unsafe.Pointer, name unsafe.Pointer) int32 {
 	mustUse(ensureModMediaDesc())
 	return fAvChannelLayoutChannelFromString(channel_layout, name)
 }
@@ -288,15 +294,17 @@ func (x *MediaDesc) ChannelLayoutCheck(channel_layout unsafe.Pointer) error {
 	return nil
 }
 
-// ChannelLayoutCompare 查或配声道布局（对 av_channel_layout_compare；参数 chl、chl1；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutCompare(chl unsafe.Pointer, chl1 unsafe.Pointer) error {
+// ChannelLayoutCompare 比两个声道布局语义是否一样（对 av_channel_layout_compare；参数 chl、chl1(有效布局指针)；
+// 回 0 表一样、1 表不一样, 负数是 AVERROR；回 (值, error), error 非 nil 表布局本身无效；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutCompare(chl unsafe.Pointer, chl1 unsafe.Pointer) (int32, error) {
 	if err := ensureModMediaDesc(); err != nil {
-		return err
+		return 0, err
 	}
 	if ret := fAvChannelLayoutCompare(chl, chl1); ret < 0 {
-		return codeErr("av_channel_layout_compare", ret)
+		return 0, codeErr("av_channel_layout_compare", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
 // ChannelLayoutCopy 查或配声道布局（对 av_channel_layout_copy；参数 dst、src；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
@@ -327,15 +335,17 @@ func (x *MediaDesc) ChannelLayoutDefault(ch_layout unsafe.Pointer, nb_channels i
 	fAvChannelLayoutDefault(ch_layout, nb_channels)
 }
 
-// ChannelLayoutDescribe 查或配声道布局（对 av_channel_layout_describe；参数 channel_layout、buf、buf_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutDescribe(channel_layout unsafe.Pointer, buf unsafe.Pointer, buf_size uintptr) error {
+// ChannelLayoutDescribe 把声道布局拼成人话串（对 av_channel_layout_describe；参数 channel_layout(有效布局指针)、buf(可写内存)、buf_size；
+// 回 (需字节数, error), 截断时回值大于 buf_size；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutDescribe(channel_layout unsafe.Pointer, buf unsafe.Pointer, buf_size uintptr) (int32, error) {
 	if err := ensureModMediaDesc(); err != nil {
-		return err
+		return 0, err
 	}
 	if ret := fAvChannelLayoutDescribe(channel_layout, buf, buf_size); ret < 0 {
-		return codeErr("av_channel_layout_describe", ret)
+		return 0, codeErr("av_channel_layout_describe", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
 // ChannelLayoutDescribeBprint 查或配声道布局（对 av_channel_layout_describe_bprint；参数 channel_layout、bp；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
@@ -371,32 +381,43 @@ func (x *MediaDesc) ChannelLayoutFromString(channel_layout unsafe.Pointer, str u
 	return nil
 }
 
-// ChannelLayoutIndexFromChannel 查或配声道布局（对 av_channel_layout_index_from_channel；参数 channel_layout、channel；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutIndexFromChannel(channel_layout unsafe.Pointer, channel unsafe.Pointer) error {
+// ChannelLayoutIndexFromChannel 查声道在布局里的下标（对 av_channel_layout_index_from_channel；参数 channel_layout(有效布局指针)、channel(AVChannel 枚举数)；
+// 回 (下标, error), 声道不在布局里回 error；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutIndexFromChannel(channel_layout unsafe.Pointer, channel int32) (int32, error) {
 	if err := ensureModMediaDesc(); err != nil {
-		return err
+		return 0, err
 	}
 	if ret := fAvChannelLayoutIndexFromChannel(channel_layout, channel); ret < 0 {
-		return codeErr("av_channel_layout_index_from_channel", ret)
+		return 0, codeErr("av_channel_layout_index_from_channel", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
-// ChannelLayoutIndexFromString 查或配声道布局（对 av_channel_layout_index_from_string；参数 channel_layout、name；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutIndexFromString(channel_layout unsafe.Pointer, name unsafe.Pointer) error {
+// ChannelLayoutIndexFromString 按名查声道在布局里的下标（对 av_channel_layout_index_from_string；参数 channel_layout(有效布局指针)、name(C 字符串指针)；
+// 回 (下标, error), 名子不对或声道不在布局里回 error；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutIndexFromString(channel_layout unsafe.Pointer, name unsafe.Pointer) (int32, error) {
 	if err := ensureModMediaDesc(); err != nil {
-		return err
+		return 0, err
 	}
 	if ret := fAvChannelLayoutIndexFromString(channel_layout, name); ret < 0 {
-		return codeErr("av_channel_layout_index_from_string", ret)
+		return 0, codeErr("av_channel_layout_index_from_string", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
-// ChannelLayoutRetype 查或配声道布局（对 av_channel_layout_retype；参数 channel_layout、order、flags；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelLayoutRetype(channel_layout unsafe.Pointer, order unsafe.Pointer, flags int32) unsafe.Pointer {
-	mustUse(ensureModMediaDesc())
-	return fAvChannelLayoutRetype(channel_layout, order, flags)
+// ChannelLayoutRetype 换声道布局的组织方式（对 av_channel_layout_retype；参数 channel_layout(有效布局指针, 原地改)、order(AVChannelOrder 枚举数: 0=UNSPEC/1=NATIVE/2=CUSTOM/3=AMBISONIC)、flags(0 或 1=LOSSLESS/2=CANONICAL)；
+// 回 (0=无损转成, >0=有损但转成, error 非 nil=转不成)；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelLayoutRetype(channel_layout unsafe.Pointer, order int32, flags int32) (int32, error) {
+	if err := ensureModMediaDesc(); err != nil {
+		return 0, err
+	}
+	if ret := fAvChannelLayoutRetype(channel_layout, order, flags); ret < 0 {
+		return 0, codeErr("av_channel_layout_retype", ret)
+	} else {
+		return ret, nil
+	}
 }
 
 // ChannelLayoutStandard 查或配声道布局（对 av_channel_layout_standard；参数 opaque；回 C 指针，失败回 nil；无状态，可用零值直接调）。
@@ -417,14 +438,15 @@ func (x *MediaDesc) ChannelLayoutUninit(channel_layout unsafe.Pointer) {
 	fAvChannelLayoutUninit(channel_layout)
 }
 
-// ChannelName 查单个声道名或描述（对 av_channel_name；参数 buf、buf_size、channel；回数值或个数；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelName(buf unsafe.Pointer, buf_size uintptr, channel unsafe.Pointer) int32 {
+// ChannelName 查单个声道短名（对 av_channel_name；参数 buf(可写内存)、buf_size、channel(AVChannel 枚举数, 如 0=FL)；
+// 回需字节数, 负数是 AVERROR；buf 不可传 nil；无状态，可用零值直接调）.
+func (x *MediaDesc) ChannelName(buf unsafe.Pointer, buf_size uintptr, channel int32) int32 {
 	mustUse(ensureModMediaDesc())
 	return fAvChannelName(buf, buf_size, channel)
 }
 
-// ChannelNameBprint 查单个声道名或描述（对 av_channel_name_bprint；参数 bp、channel_id；按签名取回值；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelNameBprint(bp unsafe.Pointer, channel_id unsafe.Pointer) {
+// ChannelNameBprint 查单个声道短名（对 av_channel_name_bprint；参数 bp(须是 NewBPrint 建的, 不可传 nil)、channel_id(AVChannel 枚举数)；往 bp 里追加，无返回值）.
+func (x *MediaDesc) ChannelNameBprint(bp unsafe.Pointer, channel_id int32) {
 	mustUse(ensureModMediaDesc())
 	fAvChannelNameBprint(bp, channel_id)
 }
@@ -471,8 +493,9 @@ func (x *MediaDesc) ColorTransferFromName(name unsafe.Pointer) int32 {
 	return fAvColorTransferFromName(name)
 }
 
-// ColorTransferName 颜色主键和范围查名字或取值（对 av_color_transfer_name；参数 transfer；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (x *MediaDesc) ColorTransferName(transfer unsafe.Pointer) unsafe.Pointer {
+// ColorTransferName 按编号查传输函数名（对 av_color_transfer_name；参数 transfer(AVColorTransferCharacteristic 枚举数, 如 1=bt709)；
+// 回 C 字符串指针, 编号越界回 nil；无状态，可用零值直接调）.
+func (x *MediaDesc) ColorTransferName(transfer int32) unsafe.Pointer {
 	mustUse(ensureModMediaDesc())
 	return fAvColorTransferName(transfer)
 }
@@ -489,20 +512,21 @@ func (x *MediaDesc) ContentLightMetadataCreateSideData(frame unsafe.Pointer) uns
 	return fAvContentLightMetadataCreateSideData(frame)
 }
 
-// DisplayMatrixFlip 显示矩阵翻转或读旋转角（对 av_display_matrix_flip；参数 matrix、hflip、vflip；按签名取回值；无状态，可用零值直接调）。
-func (x *MediaDesc) DisplayMatrixFlip(matrix int32, hflip int32, vflip int32) {
+// DisplayMatrixFlip 原地翻转显示矩阵（对 av_display_matrix_flip；参数 matrix(须是 9 个 int32 共 36 字节的可写内存, 不可传 nil)、hflip、vflip(0/1)；无返回值）.
+func (x *MediaDesc) DisplayMatrixFlip(matrix unsafe.Pointer, hflip int32, vflip int32) {
 	mustUse(ensureModMediaDesc())
 	fAvDisplayMatrixFlip(matrix, hflip, vflip)
 }
 
-// DisplayRotationGet 显示矩阵翻转或读旋转角（对 av_display_rotation_get；参数 matrix；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (x *MediaDesc) DisplayRotationGet(matrix int32) unsafe.Pointer {
+// DisplayRotationGet 从显示矩阵读旋转角（对 av_display_rotation_get；参数 matrix(须是 9 个 int32 共 36 字节的有效矩阵, 不可传 nil)；
+// 回角度 float64(-180 到 180), 矩阵奇异回 NaN；无状态，可用零值直接调）.
+func (x *MediaDesc) DisplayRotationGet(matrix unsafe.Pointer) float64 {
 	mustUse(ensureModMediaDesc())
 	return fAvDisplayRotationGet(matrix)
 }
 
-// DisplayRotationSet 显示矩阵翻转或读旋转角（对 av_display_rotation_set；参数 matrix、angle；按签名取回值；无状态，可用零值直接调）。
-func (x *MediaDesc) DisplayRotationSet(matrix int32, angle float64) {
+// DisplayRotationSet 往显示矩阵写旋转角（对 av_display_rotation_set；参数 matrix(须是 9 个 int32 共 36 字节的可写内存, 不可传 nil)、angle(顺时针度数, Get 读出来是负的逆时针角)；整个矩阵会被重写）.
+func (x *MediaDesc) DisplayRotationSet(matrix unsafe.Pointer, angle float64) {
 	mustUse(ensureModMediaDesc())
 	fAvDisplayRotationSet(matrix, angle)
 }
@@ -513,8 +537,9 @@ func (x *MediaDesc) DoviAlloc(size unsafe.Pointer) unsafe.Pointer {
 	return fAvDoviAlloc(size)
 }
 
-// DoviFindLevel 杜比视界元数据操作（对 av_dovi_find_level；参数 data、level；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (x *MediaDesc) DoviFindLevel(data unsafe.Pointer, level unsafe.Pointer) unsafe.Pointer {
+// DoviFindLevel 按 level 找杜比视界扩展块（对 av_dovi_find_level；参数 data(须是 DoviMetadataAlloc 建的, 不可传 nil)、level(0-255 的数值)；
+// 回扩展块指针, 找不到回 nil；无状态，可用零值直接调）.
+func (x *MediaDesc) DoviFindLevel(data unsafe.Pointer, level uint8) unsafe.Pointer {
 	mustUse(ensureModMediaDesc())
 	return fAvDoviFindLevel(data, level)
 }
@@ -548,10 +573,17 @@ func (x *MediaDesc) DynamicHdrPlusFromT35(s unsafe.Pointer, data unsafe.Pointer,
 	return nil
 }
 
-// DynamicHdrPlusToT35 HDR10+ 动态元数据操作（对 av_dynamic_hdr_plus_to_t35；参数 s、data、size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (x *MediaDesc) DynamicHdrPlusToT35(s unsafe.Pointer, data *unsafe.Pointer, size unsafe.Pointer) unsafe.Pointer {
-	mustUse(ensureModMediaDesc())
-	return fAvDynamicHdrPlusToT35(s, data, size)
+// DynamicHdrPlusToT35 把 HDR10+ 元数据压成 T.35 字节串（对 av_dynamic_hdr_plus_to_t35；参数 s(须是 DynamicHdrPlusAlloc 建的、分数分母填好的有效结构, 不可传 nil；全零结构体分母是 0, C 里做除法会崩, 别直接调)、data(指向字节串指针的槽, 传 *unsafe.Pointer, *data 传 nil 表让 C 分配)、size(指向字节数的槽)；
+// 回 (>=0=字节数, error), data 和 size 槽不可传 nil；C 分配的字节串记得 Mem.Free；无状态，可用零值直接调）.
+func (x *MediaDesc) DynamicHdrPlusToT35(s unsafe.Pointer, data *unsafe.Pointer, size unsafe.Pointer) (int32, error) {
+	if err := ensureModMediaDesc(); err != nil {
+		return 0, err
+	}
+	if ret := fAvDynamicHdrPlusToT35(s, data, size); ret < 0 {
+		return 0, codeErr("av_dynamic_hdr_plus_to_t35", ret)
+	} else {
+		return ret, nil
+	}
 }
 
 // FilmGrainParamsAlloc 胶片颗粒参数操作（对 av_film_grain_params_alloc；参数 size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
@@ -566,14 +598,16 @@ func (x *MediaDesc) FilmGrainParamsCreateSideData(frame unsafe.Pointer) unsafe.P
 	return fAvFilmGrainParamsCreateSideData(frame)
 }
 
-// FilmGrainParamsSelect 胶片颗粒参数操作（对 av_film_grain_params_select；参数 frame；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// FilmGrainParamsSelect 从帧里挑一套胶片颗粒参数（对 av_film_grain_params_select；参数 frame(须是真帧指针, 不可传 nil；空白帧没像素格式会诚实回 nil, 真解出来的帧才选得出)；
+// 回参数指针, 挑不出回 nil；无状态，可用零值直接调）.
 func (x *MediaDesc) FilmGrainParamsSelect(frame unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModMediaDesc())
 	return fAvFilmGrainParamsSelect(frame)
 }
 
-// GetBitsPerPixel 问像素格式平均每像素占几位（对 av_get_bits_per_pixel；参数 pixdesc；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (x *MediaDesc) GetBitsPerPixel(pixdesc unsafe.Pointer) unsafe.Pointer {
+// GetBitsPerPixel 问像素格式平均每像素占几位（对 av_get_bits_per_pixel；参数 pixdesc(须是 PixFmtDescGet 回的有效描述指针, 不可传 nil, 传 nil 会崩)；
+// 回位数 int32；yuv420p=12, rgb24=24；无状态，可用零值直接调）.
+func (x *MediaDesc) GetBitsPerPixel(pixdesc unsafe.Pointer) int32 {
 	mustUse(ensureModMediaDesc())
 	return fAvGetBitsPerPixel(pixdesc)
 }
@@ -631,10 +665,16 @@ func (x *MediaDesc) ParseColor(rgba_color unsafe.Pointer, color_string unsafe.Po
 	return nil
 }
 
-// ParseRatio 把分数的字符串解析成分子分母（对 av_parse_ratio；参数 q、str、max、log_offset、log_ctx；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (x *MediaDesc) ParseRatio(q unsafe.Pointer, str unsafe.Pointer, max int32, log_offset int32, log_ctx unsafe.Pointer) unsafe.Pointer {
-	mustUse(ensureModMediaDesc())
-	return fAvParseRatio(q, str, max, log_offset, log_ctx)
+// ParseRatio 把分数的字符串解析成分子分母（对 av_parse_ratio；参数 q(指向 AVRational 共 8 字节的可写内存, 不可传 nil)、str(C 字符串指针)、max(分子分母上限, 传 0 会压成 0/1, 一般传 1001000)、log_offset、log_ctx(传 nil 关日志)；
+// 回 nil 表成功, 失败回 error；q 槽不可传 nil；无状态，可用零值直接调）.
+func (x *MediaDesc) ParseRatio(q unsafe.Pointer, str unsafe.Pointer, max int32, log_offset int32, log_ctx unsafe.Pointer) error {
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
+	if ret := fAvParseRatio(q, str, max, log_offset, log_ctx); ret < 0 {
+		return codeErr("av_parse_ratio", ret)
+	}
+	return nil
 }
 
 // ParseTime 把时间字符串解析成微秒（对 av_parse_time；参数 timeval、timestr、duration；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
@@ -659,10 +699,16 @@ func (x *MediaDesc) ParseVideoRate(rate unsafe.Pointer, str unsafe.Pointer) erro
 	return nil
 }
 
-// ParseVideoSize 把宽高字符串解析成数字（对 av_parse_video_size；参数 width_ptr、height_ptr、str；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (x *MediaDesc) ParseVideoSize(width_ptr unsafe.Pointer, height_ptr unsafe.Pointer, str unsafe.Pointer) unsafe.Pointer {
-	mustUse(ensureModMediaDesc())
-	return fAvParseVideoSize(width_ptr, height_ptr, str)
+// ParseVideoSize 把宽高字符串解析成数字（对 av_parse_video_size；参数 width_ptr、height_ptr(各指向 int32 的可写内存, 不可传 nil)、str(C 字符串指针, 如 "640x480")；
+// 回 nil 表成功, 失败回 error；无状态，可用零值直接调）.
+func (x *MediaDesc) ParseVideoSize(width_ptr unsafe.Pointer, height_ptr unsafe.Pointer, str unsafe.Pointer) error {
+	if err := ensureModMediaDesc(); err != nil {
+		return err
+	}
+	if ret := fAvParseVideoSize(width_ptr, height_ptr, str); ret < 0 {
+		return codeErr("av_parse_video_size", ret)
+	}
+	return nil
 }
 
 // PixFmtDescGet 像素格式查名字查属性（对 av_pix_fmt_desc_get；参数 pix_fmt；回 C 指针，失败回 nil；无状态，可用零值直接调）。
@@ -695,8 +741,9 @@ func (x *MediaDesc) SphericalFromName(name unsafe.Pointer) int32 {
 	return fAvSphericalFromName(name)
 }
 
-// SphericalProjectionName 全景球面元数据操作（对 av_spherical_projection_name；参数 projection；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (x *MediaDesc) SphericalProjectionName(projection unsafe.Pointer) unsafe.Pointer {
+// SphericalProjectionName 按编号查全景投影名（对 av_spherical_projection_name；参数 projection(枚举数: 0=equirectangular/1=cubemap/2=tiled/3=half/4=rectilinear/5=fisheye)；
+// 回 C 字符串指针, 越界回 "unknown" 不回 nil；无状态，可用零值直接调）.
+func (x *MediaDesc) SphericalProjectionName(projection int32) unsafe.Pointer {
 	mustUse(ensureModMediaDesc())
 	return fAvSphericalProjectionName(projection)
 }
@@ -761,15 +808,11 @@ func (x *MediaDesc) Stereo3dViewName(view uint32) unsafe.Pointer {
 	return fAvStereo3dViewName(view)
 }
 
-// TimecodeAdjustNtscFramenum2 时间码初始化换算和拼串（对 av_timecode_adjust_ntsc_framenum2；参数 framenum、fps；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (x *MediaDesc) TimecodeAdjustNtscFramenum2(framenum int32, fps int32) error {
-	if err := ensureModMediaDesc(); err != nil {
-		return err
-	}
-	if ret := fAvTimecodeAdjustNtscFramenum2(framenum, fps); ret < 0 {
-		return codeErr("av_timecode_adjust_ntsc_framenum2", ret)
-	}
-	return nil
+// TimecodeAdjustNtscFramenum2 把 NTSC 丢帧时间码的帧号调准（对 av_timecode_adjust_ntsc_framenum2；参数 framenum、fps(须是 30 的倍数, 不是的话原样返回)；
+// 回调准后的帧号 int32, 纯算术不报错；无状态，可用零值直接调）.
+func (x *MediaDesc) TimecodeAdjustNtscFramenum2(framenum int32, fps int32) int32 {
+	mustUse(ensureModMediaDesc())
+	return fAvTimecodeAdjustNtscFramenum2(framenum, fps)
 }
 
 // TimecodeCheckFrameRate 时间码初始化换算和拼串（对 av_timecode_check_frame_rate；参数 rate；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。

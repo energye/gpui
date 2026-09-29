@@ -166,7 +166,8 @@ func (Log) SetFlags(flags int32) {
 	fLogSetFlags(flags)
 }
 
-// SetCallback installs a custom log callback (传 nil 恢复默认;
+// SetCallback installs a custom log callback (传 nil 关掉日志输出,
+// C 内判空跳过; 不是恢复默认, 要恢复默认需重装 av_log_default_callback;
 // 回调签名 void(*)(void*, int, const char*, va_list), 纯地址透传;
 // 想从 Go 写回调先经 NewLogCallback 包一层, 见下).
 func (Log) SetCallback(cb unsafe.Pointer) {
@@ -176,7 +177,8 @@ func (Log) SetCallback(cb unsafe.Pointer) {
 
 // NewLogCallback wraps a Go log func into a C function pointer
 // (purego.NewCallback 跳板, 最多约 2000 个, 建一次反复用别放循环里.
-// 返回的 uintptr 记得存好别丢, 丢了回调就悬空; 传 nil 恢复默认).
+// 返回的 uintptr 记得存好别丢, 丢了回调就悬空; fn 传 nil 回 0,
+// 0 给 SetGoCallback 表关掉输出).
 func NewLogCallback(fn func(ptr unsafe.Pointer, level int32, fmt, msg unsafe.Pointer)) uintptr {
 	if fn == nil {
 		return 0
@@ -185,7 +187,8 @@ func NewLogCallback(fn func(ptr unsafe.Pointer, level int32, fmt, msg unsafe.Poi
 }
 
 // SetGoCallback installs a Go log func directly (NewLogCallback 的薄包装,
-// cb 传 NewLogCallback 的返回值; 传 0 恢复默认).
+// cb 传 NewLogCallback 的返回值; 传 0 关掉输出 (C 回调置空),
+// 不是恢复默认; 恢复默认需重装 av_log_default_callback).
 func (Log) SetGoCallback(cb uintptr) {
 	mustUse(ensureModErrorLog())
 	if cb == 0 {
@@ -196,21 +199,26 @@ func (Log) SetGoCallback(cb uintptr) {
 }
 
 // DefaultCallback runs ffmpeg's own log callback for one message
-// (all pointers pass through; level 用 Log* 常量).
+// (level 用 Log* 常量; 只有 level 大于当前 Level 时才可传 fmt/args 为 nil,
+// C 提前返回不碰指针; 正常格式化时 fmt 须是有效 C 字符串、args 须是有效
+// va_list, 不可传 nil 否则崩; 一般不直接调着玩, 用来重装默认回调).
 func (Log) DefaultCallback(ptr unsafe.Pointer, level int32, fmt, args unsafe.Pointer) {
 	mustUse(ensureModErrorLog())
 	fLogDefaultCb(ptr, level, fmt, args)
 }
 
-// FormatLine formats one log message into line (调用方给 1KB+ 缓冲;
-// printPrefix 传 nil 或 *int32, 无返回值, 见 av_log_format_line).
+// FormatLine formats one log message into line (调用方给 1KB+ 可写缓冲;
+// fmt 须是有效 C 字符串、args 须是有效 va_list, 不可传 nil;
+// printPrefix 不可传 nil, C 内直接解引用, 须指向初值为 1 的 int32;
+// 无返回值, 见 av_log_format_line).
 func (Log) FormatLine(ptr unsafe.Pointer, level int32, fmt, args unsafe.Pointer, line unsafe.Pointer, lineSize int32, printPrefix *int32) {
 	mustUse(ensureModErrorLog())
 	fLogFmtLine(ptr, level, fmt, args, line, lineSize, printPrefix)
 }
 
 // FormatLine2 behaves like FormatLine but returns the bytes written
-// (negative means the message was dropped by flags/level).
+// (negative means the message was dropped by flags/level;
+// printPrefix 同样不可传 nil, 须指向初值为 1 的 int32).
 func (Log) FormatLine2(ptr unsafe.Pointer, level int32, fmt, args unsafe.Pointer, line unsafe.Pointer, lineSize int32, printPrefix *int32) int32 {
 	mustUse(ensureModErrorLog())
 	return fLogFmtLine2(ptr, level, fmt, args, line, lineSize, printPrefix)
@@ -234,7 +242,9 @@ func (Math) RescaleQ(a int64, bq, cq AVRational) int64 {
 	return fRescaleQ(a, bq, cq)
 }
 
-// RescaleQRnd converts timestamp a from bq to cq with rounding.
+// RescaleQRnd converts timestamp a from bq to cq with rounding
+// (rnd 用 AV_ROUND_* : 0 截零 / 2 向下 / 3 向上 / 5 就近, 与 RescaleRnd 同;
+// 传 5 等价 RescaleQ).
 func (Math) RescaleQRnd(a int64, bq, cq AVRational, rnd int32) int64 {
 	mustUse(ensureModErrorLog())
 	return fRescaleQRnd(a, bq, cq, rnd)

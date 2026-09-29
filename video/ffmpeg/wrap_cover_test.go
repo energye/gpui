@@ -1,8 +1,11 @@
 package ffmpeg
 
 import (
+	"strings"
 	"testing"
 	"unsafe"
+
+	"github.com/ebitengine/purego"
 )
 
 // TestWrapCover pins every previously registered-but-unwrapped API behind
@@ -287,4 +290,799 @@ if clk2.NowRelativeUs() <= 0 {
 t.Fatal("NowRelativeUs not positive")
 }
 _ = clk2.IsMonotonic()
+}
+
+// TestWrapCoverErrorLog fills the error_log module gap: flags switch,
+// RescaleQRnd arithmetic, SleepUs, ForceCount, log-callback install,
+// DefaultCallback early-return path, FormatLine/FormatLine2 with a real
+// C string + zeroed va_list (no NULL pointers into C).
+func TestWrapCoverErrorLog(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var lg Log
+var mth Math
+var clk Clock
+var cpu Cpu
+// RescaleQRnd: 3*1/2=1.5, rounding decides 1 or 2
+// (AV_ROUND_DOWN=2, UP=3, NEAR_INF=5, 见 mathematics.h).
+if got := mth.RescaleQRnd(3, AVRational{1, 2}, AVRational{1, 1}, 2); got != 1 {
+t.Fatalf("RescaleQRnd DOWN = %d, want 1", got)
+}
+if got := mth.RescaleQRnd(3, AVRational{1, 2}, AVRational{1, 1}, 3); got != 2 {
+t.Fatalf("RescaleQRnd UP = %d, want 2", got)
+}
+if got := mth.RescaleQRnd(3, AVRational{1, 2}, AVRational{1, 1}, 5); got != 2 {
+t.Fatalf("RescaleQRnd NEAR_INF = %d, want 2", got)
+}
+if got := mth.RescaleQRnd(25, AVRational{1, 25}, AVRational{1, 1000}, 5); got != 1000 {
+t.Fatalf("RescaleQRnd 25fps->ms = %d, want 1000", got)
+}
+// Flags: bit0 SKIP_REPEATED=1, bit1 PRINT_LEVEL=2 (见 log.h),
+// set/get must be sticky, then restore.
+origFlags := lg.Flags()
+lg.SetFlags(origFlags | 1)
+if lg.Flags() != origFlags|1 {
+t.Fatalf("SetFlags SKIP_REPEATED not sticky: %d", lg.Flags())
+}
+lg.SetFlags(origFlags | 2)
+if lg.Flags()&2 == 0 {
+t.Fatalf("SetFlags PRINT_LEVEL not sticky: %d", lg.Flags())
+}
+lg.SetFlags(origFlags)
+if lg.Flags() != origFlags {
+t.Fatalf("SetFlags restore = %d, want %d", lg.Flags(), origFlags)
+}
+// SleepUs: 0 and 1ms both succeed (av_usleep 回 0 表成功).
+if err := clk.SleepUs(0); err != nil {
+t.Fatalf("SleepUs(0): %v", err)
+}
+if err := clk.SleepUs(1000); err != nil {
+t.Fatalf("SleepUs(1000): %v", err)
+}
+// ForceCount: pin to current count, verify, then 0 restores auto-detect
+// (cpu.h: Count < 1 disables forcing).
+origCount := cpu.Count()
+if origCount <= 0 {
+t.Fatalf("Cpu.Count = %d", origCount)
+}
+cpu.ForceCount(origCount)
+if cpu.Count() != origCount {
+t.Fatalf("ForceCount pinned = %d, want %d", cpu.Count(), origCount)
+}
+cpu.ForceCount(0)
+if cpu.Count() <= 0 {
+t.Fatal("ForceCount(0) restore failed")
+}
+// NewLogCallback: nil -> 0, real func -> nonzero trampoline.
+if NewLogCallback(nil) != 0 {
+t.Fatal("NewLogCallback(nil) != 0")
+}
+cb := NewLogCallback(func(ptr unsafe.Pointer, level int32, fmt, msg unsafe.Pointer) {})
+if cb == 0 {
+t.Fatal("NewLogCallback(func) == 0")
+}
+// FormatLine/FormatLine2: real C string + zeroed va_list + 1KB line buf.
+// fmt 无 % 转换, 零 va_list 不会被解引用; flags 清零免得加 [error] 前缀.
+fmtPtr, freeFmt := featCStr("test-log-line\n")
+defer freeFmt()
+var mem Mem
+vaList := mem.AllocZ(32)
+if vaList == nil {
+t.Fatal("va_list alloc nil")
+}
+defer mem.Free(vaList)
+lineBuf := mem.Alloc(1024)
+if lineBuf == nil {
+t.Fatal("line buf alloc nil")
+}
+defer mem.Free(lineBuf)
+lg.SetFlags(0)
+var prefix int32 = 1
+if got := lg.FormatLine2(nil, LogError, fmtPtr, vaList, lineBuf, 1024, &prefix); got != 14 {
+lg.SetFlags(origFlags)
+t.Fatalf("FormatLine2 = %d, want 14", got)
+}
+lg.SetFlags(origFlags)
+if prefix != 1 {
+t.Fatalf("FormatLine2 prefix = %d, want 1 (ends with newline)", prefix)
+}
+if got := cstr(lineBuf); got != "test-log-line\n" {
+t.Fatalf("FormatLine2 line = %q", got)
+}
+var prefix2 int32 = 1
+lg.FormatLine(nil, LogError, fmtPtr, vaList, lineBuf, 1024, &prefix2)
+if got := cstr(lineBuf); got != "test-log-line\n" {
+t.Fatalf("FormatLine line = %q", got)
+}
+// DefaultCallback early-return path: level 100 > LogError(16),
+// C 直接返回不碰 fmt/args, 传 nil 安全; 低 level 传 nil 会崩, 不测.
+oldLevel := lg.Level()
+lg.SetLevel(LogError)
+lg.DefaultCallback(nil, 100, nil, nil)
+lg.SetLevel(oldLevel)
+// Callback install/uninstall must not crash; no log fires in between
+// so the no-op Go trampoline is never entered.
+lg.SetGoCallback(cb)
+lg.SetGoCallback(0)
+lg.SetCallback(nil)
+// Restore default output so later tests keep stderr logging.
+if addr, err := purego.Dlsym(libHandle, "av_log_default_callback"); err == nil && addr != 0 {
+lg.SetCallback(*(*unsafe.Pointer)(unsafe.Pointer(&addr)))
+}
+}
+
+// TestWrapCoverMediaDesc fills the media_desc module gap: every pure query
+// pinned to C-header answers (pixdesc.h/channel_layout.h/parseutils.h/
+// timecode.h/display.h/spherical.c/stereo3d.c). Layout/display/parse/out-param
+// functions get real buffers, never NULL (NULL segfaults inside ffmpeg);
+// allocs pair with Mem.Free, side-data creators get a real NewFrame.
+func TestWrapCoverMediaDesc(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var md MediaDesc
+var mem Mem
+// ---- pix/color pure queries (pixdesc.h/pixdesc.c) ----
+if got := md.GetPixFmt("yuv420p"); got != 0 {
+t.Fatalf("GetPixFmt(yuv420p) = %d, want 0", got)
+}
+if got := md.GetPixFmt("no-such-fmt-xyz"); got != -1 {
+t.Fatalf("GetPixFmt bogus = %d, want -1 (AV_PIX_FMT_NONE)", got)
+}
+if got := cstr(md.GetPixFmtName(0)); got != "yuv420p" {
+t.Fatalf("GetPixFmtName(0) = %q, want yuv420p", got)
+}
+if md.GetPixFmtName(-999) != nil {
+t.Fatal("GetPixFmtName(-999) non-nil")
+}
+if got := md.GetPixFmtLoss(0, 0, 0); got != 0 {
+t.Fatalf("GetPixFmtLoss same = %d, want 0", got)
+}
+desc420 := md.PixFmtDescGet(0)
+if desc420 == nil {
+t.Fatal("PixFmtDescGet(0) nil")
+}
+if md.PixFmtDescGet(-999) != nil {
+t.Fatal("PixFmtDescGet(-999) non-nil")
+}
+if got := md.PixFmtDescGetId(desc420); got != 0 {
+t.Fatalf("PixFmtDescGetId = %d, want 0", got)
+}
+if md.PixFmtDescNext(nil) == nil {
+t.Fatal("PixFmtDescNext(nil) nil (want first descriptor)")
+}
+strBuf := mem.Alloc(64)
+if strBuf == nil {
+t.Fatal("pixfmt string buf nil")
+}
+defer mem.Free(strBuf)
+if md.GetPixFmtString(strBuf, 64, 0) == nil {
+t.Fatal("GetPixFmtString nil")
+}
+if got := cstr(strBuf); !strings.Contains(got, "yuv420p") {
+t.Fatalf("GetPixFmtString = %q, want contains yuv420p", got)
+}
+if got := md.GetBitsPerPixel(desc420); got != 12 {
+t.Fatalf("GetBitsPerPixel(yuv420p) = %d, want 12", got)
+}
+descRGB := md.PixFmtDescGet(2)
+if descRGB == nil {
+t.Fatal("PixFmtDescGet(2) nil")
+}
+if got := md.GetBitsPerPixel(descRGB); got != 24 {
+t.Fatalf("GetBitsPerPixel(rgb24) = %d, want 24", got)
+}
+if got := md.ColorRangeFromName("tv"); got != 1 {
+t.Fatalf("ColorRangeFromName(tv) = %d, want 1 (MPEG)", got)
+}
+if got := md.ColorRangeFromName("no-such-range-xyz"); got >= 0 {
+t.Fatalf("ColorRangeFromName bogus = %d, want < 0", got)
+}
+if got := cstr(md.ColorRangeName(1)); got != "tv" {
+t.Fatalf("ColorRangeName(1) = %q, want tv", got)
+}
+if md.ColorRangeName(999) != nil {
+t.Fatal("ColorRangeName(999) non-nil")
+}
+priStr, freePri := featCStr("bt709")
+defer freePri()
+if got := md.ColorPrimariesFromName(priStr); got != 1 {
+t.Fatalf("ColorPrimariesFromName(bt709) = %d, want 1", got)
+}
+bogusPri, freeBogusPri := featCStr("no-such-primaries-xyz")
+defer freeBogusPri()
+if got := md.ColorPrimariesFromName(bogusPri); got >= 0 {
+t.Fatalf("ColorPrimariesFromName bogus = %d, want < 0", got)
+}
+if got := cstr(md.ColorPrimariesName(1)); got != "bt709" {
+t.Fatalf("ColorPrimariesName(1) = %q, want bt709", got)
+}
+if got := md.ColorSpaceFromName("bt709"); got != 1 {
+t.Fatalf("ColorSpaceFromName(bt709) = %d, want 1", got)
+}
+if got := md.ColorSpaceFromName("no-such-space-xyz"); got >= 0 {
+t.Fatalf("ColorSpaceFromName bogus = %d, want < 0", got)
+}
+if got := cstr(md.ColorSpaceName(1)); got != "bt709" {
+t.Fatalf("ColorSpaceName(1) = %q, want bt709", got)
+}
+trcStr, freeTrc := featCStr("bt709")
+defer freeTrc()
+if got := md.ColorTransferFromName(trcStr); got != 1 {
+t.Fatalf("ColorTransferFromName(bt709) = %d, want 1", got)
+}
+bogusTrc, freeBogusTrc := featCStr("no-such-trc-xyz")
+defer freeBogusTrc()
+if got := md.ColorTransferFromName(bogusTrc); got >= 0 {
+t.Fatalf("ColorTransferFromName bogus = %d, want < 0", got)
+}
+if got := cstr(md.ColorTransferName(1)); got != "bt709" {
+t.Fatalf("ColorTransferName(1) = %q, want bt709", got)
+}
+if md.ColorTransferName(999) != nil {
+t.Fatal("ColorTransferName(999) non-nil")
+}
+// ---- single channel name/description (channel_layout.h) ----
+nameBuf := mem.Alloc(32)
+if nameBuf == nil {
+t.Fatal("channel name buf nil")
+}
+defer mem.Free(nameBuf)
+if got := md.ChannelName(nameBuf, 32, 0); got <= 0 {
+t.Fatalf("ChannelName(FL) = %d, want > 0", got)
+}
+if got := cstr(nameBuf); got != "FL" {
+t.Fatalf("ChannelName(FL) = %q, want FL", got)
+}
+if n, err := md.ChannelDescription(nameBuf, 32, 0); err != nil || n <= 0 {
+t.Fatalf("ChannelDescription(FL) = (%d, %v)", n, err)
+}
+flStr, freeFL := featCStr("FL")
+defer freeFL()
+if got := md.ChannelFromString(flStr); got != 0 {
+t.Fatalf("ChannelFromString(FL) = %d, want 0", got)
+}
+bp := NewBPrint(64, 1024)
+if bp == nil {
+t.Fatal("NewBPrint nil")
+}
+defer bp.Free()
+md.ChannelNameBprint(bp.Ptr(), 0)
+md.ChannelDescriptionBprint(bp.Ptr(), 0)
+fin, err := bp.Finalize()
+if err != nil {
+t.Fatalf("BPrint Finalize: %v", err)
+}
+defer mem.Free(fin)
+if got := cstr(fin); !strings.Contains(got, "FL") {
+t.Fatalf("BPrint channel names = %q, want contains FL", got)
+}
+// ---- layout lifecycle (AVChannelLayout = 24 bytes, 用 32 字节零内存) ----
+layout := mem.AllocZ(32)
+if layout == nil {
+t.Fatal("layout alloc nil")
+}
+defer mem.Free(layout)
+md.ChannelLayoutDefault(layout, 2)
+if err := md.ChannelLayoutCheck(layout); err != nil {
+t.Fatalf("Default(2) Check: %v", err)
+}
+descBuf := mem.Alloc(64)
+if descBuf == nil {
+t.Fatal("layout describe buf nil")
+}
+defer mem.Free(descBuf)
+if n, err := md.ChannelLayoutDescribe(layout, descBuf, 64); err != nil || n <= 0 {
+t.Fatalf("Describe(stereo) = (%d, %v)", n, err)
+}
+if got := cstr(descBuf); got != "stereo" {
+t.Fatalf("Describe(stereo) = %q, want stereo", got)
+}
+layoutCopy := mem.AllocZ(32)
+if layoutCopy == nil {
+t.Fatal("layout copy alloc nil")
+}
+defer mem.Free(layoutCopy)
+if err := md.ChannelLayoutCopy(layoutCopy, layout); err != nil {
+t.Fatalf("ChannelLayoutCopy: %v", err)
+}
+if eq, err := md.ChannelLayoutCompare(layout, layoutCopy); err != nil || eq != 0 {
+t.Fatalf("Compare same = (%d, %v), want (0, nil)", eq, err)
+}
+monoLayout := mem.AllocZ(32)
+if monoLayout == nil {
+t.Fatal("mono layout alloc nil")
+}
+defer mem.Free(monoLayout)
+md.ChannelLayoutDefault(monoLayout, 1)
+if eq, err := md.ChannelLayoutCompare(layout, monoLayout); err != nil || eq != 1 {
+t.Fatalf("Compare stereo/mono = (%d, %v), want (1, nil)", eq, err)
+}
+if idx, err := md.ChannelLayoutIndexFromChannel(layout, 0); err != nil || idx != 0 {
+t.Fatalf("IndexFromChannel(FL) = (%d, %v), want (0, nil)", idx, err)
+}
+if _, err := md.ChannelLayoutIndexFromChannel(layout, 2); err == nil {
+t.Fatal("IndexFromChannel(FC in stereo) accepted")
+}
+if idx, err := md.ChannelLayoutIndexFromString(layout, flStr); err != nil || idx != 0 {
+t.Fatalf("IndexFromString(FL) = (%d, %v), want (0, nil)", idx, err)
+}
+bogusChan, freeBogusChan := featCStr("no-such-channel-xyz")
+defer freeBogusChan()
+if _, err := md.ChannelLayoutIndexFromString(layout, bogusChan); err == nil {
+t.Fatal("IndexFromString bogus accepted")
+}
+if got := md.ChannelLayoutChannelFromIndex(layout, 0); got != 0 {
+t.Fatalf("ChannelFromIndex(0) = %d, want 0 (FL)", got)
+}
+if got := md.ChannelLayoutChannelFromIndex(layout, 99); got != -1 {
+t.Fatalf("ChannelFromIndex(99) = %d, want -1", got)
+}
+if got := md.ChannelLayoutChannelFromString(layout, flStr); got != 0 {
+t.Fatalf("ChannelFromString(layout,FL) = %d, want 0", got)
+}
+if got := md.ChannelLayoutChannelFromString(layout, bogusChan); got != -1 {
+t.Fatalf("ChannelFromString(layout,bogus) = %d, want -1", got)
+}
+if got := md.ChannelLayoutSubset(layout, 1); got != 1 {
+t.Fatalf("Subset(FL) = %d, want 1", got)
+}
+if _, err := md.ChannelLayoutAmbisonicOrder(layout); err == nil {
+t.Fatal("AmbisonicOrder(stereo) accepted")
+}
+bp2 := NewBPrint(64, 1024)
+if bp2 == nil {
+t.Fatal("NewBPrint2 nil")
+}
+defer bp2.Free()
+if err := md.ChannelLayoutDescribeBprint(layout, bp2.Ptr()); err != nil {
+t.Fatalf("DescribeBprint: %v", err)
+}
+maskLayout := mem.AllocZ(32)
+if maskLayout == nil {
+t.Fatal("mask layout alloc nil")
+}
+defer mem.Free(maskLayout)
+if err := md.ChannelLayoutFromMask(maskLayout, 3); err != nil {
+t.Fatalf("FromMask(3): %v", err)
+}
+if err := md.ChannelLayoutCheck(maskLayout); err != nil {
+t.Fatalf("FromMask Check: %v", err)
+}
+if err := md.ChannelLayoutFromMask(maskLayout, 0); err == nil {
+t.Fatal("FromMask(0) accepted")
+}
+strLayout := mem.AllocZ(32)
+if strLayout == nil {
+t.Fatal("str layout alloc nil")
+}
+defer mem.Free(strLayout)
+stereoStr, freeStereoStr := featCStr("stereo")
+defer freeStereoStr()
+if err := md.ChannelLayoutFromString(strLayout, stereoStr); err != nil {
+t.Fatalf("FromString(stereo): %v", err)
+}
+bogusLayoutStr, freeBogusLayoutStr := featCStr("no-such-layout-xyz")
+defer freeBogusLayoutStr()
+badLayout := mem.AllocZ(32)
+if badLayout == nil {
+t.Fatal("bad layout alloc nil")
+}
+defer mem.Free(badLayout)
+if err := md.ChannelLayoutFromString(badLayout, bogusLayoutStr); err == nil {
+t.Fatal("FromString bogus accepted")
+}
+var opaque unsafe.Pointer
+if md.ChannelLayoutStandard(&opaque) == nil {
+t.Fatal("ChannelLayoutStandard first nil")
+}
+retypeLayout := mem.AllocZ(32)
+if retypeLayout == nil {
+t.Fatal("retype layout alloc nil")
+}
+defer mem.Free(retypeLayout)
+md.ChannelLayoutDefault(retypeLayout, 2)
+if r, err := md.ChannelLayoutRetype(retypeLayout, 2, 0); err != nil || r != 0 {
+t.Fatalf("Retype(native->custom) = (%d, %v), want (0, nil)", r, err)
+}
+md.ChannelLayoutUninit(retypeLayout)
+customLayout := mem.AllocZ(32)
+if customLayout == nil {
+t.Fatal("custom layout alloc nil")
+}
+defer mem.Free(customLayout)
+if err := md.ChannelLayoutCustomInit(customLayout, 2); err != nil {
+t.Fatalf("CustomInit(2): %v", err)
+}
+md.ChannelLayoutUninit(customLayout)
+if err := md.ChannelLayoutCheck(customLayout); err == nil {
+t.Fatal("Check(uninitialized) accepted")
+}
+md.ChannelLayoutUninit(layout)
+md.ChannelLayoutUninit(layoutCopy)
+md.ChannelLayoutUninit(monoLayout)
+md.ChannelLayoutUninit(maskLayout)
+md.ChannelLayoutUninit(strLayout)
+// ---- parse utils (parseutils.h; out-param 全给真内存) ----
+rgba := mem.Alloc(4)
+if rgba == nil {
+t.Fatal("rgba buf nil")
+}
+defer mem.Free(rgba)
+redStr, freeRed := featCStr("red")
+defer freeRed()
+if err := md.ParseColor(rgba, redStr, -1, nil); err != nil {
+t.Fatalf("ParseColor(red): %v", err)
+}
+if got := unsafe.Slice((*byte)(rgba), 4); got[0] != 255 || got[1] != 0 || got[2] != 0 || got[3] != 255 {
+t.Fatalf("ParseColor(red) = %v, want [255 0 0 255]", got)
+}
+bogusColor, freeBogusColor := featCStr("no-such-color-xyz")
+defer freeBogusColor()
+if err := md.ParseColor(rgba, bogusColor, -1, nil); err == nil {
+t.Fatal("ParseColor bogus accepted")
+}
+qbuf := mem.Alloc(8)
+if qbuf == nil {
+t.Fatal("ratio buf nil")
+}
+defer mem.Free(qbuf)
+ratioStr, freeRatio := featCStr("1:2")
+defer freeRatio()
+if err := md.ParseRatio(qbuf, ratioStr, 1001000, 0, nil); err != nil {
+t.Fatalf("ParseRatio(1:2): %v", err)
+}
+if got := *(*AVRational)(qbuf); got != (AVRational{1, 2}) {
+t.Fatalf("ParseRatio(1:2) = %+v, want {1 2}", got)
+}
+bogusRatio, freeBogusRatio := featCStr("no-such-ratio-xyz")
+defer freeBogusRatio()
+if err := md.ParseRatio(qbuf, bogusRatio, 1001000, 0, nil); err == nil {
+t.Fatal("ParseRatio bogus accepted")
+}
+tvbuf := mem.Alloc(8)
+if tvbuf == nil {
+t.Fatal("timeval buf nil")
+}
+defer mem.Free(tvbuf)
+durStr, freeDur := featCStr("00:01:00")
+defer freeDur()
+if err := md.ParseTime(tvbuf, durStr, 1); err != nil {
+t.Fatalf("ParseTime(1min): %v", err)
+}
+if got := *(*int64)(tvbuf); got != 60000000 {
+t.Fatalf("ParseTime(1min) = %d, want 60000000", got)
+}
+bogusTime, freeBogusTime := featCStr("no-such-time-xyz")
+defer freeBogusTime()
+if err := md.ParseTime(tvbuf, bogusTime, 1); err == nil {
+t.Fatal("ParseTime bogus accepted")
+}
+ratebuf := mem.Alloc(8)
+if ratebuf == nil {
+t.Fatal("rate buf nil")
+}
+defer mem.Free(ratebuf)
+fpsStr, freeFps := featCStr("25")
+defer freeFps()
+if err := md.ParseVideoRate(ratebuf, fpsStr); err != nil {
+t.Fatalf("ParseVideoRate(25): %v", err)
+}
+if got := *(*AVRational)(ratebuf); got != (AVRational{25, 1}) {
+t.Fatalf("ParseVideoRate(25) = %+v, want {25 1}", got)
+}
+bogusRate, freeBogusRate := featCStr("no-such-rate-xyz")
+defer freeBogusRate()
+if err := md.ParseVideoRate(ratebuf, bogusRate); err == nil {
+t.Fatal("ParseVideoRate bogus accepted")
+}
+wbuf := mem.Alloc(4)
+hbuf := mem.Alloc(4)
+if wbuf == nil || hbuf == nil {
+t.Fatal("video size bufs nil")
+}
+defer mem.Free(wbuf)
+defer mem.Free(hbuf)
+sizeStr, freeSize := featCStr("640x480")
+defer freeSize()
+if err := md.ParseVideoSize(wbuf, hbuf, sizeStr); err != nil {
+t.Fatalf("ParseVideoSize(640x480): %v", err)
+}
+if *(*int32)(wbuf) != 640 || *(*int32)(hbuf) != 480 {
+t.Fatalf("ParseVideoSize = %dx%d, want 640x480", *(*int32)(wbuf), *(*int32)(hbuf))
+}
+bogusSize, freeBogusSize := featCStr("no-such-size-xyz")
+defer freeBogusSize()
+if err := md.ParseVideoSize(wbuf, hbuf, bogusSize); err == nil {
+t.Fatal("ParseVideoSize bogus accepted")
+}
+// ---- timecode (timecode.h/timecode.c) ----
+if err := md.TimecodeCheckFrameRate(AVRational{25, 1}); err != nil {
+t.Fatalf("CheckFrameRate(25): %v", err)
+}
+if err := md.TimecodeCheckFrameRate(AVRational{7, 1}); err == nil {
+t.Fatal("CheckFrameRate(7fps) accepted")
+}
+if got := md.TimecodeAdjustNtscFramenum2(100, 30); got != 100 {
+t.Fatalf("Adjust(100,30) = %d, want 100", got)
+}
+if got := md.TimecodeAdjustNtscFramenum2(50, 25); got != 50 {
+t.Fatalf("Adjust passthrough = %d, want 50", got)
+}
+if got := md.TimecodeGetSmpte(AVRational{25, 1}, 0, 1, 2, 3, 4); got != 0x04030201 {
+t.Fatalf("GetSmpte(01:02:03:04) = %#x, want 0x04030201", got)
+}
+tcbuf := mem.Alloc(32)
+if tcbuf == nil {
+t.Fatal("timecode buf nil")
+}
+defer mem.Free(tcbuf)
+if err := md.TimecodeInit(tcbuf, AVRational{25, 1}, 0, 0, nil); err != nil {
+t.Fatalf("TimecodeInit: %v", err)
+}
+if got := md.TimecodeGetSmpteFromFramenum(tcbuf, 0); got != 0 {
+t.Fatalf("GetSmpteFromFramenum(0) = %#x, want 0", got)
+}
+tcstr := mem.Alloc(32)
+if tcstr == nil {
+t.Fatal("timecode str buf nil")
+}
+defer mem.Free(tcstr)
+if md.TimecodeMakeString(tcbuf, tcstr, 0) == nil {
+t.Fatal("TimecodeMakeString nil")
+}
+if got := cstr(tcstr); got != "00:00:00:00" {
+t.Fatalf("TimecodeMakeString(0) = %q, want 00:00:00:00", got)
+}
+if md.TimecodeMakeSmpteTcString(tcstr, 0x04030201, 0) == nil {
+t.Fatal("MakeSmpteTcString nil")
+}
+if md.TimecodeMakeSmpteTcString2(tcstr, AVRational{25, 1}, 0x04030201, 0, 0) == nil {
+t.Fatal("MakeSmpteTcString2 nil")
+}
+if md.TimecodeMakeMpegTcString(tcstr, 0) == nil {
+t.Fatal("MakeMpegTcString nil")
+}
+if got := cstr(tcstr); got != "00:00:00:00" {
+t.Fatalf("MakeMpegTcString(0) = %q, want 00:00:00:00", got)
+}
+tc2 := mem.Alloc(32)
+if tc2 == nil {
+t.Fatal("timecode2 buf nil")
+}
+defer mem.Free(tc2)
+if err := md.TimecodeInitFromComponents(tc2, AVRational{25, 1}, 0, 1, 2, 3, 4, nil); err != nil {
+t.Fatalf("InitFromComponents: %v", err)
+}
+tc3 := mem.Alloc(32)
+if tc3 == nil {
+t.Fatal("timecode3 buf nil")
+}
+defer mem.Free(tc3)
+tcSrc, freeTcSrc := featCStr("01:02:03:04")
+defer freeTcSrc()
+if err := md.TimecodeInitFromString(tc3, AVRational{25, 1}, tcSrc, nil); err != nil {
+t.Fatalf("InitFromString: %v", err)
+}
+bogusTc, freeBogusTc := featCStr("no-such-timecode-xyz")
+defer freeBogusTc()
+if err := md.TimecodeInitFromString(tc3, AVRational{25, 1}, bogusTc, nil); err == nil {
+t.Fatal("InitFromString bogus accepted")
+}
+// ---- display matrix (display.h; 9xint32 = 36 字节真矩阵) ----
+matrix := mem.Alloc(36)
+if matrix == nil {
+t.Fatal("matrix alloc nil")
+}
+defer mem.Free(matrix)
+md.DisplayRotationSet(matrix, 90.0)
+if got := md.DisplayRotationGet(matrix); got < -90.1 || got > -89.9 {
+t.Fatalf("RotationGet(90 clockwise) = %f, want ~-90 (get 读的是逆时针角)", got)
+}
+md.DisplayMatrixFlip(matrix, 1, 0)
+_ = md.DisplayRotationGet(matrix)
+// ---- metadata allocs (size 传 nil 表不回写, 回来记得 Free) ----
+if md.AmbientViewingEnvironmentAlloc(nil) == nil {
+t.Fatal("AmbientViewingEnvironmentAlloc nil")
+} else {
+mem.Free(md.AmbientViewingEnvironmentAlloc(nil))
+}
+if md.ContentLightMetadataAlloc(nil) == nil {
+t.Fatal("ContentLightMetadataAlloc nil")
+} else {
+mem.Free(md.ContentLightMetadataAlloc(nil))
+}
+doviMeta := md.DoviMetadataAlloc(nil)
+if doviMeta == nil {
+t.Fatal("DoviMetadataAlloc nil")
+}
+defer mem.Free(doviMeta)
+if md.DoviAlloc(nil) == nil {
+t.Fatal("DoviAlloc nil")
+} else {
+mem.Free(md.DoviAlloc(nil))
+}
+if md.DoviFindLevel(doviMeta, 0) != nil {
+t.Fatal("DoviFindLevel(zeroed) non-nil")
+}
+if md.DynamicHdrPlusAlloc(nil) == nil {
+t.Fatal("DynamicHdrPlusAlloc nil")
+} else {
+mem.Free(md.DynamicHdrPlusAlloc(nil))
+}
+if md.FilmGrainParamsAlloc(nil) == nil {
+t.Fatal("FilmGrainParamsAlloc nil")
+} else {
+mem.Free(md.FilmGrainParamsAlloc(nil))
+}
+if md.MasteringDisplayMetadataAlloc() == nil {
+t.Fatal("MasteringDisplayMetadataAlloc nil")
+} else {
+mem.Free(md.MasteringDisplayMetadataAlloc())
+}
+if md.MasteringDisplayMetadataAllocSize(nil) == nil {
+t.Fatal("MasteringDisplayMetadataAllocSize nil")
+} else {
+mem.Free(md.MasteringDisplayMetadataAllocSize(nil))
+}
+if md.SphericalAlloc(nil) == nil {
+t.Fatal("SphericalAlloc nil")
+} else {
+mem.Free(md.SphericalAlloc(nil))
+}
+if md.Stereo3dAlloc() == nil {
+t.Fatal("Stereo3dAlloc nil")
+} else {
+mem.Free(md.Stereo3dAlloc())
+}
+if md.Stereo3dAllocSize(nil) == nil {
+t.Fatal("Stereo3dAllocSize nil")
+} else {
+mem.Free(md.Stereo3dAllocSize(nil))
+}
+// ---- side-data creators (须是真 Frame, 传 nil 会崩) ----
+fr := NewFrame()
+if fr == nil {
+t.Fatal("NewFrame nil")
+}
+defer fr.Free()
+if md.AmbientViewingEnvironmentCreateSideData(fr.Ptr()) == nil {
+t.Fatal("AmbientCreateSideData nil")
+}
+if md.ContentLightMetadataCreateSideData(fr.Ptr()) == nil {
+t.Fatal("ContentLightCreateSideData nil")
+}
+if md.DynamicHdrPlusCreateSideData(fr.Ptr()) == nil {
+t.Fatal("DynamicHdrPlusCreateSideData nil")
+}
+if md.FilmGrainParamsCreateSideData(fr.Ptr()) == nil {
+t.Fatal("FilmGrainParamsCreateSideData nil")
+}
+// 空白帧没设像素格式, Select 诚实回 nil (要是真解出来的帧才选得出).
+if md.FilmGrainParamsSelect(fr.Ptr()) != nil {
+t.Fatal("FilmGrainParamsSelect(blank frame) non-nil")
+}
+if md.MasteringDisplayMetadataCreateSideData(fr.Ptr()) == nil {
+t.Fatal("MasteringCreateSideData nil")
+}
+if md.Stereo3dCreateSideData(fr.Ptr()) == nil {
+t.Fatal("Stereo3dCreateSideData nil")
+}
+// ---- HDR10+ T.35 双向 (hdr_dynamic_metadata.h) ----
+hdrPlus := md.DynamicHdrPlusAlloc(nil)
+if hdrPlus == nil {
+t.Fatal("hdrPlus alloc nil")
+}
+defer mem.Free(hdrPlus)
+t35bogus := mem.Alloc(4)
+if t35bogus == nil {
+t.Fatal("t35 buf nil")
+}
+defer mem.Free(t35bogus)
+if err := md.DynamicHdrPlusFromT35(hdrPlus, t35bogus, 4); err == nil {
+t.Fatal("FromT35(zeroes) accepted")
+}
+var t35out unsafe.Pointer
+sizeBuf := mem.Alloc(8)
+if sizeBuf == nil {
+t.Fatal("t35 size buf nil")
+}
+defer mem.Free(sizeBuf)
+// 全零结构体的分数分母全是 0, C 里做 num/den 除法直接崩,
+// ToT35 这条路只验 data=nil/size=nil 的参数守卫 (两条都回 EINVAL),
+// 不调全零结构体的真正序列化.
+if _, err := md.DynamicHdrPlusToT35(nil, &t35out, sizeBuf); err == nil {
+t.Fatal("ToT35(nil) accepted")
+}
+t35zero := mem.Alloc(4)
+if t35zero == nil {
+t.Fatal("t35zero buf nil")
+}
+defer mem.Free(t35zero)
+if _, err := md.DynamicHdrPlusToT35(hdrPlus, &t35zero, nil); err == nil {
+t.Fatal("ToT35(size=nil, buf!=nil) accepted")
+}
+// ---- spherical / stereo3d 名表 (spherical.c/stereo3d.c) ----
+sphStr, freeSph := featCStr("equirectangular")
+defer freeSph()
+if got := md.SphericalFromName(sphStr); got != 0 {
+t.Fatalf("SphericalFromName(equirectangular) = %d, want 0", got)
+}
+bogusSph, freeBogusSph := featCStr("no-such-projection-xyz")
+defer freeBogusSph()
+if got := md.SphericalFromName(bogusSph); got != -1 {
+t.Fatalf("SphericalFromName bogus = %d, want -1", got)
+}
+if got := cstr(md.SphericalProjectionName(0)); got != "equirectangular" {
+t.Fatalf("SphericalProjectionName(0) = %q", got)
+}
+if got := cstr(md.SphericalProjectionName(99)); got != "unknown" {
+t.Fatalf("SphericalProjectionName(99) = %q, want unknown", got)
+}
+sphMap := mem.AllocZ(128)
+if sphMap == nil {
+t.Fatal("spherical map alloc nil")
+}
+defer mem.Free(sphMap)
+leftB := mem.Alloc(8)
+topB := mem.Alloc(8)
+rightB := mem.Alloc(8)
+bottomB := mem.Alloc(8)
+if leftB == nil || topB == nil || rightB == nil || bottomB == nil {
+t.Fatal("tile bounds bufs nil")
+}
+defer mem.Free(leftB)
+defer mem.Free(topB)
+defer mem.Free(rightB)
+defer mem.Free(bottomB)
+md.SphericalTileBounds(sphMap, 640, 480, leftB, topB, rightB, bottomB)
+if *(*uintptr)(leftB) != 0 || *(*uintptr)(topB) != 0 || *(*uintptr)(rightB) != 0 || *(*uintptr)(bottomB) != 0 {
+t.Fatal("SphericalTileBounds(zeroed) nonzero")
+}
+sbsStr, freeSbs := featCStr("side by side")
+defer freeSbs()
+if got := md.Stereo3dFromName(sbsStr); got != 1 {
+t.Fatalf("Stereo3dFromName(side by side) = %d, want 1", got)
+}
+bogusS3d, freeBogusS3d := featCStr("no-such-stereo-xyz")
+defer freeBogusS3d()
+if got := md.Stereo3dFromName(bogusS3d); got != -1 {
+t.Fatalf("Stereo3dFromName bogus = %d, want -1", got)
+}
+if got := cstr(md.Stereo3dTypeName(1)); got != "side by side" {
+t.Fatalf("Stereo3dTypeName(1) = %q", got)
+}
+if got := cstr(md.Stereo3dTypeName(999)); got != "unknown" {
+t.Fatalf("Stereo3dTypeName(999) = %q, want unknown", got)
+}
+leftView, freeLeftView := featCStr("left")
+defer freeLeftView()
+if got := md.Stereo3dViewFromName(leftView); got != 1 {
+t.Fatalf("Stereo3dViewFromName(left) = %d, want 1", got)
+}
+bogusView, freeBogusView := featCStr("no-such-view-xyz")
+defer freeBogusView()
+if got := md.Stereo3dViewFromName(bogusView); got != -1 {
+t.Fatalf("Stereo3dViewFromName bogus = %d, want -1", got)
+}
+if got := cstr(md.Stereo3dViewName(1)); got != "left" {
+t.Fatalf("Stereo3dViewName(1) = %q, want left", got)
+}
+if got := md.Stereo3dPrimaryEyeFromName(leftView); got != 1 {
+t.Fatalf("Stereo3dPrimaryEyeFromName(left) = %d, want 1", got)
+}
+bogusEye, freeBogusEye := featCStr("no-such-eye-xyz")
+defer freeBogusEye()
+if got := md.Stereo3dPrimaryEyeFromName(bogusEye); got != -1 {
+t.Fatalf("Stereo3dPrimaryEyeFromName bogus = %d, want -1", got)
+}
+if got := cstr(md.Stereo3dPrimaryEyeName(1)); got != "left" {
+t.Fatalf("Stereo3dPrimaryEyeName(1) = %q, want left", got)
+}
+// ---- nil-safe: 空 holder 调 Ptr 回 nil 不崩 ----
+var nilMd *MediaDesc
+if nilMd.Ptr() != nil {
+t.Fatal("nil MediaDesc Ptr non-nil")
+}
 }
