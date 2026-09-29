@@ -73,7 +73,7 @@ var (
 	fImgAlloc                     func(*unsafe.Pointer, *int32, int32, int32, int32, int32) int32
 	fImgCopyPlane                 func(unsafe.Pointer, int32, unsafe.Pointer, int32, int32, int32)
 	fImgCheckSize                 func(uint32, uint32, int32, unsafe.Pointer) int32
-	fImgCheckSize2                func(uint32, uint32, int64, int32, unsafe.Pointer) int32
+	fImgCheckSize2                func(uint32, uint32, int64, int32, int32, unsafe.Pointer) int32
 	fImgCheckSar                  func(uint32, uint32, AVRational) int32
 	fPixDescGet                   func(int32) unsafe.Pointer
 	fPixGetName                   func(int32) string
@@ -253,7 +253,8 @@ func (s *Scaler) InitContext(srcFilter, dstFilter unsafe.Pointer) error {
 }
 
 // IsEndianSupported reports whether pixFmt converts with correct byte
-// order on this host (sws_isSupportedEndiannessConversion).
+// order on this host (sws_isSupportedEndiannessConversion;
+// 正数表支持, 0 表不支持, 与 IsSupportedInput 同理).
 func IsEndianSupported(pixFmt int32) bool {
 	if ensureModScale() != nil {
 		return false
@@ -262,7 +263,8 @@ func IsEndianSupported(pixFmt int32) bool {
 }
 
 // ImageBufferSize returns the byte size of a packed image
-// (av_image_get_buffer_size; align 传 1 最紧, 32 最快).
+// (av_image_get_buffer_size; C 形参顺序是 (pixFmt, w, h, align);
+// align 传 1 最紧, 32 最快).
 func ImageBufferSize(pixFmt, w, h, align int32) int32 {
 	if ensureModScale() != nil {
 		return 0
@@ -305,7 +307,8 @@ func ImageCheckSize(w, h uint32) error {
 }
 
 // ImageCheckSize2 validates w/h against a pixel budget
-// (av_image_check_size2; maxPixels 传实际像素数, 如 w*h).
+// (av_image_check_size2; maxPixels 传实际像素数, 如 w*h;
+// log_offset 传 0, 日志上下文传 nil).
 func ImageCheckSize2(w, h uint32, maxPixels int64, pixFmt int32) error {
 	if err := ensureModScale(); err != nil {
 		return err
@@ -313,7 +316,7 @@ func ImageCheckSize2(w, h uint32, maxPixels int64, pixFmt int32) error {
 	if ensureModScale() != nil {
 		return errNilScale
 	}
-	if ret := fImgCheckSize2(w, h, maxPixels, pixFmt, nil); ret < 0 {
+	if ret := fImgCheckSize2(w, h, maxPixels, pixFmt, 0, nil); ret < 0 {
 		return codeErr("av_image_check_size2", ret)
 	}
 	return nil
@@ -343,7 +346,8 @@ func PixFmtDesc(pixFmt int32) unsafe.Pointer {
 	return fPixDescGet(pixFmt)
 }
 
-// IsSupportedInput reports the pixel format converts in.
+// IsSupportedInput reports the pixel format converts in
+// (sws_isSupportedInput; 正数表支持, 0 表不支持).
 func IsSupportedInput(pixFmt int32) bool {
 	if ensureModScale() != nil {
 		return false
@@ -351,7 +355,8 @@ func IsSupportedInput(pixFmt int32) bool {
 	return fSwsIsIn(pixFmt) > 0
 }
 
-// IsSupportedOutput reports the pixel format converts out.
+// IsSupportedOutput reports the pixel format converts out
+// (sws_isSupportedOutput; 正数表支持, 0 表不支持).
 func IsSupportedOutput(pixFmt int32) bool {
 	if ensureModScale() != nil {
 		return false
@@ -359,12 +364,13 @@ func IsSupportedOutput(pixFmt int32) bool {
 	return fSwsIsOut(pixFmt) > 0
 }
 
-// BufferSize returns bytes for a w x h image (align 一般 1/32).
+// BufferSize returns bytes for a w x h image (align 一般 1/32;
+// C 形参顺序是 (pixFmt, w, h, align), 别传反).
 func (Image) BufferSize(w, h, pixFmt, align int32) int {
 	if ensureModScale() != nil {
 		return 0
 	}
-	return int(fImgBufSize(w, h, pixFmt, align))
+	return int(fImgBufSize(pixFmt, w, h, align))
 }
 
 // CheckSize validates dimensions (0 通过, 负数说明太大或格式不对).
@@ -424,7 +430,7 @@ func (self *Scaler) SwscaleVersion() uint32 {
 	return fSwscaleVersionNum()
 }
 
-// SwsAllocVec 新建向量（对 sws_allocVec；参数 length；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
+// SwsAllocVec 新建向量（对 sws_allocVec；参数 length；成功回 C 指针（调用方拥有，记得 SwsFreeVec），失败回 nil；无状态调用）。
 func (self *Scaler) SwsAllocVec(length int32) unsafe.Pointer {
 	mustUse(ensureModScale())
 	return fSwsAllocVec(length)
@@ -448,7 +454,7 @@ func (self *Scaler) SwsFrameEnd(c unsafe.Pointer) {
 	fSwsFrameEnd(c)
 }
 
-// SwsFrameStart 切片帧开始（对 sws_frame_start；参数 c、dst、src；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
+// SwsFrameStart 切片帧开始（对 sws_frame_start；参数 c、dst、src（都是 AVFrame*）；先调它，再 Send/Receive 切片，最后 FrameEnd；成功回 nil，失败回 error；无状态调用）。
 func (self *Scaler) SwsFrameStart(c unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer) error {
 	if err := ensureModScale(); err != nil {
 		return err
@@ -471,13 +477,13 @@ func (self *Scaler) SwsFreeVec(a unsafe.Pointer) {
 	fSwsFreeVec(a)
 }
 
-// SwsGetClass 取转色器选项类（对 sws_get_class；无参数；回 C 指针，失败回 nil；无状态调用）。
+// SwsGetClass 取转色器选项类（对 sws_get_class；无参数；回静态 AVClass 借用不释放；无状态调用）。
 func (self *Scaler) SwsGetClass() unsafe.Pointer {
 	mustUse(ensureModScale())
 	return fSwsGetClass()
 }
 
-// SwsGetCoefficients 取色空间系数表（对 sws_getCoefficients；参数 colorspace；回 C 指针，失败回 nil；无状态调用）。
+// SwsGetCoefficients 取色空间系数表（对 sws_getCoefficients；参数 colorspace（SWS_CS_*）；回静态表借用不释放，不认识的颜色空间回 nil；无状态调用）。
 func (self *Scaler) SwsGetCoefficients(colorspace int32) unsafe.Pointer {
 	mustUse(ensureModScale())
 	return fSwsGetCoefficients(colorspace)
@@ -494,13 +500,13 @@ func (self *Scaler) SwsGetColorspaceDetails(c unsafe.Pointer, inv_table *unsafe.
 	return nil
 }
 
-// SwsGetDefaultFilter 取默认缩放滤波器（对 sws_getDefaultFilter；参数 lumaGBlur、chromaGBlur、lumaSharpen、chromaSharpen、chromaHShift、chromaVShift、verbose；回 C 指针，失败回 nil；无状态调用）。
+// SwsGetDefaultFilter 取默认缩放滤波器（对 sws_getDefaultFilter；参数 lumaGBlur、chromaGBlur、lumaSharpen、chromaSharpen、chromaHShift、chromaVShift、verbose；回 C 指针（调用方拥有，记得 SwsFreeFilter），失败回 nil；无状态调用）。
 func (self *Scaler) SwsGetDefaultFilter(lumaGBlur float32, chromaGBlur float32, lumaSharpen float32, chromaSharpen float32, chromaHShift float32, chromaVShift float32, verbose int32) unsafe.Pointer {
 	mustUse(ensureModScale())
 	return fSwsGetDefaultFilter(lumaGBlur, chromaGBlur, lumaSharpen, chromaSharpen, chromaHShift, chromaVShift, verbose)
 }
 
-// SwsGetGaussianVec 生成高斯向量（对 sws_getGaussianVec；参数 variance、quality；回 C 指针，失败回 nil；无状态调用）。
+// SwsGetGaussianVec 生成高斯向量（对 sws_getGaussianVec；参数 variance、quality；成功回 C 指针（调用方拥有，记得 SwsFreeVec），失败回 nil；无状态调用）。
 func (self *Scaler) SwsGetGaussianVec(variance float64, quality float64) unsafe.Pointer {
 	mustUse(ensureModScale())
 	return fSwsGetGaussianVec(variance, quality)
@@ -512,7 +518,7 @@ func (self *Scaler) SwsNormalizeVec(a unsafe.Pointer, height float64) {
 	fSwsNormalizeVec(a, height)
 }
 
-// SwsReceiveSlice 切片模式取一行（对 sws_receive_slice；参数 c、slice_start、slice_height；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
+// SwsReceiveSlice 切片模式取一行（对 sws_receive_slice；参数 c、slice_start、slice_height（都须按 SwsReceiveSliceAlignment 对齐，尾片除外）；成功回 nil，EAGAIN 表要先 Send 喂数据，失败回 error；无状态调用）。
 func (self *Scaler) SwsReceiveSlice(c unsafe.Pointer, slice_start uint32, slice_height uint32) error {
 	if err := ensureModScale(); err != nil {
 		return err

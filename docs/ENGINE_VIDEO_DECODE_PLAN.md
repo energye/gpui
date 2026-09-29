@@ -851,7 +851,7 @@ VW0 → VW1 → VW2 → VW3
 > | L2-6 | buffer_mem（36） | 36 | 容易 | 7d56a54d：36 签名全对零修改，只修注释（Realloc/Free 谁吃旧块、InitForBuffer 被 Finalize 吃掉外部、BPrint 回调跳板签名）+ TestWrapCoverBufferMem 清零 | TestWrapCoverBufferMem | 🟩 已完成 |
 > | L2-7 | device_io（7）+ decode（1） | 8 | 容易 | 6daed3cb：修 3 处签名错位（ListDevices 3 参改 2 参回设备数，ListInputSources/ListOutputSinks 2 参补 4 参回设备数）+ TestWrapCoverDeviceIO 清零 | TestWrapCoverDeviceIO | 🟩 已完成 |
 > | L2-8 | dict_opt（36） | 36 | 中 | 46b3378b：修 4 处签名错位（FieldPtr/ChildClassIterate 改传 AVClass 表，Serialize 补 2 个分隔符，Find/Find2 unit 空串改指针）+ SetDict/SetDict2 标消费语义 + TestWrapCoverDictOpt 清零 | TestWrapCoverDictOpt | 🟩 已完成 |
-> | L2-9 | scale_color（33）+ resample_audio（27） | 60 | 中 | 缩放与重采样，feat 里有现成搭法（feat_test.go/feat_setup_test.go），照着配真帧真音频 | TestWrapCoverScaleResample | ⬜ 未启动 |
+> | L2-9 | scale_color（33）+ resample_audio（27） | 60 | 中 | 修 6 处签名错位（ImageCheckSize2 补 log_offset，BufferSize 传参顺序，Alloc/BytesPerSample 枚举改 int32，BuildMatrix2 步长/编码改值类型，Space/读写回采样数）+ TestWrapCoverScaleResample 清 56 缺口 | TestWrapCoverScaleResample | 🟩 已完成 |
 > | L2-10 | crypto 查表算术批 | 约60 | 容易 | 像素/采样格式表、版本串、CRC 表，纯查表无状态 | TestWrapCoverCryptoTables | ⬜ 未启动 |
 > | L2-11 | crypto 字符串内存批 | 约60 | 容易 | base64、uuid、字符串小工具，自包含 | TestWrapCoverCryptoStr | ⬜ 未启动 |
 > | L2-12 | crypto 哈希加密批 | 约150 | 中 | aes/sha/md5/hmac 都是申请、喂数据、收结果三步走，模式统一，量大分两批 | TestWrapCoverCryptoHash | ⬜ 未启动 |

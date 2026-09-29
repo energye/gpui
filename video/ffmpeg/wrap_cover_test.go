@@ -3669,3 +3669,521 @@ func fmtPtrOf(t *testing.T, dec *Decoder) unsafe.Pointer {
 	}
 	return p
 }
+
+// TestWrapCoverScaleResample fills the scale_color+resample_audio gap:
+// every remaining wrapper runs on real objects. C 头核过
+// (swscale.h/imgutils.h/pixfmt.h/swresample.h/audio_fifo.h/samplefmt.h):
+// IsSupported 正数表支持 0 表不支持; ImageBufferSize 形参 (pixFmt,w,h,align);
+// ImageCheckSize2 6 参 (log_offset 传 0); fifo 队列读写回实际采样数;
+// Alloc/BytesPerSample 首参是枚举数不是指针; BuildMatrix2 stride 传 uintptr,
+// matrix_encoding 传枚举数; Convert 只报成败要产出数用 ConvertCount.
+func TestWrapCoverScaleResample(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var mem Mem
+	var img Image
+	var rs Resampler
+	// ---- 版本串三件套 (无参无状态, 非空为准) ----
+	var vsc Scaler
+	if vsc.SwscaleVersion() == 0 {
+		t.Fatal("SwscaleVersion 0")
+	}
+	if vsc.SwscaleConfiguration() == "" || vsc.SwscaleLicense() == "" {
+		t.Fatal("swscale config/license empty")
+	}
+	// ---- 格式支持三问 (swscale.h: 正数支持 0 不支持) ----
+	if !IsSupportedInput(PixFmtYUV420P) {
+		t.Fatal("IsSupportedInput(yuv420p) false")
+	}
+	if !IsSupportedOutput(PixFmtRGBA) {
+		t.Fatal("IsSupportedOutput(rgba) false")
+	}
+	if IsSupportedInput(PixFmtNone) {
+		t.Fatal("IsSupportedInput(NONE) true")
+	}
+	if !IsEndianSupported(PixFmtRGBA) {
+		t.Logf("IsEndianSupported(rgba) false (以 C 为准)")
+	}
+	// ---- 像素格式名双向 (pixfmt: 名<->枚举) ----
+	if got := PixFmtName(PixFmtYUV420P); got != "yuv420p" {
+		t.Fatalf("PixFmtName(0) = %q, want yuv420p", got)
+	}
+	if got := PixFmtFromName("rgba"); got != PixFmtRGBA {
+		t.Fatalf("PixFmtFromName(rgba) = %d, want %d", got, PixFmtRGBA)
+	}
+	if PixFmtFromName("no-such-fmt") != PixFmtNone {
+		t.Fatal("PixFmtFromName(bogus) accepted")
+	}
+	if PixFmtDesc(PixFmtYUV420P) == nil {
+		t.Fatal("PixFmtDesc(yuv420p) nil")
+	}
+	if PixFmtDesc(PixFmtNone) != nil {
+		t.Logf("PixFmtDesc(NONE) non-nil (以 C 为准)")
+	}
+	// ---- 图像尺寸三件套 (imgutils.h) ----
+	if err := ImageCheckSize(320, 240); err != nil {
+		t.Fatalf("ImageCheckSize(320x240): %v", err)
+	}
+	// 0x0 C 报 EINVAL (imgutils.c: 0 像素判无效), 断言错路不通.
+	if err := ImageCheckSize(0, 0); err == nil {
+		t.Fatal("ImageCheckSize(0x0) accepted")
+	}
+	if err := ImageCheckSize2(16, 16, 16*16, PixFmtYUV420P); err != nil {
+		t.Fatalf("ImageCheckSize2: %v", err)
+	}
+	if err := ImageCheckSar(320, 240, AVRational{1, 1}); err != nil {
+		t.Fatalf("ImageCheckSar: %v", err)
+	}
+	if got := ImageBufferSize(PixFmtRGBA, 16, 16, 1); got != 16*16*4 {
+		t.Fatalf("ImageBufferSize(rgba 16x16) = %d, want 1024", got)
+	}
+	if got := img.BufferSize(16, 16, PixFmtRGBA, 1); got != 16*16*4 {
+		t.Fatalf("Image.BufferSize = %d, want 1024", got)
+	}
+	if err := img.CheckSize(320, 240, PixFmtYUV420P); err != nil {
+		t.Fatalf("Image.CheckSize: %v", err)
+	}
+	// ---- ImageAlloc/ImageCopyPlane 真内存一轮游 ----
+	var ptrs [4]unsafe.Pointer
+	var lines [4]int32
+	n := ImageAlloc(&ptrs[0], &lines[0], 16, 16, PixFmtGRAY8, 1)
+	if n <= 0 || ptrs[0] == nil {
+		t.Fatalf("ImageAlloc = %d,%v", n, ptrs[0])
+	}
+	defer mem.Free(ptrs[0])
+	fill := make([]byte, 16)
+	for i := range fill {
+		fill[i] = byte(i)
+	}
+	ImageCopyPlane(ptrs[0], lines[0], unsafe.Pointer(&fill[0]), 16, 16, 1)
+	if got := unsafe.Slice((*byte)(ptrs[0]), 16); got[0] != 0 || got[15] != 15 {
+		t.Fatalf("ImageCopyPlane = %v", got)
+	}
+	// ---- 真转色: yuv420p 16x16 -> rgba (decode.go 同款搭法) ----
+	sc := NewScaler(16, 16, PixFmtYUV420P, 16, 16, PixFmtRGBA, SwsBilinear)
+	if sc == nil {
+		t.Fatal("NewScaler nil")
+	}
+	defer sc.Free()
+	src := NewFrame()
+	if src == nil {
+		t.Fatal("src frame nil")
+	}
+	defer src.Free()
+	setFrameShape(t, src, 16, 16, PixFmtYUV420P)
+	dst := NewFrame()
+	if dst == nil {
+		t.Fatal("dst frame nil")
+	}
+	defer dst.Free()
+	setFrameShape(t, dst, 16, 16, PixFmtRGBA)
+	if err := sc.ScaleFrame(dst, src); err != nil {
+		t.Fatalf("ScaleFrame: %v", err)
+	}
+	// Scale 裸指针版: 用帧内 data/linesize 直接转一行.
+	srcData := frameDataPtr(t, src)
+	srcLine := frameLinePtr(t, src)
+	dstData := frameDataPtr(t, dst)
+	dstLine := frameLinePtr(t, dst)
+	if got := sc.Scale(srcData, srcLine, 0, 16, dstData, dstLine); got != 16 {
+		t.Fatalf("Scale = %d, want 16", got)
+	}
+	// CachedScaler 复用同参回同一 holder.
+	sc2 := CachedScaler(sc, 16, 16, PixFmtYUV420P, 16, 16, PixFmtRGBA, SwsBilinear)
+	if sc2 == nil || sc2.Ptr() == nil {
+		t.Fatal("CachedScaler nil")
+	}
+	// AllocScalerContext + InitContext 手配一轮游.
+	mc := AllocScalerContext()
+	if mc == nil {
+		t.Fatal("AllocScalerContext nil")
+	}
+	defer mc.Free()
+	mo := OptObject{ptr: mc.Ptr()}
+	if err := mo.SetInt("srcw", 16, 0); err != nil {
+		t.Fatalf("scaler SetInt(srcw): %v", err)
+	}
+	if err := mc.InitContext(nil, nil); err != nil {
+		t.Fatalf("InitContext: %v", err)
+	}
+	// ---- 向量滤波器一家子 (swscale.h: allocVec/gaussian 归调用方, coefficients/class 借用) ----
+	vec := sc.SwsAllocVec(8)
+	if vec == nil {
+		t.Fatal("SwsAllocVec nil")
+	}
+	defer sc.SwsFreeVec(vec)
+	sc.SwsNormalizeVec(vec, 1.0)
+	sc.SwsScaleVec(vec, 2.0)
+	gv := sc.SwsGetGaussianVec(1.0, 3.0)
+	if gv == nil {
+		t.Fatal("SwsGetGaussianVec nil")
+	}
+	defer sc.SwsFreeVec(gv)
+	if sc.SwsGetCoefficients(1) == nil {
+		t.Fatal("SwsGetCoefficients(ITU709) nil")
+	}
+	if sc.SwsGetClass() == nil {
+		t.Fatal("SwsGetClass nil")
+	}
+	flt := sc.SwsGetDefaultFilter(0, 0, 0, 0, 0, 0, 0)
+	if flt == nil {
+		t.Fatal("SwsGetDefaultFilter nil")
+	}
+	defer sc.SwsFreeFilter(flt)
+	// ---- 调色板两件套 (真 256 色表转 4 像素) ----
+	pal := mem.Alloc(256 * 4)
+	if pal == nil {
+		t.Fatal("palette buf nil")
+	}
+	defer mem.Free(pal)
+	pp := unsafe.Slice((*byte)(pal), 256*4)
+	pp[0], pp[1], pp[2], pp[3] = 10, 20, 30, 0
+	pp[4], pp[5], pp[6], pp[7] = 40, 50, 60, 0
+	idx := []byte{0, 1, 0, 1}
+	out24 := mem.Alloc(4 * 3)
+	if out24 == nil {
+		t.Fatal("out24 nil")
+	}
+	defer mem.Free(out24)
+	sc.SwsConvertPalette8ToPacked24(unsafe.Pointer(&idx[0]), out24, 4, pal)
+	if got := unsafe.Slice((*byte)(out24), 6); got[0] != 10 || got[3] != 40 {
+		t.Fatalf("Palette24 = %v", got)
+	}
+	out32 := mem.Alloc(4 * 4)
+	if out32 == nil {
+		t.Fatal("out32 nil")
+	}
+	defer mem.Free(out32)
+	sc.SwsConvertPalette8ToPacked32(unsafe.Pointer(&idx[0]), out32, 4, pal)
+	if got := unsafe.Slice((*byte)(out32), 8); got[0] != 10 || got[4] != 40 {
+		t.Fatalf("Palette32 = %v", got)
+	}
+	// ---- 色空间细节取设一轮游 (真 scaler 上) ----
+	var inv, tbl unsafe.Pointer
+	var srcR, dstR, bri, con, sat int32
+	if err := sc.SwsGetColorspaceDetails(sc.Ptr(), &inv, &srcR, &tbl, &dstR, &bri, &con, &sat); err != nil {
+		t.Fatalf("SwsGetColorspaceDetails: %v", err)
+	}
+	if err := sc.SwsSetColorspaceDetails(sc.Ptr(), inv, srcR, tbl, dstR, bri, con, sat); err != nil {
+		t.Fatalf("SwsSetColorspaceDetails: %v", err)
+	}
+	// ---- 切片三件套走真帧 (frame_start -> send -> receive -> end) ----
+	sdst := NewFrame()
+	if sdst == nil {
+		t.Fatal("slice dst nil")
+	}
+	defer sdst.Free()
+	setFrameShape(t, sdst, 16, 16, PixFmtRGBA)
+	ssrc := NewFrame()
+	if ssrc == nil {
+		t.Fatal("slice src nil")
+	}
+	defer ssrc.Free()
+	setFrameShape(t, ssrc, 16, 16, PixFmtYUV420P)
+	if err := sc.SwsFrameStart(sc.Ptr(), sdst.Ptr(), ssrc.Ptr()); err != nil {
+		t.Fatalf("SwsFrameStart: %v", err)
+	}
+	align := sc.SwsReceiveSliceAlignment(sc.Ptr())
+	if align == 0 {
+		t.Fatal("SwsReceiveSliceAlignment 0")
+	}
+	if err := sc.SwsSendSlice(sc.Ptr(), 0, 16); err != nil {
+		t.Fatalf("SwsSendSlice: %v", err)
+	}
+	if err := sc.SwsReceiveSlice(sc.Ptr(), 0, 16); err != nil {
+		t.Fatalf("SwsReceiveSlice: %v", err)
+	}
+	sc.SwsFrameEnd(sc.Ptr())
+	// ---- 采样格式查表一轮游 (samplefmt.h) ----
+	if got := rs.GetSampleFmt("s16"); got != 1 {
+		t.Fatalf("GetSampleFmt(s16) = %d, want 1", got)
+	}
+	if rs.GetSampleFmt("no-such-fmt") != -1 {
+		t.Fatal("GetSampleFmt(bogus) accepted")
+	}
+	if got := cstr(rs.GetSampleFmtName(1)); got != "s16" {
+		t.Fatalf("GetSampleFmtName(1) = %q, want s16", got)
+	}
+	nameBuf := mem.Alloc(32)
+	if nameBuf == nil {
+		t.Fatal("name buf nil")
+	}
+	defer mem.Free(nameBuf)
+	if rs.GetSampleFmtString(nameBuf, 32, 1) == nil {
+		t.Fatal("GetSampleFmtString nil")
+	}
+	// samplefmt.c: "%-6s %2d " 格式 ("s16" + 位深 16), 前缀对上为准.
+	if got := cstr(nameBuf); len(got) < 3 || got[:3] != "s16" {
+		t.Fatalf("GetSampleFmtString = %q, want s16-prefixed", got)
+	}
+	if got := rs.GetPackedSampleFmt(6); got != 1 {
+		t.Fatalf("GetPackedSampleFmt(s16p=6) = %d, want 1", got)
+	}
+	if got := rs.GetPlanarSampleFmt(1); got != 6 {
+		t.Fatalf("GetPlanarSampleFmt(s16=1) = %d, want 6", got)
+	}
+	if rs.SampleFmtIsPlanar(6) == 0 {
+		t.Fatal("SampleFmtIsPlanar(s16p) false")
+	}
+	if rs.SampleFmtIsPlanar(1) != 0 {
+		t.Fatal("SampleFmtIsPlanar(s16) true")
+	}
+	if got := rs.GetBytesPerSample(1); got != 2 {
+		t.Fatalf("GetBytesPerSample(s16) = %d, want 2", got)
+	}
+	if rs.GetBytesPerSample(-99) != 0 {
+		t.Fatal("GetBytesPerSample(bogus) nonzero")
+	}
+	// ---- 音频 fifo 真队列一轮游 (S16P planar 双声道: 每声道独立缓冲,
+	// 交错格式是单缓冲, 不能这么喂, 见 audio_fifo.c) ----
+	fifoPtr := rs.Alloc(6, 2, 8)
+	if fifoPtr == nil {
+		t.Fatal("AudioFifo alloc nil")
+	}
+	af := AudioFifo{ptr: fifoPtr}
+	defer af.Free()
+	if af.Size() != 0 {
+		t.Fatalf("AudioFifo fresh size = %d, want 0", af.Size())
+	}
+	if sp, err := af.Space(); err != nil || sp < 8 {
+		t.Fatalf("AudioFifo space = %d,%v, want >= 8", sp, err)
+	}
+	ch0 := make([]int16, 4)
+	ch1 := make([]int16, 4)
+	for i := range ch0 {
+		ch0[i] = int16(i + 1)
+		ch1[i] = int16(100 + i)
+	}
+	inPtrs := []unsafe.Pointer{unsafe.Pointer(&ch0[0]), unsafe.Pointer(&ch1[0])}
+	if wn, err := af.Write(unsafe.Pointer(&inPtrs[0]), 4); err != nil || wn != 4 {
+		t.Fatalf("AudioFifo write = %d,%v, want 4", wn, err)
+	}
+	if af.Size() != 4 {
+		t.Fatalf("AudioFifo size = %d, want 4", af.Size())
+	}
+	pk0 := make([]int16, 4)
+	pk1 := make([]int16, 4)
+	pkPtrs := []unsafe.Pointer{unsafe.Pointer(&pk0[0]), unsafe.Pointer(&pk1[0])}
+	if pn, err := af.Peek(unsafe.Pointer(&pkPtrs[0]), 4); err != nil || pn != 4 {
+		t.Fatalf("AudioFifo peek = %d,%v, want 4", pn, err)
+	}
+	if pk0[0] != 1 || pk1[0] != 100 {
+		t.Fatalf("AudioFifo peek = %v/%v", pk0, pk1)
+	}
+	rd0 := make([]int16, 2)
+	rd1 := make([]int16, 2)
+	rdPtrs := []unsafe.Pointer{unsafe.Pointer(&rd0[0]), unsafe.Pointer(&rd1[0])}
+	if rn, err := af.PeekAt(unsafe.Pointer(&rdPtrs[0]), 2, 2); err != nil || rn != 2 {
+		t.Fatalf("AudioFifo peekAt = %d,%v, want 2", rn, err)
+	}
+	if rd0[0] != 3 || rd1[0] != 102 {
+		t.Fatalf("AudioFifo peekAt = %v/%v, want [3 4]/[102 103]", rd0, rd1)
+	}
+	got0 := make([]int16, 4)
+	got1 := make([]int16, 4)
+	gotPtrs := []unsafe.Pointer{unsafe.Pointer(&got0[0]), unsafe.Pointer(&got1[0])}
+	if rn, err := af.Read(unsafe.Pointer(&gotPtrs[0]), 4); err != nil || rn != 4 {
+		t.Fatalf("AudioFifo read = %d,%v, want 4", rn, err)
+	}
+	if got0[0] != 1 || got0[3] != 4 || got1[0] != 100 || got1[3] != 103 {
+		t.Fatalf("AudioFifo read = %v/%v", got0, got1)
+	}
+	if wn, err := af.Write(unsafe.Pointer(&inPtrs[0]), 4); err != nil || wn != 4 {
+		t.Fatalf("AudioFifo rewrite = %d,%v", wn, err)
+	}
+	if err := af.Drain(2); err != nil {
+		t.Fatalf("AudioFifo drain: %v", err)
+	}
+	if af.Size() != 2 {
+		t.Fatalf("AudioFifo size after drain = %d, want 2", af.Size())
+	}
+	if err := af.Realloc(16); err != nil {
+		t.Fatalf("AudioFifo realloc: %v", err)
+	}
+	af.Reset()
+	if af.Size() != 0 {
+		t.Fatal("AudioFifo size after reset nonzero")
+	}
+	// ---- 真重采样器一轮游 (audio_decode.go 同款搭法: S16 44100 立体声 -> FLT 48000) ----
+	var md MediaDesc
+	var inLay, outLay [32]byte
+	md.ChannelLayoutDefault(unsafe.Pointer(&inLay[0]), 2)
+	md.ChannelLayoutDefault(unsafe.Pointer(&outLay[0]), 2)
+	var swr unsafe.Pointer
+	if err := rs.AllocSetOpts2(&swr, unsafe.Pointer(&outLay[0]), 3, 48000, unsafe.Pointer(&inLay[0]), 1, 44100, 0, nil); err != nil {
+		t.Fatalf("AllocSetOpts2: %v", err)
+	}
+	sx := Resampler{ptr: swr}
+	defer fSwrFree(&swr)
+	rso := OptObject{ptr: swr}
+	if err := rso.SetInt("in_sample_rate", 44100, 0); err != nil {
+		t.Fatalf("swr SetInt: %v", err)
+	}
+	if err := sx.Init(); err != nil {
+		t.Fatalf("swr Init: %v", err)
+	}
+	if sx.IsInitialized() == 0 {
+		t.Fatal("IsInitialized false after Init")
+	}
+	if got := sx.GetDelay(44100); got < 0 {
+		t.Fatalf("GetDelay = %d", got)
+	}
+	if got := sx.GetOutSamples(100); got <= 0 {
+		t.Fatalf("GetOutSamples(100) = %d", got)
+	}
+	if got := sx.NextPts(0); got < 0 {
+		t.Fatalf("NextPts(0) = %d", got)
+	}
+	if sx.GetClass() == nil {
+		t.Fatal("swr GetClass nil")
+	}
+	// Convert 真转 100 个 S16 采样 -> FLT.
+	inCh0 := make([]int16, 100)
+	inCh1 := make([]int16, 100)
+	for i := range inCh0 {
+		inCh0[i] = int16(i)
+		inCh1[i] = int16(-i)
+	}
+	nOut := sx.GetOutSamples(100) + 32
+	outCh0 := make([]float32, nOut)
+	outCh1 := make([]float32, nOut)
+	cinPtrs := []unsafe.Pointer{unsafe.Pointer(&inCh0[0]), unsafe.Pointer(&inCh1[0])}
+	coutPtrs := []unsafe.Pointer{unsafe.Pointer(&outCh0[0]), unsafe.Pointer(&outCh1[0])}
+	gotN, err := sx.ConvertCount(unsafe.Pointer(&coutPtrs[0]), nOut, unsafe.Pointer(&cinPtrs[0]), 100)
+	if err != nil || gotN <= 0 {
+		t.Fatalf("ConvertCount = %d,%v", gotN, err)
+	}
+	if err := sx.Convert(unsafe.Pointer(&coutPtrs[0]), nOut, unsafe.Pointer(&cinPtrs[0]), 100); err != nil {
+		t.Fatalf("Convert: %v", err)
+	}
+	if err := sx.DropOutput(0); err != nil {
+		t.Fatalf("DropOutput(0): %v", err)
+	}
+	if err := sx.InjectSilence(10); err != nil {
+		t.Fatalf("InjectSilence: %v", err)
+	}
+	if err := sx.SetCompensation(0, 0); err != nil {
+		t.Fatalf("SetCompensation(0,0): %v", err)
+	}
+	// SetChannelMapping 须在 Init 前调 (swresample.c: 已初始化报 EINVAL),
+	// 这里配的是已 Init 的 sx, 断言错路不通; 另起未 Init 的配成功.
+	cmap := []int32{0, 1}
+	if err := sx.SetChannelMapping(unsafe.Pointer(&cmap[0])); err == nil {
+		t.Fatal("SetChannelMapping(initialized) accepted (C 报 EINVAL)")
+	}
+	var rs3 Resampler
+	swr3 := rs3.Alloc2()
+	if swr3 == nil {
+		t.Fatal("swr3 nil")
+	}
+	defer fSwrFree(&swr3)
+	sx3 := Resampler{ptr: swr3}
+	if err := sx3.SetChannelMapping(unsafe.Pointer(&cmap[0])); err != nil {
+		t.Fatalf("SetChannelMapping(fresh): %v", err)
+	}
+	// ConvertFrame/ConfigFrame 走真音频帧.
+	afrm := NewFrame()
+	if afrm == nil {
+		t.Fatal("audio frame nil")
+	}
+	defer afrm.Free()
+	setAudioShape(t, afrm, 1, 44100, 100)
+	bfrm := NewFrame()
+	if bfrm == nil {
+		t.Fatal("audio out frame nil")
+	}
+	defer bfrm.Free()
+	setAudioShape(t, bfrm, 3, 48000, 128)
+	if err := sx.ConvertFrame(bfrm.Ptr(), afrm.Ptr()); err != nil {
+		t.Fatalf("ConvertFrame: %v", err)
+	}
+	if err := sx.ConfigFrame(bfrm.Ptr(), afrm.Ptr()); err != nil {
+		t.Logf("ConfigFrame err (以 C 为准): %v", err)
+	}
+	// BuildMatrix2/SetMatrix 真布局一轮游 (stride=声道数*8, encoding=0=NONE).
+	mat := make([]float64, 4)
+	if err := rs.BuildMatrix2(unsafe.Pointer(&inLay[0]), unsafe.Pointer(&outLay[0]), 0.5, 0.5, 0, 1.0, 1.0, unsafe.Pointer(&mat[0]), uintptr(16), 0, nil); err != nil {
+		t.Fatalf("BuildMatrix2: %v", err)
+	}
+	if err := sx.SetMatrix(unsafe.Pointer(&mat[0]), 2); err != nil {
+		t.Fatalf("SetMatrix: %v", err)
+	}
+	sx.Close()
+	// ---- nil 守卫 ----
+	var nilSc *Scaler
+	if nilSc.Ptr() != nil {
+		t.Fatal("nil Scaler Ptr non-nil")
+	}
+	if nilSc.Scale(nil, nil, 0, 0, nil, nil) != 0 {
+		t.Fatal("nil Scale nonzero")
+	}
+	nilSc.Free()
+	var nilImg Image
+	_ = nilImg
+	var nilAf *AudioFifo
+	if nilAf.Size() != 0 {
+		t.Fatal("nil AudioFifo Size nonzero")
+	}
+	if _, err := nilAf.Space(); err == nil {
+		t.Fatal("nil Space accepted")
+	}
+	if _, err := nilAf.Write(nil, 0); err == nil {
+		t.Fatal("nil Write accepted")
+	}
+	if _, err := nilAf.Peek(nil, 0); err == nil {
+		t.Fatal("nil Peek accepted")
+	}
+	if _, err := nilAf.PeekAt(nil, 0, 0); err == nil {
+		t.Fatal("nil PeekAt accepted")
+	}
+	if _, err := nilAf.Read(nil, 0); err == nil {
+		t.Fatal("nil Read accepted")
+	}
+	nilAf.Free()
+	var nilRs *Resampler
+	if nilRs.GetDelay(0) != 0 || nilRs.GetOutSamples(0) != 0 || nilRs.NextPts(0) != 0 || nilRs.IsInitialized() != 0 {
+		t.Fatal("nil Resampler getters nonzero")
+	}
+}
+
+// setFrameShape makes a writable video frame shell with buffers.
+func setFrameShape(t *testing.T, f *Frame, w, h, fmt int32) {
+	t.Helper()
+	*(*int32)(unsafe.Add(f.Ptr(), frameWidth)) = w
+	*(*int32)(unsafe.Add(f.Ptr(), frameHeight)) = h
+	*(*int32)(unsafe.Add(f.Ptr(), frameFormat)) = fmt
+	if err := f.GetBuffer(32); err != nil {
+		t.Fatalf("frame GetBuffer: %v", err)
+	}
+	if !f.IsWritable() {
+		t.Fatal("frame not writable")
+	}
+}
+
+// frameDataPtr returns the AVFrame data array pointer for raw Scale.
+func frameDataPtr(t *testing.T, f *Frame) *unsafe.Pointer {
+	t.Helper()
+	return (*unsafe.Pointer)(unsafe.Add(f.Ptr(), frameData))
+}
+
+// frameLinePtr returns the AVFrame linesize array pointer for raw Scale.
+func frameLinePtr(t *testing.T, f *Frame) *int32 {
+	t.Helper()
+	return (*int32)(unsafe.Add(f.Ptr(), frameLinesize))
+}
+
+// setAudioShape makes a writable audio frame shell with buffers.
+func setAudioShape(t *testing.T, f *Frame, fmt, rate, nb int32) {
+	t.Helper()
+	*(*int32)(unsafe.Add(f.Ptr(), frameFormat)) = fmt
+	*(*int32)(unsafe.Add(f.Ptr(), frameSampleRate)) = rate
+	*(*int32)(unsafe.Add(f.Ptr(), frameNbSamples)) = nb
+	var md MediaDesc
+	var lay [32]byte
+	md.ChannelLayoutDefault(unsafe.Pointer(&lay[0]), 2)
+	copy(unsafe.Slice((*byte)(unsafe.Add(f.Ptr(), frameChLayout)), 32), unsafe.Slice((*byte)(unsafe.Pointer(&lay[0])), 32))
+	if err := f.GetBuffer(0); err != nil {
+		t.Fatalf("audio frame GetBuffer: %v", err)
+	}
+}
