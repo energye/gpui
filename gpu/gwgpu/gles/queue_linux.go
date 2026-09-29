@@ -144,8 +144,12 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 		}
 		// Use TexSubImage2D to update existing texture data (Rust wgpu-hal pattern).
 		// TexImage2D reallocates storage on every call; TexSubImage2D updates in-place.
+		// Honor Origin: dirty-rect uploads (glyph atlas pages) arrive with a
+		// non-zero origin — writing at (0,0) misplaces ink into wrong cells.
+		// Matches webgpu/metal which honor Origin.
 		glCtx.TexSubImage2D(tex.target, int32(dst.MipLevel),
-			0, 0, int32(size.Width), int32(size.Height), format, dataType,
+			int32(dst.Origin.X), int32(dst.Origin.Y),
+			int32(size.Width), int32(size.Height), format, dataType,
 			unsafe.Pointer(&data[0]))
 		// Restore default alignment after upload.
 		if tex.format == gputypes.TextureFormatR8Unorm {

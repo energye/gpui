@@ -99,6 +99,16 @@ func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error) {
 // Surface-owned AdapterContext when a window handle is available.
 type Instance struct {
 	ctx *AdapterContext
+	// Shared X11 context: the Queue binds one context, so every window
+	// surface must live on the same EGL display — first X11 window opens
+	// Display* and creates the context, later windows add window surfaces
+	// on it. Wayland surfaces keep per-surface contexts (per wl_display).
+	x11 *x11Shared
+}
+
+type x11Shared struct {
+	ctx     *AdapterContext
+	display uintptr
 }
 
 // CreateSurface creates an OpenGL surface from window handles.
@@ -126,7 +136,12 @@ func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error) 
 	}
 	displayHandle, windowHandle := target.DisplayHandle, target.WindowHandle
 
-	// Path A: share Instance AdapterContext (X11 — context matches window system).
+	// X11 shares one instance-owned context across windows (see x11 field).
+	if targetWindowKind == egl.WindowKindX11 {
+		return i.createX11Surface(displayHandle, windowHandle)
+	}
+
+	// Path A: share Instance AdapterContext (headless context matches window system).
 	// Do NOT share if Instance context is surfaceless (headless/Wayland fallback)
 	// and Surface needs a window — the EGL display won't support eglCreateWindowSurface.
 	if i.ctx != nil && i.ctx.EGL() != nil && i.ctx.GL() != nil && i.ctx.EGL().WindowKind() == targetWindowKind {
@@ -190,6 +205,54 @@ func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error) 
 		ctx:           NewAdapterContext(eglCtx, glCtx, true),
 		eglDisplay:    eglCtx.Display(),
 		ownsContext:   true,
+		version:       version,
+		renderer:      renderer,
+	}, nil
+}
+
+// createX11Surface shares one instance-owned X11 context across windows.
+func (i *Instance) createX11Surface(displayHandle, windowHandle uintptr) (hal.Surface, error) {
+	sharedOK := i.x11 != nil && i.x11.ctx != nil && i.x11.ctx.EGL() != nil && i.x11.ctx.GL() != nil
+	if !sharedOK {
+		// Fresh share on the caller's display: each XOpenDisplay connection
+		// needs its own EGL display, so the first window's Display* is kept.
+		config := egl.DefaultContextConfig()
+		config.GLES = false
+		config.NativeDisplay = displayHandle
+		x11kind := egl.WindowKindX11
+		config.WindowKind = &x11kind
+		eglCtx, err := egl.NewContext(config)
+		if err != nil {
+			return nil, fmt.Errorf("gles: failed to create shared X11 EGL context: %w", err)
+		}
+		if err := eglCtx.MakeCurrent(); err != nil {
+			eglCtx.Destroy()
+			return nil, fmt.Errorf("gles: failed to make shared X11 context current: %w", err)
+		}
+		glCtx := &gl.Context{}
+		if err := glCtx.Load(egl.GetGLProcAddress, config.GLES); err != nil {
+			eglCtx.Destroy()
+			return nil, fmt.Errorf("gles: failed to load GL functions: %w", err)
+		}
+		hal.Logger().Info("gles: shared X11 context created",
+			"version", glCtx.GetString(gl.VERSION),
+			"renderer", glCtx.GetString(gl.RENDERER))
+		// Same unbind as CreateInstance: don't pin the context to the
+		// creation thread.
+		_ = egl.MakeCurrent(eglCtx.Display(), egl.NoSurface, egl.NoSurface, egl.NoContext)
+		i.x11 = &x11Shared{ctx: NewAdapterContext(eglCtx, glCtx, true)}
+	}
+
+	glCtx := i.x11.ctx.Lock()
+	version := glCtx.GetString(gl.VERSION)
+	renderer := glCtx.GetString(gl.RENDERER)
+	i.x11.ctx.Unlock()
+	return &Surface{
+		displayHandle: displayHandle,
+		windowHandle:  windowHandle,
+		ctx:           i.x11.ctx,
+		eglDisplay:    i.x11.ctx.EGL().Display(),
+		ownsContext:   false,
 		version:       version,
 		renderer:      renderer,
 	}, nil
@@ -276,6 +339,13 @@ func (i *Instance) Release() {
 	if i.ctx != nil {
 		i.ctx.Destroy()
 		i.ctx = nil
+	}
+	if i.x11 != nil {
+		if i.x11.ctx != nil {
+			i.x11.ctx.Destroy()
+			i.x11.ctx = nil
+		}
+		i.x11 = nil
 	}
 }
 

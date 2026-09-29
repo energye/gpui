@@ -121,8 +121,12 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 		if tex.format == gputypes.TextureFormatR8Unorm {
 			glCtx.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 		}
+		// Honor Origin: dirty-rect uploads (glyph atlas pages) arrive with a
+		// non-zero origin — writing at (0,0) misplaces ink into wrong cells.
+		// Windows 真机待复验.
 		glCtx.TexSubImage2D(tex.target, int32(dst.MipLevel),
-			0, 0, int32(size.Width), int32(size.Height), format, dataType,
+			int32(dst.Origin.X), int32(dst.Origin.Y),
+			int32(size.Width), int32(size.Height), format, dataType,
 			unsafe.Pointer(&data[0]))
 		if tex.format == gputypes.TextureFormatR8Unorm {
 			glCtx.PixelStorei(gl.UNPACK_ALIGNMENT, 4)

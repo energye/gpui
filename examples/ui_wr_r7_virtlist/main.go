@@ -23,6 +23,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -40,11 +41,11 @@ const (
 	winW, winH   = 1200, 800
 	closeSeconds = 60 // §2.5 R7 关闭用时长
 	itemCount    = 1200
-	vpW          = 620.0  // 列表视口宽
-	rightW       = 250.0  // 右栏静态密集区宽
-	cacheRows    = 2.0    // CacheExtent = 2×fallback 行高
-	bindCap      = 64     // 门禁: 视口行 + cache + slack 的硬上界
-	hitchBudget  = 5.0    // hitch_rate_per_min 预算（§2.2.2 长 soak 默认）
+	vpW          = 620.0   // 列表视口宽
+	rightW       = 250.0   // 右栏静态密集区宽
+	cacheRows    = 2.0     // CacheExtent = 2×fallback 行高
+	bindCap      = 64      // 门禁: 视口行 + cache + slack 的硬上界
+	hitchBudget  = 5.0     // hitch_rate_per_min 预算（§2.2.2 长 soak 默认）
 	slopeBudget  = 30000.0 // rss_slope_kb_per_min 预算（§2.2.4 极端线）
 )
 
@@ -187,6 +188,9 @@ func main() {
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
 		WarmUp: true,
+		// P2 验证钩子（env 全空时零行为差）：SNAPSHOT 存终帧 PNG；
+		// R7_FREEZE_Y 把滚动钉在固定偏移、相位钉在 Steady，终帧跨后端可比。
+		SnapshotPath: os.Getenv("SNAPSHOT"),
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_wr_r7_virtlist: close (%s)\n", win.Backend())
@@ -204,8 +208,16 @@ func main() {
 
 	// 相位脚本（循环）: Steady 3s 慢滚 160px/s → Spike 3s 快滑 2600px/s（快滑约定）
 	// → Recover 3s 线性减速 → 循环；到顶/底 ping-pong 反向。
+	// P2 验证钩子：R7_FREEZE_Y 设为滚动偏移时，相位钉在 Steady、滚动钉住不动，
+	// 终帧快照跨后端确定可比（默认不设，行为零变化）。
 	const cycleLen = 9.0
 	var elapsed, dir, y float64 = 0, 1, 0
+	freezeY, freezeSet := 0.0, false
+	if v := os.Getenv("R7_FREEZE_Y"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil && n >= 0 {
+			freezeY, freezeSet = n, true
+		}
+	}
 	lastFirst, lastLast := -1, -1
 	maxBind := 0
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
@@ -229,6 +241,10 @@ func main() {
 			}
 		}
 		y += dir * speed * dt
+		if freezeSet {
+			phase = wrkit.PhaseSteady
+			y = freezeY
+		}
 		if y >= maxY {
 			y, dir = maxY, -1
 		}
