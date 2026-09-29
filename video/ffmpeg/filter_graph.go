@@ -70,7 +70,7 @@ var (
 	fAvBuffersinkGetColorspace         func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetFormat             func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetFrame              func(ctx unsafe.Pointer, frame unsafe.Pointer) int32
-	fAvBuffersinkGetFrameFlags         func(ctx unsafe.Pointer, frame unsafe.Pointer, flags int32) unsafe.Pointer
+	fAvBuffersinkGetFrameFlags         func(ctx unsafe.Pointer, frame unsafe.Pointer, flags int32) int32
 	fAvBuffersinkGetFrameRate          func(ctx unsafe.Pointer) AVRational
 	fAvBuffersinkGetH                  func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetHwFramesCtx        func(ctx unsafe.Pointer) unsafe.Pointer
@@ -78,9 +78,9 @@ var (
 	fAvBuffersinkGetSampleRate         func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetSamples            func(ctx unsafe.Pointer, frame unsafe.Pointer, nb_samples int32) int32
 	fAvBuffersinkGetTimeBase           func(ctx unsafe.Pointer) AVRational
-	fAvBuffersinkGetType               func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvBuffersinkGetType               func(ctx unsafe.Pointer) int32
 	fAvBuffersinkGetW                  func(ctx unsafe.Pointer) int32
-	fAvBuffersinkSetFrameSize          func(ctx unsafe.Pointer, frame_size uint32) unsafe.Pointer
+	fAvBuffersinkSetFrameSize          func(ctx unsafe.Pointer, frame_size uint32)
 	fAvBuffersrcAddFrame               func(ctx unsafe.Pointer, frame unsafe.Pointer) int32
 	fAvBuffersrcAddFrameFlags          func(buffer_src unsafe.Pointer, frame unsafe.Pointer, flags int32) int32
 	fAvBuffersrcClose                  func(ctx unsafe.Pointer, pts int64, flags uint32) int32
@@ -89,7 +89,7 @@ var (
 	fAvBuffersrcParametersAlloc        func() unsafe.Pointer
 	fAvBuffersrcParametersSet          func(ctx unsafe.Pointer, param unsafe.Pointer) int32
 	fAvBuffersrcWriteFrame             func(ctx unsafe.Pointer, frame unsafe.Pointer) int32
-	fAvfilterConfigLinks               func(filter unsafe.Pointer) unsafe.Pointer
+	fAvfilterConfigLinks               func(filter unsafe.Pointer) int32
 	fAvfilterConfiguration             func() unsafe.Pointer
 	fAvfilterFilterPadCount            func(filter unsafe.Pointer, is_output int32) uint32
 	fAvfilterFree                      func(filter unsafe.Pointer)
@@ -123,11 +123,11 @@ var (
 	fAvfilterInsertFilter              func(link unsafe.Pointer, filt unsafe.Pointer, filt_srcpad_idx uint32, filt_dstpad_idx uint32) int32
 	fAvfilterLicense                   func() unsafe.Pointer
 	fAvfilterLink                      func(src unsafe.Pointer, srcpad uint32, dst unsafe.Pointer, dstpad uint32) int32
-	fAvfilterLinkFree                  func(link *unsafe.Pointer) unsafe.Pointer
+	fAvfilterLinkFree                  func(link *unsafe.Pointer)
 	fAvfilterPadGetName                func(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer
-	fAvfilterPadGetType                func(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer
-	fAvfilterProcessCommand            func(filter unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) unsafe.Pointer
-	fAvfilterVersion                   func() unsafe.Pointer
+	fAvfilterPadGetType                func(pads unsafe.Pointer, pad_idx int32) int32
+	fAvfilterProcessCommand            func(filter unsafe.Pointer, cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) int32
+	fAvfilterVersion                   func() uint32
 )
 
 // ensureModFilterGraph 开本模块的灯：先保核心房亮，再开依赖房，最后开自己这间。
@@ -264,11 +264,12 @@ func (x *FilterSink) GetFrame(frame unsafe.Pointer) int32 {
 	return fAvBuffersinkGetFrame(x.ptr, frame)
 }
 
-// GetFrameFlags 从滤镜出口问参数或取帧（对 av_buffersink_get_frame_flags；参数 frame、flags；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FilterSink) GetFrameFlags(frame unsafe.Pointer, flags int32) unsafe.Pointer {
+// GetFrameFlags 从滤镜出口取帧（对 av_buffersink_get_frame_flags；参数 frame(须是 NewFrame 建的真帧, 不可传 nil)、flags；
+// 回 0=成功, 负数是 AVERROR；无状态调用前图要先配好）.
+func (x *FilterSink) GetFrameFlags(frame unsafe.Pointer, flags int32) int32 {
 	mustUse(ensureModFilterGraph())
 	if x == nil {
-		return nil
+		return 0
 	}
 	return fAvBuffersinkGetFrameFlags(x.ptr, frame, flags)
 }
@@ -336,11 +337,11 @@ func (x *FilterSink) GetTimeBase() AVRational {
 	return fAvBuffersinkGetTimeBase(x.ptr)
 }
 
-// GetType 从滤镜出口问参数或取帧（对 av_buffersink_get_type；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FilterSink) GetType() unsafe.Pointer {
+// GetType 问出口是视频还是音频（对 av_buffersink_get_type；无参数；回媒体类型枚举数: 0=视频/1=音频, 负数是 AVERROR；nil 接收器回 0，不崩）.
+func (x *FilterSink) GetType() int32 {
 	mustUse(ensureModFilterGraph())
 	if x == nil {
-		return nil
+		return 0
 	}
 	return fAvBuffersinkGetType(x.ptr)
 }
@@ -354,13 +355,13 @@ func (x *FilterSink) GetW() int32 {
 	return fAvBuffersinkGetW(x.ptr)
 }
 
-// SetFrameSize 设出口每次吐几帧的量（对 av_buffersink_set_frame_size；参数 frame_size；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FilterSink) SetFrameSize(frame_size uint32) unsafe.Pointer {
+// SetFrameSize 设出口每次吐几帧的量（对 av_buffersink_set_frame_size；参数 frame_size；无返回值，无报错；nil 接收器直接回，不崩）.
+func (x *FilterSink) SetFrameSize(frame_size uint32) {
 	mustUse(ensureModFilterGraph())
 	if x == nil {
-		return nil
+		return
 	}
-	return fAvBuffersinkSetFrameSize(x.ptr, frame_size)
+	fAvBuffersinkSetFrameSize(x.ptr, frame_size)
 }
 
 // AddFrame 往滤镜入口推帧（对 av_buffersrc_add_frame；参数 frame；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
@@ -457,13 +458,19 @@ func (x *FilterContext) WriteFrame(frame unsafe.Pointer) error {
 	return nil
 }
 
-// ConfigLinks 让连好的图协商参数（对 avfilter_config_links；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FilterContext) ConfigLinks() unsafe.Pointer {
-	mustUse(ensureModFilterGraph())
-	if x == nil {
-		return nil
+// ConfigLinks 让连好的图协商参数（对 avfilter_config_links；参数 filter(须是连好的滤镜实例, 不可传 nil)；
+// 成功回 nil，失败回 error；nil 接收器回错，不崩）.
+func (x *FilterContext) ConfigLinks() error {
+	if err := ensureModFilterGraph(); err != nil {
+		return err
 	}
-	return fAvfilterConfigLinks(x.ptr)
+	if x == nil {
+		return errNilFF
+	}
+	if ret := fAvfilterConfigLinks(x.ptr); ret < 0 {
+		return codeErr("avfilter_config_links", ret)
+	}
+	return nil
 }
 
 // Configuration 问滤镜库编译配置（对 avfilter_configuration；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
@@ -508,7 +515,9 @@ func (x *FilterGraph) GraphAlloc() unsafe.Pointer {
 	return fAvfilterGraphAlloc()
 }
 
-// GraphAllocFilter 建图配图连图跑图（对 avfilter_graph_alloc_filter；参数 filter、name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
+// GraphAllocFilter 建图配图连图跑图（对 avfilter_graph_alloc_filter；参数 filter(须是 GetByName 回的有效滤镜, 不可传 nil)、name(实例名 C 字符串)；
+// 成功回滤镜实例指针，失败回 nil；注意：必须调在真图上 (GraphAlloc 回的)，零值 FilterGraph 调等于传空图会崩；
+// 建出来的实例记得 Free；nil 接收器回 nil，不崩）.
 func (x *FilterGraph) GraphAllocFilter(filter unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModFilterGraph())
 	if x == nil {
@@ -800,10 +809,10 @@ func (x *FilterContext) Link(srcpad uint32, dst unsafe.Pointer, dstpad uint32) e
 	return nil
 }
 
-// LinkFree 把两个滤镜连起来（对 avfilter_link_free；参数 link；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FilterGraph) LinkFree(link *unsafe.Pointer) unsafe.Pointer {
+// LinkFree 释放一条连线（对 avfilter_link_free；参数 link(指向连线指针的槽, 传 *unsafe.Pointer；C 会把槽置空；空槽直接回)；无返回值；无状态调用）.
+func (x *FilterGraph) LinkFree(link *unsafe.Pointer) {
 	mustUse(ensureModFilterGraph())
-	return fAvfilterLinkFree(link)
+	fAvfilterLinkFree(link)
 }
 
 // PadGetName 问滤镜端口名字或类型（对 avfilter_pad_get_name；参数 pads、pad_idx；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
@@ -812,23 +821,31 @@ func (x *FilterGraph) PadGetName(pads unsafe.Pointer, pad_idx int32) unsafe.Poin
 	return fAvfilterPadGetName(pads, pad_idx)
 }
 
-// PadGetType 问滤镜端口名字或类型（对 avfilter_pad_get_type；参数 pads、pad_idx；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FilterGraph) PadGetType(pads unsafe.Pointer, pad_idx int32) unsafe.Pointer {
+// PadGetType 问滤镜端口是视频还是音频（对 avfilter_pad_get_type；参数 pads(AVFilter 头 16/24 字节处的端口数组, 不可传 nil)、pad_idx；
+// 回媒体类型枚举数: 0=视频/1=音频；无状态调用）.
+func (x *FilterGraph) PadGetType(pads unsafe.Pointer, pad_idx int32) int32 {
 	mustUse(ensureModFilterGraph())
 	return fAvfilterPadGetType(pads, pad_idx)
 }
 
-// ProcessCommand 给跑着的滤镜发命令（对 avfilter_process_command；参数 cmd、arg、res、res_len、flags；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FilterContext) ProcessCommand(cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) unsafe.Pointer {
-	mustUse(ensureModFilterGraph())
-	if x == nil {
-		return nil
+// ProcessCommand 给跑着的滤镜发命令（对 avfilter_process_command；参数 cmd、arg(C 字符串指针)、res(可写回执内存, 传 nil 表不要回执)、res_len、flags；
+// 回 (>=0=成功, error 非 nil=失败)；nil 接收器回错，不崩）.
+func (x *FilterContext) ProcessCommand(cmd unsafe.Pointer, arg unsafe.Pointer, res unsafe.Pointer, res_len int32, flags int32) (int32, error) {
+	if err := ensureModFilterGraph(); err != nil {
+		return 0, err
 	}
-	return fAvfilterProcessCommand(x.ptr, cmd, arg, res, res_len, flags)
+	if x == nil {
+		return 0, errNilFF
+	}
+	if ret := fAvfilterProcessCommand(x.ptr, cmd, arg, res, res_len, flags); ret < 0 {
+		return 0, codeErr("avfilter_process_command", ret)
+	} else {
+		return ret, nil
+	}
 }
 
-// Version 问滤镜库版本号（对 avfilter_version；无参数；回 C 指针，失败回 nil；无状态调用）。
-func (x *FilterGraph) Version() unsafe.Pointer {
+// Version 问滤镜库版本号（对 avfilter_version；无参数；回版本号 uint32(大端 16 位是主版本, 10 表 7.x)；无状态调用）.
+func (x *FilterGraph) Version() uint32 {
 	mustUse(ensureModFilterGraph())
 	return fAvfilterVersion()
 }

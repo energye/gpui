@@ -663,6 +663,466 @@ t.Fatal("nil IOContext not safe")
 nilIO.Flush()
 }
 
+// TestWrapCoverFilter fills the filter_graph module gap: metadata queries,
+// wrapper-built buffer->scale->sink chain, frame push/pull with value pins
+// (W/H/Format/Type/SAR/TB from link negotiation), segment API full cycle,
+// error paths on bogus names. Out-param slots get real memory, never NULL;
+// every graph pairs with GraphFree. C 头核过: pad 数组在 AVFilter 头 16/24
+// 字节处; 写只读流会转圈 (demux 教训) 所以推拉只走配好的真链.
+func TestWrapCoverFilter(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var fg FilterGraph
+var mem Mem
+// ---- 纯元数据 (avfilter.h/buffersink.c, 不建图) ----
+if cstr(fg.Configuration()) == "" {
+t.Fatal("Filter Configuration empty")
+}
+if cstr(fg.License()) == "" {
+t.Fatal("Filter License empty")
+}
+if got := fg.Version(); got>>16 != 10 {
+t.Fatalf("Filter Version = %#x, want major 10 (7.x)", got)
+}
+if fg.GetClass() == nil {
+t.Fatal("Filter GetClass nil")
+}
+scaleName, freeScaleName := featCStr("scale")
+defer freeScaleName()
+scaleFilt := fg.GetByName(scaleName)
+if scaleFilt == nil {
+t.Fatal("GetByName(scale) nil")
+}
+bogusFilt, freeBogusFilt := featCStr("no-such-filter-xyz")
+defer freeBogusFilt()
+if fg.GetByName(bogusFilt) != nil {
+t.Fatal("GetByName(bogus) non-nil")
+}
+var fltPtr Filter
+fltPtr = Filter{ptr: scaleFilt}
+if got := fltPtr.FilterPadCount(0); got != 1 {
+t.Fatalf("scale inputs = %d, want 1", got)
+}
+if got := fltPtr.FilterPadCount(1); got != 1 {
+t.Fatalf("scale outputs = %d, want 1", got)
+}
+inPads := loadPtr(scaleFilt, 16)
+outPads := loadPtr(scaleFilt, 24)
+if inPads == nil || outPads == nil {
+t.Fatal("scale pads nil")
+}
+if got := cstr(fg.PadGetName(inPads, 0)); got == "" {
+t.Fatal("PadGetName(input) empty")
+}
+if got := fg.PadGetType(inPads, 0); got != 0 {
+t.Fatalf("PadGetType(scale in) = %d, want 0 (video)", got)
+}
+// ---- 包装搭链: buffer(320x240) -> scale(160x120) -> sink ----
+gptr := fg.GraphAlloc()
+if gptr == nil {
+t.Fatal("GraphAlloc nil")
+}
+g := FilterGraph{ptr: gptr}
+defer g.GraphFree(&gptr)
+mkFilter := func(kind, name, args string) unsafe.Pointer {
+kn, kf := featCStr(kind)
+defer kf()
+nn, nf := featCStr(name)
+defer nf()
+f := fg.GetByName(kn)
+if f == nil {
+t.Fatalf("GetByName(%s) nil", kind)
+}
+var argPtr unsafe.Pointer
+var af func()
+if args != "" {
+argPtr, af = featCStr(args)
+defer af()
+}
+var ctx unsafe.Pointer
+if err := g.GraphCreateFilter(&ctx, f, nn, argPtr, nil, gptr); err != nil {
+t.Fatalf("GraphCreateFilter(%s): %v", kind, err)
+}
+if ctx == nil {
+t.Fatalf("GraphCreateFilter(%s) nil ctx", kind)
+}
+return ctx
+}
+srcCtx := mkFilter("buffer", "src", "video_size=320x240:pix_fmt=0:time_base=1/25:pixel_aspect=1/1")
+midCtx := mkFilter("scale", "mid", "160:120")
+sinkCtx := mkFilter("buffersink", "sink", "")
+srcFC := FilterContext{ptr: srcCtx}
+midFC := FilterContext{ptr: midCtx}
+if err := srcFC.Link(0, midCtx, 0); err != nil {
+t.Fatalf("Link src->mid: %v", err)
+}
+if err := midFC.Link(0, sinkCtx, 0); err != nil {
+t.Fatalf("Link mid->sink: %v", err)
+}
+if got := g.GraphConfig(nil); got != 0 {
+t.Fatalf("GraphConfig = %d, want 0", got)
+}
+dump := g.GraphDump(nil)
+if dump == nil || cstr(dump) == "" {
+t.Fatal("GraphDump empty")
+}
+mem.Free(dump)
+srcName, freeSrcName := featCStr("src")
+defer freeSrcName()
+if g.GraphGetFilter(srcName) == nil {
+t.Fatal("GraphGetFilter(src) nil")
+}
+bogusGet, freeBogusGet := featCStr("no-such-instance-xyz")
+defer freeBogusGet()
+if g.GraphGetFilter(bogusGet) != nil {
+t.Fatal("GraphGetFilter(bogus) non-nil")
+}
+g.GraphSetAutoConvert(0)
+// ---- 推两帧拉两帧, 值按链协商结果钉死 ----
+mkYUV := func(w, h int32) *Frame {
+f := NewFrame()
+if f == nil {
+t.Fatal("NewFrame nil")
+}
+*(*int32)(unsafe.Add(f.Ptr(), frameWidth)) = w
+*(*int32)(unsafe.Add(f.Ptr(), frameHeight)) = h
+*(*int32)(unsafe.Add(f.Ptr(), frameFormat)) = PixFmtYUV420P
+if err := f.GetBuffer(32); err != nil {
+t.Fatalf("frame GetBuffer: %v", err)
+}
+return f
+}
+in1 := mkYUV(320, 240)
+defer in1.Free()
+in2 := mkYUV(320, 240)
+defer in2.Free()
+out1 := NewFrame()
+if out1 == nil {
+t.Fatal("NewFrame(out1) nil")
+}
+defer out1.Free()
+out2 := NewFrame()
+if out2 == nil {
+t.Fatal("NewFrame(out2) nil")
+}
+defer out2.Free()
+fsrc := FilterSource{ptr: srcCtx}
+fsink := FilterSink{ptr: sinkCtx}
+sinkFC := FilterContext{ptr: sinkCtx}
+if err := fsrc.AddFrame(in1.Ptr()); err != nil {
+t.Fatalf("AddFrame: %v", err)
+}
+if err := srcFC.WriteFrame(in2.Ptr()); err != nil {
+t.Fatalf("WriteFrame: %v", err)
+}
+// 推完两帧立刻查失败计数 (后面拉空/EAGAIN 会涨).
+if got := srcFC.GetNbFailedRequests(); got != 0 {
+t.Fatalf("GetNbFailedRequests = %d, want 0", got)
+}
+if got := fsink.GetFrame(out1.Ptr()); got != 0 {
+t.Fatalf("GetFrame = %d, want 0", got)
+}
+if got := fsink.GetFrameFlags(out2.Ptr(), 0); got != 0 {
+t.Fatalf("GetFrameFlags = %d, want 0", got)
+}
+// 队列拉空后再推第三帧 (连推三帧中间那帧的槽还没腾出来, 会报 ENOMEM).
+// AddFrameFlags 和 WriteFrame 同路不同旗, 这里补 flags 版.
+// 注意 AddFrame 会把帧搬进图里 (move_ref), in1 第一次推完就空了,
+// 这里拿 WriteFrame 留住的 in2 推 (它走 clone 路, 缓冲还在).
+if err := srcFC.AddFrameFlags(in2.Ptr(), 0); err != nil {
+t.Fatalf("AddFrameFlags: %v", err)
+}
+if got := *(*int32)(unsafe.Add(out1.Ptr(), frameWidth)); got != 160 {
+t.Fatalf("pulled w = %d, want 160", got)
+}
+if got := *(*int32)(unsafe.Add(out1.Ptr(), frameHeight)); got != 120 {
+t.Fatalf("pulled h = %d, want 120", got)
+}
+if got := fsink.GetW(); got != 160 {
+t.Fatalf("GetW = %d, want 160", got)
+}
+if got := fsink.GetH(); got != 120 {
+t.Fatalf("GetH = %d, want 120", got)
+}
+if got := fsink.GetFormat(); got != 0 {
+t.Fatalf("GetFormat = %d, want 0 (yuv420p)", got)
+}
+if got := fsink.GetType(); got != 0 {
+t.Fatalf("GetType = %d, want 0 (video)", got)
+}
+if got := fsink.GetSampleAspectRatio(); got != (AVRational{1, 1}) {
+t.Fatalf("GetSampleAspectRatio = %+v, want {1 1}", got)
+}
+if got := fsink.GetTimeBase(); got != (AVRational{1, 25}) {
+t.Fatalf("GetTimeBase = %+v, want {1 25}", got)
+}
+if got := fsink.GetFrameRate(); got != (AVRational{0, 1}) {
+t.Fatalf("GetFrameRate = %+v, want {0 1} (buffer 源不设帧率)", got)
+}
+if got := fsink.GetSampleRate(); got != 0 {
+t.Fatalf("GetSampleRate(video) = %d, want 0", got)
+}
+if got := sinkFC.GetChannels(); got != 0 {
+t.Fatalf("GetChannels(video) = %d, want 0", got)
+}
+if got := fsink.GetColorRange(); got < 0 {
+t.Fatalf("GetColorRange = %d", got)
+}
+if got := fsink.GetColorspace(); got < 0 {
+t.Fatalf("GetColorspace = %d", got)
+}
+if fsink.GetHwFramesCtx() != nil {
+t.Fatal("GetHwFramesCtx non-nil (无硬解)")
+}
+chBuf := mem.AllocZ(32)
+if chBuf == nil {
+t.Fatal("chlayout buf nil")
+}
+defer mem.Free(chBuf)
+if got := fsink.GetChLayout(chBuf); got != 0 {
+t.Fatalf("GetChLayout = %d, want 0", got)
+}
+if got := fsink.GetSamples(out1.Ptr(), 1024); got >= 0 {
+t.Fatalf("GetSamples(video) = %d, want < 0", got)
+}
+if got := fsrc.GetStatus(); got != 0 {
+t.Fatalf("GetStatus = %d, want 0", got)
+}
+fsink.SetFrameSize(1)
+param := fsrc.ParametersAlloc()
+if param == nil {
+t.Fatal("ParametersAlloc nil")
+}
+defer mem.Free(param)
+if err := fsrc.ParametersSet(param); err != nil {
+t.Fatalf("ParametersSet: %v", err)
+}
+if err := srcFC.Close(0, 0); err != nil {
+t.Fatalf("buffersrc Close: %v", err)
+}
+if err := g.GraphRequestOldest(); err == nil {
+t.Logf("GraphRequestOldest after drain: success (C 语义为准)")
+}
+// ---- 命令通道: 野命令诚实报错 ----
+cmdStr, freeCmd := featCStr("no-such-cmd-xyz")
+defer freeCmd()
+argStr, freeArg := featCStr("1")
+defer freeArg()
+resBuf := mem.Alloc(64)
+if resBuf == nil {
+t.Fatal("command res buf nil")
+}
+defer mem.Free(resBuf)
+if _, err := midFC.ProcessCommand(cmdStr, argStr, resBuf, 64, 0); err == nil {
+t.Fatal("ProcessCommand(bogus) accepted")
+}
+if err := g.GraphSendCommand(cmdStr, cmdStr, argStr, resBuf, 64, 0); err == nil {
+t.Fatal("GraphSendCommand(bogus target) accepted")
+}
+// 排队只管收不管验 (C 直接入队, 真错发的时候才报), 野名字也收下算过.
+if err := g.GraphQueueCommand(cmdStr, cmdStr, argStr, 0, 0); err != nil {
+t.Fatalf("GraphQueueCommand: %v", err)
+}
+// ---- 独立小滤镜上验 Init/Config 错误路 (AllocFilter 要真图, 零值调等于传空图会崩) ----
+gtmpPtr := fg.GraphAlloc()
+if gtmpPtr == nil {
+t.Fatal("GraphAlloc(tmp) nil")
+}
+gtmp := FilterGraph{ptr: gtmpPtr}
+defer gtmp.GraphFree(&gtmpPtr)
+lonelyName, freeLonely := featCStr("lonely")
+defer freeLonely()
+lonelyAlloc := gtmp.GraphAllocFilter(scaleFilt, lonelyName)
+if lonelyAlloc == nil {
+t.Fatal("GraphAllocFilter nil")
+}
+lonelyFC := FilterContext{ptr: lonelyAlloc}
+defer lonelyFC.Free()
+scaleArgs, freeScaleArgs := featCStr("320:240")
+defer freeScaleArgs()
+if err := lonelyFC.InitStr(scaleArgs); err != nil {
+t.Fatalf("InitStr(scale 320:240): %v", err)
+}
+lonely2 := gtmp.GraphAllocFilter(scaleFilt, lonelyName)
+if lonely2 == nil {
+t.Fatal("GraphAllocFilter2 nil")
+}
+lonelyFC2 := FilterContext{ptr: lonely2}
+defer lonelyFC2.Free()
+var emptyDict unsafe.Pointer
+if err := lonelyFC2.InitDict(&emptyDict); err != nil {
+t.Fatalf("InitDict(nil): %v", err)
+}
+if err := lonelyFC.ConfigLinks(); err == nil {
+t.Logf("ConfigLinks(未连线滤镜) success (C 语义为准)")
+}
+// ---- 段 API 全周期 (avfilter.h 新链路, flags 全传 0) ----
+g2ptr := fg.GraphAlloc()
+if g2ptr == nil {
+t.Fatal("GraphAlloc(g2) nil")
+}
+g2 := FilterGraph{ptr: g2ptr}
+defer g2.GraphFree(&g2ptr)
+segStr, freeSeg := featCStr("scale=320:240")
+defer freeSeg()
+var seg unsafe.Pointer
+if err := g2.GraphSegmentParse(segStr, 0, &seg); err != nil {
+t.Fatalf("GraphSegmentParse: %v", err)
+}
+if seg == nil {
+t.Fatal("GraphSegmentParse nil seg")
+}
+defer g2.GraphSegmentFree(&seg)
+if err := g2.GraphSegmentCreateFilters(seg, 0); err != nil {
+t.Fatalf("SegmentCreateFilters: %v", err)
+}
+if err := g2.GraphSegmentApplyOpts(seg, 0); err != nil {
+t.Fatalf("SegmentApplyOpts: %v", err)
+}
+if err := g2.GraphSegmentInit(seg, 0); err != nil {
+t.Fatalf("SegmentInit: %v", err)
+}
+var segIn, segOut unsafe.Pointer
+if err := g2.GraphSegmentLink(seg, 0, &segIn, &segOut); err != nil {
+t.Fatalf("SegmentLink: %v", err)
+}
+if segIn != nil {
+g2.InoutFree(&segIn)
+}
+if segOut != nil {
+g2.InoutFree(&segOut)
+}
+var segIn2, segOut2 unsafe.Pointer
+if err := g2.GraphSegmentApply(seg, 0, &segIn2, &segOut2); err != nil {
+t.Fatalf("SegmentApply: %v", err)
+}
+if segIn2 != nil {
+g2.InoutFree(&segIn2)
+}
+if segOut2 != nil {
+g2.InoutFree(&segOut2)
+}
+// ---- Inout/LinkFree 空槽守卫 + 野名字解析报错 ----
+ioPtr := fg.InoutAlloc()
+if ioPtr == nil {
+t.Fatal("InoutAlloc nil")
+}
+fg.InoutFree(&ioPtr)
+if ioPtr != nil {
+t.Fatal("InoutFree did not null the slot")
+}
+var nilLink unsafe.Pointer
+fg.LinkFree(&nilLink)
+bogusParse, freeBogusParse := featCStr("no-such-filter-xyz!!!")
+defer freeBogusParse()
+g3ptr := fg.GraphAlloc()
+if g3ptr == nil {
+t.Fatal("GraphAlloc(g3) nil")
+}
+g3 := FilterGraph{ptr: g3ptr}
+defer g3.GraphFree(&g3ptr)
+if err := g3.GraphParse(bogusParse, nil, nil, nil); err == nil {
+t.Fatal("GraphParse(bogus) accepted")
+}
+var p2in, p2out unsafe.Pointer
+if err := g3.GraphParse2(bogusParse, &p2in, &p2out); err == nil {
+t.Fatal("GraphParse2(bogus) accepted")
+}
+if err := g3.GraphParsePtr(bogusParse, &p2in, &p2out, nil); err == nil {
+t.Fatal("GraphParsePtr(bogus) accepted")
+}
+var bogusSeg unsafe.Pointer
+if err := g3.GraphSegmentParse(bogusParse, 0, &bogusSeg); err != nil {
+t.Fatalf("GraphSegmentParse(bogus): %v", err)
+}
+// 解析只记名不验名, 野名字在建滤镜那步才爆 (CreateFilters 回 FILTER_NOT_FOUND).
+if bogusSeg == nil {
+t.Fatal("GraphSegmentParse(bogus) nil seg")
+}
+defer g3.GraphSegmentFree(&bogusSeg)
+if err := g3.GraphSegmentCreateFilters(bogusSeg, 0); err == nil {
+t.Fatal("SegmentCreateFilters(bogus) accepted")
+}
+// ---- InsertFilter: 第二张小图上真插一个 null 级滤镜再配通 ----
+g4ptr := fg.GraphAlloc()
+if g4ptr == nil {
+t.Fatal("GraphAlloc(g4) nil")
+}
+g4 := FilterGraph{ptr: g4ptr}
+defer g4.GraphFree(&g4ptr)
+mk4 := func(kind, name, args string) unsafe.Pointer {
+kn, kf := featCStr(kind)
+defer kf()
+nn, nf := featCStr(name)
+defer nf()
+f := fg.GetByName(kn)
+if f == nil {
+t.Fatalf("GetByName(%s) nil", kind)
+}
+var argPtr unsafe.Pointer
+var af func()
+if args != "" {
+argPtr, af = featCStr(args)
+defer af()
+}
+var ctx unsafe.Pointer
+if err := g4.GraphCreateFilter(&ctx, f, nn, argPtr, nil, g4ptr); err != nil {
+t.Fatalf("g4 create %s: %v", kind, err)
+}
+return ctx
+}
+s4 := mk4("buffer", "s4", "video_size=160x120:pix_fmt=0:time_base=1/25:pixel_aspect=1/1")
+e4 := mk4("buffersink", "e4", "")
+s4FC := FilterContext{ptr: s4}
+if err := s4FC.Link(0, e4, 0); err != nil {
+t.Fatalf("g4 link: %v", err)
+}
+outs := loadPtr(s4, 56)
+if outs == nil {
+t.Fatal("s4 outputs nil")
+}
+realLink := *(*unsafe.Pointer)(unsafe.Add(outs, 0))
+if realLink == nil {
+t.Fatal("s4 link[0] nil")
+}
+nullFiltName, freeNullName := featCStr("scale")
+defer freeNullName()
+nullFilt := fg.GetByName(nullFiltName)
+if nullFilt == nil {
+t.Fatal("GetByName(scale) nil (second check)")
+}
+nullName, freeNull := featCStr("mid4")
+defer freeNull()
+var nullCtx unsafe.Pointer
+if err := g4.GraphCreateFilter(&nullCtx, nullFilt, nullName, nil, nil, g4ptr); err != nil {
+t.Fatalf("g4 create scale2: %v", err)
+}
+if err := g4.InsertFilter(realLink, nullCtx, 0, 0); err != nil {
+t.Fatalf("InsertFilter: %v", err)
+}
+if got := g4.GraphConfig(nil); got != 0 {
+t.Fatalf("g4 GraphConfig after insert = %d", got)
+}
+// ---- nil-safe: 空 holder 不崩 ----
+var nilFG *FilterGraph
+if nilFG.GraphAlloc() == nil {
+t.Logf("GraphAlloc on nil receiver: nil (C 无图可配)")
+}
+var nilFC *FilterContext
+if err := nilFC.Link(0, nil, 0); err == nil {
+t.Fatal("Link(nil ctx) accepted")
+}
+var nilSink *FilterSink
+if nilSink.GetW() != 0 || nilSink.GetH() != 0 || nilSink.GetType() != 0 {
+t.Fatal("nil FilterSink not safe")
+}
+var nilSrc *FilterSource
+if err := nilSrc.AddFrame(nil); err == nil {
+t.Fatal("AddFrame(nil ctx) accepted")
+}
+}
+
 // TestWrapCoverDemuxFree fills the leftover demux gap: alloc/free pairs,
 // bogus open paths, stream groups on a bare context. C 头核过:
 // avformat_close_input 空槽直接回 (可传 nil 槽); avio_closep 必解槽
