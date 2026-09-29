@@ -241,6 +241,528 @@ t.Fatal("AesSize not positive")
 _ = unsafe.Pointer(nil)
 }
 
+// TestWrapCoverDemux fills the format_demux module gap: real-file demux
+// (feat_small.mp4 via Open), in-memory AVIO roundtrip, version/config
+// strings, guessers, protocol/directory enums. Out-param slots get real
+// memory, never NULL; every write-stream pairs with Close/Closep;
+// network/tls handshakes are not touched (no network in unit tests).
+func TestWrapCoverDemux(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var fx FormatContext
+var mem Mem
+// ---- version/config/license strings (avformat.h, 非空即可) ----
+if cstr(fx.Configuration()) == "" {
+t.Fatal("Format Configuration empty")
+}
+if cstr(fx.License()) == "" {
+t.Fatal("Format License empty")
+}
+if fx.GetClass() == nil {
+t.Fatal("Format GetClass nil")
+}
+if got := fx.Version(); got>>16 != 61 {
+t.Fatalf("Format Version = %#x, want major 61 (7.x)", got)
+}
+// ---- network init/deinit pair (无网络也调得通) ----
+if err := fx.NetworkInit(); err != nil {
+t.Fatalf("NetworkInit: %v", err)
+}
+if err := fx.NetworkDeinit(); err != nil {
+t.Fatalf("NetworkDeinit: %v", err)
+}
+// ---- stream-group names (avformat.c switch 表, 越界回 nil) ----
+if got := cstr(fx.StreamGroupName(1)); got != "IAMF Audio Element" {
+t.Fatalf("StreamGroupName(1) = %q", got)
+}
+if fx.StreamGroupName(99) != nil {
+t.Fatal("StreamGroupName(99) non-nil")
+}
+// ---- guessers: base版无复用器(只看片不写片), 猜复用器/编码走 full 版 ----
+// base 下 GuessFormat 诚实回 nil, 不算错; 真断言只在 full 版跑.
+mp4Name, freeMp4 := featCStr("clip.mp4")
+defer freeMp4()
+if guessed := fx.GuessFormat(nil, mp4Name, nil); guessed != nil {
+gfPtr := Format{ptr: guessed}
+// C 只看复用器默认编码不用 short_name: mp4 默认是 x264 版 H264,
+// 无 x264 的 LGPL 包里是 MPEG4(12), 见 movenc.c video_codec.
+h264Name, freeH264 := featCStr("h264")
+defer freeH264()
+if got := gfPtr.GuessCodec(h264Name, mp4Name, nil, 0); got != 12 {
+t.Fatalf("GuessCodec(mp4,h264,video) = %d, want 12 (MPEG4, 无 x264 版默认)", got)
+}
+if got := gfPtr.GuessCodec(nil, nil, nil, 4); got != 0 {
+t.Fatalf("GuessCodec(attachment) = %d, want 0 (NONE)", got)
+}
+if _, err := gfPtr.QueryCodec(12, 0); err != nil {
+t.Fatalf("QueryCodec(mp4,MPEG4): %v", err)
+}
+} else if IsFull() {
+t.Fatal("GuessFormat(clip.mp4) nil on full lib")
+} else {
+t.Logf("GuessFormat(clip.mp4) nil on base lib (base 无复用器, 符合预期)")
+}
+movTags := fx.GetMovVideoTags()
+riffTags := fx.GetRiffVideoTags()
+movAudio := fx.GetMovAudioTags()
+riffAudio := fx.GetRiffAudioTags()
+if movTags == nil || riffTags == nil || movAudio == nil || riffAudio == nil {
+t.Fatal("mov/riff tag tables nil")
+}
+// C 里直接 strcmp, 传 nil 会崩, 只用 file 名查 (file 协议必在).
+fileProto, freeFileProto := featCStr("file")
+defer freeFileProto()
+if fx.ProtocolGetClass(fileProto) == nil {
+t.Fatal("ProtocolGetClass(file) nil")
+}
+// ---- protocol enums: file 协议必在输入输出两边 ----
+var opaque unsafe.Pointer
+foundFileIn := false
+for i := 0; i < 200; i++ {
+name := fx.EnumProtocols(&opaque, 0)
+if name == nil {
+break
+}
+if cstr(name) == "file" {
+foundFileIn = true
+}
+}
+if !foundFileIn {
+t.Fatal("EnumProtocols(input) missing file")
+}
+opaque = nil
+foundFileOut := false
+for i := 0; i < 200; i++ {
+name := fx.EnumProtocols(&opaque, 1)
+if name == nil {
+break
+}
+if cstr(name) == "file" {
+foundFileOut = true
+}
+}
+if !foundFileOut {
+t.Fatal("EnumProtocols(output) missing file")
+}
+httpURL, freeHTTP := featCStr("http://example.com/clip.mp4")
+defer freeHTTP()
+if fx.FindProtocolName(httpURL) == nil {
+t.Fatal("FindProtocolName(http) nil")
+}
+cwdURL, freeCWD := featCStr(".")
+defer freeCWD()
+if err := fx.Check(cwdURL, 1); err != nil {
+t.Fatalf("Check(.,read): %v", err)
+}
+// ---- directory: 打开当前目录读一项再关 (真实目录, 非网络) ----
+dotStr, freeDot := featCStr(".")
+defer freeDot()
+var dirCtx unsafe.Pointer
+if err := fx.OpenDir(&dirCtx, dotStr, nil); err != nil {
+t.Fatalf("OpenDir(.): %v", err)
+} else {
+defer func() {
+if dirCtx != nil {
+_ = fx.CloseDir(&dirCtx)
+}
+}()
+var entry unsafe.Pointer
+if err := fx.ReadDir(dirCtx, &entry); err != nil {
+t.Fatalf("ReadDir: %v", err)
+}
+if entry != nil {
+fx.FreeDirectoryEntry(&entry)
+}
+}
+// ---- real-file demux: feat_small.mp4 (L3 同款, 这里只验 demux 层) ----
+dec, err := Open("../testdata/feat_small.mp4")
+if err != nil {
+t.Fatalf("Open(feat_small): %v", err)
+}
+defer dec.Close()
+info := dec.Info()
+if info.Width <= 0 || info.Height <= 0 {
+t.Fatalf("feat_small size = %dx%d", info.Width, info.Height)
+}
+fmtPtr := dec.RawFormatCtx()
+if fmtPtr == nil {
+t.Fatal("FormatCtx nil")
+}
+fctx := FormatContext{ptr: fmtPtr}
+if fctx.NbStreams() < 1 {
+t.Fatal("NbStreams < 1")
+}
+st := fctx.StreamAt(0)
+if st == nil {
+t.Fatal("StreamAt(0) nil")
+}
+if st.Index() != 0 {
+t.Fatalf("StreamAt(0).Index = %d, want 0", st.Index())
+}
+if st.CodecPar() == nil {
+t.Fatal("CodecPar nil")
+}
+tb := st.TimeBase()
+if tb.Den <= 0 {
+t.Fatalf("TimeBase = %+v", tb)
+}
+// FindBestStream: 0=视频必中, 4=附件必无 (-5=STREAM_NOT_FOUND 类错)
+if got := fctx.FindBestStream(0, -1, -1, nil, 0); got < 0 {
+t.Fatalf("FindBestStream(video) = %d", got)
+}
+// Open 内部已经探过流参数, 这里不再二次探 (二次探要读包, 已读过一包的
+// 上下文再探会踩内部状态, 直接崩; 要验 FindStreamInfo 用新开的盒子).
+// FindStreamInfo 的真覆盖在 L3 的 Open 路径里, 这里只验空指针守卫.
+var nilFctx *FormatContext
+if err := nilFctx.FindStreamInfo(nil); err == nil {
+t.Fatal("FindStreamInfo(nil ctx) accepted")
+}
+vspec, freeVspec := featCStr("v")
+defer freeVspec()
+if err := fctx.MatchStreamSpecifier(st.Ptr(), vspec); err != nil {
+t.Fatalf("MatchStreamSpecifier(v): %v", err)
+}
+aspec, freeAspec := featCStr("a")
+defer freeAspec()
+if err := fctx.MatchStreamSpecifier(st.Ptr(), aspec); err == nil {
+t.Logf("MatchStreamSpecifier(video vs a): matched (spec 语义以 C 为准)")
+}
+if got := fctx.GuessFrameRate(st.Ptr(), nil); got.Num <= 0 || got.Den <= 0 {
+t.Fatalf("GuessFrameRate = %+v", got)
+}
+if got := fctx.GuessSampleAspectRatio(st.Ptr(), nil); got.Den <= 0 {
+t.Fatalf("GuessSampleAspectRatio = %+v", got)
+}
+if n := st.IndexGetEntriesCount(); n < 0 {
+t.Fatalf("IndexGetEntriesCount = %d", n)
+}
+if err := st.AddIndexEntry(0, 0, 100, 10, 1); err != nil {
+t.Logf("AddIndexEntry honest error: %v", err)
+}
+if got := st.IndexSearchTimestamp(0, 0); got < 0 {
+t.Logf("IndexSearchTimestamp(0) = %d (无索引时负数正常)", got)
+}
+pkt := NewPacket()
+if pkt == nil {
+t.Fatal("NewPacket nil")
+}
+defer pkt.Free()
+if err := fctx.ReadFrame(pkt.Ptr()); err != nil {
+t.Fatalf("ReadFrame: %v", err)
+}
+if err := fctx.SeekFrame(0, 0, 4); err != nil {
+t.Logf("SeekFrame honest error: %v", err)
+}
+if err := fctx.SeekFile(-1, 0, 0, 0, 0); err != nil {
+t.Logf("SeekFile honest error: %v", err)
+}
+if err := fctx.QueueAttachedPictures(); err != nil {
+t.Logf("QueueAttachedPictures honest error: %v", err)
+}
+fctx.DumpFormat(0, nil, 0)
+if err := fctx.Flush(); err != nil {
+t.Fatalf("Format Flush: %v", err)
+}
+// ---- dyn-buf AVIO roundtrip: 写 4 字节, 读回验内容 ----
+// 写端: OpenDynBuf -> Write/W8/Wb16/Wl16/PutStr -> GetDynBuf/CloseDynBuf
+var wctx unsafe.Pointer
+if err := fx.OpenDynBuf(&wctx); err != nil {
+t.Fatalf("OpenDynBuf: %v", err)
+}
+wio := IOContext{ptr: wctx}
+helloStr, freeHello := featCStr("hi")
+defer freeHello()
+if err := wio.PutStr(helloStr); err != nil {
+t.Fatalf("PutStr: %v", err)
+}
+if err := wio.PutStr16le(helloStr); err != nil {
+t.Fatalf("PutStr16le: %v", err)
+}
+if err := wio.PutStr16be(helloStr); err != nil {
+t.Fatalf("PutStr16be: %v", err)
+}
+wio.W8(0x41)
+wio.Wb16(0x0102)
+wio.Wb24(0x010203)
+wio.Wb32(0x01020304)
+wio.Wb64(0x0102030405060708)
+wio.Wl16(0x0102)
+wio.Wl24(0x010203)
+wio.Wl32(0x01020304)
+wio.Wl64(0x0102030405060708)
+raw := mem.Alloc(4)
+if raw == nil {
+t.Fatal("avio raw buf nil")
+}
+defer mem.Free(raw)
+copy(unsafe.Slice((*byte)(raw), 4), []byte{9, 8, 7, 6})
+wio.Write(raw, 4)
+// PrintStringArray/Vprintf 只许调在写流上: C 最后走 avio_write,
+// 写进只读流会在 flush_buffer 里转圈出不来 (buf_end=buf_ptr, size 不减).
+// 这里给真数组 [hi hi nil], 顺手把空 fmt 的 Vprintf 真串路径也验了.
+arrBuf := mem.Alloc(24)
+if arrBuf == nil {
+t.Fatal("string array buf nil")
+}
+defer mem.Free(arrBuf)
+*(*unsafe.Pointer)(unsafe.Add(arrBuf, 0)) = helloStr
+*(*unsafe.Pointer)(unsafe.Add(arrBuf, 8)) = helloStr
+*(*unsafe.Pointer)(unsafe.Add(arrBuf, 16)) = nil
+wio.PrintStringArray(arrBuf)
+emptyFmt, freeEmptyFmt := featCStr("")
+defer freeEmptyFmt()
+vaZero := mem.AllocZ(32)
+if vaZero == nil {
+t.Fatal("vprintf va_list nil")
+}
+defer mem.Free(vaZero)
+if err := wio.Vprintf(emptyFmt, vaZero); err != nil {
+t.Fatalf("Vprintf(empty): %v", err)
+}
+wio.WriteMarker(0, 0)
+wio.Flush()
+var peek unsafe.Pointer
+if n := wio.GetDynBuf(&peek); n <= 0 || peek == nil {
+t.Fatalf("GetDynBuf = %d", n)
+}
+var dyn unsafe.Pointer
+n, err := wio.CloseDynBuf(&dyn)
+if err != nil || n <= 0 || dyn == nil {
+t.Fatalf("CloseDynBuf = (%d, %v)", n, err)
+}
+defer mem.Free(dyn)
+got := unsafe.Slice((*byte)(dyn), n)
+if got[0] != 'h' || got[1] != 'i' || got[2] != 0 {
+t.Fatalf("dyn buf head = %v, want hi\\0", got[:3])
+}
+// 读端: 内存 AVIO 不接读回调就是空流, R8/读系列只验不崩不验值;
+// 真正的内容读写走 dyn-buf 写端已验, 读值用 SeekPos/Size/Feof 验状态.
+memBuf := mem.Alloc(4096)
+if memBuf == nil {
+t.Fatal("avio ctx buf nil")
+}
+defer mem.Free(memBuf)
+rioPtr := fx.AllocIOContext(memBuf, 4096, 0, nil, nil, nil, nil)
+if rioPtr == nil {
+t.Fatal("AllocIOContext nil")
+}
+rio := IOContext{ptr: rioPtr}
+defer fx.ContextFree(&rioPtr)
+_ = rio.Size()
+_ = rio.R8()
+_ = rio.Rb16()
+_ = rio.Rb24()
+_ = rio.Rb32()
+_ = rio.Rb64()
+_ = rio.Rl16()
+_ = rio.Rl24()
+_ = rio.Rl32()
+_ = rio.Rl64()
+if pos, err := rio.SeekPos(0, 0); err != nil || pos != 0 {
+t.Fatalf("SeekPos(0) = (%d, %v)", pos, err)
+}
+if _, err := rio.SeekPos(0, 0); err != nil {
+t.Fatalf("SeekPos rewind: %v", err)
+}
+sbuf := mem.Alloc(16)
+if sbuf == nil {
+t.Fatal("getstr buf nil")
+}
+defer mem.Free(sbuf)
+// 空流上 GetStr 系列回 0 或报错都算诚实, 只验不崩.
+_ = rio.GetStr(16, sbuf, 16)
+_ = rio.GetStr16le(16, sbuf, 16)
+_ = rio.GetStr16be(16, sbuf, 16)
+part := mem.Alloc(2)
+if part == nil {
+t.Fatal("partial buf nil")
+}
+defer mem.Free(part)
+if _, err := rio.ReadPartial(part, 2); err == nil {
+t.Logf("ReadPartial(空流) 读到数据 (C 行为为准)")
+}
+full := mem.Alloc(3)
+if full == nil {
+t.Fatal("full buf nil")
+}
+defer mem.Free(full)
+if _, err := rio.Read(full, 3); err == nil {
+t.Logf("Read(空流) 读到数据 (C 行为为准)")
+}
+if rio.Skip(1) < 0 {
+t.Fatal("Skip failed")
+}
+bp := NewBPrint(64, 4096)
+if bp == nil {
+t.Fatal("NewBPrint nil")
+}
+defer bp.Free()
+if _, err := rio.SeekPos(0, 0); err != nil {
+t.Fatalf("SeekPos rewind10: %v", err)
+}
+// 空流上 ReadToBprint 回 ENOMEM 也算诚实 (C 要分配缓冲), 只验不崩.
+if err := rio.ReadToBprint(bp.Ptr(), 4096); err != nil {
+t.Logf("ReadToBprint(空流) honest error: %v", err)
+}
+if err := rio.Pause(0); err != nil {
+t.Logf("Pause honest error (非网络流): %v", err)
+}
+// Handshake 在 C 里直接解 opaque, 内存 AVIO 的 opaque 是 nil 会崩,
+// 不调它 (TLS/网络流才用得上, 单测无网络); 注释留给后人.
+// PrintStringArray/Vprintf 已在上面的写端验过, 读端不再调
+// (往只读流写字会在 C 的 flush_buffer 里转圈出不来); WriteMarker
+// 读端安全 (C 看到 write_data_type 为空提前返回).
+rio.WriteMarker(0, 0)
+// C 里直接 strcmp, nil 会崩, 这里只验 file 名那条 (上面已验过).
+if fctx.ProtocolGetClass(fileProto) == nil {
+t.Fatal("ProtocolGetClass(file) nil (second check)")
+}
+if got := rio.SeekTime(-1, 0, 0); got < 0 {
+t.Logf("SeekTime honest negative: %d", got)
+}
+// ---- UrlSplit: 标准网址拆段 ----
+protoB := mem.Alloc(16)
+authB := mem.Alloc(16)
+hostB := mem.Alloc(64)
+pathB := mem.Alloc(64)
+portB := mem.Alloc(4)
+urlStr, freeURL := featCStr("http://example.com:8080/clip.mp4")
+defer freeURL()
+if protoB == nil || authB == nil || hostB == nil || pathB == nil || portB == nil {
+t.Fatal("urlsplit bufs nil")
+}
+defer mem.Free(protoB)
+defer mem.Free(authB)
+defer mem.Free(hostB)
+defer mem.Free(pathB)
+defer mem.Free(portB)
+fx.UrlSplit(protoB, 16, authB, 16, hostB, 64, portB, pathB, 64, urlStr)
+if cstr(protoB) != "http" {
+t.Fatalf("UrlSplit proto = %q, want http", cstr(protoB))
+}
+if cstr(hostB) != "example.com" {
+t.Fatalf("UrlSplit host = %q", cstr(hostB))
+}
+if cstr(pathB) != "/clip.mp4" {
+t.Fatalf("UrlSplit path = %q", cstr(pathB))
+}
+// ---- nil-safe: 空 holder 不崩 ----
+var nilFx *FormatContext
+if nilFx.NbStreams() != 0 || nilFx.StreamAt(0) != nil {
+t.Fatal("nil FormatContext not safe")
+}
+var nilSt *Stream
+if nilSt.Index() != -1 || nilSt.CodecPar() != nil {
+t.Fatal("nil Stream not safe")
+}
+var nilIO *IOContext
+if nilIO.R8() != 0 || nilIO.Rb16() != 0 || nilIO.Feof() != 0 || nilIO.Size() != 0 {
+t.Fatal("nil IOContext not safe")
+}
+nilIO.Flush()
+}
+
+// TestWrapCoverDemuxFree fills the leftover demux gap: alloc/free pairs,
+// bogus open paths, stream groups on a bare context. C 头核过:
+// avformat_close_input 空槽直接回 (可传 nil 槽); avio_closep 必解槽
+// (只给真 Open 出来的流); 组加流要求同盒 (跨盒回 EINVAL, 传 nil 崩).
+func TestWrapCoverDemuxFree(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var fx FormatContext
+// ---- AllocContext + CloseInput: 建裸盒再关, 槽被置空 ----
+bare := fx.AllocContext()
+if bare == nil {
+t.Fatal("AllocContext nil")
+}
+fx.CloseInput(&bare)
+if bare != nil {
+t.Fatal("CloseInput did not null the slot")
+}
+// CloseInput 空槽直接回, 不崩.
+var nilSlot unsafe.Pointer
+fx.CloseInput(&nilSlot)
+// ---- OpenInput/Open2 非法路径 -> 可读报错 ----
+bogusPath, freeBogus := featCStr("/no/such/file.mp4")
+defer freeBogus()
+var badCtx unsafe.Pointer
+if err := fx.OpenInput(&badCtx, bogusPath, nil, nil); err == nil {
+t.Fatal("OpenInput bogus accepted")
+}
+var badIO unsafe.Pointer
+if err := fx.Open2(&badIO, "/no/such/file.xyz", 2, nil, nil); err == nil {
+t.Fatal("Open2 bogus accepted")
+}
+// ---- AllocOutputContext2: base 无复用器诚实报错, full 建出来记得放 ----
+var outCtx unsafe.Pointer
+if err := fx.AllocOutputContext2(&outCtx, nil, "mp4", nil); err != nil {
+if IsFull() {
+t.Fatalf("AllocOutputContext2(mp4) on full: %v", err)
+}
+t.Logf("AllocOutputContext2(mp4) on base honest error: %v", err)
+} else {
+if outCtx == nil {
+t.Fatal("AllocOutputContext2 success with nil ctx")
+}
+outFree := FormatContext{ptr: outCtx}
+outFree.FreeContext()
+}
+// ---- 真文件 Open + Closep: 读写流配对, 槽被置空 ----
+tmp := t.TempDir() + "/closep.bin"
+var fileIO unsafe.Pointer
+if err := fx.Open(&fileIO, tmp, 2); err != nil {
+t.Fatalf("Open(tmp,write): %v", err)
+}
+if fileIO == nil {
+t.Fatal("Open success with nil ctx")
+}
+if err := fx.Closep(&fileIO); err != nil {
+t.Fatalf("Closep: %v", err)
+}
+if fileIO != nil {
+t.Fatal("Closep did not null the slot")
+}
+// ---- 流组: 裸盒上建组加流 (同盒才收, InitOutput 真写走 L3/full) ----
+grpCtx := fx.AllocContext()
+if grpCtx == nil {
+t.Fatal("AllocContext(group) nil")
+}
+gctx := FormatContext{ptr: grpCtx}
+defer gctx.FreeContext()
+grp := gctx.StreamGroupCreate(3, nil)
+if grp == nil {
+t.Fatal("StreamGroupCreate(tile_grid) nil")
+}
+nst := gctx.NewStream(nil)
+if nst == nil {
+t.Fatal("NewStream(bare ctx) nil")
+}
+if err := gctx.StreamGroupAddStream(grp, nst); err != nil {
+t.Fatalf("StreamGroupAddStream(same ctx): %v", err)
+}
+// ---- nil 接收器守卫 (调 C 前就拦, 不碰指针) ----
+var nilFx *FormatContext
+if err := nilFx.InitOutput(nil); err == nil {
+t.Fatal("InitOutput(nil ctx) accepted")
+}
+var nilIO2 *IOContext
+if err := nilIO2.Accept(nil); err == nil {
+t.Fatal("Accept(nil ctx) accepted")
+}
+if err := nilIO2.Handshake(); err == nil {
+t.Fatal("Handshake(nil ctx) accepted")
+}
+var nilSt2 *Stream
+if nilSt2.IndexGetEntry(0) != nil {
+t.Fatal("IndexGetEntry(nil) non-nil")
+}
+if nilSt2.IndexGetEntryFromTimestamp(0, 0) != nil {
+t.Fatal("IndexGetEntryFromTimestamp(nil) non-nil")
+}
+}
+
 // TestWrapCoverMath pins pure arithmetic bindings to known answers
 // (答案照 ffmpeg 源码头文件算: AddQ 通分, CompareMod 见 mathematics.h 例,
 // RescaleDelta 首调走 simple_round 分支).

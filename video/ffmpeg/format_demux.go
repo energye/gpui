@@ -59,7 +59,7 @@ func (x *Format) Ptr() unsafe.Pointer {
 var (
 	fAvAddIndexEntry                    func(st unsafe.Pointer, pos int64, timestamp int64, size int32, distance int32, flags int32) int32
 	fAvDumpFormat                       func(ic unsafe.Pointer, index int32, url unsafe.Pointer, is_output int32)
-	fAvFindBestStream                   func(ic unsafe.Pointer, typ unsafe.Pointer, wanted_stream_nb int32, related_stream int32, decoder_ret *unsafe.Pointer, flags int32) int32
+	fAvFindBestStream                   func(ic unsafe.Pointer, typ int32, wanted_stream_nb int32, related_stream int32, decoder_ret *unsafe.Pointer, flags int32) int32
 	fAvformatAllocContext               func() unsafe.Pointer
 	fAvformatAllocOutputContext2        func(ctx *unsafe.Pointer, oformat unsafe.Pointer, format_name string, filename unsafe.Pointer) int32
 	fAvformatCloseInput                 func(s *unsafe.Pointer)
@@ -82,15 +82,15 @@ var (
 	fAvformatNetworkInit                func() int32
 	fAvformatNewStream                  func(s unsafe.Pointer, c unsafe.Pointer) unsafe.Pointer
 	fAvformatOpenInput                  func(ps *unsafe.Pointer, url unsafe.Pointer, fmt unsafe.Pointer, options *unsafe.Pointer) int32
-	fAvformatQueryCodec                 func(ofmt unsafe.Pointer, codec_id unsafe.Pointer, std_compliance int32) int32
+	fAvformatQueryCodec                 func(ofmt unsafe.Pointer, codec_id int32, std_compliance int32) int32
 	fAvformatQueueAttachedPictures      func(s unsafe.Pointer) int32
 	fAvformatSeekFile                   func(s unsafe.Pointer, stream_index int32, min_ts int64, ts int64, max_ts int64, flags int32) int32
 	fAvformatStreamGroupAddStream       func(stg unsafe.Pointer, st unsafe.Pointer) int32
-	fAvformatStreamGroupCreate          func(s unsafe.Pointer, typ unsafe.Pointer, options *unsafe.Pointer) unsafe.Pointer
-	fAvformatStreamGroupName            func(typ unsafe.Pointer) unsafe.Pointer
-	fAvformatVersion                    func() unsafe.Pointer
+	fAvformatStreamGroupCreate          func(s unsafe.Pointer, typ int32, options *unsafe.Pointer) unsafe.Pointer
+	fAvformatStreamGroupName            func(typ int32) unsafe.Pointer
+	fAvformatVersion                    func() uint32
 	fAvformatWriteHeader                func(s unsafe.Pointer, options *unsafe.Pointer) int32
-	fAvGuessCodec                       func(fmt unsafe.Pointer, short_name unsafe.Pointer, filename unsafe.Pointer, mime_type unsafe.Pointer, typ unsafe.Pointer) unsafe.Pointer
+	fAvGuessCodec                       func(fmt unsafe.Pointer, short_name unsafe.Pointer, filename unsafe.Pointer, mime_type unsafe.Pointer, typ int32) int32
 	fAvGuessFormat                      func(short_name unsafe.Pointer, filename unsafe.Pointer, mime_type unsafe.Pointer) unsafe.Pointer
 	fAvGuessFrameRate                   func(ctx unsafe.Pointer, stream unsafe.Pointer, frame unsafe.Pointer) AVRational
 	fAvGuessSampleAspectRatio           func(format unsafe.Pointer, stream unsafe.Pointer, frame unsafe.Pointer) AVRational
@@ -106,7 +106,7 @@ var (
 	fAvioEnumProtocols                  func(opaque *unsafe.Pointer, output int32) unsafe.Pointer
 	fAvioFeof                           func(s unsafe.Pointer) int32
 	fAvioFindProtocolName               func(url unsafe.Pointer) unsafe.Pointer
-	fAvioFlush                          func(s unsafe.Pointer) unsafe.Pointer
+	fAvioFlush                          func(s unsafe.Pointer)
 	fAvioFreeDirectoryEntry             func(entry *unsafe.Pointer)
 	fAvioGetDynBuf                      func(s unsafe.Pointer, pbuffer *unsafe.Pointer) int32
 	fAvioGetStr                         func(pb unsafe.Pointer, maxlen int32, buf unsafe.Pointer, buflen int32) int32
@@ -136,7 +136,7 @@ var (
 	fAvioRl24                           func(s unsafe.Pointer) uint32
 	fAvioRl32                           func(s unsafe.Pointer) uint32
 	fAvioRl64                           func(s unsafe.Pointer) uint64
-	fAvioSeek                           func(s unsafe.Pointer, offset int64, whence int32) unsafe.Pointer
+	fAvioSeek                           func(s unsafe.Pointer, offset int64, whence int32) int64
 	fAvioSeekTime                       func(h unsafe.Pointer, stream_index int32, timestamp int64, flags int32) int64
 	fAvioSize                           func(s unsafe.Pointer) int64
 	fAvioSkip                           func(s unsafe.Pointer, offset int64) int64
@@ -151,7 +151,7 @@ var (
 	fAvioWl32                           func(s unsafe.Pointer, val uint32)
 	fAvioWl64                           func(s unsafe.Pointer, val uint64)
 	fAvioWrite                          func(s unsafe.Pointer, buf unsafe.Pointer, size int32)
-	fAvioWriteMarker                    func(s unsafe.Pointer, time int64, typ unsafe.Pointer)
+	fAvioWriteMarker                    func(s unsafe.Pointer, time int64, typ int32)
 	fAvReadFrame                        func(s unsafe.Pointer, pkt unsafe.Pointer) int32
 	fAvSeekFrame                        func(s unsafe.Pointer, stream_index int32, timestamp int64, flags int32) int32
 	fAvUrlSplit                         func(proto unsafe.Pointer, proto_size int32, authorization unsafe.Pointer, authorization_size int32, hostname unsafe.Pointer, hostname_size int32, port_ptr unsafe.Pointer, path unsafe.Pointer, path_size int32, url unsafe.Pointer)
@@ -294,8 +294,8 @@ func (x *FormatContext) DumpFormat(index int32, url unsafe.Pointer, is_output in
 	fAvDumpFormat(x.ptr, index, url, is_output)
 }
 
-// FindBestStream 在盒子里挑最好的一条音视频流（对 av_find_best_stream；参数 typ、wanted_stream_nb、related_stream、decoder_ret、flags；回数值；nil 接收器直接回零值，不崩）。
-func (x *FormatContext) FindBestStream(typ unsafe.Pointer, wanted_stream_nb int32, related_stream int32, decoder_ret *unsafe.Pointer, flags int32) int32 {
+// FindBestStream 在盒子里挑最好的一条音视频流（对 av_find_best_stream；参数 typ(媒体类型枚举数: 0=视频/1=音频/2=数据/3=字幕/4=附件)、wanted_stream_nb、related_stream、decoder_ret、flags；
+func (x *FormatContext) FindBestStream(typ int32, wanted_stream_nb int32, related_stream int32, decoder_ret *unsafe.Pointer, flags int32) int32 {
 	mustUse(ensureModFormatDemux())
 	if x == nil {
 		return 0
@@ -332,7 +332,9 @@ func (x *FormatContext) Configuration() unsafe.Pointer {
 	return fAvformatConfiguration()
 }
 
-// FindStreamInfo 读几包把每条流的参数探出来（对 avformat_find_stream_info；参数 options；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
+// FindStreamInfo 读几包把每条流的参数探出来（对 avformat_find_stream_info；参数 options；
+// 注意：Open 内部已经探过, 同一个已读过包的上下文不要二次探, 会踩内部状态崩；
+// 要验它用新开的盒子；成功回 nil，失败回 error；nil 接收器回错，不崩）.
 func (x *FormatContext) FindStreamInfo(options *unsafe.Pointer) error {
 	if err := ensureModFormatDemux(); err != nil {
 		return err
@@ -560,18 +562,20 @@ func (x *FormatContext) OpenInput(ps *unsafe.Pointer, url unsafe.Pointer, fmt un
 	return nil
 }
 
-// QueryCodec 问复用器支不支持某个编码（对 avformat_query_codec；参数 codec_id、std_compliance；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
-func (x *Format) QueryCodec(codec_id unsafe.Pointer, std_compliance int32) error {
+// QueryCodec 问复用器支不支持某个编码（对 avformat_query_codec；参数 codec_id(编码枚举数, 如 12=MPEG4；mp4 无 x264 版默认视频编码就是它, 见 movenc.c)、std_compliance；
+// 回 1=支持、0=不支持, 负数是 AVERROR；回 (值, error)；nil 接收器直接回错，不崩）.
+func (x *Format) QueryCodec(codec_id int32, std_compliance int32) (int32, error) {
 	if err := ensureModFormatDemux(); err != nil {
-		return err
+		return 0, err
 	}
 	if x == nil {
-		return errNilFF
+		return 0, errNilFF
 	}
 	if ret := fAvformatQueryCodec(x.ptr, codec_id, std_compliance); ret < 0 {
-		return codeErr("avformat_query_codec", ret)
+		return 0, codeErr("avformat_query_codec", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
 // QueueAttachedPictures 把封面图排进队列（对 avformat_queue_attached_pictures；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
@@ -613,8 +617,8 @@ func (x *FormatContext) StreamGroupAddStream(stg unsafe.Pointer, st unsafe.Point
 	return nil
 }
 
-// StreamGroupCreate 新建流组（对 avformat_stream_group_create；参数 typ、options；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
-func (x *FormatContext) StreamGroupCreate(typ unsafe.Pointer, options *unsafe.Pointer) unsafe.Pointer {
+// StreamGroupCreate 新建流组（对 avformat_stream_group_create；参数 typ(流组类型枚举数: 0=NONE/1=IAMF音频/2=IAMF混音/3=瓦片网格/4=LCEVC)、options；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
+func (x *FormatContext) StreamGroupCreate(typ int32, options *unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModFormatDemux())
 	if x == nil {
 		return nil
@@ -622,14 +626,14 @@ func (x *FormatContext) StreamGroupCreate(typ unsafe.Pointer, options *unsafe.Po
 	return fAvformatStreamGroupCreate(x.ptr, typ, options)
 }
 
-// StreamGroupName 问流组名字（对 avformat_stream_group_name；参数 typ；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
-func (x *FormatContext) StreamGroupName(typ unsafe.Pointer) unsafe.Pointer {
+// StreamGroupName 问流组名字（对 avformat_stream_group_name；参数 typ(流组类型枚举数)；回 C 字符串指针, 未知类型回 nil；无状态调用，nil 接收器也直接调 C，不崩）。
+func (x *FormatContext) StreamGroupName(typ int32) unsafe.Pointer {
 	mustUse(ensureModFormatDemux())
 	return fAvformatStreamGroupName(typ)
 }
 
-// Version 问封装库版本号（对 avformat_version；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *FormatContext) Version() unsafe.Pointer {
+// Version 问封装库版本号（对 avformat_version；无参数；回版本号 uint32(大端 16 位是主版本, 61 表 7.x)；nil 接收器也直接调 C，不崩）.
+func (x *FormatContext) Version() uint32 {
 	mustUse(ensureModFormatDemux())
 	return fAvformatVersion()
 }
@@ -648,11 +652,12 @@ func (x *FormatContext) WriteHeader(options *unsafe.Pointer) error {
 	return nil
 }
 
-// GuessCodec 按名字猜编码器（对 av_guess_codec；参数 short_name、filename、mime_type、typ；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
-func (x *Format) GuessCodec(short_name unsafe.Pointer, filename unsafe.Pointer, mime_type unsafe.Pointer, typ unsafe.Pointer) unsafe.Pointer {
+// GuessCodec 按复用器和文件名猜编码号（对 av_guess_codec；参数 short_name、filename、mime_type(C 字符串指针, 不用的传 nil)、typ(媒体类型枚举数)；
+// 回编码枚举号 int32, 猜不出回 AV_CODEC_ID_NONE(0)；四个指针都可传 nil, 传 nil 表不按这项猜；nil 接收器回 0，不崩）.
+func (x *Format) GuessCodec(short_name unsafe.Pointer, filename unsafe.Pointer, mime_type unsafe.Pointer, typ int32) int32 {
 	mustUse(ensureModFormatDemux())
 	if x == nil {
-		return nil
+		return 0
 	}
 	return fAvGuessCodec(x.ptr, short_name, filename, mime_type, typ)
 }
@@ -784,18 +789,13 @@ func (x *FormatContext) EnumProtocols(opaque *unsafe.Pointer, output int32) unsa
 	return fAvioEnumProtocols(opaque, output)
 }
 
-// Feof 问是不是读到尾了（对 avio_feof；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
-func (x *IOContext) Feof() error {
-	if err := ensureModFormatDemux(); err != nil {
-		return err
-	}
+// Feof 问是不是读到尾了（对 avio_feof；无参数；回 0=没到尾、非 0=到尾或读错过；nil 接收器回 0，不崩）.
+func (x *IOContext) Feof() int32 {
+	mustUse(ensureModFormatDemux())
 	if x == nil {
-		return errNilFF
+		return 0
 	}
-	if ret := fAvioFeof(x.ptr); ret < 0 {
-		return codeErr("avio_feof", ret)
-	}
-	return nil
+	return fAvioFeof(x.ptr)
 }
 
 // FindProtocolName 按网址猜协议名（对 avio_find_protocol_name；参数 url；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
@@ -804,13 +804,13 @@ func (x *FormatContext) FindProtocolName(url unsafe.Pointer) unsafe.Pointer {
 	return fAvioFindProtocolName(url)
 }
 
-// Flush 把写缓冲刷出去（对 avio_flush；无参数；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *IOContext) Flush() unsafe.Pointer {
+// Flush 把写缓冲刷出去（对 avio_flush；读流调它表丢掉已缓冲的数据；无返回值，无报错；nil 接收器直接回，不崩）.
+func (x *IOContext) Flush() {
 	mustUse(ensureModFormatDemux())
 	if x == nil {
-		return nil
+		return
 	}
-	return fAvioFlush(x.ptr)
+	fAvioFlush(x.ptr)
 }
 
 // FreeDirectoryEntry 释放目录项（对 avio_free_directory_entry；参数 entry；按签名取回值；nil 接收器直接回零值，不崩）。
@@ -855,7 +855,9 @@ func (x *IOContext) GetStr16le(maxlen int32, buf unsafe.Pointer, buflen int32) i
 	return fAvioGetStr16le(x.ptr, maxlen, buf, buflen)
 }
 
-// Handshake 做 TLS 握手（对 avio_handshake；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
+// Handshake 做 TLS 握手（对 avio_handshake；无参数；成功回 nil，失败回 error；
+// 注意：C 里直接解 opaque, 内存 AVIO(AllocIOContext 建的, opaque=nil)调它会崩，
+// 只有 avio_open/open2 开出来的网络流才能调；nil 接收器回错，不崩）.
 func (x *IOContext) Handshake() error {
 	if err := ensureModFormatDemux(); err != nil {
 		return err
@@ -927,7 +929,8 @@ func (x *IOContext) Pause(pause int32) error {
 	return nil
 }
 
-// PrintStringArray 往流里逐个写字符串数组（对 avio_print_string_array；参数 strings；按签名取回值；nil 接收器直接回零值，不崩）。
+// PrintStringArray 往流里逐个写字符串数组（对 avio_print_string_array；参数 strings(指向 C 字符串指针数组、nil 结尾, 如 [hi hi nil]；C 里直接解 strings[0], 不可传 nil 否则崩)；
+// 无返回值；nil 接收器直接回，不崩）.
 func (x *IOContext) PrintStringArray(strings unsafe.Pointer) {
 	mustUse(ensureModFormatDemux())
 	if x == nil {
@@ -936,7 +939,8 @@ func (x *IOContext) PrintStringArray(strings unsafe.Pointer) {
 	fAvioPrintStringArray(x.ptr, strings)
 }
 
-// ProtocolGetClass 取协议的选项类（对 avio_protocol_get_class；参数 name；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
+// ProtocolGetClass 取协议的选项类（对 avio_protocol_get_class；参数 name(协议名 C 字符串, 如 "file"；C 里直接 strcmp, 不可传 nil 否则崩)；
+// 回选项类指针, 未知名回 nil；无状态调用）.
 func (x *FormatContext) ProtocolGetClass(name unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModFormatDemux())
 	return fAvioProtocolGetClass(name)
@@ -984,18 +988,13 @@ func (x *IOContext) PutStr16le(str unsafe.Pointer) error {
 	return nil
 }
 
-// R8 读一个字节（对 avio_r8；无参数；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
-func (x *IOContext) R8() error {
-	if err := ensureModFormatDemux(); err != nil {
-		return err
-	}
+// R8 读一个字节（对 avio_r8；无参数；回字节值 int32, 到尾回 0（注意：0 可能是真 0 也可能是到尾了，要确认得到尾调 Feof）；nil 接收器回 0，不崩）.
+func (x *IOContext) R8() int32 {
+	mustUse(ensureModFormatDemux())
 	if x == nil {
-		return errNilFF
+		return 0
 	}
-	if ret := fAvioR8(x.ptr); ret < 0 {
-		return codeErr("avio_r8", ret)
-	}
-	return nil
+	return fAvioR8(x.ptr)
 }
 
 // Rb16 读大端 16 位（对 avio_rb16；无参数；回数值或个数；nil 接收器直接回零值，不崩）。
@@ -1034,18 +1033,19 @@ func (x *IOContext) Rb64() uint64 {
 	return fAvioRb64(x.ptr)
 }
 
-// Read 从流里读固定字节（对 avio_read；参数 buf、size；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
-func (x *IOContext) Read(buf unsafe.Pointer, size int32) error {
+// Read 从流里读固定字节（对 avio_read；参数 buf(可写内存)、size；回 (读到字节数, error), 到尾没读够也报错；buf 不可传 nil；nil 接收器回错，不崩）.
+func (x *IOContext) Read(buf unsafe.Pointer, size int32) (int32, error) {
 	if err := ensureModFormatDemux(); err != nil {
-		return err
+		return 0, err
 	}
 	if x == nil {
-		return errNilFF
+		return 0, errNilFF
 	}
 	if ret := fAvioRead(x.ptr, buf, size); ret < 0 {
-		return codeErr("avio_read", ret)
+		return 0, codeErr("avio_read", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
 // ReadDir 从流里读固定字节（对 avio_read_dir；参数 s、next；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
@@ -1059,18 +1059,20 @@ func (x *FormatContext) ReadDir(s unsafe.Pointer, next *unsafe.Pointer) error {
 	return nil
 }
 
-// ReadPartial 从流里读固定字节（对 avio_read_partial；参数 buf、size；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
-func (x *IOContext) ReadPartial(buf unsafe.Pointer, size int32) error {
+// ReadPartial 从流里读固定字节（对 avio_read_partial；跟 Read 的区别是允许少读：至少读 1 字节就回；
+// 参数 buf(可写内存)、size；回 (读到字节数, error)；buf 不可传 nil；nil 接收器回错，不崩）.
+func (x *IOContext) ReadPartial(buf unsafe.Pointer, size int32) (int32, error) {
 	if err := ensureModFormatDemux(); err != nil {
-		return err
+		return 0, err
 	}
 	if x == nil {
-		return errNilFF
+		return 0, errNilFF
 	}
 	if ret := fAvioReadPartial(x.ptr, buf, size); ret < 0 {
-		return codeErr("avio_read_partial", ret)
+		return 0, codeErr("avio_read_partial", ret)
+	} else {
+		return ret, nil
 	}
-	return nil
 }
 
 // ReadToBprint 从流里读固定字节（对 avio_read_to_bprint；参数 pb、max_size；成功回 nil，失败回 error（字串已是人话）；nil 接收器直接回零值，不崩）。
@@ -1123,13 +1125,20 @@ func (x *IOContext) Rl64() uint64 {
 	return fAvioRl64(x.ptr)
 }
 
-// SeekPos 在流里跳到字节位置（对 avio_seek；参数 offset、whence；回 C 指针，失败回 nil；nil 接收器直接回零值，不崩）。
-func (x *IOContext) SeekPos(offset int64, whence int32) unsafe.Pointer {
-	mustUse(ensureModFormatDemux())
-	if x == nil {
-		return nil
+// SeekPos 在流里跳到字节位置（对 avio_seek；参数 offset、whence(0=开头/1=当前/2=结尾)；
+// 回新位置 int64, 负数是 AVERROR；回 (位置, error)；nil 接收器回错，不崩）.
+func (x *IOContext) SeekPos(offset int64, whence int32) (int64, error) {
+	if err := ensureModFormatDemux(); err != nil {
+		return 0, err
 	}
-	return fAvioSeek(x.ptr, offset, whence)
+	if x == nil {
+		return 0, errNilFF
+	}
+	if ret := fAvioSeek(x.ptr, offset, whence); ret < 0 {
+		return 0, codeErr("avio_seek", int32(ret))
+	} else {
+		return ret, nil
+	}
 }
 
 // SeekTime 在流里跳到字节位置（对 avio_seek_time；参数 stream_index、timestamp、flags；回数值或个数；nil 接收器直接回零值，不崩）。
@@ -1263,8 +1272,9 @@ func (x *IOContext) Write(buf unsafe.Pointer, size int32) {
 	fAvioWrite(x.ptr, buf, size)
 }
 
-// WriteMarker 往流里写固定字节（对 avio_write_marker；参数 time、typ；按签名取回值；nil 接收器直接回零值，不崩）。
-func (x *IOContext) WriteMarker(time int64, typ unsafe.Pointer) {
+// WriteMarker 给写流打标记点（对 avio_write_marker；参数 time、typ(标记类型枚举数: 0=头/1=同步点/2=边界点/3=未知/4=尾, 传 0 最稳)；
+// 无返回值；读流调它 C 提前返回不干活；nil 接收器直接回，不崩）.
+func (x *IOContext) WriteMarker(time int64, typ int32) {
 	mustUse(ensureModFormatDemux())
 	if x == nil {
 		return

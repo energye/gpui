@@ -88,6 +88,16 @@ func (d *Decoder) SetPixPool(get func(int) []byte, put func([]byte)) {
 	d.pixPut = put
 }
 
+// RawFormatCtx exposes the underlying AVFormatContext* for demux-layer
+// probes (FormatContext wrapper). The Decoder keeps ownership; do not
+// close or free it, it dies with Close.
+func (d *Decoder) RawFormatCtx() unsafe.Pointer {
+	if d == nil {
+		return nil
+	}
+	return d.fmtCtx
+}
+
 // Info returns the stream facts gathered at open.
 func (d *Decoder) Info() StreamInfo { return d.info }
 
