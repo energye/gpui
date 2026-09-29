@@ -94,6 +94,11 @@ func (s *Surface) blitSwapchainToDefaultWith(glCtx *gl.Context) {
 	glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, s.swapchainFBO)
 	glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
 
+	// Default framebuffer only accepts BACK as draw buffer. Render passes
+	// leave COLOR_ATTACHMENT0 in glDrawBuffers state, which silently drops
+	// the blit below (black window, no GL error).
+	glCtx.DrawBuffers([]uint32{gl.BACK})
+
 	w := int32(s.fboWidth)
 	h := int32(s.fboHeight)
 
