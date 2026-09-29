@@ -192,13 +192,13 @@ var (
 	fAvHashFinalHex                           func(ctx unsafe.Pointer, dst unsafe.Pointer, size int32)
 	fAvHashFreep                              func(ctx *unsafe.Pointer)
 	fAvHashGetName                            func(ctx unsafe.Pointer) unsafe.Pointer
-	fAvHashGetSize                            func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvHashGetSize                            func(ctx unsafe.Pointer) int32
 	fAvHashInit                               func(ctx unsafe.Pointer)
 	fAvHashNames                              func(i int32) unsafe.Pointer
 	fAvHashUpdate                             func(ctx unsafe.Pointer, src unsafe.Pointer, len uintptr)
 	fAvHexDump                                func(f unsafe.Pointer, buf unsafe.Pointer, size int32)
 	fAvHexDumpLog                             func(avcl unsafe.Pointer, level int32, buf unsafe.Pointer, size int32)
-	fAvHmacAlloc                              func(typ unsafe.Pointer) unsafe.Pointer
+	fAvHmacAlloc                              func(typ int32) unsafe.Pointer
 	fAvHmacCalc                               func(ctx unsafe.Pointer, data unsafe.Pointer, len uint32, key unsafe.Pointer, keylen uint32, out unsafe.Pointer, outlen uint32) int32
 	fAvHmacFinal                              func(ctx unsafe.Pointer, out unsafe.Pointer, outlen uint32) int32
 	fAvHmacFree                               func(ctx unsafe.Pointer)
@@ -1038,7 +1038,7 @@ func (self *Crypto) BlowfishCryptEcb(ctx unsafe.Pointer, xl unsafe.Pointer, xr u
 	fAvBlowfishCryptEcb(ctx, xl, xr, decrypt)
 }
 
-// BlowfishInit Blowfish 加解密的小件（对 av_blowfish_init；参数 ctx、key、key_len；按签名取回值；无状态调用）。
+// BlowfishInit Blowfish 设密钥（对 av_blowfish_init；参数 ctx、key、key_len；key_len 是字节数不是位数（16 字节钥匙就传 16，传 128 会读出界）；ctx/key 传 nil 会崩，得传真对象）。
 func (self *Crypto) BlowfishInit(ctx unsafe.Pointer, key unsafe.Pointer, key_len int32) {
 	mustUse(ensureModCrypto())
 	fAvBlowfishInit(ctx, key, key_len)
@@ -1845,8 +1845,8 @@ func (self *Crypto) HashGetName(ctx unsafe.Pointer) unsafe.Pointer {
 	return fAvHashGetName(ctx)
 }
 
-// HashGetSize 问哈希结果占多少字节（对 av_hash_get_size；参数 ctx；回 C 指针，失败回 nil；无状态调用）。
-func (self *Crypto) HashGetSize(ctx unsafe.Pointer) unsafe.Pointer {
+// HashGetSize 问哈希结果占多少字节（对 av_hash_get_size；参数 ctx；回字节数；ctx 传 nil 会崩，得传真上下文）。
+func (self *Crypto) HashGetSize(ctx unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
 	return fAvHashGetSize(ctx)
 }
@@ -1881,8 +1881,8 @@ func (self *Util) HexDumpLog(avcl unsafe.Pointer, level int32, buf unsafe.Pointe
 	fAvHexDumpLog(avcl, level, buf, size)
 }
 
-// HmacAlloc 新建一个 HMAC 算子（对 av_hmac_alloc；参数 typ；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
-func (self *Crypto) HmacAlloc(typ unsafe.Pointer) unsafe.Pointer {
+// HmacAlloc 新建一个 HMAC 算子（对 av_hmac_alloc；参数 typ 是哈希类型枚举数（0=MD5、1=SHA1、2=SHA224、3=SHA256 等，见 hmac.h）；成功回新算子，用完拿 HmacFree 放；无状态调用）。
+func (self *Crypto) HmacAlloc(typ int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvHmacAlloc(typ)
 }

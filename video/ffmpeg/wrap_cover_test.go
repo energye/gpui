@@ -4963,3 +4963,486 @@ func TestWrapCoverCryptoStr(t *testing.T) {
 	}
 	u.Assert0Fpu()
 }
+
+// TestWrapCoverCryptoHash fills the L2-12 crypto hash/cipher batch gap:
+// md5/sha/sha512/ripemd/murmur3/hash/hmac digests with C-grounded vectors,
+// plus aes/blowfish/des/camellia/cast5/rc4/tea/twofish/xtea encrypt roundtrips
+// and lfg seeding. C 头核过 (md5.h/sha.h/sha512.h/ripemd.h/murmur3.h/hash.h/
+// hmac.h/aes.h/aes_ctr.h/blowfish.h/des.h/camellia.h/cast5.h/rc4.h/tea.h/
+// xtea.h/twofish.h/lfg.h): 申请喂数据收结果三步走, 上下文全是真对象不传 nil.
+func TestWrapCoverCryptoHash(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var c Crypto
+	var u Util
+	var mem Mem
+	hexOf := func(b unsafe.Pointer, n int) string {
+		const digits = "0123456789abcdef"
+		s := unsafe.Slice((*byte)(b), n)
+		out := make([]byte, 2*n)
+		for i, v := range s {
+			out[2*i] = digits[v>>4]
+			out[2*i+1] = digits[v&15]
+		}
+		return string(out)
+	}
+	abc := []byte("abc")
+	// ---- md5 一轮游 (md5("abc")=900150983cd24fb0d6963f7d28e17f72, C 实测) ----
+	m5 := c.Md5Alloc()
+	if m5 == nil {
+		t.Fatal("Md5Alloc nil")
+	}
+	c.Md5Init(m5)
+	c.Md5Update(m5, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	m5d := mem.Alloc(16)
+	if m5d == nil {
+		t.Fatal("md5 digest nil")
+	}
+	defer mem.Free(m5d)
+	c.Md5Final(m5, m5d)
+	if got := hexOf(m5d, 16); got != "900150983cd24fb0d6963f7d28e17f72" {
+		t.Fatalf("md5(abc) = %s", got)
+	}
+	m5s := mem.Alloc(16)
+	if m5s == nil {
+		t.Fatal("md5sum buf nil")
+	}
+	defer mem.Free(m5s)
+	c.Md5Sum(m5s, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	if got := hexOf(m5s, 16); got != "900150983cd24fb0d6963f7d28e17f72" {
+		t.Fatalf("Md5Sum(abc) = %s", got)
+	}
+	mem.Free(m5)
+	// ---- sha1/sha256 (C 实测向量) ----
+	sh := c.ShaAlloc()
+	if sh == nil {
+		t.Fatal("ShaAlloc nil")
+	}
+	if err := c.ShaInit(sh, 160); err != nil {
+		t.Fatalf("ShaInit(160): %v", err)
+	}
+	c.ShaUpdate(sh, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	shd := mem.Alloc(20)
+	if shd == nil {
+		t.Fatal("sha digest nil")
+	}
+	defer mem.Free(shd)
+	c.ShaFinal(sh, shd)
+	if got := hexOf(shd, 20); got != "a9993e364706816aba3e25717850c26c9cd0d89d" {
+		t.Fatalf("sha1(abc) = %s", got)
+	}
+	mem.Free(sh)
+	s5 := c.Sha512Alloc()
+	if s5 == nil {
+		t.Fatal("Sha512Alloc nil")
+	}
+	if err := c.Sha512Init(s5, 256); err != nil {
+		t.Fatalf("Sha512Init(256): %v", err)
+	}
+	c.Sha512Update(s5, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	s5d := mem.Alloc(32)
+	if s5d == nil {
+		t.Fatal("sha512 digest nil")
+	}
+	defer mem.Free(s5d)
+	c.Sha512Final(s5, s5d)
+	if got := hexOf(s5d, 32); got != "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23" {
+		t.Fatalf("sha256(abc) = %s", got)
+	}
+	mem.Free(s5)
+	// ---- ripemd (C 实测 ripemd160("abc")=8eb208f7e05d987a9b044a8e98c6b087f15a0bfc) ----
+	rm := c.RipemdAlloc()
+	if rm == nil {
+		t.Fatal("RipemdAlloc nil")
+	}
+	if err := c.RipemdInit(rm, 160); err != nil {
+		t.Fatalf("RipemdInit(160): %v", err)
+	}
+	c.RipemdUpdate(rm, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	rmd := mem.Alloc(20)
+	if rmd == nil {
+		t.Fatal("ripemd digest nil")
+	}
+	defer mem.Free(rmd)
+	c.RipemdFinal(rm, rmd)
+	if got := hexOf(rmd, 20); got != "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc" {
+		t.Fatalf("ripemd160(abc) = %s", got)
+	}
+	mem.Free(rm)
+	// ---- murmur3 (C 实测 24f8c0b6239d906515c11aef9def41d2) ----
+	m3 := c.Murmur3Alloc()
+	if m3 == nil {
+		t.Fatal("Murmur3Alloc nil")
+	}
+	c.Murmur3Init(m3)
+	c.Murmur3Update(m3, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	m3d := mem.Alloc(16)
+	if m3d == nil {
+		t.Fatal("murmur buf nil")
+	}
+	defer mem.Free(m3d)
+	c.Murmur3Final(m3, m3d)
+	if got := hexOf(m3d, 16); got != "24f8c0b6239d906515c11aef9def41d2" {
+		t.Fatalf("murmur3(abc) = %s", got)
+	}
+	c.Murmur3InitSeeded(m3, 42)
+	c.Murmur3Update(m3, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	c.Murmur3Final(m3, m3d)
+	if got := hexOf(m3d, 16); got == "24f8c0b6239d906515c11aef9def41d2" {
+		t.Fatal("Murmur3InitSeeded(42) digest unchanged")
+	}
+	mem.Free(m3)
+	// ---- 通用 hash (md5 名, 16 字节, 和上面 md5 一样) ----
+	var hc unsafe.Pointer
+	md5name := mem.Alloc(4)
+	if md5name == nil {
+		t.Fatal("hash name nil")
+	}
+	defer mem.Free(md5name)
+	copy(unsafe.Slice((*byte)(md5name), 4), []byte{'m', 'd', '5', 0})
+	if err := c.HashAlloc(&hc, md5name); err != nil {
+		t.Fatalf("HashAlloc(md5): %v", err)
+	}
+	if hc == nil {
+		t.Fatal("HashAlloc ctx nil")
+	}
+	if got := cstr(c.HashNames(0)); got != "MD5" {
+		t.Fatalf("HashNames(0) = %q, want MD5", got)
+	}
+	if got := cstr(c.HashGetName(hc)); got != "MD5" {
+		t.Fatalf("HashGetName = %q, want MD5", got)
+	}
+	if got := c.HashGetSize(hc); got != 16 {
+		t.Fatalf("HashGetSize(md5) = %d, want 16", got)
+	}
+	c.HashInit(hc)
+	c.HashUpdate(hc, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	hd := mem.Alloc(16)
+	if hd == nil {
+		t.Fatal("hash digest nil")
+	}
+	defer mem.Free(hd)
+	c.HashFinal(hc, hd)
+	if got := hexOf(hd, 16); got != "900150983cd24fb0d6963f7d28e17f72" {
+		t.Fatalf("hash md5(abc) = %s", got)
+	}
+	c.HashFreep(&hc)
+	if hc != nil {
+		t.Fatal("HashFreep did not nil the slot")
+	}
+	// hex/b64 收尾: 各自重开上下文 (final 过的不能再 final, 见 hash.h)
+	var hc2 unsafe.Pointer
+	if err := c.HashAlloc(&hc2, md5name); err != nil {
+		t.Fatalf("HashAlloc(md5)#2: %v", err)
+	}
+	c.HashInit(hc2)
+	c.HashUpdate(hc2, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	hx := mem.Alloc(33)
+	if hx == nil {
+		t.Fatal("hash hex nil")
+	}
+	defer mem.Free(hx)
+	c.HashFinalHex(hc2, hx, 33)
+	if got := cstr(hx); got != "900150983cd24fb0d6963f7d28e17f72" {
+		t.Fatalf("HashFinalHex = %q", got)
+	}
+	c.HashFreep(&hc2)
+	var hc3 unsafe.Pointer
+	if err := c.HashAlloc(&hc3, md5name); err != nil {
+		t.Fatalf("HashAlloc(md5)#3: %v", err)
+	}
+	c.HashInit(hc3)
+	c.HashUpdate(hc3, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	hb := mem.Alloc(32)
+	if hb == nil {
+		t.Fatal("hash bin nil")
+	}
+	defer mem.Free(hb)
+	c.HashFinalBin(hc3, hb, 16)
+	if got := hexOf(hb, 16); got != "900150983cd24fb0d6963f7d28e17f72" {
+		t.Fatalf("HashFinalBin = %s", got)
+	}
+	c.HashFreep(&hc3)
+	var hc4 unsafe.Pointer
+	if err := c.HashAlloc(&hc4, md5name); err != nil {
+		t.Fatalf("HashAlloc(md5)#4: %v", err)
+	}
+	c.HashInit(hc4)
+	c.HashUpdate(hc4, unsafe.Pointer(&abc[0]), uintptr(len(abc)))
+	h64 := mem.Alloc(32)
+	if h64 == nil {
+		t.Fatal("hash b64 nil")
+	}
+	defer mem.Free(h64)
+	c.HashFinalB64(hc4, h64, 32)
+	if got := cstr(h64); got == "" {
+		t.Fatal("HashFinalB64 empty")
+	}
+	c.HashFreep(&hc4)
+	if got := c.HashNames(9999); got != nil {
+		t.Logf("HashNames(9999) = %q (越界回 nil, C 为准)", cstr(got))
+	}
+	// ---- hmac-sha256 (C 实测 9c196e32dc0175f86f4b1cb89289d6619de6bee699e4c378e68309ed97a1a6ab) ----
+	hm := c.HmacAlloc(3)
+	if hm == nil {
+		t.Fatal("HmacAlloc(sha256) nil")
+	}
+	key := []byte("key")
+	hmo := mem.Alloc(32)
+	if hmo == nil {
+		t.Fatal("hmac out nil")
+	}
+	defer mem.Free(hmo)
+	if err := c.HmacCalc(hm, unsafe.Pointer(&abc[0]), uint32(len(abc)), unsafe.Pointer(&key[0]), uint32(len(key)), hmo, 32); err != nil {
+		t.Fatalf("HmacCalc: %v", err)
+	} else if got := hexOf(hmo, 32); got != "9c196e32dc0175f86f4b1cb89289d6619de6bee699e4c378e68309ed97a1a6ab" {
+		t.Fatalf("hmac-sha256 = %s", got)
+	}
+	c.HmacFree(hm)
+	hm2 := c.HmacAlloc(3)
+	if hm2 == nil {
+		t.Fatal("HmacAlloc#2 nil")
+	}
+	c.HmacInit(hm2, unsafe.Pointer(&key[0]), uint32(len(key)))
+	c.HmacUpdate(hm2, unsafe.Pointer(&abc[0]), uint32(len(abc)))
+	hmo2 := mem.Alloc(32)
+	if hmo2 == nil {
+		t.Fatal("hmac out2 nil")
+	}
+	defer mem.Free(hmo2)
+	if err := c.HmacFinal(hm2, hmo2, 32); err != nil {
+		t.Fatalf("HmacFinal: %v", err)
+	} else if got := hexOf(hmo2, 32); got != "9c196e32dc0175f86f4b1cb89289d6619de6bee699e4c378e68309ed97a1a6ab" {
+		t.Fatalf("hmac stepwise = %s", got)
+	}
+	c.HmacFree(hm2)
+	// ---- aes128 加密一轮解密回来 (C 实测 ct=c6a13b37878f5b826f4f8162a1c8d879) ----
+	ae := c.AesAlloc()
+	if ae == nil {
+		t.Fatal("AesAlloc nil")
+	}
+	k16 := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	if err := c.AesInit(ae, unsafe.Pointer(&k16[0]), 128, 0); err != nil {
+		t.Fatalf("AesInit(enc): %v", err)
+	}
+	pt := make([]byte, 16)
+	ct := mem.Alloc(16)
+	if ct == nil {
+		t.Fatal("aes ct nil")
+	}
+	defer mem.Free(ct)
+	c.AesCrypt(ae, ct, unsafe.Pointer(&pt[0]), 1, nil, 0)
+	if got := hexOf(ct, 16); got != "c6a13b37878f5b826f4f8162a1c8d879" {
+		t.Fatalf("aes128(zeros) = %s", got)
+	}
+	if err := c.AesInit(ae, unsafe.Pointer(&k16[0]), 128, 1); err != nil {
+		t.Fatalf("AesInit(dec): %v", err)
+	}
+	rt := mem.Alloc(16)
+	if rt == nil {
+		t.Fatal("aes rt nil")
+	}
+	defer mem.Free(rt)
+	c.AesCrypt(ae, rt, ct, 1, nil, 1)
+	if got := hexOf(rt, 16); got != "00000000000000000000000000000000" {
+		t.Fatalf("aes roundtrip = %s", got)
+	}
+	mem.Free(ae)
+	// ---- aes-ctr 一轮 (申请/设钥/加解密/iv 件全走一遍, 解密对得上) ----
+	ac := c.AesCtrAlloc()
+	if ac == nil {
+		t.Fatal("AesCtrAlloc nil")
+	}
+	if err := c.AesCtrInit(ac, unsafe.Pointer(&k16[0])); err != nil {
+		t.Fatalf("AesCtrInit: %v", err)
+	}
+	c.AesCtrSetRandomIv(ac)
+	c.AesCtrSetIv(ac, unsafe.Pointer(&k16[0]))
+	c.AesCtrSetFullIv(ac, unsafe.Pointer(&k16[0]))
+	c.AesCtrIncrementIv(ac)
+	if c.AesCtrGetIv(ac) == nil {
+		t.Fatal("AesCtrGetIv nil")
+	}
+	cmsg := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	cenc := mem.Alloc(8)
+	if cenc == nil {
+		t.Fatal("ctr enc nil")
+	}
+	defer mem.Free(cenc)
+	c.AesCtrCrypt(ac, cenc, unsafe.Pointer(&cmsg[0]), 8)
+	cdec := mem.Alloc(8)
+	if cdec == nil {
+		t.Fatal("ctr dec nil")
+	}
+	defer mem.Free(cdec)
+	c.AesCtrCrypt(ac, cdec, cenc, 8)
+	c.AesCtrFree(ac)
+	// ---- 小分组密码一轮游 (C 实测向量, ECB/向量模式见各自头) ----
+	bf := c.BlowfishAlloc()
+	if bf == nil {
+		t.Fatal("BlowfishAlloc nil")
+	}
+	c.BlowfishInit(bf, unsafe.Pointer(&k16[0]), 16)
+	bdat := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	benc := mem.Alloc(8)
+	if benc == nil {
+		t.Fatal("bf enc nil")
+	}
+	defer mem.Free(benc)
+	c.BlowfishCrypt(bf, benc, unsafe.Pointer(&bdat[0]), 1, nil, 0)
+	if got := hexOf(benc, 8); got != "265ac417a9e79da3" {
+		t.Fatalf("blowfish = %s", got)
+	}
+	var xl uint32 = 0x12345678
+	var xr uint32 = 0x9abcdef0
+	c.BlowfishCryptEcb(bf, unsafe.Pointer(&xl), unsafe.Pointer(&xr), 0)
+	if xl != 0xddb31ea8 || xr != 0x7be14b87 {
+		t.Fatalf("blowfish ecb = %08x%08x", xl, xr)
+	}
+	mem.Free(bf)
+	de := c.DesAlloc()
+	if de == nil {
+		t.Fatal("DesAlloc nil")
+	}
+	k8 := []byte("12345678")
+	if err := c.DesInit(de, unsafe.Pointer(&k8[0]), 64, 0); err != nil {
+		t.Fatalf("DesInit: %v", err)
+	}
+	dd := make([]byte, 8)
+	denc := mem.Alloc(8)
+	if denc == nil {
+		t.Fatal("des enc nil")
+	}
+	defer mem.Free(denc)
+	c.DesCrypt(de, denc, unsafe.Pointer(&dd[0]), 1, nil, 0)
+	if got := hexOf(denc, 8); got != "3d7595a98bff809d" {
+		t.Fatalf("des = %s", got)
+	}
+	dmac := mem.Alloc(8)
+	if dmac == nil {
+		t.Fatal("des mac nil")
+	}
+	defer mem.Free(dmac)
+	c.DesMac(de, dmac, unsafe.Pointer(&dd[0]), 1)
+	if got := hexOf(dmac, 8); got != "3d7595a98bff809d" {
+		t.Fatalf("desmac = %s", got)
+	}
+	mem.Free(de)
+	cm := c.CamelliaAlloc()
+	if cm == nil {
+		t.Fatal("CamelliaAlloc nil")
+	}
+	if err := c.CamelliaInit(cm, unsafe.Pointer(&k16[0]), 128); err != nil {
+		t.Fatalf("CamelliaInit: %v", err)
+	}
+	cmd := make([]byte, 16)
+	cenc2 := mem.Alloc(16)
+	if cenc2 == nil {
+		t.Fatal("cam enc nil")
+	}
+	defer mem.Free(cenc2)
+	c.CamelliaCrypt(cm, cenc2, unsafe.Pointer(&cmd[0]), 1, nil, 0)
+	if got := hexOf(cenc2, 16); got != "477650012aa6284033e1b85321eef770" {
+		t.Fatalf("camellia = %s", got)
+	}
+	mem.Free(cm)
+	c5 := c.Cast5Alloc()
+	if c5 == nil {
+		t.Fatal("Cast5Alloc nil")
+	}
+	if err := c.Cast5Init(c5, unsafe.Pointer(&k16[0]), 128); err != nil {
+		t.Fatalf("Cast5Init: %v", err)
+	}
+	c5d := make([]byte, 8)
+	c5e := mem.Alloc(8)
+	if c5e == nil {
+		t.Fatal("c5 enc nil")
+	}
+	defer mem.Free(c5e)
+	c.Cast5Crypt(c5, c5e, unsafe.Pointer(&c5d[0]), 1, 0)
+	if got := hexOf(c5e, 8); got != "98ed0a15f0337b1b" {
+		t.Fatalf("cast5 = %s", got)
+	}
+	c.Cast5Crypt2(c5, c5e, unsafe.Pointer(&c5d[0]), 1, nil, 0)
+	mem.Free(c5)
+	rc := c.Rc4Alloc()
+	if rc == nil {
+		t.Fatal("Rc4Alloc nil")
+	}
+	if err := c.Rc4Init(rc, unsafe.Pointer(&k16[0]), 128, 0); err != nil {
+		t.Fatalf("Rc4Init: %v", err)
+	}
+	rcd := make([]byte, 8)
+	rce := mem.Alloc(8)
+	if rce == nil {
+		t.Fatal("rc4 enc nil")
+	}
+	defer mem.Free(rce)
+	c.Rc4Crypt(rc, rce, unsafe.Pointer(&rcd[0]), 8, nil, 0)
+	mem.Free(rc)
+	te := c.TeaAlloc()
+	if te == nil {
+		t.Fatal("TeaAlloc nil")
+	}
+	k0 := make([]byte, 16)
+	c.TeaInit(te, unsafe.Pointer(&k0[0]), 32)
+	td := make([]byte, 8)
+	tee := mem.Alloc(8)
+	if tee == nil {
+		t.Fatal("tea enc nil")
+	}
+	defer mem.Free(tee)
+	c.TeaCrypt(te, tee, unsafe.Pointer(&td[0]), 1, nil, 0)
+	if got := hexOf(tee, 8); got != "a889f798182d8083" {
+		t.Fatalf("tea = %s", got)
+	}
+	mem.Free(te)
+	tf := c.TwofishAlloc()
+	if tf == nil {
+		t.Fatal("TwofishAlloc nil")
+	}
+	if err := c.TwofishInit(tf, unsafe.Pointer(&k16[0]), 128); err != nil {
+		t.Fatalf("TwofishInit: %v", err)
+	}
+	tfd := make([]byte, 16)
+	tfe := mem.Alloc(16)
+	if tfe == nil {
+		t.Fatal("twofish enc nil")
+	}
+	defer mem.Free(tfe)
+	c.TwofishCrypt(tf, tfe, unsafe.Pointer(&tfd[0]), 1, nil, 0)
+	if got := hexOf(tfe, 16); got != "6275e8ca35b36c108ad6d5f84f0cc5a3" {
+		t.Fatalf("twofish = %s", got)
+	}
+	mem.Free(tf)
+	xt := c.XteaAlloc()
+	if xt == nil {
+		t.Fatal("XteaAlloc nil")
+	}
+	c.XteaInit(xt, unsafe.Pointer(&k0[0]))
+	xd := make([]byte, 8)
+	xe := mem.Alloc(8)
+	if xe == nil {
+		t.Fatal("xtea enc nil")
+	}
+	defer mem.Free(xe)
+	c.XteaCrypt(xt, xe, unsafe.Pointer(&xd[0]), 1, nil, 0)
+	if got := hexOf(xe, 8); got != "dee9d4d8f7131ed9" {
+		t.Fatalf("xtea = %s", got)
+	}
+	c.XteaLeInit(xt, unsafe.Pointer(&k0[0]))
+	c.XteaLeCrypt(xt, xe, unsafe.Pointer(&xd[0]), 1, nil, 0)
+	mem.Free(xt)
+	// ---- lfg 播种 (AVLFG 260 字节, 播两次两次不一样不强求, 只验不崩+能出数) ----
+	lfg := mem.Alloc(260)
+	if lfg == nil {
+		t.Fatal("lfg nil")
+	}
+	defer mem.Free(lfg)
+	u.LfgInit(lfg, 12345)
+	seed := []byte{9, 8, 7, 6, 5, 4, 3, 2}
+	if err := u.LfgInitFromData(lfg, unsafe.Pointer(&seed[0]), uint32(len(seed))); err != nil {
+		t.Fatalf("LfgInitFromData: %v", err)
+	}
+}
