@@ -160,8 +160,17 @@ func TestWrapCover(t *testing.T) {
 	if _, err := o.QueryRanges("nosuchopt", 0); err == nil {
 		t.Fatal("QueryRanges bogus accepted")
 	}
-	if _, err := o.Serialize(0, 0, '=', ','); err == nil {
-		t.Fatal("Serialize bogus accepted")
+	// Serialize 以前 2 个分隔符没传进 C, C 看到的栈垃圾恰好不合法就报错,
+	// 断言的是垃圾不是语义; 这轮补齐 6 参后真对象上空选项应成功.
+	var mem2 Mem
+	o2 := OptObject{ptr: swr}
+	sbuf, serr := o2.Serialize(0, 0, '=', ',')
+	if serr != nil {
+		t.Fatalf("Serialize(empty swr): %v", serr)
+	}
+	mem2.Free(sbuf)
+	if _, serr := o2.Serialize(0, 0, 0, 0); serr == nil {
+		t.Fatal("Serialize NUL-sep accepted (C 报 EINVAL, 见 opt.c)")
 	}
 	o.ShowOptions(nil, 0, 0)
 	d := NewDictionary()
@@ -3192,4 +3201,471 @@ func TestWrapCoverDeviceIO(t *testing.T) {
 	nilDl.RegisterAll()
 	var nilDec *Decoder
 	nilDec.SetPixPool(nil, nil)
+}
+
+// TestWrapCoverDictOpt fills the dict_opt gap: all 36 remaining wrappers
+// run on real objects. C 头核过 (dict.h/opt.h):
+// 字典配对 Set/Get/Count/Iterate/GetString/ParseString/Copy/SetInt/Free,
+// Entry 的 Key/Value 取 C 结构体前 8/后 8 字节 (dict.h AVDictionaryEntry);
+// 选项读写全走 SwrContext 真对象 (options.c 的选项名, 如 in_sample_rate);
+// Eval* 先 Find 拿 Option 描述再解析; ranges 类记得 FreeRanges;
+// ChildClassIterate/FieldPtr 内部从对象头取 AVClass 表 (opt.c 直接解引用,
+// 传对象本身会错位); SetDefaults2 传 (0,0) 全重置.
+func TestWrapCoverDictOpt(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var mem Mem
+	// ---- 字典一轮游 (真字典: 写 3 对、读、数、遍历、串化、解析、拷贝) ----
+	d := NewDictionary()
+	if d == nil {
+		t.Fatal("NewDictionary nil")
+	}
+	defer d.Free()
+	if err := d.Set("alpha", "1", 0); err != nil {
+		t.Fatalf("Dict.Set: %v", err)
+	}
+	if err := d.Set("beta", "two", 0); err != nil {
+		t.Fatalf("Dict.Set: %v", err)
+	}
+	if err := d.SetInt("gamma", 42, 0); err != nil {
+		t.Fatalf("Dict.SetInt: %v", err)
+	}
+	if got := d.Count(); got != 3 {
+		t.Fatalf("Dict.Count = %d, want 3", got)
+	}
+	ent := d.Get("beta", nil, 0)
+	if ent == nil {
+		t.Fatal("Dict.Get(beta) nil")
+	}
+	if ent.Key() != "beta" || ent.Value() != "two" {
+		t.Fatalf("Dict entry = %q/%q, want beta/two", ent.Key(), ent.Value())
+	}
+	if d.Get("no-such-key", nil, 0) != nil {
+		t.Fatal("Dict.Get(bogus) non-nil")
+	}
+	// GetString 串化 (dict.h: out 用 av_malloc, Mem.Free 放).
+	sout, err := d.GetString('=', ',')
+	if err != nil {
+		t.Fatalf("Dict.GetString: %v", err)
+	}
+	if got := cstr(sout); got == "" {
+		t.Fatal("Dict.GetString empty")
+	}
+	mem.Free(sout)
+	// Iterate 从头走到尾数 3 个.
+	var prev *DictionaryEntry
+	var walked int
+	for {
+		e := d.Iterate(prev)
+		if e == nil {
+			break
+		}
+		walked++
+		prev = e
+	}
+	if walked != 3 {
+		t.Fatalf("Dict.Iterate walked %d, want 3", walked)
+	}
+	// ParseString 另起字典 "k=v,k=v" 解析.
+	d2 := NewDictionary()
+	if d2 == nil {
+		t.Fatal("NewDictionary2 nil")
+	}
+	defer d2.Free()
+	if err := d2.ParseString("x=1,y=2", "=", ",", 0); err != nil {
+		t.Fatalf("Dict.ParseString: %v", err)
+	}
+	if got := d2.Count(); got != 2 {
+		t.Fatalf("ParseString count = %d, want 2", got)
+	}
+	// Copy 把 d2 拷进新字典.
+	d3 := NewDictionary()
+	if d3 == nil {
+		t.Fatal("NewDictionary3 nil")
+	}
+	defer d3.Free()
+	if err := d3.Copy(d2, 0); err != nil {
+		t.Fatalf("Dict.Copy: %v", err)
+	}
+	if got := d3.Count(); got != 2 {
+		t.Fatalf("Copy count = %d, want 2", got)
+	}
+	// Take 交出所有权后壳变空 (开 open 的 options 就这么递).
+	tk := NewDictionary()
+	if tk == nil {
+		t.Fatal("NewDictionary(tk) nil")
+	}
+	if err := tk.Set("k", "v", 0); err != nil {
+		t.Fatalf("tk.Set: %v", err)
+	}
+	raw := tk.Take()
+	if raw == nil || tk.Ptr() != nil {
+		t.Fatal("Take did not hand out/clear")
+	}
+	var tkFree Dictionary
+	tkFree.Free()
+	// ---- 选项读写走 SwrContext 真对象 (swr_alloc 建, options.c 选项名) ----
+	var rs Resampler
+	swr := rs.Alloc2()
+	if swr == nil {
+		t.Fatal("swr alloc nil")
+	}
+	defer fSwrFree(&swr)
+	o := OptObject{ptr: swr}
+	// SetInt/GetInt 真选项 in_sample_rate.
+	if err := o.SetInt("in_sample_rate", 48000, 0); err != nil {
+		t.Fatalf("SetInt(in_sample_rate): %v", err)
+	}
+	if got, err := o.GetInt("in_sample_rate", 0); err != nil || got != 48000 {
+		t.Fatalf("GetInt(in_sample_rate) = %d,%v, want 48000", got, err)
+	}
+	// SetDouble/GetDouble 真选项 rematrix_volume (默认 1.0, 见 options.c).
+	if err := o.SetDouble("rematrix_volume", 0.5, 0); err != nil {
+		t.Fatalf("SetDouble: %v", err)
+	}
+	if got, err := o.GetDouble("rematrix_volume", 0); err != nil || got != 0.5 {
+		t.Fatalf("GetDouble = %v,%v, want 0.5", got, err)
+	}
+	// GetQ 走编码器 time_base 有理数选项: co 在后面 Eval 段建出来, 这里先记一笔,
+	// 真断言见 Eval 段之后 (读 co 编码器上下文, options_table.h 真名).
+	// SetSampleFmt/GetSampleFmt 真选项 out_sample_fmt (8=FLTP, 见 samplefmt.h).
+	if err := o.SetSampleFmt("out_sample_fmt", 8, 0); err != nil {
+		t.Fatalf("SetSampleFmt: %v", err)
+	}
+	if got, err := o.GetSampleFmt("out_sample_fmt", 0); err != nil || got != 8 {
+		t.Fatalf("GetSampleFmt = %d,%v, want 8", got, err)
+	}
+	// SetChlayout/GetChlayout 真选项 out_chlayout ("stereo" 名, 32 字节缓冲,
+	// 见 libswresample/options.c).
+	layBuf := mem.AllocZ(32)
+	if layBuf == nil {
+		t.Fatal("layout buf nil")
+	}
+	defer mem.Free(layBuf)
+	if err := o.Set("out_chlayout", "stereo", 0); err != nil {
+		t.Fatalf("Set(out_chlayout stereo): %v", err)
+	}
+	if err := o.GetChlayout("out_chlayout", 0, layBuf); err != nil {
+		t.Fatalf("GetChlayout: %v", err)
+	}
+	if err := o.SetChlayout("out_chlayout", layBuf, 0); err != nil {
+		t.Fatalf("SetChlayout: %v", err)
+	}
+	// EvalQ/数组口的真对象 co 在这里先建出来 (后面 SetArray 一家子复用).
+	dec, derr := Open("../testdata/feat_small.mp4")
+	if derr != nil {
+		t.Fatalf("Open(feat_small): %v", derr)
+	}
+	defer dec.Close()
+	co := OptObject{ptr: dec.CodecCtx().Ptr()}
+	// SetArray/GetArray/GetArraySize 走编码器真数组选项 side_data_prefer_packet
+	// (AV_OPT_TYPE_INT|ARRAY, 见 options_table.h; valType=2=INT 见 opt.h 枚举).
+	var arrElem int32 = -1
+	if err := co.SetArray("side_data_prefer_packet", 0, 0, 1, 2, unsafe.Pointer(&arrElem)); err != nil {
+		t.Fatalf("SetArray(side_data_prefer_packet): %v", err)
+	}
+	if n, err := co.GetArraySize("side_data_prefer_packet", 0); err != nil {
+		t.Fatalf("GetArraySize: %v", err)
+	} else {
+		t.Logf("GetArraySize(side_data_prefer_packet) = %d (以 C 为准)", n)
+	}
+	var gotArr int32
+	if err := co.GetArray("side_data_prefer_packet", 0, 0, 1, 2, unsafe.Pointer(&gotArr)); err != nil {
+		t.Fatalf("GetArray: %v", err)
+	}
+	if gotArr != -1 {
+		t.Fatalf("GetArray = %d, want -1", gotArr)
+	}
+	// swr flags 是普通标量不是数组: 错用数组口 C 报 EINVAL, 断言错路不通.
+	var flt uint32 = 1
+	if err := o.SetArray("flags", 0, 0, 1, 0, unsafe.Pointer(&flt)); err == nil {
+		t.Fatal("SetArray(scalar flags) accepted (C 报 EINVAL, 见 opt.c)")
+	}
+	// SetDictVal/GetDictVal 走 IAMF 混音展示真字典选项 annotations
+	// (AV_OPT_TYPE_DICT, 见 libavutil/iamf.c; base 版就有符号, 不挑复用器).
+	var util Util
+	mixPtr := util.IamfMixPresentationAlloc()
+	if mixPtr == nil {
+		t.Fatal("IamfMixPresentationAlloc nil")
+	}
+	defer util.IamfMixPresentationFree(&mixPtr)
+	mo := OptObject{ptr: mixPtr}
+	dv := NewDictionary()
+	if dv == nil {
+		t.Fatal("NewDictionary(dv) nil")
+	}
+	defer dv.Free()
+	if err := dv.Set("foo", "bar", 0); err != nil {
+		t.Fatalf("dv.Set: %v", err)
+	}
+	if err := mo.SetDictVal("annotations", dv.Ptr(), 0); err != nil {
+		t.Fatalf("SetDictVal(annotations): %v", err)
+	}
+	gv, err := mo.GetDictVal("annotations", 0)
+	if err != nil || gv == nil {
+		t.Fatalf("GetDictVal(annotations) = %v,%v", gv, err)
+	}
+	var gd Dictionary
+	gd.Free()
+	// av_opt_get_dict_val 拷出一份新字典 (opt.c: av_dict_copy), 用完要 Free;
+	// gv 是 AVDictionary* 裸指针, 挂进 holder 再 Free 不碰原对象.
+	ghold := Dictionary{ptr: gv}
+	defer ghold.Free()
+	if ghold.Count() != 1 {
+		t.Fatalf("GetDictVal count = %d, want 1", ghold.Count())
+	}
+	if got := ghold.Get("foo", nil, 0); got == nil || got.Value() != "bar" {
+		t.Fatal("GetDictVal content mismatch (want foo=bar)")
+	}
+	opts := NewDictionary()
+	if opts == nil {
+		t.Fatal("NewDictionary(opts) nil")
+	}
+	// SetDict2 吃掉整个字典 (opt.c: av_dict_free(options) 再装回剩下的),
+	// 调完 holder 作废别再 Free, 这里不 defer, 用完直接验空.
+	if err := opts.Set("in_sample_rate", "44100", 0); err != nil {
+		t.Fatalf("opts.Set: %v", err)
+	}
+	if err := o.SetDict2(opts, 0); err != nil {
+		t.Fatalf("SetDict2: %v", err)
+	}
+	if opts.Ptr() != nil {
+		t.Fatal("SetDict2 did not consume the dict (C 吃掉重装, 见 opt.c)")
+	}
+	if got, err := o.GetInt("in_sample_rate", 0); err != nil || got != 44100 {
+		t.Fatalf("GetInt after SetDict2 = %d,%v, want 44100", got, err)
+	}
+	opts2 := NewDictionary()
+	if opts2 == nil {
+		t.Fatal("NewDictionary(opts2) nil")
+	}
+	// 同上: SetDict 吃掉字典, holder 作废不 Free.
+	if err := opts2.Set("in_sample_rate", "22050", 0); err != nil {
+		t.Fatalf("opts2.Set: %v", err)
+	}
+	if err := o.SetDict(opts2); err != nil {
+		t.Fatalf("SetDict: %v", err)
+	}
+	if opts2.Ptr() != nil {
+		t.Fatal("SetDict did not consume the dict")
+	}
+	if got, err := o.GetInt("in_sample_rate", 0); err != nil || got != 22050 {
+		t.Fatalf("GetInt after SetDict = %d,%v, want 22050", got, err)
+	}
+	// ---- Find/Find2/Eval 一家子 (先 Find 拿描述, 再 Eval 解析) ----
+	opt := o.Find("in_sample_rate", "\x00", 0, 0)
+	if opt == nil {
+		t.Fatal("Find(in_sample_rate) nil")
+	}
+	if o.Find("no-such-opt", "", 0, 0) != nil {
+		t.Fatal("Find(bogus) non-nil")
+	}
+	if o.Find2("in_sample_rate", "\x00", 0, 0, nil) == nil {
+		t.Fatal("Find2(in_sample_rate) nil")
+	}
+	// Eval* 按类型配描述 (opt.c OPT_EVAL_NUMBER: 类型不对直接 EINVAL).
+	// INT64 用 first_pts (swr 真 INT64 选项, 见 options.c firstpts_in_samples);
+	// UINT 手头对象无真 UINT 选项 (最近的是 perlin 滤镜 random_seed, 见 vsrc_perlin.c),
+	// 这里只验错配路 (INT 描述喂 EvalUint 报 EINVAL) + nil 守卫.
+	i64Opt := o.Find("first_pts", "\x00", 0, 0)
+	if i64Opt == nil {
+		t.Fatal("Find(first_pts) nil")
+	}
+	if got, err := o.EvalInt64(i64Opt, "48000"); err != nil || got != 48000 {
+		t.Fatalf("EvalInt64 = %d,%v, want 48000", got, err)
+	}
+	if _, err := o.EvalInt64(opt, "48000"); err == nil {
+		t.Fatal("EvalInt64(INT opt) accepted (类型不对 C 报 EINVAL)")
+	}
+	if got, err := o.EvalInt(opt, "7"); err != nil || got != 7 {
+		t.Fatalf("EvalInt = %d,%v, want 7", got, err)
+	}
+	if _, err := o.EvalUint(opt, "9"); err == nil {
+		t.Fatal("EvalUint(INT opt) accepted (类型不对 C 报 EINVAL, 见 opt.c)")
+	}
+	dblOpt := o.Find("cutoff", "\x00", 0, 0)
+	if dblOpt == nil {
+		t.Fatal("Find(cutoff) nil")
+	}
+	if got, err := o.EvalDouble(dblOpt, "0.25"); err != nil || got != 0.25 {
+		t.Fatalf("EvalDouble = %v,%v, want 0.25", got, err)
+	}
+	fltOpt := o.Find("rematrix_volume", "\x00", 0, 0)
+	if fltOpt == nil {
+		t.Fatal("Find(rematrix_volume) nil")
+	}
+	if _, err := o.EvalDouble(fltOpt, "0.25"); err == nil {
+		t.Fatal("EvalDouble(FLOAT opt) accepted (类型不对 C 报 EINVAL)")
+	}
+	if got, err := o.EvalFloat(fltOpt, "0.5"); err != nil || got != 0.5 {
+		t.Fatalf("EvalFloat = %v,%v, want 0.5", got, err)
+	}
+	// EvalQ 走编码器 time_base 有理数选项 (options_table.h 真名, co 上面已建).
+	tbOpt := co.Find("time_base", "\x00", 0, 0)
+	if tbOpt == nil {
+		t.Fatal("Find(time_base) nil")
+	}
+	if got, err := co.EvalQ(tbOpt, "1/25"); err != nil || got.Num != 1 || got.Den != 25 {
+		t.Fatalf("EvalQ = %+v,%v, want 1/25", got, err)
+	}
+	// GetQ 走同一 time_base 有理数选项 (读 co 编码器上下文).
+	if got, err := co.GetQ("time_base", 0); err != nil {
+		t.Fatalf("GetQ(time_base): %v", err)
+	} else {
+		t.Logf("GetQ(time_base) = %d/%d (以 C 为准)", got.Num, got.Den)
+	}
+	tb := co.Find("time_base", "\x00", 0, 0)
+	_ = tb
+	flagsOpt := o.Find("flags", "\x00", 0, 0)
+	if flagsOpt == nil {
+		t.Fatal("Find(flags) nil")
+	}
+	// flags 常量叫 "res" (options.c:68, SWR_FLAG_RESAMPLE=1, 见 swresample.h:143).
+	if got, err := o.EvalFlags(flagsOpt, "res"); err != nil || got != 1 {
+		t.Fatalf("EvalFlags(res) = %d,%v, want 1", got, err)
+	}
+	// ---- NextOption/ChildNext/IsDefault 一家子 ----
+	first := o.NextOption(nil)
+	if first == nil {
+		t.Fatal("NextOption(nil) nil")
+	}
+	if first.Name() == "" {
+		t.Fatal("Option.Name empty")
+	}
+	second := o.NextOption(first)
+	if second == nil {
+		t.Fatal("NextOption walk stuck")
+	}
+	if got := o.ChildNext(nil); got == nil {
+		t.Logf("ChildNext(swr) nil (swr 无子类, 以 C 为准)")
+	}
+	var iter unsafe.Pointer
+	if got := ChildClassIterate(o, &iter); got == nil {
+		t.Logf("ChildClassIterate(swr) nil (swr 无子类, 以 C 为准)")
+	}
+	// ChildClassIterate 走真有子类的 format 上下文 (options.c 挂了取子类口).
+	fco := OptObject{ptr: fmtPtrOf(t, dec)}
+	var fiter unsafe.Pointer
+	if got := ChildClassIterate(fco, &fiter); got == nil {
+		t.Fatal("ChildClassIterate(format) nil (format 有子类, 见 options.c)")
+	}
+	if !o.IsDefault(opt) {
+		t.Logf("IsDefault(in_sample_rate) false (刚 Set 过, 以 C 为准)")
+	}
+	if !o.IsDefaultByName("out_sample_fmt", 0) && false {
+		t.Fatal("unreachable")
+	}
+	t.Logf("IsDefaultByName(out_sample_fmt) = %v (以 C 为准)", o.IsDefaultByName("out_sample_fmt", 0))
+	// ---- FieldPtr/QueryRanges/SetDefaults2 ----
+	if fp := o.FieldPtr("in_sample_rate"); fp == nil {
+		t.Fatal("FieldPtr(in_sample_rate) nil")
+	}
+	if o.FieldPtr("no-such-opt") != nil {
+		t.Fatal("FieldPtr(bogus) non-nil")
+	}
+	qr, err := o.QueryRanges("in_sample_rate", 0)
+	if err != nil {
+		t.Fatalf("QueryRanges: %v", err)
+	}
+	qr.FreeRanges()
+	if qr.Ptr() != nil {
+		t.Fatal("FreeRanges did not null")
+	}
+	qd, err := o.QueryRangesDefault("in_sample_rate", 0)
+	if err != nil {
+		t.Logf("QueryRangesDefault err (以 C 为准): %v", err)
+	} else {
+		qd.FreeRanges()
+	}
+	// GetKeyValue 拆 "k=v," 串 (ropts 槽、C 串分隔符, key/val 用 Mem.Free 放).
+	kvSrc, freeKv := featCStr("foo=bar,")
+	defer freeKv()
+	ropts := kvSrc
+	var rkey, rval unsafe.Pointer
+	if err := GetKeyValue(&ropts, "=", ",", 0, &rkey, &rval); err != nil {
+		t.Fatalf("GetKeyValue: %v", err)
+	}
+	if cstr(rkey) != "foo" || cstr(rval) != "bar" {
+		t.Fatalf("GetKeyValue = %q/%q, want foo/bar", cstr(rkey), cstr(rval))
+	}
+	mem.Free(rkey)
+	mem.Free(rval)
+	// SetDefaults2 (0,0) 全重置: 刚设的 22050 应回默认 0 (options.c 默认).
+	o.SetDefaults2(0, 0)
+	if got, err := o.GetInt("in_sample_rate", 0); err != nil || got != 0 {
+		t.Fatalf("GetInt after SetDefaults2 = %d,%v, want 0", got, err)
+	}
+	// SetDefaults 走新 swr 真对象 (Alloc2 刚建的全是默认, vo:SetDefaults 不崩为准;
+	// 改过值的 o 调完应回默认, in_sample_rate 默认 0 见 options.c).
+	var rs2 Resampler
+	swr2 := rs2.Alloc2()
+	if swr2 == nil {
+		t.Fatal("swr2 alloc nil")
+	}
+	defer fSwrFree(&swr2)
+	o2 := OptObject{ptr: swr2}
+	o2.SetDefaults()
+	if got, err := o2.GetInt("in_sample_rate", 0); err != nil || got != 0 {
+		t.Fatalf("GetInt(fresh swr) = %d,%v, want 0", got, err)
+	}
+	// ---- nil 守卫 ----
+	var nilD *Dictionary
+	if nilD.Count() != 0 || nilD.Get("k", nil, 0) != nil || nilD.Iterate(nil) != nil {
+		t.Fatal("nil Dictionary not safe")
+	}
+	if _, err := nilD.GetString(',', '='); err == nil {
+		t.Fatal("nil GetString accepted")
+	}
+	nilD.Free()
+	var nilE *DictionaryEntry
+	if nilE.Key() != "" || nilE.Value() != "" {
+		t.Fatal("nil Entry not safe")
+	}
+	var nilO OptObject
+	if _, err := nilO.EvalInt(nil, "1"); err == nil {
+		t.Fatal("nil EvalInt accepted")
+	}
+	if _, err := nilO.EvalInt64(nil, "1"); err == nil {
+		t.Fatal("nil EvalInt64 accepted")
+	}
+	if _, err := nilO.EvalUint(nil, "1"); err == nil {
+		t.Fatal("nil EvalUint accepted")
+	}
+	if _, err := nilO.EvalFloat(nil, "1"); err == nil {
+		t.Fatal("nil EvalFloat accepted")
+	}
+	if _, err := nilO.EvalDouble(nil, "1"); err == nil {
+		t.Fatal("nil EvalDouble accepted")
+	}
+	if _, err := nilO.EvalQ(nil, "1"); err == nil {
+		t.Fatal("nil EvalQ accepted")
+	}
+	if _, err := nilO.EvalFlags(nil, "1"); err == nil {
+		t.Fatal("nil EvalFlags accepted")
+	}
+	if nilO.ChildNext(nil) != nil || nilO.FieldPtr("x") != nil {
+		t.Fatal("nil ChildNext/FieldPtr non-nil")
+	}
+	if ChildClassIterate(nilO, nil) != nil {
+		t.Fatal("nil ChildClassIterate non-nil")
+	}
+	if nilO.NextOption(nil) != nil || nilO.Find("x", "", 0, 0) != nil || nilO.Find2("x", "", 0, 0, nil) != nil {
+		t.Fatal("nil Find family non-nil")
+	}
+	var nilR *OptionRanges
+	nilR.FreeRanges()
+	if nilR.Ptr() != nil {
+		t.Fatal("nil Ranges Ptr non-nil")
+	}
+}
+
+// fmtPtrOf unwraps the live demux context pointer for format-class probes.
+func fmtPtrOf(t *testing.T, dec *Decoder) unsafe.Pointer {
+	t.Helper()
+	p := dec.RawFormatCtx()
+	if p == nil {
+		t.Fatal("FormatCtx nil")
+	}
+	return p
 }

@@ -126,8 +126,8 @@ var (
 	fOptEvalInt64   func(unsafe.Pointer, unsafe.Pointer, string, *int64) int32
 	fOptEvalQ       func(unsafe.Pointer, unsafe.Pointer, string, *AVRational) int32
 	fOptEvalUint    func(unsafe.Pointer, unsafe.Pointer, string, *uint32) int32
-	fOptFind        func(unsafe.Pointer, string, string, int32, int32) unsafe.Pointer
-	fOptFind2       func(unsafe.Pointer, string, string, int32, int32, *unsafe.Pointer) unsafe.Pointer
+	fOptFind        func(unsafe.Pointer, string, unsafe.Pointer, int32, int32) unsafe.Pointer
+	fOptFind2       func(unsafe.Pointer, string, unsafe.Pointer, int32, int32, *unsafe.Pointer) unsafe.Pointer
 	fOptFlagIsSet   func(unsafe.Pointer, string, string) int32
 	fOptFree        func(unsafe.Pointer)
 	fOptFreepRanges func(*unsafe.Pointer)
@@ -150,7 +150,7 @@ var (
 	fOptPtr         func(unsafe.Pointer, unsafe.Pointer, string) unsafe.Pointer
 	fOptQueryRanges func(*unsafe.Pointer, unsafe.Pointer, string, int32) int32
 	fOptQueryDef    func(*unsafe.Pointer, unsafe.Pointer, string, int32) int32
-	fOptSerialize   func(unsafe.Pointer, int32, int32, *unsafe.Pointer) int32
+	fOptSerialize   func(unsafe.Pointer, int32, int32, *unsafe.Pointer, byte, byte) int32
 	fOptSet         func(unsafe.Pointer, string, string, int32) int32
 	fOptSetArray    func(unsafe.Pointer, string, int32, uint32, uint32, int32, unsafe.Pointer) int32
 	fOptSetBin      func(unsafe.Pointer, string, unsafe.Pointer, int32, int32) int32
@@ -473,13 +473,36 @@ func (o OptObject) GetQ(name string, flags int) (AVRational, error) {
 	return v, nil
 }
 
-// Find returns the option descriptor by name (nil when absent).
+// featCStrTmp builds a throwaway NUL-terminated C string on the Mem heap
+// (caller frees via the returned func; for hot paths hoist it out).
+func featCStrTmp(s string) (unsafe.Pointer, func()) {
+	raw := append([]byte(s), 0)
+	var mem Mem
+	buf := mem.Alloc(len(raw))
+	if buf == nil {
+		return nil, func() {}
+	}
+	copy(unsafe.Slice((*byte)(buf), len(raw)), raw)
+	return buf, func() { mem.Free(buf) }
+}
+
+// Find returns the option descriptor by name (nil when absent;
+// unit 传 "" 表只找普通选项 (C 里空串是正经 unit 名, 不是通配),
+// 传 "\x00" 表不过滤 (C 的 NULL); optFlags/searchFlags 一般 0/AV_OPT_SEARCH_CHILDREN).
 func (o OptObject) Find(name, unit string, optFlags, searchFlags int) *Option {
 	mustUse(ensureModDictOpt())
 	if o.ptr == nil {
 		return nil
 	}
-	ptr := fOptFind(o.ptr, name, unit, int32(optFlags), int32(searchFlags))
+	var up unsafe.Pointer
+	if unit == "\x00" {
+		up = nil
+	} else {
+		cu, freeCu := featCStrTmp(unit)
+		defer freeCu()
+		up = cu
+	}
+	ptr := fOptFind(o.ptr, name, up, int32(optFlags), int32(searchFlags))
 	if ptr == nil {
 		return nil
 	}
@@ -644,13 +667,22 @@ func (o OptObject) EvalFlags(opt *Option, val string) (int32, error) {
 }
 
 // Find2 looks up an option with unit + flags (av_opt_find2;
+// unit 语义同 Find ("" 只找普通选项, "\x00" 不过滤);
 // target 传 nil 表不取容器).
 func (o OptObject) Find2(name, unit string, optFlags, searchFlags int, target *unsafe.Pointer) *Option {
 	mustUse(ensureModDictOpt())
 	if o.ptr == nil {
 		return nil
 	}
-	ptr := fOptFind2(o.ptr, name, unit, int32(optFlags), int32(searchFlags), target)
+	var up unsafe.Pointer
+	if unit == "\x00" {
+		up = nil
+	} else {
+		cu, freeCu := featCStrTmp(unit)
+		defer freeCu()
+		up = cu
+	}
+	ptr := fOptFind2(o.ptr, name, up, int32(optFlags), int32(searchFlags), target)
 	if ptr == nil {
 		return nil
 	}
@@ -864,14 +896,19 @@ func (o OptObject) NextOption(prev *Option) *Option {
 	return &Option{ptr: ptr}
 }
 
-// FieldPtr returns the address of a named field (av_opt_ptr;
-// 改结构体字段用它定位, 别乱写).
+// FieldPtr returns the address of a named field (av_opt_ptr; 第一个参数
+// 是对象的 AVClass 表 (对象头 8 字节), 不是对象本身, 传对象会把内存当表读;
+// o 须是带 AVClass 的真对象, 表空直接回 nil 不进 C).
 func (o OptObject) FieldPtr(name string) unsafe.Pointer {
 	mustUse(ensureModDictOpt())
 	if o.ptr == nil {
 		return nil
 	}
-	return fOptPtr(o.ptr, o.ptr, name)
+	class := *(*unsafe.Pointer)(o.ptr)
+	if class == nil {
+		return nil
+	}
+	return fOptPtr(class, o.ptr, name)
 }
 
 // QueryRanges lists an option's allowed range (av_opt_query_ranges;
@@ -912,7 +949,8 @@ func (o OptObject) QueryRangesDefault(name string, searchFlags int) (*OptionRang
 }
 
 // Serialize dumps all set options to "k=v,k=v" (av_opt_serialize;
-// keySep/pairSep 传 '='、"," 最常见, out 用 Mem.Free 放).
+// keySep/pairSep 传 '='、"," 最常见, 传 '\0'/相同/反斜杠 C 直接报错;
+// out 用 Mem.Free 放).
 func (o OptObject) Serialize(optFlags, flags int32, keySep, pairSep byte) (unsafe.Pointer, error) {
 	if err := ensureModDictOpt(); err != nil {
 		return nil, err
@@ -921,9 +959,7 @@ func (o OptObject) Serialize(optFlags, flags int32, keySep, pairSep byte) (unsaf
 	if o.ptr == nil {
 		return nil, errNilOpt
 	}
-	_ = keySep
-	_ = pairSep
-	if ret := fOptSerialize(o.ptr, optFlags, flags, &out); ret < 0 {
+	if ret := fOptSerialize(o.ptr, optFlags, flags, &out, keySep, pairSep); ret < 0 {
 		return nil, codeErr("av_opt_serialize", ret)
 	}
 	return out, nil
@@ -969,7 +1005,8 @@ func (o OptObject) SetDefaults2(mask, flags int32) {
 }
 
 // SetDict applies a whole dictionary at once (av_opt_set_dict;
-// 没吃掉的进 options, 吃完的字典会清空).
+// C 吃掉整个字典再把没吃掉的装回去: 调完 holder 里是野指针, 别再碰它,
+// 需要的话重建; 没吃掉的进 options, 吃完的字典会清空).
 func (o OptObject) SetDict(options *Dictionary) error {
 	if err := ensureModDictOpt(); err != nil {
 		return err
@@ -984,10 +1021,14 @@ func (o OptObject) SetDict(options *Dictionary) error {
 	if ret := fOptSetDict(o.ptr, &dp); ret < 0 {
 		return codeErr("av_opt_set_dict", ret)
 	}
+	if options != nil {
+		options.ptr = nil
+	}
 	return nil
 }
 
-// SetDict2 applies a dictionary with flags (av_opt_set_dict2).
+// SetDict2 applies a dictionary with flags (av_opt_set_dict2;
+// 所有权语义同 SetDict: 调完 holder 作废).
 func (o OptObject) SetDict2(options *Dictionary, searchFlags int) error {
 	if err := ensureModDictOpt(); err != nil {
 		return err
@@ -1001,6 +1042,9 @@ func (o OptObject) SetDict2(options *Dictionary, searchFlags int) error {
 	}
 	if ret := fOptSetDict2(o.ptr, &dp, int32(searchFlags)); ret < 0 {
 		return codeErr("av_opt_set_dict2", ret)
+	}
+	if options != nil {
+		options.ptr = nil
 	}
 	return nil
 }
@@ -1116,12 +1160,17 @@ func (o OptObject) ShowOptions(logObj unsafe.Pointer, reqFlags, rejFlags int32) 
 }
 
 // ChildClassIterate walks child option classes (av_opt_child_class_iterate;
-// parent 传带子类的对象, opaque 传 nil 开头).
+// 第一个参数是父对象的 AVClass 表 (对象头 8 字节), 不是对象本身;
+// opaque 传 nil 开头; C 内不判空, 表空直接回 nil 不进 C).
 func ChildClassIterate(parent OptObject, opaque *unsafe.Pointer) unsafe.Pointer {
 	if ensureModDictOpt() != nil || parent.ptr == nil {
 		return nil
 	}
-	return fOptChildIter(parent.ptr, opaque)
+	class := *(*unsafe.Pointer)(parent.ptr)
+	if class == nil {
+		return nil
+	}
+	return fOptChildIter(class, opaque)
 }
 
 // ChildNext walks the next child object (av_opt_child_next;
