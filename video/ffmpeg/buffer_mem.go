@@ -622,8 +622,9 @@ func (f *Fifo) Peek(buf unsafe.Pointer, nbElems, offset int) error {
 	return nil
 }
 
-// PeekToCallback peeks through a Go callback (av_fifo_peek_to_cb;
-// cb 传 purego.NewCallback 做的指针, 不用传 nil; nbElems 传 nil 表全读).
+// PeekToCallback peeks through a Go callback (av_fifo_peek_to_cb; cb 须是
+// purego.NewCallback 做的跳板 (签名 func(opaque, buf unsafe.Pointer, nbElems *uintptr) int32),
+// 传 nil 会崩; nbElems 传 nil 表全读; offset+读数不能超 CanRead).
 func (f *Fifo) PeekToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr, offset int) error {
 	if err := ensureModBufferMem(); err != nil {
 		return err
@@ -637,7 +638,8 @@ func (f *Fifo) PeekToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr, offse
 	return nil
 }
 
-// ReadToCallback pops through a Go callback (av_fifo_read_to_cb).
+// ReadToCallback pops through a Go callback (av_fifo_read_to_cb; cb 须是
+// purego.NewCallback 跳板, 传 nil 会崩; nbElems 传 nil 表全读).
 func (f *Fifo) ReadToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
 	if err := ensureModBufferMem(); err != nil {
 		return err
@@ -651,7 +653,9 @@ func (f *Fifo) ReadToCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error
 	return nil
 }
 
-// WriteFromCallback pushes through a Go callback (av_fifo_write_from_cb).
+// WriteFromCallback pushes through a Go callback (av_fifo_write_from_cb;
+// cb 须是 purego.NewCallback 跳板, 传 nil 会崩; nbElems 传 nil 表有多少写多少,
+// 回来时槽里是实际写数).
 func (f *Fifo) WriteFromCallback(cb, opaque unsafe.Pointer, nbElems *uintptr) error {
 	if err := ensureModBufferMem(); err != nil {
 		return err
@@ -742,8 +746,9 @@ func (b *BPrint) AppendChar(c byte, n uint32) {
 	fBpChars(b.ptr, c, n)
 }
 
-// Escape appends src escaping specialChars (av_bprint_escape;
-// mode 用 EscapeMode* 常量, flags 传 0).
+// Escape appends src escaping specialChars (av_bprint_escape; mode 用
+// EscapeMode* 常量 (0=自动/1=反斜杠/2=引号/3=XML/4=引号+XML, 未知值按反斜杠),
+// flags 传 0; specialChars 传 "" 表只按模式转义, 传 nil 会崩).
 func (b *BPrint) Escape(src, specialChars string, mode, flags int32) {
 	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
@@ -781,7 +786,8 @@ func (b *BPrint) GetBuffer(size uint32, actualSize *uint32) unsafe.Pointer {
 }
 
 // InitForBuffer reuses external memory as the backing store
-// (av_bprint_init_for_buffer; 别 Free 外部内存, 归调用方管).
+// (av_bprint_init_for_buffer; 不 Finalize 时外部归调用方管,
+// 一旦 Finalize 外部被 C 拿 av_realloc 吃掉, 别再 Free 外部只放收到的串).
 func (b *BPrint) InitForBuffer(buf unsafe.Pointer, size uint32) {
 	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {
@@ -790,8 +796,11 @@ func (b *BPrint) InitForBuffer(buf unsafe.Pointer, size uint32) {
 	fBpInitBuf(b.ptr, buf, size)
 }
 
-// AppendTime formats tm with fmt (av_bprint_strftime; tm 传 *time.Time
-// 的 C 镜像指针, 一般直接传 nil 用当前时间 — 见 av_bprint_strftime).
+// AppendTime formats tm with fmt (av_bprint_strftime; tm 须是 C struct tm
+// 指针 (9 个 int 共 36 字节), 不可传 nil (C 直接读字段会崩); fmtStr 是
+// strftime 花样, 如 "%Y").
+//
+// Say it plain: 给 36 字节零内存 + 花样就能拼出时间串, 别传空.
 func (b *BPrint) AppendTime(fmtStr string, tm unsafe.Pointer) {
 	mustUse(ensureModBufferMem())
 	if b == nil || b.ptr == nil {

@@ -1598,6 +1598,409 @@ t.Fatal("IndexGetEntryFromTimestamp(nil) non-nil")
 }
 }
 
+// TestWrapCoverBufferMem fills the buffer_mem module gap: every remaining
+// wrapper runs on real memory/buffers/FIFO/BPrint. C 头核过
+// (mem.h/buffer.h/fifo.h/bprint.h): 35 个签名全对得上, 这轮一个不用改,
+// 只钉注释 (Escape 传 nil 崩三处已改). 申请释放严格配对; 回调三件套走
+// purego.NewCallback 真跳板 (签名 func(opaque, buf unsafe.Pointer,
+// nbElems *uintptr) int32); BPrint 空间新串以 Finalize 为准.
+func TestWrapCoverBufferMem(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var mem Mem
+// vet 不许整数直转指针, 跳板地址统一走这个过 (借用 media 轮的老办法).
+cbFromUintptr := func(u uintptr) unsafe.Pointer {
+return *(*unsafe.Pointer)(unsafe.Pointer(&u))
+}
+// ---- Mem 申请释放一轮游 (mem.h: 0 元素/负数回 nil, 不崩) ----
+blk := mem.Alloc(64)
+if blk == nil {
+t.Fatal("Alloc(64) nil")
+}
+copy(unsafe.Slice((*byte)(blk), 4), []byte{1, 2, 3, 4})
+if dup := mem.Dup(blk, 4); dup == nil {
+t.Fatal("Dup nil")
+} else {
+defer mem.Free(dup)
+if got := unsafe.Slice((*byte)(dup), 4); got[0] != 1 || got[3] != 4 {
+t.Fatalf("Dup = %v, want [1 2 3 4]", got)
+}
+}
+mem.Free(blk)
+if mem.Alloc(0) != nil || mem.Alloc(-1) != nil {
+t.Fatal("Alloc(0/-1) non-nil")
+}
+if mem.AllocZ(0) != nil {
+t.Fatal("AllocZ(0) non-nil")
+}
+arr := mem.AllocArray(4, 8)
+if arr == nil {
+t.Fatal("AllocArray nil")
+}
+defer mem.Free(arr)
+if mem.AllocArray(0, 8) != nil {
+t.Fatal("AllocArray(0) non-nil")
+}
+r1 := mem.Alloc(16)
+if r1 == nil {
+t.Fatal("Alloc(16) nil")
+}
+r1 = mem.Realloc(r1, 32)
+if r1 == nil {
+t.Fatal("Realloc nil")
+}
+// Realloc 系在 C 内释放旧块, defer 参数是调用瞬间求值的, 中间指针不能逐个 defer,
+// 只在链尾对最终指针 defer 一次, 否则旧块被放两次.
+r1 = mem.ReallocArray(r1, 4, 8)
+if r1 == nil {
+t.Fatal("ReallocArray nil")
+}
+r1 = mem.ReallocF(r1, 8, 4)
+if r1 == nil {
+t.Fatal("ReallocF nil")
+}
+r1 = mem.Realloc(r1, 0)
+if r1 == nil {
+t.Fatal("Realloc(0) nil (0 表清空不清指针)")
+}
+defer mem.Free(r1)
+slotRaw := mem.Alloc(8)
+if slotRaw == nil {
+t.Fatal("slot buf nil")
+}
+// ReallocP 在 C 内释放旧块并更新槽, slotRaw 是旧指针不能再 Free (否则 double free);
+// 槽内新指针最后由下面的 Freep 一次放掉, 这里不 defer.
+slot := slotRaw
+if err := mem.ReallocP(unsafe.Pointer(&slot), 16); err != nil {
+t.Fatalf("ReallocP: %v", err)
+}
+if slot == nil {
+t.Fatal("ReallocP nil slot")
+}
+var arrSlot unsafe.Pointer
+if err := mem.ReallocPArray(unsafe.Pointer(&arrSlot), 4, 8); err != nil {
+t.Fatalf("ReallocPArray: %v", err)
+}
+if arrSlot == nil {
+t.Fatal("ReallocPArray nil slot")
+}
+defer mem.Free(arrSlot)
+var freeSlot unsafe.Pointer = slot
+mem.Freep(unsafe.Pointer(&freeSlot))
+if freeSlot != nil {
+t.Fatal("Freep did not null the slot")
+}
+mem.Freep(nil)
+// Freep 吃掉槽里的指针 (C 置空调用方), freeSlot 之后别再 Free;
+// slot 那块顺手验证：刚被 Freep 放掉，再 Free 会 double free，所以不碰.
+back := mem.Alloc(16)
+if back == nil {
+t.Fatal("backptr buf nil")
+}
+defer mem.Free(back)
+copy(unsafe.Slice((*byte)(back), 4), []byte{7, 8, 9, 10})
+mem.MemcpyBackptr(unsafe.Add(back, 4), 4, 4)
+if got := unsafe.Slice((*byte)(back), 8); got[4] != 7 || got[7] != 10 {
+t.Fatalf("MemcpyBackptr = %v, want repeat [7..10]", got)
+}
+// ---- Buffer 引用计数一轮游 (buffer.h: alloc/ref/unref/replace 配对) ----
+b1 := NewBuffer(64)
+if b1 == nil {
+t.Fatal("NewBuffer nil")
+}
+defer b1.Unref()
+if NewBuffer(0) != nil {
+t.Fatal("NewBuffer(0) non-nil")
+}
+bz := NewBufferZeroed(64)
+if bz == nil {
+t.Fatal("NewBufferZeroed nil")
+}
+defer bz.Unref()
+r2 := b1.Ref()
+if r2 == nil {
+t.Fatal("Ref nil")
+}
+defer r2.Unref()
+if b1.RefCount() != 2 {
+t.Fatalf("RefCount = %d, want 2", b1.RefCount())
+}
+if !b1.IsWritable() {
+t.Logf("IsWritable(shared) false (以 C 为准: 共享不可写)")
+} else {
+t.Fatalf("IsWritable(shared) true")
+}
+solo := NewBuffer(32)
+if solo == nil {
+t.Fatal("NewBuffer(solo) nil")
+}
+defer solo.Unref()
+if !solo.IsWritable() {
+t.Fatal("IsWritable(solo) false")
+}
+if err := solo.MakeWritable(); err != nil {
+t.Fatalf("MakeWritable(solo): %v", err)
+}
+if err := ReallocBuffer(&solo, 64); err != nil {
+t.Fatalf("ReallocBuffer: %v", err)
+}
+dst := NewBuffer(16)
+if dst == nil {
+t.Fatal("NewBuffer(dst) nil")
+}
+defer dst.Unref()
+if err := dst.Replace(b1); err != nil {
+t.Fatalf("Replace: %v", err)
+}
+if dst.RefCount() < 2 {
+t.Fatalf("Replace RefCount = %d, want >= 2", dst.RefCount())
+}
+DefaultFree(nil, nil)
+ext := mem.Alloc(64)
+if ext == nil {
+t.Fatal("wrap buf nil")
+}
+wb := WrapBuffer(ext, 64, nil, nil, 0)
+if wb == nil {
+t.Fatal("WrapBuffer nil")
+}
+defer wb.Unref()
+if wb.Opaque() != nil {
+t.Fatal("WrapBuffer Opaque non-nil (传 nil opaque)")
+}
+if NewBufferPool(0, nil) != nil {
+t.Fatal("NewBufferPool(0) non-nil")
+}
+pool := NewBufferPool(64, nil)
+if pool == nil {
+t.Fatal("NewBufferPool nil")
+}
+defer pool.Uninit()
+pb := pool.Get()
+if pb == nil {
+t.Fatal("Pool.Get nil")
+}
+defer pb.Unref()
+if NewBufferPoolCustom(0, nil, nil, nil) != nil {
+t.Fatal("NewBufferPoolCustom(0) non-nil")
+}
+cpool := NewBufferPoolCustom(64, nil, nil, nil)
+if cpool == nil {
+t.Fatal("NewBufferPoolCustom nil")
+}
+defer cpool.Uninit()
+cpb := cpool.Get()
+if cpb == nil {
+t.Fatal("CustomPool.Get nil")
+}
+defer cpb.Unref()
+if cpb.PoolOpaque() == nil {
+t.Logf("PoolOpaque nil (默认分配器不透出, 以 C 为准)")
+}
+// ---- FIFO 写读看排空一轮游 (fifo.h: 读写数超限报错, 排空超限必崩所以不试) ----
+ff := NewFifo(4, 4, 0)
+if ff == nil {
+t.Fatal("NewFifo nil")
+}
+defer ff.Freep()
+if NewFifo(0, 4, 0) != nil {
+t.Fatal("NewFifo(0) non-nil")
+}
+if got := ff.ElemSize(); got != 4 {
+t.Fatalf("ElemSize = %d, want 4", got)
+}
+if got := ff.CanRead(); got != 0 {
+t.Fatalf("CanRead(fresh) = %d, want 0", got)
+}
+if got := ff.CanWrite(); got < 4 {
+t.Fatalf("CanWrite(fresh) = %d, want >= 4", got)
+}
+wdata := []uint32{0x11111111, 0x22222222}
+if err := ff.Write(unsafe.Pointer(&wdata[0]), 2); err != nil {
+t.Fatalf("Write: %v", err)
+}
+if got := ff.CanRead(); got != 2 {
+t.Fatalf("CanRead = %d, want 2", got)
+}
+var peek uint32
+if err := ff.Peek(unsafe.Pointer(&peek), 1, 0); err != nil {
+t.Fatalf("Peek: %v", err)
+}
+if peek != 0x11111111 {
+t.Fatalf("Peek = %#x, want 0x11111111", peek)
+}
+if err := ff.Peek(unsafe.Pointer(&peek), 9, 9); err == nil {
+t.Fatal("Peek(overrun) accepted")
+}
+if err := ff.Grow2(4); err != nil {
+t.Fatalf("Grow2: %v", err)
+}
+ff.SetGrowLimit(0)
+var got1, got2 uint32
+rbuf := [2]uint32{}
+_ = got1
+_ = got2
+if err := ff.Read(unsafe.Pointer(&rbuf[0]), 2); err != nil {
+t.Fatalf("Read: %v", err)
+}
+if rbuf != [2]uint32{0x11111111, 0x22222222} {
+t.Fatalf("Read = %#x", rbuf)
+}
+if err := ff.Write(unsafe.Pointer(&wdata[0]), 2); err != nil {
+t.Fatalf("Write2: %v", err)
+}
+ff.Drain(1)
+if got := ff.CanRead(); got != 1 {
+t.Fatalf("CanRead after Drain(1) = %d, want 1", got)
+}
+ff.Reset()
+if got := ff.CanRead(); got != 0 {
+t.Fatalf("CanRead after Reset = %d, want 0", got)
+}
+// 回调三件套走真跳板 (签名 func(opaque, buf unsafe.Pointer, nbElems *uintptr) int32).
+cbData := []uint32{0xAAAAAAAA, 0xBBBBBBBB}
+cbOpaque := unsafe.Pointer(&cbData[0])
+writeCb := purego.NewCallback(func(opaque, buf unsafe.Pointer, nbElems *uintptr) int32 {
+n := *nbElems
+if n > 2 {
+n = 2
+}
+copy(unsafe.Slice((*uint32)(buf), n), cbData[:n])
+return 0
+})
+if writeCb == 0 {
+t.Fatal("NewCallback(write) zero")
+}
+var wn uintptr = 2
+if err := ff.WriteFromCallback(cbFromUintptr(writeCb), cbOpaque, &wn); err != nil {
+t.Fatalf("WriteFromCallback: %v", err)
+}
+if wn != 2 {
+t.Fatalf("WriteFromCallback wrote %d, want 2", wn)
+}
+readCb := purego.NewCallback(func(opaque, buf unsafe.Pointer, nbElems *uintptr) int32 {
+return 0
+})
+if readCb == 0 {
+t.Fatal("NewCallback(read) zero")
+}
+var rn uintptr = 2
+if err := ff.ReadToCallback(cbFromUintptr(readCb), cbOpaque, &rn); err != nil {
+t.Fatalf("ReadToCallback: %v", err)
+}
+if rn != 2 {
+t.Fatalf("ReadToCallback read %d, want 2", rn)
+}
+if got := ff.CanRead(); got != 0 {
+t.Fatalf("CanRead after ReadToCallback = %d, want 0 (全弹走)", got)
+}
+if err := ff.Write(unsafe.Pointer(&wdata[0]), 2); err != nil {
+t.Fatalf("Write3: %v", err)
+}
+peekCb := purego.NewCallback(func(opaque, buf unsafe.Pointer, nbElems *uintptr) int32 {
+return 0
+})
+if peekCb == 0 {
+t.Fatal("NewCallback(peek) zero")
+}
+var pn uintptr = 2
+if err := ff.PeekToCallback(cbFromUintptr(peekCb), cbOpaque, &pn, 0); err != nil {
+t.Fatalf("PeekToCallback: %v", err)
+}
+if got := ff.CanRead(); got != 2 {
+t.Fatalf("CanRead after PeekToCallback = %d, want 2 (只看不弹)", got)
+}
+// ---- BPrint 拼串清空收尾一轮游 (bprint.h: 以 Finalize 为准) ----
+bp := NewBPrint(64, 4096)
+if bp == nil {
+t.Fatal("NewBPrint nil")
+}
+defer bp.Free()
+bp.AppendData("hi")
+bp.AppendChar('!', 2)
+bp.Escape("a<b", "<", 1, 0)
+bp.Clear()
+bp.AppendData("ok")
+// strftime 要 C struct tm (9 个 int 共 36 字节), 传 nil 会崩, 给零内存
+// (零 tm 年 1900, 串以 "ok1900" 开头为准).
+tmBuf := mem.AllocZ(36)
+if tmBuf == nil {
+t.Fatal("tm buf nil")
+}
+defer mem.Free(tmBuf)
+bp.AppendTime("%Y", tmBuf)
+out, err := bp.Finalize()
+if err != nil {
+t.Fatalf("Finalize: %v", err)
+}
+defer mem.Free(out)
+got := cstr(out)
+if len(got) < 6 || got[:6] != "ok1900" {
+t.Fatalf("Finalize = %q, want ok1900-prefixed", got)
+}
+// Finalize 后 BPrint 结构已交出去, 别再调它的方法 (C 侧已置空/释放),
+// 后面只验新 BPrint 的 GetBuffer.
+bp2buf := NewBPrint(64, 4096)
+if bp2buf == nil {
+t.Fatal("NewBPrint2 nil")
+}
+defer bp2buf.Free()
+var actual uint32
+if bp2buf.GetBuffer(32, &actual) == nil {
+t.Fatal("GetBuffer nil")
+}
+// InitForBuffer 把外部内存当后备 (bprint.c: str 直接指外部, size_max 锁死;
+// 外部指针不是内部保留区, Finalize 走 av_realloc(外部) 那条路吃掉它,
+// 所以 Finalize 后别再 Free 外部, 只放收到的串).
+extBp := mem.Alloc(64)
+if extBp == nil {
+t.Fatal("ext buf nil")
+}
+bp3 := NewBPrint(64, 4096)
+if bp3 == nil {
+t.Fatal("NewBPrint3 nil")
+}
+defer bp3.Free()
+bp3.InitForBuffer(extBp, 64)
+bp3.AppendData("ext")
+out3, err := bp3.Finalize()
+if err != nil {
+t.Fatalf("Finalize(ext): %v", err)
+}
+defer mem.Free(out3)
+if got := cstr(out3); got != "ext" {
+t.Fatalf("Finalize(ext) = %q, want ext", got)
+}
+var nilBp *BPrint
+nilBp.AppendData("x")
+nilBp.AppendChar('x', 1)
+nilBp.Clear()
+nilBp.Escape("x", "", 1, 0)
+nilBp.Free()
+nilBp.InitForBuffer(nil, 0)
+var nilFifo *Fifo
+if nilFifo.CanRead() != 0 || nilFifo.CanWrite() != 0 || nilFifo.ElemSize() != 0 {
+t.Fatal("nil Fifo not safe")
+}
+nilFifo.Drain(0)
+nilFifo.Reset()
+nilFifo.Freep()
+var nilBuf *Buffer
+if nilBuf.Ref() != nil || nilBuf.Opaque() != nil || nilBuf.PoolOpaque() != nil {
+t.Fatal("nil Buffer not safe")
+}
+if nilBuf.RefCount() != 0 || nilBuf.IsWritable() {
+t.Fatal("nil Buffer not safe")
+}
+nilBuf.Unref()
+var nilPool *BufferPool
+if nilPool.Get() != nil {
+t.Fatal("nil Pool.Get non-nil")
+}
+nilPool.Uninit()
+}
+
 // TestWrapCoverFramePacket fills the frame+packet module gap: every
 // remaining wrapper runs on real frames/packets. C 头核过 (frame.h/packet.h):
 // 30 个签名全对得上, 这轮一个不用改, 只加探针. 边数据走真数组 (从空槽建起,
