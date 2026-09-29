@@ -124,6 +124,23 @@ msg := ffmpeg.StrError(-1094995529) // "Invalid data found when processing input
 name := ffmpeg.PixFmtName(ffmpeg.PixFmtYUV420P) // "yuv420p"
 ```
 
+## 三层验证：绑的 API 怎么证明全能用
+
+- L1 符号存在（`symbol_cover_test.go`）：测试扫包内全部非 test 源码的
+  `RegisterLibFunc` 名，逐个 `Dlsym` 断言库里有；16 个数据符号走
+  `TestDataConst` 断言；4 个 C 变参不断言原符号，只断言 Go 拼串版能调。
+  7 个 x86-linux 专有符号（VDPAU 六件 + x86 重采样一件）在别的平台允许缺失。
+  base 和 full 各跑一遍（`GPUI_FFMPEG_VARIANT=full` 切 full）。
+- L2 可调用（`wrap_cover_test.go`：`TestWrapCover` + `TestWrapCoverMath`）：
+  每个模块调一遍，传空指针或非法输入，
+  断言回可读错误、不崩。抓住签名写错（参数个数、结构体布局对不上跑到就崩）。
+  纯算术绑定按头文件钉死已知答案。
+  注意：个别 C 函数天生不接受 NULL（传了直接段错误），
+  测试用非法值代替（见注释）。
+- L3 功能正确（`decode_test` / `audio_decode_test` / `feat_test` /
+  `remux_split_test`）：按场景来——解码首帧、声音、字幕烧录、remux、scale 转码、
+  full 写文件闭环。三平台 × 两版本矩阵里跑。
+
 ## 全部 API 对照表（Go 入口 → ffmpeg 函数）
 
 下面 13 节就是全部家当：so 里绑的每个函数都在里面，

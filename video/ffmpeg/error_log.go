@@ -254,7 +254,8 @@ func (Math) AddStable(tsTb AVRational, ts int64, incTb AVRational, inc int64) in
 }
 
 // RescaleDelta rescales ts from inTb to fsTb and rounds the leftover
-// toward outTb (自适应帧率用; last 传上次余数指针, 可传 nil).
+// toward outTb (自适应帧率用; last 传上次余数指针, 首次调传 AV_NOPTS_VALUE 初值,
+// C 内直接解引用, 不可传 nil).
 func (Math) RescaleDelta(inTb AVRational, inTs int64, fsTb AVRational, duration int32, last *int64, outTb AVRational) int64 {
 	mustUse(ensureModErrorLog())
 	return fRescaleDelta(inTb, inTs, fsTb, duration, last, outTb)
@@ -266,7 +267,7 @@ func (Math) CompareTs(tsA int64, tbA AVRational, tsB int64, tbB AVRational) int3
 	return fCompareTs(tsA, tbA, tsB, tbB)
 }
 
-// CompareMod compares (a-b) mod mod (取模比较, 返回 -1/0/1).
+// CompareMod compares (a-b) mod mod (取模比较, 回负/零/正, 不是 -1/0/1).
 func (Math) CompareMod(a, b, mod uint64) int64 {
 	mustUse(ensureModErrorLog())
 	return fCompareMod(a, b, mod)

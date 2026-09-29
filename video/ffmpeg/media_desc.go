@@ -27,7 +27,7 @@ var (
 	fAvAmbientViewingEnvironmentCreateSideData func(frame unsafe.Pointer) unsafe.Pointer
 	fAvChannelDescription                      func(buf unsafe.Pointer, buf_size uintptr, channel unsafe.Pointer) int32
 	fAvChannelDescriptionBprint                func(bp unsafe.Pointer, channel_id unsafe.Pointer)
-	fAvChannelFromString                       func(name unsafe.Pointer) unsafe.Pointer
+	fAvChannelFromString                       func(name unsafe.Pointer) int32
 	fAvChannelLayoutAmbisonicOrder             func(channel_layout unsafe.Pointer) int32
 	fAvChannelLayoutChannelFromIndex           func(channel_layout unsafe.Pointer, idx uint32) unsafe.Pointer
 	fAvChannelLayoutChannelFromString          func(channel_layout unsafe.Pointer, name unsafe.Pointer) unsafe.Pointer
@@ -246,8 +246,9 @@ func (x *MediaDesc) ChannelDescriptionBprint(bp unsafe.Pointer, channel_id unsaf
 	fAvChannelDescriptionBprint(bp, channel_id)
 }
 
-// ChannelFromString 查单个声道名或描述（对 av_channel_from_string；参数 name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (x *MediaDesc) ChannelFromString(name unsafe.Pointer) unsafe.Pointer {
+// ChannelFromString 按名查声道号（对 av_channel_from_string；参数 name；
+// 回声道号，非法名回 AV_CHAN_NONE(-1)；无状态，可用零值直接调）。
+func (x *MediaDesc) ChannelFromString(name unsafe.Pointer) int32 {
 	mustUse(ensureModMediaDesc())
 	return fAvChannelFromString(name)
 }
@@ -275,13 +276,14 @@ func (x *MediaDesc) ChannelLayoutChannelFromString(channel_layout unsafe.Pointer
 	return fAvChannelLayoutChannelFromString(channel_layout, name)
 }
 
-// ChannelLayoutCheck 查或配声道布局（对 av_channel_layout_check；参数 channel_layout；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// ChannelLayoutCheck 查声道布局是否有效（对 av_channel_layout_check；参数 channel_layout；
+// C 回 1 有效、0 无效；有效回 nil，无效回 error；无状态，可用零值直接调）。
 func (x *MediaDesc) ChannelLayoutCheck(channel_layout unsafe.Pointer) error {
 	if err := ensureModMediaDesc(); err != nil {
 		return err
 	}
-	if ret := fAvChannelLayoutCheck(channel_layout); ret < 0 {
-		return codeErr("av_channel_layout_check", ret)
+	if ret := fAvChannelLayoutCheck(channel_layout); ret == 0 {
+		return codeErr("av_channel_layout_check", 0)
 	}
 	return nil
 }
