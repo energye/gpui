@@ -1598,6 +1598,224 @@ t.Fatal("IndexGetEntryFromTimestamp(nil) non-nil")
 }
 }
 
+// TestWrapCoverFramePacket fills the frame+packet module gap: every
+// remaining wrapper runs on real frames/packets. C 头核过 (frame.h/packet.h):
+// 30 个签名全对得上, 这轮一个不用改, 只加探针. 边数据走真数组 (从空槽建起,
+// 不读帧内偏移); Add 类函数吃掉传入缓冲的所有权, 传进去就别再 Free.
+func TestWrapCoverFramePacket(t *testing.T) {
+if !Available() {
+t.Skipf("lib missing: %s", LibPath())
+}
+var mem Mem
+mkYUV := func() *Frame {
+f := NewFrame()
+if f == nil {
+t.Fatal("NewFrame nil")
+}
+*(*int32)(unsafe.Add(f.Ptr(), frameWidth)) = 320
+*(*int32)(unsafe.Add(f.Ptr(), frameHeight)) = 240
+*(*int32)(unsafe.Add(f.Ptr(), frameFormat)) = PixFmtYUV420P
+if err := f.GetBuffer(32); err != nil {
+t.Fatalf("frame GetBuffer: %v", err)
+}
+return f
+}
+// ---- 帧引用三件套 (frame.h: clone/copy/move 全是引用计数, 老数据按语义走) ----
+src := mkYUV()
+defer src.Free()
+cl := src.Clone()
+if cl == nil {
+t.Fatal("Clone nil")
+}
+defer cl.Free()
+dst := NewFrame()
+if dst == nil {
+t.Fatal("NewFrame(dst) nil")
+}
+defer dst.Free()
+if err := dst.CopyProps(src); err != nil {
+t.Fatalf("CopyProps: %v", err)
+}
+mvSrc := mkYUV()
+mvDst := NewFrame()
+if mvDst == nil {
+t.Fatal("NewFrame(mvDst) nil")
+}
+defer mvDst.Free()
+mvDst.MoveRef(mvSrc)
+if got := loadInt32(mvDst.Ptr(), frameWidth); got != 320 {
+t.Fatalf("MoveRef dst w = %d, want 320 (data arrived)", got)
+}
+if got := loadInt32(mvSrc.Ptr(), frameWidth); got != 0 {
+t.Fatalf("MoveRef src w = %d, want 0 (src cleared)", got)
+}
+mvSrc.Free()
+if err := src.ApplyCropping(0); err != nil {
+t.Fatalf("ApplyCropping(0): %v", err)
+}
+// ---- 帧边数据: 挂帧上的一套 (PANSCAN=0, 首个枚举值) ----
+if src.GetSideData(0) != nil {
+t.Fatal("GetSideData(absent) non-nil")
+}
+if src.NewSideData(0, 32) == nil {
+t.Fatal("NewSideData nil")
+}
+if src.GetSideData(0) == nil {
+t.Fatal("GetSideData(present) nil")
+}
+src.RemoveSideData(0)
+if src.GetSideData(0) != nil {
+t.Fatal("GetSideData(removed) non-nil")
+}
+sdBuf := NewBuffer(64)
+if sdBuf == nil {
+t.Fatal("NewBuffer nil")
+}
+// NewSideDataFromBuf 把缓冲吃进帧里, 传进去的壳就别再 Free 了.
+if src.NewSideDataFromBuf(0, sdBuf) == nil {
+t.Fatal("NewSideDataFromBuf nil")
+}
+if src.GetSideData(0) == nil {
+t.Fatal("GetSideData(frombuf) nil")
+}
+// ---- 帧边数据: 从空槽建起的数组一套 (frame.h: 空槽起新数组合法) ----
+var fslot unsafe.Pointer
+var fnb int32
+if FrameSideDataNew(&fslot, &fnb, 0, 32, 0) == nil {
+t.Fatal("FrameSideDataNew nil")
+}
+if fnb != 1 {
+t.Fatalf("FrameSideDataNew nb = %d, want 1", fnb)
+}
+defer FrameSideDataFree(&fslot, &fnb)
+entry := FrameSideDataGet(fslot, fnb, 0)
+if entry == nil {
+t.Fatal("FrameSideDataGet nil")
+}
+if FrameSideDataDesc(0) == nil {
+t.Fatal("FrameSideDataDesc(0) nil")
+}
+var cslot unsafe.Pointer
+var cnb int32
+if err := FrameSideDataClone(&cslot, &cnb, entry, 0); err != nil {
+t.Fatalf("FrameSideDataClone: %v", err)
+}
+if cnb != 1 {
+t.Fatalf("FrameSideDataClone nb = %d, want 1", cnb)
+}
+defer FrameSideDataFree(&cslot, &cnb)
+FrameSideDataRemove(&fslot, &fnb, 0)
+if fnb != 0 {
+t.Fatalf("FrameSideDataRemove nb = %d, want 0", fnb)
+}
+addBuf := NewBuffer(64)
+if addBuf == nil {
+t.Fatal("NewBuffer(add) nil")
+}
+// FrameSideDataAdd 吃掉缓冲引用 (C 侧 AVBufferRef** 会置空调用方),
+// 传进去的壳就别再 Free 了.
+if FrameSideDataAdd(&fslot, &fnb, 0, addBuf, 0) == nil {
+t.Fatal("FrameSideDataAdd nil")
+}
+if fnb != 1 {
+t.Fatalf("FrameSideDataAdd nb = %d, want 1", fnb)
+}
+// ---- 包数据三件套 (packet.h: 先给 64 字节再长到 128 截回 32) ----
+pkt := NewPacket()
+if pkt == nil {
+t.Fatal("NewPacket nil")
+}
+defer pkt.Free()
+if err := pkt.NewPacketData(64); err != nil {
+t.Fatalf("NewPacketData(64): %v", err)
+}
+if err := pkt.Grow(64); err != nil {
+t.Fatalf("Grow(64): %v", err)
+}
+pkt.Shrink(32)
+if err := pkt.MakeRefcounted(); err != nil {
+t.Fatalf("MakeRefcounted: %v", err)
+}
+pkt.FreeSideData()
+if pkt.DurationMs(AVRational{1, 1000}) != 0 {
+t.Fatalf("DurationMs(fresh) = %d, want 0", pkt.DurationMs(AVRational{1, 1000}))
+}
+if pkt.DurationMs(AVRational{0, 0}) != 0 {
+t.Fatal("DurationMs(bogus tb) non-zero")
+}
+// ---- 包边数据: 数组一套 (PALETTE=0, 首个枚举值) ----
+var pslot unsafe.Pointer
+var pnb int32
+if SideDataNew(&pslot, &pnb, 0, 16, 0) == nil {
+t.Fatal("SideDataNew nil")
+}
+if pnb != 1 {
+t.Fatalf("SideDataNew nb = %d, want 1", pnb)
+}
+defer SideDataFree(&pslot, &pnb)
+if SideDataGet(pslot, pnb, 0) == nil {
+t.Fatal("SideDataGet nil")
+}
+// SideDataAdd 吃掉传入缓冲 (C 侧直接挂指针), 传进去就别再 Free.
+addData := mem.Alloc(16)
+if addData == nil {
+t.Fatal("sidedata buf nil")
+}
+var aslot unsafe.Pointer
+var anb int32
+if SideDataAdd(&aslot, &anb, 0, addData, 16, 0) == nil {
+t.Fatal("SideDataAdd nil")
+}
+if anb != 1 {
+t.Fatalf("SideDataAdd nb = %d, want 1", anb)
+}
+defer SideDataFree(&aslot, &anb)
+SideDataRemove(pslot, &pnb, 0)
+if pnb != 0 {
+t.Fatalf("SideDataRemove nb = %d, want 0", pnb)
+}
+// ---- 包边数据: 挂包上的一套 (Add 吃掉 Mem 缓冲, 包释放时一起放) ----
+pktData := mem.Alloc(16)
+if pktData == nil {
+t.Fatal("packet sidedata buf nil")
+}
+if err := pkt.AddSideData(0, pktData, 16); err != nil {
+t.Fatalf("AddSideData: %v", err)
+}
+if pkt.GetSideData(0) == nil {
+t.Fatal("GetSideData(present) nil")
+}
+if err := pkt.ShrinkSideData(0, 8); err != nil {
+t.Fatalf("ShrinkSideData: %v", err)
+}
+pkt.FreeSideData()
+if pkt.GetSideData(0) != nil {
+t.Fatal("GetSideData(freed) non-nil")
+}
+// ---- 字典打包解包一轮游 (pack/unpack 配对, 包走 Mem.Free) ----
+dict := NewDictionary()
+if dict == nil {
+t.Fatal("NewDictionary nil")
+}
+defer dict.Free()
+if err := dict.Set("title", "probe", 0); err != nil {
+t.Fatalf("Dictionary.Set: %v", err)
+}
+packed, packedSize := dict.PackDictionary()
+if packed == nil || packedSize == 0 {
+t.Fatal("PackDictionary empty")
+}
+defer mem.Free(packed)
+unpacked, err := UnpackDictionary(packed, int(packedSize))
+if err != nil {
+t.Fatalf("UnpackDictionary: %v", err)
+}
+if unpacked == nil {
+t.Fatal("UnpackDictionary nil dict")
+}
+defer unpacked.Free()
+}
+
 // TestWrapCoverMath pins pure arithmetic bindings to known answers
 // (答案照 ffmpeg 源码头文件算: AddQ 通分, CompareMod 见 mathematics.h 例,
 // RescaleDelta 首调走 simple_round 分支).

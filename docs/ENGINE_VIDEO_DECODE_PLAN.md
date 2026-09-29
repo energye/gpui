@@ -847,7 +847,7 @@ VW0 → VW1 → VW2 → VW3
 > | L2-2 | format_demux（80） | 80 | 中 | faf04504：修 12 处签名错位 + decode.go 加 RawFormatCtx 只读口 | TestWrapCoverDemux/TestWrapCoverDemuxFree | 🟩 已完成 |
 > | L2-3 | filter_graph（55） | 55 | 中 | 859b0689：修 8 处签名错位（buffer->scale->sink 真链搭法见 feat_setup_test.go openFeatChain） | TestWrapCoverFilter | 🟩 已完成 |
 > | L2-4 | codec_encode（47） | 47 | 中 | ef6a958d：修 11 处签名错位 + decode.go 加 CodecID/IsOpen/CodecCtx 只读口；剩 3 个（字幕编解码、硬解参数）要真字幕上下文/真硬解设备，见 L2-13 | TestWrapCoverCodec | 🟩 已完成 |
-> | L2-5 | frame（15）+ packet（15） | 30 | 最容易 | 真帧真包都在手里，NewFrame/NewPacket 直接调，一轮清完 | TestWrapCoverFramePacket | ⬜ 未启动 |
+> | L2-5 | frame（15）+ packet（15） | 30 | 最容易 | 签名全对得上零修改，只加 TestWrapCoverFramePacket（真帧真包 + 空槽数组边数据 + 字典打包解包一轮游） | TestWrapCoverFramePacket | 🟩 已完成 |
 > | L2-6 | buffer_mem（36） | 36 | 容易 | 内存申请释放配对、BPrint、FIFO，全自包含，不碰文件 | TestWrapCoverBufferMem | ⬜ 未启动 |
 > | L2-7 | device_io（7）+ decode（1） | 8 | 容易 | 枚举列表类 + 一个 setter，一轮带走 | TestWrapCoverDeviceIO | ⬜ 未启动 |
 > | L2-8 | dict_opt（36） | 36 | 中 | 字典选项读写，要真对象，注意字符串生命周期，可能分两批 | TestWrapCoverDictOpt | ⬜ 未启动 |
