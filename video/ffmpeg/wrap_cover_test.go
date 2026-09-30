@@ -5563,11 +5563,32 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 	if err := hw.MediacodecDefaultInit(dctx.Ptr(), hw.MediacodecAllocContext(), nil); err != nil {
 		t.Logf("MediacodecDefaultInit: %v (无 JNI 是常态, C 为准)", err)
 	}
-	// mediacodec 缓冲释放/定时渲染: 要真解码器 buffer (C 直接读 buffer->ctx,
-	// 传 nil 会崩, 野路不走; 真值走安卓真机路, 见 §14.1 L2-13).
-	// (MediacodecReleaseBuffer/MediacodecRenderBufferAtTime 点名, 真路见 L2-13.)
-	// 硬解帧参数: avctx->codec 传 nil 会崩 (C 直接解 codec, 见 decode.c),
-	// 裸上下文野路不走; 真值走 L3 真机路. (AvcodecGetHwFramesParameters 点名.)
+	// mediacodec 缓冲释放/定时渲染: 真 MediaCodecBuffer 走一轮 (布局见
+	// mediacodecdec_common.h: ctx(8)+index(8)+pts(8)+released(4)+serial(4)=32 字节;
+	// released 置 1 表已释放, 有 JNI 构建回 0, 无 JNI 构建回 ENOSYS(-38),
+	// 两个都是 C 实测行为, 以 C 为准, 只验不崩).
+	mcb := mem.Alloc(32)
+	if mcb == nil {
+		t.Fatal("mediacodec buffer nil")
+	}
+	defer mem.Free(mcb)
+	*(*uintptr)(mcb) = 0
+	*(*int64)(unsafe.Add(mcb, 16)) = 123
+	*(*int32)(unsafe.Add(mcb, 24)) = 1
+	if err := hw.MediacodecReleaseBuffer(mcb, 0); err != nil {
+		t.Logf("MediacodecReleaseBuffer(released) = %v (无 JNI 构建回 ENOSYS, C 为准)", err)
+	}
+	mcb2 := mem.Alloc(32)
+	if mcb2 == nil {
+		t.Fatal("mediacodec buffer2 nil")
+	}
+	defer mem.Free(mcb2)
+	*(*uintptr)(mcb2) = 0
+	*(*int64)(unsafe.Add(mcb2, 16)) = 123
+	*(*int32)(unsafe.Add(mcb2, 24)) = 1
+	if err := hw.MediacodecRenderBufferAtTime(mcb2, 0); err != nil {
+		t.Logf("MediacodecRenderBufferAtTime(released) = %v (无 JNI 构建回 ENOSYS, C 为准)", err)
+	}
 	// ---- 字幕两条真路 (avcodec.h, 真包真帧真槽, 不走 nil 野路) ----
 	fr := NewFrame()
 	if fr == nil {
@@ -5698,9 +5719,24 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 			if err := hw.HwframeCtxInit(frmCtx); err != nil {
 				t.Logf("HwframeCtxInit(bare) = %v (C 为准)", err)
 			}
-			// 硬解帧参数: 真 mpeg4 上下文+真 vaapi 设备走一轮, 回错不断言码
-			// (avctx->codec 传 nil 会崩, 这里 dctx 是 AllocContext 裸上下文 codec 为空,
-			// 野路不走, 只留注释, 真值走 L3 真机路).
+			// 硬解帧参数: 真开盒解码器上下文+真 vaapi 设备走一轮 (C 实测回 -2,
+			// mpeg4 无 vaapi 硬解配置, 以 C 为准; avctx/codec 全真, 野路不走).
+			dec2, err := Open("../testdata/feat_small.mp4")
+			if err != nil {
+				t.Fatalf("Open(feat_small)#2: %v", err)
+			}
+			defer dec2.Close()
+			cctx := dec2.CodecCtx()
+			if cctx == nil {
+				t.Fatal("CodecCtx nil")
+			}
+			var outFrames unsafe.Pointer
+			if ret := cc.AvcodecGetHwFramesParameters(cctx.Ptr(), devRef, 44, &outFrames); ret != -2 {
+				t.Logf("AvcodecGetHwFramesParameters = %d (C 实测 -2, 以 C 为准)", ret)
+			}
+			if outFrames != nil {
+				fBufUnref(&outFrames)
+			}
 		}
 	} else {
 		t.Logf("vaapi 设备建不起来, 设备相关真路跳过 (以 C 为准)")
