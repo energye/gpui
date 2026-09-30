@@ -50,6 +50,13 @@ type Info struct {
 	Concealed int64
 	// Fault names the first problem, "" when clean.
 	Fault string
+	// P1 硬解水位（只加键，不改旧键语义）：HWActive 本路是否硬解，
+	// HWName 硬解类型名（vaapi/nvdec/…，软解记 soft），HWFallbacks
+	// 累计回落次数，HWTransferMsAvg 硬解回传耗时均值。
+	HWActive        bool    `json:"hw_active"`
+	HWName          string  `json:"hw_name"`
+	HWFallbacks     int64   `json:"hw_fallbacks"`
+	HWTransferMsAvg float64 `json:"hw_transfer_ms_avg"`
 	// A2 sound presence: true when the clip opened with a sound track
 	// (ffmpeg decodes it to 48kHz stereo float); silent clips stay
 	// false and play video-only bit for bit like before.
@@ -98,6 +105,11 @@ type Stats struct {
 	AudioShown   int64
 	AudioDepth   int
 	AudioDropped int64
+	// P1 硬解水位（只加键，不改旧键语义）：见 Info 同名键。
+	HWActive        bool    `json:"hw_active"`
+	HWName          string  `json:"hw_name"`
+	HWFallbacks     int64   `json:"hw_fallbacks"`
+	HWTransferMsAvg float64 `json:"hw_transfer_ms_avg"`
 }
 
 // Options tunes the player. QueueCap <= 0 means clock.DefaultCap;

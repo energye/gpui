@@ -167,7 +167,7 @@ func ensureLoaded() error {
 			last = p
 			continue
 		}
-		h, err := purego.Dlopen(p, purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		h, err := openLib(p)
 		if err != nil {
 			loadErr = fmt.Errorf("ffmpeg: dlopen %s: %w", p, err)
 			return loadErr

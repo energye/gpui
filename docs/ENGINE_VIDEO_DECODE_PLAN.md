@@ -213,13 +213,15 @@ ui/kit video_*            组件层：调 video 拿帧，调 render 画画，不
 
 每扇窗结束输出全族 JSON（帧时、管线、播放、CPU、内存、GPU、解码、首帧、回归、合规十族，字段口径沿 §7 门禁 + V-U9 三证据），不达标 `FAIL:` + `exit 1`，README 写人眼可见效果。大片不进仓库：`video/testdata/` 只放小片与 2K/4K 生成脚本（大二进制不提交，本地与 CI 均由脚本现场生成后跑窗）。
 
-跨平台标记（合入前按行扫完，不留空白格）：
+跨平台标记（合入前按行扫完，不留空白格；P1 落定值，2026-09-30）：
 
 | 能力 | Linux WebGPU | Linux GL | Windows WebGPU | Windows GL | macOS |
 |---|---|---|---|---|---|
-| 硬解（本期） | VA-API 先行，其余注明原因 | 同左（经同一 ffmpeg 通路） | D3D11VA 起步，其余排期 | 同左（经同一 ffmpeg 通路） | VideoToolbox 排期 |
-| 视频直传 | 首版达标 | 首版达标 | 首版达标 | 首版达标 | 首版达标 |
-| kit 组件 | 首版达标 | 首版达标 | 首版达标 | 首版达标 | 首版达标 |
+| 硬解（本期） | ✅ VA-API 在流（x64 真机 vaapi active，软硬首帧均值差 0.01；arm64/386/arm 库无硬解编进，老实软解 + hw_fallbacks 记 1） | ✅ 同左（经同一 ffmpeg 通路，P0 查询口后端中性） | 🔌 代码就绪待真机（d3d11va→dxva2→d3d12va→qsv→cuda 顺序试，库含 d3d11va/dxva2，DLL 加载走 LoadLibrary；本机无 Windows 卡未验，走软解回落不断播） | 🔌 同左（经同一 ffmpeg 通路） | 🔌 库未到占位（videotoolbox 顺序已留，仓无 dylib，Available 假则单测 Skip 注明原因，软解不断播） |
+| 视频直传 | 首版达标（P0 地基，后端中性） | 首版达标（P0 地基，后端中性） | 首版达标（P0 地基，后端中性） | 首版达标（P0 地基，后端中性） | 首版达标（P0 地基，后端中性） |
+| kit 组件 | 首版达标（P4，未开工） | 首版达标（P4，未开工） | 首版达标（P4，未开工） | 首版达标（P4，未开工） | 首版达标（P4，未开工） |
+
+图例：✅ 真机在流/单测绿 · 🔌 代码就绪待真机或待库（注明原因，不空着）。
 
 ---
 
@@ -244,3 +246,5 @@ ui/kit video_*            组件层：调 video 拿帧，调 render 画画，不
 |---|---|
 | v2.0（2026-09-30） | 推翻重写：硬解收进本期、`render` 经 `hal` 直传自动跟后端、2K/4K 一次达标、kit 组件落案、旧代码允许重写。旧版（v1.x）以 git 历史为准，不再逐条保留。 |
 | v2.1（2026-09-30） | 收敛优化：base/full 两变体口径、Player 公开口补 Info、脏区走 `FrameDamage` + `PresentFrameDamage` / `PresentFrameDamageRects`、后端查询只看能力、队列默认 4 与背压语义、包图边界收归消费侧、跨平台补 Windows GL 列、P2 证据收紧为上传次数对帧数。 |
+| v2.2（2026-09-30） | P0 地基落地：`render/video_direct.go`（后端查询口 + 视频独立池骨架 + 回落计数）+ 单测四绿 + 总账同步；真机双后端窗验留待 P2 直传打通时补。 |
+| v2.3（2026-09-30） | P1 跨平台收口：硬解只走 ffmpeg（设备/协商/回传/转色全是库函数，Go 只做接线）；选型按系统分路（Linux vaapi，Windows d3d11va→dxva2，macOS videotoolbox 占位，安卓 mediacodec 占位）+ 32 位守卫 + 上下文布局自检 + dxva2 补齐 + DLL 加载分 Unix/Windows 双实现；Linux x64 vaapi 在流，其余系统老实回落；跨平台格一次填齐。 |

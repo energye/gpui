@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -89,6 +90,14 @@ type Decoder struct {
 	// allocating ~w*h*4 per frame; nil keeps fresh buffers).
 	pixGet func(int) []byte
 	pixPut func([]byte)
+	// P1 硬解记账：设备引用交解码器拥有（随释放，Close 不碰），
+	// 跳板句柄随本结构保活，swFrame 是复用的回传目标。
+	hw       hwState
+	hwPixFmt int32
+	hwGetFmt uintptr
+	swFrame  unsafe.Pointer
+	// hwSettled 标记首帧协商是否落定（硬解帧流过 / 谈崩转软解只记一次）。
+	hwSettled bool
 }
 
 // SetPixPool wires pooled RGBA reuse: get borrows a size-byte buffer,
@@ -135,6 +144,14 @@ func (d *Decoder) CodecCtx() *CodecContext {
 		return nil
 	}
 	return &CodecContext{ptr: d.codecCtx}
+}
+
+// HWStats 快照硬解水位（任意线程可读；只加键，不改旧语义）。
+func (d *Decoder) HWStats() HWStats {
+	if d == nil {
+		return HWStats{Name: "soft"}
+	}
+	return d.hw.stats()
 }
 
 // Info returns the stream facts gathered at open.
@@ -189,9 +206,56 @@ func Open(path string) (*Decoder, error) {
 		fFreeCtx(&cc)
 		return nil, fmt.Errorf("ffmpeg: params %s: %s", path, errText(ret))
 	}
+	// P1 硬解：先谈设备再开解码器。谈崩不算打开失败，转软解继续播；
+	// 只有软解也起不来才报坏片。引用交接：给解码器的那笔引用归它，
+	// 我们这笔开完就放，不留悬空指针（开崩那次存进去的引用随释放走，
+	// 极端下漏一笔引用、不崩）。
+	hwName := "soft"
+	var hwPix int32 = -1
+	var hwCb uintptr
+	var hwFallbacks int64
+	if herr := ensureModHW(); herr == nil && !HWDisabled() {
+		if dev, name, typ, derr := openHWDevice(); derr == nil {
+			// 先验布局再碰内存：跨系统/跨架构头文件挪位就老实走软解，
+			// 不写坏内存。布局不对也记一笔回落，不断播。
+			if !ccLayoutOK(cc, codecID) {
+				fBufUnref(&dev)
+				hwFallbacks = 1
+			} else if pix := hwPixFmtFor(decPtr, typ); pix >= 0 {
+				refHWDevice(cc, dev)
+				fBufUnref(&dev)
+				hwCb = installGetFormat(cc, pix)
+				hwName, hwPix = name, pix
+			} else {
+				fBufUnref(&dev)
+				hwFallbacks = 1
+			}
+		} else {
+			hwFallbacks = 1
+		}
+	}
 	if ret := fOpen2(cc, decPtr, nil); ret < 0 {
-		fFreeCtx(&cc)
-		return nil, fmt.Errorf("ffmpeg: open decoder %s: %s", path, errText(ret))
+		if hwPix >= 0 {
+			// 硬解开崩了： free 掉重开软解，多记一笔回落。
+			hwFallbacks++
+			hwName, hwPix, hwCb = "soft", -1, 0
+			fFreeCtx(&cc)
+			cc = fAllocCtx(decPtr)
+			if cc == nil {
+				return nil, fmt.Errorf("ffmpeg: no codec context %s", path)
+			}
+			if ret := fParToCtx(cc, par); ret < 0 {
+				fFreeCtx(&cc)
+				return nil, fmt.Errorf("ffmpeg: params %s: %s", path, errText(ret))
+			}
+			if ret := fOpen2(cc, decPtr, nil); ret < 0 {
+				fFreeCtx(&cc)
+				return nil, fmt.Errorf("ffmpeg: open decoder %s: %s", path, errText(ret))
+			}
+		} else {
+			fFreeCtx(&cc)
+			return nil, fmt.Errorf("ffmpeg: open decoder %s: %s", path, errText(ret))
+		}
 	}
 	pkt := fPacketAlloc()
 	fr := fFrameAlloc()
@@ -247,7 +311,10 @@ func Open(path string) (*Decoder, error) {
 		tbNum: tbNum, tbDen: tbDen,
 		pkt: pkt, frame: fr,
 		lastMs: -1,
+		hwPixFmt: hwPix, hwGetFmt: hwCb,
 	}
+	d.hw.name.Store(hwName)
+	d.hw.fallbacks.Store(hwFallbacks)
 	ok = true
 	return d, nil
 }
@@ -289,12 +356,17 @@ func (d *Decoder) ensureSws(w, h, srcFmt int32) error {
 // convertFrame scales one decoded AVFrame into a pooled RGBA buffer when
 // the Decoder runs with a PixPool (player path), else a fresh buffer.
 func (d *Decoder) convertFrame(ms int64) (*VideoFrame, error) {
+	return d.convertFrameFrom(d.frame, ms)
+}
+
+// convertFrameFrom scales the given AVFrame (d.frame 或回传后的 swFrame).
+func (d *Decoder) convertFrameFrom(fr unsafe.Pointer, ms int64) (*VideoFrame, error) {
 	if err := ensureModDecode(); err != nil {
 		return nil, err
 	}
-	w := loadInt32(d.frame, frameWidth)
-	h := loadInt32(d.frame, frameHeight)
-	srcFmt := loadInt32(d.frame, frameFormat)
+	w := loadInt32(fr, frameWidth)
+	h := loadInt32(fr, frameHeight)
+	srcFmt := loadInt32(fr, frameFormat)
 	if w <= 0 || h <= 0 || w > 8192 || h > 8192 {
 		return nil, fmt.Errorf("ffmpeg: bad frame %dx%d fmt %d", w, h, srcFmt)
 	}
@@ -304,8 +376,8 @@ func (d *Decoder) convertFrame(ms int64) (*VideoFrame, error) {
 	var srcPtrs [8]unsafe.Pointer
 	var srcStrides [8]int32
 	for i := 0; i < 8; i++ {
-		srcPtrs[i] = loadPtr(d.frame, frameData+uintptr(i)*8)
-		srcStrides[i] = loadInt32(d.frame, frameLinesize+uintptr(i)*4)
+		srcPtrs[i] = loadPtr(fr, frameData+uintptr(i)*8)
+		srcStrides[i] = loadInt32(fr, frameLinesize+uintptr(i)*4)
 	}
 	size := int(w) * int(h) * 4
 	var pix []byte
@@ -332,6 +404,58 @@ func (d *Decoder) convertFrame(ms int64) (*VideoFrame, error) {
 		return nil, fmt.Errorf("ffmpeg: scale got %d", got)
 	}
 	return &VideoFrame{Width: int(w), Height: int(h), Pix: pix, PTSMs: ms, put: d.pixPut}, nil
+}
+
+// transferHW 把硬解帧拷回内存（swFrame 复用，用后解引用不清掉）。
+// 回传耗时由调用方计时记均值；失败回错，调用方记一笔回落并跳过该帧。
+func (d *Decoder) transferHW() error {
+	if err := ensureModHW(); err != nil {
+		return err
+	}
+	if d.swFrame == nil {
+		d.swFrame = fFrameAlloc()
+		if d.swFrame == nil {
+			return fmt.Errorf("ffmpeg: no sw frame")
+		}
+	} else {
+		fFrameUnref(d.swFrame)
+	}
+	var hw HWDevice
+	if err := hw.HwframeTransferData(d.swFrame, d.frame, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+// frameToVideo 把刚收到的 d.frame 变成 RGBA：硬解帧先回传再转，
+// 软帧直转。首帧落定协商：流过硬解帧置 active，谈崩（软帧）记一笔转软解。
+// 回传失败记一笔并跳过该帧（继续播，不崩）。
+func (d *Decoder) frameToVideo(ms int64) (*VideoFrame, error) {
+	if d.hwPixFmt >= 0 && loadInt32(d.frame, frameFormat) == d.hwPixFmt {
+		t0 := time.Now()
+		if err := d.transferHW(); err != nil {
+			d.hw.fallbacks.Add(1)
+			fFrameUnref(d.frame)
+			return nil, err
+		}
+		d.hw.xferCount.Add(1)
+		d.hw.xferNs.Add(uint64(time.Since(t0).Nanoseconds()))
+		d.hw.active.Store(true)
+		d.hwSettled = true
+		fr, err := d.convertFrameFrom(d.swFrame, ms)
+		fFrameUnref(d.frame)
+		fFrameUnref(d.swFrame)
+		return fr, err
+	}
+	if d.hwPixFmt >= 0 && !d.hwSettled {
+		// 设备绑上了但解码器没出硬解帧：谈判没成，转软解继续，只记一次。
+		d.hwSettled = true
+		d.hw.active.Store(false)
+		d.hw.fallbacks.Add(1)
+	}
+	fr, err := d.convertFrame(ms)
+	fFrameUnref(d.frame)
+	return fr, err
 }
 
 // Next decodes the next displayable picture in presentation order.
@@ -407,8 +531,7 @@ func (d *Decoder) Next() (*VideoFrame, error) {
 				if d.lastMs >= 0 && ms <= d.lastMs {
 					ms = d.lastMs + 1
 				}
-				fr, err := d.convertFrame(ms)
-				fFrameUnref(d.frame)
+				fr, err := d.frameToVideo(ms)
 				if err != nil {
 					continue
 				}
@@ -429,8 +552,7 @@ func (d *Decoder) Next() (*VideoFrame, error) {
 				ms = d.lastMs + 1
 			}
 		}
-		fr, err := d.convertFrame(ms)
-		fFrameUnref(d.frame)
+		fr, err := d.frameToVideo(ms)
 		if err != nil {
 			continue
 		}
@@ -459,6 +581,11 @@ func (d *Decoder) SeekTo(targetMs int64) (int64, error) {
 	}
 	fFlushBuf(d.codecCtx)
 	d.draining, d.drained = false, false
+	// 硬解上下文不清零复用：Flush 只清解码器状态，设备与协商不动；
+	// swFrame 解引用一次，防跳后首帧复用 stale 数据。
+	if d.swFrame != nil {
+		fFrameUnref(d.swFrame)
+	}
 	// Reset the stamp guard: a backward seek legitimately replays
 	// earlier stamps, and the monotonic fixup in Next must not push
 	// them forward (it only guards the forward tail within one play
@@ -472,6 +599,8 @@ func (d *Decoder) SeekTo(targetMs int64) (int64, error) {
 }
 
 // Close frees every ffmpeg object owned by this open.
+// 释放顺序：解码器（含它拥有的硬解设备引用）、回传帧、包、帧容器、
+// 格式上下文。跳板句柄随结构丢弃（进程级上限内可忽略）。
 func (d *Decoder) Close() {
 	mustUse(ensureModDecode())
 	if d.closed {
@@ -482,6 +611,10 @@ func (d *Decoder) Close() {
 		fSwsFreeCtx(d.sws)
 		d.sws = nil
 	}
+	if d.swFrame != nil {
+		fFrameFree(&d.swFrame)
+	}
+	d.hwGetFmt = 0
 	if d.pkt != nil {
 		fPacketFree(&d.pkt)
 	}

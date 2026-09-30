@@ -12,8 +12,6 @@ package ffmpeg
 
 import (
 	"unsafe"
-
-	"github.com/ebitengine/purego"
 )
 
 // 数据常量模块：so 里剩下 16 个数据符号，全是只读数据，不是函数。
@@ -33,7 +31,7 @@ func dataAddr(name string) unsafe.Pointer {
 	if h == 0 {
 		return nil
 	}
-	addr, err := purego.Dlsym(h, name)
+	addr, err := symAddr(h, name)
 	if err != nil || addr == 0 {
 		return nil
 	}

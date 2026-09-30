@@ -79,6 +79,10 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 		stopCh: make(chan struct{}), doneCh: make(chan struct{}), readyCh: make(chan struct{}),
 		wakeCh: make(chan struct{}, 1),
 	}
+	// P1 硬解水位落 Info（打开时刻真值；Stats 读直播值）。
+	hw := dec.HWStats()
+	p.info.HWActive, p.info.HWName = hw.Active, hw.Name
+	p.info.HWFallbacks, p.info.HWTransferMsAvg = hw.Fallbacks, hw.TransferMsAvg
 	// Sound rides its own ffmpeg open (demux state is per-open, so a
 	// shared open would serialize seeks): silent clips keep ffaud nil
 	// and the A2 stubs stay honest at zero.

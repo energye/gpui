@@ -19,7 +19,7 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 100 · 顶层函数 127 · Context 导出方法 184 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调） |
+| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 185 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback） |
 | `render/text` | 包级导出 241（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`、+1 `SegmentReuse`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
@@ -71,7 +71,7 @@
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(随机点化) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试** |
 
-## 3. 主包：绘制上下文 Context（183 导出方法）
+## 3. 主包：绘制上下文 Context（184 导出方法）
 
 > **构造器与选项**：`NewContext(width,height,opts...)` / `NewContextForPixmap(pm)` / `NewContextForImage(img,opts...)` / `NewContextWithScale(w,h,scale)`；`ContextOption` 模式：`WithRenderer/WithPixmap/WithPipelineMode/WithDeviceScale`。状态 ✅（embedder 生产链路）。
 
@@ -189,6 +189,17 @@
 |------|------|------|------|
 | `SetDither/Dither` | 启用/关闭解析后有序抖动 | 抖动 | 🧪 仅测试 |
 | `DrawImageQuad` / `PushBackdropLayer` | 见 §3.5 / §3.4 | — | — |
+
+### 3.11 video_direct.go（9）· 视频直传地基族（2026-09-30 视频P0）
+| API | 功能 | 精简 | 状态 |
+|------|------|------|------|
+| `VideoBackendCaps`（HasDevice/AdapterName/SupportsCommandCopies/MaxTexture2D/MaxStagingBytes/RowPitchAlignment） | 当前共享设备的后端中性能力（名字只做诊断，分支只看能力） | 视频后端能力 | 🧪 仅测试（P2 接直传） |
+| `QueryVideoBackend(device)` | 由借入设备算能力（空设备返回 HasDevice=false，不崩） | 查视频能力 | 🧪 仅测试（P2 接直传） |
+| `BorrowVideoBackend()`（device/queue/adapter/caps/ok） | 只借当前窗口那套共享设备（不拥有不释放，无窗返回 ok=false） | 借视频设备 | 🧪 仅测试（P2 接直传） |
+| `VideoSlot`（W/H/Texture/View） | 一路视频一块纹理，每帧原地重写，尺寸变了才重建 | 视频纹理槽 | 🧪 仅测试（P2 接直传） |
+| `VideoTexturePool` + `NewVideoTexturePool(device)` | 视频纹理独立池（另列，不进 64MB 通用图缓存，不参与其淘汰） | 视频独立池 | 🧪 仅测试（P2 接直传） |
+| `VideoTexturePool.Acquire/Release/Stats/Close` + `VideoPoolStats`（Live/Idle/Peak/Evictions） | 按 exact 尺寸借还（健康态零淘汰，超 8 槽淘汰最旧并计数） | 视频池借还 | 🧪 仅测试（P2 接直传） |
+| `Context.RecordVideoFallback(reason)` + `VideoFallbackTotal()` | 直传走不通回落通用 DrawImage，保证有画面，同时记 cpu_fallback_ops（+ 全局计数） | 视频回落计数 | 🧪 仅测试（P2 接线后转 🔗） |
 
 ---
 
@@ -317,6 +328,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `DrawShapedGlyphs` | 🔗 生产在用（6 处）：`ui/rendering/text.go:988`（RenderText.Paint 批量主路）· `:1077`（复合分区回退路）· `ui/rendering/text_picture.go:205`（分区提交）· `:232`（彩色段分区）· `:244`（偏移重提交）· `ui/scene/picture.go:225`（录制回放 OpDrawShapedGlyphs）· 另 `render/text.go:158`（描边字形回退）与 `render/scene/gpu_renderer.go:247`（Scene→GPU 解析首选） |
 | `DrawMesh`（网格绘制，Context.DrawMesh） | 无生产调用点（仅测试 render/p1_capability_matrix_closers_test.go:2918） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
+| 视频直传地基 P0（2026-09-30：`VideoBackendCaps/QueryVideoBackend/BorrowVideoBackend/VideoSlot/VideoTexturePool(+Acquire/Release/Stats/Close/VideoPoolStats)/RecordVideoFallback/VideoFallbackTotal`，render/video_direct.go） | 仅测试（video_direct_test.go 四用例绿：双拷贝模式查询/无窗借用/池借还零泄漏零淘汰/回落记 cpu_fallback_ops）；P2 接直传后转生产 |
 | `ui.SetMask` widget API（antd 文献提及） | 未实现（非 render 层） |
 
 ### 7.3 ⚠️ 半成品 / GPU 未生效（重点：真窗实测）
@@ -396,6 +408,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `Rect` | Width/Height · Contains · Union · (NewRect) | 矩形尺寸/包含/合并 | 矩形 | ✅ |
 | `PathMetric` | IsEmpty · Length · PositionAt/TangentAt | 路径度量查询（取点/切线） | 路径度量 | 🔗 |
 | `PresentTarget` | Context/Resize/SetVsync/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks · InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized · LogicalSize · Close | 呈现目标绘制/呈现/恢复状态（SetOnSwapchainResized：swapchain 换尺寸回调，Wayland 宿主用于 xdg 窗口几何声明；SetVsync：运行时切换 Fifo↔Mailbox/Immediate，embedder 在 resize 风暴期关闭 vsync 让内容帧不被 Fifo 阻塞；运行时切换 Fifo↔Mailbox/Immediate（2026-08-26 修3 起 Wayland 同样生效）） | 呈现目标 | ✅ |
+| `VideoTexturePool` | Acquire/Release/Stats/Close | 按 exact 尺寸借还视频纹理（独立池，不进通用图缓存） | 视频独立池 | 🧪 |
 | `FuncPainter`/`SolidPainter` | PaintSpan | 逐像素填色段 | 像素填色器 | 🧪 |
 | 枚举类型通用方法 `String()` | PathVerb / PipelineMode / PresentMode / RasterizerMode / TextMode 均实现 String() 输出枚举名（日志/调试用） | 枚举打印 | 枚举调试 | 🔗 |
 | `GPUAccelerator` 各接口方法 | 见 §4 接口群 | 加速能力探测 | 能力探测 | 🔗 |

@@ -309,6 +309,17 @@ func (p *Player) Stats() Stats {
 	p.mu.Unlock()
 	st := Stats{Decoded: p.decoded, Shown: p.shown, Dropped: p.q.Dropped(), QueueDepth: p.q.Depth(), QueueMax: p.q.MaxDepth(), QueueAvg: p.q.DepthAvg(), DecodeMsAvg: avg, DecodeMsP95: p95, DriftMs: drift, Ended: done, Error: errStr, SeekOK: seekOK, SeekDeltaMs: seekDelta, SeekForward: seekFwd, SeekLandedMs: seekLanded, Concealed: 0, Rate: rate, Seeking: seeking, PoolHitPct: poolHit, MemCapKB: memCap, EstimateB: estimate, PoolEvictions: evict}
 	p.fillAudioStats(&st)
+	// P1 硬解水位读真值（解码器原子记账，任意线程可读）。
+	p.dmu.Lock()
+	dec := p.ffdec
+	p.dmu.Unlock()
+	if dec != nil {
+		hw := dec.HWStats()
+		st.HWActive, st.HWName = hw.Active, hw.Name
+		st.HWFallbacks, st.HWTransferMsAvg = hw.Fallbacks, hw.TransferMsAvg
+	} else {
+		st.HWName = "soft"
+	}
 	return st
 }
 

@@ -26,6 +26,9 @@ const (
 	KindBadClip    = "bad-clip"
 	KindMemOverCap = "mem-over-cap"
 	KindUnknown    = "unknown"
+	// KindHwFallback 是硬解失败回落桶（P1）：设备建不起、谈判谈崩、
+	// 回传失败都记 hw_fallbacks 并走这里归类，不静默。
+	KindHwFallback = "hw-fallback"
 
 	// Deprecated: retired with the Go mp4/h264/h265/aac/color packages
 	// (ffmpeg absorbs these natively). Kept so old callers compile;
@@ -67,6 +70,15 @@ func Classify(err error) Fault {
 	}
 	if errors.Is(err, os.ErrNotExist) {
 		return Fault{Kind: KindBadClip, Layer: "io", Tool: "文件", CN: "文件不存在（io层：路径错）"}
+	}
+	// P1 硬解桶先于通用 ffmpeg 桶：硬解错也带 "ffmpeg:" 前缀，
+	// 先认出来，不让它淹没在打不开里。各系统关键字都在这：
+	// Linux vaapi/vdpau/drm-prime，Windows d3d11va/d3d12va/dxva2/qsv/cuda，
+	// macOS videotoolbox，安卓 mediacodec。
+	for _, sub := range []string{"hwframe", "hwdevice", "hw_frame", "hw_device", "hwaccel", "hw-fallback", "vaapi", "vdpau", "cuda", "d3d11va", "d3d12va", "dxva2", "qsv", "videotoolbox", "mediacodec", "drm-prime"} {
+		if containsSub(err.Error(), sub) {
+			return Fault{Kind: KindHwFallback, Layer: "ffmpeg", Tool: "硬解", CN: "硬解走不通已回落软解（ffmpeg层：硬解设备/回传失败，计数见 hw_fallbacks）"}
+		}
 	}
 	// ffmpeg backend: open/probe/decode failures carry the "ffmpeg:"
 	// prefix and the open side hangs ErrBadClip; bucket them readably.
