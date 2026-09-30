@@ -6412,3 +6412,275 @@ func readVOggPackets(t *testing.T, path string) (extra []byte, pkt []byte) {
 	}
 	return extra, packets[4]
 }
+
+func TestWrapCoverSideData(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var u Util
+	var mem Mem
+	// ---- Cpb: 结构体 40 字节, 空槽也不崩 (utils.c C 实测) ----
+	var cpbSize uintptr = 0xDEAD
+	cpb := u.CpbPropertiesAlloc(&cpbSize)
+	if cpb == nil {
+		t.Fatal("CpbPropertiesAlloc nil")
+	}
+	defer mem.Free(cpb)
+	if cpbSize != 40 {
+		t.Fatalf("CpbPropertiesAlloc size = %d, want 40", cpbSize)
+	}
+	if u.CpbPropertiesAlloc(nil) == nil {
+		t.Fatal("CpbPropertiesAlloc(nil) nil (C 判空不崩, 以 C 为准)")
+	} else {
+		mem.Free(u.CpbPropertiesAlloc(nil))
+	}
+	// ---- 检测框: 2 个框 1040 字节 (头 280 + 每框 380); 真帧挂边数据非空 (detection_bbox.c/h C 实测) ----
+	var detSize uintptr = 0xDEAD
+	det := u.DetectionBboxAlloc(2, &detSize)
+	if det == nil {
+		t.Fatal("DetectionBboxAlloc nil")
+	}
+	defer mem.Free(det)
+	if detSize != 1040 {
+		t.Fatalf("DetectionBboxAlloc size = %d, want 1040", detSize)
+	}
+	fr := NewFrame()
+	if fr == nil {
+		t.Fatal("frame nil")
+	}
+	defer fr.Free()
+	if u.DetectionBboxCreateSideData(fr.Ptr(), 2) == nil {
+		t.Fatal("DetectionBboxCreateSideData nil")
+	}
+	// ---- 下混: 真帧挂上非空; 传 nil 会崩, 野路不走, 只留注释 ----
+	if u.DownmixInfoUpdateSideData(fr.Ptr()) == nil {
+		t.Fatal("DownmixInfoUpdateSideData nil")
+	}
+	// ---- Vivid: 1636 字节, 空槽不崩; 真帧挂边数据非空 (hdr_dynamic_vivid_metadata.h C 实测) ----
+	var vividSize uintptr = 0xDEAD
+	vivid := u.DynamicHdrVividAlloc(&vividSize)
+	if vivid == nil {
+		t.Fatal("DynamicHdrVividAlloc nil")
+	}
+	defer mem.Free(vivid)
+	if vividSize != 1636 {
+		t.Fatalf("DynamicHdrVividAlloc size = %d, want 1636", vividSize)
+	}
+	if u.DynamicHdrVividCreateSideData(fr.Ptr()) == nil {
+		t.Fatal("DynamicHdrVividCreateSideData nil")
+	}
+	// ---- 加密信息: 建出来非空, 打包 37 字节, 解包回来非空;
+	// 空包和短包回 nil 不崩 (encryption_info.c C 实测) ----
+	enc := u.EncryptionInfoAlloc(1, 2, 3)
+	if enc == nil {
+		t.Fatal("EncryptionInfoAlloc nil")
+	}
+	defer u.EncryptionInfoFree(enc)
+	u.EncryptionInfoFree(nil)
+	var encSize uintptr = 0xDEAD
+	encSd := u.EncryptionInfoAddSideData(enc, &encSize)
+	if encSd == nil {
+		t.Fatal("EncryptionInfoAddSideData nil")
+	}
+	defer mem.Free(encSd)
+	if encSize != 37 {
+		t.Fatalf("EncryptionInfoAddSideData size = %d, want 37", encSize)
+	}
+	back := u.EncryptionInfoGetSideData(encSd, encSize)
+	if back == nil {
+		t.Fatal("EncryptionInfoGetSideData nil")
+	}
+	defer u.EncryptionInfoFree(back)
+	if u.EncryptionInfoGetSideData(nil, 0) != nil {
+		t.Fatal("EncryptionInfoGetSideData(nil) non-nil")
+	}
+	if u.EncryptionInfoGetSideData(encSd, 4) != nil {
+		t.Fatal("EncryptionInfoGetSideData(short) non-nil")
+	}
+	// Clone 传 nil 会崩 (C 直接读 info 三围), 野路不走, 只走真对象.
+	cloned := u.EncryptionInfoClone(enc)
+	if cloned == nil {
+		t.Fatal("EncryptionInfoClone(real) nil")
+	}
+	defer u.EncryptionInfoFree(cloned)
+	// ---- 加密初始化信息: 建出来非空, 打包 34 字节, 解包回来非空 ----
+	encInit := u.EncryptionInitInfoAlloc(4, 1, 2, 8)
+	if encInit == nil {
+		t.Fatal("EncryptionInitInfoAlloc nil")
+	}
+	defer u.EncryptionInitInfoFree(encInit)
+	u.EncryptionInitInfoFree(nil)
+	var encInitSize uintptr = 0xDEAD
+	encInitSd := u.EncryptionInitInfoAddSideData(encInit, &encInitSize)
+	if encInitSd == nil {
+		t.Fatal("EncryptionInitInfoAddSideData nil")
+	}
+	defer mem.Free(encInitSd)
+	if encInitSize != 34 {
+		t.Fatalf("EncryptionInitInfoAddSideData size = %d, want 34", encInitSize)
+	}
+	backInit := u.EncryptionInitInfoGetSideData(encInitSd, encInitSize)
+	if backInit == nil {
+		t.Fatal("EncryptionInitInfoGetSideData nil")
+	}
+	defer u.EncryptionInitInfoFree(backInit)
+	if u.EncryptionInitInfoGetSideData(nil, 0) != nil {
+		t.Fatal("EncryptionInitInfoGetSideData(nil) non-nil")
+	}
+	// ---- IAMF 音频元素: 建出来非空, 加一层非空, 类非空;
+	// 空槽放不崩, 真对象放完槽置空 (iamf.c C 实测) ----
+	var nilAe unsafe.Pointer
+	u.IamfAudioElementFree(&nilAe)
+	ae := u.IamfAudioElementAlloc()
+	if ae == nil {
+		t.Fatal("IamfAudioElementAlloc nil")
+	}
+	if u.IamfAudioElementAddLayer(ae) == nil {
+		t.Fatal("IamfAudioElementAddLayer nil")
+	}
+	if u.IamfAudioElementGetClass() == nil {
+		t.Fatal("IamfAudioElementGetClass nil")
+	}
+	aeSlot := ae
+	u.IamfAudioElementFree(&aeSlot)
+	if aeSlot != nil {
+		t.Fatal("IamfAudioElementFree did not nil the slot")
+	}
+	// ---- IAMF 混音展示: 建出来非空, 加子混音非空, 子混音加元素加布局非空 ----
+	var nilMp unsafe.Pointer
+	u.IamfMixPresentationFree(&nilMp)
+	mp := u.IamfMixPresentationAlloc()
+	if mp == nil {
+		t.Fatal("IamfMixPresentationAlloc nil")
+	}
+	sm := u.IamfMixPresentationAddSubmix(mp)
+	if sm == nil {
+		t.Fatal("IamfMixPresentationAddSubmix nil")
+	}
+	if u.IamfSubmixAddElement(sm) == nil {
+		t.Fatal("IamfSubmixAddElement nil")
+	}
+	if u.IamfSubmixAddLayout(sm) == nil {
+		t.Fatal("IamfSubmixAddLayout nil")
+	}
+	if u.IamfMixPresentationGetClass() == nil {
+		t.Fatal("IamfMixPresentationGetClass nil")
+	}
+	mpSlot := mp
+	u.IamfMixPresentationFree(&mpSlot)
+	if mpSlot != nil {
+		t.Fatal("IamfMixPresentationFree did not nil the slot")
+	}
+	// ---- IAMF 参数定义: 0 号 2 子块 144 字节; 类非空 ----
+	var paramSize uintptr = 0xDEAD
+	param := u.IamfParamDefinitionAlloc(0, 2, &paramSize)
+	if param == nil {
+		t.Fatal("IamfParamDefinitionAlloc nil")
+	}
+	defer mem.Free(param)
+	if paramSize != 144 {
+		t.Fatalf("IamfParamDefinitionAlloc size = %d, want 144", paramSize)
+	}
+	if u.IamfParamDefinitionGetClass() == nil {
+		t.Fatal("IamfParamDefinitionGetClass nil")
+	}
+	// ---- 视频编码参数: 0 号 4 块 144 字节; 真帧挂边数据非空 ----
+	var vencSize uintptr = 0xDEAD
+	venc := u.VideoEncParamsAlloc(0, 4, &vencSize)
+	if venc == nil {
+		t.Fatal("VideoEncParamsAlloc nil")
+	}
+	defer mem.Free(venc)
+	if vencSize != 144 {
+		t.Fatalf("VideoEncParamsAlloc size = %d, want 144", vencSize)
+	}
+	if u.VideoEncParamsCreateSideData(fr.Ptr(), 0, 4) == nil {
+		t.Fatal("VideoEncParamsCreateSideData nil")
+	}
+	// ---- 视频提示: 3 个框 80 字节; 真帧挂边数据非空 ----
+	var hintSize uintptr = 0xDEAD
+	hint := u.VideoHintAlloc(3, &hintSize)
+	if hint == nil {
+		t.Fatal("VideoHintAlloc nil")
+	}
+	defer mem.Free(hint)
+	if hintSize != 80 {
+		t.Fatalf("VideoHintAlloc size = %d, want 80", hintSize)
+	}
+	if u.VideoHintCreateSideData(fr.Ptr(), 3) == nil {
+		t.Fatal("VideoHintCreateSideData nil")
+	}
+	// ---- 流三件 + 类 + 解析器 + 时基: 真流上走全套 ----
+	dec, err := Open("../testdata/feat_small.mp4")
+	if err != nil {
+		t.Fatalf("Open(feat_small): %v", err)
+	}
+	defer dec.Close()
+	fc := &FormatContext{ptr: dec.RawFormatCtx()}
+	if fc.NbStreams() < 1 {
+		t.Fatal("no streams")
+	}
+	st := fc.StreamAt(0)
+	tb := u.StreamGetCodecTimebase(st.Ptr())
+	if tb.Num != 0 || tb.Den != 1 {
+		t.Fatalf("StreamGetCodecTimebase = %d/%d, want 0/1 (C 实测本片)", tb.Num, tb.Den)
+	}
+	if u.StreamGetParser(st.Ptr()) == nil {
+		t.Fatal("StreamGetParser nil (C 实测本片有解析器, 以 C 为准)")
+	}
+	if u.StreamGetClass() == nil {
+		t.Fatal("StreamGetClass nil")
+	}
+	if u.StreamGroupGetClass() == nil {
+		t.Fatal("StreamGroupGetClass nil")
+	}
+	if u.StreamGetSideData(st.Ptr(), 142, nil) != nil {
+		t.Fatal("StreamGetSideData(missing) non-nil")
+	}
+	var missSize uintptr = 0xDEAD
+	if u.StreamGetSideData(st.Ptr(), 142, &missSize) != nil {
+		t.Fatal("StreamGetSideData(missing) non-nil")
+	}
+	if missSize != 0 {
+		t.Fatalf("StreamGetSideData(missing) size = %d, want 0", missSize)
+	}
+	nd := u.StreamNewSideData(st.Ptr(), 0, 16)
+	if nd == nil {
+		t.Fatal("StreamNewSideData nil")
+	}
+	var gotSize uintptr = 0xDEAD
+	if got := u.StreamGetSideData(st.Ptr(), 0, &gotSize); got != nd {
+		t.Fatal("StreamGetSideData(after new) mismatch")
+	} else if gotSize != 16 {
+		t.Fatalf("StreamGetSideData(after new) size = %d, want 16", gotSize)
+	}
+	// ---- 流挂边数据: full 版才有复用器, base 诚实报错跳过 ----
+	var outCtx unsafe.Pointer
+	var fx FormatContext
+	if err := fx.AllocOutputContext2(&outCtx, nil, "mp4", nil); err != nil {
+		if IsFull() {
+			t.Fatalf("AllocOutputContext2(mp4) on full: %v", err)
+		}
+		t.Logf("base 无复用器, 流挂边数据真路延 full 版验证: %v", err)
+	} else {
+		fx = FormatContext{ptr: outCtx}
+		defer fx.FreeContext()
+		ost := fx.NewStream(nil)
+		if ost == nil {
+			t.Fatal("NewStream nil")
+		}
+		addBuf := mem.Alloc(16)
+		if addBuf == nil {
+			t.Fatal("add buf nil")
+		}
+		for i := 0; i < 16; i++ {
+			*(*byte)(unsafe.Add(addBuf, i)) = 0xAB
+		}
+		if ret := u.StreamAddSideData(ost, 0, addBuf, 16); ret != 0 {
+			t.Fatalf("StreamAddSideData = %d, want 0", ret)
+		}
+		if u.StreamGetSideData(ost, 0, nil) == nil {
+			t.Fatal("StreamGetSideData(after add) nil")
+		}
+	}
+}

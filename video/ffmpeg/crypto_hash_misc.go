@@ -86,7 +86,7 @@ var (
 	fAvChromaLocationName                     func(location int32) unsafe.Pointer
 	fAvChromaLocationPosToEnum                func(xpos int32, ypos int32) int32
 	fAvCmpI                                   func(a AVInteger, b AVInteger) int32
-	fAvCpbPropertiesAlloc                     func(size unsafe.Pointer) unsafe.Pointer
+	fAvCpbPropertiesAlloc                     func(size *uintptr) unsafe.Pointer
 	fAvCrcGetTable                            func(crc_id int32) unsafe.Pointer
 	fAvCrc                                    func(ctx unsafe.Pointer, crc uint32, buf unsafe.Pointer, ln uintptr) uint32
 	fAvCrcInit                                func(ctx unsafe.Pointer, le int32, bits int32, poly uint32, ctx_size int32) int32
@@ -107,7 +107,7 @@ var (
 	fAvDesCrypt                               func(d unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
 	fAvDesInit                                func(d unsafe.Pointer, key unsafe.Pointer, key_bits int32, decrypt int32) int32
 	fAvDesMac                                 func(d unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32)
-	fAvDetectionBboxAlloc                     func(nb_bboxes uint32, out_size unsafe.Pointer) unsafe.Pointer
+	fAvDetectionBboxAlloc                     func(nb_bboxes uint32, out_size *uintptr) unsafe.Pointer
 	fAvDetectionBboxCreateSideData            func(frame unsafe.Pointer, nb_bboxes uint32) unsafe.Pointer
 	fAvDiracParseSequenceHeader               func(dsh *unsafe.Pointer, buf unsafe.Pointer, buf_size uintptr, log_ctx unsafe.Pointer) int32
 	fAvDirname                                func(path unsafe.Pointer) unsafe.Pointer
@@ -122,12 +122,12 @@ var (
 	fAvDynarray2Add                           func(tab_ptr *unsafe.Pointer, nb_ptr unsafe.Pointer, elem_size uintptr, elem_data unsafe.Pointer) unsafe.Pointer
 	fAvDynarrayAdd                            func(tab_ptr unsafe.Pointer, nb_ptr unsafe.Pointer, elem unsafe.Pointer)
 	fAvDynarrayAddNofree                      func(tab_ptr unsafe.Pointer, nb_ptr unsafe.Pointer, elem unsafe.Pointer) int32
-	fAvEncryptionInfoAddSideData              func(info unsafe.Pointer, side_data_size unsafe.Pointer) unsafe.Pointer
+	fAvEncryptionInfoAddSideData              func(info unsafe.Pointer, side_data_size *uintptr) unsafe.Pointer
 	fAvEncryptionInfoAlloc                    func(subsample_count uint32, key_id_size uint32, iv_size uint32) unsafe.Pointer
 	fAvEncryptionInfoClone                    func(info unsafe.Pointer) unsafe.Pointer
 	fAvEncryptionInfoFree                     func(info unsafe.Pointer)
 	fAvEncryptionInfoGetSideData              func(side_data unsafe.Pointer, side_data_size uintptr) unsafe.Pointer
-	fAvEncryptionInitInfoAddSideData          func(info unsafe.Pointer, side_data_size unsafe.Pointer) unsafe.Pointer
+	fAvEncryptionInitInfoAddSideData          func(info unsafe.Pointer, side_data_size *uintptr) unsafe.Pointer
 	fAvEncryptionInitInfoAlloc                func(system_id_size uint32, num_key_ids uint32, key_id_size uint32, data_size uint32) unsafe.Pointer
 	fAvEncryptionInitInfoFree                 func(info unsafe.Pointer)
 	fAvEncryptionInitInfoGetSideData          func(side_data unsafe.Pointer, side_data_size uintptr) unsafe.Pointer
@@ -231,7 +231,7 @@ var (
 	fAvIamfMixPresentationAlloc               func() unsafe.Pointer
 	fAvIamfMixPresentationFree                func(mix_presentation *unsafe.Pointer)
 	fAvIamfMixPresentationGetClass            func() unsafe.Pointer
-	fAvIamfParamDefinitionAlloc               func(typ unsafe.Pointer, nb_subblocks uint32, size unsafe.Pointer) unsafe.Pointer
+	fAvIamfParamDefinitionAlloc               func(typ int32, nb_subblocks uint32, size *uintptr) unsafe.Pointer
 	fAvIamfParamDefinitionGetClass            func() unsafe.Pointer
 	fAvIamfSubmixAddElement                   func(submix unsafe.Pointer) unsafe.Pointer
 	fAvIamfSubmixAddLayout                    func(submix unsafe.Pointer) unsafe.Pointer
@@ -330,13 +330,13 @@ var (
 	fAvStrcasecmp                             func(a unsafe.Pointer, b unsafe.Pointer) int32
 	fAvStrdup                                 func(s unsafe.Pointer) unsafe.Pointer
 	fAvStrndup                                func(s string, ln uintptr) unsafe.Pointer
-	fAvStreamAddSideData                      func(st unsafe.Pointer, typ unsafe.Pointer, data unsafe.Pointer, size uintptr) unsafe.Pointer
+	fAvStreamAddSideData                      func(st unsafe.Pointer, typ int32, data unsafe.Pointer, size uintptr) int32
 	fAvStreamGetClass                         func() unsafe.Pointer
-	fAvStreamGetCodecTimebase                 func(st unsafe.Pointer) unsafe.Pointer
+	fAvStreamGetCodecTimebase                 func(st unsafe.Pointer) AVRational
 	fAvStreamGetParser                        func(s unsafe.Pointer) unsafe.Pointer
-	fAvStreamGetSideData                      func(stream unsafe.Pointer, typ unsafe.Pointer, size unsafe.Pointer) unsafe.Pointer
+	fAvStreamGetSideData                      func(stream unsafe.Pointer, typ int32, size *uintptr) unsafe.Pointer
 	fAvStreamGroupGetClass                    func() unsafe.Pointer
-	fAvStreamNewSideData                      func(stream unsafe.Pointer, typ unsafe.Pointer, size uintptr) unsafe.Pointer
+	fAvStreamNewSideData                      func(stream unsafe.Pointer, typ int32, size uintptr) unsafe.Pointer
 	fAvStrireplace                            func(str unsafe.Pointer, from unsafe.Pointer, to unsafe.Pointer) unsafe.Pointer
 	fAvStristart                              func(str unsafe.Pointer, pfx unsafe.Pointer, ptr *unsafe.Pointer) int32
 	fAvStristr                                func(haystack unsafe.Pointer, needle unsafe.Pointer) unsafe.Pointer
@@ -384,9 +384,9 @@ var (
 	fAvVdpauGetSurfaceParameters              func(avctx unsafe.Pointer, typ unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer) int32
 	fAvVdpauHwaccelGetRender2                 func(arg0 unsafe.Pointer) unsafe.Pointer
 	fAvVdpauHwaccelSetRender2                 func(arg0 unsafe.Pointer, arg1 unsafe.Pointer) unsafe.Pointer
-	fAvVideoEncParamsAlloc                    func(typ unsafe.Pointer, nb_blocks uint32, out_size unsafe.Pointer) unsafe.Pointer
-	fAvVideoEncParamsCreateSideData           func(frame unsafe.Pointer, typ unsafe.Pointer, nb_blocks uint32) unsafe.Pointer
-	fAvVideoHintAlloc                         func(nb_rects uintptr, out_size unsafe.Pointer) unsafe.Pointer
+	fAvVideoEncParamsAlloc                    func(typ int32, nb_blocks uint32, out_size *uintptr) unsafe.Pointer
+	fAvVideoEncParamsCreateSideData           func(frame unsafe.Pointer, typ int32, nb_blocks uint32) unsafe.Pointer
+	fAvVideoHintAlloc                         func(nb_rects uintptr, out_size *uintptr) unsafe.Pointer
 	fAvVideoHintCreateSideData                func(frame unsafe.Pointer, nb_rects uintptr) unsafe.Pointer
 	fAvVkfmtFromPixfmt                        func(p int32) unsafe.Pointer
 	fAvVkFrameAlloc                           func() unsafe.Pointer
@@ -417,7 +417,7 @@ var (
 	fSwriResampleDspInit                      func(c unsafe.Pointer)
 	fSwriResampleDspX86Init                   func(c unsafe.Pointer)
 	fAvAddI                                   func(a AVInteger, b AVInteger) AVInteger
-	fAvDynamicHdrVividAlloc                   func(size unsafe.Pointer) unsafe.Pointer
+	fAvDynamicHdrVividAlloc                   func(size *uintptr) unsafe.Pointer
 	fAvDynamicHdrVividCreateSideData          func(frame unsafe.Pointer) unsafe.Pointer
 	fAvformatTransferInternalStreamTimingInfo func(ofmt unsafe.Pointer, ost unsafe.Pointer, ist unsafe.Pointer, copy_tb unsafe.Pointer) unsafe.Pointer
 	fAvImageCopy                              func(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt int32, width int32, height int32)
@@ -1165,8 +1165,8 @@ func (self *Util) CmpI(a AVInteger, b AVInteger) int32 {
 	return fAvCmpI(a, b)
 }
 
-// CpbPropertiesAlloc 码率平滑缓冲属性操作（对 av_cpb_properties_alloc；参数 size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) CpbPropertiesAlloc(size unsafe.Pointer) unsafe.Pointer {
+// CpbPropertiesAlloc 申请解码缓冲属性（对 av_cpb_properties_alloc；参数 size（*uintptr 槽，C 里写进结构体大小 40，传 nil 不崩，C 判了空）；成功回真属性（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) CpbPropertiesAlloc(size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvCpbPropertiesAlloc(size)
 }
@@ -1309,13 +1309,13 @@ func (self *Crypto) DesMac(d unsafe.Pointer, dst unsafe.Pointer, src unsafe.Poin
 	fAvDesMac(d, dst, src, count)
 }
 
-// DetectionBboxAlloc 目标检测框元数据操作（对 av_detection_bbox_alloc；参数 nb_bboxes、out_size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) DetectionBboxAlloc(nb_bboxes uint32, out_size unsafe.Pointer) unsafe.Pointer {
+// DetectionBboxAlloc 申请检测框头（对 av_detection_bbox_alloc；参数 nb_bboxes、out_size（*uintptr 槽，2 个框写进 40，传 nil 不崩）；成功回真头（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) DetectionBboxAlloc(nb_bboxes uint32, out_size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDetectionBboxAlloc(nb_bboxes, out_size)
 }
 
-// DetectionBboxCreateSideData 目标检测框元数据操作（对 av_detection_bbox_create_side_data；参数 frame、nb_bboxes；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// DetectionBboxCreateSideData 给真帧挂检测框边数据（对 av_detection_bbox_create_side_data；参数 frame（须是真帧，传 nil 会崩）、nb_bboxes；成功回边数据头（跟着帧走，帧放了自动放），失败回 nil；无状态调用）。
 func (self *Util) DetectionBboxCreateSideData(frame unsafe.Pointer, nb_bboxes uint32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDetectionBboxCreateSideData(frame, nb_bboxes)
@@ -1362,7 +1362,7 @@ func (self *Util) DivQ(b AVRational, c AVRational) AVRational {
 	return fAvDivQ(b, c)
 }
 
-// DownmixInfoUpdateSideData 下混信息元数据操作（对 av_downmix_info_update_side_data；参数 frame；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// DownmixInfoUpdateSideData 给真帧挂下混信息（对 av_downmix_info_update_side_data；参数 frame（须是真帧，传 nil 会崩，C 直接读帧边数据）；成功回信息（跟着帧走），失败回 nil；无状态调用）。
 func (self *Util) DownmixInfoUpdateSideData(frame unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDownmixInfoUpdateSideData(frame)
@@ -1409,55 +1409,55 @@ func (self *Util) DynarrayAddNofree(tab_ptr unsafe.Pointer, nb_ptr unsafe.Pointe
 	return nil
 }
 
-// EncryptionInfoAddSideData 加密信息元数据操作（对 av_encryption_info_add_side_data；参数 info、side_data_size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) EncryptionInfoAddSideData(info unsafe.Pointer, side_data_size unsafe.Pointer) unsafe.Pointer {
+// EncryptionInfoAddSideData 把加密信息打包成边数据（对 av_encryption_info_add_side_data；参数 info（须是 EncryptionInfoAlloc 回的真信息，C 直接读三围，传 nil 会崩）、side_data_size（*uintptr 槽，C 写进包好字节数 37，传 nil 会崩）；成功回新包（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) EncryptionInfoAddSideData(info unsafe.Pointer, side_data_size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvEncryptionInfoAddSideData(info, side_data_size)
 }
 
-// EncryptionInfoAlloc 加密信息元数据操作（对 av_encryption_info_alloc；参数 subsample_count、key_id_size、iv_size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// EncryptionInfoAlloc 新建加密信息（对 av_encryption_info_alloc；参数 subsample_count、key_id_size、iv_size；成功回真信息（记得调 EncryptionInfoFree 放），失败回 nil；无状态调用）。
 func (self *Util) EncryptionInfoAlloc(subsample_count uint32, key_id_size uint32, iv_size uint32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvEncryptionInfoAlloc(subsample_count, key_id_size, iv_size)
 }
 
-// EncryptionInfoClone 加密信息元数据操作（对 av_encryption_info_clone；参数 info；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// EncryptionInfoClone 复制加密信息（对 av_encryption_info_clone；参数 info（须是真信息，传 nil 会崩）；成功回新信息（记得调 Free 放），失败回 nil；无状态调用）。
 func (self *Util) EncryptionInfoClone(info unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvEncryptionInfoClone(info)
 }
 
-// EncryptionInfoFree 加密信息元数据操作（对 av_encryption_info_free；参数 info；按签名取回值；无状态，可用零值直接调）。
+// EncryptionInfoFree 放掉加密信息（对 av_encryption_info_free；参数 info（真信息，传 nil 不崩，C 里判了空）；无回值）。
 func (self *Util) EncryptionInfoFree(info unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvEncryptionInfoFree(info)
 }
 
-// EncryptionInfoGetSideData 加密信息元数据操作（对 av_encryption_info_get_side_data；参数 side_data、side_data_size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// EncryptionInfoGetSideData 从边数据包里解出加密信息（对 av_encryption_info_get_side_data；参数 side_data（真包，传 nil 回 nil 不崩，C 判了空）、side_data_size（太短回 nil）；成功回新信息（记得调 Free 放），失败回 nil；无状态调用）。
 func (self *Util) EncryptionInfoGetSideData(side_data unsafe.Pointer, side_data_size uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvEncryptionInfoGetSideData(side_data, side_data_size)
 }
 
-// EncryptionInitInfoAddSideData 加密信息元数据操作（对 av_encryption_init_info_add_side_data；参数 info、side_data_size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) EncryptionInitInfoAddSideData(info unsafe.Pointer, side_data_size unsafe.Pointer) unsafe.Pointer {
+// EncryptionInitInfoAddSideData 把加密初始化信息打包成边数据（对 av_encryption_init_info_add_side_data；参数 info（须是真初始化信息，传 nil 会崩）、side_data_size（*uintptr 槽，写进 34，传 nil 会崩）；成功回新包（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) EncryptionInitInfoAddSideData(info unsafe.Pointer, side_data_size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvEncryptionInitInfoAddSideData(info, side_data_size)
 }
 
-// EncryptionInitInfoAlloc 加密信息元数据操作（对 av_encryption_init_info_alloc；参数 system_id_size、num_key_ids、key_id_size、data_size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// EncryptionInitInfoAlloc 新建加密初始化信息（对 av_encryption_init_info_alloc；参数 system_id_size、num_key_ids、key_id_size、data_size；成功回真信息（记得调 EncryptionInitInfoFree 放），失败回 nil；无状态调用）。
 func (self *Util) EncryptionInitInfoAlloc(system_id_size uint32, num_key_ids uint32, key_id_size uint32, data_size uint32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvEncryptionInitInfoAlloc(system_id_size, num_key_ids, key_id_size, data_size)
 }
 
-// EncryptionInitInfoFree 加密信息元数据操作（对 av_encryption_init_info_free；参数 info；按签名取回值；无状态，可用零值直接调）。
+// EncryptionInitInfoFree 放掉加密初始化信息（对 av_encryption_init_info_free；参数 info（真信息，传 nil 不崩，C 里判了空）；无回值）。
 func (self *Util) EncryptionInitInfoFree(info unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvEncryptionInitInfoFree(info)
 }
 
-// EncryptionInitInfoGetSideData 加密信息元数据操作（对 av_encryption_init_info_get_side_data；参数 side_data、side_data_size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// EncryptionInitInfoGetSideData 从边数据包里解出加密初始化信息（对 av_encryption_init_info_get_side_data；参数 side_data（真包，传 nil 回 nil 不崩）、side_data_size；成功回新信息（记得调 Free 放），失败回 nil；无状态调用）。
 func (self *Util) EncryptionInitInfoGetSideData(side_data unsafe.Pointer, side_data_size uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvEncryptionInitInfoGetSideData(side_data, side_data_size)
@@ -2091,73 +2091,73 @@ func (self *Util) I2int(a AVInteger) int64 {
 	return fAvI2int(a)
 }
 
-// IamfAudioElementAddLayer 给 IAMF 音频元素加一层（对 av_iamf_audio_element_add_layer；参数 audio_element；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// IamfAudioElementAddLayer 给 IAMF 音频元素加一层（对 av_iamf_audio_element_add_layer；参数 audio_element（须是 IamfAudioElementAlloc 回的真元素，传 nil 会崩）；成功回新层（跟着父元素走，父放了自动放），失败回 nil；无状态调用）。
 func (self *Util) IamfAudioElementAddLayer(audio_element unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfAudioElementAddLayer(audio_element)
 }
 
-// IamfAudioElementAlloc 新建 IAMF 音频元素（对 av_iamf_audio_element_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// IamfAudioElementAlloc 新建 IAMF 音频元素（对 av_iamf_audio_element_alloc；无参数；成功回真元素（记得调 IamfAudioElementFree 放），失败回 nil；无状态调用）。
 func (self *Util) IamfAudioElementAlloc() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfAudioElementAlloc()
 }
 
-// IamfAudioElementFree 释放 IAMF 音频元素（对 av_iamf_audio_element_free；参数 audio_element；按签名取回值；无状态，可用零值直接调）。
+// IamfAudioElementFree 放掉 IAMF 音频元素（对 av_iamf_audio_element_free；参数 audio_element（Alloc 给的槽，用完槽被置空；空槽传进来不崩，C 里判了空）；无回值）。
 func (self *Util) IamfAudioElementFree(audio_element *unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvIamfAudioElementFree(audio_element)
 }
 
-// IamfAudioElementGetClass 取 IAMF 音频元素的选项类（对 av_iamf_audio_element_get_class；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// IamfAudioElementGetClass 取 IAMF 音频元素的选项类（对 av_iamf_audio_element_get_class；无参数；回静态类借用不释放；无状态调用）。
 func (self *Util) IamfAudioElementGetClass() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfAudioElementGetClass()
 }
 
-// IamfMixPresentationAddSubmix 给 IAMF 混音展示加子混音（对 av_iamf_mix_presentation_add_submix；参数 mix_presentation；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// IamfMixPresentationAddSubmix 给 IAMF 混音展示加子混音（对 av_iamf_mix_presentation_add_submix；参数 mix_presentation（须是真展示，传 nil 会崩）；成功回新子混音（跟着父展示走），失败回 nil；无状态调用）。
 func (self *Util) IamfMixPresentationAddSubmix(mix_presentation unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfMixPresentationAddSubmix(mix_presentation)
 }
 
-// IamfMixPresentationAlloc 新建 IAMF 混音展示（对 av_iamf_mix_presentation_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// IamfMixPresentationAlloc 新建 IAMF 混音展示（对 av_iamf_mix_presentation_alloc；无参数；成功回真展示（记得调 IamfMixPresentationFree 放），失败回 nil；无状态调用）。
 func (self *Util) IamfMixPresentationAlloc() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfMixPresentationAlloc()
 }
 
-// IamfMixPresentationFree 释放 IAMF 混音展示（对 av_iamf_mix_presentation_free；参数 mix_presentation；按签名取回值；无状态，可用零值直接调）。
+// IamfMixPresentationFree 放掉 IAMF 混音展示（对 av_iamf_mix_presentation_free；参数 mix_presentation（Alloc 给的槽，用完槽被置空；空槽不崩）；无回值）。
 func (self *Util) IamfMixPresentationFree(mix_presentation *unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvIamfMixPresentationFree(mix_presentation)
 }
 
-// IamfMixPresentationGetClass 取 IAMF 混音展示的选项类（对 av_iamf_mix_presentation_get_class；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// IamfMixPresentationGetClass 取 IAMF 混音展示的选项类（对 av_iamf_mix_presentation_get_class；无参数；回静态类借用不释放；无状态调用）。
 func (self *Util) IamfMixPresentationGetClass() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfMixPresentationGetClass()
 }
 
-// IamfParamDefinitionAlloc 新建 IAMF 参数定义（对 av_iamf_param_definition_alloc；参数 typ、nb_subblocks、size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) IamfParamDefinitionAlloc(typ unsafe.Pointer, nb_subblocks uint32, size unsafe.Pointer) unsafe.Pointer {
+// IamfParamDefinitionAlloc 新建 IAMF 参数定义（对 av_iamf_param_definition_alloc；参数 typ（参数类型枚举数：0=混音增益、1=解混、2=重建增益，传枚举数）、nb_subblocks、size（*uintptr 槽，0 号 2 子块写进 144，传 nil 不崩）；成功回真定义（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) IamfParamDefinitionAlloc(typ int32, nb_subblocks uint32, size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfParamDefinitionAlloc(typ, nb_subblocks, size)
 }
 
-// IamfParamDefinitionGetClass 取 IAMF 参数定义的选项类（对 av_iamf_param_definition_get_class；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// IamfParamDefinitionGetClass 取 IAMF 参数定义的选项类（对 av_iamf_param_definition_get_class；无参数；回静态类借用不释放；无状态调用）。
 func (self *Util) IamfParamDefinitionGetClass() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfParamDefinitionGetClass()
 }
 
-// IamfSubmixAddElement 给 IAMF 子混音加元素（对 av_iamf_submix_add_element；参数 submix；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// IamfSubmixAddElement 给 IAMF 子混音加元素（对 av_iamf_submix_add_element；参数 submix（须是真子混音，传 nil 会崩）；成功回新元素（跟着混音展示走），失败回 nil；无状态调用）。
 func (self *Util) IamfSubmixAddElement(submix unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfSubmixAddElement(submix)
 }
 
-// IamfSubmixAddLayout 给 IAMF 子混音加布局（对 av_iamf_submix_add_layout；参数 submix；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// IamfSubmixAddLayout 给 IAMF 子混音加布局（对 av_iamf_submix_add_layout；参数 submix（须是真子混音，传 nil 会崩）；成功回新布局（跟着混音展示走），失败回 nil；无状态调用）。
 func (self *Util) IamfSubmixAddLayout(submix unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvIamfSubmixAddLayout(submix)
@@ -2857,44 +2857,44 @@ func (self *Util) IntListLengthForSize(elsize uint32, list unsafe.Pointer, term 
 	return fAvIntListLengthForSize(elsize, list, term)
 }
 
-// StreamAddSideData 字符串小工具（对 av_stream_add_side_data；参数 st、typ、data、size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) StreamAddSideData(st unsafe.Pointer, typ unsafe.Pointer, data unsafe.Pointer, size uintptr) unsafe.Pointer {
+// StreamAddSideData 给流挂边数据（对 av_stream_add_side_data；参数 st（须是真流，传 nil 会崩）、typ（边数据类型枚举数）、data（C malloc 的缓冲，挂上后归流管，失败才归调用者）、size；回 0 是成，负数是出错码；无状态调用）。
+func (self *Util) StreamAddSideData(st unsafe.Pointer, typ int32, data unsafe.Pointer, size uintptr) int32 {
 	mustUse(ensureModCrypto())
 	return fAvStreamAddSideData(st, typ, data, size)
 }
 
-// StreamGetClass 字符串小工具（对 av_stream_get_class；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// StreamGetClass 取流的选项类（对 av_stream_get_class；无参数；回静态类借用不释放；无状态调用）。
 func (self *Util) StreamGetClass() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvStreamGetClass()
 }
 
-// StreamGetCodecTimebase 字符串小工具（对 av_stream_get_codec_timebase；参数 st；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) StreamGetCodecTimebase(st unsafe.Pointer) unsafe.Pointer {
+// StreamGetCodecTimebase 问流的编码时基（对 av_stream_get_codec_timebase；参数 st（须是真流，传 nil 会崩）；按值回 AVRational（8 字节，两 int32）；无状态调用）。
+func (self *Util) StreamGetCodecTimebase(st unsafe.Pointer) AVRational {
 	mustUse(ensureModCrypto())
 	return fAvStreamGetCodecTimebase(st)
 }
 
-// StreamGetParser 字符串小工具（对 av_stream_get_parser；参数 s；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// StreamGetParser 取流的解析器（对 av_stream_get_parser；参数 s（须是真流，传 nil 会崩）；回解析器借用不释放（没解析器回 nil 不崩）；无状态调用）。
 func (self *Util) StreamGetParser(s unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvStreamGetParser(s)
 }
 
-// StreamGetSideData 字符串小工具（对 av_stream_get_side_data；参数 stream、typ、size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) StreamGetSideData(stream unsafe.Pointer, typ unsafe.Pointer, size unsafe.Pointer) unsafe.Pointer {
+// StreamGetSideData 从流里找边数据（对 av_stream_get_side_data；参数 stream（须是真流，传 nil 会崩）、typ（枚举数）、size（*uintptr 槽，找到写进大小，找不到写 0，传 nil 不崩）；回数据借用不释放，找不到回 nil；无状态调用）。
+func (self *Util) StreamGetSideData(stream unsafe.Pointer, typ int32, size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvStreamGetSideData(stream, typ, size)
 }
 
-// StreamGroupGetClass 字符串小工具（对 av_stream_group_get_class；无参数；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// StreamGroupGetClass 取流组的选项类（对 av_stream_group_get_class；无参数；回静态类借用不释放；无状态调用）。
 func (self *Util) StreamGroupGetClass() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvStreamGroupGetClass()
 }
 
-// StreamNewSideData 字符串小工具（对 av_stream_new_side_data；参数 stream、typ、size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) StreamNewSideData(stream unsafe.Pointer, typ unsafe.Pointer, size uintptr) unsafe.Pointer {
+// StreamNewSideData 给流新建边数据（对 av_stream_new_side_data；参数 stream（须是真流，传 nil 会崩）、typ（枚举数）、size；成功回新数据（归流管，跟着流走），失败回 nil；无状态调用）。
+func (self *Util) StreamNewSideData(stream unsafe.Pointer, typ int32, size uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvStreamNewSideData(stream, typ, size)
 }
@@ -3231,25 +3231,25 @@ func (self *HWDevice) VdpauHwaccelSetRender2(arg0 unsafe.Pointer, arg1 unsafe.Po
 	return fAvVdpauHwaccelSetRender2(arg0, arg1)
 }
 
-// VideoEncParamsAlloc 新建视频编码参数（对 av_video_enc_params_alloc；参数 typ、nb_blocks、out_size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) VideoEncParamsAlloc(typ unsafe.Pointer, nb_blocks uint32, out_size unsafe.Pointer) unsafe.Pointer {
+// VideoEncParamsAlloc 新建视频编码参数（对 av_video_enc_params_alloc；参数 typ（编码器类型枚举数：0=VP9，传枚举数）、nb_blocks、out_size（*uintptr 槽，0 号 4 块写进 144，传 nil 不崩）；成功回真参数（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) VideoEncParamsAlloc(typ int32, nb_blocks uint32, out_size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvVideoEncParamsAlloc(typ, nb_blocks, out_size)
 }
 
-// VideoEncParamsCreateSideData 给帧挂视频编码参数（对 av_video_enc_params_create_side_data；参数 frame、typ、nb_blocks；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) VideoEncParamsCreateSideData(frame unsafe.Pointer, typ unsafe.Pointer, nb_blocks uint32) unsafe.Pointer {
+// VideoEncParamsCreateSideData 给真帧挂视频编码参数（对 av_video_enc_params_create_side_data；参数 frame（须是真帧，传 nil 会崩）、typ（枚举数）、nb_blocks；成功回参数（跟着帧走），失败回 nil；无状态调用）。
+func (self *Util) VideoEncParamsCreateSideData(frame unsafe.Pointer, typ int32, nb_blocks uint32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvVideoEncParamsCreateSideData(frame, typ, nb_blocks)
 }
 
-// VideoHintAlloc 视频提示元数据操作（对 av_video_hint_alloc；参数 nb_rects、out_size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) VideoHintAlloc(nb_rects uintptr, out_size unsafe.Pointer) unsafe.Pointer {
+// VideoHintAlloc 新建视频提示（对 av_video_hint_alloc；参数 nb_rects、out_size（*uintptr 槽，3 个框写进 80，传 nil 不崩）；成功回真提示（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) VideoHintAlloc(nb_rects uintptr, out_size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvVideoHintAlloc(nb_rects, out_size)
 }
 
-// VideoHintCreateSideData 视频提示元数据操作（对 av_video_hint_create_side_data；参数 frame、nb_rects；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// VideoHintCreateSideData 给真帧挂视频提示（对 av_video_hint_create_side_data；参数 frame（须是真帧，传 nil 会崩）、nb_rects；成功回提示（跟着帧走），失败回 nil；无状态调用）。
 func (self *Util) VideoHintCreateSideData(frame unsafe.Pointer, nb_rects uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvVideoHintCreateSideData(frame, nb_rects)
@@ -3459,13 +3459,13 @@ func (self *Util) AddI(a AVInteger, b AVInteger) AVInteger {
 	return fAvAddI(a, b)
 }
 
-// DynamicHdrVividAlloc 新建 Vivid HDR 动态元数据（对 av_dynamic_hdr_vivid_alloc；参数 size；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) DynamicHdrVividAlloc(size unsafe.Pointer) unsafe.Pointer {
+// DynamicHdrVividAlloc 申请 Vivid 动态 HDR 元数据（对 av_dynamic_hdr_vivid_alloc；参数 size（*uintptr 槽，写进 1040，传 nil 不崩）；成功回真元数据（用 Free 放），失败回 nil；无状态调用）。
+func (self *Util) DynamicHdrVividAlloc(size *uintptr) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDynamicHdrVividAlloc(size)
 }
 
-// DynamicHdrVividCreateSideData 给帧挂 Vivid HDR 元数据（对 av_dynamic_hdr_vivid_create_side_data；参数 frame；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// DynamicHdrVividCreateSideData 给真帧挂 Vivid 边数据（对 av_dynamic_hdr_vivid_create_side_data；参数 frame（须是真帧，传 nil 会崩）；成功回元数据（跟着帧走），失败回 nil；无状态调用）。
 func (self *Util) DynamicHdrVividCreateSideData(frame unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDynamicHdrVividCreateSideData(frame)
