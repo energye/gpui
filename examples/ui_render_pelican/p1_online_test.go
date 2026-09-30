@@ -3,7 +3,7 @@
 package main
 
 // P1-2 在线鹈鹕：同一套冻结画法（PELICAN_T=5，static+stage）在正式
-// 在线链路（render.NewPresentTarget + GPUI_P1_GL=1 + X11 真窗 1200×700）
+// 在线链路（render.NewPresentTarget + GPUI_BACKEND=go + X11 真窗 1200×700）
 // 上点亮并连跑。只证整场景能走在线 swapchain 打到屏上、GPU 零回退、
 // 帧率达标；像素对照仍由离屏特征门 + P1-2 WebGPU 快照负责，本用例
 // 不做像素断言。
@@ -26,7 +26,7 @@ import (
 func TestP1OnlinePelicanGL(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	t.Setenv("GPUI_P1_GL", "1")
+	t.Setenv("GPUI_BACKEND", "go")
 	t.Setenv("PELICAN_T", "5")
 
 	xw := p1OpenX11(t, 1200, 700)

@@ -13,34 +13,10 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 
-	// P1 单窗打通临时开关：只为注册 BackendGL，后续 P3 才定 SelectBackend。
-	// 默认 Rust 路零改动，仅 GPUI_P1_GL=1 时走纯 Go GL。
+	// Register the pure-Go GL backend for SelectBackend (BackendGo).
 	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 )
-
-// p1GLRequested reports whether the P1 temporary GL switch is on.
-// P1-0 口径：GPUI_P1_GL=1 切纯 Go GL（X11 先），默认空/其他值走 Rust 不动。
-// SelectBackend 与 GPUI_BACKEND 环境变量认不认随 P3 一起定，这里不碰。
-func p1GLRequested() bool {
-	return os.Getenv("GPUI_P1_GL") == "1"
-}
-
-// p1GLInstance creates a hal.Instance from the registered pure-Go GL backend.
-// Only used when p1GLRequested() is true. Returns a clear error when the
-// backend is not registered (e.g. unsupported GOOS) instead of guessing.
-func p1GLInstance(desc *hal.InstanceDescriptor) (hal.Instance, error) {
-	be, ok := hal.GetBackend(types.BackendGL)
-	if !ok || be == nil {
-		return nil, fmt.Errorf("render: P1 GL backend not registered (BackendGL)")
-	}
-	inst, err := be.CreateInstance(desc)
-	if err != nil {
-		return nil, fmt.Errorf("render: P1 GL CreateInstance: %w", err)
-	}
-	return inst, nil
-}
 
 // requestPresentDeviceWithRetry retries device creation when the adapter is
 // temporarily out of GPU memory (multi-window stolen-memory budget on iGPUs).
@@ -381,25 +357,19 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// the window can still try a lower-power adapter or software.
 	}
 
-	instDesc := &hal.InstanceDescriptor{Backends: types.BackendsPrimary}
-	var inst hal.Instance
-	var err error
-	if p1GLRequested() {
-		// P1 临时开关：X11 已验，Wayland 沿共用 hal.Surface 链复用（gles
-		// Wayland 面的 wl_egl_window 建面已在 H4 覆盖）；Windows/macOS 走
-		// 各自 P1 步骤，不在这里顺手扩。
+	want, err := ResolveBackend()
+	if err != nil {
+		return nil, err
+	}
+	if want == BackendGo {
+		// GL path: X11/Wayland only (Windows/macOS follow their own steps).
 		if ns.Platform != PresentPlatformX11 && ns.Platform != PresentPlatformWayland {
-			return nil, fmt.Errorf("render: P1 GL only supports X11/Wayland for now (platform=%d)", ns.Platform)
+			return nil, fmt.Errorf("render: Go GL backend only supports X11/Wayland for now (platform=%d)", ns.Platform)
 		}
-		inst, err = p1GLInstance(instDesc)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		inst, err = webgpu.CreateInstance(instDesc)
-		if err != nil {
-			return nil, fmt.Errorf("render: CreateInstance: %w", err)
-		}
+	}
+	inst, err := SelectBackend(want)
+	if err != nil {
+		return nil, err
 	}
 
 	// Surface backend MUST match handle types (Xlib Display*/Window vs wl_*).

@@ -90,7 +90,7 @@ func p2PresentPelican(t *testing.T, w, h int) {
 func TestP2TwoWindowRepro(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	t.Setenv("GPUI_P1_GL", "1")
+	t.Setenv("GPUI_BACKEND", "go")
 	t.Setenv("PELICAN_T", "5")
 
 	t.Log("P2-1 repro: opening first window")
@@ -118,7 +118,7 @@ func TestP2TwoWindowSequentialWebGPU(t *testing.T) {
 func TestP2TwoWindowOverlapped(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	t.Setenv("GPUI_P1_GL", "1")
+	t.Setenv("GPUI_BACKEND", "go")
 	t.Setenv("PELICAN_T", "5")
 
 	xw1 := p1OpenX11(t, 1200, 700)

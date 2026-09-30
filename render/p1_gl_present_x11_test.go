@@ -10,7 +10,7 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// P1-2 online smoke: GPUI_P1_GL=1 opens an X11 window through the real
+// P1-2 online smoke: GPUI_BACKEND=go opens an X11 window through the real
 // online path (NewPresentTarget -> GL swapchain -> PresentClear) and
 // presents two frames. Proves the thin interface wiring end to end;
 // pixel-exact pelican validation stays in the offscreen feature gate.
@@ -20,7 +20,7 @@ func TestP1GLPresentX11OnlineSmoke(t *testing.T) {
 	if os.Getenv("DISPLAY") == "" {
 		t.Skip("no DISPLAY")
 	}
-	t.Setenv("GPUI_P1_GL", "1")
+	t.Setenv("GPUI_BACKEND", "go")
 
 	lib, err := purego.Dlopen("libX11.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
 	if err != nil {
