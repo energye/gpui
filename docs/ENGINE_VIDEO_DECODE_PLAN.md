@@ -856,6 +856,11 @@ VW0 → VW1 → VW2 → VW3
 > | L2-11 | crypto 字符串内存批 | 约60 | 容易 | 5429afcd：修 20 处签名错位（回0/1的是非判断非出错：Match/Strstart/Stristart/FilenameNumberTest/FindInfoTag/Sscanf/Strcasecmp/Strncasecmp 改回 int32，Base64Decode 回字节数 int32，Calloc 改 nmemb/size uintptr，GetFrameFilename2/FileMap 改 error，Assert0Fpu/Bprintf/Log 改无回值，Strdup 改名 s，Timegm 回 int64，Utf8Decode 回 int32）+ TestWrapCoverCryptoStr 清 56 缺口 | TestWrapCoverCryptoStr | 🟩 已完成 |
 > | L2-12 | crypto 哈希加密批 | 约150 | 中 | 59744628：修 3 处签名错位（HashGetSize 回字节数 int32、HmacAlloc 类型改枚举 int32、BlowfishInit 注明 key_len 是字节数）+ TestWrapCoverCryptoHash 清 82 缺口 | TestWrapCoverCryptoHash | 🟩 已完成 |
 > | L2-13 | crypto 硬件批 + codec 剩 3 个 | 约120 | 难 | cd41c765：修 5 处签名错位（HwdeviceCtxAlloc/HwframeCtxCreateDerived/HwframeTransferGetFormats/VdpauBindContext/AvcodecGetHwFramesParameters 枚举改 int32，VdpauBindContext 改 error）+ TestWrapCoverCryptoHw 清 32 缺口 | TestWrapCoverCryptoHw | 🟩 已完成 |
+> | L2-14 | 图像采样批（22） | 22 | 容易 | 9f2c809d：修 22 处签名错位（Read/WriteImageLine 行宽 int32 改指针数组，Samples 6 个行宽改 *int32、采样格式改枚举 int32，Image 像素格式改枚举 int32、行宽尺寸改指针、CopyPlaneUcFrom 行宽改 uintptr、FillMaxPixsteps 改无回值、FillColor 颜色改指针）+ TestWrapCoverImageSamples 清 22 缺口；另删 L2-13 探针 AvcodecEncodeSubtitle 野调用（full 新 so 下约 1/6 崩，编码真路延 L2-17） | TestWrapCoverImageSamples | 🟩 已完成 |
+> | L2-15 | 变换解析批（32） | 32 | 中 | FFT/DCT/MDCT/RDFT/IMDCT/TX 变换 17 个 + Expr 表达式 6 个 + LZO/Vorbis/AC3/ADTS/Dirac 解析 9 个 | TestWrapCoverXformParse | ⬜ 未启动 |
+> | L2-16 | 边数据批（36） | 36 | 中 | Cpb/Detection/Downmix/DynamicHdr/EncryptionIAMF/Stream/VideoEnc/VideoHint 边数据申请挂载释放，模式统一 | TestWrapCoverSideData | ⬜ 未启动 |
+> | L2-17 | 复用读写批（29） | 29 | 中 | Demuxer/Muxer/Filter 迭代 + 探测 + 节目流 + 读写包帧 + 暂停播放，要真盒子真流 | TestWrapCoverMuxRW | ⬜ 未启动 |
+> | L2-18 | 线程树设备批（41） | 41 | 难 | Executor/ThreadMessageQueue/Tree/AVDevice/JNI/Bmg/Chroma/Crc/Default/Dv/HexDump/Vbprintf/Vlog/Pixelutils/PktDump/Swr/ParseCpu，调不通按老规矩 t.Skipf 注明原因 | TestWrapCoverThreadMisc | ⬜ 未启动 |
 >
 > ### 14.2 每轮标准动作（S1–S7，一轮走完才算完）
 >
