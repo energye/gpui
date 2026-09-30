@@ -98,11 +98,38 @@ const (
 	trailR, trailG, trailB = 1.0, 0.65, 0.15
 )
 
-// Body-local layout (body is ~904x656 under the shell chrome).
-const (
-	worldX, worldY, worldWW, worldWH = 16.0, 44.0, 880.0, 360.0
-	countX, countY                   = 16.0, 420.0
-	noteY                            = 620.0
+// fitWorldSize reports the live body size for the world view. It reads
+// the real window client area when known (set by applyWindowSize on open
+// and on every resize) and falls back to the design size before the
+// window exists (probes, goldens, gates all use this fallback).
+var liveWinW, liveWinH float64
+
+func fitWorldSize() (float64, float64) {
+	if liveWinW > 0 && liveWinH > 0 {
+		w := liveWinW - (worldX + 304.0)
+		h := liveWinH - (worldY + 368.0)
+		if w < 320 {
+			w = 320
+		}
+		if h < 200 {
+			h = 200
+		}
+		return w, h
+	}
+	return viewW, viewH
+}
+
+func applyWindowSize(winW, winH float64) { liveWinW, liveWinH = winW, winH }
+
+// Body-local layout: worldWW/worldWH track the live window size so the
+// view fills the screen on resize. Probe numbers and goldens stay
+// pinned to the design viewport (viewW/viewH), so gates and pixels are
+// unaffected.
+var (
+	worldX, worldY   = 16.0, 44.0
+	worldWW, worldWH = fitWorldSize()
+	countX, countY   = 16.0, 420.0
+	noteY            = 620.0
 )
 
 var stageImageID = core.AssetID("tex/stage")
@@ -668,6 +695,25 @@ type chaseSim struct {
 	camL, chunkL, sortL, trailL, dirtyL, fpsL *rendering.RenderText
 }
 
+// layoutWorldToWindow stretches the world and overlay boxes to the live
+// window size and re-asserts the repaint boundary, so a resize fills the
+// screen instead of leaving the old 880x360 box floating.
+func (s *chaseSim) layoutWorldToWindow() {
+	if s == nil {
+		return
+	}
+	w, h := fitWorldSize()
+	worldWW, worldWH = w, h
+	for _, box := range []*rendering.RenderBox{s.worldBox, s.overlay} {
+		if box == nil {
+			continue
+		}
+		box.FixedWidth, box.FixedHeight = w, h
+		box.SetRepaintBoundary(true)
+		box.MarkNeedsPaint()
+	}
+}
+
 type ticker struct{ s *chaseSim }
 
 func srect(r core.Rect) scene.DirtyRect { return scene.DirtyRect{X: r.X, Y: r.Y, W: r.W, H: r.H} }
@@ -1057,13 +1103,21 @@ func main() {
 	shell.Body.Place(sim.fpsL, countX+560, countY+36)
 	shell.Body.Place(wrkit.Label("红车循环追·镜头跟·黄框脏区·橙条拖尾·灰炉烟·绿树灰石按远近盖", 12, 0.70, 0.78, 0.88), countX, noteY)
 
-	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_stage_chase", Decorations: true})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_stage_chase", Decorations: true, Resizable: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)
 	}
 	defer win.Close()
 	ctl := win.Controls()
+	// Seed the live size from the real window before first paint; probes
+	// ran before open, so they keep the 880x360 fallback by design.
+	if w, h := win.Host().Size(); w > 0 && h > 0 {
+		applyWindowSize(float64(w), float64(h))
+	} else {
+		applyWindowSize(winW, winH)
+	}
+	sim.layoutWorldToWindow()
 	var summary manualSummary
 	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
@@ -1100,6 +1154,8 @@ func main() {
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
 					shell.Resize(float64(ev.Width), float64(ev.Height))
+					applyWindowSize(float64(ev.Width), float64(ev.Height))
+					sim.layoutWorldToWindow()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_stage_chase: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
