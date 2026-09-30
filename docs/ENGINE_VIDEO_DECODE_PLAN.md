@@ -855,7 +855,7 @@ VW0 → VW1 → VW2 → VW3
 > | L2-10 | crypto 查表算术批 | 约60 | 容易 | 226bf2e9：修 31 处签名错位（AVInteger 按值传扁平 L0-L7、大整数/有理数/对数回 int32、枚举改 int32、DispositionFromString 改 string 回 int32、FindDefaultStreamIndex 回 int32）+ TestWrapCoverCryptoTables 清 60 缺口 | TestWrapCoverCryptoTables | 🟩 已完成 |
 > | L2-11 | crypto 字符串内存批 | 约60 | 容易 | 5429afcd：修 20 处签名错位（回0/1的是非判断非出错：Match/Strstart/Stristart/FilenameNumberTest/FindInfoTag/Sscanf/Strcasecmp/Strncasecmp 改回 int32，Base64Decode 回字节数 int32，Calloc 改 nmemb/size uintptr，GetFrameFilename2/FileMap 改 error，Assert0Fpu/Bprintf/Log 改无回值，Strdup 改名 s，Timegm 回 int64，Utf8Decode 回 int32）+ TestWrapCoverCryptoStr 清 56 缺口 | TestWrapCoverCryptoStr | 🟩 已完成 |
 > | L2-12 | crypto 哈希加密批 | 约150 | 中 | 59744628：修 3 处签名错位（HashGetSize 回字节数 int32、HmacAlloc 类型改枚举 int32、BlowfishInit 注明 key_len 是字节数）+ TestWrapCoverCryptoHash 清 82 缺口 | TestWrapCoverCryptoHash | 🟩 已完成 |
-> | L2-13 | crypto 硬件批 + codec 剩 3 个 | 约120 | 难 | 待落点：修 5 处签名错位（HwdeviceCtxAlloc/HwframeCtxCreateDerived/HwframeTransferGetFormats/VdpauBindContext/AvcodecGetHwFramesParameters 枚举改 int32，VdpauBindContext 改 error）+ TestWrapCoverCryptoHw 清 32 缺口 | TestWrapCoverCryptoHw | 🟩 已完成 |
+> | L2-13 | crypto 硬件批 + codec 剩 3 个 | 约120 | 难 | cd41c765：修 5 处签名错位（HwdeviceCtxAlloc/HwframeCtxCreateDerived/HwframeTransferGetFormats/VdpauBindContext/AvcodecGetHwFramesParameters 枚举改 int32，VdpauBindContext 改 error）+ TestWrapCoverCryptoHw 清 32 缺口 | TestWrapCoverCryptoHw | 🟩 已完成 |
 >
 > ### 14.2 每轮标准动作（S1–S7，一轮走完才算完）
 >
