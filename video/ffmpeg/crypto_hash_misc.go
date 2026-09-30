@@ -3190,7 +3190,7 @@ func (self *Util) UuidUrnParse(in unsafe.Pointer, uu unsafe.Pointer) error {
 	return nil
 }
 
-// Vbprintf 往打印缓冲追加（va_list 版）（对 av_vbprintf；参数 buf、fmt、vl_arg（va_list Go 侧造不出，野路不走）；无回值；无状态调用）。
+// Vbprintf 往打印缓冲追加（va_list 版）（对 av_vbprintf；参数 buf（须是真 BPrint）、fmt（C 字串，无百分号不读参）、vl_arg（须是真 va_list 结构体指针：x86-64 下 24 字节，传 Go nil 在 purego trampoline 里即崩）；无回值；无状态调用）。
 func (self *Util) Vbprintf(buf unsafe.Pointer, fmt unsafe.Pointer, vl_arg unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvVbprintf(buf, fmt, vl_arg)
@@ -3267,7 +3267,7 @@ func (self *Util) VkFrameAlloc() unsafe.Pointer {
 	return fAvVkFrameAlloc()
 }
 
-// Vlog 发一条日志（va_list 版）（对 av_vlog；参数 avcl、level、fmt、vl（va_list Go 侧造不出，野路不走）；无回值；无状态调用）。
+// Vlog 发一条日志（va_list 版）（对 av_vlog；参数 avcl（可 nil）、level、fmt（C 字串，无百分号不读参）、vl（须是真 va_list 结构体指针，同 Vbprintf，传 nil 即崩）；无回值；无状态调用）。
 func (self *Util) Vlog(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer, vl unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvVlog(avcl, level, fmt, vl)

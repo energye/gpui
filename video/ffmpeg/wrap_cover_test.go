@@ -6982,10 +6982,11 @@ func TestWrapCoverMuxRW(t *testing.T) {
 	}
 }
 
-// TestWrapCoverThreadMisc 走 L2-18 线程树设备批 35 个真路：
-// 执行器/消息队列/红黑树/设备枚举/JNI/色度/CRC/分类名/DV 档/SAD/包打日志/底层采样转换，
-// 全拿真对象调真 C，答案以 C 源码为准；剩 7 个（要真 FILE*/va_list/执行器任务/重采样上下文）
-// 另起 TestWrapCoverThreadMiscSkip 注原因跳过，野路不走。
+// TestWrapCoverThreadMisc 走 L2-18 线程树设备批 42 个真路：
+// 执行器同步跑任务/消息队列/红黑树/设备枚举/JNI/色度/CRC/分类名/DV 档/SAD/
+// 包打双日志/底层采样转换/手搭 ResampleContext 走 DSP 双表/手造 va_list 走
+// Vbprintf（断言回写内容）与 Vlog，全拿真对象调真 C，答案以 C 源码为准，
+// 野路不走，缺口归零。
 func TestWrapCoverThreadMisc(t *testing.T) {
 	if !Available() {
 		t.Skipf("lib missing: %s", LibPath())
@@ -7334,20 +7335,60 @@ func TestWrapCoverThreadMisc(t *testing.T) {
 		t.Fatalf("TreeEnumerate seen = %d, want 2", seen)
 	}
 	u.TreeDestroy(root)
+	// ---- Vbprintf/Vlog 真路：手造 x86-64 va_list（24 字节结构体：
+	// gp_offset u32@0、fp_offset u32@4、overflow_arg_area ptr@8、
+	// reg_save_area ptr@16；传 Go nil 进 purego 在 trampoline 里崩，
+	// L2-18 收尾实测）；无百分号字串不读参，gp_offset=48 表寄存器区耗尽，
+	// C 只碰结构体本身，以 C 为准 ----
+	mkVA := func() unsafe.Pointer {
+		vl := mem.AllocZ(24)
+		if vl == nil {
+			return nil
+		}
+		*(*uint32)(vl) = 48
+		*(*uint32)(unsafe.Add(vl, 4)) = 304
+		ov, rsArea := mem.AllocZ(64), mem.AllocZ(64)
+		if ov == nil || rsArea == nil {
+			return nil
+		}
+		*(*unsafe.Pointer)(unsafe.Add(vl, 8)) = ov
+		*(*unsafe.Pointer)(unsafe.Add(vl, 16)) = rsArea
+		return vl
+	}
+	freeVA := func(vl unsafe.Pointer) {
+		mem.Free(*(*unsafe.Pointer)(unsafe.Add(vl, 8)))
+		mem.Free(*(*unsafe.Pointer)(unsafe.Add(vl, 16)))
+		mem.Free(vl)
+	}
+	plainStr, freePlain := featCStr("plain-no-percent")
+	defer freePlain()
+	vbp := NewBPrint(256, 4096)
+	if vbp == nil {
+		t.Fatal("vbprintf bprint nil")
+	}
+	defer vbp.Free()
+	vl1 := mkVA()
+	if vl1 == nil {
+		t.Fatal("va_list nil")
+	}
+	defer freeVA(vl1)
+	u.Vbprintf(vbp.Ptr(), plainStr, vl1)
+	vbOut, err := vbp.Finalize()
+	if err != nil {
+		t.Fatalf("Vbprintf Finalize: %v", err)
+	}
+	if cstr(vbOut) != "plain-no-percent" {
+		t.Fatalf("Vbprintf out = %q, want plain-no-percent (无百分号直拷，以 C 为准)", cstr(vbOut))
+	}
+	vl2 := mkVA()
+	if vl2 == nil {
+		t.Fatal("va_list2 nil")
+	}
+	defer freeVA(vl2)
+	u.Vlog(nil, 32, plainStr, vl2)
 }
 
 // opaque_keepalive 占住回调闭包，防 GC 在 C 回调前收走。
 func opaque_keepalive(fns ...any) int {
 	return len(fns)
-}
-
-// TestWrapCoverThreadMiscSkip 收 L2-18 实在调不通的 2 件：
-// Vbprintf/Vlog 要真 va_list（x86-64 下 va_list 是 24 字节结构体，传 Go nil
-// 进 purego 直接在 trampoline 里崩，L2-18 收尾实测；变参真路走 Bprintf 拼串路，
-// 这里只留签名不断言）。
-func TestWrapCoverThreadMiscSkip(t *testing.T) {
-	if !Available() {
-		t.Skipf("lib missing: %s", LibPath())
-	}
-	t.Skipf("需真va_list: Vbprintf Vlog (传nil trampoline即崩，以 C 为准)")
 }
