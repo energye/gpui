@@ -157,10 +157,10 @@ var (
 	fAvFindBestPixFmtOf2                      func(dst_pix_fmt1 int32, dst_pix_fmt2 int32, src_pix_fmt int32, has_alpha int32, loss_ptr *int32) int32
 	fAvFindDefaultStreamIndex                 func(s unsafe.Pointer) int32
 	fAvFindInfoTag                            func(arg unsafe.Pointer, arg_size int32, tag1 unsafe.Pointer, info unsafe.Pointer) int32
-	fAvFindInputFormat                        func(short_name unsafe.Pointer) unsafe.Pointer
+	fAvFindInputFormat                        func(short_name string) unsafe.Pointer
 	fAvFindNearestQIdx                        func(q AVRational, q_list unsafe.Pointer) int32
 	fAvFindProgramFromStream                  func(ic unsafe.Pointer, last unsafe.Pointer, s int32) unsafe.Pointer
-	fAvFmtCtxGetDurationEstimationMethod      func(ctx unsafe.Pointer) unsafe.Pointer
+	fAvFmtCtxGetDurationEstimationMethod      func(ctx unsafe.Pointer) int32
 	fAvForceCpuFlags                          func(flags int32)
 	fAvFormatInjectGlobalSideData             func(s unsafe.Pointer)
 	fAvFourccMakeString                       func(buf unsafe.Pointer, fourcc uint32) unsafe.Pointer
@@ -176,7 +176,7 @@ var (
 	fAvGetFrameFilename2                      func(buf unsafe.Pointer, buf_size int32, path unsafe.Pointer, number int32, flags int32) int32
 	fAvGetKnownColorName                      func(color_idx int32, rgb *unsafe.Pointer) unsafe.Pointer
 	fAvGetMediaTypeString                     func(media_type int32) unsafe.Pointer
-	fAvGetOutputTimestamp                     func(s unsafe.Pointer, stream int32, dts unsafe.Pointer, wall unsafe.Pointer) int32
+	fAvGetOutputTimestamp                     func(s unsafe.Pointer, stream int32, dts *int64, wall *int64) int32
 	fAvGetPacket                              func(s unsafe.Pointer, pkt unsafe.Pointer, size int32) int32
 	fAvGetPaddedBitsPerPixel                  func(pixdesc unsafe.Pointer) int32
 	fAvGetPcmCodec                            func(fmt int32, be int32) unsafe.Pointer
@@ -237,7 +237,7 @@ var (
 	fAvIamfSubmixAddLayout                    func(submix unsafe.Pointer) unsafe.Pointer
 	fAvImdctCalc                              func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer)
 	fAvImdctHalf                              func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer)
-	fAvInitPacket                             func(pkt unsafe.Pointer) unsafe.Pointer
+	fAvInitPacket                             func(pkt unsafe.Pointer)
 	fAvInputAudioDeviceNext                   func(d unsafe.Pointer) unsafe.Pointer
 	fAvInputVideoDeviceNext                   func(d unsafe.Pointer) unsafe.Pointer
 	fAvInt2i                                  func(a int64) AVInteger
@@ -283,11 +283,11 @@ var (
 	fAvPixelutilsGetSadFn                     func(w_bits int32, h_bits int32, aligned int32, log_ctx unsafe.Pointer) unsafe.Pointer
 	fAvPktDump2                               func(f unsafe.Pointer, pkt unsafe.Pointer, dump_payload int32, st unsafe.Pointer)
 	fAvPktDumpLog2                            func(avcl unsafe.Pointer, level int32, pkt unsafe.Pointer, dump_payload int32, st unsafe.Pointer)
-	fAvProbeInputBuffer                       func(pb unsafe.Pointer, fmt *unsafe.Pointer, url unsafe.Pointer, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) int32
-	fAvProbeInputBuffer2                      func(pb unsafe.Pointer, fmt *unsafe.Pointer, url unsafe.Pointer, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) int32
+	fAvProbeInputBuffer                       func(pb unsafe.Pointer, fmt *unsafe.Pointer, url string, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) int32
+	fAvProbeInputBuffer2                      func(pb unsafe.Pointer, fmt *unsafe.Pointer, url string, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) int32
 	fAvProbeInputFormat                       func(pd unsafe.Pointer, is_opened int32) unsafe.Pointer
-	fAvProbeInputFormat2                      func(pd unsafe.Pointer, is_opened int32, score_max unsafe.Pointer) unsafe.Pointer
-	fAvProbeInputFormat3                      func(pd unsafe.Pointer, is_opened int32, score_ret unsafe.Pointer) unsafe.Pointer
+	fAvProbeInputFormat2                      func(pd unsafe.Pointer, is_opened int32, score_max *int32) unsafe.Pointer
+	fAvProbeInputFormat3                      func(pd unsafe.Pointer, is_opened int32, score_ret *int32) unsafe.Pointer
 	fAvProgramAddStreamIndex                  func(ac unsafe.Pointer, progid int32, idx uint32)
 	fAvQ2intfloat                             func(q AVRational) uint32
 	fAvQsvAllocContext                        func() unsafe.Pointer
@@ -314,7 +314,7 @@ var (
 	fAvSamplesGetBufferSize                   func(linesize *int32, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) int32
 	fAvSamplesSetSilence                      func(audio_data unsafe.Pointer, offset int32, nb_samples int32, nb_channels int32, sample_fmt int32) int32
 	fAvSdpCreate                              func(ac unsafe.Pointer, n_files int32, buf unsafe.Pointer, size int32) int32
-	fAvSetOptionsString                       func(ctx unsafe.Pointer, opts unsafe.Pointer, key_val_sep unsafe.Pointer, pairs_sep unsafe.Pointer) int32
+	fAvSetOptionsString                       func(ctx unsafe.Pointer, opts string, key_val_sep string, pairs_sep string) int32
 	fAvSha512Alloc                            func() unsafe.Pointer
 	fAvSha512Final                            func(context unsafe.Pointer, digest unsafe.Pointer)
 	fAvSha512Init                             func(context unsafe.Pointer, bits int32) int32
@@ -419,7 +419,7 @@ var (
 	fAvAddI                                   func(a AVInteger, b AVInteger) AVInteger
 	fAvDynamicHdrVividAlloc                   func(size *uintptr) unsafe.Pointer
 	fAvDynamicHdrVividCreateSideData          func(frame unsafe.Pointer) unsafe.Pointer
-	fAvformatTransferInternalStreamTimingInfo func(ofmt unsafe.Pointer, ost unsafe.Pointer, ist unsafe.Pointer, copy_tb unsafe.Pointer) unsafe.Pointer
+	fAvformatTransferInternalStreamTimingInfo func(ofmt unsafe.Pointer, ost unsafe.Pointer, ist unsafe.Pointer, copy_tb int32) int32
 	fAvImageCopy                              func(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt int32, width int32, height int32)
 	fAvImageCopyPlaneUcFrom                   func(dst unsafe.Pointer, dst_linesize uintptr, src unsafe.Pointer, src_linesize uintptr, bytewidth uintptr, height int32)
 	fAvImageCopyToBuffer                      func(dst unsafe.Pointer, dst_size int32, src_data unsafe.Pointer, src_linesize unsafe.Pointer, pix_fmt int32, width int32, height int32, align int32) int32
@@ -983,7 +983,7 @@ func (self *HWDevice) AllocVdpaucontext() unsafe.Pointer {
 	return fAvAllocVdpaucontext()
 }
 
-// AppendPacket 把新读到的数据追加到包尾巴上（对 av_append_packet；参数 s、pkt、size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// AppendPacket 把新读到的数据追加到包尾巴上（对 av_append_packet；参数 s（须是真 IO 上下文，传 nil 会崩）、pkt（须是真包）、size；成功回 nil（读到字节数>0），失败回 error；包是空的跟 GetPacket 一样；无状态调用）。
 func (self *Util) AppendPacket(s unsafe.Pointer, pkt unsafe.Pointer, size int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -1274,7 +1274,7 @@ func (self *Util) DefaultItemName(ctx unsafe.Pointer) unsafe.Pointer {
 	return fAvDefaultItemName(ctx)
 }
 
-// DemuxerIterate 逐个列出支持的解复用器（对 av_demuxer_iterate；参数 opaque；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// DemuxerIterate 逐个列出编进来的解复用器（对 av_demuxer_iterate；参数 opaque（遍历槽，首次传 nil 槽）；回格式借用不释放，到头回 nil；无状态调用）。
 func (self *Util) DemuxerIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDemuxerIterate(opaque)
@@ -1610,7 +1610,7 @@ func (self *Util) FileUnmap(bufptr unsafe.Pointer, size uintptr) {
 	fAvFileUnmap(bufptr, size)
 }
 
-// FilterIterate 逐个列出编译进来的滤镜（对 av_filter_iterate；参数 opaque；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// FilterIterate 逐个列出编进来的滤镜（对 av_filter_iterate；参数 opaque（遍历槽，首次传 nil 槽）；回滤镜借用不释放，到头回 nil；无状态调用）。
 func (self *Util) FilterIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvFilterIterate(opaque)
@@ -1634,8 +1634,8 @@ func (self *Util) FindInfoTag(arg unsafe.Pointer, arg_size int32, tag1 unsafe.Po
 	return fAvFindInfoTag(arg, arg_size, tag1, info)
 }
 
-// FindInputFormat 按名字找输入格式（对 av_find_input_format；参数 short_name；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Prober) FindInputFormat(short_name unsafe.Pointer) unsafe.Pointer {
+// FindInputFormat 按短名找输入格式（对 av_find_input_format；参数 short_name（Go 字串直传，比如 "mp4"）；成功回格式借用不释放，失败回 nil；无状态调用）。
+func (self *Prober) FindInputFormat(short_name string) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvFindInputFormat(short_name)
 }
@@ -1647,14 +1647,14 @@ func (self *Util) FindNearestQIdx(q AVRational, q_list unsafe.Pointer) int32 {
 	return fAvFindNearestQIdx(q, q_list)
 }
 
-// FindProgramFromStream 按流序号找它属于哪个节目（对 av_find_program_from_stream；参数 ic、last、s；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// FindProgramFromStream 按流序号找它属于哪个节目（对 av_find_program_from_stream；参数 ic（须是真盒子，传 nil 会崩）、last（上次找到的，首次传 nil）、s（流序号）；回节目借用不释放，找不到回 nil；无状态调用）。
 func (self *Util) FindProgramFromStream(ic unsafe.Pointer, last unsafe.Pointer, s int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvFindProgramFromStream(ic, last, s)
 }
 
-// FmtCtxGetDurationEstimationMethod 问时长是怎么估出来的（对 av_fmt_ctx_get_duration_estimation_method；参数 ctx；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) FmtCtxGetDurationEstimationMethod(ctx unsafe.Pointer) unsafe.Pointer {
+// FmtCtxGetDurationEstimationMethod 问时长是怎么估出来的（对 av_fmt_ctx_get_duration_estimation_method；参数 ctx（须是真盒子，传 nil 会崩）；回枚举数 0=按戳、1=按流、2=按码率；无状态调用）。
+func (self *Util) FmtCtxGetDurationEstimationMethod(ctx unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
 	return fAvFmtCtxGetDurationEstimationMethod(ctx)
 }
@@ -1665,7 +1665,7 @@ func (self *Util) ForceCpuFlags(flags int32) {
 	fAvForceCpuFlags(flags)
 }
 
-// FormatInjectGlobalSideData 把全局附加数据注入每条流（对 av_format_inject_global_side_data；参数 s；按签名取回值；无状态，可用零值直接调）。
+// FormatInjectGlobalSideData 把全局附加数据注入每条流（对 av_format_inject_global_side_data；参数 s（须是真盒子，传 nil 会崩）；无回值；无状态调用）。
 func (self *Util) FormatInjectGlobalSideData(s unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvFormatInjectGlobalSideData(s)
@@ -1701,7 +1701,7 @@ func (self *Samples) GetAudioFrameDuration(avctx unsafe.Pointer, frame_bytes int
 	return fAvGetAudioFrameDuration(avctx, frame_bytes)
 }
 
-// GetAudioFrameDuration2 按参数算一帧音频时长（新版）（对 av_get_audio_frame_duration2；参数 par、frame_bytes；回数值或个数；无状态，可用零值直接调）。
+// GetAudioFrameDuration2 按参数算一帧音频时长（对 av_get_audio_frame_duration2；参数 par（须是真音频参数，传 nil 会崩）、frame_bytes；回时长（采样数），错参回 0；无状态调用）。
 func (self *Samples) GetAudioFrameDuration2(par unsafe.Pointer, frame_bytes int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvGetAudioFrameDuration2(par, frame_bytes)
@@ -1754,13 +1754,13 @@ func (self *Util) GetMediaTypeString(media_type int32) unsafe.Pointer {
 	return fAvGetMediaTypeString(media_type)
 }
 
-// GetOutputTimestamp 问输出流当前写到几点（对 av_get_output_timestamp；参数 s、stream、dts、wall；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) GetOutputTimestamp(s unsafe.Pointer, stream int32, dts unsafe.Pointer, wall unsafe.Pointer) int32 {
+// GetOutputTimestamp 问输出流当前写到几点（对 av_get_output_timestamp；参数 s（须是真写盒子，传 nil 会崩）、stream、dts/wall（*int64 槽，成功写进值，传 nil 槽不崩但 C 回调里可能用）；回 0 是成，负数是出错码（本机构复用器少，常回 ENOSYS）；无状态调用）。
+func (self *Util) GetOutputTimestamp(s unsafe.Pointer, stream int32, dts *int64, wall *int64) int32 {
 	mustUse(ensureModCrypto())
 	return fAvGetOutputTimestamp(s, stream, dts, wall)
 }
 
-// GetPacket 从流里取一包数据（对 av_get_packet；参数 s、pkt、size；回数值或个数；无状态，可用零值直接调）。
+// GetPacket 从 IO 里读一包数据（对 av_get_packet；参数 s（须是真 IO 上下文，传 nil 会崩）、pkt（须是真包）、size；回读到字节数>0，负数是出错码；无状态调用）。
 func (self *Util) GetPacket(s unsafe.Pointer, pkt unsafe.Pointer, size int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvGetPacket(s, pkt, size)
@@ -2175,10 +2175,10 @@ func (self *Util) ImdctHalf(s unsafe.Pointer, output unsafe.Pointer, input unsaf
 	fAvImdctHalf(s, output, input)
 }
 
-// InitPacket 初始化空包结构体（对 av_init_packet；参数 pkt；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) InitPacket(pkt unsafe.Pointer) unsafe.Pointer {
+// InitPacket 把包填成默认值（对 av_init_packet；参数 pkt（须是真包，传 nil 会崩）；无回值；只填字段不分配，用完照常放包）。
+func (self *Util) InitPacket(pkt unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvInitPacket(pkt)
+	fAvInitPacket(pkt)
 }
 
 // InputAudioDeviceNext 逐个列出输入音频设备（对 av_input_audio_device_next；参数 d；回 C 指针，失败回 nil；无状态，可用零值直接调）。
@@ -2210,7 +2210,7 @@ func (self *Muxer) InterleavedWriteFrame(s unsafe.Pointer, pkt unsafe.Pointer) e
 	return nil
 }
 
-// InterleavedWriteUncodedFrame 交织排序后直接写一帧裸数据（对 av_interleaved_write_uncoded_frame；参数 s、stream_index、frame；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// InterleavedWriteUncodedFrame 交织排序后直接写一帧裸数据（对 av_interleaved_write_uncoded_frame；参数 s（须是真写盒子，传 nil 会崩）、stream_index、frame（调用后帧归 C：成功挂包续命、不支持直接放掉回 ENOSYS，Go 侧都不再 Free）；成功回 nil，失败回 error；无状态调用）。
 func (self *Muxer) InterleavedWriteUncodedFrame(s unsafe.Pointer, stream_index int32, frame unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -2428,7 +2428,7 @@ func (self *Crypto) Murmur3Update(c unsafe.Pointer, src unsafe.Pointer, len uint
 	fAvMurmur3Update(c, src, len)
 }
 
-// MuxerIterate 逐个列出支持的复用器（对 av_muxer_iterate；参数 opaque；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// MuxerIterate 逐个列出编进来的复用器（对 av_muxer_iterate；参数 opaque（遍历槽，首次传 nil 槽）；回格式借用不释放，到头回 nil（base 版复用器极少，nil 是常态）；无状态调用）。
 func (self *Util) MuxerIterate(opaque *unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvMuxerIterate(opaque)
@@ -2441,7 +2441,7 @@ func (self *Util) NearerQ(q AVRational, q1 AVRational, q2 AVRational) int32 {
 	return fAvNearerQ(q, q1, q2)
 }
 
-// NewProgram 在盒子里新建一个节目（对 av_new_program；参数 s、id；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// NewProgram 在盒子里新建一个节目（对 av_new_program；参数 s（须是真盒子，传 nil 会崩）、id；成功回新节目（归盒子管，跟着盒子走），失败回 nil；无状态调用）。
 func (self *Util) NewProgram(s unsafe.Pointer, id int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvNewProgram(s, id)
@@ -2478,7 +2478,7 @@ func (self *Util) PktDumpLog2(avcl unsafe.Pointer, level int32, pkt unsafe.Point
 }
 
 // ProbeInputBuffer 看一 buffered 数据像哪种盒子（对 av_probe_input_buffer；参数 pb、fmt、url、logctx、offset、max_probe_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Prober) ProbeInputBuffer(pb unsafe.Pointer, fmt *unsafe.Pointer, url unsafe.Pointer, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) error {
+func (self *Prober) ProbeInputBuffer(pb unsafe.Pointer, fmt *unsafe.Pointer, url string, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -2489,7 +2489,7 @@ func (self *Prober) ProbeInputBuffer(pb unsafe.Pointer, fmt *unsafe.Pointer, url
 }
 
 // ProbeInputBuffer2 看一 buffered 数据像哪种盒子（对 av_probe_input_buffer2；参数 pb、fmt、url、logctx、offset、max_probe_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Prober) ProbeInputBuffer2(pb unsafe.Pointer, fmt *unsafe.Pointer, url unsafe.Pointer, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) error {
+func (self *Prober) ProbeInputBuffer2(pb unsafe.Pointer, fmt *unsafe.Pointer, url string, logctx unsafe.Pointer, offset uint32, max_probe_size uint32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -2506,18 +2506,18 @@ func (self *Prober) ProbeInputFormat(pd unsafe.Pointer, is_opened int32) unsafe.
 }
 
 // ProbeInputFormat2 看一段数据像哪种盒子（对 av_probe_input_format2；参数 pd、is_opened、score_max；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Prober) ProbeInputFormat2(pd unsafe.Pointer, is_opened int32, score_max unsafe.Pointer) unsafe.Pointer {
+func (self *Prober) ProbeInputFormat2(pd unsafe.Pointer, is_opened int32, score_max *int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvProbeInputFormat2(pd, is_opened, score_max)
 }
 
 // ProbeInputFormat3 看一段数据像哪种盒子（对 av_probe_input_format3；参数 pd、is_opened、score_ret；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Prober) ProbeInputFormat3(pd unsafe.Pointer, is_opened int32, score_ret unsafe.Pointer) unsafe.Pointer {
+func (self *Prober) ProbeInputFormat3(pd unsafe.Pointer, is_opened int32, score_ret *int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvProbeInputFormat3(pd, is_opened, score_ret)
 }
 
-// ProgramAddStreamIndex 把流序号加入节目（对 av_program_add_stream_index；参数 ac、progid、idx；按签名取回值；无状态，可用零值直接调）。
+// ProgramAddStreamIndex 把流序号加入节目（对 av_program_add_stream_index；参数 ac（须是真盒子，传 nil 会崩）、progid、idx；无回值；无状态调用）。
 func (self *Util) ProgramAddStreamIndex(ac unsafe.Pointer, progid int32, idx uint32) {
 	mustUse(ensureModCrypto())
 	fAvProgramAddStreamIndex(ac, progid, idx)
@@ -2599,7 +2599,7 @@ func (self *Util) ReadImageLine2(dst unsafe.Pointer, data unsafe.Pointer, linesi
 	fAvReadImageLine2(dst, data, linesize, desc, x, y, c, w, read_pal_component, dst_element_size)
 }
 
-// ReadPause 暂停网络读流（对 av_read_pause；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// ReadPause 暂停读流（对 av_read_pause；参数 s（须是真盒子，传 nil 会崩）；成功回 nil，失败回 error（本机文件流常回 ENOSYS）；无状态调用）。
 func (self *Util) ReadPause(s unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -2610,7 +2610,7 @@ func (self *Util) ReadPause(s unsafe.Pointer) error {
 	return nil
 }
 
-// ReadPlay 恢复网络读流（对 av_read_play；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// ReadPlay 恢复读流（对 av_read_play；参数 s（须是真盒子，传 nil 会崩）；成功回 nil，失败回 error；无状态调用）。
 func (self *Util) ReadPlay(s unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -2722,7 +2722,7 @@ func (self *Samples) SamplesSetSilence(audio_data unsafe.Pointer, offset int32, 
 	return nil
 }
 
-// SdpCreate 按流拼 SDP 描述串（对 av_sdp_create；参数 ac、n_files、buf、size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// SdpCreate 按流拼 SDP 描述串（对 av_sdp_create；参数 ac（须是真盒子数组，传 nil 会崩，本机构 RTP 相关关掉常回 ENOSYS）、n_files、buf（调用者给的真缓冲）、size；成功回 nil，失败回 error；无状态调用）。
 func (self *Util) SdpCreate(ac unsafe.Pointer, n_files int32, buf unsafe.Pointer, size int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -2733,8 +2733,8 @@ func (self *Util) SdpCreate(ac unsafe.Pointer, n_files int32, buf unsafe.Pointer
 	return nil
 }
 
-// SetOptionsString 按字符串批量设选项（对 av_set_options_string；参数 ctx、opts、key_val_sep、pairs_sep；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) SetOptionsString(ctx unsafe.Pointer, opts unsafe.Pointer, key_val_sep unsafe.Pointer, pairs_sep unsafe.Pointer) error {
+// SetOptionsString 按字符串批量设选项（对 av_set_options_string；参数 ctx（须是带选项类的真上下文，传 nil 会崩）、opts（Go 字串，比如 "flags=+ildct"）、key_val_sep/pairs_sep（Go 字串分隔符）；成功回 nil（回值是设上个数），失败回 error；无状态调用）。
+func (self *Util) SetOptionsString(ctx unsafe.Pointer, opts string, key_val_sep string, pairs_sep string) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -3331,7 +3331,7 @@ func (self *Muxer) WriteImageLine2(src unsafe.Pointer, data unsafe.Pointer, line
 	fAvWriteImageLine2(src, data, linesize, desc, x, y, c, w, src_element_size)
 }
 
-// WriteTrailer 写文件尾并收尾（对 av_write_trailer；参数 s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// WriteTrailer 写文件尾并收尾（对 av_write_trailer；参数 s（须是写好的真盒子，没写过头调会崩或回错）；成功回 nil，失败回 error；无状态调用）。
 func (self *Muxer) WriteTrailer(s unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3342,7 +3342,7 @@ func (self *Muxer) WriteTrailer(s unsafe.Pointer) error {
 	return nil
 }
 
-// WriteUncodedFrame 直接写一帧裸数据（对 av_write_uncoded_frame；参数 s、stream_index、frame；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// WriteUncodedFrame 直接写一帧裸数据（对 av_write_uncoded_frame；参数 s（须是真写盒子，传 nil 会崩）、stream_index、frame（调用后帧归 C：成功挂包续命、不支持直接放掉回 ENOSYS，Go 侧都不再 Free）；成功回 nil，失败回 error；无状态调用）。
 func (self *Muxer) WriteUncodedFrame(s unsafe.Pointer, stream_index int32, frame unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3353,7 +3353,7 @@ func (self *Muxer) WriteUncodedFrame(s unsafe.Pointer, stream_index int32, frame
 	return nil
 }
 
-// WriteUncodedFrameQuery 直接写一帧裸数据（对 av_write_uncoded_frame_query；参数 s、stream_index；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// WriteUncodedFrameQuery 问复用器能不能直接写裸帧（对 av_write_uncoded_frame_query；参数 s（须是真写盒子，C 直接读输出格式，传 nil 会崩）、stream_index；回 >=0 是能写，负数是不能或出错（本机构复用器少，常回 ENOSYS）；无状态调用）。
 func (self *Muxer) WriteUncodedFrameQuery(s unsafe.Pointer, stream_index int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3471,8 +3471,8 @@ func (self *Util) DynamicHdrVividCreateSideData(frame unsafe.Pointer) unsafe.Poi
 	return fAvDynamicHdrVividCreateSideData(frame)
 }
 
-// AvformatTransferInternalStreamTimingInfo 把内部流时间信息搬到新上下文（对 avformat_transfer_internal_stream_timing_info；参数 ofmt、ost、ist、copy_tb；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) AvformatTransferInternalStreamTimingInfo(ofmt unsafe.Pointer, ost unsafe.Pointer, ist unsafe.Pointer, copy_tb unsafe.Pointer) unsafe.Pointer {
+// AvformatTransferInternalStreamTimingInfo 把内部流时间信息搬到新上下文（对 avformat_transfer_internal_stream_timing_info；参数 ofmt（输出格式借用）、ost（须是真输出流）、ist（须是真输入流，传 nil 会崩）、copy_tb（时基来源枚举数）；回 0 是成，负数是出错码；无状态调用）。
+func (self *Util) AvformatTransferInternalStreamTimingInfo(ofmt unsafe.Pointer, ost unsafe.Pointer, ist unsafe.Pointer, copy_tb int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvformatTransferInternalStreamTimingInfo(ofmt, ost, ist, copy_tb)
 }

@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"unsafe"
@@ -6681,6 +6682,286 @@ func TestWrapCoverSideData(t *testing.T) {
 		}
 		if u.StreamGetSideData(ost, 0, nil) == nil {
 			t.Fatal("StreamGetSideData(after add) nil")
+		}
+	}
+}
+
+func TestWrapCoverMuxRW(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var u Util
+	var pb Prober
+	var mx Muxer
+	var sm Samples
+	var mem Mem
+	var fx FormatContext
+	// ---- 三迭代: 解复用器和滤镜一定有货, 复用器 base 版极少 (C 实测) ----
+	var opaque unsafe.Pointer
+	demuxCount := 0
+	for {
+		got := u.DemuxerIterate(&opaque)
+		if got == nil {
+			break
+		}
+		demuxCount++
+		if demuxCount > 10000 {
+			t.Fatal("DemuxerIterate runaway")
+		}
+	}
+	if demuxCount == 0 {
+		t.Fatal("DemuxerIterate empty")
+	}
+	var opaque2 unsafe.Pointer
+	filterCount := 0
+	for {
+		got := u.FilterIterate(&opaque2)
+		if got == nil {
+			break
+		}
+		filterCount++
+		if filterCount > 10000 {
+			t.Fatal("FilterIterate runaway")
+		}
+	}
+	if filterCount == 0 {
+		t.Fatal("FilterIterate empty")
+	}
+	var opaque3 unsafe.Pointer
+	muxCount := 0
+	for {
+		got := u.MuxerIterate(&opaque3)
+		if got == nil {
+			break
+		}
+		muxCount++
+		if muxCount > 10000 {
+			t.Fatal("MuxerIterate runaway")
+		}
+	}
+	t.Logf("iterate: demux=%d filter=%d mux=%d (base 复用器极少是常态, C 为准)", demuxCount, filterCount, muxCount)
+	// ---- 找输入格式: mp4 有, 瞎名没有 (avformat.h C 实测) ----
+	if pb.FindInputFormat("mp4") == nil {
+		t.Fatal("FindInputFormat(mp4) nil")
+	}
+	if pb.FindInputFormat("no-such-fmt-xyz") != nil {
+		t.Fatal("FindInputFormat(bogus) non-nil")
+	}
+	// ---- 盒子探测: 真 mp4 头认出 mp4, 分数 100 满分 (format.c C 实测) ----
+	raw, err := os.ReadFile("../testdata/feat_small.mp4")
+	if err != nil {
+		t.Skipf("feat_small missing: %v", err)
+	}
+	head := mem.Alloc(len(raw[:2048]) + 32)
+	if head == nil {
+		t.Fatal("probe buf nil")
+	}
+	defer mem.Free(head)
+	copy(unsafe.Slice((*byte)(head), 2048), raw[:2048])
+	pd := mem.AllocZ(32)
+	if pd == nil {
+		t.Fatal("probedata nil")
+	}
+	defer mem.Free(pd)
+	*(*unsafe.Pointer)(pd) = nil
+	*(*unsafe.Pointer)(unsafe.Add(pd, 8)) = head
+	*(*int32)(unsafe.Add(pd, 16)) = 2048
+	*(*unsafe.Pointer)(unsafe.Add(pd, 24)) = nil
+	if pb.ProbeInputFormat(pd, 1) == nil {
+		t.Fatal("ProbeInputFormat(mp4 head) nil")
+	}
+	// v2 认分有个门槛: 只有量出分严格大于门槛才给格式 (format.c C 实测),
+	// 传 100 量出 100 照样回空, 传 50 才能拿到格式, 槽里写进真分 100.
+	var scoreMax int32 = 50
+	if pb.ProbeInputFormat2(pd, 1, &scoreMax) == nil {
+		t.Fatal("ProbeInputFormat2 nil")
+	}
+	if scoreMax != 100 {
+		t.Fatalf("ProbeInputFormat2 score = %d, want 100", scoreMax)
+	}
+	var scoreRet int32 = -1
+	if pb.ProbeInputFormat3(pd, 1, &scoreRet) == nil {
+		t.Fatal("ProbeInputFormat3 nil")
+	}
+	if scoreRet != 100 {
+		t.Fatalf("ProbeInputFormat3 score = %d, want 100", scoreRet)
+	}
+	// ---- 流探测: 读 IO 上认出 mp4, 0 分是成 (format.c C 实测) ----
+	var rio unsafe.Pointer
+	if err := fx.Open(&rio, "../testdata/feat_small.mp4", 1); err != nil {
+		t.Fatalf("Open(read io): %v", err)
+	}
+	defer fx.Closep(&rio)
+	var pfmt unsafe.Pointer
+	if err := pb.ProbeInputBuffer(rio, &pfmt, "../testdata/feat_small.mp4", nil, 0, 0); err != nil {
+		t.Fatalf("ProbeInputBuffer: %v", err)
+	}
+	if pfmt == nil {
+		t.Fatal("ProbeInputBuffer fmt nil")
+	}
+	var pfmt2 unsafe.Pointer
+	if err := pb.ProbeInputBuffer2(rio, &pfmt2, "../testdata/feat_small.mp4", nil, 0, 0); err != nil {
+		t.Fatalf("ProbeInputBuffer2: %v", err)
+	}
+	if pfmt2 == nil {
+		t.Fatal("ProbeInputBuffer2 fmt nil")
+	}
+	// ---- 包读写: 读 100 得 100, 空包追 50 得 50 (avformat.h C 实测) ----
+	pkt := NewPacket()
+	if pkt == nil {
+		t.Fatal("packet nil")
+	}
+	defer pkt.Free()
+	if n := u.GetPacket(rio, pkt.Ptr(), 100); n != 100 {
+		t.Fatalf("GetPacket = %d, want 100", n)
+	}
+	pkt2 := NewPacket()
+	if pkt2 == nil {
+		t.Fatal("packet2 nil")
+	}
+	defer pkt2.Free()
+	u.InitPacket(pkt2.Ptr())
+	if err := u.AppendPacket(rio, pkt2.Ptr(), 50); err != nil {
+		t.Fatalf("AppendPacket: %v", err)
+	}
+	if got := *(*int32)(unsafe.Add(pkt2.Ptr(), 32)); got != 50 {
+		t.Fatalf("AppendPacket size = %d, want 50", got)
+	}
+	// ---- 真盒子: 节目新建挂流找回, 时长走流估, 全局边数据注入不崩 ----
+	dec, err := Open("../testdata/feat_small.mp4")
+	if err != nil {
+		t.Fatalf("Open(feat_small): %v", err)
+	}
+	defer dec.Close()
+	fc := &FormatContext{ptr: dec.RawFormatCtx()}
+	if u.FindProgramFromStream(fc.Ptr(), nil, 0) != nil {
+		t.Fatal("FindProgramFromStream(before new) non-nil")
+	}
+	np := u.NewProgram(fc.Ptr(), 7)
+	if np == nil {
+		t.Fatal("NewProgram nil")
+	}
+	u.ProgramAddStreamIndex(fc.Ptr(), 7, 0)
+	if u.FindProgramFromStream(fc.Ptr(), nil, 0) != np {
+		t.Fatal("FindProgramFromStream(after add) mismatch")
+	}
+	if m := u.FmtCtxGetDurationEstimationMethod(fc.Ptr()); m != 1 {
+		t.Fatalf("FmtCtxGetDurationEstimationMethod = %d, want 1 (按流估, C 实测本片)", m)
+	}
+	u.FormatInjectGlobalSideData(fc.Ptr())
+	st := fc.StreamAt(0)
+	if sm.GetAudioFrameDuration2(st.CodecPar(), 1024) != 0 {
+		t.Fatal("GetAudioFrameDuration2(video) != 0 (非音频回 0, 以 C 为准)")
+	}
+	// ---- 选项串: 真解码器上下文设 threads=1 成, 瞎键回错 ----
+	mpeg4 := FindDecoderByName("mpeg4")
+	if mpeg4 == nil {
+		t.Skipf("mpeg4 decoder missing")
+	}
+	dctx := mpeg4.AllocContext()
+	if dctx == nil {
+		t.Fatal("mpeg4 ctx nil")
+	}
+	defer dctx.FreeContext()
+	if err := u.SetOptionsString(dctx.Ptr(), "threads=1", "=", ":"); err != nil {
+		t.Fatalf("SetOptionsString(threads=1): %v", err)
+	}
+	if err := u.SetOptionsString(dctx.Ptr(), "no-such-opt-xyz=1", "=", ":"); err == nil {
+		t.Fatal("SetOptionsString(bogus) accepted")
+	}
+	// ---- 暂停播放: 本机文件流诚实回错 (demux_utils.c C 实测) ----
+	if err := u.ReadPause(fc.Ptr()); err == nil {
+		t.Fatal("ReadPause(file) accepted (C 回 ENOSYS, 以 C 为准)")
+	}
+	if err := u.ReadPlay(fc.Ptr()); err == nil {
+		t.Fatal("ReadPlay(file) accepted (C 回 ENOSYS, 以 C 为准)")
+	}
+	// ---- SDP: 本机构 RTP 关掉诚实回错, 缓冲先清零不崩 (sdp.c C 实测) ----
+	sdpBuf := mem.AllocZ(4096)
+	if sdpBuf == nil {
+		t.Fatal("sdp buf nil")
+	}
+	defer mem.Free(sdpBuf)
+	ac := []unsafe.Pointer{fc.Ptr()}
+	if err := u.SdpCreate(unsafe.Pointer(&ac[0]), 1, sdpBuf, 4096); err == nil {
+		t.Logf("SdpCreate unexpectedly ok (C 为准)")
+	}
+	// ---- 写路: full 版才有复用器, base 停在建盒这步 (C 为准) ----
+	var outCtx unsafe.Pointer
+	if err := fx.AllocOutputContext2(&outCtx, nil, "mp4", nil); err != nil {
+		if IsFull() {
+			t.Fatalf("AllocOutputContext2(mp4) on full: %v", err)
+		}
+		t.Logf("base 无复用器, 写路真路延 full 版验证: %v", err)
+	} else {
+		fxOut := FormatContext{ptr: outCtx}
+		defer fxOut.FreeContext()
+		ost := fxOut.NewStream(nil)
+		if ost == nil {
+			t.Fatal("NewStream nil")
+		}
+		if err := mx.WriteUncodedFrameQuery(fxOut.Ptr(), 0); err == nil {
+			t.Logf("WriteUncodedFrameQuery(mp4) unexpectedly ok (C 为准)")
+		}
+		var dts, wall int64 = -1, -1
+		if ret := u.GetOutputTimestamp(fxOut.Ptr(), 0, &dts, &wall); ret != -38 {
+			t.Fatalf("GetOutputTimestamp = %d, want -38 (ENOSYS, C 实测)", ret)
+		}
+		if dts != -1 || wall != -1 {
+			t.Fatal("GetOutputTimestamp wrote slots on error")
+		}
+		// 写裸帧两条都走真帧: mp4 不支持回 ENOSYS, 但 C 照样吃掉帧
+		// (mux.c write_uncoded_frame_internal: 不支持就 av_frame_free 再回 ENOSYS),
+		// 所以调用后 Go 侧必须脱钩, 不能再 Free, 否则二次放崩 (以 C 为准).
+		fr1 := NewFrame()
+		if fr1 == nil {
+			t.Fatal("frame nil")
+		}
+		if err := mx.WriteUncodedFrame(fxOut.Ptr(), 0, fr1.Ptr()); err == nil {
+			t.Logf("WriteUncodedFrame unexpectedly ok (C 为准)")
+		}
+		fr1.ptr = nil // 帧已归 C, Go 侧脱钩不再放
+		fr2 := NewFrame()
+		if fr2 == nil {
+			t.Fatal("frame2 nil")
+		}
+		if err := mx.InterleavedWriteUncodedFrame(fxOut.Ptr(), 0, fr2.Ptr()); err == nil {
+			t.Logf("InterleavedWriteUncodedFrame unexpectedly ok (C 为准)")
+		}
+		fr2.ptr = nil // 同上, 帧已归 C
+		mp4Name, freeMp4 := featCStr("clip.mp4")
+		defer freeMp4()
+		guess := fxOut.GuessFormat(nil, mp4Name, nil)
+		if guess == nil {
+			t.Fatal("GuessFormat(mp4) nil on full")
+		}
+		if ret := u.AvformatTransferInternalStreamTimingInfo(guess, ost, st.Ptr(), 0); ret != 0 {
+			t.Fatalf("AvformatTransferInternalStreamTimingInfo = %d, want 0", ret)
+		}
+		// WriteTrailer 真路: 裸盒直接收尾 C 会崩, 野路不走;
+		// 参数从真流拷、IO 落临时文件、先写头再收尾 (featMuxEncoder 同套路, 以 C 为准).
+		outSt := &Stream{ptr: ost}
+		outPar := &CodecParameters{ptr: outSt.CodecPar()}
+		srcPar := &CodecParameters{ptr: st.CodecPar()}
+		if err := outPar.Copy(srcPar); err != nil {
+			t.Fatalf("par copy: %v", err)
+		}
+		dst := filepath.Join(t.TempDir(), "muxrw_trailer.mp4")
+		var pbOut unsafe.Pointer
+		if err := fx.Open(&pbOut, dst, AVIOFlagWrite); err != nil {
+			t.Fatalf("avio open: %v", err)
+		}
+		fxOut.SetPb(pbOut)
+		if err := fxOut.WriteHeader(nil); err != nil {
+			(&IOContext{ptr: pbOut}).Close()
+			t.Fatalf("write header: %v", err)
+		}
+		if err := mx.WriteTrailer(fxOut.Ptr()); err != nil {
+			t.Fatalf("WriteTrailer = %v, want nil (真写路, 以 C 为准)", err)
+		}
+		(&IOContext{ptr: pbOut}).Close()
+		if fi, err := os.Stat(dst); err != nil || fi.Size() == 0 {
+			t.Fatalf("trailer file missing/empty: %v", err)
 		}
 	}
 }
