@@ -295,7 +295,15 @@ func presentLevels(start AdapterPolicy) []presentLevel {
 
 // NewPresentTarget creates a GPU present path from native window handles.
 // logicalW/H are layout pixels; scale is device pixel ratio (≥1).
+// The GPU implementation follows GPUI_BACKEND (see ResolveBackend).
 func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale float64) (*PresentTarget, error) {
+	return NewPresentTargetWithBackend(ns, logicalW, logicalH, scale, BackendNative)
+}
+
+// NewPresentTargetWithBackend creates a GPU present path with an explicit
+// GPU implementation choice. BackendNative (zero value) means default;
+// GPUI_BACKEND env still wins when set (see ResolveBackend).
+func NewPresentTargetWithBackend(ns PresentNativeSurface, logicalW, logicalH int, scale float64, backend Backend) (*PresentTarget, error) {
 	if ns.Window == 0 {
 		return nil, errors.New("render: PresentNativeSurface.Window is zero")
 	}
@@ -312,7 +320,7 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 	levels := presentLevels(ResolveAdapterPolicy())
 	var lastErr error
 	for i, lv := range levels {
-		t, err := buildPresentTarget(ns, logicalW, logicalH, scale, lv)
+		t, err := buildPresentTarget(ns, logicalW, logicalH, scale, lv, backend)
 		if err == nil {
 			t.fallbacks = i
 			return t, nil
@@ -341,7 +349,7 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 // own surface + swapchain on the shared device (Skia GrDirectContext: one
 // device, N surfaces). Any step's failure releases that level's resources
 // (Close() reverse order) before returning.
-func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale float64, lv presentLevel) (*PresentTarget, error) {
+func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale float64, lv presentLevel, backend Backend) (*PresentTarget, error) {
 	if _, _, _, borrowable, _ := peekShared(); borrowable {
 		if t, err := buildSharedSurface(ns, logicalW, logicalH, scale); err == nil {
 			return t, nil
@@ -357,7 +365,8 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// the window can still try a lower-power adapter or software.
 	}
 
-	want, err := ResolveBackend()
+	// NewPresentTargetWithBackend threads through; the backend arg selects it.
+	want, err := ResolveBackendFor(backend)
 	if err != nil {
 		return nil, err
 	}
@@ -375,11 +384,11 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	// Surface backend MUST match handle types (Xlib Display*/Window vs wl_*).
 	// Driven by PresentNativeSurface.Platform — never guess from env alone.
 	// hal.SurfaceTarget carries the kind; webgpu maps it to its backend path.
-	backend := surfaceBackendFor(ns.Platform)
+	surfaceBackend := surfaceBackendFor(ns.Platform)
 	surf, err := inst.CreateSurface(surfaceTargetFor(ns))
 	if err != nil {
 		inst.Release()
-		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
+		return nil, fmt.Errorf("render: CreateSurface(%s): %w", surfaceBackend, err)
 	}
 
 	policy := lv.policy

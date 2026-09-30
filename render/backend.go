@@ -47,13 +47,29 @@ func (b Backend) String() string {
 // neither value is meaningful to rwgpu, so they must not leak into a
 // wgpu-native instance descriptor.
 func ResolveBackend() (Backend, error) {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("GPUI_BACKEND"))) {
-	case "", "native":
-		return BackendNative, nil
-	case "go":
-		return BackendGo, nil
+	return ResolveBackendFor(BackendNative)
+}
+
+// ResolveBackendFor resolves the effective backend: GPUI_BACKEND env wins
+// when set (even over an explicit code choice); otherwise the code choice
+// stands. BackendNative (zero value) means default. Unknown env values
+// error (no silent substitution, no legacy values).
+func ResolveBackendFor(code Backend) (Backend, error) {
+	if v := strings.TrimSpace(os.Getenv("GPUI_BACKEND")); v != "" {
+		switch strings.ToLower(v) {
+		case "native":
+			return BackendNative, nil
+		case "go":
+			return BackendGo, nil
+		default:
+			return BackendNative, fmt.Errorf("render: unknown GPUI_BACKEND %q (want native|go)", os.Getenv("GPUI_BACKEND"))
+		}
+	}
+	switch code {
+	case BackendNative, BackendGo:
+		return code, nil
 	default:
-		return BackendNative, fmt.Errorf("render: unknown GPUI_BACKEND %q (want native|go)", os.Getenv("GPUI_BACKEND"))
+		return BackendNative, fmt.Errorf("render: unknown Backend %d (want native|go)", int(code))
 	}
 }
 

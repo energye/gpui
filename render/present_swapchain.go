@@ -16,6 +16,8 @@ func newWebgpuHalSwapchain(surf hal.Surface, dev hal.Device, w, h uint32) hal.Sw
 // newPresentSwapchain picks the backend once (creation sentence) and
 // returns its hal.Swapchain; render talks hal afterwards. Callers own
 // cleanup on error (their Surface/Device lifetimes differ).
+// It resolves the same way as the target constructor, so env-wins keeps
+// both consistent without threading state between them.
 func newPresentSwapchain(surf hal.Surface, dev hal.Device, w, h uint32) (hal.Swapchain, error) {
 	want, err := ResolveBackend()
 	if err != nil {

@@ -25,6 +25,10 @@ func EventQuits(ev platform.Event) bool {
 type Options struct {
 	// Clear is the PresentClear color (0–1). Default dark gray-blue.
 	ClearR, ClearG, ClearB, ClearA float64
+	// RenderBackend selects the GPU implementation for this window
+	// (render.BackendNative default = WebGPU, render.BackendGo = pure-Go GL).
+	// Zero value means default; GPUI_BACKEND env still wins when set.
+	RenderBackend render.Backend
 	// ContinuousClear schedules a clear every frame while running (demo only).
 	// Production L1 demand mode leaves this false (IDLE until ScheduleFrame).
 	ContinuousClear bool
@@ -89,7 +93,7 @@ func (a *App) Open() error {
 	if a.target != nil {
 		return nil
 	}
-	t, err := OpenPresentTarget(a.host)
+	t, err := OpenPresentTargetWithBackend(a.host, a.opts.RenderBackend)
 	if err != nil {
 		return err
 	}

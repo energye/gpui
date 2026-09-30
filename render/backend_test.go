@@ -49,3 +49,30 @@ func TestResolveBackend(t *testing.T) {
 		t.Fatalf("Backend String = %q/%q, want native/go", BackendNative, BackendGo)
 	}
 }
+
+// Env wins over code in both directions: an explicit code choice stands
+// only when the env is empty; a set env overrides whatever code passed.
+func TestResolveBackendForEnvWins(t *testing.T) {
+	t.Setenv("GPUI_BACKEND", "")
+	if got, err := ResolveBackendFor(BackendGo); err != nil || got != BackendGo {
+		t.Fatalf("ResolveBackendFor(go, unset) = %v,%v, want go,nil", got, err)
+	}
+	if got, err := ResolveBackendFor(BackendNative); err != nil || got != BackendNative {
+		t.Fatalf("ResolveBackendFor(native, unset) = %v,%v, want native,nil", got, err)
+	}
+	t.Setenv("GPUI_BACKEND", "go")
+	if got, err := ResolveBackendFor(BackendNative); err != nil || got != BackendGo {
+		t.Fatalf("ResolveBackendFor(native, go) = %v,%v, want go,nil", got, err)
+	}
+	t.Setenv("GPUI_BACKEND", "native")
+	if got, err := ResolveBackendFor(BackendGo); err != nil || got != BackendNative {
+		t.Fatalf("ResolveBackendFor(go, native) = %v,%v, want native,nil", got, err)
+	}
+	t.Setenv("GPUI_BACKEND", "bogus")
+	if _, err := ResolveBackendFor(BackendNative); err == nil {
+		t.Fatal("ResolveBackendFor(native, bogus) must error")
+	}
+	if _, err := ResolveBackendFor(Backend(7)); err == nil {
+		t.Fatal("ResolveBackendFor(7, unset) must error")
+	}
+}
