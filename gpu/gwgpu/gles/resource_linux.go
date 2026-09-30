@@ -51,6 +51,9 @@ type Surface struct {
 	swapchainFBO        uint32
 	colorRenderbuffer   uint32
 	fboWidth, fboHeight uint32
+	// vramHandle is the ledger slot for the swapchain surface bytes
+	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
+	vramHandle uintptr
 }
 
 // GetAdapterInfo returns adapter information from this surface's GL context.
@@ -237,6 +240,10 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 		glCtx := s.ctx.Lock()
 		destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorRenderbuffer)
 		s.ctx.Unlock()
+	}
+	if s.vramHandle != 0 {
+		hal.VramForget(s.vramHandle)
+		s.vramHandle = 0
 	}
 	s.swapchainFBO = 0
 	s.colorRenderbuffer = 0

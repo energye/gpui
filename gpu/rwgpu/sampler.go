@@ -3,6 +3,7 @@ package rwgpu
 import (
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -77,7 +78,7 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
-	if err := vramCheck("CreateSampler", vramSamplerBytes); err != nil {
+	if err := hal.VramCheck("CreateSampler", hal.VramSamplerBytes); err != nil {
 		return nil, err
 	}
 	handle, _, _ := procDeviceCreateSampler.Call(
@@ -92,7 +93,7 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 		lab = desc.Label
 	}
 	trackResourceLabel(handle, "Sampler", lab)
-	vramAdd(handle, vramSamplerBytes)
+	hal.VramAdd(handle, hal.VramSamplerBytes)
 	return &Sampler{handle: handle, device: d.handle}, nil
 }
 
@@ -129,7 +130,7 @@ func (s *Sampler) Release() {
 	if s == nil {
 		return
 	}
-	vramForget(s.handle)
+	hal.VramForget(s.handle)
 	releaseNativeHandle(&s.handle, isOwnerDeviceLost(s.device), func(h uintptr) {
 		procSamplerRelease.Call(h) //nolint:errcheck
 	})

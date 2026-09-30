@@ -29,9 +29,13 @@ type Surface struct {
 	// Surface render into swapchainFBO (backed by colorRenderbuffer), not FBO 0.
 	// Queue.Present blits this FBO to the default framebuffer with an explicit
 	// Y-flip before SwapBuffers.
-	swapchainFBO        uint32
-	colorRenderbuffer   uint32
-	fboWidth, fboHeight uint32
+	swapchainFBO      uint32
+	colorRenderbuffer uint32
+	fboWidth          uint32
+	fboHeight         uint32
+	// vramHandle is the ledger slot for the swapchain surface bytes
+	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
+	vramHandle uintptr
 
 	// current tracks the single in-flight acquired frame (webgpu parity:
 	// one frame at a time — Acquire discards the previous one, Discard or
@@ -144,6 +148,10 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 	defer s.ctx.Unlock()
 
 	destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorRenderbuffer)
+	if s.vramHandle != 0 {
+		hal.VramForget(s.vramHandle)
+		s.vramHandle = 0
+	}
 	s.swapchainFBO = 0
 	s.colorRenderbuffer = 0
 	s.fboWidth = 0

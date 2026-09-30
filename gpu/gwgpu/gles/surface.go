@@ -116,11 +116,19 @@ func (s *Surface) blitSwapchainToDefaultWith(glCtx *gl.Context) {
 // allocates a new one. Caller must hold the AdapterContext lock.
 func (s *Surface) reconfigureSwapchainFBOWith(glCtx *gl.Context, format gputypes.TextureFormat, width, height uint32) error {
 	destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorRenderbuffer)
+	if s.vramHandle != 0 {
+		hal.VramForget(s.vramHandle)
+		s.vramHandle = 0
+	}
 	s.swapchainFBO = 0
 	s.colorRenderbuffer = 0
 	s.fboWidth = 0
 	s.fboHeight = 0
 
+	need := hal.VramSurfaceBytes(width, height, format)
+	if err := hal.VramCheck("GLES.Surface.Configure", need); err != nil {
+		return err
+	}
 	fbo, colorRbo, err := allocateSwapchainFBO(glCtx, format, width, height)
 	if err != nil {
 		return err
@@ -129,5 +137,17 @@ func (s *Surface) reconfigureSwapchainFBOWith(glCtx *gl.Context, format gputypes
 	s.colorRenderbuffer = colorRbo
 	s.fboWidth = width
 	s.fboHeight = height
+	s.vramHandle = vramHandleForFBO(fbo, height)
+	hal.VramAdd(s.vramHandle, need)
 	return nil
+}
+
+// vramHandleForFBO maps a GL FBO id into the ledger's handle space.
+// GL object ids are uint32s that collide across kinds (textures, buffers,
+// FBOs share the number line), so the FBO id and height fold into one
+// tagged 64-bit slot — a disjoint range with no double-count against
+// texture/buffer handles.
+func vramHandleForFBO(fbo, height uint32) uintptr {
+	const tag = uintptr(1) << 63
+	return uintptr(fbo)<<32 | uintptr(height) | tag
 }

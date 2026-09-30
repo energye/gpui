@@ -54,6 +54,9 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (hal.Buffer, error) {
 	if desc == nil {
 		return nil, fmt.Errorf("BUG: buffer descriptor is nil in GLES.CreateBuffer — core validation gap")
 	}
+	if err := hal.VramCheck("GLES.CreateBuffer", desc.Size); err != nil {
+		return nil, err
+	}
 
 	glCtx := d.ctx.Lock()
 	defer d.ctx.Unlock()
@@ -98,6 +101,7 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (hal.Buffer, error) {
 	if desc.MappedAtCreation {
 		buf.mapped = make([]byte, desc.Size)
 	}
+	hal.VramAdd(buf.NativeHandle(), desc.Size)
 
 	return buf, nil
 }
@@ -181,6 +185,12 @@ func (d *Device) UnmapBuffer(buffer hal.Buffer) error {
 func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 	if desc == nil {
 		return nil, fmt.Errorf("BUG: texture descriptor is nil in GLES.CreateTexture — core validation gap")
+	}
+	need := hal.VramTextureBytes(
+		gputypes.Extent3D{Width: desc.Size.Width, Height: desc.Size.Height, DepthOrArrayLayers: desc.Size.DepthOrArrayLayers},
+		desc.Size.DepthOrArrayLayers, desc.MipLevelCount, maxUint32(1, desc.SampleCount), desc.Format)
+	if err := hal.VramCheck("GLES.CreateTexture", need); err != nil {
+		return nil, err
 	}
 
 	glCtx := d.ctx.Lock()
@@ -271,6 +281,7 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 		"width", desc.Size.Width,
 		"height", desc.Size.Height,
 	)
+	hal.VramAdd(uintptr(id), need)
 
 	return &Texture{
 		id:          id,
@@ -942,6 +953,14 @@ func textureFormatToGL(format gputypes.TextureFormat) (internalFormat, dataForma
 
 // maxInt32 returns the larger of a or b.
 func maxInt32(a, b int32) int32 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// maxUint32 returns the larger of a or b.
+func maxUint32(a, b uint32) uint32 {
 	if a > b {
 		return a
 	}

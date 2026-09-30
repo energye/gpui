@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -127,7 +128,7 @@ func (t *Texture) Destroy() {
 	if t == nil {
 		return
 	}
-	vramForget(t.handle)
+	hal.VramForget(t.handle)
 	lost := isOwnerDeviceLost(t.device)
 	destroyAndReleaseNativeHandle(&t.handle, lost,
 		func(h uintptr) { procTextureDestroy.Call(h) }, //nolint:errcheck
@@ -141,7 +142,7 @@ func (t *Texture) Release() {
 	if t == nil {
 		return
 	}
-	vramForget(t.handle)
+	hal.VramForget(t.handle)
 	releaseNativeHandle(&t.handle, isOwnerDeviceLost(t.device), func(h uintptr) {
 		procTextureRelease.Call(h) //nolint:errcheck
 	})
@@ -300,7 +301,7 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 	if sc == 0 {
 		sc = 1
 	}
-	if err := vramCheck("CreateTexture", vramTextureBytes(desc.Size, layers, mipLevelCount, sc, desc.Format)); err != nil {
+	if err := hal.VramCheck("CreateTexture", hal.VramTextureBytes(desc.Size, layers, mipLevelCount, sc, desc.Format)); err != nil {
 		return nil, err
 	}
 	handle, _, _ := procDeviceCreateTexture.Call(
@@ -328,7 +329,7 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 		lab = desc.Label
 	}
 	trackResourceLabel(handle, "Texture", lab)
-	vramAdd(handle, vramTextureBytes(desc.Size, layers, mipLevelCount, sc, desc.Format))
+	hal.VramAdd(handle, hal.VramTextureBytes(desc.Size, layers, mipLevelCount, sc, desc.Format))
 	return &Texture{handle: handle, device: d.handle}, nil
 }
 

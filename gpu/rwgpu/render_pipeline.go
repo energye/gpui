@@ -4,6 +4,7 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -433,7 +434,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
-	if err := vramCheck("CreateRenderPipeline", vramPipelineBytes); err != nil {
+	if err := hal.VramCheck("CreateRenderPipeline", hal.VramPipelineBytes); err != nil {
 		return nil, err
 	}
 	handle, _, _ := procDeviceCreateRenderPipeline.Call(
@@ -456,7 +457,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 		lab = desc.Label
 	}
 	trackResourceLabel(handle, "RenderPipeline", lab)
-	vramAdd(handle, vramPipelineBytes)
+	hal.VramAdd(handle, hal.VramPipelineBytes)
 	return &RenderPipeline{handle: handle, device: d.handle}, nil
 }
 
@@ -522,7 +523,7 @@ func (rp *RenderPipeline) Release() {
 	if rp == nil {
 		return
 	}
-	vramForget(rp.handle)
+	hal.VramForget(rp.handle)
 	releaseNativeHandle(&rp.handle, isOwnerDeviceLost(rp.device), func(h uintptr) {
 		procRenderPipelineRelease.Call(h) //nolint:errcheck
 	})

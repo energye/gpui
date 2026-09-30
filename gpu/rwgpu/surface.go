@@ -3,6 +3,7 @@ package rwgpu
 import (
 	"unsafe"
 
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -151,7 +152,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	// Ledger the presented frame (driver backs Configure with ≥1 surface
 	// image). Re-configure on the same handle refunds the old extent first
 	// (vramAdd replaces stale entries), so resize never double-counts.
-	if err := vramCheck("Surface.Configure", vramSurfaceBytes(config.Width, config.Height, config.Format)); err != nil {
+	if err := hal.VramCheck("Surface.Configure", hal.VramSurfaceBytes(config.Width, config.Height, config.Format)); err != nil {
 		return err
 	}
 
@@ -185,7 +186,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	s.deviceRef = dev
 	// Healthy configure clears abandon so a recovered device can present again.
 	s.abandoned = false
-	vramAdd(s.handle, vramSurfaceBytes(config.Width, config.Height, config.Format))
+	hal.VramAdd(s.handle, hal.VramSurfaceBytes(config.Width, config.Height, config.Format))
 	return nil
 }
 
@@ -202,7 +203,7 @@ func (s *Surface) Unconfigure() {
 	if s == nil || s.handle == 0 {
 		return
 	}
-	vramForget(s.handle)
+	hal.VramForget(s.handle)
 	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
 	if lost {
 		s.abandoned = true
@@ -431,7 +432,7 @@ func (s *Surface) Release() {
 	if s == nil {
 		return
 	}
-	vramForget(s.handle)
+	hal.VramForget(s.handle)
 	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
 	if lost {
 		s.abandoned = true

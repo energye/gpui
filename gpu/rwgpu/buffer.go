@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -138,7 +139,7 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 			desc.Label, desc.Size, float64(desc.Size)/(1024*1024), desc.Usage)
 	}
 	// Process VRAM ledger first (same fail-fast rationale as CreateTexture).
-	if err := vramCheck("CreateBuffer", desc.Size); err != nil {
+	if err := hal.VramCheck("CreateBuffer", desc.Size); err != nil {
 		return nil, err
 	}
 	handle, _, _ := procDeviceCreateBuffer.Call(
@@ -163,7 +164,7 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 		return nil, &WGPUError{Op: "CreateBuffer", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "Buffer")
-	vramAdd(handle, desc.Size)
+	hal.VramAdd(handle, desc.Size)
 	mapState := BufferMapStateUnmapped
 	if desc.MappedAtCreation {
 		mapState = BufferMapStateMapped
@@ -254,7 +255,7 @@ func (b *Buffer) Destroy() {
 	if b == nil {
 		return
 	}
-	vramForget(b.handle)
+	hal.VramForget(b.handle)
 	lost := b.device != nil && b.device.IsLost()
 	destroyAndReleaseNativeHandle(&b.handle, lost,
 		func(h uintptr) { procBufferDestroy.Call(h) }, //nolint:errcheck
@@ -269,7 +270,7 @@ func (b *Buffer) Release() {
 	if b == nil {
 		return
 	}
-	vramForget(b.handle)
+	hal.VramForget(b.handle)
 	lost := b.device != nil && b.device.IsLost()
 	releaseNativeHandle(&b.handle, lost, func(h uintptr) {
 		procBufferRelease.Call(h) //nolint:errcheck

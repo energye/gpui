@@ -41,6 +41,9 @@ func (b *Buffer) Label() string { return b.label }
 
 // Destroy releases the buffer.
 func (b *Buffer) Destroy() {
+	if b.id != 0 {
+		hal.VramForget(b.NativeHandle())
+	}
 	if b.id != 0 && b.glCtx != nil {
 		b.glCtx.DeleteBuffers(b.id)
 		b.id = 0
@@ -73,6 +76,7 @@ func (t *Texture) Format() gputypes.TextureFormat { return t.format }
 
 // Destroy releases the texture and any associated framebuffer object.
 func (t *Texture) Destroy() {
+	hal.VramForget(t.NativeHandle())
 	if t.glCtx != nil {
 		if t.fbo != 0 {
 			t.glCtx.DeleteFramebuffers(t.fbo)
