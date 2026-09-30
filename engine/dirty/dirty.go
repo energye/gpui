@@ -8,20 +8,9 @@
 //
 //----------------------------------------
 
-// Dynamic dirty tracker.
-//
-// Frozen 2026-09-15: MaxDirtyRects,
-// DirtyStats, DirtyTracker, NewDirtyTracker, NewSpriteDirtyTracker,
-// DirtyForMove. Additive changes only.
-//
-// Game-side twin of ui/scene DirtyLayer: pure core numbers, no render
-// import. The loop marks each moved sprite's old-plus-new union, leaves
-// still sprites unmarked so the sprite layer updates independently, and
-// falls back to a full repaint when more than MaxDirtyRects boxes gather
-// in one frame (same len > 16 rule as render Scene and ui/scene). Boxes
-// are clipped to the tracker bounds; empty and non-finite inputs are
-// ignored quietly. A nil *DirtyTracker never panics.
-package step
+// Dynamic dirty tracker: one repaint unit over core.Rect bounds.
+// Package doc, frozen list, and twin-layer rule live in doc.go.
+package dirty
 
 import (
 	"math"

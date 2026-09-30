@@ -45,6 +45,7 @@ import (
 
 	"github.com/energye/gpui/engine/anim"
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/examples/wrsoak"
@@ -452,12 +453,12 @@ func runLogicProbes(skel *anim.Skeleton) (map[string]any, bool) {
 	// Boundary crossings stay lossless both ways.
 	boundaryOK := true
 	v := core.V2(12.5, -7.25)
-	if back := core.Vec2FromRenderPoint(v.ToRenderPoint()); back != v {
+	if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(v)); back != v {
 		boundaryOK = false
 	}
 	if m, err := setup.WorldTransform("shinL"); err != nil {
 		boundaryOK = false
-	} else if back := core.Mat2DFromRenderMatrix(m.ToRenderMatrix()); back != m {
+	} else if back := renderconv.Mat2DFromRenderMatrix(renderconv.Mat2DToRenderMatrix(m)); back != m {
 		boundaryOK = false
 	}
 	out["boundary_ok"] = boundaryOK

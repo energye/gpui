@@ -36,9 +36,10 @@ import (
 
 	"github.com/energye/gpui/engine/camera"
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/dirty"
 	"github.com/energye/gpui/engine/particle"
+	"github.com/energye/gpui/engine/renderconv"
 	"github.com/energye/gpui/engine/sprite"
-	"github.com/energye/gpui/engine/step"
 	"github.com/energye/gpui/engine/tilemap"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
@@ -245,7 +246,7 @@ func probeLogic() (camOK, chunkOK, sortOK, trailOK, dirtyOK, poolOK bool, detail
 
 	// 8.3 dirty: single move keeps one union, burst falls back to full.
 	bounds := core.NewRect(0, 0, worldW, worldH)
-	dt, err := step.NewSpriteDirtyTracker(bounds)
+	dt, err := dirty.NewSpriteDirtyTracker(bounds)
 	if err != nil {
 		return camOK, chunkOK, sortOK, trailOK, false, false, "dirty build: " + err.Error()
 	}
@@ -256,7 +257,7 @@ func probeLogic() (camOK, chunkOK, sortOK, trailOK, dirtyOK, poolOK bool, detail
 		return camOK, chunkOK, sortOK, trailOK, false, false, "dirty single move wrong"
 	}
 	dt.Clear()
-	dt2, _ := step.NewSpriteDirtyTracker(bounds)
+	dt2, _ := dirty.NewSpriteDirtyTracker(bounds)
 	for i := 0; i < 17; i++ {
 		x := float64(i * 40)
 		dt2.MarkMoved(core.NewRect(x, 10, 16, 16), core.NewRect(x+8, 10, 16, 16))
@@ -591,7 +592,7 @@ type chaseSim struct {
 	chunk   tilemap.Chunk
 	trail   *particle.Trail
 	pool    *particle.GPUPool
-	tracker *step.DirtyTracker
+	tracker *dirty.DirtyTracker
 	layer   *scene.DirtyLayer
 	props   []prop
 	atlas   *render.ImageBuf
@@ -934,7 +935,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: pool spawn:", err)
 		os.Exit(1)
 	}
-	tracker, err := step.NewSpriteDirtyTracker(core.NewRect(0, 0, worldW, worldH))
+	tracker, err := dirty.NewSpriteDirtyTracker(core.NewRect(0, 0, worldW, worldH))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: tracker:", err)
 		os.Exit(1)
@@ -1361,7 +1362,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 			if err != nil || c.A <= 0.01 {
 				continue
 			}
-			rc := c.ToRender()
+			rc := renderconv.ColorToRender(c)
 			items = append(items, chaseDrawItem{depth: -2e9, feet: 2e9, rs: render.AtlasSprite{
 				SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 				DstX: ax + sc.X - w/2, DstY: ay + sc.Y - w/2, DstW: w, DstH: w,
@@ -1386,7 +1387,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 			if c.A <= 0.01 {
 				continue
 			}
-			rc := c.ToRender()
+			rc := renderconv.ColorToRender(c)
 			items = append(items, chaseDrawItem{depth: -3e9, feet: 3e9, rs: render.AtlasSprite{
 				SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 				DstX: ax + sc.X - 3, DstY: ay + sc.Y - 3, DstW: 6, DstH: 6,

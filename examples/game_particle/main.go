@@ -31,6 +31,7 @@ import (
 
 	"github.com/energye/gpui/engine/core"
 	"github.com/energye/gpui/engine/particle"
+	"github.com/energye/gpui/engine/renderconv"
 	"github.com/energye/gpui/engine/sprite"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
@@ -488,7 +489,7 @@ func particlesToAtlas(e *particle.Emitter, size, ox, oy float64) []render.AtlasS
 		out = append(out, render.AtlasSprite{
 			SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 			DstX: ox + p.Pos.X - size/2, DstY: oy + p.Pos.Y - size/2, DstW: size, DstH: size,
-			Opacity: c.A, Tint: c.ToRender(), Filter: render.InterpNearest,
+			Opacity: c.A, Tint: renderconv.ColorToRender(c), Filter: render.InterpNearest,
 		})
 	}
 	return out

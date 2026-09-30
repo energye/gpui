@@ -8,7 +8,7 @@
 //
 //----------------------------------------
 
-package step
+package pool
 
 import (
 	"sync"

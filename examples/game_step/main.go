@@ -2,7 +2,7 @@
 //
 // Chase scene: retained static blocks (never dirtied, boundary replay) plus
 // one chase car whose old+new union alone is dirtied every frame through the
-// real engine/step DirtyTracker and ui/scene DirtyLayer. Burst full-motion
+// real engine/dirty DirtyTracker and ui/scene DirtyLayer. Burst full-motion
 // frames fall back to full repaint and raise the cyan对照条.
 //
 // Modes:
@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
-	"github.com/energye/gpui/engine/step"
+	"github.com/energye/gpui/engine/dirty"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
@@ -112,7 +112,7 @@ func srect(r core.Rect) scene.DirtyRect {
 // 17+ boxes fall back to full, stats account frames.
 func probeLogic() (rects int, full, staticClean, statsOK, maxOK bool, detail string) {
 	bounds := core.NewRect(0, 0, 800, 600)
-	tr, err := step.NewSpriteDirtyTracker(bounds)
+	tr, err := dirty.NewSpriteDirtyTracker(bounds)
 	if err != nil {
 		return 0, false, false, false, false, "tracker build: " + err.Error()
 	}
@@ -136,7 +136,7 @@ func probeLogic() (rects int, full, staticClean, statsOK, maxOK bool, detail str
 	rects = tr.DirtyCount()
 	full = tr.NeedsFull()
 	got := tr.DirtyRects()
-	want, _ := step.DirtyForMove(from, to)
+	want, _ := dirty.DirtyForMove(from, to)
 	rectsOK := !full && rects == 1 && sl.DirtyCount() == 1 && !sl.NeedsFull() &&
 		len(got) == 1 && got[0] == want &&
 		sl.DirtyRects()[0] == srect(want)
@@ -146,7 +146,7 @@ func probeLogic() (rects int, full, staticClean, statsOK, maxOK bool, detail str
 	}
 
 	// Burst: 17 distinct moves in one frame must fall back to full.
-	tr2, _ := step.NewSpriteDirtyTracker(bounds)
+	tr2, _ := dirty.NewSpriteDirtyTracker(bounds)
 	sl2, _ := scene.NewSpriteDirtyLayer(0, 0, 800, 600)
 	for i := 0; i < 17; i++ {
 		x := float64(i * 40)
@@ -157,7 +157,7 @@ func probeLogic() (rects int, full, staticClean, statsOK, maxOK bool, detail str
 		sl2.NeedsFull() && sl2.DirtyRects() == nil
 
 	// Stats: 3 frames x 1 move each account exactly.
-	tr3, _ := step.NewSpriteDirtyTracker(bounds)
+	tr3, _ := dirty.NewSpriteDirtyTracker(bounds)
 	for f := 0; f < 3; f++ {
 		x := 100.0 + float64(f*8)
 		tr3.MarkMoved(core.NewRect(x, 200, carW, carH), core.NewRect(x+8, 200, carW, carH))
@@ -166,7 +166,7 @@ func probeLogic() (rects int, full, staticClean, statsOK, maxOK bool, detail str
 	ts := tr3.Stats()
 	statsOK = ts.Frames == 3 && ts.TotalRects == 3 && ts.FullFallbacks == 0 && ts.MaxRects == 1
 
-	maxOK = step.MaxDirtyRects == 16 && scene.MaxDirtyRects == 16 && walkN == 3
+	maxOK = dirty.MaxDirtyRects == 16 && scene.MaxDirtyRects == 16 && walkN == 3
 	detail = fmt.Sprintf("rects=%d full=%v static_clean=%v stats=%+v walk=%d", rects, full, staticClean, ts, walkN)
 	return rects, full, staticClean, statsOK, maxOK, detail
 }
@@ -291,7 +291,7 @@ func runProbes() probeResult {
 	p.RectsOK = rects == 1
 	// Cross-check the burst twin once more on a fresh tracker for the verdict.
 	bounds := core.NewRect(0, 0, 800, 600)
-	tr, _ := step.NewSpriteDirtyTracker(bounds)
+	tr, _ := dirty.NewSpriteDirtyTracker(bounds)
 	for i := 0; i < 17; i++ {
 		x := float64(i * 40)
 		tr.MarkMoved(core.NewRect(x, 10, 16, 16), core.NewRect(x+8, 10, 16, 16))
@@ -310,7 +310,7 @@ func runProbes() probeResult {
 // chaseSim is the live window state: real tracker + real layer advance the
 // car every frame, and the overlay strokes exactly the kept dirty rects.
 type chaseSim struct {
-	tracker *step.DirtyTracker
+	tracker *dirty.DirtyTracker
 	layer   *scene.DirtyLayer
 	app     *embedder.PipelineApp
 	shell   *wrkit.ShellChrome
@@ -499,7 +499,7 @@ func main() {
 	sceneRoot.Add(spriteLayer)
 	_ = sceneRoot
 
-	tracker, _ := step.NewSpriteDirtyTracker(core.NewRect(0, 0, runW, runH))
+	tracker, _ := dirty.NewSpriteDirtyTracker(core.NewRect(0, 0, runW, runH))
 
 	sim := &chaseSim{
 		tracker: tracker,

@@ -23,6 +23,7 @@ import (
 
 	"github.com/energye/gpui/engine/core"
 	"github.com/energye/gpui/engine/particle"
+	"github.com/energye/gpui/engine/renderconv"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
@@ -119,7 +120,7 @@ func paintEffectFrame(dc *render.Context, eff Effect) {
 		if y > offH-6 {
 			y = offH - 6
 		}
-		cr, cg, cb, _ := c.ToRender().RGBA()
+		cr, cg, cb, _ := renderconv.ColorToRender(c).RGBA()
 		dc.SetRGB(float64(cr)/255.0, float64(cg)/255.0, float64(cb)/255.0)
 		dc.DrawRectangle(x, y, 4, 4)
 		_ = dc.Fill()
@@ -376,7 +377,7 @@ func paintLiveCard(pc *rendering.PaintContext, w, h float64, e *particle.Emitter
 		rs = append(rs, render.AtlasSprite{
 			SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8,
 			DstX: x - size/2, DstY: y - size/2, DstW: size, DstH: size,
-			Opacity: c.A, Tint: c.ToRender(), Filter: render.InterpNearest,
+			Opacity: c.A, Tint: renderconv.ColorToRender(c), Filter: render.InterpNearest,
 		})
 	}
 	_, _ = pc.DC.DrawAtlasEx(atlasBuf, rs, render.AtlasDrawOptions{})

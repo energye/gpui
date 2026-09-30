@@ -8,12 +8,9 @@
 //
 //----------------------------------------
 
-// Package step freezes the CPU-side step helpers every 2.5D loop feeds.
-//
-// Frozen 2026-09-15: Pool, NewPool, Stats,
-// GetVec, PutVec, GetColor, PutColor, GetFloat, PutFloat,
-// RetainedBytes, HitRate, ResetStats, MaxLen, MaxRetained, VecBytes,
-// ColorBytes, FloatBytes. Additive changes only.
+// Package step freezes the CPU-side fixed-step plus layered time every
+// 2.5D loop feeds. Pool lives in engine/pool and dirty tracking in
+// engine/dirty since 2026-09-30 (E03).
 //
 // Frozen 2026-09-15: Fixed, NewFixed,
 // Dt, Steps, Elapsed, Accum, Alpha, Advance, Reset, Interp, InterpFloat,
