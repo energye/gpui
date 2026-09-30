@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsChunk = 1e-9
@@ -394,7 +395,7 @@ func TestChunkBoundaryIdentical(t *testing.T) {
 		if !ok {
 			t.Fatalf("chunk (%d,%d) ok=false", k.CX, k.CY)
 		}
-		if back := core.Vec2FromRenderPoint(core.V2(got.X, got.Y).ToRenderPoint()); back != (core.Vec2{X: got.X, Y: got.Y}) {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(core.V2(got.X, got.Y))); back != (core.Vec2{X: got.X, Y: got.Y}) {
 			t.Errorf("chunk (%d,%d) origin boundary = %v, want (%v,%v)", k.CX, k.CY, back, got.X, got.Y)
 		}
 	}

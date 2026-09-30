@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsTilemap = 1e-9
@@ -499,7 +500,7 @@ func TestTilemapBoundaryIdentical(t *testing.T) {
 		if !ok {
 			t.Fatalf("cell (%d,%d) ok=false", k.Col, k.Row)
 		}
-		if back := core.Vec2FromRenderPoint(got.ToRenderPoint()); back != got {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(got)); back != got {
 			t.Errorf("cell (%d,%d) boundary = %v, want %v", k.Col, k.Row, back, got)
 		}
 		// Round trip closes: world -> cell -> world.
@@ -519,7 +520,7 @@ func TestTilemapBoundaryIdentical(t *testing.T) {
 		if !ok {
 			t.Fatalf("iso center (%d,%d) ok=false", k.Col, k.Row)
 		}
-		if back := core.Vec2FromRenderPoint(c.ToRenderPoint()); back != c {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(c)); back != c {
 			t.Errorf("iso boundary (%d,%d) = %v, want %v", k.Col, k.Row, back, c)
 		}
 		gc, gr, ok := iso.WorldToTile(c)

@@ -23,7 +23,7 @@
 // together): the caller feeds each real frame into Advance, runs the
 // returned number of fixed logic ticks, then blends the last two logic
 // states with Alpha for the picture. Only core numbers are used; the
-// caller converts once at the render boundary with Vec2.ToRenderPoint.
+// caller converts once at the render boundary in engine/renderconv.
 // No Vec2, Color, or AssetID is redefined here.
 //
 // Frozen 2026-09-15: Clock, NewClock,

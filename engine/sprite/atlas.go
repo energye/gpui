@@ -14,6 +14,7 @@ import (
 	"math"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 	"github.com/energye/gpui/render"
 )
 
@@ -226,7 +227,7 @@ func (s AtlasSprite) ToRender() (render.AtlasSprite, error) {
 		DstX: s.Dst.X, DstY: s.Dst.Y, DstW: s.Dst.W, DstH: s.Dst.H,
 		Opacity: s.Opacity, Rot: s.Rot, FlipX: s.FlipX, FlipY: s.FlipY,
 		PivotX: s.Pivot.X, PivotY: s.Pivot.Y,
-		Tint:   s.Tint.ToRender(),
+		Tint:   renderconv.ColorToRender(s.Tint),
 		Filter: filt,
 	}, nil
 }

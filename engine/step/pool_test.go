@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 type poolLimits struct {
@@ -144,7 +145,7 @@ func TestPoolReuseFromCases(t *testing.T) {
 		checkVec(t, "vec", b, f.Samples.Vecs)
 		// Boundary still draws the same numbers after reuse.
 		for i, v := range b {
-			if back := core.Vec2FromRenderPoint(v.ToRenderPoint()); back != v {
+			if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(v)); back != v {
 				t.Fatalf("vec boundary[%d] = %v, want %v", i, back, v)
 			}
 		}
@@ -168,7 +169,7 @@ func TestPoolReuseFromCases(t *testing.T) {
 		fillColor(b, f.Samples.Colors)
 		checkColor(t, "color", b, f.Samples.Colors)
 		for i, c := range b {
-			if back := core.ColorFromRender(c.ToRender()); back != c {
+			if back := renderconv.ColorFromRender(renderconv.ColorToRender(c)); back != c {
 				t.Fatalf("color boundary[%d] = %v, want %v", i, back, c)
 			}
 		}
@@ -322,13 +323,13 @@ func TestPoolBoundaryIdentical(t *testing.T) {
 	// Every frozen sample crosses to render and back losslessly.
 	for i, s := range f.Samples.Vecs {
 		v := core.V2(s[0], s[1])
-		if back := core.Vec2FromRenderPoint(v.ToRenderPoint()); back != v {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(v)); back != v {
 			t.Fatalf("vec sample[%d] boundary = %v, want %v", i, back, v)
 		}
 	}
 	for i, s := range f.Samples.Colors {
 		c := core.Color{R: s[0], G: s[1], B: s[2], A: s[3]}
-		if back := core.ColorFromRender(c.ToRender()); back != c {
+		if back := renderconv.ColorFromRender(renderconv.ColorToRender(c)); back != c {
 			t.Fatalf("color sample[%d] boundary = %v, want %v", i, back, c)
 		}
 	}

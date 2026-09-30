@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsProject = 1e-9
@@ -260,7 +261,7 @@ func TestProjectBoundaryIdentical(t *testing.T) {
 		t.Fatal("quad ok=false")
 	}
 	for i, s := range screens {
-		back := core.Vec2FromRenderPoint(s.ToRenderPoint())
+		back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(s))
 		if back != s {
 			t.Errorf("corner[%d] boundary round trip = %v, want %v", i, back, s)
 		}

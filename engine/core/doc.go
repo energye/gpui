@@ -17,7 +17,7 @@
 // Rules for everything under engine/:
 //   - Reuse these types; do not redefine Vec2, Color, or AssetID elsewhere.
 //   - render's types stay untouched; convert once at the render boundary
-//     with the ToRender*/FromRender* helpers.
+//     in engine/renderconv.
 //   - Additive changes only. A breaking change bumps the data Version and
 //     keeps the old call path compiling.
 package core

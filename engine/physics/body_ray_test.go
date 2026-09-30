@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 type rayBodyDef struct {
@@ -372,10 +373,10 @@ func TestRayBoundaryIdentical(t *testing.T) {
 	bm := rayBodyMap(t, f)
 	rm := rayMap(t, f)
 	for name, r := range rm {
-		if back := core.Vec2FromRenderPoint(r.Origin.ToRenderPoint()); back != r.Origin {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(r.Origin)); back != r.Origin {
 			t.Errorf("%s origin boundary = %v, want %v", name, back, r.Origin)
 		}
-		if back := core.Vec2FromRenderPoint(r.Dir.ToRenderPoint()); back != r.Dir {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(r.Dir)); back != r.Dir {
 			t.Errorf("%s dir boundary = %v, want %v", name, back, r.Dir)
 		}
 	}
@@ -383,7 +384,7 @@ func TestRayBoundaryIdentical(t *testing.T) {
 	if err != nil || !hit {
 		t.Fatalf("probe cast: %v/%v", probe, err)
 	}
-	if back := core.Vec2FromRenderPoint(probe.Pos.ToRenderPoint()); back != probe.Pos {
+	if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(probe.Pos)); back != probe.Pos {
 		t.Error("hit pos boundary diverged")
 	}
 	// Same cast replays hit-for-hit.

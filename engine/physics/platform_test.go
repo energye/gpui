@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsPlatform = 1e-9
@@ -440,14 +441,14 @@ func TestPlatformBoundaryIdentical(t *testing.T) {
 	// Render boundary is lossless for every frozen endpoint and foot.
 	for name, s := range m {
 		for _, p := range []core.Vec2{s.A(), s.B()} {
-			if back := core.Vec2FromRenderPoint(p.ToRenderPoint()); back != p {
+			if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(p)); back != p {
 				t.Errorf("%s boundary = %v, want %v", name, back, p)
 			}
 		}
 	}
 	for _, g := range f.Grounded {
 		feet := core.V2(g.Feet[0], g.Feet[1])
-		if back := core.Vec2FromRenderPoint(feet.ToRenderPoint()); back != feet {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(feet)); back != feet {
 			t.Errorf("feet %v boundary diverged", g.Feet)
 		}
 	}

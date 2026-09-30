@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsMachine = 1e-9
@@ -303,11 +304,11 @@ func TestStateMachineBoundaryIdentical(t *testing.T) {
 	}
 	// Boundary crossings are lossless both ways.
 	v := core.V2(12.5, -7.25)
-	if back := core.Vec2FromRenderPoint(v.ToRenderPoint()); back != v {
+	if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(v)); back != v {
 		t.Errorf("Vec2 boundary round trip = %+v, want %+v", back, v)
 	}
 	mm := core.Mat2D{A: 1, B: 2, C: 3, D: 4, E: 5, F: 6}
-	if back := core.Mat2DFromRenderMatrix(mm.ToRenderMatrix()); back != mm {
+	if back := renderconv.Mat2DFromRenderMatrix(renderconv.Mat2DToRenderMatrix(mm)); back != mm {
 		t.Errorf("Mat2D boundary round trip = %+v, want %+v", back, mm)
 	}
 }

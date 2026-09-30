@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 type bodyDef struct {
@@ -347,11 +348,11 @@ func TestBodyBoundaryIdentical(t *testing.T) {
 	m := bodyMap(t, f)
 	// Render boundary is lossless for every frozen center.
 	for name, b := range m {
-		if back := core.Vec2FromRenderPoint(b.Pos.ToRenderPoint()); back != b.Pos {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(b.Pos)); back != b.Pos {
 			t.Errorf("%s boundary = %v, want %v", name, back, b.Pos)
 		}
 		if r, ok := Bounds(b); ok {
-			if back := core.Vec2FromRenderPoint(r.Center().ToRenderPoint()); back != r.Center() {
+			if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(r.Center())); back != r.Center() {
 				t.Errorf("%s bounds center boundary diverged", name)
 			}
 		} else {

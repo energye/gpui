@@ -18,7 +18,7 @@ import (
 
 // Projector maps world positions plus depth to screen positions.
 // Only core numbers are used; render types are converted once by the
-// caller at the render boundary with Vec2.ToRenderPoint.
+// caller at the render boundary in engine/renderconv.
 type Projector struct {
 	focal  float64
 	center core.Vec2
@@ -93,7 +93,7 @@ func (p Projector) Project(world core.Vec2, depth float64) (screen core.Vec2, sc
 
 // ProjectQuad maps four corners plus per-corner depths to four screen
 // corners. The result feeds render.DrawImageQuad corner for corner after
-// one ToRenderPoint each. Any undrawable corner fails the whole quad
+// one renderconv conversion each. Any undrawable corner fails the whole quad
 // (ok=false) so the caller never draws half a trapezoid.
 func (p Projector) ProjectQuad(corners [4]core.Vec2, depths [4]float64) (screens [4]core.Vec2, scales [4]float64, ok bool) {
 	for i := 0; i < 4; i++ {

@@ -12,14 +12,12 @@ package core
 
 import (
 	"math"
-
-	"github.com/energye/gpui/render"
 )
 
 // Color stores straight-alpha color with float64 components in [0, 1].
-// It mirrors render.RGBA field for field but stays a separate type so game
-// code (tints, lights, LUTs) never depends on render internals. Convert once
-// at the render boundary with ToRender/ColorFromRender.
+// It mirrors the render RGBA type field for field but stays a separate type
+// so game code (tints, lights, LUTs) never depends on render internals.
+// Convert once at the render boundary in engine/renderconv.
 type Color struct {
 	R, G, B, A float64
 }
@@ -59,8 +57,8 @@ func (c Color) Clamped() Color {
 }
 
 // ToBytes returns 8-bit straight-alpha channels (clamped, rounded).
-// render truncates instead, so edge values may differ by 1 by design;
-// float path ToRender carries the exact value across the boundary.
+// The render path truncates instead, so edge values may differ by 1 by design;
+// the float path through engine/renderconv carries the exact value.
 func (c Color) ToBytes() (r, g, b, a uint8) {
 	c = c.Clamped()
 	return uint8(math.Round(c.R * 255)),
@@ -77,16 +75,6 @@ func ColorFromBytes(r, g, b, a uint8) Color {
 		B: float64(b) / 255,
 		A: float64(a) / 255,
 	}
-}
-
-// ToRender converts to render.RGBA at the render boundary.
-func (c Color) ToRender() render.RGBA {
-	return render.RGBA{R: c.R, G: c.G, B: c.B, A: c.A}
-}
-
-// ColorFromRender converts a render.RGBA back to game units.
-func ColorFromRender(rc render.RGBA) Color {
-	return Color{R: rc.R, G: rc.G, B: rc.B, A: rc.A}
 }
 
 // Lerp interpolates: t=0 returns c, t=1 returns o.

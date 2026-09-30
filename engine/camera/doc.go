@@ -44,7 +44,7 @@ package camera
 // box (empty disables), Smoothing Follow factor (0 snaps, (0,1] eases),
 // Anchor screen fraction ((0,0) top-left, (0.5,0.5) centered), Viewport
 // screen size. Only core numbers are used; render types convert once at
-// the boundary with Mat2D.ToRenderMatrix.
+// the boundary in engine/renderconv.
 //
 // Math:
 //

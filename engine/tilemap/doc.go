@@ -29,7 +29,7 @@
 //
 // The package draws nothing; the caller draws the returned cells and
 // objects in order with the existing render draws. Only core numbers are
-// used; render types convert once at the boundary with Vec2.ToRenderPoint.
+// used; render types convert once at the render boundary in engine/renderconv.
 //
 // Grid (orthogonal): cell (col,row) top-left is (col*TileW, row*TileH).
 // Grid (isometric,斜45度): cell bounding-box top-left is

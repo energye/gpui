@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/gpu"
 )
@@ -278,7 +279,7 @@ func TestAtlasAnglesFiltersFromCases(t *testing.T) {
 			if rs.PivotX != d.Pivot[0] || rs.PivotY != d.Pivot[1] {
 				t.Errorf("%s[%d]: render pivot = %v,%v, want %v", name, i, rs.PivotX, rs.PivotY, d.Pivot)
 			}
-			if rs.Tint != core.RGBA(d.Tint[0], d.Tint[1], d.Tint[2], d.Tint[3]).ToRender() {
+			if rs.Tint != renderconv.ColorToRender(core.RGBA(d.Tint[0], d.Tint[1], d.Tint[2], d.Tint[3])) {
 				t.Errorf("%s[%d]: render tint = %v, want %v", name, i, rs.Tint, d.Tint)
 			}
 			wantMode, err := wantFilt.ToRender()

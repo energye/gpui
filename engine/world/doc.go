@@ -20,8 +20,7 @@
 // The caller spawns entities, hangs capabilities (sprite, collider,
 // script) as comps, links parents, then reads world transforms and feeds
 // them to the existing render draws. Only core numbers are used; render
-// types convert once at the boundary with Vec2.ToRenderPoint and
-// Mat2D.ToRenderMatrix. No Vec2, Color, or AssetID is redefined here.
+// types convert once at the render boundary in engine/renderconv. No Vec2, Color, or AssetID is redefined here.
 //
 // Identity: IDs start at 1 and never repeat inside one World; NoEntity
 // (0) means no parent and never names a live entity. Spawned counts every

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsCamera = 1e-9
@@ -333,7 +334,7 @@ func TestCameraBoundaryIdentical(t *testing.T) {
 	cases := loadCameraCases(t)
 	for _, v := range cases.Views {
 		cam := cameraFromView(t, v)
-		back := core.Mat2DFromRenderMatrix(cam.View().ToRenderMatrix())
+		back := renderconv.Mat2DFromRenderMatrix(renderconv.Mat2DToRenderMatrix(cam.View()))
 		if back != cam.View() {
 			t.Errorf("%s: matrix boundary round trip diverged", v.Name)
 		}

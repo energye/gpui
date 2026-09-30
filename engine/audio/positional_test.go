@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsPositional = 1e-9
@@ -303,10 +304,10 @@ func TestPositionalBoundaryIdentical(t *testing.T) {
 		s := mustNewSound(t, c)
 		lis := core.V2(c.Listener[0], c.Listener[1])
 		// Render boundary is lossless for both ends.
-		if back := core.Vec2FromRenderPoint(s.Pos.ToRenderPoint()); back != s.Pos {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(s.Pos)); back != s.Pos {
 			t.Errorf("%s: pos boundary = %v, want %v", c.Name, back, s.Pos)
 		}
-		if back := core.Vec2FromRenderPoint(lis.ToRenderPoint()); back != lis {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(lis)); back != lis {
 			t.Errorf("%s: listener boundary = %v, want %v", c.Name, back, lis)
 		}
 		a, oka := s.Mix(lis)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsParallax = 1e-9
@@ -290,7 +291,7 @@ func TestParallaxBoundaryIdentical(t *testing.T) {
 		if a != b {
 			t.Fatalf("replay diverged: %v vs %v", a, b)
 		}
-		if back := core.Vec2FromRenderPoint(a.ToRenderPoint()); back != a {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(a)); back != a {
 			t.Fatalf("boundary round trip = %v, want %v", back, a)
 		}
 		shifted, ok := l.Shift(world, cam)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsEntity = 1e-9
@@ -385,11 +386,11 @@ func TestEntityBoundaryIdentical(t *testing.T) {
 	// Boundary round-trips through core helpers only (no render import
 	// here): game hands these exact values to the draw side.
 	v := core.V2(15, 27)
-	if core.Vec2FromRenderPoint(v.ToRenderPoint()) != v {
+	if renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(v)) != v {
 		t.Error("Vec2 boundary round-trip moved the point")
 	}
 	m, _ := a.WorldMatrix(am[f.Chains[0].Name]["grand"])
-	if core.Mat2DFromRenderMatrix(m.ToRenderMatrix()) != m {
+	if renderconv.Mat2DFromRenderMatrix(renderconv.Mat2DToRenderMatrix(m)) != m {
 		t.Error("Mat2D boundary round-trip moved the matrix")
 	}
 	// Comps read back a private copy: mutating it never touches the store.

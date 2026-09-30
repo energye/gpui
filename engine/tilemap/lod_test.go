@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsLOD = 1e-9
@@ -251,12 +252,12 @@ func TestLODBoundaryIdentical(t *testing.T) {
 	// Render boundary keeps every frozen focus and box origin lossless.
 	for _, k := range f.Dist {
 		focus := lodVec(k.Focus)
-		if back := core.Vec2FromRenderPoint(focus.ToRenderPoint()); back != focus {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(focus)); back != focus {
 			t.Fatalf("focus %v boundary = %v", k.Focus, back)
 		}
 		box := chunkRect(k.Rect)
 		origin := core.V2(box.X, box.Y)
-		if back := core.Vec2FromRenderPoint(origin.ToRenderPoint()); back != origin {
+		if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(origin)); back != origin {
 			t.Fatalf("rect %v origin boundary = %v", k.Rect, back)
 		}
 		// Same inputs twice give the same distance and level.

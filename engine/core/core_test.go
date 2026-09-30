@@ -723,29 +723,6 @@ func TestResultCodes(t *testing.T) {
 	}
 }
 
-// Step 3 (wiring): core<->render boundary converts losslessly.
-// C (GPU vs CPU pixels) does not apply: core draws nothing.
-func TestBoundaryRenderRoundTrip(t *testing.T) {
-	vs := []Vec2{{1.5, -2.25}, {0, 0}, {-1e6, 1e6}}
-	for i, v := range vs {
-		if got := Vec2FromRenderPoint(v.ToRenderPoint()); got != v {
-			t.Errorf("vec[%d] round trip = %v, want %v", i, got, v)
-		}
-	}
-	cs := []Color{{0.1, 0.2, 0.3, 0.4}, Black, White, Transparent}
-	for i, col := range cs {
-		if got := ColorFromRender(col.ToRender()); got != col {
-			t.Errorf("color[%d] round trip = %v, want %v", i, got, col)
-		}
-	}
-	ms := []Mat2D{Identity2D(), Translate2D(3, -4), Scale2D(2, 0.5), Rotate2D(0.7)}
-	for i, m := range ms {
-		if got := Mat2DFromRenderMatrix(m.ToRenderMatrix()); got != m {
-			t.Errorf("mat[%d] round trip = %v, want %v", i, got, m)
-		}
-	}
-}
-
 // B: empty/zero/huge/singular inputs never panic, NaN, or hang.
 func TestEdgeNoCrash(t *testing.T) {
 	if got := (Vec2{}).Normalize(); got != (Vec2{}) {

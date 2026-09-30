@@ -12,13 +12,11 @@ package core
 
 import (
 	"math"
-
-	"github.com/energye/gpui/render"
 )
 
-// Vec2 is a 2D vector in game units. It mirrors render.Vec2/render.Point
+// Vec2 is a 2D vector in game units. It mirrors render point types
 // field for field but stays a separate type so game math never depends on
-// render internals. Convert once at the render boundary.
+// render internals. Convert once at the render boundary in engine/renderconv.
 type Vec2 struct {
 	X, Y float64
 }
@@ -89,12 +87,6 @@ func (v Vec2) IsZero() bool { return v.X == 0 && v.Y == 0 }
 func (v Vec2) ApproxEqual(w Vec2, eps float64) bool {
 	return math.Abs(v.X-w.X) < eps && math.Abs(v.Y-w.Y) < eps
 }
-
-// ToRenderPoint converts to render.Point at the render boundary.
-func (v Vec2) ToRenderPoint() render.Point { return render.Point{X: v.X, Y: v.Y} }
-
-// Vec2FromRenderPoint converts a render.Point back to game units.
-func Vec2FromRenderPoint(p render.Point) Vec2 { return Vec2{X: p.X, Y: p.Y} }
 
 // Rect is an axis-aligned box: origin (X,Y) plus size (W,H).
 type Rect struct {
@@ -181,8 +173,8 @@ func (r Rect) Inset(dx, dy float64) Rect {
 //	x' = A*x + B*y + C
 //	y' = D*x + E*y + F
 //
-// Same layout as render.Matrix but an independent type: game code composes
-// camera/parallax math here, then converts once at the render boundary.
+// Same layout as the render matrix but an independent type: game code composes
+// camera/parallax math here, then converts once in engine/renderconv.
 // Perspective stays out.
 type Mat2D struct {
 	A, B, C float64
@@ -225,7 +217,7 @@ func (m Mat2D) TransformPoint(p Vec2) Vec2 {
 }
 
 // Invert returns the inverse matrix, or false for a singular matrix.
-// Singular stays an error here; render.Matrix.Invert falls back to identity.
+// Singular stays an error here; the render matrix Invert falls back to identity.
 // Exact det==0 keeps replay stable across machines.
 func (m Mat2D) Invert() (Mat2D, bool) {
 	det := m.A*m.E - m.B*m.D
@@ -254,14 +246,4 @@ func (m Mat2D) ApproxEqual(n Mat2D, eps float64) bool {
 	return math.Abs(m.A-n.A) < eps && math.Abs(m.B-n.B) < eps &&
 		math.Abs(m.C-n.C) < eps && math.Abs(m.D-n.D) < eps &&
 		math.Abs(m.E-n.E) < eps && math.Abs(m.F-n.F) < eps
-}
-
-// ToRenderMatrix converts to render.Matrix at the render boundary.
-func (m Mat2D) ToRenderMatrix() render.Matrix {
-	return render.Matrix{A: m.A, B: m.B, C: m.C, D: m.D, E: m.E, F: m.F}
-}
-
-// Mat2DFromRenderMatrix converts a render.Matrix back to game units.
-func Mat2DFromRenderMatrix(m render.Matrix) Mat2D {
-	return Mat2D{A: m.A, B: m.B, C: m.C, D: m.D, E: m.E, F: m.F}
 }

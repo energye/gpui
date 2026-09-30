@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 )
 
 const epsSkeleton = 1e-9
@@ -546,15 +547,15 @@ func TestSkeletonBoundaryIdentical(t *testing.T) {
 	}
 	// Boundary crossings are lossless both ways.
 	v := core.V2(12.5, -7.25)
-	if back := core.Vec2FromRenderPoint(v.ToRenderPoint()); back != v {
+	if back := renderconv.Vec2FromRenderPoint(renderconv.Vec2ToRenderPoint(v)); back != v {
 		t.Errorf("Vec2 boundary round trip = %+v, want %+v", back, v)
 	}
 	m, _ := p.WorldTransform("upper")
-	if back := core.Mat2DFromRenderMatrix(m.ToRenderMatrix()); back != m {
+	if back := renderconv.Mat2DFromRenderMatrix(renderconv.Mat2DToRenderMatrix(m)); back != m {
 		t.Errorf("Mat2D boundary round trip = %+v, want %+v", back, m)
 	}
 	c0 := core.RGBA(0.2, 0.4, 0.6, 0.8)
-	if back := core.ColorFromRender(c0.ToRender()); back != c0 {
+	if back := renderconv.ColorFromRender(renderconv.ColorToRender(c0)); back != c0 {
 		t.Errorf("Color boundary round trip = %+v, want %+v", back, c0)
 	}
 }

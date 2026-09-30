@@ -34,8 +34,8 @@
 // plus two-bone analytic with bend and mix) and transform constraints
 // (mix rotate/translate/scale/shear). Pose holds per-bone local
 // will drive. Only core numbers are used (Vec2, Mat2D, Color,
-// AssetID, Version); render types are reached through the core
-// ToRender helpers at the boundary, never imported here.
+// AssetID, Version); render types are reached through engine/renderconv
+// at the boundary, never imported here.
 //
 // What is reserved: physics inertia (JSON "physics" plus ApplyPhysics)
 // and path constraints plus linkedmesh/boundingbox/path/point/clipping
