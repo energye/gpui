@@ -44,8 +44,8 @@ type Samples struct{}
 type Util struct{}
 
 var (
-	fAvAc3ParseHeader                         func(buf unsafe.Pointer, size uintptr, bitstream_id unsafe.Pointer, frame_size unsafe.Pointer) unsafe.Pointer
-	fAvAdtsHeaderParse                        func(buf unsafe.Pointer, samples unsafe.Pointer, frames unsafe.Pointer) unsafe.Pointer
+	fAvAc3ParseHeader                         func(buf unsafe.Pointer, size uintptr, bitstream_id *uint8, frame_size *uint16) int32
+	fAvAdtsHeaderParse                        func(buf unsafe.Pointer, samples *uint32, frames *uint8) int32
 	fAvAesAlloc                               func() unsafe.Pointer
 	fAvAesCrypt                               func(a unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
 	fAvAesCtrAlloc                            func() unsafe.Pointer
@@ -97,9 +97,9 @@ var (
 	fAvCspTrcFuncFromId                       func(trc int32) unsafe.Pointer
 	fAvD2q                                    func(d float64, max int32) AVRational
 	fAvD3d11vaAllocContext                    func() unsafe.Pointer
-	fAvDctCalc                                func(s unsafe.Pointer, data unsafe.Pointer) unsafe.Pointer
-	fAvDctEnd                                 func(s unsafe.Pointer) unsafe.Pointer
-	fAvDctInit                                func(nbits int32, typ unsafe.Pointer) unsafe.Pointer
+	fAvDctCalc                                func(s unsafe.Pointer, data unsafe.Pointer)
+	fAvDctEnd                                 func(s unsafe.Pointer)
+	fAvDctInit                                func(nbits int32, typ int32) unsafe.Pointer
 	fAvDefaultGetCategory                     func(ptr unsafe.Pointer) unsafe.Pointer
 	fAvDefaultItemName                        func(ctx unsafe.Pointer) unsafe.Pointer
 	fAvDemuxerIterate                         func(opaque *unsafe.Pointer) unsafe.Pointer
@@ -135,21 +135,21 @@ var (
 	fAvExecutorAlloc                          func(callbacks unsafe.Pointer, thread_count int32) unsafe.Pointer
 	fAvExecutorExecute                        func(e unsafe.Pointer, t unsafe.Pointer)
 	fAvExecutorFree                           func(e *unsafe.Pointer)
-	fAvExprCountFunc                          func(e unsafe.Pointer, counter unsafe.Pointer, size int32, arg int32) int32
-	fAvExprCountVars                          func(e unsafe.Pointer, counter unsafe.Pointer, size int32) int32
+	fAvExprCountFunc                          func(e unsafe.Pointer, counter *uint32, size int32, arg int32) int32
+	fAvExprCountVars                          func(e unsafe.Pointer, counter *uint32, size int32) int32
 	fAvExprEval                               func(e unsafe.Pointer, const_values unsafe.Pointer, opaque unsafe.Pointer) float64
 	fAvExprFree                               func(e unsafe.Pointer)
-	fAvExprParse                              func(expr *unsafe.Pointer, s unsafe.Pointer, const_names unsafe.Pointer, func1_names unsafe.Pointer, cb4 unsafe.Pointer, func2_names unsafe.Pointer, cb6 unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) int32
-	fAvExprParseAndEval                       func(res unsafe.Pointer, s unsafe.Pointer, const_names unsafe.Pointer, const_values unsafe.Pointer, func1_names unsafe.Pointer, cb5 unsafe.Pointer, func2_names unsafe.Pointer, cb7 unsafe.Pointer, opaque unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) int32
+	fAvExprParse                              func(expr *unsafe.Pointer, s string, const_names unsafe.Pointer, func1_names unsafe.Pointer, cb4 unsafe.Pointer, func2_names unsafe.Pointer, cb6 unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) int32
+	fAvExprParseAndEval                       func(res unsafe.Pointer, s string, const_names unsafe.Pointer, const_values unsafe.Pointer, func1_names unsafe.Pointer, cb5 unsafe.Pointer, func2_names unsafe.Pointer, cb7 unsafe.Pointer, opaque unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) int32
 	fAvFastMalloc                             func(ptr unsafe.Pointer, size unsafe.Pointer, min_size uintptr)
 	fAvFastMallocz                            func(ptr unsafe.Pointer, size unsafe.Pointer, min_size uintptr)
 	fAvFastPaddedMalloc                       func(ptr unsafe.Pointer, size unsafe.Pointer, min_size uintptr)
 	fAvFastPaddedMallocz                      func(ptr unsafe.Pointer, size unsafe.Pointer, min_size uintptr)
 	fAvFastRealloc                            func(ptr unsafe.Pointer, size unsafe.Pointer, min_size uintptr) unsafe.Pointer
-	fAvFftCalc                                func(s unsafe.Pointer, z unsafe.Pointer) unsafe.Pointer
-	fAvFftEnd                                 func(s unsafe.Pointer) unsafe.Pointer
+	fAvFftCalc                                func(s unsafe.Pointer, z unsafe.Pointer)
+	fAvFftEnd                                 func(s unsafe.Pointer)
 	fAvFftInit                                func(nbits int32, inverse int32) unsafe.Pointer
-	fAvFftPermute                             func(s unsafe.Pointer, z unsafe.Pointer) unsafe.Pointer
+	fAvFftPermute                             func(s unsafe.Pointer, z unsafe.Pointer)
 	fAvFileMap                                func(filename unsafe.Pointer, bufptr *unsafe.Pointer, size unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) int32
 	fAvFilenameNumberTest                     func(filename unsafe.Pointer) int32
 	fAvFileUnmap                              func(bufptr unsafe.Pointer, size uintptr)
@@ -235,8 +235,8 @@ var (
 	fAvIamfParamDefinitionGetClass            func() unsafe.Pointer
 	fAvIamfSubmixAddElement                   func(submix unsafe.Pointer) unsafe.Pointer
 	fAvIamfSubmixAddLayout                    func(submix unsafe.Pointer) unsafe.Pointer
-	fAvImdctCalc                              func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) unsafe.Pointer
-	fAvImdctHalf                              func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) unsafe.Pointer
+	fAvImdctCalc                              func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer)
+	fAvImdctHalf                              func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer)
 	fAvInitPacket                             func(pkt unsafe.Pointer) unsafe.Pointer
 	fAvInputAudioDeviceNext                   func(d unsafe.Pointer) unsafe.Pointer
 	fAvInputVideoDeviceNext                   func(d unsafe.Pointer) unsafe.Pointer
@@ -249,7 +249,7 @@ var (
 	fAvLfgInit                                func(c unsafe.Pointer, seed uint32)
 	fAvLfgInitFromData                        func(c unsafe.Pointer, data unsafe.Pointer, length uint32) int32
 	fAvLog                                    func(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer)
-	fAvLzo1xDecode                            func(out unsafe.Pointer, outlen unsafe.Pointer, in unsafe.Pointer, inlen unsafe.Pointer) unsafe.Pointer
+	fAvLzo1xDecode                            func(out unsafe.Pointer, outlen *int32, in unsafe.Pointer, inlen *int32) int32
 	fAvMatchExt                               func(filename unsafe.Pointer, extensions unsafe.Pointer) int32
 	fAvMatchList                              func(name unsafe.Pointer, list unsafe.Pointer, separator byte) int32
 	fAvMatchName                              func(name unsafe.Pointer, names unsafe.Pointer) int32
@@ -259,8 +259,8 @@ var (
 	fAvMd5Init                                func(ctx unsafe.Pointer)
 	fAvMd5Sum                                 func(dst unsafe.Pointer, src unsafe.Pointer, len uintptr)
 	fAvMd5Update                              func(ctx unsafe.Pointer, src unsafe.Pointer, len uintptr)
-	fAvMdctCalc                               func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) unsafe.Pointer
-	fAvMdctEnd                                func(s unsafe.Pointer) unsafe.Pointer
+	fAvMdctCalc                               func(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer)
+	fAvMdctEnd                                func(s unsafe.Pointer)
 	fAvMdctInit                               func(nbits int32, inverse int32, scale float64) unsafe.Pointer
 	fAvMediacodecAllocContext                 func() unsafe.Pointer
 	fAvMediacodecDefaultFree                  func(avctx unsafe.Pointer)
@@ -295,9 +295,9 @@ var (
 	fAvRc4Alloc                               func() unsafe.Pointer
 	fAvRc4Crypt                               func(d unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
 	fAvRc4Init                                func(d unsafe.Pointer, key unsafe.Pointer, key_bits int32, decrypt int32) int32
-	fAvRdftCalc                               func(s unsafe.Pointer, data unsafe.Pointer) unsafe.Pointer
-	fAvRdftEnd                                func(s unsafe.Pointer) unsafe.Pointer
-	fAvRdftInit                               func(nbits int32, trans unsafe.Pointer) unsafe.Pointer
+	fAvRdftCalc                               func(s unsafe.Pointer, data unsafe.Pointer)
+	fAvRdftEnd                                func(s unsafe.Pointer)
+	fAvRdftInit                               func(nbits int32, trans int32) unsafe.Pointer
 	fAvReadImageLine                          func(dst unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32)
 	fAvReadImageLine2                         func(dst unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32, dst_element_size int32)
 	fAvReadPause                              func(s unsafe.Pointer) int32
@@ -371,7 +371,7 @@ var (
 	fAvTwofishAlloc                           func() unsafe.Pointer
 	fAvTwofishCrypt                           func(ctx unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
 	fAvTwofishInit                            func(ctx unsafe.Pointer, key unsafe.Pointer, key_bits int32) int32
-	fAvTxInit                                 func(ctx *unsafe.Pointer, tx unsafe.Pointer, typ unsafe.Pointer, inv int32, len int32, scale unsafe.Pointer, flags uint64) int32
+	fAvTxInit                                 func(ctx *unsafe.Pointer, tx *unsafe.Pointer, typ int32, inv int32, len int32, scale unsafe.Pointer, flags uint64) int32
 	fAvTxUninit                               func(ctx *unsafe.Pointer)
 	fAvUtf8Decode                             func(codep unsafe.Pointer, bufp *unsafe.Pointer, buf_end unsafe.Pointer, flags uint32) int32
 	fAvUuidParse                              func(in unsafe.Pointer, uu unsafe.Pointer) int32
@@ -392,7 +392,7 @@ var (
 	fAvVkFrameAlloc                           func() unsafe.Pointer
 	fAvVlog                                   func(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer, vl unsafe.Pointer)
 	fAvVorbisParseFrame                       func(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32) int32
-	fAvVorbisParseFrameFlags                  func(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32, flags unsafe.Pointer) unsafe.Pointer
+	fAvVorbisParseFrameFlags                  func(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32, flags *int32) int32
 	fAvVorbisParseFree                        func(s *unsafe.Pointer)
 	fAvVorbisParseInit                        func(extradata unsafe.Pointer, extradata_size int32) unsafe.Pointer
 	fAvVorbisParseReset                       func(s unsafe.Pointer)
@@ -873,16 +873,26 @@ func registerCryptoHashMisc(h uintptr) {
 	purego.RegisterLibFunc(&fAvPixFmtSwapEndianness, h, "av_pix_fmt_swap_endianness")
 }
 
-// Ac3ParseHeader 解析 AC3 帧头拿帧长（对 av_ac3_parse_header；参数 buf、size、bitstream_id、frame_size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Ac3ParseHeader(buf unsafe.Pointer, size uintptr, bitstream_id unsafe.Pointer, frame_size unsafe.Pointer) unsafe.Pointer {
-	mustUse(ensureModCrypto())
-	return fAvAc3ParseHeader(buf, size, bitstream_id, frame_size)
+// Ac3ParseHeader 解析 AC3 帧头拿帧长（对 av_ac3_parse_header；参数 buf（须是真 AC3 数据，至少几十字节）、size、bitstream_id（*uint8 槽）、frame_size（*uint16 槽）；回 0 是成，负数是出错码（配 AC3_PARSER 关掉的构建回 ENOSYS）；bitstream_id/frame_size 传 nil 会崩）。
+func (self *Util) Ac3ParseHeader(buf unsafe.Pointer, size uintptr, bitstream_id *uint8, frame_size *uint16) error {
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
+	if ret := fAvAc3ParseHeader(buf, size, bitstream_id, frame_size); ret < 0 {
+		return codeErr("av_ac3_parse_header", ret)
+	}
+	return nil
 }
 
-// AdtsHeaderParse 解析 ADTS 头拿采样数（对 av_adts_header_parse；参数 buf、samples、frames；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) AdtsHeaderParse(buf unsafe.Pointer, samples unsafe.Pointer, frames unsafe.Pointer) unsafe.Pointer {
-	mustUse(ensureModCrypto())
-	return fAvAdtsHeaderParse(buf, samples, frames)
+// AdtsHeaderParse 解析 ADTS 头拿采样数（对 av_adts_header_parse；参数 buf（须是真 AAC ADTS 数据，C 里直接 memcpy 头 7 字节，传 nil 会崩）、samples（*uint32 槽）、frames（*uint8 槽）；回 0 是成，负数是出错码（配 ADTS_HEADER 关掉的构建回 ENOSYS）；samples/frames 传 nil 会崩）。
+func (self *Util) AdtsHeaderParse(buf unsafe.Pointer, samples *uint32, frames *uint8) error {
+	if err := ensureModCrypto(); err != nil {
+		return err
+	}
+	if ret := fAvAdtsHeaderParse(buf, samples, frames); ret < 0 {
+		return codeErr("av_adts_header_parse", ret)
+	}
+	return nil
 }
 
 // AesAlloc AES 分组加解密的小件（对 av_aes_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
@@ -1234,20 +1244,20 @@ func (self *Util) D3d11vaAllocContext() unsafe.Pointer {
 	return fAvD3d11vaAllocContext()
 }
 
-// DctCalc 离散余弦变换小件（对 av_dct_calc；参数 s、data；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) DctCalc(s unsafe.Pointer, data unsafe.Pointer) unsafe.Pointer {
+// DctCalc 做一次离散余弦变换（对 av_dct_calc；参数 s（须是 DctInit 回的真上下文，传 nil 会崩）、data（真数据）；无回值，结果写进 data；算完调 DctEnd 放）。
+func (self *Util) DctCalc(s unsafe.Pointer, data unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvDctCalc(s, data)
+	fAvDctCalc(s, data)
 }
 
-// DctEnd 离散余弦变换小件（对 av_dct_end；参数 s；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) DctEnd(s unsafe.Pointer) unsafe.Pointer {
+// DctEnd 放掉 DCT 上下文（对 av_dct_end；参数 s（DctInit 回的真上下文，传 nil 不崩，C 里判了空）；无回值）。
+func (self *Util) DctEnd(s unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvDctEnd(s)
+	fAvDctEnd(s)
 }
 
-// DctInit 离散余弦变换小件（对 av_dct_init；参数 nbits、typ；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) DctInit(nbits int32, typ unsafe.Pointer) unsafe.Pointer {
+// DctInit 新建 DCT 上下文（对 av_dct_init；参数 nbits（log2 长度）、typ（变换类型枚举数：0=DCT-II、1=DCT-III、2=DCT-I、3=DST-I，传枚举数）；成功回真上下文（记得调 DctEnd 放），失败回 nil；无状态调用）。
+func (self *Util) DctInit(nbits int32, typ int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDctInit(nbits, typ)
 }
@@ -1311,7 +1321,7 @@ func (self *Util) DetectionBboxCreateSideData(frame unsafe.Pointer, nb_bboxes ui
 	return fAvDetectionBboxCreateSideData(frame, nb_bboxes)
 }
 
-// DiracParseSequenceHeader 解析 Dirac 序列头（对 av_dirac_parse_sequence_header；参数 dsh、buf、buf_size、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// DiracParseSequenceHeader 解析 Dirac 序列头（对 av_dirac_parse_sequence_header；参数 dsh（收解析结果的槽，成功写进真头，记得用 Free 放）、buf（真数据，太短回错）、buf_size、log_ctx（传 nil 不崩）；成功回 nil，失败回 error；配 DIRAC 关掉的构建回 ENOSYS）。
 func (self *Util) DiracParseSequenceHeader(dsh *unsafe.Pointer, buf unsafe.Pointer, buf_size uintptr, log_ctx unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -1477,14 +1487,14 @@ func (self *Util) ExecutorFree(e *unsafe.Pointer) {
 	fAvExecutorFree(e)
 }
 
-// ExprCountFunc 表达式解析求值（对 av_expr_count_func；参数 e、counter、size、arg；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) ExprCountFunc(e unsafe.Pointer, counter unsafe.Pointer, size int32, arg int32) int32 {
+// ExprCountFunc 数表达式里几元函数有几个（对 av_expr_count_func；参数 e（须是 ExprParse 回的真表达式，传 nil 会崩）、counter（*uint32 槽，C 里按 unsigned 写）、size、arg（几元）；回个数；counter 传 nil 会崩）。
+func (self *Util) ExprCountFunc(e unsafe.Pointer, counter *uint32, size int32, arg int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvExprCountFunc(e, counter, size, arg)
 }
 
-// ExprCountVars 表达式解析求值（对 av_expr_count_vars；参数 e、counter、size；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) ExprCountVars(e unsafe.Pointer, counter unsafe.Pointer, size int32) int32 {
+// ExprCountVars 数表达式里变量有几个（对 av_expr_count_vars；参数 e（须是真表达式，传 nil 会崩）、counter（*uint32 槽）、size；回个数；counter 传 nil 会崩）。
+func (self *Util) ExprCountVars(e unsafe.Pointer, counter *uint32, size int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvExprCountVars(e, counter, size)
 }
@@ -1501,8 +1511,8 @@ func (self *Util) ExprFree(e unsafe.Pointer) {
 	fAvExprFree(e)
 }
 
-// ExprParse 表达式解析求值（对 av_expr_parse；参数 expr、s、const_names、func1_names、cb4、func2_names、cb6、log_offset、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ExprParse(expr *unsafe.Pointer, s unsafe.Pointer, const_names unsafe.Pointer, func1_names unsafe.Pointer, cb4 unsafe.Pointer, func2_names unsafe.Pointer, cb6 unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) error {
+// ExprParse 解析表达式（对 av_expr_parse；参数 expr（收解析结果的槽）、s（表达式字串，比如 "1+2*3"，Go 字串直传）、const_names/func1_names/cb4/func2_names/cb6（都不用就传 nil，C 里判了空）、log_offset、log_ctx；成功回 nil（结果写进 expr 槽，记得调 ExprFree 放），失败回 error；s 传空字串回错不崩）。
+func (self *Util) ExprParse(expr *unsafe.Pointer, s string, const_names unsafe.Pointer, func1_names unsafe.Pointer, cb4 unsafe.Pointer, func2_names unsafe.Pointer, cb6 unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -1512,8 +1522,8 @@ func (self *Util) ExprParse(expr *unsafe.Pointer, s unsafe.Pointer, const_names 
 	return nil
 }
 
-// ExprParseAndEval 表达式解析求值（对 av_expr_parse_and_eval；参数 res、s、const_names、const_values、func1_names、cb5、func2_names、cb7、opaque、log_offset、log_ctx；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ExprParseAndEval(res unsafe.Pointer, s unsafe.Pointer, const_names unsafe.Pointer, const_values unsafe.Pointer, func1_names unsafe.Pointer, cb5 unsafe.Pointer, func2_names unsafe.Pointer, cb7 unsafe.Pointer, opaque unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) error {
+// ExprParseAndEval 解析完直接求值（对 av_expr_parse_and_eval；参数 res（收 double 结果的槽）、s（表达式字串，Go 字串直传）、const_names/const_values（一一对应，零值直接调可传 nil）、func1_names/cb5/func2_names/cb7（不用传 nil）、opaque、log_offset、log_ctx；成功回 nil，失败回 error）。
+func (self *Util) ExprParseAndEval(res unsafe.Pointer, s string, const_names unsafe.Pointer, const_values unsafe.Pointer, func1_names unsafe.Pointer, cb5 unsafe.Pointer, func2_names unsafe.Pointer, cb7 unsafe.Pointer, opaque unsafe.Pointer, log_offset int32, log_ctx unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -1553,28 +1563,28 @@ func (self *Util) FastRealloc(ptr unsafe.Pointer, size unsafe.Pointer, min_size 
 	return fAvFastRealloc(ptr, size, min_size)
 }
 
-// FftCalc 傅里叶变换小件（对 av_fft_calc；参数 s、z；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) FftCalc(s unsafe.Pointer, z unsafe.Pointer) unsafe.Pointer {
+// FftCalc 做一次复数 FFT（对 av_fft_calc；参数 s（须是 FftInit 回的真上下文，传 nil 会崩）、z（真数据，须事先走 FftPermute 排好序）；无回值，结果写进 z；算完调 FftEnd 放）。
+func (self *Util) FftCalc(s unsafe.Pointer, z unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvFftCalc(s, z)
+	fAvFftCalc(s, z)
 }
 
-// FftEnd 傅里叶变换小件（对 av_fft_end；参数 s；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) FftEnd(s unsafe.Pointer) unsafe.Pointer {
+// FftEnd 放掉 FFT 上下文（对 av_fft_end；参数 s（FftInit 回的真上下文，传 nil 不崩，C 里判了空）；无回值）。
+func (self *Util) FftEnd(s unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvFftEnd(s)
+	fAvFftEnd(s)
 }
 
-// FftInit 傅里叶变换小件（对 av_fft_init；参数 nbits、inverse；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// FftInit 新建复数 FFT 上下文（对 av_fft_init；参数 nbits（log2 长度）、inverse（0 正变换、1 反变换）；成功回真上下文（记得调 FftEnd 放），失败回 nil；无状态调用）。
 func (self *Util) FftInit(nbits int32, inverse int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvFftInit(nbits, inverse)
 }
 
-// FftPermute 傅里叶变换小件（对 av_fft_permute；参数 s、z；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) FftPermute(s unsafe.Pointer, z unsafe.Pointer) unsafe.Pointer {
+// FftPermute 给 FFT 输入排序（对 av_fft_permute；参数 s、z；无回值（本版 C 里是个空函数，排序由 FftCalc 内部做）；调不调都不影响结果，留着是为跟头文件对上）。
+func (self *Util) FftPermute(s unsafe.Pointer, z unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvFftPermute(s, z)
+	fAvFftPermute(s, z)
 }
 
 // FileMap 把文件映射进内存（对 av_file_map；参数 filename、bufptr、size、log_offset、log_ctx；回 0 是成，负数是出错码；bufptr/size 两个槽都得给真内存，不能传 nil；拿到的缓冲用完拿 FileUnmap 放；filename 传 nil 会崩）。
@@ -2153,16 +2163,16 @@ func (self *Util) IamfSubmixAddLayout(submix unsafe.Pointer) unsafe.Pointer {
 	return fAvIamfSubmixAddLayout(submix)
 }
 
-// ImdctCalc 算反向修正离散余弦变换（对 av_imdct_calc；参数 s、output、input；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) ImdctCalc(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) unsafe.Pointer {
+// ImdctCalc 做一次全长反向 MDCT（对 av_imdct_calc；参数 s（须是 MdctInit 回的真上下文，传 nil 会崩）、output、input（真缓冲）；无回值；算完调 MdctEnd 放）。
+func (self *Util) ImdctCalc(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvImdctCalc(s, output, input)
+	fAvImdctCalc(s, output, input)
 }
 
-// ImdctHalf 算半长 IMDCT（对 av_imdct_half；参数 s、output、input；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) ImdctHalf(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) unsafe.Pointer {
+// ImdctHalf 做一次半长反向 MDCT（对 av_imdct_half；参数 s（须是真上下文，传 nil 会崩）、output、input（真缓冲）；无回值；算完调 MdctEnd 放）。
+func (self *Util) ImdctHalf(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvImdctHalf(s, output, input)
+	fAvImdctHalf(s, output, input)
 }
 
 // InitPacket 初始化空包结构体（对 av_init_packet；参数 pkt；回 C 指针，失败回 nil；无状态，可用零值直接调）。
@@ -2246,8 +2256,8 @@ func (self *Util) Log(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer) {
 	fAvLog(avcl, level, fmt)
 }
 
-// Lzo1xDecode 解 LZO 压缩块（对 av_lzo1x_decode；参数 out、outlen、in、inlen；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) Lzo1xDecode(out unsafe.Pointer, outlen unsafe.Pointer, in unsafe.Pointer, inlen unsafe.Pointer) unsafe.Pointer {
+// Lzo1xDecode 解 LZO 压缩块（对 av_lzo1x_decode；参数 out（输出缓冲，多留 12 字节 padding）、outlen（*int32，进出都用：进去是缓冲大小，出来是剩多少）、in（输入缓冲，多留 8 字节 padding）、inlen（*int32，出来是剩多少）；回 0 是成，非零是错码组合（1 输入没吃完、2 输出装不下、4 回指错、8 流坏了）；outlen/inlen 传 nil 会崩）。
+func (self *Util) Lzo1xDecode(out unsafe.Pointer, outlen *int32, in unsafe.Pointer, inlen *int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvLzo1xDecode(out, outlen, in, inlen)
 }
@@ -2306,19 +2316,19 @@ func (self *Crypto) Md5Update(ctx unsafe.Pointer, src unsafe.Pointer, len uintpt
 	fAvMd5Update(ctx, src, len)
 }
 
-// MdctCalc 算修正离散余弦变换（对 av_mdct_calc；参数 s、output、input；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) MdctCalc(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) unsafe.Pointer {
+// MdctCalc 做一次 MDCT（对 av_mdct_calc；参数 s（须是 MdctInit 回的真上下文，传 nil 会崩）、output、input（真缓冲）；无回值；算完调 MdctEnd 放）。
+func (self *Util) MdctCalc(s unsafe.Pointer, output unsafe.Pointer, input unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvMdctCalc(s, output, input)
+	fAvMdctCalc(s, output, input)
 }
 
-// MdctEnd 释放 MDCT 上下文（对 av_mdct_end；参数 s；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) MdctEnd(s unsafe.Pointer) unsafe.Pointer {
+// MdctEnd 放掉 MDCT 上下文（对 av_mdct_end；参数 s（MdctInit 回的真上下文，传 nil 不崩，C 里判了空）；无回值）。
+func (self *Util) MdctEnd(s unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvMdctEnd(s)
+	fAvMdctEnd(s)
 }
 
-// MdctInit 新建 MDCT 上下文（对 av_mdct_init；参数 nbits、inverse、scale；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// MdctInit 新建 MDCT 上下文（对 av_mdct_init；参数 nbits、inverse（0 正变换、1 反变换）、scale（浮点缩放）；成功回真上下文（记得调 MdctEnd 放），失败回 nil；无状态调用）。
 func (self *Util) MdctInit(nbits int32, inverse int32, scale float64) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvMdctInit(nbits, inverse, scale)
@@ -2559,20 +2569,20 @@ func (self *Crypto) Rc4Init(d unsafe.Pointer, key unsafe.Pointer, key_bits int32
 	return nil
 }
 
-// RdftCalc 算实数离散傅里叶变换（对 av_rdft_calc；参数 s、data；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) RdftCalc(s unsafe.Pointer, data unsafe.Pointer) unsafe.Pointer {
+// RdftCalc 做一次实数 FFT（对 av_rdft_calc；参数 s（须是 RdftInit 回的真上下文，传 nil 会崩）、data（真数据）；无回值；算完调 RdftEnd 放）。
+func (self *Util) RdftCalc(s unsafe.Pointer, data unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvRdftCalc(s, data)
+	fAvRdftCalc(s, data)
 }
 
-// RdftEnd 释放 RDFT 上下文（对 av_rdft_end；参数 s；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) RdftEnd(s unsafe.Pointer) unsafe.Pointer {
+// RdftEnd 放掉 RDFT 上下文（对 av_rdft_end；参数 s（RdftInit 回的真上下文，传 nil 不崩，C 里判了空）；无回值）。
+func (self *Util) RdftEnd(s unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvRdftEnd(s)
+	fAvRdftEnd(s)
 }
 
-// RdftInit 新建 RDFT 上下文（对 av_rdft_init；参数 nbits、trans；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) RdftInit(nbits int32, trans unsafe.Pointer) unsafe.Pointer {
+// RdftInit 新建实数 FFT 上下文（对 av_rdft_init；参数 nbits（log2 长度）、trans（变换类型枚举数：0=DFT_R2C、1=IDFT_C2R，2 和 3 没实现会回 nil，传枚举数）；成功回真上下文（记得调 RdftEnd 放），失败回 nil；无状态调用）。
+func (self *Util) RdftInit(nbits int32, trans int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvRdftInit(nbits, trans)
 }
@@ -3118,8 +3128,8 @@ func (self *Crypto) TwofishInit(ctx unsafe.Pointer, key unsafe.Pointer, key_bits
 	return nil
 }
 
-// TxInit 新建变换上下文（对 av_tx_init；参数 ctx、tx、typ、inv、len、scale、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) TxInit(ctx *unsafe.Pointer, tx unsafe.Pointer, typ unsafe.Pointer, inv int32, len int32, scale unsafe.Pointer, flags uint64) error {
+// TxInit 新建通用变换上下文（对 av_tx_init；参数 ctx（收上下文的槽，成功写进槽）、tx（收变换函数指针的槽）、typ（变换类型枚举数：0=单精度 FFT、1=单精度 MDCT、6=单精度 RDFT、9=单精度 DCT-II，传枚举数）、inv（0 正变换、1 反变换）、len（变换长度；FFT/RDFT 是点数，MDCT 是点数一半）、scale（缩放指针）、flags（0 常态，1=原地、2=不对齐放宽、4=全长反 MDCT）；成功回 nil（两个槽都写进值，用完调 TxUninit 放，TxUninit 会把 ctx 槽置空），失败回 error；ctx/tx 传 nil 会崩）。
+func (self *Util) TxInit(ctx *unsafe.Pointer, tx *unsafe.Pointer, typ int32, inv int32, len int32, scale unsafe.Pointer, flags uint64) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -3129,7 +3139,7 @@ func (self *Util) TxInit(ctx *unsafe.Pointer, tx unsafe.Pointer, typ unsafe.Poin
 	return nil
 }
 
-// TxUninit 释放变换上下文（对 av_tx_uninit；参数 ctx；按签名取回值；无状态，可用零值直接调）。
+// TxUninit 放掉变换上下文（对 av_tx_uninit；参数 ctx（TxInit 给的槽，用完槽被置空；传 nil 槽不崩，C 里判了空）；无回值）。
 func (self *Util) TxUninit(ctx *unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvTxUninit(ctx)
@@ -3263,7 +3273,7 @@ func (self *Util) Vlog(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer, vl 
 	fAvVlog(avcl, level, fmt, vl)
 }
 
-// VorbisParseFrame 解析 Vorbis 帧头（对 av_vorbis_parse_frame；参数 s、buf、buf_size；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// VorbisParseFrame 看 Vorbis 包有多长（对 av_vorbis_parse_frame；参数 s（须是真解析器，传 nil 会崩）、buf、buf_size；成功回 nil（时长藏在 C 内部不直接给，要时长走 VorbisParseFrameFlags），失败回 error；坏包回错不崩）。
 func (self *Util) VorbisParseFrame(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3274,25 +3284,25 @@ func (self *Util) VorbisParseFrame(s unsafe.Pointer, buf unsafe.Pointer, buf_siz
 	return nil
 }
 
-// VorbisParseFrameFlags 解析 Vorbis 帧头（对 av_vorbis_parse_frame_flags；参数 s、buf、buf_size、flags；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) VorbisParseFrameFlags(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32, flags unsafe.Pointer) unsafe.Pointer {
+// VorbisParseFrameFlags 看 Vorbis 包有多长（对 av_vorbis_parse_frame_flags；参数 s（须是 VorbisParseInit 回的真解析器，传 nil 会崩）、buf（真包数据）、buf_size、flags（*int32 槽：特殊包会把包类型写进去；传 nil 表示特殊包直接算坏包）；回包时长（采样数），特殊包回 0，坏包回负数出错码；buf 传 nil 且长度非零会崩）。
+func (self *Util) VorbisParseFrameFlags(s unsafe.Pointer, buf unsafe.Pointer, buf_size int32, flags *int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvVorbisParseFrameFlags(s, buf, buf_size, flags)
 }
 
-// VorbisParseFree 解析 Vorbis 帧头（对 av_vorbis_parse_free；参数 s；按签名取回值；无状态，可用零值直接调）。
+// VorbisParseFree 放掉 Vorbis 解析器（对 av_vorbis_parse_free；参数 s（VorbisParseInit 给的槽，用完槽被置空；传 nil 槽不崩，C 里判了空）；无回值）。
 func (self *Util) VorbisParseFree(s *unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvVorbisParseFree(s)
 }
 
-// VorbisParseInit 解析 Vorbis 帧头（对 av_vorbis_parse_init；参数 extradata、extradata_size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// VorbisParseInit 新建 Vorbis 解析器（对 av_vorbis_parse_init；参数 extradata（须是真 Vorbis 三头拼接，坏头回 nil）、extradata_size；成功回真解析器（记得调 VorbisParseFree 放），失败回 nil；无状态调用）。
 func (self *Util) VorbisParseInit(extradata unsafe.Pointer, extradata_size int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvVorbisParseInit(extradata, extradata_size)
 }
 
-// VorbisParseReset 解析 Vorbis 帧头（对 av_vorbis_parse_reset；参数 s；按签名取回值；无状态，可用零值直接调）。
+// VorbisParseReset 重置 Vorbis 解析器状态（对 av_vorbis_parse_reset；参数 s（须是真解析器；C 里没判空，传 nil 会崩）；无回值）。
 func (self *Util) VorbisParseReset(s unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvVorbisParseReset(s)

@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"unsafe"
@@ -6030,4 +6031,384 @@ func TestWrapCoverImageSamples(t *testing.T) {
 			t.Fatalf("SamplesSetSilence byte %d = %d, want 0", i, got)
 		}
 	}
+}
+
+func TestWrapCoverXformParse(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var u Util
+	var mem Mem
+	// ---- FFT: 16 点冲激, 直流和 1 号桶都是 1+0i (avfft.c C 实测) ----
+	fs := u.FftInit(4, 0)
+	if fs == nil {
+		t.Fatal("FftInit(4,0) nil")
+	}
+	fz := mem.AllocZ(32 * 4)
+	if fz == nil {
+		t.Fatal("fft buf nil")
+	}
+	defer mem.Free(fz)
+	*(*float32)(fz) = 1
+	u.FftPermute(fs, fz)
+	u.FftCalc(fs, fz)
+	if got := *(*float32)(fz); got != 1 {
+		t.Fatalf("FftCalc dc re = %v, want 1", got)
+	}
+	if got := *(*float32)(unsafe.Add(fz, 4)); got != 0 {
+		t.Fatalf("FftCalc dc im = %v, want 0", got)
+	}
+	if got := *(*float32)(unsafe.Add(fz, 8)); got != 1 {
+		t.Fatalf("FftCalc bin1 re = %v, want 1", got)
+	}
+	u.FftEnd(fs)
+	u.FftEnd(nil)
+	// ---- DCT-II: 16 点冲激, 头两项 1 和 0.995185 (C 实测) ----
+	ds := u.DctInit(4, 0)
+	if ds == nil {
+		t.Fatal("DctInit(4,0) nil")
+	}
+	dd := mem.AllocZ(16 * 4)
+	if dd == nil {
+		t.Fatal("dct buf nil")
+	}
+	defer mem.Free(dd)
+	*(*float32)(dd) = 1
+	u.DctCalc(ds, dd)
+	if got := *(*float32)(dd); got != 1 {
+		t.Fatalf("DctCalc out0 = %v, want 1", got)
+	}
+	if got := *(*float32)(unsafe.Add(dd, 4)); got < 0.99518 || got > 0.99519 {
+		t.Fatalf("DctCalc out1 = %v, want ~0.995185", got)
+	}
+	u.DctEnd(ds)
+	u.DctEnd(nil)
+	// ---- MDCT: inverse=1 才建得出反变换路 (C 实测: inverse=0 建的调
+	// ImdctCalc 直接崩, 野路不走); 正 0.098017/0.290285, 反 -0.601345/0.601345 ----
+	ms := u.MdctInit(4, 1, 1)
+	if ms == nil {
+		t.Fatal("MdctInit(4,1) nil")
+	}
+	mi := mem.AllocZ(16 * 4)
+	mo := mem.AllocZ(8 * 4)
+	io := mem.AllocZ(16 * 4)
+	ho := mem.AllocZ(8 * 4)
+	if mi == nil || mo == nil || io == nil || ho == nil {
+		t.Fatal("mdct bufs nil")
+	}
+	defer mem.Free(mi)
+	defer mem.Free(mo)
+	defer mem.Free(io)
+	defer mem.Free(ho)
+	*(*float32)(mi) = 1
+	u.MdctCalc(ms, mo, mi)
+	if got := *(*float32)(mo); got < 0.09801 || got > 0.09802 {
+		t.Fatalf("MdctCalc out0 = %v, want ~0.098017", got)
+	}
+	if got := *(*float32)(unsafe.Add(mo, 4)); got < 0.29028 || got > 0.29029 {
+		t.Fatalf("MdctCalc out1 = %v, want ~0.290285", got)
+	}
+	u.ImdctCalc(ms, io, mo)
+	if got := *(*float32)(io); got < -0.60135 || got > -0.60134 {
+		t.Fatalf("ImdctCalc out0 = %v, want ~-0.601345", got)
+	}
+	if got := *(*float32)(unsafe.Add(io, 4)); got < 0.60134 || got > 0.60135 {
+		t.Fatalf("ImdctCalc out1 = %v, want ~0.601345", got)
+	}
+	u.ImdctHalf(ms, ho, mo)
+	if got := *(*float32)(ho); got < -0.5098 || got > -0.50979 {
+		t.Fatalf("ImdctHalf out0 = %v, want ~-0.509796", got)
+	}
+	u.MdctEnd(ms)
+	u.MdctEnd(nil)
+	// ---- RDFT: 冲激出来全 1; 类型 2/3 没实现回 nil (avfft.c C 实测) ----
+	rs := u.RdftInit(4, 0)
+	if rs == nil {
+		t.Fatal("RdftInit(4,0) nil")
+	}
+	rd := mem.AllocZ(16 * 4)
+	if rd == nil {
+		t.Fatal("rdft buf nil")
+	}
+	defer mem.Free(rd)
+	*(*float32)(rd) = 1
+	u.RdftCalc(rs, rd)
+	if got := *(*float32)(rd); got != 1 {
+		t.Fatalf("RdftCalc out0 = %v, want 1", got)
+	}
+	if got := *(*float32)(unsafe.Add(rd, 4)); got != 1 {
+		t.Fatalf("RdftCalc out1 = %v, want 1", got)
+	}
+	u.RdftEnd(rs)
+	u.RdftEnd(nil)
+	if u.RdftInit(4, 2) != nil {
+		t.Fatal("RdftInit(4,2) non-nil (C 里 2/3 没实现, 以 C 为准)")
+	}
+	// ---- TX 新路: 16 点 FFT 正变换, 冲激出来直流 1+0i;
+	// 关上下文槽被置空, 空槽再关不崩 (tx.h C 实测) ----
+	var tctx unsafe.Pointer
+	var tfnSlot unsafe.Pointer
+	var tscale float32 = 1
+	if err := u.TxInit(&tctx, &tfnSlot, 0, 0, 16, unsafe.Pointer(&tscale), 0); err != nil {
+		t.Fatalf("TxInit: %v", err)
+	}
+	if tctx == nil || tfnSlot == nil {
+		t.Fatal("TxInit slots nil")
+	}
+	tfn := *(*uintptr)(unsafe.Pointer(&tfnSlot))
+	_ = tfn
+	tin := mem.AllocZ(32 * 4)
+	tout := mem.AllocZ(32 * 4)
+	if tin == nil || tout == nil {
+		t.Fatal("tx bufs nil")
+	}
+	defer mem.Free(tin)
+	defer mem.Free(tout)
+	*(*float32)(tin) = 1
+	var txFn func(s unsafe.Pointer, out unsafe.Pointer, in unsafe.Pointer, stride uintptr)
+	purego.RegisterFunc(&txFn, tfn)
+	txFn(tctx, tout, tin, 8)
+	if got := *(*float32)(tout); got != 1 {
+		t.Fatalf("tx fn dc re = %v, want 1", got)
+	}
+	if got := *(*float32)(unsafe.Add(tout, 4)); got != 0 {
+		t.Fatalf("tx fn dc im = %v, want 0", got)
+	}
+	u.TxUninit(&tctx)
+	if tctx != nil {
+		t.Fatal("TxUninit did not nil the slot")
+	}
+	var nilTxCtx unsafe.Pointer
+	u.TxUninit(&nilTxCtx)
+	// ---- 表达式: "1+2*3+sqrt(16)"=11; 常量 PI*2=6; 坏式回错 (eval.h C 实测) ----
+	var eres float64
+	if err := u.ExprParseAndEval(unsafe.Pointer(&eres), "1+2*3+sqrt(16)", nil, nil, nil, nil, nil, nil, nil, 0, nil); err != nil {
+		t.Fatalf("ExprParseAndEval: %v", err)
+	}
+	if eres != 11 {
+		t.Fatalf("ExprParseAndEval res = %v, want 11", eres)
+	}
+	if err := u.ExprParseAndEval(unsafe.Pointer(&eres), "1+*2", nil, nil, nil, nil, nil, nil, nil, 0, nil); err == nil {
+		t.Fatal("ExprParseAndEval(bad) accepted")
+	}
+	piName, freePiName := featCStr("PI")
+	defer freePiName()
+	cnArr := []unsafe.Pointer{piName, nil}
+	var eexpr unsafe.Pointer
+	exprStr, freeExprStr := featCStr("PI*2")
+	defer freeExprStr()
+	_ = exprStr
+	if err := u.ExprParse(&eexpr, "PI*2", unsafe.Pointer(&cnArr[0]), nil, nil, nil, nil, 0, nil); err != nil {
+		t.Fatalf("ExprParse(PI*2): %v", err)
+	}
+	if eexpr == nil {
+		t.Fatal("ExprParse expr nil")
+	}
+	defer u.ExprFree(eexpr)
+	var cvals [1]float64
+	cvals[0] = 3
+	if got := u.ExprEval(eexpr, unsafe.Pointer(&cvals[0]), nil); got != 6 {
+		t.Fatalf("ExprEval(PI=3) = %v, want 6", got)
+	}
+	var nvars uint32 = 99
+	if n := u.ExprCountVars(eexpr, &nvars, 1); n != 0 {
+		t.Fatalf("ExprCountVars = %d, want 0 (C 实测常量表达式已折叠)", n)
+	}
+	var nfunc uint32 = 99
+	if n := u.ExprCountFunc(eexpr, &nfunc, 1, 1); n != 0 {
+		t.Fatalf("ExprCountFunc = %d, want 0 (C 实测)", n)
+	}
+	var badExpr unsafe.Pointer
+	if err := u.ExprParse(&badExpr, "1+*2", nil, nil, nil, nil, nil, 0, nil); err == nil {
+		t.Fatal("ExprParse(bad) accepted")
+	}
+	if badExpr != nil {
+		t.Fatal("ExprParse(bad) expr non-nil")
+	}
+	u.ExprFree(nil)
+	// ---- LZO: 7 字节合法小流解出 Hi!, 输出剩 49 输入剩 25 (lzo.c C 实测,
+	// C 的结束标记要读 3 个字节, 输入得多留 padding, 以 C 为准) ----
+	lzoIn := mem.AllocZ(64)
+	lzoOut := mem.AllocZ(64)
+	if lzoIn == nil || lzoOut == nil {
+		t.Fatal("lzo bufs nil")
+	}
+	defer mem.Free(lzoIn)
+	defer mem.Free(lzoOut)
+	lzoRaw := []byte{0x14, 'H', 'i', '!', 0x11, 0x00, 0x00}
+	copy(unsafe.Slice((*byte)(lzoIn), len(lzoRaw)), lzoRaw)
+	var lzoOutLen int32 = 64 - 12
+	var lzoInLen int32 = 32
+	if ret := u.Lzo1xDecode(lzoOut, &lzoOutLen, lzoIn, &lzoInLen); ret != 0 {
+		t.Fatalf("Lzo1xDecode = %d, want 0", ret)
+	}
+	if lzoOutLen != 49 || lzoInLen != 25 {
+		t.Fatalf("Lzo1xDecode left = %d/%d, want 49/25", lzoOutLen, lzoInLen)
+	}
+	if got := string(unsafe.Slice((*byte)(lzoOut), 3)); got != "Hi!" {
+		t.Fatalf("Lzo1xDecode out = %q, want Hi!", got)
+	}
+	// ---- AC3: 16 字节真头, bsid=8 fsize=480, 回 0 (ac3_parser.c C 实测) ----
+	ac3Buf := mem.AllocZ(64)
+	if ac3Buf == nil {
+		t.Fatal("ac3 buf nil")
+	}
+	defer mem.Free(ac3Buf)
+	ac3Raw := []byte{0x0B, 0x77, 0x00, 0x00, 0x8A, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	copy(unsafe.Slice((*byte)(ac3Buf), len(ac3Raw)), ac3Raw)
+	var bsid uint8
+	var fsize uint16
+	if err := u.Ac3ParseHeader(ac3Buf, 16, &bsid, &fsize); err != nil {
+		t.Fatalf("Ac3ParseHeader: %v", err)
+	}
+	if bsid != 8 || fsize != 480 {
+		t.Fatalf("Ac3ParseHeader = %d/%d, want 8/480", bsid, fsize)
+	}
+	// ---- ADTS: 7 字节真头 + 零 padding, 1024 采样 1 帧, 回 0 ----
+	adtsBuf := mem.AllocZ(64)
+	if adtsBuf == nil {
+		t.Fatal("adts buf nil")
+	}
+	defer mem.Free(adtsBuf)
+	adtsRaw := []byte{0xFF, 0xF1, 0x50, 0x80, 0x01, 0xFF, 0xFC}
+	copy(unsafe.Slice((*byte)(adtsBuf), len(adtsRaw)), adtsRaw)
+	var adtsSamples uint32
+	var adtsFrames uint8
+	if err := u.AdtsHeaderParse(adtsBuf, &adtsSamples, &adtsFrames); err != nil {
+		t.Fatalf("AdtsHeaderParse: %v", err)
+	}
+	if adtsSamples != 1024 || adtsFrames != 1 {
+		t.Fatalf("AdtsHeaderParse = %d/%d, want 1024/1", adtsSamples, adtsFrames)
+	}
+	// ---- Dirac: 全零头回错不断言码, 槽保持 nil (dirac.c C 实测) ----
+	diracBuf := mem.AllocZ(64)
+	if diracBuf == nil {
+		t.Fatal("dirac buf nil")
+	}
+	defer mem.Free(diracBuf)
+	var dsh unsafe.Pointer
+	if err := u.DiracParseSequenceHeader(&dsh, diracBuf, 8, nil); err == nil {
+		t.Logf("DiracParseSequenceHeader(zeros) unexpectedly ok (C 为准)")
+	}
+	if dsh != nil {
+		t.Fatal("DiracParseSequenceHeader wrote slot on failure")
+	}
+	// ---- Vorbis: 真三头 extradata 建解析器, 真包时长 576;
+	// 重置后再量还是 576; 坏头回 nil (vorbis_parser.c C 实测).
+	// 数据文件是 video/testdata/vorbis_tone.ogg (440Hz 正弦 1 秒,
+	// ffmpeg libvorbis 现场编的); 头三包按 xiph 规则拼 extradata,
+	// 最大音频包当测试包, 拼法见 xiph.c avpriv_split_xiph_headers,
+	// 拼的过程就是读数据文件, 不许手写字节. ----
+	extraRaw, pktRaw := readVOggPackets(t, "../testdata/vorbis_tone.ogg")
+	extraPtr := mem.Alloc(len(extraRaw))
+	if extraPtr == nil {
+		t.Fatal("extra buf nil")
+	}
+	defer mem.Free(extraPtr)
+	copy(unsafe.Slice((*byte)(extraPtr), len(extraRaw)), extraRaw)
+	vp := u.VorbisParseInit(extraPtr, int32(len(extraRaw)))
+	if vp == nil {
+		t.Fatal("VorbisParseInit(real extra) nil")
+	}
+	pktPtr := mem.Alloc(len(pktRaw))
+	if pktPtr == nil {
+		t.Fatal("pkt buf nil")
+	}
+	defer mem.Free(pktPtr)
+	copy(unsafe.Slice((*byte)(pktPtr), len(pktRaw)), pktRaw)
+	pktN := len(pktRaw)
+	var vflags int32
+	if dur := u.VorbisParseFrameFlags(vp, pktPtr, int32(pktN), &vflags); dur != 576 {
+		t.Fatalf("VorbisParseFrameFlags = %d, want 576", dur)
+	}
+	if vflags != 0 {
+		t.Fatalf("VorbisParseFrameFlags flags = %d, want 0", vflags)
+	}
+	if err := u.VorbisParseFrame(vp, pktPtr, int32(pktN)); err != nil {
+		t.Fatalf("VorbisParseFrame: %v", err)
+	}
+	u.VorbisParseReset(vp)
+	if dur := u.VorbisParseFrameFlags(vp, pktPtr, int32(pktN), &vflags); dur != 576 {
+		t.Fatalf("VorbisParseFrameFlags(after reset) = %d, want 576", dur)
+	}
+	u.VorbisParseFree(&vp)
+	if vp != nil {
+		t.Fatal("VorbisParseFree did not nil the slot")
+	}
+	bogus, freeBogus := featCStr("bogus")
+	defer freeBogus()
+	if u.VorbisParseInit(bogus, 5) != nil {
+		t.Fatal("VorbisParseInit(bogus) non-nil")
+	}
+	var nilVp unsafe.Pointer
+	u.VorbisParseFree(&nilVp)
+}
+
+// readVOggPackets 从 ogg 文件里拆包: 头三包按 xiph 规则拼成 extradata
+// (首字节 0x02 + 两个包长的 xiph-lacing + 三包拼接), 最大的音频包
+// (首字节最低位是 0) 当测试包. 拼法对着 xiph.c avpriv_split_xiph_headers
+// 写, 数据缺失就 Skip, 不许手写字节凑数.
+func readVOggPackets(t *testing.T, path string) (extra []byte, pkt []byte) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("ogg data missing: %v", err)
+	}
+	var packets [][]byte
+	var cur []byte
+	pos := 0
+	for pos < len(raw) {
+		if pos+27 > len(raw) || string(raw[pos:pos+4]) != "OggS" {
+			t.Fatalf("ogg page sync lost at %d", pos)
+		}
+		nseg := int(raw[pos+26])
+		if pos+27+nseg > len(raw) {
+			t.Fatalf("ogg seg table overrun at %d", pos)
+		}
+		segtab := raw[pos+27 : pos+27+nseg]
+		dpos := pos + 27 + nseg
+		for _, sg := range segtab {
+			if dpos+int(sg) > len(raw) {
+				t.Fatalf("ogg seg data overrun at %d", pos)
+			}
+			cur = append(cur, raw[dpos:dpos+int(sg)]...)
+			dpos += int(sg)
+			if sg < 255 {
+				packets = append(packets, cur)
+				cur = nil
+			}
+		}
+		pos = dpos
+	}
+	if len(packets) < 4 {
+		t.Fatalf("ogg packets = %d, want >= 4", len(packets))
+	}
+	head := packets[:3]
+	if head[0][0] != 1 || head[1][0] != 3 || head[2][0] != 5 {
+		t.Fatalf("vorbis head types = %d/%d/%d, want 1/3/5", head[0][0], head[1][0], head[2][0])
+	}
+	lace := func(n int) []byte {
+		var out []byte
+		for n >= 255 {
+			out = append(out, 0xFF)
+			n -= 255
+		}
+		return append(out, byte(n))
+	}
+	extra = append(extra, 0x02)
+	extra = append(extra, lace(len(head[0]))...)
+	extra = append(extra, lace(len(head[1]))...)
+	extra = append(extra, head[0]...)
+	extra = append(extra, head[1]...)
+	extra = append(extra, head[2]...)
+	// 三头之后第二个音频包 (ogg 包序号 4, 60 字节,
+	// C vorbis_parser 量出时长 576, 以 C 为准; 第一个音频包
+	// 31 字节量出 128, 不拿它钉).
+	if len(packets) < 5 {
+		t.Fatalf("ogg packets = %d, want >= 5", len(packets))
+	}
+	if len(packets[4]) != 60 || (packets[4][0]&1) != 0 {
+		t.Fatalf("ogg pkt4 len=%d head=%02x, want 60/audio", len(packets[4]), packets[4][0])
+	}
+	return extra, packets[4]
 }
