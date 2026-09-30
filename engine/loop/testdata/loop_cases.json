@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "dt_ms": 16,
+  "systems": ["input", "ai", "move"],
+  "frames_ms": [16, 16, 33, 8, 0, 250, 500],
+  "want_ticks": [1, 1, 2, 0, 0, 16, 15],
+  "want_steps": 35,
+  "want_elapsed_ms": 560,
+  "want_alpha": 0.8125
+}
