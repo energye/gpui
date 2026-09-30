@@ -43,14 +43,12 @@ func (b Backend) String() string {
 // NOTE: GPUI_BACKEND is also read by the wgpu-native layer
 // (gpu/rwgpu applyInstanceEnv: gl|vulkan|primary|all|gl+vulkan) to narrow
 // ITS OWN instance backends. The render-level values here (native|go)
-// must not collide with those: "go" is claimed by render for the pure-Go
-// GL path and never reaches rwgpu (SelectBackend routes there first);
-// "native" is render-only and unknown to rwgpu, so it must not leak into
-// a wgpu-native instance descriptor. "gl" is left to rwgpu (its
-// documented wgpu-native GL backend), NOT to the pure-Go path.
+// do not collide with those: render routes first in SelectBackend, and
+// neither value is meaningful to rwgpu, so they must not leak into a
+// wgpu-native instance descriptor.
 func ResolveBackend() (Backend, error) {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("GPUI_BACKEND"))) {
-	case "", "native", "webgpu":
+	case "", "native":
 		return BackendNative, nil
 	case "go":
 		return BackendGo, nil

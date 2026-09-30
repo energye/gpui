@@ -18,7 +18,7 @@ func TestResolveBackend(t *testing.T) {
 	if b != BackendNative {
 		t.Fatalf("ResolveBackend(unset) = %v, want native", b)
 	}
-	for _, v := range []string{"native", "webgpu", "NATIVE", " WebGPU "} {
+	for _, v := range []string{"native", "NATIVE", " Native "} {
 		t.Setenv("GPUI_BACKEND", v)
 		b, err := ResolveBackend()
 		if err != nil {
@@ -38,9 +38,8 @@ func TestResolveBackend(t *testing.T) {
 			t.Fatalf("ResolveBackend(%q) = %v, want go", v, b)
 		}
 	}
-	// "gl" belongs to the wgpu-native layer (its own GL backend), not to
-	// the pure-Go path: render must reject it instead of guessing.
-	for _, v := range []string{"gl", "1", "bogus"} {
+	// Only native|go exist: webgpu/gl/1 and anything else must error.
+	for _, v := range []string{"webgpu", "gl", "1", "bogus"} {
 		t.Setenv("GPUI_BACKEND", v)
 		if _, err := ResolveBackend(); err == nil {
 			t.Fatalf("ResolveBackend(%q) must error", v)
