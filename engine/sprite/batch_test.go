@@ -444,3 +444,64 @@ func TestBatchOffscreenGolden(t *testing.T) {
 		t.Errorf("thousand_trees_mini Flush = %d, want 1", got)
 	}
 }
+
+// S52 reuse: FlushCount reports the same count as Flush and drains,
+// with no per-flush copy. Cases come from batch_cases.json, no new data.
+func TestFlushCountMatchesFlush(t *testing.T) {
+	f := loadBatchCases(t)
+	for _, c := range f.Cases {
+		bf := NewBatch()
+		batchAddCase(t, bf, c)
+		wantCalls := bf.Flush(func(core.AssetID, []Sprite) {})
+		if wantCalls != c.WantCalls {
+			t.Errorf("%s: Flush = %d, want %d", c.Name, wantCalls, c.WantCalls)
+		}
+		bc := NewBatch()
+		batchAddCase(t, bc, c)
+		if got := bc.FlushCount(); got != wantCalls {
+			t.Errorf("%s: FlushCount = %d, want %d", c.Name, got, wantCalls)
+		}
+		if bc.Len() != 0 {
+			t.Errorf("%s: FlushCount did not drain, Len = %d", c.Name, bc.Len())
+		}
+	}
+	// Single-image hot path allocates nothing per flush after warmup.
+	// Prebuilt sprites mirror the window: validation runs once, per-frame
+	// Add+FlushCount reuses the backing.
+	c := mustFindBatchCase(t, f, "same_image_batch")
+	var pre []Sprite
+	for _, d := range c.Sprites {
+		s, err := NewSprite(core.AssetID(d.Image), batchRect(t, d.Src, d.Tag+"/src"), batchRect(t, d.Dst, d.Tag+"/dst"), d.Opacity)
+		if err != nil {
+			t.Fatalf("prebuild %q: %v", d.Tag, err)
+		}
+		s.Tag = d.Tag
+		pre = append(pre, s)
+	}
+	b := NewBatch()
+	for _, s := range pre {
+		if _, err := b.Add(s); err != nil {
+			t.Fatalf("warmup Add: %v", err)
+		}
+	}
+	if got := b.FlushCount(); got != 1 {
+		t.Fatalf("warmup FlushCount = %d, want 1", got)
+	}
+	allocs := testing.AllocsPerRun(50, func() {
+		for _, s := range pre {
+			if _, err := b.Add(s); err != nil {
+				t.Errorf("Add: %v", err)
+			}
+		}
+		if got := b.FlushCount(); got != 1 {
+			t.Errorf("FlushCount = %d, want 1", got)
+		}
+	})
+	if allocs != 0 {
+		t.Errorf("same-image FlushCount allocs = %v, want 0", allocs)
+	}
+	var nilB *Batch
+	if got := nilB.FlushCount(); got != 0 {
+		t.Errorf("nil FlushCount = %d, want 0", got)
+	}
+}

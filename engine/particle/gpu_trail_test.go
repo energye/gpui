@@ -725,3 +725,82 @@ func TestGPUTrailOffscreenGolden(t *testing.T) {
 		t.Errorf("slash Flush = %d, want 1", got)
 	}
 }
+
+// S52 reuse: AppendPoints/AppendParticles match the copying roads and
+// reuse the backing with no per-fill alloc after warmup. Cases come from
+// gpu_trail_cases.json, no new data.
+func TestReuseAppendMatchesCopy(t *testing.T) {
+	f := loadGPUTrailCases(t)
+	for _, c := range f.Trails {
+		tr := buildTrailFromCase(t, c)
+		want := tr.Points()
+		got := tr.AppendPoints(nil)
+		if len(got) != len(want) {
+			t.Fatalf("%s: AppendPoints len %d vs Points %d", c.Name, len(got), len(want))
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("%s: point[%d] %v vs %v", c.Name, i, got[i], want[i])
+			}
+		}
+		// Reused backing returns the same contents with no new backing.
+		buf := make([]core.Vec2, 0, len(want))
+		first := tr.AppendPoints(buf[:0])
+		second := tr.AppendPoints(first[:0])
+		if len(second) != len(want) {
+			t.Fatalf("%s: reuse len %d, want %d", c.Name, len(second), len(want))
+		}
+		for i := range want {
+			if second[i] != want[i] {
+				t.Fatalf("%s: reuse point[%d] diverged", c.Name, i)
+			}
+		}
+		// Empty trail keeps the buffer untouched.
+		empty, err := NewTrail(mustFindTrailConfig(t, c))
+		if err != nil {
+			t.Fatalf("%s: NewTrail: %v", c.Name, err)
+		}
+		if out := empty.AppendPoints(buf[:0]); len(out) != 0 {
+			t.Errorf("%s: empty AppendPoints len %d, want 0", c.Name, len(out))
+		}
+	}
+	for _, c := range f.Pools {
+		p := buildPoolFromCase(t, c)
+		want := p.Particles()
+		got := p.AppendParticles(nil)
+		if len(got) != len(want) {
+			t.Fatalf("%s: AppendParticles len %d vs %d", c.Name, len(got), len(want))
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("%s: particle[%d] diverged", c.Name, i)
+			}
+		}
+		buf := make([]Particle, 0, len(want))
+		reused := p.AppendParticles(buf[:0])
+		if len(reused) != len(want) {
+			t.Fatalf("%s: reuse len %d, want %d", c.Name, len(reused), len(want))
+		}
+		allocs := testing.AllocsPerRun(30, func() {
+			_ = p.AppendParticles(reused[:0])
+		})
+		if len(want) > 0 && allocs != 0 {
+			t.Errorf("%s: AppendParticles allocs = %v, want 0", c.Name, allocs)
+		}
+	}
+}
+
+func mustFindTrailConfig(t *testing.T, c trailCaseJSON) TrailConfig {
+	t.Helper()
+	start := colorOf(t, c.Start, c.Name+"/start")
+	end := colorOf(t, c.End, c.Name+"/end")
+	joint, ok := ParseJoint(c.Joint)
+	if !ok {
+		t.Fatalf("%s: bad joint %q", c.Name, c.Joint)
+	}
+	cfg, err := NewTrailConfig(c.MaxPoints, c.HeadWidth, c.TailWidth, start, end, joint)
+	if err != nil {
+		t.Fatalf("%s: NewTrailConfig: %v", c.Name, err)
+	}
+	return cfg
+}

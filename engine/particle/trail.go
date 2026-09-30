@@ -149,15 +149,25 @@ func (t *Trail) Len() int {
 	return len(t.pts)
 }
 
+// AppendPoints appends the stored points oldest to newest into buf and
+// returns the extended slice. Pass a reused backing (buf[:0]) to avoid
+// per-frame allocation; a nil buf allocates like Points. A nil or empty
+// trail returns buf unchanged. The caller must not retain the result
+// past the next Push/Clear.
+func (t *Trail) AppendPoints(buf []core.Vec2) []core.Vec2 {
+	if t == nil || len(t.pts) == 0 {
+		return buf
+	}
+	return append(buf, t.pts...)
+}
+
 // Points returns a fresh copy oldest to newest; writing it cannot alias
 // the trail.
 func (t *Trail) Points() []core.Vec2 {
 	if t == nil || len(t.pts) == 0 {
 		return nil
 	}
-	out := make([]core.Vec2, len(t.pts))
-	copy(out, t.pts)
-	return out
+	return append([]core.Vec2(nil), t.pts...)
 }
 
 // Clear drops every stored point. Config is kept.

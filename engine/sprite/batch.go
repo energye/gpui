@@ -139,6 +139,41 @@ func (b *Batch) Clear() {
 	b.skipped = 0
 }
 
+// FlushCount drains the batch and returns the draw call count (distinct
+// images) without allocating and without calling emit. It reports the
+// same count Flush would report: 0 when empty or nil, 1 on the
+// single-image fast path, distinct images otherwise. Use it for
+// call-count gates whose contents are proven by contract tests; drawing
+// still goes through Flush.
+func (b *Batch) FlushCount() int {
+	if b == nil || len(b.items) == 0 {
+		return 0
+	}
+	first := b.items[0].Image
+	single := true
+	for i := 1; i < len(b.items); i++ {
+		if b.items[i].Image != first {
+			single = false
+			break
+		}
+	}
+	var n int
+	if single {
+		n = 1
+	} else {
+		seen := make(map[core.AssetID]struct{}, 4)
+		for _, s := range b.items {
+			if _, ok := seen[s.Image]; !ok {
+				seen[s.Image] = struct{}{}
+			}
+		}
+		n = len(seen)
+	}
+	b.items = b.items[:0]
+	b.skipped = 0
+	return n
+}
+
 // Flush groups stored sprites by image in first-seen order, keeps the Add
 // order inside each group, calls emit once per image, drains the batch,
 // and returns the draw call count (distinct images). Empty batches call

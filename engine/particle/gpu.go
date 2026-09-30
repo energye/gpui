@@ -115,6 +115,16 @@ func (p *GPUPool) TotalPoints() int {
 	return p.points
 }
 
+// AppendParticles appends the live set into buf and returns the extended
+// slice. Pass a reused backing (buf[:0]) to avoid per-frame allocation.
+// See Emitter.AppendParticles for retention rules.
+func (p *GPUPool) AppendParticles(buf []Particle) []Particle {
+	if p == nil || p.emit == nil {
+		return buf
+	}
+	return p.emit.AppendParticles(buf)
+}
+
 // Particles returns a fresh copy of the live set; writing it cannot alias
 // the pool.
 func (p *GPUPool) Particles() []Particle {

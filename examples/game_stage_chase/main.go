@@ -31,6 +31,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"time"
 
@@ -562,6 +563,28 @@ func buildProps() []prop {
 	return out
 }
 
+// sortPropsFarToNear orders props far-to-near (bigger depth first) so the
+// paint loop can append in draw order with no per-frame sort. Stable:
+// equal depths keep build order, matching the old insertion sort.
+func sortPropsFarToNear(props []prop) {
+	sort.SliceStable(props, func(i, j int) bool { return props[i].Depth > props[j].Depth })
+}
+
+// buildPropSprites prebuilds one sprite per prop in the same order.
+// Props never move, so validation runs once here instead of every tick.
+func buildPropSprites(props []prop) []sprite.Sprite {
+	out := make([]sprite.Sprite, 0, len(props))
+	for i := range props {
+		p := &props[i]
+		sp, err := sprite.NewSprite(stageImageID, stageSrc, core.NewRect(p.X, p.Y, p.W, p.H), 1)
+		if err != nil {
+			continue
+		}
+		out = append(out, sp)
+	}
+	return out
+}
+
 func propColor(k int) (float64, float64, float64) {
 	switch k {
 	case 0:
@@ -618,6 +641,9 @@ type chaseSim struct {
 	deepScratch    []sprite.DeepItem
 	paintItems     []chaseDrawItem
 	paintFlat      []render.AtlasSprite
+	propSprites    []sprite.Sprite
+	trailPtsBuf    []core.Vec2
+	poolPtsBuf     []particle.Particle
 	labelTick      int
 	sortMismatches int
 	hitch20        int64
@@ -721,7 +747,8 @@ func (t *ticker) Tick(dt float64) bool {
 		}
 	}
 	// Batch proof: one image means one call (persistent batch keeps its
-	// backing; the single-image fast path skips the per-frame map).
+	// backing; FlushCount reports the same count as Flush with no per-frame
+	// copy or map; sprite contents stay in the batch contract tests).
 	if s.batch == nil {
 		s.batch = sprite.NewBatch()
 	}
@@ -731,15 +758,13 @@ func (t *ticker) Tick(dt float64) bool {
 		if p.X+p.W < view.X || p.X > view.X+view.W || p.Y+p.H < view.Y || p.Y > view.Y+view.H {
 			continue
 		}
-		sp, err := sprite.NewSprite(stageImageID, stageSrc, core.NewRect(p.X, p.Y, p.W, p.H), 1)
-		if err != nil {
-			continue
+		if i < len(s.propSprites) {
+			_, _ = s.batch.Add(s.propSprites[i])
 		}
-		_, _ = s.batch.Add(sp)
 	}
 	carSp, _ := sprite.NewSprite(stageImageID, stageSrc, newR, 1)
 	_, _ = s.batch.Add(carSp)
-	s.batchCalls = s.batch.Flush(chaseBatchEmit)
+	s.batchCalls = s.batch.FlushCount()
 	if s.worldBox != nil {
 		s.worldBox.MarkNeedsPaint()
 	}
@@ -971,10 +996,12 @@ func main() {
 		"JSON见 ability_extra",
 	})
 	atlas := buildWhiteAtlas()
+	props := buildProps()
+	sortPropsFarToNear(props)
 	sim := &chaseSim{
 		cam: cam, chunk: chk, trail: trail, pool: pool,
 		tracker: tracker, layer: layer,
-		props: buildProps(), atlas: atlas,
+		props: props, propSprites: buildPropSprites(props), atlas: atlas,
 		shell: shell, carX: carMinX, carY: carY, dir: 1,
 	}
 	runtime.ReadMemStats(&sim.memStart)
@@ -1315,6 +1342,9 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 	}
 	// Sorted atlas sprites: visible props far-to-near + car on top.
 	// Frame-owned backings: no per-paint grows after warmup.
+	// Props arrive pre-sorted far-to-near; car/trail/pool depths are fixed
+	// (-1e9/-2e9/-3e9) so appending in order keeps the old painter order
+	// with no per-frame sort.
 	items := s.paintItems[:0]
 	for i := range s.props {
 		p := &s.props[i]
@@ -1344,8 +1374,10 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 		}})
 	}
 	// Car trail ribbon: newest widest brightest.
+	// Reused backing: AppendPoints fills the same array every paint.
 	if s.trail != nil {
-		pts := s.trail.Points()
+		pts := s.trail.AppendPoints(s.trailPtsBuf[:0])
+		s.trailPtsBuf = pts
 		for i, q := range pts {
 			sc, ok := s.cam.WorldToScreen(q)
 			if !ok {
@@ -1371,8 +1403,11 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 		}
 	}
 	// Bonfire pool points (world->screen, small).
+	// Reused backing: AppendParticles fills the same array every paint.
 	if s.pool != nil {
-		for _, pt := range s.pool.Particles() {
+		live := s.pool.AppendParticles(s.poolPtsBuf[:0])
+		s.poolPtsBuf = live
+		for _, pt := range live {
 			if !pt.Alive() {
 				continue
 			}
@@ -1398,15 +1433,8 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 			}
 		}
 	}
-	// Painter far-to-near: bigger depth first (props), car/trail/pool last.
-	// Insertion road, same order as before, now on the reused backing.
-	for i := 1; i < len(items); i++ {
-		j := i
-		for j > 0 && items[j-1].depth < items[j].depth {
-			items[j-1], items[j] = items[j], items[j-1]
-			j--
-		}
-	}
+	// Painter order is already far-to-near: pre-sorted props first, then
+	// car/trail/pool in fixed depth order. No per-frame sort.
 	s.paintItems = items
 	flat := s.paintFlat[:0]
 	for i := range items {

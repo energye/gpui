@@ -410,15 +410,25 @@ func (e *Emitter) ChildSpawned() int {
 	return e.children
 }
 
+// AppendParticles appends the live set into buf and returns the extended
+// slice. Pass a reused backing (buf[:0]) to avoid per-frame allocation;
+// a nil buf allocates like Particles. A nil or empty emitter returns buf
+// unchanged. The caller must not retain the result past the next
+// Spawn/Update/Clear.
+func (e *Emitter) AppendParticles(buf []Particle) []Particle {
+	if e == nil || len(e.live) == 0 {
+		return buf
+	}
+	return append(buf, e.live...)
+}
+
 // Particles returns a fresh copy of the live set; writing it cannot alias
 // the emitter.
 func (e *Emitter) Particles() []Particle {
 	if e == nil || len(e.live) == 0 {
 		return nil
 	}
-	out := make([]Particle, len(e.live))
-	copy(out, e.live)
-	return out
+	return append([]Particle(nil), e.live...)
 }
 
 // Clear drops every live particle and resets the accumulator plus the
