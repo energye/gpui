@@ -24,14 +24,19 @@ type Queue struct {
 	ctx             *AdapterContext
 	submissionIndex uint64
 	fence           *Fence // signaled at each submit for GPU completion tracking
+	batch           writeBatch
 }
 
 // Submit submits command buffers to the GPU.
-// Acquires the AdapterContext lock, makes context current on pbuffer/surfaceless,
-// executes all GL commands, signals the fence, and flushes.
+// One Lock for the whole submit: staged uploads flush first, then all GL
+// commands run under a per-submit state cache that drops repeated setup.
 func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	glCtx := q.ctx.Lock()
 	defer q.ctx.Unlock()
+	st := newGLExecState()
+	if list := q.batch.drain(); len(list) > 0 {
+		flushWriteBatch(glCtx, st, list)
+	}
 
 	for _, cb := range commandBuffers {
 		cmdBuf, ok := cb.(*CommandBuffer)
@@ -46,7 +51,7 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 		// debug-only detail.
 		cmdDbg := hal.Logger().Enabled(context.Background(), slog.LevelDebug)
 		for i, cmd := range cmdBuf.commands {
-			cmd.Execute(glCtx)
+			cmd.Execute(glCtx, st)
 			if cmdDbg {
 				if glErr := glCtx.GetError(); glErr != 0 {
 					detail := fmt.Sprintf("%T", cmd)
@@ -103,7 +108,8 @@ func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
 }
 
-// WriteBuffer writes data to a buffer immediately.
+// WriteBuffer stages data for upload. No GL runs here (no MakeCurrent):
+// the payload flushes with the next Submit/Present under that Lock.
 func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error {
 	buf, ok := buffer.(*Buffer)
 	if !ok {
@@ -112,13 +118,11 @@ func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
 	if len(data) == 0 {
 		return nil
 	}
-
-	glCtx := q.ctx.Lock()
-	defer q.ctx.Unlock()
-
-	glCtx.BindBuffer(buf.target, buf.id)
-	glCtx.BufferSubData(buf.target, int(offset), len(data), unsafe.Pointer(&data[0]))
-	glCtx.BindBuffer(buf.target, 0)
+	if q.batch.stage(buf, offset, data) {
+		glCtx := q.ctx.Lock()
+		flushWriteBatch(glCtx, newGLExecState(), q.batch.drain())
+		q.ctx.Unlock()
+	}
 	return nil
 }
 
@@ -131,6 +135,11 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 
 	glCtx := q.ctx.Lock()
 	defer q.ctx.Unlock()
+
+	// Staged buffer uploads predate this call: flush first to keep GL order.
+	if list := q.batch.drain(); len(list) > 0 {
+		flushWriteBatch(glCtx, newGLExecState(), list)
+	}
 
 	_, format, dataType := textureFormatToGL(tex.format)
 
@@ -204,6 +213,9 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 	glCtx := q.ctx.LockForSurface(surf.eglSurface)
 	defer q.ctx.Unlock()
 
+	if list := q.batch.drain(); len(list) > 0 {
+		flushWriteBatch(glCtx, newGLExecState(), list)
+	}
 	surf.blitSwapchainToDefaultWith(glCtx)
 
 	// Use damage-aware swap when the extension is available and rects provided.

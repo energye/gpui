@@ -17,7 +17,7 @@ import (
 
 // Command represents a recorded GL command.
 type Command interface {
-	Execute(ctx *gl.Context)
+	Execute(ctx *gl.Context, st *glExecState)
 }
 
 // CommandBuffer holds recorded commands for later execution.
@@ -861,7 +861,7 @@ type MemoryBarrierCommand struct {
 	barriers uint32
 }
 
-func (c *MemoryBarrierCommand) Execute(ctx *gl.Context) {
+func (c *MemoryBarrierCommand) Execute(ctx *gl.Context, st *glExecState) {
 	ctx.MemoryBarrier(c.barriers)
 }
 
@@ -872,7 +872,7 @@ type ClearBufferCommand struct {
 	size   uint64
 }
 
-func (c *ClearBufferCommand) Execute(_ *gl.Context) {
+func (c *ClearBufferCommand) Execute(_ *gl.Context, _ *glExecState) {
 	// Note: glClearBufferSubData requires GL 4.3+ / GLES 3.1+.
 	// For older versions, map buffer and memset, or use compute shader.
 }
@@ -882,8 +882,10 @@ type BindVAOCommand struct {
 	vao uint32
 }
 
-func (c *BindVAOCommand) Execute(ctx *gl.Context) {
-	ctx.BindVertexArray(c.vao)
+func (c *BindVAOCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.bindVAO(c.vao) {
+		ctx.BindVertexArray(c.vao)
+	}
 }
 
 // BindFramebufferCommand binds a framebuffer object.
@@ -891,8 +893,10 @@ type BindFramebufferCommand struct {
 	fbo uint32
 }
 
-func (c *BindFramebufferCommand) Execute(ctx *gl.Context) {
-	ctx.BindFramebuffer(gl.FRAMEBUFFER, c.fbo)
+func (c *BindFramebufferCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.bindFramebuffer(c.fbo) {
+		ctx.BindFramebuffer(gl.FRAMEBUFFER, c.fbo)
+	}
 }
 
 // BindSurfaceFramebufferCommand binds the Surface's swapchain offscreen
@@ -903,12 +907,16 @@ type BindSurfaceFramebufferCommand struct {
 	surface *Surface
 }
 
-func (c *BindSurfaceFramebufferCommand) Execute(ctx *gl.Context) {
+func (c *BindSurfaceFramebufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 	if c.surface == nil {
-		ctx.BindFramebuffer(gl.FRAMEBUFFER, 0)
+		if st.bindFramebuffer(0) {
+			ctx.BindFramebuffer(gl.FRAMEBUFFER, 0)
+		}
 		return
 	}
-	ctx.BindFramebuffer(gl.FRAMEBUFFER, c.surface.swapchainFBO)
+	if st.bindFramebuffer(c.surface.swapchainFBO) {
+		ctx.BindFramebuffer(gl.FRAMEBUFFER, c.surface.swapchainFBO)
+	}
 }
 
 // EnsureOffscreenFBOCommand lazily creates a framebuffer object for an offscreen
@@ -917,7 +925,7 @@ type EnsureOffscreenFBOCommand struct {
 	texture *Texture
 }
 
-func (c *EnsureOffscreenFBOCommand) Execute(ctx *gl.Context) {
+func (c *EnsureOffscreenFBOCommand) Execute(ctx *gl.Context, st *glExecState) {
 	if c.texture.fbo == 0 {
 		// Create FBO.
 		fbo := ctx.GenFramebuffers(1)
@@ -931,11 +939,15 @@ func (c *EnsureOffscreenFBOCommand) Execute(ctx *gl.Context) {
 			// FBO incomplete — delete and fall back to default framebuffer.
 			ctx.DeleteFramebuffers(fbo)
 			ctx.BindFramebuffer(gl.FRAMEBUFFER, 0)
+			st.bindFramebuffer(0)
 			return
 		}
 		c.texture.fbo = fbo
+		st.bindFramebuffer(fbo)
 	} else {
-		ctx.BindFramebuffer(gl.FRAMEBUFFER, c.texture.fbo)
+		if st.bindFramebuffer(c.texture.fbo) {
+			ctx.BindFramebuffer(gl.FRAMEBUFFER, c.texture.fbo)
+		}
 	}
 }
 
@@ -947,7 +959,7 @@ type AttachDepthStencilCommand struct {
 	depthTexture *Texture
 }
 
-func (c *AttachDepthStencilCommand) Execute(ctx *gl.Context) {
+func (c *AttachDepthStencilCommand) Execute(ctx *gl.Context, st *glExecState) {
 	if c.colorTexture.fbo == 0 {
 		return
 	}
@@ -981,7 +993,7 @@ type AttachDepthStencilToFBOCommand struct {
 	depthTexture *Texture
 }
 
-func (c *AttachDepthStencilToFBOCommand) Execute(ctx *gl.Context) {
+func (c *AttachDepthStencilToFBOCommand) Execute(ctx *gl.Context, st *glExecState) {
 	attachment := depthStencilAttachmentPoint(c.depthTexture.format)
 	ctx.FramebufferTexture2D(gl.FRAMEBUFFER, attachment, c.depthTexture.target, c.depthTexture.id, 0)
 }
@@ -1003,14 +1015,18 @@ type MSAAResolveCommand struct {
 	width, height    int32
 }
 
-func (c *MSAAResolveCommand) Execute(ctx *gl.Context) {
+func (c *MSAAResolveCommand) Execute(ctx *gl.Context, st *glExecState) {
 	// Disable scissor test before blit — glBlitFramebuffer respects GL_SCISSOR_TEST
 	// on the draw framebuffer. Without this, only the last scissor rect's pixels
 	// are copied, leaving the rest of the surface black (gg#226).
-	ctx.Disable(gl.SCISSOR_TEST)
+	if st.setScissorTest(false) {
+		ctx.Disable(gl.SCISSOR_TEST)
+	}
 
 	// Bind MSAA FBO as read source.
-	ctx.BindFramebuffer(gl.READ_FRAMEBUFFER, c.msaaTexture.fbo)
+	if st.bindRead(c.msaaTexture.fbo) {
+		ctx.BindFramebuffer(gl.READ_FRAMEBUFFER, c.msaaTexture.fbo)
+	}
 
 	// Bind the draw target.
 	if c.resolveToSurface {
@@ -1021,9 +1037,14 @@ func (c *MSAAResolveCommand) Execute(ctx *gl.Context) {
 		if c.surface != nil {
 			drawFBO = c.surface.swapchainFBO
 		}
-		ctx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, drawFBO)
-	} else if !c.ensureResolveFBO(ctx) {
-		return
+		if st.bindDraw(drawFBO) {
+			ctx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, drawFBO)
+		}
+	} else {
+		if !c.ensureResolveFBO(ctx) {
+			return
+		}
+		st.bindDraw(c.resolveTexture.fbo)
 	}
 
 	// Straight MSAA resolve — no Y-flip. Both source and destination use the
@@ -1035,8 +1056,12 @@ func (c *MSAAResolveCommand) Execute(ctx *gl.Context) {
 	)
 
 	// Restore default framebuffer binding.
-	ctx.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
-	ctx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	if st.bindRead(0) {
+		ctx.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
+	}
+	if st.bindDraw(0) {
+		ctx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	}
 }
 
 // ensureResolveFBO lazily creates the resolve FBO and binds it as draw target.
@@ -1066,7 +1091,7 @@ type AttachColorCommand struct {
 	texture         *Texture
 }
 
-func (c *AttachColorCommand) Execute(ctx *gl.Context) {
+func (c *AttachColorCommand) Execute(ctx *gl.Context, st *glExecState) {
 	ctx.FramebufferTexture2D(gl.FRAMEBUFFER,
 		gl.COLOR_ATTACHMENT0+c.attachmentIndex,
 		c.texture.target, c.texture.id, 0)
@@ -1078,7 +1103,7 @@ type SetDrawColorBuffersCommand struct {
 	count int // number of color attachments
 }
 
-func (c *SetDrawColorBuffersCommand) Execute(ctx *gl.Context) {
+func (c *SetDrawColorBuffersCommand) Execute(ctx *gl.Context, st *glExecState) {
 	bufs := make([]uint32, c.count)
 	for i := range bufs {
 		bufs[i] = gl.COLOR_ATTACHMENT0 + uint32(i)
@@ -1095,12 +1120,16 @@ type ClearColorBufferCommand struct {
 	color      [4]float32 // RGBA clear value
 }
 
-func (c *ClearColorBufferCommand) Execute(ctx *gl.Context) {
-	ctx.Disable(gl.SCISSOR_TEST) // Ensure clear covers full framebuffer (not clipped by stale scissor)
+func (c *ClearColorBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setScissorTest(false) {
+		ctx.Disable(gl.SCISSOR_TEST) // Ensure clear covers full framebuffer (not clipped by stale scissor)
+	}
 	// Temporarily enable all color writes so the clear takes effect even if a
 	// previous pipeline masked some channels. Matches Rust behavior which
 	// sets color_mask(true,true,true,true) before clear (queue.rs:1134).
-	ctx.ColorMask(true, true, true, true)
+	if st.setColorMask(true, true, true, true) {
+		ctx.ColorMask(true, true, true, true)
+	}
 	ctx.ClearBufferfv(gl.COLOR, c.drawBuffer, &c.color)
 }
 
@@ -1111,8 +1140,10 @@ type ClearColorCommand struct {
 	r, g, b, a float32
 }
 
-func (c *ClearColorCommand) Execute(ctx *gl.Context) {
-	ctx.Disable(gl.SCISSOR_TEST) // Ensure clear covers full framebuffer (not clipped by stale scissor)
+func (c *ClearColorCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setScissorTest(false) {
+		ctx.Disable(gl.SCISSOR_TEST) // Ensure clear covers full framebuffer (not clipped by stale scissor)
+	}
 	ctx.ClearColor(c.r, c.g, c.b, c.a)
 	ctx.Clear(gl.COLOR_BUFFER_BIT)
 }
@@ -1122,9 +1153,12 @@ type ClearDepthCommand struct {
 	depth float64
 }
 
-func (c *ClearDepthCommand) Execute(ctx *gl.Context) {
-	ctx.Disable(gl.SCISSOR_TEST)
+func (c *ClearDepthCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setScissorTest(false) {
+		ctx.Disable(gl.SCISSOR_TEST)
+	}
 	ctx.DepthMask(true)
+	st.markDepthMask(true)
 	ctx.ClearDepth(c.depth)
 	ctx.Clear(gl.DEPTH_BUFFER_BIT)
 }
@@ -1134,10 +1168,14 @@ type ClearStencilCommand struct {
 	stencil int32
 }
 
-func (c *ClearStencilCommand) Execute(ctx *gl.Context) {
-	ctx.Disable(gl.SCISSOR_TEST)
+func (c *ClearStencilCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setScissorTest(false) {
+		ctx.Disable(gl.SCISSOR_TEST)
+	}
 	// Ensure stencil write mask allows the clear to take effect.
 	ctx.StencilMaskSeparate(gl.FRONT_AND_BACK, 0xFF)
+	st.markStencilWMask(true, 0xFF)
+	st.markStencilWMask(false, 0xFF)
 	ctx.Clear(gl.STENCIL_BUFFER_BIT)
 }
 
@@ -1146,8 +1184,10 @@ type UseProgramCommand struct {
 	programID uint32
 }
 
-func (c *UseProgramCommand) Execute(ctx *gl.Context) {
-	ctx.UseProgram(c.programID)
+func (c *UseProgramCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.useProgram(c.programID) {
+		ctx.UseProgram(c.programID)
+	}
 }
 
 // SetPipelineStateCommand sets pipeline state (culling, depth, stencil, blending, color mask).
@@ -1160,92 +1200,126 @@ type SetPipelineStateCommand struct {
 	stencilRef   uint32
 }
 
-func (c *SetPipelineStateCommand) Execute(ctx *gl.Context) {
+// cullFaceGL maps a CullMode to its GL face enum (only read when culling on).
+func cullFaceGL(m gputypes.CullMode) uint32 {
+	if m == gputypes.CullModeFront {
+		return gl.FRONT
+	}
+	return gl.BACK
+}
+
+func (c *SetPipelineStateCommand) Execute(ctx *gl.Context, st *glExecState) {
 	// Culling
-	if c.cullMode == gputypes.CullModeNone {
-		ctx.Disable(gl.CULL_FACE)
-	} else {
-		ctx.Enable(gl.CULL_FACE)
-		switch c.cullMode {
-		case gputypes.CullModeFront:
-			ctx.CullFace(gl.FRONT)
-		case gputypes.CullModeBack:
-			ctx.CullFace(gl.BACK)
+	enabled := c.cullMode != gputypes.CullModeNone
+	toggle, face := st.setCull(enabled, cullFaceGL(c.cullMode))
+	if toggle {
+		if enabled {
+			ctx.Enable(gl.CULL_FACE)
+		} else {
+			ctx.Disable(gl.CULL_FACE)
 		}
+	}
+	if enabled && face {
+		ctx.CullFace(cullFaceGL(c.cullMode))
 	}
 
 	// Front face — swapped CW↔CCW to compensate for the Y-flip from
 	// ADJUST_COORDINATE_SPACE. The negation of gl_Position.y reverses triangle
 	// winding order, so we swap the front face to keep the same visibility.
 	// Matches Rust wgpu-hal GLES (conv.rs:298-303).
-	switch c.frontFace {
-	case gputypes.FrontFaceCCW:
-		ctx.FrontFace(gl.CW)
-	case gputypes.FrontFaceCW:
-		ctx.FrontFace(gl.CCW)
+	wantFront := uint32(gl.CW)
+	if c.frontFace == gputypes.FrontFaceCW {
+		wantFront = gl.CCW
+	}
+	if st.setFrontFace(wantFront) {
+		ctx.FrontFace(wantFront)
 	}
 
 	// Depth and stencil
-	c.applyDepthStencilState(ctx)
+	c.applyDepthStencilState(ctx, st)
 
 	// Color targets (blend + write mask).
 	// Matches Rust wgpu-hal GLES SetColorTarget (queue.rs:1483-1559):
 	//   - If all targets are identical, use global (non-indexed) calls.
 	//   - If targets differ, use per-draw-buffer indexed calls (GLES 3.2 / GL 4.0).
 	//     Fallback: apply target[0] globally when indexed functions unavailable.
-	c.applyColorTargets(ctx)
+	c.applyColorTargets(ctx, st)
 }
 
 // applyColorTargets sets blend and write-mask state per render target.
 // Matches Rust wgpu-hal GLES SetColorTarget command (queue.rs:1483-1559).
-func (c *SetPipelineStateCommand) applyColorTargets(ctx *gl.Context) {
+func (c *SetPipelineStateCommand) applyColorTargets(ctx *gl.Context, st *glExecState) {
 	if len(c.colorTargets) == 0 {
 		// No color targets — disable blending, allow all color writes.
-		ctx.Disable(gl.BLEND)
-		ctx.ColorMask(true, true, true, true)
+		if t, _, _ := st.setBlend(false, 0, 0, 0, 0, 0, 0); t {
+			ctx.Disable(gl.BLEND)
+		}
+		if st.setColorMask(true, true, true, true) {
+			ctx.ColorMask(true, true, true, true)
+		}
 		return
 	}
 
 	// Single target or all targets identical: use global (non-indexed) calls.
 	// Matches Rust path: draw_buffer_index == None (queue.rs:1527-1558).
 	ct := c.colorTargets[0]
-	ctx.ColorMask(
-		ct.WriteMask&gputypes.ColorWriteMaskRed != 0,
-		ct.WriteMask&gputypes.ColorWriteMaskGreen != 0,
-		ct.WriteMask&gputypes.ColorWriteMaskBlue != 0,
-		ct.WriteMask&gputypes.ColorWriteMaskAlpha != 0,
-	)
+	r := ct.WriteMask&gputypes.ColorWriteMaskRed != 0
+	g := ct.WriteMask&gputypes.ColorWriteMaskGreen != 0
+	b := ct.WriteMask&gputypes.ColorWriteMaskBlue != 0
+	a := ct.WriteMask&gputypes.ColorWriteMaskAlpha != 0
+	if st.setColorMask(r, g, b, a) {
+		ctx.ColorMask(r, g, b, a)
+	}
 	if ct.Blend != nil {
-		ctx.Enable(gl.BLEND)
-		ctx.BlendFuncSeparate(
-			blendFactorToGL(ct.Blend.Color.SrcFactor),
-			blendFactorToGL(ct.Blend.Color.DstFactor),
-			blendFactorToGL(ct.Blend.Alpha.SrcFactor),
-			blendFactorToGL(ct.Blend.Alpha.DstFactor),
-		)
-		ctx.BlendEquationSeparate(
-			blendOperationToGL(ct.Blend.Color.Operation),
-			blendOperationToGL(ct.Blend.Alpha.Operation),
-		)
+		srcRGB := blendFactorToGL(ct.Blend.Color.SrcFactor)
+		dstRGB := blendFactorToGL(ct.Blend.Color.DstFactor)
+		srcA := blendFactorToGL(ct.Blend.Alpha.SrcFactor)
+		dstA := blendFactorToGL(ct.Blend.Alpha.DstFactor)
+		eqRGB := blendOperationToGL(ct.Blend.Color.Operation)
+		eqA := blendOperationToGL(ct.Blend.Alpha.Operation)
+		t, f, e := st.setBlend(true, srcRGB, dstRGB, srcA, dstA, eqRGB, eqA)
+		if t {
+			ctx.Enable(gl.BLEND)
+		}
+		if f {
+			ctx.BlendFuncSeparate(srcRGB, dstRGB, srcA, dstA)
+		}
+		if e {
+			ctx.BlendEquationSeparate(eqRGB, eqA)
+		}
 	} else {
-		ctx.Disable(gl.BLEND)
+		if t, _, _ := st.setBlend(false, 0, 0, 0, 0, 0, 0); t {
+			ctx.Disable(gl.BLEND)
+		}
 	}
 }
 
 // applyDepthStencilState configures GL depth test and stencil test from pipeline state.
-func (c *SetPipelineStateCommand) applyDepthStencilState(ctx *gl.Context) {
+func (c *SetPipelineStateCommand) applyDepthStencilState(ctx *gl.Context, st *glExecState) {
 	if c.depthStencil == nil {
-		ctx.Disable(gl.DEPTH_TEST)
-		ctx.Disable(gl.STENCIL_TEST)
+		if t, _, _ := st.setDepth(false, false, 0); t {
+			ctx.Disable(gl.DEPTH_TEST)
+		}
+		if st.setStencilTest(false) {
+			ctx.Disable(gl.STENCIL_TEST)
+		}
 		return
 	}
 
 	// Depth test
-	if c.depthStencil.DepthWriteEnabled || c.depthStencil.DepthCompare != gputypes.CompareFunctionAlways {
-		ctx.Enable(gl.DEPTH_TEST)
-		ctx.DepthMask(c.depthStencil.DepthWriteEnabled)
-		ctx.DepthFunc(compareFunctionToGL(c.depthStencil.DepthCompare))
-	} else {
+	depthOn := c.depthStencil.DepthWriteEnabled || c.depthStencil.DepthCompare != gputypes.CompareFunctionAlways
+	depthFn := compareFunctionToGL(c.depthStencil.DepthCompare)
+	if t, m, f := st.setDepth(depthOn, c.depthStencil.DepthWriteEnabled, depthFn); depthOn {
+		if t {
+			ctx.Enable(gl.DEPTH_TEST)
+		}
+		if m {
+			ctx.DepthMask(c.depthStencil.DepthWriteEnabled)
+		}
+		if f {
+			ctx.DepthFunc(depthFn)
+		}
+	} else if t {
 		ctx.Disable(gl.DEPTH_TEST)
 	}
 
@@ -1258,31 +1332,56 @@ func (c *SetPipelineStateCommand) applyDepthStencilState(ctx *gl.Context) {
 		c.depthStencil.StencilBack.Compare != gputypes.CompareFunctionAlways
 
 	if !hasStencilOps && c.depthStencil.StencilWriteMask == 0 {
-		ctx.Disable(gl.STENCIL_TEST)
+		if st.setStencilTest(false) {
+			ctx.Disable(gl.STENCIL_TEST)
+		}
 		return
 	}
 
-	ctx.Enable(gl.STENCIL_TEST)
+	if st.setStencilTest(true) {
+		ctx.Enable(gl.STENCIL_TEST)
+	}
 	ref := int32(c.stencilRef)
 
-	ctx.StencilFuncSeparate(gl.FRONT,
-		compareFunctionToGL(c.depthStencil.StencilFront.Compare),
-		ref, c.depthStencil.StencilReadMask)
-	ctx.StencilFuncSeparate(gl.BACK,
-		compareFunctionToGL(c.depthStencil.StencilBack.Compare),
-		ref, c.depthStencil.StencilReadMask)
+	if st.setStencilFunc(true, compareFunctionToGL(c.depthStencil.StencilFront.Compare),
+		ref, c.depthStencil.StencilReadMask) {
+		ctx.StencilFuncSeparate(gl.FRONT,
+			compareFunctionToGL(c.depthStencil.StencilFront.Compare),
+			ref, c.depthStencil.StencilReadMask)
+	}
+	if st.setStencilFunc(false, compareFunctionToGL(c.depthStencil.StencilBack.Compare),
+		ref, c.depthStencil.StencilReadMask) {
+		ctx.StencilFuncSeparate(gl.BACK,
+			compareFunctionToGL(c.depthStencil.StencilBack.Compare),
+			ref, c.depthStencil.StencilReadMask)
+	}
 
-	ctx.StencilOpSeparate(gl.FRONT,
+	if st.setStencilOp(true,
 		stencilOpToGL(c.depthStencil.StencilFront.FailOp),
 		stencilOpToGL(c.depthStencil.StencilFront.DepthFailOp),
-		stencilOpToGL(c.depthStencil.StencilFront.PassOp))
-	ctx.StencilOpSeparate(gl.BACK,
+		stencilOpToGL(c.depthStencil.StencilFront.PassOp)) {
+		ctx.StencilOpSeparate(gl.FRONT,
+			stencilOpToGL(c.depthStencil.StencilFront.FailOp),
+			stencilOpToGL(c.depthStencil.StencilFront.DepthFailOp),
+			stencilOpToGL(c.depthStencil.StencilFront.PassOp))
+	}
+	if st.setStencilOp(false,
 		stencilOpToGL(c.depthStencil.StencilBack.FailOp),
 		stencilOpToGL(c.depthStencil.StencilBack.DepthFailOp),
-		stencilOpToGL(c.depthStencil.StencilBack.PassOp))
+		stencilOpToGL(c.depthStencil.StencilBack.PassOp)) {
+		ctx.StencilOpSeparate(gl.BACK,
+			stencilOpToGL(c.depthStencil.StencilBack.FailOp),
+			stencilOpToGL(c.depthStencil.StencilBack.DepthFailOp),
+			stencilOpToGL(c.depthStencil.StencilBack.PassOp))
+	}
 
-	ctx.StencilMaskSeparate(gl.FRONT, c.depthStencil.StencilWriteMask)
-	ctx.StencilMaskSeparate(gl.BACK, c.depthStencil.StencilWriteMask)
+	if st.setStencilMask(true, c.depthStencil.StencilWriteMask) {
+		ctx.StencilMaskSeparate(gl.FRONT, c.depthStencil.StencilWriteMask)
+	}
+	if st.setStencilMask(false, c.depthStencil.StencilWriteMask) {
+		ctx.StencilMaskSeparate(gl.BACK, c.depthStencil.StencilWriteMask)
+	}
+	st.markStencilApplied()
 }
 
 // SetBindGroupCommand binds resources.
@@ -1300,7 +1399,7 @@ type SetBindGroupCommand struct {
 	samplerBindMap *[maxTextureSlots]int8
 }
 
-func (c *SetBindGroupCommand) Execute(ctx *gl.Context) {
+func (c *SetBindGroupCommand) Execute(ctx *gl.Context, st *glExecState) {
 	if c.group == nil {
 		return
 	}
@@ -1333,8 +1432,10 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context) {
 			offset += dynOff
 
 			if size > 0 {
-				ctx.BindBufferRange(target, glBinding, bufID, offset, size)
-			} else {
+				if st.bindIndexed(target, glBinding, bufID, offset, size) {
+					ctx.BindBufferRange(target, glBinding, bufID, offset, size)
+				}
+			} else if st.bindIndexed(target, glBinding, bufID, 0, 0) {
 				ctx.BindBufferBase(target, glBinding, bufID)
 			}
 
@@ -1358,8 +1459,12 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context) {
 				}
 				continue
 			}
-			ctx.ActiveTexture(gl.TEXTURE0 + glBinding)
-			ctx.BindTexture(gl.TEXTURE_2D, texID)
+			if st.activeTexture(gl.TEXTURE0 + glBinding) {
+				ctx.ActiveTexture(gl.TEXTURE0 + glBinding)
+			}
+			if st.bindTexture(glBinding, texID) {
+				ctx.BindTexture(gl.TEXTURE_2D, texID)
+			}
 
 		case entry.Sampler != nil:
 			s, ok := entry.Sampler.(*Sampler)
@@ -1380,7 +1485,9 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context) {
 					"samplerID", samplerID,
 				)
 			}
-			ctx.BindSampler(bindUnit, samplerID)
+			if st.bindSampler(bindUnit, samplerID) {
+				ctx.BindSampler(bindUnit, samplerID)
+			}
 		}
 	}
 }
@@ -1448,8 +1555,10 @@ type SetVertexBufferCommand struct {
 	layout *gputypes.VertexBufferLayout // from the render pipeline descriptor
 }
 
-func (c *SetVertexBufferCommand) Execute(ctx *gl.Context) {
-	ctx.BindBuffer(gl.ARRAY_BUFFER, c.buffer.id)
+func (c *SetVertexBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.bindArray(c.buffer.id) {
+		ctx.BindBuffer(gl.ARRAY_BUFFER, c.buffer.id)
+	}
 
 	// Configure vertex attributes from the pipeline's vertex layout.
 	if c.layout == nil {
@@ -1466,12 +1575,23 @@ func (c *SetVertexBufferCommand) Execute(ctx *gl.Context) {
 		loc := attr.ShaderLocation
 		size, typ, normalized := vertexFormatToGL(attr.Format)
 		attrOffset := uintptr(c.offset) + uintptr(attr.Offset)
-		ctx.EnableVertexAttribArray(loc)
-		ctx.VertexAttribPointer(loc, size, typ, normalized, stride, attrOffset)
+		en, ptr, div := st.setAttrib(loc, attribState{
+			enabled: true, size: size, typ: typ, normalized: normalized,
+			stride: stride, offset: attrOffset, buf: c.buffer.id, divisor: divisor,
+		})
+		// The buffer above is bound (or already was); the pointer captures it.
+		if en {
+			ctx.EnableVertexAttribArray(loc)
+		}
+		if ptr {
+			ctx.VertexAttribPointer(loc, size, typ, normalized, stride, attrOffset)
+		}
 		// Set the instance divisor. Per-vertex attributes get divisor=0 (reset),
 		// per-instance attributes get divisor=1. Without this, instanced rendering
 		// reads the same instance data for all instances.
-		ctx.VertexAttribDivisor(loc, divisor)
+		if div {
+			ctx.VertexAttribDivisor(loc, divisor)
+		}
 	}
 }
 
@@ -1482,8 +1602,10 @@ type SetIndexBufferCommand struct {
 	offset uint64
 }
 
-func (c *SetIndexBufferCommand) Execute(ctx *gl.Context) {
-	ctx.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, c.buffer.id)
+func (c *SetIndexBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.bindElement(c.buffer.id) {
+		ctx.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, c.buffer.id)
+	}
 }
 
 // SetViewportCommand sets the viewport.
@@ -1492,9 +1614,11 @@ type SetViewportCommand struct {
 	minDepth, maxDepth  float32
 }
 
-func (c *SetViewportCommand) Execute(ctx *gl.Context) {
-	ctx.Viewport(int32(c.x), int32(c.y), int32(c.width), int32(c.height))
-	ctx.DepthRange(float64(c.minDepth), float64(c.maxDepth))
+func (c *SetViewportCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setViewport(int32(c.x), int32(c.y), int32(c.width), int32(c.height), float64(c.minDepth), float64(c.maxDepth)) {
+		ctx.Viewport(int32(c.x), int32(c.y), int32(c.width), int32(c.height))
+		ctx.DepthRange(float64(c.minDepth), float64(c.maxDepth))
+	}
 }
 
 // SetScissorCommand sets the scissor rectangle.
@@ -1506,12 +1630,16 @@ type SetScissorCommand struct {
 	x, y, width, height uint32
 }
 
-func (c *SetScissorCommand) Execute(ctx *gl.Context) {
-	ctx.Enable(gl.SCISSOR_TEST)
+func (c *SetScissorCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setScissorTest(true) {
+		ctx.Enable(gl.SCISSOR_TEST)
+	}
 	// No Y-flip: ADJUST_COORDINATE_SPACE flips the scene in the vertex shader,
 	// so GL pixel Y=0 corresponds to the top of the scene (WebGPU Y=0).
 	// The scissor rect in WebGPU coords maps directly to GL coords.
-	ctx.Scissor(int32(c.x), int32(c.y), int32(c.width), int32(c.height))
+	if st.setScissor(int32(c.x), int32(c.y), int32(c.width), int32(c.height)) {
+		ctx.Scissor(int32(c.x), int32(c.y), int32(c.width), int32(c.height))
+	}
 }
 
 // SetBlendConstantCommand sets blend constant.
@@ -1519,8 +1647,10 @@ type SetBlendConstantCommand struct {
 	r, g, b, a float32
 }
 
-func (c *SetBlendConstantCommand) Execute(ctx *gl.Context) {
-	ctx.BlendColor(c.r, c.g, c.b, c.a)
+func (c *SetBlendConstantCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setBlendColor(c.r, c.g, c.b, c.a) {
+		ctx.BlendColor(c.r, c.g, c.b, c.a)
+	}
 }
 
 // SetStencilRefCommand updates the stencil reference value.
@@ -1531,17 +1661,23 @@ type SetStencilRefCommand struct {
 	depthStencil *hal.DepthStencilState
 }
 
-func (c *SetStencilRefCommand) Execute(ctx *gl.Context) {
+func (c *SetStencilRefCommand) Execute(ctx *gl.Context, st *glExecState) {
 	if c.depthStencil == nil {
 		return
 	}
 	ref := int32(c.ref)
-	ctx.StencilFuncSeparate(gl.FRONT,
-		compareFunctionToGL(c.depthStencil.StencilFront.Compare),
-		ref, c.depthStencil.StencilReadMask)
-	ctx.StencilFuncSeparate(gl.BACK,
-		compareFunctionToGL(c.depthStencil.StencilBack.Compare),
-		ref, c.depthStencil.StencilReadMask)
+	if st.setStencilFunc(true, compareFunctionToGL(c.depthStencil.StencilFront.Compare),
+		ref, c.depthStencil.StencilReadMask) {
+		ctx.StencilFuncSeparate(gl.FRONT,
+			compareFunctionToGL(c.depthStencil.StencilFront.Compare),
+			ref, c.depthStencil.StencilReadMask)
+	}
+	if st.setStencilFunc(false, compareFunctionToGL(c.depthStencil.StencilBack.Compare),
+		ref, c.depthStencil.StencilReadMask) {
+		ctx.StencilFuncSeparate(gl.BACK,
+			compareFunctionToGL(c.depthStencil.StencilBack.Compare),
+			ref, c.depthStencil.StencilReadMask)
+	}
 }
 
 // DrawCommand executes a non-indexed draw.
@@ -1551,7 +1687,7 @@ type DrawCommand struct {
 	topology                   gputypes.PrimitiveTopology
 }
 
-func (c *DrawCommand) Execute(ctx *gl.Context) {
+func (c *DrawCommand) Execute(ctx *gl.Context, st *glExecState) {
 	mode := primitiveTopologyToGL(c.topology)
 	if c.instanceCount <= 1 {
 		ctx.DrawArrays(mode, int32(c.firstVertex), int32(c.vertexCount))
@@ -1570,7 +1706,7 @@ type DrawIndexedCommand struct {
 	topology                  gputypes.PrimitiveTopology
 }
 
-func (c *DrawIndexedCommand) Execute(ctx *gl.Context) {
+func (c *DrawIndexedCommand) Execute(ctx *gl.Context, st *glExecState) {
 	indexType := uint32(gl.UNSIGNED_SHORT)
 	indexSize := uintptr(2)
 	if c.indexFormat == gputypes.IndexFormatUint32 {
@@ -1595,7 +1731,7 @@ type CopyBufferCommand struct {
 	size                 uint64
 }
 
-func (c *CopyBufferCommand) Execute(ctx *gl.Context) {
+func (c *CopyBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 	ctx.BindBuffer(gl.COPY_READ_BUFFER, c.srcID)
 	ctx.BindBuffer(gl.COPY_WRITE_BUFFER, c.dstID)
 	// glCopyBufferSubData would go here
@@ -1609,7 +1745,7 @@ type DispatchCommand struct {
 }
 
 // Execute dispatches compute work and inserts a memory barrier.
-func (c *DispatchCommand) Execute(ctx *gl.Context) {
+func (c *DispatchCommand) Execute(ctx *gl.Context, st *glExecState) {
 	ctx.DispatchCompute(c.x, c.y, c.z)
 	// VERTEX_ATTRIB_ARRAY_BARRIER_BIT is required when compute writes an SSBO that
 	// is later read as a vertex buffer (e.g. particles ping-pong). Without it,
@@ -1624,7 +1760,7 @@ type DispatchIndirectCommand struct {
 }
 
 // Execute dispatches compute work from indirect buffer and inserts a memory barrier.
-func (c *DispatchIndirectCommand) Execute(ctx *gl.Context) {
+func (c *DispatchIndirectCommand) Execute(ctx *gl.Context, st *glExecState) {
 	// Bind the buffer containing dispatch parameters
 	ctx.BindBuffer(gl.DISPATCH_INDIRECT_BUFFER, c.buffer.id)
 	// Dispatch with parameters from the buffer at the given offset
@@ -1648,7 +1784,7 @@ type CopyTextureToBufferCommand struct {
 }
 
 // Execute reads pixels from the source texture's FBO into the destination buffer.
-func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context) {
+func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 	width := int32(c.copySize[0])
 	height := int32(c.copySize[1])
 	if width == 0 || height == 0 {
@@ -1739,7 +1875,7 @@ type CopyBufferToTextureCommand struct {
 	bufOffset uint64
 }
 
-func (c *CopyBufferToTextureCommand) Execute(ctx *gl.Context) {
+func (c *CopyBufferToTextureCommand) Execute(ctx *gl.Context, st *glExecState) {
 	width := int32(c.copySize[0])
 	height := int32(c.copySize[1])
 	if width == 0 || height == 0 {
@@ -1786,7 +1922,7 @@ type CopyTextureToTextureCommand struct {
 	dstMip    uint32
 }
 
-func (c *CopyTextureToTextureCommand) Execute(ctx *gl.Context) {
+func (c *CopyTextureToTextureCommand) Execute(ctx *gl.Context, st *glExecState) {
 	width := int32(c.copySize[0])
 	height := int32(c.copySize[1])
 	if width == 0 || height == 0 {
@@ -1829,7 +1965,7 @@ type ResolveQuerySetCommand struct {
 	dstOffset  uint64
 }
 
-func (c *ResolveQuerySetCommand) Execute(ctx *gl.Context) {
+func (c *ResolveQuerySetCommand) Execute(ctx *gl.Context, st *glExecState) {
 	if c.querySet == nil || len(c.querySet.queries) == 0 {
 		return
 	}
@@ -1861,7 +1997,7 @@ type TimestampQueryCommand struct {
 	query uint32 // GL query object ID
 }
 
-func (c *TimestampQueryCommand) Execute(ctx *gl.Context) {
+func (c *TimestampQueryCommand) Execute(ctx *gl.Context, st *glExecState) {
 	ctx.QueryCounter(c.query, gl.TIMESTAMP)
 }
 
