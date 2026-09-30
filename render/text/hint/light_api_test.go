@@ -76,7 +76,7 @@ func TestLightHintContours(t *testing.T) {
 }
 
 // TestLightHintCFF2：公开入口 CFF2 分支对照 ftexp light
-//（SourceSans3 VF 默认实例）。
+// （SourceSans3 VF 默认实例）。
 func TestLightHintCFF2(t *testing.T) {
 	path := "../testdata/source-sans/VF/SourceSans3VF-Upright.otf"
 	if _, err := os.Stat(path); err != nil {

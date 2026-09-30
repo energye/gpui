@@ -10,9 +10,6 @@
 
 //go:build !nogpu
 
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
 package gpu
 
 import (

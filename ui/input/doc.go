@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package input defines the cross-platform normalized input event layer.
 //
 // Every platform backend (X11/Wayland/Win32/AppKit) produces raw-ish

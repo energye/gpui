@@ -83,7 +83,7 @@ func newSwitchRefreshIME(t *testing.T, eng *fakeSwitchEngine) *x11Ime {
 }
 
 // TestX11SwitchRefreshHandledPressBurstsOnce：非组合期按键被输入法吃掉
-//（如切中/拼/en 的触发键），同步路径补刷一次缓存矩形。
+// （如切中/拼/en 的触发键），同步路径补刷一次缓存矩形。
 func TestX11SwitchRefreshHandledPressBurstsOnce(t *testing.T) {
 	eng := &fakeSwitchEngine{handled: true}
 	im := newSwitchRefreshIME(t, eng)
@@ -100,7 +100,7 @@ func TestX11SwitchRefreshHandledPressBurstsOnce(t *testing.T) {
 }
 
 // TestX11SwitchRefreshComposingStaysQuiet：组合期被吃掉的按键不补刷
-//（preedit 变更自带上报，补刷是重复）。
+// （preedit 变更自带上报，补刷是重复）。
 func TestX11SwitchRefreshComposingStaysQuiet(t *testing.T) {
 	eng := &fakeSwitchEngine{handled: true}
 	im := newSwitchRefreshIME(t, eng)

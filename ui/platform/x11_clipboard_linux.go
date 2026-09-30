@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -24,18 +34,18 @@ const (
 )
 
 type x11ClipboardLib struct {
-	once sync.Once
-	lib  uintptr
-	internAtom       func(dpy uintptr, name *byte, onlyIf int) uintptr
+	once              sync.Once
+	lib               uintptr
+	internAtom        func(dpy uintptr, name *byte, onlyIf int) uintptr
 	setSelectionOwner func(dpy uintptr, sel uintptr, win uintptr, t uintptr) int
 	getSelectionOwner func(dpy uintptr, sel uintptr) uintptr
-	convertSelection func(dpy uintptr, sel uintptr, target uintptr, prop uintptr, win uintptr, t uintptr) int
+	convertSelection  func(dpy uintptr, sel uintptr, target uintptr, prop uintptr, win uintptr, t uintptr) int
 	getWindowProperty func(dpy uintptr, w, prop uintptr, longOff, longLen int64, del int, reqType uintptr, actualType *uintptr, actualFormat *int, nitems, bytesAfter *uint64, propRet **byte) int
-	changeProperty   func(dpy uintptr, w, prop, typ uintptr, format, mode int, data unsafe.Pointer, nelems int) int
-	deleteProperty   func(dpy uintptr, w uintptr, prop uintptr) int
-	sendEvent        func(dpy uintptr, w uintptr, propagate int, mask int64, ev *byte) int
-	flush            func(dpy uintptr) int
-	freeData         func(ptr unsafe.Pointer) int
+	changeProperty    func(dpy uintptr, w, prop, typ uintptr, format, mode int, data unsafe.Pointer, nelems int) int
+	deleteProperty    func(dpy uintptr, w uintptr, prop uintptr) int
+	sendEvent         func(dpy uintptr, w uintptr, propagate int, mask int64, ev *byte) int
+	flush             func(dpy uintptr) int
+	freeData          func(ptr unsafe.Pointer) int
 }
 
 var clipLib x11ClipboardLib
@@ -98,8 +108,8 @@ func internAtomCached(dpy uintptr, name string) uintptr {
 }
 
 type x11Clipboard struct {
-	host *x11Host
-	mu   sync.RWMutex
+	host  *x11Host
+	mu    sync.RWMutex
 	atoms struct {
 		clipboard  uintptr
 		targets    uintptr
@@ -113,8 +123,8 @@ type x11Clipboard struct {
 		prop       uintptr
 		once       sync.Once
 	}
-	ownData string
-	ownKind string
+	ownData     string
+	ownKind     string
 	pendingMu   sync.Mutex
 	pendingData string
 	pendingErr  error

@@ -21,11 +21,11 @@ type placementFile struct {
 		ViewportH    float64 `json:"viewportH"`
 	} `json:"defaults"`
 	Cases []struct {
-		Name        string    `json:"name"`
-		Anchor      []float64 `json:"anchor"`
-		Overlay     []float64 `json:"overlay"`
-		Want        string    `json:"want"`
-		Expect      *struct {
+		Name    string    `json:"name"`
+		Anchor  []float64 `json:"anchor"`
+		Overlay []float64 `json:"overlay"`
+		Want    string    `json:"want"`
+		Expect  *struct {
 			X       *float64 `json:"x"`
 			Y       *float64 `json:"y"`
 			Actual  string   `json:"actual"`

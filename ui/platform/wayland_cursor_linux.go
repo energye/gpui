@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -47,9 +57,9 @@ type wlCursors struct {
 
 	// Fallback state (only used when dev == 0).
 	theme struct {
-		lib  uintptr  // dlopen handle of libwayland-cursor.so.0
-		c    uintptr  // wl_cursor_theme*
-		surf uintptr  // cursor wl_surface
+		lib  uintptr // dlopen handle of libwayland-cursor.so.0
+		c    uintptr // wl_cursor_theme*
+		surf uintptr // cursor wl_surface
 		once sync.Once
 	}
 }

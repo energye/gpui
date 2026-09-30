@@ -12,13 +12,13 @@ import (
 )
 
 type normalFactorDef struct {
-	Name   string   `json:"name"`
-	Light  lightDef `json:"light"`
+	Name   string    `json:"name"`
+	Light  lightDef  `json:"light"`
 	P      []float64 `json:"p"`
-	Layer  int      `json:"layer"`
+	Layer  int       `json:"layer"`
 	Normal []float64 `json:"normal"`
-	Height float64  `json:"height"`
-	Want   float64  `json:"want"`
+	Height float64   `json:"height"`
+	Want   float64   `json:"want"`
 }
 
 type normalApplyDef struct {

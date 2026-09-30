@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // CFF outline path for ownParsedFont (ENGINE_GAPS G1.b).
 //
 // TrueType fonts keep using the pure-Go glyf path. OpenType fonts with a

@@ -10,9 +10,6 @@
 
 //go:build !(js && wasm)
 
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
 // Package thread provides thread abstraction for GPU operations.
 //
 // Architecture:

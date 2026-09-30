@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/internal/testutil/imagediff"
 	_ "github.com/energye/gpui/render/gpu"
+	"github.com/energye/gpui/render/internal/testutil/imagediff"
 )
 
 type vertsProbe struct {

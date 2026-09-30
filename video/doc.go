@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package video is the root API for VR4 playback, VR5 seeking, VR6
 // faults and VR7 limits: open a file, pull frames by timestamp, pause,
 // resume, jump to a time and close.

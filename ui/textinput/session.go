@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -41,13 +51,13 @@ type FieldSnapshotProvider interface {
 }
 
 type ImeSession struct {
-	ed      *Editor
-	adapter PlatformAdapter
-	field   FieldSnapshotProvider
+	ed       *Editor
+	adapter  PlatformAdapter
+	field    FieldSnapshotProvider
 	state    SessionState
 	lastRect platform.Rect
 	hasRect  bool
-	illegal int
+	illegal  int
 }
 
 func NewImeSession(adapter PlatformAdapter) *ImeSession {

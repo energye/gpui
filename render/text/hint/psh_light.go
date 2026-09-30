@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 // M2: cf2Blues + cf2HintMap —— FreeType 2.14.3 src/psaux/psblues.c + pshints.c 移植。
@@ -10,9 +20,9 @@ package hint
 // （ftcalc.h:90-100）：ab += 0x8000 + (ab>>63)，负数向 -∞。
 
 import (
-	"os"
 	"fmt"
 	"math"
+	"os"
 )
 
 // ---------------------------------------------------------------------------
@@ -21,13 +31,13 @@ import (
 type cf2Fixed int64
 
 const (
-	cf2FixedOne       = cf2Fixed(65536)
-	cf2ICFBottom      = -120 * cf2FixedOne // psblues.h:105
-	cf2ICFTop         = 880 * cf2FixedOne  // psblues.h:104
-	cf2MinCounter     = cf2Fixed(32768)    // 0.5px，psblues.h:114
-	cf2FixedEpsilon   = cf2Fixed(1)        // 0x.0001
-	cf2MaxHints       = 96                 // pshints.h:47
-	cf2MaxHintEdges   = 192                // pshints.h:122
+	cf2FixedOne     = cf2Fixed(65536)
+	cf2ICFBottom    = -120 * cf2FixedOne // psblues.h:105
+	cf2ICFTop       = 880 * cf2FixedOne  // psblues.h:104
+	cf2MinCounter   = cf2Fixed(32768)    // 0.5px，psblues.h:114
+	cf2FixedEpsilon = cf2Fixed(1)        // 0x.0001
+	cf2MaxHints     = 96                 // pshints.h:47
+	cf2MaxHintEdges = 192                // pshints.h:122
 )
 
 func cf2IntToFixed(i int64) cf2Fixed { return cf2Fixed(i) << 16 }
@@ -38,6 +48,7 @@ func cf2F16(v float64) cf2Fixed { return cf2Fixed(math.Round(v * 65536)) }
 func cf2DoubleToFixed(f float64) cf2Fixed {
 	return cf2Fixed(f*65536.0 + 0.5)
 }
+
 // cf2ExactFixed：csStem 值由 16.16 整数演出（0.5 精度），乘以 65536 精确还原。
 func cf2ExactFixed(f float64) cf2Fixed { return cf2Fixed(f * 65536.0) }
 func cf2FixedAbs(x cf2Fixed) cf2Fixed {
@@ -304,17 +315,17 @@ type cf2BlueZone struct {
 }
 
 type cf2Blues struct {
-	scale            cf2Fixed
-	blueScale        cf2Fixed
-	blueShift        cf2Fixed
-	blueFuzz         cf2Fixed
-	zone             []cf2BlueZone
-	count            int
+	scale             cf2Fixed
+	blueScale         cf2Fixed
+	blueShift         cf2Fixed
+	blueFuzz          cf2Fixed
+	zone              []cf2BlueZone
+	count             int
 	suppressOvershoot bool
-	boost            cf2Fixed
-	doEmBoxHints     bool
-	emBoxBottomEdge  cf2Hint
-	emBoxTopEdge     cf2Hint
+	boost             cf2Fixed
+	doEmBoxHints      bool
+	emBoxBottomEdge   cf2Hint
+	emBoxTopEdge      cf2Hint
 }
 
 // cf2BluesInit：cf2_blues_init（psblues.c:57-432）。

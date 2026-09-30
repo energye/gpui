@@ -228,8 +228,8 @@ func twoFingerTap(t *testing.T) (tapA, tapB int) {
 
 	// Finger A (ID 1) and finger B (ID 2) down in the same frame.
 	for _, f := range []struct {
-		id int
-		rec *gestures.TapGestureRecognizer
+		id   int
+		rec  *gestures.TapGestureRecognizer
 		x, y float64
 	}{
 		{1, ta, 10, 10},

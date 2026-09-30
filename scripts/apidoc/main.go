@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Command apidoc 校验 docs/RENDER_API_CATALOG.md 与 render 主包（以及
 // scene/recording/surface/svg 子包）公开 API 的一致性：任何顶层符号与
 // 导出方法必须出现在目录文档文本中，否则报缺失并以非零码退出（可挂 CI）。

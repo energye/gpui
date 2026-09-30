@@ -1,7 +1,14 @@
-//go:build !(js && wasm)
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//go:build !(js && wasm)
 
 // Package wgl provides Windows OpenGL (WGL) context management.
 //

@@ -36,13 +36,13 @@ func TestRegistry_InflightBlocksReleaseUntilSubmitDone(t *testing.T) {
 	f := &fakeNative{tag: 1}
 	ref := reg.Register(f)
 
-	reg.Retire(ref)            // mark for destruction
-	sub.Track(ref)             // referenced by a submitted CB (refs still >=1)
-	reg.Release(ref)           // refs==0, but inflight==1 → must NOT release
+	reg.Retire(ref)  // mark for destruction
+	sub.Track(ref)   // referenced by a submitted CB (refs still >=1)
+	reg.Release(ref) // refs==0, but inflight==1 → must NOT release
 	if f.released != 0 {
 		t.Fatalf("released while submission in flight: %d", f.released)
 	}
-	sub.SubmitDone()           // fence arrived → inflight==0 → release
+	sub.SubmitDone() // fence arrived → inflight==0 → release
 	if f.released != 1 {
 		t.Fatalf("expected release after SubmitDone, got %d", f.released)
 	}

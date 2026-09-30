@@ -514,7 +514,7 @@ func featBilinearPlane(dstPtr unsafe.Pointer, dstStride, dstW, dstH int, srcPtr 
 			b := float64(*(*byte)(unsafe.Add(srow0, uintptr(x0+1))))
 			c := float64(*(*byte)(unsafe.Add(srow1, uintptr(x0))))
 			d := float64(*(*byte)(unsafe.Add(srow1, uintptr(x0+1))))
-			*(*byte)(unsafe.Add(drow, uintptr(x))) = byte(int(a*(1-fx)*(1-fy)+b*fx*(1-fy)+c*(1-fx)*fy+d*fx*fy + 0.5))
+			*(*byte)(unsafe.Add(drow, uintptr(x))) = byte(int(a*(1-fx)*(1-fy) + b*fx*(1-fy) + c*(1-fx)*fy + d*fx*fy + 0.5))
 		}
 	}
 }

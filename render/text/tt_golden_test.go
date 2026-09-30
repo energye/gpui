@@ -1,13 +1,3 @@
-//----------------------------------------
-//
-// Copyright © yanghy. All Rights Reserved.
-//
-// Licensed under Apache License Version 2.0, January 2004
-//
-// https://www.apache.org/licenses/LICENSE-2.0
-//
-//----------------------------------------
-
 // TrueType bytecode interpreter — golden tests (Phase C).
 //
 // Validates that our TT interpreter produces the correct hinted coordinates

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package overlay fills the F13 overlay band with insert/remove/hit-order
 // mechanics (P5d). This is a framework shell — not Ant Modal skins.
 //

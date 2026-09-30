@@ -1,6 +1,3 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
 //go:build !nogpu
 
 // Tests for the automatic CPU/GPU scene render entry (scene_auto.go).

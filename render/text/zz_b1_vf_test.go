@@ -207,13 +207,13 @@ func b1VFRun(t *testing.T, name, fontPath string, chars []rune, wghts []float64)
 					continue
 				}
 				// ② 坐标 + ③ on/off
-			ok = true
-			for i, p := range pts {
-				if int64(p.X) != ftG.pts[i][0] || int64(p.Y) != ftG.pts[i][1] {
-					bad++
-					ok = false
-					break
-				}
+				ok = true
+				for i, p := range pts {
+					if int64(p.X) != ftG.pts[i][0] || int64(p.Y) != ftG.pts[i][1] {
+						bad++
+						ok = false
+						break
+					}
 					if p.On != (ftG.pts[i][2] == 1) {
 						bad++
 						noff++

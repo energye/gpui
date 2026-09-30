@@ -1,6 +1,3 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
 //go:build !(js && wasm)
 
 package context

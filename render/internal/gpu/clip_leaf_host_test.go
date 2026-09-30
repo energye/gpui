@@ -1,6 +1,3 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
 //go:build !nogpu
 
 // Host-side tests for the Vello compute clip pipeline (no GPU device needed).

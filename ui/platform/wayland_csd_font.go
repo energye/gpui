@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package platform
 
 // Wayland CSD 标题栏文本渲染。内嵌位图字体（wayland_csd_painter.go 的 csdFont）

@@ -1,9 +1,9 @@
 package hint
 
 import (
+	"fmt"
 	"os"
 	"strings"
-	"fmt"
 	"testing"
 )
 

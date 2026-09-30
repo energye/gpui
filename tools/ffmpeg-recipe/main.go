@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Command ffmpeg-recipe 打印 gpui 自建单文件库的两档配方（基础版 base / 高级版 full）。
 //
 // 大白话：编库的开关太多，散在脚本里容易改错，这里是唯一真源。

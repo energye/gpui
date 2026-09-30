@@ -1,8 +1,8 @@
 package text
 
 import (
-	"os"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -75,7 +75,10 @@ func ftpToGlyph(t *testing.T, fontPath string, r rune, px float64) *GlyphOutline
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	var np, nc, adv int
 	fmt.Sscanf(lines[0], "%d %d %d", &np, &nc, &adv)
-	type pt struct{ x, y int64; on bool }
+	type pt struct {
+		x, y int64
+		on   bool
+	}
 	pts := make([]pt, np)
 	for i := 0; i < np; i++ {
 		var x, y, tag int64
@@ -169,7 +172,10 @@ func ftOutlineToGlyphSimpler(t *testing.T, fontPath string, r rune, px float64) 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	var np, nc, adv int
 	fmt.Sscanf(lines[0], "%d %d %d", &np, &nc, &adv)
-	type pt struct{ x, y int64; on bool }
+	type pt struct {
+		x, y int64
+		on   bool
+	}
 	pts := make([]pt, np)
 	for i := 0; i < np; i++ {
 		var x, y, tag int64
@@ -222,7 +228,7 @@ func ftOutlineToGlyphSimpler(t *testing.T, fontPath string, r rune, px float64) 
 				i += 2
 				continue
 			}
-if i+2 <= end && !pts[i+1].on {
+			if i+2 <= end && !pts[i+1].on {
 				// 双 off：到达尾部时闭合回起点
 				midX := (pts[i].x + pts[i+1].x) / 2
 				midY := (pts[i].y + pts[i+1].y) / 2

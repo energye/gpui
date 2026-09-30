@@ -30,14 +30,14 @@ type badFileCase struct {
 }
 
 type casesFile struct {
-	Version       string      `json:"version"`
-	MaxAssets     int         `json:"max_assets"`
-	MaxBytes      int         `json:"max_bytes"`
-	MaxAssetBytes int         `json:"max_asset_bytes"`
-	MaxDeps       int         `json:"max_deps"`
-	MaxIDLen      int         `json:"max_id_len"`
-	Assets        []assetCase `json:"assets"`
-	Unsupported   []string    `json:"unsupported_kinds"`
+	Version       string        `json:"version"`
+	MaxAssets     int           `json:"max_assets"`
+	MaxBytes      int           `json:"max_bytes"`
+	MaxAssetBytes int           `json:"max_asset_bytes"`
+	MaxDeps       int           `json:"max_deps"`
+	MaxIDLen      int           `json:"max_id_len"`
+	Assets        []assetCase   `json:"assets"`
+	Unsupported   []string      `json:"unsupported_kinds"`
 	BadFiles      []badFileCase `json:"bad_files"`
 }
 

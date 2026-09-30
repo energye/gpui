@@ -18,7 +18,10 @@ func TestDbgSnap3(t *testing.T) {
 	ras := NewGlyphMaskRasterizer()
 	ext := NewOutlineExtractor()
 
-	for _, c := range []struct{ r rune; px float64 }{{'静', 12}, {'每', 12}, {'合', 16}} {
+	for _, c := range []struct {
+		r  rune
+		px float64
+	}{{'静', 12}, {'每', 12}, {'合', 16}} {
 		fmt.Printf("\n######## %q %.0fpx ########\n", c.r, c.px)
 		gid := GlyphID(parsed.GlyphIndex(c.r))
 

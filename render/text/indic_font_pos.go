@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Per-font Indic positional classes from GSUB feature coverages (ENGINE_GAPS G1.c).
 //
 // Static Unicode tables (indicConsonantPos) cover common scripts. Real fonts encode

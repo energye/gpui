@@ -52,8 +52,8 @@ func TestCache_InflightNotLentAndRepooledAfterSubmit(t *testing.T) {
 
 	r1, _ := c.Acquire(k)
 	n1 := reg.NativeOf(r1).(*fakeNative)
-	sub.Track(r1)   // submitted CB references the entry
-	c.Release(r1)   // refs==0 but inflight==1 → must go to pending, not pool
+	sub.Track(r1) // submitted CB references the entry
+	c.Release(r1) // refs==0 but inflight==1 → must go to pending, not pool
 
 	r2, _ := c.Acquire(k) // in-flight entries are never lent out
 	n2 := reg.NativeOf(r2).(*fakeNative)
@@ -67,7 +67,7 @@ func TestCache_InflightNotLentAndRepooledAfterSubmit(t *testing.T) {
 		t.Fatalf("in-flight entry must not be released")
 	}
 
-	sub.SubmitDone()       // fence arrives
+	sub.SubmitDone()         // fence arrives
 	c.OnSubmissionFinished() // pending entry becomes recombinable
 
 	r3, _ := c.Acquire(k)

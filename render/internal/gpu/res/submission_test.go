@@ -63,9 +63,9 @@ func TestSubmission_TrackAfterInvalidateShortCircuits(t *testing.T) {
 
 	ref := reg.Register(f)
 	sub.Invalidate()
-	sub.Track(ref)                      // device lost: tracking must be harmless
-	sub.SubmitDone()                    // no jobs → no-op
-	reg.Release(ref)                    // not retired → nothing released
+	sub.Track(ref)   // device lost: tracking must be harmless
+	sub.SubmitDone() // no jobs → no-op
+	reg.Release(ref) // not retired → nothing released
 	if f.released != 0 {
 		t.Fatalf("unexpected release: %d", f.released)
 	}

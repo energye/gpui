@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/internal/testutil/imagediff"
 	_ "github.com/energye/gpui/render/gpu"
+	"github.com/energye/gpui/render/internal/testutil/imagediff"
 )
 
 type quadProbe struct {
@@ -30,20 +30,20 @@ type quadDrawCase struct {
 
 type quadCases struct {
 	Classify []struct {
-		Name    string         `json:"name"`
+		Name    string        `json:"name"`
 		Corners [4][2]float64 `json:"corners"`
 		Want    string        `json:"want"`
 	} `json:"classify"`
 	DrawNearest quadDrawCase `json:"draw_nearest"`
 	DrawRect    quadDrawCase `json:"draw_rect"`
 	Golden      struct {
-		Canvas         [2]int         `json:"canvas"`
-		Corners        [4][2]float64 `json:"corners"`
-		Interp         string        `json:"interp"`
-		File           string        `json:"file"`
-		MaxChangedPct  float64       `json:"max_changed_pct"`
-		MaxMeanAbs     float64       `json:"max_mean_abs"`
-		Note           string        `json:"note"`
+		Canvas        [2]int        `json:"canvas"`
+		Corners       [4][2]float64 `json:"corners"`
+		Interp        string        `json:"interp"`
+		File          string        `json:"file"`
+		MaxChangedPct float64       `json:"max_changed_pct"`
+		MaxMeanAbs    float64       `json:"max_mean_abs"`
+		Note          string        `json:"note"`
 	} `json:"golden"`
 }
 

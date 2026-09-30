@@ -43,7 +43,7 @@ func TestPictureTextureCache_RerecordAttributionLocal(t *testing.T) {
 	tex.width, tex.height = 64, 64
 	p := Picture{}
 	b := image.Rect(0, 0, 32, 32)
-	_, ok1 := tex.recordLocalWith(21, &p, b, nil)                       // cause "local"
+	_, ok1 := tex.recordLocalWith(21, &p, b, nil)                      // cause "local"
 	_, ok2 := tex.recordLocalWith(21, &p, b, func(*render.Context) {}) // cause "local-extra"
 	if !ok1 || !ok2 {
 		t.Skip("no-GPU degrade: local record unavailable in this env")

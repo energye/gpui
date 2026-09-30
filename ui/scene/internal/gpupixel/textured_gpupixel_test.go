@@ -1,13 +1,3 @@
-//----------------------------------------
-//
-// Copyright © yanghy. All Rights Reserved.
-//
-// Licensed under Apache License Version 2.0, January 2004
-//
-// https://www.apache.org/licenses/LICENSE-2.0
-//
-//----------------------------------------
-
 // Package gpupixel holds GPU-pixel contract tests for the retained composite
 // path. Isolated in its own test package because importing render/gpu
 // registers a global GPU accelerator that changes environment assumptions of

@@ -129,7 +129,7 @@ func glyphIndexForRune(raw []byte, faceIndex int, r rune) (uint16, error) {
 	if best < 0 {
 		return 0, fmt.Errorf("no unicode cmap subtable")
 	}
-	sub := cmapOff + int(binary.BigEndian.Uint32(raw[best+4 : best+8]))
+	sub := cmapOff + int(binary.BigEndian.Uint32(raw[best+4:best+8]))
 	if sub+2 > len(raw) {
 		return 0, fmt.Errorf("cmap subtable out of range")
 	}
@@ -206,8 +206,8 @@ type testingT interface {
 
 // testFont 是 hint 包测试的自足字体（替代渲染层 ParsedFont）。
 type testFont struct {
-	raw  []byte
-	face int
+	raw        []byte
+	face       int
 	unitsPerEm int
 }
 

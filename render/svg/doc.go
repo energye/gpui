@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package svg provides an SVG renderer built on top of the gg 2D graphics library.
 //
 // It parses a subset of SVG XML sufficient for rendering icon-style SVGs

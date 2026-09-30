@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package input
 
 // Key is a cross-platform logical key identifier. Every platform backend
@@ -118,7 +128,7 @@ const (
 	KeyBackslash
 	KeySemicolon
 	KeyQuote
-	KeyGrave      // ` ~
+	KeyGrave // ` ~
 	KeyComma
 	KeyPeriod
 	KeySlash
@@ -152,7 +162,7 @@ const (
 func (k Key) String() string {
 	names := map[Key]string{
 		KeyNone: "none",
-		KeyA: "a", KeyB: "b", KeyC: "c", KeyD: "d", KeyE: "e", KeyF: "f",
+		KeyA:    "a", KeyB: "b", KeyC: "c", KeyD: "d", KeyE: "e", KeyF: "f",
 		KeyG: "g", KeyH: "h", KeyI: "i", KeyJ: "j", KeyK: "k", KeyL: "l",
 		KeyM: "m", KeyN: "n", KeyO: "o", KeyP: "p", KeyQ: "q", KeyR: "r",
 		KeyS: "s", KeyT: "t", KeyU: "u", KeyV: "v", KeyW: "w", KeyX: "x",

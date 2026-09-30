@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package ffishim is gpui's self-maintained replacement for the external
 // goffi C-ABI call layer used by the ported backends (gpu/gwgpu/gles,
 // gpu/gwgpu/metal).

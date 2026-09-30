@@ -413,7 +413,7 @@ func TestEventKindString(t *testing.T) {
 
 func TestFromPlatform_ModifiersChanged(t *testing.T) {
 	ev := FromPlatform(platform.Event{
-		Type: platform.EventModifiersChanged,
+		Type:     platform.EventModifiersChanged,
 		ModShift: true, ModControl: false, ModAlt: true, ModMeta: false,
 	}, Modifiers{})
 	if ev.Kind != KindModifiersChanged {
@@ -423,7 +423,7 @@ func TestFromPlatform_ModifiersChanged(t *testing.T) {
 		t.Fatalf("mods = %+v, want shift+alt", ev.Modifiers)
 	}
 	all := FromPlatform(platform.Event{
-		Type: platform.EventModifiersChanged,
+		Type:     platform.EventModifiersChanged,
 		ModShift: true, ModControl: true, ModAlt: true, ModMeta: true,
 	}, Modifiers{})
 	if !all.Modifiers.Shift || !all.Modifiers.Control || !all.Modifiers.Alt || !all.Modifiers.Meta {

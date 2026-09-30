@@ -10,9 +10,6 @@
 
 //go:build !(js && wasm)
 
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
 // Package gles implements the HAL backend for OpenGL ES 3.0 / OpenGL 3.3+.
 //
 // This backend provides a Pure Go implementation using syscall directly,

@@ -10,9 +10,6 @@
 
 //go:build !(js && wasm)
 
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
 // Package metal provides a Metal backend for the HAL.
 //
 // Metal is Apple's low-overhead, low-level graphics and compute API

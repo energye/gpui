@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -57,41 +67,41 @@ type editGroup struct {
 }
 
 type Editor struct {
-	text           string
-	selection      TextRange
-	composingRange TextRange
-	composing      bool
-	enableDeltaModel bool
-	deltaModelLocked bool
-	isPassword     bool
-	obscuringChar  rune // 0 means default '•' (Flutter TextField.obscuringCharacter)
-	readOnly       bool
-	singleLine   bool
-	contentType    platform.ContentType
-	inputType      string
-	inputAction    string
-	autofillHints  []string
-	batchDepth         int
-	lastFrameworkText  string
-	lastFrameworkSel   TextRange
-	lastFrameworkComp  TextRange
-	epoch              uint64
-	pendingEpochBump   bool
-	caretCol           float64
-	caretColValid      bool
-	OnChange           func()
+	text              string
+	selection         TextRange
+	composingRange    TextRange
+	composing         bool
+	enableDeltaModel  bool
+	deltaModelLocked  bool
+	isPassword        bool
+	obscuringChar     rune // 0 means default '•' (Flutter TextField.obscuringCharacter)
+	readOnly          bool
+	singleLine        bool
+	contentType       platform.ContentType
+	inputType         string
+	inputAction       string
+	autofillHints     []string
+	batchDepth        int
+	lastFrameworkText string
+	lastFrameworkSel  TextRange
+	lastFrameworkComp TextRange
+	epoch             uint64
+	pendingEpochBump  bool
+	caretCol          float64
+	caretColValid     bool
+	OnChange          func()
 	// lastEdit是最近一次文本变更区间(M1-d增量排版用):旧串[oldA,oldB)→
 	// 新串[newA,newB).sync消费前又发生变更则失效(回退diff,保正确).
 	// 由noteEdit维护,ConsumeEditSpan读取并清除.
 	editOldA, editOldB, editNewA, editNewB int
-	editSpanValid                            bool
-	OnAnchor           func() // R4 F-D10: programmatic SetText → RefreshIMEAnchor
-	history            []editGroup
-	redoStack          []editGroup
-	composingSnapshot  bool // true when a group is open for current composition
-	buf                *textbuffer.Buffer
-	bufOn              bool
-	bufForceString     bool // pin mirror to plain-string mode (degradation path)
+	editSpanValid                          bool
+	OnAnchor                               func() // R4 F-D10: programmatic SetText → RefreshIMEAnchor
+	history                                []editGroup
+	redoStack                              []editGroup
+	composingSnapshot                      bool // true when a group is open for current composition
+	buf                                    *textbuffer.Buffer
+	bufOn                                  bool
+	bufForceString                         bool // pin mirror to plain-string mode (degradation path)
 }
 
 // noteEdit记录文本变更区间;已有未消费区间则失效(多变更回退diff).
@@ -1119,7 +1129,7 @@ func (e *Editor) MoveCursorByWord(forward bool) bool {
 	return e.SetSelection(TextRange{Base: off, Extent: off})
 }
 
-func (e *Editor) IsComposing() bool { return e != nil && e.composing }
+func (e *Editor) IsComposing() bool   { return e != nil && e.composing }
 func (e *Editor) ComposeActive() bool { return e.IsComposing() }
 func (e *Editor) ComposingRange() TextRange {
 	if e == nil {
@@ -1156,9 +1166,9 @@ func (e *Editor) SetTextSimple(s string) {
 	n := utf16Len(s)
 	e.SetText(s, TextRange{Base: n, Extent: n}, TextRange{}, 0)
 }
-func (e *Editor) Insert(s string)       { e.AddText(s) }
-func (e *Editor) DeleteBackward()       { e.Backspace() }
-func (e *Editor) DeleteForward()        { e.Delete() }
+func (e *Editor) Insert(s string) { e.AddText(s) }
+func (e *Editor) DeleteBackward() { e.Backspace() }
+func (e *Editor) DeleteForward()  { e.Delete() }
 func (e *Editor) MoveCaretRunes(n int) {
 	for i := 0; i < n; i++ {
 		e.MoveCursorForward()
@@ -1314,10 +1324,12 @@ func (e *Editor) SetSelectionBytes(s, en int) {
 	}
 	e.SetSelection(TextRange{Base: cs, Extent: ce})
 }
+
 type ComposedView struct {
-	Display         string
+	Display            string
 	CompStart, CompEnd int
 }
+
 func (e *Editor) View() ComposedView {
 	if e == nil {
 		return ComposedView{CompStart: -1, CompEnd: -1}
@@ -1361,10 +1373,14 @@ func (e *Editor) CompositionCursor() int {
 	off := e.selection.Extent - e.composingRange.Start()
 	return v.CompStart + off
 }
-func (e *Editor) ByteOffsetAt(x float64, w func(string) float64) int { return e.View().MapViewToBuf(int(x)) }
-func (e *Editor) MoveCaretVertically(n int, lineCount func() int, penX func(int) float64) bool { return false }
+func (e *Editor) ByteOffsetAt(x float64, w func(string) float64) int {
+	return e.View().MapViewToBuf(int(x))
+}
+func (e *Editor) MoveCaretVertically(n int, lineCount func() int, penX func(int) float64) bool {
+	return false
+}
 func (e *Editor) Snapshot() (string, int) { return e.GetText(), e.GetCursorOffset() }
-func (e *Editor) LenRunes() int { return len([]rune(e.text)) }
+func (e *Editor) LenRunes() int           { return len([]rune(e.text)) }
 func (e *Editor) Copy() string {
 	if e == nil || e.selection.Collapsed() {
 		return ""
@@ -1607,7 +1623,7 @@ func (e *Editor) SelectWordAt(byteOff int) bool {
 	// Find rune index
 	runeIdx := 0
 	for i := range e.text[:byteOff] {
-		if (e.text[i]&0xC0) != 0x80 {
+		if (e.text[i] & 0xC0) != 0x80 {
 			runeIdx++
 		}
 	}

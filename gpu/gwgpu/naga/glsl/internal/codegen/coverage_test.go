@@ -1,6 +1,3 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
 package codegen
 
 // COV-002 Wave 2: Targeted coverage tests for GLSL backend.

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -16,21 +26,21 @@ import (
 // 换指针),单测不得在二次Update后重读旧快照(含LineGen;同文更新不改标记,
 // 跨同文快照比值仍成立,见TestLayoutUpdate_Generation).
 type layoutLive struct {
-	text     string
-	face     text.Face
-	size     float64
-	maxW     float64
-	spacing  float64
-	approx   float64
-	maxLines int
-	overflow TextOverflow
-	rows     []TextLayoutLine
-	marks    []uint64
-	idx      *lineIndex
-	seq      uint64
-	ok       bool
-	hasCR    bool
-	spansHit int
+	text      string
+	face      text.Face
+	size      float64
+	maxW      float64
+	spacing   float64
+	approx    float64
+	maxLines  int
+	overflow  TextOverflow
+	rows      []TextLayoutLine
+	marks     []uint64
+	idx       *lineIndex
+	seq       uint64
+	ok        bool
+	hasCR     bool
+	spansHit  int
 	spansMiss int
 }
 
@@ -96,7 +106,8 @@ func (c *layoutCache) updateSpan(textStr string, face text.Face, fontSize, maxWi
 		return c.snapshot(textStr, face, fontSize, maxWidth, lineSpacing, maxLines, overflow, gen)
 	}
 	lv.spansHit++
-	return c.applyPatch(textStr, sp.oldA, sp.oldB, sp.newA, sp.newB, face, fontSize, maxWidth, lineSpacing, approxCharW, maxLines, overflow, gen)}
+	return c.applyPatch(textStr, sp.oldA, sp.oldB, sp.newA, sp.newB, face, fontSize, maxWidth, lineSpacing, approxCharW, maxLines, overflow, gen)
+}
 
 // checkSpan三重校验:边界合法+长度方程+新旧串在区间两侧各抽查32字节一致.
 func checkSpan(oldText, newText string, sp editSpan) bool {

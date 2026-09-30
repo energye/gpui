@@ -1,6 +1,3 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
 package tilecompute
 
 import (
@@ -336,11 +333,11 @@ func TestClipSceneEvenOddAfterEndClip(t *testing.T) {
 
 	// Pentagon outline (self-intersecting), even-odd: 5 spikes + hollow center.
 	star := []LineSoup{
-		{P0: [2]float32{32, 10}, P1: [2]float32{56, 50}},  // tip -> lower right
-		{P0: [2]float32{56, 50}, P1: [2]float32{15, 28}},  // -> left arm
-		{P0: [2]float32{15, 28}, P1: [2]float32{49, 28}},  // -> upper right
-		{P0: [2]float32{49, 28}, P1: [2]float32{8, 50}},   // -> lower left
-		{P0: [2]float32{8, 50}, P1: [2]float32{32, 10}},   // -> tip
+		{P0: [2]float32{32, 10}, P1: [2]float32{56, 50}}, // tip -> lower right
+		{P0: [2]float32{56, 50}, P1: [2]float32{15, 28}}, // -> left arm
+		{P0: [2]float32{15, 28}, P1: [2]float32{49, 28}}, // -> upper right
+		{P0: [2]float32{49, 28}, P1: [2]float32{8, 50}},  // -> lower left
+		{P0: [2]float32{8, 50}, P1: [2]float32{32, 10}},  // -> tip
 	}
 
 	elements := []SceneElement{

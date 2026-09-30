@@ -1,6 +1,3 @@
-// Copyright 2026 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
 package indirect
 
 import (

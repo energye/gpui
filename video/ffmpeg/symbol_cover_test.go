@@ -22,13 +22,13 @@ import (
 // x86LinuxOnly 是只在 x86-linux 库里有的符号（VDPAU 六件 + x86 重采样一件）。
 // 别的平台（ARM/386/win/mac）库里没有，缺了不算错。
 var x86LinuxOnly = map[string]bool{
-	"av_alloc_vdpaucontext":          true,
-	"av_vdpau_alloc_context":         true,
-	"av_vdpau_bind_context":          true,
+	"av_alloc_vdpaucontext":           true,
+	"av_vdpau_alloc_context":          true,
+	"av_vdpau_bind_context":           true,
 	"av_vdpau_get_surface_parameters": true,
-	"av_vdpau_hwaccel_get_render2":   true,
-	"av_vdpau_hwaccel_set_render2":   true,
-	"swri_resample_dsp_x86_init":     true,
+	"av_vdpau_hwaccel_get_render2":    true,
+	"av_vdpau_hwaccel_set_render2":    true,
+	"swri_resample_dsp_x86_init":      true,
 }
 
 var regFuncName = regexp.MustCompile(`RegisterLibFunc\([^,]+,\s*h\s*,\s*"([^"]+)"`)
