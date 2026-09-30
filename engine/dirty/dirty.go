@@ -55,7 +55,7 @@ func finiteDirtyRect(r core.Rect) bool {
 // NewDirtyTracker builds a dynamic tracker over bounds.
 // Non-finite coordinates or W <= 0 or H <= 0 return invalid-arg.
 func NewDirtyTracker(bounds core.Rect) (*DirtyTracker, error) {
-	const op = "step.NewDirtyTracker"
+	const op = "dirty.NewDirtyTracker"
 	if !finiteDirtyRect(bounds) {
 		return nil, core.InvalidArg(op, "bounds")
 	}
@@ -68,13 +68,11 @@ func NewDirtyTracker(bounds core.Rect) (*DirtyTracker, error) {
 // NewSpriteDirtyTracker builds the independent sprite update tracker.
 // Same validation as NewDirtyTracker.
 func NewSpriteDirtyTracker(bounds core.Rect) (*DirtyTracker, error) {
-	const op = "step.NewSpriteDirtyTracker"
 	t, err := NewDirtyTracker(bounds)
 	if err != nil {
 		return nil, err
 	}
 	t.sprite = true
-	_ = op
 	return t, nil
 }
 

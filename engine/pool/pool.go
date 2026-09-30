@@ -112,117 +112,77 @@ func checkGet(p *Pool, op string, n int) error {
 	return nil
 }
 
-// GetVec returns n Vec2 elements for path or vertex positions.
-// n < 0 is InvalidArg, n > MaxLen is OutOfMemory, n == 0 returns an empty
-// slice without touching the retained set.
-func (p *Pool) GetVec(n int) ([]core.Vec2, error) {
-	const op = "step.GetVec"
+// getBuf serves one Get: validate, count, reuse retained backing or make
+// fresh. The n == 0 fast path counts a hit without touching the stack.
+// stackOf selects the backing store after validation so a nil pool still
+// fails closed instead of panicking on address evaluation.
+func getBuf[T any](p *Pool, op string, n int, stackOf func(*Pool) *[][]T) ([]T, error) {
 	if err := checkGet(p, op, n); err != nil {
 		return nil, err
 	}
-	if n == 0 {
-		p.mu.Lock()
-		p.gets++
-		p.hits++
-		p.mu.Unlock()
-		return []core.Vec2{}, nil
-	}
+	stack := stackOf(p)
 	p.mu.Lock()
 	p.gets++
-	if buf, ok := takeRetained(&p.vecs, n); ok {
+	if n == 0 {
+		p.hits++
+		p.mu.Unlock()
+		return []T{}, nil
+	}
+	if buf, ok := takeRetained(stack, n); ok {
 		p.hits++
 		p.mu.Unlock()
 		return buf, nil
 	}
 	p.misses++
 	p.mu.Unlock()
-	return make([]core.Vec2, n), nil
+	return make([]T, n), nil
+}
+
+// putBuf returns b to the retained set. Nil and zero-cap slices are
+// no-ops. Oversized or over-budget puts count but drop the buffer.
+func putBuf[T any](p *Pool, b []T, stackOf func(*Pool) *[][]T) {
+	if p == nil || cap(b) == 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.puts++
+	keepRetained(stackOf(p), b)
+}
+
+// GetVec returns n Vec2 elements for path or vertex positions.
+// n < 0 is InvalidArg, n > MaxLen is OutOfMemory, n == 0 returns an empty
+// slice without touching the retained set.
+func (p *Pool) GetVec(n int) ([]core.Vec2, error) {
+	return getBuf(p, "pool.GetVec", n, func(q *Pool) *[][]core.Vec2 { return &q.vecs })
 }
 
 // PutVec returns b to the pool. Nil and zero-cap slices are no-ops.
 // Oversized (cap > MaxLen) or over-budget puts count but drop the buffer.
 func (p *Pool) PutVec(b []core.Vec2) {
-	if p == nil || cap(b) == 0 {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.puts++
-	keepRetained(&p.vecs, b)
+	putBuf(p, b, func(q *Pool) *[][]core.Vec2 { return &q.vecs })
 }
 
 // GetColor returns n Color elements for vertex colors.
 // n < 0 is InvalidArg, n > MaxLen is OutOfMemory, n == 0 is empty.
 func (p *Pool) GetColor(n int) ([]core.Color, error) {
-	const op = "step.GetColor"
-	if err := checkGet(p, op, n); err != nil {
-		return nil, err
-	}
-	if n == 0 {
-		p.mu.Lock()
-		p.gets++
-		p.hits++
-		p.mu.Unlock()
-		return []core.Color{}, nil
-	}
-	p.mu.Lock()
-	p.gets++
-	if buf, ok := takeRetained(&p.colors, n); ok {
-		p.hits++
-		p.mu.Unlock()
-		return buf, nil
-	}
-	p.misses++
-	p.mu.Unlock()
-	return make([]core.Color, n), nil
+	return getBuf(p, "pool.GetColor", n, func(q *Pool) *[][]core.Color { return &q.colors })
 }
 
 // PutColor returns b to the pool. Nil and zero-cap slices are no-ops.
 func (p *Pool) PutColor(b []core.Color) {
-	if p == nil || cap(b) == 0 {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.puts++
-	keepRetained(&p.colors, b)
+	putBuf(p, b, func(q *Pool) *[][]core.Color { return &q.colors })
 }
 
 // GetFloat returns n float64 elements for raw coordinate streams.
 // n < 0 is InvalidArg, n > MaxLen is OutOfMemory, n == 0 is empty.
 func (p *Pool) GetFloat(n int) ([]float64, error) {
-	const op = "step.GetFloat"
-	if err := checkGet(p, op, n); err != nil {
-		return nil, err
-	}
-	if n == 0 {
-		p.mu.Lock()
-		p.gets++
-		p.hits++
-		p.mu.Unlock()
-		return []float64{}, nil
-	}
-	p.mu.Lock()
-	p.gets++
-	if buf, ok := takeRetained(&p.floats, n); ok {
-		p.hits++
-		p.mu.Unlock()
-		return buf, nil
-	}
-	p.misses++
-	p.mu.Unlock()
-	return make([]float64, n), nil
+	return getBuf(p, "pool.GetFloat", n, func(q *Pool) *[][]float64 { return &q.floats })
 }
 
 // PutFloat returns b to the pool. Nil and zero-cap slices are no-ops.
 func (p *Pool) PutFloat(b []float64) {
-	if p == nil || cap(b) == 0 {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.puts++
-	keepRetained(&p.floats, b)
+	putBuf(p, b, func(q *Pool) *[][]float64 { return &q.floats })
 }
 
 // Stats returns a copy of the pool counters.

@@ -52,7 +52,7 @@ func (l Level) Valid() bool {
 func ParseLevel(name string) (Level, error) {
 	l := Level(name)
 	if !l.Valid() {
-		return "", core.InvalidArg("save.ParseLevel", "level")
+		return "", core.InvalidArg("quality.ParseLevel", "level")
 	}
 	return l, nil
 }
@@ -82,7 +82,7 @@ var qualitySpecs = map[Level]Spec{
 func SpecFor(l Level) (Spec, error) {
 	s, ok := qualitySpecs[l]
 	if !ok {
-		return Spec{}, core.InvalidArg("save.SpecFor", "level")
+		return Spec{}, core.InvalidArg("quality.SpecFor", "level")
 	}
 	return s, nil
 }
@@ -99,7 +99,7 @@ type Quality struct {
 // InvalidArg error.
 func NewQuality(level Level) (Quality, error) {
 	if !level.Valid() {
-		return Quality{}, core.InvalidArg("save.NewQuality", "level")
+		return Quality{}, core.InvalidArg("quality.NewQuality", "level")
 	}
 	return Quality{level: level}, nil
 }
@@ -125,7 +125,7 @@ func (q Quality) Equal(o Quality) bool { return q.level == o.level }
 // a core InvalidArg error and change nothing. Nil handles report
 // InvalidArg.
 func (q *Quality) Switch(to Level) error {
-	const op = "save.Quality.Switch"
+	const op = "quality.Quality.Switch"
 	if q == nil {
 		return core.InvalidArg(op, "quality")
 	}
@@ -145,7 +145,7 @@ type jsonQuality struct {
 // InvalidArg; budget overruns are OutOfMemory. The input is never
 // mutated.
 func (q Quality) Encode() ([]byte, error) {
-	const op = "save.Quality.Encode"
+	const op = "quality.Quality.Encode"
 	if !q.level.Valid() {
 		return nil, core.InvalidArg(op, "level")
 	}
@@ -164,7 +164,7 @@ func (q Quality) Encode() ([]byte, error) {
 // size overruns are OutOfMemory, torn JSON and bad tiers are BadData,
 // foreign or newer versions are VersionMismatch.
 func ParseQuality(data []byte) (Quality, error) {
-	const op = "save.ParseQuality"
+	const op = "quality.ParseQuality"
 	if len(data) == 0 {
 		return Quality{}, core.InvalidArg(op, "data")
 	}
@@ -196,7 +196,7 @@ func ParseQuality(data []byte) (Quality, error) {
 // Empty paths are InvalidArg; OS failures are NotFound with the cause;
 // tier errors match Encode.
 func StoreQuality(q Quality, path string) error {
-	const op = "save.StoreQuality"
+	const op = "quality.StoreQuality"
 	if path == "" {
 		return core.InvalidArg(op, "path")
 	}
@@ -219,7 +219,7 @@ func StoreQuality(q Quality, path string) error {
 // LoadQuality reads path as a quality file. Empty paths are InvalidArg,
 // missing files are NotFound; the rest matches ParseQuality.
 func LoadQuality(path string) (Quality, error) {
-	const op = "save.LoadQuality"
+	const op = "quality.LoadQuality"
 	if path == "" {
 		return Quality{}, core.InvalidArg(op, "path")
 	}
