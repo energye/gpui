@@ -204,7 +204,7 @@ var (
 	fAvHmacFree                               func(ctx unsafe.Pointer)
 	fAvHmacInit                               func(ctx unsafe.Pointer, key unsafe.Pointer, keylen uint32)
 	fAvHmacUpdate                             func(ctx unsafe.Pointer, data unsafe.Pointer, len uint32)
-	fAvHwdeviceCtxAlloc                       func(typ unsafe.Pointer) unsafe.Pointer
+	fAvHwdeviceCtxAlloc                       func(typ int32) unsafe.Pointer
 	fAvHwdeviceCtxCreate                      func(device_ctx *unsafe.Pointer, typ int32, device unsafe.Pointer, opts unsafe.Pointer, flags int32) int32
 	fAvHwdeviceCtxCreateDerived               func(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, flags int32) int32
 	fAvHwdeviceCtxCreateDerivedOpts           func(dst_ctx *unsafe.Pointer, typ int32, src_ctx unsafe.Pointer, options unsafe.Pointer, flags int32) int32
@@ -216,12 +216,12 @@ var (
 	fAvHwdeviceIterateTypes                   func(prev int32) int32
 	fAvHwframeConstraintsFree                 func(constraints *unsafe.Pointer)
 	fAvHwframeCtxAlloc                        func(device_ctx unsafe.Pointer) unsafe.Pointer
-	fAvHwframeCtxCreateDerived                func(derived_frame_ctx *unsafe.Pointer, format unsafe.Pointer, derived_device_ctx unsafe.Pointer, source_frame_ctx unsafe.Pointer, flags int32) int32
+	fAvHwframeCtxCreateDerived                func(derived_frame_ctx *unsafe.Pointer, format int32, derived_device_ctx unsafe.Pointer, source_frame_ctx unsafe.Pointer, flags int32) int32
 	fAvHwframeCtxInit                         func(ref unsafe.Pointer) int32
 	fAvHwframeGetBuffer                       func(hwframe_ctx unsafe.Pointer, frame unsafe.Pointer, flags int32) int32
 	fAvHwframeMap                             func(dst unsafe.Pointer, src unsafe.Pointer, flags int32) int32
 	fAvHwframeTransferData                    func(dst unsafe.Pointer, src unsafe.Pointer, flags int32) int32
-	fAvHwframeTransferGetFormats              func(hwframe_ctx unsafe.Pointer, dir unsafe.Pointer, formats *unsafe.Pointer, flags int32) int32
+	fAvHwframeTransferGetFormats              func(hwframe_ctx unsafe.Pointer, dir int32, formats *unsafe.Pointer, flags int32) int32
 	fAvI2int                                  func(a AVInteger) int64
 	fAvIamfAudioElementAddLayer               func(audio_element unsafe.Pointer) unsafe.Pointer
 	fAvIamfAudioElementAlloc                  func() unsafe.Pointer
@@ -380,7 +380,7 @@ var (
 	fAvUuidUrnParse                           func(in unsafe.Pointer, uu unsafe.Pointer) int32
 	fAvVbprintf                               func(buf unsafe.Pointer, fmt unsafe.Pointer, vl_arg unsafe.Pointer)
 	fAvVdpauAllocContext                      func() unsafe.Pointer
-	fAvVdpauBindContext                       func(avctx unsafe.Pointer, device unsafe.Pointer, get_proc_address unsafe.Pointer, flags uint32) unsafe.Pointer
+	fAvVdpauBindContext                       func(avctx unsafe.Pointer, device unsafe.Pointer, get_proc_address unsafe.Pointer, flags uint32) int32
 	fAvVdpauGetSurfaceParameters              func(avctx unsafe.Pointer, typ unsafe.Pointer, width unsafe.Pointer, height unsafe.Pointer) int32
 	fAvVdpauHwaccelGetRender2                 func(arg0 unsafe.Pointer) unsafe.Pointer
 	fAvVdpauHwaccelSetRender2                 func(arg0 unsafe.Pointer, arg1 unsafe.Pointer) unsafe.Pointer
@@ -1927,8 +1927,8 @@ func (self *Crypto) HmacUpdate(ctx unsafe.Pointer, data unsafe.Pointer, len uint
 	fAvHmacUpdate(ctx, data, len)
 }
 
-// HwdeviceCtxAlloc 建或配硬解设备上下文（对 av_hwdevice_ctx_alloc；参数 typ；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
-func (self *HWDevice) HwdeviceCtxAlloc(typ unsafe.Pointer) unsafe.Pointer {
+// HwdeviceCtxAlloc 按类型建硬解设备上下文（对 av_hwdevice_ctx_alloc；参数 typ 是设备类型枚举数（0=NONE，见 HwdeviceIterateTypes/FindTypeByName）；回新设备引用，用完拿缓冲释放；typ 越界回 nil 不崩）。
+func (self *HWDevice) HwdeviceCtxAlloc(typ int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvHwdeviceCtxAlloc(typ)
 }
@@ -2019,8 +2019,8 @@ func (self *HWDevice) HwframeCtxAlloc(device_ctx unsafe.Pointer) unsafe.Pointer 
 	return fAvHwframeCtxAlloc(device_ctx)
 }
 
-// HwframeCtxCreateDerived 申请或搬运硬解帧缓冲（对 av_hwframe_ctx_create_derived；参数 derived_frame_ctx、format、derived_device_ctx、source_frame_ctx、flags；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
-func (self *HWDevice) HwframeCtxCreateDerived(derived_frame_ctx *unsafe.Pointer, format unsafe.Pointer, derived_device_ctx unsafe.Pointer, source_frame_ctx unsafe.Pointer, flags int32) error {
+// HwframeCtxCreateDerived 从已有帧上下文派生新帧上下文（对 av_hwframe_ctx_create_derived；参数 derived_frame_ctx（收新引用的槽）、format（目标像素格式枚举数）、derived_device_ctx、source_frame_ctx、flags；成功回 nil，失败回 error；各上下文传 nil 会崩，得传真对象）。
+func (self *HWDevice) HwframeCtxCreateDerived(derived_frame_ctx *unsafe.Pointer, format int32, derived_device_ctx unsafe.Pointer, source_frame_ctx unsafe.Pointer, flags int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -2069,8 +2069,8 @@ func (self *HWDevice) HwframeTransferData(dst unsafe.Pointer, src unsafe.Pointer
 	return nil
 }
 
-// HwframeTransferGetFormats 申请或搬运硬解帧缓冲（对 av_hwframe_transfer_get_formats；参数 hwframe_ctx、dir、formats、flags；回数值或个数；无状态调用）。
-func (self *HWDevice) HwframeTransferGetFormats(hwframe_ctx unsafe.Pointer, dir unsafe.Pointer, formats *unsafe.Pointer, flags int32) int32 {
+// HwframeTransferGetFormats 问帧上下文支持哪些传输格式（对 av_hwframe_transfer_get_formats；参数 hwframe_ctx、dir（传输方向枚举数：0=到硬件、1=从硬件回内存）、formats（收格式数组的槽，用完拿 Mem.Free 放）、flags；回格式个数，负数是出错码；hwframe_ctx 传 nil 会崩）。
+func (self *HWDevice) HwframeTransferGetFormats(hwframe_ctx unsafe.Pointer, dir int32, formats *unsafe.Pointer, flags int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvHwframeTransferGetFormats(hwframe_ctx, dir, formats, flags)
 }
@@ -3192,10 +3192,15 @@ func (self *HWDevice) VdpauAllocContext() unsafe.Pointer {
 	return fAvVdpauAllocContext()
 }
 
-// VdpauBindContext VDPAU 硬解的小件（对 av_vdpau_bind_context；参数 avctx、device、get_proc_address、flags；回 C 指针，失败回 nil；无状态调用）。
-func (self *HWDevice) VdpauBindContext(avctx unsafe.Pointer, device unsafe.Pointer, get_proc_address unsafe.Pointer, flags uint32) unsafe.Pointer {
-	mustUse(ensureModCryptoHw())
-	return fAvVdpauBindContext(avctx, device, get_proc_address, flags)
+// VdpauBindContext 把解码上下文绑到 VDPAU 设备上（对 av_vdpau_bind_context；参数 avctx（须是开好的解码上下文）、device、get_proc_address、flags；回 0 是成，负数是出错码；device 传 0 会失败回错不崩，avctx 传 nil 会崩）。
+func (self *HWDevice) VdpauBindContext(avctx unsafe.Pointer, device unsafe.Pointer, get_proc_address unsafe.Pointer, flags uint32) error {
+	if err := ensureModCryptoHw(); err != nil {
+		return err
+	}
+	if ret := fAvVdpauBindContext(avctx, device, get_proc_address, flags); ret < 0 {
+		return codeErr("av_vdpau_bind_context", ret)
+	}
+	return nil
 }
 
 // VdpauGetSurfaceParameters VDPAU 硬解的小件（对 av_vdpau_get_surface_parameters；参数 avctx、typ、width、height；回数值或个数；无状态调用）。

@@ -165,7 +165,7 @@ var (
 	fAvcodecFindBestPixFmtOfList   func(pix_fmt_list unsafe.Pointer, src_pix_fmt int32, has_alpha int32, loss_ptr *int32) int32
 	fAvcodecGetClass               func() unsafe.Pointer
 	fAvcodecGetHwConfig            func(codec unsafe.Pointer, index int32) unsafe.Pointer
-	fAvcodecGetHwFramesParameters  func(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt unsafe.Pointer, out_frames_ref *unsafe.Pointer) int32
+	fAvcodecGetHwFramesParameters  func(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt int32, out_frames_ref *unsafe.Pointer) int32
 	fAvCodecGetId                  func(tags unsafe.Pointer, tag uint32) int32
 	fAvcodecGetSubtitleRectClass   func() unsafe.Pointer
 	fAvcodecGetSupportedConfig     func(avctx unsafe.Pointer, codec unsafe.Pointer, config unsafe.Pointer, flags uint32, out_configs *unsafe.Pointer, out_num_configs unsafe.Pointer) int32
@@ -931,9 +931,9 @@ func (self *Codec) AvcodecGetHwConfig(codec unsafe.Pointer, index int32) unsafe.
 	return fAvcodecGetHwConfig(codec, index)
 }
 
-// AvcodecGetHwFramesParameters 取硬解帧参数（对 avcodec_get_hw_frames_parameters；参数 avctx(须是开好的上下文)、device_ref(须是真硬解设备, 传 nil 会崩)、hw_pix_fmt(须是真像素格式指针)、out_frames_ref(指向指针的槽)；
+// AvcodecGetHwFramesParameters 取硬解帧参数（对 avcodec_get_hw_frames_parameters；参数 avctx(须是开好的上下文)、device_ref(须是真硬解设备引用，传 nil 会崩)、hw_pix_fmt(硬解像素格式枚举数)、out_frames_ref(收新帧引用的槽，用完释放)；
 // 回 0=成功, 负数是 AVERROR；硬解真值走真机路, 单测不碰；无状态调用）.
-func (self *Codec) AvcodecGetHwFramesParameters(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt unsafe.Pointer, out_frames_ref *unsafe.Pointer) int32 {
+func (self *Codec) AvcodecGetHwFramesParameters(avctx unsafe.Pointer, device_ref unsafe.Pointer, hw_pix_fmt int32, out_frames_ref *unsafe.Pointer) int32 {
 	mustUse(ensureModCodecEncode())
 	return fAvcodecGetHwFramesParameters(avctx, device_ref, hw_pix_fmt, out_frames_ref)
 }

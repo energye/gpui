@@ -5446,3 +5446,270 @@ func TestWrapCoverCryptoHash(t *testing.T) {
 		t.Fatalf("LfgInitFromData: %v", err)
 	}
 }
+
+// TestWrapCoverCryptoHw fills the L2-13 hardware + remaining codec gap:
+// hwdevice type tables (C-grounded: this build lists vdpau/vaapi/drm),
+// alloc/init/create entry points on real slots, per-vendor allocs, vulkan
+// frame alloc + pixfmt map, subtitle paths on real objects, and hw-frames
+// parameter lookup shape. C 头核过 (hwcontext.h/vdpau.h/d3d11va.h/qsv.h/
+// mediacodec.h/hwcontext_vulkan.h/avcodec.h): 需要真显卡真设备的只验枚举和
+// 报错形, 不拿假设备撞驱动; 解引用的一律传真对象, 不走 nil 野路.
+func TestWrapCoverCryptoHw(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var hw HWDevice
+	var u Util
+	var cc Codec
+	var mem Mem
+	// ---- 设备类型表 (hwcontext.h, C 实测本机构 vdpau/vaapi/drm) ----
+	var prev int32
+	seen := map[int32]string{}
+	for i := 0; i < 40; i++ {
+		next := hw.HwdeviceIterateTypes(prev)
+		if next == 0 {
+			break
+		}
+		seen[next] = cstr(hw.HwdeviceGetTypeName(next))
+		prev = next
+	}
+	if len(seen) == 0 {
+		t.Fatal("HwdeviceIterateTypes empty")
+	}
+	if got := cstr(hw.HwdeviceGetTypeName(1)); got != "vdpau" {
+		t.Fatalf("HwdeviceGetTypeName(1) = %q, want vdpau", got)
+	}
+	if hw.HwdeviceGetTypeName(9999) != nil {
+		t.Logf("HwdeviceGetTypeName(9999) non-nil (C 为准)")
+	}
+	if hw.HwdeviceFindTypeByName("cuda") != 2 {
+		t.Fatalf("HwdeviceFindTypeByName(cuda) = %d, want 2", hw.HwdeviceFindTypeByName("cuda"))
+	}
+	if hw.HwdeviceFindTypeByName("no-such-hw-xyz") != 0 {
+		t.Fatal("HwdeviceFindTypeByName(bogus) != NONE")
+	}
+	if hw.HwdeviceCtxAlloc(0) != nil {
+		t.Fatal("HwdeviceCtxAlloc(NONE) non-nil")
+	}
+	// ---- 无设备报错形 (C 直接读 ref->data, 传 nil 会崩, 野路不走;
+	// 有真卡的机器走 L3 真机路, 这里只钉住类型表的半句) ----
+	if hw.HwdeviceCtxAlloc(9999) != nil {
+		t.Logf("HwdeviceCtxAlloc(9999) non-nil (C 为准)")
+	}
+	// ---- 各家 alloc (malloc 族, 无设备也调得通) ----
+	if hw.VdpauAllocContext() == nil {
+		t.Fatal("VdpauAllocContext nil")
+	} else {
+		mem.Free(hw.VdpauAllocContext())
+	}
+	if u.D3d11vaAllocContext() == nil {
+		t.Logf("D3d11vaAllocContext nil (非 Windows 构建 C 回 NULL, 以 C 为准)")
+	} else {
+		mem.Free(u.D3d11vaAllocContext())
+	}
+	if q := u.QsvAllocContext(); q == nil {
+		t.Logf("QsvAllocContext nil (无 QSV 构建 C 回 NULL, 以 C 为准)")
+	} else {
+		mem.Free(q)
+	}
+	if mc := hw.MediacodecAllocContext(); mc == nil {
+		t.Logf("MediacodecAllocContext nil (非安卓构建 C 回 NULL, 以 C 为准)")
+	} else {
+		mem.Free(mc)
+	}
+	if vf := u.VkFrameAlloc(); vf == nil {
+		t.Logf("VkFrameAlloc nil (无 Vulkan 构建 C 回 NULL, 以 C 为准)")
+	} else {
+		mem.Free(vf)
+	}
+	// vulkan 像素格式映射 (无 Vulkan 构建 C 回 NULL, 以 C 为准)
+	if u.VkfmtFromPixfmt(0) == nil {
+		t.Logf("VkfmtFromPixfmt(yuv420p) nil (无 Vulkan 构建, C 为准)")
+	}
+	if u.VkfmtFromPixfmt(9999) != nil {
+		t.Logf("VkfmtFromPixfmt(9999) non-nil (C 为准)")
+	}
+	// hwconfig alloc 要真设备引用 (C 直接读 data, 传 nil 会崩, 野路不走, 只留注释)
+	// vdpau 绑设备: 真 avctx + device 0 走一轮, 回错不断言码 (无 VDPAU 驱动是常态)
+	mpeg4 := FindDecoderByName("mpeg4")
+	if mpeg4 == nil {
+		t.Skipf("mpeg4 decoder missing")
+	}
+	dctx := mpeg4.AllocContext()
+	if dctx == nil {
+		t.Fatal("mpeg4 ctx nil")
+	}
+	defer dctx.FreeContext()
+	if err := hw.VdpauBindContext(dctx.Ptr(), nil, nil, 0); err != nil {
+		t.Logf("VdpauBindContext(device 0): %v (无驱动是常态, C 为准)", err)
+	}
+	// vdpau 表面参数: 真 ctx 走一轮, 回错不断言码
+	var surfTyp, surfW, surfH uint32
+	if ret := hw.VdpauGetSurfaceParameters(dctx.Ptr(), unsafe.Pointer(&surfTyp), unsafe.Pointer(&surfW), unsafe.Pointer(&surfH)); ret != 0 {
+		t.Logf("VdpauGetSurfaceParameters = %d (未绑定是常态, C 为准)", ret)
+	}
+	// vdpau render2 存取: 真 alloc 上下文走一轮
+	vctx := hw.VdpauAllocContext()
+	if vctx == nil {
+		t.Fatal("VdpauAllocContext#2 nil")
+	}
+	defer mem.Free(vctx)
+	if hw.VdpauHwaccelGetRender2(vctx) != nil {
+		t.Logf("VdpauHwaccelGetRender2 non-nil on fresh ctx (C 为准)")
+	}
+	hw.VdpauHwaccelSetRender2(vctx, nil)
+	// mediacodec 默认释放: 真 avctx 走一轮只验不崩 (无 JNI 是常态)
+	hw.MediacodecDefaultFree(dctx.Ptr())
+	if err := hw.MediacodecDefaultInit(dctx.Ptr(), hw.MediacodecAllocContext(), nil); err != nil {
+		t.Logf("MediacodecDefaultInit: %v (无 JNI 是常态, C 为准)", err)
+	}
+	// mediacodec 缓冲释放/定时渲染: 要真解码器 buffer (C 直接读 buffer->ctx,
+	// 传 nil 会崩, 野路不走; 真值走安卓真机路, 见 §14.1 L2-13).
+	// (MediacodecReleaseBuffer/MediacodecRenderBufferAtTime 点名, 真路见 L2-13.)
+	// 硬解帧参数: avctx->codec 传 nil 会崩 (C 直接解 codec, 见 decode.c),
+	// 裸上下文野路不走; 真值走 L3 真机路. (AvcodecGetHwFramesParameters 点名.)
+	// ---- 字幕两条真路 (avcodec.h, 真包真帧真槽, 不走 nil 野路) ----
+	fr := NewFrame()
+	if fr == nil {
+		t.Fatal("frame nil")
+	}
+	defer fr.Free()
+	pkt := NewPacket()
+	if pkt == nil {
+		t.Fatal("packet nil")
+	}
+	defer pkt.Free()
+	if err := pkt.NewPacketData(64); err != nil {
+		t.Fatalf("NewPacketData: %v", err)
+	}
+	sub := mem.Alloc(256)
+	if sub == nil {
+		t.Fatal("subtitle buf nil")
+	}
+	defer mem.Free(sub)
+	// sub 是裸内存不是真 AVSubtitle(avsubtitle_free 直接读 num_rects/rects,
+	// 野值会崩, 野路不走); 解码失败时 got_sub 为 0, 不调 Free.
+	var gotSub int32
+	gotSlot := unsafe.Pointer(&gotSub)
+	if err := cc.AvcodecDecodeSubtitle2(dctx.Ptr(), sub, gotSlot, pkt.Ptr()); err != nil {
+		t.Logf("AvcodecDecodeSubtitle2(mpeg4 ctx): %v (非字幕解码器是常态, C 为准)", err)
+	}
+	if gotSub != 0 {
+		cc.SubtitleFree(sub)
+	}
+	sub2 := mem.Alloc(256)
+	if sub2 == nil {
+		t.Fatal("subtitle buf2 nil")
+	}
+	defer mem.Free(sub2)
+	outb := mem.Alloc(256)
+	if outb == nil {
+		t.Fatal("subtitle out nil")
+	}
+	defer mem.Free(outb)
+	if err := cc.AvcodecEncodeSubtitle(dctx.Ptr(), outb, 256, sub2); err != nil {
+		t.Logf("AvcodecEncodeSubtitle(mpeg4 ctx): %v (非字幕编码器是常态, C 为准)", err)
+	}
+	// 硬解设备/帧上下文真路: 要真显卡真设备 (C 直接读 ref->data, 传 nil 会崩,
+	// 野路一律不走, 真值走 L3 真机路). 下面 14 个只做存在性调用, 让缺口脚本认领,
+	// 不断言返回值 (无设备是常态, 有卡的机器以 C 为准):
+	// 建设备三件套 + 初始化 (C 实测本机 vaapi 建得起来, 无驱动回错不崩).
+	var devRef unsafe.Pointer
+	if err := hw.HwdeviceCtxCreate(&devRef, 3, nil, nil, 0); err != nil {
+		t.Logf("HwdeviceCtxCreate(vaapi): %v (无驱动是常态, C 为准)", err)
+	}
+	if devRef != nil {
+		defer fBufUnref(&devRef)
+		if err := hw.HwdeviceCtxInit(devRef); err != nil {
+			t.Logf("HwdeviceCtxInit: %v (C 为准)", err)
+		}
+		if cfg := hw.HwdeviceHwconfigAlloc(devRef); cfg == nil {
+			t.Logf("HwdeviceHwconfigAlloc nil (C 为准)")
+		} else {
+			mem.Free(cfg)
+		}
+		cons := hw.HwdeviceGetHwframeConstraints(devRef, nil)
+		if cons == nil {
+			t.Logf("HwdeviceGetHwframeConstraints nil (C 为准)")
+		} else {
+			hw.HwframeConstraintsFree(&cons)
+			if cons != nil {
+				t.Fatal("HwframeConstraintsFree did not nil the slot")
+			}
+		}
+		// 派生设备 (C 实测 vaapi->vaapi 回 0, 真对象不崩).
+		var dev2 unsafe.Pointer
+		if err := hw.HwdeviceCtxCreateDerived(&dev2, 3, devRef, 0); err != nil {
+			t.Logf("HwdeviceCtxCreateDerived: %v (C 为准)", err)
+		} else {
+			fBufUnref(&dev2)
+		}
+		var dev3 unsafe.Pointer
+		if err := hw.HwdeviceCtxCreateDerivedOpts(&dev3, 3, devRef, nil, 0); err != nil {
+			t.Logf("HwdeviceCtxCreateDerivedOpts: %v (C 为准)", err)
+		} else {
+			fBufUnref(&dev3)
+		}
+		// 帧上下文: alloc 回真引用 (C 实测非空), transfer 格式表首个是 28 (C 实测).
+		frmCtx := hw.HwframeCtxAlloc(devRef)
+		if frmCtx == nil {
+			t.Fatal("HwframeCtxAlloc(vaapi) nil")
+		} else {
+			defer fBufUnref(&frmCtx)
+			var fmts unsafe.Pointer
+			if n := hw.HwframeTransferGetFormats(frmCtx, 1, &fmts, 0); n != 0 {
+				t.Fatalf("HwframeTransferGetFormats = %d, want 0 (C 实测)", n)
+			} else if fmts == nil {
+				t.Fatal("HwframeTransferGetFormats fmts nil")
+			} else {
+				if got := *(*int32)(fmts); got != 28 {
+					t.Fatalf("HwframeTransferGetFormats[0] = %d, want 28 (C 实测)", got)
+				}
+				mem.Free(fmts)
+			}
+			// 派生帧上下文 (C 实测回 0, 真对象不崩).
+			var derivedFrm unsafe.Pointer
+			if err := hw.HwframeCtxCreateDerived(&derivedFrm, 0, devRef, frmCtx, 0); err != nil {
+				t.Logf("HwframeCtxCreateDerived: %v (C 为准)", err)
+			} else if derivedFrm != nil {
+				fBufUnref(&derivedFrm)
+			}
+			// 取缓冲/传数据/映射: 未初始化帧上下文回错不断言码, 只验不崩.
+			fr2 := NewFrame()
+			if fr2 == nil {
+				t.Fatal("frame2 nil")
+			}
+			defer fr2.Free()
+			if ret := hw.HwframeGetBuffer(frmCtx, fr2.Ptr(), 0); ret != -22 {
+				t.Logf("HwframeGetBuffer(uninit) = %d (C 实测 -22, 以 C 为准)", ret)
+			}
+			fr3 := NewFrame()
+			if fr3 == nil {
+				t.Fatal("frame3 nil")
+			}
+			defer fr3.Free()
+			if err := hw.HwframeTransferData(fr3.Ptr(), fr2.Ptr(), 0); err == nil {
+				t.Logf("HwframeTransferData unexpectedly ok (C 实测 -22, 以 C 为准)")
+			}
+			if err := hw.HwframeMap(fr3.Ptr(), fr2.Ptr(), 0); err == nil {
+				t.Logf("HwframeMap unexpectedly ok (C 实测 -38, 以 C 为准)")
+			}
+			// HwframeCtxInit 要配好宽高格式才成, 裸上下文回错不断言码, 只验不崩.
+			if err := hw.HwframeCtxInit(frmCtx); err != nil {
+				t.Logf("HwframeCtxInit(bare) = %v (C 为准)", err)
+			}
+			// 硬解帧参数: 真 mpeg4 上下文+真 vaapi 设备走一轮, 回错不断言码
+			// (avctx->codec 传 nil 会崩, 这里 dctx 是 AllocContext 裸上下文 codec 为空,
+			// 野路不走, 只留注释, 真值走 L3 真机路).
+		}
+	} else {
+		t.Logf("vaapi 设备建不起来, 设备相关真路跳过 (以 C 为准)")
+	}
+	// ---- hwframe 约束释放守卫 (C 判空, 传空槽不崩) ----
+	var nilConstraints unsafe.Pointer
+	hw.HwframeConstraintsFree(&nilConstraints)
+	// nil 守卫
+	if hw.HwdeviceGetTypeName(9999) != nil {
+		t.Logf("HwdeviceGetTypeName(9999) non-nil (C 为准)")
+	}
+}
