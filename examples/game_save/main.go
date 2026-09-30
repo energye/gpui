@@ -3,7 +3,7 @@
 // Three cards side by side, one per frozen tier (high 1000 particles plus
 // 8 lights plus scale 1.00, medium 500 plus 4 plus 0.75, low 200 plus 2
 // plus 0.50). The live scene highlights one card at a time and switches
-// the real engine/save Quality handle every 2s; the switch only replaces
+// the real engine/quality Quality handle every 2s; the switch only replaces
 // the level, the scene never reloads, nothing flashes.
 //
 // Modes:
@@ -15,7 +15,7 @@
 //	go run ./examples/game_save --case=q123
 //	  probes, then resident until close (RUN_SECONDS sets a timed run).
 //
-// Window: 1200x800, title game_save. First run writes the golden baseline
+// Window: 1200x800, title game_quality. First run writes the golden baseline
 // into testdata/; later runs compare it with zero tolerance.
 package main
 
@@ -29,7 +29,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/engine/save"
+	"github.com/energye/gpui/engine/quality"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
@@ -49,7 +49,7 @@ const (
 
 	// frozenPath is the engine-side frozen tier table. The window never
 	// hardcodes tier numbers; it replays this file through the real API.
-	frozenPath = "engine/save/testdata/quality_cases.json"
+	frozenPath = "engine/quality/testdata/quality_cases.json"
 
 	// switchEveryS flips the live tier this often; an 8s auto run flips
 	// at least 3 times (one full high->medium->low cycle plus one).
@@ -96,13 +96,13 @@ const (
 	liveDot    = 3
 )
 
-var tierOrder = []save.Level{save.LevelHigh, save.LevelMedium, save.LevelLow}
+var tierOrder = []quality.Level{quality.LevelHigh, quality.LevelMedium, quality.LevelLow}
 
-func tierColor(l save.Level) (float64, float64, float64) {
+func tierColor(l quality.Level) (float64, float64, float64) {
 	switch l {
-	case save.LevelHigh:
+	case quality.LevelHigh:
 		return highR, highG, highB
-	case save.LevelMedium:
+	case quality.LevelMedium:
 		return medR, medG, medB
 	default:
 		return lowR, lowG, lowB
@@ -119,7 +119,7 @@ func dotPos(i int, w, h float64) (float64, float64) {
 
 // paintCard fills one tier card: background, spec.Particles dots, and
 // the resolution scale bar (width = scale * card width).
-func paintCard(dc *render.Context, ox, oy, w, h float64, spec save.Spec, r, g, b float64, dot int) {
+func paintCard(dc *render.Context, ox, oy, w, h float64, spec quality.Spec, r, g, b float64, dot int) {
 	dc.SetRGBA(r, g, b, 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
@@ -142,7 +142,7 @@ func paintQ123Frame(dc *render.Context) {
 	dc.ClearWithColor(render.RGBA{R: bgR, G: bgG, B: bgB, A: 1})
 	xs := []int{offCardX0, offCardX1, offCardX2}
 	for i, lvl := range tierOrder {
-		spec, err := save.SpecFor(lvl)
+		spec, err := quality.SpecFor(lvl)
 		if err != nil {
 			continue
 		}
@@ -218,11 +218,11 @@ func probeLogic() (bool, int, string) {
 		return false, 0, fmt.Sprintf("frozen levels = %d, want 3", len(f.Levels))
 	}
 	for _, want := range f.Levels {
-		lvl, err := save.ParseLevel(want.Name)
+		lvl, err := quality.ParseLevel(want.Name)
 		if err != nil {
 			return false, 0, "ParseLevel " + want.Name + ": " + err.Error()
 		}
-		spec, err := save.SpecFor(lvl)
+		spec, err := quality.SpecFor(lvl)
 		if err != nil {
 			return false, 0, "SpecFor " + want.Name + ": " + err.Error()
 		}
@@ -231,12 +231,12 @@ func probeLogic() (bool, int, string) {
 		}
 	}
 	// Rapid flicker: 90 switches land back on the start, same scene.
-	start, err := save.NewQuality(save.LevelHigh)
+	start, err := quality.NewQuality(quality.LevelHigh)
 	if err != nil {
 		return false, 0, "NewQuality: " + err.Error()
 	}
 	flick := start
-	seq := []save.Level{save.LevelMedium, save.LevelLow, save.LevelHigh}
+	seq := []quality.Level{quality.LevelMedium, quality.LevelLow, quality.LevelHigh}
 	switches := 0
 	for i := 0; i < 30; i++ {
 		for _, to := range seq {
@@ -251,11 +251,11 @@ func probeLogic() (bool, int, string) {
 	}
 	// Bad tiers never sneak in.
 	for _, bad := range []string{"", "ultra", "HIGH"} {
-		if _, err := save.ParseLevel(bad); err == nil {
+		if _, err := quality.ParseLevel(bad); err == nil {
 			return false, switches, "bad name " + bad + " accepted"
 		}
 	}
-	if err := flick.Switch(save.Level("ultra")); err == nil {
+	if err := flick.Switch(quality.Level("ultra")); err == nil {
 		return false, switches, "bad Switch accepted"
 	}
 	// Encode stability: 100 rounds, same bytes.
@@ -388,7 +388,7 @@ func runProbes() probeResult {
 // qSim is the live window state: one real Quality handle cycles tiers,
 // the highlight frame follows, counters feed the gate JSON.
 type qSim struct {
-	q            save.Quality
+	q            quality.Quality
 	active       int
 	tierClock    float64
 	switches     int
@@ -553,7 +553,7 @@ func main() {
 		"JSON见 ability_extra",
 	})
 
-	q0, err := save.NewQuality(save.LevelHigh)
+	q0, err := quality.NewQuality(quality.LevelHigh)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: NewQuality:", err)
 		os.Exit(1)
@@ -569,7 +569,7 @@ func main() {
 	titles := []string{"HIGH 高", "MEDIUM 中", "LOW 低"}
 	xs := []float64{cardX0, cardX1, cardX2}
 	for i, lvl := range tierOrder {
-		spec, _ := save.SpecFor(lvl)
+		spec, _ := quality.SpecFor(lvl)
 		r, g, b := tierColor(lvl)
 		shell.Body.Place(wrkit.Label(titles[i], 13, 0.55, 0.75, 0.95), xs[i], cardY-24)
 		card := rendering.NewRenderBox()
@@ -715,9 +715,9 @@ func main() {
 		}
 	}
 	// Tier numbers come from the live engine specs, never hardcoded here.
-	hiSpec, _ := save.SpecFor(save.LevelHigh)
-	medSpec, _ := save.SpecFor(save.LevelMedium)
-	lowSpec, _ := save.SpecFor(save.LevelLow)
+	hiSpec, _ := quality.SpecFor(quality.LevelHigh)
+	medSpec, _ := quality.SpecFor(quality.LevelMedium)
+	lowSpec, _ := quality.SpecFor(quality.LevelLow)
 	extra := map[string]any{
 		"case":           "q123",
 		"probe_ok":       probeOK,

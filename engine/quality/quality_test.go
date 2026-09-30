@@ -1,4 +1,4 @@
-package save
+package quality
 
 import (
 	"encoding/json"
@@ -35,6 +35,35 @@ type qualityCases struct {
 	Files    []qualityFileCase  `json:"files"`
 	BadFiles []qualityBadCase   `json:"bad_files"`
 	BadNames []string           `json:"bad_names"`
+}
+
+func expectCode(t *testing.T, name string, err error, want core.Code) {
+	t.Helper()
+	if err == nil {
+		t.Errorf("%s: want error", name)
+		return
+	}
+	if core.CodeOf(err) != want {
+		t.Errorf("%s code = %v, want %v", name, core.CodeOf(err), want)
+	}
+}
+
+func codeFromName(name string) core.Code {
+	switch name {
+	case "not-found":
+		return core.CodeNotFound
+	case "bad-data":
+		return core.CodeBadData
+	case "out-of-memory":
+		return core.CodeOutOfMemory
+	case "unsupported":
+		return core.CodeUnsupported
+	case "invalid-arg":
+		return core.CodeInvalidArg
+	case "version-mismatch":
+		return core.CodeVersionMismatch
+	}
+	return core.CodeUnknown
 }
 
 func loadQualityCases(t *testing.T) qualityCases {
