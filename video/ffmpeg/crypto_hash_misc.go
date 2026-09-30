@@ -70,7 +70,7 @@ var (
 	fAvBlowfishCrypt                          func(ctx unsafe.Pointer, dst unsafe.Pointer, src unsafe.Pointer, count int32, iv unsafe.Pointer, decrypt int32)
 	fAvBlowfishCryptEcb                       func(ctx unsafe.Pointer, xl unsafe.Pointer, xr unsafe.Pointer, decrypt int32)
 	fAvBlowfishInit                           func(ctx unsafe.Pointer, key unsafe.Pointer, key_len int32)
-	fAvBmgGet                                 func(lfg unsafe.Pointer, out float64)
+	fAvBmgGet                                 func(lfg unsafe.Pointer, out *float64)
 	fAvBprintf                                func(buf unsafe.Pointer, fmt unsafe.Pointer)
 	fAvCalloc                                 func(nmemb uintptr, size uintptr) unsafe.Pointer
 	fAvCamelliaAlloc                          func() unsafe.Pointer
@@ -100,7 +100,7 @@ var (
 	fAvDctCalc                                func(s unsafe.Pointer, data unsafe.Pointer)
 	fAvDctEnd                                 func(s unsafe.Pointer)
 	fAvDctInit                                func(nbits int32, typ int32) unsafe.Pointer
-	fAvDefaultGetCategory                     func(ptr unsafe.Pointer) unsafe.Pointer
+	fAvDefaultGetCategory                     func(ptr unsafe.Pointer) int32
 	fAvDefaultItemName                        func(ctx unsafe.Pointer) unsafe.Pointer
 	fAvDemuxerIterate                         func(opaque *unsafe.Pointer) unsafe.Pointer
 	fAvDesAlloc                               func() unsafe.Pointer
@@ -245,7 +245,7 @@ var (
 	fAvInterleavedWriteFrame                  func(s unsafe.Pointer, pkt unsafe.Pointer) int32
 	fAvInterleavedWriteUncodedFrame           func(s unsafe.Pointer, stream_index int32, frame unsafe.Pointer) int32
 	fAvJniGetJavaVm                           func(log_ctx unsafe.Pointer) unsafe.Pointer
-	fAvJniSetJavaVm                           func(vm unsafe.Pointer, log_ctx unsafe.Pointer) unsafe.Pointer
+	fAvJniSetJavaVm                           func(vm unsafe.Pointer, log_ctx unsafe.Pointer) int32
 	fAvLfgInit                                func(c unsafe.Pointer, seed uint32)
 	fAvLfgInitFromData                        func(c unsafe.Pointer, data unsafe.Pointer, length uint32) int32
 	fAvLog                                    func(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer)
@@ -412,7 +412,7 @@ var (
 	fSwresampleLicense                        func() unsafe.Pointer
 	fSwresampleVersion                        func() uint32
 	fSwriAudioConvert                         func(ctx unsafe.Pointer, out unsafe.Pointer, in unsafe.Pointer, len int32) int32
-	fSwriAudioConvertAlloc                    func(out_fmt unsafe.Pointer, in_fmt unsafe.Pointer, channels int32, ch_map unsafe.Pointer, flags int32) unsafe.Pointer
+	fSwriAudioConvertAlloc                    func(out_fmt int32, in_fmt int32, channels int32, ch_map unsafe.Pointer, flags int32) unsafe.Pointer
 	fSwriAudioConvertFree                     func(ctx *unsafe.Pointer)
 	fSwriResampleDspInit                      func(c unsafe.Pointer)
 	fSwriResampleDspX86Init                   func(c unsafe.Pointer)
@@ -435,7 +435,7 @@ var (
 	fAvLog2                                   func(v uint32) int32
 	fAvLog216bit                              func(v uint32) int32
 	fAvLog2I                                  func(a AVInteger) int32
-	fAvParseCpuCaps                           func(flags unsafe.Pointer, s unsafe.Pointer) int32
+	fAvParseCpuCaps                           func(flags unsafe.Pointer, s string) int32
 	fAvPixFmtCountPlanes                      func(pix_fmt int32) int32
 	fAvPixFmtGetChromaSubSample               func(pix_fmt int32, h_shift *int32, v_shift *int32) int32
 	fAvPixFmtSwapEndianness                   func(pix_fmt int32) int32
@@ -977,7 +977,7 @@ func (self *Crypto) AesInit(a unsafe.Pointer, key unsafe.Pointer, key_bits int32
 	return nil
 }
 
-// AllocVdpaucontext 新建 VDPAU 硬解上下文，后面绑解码器用（对 av_alloc_vdpaucontext；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态调用）。
+// AllocVdpaucontext 新建 VDPAU 硬解上下文（对 av_alloc_vdpaucontext；无参数；回真上下文（av_mallocz 出来，用完 av_free 放，包里有 Mem.Free）；无状态调用）。
 func (self *HWDevice) AllocVdpaucontext() unsafe.Pointer {
 	mustUse(ensureModCryptoHw())
 	return fAvAllocVdpaucontext()
@@ -1054,8 +1054,8 @@ func (self *Crypto) BlowfishInit(ctx unsafe.Pointer, key unsafe.Pointer, key_len
 	fAvBlowfishInit(ctx, key, key_len)
 }
 
-// BmgGet 伯努利高斯模型取数，噪声建模用（对 av_bmg_get；参数 lfg、out；按签名取回值；无状态，可用零值直接调）。
-func (self *Util) BmgGet(lfg unsafe.Pointer, out float64) {
+// BmgGet 伯努利高斯模型取数，噪声建模用（对 av_bmg_get；参数 lfg（须是真随机上下文，传 nil 会崩）、out（*float64 两槽，C 回填两个高斯数，传值或 nil 会崩/写坏栈）；无回值；无状态调用）。
+func (self *Util) BmgGet(lfg unsafe.Pointer, out *float64) {
 	mustUse(ensureModCrypto())
 	fAvBmgGet(lfg, out)
 }
@@ -1135,15 +1135,16 @@ func (self *Util) ChromaLocationEnumToPos(xpos *int32, ypos *int32, pos int32) e
 	return nil
 }
 
-// ChromaLocationFromName 按名字找色度位置编号（对 av_chroma_location_from_name；参数 name；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ChromaLocationFromName(name string) error {
+// ChromaLocationFromName 按名字查色度位置枚举（对 av_chroma_location_from_name；参数 name（Go 字串直传，比如 "topleft"）；成功回枚举数，名字不对回 error；无状态调用）。
+func (self *Util) ChromaLocationFromName(name string) (int32, error) {
 	if err := ensureModCrypto(); err != nil {
-		return err
+		return 0, err
 	}
-	if ret := fAvChromaLocationFromName(name); ret < 0 {
-		return codeErr("av_chroma_location_from_name", ret)
+	ret := fAvChromaLocationFromName(name)
+	if ret < 0 {
+		return 0, codeErr("av_chroma_location_from_name", ret)
 	}
-	return nil
+	return ret, nil
 }
 
 // ChromaLocationName 按编号查色度位置名字（对 av_chroma_location_name；参数 location；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
@@ -1177,7 +1178,7 @@ func (self *Crypto) CrcGetTable(crc_id int32) unsafe.Pointer {
 	return fAvCrcGetTable(crc_id)
 }
 
-// CrcInit 初始化一套 CRC 表，后面算校验用（对 av_crc_init；参数 ctx、le、bits、poly、ctx_size；成功回 nil，失败回 error（字串已是人话）；无状态调用）。
+// CrcInit 初始化一套 CRC 表（对 av_crc_init；参数 ctx（须是 ctx_size 字节真槽，传 nil 会崩）、le、bits、poly、ctx_size；成功回 nil，失败回 error；无状态调用）。
 func (self *Crypto) CrcInit(ctx unsafe.Pointer, le int32, bits int32, poly uint32, ctx_size int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -1262,13 +1263,13 @@ func (self *Util) DctInit(nbits int32, typ int32) unsafe.Pointer {
 	return fAvDctInit(nbits, typ)
 }
 
-// DefaultGetCategory 问选项上下文属于哪类（对 av_default_get_category；参数 ptr；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) DefaultGetCategory(ptr unsafe.Pointer) unsafe.Pointer {
+// DefaultGetCategory 问选项上下文属于哪类（对 av_default_get_category；参数 ptr（须是带 AVClass 头的真对象，传 nil 会崩）；回类别枚举数；无状态调用）。
+func (self *Util) DefaultGetCategory(ptr unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
 	return fAvDefaultGetCategory(ptr)
 }
 
-// DefaultItemName 问选项条目的名字（对 av_default_item_name；参数 ctx；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// DefaultItemName 问选项条目的名字（对 av_default_item_name；参数 ctx（须是带 AVClass 头的真对象，传 nil 会崩）；回名字借用不释放，失败回 nil；无状态调用）。
 func (self *Util) DefaultItemName(ctx unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDefaultItemName(ctx)
@@ -1380,7 +1381,7 @@ func (self *Util) DvCodecProfile2(width int32, height int32, pix_fmt int32, fram
 	return fAvDvCodecProfile2(width, height, pix_fmt, frame_rate)
 }
 
-// DvFrameProfile DV 格式描述查询（对 av_dv_frame_profile；参数 sys、frame、buf_size；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// DvFrameProfile 按压缩帧认 DV 档（对 av_dv_frame_profile；参数 sys（上次档，可 nil）、frame（须是真缓冲，传 nil 会崩）、buf_size；回档借用不释放，认不出回 nil；无状态调用）。
 func (self *Util) DvFrameProfile(sys unsafe.Pointer, frame unsafe.Pointer, buf_size uint32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvDvFrameProfile(sys, frame, buf_size)
@@ -1469,19 +1470,19 @@ func (self *Util) Escape(dst *unsafe.Pointer, src unsafe.Pointer, special_chars 
 	return fAvEscape(dst, src, special_chars, mode, flags)
 }
 
-// ExecutorAlloc 线程池执行器（对 av_executor_alloc；参数 callbacks、thread_count；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// ExecutorAlloc 新建线程执行器（对 av_executor_alloc；参数 callbacks（须是填满 ready/run/priority 的真回调表，传 nil 回 nil）、thread_count；成功回真执行器（记得 ExecutorFree），失败回 nil；无状态调用）。
 func (self *Util) ExecutorAlloc(callbacks unsafe.Pointer, thread_count int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvExecutorAlloc(callbacks, thread_count)
 }
 
-// ExecutorExecute 线程池执行器（对 av_executor_execute；参数 e、t；按签名取回值；无状态，可用零值直接调）。
+// ExecutorExecute 往执行器交一个任务（对 av_executor_execute；参数 e/t（须是真执行器和真任务，传 nil 会崩）；无回值；拿到真执行器才能走，野路不走）。
 func (self *Util) ExecutorExecute(e unsafe.Pointer, t unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvExecutorExecute(e, t)
 }
 
-// ExecutorFree 线程池执行器（对 av_executor_free；参数 e；按签名取回值；无状态，可用零值直接调）。
+// ExecutorFree 放掉执行器并清槽（对 av_executor_free；参数 e（*槽，槽或值 nil 直接回，不崩）；无回值；无状态调用）。
 func (self *Util) ExecutorFree(e *unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvExecutorFree(e)
@@ -1879,7 +1880,7 @@ func (self *Crypto) HashUpdate(ctx unsafe.Pointer, src unsafe.Pointer, len uintp
 	fAvHashUpdate(ctx, src, len)
 }
 
-// HexDump 把二进制按十六进制打到日志（对 av_hex_dump；参数 f、buf、size；按签名取回值；无状态，可用零值直接调）。
+// HexDump 把二进制按十六进制打到文件（对 av_hex_dump；参数 f（须是真 FILE*，Go 侧拿不到，野路不走）、buf、size；无回值；无状态调用）。
 func (self *Util) HexDump(f unsafe.Pointer, buf unsafe.Pointer, size int32) {
 	mustUse(ensureModCrypto())
 	fAvHexDump(f, buf, size)
@@ -2181,13 +2182,13 @@ func (self *Util) InitPacket(pkt unsafe.Pointer) {
 	fAvInitPacket(pkt)
 }
 
-// InputAudioDeviceNext 逐个列出输入音频设备（对 av_input_audio_device_next；参数 d；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// InputAudioDeviceNext 逐个列出输入音频设备（对 av_input_audio_device_next；参数 d（上一个，首次传 nil）；回设备借用不释放，到头回 nil；无状态调用）。
 func (self *Util) InputAudioDeviceNext(d unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvInputAudioDeviceNext(d)
 }
 
-// InputVideoDeviceNext 逐个列出输入视频设备（对 av_input_video_device_next；参数 d；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// InputVideoDeviceNext 逐个列出输入视频设备（对 av_input_video_device_next；参数 d（上一个，首次传 nil）；回设备借用不释放，到头回 nil；无状态调用）。
 func (self *Util) InputVideoDeviceNext(d unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvInputVideoDeviceNext(d)
@@ -2221,16 +2222,19 @@ func (self *Muxer) InterleavedWriteUncodedFrame(s unsafe.Pointer, stream_index i
 	return nil
 }
 
-// JniGetJavaVm 取安卓 Java 虚拟机指针（对 av_jni_get_java_vm；参数 log_ctx；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// JniGetJavaVm 取之前设好的 Java 虚拟机指针（对 av_jni_get_java_vm；参数 log_ctx（可 nil）；没设过回 nil；无状态调用）。
 func (self *Util) JniGetJavaVm(log_ctx unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvJniGetJavaVm(log_ctx)
 }
 
-// JniSetJavaVm 设置安卓 Java 虚拟机指针（对 av_jni_set_java_vm；参数 vm、log_ctx；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) JniSetJavaVm(vm unsafe.Pointer, log_ctx unsafe.Pointer) unsafe.Pointer {
+// JniSetJavaVm 设置安卓 Java 虚拟机指针（对 av_jni_set_java_vm；参数 vm（首次设置收下，改换别的回 EINVAL）、log_ctx（可 nil）；成功回 nil，失败回 error；无状态调用）。
+func (self *Util) JniSetJavaVm(vm unsafe.Pointer, log_ctx unsafe.Pointer) error {
 	mustUse(ensureModCrypto())
-	return fAvJniSetJavaVm(vm, log_ctx)
+	if ret := fAvJniSetJavaVm(vm, log_ctx); ret < 0 {
+		return codeErr("av_jni_set_java_vm", ret)
+	}
+	return nil
 }
 
 // LfgInit 简单随机数发生器（对 av_lfg_init；参数 c、seed；按签名取回值；无状态，可用零值直接调）。
@@ -2447,31 +2451,31 @@ func (self *Util) NewProgram(s unsafe.Pointer, id int32) unsafe.Pointer {
 	return fAvNewProgram(s, id)
 }
 
-// OutputAudioDeviceNext 逐个列出输出音频设备（对 av_output_audio_device_next；参数 d；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// OutputAudioDeviceNext 逐个列出输出音频设备（对 av_output_audio_device_next；参数 d（上一个，首次传 nil）；回设备借用不释放，到头回 nil；无状态调用）。
 func (self *Util) OutputAudioDeviceNext(d unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvOutputAudioDeviceNext(d)
 }
 
-// OutputVideoDeviceNext 逐个列出输出视频设备（对 av_output_video_device_next；参数 d；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// OutputVideoDeviceNext 逐个列出输出视频设备（对 av_output_video_device_next；参数 d（上一个，首次传 nil）；回设备借用不释放，到头回 nil；无状态调用）。
 func (self *Util) OutputVideoDeviceNext(d unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvOutputVideoDeviceNext(d)
 }
 
-// PixelutilsGetSadFn 取算块差异的函数指针（对 av_pixelutils_get_sad_fn；参数 w_bits、h_bits、aligned、log_ctx；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// PixelutilsGetSadFn 取算块差异的函数指针（对 av_pixelutils_get_sad_fn；参数 w_bits/h_bits（须相等且在范围内）、aligned、log_ctx（可 nil）；回函数指针，参数不对回 nil；无状态调用）。
 func (self *Util) PixelutilsGetSadFn(w_bits int32, h_bits int32, aligned int32, log_ctx unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvPixelutilsGetSadFn(w_bits, h_bits, aligned, log_ctx)
 }
 
-// PktDump2 把包内容打到日志（新版）（对 av_pkt_dump2；参数 f、pkt、dump_payload、st；按签名取回值；无状态，可用零值直接调）。
+// PktDump2 把包内容打到文件（对 av_pkt_dump2；参数 f（须是真 FILE*，Go 侧拿不到，野路不走）、pkt、dump_payload、st；无回值；无状态调用）。
 func (self *Util) PktDump2(f unsafe.Pointer, pkt unsafe.Pointer, dump_payload int32, st unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvPktDump2(f, pkt, dump_payload, st)
 }
 
-// PktDumpLog2 带级别把包内容打日志（新版）（对 av_pkt_dump_log2；参数 avcl、level、pkt、dump_payload、st；按签名取回值；无状态，可用零值直接调）。
+// PktDumpLog2 带级别把包内容打日志（对 av_pkt_dump_log2；参数 avcl（可 nil）、level、pkt（须是真包）、dump_payload、st（须是真流，C 直接读时基，传 nil 会崩）；无回值；无状态调用）。
 func (self *Util) PktDumpLog2(avcl unsafe.Pointer, level int32, pkt unsafe.Pointer, dump_payload int32, st unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvPktDumpLog2(avcl, level, pkt, dump_payload, st)
@@ -2989,13 +2993,13 @@ func (self *Crypto) TeaInit(ctx unsafe.Pointer, key unsafe.Pointer, rounds int32
 	fAvTeaInit(ctx, key, rounds)
 }
 
-// ThreadMessageFlush 清线程消息队列（对 av_thread_message_flush；参数 mq；按签名取回值；无状态，可用零值直接调）。
+// ThreadMessageFlush 清空队列攒的消息（对 av_thread_message_flush；参数 mq（须是真队列，传 nil 会崩）；无回值；无状态调用）。
 func (self *Util) ThreadMessageFlush(mq unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvThreadMessageFlush(mq)
 }
 
-// ThreadMessageQueueAlloc 新建线程消息队列（对 av_thread_message_queue_alloc；参数 mq、nelem、elsize；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// ThreadMessageQueueAlloc 新建线程消息队列（对 av_thread_message_queue_alloc；参数 mq（*输出槽，须真槽）、nelem、elsize；成功回 nil（无线程支持回 ENOSYS），失败回 error；记得 ThreadMessageQueueFree；无状态调用）。
 func (self *Util) ThreadMessageQueueAlloc(mq *unsafe.Pointer, nelem uint32, elsize uint32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3006,24 +3010,20 @@ func (self *Util) ThreadMessageQueueAlloc(mq *unsafe.Pointer, nelem uint32, elsi
 	return nil
 }
 
-// ThreadMessageQueueFree 释放线程消息队列（对 av_thread_message_queue_free；参数 mq；按签名取回值；无状态，可用零值直接调）。
+// ThreadMessageQueueFree 放掉消息队列并清槽（对 av_thread_message_queue_free；参数 mq（*槽，槽或值 nil 直接回，不崩）；无回值；无状态调用）。
 func (self *Util) ThreadMessageQueueFree(mq *unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvThreadMessageQueueFree(mq)
 }
 
 // ThreadMessageQueueNbElems 问队列里攒了几条（对 av_thread_message_queue_nb_elems；参数 mq；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ThreadMessageQueueNbElems(mq unsafe.Pointer) error {
-	if err := ensureModCrypto(); err != nil {
-		return err
-	}
-	if ret := fAvThreadMessageQueueNbElems(mq); ret < 0 {
-		return codeErr("av_thread_message_queue_nb_elems", ret)
-	}
-	return nil
+// ThreadMessageQueueNbElems 问队列里攒了几条消息（对 av_thread_message_queue_nb_elems；参数 mq（须是真队列，传 nil 会崩）；回消息条数，负数是出错码（无线程支持回 ENOSYS）；无状态调用）。
+func (self *Util) ThreadMessageQueueNbElems(mq unsafe.Pointer) int32 {
+	mustUse(ensureModCrypto())
+	return fAvThreadMessageQueueNbElems(mq)
 }
 
-// ThreadMessageQueueRecv 从队列取一条（对 av_thread_message_queue_recv；参数 mq、msg、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// ThreadMessageQueueRecv 从队列取一条（对 av_thread_message_queue_recv；参数 mq（须是真队列）、msg（须是 elsize 字节真槽）、flags；成功回 nil，失败回 error；无状态调用）。
 func (self *Util) ThreadMessageQueueRecv(mq unsafe.Pointer, msg unsafe.Pointer, flags uint32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3034,7 +3034,7 @@ func (self *Util) ThreadMessageQueueRecv(mq unsafe.Pointer, msg unsafe.Pointer, 
 	return nil
 }
 
-// ThreadMessageQueueSend 往队列塞一条（对 av_thread_message_queue_send；参数 mq、msg、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// ThreadMessageQueueSend 往队列塞一条（对 av_thread_message_queue_send；参数 mq（须是真队列）、msg（须是 elsize 字节真槽）、flags；成功回 nil，失败回 error；无状态调用）。
 func (self *Util) ThreadMessageQueueSend(mq unsafe.Pointer, msg unsafe.Pointer, flags uint32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3045,19 +3045,19 @@ func (self *Util) ThreadMessageQueueSend(mq unsafe.Pointer, msg unsafe.Pointer, 
 	return nil
 }
 
-// ThreadMessageQueueSetErrRecv 设队列收端错误（对 av_thread_message_queue_set_err_recv；参数 mq、err；按签名取回值；无状态，可用零值直接调）。
+// ThreadMessageQueueSetErrRecv 设队列收端错误码（对 av_thread_message_queue_set_err_recv；参数 mq（须是真队列）、err；无回值；无状态调用）。
 func (self *Util) ThreadMessageQueueSetErrRecv(mq unsafe.Pointer, err int32) {
 	mustUse(ensureModCrypto())
 	fAvThreadMessageQueueSetErrRecv(mq, err)
 }
 
-// ThreadMessageQueueSetErrSend 设队列发端错误（对 av_thread_message_queue_set_err_send；参数 mq、err；按签名取回值；无状态，可用零值直接调）。
+// ThreadMessageQueueSetErrSend 设队列发端错误码（对 av_thread_message_queue_set_err_send；参数 mq（须是真队列）、err；无回值；无状态调用）。
 func (self *Util) ThreadMessageQueueSetErrSend(mq unsafe.Pointer, err int32) {
 	mustUse(ensureModCrypto())
 	fAvThreadMessageQueueSetErrSend(mq, err)
 }
 
-// ThreadMessageQueueSetFreeFunc 设队列元素释放函数（对 av_thread_message_queue_set_free_func；参数 mq、free_func；按签名取回值；无状态，可用零值直接调）。
+// ThreadMessageQueueSetFreeFunc 设队列元素释放回调（对 av_thread_message_queue_set_free_func；参数 mq（须是真队列）、free_func（C 回调，Go 侧 NewCallback 跳板或 nil）；无回值；无状态调用）。
 func (self *Util) ThreadMessageQueueSetFreeFunc(mq unsafe.Pointer, free_func unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvThreadMessageQueueSetFreeFunc(mq, free_func)
@@ -3069,31 +3069,31 @@ func (self *Util) Timegm(tm unsafe.Pointer) int64 {
 	return fAvTimegm(tm)
 }
 
-// TreeDestroy 释放整棵树（对 av_tree_destroy；参数 t；按签名取回值；无状态，可用零值直接调）。
+// TreeDestroy 放掉整棵树节点（对 av_tree_destroy；参数 t（树根，可 nil，不崩；只放节点，不管键内存）；无回值；无状态调用）。
 func (self *Util) TreeDestroy(t unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvTreeDestroy(t)
 }
 
-// TreeEnumerate 遍历树每个节点（对 av_tree_enumerate；参数 t、opaque、cmp、enu；按签名取回值；无状态，可用零值直接调）。
+// TreeEnumerate 按区间遍历树每个节点（对 av_tree_enumerate；参数 t（须是真树根）、opaque、cmp/enu（C 回调，须 NewCallback 跳板，传 nil 会崩）；无回值；无状态调用）。
 func (self *Util) TreeEnumerate(t unsafe.Pointer, opaque unsafe.Pointer, cmp unsafe.Pointer, enu unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvTreeEnumerate(t, opaque, cmp, enu)
 }
 
-// TreeFind 在树里找键（对 av_tree_find；参数 root、key、cmp、next；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// TreeFind 在树里找键（对 av_tree_find；参数 root（须是真树根）、key、cmp（C 回调，须 NewCallback 跳板，传 nil 会崩）、next（前后元两槽，可 nil）；回找中的键借用不释放，找不到回 nil；无状态调用）。
 func (self *Util) TreeFind(root unsafe.Pointer, key unsafe.Pointer, cmp unsafe.Pointer, next unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvTreeFind(root, key, cmp, next)
 }
 
-// TreeInsert 往树里插键（对 av_tree_insert；参数 rootp、key、cmp、next；回 C 指针，失败回 nil；无状态，可用零值直接调）。
+// TreeInsert 往树里插键或删键（对 av_tree_insert；参数 rootp（*根槽，须真槽）、key、cmp（C 回调，须 NewCallback 跳板）、next（插时须是 TreeNodeAlloc 的干净节点，*next 吃掉变 nil；删时传 nil 槽）；回键或 nil（C 实测为准）；无状态调用）。
 func (self *Util) TreeInsert(rootp *unsafe.Pointer, key unsafe.Pointer, cmp unsafe.Pointer, next *unsafe.Pointer) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvTreeInsert(rootp, key, cmp, next)
 }
 
-// TreeNodeAlloc 新建树节点（对 av_tree_node_alloc；无参数；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
+// TreeNodeAlloc 新建一个干净树节点（对 av_tree_node_alloc；无参数；回真节点（插树被吃掉或 TreeDestroy 放）；无状态调用）。
 func (self *Util) TreeNodeAlloc() unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvTreeNodeAlloc()
@@ -3190,7 +3190,7 @@ func (self *Util) UuidUrnParse(in unsafe.Pointer, uu unsafe.Pointer) error {
 	return nil
 }
 
-// Vbprintf 往打印缓冲追加（va_list 版）（对 av_vbprintf；参数 buf、fmt、vl_arg；按签名取回值；无状态，可用零值直接调）。
+// Vbprintf 往打印缓冲追加（va_list 版）（对 av_vbprintf；参数 buf、fmt、vl_arg（va_list Go 侧造不出，野路不走）；无回值；无状态调用）。
 func (self *Util) Vbprintf(buf unsafe.Pointer, fmt unsafe.Pointer, vl_arg unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvVbprintf(buf, fmt, vl_arg)
@@ -3267,7 +3267,7 @@ func (self *Util) VkFrameAlloc() unsafe.Pointer {
 	return fAvVkFrameAlloc()
 }
 
-// Vlog 发一条日志（va_list 版）（对 av_vlog；参数 avcl、level、fmt、vl；按签名取回值；无状态，可用零值直接调）。
+// Vlog 发一条日志（va_list 版）（对 av_vlog；参数 avcl、level、fmt、vl（va_list Go 侧造不出，野路不走）；无回值；无状态调用）。
 func (self *Util) Vlog(avcl unsafe.Pointer, level int32, fmt unsafe.Pointer, vl unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fAvVlog(avcl, level, fmt, vl)
@@ -3418,7 +3418,7 @@ func (self *Util) SwresampleVersion() uint32 {
 	return fSwresampleVersion()
 }
 
-// SwriAudioConvert 底层采样格式转换（对 swri_audio_convert；参数 ctx、out、in、len；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
+// SwriAudioConvert 底层采样格式转换（对 swri_audio_convert；参数 ctx（须是 SwriAudioConvertAlloc 的真转换器）、out/in（须是真 AudioData，Go 侧搭不出，野路不走）、len；成功回 nil，失败回 error；无状态调用）。
 func (self *Util) SwriAudioConvert(ctx unsafe.Pointer, out unsafe.Pointer, in unsafe.Pointer, len int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
@@ -3429,25 +3429,25 @@ func (self *Util) SwriAudioConvert(ctx unsafe.Pointer, out unsafe.Pointer, in un
 	return nil
 }
 
-// SwriAudioConvertAlloc 新建底层采样转换器（对 swri_audio_convert_alloc；参数 out_fmt、in_fmt、channels、ch_map、flags；成功回 C 指针，失败回 nil；新建的记得调对应 Free；无状态，可用零值直接调）。
-func (self *Util) SwriAudioConvertAlloc(out_fmt unsafe.Pointer, in_fmt unsafe.Pointer, channels int32, ch_map unsafe.Pointer, flags int32) unsafe.Pointer {
+// SwriAudioConvertAlloc 新建底层采样转换器（对 swri_audio_convert_alloc；参数 out_fmt/in_fmt（采样格式枚举数）、channels、ch_map（通道表，可 nil 表全选）、flags；成功回真转换器（记得 SwriAudioConvertFree），失败回 nil；无状态调用）。
+func (self *Util) SwriAudioConvertAlloc(out_fmt int32, in_fmt int32, channels int32, ch_map unsafe.Pointer, flags int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fSwriAudioConvertAlloc(out_fmt, in_fmt, channels, ch_map, flags)
 }
 
-// SwriAudioConvertFree 释放底层采样转换器（对 swri_audio_convert_free；参数 ctx；按签名取回值；无状态，可用零值直接调）。
+// SwriAudioConvertFree 释放底层采样转换器并清槽（对 swri_audio_convert_free；参数 ctx（*槽）；无回值；无状态调用）。
 func (self *Util) SwriAudioConvertFree(ctx *unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fSwriAudioConvertFree(ctx)
 }
 
-// SwriResampleDspInit 初始化重采样 DSP 函数表（对 swri_resample_dsp_init；参数 c；按签名取回值；无状态，可用零值直接调）。
+// SwriResampleDspInit 初始化重采样 DSP 函数表（对 swri_resample_dsp_init；参数 c（须是真重采样上下文，内部结构 Go 侧搭不出，野路不走）；无回值；无状态调用）。
 func (self *Util) SwriResampleDspInit(c unsafe.Pointer) {
 	mustUse(ensureModCrypto())
 	fSwriResampleDspInit(c)
 }
 
-// SwriResampleDspX86Init 初始化 x86 重采样 DSP 函数表（对 swri_resample_dsp_x86_init；参数 c；按签名取回值；无状态，可用零值直接调）。
+// SwriResampleDspX86Init 初始化 x86 重采样 DSP 函数表（对 swri_resample_dsp_x86_init；参数 c（同上，野路不走）；无回值；无状态调用）。
 func (self *Util) SwriResampleDspX86Init(c unsafe.Pointer) {
 	mustUse(ensureModCryptoHw())
 	fSwriResampleDspX86Init(c)
@@ -3592,8 +3592,8 @@ func (self *Util) Log2I(a AVInteger) int32 {
 	return fAvLog2I(a)
 }
 
-// ParseCpuCaps 解析 CPU 特性字符串（对 av_parse_cpu_caps；参数 flags、s；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ParseCpuCaps(flags unsafe.Pointer, s unsafe.Pointer) error {
+// ParseCpuCaps 解析 CPU 特性字符串（对 av_parse_cpu_caps；参数 flags（*uint32 输出槽，须真槽，传 nil 会崩）、s（Go 字串直传，比如 "sse"）；成功回 nil，失败回 error；无状态调用）。
+func (self *Util) ParseCpuCaps(flags unsafe.Pointer, s string) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}

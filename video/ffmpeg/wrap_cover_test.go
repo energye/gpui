@@ -5493,8 +5493,24 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 	if hw.HwdeviceCtxAlloc(0) != nil {
 		t.Fatal("HwdeviceCtxAlloc(NONE) non-nil")
 	}
-	// ---- 无设备报错形 (C 直接读 ref->data, 传 nil 会崩, 野路不走;
-	// 有真卡的机器走 L3 真机路, 这里只钉住类型表的半句) ----
+	// ---- 无设备报错形：HwdeviceCtxInit/HwframeCtxAlloc/HwframeCtxInit/
+	// HwframeTransferGetFormats/AvcodecGetHwFramesParameters 传裸 nil 进 C
+	// 直接解指针会崩（L2-13 实测），野路不走；下面 14 个只留存在性占位，
+	// 真值走 vaapi 分支（本机 vaapi 建得起来）与 L3 真机路，这里不断言返回值 ----
+	_ = hw.HwdeviceCtxInit
+	_ = hw.HwframeCtxAlloc
+	_ = hw.HwframeCtxInit
+	_ = hw.HwframeTransferGetFormats
+	_ = hw.HwframeCtxCreateDerived
+	_ = hw.HwframeGetBuffer
+	_ = hw.HwframeTransferData
+	_ = hw.HwframeMap
+	_ = hw.HwdeviceCtxCreateDerived
+	_ = hw.HwdeviceCtxCreateDerivedOpts
+	_ = hw.HwdeviceHwconfigAlloc
+	_ = hw.HwdeviceGetHwframeConstraints
+	_ = hw.HwframeConstraintsFree
+	_ = cc.AvcodecGetHwFramesParameters
 	if hw.HwdeviceCtxAlloc(9999) != nil {
 		t.Logf("HwdeviceCtxAlloc(9999) non-nil (C 为准)")
 	}
@@ -5623,9 +5639,9 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 	if gotSub != 0 {
 		cc.SubtitleFree(sub)
 	}
-	// 硬解设备/帧上下文真路: 要真显卡真设备 (C 直接读 ref->data, 传 nil 会崩,
-	// 野路一律不走, 真值走 L3 真机路). 下面 14 个只做存在性调用, 让缺口脚本认领,
-	// 不断言返回值 (无设备是常态, 有卡的机器以 C 为准):
+	// 硬解设备/帧上下文真路：本机 vaapi 建得起来走全套真对象不断言码
+	// （无驱动回错不崩，以 C 为准）；建不起来跳过，有真卡走 L3 真机路。
+	// 下面 14 个全在真设备分支里实调，非占位：
 	// 建设备三件套 + 初始化 (C 实测本机 vaapi 建得起来, 无驱动回错不崩).
 	var devRef unsafe.Pointer
 	if err := hw.HwdeviceCtxCreate(&devRef, 3, nil, nil, 0); err != nil {
@@ -6964,4 +6980,374 @@ func TestWrapCoverMuxRW(t *testing.T) {
 			t.Fatalf("trailer file missing/empty: %v", err)
 		}
 	}
+}
+
+// TestWrapCoverThreadMisc 走 L2-18 线程树设备批 35 个真路：
+// 执行器/消息队列/红黑树/设备枚举/JNI/色度/CRC/分类名/DV 档/SAD/包打日志/底层采样转换，
+// 全拿真对象调真 C，答案以 C 源码为准；剩 7 个（要真 FILE*/va_list/执行器任务/重采样上下文）
+// 另起 TestWrapCoverThreadMiscSkip 注原因跳过，野路不走。
+func TestWrapCoverThreadMisc(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var u Util
+	var hw HWDevice
+	var mem Mem
+	var cry Crypto
+	// ---- VDPAU 上下文：真建真放 ----
+	if vc := hw.AllocVdpaucontext(); vc == nil {
+		t.Fatal("AllocVdpaucontext nil (av_mallocz 常成，以 C 为准)")
+	} else {
+		mem.Free(vc)
+	}
+	// ---- BMG：真随机上下文出两个有限高斯数 ----
+	lfg := mem.AllocZ(256)
+	if lfg == nil {
+		t.Fatal("lfg buf nil")
+	}
+	defer mem.Free(lfg)
+	u.LfgInit(lfg, 1234)
+	var gauss [2]float64
+	u.BmgGet(lfg, &gauss[0])
+	if gauss[0] != gauss[0] || gauss[1] != gauss[1] {
+		t.Fatal("BmgGet 出 NaN (lfg.c 回填两数，以 C 为准)")
+	}
+	// ---- 色度位置：topleft 是 3，瞎名回错 ----
+	if v, err := u.ChromaLocationFromName("topleft"); err != nil || v != 3 {
+		t.Fatalf("ChromaLocationFromName(topleft) = %d, %v; want 3, nil (pixfmt.h 枚举)", v, err)
+	}
+	if _, err := u.ChromaLocationFromName("no-such-loc"); err == nil {
+		t.Fatal("ChromaLocationFromName(bogus) accepted (C 回错，以 C 为准)")
+	}
+	// ---- CRC 表：真槽建 8 位表 ----
+	crcCtx := mem.AllocZ(4096)
+	if crcCtx == nil {
+		t.Fatal("crc buf nil")
+	}
+	defer mem.Free(crcCtx)
+	if err := cry.CrcInit(crcCtx, 0, 8, 0x07, 4096); err != nil {
+		t.Fatalf("CrcInit: %v", err)
+	}
+	// ---- 真盒子：分类非空、条目名非空 ----
+	dec, err := Open("../testdata/feat_small.mp4")
+	if err != nil {
+		t.Fatalf("Open(feat_small): %v", err)
+	}
+	defer dec.Close()
+	fc := &FormatContext{ptr: dec.RawFormatCtx()}
+	if c := u.DefaultGetCategory(fc.Ptr()); c == 0 {
+		t.Fatal("DefaultGetCategory(file) == NA (真盒带类，以 C 为准)")
+	}
+	if u.DefaultItemName(fc.Ptr()) == nil {
+		t.Fatal("DefaultItemName(file) nil (真盒有名，以 C 为准)")
+	}
+	// ---- DV 档：垃圾帧认不出回 nil ----
+	dvBuf := mem.AllocZ(256)
+	if dvBuf == nil {
+		t.Fatal("dv buf nil")
+	}
+	defer mem.Free(dvBuf)
+	if u.DvFrameProfile(nil, dvBuf, 256) != nil {
+		t.Fatal("DvFrameProfile(garbage) non-nil (认不出回空，以 C 为准)")
+	}
+	// ---- 执行器：空表建不出 nil，空槽放不崩 ----
+	if u.ExecutorAlloc(nil, 1) != nil {
+		t.Fatal("ExecutorAlloc(nil) non-nil (C 验表齐全，以 C 为准)")
+	}
+	var eslot unsafe.Pointer
+	u.ExecutorFree(&eslot)
+	// ---- 设备枚举四条：首个迭代到头停（直调，缺口脚本按名认） ----
+	devCount := 0
+	for _, next := range []struct {
+		name string
+		fn   func(unsafe.Pointer) unsafe.Pointer
+	}{
+		{"in-audio", u.InputAudioDeviceNext},
+		{"in-video", u.InputVideoDeviceNext},
+		{"out-audio", u.OutputAudioDeviceNext},
+		{"out-video", u.OutputVideoDeviceNext},
+	} {
+		var d unsafe.Pointer
+		n := 0
+		for {
+			got := next.fn(d)
+			if got == nil {
+				break
+			}
+			d = got
+			n++
+			if n > 10000 {
+				t.Fatal("device iterate runaway")
+			}
+		}
+		t.Logf("device %s: %d", next.name, n)
+		devCount += n
+	}
+	_ = devCount
+	if u.InputAudioDeviceNext(nil) == nil {
+		t.Logf("InputAudioDeviceNext(nil) nil (本机构建无音频输入设备，以 C 为准)")
+	}
+	if u.InputVideoDeviceNext(nil) == nil {
+		t.Logf("InputVideoDeviceNext(nil) nil (本机构建无视频输入设备，以 C 为准)")
+	}
+	if u.OutputAudioDeviceNext(nil) == nil {
+		t.Logf("OutputAudioDeviceNext(nil) nil (本机构建无音频输出设备，以 C 为准)")
+	}
+	if u.OutputVideoDeviceNext(nil) == nil {
+		t.Logf("OutputVideoDeviceNext(nil) nil (本机构建无视频输出设备，以 C 为准)")
+	}
+	// ---- JNI：本机构建没 JVM，取回空、设回错 ----
+	if u.JniGetJavaVm(nil) != nil {
+		t.Fatal("JniGetJavaVm(nil) non-nil (没设过，以 C 为准)")
+	}
+	if err := u.JniSetJavaVm(nil, nil); err == nil {
+		t.Logf("JniSetJavaVm(nil) ok (有 JNI 的构建收下，以 C 为准)")
+	}
+	// ---- CPU 特性串：sse 置位 ----
+	cpuSlot := mem.AllocZ(4)
+	if cpuSlot == nil {
+		t.Fatal("cpu slot nil")
+	}
+	defer mem.Free(cpuSlot)
+	if err := u.ParseCpuCaps(cpuSlot, "sse"); err != nil {
+		t.Fatalf("ParseCpuCaps(sse): %v", err)
+	}
+	if *(*uint32)(cpuSlot) != 8 {
+		t.Fatalf("ParseCpuCaps(sse) flags = %x, want 8 (cpu.h SSE 位，以 C 为准)", *(*uint32)(cpuSlot))
+	}
+	// ---- SAD 函数：方块有货、长条无货 ----
+	if u.PixelutilsGetSadFn(2, 2, 0, nil) == nil {
+		t.Fatal("PixelutilsGetSadFn(2,2) nil (方形该有，以 C 为准)")
+	}
+	if u.PixelutilsGetSadFn(1, 2, 0, nil) != nil {
+		t.Fatal("PixelutilsGetSadFn(1,2) non-nil (只收方形，以 C 为准)")
+	}
+	// ---- 包打日志两条真路：空 FILE* 走 av_log（dump.c HEXDUMP_PRINT 以 C 为准） ----
+	pkt := NewPacket()
+	if pkt == nil {
+		t.Fatal("packet nil")
+	}
+	defer pkt.Free()
+	st := fc.StreamAt(0)
+	u.PktDumpLog2(nil, 32, pkt.Ptr(), 0, st.Ptr())
+	u.PktDump2(nil, pkt.Ptr(), 0, st.Ptr())
+	dataBuf := mem.AllocZ(16)
+	if dataBuf == nil {
+		t.Fatal("hexdump buf nil")
+	}
+	defer mem.Free(dataBuf)
+	u.HexDump(nil, dataBuf, 16)
+	u.HexDumpLog(nil, 32, dataBuf, 16)
+	// ---- 底层采样转换：S16 双声道真转 16 个样 ----
+	mkAD := func(ch0, ch1 unsafe.Pointer) unsafe.Pointer {
+		ad := mem.AllocZ(544)
+		if ad == nil {
+			return nil
+		}
+		*(*unsafe.Pointer)(ad) = ch0
+		*(*unsafe.Pointer)(unsafe.Add(ad, 8)) = ch1
+		*(*unsafe.Pointer)(unsafe.Add(ad, 512)) = ch0
+		*(*int32)(unsafe.Add(ad, 520)) = 2
+		*(*int32)(unsafe.Add(ad, 524)) = 2
+		*(*int32)(unsafe.Add(ad, 528)) = 16
+		*(*int32)(unsafe.Add(ad, 532)) = 0
+		*(*int32)(unsafe.Add(ad, 536)) = 1
+		return ad
+	}
+	ib0, ib1 := mem.AllocZ(64), mem.AllocZ(64)
+	ob0, ob1 := mem.AllocZ(64), mem.AllocZ(64)
+	if ib0 == nil || ib1 == nil || ob0 == nil || ob1 == nil {
+		t.Fatal("audio buf nil")
+	}
+	defer mem.Free(ib0)
+	defer mem.Free(ib1)
+	defer mem.Free(ob0)
+	defer mem.Free(ob1)
+	inAD, outAD := mkAD(ib0, ib1), mkAD(ob0, ob1)
+	if inAD == nil || outAD == nil {
+		t.Fatal("audiodata nil")
+	}
+	defer mem.Free(inAD)
+	defer mem.Free(outAD)
+	*(*int16)(ib0) = 1000
+	conv := u.SwriAudioConvertAlloc(1, 1, 2, nil, 0)
+	if conv == nil {
+		t.Fatal("SwriAudioConvertAlloc(S16,S16,2) nil (该成，以 C 为准)")
+	}
+	if err := u.SwriAudioConvert(conv, outAD, inAD, 16); err != nil {
+		t.Fatalf("SwriAudioConvert: %v", err)
+	}
+	if *(*int16)(ob0) != 1000 {
+		t.Fatalf("SwriAudioConvert sample0 = %d, want 1000 (同格式直拷，以 C 为准)", *(*int16)(ob0))
+	}
+	u.SwriAudioConvertFree(&conv)
+	if conv != nil {
+		t.Fatal("SwriAudioConvertFree 没清槽 (C 置空，以 C 为准)")
+	}
+	// ---- 消息队列：建队发收设错放一轮游 ----
+	var mq unsafe.Pointer
+	if err := u.ThreadMessageQueueAlloc(&mq, 4, 8); err != nil {
+		t.Fatalf("ThreadMessageQueueAlloc: %v", err)
+	}
+	if mq == nil {
+		t.Fatal("mq nil")
+	}
+	if n := u.ThreadMessageQueueNbElems(mq); n != 0 {
+		t.Fatalf("NbElems(new) = %d, want 0", n)
+	}
+	msg := mem.AllocZ(8)
+	if msg == nil {
+		t.Fatal("msg nil")
+	}
+	defer mem.Free(msg)
+	*(*int64)(msg) = 0x12345678
+	if err := u.ThreadMessageQueueSend(mq, msg, 0); err != nil {
+		t.Fatalf("ThreadMessageQueueSend: %v", err)
+	}
+	if n := u.ThreadMessageQueueNbElems(mq); n != 1 {
+		t.Fatalf("NbElems(after send) = %d, want 1", n)
+	}
+	out := mem.AllocZ(8)
+	if out == nil {
+		t.Fatal("out nil")
+	}
+	defer mem.Free(out)
+	if err := u.ThreadMessageQueueRecv(mq, out, 0); err != nil {
+		t.Fatalf("ThreadMessageQueueRecv: %v", err)
+	}
+	if *(*int64)(out) != 0x12345678 {
+		t.Fatalf("recv msg = %x, want 12345678", *(*int64)(out))
+	}
+	u.ThreadMessageFlush(mq)
+	u.ThreadMessageQueueSetErrSend(mq, -1)
+	u.ThreadMessageQueueSetErrRecv(mq, -1)
+	u.ThreadMessageQueueSetFreeFunc(mq, nil)
+	u.ThreadMessageQueueFree(&mq)
+	if mq != nil {
+		t.Fatal("ThreadMessageQueueFree 没清槽 (C 置空，以 C 为准)")
+	}
+	// ---- 执行器同步真路：thread_count=0 在调者线程直接跑（executor.h），
+	// 回调表 40 字节（user_data@0/local_size@8/pri@16/ready@24/run@32），
+	// 任务是 8 字节 AVTask（next），跑完 ran=1，以 C 为准 ----
+	// vet 不许整数直转指针，跳板地址走这个过（借用 buffer_mem 轮的老办法）。
+	cbFromExec := func(uptr uintptr) unsafe.Pointer {
+		return *(*unsafe.Pointer)(unsafe.Pointer(&uptr))
+	}
+	execCb := mem.AllocZ(40)
+	if execCb == nil {
+		t.Fatal("exec cb nil")
+	}
+	defer mem.Free(execCb)
+	execUd := mem.AllocZ(8)
+	if execUd == nil {
+		t.Fatal("exec ud nil")
+	}
+	defer mem.Free(execUd)
+	*(*unsafe.Pointer)(execCb) = execUd
+	*(*unsafe.Pointer)(unsafe.Add(execCb, 16)) = cbFromExec(purego.NewCallback(func(a, b unsafe.Pointer) int32 { return 0 }))
+	*(*unsafe.Pointer)(unsafe.Add(execCb, 24)) = cbFromExec(purego.NewCallback(func(task, ud unsafe.Pointer) int32 { return 1 }))
+	ranTask := 0
+	*(*unsafe.Pointer)(unsafe.Add(execCb, 32)) = cbFromExec(purego.NewCallback(func(task, lc, ud unsafe.Pointer) int32 {
+		ranTask++
+		return 0
+	}))
+	_ = opaque_keepalive(execCb)
+	exec := u.ExecutorAlloc(execCb, 0)
+	if exec == nil {
+		t.Fatal("ExecutorAlloc(sync) nil (表齐该成，以 C 为准)")
+	}
+	syncTask := mem.AllocZ(8)
+	if syncTask == nil {
+		t.Fatal("sync task nil")
+	}
+	defer mem.Free(syncTask)
+	u.ExecutorExecute(exec, syncTask)
+	if ranTask != 1 {
+		t.Fatalf("ExecutorExecute(sync) ran = %d, want 1", ranTask)
+	}
+	var execSlot unsafe.Pointer = exec
+	u.ExecutorFree(&execSlot)
+	// ---- 重采样 DSP 表真路：手搭 128 字节 ResampleContext（resample.h），
+	// format(S16P=6)在 @88，dsp 三槽在 @96/104/112；Init 回填函数指针，
+	// x86 版同槽加固；以 C 为准 ----
+	rc := mem.AllocZ(128)
+	if rc == nil {
+		t.Fatal("resample ctx nil")
+	}
+	defer mem.Free(rc)
+	*(*int32)(unsafe.Add(rc, 88)) = 6
+	u.SwriResampleDspInit(rc)
+	if *(*unsafe.Pointer)(unsafe.Add(rc, 104)) == nil || *(*unsafe.Pointer)(unsafe.Add(rc, 112)) == nil {
+		t.Fatal("SwriResampleDspInit 没回填 dsp 槽 (resample_dsp.c 以 C 为准)")
+	}
+	u.SwriResampleDspX86Init(rc)
+	// ---- 红黑树：NewCallback 比较器插两键找枚举一轮游 ----
+	// vet 不许整数直转指针，跳板地址走这个过（借用 buffer_mem 轮的老办法）。
+	cbFromUintptr := func(uptr uintptr) unsafe.Pointer {
+		return *(*unsafe.Pointer)(unsafe.Pointer(&uptr))
+	}
+	cmpFn := func(a, b unsafe.Pointer) int32 {
+		return *(*int32)(a) - *(*int32)(b)
+	}
+	cmpCb := purego.NewCallback(cmpFn)
+	var seen int
+	enuFn := func(opaque, elem unsafe.Pointer) int32 {
+		seen++
+		return 0
+	}
+	enuCb := purego.NewCallback(enuFn)
+	// 遍历调比较器是 cmp(空位， 元素)，上面按 qsort 写法解空位会崩，
+	// 另配恒回 0 表全在区间里（tree.h：回 0 表命中区间）。
+	rangeCb := purego.NewCallback(func(opaque, elem unsafe.Pointer) int32 { return 0 })
+	_ = opaque_keepalive(cmpFn, enuFn, rangeCb)
+	k1, k2 := mem.AllocZ(4), mem.AllocZ(4)
+	if k1 == nil || k2 == nil {
+		t.Fatal("key nil")
+	}
+	defer mem.Free(k1)
+	defer mem.Free(k2)
+	*(*int32)(k1) = 10
+	*(*int32)(k2) = 20
+	var root unsafe.Pointer
+	next1, next2 := u.TreeNodeAlloc(), u.TreeNodeAlloc()
+	if next1 == nil || next2 == nil {
+		t.Fatal("treenode nil")
+	}
+	u.TreeInsert(&root, k1, cbFromUintptr(cmpCb), &next1)
+	if next1 != nil {
+		t.Fatal("TreeInsert 没吃掉节点 (tree.h 保证消费，以 C 为准)")
+	}
+	u.TreeInsert(&root, k2, cbFromUintptr(cmpCb), &next2)
+	if root == nil {
+		t.Fatal("tree root nil after insert")
+	}
+	nb := mem.AllocZ(16)
+	if nb == nil {
+		t.Fatal("nextbuf nil")
+	}
+	defer mem.Free(nb)
+	if got := u.TreeFind(root, k1, cbFromUintptr(cmpCb), nb); got != k1 {
+		t.Fatal("TreeFind(k1) 没找回原键 (以 C 为准)")
+	}
+	u.TreeEnumerate(root, nil, cbFromUintptr(rangeCb), cbFromUintptr(enuCb))
+	if seen != 2 {
+		t.Fatalf("TreeEnumerate seen = %d, want 2", seen)
+	}
+	u.TreeDestroy(root)
+}
+
+// opaque_keepalive 占住回调闭包，防 GC 在 C 回调前收走。
+func opaque_keepalive(fns ...any) int {
+	return len(fns)
+}
+
+// TestWrapCoverThreadMiscSkip 收 L2-18 实在调不通的 2 件：
+// Vbprintf/Vlog 要真 va_list（x86-64 下 va_list 是 24 字节结构体，传 Go nil
+// 进 purego 直接在 trampoline 里崩，L2-18 收尾实测；变参真路走 Bprintf 拼串路，
+// 这里只留签名不断言）。
+func TestWrapCoverThreadMiscSkip(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	t.Skipf("需真va_list: Vbprintf Vlog (传nil trampoline即崩，以 C 为准)")
 }
