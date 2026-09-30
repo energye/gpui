@@ -348,11 +348,11 @@ func TestSeekFastAndKeyframes(t *testing.T) {
 	// Travel with the backward target: the clock froze at the 1000
 	// anchor, so rewind to just below 800 — otherwise 800 reads as
 	// long-overdue and PollDue reports the covering newer frame.
-	// NOTE: exact landing 800 is already due at the frozen stamp (the
-	// background burst is producer-fast here); PollUntil with the no
-	// pre-tick rule shows it directly without ticking past it.
+	// Exact landing: never tick while waiting (see seekPollExact).
+	// Ticking here outruns a jittered background (硬解回传几毫秒) and
+	// PollDue eats the exact frame as stale before it is ever seen.
 	h.now = 600
-	pf := seekPollUntil(t, p, h, 800)
+	pf := seekPollExact(t, p, 800)
 	if prev != 800 {
 		t.Fatalf("prev = %d, want 800 (one interval back)", prev)
 	}
@@ -364,14 +364,13 @@ func TestSeekFastAndKeyframes(t *testing.T) {
 		t.Fatalf("next: %v", err)
 	}
 	// Next steps forward from the shown picture (strictly past prev),
-	// and the shown 800 echo is already due at the frozen hand: poll
-	// for the next grid frame after 800 (1000) so the first new picture
-	// is never eaten as stale before it is seen.
+	// and the shown 800 echo is already due at the frozen hand:
+	// exact landing, never tick (same reason as above).
 	wantNext := pf.PTSMs + 200
 	if next != wantNext {
 		t.Fatalf("next = %d, want %d (one interval past %d)", next, wantNext, pf.PTSMs)
 	}
-	nf := seekPollUntil(t, p, h, wantNext)
+	nf := seekPollExact(t, p, wantNext)
 	if nf.PTSMs != next {
 		t.Fatalf("next shown pts = %d, want %d", nf.PTSMs, next)
 	}
@@ -388,8 +387,9 @@ func TestSeekFastAndKeyframes(t *testing.T) {
 		t.Fatalf("stepped = %d, want > %d (one interval past)", stepped, base)
 	}
 	// Same travel rule: the step target must be due, not long overdue.
+	// Exact landing, never tick (same reason as above).
 	h.now = stepped - 200
-	sf := seekPollUntil(t, p, h, stepped)
+	sf := seekPollExact(t, p, stepped)
 	if sf.PTSMs != stepped {
 		t.Fatalf("step shown pts = %d, want %d", sf.PTSMs, stepped)
 	}
