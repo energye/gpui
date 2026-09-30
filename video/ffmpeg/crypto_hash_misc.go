@@ -298,8 +298,8 @@ var (
 	fAvRdftCalc                               func(s unsafe.Pointer, data unsafe.Pointer) unsafe.Pointer
 	fAvRdftEnd                                func(s unsafe.Pointer) unsafe.Pointer
 	fAvRdftInit                               func(nbits int32, trans unsafe.Pointer) unsafe.Pointer
-	fAvReadImageLine                          func(dst unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32)
-	fAvReadImageLine2                         func(dst unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32, dst_element_size int32)
+	fAvReadImageLine                          func(dst unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32)
+	fAvReadImageLine2                         func(dst unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32, dst_element_size int32)
 	fAvReadPause                              func(s unsafe.Pointer) int32
 	fAvReadPlay                               func(s unsafe.Pointer) int32
 	fAvReduce                                 func(dst_num unsafe.Pointer, dst_den unsafe.Pointer, num int64, den int64, max int64) int32
@@ -307,12 +307,12 @@ var (
 	fAvRipemdFinal                            func(context unsafe.Pointer, digest unsafe.Pointer)
 	fAvRipemdInit                             func(context unsafe.Pointer, bits int32) int32
 	fAvRipemdUpdate                           func(context unsafe.Pointer, data unsafe.Pointer, len uintptr)
-	fAvSamplesAlloc                           func(audio_data *unsafe.Pointer, linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) int32
-	fAvSamplesAllocArrayAndSamples            func(audio_data *unsafe.Pointer, linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) int32
-	fAvSamplesCopy                            func(dst unsafe.Pointer, src unsafe.Pointer, dst_offset int32, src_offset int32, nb_samples int32, nb_channels int32, sample_fmt unsafe.Pointer) int32
-	fAvSamplesFillArrays                      func(audio_data *unsafe.Pointer, linesize unsafe.Pointer, buf unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) int32
-	fAvSamplesGetBufferSize                   func(linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) int32
-	fAvSamplesSetSilence                      func(audio_data unsafe.Pointer, offset int32, nb_samples int32, nb_channels int32, sample_fmt unsafe.Pointer) int32
+	fAvSamplesAlloc                           func(audio_data *unsafe.Pointer, linesize *int32, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) int32
+	fAvSamplesAllocArrayAndSamples            func(audio_data *unsafe.Pointer, linesize *int32, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) int32
+	fAvSamplesCopy                            func(dst unsafe.Pointer, src unsafe.Pointer, dst_offset int32, src_offset int32, nb_samples int32, nb_channels int32, sample_fmt int32) int32
+	fAvSamplesFillArrays                      func(audio_data *unsafe.Pointer, linesize *int32, buf unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) int32
+	fAvSamplesGetBufferSize                   func(linesize *int32, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) int32
+	fAvSamplesSetSilence                      func(audio_data unsafe.Pointer, offset int32, nb_samples int32, nb_channels int32, sample_fmt int32) int32
 	fAvSdpCreate                              func(ac unsafe.Pointer, n_files int32, buf unsafe.Pointer, size int32) int32
 	fAvSetOptionsString                       func(ctx unsafe.Pointer, opts unsafe.Pointer, key_val_sep unsafe.Pointer, pairs_sep unsafe.Pointer) int32
 	fAvSha512Alloc                            func() unsafe.Pointer
@@ -397,8 +397,8 @@ var (
 	fAvVorbisParseInit                        func(extradata unsafe.Pointer, extradata_size int32) unsafe.Pointer
 	fAvVorbisParseReset                       func(s unsafe.Pointer)
 	fAvWriteFrame                             func(s unsafe.Pointer, pkt unsafe.Pointer) int32
-	fAvWriteImageLine                         func(src unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32)
-	fAvWriteImageLine2                        func(src unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32, src_element_size int32)
+	fAvWriteImageLine                         func(src unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32)
+	fAvWriteImageLine2                        func(src unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, src_element_size int32)
 	fAvWriteTrailer                           func(s unsafe.Pointer) int32
 	fAvWriteUncodedFrame                      func(s unsafe.Pointer, stream_index int32, frame unsafe.Pointer) int32
 	fAvWriteUncodedFrameQuery                 func(s unsafe.Pointer, stream_index int32) int32
@@ -420,18 +420,18 @@ var (
 	fAvDynamicHdrVividAlloc                   func(size unsafe.Pointer) unsafe.Pointer
 	fAvDynamicHdrVividCreateSideData          func(frame unsafe.Pointer) unsafe.Pointer
 	fAvformatTransferInternalStreamTimingInfo func(ofmt unsafe.Pointer, ost unsafe.Pointer, ist unsafe.Pointer, copy_tb unsafe.Pointer) unsafe.Pointer
-	fAvImageCopy                              func(dst_data unsafe.Pointer, dst_linesizes int32, src_data unsafe.Pointer, src_linesizes int32, pix_fmt unsafe.Pointer, width int32, height int32)
-	fAvImageCopyPlaneUcFrom                   func(dst unsafe.Pointer, dst_linesize unsafe.Pointer, src unsafe.Pointer, src_linesize unsafe.Pointer, bytewidth unsafe.Pointer, height int32)
-	fAvImageCopyToBuffer                      func(dst unsafe.Pointer, dst_size int32, src_data unsafe.Pointer, src_linesize int32, pix_fmt unsafe.Pointer, width int32, height int32, align int32) int32
-	fAvImageCopyUcFrom                        func(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt unsafe.Pointer, width int32, height int32)
-	fAvImageFillArrays                        func(dst_data unsafe.Pointer, dst_linesize int32, src unsafe.Pointer, pix_fmt unsafe.Pointer, width int32, height int32, align int32) int32
-	fAvImageFillBlack                         func(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt unsafe.Pointer, rng unsafe.Pointer, width int32, height int32) int32
-	fAvImageFillColor                         func(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt unsafe.Pointer, color uint32, width int32, height int32, flags int32) int32
-	fAvImageFillLinesizes                     func(linesizes int32, pix_fmt unsafe.Pointer, width int32) int32
-	fAvImageFillMaxPixsteps                   func(max_pixsteps int32, max_pixstep_comps int32, pixdesc unsafe.Pointer) unsafe.Pointer
-	fAvImageFillPlaneSizes                    func(size uintptr, pix_fmt unsafe.Pointer, height int32, linesizes unsafe.Pointer) int32
-	fAvImageFillPointers                      func(data unsafe.Pointer, pix_fmt unsafe.Pointer, height int32, ptr unsafe.Pointer, linesizes int32) int32
-	fAvImageGetLinesize                       func(pix_fmt unsafe.Pointer, width int32, plane int32) int32
+	fAvImageCopy                              func(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt int32, width int32, height int32)
+	fAvImageCopyPlaneUcFrom                   func(dst unsafe.Pointer, dst_linesize uintptr, src unsafe.Pointer, src_linesize uintptr, bytewidth uintptr, height int32)
+	fAvImageCopyToBuffer                      func(dst unsafe.Pointer, dst_size int32, src_data unsafe.Pointer, src_linesize unsafe.Pointer, pix_fmt int32, width int32, height int32, align int32) int32
+	fAvImageCopyUcFrom                        func(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt int32, width int32, height int32)
+	fAvImageFillArrays                        func(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, src unsafe.Pointer, pix_fmt int32, width int32, height int32, align int32) int32
+	fAvImageFillBlack                         func(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt int32, colorRange int32, width int32, height int32) int32
+	fAvImageFillColor                         func(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt int32, color unsafe.Pointer, width int32, height int32, flags int32) int32
+	fAvImageFillLinesizes                     func(linesizes unsafe.Pointer, pix_fmt int32, width int32) int32
+	fAvImageFillMaxPixsteps                   func(max_pixsteps unsafe.Pointer, max_pixstep_comps unsafe.Pointer, pixdesc unsafe.Pointer)
+	fAvImageFillPlaneSizes                    func(size unsafe.Pointer, pix_fmt int32, height int32, linesizes unsafe.Pointer) int32
+	fAvImageFillPointers                      func(data unsafe.Pointer, pix_fmt int32, height int32, ptr unsafe.Pointer, linesizes unsafe.Pointer) int32
+	fAvImageGetLinesize                       func(pix_fmt int32, width int32, plane int32) int32
 	fAvLog2                                   func(v uint32) int32
 	fAvLog216bit                              func(v uint32) int32
 	fAvLog2I                                  func(a AVInteger) int32
@@ -2578,13 +2578,13 @@ func (self *Util) RdftInit(nbits int32, trans unsafe.Pointer) unsafe.Pointer {
 }
 
 // ReadImageLine 读一行图像像素（对 av_read_image_line；参数 dst、data、linesize、desc、x、y、c、w、read_pal_component；按签名取回值；无状态，可用零值直接调）。
-func (self *Util) ReadImageLine(dst unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32) {
+func (self *Util) ReadImageLine(dst unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32) {
 	mustUse(ensureModCrypto())
 	fAvReadImageLine(dst, data, linesize, desc, x, y, c, w, read_pal_component)
 }
 
 // ReadImageLine2 读一行图像像素（带元素大小）（对 av_read_image_line2；参数 dst、data、linesize、desc、x、y、c、w、read_pal_component、dst_element_size；按签名取回值；无状态，可用零值直接调）。
-func (self *Util) ReadImageLine2(dst unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32, dst_element_size int32) {
+func (self *Util) ReadImageLine2(dst unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, read_pal_component int32, dst_element_size int32) {
 	mustUse(ensureModCrypto())
 	fAvReadImageLine2(dst, data, linesize, desc, x, y, c, w, read_pal_component, dst_element_size)
 }
@@ -2652,7 +2652,7 @@ func (self *Crypto) RipemdUpdate(context unsafe.Pointer, data unsafe.Pointer, le
 }
 
 // SamplesAlloc 分配采样缓冲（对 av_samples_alloc；参数 audio_data、linesize、nb_channels、nb_samples、sample_fmt、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Samples) SamplesAlloc(audio_data *unsafe.Pointer, linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) error {
+func (self *Samples) SamplesAlloc(audio_data *unsafe.Pointer, linesize *int32, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -2663,7 +2663,7 @@ func (self *Samples) SamplesAlloc(audio_data *unsafe.Pointer, linesize unsafe.Po
 }
 
 // SamplesAllocArrayAndSamples 分配采样指针数组加缓冲（对 av_samples_alloc_array_and_samples；参数 audio_data、linesize、nb_channels、nb_samples、sample_fmt、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Samples) SamplesAllocArrayAndSamples(audio_data *unsafe.Pointer, linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) error {
+func (self *Samples) SamplesAllocArrayAndSamples(audio_data *unsafe.Pointer, linesize *int32, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -2674,7 +2674,7 @@ func (self *Samples) SamplesAllocArrayAndSamples(audio_data *unsafe.Pointer, lin
 }
 
 // SamplesCopy 拷采样数据（对 av_samples_copy；参数 dst、src、dst_offset、src_offset、nb_samples、nb_channels、sample_fmt；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Samples) SamplesCopy(dst unsafe.Pointer, src unsafe.Pointer, dst_offset int32, src_offset int32, nb_samples int32, nb_channels int32, sample_fmt unsafe.Pointer) error {
+func (self *Samples) SamplesCopy(dst unsafe.Pointer, src unsafe.Pointer, dst_offset int32, src_offset int32, nb_samples int32, nb_channels int32, sample_fmt int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -2685,7 +2685,7 @@ func (self *Samples) SamplesCopy(dst unsafe.Pointer, src unsafe.Pointer, dst_off
 }
 
 // SamplesFillArrays 把现成内存填成采样指针数组（对 av_samples_fill_arrays；参数 audio_data、linesize、buf、nb_channels、nb_samples、sample_fmt、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Samples) SamplesFillArrays(audio_data *unsafe.Pointer, linesize unsafe.Pointer, buf unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) error {
+func (self *Samples) SamplesFillArrays(audio_data *unsafe.Pointer, linesize *int32, buf unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -2696,13 +2696,13 @@ func (self *Samples) SamplesFillArrays(audio_data *unsafe.Pointer, linesize unsa
 }
 
 // SamplesGetBufferSize 算采样缓冲要多少字节（对 av_samples_get_buffer_size；参数 linesize、nb_channels、nb_samples、sample_fmt、align；回数值；无状态，可用零值直接调）。
-func (self *Samples) SamplesGetBufferSize(linesize unsafe.Pointer, nb_channels int32, nb_samples int32, sample_fmt unsafe.Pointer, align int32) int32 {
+func (self *Samples) SamplesGetBufferSize(linesize *int32, nb_channels int32, nb_samples int32, sample_fmt int32, align int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvSamplesGetBufferSize(linesize, nb_channels, nb_samples, sample_fmt, align)
 }
 
 // SamplesSetSilence 把采样缓冲置成静音（对 av_samples_set_silence；参数 audio_data、offset、nb_samples、nb_channels、sample_fmt；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Samples) SamplesSetSilence(audio_data unsafe.Pointer, offset int32, nb_samples int32, nb_channels int32, sample_fmt unsafe.Pointer) error {
+func (self *Samples) SamplesSetSilence(audio_data unsafe.Pointer, offset int32, nb_samples int32, nb_channels int32, sample_fmt int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -3310,13 +3310,13 @@ func (self *Muxer) WriteFrame(s unsafe.Pointer, pkt unsafe.Pointer) error {
 }
 
 // WriteImageLine 写一行图像像素（对 av_write_image_line；参数 src、data、linesize、desc、x、y、c、w；按签名取回值；无状态，可用零值直接调）。
-func (self *Muxer) WriteImageLine(src unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32) {
+func (self *Muxer) WriteImageLine(src unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32) {
 	mustUse(ensureModCrypto())
 	fAvWriteImageLine(src, data, linesize, desc, x, y, c, w)
 }
 
 // WriteImageLine2 写一行图像像素（带元素大小）（对 av_write_image_line2；参数 src、data、linesize、desc、x、y、c、w、src_element_size；按签名取回值；无状态，可用零值直接调）。
-func (self *Muxer) WriteImageLine2(src unsafe.Pointer, data unsafe.Pointer, linesize int32, desc unsafe.Pointer, x int32, y int32, c int32, w int32, src_element_size int32) {
+func (self *Muxer) WriteImageLine2(src unsafe.Pointer, data unsafe.Pointer, linesize unsafe.Pointer, desc unsafe.Pointer, x int32, y int32, c int32, w int32, src_element_size int32) {
 	mustUse(ensureModCrypto())
 	fAvWriteImageLine2(src, data, linesize, desc, x, y, c, w, src_element_size)
 }
@@ -3468,19 +3468,19 @@ func (self *Util) AvformatTransferInternalStreamTimingInfo(ofmt unsafe.Pointer, 
 }
 
 // ImageCopy 算图片大小或拷图片平面（对 av_image_copy；参数 dst_data、dst_linesizes、src_data、src_linesizes、pix_fmt、width、height；按签名取回值；无状态，可用零值直接调）。
-func (self *Util) ImageCopy(dst_data unsafe.Pointer, dst_linesizes int32, src_data unsafe.Pointer, src_linesizes int32, pix_fmt unsafe.Pointer, width int32, height int32) {
+func (self *Util) ImageCopy(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt int32, width int32, height int32) {
 	mustUse(ensureModCrypto())
 	fAvImageCopy(dst_data, dst_linesizes, src_data, src_linesizes, pix_fmt, width, height)
 }
 
 // ImageCopyPlaneUcFrom 算图片大小或拷图片平面（对 av_image_copy_plane_uc_from；参数 dst、dst_linesize、src、src_linesize、bytewidth、height；按签名取回值；无状态，可用零值直接调）。
-func (self *Util) ImageCopyPlaneUcFrom(dst unsafe.Pointer, dst_linesize unsafe.Pointer, src unsafe.Pointer, src_linesize unsafe.Pointer, bytewidth unsafe.Pointer, height int32) {
+func (self *Util) ImageCopyPlaneUcFrom(dst unsafe.Pointer, dst_linesize uintptr, src unsafe.Pointer, src_linesize uintptr, bytewidth uintptr, height int32) {
 	mustUse(ensureModCrypto())
 	fAvImageCopyPlaneUcFrom(dst, dst_linesize, src, src_linesize, bytewidth, height)
 }
 
 // ImageCopyToBuffer 算图片大小或拷图片平面（对 av_image_copy_to_buffer；参数 dst、dst_size、src_data、src_linesize、pix_fmt、width、height、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ImageCopyToBuffer(dst unsafe.Pointer, dst_size int32, src_data unsafe.Pointer, src_linesize int32, pix_fmt unsafe.Pointer, width int32, height int32, align int32) error {
+func (self *Util) ImageCopyToBuffer(dst unsafe.Pointer, dst_size int32, src_data unsafe.Pointer, src_linesize unsafe.Pointer, pix_fmt int32, width int32, height int32, align int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -3491,13 +3491,13 @@ func (self *Util) ImageCopyToBuffer(dst unsafe.Pointer, dst_size int32, src_data
 }
 
 // ImageCopyUcFrom 算图片大小或拷图片平面（对 av_image_copy_uc_from；参数 dst_data、dst_linesizes、src_data、src_linesizes、pix_fmt、width、height；按签名取回值；无状态，可用零值直接调）。
-func (self *Util) ImageCopyUcFrom(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt unsafe.Pointer, width int32, height int32) {
+func (self *Util) ImageCopyUcFrom(dst_data unsafe.Pointer, dst_linesizes unsafe.Pointer, src_data unsafe.Pointer, src_linesizes unsafe.Pointer, pix_fmt int32, width int32, height int32) {
 	mustUse(ensureModCrypto())
 	fAvImageCopyUcFrom(dst_data, dst_linesizes, src_data, src_linesizes, pix_fmt, width, height)
 }
 
 // ImageFillArrays 算图片大小或拷图片平面（对 av_image_fill_arrays；参数 dst_data、dst_linesize、src、pix_fmt、width、height、align；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ImageFillArrays(dst_data unsafe.Pointer, dst_linesize int32, src unsafe.Pointer, pix_fmt unsafe.Pointer, width int32, height int32, align int32) error {
+func (self *Util) ImageFillArrays(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, src unsafe.Pointer, pix_fmt int32, width int32, height int32, align int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -3507,19 +3507,19 @@ func (self *Util) ImageFillArrays(dst_data unsafe.Pointer, dst_linesize int32, s
 	return nil
 }
 
-// ImageFillBlack 算图片大小或拷图片平面（对 av_image_fill_black；参数 dst_data、dst_linesize、pix_fmt、rng、width、height；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ImageFillBlack(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt unsafe.Pointer, rng unsafe.Pointer, width int32, height int32) error {
+// ImageFillBlack 把整张图涂成黑色（对 av_image_fill_black；参数 dst_data、dst_linesize（ptrdiff 数组）、pix_fmt（像素格式枚举数）、colorRange（颜色范围枚举数）、width、height；回 nil 是成，负数是出错码；dst_data 传 nil 只试不写；width/height 传 0 会崩，得传真尺寸）。
+func (self *Util) ImageFillBlack(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt int32, colorRange int32, width int32, height int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
-	if ret := fAvImageFillBlack(dst_data, dst_linesize, pix_fmt, rng, width, height); ret < 0 {
+	if ret := fAvImageFillBlack(dst_data, dst_linesize, pix_fmt, colorRange, width, height); ret < 0 {
 		return codeErr("av_image_fill_black", ret)
 	}
 	return nil
 }
 
 // ImageFillColor 算图片大小或拷图片平面（对 av_image_fill_color；参数 dst_data、dst_linesize、pix_fmt、color、width、height、flags；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ImageFillColor(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt unsafe.Pointer, color uint32, width int32, height int32, flags int32) error {
+func (self *Util) ImageFillColor(dst_data unsafe.Pointer, dst_linesize unsafe.Pointer, pix_fmt int32, color unsafe.Pointer, width int32, height int32, flags int32) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -3530,25 +3530,25 @@ func (self *Util) ImageFillColor(dst_data unsafe.Pointer, dst_linesize unsafe.Po
 }
 
 // ImageFillLinesizes 算图片大小或拷图片平面（对 av_image_fill_linesizes；参数 linesizes、pix_fmt、width；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) ImageFillLinesizes(linesizes int32, pix_fmt unsafe.Pointer, width int32) int32 {
+func (self *Util) ImageFillLinesizes(linesizes unsafe.Pointer, pix_fmt int32, width int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvImageFillLinesizes(linesizes, pix_fmt, width)
 }
 
-// ImageFillMaxPixsteps 算图片大小或拷图片平面（对 av_image_fill_max_pixsteps；参数 max_pixsteps、max_pixstep_comps、pixdesc；回 C 指针，失败回 nil；无状态，可用零值直接调）。
-func (self *Util) ImageFillMaxPixsteps(max_pixsteps int32, max_pixstep_comps int32, pixdesc unsafe.Pointer) unsafe.Pointer {
+// ImageFillMaxPixsteps 取像素格式每分量最大步长（对 av_image_fill_max_pixsteps；参数 max_pixsteps、max_pixstep_comps（各 4 个 int 的槽）、pixdesc（须是真像素描述，传 nil 会崩）；无回值，结果写进前两个槽）。
+func (self *Util) ImageFillMaxPixsteps(max_pixsteps unsafe.Pointer, max_pixstep_comps unsafe.Pointer, pixdesc unsafe.Pointer) {
 	mustUse(ensureModCrypto())
-	return fAvImageFillMaxPixsteps(max_pixsteps, max_pixstep_comps, pixdesc)
+	fAvImageFillMaxPixsteps(max_pixsteps, max_pixstep_comps, pixdesc)
 }
 
 // ImageFillPlaneSizes 算图片大小或拷图片平面（对 av_image_fill_plane_sizes；参数 size、pix_fmt、height、linesizes；回数值；无状态，可用零值直接调）。
-func (self *Util) ImageFillPlaneSizes(size uintptr, pix_fmt unsafe.Pointer, height int32, linesizes unsafe.Pointer) int32 {
+func (self *Util) ImageFillPlaneSizes(size unsafe.Pointer, pix_fmt int32, height int32, linesizes unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
 	return fAvImageFillPlaneSizes(size, pix_fmt, height, linesizes)
 }
 
 // ImageFillPointers 算图片大小或拷图片平面（对 av_image_fill_pointers；参数 data、pix_fmt、height、ptr、linesizes；成功回 nil，失败回 error（字串已是人话）；无状态，可用零值直接调）。
-func (self *Util) ImageFillPointers(data unsafe.Pointer, pix_fmt unsafe.Pointer, height int32, ptr unsafe.Pointer, linesizes int32) error {
+func (self *Util) ImageFillPointers(data unsafe.Pointer, pix_fmt int32, height int32, ptr unsafe.Pointer, linesizes unsafe.Pointer) error {
 	if err := ensureModCrypto(); err != nil {
 		return err
 	}
@@ -3559,7 +3559,7 @@ func (self *Util) ImageFillPointers(data unsafe.Pointer, pix_fmt unsafe.Pointer,
 }
 
 // ImageGetLinesize 算图片大小或拷图片平面（对 av_image_get_linesize；参数 pix_fmt、width、plane；回数值或个数；无状态，可用零值直接调）。
-func (self *Util) ImageGetLinesize(pix_fmt unsafe.Pointer, width int32, plane int32) int32 {
+func (self *Util) ImageGetLinesize(pix_fmt int32, width int32, plane int32) int32 {
 	mustUse(ensureModCrypto())
 	return fAvImageGetLinesize(pix_fmt, width, plane)
 }

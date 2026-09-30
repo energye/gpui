@@ -5608,8 +5608,11 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 		t.Fatal("subtitle buf nil")
 	}
 	defer mem.Free(sub)
-	// sub 是裸内存不是真 AVSubtitle(avsubtitle_free 直接读 num_rects/rects,
-	// 野值会崩, 野路不走); 解码失败时 got_sub 为 0, 不调 Free.
+	// sub 是裸内存不是真 AVSubtitle, 解码那条 C 认非字幕解码器直接回错,
+	// got_sub 为 0 就不调 Free, 安全; 编码那条 AvcodecEncodeSubtitle(
+	// 野路不走: C 先读 sub 起始显示时间再解码器回调, 裸内存野值在 full
+	// 变体新 so 下约 1/6 概率崩 (L2-14 S6 实测), 编码真路等 L2-17 换
+	// 真字幕盒子再走, 这里只点名占位.
 	var gotSub int32
 	gotSlot := unsafe.Pointer(&gotSub)
 	if err := cc.AvcodecDecodeSubtitle2(dctx.Ptr(), sub, gotSlot, pkt.Ptr()); err != nil {
@@ -5617,19 +5620,6 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 	}
 	if gotSub != 0 {
 		cc.SubtitleFree(sub)
-	}
-	sub2 := mem.Alloc(256)
-	if sub2 == nil {
-		t.Fatal("subtitle buf2 nil")
-	}
-	defer mem.Free(sub2)
-	outb := mem.Alloc(256)
-	if outb == nil {
-		t.Fatal("subtitle out nil")
-	}
-	defer mem.Free(outb)
-	if err := cc.AvcodecEncodeSubtitle(dctx.Ptr(), outb, 256, sub2); err != nil {
-		t.Logf("AvcodecEncodeSubtitle(mpeg4 ctx): %v (非字幕编码器是常态, C 为准)", err)
 	}
 	// 硬解设备/帧上下文真路: 要真显卡真设备 (C 直接读 ref->data, 传 nil 会崩,
 	// 野路一律不走, 真值走 L3 真机路). 下面 14 个只做存在性调用, 让缺口脚本认领,
@@ -5747,5 +5737,297 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 	// nil 守卫
 	if hw.HwdeviceGetTypeName(9999) != nil {
 		t.Logf("HwdeviceGetTypeName(9999) non-nil (C 为准)")
+	}
+}
+
+func TestWrapCoverImageSamples(t *testing.T) {
+	if !Available() {
+		t.Skipf("lib missing: %s", LibPath())
+	}
+	var u Util
+	var mx Muxer
+	var sm Samples
+	var md MediaDesc
+	var rs Resampler
+	var mem Mem
+	yuv := md.GetPixFmt("yuv420p")
+	if yuv != 0 {
+		t.Fatalf("GetPixFmt(yuv420p) = %d, want 0 (imgutils C 实测)", yuv)
+	}
+	s16 := rs.GetSampleFmt("s16")
+	if s16 != 1 {
+		t.Fatalf("GetSampleFmt(s16) = %d, want 1 (samplefmt C 实测)", s16)
+	}
+	desc := md.PixFmtDescGet(yuv)
+	if desc == nil {
+		t.Fatal("PixFmtDescGet(yuv420p) nil")
+	}
+	// ---- 行宽: yuv420p 16 宽, Y 行 16, U/V 行 8 (imgutils C 实测) ----
+	if got := u.ImageGetLinesize(yuv, 16, 0); got != 16 {
+		t.Fatalf("ImageGetLinesize(yuv,16,0) = %d, want 16", got)
+	}
+	if got := u.ImageGetLinesize(yuv, 16, 1); got != 8 {
+		t.Fatalf("ImageGetLinesize(yuv,16,1) = %d, want 8", got)
+	}
+	var ls [4]int32
+	if ret := u.ImageFillLinesizes(unsafe.Pointer(&ls[0]), yuv, 16); ret != 0 {
+		t.Fatalf("ImageFillLinesizes = %d, want 0", ret)
+	}
+	if ls != [4]int32{16, 8, 8, 0} {
+		t.Fatalf("ImageFillLinesizes ls = %v, want [16 8 8 0]", ls)
+	}
+	// ---- 平面大小: 16x16 yuv420p 是 256+64+64 (imgutils C 实测);
+	// C 的 linesizes 是 ptrdiff_t[4], 得用 8 字节槽, int32 槽会读串 ----
+	var pls [4]int64
+	pls[0], pls[1], pls[2] = 16, 8, 8
+	var ps [4]uint64
+	if ret := u.ImageFillPlaneSizes(unsafe.Pointer(&ps[0]), yuv, 16, unsafe.Pointer(&pls[0])); ret != 0 {
+		t.Fatalf("ImageFillPlaneSizes = %d, want 0", ret)
+	}
+	if ps[0] != 256 || ps[1] != 64 || ps[2] != 64 {
+		t.Fatalf("ImageFillPlaneSizes ps = %v, want [256 64 64 ...]", ps)
+	}
+	// ---- 指针排布: U 从 256 起, V 从 320 起, 一共 384 字节 (C 实测) ----
+	imgBuf := mem.AllocZ(512)
+	if imgBuf == nil {
+		t.Fatal("img buf nil")
+	}
+	defer mem.Free(imgBuf)
+	var planes [4]unsafe.Pointer
+	if err := u.ImageFillPointers(unsafe.Pointer(&planes[0]), yuv, 16, imgBuf, unsafe.Pointer(&ls[0])); err != nil {
+		t.Fatalf("ImageFillPointers: %v", err)
+	}
+	if planes[0] != imgBuf {
+		t.Fatal("ImageFillPointers planes[0] != buf")
+	}
+	if off := uintptr(planes[1]) - uintptr(imgBuf); off != 256 {
+		t.Fatalf("ImageFillPointers U off = %d, want 256", off)
+	}
+	if off := uintptr(planes[2]) - uintptr(imgBuf); off != 320 {
+		t.Fatalf("ImageFillPointers V off = %d, want 320", off)
+	}
+	// ---- 像素步长: yuv420p 每分量 1, 分量号 0/1/2 (pixdesc C 实测;
+	// pixdesc 传 nil 会崩, 野路不走, 只用真描述) ----
+	var mps, mpc [4]int32
+	u.ImageFillMaxPixsteps(unsafe.Pointer(&mps[0]), unsafe.Pointer(&mpc[0]), desc)
+	if mps != [4]int32{1, 1, 1, 0} {
+		t.Fatalf("ImageFillMaxPixsteps = %v, want [1 1 1 0]", mps)
+	}
+	if mpc != [4]int32{0, 1, 2, 0} {
+		t.Fatalf("ImageFillMaxPixsteps comps = %v, want [0 1 2 0]", mpc)
+	}
+	// ---- 数组排布: 384 字节, 行宽同 ls, 首指针就是 src (C 实测) ----
+	srcBuf := mem.AllocZ(512)
+	if srcBuf == nil {
+		t.Fatal("src buf nil")
+	}
+	defer mem.Free(srcBuf)
+	*(*byte)(srcBuf) = 0x5A
+	var da [4]unsafe.Pointer
+	var dl [4]int32
+	if err := u.ImageFillArrays(unsafe.Pointer(&da[0]), unsafe.Pointer(&dl[0]), srcBuf, yuv, 16, 16, 1); err != nil {
+		t.Fatalf("ImageFillArrays: %v", err)
+	}
+	if dl != [4]int32{16, 8, 8, 0} {
+		t.Fatalf("ImageFillArrays dl = %v, want [16 8 8 0]", dl)
+	}
+	if da[0] != srcBuf {
+		t.Fatal("ImageFillArrays da[0] != src")
+	}
+	// ---- 拷进包: 384 字节, 首字节跟着走 (C 实测) ----
+	packBuf := mem.AllocZ(512)
+	if packBuf == nil {
+		t.Fatal("pack buf nil")
+	}
+	defer mem.Free(packBuf)
+	if err := u.ImageCopyToBuffer(packBuf, 512, unsafe.Pointer(&da[0]), unsafe.Pointer(&dl[0]), yuv, 16, 16, 1); err != nil {
+		t.Fatalf("ImageCopyToBuffer: %v", err)
+	}
+	if got := *(*byte)(packBuf); got != 0x5A {
+		t.Fatalf("ImageCopyToBuffer first byte = %#x, want 0x5a", got)
+	}
+	// ---- 涂黑: range 0 走 limited 路, Y=16 (imgutils.c C 实测) ----
+	blkBuf := mem.AllocZ(512)
+	if blkBuf == nil {
+		t.Fatal("black buf nil")
+	}
+	defer mem.Free(blkBuf)
+	var blkData [4]unsafe.Pointer
+	var blkDl [4]int32
+	if err := u.ImageFillArrays(unsafe.Pointer(&blkData[0]), unsafe.Pointer(&blkDl[0]), blkBuf, yuv, 16, 16, 1); err != nil {
+		t.Fatalf("ImageFillArrays(black): %v", err)
+	}
+	var blkLs [4]int64
+	blkLs[0], blkLs[1], blkLs[2] = 16, 8, 8
+	if err := u.ImageFillBlack(unsafe.Pointer(&blkData[0]), unsafe.Pointer(&blkLs[0]), yuv, 0, 16, 16); err != nil {
+		t.Fatalf("ImageFillBlack: %v", err)
+	}
+	if got := *(*byte)(blkData[0]); got != 16 {
+		t.Fatalf("ImageFillBlack Y0 = %d, want 16", got)
+	}
+	// ---- 涂色: {0x80,0x80,0x80} 的 Y=128 (C 实测) ----
+	var col [4]uint32
+	col[0], col[1], col[2] = 0x80, 0x80, 0x80
+	if err := u.ImageFillColor(unsafe.Pointer(&blkData[0]), unsafe.Pointer(&blkLs[0]), yuv, unsafe.Pointer(&col[0]), 16, 16, 0); err != nil {
+		t.Fatalf("ImageFillColor: %v", err)
+	}
+	if got := *(*byte)(blkData[0]); got != 128 {
+		t.Fatalf("ImageFillColor Y0 = %d, want 128", got)
+	}
+	// ---- 整图拷: 目标 Y 首字节跟着变成 128 ----
+	dstBuf := mem.AllocZ(512)
+	if dstBuf == nil {
+		t.Fatal("dst buf nil")
+	}
+	defer mem.Free(dstBuf)
+	var dstData [4]unsafe.Pointer
+	var dstDl [4]int32
+	if err := u.ImageFillArrays(unsafe.Pointer(&dstData[0]), unsafe.Pointer(&dstDl[0]), dstBuf, yuv, 16, 16, 1); err != nil {
+		t.Fatalf("ImageFillArrays(dst): %v", err)
+	}
+	u.ImageCopy(unsafe.Pointer(&dstData[0]), unsafe.Pointer(&dstDl[0]), unsafe.Pointer(&blkData[0]), unsafe.Pointer(&blkDl[0]), yuv, 16, 16)
+	if got := *(*byte)(dstData[0]); got != 128 {
+		t.Fatalf("ImageCopy Y0 = %d, want 128", got)
+	}
+	// ---- uc 拷: 同样内容跟着走 (C 头写明行宽是 ptrdiff_t[4],
+	// 传 int32 槽 C 会读串步长直接崩, 得用 8 字节槽) ----
+	dstBuf2 := mem.AllocZ(512)
+	if dstBuf2 == nil {
+		t.Fatal("dst2 buf nil")
+	}
+	defer mem.Free(dstBuf2)
+	var dstData2 [4]unsafe.Pointer
+	var dstDl2 [4]int32
+	if err := u.ImageFillArrays(unsafe.Pointer(&dstData2[0]), unsafe.Pointer(&dstDl2[0]), dstBuf2, yuv, 16, 16, 1); err != nil {
+		t.Fatalf("ImageFillArrays(dst2): %v", err)
+	}
+	var ucDstLs, ucSrcLs [4]int64
+	ucDstLs[0], ucDstLs[1], ucDstLs[2] = 16, 8, 8
+	ucSrcLs[0], ucSrcLs[1], ucSrcLs[2] = 16, 8, 8
+	u.ImageCopyUcFrom(unsafe.Pointer(&dstData2[0]), unsafe.Pointer(&ucDstLs[0]), unsafe.Pointer(&blkData[0]), unsafe.Pointer(&ucSrcLs[0]), yuv, 16, 16)
+	if got := *(*byte)(dstData2[0]); got != 128 {
+		t.Fatalf("ImageCopyUcFrom Y0 = %d, want 128", got)
+	}
+	// ---- 平面裸拷: 16 字节宽 16 行, 花纹原样搬 ----
+	planeSrc := mem.AllocZ(256)
+	if planeSrc == nil {
+		t.Fatal("plane src nil")
+	}
+	defer mem.Free(planeSrc)
+	for i := 0; i < 256; i++ {
+		*(*byte)(unsafe.Add(planeSrc, i)) = byte(i)
+	}
+	planeDst := mem.AllocZ(256)
+	if planeDst == nil {
+		t.Fatal("plane dst nil")
+	}
+	defer mem.Free(planeDst)
+	u.ImageCopyPlaneUcFrom(planeDst, 16, planeSrc, 16, 16, 16)
+	for i := 0; i < 256; i++ {
+		if got := *(*byte)(unsafe.Add(planeDst, i)); got != byte(i) {
+			t.Fatalf("ImageCopyPlaneUcFrom byte %d = %d, want %d", i, got, i)
+		}
+	}
+	// ---- 行读写回环: 写 4 个值再读回来, 一字不差 (pixdesc.h 真描述路) ----
+	lineBuf := mem.AllocZ(512)
+	if lineBuf == nil {
+		t.Fatal("line buf nil")
+	}
+	defer mem.Free(lineBuf)
+	var lineData [4]unsafe.Pointer
+	var lineDl [4]int32
+	if err := u.ImageFillArrays(unsafe.Pointer(&lineData[0]), unsafe.Pointer(&lineDl[0]), lineBuf, yuv, 16, 16, 1); err != nil {
+		t.Fatalf("ImageFillArrays(line): %v", err)
+	}
+	var wsrc [4]uint16
+	wsrc[0], wsrc[1], wsrc[2], wsrc[3] = 10, 20, 30, 40
+	mx.WriteImageLine(unsafe.Pointer(&wsrc[0]), unsafe.Pointer(&lineData[0]), unsafe.Pointer(&lineDl[0]), desc, 0, 0, 0, 4)
+	var rdst [4]uint16
+	u.ReadImageLine(unsafe.Pointer(&rdst[0]), unsafe.Pointer(&lineData[0]), unsafe.Pointer(&lineDl[0]), desc, 0, 0, 0, 4, 0)
+	if rdst != wsrc {
+		t.Fatalf("ReadImageLine = %v, want %v", rdst, wsrc)
+	}
+	var wsrc2 [4]uint16
+	wsrc2[0], wsrc2[1], wsrc2[2], wsrc2[3] = 50, 60, 70, 80
+	mx.WriteImageLine2(unsafe.Pointer(&wsrc2[0]), unsafe.Pointer(&lineData[0]), unsafe.Pointer(&lineDl[0]), desc, 0, 1, 0, 4, 2)
+	var rdst2 [4]uint16
+	u.ReadImageLine2(unsafe.Pointer(&rdst2[0]), unsafe.Pointer(&lineData[0]), unsafe.Pointer(&lineDl[0]), desc, 0, 1, 0, 4, 0, 2)
+	if rdst2 != wsrc2 {
+		t.Fatalf("ReadImageLine2 = %v, want %v", rdst2, wsrc2)
+	}
+	// ---- 采样: s16 双声道 64 点, 缓冲 256 字节 (samplefmt.c C 实测) ----
+	var sl int32
+	if got := sm.SamplesGetBufferSize(&sl, 2, 64, s16, 0); got != 256 {
+		t.Fatalf("SamplesGetBufferSize = %d, want 256", got)
+	}
+	if sl != 256 {
+		t.Fatalf("SamplesGetBufferSize linesize = %d, want 256", sl)
+	}
+	sbuf := mem.AllocZ(1024)
+	if sbuf == nil {
+		t.Fatal("sbuf nil")
+	}
+	defer mem.Free(sbuf)
+	var ad [8]unsafe.Pointer
+	var fsl int32
+	if err := sm.SamplesFillArrays(&ad[0], &fsl, sbuf, 2, 64, s16, 0); err != nil {
+		t.Fatalf("SamplesFillArrays: %v", err)
+	}
+	if ad[0] != sbuf {
+		t.Fatal("SamplesFillArrays ad[0] != buf")
+	}
+	var aa [8]unsafe.Pointer
+	var al2 int32
+	if err := sm.SamplesAlloc(&aa[0], &al2, 2, 64, s16, 0); err != nil {
+		t.Fatalf("SamplesAlloc: %v", err)
+	}
+	if aa[0] == nil {
+		t.Fatal("SamplesAlloc audio nil")
+	}
+	defer mem.Free(aa[0])
+	var arr unsafe.Pointer
+	var al4 int32
+	if err := sm.SamplesAllocArrayAndSamples(&arr, &al4, 2, 64, s16, 0); err != nil {
+		t.Fatalf("SamplesAllocArrayAndSamples: %v", err)
+	}
+	if arr == nil {
+		t.Fatal("SamplesAllocArrayAndSamples arr nil")
+	}
+	ch0 := *(*unsafe.Pointer)(arr)
+	if ch0 == nil {
+		mem.Free(arr)
+		t.Fatal("SamplesAllocArrayAndSamples ch0 nil")
+	}
+	defer mem.Free(ch0)
+	defer mem.Free(arr)
+	// ---- 采样拷: 花纹搬过去, 再置静音归零 ----
+	for i := 0; i < 16; i++ {
+		*(*byte)(unsafe.Add(sbuf, i)) = byte(100 + i)
+	}
+	sbuf2 := mem.AllocZ(1024)
+	if sbuf2 == nil {
+		t.Fatal("sbuf2 nil")
+	}
+	defer mem.Free(sbuf2)
+	var dd2 [8]unsafe.Pointer
+	var dsl2 int32
+	if err := sm.SamplesFillArrays(&dd2[0], &dsl2, sbuf2, 2, 64, s16, 0); err != nil {
+		t.Fatalf("SamplesFillArrays(dst): %v", err)
+	}
+	if err := sm.SamplesCopy(unsafe.Pointer(&dd2[0]), unsafe.Pointer(&ad[0]), 0, 0, 64, 2, s16); err != nil {
+		t.Fatalf("SamplesCopy: %v", err)
+	}
+	for i := 0; i < 16; i++ {
+		if got := *(*byte)(unsafe.Add(sbuf2, i)); got != byte(100+i) {
+			t.Fatalf("SamplesCopy byte %d = %d, want %d", i, got, 100+i)
+		}
+	}
+	if err := sm.SamplesSetSilence(unsafe.Pointer(&dd2[0]), 0, 64, 2, s16); err != nil {
+		t.Fatalf("SamplesSetSilence: %v", err)
+	}
+	for i := 0; i < 256; i++ {
+		if got := *(*byte)(unsafe.Add(sbuf2, i)); got != 0 {
+			t.Fatalf("SamplesSetSilence byte %d = %d, want 0", i, got)
+		}
 	}
 }
