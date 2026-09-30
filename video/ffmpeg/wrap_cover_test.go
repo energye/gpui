@@ -5639,115 +5639,123 @@ func TestWrapCoverCryptoHw(t *testing.T) {
 	if gotSub != 0 {
 		cc.SubtitleFree(sub)
 	}
-	// 硬解设备/帧上下文真路：本机 vaapi 建得起来走全套真对象不断言码
-	// （无驱动回错不崩，以 C 为准）；建不起来跳过，有真卡走 L3 真机路。
-	// 下面 14 个全在真设备分支里实调，非占位：
+	// 硬解设备/帧上下文真路：本机 vaapi 建得起来走全套真对象硬断言
+	// （建不起来整段跳过并打日志，有真卡走 L3 真机路）。
+	// 下面 14 个全在真设备分支里实调：C 保证的一律 Fatal
+	// （取缓冲 -22、裸帧传/映/初必错、失败不写槽），驱动相关不断具体码。
 	// 建设备三件套 + 初始化 (C 实测本机 vaapi 建得起来, 无驱动回错不崩).
 	var devRef unsafe.Pointer
 	if err := hw.HwdeviceCtxCreate(&devRef, 3, nil, nil, 0); err != nil {
-		t.Logf("HwdeviceCtxCreate(vaapi): %v (无驱动是常态, C 为准)", err)
+		t.Skipf("vaapi 设备建不起来, 设备相关真路本机跳过 (有真卡走 L3 真机路): %v", err)
 	}
-	if devRef != nil {
-		defer fBufUnref(&devRef)
-		if err := hw.HwdeviceCtxInit(devRef); err != nil {
-			t.Logf("HwdeviceCtxInit: %v (C 为准)", err)
-		}
-		if cfg := hw.HwdeviceHwconfigAlloc(devRef); cfg == nil {
-			t.Logf("HwdeviceHwconfigAlloc nil (C 为准)")
-		} else {
-			mem.Free(cfg)
-		}
-		cons := hw.HwdeviceGetHwframeConstraints(devRef, nil)
-		if cons == nil {
-			t.Logf("HwdeviceGetHwframeConstraints nil (C 为准)")
-		} else {
-			hw.HwframeConstraintsFree(&cons)
-			if cons != nil {
-				t.Fatal("HwframeConstraintsFree did not nil the slot")
-			}
-		}
-		// 派生设备 (C 实测 vaapi->vaapi 回 0, 真对象不崩).
-		var dev2 unsafe.Pointer
-		if err := hw.HwdeviceCtxCreateDerived(&dev2, 3, devRef, 0); err != nil {
-			t.Logf("HwdeviceCtxCreateDerived: %v (C 为准)", err)
-		} else {
-			fBufUnref(&dev2)
-		}
-		var dev3 unsafe.Pointer
-		if err := hw.HwdeviceCtxCreateDerivedOpts(&dev3, 3, devRef, nil, 0); err != nil {
-			t.Logf("HwdeviceCtxCreateDerivedOpts: %v (C 为准)", err)
-		} else {
-			fBufUnref(&dev3)
-		}
-		// 帧上下文: alloc 回真引用 (C 实测非空), transfer 格式表首个是 28 (C 实测).
-		frmCtx := hw.HwframeCtxAlloc(devRef)
-		if frmCtx == nil {
-			t.Fatal("HwframeCtxAlloc(vaapi) nil")
-		} else {
-			defer fBufUnref(&frmCtx)
-			var fmts unsafe.Pointer
-			if n := hw.HwframeTransferGetFormats(frmCtx, 1, &fmts, 0); n != 0 {
-				t.Fatalf("HwframeTransferGetFormats = %d, want 0 (C 实测)", n)
-			} else if fmts == nil {
-				t.Fatal("HwframeTransferGetFormats fmts nil")
-			} else {
-				if got := *(*int32)(fmts); got != 28 {
-					t.Fatalf("HwframeTransferGetFormats[0] = %d, want 28 (C 实测)", got)
-				}
-				mem.Free(fmts)
-			}
-			// 派生帧上下文 (C 实测回 0, 真对象不崩).
-			var derivedFrm unsafe.Pointer
-			if err := hw.HwframeCtxCreateDerived(&derivedFrm, 0, devRef, frmCtx, 0); err != nil {
-				t.Logf("HwframeCtxCreateDerived: %v (C 为准)", err)
-			} else if derivedFrm != nil {
-				fBufUnref(&derivedFrm)
-			}
-			// 取缓冲/传数据/映射: 未初始化帧上下文回错不断言码, 只验不崩.
-			fr2 := NewFrame()
-			if fr2 == nil {
-				t.Fatal("frame2 nil")
-			}
-			defer fr2.Free()
-			if ret := hw.HwframeGetBuffer(frmCtx, fr2.Ptr(), 0); ret != -22 {
-				t.Logf("HwframeGetBuffer(uninit) = %d (C 实测 -22, 以 C 为准)", ret)
-			}
-			fr3 := NewFrame()
-			if fr3 == nil {
-				t.Fatal("frame3 nil")
-			}
-			defer fr3.Free()
-			if err := hw.HwframeTransferData(fr3.Ptr(), fr2.Ptr(), 0); err == nil {
-				t.Logf("HwframeTransferData unexpectedly ok (C 实测 -22, 以 C 为准)")
-			}
-			if err := hw.HwframeMap(fr3.Ptr(), fr2.Ptr(), 0); err == nil {
-				t.Logf("HwframeMap unexpectedly ok (C 实测 -38, 以 C 为准)")
-			}
-			// HwframeCtxInit 要配好宽高格式才成, 裸上下文回错不断言码, 只验不崩.
-			if err := hw.HwframeCtxInit(frmCtx); err != nil {
-				t.Logf("HwframeCtxInit(bare) = %v (C 为准)", err)
-			}
-			// 硬解帧参数: 真开盒解码器上下文+真 vaapi 设备走一轮 (C 实测回 -2,
-			// mpeg4 无 vaapi 硬解配置, 以 C 为准; avctx/codec 全真, 野路不走).
-			dec2, err := Open("../testdata/feat_small.mp4")
-			if err != nil {
-				t.Fatalf("Open(feat_small)#2: %v", err)
-			}
-			defer dec2.Close()
-			cctx := dec2.CodecCtx()
-			if cctx == nil {
-				t.Fatal("CodecCtx nil")
-			}
-			var outFrames unsafe.Pointer
-			if ret := cc.AvcodecGetHwFramesParameters(cctx.Ptr(), devRef, 44, &outFrames); ret != -2 {
-				t.Logf("AvcodecGetHwFramesParameters = %d (C 实测 -2, 以 C 为准)", ret)
-			}
-			if outFrames != nil {
-				fBufUnref(&outFrames)
-			}
-		}
+	if devRef == nil {
+		t.Skipf("vaapi 设备建不起来, 设备相关真路本机跳过 (有真卡走 L3 真机路)")
+	}
+	defer fBufUnref(&devRef)
+	// 重初始化刚建好的设备该成（hwcontext.c 直调 device_init，无驱动相关分支）。
+	if err := hw.HwdeviceCtxInit(devRef); err != nil {
+		t.Fatalf("HwdeviceCtxInit(vaapi) = %v, want nil", err)
+	}
+	// 私有配置块是 malloc 出来的（vaapi 在本构建里有该结构，C 实测非空）。
+	if cfg := hw.HwdeviceHwconfigAlloc(devRef); cfg == nil {
+		t.Fatal("HwdeviceHwconfigAlloc(vaapi) nil")
 	} else {
-		t.Logf("vaapi 设备建不起来, 设备相关真路跳过 (以 C 为准)")
+		mem.Free(cfg)
+	}
+	// vaapi 实现了取约束（hwcontext.c 有该钩子，C 实测非空），放掉必须清槽。
+	cons := hw.HwdeviceGetHwframeConstraints(devRef, nil)
+	if cons == nil {
+		t.Fatal("HwdeviceGetHwframeConstraints(vaapi) nil")
+	} else {
+		hw.HwframeConstraintsFree(&cons)
+		if cons != nil {
+			t.Fatal("HwframeConstraintsFree did not nil the slot")
+		}
+	}
+	// 派生设备 vaapi->vaapi 该成（C 实测回 0），真对象不崩。
+	var dev2 unsafe.Pointer
+	if err := hw.HwdeviceCtxCreateDerived(&dev2, 3, devRef, 0); err != nil {
+		t.Fatalf("HwdeviceCtxCreateDerived(vaapi) = %v, want nil", err)
+	} else {
+		fBufUnref(&dev2)
+	}
+	var dev3 unsafe.Pointer
+	if err := hw.HwdeviceCtxCreateDerivedOpts(&dev3, 3, devRef, nil, 0); err != nil {
+		t.Fatalf("HwdeviceCtxCreateDerivedOpts(vaapi) = %v, want nil", err)
+	} else {
+		fBufUnref(&dev3)
+	}
+	// 帧上下文: alloc 回真引用 (C 实测非空), transfer 格式表首个是 28 (C 实测).
+	frmCtx := hw.HwframeCtxAlloc(devRef)
+	if frmCtx == nil {
+		t.Fatal("HwframeCtxAlloc(vaapi) nil")
+	} else {
+		defer fBufUnref(&frmCtx)
+		var fmts unsafe.Pointer
+		if n := hw.HwframeTransferGetFormats(frmCtx, 1, &fmts, 0); n != 0 {
+			t.Fatalf("HwframeTransferGetFormats = %d, want 0 (C 实测)", n)
+		} else if fmts == nil {
+			t.Fatal("HwframeTransferGetFormats fmts nil")
+		} else {
+			if got := *(*int32)(fmts); got != 28 {
+				t.Fatalf("HwframeTransferGetFormats[0] = %d, want 28 (C 实测)", got)
+			}
+			mem.Free(fmts)
+		}
+		// 派生帧上下文该成（C 实测回 0），真对象不崩。
+		var derivedFrm unsafe.Pointer
+		if err := hw.HwframeCtxCreateDerived(&derivedFrm, 0, devRef, frmCtx, 0); err != nil {
+			t.Fatalf("HwframeCtxCreateDerived(frame) = %v, want nil", err)
+		} else if derivedFrm != nil {
+			fBufUnref(&derivedFrm)
+		}
+		// 未初始化的帧上下文取缓冲必回 EINVAL（hwcontext.c 先验 pool 为空，
+		// 不碰驱动，C 保证；C 实测 -22）。
+		fr2 := NewFrame()
+		if fr2 == nil {
+			t.Fatal("frame2 nil")
+		}
+		defer fr2.Free()
+		if ret := hw.HwframeGetBuffer(frmCtx, fr2.Ptr(), 0); ret != -22 {
+			t.Fatalf("HwframeGetBuffer(uninit) = %d, want -22 (EINVAL)", ret)
+		}
+		// 裸帧没有硬解上下文，传数据/映射必失败，只验不崩不判码。
+		fr3 := NewFrame()
+		if fr3 == nil {
+			t.Fatal("frame3 nil")
+		}
+		defer fr3.Free()
+		if err := hw.HwframeTransferData(fr3.Ptr(), fr2.Ptr(), 0); err == nil {
+			t.Fatal("HwframeTransferData(bare) unexpectedly ok")
+		}
+		if err := hw.HwframeMap(fr3.Ptr(), fr2.Ptr(), 0); err == nil {
+			t.Fatal("HwframeMap(bare) unexpectedly ok")
+		}
+		// 裸上下文没配宽高格式，初始化必失败，只验不崩不判码。
+		if err := hw.HwframeCtxInit(frmCtx); err == nil {
+			t.Fatal("HwframeCtxInit(bare) unexpectedly ok")
+		}
+		// 硬解帧参数：开盒解码器上下文 + 真 vaapi 设备走一轮。
+		// mpeg4 软解在本机拿不到可用的 vaapi 帧参数，必回错且槽不动
+		// （decode.c：成了才写槽；码值随构建变：无 vaapi 硬解编译进回
+		// ENOENT(-2)，编进了但帧回调报 ENOSYS(-38)，L2-18 收尾实测 -38，
+		// 故不断言具体码，只断失败 + 槽空）。
+		dec2, err := Open("../testdata/feat_small.mp4")
+		if err != nil {
+			t.Fatalf("Open(feat_small)#2: %v", err)
+		}
+		defer dec2.Close()
+		cctx := dec2.CodecCtx()
+		if cctx == nil {
+			t.Fatal("CodecCtx nil")
+		}
+		var outFrames unsafe.Pointer
+		if ret := cc.AvcodecGetHwFramesParameters(cctx.Ptr(), devRef, 44, &outFrames); ret >= 0 {
+			t.Fatalf("AvcodecGetHwFramesParameters(mpeg4,vaapi) = %d, want <0", ret)
+		}
+		if outFrames != nil {
+			t.Fatal("AvcodecGetHwFramesParameters 写了槽（出错路 C 不碰槽）")
+		}
 	}
 	// ---- hwframe 约束释放守卫 (C 判空, 传空槽不崩) ----
 	var nilConstraints unsafe.Pointer
