@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 // Copyright 2025 The GoGPU Authors
@@ -14,25 +24,25 @@ import gputypes "github.com/energye/gpui/gpu/types"
 //
 // # Planned Backends
 //
-//   - hal/noop/   - No-op backend for testing (done ✅)
-//   - hal/gles/     - OpenGL 3.3+ / OpenGL ES 3.0+ (planned)
-//   - hal/vulkan/     - Vulkan 1.0+ (planned)
-//   - hal/metal/    - Metal (macOS/iOS) (planned)
-//   - hal/dx12/   - DirectX 12 (Windows) (planned)
+//   - hal/noop/ - No-op backend for testing (done ✅)
+//   - hal/gles/ - OpenGL 3.3+ / OpenGL ES 3.0+ (planned)
+//   - hal/vulkan/ - Vulkan 1.0+ (planned)
+//   - hal/metal/ - Metal (macOS/iOS) (planned)
+//   - hal/dx12/ - DirectX 12 (Windows) (planned)
 //
 // # Implementation Priority
 //
 //  1. OpenGL - Most portable, easiest to implement
 //  2. Vulkan - Primary backend for Linux/Windows/Android
-//  3. Metal  - Required for Apple platforms
-//  4. DX12   - Windows high-performance
+//  3. Metal - Required for Apple platforms
+//  4. DX12 - Windows high-performance
 //
 // # Reference Libraries
 //
-//   - go-gl/gl         - OpenGL bindings (study patterns)
+//   - go-gl/gl - OpenGL bindings (study patterns)
 //   - vulkan-go/vulkan - Vulkan bindings (starting point)
-//   - Ebitengine       - purego patterns for Metal
-//   - Gio              - Vulkan/Metal/DX11 in Go
+//   - Ebitengine - purego patterns for Metal
+//   - Gio - Vulkan/Metal/DX11 in Go
 //
 // # Pure Go Approach
 //

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -66,9 +76,7 @@ func (w *Writer) writeExpression(handle ir.ExpressionHandle) error {
 }
 
 // writeAccessChain writes an Access/AccessIndex chain, recursing through the
-// chain without checking named expressions at intermediate levels. This matches
-// Rust naga's put_access_chain behavior where the full chain is always inlined,
-// only falling back to put_expression for the terminal base expression.
+// chain without checking named expressions at intermediate levels.
 func (w *Writer) writeAccessChain(handle ir.ExpressionHandle) error {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {
 		return w.writeExpression(handle)
@@ -153,9 +161,6 @@ func (w *Writer) writeExpressionKind(kind ir.ExpressionKind, handle ir.Expressio
 		return w.writeLiteral(k)
 
 	case ir.ExprConstant:
-		// Abstract constants (from untyped const declarations like "const one = 1;")
-		// are removed by Rust naga's process_overrides pass and their values inlined.
-		// We inline them here at output time to match Rust's behavior.
 		if int(k.Constant) < len(w.module.Constants) {
 			c := &w.module.Constants[k.Constant]
 			if c.IsAbstract {
@@ -172,7 +177,6 @@ func (w *Writer) writeExpressionKind(kind ir.ExpressionKind, handle ir.Expressio
 
 	case ir.ExprOverride:
 		// Overrides are written as constants in MSL output.
-		// In Rust naga, process_overrides resolves these before the writer runs.
 		// We handle them directly by referencing the override's assigned name.
 		name := w.getName(nameKey{kind: nameKeyOverride, handle1: uint32(k.Override)})
 		w.write("%s", name)
@@ -319,7 +323,6 @@ func (w *Writer) writeLiteral(lit ir.Literal) error {
 		}
 
 	case ir.LiteralI32:
-		// Rust naga uses (-MAX - 1) pattern for INT_MIN to avoid C++ literal overflow.
 		// MSL treats -2147483648 as -(2147483648u) which overflows signed int.
 		if int32(v) == -2147483648 {
 			w.write("(-2147483647 - 1)")
@@ -352,7 +355,6 @@ func (w *Writer) writeLiteral(lit ir.Literal) error {
 		} else if math.IsNaN(float64(val)) {
 			w.write("NAN")
 		} else {
-			// Format f16 with 'h' suffix, matching Rust naga.
 			s := strconv.FormatFloat(float64(val), 'f', -1, 32)
 			// If integer, add ".0h" suffix; otherwise just "h".
 			if !strings.Contains(s, ".") {
@@ -374,7 +376,6 @@ func (w *Writer) writeLiteral(lit ir.Literal) error {
 		} else if math.IsNaN(float64(val)) {
 			w.write("NAN")
 		} else {
-			// Use strconv with 'f' format (no exponent) matching Rust's Display for f32.
 			s := strconv.FormatFloat(float64(val), 'f', -1, 32)
 			if !strings.Contains(s, ".") {
 				s += ".0"
@@ -405,7 +406,7 @@ func (w *Writer) writeLiteral(lit ir.Literal) error {
 
 	case ir.LiteralAbstractFloat:
 		// Abstract floats should ideally be concretized before reaching the backend,
-		// but as a fallback emit them as f32 literals (matching Rust naga's behavior).
+		// but as a fallback emit them as f32 literals.
 		val := float32(v)
 		if math.IsInf(float64(val), 0) {
 			if val < 0 {
@@ -430,7 +431,6 @@ func (w *Writer) writeLiteral(lit ir.Literal) error {
 }
 
 // writeZeroValue writes a zero-initialized value using brace initialization.
-// Matches Rust naga output: metal::int2 {} instead of metal::int2().
 func (w *Writer) writeZeroValue(typeHandle ir.TypeHandle) error {
 	typeName := w.writeTypeName(typeHandle, StorageAccess(0))
 	w.write("%s {}", typeName)
@@ -438,9 +438,7 @@ func (w *Writer) writeZeroValue(typeHandle ir.TypeHandle) error {
 }
 
 // writeConstantValueInline writes an abstract constant's value inline,
-// recursively expanding composite values. This matches Rust naga where
-// abstract constants are removed by process_overrides and their values
-// are inlined at each use site.
+// recursively expanding composite values.
 func (w *Writer) writeConstantValueInline(value ir.ConstantValue, typeHandle ir.TypeHandle) error {
 	if value == nil {
 		// Value is nil — this shouldn't happen for inline constants,
@@ -510,7 +508,6 @@ func (w *Writer) writeCompose(compose ir.ExprCompose) error {
 
 	// Detect vector splat: all components reference the same expression handle.
 	// Emit single-arg constructor like metal::float4(1.0) instead of float4(1.0, 1.0, 1.0, 1.0).
-	// Matches Rust naga MSL output.
 	if !useBraces && len(compose.Components) > 1 && w.isVectorSplat(compose) {
 		w.write("%s(", typeName)
 		if err := w.writeExpression(compose.Components[0]); err != nil {
@@ -530,7 +527,6 @@ func (w *Writer) writeCompose(compose ir.ExprCompose) error {
 			w.write(", ")
 		}
 		// Insert padding initializer for struct members that have padding before them.
-		// Rust naga adds {} for each padding member in aggregate struct construction.
 		if useBraces && int(compose.Type) < len(w.module.Types) {
 			padKey := nameKey{kind: nameKeyStructMember, handle1: uint32(compose.Type), handle2: uint32(i)}
 			if _, hasPad := w.structPads[padKey]; hasPad {
@@ -689,8 +685,6 @@ func (w *Writer) writeAccessIndex_restricted(baseHandle ir.ExpressionHandle, ind
 // writeAccessIndex writes a constant index access.
 func (w *Writer) writeAccessIndex(access ir.ExprAccessIndex) error {
 	// Special handling for modf/frexp result member access.
-	// In Rust naga, modf/frexp return a struct and AccessIndex extracts members:
-	//   index 0 = fract, index 1 = whole (modf) or exp (frexp)
 	if w.currentFunction != nil && int(access.Base) < len(w.currentFunction.Expressions) {
 		if mathExpr, ok := w.currentFunction.Expressions[access.Base].Kind.(ir.ExprMath); ok {
 			switch mathExpr.Fun {
@@ -763,7 +757,6 @@ func (w *Writer) writeAccessIndex(access ir.ExprAccessIndex) error {
 				// Vector through pointer: use .x/.y/.z/.w or [index] for packed vec3.
 				// MSL uses swizzle for vector elements even through pointers,
 				// but packed vec3 (struct members in storage) need bracket notation.
-				// Matches Rust naga: ValuePointer | Vector → if packed { [index] } else { .component }
 				if _, ok := innerType.(ir.VectorType); ok {
 					if err := w.writeExpression(access.Base); err != nil {
 						return err
@@ -858,9 +851,6 @@ func (w *Writer) writeAccessIndex(access ir.ExprAccessIndex) error {
 	}
 	if baseType != nil {
 		if st, ok := baseType.(ir.StructType); ok {
-			// Struct member access -- use writeAccessChain to walk the full
-			// access chain without stopping at named expressions, matching
-			// Rust naga's put_access_chain behavior.
 			if err := w.writeAccessChain(access.Base); err != nil {
 				return err
 			}
@@ -882,7 +872,7 @@ func (w *Writer) writeAccessIndex(access ir.ExprAccessIndex) error {
 	}
 
 	// Array, vector, or matrix access.
-	// Wrap in parens if base is a binary/select expression (matches Rust naga is_scoped=false).
+	// Wrap in parens if base is a binary/select expression.
 	needParens := w.needsParensInContext(access.Base)
 	if needParens {
 		w.write("(")
@@ -894,7 +884,7 @@ func (w *Writer) writeAccessIndex(access ir.ExprAccessIndex) error {
 		w.write(")")
 	}
 
-	// Use swizzle notation for vectors (Rust naga uses .x/.y/.z/.w),
+	// Use swizzle notation for vectors,
 	// but use bracket notation [idx] for packed vec3 members since packed types
 	// don't support swizzle syntax in MSL.
 	// ValuePointerType with Size also counts as vector (pointer to column from matrix access).
@@ -953,11 +943,7 @@ func (w *Writer) writeAccessIndex(access ir.ExprAccessIndex) error {
 }
 
 // needsParens checks if a child expression needs parentheses in the context
-// of a parent binary operator. Matches Rust naga's is_scoped approach: any
-// binary expression used as an operand of another binary expression gets
-// wrapped in parentheses, regardless of precedence.
-// Exception: div/mod operations that are rewritten to naga_div/naga_mod helper
-// function calls are already scoped by the function call parentheses.
+// of a parent binary operator. Matches Rust the is_scoped approach: any
 func (w *Writer) needsParens(child ir.ExpressionHandle) bool {
 	if w.currentFunction == nil || int(child) >= len(w.currentFunction.Expressions) {
 		return false
@@ -980,7 +966,6 @@ func (w *Writer) needsParens(child ir.ExpressionHandle) bool {
 		return true
 	case ir.ExprArrayLength:
 		// ArrayLength expands to "1 + ..." which contains a binary operator.
-		// Matches Rust naga: ArrayLength uses is_scoped wrapping.
 		return true
 	default:
 		return false
@@ -988,8 +973,7 @@ func (w *Writer) needsParens(child ir.ExpressionHandle) bool {
 }
 
 // needsParensInContext checks if an expression would need parentheses when
-// rendered in a "non-scoped" context (matching Rust naga's is_scoped=false).
-// In Rust naga, Binary and Select expressions add outer parens when !is_scoped.
+// rendered in a "non-scoped" context.
 func (w *Writer) needsParensInContext(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {
 		return false
@@ -1012,7 +996,6 @@ func (w *Writer) needsParensInContext(handle ir.ExpressionHandle) bool {
 		return true
 	case ir.ExprArrayLength:
 		// ArrayLength expands to "1 + ..." which needs parenthesization.
-		// Matches Rust naga: ArrayLength uses is_scoped wrapping.
 		return true
 	}
 	return false
@@ -1027,7 +1010,6 @@ func (w *Writer) isMatrixType(handle ir.ExpressionHandle) bool {
 
 // writeWrappedBinaryOperand writes a binary operand, wrapping packed vec3 in a
 // cast to regular vec3 if wrapPackedVec3 is true. Also adds parens if needed.
-// Matches Rust naga put_wrapped_expression_for_packed_vec3_access.
 func (w *Writer) writeWrappedBinaryOperand(handle ir.ExpressionHandle, wrapPackedVec3 bool) error {
 	needsPacked := wrapPackedVec3 && w.isPackedVec3Access(handle)
 	if needsPacked {
@@ -1098,7 +1080,6 @@ func (w *Writer) writeSwizzle(swizzle ir.ExprSwizzle) error {
 	// Wrap in parens if vector is a binary/select expression.
 	// C++ member access (.) binds tighter than arithmetic operators,
 	// so (mat * vec).xyz must not be emitted as mat * vec.xyz.
-	// Matches Rust naga is_scoped=false in put_expression → put_binop.
 	needParens := !needsUnpack && w.needsParensInContext(swizzle.Vector)
 	if needParens {
 		w.write("(")
@@ -1145,8 +1126,6 @@ func (w *Writer) writeLocalVariable(local ir.ExprLocalVariable) error {
 }
 
 // writeLoad writes a pointer load with bounds checking.
-// Matches Rust naga's put_load: determines bounds check policy from address space,
-// then applies Restrict (index clamping) or ReadZeroSkipWrite (ternary) as needed.
 func (w *Writer) writeLoad(load ir.ExprLoad) error {
 	// Determine the bounds check policy for this access chain.
 	policy := w.chooseBoundsCheckPolicy(load.Pointer)
@@ -1178,7 +1157,6 @@ func (w *Writer) writeLoad(load ir.ExprLoad) error {
 
 // writeUncheckedLoad writes a load without bounds checking.
 // If the pointer is to an atomic type, wraps with metal::atomic_load_explicit.
-// Matches Rust naga MSL put_unchecked_load.
 func (w *Writer) writeUncheckedLoad(pointer ir.ExpressionHandle) error {
 	if w.isAtomicPointer(pointer) {
 		if err := w.validateAtomicOperation(pointer, ir.AtomicLoad{}, nil); err != nil {
@@ -1206,7 +1184,7 @@ func (w *Writer) writeUncheckedLoad(pointer ir.ExpressionHandle) error {
 // writeRZSWFallback writes the fallback value for RZSW ternary expressions.
 // If the access chain originates from a pointer, uses a named oob local variable
 // instead of DefaultConstructible(), because we need an actual addressable local
-// for pointer targets. Matches Rust naga's put_expression for Access/AccessIndex.
+// for pointer targets.
 func (w *Writer) writeRZSWFallback(base ir.ExpressionHandle, accessHandle ir.ExpressionHandle) {
 	if w.accessChainRootIsPointer(accessHandle) {
 		// Find the element type that the oob local should have.
@@ -1266,7 +1244,6 @@ func (w *Writer) accessChainRootIsPointer(handle ir.ExpressionHandle) bool {
 // buildRZSWBoundsCheck walks an access chain and builds a RZSW bounds check string.
 // Returns ("uint(i) < N && uint(j) < M", true) for chains needing runtime checks,
 // or ("", false) if no check is needed.
-// Matches Rust naga's put_bounds_checks + bounds_check_iter.
 func (w *Writer) buildRZSWBoundsCheck(handle ir.ExpressionHandle) (string, bool) {
 	// Collect all checks by walking the access chain.
 	type boundsCheck struct {
@@ -1371,8 +1348,7 @@ func (w *Writer) buildRZSWBoundsCheck(handle ir.ExpressionHandle) (string, bool)
 		return "", false
 	}
 
-	// Build the condition string. Checks are in outer-to-inner order (from the
-	// initial walk), which matches Rust naga's bounds_check_iter ordering.
+	// Build the condition string.
 	savedOut := w.Out
 	w.Out = strings.Builder{}
 
@@ -1456,7 +1432,6 @@ func (w *Writer) writeUnary(unary ir.ExprUnary) error {
 	switch unary.Op {
 	case ir.UnaryNegate:
 		// Signed integer negation uses naga_neg() polyfill to avoid UB on INT_MIN.
-		// Matches Rust naga: as_type<T>(-as_type<unsigned_T>(val))
 		if argScalar := w.getExpressionScalarType(unary.Expr); argScalar != nil && argScalar.Kind == ir.ScalarSint {
 			var vecSize ir.VectorSize
 			if argType := w.getExpressionType(unary.Expr); argType != nil {
@@ -1495,7 +1470,6 @@ func (w *Writer) writeBinary(binary ir.ExprBinary, _ ir.ExpressionHandle) error 
 	switch binary.Op {
 	case ir.BinaryDivide:
 		// Use safe division helper for integers (typed overloads, not templates).
-		// Matches Rust naga: per-type naga_div using metal::select.
 		if o, ok := w.getIntegerOverload(binary.Left); ok {
 			w.addDivOverload(o)
 			w.write("naga_div(")
@@ -1512,7 +1486,6 @@ func (w *Writer) writeBinary(binary ir.ExprBinary, _ ir.ExpressionHandle) error 
 
 	case ir.BinaryModulo:
 		// Use safe modulo helper for integers (typed overloads, not templates).
-		// Matches Rust naga: per-type naga_mod using metal::select.
 		if o, ok := w.getIntegerOverload(binary.Left); ok {
 			w.addModOverload(o)
 			w.write("naga_mod(")
@@ -1527,7 +1500,6 @@ func (w *Writer) writeBinary(binary ir.ExprBinary, _ ir.ExpressionHandle) error 
 			return nil
 		}
 		// Float modulo uses metal::fmod(), not the % operator.
-		// Matches Rust naga MSL backend.
 		w.write("%sfmod(", Namespace)
 		if err := w.writeExpression(binary.Left); err != nil {
 			return err
@@ -1542,8 +1514,7 @@ func (w *Writer) writeBinary(binary ir.ExprBinary, _ ir.ExpressionHandle) error 
 
 	// Wrapping arithmetic for signed integers.
 	// WGSL specifies wrapping semantics for i32 add/sub/mul, but C++ signed
-	// overflow is UB. Rust naga emits as_type<int>(as_type<uint>(lhs) OP as_type<uint>(rhs))
-	// to perform the operation in unsigned domain and reinterpret.
+	// overflow is UB.
 	if binary.Op == ir.BinaryAdd || binary.Op == ir.BinarySubtract || binary.Op == ir.BinaryMultiply {
 		if signedType, unsignedType, ok := w.getSignedWrappingTypes(binary.Left); ok {
 			// For scalar*vector, result type should match vector operand
@@ -1624,7 +1595,6 @@ func (w *Writer) writeBinary(binary ir.ExprBinary, _ ir.ExpressionHandle) error 
 
 	// Write left operand, with packed vec3 wrapping if multiplying by a matrix.
 	// Packed vector - matrix multiplications are not supported in MSL.
-	// Matches Rust naga put_wrapped_expression_for_packed_vec3_access.
 	leftIsMatrix := w.isMatrixType(binary.Left)
 	rightIsMatrix := w.isMatrixType(binary.Right)
 
@@ -1666,9 +1636,8 @@ func (w *Writer) writeSelect(sel ir.ExprSelect) error {
 		return nil
 	}
 
-	// Scalar bool: ternary operator. Matches Rust naga: condition ? accept : reject
-	// Rust naga passes is_scoped=false for the condition sub-expression, which adds
-	// parens around binary operations. We check explicitly and wrap if needed.
+	// Scalar bool: ternary operator.
+	// We check explicitly and wrap if needed.
 	needCondParens := w.needsParensInContext(sel.Condition)
 	if needCondParens {
 		w.write("(")
@@ -1694,8 +1663,7 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 	// Handle special cases that don't follow the standard pattern
 	switch mathExpr.Fun {
 	case ir.MathSign:
-		// MSL sign() is only defined for float types. For signed integers,
-		// Rust naga emits: select(select(T(-1), T(1), (x > 0)), T(0), (x == 0))
+		// MSL sign() is only defined for float types.
 		if argType := w.getExpressionType(mathExpr.Arg); argType != nil {
 			var scalar ir.ScalarType
 			var vecSize ir.VectorSize
@@ -1726,7 +1694,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 
 	case ir.MathAbs:
 		// For signed integers, MSL abs() may not work correctly (especially for i64).
-		// Rust naga emits naga_abs() polyfill using metal::select and as_type.
 		if argType := w.getExpressionType(mathExpr.Arg); argType != nil {
 			var scalar ir.ScalarType
 			var vecSize ir.VectorSize
@@ -1751,7 +1718,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 
 	case ir.MathDot:
 		// For integer vectors, MSL metal::dot doesn't support int/uint.
-		// Rust naga emits naga_dot_{type}{size}() wrapper functions.
 		if argType := w.getExpressionType(mathExpr.Arg); argType != nil {
 			if vec, ok := argType.(ir.VectorType); ok && (vec.Scalar.Kind == ir.ScalarSint || vec.Scalar.Kind == ir.ScalarUint) {
 				funcName := w.registerDotWrapper(vec.Scalar, vec.Size)
@@ -1847,8 +1813,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return w.writeQuantizeF16(mathExpr)
 
 	case ir.MathFirstTrailingBit:
-		// Rust naga: (((metal::ctz(x) + 1) % 33) - 1)
-		// Maps -1 (all ones) for input 0.
 		w.write("(((%sctz(", Namespace)
 		if err := w.writeExpression(mathExpr.Arg); err != nil {
 			return err
@@ -1857,9 +1821,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return nil
 
 	case ir.MathFirstLeadingBit:
-		// Rust naga uses metal::select patterns:
-		//   signed:   metal::select(31 - metal::clz(metal::select(v, ~v, v < 0)), T(-1), v == 0 || v == -1)
-		//   unsigned: metal::select(31 - metal::clz(v), T(-1), v == 0 || v == -1)
 		scalar := w.getExpressionScalarType(mathExpr.Arg)
 		isSigned := scalar != nil && scalar.Kind == ir.ScalarSint
 		bitWidth := uint8(4) // default 32-bit
@@ -1907,7 +1868,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return nil
 
 	case ir.MathExtractBits:
-		// Rust naga: extract_bits(e, min(offset, 32u), min(count, 32u - min(offset, 32u)))
 		w.write("%sextract_bits(", Namespace)
 		if err := w.writeExpression(mathExpr.Arg); err != nil {
 			return err
@@ -1934,7 +1894,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return nil
 
 	case ir.MathInsertBits:
-		// Rust naga: insert_bits(e, newbits, min(offset, 32u), min(count, 32u - min(offset, 32u)))
 		w.write("%sinsert_bits(", Namespace)
 		if err := w.writeExpression(mathExpr.Arg); err != nil {
 			return err
@@ -1967,7 +1926,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return nil
 
 	case ir.MathPack2x16float:
-		// Rust naga: as_type<uint>(half2(x))
 		w.write("as_type<uint>(half2(")
 		if err := w.writeExpression(mathExpr.Arg); err != nil {
 			return err
@@ -1976,7 +1934,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return nil
 
 	case ir.MathUnpack2x16float:
-		// Rust naga: float2(as_type<half2>(x)) — no metal:: prefix
 		w.write("float2(as_type<half2>(")
 		if err := w.writeExpression(mathExpr.Arg); err != nil {
 			return err
@@ -1985,7 +1942,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return nil
 
 	case ir.MathDegrees:
-		// Rust naga expands degrees to multiplication: ((x) * 57.295779513082322865)
 		w.write("((")
 		if err := w.writeExpression(mathExpr.Arg); err != nil {
 			return err
@@ -1994,7 +1950,6 @@ func (w *Writer) writeMath(mathExpr ir.ExprMath) error {
 		return nil
 
 	case ir.MathRadians:
-		// Rust naga expands radians to multiplication: ((x) * 0.017453292519943295474)
 		w.write("((")
 		if err := w.writeExpression(mathExpr.Arg); err != nil {
 			return err
@@ -2193,8 +2148,6 @@ func mathFunctionName(fun ir.MathFunction) string {
 }
 
 // writeUnpack4x8 writes an unpack4xI8 or unpack4xU8 expansion.
-// Matches Rust naga MSL writer: for Metal < 2.1, expands to bit manipulation;
-// for Metal >= 2.1, uses as_type<packed_[u]char4>.
 func (w *Writer) writeUnpack4x8(mathExpr ir.ExprMath) error {
 	signed := mathExpr.Fun == ir.MathUnpack4xI8
 	signPrefix := ""
@@ -2234,8 +2187,6 @@ func (w *Writer) writeUnpack4x8(mathExpr ir.ExprMath) error {
 }
 
 // writePack4x8 writes a pack4xI8, pack4xU8, pack4xI8Clamp, or pack4xU8Clamp expansion.
-// Matches Rust naga MSL writer: for Metal < 2.1, expands to bit manipulation;
-// for Metal >= 2.1, uses as_type<uint>(packed_[u]char4(...)).
 func (w *Writer) writePack4x8(mathExpr ir.ExprMath) error {
 	signed := mathExpr.Fun == ir.MathPack4xI8 || mathExpr.Fun == ir.MathPack4xI8Clamp
 	clamped := mathExpr.Fun == ir.MathPack4xI8Clamp || mathExpr.Fun == ir.MathPack4xU8Clamp
@@ -2301,8 +2252,7 @@ func (w *Writer) writePack4x8(mathExpr ir.ExprMath) error {
 	return nil
 }
 
-// writeModf writes a modf() call. Rust naga emits naga_modf() which returns a
-// _modf_result_* struct with {fract, whole} fields.
+// writeModf writes a modf() call.
 func (w *Writer) writeModf(mathExpr ir.ExprMath) error {
 	scalar, vectorSize := w.getExprArgScalarAndVec(mathExpr.Arg)
 	if scalar == nil {
@@ -2317,8 +2267,7 @@ func (w *Writer) writeModf(mathExpr ir.ExprMath) error {
 	return nil
 }
 
-// writeFrexp writes a frexp() call. Rust naga emits naga_frexp() which returns a
-// _frexp_result_* struct with {fract, exp} fields.
+// writeFrexp writes a frexp() call.
 func (w *Writer) writeFrexp(mathExpr ir.ExprMath) error {
 	scalar, vectorSize := w.getExprArgScalarAndVec(mathExpr.Arg)
 	if scalar == nil {
@@ -2371,8 +2320,6 @@ func (w *Writer) getExprArgScalarAndVec(handle ir.ExpressionHandle) (*ir.ScalarT
 }
 
 // writeDot4Packed writes a dot4I8Packed or dot4U8Packed expansion.
-// Matches Rust naga MSL writer: for Metal < 2.1, expands to bit shift extraction;
-// for Metal >= 2.1, uses as_type<packed_[u]char4> with indexed component access.
 func (w *Writer) writeDot4Packed(mathExpr ir.ExprMath) error {
 	signed := mathExpr.Fun == ir.MathDot4I8Packed
 
@@ -2429,7 +2376,6 @@ func (w *Writer) writeDot4Component(handle ir.ExpressionHandle, conversion strin
 		_ = w.writeExpression(handle)
 		w.write(")")
 	} else {
-		// Unsigned: (expr) — wrap in parens to match Rust naga
 		w.write("(")
 		_ = w.writeExpression(handle)
 		w.write(")")
@@ -2453,7 +2399,6 @@ func (w *Writer) writeAs(as ir.ExprAs) error {
 	// Try to fold constant casts at output time.
 	// When pipeline constants are applied, expressions like As(Constant(2_i32), uint)
 	// should produce literal 2u instead of static_cast<uint>(o).
-	// Matches Rust naga's constant_evaluator behavior in process_overrides.
 	if as.Convert != nil {
 		if folded, ok := w.tryFoldConstantCast(as); ok {
 			return w.writeScalarValue(folded.scalar, folded.typeHandle)
@@ -2474,9 +2419,6 @@ func (w *Writer) writeAs(as ir.ExprAs) error {
 	scalarName := w.scalarCastTypeName(as.Kind, convert)
 
 	// Resolve source expression type to determine if it's a vector/matrix cast.
-	// Rust naga uses static_cast<metal::float3>(x) for vector conversions,
-	// static_cast<float>(x) for scalar conversions, as_type<T>(x) for bitcasts,
-	// metal::half2x2(x) for matrix conversions (constructor-style, NOT static_cast).
 	typeName := scalarName
 	isMatrixCast := false
 	var matRows, matCols ir.VectorSize
@@ -2508,8 +2450,6 @@ func (w *Writer) writeAs(as ir.ExprAs) error {
 			}
 		}
 		if isMatrixCast {
-			// Matrix conversions use constructor syntax: metal::half2x2(x)
-			// Matches Rust naga: put_numeric_type(target_scalar, &[rows, columns])
 			w.write("%s(", typeName)
 			if err := w.writeExpression(as.Expr); err != nil {
 				return err
@@ -2532,7 +2472,6 @@ func (w *Writer) writeAs(as ir.ExprAs) error {
 			w.write(")")
 		}
 	} else {
-		// Bitcast (Rust naga uses as_type<T>(x))
 		w.write("as_type<%s>(", typeName)
 		if err := w.writeExpression(as.Expr); err != nil {
 			return err
@@ -2628,8 +2567,6 @@ func (w *Writer) findOrRegisterScalarType(kind ir.ScalarKind, width uint8) ir.Ty
 
 // writeImageSample writes a texture sample operation.
 func (w *Writer) writeImageSample(sample ir.ExprImageSample) error {
-	// ClampToEdge: call helper function instead of direct .sample()
-	// Matches Rust naga's nagaTextureSampleBaseClampToEdge wrapper.
 	if sample.ClampToEdge {
 		w.needsTextureSampleBaseClampToEdge = true
 		w.write("nagaTextureSampleBaseClampToEdge(")
@@ -2700,7 +2637,6 @@ func (w *Writer) writeImageSample(sample ir.ExprImageSample) error {
 	case ir.SampleLevelAuto:
 		// Default, no argument needed
 	case ir.SampleLevelZero:
-		// Matches Rust naga: SampleLevel::Zero is a no-op in MSL.
 		// Depth textures use sample_compare which implicitly uses level 0.
 	case ir.SampleLevelExact:
 		w.write(", %slevel(", Namespace)
@@ -2829,7 +2765,6 @@ func (w *Writer) writeImageLoadUnchecked(load ir.ExprImageLoad, imgType *ir.Imag
 
 // imageNeedsLod returns true if the image supports level-of-detail arguments.
 // 1D textures cannot have mipmaps in MSL, so LOD is always omitted for them.
-// Matches Rust naga's image_needs_lod.
 func (w *Writer) imageNeedsLod(imageHandle ir.ExpressionHandle) bool {
 	imgType := w.resolveImageType(imageHandle)
 	if imgType == nil {
@@ -3177,7 +3112,6 @@ func (w *Writer) writeCoordCast(coord ir.ExpressionHandle, imgType *ir.ImageType
 }
 
 // writeCastToUintScalarOrVector writes a cast to uint or uint{N} for image coordinates.
-// Matches Rust naga's put_cast_to_uint_scalar_or_vector.
 func (w *Writer) writeCastToUintScalarOrVector(coord ir.ExpressionHandle) {
 	exprType := w.getExpressionType(coord)
 	switch t := exprType.(type) {
@@ -3250,7 +3184,7 @@ func (w *Writer) writeImageQuery(query ir.ExprImageQuery) error {
 }
 
 // writeImageQuerySize writes the image size query, composing get_width/get_height/get_depth
-// into a vector constructor matching the image dimension. Matches Rust naga's put_image_size_query.
+// into a vector constructor matching the image dimension.
 func (w *Writer) writeImageQuerySize(image ir.ExpressionHandle, level *ir.ExpressionHandle) error {
 	// External textures: call nagaTextureDimensionsExternal helper.
 	if imgType := w.resolveImageType(image); imgType != nil && imgType.Class == ir.ImageClassExternal {
@@ -3375,9 +3309,6 @@ func (w *Writer) resolveImageType(image ir.ExpressionHandle) *ir.ImageType {
 }
 
 // writeDerivative writes a derivative operation.
-// Rust naga ignores the DerivativeControl (coarse/fine/none) and always emits
-// the base function name. MSL dfdx/dfdy/fwidth have implementation-defined
-// precision, and _coarse/_fine suffixes are just hints that Rust drops.
 func (w *Writer) writeDerivative(deriv ir.ExprDerivative) error {
 	var funcName string
 	switch deriv.Axis {
@@ -3457,7 +3388,6 @@ func (w *Writer) writeArrayLength(expr ir.ExprArrayLength) error {
 			stride = at.Stride
 			// Compute element size from the base type using the stride-based heuristic.
 			// For most types, element size equals stride (no trailing padding).
-			// The precise calculation matches Rust's TypeInner::size().
 			elemSize = w.typeSize(at.Base)
 		}
 	}
@@ -3606,7 +3536,6 @@ func (w *Writer) getSignedWrappingTypes(handle ir.ExpressionHandle) (string, str
 
 func (w *Writer) pointerNeedsDeref(pt ir.PointerType) bool {
 	// Buffer parameters use references (&) in MSL, not pointers (*).
-	// References don't need explicit dereference.
 	return false
 }
 
@@ -3705,7 +3634,6 @@ func (w *Writer) getPointerAddressSpace(handle ir.ExpressionHandle) (ir.AddressS
 }
 
 // chooseBoundsCheckPolicy selects the appropriate bounds check policy for a pointer expression.
-// Matches Rust naga's BoundsCheckPolicies::choose_policy.
 func (w *Writer) chooseBoundsCheckPolicy(handle ir.ExpressionHandle) BoundsCheckPolicy {
 	ty := w.getExpressionType(handle)
 	if _, ok := ty.(ir.BindingArrayType); ok {
@@ -4004,7 +3932,7 @@ func (w *Writer) writeRestrictedIndex(indexHandle ir.ExpressionHandle, maxIndex 
 }
 
 // writeRayQueryGetIntersection writes a RayIntersection struct construction
-// from the Metal intersection result. Matches Rust naga MSL backend.
+// from the Metal intersection result.
 func (w *Writer) writeRayQueryGetIntersection(e ir.ExprRayQueryGetIntersection) error {
 	if w.module.SpecialTypes.RayIntersection == nil {
 		return fmt.Errorf("RayIntersection type not found in module SpecialTypes")

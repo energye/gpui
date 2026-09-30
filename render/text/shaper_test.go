@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -144,7 +154,7 @@ func TestSetShaperNil(t *testing.T) {
 		SetShaper(original)
 	})
 
-	// Set to nil should reset to default (HbShaper, ENGINE_TEXT_SHAPING_PLAN M1).
+	// Set to nil should reset to default.
 	SetShaper(nil)
 
 	current := GetShaper()
@@ -160,7 +170,7 @@ func TestGetShaper(t *testing.T) {
 		t.Error("GetShaper() returned nil")
 	}
 
-	// Default should be HbShaper (HarfBuzz Go port, ENGINE_TEXT_SHAPING_PLAN M1).
+	// Default should be HbShaper.
 	if _, ok := shaper.(*HbShaper); !ok {
 		t.Errorf("default shaper should be *HbShaper, got %T", shaper)
 	}

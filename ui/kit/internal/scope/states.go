@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scope
 
 // WidgetState names the current interaction situation of one mounted
@@ -39,7 +49,7 @@ func (s WidgetState) Without(want WidgetState) WidgetState {
 }
 
 // StateResolver maps the current WidgetState to one value, mirroring
-// Flutter's WidgetStateProperty. Render code calls Resolve instead of
+// the WidgetStateProperty. Render code calls Resolve instead of
 // branching on hover/pressed/focused inline.
 type StateResolver[T any] interface {
 	Resolve(s WidgetState) T

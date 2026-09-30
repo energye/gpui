@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -50,7 +60,6 @@ const (
 // FramePacket is the cross-thread frame description (UI → Raster).
 // Root layers are shared by pointer (no deep copy of the tree).
 //
-// T1 read-only contract (§3): the packet is sealed at EndFrame (BuildPacket).
 // After Seal, the UI thread must not mutate the shared Root tree in place
 // nor the packet slices in place — derivatives go through CloneShallow.
 // Overlay attach (overlay.State.AttachToPacket) is the documented EndFrame

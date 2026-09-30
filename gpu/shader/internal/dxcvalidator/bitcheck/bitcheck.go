@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // bitcheck.go — top-level entry point.
 //
 // Check(blob) is the second defensive layer in the dxcvalidator
@@ -6,10 +16,10 @@
 //
 // The pipeline is:
 //
-//	extractBitcode  — DXBC container → DxilProgramHeader → LLVM bitcode
-//	NewReader       — bit-level primitives
-//	NewBlockReader  — block / record dispatch with abbrev tables
-//	walkMetadata    — METADATA_BLOCK walker, declaration-order index
+//	extractBitcode — DXBC container → DxilProgramHeader → LLVM bitcode
+//	NewReader — bit-level primitives
+//	NewBlockReader — block / record dispatch with abbrev tables
+//	walkMetadata — METADATA_BLOCK walker, declaration-order index
 //	verifyEntryPoints — null-check !dx.entryPoints tuples
 //
 // Every layer returns a typed Go error on malformed input. No panics
@@ -33,11 +43,11 @@ const (
 // pattern that makes IDxcValidator AV at dxil.dll+0xe9da. On success
 // returns nil. On failure returns a typed error from the set:
 //
-//	ErrNoBitcode               — no DXIL part / bad program header / bad magic
-//	ErrMalformedBitstream      — structural violation inside the bitstream
-//	ErrMissingEntryPoints      — no dx.entryPoints named metadata
-//	ErrNullEntryPointFunction  — tuple operand 0 is null
-//	ErrEmptyEntryPointTuple    — tuple has zero operands
+//	ErrNoBitcode — no DXIL part / bad program header / bad magic
+//	ErrMalformedBitstream — structural violation inside the bitstream
+//	ErrMissingEntryPoints — no dx.entryPoints named metadata
+//	ErrNullEntryPointFunction — tuple operand 0 is null
+//	ErrEmptyEntryPointTuple — tuple has zero operands
 //
 // All errors are wrapped via fmt.Errorf for context; use errors.Is to
 // switch on the sentinel.
@@ -140,7 +150,7 @@ func walkTopLevel(br *BlockReader) error {
 // second is the per-function attachment metadata (often empty when no
 // debug info is present). To accept canonical DXC output we must
 // consider "dx.entryPoints present in ANY block" as success rather than
-// insisting that the first-seen block carries it. BUG-DXIL-024.
+// insisting that the first-seen block carries it.
 func walkModule(br *BlockReader) error {
 	state := &metadataState{}
 	for {
@@ -223,7 +233,7 @@ func handleModuleEntry(br *BlockReader, e Entry, state *metadataState) (bool, er
 // then merges its entry-point verification result into state. A canonical
 // DXC output carries dx.entryPoints in the first (named) METADATA_BLOCK
 // and has an empty second (function-attachment) block; we must not let
-// the empty block overwrite the success from the first. BUG-DXIL-024.
+// the empty block overwrite the success from the first.
 func handleMetadataBlock(br *BlockReader, state *metadataState) error {
 	if err := br.EnterBlock(); err != nil {
 		return fmt.Errorf("bitcheck: enter METADATA_BLOCK: %w", err)

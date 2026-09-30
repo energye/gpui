@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -11,25 +21,12 @@ import (
 	"testing"
 )
 
-// S1：生产 shaping 路径（HbShaper = go-text HarfBuzz 移植）验证。
-//
-// 背景（ENGINE_TEXT_SHAPING_PLAN M4 用户裁定）：复杂脚本全走 HbShaper
-// （go-text/typesetting/harfbuzz），不修 OwnShaper。go-text 是 HarfBuzz
-// 的标准 Go 移植（智能 staging 完整），S1 验证生产路径正确接入。
+// 生产 shaping 路径（HbShaper = go-text HarfBuzz 移植）验证。
 //
 // 判据（方案 B，2026-08-11）：
 //   - 与原生 libharfbuzz（系统 2.7.4）骨架一致的族（Thai/Hebrew/Lao/
 //     Bengali）：硬断言完全一致 —— 证明接入正确性。
-//   - 与 2.7.4 不一致的族（Arabic/Myanmar/Devanagari/Tamil）：差异是
-//     HarfBuzz 版本演进（2.7.4 vs go-text 更新版：rlig/liga 默认合成更
-//     积极、cluster 归并更完整、Indic 重排更多），按「覆盖性 + 产出自洽」
-//     判（每个字形 gid≠0、无畸形），差异记录到真源 §13，不判 FAIL。
 //
-// M2 已验证族 skeleton=0（当时字体恰好不触发版本差异路径）；S1 补验族
-// Thai/Arabic/Hebrew/Myanmar/Lao。修正记录（2026-08-11）：
-//   - hbFeatures 曾把 OwnShaper 默认 feature 集（含阿拉伯 isol/init/medi/
-//     fina）传给 HarfBuzz —— 干扰 complex shaper staging，阿拉伯全错
-//     （presentation form 而非字体 GSUB 形位）。改为只传用户 feature。
 //   - cluster 语义：原生输出 UTF-8 字节偏移、go-text 用 rune 索引；
 //     hbshape 已对齐为 rune 索引（度量衡问题，非引擎差异）。
 
@@ -147,9 +144,6 @@ func hbSkeletonFromShaped(gs []ShapedGlyph) []hbGlyph {
 	return out
 }
 
-// TestS1HbvsNative_Strict 硬断言族：Thai/Hebrew/Lao/Bengali 与原生
-// libharfbuzz（2.7.4）骨架（gid/cluster）完全一致 —— 证明 HbShaper
-// 生产路径接入正确。offset/advance 记录不判（版本差异，M2 同判据）。
 func TestS1HbvsNative_Strict(t *testing.T) {
 	hb := NewHbShaper()
 	cases := []struct {
@@ -205,7 +199,6 @@ func TestS1HbvsNative_Strict(t *testing.T) {
 // Tamil。与 2.7.4 的差异是 HarfBuzz 版本演进（go-text 为更新版移植，
 // rlig/liga 默认合成更积极、cluster 归并更完整、Indic 重排更多）——
 // 只用「覆盖性 + 产出自洽」判：每个字形 gid≠0、cluster 非负且单调。
-// 具体差异记录进真源 §13，不判 FAIL。
 func TestS1HbvsNative_VersionDiff(t *testing.T) {
 	hb := NewHbShaper()
 	cases := []struct {

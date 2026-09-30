@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -385,7 +392,7 @@ func (e *RenderPassEncoder) declareIndexedICBResources(arguments *Buffer) {
 			continue
 		}
 		for _, entry := range state.group.entries {
-			// H4-b1: hal entries unpack to *Buffer (gpu unpack pattern).
+			// hal entries unpack to *Buffer (gpu unpack pattern).
 			if entry.Buffer == nil {
 				continue
 			}
@@ -415,7 +422,7 @@ func (e *RenderPassEncoder) retainIndexedICBResources(owner *indexedICBOwnership
 			continue
 		}
 		for _, entry := range state.group.entries {
-			// H4-b1: hal entries unpack to *Buffer (gpu unpack pattern).
+			// hal entries unpack to *Buffer (gpu unpack pattern).
 			if entry.Buffer == nil {
 				return false
 			}

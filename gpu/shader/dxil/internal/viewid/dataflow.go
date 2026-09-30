@@ -1,13 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package viewid computes input→output dataflow dependencies for graphics
 // entry points, producing the data that populates DXIL's `dx.viewIdState`
-// metadata (ComputeViewIdState.cpp format) and the PSV0 dependency table
+// metadata and the PSV0 dependency table
 // (PSVDependencyTable layout).
 //
-// BUG-DXIL-011 Phase 3 / BUG-DXIL-018 follow-up.
-//
 // The DXC reference lives at:
-//
-//	reference/dxil/dxc/lib/HLSL/ComputeViewIdStateBuilder.cpp
 //
 // That implementation is a full LLVM-based def-use walker with control-
 // dependence and alloca reaching-def analysis. We implement a conservative
@@ -49,7 +55,6 @@ import (
 // component-padding slots stay zero.
 type Deps struct {
 	// NumInputScalars is Σ numChannels over input signature elements.
-	// Matches ComputeViewIdState.cpp: m_NumInputSigScalars.
 	NumInputScalars uint32
 
 	// NumOutputScalars is Σ numChannels over output signature elements.
@@ -57,7 +62,7 @@ type Deps struct {
 	NumOutputScalars uint32
 
 	// SigInputVectors is the number of input signature rows (each vector
-	// occupies one row). Matches PSVRuntimeInfo1::SigInputVectors.
+	// occupies one row).
 	SigInputVectors uint32
 
 	// SigOutputVectors is the number of output signature rows.
@@ -93,16 +98,14 @@ type Deps struct {
 }
 
 // MaskDwordsForScalars returns the number of uint32 dwords required to
-// hold a per-scalar output bitmap with `n` output scalars. Mirrors DXC's
-// RoundUpToUINT in ComputeViewIdState.cpp (line 208).
+// hold a per-scalar output bitmap with `n` output scalars.
 func MaskDwordsForScalars(n uint32) uint32 {
 	return (n + 31) / 32
 }
 
 // MaskDwordsForComponents returns the number of uint32 dwords required to
 // hold a per-component output bitmap with `outputVectors` output vectors
-// (each vector = 4 components). Mirrors DXC's PSVComputeMaskDwordsFromVectors
-// in DxilPipelineStateValidation.h:37.
+// (each vector = 4 components).
 func MaskDwordsForComponents(outputVectors uint32) uint32 {
 	return (outputVectors + 7) >> 3
 }
@@ -197,9 +200,6 @@ func Analyze(irMod *ir.Module, ep *ir.EntryPoint, inputs, outputs []SigElement) 
 	// Scalar -> input-component index map. Analyzer's internal taint uses
 	// cumulative ScalarStart indexing, but DXC's ViewIdState layout uses
 	// packed linear indexing (VectorRow*4 + StartCol + channelOffset).
-	// StartCol is critical when multiple elements pack into the same
-	// register row with different column offsets (e.g., two scalar
-	// @location inputs sharing register 0 at columns 0 and 1).
 	inScalarToComp := make([]uint32, 0)
 	for i := range inputs {
 		inp := &inputs[i]

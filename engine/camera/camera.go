@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package camera
 
 import (
@@ -167,7 +177,7 @@ func (c *Camera) SetAnchor(a core.Vec2) error {
 	return nil
 }
 
-// Follow moves toward target (clamped into Limit first). With smoothing 0
+// With smoothing 0
 // it snaps; otherwise pos lerps by the smoothing factor. Bad targets are
 // an error and move nothing.
 func (c *Camera) Follow(target core.Vec2) error {

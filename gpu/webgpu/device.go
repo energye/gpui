@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -256,7 +266,7 @@ func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (hal.P
 }
 
 // CreateBindGroup creates a bind group.
-// Takes hal.BindGroupDescriptor (片5, hal 以 webgpu 扁平形为准);
+// Takes hal.BindGroupDescriptor;
 // internal unpack of hal interfaces to concrete handles.
 func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (hal.BindGroup, error) {
 	if err := prepareDeviceCall(d); err != nil {
@@ -304,7 +314,7 @@ func (d *Device) CreateRenderPipeline(desc *hal.RenderPipelineDescriptor) (hal.R
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: render pipeline descriptor is nil")
 	}
-	// R7.6: convert via pooled scratch (common ≤4 VB / ≤16 attrs / ≤4 targets).
+	// convert via pooled scratch (common ≤4 VB / ≤16 attrs / ≤4 targets).
 	sc := acquireRPLConvertScratch()
 	rDesc, keepAlive := convertRenderPipelineDescInto(sc, desc)
 	rp, err := d.r.CreateRenderPipeline(rDesc)
@@ -492,7 +502,7 @@ func (d *Device) Poll(pollType hal.PollType) bool {
 }
 
 // FlushCallbacks pumps pending wgpu callbacks and folds Uncaptured/DeviceLost
-// into sticky IsLost (Skia abandon signal). Safe on nil / released / lost devices.
+// into sticky IsLost. Safe on nil / released / lost devices.
 func (d *Device) FlushCallbacks() {
 	if d == nil || d.released {
 		return
@@ -781,7 +791,7 @@ func convertBindGroupEntry(e hal.BindGroupEntry) rwgpu.BindGroupEntry {
 	return re
 }
 
-// R7.6: pooled scratch for CreateRenderPipeline descriptor conversion.
+// pooled scratch for CreateRenderPipeline descriptor conversion.
 // Covers common render shapes (≤4 vertex buffers, ≤16 attrs each, ≤4 color targets).
 type rplConvertScratch struct {
 	layouts   [4]rwgpu.VertexBufferLayout

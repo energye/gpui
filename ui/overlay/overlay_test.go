@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package overlay_test
 
 import (
@@ -186,7 +196,7 @@ func TestOverlay_EnsureEmptyBand(t *testing.T) {
 	}
 }
 
-// TestOverlay_AttachToPacket_BandSeparatedDirtyIDs (R8): the overlay portion
+// TestOverlay_AttachToPacket_BandSeparatedDirtyIDs: the overlay portion
 // of the frame's dirty set must be mirrored into OverlayDirtyLayerIDs while
 // DirtyLayerIDs keeps the main ids plus the appended overlay ids — so
 // "overlay opened dirtied only the overlay band" is assertable per band.

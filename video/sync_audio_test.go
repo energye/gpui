@@ -1,6 +1,13 @@
-// A2 AV sync gate (VW6 §11.3 A2, §12 A2 row): sound leads, picture
-// follows, one serial moves both queues.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // ffmpeg peers (read-only, no code copied), see video/sync_audio.go header for the line map:
 //
 //	fftools/ffplay.c Clock + get_master_sync_type/get_master_clock +

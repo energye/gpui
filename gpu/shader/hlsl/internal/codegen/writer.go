@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -171,7 +178,6 @@ type Writer struct {
 	candidateIntersectionHelperWritten bool
 
 	// Continue forwarding context for switch-in-loop workaround.
-	// Matches Rust naga's ContinueCtx.
 	continueCtx continueCtx
 
 	// Sampler heap tracking.
@@ -180,7 +186,6 @@ type Writer struct {
 
 	// MatCx2 decomposition tracking.
 	// Matrices with rows=2 in uniform buffers need to be decomposed into structs.
-	// See Rust naga back/hlsl/help.rs WrappedMatCx2.
 	wrappedMatCx2 map[uint8]struct{} // columns -> written
 
 	// Per-struct matCx2 access helper tracking.
@@ -189,7 +194,6 @@ type Writer struct {
 	wrappedStructMatrixAccess map[wrappedStructMatrixAccessKey]struct{}
 
 	// Wrapped image query function tracking.
-	// Matches Rust naga's WrappedImageQuery set.
 	wrappedImageQueries map[wrappedImageQueryKey]struct{}
 }
 
@@ -290,7 +294,6 @@ func newWriter(module *ir.Module, options *Options) *Writer {
 }
 
 // wrappedImageQueryKey identifies a unique image query wrapper function.
-// Matches Rust naga's WrappedImageQuery.
 type wrappedImageQueryKey struct {
 	dim     ir.ImageDimension
 	arrayed bool
@@ -311,7 +314,6 @@ const (
 )
 
 // String returns the generated HLSL source code.
-// Output is trimmed to end with exactly one newline, matching Rust naga.
 func (w *Writer) String() string {
 	s := w.Out.String()
 	s = strings.TrimRight(s, "\n")
@@ -337,7 +339,7 @@ func (w *Writer) writeModule() error {
 	// 2c2. Write dynamic buffer offsets structs and constant buffers
 	w.writeDynamicBufferOffsets()
 
-	// 2d. Write __matCx2 typedefs and helper functions (before structs, matching Rust)
+	// 2d. Write __matCx2 typedefs and helper functions
 	w.writeAllMatCx2TypedefsAndFunctions()
 
 	// 3. Write type definitions (structs)
@@ -353,8 +355,7 @@ func (w *Writer) writeModule() error {
 	// Note: storage load helpers are written per-function, not here
 	w.writeSpecialHelperFunctions()
 
-	// 4b2. Write special functions (predeclared type helpers + RayDescFromRayDesc_)
-	// Matches Rust naga's write_special_functions called at module level.
+	// 4b2.
 	w.writeModuleLevelSpecialFunctions()
 
 	// 4c. Write wrapped expression functions from global expressions
@@ -362,7 +363,6 @@ func (w *Writer) writeModule() error {
 	w.writeGlobalWrappedExpressionFunctions()
 
 	// 4d. Write ZeroValue wrapper functions from global expressions
-	// (Rust naga writes these before constants)
 	w.writeZeroValueWrapperFunctions(w.module.GlobalExpressions)
 
 	// 5. Write constants
@@ -375,7 +375,7 @@ func (w *Writer) writeModule() error {
 		return err
 	}
 
-	// 7. Write entry point interface structs (before regular functions, matching Rust order)
+	// 7. Write entry point interface structs
 	if err := w.writeAllEPInterfaces(); err != nil {
 		return err
 	}
@@ -390,9 +390,7 @@ func (w *Writer) writeModule() error {
 }
 
 // writeHeader writes an optional header comment.
-// Rust naga does not emit any header comments, so this is a no-op to match.
 func (w *Writer) writeHeader() {
-	// No header — matches Rust naga HLSL output
 }
 
 // registerNames assigns unique names to all IR entities.
@@ -410,7 +408,7 @@ func (w *Writer) registerNames() error {
 		w.names[nameKey{kind: nameKeyType, handle1: uint32(handle)}] = name
 		w.typeNames[ir.TypeHandle(handle)] = name
 
-		// Register struct member names in a namespace scope (matches Rust naga)
+		// Register struct member names in a namespace scope
 		// Members only need to be unique among themselves, not globally
 		if st, ok := typ.Inner.(ir.StructType); ok {
 			h := handle // capture for closure
@@ -424,14 +422,11 @@ func (w *Writer) registerNames() error {
 	}
 
 	// Register type alias names so the namer detects collisions with variables.
-	// In Rust naga, type aliases create a named type in the arena via
-	// ensure_type_exists(Some(alias_name), inner), which the namer registers.
 	// Our IR stores alias names separately in TypeAliasNames.
 	for _, aliasName := range w.module.TypeAliasNames {
 		w.namer.call(aliasName)
 	}
 
-	// Registration order matches Rust naga proc::Namer::reset():
 	// 1. Types (already done above)
 	// 2. Entry points + EP args + EP locals
 	// 3. Functions + func args + func locals
@@ -513,7 +508,7 @@ func (w *Writer) registerNames() error {
 
 // collectEPResultTypes scans entry points and records which struct types are
 // used as entry point results. This is needed so writeStructDefinition can
-// write semantics on struct members (matching Rust naga behavior).
+// write semantics on struct members.
 func (w *Writer) collectEPResultTypes() {
 	for epIdx := range w.module.EntryPoints {
 		ep := &w.module.EntryPoints[epIdx]
@@ -528,7 +523,6 @@ func (w *Writer) collectEPResultTypes() {
 }
 
 // writeAllEPInterfaces writes entry point interface structs for all active EPs.
-// This is called between globals and entry point functions, matching Rust order.
 func (w *Writer) writeAllEPInterfaces() error {
 	for epIdx := range w.module.EntryPoints {
 		ep := &w.module.EntryPoints[epIdx]
@@ -604,7 +598,6 @@ func (w *Writer) scanForStructConstructors() {
 }
 
 // writeStructConstructors writes Construct{Type} helper functions for struct types.
-// Matches Rust naga's wrapped constructor pattern:
 //
 //	TypeName ConstructTypeName(type1 arg0, type2 arg1, ...) {
 //	    TypeName ret = (TypeName)0;
@@ -660,7 +653,6 @@ func (w *Writer) writeStructConstructors() {
 }
 
 // writeArrayConstructor writes typedef + constructor for an array type.
-// Matches Rust naga's WrappedConstructor for arrays:
 //
 //	typedef float ret_Constructarray4_float_[4];
 //	ret_Constructarray4_float_ Constructarray4_float_(float arg0, float arg1, ...) {
@@ -786,13 +778,12 @@ func (w *Writer) writeSpecialConstants() {
 
 // writeDynamicBufferOffsets writes __dynamic_buffer_offsetsTy structs and their
 // ConstantBuffer declarations for dynamic storage buffer offsets.
-// Matches Rust naga's writer.rs dynamic_storage_buffer_offsets_targets loop.
 func (w *Writer) writeDynamicBufferOffsets() {
 	if len(w.options.DynamicStorageBufferOffsetsTargets) == 0 {
 		return
 	}
 
-	// Iterate in sorted order (BTreeMap in Rust = sorted by key)
+	// Iterate in sorted order
 	groups := make([]uint32, 0, len(w.options.DynamicStorageBufferOffsetsTargets))
 	for g := range w.options.DynamicStorageBufferOffsetsTargets {
 		groups = append(groups, g)
@@ -813,7 +804,6 @@ func (w *Writer) writeDynamicBufferOffsets() {
 }
 
 // writeSpecialHelperFunctions writes naga_mod, naga_div, naga_abs polyfills.
-// Storage load helpers are written per-function to match Rust naga ordering.
 func (w *Writer) writeSpecialHelperFunctions() {
 	if w.needsModHelper {
 		w.WriteLine("// Safe modulo helper (truncated division semantics)")
@@ -850,7 +840,7 @@ func (w *Writer) writeSpecialHelperFunctions() {
 }
 
 // writeModuleLevelSpecialFunctions writes module-level special functions like
-// RayDescFromRayDesc_. Matches Rust naga's write_special_functions.
+// RayDescFromRayDesc_.
 func (w *Writer) writeModuleLevelSpecialFunctions() {
 	// Write RayDescFromRayDesc_ if the module has a ray_desc special type
 	if w.module.SpecialTypes.RayIntersection != nil {
@@ -871,8 +861,7 @@ func (w *Writer) writeModuleLevelSpecialFunctions() {
 }
 
 // writeGlobalWrappedExpressionFunctions writes struct/array constructors that are
-// used in global expressions. This matches Rust naga's
-// write_wrapped_expression_functions(global_expressions).
+// used in global expressions.
 func (w *Writer) writeGlobalWrappedExpressionFunctions() {
 	for _, expr := range w.module.GlobalExpressions {
 		if comp, ok := expr.Kind.(ir.ExprCompose); ok {
@@ -894,37 +883,28 @@ func (w *Writer) writeGlobalWrappedExpressionFunctions() {
 	}
 }
 
-// writePerFunctionWrappedHelpers writes all per-function wrapped helpers
-// before the function body, matching Rust naga ordering.
 func (w *Writer) writePerFunctionWrappedHelpers(fn *ir.Function) {
-	// Write per-function wrapped helpers matching Rust naga write_wrapped_functions order:
-	// 1. Math helpers (modf, frexp)
+	// Math helpers (modf, frexp)
 	w.writeWrappedMathHelpers(fn)
 	// 2. Unary ops (naga_neg)
 	w.writeWrappedUnaryOps(fn)
 	// 3. Binary ops (naga_div, naga_mod)
 	w.writeWrappedBinaryOps(fn)
-	// 4. Expression functions: Compose-based constructors + ImageLoad scalar helpers
-	// (struct/array from Compose expressions only — NOT Load from storage)
-	// Matches Rust: write_wrapped_expression_functions handles Compose + ImageLoad scalar.
+	// 4.
 	w.writeComposeConstructors(fn)
 	w.writeStorageLoadHelpers()
 	// 5. ZeroValue wrapper functions
 	w.writeZeroValueWrapperFunctions(fn.Expressions)
 	// 6. Cast functions (naga_f2i32, naga_f2i64, etc.)
 	w.writeWrappedCastFunctions(fn)
-	// 7. Combined inline loop: iterates expressions in handle order, matching Rust's
-	// write_wrapped_functions single loop that handles ArrayLength, ImageLoad, ImageSample,
-	// ImageQuery, Load-from-storage constructors, and AccessIndex (matCx2) all interleaved
-	// by expression handle order.
+	// 7.
 	w.writeWrappedFunctionsInlineLoop(fn)
 }
 
 // writeWrappedFunctionsInlineLoop iterates all expressions in handle order,
 // handling ArrayLength, ImageLoad, ImageSample, ImageQuery, Load-from-storage
 // constructors, AccessIndex (matCx2), and RayQuery helpers - all interleaved
-// by expression handle order. This matches Rust naga's single inline loop
-// in write_wrapped_functions (help.rs line 1841+).
+// by expression handle order.
 func (w *Writer) writeWrappedFunctionsInlineLoop(fn *ir.Function) {
 	// First, scan for ray query init in statements (needed before the expression loop)
 	w.scanForRayQueryInit(fn.Body)
@@ -1113,7 +1093,6 @@ func (w *Writer) writeRayQueryHelpersFromFlags() {
 
 // writeStructMatrixAccessHelpers scans a function for AccessIndex expressions
 // that access matCx2 members of structs and writes Get/Set helpers if needed.
-// Matches Rust naga help.rs write_wrapped_struct_matrix_* triggering.
 func (w *Writer) writeStructMatrixAccessHelpers(fn *ir.Function) {
 	for _, expr := range fn.Expressions {
 		ai, ok := expr.Kind.(ir.ExprAccessIndex)
@@ -1184,7 +1163,6 @@ func (w *Writer) resolveExpressionTypeHandle(fn *ir.Function, handle ir.Expressi
 
 // writeWrappedImageQueryFunctions scans a function for ImageQuery expressions
 // and writes wrapper functions that haven't been written yet.
-// Matches Rust naga help.rs write_wrapped_image_query_function.
 func (w *Writer) writeWrappedImageQueryFunctions(fn *ir.Function) {
 	for _, expr := range fn.Expressions {
 		iq, ok := expr.Kind.(ir.ExprImageQuery)
@@ -1277,7 +1255,6 @@ func (w *Writer) resolveImageTypeFromFn(fn *ir.Function, handle ir.ExpressionHan
 }
 
 // writeWrappedImageQueryFunction writes a single NagaXxx wrapper function.
-// Matches Rust naga help.rs write_wrapped_image_query_function.
 func (w *Writer) writeWrappedImageQueryFunction(key wrappedImageQueryKey, imgType *ir.ImageType) {
 	// External textures have their own special dimensions helper
 	if key.class == ir.ImageClassExternal {
@@ -1388,7 +1365,6 @@ func (w *Writer) writeImageQueryFunctionNameDirect(key wrappedImageQueryKey) {
 // writeClampToEdgeHelper scans a function for ImageSample expressions with
 // ClampToEdge=true and writes the nagaTextureSampleBaseClampToEdge helper if needed.
 // For external textures, writes the multi-plane YUV version.
-// Matches Rust naga help.rs write_wrapped_image_sample_function.
 func (w *Writer) writeClampToEdgeHelper(fn *ir.Function) {
 	if w.clampToEdgeHelperWritten {
 		return
@@ -1428,8 +1404,6 @@ func (w *Writer) writeClampToEdgeHelper(fn *ir.Function) {
 
 // writeWrappedUnaryOps scans function expressions for signed integer Negate
 // and emits naga_neg helper overloads that haven't been written yet.
-// Matches Rust naga's write_wrapped_unary_ops: naga_neg uses asint(-asuint(val))
-// to avoid undefined behavior for INT_MIN negation in HLSL.
 func (w *Writer) writeWrappedUnaryOps(fn *ir.Function) {
 	for i, expr := range fn.Expressions {
 		unaryExpr, ok := expr.Kind.(ir.ExprUnary)
@@ -1473,8 +1447,6 @@ func (w *Writer) writeWrappedUnaryOps(fn *ir.Function) {
 	}
 }
 
-// writeWrappedMathHelpers scans function expressions for modf/frexp calls
-// and emits naga_modf/naga_frexp overloads matching Rust naga's pattern.
 func (w *Writer) writeWrappedMathHelpers(fn *ir.Function) {
 	for i, expr := range fn.Expressions {
 		mathExpr, ok := expr.Kind.(ir.ExprMath)
@@ -1545,7 +1517,6 @@ func (w *Writer) writeWrappedMathHelpers(fn *ir.Function) {
 	}
 
 	// Scan for ExtractBits/InsertBits and generate per-type overloads.
-	// Matches Rust naga's write_wrapped_math_functions for ExtractBits/InsertBits.
 	type wrappedMathKey struct {
 		fun    ir.MathFunction
 		scalar ir.ScalarType
@@ -1607,7 +1578,6 @@ func (w *Writer) writeWrappedMathHelpers(fn *ir.Function) {
 
 // writeWrappedBinaryOps scans function expressions for integer Divide/Modulo
 // and emits naga_div/naga_mod helper overloads that haven't been written yet.
-// Matches Rust naga's write_wrapped_binary_ops pattern.
 func (w *Writer) writeWrappedBinaryOps(fn *ir.Function) {
 	for i, expr := range fn.Expressions {
 		binExpr, ok := expr.Kind.(ir.ExprBinary)
@@ -1675,7 +1645,6 @@ func (w *Writer) writeWrappedBinaryOps(fn *ir.Function) {
 
 // writeWrappedCastFunctions scans function expressions for float-to-int casts
 // and emits clamped helper functions (naga_f2i32, naga_f2u32, naga_f2i64, naga_f2u64).
-// Matches Rust naga's write_wrapped_cast_functions.
 func (w *Writer) writeWrappedCastFunctions(fn *ir.Function) {
 	if w.f2iCastWritten == nil {
 		w.f2iCastWritten = make(map[f2iCastKey]struct{})
@@ -1765,7 +1734,6 @@ func f2iCastFuncName(kind ir.ScalarKind, width uint8) string {
 }
 
 // f2iClampValues returns the min and max clamping value strings for a float-to-int conversion.
-// These match the values from Rust's min_max_float_representable_by.
 func f2iClampValues(srcWidth uint8, dstKind ir.ScalarKind, dstWidth uint8) (string, string) {
 	switch {
 	// f32 -> i32
@@ -1810,7 +1778,6 @@ func f2iClampValues(srcWidth uint8, dstKind ir.ScalarKind, dstWidth uint8) (stri
 }
 
 // writeNagaDivHelper writes a naga_div overload for a specific type.
-// Matches Rust naga's write_wrapped_binary_ops for BinaryOperator::Divide.
 func (w *Writer) writeNagaDivHelper(retType, leftType, rightType string, scalar *ir.ScalarType) {
 	w.WriteIndent()
 	fmt.Fprintf(&w.Out, "%s %s(%s lhs, %s rhs) {\n", retType, NagaDivFunction, leftType, rightType)
@@ -1825,7 +1792,6 @@ func (w *Writer) writeNagaDivHelper(retType, leftType, rightType string, scalar 
 }
 
 // writeNagaModHelper writes a naga_mod overload for a specific type.
-// Matches Rust naga's write_wrapped_binary_ops for BinaryOperator::Modulo.
 func (w *Writer) writeNagaModHelper(retType, leftType, rightType string, scalar *ir.ScalarType) {
 	w.WriteIndent()
 	fmt.Fprintf(&w.Out, "%s %s(%s lhs, %s rhs) {\n", retType, NagaModFunction, leftType, rightType)
@@ -1845,7 +1811,6 @@ func (w *Writer) writeNagaModHelper(retType, leftType, rightType string, scalar 
 
 // i32MinLiteral returns the HLSL representation of the minimum signed integer value.
 // Uses int(-2147483647 - 1) to avoid compiler parsing issues with -2147483648.
-// Matches Rust naga's write_literal for Literal::I32(i32::MIN).
 func i32MinLiteral(width uint8) string {
 	if width == 8 {
 		return "(-9223372036854775807L - 1L)"
@@ -1889,7 +1854,6 @@ func (w *Writer) writePerFunctionConstructors(fn *ir.Function) {
 }
 
 // writeComposeConstructors writes struct/array constructors needed by Compose expressions.
-// Matches Rust naga's write_wrapped_expression_functions (Compose handling).
 func (w *Writer) writeComposeConstructors(fn *ir.Function) {
 	for _, expr := range fn.Expressions {
 		composeExpr, ok := expr.Kind.(ir.ExprCompose)
@@ -1914,7 +1878,6 @@ func (w *Writer) writeComposeConstructors(fn *ir.Function) {
 }
 
 // writeStorageLoadConstructors writes constructors needed by Load expressions from storage.
-// Matches Rust naga's write_wrapped_functions loop for Expression::Load.
 func (w *Writer) writeStorageLoadConstructors(fn *ir.Function) {
 	for _, expr := range fn.Expressions {
 		loadExpr, ok := expr.Kind.(ir.ExprLoad)
@@ -2058,7 +2021,6 @@ func (w *Writer) getRayIntersectionTypeName() string {
 
 // writeNagaBufferLengthHelpers scans function expressions for ArrayLength
 // and emits NagaBufferLength/NagaBufferLengthRW helper functions.
-// Matches Rust naga's write_wrapped_array_length_function.
 func (w *Writer) writeNagaBufferLengthHelpers(fn *ir.Function) {
 	for _, expr := range fn.Expressions {
 		alExpr, ok := expr.Kind.(ir.ExprArrayLength)
@@ -2213,7 +2175,6 @@ func (w *Writer) isStoragePointerInFunc(fn *ir.Function, handle ir.ExpressionHan
 }
 
 // writeStorageLoadHelpers writes storage texture scalar load helpers.
-// Called per-function before the function body, matching Rust naga ordering.
 func (w *Writer) writeStorageLoadHelpers() {
 	for _, ty := range sortedKeys(w.needsStorageLoadHelpers) {
 		zero, one := "0.0", "1.0"
@@ -2230,8 +2191,6 @@ func (w *Writer) writeStorageLoadHelpers() {
 
 // scanStorageTextureHelpers scans for storage textures with scalar formats
 // that need LoadedStorageValueFrom{type} helper functions.
-// Matches Rust naga: only generates helpers when ExprImageLoad references
-// a single-component storage texture, not for all storage textures globally.
 func (w *Writer) scanStorageTextureHelpers() {
 	w.needsStorageLoadHelpers = make(map[string]bool)
 	// Scan all functions (including entry points) for ImageLoad expressions
@@ -2321,7 +2280,6 @@ func sortedKeys(m map[string]bool) []string {
 }
 
 // hlslTypeId generates a type identifier string for use in wrapper function names.
-// Matches Rust naga's TypeInner::hlsl_type_id.
 func (w *Writer) hlslTypeId(handle ir.TypeHandle) string {
 	if int(handle) >= len(w.module.Types) {
 		return fmt.Sprintf("type_%d", handle)
@@ -2350,7 +2308,7 @@ func (w *Writer) hlslTypeId(handle ir.TypeHandle) string {
 }
 
 // writeZeroValueWrapperFunctions scans expressions for ZeroValue and writes
-// wrapper functions. Matches Rust naga's write_wrapped_zero_value_functions.
+// wrapper functions.
 func (w *Writer) writeZeroValueWrapperFunctions(exprs []ir.Expression) {
 	for _, expr := range exprs {
 		if zv, ok := expr.Kind.(ir.ExprZeroValue); ok {
@@ -2363,7 +2321,6 @@ func (w *Writer) writeZeroValueWrapperFunctions(exprs []ir.Expression) {
 }
 
 // writeZeroValueWrapperFunction writes a single ZeroValue wrapper function.
-// Matches Rust naga's write_wrapped_zero_value_function.
 func (w *Writer) writeZeroValueWrapperFunction(handle ir.TypeHandle) {
 	typeId := w.hlslTypeId(handle)
 	typeName := w.getTypeName(handle)
@@ -2410,7 +2367,7 @@ func (w *Writer) writeFunctions() error {
 
 // writeFunction writes a single function definition.
 func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error {
-	// Write per-function wrapped helpers (matching Rust naga order)
+	// Write per-function wrapped helpers
 	w.writePerFunctionWrappedHelpers(fn)
 
 	w.currentFunction = fn
@@ -2472,7 +2429,7 @@ func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error 
 
 		argTypeHandle := arg.Type
 		prefix := ""
-		// Pointer arguments become inout (matching Rust naga)
+		// Pointer arguments become inout
 		if int(argTypeHandle) < len(w.module.Types) {
 			if ptr, ok := w.module.Types[argTypeHandle].Inner.(ir.PointerType); ok {
 				prefix = "inout "
@@ -2483,7 +2440,6 @@ func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error 
 		args = append(args, fmt.Sprintf("%s%s %s%s", prefix, argType, argName, argSuffix))
 	}
 
-	// Rust naga puts the opening brace on the next line
 	w.WriteLine("%s %s(%s)", returnType, name, strings.Join(args, ", "))
 	w.WriteLine("{")
 	w.PushIndent()
@@ -2495,7 +2451,6 @@ func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error 
 		return err
 	}
 
-	// Note: Rust naga does NOT add implicit return for void functions.
 	// The IR's ensureBlockReturns handles adding returns where needed.
 	// Void functions in HLSL don't need trailing return;.
 
@@ -2527,7 +2482,6 @@ func (w *Writer) writeEntryPoints() error {
 
 // hlslBlockEndsWithReturn checks if a block's last statement terminates
 // all control flow paths with a return (or other terminator like kill).
-// Matches Rust naga behavior: Switch/If that terminate all paths count.
 func hlslBlockEndsWithReturn(block ir.Block) bool {
 	if len(block) == 0 {
 		return false

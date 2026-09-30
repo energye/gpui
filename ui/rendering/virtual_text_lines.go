@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
-// VirtualTextLines是M4的纵向行虚拟化+懒测量(ENGINE_TEXT_SCALE_PLAN §M4).
+// VirtualTextLines是M4的纵向行虚拟化+懒测量.
 // 窗口数学直接复用 VirtualList 范式(含变高行前缀和),不加新概念:
 // 定行高总高 O(1);变行高用 Fenwick 树做前缀和,Offset/Index/Total 均为
 // O(log n)且实测只做增量修正.未显示过的行高度是估算值(I5):依赖精确总高
@@ -10,8 +20,8 @@ package rendering
 // 已接入 VirtualList 的控件可用 ExtentFunc 适配(变高模式),实测后调
 // InvalidateExtents 刷新其前缀缓存.
 type VirtualTextLines struct {
-	count int
-	fixed bool
+	count  int
+	fixed  bool
 	fixedH float64
 
 	estimate  float64
@@ -42,12 +52,12 @@ func NewVirtualTextLines(count int, lineHeight float64) *VirtualTextLines {
 		lineHeight = 20
 	}
 	return &VirtualTextLines{
-		count:     clampLineCount(count),
-		fixed:     true,
-		fixedH:    lineHeight,
-		estimate:  lineHeight,
-		total:     float64(clampLineCount(count)) * lineHeight,
-		cachePx:   lineHeight * 2,
+		count:    clampLineCount(count),
+		fixed:    true,
+		fixedH:   lineHeight,
+		estimate: lineHeight,
+		total:    float64(clampLineCount(count)) * lineHeight,
+		cachePx:  lineHeight * 2,
 	}
 }
 

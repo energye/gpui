@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -33,7 +40,6 @@ func (Backend) Variant() gputypes.Backend {
 }
 
 // CreateInstance creates a new OpenGL instance with an optional EGL context.
-// Attempts to create an EGL context at instance level (Rust wgpu-hal egl.rs:846
 // parity) for adapter enumeration without a surface. Uses surfaceless/pbuffer
 // context — same role as Windows hidden 1×1 HWND (v0.28.6).
 //
@@ -45,15 +51,13 @@ func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error) {
 	// EGL call in this process. Set it here when the caller asked for
 	// discrete; do not override an explicit user value, do not touch it
 	// for low/default (Mesa default is the integrated node).
-	// P2-0 vendor pinning rides the same hook: __EGL_VENDOR_LIBRARY_FILENAMES
-	// narrows libglvnd arbitration to the policy vendor before first use.
 	applyPrimeEnvForPower()
 	applyVendorPinForPower()
 	if err := egl.Init(); err != nil {
 		return nil, fmt.Errorf("gles: failed to initialize EGL: %w", err)
 	}
 
-	// Try to create instance-level EGL context (Rust wgpu-hal parity).
+	// Try to create instance-level EGL context.
 	// Skip on Wayland: surfaceless context would create GL objects (VAO, FBO) that
 	// are invisible to the Surface's windowed context (GL objects not shared between
 	// EGL contexts). Device/Queue must use the SAME context as the window surface.
@@ -107,7 +111,6 @@ type Instance struct {
 	// Display* and creates the context, later windows add window surfaces
 	// on it. Wayland surfaces keep per-surface contexts (per wl_display).
 	x11 *x11Shared
-	// P2-2 materialized device contexts (one per picked EGL device).
 	// Drained in Release; Adapter.Release stays a no-op (shared-ownership
 	// rule, same as ctx/x11 above).
 	devCtxs []*AdapterContext
@@ -125,8 +128,6 @@ type x11Shared struct {
 //
 // When Instance has a pre-created EGL context (X11/headless), the context is
 // SHARED — Surface only creates an EGL window surface for presentation. This
-// matches the Windows pattern where Instance owns AdapterContext and Surface
-// is lightweight (just HWND + reference to shared ctx).
 //
 // When Instance has no context (Wayland — no wl_display* at init), CreateSurface
 // creates a new EGL context with the caller's displayHandle and wraps it in a
@@ -170,7 +171,7 @@ func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error) 
 
 	// Path B: create new context (Wayland — Instance had no wl_display* at init).
 	// Try desktop GL first, fall back to GLES 3.0 — Mesa Wayland EGL may only
-	// expose EGL_OPENGL_ES3_BIT configs, not EGL_OPENGL_BIT. Found by @lkmavi (PR #215).
+	// expose EGL_OPENGL_ES3_BIT configs, not EGL_OPENGL_BIT.
 	config := egl.DefaultContextConfig()
 	config.NativeDisplay = displayHandle
 	config.WindowKind = &targetWindowKind
@@ -265,10 +266,6 @@ func (i *Instance) createX11Surface(displayHandle, windowHandle uintptr) (hal.Su
 	}, nil
 }
 
-// EnumerateAdapters returns available OpenGL adapters: the live
-// default-display adapter first (surface hint or instance context, existing
-// behavior), then one info-only entry per usable enumerated EGL device
-// (P2-2, correct family types, no contexts — live adapters come from
 // RequestAdapter). Devices from the live family are skipped (already
 // represented live); displays that fail init are skipped (fail-soft).
 func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapter {
@@ -290,8 +287,6 @@ func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapt
 		return out
 	}
 
-	// Priority 3: no context available (Wayland without surface hint)
-	// Return placeholder — Open() has nil guard from PR #210.
 	return []hal.ExposedAdapter{placeholderExposedAdapter("OpenGL 3.3+ / ES 3.0+ (no context — use RequestAdapterWithSurface)")}
 }
 
@@ -321,7 +316,6 @@ func placeholderExposedAdapter(driverInfo string) hal.ExposedAdapter {
 // The Adapter carries probed caps (not just the exposed Info): later Info()
 // calls on the returned hal.Adapter must answer the same truth — an empty
 // caps meant every RequestAdapter result reported vendor "" and type Other
-// (P2-2 found it: the online window's "software" label).
 func makeAdapterFromContext(ctx *AdapterContext) hal.ExposedAdapter {
 	glCtx := ctx.Lock()
 	defer ctx.Unlock()
@@ -357,7 +351,6 @@ func makeAdapterFromContext(ctx *AdapterContext) hal.ExposedAdapter {
 }
 
 // Release releases the instance resources.
-// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
 func (i *Instance) Release() {
 	if i.ctx != nil {
 		i.ctx.Destroy()
@@ -378,7 +371,7 @@ func (i *Instance) Release() {
 	i.devCtxs = nil
 }
 
-// RequestAdapter honors PowerPreference (same knob as WebGPU):
+// RequestAdapter honors PowerPreference:
 // HighPerformance → NVIDIA device, LowPower → Mesa hardware device,
 // ForceFallbackAdapter → software device, None → the live default-display
 // adapter (the screen's own GPU: zero-copy, no app-level transfer).

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -24,7 +34,6 @@ type rayQueryTrackerIDs struct {
 	tMaxTracker        uint32 // f32 variable tracking the original t_max value
 }
 
-// RayQueryPoint bitflags matching Rust naga's RayQueryPoint.
 const (
 	rqPointInitialized       uint32 = 1 << 0
 	rqPointProceed           uint32 = 1 << 1
@@ -86,7 +95,6 @@ func (b *Backend) getRayQueryPointerTypeID() uint32 {
 }
 
 // writeRayQueryInitialize generates the ray_query_initialize helper function.
-// Matches Rust naga's write_ray_query_initialize.
 func (b *Backend) writeRayQueryInitialize() uint32 {
 	if id, ok := b.rayQueryFuncIDs[rqFuncInitialize]; ok {
 		return id
@@ -232,7 +240,7 @@ func (b *Backend) writeRayQueryInitialize() uint32 {
 		containsCullNoOpaque := writeRayFlagsContainsFlag(b, &block, rayFlagsID, 128) // CULL_NO_OPAQUE = 0x80
 		notMultipleOpaque := writeLessThan2True(b, &block, []uint32{containsOpaque, containsNoOpaque, containsCullOpaque, containsCullNoOpaque})
 
-		// Combine all checks: reduce_and in reverse order (matching Rust)
+		// Combine all checks: reduce_and in reverse order
 		_ = zeroU32ID
 		checks := []uint32{
 			tMinLeTMaxID,
@@ -657,7 +665,7 @@ func (b *Backend) writeRayQueryGenerateIntersection() uint32 {
 		Opcode: OpVariable,
 		Words:  []uint32{f32PtrTypeID, currentT2, uint32(StorageClassFunction)},
 	})
-	currentT := currentT2 // Use the second one as the actual currentT (matching Rust's shadowing)
+	currentT := currentT2 // Use the second one as the actual currentT
 
 	validLabelID := b.builder.AllocID()
 	validBlock := NewBlock(validLabelID)

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -211,7 +221,7 @@ func TestEditorBufferFallback_M35(t *testing.T) {
 
 // TestEditorBufferUndoShrinkReleasesMirror_M35 locks that incremental
 // edits release the mirror under the same rule as the whole-doc paths:
-// a doc shrunk below 32KB via Undo must drop the mirror (SetText parity),
+// a doc shrunk below 32KB via Undo must drop the mirror,
 // while a mid-band shrink keeps it (hysteresis).
 func TestEditorBufferUndoShrinkReleasesMirror_M35(t *testing.T) {
 	e := New()

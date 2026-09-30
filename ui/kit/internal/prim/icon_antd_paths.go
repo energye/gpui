@@ -1,5 +1,14 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Code generated from @ant-design/icons-svg 4.6.0 (es/asn, 848 files).
-// Source tarball @ant-design/icons-svg 4.6.0; viewBox 64 64 896 896.
 // Do not edit by hand; regenerate from the official package.
 package prim
 

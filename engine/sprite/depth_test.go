@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package sprite_test
 
 import (
@@ -11,7 +21,7 @@ import (
 	"github.com/energye/gpui/engine/sprite"
 )
 
-// 1.2 depth body (S41/W5): far-to-near painter on top of the R5 branch.
+// 1.2 depth body: far-to-near painter on top of the R5 branch.
 // All standard orders come from testdata/depth_cases.json; the test
 // hardcodes no standard pixels or orders.
 

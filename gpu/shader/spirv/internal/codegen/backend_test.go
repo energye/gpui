@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -375,7 +385,6 @@ func TestBackendSimpleVertexShader(t *testing.T) {
 		},
 	}
 
-	// Function: main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32>
 	vertexIndexBinding := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinVertexIndex})
 	positionBinding := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinPosition})
 
@@ -453,7 +462,6 @@ func ptrUint32Const(v uint32) *uint32 {
 }
 
 // TestNonWritableStorageBuffer verifies that read-only storage buffers get OpDecorate NonWritable.
-// Matches Rust naga behavior: if !access.contains(STORE) -> NonWritable.
 func TestNonWritableStorageBuffer(t *testing.T) {
 	u32Type := ir.Type{Name: "u32", Inner: ir.ScalarType{Kind: ir.ScalarUint, Width: 4}}
 	module := &ir.Module{
@@ -715,9 +723,6 @@ func TestPushConstantStorageClass(t *testing.T) {
 // on integer types get Flat decoration via default interpolation in the lowerer,
 // and that fragment shader outputs do NOT get Flat per Vulkan VUIDs.
 func TestDefaultInterpolationFlatOnIntegerLocation(t *testing.T) {
-	// Build a module with a fragment shader that has:
-	// - Input u32 with @location(0) => should get Flat
-	// - Output vec4<f32> with @location(0) => should NOT get Flat
 	u32Type := ir.Type{Name: "u32", Inner: ir.ScalarType{Kind: ir.ScalarUint, Width: 4}}
 	f32Type := ir.Type{Name: "f32", Inner: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}}
 	vec4Type := ir.Type{Name: "vec4f", Inner: ir.VectorType{
@@ -725,14 +730,12 @@ func TestDefaultInterpolationFlatOnIntegerLocation(t *testing.T) {
 		Size:   ir.Vec4,
 	}}
 
-	// Input binding: @location(0) with Flat interpolation (as set by lowerer)
 	flatInterp := ir.Interpolation{Kind: ir.InterpolationFlat}
 	var inputBinding ir.Binding = ir.LocationBinding{
 		Location:      0,
 		Interpolation: &flatInterp,
 	}
 
-	// Output binding: @location(0) with Perspective interpolation (default for float)
 	perspInterp := ir.Interpolation{Kind: ir.InterpolationPerspective, Sampling: ir.SamplingCenter}
 	var outputBinding ir.Binding = ir.LocationBinding{
 		Location:      0,
@@ -1014,7 +1017,6 @@ func TestModfStructReturnType(t *testing.T) {
 
 // TestWorkgroupVarUsesRegularType verifies that workgroup global variables
 // use the same type IDs as regular types (no separate no-layout types).
-// This matches Rust naga which uses get_handle_type_id for all globals.
 func TestWorkgroupVarUsesRegularType(t *testing.T) {
 	backend := NewBackend(DefaultOptions())
 

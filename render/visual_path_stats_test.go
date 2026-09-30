@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -8,7 +18,6 @@ import (
 
 var pathStatsRe = regexp.MustCompile(`gpu_ops=(\d+)\s+cpu_fallback_ops=(\d+)`)
 
-// ParseRenderPathStatsLog extracts P1.0 counters from visualcmd stdout/stderr.
 func ParseRenderPathStatsLog(log string) (gpuOps, cpuFallback int, ok bool) {
 	m := pathStatsRe.FindStringSubmatch(log)
 	if m == nil {
@@ -22,7 +31,6 @@ func ParseRenderPathStatsLog(log string) (gpuOps, cpuFallback int, ok bool) {
 	return g, c, true
 }
 
-// RequireGPUPathStats enforces P1.0 observability for GPU visual runs.
 // When requireGPU is true, gpu_ops must be > 0.
 func RequireGPUPathStats(t *testing.T, log string, requireGPU bool) {
 	t.Helper()

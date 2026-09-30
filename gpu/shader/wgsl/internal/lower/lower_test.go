@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package lower
 
 import (
@@ -10,11 +20,6 @@ import (
 )
 
 func TestLowerSimpleVertexShader(t *testing.T) {
-	// Simple vertex shader:
-	// @vertex
-	// fn main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
-	//     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-	// }
 
 	ast := &parser.Module{
 		Functions: []*parser.FunctionDecl{
@@ -713,8 +718,6 @@ func TestLowerComposeThreeDeep(t *testing.T) {
 	}
 }
 
-// TestLowerSwizzleOfCompose verifies that vec4(vec2(1,2), vec2(3,4)).wzyx
-// is const-folded to vec4(4,3,2,1) — matching Rust naga's const evaluator.
 func TestLowerSwizzleOfCompose(t *testing.T) {
 	src := `fn swizzle_of_compose() {
     var out = vec4(vec2(1, 2), vec2(3, 4)).wzyx;
@@ -793,9 +796,6 @@ func TestLowerSwizzleOfCompose(t *testing.T) {
 	}
 }
 
-// TestLowerSwizzleOfSplat verifies that swizzle of Splat-derived vectors
-// reuses handles (not copies), matching Rust naga which produces
-// [Lit(1.0), Lit(2.0), Compose] — only 3 expressions for vec4f(vec3f(1.0), 2.0).wzyx.
 func TestLowerSwizzleOfSplat(t *testing.T) {
 	src := `fn compose_of_splat() {
     var x = vec4f(vec3f(1.0), 2.0).wzyx;
@@ -818,8 +818,6 @@ func TestLowerSwizzleOfSplat(t *testing.T) {
 	}
 
 	// Count Literal and Compose expressions.
-	// Rust produces exactly 3: Lit(1.0), Lit(2.0), Compose(vec4, [2,0,0,0])
-	// The Splat-derived components share one handle — NOT copied.
 	litCount := 0
 	composeCount := 0
 	for _, expr := range fn.Expressions {
@@ -842,8 +840,6 @@ func TestLowerSwizzleOfSplat(t *testing.T) {
 	}
 }
 
-// TestLowerPackedDotProduct verifies that dot4I8Packed and dot4U8Packed
-// are const-evaluated to scalar literals matching Rust naga.
 // E.g., dot4I8Packed(2u, 2u) → I32(4), dot4U8Packed(2u, 2u) → U32(4).
 func TestLowerPackedDotProduct(t *testing.T) {
 	src := `const TWO: u32 = 2u;
@@ -880,9 +876,6 @@ fn packed_dot_product() {
 		t.Fatal("function packed_dot_product not found")
 	}
 
-	// Rust naga produces 7 Literal expressions (all const-evaluated):
-	// I32(4), U32(4), I32(12), U32(12), I32(70), U32(70), I32(-4)
-	// All local vars have init=Some(N), body=[Return]
 	type litCheck struct {
 		tag   string
 		value interface{}
@@ -934,9 +927,6 @@ fn packed_dot_product() {
 	}
 }
 
-// TestLowerAbstractAccessInline verifies that abstract constants (ABSTRACT_ARRAY,
-// ABSTRACT_VECTOR) are inlined as expression trees in function bodies, matching
-// Rust naga's process_overrides behavior.
 func TestLowerAbstractAccessInline(t *testing.T) {
 	src := `const ABSTRACT_ARRAY = array(1, 2, 3, 4, 5, 6, 7, 8, 9);
 const ABSTRACT_VECTOR = vec4(1, 2, 3, 4);
@@ -973,7 +963,6 @@ fn abstract_access(i: u32) {
 		t.Fatal("function abstract_access not found")
 	}
 
-	// Rust naga produces 22 expressions for this function.
 	// The abstract constants are fully inlined as Literal+Compose trees.
 	// Check that we DON'T have ExprConstant references (they should be inlined).
 	constCount := 0
@@ -1000,7 +989,6 @@ fn abstract_access(i: u32) {
 		t.Errorf("expected at least 13 Literals (9 array + 4 vector elements), got %d", literalCount)
 	}
 
-	// Rust has exactly 22 expressions
 	if len(fn.Expressions) != 22 {
 		t.Errorf("expected 22 expressions (matching Rust naga), got %d", len(fn.Expressions))
 	}
@@ -1053,7 +1041,6 @@ fn main() {
 		}
 	}
 
-	// Rust naga produces exactly 1 non-empty Emit for the array Compose.
 	// Before the fix, we produced 2+ due to overlapping Emit from void call
 	// not restarting the emitter.
 	if nonEmptyEmits > 1 {
@@ -1088,8 +1075,6 @@ fn main() { _ = c; }`
 		}
 	}
 
-	// Rust creates 4 Compose: vec2(col0), vec2(col1), mat2x2, array
-	// Without the fix, we'd get 2: mat2x2(flat scalars), array
 	if composeCount < 4 {
 		t.Errorf("expected at least 4 Compose GEs (2 col vecs + mat + array), got %d", composeCount)
 		for i, ge := range module.GlobalExpressions {
@@ -1153,9 +1138,6 @@ fn main() { _ = v; }`
 
 // TestZeroValueInGlobalExpressions verifies that zero-arg constructors
 // for module constants produce the correct IR depending on the type source.
-// - Constructor with explicit type params (vec2<u32>()) → ExprZeroValue
-// - Partial constructor with type annotation (: vec2<u32> = vec2()) → Compose with zeros
-// This matches Rust naga where abstract constructors get concretized via annotations.
 func TestZeroValueInGlobalExpressions(t *testing.T) {
 	// Case 1: Constructor has explicit type params → ExprZeroValue
 	src := `const z = vec2<u32>();
@@ -1196,8 +1178,6 @@ fn main() { _ = z2; }`
 	}
 }
 
-// TestZeroVarExpandsToLiterals verifies that var<private> with zero-arg
-// constructor expands to explicit Literal+Compose (not ZeroValue) matching Rust.
 func TestZeroVarExpandsToLiterals(t *testing.T) {
 	src := `var<private> v: vec2<i32> = vec2();
 @compute @workgroup_size(1)
@@ -1220,7 +1200,6 @@ fn main() { _ = v; }`
 			zeroCount++
 		}
 	}
-	// Rust expands vec2() to Literal(0)+Literal(0)+Compose, NOT ZeroValue
 	if litCount < 2 || composeCount < 1 {
 		t.Errorf("expected 2+ Literals + 1+ Compose for var<private> vec2(), got lit=%d compose=%d zero=%d",
 			litCount, composeCount, zeroCount)
@@ -1339,8 +1318,6 @@ func compileWGSL(t *testing.T, src string) (*ir.Module, error) {
 	return Lower(ast)
 }
 
-// TestBreakIfEmitsSubExpressions verifies that the break-if condition's
-// sub-expressions are emitted in the continuing block, matching Rust naga IR.
 // Without this emit, backends cannot properly bake Load expressions referenced
 // by the break-if condition.
 func TestBreakIfEmitsSubExpressions(t *testing.T) {
@@ -1464,7 +1441,6 @@ fn main() {}
 // TestMatrixAliasScalarConstructorAnonymousType verifies that when a matrix alias
 // constructor with scalar args creates column vectors (grouping), the final Compose
 // uses an anonymous matrix type handle, not the named alias handle.
-// This matches Rust naga behavior where Mat2(1,2,3,4) produces Compose(ty=anonymous_mat2x2f).
 func TestMatrixAliasScalarConstructorAnonymousType(t *testing.T) {
 	source := `
 alias Mat2 = mat2x2<f32>;

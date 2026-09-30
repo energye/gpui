@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package backend
 
 import (
@@ -149,12 +159,6 @@ func TestSortedMemberIndices_Empty(t *testing.T) {
 // TestSortedMemberIndices_VertexOutputStruct simulates a typical vertex
 // shader output struct:
 //
-//	struct VertexOutput {
-//	    @builtin(position) pos: vec4<f32>,   // idx 0
-//	    @location(1) uv: vec2<f32>,          // idx 1
-//	    @location(0) color: vec4<f32>,        // idx 2
-//	}
-//
 // DXC signature order: loc(0), loc(1), builtin(position).
 // Getting this wrong causes IDxcValidator: "Not all elements of output
 // SV_Position were written".
@@ -172,9 +176,6 @@ func TestSortedMemberIndices_VertexOutputStruct(t *testing.T) {
 	}
 }
 
-// TestSortedMemberIndices_MultipleBuiltinsSortByEnum verifies that when
-// a struct has multiple builtins (e.g., @builtin(vertex_index) and
-// @builtin(instance_index)), they sort by the BuiltinValue enum.
 func TestSortedMemberIndices_MultipleBuiltinsSortByEnum(t *testing.T) {
 	members := []ir.StructMember{
 		{Name: "inst", Binding: bindingPtr(ir.BuiltinBinding{Builtin: ir.BuiltinInstanceIndex})}, // enum=2

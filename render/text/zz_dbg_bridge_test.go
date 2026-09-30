@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -7,8 +17,6 @@ import (
 	"github.com/energye/gpui/render/text/hint"
 )
 
-// TestDbgBridgeFidelity 验证 cff_light_bridge 的 rebuildSegmentsFromLightPts
-// 是否忠实于 hint.LightPt 序列（M3 已对该序列全绿）。探针比对：
 //  1. hint.LightHintVar 原始 pts（X 26.6 / Y 26.6 Y-up）
 //  2. 生产 ExtractOutlineHinted → segs 重建后的点列（X px, Y-down px 反 26.6）
 //

@@ -1,8 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
 
-// Wayland tablet placeholder (S6-P2 E 组二期).
+// Wayland tablet placeholder.
 //
 // The zwp_tablet_manager_v2 / tablet_tool protocol batch (pen pressure, tilt,
 // eraser, tool serials) is intentionally unbound in this phase: seat

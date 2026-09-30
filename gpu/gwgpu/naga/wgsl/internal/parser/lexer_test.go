@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package parser
 
 import (
@@ -227,7 +237,7 @@ fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 
 	// Check first few tokens
 	expectedStart := []TokenKind{
-		TokenAt, TokenIdent, // @vertex
+		TokenAt, TokenIdent,
 		TokenFn, TokenIdent, TokenLeftParen, // fn main(
 	}
 

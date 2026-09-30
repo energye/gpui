@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package emit
 
@@ -15,13 +22,12 @@ import (
 //
 // Enterprise rationale (reference-verified against DXC + Mesa):
 //
-// DXC uses a post-emit LLVM pass (createAlwaysInlinerPass, DxilLinker.cpp:1248)
+// DXC uses a post-emit LLVM pass
 // that inlines every function marked alwaysinline — which in HLSL is ALL user
 // functions. Mesa equivalently runs nir_inline_functions as a NIR pre-pass
 // before nir_to_dxil. Both approaches inline EVERYTHING because they operate
 // on already-lowered IR where global access, complex locals, etc. are already
 // resolved to concrete memory operations. Our constraint is different: we
-// inline at the naga-IR level during emission, meaning the inlined body
 // re-enters emitStatement / emitExpression in a nested context. Any construct
 // our emitter cannot currently handle when inlined (global accesses that
 // assume specific caller state, local variable shapes the alloca-pre-pass
@@ -69,7 +75,7 @@ func (e *Emitter) canInlineCallee(callee *ir.Function) bool {
 	//     bounds-check-*, access, texture-external, arrays, ray-query).
 	//
 	// DXC inlines all helpers via a post-emit LLVM AlwaysInliner pass
-	// (DxilLinker.cpp:1248); Mesa uses nir_inline_functions as a NIR
+	// ; Mesa uses nir_inline_functions as a NIR
 	// pre-pass. Both operate on already-lowered IR where our gap cases
 	// are resolved. We inline at the naga IR level during emission, so
 	// we inherit exactly the emit-machinery constraints that blocked
@@ -189,9 +195,8 @@ func inlineScanBlock(block ir.Block, count, limit int) (bool, int) {
 // reject insertvalue/extractvalue used to pack/unpack the vector.
 //
 // DXC solves this via the standard LLVM AlwaysInliner pass, run after DXIL
-// emission (lib/HLSL/DxilLinker.cpp:1248, createAlwaysInlinerPass). By the
-// time validation sees the module, there is only @main — all helpers have
-// been absorbed into their callers. Mesa uses NIR-level inlining.
+// emission. By the
+// Mesa uses NIR-level inlining.
 //
 // We inline at emit time by reusing the existing emitter machinery:
 //  1. Save caller's per-function state (exprValues, localVarPtrs, etc.)

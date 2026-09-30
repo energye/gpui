@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package anim
 
 import (
@@ -493,9 +503,6 @@ func TestStateMachineOffscreenGolden(t *testing.T) {
 	if m.Blending() || m.Current() != "idle" {
 		t.Errorf("zero-blend cut left blending=%v current=%q", m.Blending(), m.Current())
 	}
-	// Window intent: the real window game_anim --case=fsm (switch crisp,
-	// blend bar live) lands with W7; the frozen sequences above are the
-	// numbers both backends share.
 	if _, err := os.Stat(filepath.Join("..", "..", "examples", "game_anim")); err == nil {
 		t.Log("game_anim window exists; W7 should wire --case=fsm to this machine")
 	} else {

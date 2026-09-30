@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -8,13 +18,6 @@ import (
 )
 
 // TestScanM3SingleMask：C3 单 mask 扫描窗（Raster-FT-ALIGN 阶段 C · C3）。
-//
-// 背景：M3 的多 mask 专用窗（TestScanM3）只筛 hintmaskCount > 1 的字；
-// 单 mask / 零 mask 字形（hintmaskCount ≤ 1）不在该扫描集（真源 §1.3 点名
-// 的盲区）。虽然 TestScanCJK3000 全量窗已隐含覆盖绝大多数码位，但
-// hintmaskCount==1（charstring 里有 hintmask 指令、但所有区共用同一 mask）
-// 的字此前没有显式判红窗。本窗从 cjk3000 全字集筛出 ≤1 的字逐字对照
-// ftexp light 轮廓 26.6，确认 bad=0，杜绝「单 mask 语义」回归漏检。
 func TestScanM3SingleMask(t *testing.T) {
 	raw, err := os.ReadFile("testdata/cjk3000.txt")
 	if err != nil {

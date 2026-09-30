@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -22,12 +32,12 @@ import (
 const filterGPUMaxPixels = 4 * 1024 * 1024
 const filterGPUUniformSize = 128
 
-// opt35: per-pass Params live in one slab buffer. Slot stride must be a multiple
+// per-pass Params live in one slab buffer. Slot stride must be a multiple
 // of WebGPU minUniformBufferOffsetAlignment (default 256); payload is 128B.
 const filterPassUniformSlotStride = 256
 const filterPassUniformSlabMinSlots = 16
 
-// Static encoder descriptors (opt36 / R7.0 style — avoid per-call heap labels).
+// Static encoder descriptors.
 var (
 	filterGPUBatchEncoderDesc = &hal.CommandEncoderDescriptor{Label: "filter_gpu_batch_enc"}
 	filterGPUReadEncoderDesc  = &hal.CommandEncoderDescriptor{Label: "filter_gpu_read_enc"}
@@ -184,7 +194,7 @@ type filterGPUCache struct {
 	// Published result textures (owned until caller Release).
 	publishFree []filterPublishSlot
 
-	// opt35: single slab for all pass uniforms (stride filterPassUniformSlotStride).
+	// single slab for all pass uniforms (stride filterPassUniformSlotStride).
 	// Each pass bind group uses a fixed Offset into the slab; one WriteBuffer
 	// covers all packed slots after encode, before Submit.
 	passUniformSlab    hal.Buffer
@@ -193,15 +203,14 @@ type filterGPUCache struct {
 	// lastPassUniform* — test/pprof diagnostics (updated each graph run).
 	lastPassUniformSlots int
 	lastPassUniformWB    int // WriteBuffer calls for pass uniforms this run (0 or 1)
-	// opt36 diagnostics: encoder Finishes in last graph run (shared mesh+filter = 1).
-	lastGraphFinishes int
-	lastUsedSharedEnc bool
+	lastGraphFinishes    int
+	lastUsedSharedEnc    bool
 
 	// Stable bind-group cache for continuous effect frames (glow).
 	// Keyed by view/uniform pointer + slab offset; cleared when pool/slab rebuilds.
 	bgCache map[filterBGKey]hal.BindGroup
 
-	// opt44: reuse filter-pass RP descriptor (no per-pass ColorAttachments alloc).
+	// reuse filter-pass RP descriptor (no per-pass ColorAttachments alloc).
 	filterPassRPDesc   hal.RenderPassDescriptor
 	filterPassColorAtt [1]hal.RenderPassColorAttachment
 	filterPassRPInited bool
@@ -305,7 +314,7 @@ func (c *filterGPUCache) releaseUnlocked() {
 }
 
 // filterPassRenderPassDesc fills a reused RenderPassDescriptor for one filter
-// full-screen pass (opt44). Warm path is 0-alloc.
+// full-screen pass. Warm path is 0-alloc.
 func (c *filterGPUCache) filterPassRenderPassDesc(dst hal.TextureView) *hal.RenderPassDescriptor {
 	if c == nil {
 		return nil
@@ -588,7 +597,6 @@ func (c *filterGPUCache) bindGroup(device hal.Device, bgl hal.BindGroupLayout, s
 	return bg, nil
 }
 
-// ensurePassUniformSlab grows/creates the opt35 pass-uniform slab for nSlots.
 // Recreating the slab clears the bind-group cache (entries pin the old buffer).
 func (c *filterGPUCache) ensurePassUniformSlab(device hal.Device, nSlots int) (hal.Buffer, error) {
 	if device == nil {
@@ -753,7 +761,7 @@ func runGPUFilterGraphGPUOnly(device hal.Device, queue hal.Queue, cache *filterG
 
 // runGPUFilterGraphFromView seeds the graph from an existing GPU texture view
 // (no CPU upload). Source may be BGRA offscreen; first copy pass samples into
-// the RGBA pool (WebGPU returns BGRA samples in RGBA order).
+// the RGBA pool.
 func runGPUFilterGraphFromView(device hal.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
 	return runGPUFilterGraphFromViewWithLeading(device, queue, cache, srcView, w, h, nodes, nil)
 }
@@ -773,7 +781,7 @@ func runGPUFilterGraphFromViewWithLeading(device hal.Device, queue hal.Queue, ca
 }
 
 // runGPUFilterGraphFromViewIntoEncoder continues the filter graph on an open
-// encoder that already contains the mesh-seed render passes (opt36). One Finish
+// encoder that already contains the mesh-seed render passes. One Finish
 // covers seed+filter. On failure the encoder is left open so the caller can
 // Finish+Submit seed-only recovery (mesh draws are only applied if submitted).
 func runGPUFilterGraphFromViewIntoEncoder(device hal.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc hal.CommandEncoder) (gpucontext.TextureView, func(), error) {
@@ -872,7 +880,7 @@ func runGPUFilterGraphEx(
 	}
 
 	// One command encoder for all passes + publish copy (single queue submit).
-	// opt35: pass uniforms share one slab (distinct offsets). Pack into CPU
+	// pass uniforms share one slab (distinct offsets). Pack into CPU
 	// scratch during encode; single WriteBuffer before Finish/Submit so each
 	// bind range has distinct live content (cannot rewrite one uniform mid-CB).
 	estSlots := len(nodes)*4 + 2
@@ -977,7 +985,7 @@ func runGPUFilterGraphEx(
 		}
 		off := slot * filterPassUniformSlotStride
 		slotBuf := passScratch[off : off+filterGPUUniformSize]
-		// opt44: all 128B Params fields written below (no clear needed).
+		// all 128B Params fields written below (no clear needed).
 		// Direct LE store (same bits as prior byte-wise pack).
 		putF32 := func(o int, v float32) {
 			*(*uint32)(unsafe.Pointer(&slotBuf[o])) = math.Float32bits(v) //nolint:gosec
@@ -1202,7 +1210,7 @@ func runGPUFilterGraphEx(
 			}
 		}
 	}
-	// opt35: one WriteBuffer for all pass uniforms before Finish/Submit.
+	// one WriteBuffer for all pass uniforms before Finish/Submit.
 	if err := flushPassUniforms(); err != nil {
 		if slot.tex != nil {
 			cache.releasePublish(slot)
@@ -1212,7 +1220,7 @@ func runGPUFilterGraphEx(
 		return nil, gpucontext.TextureView{}, nil, err
 	}
 	if sharedEnc != nil && len(leading) > 0 {
-		// Mesh seed should already live on sharedEnc (opt36); leading is unused.
+		// Mesh seed should already live on sharedEnc; leading is unused.
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: sharedEnc with leading CBs")
 	}
 	cmd, err := enc.Finish()
@@ -1226,7 +1234,7 @@ func runGPUFilterGraphEx(
 	cache.mu.Lock()
 	cache.lastGraphFinishes = 1
 	cache.mu.Unlock()
-	// Single Queue.Submit for optional leading seed CBs + filter CB (opt18).
+	// Single Queue.Submit for optional leading seed CBs + filter CB.
 	// Leading must run first so FromView samples a populated seed RT.
 	nLead := len(leading)
 	var all []hal.CommandBuffer

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -11,9 +21,6 @@ import (
 	"testing"
 )
 
-// TestDbgProdLightPixels 生产路径（ExtractOutlineHinted→RasterizeHinted）
-// vs ftexp FT-light 位图逐像素对照。与 fdiff（简化引擎）区分：验证真窗
-// 实际走的 light 链。含 8px。
 func TestDbgProdLightPixels(t *testing.T) {
 	fontPath := "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
 	src, err := NewFontSourceFromFile(fontPath)

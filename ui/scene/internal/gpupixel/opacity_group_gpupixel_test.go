@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // GPU pixel contract tests for group opacity (C5 engine hole).
 //
 // Reproduces the two paths an α<1 RenderOpacity subtree can take:
@@ -21,8 +31,8 @@ import (
 
 // backdrop cell blue and float-card orange from ui_wr_c5_anim_over_static.
 var (
-	c5CellBG   = [3]float64{0.37 * (1 - 0.08*3), 0.50 * (0.8 + 0.1*1), 0.72} // cell(3,1)
-	c5Orange   = [3]float64{0.90, 0.45, 0.15}
+	c5CellBG    = [3]float64{0.37 * (1 - 0.08*3), 0.50 * (0.8 + 0.1*1), 0.72} // cell(3,1)
+	c5Orange    = [3]float64{0.90, 0.45, 0.15}
 	c5CardAlpha = 0.75
 )
 
@@ -134,9 +144,7 @@ func TestImmediate_IsolatedLayer_TwoCards(t *testing.T) {
 }
 
 // TestRetained_OpacityBoundaryGroupPixels: retained path — Boundary >
-// Opacity(0.75) > Picture over a static backdrop picture. Mirrors the C5
-// floatHost structure; steady frame must blit the card through the F1 group
-// with correct group alpha.
+// Opacity(0.75) > Picture over a static backdrop picture.
 func TestRetained_OpacityBoundaryGroupPixels(t *testing.T) {
 	requireGPU(t)
 	const W, H = 320, 200

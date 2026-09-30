@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -56,8 +66,7 @@ func (c *Context) ClipPreserve() {
 // This is a faster alternative to creating a rectangular path and calling Clip().
 // The clip region is intersected with any existing clip regions.
 func (c *Context) ClipRect(x, y, w, h float64) {
-	// Convergence (§7.5): ClipRect is the ClipOpIntersect convenience alias of
-	// the general ClipRectOp (SkClipOp default). Single shared implementation.
+	// Single shared implementation.
 	c.ClipRectOp(x, y, w, h, ClipOpIntersect)
 }
 

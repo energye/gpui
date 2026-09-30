@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -14,11 +24,6 @@ func testShapingFace(t *testing.T) Face {
 	return face
 }
 
-// M0 item 8 regression lock (scoped): the shaping chain works run by run —
-// every fallback run of a mixed 5000-char text shapes non-empty with its own
-// face. Whole-face Shape(MultiFace) intentionally stays 0 (Source()==nil
-// gate untouched: flipping it would change per-rune measure values inside
-// WrapText for every MultiFace caller — stopped by the M0 熔断).
 func TestShapeNonEmpty_MultiFace(t *testing.T) {
 	face := testShapingFace(t)
 	mf, ok := face.(*MultiFace)
@@ -41,7 +46,6 @@ func TestShapeNonEmpty_MultiFace(t *testing.T) {
 	}
 }
 
-// M0 item 8: font-fallback splitting still cuts mixed text per face.
 func TestItemizeRuns_MixedLatinCJK(t *testing.T) {
 	face := testShapingFace(t)
 	mf, ok := face.(*MultiFace)

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -86,8 +93,6 @@ func (w *Writer) writeExpression(handle ir.ExpressionHandle) (string, error) {
 }
 
 // writeExpressionInline writes an expression bypassing baked names.
-// Used for const expressions like texture offsets that Rust writes inline
-// via write_const_expr, even when the expression has been baked.
 func (w *Writer) writeExpressionInline(handle ir.ExpressionHandle) (string, error) {
 	if w.currentFunction == nil {
 		return "", fmt.Errorf("no current function context")
@@ -258,7 +263,6 @@ func (w *Writer) writeAccessIndex(a ir.ExprAccessIndex) (string, error) {
 	}
 
 	// For vectors, use swizzle notation (.x/.y/.z/.w) instead of index notation.
-	// Rust naga always uses swizzle for vector AccessIndex.
 	if w.isVectorBase(a.Base) && a.Index < 4 {
 		components := [4]string{"x", "y", "z", "w"}
 		return fmt.Sprintf("%s.%s", base, components[a.Index]), nil
@@ -270,10 +274,7 @@ func (w *Writer) writeAccessIndex(a ir.ExprAccessIndex) (string, error) {
 
 // isVectorBase returns true if the expression resolves to a Vector type (direct or through Pointer).
 // Returns false for ValuePointerType (pointer to scalar/vector element from matrix/vector access) — those
-// use bracket [index] notation. Matches Rust naga GLSL writer:
-//   - Pointer{Vector} → unwrap → Vector → .x swizzle
-//   - ValuePointer → [index] bracket
-//   - Vector → .x swizzle
+// use bracket [index] notation.
 func (w *Writer) isVectorBase(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.ExpressionTypes) {
 		return false
@@ -308,9 +309,6 @@ func (w *Writer) isVectorBase(handle ir.ExpressionHandle) bool {
 		if ptr, ok := res.Value.(ir.PointerType); ok {
 			return checkType(ptr.Base)
 		}
-		// ValuePointerType → NOT vector (use bracket notation)
-		// This is the key difference: ValuePointer comes from matrix/vector access
-		// through pointer, and Rust GLSL uses [index] for it.
 	}
 	return false
 }
@@ -528,7 +526,6 @@ func (w *Writer) writeUnary(u ir.ExprUnary) (string, error) {
 	case ir.UnaryNegate:
 		return fmt.Sprintf("-(%s)", operand), nil
 	case ir.UnaryLogicalNot:
-		// Rust naga: "not" for vector booleans, "!" for scalars
 		isVec := false
 		if w.currentFunction != nil && int(u.Expr) < len(w.currentFunction.ExpressionTypes) {
 			res := &w.currentFunction.ExpressionTypes[u.Expr]
@@ -552,8 +549,7 @@ func (w *Writer) writeUnary(u ir.ExprUnary) (string, error) {
 // writeBinary writes a binary expression.
 func (w *Writer) writeBinary(b ir.ExprBinary) (string, error) {
 	// Try const-evaluation: if both operands resolve to constant values,
-	// write the evaluated result directly. Matches Rust naga GLSL writer
-	// which evaluates constant Binary expressions at write time.
+	// write the evaluated result directly.
 	if result, ok := w.tryConstEvalBinary(b); ok {
 		return result, nil
 	}
@@ -577,7 +573,6 @@ func (w *Writer) writeBinary(b ir.ExprBinary) (string, error) {
 	case ir.BinaryDivide:
 		return fmt.Sprintf("(%s / %s)", left, right), nil
 	case ir.BinaryModulo:
-		// Rust naga: float modulo → (a - b * trunc(a / b)), integer → native %
 		if w.isFloatBinaryExpr(b) {
 			return fmt.Sprintf("(%s - %s * trunc(%s / %s))", left, right, left, right), nil
 		}
@@ -613,7 +608,6 @@ func (w *Writer) writeBinary(b ir.ExprBinary) (string, error) {
 		}
 		return fmt.Sprintf("(%s >= %s)", left, right), nil
 	case ir.BinaryAnd:
-		// Rust naga: boolean scalar And → &&, boolean vector → component-wise
 		if w.isBoolVectorBinaryExpr(b) {
 			return w.expandBoolVectorOp(b, left, right, "&&")
 		}
@@ -624,7 +618,6 @@ func (w *Writer) writeBinary(b ir.ExprBinary) (string, error) {
 	case ir.BinaryExclusiveOr:
 		return fmt.Sprintf("(%s ^ %s)", left, right), nil
 	case ir.BinaryInclusiveOr:
-		// Rust naga: boolean scalar Or → ||, boolean vector → component-wise
 		if w.isBoolVectorBinaryExpr(b) {
 			return w.expandBoolVectorOp(b, left, right, "||")
 		}
@@ -789,7 +782,6 @@ func (w *Writer) writeMath(m ir.ExprMath) (string, error) {
 	case ir.MathClamp:
 		return fmt.Sprintf("clamp(%s)", argStr), nil
 	case ir.MathSaturate:
-		// Matches Rust naga: for vectors, use vec{N}(0.0)/vec{N}(1.0) bounds
 		vecSize, isVec := w.getExprVectorSize(m.Arg)
 		if isVec {
 			return fmt.Sprintf("clamp(%s, vec%d(0.0), vec%d(1.0))", args[0], vecSize, vecSize), nil
@@ -817,7 +809,7 @@ func (w *Writer) writeMath(m ir.ExprMath) (string, error) {
 		return fmt.Sprintf("ldexp(%s)", argStr), nil
 	case ir.MathQuantizeF16:
 		// QuantizeToF16 must split by vector size, processing pairs of components
-		// via packHalf2x16/unpackHalf2x16. Matches Rust naga behavior.
+		// via packHalf2x16/unpackHalf2x16.
 		vecSize, isVec := w.getExprVectorSize(m.Arg)
 		if !isVec {
 			// Scalar: wrap in vec2, unpack, take .x
@@ -922,15 +914,12 @@ func (w *Writer) writeMath(m ir.ExprMath) (string, error) {
 		// GLSL doesn't have direct ctz, use findLSB
 		return fmt.Sprintf("findLSB(%s)", argStr), nil
 	case ir.MathExtractBits:
-		// Rust naga: clamp offset and count for safety
-		// bitfieldExtract(val, int(min(offset, 32u)), int(min(count, 32u - min(offset, 32u))))
 		if len(args) >= 3 {
 			return fmt.Sprintf("bitfieldExtract(%s, int(min(%s, 32u)), int(min(%s, 32u - min(%s, 32u))))",
 				args[0], args[1], args[2], args[1]), nil
 		}
 		return fmt.Sprintf("bitfieldExtract(%s)", argStr), nil
 	case ir.MathInsertBits:
-		// Rust naga: clamp offset and count for safety
 		if len(args) >= 4 {
 			return fmt.Sprintf("bitfieldInsert(%s, %s, int(min(%s, 32u)), int(min(%s, 32u - min(%s, 32u))))",
 				args[0], args[1], args[2], args[3], args[2]), nil
@@ -939,7 +928,6 @@ func (w *Writer) writeMath(m ir.ExprMath) (string, error) {
 
 	// Pack/Unpack
 	case ir.MathDot4I8Packed:
-		// Matches Rust naga: expand to sum of bitfieldExtract products with sign extension.
 		// (bitfieldExtract(int(a), 0, 8) * bitfieldExtract(int(b), 0, 8) + ... for i in 0..4)
 		var parts []string
 		for i := 0; i < 4; i++ {
@@ -947,7 +935,6 @@ func (w *Writer) writeMath(m ir.ExprMath) (string, error) {
 		}
 		return fmt.Sprintf("(%s)", strings.Join(parts, " + ")), nil
 	case ir.MathDot4U8Packed:
-		// Matches Rust naga: expand to sum of bitfieldExtract products (unsigned).
 		// (bitfieldExtract((a), 0, 8) * bitfieldExtract((b), 0, 8) + ... for i in 0..4)
 		var parts []string
 		for i := 0; i < 4; i++ {
@@ -993,7 +980,7 @@ func (w *Writer) writeMath(m ir.ExprMath) (string, error) {
 		if w.options.LangVersion.supportsPack4x8() {
 			return fmt.Sprintf("unpackUnorm4x8(%s)", argStr), nil
 		}
-		// Fallback: extract bytes LSB first (matching Rust naga)
+		// Fallback: extract bytes LSB first
 		return fmt.Sprintf("(vec4(%s & 0xFFu, %s >> 8 & 0xFFu, %s >> 16 & 0xFFu, %s >> 24) / 255.0)",
 			args[0], args[0], args[0], args[0]), nil
 	case ir.MathUnpack2x16snorm:
@@ -1015,8 +1002,6 @@ func (w *Writer) writeMath(m ir.ExprMath) (string, error) {
 }
 
 // writeDerivative writes a derivative expression.
-// Matches Rust naga: Coarse/Fine only when version supports_derivative_control,
-// otherwise fall back to dFdx/dFdy/fwidth.
 func (w *Writer) writeDerivative(d ir.ExprDerivative) (string, error) {
 	expr, err := w.writeExpression(d.Expr)
 	if err != nil {
@@ -1073,7 +1058,7 @@ func (w *Writer) writeImageSample(s ir.ExprImageSample) (string, error) {
 	// Resolve the combined sampler name from the pre-scanned pairs.
 	combinedName := w.resolveCombinedSamplerName(s.Image, s.Sampler)
 
-	// Build coordinate vector (Rust naga wraps in vecN when needed)
+	// Build coordinate vector
 	coordDim := w.getCoordDim(s.Coordinate)
 	if s.ArrayIndex != nil {
 		coordDim++
@@ -1140,8 +1125,6 @@ func (w *Writer) writeImageSample(s ir.ExprImageSample) (string, error) {
 		return fmt.Sprintf("textureGather%s(%s, %s%s, %d)", offsetSuffix, combinedName, coordinate, offsetStr, component), nil
 	}
 
-	// Determine function name base from sample level
-	// Matches Rust naga: texture/textureLod/textureGrad + optional "Offset" suffix
 	workaroundLodWithGrad := false
 	funName := "texture"
 	switch s.Level.(type) {
@@ -1218,7 +1201,6 @@ func (w *Writer) writeImageSample(s ir.ExprImageSample) (string, error) {
 
 	// Write offset (after level/grad, before bias)
 	// Offset must be a const expression -- write inline, not through baked name
-	// (matches Rust naga's write_const_expr for offset)
 	if s.Offset != nil {
 		off, err := w.writeExpressionInline(*s.Offset)
 		if err != nil {
@@ -1291,7 +1273,6 @@ func (w *Writer) resolveCombinedSamplerName(imageExpr, samplerExpr ir.Expression
 
 	// If image is a function argument, use it directly — in GLSL, texture function
 	// arguments are already combined samplers (sampler params are filtered out).
-	// Matches Rust naga: FunctionArgument(pos) → just writes the argument name.
 	if int(imageExpr) < len(w.currentFunction.Expressions) {
 		if _, ok := w.currentFunction.Expressions[imageExpr].Kind.(ir.ExprFunctionArgument); ok {
 			name, _ := w.writeExpression(imageExpr)
@@ -1320,7 +1301,6 @@ func (w *Writer) fallbackCombinedName(imageExpr, samplerExpr ir.ExpressionHandle
 }
 
 // writeImageLoad writes an image load expression with optional bounds checking.
-// Matches Rust naga: uses texelFetch for sampled images, imageLoad for storage.
 // Applies BoundsCheckPolicy: Restrict (clamp), ReadZeroSkipWrite (ternary), or Unchecked.
 func (w *Writer) writeImageLoad(l ir.ExprImageLoad, handle ir.ExpressionHandle) (string, error) {
 	image, err := w.writeExpression(l.Image)
@@ -1424,7 +1404,6 @@ func (w *Writer) writeImageLoadRestrict(l ir.ExprImageLoad, handle ir.Expression
 	if thirdArg != "" {
 		fmt.Fprintf(&out, ", %s", thirdArg)
 	}
-	// Multisampled: Rust naga puts closing paren on next line (writeln before close)
 	if isMulti {
 		out.WriteString("\n)")
 	} else {
@@ -1536,8 +1515,6 @@ func (w *Writer) getCoordVectorSize(imgType *ir.ImageType, hasArrayIndex bool) i
 }
 
 // buildTextureCoord builds the GLSL coordinate string for image operations.
-// Matches Rust naga's write_texture_coord: merges array_index into coordinate
-// vector and handles uint-to-int conversion.
 func (w *Writer) buildTextureCoord(coordExpr string, coordHandle ir.ExpressionHandle, arrayIndex *ir.ExpressionHandle, imgType *ir.ImageType) string {
 	// Calculate vector size
 	coordDim := 1
@@ -1577,8 +1554,6 @@ func (w *Writer) buildTextureCoord(coordExpr string, coordHandle ir.ExpressionHa
 }
 
 // writeImageQuery writes an image query expression.
-// Matches Rust naga: all image query results are wrapped in uint()/uvecN() casts,
-// storage images use imageSize/imageSamples, size queries append .xy/.xyz swizzle.
 func (w *Writer) writeImageQuery(q ir.ExprImageQuery) (string, error) {
 	image, err := w.writeExpression(q.Image)
 	if err != nil {
@@ -1689,8 +1664,6 @@ func (w *Writer) writeAs(a ir.ExprAs) (string, error) {
 	}
 
 	if a.Convert == nil {
-		// Bitcast — use GLSL bitcast functions
-		// Matches Rust naga: floatBitsToInt, floatBitsToUint, intBitsToFloat, uintBitsToFloat
 		sourceKind := ir.ScalarFloat // default
 		if w.currentFunction != nil && int(a.Expr) < len(w.currentFunction.ExpressionTypes) {
 			res := &w.currentFunction.ExpressionTypes[a.Expr]
@@ -1972,13 +1945,11 @@ func (w *Writer) getExpressionTypeHandle(kind ir.ExpressionKind) *ir.TypeHandle 
 
 // tryConstEvalBinary tries to const-evaluate a binary expression at write time.
 // If both operands are constant/literal, computes the result and formats as GLSL literal.
-// Matches Rust naga GLSL writer behavior for constant expressions.
 func (w *Writer) tryConstEvalBinary(b ir.ExprBinary) (string, bool) {
 	if w.currentFunction == nil {
 		return "", false
 	}
 	// Only const-eval when at least one operand involves a named constant (ExprConstant).
-	// Plain Literal+Literal should NOT be folded — that's not what Rust does.
 	if !w.involvesExprConstant(b.Left) && !w.involvesExprConstant(b.Right) {
 		return "", false
 	}

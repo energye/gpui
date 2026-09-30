@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -7,8 +17,6 @@ import (
 	"testing"
 )
 
-// TestScanTH：泰文 CFF 扩集（docs §5.1 M3 收尾项）。
-//
 // 字体 = Noto Sans Thai Regular（CFF OTF，testdata/ 下）；
 // 验证 U+0E00–U+0E7F 全泰文块（字表文件 testdata/th_all.txt）对照 ftexp
 // bcontour 批量模式（FT-light 26.6）。

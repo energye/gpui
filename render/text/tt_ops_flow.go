@@ -1,20 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — control flow, definitions, CVT,
 // storage, data, delta, and miscellaneous instructions.
-//
-// Port of skrifa hint/engine/{control_flow.rs, definition.rs, cvt.rs,
-// storage.rs, data.rs, delta.rs, misc.rs, round.rs}.
-//
-// Reference: skrifa/src/outline/glyf/hint/engine/
 package text
-
-// ============================================================
-// Control Flow (IF, ELSE, EIF, JMPR, JROT, JROF)
-// Reference: skrifa hint/engine/control_flow.rs
-// ============================================================
 
 // opIf implements IF[] (0x58).
 // If top of stack is false (0), skip to matching ELSE or EIF.
-// Reference: skrifa hint/engine/control_flow.rs:28-49
 func (e *ttEngine) opIf() error {
 	cond, err := e.valueStack.pop()
 	if err != nil {
@@ -45,7 +44,6 @@ func (e *ttEngine) opIf() error {
 
 // opElse implements ELSE[] (0x1B).
 // When encountered during execution (true branch), skip to matching EIF.
-// Reference: skrifa hint/engine/control_flow.rs:61-72
 func (e *ttEngine) opElse() error {
 	nestDepth := 1
 	for nestDepth > 0 {
@@ -65,14 +63,12 @@ func (e *ttEngine) opElse() error {
 
 // opJmpr implements JMPR[] (0x1C).
 // Unconditional relative jump.
-// Reference: skrifa hint/engine/control_flow.rs:124-126
 func (e *ttEngine) opJmpr() error {
 	return e.doJump(true)
 }
 
 // opJrot implements JROT[] (0x78).
 // Jump relative on true.
-// Reference: skrifa hint/engine/control_flow.rs:105-108
 func (e *ttEngine) opJrot() error {
 	cond, err := e.valueStack.pop()
 	if err != nil {
@@ -83,7 +79,6 @@ func (e *ttEngine) opJrot() error {
 
 // opJrof implements JROF[] (0x79).
 // Jump relative on false.
-// Reference: skrifa hint/engine/control_flow.rs:155-158
 func (e *ttEngine) opJrof() error {
 	cond, err := e.valueStack.pop()
 	if err != nil {
@@ -94,7 +89,6 @@ func (e *ttEngine) opJrof() error {
 
 // doJump executes a conditional jump.
 // Offset is relative to the jump instruction itself.
-// Reference: skrifa hint/engine/control_flow.rs:163-182
 func (e *ttEngine) doJump(test bool) error {
 	offset, err := e.valueStack.pop()
 	if err != nil {
@@ -119,7 +113,6 @@ func (e *ttEngine) doJump(test bool) error {
 
 // decodeNextOpcode reads the next opcode, skipping inline operands of
 // push instructions (for IF/ELSE scanning).
-// Reference: skrifa hint/engine/control_flow.rs:184-191
 func (e *ttEngine) decodeNextOpcode() (byte, error) {
 	opcode, ok := e.program.decoder.nextByte()
 	if !ok {
@@ -130,13 +123,7 @@ func (e *ttEngine) decodeNextOpcode() (byte, error) {
 	return opcode, nil
 }
 
-// ============================================================
-// Function/Instruction Definitions (FDEF, ENDF, CALL, LOOPCALL, IDEF)
-// Reference: skrifa hint/engine/definition.rs
-// ============================================================
-
 // opFdef implements FDEF[] (0x2C).
-// Reference: skrifa hint/engine/definition.rs
 func (e *ttEngine) opFdef() error {
 	key, err := e.valueStack.pop()
 	if err != nil {
@@ -146,13 +133,11 @@ func (e *ttEngine) opFdef() error {
 }
 
 // opEndf implements ENDF[] (0x2D).
-// Reference: skrifa hint/engine/definition.rs
 func (e *ttEngine) opEndf() error {
 	return e.program.leave()
 }
 
 // opCall implements CALL[] (0x2B).
-// Reference: skrifa hint/engine/definition.rs
 func (e *ttEngine) opCall() error {
 	key, err := e.valueStack.pop()
 	if err != nil {
@@ -166,7 +151,6 @@ func (e *ttEngine) opCall() error {
 }
 
 // opLoopcall implements LOOPCALL[] (0x2A).
-// Reference: skrifa hint/engine/definition.rs
 func (e *ttEngine) opLoopcall() error {
 	key, err := e.valueStack.pop()
 	if err != nil {
@@ -190,7 +174,6 @@ func (e *ttEngine) opLoopcall() error {
 }
 
 // opIdef implements IDEF[] (0x89).
-// Reference: skrifa hint/engine/definition.rs
 func (e *ttEngine) opIdef() error {
 	key, err := e.valueStack.pop()
 	if err != nil {
@@ -201,7 +184,6 @@ func (e *ttEngine) opIdef() error {
 
 // doDef is the common code for FDEF and IDEF.
 // Scans to matching ENDF and records the definition range.
-// Reference: skrifa hint/engine/definition.rs:118-146 (do_def)
 func (e *ttEngine) doDef(defs *ttDefinitionMap, key int32) error {
 	if e.program.current == ttProgramGlyph {
 		return ttErrDefinitionInGlyphProgram
@@ -247,11 +229,6 @@ func (e *ttEngine) opUnknown(opcode byte) error {
 	}
 	return e.program.enter(def, 1)
 }
-
-// ============================================================
-// CVT (RCVT, WCVTP, WCVTF)
-// Reference: skrifa hint/engine/cvt.rs
-// ============================================================
 
 // opRcvt implements RCVT[] (0x45).
 func (e *ttEngine) opRcvt() error {
@@ -309,11 +286,6 @@ func (e *ttEngine) opWcvtf() error {
 	return nil
 }
 
-// ============================================================
-// Storage (RS, WS)
-// Reference: skrifa hint/engine/storage.rs
-// ============================================================
-
 // opRs implements RS[] (0x43).
 func (e *ttEngine) opRs() error {
 	idx, err := e.valueStack.popUsize()
@@ -348,11 +320,6 @@ func (e *ttEngine) opWs() error {
 	e.storage[idx] = value
 	return nil
 }
-
-// ============================================================
-// Data (MPPEM, MPS, GC, SCFS, MD, GETINFO, GETVARIATION, GETDATA)
-// Reference: skrifa hint/engine/data.rs
-// ============================================================
 
 // opMppem implements MPPEM[] (0x4B).
 func (e *ttEngine) opMppem() error {
@@ -403,8 +370,6 @@ func (e *ttEngine) opGc(opcode byte) error {
 // For twilight zone points, after moving, the current position is copied
 // back to the original position. This ensures subsequent instructions
 // see the correct original values for distance computation.
-//
-// Reference: skrifa hint/engine/data.rs:58-69
 func (e *ttEngine) opScfs() error {
 	value, err := e.valueStack.pop()
 	if err != nil {
@@ -427,7 +392,6 @@ func (e *ttEngine) opScfs() error {
 		return err
 	}
 	// Twilight zone: copy current point to original after move.
-	// Reference: skrifa hint/engine/data.rs:64-67
 	if e.graphics.zp2 == ttZoneTwilight {
 		if pointIdx >= 0 && pointIdx < len(z.points) && pointIdx < len(z.original) {
 			z.original[pointIdx] = z.points[pointIdx]
@@ -468,7 +432,6 @@ func (e *ttEngine) opMd(opcode byte) error {
 	// Original positions.
 	// In twilight zone, use scaled original points.
 	// In glyph zone, use UNSCALED font-unit points then multiply by scale.
-	// This matches skrifa hint/engine/data.rs:101-111 exactly.
 	if e.graphics.zp0 == ttZoneTwilight || e.graphics.zp1 == ttZoneTwilight {
 		pt1, e1 := z0.originalPoint(p1Idx)
 		pt2, e2 := z1.originalPoint(p2Idx)
@@ -495,9 +458,6 @@ func (e *ttEngine) opMd(opcode byte) error {
 //
 // Returns information about the interpreter environment. Each selector bit
 // enables a corresponding result bit. The bit mapping matches skrifa exactly.
-//
-// Reference: skrifa hint/engine/misc.rs:28-77
-// Reference: skrifa hint/engine/misc.rs:135-176 (getinfo constants)
 func (e *ttEngine) opGetinfo() error {
 	selector, err := e.valueStack.pop()
 	if err != nil {
@@ -521,7 +481,6 @@ func (e *ttEngine) opGetinfo() error {
 		result |= 1 << 10
 	}
 	// The following only apply for smooth hinting targets.
-	// Reference: skrifa hint/engine/misc.rs:44-76
 	if e.graphics.retained.target.isSmooth() {
 		// Selector bit 6: subpixel hinting / ClearType enabled (always) → result bit 13
 		if selector&(1<<6) != 0 {
@@ -539,13 +498,11 @@ func (e *ttEngine) opGetinfo() error {
 		// In skrifa, this checks Target.symmetric_rendering which is true by
 		// default for all HintingMode::Smooth targets. We always use symmetric
 		// rendering for smooth targets, matching the skrifa default.
-		// Reference: skrifa hint/engine/misc.rs:64-68 + hint.rs:533-541
 		if selector&(1<<11) != 0 {
 			result |= 1 << 18
 		}
 		// Selector bit 12: ClearType hinting + grayscale rendering → result bit 19
 		// True for Normal and Light smooth modes (not LCD).
-		// Reference: skrifa hint.rs:496-501
 		if selector&(1<<12) != 0 && e.graphics.retained.target.isGrayscaleClearType() {
 			result |= 1 << 19
 		}
@@ -578,13 +535,7 @@ func (e *ttEngine) opGetdata() error {
 	return e.valueStack.push(17)
 }
 
-// ============================================================
-// Delta Exceptions (DELTAP1/2/3, DELTAC1/2/3)
-// Reference: skrifa hint/engine/delta.rs
-// ============================================================
-
 // opDeltap implements DELTAP1/2/3 (0x5D, 0x71, 0x72).
-// Reference: skrifa hint/engine/delta.rs:30-79
 func (e *ttEngine) opDeltap(opcode byte) error {
 	gs := &e.graphics
 	count, err := e.valueStack.popCountChecked()
@@ -608,7 +559,6 @@ func (e *ttEngine) opDeltap(opcode byte) error {
 	didIUP := gs.didIUPx && gs.didIUPy
 	for i := 0; i < count; i++ {
 		// skrifa pops point_ix first, then b (arg).
-		// Reference: skrifa hint/engine/delta.rs:47-48
 		pointIdx, err := e.valueStack.popUsize()
 		if err != nil {
 			return err
@@ -634,9 +584,6 @@ func (e *ttEngine) opDeltap(opcode byte) error {
 		}
 		b *= 1 << (6 - int32(gs.retained.deltaShift))
 		if backCompat {
-			// In backward compat mode, DELTAP only moves if:
-			// - IUP not done AND (composite with Y freedom OR point Y-touched)
-			// Reference: skrifa hint/engine/delta.rs:66-72
 			if !didIUP &&
 				((gs.isComposite && gs.freedomVector[1] != 0) ||
 					z.isTouchedY(pointIdx)) {
@@ -658,7 +605,6 @@ func (e *ttEngine) opDeltap(opcode byte) error {
 }
 
 // opDeltac implements DELTAC1/2/3 (0x73-0x75).
-// Reference: skrifa hint/engine/delta.rs
 func (e *ttEngine) opDeltac(opcode byte) error {
 	count, err := e.valueStack.popCountChecked()
 	if err != nil {
@@ -710,12 +656,6 @@ func (e *ttEngine) opDeltac(opcode byte) error {
 	return nil
 }
 
-// ============================================================
-// Miscellaneous (SANGW, SCANCTRL, SCANTYPE, INSTCTRL, FLIPON/OFF,
-//   SDB, SDS, SLOOP, SMD, SCVTCI, SSWCI, SSW)
-// Reference: skrifa hint/engine/misc.rs + graphics.rs
-// ============================================================
-
 // opSangw implements SANGW[] (0x7E) — deprecated no-op that pops 1 value.
 func (e *ttEngine) opSangw() error {
 	_, err := e.valueStack.pop()
@@ -743,7 +683,6 @@ func (e *ttEngine) opScantype() error {
 }
 
 // opInstctrl implements INSTCTRL[] (0x8E).
-// Reference: skrifa hint/engine/misc.rs
 func (e *ttEngine) opInstctrl() error {
 	selector, err := e.valueStack.pop()
 	if err != nil {

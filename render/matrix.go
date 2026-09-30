@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "math"
@@ -5,8 +15,8 @@ import "math"
 // Matrix represents a 2D affine transformation matrix.
 // It uses a 2x3 matrix in row-major order:
 //
-//	| a  b  c |
-//	| d  e  f |
+//	| a b c |
+//	| d e f |
 //
 // This represents the transformation:
 //
@@ -162,9 +172,6 @@ func (m Matrix) IsScaleOnly() bool {
 // For general matrices (with rotation and/or skew), computes the spectral norm
 // via the eigenvalues of M^T * M.
 //
-// This matches the approach used by Skia (SkMatrix::getMaxScale) and
-// Cairo (_cairo_matrix_compute_basis_scale_factors).
-//
 // Returns 0 if the matrix is degenerate (zero area).
 func (m Matrix) MaxScaleFactor() float64 {
 	// For scale-only matrices (no rotation/skew), use the fast path.
@@ -180,8 +187,8 @@ func (m Matrix) MaxScaleFactor() float64 {
 	// General case: compute max singular value via eigenvalues of M^T * M.
 	//
 	// For the 2x2 matrix [A B; D E]:
-	//   M^T * M = [A*A+D*D  A*B+D*E]
-	//             [A*B+D*E  B*B+E*E]
+	//   M^T * M = [A*A+D*D A*B+D*E]
+	//             [A*B+D*E B*B+E*E]
 	//
 	// The eigenvalues of a symmetric 2x2 matrix [p q; q r] are:
 	//   lambda = (p + r +/- sqrt((p - r)^2 + 4*q^2)) / 2

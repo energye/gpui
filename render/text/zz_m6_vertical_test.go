@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -9,8 +19,6 @@ import (
 	"testing"
 )
 
-// M6 竖排度量验证：vmtx 解析 vs FT_Get_Advance(FT_LOAD_VERTICAL_LAYOUT)。
-//
 // 对照基准 = ftexp vadv（FT 2.11.1，16.16 定点输出），取同一字集在同
 // size 下的竖排 advance。Go 侧走 ownParsedFont.GlyphVerticalAdvance
 // （vmtx 优先，无 vmtx 回退 OS/2 推导，均换算到 px）。
@@ -151,8 +159,6 @@ func TestM6VerticalGlyphIteration(t *testing.T) {
 	}
 }
 
-// M6-3 vert/vrt2 竖排特性验证：TTB/BTT 方向激活 vertical alternates。
-//
 // 对照字体 = Noto Sans CJK (face0 JP)，其 GSUB 带 vert/vrt2（多语言系统
 // 各一套）。竖排标点应替换为竖排变体 gid（与 LTR 不同），普通汉字无竖排
 // 变体保持原 gid。OwnShaper 与 HbShaper 两后端应得到一致替换。
@@ -190,9 +196,6 @@ func TestM6VerticalAlternatesGID(t *testing.T) {
 	}
 }
 
-// TestM6VerticalAlternatesBothBackends：OwnShaper 与 HbShaper 两个后端的
-// vert 替换结果一致（M0 parity 扩展到竖排方向）。
-//
 // 已知限制：go-text（HbShaper 后端）对个别 CJK 标点的 vert 替换与其
 // 自研 GSUB 不完全一致（例：Noto CJK 的「（」走 vrt2 系 lookup，go-text
 // 未替换而 OwnShaper 正确替换）。这里只断言「各自后端在 TTB 下对带竖排

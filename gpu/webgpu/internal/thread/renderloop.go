@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 // Copyright 2025 The GoGPU Authors
@@ -10,7 +20,6 @@ import (
 )
 
 // RenderLoop manages the separation between UI and render threads.
-// Based on Ebiten's architecture for professional responsiveness.
 //
 // Key pattern: All GPU operations (including vkDeviceWaitIdle) happen
 // on the render thread, never blocking the UI thread.

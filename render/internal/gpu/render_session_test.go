@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -933,7 +943,6 @@ func TestEnsurePipelines_StencilClipRecreation(t *testing.T) {
 // TestRenderSession_EncoderLifecycleRecovery verifies that the GPU encoder
 // lifecycle is bullet-proof: rapid consecutive renders never leak encoder state,
 // and the session automatically recovers between frames.
-// This is the regression test for BUG-GG-ENCODER-LIFECYCLE-001.
 func TestRenderSession_EncoderLifecycleRecovery(t *testing.T) {
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()

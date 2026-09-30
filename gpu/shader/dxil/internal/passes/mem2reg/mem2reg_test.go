@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package mem2reg
 
 import (
@@ -27,9 +37,9 @@ func appendExpr(fn *ir.Function, kind ir.ExpressionKind) ir.ExpressionHandle {
 //
 // IR shape:
 //
-//	var x: i32          (LocalVars[0])
-//	x = 42              (StmtStore)
-//	let y = x           (StmtEmit{ExprLoad{LocalVar(0)}})
+//	var x: i32 (LocalVars[0])
+//	x = 42 (StmtStore)
+//	let y = x (StmtEmit{ExprLoad{LocalVar(0)}})
 func TestClassifyScalarSingleStore(t *testing.T) {
 	mod := &ir.Module{}
 	i32 := scalarTypeHandle(mod, ir.ScalarSint, 4)

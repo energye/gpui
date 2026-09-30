@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 // Package hal provides the Hardware Abstraction Layer for WebGPU implementations.
@@ -20,7 +30,7 @@
 //
 // The HAL follows a defense-in-depth validation pattern:
 //
-//   - The core layer (wgpu/core) performs exhaustive spec-level validation BEFORE
+//   - The core layer performs exhaustive spec-level validation BEFORE
 //     calling HAL methods. This includes dimension checks, format validation, usage
 //     flags, mip levels, sample counts, and all WebGPU spec rules.
 //
@@ -78,7 +88,4 @@
 // only, prefixed with "BUG:" to signal a core validation gap.
 //
 // # Reference
-//
-// This design is based on wgpu-hal from the Rust WebGPU implementation.
-// See: https://github.com/gfx-rs/wgpu/tree/trunk/wgpu-hal
 package hal

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package registry provides type deduplication for the naga IR.
 // It ensures each unique type is registered exactly once, which is
 // required by SPIR-V and other backends that need unique type declarations.
@@ -38,8 +48,6 @@ func NewTypeRegistryWithCap(initialCap int) *TypeRegistry {
 
 // GetOrCreate returns an existing handle for the type if it exists,
 // or creates a new one if it's unique.
-// Named struct types are never deduplicated with each other (different names
-// mean different types), matching Rust naga's Arena behavior.
 func (r *TypeRegistry) GetOrCreate(name string, inner ir.TypeInner) ir.TypeHandle {
 	// Build the full key in keyBuf. normalizeType writes the type portion,
 	// and we prepend the name prefix if needed.
@@ -66,7 +74,6 @@ func (r *TypeRegistry) GetOrCreate(name string, inner ir.TypeInner) ir.TypeHandl
 }
 
 // buildKey writes the full dedup key into r.keyBuf.
-// In Rust naga, UniqueArena deduplicates on the full ir.Type{name, inner} pair.
 // ir.Type{name: None, inner: X} and ir.Type{name: Some("A"), inner: X} are distinct.
 // We replicate this by including the name in the dedup key for ALL named types,
 // not just structs. Anonymous types (name="") still dedup on inner alone.
@@ -100,9 +107,6 @@ func (r *TypeRegistry) SetName(handle ir.TypeHandle, name string) {
 }
 
 // Append adds a type without deduplication, always creating a new entry.
-// This matches Rust naga's Arena behavior where each append() creates a new
-// entry even for structurally identical types. Use this for array types that
-// Rust naga does not deduplicate.
 func (r *TypeRegistry) Append(name string, inner ir.TypeInner) ir.TypeHandle {
 	handle := ir.TypeHandle(len(r.types))
 	r.types = append(r.types, ir.Type{

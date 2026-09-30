@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -10,9 +20,9 @@ import (
 
 // FilterResultCache caches the FILTERED pixels of ColorFilter/ImageFilter
 // subtrees so the composite only pays the filter cost when something actually
-// changed (Skia layer raster cache / Flutter RasterCache semantics).
+// changed.
 //
-// Motivation (R20): with no registered GPU filter graph, Apply* falls back to
+// Motivation: with no registered GPU filter graph, Apply* falls back to
 // a full-surface CPU pass. The textured composite re-walks filter layers every
 // frame, so an UNCHANGED filter subtree paid that CPU blur ~60×/s (measured:
 // 51ms raster/frame, +435MB RSS / 10s in ui_wr_r20_filter). With the cache,

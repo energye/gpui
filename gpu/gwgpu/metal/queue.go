@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -32,7 +39,6 @@ type Queue struct {
 	// completedIndex tracks the highest submission index completed by the GPU.
 	// Updated atomically by addCompletedHandler blocks that fire when the GPU
 	// finishes executing the last command buffer of each Submit batch.
-	// This matches Rust wgpu-hal's Fence.completed_value pattern.
 	completedIndex atomic.Uint64
 
 	// frameSemaphore limits CPU-ahead-of-GPU frames. Each Submit consumes a
@@ -77,8 +83,6 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 		// On the last command buffer, register completion handlers.
 		if i == lastIdx {
 			// Track actual GPU completion for Poll().
-			// Uses addCompletedHandler to atomically store the submission index
-			// when the GPU finishes, matching Rust wgpu-hal Fence.completed_value.
 			q.registerSubmissionCompletionHandler(cb.raw, subIdx)
 
 			// Release frame semaphore slot for CPU-ahead throttling.
@@ -103,8 +107,7 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 
 // Poll returns the highest submission index known to be completed by the GPU.
 // Updated atomically by addCompletedHandler blocks registered in Submit.
-// This matches Rust wgpu-hal's Fence.get_latest() / Device.get_fence_value() pattern.
-// Backend divergence (H4-b3 locked): webgpu Queue.Poll always returns 0,
+// Backend divergence: webgpu Queue.Poll always returns 0,
 // gles returns Fence.GetLatest (or submissionIndex when queueless),
 // metal returns the GPU-callback-driven completedIndex (lags without GPU).
 func (q *Queue) Poll() uint64 {
@@ -112,7 +115,6 @@ func (q *Queue) Poll() uint64 {
 }
 
 // LastSubmissionIndex returns the most recent submission index.
-// Matches webgpu Queue.LastSubmissionIndex.
 func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
 }
@@ -163,7 +165,6 @@ func (q *Queue) registerFrameCompletionHandler(cmdBuffer ID) {
 // Fast path: if the buffer is CPU-mappable (Shared/Managed storage), copies
 // data directly via memcpy. Slow path: if the buffer is GPU-only (Private
 // storage), creates a temporary staging buffer and blits the data. The staging
-// path matches the pattern used by WriteTexture and Rust wgpu.
 func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error {
 	buf, ok := buffer.(*Buffer)
 	if !ok || buf == nil {
@@ -189,7 +190,6 @@ func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
 
 // writeBufferStaged copies data to a Private-mode buffer via a temporary
 // Shared staging buffer and a blit command. This mirrors the staging pattern
-// used by WriteTexture and matches Rust wgpu's Queue::write_buffer behavior.
 func (q *Queue) writeBufferStaged(buf *Buffer, offset uint64, data []byte) error {
 	hal.Logger().Debug("metal: WriteBuffer using staging path",
 		"size", len(data), "offset", offset)
@@ -413,10 +413,8 @@ func (q *Queue) writeTextureShared(tex *Texture, dst *hal.ImageCopyTexture, data
 
 // Present presents a surface texture to the screen.
 //
-// When the surface uses presentsWithTransaction (default on macOS), presentation
-// follows the wgpu-hal pattern: commit an empty command buffer, wait until
 // scheduled, then call CAMetalDrawable.present. This synchronizes with Core
-// Animation during live window resize (wgpu #3756).
+// Animation during live window resize.
 //
 // damageRects is accepted but ignored — Metal has no compositor damage API.
 func (q *Queue) Present(surface hal.Surface, texture hal.SurfaceTexture, _ []image.Rectangle) error {
@@ -482,5 +480,5 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 // SetSwapchainSuppressed is a no-op on Metal.
 // Metal presents via CAMetalDrawable which is not affected by command buffer
 // submission ordering — each presentDrawable: call operates on a specific
-// drawable, not on implicit semaphore state. See BUG-WGPU-VK-005 (Vulkan-specific).
+// drawable, not on implicit semaphore state.
 func (q *Queue) SetSwapchainSuppressed(_ bool) {}

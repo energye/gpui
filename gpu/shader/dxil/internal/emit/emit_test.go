@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -8,10 +18,6 @@ import (
 )
 
 // buildPassthroughVertex creates a minimal vertex shader IR module:
-//
-//	@vertex fn main(@builtin(position) pos: vec4<f32>) -> @builtin(position) vec4<f32> {
-//	    return pos;
-//	}
 func buildPassthroughVertex() *ir.Module {
 	// Types: vec4<f32>
 	vec4f32Handle := ir.TypeHandle(0)
@@ -55,10 +61,6 @@ func buildPassthroughVertex() *ir.Module {
 }
 
 // buildSimpleTransformVertex creates a vertex shader that constructs vec4 from vec2:
-//
-//	@vertex fn main(@location(0) pos: vec2<f32>) -> @builtin(position) vec4<f32> {
-//	    return vec4(pos, 0.0, 1.0);
-//	}
 func buildSimpleTransformVertex() *ir.Module {
 	vec2f32Handle := ir.TypeHandle(0)
 	vec4f32Handle := ir.TypeHandle(1)
@@ -120,10 +122,6 @@ func buildSimpleTransformVertex() *ir.Module {
 }
 
 // buildSimpleFragmentShader creates a minimal fragment shader:
-//
-//	@fragment fn main() -> @location(0) vec4<f32> {
-//	    return vec4(1.0, 0.0, 0.0, 1.0);
-//	}
 func buildSimpleFragmentShader() *ir.Module {
 	vec4f32Handle := ir.TypeHandle(0)
 	f32Handle := ir.TypeHandle(1)
@@ -172,11 +170,6 @@ func buildSimpleFragmentShader() *ir.Module {
 }
 
 // buildBinaryArithmeticVertex creates a vertex shader with arithmetic:
-//
-//	@vertex fn main(@location(0) a: f32, @location(1) b: f32) -> @builtin(position) vec4<f32> {
-//	    let sum = a + b;
-//	    return vec4(sum, sum, 0.0, 1.0);
-//	}
 func buildBinaryArithmeticVertex() *ir.Module {
 	f32Handle := ir.TypeHandle(0)
 	vec4f32Handle := ir.TypeHandle(1)
@@ -679,11 +672,6 @@ func TestBuiltinSemanticIndex(t *testing.T) {
 }
 
 // buildMathBinaryShader creates a fragment shader with a binary math function:
-//
-//	@fragment fn main(@location(0) a: f32, @location(1) b: f32) -> @location(0) vec4<f32> {
-//	    let r = mathFn(a, b);
-//	    return vec4(r, r, r, 1.0);
-//	}
 func buildMathBinaryShader(mathFn ir.MathFunction, scalarKind ir.ScalarKind) *ir.Module {
 	var scalarWidth byte = 4
 	scalar := ir.ScalarType{Kind: scalarKind, Width: scalarWidth}
@@ -805,11 +793,6 @@ func buildMathTernaryShader(mathFn ir.MathFunction) *ir.Module {
 }
 
 // buildDotProductShader creates a fragment shader with dot product:
-//
-//	@fragment fn main(@location(0) a: vec3<f32>, @location(1) b: vec3<f32>) -> @location(0) vec4<f32> {
-//	    let d = dot(a, b);
-//	    return vec4(d, d, d, 1.0);
-//	}
 func buildDotProductShader(vecSize ir.VectorSize) *ir.Module {
 	vecHandle := ir.TypeHandle(0)
 	f32Handle := ir.TypeHandle(1)
@@ -1211,7 +1194,7 @@ func TestEmitMathPow(t *testing.T) {
 // `fn ldexp(x: f32, n: i32) -> f32` — the exponent is an INTEGER,
 // unlike HLSL's `ldexp(float, float)`. The mismatch between WGSL IR
 // types and the scalar dx.op.unary.f32 intrinsic is the root cause of
-// BUG-DXIL-023: emit must insert `sitofp i32 → f32` before feeding the
+// emit must insert `sitofp i32 → f32` before feeding the
 // exponent into the unary exp call.
 //
 // The exponent here is an integer literal (not a function argument) to
@@ -1247,8 +1230,8 @@ func buildMathLdexpShader() *ir.Module {
 			Binding: &resultBinding,
 		},
 		Expressions: []ir.Expression{
-			{Kind: ir.ExprFunctionArgument{Index: 0}},                             // [0] x  (f32)
-			{Kind: ir.Literal{Value: ir.LiteralI32(2)}},                           // [1] 2  (i32)
+			{Kind: ir.ExprFunctionArgument{Index: 0}},                             // [0] x (f32)
+			{Kind: ir.Literal{Value: ir.LiteralI32(2)}},                           // [1] 2 (i32)
 			{Kind: ir.ExprMath{Fun: ir.MathLdexp, Arg: 0, Arg1: &arg1Handle}},     // [2] ldexp(x, 2)
 			{Kind: ir.Literal{Value: ir.LiteralF32(1.0)}},                         // [3] 1.0
 			{Kind: ir.ExprCompose{Components: []ir.ExpressionHandle{2, 2, 2, 3}}}, // [4] vec4(r, r, r, 1.0)
@@ -1272,15 +1255,14 @@ func buildMathLdexpShader() *ir.Module {
 	return mod
 }
 
-// TestEmitMathLdexp_BitcodeRecordValid is the regression gate for
-// BUG-DXIL-023. Before the fix, `emitMathLdexp` passed the raw i32
+// Before the fix, `emitMathLdexp` passed the raw i32
 // exponent directly as the second operand of `dx.op.unary.f32` — the
 // resulting LLVM 3.7 CALL record carried an i32-typed operand at a
 // slot declared float, and `dxil.dll`'s bitcode reader rejected the
 // record with `HRESULT 0x80aa0009 Invalid record` before any semantic
 // validation ran. dxc `-dumpbin` cannot parse the malformed blob
 // either. The fix emits a `sitofp i32 → f32` cast before the unary
-// call, matching DXC's TranslateLdExp (HLOperationLower.cpp:2504).
+// call, matching DXC's TranslateLdExp.
 //
 // This test asserts the emitted instruction shape:
 //
@@ -1361,10 +1343,6 @@ func TestEmitMathLdexp_BitcodeRecordValid(t *testing.T) {
 	//   dxil.Validate(blob, ValidateBitcode) →
 	//     dxcvalidator.PreCheckContainer(blob) + bitcheck.Check(blob)
 	//
-	// Here we only assert instruction-shape invariants, which is
-	// sufficient as a regression gate for BUG-DXIL-023 — the real
-	// blob-level structural check lives in dxil/validate_test.go
-	// (TestLdexpEndToEndStructural) and exercises the full pipeline.
 }
 
 func TestEmitMathStep(t *testing.T) {
@@ -1698,11 +1676,6 @@ func findMainFunc(mod *module.Module) *module.Function {
 // --- Type cast (ExprAs) tests ---
 
 // buildCastShader creates a fragment shader that casts a scalar input to a different type:
-//
-//	@fragment fn main(@location(0) v: srcType) -> @location(0) vec4<f32> {
-//	    let c = dstType(v);
-//	    return vec4(f32(c), 0.0, 0.0, 1.0);
-//	}
 //
 // The ExprAs is at expression [1] with the given kind and convert width.
 func buildCastShader(srcScalar ir.ScalarType, dstKind ir.ScalarKind, convertWidth *uint8) *ir.Module {
@@ -2079,16 +2052,6 @@ func TestEmitAsIntToBool(t *testing.T) {
 // --- Control Flow Tests ---
 
 // buildIfElseShader creates a fragment shader with if/else:
-//
-//	@fragment fn main(@location(0) v: f32) -> @location(0) vec4<f32> {
-//	    var r: f32;
-//	    if (v > 0.5) {
-//	        r = 1.0;
-//	    } else {
-//	        r = 0.0;
-//	    }
-//	    return vec4(r, r, r, 1.0);
-//	}
 func buildIfElseShader() *ir.Module {
 	f32Handle := ir.TypeHandle(0)
 	vec4Handle := ir.TypeHandle(1)
@@ -2639,28 +2602,22 @@ func TestEmitNestedIfLoop(t *testing.T) {
 
 // buildLocalVarShader creates a shader with a local variable:
 //
-//	@fragment fn main() -> @location(0) vec4<f32> {
-//	    var x: f32 = 1.0;
-//	    x = 2.0;
-//	    return vec4(x, x, x, 1.0);
-//	}
-//
 // IR pattern:
 //
 //	LocalVars: [{Name: "x", Type: f32, Init: nil}]
 //	Expressions:
-//	  [0] ExprLocalVariable{Variable: 0}  → pointer to x
+//	  [0] ExprLocalVariable{Variable: 0} → pointer to x
 //	  [1] Literal(1.0)
-//	  [2] ExprLocalVariable{Variable: 0}  → pointer to x (for second store)
+//	  [2] ExprLocalVariable{Variable: 0} → pointer to x (for second store)
 //	  [3] Literal(2.0)
-//	  [4] ExprLocalVariable{Variable: 0}  → pointer to x (for load)
-//	  [5] ExprLoad{Pointer: 4}            → loaded value of x
+//	  [4] ExprLocalVariable{Variable: 0} → pointer to x (for load)
+//	  [5] ExprLoad{Pointer: 4} → loaded value of x
 //	  [6] Literal(1.0)
-//	  [7] ExprCompose{5, 5, 5, 6}         → vec4(x, x, x, 1.0)
+//	  [7] ExprCompose{5, 5, 5, 6} → vec4(x, x, x, 1.0)
 //	Body:
-//	  StmtStore{Pointer: 0, Value: 1}     → x = 1.0
+//	  StmtStore{Pointer: 0, Value: 1} → x = 1.0
 //	  StmtEmit{Range: 2..4}
-//	  StmtStore{Pointer: 2, Value: 3}     → x = 2.0
+//	  StmtStore{Pointer: 2, Value: 3} → x = 2.0
 //	  StmtEmit{Range: 4..8}
 //	  StmtReturn{Value: 7}
 func buildLocalVarShader() *ir.Module {
@@ -2722,12 +2679,6 @@ func buildLocalVarShader() *ir.Module {
 }
 
 // buildMultipleLocalsShader creates a shader with two independent local variables:
-//
-//	@fragment fn main() -> @location(0) vec4<f32> {
-//	    var a: f32 = 1.0;
-//	    var b: f32 = 2.0;
-//	    return vec4(a, b, 0.0, 1.0);
-//	}
 func buildMultipleLocalsShader() *ir.Module {
 	f32Handle := ir.TypeHandle(0)
 	vec4f32Handle := ir.TypeHandle(1)
@@ -2785,17 +2736,6 @@ func buildMultipleLocalsShader() *ir.Module {
 }
 
 // buildLocalInLoopShader creates a shader with a local variable modified inside a loop:
-//
-//	@fragment fn main() -> @location(0) vec4<f32> {
-//	    var acc: f32 = 0.0;
-//	    var i: i32 = 0;
-//	    loop {
-//	        if i >= 4 { break; }
-//	        acc = acc + 1.0;
-//	        continuing { i = i + 1; }
-//	    }
-//	    return vec4(acc, acc, acc, 1.0);
-//	}
 func buildLocalInLoopShader() *ir.Module {
 	f32Handle := ir.TypeHandle(0)
 	vec4f32Handle := ir.TypeHandle(1)
@@ -3004,8 +2944,7 @@ func TestEmitMultipleLocals(t *testing.T) {
 	}
 
 	// Single-store scalar locals are promoted directly to SSA values,
-	// bypassing alloca/store/load. This matches DXC's mem2reg behavior
-	// for locals stored once in straight-line code.
+	// bypassing alloca/store/load.
 	allocaCount := countInstrKind(mod, module.InstrAlloca)
 	if allocaCount != 0 {
 		t.Errorf("expected 0 alloca instructions (single-store promotion), got %d", allocaCount)
@@ -3077,10 +3016,6 @@ func TestEmitLocalInLoop(t *testing.T) {
 // --- Swizzle tests ---
 
 // buildSwizzleShader creates a fragment shader that swizzles vec4.xzy:
-//
-//	@fragment fn main(@location(0) v: vec4<f32>) -> @location(0) vec4<f32> {
-//	    return v.xzy;  // actually returns vec4(v.xzy, 1.0) for valid output
-//	}
 func buildSwizzleShader() *ir.Module {
 	vec4Handle := ir.TypeHandle(0)
 	vec3Handle := ir.TypeHandle(1)
@@ -3585,12 +3520,6 @@ func TestEmitStmtKillSilentSkip(t *testing.T) {
 // --- Resource binding tests ---
 
 // buildCBVFragmentShader creates a fragment shader that reads from a uniform buffer:
-//
-//	struct Uniforms { color: vec4<f32> }
-//	@group(0) @binding(0) var<uniform> uniforms: Uniforms;
-//	@fragment fn main() -> @location(0) vec4<f32> {
-//	    return uniforms.color;
-//	}
 func buildCBVFragmentShader() *ir.Module {
 	vec4f32Handle := ir.TypeHandle(1)
 	structHandle := ir.TypeHandle(2)
@@ -3826,10 +3755,6 @@ func TestEmitCBVLoad(t *testing.T) {
 }
 
 func TestEmitCBVLoadMultiField(t *testing.T) {
-	// Build a shader with a CBV struct containing multiple fields at different offsets:
-	//   struct Uniforms { color: vec4<f32>, intensity: f32, offset: vec2<f32> }
-	//   @group(0) @binding(0) var<uniform> u: Uniforms;
-	//   @fragment fn main() -> @location(0) vec4<f32> { return u.color * u.intensity; }
 	f32Handle := ir.TypeHandle(0)
 	vec4f32Handle := ir.TypeHandle(1)
 	vec2f32Handle := ir.TypeHandle(2)
@@ -3922,9 +3847,7 @@ func TestEmitCBVLoadMultiField(t *testing.T) {
 
 func TestEmitCBVLoadI32(t *testing.T) {
 	// Build a shader with an i32 CBV field to verify overload selection.
-	//   struct Params { count: u32 }
-	//   @group(0) @binding(0) var<uniform> p: Params;
-	//   @fragment fn main() -> @location(0) vec4<f32> { ... }
+	//   }
 	u32Handle := ir.TypeHandle(0)
 	vec4f32Handle := ir.TypeHandle(1)
 	structHandle := ir.TypeHandle(2)
@@ -4096,12 +4019,6 @@ func TestEmitCBVLoadRegisterOffset(t *testing.T) {
 }
 
 func TestEmitImageSample(t *testing.T) {
-	// Build a fragment shader with texture sampling:
-	//   @group(0) @binding(0) var tex: texture_2d<f32>;
-	//   @group(0) @binding(1) var samp: sampler;
-	//   @fragment fn main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-	//       return textureSample(tex, samp, uv);
-	//   }
 	f32Handle := ir.TypeHandle(0)
 	vec2f32Handle := ir.TypeHandle(1)
 	vec4f32Handle := ir.TypeHandle(2)
@@ -4289,11 +4206,6 @@ func findMainFunction(m *module.Module) *module.Function {
 // --- Compute shader tests ---
 
 // buildMinimalComputeShader creates a compute shader with GlobalInvocationId:
-//
-//	@compute @workgroup_size(64, 1, 1)
-//	fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-//	    // empty body
-//	}
 func buildMinimalComputeShader() *ir.Module {
 	u32Handle := ir.TypeHandle(0)
 	vec3u32Handle := ir.TypeHandle(1)
@@ -4358,15 +4270,6 @@ func buildMinimalComputeShader() *ir.Module {
 }
 
 // buildComputeWithUAV creates a compute shader that reads/writes a storage buffer:
-//
-//	@group(0) @binding(0) var<storage, read_write> data: array<u32>;
-//
-//	@compute @workgroup_size(64)
-//	fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-//	    let index = global_id.x;
-//	    let value = data[index];
-//	    data[index] = value * 2u;
-//	}
 func buildComputeWithUAV() *ir.Module {
 	u32Handle := ir.TypeHandle(0)
 	vec3u32Handle := ir.TypeHandle(1)
@@ -4445,13 +4348,6 @@ func buildComputeWithUAV() *ir.Module {
 }
 
 // buildComputeMultipleBuiltins creates a compute shader with multiple builtins:
-//
-//	@compute @workgroup_size(8, 8, 1)
-//	fn main(
-//	    @builtin(global_invocation_id) global_id: vec3<u32>,
-//	    @builtin(local_invocation_id) local_id: vec3<u32>,
-//	    @builtin(workgroup_id) wg_id: vec3<u32>,
-//	) { }
 func buildComputeMultipleBuiltins() *ir.Module {
 	u32Handle := ir.TypeHandle(0)
 	vec3u32Handle := ir.TypeHandle(1)
@@ -4876,14 +4772,6 @@ func TestEmitComputeUAVResourceMetadata(t *testing.T) {
 // --- Atomic and barrier tests ---
 
 // buildComputeWithAtomicAdd creates a compute shader that performs an atomic add:
-//
-//	@group(0) @binding(0) var<storage, read_write> data: array<u32>;
-//
-//	@compute @workgroup_size(64)
-//	fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-//	    let idx = global_id.x;
-//	    let result = atomicAdd(&data[idx], 1u);
-//	}
 func buildComputeWithAtomicAdd() *ir.Module {
 	u32Handle := ir.TypeHandle(0)
 	vec3u32Handle := ir.TypeHandle(1)
@@ -5525,10 +5413,6 @@ func TestEmitAtomicSubtract(t *testing.T) {
 // buildComputeWithFloatVec2Store creates a compute shader that stores a
 // vec2<f32> to a storage buffer. This exercises the raw buffer float store
 // path where DXC uses i32 overload with bitcast:
-//
-//	@group(0) @binding(0) var<storage, read_write> out: array<vec2<f32>>;
-//	@compute @workgroup_size(1)
-//	fn main() { out[0] = vec2<f32>(1.0, 2.0); }
 func buildComputeWithFloatVec2Store() *ir.Module {
 	f32Handle := ir.TypeHandle(0)
 	vec2f32Handle := ir.TypeHandle(1)
@@ -5699,14 +5583,6 @@ func TestEmitRawBufferIntStoreNoBitcast(t *testing.T) {
 
 // buildComputeWithFloatVec2Load creates a compute shader module that loads
 // vec2<f32> from a storage buffer (ByteAddressBuffer).
-//
-//	@group(0) @binding(0) var<storage, read> data: array<vec2<f32>>;
-//	@group(0) @binding(1) var<storage, read_write> out: array<vec2<f32>>;
-//
-//	@compute @workgroup_size(1)
-//	fn main() {
-//	    out[0] = data[0];
-//	}
 func buildComputeWithFloatVec2Load() *ir.Module {
 	f32Handle := ir.TypeHandle(0)
 	vec2f32Handle := ir.TypeHandle(1)
@@ -5893,7 +5769,7 @@ func TestEmitRawBufferIntLoadNoBitcast(t *testing.T) {
 // TestResourceNameSuffix verifies that the DXIL emitter applies the
 // HLSL namer trailing-underscore convention to resource names in
 // dx.resources metadata. DXC processes HLSL variable names through
-// its namer (Rust naga proc::Namer) which appends "_" when the name
+// its namer which appends "_" when the name
 // ends with a digit or is an HLSL keyword. Our DXIL backend must
 // match this convention so dxc -dumpbin shows identical resource
 // names in the Resource Bindings comment table.
@@ -6005,8 +5881,6 @@ func TestSamplerHeapHandleAfterInputLoads(t *testing.T) {
 		},
 	}
 
-	// Build a fragment shader: @fragment fn main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32>
-	// that does textureSample(tex, samp, uv).
 	uvBinding := ir.Binding(ir.LocationBinding{Location: 0})
 	resultBinding := ir.Binding(ir.LocationBinding{Location: 0})
 
@@ -6102,17 +5976,6 @@ func TestSamplerHeapHandleAfterInputLoads(t *testing.T) {
 
 // buildStructReturnVertex creates a vertex shader that returns a struct
 // through a local variable:
-//
-//	struct VertexOutput {
-//	    @location(0) color: vec3<f32>,
-//	    @builtin(position) position: vec4<f32>,
-//	}
-//	@vertex fn vs_main(@location(0) in_color: vec3<f32>) -> VertexOutput {
-//	    var out: VertexOutput;
-//	    out.color = in_color;
-//	    out.position = vec4<f32>(1.0, 2.0, 0.0, 1.0);
-//	    return out;
-//	}
 func buildStructReturnVertex() *ir.Module {
 	vec3Handle := ir.TypeHandle(0)
 	vec4Handle := ir.TypeHandle(1)
@@ -6634,9 +6497,7 @@ func TestSubToAddNeg(t *testing.T) {
 }
 
 // TestURemStrengthReduction verifies that unsigned modulo by a power
-// of 2 is strength-reduced to a bitwise AND. This matches DXC's LLVM
-// TestMulToShl verifies that integer multiply by a power of 2 is
-// strength-reduced to a left shift, matching DXC's LLVM InstCombine.
+// of 2 is strength-reduced to a bitwise AND.
 func TestMulToShl(t *testing.T) {
 	e := &Emitter{
 		constMap:    make(map[int]*module.Constant),
@@ -6904,7 +6765,6 @@ func TestIsInt64Type(t *testing.T) {
 
 // TestAlignForType verifies that alignForType returns the LLVM bitcode
 // alignment encoding (log2(bytes)+1) for each scalar type.
-// Reference: LLVM INST_STORE/INST_LOAD alignment field, Mesa dxil_module.c.
 func TestAlignForType(t *testing.T) {
 	e := &Emitter{mod: module.NewModule(module.ComputeShader)}
 	cases := []struct {
@@ -7045,9 +6905,9 @@ func TestAddMulOrShlInstr(t *testing.T) {
 		wantShl  bool
 		shiftAmt int64
 	}{
-		{4, true, 2},   // sizeof(f32)
-		{8, true, 3},   // sizeof(f64)
-		{16, true, 4},  // sizeof(vec4 or @size(16) struct)
+		{4, true, 2}, // sizeof(f32)
+		{8, true, 3}, // sizeof(f64)
+		{16, true, 4},
 		{32, true, 5},  // 2 * sizeof(vec4)
 		{12, false, 0}, // sizeof(vec3) — not a power of 2
 		{24, false, 0}, // sizeof(mat2x3) — not a power of 2
@@ -7162,11 +7022,11 @@ func TestLeafEmitPriority(t *testing.T) {
 		},
 	}
 
-	// expr0 = GlobalVariable(0)            -- resource global
-	// expr1 = AccessIndex(expr0, 0)        -- access into resource
-	// expr2 = Load(expr1)                  -- load from resource (memory read)
-	// expr3 = As(f32, expr0)               -- pure ALU (cast)
-	// expr4 = Literal(1.0)                 -- constant
+	// expr0 = GlobalVariable(0) -- resource global
+	// expr1 = AccessIndex(expr0, 0) -- access into resource
+	// expr2 = Load(expr1) -- load from resource (memory read)
+	// expr3 = As(f32, expr0) -- pure ALU (cast)
+	// expr4 = Literal(1.0) -- constant
 	w4 := uint8(4)
 	fn := &ir.Function{
 		Name: "test",

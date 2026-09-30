@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package noop
@@ -162,7 +172,6 @@ func (d *Device) DestroyFence(_ hal.Fence) {}
 
 // WaitForFence simulates waiting for a fence value.
 // Always returns true immediately (fence reached).
-// Matches webgpu Device.WaitForFence.
 func (d *Device) WaitForFence(fence hal.Fence, value uint64, _ time.Duration) (bool, error) {
 	f, ok := fence.(*Fence)
 	if !ok {

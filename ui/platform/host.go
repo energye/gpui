@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package platform is the L0 SPI for the L1 UI engine: native window handles,
 // input events, and optional vsync. Platform backends live in *_linux.go etc.
 package platform
@@ -101,15 +111,13 @@ const (
 	// the family, DeviceName the OS name (empty = unknown).
 	EventDeviceAdded
 	EventDeviceRemoved
-	// EventStylus: pen sample (S6-P2 E 组; X11 XInput2, Wayland tablet 二期占位).
+	// EventStylus: pen sample.
 	// Phase rides in Pointer (Down/Move/Up only); X/Y carry the position in
 	// logical px; StylusID is the pen tool slot (0 = primary pen).
 	// StylusPressure is 0–1 (backend fills 1 when the device has no pressure
 	// sensor); StylusTiltX/Y are degrees (0 = unknown); StylusEraser marks
 	// the eraser tool. Appended at the end so earlier values never shift.
 	EventStylus
-	// EventModifiersChanged: lone modifier-state change (S6 §4.4 B 组;
-	// X11 KeyPress/Release state tracking, Wayland xkb effective-mods query).
 	// ModShift/ModControl/ModAlt/ModMeta carry the new held state.
 	// Appended at the end so earlier values never shift.
 	EventModifiersChanged
@@ -279,22 +287,17 @@ type Event struct {
 	IMEEnd   int    // affected range end (bytes); -1 = whole buffer
 
 	// EventDeviceAdded / EventDeviceRemoved: hot-plugged device family +
-	// OS name (empty = unknown). Mirrors input.DeviceEvent.
+	// OS name (empty = unknown).
 	DeviceClass DeviceClass
 	DeviceName  string
 
-	// EventStylus: pen sample (S6-P2 E 组; phase in Pointer, position in X/Y).
-	// Mirrors input.StylusEvent (ID/Pressure/Tilt/Eraser); Pressure 0–1 with
-	// 1 as the sensor-less fallback (filled by the backend), Tilt degrees
-	// with 0 = unknown.
+	// EventStylus: pen sample.
 	StylusID       int
 	StylusPressure float64
 	StylusTiltX    float64
 	StylusTiltY    float64
 	StylusEraser   bool
 
-	// EventModifiersChanged: lone modifier-state change (§4.4 B 组).
-	// Mirrors input.Modifiers (platform cannot import input).
 	ModShift   bool
 	ModControl bool
 	ModAlt     bool
@@ -391,8 +394,8 @@ type SurfacePresenter interface {
 // HiddenSurface is optional; a Host implementing it lets the embedder tell
 // the platform to detach the window's content surface (attach NULL) once the
 // renderer has fully stopped. On Wayland the content surface is owned by the
-// renderer (wgpu Vulkan WSI): detaching it while a present is in flight
-// corrupts the swapchain (wgpu surface present hangs), so the detach must
+// renderer: detaching it while a present is in flight
+// corrupts the swapchain, so the detach must
 // happen only after frame production has drained — which only the embedder
 // can observe.
 type HiddenSurface interface {

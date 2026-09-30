@@ -1,10 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package mem2reg promotes function-scope local variables of scalar type
 // to SSA values, eliminating the corresponding alloca / load / store
 // triples that the DXIL emitter would otherwise produce.
 //
 // This pass mirrors the LLVM "Promote Memory To Register" transform
-// (lib/Transforms/Utils/PromoteMemoryToRegister.cpp), specialized to
-// naga IR's structured control flow. Reference behavior:
+// , specialized to
+// naga IR's structured control flow.
 //
 //   - For each LocalVariable whose every use is a direct Load/Store
 //     (no GEP, no AccessIndex chain, no pointer escape), the alloca
@@ -29,19 +39,12 @@
 //     require phi insertion at structured-CFG merge points are left
 //     as alloca; they are tracked separately for Phase B.
 //
-// Phase B (deferred — tracked as BUG-DXIL-040) will add ExprPhi
+// Phase B will add ExprPhi
 // expressions placed at structured-CFG merge points (if-merge,
 // loop-header, switch-merge), the corresponding emit-side support
 // for LLVM phi instructions in basic-block prologue position, and
 // the bitcode writer extension for sign-rotated VBR encoding of
 // phi value operands.
-//
-// References:
-//   - LLVM Mem2Reg: https://llvm.org/docs/Passes.html#mem2reg
-//   - DXC reference: clang -O2 lowers HLSL locals through this same
-//     LLVM pass before DXIL bitcode emission, which is why DXC
-//     golden output has zero allocas for the same shaders we still
-//     emit them.
 package mem2reg
 
 import (
@@ -116,7 +119,6 @@ func Run(mod *ir.Module, fn *ir.Function) error {
 	// instructions with "Invalid record" — same limitation noted at
 	// emitter.go:639 for i1 return types.
 	//
-	// Loop-header phi and i1 widening tracked under BUG-DXIL-041.
 	uses2 := classifyLocals(mod, fn)
 	if !anyPromotable(uses2) {
 		return nil

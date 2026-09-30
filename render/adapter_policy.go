@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -16,10 +26,10 @@ import (
 //
 //	Default — hybrid UI default: prefer integrated when both discrete and
 //	          integrated exist (avoids multi-app OOM on small dGPUs).
-//	High    — discrete-first (games / explicit performance).
-//	Low     — integrated-first (force spare dGPU).
+//	High — discrete-first (games / explicit performance).
+//	Low — integrated-first (force spare dGPU).
 //
-// Env: GPUI_POWER=high|low  (unset → Default). No other knobs.
+// Env: GPUI_POWER=high|low (unset → Default). No other knobs.
 type AdapterPolicy int
 
 const (
@@ -54,9 +64,9 @@ func (p AdapterPolicy) String() string {
 
 // ResolveAdapterPolicy reads GPUI_POWER only.
 //
-//	(unset) / empty     → Default (hybrid prefer iGPU)
-//	GPUI_POWER=high     → High (discrete-first)
-//	GPUI_POWER=low      → Low (integrated-first)
+//	(unset) / empty → Default (hybrid prefer iGPU)
+//	GPUI_POWER=high → High (discrete-first)
+//	GPUI_POWER=low → Low (integrated-first)
 //
 // Legacy aliases still accepted: discrete/dgpu→high, integrated/igpu→low,
 // none/auto/default→Default. GPUI_LOW_VRAM is ignored for adapter selection

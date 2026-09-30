@@ -1,14 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — function/instruction definitions.
 //
-// Port of skrifa hint/definition.rs (265 LOC).
 // Manages FDEF/IDEF function and instruction definitions.
-//
-// Reference: skrifa/src/outline/glyf/hint/definition.rs
 package text
 
 // ttDefinition describes a function or instruction definition.
 // The key is either a function number (FDEF) or opcode (IDEF).
-// Reference: skrifa hint/definition.rs:12-22
 type ttDefinition struct {
 	start    int32 // start of code range
 	end      int32 // end of code range
@@ -18,13 +24,11 @@ type ttDefinition struct {
 }
 
 // program returns the program that contains this definition.
-// Reference: skrifa hint/definition.rs:44-49
 func (d *ttDefinition) program() ttProgramType {
 	return d.prog
 }
 
 // ttDefinitionMap maps function numbers or opcodes to definitions.
-// Reference: skrifa hint/definition.rs:76-79
 type ttDefinitionMap struct {
 	defs     []ttDefinition
 	readonly bool
@@ -51,7 +55,6 @@ func newTTDefinitionMapReadonly(defs []ttDefinition) ttDefinitionMap {
 //
 // For well-behaved fonts, the key directly maps to the index.
 // For IDEF or out-of-range keys, a linear search is used.
-// Reference: skrifa hint/definition.rs:87-127
 func (m *ttDefinitionMap) allocate(key int32) (int, error) {
 	if m.readonly {
 		return 0, ttErrDefinitionInGlyphProgram
@@ -96,7 +99,6 @@ func (m *ttDefinitionMap) allocate(key int32) (int, error) {
 }
 
 // get returns the definition for the given key.
-// Reference: skrifa hint/definition.rs:130-149
 func (m *ttDefinitionMap) get(key int32) (ttDefinition, error) {
 	// Fast path: use key as index.
 	if key >= 0 && int(key) < len(m.defs) {
@@ -116,7 +118,6 @@ func (m *ttDefinitionMap) get(key int32) (ttDefinition, error) {
 }
 
 // reset clears all definitions (if mutable).
-// Reference: skrifa hint/definition.rs:162-167
 func (m *ttDefinitionMap) reset() {
 	if m.readonly {
 		return
@@ -127,7 +128,6 @@ func (m *ttDefinitionMap) reset() {
 }
 
 // ttDefinitionState contains function and instruction definition maps.
-// Reference: skrifa hint/definition.rs:170-173
 type ttDefinitionState struct {
 	functions    ttDefinitionMap
 	instructions ttDefinitionMap

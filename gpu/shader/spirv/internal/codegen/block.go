@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 // Block represents a SPIR-V basic block under construction.
@@ -25,8 +35,6 @@ type TerminatedBlock struct {
 }
 
 // FunctionBuilder collects terminated blocks for a single SPIR-V function.
-// It mirrors the Rust naga Function struct: blocks own their instructions,
-// and ToInstructions serializes them into a flat list.
 type FunctionBuilder struct {
 	Blocks     []TerminatedBlock
 	Variables  []Instruction // OpVariable instructions emitted in the first block only
@@ -44,7 +52,6 @@ func (f *FunctionBuilder) Consume(block Block, terminator Instruction) {
 // ToInstructions serializes all blocks into a flat instruction list suitable
 // for SPIR-V binary encoding. OpLabel is emitted from block.LabelID (NOT
 // stored in Body). Local variables are emitted only in the first block.
-// This matches Rust naga's Function::to_words() layout:
 //
 //	OpFunction
 //	OpFunctionParameter...
@@ -130,8 +137,6 @@ const (
 )
 
 // LoopContext provides break/continue targets for loop bodies.
-// Passed by VALUE to ensure nested loops get isolated contexts,
-// matching Rust's Copy semantics for the equivalent struct.
 type LoopContext struct {
 	ContinuingID uint32 // 0 = not in a continuing block
 	BreakID      uint32 // 0 = not in a loop/switch

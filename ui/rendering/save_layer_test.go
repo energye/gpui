@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -147,7 +157,6 @@ func TestSaveLayer_NestedDepth(t *testing.T) {
 
 // TestSaveLayer_StatsCountsAllowReject: LayerStats accumulates SaveLayer
 // budget outcomes — accepted pushes count Allow, budget refusals count Reject
-// (W2 R18 savelayer_allow / savelayer_reject observation source).
 func TestSaveLayer_StatsCountsAllowReject(t *testing.T) {
 	dc := render.NewContext(40, 40)
 	defer dc.Close()

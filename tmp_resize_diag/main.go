@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Command tmp_resize_diag reproduces "rendered content lags window size
 // during a real mouse resize drag" (400<->1600 repeated). The window draws a
 // rich desktop-GUI-like scene — title bar, sidebar list, main image + card
@@ -512,8 +522,6 @@ func main() {
 		}()
 	}
 
-	// Optional §9 standard-features cycle (DIAG_FEATURES=1): app icon name
-	// (Options.IconName → set_app_id), state queries, clipboard set+get, and
 	// hide/show visibility round-trip with the renderer-stop events. Logs
 	// every step; the window stays alive and keeps presenting.
 	if os.Getenv("DIAG_FEATURES") == "1" {

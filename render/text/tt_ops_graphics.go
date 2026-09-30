@@ -1,10 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — graphics state instructions.
 //
-// Port of skrifa hint/engine/graphics.rs (1154 LOC).
 // Implements vector setting, reference points, zone pointers, and
 // round mode instructions.
-//
-// Reference: skrifa/src/outline/glyf/hint/engine/graphics.rs
 package text
 
 // ============================================================
@@ -14,7 +21,6 @@ package text
 
 // opSvtca implements SVTCA/SPVTCA/SFVTCA (0x00-0x05).
 // Sets projection and/or freedom vectors to the X or Y axis.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opSvtca(opcode byte) error {
 	// opcodes 0x00-0x01: set both vectors
 	// opcodes 0x02-0x03: set projection vector only
@@ -43,7 +49,6 @@ func (e *ttEngine) opSvtca(opcode byte) error {
 
 // opSvtl implements SPVTL/SFVTL (0x06-0x09).
 // Sets projection or freedom vector to a line between two points.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opSvtl(opcode byte) error {
 	p2Idx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -86,7 +91,6 @@ func (e *ttEngine) opSvtl(opcode byte) error {
 
 // opSdpvtl implements SDPVTL[a] (0x86-0x87).
 // Sets dual projection vector to a line, using original positions.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opSdpvtl(opcode byte) error {
 	p2Idx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -142,7 +146,6 @@ func (e *ttEngine) opSdpvtl(opcode byte) error {
 
 // opSpvfs implements SPVFS[] (0x0A).
 // Sets projection vector from two 2.14 values on the stack.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opSpvfs() error {
 	y, err := e.valueStack.pop()
 	if err != nil {
@@ -161,7 +164,6 @@ func (e *ttEngine) opSpvfs() error {
 
 // opSfvfs implements SFVFS[] (0x0B).
 // Sets freedom vector from two 2.14 values on the stack.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opSfvfs() error {
 	y, err := e.valueStack.pop()
 	if err != nil {
@@ -179,7 +181,6 @@ func (e *ttEngine) opSfvfs() error {
 
 // opGpv implements GPV[] (0x0C).
 // Pushes the projection vector (x, y) as 2.14 values.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opGpv() error {
 	if err := e.valueStack.push(e.graphics.projVector[0]); err != nil {
 		return err
@@ -189,7 +190,6 @@ func (e *ttEngine) opGpv() error {
 
 // opGfv implements GFV[] (0x0D).
 // Pushes the freedom vector (x, y) as 2.14 values.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opGfv() error {
 	if err := e.valueStack.push(e.graphics.freedomVector[0]); err != nil {
 		return err
@@ -199,7 +199,6 @@ func (e *ttEngine) opGfv() error {
 
 // opSfvtpv implements SFVTPV[] (0x0E).
 // Sets the freedom vector equal to the projection vector.
-// Reference: skrifa hint/engine/graphics.rs
 func (e *ttEngine) opSfvtpv() error {
 	e.graphics.freedomVector = e.graphics.projVector
 	e.graphics.updateProjectionState()
@@ -344,7 +343,6 @@ func (e *ttEngine) opRoff() error {
 }
 
 // opSround implements SROUND[] (0x76).
-// Reference: skrifa hint/engine/round.rs
 func (e *ttEngine) opSround() error {
 	v, err := e.valueStack.pop()
 	if err != nil {
@@ -356,7 +354,6 @@ func (e *ttEngine) opSround() error {
 }
 
 // opS45round implements S45ROUND[] (0x77).
-// Reference: skrifa hint/engine/round.rs
 func (e *ttEngine) opS45round() error {
 	v, err := e.valueStack.pop()
 	if err != nil {
@@ -369,7 +366,6 @@ func (e *ttEngine) opS45round() error {
 
 // setSuperRoundParams extracts period, phase, and threshold from the
 // SROUND/S45ROUND operand.
-// Reference: skrifa hint/engine/round.rs
 func (e *ttEngine) setSuperRoundParams(operand int32, gridPeriod int32) {
 	// Period: bits 7-6
 	switch (operand >> 6) & 3 {

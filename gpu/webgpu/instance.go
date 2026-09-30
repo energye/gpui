@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -128,7 +138,7 @@ func (i *Instance) Release() {
 }
 
 // EnumerateAdapters implements hal.Instance: returns the RequestAdapter result
-// as a single-element list (wgpu-native has no multi-adapter enumeration).
+// as a single-element list.
 func (i *Instance) EnumerateAdapters(hint hal.Surface) []hal.ExposedAdapter {
 	var opts *hal.RequestAdapterOptions
 	if hint != nil {
@@ -193,7 +203,7 @@ func convertLimits(rl rwgpu.Limits) types.Limits {
 
 // convertFeatures converts rwgpu []FeatureName to gputypes.Features bitmask.
 // Maps each rwgpu FeatureName constant to the corresponding gputypes.Feature bit.
-// Unrecognized features are silently ignored (wgpu-native extensions not in our bitmask).
+// Unrecognized features are silently ignored.
 func convertFeatures(names []rwgpu.FeatureName) types.Features {
 	var features types.Features
 	for _, name := range names {

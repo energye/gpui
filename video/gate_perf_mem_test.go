@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 // VR7-M ffmpeg parity (memory cap wiring only; D/T/A/P/G untouched).
@@ -48,11 +58,11 @@ type vr7MBench struct {
 }
 
 type vr7MClip struct {
-	File     string     `json:"file"`
-	Tracked  bool       `json:"tracked_mp4"`
-	MP4Bytes int        `json:"mp4_bytes"`
-	Stream   vr7MStream `json:"stream"`
-	Benchmark vr7MBench `json:"benchmark"`
+	File      string     `json:"file"`
+	Tracked   bool       `json:"tracked_mp4"`
+	MP4Bytes  int        `json:"mp4_bytes"`
+	Stream    vr7MStream `json:"stream"`
+	Benchmark vr7MBench  `json:"benchmark"`
 }
 
 type vr7MGrade struct {
@@ -65,7 +75,7 @@ type vr7MGrade struct {
 
 type vr7MBaseline struct {
 	VR7M struct {
-		Clips []vr7MClip  `json:"clips"`
+		Clips  []vr7MClip  `json:"clips"`
 		Grades []vr7MGrade `json:"grade_caps"`
 	} `json:"vr7_m"`
 }
@@ -158,7 +168,6 @@ func TestVR7MFFmpegParity(t *testing.T) {
 			if info.Width != clip.Stream.Width || info.Height != clip.Stream.Height {
 				t.Fatalf("%s: size %dx%d want %dx%d", clip.File, info.Width, info.Height, clip.Stream.Width, clip.Stream.Height)
 			}
-			// S7 wiring: estimate + cap ride along (never zero/uncapped).
 			st0 := p.Stats()
 			if st0.MemCapKB != MemCapKBFor(clip.Stream.Width, clip.Stream.Height) {
 				t.Fatalf("%s: mem_cap_kb %d want grade %d", clip.File, st0.MemCapKB, MemCapKBFor(clip.Stream.Width, clip.Stream.Height))
@@ -216,9 +225,6 @@ func TestVR7MFFmpegParity(t *testing.T) {
 	}
 }
 
-// TestS7OverCapFailFast pins the S7 fail-fast: absurd dimensions exceed
-// the top grade cap without decoding a single frame, with a namable
-// bucket for the window (Classify mem-over-cap, never unknown/OOM).
 func TestS7OverCapFailFast(t *testing.T) {
 	// 8K live (refs 16) is ~4002MB > 4K cap 2048MB by construction.
 	live := EstimateLiveBytes(7680, 4320, 16, 4, 256<<10)

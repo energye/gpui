@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -9,10 +19,6 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 )
 
-// H4-b3 行为差异单测（webgpu 对照侧）：零 native 依赖（&Device{} /
-// &Queue{} 零值即可），锁住总纲以 webgpu 为准的三条语义——
-// Queue.Poll 恒 0、LastSubmissionIndex 恒 0（索引由底层库发，
-// facade 不记数）、映射越界报 ErrInvalidMapRange。
 // 对照方：gles Poll 走 Fence.GetLatest（无围栏时走提交最大值）、
 // metal Poll 走 completedIndex（GPU 回调推进）、noop Poll 追平提交值。
 
@@ -31,8 +37,6 @@ func TestH4B3_WebGPUQueuePollAlwaysZero(t *testing.T) {
 func TestH4B3_WebGPUSubmitNeedsDevice(t *testing.T) {
 	q := &Queue{}
 
-	// 无底层队列时 Submit 直接报错（guard 先行），索引无从谈起；
-	// 有卡时的索引递增由带库门禁覆盖，本单测只锁住无卡门。
 	if _, err := q.Submit(); err == nil {
 		t.Fatal("Submit() on zero queue = nil, want error (invalid handle)")
 	}

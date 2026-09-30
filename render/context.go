@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -59,7 +69,7 @@ type Context struct {
 	mask      *Mask   // Current alpha mask
 	maskStack []*Mask // Mask stack for Push/Pop
 
-	// P1-2: cached R8 plane for mask/difference clips (GPU MaskAware path).
+	// cached R8 plane for mask/difference clips (GPU MaskAware path).
 	// Rebuilt when clipMaskGPUGen or user mask pointer changes.
 	clipMaskGPU     *Mask
 	clipMaskGPUGen  int // bumped on every clip stack mutation
@@ -116,7 +126,6 @@ type Context struct {
 	gpuCtx            gpuContextOps
 	gpuFallbackWarned bool // true after first global fallback warning (avoid log spam)
 
-	// P1.0: per-context GPU vs CPU routing counters for visual/foundation gates.
 	pathStats RenderPathStats
 
 	// Scratch for DrawVertices / DrawMesh (avoid per-call make on hot paths).
@@ -164,13 +173,12 @@ type Context struct {
 }
 
 // RenderPathStats counts how draw operations were routed for this Context.
-// Used by P1 Foundation Gate visual harness (gpu_ops / cpu_fallback_ops).
 type RenderPathStats struct {
 	GPUOps                int    // ops successfully queued/executed on GPU path
 	CPUFallbackOps        int    // ops that had a GPU path available but fell back to CPU
 	LastCPUFallbackReason string // diagnostic: most recent fallback reason
 	// FrameFlushes counts FlushGPU / FlushGPUWithView* invocations since the
-	// last ResetRenderPathStats or BeginFrame (P1-3 / F.03 mid-frame metric).
+	// last ResetRenderPathStats or BeginFrame.
 	FrameFlushes int
 	// BrushBootstrapOps counts ColorAt-stage → GPU blit fills (G.04 / residual).
 	// Not a hard cpu_fb — GPU still owns the composite; reason is explicit.
@@ -403,7 +411,7 @@ func NewContextForImage(img image.Image, opts ...ContextOption) *Context {
 // Example (macOS Retina 2x):
 //
 //	dc := render.NewContextWithScale(800, 600, 2.0)
-//	dc.Width()      // 800 (logical)
+//	dc.Width() // 800 (logical)
 //	dc.PixelWidth() // 1600 (physical)
 //	dc.DrawCircle(400, 300, 100) // logical coordinates
 func NewContextWithScale(width, height int, scale float64) *Context {
@@ -524,7 +532,7 @@ func (c *Context) RasterizerMode() RasterizerMode {
 // SetAntiAlias enables or disables anti-aliasing for geometry rendering.
 //
 // When enabled (default), shapes are rendered with smooth edges using analytic
-// anti-aliasing (Skia AAA). When disabled, shapes are rendered with binary
+// anti-aliasing. When disabled, shapes are rendered with binary
 // coverage (fully inside or fully outside) producing crisp, aliased edges.
 //
 // This is useful for pixel art, retro-style graphics, technical drawings,
@@ -532,9 +540,6 @@ func (c *Context) RasterizerMode() RasterizerMode {
 //
 // Text anti-aliasing is controlled independently via SetTextMode.
 // The anti-aliasing state participates in Push/Pop.
-//
-// Reference: Skia SkPaint::setAntiAlias, Cairo cairo_set_antialias,
-// tiny-skia Paint.anti_alias.
 func (c *Context) SetAntiAlias(enabled bool) {
 	c.antiAlias = enabled
 }
@@ -832,7 +837,7 @@ func (c *Context) trackDamageDevicePoints(pts []Point) {
 		return
 	}
 	c.frameDamageRects = append(c.frameDamageRects, bounds)
-	// R7.4: touch-merge first (CoalesceDamageRects); only full-union if still over cap.
+	// touch-merge first (CoalesceDamageRects); only full-union if still over cap.
 	if len(c.frameDamageRects) > maxDamageRects {
 		c.frameDamageRects = CoalesceDamageRects(c.frameDamageRects, maxDamageRects)
 	}
@@ -862,12 +867,12 @@ func (c *Context) trackDamage(bounds image.Rectangle) {
 	}
 
 	c.frameDamageRects = append(c.frameDamageRects, bounds)
-	// R7.4: prefer pairwise touch-merge over immediate full AABB collapse.
+	// prefer pairwise touch-merge over immediate full AABB collapse.
 	if len(c.frameDamageRects) > maxDamageRects {
 		c.frameDamageRects = CoalesceDamageRects(c.frameDamageRects, maxDamageRects)
 	}
 
-	// Layer Pop composites only this union (S6.4+ silky layers).
+	// Layer Pop composites only this union.
 	c.noteLayerDamage(bounds)
 }
 
@@ -902,8 +907,7 @@ func (c *Context) FillRectCPU(x, y, w, h float64, col RGBA) {
 
 // SetColor sets the current drawing color.
 //
-// Convergence (§7.5): compatibility convenience — equivalent to
-// Solid(FromColor(col)) + SetFillBrush. New code prefers Solid* + SetFillBrush.
+// New code prefers Solid* + SetFillBrush.
 func (c *Context) SetColor(col color.Color) {
 	c.paint.solidColor = FromColor(col)
 	c.paint.isSolid = true
@@ -912,7 +916,6 @@ func (c *Context) SetColor(col color.Color) {
 }
 
 // SetRGB sets the current color using RGB values (0-1).
-// Convergence (§7.5): compatibility convenience for SolidRGB + SetFillBrush.
 func (c *Context) SetRGB(r, g, b float64) {
 	c.paint.solidColor = RGBA{R: r, G: g, B: b, A: 1}
 	c.paint.isSolid = true
@@ -1031,9 +1034,9 @@ func (c *Context) GetStroke() Stroke {
 //
 // Example:
 //
-//	ctx.SetDash(5, 3)       // 5 units dash, 3 units gap
+//	ctx.SetDash(5, 3) // 5 units dash, 3 units gap
 //	ctx.SetDash(10, 5, 2, 5) // complex pattern
-//	ctx.SetDash()           // clear dash (solid line)
+//	ctx.SetDash() // clear dash (solid line)
 func (c *Context) SetDash(lengths ...float64) {
 	if len(lengths) == 0 {
 		c.ClearDash()
@@ -1121,7 +1124,7 @@ func (c *Context) ClearPath() {
 // The path is copied — subsequent modifications to p do not affect the context.
 // Use this to render pre-built paths (e.g., from ParseSVGPath):
 //
-//	path, _ := render.ParseSVGPath("M10,10 L90,10 L90,90 Z")
+//	path, _ := render.ParseSVGPath
 //	dc.SetPath(path)
 //	dc.Fill()
 func (c *Context) SetPath(p *Path) {
@@ -1149,7 +1152,7 @@ func (c *Context) AppendPath(p *Path) {
 // This is the correct way to render pre-built paths (e.g., from ParseSVGPath)
 // with transforms:
 //
-//	path, _ := render.ParseSVGPath("M10,10 L90,10 L90,90 Z")
+//	path, _ := render.ParseSVGPath
 //	dc.Push()
 //	dc.Translate(x, y)
 //	dc.Scale(0.5, 0.5)
@@ -1535,7 +1538,7 @@ func (c *Context) DrawRoundedRectangle(x, y, w, h, r float64) {
 }
 
 // DrawRoundedRectangleXY draws a rounded rectangle with independent X/Y corner radii
-// (G.06 Skia-style elliptical corners). Radii are clamped to half width/height.
+// . Radii are clamped to half width/height.
 func (c *Context) DrawRoundedRectangleXY(x, y, w, h, rx, ry float64) {
 	if w <= 0 || h <= 0 {
 		return
@@ -1772,7 +1775,7 @@ func (c *Context) Resize(width, height int) error {
 	// Reallocate pixmap at physical resolution
 	c.pixmap = NewPixmap(pw, ph)
 
-	// Single-slot replacement (Skia layer cache semantics): the context only
+	// Single-slot replacement: the context only
 	// ever requests layers at the current window size, so stale sizes held by
 	// the layer pool are dropped at once instead of being retained forever.
 	if c.layerStack != nil {
@@ -2085,8 +2088,6 @@ func (c *Context) offscreenPassSuspended() bool {
 // calls, no vector shapes). When the frame contains Fill/Stroke operations,
 // the MSAA render path is used which always does LoadOpClear — damageRect is
 // ignored and a warning is logged. This matches enterprise practice: Chrome,
-// Flutter, and Skia all re-render dirty layers fully via MSAA and composite
-// incrementally via blit-only path. See ADR-021.
 //
 // This enables sub-region compositing: a 48×48 spinner updates only 9KB
 // instead of the full surface (8MB at 1080p). See ADR-016 Phase 2.
@@ -2127,14 +2128,14 @@ type gpuContextOps interface {
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, nearest bool, contentDirty bool, bicubic ...bool)
 	// QueueImageDrawTint is QueueImageDraw plus per-quad straight tint
-	// (R4 vertex color; zero struct = identity). Implemented by
+	// . Implemented by
 	// internal/gpu; callers that cannot assert it must keep CPU fallback.
 	QueueImageDrawTint(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool, contentDirty bool, bicubic ...bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
-	// QueueColoredMeshIndexed draws unique verts + uint16 indices (opt22 DrawMesh).
+	// QueueColoredMeshIndexed draws unique verts + uint16 indices.
 	QueueColoredMeshIndexed(target GPURenderTarget, positions []Point, colors []RGBA, indices []uint16)
 	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
@@ -2422,7 +2423,7 @@ func (c *Context) doFill() error {
 		rc.SetAntiAlias(c.antiAlias)
 	}
 
-	// Mask/difference clips without gpuClipPath: prefer GPU R8 mask (P1-2)
+	// Mask/difference clips without gpuClipPath: prefer GPU R8 mask
 	// over full-surface CPU; only fall back if MaskAware install fails.
 	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
 	clipMaskCleanup := func() {}
@@ -2492,10 +2493,9 @@ func (c *Context) doFill() error {
 
 // doStroke performs the stroke operation respecting the current RasterizerMode.
 //
-// Fast path: try native GPU stroke first (SDF shape stroke or path stroke with
-// S4.3/S6.6 dash+stroke geometry caches). GPU strokes batch until PresentFrame /
+// GPU strokes batch until PresentFrame /
 // Image / SavePNG — matching doFill. Per-op flush used to force a GPU submit on
-// every Stroke() and locked multi-stroke UI scenes (mem_anim S04 PathDash) to
+// every Stroke() and locked multi-stroke UI scenes to
 // ~20fps.
 //
 // Fallback (T.03): expand stroke in pure user space, transform the outline by
@@ -2520,7 +2520,7 @@ func (c *Context) doStroke() error {
 		rc.SetAntiAlias(c.antiAlias)
 	}
 
-	// Mask/difference clips: GPU R8 mask when possible (P1-2), else CPU reason.
+	// Mask/difference clips: GPU R8 mask when possible, else CPU reason.
 	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
 	clipMaskCleanup := func() {}
 	if forceCPUClip {
@@ -2533,7 +2533,7 @@ func (c *Context) doStroke() error {
 	forceCPULayer := c.layerForceCPUDraw()
 	_, isSoftwareRenderer := c.renderer.(*SoftwareRenderer)
 	// T.03: non-uniform / skewed CTM needs user-space stroke expand then transform
-	// (Skia/Cairo). Direct GPU StrokePath expands with a uniform device width.
+	// . Direct GPU StrokePath expands with a uniform device width.
 	userSpaceStroke := c.matrixRequiresUserSpaceStroke()
 	if forceCPULayer {
 		// Intentional CPU layer path (no GPU RT on this layer).
@@ -2653,7 +2653,7 @@ func (c *Context) setGPUClipRect() func() {
 
 	// Arbitrary path clip → GPU depth clipping when a device path is stored.
 	// Mask/difference clips (HasMaskClip, no gpuClipPath) fall through to
-	// bounds scissor; fine coverage is applied via GPU R8 mask (P1-2).
+	// bounds scissor; fine coverage is applied via GPU R8 mask.
 	if !rectOnly && !rrectOnly {
 		if c.gpuClipPath != nil {
 			return c.setGPUClipPath()

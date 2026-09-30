@@ -1,6 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit
 
-// Fixed upload geometry aligned to upload.md §6.2.1.
 // Painting stays in prim when F0-2 lands; this file only computes rects.
 const (
 	// UploadPictureCardSize is the photo-wall cell edge (~102).

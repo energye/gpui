@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -29,7 +39,6 @@ func (s *Sampler) Release() {
 // Destroy implements hal.Sampler: same as Release.
 func (s *Sampler) Destroy() { s.Release() }
 
-// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
 func (s *Sampler) NativeHandle() uintptr { return 0 }
 
 var _ hal.Sampler = (*Sampler)(nil)

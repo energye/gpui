@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package anim
 
 import (
@@ -91,7 +101,7 @@ func AllKinds() []Kind {
 	return out
 }
 
-// Back and elastic constants (Godot/Penner analytic form, not Flutter's
+// Back and elastic constants (Godot/Penner analytic form, not the
 // cubic-bezier subset): back overshoot uses 1.70158, the in-out variant
 // widens it by 1.525; elastic out uses period 2pi/3 while in-out uses
 // 2pi/4.5, so their phases differ by design.

@@ -1,5 +1,13 @@
-// Package naga provides a Pure Go WGSL frontend for the GLES backend.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Self-maintained port: only the WGSL→IR path used by gpu/gwgpu/gles is
 // kept (Parse/Lower/Validate). SPIR-V/MSL/HLSL backends are not ported.
 package naga
@@ -95,12 +103,6 @@ func LowerWithCapabilities(ast *wgsl.Module, source string, caps ir.Capabilities
 }
 
 // Validate validates an IR module for correctness with all capabilities enabled.
-//
-// Validation checks include:
-//   - Type consistency
-//   - Reference validity (all handles point to valid objects)
-//   - Control flow validity (structured control flow rules)
-//   - Binding uniqueness (no duplicate @group/@binding)
 //
 // For capability-restricted validation, use [ir.ValidateWithCapabilities] directly.
 // Returns a slice of validation errors. If the slice is empty, validation passed.

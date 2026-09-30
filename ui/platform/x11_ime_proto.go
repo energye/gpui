@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -103,7 +113,7 @@ func dbusGetNameOwner(conn *dbus.Conn, name string) string {
 
 // x11ImeOwner 汇总当前总线上各输入法名字的归属，供身份比对。
 type x11ImeOwner struct {
-	IBus    string // org.freedesktop.IBus   的唯一归属名
+	IBus    string // org.freedesktop.IBus 的唯一归属名
 	Fcitx5  string // org.fcitx.Fcitx5 的唯一归属名
 	Fcitx   string // org.fcitx.Fcitx（老名）的唯一归属名
 	IBusPID uint32 // 占 IBus 名的进程 PID，用于日志溯源

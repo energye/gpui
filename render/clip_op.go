@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -10,7 +20,7 @@ import (
 type ClipOp int
 
 const (
-	// ClipOpIntersect keeps the intersection (default Skia behavior).
+	// ClipOpIntersect keeps the intersection.
 	ClipOpIntersect ClipOp = iota
 	// ClipOpDifference subtracts the new region from the current clip.
 	ClipOpDifference
@@ -39,7 +49,7 @@ func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 		c.gpuClipPath = nil
 	case ClipOpDifference:
 		_ = c.clipStack.PushRectDifference(rect)
-		// Difference uses mask coverage; GPU via R8 MaskAware (P1-2).
+		// Difference uses mask coverage; GPU via R8 MaskAware.
 		c.gpuClipPath = nil
 	default:
 		c.clipStack.PushRect(rect)

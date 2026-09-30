@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import "github.com/energye/gpui/render/text"
@@ -98,8 +108,6 @@ func (s *Scene) Reset() {
 //
 // The state change is delta-encoded: TagSetAntiAlias is emitted into the encoding
 // only when the value differs from the previously encoded state. Default is true.
-//
-// Reference: Skia SkPaint::setAntiAlias, Cairo cairo_set_antialias.
 func (s *Scene) SetAntiAlias(enabled bool) {
 	s.antiAlias = enabled
 	s.version++
@@ -514,7 +522,7 @@ func (s *Scene) IsEmpty() bool {
 // registries, and bounds. Image indices in the appended scene's encoding
 // are adjusted to account for images already registered in this scene.
 //
-// This is the Scene-level equivalent of Flutter's SceneBuilder.addPicture() —
+// This is the Scene-level equivalent of the SceneBuilder.addPicture() —
 // composing cached display lists from multiple RepaintBoundary nodes into a
 // single scene for rendering.
 //
@@ -649,7 +657,7 @@ func (s *Scene) encodeScenePath(enc *Encoding, path *Path) {
 	// Bounds management is handled at the Scene level (Fill/Stroke/DrawImage)
 	// with proper coordinate transforms applied. This avoids the bug where
 	// untransformed path coordinates cause the tile-based renderer to miss
-	// content that was moved by transforms (gg#116).
+	// content that was moved by transforms.
 }
 
 // flattenLayers collapses all layer content into the root encoding.

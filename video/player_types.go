@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 import (
@@ -17,7 +27,6 @@ var (
 	ErrClosed    = errors.New("video: player closed")
 	ErrBadClip   = errors.New("video: bad clip")
 	ErrDecodeEOF = errors.New("video: end of stream")
-	// ErrMemOverCap is the S7 fail-fast: the pre-decode estimate exceeds
 	// the grade cap (assembling the clip would not fit). Callers triage
 	// it via Classify (KindMemOverCap), never as a silent OOM.
 	ErrMemOverCap = errors.New("video: memory over cap")
@@ -63,7 +72,7 @@ type Stats struct {
 	DriftMs     int64
 	Ended       bool
 	Error       string
-	// PoolHitPct is the streaming RGBA pool hit% (S6 §11.7).
+	// PoolHitPct is the streaming RGBA pool hit%.
 	PoolHitPct float64
 	// Seek evidence (VR5): last seek landing vs request.
 	SeekOK       int
@@ -76,8 +85,6 @@ type Stats struct {
 	// still travelling to its landing frame.
 	Rate    float64
 	Seeking int
-	// S7 cap evidence (§11.7): the grade cap enforced at open, the
-	// pre-decode estimate checked against it, and pooled evictions
 	// during play (cap overflow drops, never silent growth). Zero
 	// evictions is the healthy value.
 	MemCapKB      int
@@ -106,7 +113,7 @@ type Options struct {
 	AudioQueueCap int
 }
 
-// pooledLive is one streaming pool snapshot (S6 §11.7): immutable per
+// pooledLive is one streaming pool snapshot: immutable per
 // resolution, swapped only on resolution change (cold path, never steady
 // play). Shared atomically between the decoder thread and the display
 // thread (Poll releases, queue OnDrop returns drops).
@@ -184,11 +191,10 @@ type Player struct {
 	// Buffered stays false: every clip streams on the ffmpeg backend
 	// (no whole-clip path). Kept so the Poll/Stats shape never branches
 	// on a removed mode.
-	buffered bool
-	// S7 cap evidence: grade cap enforced at open + estimate checked.
+	buffered  bool
 	memCapKB  int
 	estimateB int64
-	// S6 streaming pool. convertPic is gone (ffmpeg scales straight
+	// convertPic is gone (ffmpeg scales straight
 	// into pooled buffers); Poll, queue drops, seeks and Close return
 	// them.
 	pooled atomic.Pointer[pooledLive]

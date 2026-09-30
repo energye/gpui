@@ -1,5 +1,13 @@
-// A2 audio-video sync core (VW6 §11.3 A2, §12 A2 row).
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Say it plain: when a clip carries sound, the sound clock leads and the
 // picture follows it; silent clips keep the old picture-only clock bit
 // for bit. Both queues share one serial (the Player generation), so a

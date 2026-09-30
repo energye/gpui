@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package browser
 
 import "github.com/energye/gpui/gpu/types"
@@ -6,7 +16,7 @@ import "github.com/energye/gpui/gpu/types"
 // canvas alpha mode string.
 //
 // Browser WebGPU only supports "opaque" and "premultiplied". PostMultiplied and
-// Inherit are not valid on the web (Rust wgpu panics on those). Auto and Opaque
+// Inherit are not valid on the web. Auto and Opaque
 // both map to "opaque".
 //
 // See: https://www.w3.org/TR/webgpu/#enumdef-gpucanvasalphamode
@@ -16,7 +26,6 @@ func CompositeAlphaModeToJS(mode types.CompositeAlphaMode) string {
 		return "premultiplied"
 	default:
 		// Auto, Opaque, Unpremultiplied, Inherit all fall back to opaque.
-		// Rust wgpu panics on PostMultiplied/Inherit; we gracefully default.
 		return "opaque" //nolint:goconst // intentional literal in enum-to-string conversion
 	}
 }
@@ -24,7 +33,7 @@ func CompositeAlphaModeToJS(mode types.CompositeAlphaMode) string {
 // PresentModeToJS converts a gputypes.PresentMode to the WebGPU JS present mode string.
 //
 // Browser WebGPU does not expose present mode control; the browser always uses
-// FIFO (VSync). Rust wgpu panics on Mailbox/Immediate on the web.
+// FIFO (VSync).
 // We return "fifo" for all modes since the browser ignores it anyway.
 func PresentModeToJS(mode types.PresentMode) string {
 	// Browser WebGPU only supports FIFO. The configure() call does not even

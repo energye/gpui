@@ -1,8 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
-// Direct port of fill_path from vello_shaders/src/cpu/fine.rs (lines 51-109).
-// Variable names match Rust originals for cross-reference.
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package tilecompute
 
@@ -216,7 +220,6 @@ func premulToStraightU8(pm [4]float32) [4]uint8 {
 	}
 }
 
-// fillPath is a direct port of fine.rs fill_path.
 // Computes per-pixel area values for a tile using its segments.
 //
 // area: output array of TileWidth*TileHeight float32 values
@@ -236,15 +239,11 @@ func fillPath(area []float32, segments []PathSegment, backdrop int32, evenOdd bo
 			segment.Point1[1] - segment.Point0[1],
 		}
 		for yi := 0; yi < TileHeight; yi++ {
-			// fine.rs line 64: let y = segment.point0[1] - (y_tile + yi as f32);
-			// Since our segments are tile-relative and we process locally, y_tile = 0
 			y := segment.Point0[1] - float32(yi)
 			y0 := clamp32(y, 0.0, 1.0)
 			y1 := clamp32(y+delta[1], 0.0, 1.0)
 			dy := y0 - y1
 
-			// fine.rs line 68-69: y_edge = signum(delta.x) * clamp(y_tile + yi - y_edge + 1.0, 0, 1)
-			// With y_tile = 0 (tile-relative): y_edge_contrib = signum(delta.x) * clamp(yi - segment.y_edge + 1, 0, 1)
 			yEdge := signum32(delta[0]) * clamp32(float32(yi)-segment.YEdge+1.0, 0.0, 1.0)
 
 			if dy != 0.0 {
@@ -277,12 +276,10 @@ func fillPath(area []float32, segments []PathSegment, backdrop int32, evenOdd bo
 	// Apply fill rule
 	if evenOdd {
 		for i := range area {
-			// fine.rs line 99: *a = (*a - 2.0 * (0.5 * *a).round()).abs()
 			area[i] = abs32(area[i] - 2.0*round32(0.5*area[i]))
 		}
 	} else {
 		for i := range area {
-			// fine.rs line 105: *a = a.abs().min(1.0)
 			area[i] = min32(abs32(area[i]), 1.0)
 		}
 	}

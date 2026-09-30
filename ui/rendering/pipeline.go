@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -19,7 +29,7 @@ type PipelineOwner struct {
 	paintDirty  bool
 
 	// boundaryCache is the process-lifetime Picture cache for RepaintBoundary
-	// nodes on this tree (W1 R3). Shared across presents so skip is observable.
+	// nodes on this tree. Shared across presents so skip is observable.
 	boundaryCache *BoundaryCache
 
 	// blinkers are widgets with framework-owned blink state (caret blink)
@@ -279,7 +289,7 @@ func (o *PipelineOwner) FlushLayout(viewport Size, force bool) bool {
 
 // FlushPaint paints the root when paint-dirty or force. pc must be non-nil.
 // When force is false and the tree is only partially dirty, CompositeOnly is set
-// so clean subtrees are skipped (P2 retained paint).
+// so clean subtrees are skipped.
 // Returns whether paint ran.
 func (o *PipelineOwner) FlushPaint(pc *PaintContext, force bool) bool {
 	if o == nil || pc == nil {
@@ -319,7 +329,7 @@ func (o *PipelineOwner) UpdateCompositingBits() {
 }
 
 // ConsumeNeedsPaint clears all paint-dirty flags without drawing. Used by the
-// retained textured-composite path (W2 R4): content is captured into the layer
+// retained textured-composite path: content is captured into the layer
 // tree (BuildLayerTree records leaf display lists) and rasterized to cached
 // textures, so no live FlushPaint runs and the needs-paint marks must not keep
 // scheduling frames forever.

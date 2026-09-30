@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -5,7 +15,7 @@ import (
 )
 
 // LayerBuilder constructs a retained layer tree from paint-time callbacks.
-// P2: used by rendering.BuildLayerTree.
+// used by rendering.BuildLayerTree.
 type LayerBuilder struct {
 	stack []*ContainerLayer
 	root  *ContainerLayer

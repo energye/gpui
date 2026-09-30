@@ -1,13 +1,23 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package input freezes the CPU-side action mapping every 2.5D play feeds.
 //
-// Frozen 2026-09-15 (capability 13.1, P0, S07/W1): Source, Valid,
+// Frozen 2026-09-15: Source, Valid,
 // DeviceAny, Binding, NewKeyBinding, NewPadButtonBinding,
 // NewPadAxisBinding, NewPinchBinding, ParseSource, AllSources, Map, NewMap, AddAction, Has,
 // RemoveAction, Actions, ActionCount, SetDeadzone, Deadzone, Bind, Unbind,
 // Rebind, ClearBindings, Bindings, SetKey, SetPadButton, SetPadAxis,
 // AddPinchDelta, Pinch, ClearPinch, ResetInputs, Strength, Pressed, Vector,
 // StartRumble, StopRumble, UpdateRumbles, RumbleLevels, RumbleActive.
-// Frozen 2026-09-15 (capability 13.2, P0, S23/W2): MaxBuffered,
+// Frozen 2026-09-15: MaxBuffered,
 // MaxTouches, DefaultBufferWindow, BufferedPress, Buffer, NewBuffer,
 // Window, SetWindow, Push, Prune, Consume, Peek, Len, LiveCount, Clear,
 // Presses, Touch, TouchTracker, NewTouchTracker, Begin, Move, End,

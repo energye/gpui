@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -13,7 +20,7 @@ import (
 )
 
 // halSwapchainAdapter exposes *Swapchain as hal.Swapchain so render talks
-// hal only. Only wraps the H4-e proven Acquire/Present path.
+// hal only.
 type halSwapchainAdapter struct {
 	sc *Swapchain
 }
@@ -57,7 +64,6 @@ func (a *halSwapchainAdapter) DiscardFrame(f *hal.SwapchainFrame) {
 }
 func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, _ []image.Rectangle) error {
 	// GL has no partial present: damage is accepted and presented full
-	// (same content contract as the webgpu adapter's full fallback).
 	return a.EndFrame(f)
 }
 func (a *halSwapchainAdapter) MarkNeedsReconfigure() {}

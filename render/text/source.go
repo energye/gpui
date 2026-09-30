@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -29,8 +39,8 @@ type FontSource struct {
 	mu sync.RWMutex
 
 	// Caches (to be implemented in TASK-044)
-	// shapingCache  *Cache[shapingKey, []Glyph]
-	// glyphCache    *Cache[glyphKey, *GlyphImage]
+	// shapingCache *Cache[shapingKey, []Glyph]
+	// glyphCache *Cache[glyphKey, *GlyphImage]
 	// hasGlyphCache *runeToBoolMap
 
 	// Configuration
@@ -316,7 +326,7 @@ func (s *FontSource) parseFvarOwn() ([]fvarAxis, []ownFvarInstance) {
 //
 //	uint16 subfamilyNameID
 //	uint16 flags
-//	Fixed  coordinates[axisCount] (4 bytes each, 16.16)
+//	Fixed coordinates[axisCount] (4 bytes each, 16.16)
 //	[uint16 postScriptNameID] (optional, present if instanceSize > minSize)
 func parseFvarInstances(data []byte, axisCount int) []ownFvarInstance {
 	if len(data) < 14 {

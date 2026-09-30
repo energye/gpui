@@ -1,12 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 //
 // This file implements the packed point numbers and packed deltas
 // decoders used by the gvar table, plus the IUP (Inferred Untouched
 // Points) interpolation algorithm for sparse delta sets.
-//
-// Reference: skrifa (Google fontations)
-//   - read-fonts/src/tables/variations.rs (PackedPointNumbers, PackedDeltas)
-//   - skrifa/src/outline/glyf/deltas.rs (interpolate_deltas / Jiggler)
 //
 // Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats
 package text
@@ -23,8 +29,6 @@ package text
 //   - Then run-length encoded point number deltas:
 //     Control byte: bit 7 = two-byte values, bits 6..0 = run_count - 1.
 //     Values are cumulative deltas (each value is added to the last).
-//
-// Matches skrifa PackedPointNumbers (variations.rs:264-421).
 func unpackPointNumbers(data []byte) ([]uint16, int) {
 	if len(data) == 0 {
 		return nil, 0
@@ -103,7 +107,7 @@ func unpackPointNumbers(data []byte) ([]uint16, int) {
 //
 //	bit 7 (0x80): DELTAS_ARE_ZERO
 //	bit 6 (0x40): DELTAS_ARE_WORDS
-//	bits 5..0:    run_count - 1
+//	bits 5..0: run_count - 1
 //
 // Value types (based on control bits 7,6):
 //
@@ -111,8 +115,6 @@ func unpackPointNumbers(data []byte) ([]uint16, int) {
 //	(0,1) = int16 values
 //	(1,0) = zeros (no data bytes)
 //	(1,1) = int32 values (VARC extension, rare)
-//
-// Matches skrifa PackedDeltas / DeltaRunIter (variations.rs:425-737).
 func unpackDeltas(data []byte, count int) ([]int32, int) {
 	deltas := make([]int32, count)
 	pos := 0
@@ -188,8 +190,6 @@ func unpackDeltas(data []byte, count int) ([]int32, int) {
 //     reference delta (clamping, not extrapolating).
 //  5. If only one reference point exists in the contour, shift all
 //     points by that single delta.
-//
-// Matches skrifa deltas.rs:interpolate_deltas (Jiggler pattern).
 func gvarIUPInterpolate(
 	sparseDeltas []int32,
 	pointIndices []uint16,
@@ -275,8 +275,6 @@ func gvarIUPInterpolate(
 }
 
 // iupShiftRange shifts all points in [start, end] by the delta of refIdx.
-//
-// Matches skrifa Jiggler::shift (deltas.rs:217-233).
 func gvarIUPShiftRange(result []int32, refIdx, start, end int) {
 	delta := result[refIdx]
 	if delta == 0 {
@@ -291,8 +289,6 @@ func gvarIUPShiftRange(result []int32, refIdx, start, end int) {
 
 // iupInterpolateRange interpolates deltas for points in [rangeStart, rangeEnd]
 // using two reference points ref1 and ref2.
-//
-// Matches skrifa Jiggler::interpolate (deltas.rs:241-289).
 func gvarIUPInterpolateRange(
 	result []int32,
 	outlinePoints [][2]int32,

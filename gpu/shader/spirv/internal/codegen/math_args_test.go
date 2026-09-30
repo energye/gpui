@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -14,10 +24,10 @@ import (
 // WGSL signatures vs GLSL.std.450 expected order:
 //
 //	smoothstep(low, high, x) -> SmoothStep(edge0, edge1, x) - MATCH
-//	clamp(e, low, high)      -> FClamp(x, minVal, maxVal)   - MATCH
-//	step(edge, x)            -> Step(edge, x)                - MATCH
-//	mix(e1, e2, e3)          -> FMix(x, y, a)                - MATCH
-//	fma(e1, e2, e3)          -> Fma(a, b, c)                 - MATCH
+//	clamp(e, low, high) -> FClamp(x, minVal, maxVal) - MATCH
+//	step(edge, x) -> Step(edge, x) - MATCH
+//	mix(e1, e2, e3) -> FMix(x, y, a) - MATCH
+//	fma(e1, e2, e3) -> Fma(a, b, c) - MATCH
 func TestMathBuiltinArgumentOrder(t *testing.T) {
 	tests := []struct {
 		name      string

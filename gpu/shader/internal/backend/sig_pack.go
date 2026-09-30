@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package backend
 
 import "github.com/energye/gpui/gpu/shader/ir"
@@ -29,8 +39,7 @@ type PackedElement struct {
 type SigPackKind uint8
 
 const (
-	// SigPackLocation is a user @location varying — packed by interpolation
-	// group, greedy first-fit within a row. Used for VS output / PS input.
+	// Used for VS output / PS input.
 	SigPackLocation SigPackKind = iota
 	// SigPackTargetOutput is a fragment-stage SV_Target output. Packing rule
 	// is "Register = SemanticIndex" (DXIL.rst PackingKind::Target) — each
@@ -83,7 +92,6 @@ type SigElementInfo struct {
 //   - Other SV_* builtins consume their own row each (StartCol=0).
 //   - System-managed PS elements get Register=0xFFFFFFFF, StartCol=0,
 //     Rows=1 — they do not consume any output row.
-//   - User @location elements are packed by interpolation group, greedy
 //     first-fit within a 4-column row, in input (sorted) order. A new row is
 //     started whenever the current one has no room for the element's columns
 //     or its interpolation mode differs from the row's group.
@@ -180,12 +188,6 @@ func (p *sigPacker) packLocation(idx int, e SigElementInfo) PackedElement {
 	return pe
 }
 
-// SigElementInfoForBinding builds a SigElementInfo from a naga binding plus
-// its IR type. Mirrors the bind-to-semantic mapping used by
-// dxil/internal/emit/emitter.go makeSigInfo and dxil/dxil.go
-// bindingToSignatureElements so all 6 signature producers see the same
-// classification.
-//
 // stage and isOutput are required because some bindings change packing class
 // based on direction (SV_SampleIndex on PS input is system-managed; on
 // nothing else). interpFn is provided so the caller can plug in its own

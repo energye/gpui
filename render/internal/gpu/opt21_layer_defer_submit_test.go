@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -13,7 +23,6 @@ import (
 
 // TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills encodes two offscreen
 // layer fills with deferSurfaceSubmit and drains them in one Queue.Submit
-// (class A opt21 — mid-frame PopLayer submit coalesce).
 func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")

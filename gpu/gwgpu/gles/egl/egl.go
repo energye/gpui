@@ -1,15 +1,16 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
 // FFI error handling follows ADR-049 three-tier strategy:
-//
-//	Tier 1 (creation/submit): check both FFI error and API result code
-//	Tier 2 (void/hot path): infallible by GPU API contract — Vulkan §6.6, WebGPU §21.2
-//	Tier 3 (platform syscalls): use errno for diagnostics (Wayland, X11, Win32)
-//
-// Enterprise reference: Rust wgpu-hal returns () for all draw/destroy/barrier commands.
 //
 // EGL calls are Tier 2: EGL errors are reported via eglGetError(), not FFI return values.
 // EGLBoolean returns are checked after the call, not at the FFI transport level.
@@ -547,7 +548,6 @@ func HasPlatformWindowSurface() bool {
 // CreatePlatformWindowSurface creates a new EGL window surface using the EGL 1.5
 // platform-aware API. Takes void* native window instead of EGLNativeWindowType.
 // On Wayland: nativeWindow is wl_egl_window*. Attribs use EGLAttrib (pointer-sized).
-// Rust wgpu-hal egl.rs:1485 uses this when EGL 1.5 is available.
 // Falls back to CreateWindowSurface when EGL 1.5 is not available.
 func CreatePlatformWindowSurface(dpy EGLDisplay, config EGLConfig, nativeWindow uintptr, attribList *EGLAttrib) EGLSurface {
 	if !hasPlatformWindowSurface {
@@ -717,7 +717,6 @@ func loadOptionalExtensions() {
 	// Loaded from libEGL symbol table (not via eglGetProcAddress) since it's a core
 	// EGL 1.5 function. CIF prepared here to keep prepareEGLCallInterfaces focused
 	// on mandatory EGL 1.0-1.4 functions.
-	// Rust wgpu-hal egl.rs:1485 uses this when available.
 	if symEglCreatePlatformWindowSurface != nil {
 		err := ffi.PrepareCallInterface(&cifEglCreatePlatformWindowSurface, types.DefaultCall,
 			types.PointerTypeDescriptor, // EGLSurface

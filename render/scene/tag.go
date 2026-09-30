@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package scene provides a retained-mode scene graph encoding system
 // for efficient GPU rendering.
 //
@@ -25,14 +35,13 @@ type Tag byte
 const (
 	// TagTransform encodes an affine transformation.
 	// Data: 6 float32 values [a, b, c, d, e, f] representing the matrix:
-	//   | a  b  c |
-	//   | d  e  f |
+	//   | a b c |
+	//   | d e f |
 	TagTransform Tag = 0x01
 
 	// TagSetAntiAlias sets the anti-aliasing state for subsequent draw commands.
 	// Data: 1 uint32 in drawData (0 = disabled, 1 = enabled).
 	// Emitted only when the AA state changes (delta encoding, like TagTransform).
-	// Reference: Skia SkPaint::setAntiAlias, Cairo cairo_set_antialias.
 	TagSetAntiAlias Tag = 0x02
 
 	// TagBeginPath marks the start of a new path.

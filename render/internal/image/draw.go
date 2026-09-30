@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package image provides image buffer management for gogpu/gg.
 package image
 
@@ -80,7 +90,7 @@ const (
 	// BlendExclusion is a lower-contrast difference.
 	BlendExclusion
 
-	// BlendModulate multiplies source and destination (Skia kModulate / B.07).
+	// BlendModulate multiplies source and destination.
 	// Premul: out = src * dst (component-wise). Fixed-function GPU factors: Src*Dst + Dst*0.
 	BlendModulate
 )

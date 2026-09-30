@@ -1,5 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package prim decor facades: pure paint math plus builders over
-// existing ui/rendering nodes (P2).
+// existing ui/rendering nodes.
 //
 // Like layout, this file creates no new RenderObjects. Colored, clip,
 // opacity, transform and filter facades compose existing nodes; the

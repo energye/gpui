@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package io provides async image decoding off the UI thread (F12).
 //
 // T4 image lane: the pool keeps 2 small-image workers and adds one
@@ -152,7 +162,7 @@ type Pool struct {
 	cancelled  atomic.Int64
 	largeJobsN atomic.Int64
 	// closed marks Close called; sendMu serializes sends vs Close so a
-	// send never races a channel close (R0-4 send-on-closed).
+	// send never races a channel close.
 	closed atomic.Bool
 	sendMu sync.RWMutex
 }
@@ -200,7 +210,6 @@ func (p *Pool) Close() {
 	p.closeOnce.Do(func() {
 		// Mark closed first so late submitters drop without sending;
 		// sendMu guarantees in-flight sends finish before channels close
-		// (R0-4: never send on a closed channel, select+ctx cannot save it).
 		p.closed.Store(true)
 		p.sendMu.Lock()
 		close(p.jobs)
@@ -275,7 +284,7 @@ func (p *Pool) serveSmall(req decodeReq) {
 	}
 	if p.isLarge(req) {
 		// Forward under sendMu so Close cannot close largeJobs mid-send
-		// (R0-4). R3-5: largeRouted counts successful enqueues only — the
+		// . R3-5: largeRouted counts successful enqueues only — the
 		// old code counted before queueing, so a ctx-cancelled forward
 		// scored routed AND cancelled for work the large lane never saw.
 		p.sendMu.RLock()
@@ -357,7 +366,7 @@ func (p *Pool) submit(req decodeReq) {
 		return
 	}
 	// Hold RLock across the closed-check and the send so Close (Lock)
-	// cannot close the channel between them (R0-4).
+	// cannot close the channel between them.
 	p.sendMu.RLock()
 	defer p.sendMu.RUnlock()
 	if p.closed.Load() {
@@ -481,18 +490,18 @@ func DecodeBytesWithContext(ctx context.Context, data []byte, done func(Result))
 	Default.DecodeBytesWithContext(ctx, data, done)
 }
 
-// readOnceCapBytes bounds single-read file loads (R5-1): files at or below
+// readOnceCapBytes bounds single-read file loads: files at or below
 // decode from one read (header sniff + pixels share the same bytes); larger
 // files keep the legacy two-pass path (streaming header, then decode stream)
 // so a huge image never pins file-bytes plus pixels at once.
 const readOnceCapBytes = 32 << 20
 
-// loadFileBytes reads path fully (single IO for the R5-1 read-once path).
+// loadFileBytes reads path fully.
 func loadFileBytes(path string) ([]byte, error) {
 	return os.ReadFile(filepath.Clean(path))
 }
 
-// dimsOfData resolves format + dimensions from in-memory bytes (R5-1/R5-2).
+// dimsOfData resolves format + dimensions from in-memory bytes.
 // An extension hint consults that decoder first (fast path — skips the full
 // registry sniff); unknown/mismatched hints fall back to sniffing, so
 // registry replaceability and content-based detection keep working.
@@ -510,7 +519,7 @@ func dimsOfData(data []byte, extHint string) (name string, w, h int, ok bool) {
 }
 
 // decodeData runs the full decode of data, routing by extension hint first
-// (R5-2) and content sniffing second. Replaces the file-twice data path;
+// and content sniffing second. Replaces the file-twice data path;
 // the bytes path funnels through here unchanged.
 func decodeData(data []byte, extHint string) Result {
 	if len(data) == 0 {
@@ -561,7 +570,7 @@ func configFile(path string) (int, int, error) {
 }
 
 // decodeFile runs the full decode of path via the registry.
-// Files at or below readOnceCapBytes decode from a single read (R5-1);
+// Files at or below readOnceCapBytes decode from a single read;
 // larger files keep the two-pass path (streaming header, then decode).
 // Reported dimensions come from the header peek (the routing view),
 // falling back to the decoded buffer when the peek is unavailable.

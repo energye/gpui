@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder_test
 
 import (
@@ -101,11 +111,6 @@ func TestPaintPresentTreeCompositeOnly_PartialOnlyDirtiesHotWidget(t *testing.T)
 	}
 }
 
-// TestPaintPresentTree_SteadyFullPaintKeepsStatic is a CPU-context regression for
-// W0 FullPaint paint-walk behavior (static still painted when only hot is dirty).
-//
-// It does NOT close W0 by itself: ENGINE_UI_WIDGET_RENDER requires real GPU
-// window examples ui_wr_r0_fullpaint + ui_wr_c0_smoke with §2.2 metrics gates.
 func TestPaintPresentTree_SteadyFullPaintKeepsStatic(t *testing.T) {
 	const W, H = 200, 100
 	static := rendering.NewRenderColorBox(80, 80, 0, 0.7, 0, 1)

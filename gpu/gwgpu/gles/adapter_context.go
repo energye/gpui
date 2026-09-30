@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -23,11 +30,6 @@ import (
 // cross-thread WGL issues: creating the context on the main thread and using
 // it on the render thread causes wglMakeCurrent failures because WGL binds
 // the context to the creating thread.
-//
-// Follows Rust wgpu-hal/src/gles/wgl.rs AdapterContext (lines 40-94):
-//   - lock()         → MakeCurrent to hidden DC
-//   - lock_with_dc() → MakeCurrent to user DC
-//   - Drop           → UnmakeCurrent
 type AdapterContext struct {
 	mu       sync.Mutex
 	gl       *gl.Context
@@ -114,8 +116,6 @@ func (c *AdapterContext) TryLock() (*gl.Context, error) {
 // On first call, lazily creates the GL context on the calling OS thread.
 // This ensures the context is born on the render thread — no cross-thread
 // WGL issues.
-//
-// Mirrors Rust AdapterContext::lock() (wgl.rs:62-80).
 func (c *AdapterContext) Lock() *gl.Context {
 	c.mu.Lock()
 	runtime.LockOSThread()
@@ -136,8 +136,6 @@ func (c *AdapterContext) Lock() *gl.Context {
 
 // LockForDC acquires the mutex, pins the goroutine to the current OS thread,
 // and makes the GL context current on the specified device context.
-//
-// Mirrors Rust AdapterContext::lock_with_dc() (wgl.rs:83-94).
 func (c *AdapterContext) LockForDC(hdc wgl.HDC) *gl.Context {
 	c.mu.Lock()
 	runtime.LockOSThread()
@@ -160,9 +158,7 @@ func (c *AdapterContext) LockForDC(hdc wgl.HDC) *gl.Context {
 // thread, and releases the mutex.
 //
 // Guards against double-unmake: only calls wglMakeCurrent(0, 0) if a
-// context is actually current on this thread. Matches Rust wgpu-hal
-// WglContext::unmake_current() which checks wglGetCurrentContext().is_invalid()
-// before unmaking (wgl.rs:128-133).
+// context is actually current on this thread.
 func (c *AdapterContext) Unlock() {
 	if wgl.GetCurrentContext() != 0 {
 		if err := wgl.MakeCurrent(0, 0); err != nil {

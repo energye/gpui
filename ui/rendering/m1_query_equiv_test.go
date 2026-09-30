@@ -1,10 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
 	"testing"
 )
 
-// M1-a行为锁:下面查询改写(O(n²)→O(log n))前后输出必须逐值一致.
 // 先在老实现上跑绿,改完再跑绿.阈值与老测试对齐(caret往返≤0.5px量级).
 
 func m1EquivDoc() (string, *TextLayout) {

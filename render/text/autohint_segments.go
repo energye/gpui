@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 // Segment detection and linking for the auto-hinter.
@@ -9,22 +19,14 @@ package text
 // After detection, segments are linked into stems by finding opposing
 // segment pairs with sufficient overlap.
 //
-// References:
-//   - FreeType aflatin.c:1557 af_latin_hints_compute_segments
-//   - FreeType aflatin.c:2016 af_latin_hints_link_segments
-//   - skrifa topo/segments.rs compute_segments, link_segments
 
 // hintPoint represents an outline point for the auto-hinter.
 // Each point has coordinates in both font units and 26.6 fixed-point:
 //   - fx, fy = font units (used for direction classification, segment detection)
 //   - ox, oy = original scaled coordinates in 26.6 fixed-point
-//   - x, y   = current (possibly hinted) scaled coordinates in 26.6 fixed-point
+//   - x, y = current (possibly hinted) scaled coordinates in 26.6 fixed-point
 //
 // The u, v fields are temporaries used by align_weak_points (IUP).
-//
-// References:
-//   - skrifa outline.rs: Point { fx, fy (i32 font units), ox, oy, x, y (i32, 26.6) }
-//   - FreeType afhints.h:239: AF_PointRec
 type hintPoint struct {
 	// Font-unit coordinates (unscaled). Used for direction computation
 	// and segment detection (matching skrifa's point.fx/fy = font units).
@@ -33,16 +35,13 @@ type hintPoint struct {
 	fx, fy float32
 
 	// Current (possibly hinted) scaled coordinates, 26.6 fixed-point.
-	// Matches skrifa Point.x/y: i32.
 	x, y int32
 
 	// Original scaled coordinates (pre-hinting), 26.6 fixed-point.
-	// Matches skrifa Point.ox/oy: i32.
 	ox, oy int32
 
 	// Temporaries for IUP (align_weak_points).
 	// u = current coordinate being interpolated, v = original reference.
-	// Matches skrifa Point.u/v: i32.
 	u, v int32
 
 	// Incoming direction at this point (from prev non-near point to this).
@@ -90,7 +89,6 @@ type hintPointArray struct {
 	contours []contourRange // start/end indices for each contour
 
 	// nearLimit is the distance threshold for "near" point merging.
-	// In font units: 20 * units_per_em / 2048 (skrifa outline/mod.rs:178).
 	// In scaled pixels: 20/64 = 0.3125 (legacy path).
 	nearLimit float32
 
@@ -169,17 +167,9 @@ const (
 // expand to 42+ points due to curve decomposition).
 //
 // Critically, fx/fy store FONT UNITS (unscaled) while ox/oy/x/y store scaled
-// pixel coordinates. This matches skrifa exactly:
-//   - Direction computation uses fx/fy (font units) — skrifa outline/mod.rs
-//   - Segment detection uses fx/fy (font units) — skrifa topo/segments.rs
-//   - Edge hinting uses ox/oy/x/y (scaled) — skrifa hint/edges.rs
+// pixel coordinates.
 //
 // Y-UP convention is maintained throughout (matching FreeType/skrifa).
-//
-// References:
-//   - FreeType afhints.c:1080 af_glyph_hints_reload (loads points from FT_Outline)
-//   - skrifa hint/outline.rs Outline::new (builds from raw contour points)
-//   - skrifa outline.rs:194 Outline::scale (sets ox/oy from fx/fy * scale)
 func buildHintPointsFromContours(contours *GlyfContours, scale float64, unitsPerEm int) hintPointArray {
 	var result hintPointArray
 	if contours == nil || len(contours.Points) == 0 {
@@ -192,7 +182,6 @@ func buildHintPointsFromContours(contours *GlyfContours, scale float64, unitsPer
 	result.unitsPerEm = unitsPerEm
 
 	// Near limit in font units: 20 * UPM / 2048.
-	// Matches skrifa outline/mod.rs:178: let near_limit = 20 * self.units_per_em / 2048
 	result.nearLimit = float32(20 * unitsPerEm / 2048)
 
 	// Store both font-unit and scaled coordinates, matching skrifa's architecture:
@@ -206,12 +195,10 @@ func buildHintPointsFromContours(contours *GlyfContours, scale float64, unitsPer
 	scale16 := computeScale16dot16(scale)
 	for i, cp := range contours.Points {
 		// Font-unit coordinates (unscaled, Y-UP).
-		// Matches skrifa point.fx/fy = font units.
 		fxUnit := float32(cp.X)
 		fyUnit := float32(cp.Y)
 
 		// Scaled pixel coordinates in 26.6 fixed-point.
-		// Matches skrifa Outline::scale: ox = fixed_mul(fx, x_scale).
 		sx := fixedMul26dot6(cp.X, scale16)
 		sy := fixedMul26dot6(cp.Y, scale16)
 
@@ -369,9 +356,6 @@ func buildHintPoints(outline *GlyphOutline) hintPointArray {
 //
 // Uses fx/fy coordinates (which are font units for the contour path,
 // or scaled pixels for the legacy path) and the pa.nearLimit threshold.
-//
-// See FreeType afhints.c:1080 af_glyph_hints_compute_point_properties
-// See skrifa outline/mod.rs compute_point_properties
 func computePointProperties(pa *hintPointArray) {
 	nl := pa.nearLimit
 	if nl == 0 {
@@ -382,9 +366,9 @@ func computePointProperties(pa *hintPointArray) {
 			// Single-point contours get no directions (in/out = dirNone),
 			// matching FreeType afhints.c:1140-1144 where the accumulated
 			// vector of a single-point contour is zero and the point is
-			// tagged AF_FLAG_WEAK_INTERPOLATION.  That flag makes strong
+			// tagged AF_FLAG_WEAK_INTERPOLATION. That flag makes strong
 			// point alignment skip the point (afhints.c:1423-1424); only
-			// IUP weak alignment may move it.  Without this tag, the point
+			// IUP weak alignment may move it. Without this tag, the point
 			// would be snapped to the first edge delta, which FreeType
 			// does not do (e.g. 'j' descender dot in wqy: FT keeps the
 			// original y, Go moved it to first-edge delta).
@@ -414,7 +398,6 @@ const defaultNearLimit float32 = 0.3125
 //
 // The nl parameter is the near limit (font units for contour path, scaled for legacy).
 // See FreeType afhints.c:1100-1208.
-// See skrifa outline/mod.rs compute_directions.
 func computeDirectionsPass(pts []hintPoint, cr contourRange, nl float32) {
 	// Backward walk: find the first non-near point.
 	// Skrifa uses near_limit2 = 2*near_limit - 1 for this step.
@@ -484,10 +467,9 @@ func computeDirectionsPass(pts []hintPoint, cr contourRange, nl float32) {
 		pts[nextIdx].v = int32(currIdx) // v = prev non-near
 
 		// (A) curr->u = next - curr — store next-non-near delta on the
-		// previous non-near point.  Written before (C) on the *next* point,
+		// previous non-near point. Written before (C) on the *next* point,
 		// so each non-near point's final u is its own next non-near point,
-		// except first (u = itself) and last (u = first).  Matches FreeType
-		// afhints.c:1146-1162.
+		// except first (u = itself) and last (u = first).
 		pts[currIdx].u = int32(nextIdx)
 
 		pts[currIdx].outDir = d
@@ -521,7 +503,6 @@ func computeDirectionsPass(pts []hintPoint, cr contourRange, nl float32) {
 // weak, its neighbors' u/v are updated to bypass it.
 //
 // See FreeType afhints.c:1220-1253.
-// See skrifa outline/mod.rs simplify_topology.
 func classifySameQuadrantWeak(pts []hintPoint, cr contourRange) {
 	for i := cr.start; i <= cr.end; i++ {
 		pt := &pts[i]
@@ -562,7 +543,6 @@ func classifySameQuadrantWeak(pts []hintPoint, cr contourRange) {
 // When a point is marked weak, its neighbors' u/v are updated to bypass it.
 //
 // See FreeType afhints.c:1262-1308.
-// See skrifa outline/mod.rs check_remaining_weak_points.
 func classifyRemainingWeak(pts []hintPoint, cr contourRange) {
 	for i := cr.start; i <= cr.end; i++ {
 		pt := &pts[i]
@@ -606,8 +586,6 @@ func classifyRemainingWeak(pts []hintPoint, cr contourRange) {
 }
 
 // directionCompute determines the cardinal direction of a vector.
-// Matches FreeType af_direction_compute (afhints.c:750):
-// if the "long" arm is not at least 14x the "short" arm, return dirNone.
 // The factor 14 corresponds to approximately 4.1 degrees.
 func directionCompute(dx, dy float32) hintDirection {
 	dir, ll, ss := classifyVector(dx, dy)
@@ -621,7 +599,7 @@ func directionCompute(dx, dy float32) hintDirection {
 }
 
 // classifyVector classifies a vector into a cardinal direction and returns
-// the long and short arm lengths. Matches FreeType afhints.c:758-787.
+// the long and short arm lengths.
 func classifyVector(dx, dy float32) (dir hintDirection, ll, ss float32) {
 	if dy >= dx {
 		if dy >= -dx {
@@ -636,7 +614,7 @@ func classifyVector(dx, dy float32) (dir hintDirection, ll, ss float32) {
 }
 
 // sameSign returns true if both values have the same sign, matching FreeType's
-// (in_x ^ out_x) >= 0 integer check.  For integers, 0 shares the sign bit with
+// (in_x ^ out_x) >= 0 integer check. For integers, 0 shares the sign bit with
 // positive numbers only: (a ^ b) >= 0 is true for (+,+), (+/0,+/0), (-,-) and
 // false for (-,0) and (0,-) because a negative number XORed with zero keeps its
 // sign bit set.
@@ -663,7 +641,6 @@ func sameSign(a, b float32) bool {
 // cross/dot formula was wrong for near-perpendicular vectors with very
 // different magnitudes (e.g., contour 3 of CJK glyphs).
 //
-// See skrifa outline.rs:477 is_corner_flat_jit.
 // See FreeType ftcalc.c:1026 ft_corner_is_flat.
 func isCornerFlat(inX, inY, outX, outY float32) bool {
 	// Convert to int32 for integer arithmetic matching skrifa exactly.
@@ -679,7 +656,6 @@ func isCornerFlat(inX, inY, outX, outY float32) bool {
 }
 
 // fastHypot computes an approximate vector length: max(|x|,|y|) + 3/8 * min(|x|,|y|).
-// Matches FreeType/skrifa's inline hypot in ft_corner_is_flat.
 func fastHypot(x, y int32) int32 {
 	if x < 0 {
 		x = -x
@@ -705,8 +681,7 @@ func computePointDirections(pa *hintPointArray) {
 // (runs of points moving in dirUp or dirDown). For dimVertical, horizontal
 // segments (dirLeft or dirRight).
 //
-// This is a faithful port of skrifa topo/segments.rs build_segments, which
-// follows FreeType aflatin.c:1588. Key design:
+// Key design:
 //   - Coordinates used for pos/min/max come from fx/fy (font units for contour
 //     path, scaled pixels for legacy path).
 //   - When the contour starts mid-segment, we back up to find the true start.
@@ -715,14 +690,12 @@ func computePointDirections(pa *hintPointArray) {
 //     whether the segment ends (this is why skrifa includes off-curve endpoints).
 //
 // See FreeType aflatin.c:1557 af_latin_hints_compute_segments.
-// See skrifa topo/segments.rs build_segments.
 //
 //nolint:gocognit,gocyclo,cyclop,nestif,funlen,maintidx // FreeType aflatin.c port — algorithmic complexity is inherent
 func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 	var segments []hintSegment
 
 	// isSameAxis returns true if the direction is along the major axis.
-	// Matches skrifa Direction::is_same_axis.
 	isSameAxis := func(d hintDirection) bool {
 		if dim == dimHorizontal {
 			return d == dirUp || d == dirDown
@@ -747,14 +720,10 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 	}
 
 	for _, cr := range pa.contours {
-		// Note: no contour length filtering here — single-point contours
-		// (common in composite glyphs) must still produce a direction-less
-		// segment (skrifa segments.rs:422-460).
 
 		// Check if the contour starts on an edge and if so, back up to
 		// find the starting point. This handles segments that wrap around
 		// the contour boundary (e.g., seg with first=31, last=0).
-		// See skrifa topo/segments.rs:316-330.
 		pointIdx := cr.start
 		lastIdx := cr.end
 		if isSameAxis(pa.pts[pointIdx].outDir) && isSameAxis(pa.pts[lastIdx].outDir) {
@@ -774,7 +743,7 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 
 		// Flat threshold for round segment detection.
 		// A segment is "round" if either end is off-curve and the on-curve
-		// span is small. Matches skrifa: flat_threshold = units_per_em / 14.
+		// span is small.
 		// See FreeType aflatin.c:1588.
 		flatThreshold := float32(32000) // effectively disabled if no UPM
 		if pa.unitsPerEm > 0 {
@@ -854,7 +823,7 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 						var segFlags uint32
 						// A segment is round if either end point is a control
 						// (off-curve) and the on-curve span is within the flat
-						// threshold. Matches skrifa State::apply_to_segment.
+						// threshold.
 						minIsControl := (minFlags & pointFlagControl) != 0
 						maxIsControl := (maxFlags & pointFlagControl) != 0
 						if (minIsControl || maxIsControl) && (maxOnCoord-minOnCoord) < flatThreshold {
@@ -1001,10 +970,6 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 			}
 
 			// Try to start a new segment.
-			// Skrifa: !on_edge && (point.out_dir.is_same_axis(major_dir)
-			//                  || is_single_point_contour)
-			// Single-point contours (common in composite glyphs) always form
-			// a direction-less segment (skrifa segments.rs:422-460).
 			isSinglePointContour := cr.end == cr.start
 			if !onEdge && (isSameAxis(pa.pts[pointIdx].outDir) || isSinglePointContour) {
 				if len(segments) > 1000 {
@@ -1031,7 +996,6 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 
 				if isSinglePointContour {
 					// Single-point segment: no direction, finalized immediately.
-					// Skrifa segments.rs:444-458.
 					segFlags := uint32(0)
 					if (pa.pts[pointIdx].flags & pointFlagControl) != 0 {
 						segFlags |= edgeFlagRound
@@ -1075,7 +1039,6 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 //
 // This is called after build_segments (computeSegments) and before link_segments.
 //
-// See skrifa topo/segments.rs adjust_segment_heights.
 // See FreeType aflatin.c:1933 af_latin_hints_adjust_segment_heights.
 //
 //nolint:nestif // FreeType aflatin.c port — directional conditional structure
@@ -1126,8 +1089,6 @@ func adjustSegmentHeights(pa *hintPointArray, segments []hintSegment, dim hintDi
 }
 
 // linkSegments dispatches to Default or CJK segment linking based on script group.
-//
-// See skrifa topo/segments.rs link_segments (dispatcher).
 func linkSegments(segments []hintSegment, axis *scaledAxisMetrics, group scriptGroup) {
 	if group == scriptGroupCJK {
 		linkSegmentsCJK(segments, axis)
@@ -1145,7 +1106,6 @@ func linkSegments(segments []hintSegment, axis *scaledAxisMetrics, group scriptG
 // link_segments_default which receives unscaled max_width.
 //
 // See FreeType aflatin.c:2016 af_latin_hints_link_segments.
-// See skrifa topo/segments.rs link_segments_default.
 //
 //nolint:gocognit,gocyclo,cyclop // FreeType aflatin.c port — algorithmic complexity is inherent
 func linkSegmentsDefault(segments []hintSegment, axis *scaledAxisMetrics) {
@@ -1223,7 +1183,6 @@ func linkSegmentsDefault(segments []hintSegment, axis *scaledAxisMetrics) {
 			}
 
 			// Compute score: lower is better (all in font units / integer).
-			// Matches skrifa link_segments_default score computation.
 			dist := pos2 - pos1
 
 			var distDemerit int32
@@ -1275,7 +1234,6 @@ func linkSegmentsDefault(segments []hintSegment, axis *scaledAxisMetrics) {
 //   - Serif detection uses dist_threshold = fixed_div(64*3, scale) and complex containment checks
 //
 // See FreeType afcjk.c:848 af_cjk_hints_link_segments.
-// See skrifa topo/segments.rs link_segments_cjk.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // FreeType afcjk.c port — algorithmic complexity is inherent
 func linkSegmentsCJK(segments []hintSegment, axis *scaledAxisMetrics) {
@@ -1299,8 +1257,8 @@ func linkSegmentsCJK(segments []hintSegment, axis *scaledAxisMetrics) {
 	// FT: dist_threshold = FT_DivFix(64*3, y_scale), where y_scale is
 	// ppem/upm << 22 (26.6-scaled 16.16), the same domain as our
 	// scale16dot16 field (computeScale16dot16 = scale * 64 * 65536).
-	// FT_DivFix(a, b) = (a<<16 + b/2) / b  (rounded) — the +b/2 rounding
-	// term matters: e.g. @45px it yields 137 vs 136 with plain truncation.
+	// FT_DivFix(a, b) = (a<<16 + b/2) / b (rounded) — the +b/2 rounding
+	// term matters: e.g.
 	var distThreshold int32
 	if axis.scale16dot16 > 0 {
 		distThreshold = int32(((int64(64*3) << 16) + int64(axis.scale16dot16)/2) / int64(axis.scale16dot16))
@@ -1310,8 +1268,6 @@ func linkSegmentsCJK(segments []hintSegment, axis *scaledAxisMetrics) {
 
 	// Compare each segment to the others (O(n^2)).
 	// CJK: seg1 must have the major direction.
-	// Skrifa: if seg1.dir != axis.major_dir { continue }
-	// See skrifa topo/segments.rs:168 link_segments_cjk.
 	for ix1 := range segments {
 		seg1 := &segments[ix1]
 		if seg1.dir != axis.majorDir {
@@ -1368,7 +1324,6 @@ func linkSegmentsCJK(segments []hintSegment, axis *scaledAxisMetrics) {
 	}
 
 	// CJK serif detection.
-	// See skrifa topo/segments.rs:213-276 (link_segments_cjk serif pass).
 	for ix1 := range segments {
 		seg1 := segments[ix1]
 		if int32(seg1.score) >= distThreshold {

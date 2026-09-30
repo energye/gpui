@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package stroke
 
 import (
@@ -6,10 +16,6 @@ import (
 	"testing"
 )
 
-// TestStrokeExpander_SineWaveGolden verifies that stroke expansion of a
-// 100-segment damped sine wave matches the Rust kurbo reference output.
-// Golden values from: kurbo/examples/stroke_debug.rs (2px, butt cap, miter join, limit 10).
-//
 // This is the regression test for issue #347: extra inner join + skip-threshold
 // segments caused self-intersecting outlines that broke tile-based rasterizers.
 func TestStrokeExpander_SineWaveGolden(t *testing.T) {
@@ -21,7 +27,6 @@ func TestStrokeExpander_SineWaveGolden(t *testing.T) {
 	expander.SetTolerance(0.25)
 	outVerbs, outCoords := expander.Expand(path.verbs, path.coords)
 
-	// Golden: Rust kurbo produces 201 elements (1 MoveTo + 199 LineTo + 1 Close)
 	wantElements := 201
 	if len(outVerbs) != wantElements {
 		t.Fatalf("element count: got %d, want %d (Rust kurbo golden)", len(outVerbs), wantElements)
@@ -55,7 +60,6 @@ func TestStrokeExpander_SineWaveGolden(t *testing.T) {
 		t.Errorf("found %d duplicate adjacent points (should be 0 after #347 fix)", dups)
 	}
 
-	// Verify key coordinates match Rust kurbo golden (±0.1 tolerance for float64 vs f64)
 	goldenFirst := [][2]float64{
 		{49.1, 249.7}, {56.1, 229.9}, {63.1, 210.7}, {70.1, 192.3}, {77.1, 174.8},
 	}
@@ -229,7 +233,7 @@ func TestStrokeExpander_ThickRectNoRotation(t *testing.T) {
 }
 
 // TestStrokeExpander_InnerJoinOffset verifies that handleInnerJoin emits both
-// the pivot point and the correct inner offset point (tiny-skia parity).
+// the pivot point and the correct inner offset point.
 func TestStrokeExpander_InnerJoinOffset(t *testing.T) {
 	// L-shaped path: right turn at (100,50)
 	p := &soaPath{}

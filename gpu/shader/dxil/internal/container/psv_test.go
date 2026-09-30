@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package container
 
 import (
@@ -8,12 +18,12 @@ import (
 // TestPSVShaderKindMatchesMicrosoftABI locks the PSVShaderKind enum to the
 // Microsoft D3D12 runtime ABI. If these values ever drift again, this test
 // fails at build time instead of silently breaking CreateGraphicsPipelineState
-// at runtime (which is how BUG-DXIL-007 originally escaped our test gates).
+// at runtime.
 //
 // Sources of truth:
 //   - Microsoft DXC: reference/dxil/dxc/include/dxc/DXIL/DxilConstants.h:244
 //     (enum class ShaderKind, "Must match D3D11_SHADER_VERSION_TYPE")
-//   - Mesa DXIL:     reference/dxil/mesa/src/microsoft/compiler/dxil_module.h:44
+//   - Mesa DXIL: reference/dxil/mesa/src/microsoft/compiler/dxil_module.h:44
 //     (enum dxil_shader_kind)
 func TestPSVShaderKindMatchesMicrosoftABI(t *testing.T) {
 	cases := []struct {
@@ -95,7 +105,6 @@ func TestPSV0Basic_VertexShader(t *testing.T) {
 	data := EncodePSV0(info)
 
 	// First 4 bytes = runtime info size.
-	// Updated by BUG-DXIL-009: PSV0 now always emitted at Info3 (52 bytes)
 	// regardless of stage. Unused NumThreads/EntryFunctionName fields are
 	// zero-padded so the payload is safe for validator 1.6+ to parse.
 	psvSize := binary.LittleEndian.Uint32(data[0:4])
@@ -125,9 +134,6 @@ func TestPSV0Basic_VertexShader(t *testing.T) {
 	}
 
 	// Signature element counts.
-	// Updated by BUG-DXIL-009: when PSVSigInputs/PSVSigOutputs are empty
-	// (no matching PSV signature elements will be appended), the RTI1
-	// sig-element counts are force-cleared to keep the PSV0 payload
 	// self-consistent for the validator. Proper per-stage PSV signature
 	// emission for VS/PS/HS/DS/GS is a follow-up task.
 	sigInputElems := data[4+28]
@@ -197,7 +203,6 @@ func TestPSV0WithStringTable(t *testing.T) {
 	data := EncodePSV0(info)
 
 	// Find string table after runtime info + resource count.
-	// Updated by BUG-DXIL-009: runtime info is now 52 bytes (Info3), not 36.
 	pos := 4 + runtimeInfo3Size + 4 // psv_size(4) + runtime(52) + resource_count(4)
 
 	// String table size (4-byte aligned).
@@ -221,7 +226,6 @@ func TestPSV0WithStringTable(t *testing.T) {
 	}
 }
 
-// TestEncodePSV0SizeIsAlwaysInfo3 is the regression test for BUG-DXIL-009.
 // Every shader stage — VS, PS, CS, MS, AS — must write psv_size = 52
 // (PSVRuntimeInfo3) in the first 4 bytes of the PSV0 payload. Modern
 // dxil.dll validators interpret this header as the struct layout version

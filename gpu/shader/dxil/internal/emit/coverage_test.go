@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package emit
 
@@ -107,8 +114,6 @@ func basicBlockCount(fn *module.Function) int {
 // 1. Unary operations — emitUnary (0% -> covered)
 // ---------------------------------------------------------------------------
 
-// buildUnaryNegateFloatShader: @fragment fn main(@location(0) x: f32) -> @location(0) vec4<f32> {
-//
 //	return vec4(-x, 0.0, 0.0, 1.0);
 //
 // }

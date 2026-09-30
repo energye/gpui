@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -22,7 +32,7 @@ func TestOpt37_DualTexUniformSlotStride_Aligned(t *testing.T) {
 }
 
 // TestOpt37_DualTexMultiUniformSlab_OneWrite packs N advanced-blend ops into
-// one slab WriteBuffer (class A opt37).
+// one slab WriteBuffer.
 func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")

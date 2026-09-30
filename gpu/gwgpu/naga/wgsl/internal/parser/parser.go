@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package parser
 
 import (
@@ -148,7 +158,6 @@ func (p *Parser) declaration() (Decl, *ParseError) {
 	}
 }
 
-// attributes parses a list of attributes (@location(0), @vertex, etc.)
 func (p *Parser) attributes() []Attribute {
 	var attrs []Attribute
 
@@ -157,7 +166,6 @@ func (p *Parser) attributes() []Attribute {
 		p.advance() // consume @
 
 		// Accept both identifiers and keyword tokens as attribute names.
-		// E.g., @diagnostic(...) — "diagnostic" is a keyword but valid as attr name.
 		if !p.check(TokenIdent) && !p.check(TokenDiagnostic) {
 			continue
 		}
@@ -512,8 +520,6 @@ func (p *Parser) letDecl() (*ConstDecl, *ParseError) {
 }
 
 // overrideDecl parses an override declaration (pipeline-overridable constant).
-// WGSL spec: @id(N) override name: type = default;
-// The initializer is optional (overrides without defaults must be set at pipeline creation).
 func (p *Parser) overrideDecl(attrs []Attribute) (*OverrideDecl, *ParseError) {
 	start := p.peek()
 	if !p.match(TokenOverride) {
@@ -1123,11 +1129,11 @@ func (p *Parser) switchStmt() (*SwitchStmt, *ParseError) {
 //
 // WGSL switch clause syntax:
 //
-//	case expr1, expr2, default: { ... }   -- mixed selectors with default
-//	case expr1, expr2: { ... }            -- comma-separated selectors
-//	case expr1, { ... }                   -- trailing comma, no colon
-//	default: { ... }                      -- standalone default with colon
-//	default { ... }                       -- standalone default without colon
+//	case expr1, expr2, default: { ... } -- mixed selectors with default
+//	case expr1, expr2: { ... } -- comma-separated selectors
+//	case expr1, { ... } -- trailing comma, no colon
+//	default: { ... } -- standalone default with colon
+//	default { ... } -- standalone default without colon
 //
 // The colon before the block is optional in modern WGSL.
 func (p *Parser) switchCaseClause() (*SwitchCaseClause, *ParseError) {
@@ -1140,7 +1146,7 @@ func (p *Parser) switchCaseClause() (*SwitchCaseClause, *ParseError) {
 		isDefault = true
 	} else if p.match(TokenCase) {
 		// Parse comma-separated selectors, which may include 'default'.
-		// Examples: case 0, 1:   case default, 6:   case 1, default:
+		// Examples: case 0, 1: case default, 6: case 1, default:
 		for {
 			// Check for 'default' keyword as a selector
 			if p.check(TokenDefault) {

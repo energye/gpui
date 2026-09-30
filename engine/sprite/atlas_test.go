@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package sprite
 
 import (
@@ -16,10 +26,6 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
-// S36 only keeps the offscreen proof. Window game_sprite--case=rot lands
-// with P2; this file reads engine/sprite/testdata/atlas_cases.json and never
-// hardcodes standard pixels.
-
 type atlasQuadDef struct {
 	Name string `json:"name"`
 	X    int    `json:"x"`
@@ -30,17 +36,17 @@ type atlasQuadDef struct {
 }
 
 type atlasSpriteDef struct {
-	Image   string    `json:"image"`
+	Image   string     `json:"image"`
 	Src     [4]float64 `json:"src"`
 	Dst     [4]float64 `json:"dst"`
-	Opacity float64   `json:"opacity"`
-	Rot     float64   `json:"rot"`
-	FlipX   bool      `json:"flipx"`
-	FlipY   bool      `json:"flipy"`
+	Opacity float64    `json:"opacity"`
+	Rot     float64    `json:"rot"`
+	FlipX   bool       `json:"flipx"`
+	FlipY   bool       `json:"flipy"`
 	Pivot   [2]float64 `json:"pivot"`
 	Tint    [4]float64 `json:"tint"`
-	Filter  string    `json:"filter"`
-	Tag     string    `json:"tag"`
+	Filter  string     `json:"filter"`
+	Tag     string     `json:"tag"`
 }
 
 type atlasProbeDef struct {
@@ -312,7 +318,7 @@ func TestAtlasAnglesFiltersFromCases(t *testing.T) {
 	for _, tc := range []struct {
 		in   string
 		want AtlasFilter
-	}{{ "", AtlasFilterDefault}, {"default", AtlasFilterDefault}, {"nearest", AtlasFilterNearest}, {"bilinear", AtlasFilterBilinear}, {"bicubic", AtlasFilterBicubic}} {
+	}{{"", AtlasFilterDefault}, {"default", AtlasFilterDefault}, {"nearest", AtlasFilterNearest}, {"bilinear", AtlasFilterBilinear}, {"bicubic", AtlasFilterBicubic}} {
 		gotF, err := ParseAtlasFilter(tc.in)
 		if err != nil || gotF != tc.want {
 			t.Errorf("ParseAtlasFilter(%q) = %v,%v, want %v,nil", tc.in, gotF, err, tc.want)
@@ -691,7 +697,7 @@ func TestAtlasLongRunStable(t *testing.T) {
 	t.Logf("atlas-longrun: 5000 conversions identical + %d alternating draws end on rotated probes", n)
 }
 
-// F: offscreen golden stands in for game_sprite--case=rot (window lands with P2).
+// F: offscreen golden stands in for game_sprite--case=rot.
 func TestAtlasOffscreenGolden(t *testing.T) {
 	withAtlasCPU(t)
 	f := loadAtlasCases(t)
@@ -749,9 +755,6 @@ func TestAtlasOffscreenGolden(t *testing.T) {
 	if !gray.HasTint() || plain.HasTint() {
 		t.Errorf("HasTint gray/plain = %v/%v, want true/false", gray.HasTint(), plain.HasTint())
 	}
-	// Shape: hundred stays one Ex call with 100 draws (window intent:
-	// game_sprite --case=rot draws the turn plus a hundred-block field;
-	// the window itself lands with P2, this golden is the offscreen proof).
 	hund := mustFindAtlasCase(t, f, "hundred")
 	if len(hund.Sprites) != 100 {
 		t.Errorf("hundred sprites = %d, want 100", len(hund.Sprites))

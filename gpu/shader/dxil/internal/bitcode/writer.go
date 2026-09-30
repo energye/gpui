@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package bitcode implements a bit-level writer for LLVM 3.7 bitcode format.
 //
 // DXIL uses LLVM 3.7 bitcode as its binary encoding. This writer implements
@@ -7,9 +17,6 @@
 // The writer supports fixed-width integers, variable-width integers (VBR),
 // 6-bit character encoding, block enter/exit with size backpatching, and
 // unabbreviated record emission.
-//
-// Reference implementation: Mesa's dxil_buffer.c + dxil_module.c
-// (src/microsoft/compiler/ in the Mesa source tree).
 package bitcode
 
 import (
@@ -116,7 +123,7 @@ func (w *Writer) WriteVBR(value uint64, width uint) {
 }
 
 // EncodeSignedVBR ZigZag-encodes a signed integer for VBR transmission.
-// LLVM bitcode (release_37 lib/Bitcode/Writer/BitcodeWriter.cpp emitSignedInt64)
+// LLVM bitcode
 // uses this for instruction operands that may be forward references — most
 // notably FUNC_CODE_INST_PHI value operands, which can reference instructions
 // that appear later in basic-block order than the phi itself.
@@ -124,7 +131,7 @@ func (w *Writer) WriteVBR(value uint64, width uint) {
 // Mapping (LSB carries the sign, magnitude in the upper bits):
 //
 //	v >= 0 → v << 1
-//	v <  0 → (-v << 1) | 1
+//	v < 0 → (-v << 1) | 1
 //
 // Symmetric to LLVM's BitstreamReader::ReadVBR + sign decode on the read side.
 func EncodeSignedVBR(value int64) uint64 {
@@ -145,8 +152,8 @@ func (w *Writer) WriteChar6(ch byte) {
 //	'a'..'z' → 0..25
 //	'A'..'Z' → 26..51
 //	'0'..'9' → 52..61
-//	'.'      → 62
-//	'_'      → 63
+//	'.' → 62
+//	'_' → 63
 func EncodeChar6(ch byte) uint32 {
 	switch {
 	case ch >= 'a' && ch <= 'z':

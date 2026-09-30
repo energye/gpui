@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render_test
 
 import (
@@ -15,7 +25,6 @@ import (
 	"github.com/energye/gpui/render/internal/testutil/imagediff"
 )
 
-// R4 S30: game_sprite--case=rot 窗随 P2 建，S30 只留离屏对比。
 // 本文件只读 render/testdata/atlas_r4_cases.json，不硬编码标准色。
 
 type atlasQuadDef struct {
@@ -239,7 +248,7 @@ func TestAtlasR4IdentityFromCases(t *testing.T) {
 	atlasCheckProbes(t, dcCPU, def.Probes)
 	dcCPU.Close()
 
-	// GPU 老与新逐位一致：需真卡冲刷成功，无卡记一笔回 PASS（C 由 parity 另行跳过）。
+	// GPU 老与新逐位一致：需真卡冲刷成功，无卡记一笔回 PASS。
 	if render.Accelerator() == nil {
 		t.Logf("no GPU accelerator, old-vs-new GPU road deferred to native-GPU machine")
 		return
@@ -565,7 +574,6 @@ func TestAtlasR4CPUGPUParity(t *testing.T) {
 	}
 }
 
-// F: 离屏金比对即未来 game_sprite--case=rot 窗的依据（窗随 P2 建）。
 func TestAtlasR4OffscreenGolden(t *testing.T) {
 	withAtlasCPU(t)
 	c := loadAtlasR4Cases(t)

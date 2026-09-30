@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -17,7 +27,7 @@ import (
 // It creates and maintains MSAA color, stencil, and resolve textures that are
 // resized automatically when the surface dimensions change.
 //
-// The stencil-then-cover algorithm (OpenGL Red Book / NV_path_rendering / Skia Ganesh)
+// The stencil-then-cover algorithm
 // renders arbitrary paths in two passes within a single render pass:
 //
 //	Pass 1 (Stencil Fill): Triangle fan from an anchor point fills the stencil buffer
@@ -50,20 +60,17 @@ type StencilRenderer struct {
 	// (shared StencilRenderer can be torn down by another session's DetachExternalLayouts).
 	pipelineEpoch uint64
 
-	// maskBindLayout is @group(2) for L.06 R8 mask on the cover pass.
 	// Session-owned when set via SetMaskBindLayout.
 	maskBindLayout  hal.BindGroupLayout
 	maskLayoutOwned bool
 
-	// Standalone RenderPath: disabled mask BG (1x1 white R8, mask_enabled=0).
-	// Cover pipeline always samples @group(2); encodeAndReadback must bind this.
+	// Standalone RenderPath: disabled mask BG.
 	noMaskTex  hal.Texture
 	noMaskView hal.TextureView
 	noMaskSamp hal.Sampler
 	noMaskUni  hal.Buffer
 	noMaskBG   hal.BindGroup
 
-	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before createPipelines. Only the cover pipeline needs
 	// it (stencil fill has no color output, so clip is irrelevant there).
 	clipBindLayout hal.BindGroupLayout
@@ -74,7 +81,6 @@ type StencilRenderer struct {
 	// clipBindLayout included. If clip is set after creation, pipelines must
 	// be recreated to avoid SetBindGroup(1) crashes on AMD/NVIDIA.
 	coverPipeLayoutHasClip bool
-	// coverPipeMaskLayout is the exact @group(2) BGL object used when cover
 	// pipelines were created. Session must recreate when it injects a different
 	// mask layout; after session Destroy the pointer may be freed — DetachExternalLayouts.
 	coverPipeMaskLayout hal.BindGroupLayout
@@ -92,7 +98,7 @@ type StencilRenderer struct {
 	// then resets stencil to zero via PassOp. Shared by both fill rules.
 	nonZeroCoverPipeline hal.RenderPipeline
 
-	// Analytic-AA fringe pipelines (sampleCount==1 only, Skia-style fringe):
+	// Analytic-AA fringe pipelines:
 	// aaBandPipeline — exterior half, SrcOver + stencil Equal(0), pre-cover.
 	// aaInnerBandPipeline — interior half, SrcOver + stencil NotEqual(0) with
 	// PassOp=Zero, also pre-cover (blends over the intact background, then
@@ -137,14 +143,12 @@ func NewStencilRenderer(device hal.Device, queue hal.Queue, sampleCount uint32) 
 	}
 }
 
-// SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before createPipelines. The layout is owned by the
 // session and must not be destroyed by the renderer.
 func (sr *StencilRenderer) SetClipBindLayout(layout hal.BindGroupLayout) {
 	sr.clipBindLayout = layout
 }
 
-// SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
 func (sr *StencilRenderer) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	if sr.maskBindLayout != layout {
 		sr.releaseNoMask()
@@ -502,7 +506,7 @@ func (sr *StencilRenderer) updateAACoverBuffers(b *stencilCoverBuffers, bandVert
 //  1. Stencil fill: Tessellate the path into triangle fan vertices and draw them
 //     with the stencil fill pipeline. The fill rule determines stencil operations:
 //     - NonZero: front faces increment, back faces decrement (winding number).
-//     - EvenOdd: both faces invert the stencil value (parity count).
+//     - EvenOdd: both faces invert the stencil value.
 //
 //  2. Cover: Draw a bounding quad with the cover pipeline. Only pixels with
 //     non-zero stencil values pass the stencil test and receive the fill color.
@@ -777,8 +781,6 @@ func (sr *StencilRenderer) updateUniformAndBindGroup(buf *hal.Buffer, bg *hal.Bi
 	return nil
 }
 
-// ensureNoMaskBindGroup creates a disabled @group(2) mask (1×1 white R8,
-// mask_enabled=0) for standalone RenderPath / encodeAndReadback.
 func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 	if sr.noMaskBG != nil {
 		return nil
@@ -911,7 +913,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 	}
 
 	// Bind group layouts must be the *same objects* used when coverPipeLayout
-	// was created (wgpu rejects a structurally-equal but distinct BGL).
+	// was created.
 	clipLayout := sr.defaultClipBindLayout
 	if sr.coverPipeLayoutHasClip && sr.clipBindLayout != nil {
 		clipLayout = sr.clipBindLayout
@@ -1112,7 +1114,7 @@ func (sr *StencilRenderer) RecordPath(rp hal.RenderPassEncoder, bufs *stencilCov
 	// Analytic-AA fringe (solid SrcOver paths; MSAA surfaces also get the
 	// fringe — continuous edge coverage prevents 4-level MSAA stair-stepping
 	// on diagonals; pattern/textured covers and depth-clip covers keep the
-	// binary cover — matching Skia's MSAA-vs-analytic mutual exclusion).
+	// binary cover — matching the MSAA-vs-analytic mutual exclusion).
 	// BOTH bands run BEFORE the binary cover so partial-coverage pixels blend
 	// SrcOver over the still-intact background:
 	//   1) exterior band: SrcOver + stencil Equal(0) — outside half of the

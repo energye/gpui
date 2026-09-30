@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -26,7 +36,7 @@ import (
 //
 //	               top (title bar) subsurface
 //	┌──────────────────────────────────────┐
-//	│  left │   content surface    │ right │   ← border subsurfaces
+//	│ left │ content surface │ right │ ← border subsurfaces
 //	└──────────────────────────────────────┘
 //	               bottom subsurface
 //
@@ -41,15 +51,15 @@ import (
 // set_desync so their commits apply immediately (independent of the parent's
 // commit cadence, fixing stale decoration after resize).
 //
-// Interaction (GTK CSD parity):
-//   - title-bar caption drag       → xdg_toplevel.move(seat, serial)
-//   - double-click caption         → toggle maximize
-//   - minimize / maximize/restore  / close buttons (hover + press states)
-//   - 8-direction edge/corner      → xdg_toplevel.resize(seat, serial, edge):
+// Interaction:
+//   - title-bar caption drag → xdg_toplevel.move(seat, serial)
+//   - double-click caption → toggle maximize
+//   - minimize / maximize/restore / close buttons (hover + press states)
+//   - 8-direction edge/corner → xdg_toplevel.resize(seat, serial, edge):
 //     title-bar top-left/right corners + top edge, title-bar left/right
 //     flanks, border edges/corners, bottom edge. When the chrome is hidden
 //     (setVisible(false)) the CONTENT edges take over the same 8 zones.
-//   - system cursor theme          → resize cursors via wl_cursor_theme
+//   - system cursor theme → resize cursors via wl_cursor_theme
 //
 // See docs/ENGINE_WAYLAND_WINDOW_STANDARD.md (design source of truth).
 
@@ -449,7 +459,7 @@ func (c *wlCSD) setVisible(v bool) {
 }
 
 // setGeometry declares the xdg window geometry = the content area
-// (xdg_surface.set_window_geometry, GTK4 parity). With the chrome drawn in
+// . With the chrome drawn in
 // subsurfaces OUTSIDE the content surface, the geometry is the content rect
 // itself: the compositor then treats the window (placement, maximize restore
 // saved_rect, configure sizes) as the content area only, and the configure
@@ -1193,9 +1203,6 @@ func (c *wlCSD) applyCursorImage(name string) bool {
 	if cur == 0 {
 		return false
 	}
-	// struct wl_cursor { unsigned image_count; wl_cursor_image **images;
-	// char *name; } — images is an ARRAY of pointers (wayland-cursor.h),
-	// so dereference twice: images@8 → images[0] → wl_cursor_image.
 	imgArr := *(*uintptr)(unsafe.Pointer(cur + 8))
 	if imgArr == 0 {
 		return false
@@ -1207,8 +1214,6 @@ func (c *wlCSD) applyCursorImage(name string) bool {
 	img := (*wlCursorImageC)(unsafe.Pointer(imgPtr))
 	// The wl_buffer is NOT stored in wl_cursor_image (it is private) — it
 	// must come from wl_cursor_image_get_buffer(). Reading past the 20-byte
-	// struct yields heap garbage which, sent to attach, makes the compositor
-	// kill the connection: "invalid arguments for wl_surface@N.attach".
 	buf := l.imageGetBuf(imgPtr)
 	if buf == 0 {
 		return false

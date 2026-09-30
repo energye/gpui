@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -59,7 +69,7 @@ type Box struct {
 	selA        float64
 	padHas      bool
 	pad         float64
-	// R4: double/triple click and drag
+	// double/triple click and drag
 	lastClickAt time.Time
 	lastClickX  float64
 	lastClickY  float64
@@ -120,7 +130,7 @@ func newBoxShell(ed *Editor, w, h, fontSize float64, name string) *Box {
 	b.txt.FontSize = fontSize
 	b.FixedWidth = w
 	b.FixedHeight = h
-	// 内容裁剪：超长/多行文本在框外不可见（R1/R2 手工验证溢出）
+	// 内容裁剪：超长/多行文本在框外不可见
 	clip := rendering.NewRenderClipRRect()
 	clip.FixedWidth = w
 	clip.FixedHeight = h
@@ -228,14 +238,14 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *Box {
 
 // NewMultiLineInputBox creates a wrapping-capable multi-line box
 // (= old MultiLineInputBox: boxes D/E/F): direct-offset tree with the
-// multi-line property set. Wrap stays off by default (R4 tests).
+// multi-line property set. Wrap stays off by default.
 func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *Box {
 	if fontSize <= 0 {
 		fontSize = 14
 	}
 	b := newBoxShell(ed, w, h, fontSize, fmt.Sprintf("multi-%p", ed))
 	b.txt.R, b.txt.G, b.txt.B, b.txt.A = 0.06, 0.85, 0.60, 1
-	// 默认不自动换行（满足 R4 测试要求），需换行时显式 SetWrap(true)
+	// 默认不自动换行，需换行时显式 SetWrap(true)
 	b.wrap = false
 	b.wrapMode = text.WrapWordChar
 	b.txt.MaxWidth = 0
@@ -1783,7 +1793,7 @@ func syncBlinkRegistration(box *rendering.RenderBox, focused bool, bl rendering.
 	}
 }
 
-// blinkHalfPeriod is the caret on/off dwell, matching Flutter's 500ms blink
+// blinkHalfPeriod is the caret on/off dwell, matching the 500ms blink
 // half period. A full blink cycle is twice this.
 const blinkHalfPeriod = 0.5
 

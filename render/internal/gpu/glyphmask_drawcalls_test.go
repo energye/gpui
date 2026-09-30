@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -10,9 +20,6 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// TestBuildGlyphMaskDrawCalls_QuadOffsetOnNilBindGroup is a regression test
-// for BUG-GLYPHMASK-001: when a bind group is nil, buildGlyphMaskDrawCalls
-// must still advance quadOffset so subsequent batches get correct indexOffset.
 func TestBuildGlyphMaskDrawCalls_QuadOffsetOnNilBindGroup(t *testing.T) {
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -347,7 +357,7 @@ func cjkRelated(r rune) bool {
 // faceForRune returns the face for the rune: first match, except a
 // CJK-covering face is skipped for non-CJK runes when a later non-CJK
 // face covers them (script preference, see MultiFace). If no face has
-// the glyph, falls back to the system font index (fontscan, M3) and then
+// the glyph, falls back to the system font index and then
 // to the first face.
 func (m *MultiFace) faceForRune(r rune) Face {
 	if v, ok := m.runeFaceCache.Load(r); ok {
@@ -376,7 +386,7 @@ func (m *MultiFace) faceForRune(r rune) Face {
 		}
 	}
 	if first < 0 {
-		// M3: missing-glyph fallback against the system font index.
+		// missing-glyph fallback against the system font index.
 		if fc := globalFallback.resolveFace(r, m.Size()); fc != nil {
 			m.runeFaceCache.Store(r, fc)
 			return fc
@@ -400,7 +410,7 @@ type FaceRun struct {
 }
 
 // multiFaceRunsCache caches MultiFace.Runs results for repeated mixed-script
-// DrawString (S6.5 font-run merge reuse). Keyed by MultiFace identity + text.
+// DrawString. Keyed by MultiFace identity + text.
 type multiFaceRunsCache struct {
 	mu      sync.Mutex
 	entries map[multiFaceRunsKey][]FaceRun
@@ -425,8 +435,6 @@ func ClearMultiFaceRunsCache() {
 }
 
 // Runs splits text into contiguous face runs using the same fallback policy as Glyphs.
-// S6.5: consecutive same-face runes are already merged here; results are cached
-// for hot multi-script labels (CJK fallback + Latin).
 func (m *MultiFace) Runs(text string) []FaceRun {
 	if text == "" || m == nil || len(m.faces) == 0 {
 		return nil

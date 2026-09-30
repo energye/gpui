@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package core
 
 import (
@@ -173,7 +183,7 @@ func (r Rect) Inset(dx, dy float64) Rect {
 //
 // Same layout as render.Matrix but an independent type: game code composes
 // camera/parallax math here, then converts once at the render boundary.
-// Perspective stays out (see engine/camera/project.go, capability 1.1).
+// Perspective stays out.
 type Mat2D struct {
 	A, B, C float64
 	D, E, F float64

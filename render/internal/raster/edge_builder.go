@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -10,7 +17,6 @@ import (
 )
 
 // PathVerb represents a path construction command.
-// Mirrors scene.PathVerb for core package independence.
 type PathVerb uint8
 
 // Path verb constants.
@@ -103,8 +109,6 @@ func (r Rect) IsEmpty() bool {
 //	for edge := range eb.AllEdges() {
 //	    // Process edges sorted by top Y
 //	}
-//
-// Reference: tiny-skia/src/edge_builder.rs
 type EdgeBuilder struct {
 	// Separate storage for different edge types
 	lineEdges      []LineEdge
@@ -140,7 +144,7 @@ type EdgeBuilder struct {
 // VelloLine stores a line segment with original float32 coordinates.
 // Used by Vello tile rasterizer to avoid fixed-point quantization loss.
 type VelloLine struct {
-	P0     [2]float32 // Start point (pixel coords, normalized: P0.y <= P1.y)
+	P0     [2]float32 // Start point
 	P1     [2]float32 // End point (pixel coords)
 	IsDown bool       // true if original direction was downward (y0 < y1)
 }
@@ -437,7 +441,7 @@ func (eb *EdgeBuilder) addLineUnclipped(x0, y0, x1, y1 float32) {
 
 // clipAndAddLine clips a line to clipRect and emits clipped segments.
 //
-// Algorithm (Skia-style Y-then-X clipping):
+// Algorithm:
 //
 // Phase 1: Y-clip — discard portions above/below clip rect.
 // No sentinel verticals needed for Y because edges are Y-sorted and
@@ -446,8 +450,6 @@ func (eb *EdgeBuilder) addLineUnclipped(x0, y0, x1, y1 float32) {
 // Phase 2: X-clip with sentinel verticals — replace portions outside
 // left/right boundaries with vertical lines at the boundary. This
 // preserves the winding contribution of clipped edges.
-//
-// Reference: Skia SkEdgeClipper, tiny-skia edge_clipper.rs
 func (eb *EdgeBuilder) clipAndAddLine(x0, y0, x1, y1 float32) {
 	cr := &eb.clipRect
 
@@ -778,8 +780,6 @@ func (eb *EdgeBuilder) flattenQuadRecursive(x0, y0, cx, cy, x1, y1, tolerance fl
 		return
 	}
 
-	// Compute flatness: distance from control point to line (x0,y0)-(x1,y1)
-	// Using the formula: d = |cross(P1-P0, P2-P0)| / |P2-P0|
 	dx := x1 - x0
 	dy := y1 - y0
 	dcx := cx - x0
@@ -799,8 +799,8 @@ func (eb *EdgeBuilder) flattenQuadRecursive(x0, y0, cx, cy, x1, y1, tolerance fl
 	}
 
 	// Subdivide at t=0.5 using de Casteljau
-	// Q0 = (P0 + P1) / 2
-	// Q1 = (P1 + P2) / 2
+	// Q0 = / 2
+	// Q1 = / 2
 	// R0 = (Q0 + Q1) / 2
 	q0x := (x0 + cx) * 0.5
 	q0y := (y0 + cy) * 0.5
@@ -961,7 +961,6 @@ const (
 // This optimization reduces edge count for paths with coincident vertical segments.
 //
 // IMPORTANT: When modifying FirstY/LastY, we must also update UpperY/LowerY
-// (SkFixed pixel-space endpoints used by Skia AAA sub-strip boundaries).
 // Otherwise resolveEdgeLineFixed() sees inconsistent Y ranges and culls
 // edges for scanlines where they should be active (circle rendering regression).
 func combineVertical(edge, last *LineEdge) combineResult {

@@ -1,11 +1,21 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package physics freezes the CPU-side collision math every 2.5D play feeds.
 //
-// Frozen 2026-09-15 (capability 14.1a, P0, S06/W1): Shape, ShapeBox,
+// Frozen 2026-09-15: Shape, ShapeBox,
 // ShapeCircle, Body, NewBox, NewCircle, Valid, Bounds, CanCollide,
 // Overlaps, Contact, Query. Additive changes only.
-// Frozen 2026-09-15 (capability 14.1b, P2, S21/W2): Ray, NewRay, Hit,
+// Frozen 2026-09-15: Ray, NewRay, Hit,
 // CastRay, IsStandingOn, CarryRider. 14.1a overlap semantics unchanged.
-// Frozen 2026-09-15 (capability 14.2, P2, S22/W2): Slope, NewSlope,
+// Frozen 2026-09-15: Slope, NewSlope,
 // NewOneWay, GroundYAt, Angle, Walkable, SlideDir, FeetOf, WithFeet,
 // Grounded, Step. 14.1a/b semantics unchanged.
 //

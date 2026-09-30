@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package anim
 
 import (
@@ -561,8 +571,7 @@ func TestTimelineLongRunNoDrift(t *testing.T) {
 	}
 }
 
-// F: offscreen golden stands in for the window (window-exempt pure math
-// until the game_anim --case=tl window lands with P2). The frozen numbers
+// The frozen numbers
 // in timeline_cases.json are the evidence both backends share; shape
 // assertions below pin the meaning, not just the numbers.
 func TestTimelineOffscreenGolden(t *testing.T) {

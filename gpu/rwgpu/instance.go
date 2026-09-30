@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -10,17 +20,16 @@ import (
 )
 
 // InstanceDescriptor configures instance creation.
-// Matches the gogpu/wgpu API for cross-project compatibility.
 //
 // Pass nil to CreateInstance for default configuration (all primary backends enabled).
 //
 // Env (applied when using CreateInstance):
 //
 //	GPUI_BACKEND=gl|vulkan|primary|all|gl+vulkan
-//	GPUI_VRAM_BUDGET_PCT=1..100  (wgpu-native memory budget %; expert-only)
+//	GPUI_VRAM_BUDGET_PCT=1..100
 type InstanceDescriptor struct {
 	// Backends selects which GPU backends to enable.
-	// Zero = All (wgpu-native default) unless env overrides.
+	// Zero = All unless env overrides.
 	Backends types.Backends
 	// Flags controls instance features like debug layers and validation.
 	Flags types.InstanceFlags
@@ -99,7 +108,7 @@ type ChainedStructOut = ChainedStruct
 // Pass nil for default configuration (all primary backends enabled).
 //
 // When backends or budgets are set (or via GPUI_* env), chains WGPUInstanceExtras
-// so GL-only / budget-limited instances are possible (Skia/Flutter-class control).
+// so GL-only / budget-limited instances are possible.
 func CreateInstance(desc *InstanceDescriptor) (*Instance, error) {
 	if err := checkInit(); err != nil {
 		return nil, err

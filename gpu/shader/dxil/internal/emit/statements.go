@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -17,8 +27,6 @@ import (
 // - StmtIf: conditional branching (not yet implemented)
 // - StmtLoop: loop constructs (not yet implemented)
 // - StmtBlock: nested statement blocks
-//
-// Reference: Mesa nir_to_dxil.c emit_module()
 func (e *Emitter) emitFunctionBody(fn *ir.Function) error {
 	// Pre-allocate all local variable allocas in the entry block.
 	// LLVM requires allocas in the entry block for correct semantics
@@ -34,15 +42,14 @@ func (e *Emitter) emitFunctionBody(fn *ir.Function) error {
 // alloca pointers that persist across iterations.
 //
 // Variables that have been promoted to SSA values by the mem2reg pass
-// (BUG-DXIL-039) no longer have any expression or statement reference
+// no longer have any expression or statement reference
 // in the function and are skipped here. Skipping the alloca avoids
 // emitting dead-store stack allocations that DXC's output would have
 // eliminated via LLVM's PromoteMemoryToRegister + DCE pipeline.
 //
 // Additionally, non-scalar locals with a constant Init that are never stored
 // to in the body are registered as "init-only" — their loads resolve directly
-// to the Init value without alloca. This matches DXC's SROA + constant
-// propagation for the pattern `var x = const_expr; return x`.
+// to the Init value without alloca.
 func (e *Emitter) preAllocateLocalVars(fn *ir.Function) error {
 	// Identify struct locals that serve exclusively as output staging.
 	// Must run before alloca creation so promoted locals can be skipped.
@@ -1193,9 +1200,7 @@ func (e *Emitter) buildChainSkipSet(fn *ir.Function, rng ir.Range) map[ir.Expres
 // emitStmtReturn handles the return statement.
 //
 // For entry point functions with a result binding, the return value is
-// stored via dx.op.storeOutput before the void return. This matches how
-// DXIL entry points work: they are void functions that store outputs
-// via intrinsics.
+// stored via dx.op.storeOutput before the void return.
 //
 // For struct returns, the struct must be decomposed into per-member output stores.
 // DXIL does not support struct-typed values — everything is scalarized.
@@ -1264,10 +1269,7 @@ func (e *Emitter) emitStmtReturn(fn *ir.Function, ret ir.StmtReturn) error {
 		return fmt.Errorf("return value: %w", err)
 	}
 
-	// Store the return value as output(s). Non-struct return = single
-	// output with signature-element ID 0 regardless of which @location or
-	// @builtin the return binding declares: there's only one output, so
-	// it's the first (and only) element in collectGraphicsSignatures.
+	// Store the return value as output(s).
 	// The semantic NAME and KIND come from the binding, but the DXIL
 	// storeOutput outputID refers to the sig element index, not the WGSL
 	// location.
@@ -1612,8 +1614,6 @@ func (e *Emitter) tryOutputPromotedStore(fn *ir.Function, store ir.StmtStore) bo
 // For UAV (storage buffers), this emits dx.op.bufferStore.
 // For local variables, this emits an LLVM store instruction.
 // For vector local variables, each component is stored separately.
-//
-// Reference: Mesa nir_to_dxil.c dxil_emit_store(), emit_bufferstore_call()
 func (e *Emitter) emitStmtStore(fn *ir.Function, store ir.StmtStore) error {
 	// Check if this store targets a mesh output variable.
 	// Mesh output stores are converted to dx.op mesh shader intrinsics.
@@ -1692,11 +1692,6 @@ func (e *Emitter) emitStmtStore(fn *ir.Function, store ir.StmtStore) error {
 		return fmt.Errorf("store type resolution: %w", err)
 	}
 
-	// BUG-DXIL-026 (remaining 4 tilecompute shaders): DXIL forbids aggregate
-	// (struct/array) load/store instructions — the validator rejects them
-	// with 0x80aa0009 "Explicit load/store type does not match pointee type
-	// of pointer operand" since the explicit type operand must be a "first
-	// class" scalar/vector type that matches the GEP-computed pointee.
 	// Decompose aggregate stores into per-field / per-element scalar stores,
 	// propagating the source pointer's addrspace so workgroup (addrspace 3)
 	// stores stay in TGSM.
@@ -1767,8 +1762,7 @@ func (e *Emitter) emitStructStoreDecomposed(basePtrID int, dxilStructTy *module.
 
 // emitArrayStoreDecomposed fans an array-typed store out into one scalar
 // store per element through per-element GEPs that inherit the base pointer's
-// addrspace. Mirrors emitStructStoreDecomposed but uses ElemCount and the
-// array's element type.
+// addrspace.
 func (e *Emitter) emitArrayStoreDecomposed(basePtrID int, arrayTy *module.Type, valueHandle ir.ExpressionHandle, addrSpace uint8) error {
 	elemTy := arrayTy.ElemType
 	if elemTy == nil {
@@ -1923,9 +1917,6 @@ func (e *Emitter) tryStructMemberComponentStore(fn *ir.Function, store ir.StmtSt
 // per-field GEP+store, array via per-element GEP+store. Returns (handled,
 // err) — handled=true means the store was fully emitted (caller must return).
 //
-// Reference parity: matches DXC HLOperationLower's pattern of decomposing
-// aggregate writes at the front-end before reaching the LLVM bitcode emitter,
-// since DXIL forbids aggregate store instructions (validator 0x80aa0009).
 // Mesa's NIR pre-pass does the equivalent flattening.
 func (e *Emitter) tryEmitLocalVariableStore(fn *ir.Function, store ir.StmtStore) (bool, error) {
 	lv, ok := fn.Expressions[store.Pointer].Kind.(ir.ExprLocalVariable)
@@ -1969,18 +1960,11 @@ func (e *Emitter) tryEmitLocalVariableStore(fn *ir.Function, store ir.StmtStore)
 // first component ID; the rest would land in pendingComponents and be lost.
 //
 // Decomposes into N scalar stores at GEPs [0, fieldFlatIdx + i] for i in 0..N-1.
-// Mirrors storeStructFields layout but rooted at a single field rather than
-// the whole struct.
 //
 // WGSL trigger example:
 //
-//	struct VertexOutput { @builtin(position) p: vec4<f32>, @location(0) c: vec3<f32> }
-//	var out: VertexOutput;
-//	out.p = vec4<f32>(x, y, 0.0, 1.0);  // 4 scalar stores at flat indices 0..3
-//	out.c = some_vec3;                  // 3 scalar stores at flat indices 4..6
-//
 // Without this path the SV_Position w/z come from uninitialized stack memory →
-// runtime perspective divide produces chaotic vertex placement (BUG-DXIL-032).
+// runtime perspective divide produces chaotic vertex placement.
 func (e *Emitter) tryStructMemberAggregateStore(fn *ir.Function, store ir.StmtStore) (bool, error) {
 	ai, ok := fn.Expressions[store.Pointer].Kind.(ir.ExprAccessIndex)
 	if !ok {
@@ -2399,15 +2383,9 @@ func (e *Emitter) getZeroForType(inner ir.TypeInner) int {
 //
 // For most atomic operations (add, and, or, xor, min, max, exchange), emits:
 //
-//	i32 @dx.op.atomicBinOp(i32 78, %handle, i32 atomicOp, i32 coord0, i32 coord1, i32 coord2, i32 value)
-//
 // For compare-and-exchange (AtomicExchange with Compare), emits:
 //
-//	i32 @dx.op.atomicCompareExchange(i32 79, %handle, i32 coord0, i32 coord1, i32 coord2, i32 cmpVal, i32 newVal)
-//
 // For AtomicLoad, emits dx.op.bufferLoad; for AtomicStore, emits dx.op.bufferStore.
-//
-// Reference: Mesa nir_to_dxil.c emit_atomic_binop() ~949, emit_atomic_cmpxchg() ~973
 func (e *Emitter) emitStmtAtomic(fn *ir.Function, atomic ir.StmtAtomic) error {
 	// Check if this is a workgroup (groupshared) atomic — uses LLVM atomicrmw.
 	if e.isWorkgroupPointer(fn, atomic.Pointer) {
@@ -2493,13 +2471,9 @@ func (e *Emitter) atomicMinMaxOp(scalar ir.ScalarType, isMin bool) DXILAtomicOp 
 
 // emitAtomicBinOp emits a dx.op.atomicBinOp call with the appropriate type overload.
 //
-// Signature: T @dx.op.atomicBinOp.T(i32 78, %handle, i32 atomicOp,
-//
 //	i32 coord0, i32 coord1, i32 coord2, T value) → T
 //
 // where T is i32, i64, or f32 depending on the atomic's scalar type.
-//
-// Reference: Mesa nir_to_dxil.c emit_atomic_binop() ~949
 func (e *Emitter) emitAtomicBinOp(fn *ir.Function, atomic ir.StmtAtomic, atomicOp DXILAtomicOp, handleID, indexID int, ol overloadType) error {
 	valueID, err := e.emitExpression(fn, atomic.Value)
 	if err != nil {
@@ -2576,11 +2550,7 @@ func (e *Emitter) emitAtomicSubtract(fn *ir.Function, atomic ir.StmtAtomic, hand
 
 // emitAtomicCmpXchg emits a dx.op.atomicCompareExchange call with the appropriate type overload.
 //
-// Signature: T @dx.op.atomicCompareExchange.T(i32 79, %handle,
-//
 //	i32 coord0, i32 coord1, i32 coord2, T cmpVal, T newVal) → T
-//
-// Reference: Mesa nir_to_dxil.c emit_atomic_cmpxchg() ~973
 func (e *Emitter) emitAtomicCmpXchg(fn *ir.Function, atomic ir.StmtAtomic, exchange ir.AtomicExchange, handleID, indexID int, ol overloadType) error {
 	newValID, err := e.emitExpression(fn, atomic.Value)
 	if err != nil {
@@ -2952,23 +2922,12 @@ func (e *Emitter) isUnsignedAtomicPointer(fn *ir.Function, ptrHandle ir.Expressi
 
 // emitStmtBarrier emits a dx.op.barrier call.
 //
-// Signature: void @dx.op.barrier(i32 80, i32 flags)
-//
-// Maps naga BarrierFlags to DXIL barrier mode flags:
-//   - BarrierStorage  → UAV_FENCE_GLOBAL (2)
-//   - BarrierWorkGroup → SYNC_THREAD_GROUP (1) | GROUPSHARED_MEM_FENCE (8)
-//   - BarrierSubGroup  → SYNC_THREAD_GROUP (1) | GROUPSHARED_MEM_FENCE (8) |
-//     UAV_FENCE_THREAD_GROUP (4)
-//
 // DXIL has no dedicated wave/subgroup barrier intrinsic: the closest HLSL
 // equivalent is GroupMemoryBarrierWithGroupSync, which is what DXC lowers
 // such semantics to. The DXIL validator also rejects a Sync-only flag
 // combination with "sync must include some form of memory barrier" — so
 // for any SubGroup/WorkGroup barrier we MUST include at least one memory
 // fence bit (TGSM and/or UAV).
-//
-// Reference: Mesa nir_to_dxil.c emit_barrier_impl() ~3082;
-// DxilValidation.cpp SyncThreadGroup memory-fence requirement.
 func (e *Emitter) emitStmtBarrier(barrier ir.StmtBarrier) error {
 	var flags DXILBarrierMode
 
@@ -3045,8 +3004,6 @@ func (e *Emitter) emitStmtWorkGroupUniformLoad(fn *ir.Function, wul ir.StmtWorkG
 }
 
 // getDxOpAtomicBinOpFuncTyped creates a typed dx.op.atomicBinOp function declaration.
-// Signature: T @dx.op.atomicBinOp.T(i32, %dx.types.Handle, i32, i32, i32, i32, T)
-// where T is i32, i64, or f32 depending on the overload.
 func (e *Emitter) getDxOpAtomicBinOpFuncTyped(ol overloadType) *module.Function {
 	name := "dx.op.atomicBinOp"
 	key := dxOpKey{name: name, overload: ol}
@@ -3068,7 +3025,6 @@ func (e *Emitter) getDxOpAtomicBinOpFuncTyped(ol overloadType) *module.Function 
 }
 
 // getDxOpAtomicCmpXchgFuncTyped creates a typed dx.op.atomicCompareExchange function declaration.
-// Signature: T @dx.op.atomicCompareExchange.T(i32, %handle, i32, i32, i32, T, T)
 func (e *Emitter) getDxOpAtomicCmpXchgFuncTyped(ol overloadType) *module.Function {
 	name := "dx.op.atomicCompareExchange"
 	key := dxOpKey{name: name, overload: ol}
@@ -3090,7 +3046,6 @@ func (e *Emitter) getDxOpAtomicCmpXchgFuncTyped(ol overloadType) *module.Functio
 }
 
 // getDxOpBarrierFunc creates the dx.op.barrier function declaration.
-// Signature: void @dx.op.barrier(i32, i32)
 func (e *Emitter) getDxOpBarrierFunc() *module.Function {
 	name := "dx.op.barrier"
 	key := dxOpKey{name: name, overload: overloadVoid}
@@ -3123,8 +3078,6 @@ func (e *Emitter) getDxOpBarrierFunc() *module.Function {
 //	  br label %merge
 //	merge_bb:
 //	  <continues>
-//
-// Reference: Mesa nir_to_dxil.c emit_cf_list / emit_if
 func (e *Emitter) emitIfStatement(fn *ir.Function, stmt ir.StmtIf) error {
 	// Emit the condition expression.
 	condID, err := e.emitExpression(fn, stmt.Condition)
@@ -3348,14 +3301,12 @@ func (e *Emitter) emitSwitchStatement(fn *ir.Function, stmt ir.StmtSwitch) error
 //	  br label %loop_body
 //	loop_body:
 //	  <body statements>
-//	  br label %loop_continuing  (or break → br %loop_merge)
+//	  br label %loop_continuing (or break → br %loop_merge)
 //	loop_continuing:
 //	  <continuing statements>
-//	  br label %loop_header      (back edge)
+//	  br label %loop_header (back edge)
 //	loop_merge:
 //	  <continues after loop>
-//
-// Reference: Mesa nir_to_dxil.c emit_cf_list / emit_loop
 func (e *Emitter) emitLoopStatement(fn *ir.Function, stmt ir.StmtLoop) error {
 	// Create basic blocks for the loop structure.
 	headerBB := e.mainFn.AddBasicBlock("loop.header")
@@ -3852,12 +3803,10 @@ func scalarAndComponentCount(inner ir.TypeInner) (ir.ScalarType, int) {
 //
 // Uses the same dx.op intrinsics as UAV buffer atomics but with texture coordinates
 // instead of buffer index. The coordinate layout depends on the image dimension:
-//   - 1D:        c0
-//   - 2D:        c0, c1
-//   - 2DArray:   c0, c1, c2 (array slice)
-//   - 3D:        c0, c1, c2
-//
-// Reference: DXC DXIL.rst atomicBinOp section (opcode 78)
+//   - 1D: c0
+//   - 2D: c0, c1
+//   - 2DArray: c0, c1, c2 (array slice)
+//   - 3D: c0, c1, c2
 func (e *Emitter) emitStmtImageAtomic(fn *ir.Function, imgAtomic ir.StmtImageAtomic) error {
 	// Resolve image handle.
 	imageHandleID, err := e.resolveResourceHandle(fn, imgAtomic.Image)
@@ -4018,8 +3967,6 @@ func (e *Emitter) emitImageAtomicCmpXchg(handleID int, coords [3]int, cmpValID, 
 // ---------------------------------------------------------------------------
 
 // emitStmtSubgroupBallot emits dx.op.waveActiveBallot (opcode 116).
-// Signature: %dx.types.fouri32 @dx.op.waveActiveBallot(i32 116, i1 condition) → {i32, i32, i32, i32}
-// The result is a vec4<u32>.
 func (e *Emitter) emitStmtSubgroupBallot(fn *ir.Function, ballot ir.StmtSubgroupBallot) error {
 	i32Ty := e.mod.GetIntType(32)
 	i1Ty := e.mod.GetIntType(1)
@@ -4174,7 +4121,6 @@ func (e *Emitter) emitStmtSubgroupCollectiveOp(fn *ir.Function, op ir.StmtSubgro
 	return nil
 }
 
-// subgroupOpToWaveOp converts a naga SubgroupOperation to DXIL WaveOp + sign.
 func subgroupOpToWaveOp(op ir.SubgroupOperation, scalar ir.ScalarType) (DXILWaveOp, DXILWaveOpSign) {
 	sign := DXILWaveOpSignSigned
 	if scalar.Kind == ir.ScalarUint {
@@ -4552,8 +4498,6 @@ func (e *Emitter) getQuadOpFunc(ol overloadType) *module.Function {
 // Ray query in DXIL uses a RayQuery handle allocated by dx.op.allocateRayQuery (178).
 // The handle is stored in a local variable (alloca), and all subsequent ray query
 // operations reference it.
-//
-// Reference: DXC DXIL.rst ray query opcodes 178-215
 func (e *Emitter) emitStmtRayQuery(fn *ir.Function, rq ir.StmtRayQuery) error {
 	switch rqf := rq.Fun.(type) {
 	case ir.RayQueryInitialize:
@@ -4600,7 +4544,6 @@ func (e *Emitter) getRayQueryHandle(fn *ir.Function, queryExpr ir.ExpressionHand
 }
 
 // emitRayQueryInitialize emits dx.op.rayQuery_TraceRayInline (179).
-// Signature: void @dx.op.rayQuery_TraceRayInline(i32 179, i32 rayQueryHandle,
 //
 //	%dx.types.Handle accelStruct, i32 rayFlags, i32 instanceMask,
 //	float originX, float originY, float originZ,
@@ -4648,7 +4591,6 @@ func (e *Emitter) emitRayQueryInitialize(fn *ir.Function, queryExpr ir.Expressio
 }
 
 // emitRayQueryProceed emits dx.op.rayQuery_Proceed (180).
-// Signature: i1 @dx.op.rayQuery_Proceed(i32 180, i32 rayQueryHandle)
 func (e *Emitter) emitRayQueryProceed(fn *ir.Function, queryExpr ir.ExpressionHandle, proceed ir.RayQueryProceed) error {
 	handleID := e.getRayQueryHandle(fn, queryExpr)
 
@@ -4882,7 +4824,7 @@ func (e *Emitter) getRayQueryTraceFunc() *module.Function {
 }
 
 func (e *Emitter) getRayQueryProceedFunc() *module.Function {
-	// DXC (DxilOperations.cpp:1614) declares rayQuery_Proceed with OpClass
+	// DXC declares rayQuery_Proceed with OpClass
 	// "rayQuery_Proceed" and overload mask 0x8 = i1 (bool). Function symbol
 	// is dx.op.rayQuery_Proceed.i1 per OP::ConstructOverloadName:
 	// "dx.op." + className + "." + overloadTypeName.

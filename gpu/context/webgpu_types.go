@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package context
 
@@ -11,18 +18,14 @@ import "unsafe"
 // struct tokens wrapping unsafe.Pointer — the same pattern as TextureView
 // and CommandEncoder in handle.go.
 //
-// This design provides:
-//   - Cross-package type safety: Device, Queue, Adapter are distinct types
-//   - GC safety: unsafe.Pointer in struct fields is traced by GC (Go spec §Safety)
-//   - Zero allocations: 8-byte value type, no interface boxing
-//   - Compile-time protection: ptr field is unexported, only NewDevice() etc. can construct
+//   can construct
 //
 // Precedent: reflect.Value uses the identical pattern (struct with unsafe.Pointer field).
 //
 // Consumers extract the concrete type via Pointer():
 //
 //	dev := provider.Device()
-//	wgpuDev := (*wgpu.Device)(dev.Pointer())
+//	wgpuDev :=(dev.Pointer())
 //
 // Or via helper in wgpu package:
 //
@@ -35,7 +38,7 @@ import "unsafe"
 type Device struct{ ptr unsafe.Pointer }
 
 // NewDevice creates a Device handle from an unsafe.Pointer to a concrete
-// GPU device (e.g., *wgpu.Device).
+// GPU device.
 func NewDevice(ptr unsafe.Pointer) Device { return Device{ptr: ptr} }
 
 // Pointer returns the underlying unsafe.Pointer.

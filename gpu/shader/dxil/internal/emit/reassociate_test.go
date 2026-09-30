@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -17,12 +27,12 @@ func ptrUint8(v uint8) *uint8 { return &v }
 //	let y = f32(i32(in_vertex_index & 1u) * 2 - 1);
 func TestShlAndCombineDetectsAndMul(t *testing.T) {
 	// IR expression tree:
-	//   [0] FuncArg(0)      -- vertex_index (u32)
-	//   [1] Literal(1u)     -- u32 constant
-	//   [2] And(0, 1)       -- vertex_index & 1u
-	//   [3] As(i32, 2)      -- i32 cast
-	//   [4] Literal(2)      -- i32 constant
-	//   [5] Multiply(3, 4)  -- * 2
+	//   [0] FuncArg(0) -- vertex_index (u32)
+	//   [1] Literal(1u) -- u32 constant
+	//   [2] And(0, 1) -- vertex_index & 1u
+	//   [3] As(i32, 2) -- i32 cast
+	//   [4] Literal(2) -- i32 constant
+	//   [5] Multiply(3, 4) -- * 2
 
 	fn := &ir.Function{
 		Expressions: []ir.Expression{
@@ -55,11 +65,11 @@ func TestShlAndCombineDetectsAndMul(t *testing.T) {
 
 func TestComputeExprUseCount(t *testing.T) {
 	// Build a function with expressions:
-	//   expr[0] = FuncArg(0)    -- vertex_index
-	//   expr[1] = FuncArg(1)    -- instance_index
-	//   expr[2] = FuncArg(2)    -- color
-	//   expr[3] = Add(0, 1)     -- vertex + instance
-	//   expr[4] = Add(3, 2)     -- (vertex + instance) + color
+	//   expr[0] = FuncArg(0) -- vertex_index
+	//   expr[1] = FuncArg(1) -- instance_index
+	//   expr[2] = FuncArg(2) -- color
+	//   expr[3] = Add(0, 1) -- vertex + instance
+	//   expr[4] = Add(3, 2) -- (vertex + instance) + color
 	fn := &ir.Function{
 		Expressions: []ir.Expression{
 			{Kind: ir.ExprFunctionArgument{Index: 0}},
@@ -89,8 +99,8 @@ func TestComputeExprUseCount(t *testing.T) {
 // have their use count incremented for each reference.
 func TestComputeExprUseCountMultiUse(t *testing.T) {
 	// expr[0] = FuncArg(0)
-	// expr[1] = Add(0, 0)     -- same arg used twice
-	// expr[2] = Add(1, 0)     -- expr[0] used 3 times total, expr[1] used once
+	// expr[1] = Add(0, 0) -- same arg used twice
+	// expr[2] = Add(1, 0) -- expr[0] used 3 times total, expr[1] used once
 	fn := &ir.Function{
 		Expressions: []ir.Expression{
 			{Kind: ir.ExprFunctionArgument{Index: 0}},
@@ -139,9 +149,9 @@ func TestFlattenBinaryChainMultiUse(t *testing.T) {
 	// expr[0] = FuncArg(0)
 	// expr[1] = FuncArg(1)
 	// expr[2] = FuncArg(2)
-	// expr[3] = Add(0, 1)     -- used by expr[4] AND expr[5] → multi-use
+	// expr[3] = Add(0, 1) -- used by expr[4] AND expr[5] → multi-use
 	// expr[4] = Add(3, 2)
-	// expr[5] = Mul(3, 2)     -- second use of expr[3]
+	// expr[5] = Mul(3, 2) -- second use of expr[3]
 	fn := &ir.Function{
 		Expressions: []ir.Expression{
 			{Kind: ir.ExprFunctionArgument{Index: 0}},

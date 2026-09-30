@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -204,7 +214,7 @@ func (b *Buffer) GetMappedRange(offset, size uint64) unsafe.Pointer {
 
 // Unmap unmaps the buffer, making the mapped memory inaccessible.
 // For buffers created with MappedAtCreation, this commits the data to the GPU.
-// Returns nil on success. Matches gogpu/wgpu Buffer.Unmap() error signature.
+// Returns nil on success.
 func (b *Buffer) Unmap() error {
 	if b == nil || b.handle == 0 {
 		return nil

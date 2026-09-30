@@ -1,11 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package behavior
 
 import (
 	"github.com/energye/gpui/ui/kit/internal/scope"
 )
 
-// Direction facade (F0-5 §6.5): Dir rides in Ctx; icons and arrows
-// follow it. Empty copy resolves through Ctx.RenderEmpty with locale.
+// Empty copy resolves through Ctx.RenderEmpty with locale.
 
 // IsRTL reports right-to-left layout.
 func IsRTL(ctx scope.Ctx) bool { return ctx.Dir == scope.DirRTL }

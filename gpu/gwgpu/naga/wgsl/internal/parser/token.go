@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package parser
 
 // TokenKind represents the type of token.
@@ -14,27 +24,27 @@ const (
 	TokenBoolLiteral
 
 	// Operators
-	TokenPlus                // +
-	TokenMinus               // -
-	TokenStar                // *
-	TokenSlash               // /
-	TokenPercent             // %
-	TokenAmpersand           // &
-	TokenPipe                // |
-	TokenCaret               // ^
-	TokenTilde               // ~
-	TokenBang                // !
-	TokenEqual               // =
-	TokenLess                // <
-	TokenGreater             // >
-	TokenDot                 // .
-	TokenComma               // ,
-	TokenColon               // :
-	TokenSemicolon           // ;
-	TokenAt                  // @
-	TokenArrow               // ->
-	TokenPlusPlus            // ++
-	TokenMinusMinus          // --
+	TokenPlus // +
+	TokenMinus
+	TokenStar      // *
+	TokenSlash     // /
+	TokenPercent   // %
+	TokenAmpersand // &
+	TokenPipe      // |
+	TokenCaret     // ^
+	TokenTilde     // ~
+	TokenBang      // !
+	TokenEqual     // =
+	TokenLess      // <
+	TokenGreater   // >
+	TokenDot
+	TokenComma
+	TokenColon
+	TokenSemicolon
+	TokenAt       // @
+	TokenArrow    // ->
+	TokenPlusPlus // ++
+	TokenMinusMinus
 	TokenEqualEqual          // ==
 	TokenBangEqual           // !=
 	TokenLessEqual           // <=

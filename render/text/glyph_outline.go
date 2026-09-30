@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 package text
 
@@ -377,9 +387,7 @@ func (e *OutlineExtractor) ExtractOutlineHinted(parsedFont ParsedFont, gid Glyph
 }
 
 // ExtractOutlineHintedVar extracts a glyph outline with font variations AND
-// hinting applied in a single unified path. This matches skrifa's load_simple
-// architecture where gvar deltas are applied to unscaled points BEFORE
-// scaling and TT bytecode hinting.
+// hinting applied in a single unified path.
 //
 // This fixes the variable font rendering bug where variable fonts skipped
 // TT bytecode hinting and auto-hinting, causing them to render bolder
@@ -392,8 +400,6 @@ func (e *OutlineExtractor) ExtractOutlineHinted(parsedFont ParsedFont, gid Glyph
 //
 // When variations is nil or empty, this produces identical output to
 // ExtractOutlineHinted (delegates to the static path).
-//
-// Reference: skrifa glyf/mod.rs:584-782 (load_simple — one path for both)
 func (e *OutlineExtractor) ExtractOutlineHintedVar(
 	parsedFont ParsedFont,
 	gid GlyphID,
@@ -565,7 +571,6 @@ func buildYSnapMap(outline *GlyphOutline) map[float32]float32 {
 
 // enforceMinStemWidth detects pairs of original Y-coordinates that mapped to
 // the same snapped value and pushes them apart to maintain at least 1px stem.
-// This matches FreeType's af_latin_hints_compute_edges pattern.
 func enforceMinStemWidth(ySnaps map[float32]float32) {
 	if len(ySnaps) < 2 {
 		return
@@ -830,7 +835,6 @@ func (e *OutlineExtractor) extractFromOwnVariableImpl(
 
 	// Skip gvar for composites: merged point-number space doesn't match
 	// gvar's per-component space (would silently corrupt geometry).
-	// Matches loadGlyphOutlineVar's existing skip for composites.
 	if !contours.IsComposite {
 		// Build points array for applyVariations: [x, y] pairs + 4 phantom points.
 		nPts := len(contours.Points)

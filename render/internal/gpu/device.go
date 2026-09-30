@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -27,8 +37,7 @@ func renderDeviceDescriptor(label string) *hal.DeviceDescriptor {
 // GPUInfo contains information about the selected GPU.
 type GPUInfo struct {
 	// Name is the GPU name (e.g., "NVIDIA GeForce RTX 3080").
-	Name string
-	// Vendor is the GPU vendor.
+	Name   string
 	Vendor string
 	// DeviceType is the type of GPU (discrete, integrated, etc.).
 	DeviceType types.DeviceType
@@ -88,7 +97,7 @@ func createDevice(adapter hal.Adapter, label string) (hal.Device, error) {
 // requestDeviceWithRetry retries adapter.RequestDevice a few times when the
 // adapter is temporarily out of GPU memory (multi-window shared stolen-memory
 // budget on iGPUs). Other windows/processes may release memory between
-// retries; this mirrors Flutter's degrade-not-crash behavior on transient
+// retries; this mirrors the degrade-not-crash behavior on transient
 // resource pressure instead of failing the app outright.
 func requestDeviceWithRetry(adapter hal.Adapter, desc *hal.DeviceDescriptor, label string) (hal.Device, error) {
 	if adapter == nil {

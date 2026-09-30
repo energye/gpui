@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package dce implements dead code elimination for DXIL shader functions.
 //
 // This pass removes expressions and statements that do not transitively
@@ -23,11 +33,6 @@
 // condition/selector is not marked live is removed entirely. This
 // matches DXC's LLVM ADCE behavior. StmtLoop is kept even with an
 // empty body (infinite loop = observable side effect).
-//
-// References:
-//   - DXC pipeline: DxilLinker.cpp:1284 (mem2reg -> SimplifyInst -> CFGSimplify -> DCE -> GlobalDCE)
-//   - Mesa NIR: nir_opt_dce (mark-and-sweep, iterative until stable)
-//   - LLVM: lib/Transforms/Scalar/DCE.cpp (worklist-based trivially-dead removal)
 package dce
 
 import (

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -160,7 +170,6 @@ func TestTextLayout_LongBuild(t *testing.T) {
 }
 
 func TestTextLayout_LongBuild_RealFace(t *testing.T) {
-	// 真面形 5000 字 <100ms（R2 门禁实测，非 adv=10 模拟）
 	face, _, err := text.LoadMultiFace(14)
 	if err != nil || face == nil {
 		t.Skipf("no font face for real 5000 test: %v", err)

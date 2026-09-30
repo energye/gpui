@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -26,10 +36,6 @@ import (
 // For LONG-flagged zones (Hebrew), the algorithm uses raw TrueType contour
 // points to detect long horizontal segments, avoiding being fooled by
 // vertical serifs. This is ported from skrifa metrics/blues.rs
-// compute_default_blues (lines 306-449). The LONG search only runs for
-// zones with the LONG flag (matching skrifa blues.rs:295 is_long check) —
-// running it unconditionally corrupted blue zone positions for all
-// non-LONG scripts (e.g. Thai tops snapped to Y≈0).
 //
 // Known deviation: blue character strings with multi-codepoint clusters
 // (e.g. Gujarati લી/શ્ચિ, Khmer coeng pairs) are measured per first
@@ -37,12 +43,6 @@ import (
 // docs/ENGINE_TEXT_FREETYPE_PLAN.md §9.6. Thai/Bengali/Tamil probe
 // comparisons match skrifa exactly.
 //
-// References:
-//   - FreeType aflatin.c:311  af_latin_metrics_init_blues
-//   - FreeType aflatin.c:641  long segment detection
-//   - FreeType afblue.dat     blue zone reference characters
-//   - skrifa metrics/blues.rs compute_unscaled_blues, compute_default_blues
-//   - skrifa style.rs         ScriptGroup, BlueZones flags
 
 // blueZone holds unscaled (font-unit) blue zone data.
 // Position and overshoot are int32 (font units), matching skrifa's
@@ -56,7 +56,6 @@ type blueZone struct {
 }
 
 // blueZoneFlags identifies special blue zone properties.
-// Bit layout matches skrifa metrics/blues.rs BlueZones.
 type blueZoneFlags uint32
 
 const (
@@ -75,7 +74,7 @@ func (f blueZoneFlags) isTopLike() bool {
 
 // scaledBlue holds scaled (pixel-space) blue zone data.
 type scaledBlue struct {
-	reference scaledWidth // reference position (scaled + fitted)
+	reference scaledWidth
 	overshoot scaledWidth // overshoot position (scaled + fitted)
 	isActive  bool        // only zones < 3/4 pixel tall are active
 	flags     blueZoneFlags
@@ -92,7 +91,6 @@ type scaledBlue struct {
 // based on the script group.
 //
 // See FreeType aflatin.c:311 af_latin_metrics_init_blues.
-// See skrifa metrics/blues.rs compute_unscaled_blues.
 func computeBlueZones(font ParsedFont, script *scriptClass) []blueZone {
 	switch script.group {
 	case scriptGroupCJK:
@@ -117,7 +115,6 @@ func computeBlueZones(font ParsedFont, script *scriptClass) []blueZone {
 // extremum that exceed a length threshold (UPM/25).
 //
 // See FreeType aflatin.c:314-800 af_latin_metrics_init_blues.
-// See skrifa metrics/blues.rs compute_default_blues.
 func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 	upm := font.UnitsPerEm()
 	if upm == 0 {
@@ -147,9 +144,7 @@ func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 
 		for _, ch := range chars {
 			r := []rune(ch)
-			// Reject multi-codepoint clusters. Skrifa measures blues in
-			// ShaperMode::Nominal, which empties clusters with more than one
-			// glyph (see skrifa shape.rs, mirroring FreeType afshaper.c:639).
+			// Reject multi-codepoint clusters.
 			// Without this, complex Indic clusters (e.g. "લી") would be
 			// measured from their first codepoint only, skewing zones.
 			if len(r) != 1 {
@@ -248,11 +243,8 @@ func computeBlueMedians(flats, rounds []int32) (blueRef, blueShoot int32) {
 //  1. Find the Y-extremum point and its contour
 //  2. Walk backward/forward from the extremum to find the segment span
 //  3. For LONG zones: if the segment is too short, search for adjacent
-//     long segments to avoid being fooled by vertical serifs (only runs
-//     for LONG-flagged zones, matching skrifa blues.rs is_long check)
-//  4. Classify the segment as round (off-curve endpoints) or flat
+//     Classify the segment as round (off-curve endpoints) or flat
 //
-// See skrifa metrics/blues.rs compute_default_blues, lines 200-470.
 // See FreeType aflatin.c:641 long segment detection.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // FreeType/skrifa long segment detection — algorithmic complexity is inherent
@@ -397,12 +389,10 @@ func measureBlueCharContour(fontData []byte, gid GlyphID, isTop, isLong bool, fl
 	}
 
 	// LONG segment detection (Hebrew).
-	// Only runs for LONG-flagged zones (matching skrifa blues.rs:295
 	// `if blue_zones.is_long()`). For other scripts, the extremum segment
 	// itself is authoritative: running the LONG search unconditionally
 	// rewrote bestY to unrelated contour segments (e.g. Thai tops to Y≈0),
 	// corrupting blue zone positions for all non-LONG scripts.
-	// See skrifa metrics/blues.rs:306-449.
 	// See FreeType aflatin.c:641.
 	longResult := longSegmentResult{}
 	if isLong {
@@ -591,7 +581,6 @@ func longSegmentDetection(bestContour []ContourPoint, n int,
 
 // extendLongSegment extends a found long segment forward, accumulating
 // on-curve point information. This is the inner extension loop from
-// skrifa metrics/blues.rs:404-436.
 func extendLongSegment(contour []ContourPoint, n int,
 	first int, last *int, nextIx, segmentFirst int, dist int32,
 	pFirst, pLast *int, pFirstSet, pLastSet *bool) {
@@ -626,9 +615,7 @@ func extendLongSegment(contour []ContourPoint, n int,
 
 // satisfiesMinLongSegmentLen checks if a segment has enough points
 // to reliably detect bumps for LONG blue zone detection.
-// Matches skrifa: inclusive_diff + 2 <= contour_last.
 //
-// See skrifa metrics/blues.rs:585-600.
 // See FreeType aflatin.c:663.
 func satisfiesMinLongSegmentLen(firstIdx, lastIdx, contourLast int) bool {
 	var inclusiveDiff int
@@ -643,7 +630,6 @@ func satisfiesMinLongSegmentLen(firstIdx, lastIdx, contourLast int) bool {
 
 // classifyRoundFlatContour determines if the segment at the extremum
 // is round (off-curve) or flat (straight line) using raw contour points.
-// Matches skrifa's round/flat classification in compute_default_blues.
 func classifyRoundFlatContour(contour []ContourPoint,
 	onPointFirst, onPointLast int,
 	segmentFirst, segmentLast int,
@@ -668,7 +654,6 @@ func classifyRoundFlatContour(contour []ContourPoint,
 // character string). Only vertical blues are active — horizontal blues
 // have been disabled in FreeType since 2004.
 //
-// See skrifa metrics/blues.rs compute_cjk_blues.
 // See FreeType afcjk.c:277.
 //
 //nolint:gocognit // FreeType afcjk.c port — CJK blue zone detection
@@ -821,7 +806,6 @@ func findBestYContour(fontData []byte, gid GlyphID, isTop bool) (int32, bool) {
 
 // adjustBlueZonesByIndex adjusts overlapping blue zones using an index-based
 // sort, keeping the zones in their original insertion (spec) order.
-// This matches skrifa metrics/blues.rs:528-578 exactly:
 //  1. Build sorted_indices array (sorted bottom-to-top by the relevant position)
 //  2. Walk adjacent pairs in sorted order, clamping overlaps
 //
@@ -888,15 +872,9 @@ func adjustBlueZonesByIndex(zones []blueZone) {
 // scaleBlueZones scales blue zones to pixel coordinates and applies
 // grid-fitting. Only zones with height < 3/4 pixel are activated.
 //
-// Mirrors skrifa metrics/scale.rs scale_default_axis_metrics: the Y scale
-// is first corrected so the ADJUSTMENT (x-height) blue zone's overshoot
-// aligns to the pixel grid, then zones are scaled and discretized.
-//
 // Returns the corrected Y scale as 16.16 fixed-point; the caller must use it
 // for ALL vertical coordinates (point scaling), matching FreeType where the
 // x-height correction rewrites y_scale itself (aflatin.c:1225-1298).
-//
-// See FreeType aflatin.c:1168 and skrifa metrics/scale.rs.
 func scaleBlueZones(zones []blueZone, scale float64, upm int32) ([]scaledBlue, int32) {
 	scale16 := computeScale16dot16(scale)
 
@@ -953,8 +931,6 @@ func scaleBlueZones(zones []blueZone, scale float64, upm int32) ([]scaledBlue, i
 		// unscaled org difference (aflatin.c:1387: FT_MulFix(ref.org -
 		// shoot.org, scale)); the float-based ref/shoot positions can round
 		// the height down and flip the 0.5px discretization step. DejaVuSans
-		// cap zone @37px: FT_MulFix gives 32 (delta 32 → shoot.fit=ref.fit+32),
-		// while float gives 31 (delta 0) — engine must match FT.
 		dist := fixedMul26dot6(scale16, int32(z.position)-int32(z.overshoot))
 		distNeg := dist < 0
 		if distNeg {
@@ -990,7 +966,6 @@ func scaleBlueZones(zones []blueZone, scale float64, upm int32) ([]scaledBlue, i
 // Unlike Default scaling, CJK uses unscale-and-compare delta computation
 // rather than the simple 3-level quantized delta.
 //
-// See skrifa metrics/scale.rs scale_cjk_axis_metrics, lines 289-323.
 // See FreeType afcjk.c:661.
 func scaleBlueZonesCJK(zones []blueZone, scale float64) []scaledBlue {
 	result := make([]scaledBlue, 0, len(zones))

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import "errors"
@@ -7,15 +17,15 @@ import "errors"
 // 用于 glyph mask 生产路径，保证位图与 FT_Render_Glyph 逐字节一致。
 //
 // 移植对照（ftgrays.c 行号）：
-//   - gray_set_cell         : 572
-//   - gray_render_line      : 869（#else / FT_INT64 分支）
-//   - gray_render_conic     : 1045（BEZIER_USE_DDA）
-//   - gray_split_cubic      : 1335
-//   - gray_render_cubic     : 1358
-//   - FT_Outline_Decompose  : 1647
-//   - gray_sweep            : 1475
-//   - gray_raster_render    : 2040
-//   - gray_convert_glyph    : 1942
+//   - gray_set_cell : 572
+//   - gray_render_line : 869（#else / FT_INT64 分支）
+//   - gray_render_conic : 1045（BEZIER_USE_DDA）
+//   - gray_split_cubic : 1335
+//   - gray_render_cubic : 1358
+//   - FT_Outline_Decompose : 1647
+//   - gray_sweep : 1475
+//   - gray_raster_render : 2040
+//   - gray_convert_glyph : 1942
 //   - ft_glyphslot_preset_bitmap GRAY 分支 : ftobjs.c 359
 //
 // 坐标约定（与 FT 一致）：

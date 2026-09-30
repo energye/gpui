@@ -1,10 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package module provides an in-memory representation of a DXIL module.
 //
 // DXIL modules are LLVM 3.7 IR modules with DXIL-specific metadata and
 // dx.op intrinsic calls. This package defines the types needed to build
 // a module in memory before serializing it to LLVM 3.7 bitcode.
-//
-// Reference: Mesa's dxil_internal.h and dxil_module.h
 package module
 
 // ShaderKind identifies the type of DXIL shader.
@@ -325,9 +333,7 @@ type Function struct {
 const (
 	// AttrSetNone is the sentinel for "no attributes".
 	AttrSetNone uint32 = 0
-	// AttrSetNounwind = group {nounwind} on the function-level slot. Used
-	// for impure intrinsics (stores, atomics, barriers, discard) and for
-	// the entry point @main (it stores outputs, so not pure).
+	// AttrSetNounwind = group {nounwind} on the function-level slot.
 	AttrSetNounwind uint32 = 1
 	// AttrSetReadNone = group {nounwind, readnone} — pure intrinsics:
 	// threadId/groupId/loadInput, math, conversions. No memory effects at
@@ -539,7 +545,7 @@ type Constant struct {
 	//
 	// Required for metadata payloads whose consumer-side loader does a
 	// hard `dyn_cast<ConstantDataArray>`. Example: dx.viewIdState —
-	// `DxilMDHelper::LoadDxilViewIdState` (DxilMetadataHelper.cpp:2211)
+	// `DxilMDHelper::LoadDxilViewIdState`
 	// runs at D3D12 runtime format validation during
 	// CreateGraphicsPipelineState and rejects the `ConstantArray` form
 	// that CST_CODE_AGGREGATE produces.
@@ -591,9 +597,6 @@ func (m *Module) AddAggregateConst(ty *Type, elements []*Constant) *Constant {
 //   - i8/i16: the unsigned integer value (zero-extended)
 //   - f32: math.Float32bits result zero-extended
 //   - f64: math.Float64bits result
-//
-// Reference: LLVM Bitcode/LLVMBitCodes.h (CST_CODE_DATA = 22) and
-// BitcodeReader's handling of ConstantDataSequential.
 func (m *Module) AddDataArrayConst(ty *Type, values []uint64) *Constant {
 	c := &Constant{
 		ConstType:   ty,
@@ -606,8 +609,6 @@ func (m *Module) AddDataArrayConst(ty *Type, values []uint64) *Constant {
 
 // AddUndefConst creates an undef constant of the given type.
 // Used for resource metadata fields[1] which require an undef pointer value.
-//
-// Reference: Mesa dxil_module.c dxil_module_get_undef() line ~1845
 func (m *Module) AddUndefConst(ty *Type) *Constant {
 	c := &Constant{
 		ConstType: ty,

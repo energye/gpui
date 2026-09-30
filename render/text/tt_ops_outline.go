@@ -1,11 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — outline manipulation instructions.
 //
-// Port of skrifa hint/engine/outline.rs (1418 LOC).
 // THE CRITICAL FILE — the "big 10" point manipulation instructions:
 // MDAP, MIAP, MDRP, MIRP, MSIRP, IUP, IP, ALIGNRP, ALIGNPTS, ISECT,
 // SHP, SHC, SHZ, SHPIX, UTP, FLIPPT, FLIPRGON, FLIPRGOFF.
-//
-// Reference: skrifa/src/outline/glyf/hint/engine/outline.rs
 package text
 
 // ============================================================
@@ -14,7 +21,6 @@ package text
 
 // opMdap implements MDAP[a] (0x2E-0x2F).
 // Moves a point to its current position, optionally rounding.
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opMdap(opcode byte) error {
 	pointIdx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -58,8 +64,6 @@ func (e *ttEngine) opMdap(opcode byte) error {
 // point positions to the CVT distance decomposed along the freedom vector.
 // This is critical because later instructions (MDRP, MIRP) use the twilight
 // zone's original points to compute reference distances.
-//
-// Reference: skrifa hint/engine/outline.rs:345-372
 func (e *ttEngine) opMiap(opcode byte) error {
 	cvtIdx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -84,8 +88,6 @@ func (e *ttEngine) opMiap(opcode byte) error {
 	// normal MIAP logic. This ensures that original points reflect the
 	// intended reference positions for subsequent MDRP/MIRP instructions.
 	//
-	// Reference: skrifa hint/engine/outline.rs:350-359
-	// Reference: FreeType ttinterp.c:5548
 	if e.graphics.zp0 == ttZoneTwilight {
 		if pointIdx >= 0 && pointIdx < len(z.original) && pointIdx < len(z.points) {
 			fv := e.graphics.freedomVector
@@ -135,8 +137,6 @@ func (e *ttEngine) opMiap(opcode byte) error {
 
 // opMdrp implements MDRP[abcde] (0xC0-0xDF).
 // Moves a point relative to rp0 based on the original distance.
-// Opcode bits: set_rp0 | use_min_dist | round | dist_type(2)
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opMdrp(opcode byte) error {
 	pointIdx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -153,7 +153,6 @@ func (e *ttEngine) opMdrp(opcode byte) error {
 	// Get original distance.
 	// In twilight zone, use scaled original points.
 	// In glyph zone, use UNSCALED font-unit points then multiply by scale.
-	// This matches skrifa hint/engine/outline.rs:409-416 exactly.
 	var origDist int32
 	if e.graphics.zp0 == ttZoneTwilight || e.graphics.zp1 == ttZoneTwilight {
 		pt, err := z.originalPoint(pointIdx)
@@ -256,8 +255,6 @@ func (e *ttEngine) opMdrp(opcode byte) error {
 // For twilight zone points, MIRP sets the point's original position to
 // rp0's original + cvtDist * freedomVector, then copies to current,
 // before computing the distance-based movement.
-//
-// Reference: skrifa hint/engine/outline.rs:489-567
 func (e *ttEngine) opMirp(opcode byte) error {
 	cvtIdx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -281,7 +278,6 @@ func (e *ttEngine) opMirp(opcode byte) error {
 	}
 
 	// Single width substitution (before twilight handling, matching skrifa order).
-	// Reference: skrifa hint/engine/outline.rs:509-518
 	if sw := e.graphics.retained.singleWidth; sw != 0 {
 		diff := cvtDist - sw
 		if diff < 0 {
@@ -299,7 +295,6 @@ func (e *ttEngine) opMirp(opcode byte) error {
 	// Twilight zone handling: set point's original to rp0's original + cvtDist * fv,
 	// then copy to current. This ensures correct original distance computation
 	// for auto-flip, cutin, and the final movement.
-	// Reference: skrifa hint/engine/outline.rs:519-530
 	z := e.zone(e.graphics.zp1)
 	rp0z := e.zone(e.graphics.zp0)
 	if e.graphics.zp1 == ttZoneTwilight {
@@ -328,13 +323,11 @@ func (e *ttEngine) opMirp(opcode byte) error {
 	}
 
 	// Auto flip: flip CVT sign to match original distance sign.
-	// Reference: skrifa hint/engine/outline.rs:534-536
 	if e.graphics.retained.autoFlip && (origDist^cvtDist) < 0 {
 		cvtDist = -cvtDist
 	}
 
 	// Rounding with CVT cutin check.
-	// Reference: skrifa hint/engine/outline.rs:538-548
 	distance := cvtDist
 	if doRound {
 		// CVT cutin: only check when both zones are the same.
@@ -351,7 +344,6 @@ func (e *ttEngine) opMirp(opcode byte) error {
 	}
 
 	// Minimum distance.
-	// Reference: skrifa hint/engine/outline.rs:550-558
 	if useMinDist {
 		minDist := e.graphics.retained.minDistance
 		if origDist >= 0 {
@@ -402,8 +394,6 @@ func (e *ttEngine) opMirp(opcode byte) error {
 // For twilight zone points, MSIRP first sets the point's original and current
 // position to rp0's original position + distance along the freedom vector,
 // before computing the movement delta.
-//
-// Reference: skrifa hint/engine/outline.rs:266-286
 func (e *ttEngine) opMsirp(opcode byte) error {
 	distance, err := e.valueStack.pop()
 	if err != nil {
@@ -418,7 +408,6 @@ func (e *ttEngine) opMsirp(opcode byte) error {
 
 	// Twilight zone handling: set point's original to rp0's original,
 	// then move_original by distance, then set point to new original.
-	// Reference: skrifa hint/engine/outline.rs:273-277
 	z := e.zone(e.graphics.zp1)
 	rp0z := e.zone(e.graphics.zp0)
 	if e.graphics.zp1 == ttZoneTwilight {
@@ -480,12 +469,6 @@ func (e *ttEngine) opMsirp(opcode byte) error {
 
 // opIup implements IUP[a] (0x30-0x31).
 // Interpolates all untouched points in a contour between touched ones.
-//
-// In backward compatibility mode, IUP is skipped if it has already been
-// done on BOTH axes (skrifa hint/engine/outline.rs:775-799).
-//
-// Reference: skrifa hint/engine/outline.rs:775-799
-// Reference: skrifa hint/zone.rs:162-207 (Zone::iup)
 func (e *ttEngine) opIup(opcode byte) error {
 	isX := opcode&1 != 0
 	gs := &e.graphics
@@ -506,7 +489,6 @@ func (e *ttEngine) opIup(opcode byte) error {
 		return nil
 	}
 
-	// Linear contour walk matching skrifa zone.rs:162-207 exactly.
 	point := 0
 	for ci := range z.contours {
 		endPoint := int(z.contours[ci])
@@ -546,7 +528,6 @@ func (e *ttEngine) opIup(opcode byte) error {
 }
 
 // iupShift shifts all points in [p1..p2] by the delta of the touched point p.
-// Reference: skrifa hint/zone.rs:213-247
 func iupShift(z *ttZone, isX bool, p1, p2, p int) {
 	if p1 > p2 || p1 > p || p > p2 {
 		return
@@ -572,12 +553,8 @@ func iupShift(z *ttZone, isX bool, p1, p2, p int) {
 // iupInterpolateRange interpolates untouched points in [p1..p2] between
 // two touched reference points ref1 and ref2.
 //
-// Uses UNSCALED font-unit coordinates for reference ordering and the
-// inner interpolation formula, matching skrifa zone.rs:253-330 exactly.
 // This produces different (correct) results than using scaled coordinates
 // because the unscaled integer arithmetic avoids fixed-point precision loss.
-//
-// Reference: skrifa hint/zone.rs:253-330
 func iupInterpolateRange(z *ttZone, isX bool, p1, p2, ref1, ref2 int) {
 	if p1 > p2 {
 		return
@@ -652,7 +629,6 @@ func iupInterpolateRange(z *ttZone, isX bool, p1, p2, ref1, ref2 int) {
 // opIp implements IP[] (0x39).
 // Moves each point so that its relationship to rp1 and rp2 is the same
 // as it was in the original uninstructed outline.
-// Reference: skrifa hint/engine/outline.rs op_ip
 func (e *ttEngine) opIP() error {
 	gs := &e.graphics
 	loop := gs.loopCounter
@@ -670,7 +646,6 @@ func (e *ttEngine) opIP() error {
 
 	// In twilight zone, use original (scaled) points; otherwise use unscaled
 	// points treated as 26.6 fixed-point (skrifa: unscaled().map(F26Dot6::from_bits)).
-	// Reference: skrifa hint/engine/outline.rs:710-757
 	inTwilight := gs.zp0 == ttZoneTwilight || gs.zp1 == ttZoneTwilight || gs.zp2 == ttZoneTwilight
 
 	// Compute original base (rp1 position in original/unscaled space).
@@ -770,7 +745,6 @@ func (e *ttEngine) opIP() error {
 // ============================================================
 
 // opAlignrp implements ALIGNRP[] (0x3C).
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opAlignrp() error {
 	loop := e.graphics.loopCounter
 	e.graphics.loopCounter = 1
@@ -807,7 +781,6 @@ func (e *ttEngine) opAlignrp() error {
 // ============================================================
 
 // opAlignpts implements ALIGNPTS[] (0x27).
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opAlignpts() error {
 	p2Idx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -848,7 +821,6 @@ func (e *ttEngine) opAlignpts() error {
 // opIsect implements ISECT[] (0x0F).
 // Moves a point to the intersection of lines (a0→a1) and (b0→b1).
 // Uses FreeType/skrifa determinant-based intersection with grazing angle rejection.
-// Reference: skrifa hint/engine/outline.rs op_isect
 func (e *ttEngine) opIsect() error {
 	b1Idx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -903,7 +875,7 @@ func (e *ttEngine) opIsect() error {
 
 	// Cross product (discriminant) and dot product of direction vectors.
 	// discriminant = da × (-db) = dax*(-dby) + day*dbx
-	// dotproduct   = da · db   = dax*dbx + day*dby
+	// dotproduct = da · db = dax*dbx + day*dby
 	discriminant := ttMulDiv(dax, -dby, 0x40) + ttMulDiv(day, dbx, 0x40)
 	dotproduct := ttMulDiv(dax, dbx, 0x40) + ttMulDiv(day, dby, 0x40)
 
@@ -947,7 +919,6 @@ func (e *ttEngine) opIsect() error {
 // ============================================================
 
 // opShp implements SHP[a] (0x32-0x33).
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opShp(opcode byte) error {
 	loop := e.graphics.loopCounter
 	e.graphics.loopCounter = 1
@@ -984,7 +955,6 @@ func (e *ttEngine) opShp(opcode byte) error {
 
 // opShc implements SHC[a] (0x34-0x35).
 // Shifts all points in a contour.
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opShc(opcode byte) error {
 	contourIdx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -1037,7 +1007,6 @@ func (e *ttEngine) opShc(opcode byte) error {
 
 // opShz implements SHZ[a] (0x36-0x37).
 // Shifts all points in a zone.
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opShz(opcode byte) error {
 	zoneIdx, err := e.valueStack.pop()
 	if err != nil {
@@ -1096,7 +1065,6 @@ func (e *ttEngine) opShz(opcode byte) error {
 // ============================================================
 
 // opShpix implements SHPIX[] (0x38).
-// Reference: skrifa hint/engine/outline.rs:221-244
 func (e *ttEngine) opShpix() error {
 	gs := &e.graphics
 	inTwilight := gs.zp0 == ttZoneTwilight || gs.zp1 == ttZoneTwilight || gs.zp2 == ttZoneTwilight
@@ -1117,7 +1085,6 @@ func (e *ttEngine) opShpix() error {
 			// In backward compat mode, SHPIX has its own gating logic:
 			// only move if in twilight zone, or if IUP hasn't been done
 			// and either (composite with Y freedom) or (point is Y-touched).
-			// Reference: skrifa hint/engine/outline.rs:232-239
 			if inTwilight ||
 				(!didIUP &&
 					((gs.isComposite && gs.freedomVector[1] != 0) ||
@@ -1140,7 +1107,6 @@ func (e *ttEngine) opShpix() error {
 // ============================================================
 
 // opUtp implements UTP[] (0x29).
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opUtp() error {
 	pointIdx, err := e.valueStack.popUsize()
 	if err != nil {
@@ -1156,7 +1122,6 @@ func (e *ttEngine) opUtp() error {
 // ============================================================
 
 // opFlippt implements FLIPPT[] (0x80).
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opFlippt() error {
 	loop := e.graphics.loopCounter
 	e.graphics.loopCounter = 1
@@ -1175,7 +1140,6 @@ func (e *ttEngine) opFlippt() error {
 }
 
 // opFliprgon implements FLIPRGON[] (0x81).
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opFliprgon() error {
 	hi, err := e.valueStack.popUsize()
 	if err != nil {
@@ -1193,7 +1157,6 @@ func (e *ttEngine) opFliprgon() error {
 }
 
 // opFliprgoff implements FLIPRGOFF[] (0x82).
-// Reference: skrifa hint/engine/outline.rs
 func (e *ttEngine) opFliprgoff() error {
 	hi, err := e.valueStack.popUsize()
 	if err != nil {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -14,11 +24,7 @@ const (
 	DisplayX11
 	// DisplayWayland forces wl_display / wl_surface.
 	DisplayWayland
-	// DisplayWin32 forces the Win32 backend (placeholder until S5; only
-	// succeeds on Windows builds).
 	DisplayWin32
-	// DisplayAppKit forces the macOS AppKit backend (placeholder until S5;
-	// only succeeds on darwin builds).
 	DisplayAppKit
 )
 

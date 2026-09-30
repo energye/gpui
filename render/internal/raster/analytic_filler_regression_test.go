@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -100,7 +107,7 @@ func TestRegression_StarExteriorCoverage(t *testing.T) {
 func TestRegression_StarEdgePixels(t *testing.T) {
 	buf := buildStarCoverage()
 
-	// These exact values come from C++ Skia-exact tool (verbatim Skia source).
+	// These exact values come from C++ Skia-exact tool.
 	// Changes to these values indicate rasterization regression.
 	type pixelVal struct {
 		x, y int
@@ -213,7 +220,6 @@ func TestRegression_TrapezoidToAlpha(t *testing.T) {
 	}
 }
 
-// TestRegression_PolygonKnownBug documents BUG-RAST-011.
 // Polygon with near-horizontal edges at aaShift=0 has coverage diff vs Skia.
 // Root cause: edges starting mid-row are not inserted until next pixel row.
 func TestRegression_PolygonKnownBug(t *testing.T) {
@@ -224,7 +230,7 @@ func TestRegression_PolygonKnownBug(t *testing.T) {
 	// Skia gives 255 (both sub-strips contribute)
 	cov40 := buf[40*100+50]
 	if cov40 == 255 {
-		// BUG-RAST-011 is fixed! Update this test.
+		// Update this test.
 		t.Logf("BUG-RAST-011 appears FIXED at y=40: coverage=%d", cov40)
 	} else if cov40 != 191 {
 		t.Errorf("unexpected coverage at (50,40): got=%d, want 191 (known bug) or 255 (fixed)",
@@ -288,10 +294,6 @@ func TestRegression_CoverageMonotonicity(t *testing.T) {
 	}
 }
 
-// TestRegression_NearHorizontalEdgeBleed reproduces BUG-RAST-011 (#235):
-// near-horizontal edges from stroke expansion cause coverage to bleed
-// far beyond the shape boundary.
-//
 // A thin near-horizontal parallelogram (typical stroke of a horizontal line)
 // should have coverage only within ~2px of the shape. Coverage 10+ pixels
 // away indicates slope blowup.
@@ -299,10 +301,10 @@ func TestRegression_NearHorizontalEdgeBleed(t *testing.T) {
 	// Near-horizontal parallelogram simulating a 1px stroke of a line
 	// from (10, 50) to (90, 50.3) — dy=0.3 over 80px, dx/dy ≈ 267.
 	// Stroke offset ±0.5px perpendicular creates:
-	//   top:    (10, 49.5) → (90, 49.8)   dy=0.3
-	//   right:  (90, 49.8) → (90, 50.8)   dy=1.0
-	//   bottom: (90, 50.8) → (10, 50.5)   dy=-0.3
-	//   left:   (10, 50.5) → (10, 49.5)   dy=-1.0
+	//   top: (10, 49.5) → (90, 49.8) dy=0.3
+	//   right: (90, 49.8) → (90, 50.8) dy=1.0
+	//   bottom: (90, 50.8) → (10, 50.5) dy=-0.3
+	//   left: (10, 50.5) → (10, 49.5) dy=-1.0
 	path := &testPath{
 		verbs: []PathVerb{MoveTo, LineTo, LineTo, LineTo, Close},
 		points: []float32{

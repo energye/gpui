@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -6,8 +16,6 @@ import (
 
 	"github.com/energye/gpui/ui/rendering"
 )
-
-// R5 单测与真窗同源：7 场景，Data 来自真窗同一套长串/字表。
 
 func TestScroll_Single5000_Horizontal(t *testing.T) {
 	base := "你好Hello世界"

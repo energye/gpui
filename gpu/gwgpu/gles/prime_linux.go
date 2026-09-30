@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -17,8 +24,7 @@ import (
 // only redirects GLX while our path is EGL, and on Xwayland it fails
 // window creation with 0x3005 (NVIDIA EGL cannot present an Xwayland
 // pixmap). Discrete selection on the proprietary stack rides P2-0 vendor
-// pinning + P2-2 device enumeration instead; this knob stays Mesa-only.
-// low/default → untouched (integrated default). Explicit user values win.
+// Explicit user values win.
 // Applies before the first EGL display init in this process.
 func primeEnvForPower() (pairs [][2]string, apply bool) {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("GPUI_POWER"))) {

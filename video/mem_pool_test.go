@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 import "testing"
@@ -78,8 +88,6 @@ func TestPoolsTriple(t *testing.T) {
 	}
 }
 
-// TestPoolZeroAlloc pins the hot path: acquire+release after warmup costs
-// no heap allocation (the whole point of §2.7 pools).
 func TestPoolZeroAlloc(t *testing.T) {
 	p := NewPool("rgba", 64, 1<<20)
 	b := p.Acquire()

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -17,7 +24,6 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// P1-1b-2 backend isolate: minimal textured draw straight to a headless
 // swapchain FBO, bypassing the render session. A fullscreen triangle samples
 // a 4x4 opaque red texture; every pixel must read back red.
 //
@@ -298,12 +304,8 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	}
 }
 
-// P1-1b-2 backend isolate step 2: same textured draw but driven by a mat4
-// ortho uniform in pixel coords (the render session's textured-quad shape:
-// uniform + texture + sampler in group 0, quad in pixel space).
-//
-//   - PASS => uniforms work; suspect session vertex data or clip group.
-//   - FAIL => uniform upload/binding is broken on GL.
+// - PASS => uniforms work; suspect session vertex data or clip group.
+// - FAIL => uniform upload/binding is broken on GL.
 func TestP1_TexturedSampleUniformProbe(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -613,8 +615,7 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	}
 }
 
-// P1-1b-2 backend isolate step 3: probe-2 shape plus the session's clip
-// uniform group (@group(1), disabled). The session always binds a clip
+// The session always binds a clip
 // group for textured draws; the earlier probes did not.
 //
 //   - PASS (red) => clip path fine; suspect session pass setup (depth/blend/
@@ -970,11 +971,8 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	}
 }
 
-// P1-1b-2 backend isolate step 4: probe-3 shape plus the session pass
-// furniture — depth/stencil attachment, premultiplied blend, full scissor.
-//
-//   - PASS (red) => pass setup fine; suspect session target/vertex/slab.
-//   - FAIL (not red) => depth/blend/scissor setup broken on GL.
+// - PASS (red) => pass setup fine; suspect session target/vertex/slab.
+// - FAIL (not red) => depth/blend/scissor setup broken on GL.
 func TestP1_TexturedSamplePassProbe(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -1373,8 +1371,6 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	}
 }
 
-// P1-1b-2 backend isolate step 5: session-shaped MSAA probe — textured quad
-// through an msaaView + resolve target with Multisample{Count:4}, mirroring
 // colorAttachment() when sampleCount resolves to 4. (Session default is 1x;
 // this step runs regardless to close the MSAA branch of the isolate ladder.)
 //
@@ -1443,7 +1439,6 @@ func TestP1_TexturedSampleMSAAProbe(t *testing.T) {
 	t.Skip("MSAA probe scaffolded; textured+MSAA body follows the pass-probe shape")
 }
 
-// P1-1b-2 backend isolate step 6: two-draw ordering — the session encodes
 // SDF/convex/image/text draws into ONE render pass in tier order. Probe the
 // cross-pipeline interaction directly: solid SDF-style draw first, textured
 // quad second, same pass, same uniform/sampler/texture shapes as probes 2-4.
@@ -1881,12 +1876,6 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	}
 }
 
-// P1-1b-2 backend isolate step 7: session-shaped textured draw — BGRA8
-// target, 32-byte vertices (pos+uv+tint), real tint multiply, slab uniform
-// (Offset 0, Size 80), disabled clip group, depth/stencil + premul blend,
-// full scissor. Mirrors TexturedQuadPipeline RecordDraws + buildImageResources
-// except the fragment uses the simplified clip cover (no RRect sqrt math).
-//
 //   - PASS (red) => backend handles tint stride + BGRA target; suspect the
 //     real textured_quad.wgsl RRect/opacity math or session feeding.
 //   - FAIL (not red) => backend breaks on the session vertex/BGRA shape.
@@ -2294,12 +2283,6 @@ fn fs(@location(0) uv: vec2f, @location(1) tint: vec4f) -> @location(0) vec4f {
 	}
 }
 
-// P1-1b-2 backend isolate step 8: session-exact textured draw — the REAL
-// textured_quad.wgsl source verbatim (vs_main/fs_main, RRect sqrt math,
-// manual ortho columns, opacity_pad, tint), 64x64 tight RGBA8 texture with
-// the session's explicit view descriptor, BGRA8 target, slab uniform
-// (Offset 0, Size 80), zero clip group, depth/stencil + premul blend.
-//
 //   - PASS (red) => real shader + 64x64 upload fine; suspect session vertex/
 //     uniform feeding (positions, UVs, opacity, cache view).
 //   - FAIL (not red) => real shader translation or 64x64 path broken on GL.

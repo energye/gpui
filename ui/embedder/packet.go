@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder
 
 import (
@@ -7,7 +17,7 @@ import (
 )
 
 // SubmitLayerPacket builds a FramePacket from the render root and enqueues a
-// raster job. P2: the job may only hold the packet; full dirty-layer raster is P3.
+// raster job.
 // execute, if non-nil, runs on the raster thread with the packet.
 func (a *App) SubmitLayerPacket(root rendering.RenderObject, frameID uint64, execute func(*scene.FramePacket) error) bool {
 	if a == nil || a.loop == nil || root == nil {

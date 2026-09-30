@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -60,7 +70,6 @@ func (i *Instance) RequestAdapter(opts *RequestAdapterOptions) (*Adapter, error)
 	limits := browser.ExtractLimits(ba.Limits())
 
 	// WebGPU browser API does not expose detailed adapter info.
-	// Return minimal info matching Rust wgpu's WebAdapter::get_info().
 	info := AdapterInfo{
 		Name: "WebGPU Adapter",
 	}

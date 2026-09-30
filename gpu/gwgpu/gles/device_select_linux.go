@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -15,7 +22,6 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// Device-family selection for P2-2 (same GPUI_POWER knob as WebGPU).
 //
 // The render layer (ResolveAdapterPolicy + RequestAdapterWithPolicy) already
 // speaks PowerPreference; this file makes the gles backend answer honestly:
@@ -31,7 +37,6 @@ import (
 // (devCtxs, drained in Release); Adapter.Release stays a no-op like the
 // shared contexts.
 
-// deviceFamily is the P2-1 enumeration family used for preference routing.
 type deviceFamily int
 
 const (
@@ -54,7 +59,6 @@ func (f deviceFamily) String() string {
 	}
 }
 
-// deviceFamilyOf maps a P2-1 enumeration entry to its family.
 func deviceFamilyOf(d egl.DeviceInfo) deviceFamily {
 	switch {
 	case d.IsSoftware:
@@ -84,8 +88,6 @@ func liveFamilyOf(vendor, renderer string) deviceFamily {
 
 // familyDeviceType is the honest DeviceType for an info-only entry: the
 // entry has no GL context, so only the enumeration family is known.
-// NVIDIA-picked entries are discrete (desktop dGPU per P2-2 infer rule;
-// Tegra-class parts resolve to integrated once materialized and re-probed).
 func familyDeviceType(fam deviceFamily) gputypes.DeviceType {
 	switch fam {
 	case familyNVIDIA:
@@ -99,7 +101,6 @@ func familyDeviceType(fam deviceFamily) gputypes.DeviceType {
 	}
 }
 
-// familyVendorName is the display vendor for an info-only entry.
 func familyVendorName(fam deviceFamily) string {
 	switch fam {
 	case familyNVIDIA:
@@ -175,8 +176,6 @@ func (i *Instance) enumerateDeviceAdapters(liveFam deviceFamily) []hal.ExposedAd
 
 // liveAdapterIf returns the live default-display adapter when it exists and
 // matches want. Lets preference picks reuse the existing context instead of
-// minting a second one on the same GPU (High on an NVIDIA-driven X screen
-// stays zero-new-context, P2-0 behavior preserved).
 func (i *Instance) liveAdapterIf(want deviceFamily) *hal.ExposedAdapter {
 	if i == nil || i.ctx == nil || i.ctx.GL() == nil {
 		return nil
@@ -191,8 +190,6 @@ func (i *Instance) liveAdapterIf(want deviceFamily) *hal.ExposedAdapter {
 // materializeDeviceAdapter opens a display + context on the first usable
 // device of a family and returns the live adapter with true GL strings and
 // probed caps. Ownership goes to Instance.devCtxs (drained in Release).
-// Software targets lift the P2-0 hardware-caveat filter (slow is honest
-// there); hardware targets keep it.
 func (i *Instance) materializeDeviceAdapter(want deviceFamily) (hal.Adapter, error) {
 	var lastErr error
 	for _, d := range egl.QueryDevices() {

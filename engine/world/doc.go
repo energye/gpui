@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package world freezes the CPU-side entity math every 2.5D level feeds.
 //
-// Frozen 2026-09-15 (capability 10.1, P2, S25/W3): ID, NoEntity,
+// Frozen 2026-09-15: ID, NoEntity,
 // Transform, IdentityTransform, LocalMatrix, Comp, World, NewWorld,
 // Spawn, Despawn, Alive, Count, Spawned, SetParent, Parent, Children,
 // SetTransform, Local, WorldOf, WorldMatrix, AddComp, RemoveComp,
@@ -38,7 +48,7 @@
 // getters park at zero, writers report InvalidArg. Window intent: none,
 // pure arithmetic, offscreen golden only.
 //
-// Frozen 2026-09-15 (capability 10.3, P2, S34/W4): LifeState,
+// Frozen 2026-09-15: LifeState,
 // LifeActive, LifeSleeping, Scene, NewScene, Spawn, Sleep, Wake, State,
 // IsActive, IsSleeping, Alive, Dispose, Count, ActiveCount,
 // SleepingCount, Spawned, Clear, World. Additive changes only. Scene owns
@@ -46,7 +56,7 @@
 // Dispose clears comps and flags. Window intent: none, pure arithmetic,
 // offscreen golden only.
 //
-// Frozen 2026-09-15 (capability 10.2, P2, S33/W4): PrefabVersion,
+// Frozen 2026-09-15: PrefabVersion,
 // MaxPrefabNameLen, MaxPrefabComps, MaxPrefabBytes, Prefab, NewPrefab,
 // Name, Version, Local, SetLocal, AddComp, Comps, Encode, Equal,
 // Instantiate, ParsePrefab, LoadPrefab, SavePrefab, SceneFileVersion,
@@ -59,8 +69,6 @@
 // canonical bytes, Instantiate stamps a prefab into a World, Open builds
 // a live Scene (every birth active) plus the filed-name to live-id
 // index. Intentional deviation: the plan table names Scene{Load,Save};
-// here SceneFile+LoadScene/SaveScene/Open because S34 already owns the
-// live Scene name in this package and a second Scene would not compile.
 // File shape frozen: version "1.0", entity, comps, parent links,
 // referenced asset ids. Window intent: game_world--case=open; pure file
 // math, offscreen golden only (round-trip byte-identical).

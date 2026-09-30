@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package codegen implements SPIR-V code generation from naga IR.
 package codegen
 
@@ -49,8 +59,7 @@ type Options struct {
 
 	// ForceLoopBounding inserts a decrementing counter at every loop header
 	// that breaks when the counter reaches zero. This prevents infinite loops
-	// from hanging the GPU. Matches Rust naga's force_loop_bounding option
-	// (default true). The counter uses a vec2<u32> to simulate 64-bit range.
+	// from hanging the GPU. Matches Rust the force_loop_bounding option
 	ForceLoopBounding bool
 
 	// BoundsCheckPolicies controls how out-of-bounds image accesses are handled.
@@ -59,14 +68,13 @@ type Options struct {
 	// CapabilitiesAvailable limits which capabilities may be used. When nil,
 	// all capabilities are available (the default). When non-nil, only
 	// capabilities present in the set may be used; others trigger polyfills.
-	// This matches Rust naga's Options::capabilities field.
 	CapabilitiesAvailable map[Capability]struct{}
 
 	// RayQueryInitTracking enables initialization tracking for ray queries.
 	// When true (default), ray query helper functions include validation checks
 	// that track whether the query was properly initialized before proceed/get.
 	// When false, validation checks are skipped and helper functions branch
-	// unconditionally. Matches Rust naga's ray_query_initialization_tracking.
+	// unconditionally.
 	RayQueryInitTracking bool
 }
 

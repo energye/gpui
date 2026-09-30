@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package hal
@@ -16,8 +26,6 @@ import (
 // corresponding Device.UnmapBuffer call. Callers must ensure the GPU
 // is not writing to the mapped region during CPU access — this is the
 // caller's responsibility (core coordinates this via submission fences).
-//
-// Matches Rust wgpu-hal's hal::BufferMapping (wgpu-hal/src/lib.rs:826).
 type BufferMapping struct {
 	// Ptr is the host-visible pointer to the start of the mapped range.
 	// Never nil on success.
@@ -25,7 +33,7 @@ type BufferMapping struct {
 
 	// IsCoherent indicates whether the underlying memory is coherent
 	// with GPU writes without explicit flush/invalidate.
-	//   - true  → DX12 (always), Metal Shared storage, coherent Vulkan memory
+	//   - true → DX12 (always), Metal Shared storage, coherent Vulkan memory
 	//   - false → non-coherent Vulkan memory; caller must invalidate before
 	//             reading GPU-written data and flush after writing
 	//
@@ -59,17 +67,14 @@ type Instance interface {
 
 	// RequestAdapter requests a GPU adapter matching the options.
 	// If opts is nil, the best available adapter is returned.
-	// Matches webgpu Instance.RequestAdapter (gpu/webgpu/instance.go:54).
 	RequestAdapter(opts *RequestAdapterOptions) (Adapter, error)
 
 	// ProcessEvents pumps pending async callbacks (device-lost, map async, etc.).
-	// Matches webgpu Instance.ProcessEvents (gpu/webgpu/instance.go:112).
 	// Synchronous backends (noop/gles/metal) are no-ops.
 	ProcessEvents()
 
 	// Release releases the instance.
 	// All adapters and surfaces created from this instance must be destroyed first.
-	// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
 	Release()
 }
 
@@ -79,7 +84,7 @@ type ExposedAdapter struct {
 	// Adapter is the physical GPU.
 	Adapter Adapter
 
-	// Info contains adapter metadata (name, vendor, device type).
+	// Info contains adapter metadata.
 	Info gputypes.AdapterInfo
 
 	// Features are the supported optional features.
@@ -100,31 +105,25 @@ type Adapter interface {
 	TextureFormatCapabilities(format gputypes.TextureFormat) TextureFormatCapabilities
 
 	// Info returns adapter metadata.
-	// Matches webgpu Adapter.Info (gpu/webgpu/adapter.go:26).
 	Info() gputypes.AdapterInfo
 
 	// Features returns supported features.
-	// Matches webgpu Adapter.Features (gpu/webgpu/adapter.go:29).
 	Features() gputypes.Features
 
 	// Limits returns the adapter's resource limits.
-	// Matches webgpu Adapter.Limits (gpu/webgpu/adapter.go:32).
 	Limits() gputypes.Limits
 
 	// RequestDevice creates a logical device from this adapter.
 	// If desc is nil, default features and limits are used.
-	// Matches webgpu Adapter.RequestDevice (gpu/webgpu/adapter.go:38).
 	// Queue is accessible via the returned Device.Queue().
 	RequestDevice(desc *DeviceDescriptor) (Device, error)
 
 	// GetSurfaceCapabilities returns capabilities for a specific surface.
 	// Returns nil if the adapter is not compatible with the surface.
-	// Matches webgpu Adapter.GetSurfaceCapabilities (gpu/webgpu/adapter.go:77).
 	GetSurfaceCapabilities(surface Surface) *SurfaceCapabilities
 
 	// Release releases the adapter.
 	// Any devices created from this adapter must be destroyed first.
-	// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
 	Release()
 }
 
@@ -139,7 +138,7 @@ type OpenDevice struct {
 }
 
 // PollType selects the blocking behavior of Device.Poll.
-// PollType is canonical here since 7f (webgpu alias removed; browser variant independent).
+// PollType is canonical here since 7f.
 type PollType uint8
 
 const (
@@ -149,20 +148,14 @@ const (
 
 // Device represents a logical GPU device.
 // Devices are used to create resources and command encoders.
-//
-// Mirrors gpu/webgpu Device accessors (gpu/webgpu/device.go:30,35,40):
-// Queue/Features/Limits are part of H1 row 2.
 type Device interface {
 	// Queue returns the device's command queue.
-	// Matches webgpu Device.Queue.
 	Queue() Queue
 
 	// Features returns the device's enabled features.
-	// Matches webgpu Device.Features.
 	Features() gputypes.Features
 
 	// Limits returns the device's resource limits.
-	// Matches webgpu Device.Limits.
 	Limits() gputypes.Limits
 
 	// CreateBuffer creates a GPU buffer.
@@ -289,7 +282,6 @@ type Device interface {
 	// WaitForFence waits for a fence to reach the specified value.
 	// Returns true if the fence reached the value, false if timeout.
 	// Returns ErrDeviceLost if the device is lost.
-	// Matches webgpu Device.WaitForFence (gpu/webgpu/device.go:429).
 	WaitForFence(fence Fence, value uint64, timeout time.Duration) (bool, error)
 
 	// ResetFence resets a fence to the unsignaled state.
@@ -302,27 +294,21 @@ type Device interface {
 
 	// WaitIdle waits for all GPU work to complete.
 	// Call this before destroying resources to ensure the GPU is not using them.
-	// Matches webgpu Device.WaitIdle.
 	WaitIdle() error
 
 	// Poll drives pending work and pumps callbacks.
-	// Matches webgpu Device.Poll (gpu/webgpu/device.go:484).
 	Poll(pollType PollType) bool
 
 	// IsLost reports whether the device was marked lost.
-	// Matches webgpu Device.IsLost (gpu/webgpu/device.go:534).
 	IsLost() bool
 
 	// FlushCallbacks pumps pending callbacks and folds lost signals.
-	// Matches webgpu Device.FlushCallbacks (gpu/webgpu/device.go:496).
 	FlushCallbacks()
 
 	// PushErrorScope pushes a new error scope onto the device's error scope stack.
-	// Matches webgpu Device.PushErrorScope (gpu/webgpu/device.go:444).
 	PushErrorScope(filter ErrorFilter)
 
 	// PopErrorScope pops the most recently pushed error scope.
-	// Matches webgpu Device.PopErrorScope (gpu/webgpu/device.go:453).
 	PopErrorScope() *GPUError
 
 	// CreateAccelerationStructure creates an acceleration structure (BLAS or TLAS).
@@ -355,23 +341,20 @@ type Queue interface {
 	// Returns a monotonically increasing submission index that can be used
 	// with Poll to determine when the GPU has finished the work.
 	// The HAL manages its own internal fences/synchronization.
-	// Matches webgpu Queue.Submit variadic shape (gpu/webgpu/queue.go:44).
 	Submit(commandBuffers ...CommandBuffer) (submissionIndex uint64, err error)
 
 	// Poll returns the highest submission index known to be completed
 	// by the GPU. Non-blocking. Returns 0 if no submissions have completed.
-	// Matches webgpu Queue.Poll (gpu/webgpu/queue.go:138).
-	// Backend divergence (H4-b3 locked): webgpu always returns 0
-	// (wgpu-native exposes no queue poll); gles returns Fence.GetLatest
+	// Backend divergence: webgpu always returns 0
+	// ; gles returns Fence.GetLatest
 	// (or the submission index when queueless); metal returns the
 	// GPU-callback-driven completedIndex; noop returns the submission
 	// index (synchronous, submitted == completed).
 	Poll() uint64
 
 	// LastSubmissionIndex returns the most recent submission index.
-	// Matches webgpu Queue.LastSubmissionIndex (gpu/webgpu/queue.go:222).
-	// Backend divergence (H4-b3 locked): webgpu always returns 0
-	// (untracked on wgpu-native); gles/metal/noop return their own
+	// Backend divergence: webgpu always returns 0
+	// ; gles/metal/noop return their own
 	// monotonically increasing counter.
 	LastSubmissionIndex() uint64
 
@@ -413,7 +396,7 @@ type Queue interface {
 	// that must not consume acquire/present semaphores intended for the compositor
 	// submit. Call with true before offscreen submits, false after.
 	//
-	// BUG-WGPU-VK-005: Without this, the first Submit per frame hijacks swapchain
+	// Without this, the first Submit per frame hijacks swapchain
 	// semaphores even when rendering to an offscreen texture, causing the compositor
 	// submit to run without synchronization (race condition -> flickering).
 	//
@@ -431,9 +414,6 @@ type Queue interface {
 	//   queue.Submit(offscreenCmds...)
 	//
 	// Precedent: save/restore pattern in webgpu Queue.WriteTexture
-	// (gpu/webgpu/queue.go; original line reference no longer exists).
-	// Long-term: Phase B (ADR-019) will add surface_textures to Submit signature
-	// matching Rust wgpu-hal, eliminating the need for this method.
 	SetSwapchainSuppressed(suppressed bool)
 }
 
@@ -443,7 +423,7 @@ type Queue interface {
 // For Vulkan, this returns min(64MB, maxMemoryAllocationSize) from
 // VkPhysicalDeviceMaintenance3Properties. Without this limit, staging belt
 // allocations can silently fail when they exceed the driver's maximum
-// allocation size, leading to SIGSEGV (BUG-VK-001).
+// allocation size, leading to SIGSEGV.
 //
 // Backends that do not implement this interface default to 64MB
 // (stagingBeltMaxOversizedSize), which is safe for DX12, Metal, and GLES.

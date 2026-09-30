@@ -1,6 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
-// VR5 ffmpeg parity: the window's seek gates must meet the §12.1 VR5 row.
 // Baseline: testdata/vr5_ffmpeg.json (ffmpeg 4.4.2, same machine).
 // Landing rule is the player echo contract: SeekTo lands the target
 // stamp itself (ffmpeg seeks natively to a keyframe, the background

@@ -1,38 +1,40 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — fixed-point math helpers.
 //
-// Port of skrifa hint/math.rs (324 LOC).
 // These are specific to TrueType hinting and operate on i32 values
 // in 26.6, 16.16, or 2.14 fixed-point formats.
-//
-// Reference: skrifa/src/outline/glyf/hint/math.rs
 package text
 
 // ttFloor26Dot6 rounds a 26.6 value down (toward negative infinity).
-// Reference: skrifa hint/math.rs:9
 func ttFloor26Dot6(x int32) int32 {
 	return x & ^63
 }
 
 // ttRound26Dot6 rounds a 26.6 value to nearest integer.
-// Reference: skrifa hint/math.rs:13
 func ttRound26Dot6(x int32) int32 {
 	return ttFloor26Dot6(x + 32)
 }
 
 // ttCeil26Dot6 rounds a 26.6 value up (toward positive infinity).
-// Reference: skrifa hint/math.rs:17
 func ttCeil26Dot6(x int32) int32 {
 	return ttFloor26Dot6(x + 63)
 }
 
 // ttFloorPad floors x to a multiple of n (n must be a power of 2).
-// Reference: skrifa hint/math.rs:21
 func ttFloorPad(x, n int32) int32 {
 	return x & ^(n - 1)
 }
 
 // ttRoundPad rounds x to the nearest multiple of n (n must be power of 2).
-// Reference: skrifa hint/math.rs:25
 func ttRoundPad(x, n int32) int32 {
 	return ttFloorPad(x+n/2, n)
 }
@@ -40,13 +42,11 @@ func ttRoundPad(x, n int32) int32 {
 // ttMul16Dot16 multiplies two 16.16 fixed-point values.
 // Uses the same rounding as skrifa's Fixed::mul:
 //
-//	ab + 0x8000 - sign_correction  (sign_correction = 1 if product is negative)
+//	ab + 0x8000 - sign_correction (sign_correction = 1 if product is negative)
 //
 // This produces a correctly-rounded result for both positive and negative products.
 // Without the sign correction, negative products round away from zero instead of
 // toward the nearest integer.
-//
-// Reference: font-types/src/fixed.rs:189-192 (impl Mul for Fixed)
 func ttMul16Dot16(a, b int32) int32 {
 	ab := int64(a) * int64(b)
 	sign := int64(0)
@@ -67,8 +67,6 @@ func ttMul16Dot16(a, b int32) int32 {
 // The rounding (adding half-divisor) is critical for IUP interpolation
 // where even 1 LSB difference in the scale factor produces visible
 // coordinate differences on untouched points.
-//
-// Reference: skrifa hint/math.rs:34 → font-types/src/fixed.rs:195-207
 func ttDiv16Dot16(a, b int32) int32 {
 	sign := (a < 0) != (b < 0)
 	au := int64(a)
@@ -92,7 +90,6 @@ func ttDiv16Dot16(a, b int32) int32 {
 }
 
 // ttMulDiv computes a * b / c with 64-bit intermediate precision and rounding.
-// Reference: skrifa hint/math.rs:39
 func ttMulDiv(a, b, c int32) int32 {
 	if c == 0 {
 		if (a >= 0) == (b >= 0) {
@@ -109,8 +106,6 @@ func ttMulDiv(a, b, c int32) int32 {
 }
 
 // ttMulDivNoRound computes a * b / c without rounding.
-// Matches FreeType FT_MulDiv_NoRound.
-// Reference: skrifa hint/math.rs:48-72
 func ttMulDivNoRound(a, b, c int32) int32 {
 	s := int32(1)
 	ua, ub, uc := a, b, c
@@ -139,8 +134,6 @@ func ttMulDivNoRound(a, b, c int32) int32 {
 }
 
 // ttMul14 multiplies a 26.6 value by a 2.14 value.
-// Matches FreeType TT_MulFix14.
-// Reference: skrifa hint/math.rs:77-81
 func ttMul14(a, b int32) int32 {
 	v := int64(a) * int64(b)
 	v += 0x2000 + (v >> 63)
@@ -149,7 +142,6 @@ func ttMul14(a, b int32) int32 {
 
 // ttNormalize14 normalizes a 2D vector to 2.14 fixed-point unit length.
 // Uses Wrapping arithmetic matching FreeType FT_Vector_NormLen.
-// Reference: skrifa hint/math.rs:86-162
 func ttNormalize14(x, y int32) (int32, int32) {
 	sx, sy := int32(1), int32(1)
 	ux, uy := uint32(x), uint32(y)
@@ -236,7 +228,6 @@ func ttNormalize14(x, y int32) (int32, int32) {
 }
 
 // ttDot14 computes the dot product of two 2.14 vectors.
-// Reference: skrifa hint/projection.rs:119-125
 func ttDot14(ax, ay, bx, by int32) int32 {
 	v := int64(ax)*int64(bx) + int64(ay)*int64(by)
 	v += 0x2000 + (v >> 63)

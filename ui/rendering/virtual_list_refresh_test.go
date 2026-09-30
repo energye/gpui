@@ -1,6 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
-// M4.1 红灯测试:VirtualList 增量前缀刷新(ENGINE_TEXT_SCALE_PLAN M4 hitch 根因).
 // 全量重建 O(n)+8MB 分配是 60s 窗 hitch 8–12 的唯一主因(诊断模式关刷新即归 0);
 // RefreshExtents 只重读变化区间 + 后缀平移,零分配.被测 API 尚不存在,先红.
 

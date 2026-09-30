@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // container.go — DXBC container + DxilProgramHeader extraction.
 //
 // Input: a raw DXBC shader container (what the user feeds to dxilval).
@@ -7,28 +17,28 @@
 // Layout mirrors dxil/internal/container/container.go:
 //
 //	DXBC header (32 B):
-//	  magic "DXBC"        : 4 B
-//	  digest              : 16 B
-//	  major / minor       : 4 B (2+2)
-//	  totalFileSize       : 4 B
-//	  partCount           : 4 B
+//	  magic "DXBC" : 4 B
+//	  digest : 16 B
+//	  major / minor : 4 B (2+2)
+//	  totalFileSize : 4 B
+//	  partCount : 4 B
 //
 //	Part offset table:
-//	  partOffset[i]       : 4 B × partCount
+//	  partOffset[i] : 4 B × partCount
 //
 //	Part header at each offset:
-//	  fourCC              : 4 B
-//	  partSize            : 4 B
-//	  partData            : partSize B
+//	  fourCC : 4 B
+//	  partSize : 4 B
+//	  partData : partSize B
 //
 // DXIL part data layout (DxilProgramHeader then bitcode):
 //
-//	programVersion      : 4 B  (shaderKind << 16 | major<<4 | minor)
-//	programSize_words   : 4 B
-//	dxilMagic "DXIL"    : 4 B
-//	dxilVersion         : 4 B
-//	bitcodeOffset       : 4 B  (from start of dxilMagic, usually 16)
-//	bitcodeSize         : 4 B
+//	programVersion : 4 B (shaderKind << 16 | major<<4 | minor)
+//	programSize_words : 4 B
+//	dxilMagic "DXIL" : 4 B
+//	dxilVersion : 4 B
+//	bitcodeOffset : 4 B (from start of dxilMagic, usually 16)
+//	bitcodeSize : 4 B
 //	bitcode[bitcodeSize]: starts with 'B','C',0xC0,0xDE
 
 package bitcheck

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — Phase B tests.
 //
 // Tests for glyph loading, font program parsing, hint instance creation,
@@ -6,8 +16,6 @@
 // Test fonts:
 //   - tthint_subset.ttf: skrifa TT hint test font (fpgm + prep + per-glyph instructions)
 //   - cousine_hint_subset.ttf: Google Cousine (monospace, TT hinted)
-//
-// Reference: skrifa hint/instance.rs tests, glyf/mod.rs tests
 package text
 
 import (

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -15,7 +22,7 @@ package raster
 // - Avoids floating-point accumulation errors in forward differencing
 //
 // Type Reference:
-// - FDot6:  26.6 fixed-point (6 fractional bits) - for pixel subdivision
+// - FDot6: 26.6 fixed-point (6 fractional bits) - for pixel subdivision
 // - FDot16: 16.16 fixed-point (16 fractional bits) - for positions and slopes
 
 // FDot6 is a 26.6 fixed-point number (6 fractional bits).
@@ -240,7 +247,6 @@ func FDot8FromFDot16(v FDot16) FDot8 {
 // Helper functions for fixed-point math.
 
 // leftShift performs a left shift with sign preservation.
-// Equivalent to Rust's left_shift function in tiny-skia.
 func leftShift(v int32, shift int) int32 {
 	if shift < 0 {
 		return v >> uint(-shift)

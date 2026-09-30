@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -68,7 +78,6 @@ func TestCoarseShaderCompilation(t *testing.T) {
 		t.Fatal("coarse shader source is empty")
 	}
 
-	// Test compilation via naga
 	spirvBytes, err := shader.Compile(coarseShaderWGSL)
 	if err != nil {
 		errStr := err.Error()
@@ -78,7 +87,6 @@ func TestCoarseShaderCompilation(t *testing.T) {
 		if contains(errStr, "not yet implemented") || contains(errStr, "not supported") {
 			t.Skipf("Skipping: naga feature not yet implemented: %v", err)
 		}
-		// Atomics are a known limitation in naga
 		if contains(errStr, "lowering error") || contains(errStr, "atomic") {
 			t.Skipf("Skipping: naga atomic/lowering limitation: %v", err)
 		}

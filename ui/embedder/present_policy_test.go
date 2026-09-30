@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder_test
 
 import (
@@ -9,8 +19,6 @@ import (
 	"github.com/energye/gpui/ui/scheduler"
 )
 
-// TestNewPipelineApp_DefaultsPresentPolicyRetained: W6 default policy is retained
-// and appears on Metrics snapshot/JSON without a real window open.
 func TestNewPipelineApp_DefaultsPresentPolicyRetained(t *testing.T) {
 	host := platform.NewStubHost(64, 64)
 	root := rendering.NewAbsoluteBox(64, 64)

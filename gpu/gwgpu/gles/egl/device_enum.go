@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !(js && wasm)
 
 package egl
@@ -32,8 +42,7 @@ type DeviceInfo struct {
 	// IsMesa reports a Mesa/Intel/AMD string (integrated on this box).
 	IsMesa bool
 	// IsSoftware reports a software-rasterizer marker (llvmpipe/swrast/
-	// SwiftShader/MESA_device_software). P2-2 uses it to route
-	// ForceFallbackAdapter; kept alongside IsMesa (family) on purpose.
+	// SwiftShader/MESA_device_software).
 	IsSoftware bool
 }
 

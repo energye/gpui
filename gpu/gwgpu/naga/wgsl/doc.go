@@ -1,4 +1,14 @@
-// Package wgsl provides WGSL (WebGPU Shading Language) parsing and lowering.
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
+// Package wgsl provides WGSL parsing and lowering.
 //
 // WGSL is the shader language for WebGPU, designed to be portable
 // and map well to modern GPU APIs like Vulkan, Metal, and DX12.
@@ -14,13 +24,6 @@
 // # Usage
 //
 // To parse and lower a WGSL shader:
-//
-//	source := `
-//	@vertex
-//	fn main() -> @builtin(position) vec4<f32> {
-//	    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-//	}
-//	`
 //
 //	lexer := wgsl.NewLexer(source)
 //	tokens, err := lexer.Tokenize()
@@ -45,13 +48,4 @@
 // https://www.w3.org/TR/WGSL/
 //
 // # Supported Features
-//
-//   - Full lexical analysis
-//   - Type declarations (struct, alias)
-//   - Function declarations
-//   - Variable declarations (var, let, const)
-//   - All standard types (scalars, vectors, matrices)
-//   - Attributes (@vertex, @fragment, @compute, etc.)
-//   - Control flow (if, for, while, loop, switch)
-//   - All operators and expressions
 package wgsl

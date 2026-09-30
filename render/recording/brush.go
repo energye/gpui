@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package recording
 
 import (
@@ -163,7 +173,7 @@ func (g *SweepGradientBrush) SetExtend(mode ExtendMode) *SweepGradientBrush {
 // PatternBrush is an image pattern brush.
 // The pattern can be repeated, reflected, or clamped.
 type PatternBrush struct {
-	Image     ImageRef      // Reference to the pattern image in the pool
+	Image     ImageRef
 	Repeat    RepeatMode    // How the pattern repeats
 	Transform render.Matrix // Transform applied to the pattern
 }

@@ -1,9 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
-// S2 Player wiring gate on the ffmpeg backend: Options.S2Parallel stays
-// accepted for compatibility but ffmpeg owns threading (demux + decode +
-// reorder inside libgpui_ffmpeg), so the Go S2 window machinery never
-// trips: S2Windows stays 0 either way, small clips stream like big ones,
 // and parallel-vs-sequential plays agree stamp for stamp. Pixel truth is
 // ffmpeg-vs-ffmpeg (same backend, same run shape); the old Go-decoder
 // oracle retired with the Go decode path.
@@ -170,8 +176,6 @@ func TestS2PlayerSmallClipUntouched(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	defer p.Close()
-	// ffmpeg backend streams every clip (no buffered path); the S2
-	// option stays a no-op with zero windows.
 	if p.Buffered() {
 		t.Fatal("vr5_seek.mp4 buffered, want ffmpeg streaming path")
 	}

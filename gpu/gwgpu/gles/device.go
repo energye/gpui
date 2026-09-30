@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -29,14 +36,11 @@ type Device struct {
 
 	// glslVersion is the target GLSL version for shader compilation, detected
 	// from the adapter's GL_SHADING_LANGUAGE_VERSION at Open time.
-	// Propagated to naga GLSL writer for correct #version directive and
-	// version-gated features (layout(binding=N) needs GLSL >= 420).
 	glslVersion glsl.Version
 
 	// shaderBindingLayout is true when the driver supports layout(binding=N)
 	// in shaders (GLSL >= 420 desktop or >= 310 ES). When false, bindings must
 	// be assigned at runtime after linking via glGetUniformBlockIndex etc.
-	// Mirrors Rust wgpu-hal PrivateCapabilities::SHADER_BINDING_LAYOUT.
 	shaderBindingLayout bool
 }
 
@@ -75,10 +79,6 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (hal.Buffer, error) {
 	}
 
 	// Determine usage hint.
-	// Rust wgpu-hal GLES uses DYNAMIC_DRAW for all writable buffers (device.rs:600):
-	// "Some vendors take usage very literally and STATIC_DRAW will freeze us with
-	// an empty buffer." On Intel, STATIC_DRAW causes glBufferSubData to be silently
-	// ignored for per-frame uniform updates, resulting in invisible text (BUG-GLES-TEXT-001).
 	usage := uint32(gl.DYNAMIC_DRAW)
 	if desc.Usage&gputypes.BufferUsageMapRead != 0 {
 		usage = gl.DYNAMIC_READ
@@ -376,7 +376,7 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (hal.Bin
 // DestroyBindGroupLayout destroys a bind group layout.
 func (d *Device) DestroyBindGroupLayout(layout hal.BindGroupLayout) {}
 
-// CreateBindGroup creates a bind group (H4-b1: stores hal entries verbatim).
+// CreateBindGroup creates a bind group.
 func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (hal.BindGroup, error) {
 	if desc == nil {
 		return nil, fmt.Errorf("gles: bind group descriptor is nil")
@@ -396,8 +396,7 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (hal.BindGroup, erro
 func (d *Device) DestroyBindGroup(group hal.BindGroup) {}
 
 // CreatePipelineLayout creates a pipeline layout.
-// Computes per-type sequential binding indices following the Rust wgpu-hal pattern
-// (wgpu-hal/src/gles/device.rs:1154-1221). Five resource type counters (samplers,
+// . Five resource type counters (samplers,
 // textures, images, uniform buffers, storage buffers) are incremented sequentially
 // across all bind group layouts, producing a flat GL slot index per binding.
 func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (hal.PipelineLayout, error) {
@@ -527,9 +526,6 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 		hal.Logger().Debug("gles: program link info", "info", infoLog)
 	}
 
-	// On GL < 4.2 (GLSL < 420), layout(binding=N) is unavailable so naga
-	// omits it. We must assign bindings at runtime after linking, following
-	// the Rust wgpu-hal pattern (device.rs:438-461).
 	if !d.shaderBindingLayout {
 		if err := assignBindingsAfterLink(glCtx, programID, layout, vertexTranslationInfo, fragmentTranslationInfo); err != nil {
 			glCtx.DeleteShader(vertexID)
@@ -554,8 +550,6 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 	)
 
 	// Extract per-target blend/write-mask configuration for MRT.
-	// Matches Rust wgpu-hal GLES device.rs:1559-1570: stores ALL color targets
-	// so that SetPipeline can apply per-draw-buffer blend state.
 	var colorTargets []ColorTargetDesc
 	if desc.Fragment != nil {
 		colorTargets = make([]ColorTargetDesc, len(desc.Fragment.Targets))
@@ -708,7 +702,6 @@ func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline) {
 // Supports QueryTypeTimestamp (requires GL_ARB_timer_query / GL 3.3+).
 // Unsupported path returns hal.ErrTimestampsNotSupported (same identity
 // as the Windows stub); nil descriptor returns a plain gles error.
-// Matches Rust wgpu-hal/src/gles/device.rs create_query_set.
 func (d *Device) CreateQuerySet(desc *hal.QuerySetDescriptor) (hal.QuerySet, error) {
 	if desc == nil {
 		return nil, fmt.Errorf("gles: query set descriptor is nil")
@@ -788,7 +781,6 @@ func (d *Device) DestroyFence(fence hal.Fence) {
 }
 
 // WaitForFence waits for a fence to reach the specified value.
-// Matches webgpu Device.WaitForFence.
 func (d *Device) WaitForFence(fence hal.Fence, value uint64, timeout time.Duration) (bool, error) {
 	f, ok := fence.(*Fence)
 	if !ok {

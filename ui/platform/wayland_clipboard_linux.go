@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -85,7 +95,7 @@ type wlDataDeviceState struct {
 	offerMimes map[uintptr][]string // pending data_offer -> mimes (cleared on selection)
 	ownSource  uintptr              // our wl_data_source (held while we own the clipboard)
 	ownData    string               // Set() copy — served to peers on send(), readable locally
-	// Outbound drag source (S6-P1 item 4): our wl_data_source while a
+	// Outbound drag source: our wl_data_source while a
 	// StartDrag is in flight + the servable payloads by MIME type
 	// (uri-list from Files unless Data overrides, then every Data entry).
 	dragSource  uintptr

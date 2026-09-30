@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package types
 
 // DeviceType identifies the type of GPU device.
@@ -108,10 +118,8 @@ func (b Backends) Contains(backend Backend) bool {
 // AdapterInfo contains information about a GPU adapter.
 type AdapterInfo struct {
 	// Name is the human-readable name of the adapter (e.g., "NVIDIA GeForce RTX 4090").
-	Name string
-	// Vendor is the adapter vendor name (e.g., "NVIDIA", "AMD", "Intel").
-	Vendor string
-	// VendorID is the PCI vendor ID.
+	Name     string
+	Vendor   string
 	VendorID uint32
 	// DeviceID is the PCI device ID.
 	DeviceID uint32
@@ -165,8 +173,6 @@ type RequestAdapterOptions struct {
 }
 
 // DeviceDescriptor describes how to create a GPU device.
-// Matches gpu/webgpu DeviceDescriptor and gpu/hal DeviceDescriptor:
-// RequiredFeatures is a feature bitmask (not a list).
 type DeviceDescriptor struct {
 	// Label is an optional debug label.
 	Label string

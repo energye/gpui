@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -21,7 +28,6 @@ const (
 )
 
 // formatRegister formats a register binding string.
-// Matches Rust naga: space is only written when non-zero.
 func formatRegister(regType string, register uint32, space uint8) string {
 	if space != 0 {
 		return fmt.Sprintf("register(%s%d, space%d)", regType, register, space)
@@ -41,7 +47,6 @@ func (w *Writer) writeTypes() error {
 
 		// Skip structs whose last member is dynamically sized.
 		// These can only be in storage buffers, for which we use ByteAddressBuffer.
-		// Matches Rust naga behavior.
 		if len(st.Members) > 0 {
 			lastMember := st.Members[len(st.Members)-1]
 			if w.isDynamicallySized(lastMember.Type) {
@@ -57,7 +62,6 @@ func (w *Writer) writeTypes() error {
 }
 
 // isDynamicallySized checks if a type is dynamically sized (contains a runtime-sized array).
-// Matches Rust naga's TypeInner::is_dynamically_sized.
 func (w *Writer) isDynamicallySized(handle ir.TypeHandle) bool {
 	if int(handle) >= len(w.module.Types) {
 		return false
@@ -83,7 +87,6 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 	}
 
 	// Check if this struct is an EP result type — determines semantic behavior.
-	// Rust naga passes shader_stage to write_struct for EP result types only.
 	// But write_semantic writes semantics for ALL members with bindings.
 	var stageIO *shaderStageIO
 	if info, ok := w.epResultTypes[handle]; ok {
@@ -95,7 +98,7 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 
 	var lastOffset uint32
 	for memberIdx, member := range st.Members {
-		// Add padding between members if needed (matches Rust naga)
+		// Add padding between members if needed
 		if member.Binding == nil && member.Offset > lastOffset {
 			padding := (member.Offset - lastOffset) / 4
 			for i := uint32(0); i < padding; i++ {
@@ -132,9 +135,6 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 		}
 
 		// Handle matCx2 decomposition for struct members.
-		// Rust naga decomposes matCx2 (rows == 2) members without bindings into
-		// individual column vectors: float2 m_0; float2 m_1; float2 m_2;
-		// For arrays of matCx2, use __matNx2 typedef.
 		// Other matrices get row_major prefix.
 		w.WriteIndent()
 		if member.Binding == nil && w.isMatCx2Type(member.Type) {
@@ -149,7 +149,6 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 			}
 		} else if member.Binding == nil && w.isArrayOfMatCx2Type(member.Type) {
 			// Array of matCx2: use __matNx2 typedef with array suffix.
-			// Matches Rust naga: write_global_type + write_array_size for Array{base: matCx2}.
 			m := getInnerMatrixData(w.module, member.Type)
 			fmt.Fprintf(&w.Out, "__mat%dx2 %s", m.columns, memberName)
 			w.writeArraySizes(member.Type)
@@ -168,7 +167,7 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 		w.Out.WriteString(";\n")
 	}
 
-	// Add end padding if needed (matches Rust naga)
+	// Add end padding if needed
 	if len(st.Members) > 0 && st.Members[len(st.Members)-1].Binding == nil && st.Span > lastOffset {
 		padding := (st.Span - lastOffset) / 4
 		for i := uint32(0); i < padding; i++ {
@@ -183,13 +182,10 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 }
 
 // locationSemantic is the prefix for user-defined location semantics
-// (matches Rust naga). Sourced from internal/backend so HLSL and DXIL
-// share a single source of truth — see BUG-DXIL-028 for why drift here
-// breaks D3D12 pipeline-state creation.
+// . Sourced from internal/backend so HLSL and DXIL
 const locationSemantic = backend.LocationSemantic
 
 // getSemanticFromBinding returns the HLSL semantic for a binding.
-// For location bindings, returns LOC{N} (not TEXCOORD{N}), matching Rust naga.
 func (w *Writer) getSemanticFromBinding(binding ir.Binding, idx int) string {
 	switch b := binding.(type) {
 	case ir.BuiltinBinding:
@@ -203,7 +199,6 @@ func (w *Writer) getSemanticFromBinding(binding ir.Binding, idx int) string {
 
 // writeSemantic writes the HLSL semantic annotation for a binding, considering the
 // shader stage and I/O direction. Fragment outputs use SV_Target{N} for locations.
-// This matches Rust naga's write_semantic function.
 func (w *Writer) writeSemantic(binding *ir.Binding, stage *shaderStageIO) {
 	if binding == nil {
 		return
@@ -258,9 +253,7 @@ func (w *Writer) getInterpolationModifier(binding ir.Binding) string {
 	return strings.Join(modifiers, " ")
 }
 
-// getInterpolationModifierForType returns the HLSL interpolation modifier,
-// applying default interpolation if not explicitly set (matches Rust naga's
-// apply_default_interpolation). Integer types default to "nointerpolation" (Flat).
+// Integer types default to "nointerpolation" (Flat).
 func (w *Writer) getInterpolationModifierForType(binding ir.Binding, memberType ir.TypeHandle) string {
 	loc, ok := binding.(ir.LocationBinding)
 	if !ok {
@@ -271,7 +264,7 @@ func (w *Writer) getInterpolationModifierForType(binding ir.Binding, memberType 
 		return w.getInterpolationModifier(binding)
 	}
 
-	// Apply default interpolation based on scalar kind (matches Rust naga)
+	// Apply default interpolation based on scalar kind
 	if int(memberType) < len(w.module.Types) {
 		kind, hasKind := getScalarKind(w.module, memberType)
 		if hasKind {
@@ -286,8 +279,6 @@ func (w *Writer) getInterpolationModifierForType(binding ir.Binding, memberType 
 }
 
 // getTypeName returns the HLSL type name for a type handle.
-// For struct types, uses the registered name from typeNames (which includes
-// namer-generated suffixes for disambiguation), matching Rust naga's behavior.
 func (w *Writer) getTypeName(handle ir.TypeHandle) string {
 	if int(handle) >= len(w.module.Types) {
 		return fmt.Sprintf("unknown_type_%d", handle)
@@ -401,7 +392,6 @@ func (w *Writer) typeToHLSLWithArraySuffix(typ *ir.Type) (typeName, arraySuffix 
 // scalarTypeToHLSL returns the HLSL type name for a scalar type.
 // scalarKindToHLSLBase returns the base HLSL scalar name for a given ScalarKind,
 // assuming width=4 (32-bit). Used for texture template parameters.
-// Matches Rust naga: Scalar { kind, width: 4 }.to_hlsl_str().
 func scalarKindToHLSLBase(kind ir.ScalarKind) string {
 	switch kind {
 	case ir.ScalarFloat:
@@ -496,7 +486,7 @@ func samplerTypeToHLSL(comparison bool) string {
 }
 
 // writeSamplerHeaps writes the SamplerState and SamplerComparisonState heap arrays.
-// Only written once per module. Matches Rust naga's write_sampler_heaps.
+// Only written once per module.
 func (w *Writer) writeSamplerHeaps() {
 	if w.samplerHeapsWritten {
 		return
@@ -511,7 +501,7 @@ func (w *Writer) writeSamplerHeaps() {
 }
 
 // writeSamplerIndexBuffer writes the StructuredBuffer<uint> for a given group's sampler indices.
-// Only written once per group. Matches Rust naga's write_wrapped_sampler_buffer.
+// Only written once per group.
 func (w *Writer) writeSamplerIndexBuffer(group uint32) {
 	if w.samplerIndexBuffers == nil {
 		w.samplerIndexBuffers = make(map[uint32]string)
@@ -579,14 +569,12 @@ func (w *Writer) imageTypeToHLSL(img ir.ImageType) string {
 		// Depth textures use float
 		builder.WriteString("<float>")
 	case ir.ImageClassSampled:
-		// Sampled textures use the scalar kind from the image type
-		// Matches Rust naga: Scalar { kind, width: 4 }.to_hlsl_str()
 		kindStr := scalarKindToHLSLBase(img.SampledKind)
 		builder.WriteString("<")
 		builder.WriteString(kindStr)
 		builder.WriteString("4>")
 	case ir.ImageClassStorage:
-		// Storage textures use format-specific type (matches Rust naga)
+		// Storage textures use format-specific type
 		builder.WriteString("<")
 		builder.WriteString(storageFormatToHLSL(img.StorageFormat))
 		builder.WriteString(">")
@@ -596,7 +584,6 @@ func (w *Writer) imageTypeToHLSL(img ir.ImageType) string {
 }
 
 // storageFormatToHLSL returns the HLSL template type for a storage format.
-// Matches Rust naga's StorageFormat::to_hlsl_str().
 func storageFormatToHLSL(format ir.StorageFormat) string {
 	switch format {
 	// Single-channel float formats -> scalar "float"
@@ -663,11 +650,7 @@ func (w *Writer) writeByteAddressBufferType(readOnly bool) string {
 }
 
 // writeCBufferDeclaration writes a cbuffer declaration.
-// Matches Rust naga: `cbuffer name : register(bN) { type name; }`
-// - No `_cbuffer` suffix on the cbuffer name
-// - space is only written when non-zero
-// - No trailing `;` after closing `}`
-// - All on one logical line with `{ ... }` inline
+// }` inline
 func (w *Writer) writeCBufferDeclaration(name, _ string, typeHandle ir.TypeHandle, binding *BindTarget) {
 	w.WriteIndent()
 	w.Out.WriteString("cbuffer")
@@ -689,7 +672,6 @@ func (w *Writer) writeCBufferDeclaration(name, _ string, typeHandle ir.TypeHandl
 
 	// Check for matCx2 decomposition: matrices with rows=2 in uniform buffers
 	// use __matCx2 struct instead of row_major floatCxR.
-	// Matches Rust naga write_global_type in writer.rs.
 	matData := getInnerMatrixData(w.module, typeHandle)
 	if matData.isMatCx2() {
 		// Use __matCx2 type, with possible array suffix
@@ -718,7 +700,7 @@ func (w *Writer) writeConstants() error {
 
 	for handle := range w.module.Constants {
 		constant := &w.module.Constants[handle]
-		// Skip unnamed constants (only named constants are written, matching Rust naga)
+		// Skip unnamed constants
 		if constant.Name == "" {
 			continue
 		}
@@ -780,7 +762,7 @@ func (w *Writer) writeScalarValue(v ir.ScalarValue, typeHandle ir.TypeHandle) st
 			}
 			return fmt.Sprintf("%dL", i)
 		}
-		// I32: wrap in int() constructor (matches Rust naga)
+		// I32: wrap in int() constructor
 		i := int32(v.Bits)
 		if i == math.MinInt32 {
 			return fmt.Sprintf("int(%d - 1)", i+1)
@@ -889,7 +871,6 @@ func (w *Writer) writeGlobalVariable(name string, global *ir.GlobalVariable) err
 
 	case ir.SpaceStorage:
 		// Storage buffers use ByteAddressBuffer / RWByteAddressBuffer (raw byte access).
-		// Matches Rust naga: storage globals always use byte address buffers.
 		binding := w.getBindTarget(global.Binding)
 		readOnly := global.Access == ir.StorageRead
 		prefix := "RW"
@@ -908,7 +889,7 @@ func (w *Writer) writeGlobalVariable(name string, global *ir.GlobalVariable) err
 		w.WriteLine("groupshared %s %s%s;", baseTypeName, name, arraySuffix)
 
 	case ir.SpacePrivate:
-		// Module-scope private variable (Rust naga always initializes)
+		// Module-scope private variable
 		w.WriteIndent()
 		fmt.Fprintf(&w.Out, "static %s %s = ", typeName, name)
 		if global.InitExpr != nil {
@@ -930,8 +911,6 @@ func (w *Writer) writeGlobalVariable(name string, global *ir.GlobalVariable) err
 		w.Out.WriteString(";\n")
 
 	case ir.SpaceImmediate:
-		// Immediate data (push constants) — wrapped in ConstantBuffer<T>
-		// Matches Rust naga: `ConstantBuffer<Type> name: register(bN, spaceN);`
 		binding := w.getBindTarget(global.Binding)
 		regStr := formatRegister("b", binding.Register, binding.Space)
 		w.WriteLine("ConstantBuffer<%s> %s: %s;", typeName, name, regStr)
@@ -970,9 +949,7 @@ func (w *Writer) writeResourceHandle(name string, typeHandle ir.TypeHandle, glob
 				group = global.Binding.Group
 			}
 
-			// Always use sampler heap indirection. The DX12 HAL must provide
-			// SamplerBufferBindingMap so that naga generates the correct
-			// nagaSamplerHeap[indexBuffer[N]] pattern. This matches Rust wgpu-hal.
+			// Always use sampler heap indirection.
 			w.writeSamplerHeaps()
 			w.writeSamplerIndexBuffer(group)
 
@@ -1023,7 +1000,6 @@ func (w *Writer) writeResourceHandle(name string, typeHandle ir.TypeHandle, glob
 }
 
 // writeBindingArrayDeclaration writes a binding array (array of textures/samplers) declaration.
-// Matches Rust naga's handling of BindingArray types.
 // For sampler binding arrays: writes sampler heap + index buffer + static const uint base index.
 // For texture binding arrays: writes standard array declaration with optional overridden size.
 func (w *Writer) writeBindingArrayDeclaration(name string, ba ir.BindingArrayType, global *ir.GlobalVariable) {
@@ -1035,7 +1011,6 @@ func (w *Writer) writeBindingArrayDeclaration(name string, ba ir.BindingArrayTyp
 	baseType := &w.module.Types[ba.Base]
 
 	// Sampler binding arrays use the sampler heap pattern.
-	// Matches Rust naga write_global_sampler for TypeInner::BindingArray case.
 	if _, isSampler := baseType.Inner.(ir.SamplerType); isSampler {
 		if global.Binding != nil {
 			binding := w.getBindTarget(global.Binding)
@@ -1061,7 +1036,7 @@ func (w *Writer) writeBindingArrayDeclaration(name string, ba ir.BindingArrayTyp
 	if ba.Size != nil {
 		sizeStr = fmt.Sprintf("%d", *ba.Size)
 	} else {
-		// Unbounded arrays: use 10 as placeholder (matches Rust naga HLSL default)
+		// Unbounded arrays: use 10 as placeholder
 		sizeStr = "10"
 	}
 
@@ -1119,7 +1094,6 @@ func formatFloat32(f float32) string {
 	if !strings.Contains(s, ".") && !strings.Contains(s, "e") && !strings.Contains(s, "E") {
 		s += ".0"
 	}
-	// Remove '+' from exponent to match Rust {:?} format (e.g., "e+38" -> "e38")
 	s = strings.Replace(s, "e+", "e", 1)
 	s = strings.Replace(s, "E+", "E", 1)
 	return s
@@ -1140,7 +1114,6 @@ func formatFloat64(f float64) string {
 	if !strings.Contains(s, ".") && !strings.Contains(s, "e") && !strings.Contains(s, "E") {
 		s += ".0"
 	}
-	// Remove '+' from exponent to match Rust {:?} format (e.g., "e+308" -> "e308")
 	s = strings.Replace(s, "e+", "e", 1)
 	s = strings.Replace(s, "E+", "E", 1)
 	return s
@@ -1194,7 +1167,6 @@ func (w *Writer) isArrayOfMatCx2Type(handle ir.TypeHandle) bool {
 }
 
 // writeArraySizes writes [size] suffixes for an array type (possibly nested).
-// Matches Rust naga write_array_size for struct member array declarations.
 func (w *Writer) writeArraySizes(handle ir.TypeHandle) {
 	if int(handle) >= len(w.module.Types) {
 		return
@@ -1335,7 +1307,6 @@ func getArraySize(module *ir.Module, handle ir.TypeHandle) (*uint32, bool) {
 }
 
 // hlslTypeSize returns the HLSL size in bytes of a type.
-// Matches Rust naga's TypeInner::size_hlsl for padding calculations.
 func (w *Writer) hlslTypeSize(handle ir.TypeHandle) uint32 {
 	if int(handle) >= len(w.module.Types) {
 		return 0
@@ -1347,10 +1318,6 @@ func (w *Writer) hlslTypeSize(handle ir.TypeHandle) uint32 {
 	case ir.VectorType:
 		return uint32(inner.Size) * uint32(inner.Scalar.Width)
 	case ir.MatrixType:
-		// HLSL matrix size: (columns-1) * stride + lastRowSize
-		// stride = Alignment::from(rows) * scalar.width
-		// lastRowSize = rows * width
-		// Matches Rust naga's size_hlsl in conv.rs
 		rows := uint32(inner.Rows)
 		cols := uint32(inner.Columns)
 		width := uint32(inner.Scalar.Width)
@@ -1381,8 +1348,6 @@ func (w *Writer) hlslTypeSize(handle ir.TypeHandle) uint32 {
 	}
 }
 
-// matrixTypeInfo holds the column/row/width info for a matrix type,
-// matching Rust naga's MatrixType in back/hlsl/writer.rs.
 type matrixTypeInfo struct {
 	columns ir.VectorSize
 	rows    ir.VectorSize
@@ -1390,7 +1355,7 @@ type matrixTypeInfo struct {
 }
 
 // getInnerMatrixData returns the matrix type info for a type handle,
-// recursing through arrays. Matches Rust naga get_inner_matrix_data.
+// recursing through arrays.
 func getInnerMatrixData(module *ir.Module, handle ir.TypeHandle) *matrixTypeInfo {
 	if int(handle) >= len(module.Types) {
 		return nil
@@ -1416,7 +1381,6 @@ func (m *matrixTypeInfo) isMatCx2() bool {
 }
 
 // writeMatCx2TypedefAndFunctions writes the __matCx2 typedef and helper functions.
-// Matches Rust naga help.rs write_mat_cx2_typedef_and_functions.
 func (w *Writer) writeMatCx2TypedefAndFunctions(columns uint8) {
 	// typedef struct { float2 _0; float2 _1; ... } __matCx2;
 	w.Out.WriteString("typedef struct { ")
@@ -1458,7 +1422,6 @@ func (w *Writer) writeMatCx2TypedefAndFunctions(columns uint8) {
 
 // writeAllMatCx2TypedefsAndFunctions scans global variables and struct members
 // for matCx2 types in uniform space and writes all needed typedefs.
-// Matches Rust naga help.rs write_all_mat_cx2_typedefs_and_functions.
 func (w *Writer) writeAllMatCx2TypedefsAndFunctions() {
 	// Scan global variables in Uniform address space
 	for handle := range w.module.GlobalVariables {
@@ -1494,7 +1457,6 @@ func (w *Writer) writeAllMatCx2TypedefsAndFunctions() {
 
 // writeWrappedStructMatrixAccessFunctions writes GetMat/SetMat/SetMatVec/SetMatScalar
 // helper functions for a matCx2 member in a struct, if not already written.
-// Matches Rust naga help.rs write_wrapped_struct_matrix_* functions.
 func (w *Writer) writeWrappedStructMatrixAccessFunctions(tyHandle ir.TypeHandle, memberIndex uint32) {
 	key := wrappedStructMatrixAccessKey{ty: tyHandle, index: memberIndex}
 	if _, done := w.wrappedStructMatrixAccess[key]; done {

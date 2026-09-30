@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package render
 
@@ -16,8 +23,7 @@ import (
 // this squared the scale and doubled translation, placing text off-canvas.
 //
 // Fix: use c.matrix (user transform only) — doFill/doStroke apply deviceMatrix
-// once at the render boundary via deviceSpacePath(). This matches Cairo/Skia
-// where device transform is applied once.
+// once at the render boundary via deviceSpacePath().
 func TestDrawStringAsOutlines_HiDPI(t *testing.T) {
 	face := loadTestFont(t, 24)
 

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -482,7 +492,6 @@ func TestPaint_Clone_WithStroke(t *testing.T) {
 	}
 }
 
-// TestStroke_NearHorizontalBleed is the integration test for BUG-RAST-011 (#235).
 // When stroking a near-horizontal line, the red stroke color should NOT bleed
 // more than 2px beyond the stroke boundary.
 func TestStroke_NearHorizontalBleed(t *testing.T) {

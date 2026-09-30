@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -5,10 +15,6 @@ import (
 )
 
 // cff_light_bridge.go —— CFF/CFF2 轮廓字体的 light 拟合接线。
-//
-// 生产路径（glyph_outline.go ExtractOutlineHinted）对 CFF 字体走 auto→gridFit
-// 兜底（glyf 启发式网格偏陆界粗）。本文件把它替换为自研 cf2 引擎：
-// hint.LightHint（pshinter light 移植，M2/M3 已逐点对齐 FT-light 26.6）。
 //
 // 重建规则（FT-light outline 的二次曲线分解）：
 //   - CFF charstring 曲线是二次贝塞尔，FT 输出点为 (off,off,on) 组或

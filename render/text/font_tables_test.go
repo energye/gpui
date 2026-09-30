@@ -1,11 +1,21 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Tests for Pure Go font table parsers (Phase 3a, ADR-048).
 //
 // Cross-validates own parser output against ximageParsedFont output.
 // Every test font's results must match between the two parsers.
 //
 // Test fonts (from testdata/):
-//   - tthint_subset.ttf:   upem=1040, numGlyphs=3, 'A' at GID 1
-//   - ahem.ttf:            simple test font, uniform advances
+//   - tthint_subset.ttf: upem=1040, numGlyphs=3, 'A' at GID 1
+//   - ahem.ttf: simple test font, uniform advances
 //   - cousine_hint_subset.ttf: Google Cousine monospace, TT hinted
 //   - notoserifhebrew_autohint_metrics.ttf: Hebrew script
 package text

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -932,7 +942,6 @@ func TestMSL_Derivative(t *testing.T) {
 		control ir.DerivativeControl
 		want    string
 	}{
-		// Rust naga ignores DerivativeControl — all map to base function name
 		{"dfdx_fine", ir.DerivativeX, ir.DerivativeFine, "metal::dfdx("},
 		{"dfdx_coarse", ir.DerivativeX, ir.DerivativeCoarse, "metal::dfdx("},
 		{"dfdx_none", ir.DerivativeX, ir.DerivativeNone, "metal::dfdx("},

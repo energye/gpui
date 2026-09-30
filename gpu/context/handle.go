@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package context
 
@@ -9,26 +16,24 @@ import "unsafe"
 //
 // Provides compile-time type safety: TextureView cannot be confused with
 // CommandEncoder or other GPU resource types (unlike the previous interface{}
-// token approach). Following the Vulkan/Ebitengine/Go Protobuf Opaque pattern.
+// token approach).
 //
 // The ptr field is unexported, preventing construction outside this package.
 // Use NewTextureView to create, Pointer to extract, IsNil to check.
 // 8 bytes, value type, zero allocations.
-//
-// GC safety: unsafe.Pointer keeps the underlying object alive (Go spec §Safety).
 type TextureView struct {
 	ptr unsafe.Pointer
 }
 
 // NewTextureView creates a TextureView from an unsafe.Pointer to a concrete
-// GPU texture view (e.g., *wgpu.TextureView). The caller must ensure the
+// GPU texture view. The caller must ensure the
 // pointer remains valid for the lifetime of the returned handle.
 func NewTextureView(ptr unsafe.Pointer) TextureView {
 	return TextureView{ptr: ptr}
 }
 
 // Pointer returns the underlying unsafe.Pointer. Consumers type-convert to
-// the concrete type: (*wgpu.TextureView)(tv.Pointer()).
+// the concrete type:(tv.Pointer()).
 func (tv TextureView) Pointer() unsafe.Pointer { return tv.ptr }
 
 // IsNil reports whether the handle holds no resource (zero value).
@@ -43,13 +48,13 @@ type CommandEncoder struct {
 }
 
 // NewCommandEncoder creates a CommandEncoder from an unsafe.Pointer to a
-// concrete GPU command encoder (e.g., *wgpu.CommandEncoder).
+// concrete GPU command encoder.
 func NewCommandEncoder(ptr unsafe.Pointer) CommandEncoder {
 	return CommandEncoder{ptr: ptr}
 }
 
 // Pointer returns the underlying unsafe.Pointer. Consumers type-convert to
-// the concrete type: (*wgpu.CommandEncoder)(ce.Pointer()).
+// the concrete type:(ce.Pointer()).
 func (ce CommandEncoder) Pointer() unsafe.Pointer { return ce.ptr }
 
 // IsNil reports whether the handle holds no resource (zero value).

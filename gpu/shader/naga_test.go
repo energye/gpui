@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package shader
 
 import (
@@ -454,18 +464,6 @@ fn main( -> @builtin(position) vec4<f32> {
 		},
 		// NOTE: Component count validation for vector constructors is not yet implemented.
 		// The following test case would require semantic validation of constructor arguments.
-		// When implemented, uncomment this test:
-		// {
-		// 	name: "semantic error - wrong component count",
-		// 	source: `
-		// @vertex
-		// fn main() -> @builtin(position) vec4<f32> {
-		//     return vec4<f32>(0.0, 0.0);
-		// }
-		// `,
-		// 	expectError:    true,
-		// 	skipValidation: false,
-		// },
 	}
 
 	for _, tt := range tests {
@@ -487,7 +485,6 @@ fn main( -> @builtin(position) vec4<f32> {
 	}
 }
 
-// TestCompileSwitchStatement tests compilation of switch statements (NAGA-002).
 func TestCompileSwitchStatement(t *testing.T) {
 	source := `
 @fragment
@@ -519,7 +516,6 @@ fn main(@location(0) idx: u32) -> @location(0) vec4<f32> {
 	t.Logf("Generated %d bytes of SPIR-V for switch statement", len(spirvBytes))
 }
 
-// TestCompileLocalConst tests compilation of local const declarations (NAGA-002).
 func TestCompileLocalConst(t *testing.T) {
 	source := `
 @vertex

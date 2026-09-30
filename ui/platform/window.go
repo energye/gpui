@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package platform
 
 import (
@@ -77,7 +87,7 @@ type Window struct {
 
 // Controls returns the window-control SPI (title/size/state/cursor ops).
 // Returns nil when the backend does not support runtime window control;
-// callers must nil-check (optional capability, same pattern as IME).
+// callers must nil-check.
 func (w *Window) Controls() WindowController {
 	if w == nil {
 		return nil
@@ -170,7 +180,7 @@ func (w *Window) Kind() PlatformKind {
 }
 
 // Backend returns the display backend backing this window (DisplayAuto when
-// unknown/None). Mirrors exhost.Window.Backend for window-open reporting.
+// unknown/None).
 func (w *Window) Backend() DisplayBackend {
 	if w == nil {
 		return DisplayAuto
@@ -190,7 +200,7 @@ func (w *Window) Backend() DisplayBackend {
 }
 
 // IME returns the input-method capability, or nil when the backend does not
-// support IME. Callers must nil-check (optional capability, silent degrade).
+// support IME. Callers must nil-check.
 func (w *Window) IME() IME {
 	if w == nil {
 		return nil

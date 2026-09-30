@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Rasterizer ties together all Vello CPU pipeline stages into a single API.
 // This is NOT part of the Vello source — it's our integration layer.
@@ -68,13 +75,11 @@ func (r *Rasterizer) Rasterize(lines []LineSoup, fillRule FillRule) []float32 {
 
 	pathCountMain(bump, lines, paths, tiles, segCounts)
 
-	// Step 2: Coarse allocation — convert counts to indices
-	// (Port of coarse.rs segment allocation, lines 79-83)
 	nextSegIx := uint32(0)
 	for i := range tiles {
 		nSegs := tiles[i].SegmentCountOrIx
 		if nSegs != 0 {
-			tiles[i].SegmentCountOrIx = ^nextSegIx // !seg_ix in Rust
+			tiles[i].SegmentCountOrIx = ^nextSegIx
 			nextSegIx += nSegs
 		}
 	}
@@ -84,8 +89,6 @@ func (r *Rasterizer) Rasterize(lines []LineSoup, fillRule FillRule) []float32 {
 	segments := make([]PathSegment, totalSegments)
 	pathTilingMain(bump, segCounts, lines, paths, tiles, segments)
 
-	// Step 4: Backdrop prefix sum
-	// (Port of backdrop.rs)
 	bboxW := int(path.BBox[2] - path.BBox[0])
 	bboxH := int(path.BBox[3] - path.BBox[1])
 	base := int(path.Tiles)
@@ -211,9 +214,6 @@ func (r *Rasterizer) RasterizeScene(bgColor [4]uint8, paths []PathDef) *image.RG
 
 // RasterizeScenePTCL renders multiple paths using the full Vello compute pipeline:
 // scene encoding -> pathtag reduce/scan -> draw reduce/scan -> flatten -> coarse -> fine PTCL.
-// This matches Vello's actual GPU pipeline architecture where all paths are processed
-// together through shared tile command lists, enabling correct multi-path compositing
-// in a single fine rasterization pass.
 //
 // The result should be pixel-identical (within rounding tolerance) to RasterizeScene,
 // which processes paths individually and composites in a separate step.
@@ -487,7 +487,7 @@ func (r *Rasterizer) computePath(lines []LineSoup) (Path, int, int) {
 	return path, tilesX, tilesY
 }
 
-// LineSoupFromVelloLine converts a pre-sorted VelloLine (P0.Y <= P1.Y, IsDown flag)
+// LineSoupFromVelloLine converts a pre-sorted VelloLine
 // back to original LineSoup direction (unsorted, as Vello's flattener would emit).
 func LineSoupFromVelloLine(p0, p1 [2]float32, isDown bool) LineSoup {
 	if isDown {

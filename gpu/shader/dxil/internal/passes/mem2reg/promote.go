@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package mem2reg
 
 import (
@@ -267,8 +277,7 @@ func initialValues(ctx *promotionContext, candidates map[uint32]struct{}) map[ui
 		// ExprZeroValue (and the alias chain leading to it) as a
 		// constant — emitZeroValue is called lazily from
 		// emitExpression on demand and does not require StmtEmit
-		// pre-evaluation. This matches how zero-init lookups
-		// happen for unused let-bindings elsewhere.
+		// pre-evaluation.
 		zh := ir.ExpressionHandle(len(ctx.fn.Expressions)) //nolint:gosec // expression count fits uint32 by IR design
 		ctx.fn.Expressions = append(ctx.fn.Expressions, ir.Expression{
 			Kind: ir.ExprZeroValue{Type: lv.Type},

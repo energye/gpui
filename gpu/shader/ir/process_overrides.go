@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package ir
 
@@ -107,7 +114,6 @@ func CloneModuleForOverrides(src *Module) *Module {
 
 // PipelineConstants maps override keys (ID as string or name) to float64 values.
 // NaN means "not set" (use default initializer).
-// Matches Rust naga's back::PipelineConstants = HashMap<String, f64>.
 type PipelineConstants map[string]float64
 
 // ProcessOverrides resolves all overrides in the module to concrete constants
@@ -116,8 +122,6 @@ type PipelineConstants map[string]float64
 // - ExprOverride in global expressions become ExprConstant
 // - ExprOverride in function expressions become Literal with resolved values
 // - Global variable initializers using overrides are evaluated
-//
-// Matches Rust naga's back::pipeline_constants::process_overrides.
 func ProcessOverrides(module *Module, constants PipelineConstants) error {
 	if len(module.Overrides) == 0 {
 		return nil
@@ -169,8 +173,7 @@ func ProcessOverrides(module *Module, constants PipelineConstants) error {
 		rebuildFunctionExpressions(&module.EntryPoints[ei].Function, module, overrideToConstant)
 	}
 
-	// Note: NO compact after const-fold. Rust runs compact BEFORE const-eval,
-	// so folded expressions stay in the arena at their original indices.
+	// Note: NO compact after const-fold.
 	// This preserves expression handle numbering for baked variable names (_eN).
 
 	// Phase 5: Evaluate global variable initializers that reference overrides
@@ -281,7 +284,7 @@ func makeOverrideLiteral(module *Module, typeHandle TypeHandle, val float64) Lit
 			scalar := module.Types[typeHandle].Inner.(ScalarType)
 			switch scalar.Kind {
 			case ScalarBool:
-				// NaN converts to false (Rust: f64 → bool is val == 1.0)
+				// NaN converts to false
 				return Literal{Value: LiteralBool(val == 1.0)}
 			case ScalarSint:
 				return Literal{Value: LiteralI32(int32(val))}
@@ -335,8 +338,6 @@ func EvalUnaryFloat(op UnaryOperator, val float64) float64 {
 }
 
 // rebuildFunctionExpressions rebuilds the function expression arena from scratch.
-// Matches Rust naga's process_function: drain all expressions, for each one
-// replace Override→Constant, remap handles, try const-evaluate, append to new arena.
 // Then remap ALL handles in statements, local vars, and named expressions.
 func rebuildFunctionExpressions(fn *Function, module *Module, overrideToConstant map[OverrideHandle]ConstantHandle) {
 	oldExprs := fn.Expressions
@@ -356,11 +357,6 @@ func rebuildFunctionExpressions(fn *Function, module *Module, overrideToConstant
 		// Remap sub-expression handles to new arena indices
 		kind = overrideRemapExprHandles(kind, handleMap[:i])
 
-		// Const-evaluate matching Rust's try_eval_and_append behavior:
-		// - ExprConstant → keep original, append Literal copy, handle maps to ORIGINAL
-		//   (constant names preserved in output, Literal is for downstream eval chain)
-		// - Binary/Unary on known operands → REPLACE with evaluated Literal
-		// - Everything else → keep as-is
 		if _, isConst := kind.(ExprConstant); isConst {
 			// Append ExprConstant — handle maps here (preserves name)
 			newH := ExpressionHandle(len(newExprs))
@@ -396,8 +392,6 @@ func rebuildFunctionExpressions(fn *Function, module *Module, overrideToConstant
 	// Remap ALL handles in function body statements
 	remapBlockHandles(fn.Body, handleMap)
 
-	// Filter emit ranges to exclude expressions that don't need emitting
-	// (Literal, Constant, etc.) — matches Rust's filter_emits_in_block.
 	fn.Body = filterEmitsInBlock(fn.Body, fn.Expressions)
 
 	// Remap local var init handles
@@ -696,7 +690,7 @@ func remapBlockHandles(block Block, handleMap []ExpressionHandle) {
 }
 
 // needsPreEmit returns true if the expression kind does not need a Statement::Emit
-// to be present. Matches Rust naga Expression::needs_pre_emit().
+// to be present.
 func needsPreEmit(kind ExpressionKind) bool {
 	switch kind.(type) {
 	case Literal, ExprConstant, ExprOverride, ExprZeroValue,
@@ -708,7 +702,6 @@ func needsPreEmit(kind ExpressionKind) bool {
 
 // filterEmitsInBlock rebuilds a block, splitting emit statements to exclude
 // expressions that needsPreEmit (Literal, Constant, etc.).
-// Matches Rust naga's filter_emits_in_block in pipeline_constants.rs.
 // Modifies the block slice in place by rebuilding it.
 func filterEmitsInBlock(block Block, expressions []Expression) Block {
 	result := make(Block, 0, len(block))

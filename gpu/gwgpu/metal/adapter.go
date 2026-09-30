@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -139,7 +146,6 @@ func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error) 
 }
 
 // GetSurfaceCapabilities returns capabilities for a specific surface.
-// Matches webgpu Adapter.GetSurfaceCapabilities name.
 func (a *Adapter) GetSurfaceCapabilities(surface hal.Surface) *hal.SurfaceCapabilities {
 	if surface == nil {
 		return nil
@@ -166,7 +172,6 @@ func (a *Adapter) GetSurfaceCapabilities(surface hal.Surface) *hal.SurfaceCapabi
 }
 
 // Release releases the adapter.
-// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
 func (a *Adapter) Release() {
 	if a.raw != 0 {
 		Release(a.raw)

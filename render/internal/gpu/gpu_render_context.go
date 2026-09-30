@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -30,7 +40,7 @@ import (
 // GPURenderContext references the shared GPUShared for device, pipelines,
 // and atlas engines but never owns them.
 type GPURenderContext struct {
-	shared *GPUShared // reference to shared resources (NOT owned)
+	shared *GPUShared
 
 	// deviceGen is GPUShared.deviceGen at last session (re)build.
 	deviceGen uint64
@@ -45,9 +55,9 @@ type GPURenderContext struct {
 	// Slices in pending ConvexDrawCommand point into these until Flush clears.
 	convexMeshPts []render.Point
 	convexMeshVCs [][4]float32
-	// Pre-packed GPU verts (opt19): TriangleList mesh packs once at Queue.
+	// Pre-packed GPU verts: TriangleList mesh packs once at Queue.
 	convexMeshPacked []byte
-	// opt22: uint16 index scratch for indexed mesh commands (DrawIndexed).
+	// uint16 index scratch for indexed mesh commands (DrawIndexed).
 	convexMeshIdx             []uint16
 	pendingStencilPaths       []StencilPathCommand
 	pendingImageCommands      []ImageDrawCommand
@@ -128,7 +138,7 @@ type GPURenderContext struct {
 	frameScratchW    int
 	frameScratchH    int
 	layerReleaseHold []func()
-	// opt42: dual-tex resolve scratch (avoid per-resolve make on L3 blend path).
+	// dual-tex resolve scratch (avoid per-resolve make on L3 blend path).
 	dualTexViewOpsScratch []dualTexViewBlendOp
 
 	// Pool of offscreen layer RTs by size to avoid per-PushLayer alloc/OOM.
@@ -143,7 +153,7 @@ type GPURenderContext struct {
 const offscreenPoolBucketCap = 4
 
 // offscreenPoolBytesCap bounds total pooled bytes per context (~8 full-HD
-// RGBA surfaces); overflow falls back to native release (pre-R6-3 behavior).
+// RGBA surfaces); overflow falls back to native release.
 const offscreenPoolBytesCap = 32 << 20
 
 type offscreenPooled struct {
@@ -166,7 +176,6 @@ type pendingAdvancedLayer struct {
 	release func()
 }
 
-// LastSubmitPathStats returns S6.2 encode/submit counters from the last Flush.
 func (rc *GPURenderContext) LastSubmitPathStats() SubmitPathStats {
 	if rc == nil || rc.session == nil {
 		return SubmitPathStats{}
@@ -174,7 +183,6 @@ func (rc *GPURenderContext) LastSubmitPathStats() SubmitPathStats {
 	return rc.session.LastSubmitPathStats()
 }
 
-// LastBatchDrawStats returns S6.3 post-coalesce draw/quad counters from the last Flush.
 func (rc *GPURenderContext) LastBatchDrawStats() BatchDrawStats {
 	if rc == nil || rc.session == nil {
 		return BatchDrawStats{}
@@ -475,7 +483,7 @@ type presentPendingStash struct {
 	convex        []ConvexDrawCommand
 	convexMeshPts []render.Point
 	convexMeshVCs [][4]float32
-	// opt22: owned copies of PackedVerts / Indices so parent mesh survives
+	// owned copies of PackedVerts / Indices so parent mesh survives
 	// layer Queue overwriting rc.convexMeshPacked.
 	convexMeshPacked []byte
 	convexMeshIdx    []uint16
@@ -485,7 +493,7 @@ type presentPendingStash struct {
 	text             []TextBatch
 	glyph            []GlyphMaskBatch
 	// Owned quad payload for stashed glyph batches: rc.glyphMaskQuadStore is
-	// truncated by the layer flush, so the stash must own a copy (opt22 pattern).
+	// truncated by the layer flush, so the stash must own a copy.
 	glyphQuads      []GlyphMaskQuad
 	scissorSegments []scissorSegment
 	baseLayer       *GPUTextureDrawCommand
@@ -500,7 +508,7 @@ type presentPendingStash struct {
 // interleave, merge, or consume main-pass commands — the root cause of the C8
 // black-texture bug, where a mid-frame sub-pass flush triggered prepareTarget
 // to stash the mixed queue and swallow the layer being recorded. It mirrors
-// Skia's per-surface GrRenderTargetContext.fOpsTask / Flutter's per-pass
+// the per-surface GrRenderTargetContext.fOpsTask / the per-pass
 // EntityPass: each render target owns its command stream exclusively.
 type offscreenPass struct {
 	active bool
@@ -579,7 +587,7 @@ func (rc *GPURenderContext) BeginOffscreenPass(target render.GPURenderTarget) fu
 	rc.pendingTextBatches = rc.pendingTextBatches[:0]
 	// Rehome glyph batch quad payloads into offscreen-owned storage so the
 	// truncated component store can be reused by sub-pass draws without
-	// clobbering main batches (same opt22 discipline as the stash).
+	// clobbering main batches.
 	o.glyph = o.glyph[:0]
 	for i := range rc.pendingGlyphMaskBatches {
 		g := &rc.pendingGlyphMaskBatches[i]
@@ -758,7 +766,7 @@ func (rc *GPURenderContext) stashPresentPending() {
 
 	s.shapes = append(s.shapes, rc.pendingShapes...)
 	s.convex = append(s.convex, rc.pendingConvexCommands...)
-	// opt22: deep-copy packed mesh bytes/indices into stash-owned storage so
+	// deep-copy packed mesh bytes/indices into stash-owned storage so
 	// subsequent layer QueueColoredMesh* cannot overwrite parent PackedVerts.
 	// baseConvex is the pre-append length (declared above with scissor bases).
 	relocateConvexMeshData(s.convex, baseConvex, &s.convexMeshPacked, &s.convexMeshIdx)
@@ -770,7 +778,7 @@ func (rc *GPURenderContext) stashPresentPending() {
 	s.text = append(s.text, rc.pendingTextBatches...)
 	s.glyph = append(s.glyph, rc.pendingGlyphMaskBatches...)
 	// Rehome stashed quads into stash-owned storage — the component store is
-	// truncated below and reused by layer draws (opt22 pattern).
+	// truncated below and reused by layer draws.
 	for i := baseGlyph; i < len(s.glyph); i++ {
 		g := &s.glyph[i]
 		qb := len(s.glyphQuads)
@@ -872,7 +880,7 @@ func (rc *GPURenderContext) unstashPresentPending() {
 
 	rc.pendingShapes = prependSlice(rc.pendingShapes, s.shapes)
 	rc.pendingConvexCommands = prependSlice(rc.pendingConvexCommands, s.convex)
-	// Move stash-owned packed mesh into rc scratch and re-point (opt22).
+	// Move stash-owned packed mesh into rc scratch and re-point.
 	// Prefix (stashed) commands need relocate from 0..len(s.convex); any
 	// already-pending cmds after the prefix keep their own rc packing.
 	if len(s.convex) > 0 {
@@ -951,11 +959,8 @@ func (rc *GPURenderContext) QueueShape(target render.GPURenderTarget, shape rend
 		return render.ErrFallbackToCPU
 	}
 
-	// Skip zero-alpha shapes — premultiplied SrcOver with (0,0,0,0) is a
-	// mathematical no-op but wastes GPU bandwidth and can interfere with
-	// MSAA sample coverage weighting (BUG-SDF-001: transparent fill makes
 	// subsequent stroke invisible). Enterprise pattern: Skia nothingToDraw()
-	// (SkPaint.cpp:273), Cairo nothing_to_do() (cairo-surface.c:2148).
+	// , Cairo nothing_to_do() (cairo-surface.c:2148).
 	if rs.ColorA == 0 {
 		return nil
 	}
@@ -981,7 +986,7 @@ func (rc *GPURenderContext) QueueConvex(target render.GPURenderTarget, cmd Conve
 // Hot path (DrawMesh / 3D): ONE TriangleList command for the whole mesh
 // (not N tri-commands), backed by reusable scratch. SkipAA solid verts.
 //
-// opt19: pack GPU vertex bytes once here (PackedVerts). Flush only WriteBuffers
+// pack GPU vertex bytes once here (PackedVerts). Flush only WriteBuffers
 // the pre-packed blob — no second Points/VertexColors → stride walk.
 func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, triangleList bool) {
 	if len(positions) < 3 {
@@ -1010,7 +1015,7 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 	need := nOut
 	nBytes := need * convexMeshVertexStride
 
-	// Grow-only packed vertex scratch (primary mesh payload, opt33 12B).
+	// Grow-only packed vertex scratch.
 	pkBase := len(rc.convexMeshPacked)
 	if cap(rc.convexMeshPacked) < pkBase+nBytes {
 		capN := (pkBase + nBytes) * 2
@@ -1105,10 +1110,10 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 }
 
 // QueueColoredMeshIndexed queues a mesh with unique vertices + uint16 indices
-// (opt22). Avoids CPU expand of indexed DrawMesh (disc fans etc.) so WriteBuffer
+// . Avoids CPU expand of indexed DrawMesh (disc fans etc.) so WriteBuffer
 // uploads only unique verts. Indices are copied into convexMeshIdx scratch.
 //
-// opt23: hot path drops O(n) pre-validation (DrawMesh supplies in-range indices),
+// hot path drops O(n) pre-validation (DrawMesh supplies in-range indices),
 // uses a tight pack loop (coverage=1 fixed), and keeps grow-only scratch.
 func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, indices []uint16) {
 	if len(positions) < 3 || len(indices) < 3 {
@@ -1168,7 +1173,7 @@ func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarge
 	rc.sceneStats.ShapeCount++
 }
 
-// packMeshVertsCoverage1 writes SkipAA mesh verts into dst (opt33: 12B layout).
+// packMeshVertsCoverage1 writes SkipAA mesh verts into dst.
 // dst must be len(positions)*convexMeshVertexStride. Coverage is implicit 1.0
 // in vs_mesh. Returns a solid fallback color (mean of first triangle when useVC).
 func packMeshVertsCoverage1(dst []byte, positions []render.Point, colors []render.RGBA, useVC bool) [4]float32 {
@@ -1189,7 +1194,6 @@ func packMeshVertsCoverage1(dst []byte, positions []render.Point, colors []rende
 		}
 		return solid
 	}
-	// opt31+opt33+opt40: quant via packColorUnorm8x4RGBA (same bits as inline).
 	var s0, s1, s2, s3 float32
 	for i := 0; i < n; i++ {
 		c := colors[i]
@@ -1267,7 +1271,7 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 		u0, v0, u1, v1, 0, 0, 0, 0, nearest, contentDirty, bicubic...)
 }
 
-// QueueImageDrawTint is QueueImageDraw plus per-quad tint (R4 vertex color).
+// QueueImageDrawTint is QueueImageDraw plus per-quad tint.
 func (rc *GPURenderContext) QueueImageDrawTint(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
@@ -1357,7 +1361,7 @@ func (rc *GPURenderContext) queueImageCmd(target render.GPURenderTarget, cmd Ima
 // all tiers in the render pass. Last call wins. Used for CPU pixmap compositing
 // in zero-readback rendering (ADR-015, Flutter OffsetLayer pattern).
 // viewToResView registers a concrete texture view with the session's resource
-// registry and returns a strong res.View (P3). The registered Ref is released
+// registry and returns a strong res.View. The registered Ref is released
 // by the consumer (buildGPUTextureResources) once the command is drawn, so
 // the view stays alive from queue time to flush — never a bare pointer.
 //
@@ -1777,7 +1781,7 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		}
 	}
 
-	// Q.03: when AA is off, snap path verts to device pixels (Skia Graphite-style).
+	// Q.03: when AA is off, snap path verts to device pixels.
 	if !rc.antiAlias && path != nil {
 		path = snapPathToPixelGrid(path)
 	}
@@ -1812,7 +1816,6 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	// (e.g., stroke-expanded ring outlines), the stencil-then-cover path below
 	// must be used — it correctly implements EvenOdd via stencil bit inversion.
 	// Skia Ganesh gates its convex fast-path on isSimpleFill() for the same reason.
-	// S6.6: ConvexPathCache avoids re-walking path + IsConvex on retained frames.
 	if paint.FillRule != render.FillRuleEvenOdd {
 		var points []render.Point
 		var ok bool
@@ -1911,7 +1914,7 @@ func (rc *GPURenderContext) stencilTess(path *render.Path, matrix render.Matrix,
 // with a scale-corrected width, so expansion + tessellation hit cache across
 // pure-transform animation. All other cases keep the baked behavior.
 func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *render.Path, paint *render.Paint, matrix render.Matrix) error {
-	// R2: non-solid strokes expand to filled outlines then route through FillPath
+	// non-solid strokes expand to filled outlines then route through FillPath
 	// (native gradient/pattern or bootstrap). Solid keeps fixed/advanced blend gates.
 	if isGPUSolidPaint(paint) {
 		if !paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
@@ -1982,7 +1985,6 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 				transformScale = 1.0
 			}
 			dashHash = hashDash(dash)
-			// S6.6: dash geometry cache; apply on snapped path (AA-off correctness).
 			if dc := rc.shared.DashGeomCache(); dc != nil {
 				pathToStroke = dc.GetOrApply(pathToStroke, dash, transformScale)
 			} else {
@@ -1998,7 +2000,6 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		}
 	}
 
-	// S4.3/S6.6: stroke expansion cache keyed by path + style + dash.
 	// Fast path: key on the unbaked user-space hash with a scale-corrected
 	// width, so expansion hits across pure-transform animation.
 	skey := makeStrokeCacheKey(pathToStroke, paint, !rc.antiAlias, dashHash)
@@ -2059,8 +2060,6 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 
 // fillPathUser fills an already user-space path with its total matrix
 // (fast-path tail shared by FillPath stencil section and StrokePath).
-// Mirrors FillPath's prologue: GPU must be ready and the target bound,
-// else ErrFallbackToCPU so the caller falls back to CPU rendering.
 func (rc *GPURenderContext) fillPathUser(target render.GPURenderTarget, rawPath *render.Path, paint *render.Paint, matrix render.Matrix, userScale float64) error {
 	if !rc.shared.gpuReady {
 		rc.shared.mu.Lock()
@@ -2208,7 +2207,7 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 		}
 	}
 
-	// R3: dashed / non-SO / non-solid → geometric StrokePath (GPU expand+fill).
+	// dashed / non-SO / non-solid → geometric StrokePath (GPU expand+fill).
 	// Thin solid SourceOver strokes (Ant 1px rings/borders) stay on SDF annular
 	// coverage AA — expand+fill path produces hard edges that look non-Ant in
 	// the window (CPU software AA in ui_ant_compare looked fine by comparison).
@@ -2280,7 +2279,6 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 		tex.Destroy()
 		return nil
 	}
-	// Align pitch for multi-row WriteTexture.
 	tight := uint32(tw * 4) //nolint:gosec
 	aligned := alignTextureBytesPerRow(tight)
 	upload := target.Data[:tw*th*4]
@@ -2338,7 +2336,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	}
 	// Layer RTs also carry a non-nil View; never inject the stash into a layer
 	// self-flush (pendingTarget matches the layer View being flushed).
-	// opt21: layer self-flush while parent is present-stashed can encode+enqueue
+	// layer self-flush while parent is present-stashed can encode+enqueue
 	// and coalesce with Present (or the next surface Submit) instead of a mid-frame
 	// Queue.Submit per PopLayer (PKS Screen+Multiply ~2 extra submits/frame).
 	opt21DeferLayerSubmit := false
@@ -2380,7 +2378,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			return render.ErrFallbackToCPU
 		}
 	} else if !gpuFilterGraphRegistered {
-		// opt41: device already live — only register filter graph once.
+		// device already live — only register filter graph once.
 		// Skip ensureGPU body on the warm present path (was every Flush).
 		rc.shared.registerFilterGraphIfNeeded()
 	}
@@ -2400,9 +2398,6 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// deviceGen bumps. Session still holds the released *Device + stale pipeline
 	// pointers → CreateShaderModule "resource already released". Rebuild session.
 	if rc.session != nil && (rc.deviceGen != sharedGen || rc.session.device != device) {
-		// P6/§3.5: device lost / provider switched — drop all resource
-		// bookkeeping without touching native (abandon flow owns teardown),
-		// then destroy the session for a clean rebuild.
 		rc.session.InvalidateForDeviceLoss()
 		rc.session.Destroy()
 		rc.session = nil
@@ -2419,7 +2414,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.session = NewGPURenderSession(device, queue, sc)
 		// OOM-downgrade wiring: a 4x session texture allocation failure is
 		// non-fatal — drop shared MSAA to 1x and let the next flush rebuild
-		// this session at the lower sample count (Skia/Flutter pressure path).
+		// this session at the lower sample count.
 		rc.session.SetTextureOOMHook(func() { rc.shared.RequestMSAADowngrade() })
 		rc.deviceGen = sharedGen
 		// Effect/offscreen surfaces (preferSampleCount1) MUST own sampleCount-matched
@@ -2456,7 +2451,6 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	rc.session.SetFrameState(rc.frameRendered, rc.lastView)
 
 	// Build scissor groups from the timeline.
-	// S6.2: groups reference pending command slices directly (no deep-copy).
 	// Pending queues are reset only AFTER atlas sync + RenderFrameGrouped so
 	// sub-slices remain valid for the whole encode/submit path.
 	groups := rc.buildScissorGroups()
@@ -2588,8 +2582,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// F1: full-frame single-submit (base+dual-tex+surface blit one encoder) is
 	// still disabled — enabling regressed TestF1_AdvancedLayerPresentView* pixels
 	// (Multiply white / Screen black). Live path remains multi-submit MultiInto
-	// out-RT + blit (opt32). Re-enable only with dest-correct proof + F1 green.
-	// opt39 instead applies convex vertex sticky (see buildConvexResources).
+	// out-RT + blit. Re-enable only with dest-correct proof + F1 green.
 	singleSubmit := false && useScratch && rc.sharedEncoder == nil && len(rc.pendingAdvancedLayers) > 0 &&
 		rc.session != nil && rc.session.device != nil && rc.session.queue != nil
 	var frameEnc hal.CommandEncoder
@@ -2603,7 +2596,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 	}
 
-	// opt21: defer mid-frame layer RT Submit into lead queue (no sharedEncoder).
+	// defer mid-frame layer RT Submit into lead queue (no sharedEncoder).
 	// Clear immediately after encode so nested resolve/blit paths still submit.
 	if opt21DeferLayerSubmit && rc.session != nil && rc.sharedEncoder == nil {
 		rc.session.SetDeferSurfaceSubmit(true)
@@ -2694,7 +2687,6 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			if ferr != nil {
 				err = ferr
 			} else if cmd != nil {
-				// opt39: coalesce opt21 deferred layer CBs + frame CB (leads first).
 				// submitWithLeading retains cmd in prevCmdBufs on success.
 				if serr := rc.session.submitWithLeading(cmd); serr != nil && err == nil {
 					err = serr
@@ -2743,7 +2735,6 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// Cover textures must outlive RenderFrameGrouped bind/sample; free after submit.
 	rc.releaseBrushCoverResults()
 
-	// S6.2: drop pending command ownership after encode/submit consumed the slices.
 	clear(rc.pendingShapes)
 	clear(rc.pendingConvexCommands)
 	clear(rc.pendingStencilPaths)
@@ -2839,7 +2830,7 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 		return nil
 	}
 	if rc.frameScratchView != nil || rc.frameScratchTex != nil {
-		// P4: defer the release — the old scratch may still be referenced by
+		// defer the release — the old scratch may still be referenced by
 		// commands queued this frame; the session releases it at the next safe
 		// point (BeginFrame / drainQueue), same as prevCmdBufs.
 		if rc.session != nil {
@@ -3054,7 +3045,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	rc.dualTexViewOpsScratch = viewOps
 	var err error
 	// Live path: dualTexAdvancedBlendViewsRegionSized / multi bundle → out RT → blit.
-	// opt12: batch all layers into one dual-tex Submit when possible.
+	// batch all layers into one dual-tex Submit when possible.
 	type outBlit struct {
 		view    hal.TextureView
 		tex     hal.Texture
@@ -3072,7 +3063,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	if len(viewOps) > 0 {
 		dstView := unpackView(target.View)
 		recordEnc := enc
-		// Prefer IntoEncoder (opt32 / shared frame enc). Fall back to R7.3
+		// Prefer IntoEncoder. Fall back to R7.3
 		// separate dual-tex CB + leading coalesce, then per-op path.
 		var mout []dualTexViewBlendOut
 		var derr error
@@ -3083,7 +3074,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			derr = fmt.Errorf("dual-tex multi: no encoder")
 		}
 		if derr != nil {
-			// R7.3: finish dual-tex multi without Submit; coalesce with following
+			// finish dual-tex multi without Submit; coalesce with following
 			// blit Flush into one Queue.Submit (multi CB, ordered).
 			bundle, berr := dualTexAdvancedBlendViewsMultiBundle(device, queue, cache, dstView, viewOps, tw, th, false)
 			if berr != nil {
@@ -3184,7 +3175,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	if rc.PendingCount() > 0 {
 		// pendingAdvancedLayers already nil — no recursion into resolve.
 		if enc != nil && rc.session != nil {
-			// opt39: external single-submit encoder owns Finish/Submit.
+			// external single-submit encoder owns Finish/Submit.
 			// Encode dual-tex out→scratch blits into enc; do not Finish here.
 			rc.sharedEncoder = enc
 			ferr := rc.Flush(target)
@@ -3243,9 +3234,7 @@ func (rc *GPURenderContext) flushVello(target render.GPURenderTarget) error {
 // loads instead of clearing the upload away. The payload is BGRA bytes
 // with the given row pitch covering a w-by-h extent at view origin (the
 // pass region is top-left aligned by construction, see
-// render.ContextPassScratch). Mirrors the WriteTexture half of
-// uploadPixmapToView, but targets a caller-owned view instead of the
-// swapchain and carries pass frame-state instead of present semantics.
+// render.ContextPassScratch).
 func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, payload []byte, bytesPerRow, rows, w, h int) error {
 	if rc == nil || view.IsNil() || len(payload) == 0 || w <= 0 || h <= 0 || rows <= 0 {
 		return fmt.Errorf("gpu: CommitScratchRegion: bad region (w=%d h=%d rows=%d payload=%d)", w, h, rows, len(payload))
@@ -3503,8 +3492,8 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 }
 
 // makePoolRelease returns the release closure for an offscreen texture:
-// back to the pool when there is room (R6-3 reuse), native destroy on
-// overflow (pre-R6-3 behavior). The closure may run on the release path
+// back to the pool when there is room, native destroy on
+// overflow. The closure may run on the release path
 // (deferred ≥2 frames after last use), so pooled items are always past
 // in-flight command buffers by construction.
 func (rc *GPURenderContext) makePoolRelease(key [2]int, tex hal.Texture, view hal.TextureView, dev hal.Device) func() {
@@ -3668,7 +3657,7 @@ func (rc *GPURenderContext) maxPendingDrawTier() int {
 }
 
 // ensureDrawOrder seals the current timeline when queueing tier would otherwise
-// be drawn under already-pending higher-tier geometry (Skia-style painter order).
+// be drawn under already-pending higher-tier geometry.
 func (rc *GPURenderContext) ensureDrawOrder(tier int) {
 	if rc == nil || tier <= 0 {
 		return

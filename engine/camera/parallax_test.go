@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package camera
 
 import (
@@ -351,7 +361,6 @@ func TestParallaxLongRunSeamless(t *testing.T) {
 		if !okA || !okB {
 			t.Fatalf("step %d seamless ok=%v/%v", i, okA, okB)
 		}
-		// Mirror twins share one screen: the long-road seam holds.
 		if !seamOK(a, b) {
 			t.Fatalf("step %d seam breaks: %v vs %v", i, a, b)
 		}
@@ -372,9 +381,6 @@ func TestParallaxLongRunSeamless(t *testing.T) {
 }
 
 // F: offscreen golden stands in for the window.
-// Capability 1.3b is window-exempt in W1 (pure math); the frozen quad in
-// parallax_cases.json is the offscreen evidence both backends share, and
-// the follow window (game_camera --case=follow) is built later.
 func TestParallaxOffscreenGolden(t *testing.T) {
 	proj, layers, cases := loadParallaxCases(t)
 	l, ok := layers[cases.Quad.Layer]
@@ -411,7 +417,6 @@ func TestParallaxOffscreenGolden(t *testing.T) {
 	if !(far < near) {
 		t.Errorf("trapezoid far %v not narrower than near %v", far, near)
 	}
-	// Mirror-separated twins share one screen: the long-road seam holds.
 	for i, k := range cases.Seamless {
 		l := layers[k.Layer]
 		a, _, okA := l.Screen(pt(k.WorldA), k.Depth, pt(k.Camera), proj)

@@ -1,13 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 //
 // This file implements the OpenType avar (Axis Variations) table parser.
 // The avar table provides piecewise linear remapping of normalized axis
 // coordinates, allowing font designers to define non-linear relationships
 // between user-facing axis values and internal design-space coordinates.
-//
-// Reference: skrifa (Google fontations)
-//   - read-fonts/src/tables/avar.rs -- avar parser + SegmentMaps.apply()
-//   - HarfBuzz hb-ot-var-avar-table.hh -- extended avar behavior
 //
 // Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/avar
 package text
@@ -23,10 +29,10 @@ import (
 //
 // Binary layout:
 //
-//	uint16  majorVersion (must be 1)
-//	uint16  minorVersion (0)
-//	uint16  reserved
-//	uint16  axisCount
+//	uint16 majorVersion (must be 1)
+//	uint16 minorVersion (0)
+//	uint16 reserved
+//	uint16 axisCount
 //	SegmentMaps[axisCount] (variable-length)
 type avarTable struct {
 	segmentMaps [][]avarSegment // one segment map per axis
@@ -43,9 +49,6 @@ type avarSegment struct {
 // apply remaps normalized coordinates in-place using the avar segment maps.
 // Each axis's coordinate is transformed through its corresponding piecewise
 // linear segment map.
-//
-// Matches skrifa SegmentMaps::apply (avar.rs:10-126) which follows HarfBuzz's
-// extended avar behavior for robustness.
 func (a *avarTable) apply(coords []int16) {
 	if a == nil {
 		return
@@ -61,12 +64,6 @@ func (a *avarTable) apply(coords []int16) {
 // avarApplySegmentMap applies a single axis segment map to a normalized
 // coordinate. This implements piecewise linear interpolation with HarfBuzz-
 // compatible edge case handling.
-//
-// Matches skrifa SegmentMaps::apply (avar.rs:10-126):
-//   - len < 2: passthrough or single-mapping shift
-//   - Exact match: return corresponding output
-//   - Between two mappings: linear interpolation
-//   - Outside range: extrapolate by shifting with nearest mapping delta
 func avarApplySegmentMap(maps []avarSegment, coord int16) int16 {
 	n := len(maps)
 
@@ -77,15 +74,12 @@ func avarApplySegmentMap(maps []avarSegment, coord int16) int16 {
 		return coord - maps[0].fromCoord + maps[0].toCoord
 	}
 
-	// Trim duplicate -1/+1 caps (CoreText quirks, skrifa avar.rs:37-50).
 	start, end := avarTrimCaps(maps)
 
-	// Look for exact match (skrifa avar.rs:55-95).
 	if result, found := avarExactMatch(maps, coord, start, end); found {
 		return result
 	}
 
-	// Not exact: find the segment for interpolation (skrifa avar.rs:98-126).
 	return avarInterpolate(maps, coord, start, end)
 }
 
@@ -208,7 +202,7 @@ func avarInterpolate(maps []avarSegment, coord int16, start, end int) int16 {
 //	  uint16 positionMapCount
 //	  AxisValueMap[positionMapCount]:
 //	    int16 fromCoordinate (F2.14)
-//	    int16 toCoordinate   (F2.14)
+//	    int16 toCoordinate (F2.14)
 func parseAvar(data []byte) *avarTable {
 	if len(data) < 8 {
 		return nil

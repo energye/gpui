@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package ggcanvas
 
@@ -1276,7 +1283,6 @@ func (m *mockHiDPIProvider) RequestRedraw()       { m.NullWindowProvider.Request
 // logical 100x100 → physical 200x200. Using logical dimensions would cause
 // uploadTexture to do a partial upload of only the upper-left quadrant.
 //
-// Regression test for gg#308: Mac Retina renders only upper-left quadrant.
 // Root cause: v0.45.4 changed MarkDirty to use c.ctx.Width()/Height() (logical)
 // instead of c.ctx.PixelWidth()/PixelHeight() (physical).
 func TestMarkDirty_HiDPI_UsesPhysicalDimensions(t *testing.T) {
@@ -1309,8 +1315,6 @@ func TestMarkDirty_HiDPI_UsesPhysicalDimensions(t *testing.T) {
 // TestFlush_HiDPI_FullUploadAfterMarkDirty verifies that MarkDirty on a HiDPI
 // canvas triggers a full texture upload (UpdateData), not a partial upload
 // (UpdateRegion) covering only the upper-left quadrant.
-//
-// Regression test for gg#308.
 func TestFlush_HiDPI_FullUploadAfterMarkDirty(t *testing.T) {
 	provider := newMockHiDPIProvider(2.0)
 	c, err := New(provider, 100, 100)
@@ -1488,7 +1492,7 @@ func (h *warningDetector) WithGroup(name string) slog.Handler {
 	return h
 }
 
-// --- Draw() per-frame state reset tests (ADR-032, gg#328) ---
+// --- Draw() per-frame state reset tests ---
 
 func TestDraw_ResetsMatrix(t *testing.T) {
 	provider := newMockProvider()

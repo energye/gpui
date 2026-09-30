@@ -1,19 +1,23 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // PTCL (Per-Tile Command List) command types and encoding.
-// Port of Vello vello_shaders/src/shared/ptcl.rs.
 //
 // Each tile in the tile grid has its own PTCL that drives fine rasterization.
 // Commands are encoded as a stream of uint32 words: [tag, payload...].
 //
-// Reference: vello_shaders/src/shared/ptcl.rs
 
 package tilecompute
 
 import "math"
 
-// PTCL command tags (from Vello vello_shaders/src/shared/ptcl.rs).
 const (
 	CmdEnd       uint32 = 0  // End of command list for this tile
 	CmdFill      uint32 = 1  // Compute area coverage from segments
@@ -27,7 +31,7 @@ const (
 const ptclInitialAlloc = 64
 
 // BlendStackSplit is the number of clip levels stored in local registers
-// before spilling to the blend_spill SSBO. Matches Vello's BLEND_STACK_SPLIT.
+// before spilling to the blend_spill SSBO.
 const BlendStackSplit = 4
 
 // CmdFillData is the payload for CmdFill.

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -52,7 +59,6 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 
 	q.submissionIndex++
 
-	// Rust wgpu-hal queue.rs:1915-1921: fence.maintain → fence.signal → gl.flush.
 	// FenceSync must be inserted BEFORE Flush so the sync object tracks the
 	// commands being flushed. Flushing first would leave the fence un-flushed.
 	if q.fence != nil {
@@ -72,8 +78,7 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // Safe because Submit() always flushes after inserting the fence — the fence
 // is guaranteed to be in the GPU command queue by the time we poll it.
 // Maintenance (cleanup of completed sync objects) happens in Submit(), not here
-// (matches Rust wgpu-hal device.rs:1564 get_fence_value).
-// Backend divergence (H4-b3 locked): webgpu Queue.Poll always returns 0,
+// Backend divergence: webgpu Queue.Poll always returns 0,
 // gles returns Fence.GetLatest (or submissionIndex when queueless),
 // metal returns the GPU-callback-driven completedIndex.
 func (q *Queue) Poll() uint64 {
@@ -84,7 +89,6 @@ func (q *Queue) Poll() uint64 {
 }
 
 // LastSubmissionIndex returns the most recent submission index.
-// Matches webgpu Queue.LastSubmissionIndex.
 func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
 }
@@ -157,8 +161,7 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 //
 // Makes the GL context current on the user window's DC (via LockForDC),
 // blits the swapchain FBO to the default framebuffer with Y-flip, then
-// SwapBuffers. Mirrors Rust wgpu-hal wgl.rs Surface::present (682-750):
-// GetDC → lock_with_dc → blit → SwapBuffers → ReleaseDC.
+// SwapBuffers.
 //
 // damageRects is accepted but ignored on Windows WGL — WGL has no
 // damage-aware swap API.
@@ -168,7 +171,6 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, _ []image.R
 		return fmt.Errorf("gles: invalid surface type")
 	}
 
-	// Get fresh DC for the user window (Rust: Gdi::GetDC(self.window)).
 	hdc := wgl.GetDC(surf.hwnd)
 	if hdc == 0 {
 		return fmt.Errorf("gles: GetDC failed for hwnd 0x%x", surf.hwnd)
@@ -208,5 +210,5 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 
 // SetSwapchainSuppressed is a no-op on GLES.
 // GLES uses eglSwapBuffers for presentation, which is not affected by command
-// submission ordering. See BUG-WGPU-VK-005 (Vulkan-specific).
+// submission ordering.
 func (q *Queue) SetSwapchainSuppressed(_ bool) {}

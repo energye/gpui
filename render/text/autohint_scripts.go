@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -22,11 +32,6 @@ import (
 //   - CJK (HANI) → computeCJKBlues
 //   - Indic → no blues (skip)
 //
-// References:
-//   - FreeType afscript.h — script definitions
-//   - FreeType afblue.dat — blue zone reference characters
-//   - skrifa style.rs — ScriptClass, ScriptGroup, SCRIPT_CLASSES
-//   - skrifa generated/generated_autohint_styles.rs — script data
 
 // scriptGroup determines which hinting algorithm to use.
 type scriptGroup int
@@ -44,7 +49,6 @@ const (
 )
 
 // blueSpec defines a blue zone by its reference characters and flags.
-// Matches skrifa's (blue_str, BlueZones) tuple in ScriptClass.blues.
 type blueSpec struct {
 	// chars contains space-separated reference characters to measure.
 	// For CJK, the '|' separator divides fill chars from flat chars.
@@ -55,7 +59,6 @@ type blueSpec struct {
 }
 
 // scriptClass defines the hinting properties for a script.
-// Matches skrifa's ScriptClass struct.
 type scriptClass struct {
 	// name is the human-readable script name (for diagnostics).
 	name string
@@ -102,7 +105,6 @@ type runePair struct {
 // uniRange builds a runePair from two integer literals.
 func uniRange(first, last rune) runePair { return runePair{first, last} }
 
-// Script class definitions, matching skrifa generated_autohint_styles.rs.
 // Only scripts we actively test and support are defined here. Additional
 // scripts can be added following the same pattern.
 
@@ -259,17 +261,12 @@ var scriptCJK = scriptClass{
 // scriptClasses lists all supported scripts in priority order for per-glyph
 // detection. Higher priority scripts are checked first: a glyph is assigned
 // the first script whose unirange contains one of its cmap code points.
-// This matches FreeType afglobal.c af_face_globals_compute_style_coverage:
-// Unicode ranges are mutually exclusive between scripts, so priority only
-// matters for glyphs addressable by multiple code points in different
-// scripts (rare; first wins in FreeType too).
 //
 // The list is generated in autohint_scripts_gen.go (skrifa SCRIPT_CLASSES
 // order; Latin/Hebrew/Cyrillic/Greek/Arabic and CJK are defined here and
 // referenced there).
 
 // glyphScriptCache caches the per-glyph script assignment for each font.
-// Matches FreeType's AF_FaceGlobals.glyph_styles array.
 var glyphScriptCache struct {
 	mu    sync.RWMutex
 	cache map[string][]*scriptClass
@@ -329,7 +326,7 @@ func perGlyphScripts(font ParsedFont) []*scriptClass {
 	}
 
 	// Scan each script's unicode ranges, assigning the FIRST script that
-	// covers a glyph. Matches FreeType's loop order in afglobal.c.
+	// covers a glyph.
 	for _, sc := range scriptClasses {
 		for _, r := range sc.uniranges {
 			for cp := r.first; cp <= r.last; cp++ {
@@ -342,9 +339,7 @@ func perGlyphScripts(font ParsedFont) []*scriptClass {
 	}
 
 	// Scan each script's non-base ranges, marking glyphs whose cmap code
-	// points fall in the ranges AND that belong to this script. Matches
-	// FreeType afglobal.c:214-232 (AF_NONBASE set only when the glyph was
-	// already assigned to this script style).
+	// points fall in the ranges AND that belong to this script.
 	nb := make([]bool, numGlyphs)
 	for _, sc := range scriptClasses {
 		if len(sc.nonbase) == 0 {
@@ -382,8 +377,7 @@ func init() {
 }
 
 // glyphIsNonbase reports whether the glyph is a non-base character
-// (combining mark / vowel sign) for auto-hinting purposes. Mirrors
-// FreeType's AF_NONBASE glyph style flag.
+// (combining mark / vowel sign) for auto-hinting purposes.
 func glyphIsNonbase(font ParsedFont, gid GlyphID) bool {
 	perGlyphScripts(font)
 	key := glyphScriptKey(font)

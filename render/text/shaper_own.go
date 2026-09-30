@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // OwnShaper — Pure Go text shaper with GSUB/GPOS support.
 //
 // OwnShaper implements the Shaper interface with direct binary parsing of
@@ -138,7 +148,7 @@ func (s *OwnShaper) Shape(text string, face Face) []ShapedGlyph {
 	// Step 4: Apply GSUB substitutions.
 	// Script-aware staging (ENGINE_GAPS G1.c):
 	//   Arabic → isol/fina/medi/init masks
-	//   Indic  → rphf/half/vatu/pres… stage order
+	//   Indic → rphf/half/vatu/pres… stage order
 	if sc.gsub != nil && len(desiredGSUB) > 0 {
 		switch {
 		case needsArabicJoining(runes):
@@ -429,8 +439,7 @@ func reorderIndicGlyphsWithAdjFont(glyphs []shapingGlyph, adj []gposAdjustment, 
 //
 // vertical forces the OpenType vertical alternates features (vert, vrt2):
 // when true they are added to GSUB defaults so e.g. CJK punctuation
-// rotates to its vertical form. Matches HarfBuzz's direction-driven
-// feature set for horizontal/vertical shaping.
+// rotates to its vertical form.
 func collectDesiredFeatures(userFeatures []FontFeature, vertical bool) (gsubTags, gposTags [][4]byte) {
 	// Default features.
 	ccmp := [4]byte{'c', 'c', 'm', 'p'}

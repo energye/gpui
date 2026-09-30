@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -11,7 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Headless tests for the Wayland outbound drag source (S6-P1 item 4):
+// Headless tests for the Wayland outbound drag source:
 // no compositor needed — error paths, the send/cancelled serving branches,
 // and the drag-vs-clipboard source split are all exercised in-process.
 

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package tilecompute
 
@@ -68,7 +75,7 @@ func TestFineRasterizeTileFillColor(t *testing.T) {
 	// Create line segments for a right-pointing triangle.
 	// Line 1: (2,2) -> (14,8) — top edge going down-right
 	// Line 2: (14,8) -> (2,14) — bottom edge going down-left
-	// Line 3: (2,14) -> (2,2)  — left edge going up (closing)
+	// Line 3: (2,14) -> (2,2) — left edge going up (closing)
 	segments := []PathSegment{
 		{Point0: [2]float32{2, 2}, Point1: [2]float32{14, 8}, YEdge: 1e9},
 		{Point0: [2]float32{14, 8}, Point1: [2]float32{2, 14}, YEdge: 1e9},

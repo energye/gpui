@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package clip
 
 import (
@@ -378,7 +388,6 @@ func TestChopCubicAt(t *testing.T) {
 
 	// left.P0 should be p0
 	assertPointEqual(t, left.P0, p0)
-	// right.P3 should be p3
 	assertPointEqual(t, right.P3, p3)
 	// They should join at the midpoint
 	assertPointEqual(t, left.P3, right.P0)

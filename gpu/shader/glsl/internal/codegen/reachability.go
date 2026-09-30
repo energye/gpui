@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -55,7 +62,6 @@ func (r *reachableSet) hasType(h ir.TypeHandle) bool {
 // collectReachable builds a reachable set for the given entry point.
 // Function inclusion uses dominates_global_use: a function is included if
 // the entry point's set of used globals is a superset of the function's used globals.
-// This matches Rust naga's FunctionInfo::dominates_global_use algorithm.
 // Functions that use NO globals are included in ALL entry points.
 func collectReachable(module *ir.Module, ep *ir.EntryPoint) *reachableSet {
 	rs := newReachableSet()
@@ -159,7 +165,6 @@ func walkBlockForCalls(block []ir.Statement, visitor func(ir.FunctionHandle)) {
 // stageCompatible checks if a function is compatible with the given shader stage.
 // Functions using fragment-only operations (derivatives, discard) are incompatible with compute.
 // Functions using compute-only operations (barriers) are incompatible with fragment/vertex.
-// Matches Rust naga's available_stages analysis (simplified).
 func stageCompatible(module *ir.Module, fn *ir.Function, epStage ir.ShaderStage) bool {
 	stages := detectFunctionStages(fn)
 	// If function has no stage restrictions, it's compatible with everything

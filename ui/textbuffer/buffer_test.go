@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textbuffer
 
 import (
@@ -25,7 +35,7 @@ func snapDown(s string, off int) int {
 var fuzzChunks = []string{"a", "b", "世", "界", "hello", " ", "\n", "\r\n", "👨\u200d👩\u200d👧", "é", "xyz\nabc", "0123456789"}
 
 // runFuzz drives buf and a plain-string model with identical ops; any
-// divergence stops the test immediately (M3.5 fuse: stop on first mismatch).
+// divergence stops the test immediately.
 func runFuzz(t *testing.T, forceTree bool) {
 	t.Helper()
 	rng := rand.New(rand.NewSource(20260904))

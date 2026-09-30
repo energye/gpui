@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -10,16 +20,8 @@ import (
 // hinting feature. Edges are then linked to form stems, matched to
 // blue zones, and grid-fitted.
 //
-// References:
-//   - FreeType aflatin.c:2154 af_latin_hints_compute_edges
-//   - FreeType aflatin.c:2529 af_latin_hints_compute_blue_edges
-//   - FreeType aflatin.c:4220 af_latin_hint_edges
-//   - skrifa topo/edges.rs compute_edges
-//   - skrifa hint/edges.rs hint_edges
 
 // hintEdge represents an edge — a group of segments at similar positions.
-// opos and pos are in 26.6 fixed-point (1 unit = 1/64 pixel), matching
-// skrifa topo/mod.rs Edge { fpos: i16, opos: i32, pos: i32 }.
 type hintEdge struct {
 	// fpos is the original (unscaled font unit) position.
 	// Stored as float32 for compatibility with segment positions (which
@@ -27,11 +29,9 @@ type hintEdge struct {
 	fpos float32
 
 	// opos is the original scaled pixel position, 26.6 fixed-point.
-	// Matches skrifa Edge.opos: i32 (26.6).
 	opos int32
 
 	// pos is the current (possibly grid-fitted) position, 26.6 fixed-point.
-	// Matches skrifa Edge.pos: i32 (26.6).
 	pos int32
 
 	// dir is the edge direction.
@@ -50,7 +50,7 @@ type hintEdge struct {
 	blueEdge *scaledWidth
 
 	// scale is a cached interpolation scale factor (16.16) for
-	// align_strong_points. Matches skrifa Edge.scale: i32.
+	// align_strong_points.
 	// Zero means not yet computed.
 	scale int32
 
@@ -60,8 +60,6 @@ type hintEdge struct {
 
 // computeEdgeDistThreshold computes the edge distance threshold for grouping
 // segments into edges. Default and CJK use different computations.
-//
-// See skrifa topo/edges.rs:49-64.
 func computeEdgeDistThreshold(axis *scaledAxisMetrics, group scriptGroup) float32 {
 	if axis.scale <= 0 {
 		edt := axis.edgeDistThreshold
@@ -72,13 +70,10 @@ func computeEdgeDistThreshold(axis *scaledAxisMetrics, group scriptGroup) float3
 	}
 	if group == scriptGroupDefault {
 		// FreeType aflatin.c:2208-2215:
-		//   edge_distance_threshold = FT_MulFix( edt, scale );   // 26.6
-		//   if ( > 64/4 ) edge_distance_threshold = 64/4;        // cap 0.25px
-		//   edge_distance_threshold = FT_DivFix( t, scale );     // font units
+		//   edge_distance_threshold = FT_MulFix( edt, scale ); // 26.6
+		//   if ( > 64/4 ) edge_distance_threshold = 64/4; // cap 0.25px
+		//   edge_distance_threshold = FT_DivFix( t, scale ); // font units
 		// Both steps are rounded 16.16 integer arithmetic. Float
-		// 0.25/scale or edt/scale truncate and flip boundary distances:
-		// freesans σ @8px needs 15 (14 < 15 keeps the 458 segment) and
-		// @20px needs 12, not 12.25 (12 < 12 does not merge).
 		if axis.scale16dot16 > 0 && axis.edgeDistThresholdUnscaled > 0 {
 			t1 := (int64(axis.edgeDistThresholdUnscaled)*int64(axis.scale16dot16) + 0x8000) >> 16
 			if t1 > 16 {
@@ -100,9 +95,6 @@ func computeEdgeDistThreshold(axis *scaledAxisMetrics, group scriptGroup) float3
 		return edt
 	}
 	// CJK: different computation.
-	// FreeType afcjk.c:1067-1072 / skrifa edges.rs:57-64:
-	//   thresh = edt*scale; if > 16 (0.25px) → threshold = 0.25px
-	//   (16/scale in font units); else keep the unscaled edt (font units).
 	// scaledAxisMetrics.edgeDistThreshold is ALREADY multiplied by scale
 	// (scaleTo), so divide back to font units for the comparison below.
 	//
@@ -132,7 +124,6 @@ func computeEdgeDistThreshold(axis *scaledAxisMetrics, group scriptGroup) float3
 //   - Default: existing behavior (segment filtering, break on first match).
 //
 // See FreeType aflatin.c:2154 af_latin_hints_compute_edges.
-// See skrifa topo/edges.rs compute_edges.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // FreeType aflatin.c port — algorithmic complexity is inherent
 func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimension, group scriptGroup, topToBottom bool) []*hintEdge {
@@ -143,10 +134,6 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	// Edge distance threshold: segment positions may be in font units (contour
 	// path) or scaled pixels (legacy path). The threshold must match.
 	//
-	// Default (skrifa edges.rs:49-55):
-	//   edge_distance_threshold = fixed_div(min(threshold*scale, 16), scale)
-	// CJK (skrifa edges.rs:57-64):
-	//   if threshold*scale > 16: fixed_div(16, scale), else: threshold (unscaled)
 	edgeDistThreshold := computeEdgeDistThreshold(axis, group)
 
 	// Segment length threshold: ignore segments shorter than 1px
@@ -160,8 +147,6 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	// Segment width threshold: ignore segments wider than 0.5px.
 	// FreeType aflatin.c:2186-2191: FT_DivFix(32, scale) — integer 16.16
 	// arithmetic (((32<<16) + scale/2) / scale). Float 0.5/scale rounds
-	// down (freesans $ @72px: 6.91 vs FT's 7), flipping the
-	// delta > threshold filter and dropping the segment (and its edge).
 	var segWidthThreshold float32
 	if axis.scale16dot16 > 0 {
 		q := (int64(32)<<16 + int64(axis.scale16dot16)>>1) / int64(axis.scale16dot16)
@@ -181,7 +166,6 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	for si, seg := range segments {
 		// Default: skip directionless segments (and short/wide ones).
 		// CJK: include ALL directional segments, no height/width filtering.
-		// Matches skrifa edges.rs:71-86 (the @deprecated filter is Default-only).
 		if group == scriptGroupDefault {
 			if seg.dir == dirNone || seg.height < segLenThreshold || seg.delta > segWidthThreshold {
 				continue
@@ -293,9 +277,6 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 		}
 	}
 
-	// Sort edges by position, matching FreeType af_axis_hints_new_edge
-	// (afhints.c:197-253) and skrifa Axis::insert_edge (topo/mod.rs): ascending
-	// fpos, or descending for hint_top_to_bottom scripts (Devanagari, Bengali,
 	// Gurmukhi, Gothic, Mongolian — afhints.c:257-268). Within equal fpos, a
 	// new edge with the minor direction keeps shifting left past same-position
 	// edges while one with the major direction stops, so minor-direction edges
@@ -447,8 +428,7 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 
 // edgeIndex returns the index of an edge in the edges slice.
 // segLinkDist returns the absolute distance between the linked segments
-// of two segments. Matches FreeType AF_SEGMENT_DIST(link, link1) in
-// afcjk.c af_cjk_hints_compute_edges.
+// of two segments.
 func segLinkDist(segments []hintSegment, linkIdx1, linkIdx2 int) float32 {
 	if linkIdx1 < 0 || linkIdx2 < 0 || linkIdx1 >= len(segments) || linkIdx2 >= len(segments) {
 		return float32(1e10)
@@ -473,9 +453,7 @@ func edgeIndex(edges []*hintEdge, target *hintEdge) int {
 // For each edge, find the closest blue zone and link them.
 //
 // The comparison is done in font units (edge.fpos vs unscaled blue position),
-// and the distance is then scaled for threshold comparison. This matches
-// skrifa topo/edges.rs:compute_blue_edges which compares fpos to unscaled
-// blue positions.
+// and the distance is then scaled for threshold comparison.
 //
 // The group parameter controls CJK-specific behavior:
 //   - CJK: picks whichever of position/overshoot is closer to edge.fpos
@@ -483,12 +461,10 @@ func edgeIndex(edges []*hintEdge, target *hintEdge) int {
 //   - Default: existing behavior.
 //
 // See FreeType aflatin.c:2529 af_latin_hints_compute_blue_edges.
-// See skrifa topo/edges.rs:compute_blue_edges.
 //
 //nolint:gocognit,nestif // FreeType/skrifa port — algorithmic complexity is inherent
 func computeBlueEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup) {
 	// Initial threshold: UPM/40 scaled, capped at 0.5px = 32 in 26.6.
-	// Matches skrifa: fixed_mul(scale.units_per_em / 40, axis_scale).min(64/2)
 	initialThreshold := int32(32) // 0.5px in 26.6
 	if axis.unitsPerEm > 0 {
 		scaledThreshold := fixedMul26dot6(int32(axis.unitsPerEm/40), axis.scale16dot16)
@@ -506,7 +482,6 @@ func computeBlueEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGr
 	//   - H-axis: major = dirUp
 	//   - V-axis: major = dirLeft
 	//
-	// See skrifa topo/mod.rs:96-101: Axis::reset major_dir selection.
 	majorDir := axis.majorDir
 
 	for _, edge := range edges {
@@ -604,15 +579,13 @@ func computeBlueEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGr
 
 // hintEdges performs the main grid-fitting of edges.
 // The algorithm proceeds in three passes:
-//  1. Align edges to blue zones
-//  2. Align stem edges (linked pairs)
-//  3. Align remaining edges (serifs, singles)
+//
+//	1.
 //
 // The group parameter controls CJK-specific behavior in stem alignment
 // and remaining edge alignment.
 //
 // See FreeType aflatin.c:4220 af_latin_hint_edges.
-// See skrifa hint/edges.rs hint_edges.
 func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup, topToBottom bool, dim hintDimension) {
 	if len(edges) == 0 {
 		return
@@ -677,7 +650,6 @@ func alignEdgesToBlues(edges []*hintEdge, axis *scaledAxisMetrics, group scriptG
 		blueEdge.pos = blue.fitted // 26.6 fixed-point
 		blueEdge.flags |= edgeFlagDone
 
-		// Align the stem partner if it does not carry its own blue zone.
 		if blueIdx == i {
 			if edge.linkIdx >= 0 {
 				link := edges[edge.linkIdx]
@@ -708,7 +680,6 @@ func alignEdgesToBlues(edges []*hintEdge, axis *scaledAxisMetrics, group scriptG
 //   - Default: existing behavior.
 //
 // See FreeType aflatin.c:4344-4570.
-// See skrifa hint/edges.rs align_stem_edges.
 //
 //nolint:gocognit,nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, serifCount *int, group scriptGroup, topToBottom bool, dim hintDimension) int {
@@ -824,7 +795,6 @@ func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, s
 // All values in 26.6 fixed-point.
 //
 // See FreeType aflatin.c:4378-4445.
-// See skrifa hint/edges.rs align_stem_edges (anchor_ix.is_none() branch).
 //
 //nolint:nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 func positionFirstStem(edge, edge2 *hintEdge, orgLen, curLen int32) {
@@ -868,7 +838,6 @@ func positionFirstStem(edge, edge2 *hintEdge, orgLen, curLen int32) {
 // All values in 26.6 fixed-point.
 //
 // See FreeType aflatin.c:4447-4540.
-// See skrifa hint/edges.rs align_stem_edges (anchor_ix.is_some() branch).
 //
 //nolint:nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 func positionSubsequentStem(edge, edge2, anchor *hintEdge, orgLen, curLen int32) {
@@ -937,7 +906,6 @@ func positionSubsequentStem(edge, edge2, anchor *hintEdge, orgLen, curLen int32)
 // All values in 26.6.
 //
 // See FreeType aflatin.c:4161 af_latin_align_linked_edge.
-// See skrifa hint/edges.rs align_linked_edge.
 func alignLinkedEdge(edges []*hintEdge, axis *scaledAxisMetrics, baseIdx, stemIdx int, group scriptGroup) {
 	base := edges[baseIdx]
 	stem := edges[stemIdx]
@@ -959,10 +927,8 @@ func alignLinkedEdge(edges []*hintEdge, axis *scaledAxisMetrics, baseIdx, stemId
 //
 // CJK has a simpler 2-pass approach:
 //  1. Align edges with serif references
-//  2. Interpolate between completed bounding edges
 //
 // See FreeType aflatin.c:4635-4830.
-// See skrifa hint/edges.rs align_remaining_edges.
 //
 // applyMSymmetryCJK applies FreeType's lowercase-m symmetry correction
 // (af_cjk_hint_edges, afcjk.c:2078-2116): for glyphs with exactly 6 or 12
@@ -970,7 +936,7 @@ func alignLinkedEdge(edges []*hintEdge, axis *scaledAxisMetrics, baseIdx, stemId
 // nearly equal spacing (span < 8 in 26.6 = 1/8px), the third stem is shifted
 // so that it is symmetric about the second stem.
 //
-//	n_edges == 6:  edge1 = edges[0], edge2 = edges[2], edge3 = edges[4]
+//	n_edges == 6: edge1 = edges[0], edge2 = edges[2], edge3 = edges[4]
 //	n_edges == 12: edge1 = edges[1], edge2 = edges[5], edge3 = edges[9]
 //
 // The delta is the deviation of edge3 from the symmetric position:
@@ -1041,7 +1007,6 @@ func alignRemainingEdges(edges []*hintEdge, anchorIdx int, group scriptGroup, to
 			}
 
 			if delta < 80 { //nolint:gocritic // FreeType aflatin.c port — value range if-else chain // 1.25px = 80 in 26.6
-				// Align serif: shift by same amount as base.
 				edge.pos = serifEdge.pos + (edge.opos - serifEdge.opos)
 			} else if anchorIdx < 0 {
 				edge.pos = f26dot6Round(edge.opos)
@@ -1060,8 +1025,7 @@ func alignRemainingEdges(edges []*hintEdge, anchorIdx int, group scriptGroup, to
 
 		edge.flags |= edgeFlagDone
 
-		// Bound checks. 0.25px = 16 in 26.6. Matches skrifa edges.rs
-		// adjust_link: top_to_bottom reverses both order checks (edges.rs:454).
+		// Bound checks. 0.25px = 16 in 26.6.
 		if i > 0 {
 			orderBroken := edge.pos < edges[i-1].pos
 			if topToBottom {
@@ -1102,11 +1066,9 @@ func alignRemainingEdges(edges []*hintEdge, anchorIdx int, group scriptGroup, to
 }
 
 // alignRemainingEdgesCJK handles serif and single-segment edges for CJK.
-// Two-pass approach matching skrifa hint/edges.rs align_remaining_edges (CJK branch):
 //  1. First pass: align edges with serif references
 //  2. Second pass: interpolate between completed bounding edges
 //
-// See skrifa hint/edges.rs:588-635 (CJK branch of align_remaining_edges).
 // See FreeType afcjk.c:2119.
 func alignRemainingEdgesCJK(edges []*hintEdge) {
 	serifCount := 0
@@ -1188,7 +1150,6 @@ func findBoundingDoneEdges(edges []*hintEdge, idx int) (int, int) {
 // while preserving the center position.
 //
 // See FreeType afcjk.c:1678 af_cjk_hint_normal_stem.
-// See skrifa hint/edges.rs:947-1050 hint_normal_stem_cjk.
 //
 //nolint:gocognit,gocyclo,cyclop,nestif // FreeType afcjk.c port — algorithmic complexity is inherent
 func hintNormalStemCJK(edges []*hintEdge, axis *scaledAxisMetrics, edgeIdx, edge2Idx int, anchor int32, dim hintDimension) int32 {
@@ -1314,8 +1275,6 @@ func abs32(x int32) int32 {
 }
 
 // fixedMulDiv26dot6 computes a * b / c with rounding (not truncation).
-// Matches skrifa Fixed::mul_div (font-types/src/fixed.rs:155):
-// uses absolute values, adds half-divisor for rounding, applies sign.
 func fixedMulDiv26dot6(a, b, c int32) int32 {
 	if c == 0 {
 		return 0

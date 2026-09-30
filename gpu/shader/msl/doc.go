@@ -1,5 +1,13 @@
-// Package msl implements Metal Shading Language (MSL) code generation for naga.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // MSL is Apple's shader language for the Metal graphics API. It is based on C++14
 // with extensions for GPU programming, including explicit address spaces, attribute-based
 // parameter binding, and a metal:: namespace for standard library functions.
@@ -35,30 +43,30 @@
 //
 // WGSL types map to MSL as follows:
 //
-//	WGSL           MSL
-//	----           ---
-//	bool           bool
-//	i32            int
-//	u32            uint
-//	f32            float
-//	f16            half
-//	vec2<T>        metal::T2
-//	vec3<T>        metal::T3
-//	vec4<T>        metal::T4
-//	mat4x4<f32>    metal::float4x4
-//	array<T, N>    array<T, N>  (wrapped in struct)
-//	texture_2d     metal::texture2d<float>
-//	sampler        metal::sampler
+//	WGSL MSL
+//	---- ---
+//	bool bool
+//	i32 int
+//	u32 uint
+//	f32 float
+//	f16 half
+//	vec2<T> metal::T2
+//	vec3<T> metal::T3
+//	vec4<T> metal::T4
+//	mat4x4<f32> metal::float4x4
+//	array<T, N> array<T, N> (wrapped in struct)
+//	texture_2d metal::texture2d<float>
+//	sampler metal::sampler
 //
 // # Address Spaces
 //
 // WGSL address spaces map to MSL as:
 //
-//	uniform    -> constant
-//	storage    -> device
-//	private    -> thread
-//	workgroup  -> threadgroup
-//	function   -> thread (stack)
+//	uniform -> constant
+//	storage -> device
+//	private -> thread
+//	workgroup -> threadgroup
+//	function -> thread (stack)
 //
 // # Entry Points
 //

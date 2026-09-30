@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -7,7 +17,6 @@ import (
 )
 
 // TestForLoopCompilation tests that a simple for loop compiles to valid SPIR-V.
-// This is a regression test for NAGA-SPV-005: loops only executing first iteration.
 //
 // The WGSL for loop:
 //
@@ -24,13 +33,13 @@ import (
 //
 // Expected SPIR-V structure:
 //
-//	entry:          OpBranch -> header
-//	header:         OpLoopMerge(merge, continue) -> OpBranch -> body
-//	body:           condition check -> OpBranchConditional(true->break_body, false->loop_body)
+//	entry: OpBranch -> header
+//	header: OpLoopMerge(merge, continue) -> OpBranch -> body
+//	body: condition check -> OpBranchConditional(true->break_body, false->loop_body)
 //	                break_body: OpBranch -> merge
-//	                loop_body:  ... -> OpBranch -> continue
-//	continue:       i = i + 1 -> OpBranch -> header  (BACK-EDGE)
-//	merge:          (after loop)
+//	                loop_body: ... -> OpBranch -> continue
+//	continue: i = i + 1 -> OpBranch -> header (BACK-EDGE)
+//	merge: (after loop)
 func TestForLoopCompilation(t *testing.T) {
 	const shader = `
 @group(0) @binding(0) var<storage, read_write> output: array<f32>;
@@ -395,8 +404,6 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 
 // TestSDFBatchLoopPattern tests the loop pattern used by gg's GPU SDF accelerator.
-// This was the primary use case motivating NAGA-SPV-005 fix: the multi-pass dispatch
-// workaround was needed because loops only ran one iteration.
 func TestSDFBatchLoopPattern(t *testing.T) {
 	const shader = `
 struct ShapeData {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -123,8 +133,6 @@ func (b *Buffer) mapAsyncStart(mode MapMode, offset, size uint64) (*mapRequest, 
 //
 // The caller must periodically drive Device.Poll(false) so the mapping resolves.
 // For a blocking variant use [Buffer.Map].
-//
-// Matches gogpu/wgpu Buffer.MapAsync(mode, offset, size) (*MapPending, error).
 func (b *Buffer) MapAsync(mode MapMode, offset, size uint64) (*MapPending, error) {
 	req, err := b.mapAsyncStart(mode, offset, size)
 	if err != nil {
@@ -138,19 +146,17 @@ func (b *Buffer) MapAsync(mode MapMode, offset, size uint64) (*MapPending, error
 //
 // The buffer must have been created with BufferUsageMapRead or
 // BufferUsageMapWrite matching mode. offset must be a multiple of 8 and
-// size must be a multiple of 4 (WebGPU MAP_ALIGNMENT).
+// size must be a multiple of 4.
 //
 // After Map succeeds, call MappedRange to obtain a byte view and Unmap
 // when finished:
 //
-//	if err := buf.Map(ctx, wgpu.MapModeRead, 0, size); err != nil {
+//	if err := buf.Map; err != nil {
 //	    return err
 //	}
 //	defer buf.Unmap()
 //	rng, _ := buf.MappedRange(0, size)
 //	data := rng.Bytes()
-//
-// Matches gogpu/wgpu Buffer.Map(ctx, mode, offset, size) error.
 func (b *Buffer) Map(ctx context.Context, mode MapMode, offset, size uint64) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -188,7 +194,7 @@ func (b *Buffer) Map(ctx context.Context, mode MapMode, offset, size uint64) err
 	}
 
 	// Start a polling goroutine so the mapping resolves even when the
-	// caller does not drive Poll itself. This matches the gogpu/wgpu pattern.
+	// caller does not drive Poll itself.
 	if dev != nil {
 		go func() {
 			for {

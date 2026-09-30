@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder
 
 import (
@@ -212,8 +222,6 @@ func TestRouterRoutesIMEToEditor(t *testing.T) {
 }
 
 func TestRouterPlainKeyTypesIntoEditor(t *testing.T) {
-	// A printable key press without modifiers commits text into the focused
-	// editor (plain keyboard path, plan §4).
 	ed := textinput.New()
 	r := NewInputRouter(nil, nil)
 	r.TextEditor = ed
@@ -339,7 +347,7 @@ func TestRouter_IMEAutoSession(t *testing.T) {
 		t.Fatalf("surrounding after edit = %v", ime.surround)
 	}
 
-	// Compose + commit flow through the focused editor too. Buffer contains pre-edit while composing (ENGINE_TEXT_IME_REQUIREMENT §2).
+	// Compose + commit flow through the focused editor too.
 	r.Route(input.FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 0, IMEText: "ni"}, input.Modifiers{}))
 	if !ed.ComposeActive() || ed.Text() != "ani" {
 		t.Fatalf("compose state = %q active=%v", ed.Text(), ed.ComposeActive())

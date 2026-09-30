@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "image"
@@ -172,8 +182,6 @@ func applyMaskToPixmapData(pm *Pixmap, mask *Mask) {
 // NewLuminanceMask creates a mask from an image using the CSS Masking Level 1
 // luminance formula: Y = 0.2126*R + 0.7152*G + 0.0722*B. The luminance
 // value is used directly as the mask alpha (brighter = more visible).
-//
-// This matches tiny-skia MaskType::Luminance and Vello Mask::new_luminance().
 func NewLuminanceMask(img image.Image) *Mask {
 	bounds := img.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()

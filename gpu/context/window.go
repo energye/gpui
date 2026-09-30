@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package context
 
@@ -22,8 +29,8 @@ package context
 // Example usage:
 //
 //	func (ui *UI) Layout(wp gpucontext.WindowProvider) {
-//	    w, h := wp.Size()           // logical points
-//	    scale := wp.ScaleFactor()   // 2.0 on Retina
+//	    w, h := wp.Size() // logical points
+//	    scale := wp.ScaleFactor() // 2.0 on Retina
 //	    ui.root.Layout(w, h, scale)
 //	}
 type WindowProvider interface {
@@ -49,7 +56,7 @@ type WindowProvider interface {
 // Example:
 //
 //	wp := gpucontext.NullWindowProvider{W: 800, H: 600, SF: 2.0}
-//	w, h := wp.Size()       // 800, 600 (logical points)
+//	w, h := wp.Size() // 800, 600 (logical points)
 //	scale := wp.ScaleFactor() // 2.0
 type NullWindowProvider struct {
 	// W is the window width in logical points (DIP).

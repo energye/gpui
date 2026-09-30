@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -14,36 +24,24 @@ const (
 )
 
 // Sampler heap binding model — DXIL backend mirror of the HLSL backend's
-// nagaSamplerHeap pattern. Aligns with wgpu/hal/dx12 which binds samplers
-// through descriptor heaps, not per-WGSL-binding root parameter slots.
+// nagaSamplerHeap pattern.
 //
 // Model (matches HLSL backend hlsl/types.go writeSamplerHeaps +
 // writeSamplerIndexBuffer):
 //
-//   * One global SamplerState array per sampler kind:
-//     - nagaSamplerHeap[2048] at register(s0, space0) — non-comparison
-//     - nagaComparisonSamplerHeap[2048] at register(s0, space1) — comparison
-//   * Per-bind-group StructuredBuffer<uint> nagaGroup<N>SamplerIndexArray at
-//     register(t<N>, space255) — each WGSL sampler @binding(M) reads slot M
-//     of this buffer to discover its position in the global sampler heap.
 //   * At each sample site, the sampler handle is created by:
 //     1. dx.op.bufferLoad on the index buffer at offset M (where M is the
-//        WGSL sampler's @binding number)
 //     2. extractvalue + add (the dxc HLSL→DXIL lowering inserts add 0; we
 //        match for byte-cmp parity though the add is a no-op semantically)
 //     3. dx.op.createHandle with class=Sampler(3), rangeID = the heap's
 //        rangeID, index = the loaded value
 //
-// Reference: dx.op.createHandle (opcode 57, class=Sampler) with a runtime
-// index is the SM 6.0 path that DXC emits when lowering nagaSamplerHeap[].
-// DXC's HLSL→DXIL lowerer (HLOperationLower.cpp) does NOT use
+// DXC's HLSL→DXIL lowerer does NOT use
 // createHandleFromHeap (opcode 218, SM 6.6+) for this pattern — that op is
 // reserved for the explicit `SamplerDescriptorHeap[]` HLSL syntax. Mesa's
 // nir_to_dxil.c does not emit this pattern at all (driver path).
 
-// Default register/space targets for the synthesized heap entries. These
-// match the HLSL backend defaults so dxc -dumpbin output matches the
-// generated naga HLSL → DXC golden byte-for-byte.
+// Default register/space targets for the synthesized heap entries.
 const (
 	samplerHeapDefaultRegister           uint32 = 0
 	samplerHeapDefaultSpace              uint32 = 0
@@ -132,7 +130,7 @@ type samplerHeapState struct {
 
 type samplerHeapBinding struct {
 	group      uint32
-	binding    uint32 // raw WGSL @binding number — used as the index-buffer offset
+	binding    uint32
 	comparison bool
 }
 
@@ -310,13 +308,6 @@ func (e *Emitter) appendSamplerHeapSamplers(rangeCounters *[4]int) {
 // emitSamplerHeapHandles materializes a per-WGSL-sampler %dx.types.Handle
 // after the regular createHandle calls in emitResourceHandles. For each
 // WGSL sampler global, emits:
-//
-//	%idx_load = call %dx.types.ResRet.i32 @dx.op.bufferLoad.i32(
-//	    i32 68, %dx.types.Handle %indexBufHandle, i32 <wgslBinding>, i32 0)
-//	%idx_raw  = extractvalue %dx.types.ResRet.i32 %idx_load, 0
-//	%idx      = add i32 %idx_raw, 0
-//	%handle   = call %dx.types.Handle @dx.op.createHandle(
-//	    i32 57, i8 3, i32 <heapRangeID>, i32 %idx, i1 false)
 //
 // and stores the handle's emitter value ID in e.resourceHandles[gvHandle]
 // AND patches the resourceInfo.handleID for the synthesized "wgsl-binding"

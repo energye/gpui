@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -17,7 +27,7 @@ type TextRun struct {
 	R, G, B, A  float64
 	ApproxCharW float64 // 0 → inherit parent
 	// IsColor marks color-glyph runs (emoji): they paint via the string
-	// color path and never enter the mask batch (M5). Auto-detected in
+	// color path and never enter the mask batch. Auto-detected in
 	// AddRun/SetRuns; an explicit true is never cleared.
 	IsColor bool
 	// Decoration is a render.TextDecoration bitset (underline etc.); 0 = none.
@@ -195,7 +205,7 @@ type displaySpan struct {
 	ApproxCharW float64
 	X           float64
 	Width       float64
-	IsColor     bool // carried from TextRun (M5 color-glyph marking)
+	IsColor     bool // carried from TextRun
 	Decoration  render.TextDecoration
 }
 

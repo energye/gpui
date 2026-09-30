@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -304,8 +314,6 @@ func TestIsBlitOnly_WithSDFShapes(t *testing.T) {
 // --- RenderFrameGrouped guard tests ---
 
 func TestRenderFrameGrouped_BaseLayerOnlyGuard(t *testing.T) {
-	// Regression test for BUG-GG-BLIT-PATH-001:
-	// totalItems==0 && baseLayer!=nil must NOT early-return.
 	// We test the guard logic directly without full render pipeline.
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
@@ -382,8 +390,6 @@ func assertFloat(t *testing.T, got, want float32, label string) {
 	}
 }
 
-// --- Regression: BUG-GG-BLIT-LOADOP-003 ---
-
 func TestBlitLoadOp_DamageRectWithoutFrameRendered(t *testing.T) {
 	// Regression: encodeBlitOnlyPass required s.frameRendered==true for
 	// LoadOpLoad, but BeginGPUFrame always sets frameRendered=false.
@@ -401,7 +407,7 @@ func TestBlitLoadOp_DamageRectWithoutFrameRendered(t *testing.T) {
 	damageRect := image.Rect(100, 100, 148, 148) // 48x48 spinner
 
 	// Before fix: !damageRect.Empty() && s.frameRendered → false → LoadOpClear
-	// After fix:  !damageRect.Empty() → true → LoadOpLoad
+	// After fix: !damageRect.Empty() → true → LoadOpLoad
 	if damageRect.Empty() {
 		t.Fatal("test setup: damage rect should not be empty")
 	}
@@ -438,11 +444,7 @@ func TestBlitLoadOp_NoDamageRect(t *testing.T) {
 	}
 }
 
-// --- Regression: BUG-GG-GPU-TEXTURE-OVERLAY-SIZE ---
-
 func TestBuildGPUTextureResources_SeparateVertexBuffers(t *testing.T) {
-	// Regression test for BUG-GG-GPU-TEXTURE-OVERLAY-SIZE:
-	// Base layer (full-screen quad) must NOT overwrite overlay vertices.
 	// Before fix: both used s.gpuTexVertBuf → base layer overwrote overlay.
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
@@ -488,8 +490,6 @@ func TestBuildGPUTextureResources_SeparateVertexBuffers(t *testing.T) {
 		t.Error("base layer should use s.gpuTexBaseVertBuf")
 	}
 }
-
-// --- Regression: BUG-GG-OVERLAY-ONLY-BLIT-001 ---
 
 func TestIsBlitOnly_BaseOnly(t *testing.T) {
 	device, queue, cleanup := createNativeDevice(t)

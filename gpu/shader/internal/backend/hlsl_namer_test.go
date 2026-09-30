@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package backend
 
 import (
@@ -5,13 +15,10 @@ import (
 	"testing"
 )
 
-// TestNeedsTrailingUnderscore_DXILResourceNames verifies that resource variable
-// names used in real naga shaders produce the correct trailing-underscore
 // decision. The DXIL backend (dxil/internal/emit/resources.go:195) calls this
 // to match DXC's metadata resource naming. Getting this wrong means DXIL
 // container validation fails.
 //
-// Test cases sourced from actual shader golden files and the Rust naga namer:
 //   - t1, t2, atomic_i32 etc. end with digits -> underscore
 //   - "in", "out", "float" etc. are HLSL keywords -> underscore
 //   - "params", "camera" etc. are plain identifiers -> no underscore
@@ -21,7 +28,6 @@ func TestNeedsTrailingUnderscore_DXILResourceNames(t *testing.T) {
 		want bool
 	}{
 		// Real DXIL shader resource names that end with digits.
-		// The Rust namer appends SEPARATOR ('_') when base.ends_with(char::is_numeric).
 		{"t1", true},
 		{"t2", true},
 		{"atomic_i32", true},
@@ -32,7 +38,6 @@ func TestNeedsTrailingUnderscore_DXILResourceNames(t *testing.T) {
 		{"image_2d_i32", true},
 		{"in_data_storage_g0_b3", true},
 
-		// HLSL case-sensitive keywords — Rust namer: self.keywords.contains(base).
 		{"in", true},
 		{"out", true},
 		{"float", true},
@@ -55,7 +60,6 @@ func TestNeedsTrailingUnderscore_DXILResourceNames(t *testing.T) {
 		{"WaveGetLaneIndex", true},
 		{"TraceRay", true},
 
-		// Naga helper names — reserved to avoid conflicts with generated code.
 		{"naga_modf", true},
 		{"naga_frexp", true},
 		{"naga_div", true},
@@ -89,15 +93,9 @@ func TestNeedsTrailingUnderscore_DXILResourceNames(t *testing.T) {
 	}
 }
 
-// TestNeedsTrailingUnderscore_CaseInsensitive verifies the case-insensitive
-// keyword matching that mirrors Rust naga's CaseInsensitiveKeywordSet.
-//
 // FXC (without strict mode) treats these keywords as case-insensitive.
 // FXC strict mode: "error X3086: alternate cases for 'pass' are deprecated".
-// Rust stores them in AsciiUniCase (eq_ignore_ascii_case); our Go code uses
-// strings.ToLower + exact map lookup. Both must produce the same result.
-//
-// The canonical list from Rust hlsl/keywords.rs RESERVED_CASE_INSENSITIVE:
+// Both must produce the same result.
 //
 //	asm, decl, pass, technique, Texture1D, Texture2D, Texture3D, TextureCube
 func TestNeedsTrailingUnderscore_CaseInsensitive(t *testing.T) {
@@ -164,8 +162,6 @@ func TestNeedsTrailingUnderscore_EdgeCases(t *testing.T) {
 	}
 }
 
-// TestEndsWithDigit verifies ASCII digit detection at end of string,
-// matching Rust's base.ends_with(char::is_numeric).
 func TestEndsWithDigit(t *testing.T) {
 	tests := []struct {
 		input string
@@ -189,9 +185,6 @@ func TestEndsWithDigit(t *testing.T) {
 	}
 }
 
-// TestIsASCIIAlphanumeric verifies the Go implementation matches
-// Rust's char::is_ascii_alphanumeric(), which the Rust namer uses
-// in sanitize() to filter identifier characters.
 func TestIsASCIIAlphanumeric(t *testing.T) {
 	// Verify the exact boundaries: a-z, A-Z, 0-9 are true.
 	// Everything else including underscore, unicode, control chars is false.
@@ -206,7 +199,7 @@ func TestIsASCIIAlphanumeric(t *testing.T) {
 		{'a' - 1, false}, {'z' + 1, false},
 		{'A' - 1, false}, {'Z' + 1, false},
 		{'0' - 1, false}, {'9' + 1, false},
-		// Underscore — NOT alphanumeric (critical: Rust namer checks separately).
+		// Underscore — NOT alphanumeric.
 		{'_', false},
 		// Unicode — NOT ASCII alphanumeric.
 		{'\u03b8', false}, // theta
@@ -219,10 +212,7 @@ func TestIsASCIIAlphanumeric(t *testing.T) {
 	}
 }
 
-// TestHLSLKeywordMaps_RustParity verifies that our keyword maps contain
-// all categories from the Rust naga hlsl/keywords.rs source.
 func TestHLSLKeywordMaps_RustParity(t *testing.T) {
-	// Spot-check from each Rust category.
 	mustExistCaseSensitive := map[string]string{
 		// FXC keywords
 		"float": "FXC keyword",
@@ -280,14 +270,13 @@ func TestHLSLKeywordMaps_RustParity(t *testing.T) {
 		"SV_Barycentrics":           "semantic",
 		"SV_ShadingRate":            "semantic",
 		"SV_CullPrimitive":          "semantic",
-		// Naga helpers
-		"naga_modf":        "naga helper",
-		"naga_frexp":       "naga helper",
-		"naga_extractBits": "naga helper",
-		"naga_insertBits":  "naga helper",
-		"naga_div":         "naga helper",
-		"_naga_abs":        "naga helper",
-		"_naga_neg":        "naga helper",
+		"naga_modf":                 "naga helper",
+		"naga_frexp":                "naga helper",
+		"naga_extractBits":          "naga helper",
+		"naga_insertBits":           "naga helper",
+		"naga_div":                  "naga helper",
+		"_naga_abs":                 "naga helper",
+		"_naga_neg":                 "naga helper",
 	}
 	for kw, category := range mustExistCaseSensitive {
 		if _, ok := HLSLReservedKeywords[kw]; !ok {
@@ -295,8 +284,6 @@ func TestHLSLKeywordMaps_RustParity(t *testing.T) {
 		}
 	}
 
-	// Case-insensitive: must contain all 8 entries from Rust RESERVED_CASE_INSENSITIVE,
-	// stored as lowercase keys.
 	mustExistCaseInsensitive := []string{
 		"asm", "decl", "pass", "technique",
 		"texture1d", "texture2d", "texture3d", "texturecube",

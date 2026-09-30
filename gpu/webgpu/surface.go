@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -375,7 +385,7 @@ func (s *Surface) DiscardTexture(_ hal.SurfaceTexture) {
 }
 
 // AcquireTexture acquires the next surface texture for rendering.
-// Implements hal.Surface (fence ignored on wgpu-native; wraps GetCurrentTexture).
+// Implements hal.Surface.
 func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error) {
 	st, suboptimal, err := s.GetCurrentTexture()
 	if err != nil {
@@ -465,7 +475,6 @@ func (st *SurfaceTexture) Release() {
 // Destroy implements hal.SurfaceTexture: same as Release.
 func (st *SurfaceTexture) Destroy() { st.Release() }
 
-// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
 func (st *SurfaceTexture) NativeHandle() uintptr { return 0 }
 
 // Format implements hal.Texture: delegates to underlying texture.
@@ -476,13 +485,10 @@ func (st *SurfaceTexture) Format() TextureFormat {
 	return types.TextureFormatUndefined
 }
 
-// CurrentUsage implements hal.Texture: Rust manages barriers internally, returns 0.
 func (st *SurfaceTexture) CurrentUsage() TextureUsage { return 0 }
 
-// AddPendingRef implements hal.Texture: no-op on Rust.
 func (st *SurfaceTexture) AddPendingRef() {}
 
-// DecPendingRef implements hal.Texture: no-op on Rust.
 func (st *SurfaceTexture) DecPendingRef() {}
 
 var _ hal.SurfaceTexture = (*SurfaceTexture)(nil)

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -11,7 +21,7 @@ import (
 // =============================================================================
 
 // stringToStringView converts a Go string to a wgpu-native StringView without
-// allocating (opt42). The returned view points at the string's backing bytes —
+// allocating. The returned view points at the string's backing bytes —
 // callers must KeepAlive the Go string (or a parent struct that holds it)
 // across the FFI call that consumes the StringView.
 func stringToStringView(s string) StringView {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — integration with glyph rendering pipeline.
 //
 // This file wires the TT bytecode interpreter into the existing glyph
@@ -14,9 +24,6 @@
 //  1. TT bytecode phantom points — hinted advance from interpreter
 //  2. HVAR — if font has HVAR table (variable fonts)
 //  3. Raw hmtx — unhinted advance from horizontal metrics table
-//
-// Reference: skrifa glyf/mod.rs (FreeTypeScaler lifecycle)
-// Reference: skrifa hint/instance.rs (HintInstance::hint)
 package text
 
 import (
@@ -120,7 +127,6 @@ func (c *ttHintCache) hintGlyphOutline(glyphID uint16, ppem int32) (*ttGlyphOutl
 	// Wire composite component hinting: each component carrying its own
 	// bytecode is hinted (in its own coordinate space) before being merged,
 	// exactly as FreeType recursively hints subglyphs during composite load.
-	// Reference: ttgload.c TT_Hint_Glyph with is_composite=0 per subglyph.
 	c.loader.hintComponent = func(o *ttGlyphOutline) error { return instance.hintGlyph(o) }
 
 	// Load glyph outline with phantom points.
@@ -134,8 +140,7 @@ func (c *ttHintCache) hintGlyphOutline(glyphID uint16, ppem int32) (*ttGlyphOutl
 
 	// Empty glyphs (space, etc.) have phantom-only outlines with pre-rounded
 	// phantom points. No bytecode to run — just return the outline.
-	// Reference: FreeType ttgload.c:1555-1608 — does NOT call TT_Hint_Glyph
-	// for empty glyphs. skrifa load_empty does NOT call hinter.hint().
+	// skrifa load_empty does NOT call hinter.hint().
 	if len(outline.contours) == 0 && len(outline.bytecode) == 0 {
 		return outline, nil
 	}
@@ -454,7 +459,6 @@ func f26dot6ToPixelsX(v int32) float32 {
 
 // f26dot6ToPixelsY converts a 26.6 fixed-point Y value from Y-UP (TrueType
 // native) to Y-DOWN (Go rendering convention) by negating.
-// Matches sfnt.LoadGlyph (a[j].Y = -scale(...)) and auto-hinter contourPtY.
 func f26dot6ToPixelsY(v int32) float32 {
 	return -float32(v) / 64.0
 }

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package input
 
 import (
@@ -112,9 +122,6 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 }
 
 // fromStylus maps a platform pen sample into the normalized stylus event.
-// Phase reuses the touch clamp (Down/Move/Up/Cancel, others arrive as Move);
-// Pressure stays 0–1 as the backend reported it (sensor-less pens arrive as
-// 1 per §4.4 E 组, hover/unknown may stay 0); Tilt stays degrees (0 = unknown).
 func fromStylus(ev platform.Event, mods Modifiers) Event {
 	p := ev.StylusPressure
 	if math.IsNaN(p) || p < 0 {

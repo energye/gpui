@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -5,7 +15,7 @@ import (
 )
 
 // TestCallInConditional_FuncWithIfReturn tests calling a function that contains
-// if/return from within a conditional block. This is the NAGA-SPV-002 scenario:
+// if/return from within a conditional block.
 //
 //	fn helper(x: f32) -> f32 {
 //	    if (x < 0.0) { return 0.0; }
@@ -13,7 +23,7 @@ import (
 //	}
 //
 //	if (val > 0.0) {
-//	    result = helper(val);  // call in conditional
+//	    result = helper(val); // call in conditional
 //	}
 //
 // The risk: emitCall caches the call result ID in callResultIDs, but if the

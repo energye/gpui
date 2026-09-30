@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package particle
 
 import (
@@ -352,8 +362,6 @@ func (t *Trail) Verts() ([]TrailVert, error) {
 	return out, nil
 }
 
-// TrailSegment is one drawable center-line piece for the existing atlas
-// draw: P0/P1 centers, Angle in radians, endpoint widths, endpoint
 // colors. The window turns each segment into one rotated atlas sprite
 // plus one joint square, so no new submit path is needed.
 type TrailSegment struct {

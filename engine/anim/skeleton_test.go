@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package anim
 
 import (
@@ -276,7 +286,6 @@ func TestSkeletonBonesFromCases(t *testing.T) {
 	if len(rule.Bones) != 2 || rule.Target != "target" || rule.Mix != 1 || !rule.BendPositive {
 		t.Errorf("ik rule = %+v, want 2 bones/target/mix1/bend+", rule)
 	}
-	// Additive entry for S46: replace lerps, additive adds the delta.
 	base, _ := NewPose(s)
 	layer, _ := NewPose(s)
 	if err := layer.SetBoneLocal("upper", BoneLocal{X: 25, Y: 5, Rotation: 30, ScaleX: 1, ScaleY: 1}); err != nil {
@@ -672,8 +681,7 @@ func TestSkeletonLongRunStable(t *testing.T) {
 	}
 }
 
-// F: offscreen golden stands in for the window (pure math until the
-// game_anim --case=sk window lands with P2). The frozen pose plus draw
+// The frozen pose plus draw
 // order in spine_cases.json is the evidence both backends share; shape
 // assertions below pin the meaning, not just the numbers.
 func TestSkeletonOffscreenGolden(t *testing.T) {
@@ -744,8 +752,6 @@ func TestSkeletonOffscreenGolden(t *testing.T) {
 	if math.Abs(hv.X-midx) >= 1e-9 || math.Abs(hv.Y-midy) >= 1e-9 {
 		t.Errorf("head = (%v,%v), want midpoint (%v,%v)", hv.X, hv.Y, midx, midy)
 	}
-	// Window intent: pure math keeps offscreen goldens; the real window
-	// game_anim --case=sk (walk/run/jump on true art) lands with P2.
 	// examples/game_anim does not exist yet, so no window is built here.
 	if _, err := os.Stat(filepath.Join("..", "..", "examples", "game_anim")); err == nil {
 		t.Log("game_anim window exists; P2 should wire --case=sk to this skeleton")

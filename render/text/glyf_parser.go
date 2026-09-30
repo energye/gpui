@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 //
 // This file implements a raw TrueType glyf table contour point parser.
@@ -12,11 +22,6 @@
 // auto-hinter's segment detection, stem linking, and point propagation
 // must operate on the raw TrueType point representation to achieve
 // coordinate parity with FreeType.
-//
-// References:
-//   - TrueType glyf table: https://learn.microsoft.com/en-us/typography/opentype/spec/glyf
-//   - FreeType FT_Load_Glyph → FT_GlyphSlot.outline (raw contour points)
-//   - skrifa Outline::fill (raw contour iteration)
 package text
 
 import (
@@ -296,7 +301,6 @@ func extractGlyfContourOwn(glyfData, locaData []byte, glyphIndex int, isLong boo
 }
 
 // Composite glyph component flags.
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/glyf#composite-glyph-description
 const (
 	compositeArgWords       = 0x0001 // Arguments are words (int16) vs bytes (int8)
 	compositeArgsAreXY      = 0x0002 // Arguments are XY offsets vs point indices
@@ -310,7 +314,6 @@ const (
 )
 
 // compositeRecursionLimit is the maximum recursion depth for composite glyphs.
-// Matches skrifa GLYF_COMPOSITE_RECURSION_LIMIT = 32.
 const compositeRecursionLimit = 32
 
 // maxCompositeComponents bounds the total number of composite-glyph
@@ -336,8 +339,6 @@ type compositeComponent struct {
 // parseCompositeComponents parses the component list from a composite glyph's
 // binary data starting at offset pos. Returns the parsed components, the
 // byte offset after the last component (for instructions), and any error.
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/glyf#composite-glyph-description
 //
 //nolint:gocognit,nestif,gocritic // TrueType composite glyph binary parsing is inherently complex — direct port of spec.
 func parseCompositeComponents(data []byte, startPos int) ([]compositeComponent, int, error) {
@@ -424,8 +425,6 @@ func parseCompositeComponents(data []byte, startPos int) ([]compositeComponent, 
 // extractCompositeContours recursively loads and merges component glyphs
 // for a composite glyph (numContours < 0). Entry point: seeds fresh
 // cycle-detection map and work budget for extractCompositeContoursGuarded.
-//
-// Reference: skrifa glyf/mod.rs:784-960 (load_composite)
 func extractCompositeContours(glyfData, locaData []byte, glyphIndex int, isLong bool, depth int) (*GlyfContours, error) {
 	return extractCompositeContoursGuarded(glyfData, locaData, glyphIndex, isLong, depth, nil, nil)
 }

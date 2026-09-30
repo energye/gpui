@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package tilecompute
 
@@ -10,7 +17,6 @@ import (
 
 // TestFineRasterizeClip verifies that CmdBeginClip/CmdEndClip produce
 // correct compositing output. This exercises the packed blend stack
-// (the code path that caused Adreno miscompilation in BUG-ADRENO-001).
 func TestFineRasterizeClip(t *testing.T) {
 	bg := [4]float32{1, 1, 1, 1} // white background (premultiplied)
 

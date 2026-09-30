@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -75,7 +85,7 @@ func (info ColorFontInfo) HasAnyColorTable() bool {
 // DetectGlyphType determines the glyph type for rendering.
 // This is a helper function that checks for color tables.
 //
-// Priority order (based on Rust library research):
+// Priority order:
 //  1. COLR (vector, scalable without quality loss)
 //  2. Bitmap (CBDT/sbix - PNG based, widely compatible)
 //  3. Outline (fallback for non-color glyphs)

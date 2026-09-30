@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package gestures implements a Flutter-style GestureArena (P5a).
 //
 // Hit-test path order is deepest-first (leaf → root): recognizers on the
 // deepest target add to the arena first. One pointer ID = one arena: mouse is
-// ID 0, each touch slot is a distinct ID ≥ 1, so multi-touch runs parallel
-// arenas (plan §5).
 //
 // Tap vs pan: movement within kTouchSlop keeps both pending; beyond slop
 // pan accepts and tap is rejected; up within slop makes tap accept.

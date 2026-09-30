@@ -1,13 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 //
 // This file implements the OpenType gvar (Glyph Variations) table parser.
 // The gvar table stores per-glyph variation deltas that modify outline
 // points for variable fonts based on the current design-space coordinates.
-//
-// Reference: skrifa (Google fontations)
-//   - read-fonts/src/tables/gvar.rs (gvar table parser)
-//   - read-fonts/src/tables/variations.rs (tuple variation format)
-//   - skrifa/src/outline/glyf/deltas.rs (IUP + delta application)
 //
 // Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar
 package text
@@ -21,13 +26,13 @@ import (
 //
 // Binary layout:
 //
-//	uint16  majorVersion (1)
-//	uint16  minorVersion (0)
-//	uint16  axisCount
-//	uint16  sharedTupleCount
+//	uint16 majorVersion (1)
+//	uint16 minorVersion (0)
+//	uint16 axisCount
+//	uint16 sharedTupleCount
 //	Offset32 sharedTuplesOffset
-//	uint16  glyphCount
-//	uint16  flags (bit 0: long offsets if set)
+//	uint16 glyphCount
+//	uint16 flags (bit 0: long offsets if set)
 //	Offset32 glyphVariationDataArrayOffset
 //	Offset[glyphCount+1] offsets (uint16 or uint32)
 type gvarTable struct {
@@ -147,8 +152,6 @@ func parseGvarSharedTuples(data []byte, count, axisCount int, offset uint32) [][
 // outlinePoints are the original unscaled points as [x, y] pairs.
 //
 // Returns nil, nil if the glyph has no variation data.
-//
-// Matches skrifa deltas.rs:simple_glyph + compute_deltas_for_glyph.
 func (g *gvarTable) glyphVariationDeltas(
 	glyphID uint16,
 	coords []int16,
@@ -283,7 +286,6 @@ func (g *gvarTable) readPeakTuple(st *gvarTupleState, tupleIndexRaw uint16) ([]i
 	sharedTupleIdx := int(tupleIndexRaw & 0x0FFF)
 	if sharedTupleIdx < len(g.sharedTuples) {
 		tuple := g.sharedTuples[sharedTupleIdx]
-		// Matches skrifa check (variations.rs:1298): peak.len() must equal axisCount.
 		if len(tuple) != g.axisCount {
 			return nil, false
 		}
@@ -383,7 +385,6 @@ func accumulateSparseDeltas(
 // the given normalized coordinates.
 //
 // Returns a Fixed 16.16 value where 0x10000 = 1.0, or 0 if inactive.
-// Matches skrifa compute_scalar (variations.rs:1285-1341).
 func computeTupleScalar(peak, coords []int16, interStart, interEnd []int16) int32 {
 	scalar := int32(0x10000) // 1.0 in 16.16
 	hasIntermediate := len(interStart) > 0 && len(interEnd) > 0
@@ -429,11 +430,9 @@ func computeAxisScalar(scalar, coord, peak int32, axisIdx int, hasInter bool, in
 
 // computeAxisScalarIntermediate handles the intermediate region case.
 //
-// Matches skrifa compute_scalar (variations.rs:1316-1330):
-//
 //	if coord <= start || coord >= end { return None }
 //	if coord < peak { scalar *= (coord - start) / (peak - start) }
-//	else            { scalar *= (end - coord)   / (end - peak)   }
+//	else { scalar *= (end - coord) / (end - peak) }
 func computeAxisScalarIntermediate(scalar, coord, peak, start, end int32) int32 {
 	if coord <= start || coord >= end {
 		return 0

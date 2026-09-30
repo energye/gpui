@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -21,18 +28,15 @@ type BindTarget struct {
 	// constant buffer for this binding. When set, the generated HLSL adds the
 	// dynamic offset to ByteAddressBuffer Load/Store addresses.
 	// This is the index in the buffer at Options.DynamicStorageBufferOffsetsTargets.
-	// Matches Rust naga's BindTarget::dynamic_storage_buffer_offsets_index.
 	DynamicStorageBufferOffsetsIndex *uint32
 
 	// RestrictIndexing indicates that this specific binding should have bounds
 	// checking applied to array indices, even for Uniform address space.
-	// Matches Rust naga's BindTarget::restrict_indexing.
 	RestrictIndexing bool
 }
 
 // OffsetsBindTarget specifies the HLSL register binding for a dynamic buffer
 // offsets constant buffer. Each group of dynamic storage buffers gets one of these.
-// Matches Rust naga's OffsetsBindTarget.
 type OffsetsBindTarget struct {
 	Space    uint8
 	Register uint32
@@ -52,10 +56,8 @@ type SamplerHeapBindTargets struct {
 // ResourceBinding identifies a resource in the source shader.
 // This maps WGSL/SPIR-V binding points to HLSL registers.
 type ResourceBinding struct {
-	// Group corresponds to WGSL @group or SPIR-V DescriptorSet.
 	Group uint32
 
-	// Binding corresponds to WGSL @binding or SPIR-V Binding.
 	Binding uint32
 }
 
@@ -123,7 +125,6 @@ func (bt BindTarget) WithArraySize(size uint32) BindTarget {
 // ExternalTextureBindTarget specifies HLSL binding information for an external
 // texture global variable. External textures are decomposed into 3 plane
 // textures and a parameters cbuffer.
-// Matches Rust naga's ExternalTextureBindTarget.
 type ExternalTextureBindTarget struct {
 	// Planes contains the bind targets for the 3 plane textures.
 	Planes [3]BindTarget

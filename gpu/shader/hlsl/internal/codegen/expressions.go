@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Package hlsl implements HLSL expression generation for all IR expression types.
 // Expression functions are called transitively via writeBlock → writeStatement → writeExpression.
@@ -41,7 +48,6 @@ func (w *Writer) writeExpression(handle ir.ExpressionHandle) error {
 	}
 
 	// Handle special constants (NagaConstants) for vertex_index, instance_index, num_workgroups.
-	// Matches Rust naga's ff_input check in write_expr.
 	closingBracket := ""
 	if w.options.SpecialConstantsBinding != nil {
 		if bi := w.getFixedFunctionInput(handle); bi != nil {
@@ -180,8 +186,7 @@ func (w *Writer) writeExpressionKind(kind ir.ExpressionKind) error {
 }
 
 // writeConstExpression writes a const expression directly, bypassing the named
-// expression cache. Matches Rust naga's write_const_expression which always
-// writes the expression inline from the arena. Used for image sample offsets.
+// expression cache. Matches Rust the write_const_expression which always
 func (w *Writer) writeConstExpression(handle ir.ExpressionHandle) error {
 	if w.currentFunction == nil {
 		return fmt.Errorf("no current function context")
@@ -228,7 +233,6 @@ func (w *Writer) writeLiteralValue(v ir.LiteralValue) error {
 		}
 
 	case ir.LiteralI32:
-		// Rust naga wraps I32 in int() constructor for unambiguous overload resolution
 		i := int32(val)
 		if i == math.MinInt32 {
 			fmt.Fprintf(&w.Out, "int(%d - 1)", i+1)
@@ -424,7 +428,6 @@ func (w *Writer) writeConstantExpression(e ir.ExprConstant) error {
 }
 
 // writeZeroValueExpression writes a zero-initialized value.
-// Rust naga wraps these in helper functions to avoid parse issues like `(float4)0.y`.
 func (w *Writer) writeZeroValueExpression(e ir.ExprZeroValue) error {
 	typeId := w.hlslTypeId(e.Type)
 	fmt.Fprintf(&w.Out, "ZeroValue%s()", typeId)
@@ -455,7 +458,7 @@ func (w *Writer) writeComposeExpression(e ir.ExprCompose) error {
 
 	typeName := w.getTypeName(e.Type)
 
-	// Struct types use Construct{Type}() function (matches Rust naga)
+	// Struct types use Construct{Type}() function
 	if _, needsConstructor := w.structConstructors[e.Type]; needsConstructor {
 		fmt.Fprintf(&w.Out, "Construct%s(", typeName)
 	} else {
@@ -572,7 +575,6 @@ func (w *Writer) writeAccessExpression(e ir.ExprAccess) error {
 	// Dynamic column access on matCx2 inside array-of-matCx2 struct members
 	// or on a global uniform matCx2:
 	// use __get_col_of_matCx2(base, index) instead of base[index].
-	// Matches Rust naga: get_inner_matrix_of_struct_array_member || get_global_uniform_matrix.
 	{
 		m := w.getInnerMatrixOfStructArrayMember(e.Base)
 		if m == nil || !m.isMatCx2() {
@@ -593,7 +595,6 @@ func (w *Writer) writeAccessExpression(e ir.ExprAccess) error {
 	}
 
 	// Determine if this is a binding array access, and whether the index is non-uniform.
-	// Matches Rust naga: indexing_binding_array + non_uniform_qualifier detection.
 	indexingBindingArray := w.isBindingArrayAccess(e.Base)
 	nonUniformQualifier := indexingBindingArray && w.isNonUniform(e.Index)
 
@@ -609,9 +610,6 @@ func (w *Writer) writeAccessExpression(e ir.ExprAccess) error {
 		w.Out.WriteByte('[')
 	}
 
-	// When restrict_indexing is enabled, clamp dynamic indices to valid range
-	// matching Rust naga: min(uint(index), maxIndex)
-	// Skip check when indexing a binding array (they don't get restrict_indexing).
 	needsBoundCheck := w.options.RestrictIndexing && !indexingBindingArray && w.needsRestrictIndexing(e.Base)
 	if needsBoundCheck {
 		if maxIdx, ok := w.getAccessMaxIndex(e.Base); ok {
@@ -702,16 +700,12 @@ func (w *Writer) getAccessMaxIndex(base ir.ExpressionHandle) (uint32, bool) {
 }
 
 // needsRestrictIndexing returns true if bounds checking should be applied for
-// this base expression's address space. Matches Rust naga's logic:
-// Function/Private/WorkGroup/Immediate/TaskPayload/None -> true
-// Uniform -> check per-binding BindTarget.RestrictIndexing
-// Storage/Handle -> unreachable (handled by storage load path)
+// this base expression's address space.
 func (w *Writer) needsRestrictIndexing(base ir.ExpressionHandle) bool {
 	space := w.resolveAccessBaseSpace(base)
 	switch space {
 	case ir.SpaceUniform:
 		// Check if the per-binding restrict_indexing is set.
-		// Matches Rust: resolve the global variable's binding, look up BindTarget.restrict_indexing.
 		if gvHandle, ok := w.resolveGlobalVariableHandle(base); ok {
 			gv := w.module.GlobalVariables[gvHandle]
 			if gv.Binding != nil {
@@ -791,8 +785,7 @@ func (w *Writer) resolveAccessBaseSpace(handle ir.ExpressionHandle) ir.AddressSp
 }
 
 // isConstantIndexInBounds checks if the index expression is a compile-time constant
-// whose value is less than `length`. Matches Rust naga's access_needs_check:
-// if the index is Known and < length, no bounds check is needed.
+// whose value is less than `length`.
 func (w *Writer) isConstantIndexInBounds(index ir.ExpressionHandle, length uint32) bool {
 	if w.currentFunction == nil || int(index) >= len(w.currentFunction.Expressions) {
 		return false
@@ -939,7 +932,6 @@ func (w *Writer) writeAccessIndexExpression(e ir.ExprAccessIndex) error {
 	case ir.MatrixType:
 		// Matrix column access. For matCx2 in struct array members or global uniform,
 		// use ._N notation matching the __matCx2 decomposed struct layout.
-		// Matches Rust: get_inner_matrix_of_struct_array_member || get_global_uniform_matrix.
 		if inner.Rows == 2 {
 			m := w.getInnerMatrixOfStructArrayMember(e.Base)
 			if m == nil || !m.isMatCx2() {
@@ -960,7 +952,6 @@ func (w *Writer) writeAccessIndexExpression(e ir.ExprAccessIndex) error {
 
 	case ir.BindingArrayType, ir.ArrayType:
 		// Check for sampler binding array pattern -- use heap access.
-		// Matches Rust naga AccessIndex handling for BindingArray of samplers.
 		samplerInfo := w.samplerBindingArrayInfoFromExpression(e.Base)
 		if samplerInfo != nil {
 			// Sampler binding array: heap[indexBuffer[baseName + index]]
@@ -997,7 +988,6 @@ func (w *Writer) writeAccessIndexExpression(e ir.ExprAccessIndex) error {
 // getFixedFunctionInput checks if an expression is a fixed-function input
 // (VertexIndex, InstanceIndex, NumWorkGroups) from an entry point argument.
 // Returns the builtin kind if found, nil otherwise.
-// Matches Rust naga's FunctionCtx::is_fixed_function_input.
 func (w *Writer) getFixedFunctionInput(handle ir.ExpressionHandle) *ir.BuiltinValue {
 	if w.currentFunction == nil || w.currentEPIndex < 0 {
 		return nil
@@ -1009,8 +999,6 @@ func (w *Writer) getFixedFunctionInput(handle ir.ExpressionHandle) *ir.BuiltinVa
 	expr := w.currentFunction.Expressions[handle].Kind
 
 	// Walk through AccessIndex chain to find the root FunctionArgument.
-	// Matches Rust naga's is_fixed_function_input which only walks through
-	// struct AccessIndex (not vector/matrix AccessIndex).
 	var builtIn *ir.BuiltinValue
 	for {
 		switch e := expr.(type) {
@@ -1077,7 +1065,6 @@ func (w *Writer) writeFunctionArgumentExpression(e ir.ExprFunctionArgument) erro
 // For binding arrays of samplers, nothing is written -- the access is handled
 // entirely by writeAccessExpression/writeAccessIndexExpression.
 // For external textures, emits the expanded plane + params names.
-// Matches Rust naga: is_binding_array_of_samplers check in Expression::GlobalVariable.
 func (w *Writer) writeGlobalVariableExpression(e ir.ExprGlobalVariable) error {
 	// Skip binding arrays of samplers -- writing is done by Access/AccessIndex
 	if w.isBindingArrayOfSamplers(e.Variable) {
@@ -1110,11 +1097,9 @@ func (w *Writer) writeLocalVariableExpression(e ir.ExprLocalVariable) error {
 
 // writeLoadExpression writes a load through a pointer.
 // For matCx2 types in uniform buffers, wraps with a cast to the native HLSL matrix type.
-// Matches Rust naga back/hlsl/writer.rs Expression::Load handling.
 func (w *Writer) writeLoadExpression(e ir.ExprLoad) error {
 	// Check if this load needs a matCx2-to-matrix cast.
 	// Applies to: global uniform matCx2 and struct member array-of-matCx2.
-	// Matches Rust naga: get_inner_matrix_of_struct_array_member || get_inner_matrix_of_global_uniform.
 	m := w.getInnerMatrixOfStructArrayMember(e.Pointer)
 	if m == nil || !m.isMatCx2() {
 		m = w.getInnerMatrixOfGlobalUniform(e.Pointer)
@@ -1154,7 +1139,6 @@ func (w *Writer) writeLoadExpression(e ir.ExprLoad) error {
 
 // getInnerMatrixOfGlobalUniform walks an access chain to determine if it
 // ultimately references a uniform global variable containing a matCx2.
-// Matches Rust naga get_inner_matrix_of_global_uniform.
 func (w *Writer) getInnerMatrixOfGlobalUniform(handle ir.ExpressionHandle) *matrixTypeInfo {
 	if w.currentFunction == nil {
 		return nil
@@ -1224,7 +1208,6 @@ func (w *Writer) getInnerMatrixOfGlobalUniform(handle ir.ExpressionHandle) *matr
 
 // getGlobalUniformMatrix checks if the given expression is a direct reference to a
 // global uniform variable of matrix type. Returns the matrix info if so.
-// Matches Rust naga's get_global_uniform_matrix.
 func (w *Writer) getGlobalUniformMatrix(handle ir.ExpressionHandle) *matrixTypeInfo {
 	if w.currentFunction == nil {
 		return nil
@@ -1275,7 +1258,6 @@ func (w *Writer) writeMatrixValueType(m *matrixTypeInfo) {
 
 // writeUnaryExpression writes a unary operation.
 // For signed integer negation, uses naga_neg() helper to avoid UB.
-// Matches Rust naga's Unary handling in HLSL backend.
 func (w *Writer) writeUnaryExpression(e ir.ExprUnary) error {
 	var op string
 	switch e.Op {
@@ -1328,7 +1310,7 @@ func (w *Writer) isI32Negate(expr ir.ExpressionHandle) bool {
 func (w *Writer) writeBinaryExpression(e ir.ExprBinary) error {
 	// Avoid undefined behavior for addition, subtraction, and multiplication
 	// of signed 32-bit integers by casting operands to unsigned, performing
-	// the operation, then casting back. Matches Rust naga's wrapping pattern.
+	// the operation, then casting back.
 	// TODO(#7109): This relies on asint()/asuint() which only work for 32-bit types.
 	if (e.Op == ir.BinaryAdd || e.Op == ir.BinarySubtract || e.Op == ir.BinaryMultiply) && w.isI32ScalarOp(e) {
 		var opStr string
@@ -1401,7 +1383,7 @@ func (w *Writer) writeBinaryExpression(e ir.ExprBinary) error {
 		}
 		op = "*"
 	case ir.BinaryDivide:
-		// Integer division uses naga_div for safety (matches Rust naga)
+		// Integer division uses naga_div for safety
 		if w.isIntegerBinaryOp(e) {
 			fmt.Fprintf(&w.Out, "%s(", NagaDivFunction)
 			if err := w.writeExpression(e.Left); err != nil {
@@ -1416,7 +1398,7 @@ func (w *Writer) writeBinaryExpression(e ir.ExprBinary) error {
 		}
 		op = "/"
 	case ir.BinaryModulo:
-		// Integer/float modulo uses naga_mod for safety (matches Rust naga)
+		// Integer/float modulo uses naga_mod for safety
 		if w.isIntOrFloatBinaryOp(e) {
 			fmt.Fprintf(&w.Out, "%s(", NagaModFunction)
 			if err := w.writeExpression(e.Left); err != nil {
@@ -1533,7 +1515,6 @@ func (w *Writer) isIntegerBinaryOp(e ir.ExprBinary) bool {
 }
 
 // isI32ScalarOp checks if a binary op's result type has I32 scalar component.
-// Matches Rust naga's check: func_ctx.resolve_type(expr).scalar() == Some(Scalar::I32).
 func (w *Writer) isI32ScalarOp(e ir.ExprBinary) bool {
 	leftInner := w.getExpressionTypeInner(e.Left)
 	if leftInner == nil {
@@ -1616,8 +1597,6 @@ func (w *Writer) writeRelationalExpression(e ir.ExprRelational) error {
 
 // writeMathExpression writes a mathematical function call.
 func (w *Writer) writeMathExpression(e ir.ExprMath) error {
-	// Special case: QuantizeToF16 wraps with f16tof32(f32tof16(expr))
-	// Matches Rust naga's Function::QuantizeToF16 handling.
 	if e.Fun == ir.MathQuantizeF16 {
 		w.Out.WriteString("f16tof32(f32tof16(")
 		if err := w.writeExpression(e.Arg); err != nil {
@@ -1627,8 +1606,6 @@ func (w *Writer) writeMathExpression(e ir.ExprMath) error {
 		return nil
 	}
 
-	// Special case: Pack4xI8/U8/I8Clamp/U8Clamp — inline polyfill
-	// Matches Rust naga's Function::Pack4x{I8,U8,I8Clamp,U8Clamp} handling.
 	switch e.Fun {
 	case ir.MathPack4xI8, ir.MathPack4xU8, ir.MathPack4xI8Clamp, ir.MathPack4xU8Clamp:
 		return w.writePack4xI8U8(e)
@@ -1658,8 +1635,6 @@ func (w *Writer) writeMathExpression(e ir.ExprMath) error {
 		return w.writeUnpack2x16float(e)
 	}
 
-	// MissingIntOverload: countbits, reversebits — for signed i32: asint(fn(asuint(arg)))
-	// Matches Rust naga's Function::MissingIntOverload pattern.
 	switch e.Fun {
 	case ir.MathCountOneBits, ir.MathReverseBits:
 		argScalar := w.getExprScalar(e.Arg)
@@ -1679,8 +1654,6 @@ func (w *Writer) writeMathExpression(e ir.ExprMath) error {
 		}
 	}
 
-	// MissingIntReturnType: firstbitlow, firstbithigh — for signed i32: asint(fn(arg))
-	// Matches Rust naga's Function::MissingIntReturnType pattern.
 	switch e.Fun {
 	case ir.MathFirstTrailingBit, ir.MathFirstLeadingBit:
 		argScalar := w.getExprScalar(e.Arg)
@@ -1732,8 +1705,7 @@ func (w *Writer) writeMathExpression(e ir.ExprMath) error {
 }
 
 // writePack4xI8U8 writes inline polyfill for Pack4xI8/U8/I8Clamp/U8Clamp.
-// Matches Rust naga: (arg[0] & 0xFF) | ((arg[1] & 0xFF) << 8) | ((arg[2] & 0xFF) << 16) | ((arg[3] & 0xFF) << 24)
-// For signed variants, wraps in uint(). For clamp variants, wraps arg in clamp().
+// For clamp variants, wraps arg in clamp().
 func (w *Writer) writePack4xI8U8(e ir.ExprMath) error {
 	isSigned := e.Fun == ir.MathPack4xI8 || e.Fun == ir.MathPack4xI8Clamp
 
@@ -1786,8 +1758,6 @@ func (w *Writer) writePack4xI8U8(e ir.ExprMath) error {
 }
 
 // writeUnpack4xI8U8 writes inline polyfill for Unpack4xI8/U8.
-// Matches Rust naga: (int4(arg, arg >> 8, arg >> 16, arg >> 24) << 24 >> 24)
-// For unsigned: (uint4(arg, arg >> 8, arg >> 16, arg >> 24) << 24 >> 24)
 func (w *Writer) writeUnpack4xI8U8(e ir.ExprMath) error {
 	w.Out.WriteString("(")
 	if e.Fun == ir.MathUnpack4xU8 {
@@ -1889,7 +1859,6 @@ func (w *Writer) writeDot4Packed(e ir.ExprMath) error {
 }
 
 // writePack4x8snorm writes the inline polyfill for Pack4x8snorm.
-// Matches Rust naga: uint((int(round(clamp(arg[0],-1.0,1.0)*127.0))&0xFF) | ...)
 func (w *Writer) writePack4x8snorm(e ir.ExprMath) error {
 	w.Out.WriteString("uint(")
 	for i := 0; i < 4; i++ {
@@ -1910,7 +1879,7 @@ func (w *Writer) writePack4x8snorm(e ir.ExprMath) error {
 }
 
 // writePack4x8unorm writes the inline polyfill for Pack4x8unorm.
-// Matches Rust naga: (uint(round(clamp(arg[0],0.0,1.0)*255.0)) | ... << 8 | ... << 16 | ... << 24)
+// << 8 | ... << 16 | ... << 24)
 func (w *Writer) writePack4x8unorm(e ir.ExprMath) error {
 	w.Out.WriteString("(")
 	for i := 0; i < 4; i++ {
@@ -1931,7 +1900,6 @@ func (w *Writer) writePack4x8unorm(e ir.ExprMath) error {
 }
 
 // writePack2x16snorm writes the inline polyfill for Pack2x16snorm.
-// Matches Rust naga: uint((int(round(clamp(arg[0],-1.0,1.0)*32767.0))&0xFFFF) | ((int(round(clamp(arg[1],-1.0,1.0)*32767.0))&0xFFFF)<<16))
 func (w *Writer) writePack2x16snorm(e ir.ExprMath) error {
 	w.Out.WriteString("uint((int(round(clamp(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -1946,7 +1914,6 @@ func (w *Writer) writePack2x16snorm(e ir.ExprMath) error {
 }
 
 // writePack2x16unorm writes the inline polyfill for Pack2x16unorm.
-// Matches Rust naga: (uint(round(clamp(arg[0],0.0,1.0)*65535.0)) | uint(round(clamp(arg[1],0.0,1.0)*65535.0))<<16)
 func (w *Writer) writePack2x16unorm(e ir.ExprMath) error {
 	w.Out.WriteString("(uint(round(clamp(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -1961,7 +1928,6 @@ func (w *Writer) writePack2x16unorm(e ir.ExprMath) error {
 }
 
 // writePack2x16float writes the inline polyfill for Pack2x16float.
-// Matches Rust naga: (f32tof16(arg[0]) | f32tof16(arg[1]) << 16)
 func (w *Writer) writePack2x16float(e ir.ExprMath) error {
 	w.Out.WriteString("(f32tof16(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -1976,7 +1942,6 @@ func (w *Writer) writePack2x16float(e ir.ExprMath) error {
 }
 
 // writeUnpack4x8snorm writes the inline polyfill for Unpack4x8snorm.
-// Matches Rust naga: (float4(int4(arg<<24, arg<<16, arg<<8, arg) >> 24) / 127.0)
 func (w *Writer) writeUnpack4x8snorm(e ir.ExprMath) error {
 	w.Out.WriteString("(float4(int4(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -1999,7 +1964,6 @@ func (w *Writer) writeUnpack4x8snorm(e ir.ExprMath) error {
 }
 
 // writeUnpack4x8unorm writes the inline polyfill for Unpack4x8unorm.
-// Matches Rust naga: (float4(arg & 0xFF, arg >> 8 & 0xFF, arg >> 16 & 0xFF, arg >> 24) / 255.0)
 func (w *Writer) writeUnpack4x8unorm(e ir.ExprMath) error {
 	w.Out.WriteString("(float4(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -2022,7 +1986,6 @@ func (w *Writer) writeUnpack4x8unorm(e ir.ExprMath) error {
 }
 
 // writeUnpack2x16snorm writes the inline polyfill for Unpack2x16snorm.
-// Matches Rust naga: (float2(int2(arg << 16, arg) >> 16) / 32767.0)
 func (w *Writer) writeUnpack2x16snorm(e ir.ExprMath) error {
 	w.Out.WriteString("(float2(int2(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -2037,7 +2000,6 @@ func (w *Writer) writeUnpack2x16snorm(e ir.ExprMath) error {
 }
 
 // writeUnpack2x16unorm writes the inline polyfill for Unpack2x16unorm.
-// Matches Rust naga: (float2(arg & 0xFFFF, arg >> 16) / 65535.0)
 func (w *Writer) writeUnpack2x16unorm(e ir.ExprMath) error {
 	w.Out.WriteString("(float2(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -2052,7 +2014,6 @@ func (w *Writer) writeUnpack2x16unorm(e ir.ExprMath) error {
 }
 
 // writeUnpack2x16float writes the inline polyfill for Unpack2x16float.
-// Matches Rust naga: float2(f16tof32(arg), f16tof32((arg) >> 16))
 func (w *Writer) writeUnpack2x16float(e ir.ExprMath) error {
 	w.Out.WriteString("float2(f16tof32(")
 	if err := w.writeExpression(e.Arg); err != nil {
@@ -2241,16 +2202,12 @@ func mathFunctionToHLSL(fun ir.MathFunction) (string, error) {
 // =============================================================================
 
 // writeAsExpression writes a type cast or conversion.
-// Matches Rust naga's Expression::As handling: resolves source type shape
-// (scalar/vector/matrix) to produce correct target type name.
 func (w *Writer) writeAsExpression(e ir.ExprAs) error {
 	if e.Convert != nil {
 		// Resolve source expression type to determine shape
 		srcInner := w.getExpressionTypeInner(e.Expr)
 
 		// Check if this is a float-to-int conversion that needs a clamped helper.
-		// Matches Rust naga: float -> sint/uint uses naga_f2i32/f2u32/f2i64/f2u64
-		// to avoid undefined behavior for out-of-range values.
 		srcIsFloat := false
 		if srcInner != nil {
 			switch t := srcInner.(type) {
@@ -2306,7 +2263,6 @@ func (w *Writer) writeAsExpression(e ir.ExprAs) error {
 	} else {
 		// Bitcast - use asfloat/asint/asuint
 		// For 64-bit types, skip the cast (identity bitcast in HLSL).
-		// Matches Rust naga: inner.scalar_width() == Some(8) => no cast.
 		srcInner := w.getExpressionTypeInner(e.Expr)
 		is64Bit := false
 		if srcInner != nil {
@@ -2368,7 +2324,6 @@ func scalarKindToHLSL(kind ir.ScalarKind, width uint8) string {
 // =============================================================================
 
 // writeDerivativeExpression writes a derivative (ddx/ddy/fwidth) operation.
-// Matches Rust naga: Width+Coarse/Fine is expanded to abs(ddx_X(e)) + abs(ddy_X(e)).
 func (w *Writer) writeDerivativeExpression(e ir.ExprDerivative) error {
 	// Special case: Width + Coarse/Fine -> expanded form
 	if e.Axis == ir.DerivativeWidth && (e.Control == ir.DerivativeCoarse || e.Control == ir.DerivativeFine) {
@@ -2430,7 +2385,6 @@ func (w *Writer) writeDerivativeExpression(e ir.ExprDerivative) error {
 // writeImageSampleExpression writes a texture sampling operation.
 func (w *Writer) writeImageSampleExpression(e ir.ExprImageSample) error {
 	// Handle ClampToEdge with SampleLevelZero: emit nagaTextureSampleBaseClampToEdge helper call.
-	// Matches Rust naga: this case is handled before the generic ImageSample path.
 	if e.ClampToEdge {
 		if _, isZero := e.Level.(ir.SampleLevelZero); isZero &&
 			e.DepthRef == nil && e.Gather == nil && e.ArrayIndex == nil && e.Offset == nil {
@@ -2497,10 +2451,6 @@ func (w *Writer) writeImageSampleExpression(e ir.ExprImageSample) error {
 	}
 
 	// Handle gather operations.
-	// Rust naga uses Gather{component}{Cmp} naming:
-	// component 0 (X) = "" -> .Gather or .GatherCmp
-	// component 1 (Y) = "Green" -> .GatherGreen or .GatherCmpGreen
-	// etc.
 	isGather := false
 	if e.Gather != nil {
 		isGather = true
@@ -2526,7 +2476,7 @@ func (w *Writer) writeImageSampleExpression(e ir.ExprImageSample) error {
 	}
 	w.Out.WriteString(", ")
 
-	// Coordinate (merged with array index per Rust naga's write_texture_coordinates)
+	// Coordinate
 	if err := w.writeTextureCoordinates("float", e.Coordinate, e.ArrayIndex, nil); err != nil {
 		return fmt.Errorf("image sample: coordinate: %w", err)
 	}
@@ -2541,8 +2491,6 @@ func (w *Writer) writeImageSampleExpression(e ir.ExprImageSample) error {
 
 	// Level of detail
 	// For Gather operations: level is never written (Zero/Auto both produce "").
-	// For SampleCmpLevelZero (depth_ref + Zero), Rust omits the level arg.
-	// For SampleLevel (no depth_ref + Zero), Rust writes ", 0.0".
 	if !isGather {
 		if err := w.writeSampleLevel(e.Level, e.DepthRef != nil); err != nil {
 			return err
@@ -2551,7 +2499,7 @@ func (w *Writer) writeImageSampleExpression(e ir.ExprImageSample) error {
 
 	// Offset — wrap in int2() to work around DXC bug
 	// https://github.com/microsoft/DirectXShaderCompiler/issues/5082#issuecomment-1540147807
-	// Use writeConstExpression to bypass named expression baking (matches Rust naga).
+	// Use writeConstExpression to bypass named expression baking.
 	if e.Offset != nil {
 		w.Out.WriteString(", int2(")
 		if err := w.writeConstExpression(*e.Offset); err != nil {
@@ -2632,7 +2580,6 @@ func (w *Writer) writeImageLoadExpression(e ir.ExprImageLoad) error {
 	w.Out.WriteString(".Load(")
 
 	// Bundle coordinates, array index, and mip level into a single vector.
-	// Matches Rust naga write_texture_coordinates("int", ...).
 	if err := w.writeTextureCoordinates("int", e.Coordinate, e.ArrayIndex, e.Level); err != nil {
 		return fmt.Errorf("image load: coordinates: %w", err)
 	}
@@ -2651,7 +2598,6 @@ func (w *Writer) writeImageLoadExpression(e ir.ExprImageLoad) error {
 	}
 
 	// Append .x if the result type is scalar (depth textures return float, not float4).
-	// Matches Rust naga: "return x component if return type is scalar".
 	if w.isImageLoadResultScalar(e.Image) {
 		w.Out.WriteString(".x")
 	}
@@ -2660,7 +2606,7 @@ func (w *Writer) writeImageLoadExpression(e ir.ExprImageLoad) error {
 }
 
 // writeTextureCoordinates bundles texture coordinates, array index, and mip level
-// into a single vector parameter. Matches Rust naga help.rs write_texture_coordinates.
+// into a single vector parameter.
 func (w *Writer) writeTextureCoordinates(kind string, coordinate ir.ExpressionHandle, arrayIndex *ir.ExpressionHandle, mipLevel *ir.ExpressionHandle) error {
 	extra := 0
 	if arrayIndex != nil {
@@ -2691,8 +2637,6 @@ func (w *Writer) writeTextureCoordinates(kind string, coordinate ir.ExpressionHa
 	if mipLevel != nil {
 		w.Out.WriteString(", ")
 		// Cast uint mip level to int if needed.
-		// Also wrap abstract int literals with int() to match Rust naga's behavior
-		// (Rust concretizes abstract ints to i32 before writing).
 		needCast := w.isExpressionUint(*mipLevel) || w.isAbstractIntLiteral(*mipLevel)
 		if needCast {
 			w.Out.WriteString("int(")
@@ -2768,8 +2712,6 @@ func (w *Writer) isExpressionUint(handle ir.ExpressionHandle) bool {
 }
 
 // isAbstractIntLiteral checks if an expression is a Literal with an AbstractInt value.
-// Used to wrap abstract int literals with int() in texture coordinates,
-// matching Rust naga which concretizes abstract ints to i32.
 func (w *Writer) isAbstractIntLiteral(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {
 		return false
@@ -2818,7 +2760,6 @@ func (w *Writer) getStorageLoadHelper(imageHandle ir.ExpressionHandle) string {
 }
 
 // writeImageQueryExpression writes an image query operation using wrapper functions.
-// Matches Rust naga: generates NagaDimensions2D(), NagaNumLevels2D(), etc.
 func (w *Writer) writeImageQueryExpression(e ir.ExprImageQuery) error {
 	// Get image type info
 	imgType := w.getImageTypeFromExpr(e.Image)
@@ -2890,7 +2831,6 @@ func (w *Writer) getImageTypeFromExpr(handle ir.ExpressionHandle) *ir.ImageType 
 }
 
 // writeImageQueryFunctionName writes the name of a wrapped image query function.
-// Matches Rust naga: Naga{Class}{Query}{Dim}{Array}
 func (w *Writer) writeImageQueryFunctionName(key wrappedImageQueryKey) {
 	classStr := ""
 	switch key.class {
@@ -2959,7 +2899,6 @@ func (w *Writer) writeCallResultExpression(e ir.ExprCallResult) error {
 }
 
 // writeArrayLengthExpression writes a runtime array length query.
-// Matches Rust naga: `((NagaBufferLength[RW](var) - offset) / stride)`
 func (w *Writer) writeArrayLengthExpression(e ir.ExprArrayLength) error {
 	// Resolve the global variable handle and compute offset/stride
 	var varHandle ir.GlobalVariableHandle
@@ -3313,7 +3252,6 @@ func (w *Writer) resolveStructTypeHandleForAccess(base ir.ExpressionHandle) *ir.
 }
 
 // writeRayQueryGetIntersection writes a ray query intersection access.
-// Matches Rust naga: `GetCommittedIntersection(rq)` or `GetCandidateIntersection(rq)`.
 func (w *Writer) writeRayQueryGetIntersection(e ir.ExprRayQueryGetIntersection) error {
 	if e.Committed {
 		w.Out.WriteString("GetCommittedIntersection(")
@@ -3349,7 +3287,6 @@ func formatSpecialFloat(f float64) (string, bool) {
 
 // bindingArraySamplerInfo holds information for generating sampler heap access
 // for a binding_array<sampler> or binding_array<sampler_comparison>.
-// Matches Rust naga's BindingArraySamplerInfo.
 type bindingArraySamplerInfo struct {
 	// samplerHeapName is the variable name of the sampler heap
 	// ("nagaSamplerHeap" or "nagaComparisonSamplerHeap")
@@ -3364,7 +3301,6 @@ type bindingArraySamplerInfo struct {
 
 // samplerBindingArrayInfoFromExpression determines if an expression is a binding
 // array of samplers and returns the info needed to generate the heap access pattern.
-// Matches Rust naga's sampler_binding_array_info_from_expression.
 func (w *Writer) samplerBindingArrayInfoFromExpression(base ir.ExpressionHandle) *bindingArraySamplerInfo {
 	if w.currentFunction == nil || int(base) >= len(w.currentFunction.Expressions) {
 		return nil
@@ -3449,9 +3385,8 @@ func (w *Writer) isBindingArrayAccess(base ir.ExpressionHandle) bool {
 }
 
 // isNonUniform checks if an expression's value is non-uniform (varies across invocations
-// in a subgroup/workgroup). This is a simplified version of Rust naga's uniformity analysis.
+// in a subgroup/workgroup).
 // Returns true if the expression is potentially non-uniform.
-// Matches Rust naga's Uniformity.non_uniform_result.is_some() check.
 func (w *Writer) isNonUniform(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {
 		return false
@@ -3547,7 +3482,7 @@ func (w *Writer) isNonUniformRecursive(handle ir.ExpressionHandle, depth int) bo
 }
 
 // isBindingArrayOfSamplers checks if a global variable is a binding array of samplers.
-// Used to skip writing the global variable name in expressions (Rust naga does the same).
+// Used to skip writing the global variable name in expressions.
 func (w *Writer) isBindingArrayOfSamplers(gvHandle ir.GlobalVariableHandle) bool {
 	if int(gvHandle) >= len(w.module.GlobalVariables) {
 		return false

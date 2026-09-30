@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -11,16 +21,10 @@ import (
 	"github.com/go-text/typesetting/font/opentype/tables"
 )
 
-// TestCFF2CJKVFBlendMatchGT：M5 CJK 可变实例化门禁。
-//
 // 对照源 = render/text/testdata/NotoSansSC-VF.otf（Google Fonts 官方
 // Noto Sans SC Variable，CFF2 + wght 100–900，含大量 vsindex 指令字形）。
 // 与拉丁 SourceSans3 互为补充：Latin VF 验证 blend 语义非拉丁字形、CJK
 // VF 验证 3000 常用字实例化的坐标一致性（go-text 解释器同源对照，±1/64）。
-//
-// 采样：testdata/cjk3000.txt 里的 3000 常用字（与 M0–M3 同源采样），
-// 每个 × wght=0/0.5/1（-1 在 Noto SC 为轴外值，go-text 会 clamp 到 min，
-// 也一并对照）。
 func TestCFF2CJKVFBlendMatchGT(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "cjk3000.txt"))
 	if err != nil {

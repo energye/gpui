@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -12,9 +22,6 @@ import (
 
 	"github.com/godbus/dbus/v5"
 )
-
-// 第2层 引擎层 fcitx：会话总线 + 生命周期（S1 期间保持基线不动）
-// 会话总线地址来自 DBUS_SESSION_BUS_ADDRESS，会话单例复用
 
 var (
 	x11FcitxMu   sync.Mutex

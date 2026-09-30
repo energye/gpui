@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -344,7 +354,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 }
 
 // createAABandPipelines creates the sampleCount==1 analytic-AA fringe
-// pipelines (Skia-style "fringe coverage"; see shaders/cover_aa.wgsl):
+// pipelines:
 //
 //   - aaBandPipeline (exterior half): SrcOver + stencil Equal(0), read-only —
 //     drawn right after the stencil fill (before the binary cover) so pixels

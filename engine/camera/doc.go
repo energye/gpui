@@ -1,8 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package camera
 
 // Projector turns world positions plus depth into screen positions.
 //
-// Frozen 2026-09-14 (capability 1.1, P1b): NewProjector, DepthToScale,
+// Frozen 2026-09-14: NewProjector, DepthToScale,
 // Project, ProjectQuad, Unproject. Additive changes only.
 //
 // The old 6-number matrix stays untouched. This helper only computes
@@ -22,7 +32,7 @@ package camera
 // reports ok=false instead of NaN/Inf. NaN/Inf inputs also report
 // ok=false and never panic.
 
-// Camera is the pure-math 2D lens (capability 1.3a, P0).
+// Camera is the pure-math 2D lens.
 //
 // Frozen 2026-09-15: NewCamera, SetViewport, SetPos, SetZoom, SetRotation,
 // SetShake, DecayShake, SetLimit, SetSmoothing, SetAnchor, Follow,
@@ -47,7 +57,7 @@ package camera
 // anchor to [0,1], viewport negatives to 0, smoothing to [0,1]);
 // NaN/Inf inputs are core InvalidArg errors and change nothing.
 
-// Layer is one parallax depth band (capability 1.3b, P1b).
+// Layer is one parallax depth band.
 //
 // Frozen 2026-09-15: NewLayer, Shift, Screen, ScreenQuad. Additive
 // changes only.

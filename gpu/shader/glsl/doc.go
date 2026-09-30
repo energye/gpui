@@ -1,9 +1,14 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
-// Package glsl provides a GLSL (OpenGL Shading Language) backend for naga.
+//----------------------------------------
 //
-// This package generates GLSL source code from naga's IR representation.
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
+// This package generates GLSL source code from the IR representation.
 // It supports multiple GLSL versions for different target platforms:
 //
 //   - GLSL ES 3.00: WebGL 2.0, Mobile OpenGL ES 3.0

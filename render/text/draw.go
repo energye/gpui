@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -33,12 +43,12 @@ func Draw(dst draw.Image, text string, face Face, x, y float64, col color.Color)
 
 // glyphRasterMode selects the rasterization coverage mode.
 // Outline extraction and rasterization mode are orthogonal
-// concerns (Skia pattern: SkFont::Edging is independent of font variations).
+// concerns.
 type glyphRasterMode int
 
 const (
 	rasterModeAA      glyphRasterMode = iota // 256-level analytic AA coverage
-	rasterModeAliased                        // binary 0/255 coverage (Skia kAlias)
+	rasterModeAliased                        // binary 0/255 coverage
 )
 
 // glyphRasterizeFunc is the per-glyph rasterization callback used by drawGlyphs.
@@ -63,9 +73,6 @@ type glyphRasterizeFunc func(
 // rather than unhinted hmtx advances. This prevents outline/advance mismatch
 // where hinted outlines are wider or narrower than the raw advance, causing
 // letters to merge or have gaps at certain ppem values (e.g., 16px Segoe UI).
-//
-// This matches skrifa/FreeType/Skia: when TT hinting runs on a glyph, the
-// hinted advance replaces the raw hmtx advance for positioning.
 func drawGlyphs(
 	dst draw.Image,
 	sf *sourceFace,
@@ -179,9 +186,6 @@ func drawGlyphs(
 // points after TT interpreter execution) matches the hinted outline shape.
 // Using unhinted advances with hinted outlines causes positioning errors
 // because the outline is grid-fitted but the advance is not.
-//
-// Reference: skrifa ScaledOutline::advance_width — returns hinted advance
-// when hinting is active, raw advance otherwise.
 func hintedOrRawAdvance(ttCache *ttHintCache, glyph Glyph, ppem float64) float64 {
 	if ttCache != nil {
 		if adv, ok := ttCache.hintedAdvanceWidth(uint16(glyph.GID), int32(ppem)); ok {
@@ -256,7 +260,7 @@ func drawGlyphsVariable(
 			subpixelY = 0
 		}
 
-		// Unified gvar + hinting path (skrifa load_simple parity).
+		// Unified gvar + hinting path.
 		// ExtractOutlineHintedVar applies gvar deltas THEN hinting in one pass.
 		outline, _ := extractor.ExtractOutlineHintedVar(parsed, gid, ppem, hinting, variations)
 		if outline == nil || outline.IsEmpty() {

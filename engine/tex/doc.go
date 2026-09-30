@@ -1,7 +1,13 @@
-// Package tex freezes the CPU-side compressed-texture intake every 2.5D
-// draw feeds (capability 3.1, P2 long-chain head, S02/W1; streaming
-// capability 3.3, P2, S29/W3).
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Frozen 2026-09-15: Format, FormatBC1RGBAUnorm, ParseKTX2, LoadKTX2,
 // ParseBasis, LoadBasis, Image accessors. Additive changes only.
 // Frozen 2026-09-15 (3.3): State, StateLoading/Ready/Missing/Failed,
@@ -39,7 +45,7 @@
 // tex, so tex cannot import asset (cycle); Stream reuses only core.Manager
 // plus tex.ParseKTX2.
 //
-// Sampling switch (3.2 R3 bottom, S24/W3): Filter, Kind, MipMode, Table
+// Sampling switch: Filter, Kind, MipMode, Table
 // plus NumLevels/LevelForScale/LevelSize (mipmap.go). One picture carries
 // one Filter: Near (magnify), Far (minify), Mip (between-level select),
 // MaxAniso (1..16, 1 is off). SetFilter is the frozen near/far/aniso

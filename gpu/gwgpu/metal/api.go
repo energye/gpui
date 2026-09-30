@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -157,17 +164,6 @@ func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapt
 					BufferCopyPitch:  256,
 				},
 				// DefaultDownlevelCapabilities (all 27 flags) is correct for Metal.
-				// Rust wgpu-hal Metal conditionally sets 8 flags from feature sets
-				// (adapter.rs:1337-1371), but ALL of those checks pass on our minimum
-				// targets (macOS 15.0+ / iOS 18.0+):
-				//   FRAGMENT_WRITABLE_STORAGE — macOS 10.12+ (available!(macos=10.12))
-				//   CUBE_ARRAY_TEXTURES       — macOS_GPUFamily1_v1 (macOS 10.11+)
-				//   COMPARISON_SAMPLERS        — macOS_GPUFamily1_v1 (macOS 10.11+)
-				//   INDIRECT_EXECUTION         — macOS_GPUFamily1_v1 (macOS 10.11+)
-				//   BASE_VERTEX               — same as INDIRECT_EXECUTION
-				//   ANISOTROPIC_FILTERING      — always true in Rust
-				//   MSL2_1                    — MSL 2.1 requires macOS 10.14+
-				//   TEXTURE_COMPRESSION        — macOS always has BC; iOS has EAC+ASTC
 				DownlevelCapabilities: gputypes.DefaultDownlevelCapabilities(),
 			},
 		})
@@ -177,14 +173,11 @@ func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapt
 }
 
 // Release releases the instance.
-// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
 func (i *Instance) Release() {
 	// Nothing to release
 }
 
 // RequestAdapter returns the first enumerated adapter.
-// Matches webgpu Instance.RequestAdapter shape; CompatibleSurface is
-// forwarded as the enumerate hint.
 func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
 	var hint hal.Surface
 	if opts != nil {

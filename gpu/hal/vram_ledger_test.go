@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !nogpu
 
 package hal
@@ -10,8 +20,6 @@ import (
 
 // Ledger accounting is pure Go: charge, refund, budget gate, double-release
 // safety. No GPU needed. Serial: the ledger is process-global.
-// (Moved from gpu/rwgpu 2026-09-30 P4: both backends charge one account;
-// rwgpu keeps thin re-exports so existing callers/tests keep compiling.)
 func TestVramLedgerChargeRefund(t *testing.T) {
 	t.Setenv("GPUI_VRAM_BUDGET_MB", "0") // disable gate, test accounting only
 	VramTestReset()

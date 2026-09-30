@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package hal_test
@@ -116,11 +126,7 @@ func BenchmarkBuildSizesQuery(b *testing.B) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // packTlasInstanceInto packs a TlasInstance into a pre-allocated [64]byte.
-// This matches the layout used by all 4 backends (Vulkan, DX12, Metal,
-// Software) but writes into a caller-owned buffer for zero allocations.
-// ---------------------------------------------------------------------------
 func packTlasInstanceInto(buf *[64]byte, instance *hal.TlasInstance) {
 	const maxU24 = (1 << 24) - 1
 

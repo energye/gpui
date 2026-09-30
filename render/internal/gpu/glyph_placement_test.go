@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import (
@@ -56,7 +66,7 @@ func TestGlyphPlacementNoneKeepsXFraction(t *testing.T) {
 }
 
 // TestGlyphPlacementNoneSnapsX guards the non-LCD integer-grid contract
-// (R21): unhinted masks also snap X to the rounded-advance grid, exactly like
+// : unhinted masks also snap X to the rounded-advance grid, exactly like
 // hinted text, so advance spacing never jitters with the origin fraction.
 func TestGlyphPlacementNoneSnapsX(t *testing.T) {
 	absX, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, 1.0, text.HintingNone, 10.0, true)

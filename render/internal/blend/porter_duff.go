@@ -1,11 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package blend implements Porter-Duff compositing operators and blend modes.
 //
 // All blend operations work with premultiplied alpha values in the range 0-255.
 // This follows the WebGPU and modern graphics conventions for efficient compositing.
-//
-// References:
-//   - Porter-Duff: "Compositing Digital Images" (1984)
-//   - W3C Compositing and Blending Level 1: https://www.w3.org/TR/compositing-1/
 package blend
 
 // BlendMode represents a Porter-Duff compositing operation.

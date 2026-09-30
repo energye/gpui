@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -700,11 +710,11 @@ func TestGSUB_LigatureSubst(t *testing.T) {
 	//   Ligature: ligGlyph=100, compCount=2, components=[11]
 	//
 	// Layout (offsets are relative to table start):
-	//   [0]  format(2) = 1
-	//   [2]  coverageOffset(2) = 18 (after LigatureSet data)
-	//   [4]  ligatureSetCount(2) = 1
-	//   [6]  ligatureSetOffset[0](2) = 8
-	//   [8]  LigatureSet: ligatureCount(2) = 1, ligatureOffset[0](2) = 4
+	//   [0] format(2) = 1
+	//   [2] coverageOffset(2) = 18 (after LigatureSet data)
+	//   [4] ligatureSetCount(2) = 1
+	//   [6] ligatureSetOffset[0](2) = 8
+	//   [8] LigatureSet: ligatureCount(2) = 1, ligatureOffset[0](2) = 4
 	//   [12] Ligature: ligGlyph(2)=100, compCount(2)=2, component[0](2)=11
 	//   [18] Coverage: format(2)=1, glyphCount(2)=1, glyph(2)=10
 	data := []byte{

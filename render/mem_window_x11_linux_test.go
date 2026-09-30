@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !nogpu
 
 package render_test
@@ -262,7 +272,7 @@ func memOpenX11(t *testing.T, w, h int) *memX11 {
 			}
 			closed = true
 			// Destroy the window only. XCloseDisplay/Dlclose have SIGSEGV'd in
-			// cleanup after wgpu surface release (purego + X11 + wgpu race).
+			// cleanup after wgpu surface release.
 			// Tests are process-isolated (run_mem_leak_tests), so Display leak
 			// is reclaimed on process exit.
 			xDestroyWindow(dpy, win)

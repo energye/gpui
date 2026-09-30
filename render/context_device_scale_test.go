@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package render
 
@@ -304,8 +311,7 @@ func TestDrawingAtDeviceScale(t *testing.T) {
 }
 
 func TestDrawStringBitmapRetinaScaling(t *testing.T) {
-	// Regression: gg#276 — drawStringBitmap used user-space font size on
-	// device-space pixmap. On Retina (2x), text appeared half-size.
+	// On Retina (2x), text appeared half-size.
 	// Fix: drawStringBitmap creates a device-scaled face when deviceScale != 1.0.
 	dc1 := NewContext(200, 100)
 	defer func() { _ = dc1.Close() }()

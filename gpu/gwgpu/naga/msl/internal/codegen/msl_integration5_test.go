@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -1782,7 +1792,6 @@ fn main() {
 }
 `
 	code := compileWGSL(t, src)
-	// @size(8) on f32 (4 bytes) should create 4 bytes of padding
 	mustContainMSL(t, code, "pad")
 }
 

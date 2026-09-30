@@ -1,12 +1,15 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
-// Direct port of vello_shaders/src/cpu/path_tiling.rs
-// Variable names match Rust originals for cross-reference.
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package tilecompute
 
-// pathTilingMain is a direct port of path_tiling_main from path_tiling.rs.
 // Stage 2: Segment clipping to tile boundaries + yEdge computation.
 func pathTilingMain(
 	bump *BumpAllocators,
@@ -71,7 +74,6 @@ func pathTilingMain(
 		}
 
 		z := floor32(a*float32(segWithinLine) + b)
-		// Match Rust path_tiling.rs line 57: split truncation (x0 as i32 + (sign*z) as i32)
 		x := int32(x0) + int32(sign*z)
 		y := int32(y0 + float32(segWithinLine) - z)
 
@@ -86,7 +88,7 @@ func pathTilingMain(
 		stride := bboxi[2] - bboxi[0]
 		tileIx := int32(path.Tiles) + (y-bboxi[1])*stride + x - bboxi[0]
 		tile := tiles[tileIx]
-		segStart := ^tile.SegmentCountOrIx // bitwise NOT = !seg_ix in Rust
+		segStart := ^tile.SegmentCountOrIx
 		if int32(segStart) < 0 {
 			continue
 		}
@@ -94,8 +96,6 @@ func pathTilingMain(
 		tileXY := newVec2(float32(x)*float32(TileWidth), float32(y)*float32(TileHeight))
 		tileXY1 := tileXY.add(newVec2(float32(TileWidth), float32(TileHeight)))
 
-		// Top clipping (lines 78-96 of path_tiling.rs)
-		// CRITICAL: xy0 is MUTABLE — top clip modifies it, bottom clip uses modified value
 		if segWithinLine > 0 {
 			zPrev := floor32(a*float32(segWithinLine-1) + b)
 			if z == zPrev {
@@ -117,8 +117,6 @@ func pathTilingMain(
 			}
 		}
 
-		// Bottom clipping (lines 97-115 of path_tiling.rs)
-		// CRITICAL: Uses xy0 which was ALREADY MODIFIED by top clipping above!
 		if segWithinLine < count-1 {
 			zNext := floor32(a*float32(segWithinLine+1) + b)
 			if z == zNext {
@@ -140,7 +138,6 @@ func pathTilingMain(
 			}
 		}
 
-		// yEdge computation (lines 116-144 of path_tiling.rs)
 		yEdge := float32(1e9)
 		p0out := xy0.sub(tileXY) // Convert to tile-relative
 		p1out := xy1.sub(tileXY)

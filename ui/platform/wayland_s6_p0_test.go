@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -7,7 +17,7 @@ import (
 	"unsafe"
 )
 
-// S6-P0 Wayland input/scale tests. The compositor-gated paths (bind, seat
+// The compositor-gated paths (bind, seat
 // caps, output enumeration) need WAYLAND_DISPLAY and are covered by the B
 // layer real-window suite; the decode/state logic below runs everywhere by
 // driving the protocol callbacks directly with crafted proxies.
@@ -45,11 +55,6 @@ func TestWaylandLeaveStampsPosition(t *testing.T) {
 	wlTestWin(t, w)
 	st := &wlPointerState{win: w}
 	st.selfPtr = uintptr(unsafe.Pointer(st))
-	// Mirror production wiring (seat caps path: w.ptr = w.bindPointer()):
-	// the state must be reachable from the window, which itself is
-	// registered in wlByPtr — otherwise the optimizer treats st as a purely
-	// local value and may keep its fields cached across the uintptr-aliased
-	// callbacks below.
 	w.ptr = st
 
 	wlPtrEnterCB(st.selfPtr, 0, 5, w.surface, wlFixed(100), wlFixed(50))

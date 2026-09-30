@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import (
@@ -7,7 +17,7 @@ import (
 	"github.com/energye/gpui/gpu/hal/noop"
 )
 
-// TestShrinkDue_Matrix locks the pure hysteresis core (R6-2, no GPU):
+// TestShrinkDue_Matrix locks the pure hysteresis core:
 // usage below a quarter of capacity sustains calm, anything else resets;
 // at texShrinkCalmFrames the buffer is due and calm restarts.
 func TestShrinkDue_Matrix(t *testing.T) {
@@ -30,7 +40,7 @@ func TestShrinkDue_Matrix(t *testing.T) {
 }
 
 // TestSessionFrameBufferShrink drives the session hysteresis headlessly
-// (R6-2, no GPU): sustained tiny use retires grow-only buffers; steady use
+// : sustained tiny use retires grow-only buffers; steady use
 // never shrinks. Fake buffers only flow through RetireBuffer (deferred
 // queue, no native calls).
 func TestSessionFrameBufferShrink(t *testing.T) {

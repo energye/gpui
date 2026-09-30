@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -14,7 +21,6 @@ import (
 	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
 )
 
-// H4-c 着色器缓存单测：纯 CPU，不需要 GL 上下文。
 // WGSL 输入一律读 testdata，不在测试里硬编码标准数据。
 
 func h4cReadWGSL(t *testing.T, name string) string {

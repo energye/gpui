@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build integration && linux && !(js && wasm)
 
@@ -111,8 +118,6 @@ func TestEGLContext(t *testing.T) {
 }
 
 // TestGLObjectCreation verifies that GL object creation works through goffi.
-// This catches the fundamental FFI pointer convention bug found by @lkmavi
-// (PR #210): pointer-type args must use unsafe.Pointer(&ptr), not unsafe.Pointer(&value).
 // Without this test, the bug went undetected because CI only tested EGL init.
 func TestGLObjectCreation(t *testing.T) {
 	runtime.LockOSThread()

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Copyright 2026 The gogpu Authors
@@ -20,13 +30,9 @@ import (
 
 // Vello sparse strips golden tests.
 //
-// These tests compare our TileRasterizer output against reference images
-// from Vello's sparse strips CPU rasterizer (vello_common/src/strip.rs).
 // Note: sparse strips uses a DIFFERENT algorithm from vello_shaders/src/cpu/
 // (which our tilecompute package ports). Higher thresholds are expected.
 //
-// Reference images: testdata/golden/vello-sparse-strips/
-// Source: sparse_strips/vello_sparse_tests/snapshots/
 
 // VelloGoldenTest defines a test case with parameters matching an upstream
 // Vello snapshot test exactly.
@@ -42,8 +48,6 @@ type VelloGoldenTest struct {
 
 // VelloUpstreamTests returns test cases matching Vello sparse strip snapshot
 // tests. Parameters extracted from:
-//
-//	sparse_strips/vello_sparse_tests/tests/basic.rs
 //
 // Known differences (TileRasterizer vs sparse strips):
 //   - Circle: ~5% — curve flattening + backdrop bugs
@@ -259,7 +263,6 @@ func saveDiffImage(t *testing.T, name string, ours, reference *image.RGBA) {
 
 // TestVelloAgainstUpstream compares TileRasterizer output against Vello
 // upstream reference images. This validates that our Vello port produces
-// output matching the original Rust implementation.
 func TestVelloAgainstUpstream(t *testing.T) {
 	tests := VelloUpstreamTests()
 

@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package light freezes the CPU-side 2D light math every night scene feeds.
 //
-// Frozen 2026-09-15 (capability 6.1, P3, S45/W6): Kind, Cookie, Light,
+// Frozen 2026-09-15: Kind, Cookie, Light,
 // Image, Scene and every constructor below. Additive changes only.
 //
 // What it does: point and directional lights modulate a picture after the
@@ -31,7 +41,7 @@
 // instead: any non-finite input yields 0 contribution, never a panic and
 // never a NaN leaking downstream.
 //
-// Frozen 2026-09-16 (capability 6.3, P3, S48/W7): Occluder, Shadow, and
+// Frozen 2026-09-16: Occluder, Shadow, and
 // every constructor below. Additive changes only.
 //
 // What shadows do: each occluder is a closed polygon loop; a pixel is in
@@ -48,7 +58,7 @@
 // (bad occluder InvalidArg/OutOfMemory, bad shadow InvalidArg, nil image
 // InvalidArg, corrupt image BadData).
 //
-// Frozen 2026-09-16 (capability 6.2, P3, S47/W7): Normal, NormalMap,
+// Frozen 2026-09-16: Normal, NormalMap,
 // NormalScene, and every constructor below. Additive changes only.
 //
 // What normal-mapped light does: a bump sheet (NormalMap, 1:1 with the lit

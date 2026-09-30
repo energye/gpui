@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -241,7 +251,7 @@ func isOwnerDeviceLost(deviceHandle uintptr) bool {
 var forceNativeReleaseOnLost atomic.Bool
 
 // WithForceNativeReleaseOnLost runs fn with native child Release enabled even when
-// the parent device is sticky-lost (Skia abandon before recreate).
+// the parent device is sticky-lost.
 func WithForceNativeReleaseOnLost(fn func()) {
 	if fn == nil {
 		return

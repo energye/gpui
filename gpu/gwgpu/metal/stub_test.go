@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -13,8 +20,6 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// H4-b2 桩定案（Metal 侧）：QuerySet 恒返 ErrTimestampsNotSupported
-// （计数器待实现），Bundle 不支持，Destroy/空输入 nil-safe。
 // 只用零值 Device 与未录制编码器（cmdBuffer == 0），不碰 MTL 对象。
 
 func TestH4B2_MetalCreateStubsNotSupported(t *testing.T) {

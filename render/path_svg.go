@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -19,8 +29,6 @@ import (
 //   - Negative sign as number separator (e.g., "10-20" means "10, -20")
 //   - Scientific notation in numbers (e.g., "1e-5")
 //   - Flag values (0 or 1) in arc commands without separators
-//
-// Reference: https://www.w3.org/TR/SVG11/paths.html#PathData
 func ParseSVGPath(d string) (*Path, error) {
 	p := &svgParser{
 		input: d,
@@ -398,8 +406,6 @@ func (p *svgParser) reflectControlPointQuad() (float64, float64) {
 // arcToCubics converts an SVG arc to one or more cubic Bezier curves.
 // This implements the W3C SVG spec F.6.5 endpoint-to-center parameterization,
 // then approximates each arc segment (up to pi/2 radians) with a cubic Bezier.
-//
-// Reference: https://www.w3.org/TR/SVG11/implnote.html#ArcConversionEndpointToCenter
 func (p *svgParser) arcToCubics(rx, ry, xRotDeg float64, largeArc, sweep bool, x2, y2 float64) {
 	x1 := p.cx
 	y1 := p.cy
@@ -502,9 +508,6 @@ func (p *svgParser) arcSegmentToCubic(cx, cy, rx, ry, cosRot, sinRot, a1, a2 flo
 	sin2 := math.Sin(a2)
 
 	// Endpoints and control points on the unit ellipse.
-	// P1 = (rx*cos1, ry*sin1), P2 = (rx*cos2, ry*sin2)
-	// CP1 = P1 + alpha * tangent at P1
-	// CP2 = P2 - alpha * tangent at P2
 	p1x := rx * cos1
 	p1y := ry * sin1
 	p2x := rx * cos2

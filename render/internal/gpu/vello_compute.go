@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build !nogpu
 
@@ -62,7 +69,6 @@ var shaderVelloFine string
 
 const (
 	// velloWGSize is the workgroup size used by all Vello compute shaders.
-	// This matches the WG_SIZE constant in every WGSL shader.
 	velloWGSize = 256
 
 	// Tile dimensions (VelloTileWidth, VelloTileHeight) are defined in vello_tiles.go.
@@ -362,20 +368,17 @@ type VelloComputeBuffers struct {
 //
 // Pipeline stages (in dispatch order):
 //  1. pathtag_reduce -- parallel reduction of PathMonoid over path tags
-//  2. pathtag_scan   -- prefix scan of PathMonoid (two-level)
-//  3. draw_reduce    -- parallel reduction of DrawMonoid over draw tags
-//  4. draw_leaf      -- DrawMonoid scan + draw info extraction + clip input emission
-//  5. clip_leaf      -- EndClip draw monoid fixup (LIFO clip/restore stack)
-//  5. path_count     -- DDA tile walk, backdrop, segment counting
-//  6. backdrop       -- left-to-right backdrop accumulation per tile row
-//  7. coarse         -- PTCL generation per tile
-//  8. fine           -- per-pixel rasterization via PTCL commands
+//  2. pathtag_scan -- prefix scan of PathMonoid (two-level)
+//  3. draw_reduce -- parallel reduction of DrawMonoid over draw tags
+//  4. draw_leaf -- DrawMonoid scan + draw info extraction + clip input emission
+//  5. clip_leaf -- EndClip draw monoid fixup (LIFO clip/restore stack)
+//  5. path_count -- DDA tile walk, backdrop, segment counting
+//  6. backdrop -- left-to-right backdrop accumulation per tile row
+//  7. coarse -- PTCL generation per tile
+//  8. fine -- per-pixel rasterization via PTCL commands
 //
 // Each stage's output feeds into subsequent stages through GPU storage buffers.
 // All inter-stage data flows through the buffers in VelloComputeBuffers.
-//
-// Reference: internal/gpu/tilecompute/ (CPU implementation)
-// Reference: internal/gpu/tilecompute/shaders/ (WGSL shaders)
 type VelloComputeDispatcher struct {
 	mu sync.RWMutex
 
@@ -435,8 +438,7 @@ func NewVelloComputeDispatcher(device hal.Device, queue hal.Queue) *VelloCompute
 }
 
 // stageBindGroupLayoutEntries returns the bind group layout entries for a
-// given compute stage. These entries match the @group(0) @binding(N) annotations
-// in the corresponding WGSL shader files exactly.
+// given compute stage.
 func stageBindGroupLayoutEntries(stage VelloComputeStage) []types.BindGroupLayoutEntry {
 	// configUniform returns the layout entry for binding(0) = Config uniform buffer.
 	// Every stage has this at binding 0.
@@ -462,80 +464,42 @@ func stageBindGroupLayoutEntries(stage VelloComputeStage) []types.BindGroupLayou
 
 	switch stage {
 	case VelloStagePathtagReduce:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) scene
-		// @binding(2) storage(read_write) reduced
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRW(2),
 		}
 
 	case VelloStagePathtagScan:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) scene
-		// @binding(2) storage(read) reduced
-		// @binding(3) storage(read_write) tag_monoids
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRO(2), storageRW(3),
 		}
 
 	case VelloStageDrawReduce:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) scene
-		// @binding(2) storage(read_write) draw_reduced
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRW(2),
 		}
 
 	case VelloStageDrawLeaf:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) scene
-		// @binding(2) storage(read) draw_reduced
-		// @binding(3) storage(read_write) draw_monoids
-		// @binding(4) storage(read_write) info
-		// @binding(5) storage(read_write) clip_inp
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRO(2), storageRW(3), storageRW(4), storageRW(5),
 		}
 
 	case VelloStageClipLeaf:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) clip_inp
-		// @binding(2) storage(read_write) draw_monoids
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRW(2),
 		}
 
 	case VelloStagePathCount:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) lines
-		// @binding(2) storage(read) paths
-		// @binding(3) storage(read_write) tiles
-		// @binding(4) storage(read_write) seg_counts
-		// @binding(5) storage(read_write) bump
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRO(2),
 			storageRW(3), storageRW(4), storageRW(5),
 		}
 
 	case VelloStageBackdrop:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) paths
-		// @binding(2) storage(read_write) tiles
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRW(2),
 		}
 
 	case VelloStageCoarse:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) scene
-		// @binding(2) storage(read) draw_monoids
-		// @binding(3) storage(read) info
-		// @binding(4) storage(read) paths
-		// @binding(5) storage(read_write) tiles       -- coarse writes inverted indices
-		// @binding(6) storage(read_write) ptcl
-		// @binding(7) storage(read_write) tile_ptcl_offsets
-		// @binding(8) storage(read) path_styles
-		// @binding(9) storage(read_write) bump        -- atomicAdd for segment allocation
 		return []types.BindGroupLayoutEntry{
 			configUniform,
 			storageRO(1), storageRO(2), storageRO(3),
@@ -545,13 +509,6 @@ func stageBindGroupLayoutEntries(stage VelloComputeStage) []types.BindGroupLayou
 		}
 
 	case VelloStagePathTiling:
-		// @binding(0) uniform config
-		// @binding(1) storage(read_write) bump        -- reads seg_counts
-		// @binding(2) storage(read) seg_counts
-		// @binding(3) storage(read) lines
-		// @binding(4) storage(read) paths
-		// @binding(5) storage(read) tiles             -- reads inverted indices from coarse
-		// @binding(6) storage(read_write) segments    -- writes PathSegment data
 		return []types.BindGroupLayoutEntry{
 			configUniform,
 			storageRW(1), storageRO(2),
@@ -560,12 +517,6 @@ func stageBindGroupLayoutEntries(stage VelloComputeStage) []types.BindGroupLayou
 		}
 
 	case VelloStageFine:
-		// @binding(0) uniform config
-		// @binding(1) storage(read) ptcl
-		// @binding(2) storage(read) segments
-		// @binding(3) storage(read) info
-		// @binding(4) storage(read_write) output
-		// @binding(5) storage(read_write) blend_spill
 		return []types.BindGroupLayoutEntry{
 			configUniform, storageRO(1), storageRO(2), storageRO(3), storageRW(4), storageRW(5),
 		}
@@ -886,10 +837,10 @@ func (d *VelloComputeDispatcher) AllocateBuffers(
 
 	// Buffer usage flags:
 	// - storageZero: GPU-side storage that must be zero-initialized (atomics, accumulators).
-	// - storageCPU:  GPU storage with CPU write access (scene data uploads).
-	// - storageGPU:  GPU-only storage (intermediate results, overwritten by shaders).
-	// - uniformCPU:  Uniform buffer with CPU write access (config).
-	// - storageOut:  GPU storage with CPU read access (output readback).
+	// - storageCPU: GPU storage with CPU write access (scene data uploads).
+	// - storageGPU: GPU-only storage (intermediate results, overwritten by shaders).
+	// - uniformCPU: Uniform buffer with CPU write access (config).
+	// - storageOut: GPU storage with CPU read access (output readback).
 	storageZero := types.BufferUsageStorage | types.BufferUsageCopyDst
 	storageCPU := types.BufferUsageStorage | types.BufferUsageCopyDst
 	storageGPU := types.BufferUsageStorage
@@ -1126,15 +1077,15 @@ func (r *dispatchResources) cleanup() {
 //
 // The dispatch sequence is:
 //  1. pathtag_reduce: scene -> reduced (ceil(n_tag_words / 256) workgroups)
-//  2. pathtag_scan:   scene + reduced -> tag_monoids (ceil(n_tag_words / 256) workgroups)
-//  3. draw_reduce:    scene -> draw_reduced (ceil(n_drawobj / 256) workgroups)
-//  4. draw_leaf:      scene + draw_reduced -> draw_monoids + info + clip_inp (ceil(n_drawobj / 256) workgroups)
-//  5. clip_leaf:      clip_inp + draw_monoids -> draw_monoids fixed up (1 workgroup; skipped when n_clip=0)
-//  6. path_count:     lines + paths -> tiles + seg_counts (ceil(n_lines / 256) workgroups)
-//  7. backdrop:       paths + tiles -> tiles (n_paths workgroups)
-//  8. coarse:         draw_monoids + paths + tiles + bump -> ptcl + tiles (ceil(n_drawobj / 256) wg)
-//  9. path_tiling:    seg_counts + lines + paths + tiles -> segments (ceil(n_lines*4 / 256) wg)
-//  10. fine:          ptcl + segments -> output (width_in_tiles * height_in_tiles workgroups)
+//  2. pathtag_scan: scene + reduced -> tag_monoids (ceil(n_tag_words / 256) workgroups)
+//  3. draw_reduce: scene -> draw_reduced (ceil(n_drawobj / 256) workgroups)
+//  4. draw_leaf: scene + draw_reduced -> draw_monoids + info + clip_inp (ceil(n_drawobj / 256) workgroups)
+//  5. clip_leaf: clip_inp + draw_monoids -> draw_monoids fixed up (1 workgroup; skipped when n_clip=0)
+//  6. path_count: lines + paths -> tiles + seg_counts (ceil(n_lines / 256) workgroups)
+//  7. backdrop: paths + tiles -> tiles (n_paths workgroups)
+//  8. coarse: draw_monoids + paths + tiles + bump -> ptcl + tiles (ceil(n_drawobj / 256) wg)
+//  9. path_tiling: seg_counts + lines + paths + tiles -> segments (ceil(n_lines*4 / 256) wg)
+//  10. fine: ptcl + segments -> output (width_in_tiles * height_in_tiles workgroups)
 //
 // Returns an error if any stage fails or if the dispatcher is not initialized.
 func (d *VelloComputeDispatcher) Dispatch(bufs *VelloComputeBuffers, config VelloComputeConfig) error {

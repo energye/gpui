@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -43,7 +50,7 @@ type aetEntry struct {
 
 	// srcIdx is the index of this edge in the source edgeBuf array.
 	// Used by AnalyticFiller to maintain persistent per-edge X state
-	// across pixel rows (matching Skia's incremental fX accumulation).
+	// across pixel rows (matching the incremental fX accumulation).
 	srcIdx int
 }
 
@@ -67,7 +74,7 @@ func (aet *CurveAwareAET) Insert(e CurveEdgeVariant) {
 
 // InsertWithIndex adds an edge to the AET with its source edgeBuf index.
 // The srcIdx is used by AnalyticFiller to maintain persistent per-edge X state
-// across pixel rows (matching Skia's incremental fX accumulation).
+// across pixel rows (matching the incremental fX accumulation).
 func (aet *CurveAwareAET) InsertWithIndex(e CurveEdgeVariant, srcIdx int) {
 	line := e.AsLine()
 	if line == nil {

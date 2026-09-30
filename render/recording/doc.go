@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package recording provides a command-based drawing recording system for render.
 //
 // The recording system captures drawing operations as commands that can be
@@ -12,7 +22,7 @@
 //   - Recording: Stores commands and resources for playback
 //   - Backend: Renders commands to a specific output format
 //
-// This design is inspired by Skia's SkPicture and Cairo's recording surface.
+// This design is inspired by the SkPicture and Cairo's recording surface.
 //
 // # Basic Usage
 //
@@ -63,8 +73,8 @@
 //
 //	import (
 //	    "github.com/energye/gpui/render/recording"
-//	    _ "github.com/energye/gpui/render-pdf"  // Registers "pdf" backend
-//	    _ "github.com/energye/gpui/render-svg"  // Registers "svg" backend
+//	    _ "github.com/energye/gpui/render-pdf" // Registers "pdf" backend
+//	    _ "github.com/energye/gpui/render-svg" // Registers "svg" backend
 //	)
 //
 // The built-in "raster" backend is always available via:

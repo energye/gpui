@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "math"
@@ -51,8 +61,6 @@ func lineArea(p0, p1 Point) float64 {
 // quadArea computes the contribution of a quadratic Bezier to the signed area.
 // Integrates x*dy using the parametric form.
 func quadArea(p0, p1, p2 Point) float64 {
-	// For a quadratic Bezier B(t) = (1-t)^2*P0 + 2*(1-t)*t*P1 + t^2*P2
-	// Area contribution = integral of x*dy from t=0 to t=1
 	return (p0.X*(2*p1.Y+p2.Y) + p1.X*(-p0.Y+p2.Y) + p2.X*(-2*p1.Y-p0.Y)) / 6.0
 }
 
@@ -231,7 +239,6 @@ func flattenCubicWindingRecursive(c CubicBez, pt Point, tolerance float64, windi
 
 // cubicFlatness returns the maximum distance from control points to the chord.
 func cubicFlatness(c CubicBez) float64 {
-	// Distance from P1 and P2 to the line P0-P3
 	ux := 3.0*c.P1.X - 2.0*c.P0.X - c.P3.X
 	uy := 3.0*c.P1.Y - 2.0*c.P0.Y - c.P3.Y
 	vx := 3.0*c.P2.X - c.P0.X - 2.0*c.P3.X
@@ -670,7 +677,7 @@ func cubicLengthRecursive(c CubicBez, accuracySq float64, depth int) float64 {
 }
 
 // Trim returns a new open path containing the portion of this path between
-// normalized arc-length parameters t0 and t1 in [0,1] (E.03 / Skia trim path).
+// normalized arc-length parameters t0 and t1 in [0,1].
 // Curves are approximated via Flatten. Multi-subpath paths are concatenated in order.
 // If t1<=t0 or the path has no measurable length, returns an empty path.
 func (p *Path) Trim(t0, t1 float64) *Path {

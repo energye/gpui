@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -131,7 +141,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 	// identical iteration.
 	kids := n.Children()
 
-	// Transform nodes push scene.TransformLayer (P1).
+	// Transform nodes push scene.TransformLayer.
 	if tr, ok := n.(*RenderTransform); ok {
 		rot, sx, sy := tr.TransformParams()
 		sz := n.Size()
@@ -520,7 +530,7 @@ func typeName(n RenderObject) string {
 //
 // D3 inline mode: this is the synchronous inline path for unit tests (no
 // raster Loop involved). Windows go through the async embedder+raster Loop;
-// the packet shape is identical on both paths (both sealed — R2).
+// the packet shape is identical on both paths.
 func BuildFramePacket(root RenderObject, frameID uint64, dpr, w, h float64) *scene.FramePacket {
 	begin := time.Now().UnixNano()
 	b := BuildLayerTree(root)
@@ -557,7 +567,7 @@ func BuildFramePacketWithSaveLayerStats(root RenderObject, frameID uint64, dpr, 
 // seals the EndFrame point (G3). Raster stamps stay zero until the raster
 // thread marks them (T2). Nil-safe for empty builds.
 //
-// R4: BuildBeginNs is assigned directly (not via MarkBuildBegin) on purpose:
+// BuildBeginNs is assigned directly (not via MarkBuildBegin) on purpose:
 // the stamp must be the build START, but the packet only exists at seal time
 // — re-stamping at seal would measure the wrong instant. End uses the Mark
 // method since its instant IS seal time.

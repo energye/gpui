@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -9,9 +19,6 @@ import (
 	"time"
 )
 
-// TestX11SharedBusSingleConn 验证 S1 单 Conn 复用：多次调用共享同一指针
-// 且建窗不阻塞（无守护时返回 nil 降级不崩）。
-// S1 后 ibus 私有与 fcitx 会话各单例，此用例改为验证会话总线单例（fcitx 基线）
 func TestX11SharedBusSingleConn(t *testing.T) {
 	origGtk := os.Getenv("GTK_IM_MODULE")
 	os.Setenv("GTK_IM_MODULE", "fcitx")
@@ -95,7 +102,6 @@ func TestX11ImeNilSafety(t *testing.T) {
 	}
 }
 
-// TestX11S2AsyncProbe 验证 S2 异步探针：不阻塞、SetCapabilities、每窗一路径、Close 不泄漏
 func TestX11S2AsyncProbe(t *testing.T) {
 	if os.Getenv("DISPLAY") == "" {
 		t.Skip("no DISPLAY, skip real S2 probe")

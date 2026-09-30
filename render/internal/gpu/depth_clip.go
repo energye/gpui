@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -37,7 +47,7 @@ const depthClipUniformSize = 16
 //   - Clip path writes Z = 0.0 where geometry exists → depth buffer = 0.0
 //   - Where clip absent, depth buffer remains 1.0 (clear value)
 //   - Content pipelines use DepthCompare=GreaterEqual, fragment Z = 0.0
-//   - Where clip drawn:     0.0 >= 0.0 → PASS
+//   - Where clip drawn: 0.0 >= 0.0 → PASS
 //   - Where clip NOT drawn: 0.0 >= 1.0 → FAIL
 //
 // Algorithm (two-phase, same render pass, BEFORE content):
@@ -70,8 +80,7 @@ const depthClipUniformSize = 16
 //	Clip restore (pop) limitation: within a single ScissorGroup, depth writes
 //	cannot be "undone" without redrawing. For v1, each ScissorGroup has at
 //	most ONE ClipPath. Nested clips from the scene graph create nested groups
-//	or use the Context CPU clip stack. This matches other renderers (SDF,
-//	convex, text) which each have one depth clip state per group.
+//	or use the Context CPU clip stack.
 //
 // Architecture:
 //
@@ -87,7 +96,6 @@ type DepthClipPipeline struct {
 	// Reuses the same depth_clip.wgsl (vertex: NDC transform, Z=0.0; fragment: no-op).
 	shader hal.ShaderModule
 
-	// uniformBGL is the bind group layout for the uniform buffer (@group(0) @binding(0)).
 	uniformBGL hal.BindGroupLayout
 
 	// pipeLayout is the pipeline layout for the stencil fill phase (uniform only).
@@ -169,8 +177,6 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 	}
 	p.uniformBGL = bgl
 
-	// Pipeline layout: just the uniform bind group (no clip @group(1) needed
-	// for the clip pipeline itself -- it IS the clip).
 	pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "depth_clip_pipe_layout",
 		BindGroupLayouts: []hal.BindGroupLayout{p.uniformBGL},
@@ -389,8 +395,6 @@ type DepthClipResources struct {
 	// ClipMask pattern). The stencil+depth phases are binary at 1x — a pixel
 	// either passes the depth test or not — so the clip boundary itself
 	// aliases. The R8 mask (full-frame coverage, 0..255 with an AA fringe
-	// band around the clip edge) is bound to the L.06 @group(2) mask channel
-	// of content pipelines, which multiply the fragment alpha by the sampled
 	// coverage. Nil at sampleCount>1 (MSAA already provides sub-sample edge
 	// coverage through the depth test).
 	maskTex  hal.Texture
@@ -506,11 +510,6 @@ func clipPathCoverageMask(clipPath *render.Path, w, h int) []byte {
 
 // BuildClipMask generates the analytic-AA coverage mask for the clip path and
 // uploads it as a full-frame R8 texture + bind group on res. This is the
-// Skia kCoverage / Flutter ClipMask half of GPU-CLIP-003a: at sampleCount==1
-// the stencil+depth phases are binary (a pixel either passes the depth test
-// or not), so the clip boundary aliases; the R8 mask is bound to content
-// pipelines' @group(2) mask channel (L.06) and multiplies the fragment alpha
-// by the sampled coverage, giving a smooth edge gradient.
 //
 // Skipped when sampleCount>1 (MSAA sub-sample coverage already softens the
 // depth-test boundary) or when any required resource is nil. Idempotent:
@@ -872,8 +871,6 @@ func (p *DepthClipPipeline) RecordDraw(rp hal.RenderPassEncoder, res *DepthClipR
 	// binary fan stencil edge is tighter than the R8 coverage mask's fringe;
 	// without this pass boundary pixels fail the depth test before the mask
 	// can fade them, leaving aliased edges. Phase 2's cover then writes
-	// depth where stencil != 0 — the widened region — and the content
-	// pipelines' @group(2) mask sample provides the smooth alpha gradient.
 	if res.bandCount > 0 && p.stencilExpandPipeline != nil {
 		clearPassBindGroups(rp)
 		rp.SetPipeline(p.stencilExpandPipeline)

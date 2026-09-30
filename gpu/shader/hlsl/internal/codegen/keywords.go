@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -20,7 +27,6 @@ var caseInsensitiveKeywords = backend.HLSLCaseInsensitiveKeywords
 // UnnamedIdentifier is the default name for empty identifiers.
 const UnnamedIdentifier = "_unnamed"
 
-// Naga helper function names (reserved to avoid conflicts with generated code).
 const (
 	NagaModfFunction               = "naga_modf"
 	NagaFrexpFunction              = "naga_frexp"
@@ -115,7 +121,7 @@ func IsCaseInsensitiveReserved(name string) bool {
 }
 
 // Escape returns a safe identifier name.
-// If the name is reserved or empty, it's suffixed with underscore (matches Rust naga).
+// If the name is reserved or empty, it's suffixed with underscore.
 func Escape(name string) string {
 	if name == "" {
 		return UnnamedIdentifier

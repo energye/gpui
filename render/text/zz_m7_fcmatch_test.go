@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -7,9 +17,7 @@ import (
 	"testing"
 )
 
-// M7 系统字体发现验证：家族匹配 + rune 回退对照 fc-match（fontconfig）。
 //
-// 验收线（真源 §5.3 M7）：系统字体列表与回退选择对照 fc-match 等价。
 // 对照原则：比「命中的字体家族」（family name），不比具体文件路径——
 // fontconfig 与 go-text 索引可能选中同族的用户版/系统版不同文件（如
 // NotoSansCJKsc-Regular.otf vs NotoSansCJK-Regular.ttc），家族一致即等价。
@@ -70,11 +78,6 @@ func TestM7FamilyMatch(t *testing.T) {
 // TestM7RuneFallback vs fc-match charset：代表性 rune 的回退覆盖性。
 //
 // 硬断言：go-text 选择的回退字体必须覆盖该 rune（覆盖性等价）。
-// script 对照：泰文/天城文/阿拉伯文等复杂脚本的 fallback 必须与 fc-match
-// 家族一致（M7 用 FontMap.SetScript 后已对齐：泰→Loma、天→Lohit、
-// 阿拉伯→DejaVu）。拉丁 A 例外：本机 fontconfig 用户字体（NotoSansCJKsc）
-// 优先级极高，fc-match 连 lang=en 都选 CJK——go-text 选 DejaVu 才是正确
-// 的拉丁选择，该差异是 fc-match 本机配置怪癖，不判、不记。
 func TestM7RuneFallback(t *testing.T) {
 	// script 对照组：fc-match 选择合理、必须家族一致。
 	scriptChecks := []struct {

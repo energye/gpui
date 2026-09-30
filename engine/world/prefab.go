@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package world
 
 import (
@@ -8,7 +18,7 @@ import (
 	"github.com/energye/gpui/engine/core"
 )
 
-// Prefab and scene files (10.2, S33/W4): the level the planner laid out,
+// Prefab and scene files: the level the planner laid out,
 // stored as JSON, stamped into a World or opened as a live Scene in one
 // go. Prefab is one reusable entity template; SceneFile (see scene.go) is
 // one level on disk. Instantiate stamps a prefab under any parent; Open

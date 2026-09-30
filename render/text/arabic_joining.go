@@ -1,11 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Arabic joining analysis for presentation-form feature masks (ENGINE_GAPS G1.c).
 //
 // Assigns each glyph a joining form (isol/init/medi/fina) so GSUB features of
 // those tags only apply to the correct positions. This is a lightweight
 // state machine over Unicode Arabic joining types — not a full HarfBuzz
 // complex shaper, but enough for fonts that encode forms under init/medi/fina/isol.
-//
-// Reference: Unicode ArabicJoining.txt; OpenType Arabic shaping model.
 package text
 
 // joiningType is the Unicode Arabic joining class (simplified).

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene_test
 
 import (
@@ -15,7 +25,7 @@ import (
 // NEVER recorded into the texture cache (phase 1 skip) and always vector-
 // replays under the live CTM (phase 2). The texture cache records axis-aligned
 // bounds textures and blits them 1:1 — it cannot represent rotated content
-// (double transform / cropped shards). Flutter's raster cache makes the same
+// (double transform / cropped shards). the raster cache makes the same
 // call at the same place (RasterCache::CanRasterCachePicture: non-translate
 // transforms disqualify the subtree).
 func TestCompositeFramePacketTextured_TransformNoTextureCache(t *testing.T) {

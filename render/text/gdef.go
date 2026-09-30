@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // GDEF table — glyph class definition for lookup flag filtering.
 //
 // ENGINE_GAPS G1.c: IgnoreBase/Ligature/Marks, MarkAttachmentType, and
 // MarkFilteringSet (GDEF MarkGlyphSets + LookupFlag bit 4).
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/gdef
 package text
 
 import "encoding/binary"
@@ -71,7 +79,7 @@ func parseGDEF(data []byte) *gdefTable {
 //
 //	uint16 format
 //	uint16 markGlyphSetCount
-//	Offset32 coverageOffset[markGlyphSetCount]  (from beginning of MarkGlyphSetsTable)
+//	Offset32 coverageOffset[markGlyphSetCount] (from beginning of MarkGlyphSetsTable)
 func parseMarkGlyphSets(data []byte) []otCoverage {
 	if len(data) < 4 {
 		return nil

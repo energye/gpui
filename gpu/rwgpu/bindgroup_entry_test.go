@@ -1,11 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import "testing"
 
-// TestValidateBindGroupEntriesRejectsZeroHandles pins the P2 defense: a bind
-// group entry referencing a released resource (handle == 0) must produce a
-// catchable Go error, never reach wgpu-native (which would panic in conv.rs
-// with "invalid bind group entry" and abort the process).
 func TestValidateBindGroupEntriesRejectsZeroHandles(t *testing.T) {
 	cases := []struct {
 		name    string

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 // RenderBox is a minimal box with optional fixed size and children stacked from top-left.
@@ -113,7 +123,7 @@ func (b *RenderBox) Layout(c Constraints) Size {
 //     only into dirty paths (paint isolation — sibling subtrees untouched).
 //
 // The walk never re-paints a clean RepaintBoundary subtree unless the
-// boundary itself is dirty, so paint_count/visits stay explainable (R2).
+// boundary itself is dirty, so paint_count/visits stay explainable.
 func (b *RenderBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
@@ -241,7 +251,7 @@ func (c *RenderColorBox) Layout(cons Constraints) Size {
 // (parent omits clean RepaintBoundary children). Leaves must redraw when a
 // scrolling ancestor repaints.
 //
-// W1: with UseBoundaryCache, a clean RepaintBoundary ColorBox Replays its
+// with UseBoundaryCache, a clean RepaintBoundary ColorBox Replays its
 // Picture instead of re-recording (boundary_skip); dirty path re-records.
 func (c *RenderColorBox) Paint(pc *PaintContext) {
 	if pc == nil {

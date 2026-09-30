@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 import "sync"
 
-// Pool is one fixed-size byte-slice pool (VR7 §2.7): borrow-use-return,
-// same size only, resolution switch builds a new pool, steady reuse grows
 // nothing. Stats stay readable for the window JSON (hits/misses/hit%,
 // outstanding for leak checks, bytes held, evictions on cap overflow).
 // Pure Go, standard library only.
@@ -93,16 +101,16 @@ func (p *Pool) Release(b []byte) {
 
 // PoolStats is the readable snapshot for JSON and gates.
 type PoolStats struct {
-	Acquires     int64
-	Hits         int64
-	Misses       int64
-	HitPct       float64
-	Releases     int64
-	Outstanding  int64
-	HeldBytes    int
-	Evictions    int64
-	BufSize      int
-	CapBytes     int
+	Acquires    int64
+	Hits        int64
+	Misses      int64
+	HitPct      float64
+	Releases    int64
+	Outstanding int64
+	HeldBytes   int
+	Evictions   int64
+	BufSize     int
+	CapBytes    int
 }
 
 // Stats snapshots the counters. HitPct is 0 with no acquires (honest
@@ -134,7 +142,6 @@ func RGBABytes(w, h int) int { return w * h * 4 }
 // YUVBytes returns the planar 4:2:0 total for w×h.
 func YUVBytes(w, h int) int { return w*h + w*h/2 }
 
-// Pools bundles the §2.7 three independent pools: YUV frames, RGBA
 // frames, bitstream workspace. Independent so one pressure never borrows
 // from another; leak-checked separately.
 type Pools struct {
@@ -209,7 +216,6 @@ func (ps *Pools) OutstandingTotal() int64 {
 // The window enforces RSS peak against it and reports overruns, never
 // silent growth.
 //
-// S7 grade caps (VW4, §11.7 S7): one explicit cap per §2.8 grade, short
 // side buckets (portrait uses min(w,h)). Each cap is ~2x the worst-case
 // live footprint below (refs=16, queue=DefaultCap, spare=3, work=256KB),
 // rounded up to a power of two, so normal clips pass with headroom for
@@ -227,7 +233,7 @@ func (ps *Pools) OutstandingTotal() int64 {
 // never grows to clip length) + :789 frame_queue_next unrefs (return).
 const MemCapKBFor1080p = 512 << 10
 
-// Grade caps backing MemCapKBFor (S7 §11.7): explicit per grade, same
+// Grade caps backing MemCapKBFor: explicit per grade, same
 // derivation as above. New grades arrive here, never as window literals.
 const (
 	MemCapKBFor480p  = 128 << 10
@@ -236,8 +242,7 @@ const (
 	MemCapKBFor4K    = 2048 << 10
 )
 
-// MemCapKBFor returns the S7 grade cap for w×h (short-side bucket per
-// §2.8: portrait uses min(w,h)). Unknown/zero sizes fall back to the
+// Unknown/zero sizes fall back to the
 // 1080p cap (never uncapped, never zero).
 func MemCapKBFor(w, h int) int {
 	short := w
@@ -258,13 +263,13 @@ func MemCapKBFor(w, h int) int {
 	}
 }
 
-// EstimateLiveBytes bounds the streaming live footprint (S7 §11.7): one
+// EstimateLiveBytes bounds the streaming live footprint: one
 // YUV+RGBA frame per reference slot plus queue plus in-flight spares,
 // plus one workspace (max sample size). Refs clamp to 1..16 (SPS truth,
 // H.264 max 16); queue clamps to >=1. Small clips use EstimateDecoderBytes
 // (full cache); streaming clips use this (bounded, never clip length).
 //
-// ffmpeg peer: width×height×refs pre-estimate idea (see S7 depth) +
+// ffmpeg peer: width×height×refs pre-estimate idea +
 // buffer pool + bounded FrameQueue above; we only copy the shape.
 func EstimateLiveBytes(w, h, refs, queueCap, workSize int) int64 {
 	if w <= 0 || h <= 0 {

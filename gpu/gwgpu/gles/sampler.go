@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -141,8 +148,6 @@ func mapCompareFunction(fn gputypes.CompareFunction) int32 {
 // isNonFilterableFormat reports whether the given texture format is non-filterable
 // per the WebGPU spec. Non-filterable formats include all integer formats and
 // 32-bit float formats (which require the float32-filterable feature to filter).
-// Rust wgpu sets GL_NEAREST for these at texture creation; filterable formats
-// are left to sampler objects.
 func isNonFilterableFormat(format gputypes.TextureFormat) bool {
 	switch format {
 	// Unsigned integer formats.

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -81,7 +91,6 @@ func TestBuildFramePacket_SealedReadOnly(t *testing.T) {
 	if pkt.RasterBeginNs != 0 || pkt.RasterEndNs != 0 {
 		t.Fatal("raster stamps must stay zero until T2 wires the raster thread")
 	}
-	// (G2 RegenerateFrom deleted in R2: zero production consumers.)
 }
 
 // TestBuildFramePacket_MutateTreeKeepsHandedOffPacket: changing the RO tree

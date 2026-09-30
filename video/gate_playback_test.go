@@ -1,7 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
-// VR4 ffmpeg parity: the window's three play clips must meet the §12.1
-// VR4 row. Baseline: testdata/vr4_ffmpeg.json (ffmpeg 4.4.2, same machine).
+// Baseline: testdata/vr4_ffmpeg.json (ffmpeg 4.4.2, same machine).
 // Peer: ffplay.c video_refresh (diff/sync_threshold/compute_target_delay
 // drop-old-to-keep-the-timeline, update_video_pts) against Player Poll +
 // clock.Queue.PollDue. End-to-end fps is out of scope (different display

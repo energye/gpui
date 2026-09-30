@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -12,7 +22,7 @@ import (
 )
 
 // TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot packs N gpu-tex uniforms
-// into one slab WriteBuffer (class A opt40).
+// into one slab WriteBuffer.
 func TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")
@@ -44,7 +54,7 @@ func TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot(t *testing.T) {
 		return v
 	}
 	v1, v2 := mkView("opt40a"), mkView("opt40b")
-	// P3: register test views under deferred SourceKeys for build resolution.
+	// register test views under deferred SourceKeys for build resolution.
 	k1 := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 1}
 	k2 := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 2}
 	s.Reg().Bind(k1, s.Reg().Register(&texViewNative{v1}))

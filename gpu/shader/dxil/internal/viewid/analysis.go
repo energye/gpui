@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package viewid
 
 import (
@@ -277,8 +287,7 @@ func buildViewIDSigMap(irMod *ir.Module, args []ir.FunctionArgument, isVSInput b
 }
 
 // findArgHandle finds the ExpressionHandle for a FunctionArgument with
-// the given index. Mirrors emit.findArgExprHandle, duplicated here to
-// avoid cross-package dependency.
+// the given index.
 func (s *analysisState) findArgHandle(idx uint32) (ir.ExpressionHandle, bool) {
 	fn := &s.ep.Function
 	for i := range fn.Expressions {
@@ -316,8 +325,7 @@ func expandTaintToType(irMod *ir.Module, inner ir.TypeInner, taint scalarSet) co
 
 	// For vectors, distribute scalar taint per-component precisely: the
 	// i-th component inherits the i-th scalar from the taint set (if the
-	// taint set is sorted). This matches the loadInput(sigID, col=i)
-	// emission model.
+	// taint set is sorted).
 	if vt, ok := inner.(ir.VectorType); ok {
 		sorted := sortedScalars(taint)
 		for i := 0; i < int(vt.Size) && i < n; i++ {
@@ -370,7 +378,7 @@ func emptyTaint(n int) componentTaint {
 }
 
 // totalScalarCount is local copy of emit.totalScalarCount to avoid an
-// import cycle. Mirrors the same recursive shape.
+// import cycle.
 func totalScalarCount(irMod *ir.Module, inner ir.TypeInner) int {
 	switch t := inner.(type) {
 	case ir.ScalarType:

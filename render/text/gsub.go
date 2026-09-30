@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // GSUB table parser and glyph substitution engine.
 //
 // Implements OpenType GSUB (Glyph Substitution) table parsing and application.
@@ -11,8 +21,6 @@
 //   - Type 6: Chaining contextual substitution (ENGINE_GAPS G1.c)
 //   - Type 7: Extension substitution (wrapper for above types in large fonts)
 //   - Type 8: Reverse chaining single substitution (ENGINE_GAPS G1.c)
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/gsub
 //
 // This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
 package text
@@ -122,7 +130,6 @@ func (g *gsubTable) applyGSUBStagedArabic(
 		return glyphs
 	}
 
-	// Align forms to glyphs via cluster index → rune form.
 	runeForms := computePresentationForms(runes)
 	// OT Arabic feature order: isol, fina, medi, init (common practice).
 	order := []presentationForm{formIsol, formFina, formMedi, formInit}

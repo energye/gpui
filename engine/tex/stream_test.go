@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package tex
 
 import (
@@ -11,7 +21,6 @@ import (
 	"github.com/energye/gpui/engine/core"
 )
 
-// Window intent: game_tex --case=stream rides P2 (W3 gate needs an
 // independent window per ability; the window is not built yet). Until
 // then TestStreamOffscreenGolden is the offscreen comparison plus the
 // auto verdict: frozen spots, sharp magenta placeholder, budgets.

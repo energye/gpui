@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 import (
@@ -23,8 +33,6 @@ type ffAudio = ff.AudioStream
 // openFFmpeg opens path through libgpui_ffmpeg and starts the background
 // decoder. The player fields it reuses: queue + clock + ready/stop/done
 // channels + Info/Stats counters. Everything Go-decode-specific (samples,
-// keyframes, reorder pending, audio queues, buffered cache, S2/B groups)
-// stays zero: ffmpeg owns demux, decode, reorder and seek.
 func openFFmpeg(path string, opt Options) (*Player, error) {
 	if !ff.Available() {
 		return nil, fmt.Errorf("video: ffmpeg library missing (%s): %w", ff.LibPath(), ErrBadClip)
@@ -95,8 +103,6 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 	p.ffdec = dec
 	p.memCapKB = MemCapKBFor(info.Width, info.Height)
 	p.estimateB = EstimateLiveBytes(info.Width, info.Height, 4, qcap, 256<<10)
-	// Streaming Pix lifetime matches the S6 path: the queue observer
-	// returns dropped stale frames to the pool.
 	p.q.SetOnDrop(func(fr *clock.Frame) {
 		if fr == nil {
 			return
@@ -153,8 +159,6 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 }
 
 // wrapFFFrame converts one ffmpeg RGBA picture into a clock frame.
-// Ownership transfers: the ffmpeg buffer becomes the clock frame's Pix
-// (no copy), so its lifetime rides the S6 pool path (queue observer,
 // superseded display, Close). Loop passes add the epoch offset so stamps
 // keep counting up.
 func (p *Player) wrapFFFrame(vf *ff.VideoFrame) (*clock.Frame, float64) {

@@ -1,6 +1,16 @@
-// Package scene dynamic dirty layer (capability 8.3, P2, S37/W5).
+//----------------------------------------
 //
-// Frozen 2026-09-15 (capability 8.3, P2, S37/W5): DirtyRect, DirtyCode,
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
+// Package scene dynamic dirty layer.
+//
+// Frozen 2026-09-15: DirtyRect, DirtyCode,
 // DirtyError, DirtyCodeOf, MaxDirtyRects, DirtyStats, DirtyLayer,
 // NewDirtyLayer, NewSpriteDirtyLayer. Additive changes only.
 //
@@ -21,7 +31,6 @@ import (
 )
 
 // MaxDirtyRects caps per-frame dirty boxes before a full repaint.
-// Mirrors render Scene maxDirtyRects = 16 (len > 16 falls back to full).
 const MaxDirtyRects = 16
 
 // DirtyCode classifies a dirty-layer construction failure.

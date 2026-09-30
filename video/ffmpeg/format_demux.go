@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -484,7 +494,7 @@ func (x *FormatContext) NetworkInit() error {
 	return nil
 }
 
-// AVIO 写标记（avio.h：READ=1 写=2；写文件传 Write）。
+// AVIO 写标记。
 const (
 	AVIOFlagRead  int32 = 1
 	AVIOFlagWrite int32 = 2
@@ -1182,7 +1192,6 @@ func (x *IOContext) Vprintf(fmt unsafe.Pointer, ap unsafe.Pointer) error {
 	return nil
 }
 
-// W8 写一个字节（对 avio_w8；参数 b；按签名取回值；nil 接收器直接回零值，不崩）。
 func (x *IOContext) W8(b int32) {
 	mustUse(ensureModFormatDemux())
 	if x == nil {

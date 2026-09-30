@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -9,11 +19,6 @@ import (
 	"testing"
 )
 
-// TestScanCJK3000：3000 常用字全量回归（docs §5.1 M3 收尾项）。
-//
-// 字表 = testdata/cjk3000.txt（《通用规范汉字表》一级字表前 3000 常用字，
-// 国标 2013，docs §4.3 规定来源）。对照 = ftexp bcontour 批量模式
-// （一次进程取全部字 FT-light 26.6 轮廓，避免每字一次 exec）。
 func TestScanCJK3000(t *testing.T) {
 	raw, err := os.ReadFile("testdata/cjk3000.txt")
 	if err != nil {

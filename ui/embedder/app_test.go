@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder_test
 
 import (
@@ -35,9 +45,6 @@ func TestApp_QuitWake(t *testing.T) {
 	}
 }
 
-// TestEventQuits pins the §2.4 consumer contract: EventCloseRequested (the
-// interceptable ✕ / WM_DELETE / xdg close) and EventClose (window already
-// destroyed) both end the embedder main loop; other events never do.
 func TestEventQuits(t *testing.T) {
 	closeEvs := []platform.Event{
 		{Type: platform.EventCloseRequested},

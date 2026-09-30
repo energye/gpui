@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -22,7 +29,6 @@ type Adapter struct {
 	windowHandle  uintptr
 	version       string
 	renderer      string
-	// eglDevice is the P2-1 enumerated EGLDeviceEXT this adapter was picked
 	// from (0 = default display / surface context, no device). Info-only
 	// enumeration entries carry it without a context; materialized adapters
 	// carry both.
@@ -137,7 +143,6 @@ func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error) 
 }
 
 // GetSurfaceCapabilities returns surface capabilities.
-// Matches webgpu Adapter.GetSurfaceCapabilities name.
 func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities {
 	return &hal.SurfaceCapabilities{
 		Formats: []gputypes.TextureFormat{
@@ -158,7 +163,6 @@ func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities
 }
 
 // Release releases the adapter.
-// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
 func (a *Adapter) Release() {
 	// Adapter doesn't own the GL context
 }

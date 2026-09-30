@@ -1,11 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Indic GSUB feature staging (ENGINE_GAPS G1.c lightweight state machine).
 //
 // Full Uniscribe/HarfBuzz Indic reordering is out of scope. We apply OpenType
 // features in the conventional Indic stage order so fonts that encode behavior
 // under rphf/half/vatu/pres/… get a deterministic, script-aware pass instead of
 // a single sorted-lookup soup.
-//
-// Reference: Microsoft OpenType Indic shaping spec (Devanagari / “dev2” model).
 package text
 
 // needsIndicShaping reports whether runes need Indic-style staged GSUB.

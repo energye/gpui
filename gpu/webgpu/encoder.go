@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -19,7 +29,7 @@ type CommandEncoder struct {
 }
 
 // BeginRenderPass begins a render pass.
-// R7.0: convert attachments on the caller's stack so the common 1-color-target
+// convert attachments on the caller's stack so the common 1-color-target
 // path does not allocate. Descriptors are only live for the duration of the
 // rwgpu BeginRenderPass call (native copies immediately).
 // Param is hal.RenderPassDescriptor (callers' keyed literals unchanged).
@@ -192,7 +202,7 @@ func (e *CommandEncoder) CopyTextureToBuffer(src hal.Texture, dst hal.Buffer, re
 	if !ok1 || !ok2 || wsrc == nil || wdst == nil {
 		return
 	}
-	// R7.6: ≤4 regions on stack (glyph atlas / readback common case is 1).
+	// ≤4 regions on stack (glyph atlas / readback common case is 1).
 	n := len(regions)
 	var stack [4]rwgpu.BufferTextureCopy
 	var rRegions []rwgpu.BufferTextureCopy
@@ -232,7 +242,7 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 	if !ok1 || !ok2 || wsrc == nil || wdst == nil {
 		return
 	}
-	// R7.6: ≤4 regions on stack.
+	// ≤4 regions on stack.
 	n := len(regions)
 	var stack [4]rwgpu.TextureCopy
 	var rRegions []rwgpu.TextureCopy
@@ -286,7 +296,7 @@ func (e *CommandEncoder) DiscardEncoding() {
 }
 
 // Finish completes command recording and returns a CommandBuffer.
-// The native command encoder is released after Finish (wgpu refcounting);
+// The native command encoder is released after Finish;
 // callers must still FreeCommandBuffer/Release the resulting CommandBuffer
 // after GPU completion.
 // Implements hal.CommandEncoder (returns hal.CommandBuffer interface).
@@ -308,38 +318,30 @@ func (e *CommandEncoder) Finish() (hal.CommandBuffer, error) {
 	return &CommandBuffer{r: rcb}, nil
 }
 
-// BeginEncoding implements hal.CommandEncoder: Rust has no Begin step, no-op.
 func (e *CommandEncoder) BeginEncoding(_ string) error { return nil }
 
 // EndEncoding implements hal.CommandEncoder: same as Finish.
 func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error) { return e.Finish() }
 
-// ResetAll implements hal.CommandEncoder: Rust has no pooling, no-op.
 func (e *CommandEncoder) ResetAll(_ []hal.CommandBuffer) {}
 
 // Destroy implements hal.CommandEncoder: same as DiscardEncoding.
 func (e *CommandEncoder) Destroy() { e.DiscardEncoding() }
 
-// TransitionBuffers implements hal.CommandEncoder: no-op on Rust.
 func (e *CommandEncoder) TransitionBuffers(_ []hal.BufferBarrier) {}
 
-// ResolveQuerySet implements hal.CommandEncoder: no-op on Rust (no timestamp queries).
 func (e *CommandEncoder) ResolveQuerySet(_ hal.QuerySet, _, _ uint32, _ hal.Buffer, _ uint64) {
 }
 
-// BuildAccelerationStructures implements hal.CommandEncoder: no-op on Rust.
 func (e *CommandEncoder) BuildAccelerationStructures(_ []hal.BuildAccelerationStructureDescriptor) {
 }
 
-// PlaceAccelerationStructureBarrier implements hal.CommandEncoder: no-op on Rust.
 func (e *CommandEncoder) PlaceAccelerationStructureBarrier(_ hal.AccelerationStructureBarrier) {
 }
 
-// CopyAccelerationStructure implements hal.CommandEncoder: no-op on Rust.
 func (e *CommandEncoder) CopyAccelerationStructure(_, _ hal.AccelerationStructure, _ types.AccelerationStructureCopyMode) {
 }
 
-// ReadAccelerationStructureCompactSize implements hal.CommandEncoder: no-op on Rust.
 func (e *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.AccelerationStructure, _ hal.Buffer, _ uint64) {
 }
 

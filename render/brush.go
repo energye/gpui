@@ -1,11 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 // Brush represents what to paint with.
 // This is a sealed interface - only types in this package implement it.
-//
-// The Brush pattern follows vello/peniko Rust conventions, providing a
-// type-safe way to represent different brush types (solid colors, gradients,
-// images) while maintaining extensibility through CustomBrush.
 //
 // Supported brush types:
 //   - SolidBrush: A single solid color

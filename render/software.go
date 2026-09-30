@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -46,13 +56,12 @@ type SoftwareRenderer struct {
 	noAAEdgeBuilder *raster.EdgeBuilder
 
 	// scratchStrokePath reuses path allocation across Stroke calls.
-	// Matches Skia fOuter.reset() pattern — zero per-stroke allocation.
 	scratchStrokePath *Path
 }
 
 // NewSoftwareRenderer creates a new software renderer with analytic anti-aliasing.
 func NewSoftwareRenderer(width, height int) *SoftwareRenderer {
-	eb := raster.NewEdgeBuilder(2) // 4x AA (Skia default), max coord 8191px
+	eb := raster.NewEdgeBuilder(2) // 4x AA, max coord 8191px
 	r := &SoftwareRenderer{
 		edgeBuilder:    eb,
 		analyticFiller: raster.NewAnalyticFiller(width, height),
@@ -70,7 +79,7 @@ func NewSoftwareRenderer(width, height int) *SoftwareRenderer {
 func (r *SoftwareRenderer) Resize(width, height int) {
 	r.width = width
 	r.height = height
-	eb := raster.NewEdgeBuilder(2) // 4x AA (Skia default), max coord 8191px
+	eb := raster.NewEdgeBuilder(2) // 4x AA, max coord 8191px
 	if ds := math.Float32frombits(r.deviceScale.Load()); ds > 1.0 {
 		eb.SetFlattenTolerance(0.1 / ds)
 	}
@@ -351,7 +360,7 @@ func applyMaskCoverage(maskFn func(x, y int) uint8, px, py int, coverage uint8) 
 // When rasterizerMode is set (via Context.SetRasterizerMode), the forced
 // algorithm is used instead of auto-selection.
 func (r *SoftwareRenderer) Fill(pixmap *Pixmap, p *Path, paint *Paint) error {
-	// Non-AA path: completely separate code path (Skia/tiny-skia pattern).
+	// Non-AA path: completely separate code path.
 	// Integer scanline, binary coverage, no CoverageFiller/AnalyticFiller.
 	if !r.antiAlias {
 		return r.fillNoAA(pixmap, p, paint)
@@ -405,7 +414,7 @@ func (r *SoftwareRenderer) Fill(pixmap *Pixmap, p *Path, paint *Paint) error {
 	// segments after FDot6 rounding, silently losing winding contribution.
 	// Pre-flattening with adaptive subdivision (0.1px tolerance) eliminates
 	// this class of errors. This is the standard approach in tiny-skia and
-	// Skia's analytic AA scanline rasterizer.
+	// the analytic AA scanline rasterizer.
 	r.edgeBuilder.SetFlattenCurves(true)
 	defer r.edgeBuilder.SetFlattenCurves(false)
 
@@ -451,7 +460,7 @@ func (r *SoftwareRenderer) Fill(pixmap *Pixmap, p *Path, paint *Paint) error {
 // fillNoAA renders a filled path without anti-aliasing.
 // Uses a dedicated NoAAFiller that produces solid horizontal spans with
 // binary coverage (0 or 255). This is a completely separate code path
-// from the AA rasterizer (Skia SkScan::FillPath / tiny-skia scan::path pattern).
+// from the AA rasterizer.
 func (r *SoftwareRenderer) fillNoAA(pixmap *Pixmap, p *Path, paint *Paint) error {
 	// Lazy-init the no-AA edge builder and filler.
 	if r.noAAEdgeBuilder == nil {
@@ -1030,7 +1039,7 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	}
 
 	// Apply dash pattern if set
-	// Scale dash pattern by transform scale (Cairo/Skia convention)
+	// Scale dash pattern by transform scale
 	pathToDraw := p
 	if paint.IsDashed() {
 		dash := paint.EffectiveDash()
@@ -1077,11 +1086,10 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	}
 	strokeResultToPath(r.scratchStrokePath, outVerbs, outCoords)
 
-	// Route stroke fills through AnalyticFiller (Skia AAA scanline).
+	// Route stroke fills through AnalyticFiller.
 	// Stroke-expanded multi-contour outlines (e.g., closed path → 4 contours)
 	// require per-scanline winding tracking that the tile-based SparseStripsFiller
 	// does not support (Vello's strip pipeline uses per-strip fill_gap flags).
-	// This matches Skia Ganesh which routes strokes through scanline renderers,
 	// not tile rasterizers. Single-contour strokes work with either filler after
 	// the expander.go fix (#347), but multi-contour needs scanline.
 	prevMode := r.rasterizerMode

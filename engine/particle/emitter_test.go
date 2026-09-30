@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package particle
 
 import (
@@ -299,8 +309,6 @@ func TestEmitterCasesFromFile(t *testing.T) {
 		// and the drift vector stays bounded by strength.
 		if c.Name == "turb_drift" {
 			plain := buildEmitter(t, mustFindEmitterCase(t, f, "point_fire"))
-			// Align seeds for a fair drift comparison is not required;
-			// here we only pin the bound on the vector itself.
 			tv := e.Config().Turbulence.Vec(0.25, 0.2)
 			if math.Abs(tv.X) > e.Config().Turbulence.Strength+1e-9 || math.Abs(tv.Y) > e.Config().Turbulence.Strength+1e-9 {
 				t.Errorf("%s turb vec = %+v exceeds strength", c.Name, tv)

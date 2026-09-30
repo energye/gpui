@@ -1,6 +1,13 @@
-// Package dxil implements a DXIL (DirectX Intermediate Language) backend
-// for the naga shader compiler.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // DXIL is LLVM 3.7 bitcode with DirectX-specific metadata and dx.op
 // intrinsic calls, wrapped in a DXBC container. This backend generates
 // DXIL directly from naga IR, eliminating the need for external HLSL
@@ -12,11 +19,6 @@
 //
 // Current status: Phase 1 — vertex + fragment shader lowering (SM 6.0).
 // The Compile function translates naga IR entry points to DXIL bytecode.
-//
-// Reference implementations:
-//   - Mesa's src/microsoft/compiler/ (C, MIT license)
-//   - LLVM 3.7 Bitcode Format: https://releases.llvm.org/3.7.1/docs/BitCodeFormat.html
-//   - INF-0004 Validator Hashing: https://github.com/microsoft/hlsl-specs
 package dxil
 
 import (
@@ -72,7 +74,6 @@ type Options struct {
 	// the right AgilitySDK version.
 	UseBypassHash bool
 
-	// BindingMap remaps WGSL @group(N) @binding(M) to DXIL (space, register)
 	// at emit time. If a shader binding is not present in the map, its raw
 	// WGSL numbers are used (current behavior, preserved for backward
 	// compatibility when the map is nil).
@@ -97,8 +98,7 @@ type Options struct {
 
 	// SamplerBufferBindingMap maps bind group numbers to SRV binding
 	// targets for per-group sampler index buffers
-	// (StructuredBuffer<uint> nagaGroup<N>SamplerIndexArray). Mirrors
-	// hlsl.Options.SamplerBufferBindingMap.
+	// (StructuredBuffer<uint> nagaGroup<N>SamplerIndexArray).
 	//
 	// When nil, falls back to the current defaults: each group's index
 	// buffer at (space=255, register=group). The D3D12 HAL should
@@ -199,7 +199,7 @@ func autoUpgradeSMPre(irModule *ir.Module, ep *ir.EntryPoint, smMinor uint32) ui
 // prepareModule clones the IR module and inlines user helper functions.
 // Returns the prepared module ready for optimization passes.
 //
-// BUG-DXIL-029: inline user helper functions at IR level so the DXIL
+// inline user helper functions at IR level so the DXIL
 // emitter never sees a StmtCall to a helper with features it cannot
 // emit as a standalone LLVM function (globals access, aggregate
 // return, complex locals).
@@ -272,24 +272,17 @@ func Compile(irModule *ir.Module, opts Options) ([]byte, error) {
 	}
 	ep = &irModule.EntryPoints[0]
 	// Run mem2reg + DCE, mirroring the DXC pipeline order
-	// (DxilLinker.cpp:1284: mem2reg -> SimplifyInst -> DCE).
 	if err := runOptPasses(irModule); err != nil {
 		return nil, err
 	}
 
-	// BUG-DXIL-016: compute the set of GlobalVariables transitively
+	// compute the set of GlobalVariables transitively
 	// reachable from this entry point's call graph ONCE up front and
 	// thread it through both the bitcode emitter and the PSV0 builder.
 	// Multi-EP modules share the global arena across all entry points;
 	// without this filter unrelated bindings leak into the per-EP DXIL
 	// container and produce fake "Resource X overlap" errors at
 	// validation. Reference comparison: DXC achieves the same result
-	// via an LLVM GlobalDCE pass after emission
-	// (lib/HLSL/DxilLinker.cpp:1285); Mesa via nir_remove_dead_variables
-	// pre-pass on the NIR shader (microsoft/compiler/nir_to_dxil.c:6683).
-	// We use a single read-time reachability set shared between both
-	// layers, which avoids mutating the source IR while keeping the two
-	// layers byte-symmetric.
 	reachableGlobals := reachableGlobalsForEntry(irModule, ep)
 
 	// Post-DCE SM upgrades: only bump when reachable globals actually need
@@ -353,8 +346,6 @@ func Compile(irModule *ir.Module, opts Options) ([]byte, error) {
 	// VerifyBlobPartMatches checks pWriter->size() which is always 8 for
 	// an empty DxilProgramSignatureWriter — therefore a missing container
 	// part always trips ContainerPartMissing. The prior exemption for
-	// compute was BUG-DXIL-021: it masqueraded a PSV0/metadata leak as
-	// "compute may omit", but DXC reference output proves otherwise.
 	c.AddInputSignature(inputSig)
 	c.AddOutputSignature(outputSig)
 	if len(primSig) > 0 {
@@ -364,7 +355,7 @@ func Compile(irModule *ir.Module, opts Options) ([]byte, error) {
 	c.AddPSV0(buildPSVEx(irModule, ep, isFragment, isMesh, len(inputSig), len(outputSig), len(primSig), reachableGlobals, opts.BindingMap, opts.SamplerHeapTargets, opts.SamplerBufferBindingMap))
 
 	// STAT (Shader Statistics) is required by the D3D12 runtime format
-	// validator for graphics pipelines (BUG-DXIL-011). IDxcValidator
+	// validator for graphics pipelines. IDxcValidator
 	// does not require it; omission produced VALID S_OK blobs that the
 	// runtime then rejected at CreateGraphicsPipelineState with
 	// STATE_CREATION id 67 "Vertex Shader is corrupt" / id 93 for
@@ -396,7 +387,6 @@ func Compile(irModule *ir.Module, opts Options) ([]byte, error) {
 	}
 
 	// Apply hash: BYPASS sentinel (dev, AgilitySDK 1.615+) or retail (production).
-	// Reference: INF-0004 Validator Hashing (microsoft/hlsl-specs).
 	if opts.UseBypassHash {
 		container.SetBypassHash(containerData)
 	} else {
@@ -491,7 +481,7 @@ func buildOutputSigElements(
 		return bindingToSignatureElements(irMod, *res.Binding, res.Type, 0, 0, true, isFragment)
 	}
 	// Walk members in graphics output order — locations first, then builtins
-	// (SV_Position last). Same convention naga's HLSL backend applies via
+	// (SV_Position last). Same convention the HLSL backend applies via
 	// interfaceKey/Less in hlsl/functions.go, so DXC's HLSL roundtrip
 	// produces an identical OSG1 register layout.
 	packed := backend.PackStructMembers(irMod, st.Members, stage, true, false, interpFnOut)
@@ -695,7 +685,6 @@ func buildSigElementFromPacked(
 	return elems[0], true
 }
 
-// bindingToSignatureElements converts a naga binding to signature elements.
 // Returns nil for bindings that are NOT signature elements (compute thread
 // builtins, ViewID, etc.) — those are accessed via dedicated dx.op
 // intrinsics, not loadInput/storeOutput.
@@ -724,8 +713,7 @@ func bindingToSignatureElements(irMod *ir.Module, binding ir.Binding, typeHandle
 	} else {
 		sem = container.MapBindingToSemantic(binding, false, isFragment)
 	}
-	// Dual-source blending: WGSL encodes the second blend source as
-	// @location(0) @blend_src(1). DXC HLSL uses SV_Target0 + SV_Target1
+	// DXC HLSL uses SV_Target0 + SV_Target1
 	// at register rows 0 and 1 — the runtime then maps target 1 as the
 	// dual-source alpha. Translate by treating BlendSrc as the SV_Target
 	// index when present, overriding the location-based mapping.
@@ -756,7 +744,7 @@ func bindingToSignatureElements(irMod *ir.Module, binding ir.Binding, typeHandle
 	}
 
 	// RWMask interpretation depends on direction:
-	//   input  → AlwaysReadsMask : bits set for components the shader
+	//   input → AlwaysReadsMask : bits set for components the shader
 	//                              always reads. We set to `mask` —
 	//                              every component covered by the
 	//                              element type is read.
@@ -769,7 +757,6 @@ func bindingToSignatureElements(irMod *ir.Module, binding ir.Binding, typeHandle
 	//                              4-component register, not the full
 	//                              uint8).
 	// dxc verified via dbgsimple.hlsl OSG1 dump.
-	// BUG-DXIL-022 follow-up.
 	rwMask := mask
 	if isOutput {
 		rwMask = (^mask) & 0x0F
@@ -798,7 +785,6 @@ func bindingToSignatureElements(irMod *ir.Module, binding ir.Binding, typeHandle
 
 // isSystemManagedSV reports whether a container SystemValueKind is one of
 // the pixel-stage signature elements that carry Register = -1. Mirrors
-// DXC DxilSemantic::kUndefinedRow handling and the equivalent
 // isSystemManagedOutputSemantic helper in the bitcode emitter. The list
 // covers both PS outputs (Depth family / Coverage / StencilRef) and PS
 // inputs (SampleIndex via Shadow interpretation).
@@ -874,14 +860,6 @@ func sigCompTypeForScalarKind(kind ir.ScalarKind) container.ProgSigCompType {
 }
 
 // buildPSV creates pipeline state validation info for an entry point.
-//
-// BUG-DXIL-019: populates PSVSigInputs / PSVSigOutputs for graphics stages
-// (was previously left empty, triggering the BUG-DXIL-009 self-consistency
-// clamp which forced sig counts to zero, which in turn produced a PSV0 vs
-// bitcode metadata mismatch reported by IDxcValidator). Trivial vertex
-// shaders with only `@builtin(position)` output now produce a self-consistent
-// PSV0 part with one PSVSignatureElement entry, achieving the first-ever
-// `S_OK` from the real validator.
 func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, outputCount int, reachable map[ir.GlobalVariableHandle]bool, bindingMap BindingMap, samplerHeap *SamplerHeapBindTargets, samplerBufMap map[uint32]BindTarget) container.PSVInfo {
 	_ = isFragment // kept for caller compatibility; stage comes from ep.Stage
 	info := container.PSVInfo{
@@ -898,20 +876,19 @@ func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, 
 		info.OutputPositionPresent = true
 	}
 	// Compute shaders carry their workgroup size in PSVRuntimeInfo (same
-	// NumThreads slot as mesh/amplification). BUG-DXIL-008: without this
-	// dxil.dll validator rejects compute PSV0 as thread-count mismatch.
+	// NumThreads slot as mesh/amplification).
 	if ep.Stage == ir.StageCompute {
 		info.NumThreadsX = max(ep.Workgroup[0], 1)
 		info.NumThreadsY = max(ep.Workgroup[1], 1)
 		info.NumThreadsZ = max(ep.Workgroup[2], 1)
 	}
 
-	// BUG-DXIL-022: populate resource bindings. dxil.dll's
+	// populate resource bindings. dxil.dll's
 	// VerifyPSVMatches cross-checks PSV0 resource count against the
 	// bitcode !dx.resources list; a stale zero fails every shader that
 	// touches buffers/textures/samplers ("DXIL container mismatch for
 	// 'ResourceCount' between 'PSV0' part:('0') and DXIL module:('N')").
-	// Reachability filter (BUG-DXIL-016) keeps multi-EP modules in sync
+	// Reachability filter keeps multi-EP modules in sync
 	// with emit/resources.go which applies the same filter.
 	info.ResourceBindings = collectPSVResources(irMod, reachable, bindingMap, samplerHeap, samplerBufMap)
 	if entryUsesViewIndex(ep) {
@@ -925,8 +902,6 @@ func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, 
 	if isFragment && entryWritesDepthInModule(irMod, ep) {
 		info.DepthOutput = true
 	}
-	// BUG-DXIL-NumWG-PSV: NumWorkGroups (@builtin(num_workgroups)) is
-	// implemented in our emitter as a synthetic $Globals CBV at b0/space0
 	// (see dxil/internal/emit/io.go getOrCreateNumWorkGroupsCBV). The
 	// bitcode side declares a real CBV resource for it; the PSV0 side must
 	// declare the same binding or the validator reports 'ResourceCount
@@ -942,16 +917,11 @@ func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, 
 		}}, info.ResourceBindings...)
 	}
 
-	// BUG-DXIL-019: build PSVSignatureElement entries from the same data
-	// that BUG-DXIL-012 uses for `!dx.entryPoints[0][2]` bitcode metadata.
 	// The two must agree byte-for-byte or the validator reports
 	// "PSVRuntimeInfo content mismatch".
 	sigs := buildGraphicsPSVSigs(irMod, ep)
 	// Pixel shader SampleFrequency bit is 1 when any input signature
 	// element uses sample-frequency interpolation or is SV_SampleIndex.
-	// Mirrors hlsl::SetShaderProps in
-	// lib/DxilContainer/DxilPipelineStateValidation.cpp:216 — DXC walks
-	// the input signature elements and sets PS.SampleFrequency = 1 when
 	// IsAnySample() or SemanticKind::SampleIndex. We walk the same
 	// PSVInputs we just built (they already carry the interp mode we
 	// computed in psvInterpolationMode), so the container byte agrees
@@ -959,8 +929,8 @@ func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, 
 	// equivalent bitcode signature metadata.
 	//
 	// DXIL InterpolationMode enum values for sample variants:
-	//   6 = LinearSample                (perspective sample)
-	//   7 = LinearNoperspectiveSample   (noperspective sample, WGSL 'linear, sample')
+	//   6 = LinearSample (perspective sample)
+	//   7 = LinearNoperspectiveSample (noperspective sample, WGSL 'linear, sample')
 	// PSV SemanticKind for SV_SampleIndex is 12 (see dxil.go:676).
 	if ep.Stage == ir.StageFragment {
 		for _, elem := range sigs.PSVInputs {
@@ -982,7 +952,6 @@ func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, 
 		// entry name lives at offset 1 (immediately after the empty string).
 		info.EntryFunctionName = 1
 
-		// BUG-DXIL-018 Phase 3: fill the per-input-component → output-
 		// component dependency table. Must agree byte-for-byte with the
 		// bitcode `dx.viewIdState` regenerated content or dxil.dll's
 		// content-verifier reports 'ViewIDState mismatch'.
@@ -991,7 +960,7 @@ func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, 
 	}
 
 	// Fallback: no graphics signatures, use minimal string table with just
-	// the entry function name (BUG-DXIL-009 path).
+	// the entry function name.
 	info.StringTable, info.EntryFunctionName = container.BuildPSVStringTable(ep.Name)
 	return info
 }
@@ -999,8 +968,6 @@ func buildPSV(irMod *ir.Module, ep *ir.EntryPoint, isFragment bool, inputCount, 
 // buildGraphicsPSVSigs walks an entry point's arguments and result and
 // constructs PSV signature element entries + matching string/semantic-index
 // tables for graphics stages (vertex, pixel, hull, domain, geometry).
-//
-// Mirror of buildMeshPSVSigOutputs but for non-mesh graphics stages.
 //
 // Returns:
 //   - stringTable: leading "\0", entry name, semantic names (4-byte aligned)
@@ -1036,7 +1003,7 @@ func buildGraphicsPSVSigs(irMod *ir.Module, ep *ir.EntryPoint) graphicsPSVSigs {
 	// SV_* names) followed by the entry function name at offset 1.
 	// BUG-DXIL-022 follow-up: do NOT 4-byte align here. Padding nulls
 	// inserted in the middle of the table get tokenized by dxil.dll's
-	// StringTableVerifier (see DxilContainerValidation.cpp:85-126) as
+	// StringTableVerifier as
 	// extra empty-string entries with use-count zero, triggering
 	// "In 'StringTable', '<null>' is not used". Alignment is done once
 	// at the very end of the table, after every appendName call.
@@ -1071,10 +1038,7 @@ func buildGraphicsPSVSigs(irMod *ir.Module, ep *ir.EntryPoint) graphicsPSVSigs {
 		// SV_* system-value semantics resolve via SemanticKind and use
 		// SemanticNameOffset = 0 (empty string). Only ARBITRARY
 		// semantics (TEXCOORD and friends, kind=0) need an actual
-		// string in the PSV0 string table. Mirrors DXC's convention
-		// in DxilContainerAssembler::WritePSVOData (the PSV string
-		// table contains only user-defined names + the entry
-		// function name). BUG-DXIL-011 Phase 2.
+		// string in the PSV0 string table.
 		nameOff := uint32(0)
 		if sem.Name != "" && sem.Kind == 0 {
 			nameOff = appendName(sem.Name)
@@ -1242,13 +1206,13 @@ func psvSemanticForBinding(binding ir.Binding, stage ir.ShaderStage, isOutput bo
 //
 // Rule from dxc reference:
 //
-//	stage    direction  →  interp
-//	------   ---------     -----------
-//	vertex   in            0 (Undefined)        — vertex inputs come from buffer
-//	vertex   out           per-builtin (4 for SV_Position, else 0/2)
-//	fragment in            per-builtin (4 for SV_Position, else 0/2)
-//	fragment out           0 (Undefined)        — SV_Target / SV_Depth etc.
-//	compute  *             0
+//	stage direction → interp
+//	------ --------- -----------
+//	vertex in 0 (Undefined) — vertex inputs come from buffer
+//	vertex out per-builtin (4 for SV_Position, else 0/2)
+//	fragment in per-builtin (4 for SV_Position, else 0/2)
+//	fragment out 0 (Undefined) — SV_Target / SV_Depth etc.
+//	compute * 0
 func sigInterpModeForBuiltin(b ir.BuiltinValue, stage ir.ShaderStage, isOutput bool) uint8 {
 	isFragment := stage == ir.StageFragment
 	isVertex := stage == ir.StageVertex
@@ -1312,7 +1276,6 @@ func psvSemanticForBuiltin(b ir.BuiltinValue) (psvSemantic, bool) {
 	}
 }
 
-// psvSemanticForLocation maps a WGSL @location binding to its PSV semantic
 // encoding. Inputs and non-fragment outputs become arbitrary "TEXCOORD"
 // semantics (the canonical user-defined name). Fragment outputs become
 // "SV_Target" with kind=Target — DXC's signature validator special-cases
@@ -1321,7 +1284,6 @@ func psvSemanticForLocation(loc ir.LocationBinding, stage ir.ShaderStage, isOutp
 	if isOutput && stage == ir.StageFragment {
 		// Fragment color outputs.
 		idx := loc.Location
-		// Dual-source blending: @blend_src(N) overrides @location for
 		// the SV_Target index. Match the bitcode side rewrite in
 		// makeSigInfo / bindingToSignatureElements.
 		if loc.BlendSrc != nil {
@@ -1334,9 +1296,7 @@ func psvSemanticForLocation(loc ir.LocationBinding, stage ir.ShaderStage, isOutp
 			Interpolation: 0, // Undefined for outputs
 		}
 	}
-	// Vertex output / fragment input direction matters: vertex outputs
-	// without an explicit @interpolate attribute default to Undefined
-	// (matches dxc). Fragment inputs default to Linear perspective.
+	// Fragment inputs default to Linear perspective.
 	isFragment := stage == ir.StageFragment
 	return psvSemantic{
 		Kind:          0, // SemanticKind::Arbitrary
@@ -1346,17 +1306,16 @@ func psvSemanticForLocation(loc ir.LocationBinding, stage ir.ShaderStage, isOutp
 	}
 }
 
-// psvInterpolationMode maps a naga Interpolation specification to the
 // DXIL InterpolationMode enum value. Verified against dxc reference
 // (vs_flat_out.hlsl + sv_position_in_out.hlsl):
 //
-//	stage    direction  →  carries interp?
-//	------   ---------     ---------------
-//	vertex   in            no (vertex buffer is not interpolated)
-//	vertex   out           yes (next stage will interpolate)
-//	fragment in            yes (raster output)
-//	fragment out           no (SV_Target / SV_Depth)
-//	compute  *             no
+//	stage direction → carries interp?
+//	------ --------- ---------------
+//	vertex in no (vertex buffer is not interpolated)
+//	vertex out yes (next stage will interpolate)
+//	fragment in yes (raster output)
+//	fragment out no (SV_Target / SV_Depth)
+//	compute * no
 //
 // When a side does NOT carry interp, the field MUST be Undefined (0)
 // or the validator emits 'Interpolation mode for X is set but should
@@ -1409,8 +1368,7 @@ func psvInterpolationMode(interp *ir.Interpolation, isFragment, isOutput bool) u
 //
 //	0=Invalid, 1=I1, ..., 4=I32, 5=U32, ..., 9=F32, ...
 //
-// BUG-DXIL-012 emits the bitcode metadata version; this function emits
-// the PSV version. Mismatching them looks like a bug but isn't.
+// Mismatching them looks like a bug but isn't.
 //
 //nolint:nestif // single dispatch table over IR type kinds for PSV cols
 func makePSVSignatureElement(irMod *ir.Module, typeHandle ir.TypeHandle, sem psvSemantic, semNameOffset, semIdxOffset uint32, startRow, startCol uint8) container.PSVSignatureElement {
@@ -1429,8 +1387,6 @@ func makePSVSignatureElement(irMod *ir.Module, typeHandle ir.TypeHandle, sem psv
 			// SV_CullDistance) — element kind from base scalar, channel
 			// count from constant array size, capped at 4 for a single
 			// row. Mirrors describeIRType in dxil/internal/emit/emitter.go;
-			// keeping the two paths in sync is required because the
-			// validator memcmp's PSV0 cols against the bitcode metadata
 			// regenerated cols. clip-distances.wgsl tripped 'Container
 			// part Program Output Signature does not match expected for
 			// module' when only one side knew about array elements.
@@ -1459,8 +1415,7 @@ func makePSVSignatureElement(irMod *ir.Module, typeHandle ir.TypeHandle, sem psv
 	// SInt32=2) from DXC's DxilSignatureElement defaulting rules; our
 	// bool-derived default-branch value (3=Float32) trips 'DXIL
 	// container mismatch for SigInputElement' even though every other
-	// field matches. Mirrors the BuiltinFrontFacing override in
-	// makeSigInfo (ISG1 side) — the two containers MUST agree.
+	// field matches.
 	if sem.Kind == 13 { // IsFrontFace
 		compType = 1 // UInt32 in the PSV ComponentType enum
 	}
@@ -1474,9 +1429,7 @@ func makePSVSignatureElement(irMod *ir.Module, typeHandle ir.TypeHandle, sem psv
 	// PSVSignatureElement::IsAllocated returns false for these, and the
 	// validator regenerates the element with bit 6 cleared and StartRow
 	// = 0xFF. Rows stays at 1 (the element STILL has 1 row's worth of
-	// data, it's just not packed into the output register file). Mirror
-	// that here so the PSV0 part matches the OSG1 container's
-	// Register=0xFFFFFFFF and the bitcode metadata's startRow=-1.
+	// data, it's just not packed into the output register file).
 	if isPSVSemanticSystemManaged(sem.Kind) {
 		colsAndStart = cols // clear allocated bit
 		row = 0xFF
@@ -1509,8 +1462,7 @@ func isPSVSemanticSystemManaged(kind uint8) bool {
 }
 
 // scalarOfPSVType extracts a ScalarType from an ArrayType element for the
-// PSV0 signature element builder. Mirrors dxil/internal/emit/types.go
-// scalarOfType but lives here to avoid cross-package import cycles.
+// PSV0 signature element builder.
 func scalarOfPSVType(inner ir.TypeInner) (ir.ScalarType, bool) {
 	switch t := inner.(type) {
 	case ir.ScalarType:
@@ -1521,8 +1473,6 @@ func scalarOfPSVType(inner ir.TypeInner) (ir.ScalarType, bool) {
 	return ir.ScalarType{}, false
 }
 
-// psvComponentType maps a naga ScalarKind to the PSV ComponentType enum
-// value (NOT the bitcode metadata CompType — see makePSVSignatureElement).
 func psvComponentType(k ir.ScalarKind) uint8 {
 	switch k {
 	case ir.ScalarFloat:
@@ -1542,8 +1492,7 @@ func psvComponentType(k ir.ScalarKind) uint8 {
 //
 //nolint:gocognit,nestif // mesh output signature extraction requires deep type inspection
 func buildSignaturesEx(irMod *ir.Module, ep *ir.EntryPoint, isFragment, isMesh bool) ([]container.SignatureElement, []container.SignatureElement, []container.SignatureElement) {
-	// Compute and amplification have no I/O signatures (BUG-DXIL-021
-	// follow-up). Their kernel arguments (WorkgroupId / LocalInvocationID
+	// Their kernel arguments (WorkgroupId / LocalInvocationID
 	// / DispatchThreadID / payload) are accessed via dedicated dx.op
 	// intrinsics inside the function body, not via ISG1/OSG1 signature
 	// elements. dxc emits empty ISG1/OSG1 (count=0, offset=8) — we match.
@@ -1811,8 +1760,6 @@ func buildMeshPSVSigOutputs(irMod *ir.Module, ep *ir.EntryPoint, outputCount int
 	return stringTable, semIndices, psvOutputs
 }
 
-// stageToContainerKind maps naga ShaderStage to the DXIL shader kind
-// value used in the DXBC container program header.
 func stageToContainerKind(stage ir.ShaderStage) uint32 {
 	switch stage {
 	case ir.StageVertex:
@@ -1926,9 +1873,7 @@ func entryUsesNumWorkGroups(ep *ir.EntryPoint) bool {
 // the resource is the destination of int64 atomic operations. The detection
 // is conservative — any AtomicType wrapping an i64/u64 scalar anywhere in
 // the type graph counts (storage buffer arrays, struct members), and any
-// storage texture with an R64Uint/R64Sint format counts. Mirrors the
-// shader-flag side moduleUsesInt64Atomics so PSV0 ResFlags and SFI0 stay
-// in sync.
+// storage texture with an R64Uint/R64Sint format counts.
 func globalUsesInt64Atomic(irMod *ir.Module, gv *ir.GlobalVariable) bool {
 	if gv == nil || int(gv.Type) >= len(irMod.Types) {
 		return false
@@ -1962,7 +1907,7 @@ func globalUsesInt64Atomic(irMod *ir.Module, gv *ir.GlobalVariable) bool {
 }
 
 // collectPSVResources walks the IR's global variables and produces one
-// PSVResourceBinding per resource. BUG-DXIL-022.
+// PSVResourceBinding per resource.
 //
 // Ordering MUST match dxc's PSV0 layout: CBuffers, Samplers, SRVs, UAVs
 // (see reference/dxil/dxc/lib/DxilContainer/DxilContainerAssembler.cpp
@@ -1973,9 +1918,6 @@ func globalUsesInt64Atomic(irMod *ir.Module, gv *ir.GlobalVariable) bool {
 //
 // reachable is the set of globals actually used by the entry point being
 // compiled. Multi-EP modules carry all globals in one arena (see
-// BUG-DXIL-016); without this filter the PSV0 resource list disagrees
-// with the bitcode metadata that emit/resources.go produces (which
-// applies the same filter).
 //
 //nolint:gocognit,cyclop,gocyclo,funlen // single dispatch table over IR resource categories
 func collectPSVResources(irMod *ir.Module, reachable map[ir.GlobalVariableHandle]bool, bindingMap BindingMap, samplerHeap *SamplerHeapBindTargets, samplerBufMap map[uint32]BindTarget) []container.PSVResourceBinding {
@@ -2316,8 +2258,6 @@ func uavOrSrvTyped(isStorage bool) container.PSVResourceType {
 // contains live StmtEmit ranges and live statement operands. Dead
 // expressions still exist in the expression arena but are not referenced
 // by any statement. Scanning the raw expression arena (the old approach)
-// would incorrectly mark globals referenced only by dead code as
-// reachable, causing naga to emit createHandle calls and resource
 // metadata entries that DXC's GlobalDCE would strip. This function
 // mirrors DXC's behavior by only following expression handles that are
 // transitively reachable from the post-DCE statement body.
@@ -2351,7 +2291,6 @@ func reachableGlobalsForEntry(irMod *ir.Module, ep *ir.EntryPoint) map[ir.Global
 				walkHelperFunction(&irMod.Functions[ex.Function], irMod, visited, reachable)
 			}
 		}
-		// Follow sub-expression references.
 		visitExprSubHandles(expr.Kind, func(sub ir.ExpressionHandle) {
 			followExpr(fn, sub)
 		})
@@ -2377,8 +2316,7 @@ func reachableGlobalsForEntry(irMod *ir.Module, ep *ir.EntryPoint) map[ir.Global
 
 // walkHelperFunction scans all expressions in a helper function (not the
 // entry point). Helper functions reached via StmtCall are assumed fully
-// live — their entire expression arena is scanned. This matches DXC
-// behavior: if LLVM doesn't inline a callee, all its code is live.
+// live — their entire expression arena is scanned.
 func walkHelperFunction(
 	fn *ir.Function,
 	irMod *ir.Module,
@@ -2645,8 +2583,6 @@ func walkBlockForCalls(block ir.Block, visit func(ir.StmtCall)) {
 	}
 }
 
-// stageToPSVKind maps naga ShaderStage to the PSV0 ShaderStage byte.
-// Single source of truth for PSV0 stage dispatch; see BUG-DXIL-008.
 // ABI values locked by TestPSVShaderKindMatchesMicrosoftABI.
 func stageToPSVKind(stage ir.ShaderStage) container.PSVShaderKind {
 	switch stage {
@@ -2676,20 +2612,20 @@ func stageToPSVKind(stage ir.ShaderStage) container.PSVShaderKind {
 // (e.g. a multi-EP module where only one entry point uses ray queries).
 //
 // Bit layouts:
-//   - bit  2 (0x4)  of ShaderFlags         = EnableDoublePrecision
-//     →   0x0001 of SFI0                 = Doubles
-//   - bit  5 (0x20) of ShaderFlags         = LowPrecisionPresent
-//   - bit  6 (0x40) of ShaderFlags         = EnableDoubleExtensions
-//     →   0x0020 of SFI0                 = 11_1_DoubleExtensions
-//   - bit 23 (0x800000) of ShaderFlags     = UseNativeLowPrecision
-//     →     0x10 of SFI0                 = MinimumPrecision (non-native)
-//     →  0x40000 of SFI0                 = NativeLowPrecision
-//   - bit 16 (0x10000) of ShaderFlags      = UAVsAtEveryStage
-//     →   0x0004 of SFI0                 = UAVsAtEveryStage
-//   - bit 20 (0x100000) of ShaderFlags     = Int64Ops
-//     →   0x8000 of SFI0                 = Int64Ops
-//   - bit 25 (0x2000000) of ShaderFlags    = RaytracingTier1_1
-//     → 0x100000 of SFI0                 = Raytracing_Tier_1_1
+//   - bit 2 (0x4) of ShaderFlags = EnableDoublePrecision
+//     → 0x0001 of SFI0 = Doubles
+//   - bit 5 (0x20) of ShaderFlags = LowPrecisionPresent
+//   - bit 6 (0x40) of ShaderFlags = EnableDoubleExtensions
+//     → 0x0020 of SFI0 = 11_1_DoubleExtensions
+//   - bit 23 (0x800000) of ShaderFlags = UseNativeLowPrecision
+//     → 0x10 of SFI0 = MinimumPrecision (non-native)
+//     → 0x40000 of SFI0 = NativeLowPrecision
+//   - bit 16 (0x10000) of ShaderFlags = UAVsAtEveryStage
+//     → 0x0004 of SFI0 = UAVsAtEveryStage
+//   - bit 20 (0x100000) of ShaderFlags = Int64Ops
+//     → 0x8000 of SFI0 = Int64Ops
+//   - bit 25 (0x2000000) of ShaderFlags = RaytracingTier1_1
+//     → 0x100000 of SFI0 = Raytracing_Tier_1_1
 //
 // SFI0 constants from DxilConstants.h:2299+.
 func featureInfoFromShaderFlags(sf uint64) uint64 {
@@ -2789,8 +2725,7 @@ func typeContains64BitScalar(m *ir.Module, th ir.TypeHandle) bool {
 	return walk(th)
 }
 
-// moduleUsesViewID returns true when any entry point reads
-// @builtin(view_index). DXC's CollectShaderFlagsForModule sets ViewID in
+// DXC's CollectShaderFlagsForModule sets ViewID in
 // CollectShaderFlagsForFunction whenever it sees a dx.op.viewID call;
 // we walk the IR up front instead since the compile is per-EP and we
 // need to know in advance for the SM auto-upgrade.
@@ -2874,8 +2809,7 @@ func reachableUsesInt64Buffer(m *ir.Module, reachable map[ir.GlobalVariableHandl
 //
 // The check considers per-element component counts, not total array extent,
 // because storage buffer accesses are per-element (arr[i] loads one element,
-// not the whole array). This matches DXC behavior: a runtime array<u32> uses
-// bufferLoad at SM 6.0, not rawBufferLoad at SM 6.2.
+// not the whole array).
 func compositeHasMoreThanFour(m *ir.Module, inner ir.TypeInner) bool {
 	switch t := inner.(type) {
 	case ir.VectorType:
@@ -3019,7 +2953,6 @@ func blockHasBreakContinue(block ir.Block) bool {
 // function and would therefore fall through to emitStmtCall's
 // zero-valued fallback. The IR inline pass consults this predicate to
 // expand only the helpers that would otherwise silently return zero
-// (BUG-DXIL-029).
 //
 // Must stay in lockstep with emitHelperFunctions (emitter.go:538).
 func helperNeedsInlining(irMod *ir.Module, callee *ir.Function) bool {
@@ -3087,7 +3020,7 @@ func moduleUsesInt64Atomics(m *ir.Module) bool {
 
 // runOptPasses runs the optimization pass pipeline on all functions
 // in the module. This mirrors DXC's post-emit pipeline order:
-// SROA -> mem2reg -> SimplifyInst -> DCE (DxilLinker.cpp:1284).
+// SROA -> mem2reg -> SimplifyInst -> DCE.
 //
 // SROA decomposes struct-typed locals into per-member locals so that
 // mem2reg can promote the resulting scalar/vector locals to SSA form.
@@ -3211,8 +3144,7 @@ func psvSigsToViewIDElems(elems []container.PSVSignatureElement) []viewid.SigEle
 		// VectorRow MUST mirror the actual PSV0 register slot (StartRow)
 		// the packer assigned, NOT arg-order. DXC's GetLinearIndex
 		// (output `dx.viewIdState` / PSV0 dep table indexing) uses
-		// elem.StartRow*4 + col. After BUG-DXIL-029 reordered locations
-		// before builtins, an arg-order counter diverged.
+		// elem.StartRow*4 + col.
 		var row, startCol uint32
 		if !sysManaged {
 			row = uint32(e.StartRow)

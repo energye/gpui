@@ -1,9 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// S6.1 frame-model enforcement: default helpers prefer idle / local damage over
-// mindless PresentFrame full clear. Real WGPU_NATIVE_PATH path required for GPU cases.
+// Real WGPU_NATIVE_PATH path required for GPU cases.
 
 import (
 	"image"

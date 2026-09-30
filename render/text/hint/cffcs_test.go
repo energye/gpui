@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -10,10 +20,6 @@ import (
 	"testing"
 )
 
-// M1 验证（docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5.1 M1）：
-// Type 2 charstring 解释器（cffcs.go）产出精确 cs hstem 对 + cs 轮廓，
-// 消除从 26.6 像素反推的 ±1.3FU 误差（§13.4）。
-
 // ftMulFix 复刻 freetype-2.14.3 ftcalc.h 内联 FT_MulFix（FT_INT64 版）：
 // ab = a*b; ab += 0x8000 + (ab >> 63); return ab >> 16（C 算术右移，负向下取整）。
 func ftMulFix(a, b int64) int64 {
@@ -25,7 +31,7 @@ func ftMulFix(a, b int64) int64 {
 	return ab >> 16
 }
 
-// ftDivFix 复刻 FT_DivFix（ftcalc.h）：q = (|a|<<16 + |b|/2) / |b|。
+// ftDivFix 复刻 FT_DivFix：q = (|a|<<16 + |b|/2) / |b|。
 func ftDivFix(a, b int64) int64 {
 	if a < 0 {
 		a = -a
@@ -112,8 +118,6 @@ func ftContour26(t *testing.T, r rune, px float64) [][3]int64 {
 	return pts
 }
 
-// TestM1HStemsTRACE：日 12px hstem/vstem 对 = TRACE 数值一致
-// （§13.5 对照线：-4/71/352/426/697/772；vstem 176/77/499/80）。
 func TestM1HStemsTRACE(t *testing.T) {
 	f, cd, _ := m1Font(t)
 	gid := uint16(f.GlyphIndex('日'))

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package application is the L1 application shell for multi-window apps.
 //
 // It glues the L0 platform window layer (ui/platform.Window) with the
@@ -6,7 +16,7 @@
 //	app := application.New(application.Config{Name: "myapp"})
 //	win, _ := app.NewWindow(application.WindowOptions{Title: "A", Width: 1200, Height: 800})
 //	win.SetRoot(rootRenderObject) // kit 控件树
-//	app.Run()                     // 每窗独立事件泵，主窗关闭 → 全部退出
+//	app.Run() // 每窗独立事件泵，主窗关闭 → 全部退出
 //
 // Each window owns its platform.Window + PipelineApp and pumps events on its
 // own goroutine (X11/Wayland/Win32 open per-window native connections, so
@@ -325,7 +335,7 @@ func (w *Window) SetRoot(root rendering.RenderObject) error {
 	return nil
 }
 
-// SetInput attaches the unified input router (plan §4/§6). Call before
+// Call before
 // SetRoot so the pipeline is wired with it. The router's hit-test is bound
 // to this window's HitTestPointer automatically by NewPipelineApp.
 func (w *Window) SetInput(r *embedder.InputRouter) {

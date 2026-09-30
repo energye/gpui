@@ -1,7 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
-// VR3 ffmpeg parity: the window's three color clips must meet the §12.1
-// VR3 row. Baseline: testdata/vr3_ffmpeg.json (ffmpeg 4.4.2, same machine).
+// Baseline: testdata/vr3_ffmpeg.json (ffmpeg 4.4.2, same machine).
 // Peer: libswscale default convert (libswscale/yuv2rgb.c:ff_yuv2rgb_coeffs
 // + YUV2RGBFUNC, libswscale/swscale.c:sws_scale) — and the player decode
 // path IS that same swscale now (video/ffmpeg convertFrame), so the

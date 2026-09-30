@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit
 
 import (
@@ -41,9 +51,6 @@ func skip2Level(l QRErrorLevel) qrcode.RecoveryLevel {
 	}
 }
 
-// Encode returns the raw module matrix for one value (quiet zone
-// stripped: the backend bakes in a 4-module border, but margin belongs
-// to the draw layer per qr-code.md §6.11).
 func (skip2QRCodeGenerate) Encode(value string, level QRErrorLevel) ([][]bool, error) {
 	if value == "" {
 		return nil, nil

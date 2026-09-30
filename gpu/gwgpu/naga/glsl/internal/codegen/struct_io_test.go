@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -42,24 +49,24 @@ func testTypesVertexIO() ([]ir.Type, map[string]ir.TypeHandle) {
 		{Name: "", Inner: ir.VectorType{Size: ir.Vec4, Scalar: f32}}, // 2: vec4<f32>
 		{Name: "VertexInput", Inner: ir.StructType{ // 3: VertexInput
 			Members: []ir.StructMember{
-				{Name: "position", Type: 1, Binding: locBinding(0), Offset: 0},    // @location(0) position: vec2<f32>
-				{Name: "local", Type: 1, Binding: locBinding(1), Offset: 8},       // @location(1) local: vec2<f32>
-				{Name: "shape_kind", Type: 0, Binding: locBinding(2), Offset: 16}, // @location(2) shape_kind: f32
-				{Name: "center", Type: 1, Binding: locBinding(3), Offset: 20},     // @location(3) center: vec2<f32>
-				{Name: "size", Type: 1, Binding: locBinding(4), Offset: 28},       // @location(4) size: vec2<f32>
-				{Name: "params", Type: 2, Binding: locBinding(5), Offset: 36},     // @location(5) params: vec4<f32>
-				{Name: "stroke", Type: 1, Binding: locBinding(6), Offset: 52},     // @location(6) stroke: vec2<f32>
-				{Name: "aa_width", Type: 0, Binding: locBinding(7), Offset: 60},   // @location(7) aa_width: f32
-				{Name: "color", Type: 2, Binding: locBinding(8), Offset: 64},      // @location(8) color: vec4<f32>
+				{Name: "position", Type: 1, Binding: locBinding(0), Offset: 0},
+				{Name: "local", Type: 1, Binding: locBinding(1), Offset: 8},
+				{Name: "shape_kind", Type: 0, Binding: locBinding(2), Offset: 16},
+				{Name: "center", Type: 1, Binding: locBinding(3), Offset: 20},
+				{Name: "size", Type: 1, Binding: locBinding(4), Offset: 28},
+				{Name: "params", Type: 2, Binding: locBinding(5), Offset: 36},
+				{Name: "stroke", Type: 1, Binding: locBinding(6), Offset: 52},
+				{Name: "aa_width", Type: 0, Binding: locBinding(7), Offset: 60},
+				{Name: "color", Type: 2, Binding: locBinding(8), Offset: 64},
 			},
 			Span: 80,
 		}},
 		{Name: "VertexOutput", Inner: ir.StructType{ // 4: VertexOutput
 			Members: []ir.StructMember{
-				{Name: "clip_position", Type: 2, Binding: positionBinding(), Offset: 0}, // @builtin(position) clip_position: vec4<f32>
-				{Name: "local", Type: 1, Binding: locBinding(0), Offset: 16},            // @location(0) local: vec2<f32>
-				{Name: "shape_kind", Type: 0, Binding: locBinding(1), Offset: 24},       // @location(1) shape_kind: f32
-				{Name: "color", Type: 2, Binding: locBinding(2), Offset: 28},            // @location(2) color: vec4<f32>
+				{Name: "clip_position", Type: 2, Binding: positionBinding(), Offset: 0},
+				{Name: "local", Type: 1, Binding: locBinding(0), Offset: 16},
+				{Name: "shape_kind", Type: 0, Binding: locBinding(1), Offset: 24},
+				{Name: "color", Type: 2, Binding: locBinding(2), Offset: 28},
 			},
 			Span: 44,
 		}},
@@ -83,10 +90,6 @@ func testTypesVertexIO() ([]ir.Type, map[string]ir.TypeHandle) {
 func TestCompile_StructVertexInput(t *testing.T) {
 	types, handles := testTypesVertexIO()
 
-	// Build a minimal vertex shader:
-	//   @vertex fn vs_main(in: VertexInput) -> @builtin(position) vec4<f32> {
-	//     return vec4<f32>(in.position.x, in.position.y, 0.0, 1.0);
-	//   }
 	posBinding := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinPosition})
 
 	module := &ir.Module{
@@ -125,8 +128,6 @@ func TestCompile_StructVertexInput(t *testing.T) {
 
 	t.Logf("Generated GLSL:\n%s", source)
 
-	// Verify struct input is flattened into individual layout declarations
-	// Uses Rust naga _p2vs_locationN naming convention for vertex inputs.
 	mustContain(t, source, "layout(location = 0) in vec2 _p2vs_location0;")
 	mustContain(t, source, "layout(location = 1) in vec2 _p2vs_location1;")
 	mustContain(t, source, "layout(location = 2) in float _p2vs_location2;")
@@ -151,15 +152,6 @@ func TestCompile_StructVertexInput(t *testing.T) {
 func TestCompile_StructVertexOutput(t *testing.T) {
 	types, handles := testTypesVertexIO()
 
-	// Build a vertex shader that returns a VertexOutput struct:
-	//   @vertex fn vs_main(in: VertexInput) -> VertexOutput {
-	//     var out: VertexOutput;
-	//     out.clip_position = vec4<f32>(in.position, 0.0, 1.0);
-	//     out.local = in.local;
-	//     out.shape_kind = in.shape_kind;
-	//     out.color = in.color;
-	//     return out;
-	//   }
 	//
 	// The IR for return typically uses ExprCompose to construct the struct.
 
@@ -240,7 +232,6 @@ func TestCompile_StructFragmentInput(t *testing.T) {
 		}},
 	}
 
-	// Fragment shader: fn fs_main(in: FragInput) -> @location(0) vec4<f32> { return in.color; }
 	outBinding := ir.Binding(ir.LocationBinding{Location: 0})
 	module := &ir.Module{
 		Types: types,
@@ -317,8 +308,6 @@ func TestCompile_MixedStructAndDirectArgs(t *testing.T) {
 		}}, // 4: VertexData
 	}
 
-	// Vertex shader with mixed args:
-	//   fn vs_main(data: VertexData, @builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32>
 	posB := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinPosition})
 	module := &ir.Module{
 		Types: types,
@@ -544,8 +533,6 @@ func TestCompile_DirectBindingArgsStillWork(t *testing.T) {
 		{Name: "", Inner: ir.VectorType{Size: ir.Vec4, Scalar: f32}},
 	}
 
-	// Simple vertex shader with direct-binding args (no structs):
-	//   fn vs_main(@location(0) pos: vec2<f32>) -> @builtin(position) vec4<f32>
 	module := &ir.Module{
 		Types: types,
 		EntryPoints: []ir.EntryPoint{

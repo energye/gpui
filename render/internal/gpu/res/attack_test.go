@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package res
 
 import "testing"
@@ -129,8 +139,6 @@ func TestCache_InvalidateThenAcquire(t *testing.T) {
 	c.Release(r2)
 }
 
-// ResolveStatistics: §6.2 gate — deferred resolution must count hits and
-// misses so the frame can assert ResolveMiss == 0 under resize.
 func TestRegistry_ResolveStatsCountsHitsAndMisses(t *testing.T) {
 	reg := NewRegistry()
 	h, m := reg.ResolveStats()

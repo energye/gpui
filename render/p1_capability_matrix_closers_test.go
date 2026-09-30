@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -753,7 +763,7 @@ func TestP1_Capability_D06_PatternLocalMatrixGPU(t *testing.T) {
 	dc.ClearWithColor(render.White)
 
 	pat := dc.CreateImagePattern(img, 0, 0, 16, 16).(*render.ImagePattern)
-	// Local scale 2×: each source pixel covers 2 device pixels (Skia localMatrix-like).
+	// Local scale 2×: each source pixel covers 2 device pixels.
 	pat.SetScale(2, 2)
 	dc.SetFillPattern(pat)
 	dc.DrawRectangle(0, 0, 48, 24)
@@ -1083,7 +1093,7 @@ func TestP1_Capability_L06_MaskR8ShaderGPU(t *testing.T) {
 	if rr < 150 || rg > 80 {
 		t.Fatalf("right expected red under high mask: %d,%d,%d", rr, rg, rb)
 	}
-	// Mid SO of half-red over white → R high, G/B intermediate (proves soft R8).
+	// Mid SO of half-red over white → R high, G/B intermediate.
 	// Full red*mask SO white: (255, 255*(1-m), 255*(1-m)) for opaque red src.
 	if mg < 40 || mg > 220 || mb < 40 || mb > 220 {
 		t.Fatalf("mid expected soft red/white mix via R8 (G/B mid), got %d,%d,%d", mr, mg, mb)
@@ -1889,7 +1899,6 @@ func TestP1_Capability_F03_ImageFilterGraphGPU(t *testing.T) {
 	}
 	baseGPU := dc.RenderPathStats().GPUOps
 
-	// Reference samples before graph.
 	br, bg, bb, _ := sampleRGBA(dc, 48, 48)
 	if bb < 150 {
 		t.Fatalf("pre-graph center expected blue-ish: %d,%d,%d", br, bg, bb)
@@ -2204,7 +2213,7 @@ func TestP1_Capability_L06_StencilCoverInlineR8GPU(t *testing.T) {
 	lr, lg, lb, _ := sampleRGBA(dc, 20, 14)
 	// Solid band below the notch (left, under mask) → red.
 	lr2, lg2, lb2, _ := sampleRGBA(dc, 20, 50)
-	// Right interior outside mask → white (cover discards via R8).
+	// Right interior outside mask → white.
 	rr, rg, rb, _ := sampleRGBA(dc, 72, h/2)
 	// Inside the concave notch (outside polygon) → white.
 	nr, ng, nb, _ := sampleRGBA(dc, 20, 32)

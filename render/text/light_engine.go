@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -7,10 +17,6 @@ import (
 // light_engine.go —— FreeType light 渲染模式的消费者侧骨架（模式选择+轮廓
 // 壳），基于 render/text 已有的轮廓提取与自研 hint 引擎。
 //
-// 背景：FT_LOAD_TARGET_LIGHT 对不同字体走不同引擎：
-//   - CFF/CFF2 轮廓字体（OpenType OTTO，如系统 Noto Sans CJK）→ pshinter
-//     light（Y 方向网格拟合），由 render/text/hint 包（cffcs/cff2/psh_light）
-//     实现，逐字对照 FT 已闭环（见 docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5）。
 //   - TrueType glyf 轮廓（无 bytecode）→ autohinter afcjk（render/text
 //     autohint*.go 已实现全管线）。
 //   - Latin 等带 fpgm/prep 的字体 → TrueType 解释器 light（tt_engine.go
@@ -74,7 +80,7 @@ func (e *Engine) Hint(font ParsedFont, gid GlyphID, size float64, mode Mode) (*G
 // 的 light 渲染 flag；当前返回原始轮廓）。
 func (e *Engine) hintLatinLight(gid GlyphID, size float64, outline *GlyphOutline) (*GlyphOutline, error) {
 	return outline, nil
-}// afcjk.go —— FreeType autohinter「afcjk」脚本的移植区（CJK light 拟合）。
+} // afcjk.go —— FreeType autohinter「afcjk」脚本的移植区（CJK light 拟合）。
 //
 // 对齐目标：FT_LOAD_TARGET_LIGHT 下对无 bytecode hint 程序的字体
 // （CJK 主字体如 Noto Sans CJK 不带 fpgm/prep）走 autohinter，
@@ -86,16 +92,10 @@ func (e *Engine) hintLatinLight(gid GlyphID, size float64, outline *GlyphOutline
 //	4. 基线锚：底部内横锚定到 baseline（0）。
 //	5. X 不动（light 对 CJK 只动 Y）。
 //
-// 进度（docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5）：
-//	M0 ✔ 顶沿/基线锚 + 顶-次间距保持（本文件）。
-//	M1 （横笔捕捉 stem 分组）→ 全横边网格排布。
-//	M2 （轮廓点 Y 平移/伸缩传播）。
-//	M3 （16.16 舍入顺序 & 边界字号逐条对齐）。
 
 // AFCJK_TOP_BLUE_FU 是 Noto Sans CJK 的顶蓝线参考位（字体单位）。
 // 来源：ftexp 实测——FT-light 顶横锚 = round(816*px/1000) 在 10–16px
 // 主字号域与 FT 输出精确一致（FU=816 由 12px 锚=10.0 反推）。
-// 其他 CJK 字体的该值不同，M3 加入字体蓝区提取后替换。
 const AFCJK_TOP_BLUE_FU = 816
 
 // afcjkBlueAnchor 返回 px 字号下的顶横锚定目标（Y-up 像素，1/64 网格）。
@@ -138,9 +138,6 @@ func closeY(a, b float32) bool {
 	return d < 0.004
 }
 
-// hintAfcjk 是 afcjk 脚本的 M0 实现：
-// 顶横锚定蓝线 + 次横间距保持（1/64）+ 基线下横锚 baseline。
-//
 // 单位约定：GlyphOutline 为 Y-down（Y=0 基线，Y<0 上方）。内部计算用
 // Y-down 直接做（顶横 = min y），蓝线锚转成 Y-down 负值。
 //
@@ -175,7 +172,6 @@ func (e *Engine) hintAfcjk(font ParsedFont, gid GlyphID, size float64, outline *
 			prev = cur
 			prevSet = true
 		case OutlineOpQuadTo, OutlineOpCubicTo:
-			// 曲线段：三个点 (c1, c2, end)，水平检测只对直线段做（M0 范围）。
 			cur := pt{x: s.Points[2].X, y: s.Points[2].Y, seg: i}
 			pts = append(pts, cur)
 			prev = cur
@@ -231,8 +227,6 @@ func (e *Engine) hintAfcjk(font ParsedFont, gid GlyphID, size float64, outline *
 		break
 	}
 
-	// 应用到轮廓（仅 Y 方向；X 不动）。凡 Points[0] 的 y 命中位移即平移
-	// （MoveTo 与 LineTo 的共享端点被同值覆盖；曲线端点 M1 处理）。
 	for i := range outline.Segments {
 		s := &outline.Segments[i]
 		dy, ok := deltas[float64(s.Points[0].Y)]

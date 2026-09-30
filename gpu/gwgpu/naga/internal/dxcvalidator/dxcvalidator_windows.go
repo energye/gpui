@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build windows
 
 package dxcvalidator
@@ -29,7 +39,7 @@ var clsidDxcValidator = guid{0x8CA3E215, 0xF728, 0x4CF3, [8]byte{0x8C, 0xDD, 0x8
 // IID_IDxcValidator = A6E82BD2-1FD7-4826-9811-2857E797F49A
 var iidIDxcValidator = guid{0xA6E82BD2, 0x1FD7, 0x4826, [8]byte{0x98, 0x11, 0x28, 0x57, 0xE7, 0x97, 0xF4, 0x9A}}
 
-// --- Vtable method indices (from dxcapi.h on DirectXShaderCompiler/main) ---
+// --- Vtable method indices ---
 
 const (
 	// IUnknown
@@ -126,7 +136,7 @@ func readBlob(blob uintptr) string {
 
 // --- IDxcBlob implemented in Go ---
 //
-// Mirrors Mesa's ShaderBlob C++ class. We expose an object whose first
+// We expose an object whose first
 // qword is a vtable pointer; the vtable contains 5 function pointers
 // (IUnknown[3] + IDxcBlob[2]) implemented via syscall.NewCallback. dxil.dll
 // reads the vtable through standard COM dispatch and calls back into Go.
@@ -344,9 +354,6 @@ func (v *validatorImpl) validate(blob []byte) (Result, error) {
 	// Defensive layer 2: LLVM 3.7 bitstream metadata walker. Verifies
 	// !dx.entryPoints[i][0] is a non-null function reference before the
 	// blob reaches dxil.dll. Closes the BUG-DXIL-012 class AV at
-	// dxil.dll+0xe9da (NULL+0x18) for any input — our own naga output,
-	// DXC output, or third-party tool output.
-	// See: FEAT-VALIDATOR-BITCHECK-001, internal/dxcvalidator/bitcheck/.
 	if err := bitcheck.Check(blob); err != nil {
 		return Result{}, err
 	}

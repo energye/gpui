@@ -1,11 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package container implements the DXBC container format used to wrap
 // DXIL shader bitcode.
 //
 // A DXBC container consists of a header followed by a series of parts,
 // each identified by a FourCC code. The DXIL bitcode is stored in the
 // DXIL part, and the container hash is stored in the HASH part.
-//
-// Reference implementation: Mesa's dxil_container.c
 package container
 
 import (
@@ -51,11 +59,11 @@ func New() *Container {
 // The DXIL part has a program header before the bitcode:
 //
 //	ProgramVersion: (shaderKind << 16) | (majorVersion << 4) | minorVersion
-//	ProgramSize:    total size in 32-bit words (header + bitcode)
-//	DXILMagic:      0x4C495844 ("DXIL" in LE)
-//	DXILVersion:    0x100 (DXIL bitcode version)
-//	BitcodeOffset:  16 (bytes from DXIL magic to bitcode start)
-//	BitcodeSize:    size of bitcode in bytes
+//	ProgramSize: total size in 32-bit words (header + bitcode)
+//	DXILMagic: 0x4C495844 ("DXIL" in LE)
+//	DXILVersion: 0x100 (DXIL bitcode version)
+//	BitcodeOffset: 16 (bytes from DXIL magic to bitcode start)
+//	BitcodeSize: size of bitcode in bytes
 func (c *Container) AddDXILPart(shaderKind uint32, majorVer, minorVer uint32, bitcodeData []byte) {
 	// Program header: 6 uint32s = 24 bytes.
 	version := (shaderKind << 16) | (majorVer << 4) | minorVer
@@ -90,7 +98,7 @@ func (c *Container) AddFeaturesPart(features uint64) {
 //
 // The HASH part format is:
 //
-//	Flags:  uint32 (0 = retail hash present)
+//	Flags: uint32 (0 = retail hash present)
 //	Digest: [16]byte (hash value)
 //
 // Total: 20 bytes. The actual hash is set by SetBypassHash or
@@ -115,20 +123,20 @@ func (c *Container) AddRawPart(fc uint32, data []byte) {
 // Layout:
 //
 //	[Header: 28 bytes]
-//	  Magic:      "DXBC" (0x44584243)
-//	  Digest:     16 bytes (zeros = unsigned, or BYPASS sentinel)
-//	  Version:    uint16 major=1, uint16 minor=0
-//	  FileSize:   uint32 total size
-//	  PartCount:  uint32
+//	  Magic: "DXBC" (0x44584243)
+//	  Digest: 16 bytes (zeros = unsigned, or BYPASS sentinel)
+//	  Version: uint16 major=1, uint16 minor=0
+//	  FileSize: uint32 total size
+//	  PartCount: uint32
 //
 //	[PartOffsets: 4 * PartCount bytes]
 //	  uint32 offsets from start of file to each part
 //
 //	[Parts:]
 //	  For each part:
-//	    FourCC:   uint32
+//	    FourCC: uint32
 //	    PartSize: uint32
-//	    Data:     PartSize bytes
+//	    Data: PartSize bytes
 func (c *Container) Bytes() []byte {
 	numParts := len(c.parts)
 	headerSize := 32 + 4*numParts // header (32) + part offset table

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 // PathBooleanOp selects a path boolean operation (H.04 / SkPath::Op).
@@ -13,7 +23,7 @@ const (
 // BooleanPath computes a path representing a boolean combination of a and b.
 //
 // Implementation: scanline membership via winding numbers, then emit filled
-// horizontal runs as rectangles. Correct for fill semantics (Skia soft path);
+// horizontal runs as rectangles. Correct for fill semantics;
 // suitable for UI-level boolean regions.
 func BooleanPath(a, b *Path, op PathBooleanOp) *Path {
 	if a == nil || a.isEmpty() {

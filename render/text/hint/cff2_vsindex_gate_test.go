@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -9,8 +19,6 @@ import (
 	"github.com/go-text/typesetting/font/opentype/tables"
 )
 
-// TestCFF2VSIndexBlendMatchGT：M5 vsindex 语义门禁。
-//
 // 与 TestCFF2VarBlendMatchGT（62 字 × 4 点位，隐式含 vsindex 字形）不同，
 // 本窗**显式**扫描全部含 vsindex(15) 指令的字形（SourceSans3VF 实测 694
 // 字形），每个 × wght=0/0.5/1/-1 四点位，对照 go-text 解释器逐点一致。

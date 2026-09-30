@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -11,7 +21,7 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// X11 pen pressure (S6-P2 E 组 X11 侧).
+// X11 pen pressure.
 //
 // XI2 ButtonPress(4)/ButtonRelease(5)/Motion(6) on pen slave devices decode
 // into EventStylus: Down on press, Up on release, Move on motion (hover and
@@ -34,7 +44,7 @@ const (
 	xiClassValuator = 2
 )
 
-// XIDeviceEvent valuator header offsets (LP64, see XInput2.h).
+// XIDeviceEvent valuator header offsets.
 const (
 	xiDevSourceOff = 52
 	xiDevDetailOff = 56

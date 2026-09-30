@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -10,7 +20,6 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// S4.3 budgets raised in S6.6 for retained UI frames with many unique paths.
 const (
 	defaultPathGeomBudget    = 512
 	defaultStrokeGeomBudget  = 256
@@ -92,7 +101,7 @@ type pathTessKey struct {
 }
 
 // pathTessEntry holds fan-tessellated geometry for stencil-then-cover.
-// vertices are immutable after insert (S6.6 zero-copy hit).
+// vertices are immutable after insert.
 type pathTessEntry struct {
 	vertices  []float32
 	coverQuad [12]float32
@@ -104,7 +113,7 @@ type pathTessEntry struct {
 	lru         *pathTessNode // owned by PathGeometryCache.lru while in entries
 }
 
-// PathGeometryCache reuses path tessellation across draws/frames (S4.3/S6.6).
+// PathGeometryCache reuses path tessellation across draws/frames.
 // Eviction is LRU via an intrusive list — insert/refresh/evict are O(1).
 // The map still owns keys; each entry carries its list element so refresh on
 // hit and removal on evict never scan the table (the old full-table oldest-gen
@@ -129,7 +138,7 @@ func NewPathGeometryCache() *PathGeometryCache {
 
 // GetOrTessellate returns fan vertices for path, computing on miss.
 //
-// S6.6: on hit, returns the cached slice directly (zero-copy). Callers must
+// Callers must
 // treat the returned vertices as immutable. StencilPathCommand / flush only
 // read vertices into GPU buffers.
 func (c *PathGeometryCache) GetOrTessellate(path *render.Path, fillRule render.FillRule, aaOff bool) (verts []float32, cover [12]float32, ok bool) {
@@ -297,13 +306,13 @@ type strokeCacheKey struct {
 }
 
 type strokeCacheEntry struct {
-	// path is an immutable clone of the expanded outline (S6.6 shared hit).
+	// path is an immutable clone of the expanded outline.
 	path *render.Path
 	gen  uint64
 	lru  *lruNode[strokeCacheKey] // owned by StrokeGeometryCache.lru while in entries
 }
 
-// StrokeGeometryCache caches stroke expansion results (S4.3/S6.6).
+// StrokeGeometryCache caches stroke expansion results.
 // Eviction is LRU via an intrusive list — Get/Put/evict are O(1).
 type StrokeGeometryCache struct {
 	mu      sync.Mutex
@@ -334,7 +343,6 @@ func (c *StrokeGeometryCache) Stats() (hits, misses uint64, entries int) {
 }
 
 // Get returns the shared expanded path if present.
-// S6.6: no clone on hit — callers must not mutate the returned path.
 func (c *StrokeGeometryCache) Get(key strokeCacheKey) (*render.Path, bool) {
 	if c == nil {
 		return nil, false
@@ -399,10 +407,6 @@ func (c *StrokeGeometryCache) evictOldestLocked() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// S6.6 Dash geometry cache — avoid re-running ApplyDash on retained frames
-// ---------------------------------------------------------------------------
-
 type dashGeomKey struct {
 	pathHash  uint64
 	dashHash  uint64
@@ -415,7 +419,7 @@ type dashGeomEntry struct {
 	lru  *lruNode[dashGeomKey] // owned by DashGeometryCache.lru while in entries
 }
 
-// DashGeometryCache caches dashed path expansions (S6.6).
+// DashGeometryCache caches dashed path expansions.
 // Eviction is LRU via an intrusive list — GetOrApply/evict are O(1).
 type DashGeometryCache struct {
 	mu      sync.Mutex
@@ -536,10 +540,6 @@ func (c *DashGeometryCache) evictOldestLocked() {
 		delete(c.entries, n.key)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// S6.6 Convex classification cache — skip re-walk + IsConvex on hot paths
-// ---------------------------------------------------------------------------
 
 type convexClassEntry struct {
 	ok     bool
@@ -666,7 +666,6 @@ func (c *ConvexPathCache) evictOldestLocked() {
 	}
 }
 
-// GeometryCacheStats aggregates S4.3/S6.6 path/stroke/dash/convex cache stats.
 type GeometryCacheStats struct {
 	PathHits, PathMisses     uint64
 	PathEntries              int

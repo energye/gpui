@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -56,8 +66,6 @@ func TestSingleLongLineKeystroke_M5(t *testing.T) {
 	}
 	med := sorteds[len(sorteds)/2]
 	t.Logf("single 50k line incremental keystroke median = %v", med)
-	// §9 遗留#1：16ms 门禁需行内整形复用（当前整行重整，O(L) 实测约 70ms）。
-	// 此处只设 200ms 防退化绊线（3× 现状），不冒充门禁达标。
 	if med > 200*time.Millisecond {
 		t.Fatalf("single-line incremental %v regressed far beyond O(L) baseline", med)
 	}

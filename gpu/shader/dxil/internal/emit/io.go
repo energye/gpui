@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -18,9 +28,6 @@ import (
 // which evaluates inputs at point of first use. Our pre-load approach mimics
 // this by iterating loadInput-producing args in reverse after handling special
 // intrinsics (compute builtins, ViewID, coverage).
-//
-// Reference: Mesa nir_to_dxil.c emit_load_input_via_intrinsic(),
-// emit_load_global_invocation_id(), emit_load_local_invocation_id()
 func (e *Emitter) emitInputLoads(fn *ir.Function, stage ir.ShaderStage) error {
 	// Precompute signature element index (sigId) assignments that match the
 	// sorted order produced by collectFlatArgBindings + PackSignatureElements.
@@ -156,9 +163,6 @@ func (e *Emitter) buildInputRowMap(fn *ir.Function, stage ir.ShaderStage) map[in
 	// Map each entry to its signature element index (sigId).
 	// The sigId in loadInput/storeOutput is the sequential index of the
 	// element in the input signature, NOT the packed register row. When
-	// multiple scalar elements pack into the same register row (e.g.,
-	// @location(1) and @location(3) sharing register 0 with different
-	// column offsets), each still gets a unique sigId.
 	result := make(map[inputRowKey]int, len(entries))
 	sigIdx := 0
 	for i, ent := range entries {
@@ -275,8 +279,7 @@ func isSkippedInputBinding(binding ir.Binding, stage ir.ShaderStage, isComputeLi
 	return false
 }
 
-// emitCoverageLoad emits dx.op.coverage.i32(i32 91) and binds the result
-// to the entry point's @builtin(sample_mask) input argument. DXC reads
+// DXC reads
 // PS coverage via this dedicated intrinsic; SV_Coverage as PS input is
 // NotInSig per DxilSigPoint.inl:97 'NotInSig _50'.
 func (e *Emitter) emitCoverageLoad(fn *ir.Function, argIdx int) {
@@ -289,9 +292,7 @@ func (e *Emitter) emitCoverageLoad(fn *ir.Function, argIdx int) {
 }
 
 // emitViewIDLoad emits dx.op.viewID.i32(i32 138) and binds the result to
-// the entry point's view_index argument. Mirrors DXC's lowering of
-// SV_ViewID — the value is read via the dedicated intrinsic instead of
-// participating in the input signature.
+// the entry point's view_index argument.
 func (e *Emitter) emitViewIDLoad(fn *ir.Function, argIdx int) {
 	i32Ty := e.mod.GetIntType(32)
 	viewFn := e.getDxOpComputeBuiltinFunc("dx.op.viewID", false)
@@ -304,8 +305,7 @@ func (e *Emitter) emitViewIDLoad(fn *ir.Function, argIdx int) {
 // emitSingleInputLoad emits dx.op.loadInput calls for a single argument.
 // inputRow is the signature element index (sigId) for loadInput.
 //
-// Bool inputs (e.g. @builtin(front_facing) for SV_IsFrontFace) cannot use
-// dx.op.loadInput.i1 — DXC's DxilOperations.cpp:LoadInput declares overload
+// Bool inputs (e.g.
 // mask 0x63 = {f16, f32, i16, i32}, no i1. DXC instead loads the value as
 // i32 and converts via `icmp ne i32 %loaded, 0` to produce the i1 the
 // shader code expects. We mirror that lowering here.
@@ -408,15 +408,11 @@ func (e *Emitter) fixExprValuesForPartialLoad(exprHandle ir.ExpressionHandle, nu
 // shader builtins (GlobalInvocationId, LocalInvocationId, WorkGroupId, etc.).
 //
 // Each builtin maps to a specific dx.op intrinsic:
-//   - GlobalInvocationId  → dx.op.threadId(i32 93, i32 component)
-//   - LocalInvocationId   → dx.op.threadIdInGroup(i32 95, i32 component)
-//   - WorkGroupId         → dx.op.groupId(i32 94, i32 component)
+//   - GlobalInvocationId → dx.op.threadId(i32 93, i32 component)
+//   - LocalInvocationId → dx.op.threadIdInGroup(i32 95, i32 component)
+//   - WorkGroupId → dx.op.groupId(i32 94, i32 component)
 //   - LocalInvocationIndex → dx.op.flattenedThreadIdInGroup(i32 96)
-//   - NumWorkGroups       → dx.op.groupId(i32 94, i32 component) [placeholder]
-//
-// Reference: Mesa nir_to_dxil.c emit_threadid_call() ~727,
-// emit_threadidingroup_call() ~747, emit_groupid_call() ~789,
-// emit_flattenedthreadidingroup_call() ~769
+//   - NumWorkGroups → dx.op.groupId(i32 94, i32 component) [placeholder]
 func (e *Emitter) emitComputeBuiltinLoad(fn *ir.Function, argIdx int, builtin ir.BuiltinValue) error {
 	exprHandle := e.findArgExprHandle(fn, argIdx)
 
@@ -460,9 +456,6 @@ func (e *Emitter) emitComputeBuiltinLoad(fn *ir.Function, argIdx int, builtin ir
 }
 
 // emitVec3ThreadIDLoad emits 3 dx.op calls for a vec3<u32> thread ID builtin.
-// Each component is loaded separately via: i32 @dx.op.NAME(i32 opcode, i32 component)
-//
-// Reference: Mesa nir_to_dxil.c emit_load_global_invocation_id() ~3131
 func (e *Emitter) emitVec3ThreadIDLoad(_ *ir.Function, exprHandle ir.ExpressionHandle, funcName string, opcode DXILOpcode) error {
 	i32Ty := e.mod.GetIntType(32)
 	threadFn := e.getDxOpComputeBuiltinFunc(funcName, true)
@@ -481,9 +474,6 @@ func (e *Emitter) emitVec3ThreadIDLoad(_ *ir.Function, exprHandle ir.ExpressionH
 }
 
 // emitScalarThreadIDLoad emits a single dx.op call for a scalar thread ID builtin.
-// Signature: i32 @dx.op.NAME(i32 opcode)
-//
-// Reference: Mesa nir_to_dxil.c emit_flattenedthreadidingroup_call() ~769
 func (e *Emitter) emitScalarThreadIDLoad(_ *ir.Function, exprHandle ir.ExpressionHandle, funcName string, opcode DXILOpcode) error {
 	i32Ty := e.mod.GetIntType(32)
 	threadFn := e.getDxOpComputeBuiltinFunc(funcName, false)
@@ -580,8 +570,7 @@ func (e *Emitter) getOrCreateNumWorkGroupsCBV() int {
 }
 
 // getDxOpComputeBuiltinFunc creates a dx.op function declaration for compute
-// builtins. For vec3 builtins (hasComponent=true): i32 @name(i32, i32).
-// For scalar builtins (hasComponent=false): i32 @name(i32).
+// builtins.
 func (e *Emitter) getDxOpComputeBuiltinFunc(name string, hasComponent bool) *module.Function {
 	key := dxOpKey{name: name, overload: overloadI32}
 	if fn, ok := e.dxOpFuncs[key]; ok {
@@ -793,7 +782,6 @@ func (e *Emitter) findArgExprHandle(fn *ir.Function, argIdx int) ir.ExpressionHa
 	return 0
 }
 
-// builtinSemanticIndex maps naga builtins to DXIL semantic indices.
 // For vertex shaders, SV_Position is output index 0.
 func builtinSemanticIndex(b ir.BuiltinValue) int {
 	switch b {
@@ -822,7 +810,6 @@ func (e *Emitter) emitSetMeshOutputCounts(vertexCountID, primitiveCountID int) {
 }
 
 // getDxOpSetMeshOutputCountsFunc creates the dx.op.setMeshOutputCounts function declaration.
-// void @dx.op.setMeshOutputCounts(i32 opcode, i32 numVertices, i32 numPrimitives)
 func (e *Emitter) getDxOpSetMeshOutputCountsFunc() *module.Function {
 	name := "dx.op.setMeshOutputCounts"
 	key := dxOpKey{name: name, overload: overloadVoid}
@@ -847,7 +834,6 @@ func (e *Emitter) emitEmitIndices(primitiveIdx, v0, v1, v2 int) {
 }
 
 // getDxOpEmitIndicesFunc creates the dx.op.emitIndices function declaration.
-// void @dx.op.emitIndices(i32 opcode, i32 primIdx, i32 v0, i32 v1, i32 v2)
 func (e *Emitter) getDxOpEmitIndicesFunc() *module.Function {
 	name := "dx.op.emitIndices"
 	key := dxOpKey{name: name, overload: overloadVoid}
@@ -875,7 +861,6 @@ func (e *Emitter) emitStoreVertexOutput(sigID, comp, valueID, vertexIdx int, ol 
 }
 
 // getDxOpStoreVertexOutputFunc creates the dx.op.storeVertexOutput function declaration.
-// void @dx.op.storeVertexOutput.TYPE(i32 opcode, i32 sigId, i32 row, i8 col, TYPE value, i32 vertexIdx)
 func (e *Emitter) getDxOpStoreVertexOutputFunc(ol overloadType) *module.Function {
 	name := "dx.op.storeVertexOutput"
 	key := dxOpKey{name: name, overload: ol}
@@ -1027,10 +1012,7 @@ func (e *Emitter) emitNumSubgroupsLoad(_ *ir.Function, exprHandle ir.ExpressionH
 
 // emitComputeBuiltinMemberLoad emits the dx.op intrinsic for a compute
 // builtin appearing as a *struct member* of the entry point argument, and
-// returns the resulting scalar value ID. Mirrors the per-argument cases in
-// emitComputeBuiltinLoad, but returns a value instead of binding it to a
-// function-argument expression handle — the caller wires it up to the
-// member's entry in the struct's pre-registered component list.
+// returns the resulting scalar value ID.
 //
 // Scope: scalar builtins only. Vector builtins (global_invocation_id etc.)
 // are not expected as struct members in practice and are rejected with an
@@ -1091,7 +1073,6 @@ func (e *Emitter) emitComputeBuiltinMemberLoad(builtin ir.BuiltinValue) (int, er
 }
 
 // TODO: emitGetMeshPayload — implement when task payload access is needed.
-// Signature: TYPE* @dx.op.getMeshPayload.TYPE(i32 170)
 
 // isArgRead reports whether any expression or statement in fn's body
 // references ExprFunctionArgument(argIdx) — directly, or transitively via

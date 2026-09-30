@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package types
 
 // TextureFormat describes the format of a texture.
@@ -535,8 +545,6 @@ func (f TextureFormat) IsSrgb() bool {
 //   - Depth32FloatStencil8
 //
 // Returns 0 for unknown or invalid formats (including TextureFormatUndefined).
-//
-// Reference: Rust wgpu-types TextureFormat::block_copy_size().
 func (f TextureFormat) BlockCopySize() uint32 {
 	switch f {
 	// 8-bit formats (1 byte per texel)

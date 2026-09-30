@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package lower
 
 import (
@@ -45,7 +55,7 @@ func TestTypeDeduplication(t *testing.T) {
 	// Count types
 	typeCount := len(module.Types)
 
-	// Expected types (matching Rust naga post-compaction):
+	// Expected types:
 	// 1. vec4<f32> (vector) - deduplicated, should appear only once
 	// 2. Vertex (struct)
 	// Note: f32 scalar is registered during vec4<f32> resolution but removed
@@ -101,7 +111,7 @@ func TestTypeDeduplicationMultipleStructs(t *testing.T) {
 		t.Fatalf("Lower failed: %v", err)
 	}
 
-	// Expected types (matching Rust naga post-compaction):
+	// Expected types:
 	// 1. vec4<f32> (vector) - used in both structs but deduplicated
 	// 2. A (struct)
 	// 3. B (struct)

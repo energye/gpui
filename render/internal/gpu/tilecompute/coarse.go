@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Coarse rasterization: tile allocation, path processing, and PTCL generation.
 // This combines Vello pipeline stages 11-18 into a single sequential CPU pass.
@@ -7,7 +14,6 @@
 // On GPU, these would be separate compute dispatches (tile_alloc, path_count_setup,
 // path_count, backdrop, coarse). On CPU, we can process paths sequentially.
 //
-// Reference: vello_shaders/src/cpu/coarse.rs, tile_alloc.rs, backdrop.rs
 
 package tilecompute
 
@@ -311,7 +317,6 @@ type drawParams struct {
 }
 
 // tileClipState tracks per-tile clip state during PTCL generation.
-// Matches Vello coarse.wgsl clip state variables.
 type tileClipState struct {
 	clipDepth     uint32 // Current clip nesting depth
 	clipZeroDepth uint32 // >0 means inside an empty clip; suppress all drawing
@@ -321,8 +326,6 @@ type tileClipState struct {
 
 // generatePTCLs processes draw objects in scene order and generates per-tile PTCLs.
 // Handles DrawTagColor, DrawTagBeginClip, and DrawTagEndClip.
-//
-// Reference: vello_shaders/shader/coarse.wgsl lines 194-467.
 //
 //nolint:funlen,cyclop // Vello coarse PTCL generation handles 3 tag types with per-tile clip state tracking.
 func generatePTCLs(
@@ -435,8 +438,6 @@ func emitDrawToTilesClipAware(out *CoarseOutput, dp drawParams, clipState []tile
 //   - If already inside an empty clip: just increment clipDepth
 //   - If tile is empty (no segments, backdrop=0): set clipZeroDepth
 //   - Otherwise: emit CmdBeginClip to PTCL
-//
-// Reference: coarse.wgsl DRAWTAG_BEGIN_CLIP case (lines 412-420).
 func emitBeginClipToTiles(out *CoarseOutput, pathIx int, clipState []tileClipState) {
 	path := out.Paths[pathIx]
 	bbox := path.BBox
@@ -511,8 +512,6 @@ func emitBeginClipToTiles(out *CoarseOutput, pathIx int, clipState []tileClipSta
 //   - Decrement clipDepth
 //   - If exiting the empty clip level: reset clipZeroDepth
 //   - Otherwise: emit CmdFill + CmdEndClip to PTCL
-//
-// Reference: coarse.wgsl DRAWTAG_END_CLIP case (lines 422-429) + clip_zero path (lines 434-447).
 func emitEndClipToTiles(
 	out *CoarseOutput,
 	pathIx int,

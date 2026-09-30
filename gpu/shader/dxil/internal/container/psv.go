@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package container — PSV0 (Pipeline State Validation) part encoding.
 //
 // PSV0 contains runtime information used by the D3D12 driver to validate
@@ -12,9 +22,6 @@
 //
 // For SM 6.0 (validator < 1.6), the runtime info is PSVRuntimeInfo1
 // (the minimum required version that includes signature element counts).
-//
-// Reference: Mesa dxil_container.c dxil_container_add_state_validation(),
-// Mesa dxil_signature.h struct dxil_psv_runtime_info_*.
 package container
 
 import (
@@ -28,7 +35,7 @@ import (
 // with E_INVALIDARG.
 //
 // Source of truth (keep in sync):
-//   - DXC:  reference/dxil/dxc/include/dxc/DXIL/DxilConstants.h:244
+//   - DXC: reference/dxil/dxc/include/dxc/DXIL/DxilConstants.h:244
 //     enum class ShaderKind { Pixel=0, Vertex=1, Geometry=2, ... }
 //     "Must match D3D11_SHADER_VERSION_TYPE"
 //   - Mesa: reference/dxil/mesa/src/microsoft/compiler/dxil_module.h:44
@@ -110,7 +117,7 @@ type PSVInfo struct {
 	PSVSigInputs  []PSVSignatureElement
 	PSVSigOutputs []PSVSignatureElement
 
-	// Resource bindings (BUG-DXIL-022). dxil.dll validator compares PSV0
+	// Resource bindings. dxil.dll validator compares PSV0
 	// resource count against the bitcode !dx.resources list; a stale 0
 	// here fails "ResourceCount mismatch" for any shader touching buffers,
 	// textures, or samplers.
@@ -215,14 +222,12 @@ const psvSignatureElementSize = 4 + 4 + 8 // two uint32 + 8 bytes = 16 bytes
 //
 // Deprecated: runtimeInfo1Size / runtimeInfo2Size are kept as documentation of
 // older layout versions. The emit path uses runtimeInfo3Size unconditionally
-// (BUG-DXIL-009): modern dxil.dll (validator 1.6+) interprets the psv_size
+// : modern dxil.dll (validator 1.6+) interprets the psv_size
 // header as "this is at least this version" and reads PSVRuntimeInfo3 fields
 // (NumThreads/EntryFunctionName) regardless of shader stage. Writing 36 B
 // caused the validator to read past the end of our payload into adjacent
 // memory and AV at dxil.dll+0xe9da (NULL+0x18). Fix: always emit 52 B with
 // NumThreads/EntryFunctionName zero-padded for non-compute stages. See
-// docs/dev/research/BUG-DXIL-VALIDATOR-REAL-PHASE0-FINDINGS.md § "The AV
-// mechanism, now fully understood".
 const (
 	runtimeInfo1Size = 36 // Deprecated — kept for layout documentation only.
 	runtimeInfo2Size = 48 // Deprecated — kept for layout documentation only.
@@ -234,11 +239,10 @@ const (
 // The runtime-info struct is always emitted at PSVRuntimeInfo3 size (52 B)
 // regardless of shader stage. NumThreadsX/Y/Z and EntryFunctionName fields
 // for non-compute/non-mesh/non-amplification stages are zero-padded. See
-// BUG-DXIL-009 for rationale.
 //
 //nolint:funlen,gocyclo,cyclop // PSV encoding requires many stage-specific branches
 func EncodePSV0(info PSVInfo) []byte {
-	// BUG-DXIL-009: always emit PSVRuntimeInfo3 (52 B). Modern dxil.dll
+	// always emit PSVRuntimeInfo3 (52 B). Modern dxil.dll
 	// validators (1.6+) require this layout regardless of stage. Unused
 	// fields are zero-padded.
 	psvSize := uint32(runtimeInfo3Size)
@@ -274,8 +278,8 @@ func EncodePSV0(info PSVInfo) []byte {
 		totalSize += uint32(numSigOutputs) * uint32(psvSignatureElementSize) //nolint:gosec // bounded
 	}
 
-	// PSV dependency tables (BUG-DXIL-022 follow-up). dxil.dll's
-	// SimplePSV well-formedness walker (DxilContainerValidation.cpp:609)
+	// PSV dependency tables. dxil.dll's
+	// SimplePSV well-formedness walker
 	// requires the PSV0 part end exactly at the computed offset after
 	// these tables. Without them the validator emits "PSV0 part is not
 	// well-formed". The content is computed via instruction analysis in
@@ -335,15 +339,10 @@ func EncodePSV0(info PSVInfo) []byte {
 		out[pos+27] = info.MeshOutputTopology // mesh output topology in union byte 3
 	}
 
-	// BUG-DXIL-009 self-consistency clamp + BUG-DXIL-019 architectural note:
-	// the validator uses SigInputElements/SigOutputElements from RTI1 to
-	// iterate PSVSignatureElement entries that follow the string and
 	// semantic-index tables in PSV0. If we declare non-zero counts without
 	// matching entries, the validator's payload walker fails with the
 	// opaque "PSV0 part is not well-formed" error.
 	//
-	// Until BUG-DXIL-019 (populate PSVSigInputs/PSVSigOutputs in buildPSV
-	// from the same data BUG-DXIL-012 puts in `!dx.entryPoints[0][2]`),
 	// we clamp the counts to zero. Cost: PSV0 counts disagree with the
 	// signature metadata in the bitcode, so the validator returns
 	// HRESULT 0x80aa0013 with text:
@@ -427,7 +426,7 @@ func EncodePSV0(info PSVInfo) []byte {
 		}
 	}
 
-	// Dependency tables (BUG-DXIL-011 Phase 3 / BUG-DXIL-018 follow-up).
+	// Dependency tables.
 	// Content comes from info.InputToOutputTable, populated by buildPSV
 	// via the dxil/internal/viewid dataflow analyzer. Layout mirrors
 	// PSVDependencyTable exactly:
@@ -445,13 +444,12 @@ func EncodePSV0(info PSVInfo) []byte {
 // `pos`, bounded by `depBytes`. If `table` is nil or empty the region is
 // left zero-filled (make() default), matching our old probe behavior.
 //
-// Layout per PSVDependencyTable (DxilPipelineStateValidation.h:295):
+// Layout per PSVDependencyTable:
 //   - Table size in dwords = MaskDwordsForComponents(sigOut) * 4 * sigIn
 //   - Indexed as table[inputComp * maskDwords .. (inputComp+1)*maskDwords)
 //   - Each bit `c` set means this input component influences output
 //     component `c`.
 //
-// BUG-DXIL-018 Phase 3: replaces the session-11 probe that hard-coded
 // 0x03 at the first dword for 1-in/1-out shaders. The IR-level
 // viewid.Analyze pass-through analyzer now produces the same bits (and
 // more) for real dataflow, so the probe is no longer needed.
@@ -494,8 +492,7 @@ func psvDependencyTableSize(info PSVInfo) uint32 {
 	}
 	const numStreams = 4
 	// SigOutputVectors is currently a single uint8 covering stream 0;
-	// streams 1-3 are zero (no GS support yet). Mirror the layout the
-	// validator expects regardless.
+	// streams 1-3 are zero (no GS support yet).
 	sigOutputVectors := [numStreams]uint32{uint32(info.SigOutputVectors), 0, 0, 0}
 	sigInputVectors := uint32(info.SigInputVectors)
 
@@ -540,7 +537,7 @@ func (c *Container) AddPSV0(info PSVInfo) {
 //
 // Layout mirrors the convention used by DXC for non-mesh shaders:
 //
-//	offset 0: '\0'             — empty string for signature elements without
+//	offset 0: '\0' — empty string for signature elements without
 //	                              explicit semantic names
 //	offset 1: entryName + '\0' — the shader entry point name
 //	offset n: zero padding up to 4-byte alignment

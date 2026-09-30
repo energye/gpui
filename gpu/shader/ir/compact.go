@@ -1,8 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 // CompactUnused removes globals and functions not reachable from any entry point.
-// Matches Rust naga's compact pass which traces from entry points and removes
-// unreachable global variables, functions, and their associated types.
 func CompactUnused(module *Module) {
 	if len(module.EntryPoints) == 0 {
 		return
@@ -179,13 +187,11 @@ func remapStmtFuncHandles(stmts []Statement, remap []FunctionHandle) {
 // CompactTypes removes anonymous types that are not referenced by any handle
 // in the module, and renumbers all type handles to be contiguous.
 //
-// This replicates Rust naga's compact::compact() with KeepUnused::Yes,
 // which the WGSL frontend calls at the end of lowering. The key effect is
 // removing scalar types that were registered during vec/mat type resolution
 // but are only embedded by value (not referenced by handle) in Vector/Matrix
 // types. Named types are always kept.
 //
-// Verified: produces identical type arenas to Rust naga on 18/18 reference shaders.
 // See docs/dev/research/IR-DEEP-ANALYSIS.md for analysis.
 func CompactTypes(module *Module) {
 	if len(module.Types) == 0 {
@@ -228,8 +234,7 @@ func CompactTypes(module *Module) {
 
 	// Step 2: Determine which types to keep.
 	// Keep referenced types AND all named types.
-	// Rust naga's compact keeps all named types (structs, aliases, etc.) regardless
-	// of reference count. Only abstract types are force-removed.
+	// Only abstract types are force-removed.
 	keep := make([]bool, len(module.Types))
 	for i, t := range module.Types {
 		if IsAbstractType(t.Inner, module.Types) {
@@ -428,8 +433,6 @@ func markExprTypeRefs(kind ExpressionKind, referenced []bool) {
 
 // ReorderTypes reorders the type arena so that types appear in first-use order
 // when scanning: constants → overrides → globals → functions → entry points.
-// This matches Rust naga where types are registered during dependency-ordered
-// lowering and dead intermediate types are never re-registered.
 //
 // Must be called AFTER CompactTypes (which removes unreferenced types).
 func ReorderTypes(module *Module) {
@@ -456,7 +459,6 @@ func ReorderTypes(module *Module) {
 	// Use TypeUseOrder — records the exact registration order from
 	// dependency-ordered lowering, remapped by CompactTypes to surviving
 	// handles only. This preserves the interleaved constants/functions
-	// order that matches Rust naga's type arena.
 	for _, h := range module.TypeUseOrder {
 		visit(h)
 	}
@@ -683,8 +685,7 @@ func remapTypeInner(inner TypeInner, remap []TypeHandle) TypeInner {
 }
 
 // CompactConstants removes abstract-typed constants from the module and remaps
-// all ConstantHandle references. This matches Rust naga's compact pass which
-// removes constants whose type is abstract (is_abstract returns true) and
+// all ConstantHandle references. This matches Rust the compact pass which
 // unnamed constants. With KeepUnused::Yes (which the WGSL frontend uses),
 // named non-abstract constants are always kept.
 //
@@ -697,7 +698,6 @@ func CompactConstants(module *Module) {
 	}
 
 	// Determine which constants to keep.
-	// Matches Rust: constant.name.is_none() || type.is_abstract() → skip
 	keep := make([]bool, len(module.Constants))
 	for i, c := range module.Constants {
 		isNamed := c.Name != "" && c.Name != "_"
@@ -832,11 +832,8 @@ func CompactConstants(module *Module) {
 }
 
 // CompactExpressions removes unreferenced expressions from each function
-// in the module and renumbers all expression handles. This matches Rust naga's
-// compact pass which removes dead expressions (e.g., original abstract literals
-// replaced by concretized versions).
+// in the module and renumbers all expression handles.
 //
-// The algorithm matches Rust naga's compact:
 // 1. Mark expressions directly used by statements (NOT Emit ranges - those are no-ops)
 // 2. Mark named expressions and local variable initializers as used
 // 3. Propagate usage back-to-front through expressions (transitive closure)
@@ -858,12 +855,9 @@ func compactFunctionExpressions(f *Function) {
 
 	// Phase 1: Mark expressions directly referenced by statements, named
 	// expressions, and local variable initializers. Emit ranges do NOT mark
-	// expressions as used - matching Rust naga's trace_block which says:
-	// "since evaluating expressions has no effect, we don't need to assume
-	// that everything emitted is live."
 	used := make([]bool, n)
 
-	// Mark expressions referenced by named expressions (Rust: treat named as alive)
+	// Mark expressions referenced by named expressions
 	for h := range f.NamedExpressions {
 		if int(h) < n {
 			used[h] = true
@@ -1128,8 +1122,7 @@ func markStmtExprRefs(stmts []Statement, referenced []bool) {
 	}
 }
 
-// markStmtExprRefsForCompact marks expression handles referenced by statements,
-// matching Rust naga's trace_block. Crucially, Emit ranges do NOT mark their
+// Crucially, Emit ranges do NOT mark their
 // expressions as used — "since evaluating expressions has no effect, we don't
 // need to assume that everything emitted is live."
 func markStmtExprRefsForCompact(stmts []Statement, referenced []bool) {
@@ -1248,8 +1241,6 @@ func markGatherModeRefs(mode GatherMode, mark func(ExpressionHandle)) {
 	}
 }
 
-// remapStmtExprHandlesCompact remaps expression handles in all statements,
-// with proper Emit range adjustment matching Rust naga's adjust_range.
 // For Emit ranges, we find the first and last used handles within the original
 // range and create a new contiguous range. If no handles are used, the Emit
 // statement is removed from the block.
@@ -1276,8 +1267,6 @@ func remapStmtExprHandlesCompact(stmts []Statement, remap []ExpressionHandle, us
 	for _, stmt := range stmts {
 		switch s := stmt.Kind.(type) {
 		case StmtEmit:
-			// Adjust Emit range: find first and last used handles within
-			// the original range, matching Rust naga's adjust_range.
 			var firstNew, lastNew ExpressionHandle
 			foundFirst := false
 			for h := s.Range.Start; h < s.Range.End; h++ {
@@ -1727,8 +1716,6 @@ func deduplicateBlockEmits(stmts []Statement, exprs []Expression) []Statement {
 				continue
 			}
 			// Check if ALL expressions in range are pre-emit (don't need Emit).
-			// Matches Rust naga's needs_pre_emit(): Literal, Constant, ZeroValue,
-			// GlobalVariable, FunctionArgument, LocalVariable, Override.
 			allPreEmit := true
 			for h := emit.Range.Start; h < emit.Range.End; h++ {
 				if int(h) < len(exprs) && !isPreEmitExpression(exprs[h].Kind) {
@@ -1773,7 +1760,6 @@ func deduplicateBlockEmits(stmts []Statement, exprs []Expression) []Statement {
 }
 
 // isPreEmitExpression returns true for expression types that don't need Emit statements.
-// Matches Rust naga's Expression::needs_pre_emit().
 func isPreEmitExpression(kind ExpressionKind) bool {
 	switch kind.(type) {
 	case Literal, ExprConstant, ExprOverride, ExprZeroValue,

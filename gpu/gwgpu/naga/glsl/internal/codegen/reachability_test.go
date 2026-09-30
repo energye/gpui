@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -447,7 +454,6 @@ func TestCompile_DeadCodeElimination_Constants(t *testing.T) {
 		t.Fatalf("Compile() error = %v", err)
 	}
 
-	// Rust naga emits ALL named constants regardless of reachability.
 	// The GLSL backend follows this behavior — constant filtering is NOT applied.
 	// Verify at least some constants appear.
 	if !strings.Contains(source, "c0_") {
@@ -477,7 +483,6 @@ func TestCompile_DeadCodeElimination_Types(t *testing.T) {
 		t.Error("StructC should be in output (reachable via g3)")
 	}
 
-	// Note: Rust naga emits ALL struct types regardless of reachability.
 	// The GLSL backend follows this behavior — struct filtering is NOT applied.
 	// Only functions, globals, and constants are filtered by reachability.
 }
@@ -593,8 +598,7 @@ func TestCompile_OutputSizeReduction(t *testing.T) {
 	}
 
 	// Dead code elimination filters functions and globals by reachability.
-	// Note: Rust naga emits ALL struct types and ALL named constants regardless
-	// of reachability. The GLSL backend follows this behavior.
+	// The GLSL backend follows this behavior.
 
 	// Count function definitions (excluding main) — these ARE filtered
 	funcCount := strings.Count(sourceFiltered, "unused_")

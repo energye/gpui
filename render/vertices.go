@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -8,7 +18,6 @@ import (
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
-// R2 CPU渐变接口冻结（S16/W2，前置 S01 R1）。
 //
 // 一句话：显卡对三角逐像素插预乘颜色（Gouraud），
 // CPU 必须按同样重心权重逐像素插，不许再取平均填纯色；
@@ -35,7 +44,7 @@ var (
 // CPU 与 GPU 只差抗锯齿时仍记这一条，调用方凭它判定降级。
 const VertCPUFallbackReason = "verts:DrawVertices"
 
-// VertDrawOptions 是 DrawVerticesEx/DrawMeshEx 的选项（R2 预留，零值即默认）。
+// VertDrawOptions 是 DrawVerticesEx/DrawMeshEx 的选项。
 type VertDrawOptions struct{}
 
 // VertDrawResult 是 Ex 新函数的降级标记与诊断。
@@ -63,7 +72,6 @@ const (
 // AtlasSprite describes one sub-rect of an atlas image drawn to a destination rect (V.02).
 // Source coordinates are in image pixels; destination is in user space (CTM applied).
 //
-// R4 图集扩展冻结（S30/W4，2.2 的 render 底，前置 S24 R3）。
 // 老 DrawAtlas 签名不动，只读老字段；新字段零值即老路。
 //   - Rot 弧度，与 Rotate 一致（Y 朝下时正角顺时针），绕轴心转。
 //   - FlipX/FlipY 先于旋转绕轴心镜像（几何翻转，UV 不动）。
@@ -75,15 +83,15 @@ type AtlasSprite struct {
 	DstX, DstY, DstW, DstH float64
 	// Opacity is 0..1; values <= 0 default to 1.
 	Opacity float64
-	// Rot rotates the Dst rect about the pivot (radians, R4 new branch).
+	// Rot rotates the Dst rect about the pivot.
 	Rot float64
-	// FlipX/FlipY mirror the Dst rect about the pivot before Rot (R4).
+	// FlipX/FlipY mirror the Dst rect about the pivot before Rot.
 	FlipX, FlipY bool
-	// PivotX/PivotY is the pivot offset from (DstX,DstY) in Dst units (R4).
+	// PivotX/PivotY is the pivot offset from (DstX,DstY) in Dst units.
 	PivotX, PivotY float64
-	// Tint multiplies straight source texels (R4); zero struct means white.
+	// Tint multiplies straight source texels; zero struct means white.
 	Tint RGBA
-	// Filter selects per-sprite sampling (R4); zero means Bilinear.
+	// Filter selects per-sprite sampling; zero means Bilinear.
 	Filter InterpolationMode
 }
 
@@ -91,7 +99,7 @@ type AtlasSprite struct {
 var (
 	// ErrAtlasNonFinite 非有限图集精灵（NaN/Inf，含 Tint）。
 	ErrAtlasNonFinite = errors.New("render: non-finite atlas sprite")
-	// ErrAtlasUnsupportedFilter 不支持的单图过滤（R4 仅 Nearest/Bilinear/Bicubic）。
+	// ErrAtlasUnsupportedFilter 不支持的单图过滤。
 	ErrAtlasUnsupportedFilter = errors.New("render: unsupported atlas filter (R4 only Nearest/Bilinear/Bicubic)")
 )
 
@@ -99,7 +107,7 @@ var (
 // tint 染色暂无显卡着色器，整批走 CPU 真采样时记这一条。
 const AtlasCPUFallbackReason = "verts:DrawAtlas"
 
-// AtlasDrawOptions 是 DrawAtlasEx 的选项（R4 预留，零值即默认）。
+// AtlasDrawOptions 是 DrawAtlasEx 的选项。
 type AtlasDrawOptions struct{}
 
 // AtlasDrawResult 是 Ex 新函数的降级标记与诊断。
@@ -114,14 +122,14 @@ type AtlasDrawResult struct {
 	Drawn int
 }
 
-// DrawVertices draws a triangle mesh with optional per-vertex colors (Skia drawVertices / V.01).
+// DrawVertices draws a triangle mesh with optional per-vertex colors.
 //
 // positions are in user space and transformed by the current CTM.
 // When len(colors) == len(positions), Gouraud shading is used; otherwise the current
 // fill solid color is used for the mesh.
 //
 // Preferred path: GPU convex tier with per-vertex colors (QueueColoredMesh).
-// CPU fallback is true Gouraud (R2, per-pixel barycentric on premultiplied colors).
+// CPU fallback is true Gouraud.
 func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode) {
 	if c == nil || len(positions) < 3 {
 		return
@@ -180,7 +188,7 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 }
 
 func (c *Context) drawVerticesCPU(positions []Point, colors []RGBA, solid RGBA, mode VertexMode) {
-	// R2: true Gouraud goes to the new per-pixel path; solid keeps AA Fill.
+	// true Gouraud goes to the new per-pixel path; solid keeps AA Fill.
 	if len(colors) == len(positions) {
 		if uni, ok := uniformVertColor(colors); ok {
 			// Identical vertex colors interpolate to a constant: keep the
@@ -208,7 +216,7 @@ func (c *Context) drawVerticesCPU(positions []Point, colors []RGBA, solid RGBA, 
 	}
 }
 
-// drawVerticesGouraudCPU rasterizes device-space triangles with true Gouraud (R2).
+// drawVerticesGouraudCPU rasterizes device-space triangles with true Gouraud.
 // New function: old Draw signatures stay, new logic lives here.
 // Premultiplied barycentric matches GPU convex mesh (SkipAA, Normal source-over).
 func (c *Context) drawVerticesGouraudCPU(dev []Point, colors []RGBA, mode VertexMode) {
@@ -225,7 +233,7 @@ func (c *Context) drawVerticesGouraudCPU(dev []Point, colors []RGBA, mode Vertex
 	}
 	hasClip := c.clipStack != nil && c.clipStack.Depth() > 0
 	mask := c.mask
-	// Frame damage: union AABB in device space (scale=1 tests; matches R1 quad path).
+	// Frame damage: union AABB in device space.
 	minX, minY := dev[0].X, dev[0].Y
 	maxX, maxY := minX, minY
 	for i := 1; i < len(dev); i++ {
@@ -358,7 +366,7 @@ func (c *Context) drawVerticesGouraudCPU(dev []Point, colors []RGBA, mode Vertex
 	}
 }
 
-// vertTri holds one triangle with hoisted barycentric factors (R2).
+// vertTri holds one triangle with hoisted barycentric factors.
 type vertTri struct {
 	x2, y2 float64
 	a0, b0 float64
@@ -412,7 +420,7 @@ func isFiniteRGBA(c RGBA) bool {
 		!math.IsInf(c.R, 0) && !math.IsInf(c.G, 0) && !math.IsInf(c.B, 0) && !math.IsInf(c.A, 0)
 }
 
-// uniformVertColor reports whether every vertex color is identical (R2).
+// uniformVertColor reports whether every vertex color is identical.
 // A constant interpolant keeps the original AA Fill path: pixel-identical
 // to the old average fill and within the allowed AA-edge-only GPU diff.
 func uniformVertColor(colors []RGBA) (RGBA, bool) {
@@ -428,7 +436,7 @@ func uniformVertColor(colors []RGBA) (RGBA, bool) {
 	return c0, true
 }
 
-// DrawVerticesEx validates then draws via the frozen path, returning degradation (R2 new function).
+// DrawVerticesEx validates then draws via the frozen path, returning degradation.
 // Empty (<3) skips with Skipped=true and nil error; non-finite returns ErrVertsNonFinite.
 func (c *Context) DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMode, _ VertDrawOptions) (VertDrawResult, error) {
 	if c == nil || len(positions) < 3 {
@@ -458,7 +466,7 @@ func (c *Context) DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMo
 	return VertDrawResult{Degraded: true, Reason: VertCPUFallbackReason, Triangles: nTri}, nil
 }
 
-// DrawMeshEx validates then draws via the frozen path, returning degradation (R2 new function).
+// DrawMeshEx validates then draws via the frozen path, returning degradation.
 func (c *Context) DrawMeshEx(mesh Mesh, _ VertDrawOptions) (VertDrawResult, error) {
 	if c == nil || len(mesh.Positions) < 3 {
 		return VertDrawResult{Skipped: true}, nil
@@ -525,7 +533,7 @@ func (c *Context) drawDeviceTriangle(p0, p1, p2 Point) {
 	_ = c.Fill()
 }
 
-// DrawAtlas draws multiple sub-rects from a single image (Skia drawAtlas / V.02).
+// DrawAtlas draws multiple sub-rects from a single image.
 // GPU path issues one QueueImageDraw per sprite from the shared ImageBuf.
 // CPU path falls back to DrawImageEx per sprite.
 func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
@@ -809,7 +817,7 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 	return AtlasDrawResult{Degraded: true, Reason: AtlasCPUFallbackReason, Drawn: n}, nil
 }
 
-// drawAtlasExCPU 用显卡同拆法逐像素真采样（R4 新路，支持 rot/flip/tint/filter）。
+// drawAtlasExCPU 用显卡同拆法逐像素真采样。
 // 与 GPU 同为 TL-TR-BL + TR-BR-BL，对角线归首三角；采样钳边与显卡一致。
 func (c *Context) drawAtlasExCPU(img *ImageBuf, sprites []AtlasSprite, drawIdx []int) int {
 	if c == nil || c.pixmap == nil || img == nil || len(drawIdx) == 0 {
@@ -962,7 +970,7 @@ func (c *Context) drawAtlasExCPU(img *ImageBuf, sprites []AtlasSprite, drawIdx [
 	return drawn
 }
 
-// Mesh describes an indexed triangle mesh for DrawMesh (Skia drawMesh / V.03 subset).
+// Mesh describes an indexed triangle mesh for DrawMesh.
 // Positions are user-space points (CTM applied). When Indices is non-empty, triangles
 // are formed as (i0,i1,i2) groups of 3 indices; otherwise positions are a triangle list.
 // When len(Colors)==len(Positions), Gouraud shading is used.
@@ -976,7 +984,7 @@ type Mesh struct {
 // This is the V.03 subset: positions + optional vertex colors + optional indices.
 // Full custom fragment shaders / cubics are deferred.
 //
-// opt22: when Indices is set, the GPU path keeps unique verts + DrawIndexed
+// when Indices is set, the GPU path keeps unique verts + DrawIndexed
 // (no CPU expand). CPU fallback still expands to triangle lists.
 func (c *Context) DrawMesh(mesh Mesh) {
 	if c == nil || len(mesh.Positions) < 3 {
@@ -986,13 +994,13 @@ func (c *Context) DrawMesh(mesh Mesh) {
 	colors := mesh.Colors
 	hasIdx := len(mesh.Indices) >= 3
 
-	// GPU indexed path: CTM → unique device verts + indices (opt22).
+	// GPU indexed path: CTM → unique device verts + indices.
 	if hasIdx {
 		if rc := c.gpuCtxOps(); rc != nil && !CPUOnlyMode() {
 			n := len(positions)
 			ctm := c.totalMatrix()
 			var dev []Point
-			// opt23: identity CTM — queue user-space points without a full copy/transform.
+			// identity CTM — queue user-space points without a full copy/transform.
 			if ctm.IsIdentity() {
 				dev = positions
 			} else {

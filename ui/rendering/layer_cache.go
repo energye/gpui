@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -9,7 +19,7 @@ import (
 // boundary reuses its previous BoundaryLayer object (children re-walked) and
 // its display list is not re-recorded — only dirty paths rebuild. Without
 // this, BuildLayerTree allocated the whole layer tree + recorded every
-// Picture every frame (R7: ~4-5MB/s allocation, RSS climbs under GOGC).
+// Picture every frame.
 //
 // Liveness is bound to the render tree: Prune drops entries whose owner is no
 // longer reachable (scrolled-out VirtualList cells release their caches).

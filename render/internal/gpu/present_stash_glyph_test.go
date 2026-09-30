@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -11,7 +21,7 @@ import (
 // flush and then reused by layer/sibling draws. A shallow stash (Quads slice
 // pointing into the component store) would be clobbered before unstash, making
 // parent text render with the wrong glyph positions. The stash must own the
-// quad payload (opt22 pattern).
+// quad payload.
 func TestStashGlyphQuads_SurviveStoreReuse(t *testing.T) {
 	rc := &GPURenderContext{hasPendingTarget: true}
 
@@ -29,7 +39,6 @@ func TestStashGlyphQuads_SurviveStoreReuse(t *testing.T) {
 	}
 
 	// Layer flush truncates the component store and a sibling draw reuses it
-	// (the exact aliasing that corrupted R18 before the fix).
 	rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
 	rc.glyphMaskQuadStore = append(rc.glyphMaskQuadStore,
 		GlyphMaskQuad{X0: 324, Y0: 306, X1: 336, Y1: 318, Page: 0},

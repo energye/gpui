@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -18,8 +25,6 @@ import (
 //
 // Wraps an id<MTLAccelerationStructure> created via
 // [MTLDevice newAccelerationStructureWithSize:].
-//
-// Reference: Rust wgpu-hal metal/mod.rs:1397 (AccelerationStructure { raw }).
 type AccelerationStructure struct {
 	raw    ID // id<MTLAccelerationStructure>
 	device *Device
@@ -74,16 +79,15 @@ const (
 // Metal defines this struct for indirect TLAS instances:
 //
 //	struct MTLAccelerationStructureInstanceDescriptor {
-//	    MTLPackedFloat4x3 transformationMatrix;  // 48 bytes
-//	    uint32_t          options;               // 4 bytes (MTLAccelerationStructureInstanceOptions)
-//	    uint32_t          mask;                  // 4 bytes
-//	    uint32_t          intersectionFunctionTableOffset; // 4 bytes
-//	    uint32_t          accelerationStructureIndex;      // 4 bytes
+//	    MTLPackedFloat4x3 transformationMatrix; // 48 bytes
+//	    uint32_t options; // 4 bytes (MTLAccelerationStructureInstanceOptions)
+//	    uint32_t mask; // 4 bytes
+//	    uint32_t intersectionFunctionTableOffset; // 4 bytes
+//	    uint32_t accelerationStructureIndex; // 4 bytes
 //	};
 //
 // Total = 64 bytes.
 //
-// Rust wgpu uses MTLIndirectAccelerationStructureInstanceDescriptor with
 // gpuResourceID and userID fields. The indirect variant is 112 bytes. We use
 // the standard 64-byte layout matching the non-indirect descriptor. The core
 // layer selects the appropriate layout via RawTlasInstanceSize.
@@ -100,8 +104,6 @@ const mtlASInstanceDescriptorSize = 64
 // Creates a transient MTLAccelerationStructureDescriptor, calls
 // [MTLDevice accelerationStructureSizesWithDescriptor:], and returns the
 // three sizes. The descriptor is released after the query.
-//
-// Reference: Rust wgpu-hal metal/device.rs:2076-2091.
 func (d *Device) getAccelerationStructureBuildSizes(desc *hal.GetAccelerationStructureBuildSizesDescriptor) hal.AccelerationStructureBuildSizes {
 	if desc == nil || desc.Entries == nil {
 		return hal.AccelerationStructureBuildSizes{}
@@ -146,8 +148,6 @@ var mtlASSizesType = mtlSizeType // same layout: 3 x uint64
 // transient Metal descriptor suitable for size queries and builds.
 //
 // The caller owns the returned ID and must Release it.
-//
-// Reference: Rust wgpu-hal metal/conv.rs:379-494.
 func mapAccelerationStructureDescriptor(entries *hal.AccelerationStructureEntries, flags gputypes.AccelerationStructureFlags) ID {
 	var mtlDesc ID
 
@@ -191,7 +191,7 @@ func mapInstanceDescriptor(instances *hal.AccelerationStructureInstances) ID {
 	}
 	Retain(desc)
 
-	// Use indirect instance layout (matches Rust wgpu).
+	// Use indirect instance layout.
 	_ = MsgSend(desc, Sel("setInstanceDescriptorType:"),
 		uintptr(MTLAccelerationStructureInstanceDescriptorTypeDefault))
 	_ = MsgSend(desc, Sel("setInstanceCount:"), uintptr(instances.Count))
@@ -352,17 +352,15 @@ func mapAABBsDescriptor(aabbs []hal.AccelerationStructureAABBs) ID {
 //
 // Layout (little-endian, tightly packed):
 //
-//	[0..48)   MTLPackedFloat4x3 transformationMatrix (column-major)
-//	[48..52)  uint32 options  (MTLAccelerationStructureInstanceOptions, always 0 for now)
-//	[52..56)  uint32 mask
-//	[56..60)  uint32 intersectionFunctionTableOffset
-//	[60..64)  uint32 accelerationStructureIndex
+//	[0..48) MTLPackedFloat4x3 transformationMatrix (column-major)
+//	[48..52) uint32 options (MTLAccelerationStructureInstanceOptions, always 0 for now)
+//	[52..56) uint32 mask
+//	[56..60) uint32 intersectionFunctionTableOffset
+//	[60..64) uint32 accelerationStructureIndex
 //
 // The transform is a 3x4 matrix stored column-major in 4 packed float3 columns.
 // HAL TlasInstance.Transform is row-major [m00,m01,m02,m03, m10,m11,m12,m13, m20,m21,m22,m23].
 // Metal expects columns [m00,m10,m20], [m01,m11,m21], [m02,m12,m22], [m03,m13,m23].
-//
-// Reference: Rust wgpu-hal metal/device.rs:2123-2159.
 func tlasInstanceToBytes(instance hal.TlasInstance) []byte {
 	buf := make([]byte, mtlASInstanceDescriptorSize)
 
@@ -407,11 +405,7 @@ func tlasInstanceToBytes(instance hal.TlasInstance) []byte {
 // enterAccelerationStructureEncoder creates or returns the active
 // MTLAccelerationStructureCommandEncoder for the current command buffer.
 //
-// Metal command buffers support one active encoder at a time. This method
-// ends any existing blit encoder before creating the AS encoder, matching
-// the Rust pattern in enter_acceleration_structure_builder.
-//
-// Reference: Rust wgpu-hal metal/command.rs:264-281.
+// Metal command buffers support one active encoder at a time.
 func (e *CommandEncoder) enterAccelerationStructureEncoder() ID {
 	if e.cmdBuffer == 0 {
 		return 0
@@ -436,8 +430,6 @@ func (e *CommandEncoder) enterAccelerationStructureEncoder() ID {
 // (incremental update) for each descriptor.
 //
 // The encoder is ended and released after all builds complete.
-//
-// Reference: Rust wgpu-hal metal/command.rs:1840-1879.
 func (e *CommandEncoder) buildAccelerationStructures(descriptors []hal.BuildAccelerationStructureDescriptor) {
 	if len(descriptors) == 0 {
 		return
@@ -511,8 +503,6 @@ func (e *CommandEncoder) buildAccelerationStructures(descriptors []hal.BuildAcce
 // Creates a transient MTLAccelerationStructureCommandEncoder and calls either
 // copyAccelerationStructure:toAccelerationStructure: (clone) or
 // copyAndCompactAccelerationStructure:toAccelerationStructure: (compact).
-//
-// Reference: Rust wgpu-hal metal/command.rs:746-764.
 func (e *CommandEncoder) copyAccelerationStructure(src, dst hal.AccelerationStructure, copyMode gputypes.AccelerationStructureCopyMode) {
 	srcAS, ok := src.(*AccelerationStructure)
 	if !ok || srcAS == nil || srcAS.raw == 0 {
@@ -551,8 +541,6 @@ func (e *CommandEncoder) copyAccelerationStructure(src, dst hal.AccelerationStru
 //
 // Creates a transient MTLAccelerationStructureCommandEncoder and calls
 // writeCompactedAccelerationStructureSize:toBuffer:offset:.
-//
-// Reference: Rust wgpu-hal metal/command.rs:1887-1898.
 func (e *CommandEncoder) readAccelerationStructureCompactSize(accelStruct hal.AccelerationStructure, buffer hal.Buffer, offset uint64) {
 	asObj, ok := accelStruct.(*AccelerationStructure)
 	if !ok || asObj == nil || asObj.raw == 0 {

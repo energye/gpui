@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -94,18 +104,16 @@ func MakeGlyphMaskKeyAliased(fontID uint64, glyphID GlyphID, size float64, subpi
 	return key
 }
 
-// sizeBuckets defines discrete rasterization sizes for zoom resilience (Skia pattern).
+// sizeBuckets defines discrete rasterization sizes for zoom resilience.
 // During zoom, fractional sizes snap to the nearest bucket instead of creating
 // a new atlas entry per 1/16px increment. Without buckets: 14px→15px = 16 sizes.
 // With buckets: 14px→48px = 4 sizes total. Eliminates atlas overflow under zoom.
-//
-// Reference: Skia SubRunControl.cpp:28-35 (kSmallDFFontLimit/kMediumDFFontLimit/kLargeDFFontLimit)
 var sizeBuckets = [...]float64{16, 24, 32, 48}
 
 // MakeGlyphMaskKeyBucketed creates a GlyphMaskKey with size snapped to discrete
 // buckets. Use this when atlas pressure is detected (zoom scenarios with many
 // unique sizes). The GPU scales the rasterized glyph from bucket size to actual
-// size — quality loss is negligible (Skia uses this for all SDF text in Chrome).
+// size — quality loss is negligible.
 func MakeGlyphMaskKeyBucketed(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64) GlyphMaskKey {
 	bucketSize := sizeBuckets[len(sizeBuckets)-1]
 	for _, b := range sizeBuckets {
@@ -221,7 +229,7 @@ type glyphMaskPage struct {
 	dirty bool
 
 	// dirtyMin/Max track the axis-aligned dirty region for partial GPU upload
-	// (S4.2). Coordinates are inclusive min / exclusive max in page pixels.
+	// . Coordinates are inclusive min / exclusive max in page pixels.
 	// Empty when dirtyMinX >= dirtyMaxX.
 	dirtyMinX, dirtyMinY int
 	dirtyMaxX, dirtyMaxY int
@@ -230,7 +238,7 @@ type glyphMaskPage struct {
 	index int
 
 	// lastUsedFrame is the frame when this page was last written to.
-	// Used by Compact() for frame-based page eviction (Skia pattern).
+	// Used by Compact() for frame-based page eviction.
 	lastUsedFrame uint64
 
 	// entryCount tracks how many live entries reference this page.
@@ -263,7 +271,7 @@ func (p *glyphMaskPage) copyMask(mask []byte, maskW, maskH, dstX, dstY int) {
 }
 
 // expandDirty unions a rectangle into the page dirty region.
-// Grows by 1px padding for linear filter bleed at glyph edges (S4.2).
+// Grows by 1px padding for linear filter bleed at glyph edges.
 func (p *glyphMaskPage) expandDirty(x, y, w, h int) {
 	if w <= 0 || h <= 0 {
 		return
@@ -447,7 +455,7 @@ type glyphMaskEntry struct {
 
 // GlyphMaskAtlas manages R8 alpha mask atlases for CPU-rasterized glyphs.
 //
-// Architecture (Skia/Chrome pattern):
+// Architecture:
 //  1. CPU rasterizes glyph at exact device pixel size via AnalyticFiller (256-level AA)
 //  2. Alpha mask is packed into R8 atlas page using shelf allocator
 //  3. GPU composites as textured quad in render pass (Tier 6)
@@ -461,7 +469,7 @@ type GlyphMaskAtlas struct {
 	mu     sync.Mutex
 	config GlyphMaskAtlasConfig
 
-	// Atlas pages (R8 textures)
+	// Atlas pages
 	pages []*glyphMaskPage
 
 	// Cache: key -> entry
@@ -568,7 +576,7 @@ func (a *GlyphMaskAtlas) Put(key GlyphMaskKey, mask []byte, maskW, maskH int, be
 
 // PutLCD stores an LCD (ClearType) glyph mask in the atlas. The mask contains
 // RGB coverage data (3 bytes per pixel, logicalW pixels wide), which is packed
-// into the R8 atlas at 3x width (3 * logicalW R8 texels per row). The region's
+// into the R8 atlas at 3x width. The region's
 // Width is set to 3 * logicalW (atlas texels), and IsLCD is set to true.
 //
 // The caller must convert the RGB triplets to row-major R8 data before calling:
@@ -776,15 +784,13 @@ func (a *GlyphMaskAtlas) removeFromList(entry *glyphMaskEntry) {
 }
 
 // compactStaleFrames is the number of frames a page must be unused before
-// Compact() resets it. Matches Skia's kPlotRecentlyUsedCount = 32.
+// Compact() resets it.
 const compactStaleFrames = 32
 
 // AdvanceFrame increments the frame counter and runs compaction.
 // Call once per frame (e.g., from GPU flush). This is the primary
 // self-healing mechanism: pages unused for 32+ frames are reset,
 // reclaiming atlas space after zoom or font size changes.
-//
-// Reference: Skia GrAtlasManager::postFlush() calls compact() every flush.
 func (a *GlyphMaskAtlas) AdvanceFrame() {
 	frame := a.currentFrame.Add(1)
 	a.compact(frame)
@@ -857,7 +863,7 @@ func (a *GlyphMaskAtlas) MarkClean(index int) {
 	}
 }
 
-// GlyphMaskDirtyUpload describes a dirty page region for GPU upload (S4.2).
+// GlyphMaskDirtyUpload describes a dirty page region for GPU upload.
 type GlyphMaskDirtyUpload struct {
 	Index      int
 	X, Y, W, H int  // region in page pixels

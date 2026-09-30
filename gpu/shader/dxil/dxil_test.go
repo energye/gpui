@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package dxil
 
 import (
@@ -41,12 +51,6 @@ func TestDefaultOptions(t *testing.T) {
 }
 
 func TestMinimalDXILModule(t *testing.T) {
-	// Build a minimal DXIL module:
-	// - target triple "dxil-ms-dx"
-	// - one empty vertex shader function @main of type void()
-	// - dx.version = {1, 0}
-	// - dx.shaderModel = {vs, 6, 0}
-	// - dx.entryPoints = {{@main, "main", null, null, null}}
 
 	mod := module.NewModule(module.VertexShader)
 
@@ -79,7 +83,6 @@ func TestMinimalDXILModule(t *testing.T) {
 	mdShaderModelTuple := mod.AddMetadataTuple([]*module.MetadataNode{mdVS, mdSM6, mdSM0})
 	mod.AddNamedMetadata("dx.shaderModel", []*module.MetadataNode{mdShaderModelTuple})
 
-	// !dx.entryPoints = !{!E} where !E = !{void()* @main, !"main", null, null, null}
 	mdMainName := mod.AddMetadataString("main")
 	mdEntryTuple := mod.AddMetadataTuple([]*module.MetadataNode{
 		nil,        // function reference (simplified for Phase 0)
@@ -451,10 +454,7 @@ func TestCompile_SimpleFragment(t *testing.T) {
 }
 
 // TestStageToPSVKind locks the ir.ShaderStage → container.PSVShaderKind
-// mapping that drives PSV0 ShaderStage byte emission. BUG-DXIL-008:
-// prior to this fix, every non-vertex/non-fragment stage silently
-// defaulted to PSVVertex, rejecting compute/mesh/task pipelines at
-// validator time.
+// mapping that drives PSV0 ShaderStage byte emission.
 func TestStageToPSVKind(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -479,12 +479,9 @@ func TestStageToPSVKind(t *testing.T) {
 // TestComputeContainerHasEmptyISGOSG verifies that compiling a trivial
 // compute shader produces a DXBC container with empty ISG1 and OSG1
 // parts. BUG-DXIL-021: dxil.dll's VerifyBlobPartMatches always demands
-// these parts because DxilProgramSignatureWriter::size() is 8 even for
 // an empty signature. Previously we omitted them for compute, causing
 // "Missing part 'Program Input Signature' required by module" on every
 // compute shader.
-// TestPSVResourceCountForSimpleCBV locks the fix for BUG-DXIL-022: the
-// PSV0 resource binding array must reflect the actual number of IR
 // globals with bindings. Prior to this fix the count was hardcoded zero
 // and every shader with resources failed validation with
 // "DXIL container mismatch for 'ResourceCount'".
@@ -608,7 +605,6 @@ func bytesEqual(a, b []byte) bool {
 // TestBuildPSVStageDispatch exercises buildPSV / buildPSVEx end-to-end
 // for every supported stage and verifies the ShaderStage byte in the
 // returned PSVInfo matches the Microsoft ABI value for that stage.
-// BUG-DXIL-008 regression test.
 func TestBuildPSVStageDispatch(t *testing.T) {
 	irMod := &ir.Module{}
 	cases := []struct {
@@ -662,9 +658,9 @@ func TestBuildPSVStageDispatch(t *testing.T) {
 func TestFeatureInfoFromShaderFlags(t *testing.T) {
 	const (
 		// Source bits in bitcode ShaderFlags.
-		flagDoublePrec  uint64 = 0x4         // bit 2  EnableDoublePrecision
-		flagLowPrec     uint64 = 0x20        // bit 5  LowPrecisionPresent
-		flagDoubleExt   uint64 = 0x40        // bit 6  EnableDoubleExtensions
+		flagDoublePrec  uint64 = 0x4         // bit 2 EnableDoublePrecision
+		flagLowPrec     uint64 = 0x20        // bit 5 LowPrecisionPresent
+		flagDoubleExt   uint64 = 0x40        // bit 6 EnableDoubleExtensions
 		flagUAVsAtEvery uint64 = 0x10000     // bit 16 UAVsAtEveryStage
 		flagWaveOps     uint64 = 0x80000     // bit 19 WaveOps
 		flagInt64       uint64 = 0x100000    // bit 20 Int64Ops
@@ -765,9 +761,6 @@ func TestFeatureInfoFromShaderFlags(t *testing.T) {
 	}
 }
 
-// TestBuildPSVSampleFrequency verifies that buildPSV sets
-// PSInfo.SampleFrequency = true whenever a fragment shader has an
-// input with @interpolate(..., sample) or is SV_SampleIndex, mirroring
 // hlsl::SetShaderProps in DxilPipelineStateValidation.cpp:216. If this
 // regresses, interpolate.wgsl and any other shader using sample-rate
 // interpolation starts failing with:
@@ -841,12 +834,6 @@ func TestBuildPSVSampleFrequency(t *testing.T) {
 	}
 }
 
-// TestOutputIDIsSignatureIndex is a regression gate on the fix that
-// made dx.op.storeOutput / dx.op.loadInput take a positional signature
-// element ID rather than the WGSL @location value. It compiles a vertex
-// shader whose struct output has @location(0) TEXCOORD + @builtin(position)
-// SV_Position, then scans the LLVM text for the storeOutput calls and
-// asserts that SV_Position writes go to outputID != 0 (it must be the
 // second sig element, distinct from TEXCOORD 0). A regression re-aliases
 // both outputs onto outputID 0 and dxil.dll rejects with 'expect Col
 // between 0~2, got 3'.
@@ -983,8 +970,6 @@ func TestIsPSVSemanticSystemManaged(t *testing.T) {
 
 // TestEntryUsesViewIndex pins the multiview detection used for ViewID
 // flag computation, SFI0 mapping, and PSV0 UsesViewID byte. A shader
-// reading @builtin(view_index) must trigger BOTH the SM 6.1 auto-upgrade
-// and the dx.op.viewID emit path — this test guards the helper.
 func TestEntryUsesViewIndex(t *testing.T) {
 	bind := func(b ir.Binding) *ir.Binding { return &b }
 
@@ -1050,7 +1035,7 @@ func TestEntryUsesViewIndex(t *testing.T) {
 }
 
 // TestEntryWritesDepth pins detection of pixel shader depth writes for
-// the PSV0 DepthOutput byte. Mirrors entryUsesViewIndex coverage.
+// the PSV0 DepthOutput byte.
 func TestEntryWritesDepth(t *testing.T) {
 	bind := func(b ir.Binding) *ir.Binding { return &b }
 

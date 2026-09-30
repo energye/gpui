@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -58,15 +68,14 @@ func verbCoordCount(v PathVerb) int {
 // Path represents a vector path using SOA (Structure of Arrays) layout.
 //
 // Internally, the path stores verbs and coordinates in separate contiguous slices
-// for cache efficiency and zero per-verb heap allocations. This matches the
-// enterprise standard used by Skia, Cairo, tiny-skia, Blend2D, and femtovg.
+// for cache efficiency and zero per-verb heap allocations.
 type Path struct {
 	verbs   []PathVerb
 	coords  []float64
 	start   Point // Starting point of current subpath
 	current Point // Current point
 
-	// Incremental bounding box (Skia pattern: updated on every MoveTo/LineTo/etc).
+	// Incremental bounding box.
 	// O(1) per path operation, zero extra cost vs computing at Fill() time.
 	boundsMinX, boundsMinY float64
 	boundsMaxX, boundsMaxY float64
@@ -200,11 +209,11 @@ func (p *Path) Append(other *Path) {
 // This is the primary zero-allocation iteration API.
 //
 // The coords slice passed to fn is a sub-slice of the path's coordinate buffer:
-//   - MoveTo:  coords has 2 elements (x, y)
-//   - LineTo:  coords has 2 elements (x, y)
-//   - QuadTo:  coords has 4 elements (cx, cy, x, y)
+//   - MoveTo: coords has 2 elements (x, y)
+//   - LineTo: coords has 2 elements (x, y)
+//   - QuadTo: coords has 4 elements (cx, cy, x, y)
 //   - CubicTo: coords has 6 elements (c1x, c1y, c2x, c2y, x, y)
-//   - Close:   coords has 0 elements (nil)
+//   - Close: coords has 0 elements (nil)
 func (p *Path) Iterate(fn func(verb PathVerb, coords []float64)) {
 	ci := 0
 	for _, v := range p.verbs {

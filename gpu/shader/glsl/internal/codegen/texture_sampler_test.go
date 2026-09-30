@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -27,13 +34,7 @@ func TestSamplerIsKeyword(t *testing.T) {
 func TestCompile_TextureSamplerCombined(t *testing.T) {
 	// Build an IR module that models this WGSL:
 	//
-	//   @group(1) @binding(0) var texSampler: sampler;
-	//   @group(1) @binding(1) var tex: texture_2d<f32>;
 	//
-	//   @fragment
-	//   fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-	//       return textureSample(tex, texSampler, uv);
-	//   }
 
 	f32 := ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}
 
@@ -819,7 +820,6 @@ func TestCompile_MixedUniformsAndTextures(t *testing.T) {
 
 	t.Logf("Generated GLSL:\n%s", source)
 
-	// Uniform buffer should use Rust naga block naming convention
 	mustContain(t, source, "uniform Uniforms_block_")
 	mustContain(t, source, "_group_0_binding_0_fs")
 

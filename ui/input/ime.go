@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package input
 
 // IMEKind classifies an in-progress input-method session event.
@@ -41,8 +51,7 @@ type IMEEvent struct {
 	End   int    // delete-surrounding: +after bytes (D3: no negative magic)
 }
 
-// PreeditEvent is the rich composition update from the platform adapter
-// path (design §4.1). Segments carry IME attributes in display offsets.
+// Segments carry IME attributes in display offsets.
 type PreeditEvent struct {
 	Text     string
 	Cursor   int       // caret byte offset within Text (<0 = end)
@@ -55,7 +64,6 @@ type Segment struct {
 	Attr       uint8
 }
 
-// Session event kind (design §4.1): engine-side activation news.
 const (
 	// IMESession reports session activation; Start=1 active / 0 inactive.
 	IMESession IMEKind = iota + 100

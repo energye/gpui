@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // GPOS table parser and glyph positioning engine.
 //
 // Implements OpenType GPOS (Glyph Positioning) table parsing and application.
@@ -12,8 +22,6 @@
 //   - Type 7: Contextual positioning (ENGINE_GAPS G1.c)
 //   - Type 8: Chained contextual positioning (ENGINE_GAPS G1.c)
 //   - Type 9: Extension positioning (wrapper for above types in large fonts)
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/gpos
 //
 // This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
 package text

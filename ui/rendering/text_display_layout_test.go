@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -8,7 +18,7 @@ import (
 	"github.com/energye/gpui/ui/rendering"
 )
 
-// M0 item 3: DisplayLines must derive from TextLayout (I7). These tests are
+// These tests are
 // written RED-first: they fail while layout ignores MaxLines / wraps on a
 // different path than display.
 

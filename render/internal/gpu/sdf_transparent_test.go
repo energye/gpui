@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -9,7 +19,7 @@ import (
 )
 
 // TestQueueShape_SkipsZeroAlpha verifies that QueueShape skips shapes with
-// zero alpha color (BUG-SDF-001). This prevents transparent fills from
+// zero alpha color. This prevents transparent fills from
 // interfering with subsequent strokes via MSAA coverage weighting.
 // Enterprise pattern: Skia nothingToDraw(), Cairo nothing_to_do().
 func TestQueueShape_SkipsZeroAlpha(t *testing.T) {

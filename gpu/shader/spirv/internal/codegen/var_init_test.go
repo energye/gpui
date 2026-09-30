@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -380,8 +390,7 @@ func findFunctionVariable(instrs []spirvInstruction, names map[uint32]string, na
 }
 
 // verifyInitStore checks if there is an OpStore targeting varID anywhere in the
-// function body. Var inits are emitted as body StmtStore (matching Rust naga's
-// zero-init + separate store pattern), so the OpStore may appear in any block.
+// function body.
 func verifyInitStore(t *testing.T, instrs []spirvInstruction, names map[uint32]string, varID uint32) bool {
 	t.Helper()
 	inFunction := false

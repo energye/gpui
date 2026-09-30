@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -14,7 +24,7 @@ import (
 )
 
 // PictureTextureCache keeps offscreen GPU textures for PictureLayers across
-// frames (W2 R4 true-retained layer compositing).
+// frames.
 //
 // Clean layers blit their cached texture (zero raster); dirty layers re-record
 // their display list into the texture via FlushGPUWithView (offscreen RTs
@@ -55,7 +65,7 @@ import (
 // stays mutex-guarded with deferred releases for in-flight views.
 // SetLiveKeys/EnsureCapacity publish the frame working set; production
 // caller is the raster job (presentPacketTextured), tests call directly
-// single-threaded. Like Skia's GPU resource cache, all map/state access is
+// single-threaded. Like the GPU resource cache, all map/state access is
 // mutex-guarded; internal helpers (evictForNew/releaseDeferred/drainDeferred)
 // must only be called while the caller already holds mu.
 type PictureTextureCache struct {
@@ -71,7 +81,7 @@ type PictureTextureCache struct {
 	pendingH       int
 	hasPendingSize bool
 	// filterCache caches FILTERED ColorFilter/ImageFilter subtree results
-	// (R20): unchanged frames blit instead of re-paying the CPU filter pass.
+	// : unchanged frames blit instead of re-paying the CPU filter pass.
 	filterCache *FilterResultCache
 	// entries keyed by stable CacheKey.
 	entries map[uint64]*pictureTextureEntry
@@ -106,17 +116,17 @@ type PictureTextureCache struct {
 	FrameRerecord atomic.Int64
 	FrameSkip     atomic.Int64
 	// Evictions is the cumulative count of entries dropped by the capacity
-	// LRU in evictForNew (R14 observability). Guarded by mu.
+	// LRU in evictForNew. Guarded by mu.
 	Evictions int64
 	// budgetRefusals counts EnsureCapacity growth refusals under
-	// multi-window budget pressure (R0-5). Guarded by mu; read via
+	// multi-window budget pressure. Guarded by mu; read via
 	// BudgetRefusals.
 	budgetRefusals int64
-	// texDbgSeen dedups the WR_TEXDBG full-window probe (R6-1): each
+	// texDbgSeen dedups the WR_TEXDBG full-window probe: each
 	// cache key logs once per process.
 	texDbgSeen map[uint64]struct{}
 	// rerecordBy attributes each texture re-record to its layer cache key
-	// and record cause (R10 按格归因): a global FrameRerecord counter cannot
+	// and record cause: a global FrameRerecord counter cannot
 	// tell which grid keeps re-recording (HOT animation vs eviction
 	// thrash). Key = PictureLayer.CacheKey, cause = "full"/"full-extra"/
 	// "local". Guarded by mu; read via RerecordByKeySnapshot.
@@ -137,7 +147,7 @@ func (c *PictureTextureCache) noteRerecord(key uint64, cause string) {
 }
 
 // RerecordByKeySnapshot returns a copy of the per-key re-record attribution
-// (key → cause → cumulative count), for window-side per-grid gates (R10).
+// (key → cause → cumulative count), for window-side per-grid gates.
 func (c *PictureTextureCache) RerecordByKeySnapshot() map[uint64]map[string]int64 {
 	if c == nil {
 		return nil
@@ -253,7 +263,7 @@ func (c *PictureTextureCache) EnsureCapacity(n int) {
 }
 
 // BudgetRefusals reports cumulative EnsureCapacity growth refusals under
-// multi-window budget pressure (R0-5). Lock-guarded (unlike the legacy
+// multi-window budget pressure. Lock-guarded (unlike the legacy
 // bare Evictions read — do not add new bare reads).
 func (c *PictureTextureCache) BudgetRefusals() int64 {
 	if c == nil {
@@ -265,7 +275,7 @@ func (c *PictureTextureCache) BudgetRefusals() int64 {
 }
 
 // EvictionCount reports cumulative LRU evictions. Lock-guarded: read this,
-// not the bare Evictions field, off the owner thread (R1-1).
+// not the bare Evictions field, off the owner thread.
 func (c *PictureTextureCache) EvictionCount() int64 {
 	if c == nil {
 		return 0
@@ -306,7 +316,7 @@ func (c *PictureTextureCache) fallbackEntryBytesLocked() uint64 {
 	return 0
 }
 
-// SetBudget pins an explicit entry budget (R14). 0 = automatic (default: the
+// SetBudget pins an explicit entry budget. 0 = automatic (default: the
 // composite path sizes the LRU to the live working set via EnsureCapacity).
 // When set, the pinned value REPLACES the automatic cap for eviction purposes.
 //
@@ -813,7 +823,7 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 }
 
 // logFullWindow names one full-window (bounds-less) record for the
-// WR_TEXDBG=1 probe (R6-1): each cache key logs once per process — op-kind
+// WR_TEXDBG=1 probe: each cache key logs once per process — op-kind
 // mix, RasterExtra presence, ExtraBounds and picture Bounds. The why tag
 // tells the phase-1 decision: "skip-extra" (no texture, vector fallback)
 // or "full-record" (~4MB double-buffered texture). Zero cost unless the
@@ -1033,14 +1043,14 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 // record full-window textures with an empty damage rect).
 //
 // Bounds are computed per fallback run with each run face's own metrics and
-// glyph ink boxes (Flutter RenderParagraph / Skia glyph-bounds semantics):
+// glyph ink boxes:
 //   - A MultiFace's aggregate metrics reflect the first face only, and CJK
 //     ink can rise ~0.12em above the Latin ascent (top strokes of 局/屏/重/
 //     景/损 were clipped by the offscreen viewport).
 //   - Latin accents / descenders and right-side-bearing overhang exceed
 //     metrics/advance estimates too, so each glyph's outline bbox (scaled to
 //     pixels, Y-down from the baseline) is unioned in, padded by 2px to
-//     absorb raster pixel-fit and AA spread (Skia pads glyph bounds +1).
+//     absorb raster pixel-fit and AA spread.
 func (c *PictureTextureCache) measureTextBounds(pic *Picture) (image.Rectangle, bool) {
 	if c == nil || c.dc == nil || pic == nil || pic.IsEmpty() {
 		return image.Rectangle{}, false
@@ -1248,7 +1258,7 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 	if s.view.IsNil() {
 		return false
 	}
-	// Device-pixel snap (Skia layer-bounds snap): a fractional blit origin
+	// Device-pixel snap: a fractional blit origin
 	// resamples the whole texture through the linear filter, smearing every
 	// glyph of a scrolled text band. Rounding the destination keeps the baked
 	// subpixel glyph layout intact while placing the quad texel-aligned (a
@@ -1364,10 +1374,9 @@ type TexturedStats struct {
 	// packets bypassing the builders). Fail closed with zero counts.
 	RejectedUnsealed bool
 	// FiltersApplied counts color/image filter layers applied this frame
-	// (isolated vector fallback path; R20 filter_layer_count).
 	FiltersApplied int
 	// ShellSkip / ShellRerecord are the shell-partition portions of this
-	// frame's blits / texture re-records (R21 shell/content layering).
+	// frame's blits / texture re-records.
 	ShellSkip     int64
 	ShellRerecord int64
 	// DamageRects are the dirty layer geometry rects (logical coords) for
@@ -1404,7 +1413,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	for _, id := range pkt.DirtyLayerIDs {
 		dirty[id] = struct{}{}
 	}
-	// Shell partitioning (R21): shell-tagged boundaries report their
+	// Shell partitioning: shell-tagged boundaries report their
 	// skip/rerecord separately from the totals.
 	var frameShellSkip, frameShellRerecord atomic.Int64
 
@@ -1420,13 +1429,13 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// texture budget.
 	// underShell tracks whether the current walk path is inside a
 	// Shell-tagged boundary — re-records/blits there count into the shell
-	// partition (R21) instead of the main totals only.
+	// partition instead of the main totals only.
 	//
 	// Restrictive subtrees (rotation / non-1 scale, tracked by the noTex
 	// counter below) never touch the texture cache: the cache records
 	// axis-aligned bounds textures and blits them 1:1, which cannot
 	// represent rotated/scaled content (double transform / cropped shards).
-	// Flutter's raster cache makes the same decision at the same place —
+	// the raster cache makes the same decision at the same place —
 	// caching is decided while walking the layer tree, and a transform that
 	// is not a pure 2D translation disqualifies the subtree (Engine
 	// RasterCache::CanRasterCachePicture). Those layers vector-replay in
@@ -1711,7 +1720,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 // (rotation, or scale ≠ 1) to its subtree. Such subtrees are excluded from
 // the texture cache entirely: the cache records axis-aligned bounds textures
 // and blits them 1:1, which cannot represent rotated/scaled content — the
-// pre-C8 double-transform / cropped-shard bug. Flutter's raster cache makes
+// pre-C8 double-transform / cropped-shard bug. the raster cache makes
 // the same call at the same place (RasterCache::CanRasterCachePicture).
 // Clips are NOT in this set: a clip does not bend coordinates, so bounds
 // recording is exact; their mid-frame flush safety is owned by the gpu-side

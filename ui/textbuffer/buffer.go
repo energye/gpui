@@ -1,4 +1,13 @@
-// Package textbuffer is the M3.5 piece tree: O(log n) edits and O(1)
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // snapshots for large documents. Small documents (< SmallMax) stay a plain
 // string; the tree activates lazily above the threshold with hysteresis on
 // the way down so edits around the boundary do not flap modes.

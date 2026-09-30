@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build windows
 
 // Package main demonstrates a rotating triangle using uniform buffers with go-webgpu.
@@ -340,7 +350,7 @@ func (app *App) configureSurface() error {
 func (app *App) createVertexBuffer() error {
 	// Vertex data: position (x, y) + color (r, g, b)
 	vertices := []float32{
-		// position (x, y)    color (r, g, b)
+		// position (x, y) color (r, g, b)
 		0.0, 0.5, 1.0, 0.0, 0.0, // top - red
 		-0.5, -0.5, 0.0, 1.0, 0.0, // bottom-left - green
 		0.5, -0.5, 0.0, 0.0, 1.0, // bottom-right - blue
@@ -523,10 +533,10 @@ func (app *App) updateUniformBuffer() {
 
 	// Compute 2D rotation matrix (Z-axis rotation)
 	// For 2D rotation in a 4x4 matrix:
-	// | cos(θ)  -sin(θ)  0  0 |
-	// | sin(θ)   cos(θ)  0  0 |
-	// |   0        0     1  0 |
-	// |   0        0     0  1 |
+	// | cos(θ) -sin(θ) 0 0 |
+	// | sin(θ) cos(θ) 0 0 |
+	// | 0 0 1 0 |
+	// | 0 0 0 1 |
 	//
 	// Column-major layout (standard for graphics):
 	cos := float32(math.Cos(float64(angle)))

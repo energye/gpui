@@ -1,11 +1,15 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
-// Port of pathtag_reduce.wgsl and pathtag_scan.wgsl from Vello.
 // Computes PathMonoid prefix sums over encoded path tags.
 //
-// Reference: vello_shaders/src/cpu/pathtag_reduce.rs, pathtag_scan.rs
-// Variable names match Rust/WGSL originals for cross-reference.
 
 package tilecompute
 
@@ -22,7 +26,6 @@ type PathMonoid struct {
 }
 
 // newPathMonoid creates a PathMonoid from a packed tag word (4 tags in one uint32).
-// This is the EXACT Vello algorithm from pathtag.rs — do NOT simplify.
 func newPathMonoid(tagWord uint32) PathMonoid {
 	// Extract point counts from low 2 bits of each byte.
 	// LineTo=0x9 → low 2 bits = 1, QuadTo=0xA → 2, CubicTo=0xB → 3

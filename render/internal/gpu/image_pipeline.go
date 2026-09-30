@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -21,9 +31,9 @@ var texturedQuadBicubicShaderSource string
 // imageVertexStride is the byte stride per vertex in the textured quad pipeline.
 // Layout per vertex:
 //
-//	position  (vec2<f32>) =  8 bytes  (location 0)
-//	tex_coord (vec2<f32>) =  8 bytes  (location 1)
-//	tint      (vec4<f32>) = 16 bytes  (location 2, premultiplied straight)
+//	position (vec2<f32>) = 8 bytes (location 0)
+//	tex_coord (vec2<f32>) = 8 bytes (location 1)
+//	tint (vec4<f32>) = 16 bytes (location 2, premultiplied straight)
 //
 // Total = 32 bytes per vertex.
 const imageVertexStride = 32
@@ -32,14 +42,14 @@ const imageVertexStride = 32
 // Layout:
 //
 //	transform (mat4x4<f32>) = 64 bytes
-//	opacity   (f32)         =  4 bytes
-//	_pad      (vec3<f32>)   = 12 bytes
+//	opacity (f32) = 4 bytes
+//	_pad (vec3<f32>) = 12 bytes
 //
 // Total = 80 bytes.
 const imageUniformSize = 80
 
 // imageUniformSlotStride is the bytes reserved per draw uniform in a shared
-// slab buffer (opt29). Must be a multiple of minUniformBufferOffsetAlignment
+// slab buffer. Must be a multiple of minUniformBufferOffsetAlignment
 // (default 256) so BindGroup entries may use non-zero Offset.
 const imageUniformSlotStride = 256
 
@@ -92,7 +102,7 @@ type ImageDrawCommand struct {
 	Bicubic bool
 
 	// FilterMipmapLinear selects the between-level blend (trilinear) for
-	// this picture (R3 per-picture switch, 3.2 bottom). False (zero) keeps
+	// this picture. False (zero) keeps
 	// the historic nearest-level select: old callers that never touch this
 	// field render bit-identically.
 	FilterMipmapLinear bool
@@ -150,10 +160,8 @@ type TexturedQuadPipeline struct {
 	// Non-MSAA blit pipeline for compositor fast path (ADR-016).
 	// SampleCount=1, no depth/stencil — used when the frame contains
 	// only textured quads (base layer + overlays) with no vector shapes.
-	blitPipeline hal.RenderPipeline
-	blitLayout   hal.PipelineLayout // uniform group (+ @group(1) clip when wired)
-	// blitLayoutHasClip tracks whether blitLayout includes the @group(1)
-	// RRect clip layout, so a SetClipBindLayout after creation rebuilds it.
+	blitPipeline      hal.RenderPipeline
+	blitLayout        hal.PipelineLayout
 	blitLayoutHasClip bool
 
 	// Default sampler for image textures (bilinear filtering, clamp-to-edge).
@@ -167,7 +175,6 @@ type TexturedQuadPipeline struct {
 	// SamplerForFilter, released by destroyPipeline.
 	filterSamplers map[ImageSamplerKey]hal.Sampler
 
-	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
 	clipBindLayout    hal.BindGroupLayout
 	pipeLayoutHasClip bool
@@ -182,8 +189,7 @@ func NewTexturedQuadPipeline(device hal.Device, queue hal.Queue, sampleCount uin
 	}
 }
 
-// SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
-// uniform. Must be called before ensurePipelineWithStencil.
+// Must be called before ensurePipelineWithStencil.
 func (p *TexturedQuadPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
 	p.clipBindLayout = layout
 }
@@ -394,9 +400,6 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 	if p.blitPipeline != nil && p.blitLayoutHasClip == wantClip {
 		return nil
 	}
-	// First build, or the clip wiring changed since the last one: drop the
-	// stale layout and pipeline so the blit path picks up (or drops) the
-	// @group(1) RRect clip group.
 	if p.blitPipeline != nil {
 		p.blitPipeline.Destroy()
 		p.blitPipeline = nil
@@ -406,7 +409,6 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 		p.blitLayout = nil
 	}
 
-	// Blit pipeline layout: uniform group plus the shared @group(1) RRect
 	// clip group when the session wired one. Clipped subtrees are cacheable
 	// again since C8, so compositor blits can carry a rounded clip — the old
 	// single-group layout silently dropped it (sharp corners on screen).
@@ -459,9 +461,6 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 
 // RecordBlitDraws records draw calls using the non-MSAA blit pipeline.
 // Used for compositor fast path when no vector shapes need MSAA.
-// clipBG must be non-nil whenever the blit layout includes the @group(1)
-// RRect clip group (callers pass the group's clip bind group or the shared
-// no-clip one); it is ignored otherwise.
 func (p *TexturedQuadPipeline) RecordBlitDraws(rp hal.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup) {
 	if p.blitPipeline == nil || res == nil {
 		return
@@ -604,7 +603,6 @@ func (p *TexturedQuadPipeline) RecordDraws(rp hal.RenderPassEncoder, res *imageF
 			lastPipe = pipe
 		}
 		rp.SetBindGroup(0, dc.bindGroup, nil)
-		// S4.1: vertexCount may cover multiple quads sharing one bind group.
 		rp.Draw(imageDrawVertexCount(dc), 1, dc.firstVertex, 0)
 	}
 }
@@ -669,8 +667,6 @@ type imageFrameResources struct {
 }
 
 // imageDrawCall holds per-image (or multi-quad batch) draw parameters within a frame.
-// S4.1: consecutive quads with identical texture/opacity/filter share one bind
-// group and one Draw(vertexCount) spanning vertexCount/6 quads.
 type imageDrawCall struct {
 	bindGroup   hal.BindGroup
 	firstVertex uint32
@@ -686,14 +682,14 @@ func imageDrawVertexCount(dc imageDrawCall) uint32 {
 	return dc.vertexCount
 }
 
-// imageFilterAnisoMin/Max bound the per-picture anisotropy cap (R3).
+// imageFilterAnisoMin/Max bound the per-picture anisotropy cap.
 // 1 is off (historic behaviour), 16 is the device cap.
 const (
 	imageFilterAnisoMin = 1
 	imageFilterAnisoMax = 16
 )
 
-// ImageSamplerKey names one picture's effective sampling choice (R3).
+// ImageSamplerKey names one picture's effective sampling choice.
 // It is the merge and cache key: two pictures share a bind group and a
 // sampler exactly when their keys are equal.
 type ImageSamplerKey struct {
@@ -820,7 +816,7 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 }
 
 // canMergeGPUTextureDraw reports whether two GPU-to-GPU texture overlays may share
-// one bind group + multi-quad Draw (S6.3). Same texture view pointer, opacity, and
+// one bind group + multi-quad Draw. Same texture view pointer, opacity, and
 // viewport; never merge across scissor seals (caller enforces batchSeal).
 func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
 	if a == nil || b == nil {
@@ -977,7 +973,6 @@ func (p *TexturedQuadPipeline) SamplerFor(nearest bool) hal.Sampler {
 }
 
 // SamplerForFilter returns the sampler for one picture's full R3 switch
-// (new branch for the S32 wiring; the session still calls SamplerFor).
 // Default keys return the two historic samplers (same pointers as
 // SamplerFor); mipmap-linear or aniso>1 keys lazily create cached
 // samplers. Never crashes: nil pipeline, missing device, or a failed

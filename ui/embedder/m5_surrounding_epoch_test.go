@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder
 
 import (
@@ -27,8 +37,6 @@ func (f *fakeM5IME) SetComposing(text string, cursor int) {
 	f.cursor = cursor
 }
 
-// TestPushSurroundingEpochDedupe_M5 locks M5-6: surrounding dedupe compares
-// the Editor epoch (O(1)) instead of building the 4000-byte key string.
 func TestPushSurroundingEpochDedupe_M5(t *testing.T) {
 	r := NewInputRouter(nil, nil)
 	ed := textinput.New()

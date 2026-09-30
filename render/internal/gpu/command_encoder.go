@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
@@ -81,9 +91,9 @@ const (
 // State machine:
 //
 //	Recording -> (BeginRenderPass/BeginComputePass) -> Locked
-//	Locked    -> (EndPass)                          -> Recording
-//	Recording -> Finish()                           -> Finished
-//	Finished  -> (submitted to queue)               -> Consumed
+//	Locked -> (EndPass) -> Recording
+//	Recording -> Finish() -> Finished
+//	Finished -> (submitted to queue) -> Consumed
 //
 // CoreCommandEncoder is NOT safe for concurrent use. Each encoder should
 // be used from a single goroutine.
@@ -354,7 +364,7 @@ func (e *CoreCommandEncoder) CopyBufferToBuffer(src, dst *Buffer, srcOffset, dst
 		return ErrNilCoreBuffer
 	}
 
-	// Validate alignment (WebGPU requires 4-byte alignment)
+	// Validate alignment
 	const alignment uint64 = 4
 	if srcOffset%alignment != 0 {
 		return fmt.Errorf("%w: source offset %d", ErrCopyOffsetNotAligned, srcOffset)

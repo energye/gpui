@@ -1,6 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
-// CFF2 可变字体解析（M5）：cf2 语义融合数据源。
 //
 // CFF2 表布局与 CFF1 相同（header / NAME INDEX / TOP DICT INDEX /
 // STRING INDEX / GLOBAL SUBRS INDEX），但：
@@ -17,7 +26,6 @@ import (
 	"fmt"
 )
 
-// cff2FontData 是 CFF2 表的完整解析（M5 charstring 解释器的数据源）。
 type cff2FontData struct {
 	charStrings [][]byte                      // 每 gid 一条 charstring
 	globalSubrs [][]byte                      // Global Subrs INDEX
@@ -37,8 +45,8 @@ type cff2Coord struct {
 // cff2VarStore 是 OpenType ItemVariationStore（cff2 用子集）。
 // 结构：regionList(轴数+region 表) + itemVariationData 数组。
 type cff2VarStore struct {
-	axisCount    int
-	regions      []cff2Region
+	axisCount     int
+	regions       []cff2Region
 	variationData []cff2VarData
 }
 
@@ -127,10 +135,10 @@ func (r cff2Region) evaluate16(coords []cff2Coord) int64 {
 			// 纯截断会让标量差 1 个 16.16 单位 → delta 放大后偶发跨 26.6
 			// 边界差 1（CFF2 才有 blend，CFF1 无此路径）。
 			num, den := (v-start)<<16, peak-start
-			t = (num + (den>>1)) / den
+			t = (num + (den >> 1)) / den
 		default:
 			num, den := (end-v)<<16, end-peak
-			t = (num + (den>>1)) / den
+			t = (num + (den >> 1)) / den
 		}
 		s = (s*t + 0x8000) >> 16
 	}
@@ -332,12 +340,12 @@ func parseCFF2FD(priv []byte, privOff int, cff []byte, unitsPerEm int) (*cffFD, 
 //
 // CFF2 TOP DICT vstore(24) 偏移指向一个表：
 //
-//	uint16 length                      // Size of the VariationStore table
-//	ItemVariationStore table           // OpenType 结构
+//	uint16 length // Size of the VariationStore table
+//	ItemVariationStore table // OpenType 结构
 //
 // ItemVariationStore（offset 均相对 ItemVariationStore 起点）：
 //
-//	uint16 format                      // = 1
+//	uint16 format // = 1
 //	uint32 variationRegionListOffset
 //	uint16 itemVariationDataCount
 //	uint32 itemVariationDataOffsets[count]
@@ -419,10 +427,10 @@ func parseCFF2VarStore(cff []byte, off int) (*cff2VarStore, error) {
 // parseCFF2VarData 解析一个 ItemVariationData 子表。
 //
 //	uint16 itemCount
-//	uint16 wordDeltaCount          // 每行前 N 个 delta 用 int16，其余 int8
+//	uint16 wordDeltaCount // 每行前 N 个 delta 用 int16，其余 int8
 //	uint16 regionIndexCount
 //	uint16 regionIndexes[count]
-//	deltaSets[itemCount]           // 每行 regionIndexCount 个 delta
+//	deltaSets[itemCount] // 每行 regionIndexCount 个 delta
 func parseCFF2VarData(cff []byte, p, end int) (*cff2VarData, error) {
 	if p+6 > end {
 		return nil, fmt.Errorf("cff2: varData header truncated")

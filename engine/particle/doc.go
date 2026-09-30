@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package particle freezes the CPU-side emission math every 2.5D effect feeds.
 //
-// Frozen 2026-09-15 (capability 5.1, P3, S38/W5): ShapeKind,
+// Frozen 2026-09-15: ShapeKind,
 // ShapePoint/ShapeCone/ShapeBox/ShapeRing, String, ParseShape, Shape,
 // PointShape, ConeShape, BoxShape, RingShape, Validate, Turbulence,
 // NoTurbulence, NewTurbulence, Vec, Sub, NoSub, NewSub, EmitterConfig,
@@ -39,7 +49,7 @@
 // writers report InvalidArg. Window intent: game_particle --case=fire
 // (fire cone plus drifting smoke); pure math stays offscreen golden.
 //
-// Frozen 2026-09-15 (capability 5.2, P3, S43/W6): JointKind,
+// Frozen 2026-09-15: JointKind,
 // JointMiter/JointBevel/JointRound, MiterLimit, RoundArcSteps,
 // MaxTrailPointsCap, String, ParseJoint, TrailConfig, NewTrailConfig,
 // Validate, Trail, NewTrail, Config, Len, Points, Push, Clear, WidthAt,

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -11,7 +21,7 @@ import (
 // computation per DXIL.rst:1789 (RWRawBuffer expects coord0 in bytes).
 //
 // End-to-end coverage:
-//   - snapshot.TestDxilDxcGolden  — golden parity vs DXC HLSL roundtrip
+//   - snapshot.TestDxilDxcGolden — golden parity vs DXC HLSL roundtrip
 //   - snapshot.TestDxilValSummary — IDxcValidator type validity
 //
 // Expected values are aligned with DXC's actual struct/matrix layout (verified

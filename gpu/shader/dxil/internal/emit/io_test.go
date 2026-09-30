@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -8,12 +18,8 @@ import (
 
 // TestIsArgRead_UnusedArgument verifies that isArgRead returns false for
 // a function argument that is never referenced in any emitted expression
-// or statement (DCE parity with DXC's LLVM ADCE for dead loadInput removal).
+// or statement.
 func TestIsArgRead_UnusedArgument(t *testing.T) {
-	// @vertex fn main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> {
-	//     return vec4(0.0, 0.0, 0.0, 1.0);
-	// }
-	// The vertex_index argument is declared but never used.
 	fn := ir.Function{
 		Name: "main",
 		Arguments: []ir.FunctionArgument{
@@ -42,9 +48,6 @@ func TestIsArgRead_UnusedArgument(t *testing.T) {
 // TestIsArgRead_UsedArgument verifies that isArgRead returns true when
 // the argument IS referenced by an emitted expression.
 func TestIsArgRead_UsedArgument(t *testing.T) {
-	// @fragment fn main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-	//     return vec4(uv, 0.0, 1.0);
-	// }
 	fn := ir.Function{
 		Name: "main",
 		Arguments: []ir.FunctionArgument{
@@ -74,9 +77,6 @@ func TestIsArgRead_UsedArgument(t *testing.T) {
 // case that caused incorrect DCE of fragment shader inputs used as texture
 // coordinates.
 func TestIsArgRead_UsedViaImageSample(t *testing.T) {
-	// @fragment fn main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-	//     return textureSample(tex, samp, uv);
-	// }
 	fn := ir.Function{
 		Name: "main",
 		Arguments: []ir.FunctionArgument{
@@ -93,7 +93,7 @@ func TestIsArgRead_UsedViaImageSample(t *testing.T) {
 			{Kind: ir.ExprImageSample{ // expr[3]: textureSample(tex, samp, uv)
 				Image:      1,
 				Sampler:    2,
-				Coordinate: 0, // references uv
+				Coordinate: 0,
 				Level:      ir.SampleLevelAuto{},
 			}},
 		},
@@ -110,9 +110,6 @@ func TestIsArgRead_UsedViaImageSample(t *testing.T) {
 
 // TestIsArgRead_UsedViaSwizzle verifies detection of usage through Swizzle.
 func TestIsArgRead_UsedViaSwizzle(t *testing.T) {
-	// @fragment fn main(@builtin(position) pos: vec4<f32>) -> @builtin(frag_depth) f32 {
-	//     return pos.z;
-	// }
 	fn := ir.Function{
 		Name: "main",
 		Arguments: []ir.FunctionArgument{
@@ -305,8 +302,6 @@ func TestExpressionReferences_Alias(t *testing.T) {
 // TestUsedStructMembers_AllUsed verifies that when all struct members are
 // accessed, usedStructMembers returns nil (meaning all used).
 func TestUsedStructMembers_AllUsed(t *testing.T) {
-	// struct Input { @location(0) uv: vec2<f32>, @location(1) color: vec4<f32> }
-	// fn fs_main(in: Input) -> @location(0) vec4<f32> { return vec4(in.uv, 0, 0) * in.color; }
 	fn := ir.Function{
 		Name: "main",
 		Arguments: []ir.FunctionArgument{
@@ -337,9 +332,6 @@ func TestUsedStructMembers_AllUsed(t *testing.T) {
 // TestUsedStructMembers_OnlyOneUsed verifies per-member DCE: when only
 // one struct member is accessed, the other is marked as dead.
 func TestUsedStructMembers_OnlyOneUsed(t *testing.T) {
-	// struct VertexOutput { @builtin(position) pos: vec4, @location(0) uv: vec3 }
-	// fn fs_main(in: VertexOutput) -> @location(0) vec4 { return textureSample(tex, s, in.uv); }
-	// Only member 1 (uv) is accessed; member 0 (pos) is dead.
 	fn := ir.Function{
 		Name: "main",
 		Arguments: []ir.FunctionArgument{
@@ -380,10 +372,10 @@ func TestUsedStructMembers_OnlyOneUsed(t *testing.T) {
 // This is the exact pattern that occurs after function inlining.
 func TestUsedStructMembers_TransitiveChain(t *testing.T) {
 	// After inlining rrect_clip_coverage(in.clip_position.xy):
-	// [0] FunctionArgument(0)              -- not emitted
-	// [1] AccessIndex{Base:0, Index:0}     -- emitted (clip_position)
-	// [2] Swizzle{Vector:1, .xy}           -- NOT emitted (inlining artifact)
-	// [3] Binary{Left:2, Right:...}        -- emitted (inlined body uses swizzle)
+	// [0] FunctionArgument(0) -- not emitted
+	// [1] AccessIndex{Base:0, Index:0} -- emitted (clip_position)
+	// [2] Swizzle{Vector:1, .xy} -- NOT emitted (inlining artifact)
+	// [3] Binary{Left:2, Right:...} -- emitted (inlined body uses swizzle)
 	fn := ir.Function{
 		Name: "main",
 		Arguments: []ir.FunctionArgument{
@@ -525,8 +517,6 @@ func TestExpressionOperands(t *testing.T) {
 // TestBuildInputRowMapSequentialSigId verifies that buildInputRowMap assigns
 // sequential signature element indices (sigId) rather than packed register
 // rows. When two scalar elements pack into the same register row (e.g.,
-// @location(1) and @location(3) sharing register 0 with different columns),
-// each must get a unique sigId (0 and 1), not both mapped to register 0.
 func TestBuildInputRowMapSequentialSigId(t *testing.T) {
 	irMod := &ir.Module{
 		Types: []ir.Type{

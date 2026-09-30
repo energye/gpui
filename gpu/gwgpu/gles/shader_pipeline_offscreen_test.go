@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -20,9 +27,6 @@ import (
 	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
 )
 
-// H4-c 离屏像素证：三角经 WGSL→GLSL 缓存路径编译，真建 GL 管线，
-// 离屏 FBO 读回。画面语义对 P1 三角指纹（红三角蓝底：中心红、四角蓝），
-// 全像素 md5 对 testdata 金文件的指纹，容差为 0（逐位一致，差一像素就停）。
 //
 // 说明：只认缓存编译出的 GLSL，不手写 GLSL；Y 翻转标记
 // （WriterFlagAdjustCoordinateSpace） baked 在着色器里，但中心/四角探针
@@ -196,7 +200,6 @@ func TestH4C_TriangleOffscreenPixel(t *testing.T) {
 		}
 	}
 
-	// 逐位回归：全像素 md5 对金文件指纹。
 	sum := md5.Sum(pixels)
 	gotMD5 := hex.EncodeToString(sum[:])
 	t.Logf("offscreen pixels md5: %s", gotMD5)

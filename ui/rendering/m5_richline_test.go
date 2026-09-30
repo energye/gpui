@@ -1,12 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
 	"testing"
 )
 
-// TestRichLineMaxHeight_M5 locks M5-2 (Flutter SkParagraph semantics):
-// a line mixing 8pt and 24pt runs opens its box by the row's maximum
-// ascent/descent, never by the first run's metrics.
 func TestRichLineMaxHeight_M5(t *testing.T) {
 	rt := NewRenderText("")
 	rt.MaxWidth = 0

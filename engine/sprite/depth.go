@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package sprite
 
 import (
@@ -6,7 +16,7 @@ import (
 	"github.com/energye/gpui/engine/core"
 )
 
-// DeepItem is one depth-sortable sprite (1.2 body, S41/W5).
+// DeepItem is one depth-sortable sprite.
 // Depth follows the R5/engine/camera convention: bigger = farther and drawn
 // first (far-to-near painter); Name is only a debug key. Layer/FeetY keep
 // the 2.3 rule and break ties inside the same depth.

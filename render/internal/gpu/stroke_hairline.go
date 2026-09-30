@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import "math"
@@ -5,7 +15,7 @@ import "math"
 import "github.com/energye/gpui/render"
 
 // snapHairlineStrokePath snaps axis-aligned stroke geometry to pixel centers so a
-// 1 device-pixel stroke covers the intended row/column (Skia-style hairline align).
+// 1 device-pixel stroke covers the intended row/column.
 //
 // Without this, a vertical line at x=N with width 1 covers [N-0.5, N+0.5] and
 // center-sampled rasterization paints column N-1 only — caret/hairline tests miss.

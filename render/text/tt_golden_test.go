@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — golden tests (Phase C).
 //
 // Validates that our TT interpreter produces the correct hinted coordinates
@@ -10,8 +20,6 @@
 // Font properties from TTX:
 //   - unitsPerEm: 1040
 //   - numberOfHMetrics: 2 (only .notdef and A have unique advances)
-//
-// Reference: skrifa hint/instance.rs, skrifa glyf/mod.rs
 package text
 
 import (
@@ -1004,11 +1012,6 @@ func TestTTGolden_EdgeCasePPEM(t *testing.T) {
 // TestTTGolden_BackwardCompatXPreserved validates that in backward compatibility
 // mode (ClearType), the TT interpreter preserves X coordinates instead of zeroing
 // them. This was the root cause of the DejaVuSans X-zeroing bug.
-//
-// In backward compat mode, skrifa's move_point() (zone.rs:417-468):
-//   - Suppresses X movement (point.x stays at original, not zeroed)
-//   - Still touches the point (flag set)
-//   - Y movement proceeds normally (until both IUP axes done)
 func TestTTGolden_BackwardCompatXPreserved(t *testing.T) {
 	data := loadTTTestFont(t, "tthint_subset.ttf")
 	fp, err := loadTTFontProgram(data)
@@ -1074,19 +1077,15 @@ func TestTTGolden_BackwardCompatXPreserved(t *testing.T) {
 }
 
 // ============================================================
-// COORDINATE-EXACT GOLDEN TESTS (skrifa parity)
+// COORDINATE-EXACT GOLDEN TESTS
 // ============================================================
 //
 // These tests compare our TT interpreter output coordinate-by-coordinate
-// against golden data extracted from Google's skrifa (Rust fontations).
-// The golden arrays are in tt_golden_data_test.go, extracted via
-// SKRIFA_DUMP_GOLDEN=1 instrumentation in skrifa hint/instance.rs.
+// against golden data extracted from Google's skrifa.
 //
 // All coordinates are 26.6 fixed-point integers.
 // Comparison is EXACT (diff=0) — no tolerance.
 //
-// Reference: skrifa/src/outline/glyf/hint/instance.rs:hint()
-// ============================================================
 
 // --- Test 22: Coordinate-exact golden comparison at 16ppem ---
 
@@ -1279,7 +1278,7 @@ func TestTTGolden_SkrifaParity_PreHinting_16ppem(t *testing.T) {
 // Without this fix, space advances are fractional (e.g., 6.5742 at 24ppem)
 // causing uneven word spacing when mixed with hinted letter advances.
 //
-// Golden values from skrifa (Rust) test with Segoe UI:
+// Golden values from skrifa test with Segoe UI:
 //
 //	12ppem: space hinted = 3.0000
 //	16ppem: space hinted = 4.0000

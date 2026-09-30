@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package container — naga IR binding to DXIL semantic mapping.
 //
 // Maps naga IR bindings (BuiltinBinding, LocationBinding) to DXIL
 // semantic names and system value kinds used in ISG1/OSG1 signatures.
-//
-// Reference: Mesa dxil_signature.c fill_io_signature().
 package container
 
 import (
@@ -26,7 +34,6 @@ type SemanticMapping struct {
 	SystemValue   SystemValueKind
 }
 
-// MapBuiltinToSemantic converts a naga BuiltinValue to a DXIL semantic.
 func MapBuiltinToSemantic(builtin ir.BuiltinValue) SemanticMapping {
 	switch builtin {
 	case ir.BuiltinPosition:
@@ -53,8 +60,6 @@ func MapBuiltinToSemantic(builtin ir.BuiltinValue) SemanticMapping {
 }
 
 // MapLocationToInputSemantic converts a location binding to an input semantic.
-// User-defined @location(N) inputs use LocationSemantic — must match
-// wgpu/hal/dx12's D3D12_INPUT_ELEMENT_DESC.SemanticName (BUG-DXIL-028).
 func MapLocationToInputSemantic(loc uint32) SemanticMapping {
 	return SemanticMapping{backend.LocationSemantic, loc, SVArbitrary}
 }

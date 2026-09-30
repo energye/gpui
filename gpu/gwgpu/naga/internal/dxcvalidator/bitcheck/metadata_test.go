@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package bitcheck
 
 import (
@@ -6,8 +16,7 @@ import (
 )
 
 // emitNamedMD writes a METADATA_NAME record (operand per byte) followed
-// by a METADATA_NAMED_NODE record with the given operand list. Mirrors
-// dxil/internal/module/serialize.go emitNamedMetadata.
+// by a METADATA_NAMED_NODE record with the given operand list.
 func (w *blockWriter) emitNamedMD(name string, nodeIDs []uint64) {
 	nameOps := make([]uint64, len(name))
 	for i := 0; i < len(name); i++ {
@@ -22,7 +31,7 @@ func (w *blockWriter) emitNamedMD(name string, nodeIDs []uint64) {
 //	nodes[0] = METADATA_VALUE(type=1, value=1) (valid function ref)
 //	nodes[1] = METADATA_STRING "main"
 //	nodes[2] = METADATA_NODE [op0=(nodeID+1 for node 0), op1=(nodeID+1 for node 1)]
-//	!dx.entryPoints = [2]  (raw node index, not +1)
+//	!dx.entryPoints = [2] (raw node index, not +1)
 //
 // The writer returns a byte slice that NewReader can consume from the
 // very first bit — no outer MODULE_BLOCK / magic wrapper.

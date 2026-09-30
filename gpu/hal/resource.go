@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package hal
@@ -33,15 +43,12 @@ type Buffer interface {
 	NativeHandle
 
 	// Size returns the buffer size in bytes.
-	// Matches webgpu Buffer.Size (gpu/webgpu/buffer.go:22).
 	Size() uint64
 
 	// Usage returns the buffer's usage flags.
-	// Matches webgpu Buffer.Usage (gpu/webgpu/buffer.go:30).
 	Usage() gputypes.BufferUsage
 
 	// Label returns the buffer's debug label.
-	// Matches webgpu Buffer.Label (gpu/webgpu/buffer.go:38).
 	Label() string
 }
 
@@ -52,7 +59,6 @@ type Texture interface {
 	NativeHandle
 
 	// Format returns the texture format.
-	// Matches webgpu Texture.Format (gpu/webgpu/texture.go:17).
 	Format() gputypes.TextureFormat
 
 	// CurrentUsage returns the texture's tracked usage state for barrier computation.
@@ -64,7 +70,7 @@ type Texture interface {
 	// AddPendingRef/DecPendingRef manage reference counting for in-flight GPU work.
 	// PendingWrites calls AddPendingRef when recording CopyBufferToTexture, and
 	// DecPendingRef when GPU confirms completion. Destroy() is deferred if refs > 0.
-	// This prevents use-after-free on DX12 (BUG-DX12-006).
+	// This prevents use-after-free on DX12.
 	// No-op on backends that don't need deferred destruction.
 	AddPendingRef()
 	DecPendingRef()
@@ -77,7 +83,6 @@ type TextureView interface {
 	NativeHandle
 
 	// Texture returns the parent Texture that this view was created from.
-	// Matches webgpu TextureView.Texture (gpu/webgpu/texture.go:48).
 	Texture() Texture
 }
 

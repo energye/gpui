@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -173,7 +183,7 @@ func renderRGBAToColorRGBA(c render.RGBA) color.RGBA {
 }
 
 // SyncColorAtlasTextures uploads dirty color atlas pages to the GPU as RGBA8
-// textures. Mirrors GlyphMaskEngine.SyncAtlasTextures with 4 bytes per texel.
+// textures.
 func (e *ColorGlyphEngine) SyncColorAtlasTextures(device hal.Device, queue hal.Queue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

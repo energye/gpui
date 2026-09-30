@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 // TextMode controls text rendering strategy selection.
@@ -48,13 +58,12 @@ const (
 	// Every pixel in the glyph mask is binary: fully opaque (255) or fully
 	// transparent (0). No sub-pixel coverage, no fractional alpha.
 	//
-	// This matches Skia's SkFont::Edging::kAlias and is independent of the
 	// geometry anti-aliasing controlled by SetAntiAlias (ADR-030). Text AA
 	// and geometry AA are orthogonal — you can have aliased text on
 	// anti-aliased shapes, or vice versa.
 	//
 	// Works on both GPU and CPU paths:
-	//   - GPU: Tier 6 glyph mask pipeline (R8 atlas + textured quads)
+	//   - GPU: Tier 6 glyph mask pipeline
 	//   - CPU: per-glyph [DrawAliased] via [GlyphMaskRasterizer.RasterizeAliased]
 	//
 	// Both paths use NoAAFiller (integer scanline, binary spans) for

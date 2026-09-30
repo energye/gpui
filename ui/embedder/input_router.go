@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder
 
 import (
@@ -17,8 +27,6 @@ import (
 // overlay band / entry, matching PipelineApp.HitTestPointer's shape.
 type HitTestFunc func(x, y float64) (overlay.Band, rendering.RenderObject, *overlay.Entry)
 
-// InputRouter is the framework's unified event binding layer (plan §4).
-//
 // When attached to a PipelineApp (PipelineOptions.Input), platform events are
 // normalized via input.FromPlatform into the cross-platform input.Event and
 // routed automatically:
@@ -26,9 +34,9 @@ type HitTestFunc func(x, y float64) (overlay.Band, rendering.RenderObject, *over
 //	Pointer/Touch/Scroll → hit test → every control implementing
 //	                        input.PointerHandler on the hit path receives
 //	                        OnPointer; plus the optional OnPointer callback.
-//	Key                    → focus manager (when provided) and the optional
+//	Key → focus manager (when provided) and the optional
 //	                        OnKey callback; logical modifiers tracked.
-//	Text/IME               → optional OnText / OnIME callbacks (textinput
+//	Text/IME → optional OnText / OnIME callbacks (textinput
 //	                        milestone consumes these).
 //
 // Any RenderObject implementing the input.EventTarget sub-interfaces
@@ -54,7 +62,7 @@ type InputRouter struct {
 	// device events...). It is a fallback observer: events with a dedicated
 	// path (pointer/key/text/IME) never reach it, and KindNone never does.
 	OnEvent func(ev input.Event)
-	// OnDelta receives TextEditingDelta when enableDeltaModel==true (R3).
+	// OnDelta receives TextEditingDelta when enableDeltaModel==true.
 	OnDelta func(delta textinput.TextEditingDelta)
 
 	// TextEditor is the FALLBACK editable control used when no focused
@@ -73,11 +81,11 @@ type InputRouter struct {
 	// method (observed: engine switching stopped responding). Enable
 	// deliberately when a target needs context-aware IME features.
 	SurroundingUpdates bool
-	lastSurrEpoch      uint64 // epoch of the last surrounding push (M5: O(1) dedupe)
-	lastSurrValid      bool   // false until the first push of the session
-	hasAnchor          bool   // lastAnchor valid?
+	lastSurrEpoch      uint64
+	lastSurrValid      bool // false until the first push of the session
+	hasAnchor          bool // lastAnchor valid?
 	lastAnchor         platform.Rect
-	// delta tracking (R3)
+	// delta tracking
 	lastDeltaText string
 	lastDeltaSel  textinput.TextRange
 	lastDeltaComp textinput.TextRange
@@ -163,13 +171,6 @@ func (r *InputRouter) RoutePlatform(ev platform.Event) {
 	r.Route(in)
 }
 
-// TextEditTarget is implemented by editable controls (kit Input/TextArea,
-// demo boxes) so the framework drives their IME session automatically
-// (plan §10.2 I4): focus-in opens the session, blur closes it (confirming
-// any live pre-edit into its own field; the platform's trailing duplicate
-// commit for the closed session is dropped, never delivered to the new
-// field), edits keep the candidate anchor and surrounding text
-// fresh.
 type TextEditTarget interface {
 	// Editor returns the editing state this target edits (non-nil).
 	Editor() *textinput.Editor
@@ -256,7 +257,7 @@ func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
 	clip := r.clipboard
 	ime := r.ime
 	if ime == nil || prev == next {
-		r.session = prev // unchanged (or no capability yet)
+		r.session = prev // unchanged
 		r.mu.Unlock()
 		// Still inject clipboard even when IME is nil or session unchanged
 		if clip != nil && next != nil {
@@ -299,7 +300,6 @@ func (r *InputRouter) debugIME(format string, args ...any) {
 
 // syncSession closes the outgoing session (confirm live pre-edit → disable)
 // then opens the incoming one (purpose → enable at its anchor).
-// F-D7 / §7.1: input_type==NONE 按 focus_out 处理，不 Enable；首焦预热已在 new 时 focus_out 完成。
 func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 	if prev != nil {
 		r.debugIME("session close: confirm+disable")
@@ -407,7 +407,7 @@ func (r *InputRouter) editorFor() *textinput.Editor {
 	return r.TextEditor
 }
 
-// afterEdit refreshes anchor (R4: only composing 实报，非 composing 预热) and surrounding.
+// afterEdit refreshes anchor and surrounding.
 func (r *InputRouter) afterEdit() {
 	r.mu.Lock()
 	t, ime := r.session, r.ime
@@ -468,7 +468,7 @@ func (r *InputRouter) pushDelta(ed *textinput.Editor) {
 // not flow through the router (SetText, click-to-place-caret).
 func (r *InputRouter) RefreshIMEAnchor() { r.afterEdit() }
 
-// pushSurrounding reports buffer+caret as surrounding text. Truncates to 4000 bytes centered at cursor (R3).
+// pushSurrounding reports buffer+caret as surrounding text. Truncates to 4000 bytes centered at cursor.
 func (r *InputRouter) pushSurrounding(ime platform.IME, t TextEditTarget) {
 	if t == nil || t.Editor() == nil {
 		return
@@ -490,7 +490,7 @@ func (r *InputRouter) pushSurroundingForEditor(ime platform.IME, ed *textinput.E
 		}
 	}
 	text, cursor := ed.Snapshot()
-	// M5: dedupe on the Editor epoch (monotonic per edit, O(1)) instead of
+	// dedupe on the Editor epoch (monotonic per edit, O(1)) instead of
 	// building the 4000-byte surrounding key string (O(n)) on every push.
 	ep := ed.Epoch()
 	r.mu.Lock()
@@ -662,7 +662,6 @@ func (r *InputRouter) routeKey(ev input.Event) {
 		}
 	}
 	ed := r.editorFor()
-	// §7.1 filter_keypress 优先：composing 时 Home/End/Page/Arrow/Enter 由 IME 优先消费，避免光标在 composingRange 外
 	if ke.Pressed && ed != nil && ed.IsComposing() && isComposingFilterKey(ke.Key) {
 		// 命中即拦截：不 Insert，仍让 OnKey 有机会做 IME 侧处理（InputBox 会早退）
 	} else if ke.Pressed && ed != nil && ke.Rune != 0 && ke.Rune != '\r' && ke.Rune != '\n' {

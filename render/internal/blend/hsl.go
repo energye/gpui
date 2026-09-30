@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package blend implements HSL-based non-separable blend modes.
 //
 // This file implements the non-separable blend modes (Hue, Saturation, Color, Luminosity)
@@ -5,10 +15,6 @@
 //
 // These modes require color space conversion and operate on the entire RGB triplet
 // rather than individual channels.
-//
-// References:
-//   - W3C Compositing and Blending Level 1: https://www.w3.org/TR/compositing-1/
-//   - Section 8: Non-separable blend modes
 package blend
 
 import "math"

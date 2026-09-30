@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -11,13 +21,6 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// TestOpt34_SharedEncoder_DoesNotFlushLeading ensures opt32 dual-tex composite
-// path (sharedEncoder set) keeps deferred layer CBs queued so
-// Finish+submitWithLeading can submit layers + dual/blit as one Queue.Submit.
-//
-// Pre-opt34: RenderFrameGrouped drained leadSubmitCBs whenever
-// !deferSurfaceSubmit, forcing a mid-frame Submit and leaving the composite CB
-// alone.
 func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")
@@ -59,7 +62,7 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 		return cmd
 	}
 
-	// Two deferred layer fills (opt21 lead queue), already finished.
+	// Two deferred layer fills, already finished.
 	s.EnqueueLeadingSubmit(mkEmptyCB("opt34_layer0"), nil)
 	s.EnqueueLeadingSubmit(mkEmptyCB("opt34_layer1"), nil)
 	if got := len(s.leadSubmitCBs); got != 2 {
@@ -67,7 +70,6 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 	}
 	submitsBefore := s.LastSubmitPathStats().Submits
 
-	// opt32 composite: record present/blit into sharedEncoder while leads pending.
 	dstTex, dstView := mkView("opt34_composite_dst")
 	t.Cleanup(func() {
 		dstView.Destroy()
@@ -119,9 +121,6 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 	}
 }
 
-// TestOpt34_NoSharedEncoder_StillFlushesLeading preserves opt21: a normal
-// (non-deferred) RenderFrameGrouped without sharedEncoder drains pending
-// layer CBs before encoding the surface pass.
 func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")

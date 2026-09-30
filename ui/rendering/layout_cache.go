@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -18,7 +28,7 @@ import (
 // 行按段内相对偏移存储,命中时拷贝并变基到全局(复用整形结果,不复用切片头;
 // Glyphs只读共享,构建后不再原地修改).
 // 线程安全:主线程建层与光栅线程绘制会同时进同一 RenderText 的缓存
-// (M4 真窗 60s 跑出过 concurrent map writes 崩溃),内部用互斥串行化.
+// ,内部用互斥串行化.
 // 查命中也改 hits/blds 计数,故不分读写锁,三个入口统一拿写锁.
 type layoutCache struct {
 	mu   sync.Mutex

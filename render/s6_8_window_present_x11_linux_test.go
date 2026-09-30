@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !nogpu
 
 package render_test
@@ -18,8 +28,6 @@ import (
 	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
-// TestS68_WindowPresent_MultiFrameDraw is the S6.8 real-window gate:
-// X11 → swapchain (Fifo) → shared device → PresentFrameAuto multi-frame + damage.
 // Skips when DISPLAY is unavailable (no gpui_x11_present tag required).
 func TestS68_WindowPresent_MultiFrameDraw(t *testing.T) {
 	if os.Getenv("GPUI_FORCE_NO_X11") == "1" {
@@ -109,7 +117,7 @@ func TestS68_WindowPresent_MultiFrameDraw(t *testing.T) {
 		}
 		out, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
 			// GPU damage scissor is handled inside PresentFrame*; OS damage
-			// rects are optional (wgpu-native ignores). Always Present.
+			// rects are optional. Always Present.
 			return sc.EndFrame(frame)
 		})
 		dt := time.Since(t0).Seconds() * 1000

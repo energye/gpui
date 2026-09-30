@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -9,7 +19,6 @@ import (
 // TestPaintPerRuneX_NoQuadratic_M1锁M1第13项:逐字绘制分支的byteOff→X
 // 必须一次建表+O(1)查,不得随行长二次增长.三档1e3/1e4/1e5 rune行,
 // O(n)下T(1e4)/T(1e3)≈10、T(1e5)/T(1e3)≈100;O(n²)下则为100/10000.
-// 门禁取≤20/≤300,线性通过、二次必挂.中位数抗抖.
 func TestPaintPerRuneX_NoQuadratic_M1(t *testing.T) {
 	timing := func(n int) time.Duration {
 		t.Helper()
@@ -50,10 +59,6 @@ func TestPaintPerRuneX_NoQuadratic_M1(t *testing.T) {
 	}
 }
 
-// TestCaretMatchesPaint_M1锁I1(查询与绘制同源):CaretForOffset /
-// CaretAt / 绘制分支的xByOff三者读同一张caret表,ASCII文档逐偏移
-// 偏差必须为0(≤1px门禁).真字形X vs caret X的端到端证据由M0的
-// TestPaintUsesShapedX_MultiFaceBulk覆盖,此处只锁M1索引链不断链.
 func TestCaretMatchesPaint_M1(t *testing.T) {
 	doc := "hello world\nfoo bar baz\nlast line here"
 	lay := BuildTextLayout(doc, nil, 14, 0, 1.2)

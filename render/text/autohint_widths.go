@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -7,14 +17,8 @@ import (
 
 // Standard width computation and stem width quantization.
 //
-// References:
-//   - FreeType aflatin.c:54  af_latin_metrics_init_widths
-//   - FreeType aflatin.c:3967 af_latin_compute_stem_width
-//   - FreeType afhints.c:121  af_sort_and_quantize_widths
-//   - skrifa metrics/widths.rs compute_widths
 
 // maxWidths is the maximum number of standard widths per axis.
-// Matches FreeType AF_LATIN_MAX_WIDTHS.
 const maxWidths = 16
 
 // computeStandardWidths computes standard stem widths for one axis
@@ -184,13 +188,12 @@ func sortAndQuantizeWidths(widths *[]int32, threshold int32) {
 //   - Minimum stem width of 0.75px (48/64) or 0.875px (56/64)
 //
 // Constants in 26.6:
-//   - 1.0px  = 64    - 1.25px = 80    - 1.5px  = 96
-//   - 0.5px  = 32    - 0.625px= 40    - 0.75px = 48
-//   - 0.875px= 56    - 3.0px  = 192
-//   - 10/64px= 10    - 54/64px= 54
+//   - 1.0px = 64 - 1.25px = 80 - 1.5px = 96
+//   - 0.5px = 32 - 0.625px= 40 - 0.75px = 48
+//   - 0.875px= 56 - 3.0px = 192
+//   - 10/64px= 10 - 54/64px= 54
 //
 // See FreeType aflatin.c:3967 af_latin_compute_stem_width.
-// See skrifa hint/edges.rs stem_width.
 //
 //nolint:gocognit,nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 func computeStemWidth(axis *scaledAxisMetrics, width int32, edgeFlags, stemFlags uint32) int32 {
@@ -272,7 +275,6 @@ func computeStemWidth(axis *scaledAxisMetrics, width int32, edgeFlags, stemFlags
 // the extra-light early return and serif width preservation.
 //
 // See FreeType afcjk.c:1544 (CJK stem width computation).
-// See skrifa hint/edges.rs:825-845 (CJK branch of stem_width).
 //
 //nolint:nestif // FreeType afcjk.c port — piecewise quantization is inherently nested
 func computeStemWidthCJK(axis *scaledAxisMetrics, width int32) int32 {

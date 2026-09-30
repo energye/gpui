@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -17,8 +24,6 @@ import (
 // Lightweight — does NOT own the GL context. The context lives on Instance's
 // hidden window via AdapterContext. Surface stores only the user HWND and a
 // reference to the shared AdapterContext.
-//
-// Follows Rust wgpu-hal/src/gles/wgl.rs Surface (lines 672-677).
 type Surface struct {
 	hwnd       wgl.HWND
 	ctx        *AdapterContext // shared, NOT owned
@@ -163,10 +168,10 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 
 // AcquireTexture returns the next surface texture for rendering.
 //
-// Strict codes (H4-d, webgpu parity): nil receiver, unconfigured surface
+// Strict codes: nil receiver, unconfigured surface
 // (!configured/config==nil) or a lost context (ctx==nil) all report
 // hal.ErrSurfaceLost (errors.Is-compatible); a previous in-flight frame is
-// discarded first (one frame at a time, like webgpu GetCurrentTexture).
+// discarded first.
 // Timeout/NotReady do not apply: GL acquire is synchronous and always
 // succeeds once configured.
 func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error) {

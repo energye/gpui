@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -143,7 +153,7 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 		v2.Destroy()
 		t2.Destroy()
 	})
-	// P3: register test views under deferred SourceKeys so build resolution
+	// register test views under deferred SourceKeys so build resolution
 	// succeeds (each build re-resolves and releases its transient ref).
 	keyA := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 1}
 	keyB := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 2}

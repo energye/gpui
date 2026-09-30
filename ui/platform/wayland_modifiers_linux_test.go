@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -8,7 +18,7 @@ import (
 	"unsafe"
 )
 
-// Modifier-only reporting (S6 §4.4 B 组): the Wayland keyboard derives the
+// Modifier-only reporting: the Wayland keyboard derives the
 // effective Shift/Control/Alt(Mod1)/Meta(Mod4) state from xkb after every
 // key/modifiers event and emits EventModifiersChanged on change, leading
 // the Key itself (mirrors X11). Plain typing stays quiet.
@@ -59,7 +69,7 @@ func TestWLModifiersCBNilSafe(t *testing.T) {
 	wlKbModifiersCB(uintptr(unsafe.Pointer(st)), 0, 0, 0, 0, 0, 0)
 }
 
-// evdev keycodes (linux/input-event-codes.h): Wayland key events carry
+// evdev keycodes: Wayland key events carry
 // these; the callback adds the xkb +8 offset internally.
 const (
 	evdevLeftShift = 42

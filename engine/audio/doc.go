@@ -1,10 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package audio freezes the CPU-side 2D positional math every 2.5D play feeds.
 //
-// Frozen 2026-09-15 (capability 15.1, P0, S13/W1): PosSound, NewPosSound,
+// Frozen 2026-09-15: PosSound, NewPosSound,
 // Mix, MixAll, Stereo, DefaultAttenuation, DefaultPanStrength.
 // Additive changes only.
 //
-// Frozen 2026-09-15 (capability 15.2, P0, S14/W1): MusicPlayer,
+// Frozen 2026-09-15: MusicPlayer,
 // NewMusicPlayer, Play, Push, Pop, CrossfadeTo, Stop, Update, Depth, Top,
 // From, IsFading, Progress, Blend, Bus, NewBus, Name, Volume, SetVolume,
 // SetMute, Muted, Gain, Mixer, NewMixer, MaxVoices, SetMaxVoices, Mix,
@@ -35,7 +45,7 @@
 //     2.5D needs near/far depth (Y) to hush far sounds, so Y joins the mix.
 //   - Falloff is pow(1-t, att): bigger att hushes faster (1 linear,
 //     2 squared). att 0 means no falloff inside the range.
-//   - Range 0 means never attenuate (gain 1, Godot parity) but pan still
+//   - Range 0 means never attenuate but pan still
 //     applies; UI clicks should use PanStrength 0 for mono.
 //   - Pan sign: source right of the listener pans right (+1). Center is 0.
 //

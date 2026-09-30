@@ -1,15 +1,24 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "sync"
 
-// pixmapPool reuses full-surface Pixmaps for layers and filter intermediates (S6.4).
+// pixmapPool reuses full-surface Pixmaps for layers and filter intermediates.
 // Keyed by (width,height). Not safe for concurrent use of the same Pixmap;
 // the pool itself is mutex-protected.
 //
-// Memory policy aligns with Skia's GrResourceCache semantics:
+// Memory policy aligns with the GrResourceCache semantics:
 //   - EvictExcept: single-slot replacement on window resize — the context only
 //     ever requests the current window size, so stale sizes are dropped at once
-//     (Skia layer cache: key = size, resize purges the old key).
 //   - Byte budget: budgeted resources are tracked against maxBytes (Skia
 //     fMaxBytes). Put evicts the least-recently-used size bucket while over
 //     budget, keeping at least the active bucket to avoid self-destruction.
@@ -65,7 +74,7 @@ func (p *pixmapPool) Get(w, h int) *Pixmap {
 }
 
 // GetForOverwrite returns a Pixmap that will be fully overwritten by the caller
-// (skips Clear). Used by backdrop snapshot and filter intermediates (S6.4).
+// (skips Clear). Used by backdrop snapshot and filter intermediates.
 func (p *pixmapPool) GetForOverwrite(w, h int) *Pixmap {
 	return p.get(w, h, false)
 }
@@ -150,7 +159,7 @@ func (p *pixmapPool) evictLocked() {
 }
 
 // EvictExcept drops every size bucket other than (w,h) — the window-resize
-// single-slot replacement (Skia layer cache semantics): stale sizes are never
+// single-slot replacement: stale sizes are never
 // requested again, so they are released immediately.
 func (p *pixmapPool) EvictExcept(w, h int) int64 {
 	if p == nil {
@@ -183,7 +192,7 @@ func (p *pixmapPool) dropBucketLocked(key pixmapPoolKey) int64 {
 	return freed
 }
 
-// Stats returns pool counters (for tests / S6.4 diagnostics).
+// Stats returns pool counters.
 func (p *pixmapPool) Stats() (gets, puts, hits, misses int) {
 	if p == nil {
 		return 0, 0, 0, 0
@@ -193,7 +202,7 @@ func (p *pixmapPool) Stats() (gets, puts, hits, misses int) {
 	return p.gets, p.puts, p.hits, p.misses
 }
 
-// Budget reports retained bytes and the byte budget (Skia fMaxBytes).
+// Budget reports retained bytes and the byte budget.
 func (p *pixmapPool) Budget() (retainedBytes int64, budgetBytes int64) {
 	if p == nil {
 		return 0, 0

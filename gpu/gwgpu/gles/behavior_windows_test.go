@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -10,7 +17,6 @@ import (
 	"time"
 )
 
-// H4-b3 行为差异单测（GL Windows 侧）：围栏包装语义。
 // 本机（Linux）只验编译；本文件不含 Submit 用例（无卡时 Lock 会进
 // WGL 初始化路径，留 Linux 侧锁增量逻辑，两边 Submit 主体一致）。
 // 以下用例真机跑时不碰驱动：CreateFence 只取函数表（GL() 可能为 nil，

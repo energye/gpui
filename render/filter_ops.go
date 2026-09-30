@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -23,11 +33,9 @@ var (
 	// gpuFilterGraphApplyFromView seeds from a GPU texture (no CPU upload/readback).
 	gpuFilterGraphApplyFromView func(srcView gpucontext.TextureView, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)
 
-	// S6.4: shared intermediate pool for CPU filter ping-pong (blur/shadow/graph).
 	filterPixmapPool = newPixmapPool(8)
 )
 
-// FilterPoolStats returns S6.4 filter intermediate pool counters.
 func FilterPoolStats() (gets, puts, hits, misses int) {
 	return filterPixmapPool.Stats()
 }
@@ -65,7 +73,6 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 		c.recordCPUFallbackReason("filter:cpu-fallback")
 	}
 	src := c.pixmap
-	// S6.4: reuse intermediate RT; full overwrite path (copy src→dst first).
 	dst := filterPixmapPool.GetForOverwrite(src.Width(), src.Height())
 	copy(dst.Data(), src.Data())
 	fn(src, dst)
@@ -307,7 +314,7 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	}
 	c.filterSrcScratch = c.filterSrcScratch[:need]
 
-	// 1) Zero-readback (R7.2): flush pending draws into retained filterSrcRT, then
+	// 1) Zero-readback: flush pending draws into retained filterSrcRT, then
 	// GPU→GPU filter. Glow/effect RTs hit this every recompute (pending > 0).
 	// If we already flushed to filterSrcRT, never seed path 2/3 from the stale
 	// CPU pixmap (draws never reached pixmap) — recover via src RT readback only.
@@ -355,7 +362,7 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 			// Do NOT unconditional seed from pixmap here: that uploads a full
 			// surface every glow/filter frame. Path-1 assumes pending encodes
 			// the complete surface when no mid-frame materialize occurred.
-			// opt18: single Queue.Submit for mesh seed + filter (when GPU context
+			// single Queue.Submit for mesh seed + filter (when GPU context
 			// supports FlushAndFilterFromView). Pure submit coalesce; pixels same.
 			type flushFilterer interface {
 				FlushAndFilterFromView(srcView gpucontext.TextureView, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)
@@ -546,7 +553,7 @@ func SwapGPUFilterGraph(fn func(src []byte, w, h int, nodes []ImageFilterNode) (
 }
 
 // DisableGPUFilterGraphForTest clears pixel/texture/from-view GPU filter hooks so
-// ApplyBlur/ApplyImageFilterGraph exercise the CPU intermediate pool (S6.4).
+// ApplyBlur/ApplyImageFilterGraph exercise the CPU intermediate pool.
 // Returns a restore function that reinstalls the previous hooks.
 func DisableGPUFilterGraphForTest() (restore func()) {
 	prevApply := gpuFilterGraphApply
@@ -600,7 +607,7 @@ type ImageFilterNode struct {
 }
 
 // ApplyImageFilterGraph runs a multi-node image filter graph with intermediate
-// surface ping-pong (F.03 / Skia-style ImageFilter DAG chain).
+// surface ping-pong.
 //
 // Pipeline:
 //  1. FlushGPU so the graph operates on real GPU-produced pixels when content
@@ -623,7 +630,6 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 	if runnable == 0 {
 		return
 	}
-	// S6.4: drop no-ops / merge consecutive color matrices before GPU or CPU path.
 	nodes = coalesceImageFilterNodes(nodes)
 
 	// F.03 / P0-4: GPU multi-RT ping-pong when all nodes are GPU-supported.
@@ -637,7 +643,7 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 		return
 	}
 
-	// CPU fallback: pooled pixmap ping-pong intermediate surfaces (S6.4).
+	// CPU fallback: pooled pixmap ping-pong intermediate surfaces.
 	if c.gpuPathAvailable() && GPUFilterGraphRegistered() {
 		c.recordCPUFallbackReason("filter:graph-cpu")
 	}
@@ -670,7 +676,7 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 	}
 }
 
-// coalesceImageFilterNodes drops no-ops and merges consecutive color-matrix nodes (S6.4).
+// coalesceImageFilterNodes drops no-ops and merges consecutive color-matrix nodes.
 // Blur radii are NOT merged (Gaussian convolution is not a simple max/sum of radii).
 func coalesceImageFilterNodes(nodes []ImageFilterNode) []ImageFilterNode {
 	if len(nodes) <= 1 {
@@ -822,7 +828,7 @@ func (c *Context) materializeFilterGPU() bool {
 }
 
 // materializeFilterGPUTo readbacks the published filter texture into primary
-// (required) and optional secondary buffers in one Map (R7.2 Export path).
+// (required) and optional secondary buffers in one Map.
 // secondary may be the pixmap when primary is an ImageBuf destination.
 func (c *Context) materializeFilterGPUTo(primary, secondary []byte) bool {
 	if c == nil {

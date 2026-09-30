@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -11,7 +21,6 @@ import (
 // Real-window tests: they open an actual Wayland window through the unified
 // L0 API (no GPU — platform layer only). Skipped with a reason when no
 // compositor is reachable; never silently green. B layer of
-// ENGINE_WINDOW_API.md §2.6.
 
 func openTestWayland(t *testing.T) *Window {
 	t.Helper()
@@ -19,11 +28,11 @@ func openTestWayland(t *testing.T) *Window {
 		t.Skipf("wayland real-window test skipped: WAYLAND_DISPLAY not set")
 	}
 	win, err := Open(Options{
-		Width:      400,
-		Height:     300,
-		Title:      "gpui wayland win test",
-		Decorations: true, // standard CSD — exercises the chrome paths too
-		Backend:    DisplayWayland, // force the wayland backend — Auto would pick X11 when DISPLAY is set
+		Width:       400,
+		Height:      300,
+		Title:       "gpui wayland win test",
+		Decorations: true,           // standard CSD — exercises the chrome paths too
+		Backend:     DisplayWayland, // force the wayland backend — Auto would pick X11 when DISPLAY is set
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "connect failed") ||
@@ -59,14 +68,10 @@ func TestWaylandRealWindowOpen(t *testing.T) {
 	}
 }
 
-// TestWaylandRealWindowEvents asserts the event pump is alive and wired:
-// WakeUp must surface as EventWake (cross-thread wake contract, §2.4).
-//
 // EventResize is legitimately absent here: without a rendering layer the
 // compositor answers the first (and only) configure with the requested size —
 // identical to Open's request, so the dedup in wlTopConfigure fires no
 // resize. Deterministic resize assertions need a buffer attach / SetSize
-// (renderer + wlController) and land with S2.
 func TestWaylandRealWindowEvents(t *testing.T) {
 	win := openTestWayland(t)
 	defer win.Close()
@@ -96,10 +101,6 @@ func TestWaylandRealWindowEvents(t *testing.T) {
 	host.WaitEvents(250 * time.Millisecond)
 }
 
-// TestWaylandRealWindowControls exercises the wlController (S2): title/size
-// round-trips on the tracked state, protocol-impossible ops answer
-// ErrUnsupported (§2.5.4 honesty — never a silent fake success), and
-// queries the protocol cannot answer return documented zero values (§2.5.3).
 func TestWaylandRealWindowControls(t *testing.T) {
 	win := openTestWayland(t)
 	defer win.Close()
@@ -138,10 +139,6 @@ func TestWaylandRealWindowControls(t *testing.T) {
 	ctl.SetMinSize(320, 240)
 	ctl.SetMaxSize(1920, 1080)
 
-	// Protocol-impossible ops → ErrUnsupported (honesty contract §2.5.4).
-	// Show/Hide are real on wayland (§9 隐藏窗口) — asserted in
-	// TestWaylandHideShow; SetPosition/Focus/AlwaysOnTop/SetDecorations
-	// have no xdg-shell counterpart.
 	for name, err := range map[string]error{
 		"SetPosition":    ctl.SetPosition(10, 10),
 		"Focus":          ctl.Focus(),
@@ -153,9 +150,6 @@ func TestWaylandRealWindowControls(t *testing.T) {
 		}
 	}
 
-	// Query semantics (§2.5.3): no client-side position → ok=false (zero ≠
-	// "at origin"); a fresh window is visible (Hide pulls it down, Show
-	// restores — §3.2).
 	if x, y, ok := ctl.Position(); ok || x != 0 || y != 0 {
 		t.Errorf("Position() = (%d,%d,%v), want (0,0,false)", x, y, ok)
 	}

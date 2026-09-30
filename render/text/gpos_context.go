@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // GPOS Lookup Type 7 (Contextual) and Type 8 (Chained Contextual).
 //
 // ENGINE_GAPS G1.c — remaining GPOS context/chaining positioning.
@@ -6,8 +16,6 @@
 //
 // Formats: Type 7/8 Format 1 (glyph rules), 2 (class), 3 (coverage).
 // PosLookupRecord layout matches SubstLookupRecord (sequenceIndex + lookupListIndex).
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/gpos
 package text
 
 import "encoding/binary"

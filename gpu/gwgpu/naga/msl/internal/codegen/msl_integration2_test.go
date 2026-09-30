@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -846,7 +856,6 @@ struct Out { v: vec4<f32> };
 }
 `
 	code := compileWGSL(t, src)
-	// MSL does not have texture1d for all platforms but naga emits it.
 	if !strings.Contains(code, "texture1d") && !strings.Contains(code, "texture2d") {
 		t.Error("Expected texture1d or texture2d in output")
 	}

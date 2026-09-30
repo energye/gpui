@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "sync/atomic"
@@ -27,7 +37,7 @@ var defaultSampleCount atomic.Uint32
 //
 //	SetMSAASampleCount(MSAASampleCount1) // force global 1x (engine default)
 //	SetMSAASampleCount(MSAASampleCount4) // opt into 4x MSAA
-//	SetMSAASampleCount(0)                // reset to engine default (1x)
+//	SetMSAASampleCount(0) // reset to engine default (1x)
 //
 // Values other than 0/1/4 are passed through to the wgpu device; only 1 and 4
 // are guaranteed supported by the surface/session pipelines. Call before the

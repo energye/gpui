@@ -1,11 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — main engine.
 //
-// Port of skrifa hint/engine/mod.rs (269 LOC).
 // The Engine is a stack-based virtual machine that executes font hinting
 // instructions, manipulating glyph outline points to snap them to the
 // pixel grid.
-//
-// Reference: skrifa/src/outline/glyf/hint/engine/mod.rs
 package text
 
 import (
@@ -57,11 +64,9 @@ func ttOpcodeName(opcode byte) string {
 
 // ttMaxRunInstructions is the maximum number of instructions executed
 // in a single run. Prevents infinite loops.
-// Reference: skrifa hint/engine/dispatch.rs:9
 const ttMaxRunInstructions = 1_000_000
 
 // ttEngine is the TrueType bytecode interpreter.
-// Reference: skrifa hint/engine/mod.rs:39-49
 type ttEngine struct {
 	program     ttProgramState
 	graphics    ttGraphicsState
@@ -75,7 +80,6 @@ type ttEngine struct {
 }
 
 // newTTEngine creates a new interpreter engine.
-// Reference: skrifa hint/engine/mod.rs:51-89
 //
 //nolint:unparam // axisCount, coords kept for skrifa parity; needed for variable fonts (gvar)
 func newTTEngine(
@@ -117,19 +121,16 @@ func newTTEngine(
 }
 
 // backwardCompatibility returns whether backward compatibility mode is active.
-// Reference: skrifa hint/engine/mod.rs:91-93
 func (e *ttEngine) backwardCompatibility() bool {
 	return e.graphics.backwardCompatibility
 }
 
 // retainedGraphicsState returns the persistent graphics state.
-// Reference: skrifa hint/engine/mod.rs:95-97
 func (e *ttEngine) retainedGraphicsState() *ttRetainedGraphicsState {
 	return &e.graphics.retained
 }
 
 // runProgram resets state for the given program and executes all instructions.
-// Reference: skrifa hint/engine/dispatch.rs:14-17
 //
 //nolint:unparam // isPedantic kept for skrifa parity; production uses non-pedantic
 func (e *ttEngine) runProgram(program ttProgramType, isPedantic bool) error {
@@ -138,7 +139,6 @@ func (e *ttEngine) runProgram(program ttProgramType, isPedantic bool) error {
 }
 
 // resetForProgram sets internal state for running the specified program.
-// Reference: skrifa hint/engine/dispatch.rs:20-52
 func (e *ttEngine) resetForProgram(program ttProgramType, isPedantic bool) {
 	e.program.resetProgram(program)
 	e.graphics.reset()
@@ -169,7 +169,6 @@ func (e *ttEngine) resetForProgram(program ttProgramType, isPedantic bool) {
 }
 
 // run decodes and dispatches all instructions until completion or error.
-// Reference: skrifa hint/engine/dispatch.rs:55-72
 func (e *ttEngine) run() error {
 	count := 0
 	for !e.program.decoder.done() {
@@ -215,7 +214,6 @@ func (e *ttEngine) zone(zp ttZonePointer) *ttZone {
 }
 
 // ttLoopBudget tracks execution budgets to limit execution time.
-// Reference: skrifa hint/engine/mod.rs:101-153
 type ttLoopBudget struct {
 	limit         int
 	backwardJumps int
@@ -223,7 +221,6 @@ type ttLoopBudget struct {
 }
 
 // newTTLoopBudget computes the execution budget based on point/CVT counts.
-// Reference: skrifa hint/engine/mod.rs:112-129
 func newTTLoopBudget(pointCount, cvtLen int) ttLoopBudget {
 	var limit int
 	if pointCount > 0 {

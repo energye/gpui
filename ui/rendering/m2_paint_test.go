@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -8,11 +18,6 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// M2 红灯测试:以下 API 在实现前不存在,本文件先编译失败(红灯).
-// 实现后全部转绿,门禁见 docs/ENGINE_TEXT_SCALE_PLAN.md M2 第 ⑥ 项.
-
-// TestCullRange_Horizontal 锁 M2 第 2 项:横向可见区间计算正确,
-// 边界含/不含语义明确,全不可见返回空.覆盖单行超长横滚形态.
 func TestCullRange_Horizontal(t *testing.T) {
 	lay := BuildTextLayout(strings.Repeat("a", 500), nil, 14, 0, 1.2)
 	if lay.LineCount() != 1 {
@@ -41,8 +46,6 @@ func TestCullRange_Horizontal(t *testing.T) {
 	}
 }
 
-// TestCullRange_Vertical 锁 M2 第 2 项纵向:多行下只提交可见行区间,
-// 不可见行不得提交.用行高前缀和二分定位,不得遍历全表.
 func TestCullRange_Vertical(t *testing.T) {
 	var b strings.Builder
 	for i := 0; i < 200; i++ {
@@ -66,8 +69,6 @@ func TestCullRange_Vertical(t *testing.T) {
 	}
 }
 
-// TestDamageRows 锁 M2 第 4 项:改第 K 行只报 K;改换行报 K 及之后;
-// 回绕模式只报被改段.此处先锁几何部分(纯函数,不依赖管线).
 func TestDamageRows(t *testing.T) {
 	doc := "aaa\nbbb\nccc\nddd\n"
 	lay := BuildTextLayout(doc, nil, 14, 0, 1.2)
@@ -87,10 +88,6 @@ func TestDamageRows(t *testing.T) {
 	}
 }
 
-// TestCompositeBatch_MultiFace 锁 M2 第 1 项:MultiFace 行的字形必须带
-// 按 face 分区的批量元数据,每分区的 face 均可独立批量提交
-// (Source()!=nil),分区覆盖全部字形且不重叠.否则 Paint 只能逐字
-// DrawString,顶点数回到 O(n).
 func TestCompositeBatch_MultiFace(t *testing.T) {
 	face, _, err := text.LoadMultiFace(14)
 	if err != nil || face == nil {
@@ -123,8 +120,6 @@ func TestCompositeBatch_MultiFace(t *testing.T) {
 	}
 }
 
-// TestSubmittedGlyphEstimate 锁 M2 第 ⑥ 项 vertex_count 观测:无 hint
-// 时等于全量字形;横向窄窗口与纵向行带均显著小于全量且非零;空文本为零.
 func TestSubmittedGlyphEstimate(t *testing.T) {
 	empty := NewRenderText("")
 	if got := empty.SubmittedGlyphEstimate(); got != 0 {
@@ -233,10 +228,6 @@ func TestCompositeBatch_RebasedPositions(t *testing.T) {
 	}
 }
 
-// BenchmarkPaintLine 锁 M2 第 ⑥ 项:固定可见窗口下,提交代价与总字数
-// 无关(O(V)而非 O(n)).N∈{1e3,1e5},窗口恒 400px(约 40 字形),量
-// 区间计算+可见字形遍历两步,比值≤2.单步皆 ns 级,另设 10µs 噪声
-// 护栏:绝对耗时低于护栏即通过,不判比值(防抖动误杀).
 func BenchmarkPaintLine(b *testing.B) {
 	timing := func(n int) time.Duration {
 		b.Helper()

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package overlay
 
 import "github.com/energye/gpui/ui/rendering"
@@ -28,8 +38,7 @@ type Entry struct {
 	// laidOut gates hit testing until the first Layout pass after Insert:
 	// a just-inserted entry has no valid W/H (or a stale Child offset), so
 	// hitting it in the same tick would answer from geometry that is not on
-	// screen yet. Mirrors Flutter's _RenderDeferredLayoutBox: an overlay
-	// child participates only after its deferred layout has run.
+	// screen yet.
 	laidOut bool
 }
 

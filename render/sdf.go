@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "math"
@@ -89,7 +99,7 @@ func sdfRRect(px, py, cx, cy, halfW, halfH, cornerRadius float64) float64 {
 //
 // sdf < -afwidth => 1.0 (fully inside)
 // sdf > +afwidth => 0.0 (fully outside)
-// Otherwise       => smooth transition
+// Otherwise => smooth transition
 func smoothstepCoverage(sdf float64) float64 {
 	if sdf >= sdfAntialiasWidth {
 		return 0

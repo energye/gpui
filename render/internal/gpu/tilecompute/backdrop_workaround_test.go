@@ -1,10 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package tilecompute
 
 import (
 	"testing"
 )
 
-// TestBackdropNestedVsFlat compares the nested for-loop pattern (Rust Vello original)
+// TestBackdropNestedVsFlat compares the nested for-loop pattern
 // with our flat loop workaround. Both should produce identical results.
 // If they do, removing the workaround is safe (at least at the algorithm level).
 func TestBackdropNestedVsFlat(t *testing.T) {
@@ -55,7 +65,7 @@ func TestBackdropNestedVsFlat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Run nested loop (Rust Vello pattern)
+			// Run nested loop
 			nested := make([]int32, len(tt.initial))
 			copy(nested, tt.initial)
 			backdropNested(nested, tt.bboxW, tt.bboxH)
@@ -75,7 +85,6 @@ func TestBackdropNestedVsFlat(t *testing.T) {
 	}
 }
 
-// backdropNested is the Rust Vello original pattern (nested for-loops).
 func backdropNested(tiles []int32, bboxW, bboxH int) {
 	for y := 0; y < bboxH; y++ {
 		sum := int32(0)

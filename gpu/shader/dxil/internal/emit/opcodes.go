@@ -1,18 +1,25 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package emit implements naga IR to DXIL module lowering.
 //
 // This package translates naga IR types, expressions, and statements into
 // DXIL module constructs (LLVM 3.7 IR with dx.op intrinsics). The output
 // is a module.Module that can be serialized to bitcode and wrapped in a
 // DXBC container.
-//
-// Reference: Mesa's src/microsoft/compiler/nir_to_dxil.c
 package emit
 
 // DXILOpcode represents a dx.op intrinsic opcode number.
 type DXILOpcode uint32
 
 // dx.op opcode values from the DXIL specification.
-// Reference: DXC's hctdb.py and DxilConstants.h
 const (
 	// I/O operations.
 	OpLoadInput   DXILOpcode = 4
@@ -188,7 +195,6 @@ const (
 )
 
 // DXILAtomicOp represents the atomic operation kind for dx.op.atomicBinOp.
-// Reference: Mesa nir_to_dxil.c enum dxil_atomic_op (line ~399)
 type DXILAtomicOp uint32
 
 const (
@@ -205,7 +211,6 @@ const (
 
 // DXILBarrierMode represents DXIL barrier mode flags.
 // These can be combined with bitwise OR.
-// Reference: Mesa nir_to_dxil.c emit_barrier_impl() (line ~3082)
 type DXILBarrierMode uint32
 
 const (
@@ -222,8 +227,6 @@ type BinOpKind uint32
 // LLVM 3.7 bitcode binary operation codes.
 // In LLVM bitcode, int and float ops share the same opcode.
 // The reader distinguishes float vs int by the operand type.
-// Reference: LLVM BitcodeReader.cpp getDecodedBinaryOpcode()
-// Reference: Mesa dxil_module.h enum dxil_bin_opcode
 const (
 	BinOpAdd  BinOpKind = 0  // add (int) / fadd (float)
 	BinOpFAdd BinOpKind = 0  // same as Add — float add uses opcode 0 with float operands
@@ -301,7 +304,6 @@ const (
 
 // AtomicRMWOp represents LLVM atomicrmw operation codes.
 // Used in FUNC_CODE_INST_ATOMICRMW record.
-// Reference: LLVM LLVMAtomicRMWBinOp enum, LLVM BitcodeReader.cpp
 type AtomicRMWOp uint32
 
 const (
@@ -319,7 +321,6 @@ const (
 )
 
 // DXILWaveOp represents the operation kind for dx.op.waveActiveOp / dx.op.wavePrefixOp.
-// Reference: DXC DXIL.rst WaveActiveOp/WavePrefixOp
 type DXILWaveOp uint32
 
 const (

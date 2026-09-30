@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -35,8 +45,6 @@ func m5ShapeFile(t *testing.T, wordlist string, fontPaths []string) Face {
 	return src.Face(16)
 }
 
-// TestShapeKhmer_M5 / TestShapeTibetan_M5 close the M5-3 gap: the only two
-// scripts without wordlist coverage shape to non-empty glyph sequences.
 func TestShapeKhmer_M5(t *testing.T) {
 	face := m5ShapeFile(t, "hint/testdata/khmer_all.txt", []string{
 		"/usr/share/fonts/truetype/ttf-khmeros-core/KhmerOS.ttf",

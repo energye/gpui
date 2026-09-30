@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder
 
 import (
@@ -18,7 +28,7 @@ import (
 	"github.com/energye/gpui/ui/scheduler"
 )
 
-// PipelineOptions configures a demand-driven tree present loop (P3).
+// PipelineOptions configures a demand-driven tree present loop.
 type PipelineOptions struct {
 	ClearR, ClearG, ClearB, ClearA float64
 	// MaxFrames / RunFor stop conditions.
@@ -26,7 +36,7 @@ type PipelineOptions struct {
 	RunFor    time.Duration
 	// OnEvent optional.
 	OnEvent func(ev platform.Event)
-	// Input is the optional unified event router (plan §4). When set,
+	// When set,
 	// pointer/key events are normalized and routed automatically via the
 	// router; the per-example OnEvent input handling is not needed. Windows
 	// without Input keep the existing OnEvent path unchanged.
@@ -43,7 +53,7 @@ type PipelineOptions struct {
 	// Overlay is the optional F13 overlay stack (P5d). Hit-test is overlay-first.
 	Overlay *overlay.State
 	// SaveLayerMaxOps / SaveLayerMaxArea configure the per-frame SaveLayerBudget
-	// (F16, W2 R18). 0 = unlimited. Rejections are counted in savelayer_reject.
+	// . 0 = unlimited. Rejections are counted in savelayer_reject.
 	SaveLayerMaxOps  int
 	SaveLayerMaxArea float64
 	// SnapshotPath (optional) saves a GPU readback PNG of the final frame
@@ -56,7 +66,7 @@ type PipelineOptions struct {
 type boundaryFrameSnap struct {
 	Rerecord int64
 	Skip     int64
-	// Shell partitioning (W2 R21): shell-tagged boundaries counted separately.
+	// Shell partitioning: shell-tagged boundaries counted separately.
 	ShellRerecord int64
 	ShellSkip     int64
 }
@@ -65,7 +75,7 @@ type boundaryFrameSnap struct {
 var lastBoundaryFrame atomic.Value // stores boundaryFrameSnap
 
 // lastFiltersApplied publishes the per-frame filter layer count from the
-// textured composite (raster thread) for metrics pickup (R20).
+// textured composite (raster thread) for metrics pickup.
 var lastFiltersApplied atomic.Int64
 
 // resizeCalmWindow: after this long without a resize event the swapchain
@@ -75,7 +85,7 @@ const resizeCalmWindow = 200 * time.Millisecond
 // PipelineApp runs layout/paint → FramePacket → async raster present.
 // Steady-state submits never block the UI (SubmitLatest coalesces); open,
 // close, snapshot, warm-up and surface teardown synchronize with the raster
-// thread by design (R4: "never blocks" covers the submit path only).
+// thread by design.
 type PipelineApp struct {
 	host  platform.Host
 	sched *scheduler.FrameScheduler
@@ -94,7 +104,7 @@ type PipelineApp struct {
 	// on raster, read on UI via LastRasterStats — guarded, never bare).
 	lastStatsMu sync.Mutex
 	lastStats   scene.RasterStats
-	// layoutFrames counts flushes that actually laid out (for S2 gate).
+	// layoutFrames counts flushes that actually laid out.
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
 	// A counter (not bool): a swapchain rebuild (resize) leaves every buffer
@@ -107,7 +117,7 @@ type PipelineApp struct {
 	// loop stops rendering (Flutter lifecycle paused → stop frames);
 	// a visible-again event resumes scheduling. Minimized (iconified)
 	// latches separately below: X11 reports it via StateChanged, not
-	// VisibilityNotify, but the stop/resume policy is identical (R17).
+	// VisibilityNotify, but the stop/resume policy is identical.
 	occluded atomic.Bool
 	// minimized latches the StateChanged minimized bit (user iconify).
 	// Kept apart from occluded so an unrelated StateChanged (e.g. a
@@ -145,10 +155,10 @@ type PipelineApp struct {
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
 	debugRepaintDraws atomic.Int64
 	// useRetained: steady frames use CompositeOnly paint + PresentWithAuto damage
-	// (W2 R4). Warm-up/resize still full-paint. Default true = retained (W6).
+	// . Warm-up/resize still full-paint. Default true = retained.
 	useRetained atomic.Bool
 
-	// saveStats / saveBudget wire SaveLayer budget accounting (W2 R18):
+	// saveStats / saveBudget wire SaveLayer budget accounting:
 	// saveStats accumulates allow/reject outcomes; saveBudget (nil = unlimited)
 	// is reset every paint frame and injected into the paint PaintContext.
 	saveStats  *rendering.SaveLayerStats
@@ -163,7 +173,6 @@ type PipelineApp struct {
 	// on the raster thread; only touched by serialized FrameJobs.
 	pictureTex *scene.PictureTextureCache
 
-	// W2 damage / dirty-layer accumulators (steady presents).
 	damageMu        sync.Mutex
 	damageSumArea   int64
 	damageMaxArea   int64
@@ -173,7 +182,6 @@ type PipelineApp struct {
 	maxDirtyIDCount int
 	lastPresentMode string
 	// lastPresentModeAtNs timestamps the last REAL (non-idle) mode above
-	// (R3-6 age companion to scheduler's present_mode_age_s).
 	lastPresentModeAtNs int64
 
 	// R16 H-family first-present observation: wall start of Open; recorded once
@@ -182,13 +190,10 @@ type PipelineApp struct {
 	firstPresentRecorded atomic.Bool
 
 	// cacheInvalidations counts programmatic boundary-cache invalidations
-	// issued via InvalidateBoundaryCache (R11 cache_invalidations metric).
+	// issued via InvalidateBoundaryCache.
 	cacheInvalidations atomic.Int64
 
-	// snapshotQueue holds snapshot closures from the UI thread, drained at the
-	// END of the next raster job — serialized with presents so readback never
-	// races the frame that owns the context/swapchain (§2.7/U21 pixel
-	// assertions). UI side waits on each request's done channel.
+	// UI side waits on each request's done channel.
 	snapshotMu    sync.Mutex
 	snapshotQueue []func()
 
@@ -237,9 +242,7 @@ func (a *PipelineApp) DebugRepaintDraws() int64 {
 // waits for it. The raster thread owns the render context and swapchain, so
 // GPU readback (context.Image / SavePNG) must execute there — calling it from
 // the UI thread races the present that owns the texture and aborts wgpu
-// ("invalid texture for image copy texture"). This is the safe §2.7/U21
-// pixel-sampling path: deterministic frame point (the next presented frame),
-// serialized with the present.
+// ("invalid texture for image copy texture").
 func (a *PipelineApp) SnapshotAsync(fn func()) {
 	if a == nil || fn == nil {
 		return
@@ -289,7 +292,7 @@ func (a *PipelineApp) drainSnapshots() {
 
 // SetPresentPolicy sets window present strategy and metrics present_policy.
 // Use scheduler.PresentPolicyFullPaint for correctness windows that need a
-// full tree repaint every frame (R0/C0/R16/...). Default is retained since W6.
+// full tree repaint every frame.
 func (a *PipelineApp) SetPresentPolicy(policy string) {
 	if a == nil || policy == "" {
 		return
@@ -420,7 +423,7 @@ func LastBoundaryFrame() (rerecord, skip int64) {
 }
 
 // LastShellBoundaryFrame returns the last frame's shell-tagged boundary
-// skip/rerecord (W2 R21). A scrolling body must keep the shell rerecord at 0.
+// skip/rerecord. A scrolling body must keep the shell rerecord at 0.
 func LastShellBoundaryFrame() (shellRerecord, shellSkip int64) {
 	v := lastBoundaryFrame.Load()
 	if v == nil {
@@ -434,7 +437,7 @@ func LastShellBoundaryFrame() (shellRerecord, shellSkip int64) {
 }
 
 // lastOverlayBandSnap is the last frame's band-separated dirty observation
-// (R8): main-band dirty id count vs overlay-band dirty id count. The main
+// : main-band dirty id count vs overlay-band dirty id count. The main
 // count is taken from the packet BEFORE overlay ids are merged in, so an
 // overlay open/close must leave it at its pre-overlay level.
 type overlayBandSnap struct {
@@ -539,8 +542,6 @@ func (a *PipelineApp) SetOverlay(st *overlay.State) {
 }
 
 // NewPipelineApp builds a tree-driven app. Call Open then Run.
-// W6 default present policy is retained (steady frames composite only dirty
-// paths + damage present; warm-up/resize still full-paint).
 func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts PipelineOptions) *PipelineApp {
 	if opts.ClearA == 0 && opts.ClearR == 0 && opts.ClearG == 0 && opts.ClearB == 0 {
 		opts.ClearR, opts.ClearG, opts.ClearB, opts.ClearA = 0.10, 0.12, 0.16, 1
@@ -555,7 +556,7 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		root:  root,
 		opts:  opts,
 	}
-	app.useRetained.Store(true) // W6 default: retained steady frames
+	app.useRetained.Store(true)
 	app.saveStats = &rendering.SaveLayerStats{}
 	if opts.SaveLayerMaxOps > 0 || opts.SaveLayerMaxArea > 0 {
 		app.saveBudget = &rendering.SaveLayerBudget{
@@ -563,7 +564,6 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 			MaxArea: opts.SaveLayerMaxArea,
 		}
 	}
-	// Wire the unified input router to this app's hit-test (plan §4).
 	if opts.Input != nil {
 		opts.Input.SetHitTest(app.HitTestPointer)
 		if opts.IME != nil {
@@ -646,7 +646,7 @@ func (a *PipelineApp) SetInputRouter(r *InputRouter) {
 	a.input = r
 }
 
-// SaveLayerStats returns the cumulative SaveLayer allow/reject outcomes (W2 R18).
+// SaveLayerStats returns the cumulative SaveLayer allow/reject outcomes.
 func (a *PipelineApp) SaveLayerStats() (allow, reject int64) {
 	if a == nil || a.saveStats == nil {
 		return 0, 0
@@ -655,7 +655,7 @@ func (a *PipelineApp) SaveLayerStats() (allow, reject int64) {
 }
 
 // Occluded reports the fully-obscured latch (VisibilityNotify / Wayland
-// suspended). While true the frame loop produces no frames (R17 stop).
+// suspended). While true the frame loop produces no frames.
 func (a *PipelineApp) Occluded() bool {
 	if a == nil {
 		return false
@@ -664,7 +664,7 @@ func (a *PipelineApp) Occluded() bool {
 }
 
 // Minimized reports the iconified latch (StateChanged minimized bit).
-// While true the frame loop produces no frames, like Occluded (R17 stop).
+// While true the frame loop produces no frames, like Occluded.
 func (a *PipelineApp) Minimized() bool {
 	if a == nil {
 		return false
@@ -688,10 +688,8 @@ func (a *PipelineApp) Pipeline() *rendering.PipelineOwner {
 	return a.pipe
 }
 
-// Target returns the present target (nil before Open). Pixel-verification
-// windows (§2.7/U21) use Target().Context().Image() to sample the composited
-// frame at deterministic phase points — the same readback path SavePNG uses.
-// RASTER THREAD ONLY (R4): render.Context is raster-exclusive and Image()
+// Target returns the present target (nil before Open).
+// RASTER THREAD ONLY: render.Context is raster-exclusive and Image()
 // flushes + reads back GPU state. UI-thread callers must go through
 // SnapshotAsync (or another raster-side hook); sampling the dc off raster
 // races the present it observes.
@@ -808,7 +806,7 @@ func (a *PipelineApp) InputLatencyFrames() int64 {
 // frame path always clones (consecutive frames never share mutable ops/area);
 // the two synchronous paths (SnapshotPath, presentSyncFull warm-up) pass the
 // template itself and Reset it — serialized with everything else there, so no
-// race, but "never mutated" holds for the frame path only (R4).
+// race, but "never mutated" holds for the frame path only.
 func cloneFrameBudget(shared *rendering.SaveLayerBudget) *rendering.SaveLayerBudget {
 	if shared == nil {
 		return nil
@@ -903,7 +901,7 @@ func (a *PipelineApp) seedRefreshFromHost() bool {
 	return true
 }
 
-// handleLifecycle serves the unified window-lifecycle trio (S6-P0 step 4):
+// handleLifecycle serves the unified window-lifecycle trio:
 // occlusion stops/resumes frame demand, hide parks (or reopens) the native
 // surface stack, frame notices feed pacing. It reports whether the event was
 // consumed; the pump loop only routes the trio here.
@@ -914,7 +912,6 @@ func (a *PipelineApp) handleLifecycle(in input.Event) bool {
 	switch in.Kind {
 	case input.KindOccluded:
 		// Window fully obscured → stop rendering
-		// (Flutter lifecycle paused / Chrome hidden → no frames);
 		// visible again → resume. Minimized is tracked separately
 		// (KindStateChanged below) so the two stops never clear
 		// each other.
@@ -927,7 +924,7 @@ func (a *PipelineApp) handleLifecycle(in input.Event) bool {
 		return true
 	case input.KindStateChanged:
 		// User iconify/restore (X11 WM_STATE via PropertyNotify):
-		// minimized stops rendering like occlusion (R17); restore
+		// minimized stops rendering like occlusion; restore
 		// resumes. Transition-guarded so an unrelated StateChanged
 		// (maximize/fullscreen) raises no spurious demand.
 		if was := a.minimized.Swap(in.State.Minimized); in.State.Minimized != was {
@@ -939,10 +936,7 @@ func (a *PipelineApp) handleLifecycle(in input.Event) bool {
 		}
 		return true
 	case input.KindHidden:
-		// App-driven Hide/Show (Wayland §6.2): hide parks the render
-		// loop, closes the GPU present target (wgpu WSI surface) and
-		// then destroys the platform surface stack — the window truly
-		// unmaps (xdg has no unmap request; GTK4 parity). Show
+		// unmaps. Show
 		// re-creates the stack on the platform side first; this event
 		// is delivered only after the new surface is re-mapped, so
 		// Open() below recreates the present target against the NEW
@@ -973,11 +967,6 @@ func (a *PipelineApp) handleLifecycle(in input.Event) bool {
 	}
 }
 
-// parkNativeSurface implements the hide side of the Wayland hide/show cycle
-// (§6.2): wait for the raster thread to drain in-flight presents, close the
-// GPU present target (releases the wgpu WSI surface), then destroy the
-// platform surface stack via HiddenSurface — the wl_surface is only destroyed
-// once no GPU work references it (a detach/present race would hang Present).
 // Called on the event thread from the unified Hidden branch.
 func (a *PipelineApp) parkNativeSurface() {
 	if a.loop != nil {
@@ -1083,9 +1072,6 @@ func (a *PipelineApp) Run() error {
 		// update the scheduler baseline. Unknown (0) keeps the last good.
 		a.refreshSeeded = a.seedRefreshFromHost() || a.refreshSeeded
 		for _, ev := range evs {
-			// Unified input routing (plan §4): when an InputRouter is
-			// attached, normalized events are dispatched by the framework;
-			// per-example OnEvent input handling is skipped for routed types.
 			// Resize/Expose/ResizeSync keep raw handling below (relayout and
 			// frame scheduling); the rest goes through the router (dedicated
 			// paths for pointer/key/text/IME, OnEvent observer for window
@@ -1098,7 +1084,7 @@ func (a *PipelineApp) Run() error {
 				ev.Type == platform.EventDeviceAdded || ev.Type == platform.EventDeviceRemoved ||
 				ev.Type == platform.EventStylus || ev.Type == platform.EventModifiersChanged) {
 				// Minimized must still reach the lifecycle latch even when
-				// the router owns the event (R17): the router forwards to
+				// the router owns the event: the router forwards to
 				// observers, the latch stops/resumes frame demand.
 				if ev.Type == platform.EventStateChanged {
 					a.handleLifecycle(input.FromPlatform(ev, input.Modifiers{}))
@@ -1118,10 +1104,8 @@ func (a *PipelineApp) Run() error {
 				a.quit.Store(true)
 				continue
 			}
-			// S6-P0 lifecycle cutover: occlusion/hide/frame notices dispatch
-			// on the normalized event; handleLifecycle reads unified fields.
 			// Forwarded to the router as well so OnEvent observers see them.
-			// StateChanged joins the trio for the minimized latch (R17).
+			// StateChanged joins the trio for the minimized latch.
 			if unified := input.FromPlatform(ev, input.Modifiers{}); unified.Kind == input.KindOccluded ||
 				unified.Kind == input.KindHidden || unified.Kind == input.KindFramePresented ||
 				unified.Kind == input.KindStateChanged {
@@ -1281,9 +1265,9 @@ func (a *PipelineApp) Run() error {
 			a.loop.AssertUIThread()
 		}
 
-		// Layout only if dirty (S2: spinner phase must not layout).
+		// Layout only if dirty.
 		// Apply a deferred resize at the frame boundary, exactly once per
-		// frame (Flutter/Skia model): the drag storm only records the latest
+		// frame: the drag storm only records the latest
 		// size; the actual relayout happens here so event processing never
 		// monopolizes the loop and rendering keeps its pace during the drag.
 		// The size used is the CURRENT host size — the same size the content
@@ -1393,8 +1377,8 @@ func (a *PipelineApp) Run() error {
 		ov := a.opts.Overlay
 		clearR, clearG, clearB, clearA := a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA
 		// Steady frames: force=false → PresentWithAuto.
-		// full_paint (W0 default): full tree paint every frame (GPU Clear safe).
-		// retained (W2): CompositeOnly paint — only dirty paths; LoadOpLoad keeps static.
+		// full_paint: full tree paint every frame (GPU Clear safe).
+		// retained: CompositeOnly paint — only dirty paths; LoadOpLoad keeps static.
 		// Warm-up / resize / open: force=true → full clear + full paint.
 		// Decrement per frame so the owed full presents land on consecutive
 		// frames, one per swapchain buffer.
@@ -1404,8 +1388,6 @@ func (a *PipelineApp) Run() error {
 			force = true
 		}
 		metrics := a.sched.Metrics()
-		// Keep policy visible; default retained since W6 (correctness windows
-		// pin full_paint explicitly via SetPresentPolicy).
 		if metrics != nil && metrics.PresentPolicy() == "" {
 			metrics.SetPresentPolicy(scheduler.PresentPolicyRetained)
 		}
@@ -1513,23 +1495,17 @@ func (a *PipelineApp) Run() error {
 					// Boundary/shell/save-stats accumulation does not depend on a
 					// resolved PresentTarget: bootstrap warm-up frames paint into
 					// the surface but may not have issued a present yet. Sampling
-					// here keeps the very first cold shell record (R21) honest.
+					// here keeps the very first cold shell record honest.
 					rr, sk := LastBoundaryFrame()
 					metrics.NoteBoundaryFrame(rr, sk)
 					srr, ssk := LastShellBoundaryFrame()
 					metrics.NoteShellBoundaryFrame(srr, ssk)
-					// W3 R7/R7b: virtual-list bind window + cumulative scroll
-					// fresh-mount total (zero until a VirtualList has bound).
 					if bind, items := rendering.LastVirtualBind(); bind > 0 || items > 0 {
 						metrics.SetVirtualBind(bind, items)
 					}
 					metrics.SetScrollRerecord(rendering.ScrollRerecordTotal())
-					// W6 R14: cache budget observability (combined entries +
-					// cumulative evictions of both layer caches).
 					metrics.SetCacheBudget(a.cacheEntryCount(), a.cacheEvictions())
 					metrics.SetBudgetRefusals(a.cacheBudgetRefusals())
-					// W2 R18: accumulate SaveLayer budget outcomes this frame
-					// (per-frame delta of the cumulative stats).
 					if a.saveStats != nil {
 						al, rj := a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
 						metrics.NoteSaveLayer(al-a.lastSaveAllow, rj-a.lastSaveReject)
@@ -1552,8 +1528,6 @@ func (a *PipelineApp) Run() error {
 						metrics.NoteGPUPathStats(st.GPUOps, st.CPUFallbackOps, st.FrameFlushes, st.LastCPUFallbackReason)
 					}
 				}
-				// End of job: run any §2.7 snapshot requests — after present completed, so
-				// readback sees this frame's composited pixels and cannot race the swapchain.
 				a.drainSnapshots()
 				// T2 G10/G12/D5: close raster stamps, run EndFrame hooks on
 				// raster, then publish the D5 completion receipt (G9 channel)
@@ -1644,13 +1618,12 @@ func (a *PipelineApp) Run() error {
 
 // PaintPresentTree draws the RO tree into dc for window/GPU present.
 //
-//	force=true  → full-surface clear + full tree paint; MarkFullRedraw (bootstrap/resize).
+//	force=true → full-surface clear + full tree paint; MarkFullRedraw (bootstrap/resize).
 //	force=false → no UI-side full clear; still **full tree paint** (CompositeOnly=false).
 //
 // Steady retained frames go through PaintPresentTreeCompositeOnly +
 // PresentWithAuto damage (LoadOpLoad keeps clean pixels); force frames use the
 // full path. Partial CompositeOnly without damage present (GPU full Clear) is
-// prohibited (§2.1 U11): CompositeOnly must pair with PresentWithAuto.
 //
 // Layer-tree Present walk: scene.CompositeToContext / PaintPresentLayerTree.
 func PaintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) {
@@ -1668,11 +1641,11 @@ func PaintPresentTreeCompositeOnly(dc *render.Context, pipe *rendering.PipelineO
 // paintPresentTreeOpts optional flags from PipelineApp (debug repaint / retained).
 type paintPresentTreeOpts struct {
 	debugRepaint  bool
-	debugDraws    *int64                     // optional: accumulate debug repaint draws (R12b)
-	paintVisits   *int64                     // per-frame node visits (R2); nil = no count
-	compositeOnly bool                       // W2 retained steady: skip clean boundaries (LoadOpLoad keeps pixels)
-	layerStats    *rendering.SaveLayerStats  // W2 R18: allow/reject outcomes
-	layerBudget   *rendering.SaveLayerBudget // W2 R18: per-frame SaveLayer limit (nil = unlimited)
+	debugDraws    *int64 // optional: accumulate debug repaint draws (R12b)
+	paintVisits   *int64 // per-frame node visits; nil = no count
+	compositeOnly bool
+	layerStats    *rendering.SaveLayerStats
+	layerBudget   *rendering.SaveLayerBudget
 }
 
 func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force, compositeOnly bool) {
@@ -1690,13 +1663,12 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 		dc.MarkFullRedraw()
 	}
 	pc := rendering.NewPaintContext(dc, dc.DeviceScale())
-	// W2 R18: per-frame SaveLayer budget + allow/reject outcome counting.
 	if opts.layerBudget != nil {
 		opts.layerBudget.Reset()
 	}
 	pc.LayerBudget = opts.layerBudget
 	pc.LayerStats = opts.layerStats
-	// W1: reuse PipelineOwner's long-lived Picture cache so clean boundaries
+	// reuse PipelineOwner's long-lived Picture cache so clean boundaries
 	// skip re-record across frames (Replay still draws — GPU Clear safe).
 	cache := pipe.BoundaryCache()
 	if cache == nil {
@@ -1755,8 +1727,6 @@ func DamageAreaLogical(dc *render.Context) int64 {
 	return int64(u.Dx()) * int64(u.Dy())
 }
 
-// presentPacketTextured is the W2 R4 retained steady-frame present: composite
-// the already-built FramePacket via cached layer textures (blit-only frame →
 // GPU LoadOpLoad + per-rect scissor) instead of live FlushPaint. Dirty layer
 // bounds become TrackDamageRect entries so PresentWithAuto reports a damage
 // plan (damage_union / damage_multi) far smaller than the surface.
@@ -1804,7 +1774,7 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 			d.TrackDamageRect(r)
 		}
 		// Boundary metrics: texture re-record = rerecord, cached blit = skip.
-		// Shell partitioning (R21): shell-tagged BoundaryLayers report their
+		// Shell partitioning: shell-tagged BoundaryLayers report their
 		// skip/rerecord via TexturedStats so a scrolling body proves the
 		// shell textures never re-record under the retained path too.
 		lastBoundaryFrame.Store(boundaryFrameSnap{
@@ -1868,8 +1838,6 @@ func (a *PipelineApp) presentSyncFull() {
 			m.SetVirtualBind(bind, items)
 		}
 		m.SetScrollRerecord(rendering.ScrollRerecordTotal())
-		// W6 R14: cache budget observability (same-source sample as the
-		// retained frame path above).
 		m.SetCacheBudget(a.cacheEntryCount(), a.cacheEvictions())
 		m.SetBudgetRefusals(a.cacheBudgetRefusals())
 		if a.saveStats != nil {
@@ -1883,7 +1851,7 @@ func (a *PipelineApp) presentSyncFull() {
 }
 
 // recordFirstPresent publishes the H-family first-present observation exactly
-// once (R16): wall ms from Open, whether the warm-up full paint ran, and the
+// once: wall ms from Open, whether the warm-up full paint ran, and the
 // pipe paint count at that moment (>0 = first frame has content). The first
 // caller wins; later frames are ignored.
 func (a *PipelineApp) recordFirstPresent() {
@@ -1911,7 +1879,7 @@ func (a *PipelineApp) HitTestPointer(x, y float64) (overlay.Band, rendering.Rend
 	return overlay.HitTestStack(a.root, a.opts.Overlay, rendering.Point{X: x, Y: y})
 }
 
-// InvalidateBoundaryCache drops all Picture-backed boundary caches (R11).
+// InvalidateBoundaryCache drops all Picture-backed boundary caches.
 // Call after programmatic size/DPR changes that do not go through EventResize.
 func (a *PipelineApp) InvalidateBoundaryCache() {
 	if a == nil || a.pipe == nil {
@@ -1932,7 +1900,7 @@ func (a *PipelineApp) InvalidateBoundaryCache() {
 }
 
 // CacheInvalidations returns the cumulative number of programmatic
-// boundary-cache invalidations (R11 cache_invalidations metric).
+// boundary-cache invalidations.
 func (a *PipelineApp) CacheInvalidations() int64 {
 	if a == nil {
 		return 0

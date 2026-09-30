@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -221,7 +228,6 @@ func TestMatrixToGLSL(t *testing.T) {
 		matrix ir.MatrixType
 		want   string
 	}{
-		// Rust naga always uses matCxR form, never shorthand matN
 		{ir.MatrixType{Columns: 2, Rows: 2, Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}}, "mat2x2"},
 		{ir.MatrixType{Columns: 3, Rows: 3, Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}}, "mat3x3"},
 		{ir.MatrixType{Columns: 4, Rows: 4, Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}}, "mat4x4"},
@@ -905,10 +911,6 @@ func minInt(a, b int) int {
 	return b
 }
 
-// ---------------------------------------------------------------------------
-// Namer Tests — matches Rust naga's Namer behavior
-// ---------------------------------------------------------------------------
-
 func TestNamer_BasicNames(t *testing.T) {
 	n := newNamer()
 
@@ -1349,7 +1351,6 @@ func TestFormatLiteral_F64NoDoubleSuffix(t *testing.T) {
 }
 
 func TestSanitizeName_TemplateChars(t *testing.T) {
-	// <>,: should become underscores, matching Rust naga
 	tests := []struct {
 		input string
 		want  string

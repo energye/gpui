@@ -1,24 +1,34 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import "github.com/energye/gpui/ui/imeutil"
 
 type TextEditingDelta struct {
-	OldText     string
-	DeltaText   string
-	DeltaStart  int // -1 for NonTextUpdate
-	DeltaEnd    int
-	Selection   TextRange
-	Composing   TextRange
-	Affinity    int
+	OldText    string
+	DeltaText  string
+	DeltaStart int // -1 for NonTextUpdate
+	DeltaEnd   int
+	Selection  TextRange
+	Composing  TextRange
+	Affinity   int
 }
 
 func (d TextEditingDelta) IsNonTextUpdate() bool { return d.DeltaStart == -1 }
 
 type TextInputConfiguration struct {
-	InputType         string
-	InputAction       string
-	EnableDeltaModel  bool
-	AutofillHints     []string
+	InputType        string
+	InputAction      string
+	EnableDeltaModel bool
+	AutofillHints    []string
 }
 
 // ToDelta computes delta from old state to current Editor state.
@@ -61,13 +71,13 @@ func (e *Editor) ToDelta(oldText string, oldSel, oldComp TextRange) TextEditingD
 	deltaEnd := toU16(oldText, jOld)
 	deltaText := string(newRunes[i:jNew])
 	return TextEditingDelta{
-		OldText:   oldText,
-		DeltaText: deltaText,
+		OldText:    oldText,
+		DeltaText:  deltaText,
 		DeltaStart: deltaStart,
 		DeltaEnd:   deltaEnd,
-		Selection: e.selection,
-		Composing: e.composingRange,
-		Affinity:  e.selection.Affinity,
+		Selection:  e.selection,
+		Composing:  e.composingRange,
+		Affinity:   e.selection.Affinity,
 	}
 }
 
@@ -76,7 +86,6 @@ func (e *Editor) ApplyDelta(d TextEditingDelta) bool {
 		return false
 	}
 	if d.IsNonTextUpdate() {
-		// §6.3 IsNonTextUpdate 要求 OldText==text 且 deltaText==""
 		if d.OldText != e.text {
 			return false
 		}
@@ -89,7 +98,6 @@ func (e *Editor) ApplyDelta(d TextEditingDelta) bool {
 		e.lastFrameworkComp = e.composingRange
 		return true
 	}
-	// §6.3 last-write-wins：以 OldText 为基底计算，不发明 e.text 范围
 	startByte := byteOffsetForUtf16(d.OldText, d.DeltaStart)
 	endByte := byteOffsetForUtf16(d.OldText, d.DeltaEnd)
 	if startByte < 0 {

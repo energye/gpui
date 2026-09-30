@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package bitcheck
 
 import (
@@ -167,8 +177,7 @@ func TestCheck_MalformedTruncatedBitcode(t *testing.T) {
 	}
 }
 
-// TestCheck_NagaFixture runs Check against the first-ever S_OK naga
-// output. It must return nil.
+// It must return nil.
 func TestCheck_NagaFixture(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "tmp", "min1_final.dxil")
 	data, err := os.ReadFile(path)
@@ -185,8 +194,7 @@ func TestCheck_NagaFixture(t *testing.T) {
 // dxc.exe output for a trivial triangle VS + FS (see tmp/gogpu_triangle.hlsl)
 // and exercise the dual-METADATA_BLOCK layout that DXC emits:
 // one named-metadata block followed by an empty function-attachment
-// block. The pre-BUG-DXIL-024 walker would incorrectly surface the
-// second (empty) block's missing dx.entryPoints as a bitcheck failure.
+// block.
 func TestCheck_GoldenDXCBlobs(t *testing.T) {
 	tests := []struct {
 		name, path string

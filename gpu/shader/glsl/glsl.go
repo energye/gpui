@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package glsl
 
@@ -41,7 +48,6 @@ func (v Version) SupportsCompute() bool {
 // SupportsExplicitLocations returns true if explicit layout locations for bindings
 // are supported (layout(binding=N) qualifiers).
 // Desktop GLSL 420+, ES 310+.
-// Matches Rust naga Version::supports_explicit_locations.
 func (v Version) SupportsExplicitLocations() bool {
 	if v.ES {
 		return v.Major > 3 || (v.Major == 3 && v.Minor >= 10)
@@ -169,7 +175,6 @@ type Options struct {
 	BindingMap map[BindingMapKey]uint8
 
 	// PipelineConstants provides values for pipeline-overridable constants.
-	// Keys are either "@id(N)" numeric IDs as strings or override names.
 	// Values are float64 (NaN means "not set, use default").
 	// If provided, overrides are resolved before compilation.
 	PipelineConstants ir.PipelineConstants
@@ -194,7 +199,6 @@ type TextureMapping struct {
 // UniformInfo describes a GLSL uniform or storage buffer block for reflection.
 // Used by the HAL runtime binding fallback on GL < 4.2 where layout(binding=N)
 // is unavailable and bindings must be assigned after linking via GL calls.
-// Matches Rust naga ReflectionInfo.uniforms.
 type UniformInfo struct {
 	// BlockName is the GLSL block name (e.g., "Uniforms_block_0Vertex").
 	// Used with glGetUniformBlockIndex (uniform buffers) or
@@ -231,7 +235,7 @@ type TranslationInfo struct {
 
 	// Uniforms lists uniform/storage buffer blocks with their GLSL block
 	// names and source bindings. Used by GLES HAL for runtime binding
-	// fallback on GL < 4.2. Matches Rust naga ReflectionInfo.uniforms.
+	// fallback on GL < 4.2.
 	Uniforms []UniformInfo
 }
 

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -28,7 +38,7 @@ import (
 // window, so you can attach a GPU frame debugger to the test binary.
 //
 // To capture a Metal frame on macOS:
-//  1. Build the test binary:  go test -c ./internal/gpu/ -o gmrepro.test
+//  1. Build the test binary: go test -c ./internal/gpu/ -o gmrepro.test
 //  2. In Xcode: Debug > Capture GPU Frame while running ./gmrepro.test
 //     (or use xcrun / the Metal HUD). Inspect the glyph-mask DrawIndexed
 //     calls: bound pipeline, vertex/index buffers, the R8 atlas texture
@@ -71,8 +81,6 @@ func TestGlyphMaskGPURepro(t *testing.T) {
 	if err := engine.SyncAtlasTextures(device, queue); err != nil {
 		t.Fatalf("SyncAtlasTextures: %v", err)
 	}
-	// Clip layout BEFORE the glyph-mask pipeline so the pipeline layout includes
-	// @group(1) (idempotent; matches the live app's ordering).
 	if err := session.ensureClipBindLayout(); err != nil {
 		t.Fatalf("ensureClipBindLayout: %v", err)
 	}

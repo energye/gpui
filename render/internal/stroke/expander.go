@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package stroke provides stroke expansion algorithms for converting stroked paths to filled outlines.
 //
 // This package implements CPU-side stroke expansion following tiny-skia and kurbo patterns.
@@ -342,7 +352,7 @@ func (e *StrokeExpander) startFirstSegment(p0 Point, norm, tan0 Vec2) {
 
 // joinWithPrevious handles joining with the previous segment.
 //
-// The key insight (from Skia/tiny-skia/Cairo) is that the two sides of a join
+// The key insight is that the two sides of a join
 // must be treated asymmetrically:
 //   - Outer (convex) side: receives join decoration (miter/bevel/round)
 //   - Inner (concave) side: routes through the pivot point to prevent self-intersection
@@ -357,8 +367,6 @@ func (e *StrokeExpander) joinWithPrevious(p0 Point, norm, tan0 Vec2) {
 	dot := ab.Dot(cd)
 	hypot := math.Hypot(cross, dot)
 
-	// Skip join if angle change is insignificant (kurbo stroke.rs:428).
-	// Rust kurbo emits nothing here — the paths continue without explicit
 	// connecting segments. The connection happens implicitly from the next
 	// doLine() which adds lineTo for both forward and backward paths.
 	if dot > 0.0 && math.Abs(cross) < hypot*e.joinThresh {
@@ -388,7 +396,7 @@ func (e *StrokeExpander) joinWithPrevious(p0 Point, norm, tan0 Vec2) {
 
 // handleInnerJoin handles the concave (inner) side of a join.
 //
-// Two-step routing (tiny-skia stroker.rs:1370-1379, Skia SkStrokerPriv):
+// Two-step routing:
 //  1. lineTo(pivot) — route through the center to prevent self-intersection
 //  2. lineTo(pivot + afterNorm) — place at correct normal offset for next segment
 //

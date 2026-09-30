@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 // SetMask sets an alpha mask for subsequent drawing operations.
@@ -59,8 +69,6 @@ func (c *Context) syncGPUMaskTexture() {
 // RGB channels are also scaled proportionally (premultiplied alpha).
 // This is a post-processing operation — it modifies existing pixel content,
 // not future draws. Pass nil to no-op.
-//
-// Matches tiny-skia apply_mask() with DestinationIn blend (research §3).
 func (c *Context) ApplyMask(mask *Mask) {
 	if mask == nil {
 		return
@@ -80,25 +88,25 @@ func (c *Context) ApplyMask(mask *Mask) {
 //
 //	// Pattern 1: AsMask before Fill
 //	dc.DrawCircle(50, 50, 30)
-//	mask := dc.AsMask()    // captures the circle path as a mask
-//	dc.Fill()              // fills the circle (clears the path)
+//	mask := dc.AsMask() // captures the circle path as a mask
+//	dc.Fill() // fills the circle (clears the path)
 //
 //	// Pattern 2: FillPreserve + AsMask
 //	dc.DrawCircle(50, 50, 30)
-//	dc.FillPreserve()      // fills but keeps the path
-//	mask := dc.AsMask()    // still has the circle path
+//	dc.FillPreserve() // fills but keeps the path
+//	mask := dc.AsMask() // still has the circle path
 //	dc.ClearPath()
 //
 //	// Pattern 3: Capture rendered output as mask
 //	dc.DrawCircle(50, 50, 30)
-//	dc.Fill()              // path is now cleared
+//	dc.Fill() // path is now cleared
 //	mask := NewMaskFromAlpha(dc.Image()) // capture from rendered pixels
 //
 // Common mistake (returns empty mask):
 //
 //	dc.DrawCircle(50, 50, 30)
-//	dc.Fill()              // clears the path!
-//	mask := dc.AsMask()    // path is empty → mask is all zeros
+//	dc.Fill() // clears the path!
+//	mask := dc.AsMask() // path is empty → mask is all zeros
 func (c *Context) AsMask() *Mask {
 	mask := NewMask(c.Width(), c.Height())
 

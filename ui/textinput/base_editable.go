@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -6,7 +16,6 @@ import (
 )
 
 // BaseEditable 是 F-E0a 的 ≤15 行接入基座，封装 Editor/IMERect/ContentType/DrawPreedit 四件套。
-// 业务控件嵌入它即可拥有占位/禁用/只读等通用逻辑，单测与真窗同源。
 type BaseEditable struct {
 	ed          *Editor
 	placeholder string

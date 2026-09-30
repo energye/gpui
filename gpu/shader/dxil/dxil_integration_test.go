@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package dxil
 
 import (
@@ -12,8 +22,6 @@ import (
 	"github.com/energye/gpui/gpu/shader/ir"
 )
 
-// TestCompile_EmptyVertex tests the simplest possible vertex shader:
-// @vertex fn main() {}
 func TestCompile_EmptyVertex(t *testing.T) {
 	irMod := &ir.Module{
 		Types: []ir.Type{},
@@ -216,9 +224,6 @@ func TestDXC_ManualModuleWithDeclAndCall(t *testing.T) {
 	writeToTmp(t, data, "test_manual_call.dxil")
 }
 
-// TestDXC_MinimalCall tests the absolute simplest call instruction:
-// declare void @foo()
-// define void @main() { call void @foo(); ret void }
 func TestDXC_MinimalCall(t *testing.T) {
 	mod := module.NewModule(module.VertexShader)
 
@@ -545,25 +550,21 @@ func TestDXC_StoreOutputShader(t *testing.T) {
 
 	bb := mainFn.AddBasicBlock("entry")
 
-	// call void @dx.op.storeOutput.f32(i32 5, i32 0, i32 0, i8 0, float 1.0)
 	bb.AddInstruction(&module.Instruction{
 		Kind: module.InstrCall, HasValue: false, ResultType: voidTy,
 		CalledFunc: storeOutFn,
 		Operands:   []int{2, 3, 3, 4, 8}, // opcode, 0, 0, col0, 1.0
 	})
-	// call void @dx.op.storeOutput.f32(i32 5, i32 0, i32 0, i8 1, float 0.0)
 	bb.AddInstruction(&module.Instruction{
 		Kind: module.InstrCall, HasValue: false, ResultType: voidTy,
 		CalledFunc: storeOutFn,
 		Operands:   []int{2, 3, 3, 5, 9}, // opcode, 0, 0, col1, 0.0
 	})
-	// call void @dx.op.storeOutput.f32(i32 5, i32 0, i32 0, i8 2, float 0.0)
 	bb.AddInstruction(&module.Instruction{
 		Kind: module.InstrCall, HasValue: false, ResultType: voidTy,
 		CalledFunc: storeOutFn,
 		Operands:   []int{2, 3, 3, 6, 9}, // opcode, 0, 0, col2, 0.0
 	})
-	// call void @dx.op.storeOutput.f32(i32 5, i32 0, i32 0, i8 3, float 1.0)
 	bb.AddInstruction(&module.Instruction{
 		Kind: module.InstrCall, HasValue: false, ResultType: voidTy,
 		CalledFunc: storeOutFn,

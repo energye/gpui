@@ -1,15 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
-// Golden tests ported from skrifa (Rust fontations) auto-hinter tests.
+// Golden tests ported from skrifa auto-hinter tests.
 // These contain coordinate-exact expected values extracted from FreeType
 // with printf debugging. They serve as the ground truth for correctness.
-//
-// Sources:
-//   - skrifa hint/outline.rs — hinted coordinate and metrics tests
-//   - skrifa topo/segments.rs — segment detection golden data
-//   - skrifa topo/edges.rs — edge detection golden data
-//   - skrifa metrics/blues.rs — blue zone golden data
-//   - skrifa metrics/widths.rs — standard width golden data
 //
 // Coordinate format:
 //   All coordinates are 26.6 fixed-point integers (int32).
@@ -17,8 +20,7 @@ package text
 //
 // Pipeline:
 //   Tests use the contour-based path (ParseGlyfContours → autoHintContourPoints)
-//   which operates on raw TrueType glyf points. This matches FreeType/skrifa
-//   exactly (same N points, same coordinate system).
+//   which operates on raw TrueType glyf points.
 //
 // Hebrew metrics override:
 //   Our computeUnscaledMetrics detects Latin chars. For Hebrew-script golden
@@ -69,8 +71,6 @@ func loadGoldenFontAndData(t *testing.T, filename string) (ParsedFont, []byte) {
 // Our computeUnscaledMetrics detects Latin chars; skrifa detects Hebrew for this font.
 // The hinting algorithm is identical — only the input metrics differ by script.
 //
-// rawScale is the uncorrected px/unit scale: Hebrew blue sets contain no
-// ADJUSTMENT zone (skrifa blues.rs hebrew_long_blues: 3 zones), so the
 // x-height y-scale correction never applies to Hebrew glyphs. Restore the
 // raw scale that scale() may have corrected against the Latin blue set.
 func overrideHebrewMetrics(scaled *scaledStyleMetrics, rawScale float64) {
@@ -177,8 +177,7 @@ func compareWidthSlices(t *testing.T, dimName string, got []int32, want []int32)
 }
 
 // ============================================================
-// 1. Hinted Coordinates — hint/outline.rs
-// ============================================================
+// 1.
 
 // TestGolden_HintedCoords_NotoSerifHebrew_Default tests the primary
 // coordinate-exact golden test from skrifa. Font: NotoSerifHebrew,
@@ -186,8 +185,6 @@ func compareWidthSlices(t *testing.T, dimName string, got []int32, want []int32)
 //
 // Expected coordinates are 26.6 fixed-point integers painfully extracted
 // from FreeType with printf debugging.
-//
-// Source: skrifa hint/outline.rs::hinted_coords_and_metrics_default
 func TestGolden_HintedCoords_NotoSerifHebrew_Default(t *testing.T) {
 	fontData, err := os.ReadFile("testdata/notoserifhebrew_autohint_metrics.ttf")
 	if err != nil {
@@ -250,8 +247,6 @@ func TestGolden_HintedCoords_NotoSerifHebrew_Default(t *testing.T) {
 // TestGolden_HintedCoords_Ahem_24px tests the Ahem font test case from skrifa.
 // Ahem is the Web Platform Tests standard font — a simple block square glyph.
 // This was a specific regression test for https://issues.skia.org/issues/344529168
-//
-// Source: skrifa hint/outline.rs::skia_ahem_test_case
 func TestGolden_HintedCoords_Ahem_24px(t *testing.T) {
 	fontData, err := os.ReadFile("testdata/ahem.ttf")
 	if err != nil {
@@ -301,8 +296,7 @@ func TestGolden_HintedCoords_Ahem_24px(t *testing.T) {
 }
 
 // ============================================================
-// 2. Standard Width Detection — metrics/widths.rs
-// ============================================================
+// 2.
 
 // goldenWidthMetrics holds expected width metrics from FreeType.
 type goldenWidthMetrics struct {
@@ -313,8 +307,6 @@ type goldenWidthMetrics struct {
 
 // TestGolden_Widths_NotoSerifHebrew tests standard width computation
 // against FreeType golden data for NotoSerifHebrew.
-//
-// Source: skrifa metrics/widths.rs::computed_widths
 func TestGolden_Widths_NotoSerifHebrew(t *testing.T) {
 	font := loadGoldenTestFont(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -371,8 +363,6 @@ func TestGolden_Widths_NotoSerifHebrew(t *testing.T) {
 // TestGolden_Widths_CantarellVF_Fallback tests fallback width computation
 // when no standard character glyph is found. Cantarell VF trimmed has no
 // standard characters, so widths should fall back to derived constants.
-//
-// Source: skrifa metrics/widths.rs::fallback_widths
 func TestGolden_Widths_CantarellVF_Fallback(t *testing.T) {
 	data, err := os.ReadFile("testdata/cantarell_vf_trimmed.ttf")
 	if err != nil {
@@ -432,22 +422,17 @@ func TestGolden_Widths_CantarellVF_Fallback(t *testing.T) {
 }
 
 // ============================================================
-// 3. Blue Zone Detection — metrics/blues.rs
-// ============================================================
+// 3.
 
 // goldenBlueZone holds expected blue zone data from FreeType.
 type goldenBlueZone struct {
-	position  int // reference position in font units
+	position  int
 	overshoot int // overshoot position in font units
 	isTop     bool
 }
 
 // TestGolden_Blues_NotoSerifHebrew_Latin tests Latin blue zone detection
 // on the NotoSerifHebrew font (which contains Latin blue zone characters).
-//
-// Source: skrifa metrics/blues.rs::latin_blues
-// Note: skrifa's UnscaledBlue also has ascender/descender/zones fields
-// that we don't track in our simpler blueZone struct.
 func TestGolden_Blues_NotoSerifHebrew_Latin(t *testing.T) {
 	font := loadGoldenTestFont(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -505,8 +490,6 @@ func TestGolden_Blues_NotoSerifHebrew_Latin(t *testing.T) {
 
 // TestGolden_Blues_NotoSerifHebrew_Hebrew tests Hebrew blue zone detection.
 // Hebrew triggers the "long" blue code path in FreeType.
-//
-// Source: skrifa metrics/blues.rs::hebrew_long_blues
 func TestGolden_Blues_NotoSerifHebrew_Hebrew(t *testing.T) {
 	font := loadGoldenTestFont(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -564,8 +547,6 @@ func TestGolden_Blues_NotoSerifHebrew_Hebrew(t *testing.T) {
 
 // TestGolden_Blues_NotoSerif_C2SC tests blue zone detection with
 // shaped clusters (c2sc = capital to small capitals OT feature).
-//
-// Source: skrifa metrics/blues.rs::c2sc_shaped_blues
 func TestGolden_Blues_NotoSerif_C2SC(t *testing.T) {
 	font := loadGoldenTestFont(t, "notoserif_autohint_shaping.ttf")
 
@@ -593,8 +574,7 @@ func TestGolden_Blues_NotoSerif_C2SC(t *testing.T) {
 }
 
 // ============================================================
-// 4. Segment Detection — topo/segments.rs
-// ============================================================
+// 4.
 
 // goldenSegment holds expected segment data from FreeType.
 type goldenSegment struct {
@@ -613,8 +593,7 @@ type goldenSegment struct {
 // TestGolden_Segments_Contours_NotoSerifHebrew_H and _V which match skrifa exactly.
 
 // ============================================================
-// 5. Edge Detection — topo/edges.rs
-// ============================================================
+// 5.
 
 // goldenEdge holds expected edge data from FreeType.
 type goldenEdge struct {
@@ -630,8 +609,6 @@ type goldenEdge struct {
 // TestGolden_Edges_NotoSerifHebrew_Default tests edge detection for
 // GlyphId 9 of NotoSerifHebrew at 16px with Hebrew style.
 // Uses contour-based path (ParseGlyfContours → buildHintPointsFromContours).
-//
-// Source: skrifa topo/edges.rs::edges_default
 func TestGolden_Edges_NotoSerifHebrew_Default(t *testing.T) {
 	font, fontData := loadGoldenFontAndData(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -838,8 +815,6 @@ func TestGolden_FullPipeline_NotoSerifHebrew_Glyph9(t *testing.T) {
 // Expected 114 hinted coordinates (26.6 fixed-point) from skrifa.
 // CJK glyphs have many more points than Latin/Hebrew due to stroke
 // complexity, making this an important stress test.
-//
-// Source: skrifa hint/outline.rs (CJK variant, HANI style metrics)
 func TestGolden_HintedCoords_NotoSerifTC_CJK(t *testing.T) {
 	font, fontData := loadGoldenFontAndData(t, "notoseriftc_autohint_metrics.ttf")
 
@@ -941,8 +916,6 @@ func TestGolden_HintedCoords_NotoSerifTC_CJK(t *testing.T) {
 // on mismatch — it logs the discrepancy diagnostically, since we EXPECT
 // our Latin-based detection to differ from skrifa's Hebrew detection for
 // this font.
-//
-// Source: skrifa metrics/widths.rs::computed_widths (Hebrew)
 func TestGolden_Widths_Hebrew_Diagnostic(t *testing.T) {
 	font := loadGoldenTestFont(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -1000,8 +973,6 @@ func TestGolden_Widths_Hebrew_Diagnostic(t *testing.T) {
 // detection using the contour-based path (ParseGlyfContours) for GID 8
 // at design units. This differs from the existing segment tests which
 // use OutlineExtractor.
-//
-// Source: skrifa topo/segments.rs::horizontal_segments
 func TestGolden_Segments_Contours_NotoSerifHebrew_H(t *testing.T) {
 	_, fontData := loadGoldenFontAndData(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -1083,8 +1054,6 @@ func TestGolden_Segments_Contours_NotoSerifHebrew_H(t *testing.T) {
 
 // TestGolden_Segments_Contours_NotoSerifHebrew_V tests vertical segment
 // detection using the contour-based path for GID 8.
-//
-// Source: skrifa topo/segments.rs::vertical_segments
 func TestGolden_Segments_Contours_NotoSerifHebrew_V(t *testing.T) {
 	_, fontData := loadGoldenFontAndData(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -1162,8 +1131,6 @@ func TestGolden_Segments_Contours_NotoSerifHebrew_V(t *testing.T) {
 // TestGolden_EdgeHinting_NotoSerifHebrew tests hinted edge pos values
 // for GID 9 at 16px. This verifies the hintEdges stage produces the
 // correct grid-fitted positions.
-//
-// Source: skrifa hint/edges.rs + hint/outline.rs (edge positions after hintEdges)
 func TestGolden_EdgeHinting_NotoSerifHebrew(t *testing.T) {
 	font, fontData := loadGoldenFontAndData(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -1316,8 +1283,6 @@ func TestGolden_EdgeHinting_NotoSerifHebrew(t *testing.T) {
 //
 // These are the leftmost (Up-direction) and rightmost (Down-direction)
 // H-edges after hintEdges.
-//
-// Source: skrifa hint/outline.rs::hinted_coords_and_metrics_default
 func TestGolden_HintedMetrics_NotoSerifHebrew_Values(t *testing.T) {
 	font, fontData := loadGoldenFontAndData(t, "notoserifhebrew_autohint_metrics.ttf")
 
@@ -1401,12 +1366,8 @@ func TestGolden_HintedMetrics_NotoSerifHebrew_Values(t *testing.T) {
 }
 
 // ============================================================
-// 14. Adjusted Advance Width — instance.rs:127-183
-// ============================================================
+// 14.
 
-// TestGolden_AdjustedAdvance_NotoSerifHebrew_GID9 verifies the advance
-// width adjustment algorithm ported from skrifa instance.rs:127-183.
-//
 // The algorithm uses H-edge positions (leftmost/rightmost opos and pos)
 // to compute phantom points pp1x/pp2x, then derives the adjusted advance
 // as pp2x - pp1x. This produces pixel-grid-aligned advances that eliminate
@@ -1423,8 +1384,6 @@ func TestGolden_HintedMetrics_NotoSerifHebrew_Values(t *testing.T) {
 //   - pp1x = pix_round(-23) = 0, pp2x = pix_round(269) = 256
 //   - pp1x(0) >= new_lsb(0) && old_lsb(15) > 0: pp1x -= 64 → -64
 //   - advance = 256 - (-64) = 320 → pix_round → 320 → 5.0px
-//
-// Source: skrifa hint/outline.rs::hinted_coords_and_metrics_default + instance.rs
 func TestGolden_AdjustedAdvance_NotoSerifHebrew_GID9(t *testing.T) {
 	// Test computeAdjustedAdvance directly with golden edge metrics.
 	fontUnitAdvance := int32(280)

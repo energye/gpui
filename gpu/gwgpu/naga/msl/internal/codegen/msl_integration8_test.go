@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -539,7 +549,7 @@ fn main() {
 }
 
 // =============================================================================
-// Test: Texture arrayed type  (covers texture type arrayed path)
+// Test: Texture arrayed type (covers texture type arrayed path)
 // =============================================================================
 
 func TestIntegration8_TextureArrayed2D(t *testing.T) {

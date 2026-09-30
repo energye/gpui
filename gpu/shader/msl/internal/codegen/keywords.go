@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 // reservedWords contains all MSL and C++ reserved words.
@@ -214,7 +224,6 @@ var reservedWords = map[string]struct{}{
 	"INFINITY":     {},
 	"NAN":          {},
 
-	// Naga helper function names (reserved to avoid conflicts)
 	"naga_div":              {},
 	"naga_mod":              {},
 	"naga_modf":             {},
@@ -247,7 +256,7 @@ var reservedWords = map[string]struct{}{
 	"ray_data":               {},
 	"object_data":            {},
 
-	// Additional MSL types (matching Rust naga keywords.rs)
+	// Additional MSL types
 	"vec":    {},
 	"matrix": {},
 	"assert": {},

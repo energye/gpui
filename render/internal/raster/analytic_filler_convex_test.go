@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -244,7 +251,7 @@ func TestRegression_ConvexMatchesGeneral_Rect(t *testing.T) {
 	convex := buildConvexRectCoverage(10.3, 15.4, 90.8, 86.0)
 	general := buildGeneralRectCoverage(10.3, 15.4, 90.8, 86.0)
 
-	const maxAllowedDiff = 1 // Skia's convex vs general have same tolerance
+	const maxAllowedDiff = 1 // the convex vs general have same tolerance
 
 	maxDiff := 0
 	for i := range convex {

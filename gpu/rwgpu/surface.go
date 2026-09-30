@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -38,7 +48,6 @@ type surfaceTexture struct {
 }
 
 // surfaceCapabilitiesWire is the FFI-compatible structure for WGPUSurfaceCapabilities.
-// Matches C struct layout from wgpu-native v27.
 type surfaceCapabilitiesWire struct {
 	nextInChain      uintptr // 8 bytes (WGPUChainedStructOut*)
 	usages           uint64  // 8 bytes (WGPUTextureUsage bitflags)
@@ -265,7 +274,7 @@ func (s *Surface) surfaceParentLost() bool {
 
 // GetCurrentTexture gets the current texture to render to.
 // Returns the texture, a suboptimal flag (true if the surface needs reconfiguration
-// but is still usable this frame), and any error. This matches the gogpu/wgpu API.
+// but is still usable this frame), and any error.
 //
 // Soft-error native (patched rwgpu): parent-device-lost and not-configured return
 // status=Error (and may fire Uncaptured/DeviceLost). Go maps status + uncaptured

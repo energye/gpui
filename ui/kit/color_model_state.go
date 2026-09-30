@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit
 
 import (
@@ -357,7 +367,7 @@ func (in *ColorModelInstance) applyColorLocked(c ColorModelColor) {
 	in.fireChangeLocked(v)
 }
 
-// SetHSB changes the color and fires onChange (CP-S1).
+// SetHSB changes the color and fires onChange.
 func (in *ColorModelInstance) SetHSB(h, s, b, a float64) bool {
 	if in == nil {
 		return false
@@ -399,7 +409,7 @@ func (in *ColorModelInstance) SetColor(c ColorModelColor) bool {
 	return true
 }
 
-// BeginDrag marks a panel drag; EndDrag fires onComplete (CP-S2).
+// BeginDrag marks a panel drag; EndDrag fires onComplete.
 func (in *ColorModelInstance) BeginDrag() {
 	if in == nil {
 		return
@@ -424,7 +434,7 @@ func (in *ColorModelInstance) EndDrag() {
 	}
 }
 
-// CommitChange fires onComplete without a drag (CP-S2).
+// CommitChange fires onComplete without a drag.
 func (in *ColorModelInstance) CommitChange() {
 	if in == nil {
 		return
@@ -508,7 +518,7 @@ func (in *ColorModelInstance) CurrentColor() ColorModelColor {
 	return in.currentColorLocked()
 }
 
-// Clear empties the value when allowClear (CP-S4).
+// Clear empties the value when allowClear.
 func (in *ColorModelInstance) Clear() bool {
 	if in == nil {
 		return false
@@ -537,7 +547,7 @@ func (in *ColorModelInstance) Clear() bool {
 	return true
 }
 
-// SetValue drives controlled value from outside without callbacks (CP-S8).
+// SetValue drives controlled value from outside without callbacks.
 func (in *ColorModelInstance) SetValue(v ColorModelValue) {
 	if in == nil {
 		return
@@ -739,7 +749,7 @@ func (in *ColorModelInstance) SetOpen(open bool) {
 	}
 }
 
-// ToggleOpen flips the popup unless disabled (CP-S9).
+// ToggleOpen flips the popup unless disabled.
 func (in *ColorModelInstance) ToggleOpen() bool {
 	if in == nil {
 		return false
@@ -859,7 +869,7 @@ func (in *ColorModelInstance) PressArrow(dir string) bool {
 	return true
 }
 
-// DisplayText renders the trigger text for the current format (CP-S7).
+// DisplayText renders the trigger text for the current format.
 func (in *ColorModelInstance) DisplayText() string {
 	if in == nil {
 		return ""

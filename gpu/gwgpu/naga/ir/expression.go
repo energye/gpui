@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 // Expression represents an expression in the IR.
@@ -84,7 +94,6 @@ func (ExprConstant) expressionKind() {}
 
 // ExprOverride references a pipeline-overridable constant.
 // Used in global_expressions and function expressions for override references.
-// Mirrors Rust naga's Expression::Override(Handle<Override>).
 type ExprOverride struct {
 	// Override is the index into Module.Overrides.
 	Override OverrideHandle
@@ -210,9 +219,6 @@ func (ExprLoad) expressionKind() {}
 // or a zero value). The DXIL emitter resolves it by returning the source
 // expression's value ID without emitting any instruction of its own.
 //
-// Reference parity: corresponds to the value-substitution step inside LLVM's
-// PromoteMemoryToRegister pass — once an alloca is promoted, every load is
-// rewritten to use the dominating store's stored value, and the load
 // instruction is erased. We achieve the same effect at the IR level with
 // this alias indirection so the existing emit pipeline continues to walk
 // the function's expression arena unmodified.
@@ -223,9 +229,7 @@ type ExprAlias struct {
 func (ExprAlias) expressionKind() {}
 
 // PhiPredKey identifies which structured-CFG predecessor an ExprPhi
-// incoming value flows from. Reference: LLVM PromoteMemoryToRegister.cpp
-// rename pass tracks IncomingVals per predecessor BB; in our structured
-// IR the predecessor is one of a small set of named edges.
+// incoming value flows from.
 type PhiPredKey uint8
 
 const (
@@ -276,8 +280,6 @@ type PhiIncoming struct {
 // each incoming value's per-predecessor value-ID resolved via emit-time
 // snapshots taken at the end of each predecessor branch.
 //
-// Reference parity: matches LLVM PromoteMemoryToRegister.cpp's phi
-// insertion at the iterated dominance frontier of defining blocks.
 // Structured CFG makes IDF computation trivial: the merge point is
 // the statement after the StmtIf/StmtSwitch, or the header of a
 // StmtLoop body.

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -56,7 +66,7 @@ func (d *Device) CreateRenderBundleEncoder(desc *RenderBundleEncoderDescriptor) 
 		stencilReadOnly:    boolToWGPU(desc.StencilReadOnly),
 	}
 
-	// Convert color formats to uint32 (gputypes v0.3.0 values equal wgpu-native v29 values)
+	// Convert color formats to uint32
 	var convertedFormats []uint32
 	if len(desc.ColorFormats) > 0 {
 		convertedFormats = make([]uint32, len(desc.ColorFormats))

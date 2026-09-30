@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -30,7 +40,7 @@ type textureSet struct {
 	width       uint32
 	height      uint32
 
-	// retireFn decides how retired textures are handled (P4): nil = release
+	// retireFn decides how retired textures are handled: nil = release
 	// immediately (default); the session injects a deferred-release queue —
 	// on rebuild the old views may still be referenced by commands queued
 	// earlier in the frame, so releasing them right away leaves dangling
@@ -38,7 +48,7 @@ type textureSet struct {
 	retireFn func(tex hal.Texture, view hal.TextureView)
 
 	// stencilPool caches depth/stencil textures by size for sc==1 surface
-	// passes (R8 engine hole). Within one retained frame, per-layer offscreen
+	// passes. Within one retained frame, per-layer offscreen
 	// records alternate the pass target size (main band → body panel → hot
 	// spot), and without a pool each flip destroyed+recreated the shared
 	// stencil texture (~3 GPU alloc cycles per frame; 15s log showed 4293
@@ -180,7 +190,7 @@ func (ts *textureSet) takePooledStencil(device hal.Device, w, h uint32, labelPre
 // between different owners (e.g., "session" vs "stencil").
 //
 // The samples parameter sets the MSAA sample count for color and depth/stencil
-// textures (1x default, Skia kCoverage analytic fringe; 4x explicit opt-in).
+// textures.
 func (ts *textureSet) ensureTextures(device hal.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
 	if device == nil {
 		return fmt.Errorf("ensureTextures: device is nil")
@@ -376,7 +386,7 @@ func (ts *textureSet) ensureSurfaceTextures(device hal.Device, w, h uint32, labe
 	// sc==1 surface passes take depth/stencil from the size-keyed pool:
 	// retained frames alternate the pass target size per layer record (main
 	// band → body panel → hot spot) and a fresh stencil alloc per flip cost
-	// ~3 destroy/create cycles per frame (R8 hole). MSAA keeps its own path.
+	// ~3 destroy/create cycles per frame. MSAA keeps its own path.
 	if !needMSAA {
 		if view := ts.takePooledStencil(device, w, h, labelPrefix); view != nil {
 			ts.stencilView = view
@@ -523,7 +533,7 @@ func (ts *textureSet) clearFailed() {
 
 func (ts *textureSet) destroyTextures() {
 	// Pool entries survive destroyTextures: their whole purpose is to ride
-	// out per-frame size flips of the pass target (R8 hole). Flushing here
+	// out per-frame size flips of the pass target. Flushing here
 	// would evict every pooled stencil on each flip — the exact churn the
 	// pool exists to prevent. The pool drains via takePooledStencil LRU
 	// eviction and via ClearPool on session teardown.

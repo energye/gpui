@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build windows
 
 package dxcvalidator
@@ -7,12 +17,6 @@ import (
 	"testing"
 )
 
-// TestSmokeValidateGoldenFixture verifies that the Pure Go IDxcValidator
-// wrapper still returns S_OK on tmp/min1_final.dxil — the first-ever naga
-// output that passed real Microsoft DXIL validation (commit 0570283,
-// BUG-DXIL-019). If this regresses, the cause is either a wrapper change
-// here or a regression in the underlying naga DXIL emit path.
-//
 // Skipped automatically when:
 //   - dxil.dll cannot be located (LoadDLL fails)
 //   - the golden fixture is missing

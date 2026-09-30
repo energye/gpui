@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -131,7 +141,7 @@ func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderP
 	}
 
 	// Build native color attachments.
-	// R7.0: stack for the common 1–4 color target case (UI render almost always 1).
+	// stack for the common 1–4 color target case (UI render almost always 1).
 	nCA := len(desc.ColorAttachments)
 	var caStack [4]renderPassColorAttachment
 	var nativeColorAttachments []renderPassColorAttachment
@@ -241,7 +251,6 @@ func (rpe *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
 // Passing group == nil (or a zero handle) unsets the bind group at groupIndex.
 // Unsetting is required before SetPipeline when switching to a pipeline whose
 // bind-group layouts are incompatible with the previously bound groups
-// (wgpu validates currently-set bind groups against the new pipeline layout).
 func (rpe *RenderPassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32) {
 	if rpe == nil || rpe.handle == 0 {
 		return

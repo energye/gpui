@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Command levelprev previews one 2.5D level project exactly as the game sees it.
 //
-// Frozen 2026-09-16 (capability 17.1, P4, S50/W8): Preview, OpenProject,
+// Frozen 2026-09-16: Preview, OpenProject,
 // SummarizeMap, SummarizeScene, VerifyCounts. Additive changes only.
 //
 // Usage:
@@ -11,7 +21,7 @@
 //
 // Project layout (both files optional, never required):
 //
-//	<dir>/map.tmx    Tiled TMX subset frozen by engine/tilemap (orthogonal or
+//	<dir>/map.tmx Tiled TMX subset frozen by engine/tilemap (orthogonal or
 //	                 isometric, csv layers, objectgroup). Missing means an
 //	                 empty map placeholder, never an error.
 //	<dir>/scene.json world.SceneFile JSON version 1.0 (entities with parent

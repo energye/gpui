@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -575,7 +585,7 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 // aaCornerSharp reports whether a corner (turn angle phi, radians between
 // consecutive boundary segments; the shape's interior angle is π−phi for
 // outer contours) triggers the interior-band corner treatment. The CPU
-// reference (Skia AAA) fills through the wedge of sharp joins while keeping
+// reference fills through the wedge of sharp joins while keeping
 // the interior AA of moderate/smooth ones. Empirically the ring (stroke
 // expansion) corners needing the treatment are:
 //

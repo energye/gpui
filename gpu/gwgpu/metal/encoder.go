@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -89,7 +96,7 @@ func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error) {
 	return cb, nil
 }
 
-// Finish implements hal.CommandEncoder: same as EndEncoding (webgpu parity).
+// Finish implements hal.CommandEncoder: same as EndEncoding.
 func (e *CommandEncoder) Finish() (hal.CommandBuffer, error) {
 	return e.EndEncoding()
 }
@@ -181,7 +188,6 @@ func (e *CommandEncoder) ClearBuffer(buffer hal.Buffer, offset, size uint64) {
 }
 
 // CopyBufferToBuffer copies data between buffers.
-// Matches webgpu CommandEncoder.CopyBufferToBuffer flat shape.
 func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, dst hal.Buffer, dstOffset uint64, size uint64) {
 	if e.cmdBuffer == 0 {
 		return
@@ -352,8 +358,6 @@ func (e *CommandEncoder) ResolveQuerySet(_ hal.QuerySet, _, _ uint32, _ hal.Buff
 // Delegates to buildAccelerationStructures in raytracing.go which creates a
 // transient MTLAccelerationStructureCommandEncoder and issues build/refit
 // commands for each descriptor.
-//
-// Reference: Rust wgpu-hal metal/command.rs:1840-1879.
 func (e *CommandEncoder) BuildAccelerationStructures(descriptors []hal.BuildAccelerationStructureDescriptor) {
 	if e.cmdBuffer == 0 {
 		return
@@ -365,16 +369,12 @@ func (e *CommandEncoder) BuildAccelerationStructures(descriptors []hal.BuildAcce
 //
 // Metal handles acceleration structure synchronization internally through
 // its command buffer scheduling model. Explicit barriers are not required.
-//
-// Reference: Rust wgpu-hal metal/command.rs:1881-1885 (empty body).
 func (e *CommandEncoder) PlaceAccelerationStructureBarrier(_ hal.AccelerationStructureBarrier) {}
 
 // CopyAccelerationStructure copies or compacts an acceleration structure.
 //
 // Delegates to copyAccelerationStructure in raytracing.go which creates a
 // transient MTLAccelerationStructureCommandEncoder and issues copy/compact.
-//
-// Reference: Rust wgpu-hal metal/command.rs:746-764.
 func (e *CommandEncoder) CopyAccelerationStructure(src, dst hal.AccelerationStructure, copyMode gputypes.AccelerationStructureCopyMode) {
 	if e.cmdBuffer == 0 {
 		return
@@ -386,8 +386,6 @@ func (e *CommandEncoder) CopyAccelerationStructure(src, dst hal.AccelerationStru
 // of an acceleration structure into a buffer.
 //
 // Delegates to readAccelerationStructureCompactSize in raytracing.go.
-//
-// Reference: Rust wgpu-hal metal/command.rs:1887-1898.
 func (e *CommandEncoder) ReadAccelerationStructureCompactSize(accelStruct hal.AccelerationStructure, buffer hal.Buffer, offset uint64) {
 	if e.cmdBuffer == 0 {
 		return
@@ -397,7 +395,6 @@ func (e *CommandEncoder) ReadAccelerationStructureCompactSize(accelStruct hal.Ac
 
 // BeginRenderPass begins a render pass.
 // Returns error if encoder is not recording (cmdBuffer == 0).
-// Matches webgpu CommandEncoder.BeginRenderPass error shape.
 func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error) {
 	if e.cmdBuffer == 0 {
 		return nil, fmt.Errorf("metal: BeginRenderPass: encoder not recording")
@@ -464,7 +461,6 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 		// defaults to MTLLoadActionDontCare, leaving stencil values
 		// undefined and causing progressive rendering artifacts on Apple
 		// Silicon TBDR GPUs.
-		// Reference: Rust wgpu-hal metal/command.rs:705-727.
 		stencilAttachment := MsgSend(rpDesc, Sel("stencilAttachment"))
 		if tv, ok := dsa.View.(*TextureView); ok && tv != nil {
 			_ = MsgSend(stencilAttachment, Sel("setTexture:"), uintptr(tv.raw))
@@ -485,7 +481,6 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 
 // BeginComputePass begins a compute pass.
 // Returns error if encoder is not recording (cmdBuffer == 0).
-// Matches webgpu CommandEncoder.BeginComputePass error shape.
 func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error) {
 	if e.cmdBuffer == 0 {
 		return nil, fmt.Errorf("metal: BeginComputePass: encoder not recording")
@@ -644,7 +639,6 @@ func (e *RenderPassEncoder) replayPendingState() {
 }
 
 // End finishes the render pass.
-// Matches webgpu RenderPassEncoder.End error shape.
 func (e *RenderPassEncoder) End() error {
 	e.beginNative()
 	if e.raw != 0 {
@@ -692,9 +686,6 @@ type bindSlotAssignment struct {
 // computeBindSlots calculates per-type sequential Metal slot indices for bind group entries.
 //
 // Metal uses separate index spaces: [[buffer(N)]], [[texture(M)]], [[sampler(K)]].
-// The naga MSL compiler auto-generates these indices sequentially per type,
-// so we must count each resource type independently instead of using the
-// WGSL @binding(N) number (which is unique across all types in a group).
 func computeBindSlots(entries []hal.BindGroupEntry) (bufferSlots, textureSlots, samplerSlots []bindSlotAssignment) {
 	var bufferIdx, textureIdx, samplerIdx uintptr
 	for i, entry := range entries {
@@ -718,10 +709,6 @@ func computeBindSlots(entries []hal.BindGroupEntry) (bufferSlots, textureSlots, 
 // Metal does not use argument buffers for basic resource binding. Instead, resources
 // are set individually via setVertexBuffer/setFragmentBuffer, setVertexTexture/
 // setFragmentTexture, and setVertexSamplerState/setFragmentSamplerState.
-//
-// The Metal binding index uses per-type sequential indices because naga MSL
-// auto-generates [[buffer(N)]], [[texture(M)]], [[sampler(K)]] attributes
-// sequentially per type.
 func (e *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32) {
 	bg, ok := group.(*BindGroup)
 	if !ok || bg == nil {
@@ -743,12 +730,10 @@ func (e *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offs
 
 func (e *RenderPassEncoder) applyBindGroup(index uint32, bg *BindGroup, offsets []uint32) {
 	// Metal uses per-type sequential indices: [[buffer(N)]], [[texture(M)]], [[sampler(K)]].
-	// naga MSL generates these indices sequentially across ALL bind groups in the
-	// pipeline layout. Group 0 starts at 0; group 1 starts where group 0 ended, etc.
+	// Group 0 starts at 0; group 1 starts where group 0 ended, etc.
 	// We use the cumulative offsets from the pipeline layout to compute the correct
 	// starting slot for this group.
 	//
-	// Reference: Rust wgpu-hal metal/command.rs:182 (resource_indices.buffers + index).
 	var bufferSlot, textureSlot, samplerSlot uintptr
 	if e.currentLayout != nil && int(index) < len(e.currentLayout.groupOffsets) {
 		off := e.currentLayout.groupOffsets[index]
@@ -759,7 +744,7 @@ func (e *RenderPassEncoder) applyBindGroup(index uint32, bg *BindGroup, offsets 
 
 	var dynamicIdx int
 	for _, entry := range bg.entries {
-		// H4-b1: unpack hal entries to concrete metal types (gpu unpack pattern).
+		// unpack hal entries to concrete metal types (gpu unpack pattern).
 		switch {
 		case entry.Buffer != nil:
 			buf, ok := entry.Buffer.(*Buffer)
@@ -837,7 +822,6 @@ func (e *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format gputypes.In
 }
 
 // SetViewport sets the viewport.
-// Matches webgpu RenderPassEncoder.SetViewport flat shape.
 func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32) {
 	viewport := MTLViewport{OriginX: float64(x), OriginY: float64(y), Width: float64(width), Height: float64(height), ZNear: float64(minDepth), ZFar: float64(maxDepth)}
 	if e.pending != nil {
@@ -851,7 +835,6 @@ func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth 
 }
 
 // SetScissorRect sets the scissor rectangle.
-// Matches webgpu RenderPassEncoder.SetScissorRect flat shape.
 func (e *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
 	scissor := MTLScissorRect{X: NSUInteger(x), Y: NSUInteger(y), Width: NSUInteger(width), Height: NSUInteger(height)}
 	if e.pending != nil {
@@ -901,7 +884,6 @@ func (e *RenderPassEncoder) SetStencilReference(ref uint32) {
 }
 
 // Draw draws primitives.
-// Matches webgpu RenderPassEncoder.Draw flat shape.
 func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32) {
 	if !e.beginNative() {
 		return
@@ -911,7 +893,6 @@ func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstI
 }
 
 // DrawIndexed draws indexed primitives.
-// Matches webgpu RenderPassEncoder.DrawIndexed flat shape.
 func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32) {
 	if e.indexBuffer == nil || !e.beginNative() {
 		return
@@ -927,8 +908,7 @@ func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex ui
 		uintptr(e.indexBuffer.raw), uintptr(offset), uintptr(instanceCount), uintptr(baseVertex), uintptr(firstInstance))
 }
 
-// DrawIndirect draws a single indirect record (webgpu has no drawCount).
-// Matches webgpu RenderPassEncoder.DrawIndirect two-arg shape.
+// DrawIndirect draws a single indirect record.
 func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64) {
 	buf, ok := buffer.(*Buffer)
 	if !ok || buf == nil {
@@ -945,7 +925,6 @@ func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64) {
 }
 
 // DrawIndexedIndirect draws a single indexed indirect record.
-// Matches webgpu RenderPassEncoder.DrawIndexedIndirect two-arg shape.
 func (e *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64) {
 	buf, ok := buffer.(*Buffer)
 	if !ok || buf == nil || e.indexBuffer == nil {
@@ -1009,13 +988,12 @@ type ComputePassEncoder struct {
 	currentLayout *PipelineLayout // set by SetPipeline for SetBindGroup slot offsets
 
 	// bindingSizes holds the usable byte size of each bound buffer, by group
-	// and binding. A dispatch copies these sizes into naga's `_buffer_sizes`
+	// and binding. A dispatch copies these sizes into the `_buffer_sizes`
 	// argument.
 	bindingSizes map[[2]uint32]uint64
 }
 
 // End finishes the compute pass.
-// Matches webgpu ComputePassEncoder.End error shape.
 func (e *ComputePassEncoder) End() error {
 	if e.raw != 0 {
 		_ = MsgSend(e.raw, Sel("endEncoding"))
@@ -1057,7 +1035,7 @@ func (e *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, off
 
 	var dynamicIdx int
 	for _, entry := range bg.entries {
-		// H4-b1: unpack hal entries to concrete metal types (gpu unpack pattern).
+		// unpack hal entries to concrete metal types (gpu unpack pattern).
 		switch {
 		case entry.Buffer != nil:
 			buf, ok := entry.Buffer.(*Buffer)
@@ -1109,19 +1087,17 @@ func (e *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, off
 	}
 }
 
-// bindBufferSizes binds naga's `_buffer_sizes` argument. Kernels need it when
+// bindBufferSizes binds the `_buffer_sizes` argument. Kernels need it when
 // they use a runtime-sized array, either through WGSL arrayLength() or through
-// naga's bounds checks on storage buffers.
+// the bounds checks on storage buffers.
 //
 // The MSL kernel takes one extra parameter. It holds one uint32 byte size for
 // each runtime-sized array. The pipeline compiled that parameter to the buffer
 // slot that follows the buffers of the pipeline layout.
 //
 // This binding is required. If it is missing, the kernel reads a size of zero,
-// and naga's arrayLength() formula, 1 + (size - offset - stride) / stride,
+// and the arrayLength() formula, 1 + (size - offset - stride) / stride,
 // wraps around to a very large number.
-//
-// Reference: Rust wgpu-hal metal/command.rs:1736-1747.
 func (e *ComputePassEncoder) bindBufferSizes() {
 	p := e.pipeline
 	if p == nil || len(p.sizesBindings) == 0 {

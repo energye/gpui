@@ -1,15 +1,16 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
 // FFI error handling follows ADR-049 three-tier strategy:
-//
-//	Tier 1 (creation/submit): check both FFI error and API result code
-//	Tier 2 (void/hot path): infallible by GPU API contract — Vulkan §6.6, WebGPU §21.2
-//	Tier 3 (platform syscalls): use errno for diagnostics (Wayland, X11, Win32)
-//
-// Enterprise reference: Rust wgpu-hal returns () for all draw/destroy/barrier commands.
 //
 // All GL commands in this file are Tier 2: GL errors are reported via glGetError(),
 // not through FFI return values. The GL spec guarantees these calls never fail at
@@ -988,7 +989,7 @@ func (c *Context) GetShaderInfoLog(shader uint32) string {
 	buf := make([]byte, length)
 	maxLen := uint32(length)
 	lenPtr := &length // *int32; FFI reads &length → OpenGL writes actual log length
-	bufPtr := &buf[0] // *byte;  FFI reads &buf[0]  → OpenGL writes log text
+	bufPtr := &buf[0] // *byte; FFI reads &buf[0] → OpenGL writes log text
 	args := [4]unsafe.Pointer{
 		unsafe.Pointer(&shader),
 		unsafe.Pointer(&maxLen),
@@ -1046,7 +1047,7 @@ func (c *Context) GetProgramInfoLog(program uint32) string {
 	buf := make([]byte, length)
 	maxLen := uint32(length)
 	lenPtr := &length // *int32; FFI reads &length → OpenGL writes actual log length
-	bufPtr := &buf[0] // *byte;  FFI reads &buf[0]  → OpenGL writes log text
+	bufPtr := &buf[0] // *byte; FFI reads &buf[0] → OpenGL writes log text
 	args := [4]unsafe.Pointer{
 		unsafe.Pointer(&program),
 		unsafe.Pointer(&maxLen),
@@ -1224,7 +1225,6 @@ func (c *Context) VertexAttribPointer(index uint32, size int32, typ uint32, norm
 
 // VertexAttribDivisor sets the instance divisor for a vertex attribute.
 // divisor=0 means per-vertex, divisor=1 means per-instance.
-// Matches Rust wgpu-hal/src/gles/queue.rs vertex_attrib_divisor call.
 func (c *Context) VertexAttribDivisor(index, divisor uint32) {
 	if c.glVertexAttribDivisor == nil {
 		return
@@ -1491,7 +1491,6 @@ func (c *Context) CheckFramebufferStatus(target uint32) uint32 {
 }
 
 // DrawBuffers specifies a list of color buffers to be drawn into.
-// Matches Rust wgpu-hal GLES SetDrawColorBuffers (queue.rs:1202-1207).
 func (c *Context) DrawBuffers(bufs []uint32) {
 	if len(bufs) == 0 {
 		return
@@ -1508,7 +1507,6 @@ func (c *Context) DrawBuffers(bufs []uint32) {
 // ClearBufferfv clears a specific draw buffer with float values.
 // buffer must be GL_COLOR, drawBuffer is the index (0..MAX_DRAW_BUFFERS-1),
 // value points to 4 float32 values (RGBA).
-// Matches Rust wgpu-hal GLES ClearColorF (queue.rs:1222).
 func (c *Context) ClearBufferfv(buffer uint32, drawBuffer int32, value *[4]float32) {
 	db := uint32(drawBuffer)
 	pValue := unsafe.Pointer(value)

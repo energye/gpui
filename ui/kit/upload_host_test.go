@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit_test
 
 import (
@@ -10,7 +20,6 @@ func TestUpload_HostTrioAcceptPreview(t *testing.T) {
 	cases := loadUploadCases(t)
 	acc := cases["accept"].(map[string]any)
 
-	// UPL-S9: drag area drops like a select.
 	dhost := kit.BuildUploadDragger(kit.DefaultScopeCtx(), kit.DefaultUploadDraggerProps())
 	dropped := false
 	dp := kit.DefaultUploadDraggerProps()
@@ -50,7 +59,6 @@ func TestUpload_HostTrioAcceptPreview(t *testing.T) {
 		t.Fatal("paste provider must feed paste")
 	}
 
-	// UPL-S11/UPL-11: accept filter from the case file.
 	accept := ".png,image/*"
 	if !kit.MatchUploadAccept(accept, acc["ext_png_match"].(string), "image/png") {
 		t.Fatal("a.PNG must pass .png")

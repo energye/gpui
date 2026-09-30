@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -58,7 +68,6 @@ func (b *Buffer) Release() {
 // Destroy implements hal.Buffer: same as Release.
 func (b *Buffer) Destroy() { b.Release() }
 
-// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
 func (b *Buffer) NativeHandle() uintptr { return 0 }
 
 // MapState returns the current mapping state of the buffer.

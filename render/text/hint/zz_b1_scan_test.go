@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -11,11 +21,7 @@ import (
 
 // zz_b1_scan_test.go —— 阶段 B1a：CFF 轮廓级矩阵四维度对照升级。
 //
-// 背景（docs ENGINE_TEXT_RASTER_FT_ALIGN_PLAN.md §阶段B）：旧扫描
-// （zz_scan_3000/kr/th）只对照坐标+点数，1.3 盲区（on/off 标记与轮廓
-// 分组）未补。B1 对照维度升级为：
-//
-//	① 点数  ② 坐标  ③ on/off 标记  ④ contours 分组
+//	① 点数 ② 坐标 ③ on/off 标记 ④ contours 分组
 //
 // ftexp bcontour 已输出全部信息（# R 头带 np/nc；每点 `x y tag`；
 // 末行末点索引序列），旧解析器丢弃了 tag 与 ends——此处升级解析。

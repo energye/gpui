@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -9,7 +19,7 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// Standard layout (Skia Graphite / Vello style): tessellated geometry is
+// Standard layout: tessellated geometry is
 // cached in USER space (transform-independent), and the per-draw affine
 // transform (user → device pixels) rides in the stencil uniform. Animated
 // draws that only move (translate/rotate/uniform-scale) hit the geometry

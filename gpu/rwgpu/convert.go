@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // convert.go provides conversion functions between gputypes and wgpu-native v29 wire values.
 //
 // # Why conversions are needed
@@ -27,7 +37,7 @@
 //
 // # Enums matching v29 exactly — use direct uint32 cast, no converter needed
 //
-//   - TextureFormat (gputypes v0.3.0 matches v29 exactly, including R16*/RG16*/RGBA16* Unorm/Snorm)
+//   - TextureFormat
 //   - TextureViewDimension, TextureDimension, TextureAspect
 //   - LoadOp (Undefined=0, Load=1, Clear=2), StoreOp (Undefined=0, Store=1, Discard=2)
 //   - BlendFactor values 0x00–0x0D match v29; gputypes lacks Src1* (0x0E–0x11) but those
@@ -104,10 +114,10 @@ func toWGPUStorageTextureAccess(t types.StorageTextureAccess) uint32 {
 //   (VertexBufferNotUsed was removed in v29; Undefined is the sentinel for "not used")
 //
 // Mapping:
-//   gputypes Undefined(0)           → v29 Undefined(0)
-//   gputypes VertexBufferNotUsed(1) → v29 Undefined(0)  [removed, treat as not used]
-//   gputypes Vertex(2)              → v29 Vertex(1)
-//   gputypes Instance(3)            → v29 Instance(2)
+//   gputypes Undefined(0) → v29 Undefined(0)
+//   gputypes VertexBufferNotUsed(1) → v29 Undefined(0) [removed, treat as not used]
+//   gputypes Vertex(2) → v29 Vertex(1)
+//   gputypes Instance(3) → v29 Instance(2)
 // =============================================================================
 
 func toWGPUVertexStepMode(m types.VertexStepMode) uint32 {
@@ -130,10 +140,10 @@ func toWGPUVertexStepMode(m types.VertexStepMode) uint32 {
 // TriangleList=4.
 //
 // Mapping:
-//   gputypes TriangleList(0)  → v29 TriangleList(4)
-//   gputypes PointList(1)     → v29 PointList(1)
-//   gputypes LineList(2)      → v29 LineList(2)
-//   gputypes LineStrip(3)     → v29 LineStrip(3)
+//   gputypes TriangleList(0) → v29 TriangleList(4)
+//   gputypes PointList(1) → v29 PointList(1)
+//   gputypes LineList(2) → v29 LineList(2)
+//   gputypes LineStrip(3) → v29 LineStrip(3)
 //   gputypes TriangleStrip(4) → v29 TriangleStrip(5)
 // =============================================================================
 
@@ -199,39 +209,39 @@ func toWGPUCullMode(m types.CullMode) uint32 {
 //
 // gputypes → v29 mapping (explicit table):
 //
-//	gputypes  v29   Format
-//	     0     0    Undefined
-//	     1     2    Uint8x2
-//	     2     3    Uint8x4
-//	     3     5    Sint8x2
-//	     4     6    Sint8x4
-//	     5     8    Unorm8x2
-//	     6     9    Unorm8x4
-//	     7    11    Snorm8x2
-//	     8    12    Snorm8x4
-//	     9    14    Uint16x2
-//	    10    15    Uint16x4
-//	    11    17    Sint16x2
-//	    12    18    Sint16x4
-//	    13    20    Unorm16x2
-//	    14    21    Unorm16x4
-//	    15    23    Snorm16x2
-//	    16    24    Snorm16x4
-//	    17    26    Float16x2
-//	    18    27    Float16x4
-//	    19    28    Float32
-//	    20    29    Float32x2
-//	    21    30    Float32x3
-//	    22    31    Float32x4
-//	    23    32    Uint32
-//	    24    33    Uint32x2
-//	    25    34    Uint32x3
-//	    26    35    Uint32x4
-//	    27    36    Sint32
-//	    28    37    Sint32x2
-//	    29    38    Sint32x3
-//	    30    39    Sint32x4
-//	    31    40    Unorm10_10_10_2  (gputypes: Unorm1010102)
+//	gputypes v29 Format
+//	     0 0 Undefined
+//	     1 2 Uint8x2
+//	     2 3 Uint8x4
+//	     3 5 Sint8x2
+//	     4 6 Sint8x4
+//	     5 8 Unorm8x2
+//	     6 9 Unorm8x4
+//	     7 11 Snorm8x2
+//	     8 12 Snorm8x4
+//	     9 14 Uint16x2
+//	    10 15 Uint16x4
+//	    11 17 Sint16x2
+//	    12 18 Sint16x4
+//	    13 20 Unorm16x2
+//	    14 21 Unorm16x4
+//	    15 23 Snorm16x2
+//	    16 24 Snorm16x4
+//	    17 26 Float16x2
+//	    18 27 Float16x4
+//	    19 28 Float32
+//	    20 29 Float32x2
+//	    21 30 Float32x3
+//	    22 31 Float32x4
+//	    23 32 Uint32
+//	    24 33 Uint32x2
+//	    25 34 Uint32x3
+//	    26 35 Uint32x4
+//	    27 36 Sint32
+//	    28 37 Sint32x2
+//	    29 38 Sint32x3
+//	    30 39 Sint32x4
+//	    31 40 Unorm10_10_10_2 (gputypes: Unorm1010102)
 // =============================================================================
 
 func toWGPUVertexFormat(f types.VertexFormat) uint32 {

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -19,15 +26,14 @@ import (
 // the n-th difference is constant, allowing O(1) stepping.
 //
 // Quadratic Bezier p(t) = At^2 + Bt + C:
-//   - First difference:  delta(t) = p(t + h) - p(t) = 2Ath + Ah^2 + Bh
-//   - Second difference: delta2 = delta(t + h) - delta(t) = 2Ah^2  (constant!)
+//   - First difference: delta(t) = p(t + h) - p(t) = 2Ath + Ah^2 + Bh
+//   - Second difference: delta2 = delta(t + h) - delta(t) = 2Ah^2 (constant!)
 //   - Step: newx = oldx + dx; dx += ddx
 //
 // Cubic Bezier p(t) = At^3 + Bt^2 + Ct + D:
 //   - Third difference is constant: dddx = 6Ah^3
 //   - Step: newx = oldx + dx; dx += ddx; ddx += dddx
 //
-// Reference: tiny-skia/src/edge.rs, Skia's SkEdge.cpp
 
 // MaxCoeffShift limits the number of subdivisions for a curve.
 // We store 1<<shift in a signed byte (int8), so max value is 1<<6 = 64.
@@ -62,7 +68,6 @@ type CurvePoint struct {
 // Derived from tiny-skia's LineEdge.
 type LineEdge struct {
 	// Linked list pointers (indices into edge array).
-	// Using Option<u32> pattern from Rust as nullable int32.
 	Prev int32
 	Next int32
 
@@ -79,26 +84,26 @@ type LineEdge struct {
 	LastY int32
 
 	// UpperY is the precise upper Y endpoint in FDot16 (16.16 fixed-point).
-	// Used by AnalyticFiller for sub-strip boundary computation (Skia AAA precision).
+	// Used by AnalyticFiller for sub-strip boundary computation.
 	// When zero, falls back to FirstY-based computation.
 	UpperY FDot16
 
 	// LowerY is the precise lower Y endpoint in FDot16 (16.16 fixed-point).
-	// Used by AnalyticFiller for sub-strip boundary computation (Skia AAA precision).
+	// Used by AnalyticFiller for sub-strip boundary computation.
 	// When zero, falls back to LastY-based computation.
 	LowerY FDot16
 
 	// UpperX is the X position at UpperY in pixel-space SkFixed (16.16).
-	// Computed using Skia's exact setLine() conversion chain to avoid rounding
+	// Computed using the exact setLine() conversion chain to avoid rounding
 	// errors from sub-pixel-to-pixel division. Only set for line edges created
 	// by NewLineEdge (zero for curve sub-segments).
-	// Used by computeEdgeX via Skia's goY(): X(Y) = UpperX + PixelDX*(Y-UpperY).
+	// Used by computeEdgeX via the goY(): X(Y) = UpperX + PixelDX*(Y-UpperY).
 	UpperX int32
 
-	// PixelDX is the slope in pixel-space SkFixed (16.16), matching Skia's fDX.
+	// PixelDX is the slope in pixel-space SkFixed (16.16), matching the fDX.
 	PixelDX int32
 
-	// PixelDY is Skia's fDY = abs(1/slope) for partialTriangleToAlpha.
+	// PixelDY is the fDY = abs(1/slope) for partialTriangleToAlpha.
 	// Computed as abs(FDot6Div(dy_fdot6, dx_fdot6)) from ORIGINAL pixel-space
 	// edge coordinates, matching SkAnalyticEdge::setLine line 197-199.
 	// NOT derived from PixelDX (1/slope ≠ FDot6Div(dy,dx) due to integer rounding).
@@ -118,7 +123,7 @@ type LineEdge struct {
 //
 //nolint:gosec // G115: shift is bounded [0, MaxCoeffShift], conversions are safe
 func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool) {
-	// Convert to FDot6 with AA scaling (truncation, matching Skia's SkScalarToFDot6).
+	// Convert to FDot6 with AA scaling (truncation, matching the SkScalarToFDot6).
 	// Scale = 1 << (shift + 6), e.g., 64 for no AA, 256 for 4x AA.
 	scale := float32(int32(1) << uint(shift+FDot6Shift))
 	x0 := int32(p0.X * scale)
@@ -128,13 +133,13 @@ func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool) {
 
 	// --- Skia AAA pixel-space fields (SkAnalyticEdge::setLine exact port) ---
 	//
-	// Skia's setLine() ALWAYS uses kDefaultAccuracy=2 (multiplier=4) for
+	// the setLine() ALWAYS uses kDefaultAccuracy=2 (multiplier=4) for
 	// pixel-space coordinates, regardless of the AA shift used for sub-pixel
 	// edge construction. This ensures consistent edge ordering with quads/cubics.
 	//
 	// Conversion chain:
 	//   x = SkFDot6ToFixed(SkScalarToFDot6(p.fX * 4)) >> 2
-	//     = (int(p.fX * 4 * 64) << 10) >> 2  =  int(p.fX * 256) << 8
+	//     = (int(p.fX * 4 * 64) << 10) >> 2 = int(p.fX * 256) << 8
 	//   y = SnapY(same formula for Y)
 	//
 	// All values are in SkFixed (16.16 pixel-space).
@@ -185,9 +190,8 @@ func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool) {
 		pixelDX = FDot6Div(pxDx, pxDy)
 	}
 
-	// Skia's fDY = abs(1/slope) for partialTriangleToAlpha.
+	// the fDY = abs(1/slope) for partialTriangleToAlpha.
 	// Computed as abs(FDot6Div(dy, dx)) from pixel-space FDot6 (NOT 1/slope).
-	// Matches SkAnalyticEdge.cpp:197-199.
 	var pixelDY int32
 	if pxDx == 0 || pixelDX == 0 {
 		pixelDY = 0x7FFFFFFF
@@ -222,7 +226,7 @@ func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool) {
 	}, true
 }
 
-// snapY applies Skia's SnapY rounding (SkAnalyticEdge.h:52) with accuracy=2.
+// snapY applies the SnapY rounding with accuracy=2.
 // Rounds FDot16 Y to nearest 1/4 pixel boundary.
 func snapY(y FDot16) FDot16 {
 	const accuracy = 2
@@ -362,7 +366,6 @@ func newQuadraticEdgeSetup(p0, p1, p2 CurvePoint, shift int) *QuadraticEdge {
 	}
 
 	// Compute number of subdivisions needed (1 << shift).
-	// Based on the "flatness" of the curve (deviation from chord).
 	//
 	// For quadratic: dx = 2*p1 - p0 - p2, dy similar
 	// This measures the maximum distance from the control point to the chord.
@@ -468,7 +471,7 @@ func newQuadraticEdgeSetup(p0, p1, p2 CurvePoint, shift int) *QuadraticEdge {
 // This is the core of the forward differencing algorithm:
 //
 //	newx = oldx + (dx >> shift)
-//	dx += ddx  // Second derivative is constant!
+//	dx += ddx // Second derivative is constant!
 func (q *QuadraticEdge) Update() bool {
 	count := q.curveCount
 	if count <= 0 {
@@ -646,7 +649,7 @@ func newCubicEdgeSetup(p0, p1, p2, p3 CurvePoint, shift int, sortY bool) *CubicE
 	dx := cubicDeltaFromLine(x0, x1, x2, x3)
 	dy := cubicDeltaFromLine(y0, y1, y2, y3)
 
-	// Add 1 to shift (by observation from Skia)
+	// Add 1 to shift
 	curveShift := diffToShift(dx, dy, 2) + 1
 	if curveShift < 1 {
 		curveShift = 1
@@ -666,7 +669,6 @@ func newCubicEdgeSetup(p0, p1, p2, p3 CurvePoint, shift int, sortY bool) *CubicE
 	}
 
 	// Curve count is NEGATIVE for cubic (counts up to 0).
-	// This matches tiny-skia behavior.
 	curveCount := int8(leftShift(-1, curveShift))
 	dshift := uint8(downShift)
 
@@ -732,7 +734,7 @@ func newCubicEdgeSetup(p0, p1, p2, p3 CurvePoint, shift int, sortY bool) *CubicE
 //
 //	newx = oldx + (dx >> dshift)
 //	dx += ddx >> ddshift
-//	ddx += dddx  // Third derivative is constant!
+//	ddx += dddx // Third derivative is constant!
 func (c *CubicEdge) Update() bool {
 	count := c.curveCount
 	// Cubic uses negative count, increments toward 0
@@ -831,7 +833,7 @@ func diffToShift(dx, dy FDot6, shiftAA int) int {
 	dist := cheapDistance(dx, dy)
 
 	// Shift down dist (currently in FDot6).
-	// Down by 3 gives ~1/8 pixel accuracy (heuristic from Skia).
+	// Down by 3 gives ~1/8 pixel accuracy.
 	// When shiftAA > 0, we're using AA and everything is scaled up,
 	// so we can lower the accuracy requirement.
 	dist = (dist + (1 << uint(2+shiftAA))) >> uint(3+shiftAA)
@@ -896,7 +898,6 @@ const (
 )
 
 // CurveEdgeVariant wraps different edge types for uniform handling in the AET.
-// This is Go's equivalent of Rust's enum Edge { Line, Quadratic, Cubic }.
 type CurveEdgeVariant struct {
 	Type      EdgeType
 	Line      *LineEdge

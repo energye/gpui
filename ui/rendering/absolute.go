@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 // AbsoluteBox is a fixed-size container that **preserves** each child's Offset
@@ -76,7 +86,7 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
-	// W1: own-content Picture Replay. Nested RepaintBoundary children are not
+	// own-content Picture Replay. Nested RepaintBoundary children are not
 	// baked into this Picture — always walk them after a successful tryReplay
 	// so each child can skip/rerecord independently (no stale outer bake).
 	if pc.BoundaryCache != nil && a.IsRepaintBoundary() && pc.BoundaryCache.tryReplay(pc, a) {

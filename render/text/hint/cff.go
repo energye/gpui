@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 // CFF 蓝区解析（pshinter light 移植的数据来源）。
@@ -15,21 +25,21 @@ import (
 
 // cffBlues 是 CFF Private DICT 的蓝区相关参数（字体单位）。
 type cffBlues struct {
-	blueValues    []float64 // op 6：成对的 [bottom,top] 区
-	otherBlues    []float64 // op 7：下沉区（descender 方向）
-	familyBlues   []float64 // op 8：族蓝区（跨字号对齐，一般 CJK 无）
+	blueValues       []float64 // op 6：成对的 [bottom,top] 区
+	otherBlues       []float64 // op 7：下沉区（descender 方向）
+	familyBlues      []float64 // op 8：族蓝区（跨字号对齐，一般 CJK 无）
 	familyOtherBlues []float64 // op 9
-	blueScale     float64   // 12/9
-	blueShift     float64   // 12/10
-	blueFuzz      float64   // 12/11
-	stdHW         float64   // op 10（横笔标准宽）
-	stdVW         float64   // op 11（竖笔标准宽）
-	stemSnapH     []float64 // 12/12
-	stemSnapV     []float64 // 12/13
-	defaultWidthX float64   // op 20
-	nominalWidthX float64   // op 21
-	languageGroup int       // 12/17（0=Latin，1=CJK；1 且 BlueValues 为 dummy → cf2 emBox 幽灵区）
-	unitsPerEm    float64
+	blueScale        float64   // 12/9
+	blueShift        float64   // 12/10
+	blueFuzz         float64   // 12/11
+	stdHW            float64   // op 10（横笔标准宽）
+	stdVW            float64   // op 11（竖笔标准宽）
+	stemSnapH        []float64 // 12/12
+	stemSnapV        []float64 // 12/13
+	defaultWidthX    float64   // op 20
+	nominalWidthX    float64   // op 21
+	languageGroup    int       // 12/17（0=Latin，1=CJK；1 且 BlueValues 为 dummy → cf2 emBox 幽灵区）
+	unitsPerEm       float64
 }
 
 // cffTableData 定位字体字节中 CFF 表的绝对偏移与长度。
@@ -550,7 +560,6 @@ func parsePrivateDict(dict []byte, unitsPerEm int) (*cffBlues, error) {
 			}
 		}
 	}
-	// BlueValues 可缺省（cf2 幽灵区场景不需要真实蓝区；M2 用）
 	return b, nil
 }
 
@@ -561,7 +570,6 @@ type cffFD struct {
 	languageGroup int
 }
 
-// cffFontData 是 CFF 表的完整解析（M1 charstring 解释器的数据源）。
 // 一次解析得到：CharStrings INDEX、GlobalSubrs、每 FD 的 Subrs 与蓝区。
 type cffFontData struct {
 	charStrings [][]byte                      // 每 gid 一条 charstring
@@ -669,7 +677,7 @@ func parseCFFFD(priv []byte, privOff int, cff []byte, unitsPerEm int) (*cffFD, e
 	hasSubrs := false
 	for _, op := range ops {
 		if op.op == 19 && len(op.operands) >= 1 {
-			// Subrs 是单操作数偏移（cfftoken.h:100 CFF_FIELD_NUM），
+			// Subrs 是单操作数偏移，
 			// 指向一个 CFF INDEX；长度由 INDEX 自身决定。
 			subrsOff = int(op.operands[len(op.operands)-1])
 			hasSubrs = true

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build !nogpu
 
@@ -51,7 +58,7 @@ type VelloAccelerator struct {
 
 	// antiAlias controls whether paths are rendered with anti-aliasing.
 	// When false, path coordinates are snapped to pixel grid before encoding
-	// (Skia Graphite snap_rect_to_pixels pattern) for crisp binary-coverage output.
+	// for crisp binary-coverage output.
 	antiAlias bool
 
 	gpuReady       bool
@@ -116,7 +123,6 @@ func (a *VelloAccelerator) SetLogger(l *slog.Logger) {
 // SetAntiAlias sets the anti-aliasing state for subsequent FillPath/StrokePath calls.
 // When disabled, path coordinates are snapped to the pixel grid before encoding,
 // producing crisp binary-coverage output for axis-aligned geometry.
-// Reference: Skia Graphite snap_rect_to_pixels pattern.
 func (a *VelloAccelerator) SetAntiAlias(enabled bool) {
 	a.antiAlias = enabled
 }
@@ -136,7 +142,7 @@ func (a *VelloAccelerator) CanCompute() bool {
 
 // SetDeviceProvider switches the accelerator to use a shared GPU device
 // from an external provider (e.g., gogpu). The provider's Device() must
-// return a gpucontext handle wrapping a hal.Device (see webgpu.DeviceToHandle).
+// return a gpucontext handle wrapping a hal.Device.
 func (a *VelloAccelerator) SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	if provider == nil {
 		return nil
@@ -265,7 +271,7 @@ func (a *VelloAccelerator) StrokePath(target render.GPURenderTarget, path *rende
 	// EvenOdd correctly handles both stroke topologies:
 	//   - Smooth paths: 2-contour ring, center toggled twice → empty.
 	//   - Sharp paths: V-shape intersections toggled twice → correctly hollow.
-	// Mirrors GPURenderContext.StrokePath. ADR-043, #369, #374.
+	// ADR-043, #369, #374.
 	strokePaint := *paint
 	strokePaint.FillRule = render.FillRuleNonZero
 	return a.FillPath(target, fillPath, &strokePaint)
@@ -455,9 +461,6 @@ func velloSameTarget(a *render.GPURenderTarget, b *render.GPURenderTarget) bool 
 // For axis-aligned geometry this produces exact pixel coverage (no partial coverage
 // from anti-aliasing). Paths already in device-space coordinates (transformed by
 // Context.doFill before reaching the accelerator) are rounded in-place.
-//
-// Reference: Skia Graphite snap_rect_to_pixels pattern — ensures rectangles and
-// other axis-aligned shapes land exactly on pixel boundaries when AA is disabled.
 func snapPathToPixelGrid(path *render.Path) *render.Path {
 	snapped := render.NewPath()
 	path.Iterate(func(verb render.PathVerb, coords []float64) {

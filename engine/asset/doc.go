@@ -1,5 +1,14 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package asset freezes the CPU-side asset ledger every 2.5D play feeds
-// (capability 12.1, P2 long chain, S19/W2).
 //
 // Frozen 2026-09-15: Kind, ParseKind, State, Stats, Asset, Manager,
 // NewManager, CurrentVersion, MaxAssets, MaxBytes, MaxAssetBytes, MaxDeps,
@@ -9,7 +18,7 @@
 // carries any bytes without parsing them (maps, bones, and saves ride
 // here until their own capabilities freeze); KindTextureKTX2 carries a
 // KTX2 file with VK_FORMAT_BC1_RGBA_UNORM_BLOCK (133) and decodes it
-// through engine/tex (frozen S02) so upload and pixel sizes are honest.
+// through engine/tex so upload and pixel sizes are honest.
 // The manager keeps one ledger: background Request plus Poll/Wait up
 // front so play never stalls, Load/Ref/Unload counting through
 // core.AssetID and core.Handle so textures, maps, and saves share one
@@ -23,7 +32,7 @@
 // png, ...) parses far enough to name the kind, then reports core
 // Unsupported, never a guessed payload.
 //
-// Frozen 2026-09-15 (capability 12.3, P2, S28/W3): MaxWatches,
+// Frozen 2026-09-15: MaxWatches,
 // MaxWatchIDLen, MaxWatchPathLen, PollInterval, HotState, HotStats,
 // Watcher, NewWatcher. Additive changes only.
 //
@@ -35,7 +44,7 @@
 // parks the watch at Failed with CauseOf set. Only core numbers are
 // used; the manager and tex paths are only read, never modified.
 //
-// Frozen 2026-09-15 (capability 12.2, P2, S27/W3): CurrentAtlasVersion,
+// Frozen 2026-09-15: CurrentAtlasVersion,
 // MaxSprites, MaxAtlasSize, MaxAtlasNameLen, AtlasPad, MaxAtlasJSONBytes,
 // Input, Entry, Atlas, Pack, Parse, Load, Encode, Save. Additive changes
 // only.

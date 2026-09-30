@@ -1,7 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package scope carries the F0-1 theme-and-range context.
 //
 // Ctx is the explicit value threaded through Build/Layout/Paint,
-// following Flutter's InheritedWidget data flow. A zero Ctx reads as
+// following the InheritedWidget data flow. A zero Ctx reads as
 // the documented defaults; providers build a derived copy instead of
 // mutating the parent. Consumers subscribe by aspect so only the
 // fields they read can mark them dirty.

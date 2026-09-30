@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -8,10 +18,6 @@ import (
 	"strings"
 	"testing"
 )
-
-// M2 验证（docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5.1 M2）：
-// cf2Blues + cf2HintMap 移植，对照线 = §13.5 日 12px 8 边数值 + ftexp light
-// 逐点 26.6。
 
 func m2Font(t *testing.T) (*testFont, *cffFontData) {
 	t.Helper()
@@ -48,7 +54,6 @@ func m2HintScale(px float64, upem int) cf2Fixed {
 	return cf2Fixed((int64(xScale) + 32) / 64)
 }
 
-// TestM2Ri12pxEightEdges：日 12px 逐区图 8 边 ds 对照 §13.5 表。
 // 幽灵区边锁定：-120→-1.5、880→11.5；hstem 边（adjustHints 后）：
 // -4→0.0、71→0.8995、352→5.0、426→5.888、697→9.1、772→10.0。
 func TestM2Ri12pxEightEdges(t *testing.T) {
@@ -82,7 +87,6 @@ func TestM2Ri12pxEightEdges(t *testing.T) {
 	hintMap := &cf2HintMap{initial: initMap}
 	hintMap.build(&blues, hStems, cf2StemSlice(out.vstems), &mask, scale, 0, false)
 
-	// §13.5 对照线：cs → ds（px，16.16 转 float）
 	type wantEdge struct {
 		cs int64
 		ds float64 // px
@@ -101,7 +105,6 @@ func TestM2Ri12pxEightEdges(t *testing.T) {
 		cs := cf2IntToFixed(w.cs)
 		ds := hintMap.mapCS(cs)
 		got := float64(ds) / 65536.0
-		// §13.5 的数值是 TRACE 打印（两位小数）+反推，允许 0.002px 容差
 		if d := math.Abs(got - w.ds); d > 0.002 {
 			t.Errorf("cs %d → ds %.4fpx, want %.4fpx (edges=%d)",
 				w.cs, got, w.ds, len(hintMap.edges))

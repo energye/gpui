@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -24,8 +31,6 @@ func (h4b3BadBuf) Size() uint64                { return 0 }
 func (h4b3BadBuf) Usage() gputypes.BufferUsage { return 0 }
 func (h4b3BadBuf) Label() string               { return "" }
 
-// H4-b3 行为差异单测（GL 侧共享部分，win/linux 通用）：
-// 只用零值 Device 与无驱动能力的围栏（NewFence(nil)），不碰 GL 上下文。
 // 锁住三项：围栏退化记数语义、映射越界报错、Unmap 幂等与设备丢失/错误
 // 作用域桩语义。对照 webgpu：webgpu 围栏是空壳（无 Signal/GetLatest，
 // Device 层恒报已信号）、Unmap 传错类型报 ErrInvalidMapRange（GL 返回

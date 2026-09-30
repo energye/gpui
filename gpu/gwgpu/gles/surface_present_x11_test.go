@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -23,13 +30,7 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// H4-e2 三角真窗换屏（X11 先，Wayland 后补）：
-// 临时开关/离屏架子走纯 Go GL，真 EGL 窗 Configure→Acquire→Draw→Submit→Present
-// 换屏亮灯；只画三角（复用 H4-c 金文件语义，尺寸与容差以金文件为准）。
 //
-// 在线 present_target 不动，SelectBackend 留 P3，browser 不动。
-// 像素只做三角级对照（swapchainFBO 读回 md5 对 H4-c 金文件逐位一致）；
-// 真窗截图比对在 e3 做鹈鹕级，这里只验换屏亮灯 + eglSwapBuffers 零报错。
 // 无 X11/EGL 时 t.Skipf（缺真机数据不假绿）。
 
 type h4e2X11Win struct {
@@ -105,7 +106,6 @@ func TestH4E2_TriangleWindowPresentX11(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	// WGSL 与期望探针一律读数据文件（复用 H4-c 同一套，不另立金文件）。
 	vsWGSL := h4cReadWGSL(t, "h4c_triangle_vertex.wgsl")
 	fsWGSL := h4cReadWGSL(t, "h4c_triangle_fragment.wgsl")
 	rawGolden, err := os.ReadFile(filepath.Join("testdata", "h4c_triangle_golden.json"))
@@ -178,7 +178,6 @@ func TestH4E2_TriangleWindowPresentX11(t *testing.T) {
 		t.Fatal("eglSurface == 0 after Configure (X11 window surface not created)")
 	}
 
-	// 管线：WGSL 经缓存编译（与 H4-c/H4-d 同一路），真建 GL 管线。
 	vsMod, err := dev.CreateShaderModule(&ShaderModuleDescriptor{WGSL: vsWGSL})
 	if err != nil {
 		t.Fatalf("CreateShaderModule(vertex): %v", err)

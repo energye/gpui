@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 import (
@@ -680,10 +690,7 @@ func (v *Validator) validateEntryPoints() {
 		// Validate stage-specific requirements
 		switch ep.Stage {
 		case StageVertex:
-			// Vertex shader must return @builtin(position)
-			// Position can be either:
-			// 1. Direct return: fn() -> @builtin(position) vec4<f32>
-			// 2. Struct member: fn() -> VertexOutput { @builtin(position) pos: vec4<f32>, ... }
+			// }
 			if fn.Result == nil {
 				v.addError(fmt.Sprintf("entry point %q (@vertex): must have a return value", ep.Name))
 			} else if !v.hasPositionBuiltin(fn.Result) {
@@ -703,27 +710,22 @@ func (v *Validator) validateEntryPoints() {
 	}
 }
 
-// hasPositionBuiltin checks if the function result contains @builtin(position).
 // This can be either:
-// 1. Direct binding on result: fn() -> @builtin(position) vec4<f32>
-// 2. Struct member binding: fn() -> Struct { @builtin(position) pos: vec4<f32> }
+// 1.
 func (v *Validator) hasPositionBuiltin(result *FunctionResult) bool {
 	// Case 1: Direct binding on result
 	if result.Binding != nil && isPositionBuiltin(*result.Binding) {
 		return true
 	}
 
-	// Case 2: Check struct members for @builtin(position)
 	return v.structHasPositionBuiltin(result.Type)
 }
 
-// isPositionBuiltin checks if a binding is @builtin(position).
 func isPositionBuiltin(binding Binding) bool {
 	b, ok := binding.(BuiltinBinding)
 	return ok && b.Builtin == BuiltinPosition
 }
 
-// structHasPositionBuiltin checks if a struct type has a member with @builtin(position).
 func (v *Validator) structHasPositionBuiltin(typeHandle TypeHandle) bool {
 	if int(typeHandle) >= len(v.module.Types) {
 		return false

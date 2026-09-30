@@ -1,5 +1,13 @@
-// Package ir defines the intermediate representation for naga.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // The IR is a shader-agnostic representation that can be translated
 // from various source languages (WGSL, GLSL) and compiled to
 // various target languages (SPIR-V, GLSL, MSL, HLSL).
@@ -7,19 +15,11 @@ package ir
 
 // Module represents a shader module in IR form.
 // Module is the IR representation of a shader module.
-// Structurally verified against Rust naga via TestIRReference (18/18 deep match).
-// See docs/dev/research/IR-DEEP-ANALYSIS.md for Go vs Rust comparison.
-//
-// Key architectural difference from Rust naga:
-// - Entry point functions are inline in EntryPoint.Function (not in Functions[])
-// - Go slices instead of Rust Arena<T> — cache-friendly, GC-managed
-// - Const array inlining is 1-step (Rust: 3-step create→evaluate→compact)
 type Module struct {
-	// Types holds all type definitions. Order matches Rust naga's type arena.
+	// Types holds all type definitions.
 	Types []Type
 
 	// Constants holds module-scope `const` declarations (NOT overrides).
-	// Rust naga also separates constants from overrides.
 	Constants []Constant
 
 	// GlobalVariables holds module-scope variables (var<storage>, var<uniform>, etc.)
@@ -27,7 +27,6 @@ type Module struct {
 
 	// GlobalExpressions holds expressions used at module scope:
 	// Constant.Init, Override.Init, and GlobalVariable.Init reference into this.
-	// Mirrors Rust naga's Module.global_expressions arena.
 	GlobalExpressions []Expression
 
 	// Functions holds regular (non-entry-point) function definitions.
@@ -35,12 +34,9 @@ type Module struct {
 	Functions []Function
 
 	// EntryPoints holds shader entry points with inline Function bodies.
-	// Unlike Rust naga which uses FunctionHandle into functions arena,
-	// our entry points contain the full Function struct inline.
 	EntryPoints []EntryPoint
 
 	// Overrides holds pipeline-overridable constants (WGSL `override` declarations).
-	// Separate from Constants — mirrors Rust naga's Module.overrides arena.
 	Overrides []Override
 
 	// SpecialTypes holds handles to compiler-generated types (external textures, etc.)
@@ -51,12 +47,10 @@ type Module struct {
 
 	// TypeUseOrder records the order in which types were first registered
 	// during lowering. Used by ReorderTypes to reorder the type arena
-	// to match Rust naga's dependency-ordered type registration.
 	TypeUseOrder []TypeHandle
 }
 
 // SpecialTypes holds handles to compiler-generated types used by backends.
-// Mirrors Rust naga's SpecialTypes struct.
 type SpecialTypes struct {
 	// ExternalTextureParams is the handle of the NagaExternalTextureParams struct type.
 	ExternalTextureParams *TypeHandle
@@ -64,18 +58,15 @@ type SpecialTypes struct {
 	// ExternalTextureTransferFunction is the handle of the NagaExternalTextureTransferFn struct type.
 	ExternalTextureTransferFunction *TypeHandle
 
-	// RayIntersection is the handle of the RayIntersection struct type used by ray query get intersection expressions. Mirrors Rust naga SpecialTypes ray_intersection.
+	// RayIntersection is the handle of the RayIntersection struct type used by ray query get intersection expressions.
 	RayIntersection *TypeHandle
 }
 
 // Override represents a pipeline-overridable constant.
-// Mirrors Rust naga's Override struct.
 type Override struct {
 	// Name is the identifier name of the override.
 	Name string
-	// ID is the numeric @id attribute value, if specified.
-	// In Rust naga this is Option<u16>; we use *uint16 for nil-ability.
-	ID *uint16
+	ID   *uint16
 	// Ty is the type of this override (handle into Module.Types).
 	Ty TypeHandle
 	// Init is an optional handle into Module.GlobalExpressions that holds the
@@ -135,8 +126,6 @@ type OverrideInitUintLiteral struct {
 func (OverrideInitUintLiteral) overrideInitExpr() {}
 
 // EntryPoint represents a shader entry point.
-// The Function is stored inline (not via FunctionHandle) because Rust naga
-// keeps entry-point functions separate from Module.functions[].
 type EntryPoint struct {
 	Name           string
 	Stage          ShaderStage
@@ -235,7 +224,6 @@ const (
 	ScalarBool                    // Boolean
 
 	// Abstract types: used during WGSL lowering, removed by compact before backends.
-	// Matches Rust naga: forbidden by validation, never reach backends.
 	ScalarAbstractInt   // WGSL abstract integer (unsuffixed int literals)
 	ScalarAbstractFloat // WGSL abstract float (unsuffixed float literals)
 )
@@ -292,7 +280,7 @@ func (StructType) typeInner() {}
 type StructMember struct {
 	Name    string
 	Type    TypeHandle
-	Binding *Binding // @builtin(position), @location(0), etc.
+	Binding *Binding
 	Offset  uint32
 }
 
@@ -307,7 +295,7 @@ func (PointerType) typeInner() {}
 // ValuePointerType represents a pointer to a scalar or vector value.
 // Unlike PointerType (whose Base is a TypeHandle in the arena), ValuePointerType
 // stores the pointee type inline. This exists only in TypeResolution — never in
-// the type arena. Matches Rust naga's TypeInner::ValuePointer.
+// the type arena.
 //
 // Produced by the typifier when accessing components through pointers:
 //   - Pointer<Matrix>[i] → ValuePointerType{Size: &rows, Scalar, Space} (pointer to column vector)
@@ -545,14 +533,12 @@ type Constant struct {
 	Value ConstantValue
 
 	// Init is a handle into Module.GlobalExpressions that holds the init expression
-	// for this constant. This mirrors Rust naga's Constant.init field.
+	// for this constant.
 	// When GlobalExpressions is populated, this is the canonical init reference.
 	Init ExpressionHandle
 
 	// IsAbstract indicates this constant originated from a WGSL `const` declaration
 	// without an explicit type (e.g., `const ONE = 1;`). In Rust naga, such constants
-	// retain abstract types and are removed by the compact pass before reaching backends.
-	// The MSL writer should skip abstract constants.
 	IsAbstract bool
 }
 
@@ -578,7 +564,6 @@ func (CompositeValue) constantValue() {}
 
 // ZeroConstantValue represents a zero-initialized constant.
 // In MSL, this renders as "type {}" (brace initialization).
-// Matches Rust naga's use of ZeroValue for constant init expressions.
 type ZeroConstantValue struct{}
 
 func (ZeroConstantValue) constantValue() {}
@@ -602,12 +587,11 @@ type GlobalVariable struct {
 	Type    TypeHandle
 	Init    *ConstantHandle
 	// InitExpr is an optional handle into Module.GlobalExpressions for the
-	// init expression. This mirrors Rust naga's GlobalVariable.init field.
+	// init expression.
 	// When set, this is the canonical init reference into GlobalExpressions.
 	InitExpr *ExpressionHandle
 	// Access stores the access mode for storage address space variables.
 	// Only meaningful when Space == SpaceStorage.
-	// Rust naga: Storage { access: StorageAccess::LOAD } vs Storage { access: StorageAccess::LOAD | StorageAccess::STORE }.
 	Access StorageAccessMode
 }
 
@@ -631,7 +615,6 @@ type Function struct {
 	// This is used for let bindings and phony assignments (_ = expr).
 	// Backends use these names when baking (materializing) expressions,
 	// producing e.g. "float a = ..." instead of "float _e3 = ...".
-	// Matches Rust naga's Function::named_expressions.
 	NamedExpressions map[ExpressionHandle]string
 }
 
@@ -708,7 +691,6 @@ const (
 type LocationBinding struct {
 	Location      uint32
 	Interpolation *Interpolation
-	// BlendSrc is the dual-source blending index (@blend_src attribute).
 	// Nil when not using dual-source blending.
 	BlendSrc *uint32
 }

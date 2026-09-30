@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -1463,7 +1473,7 @@ func distRangeToAABB(cx, cy float64, r image.Rectangle) (minD, maxD float64) {
 	return minD, maxD
 }
 
-// fillGradientFieldMasked is N1: gradient ColorAt field × path coverage (GPU R8).
+// fillGradientFieldMasked is N1: gradient ColorAt field × path coverage.
 func (rc *GPURenderContext) fillGradientFieldMasked(
 	target render.GPURenderTarget,
 	path *render.Path,
@@ -1722,8 +1732,7 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 
 // fillBrushAsImage rasterizes a non-solid paint (gradient/pattern) with the
 // software path into a staging pixmap, then queues a GPU textured-quad
-// composite. This matches Skia's "rasterize shader then GPU blit" bootstrap
-// path and keeps correct AA/fill-rule while producing real GPUOps.
+// composite.
 func (rc *GPURenderContext) fillBrushAsImage(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if path == nil || path.NumVerbs() == 0 || paint == nil {
 		return nil

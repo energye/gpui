@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -65,7 +75,7 @@ func stencilPassthroughDepthStencil() *hal.DepthStencilState {
 //   - DepthClearValue = 1.0 (unchanged from existing)
 //   - Clip path writes Z = 0.0 → depth buffer = 0.0 where clip geometry exists
 //   - Content uses DepthCompare=GreaterEqual, fragment Z = 0.0
-//   - Where clip drawn:     buffer=0.0, fragment=0.0 → 0.0 >= 0.0 → PASS
+//   - Where clip drawn: buffer=0.0, fragment=0.0 → 0.0 >= 0.0 → PASS
 //   - Where clip NOT drawn: buffer=1.0, fragment=0.0 → 0.0 >= 1.0 → FAIL
 func depthClipDepthStencil() *hal.DepthStencilState {
 	return &hal.DepthStencilState{

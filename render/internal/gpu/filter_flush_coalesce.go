@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -10,11 +20,9 @@ import (
 )
 
 // FlushAndFilterFromView encodes pending draws into srcView, then continues the
-// GPU filter graph on the same command encoder (opt36), finishing once and
+// GPU filter graph on the same command encoder, finishing once and
 // submitting mesh+filter together.
 //
-// Pure equivalence: same mesh seed + same filter graph; fewer CommandEncoder.Finish
-// calls than opt18 (which used one Finish for mesh seed CB + one for filter CB in
 // a single Queue.Submit). On filter failure after mesh is encoded, the open
 // encoder is Finished and submitted so srcView is populated, then FromView
 // recovery re-runs the filter graph.
@@ -39,7 +47,7 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 			return gpucontext.TextureView{}, nil, err
 		}
 	} else if !gpuFilterGraphRegistered {
-		// opt41: warm path — avoid ensureGPU every glow seed flush.
+		// warm path — avoid ensureGPU every glow seed flush.
 		rc.shared.registerFilterGraphIfNeeded()
 	}
 	rc.shared.ensurePipelines()
@@ -91,7 +99,7 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 		return gpucontext.TextureView{}, nil, ferr
 	}
 
-	// opt36: continue filter graph on the same encoder → one Finish for seed+filter.
+	// continue filter graph on the same encoder → one Finish for seed+filter.
 	view, release, err := runGPUFilterGraphFromViewIntoEncoder(
 		device, queue, cache, srcView, w, h, nodes, enc,
 	)

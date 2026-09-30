@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
@@ -340,7 +350,7 @@ func (b *Buffer) MapAsync(mode types.MapMode, offset, size uint64, callback func
 		return fmt.Errorf("%w: offset %d + size %d > buffer size %d", ErrInvalidMapRange, offset, size, b.descriptor.Size)
 	}
 
-	// Validate alignment (WebGPU requires 8-byte alignment for map operations)
+	// Validate alignment
 	const mapAlignment uint64 = 8
 	if offset%mapAlignment != 0 {
 		callback(BufferMapAsyncStatusValidationError)

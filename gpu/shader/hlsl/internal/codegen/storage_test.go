@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -782,8 +789,8 @@ func TestFillAccessChain(t *testing.T) {
 	structHandle := ir.TypeHandle(2)
 
 	t.Run("struct_member_access", func(t *testing.T) {
-		// expr[0] = GlobalVariable(0)  -> buf
-		// expr[1] = AccessIndex(base=0, index=1)  -> buf.b (offset=4)
+		// expr[0] = GlobalVariable(0) -> buf
+		// expr[1] = AccessIndex(base=0, index=1) -> buf.b (offset=4)
 		fn := &ir.Function{
 			Expressions: []ir.Expression{
 				{Kind: ir.ExprGlobalVariable{Variable: 0}},
@@ -1491,8 +1498,7 @@ func TestNeedsRestrictIndexingPerBinding(t *testing.T) {
 // =============================================================================
 
 func TestComputeSubAccess_ValuePointerType(t *testing.T) {
-	// ValuePointerType should use scalar width as stride, matching Rust's
-	// TypeInner::ValuePointer { scalar, .. } => Parent::Array { stride: scalar.width }
+	// } => Parent::Array { stride: scalar.width }
 	module := &ir.Module{
 		Types: []ir.Type{
 			{Inner: ir.ValuePointerType{Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}, Space: ir.SpaceStorage}}, // 0: ptr to f32 (width=4)

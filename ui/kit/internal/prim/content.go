@@ -1,5 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package prim content facades: pure text/image math plus builders over
-// existing ui/rendering nodes (P3).
+// existing ui/rendering nodes.
 //
 // Like layout and decor, this file creates no new RenderObjects. Label
 // and RichLabel compose RenderText/ParagraphBuilder; TextStyleScope is a
@@ -29,7 +39,7 @@ type TextStyle struct {
 }
 
 // Merge overlays child over parent: set child fields win, unset fields
-// inherit. Mirrors DefaultTextStyle inheritance without globals.
+// inherit.
 func (c TextStyle) Merge(parent TextStyle) TextStyle {
 	out := parent
 	if c.FontSize > 0 {

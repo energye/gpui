@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import "math"
@@ -172,7 +182,7 @@ func (t *RenderTransform) inverseMapPoint(p Point) Point {
 	if t.Rotation != 0 {
 		c := math.Cos(t.Rotation)
 		s := math.Sin(t.Rotation)
-		// R(-θ): [c s; -s c] applied to (x,y)  (same as transpose of R(θ))
+		// R(-θ): [c s; -s c] applied to (x,y) (same as transpose of R(θ))
 		x, y = x*c+y*s, -x*s+y*c
 	}
 	// 3) S⁻¹

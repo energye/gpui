@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -6,8 +16,6 @@ import (
 
 	"github.com/energye/gpui/render/text"
 )
-
-// M1-b:双模式布局缓存 + 按行失效标记(I9).
 
 func m1CacheLinesEqual(a, b *TextLayout) bool {
 	if a.LineCount() != b.LineCount() {

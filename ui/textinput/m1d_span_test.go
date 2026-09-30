@@ -1,10 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
 	"testing"
 )
-
-// M1-d Editor变更区间:单次变更记录,消费清除,二次变更失效.
 
 func TestEditorSpan_AddConsume_M1(t *testing.T) {
 	ed := New()

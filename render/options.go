@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 // ContextOption configures a Context during creation.
@@ -81,7 +91,7 @@ func WithPipelineMode(mode PipelineMode) ContextOption {
 //
 //	// Logical size: 800x600, Physical pixmap: 1600x1200
 //	dc := render.NewContext(800, 600, render.WithDeviceScale(2.0))
-//	dc.Width()      // 800 (logical)
+//	dc.Width() // 800 (logical)
 //	dc.PixelWidth() // 1600 (physical)
 //
 // The Context automatically applies a base scale transform so all drawing

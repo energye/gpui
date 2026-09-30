@@ -1,5 +1,13 @@
-// Package ir defines the intermediate representation for naga.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // The IR is designed to be:
 //   - Shader-agnostic: Not tied to any specific shading language
 //   - Complete: Can represent all features needed for modern shaders
@@ -24,8 +32,4 @@
 // as well as multi-target compilation from a single IR.
 //
 // # References
-//
-// This IR design is inspired by:
-//   - naga (Rust): https://github.com/gfx-rs/naga
-//   - SPIR-V specification: https://www.khronos.org/registry/SPIR-V/
 package ir

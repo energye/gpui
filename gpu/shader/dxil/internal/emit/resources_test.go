@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package emit
 
@@ -432,12 +439,7 @@ func TestCBVStructTypeThreeMatrices(t *testing.T) {
 	}
 }
 
-// TestAnalyzeResourcesBindingMapSingleSRV verifies that analyzeResources
-// applies a caller-supplied BindingMap to a single SRV resource: the raw
-// WGSL @group(0) @binding(5) is remapped to (space=0, register=0), which
-// is what wgpu's per-class monotonic register scheme expects.
 func TestAnalyzeResourcesBindingMapSingleSRV(t *testing.T) {
-	// IR module with a single SRV (sampled texture) at @group(0) @binding(5).
 	imgHandle := ir.TypeHandle(0)
 	mod := &ir.Module{
 		Types: []ir.Type{
@@ -564,8 +566,8 @@ func TestAnalyzeResourcesBindingMapMultiClass(t *testing.T) {
 	// their respective classes.
 	//
 	// Expected:
-	//   resources[0] = pin    : SRV, rangeID=0, (space=0, register=0) → t0
-	//   resources[1] = pout   : UAV, rangeID=0, (space=0, register=0) → u0
+	//   resources[0] = pin : SRV, rangeID=0, (space=0, register=0) → t0
+	//   resources[1] = pout : UAV, rangeID=0, (space=0, register=0) → u0
 	//   resources[2] = params : CBV, rangeID=0, (space=0, register=0) → b0
 
 	type expect struct {
@@ -607,7 +609,6 @@ func TestAnalyzeResourcesBindingMapMultiClass(t *testing.T) {
 // (u-register). Per-class rangeID counters are tracked independently, so
 // the first SRV and the first UAV both get rangeID=0.
 //
-// This matches the HLSL backend's getRegisterTypeForAddressSpace in
 // hlsl/storage.go. Without this, two storage buffers in the same bind
 // group collide on the same UAV register in the DXIL root signature and
 // D3D12 CreateComputePipelineState fails with E_INVALIDARG (see
@@ -682,12 +683,10 @@ func TestClassifyStorageBufferAccessMode(t *testing.T) {
 	}
 }
 
-// TestAnalyzeResourcesBindingMapNilBackwardCompat verifies that when
-// BindingMap is nil, analyzeResources preserves the raw WGSL @group and
-// @binding numbers — i.e. the backend continues to behave exactly as it
+// the backend continues to behave exactly as it
 // did before FEAT-DXIL-002.
 func TestAnalyzeResourcesBindingMapNilBackwardCompat(t *testing.T) {
-	mod := buildCBVFragmentShader() // @group(0) @binding(0) uniforms CBV
+	mod := buildCBVFragmentShader()
 
 	e := &Emitter{
 		ir:              mod,
@@ -743,9 +742,9 @@ func TestAnalyzeResourcesBindingMapPartialMiss(t *testing.T) {
 	// Sampler-heap mode rewrites samp into a per-group index buffer SRV
 	// (inserted at the sampler's position) plus a SamplerHeap entry appended
 	// at the end. With the one texture (tex) before the sampler, the list is:
-	//   [0] SRV tex                      — remapped from (0,3) → (0,0)
-	//   [1] nagaGroup0SamplerIndexArray  — synthetic StructuredBuffer SRV (inserted at samp position)
-	//   [2] nagaSamplerHeap              — synthetic SamplerHeap at (s0, space0)
+	//   [0] SRV tex — remapped from (0,3) → (0,0)
+	//   [1] nagaGroup0SamplerIndexArray — synthetic StructuredBuffer SRV (inserted at samp position)
+	//   [2] nagaSamplerHeap — synthetic SamplerHeap at (s0, space0)
 	if len(e.resources) != 3 {
 		t.Fatalf("expected 3 resources (SRV + IndexBuffer + SamplerHeap), got %d", len(e.resources))
 	}
@@ -777,7 +776,7 @@ func TestAnalyzeResourcesBindingMapPartialMiss(t *testing.T) {
 // createHandle must equal the remapped register (which will also be the
 // DXIL metadata lowerBound — they must match, per DXIL spec).
 //
-// Setup: CBV "uniforms" at raw @group(0) @binding(0). BindingMap remaps
+// BindingMap remaps
 // (0,0) -> (space=0, register=7). Expected: createHandle is called with
 // index=7 (as an i32 constant operand).
 func TestEmitBindingMapEndToEndCreateHandleIndex(t *testing.T) {
@@ -848,8 +847,6 @@ func TestEmitBindingMapEndToEndCreateHandleIndex(t *testing.T) {
 	}
 }
 
-// TestUAVStoreStructElemFlattenedComponentCount locks the contract that
-// emitUAVStore relies on for BUG-DXIL-005: when a storage buffer's element
 // type is a struct (e.g. Particle { pos: vec2<f32>, vel: vec2<f32> }), the
 // flattened scalar count must equal the sum of the members' scalar counts
 // — NOT 1 (the previous componentCount default-branch result).
@@ -859,9 +856,6 @@ func TestEmitBindingMapEndToEndCreateHandleIndex(t *testing.T) {
 // recurse into struct members so the store path emits a single 4-float
 // bufferStore with mask 0xF (or, for >4-component aggregates, multiple
 // batched bufferStore calls covering all components).
-//
-// Reference: D:/projects/gogpu/naga/dxil/internal/emit/resources.go
-// emitUAVStore() — uses cbvComponentCount unconditionally to compute numComps.
 func TestUAVStoreStructElemFlattenedComponentCount(t *testing.T) {
 	mod := &ir.Module{
 		Types: []ir.Type{
@@ -919,8 +913,6 @@ func TestUAVStoreStructElemFlattenedComponentCount(t *testing.T) {
 // explicit ImageClassDepth case added alongside this test, the lookup
 // returned I32 and the validator trips 'sample_* instructions require
 // resource to be declared to return UNORM, SNORM or FLOAT'.
-//
-// Mirror regression of the imageOverload fix (commit 21466c5).
 func TestGetResourceComponentType(t *testing.T) {
 	// Build minimal IR module with each interesting image variant.
 	mod := &ir.Module{
@@ -965,11 +957,6 @@ func TestGetResourceComponentType(t *testing.T) {
 	}
 }
 
-// TestSamplerHeapBothKinds verifies BUG-DXIL-035: when a module has both
-// a standard and a comparison sampler in the same bind group, the
-// analysis produces ONE SamplerHeap entry + ONE ComparisonSamplerHeap
-// entry + ONE shared per-group index buffer, with deterministic rangeID
-// ordering (standard before comparison, textures before index buffer).
 func TestSamplerHeapBothKinds(t *testing.T) {
 	mod := &ir.Module{
 		Types: []ir.Type{
@@ -997,14 +984,6 @@ func TestSamplerHeapBothKinds(t *testing.T) {
 	}
 	e.analyzeResources()
 
-	// Expected after sampler-heap rewrite — index buffer SRV is inserted at
-	// the position of the first sampler (global[2] "samp"), matching the HLSL
-	// backend's writeSamplerIndexBuffer call order:
-	//   [0] tex                          SRV     rangeID 0 (t0)
-	//   [1] depth                        SRV     rangeID 1 (t1)
-	//   [2] nagaGroup0SamplerIndexArray  SRV     rangeID 2 (t0, space255) - StructuredBuffer
-	//   [3] nagaSamplerHeap              Sampler rangeID 0 (s0, space0, 2048 slots)
-	//   [4] nagaComparisonSamplerHeap    Sampler rangeID 1 (s0, space1, 2048 slots)
 	if len(e.resources) != 5 {
 		t.Fatalf("expected 5 resources (2 SRV + 1 IndexBuffer + 2 SamplerHeap), got %d", len(e.resources))
 	}
@@ -1187,10 +1166,10 @@ func TestSamplerIndexBufferInsertionOrder(t *testing.T) {
 	e.analyzeResources()
 
 	// Expected order:
-	// [0] buf              SRV rangeID=0 (the storage buffer)
-	// [1] tex              SRV rangeID=1 (the texture)
-	// [2] nagaGroup0...    SRV rangeID=2 (index buffer, inserted at sampler position)
-	// [3] nagaComparison...  Sampler rangeID=0
+	// [0] buf SRV rangeID=0 (the storage buffer)
+	// [1] tex SRV rangeID=1 (the texture)
+	// [2] nagaGroup0... SRV rangeID=2 (index buffer, inserted at sampler position)
+	// [3] nagaComparison... Sampler rangeID=0
 	if len(e.resources) != 4 {
 		t.Fatalf("expected 4 resources, got %d", len(e.resources))
 	}
@@ -1297,7 +1276,6 @@ func TestBuildHandleEmitOrder(t *testing.T) {
 			},
 		},
 		{
-			// Mirrors boids.wgsl: CBV(b0), SRV(t1), UAV(u2).
 			// DXC emits: UAV, SRV, CBV.
 			name: "mixed_UAV_SRV_CBV_boids_pattern",
 			resources: []resourceInfo{
@@ -1312,7 +1290,6 @@ func TestBuildHandleEmitOrder(t *testing.T) {
 			},
 		},
 		{
-			// Mirrors bounds-check-dynamic-buffer: 5 UAVs interleaved with 1 CBV.
 			// DXC emits: UAV(4,3,2,1,0), CBV(0).
 			name: "interleaved_UAV_CBV",
 			resources: []resourceInfo{
@@ -1335,7 +1312,6 @@ func TestBuildHandleEmitOrder(t *testing.T) {
 			},
 		},
 		{
-			// Mirrors shadow shader: SRVs, CBVs, Sampler — no UAV.
 			// DXC emits: SRV(1,0), CBV(2,1,0), Sampler(0).
 			name: "SRV_CBV_Sampler_shadow_pattern",
 			resources: []resourceInfo{

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -10,7 +20,7 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// X11 XDND drag-and-drop target (S6-P1 file-first).
+// X11 XDND drag-and-drop target.
 //
 // Implements the target side of the XDND protocol version 5:
 //   - advertise XdndAware=5 so sources send Enter/Position/Leave/Drop
@@ -547,8 +557,7 @@ func (h *x11Host) handleXdndSelectionNotify(st *x11State, buf []byte) []Event {
 	if target == st.atTargetsAtom && st.atTargetsAtom != 0 {
 		// Delete the property BEFORE reading: the source wrote into our
 		// window's property slot; without the delete a retried convert
-		// (or a stale earlier answer) re-reads old bytes. Matches the
-		// payload branch below.
+		// (or a stale earlier answer) re-reads old bytes.
 		data, err := x11DndReadProperty(st, property)
 		lib := clipLib.open()
 		if lib.ok() && lib.deleteProperty != nil && st.atXdndSelection != 0 {
@@ -844,7 +853,7 @@ func x11DndSendSelectionNotify(st *x11State, requestor, selection, target, prope
 	}
 }
 
-// --- Outbound drag source (S6-P1 item 4: 本窗外发拖放) ---
+// --- Outbound drag source ---
 //
 // StartDragTo performs a programmatic XDND drop onto an explicit target
 // window: the offer payload is staged into the SelectionRequest serving

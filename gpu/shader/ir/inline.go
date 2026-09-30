@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 import (
@@ -17,7 +27,7 @@ import (
 // user helper functions in full generality — specifically, functions that
 // access module globals, return aggregate types, or contain complex local
 // variable shapes. DXC resolves this by running LLVM's AlwaysInliner as a
-// post-emit pass (DxilLinker.cpp:1248, createAlwaysInlinerPass); Mesa runs
+// post-emit pass; Mesa runs
 // nir_inline_functions as a NIR pre-pass before nir_to_dxil. We mirror the
 // Mesa approach at the naga IR level: transform the module once, then let
 // each backend emit from the simplified IR.
@@ -275,15 +285,14 @@ func inlineOneCall(module *Module, caller *Function, call StmtCall, callee *Func
 	// Statements we prepend to the caller's position: one StmtStore per
 	// argument, materializing the caller-side value into a freshly-allocated
 	// local so the inlined body reads the arg via ExprLoad of a local
-	// variable. Mirrors LLVM AlwaysInliner / Mesa nir_inline_functions which
-	// both spill args into temporaries.
+	// variable.
 	//
 	// Layout of caller.Expressions after this call returns:
 	//
 	//   [pre-existing caller exprs ......................]
-	//   [arg-spill-ptr expressions, one per call arg ....]  <- destinations for arg-spill stores
-	//   [arg-load expressions, two per arg (ptr + Load) .]  <- callee's ExprFunctionArgument(i) → arg-load expr
-	//   [calleeExprMap range — one slot per callee expr .]  <- contiguous; StmtEmit ranges remap linearly
+	//   [arg-spill-ptr expressions, one per call arg ....] <- destinations for arg-spill stores
+	//   [arg-load expressions, two per arg (ptr + Load) .] <- callee's ExprFunctionArgument(i) → arg-load expr
+	//   [calleeExprMap range — one slot per callee expr .] <- contiguous; StmtEmit ranges remap linearly
 	//   [return-slot expressions (ptr + Load), if any ...]
 	//
 	// Keeping the calleeExprMap range a single contiguous block is what
@@ -557,7 +566,7 @@ func inlineOneCall(module *Module, caller *Function, call StmtCall, callee *Func
 	// 9. Rewrite StmtReturn in the inlined body. If the callee has early
 	// returns (returns inside nested if/switch/loop), wrap the body in a
 	// synthetic loop and replace each return with store+break. This mirrors
-	// LLVM AlwaysInliner's wrap pattern (DxilLinker.cpp:1248).
+	// LLVM AlwaysInliner's wrap pattern.
 	hasEarly := blockHasEarlyReturn(inlinedBody)
 	inlinedBody = rewriteReturnsForInline(inlinedBody, retSlot, caller.Expressions, hasEarly)
 	if hasEarly {

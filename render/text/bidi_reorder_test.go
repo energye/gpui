@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import "testing"
@@ -138,7 +148,6 @@ func TestHitTestCluster_RTLVisual(t *testing.T) {
 		{GID: 3, Cluster: 2, X: 22, XAdvance: 8},
 	}
 	gs := ReorderRTLShapedGlyphs(in)
-	// Visual: cluster2 @0..8, cluster1 @8..20, cluster0 @20..30
 	if HitTestCluster(gs, 0) != 2 {
 		t.Fatalf("left hit want cluster 2 got %d", HitTestCluster(gs, 0))
 	}

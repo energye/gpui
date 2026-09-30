@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -8,9 +18,6 @@ import (
 )
 
 // Adapter wraps a browser GPUAdapter.
-//
-// Matches Rust wgpu WebAdapter which holds the webgpu_sys::GpuAdapter inner value
-// and pre-caches features/limits at construction time.
 type Adapter struct {
 	// ref_ is the GPUAdapter JavaScript object.
 	ref_ js.Value
@@ -36,9 +43,6 @@ func newAdapter(ref js.Value) *Adapter {
 //
 // The descriptor parameter is a JS object matching GPUDeviceDescriptor
 // (built by convert.go helpers). Pass js.Undefined() for default device.
-//
-// Matches Rust wgpu WebAdapter::request_device which calls
-// inner.request_device_with_descriptor and awaits the promise.
 func (a *Adapter) RequestDevice(descriptor js.Value) (*Device, error) {
 	var promise js.Value
 	if descriptor.IsUndefined() || descriptor.IsNull() {

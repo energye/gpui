@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 import "fmt"
@@ -48,7 +58,6 @@ func ResolveExpressionType(module *Module, fn *Function, handle ExpressionHandle
 			return TypeResolution{Handle: &h}, nil
 		}
 		// Non-Handle address space: variable expression is a pointer to the variable's type.
-		// Matches Rust naga typifier: GlobalVariable -> Pointer { base: var.ty, space: var.space }
 		return TypeResolution{Value: PointerType{Base: gv.Type, Space: gv.Space}}, nil
 	case ExprLocalVariable:
 		if int(kind.Variable) >= len(fn.LocalVars) {
@@ -56,7 +65,6 @@ func ResolveExpressionType(module *Module, fn *Function, handle ExpressionHandle
 		}
 		lv := &fn.LocalVars[kind.Variable]
 		// Local variables are always pointers in function address space.
-		// Matches Rust naga typifier: LocalVariable -> Pointer { base: var.ty, space: Function }
 		return TypeResolution{Value: PointerType{Base: lv.Type, Space: SpaceFunction}}, nil
 	case ExprLoad:
 		return resolveLoadType(module, fn, kind)
@@ -275,7 +283,6 @@ func resolveAccessIndexType(module *Module, fn *Function, expr ExprAccessIndex) 
 		return TypeResolution{Handle: &h}, nil
 	case PointerType:
 		// Access through a pointer: resolve the pointee type and index into it.
-		// Results remain pointers (ValuePointerType) per Rust naga typifier behavior.
 		if int(t.Base) >= len(module.Types) {
 			return TypeResolution{}, fmt.Errorf("pointer base type %d out of range", t.Base)
 		}
@@ -395,7 +402,6 @@ func resolveLoadType(module *Module, fn *Function, expr ExprLoad) (TypeResolutio
 	// Load dereferences a pointer
 	if ptr, ok := inner.(PointerType); ok {
 		// If the base type is Atomic(scalar), resolve to Scalar(scalar).
-		// This matches Rust naga's typifier (proc/typifier.rs).
 		if int(ptr.Base) < len(module.Types) {
 			if at, ok := module.Types[ptr.Base].Inner.(AtomicType); ok {
 				return TypeResolution{Value: at.Scalar}, nil
@@ -416,7 +422,6 @@ func resolveLoadType(module *Module, fn *Function, expr ExprLoad) (TypeResolutio
 
 	// If the pointer expression resolves to an Atomic type (e.g., from AccessIndex
 	// through a pointer to a struct/array containing atomics), resolve to Scalar.
-	// This matches Rust naga where Load on Atomic always gives Scalar.
 	if at, ok := inner.(AtomicType); ok {
 		return TypeResolution{Value: at.Scalar}, nil
 	}
@@ -424,14 +429,11 @@ func resolveLoadType(module *Module, fn *Function, expr ExprLoad) (TypeResolutio
 	// When the pointer expression is a variable reference (GlobalVariable, LocalVariable)
 	// that resolves directly to the value type rather than a PointerType, the Load
 	// just produces the same type. This supports the WGSL Load Rule pattern where
-	// the lowerer inserts ExprLoad after variable references to match Rust naga's
-	// expression handle numbering.
 	return pointerType, nil
 }
 
 func resolveImageSampleType(module *Module, fn *Function, expr ExprImageSample) (TypeResolution, error) {
 	// Gather operations always return vec4, even for depth textures.
-	// This matches Rust naga typifier: ImageSample with gather: Some(_) -> Vec4.
 	if expr.Gather != nil {
 		return resolveImageGatherType(module, fn, expr.Image)
 	}
@@ -542,8 +544,6 @@ func resolveImageQueryType(module *Module, fn *Function, expr ExprImageQuery) (T
 		//   vec3<u32> for 3D
 		// Arrayed textures do NOT add an extra component for the layer count.
 		// The array layer count is queried separately via ImageQueryNumLayers.
-		// This matches Rust naga's proc::typifier which uses
-		// image_query_size_result_type without adding array dimensions.
 		_ = q
 		dim := Dim2D // default
 
@@ -666,7 +666,6 @@ func resolveBinaryType(module *Module, fn *Function, expr ExprBinary) (TypeResol
 }
 
 // resolveMulResultType determines the result type of a multiplication.
-// Matches WGSL spec: scalar*vec→vec, scalar*mat→mat, mat*vec→vec(rows), vec*mat→vec(cols).
 func resolveMulResultType(module *Module, left, right TypeResolution) TypeResolution {
 	leftInner := TypeResInner(module, left)
 	rightInner := TypeResInner(module, right)
@@ -694,7 +693,7 @@ func resolveMulResultType(module *Module, left, right TypeResolution) TypeResolu
 		// vec(rows) * mat(cols x rows) → vec(cols)
 		return TypeResolution{Value: VectorType{Size: rightMat.Columns, Scalar: rightMat.Scalar}}
 	case leftIsMat && rightIsMat:
-		// mat(C1 x R1) * mat(C2 x R2) where C1==R2 → mat(C2 x R1)
+		// mat * mat where C1==R2 → mat
 		return TypeResolution{Value: MatrixType{
 			Columns: rightMat.Columns,
 			Rows:    leftMat.Rows,

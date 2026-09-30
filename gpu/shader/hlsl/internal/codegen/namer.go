@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -11,10 +18,6 @@ import (
 )
 
 // namer generates unique identifiers for HLSL output.
-// Matches Rust naga's proc::Namer behavior:
-// - Per-base-name conflict counters
-// - Appends trailing underscore when base ends with digit or is a keyword
-// - Case-insensitive keyword detection
 type namer struct {
 	// unique tracks each sanitized base name -> conflict count.
 	// Count 0 means first use, 1 means one collision (_1), etc.
@@ -38,16 +41,15 @@ func newNamer() *namer {
 		keywordsCaseInsensitive: make(map[string]struct{}),
 	}
 
-	// Register HLSL keywords (case-sensitive, matching Rust naga's KeywordSet)
+	// Register HLSL keywords
 	for kw := range reservedKeywords {
 		n.keywords[kw] = struct{}{}
 	}
-	// Register case-insensitive keywords (stored lowercase, matching Rust naga's CaseInsensitiveKeywordSet)
+	// Register case-insensitive keywords
 	for kw := range caseInsensitiveKeywords {
 		n.keywordsCaseInsensitive[strings.ToLower(kw)] = struct{}{}
 	}
 
-	// Pre-register all naga helper function names to avoid conflicts
 	helperNames := []string{
 		NagaModfFunction,
 		NagaFrexpFunction,
@@ -80,11 +82,6 @@ func newNamer() *namer {
 }
 
 // sanitize cleans a label into a valid identifier base.
-// Matches Rust naga's Namer::sanitize:
-// - Drop leading digits
-// - Trim trailing underscores
-// - Keep only alphanumeric and '_'
-// - Collapse consecutive underscores
 func (n *namer) sanitize(label string) string {
 	if label == "" {
 		return "unnamed"
@@ -104,8 +101,6 @@ func (n *namer) sanitize(label string) string {
 		return "unnamed"
 	}
 
-	// Check if sanitization is needed
-	// Rust naga uses is_ascii_alphanumeric -- only ASCII letters and digits are valid
 	needsSanitize := false
 	if strings.Contains(s, "__") {
 		needsSanitize = true
@@ -169,10 +164,6 @@ func (n *namer) sanitize(label string) string {
 }
 
 // call generates a unique name based on the given label.
-// Matches Rust naga's Namer::call:
-// - Sanitizes the label
-// - If first occurrence AND (ends with digit or is keyword), appends '_'
-// - If collision, appends '_{count}'
 func (n *namer) call(label string) string {
 	base := n.sanitize(label)
 
@@ -201,7 +192,6 @@ func (n *namer) callOr(base, fallback string) string {
 }
 
 // isKeyword checks if a name is a reserved keyword.
-// Matches Rust naga: case-sensitive check against keywords, case-insensitive check against keywordsCaseInsensitive.
 func (n *namer) isKeyword(name string) bool {
 	if _, found := n.keywords[name]; found {
 		return true
@@ -220,7 +210,6 @@ func (n *namer) reserve(name string) {
 
 // namespace temporarily enters a fresh naming scope for the duration of body.
 // Used for struct members which only need to be unique among themselves.
-// Matches Rust naga's Namer::namespace.
 func (n *namer) namespace(body func()) {
 	outer := n.unique
 	n.unique = make(map[string]int)

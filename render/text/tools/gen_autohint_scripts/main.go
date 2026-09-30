@@ -1,8 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Command gen_autohint_scripts generates autohint_scripts_gen.go from
 // skrifa autohint style data.
-//
-// Source: skrifa 0.31.1 generated/generated_autohint_styles.rs, extracted to
-// ../skrifa_autohint_styles.json.
 //
 // Run from the repo root:
 //

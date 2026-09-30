@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -33,7 +43,6 @@ var dxcClassPriority = [4]int{
 // This file handles CBV (constant buffer views), SRV (shader resource views),
 // sampler bindings, and UAV stubs via dx.op intrinsics.
 //
-// Reference: Mesa nir_to_dxil.c emit_resources(), emit_createhandle_call_pre_6_6()
 
 // dx.op function name for resource handle creation.
 const dxOpCreateHandleName = "dx.op.createHandle"
@@ -101,7 +110,7 @@ func (e *Emitter) analyzeResources() {
 	for i := range e.ir.GlobalVariables {
 		gv := &e.ir.GlobalVariables[i]
 
-		// BUG-DXIL-016: skip globals not reachable from the current
+		// skip globals not reachable from the current
 		// entry point. Multi-EP modules share the global variable
 		// arena across all entry points; without this filter, unrelated
 		// resources from sibling EPs would be assigned binding slots
@@ -164,9 +173,6 @@ func (e *Emitter) analyzeResources() {
 
 		// Apply caller-supplied binding remap, if any. Bindings not
 		// present in the map keep their raw WGSL numbers. See
-		// EmitOptions.BindingMap (and dxil.Options.BindingMap) for
-		// rationale — wgpu/hal/dx12 uses monotonic per-class register
-		// counters that do not match raw @group/@binding numbers.
 		//
 		// When the map supplies BindingArraySize for an IR-unbounded
 		// binding_array, use it as the concrete range size. DXIL PSV0
@@ -231,8 +237,7 @@ func (e *Emitter) classifyGlobalVariable(gv *ir.GlobalVariable) (uint8, bool) {
 		// Read-only storage buffers (var<storage, read>) map to SRV
 		// (t-register, ByteAddressBuffer in HLSL terms). Read-write
 		// storage buffers (var<storage, read_write>) map to UAV
-		// (u-register, RWByteAddressBuffer). Matches the HLSL backend's
-		// classifier (hlsl/storage.go getRegisterTypeForAddressSpace).
+		// (u-register, RWByteAddressBuffer).
 		if gv.Access == ir.StorageRead {
 			return resourceClassSRV, true
 		}
@@ -274,7 +279,7 @@ func (e *Emitter) classifyGlobalVariable(gv *ir.GlobalVariable) (uint8, bool) {
 // resources. Must be called at function entry before any resource accesses.
 //
 // SM 6.0–6.5: dx.op.createHandle(i32 57, i8 class, i32 rangeID, i32 index, i1 false)
-// SM 6.6+:    dx.op.createHandleFromBinding(i32 217, %dx.types.ResBind, i32 index, i1 false)
+// SM 6.6+: dx.op.createHandleFromBinding(i32 217, %dx.types.ResBind, i32 index, i1 false)
 //
 //	followed by
 //	dx.op.annotateHandle(i32 216, %handle, %dx.types.ResourceProperties)
@@ -283,8 +288,6 @@ func (e *Emitter) classifyGlobalVariable(gv *ir.GlobalVariable) (uint8, bool) {
 // ('opcode CreateHandle should only be used in Shader Model 6.5 and below'),
 // while createHandleFromBinding+annotateHandle requires SM 6.2+ for the
 // surrounding feature mask. We dispatch on opts.ShaderModelMinor.
-//
-// Reference: DXC DxilOperations.cpp:CreateHandleFromBinding/AnnotateHandle.
 func (e *Emitter) emitResourceHandles() {
 	if len(e.resources) == 0 {
 		return
@@ -381,17 +384,14 @@ func (e *Emitter) getResourceHandleID(varHandle ir.GlobalVariableHandle) (int, b
 //
 // Dispatching rules (matching DXC):
 //
-//	Gather != nil && DepthRef != nil  → OpTextureGatherCmp (74)
-//	Gather != nil                     → OpTextureGather (73)
+//	Gather != nil && DepthRef != nil → OpTextureGatherCmp (74)
+//	Gather != nil → OpTextureGather (73)
 //	DepthRef != nil && SampleLevelZero → OpSampleCmpLevelZero (65)
-//	DepthRef != nil                   → OpSampleCmp (64)
-//	SampleLevelBias                   → OpSampleBias (61)
-//	SampleLevelExact                  → OpSampleLevel (62)
-//	SampleLevelGradient               → OpSampleGrad (63)
+//	DepthRef != nil → OpSampleCmp (64)
+//	SampleLevelBias → OpSampleBias (61)
+//	SampleLevelExact → OpSampleLevel (62)
+//	SampleLevelGradient → OpSampleGrad (63)
 //	SampleLevelAuto / SampleLevelZero → OpSample (60)
-//
-// Reference: Mesa nir_to_dxil.c emit_sample(), emit_texture_gather_call()
-// Reference: DXIL.rst Sample/SampleBias/SampleLevel/SampleGrad/SampleCmp/SampleCmpLevelZero/TextureGather/TextureGatherCmp
 //
 //nolint:gocognit,cyclop,gocyclo,funlen,maintidx // dispatch logic for 8 texture sample variants
 func (e *Emitter) emitImageSample(fn *ir.Function, sample ir.ExprImageSample) (int, error) {
@@ -661,9 +661,6 @@ func (e *Emitter) emitImageSample(fn *ir.Function, sample ir.ExprImageSample) (i
 //   - ImageQueryNumLevels: extract c3
 //   - ImageQueryNumSamples: extract c3
 //   - ImageQueryNumLayers: extract array size component (c1 for 1DArray, c2 for 2DArray/CubeArray)
-//
-// Reference: Mesa nir_to_dxil.c emit_texture_size() ~4294, emit_image_size() ~4310
-// Reference: DXIL.rst GetDimensions return table ~1360
 func (e *Emitter) emitImageQuery(fn *ir.Function, query ir.ExprImageQuery) (int, error) {
 	// Resolve the image handle.
 	imageHandleID, err := e.resolveResourceHandle(fn, query.Image)
@@ -844,10 +841,6 @@ func imageCoordCount(img ir.ImageType) int {
 }
 
 // emitImageLoad emits dx.op.textureLoad (opcode 66) for texel fetching.
-//
-// Signature: %dx.types.ResRet.XX @dx.op.textureLoad.XX(i32 opcode, %handle, i32 mip/sample, i32 c0, i32 c1, i32 c2, i32 o0, i32 o1, i32 o2)
-//
-// Reference: Mesa nir_to_dxil.c emit_image_load() ~4122, emit_texel_fetch() ~5376
 func (e *Emitter) emitImageLoad(fn *ir.Function, load ir.ExprImageLoad) (int, error) {
 	// Resolve the image handle.
 	imageHandleID, err := e.resolveResourceHandle(fn, load.Image)
@@ -947,10 +940,6 @@ func (e *Emitter) emitImageLoad(fn *ir.Function, load ir.ExprImageLoad) (int, er
 }
 
 // emitStmtImageStore emits dx.op.textureStore (opcode 67) for writing to storage textures.
-//
-// Signature: void @dx.op.textureStore.XX(i32 opcode, %handle, i32 c0, i32 c1, i32 c2, XX v0, XX v1, XX v2, XX v3, i8 mask)
-//
-// Reference: Mesa nir_to_dxil.c emit_image_store() ~4060, emit_texturestore_call() ~924
 func (e *Emitter) emitStmtImageStore(fn *ir.Function, store ir.StmtImageStore) error {
 	// Resolve the image handle.
 	imageHandleID, err := e.resolveResourceHandle(fn, store.Image)
@@ -1033,7 +1022,6 @@ func (e *Emitter) emitStmtImageStore(fn *ir.Function, store ir.StmtImageStore) e
 }
 
 // getDxOpTextureLoadFunc returns the dx.op.textureLoad.XX function declaration.
-// Signature: %dx.types.ResRet.XX @dx.op.textureLoad.XX(i32, %handle, i32, i32, i32, i32, i32, i32, i32)
 func (e *Emitter) getDxOpTextureLoadFunc(ol overloadType) *module.Function {
 	name := "dx.op.textureLoad" + overloadSuffix(ol)
 	key := dxOpKey{name: name, overload: ol}
@@ -1052,7 +1040,6 @@ func (e *Emitter) getDxOpTextureLoadFunc(ol overloadType) *module.Function {
 }
 
 // getDxOpTextureStoreFunc returns the dx.op.textureStore.XX function declaration.
-// Signature: void @dx.op.textureStore.XX(i32, %handle, i32, i32, i32, XX, XX, XX, XX, i8)
 func (e *Emitter) getDxOpTextureStoreFunc(ol overloadType) *module.Function {
 	name := "dx.op.textureStore" + overloadSuffix(ol)
 	key := dxOpKey{name: name, overload: ol}
@@ -1131,8 +1118,6 @@ func (e *Emitter) resolveResourceHandle(fn *ir.Function, exprHandle ir.Expressio
 // 4th parameter (resource index within the range).
 //
 // dx.op.createHandle(i32 57, i8 class, i32 rangeID, i32 index, i1 nonUniform)
-//
-// Reference: Mesa nir_to_dxil.c emit_createhandle_call_pre_6_6()
 func (e *Emitter) emitDynamicCreateHandle(fn *ir.Function, res *resourceInfo, indexExpr ir.ExpressionHandle) (int, error) {
 	// Emit the dynamic index expression.
 	indexID, err := e.emitExpression(fn, indexExpr)
@@ -1203,8 +1188,6 @@ func (e *Emitter) getDxDimensionsType() *module.Type {
 }
 
 // getDxOpGetDimensionsFunc returns the dx.op.getDimensions function declaration.
-// Signature: %dx.types.Dimensions @dx.op.getDimensions(i32, %dx.types.Handle, i32)
-// Reference: Mesa nir_to_dxil.c emit_texture_size() ~4294
 func (e *Emitter) getDxOpGetDimensionsFunc() *module.Function {
 	key := dxOpKey{name: "dx.op.getDimensions", overload: overloadVoid}
 	if fn, ok := e.dxOpFuncs[key]; ok {
@@ -1221,7 +1204,6 @@ func (e *Emitter) getDxOpGetDimensionsFunc() *module.Function {
 }
 
 // getDxOpCreateHandleFunc creates the dx.op.createHandle function declaration.
-// Signature: %dx.types.Handle @dx.op.createHandle(i32, i8, i32, i32, i1)
 //
 // DXC uses createHandle for all SM versions in its default compilation
 // mode (matching our golden pipeline). createHandleFromBinding (SM 6.6+)
@@ -1431,8 +1413,6 @@ func (e *Emitter) getI1ConstID(v int64) int {
 //
 // Format: !dx.resources = !{!srvs, !uavs, !cbvs, !samplers}
 // Each class has different field counts matching the DXIL spec.
-//
-// Reference: Mesa nir_to_dxil.c emit_srv_metadata/emit_uav_metadata/emit_cbv_metadata/emit_sampler_metadata
 func (e *Emitter) emitResourceMetadata() *module.MetadataNode {
 	if len(e.resources) == 0 {
 		return nil
@@ -1482,8 +1462,6 @@ func (e *Emitter) emitResourceMetadata() *module.MetadataNode {
 
 // fillResourceMetadataCommon builds the first 6 fields common to all resource classes.
 // Returns [6]*MetadataNode: {rangeID, undefPtr, name, space, lowerBound, rangeSize}.
-//
-// Reference: Mesa nir_to_dxil.c fill_resource_metadata() line ~453
 func (e *Emitter) fillResourceMetadataCommon(res *resourceInfo, structType *module.Type) [6]*module.MetadataNode {
 	i32Ty := e.mod.GetIntType(32)
 
@@ -1494,9 +1472,9 @@ func (e *Emitter) fillResourceMetadataCommon(res *resourceInfo, structType *modu
 	// false, a non-constant index into the resource is rejected with
 	// InstrOpConstRange 'Constant values must be in-range for operation').
 	// The element type for the LLVM pointer is therefore:
-	//   non-array:          struct.SRVType
+	//   non-array: struct.SRVType
 	//   binding_array<T,N>: [N x struct.SRVType]
-	//   binding_array<T>:   [0 x struct.SRVType] (unbounded)
+	//   binding_array<T>: [0 x struct.SRVType] (unbounded)
 	elemTypeForPtr := structType
 	if res.isBindingArray {
 		arrLen := uint(res.arraySize)
@@ -1505,7 +1483,6 @@ func (e *Emitter) fillResourceMetadataCommon(res *resourceInfo, structType *modu
 
 	// fields[1] = metadata value wrapping an undef pointer to the resource type.
 	// DXC validator requires this non-null reference.
-	// Reference: Mesa fill_resource_metadata() line ~457-458
 	pointerType := e.mod.GetPointerType(elemTypeForPtr)
 	pointerUndef := e.mod.AddUndefConst(pointerType)
 
@@ -1536,11 +1513,6 @@ func (e *Emitter) fillResourceMetadataCommon(res *resourceInfo, structType *modu
 // For SRV/UAV textures: DXC uses HLSL-style class names like
 // class.Texture2D<vector<float, 4>> with a nested ::mips_type member.
 // For Sampler: struct.SamplerState { i32 }.
-//
-// Reference:
-//   - DXC DxilCondenseResources.cpp:1794 — hostlayout prefix logic
-//   - DXC DxilModule.cpp:87 — kHostLayoutTypePrefix = "hostlayout."
-//   - Mesa nir_to_dxil.c emit_cbv() line ~1549-1552
 func (e *Emitter) getResourceStructType(res *resourceInfo) *module.Type {
 	switch res.class {
 	case resourceClassCBV:
@@ -1618,10 +1590,10 @@ func (e *Emitter) getCBVStructType(res *resourceInfo) *module.Type {
 //
 // DXC convention:
 //   - mat{C}x{R}<f32> -> [C x <R x float>]
-//   - vec{N}<f32>     -> <N x float>
-//   - vec{N}<u32>     -> <N x i32>
-//   - scalar f32      -> float
-//   - scalar u32/i32  -> i32
+//   - vec{N}<f32> -> <N x float>
+//   - vec{N}<u32> -> <N x i32>
+//   - scalar f32 -> float
+//   - scalar u32/i32 -> i32
 //
 // For bare (non-struct) CBV types (e.g., var<uniform> m: mat4x4<f32>), the
 // result is a single-element slice with that type's LLVM representation.
@@ -1672,9 +1644,9 @@ func (e *Emitter) buildCBVStructMemberTypes(st ir.StructType) []*module.Type {
 //
 // This follows the DXC convention observed in golden reference files:
 //   - MatrixType{C,R,Float32} -> [C x <R x float>]
-//   - VectorType{N,Float32}   -> <N x float>
-//   - VectorType{N,Uint32}    -> <N x i32>
-//   - ScalarType{Float,4}     -> float
+//   - VectorType{N,Float32} -> <N x float>
+//   - VectorType{N,Uint32} -> <N x i32>
+//   - ScalarType{Float,4} -> float
 //   - ScalarType{Uint/Sint,4} -> i32
 func (e *Emitter) irTypeToCBVLLVMType(th ir.TypeHandle) *module.Type {
 	if int(th) >= len(e.ir.Types) {
@@ -1791,15 +1763,15 @@ func (e *Emitter) cbvInnerStructName(res *resourceInfo) string {
 // names for textures and typed buffers.
 //
 // DXC naming conventions:
-//   - RawBuffer(11):        struct.ByteAddressBuffer { i32 }
+//   - RawBuffer(11): struct.ByteAddressBuffer { i32 }
 //   - StructuredBuffer(12): class.StructuredBuffer<unsigned int> { i32 }
-//   - Texture1D:            class.Texture1D<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
-//   - Texture2D:            class.Texture2D<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
-//   - Texture3D:            class.Texture3D<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
-//   - TextureCube:          class.TextureCube<ELEM> { LLVM_ELEM }  (no mips_type)
-//   - TextureCubeArray:     class.TextureCubeArray<ELEM> { LLVM_ELEM }
-//   - Texture2DMS:          class.Texture2DMS<ELEM, 0> { LLVM_ELEM, ::sample_type { i32 } }
-//   - Array variants:       class.Texture2DArray<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
+//   - Texture1D: class.Texture1D<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
+//   - Texture2D: class.Texture2D<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
+//   - Texture3D: class.Texture3D<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
+//   - TextureCube: class.TextureCube<ELEM> { LLVM_ELEM } (no mips_type)
+//   - TextureCubeArray: class.TextureCubeArray<ELEM> { LLVM_ELEM }
+//   - Texture2DMS: class.Texture2DMS<ELEM, 0> { LLVM_ELEM, ::sample_type { i32 } }
+//   - Array variants: class.Texture2DArray<ELEM> { LLVM_ELEM, ::mips_type { i32 } }
 func (e *Emitter) getSRVStructType(res *resourceInfo) *module.Type {
 	switch e.resourceKind(res) {
 	case 11: // RawBuffer
@@ -1816,7 +1788,7 @@ func (e *Emitter) getSRVStructType(res *resourceInfo) *module.Type {
 //
 // DXC naming:
 //   - RawBuffer(11): struct.RWByteAddressBuffer { i32 }
-//   - Texture UAV:   class.RWTexture2D<ELEM> { LLVM_ELEM }  (no mips/sample member)
+//   - Texture UAV: class.RWTexture2D<ELEM> { LLVM_ELEM } (no mips/sample member)
 func (e *Emitter) getUAVStructType(res *resourceInfo) *module.Type {
 	switch e.resourceKind(res) {
 	case 11: // RawBuffer
@@ -1834,10 +1806,10 @@ func (e *Emitter) getUAVStructType(res *resourceInfo) *module.Type {
 //
 // The type name follows DXC's convention:
 //
-//	class.Texture2D<vector<float, 4>>         (sampled vec4 float)
-//	class.TextureCube<float>                   (depth float)
-//	class.RWTexture2D<vector<float, 4>>        (storage rgba float)
-//	class.RWTexture2D<unsigned int>             (storage r32uint)
+//	class.Texture2D<vector<float, 4>> (sampled vec4 float)
+//	class.TextureCube<float> (depth float)
+//	class.RWTexture2D<vector<float, 4>> (storage rgba float)
+//	class.RWTexture2D<unsigned int> (storage r32uint)
 func (e *Emitter) buildTextureClassType(res *resourceInfo, isUAV bool) *module.Type {
 	// Resolve the image type from the IR.
 	var imgType *ir.ImageType
@@ -1871,9 +1843,9 @@ func (e *Emitter) buildTextureClassType(res *resourceInfo, isUAV bool) *module.T
 
 	// DXC adds a space before the closing ">" when the template argument ends
 	// with ">" to avoid C++ ">>" tokenization ambiguity. For example:
-	//   Texture2D<vector<float, 4> >     (space before outer >)
+	//   Texture2D<vector<float, 4> > (space before outer >)
 	//   Texture2DMS<vector<float, 4>, 0> (no space: last char is 0)
-	//   TextureCube<float>               (no space: last char is t)
+	//   TextureCube<float> (no space: last char is t)
 	closingBracket := ">"
 	if len(templateArgs) > 0 && templateArgs[len(templateArgs)-1] == '>' {
 		closingBracket = " >"
@@ -1914,14 +1886,14 @@ func (e *Emitter) buildTextureClassType(res *resourceInfo, isUAV bool) *module.T
 // textureElementType returns the HLSL template element name and corresponding
 // LLVM type for a texture resource. The naming follows DXC conventions:
 //
-//	Sampled vec4 float:   "vector<float, 4>"   → <4 x float>
-//	Sampled vec4 int:     "vector<int, 4>"     → <4 x i32>
-//	Sampled vec4 uint:    "vector<unsigned int, 4>" → <4 x i32>
-//	Depth float:          "float"              → float
-//	Storage r32float:     "float"              → float
-//	Storage rgba8unorm:   "vector<float, 4>"   → <4 x float>
-//	Storage r32uint:      "unsigned int"       → i32
-//	Storage r64uint:      "unsigned long long" → i64
+//	Sampled vec4 float: "vector<float, 4>" → <4 x float>
+//	Sampled vec4 int: "vector<int, 4>" → <4 x i32>
+//	Sampled vec4 uint: "vector<unsigned int, 4>" → <4 x i32>
+//	Depth float: "float" → float
+//	Storage r32float: "float" → float
+//	Storage rgba8unorm: "vector<float, 4>" → <4 x float>
+//	Storage r32uint: "unsigned int" → i32
+//	Storage r64uint: "unsigned long long" → i64
 func (e *Emitter) textureElementType(imgType *ir.ImageType) (string, *module.Type) {
 	if imgType == nil {
 		// Fallback: assume vec4 float.
@@ -2076,8 +2048,6 @@ func storageFormatChannelCount(f ir.StorageFormat) int {
 }
 
 // buildSRVMetadata builds SRV metadata entry with 9 fields.
-//
-// Reference: Mesa nir_to_dxil.c emit_srv_metadata() line ~468-492
 func (e *Emitter) buildSRVMetadata(res *resourceInfo) *module.MetadataNode {
 	structType := e.getResourceStructType(res)
 	common := e.fillResourceMetadataCommon(res, structType)
@@ -2097,7 +2067,6 @@ func (e *Emitter) buildSRVMetadata(res *resourceInfo) *module.MetadataNode {
 	// fields[8] = element type tag metadata, or null for raw buffer.
 	// For typed buffers / images: (0 = TypedBufferElementType, compType).
 	// For structured buffers: (1 = StructuredBufferElementStride, stride).
-	// Reference: DXC DxilMetadataHelper.cpp:EmitSRVProperties.
 	var mdTag *module.MetadataNode
 	switch resKind {
 	case 11: // RawBuffer — no element tag
@@ -2141,8 +2110,6 @@ func (e *Emitter) resourceStructuredStride(res *resourceInfo) uint32 {
 }
 
 // buildUAVMetadata builds UAV metadata entry with 11 fields.
-//
-// Reference: Mesa nir_to_dxil.c emit_uav_metadata() line ~494-521
 func (e *Emitter) buildUAVMetadata(res *resourceInfo) *module.MetadataNode {
 	structType := e.getResourceStructType(res)
 	common := e.fillResourceMetadataCommon(res, structType)
@@ -2189,8 +2156,6 @@ func (e *Emitter) buildUAVMetadata(res *resourceInfo) *module.MetadataNode {
 
 // buildCBVMetadata builds CBV metadata entry with 8 fields.
 // fields[6] = constant buffer size in bytes (NOT resource kind).
-//
-// Reference: Mesa nir_to_dxil.c emit_cbv_metadata() line ~523-535
 func (e *Emitter) buildCBVMetadata(res *resourceInfo) *module.MetadataNode {
 	structType := e.getResourceStructType(res)
 	common := e.fillResourceMetadataCommon(res, structType)
@@ -2213,15 +2178,12 @@ func (e *Emitter) buildCBVMetadata(res *resourceInfo) *module.MetadataNode {
 }
 
 // buildSamplerMetadata builds Sampler metadata entry with 8 fields.
-//
-// Reference: Mesa nir_to_dxil.c emit_sampler_metadata() line ~537-551
 func (e *Emitter) buildSamplerMetadata(res *resourceInfo) *module.MetadataNode {
 	structType := e.getResourceStructType(res)
 	common := e.fillResourceMetadataCommon(res, structType)
 	i32Ty := e.mod.GetIntType(32)
 
 	// fields[6] = sampler kind (0=default, 1=comparison).
-	// Reference: Mesa emit_sampler_metadata() line ~545-547;
 	// DXC DxilConstants.h enum SamplerKind. The validator enforces this
 	// via the rule 'sample_c_*/gather_c instructions require sampler
 	// declared in comparison mode' — any sampleCmp/gatherCmp touching
@@ -2249,8 +2211,6 @@ func (e *Emitter) buildSamplerMetadata(res *resourceInfo) *module.MetadataNode {
 }
 
 // addMetadataI1 creates a metadata value node wrapping an i1 boolean constant.
-//
-// Reference: Mesa dxil_module.c dxil_get_metadata_int1() line ~2897
 func (e *Emitter) addMetadataI1(value bool) *module.MetadataNode {
 	i1Ty := e.mod.GetIntType(1)
 	var v int64
@@ -2278,8 +2238,6 @@ func (e *Emitter) computeCBVSizeBytes(res *resourceInfo) int {
 // computeCBVVec4Count returns the number of float elements in the CBV array
 // representation. For the struct backing this CBV, we compute the total size
 // in bytes and then convert to float count: numFloats = ceil(structSize / 4).
-//
-// Reference: Mesa nir_to_dxil.c emit_cbv() line ~1549-1550:
 //
 //	array_type = dxil_module_get_array_type(m, float32, size)
 //	where size = number of float elements
@@ -2341,7 +2299,6 @@ func (e *Emitter) computeIRTypeSizeBytes(inner ir.TypeInner) uint32 {
 }
 
 // DXIL component type constants.
-// Reference: DXC include/dxc/DXIL/DxilConstants.h enum ComponentType, line ~164
 const (
 	dxilCompTypeI32      = 4  // DXIL_COMP_TYPE_I32
 	dxilCompTypeU32      = 5  // DXIL_COMP_TYPE_U32
@@ -2360,9 +2317,6 @@ const (
 // Class == ImageClassSampled' (ir.go:380). For depth and storage image
 // classes the IR parser leaves it at the zero value (ScalarSint) which
 // would otherwise incorrectly resolve to I32 here. Mirror imageOverload
-// (commit 21466c5 for the same class of bug):
-//   - Depth textures → always F32.
-//   - Storage textures → derive from StorageFormat.Scalar().
 //   - Sampled textures → SampledKind is authoritative.
 //
 // Getting this wrong trips 'sample_* instructions require resource to
@@ -2444,9 +2398,6 @@ type cbvPointerChain struct {
 //   - ExprGlobalVariable (load entire CBV struct — offset 0)
 //   - ExprAccessIndex → ExprGlobalVariable (load struct field)
 //   - ExprAccessIndex → ExprAccessIndex → ExprGlobalVariable (nested struct/vector)
-//
-// Reference: Mesa nir_to_dxil.c emit_load_ubo_vec4() — offset is passed as
-// register index (byte_offset / 16).
 func (e *Emitter) resolveCBVPointerChain(fn *ir.Function, ptrHandle ir.ExpressionHandle) (*cbvPointerChain, bool) {
 	// Walk the expression chain to find the root global variable and accumulate offsets.
 	var indices []uint32
@@ -2647,7 +2598,7 @@ func (e *Emitter) computeCBVFieldOffset(varHandle ir.GlobalVariableHandle, indic
 			// CBV matrix columns are 16-byte aligned (one register per column),
 			// even if the column has fewer than 4 components.
 			colBytes := uint32(ct.Rows) * uint32(ct.Scalar.Width)
-			colStride := (colBytes + 15) &^ 15 // align to 16 bytes
+			colStride := (colBytes + 15) &^ 15
 			byteOffset += idx * colStride
 			currentType = ir.VectorType{Size: ct.Rows, Scalar: ct.Scalar}
 
@@ -2671,13 +2622,9 @@ func (e *Emitter) computeCBVFieldOffset(varHandle ir.GlobalVariableHandle, indic
 //
 // dx.op.cbufferLoadLegacy signature:
 //
-//	%dx.types.CBufRet.XX @dx.op.cbufferLoadLegacy.XX(i32 59, %dx.types.Handle handle, i32 regIndex)
-//
 // regIndex = byteOffset / 16 (each CBV register is 16 bytes = 4 floats).
 // The result is a struct with 4 components (for f32/i32). Individual fields
 // are extracted with extractvalue at index = (byteOffset % 16) / scalarWidth.
-//
-// Reference: Mesa nir_to_dxil.c load_ubo() line ~3061, emit_load_ubo_vec4() line ~3527
 func (e *Emitter) emitCBVLoad(fn *ir.Function, chain *cbvPointerChain) (int, error) {
 	// Get the resource handle for this CBV.
 	handleID, found := e.getResourceHandleID(chain.varHandle)
@@ -2808,8 +2755,6 @@ func (e *Emitter) emitCBVMultiRegLoad(
 // For mat4x4<f32>: 4 registers, 4 components each = 16 total components.
 // For mat3x3<f32>: 3 registers, 3 components each = 9 total components
 // (but each register still returns 4 components; we only use the first 3).
-//
-// Reference: Mesa nir_to_dxil.c — matrix loads decompose to per-column loads.
 func (e *Emitter) emitCBVMatrixLoad(
 	handleID int,
 	chain *cbvPointerChain,
@@ -2861,8 +2806,6 @@ func (e *Emitter) emitCBVMatrixLoad(
 
 // getDxCBufRetType returns the %dx.types.CBufRet.XX struct type.
 // For f32/i32: 4 fields. For f64/i64: 2 fields. For f16/i16: 8 fields.
-//
-// Reference: Mesa dxil_module.c dxil_module_get_cbuf_ret_type() line ~706
 func (e *Emitter) getDxCBufRetType(ol overloadType) *module.Type {
 	scalarTy := e.overloadReturnType(ol)
 	name := "dx.types.CBufRet" + overloadSuffix(ol)
@@ -2887,9 +2830,6 @@ func (e *Emitter) getDxCBufRetType(ol overloadType) *module.Type {
 }
 
 // getDxOpCBufLoadFunc creates the dx.op.cbufferLoadLegacy.XX function declaration.
-// Signature: %dx.types.CBufRet.XX @dx.op.cbufferLoadLegacy.XX(i32, %dx.types.Handle, i32)
-//
-// Reference: Mesa nir_to_dxil.c load_ubo() — dxil_get_function("dx.op.cbufferLoadLegacy", overload)
 func (e *Emitter) getDxOpCBufLoadFunc(ol overloadType) *module.Function {
 	name := "dx.op.cbufferLoadLegacy"
 	key := dxOpKey{name: name, overload: ol}
@@ -2922,15 +2862,13 @@ type uavPointerChain struct {
 	elemType   ir.TypeInner        // element type (what's being loaded/stored)
 	scalar     ir.ScalarType       // scalar element type for overload selection
 	// stride and fieldByteOffset together encode coord0 (in BYTES) per the
-	// formula:  coord0 = (constIdx | dynIdx) * stride + fieldByteOffset
+	// formula: coord0 = (constIdx | dynIdx) * stride + fieldByteOffset
 	//
 	// stride > 0: dynamic-index byte stride (or constIdx byte multiplier).
 	// stride == 0: no per-index multiplication; constIndex is treated as
 	//              precomputed byte offset directly (used for direct struct field access).
 	//
-	// All values are in BYTES. The DXIL spec (DXIL.rst:1789) requires bufferStore
-	// coord0 in bytes for RWRawBuffer (kind 11), which is how naga registers all
-	// storage buffer UAVs/SRVs.
+	// All values are in BYTES.
 	stride          uint32 // byte stride per index unit (0 = constIndex is precomputed byte offset)
 	fieldByteOffset uint32 // additional static byte offset (struct member offset, etc.)
 	// dynamicHandleID is set for binding array UAVs where the handle is created
@@ -2961,8 +2899,6 @@ func isStorageBufferClass(class uint8) bool {
 //   - ExprAccess → ExprGlobalVariable (dynamic array index)
 //   - ExprAccessIndex → ExprGlobalVariable (constant array index)
 //   - ExprGlobalVariable (entire buffer — not typical)
-//
-// Reference: Mesa nir_to_dxil.c emit_store_ssbo() for storage buffer write patterns
 func (e *Emitter) resolveUAVPointerChain(fn *ir.Function, ptrHandle ir.ExpressionHandle) (*uavPointerChain, bool) {
 	if int(ptrHandle) >= len(fn.Expressions) {
 		return nil, false
@@ -3175,18 +3111,14 @@ func deepScalarOfType(irMod *ir.Module, inner ir.TypeInner) (ir.ScalarType, bool
 // resolveUAVIndex computes the coord0 value ID (in BYTES) for a UAV access.
 //
 // Per DXIL spec (DXIL.rst:1789), bufferStore/bufferLoad on RWRawBuffer (kind 11)
-// expect coord0 in BYTES. Naga registers all storage buffers as RWRawBuffer, so
-// the raw element/scalar index from WGSL must be byte-scaled before emit.
+// expect coord0 in BYTES.
 //
 // chain.stride is the byte-stride per dynamic-index unit (or per constIndex unit
 // when isConstIdx). chain.fieldByteOffset is the additional static byte offset
 // (struct member, etc.). When stride == 0, isConstIdx is treated as a precomputed
 // byte offset directly (constIndex is bytes); otherwise constIndex is multiplied.
 //
-// Final formula:  coord0 = (constIdx | dynIdx) * stride + fieldByteOffset   [bytes]
-//
-// Reference: DXC HLOperationLower.cpp:4651 — `Coord0 (Index)` already byte-scaled
-// from HLSL frontend; same expectation here.
+// Final formula: coord0 = (constIdx | dynIdx) * stride + fieldByteOffset [bytes]
 func (e *Emitter) resolveUAVIndex(fn *ir.Function, chain *uavPointerChain) (int, error) {
 	if chain.isConstIdx {
 		var bytes uint32
@@ -3201,8 +3133,7 @@ func (e *Emitter) resolveUAVIndex(fn *ir.Function, chain *uavPointerChain) (int,
 
 	// Try constant folding: if the index expression resolves to a literal
 	// integer (possibly through ExprAlias chains from mem2reg), fold the
-	// byte offset at compile time. This matches DXC's SimplifyInst pass
-	// which constant-folds `1 * 4` to `4`.
+	// byte offset at compile time.
 	if constVal, ok := e.tryResolveConstInt(fn, chain.indexExpr); ok {
 		var bytes uint64
 		if chain.stride == 0 {
@@ -3275,12 +3206,8 @@ func (e *Emitter) tryResolveConstInt(fn *ir.Function, h ir.ExpressionHandle) (ui
 // Matrix-column write: when the AccessIndex selects a matrix struct member, the
 // outer Access dynamically indexes a column. The resolved chain reflects:
 //   - elemType = column vector (vec<R>)
-//   - stride   = column byte stride (R*scalarW or 16 for matCxR with R=3)
+//   - stride = column byte stride (R*scalarW or 16 for matCxR with R=3)
 //   - fieldByteOffset = struct member byte offset
-//
-// This mirrors DXC HLOperationLower.cpp which lowers `m[i] = v` to a single
-// rawBufferStore at byte offset (memberOffset + i*columnStride) with mask covering
-// all column components — fixes BUG-DXIL-030.
 func (e *Emitter) resolveUAVAccessChain(fn *ir.Function, baseHandle, indexHandle ir.ExpressionHandle, _ bool) (*uavPointerChain, bool) {
 	if int(baseHandle) >= len(fn.Expressions) {
 		return nil, false
@@ -3344,9 +3271,6 @@ func (e *Emitter) resolveUAVAccessChain(fn *ir.Function, baseHandle, indexHandle
 
 	case ir.MatrixType:
 		// Matrix column write: dynamic index selects a column (vec<R>).
-		// Reference: DXC HLOperationLower.cpp `m[i] = v` lowering to a single
-		// rawBufferStore at (memberOffset + i*columnStride), mask covers all
-		// R components.
 		elemType = ir.VectorType{Size: ft.Rows, Scalar: ft.Scalar}
 		stride = matrixColumnByteStride(ft)
 		scalar = ft.Scalar
@@ -4062,11 +3986,7 @@ func (e *Emitter) resolveUAVHandleID(fn *ir.Function, chain *uavPointerChain) (i
 //
 // dx.op.bufferLoad signature:
 //
-//	%dx.types.ResRet.XX @dx.op.bufferLoad.XX(i32 68, %handle, i32 index, i32 offset)
-//
 // Returns the loaded value ID (first component for vectors).
-//
-// Reference: Mesa nir_to_dxil.c emit_bufferload_call() ~833
 func (e *Emitter) emitUAVLoad(fn *ir.Function, chain *uavPointerChain) (int, error) {
 	handleID, err := e.resolveUAVHandleID(fn, chain)
 	if err != nil {
@@ -4106,8 +4026,6 @@ func (e *Emitter) emitUAVLoad(fn *ir.Function, chain *uavPointerChain) (int, err
 	// buffer test corpus depends on this routing.
 	is64Bit := chain.scalar.Width == 8
 
-	// For raw buffer loads (all naga storage buffers are ByteAddressBuffer /
-	// RWByteAddressBuffer, kind 11), DXC always uses the i32 overload.
 	// HLSL ByteAddressBuffer.Load() returns uint; asfloat() wraps the result.
 	// This mirrors the store side which already uses i32+bitcast. After
 	// extractvalue we bitcast i32 to float to recover the original type.
@@ -4323,10 +4241,7 @@ func flattenScalarFields(irMod *ir.Module, inner ir.TypeInner, baseByte uint32) 
 // hasMixedScalarTypes returns true when an aggregate element type contains
 // scalar leaves of more than one DXIL type signature (kind+width).
 //
-// dx.op.bufferLoad uses a SINGLE overload for all 4 ResRet slots. When the
-// flat scalar list mixes f32 and i32 leaves, the validator rejects downstream
-// store/use of the mismatched component with 0x80aa0009 — see BUG-DXIL-026
-// Group A reproducer in gpucore/fine.wgsl (struct Segment {x0:f32, w:i32}).
+// dx.op.bufferLoad uses a SINGLE overload for all 4 ResRet slots.
 //
 // Pure scalar/vector/matrix and homogeneous structs/arrays continue to use
 // the single-overload fast path in emitUAVLoad.
@@ -4379,17 +4294,13 @@ func scalarsShareDXILType(a, b ir.ScalarType) bool {
 // computed from the element base via integer add. For raw buffer loads,
 // DXC always uses the i32 overload (ByteAddressBuffer.Load returns uint)
 // and then bitcasts to float when needed. We match that convention here.
-//
-// Reference: Mesa nir_to_dxil.c emit_load_ssbo (~3427) emits per-intrinsic
-// loads after NIR scalarization passes; we do the equivalent decomposition
-// at emit time because our IR retains aggregate loads.
 func (e *Emitter) emitUAVLoadDecomposed(chain *uavPointerChain, handleID, indexID int) (int, error) {
 	fields := flattenScalarFields(e.ir, chain.elemType, 0)
 	if len(fields) == 0 {
 		return 0, fmt.Errorf("UAV load: cannot flatten elem type %T", chain.elemType)
 	}
 
-	// indexID from resolveUAVIndex is the BYTE coord0 base (BUG-DXIL-031).
+	// indexID from resolveUAVIndex is the BYTE coord0 base.
 	// Each field's byteOffset adds directly without scalar-unit conversion.
 	undefVal := e.getUndefConstID()
 	i32Ty := e.mod.GetIntType(32)
@@ -4444,17 +4355,9 @@ func (e *Emitter) emitUAVLoadDecomposed(chain *uavPointerChain, handleID, indexI
 //
 // dx.op.bufferStore signature:
 //
-//	void @dx.op.bufferStore.XX(i32 69, %handle, i32 index, i32 offset,
-//	                           XX val0, XX val1, XX val2, XX val3, i8 mask)
-//
 // For RWByteAddressBuffer (raw buffer, kind 11) stores, DXC always uses the
 // i32 overload regardless of the source data type. Float values are bitcast
 // to i32 before being passed as arguments. This matches the HLSL semantics
-// where RWByteAddressBuffer.Store takes uint values and asuint() converts
-// floats. Verified against DXC golden output for all compute-store shaders.
-//
-// Reference: Mesa nir_to_dxil.c emit_bufferstore_call() ~877
-// Reference: DXC HLOperationLower.cpp:4590 (TranslateStore uses i32Ty for raw buffers)
 func (e *Emitter) emitUAVStore(fn *ir.Function, chain *uavPointerChain, valueHandle ir.ExpressionHandle) error {
 	// Large aggregate stores (e.g., output = w_mem.arr for array<u32, 512>) are
 	// decomposed into multiple batched bufferStore calls below (4 components each).
@@ -4483,7 +4386,6 @@ func (e *Emitter) emitUAVStore(fn *ir.Function, chain *uavPointerChain, valueHan
 	// this routing.
 	is64Bit := chain.scalar.Width == 8
 
-	// For raw buffer stores (all naga storage buffers are RWByteAddressBuffer,
 	// kind 11), DXC always uses the i32 overload. Float values are bitcast to
 	// i32 (matching HLSL's asuint pattern). Force the overload to i32 for
 	// non-64-bit float types so our output matches DXC's convention.
@@ -4563,8 +4465,7 @@ func (e *Emitter) emitUAVStore(fn *ir.Function, chain *uavPointerChain, valueHan
 
 // emitUAVStoreBatched emits N bufferStore calls for element types with >4
 // scalar components. coord0 advances by `count * scalarWidth` BYTES per batch
-// per DXIL spec (RWRawBuffer coord0 in bytes). Mirrors DXC HLOperationLower.cpp
-// :4722 `NewCoord = EltSize * MaxStoreElemCount * j`.
+// per DXIL spec (RWRawBuffer coord0 in bytes).
 //
 // When needsBitcast is true, float values are bitcast to i32 before storing
 // (matching DXC's raw buffer store convention).
@@ -4619,9 +4520,6 @@ func (e *Emitter) emitUAVStoreBatched(
 }
 
 // getDxOpBufferLoadFunc creates the dx.op.bufferLoad.XX function declaration.
-// Signature: %dx.types.ResRet.XX @dx.op.bufferLoad.XX(i32, %handle, i32, i32)
-//
-// Reference: Mesa nir_to_dxil.c emit_bufferload_call() ~833
 func (e *Emitter) getDxOpBufferLoadFunc(ol overloadType) *module.Function {
 	name := "dx.op.bufferLoad"
 	key := dxOpKey{name: name, overload: ol}
@@ -4645,15 +4543,6 @@ func (e *Emitter) getDxOpBufferLoadFunc(ol overloadType) *module.Function {
 // getDxOpRawBufferStoreFunc creates the dx.op.rawBufferStore.XX function
 // declaration. SM 6.2+ replacement for bufferStore. Signature mirrors DXC
 // DxilOperations.cpp:RawBufferStore + Mesa emit_raw_bufferstore_call:
-//
-//	void @dx.op.rawBufferStore.XX(
-//	    i32 opcode,
-//	    %dx.types.Handle handle,
-//	    i32 coord0,
-//	    i32 coord1,            // structured-buffer offset, or i32 undef
-//	    XX v0, XX v1, XX v2, XX v3,
-//	    i8  componentMask,
-//	    i32 alignment)
 //
 // Overload mask 0xe7 = {f16,f32,f64,i16,i32,i64}. dx.op.bufferStore.i64
 // is rejected by the validator with 'DXIL intrinsic overload must be
@@ -4683,14 +4572,6 @@ func (e *Emitter) getDxOpRawBufferStoreFunc(ol overloadType) *module.Function {
 // declaration. Signature mirrors DXC DxilOperations.cpp + Mesa
 // emit_raw_bufferload_call (nir_to_dxil.c:810):
 //
-//	%dx.types.ResRet.XX @dx.op.rawBufferLoad.XX(
-//	    i32 opcode,
-//	    %dx.types.Handle handle,
-//	    i32 coord0,           // byte offset (raw) or element index (structured)
-//	    i32 coord1,           // structured-buffer element-offset, or i32 undef
-//	    i8  componentMask,    // (1 << count) - 1
-//	    i32 alignment)
-//
 // Available since SM 6.2. Overload mask 0xe7 = {f16,f32,f64,i16,i32,i64}.
 // Use this for >4-component loads from typed/raw buffers (where
 // dx.op.bufferLoad cannot represent the layout) and for native i64/f64
@@ -4717,9 +4598,6 @@ func (e *Emitter) getDxOpRawBufferLoadFunc(ol overloadType) *module.Function {
 }
 
 // getDxOpBufferStoreFunc creates the dx.op.bufferStore.XX function declaration.
-// Signature: void @dx.op.bufferStore.XX(i32, %handle, i32, i32, XX, XX, XX, XX, i8)
-//
-// Reference: Mesa nir_to_dxil.c emit_bufferstore_call() ~877
 func (e *Emitter) getDxOpBufferStoreFunc(ol overloadType) *module.Function {
 	name := "dx.op.bufferStore"
 	key := dxOpKey{name: name, overload: ol}
@@ -4743,7 +4621,6 @@ func (e *Emitter) getDxOpBufferStoreFunc(ol overloadType) *module.Function {
 }
 
 // resourceKind returns the DXIL resource kind integer for metadata.
-// Reference: D3D12_SRV_DIMENSION / DXIL resource kinds.
 func (e *Emitter) resourceKind(res *resourceInfo) int {
 	if res.kindOverride != 0 {
 		return res.kindOverride
@@ -4812,12 +4689,6 @@ func unwrapBindingArray(mod *ir.Module, inner ir.TypeInner) ir.TypeInner {
 //	1=Texture1D, 2=Texture2D, 3=Texture2DMS, 4=Texture3D,
 //	5=TextureCube, 6=Texture1DArray, 7=Texture2DArray,
 //	8=Texture2DMSArray, 9=TextureCubeArray.
-//
-// BUG-DXIL-022 follow-up: the prior table used completely wrong
-// numeric values (Dim2D→4 / Texture3D, Dim3D→7 / Texture2DArray, etc.)
-// which made every image-resource shader fail
-// 'ResourceBindInfo mismatch' between PSV0 (correct via
-// container.PSVResKind*) and bitcode metadata.
 func (e *Emitter) imageResourceKind(img ir.ImageType) int {
 	switch img.Dim {
 	case ir.Dim1D:

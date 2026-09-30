@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -254,7 +261,7 @@ func TestRenderPassEncoder_SetScissorRect(t *testing.T) {
 func TestSetScissorCommand_PassThrough(t *testing.T) {
 	// With ADJUST_COORDINATE_SPACE, scissor coordinates pass through directly.
 	// No Y-flip is needed because the scene is rendered upside-down in GL,
-	// so GL pixel Y=0 corresponds to the top of the scene (WebGPU Y=0).
+	// so GL pixel Y=0 corresponds to the top of the scene.
 	tests := []struct {
 		name string
 		x, y uint32

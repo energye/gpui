@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -38,13 +48,8 @@ func loadFvarAxesFromFont(t *testing.T, fontData []byte) []fvarAxis {
 	return parseFvarAxes(fvarRaw)
 }
 
-// TestGolden_HVAR_AdvanceDelta tests HVAR advance width deltas against
-// skrifa golden values from hvar.rs:52-86.
-//
 // Font: Vazirmatn-Variable (single axis: wght, min=100, default=400, max=900).
 // GID 1: advance 1000 FU at default weight.
-//
-// skrifa golden values (from hvar.rs advance_deltas test):
 //
 //	coord -1.0 → delta -113
 //	coord -0.75 → delta -85 (interpolated, rounded)
@@ -90,9 +95,6 @@ func TestGolden_HVAR_AdvanceDelta(t *testing.T) {
 	}
 }
 
-// TestGolden_HVAR_IVSRegions tests that the ItemVariationStore regions
-// are parsed correctly, matching skrifa ivs_regions test (variations.rs:1783-1814).
-//
 // Expected regions for Vazirmatn-Variable:
 //
 //	Region 0: wght axis [-1.0, -1.0, 0.0] (Thin → Regular)

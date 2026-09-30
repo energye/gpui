@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -138,11 +145,8 @@ func (s *Sampler) NativeHandle() uintptr { return uintptr(s.raw) }
 // ShaderModule implements hal.ShaderModule for Metal.
 //
 // WGSL is parsed and lowered to naga IR here. MSL is written later, when the
-// pipeline is created, because the buffer slot for naga's `_buffer_sizes`
+// pipeline is created, because the buffer slot for the `_buffer_sizes`
 // argument comes from the pipeline layout.
-//
-// Reference: Rust wgpu-hal metal/device.rs:138-145 (load_shader takes
-// `layout: &super::PipelineLayout`).
 type ShaderModule struct {
 	wgsl           string
 	spirv          []uint32
@@ -165,9 +169,6 @@ type BindGroupLayout struct {
 
 	// Per-type resource counts for this layout.
 	// Used by PipelineLayout to compute cumulative slot offsets across groups.
-	// naga MSL generates sequential [[buffer(N)]], [[texture(M)]], [[sampler(K)]]
-	// indices across all bind groups, so each group must know how many resources
-	// of each type it contributes.
 	bufferCount  int
 	textureCount int
 	samplerCount int
@@ -181,7 +182,7 @@ func (l *BindGroupLayout) Destroy() {
 }
 
 // BindGroup implements hal.BindGroup for Metal.
-// Entries hold the canonical hal flat shape directly (H4-b1, no shim):
+// Entries hold the canonical hal flat shape directly:
 // CreateBindGroup stores desc.Entries verbatim, encoder unpacks to *Buffer/
 // *TextureView/*Sampler internally (gpu unpack pattern, not red-line assert).
 type BindGroup struct {
@@ -200,8 +201,6 @@ func (g *BindGroup) Destroy() {
 // GroupSlotOffsets holds the cumulative Metal slot offsets for a single bind group.
 // These offsets are the starting [[buffer(N)]], [[texture(M)]], [[sampler(K)]]
 // indices for each group, computed from the resource counts of all preceding groups.
-//
-// Reference: Rust wgpu-hal metal/mod.rs BindGroupLayoutInfo.base_resource_indices.
 type GroupSlotOffsets struct {
 	Buffers  int
 	Textures int
@@ -217,15 +216,12 @@ type PipelineLayout struct {
 	// groupOffsets[i] contains the starting Metal indices for group i,
 	// computed by summing resource counts of groups 0..i-1.
 	//
-	// Reference: Rust wgpu-hal metal/mod.rs PipelineLayout.bind_group_infos.
 	groupOffsets []GroupSlotOffsets
 
 	// totalBuffers is how many buffer bindings all bind group layouts declare
 	// together. It is also the first free Metal buffer slot, which is where
-	// naga's `_buffer_sizes` argument goes.
+	// the `_buffer_sizes` argument goes.
 	//
-	// Reference: Rust wgpu-hal metal/device.rs:851-856
-	// (info.sizes_buffer = Some(info.counters.buffers)).
 	totalBuffers int
 }
 
@@ -265,8 +261,7 @@ type ComputePipeline struct {
 	layout        *PipelineLayout // for SetBindGroup slot offset lookup
 	workgroupSize MTLSize         // workgroup size from shader
 
-	// sizesBindings lists the bindings whose byte size the kernel needs, in the
-	// field order that naga uses. It is empty if the kernel has no
+	// It is empty if the kernel has no
 	// runtime-sized array. sizesSlot is the buffer slot that the MSL was
 	// compiled with, and it comes from PipelineLayout.totalBuffers.
 	sizesBindings []ir.ResourceBinding

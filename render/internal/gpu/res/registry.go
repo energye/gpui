@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package res
 
 // Native abstracts a native GPU resource. Release must be called exactly
@@ -42,8 +52,6 @@ func (r Ref) IsNil() bool { return r.reg == nil || r.id == 0 }
 // destruction is deferred until refs==0 && inflight==0 && retire, mirroring
 // Skia command-buffer refs.
 //
-// Resolve hit/miss counters (§6.2): every deferred resolution increments one
-// side — a miss means a command referenced a role whose current active
 // instance was unavailable (rebuilt mid-flush / device loss). The frame gate
 // is ResolveMiss == 0 under resize storms.
 type Registry struct {
@@ -151,7 +159,6 @@ func (r *Registry) Bind(key SourceKey, ref Ref) {
 // Resolve returns the current active instance for a role key, incrementing
 // its refcount (caller must Release the returned Ref). Resolution happens at
 // flush time; the resolved instance is by construction the current one.
-// Each call increments the hit or miss counter (§6.2 diagnostics).
 func (r *Registry) Resolve(key SourceKey) (Ref, bool) {
 	if r == nil {
 		return Ref{}, false
@@ -178,7 +185,6 @@ func (r *Registry) Resolve(key SourceKey) (Ref, bool) {
 	return Ref{reg: r, id: id}, true
 }
 
-// ResolveStats returns the deferred-resolution hit/miss counters (§6.2).
 // The frame gate is: ResolveMiss must stay 0 under resize — a miss means a
 // command resolved to a role whose active instance was unavailable.
 func (r *Registry) ResolveStats() (hits, misses uint64) {

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -12,7 +19,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 )
 
-// newGLHalSwapchain builds the pure-Go GL hal.Swapchain (P1-2, X11/Wayland).
+// newGLHalSwapchain builds the pure-Go GL hal.Swapchain.
 // Creation is the only place that names the backend; afterwards render
 // talks hal.Swapchain only.
 func newGLHalSwapchain(surf hal.Surface, dev hal.Device, w, h uint32) (hal.Swapchain, error) {

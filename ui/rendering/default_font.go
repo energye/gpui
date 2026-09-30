@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -13,7 +23,7 @@ import (
 //
 // Configure fonts with functions only (no env):
 //
-//	text.SetDefaultFontPath("/path/App.ttf")           // process
+//	text.SetDefaultFontPath("/path/App.ttf") // process
 //	r := text.NewFontResolver().SetFontFile("a.ttf") // instance
 //	face, _, _ := r.Load(16)
 //	// or rendering.TryLoadDefaultFaceWith(r, 16)
@@ -35,8 +45,8 @@ func TryLoadDefaultFaceWith(r *text.FontResolver, points float64) (text.Face, st
 // (FT-STYLE-FAMILY string API). Supported generic names:
 //
 //	"" / "sans" / "sans-serif" → system UI sans (LoadDefaultFace)
-//	"serif"                   → common serif TTF candidates
-//	"mono" / "monospace"      → common monospace TTF candidates
+//	"serif" → common serif TTF candidates
+//	"mono" / "monospace" → common monospace TTF candidates
 //
 // An absolute or relative path to a .ttf/.otf/.ttc is loaded directly.
 // Returns (nil, "", err) when no candidate exists (tests should Skip).

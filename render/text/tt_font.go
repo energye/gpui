@@ -1,10 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — font program data.
 //
-// Port of skrifa glyf/mod.rs Outlines struct (font-level fields).
 // Loaded once per font file: fpgm, prep, CVT, and maxp limits.
 // These are immutable after loading and shared across all sizes.
-//
-// Reference: skrifa/src/outline/glyf/mod.rs:38-58 (Outlines struct)
 package text
 
 import (
@@ -17,8 +24,6 @@ import (
 
 // ttFontProgram holds TrueType bytecode program data loaded once per font.
 // This corresponds to the font-level fields of skrifa's Outlines struct.
-//
-// Reference: skrifa glyf/mod.rs:38-58
 type ttFontProgram struct {
 	// fpgm is the font program bytecode (fpgm table).
 	// Executed once when the font is first used at a given size.
@@ -55,7 +60,6 @@ type ttFontProgram struct {
 
 	// os2Ascender is sTypoAscender from the OS/2 table (font units).
 	// Used for vertical phantom point computation.
-	// Reference: skrifa glyf/mod.rs:55 (os2_vmetrics)
 	os2Ascender int16
 
 	// os2Descender is sTypoDescender from the OS/2 table (font units).
@@ -66,8 +70,6 @@ type ttFontProgram struct {
 // loadTTFontProgram loads font-level TrueType bytecode data from raw font bytes.
 // Parses fpgm, prep, cvt, maxp, head, and hmtx tables.
 // Returns nil, nil if the font has no TrueType instructions (CFF fonts, etc.).
-//
-// Reference: skrifa glyf/mod.rs:60-110 (Outlines::new)
 //
 //nolint:nilnil // nil result = "no TrueType instructions", not an error
 func loadTTFontProgram(fontData []byte) (*ttFontProgram, error) {
@@ -114,7 +116,6 @@ func loadTTFontProgram(fontData []byte) (*ttFontProgram, error) {
 
 	// Parse OS/2 table for vertical metrics (sTypoAscender, sTypoDescender).
 	// These are used for vertical phantom point computation.
-	// Reference: skrifa glyf/mod.rs:101-103 (os2_vmetrics)
 	if os2Data, ok := tables["OS/2"]; ok && len(os2Data) >= 72 {
 		fp.os2Ascender = int16(binary.BigEndian.Uint16(os2Data[68:70]))
 		fp.os2Descender = int16(binary.BigEndian.Uint16(os2Data[70:72]))
@@ -160,7 +161,6 @@ type maxpLimits struct {
 }
 
 // parseMaxpLimits extracts TT hinting limits from a raw maxp table.
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/maxp
 func parseMaxpLimits(data []byte) (maxpLimits, error) {
 	if len(data) < 6 {
 		return maxpLimits{}, errors.New("maxp table too short")
@@ -214,7 +214,6 @@ func parseMaxpLimits(data []byte) (maxpLimits, error) {
 }
 
 // parseHeadUnitsPerEm extracts unitsPerEm from a raw head table.
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/head
 func parseHeadUnitsPerEm(data []byte) (int, error) {
 	// unitsPerEm is at offset 18 in the head table (uint16).
 	if len(data) < 20 {
@@ -229,7 +228,6 @@ func parseHeadUnitsPerEm(data []byte) (int, error) {
 
 // parseCVT parses the cvt (Control Value Table) from raw bytes.
 // Each entry is a big-endian int16 (FWord), stored as int32.
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/cvt
 func parseCVT(data []byte) []int32 {
 	count := len(data) / 2
 	if count == 0 {

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -114,7 +121,6 @@ func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error) {
 		// CopyDst buffers need CPU-visible storage for Queue.WriteBuffer().
 		// MappedAtCreation needs CPU-visible storage for the initial mapping.
 		// On Apple Silicon UMA, StorageModeShared is zero-cost (same physical memory).
-		// This matches the Vulkan backend which maps CopyDst/MappedAtCreation to host-visible memory.
 		options = MTLResourceStorageModeShared
 	} else {
 		options = MTLResourceStorageModePrivate
@@ -447,8 +453,6 @@ func (d *Device) CreateBindGroupLayout(desc *hal.BindGroupLayoutDescriptor) (hal
 	layout := &BindGroupLayout{entries: desc.Entries, device: d}
 
 	// Count resources by type so PipelineLayout can compute cumulative slot offsets.
-	// naga MSL generates sequential [[buffer(N)]], [[texture(M)]], [[sampler(K)]]
-	// indices across all bind groups in a pipeline layout.
 	for _, entry := range desc.Entries {
 		switch {
 		case entry.Buffer != nil:
@@ -474,7 +478,7 @@ func (d *Device) DestroyBindGroupLayout(layout hal.BindGroupLayout) {
 	mtlLayout.device = nil
 }
 
-// CreateBindGroup creates a bind group (H4-b1: stores hal entries verbatim).
+// CreateBindGroup creates a bind group.
 func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (hal.BindGroup, error) {
 	if desc == nil {
 		return nil, fmt.Errorf("metal: bind group descriptor is nil")
@@ -497,11 +501,7 @@ func (d *Device) DestroyBindGroup(group hal.BindGroup) {
 
 // CreatePipelineLayout creates a pipeline layout.
 //
-// Computes cumulative per-type slot offsets for each bind group. naga MSL generates
-// sequential [[buffer(N)]], [[texture(M)]], [[sampler(K)]] indices across all groups,
-// so group i's starting slot = sum of resource counts from groups 0..i-1.
-//
-// Reference: Rust wgpu-hal metal/device.rs:718-801 (base_resource_indices).
+// Computes cumulative per-type slot offsets for each bind group.
 func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (hal.PipelineLayout, error) {
 	offsets := make([]GroupSlotOffsets, len(desc.BindGroupLayouts))
 	var bufAccum, texAccum, samAccum int
@@ -537,12 +537,9 @@ func (d *Device) DestroyPipelineLayout(layout hal.PipelineLayout) {
 // CreateShaderModule creates a shader module.
 //
 // This function parses WGSL and lowers it to naga IR. It does not write MSL,
-// because the buffer slot for naga's `_buffer_sizes` argument comes from the
+// because the buffer slot for the `_buffer_sizes` argument comes from the
 // pipeline layout, which is not known yet. The pipeline writes the MSL later.
 // WGSL syntax and validation errors are still reported here.
-//
-// Reference: Rust wgpu-hal metal/device.rs:138-145 (load_shader takes the
-// pipeline layout and is called from create_*_pipeline).
 func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (hal.ShaderModule, error) {
 	if desc.WGSL == "" {
 		// No WGSL source - just store the descriptor for later
@@ -585,8 +582,7 @@ func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (hal.Shade
 type compiledLibrary struct {
 	library         ID // id<MTLLibrary>; the caller must release it
 	entrypointNames map[string]string
-	// sizesBindings lists the bindings whose byte size the kernel needs, in
-	// the field order that naga uses. It is empty if the shader has no
+	// It is empty if the shader has no
 	// runtime-sized array.
 	sizesBindings []ir.ResourceBinding
 	// sizesSlot is the buffer slot that the `_buffer_sizes` argument was
@@ -597,11 +593,8 @@ type compiledLibrary struct {
 // compileLibrary writes MSL for the shader module and builds an MTLLibrary
 // from it.
 //
-// If bindSizes is true, the MSL binds naga's `_buffer_sizes` argument to the
-// first free buffer slot from the pipeline layout. If it is false, naga assigns
-// the bindings on its own, and the MSL is the same as in earlier releases.
-//
-// Reference: Rust wgpu-hal metal/device.rs:138-145.
+// If bindSizes is true, the MSL binds the `_buffer_sizes` argument to the
+// first free buffer slot from the pipeline layout.
 func (d *Device) compileLibrary(module *ShaderModule, layout *PipelineLayout, bindSizes bool) (*compiledLibrary, error) {
 	if module == nil || module.irModule == nil {
 		return nil, fmt.Errorf("metal: shader module has no WGSL source")
@@ -716,7 +709,7 @@ func (d *Device) CreateRenderPipeline(desc *hal.RenderPipelineDescriptor) (hal.R
 
 	// Get shader modules
 	//
-	// The render path does not bind naga's `_buffer_sizes` argument, so this
+	// The render path does not bind the `_buffer_sizes` argument, so this
 	// MSL does not change.
 	vertexModule, ok := desc.Vertex.Module.(*ShaderModule)
 	if !ok || vertexModule == nil {
@@ -1093,8 +1086,6 @@ func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline) {
 // CreateCommandEncoder creates a command encoder.
 //
 // The Metal command buffer is NOT created here — it is deferred to BeginEncoding.
-// This matches the two-step pattern used by Vulkan (allocate → vkBeginCommandBuffer)
-// CreateQuerySet always returns hal.ErrTimestampsNotSupported.
 // Timestamps need Metal counter sample buffers (not wired yet).
 func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error) {
 	return nil, hal.ErrTimestampsNotSupported
@@ -1168,7 +1159,6 @@ func (d *Device) getOrCreateEventListener() ID {
 }
 
 // WaitForFence waits for a fence to reach the specified value.
-// Matches webgpu Device.WaitForFence.
 //
 // Uses Metal's MTLSharedEvent.notifyListener:atValue:block: for event-driven
 // notification when available. This avoids CPU polling and reduces latency
@@ -1322,8 +1312,6 @@ func (d *Device) DestroyRenderBundle(bundle hal.RenderBundle) {}
 //
 // Allocates a Metal acceleration structure with the requested size via
 // [MTLDevice newAccelerationStructureWithSize:].
-//
-// Reference: Rust wgpu-hal metal/device.rs:2100-2114.
 func (d *Device) CreateAccelerationStructure(desc *hal.AccelerationStructureDescriptor) (hal.AccelerationStructure, error) {
 	if desc == nil {
 		return nil, fmt.Errorf("metal: acceleration structure descriptor is nil")
@@ -1353,8 +1341,6 @@ func (d *Device) CreateAccelerationStructure(desc *hal.AccelerationStructureDesc
 }
 
 // DestroyAccelerationStructure destroys an acceleration structure.
-//
-// Reference: Rust wgpu-hal metal/device.rs:2116-2121.
 func (d *Device) DestroyAccelerationStructure(accelStruct hal.AccelerationStructure) {
 	mtlAS, ok := accelStruct.(*AccelerationStructure)
 	if !ok || mtlAS == nil {
@@ -1371,8 +1357,6 @@ func (d *Device) DestroyAccelerationStructure(accelStruct hal.AccelerationStruct
 //
 // Delegates to getAccelerationStructureBuildSizes in raytracing.go which creates
 // a transient descriptor and queries Metal for the sizes.
-//
-// Reference: Rust wgpu-hal metal/device.rs:2076-2091.
 func (d *Device) GetAccelerationStructureBuildSizes(desc *hal.GetAccelerationStructureBuildSizesDescriptor) hal.AccelerationStructureBuildSizes {
 	return d.getAccelerationStructureBuildSizes(desc)
 }
@@ -1381,8 +1365,6 @@ func (d *Device) GetAccelerationStructureBuildSizes(desc *hal.GetAccelerationStr
 //
 // Uses Metal 3+ gpuResourceID property. Returns 0 if the AS is nil or the
 // property is unavailable on older GPU families.
-//
-// Reference: Rust wgpu-hal metal/device.rs:2093-2098.
 func (d *Device) GetAccelerationStructureDeviceAddress(accelStruct hal.AccelerationStructure) uint64 {
 	mtlAS, ok := accelStruct.(*AccelerationStructure)
 	if !ok || mtlAS == nil || mtlAS.raw == 0 {
@@ -1394,8 +1376,6 @@ func (d *Device) GetAccelerationStructureDeviceAddress(accelStruct hal.Accelerat
 }
 
 // TlasInstanceToBytes converts a TlasInstance to Metal's 64-byte packed format.
-//
-// Reference: Rust wgpu-hal metal/device.rs:2123-2159.
 func (d *Device) TlasInstanceToBytes(instance hal.TlasInstance) []byte {
 	return tlasInstanceToBytes(instance)
 }

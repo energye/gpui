@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 // RenderObject is the L1 layout/paint/hit unit (Flutter RenderObject subset).
@@ -15,7 +25,7 @@ type RenderObject interface {
 
 	// MarkNeedsLayout dirties layout and bubbles to relayout boundary / root.
 	MarkNeedsLayout()
-	// MarkNeedsPaint dirties paint (P1: bubbles to root; P2: stops at RepaintBoundary).
+	// MarkNeedsPaint dirties paint.
 	MarkNeedsPaint()
 
 	NeedsLayout() bool
@@ -28,7 +38,6 @@ type RenderObject interface {
 	// IsRelayoutBoundary stops markNeedsLayout bubbling past this node
 	// after marking this node dirty (Flutter relayout boundary).
 	IsRelayoutBoundary() bool
-	// IsRepaintBoundary reserved for P2 paint isolation.
 	IsRepaintBoundary() bool
 
 	// attach/detach used by container helpers.
@@ -60,7 +69,7 @@ type Base struct {
 	manualLayout bool
 
 	// shellBoundary marks this RepaintBoundary as part of the window shell
-	// (W2 R21 shell/content layering): shell boundaries are counted separately
+	// : shell boundaries are counted separately
 	// in BoundaryCache so a scrolling body can prove the shell's rerecord
 	// stays 0 (Flutter: the AppBar layer never re-records on body scroll).
 	shellBoundary bool
@@ -77,7 +86,7 @@ type Base struct {
 	// cacheID is a stable BoundaryCache map key (assigned lazily).
 	cacheID uint64
 
-	// debugName is a stable hit-test identity tag (R13); empty = unnamed.
+	// debugName is a stable hit-test identity tag; empty = unnamed.
 	debugName string
 
 	// lastConstraints for ShouldRelayout early-out.
@@ -180,7 +189,7 @@ func ManualLayoutOf(n RenderObject) bool {
 	return false
 }
 
-// SetRepaintBoundary marks paint isolation (P2).
+// SetRepaintBoundary marks paint isolation.
 func (b *Base) SetRepaintBoundary(v bool) {
 	if b.repaintBoundary == v {
 		return
@@ -189,14 +198,14 @@ func (b *Base) SetRepaintBoundary(v bool) {
 	b.MarkNeedsCompositingBitsUpdate()
 }
 
-// SetShellBoundary tags this RepaintBoundary as window-shell content (W2 R21).
+// SetShellBoundary tags this RepaintBoundary as window-shell content.
 // BoundaryCache then partitions rerecord/skip counters so a scrolling body can
 // prove the shell Picture cache is never re-recorded (shell_rerecord == 0).
 // The tag is only meaningful on a RepaintBoundary node; setting it on a
 // non-boundary is a no-op for cache partitioning.
 func (b *Base) SetShellBoundary(v bool) { b.shellBoundary = v }
 
-// IsShellBoundary reports whether this node was tagged as shell content (R21).
+// IsShellBoundary reports whether this node was tagged as shell content.
 func (b *Base) IsShellBoundary() bool {
 	if b == nil {
 		return false
@@ -204,7 +213,7 @@ func (b *Base) IsShellBoundary() bool {
 	return b.shellBoundary
 }
 
-// DebugName returns the hit-test identity tag (R13).
+// DebugName returns the hit-test identity tag.
 func (b *Base) DebugName() string {
 	if b == nil {
 		return ""
@@ -212,7 +221,7 @@ func (b *Base) DebugName() string {
 	return b.debugName
 }
 
-// SetDebugName sets the hit-test identity tag (R13).
+// SetDebugName sets the hit-test identity tag.
 func (b *Base) SetDebugName(name string) {
 	if b == nil {
 		return
@@ -363,7 +372,6 @@ func (b *Base) MarkNeedsLayout() {
 			}
 		} else {
 			// Fallback: call MarkNeedsLayout would recurse infinitely; set via interface methods.
-			// Non-Base nodes must implement mark themselves — P1 all nodes embed Base.
 			break
 		}
 	}

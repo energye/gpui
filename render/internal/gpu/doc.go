@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Package gpu provides a Pure Go GPU-accelerated rendering backend.
@@ -84,9 +94,9 @@
 // The backend uses an LRU-based memory manager with configurable budget:
 //
 //	config := GPUSceneRendererConfig{
-//	    Width:          1920,
-//	    Height:         1080,
-//	    MaxLayers:      16,
+//	    Width: 1920,
+//	    Height: 1080,
+//	    MaxLayers: 16,
 //	    MemoryBudgetMB: 256,
 //	}
 //
@@ -95,7 +105,7 @@
 // # Requirements
 //
 //   - Go 1.25+ (for generic features)
-//   - gogpu/wgpu module (github.com/energye/gpui/gpu/webgpu)
+//   - gogpu/wgpu module
 //   - A GPU that supports Vulkan, Metal, or DX12 (for actual GPU rendering)
 //
 // # Thread Safety

@@ -1,11 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Name table parser — font family and full name extraction.
 //
 // Parses the OpenType 'name' table to extract human-readable font names.
 // Supports Windows Unicode (platform 3, encoding 1) with UTF-16BE decoding
 // and Mac Roman (platform 1, encoding 0) as a fallback.
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/name
-// Reference: skrifa read-fonts/src/tables/name.rs
 //
 // This file is part of Phase 3a (ADR-048: Pure Go Font Stack).
 package text

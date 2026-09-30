@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import "fmt"
@@ -6,7 +16,7 @@ import "fmt"
 //
 // Usage:
 //
-//	if errors.Is(err, wgpu.ErrValidation) {
+//	if errors.Is {
 //	    // handle validation error
 //	}
 var (
@@ -46,7 +56,7 @@ func (e *WGPUError) Error() string {
 }
 
 // Is supports errors.Is() matching by error Type.
-// This allows: errors.Is(err, wgpu.ErrValidation)
+// This allows: errors.Is
 // Message-only sentinels (ErrDeviceLost, ErrInvalidHandle) match any Op
 // whose Message equals the sentinel Message.
 func (e *WGPUError) Is(target error) bool {

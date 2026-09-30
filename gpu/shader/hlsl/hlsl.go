@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package hlsl
 
@@ -197,10 +204,8 @@ type SamplerHeapBindTargets struct {
 
 // ResourceBinding identifies a resource in the source shader.
 type ResourceBinding struct {
-	// Group corresponds to WGSL @group or SPIR-V DescriptorSet.
 	Group uint32
 
-	// Binding corresponds to WGSL @binding or SPIR-V Binding.
 	Binding uint32
 }
 
@@ -521,7 +526,6 @@ type TranslationInfo struct {
 // UnnamedIdentifier is the default name for empty identifiers.
 const UnnamedIdentifier = "_unnamed"
 
-// Naga helper function names.
 const (
 	NagaModfFunction               = "naga_modf"
 	NagaFrexpFunction              = "naga_frexp"

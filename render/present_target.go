@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -21,7 +31,7 @@ import (
 // requestPresentDeviceWithRetry retries device creation when the adapter is
 // temporarily out of GPU memory (multi-window stolen-memory budget on iGPUs).
 // Other windows/processes may release memory between retries; this mirrors
-// Flutter's degrade-not-crash behavior on transient resource pressure.
+// the degrade-not-crash behavior on transient resource pressure.
 // Implemented here rather than render/internal/gpu to avoid an import cycle.
 func requestPresentDeviceWithRetry(adapter hal.Adapter, desc *hal.DeviceDescriptor, label string) (hal.Device, error) {
 	if adapter == nil {
@@ -97,7 +107,6 @@ func waitDeviceReady(inst hal.Instance, device hal.Device, label string) error {
 }
 
 // PresentPlatform identifies the native windowing backend for surface creation.
-// Mirrors ui/platform kinds without importing ui (dependency: ui → render only).
 type PresentPlatform int
 
 const (
@@ -109,10 +118,10 @@ const (
 
 // PresentNativeSurface holds OS handles required to create a GPU present surface.
 //
-//	Linux X11:     Display=Display*, Window=Window (XID)
+//	Linux X11: Display=Display*, Window=Window (XID)
 //	Linux Wayland: Display=wl_display*, Window=wl_surface*
-//	Windows:       Display=0 or HINSTANCE, Window=HWND
-//	macOS:         Display=0, Window=CAMetalLayer* / NSView* per gpu binding
+//	Windows: Display=0 or HINSTANCE, Window=HWND
+//	macOS: Display=0, Window=CAMetalLayer* / NSView* per gpu binding
 type PresentNativeSurface struct {
 	Platform PresentPlatform
 	Display  uintptr
@@ -354,7 +363,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		if t, err := buildSharedSurface(ns, logicalW, logicalH, scale); err == nil {
 			return t, nil
 		} else if !IsGPUOutOfMemory(err) {
-			// R4: non-OOM borrow failures return as-is on purpose — a
+			// non-OOM borrow failures return as-is on purpose — a
 			// published share means the device is fine, so the failure is
 			// the caller's (bad handles, torn-down window). Falling through
 			// to open a second device would fork the single-device invariant
@@ -467,7 +476,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	// 相位锁到显示刷新）。历史上 Wayland 用 FifoRelaxed 恒不阻塞，但实测
 	// （pelican GNOME/mutter 2026-08-26）UI 软件边界 16.0ms 与显示刷新
 	// 16.7ms 自由漂移 → 周期性错过合成 deadline → 上屏内容步距忽大忽小
-	// judder；X11 的 Fifo 阻塞语义天然锁相无此问题。Fifo 在 wayland(wgpu)
+	// judder；X11 的 Fifo 阻塞语义天然锁相无此问题。Fifo 在 wayland
 	// 下由 frame callback 节流、raster 线程阻塞在 present（UI 线程异步，
 	// pipeline depth=2 可提前构建），不会卡 UI。
 	fixedNoVsync := false
@@ -514,18 +523,16 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	dc := NewContext(logicalW, logicalH, WithDeviceScale(scale))
 
 	t := &PresentTarget{
-		ns:      ns,
-		logicW:  logicalW,
-		logicH:  logicalH,
-		scale:   scale,
-		inst:    inst,
-		adapter: adapter,
-		device:  device,
-		surf:    surf,
-		sc:      sc,
-		dc:      dc,
-		// Default storm window: 300ms ≈ 18 frames @60Hz — a drag-resize step
-		// arriving faster than this keeps the full path active continuously.
+		ns:                ns,
+		logicW:            logicalW,
+		logicH:            logicalH,
+		scale:             scale,
+		inst:              inst,
+		adapter:           adapter,
+		device:            device,
+		surf:              surf,
+		sc:                sc,
+		dc:                dc,
 		resizeStormWindow: 300 * time.Millisecond,
 		// Fifo (vsync) is the steady-state present mode; SetVsync(false)
 		// switches to Mailbox/Immediate during resize storms. Wayland
@@ -994,7 +1001,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 
 	// Reconfigured swapchain buffers are undefined until each is fully
-	// written; owed full frames force the full path (Skia recreate semantics).
+	// written; owed full frames force the full path.
 	// During an active resize storm every present stays full too, so a buffer
 	// at an intermediate size is never LoadOpLoad'd half-written.
 	// Apply a swapchain resize recorded on the UI thread here — on the raster

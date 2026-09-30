@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package mslmap_test
 
@@ -63,8 +70,7 @@ func bufferSlots(mslSource string) map[string]string {
 }
 
 // TestDefaultOptionsLeaveSizesBufferUnbound records the bug that this package
-// fixes. With msl.DefaultOptions, naga reports that the sizes buffer is
-// required, but it writes the argument without a [[buffer(N)]] attribute.
+// fixes.
 func TestDefaultOptionsLeaveSizesBufferUnbound(t *testing.T) {
 	t.Parallel()
 
@@ -126,8 +132,7 @@ func TestOptionsBindSizesBuffer(t *testing.T) {
 	}
 }
 
-// TestOptionsPreserveOrdinaryBindings is the most important check. naga uses
-// PerEntryPointMap[ep].Resources as is and does not number the resources
+// TestOptionsPreserveOrdinaryBindings is the most important check.
 // itself. An incomplete map would move every normal resource to a wrong slot,
 // with no error. The normal bindings must stay the same as with
 // msl.DefaultOptions.

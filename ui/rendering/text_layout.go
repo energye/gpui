@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -25,7 +35,7 @@ type TextLayoutLine struct {
 	Width     float64
 	Height    float64
 	Glyphs    []text.ShapedGlyph
-	// GlyphRuns partitions Glyphs by submitting face (M2 composite batch):
+	// GlyphRuns partitions Glyphs by submitting face:
 	// each run covers Glyphs[Start:End] and must be submitted with Run.Face.
 	// Single-face lines hold one run; empty when the line has no batchable
 	// glyphs (nil-face estimate or unshaped fallback keeps the old paint path).
@@ -38,7 +48,7 @@ type TextLayoutLine struct {
 	runRTL []bool
 }
 
-// LineGlyphRun is one batchable glyph slice within a line (M2).
+// LineGlyphRun is one batchable glyph slice within a line.
 type LineGlyphRun struct {
 	Face       text.Face
 	Start, End int
@@ -50,7 +60,6 @@ type LineGlyphRun struct {
 }
 
 // isColorText reports whether s holds an emoji-presentation sequence
-// (M5 color-glyph detection, via render/text/emoji segmenter).
 func isColorText(s string) bool {
 	if s == "" {
 		return false
@@ -66,7 +75,7 @@ func isColorText(s string) bool {
 // TextLayout is the single source for paint + queries.
 type TextLayout struct {
 	Text string
-	// lines是行表(M1-d5起不再导出).外部经LineCount/Line/LineCarets/
+	// lines是行表.外部经LineCount/Line/LineCarets/
 	// LineGlyphs/CaretAt访问(值拷贝或只读 absolutize,供懒物化演进);
 	// 行内caret为行内相对偏移,绝对值=相对值+行StartByte.
 	lines    []TextLayoutLine
@@ -82,11 +91,11 @@ type TextLayout struct {
 	Overflow TextOverflow
 	// Truncated is true when MaxLines dropped lines.
 	Truncated bool
-	// LineGen holds per-row validity marks for the row/segment cache (M1 I9).
+	// LineGen holds per-row validity marks for the row/segment cache.
 	// TextLayout.Generation stays a global monotonic counter (2 consumers rely
 	// on it); invalidation granularity is expressed here instead.
 	LineGen []uint64
-	// idx is the lazily validated row index + height prefix (M1 I8).
+	// idx is the lazily validated row index + height prefix.
 	idx *lineIndex
 	// idxSeq认领idx序号(增量引擎patch时递增,失配即重建).
 	idxSeq uint64
@@ -323,7 +332,7 @@ func (l *TextLayout) LineHasColorRun(i int) bool {
 }
 
 // LineGlyphRuns返回第i行的批量分区(值拷贝,调用方可安全持有).
-// 每个分区覆盖 Glyphs[Start:End],用 Face 独立批量提交 (M2).
+// 每个分区覆盖 Glyphs[Start:End],用 Face 独立批量提交.
 // 无可批量字形时返回 nil,调用方走旧绘制路径.
 func (l *TextLayout) LineGlyphRuns(i int) []LineGlyphRun {
 	if l == nil || i < 0 || i >= len(l.lines) {
@@ -370,7 +379,7 @@ func (l *TextLayout) LineBulkRoutable(i int) bool {
 }
 
 // VisibleLineRange返回与纵向区间 [y0,y1) 相交的行区间 [lo,hi).
-// 无交集时 lo==hi.行高前缀和二分定位,O(log n),不遍历全表 (M2).
+// 无交集时 lo==hi.行高前缀和二分定位,O(log n),不遍历全表.
 func (l *TextLayout) VisibleLineRange(y0, y1 float64) (lo, hi int) {
 	if l == nil || len(l.lines) == 0 || y1 <= y0 {
 		return 0, 0
@@ -389,7 +398,7 @@ func (l *TextLayout) VisibleLineRange(y0, y1 float64) (lo, hi int) {
 	return lo, hi
 }
 
-// DamageRectForRows返回行区间 [startRow,endRow) 的脏矩形 (M2 damage).
+// DamageRectForRows返回行区间 [startRow,endRow) 的脏矩形.
 // X 取区间内最大行宽,Y 取首行顶到底行底.调用方只把被改行/段传进来,
 // damage 面积即 O(变动行/段).行号越界钳制,空区间返回零矩形.
 func (l *TextLayout) DamageRectForRows(startRow, endRow int) Rect {
@@ -588,8 +597,6 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []t
 	return carets, width, glyphs
 }
 
-// buildCaretsForLineWithRuns shapes like buildCaretsForLine and additionally
-// reports per-face glyph partitions for M2 composite batch submission.
 // Runs is nil when the line has no batchable glyphs (nil-face estimate or
 // unshaped fallback); callers keep the legacy paint path then.
 // runRTL mirrors the shaping runs (nil unless the shaped path succeeded).
@@ -616,7 +623,7 @@ func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, floa
 		}
 		return carets, x, glyphs, nil, nil
 	}
-	// Shaped path (M0 item 8): split into (face, script, direction) runs and
+	// Shaped path: split into (face, script, direction) runs and
 	// shape each run, then stitch carets in a single pass — O(n), no
 	// CaretXForCluster table scan. Any unshapable run falls back below.
 	if runs := itemizeRuns(line, face); len(runs) > 0 {
@@ -742,8 +749,6 @@ func itemizeRunsWithSegs(line string, face text.Face, segs []text.Segment) []ite
 
 // buildShapedCarets shapes each run and stitches one caret per rune boundary
 // in a single pass. ok=false when any run shapes empty (caller falls back).
-// gruns partitions the returned glyphs by submitting face (M2 composite
-// batch): gruns[k] covers glyphs[gruns[k].Start:gruns[k].End] with Face.
 // cursor0/prevX0 seed the pen for window reuse (full-line builds pass 0,0);
 // Cluster/Caret ByteOff stay relative to line, glyph X absorbs cursor0.
 func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, bool) {
@@ -1246,7 +1251,7 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 			}
 		}
 		// If upstream and effectiveOff == StartByte of this line and not first line,
-		// Flutter's upstream at line start should be trailing of prev line.
+		// the upstream at line start should be trailing of prev line.
 		if affinity == AffinityUpstream && effectiveOff == ln.StartByte && i > 0 && !isNewlineAt(l.Text, effectiveOff) {
 			prev := l.lines[i-1]
 			// Return trailing of previous line.
@@ -1311,8 +1316,7 @@ func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity i
 	}
 	// Mid-point rule for nearest caret, but also set affinity:
 	// If x is in left half of a grapheme, affinity downstream (leading), else upstream (trailing).
-	// For line-start/end edge, follow Flutter's line-break affinity.
-	// M1-c:结果再按簇吸附(downstream),不得落进组合音标/ZWJ序列内.
+	// For line-start/end edge, follow the line-break affinity.
 	// caret为行内相对,先加行基址转绝对再吸附.
 	off, aff := offsetForX(ln.Carets, x)
 	off += ln.StartByte

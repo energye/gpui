@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -7,7 +17,7 @@ import (
 )
 
 // blockEndsWithTerminator returns true if the block's last statement is a
-// terminator (Break, Continue, Return, Kill). Matches Rust naga's is_terminator().
+// terminator (Break, Continue, Return, Kill).
 func blockEndsWithTerminator(block ir.Block) bool {
 	if len(block) == 0 {
 		return false
@@ -20,8 +30,6 @@ func blockEndsWithTerminator(block ir.Block) bool {
 }
 
 // writeBlock writes a block of statements.
-// After writing all statements, it un-emits expressions that were baked
-// during this block, matching Rust naga's put_block behavior.
 // This ensures baked names don't leak out of their block scope.
 func (w *Writer) writeBlock(block ir.Block) error {
 	for _, stmt := range block {
@@ -30,8 +38,7 @@ func (w *Writer) writeBlock(block ir.Block) error {
 		}
 	}
 	// Un-emit: remove all expressions that were emitted in this block
-	// from namedExpressions. This matches Rust naga MSL backend behavior
-	// where baked expression names are scoped to their containing block.
+	// from namedExpressions.
 	for _, stmt := range block {
 		if emit, ok := stmt.Kind.(ir.StmtEmit); ok {
 			for h := emit.Range.Start; h < emit.Range.End; h++ {
@@ -54,7 +61,6 @@ func (w *Writer) writeStatementKind(kind ir.StatementKind) error {
 		return w.writeEmit(k)
 
 	case ir.StmtBlock:
-		// Rust naga skips empty blocks entirely
 		if len(k.Block) == 0 {
 			return nil
 		}
@@ -130,18 +136,12 @@ func (w *Writer) writeStatementKind(kind ir.StatementKind) error {
 }
 
 // writeEmit writes an emit statement (materializes expressions).
-// Matches Rust naga behavior: expressions in NamedExpressions (from let bindings
-// and phony assignments) are always baked with their user-given names.
 // Other expressions are baked only if they are control-flow dependent (Load,
 // ImageSample, ImageLoad, Derivative) or used multiple times (needBakeExpression).
 // Pointer expressions are never baked (they are address-space references).
-//
-// Phony expressions (from _ = expr) that are side-effect-free are skipped,
-// matching Rust naga where such expressions are constant-folded and never
-// appear in Emit ranges.
 func (w *Writer) writeEmit(emit ir.StmtEmit) error {
 	for handle := emit.Range.Start; handle < emit.Range.End; handle++ {
-		// Don't bake pointer expressions (matches Rust naga)
+		// Don't bake pointer expressions
 		if w.isPointerExpression(handle) {
 			continue
 		}
@@ -154,7 +154,7 @@ func (w *Writer) writeEmit(emit ir.StmtEmit) error {
 
 		// For Metal >= 2.1, Dot4I8Packed/Dot4U8Packed need intermediate
 		// packed_char4/packed_uchar4 reinterpreted variables emitted before the
-		// dot product expression. Matches Rust naga put_casting_to_packed_chars.
+		// dot product expression.
 		if !w.options.LangVersion.Less(Version2_1) {
 			if err := w.writeDot4PackedCharsIfNeeded(handle); err != nil {
 				return err
@@ -163,13 +163,12 @@ func (w *Writer) writeEmit(emit ir.StmtEmit) error {
 
 		// For Restrict bounds check policy, emit clamped_lod_eN local variable
 		// before the image load expression. This variable is referenced by the
-		// restrict-mode read call. Matches Rust naga put_image_load_restrict.
+		// restrict-mode read call.
 		if err := w.writeImageLoadClampedLodIfNeeded(handle); err != nil {
 			return err
 		}
 
 		// Skip expressions already baked by an earlier statement (e.g., atomic results).
-		// Matches Rust naga: atomic results are emitted inline with the atomic statement.
 		if _, alreadyBaked := w.namedExpressions[handle]; alreadyBaked {
 			continue
 		}
@@ -177,7 +176,6 @@ func (w *Writer) writeEmit(emit ir.StmtEmit) error {
 		// Check if this expression has a name from the IR (let binding or phony)
 		if name, ok := w.getIRNamedExpression(handle); ok {
 			// Skip phony expressions that have no side effects.
-			// In Rust naga, these get constant-folded at lowering time and
 			// never appear in Emit ranges. Our lowerer keeps them as runtime
 			// expressions, so we filter them here instead.
 			if name == "phony" && w.isPureExpression(handle) {
@@ -200,7 +198,6 @@ func (w *Writer) writeEmit(emit ir.StmtEmit) error {
 
 // writeImageLoadClampedLodIfNeeded emits a clamped LOD local variable before an
 // ImageLoad expression when the Restrict bounds check policy is active.
-// For 2D/3D images with mip levels, Rust naga emits:
 //
 //	uint clamped_lod_eN = metal::min(uint(level), image.get_num_mip_levels() - 1);
 //
@@ -245,7 +242,6 @@ func (w *Writer) writeImageLoadClampedLodIfNeeded(handle ir.ExpressionHandle) er
 // writeDot4PackedCharsIfNeeded emits packed_char4/packed_uchar4 reinterpreted variable
 // declarations when the expression is a Dot4I8Packed or Dot4U8Packed math operation
 // on Metal >= 2.1. These intermediate variables are used by the dot product expression.
-// Matches Rust naga put_casting_to_packed_chars.
 func (w *Writer) writeDot4PackedCharsIfNeeded(handle ir.ExpressionHandle) error {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {
 		return nil
@@ -381,8 +377,6 @@ func (w *Writer) isPointerExpression(handle ir.ExpressionHandle) bool {
 
 // isAccessChainOnVariable checks if an expression is an Access or AccessIndex
 // chain that ultimately roots in a variable reference (Global/Local/Argument).
-// This identifies pointer expressions that our type resolution may not mark
-// as PointerType, matching Rust naga's is_reference check.
 func (w *Writer) isAccessChainOnVariable(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil {
 		return false
@@ -428,10 +422,9 @@ func (w *Writer) getIRNamedExpression(handle ir.ExpressionHandle) (string, bool)
 }
 
 // collectNeedBakeExpressions scans the function body for expressions that need
-// to be baked (assigned to temporaries). Matches Rust naga's
-// collect_needs_bake_expressions pass which uses ref_count + bake_ref_count.
+// to be baked (assigned to temporaries).
 //
-// Baking rules (from Rust naga):
+// Baking rules:
 //   - Access/AccessIndex: never bake (always inline)
 //   - ImageSample/ImageLoad/Derivative/Load: always bake (ref_count >= 1)
 //   - Everything else: bake if referenced 2+ times
@@ -477,7 +470,6 @@ func (w *Writer) collectNeedBakeExpressions(fn *ir.Function) {
 }
 
 // exprBakeRefCount returns the minimum reference count for baking an expression.
-// Matches Rust naga's Expression::bake_ref_count().
 func exprBakeRefCount(kind ir.ExpressionKind) int {
 	switch kind.(type) {
 	case ir.ExprAccess, ir.ExprAccessIndex:
@@ -637,7 +629,6 @@ func (w *Writer) countStmtExprRefs(stmts []ir.Statement, refCounts []int) {
 // findGuardedIndices scans all expressions to find indices used in RZSW-policy accesses.
 // These indices will be used twice in the generated code (once in the bounds check condition,
 // once in the actual access) so they need to be baked into temporaries.
-// Matches Rust naga's find_checked_indexes.
 func (w *Writer) findGuardedIndices(fn *ir.Function) {
 	if !w.options.BoundsCheckPolicies.Contains(BoundsCheckReadZeroSkipWrite) {
 		return
@@ -657,7 +648,6 @@ func (w *Writer) findGuardedIndices(fn *ir.Function) {
 
 // accessNeedsCheck returns true if a dynamic access to base with the given index
 // needs a runtime bounds check (i.e., the index is not statically known to be in bounds).
-// Matches Rust naga's access_needs_check.
 func (w *Writer) accessNeedsCheck(base, index ir.ExpressionHandle) bool {
 	length, isDynamic := w.indexableLengthOrDynamic(base)
 	if isDynamic {
@@ -700,13 +690,7 @@ func (w *Writer) isLiteralExpression(fn *ir.Function, handle ir.ExpressionHandle
 }
 
 // shouldBakeExpression returns true if the expression should be assigned to a
-// named temporary variable. Matches Rust naga's bake_ref_count logic:
-//   - Load: always bake (control-flow dependent, ref_count threshold = 1)
-//   - ImageSample, ImageLoad: always bake (control-flow dependent)
-//   - Derivative: always bake (control-flow dependent)
-//   - Expressions in needBakeExpression: bake (used multiple times)
-//   - Pointer expressions: never bake
-//   - Everything else: inline (don't bake)
+// named temporary variable.
 func (w *Writer) shouldBakeExpression(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil {
 		return false
@@ -743,9 +727,7 @@ func (w *Writer) shouldBakeExpression(handle ir.ExpressionHandle) bool {
 }
 
 // emitBreakIfSubExpressions walks the break-if condition expression and bakes
-// any Load sub-expressions. This matches Rust naga behavior where break-if
-// sub-expressions are emitted (Loads are baked) before the if check, but the
-// condition itself is written inline using the original variable names.
+// any Load sub-expressions.
 func (w *Writer) emitBreakIfSubExpressions(condHandle ir.ExpressionHandle) error {
 	if w.currentFunction == nil || int(condHandle) >= len(w.currentFunction.Expressions) {
 		return nil
@@ -764,7 +746,7 @@ func (w *Writer) emitBreakIfSubExpressions(condHandle ir.ExpressionHandle) error
 		return nil
 	}
 
-	// Bake Load expressions (matches Rust bake_ref_count=1 for Load)
+	// Bake Load expressions
 	if _, ok := expr.Kind.(ir.ExprLoad); ok {
 		if _, alreadyBaked := w.namedExpressions[condHandle]; !alreadyBaked {
 			if err := w.bakeExpression(condHandle); err != nil {
@@ -873,9 +855,6 @@ func (w *Writer) writeIf(ifStmt ir.StmtIf) error {
 }
 
 // writeSwitch writes a switch statement.
-// Matches Rust naga's MSL output: no space before paren, case bodies wrapped
-// in braces with break inside.
-// Fallthrough cases emit label only (no braces), matching Rust's pattern:
 //
 //	case 3:
 //	case 4: {
@@ -894,7 +873,6 @@ func (w *Writer) writeSwitch(switchStmt ir.StmtSwitch) error {
 	for _, switchCase := range switchStmt.Cases {
 		if switchCase.FallThrough {
 			// Fallthrough: emit label only, no braces, no body.
-			// Rust naga emits "case N:" on its own line for fallthrough.
 			switch v := switchCase.Value.(type) {
 			case ir.SwitchValueI32:
 				w.WriteLine("case %d:", int32(v))
@@ -921,7 +899,6 @@ func (w *Writer) writeSwitch(switchStmt ir.StmtSwitch) error {
 			return err
 		}
 		// Only emit break if the last statement is not a terminator (Return, Break, Continue, Kill).
-		// This matches Rust naga's MSL writer (writer.rs:3697).
 		if !blockEndsWithTerminator(switchCase.Body) {
 			w.WriteLine("break;")
 		}
@@ -935,8 +912,6 @@ func (w *Writer) writeSwitch(switchStmt ir.StmtSwitch) error {
 }
 
 // writeLoop writes a loop statement.
-// Matches Rust naga's loop output including force_loop_bounding and
-// the loop_init gate pattern for continuing/break-if blocks.
 func (w *Writer) writeLoop(loop ir.StmtLoop) error {
 	hasContinuing := len(loop.Continuing) > 0 || loop.BreakIf != nil
 
@@ -980,8 +955,6 @@ func (w *Writer) writeLoop(loop ir.StmtLoop) error {
 		// Write break-if condition.
 		// The break-if sub-expressions were already emitted by the continuing
 		// block's Emit statement, and then un-emitted by writeBlock. So
-		// writeExpression will resolve Load expressions to their original
-		// variable names, matching Rust naga behavior.
 		if loop.BreakIf != nil {
 			w.WriteIndent()
 			w.write("if (")
@@ -1037,9 +1010,6 @@ func (w *Writer) writeEntryPointOutputReturn(value ir.ExpressionHandle) (bool, e
 		return true, nil
 	}
 
-	// Matches Rust naga pattern:
-	//   const auto _tmp = <expr>;
-	//   return OutputStruct { _tmp.member1, _tmp.member2 };
 	outputStructName := w.getOutputStructName()
 
 	w.WriteIndent()
@@ -1112,8 +1082,6 @@ func (w *Writer) writeReturn(ret ir.StmtReturn) error {
 }
 
 // writeBarrier writes a barrier statement.
-// Rust naga reference: writer.rs ~line 7624-7657, uses {NAMESPACE}::threadgroup_barrier
-// and {NAMESPACE}::mem_flags for fully qualified Metal calls.
 func (w *Writer) writeBarrier(barrier ir.StmtBarrier) error {
 	// Metal uses different barrier functions based on the memory being synchronized.
 	// Both the function and mem_flags must be fully qualified with the metal:: namespace.
@@ -1138,8 +1106,8 @@ func (w *Writer) writeBarrier(barrier ir.StmtBarrier) error {
 }
 
 // writeStore writes a store statement.
-// For atomic pointers, emits metal::atomic_store_explicit (matching Rust naga's put_store).
-// For ReadZeroSkipWrite policy, wraps in if(bounds_check) { ... } (matching Rust naga's put_store).
+// For atomic pointers, emits metal::atomic_store_explicit.
+// For ReadZeroSkipWrite policy, wraps in if(bounds_check) { ... }.
 func (w *Writer) writeStore(store ir.StmtStore) error {
 	// Check RZSW policy first — stores skip if out of bounds.
 	policy := w.chooseBoundsCheckPolicy(store.Pointer)
@@ -1167,8 +1135,6 @@ func (w *Writer) writeStore(store ir.StmtStore) error {
 // writeUncheckedStore writes a store statement without RZSW bounds checking.
 func (w *Writer) writeUncheckedStore(store ir.StmtStore) error {
 	// Check if the pointer target is an atomic type.
-	// Rust naga emits StmtStore (not StmtAtomic) for atomicStore(),
-	// and the MSL backend detects atomic pointers at render time.
 	if w.isAtomicPointer(store.Pointer) {
 		w.WriteIndent()
 		w.write("%satomic_store_explicit(&", Namespace)
@@ -1199,7 +1165,6 @@ func (w *Writer) writeUncheckedStore(store ir.StmtStore) error {
 }
 
 // isAtomicPointer checks if an expression is a pointer to an atomic type.
-// Matches Rust naga's TypeInner::is_atomic_pointer.
 // Note: our type resolution strips the pointer wrapper for access chains,
 // so we check both Pointer{base: Atomic} and direct Atomic type.
 func (w *Writer) isAtomicPointer(handle ir.ExpressionHandle) bool {
@@ -1234,7 +1199,6 @@ func (w *Writer) isAtomicPointer(handle ir.ExpressionHandle) bool {
 // writeAtomicBoundsChecks walks the pointer's access chain and writes
 // ReadZeroSkipWrite bounds check conditions for any indexed array accesses.
 // Returns true if any condition was written, false otherwise.
-// Matches Rust naga's put_bounds_checks for atomic pointer access chains.
 func (w *Writer) writeAtomicBoundsChecks(pointer ir.ExpressionHandle) bool {
 	if w.currentFunction == nil {
 		return false
@@ -1413,7 +1377,6 @@ func (w *Writer) computeDynamicArrayLength(baseHandle ir.ExpressionHandle, strid
 	lastMember := &st.Members[len(st.Members)-1]
 
 	// Get the array element type to compute element size.
-	// Matches Rust naga: size = module.types[base].inner.size(ctx)
 	var elementSize uint32
 	if int(lastMember.Type) < len(w.module.Types) {
 		if arrType, ok := w.module.Types[lastMember.Type].Inner.(ir.ArrayType); ok {
@@ -1460,8 +1423,6 @@ func (w *Writer) writeBoundsCheckItem(indexHandle ir.ExpressionHandle, length bo
 		w.write(") < %d", length.staticLength)
 
 	case boundsLengthDynamic:
-		// uint(index) < 1 + (_buffer_sizes.sizeN - offset - elementSize) / stride
-		// Matches Rust naga: "1 + (_buffer_sizes.sizeN - offset - size) / stride"
 		w.write("uint(")
 		_ = w.writeExpression(indexHandle)
 		w.write(") < 1 + (_buffer_sizes.size%d - %d - %d) / %d",
@@ -1590,14 +1551,14 @@ func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
 	case ir.AtomicInclusiveOr:
 		funcName = "atomic_fetch_or_explicit"
 	case ir.AtomicMin:
-		// When result is not used, use void atomic_min_explicit (Rust naga pattern).
+		// When result is not used, use void atomic_min_explicit.
 		if atomic.Result == nil {
 			funcName = "atomic_min_explicit"
 		} else {
 			funcName = "atomic_fetch_min_explicit"
 		}
 	case ir.AtomicMax:
-		// When result is not used, use void atomic_max_explicit (Rust naga pattern).
+		// When result is not used, use void atomic_max_explicit.
 		if atomic.Result == nil {
 			funcName = "atomic_max_explicit"
 		} else {
@@ -1622,7 +1583,6 @@ func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
 	w.WriteIndent()
 
 	// If there's a result, assign it.
-	// Rust naga uses the concrete type (not 'auto') and standard expression naming.
 	if atomic.Result != nil {
 		resultType := "uint"
 		scalar := w.getExpressionScalarType(atomic.Value)
@@ -1636,7 +1596,6 @@ func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
 
 	// If the pointer needs ReadZeroSkipWrite bounds checking, wrap the atomic
 	// in a ternary: CONDITION ? ATOMIC_OP : DefaultConstructible().
-	// Matches Rust naga's put_bounds_checks for atomic operations.
 	policy := w.chooseBoundsCheckPolicy(atomic.Pointer)
 	checked := false
 	if policy == BoundsCheckReadZeroSkipWrite {
@@ -1647,7 +1606,6 @@ func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
 		}
 	}
 
-	// Rust naga uses metal:: prefix and address-of operator for the pointer.
 	w.write("%s%s(&", Namespace, funcName)
 	if err := w.writeExpression(atomic.Pointer); err != nil {
 		if checked {
@@ -1673,8 +1631,6 @@ func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
 }
 
 // writeAtomicCompareExchange writes an atomic compare-exchange operation.
-// Rust naga emits: _atomic_compare_exchange_result_Uint_4_ _eN = naga_atomic_compare_exchange_weak_explicit(&ptr, cmp, val);
-// The template helper function is emitted at the top of the file.
 func (w *Writer) writeAtomicCompareExchange(atomic ir.StmtAtomic, exchange ir.AtomicExchange) error {
 	// Determine the scalar type of the atomic value.
 	scalar := w.getExpressionScalarType(atomic.Value)
@@ -1728,8 +1684,7 @@ func (w *Writer) writeAtomicLoad(atomic ir.StmtAtomic) error {
 			}
 		}
 		// Use the IR named expression name if available (from let bindings),
-		// otherwise generate _eN. Matches Rust naga: named expressions are
-		// used directly for atomic results.
+		// otherwise generate _eN.
 		varName := fmt.Sprintf("_e%d", *atomic.Result)
 		if irName, ok := w.getIRNamedExpression(*atomic.Result); ok {
 			varName = w.namer.call(irName)
@@ -1817,7 +1772,6 @@ func (w *Writer) writeCall(call ir.StmtCall) error {
 }
 
 // writeWorkGroupUniformLoad writes a workgroup uniform load.
-// Matches Rust naga: barrier, typed load into named variable, barrier.
 // The result is named via namer.call("") which produces "unnamed", "unnamed_1", etc.
 func (w *Writer) writeWorkGroupUniformLoad(load ir.StmtWorkGroupUniformLoad) error {
 	// First barrier
@@ -1833,7 +1787,6 @@ func (w *Writer) writeWorkGroupUniformLoad(load ir.StmtWorkGroupUniformLoad) err
 	}
 
 	// Generate the variable name via namer.call("").
-	// Matches Rust naga: self.namer.call("") which produces "unnamed", "unnamed_1", etc.
 	varName := w.namer.call("")
 	w.namedExpressions[load.Result] = varName
 
@@ -1896,12 +1849,10 @@ func (w *Writer) writeRayQuery(rayQuery ir.StmtRayQuery) error {
 }
 
 // writeRayQueryInit writes the RayQuery Initialize statement.
-// Matches Rust naga MSL backend: sets intersector properties, calls intersect, sets ready=true.
 func (w *Writer) writeRayQueryInit(query ir.ExpressionHandle, f ir.RayQueryInitialize) error {
 	const rtNs = "metal::raytracing"
 	// Ensure the descriptor is baked as a local variable before use.
-	// In Rust naga, the descriptor Compose is always in an Emit range
-	// before the RayQuery Init statement. Our IR may emit it after.
+	// Our IR may emit it after.
 	// The descriptor is used 7+ times in the expanded MSL, so it must be a local.
 	if _, alreadyBaked := w.namedExpressions[f.Descriptor]; !alreadyBaked {
 		name := fmt.Sprintf("_e%d", f.Descriptor)
@@ -1975,7 +1926,7 @@ func (w *Writer) writeRayQueryInit(query ir.ExpressionHandle, f ir.RayQueryIniti
 		return err
 	}
 	w.write(".flags & 4) != 0);\n")
-	// intersection = intersector.intersect(ray(...), acs, cull_mask);    query.ready = true;
+	// intersection = intersector.intersect(ray(...), acs, cull_mask); query.ready = true;
 	w.WriteIndent()
 	if err := w.writeExpression(query); err != nil {
 		return err

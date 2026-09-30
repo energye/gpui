@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package main demonstrates WebGPU error handling using error scopes.
 package main
 
@@ -97,6 +107,6 @@ func main() {
 	// IMPORTANT NOTES:
 	// 1. Always pop every pushed error scope
 	// 2. Error scopes are LIFO (stack-based)
-	// 3. Popping an empty stack will cause a panic (wgpu-native limitation)
+	// 3. Popping an empty stack will cause a panic
 	// 4. Use PopErrorScopeAsync if you need error handling for stack underflow
 }

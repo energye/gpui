@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package res implements Skia-style GPU resource lifecycle management:
 // logical references (SourceKey), strong usage references (Ref), a
 // resolution registry, a resource cache, and submission-tracked
@@ -5,9 +15,9 @@
 //
 // Naming alignment with Skia:
 //   - SourceKey + Ref ≈ GrSurfaceProxy (logical + strong reference)
-//   - Registry        ≈ proxy → resource mapping + GrGpuResource refcounts
-//   - Cache           ≈ GrResourceCache (keyed reuse, budget, LRU)
-//   - Submission      ≈ command-buffer refs (keep alive until fence)
+//   - Registry ≈ proxy → resource mapping + GrGpuResource refcounts
+//   - Cache ≈ GrResourceCache (keyed reuse, budget, LRU)
+//   - Submission ≈ command-buffer refs (keep alive until fence)
 //
 // The package is pure Go: it never touches wgpu directly. Native resources
 // are abstracted behind the [Native] interface so everything is unit-testable
@@ -84,8 +94,8 @@ func (k SourceKey) IsNil() bool {
 //
 // Commands must Release any Direct Ref after consumption (frame end).
 type View struct {
-	Key SourceKey     // nonzero → deferred resolution
-	Ref Ref           // used when Key is nil
+	Key SourceKey      // nonzero → deferred resolution
+	Ref Ref            // used when Key is nil
 	Raw unsafe.Pointer // used when both Key and Ref are nil (queue-time fallback)
 }
 

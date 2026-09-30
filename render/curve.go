@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -6,7 +16,6 @@ import (
 )
 
 // Curve types for 2D geometry operations.
-// Based on kurbo patterns, adapted for Go idioms.
 
 // Rect represents an axis-aligned rectangle.
 // Min is the top-left corner (minimum coordinates).
@@ -51,7 +60,6 @@ func (r Rect) Contains(p Point) bool {
 // Line
 // -------------------------------------------------------------------
 
-// Line represents a line segment from P0 to P1.
 type Line struct {
 	P0, P1 Point
 }
@@ -62,7 +70,6 @@ func NewLine(p0, p1 Point) Line {
 }
 
 // Eval evaluates the line at parameter t (0 to 1).
-// t=0 returns P0, t=1 returns P1.
 func (l Line) Eval(t float64) Point {
 	return l.P0.Lerp(l.P1, t)
 }
@@ -115,8 +122,6 @@ func (l Line) Reversed() Line {
 // QuadBez - Quadratic Bezier Curve
 // -------------------------------------------------------------------
 
-// QuadBez represents a quadratic Bezier curve with control points P0, P1, P2.
-// P0 is the start point, P1 is the control point, P2 is the end point.
 type QuadBez struct {
 	P0, P1, P2 Point
 }
@@ -129,7 +134,6 @@ func NewQuadBez(p0, p1, p2 Point) QuadBez {
 // Eval evaluates the curve at parameter t (0 to 1) using de Casteljau's algorithm.
 func (q QuadBez) Eval(t float64) Point {
 	mt := 1.0 - t
-	// (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
 	return Point{
 		X: mt*mt*q.P0.X + 2*mt*t*q.P1.X + t*t*q.P2.X,
 		Y: mt*mt*q.P0.Y + 2*mt*t*q.P1.Y + t*t*q.P2.Y,
@@ -191,8 +195,8 @@ func (q QuadBez) Extrema() []float64 {
 	var result []float64
 
 	// For a quadratic Bezier, the derivative is linear:
-	// B'(t) = 2[(P1-P0) + t(P2-2P1+P0)]
-	// Setting to zero: t = (P0-P1) / (P0-2P1+P2)
+	// B'(t) = 2[ + t]
+	// Setting to zero: t = /
 
 	d0 := q.P1.Sub(q.P0)
 	d1 := q.P2.Sub(q.P1)
@@ -235,11 +239,6 @@ func (q QuadBez) BoundingBox() Rect {
 // Raise elevates the quadratic to a cubic Bezier curve.
 // Returns an exact cubic representation of this quadratic.
 func (q QuadBez) Raise() CubicBez {
-	// For a quadratic Q with points (P0, P1, P2), the cubic representation is:
-	// C0 = P0
-	// C1 = P0 + 2/3 * (P1 - P0) = (P0 + 2*P1) / 3
-	// C2 = P2 + 2/3 * (P1 - P2) = (2*P1 + P2) / 3
-	// C3 = P2
 	return CubicBez{
 		P0: q.P0,
 		P1: Point{
@@ -258,8 +257,6 @@ func (q QuadBez) Raise() CubicBez {
 // CubicBez - Cubic Bezier Curve
 // -------------------------------------------------------------------
 
-// CubicBez represents a cubic Bezier curve with control points P0, P1, P2, P3.
-// P0 is the start point, P1 and P2 are control points, P3 is the end point.
 type CubicBez struct {
 	P0, P1, P2, P3 Point
 }
@@ -277,7 +274,6 @@ func (c CubicBez) Eval(t float64) Point {
 	t2 := t * t
 	t3 := t2 * t
 
-	// (1-t)^3 * P0 + 3(1-t)^2*t * P1 + 3(1-t)*t^2 * P2 + t^3 * P3
 	return Point{
 		X: mt3*c.P0.X + 3*mt2*t*c.P1.X + 3*mt*t2*c.P2.X + t3*c.P3.X,
 		Y: mt3*c.P0.Y + 3*mt2*t*c.P1.Y + 3*mt*t2*c.P2.Y + t3*c.P3.Y,
@@ -314,7 +310,7 @@ func (c CubicBez) Subsegment(t0, t1 float64) CubicBez {
 	p3 := c.Eval(t1)
 
 	// Calculate control points using derivative at endpoints
-	// The derivative at t is: 3[(P1-P0)(1-t)^2 + 2(P2-P1)(1-t)t + (P3-P2)t^2]
+	// The derivative at t is: 3[(1-t)^2 + 2(1-t)t +t^2]
 	d0 := c.P1.Sub(c.P0)
 	d1 := c.P2.Sub(c.P1)
 	d2 := c.P3.Sub(c.P2)

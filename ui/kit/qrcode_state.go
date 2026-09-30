@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit
 
 import (
@@ -41,8 +51,7 @@ func newQRCodeInstance(ctx scope.Ctx, props QRCodeProps, gen QRCodeGenerateConfi
 	return in
 }
 
-// reencodeLocked encodes the first value (P0 single path) and records
-// every input for the P1 multi path. Caller must hold in.mu.
+// Caller must hold in.mu.
 func (in *QRCodeInstance) reencodeLocked() {
 	in.values = ResolveQRCodeValues(in.props)
 	in.matrix = nil

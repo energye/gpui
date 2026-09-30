@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -52,7 +62,6 @@ func TestS63_GPUTexture_MultiQuadLogic(t *testing.T) {
 	seal := make([]bool, len(cmds))
 	seal[4] = true // scissor boundary
 
-	// Simulate S6.3 merge loop.
 	var draws, quads int
 	for i := 0; i < len(cmds); {
 		j := i + 1
@@ -190,7 +199,6 @@ func TestS63_BatchStats_AfterFlush(t *testing.T) {
 }
 
 func TestS63_ImageSealStillRespected(t *testing.T) {
-	// Reaffirm S4.1 seal: mergeable images split by seal.
 	base := ImageDrawCommand{
 		GenerationID: 7, ImgWidth: 16, ImgHeight: 16, Opacity: 1,
 		ViewportWidth: 256, ViewportHeight: 256,

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -624,7 +631,6 @@ func (c *Context) VertexAttribPointer(index uint32, size int32, typ uint32, norm
 
 // VertexAttribDivisor sets the instance divisor for a vertex attribute.
 // divisor=0 means per-vertex, divisor=1 means per-instance.
-// Matches Rust wgpu-hal/src/gles/queue.rs vertex_attrib_divisor call.
 func (c *Context) VertexAttribDivisor(index, divisor uint32) {
 	syscall.SyscallN(c.glVertexAttribDivisor, uintptr(index), uintptr(divisor))
 }
@@ -783,7 +789,6 @@ func (c *Context) CheckFramebufferStatus(target uint32) uint32 {
 }
 
 // DrawBuffers specifies a list of color buffers to be drawn into.
-// Matches Rust wgpu-hal GLES SetDrawColorBuffers (queue.rs:1202-1207).
 // bufs must contain GL_COLOR_ATTACHMENT0..N or GL_NONE values.
 func (c *Context) DrawBuffers(bufs []uint32) {
 	if len(bufs) == 0 {
@@ -796,7 +801,6 @@ func (c *Context) DrawBuffers(bufs []uint32) {
 // ClearBufferfv clears a specific draw buffer with float values.
 // buffer must be GL_COLOR, drawBuffer is the index (0..MAX_DRAW_BUFFERS-1),
 // value points to 4 float32 values (RGBA).
-// Matches Rust wgpu-hal GLES ClearColorF (queue.rs:1222).
 func (c *Context) ClearBufferfv(buffer uint32, drawBuffer int32, value *[4]float32) {
 	syscall.SyscallN(c.glClearBufferfv, uintptr(buffer), uintptr(drawBuffer),
 		uintptr(unsafe.Pointer(value)))
@@ -1146,7 +1150,6 @@ func (c *Context) CopyTexSubImage2D(target uint32, level, xoffset, yoffset, x, y
 
 // ptrFromUintptr converts a uintptr (from FFI) to *byte without triggering go vet warning.
 // This uses double pointer indirection pattern from ebitengine/purego.
-// Reference: https://github.com/golang/go/issues/56487
 func ptrFromUintptr(ptr uintptr) *byte {
 	return *(**byte)(unsafe.Pointer(&ptr))
 }

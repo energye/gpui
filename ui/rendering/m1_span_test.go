@@ -1,10 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
 	"testing"
 )
-
-// M1-d span通道:正确区间走增量且结果一致;撒谎区间回退且结果仍一致.
 
 func TestSpanHit_M1(t *testing.T) {
 	rt := NewRenderText("aaa\nbbb\nccc")

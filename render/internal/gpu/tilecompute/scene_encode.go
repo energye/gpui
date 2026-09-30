@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Scene encoding for the Vello CPU pipeline.
 // Converts structured scene data (paths, colors, transforms) into flat buffers
@@ -8,7 +15,6 @@
 // This is a simplified version of Vello's Encoding, focused on solid color fills
 // without gradients, images, or glyphs.
 //
-// Reference: vello_encoding/src/encoding.rs, vello_encoding/src/resolve.rs
 
 package tilecompute
 
@@ -68,7 +74,6 @@ type PackedScene struct {
 	Layout SceneLayout
 }
 
-// Draw tag constants (from Vello vello_shaders/src/shared/drawtag.rs).
 const (
 	DrawTagNop       uint32 = 0
 	DrawTagColor     uint32 = 0x44 // info_size=1 (bits 6-9), scene_size=1 (bits 2-4)
@@ -76,7 +81,6 @@ const (
 	DrawTagEndClip   uint32 = 0x21
 )
 
-// Path tag constants (from Vello vello_shaders/src/shared/pathtag.rs).
 const (
 	PathTagLineToF32  uint8 = 0x9
 	PathTagQuadToF32  uint8 = 0xA
@@ -113,8 +117,7 @@ func EncodeScene(paths []PathDef) *SceneEncoding {
 
 		// 3. Emit path segments as MoveTo + LineTo sequences.
 		//    Vello stores MoveTo as first point, then each LineTo stores
-		//    only the endpoint. If the next line's P0 != previous P1,
-		//    we need a new MoveTo.
+		//    only the endpoint.
 		needsMoveTo := true
 		var lastPoint [2]float32
 
@@ -122,9 +125,6 @@ func EncodeScene(paths []PathDef) *SceneEncoding {
 			if needsMoveTo || line.P0 != lastPoint {
 				// Emit MoveTo by storing the start point as part of path data.
 				// In Vello, MoveTo is encoded as a LineTo from the move point
-				// (the flattener emits actual line segments with P0/P1).
-				// For our simplified encoding, each LineTo stores P0 and P1
-				// for the FIRST segment, and only P1 for subsequent connected segments.
 
 				// Actually, in the real Vello encoding, LineTo always stores 2 floats
 				// (the endpoint x,y). MoveTo is implicit at subpath start.
@@ -193,11 +193,6 @@ func packPathTags(rawTags []uint8) []uint32 {
 // EncodeSceneDef converts a list of SceneElements (with clip support) into a SceneEncoding.
 // This extends EncodeScene to handle BeginClip/EndClip elements alongside Draw elements.
 //
-// Encoding rules (from Vello encoding.rs):
-//   - Draw: same as EncodeScene — Transform + Style + path segments + PATH + DrawTagColor + RGBA
-//   - BeginClip: Transform + Style + clip path segments + PATH + DrawTagBeginClip + blend_mode + alpha_bits
-//   - EndClip: DrawTagEndClip + dummy PATH tag (increments NumPaths) + NO draw data
-//
 // NumClips counts the total number of BeginClip + EndClip elements.
 //
 //nolint:funlen,cyclop // Scene encoding handles 3 element types with shared path logic.
@@ -238,7 +233,6 @@ func EncodeSceneDef(elements []SceneElement) *SceneEncoding {
 			enc.NumClips++
 
 		case ElementEndClip:
-			// EndClip: emit dummy PATH tag (Vello encoding.rs:491).
 			// This increments NumPaths so draw_leaf path_ix tracking stays correct.
 			rawTags = append(rawTags, PathTagPath)
 

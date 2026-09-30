@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package image
 
 import (
@@ -22,7 +32,7 @@ func TestGenerateMipmaps(t *testing.T) {
 			name:       "128x64 rectangle",
 			width:      128,
 			height:     64,
-			wantLevels: 8, // based on max(128, 64) = 128
+			wantLevels: 8,
 		},
 		{
 			name:       "1x1 minimum",
@@ -40,7 +50,7 @@ func TestGenerateMipmaps(t *testing.T) {
 			name:       "100x50 odd dimensions",
 			width:      100,
 			height:     50,
-			wantLevels: 7, // based on max(100, 50) = 100
+			wantLevels: 7,
 		},
 	}
 
@@ -310,8 +320,8 @@ func TestDownsample_AveragesCorrectly(t *testing.T) {
 	}
 
 	// Set up a pattern:
-	// (0,0) = black,  (1,0) = red
-	// (0,1) = green,  (1,1) = blue
+	// (0,0) = black, (1,0) = red
+	// (0,1) = green, (1,1) = blue
 	_ = src.SetRGBA(0, 0, 0, 0, 0, 255)   // black
 	_ = src.SetRGBA(1, 0, 255, 0, 0, 255) // red
 	_ = src.SetRGBA(0, 1, 0, 255, 0, 255) // green

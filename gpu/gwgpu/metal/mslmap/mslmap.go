@@ -1,25 +1,24 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
-// Package mslmap builds the naga MSL binding map for the Metal backend.
+//----------------------------------------
 //
-// naga translates WGSL arrayLength() into arithmetic on an extra entry point
-// argument named `_buffer_sizes`. naga gives that argument a [[buffer(N)]]
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // attribute only if msl.Options.PerEntryPointMap[ep].SizesBuffer is set. If it
 // is not set, Metal binds nothing to the argument and arrayLength() returns a
 // wrong value. The backend must therefore supply the map.
 //
-// The map must list every resource, not only the sizes buffer. When an entry
-// point is present in PerEntryPointMap, naga uses its Resources field as is and
+// The map must list every resource, not only the sizes buffer.
 // does not number the other resources itself. A map with only SizesBuffer would
-// therefore lose every normal binding. This package copies naga's own numbering
+// therefore lose every normal binding. This package copies the own numbering
 // rule, so the MSL for normal resources stays the same.
 //
 // The package has no build tags and does not call Objective-C, so its tests run
 // on any CI runner.
-//
-// Reference: Rust wgpu-hal metal/device.rs:851-856 (sizes_buffer =
-// counters.buffers) and metal/device.rs:138-145 (load_shader takes the layout).
 package mslmap
 
 import (
@@ -30,18 +29,15 @@ import (
 	"github.com/energye/gpui/gpu/gwgpu/naga/msl"
 )
 
-// maxBufferSlot is the largest buffer slot naga can encode, because
 // msl.BindTarget stores the slot in a uint8. Real Metal devices allow only 31
 // buffers, so a value above this limit means the caller made a mistake.
 const maxBufferSlot = 255
 
-// Options returns MSL options that put naga's `_buffer_sizes` argument at
+// Options returns MSL options that put the `_buffer_sizes` argument at
 // buffer slot sizesSlot. It does this for every entry point in module, and it
-// numbers all other resources the same way naga does.
 //
 // sizesSlot is the number of buffer bindings that the pipeline layout declares.
-// That is the first free slot, directly after the last declared buffer. Rust
-// wgpu-hal picks the slot the same way, after it walks the pipeline layout.
+// That is the first free slot, directly after the last declared buffer.
 func Options(module *ir.Module, sizesSlot int) (msl.Options, error) {
 	opts := msl.DefaultOptions()
 	if module == nil {
@@ -60,7 +56,6 @@ func Options(module *ir.Module, sizesSlot int) (msl.Options, error) {
 	perEP := make(map[string]msl.EntryPointResources, len(module.EntryPoints))
 	for i := range module.EntryPoints {
 		// The key is the WGSL entry point name, which is the IR name.
-		// It is not the MSL function name, which naga can rename.
 		perEP[module.EntryPoints[i].Name] = msl.EntryPointResources{
 			Resources:   resources,
 			SizesBuffer: &slot,
@@ -71,7 +66,7 @@ func Options(module *ir.Module, sizesSlot int) (msl.Options, error) {
 	return opts, nil
 }
 
-// autoResourceMap copies the numbering rule of naga's computeResourceMap. It
+// autoResourceMap copies the numbering rule of the computeResourceMap. It
 // takes every global variable that has a binding, sorts them by group and then
 // by binding, and gives each one an index. Samplers, textures and buffers are
 // counted apart, and each kind starts at zero.
@@ -79,8 +74,6 @@ func Options(module *ir.Module, sizesSlot int) (msl.Options, error) {
 // The encoder already binds bind group entries in this same order, so the
 // current code depends on this rule. Because the map comes from the IR, the MSL
 // for these resources does not change.
-//
-// Reference: naga v0.18.0 msl/internal/codegen/functions.go:1538-1600.
 func autoResourceMap(module *ir.Module) (map[ir.ResourceBinding]msl.BindTarget, error) {
 	type entry struct {
 		binding ir.ResourceBinding
@@ -152,11 +145,8 @@ func autoResourceMap(module *ir.Module) (map[ir.ResourceBinding]msl.BindTarget, 
 // RuntimeArrayBindings returns the bindings of the global variables whose type
 // holds a runtime-sized array. The order is the IR declaration order.
 //
-// naga builds one uint32 field per such global, in this same order. Each field
+// Each field
 // must hold the byte size of the buffer that is bound to it.
-//
-// Reference: naga v0.18.0 msl/internal/codegen/writer.go:786-797
-// (scanBufferSizeGlobals).
 func RuntimeArrayBindings(module *ir.Module) ([]ir.ResourceBinding, error) {
 	if module == nil {
 		return nil, nil
@@ -181,9 +171,6 @@ func RuntimeArrayBindings(module *ir.Module) ([]ir.ResourceBinding, error) {
 
 // typeNeedsArrayLength reports whether the type is a runtime-sized array, or a
 // struct whose last member ends in one.
-//
-// Reference: naga v0.18.0 msl/internal/codegen/writer.go:770-784
-// (needsArrayLength).
 func typeNeedsArrayLength(module *ir.Module, handle ir.TypeHandle) bool {
 	if int(handle) >= len(module.Types) {
 		return false

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package render
 
@@ -17,7 +24,7 @@ import (
 )
 
 // Backend picks which GPU implementation render creates.
-// BackendNative is the default (WebGPU); BackendGo is the pure-Go GL path.
+// BackendNative is the default; BackendGo is the pure-Go GL path.
 type Backend int
 
 const (

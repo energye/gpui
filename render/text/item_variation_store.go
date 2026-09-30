@@ -1,11 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 //
 // This file implements the OpenType ItemVariationStore (IVS) and
 // DeltaSetIndexMap parsers. These are reusable components used by
 // HVAR, VVAR, MVAR, GDEF, and COLR tables for variation deltas.
-//
-// Reference: skrifa (Google fontations) read-fonts/src/tables/variations.rs
-// Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats
 package text
 
 import (
@@ -18,9 +25,9 @@ import (
 //
 // Binary layout (spec):
 //
-//	uint16  format (must be 1)
+//	uint16 format (must be 1)
 //	Offset32 variationRegionListOffset
-//	uint16  itemVariationDataCount
+//	uint16 itemVariationDataCount
 //	Offset32[itemVariationDataCount] itemVariationDataOffsets
 type itemVariationStore struct {
 	regions  []variationRegion
@@ -46,9 +53,9 @@ type regionAxisCoords struct {
 //
 // Binary layout:
 //
-//	uint16  itemCount
-//	uint16  wordDeltaCount (high bit = longWords flag)
-//	uint16  regionIndexCount
+//	uint16 itemCount
+//	uint16 wordDeltaCount (high bit = longWords flag)
+//	uint16 regionIndexCount
 //	uint16[regionIndexCount] regionIndexes
 //	deltaSets[itemCount] (variable-size rows)
 type itemVariationData struct {
@@ -58,10 +65,6 @@ type itemVariationData struct {
 
 // computeDelta computes the variation delta for the given outer/inner index
 // and normalized variation coordinates. This is the core IVS operation.
-//
-// The computation uses 64-bit precision and rounds the result, matching
-// skrifa's ItemVariationStore::compute_delta (variations.rs:1484-1513)
-// and FreeType's tt_var_get_item_delta.
 //
 // Returns 0 if coords are empty or indices are out of range.
 func (ivs *itemVariationStore) computeDelta(outer, inner uint16, coords []int16) int32 {
@@ -96,7 +99,6 @@ func (ivs *itemVariationStore) computeDelta(outer, inner uint16, coords []int16)
 // normalized variation coordinates. Returns a Fixed 16.16 value where
 // 0x10000 = 1.0.
 //
-// Matches skrifa VariationRegion::compute_scalar (variations.rs:1596-1617).
 // Uses Fixed 16.16 arithmetic for precision parity with skrifa/FreeType.
 func (r *variationRegion) computeScalar(coords []int16) int32 {
 	// 1.0 in Fixed 16.16
@@ -112,7 +114,6 @@ func (r *variationRegion) computeScalar(coords []int16) int32 {
 
 		// Skip axes where the region definition is degenerate:
 		// start > peak, peak > end, or region spans zero (start < 0 && end > 0).
-		// This matches skrifa's active_region_axes filter (variations.rs:1645-1659).
 		if start > peak || peak > end || (start < 0 && end > 0) {
 			continue
 		}
@@ -131,8 +132,8 @@ func (r *variationRegion) computeScalar(coords []int16) int32 {
 		}
 
 		// Interpolate using mul_div pattern from skrifa.
-		// scalar = scalar * (coord - start) / (peak - start)  [coord < peak]
-		// scalar = scalar * (end - coord) / (end - peak)      [coord > peak]
+		// scalar = scalar * (coord - start) / (peak - start) [coord < peak]
+		// scalar = scalar * (end - coord) / (end - peak) [coord > peak]
 		if coord < peak {
 			scalar = mulDiv(scalar, coord-start, peak-start)
 		} else {
@@ -143,7 +144,6 @@ func (r *variationRegion) computeScalar(coords []int16) int32 {
 }
 
 // mulDiv computes (a * b) / c with 64-bit intermediate precision.
-// This matches skrifa's Fixed::mul_div.
 func mulDiv(a, b, c int32) int32 {
 	if c == 0 {
 		return 0
@@ -209,8 +209,8 @@ func parseItemVariationStore(data []byte) (*itemVariationStore, error) {
 //
 // Binary layout:
 //
-//	uint16  axisCount
-//	uint16  regionCount
+//	uint16 axisCount
+//	uint16 regionCount
 //	VariationRegion[regionCount] (each: axisCount * RegionAxisCoordinates)
 //	RegionAxisCoordinates: int16 startCoord, int16 peakCoord, int16 endCoord (6 bytes)
 func parseVariationRegionList(data []byte) ([]variationRegion, uint16, error) {
@@ -249,17 +249,15 @@ func parseVariationRegionList(data []byte) ([]variationRegion, uint16, error) {
 //
 // Binary layout:
 //
-//	uint16  itemCount
-//	uint16  wordDeltaCount (bit 15 = longWords)
-//	uint16  regionIndexCount
+//	uint16 itemCount
+//	uint16 wordDeltaCount (bit 15 = longWords)
+//	uint16 regionIndexCount
 //	uint16[regionIndexCount] regionIndexes
 //	deltaSets[itemCount] (packed rows of deltas)
 //
 // Delta row encoding depends on wordDeltaCount and longWords flag:
 //   - longWords=false: first wordDeltaCount deltas as int16, rest as int8
-//   - longWords=true:  first wordDeltaCount deltas as int32, rest as int16
-//
-// See skrifa ItemVariationData::delta_set (variations.rs:1662-1699)
+//   - longWords=true: first wordDeltaCount deltas as int32, rest as int16
 func parseItemVariationData(data []byte, _ uint16) (itemVariationData, error) {
 	if len(data) < 6 {
 		return itemVariationData{}, fmt.Errorf("item variation data too short: %d bytes", len(data))
@@ -285,7 +283,6 @@ func parseItemVariationData(data []byte, _ uint16) (itemVariationData, error) {
 	}
 
 	// Compute bytes per delta row.
-	// Matches skrifa ItemVariationData::delta_row_len (variations.rs:1692-1698).
 	var wordSize, smallSize int
 	if longWords {
 		wordSize = 4
@@ -349,9 +346,9 @@ func parseItemVariationData(data []byte, _ uint16) (itemVariationData, error) {
 //
 // Binary layout:
 //
-//	uint8   format (0 or 1)
-//	uint8   entryFormat (packed: bits[5:4]=entrySize-1, bits[3:0]=innerBits-1)
-//	uint16  mapCount (format 0) or uint32 mapCount (format 1)
+//	uint8 format (0 or 1)
+//	uint8 entryFormat (packed: bits[5:4]=entrySize-1, bits[3:0]=innerBits-1)
+//	uint16 mapCount (format 0) or uint32 mapCount (format 1)
 //	entries[mapCount] (1-4 bytes each, depending on entryFormat)
 type deltaSetIndexMap struct {
 	entries   []uint32
@@ -362,7 +359,6 @@ type deltaSetIndexMap struct {
 // If the map is nil, the identity mapping (outer=0, inner=glyphID) is used.
 //
 // If glyphID >= len(entries), the last entry is used (per spec).
-// See skrifa DeltaSetIndexMap::get (variations.rs:1441-1478).
 func (m *deltaSetIndexMap) get(glyphID uint16) (outer, inner uint16) {
 	if m == nil {
 		return 0, glyphID
@@ -391,7 +387,6 @@ func parseDeltaSetIndexMap(data []byte) (*deltaSetIndexMap, error) {
 	entryFormat := data[1]
 
 	// Extract entry size (bits [5:4] + 1) and inner bit count (bits [3:0] + 1).
-	// Matches skrifa EntryFormat (generated_variations.rs:581-591).
 	entrySize := ((entryFormat >> 4) & 0x03) + 1
 	innerBits := (entryFormat & 0x0F) + 1
 

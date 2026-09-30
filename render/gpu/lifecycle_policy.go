@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -15,13 +25,13 @@ import (
 // high-VRAM desktops stay close to Flutter defaults while tight GPUs
 // escalate toward Skia freeGpuResources / abandon+recreate.
 //
-//	Normal   — pause present + Unconfigure only (Flutter-like)
-//	Purge    — also DropGPU sessions / offscreen pools (Skia freeGpuResources-ish)
+//	Normal — pause present + Unconfigure only (Flutter-like)
+//	Purge — also DropGPU sessions / offscreen pools
 //	Recreate — also AbandonDevice on hide; ForceRecoverHealthy on show (tight VRAM)
 //
 // Auto selection:
 //
-//	GPUI_LIFECYCLE=normal|purge|recreate|auto  (default auto → Purge)
+//	GPUI_LIFECYCLE=normal|purge|recreate|auto (default auto → Purge)
 //	any CreateTexture OOM observed this process → Recreate (adaptive)
 type SurfaceLifecycle int
 

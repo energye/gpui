@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package step
 
 import (
@@ -427,8 +437,6 @@ func TestDirtyLongRunStable(t *testing.T) {
 	}
 }
 
-// F:离屏金对照窗(真窗game_step--case=dirty随P2建,此处为离屏证据):
-// 冻结并外加形状断言,追车旧并新全被盖住,裁剪不出界,整屏nil.
 func TestDirtyOffscreenGolden(t *testing.T) {
 	f := loadDirtyCases(t)
 	bounds := dirtyBounds(t, f)
@@ -476,6 +484,4 @@ func TestDirtyOffscreenGolden(t *testing.T) {
 	ts := mustDirtyTracker(t, bounds, true)
 	applyDirtyMoves(t, ts, sp)
 	checkDirtyRects(t, "sprite order", ts.DirtyRects(), sp.WantRects)
-	// Window intent: game_step --case=dirty draws this chase union per frame
-	// and gates on partial presents; the window itself lands with P2.
 }

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // blocks.go — block enumeration and abbreviated-record decoding for
 // the LLVM 3.7 bitstream format.
 //
@@ -5,9 +15,9 @@
 // record starts with an "abbrev ID" whose width is the current block's
 // abbreviation-ID width. Four IDs are reserved:
 //
-//	0 END_BLOCK      — close the current block
+//	0 END_BLOCK — close the current block
 //	1 ENTER_SUBBLOCK — open a new block
-//	2 DEFINE_ABBREV  — declare a new abbreviation in the current scope
+//	2 DEFINE_ABBREV — declare a new abbreviation in the current scope
 //	3 UNABBREV_RECORD — an unabbreviated record (code + operands as VBR6)
 //
 // Any ID >= 4 refers to a previously-declared abbreviation in the
@@ -16,16 +26,16 @@
 // bitcode uses them extensively inside metadata records — so the reader
 // must handle them to parse third-party input correctly.
 //
-// DEFINE_ABBREV encoding (reference: LLVM BitCodes.h):
+// DEFINE_ABBREV encoding:
 //
 //	numops: VBR(5)
 //	for each operand:
 //	  isLiteral: Fixed(1)
-//	  if literal: value: VBR(8)        → literal operand
+//	  if literal: value: VBR(8) → literal operand
 //	  else:
-//	    encoding: Fixed(3)             → one of {Fixed, VBR, Array, Char6, Blob}
+//	    encoding: Fixed(3) → one of {Fixed, VBR, Array, Char6, Blob}
 //	    if encoding in {Fixed, VBR}:
-//	      data: VBR(5)                 → bit width / chunk width
+//	      data: VBR(5) → bit width / chunk width
 //
 // Array/Char6/Blob operands have no extra data in the definition; the
 // element operand for Array is the NEXT operand in the abbrev list (so
@@ -52,7 +62,7 @@ const (
 	abbrevUnabbrevRecord = 3 // UNABBREV_RECORD
 )
 
-// Abbrev operand kinds (from LLVM 3.7 BitCodes.h).
+// Abbrev operand kinds.
 const (
 	operandFixed = 1
 	operandVBR   = 2
@@ -137,11 +147,11 @@ func NewBlockReader(r *Reader) *BlockReader {
 // Next returns the next structural entry at the current cursor. The
 // caller must act on it:
 //
-//	entrySubBlock     → EnterBlock or SkipBlock
+//	entrySubBlock → EnterBlock or SkipBlock
 //	entryDefineAbbrev → ReadDefineAbbrev (already consumed header)
-//	entryRecord       → ReadRecord (pass e.AbbrevID)
-//	entryEnd          → block body complete; caller should ExitBlock
-//	entryEOF          → cursor is at (or past) end of top-level stream
+//	entryRecord → ReadRecord (pass e.AbbrevID)
+//	entryEnd → block body complete; caller should ExitBlock
+//	entryEOF → cursor is at (or past) end of top-level stream
 func (b *BlockReader) Next() (Entry, error) {
 	if b.r.AtEnd() {
 		return Entry{Kind: entryEOF}, nil

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -498,7 +508,7 @@ func TestRenderer_CircleFill(t *testing.T) {
 }
 
 // TestRenderer_CircleStroke verifies that a stroked circle produces visible
-// pixels. This is the primary regression test for gg#116 (CubicTo ignored).
+// pixels.
 func TestRenderer_CircleStroke(t *testing.T) {
 	const size = 200
 	r := NewRenderer(size, size)
@@ -1278,9 +1288,7 @@ func TestCompositePixmaps(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Image Rendering Tests (BUG-SCENE-006)
-// ---------------------------------------------------------------------------
+// Image Rendering Tests
 
 // makeTestImage creates a solid-color image with straight-alpha RGBA data.
 func makeTestImage(w, h int, r, g, b, a byte) *Image {

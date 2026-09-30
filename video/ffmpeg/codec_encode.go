@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -71,7 +81,7 @@ func (b *BitStreamFilter) Ptr() unsafe.Pointer {
 	return b.ptr
 }
 
-// 常用编码 id (codec_id.h 枚举值, 头文件钉死):
+// 常用编码 id:
 // NONE=0, MPEG1VIDEO=1, MPEG2VIDEO=2, MPEG4=12, H264=27, HEVC=173,
 // VP9=167, AV1=225, MP2=86016, MP3=86017, AAC=86018, AC3=86019,
 // DTS=86020, VORBIS=86021, Opus=86076, FLAC=86028.
@@ -88,11 +98,11 @@ const (
 	CodecIDAC3    int32 = 86019
 	CodecIDVorbis int32 = 86021
 	CodecIDOpus   int32 = 86076
-	// 字幕编码 (codec_id.h: FIRST_SUBTITLE=0x17000=94208, MOV_TEXT 是第 6 个=94213).
+	// 字幕编码.
 	CodecIDMovText int32 = 94213
 )
 
-// 媒体类型 (avutil.h 枚举: UNKNOWN=-1, VIDEO=0, AUDIO=1, ...).
+// 媒体类型.
 const (
 	MediaTypeUnknown  int32 = -1
 	MediaTypeVideo    int32 = 0
@@ -904,7 +914,7 @@ func (self *Codec) AvcodecEncodeSubtitle(avctx unsafe.Pointer, buf unsafe.Pointe
 	return nil
 }
 
-// AvcodecFillAudioFrame 给音频帧填缓冲（对 avcodec_fill_audio_frame；参数 frame(须是真帧且 nb_samples 已设好, 不可传 nil)、nb_channels、sample_fmt(采样格式枚举数, 如 1=S16；传枚举数, 不可传指针)、buf(须是够大的真缓冲, 太小回 EINVAL 的 nil)、buf_size、align；
+// AvcodecFillAudioFrame 给音频帧填缓冲（对 avcodec_fill_audio_frame；参数 frame(须是真帧且 nb_samples 已设好, 不可传 nil)、nb_channels、sample_fmt、buf(须是够大的真缓冲, 太小回 EINVAL 的 nil)、buf_size、align；
 // 回帧指针, 失败回 nil；无状态调用）.
 func (self *Codec) AvcodecFillAudioFrame(frame unsafe.Pointer, nb_channels int32, sample_fmt int32, buf unsafe.Pointer, buf_size int32, align int32) unsafe.Pointer {
 	mustUse(ensureModCodecEncode())

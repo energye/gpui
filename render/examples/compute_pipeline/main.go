@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build !nogpu
 
@@ -11,9 +18,9 @@
 //
 // Output:
 //
-//	tmp/compute_pipeline_cpu.png         — CPU reference
-//	tmp/compute_pipeline_gpu.png         — GPU compute output
-//	tmp/compute_pipeline_comparison.png  — Side-by-side triptych with diff
+//	tmp/compute_pipeline_cpu.png — CPU reference
+//	tmp/compute_pipeline_gpu.png — GPU compute output
+//	tmp/compute_pipeline_comparison.png — Side-by-side triptych with diff
 package main
 
 import (

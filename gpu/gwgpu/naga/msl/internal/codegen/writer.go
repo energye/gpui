@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -21,9 +31,6 @@ type dotWrapper struct {
 }
 
 // divModOverload identifies a typed div/mod helper function overload.
-// Rust naga emits per-type overloads (not C++ templates) for integer div/mod.
-// Overloads are recorded in first-use order to match Rust naga's output
-// (which emits helpers via write_wrapped_binary_op as expressions are encountered).
 type divModOverload struct {
 	kind       ir.ScalarKind // ScalarSint or ScalarUint
 	width      uint8         // scalar width in bytes (4 or 8)
@@ -41,8 +48,6 @@ func (o divModOverload) mslTypeName() string {
 }
 
 // f2iOverload identifies a float-to-int conversion helper function overload.
-// Rust naga emits separate overloads for each (srcScalar, vectorSize, dstScalar) combo,
-// e.g., naga_f2i32(half), naga_f2i32(float), naga_f2i32(metal::half2), naga_f2i32(metal::float2).
 type f2iOverload struct {
 	srcScalar  ir.ScalarType // float source scalar (Float16, Float32, Float64)
 	vectorSize ir.VectorSize // 0 for scalar, 2/3/4 for vector
@@ -50,7 +55,6 @@ type f2iOverload struct {
 }
 
 // wrappedMathResult describes a modf/frexp result struct variant.
-// Rust naga emits structs like _modf_result_f32_, _modf_result_vec2_f32_, etc.
 type wrappedMathResult struct {
 	scalar     ir.ScalarType
 	vectorSize ir.VectorSize // 0 for scalar
@@ -75,7 +79,6 @@ func wrappedMathSuffix(r wrappedMathResult) string {
 	return fmt.Sprintf("vec%d_%s", r.vectorSize, scalarSuffix)
 }
 
-// wrappedScalarSuffix returns the Rust naga scalar suffix for wrapped math structs.
 func wrappedScalarSuffix(s ir.ScalarType) string {
 	switch s.Kind {
 	case ir.ScalarFloat:
@@ -176,12 +179,12 @@ type Writer struct {
 
 	// guardedIndices tracks expression handles used as indices in RZSW-policy accesses.
 	// These need to be baked into temporaries to avoid double-evaluation in the
-	// ternary condition + access. Matches Rust naga's guarded_indices / find_checked_indexes.
+	// ternary condition + access.
 	guardedIndices map[ir.ExpressionHandle]struct{}
 
 	// oobLocals maps type handles to variable names for out-of-bounds pointer locals.
 	// When RZSW bounds checking needs a pointer fallback, we can't use DefaultConstructible
-	// because we need an actual addressable local. Matches Rust naga's oob_local_for_type.
+	// because we need an actual addressable local.
 	oobLocals map[ir.TypeHandle]string
 
 	// Output tracking
@@ -201,7 +204,6 @@ type Writer struct {
 
 	// Typed div/mod overloads: tracks which (scalar kind, vector size) combos are needed.
 	// Vector size 0 means scalar. Single merged slice in first-use order to match
-	// Rust naga's output (which emits helpers as expressions are encountered).
 	helperOverloads []divModOverload
 
 	// Integer dot product wrapper functions: naga_dot_{type}{size}
@@ -209,7 +211,6 @@ type Writer struct {
 	dotWrappers []dotWrapper
 
 	// absHelpers tracks signed integer abs helper functions to emit.
-	// Rust naga emits naga_abs() using metal::select + as_type for signed integers.
 	absHelpers []absHelper
 	negHelpers []absHelper
 
@@ -232,7 +233,6 @@ type Writer struct {
 
 	// f2iHelpers tracks the float-to-int helper functions needed (naga_f2i32, naga_f2u32, etc.)
 	// Each entry describes a unique (srcScalar, vectorSize, dstScalar) overload.
-	// Rust naga emits separate overloads for half/float/half2/float2 etc.
 	f2iHelpers []f2iOverload
 
 	// Global variable handles that need runtime array sizes in _mslBufferSizes struct.
@@ -247,7 +247,6 @@ type Writer struct {
 
 	// flattenedMemberNames maps (struct type, member index) to the MSL name
 	// used for that member when it appears as a flattened entry point parameter.
-	// Matches Rust naga's flattened_member_names HashMap.
 	flattenedMemberNames map[nameKey]string
 	// hasVaryings indicates whether the current entry point has a stage_in struct
 	// with at least one location-bound member (i.e., actual varyings to pass).
@@ -278,7 +277,6 @@ type Writer struct {
 
 	// perFuncWriteUsage tracks which global variables are written to per function.
 	// Key is the function handle, value is a set of global variable handles.
-	// Matches Rust naga's per-function GlobalUse::WRITE analysis.
 	perFuncWriteUsage map[int]map[uint32]struct{}
 
 	// minRequiredVersion tracks the minimum Metal version required by features used
@@ -330,8 +328,6 @@ type vptAttributeResolved struct {
 }
 
 // namer generates unique identifiers.
-// It matches Rust naga's Namer behavior: per-base counters, trailing underscore
-// for names ending in a digit or matching a keyword.
 type namer struct {
 	usedNames map[string]struct{}
 	// perBase tracks the last numeric suffix used for each sanitized base name.
@@ -350,10 +346,6 @@ func newNamer() *namer {
 const fallbackName = "unnamed"
 
 // call generates a unique name based on the given base.
-// Matches Rust naga Namer::call behavior:
-//   - sanitize base name
-//   - if first use: return base (with trailing _ if ends with digit or is keyword)
-//   - if already used: append _{N} suffix with per-base counter
 func (n *namer) call(base string) string {
 	sanitized := sanitizeName(base)
 	if sanitized == "" {
@@ -386,13 +378,6 @@ func (n *namer) call(base string) string {
 }
 
 // sanitizeName cleans a raw label for use as an identifier base.
-// Matches Rust naga Namer::sanitize behavior:
-//   - drops leading digits
-//   - retains only ASCII alphanumeric and '_'
-//   - converts non-ASCII characters to u{04hex}_ format
-//   - converts C++-ish type separators (:, <, >, ,) to underscores
-//   - collapses consecutive underscores
-//   - trims trailing underscores
 func sanitizeName(s string) string {
 	if s == "" {
 		return fallbackName
@@ -414,7 +399,6 @@ func sanitizeName(s string) string {
 		return strings.TrimRight(s, "_")
 	}
 
-	// Slow path: filter character by character, matching Rust naga Namer::sanitize
 	var buf strings.Builder
 	for _, c := range s {
 		// Convert C++-ish type separators to underscores
@@ -472,7 +456,6 @@ func newWriter(module *ir.Module, options *Options, pipeline *PipelineOptions) *
 }
 
 // String returns the generated MSL source code.
-// The output is trimmed to end with exactly one newline, matching Rust naga.
 func (w *Writer) String() string {
 	s := w.Out.String()
 	s = strings.TrimRight(s, "\n")
@@ -507,7 +490,6 @@ func (w *Writer) writeModule() error {
 	}
 
 	// 1b. Determine if DefaultConstructible helper struct is needed.
-	// Matches Rust naga: emitted when any bounds check policy uses ReadZeroSkipWrite.
 	w.needsDefaultConstructible = w.options.BoundsCheckPolicies.Contains(BoundsCheckReadZeroSkipWrite)
 
 	// 1c. Scan globals for runtime-sized arrays → _mslBufferSizes struct members
@@ -537,7 +519,7 @@ func (w *Writer) writeModule() error {
 	}
 
 	// 2. Write _mslBufferSizes struct + type definitions to a temporary buffer.
-	// The sizes struct must appear before type definitions (matches Rust naga order).
+	// The sizes struct must appear before type definitions.
 	typesOut := w.Out
 	w.Out = strings.Builder{}
 	w.writeBufferSizesStruct()
@@ -561,7 +543,6 @@ func (w *Writer) writeModule() error {
 
 	// 5. Write functions and entry points to per-function buffers, tracking
 	//    which helpers are needed. Helpers are emitted demand-driven between
-	//    functions, matching Rust naga's output order.
 	type funcOutput struct {
 		code              string
 		helpersAfter      int // count of helperOverloads after writing this function
@@ -594,8 +575,6 @@ func (w *Writer) writeModule() error {
 		})
 	}
 
-	// Write entry points — each as a separate funcOutput so that helpers
-	// (naga_f2i32, etc.) can be interleaved between entry points, matching Rust naga.
 	for epIdx, ep := range w.module.EntryPoints {
 		if w.pipeline.EntryPoint != nil {
 			if w.pipeline.EntryPoint.Name != ep.Name || w.pipeline.EntryPoint.Stage != ep.Stage {
@@ -618,9 +597,6 @@ func (w *Writer) writeModule() error {
 	}
 
 	// 5b. Write modf/frexp structs and atomic compare-exchange structs to a buffer.
-	// These are discovered during function/entry point writing (step 5) and must
-	// appear before the struct definitions in Rust naga output order.
-	// Order matches Rust naga's FastIndexMap insertion order (first encounter during lowering).
 	w.Out = strings.Builder{}
 	w.writeModfFrexpStructs()
 	w.writeAtomicCompareExchangeStructs()
@@ -664,7 +640,7 @@ func (w *Writer) writeModule() error {
 
 	// Emit functions with demand-driven helper interleaving.
 	// Before each function, emit any new helpers that were registered during
-	// that function's writing. This matches Rust naga's order.
+	// that function's writing.
 	prevHelpers := 0
 	prevDotWrappers := 0
 	prevF2I := 0
@@ -718,12 +694,10 @@ func (w *Writer) writeModule() error {
 			}
 			savedOut := w.Out
 			w.Out = strings.Builder{}
-			// Emit f2i helpers before dot wrappers to match Rust naga's
-			// write_wrapped_functions ordering (casts come before binary ops).
 			for _, ovl := range newF2I {
 				w.writeF2IHelper(ovl)
 			}
-			// Emit neg helpers before div/mod (matches Rust naga ordering)
+			// Emit neg helpers before div/mod
 			for _, neg := range newNeg {
 				w.writeNegHelper(neg)
 			}
@@ -763,7 +737,6 @@ func (w *Writer) writeModule() error {
 
 // needsArrayLength returns true if the type contains a runtime-sized array,
 // either directly or as the last member of a struct.
-// Matches Rust naga's needs_array_length function.
 func (w *Writer) needsArrayLength(typeHandle ir.TypeHandle) bool {
 	if int(typeHandle) >= len(w.module.Types) {
 		return false
@@ -810,7 +783,6 @@ func (w *Writer) scanRayQueryTypes() {
 }
 
 // writeRayQueryStruct emits the _RayQuery struct and _map_intersection_type helper.
-// Matches Rust naga output for Metal 2.4+ ray tracing shaders.
 // NOTE: requireVersion(Version2_4) is called in scanRayQueryTypes, not here,
 // so the header version is correct when writeHeader is called before this method.
 func (w *Writer) writeRayQueryStruct() {
@@ -835,7 +807,6 @@ func (w *Writer) writeRayQueryStruct() {
 
 // writeModfFrexpStructs emits _modf_result_* and _frexp_result_* struct definitions
 // and their corresponding naga_modf/naga_frexp wrapper functions.
-// Matches Rust naga output.
 func (w *Writer) writeModfFrexpStructs() {
 	for _, r := range w.modfResultTypes {
 		name := r.modfStructName()
@@ -884,10 +855,8 @@ func (w *Writer) writeModfFrexpFunctions() {
 		// frexp uses int (or int vector) for the exponent output
 		expScalar := ir.ScalarType{Kind: ir.ScalarSint, Width: 4}
 		expType := wrappedMathMSLType(expScalar, r.vectorSize)
-		// Rust naga uses non-namespaced type for the local variable when it's a vector
 		expLocalType := expType
 		if r.vectorSize > 0 {
-			// Rust naga: "int4 other;" (without metal:: prefix)
 			expLocalType = fmt.Sprintf("%s%d", scalarTypeName(expScalar), r.vectorSize)
 		}
 		if i > 0 || len(w.modfResultTypes) > 0 {
@@ -904,7 +873,7 @@ func (w *Writer) writeModfFrexpFunctions() {
 }
 
 // writeAtomicCompareExchangeStructs emits _atomic_compare_exchange_result_* struct
-// definitions. Matches Rust naga output.
+// definitions.
 func (w *Writer) writeAtomicCompareExchangeStructs() {
 	for _, v := range w.atomicCompareExchangeTypes {
 		name := v.atomicExchangeStructName()
@@ -914,7 +883,6 @@ func (w *Writer) writeAtomicCompareExchangeStructs() {
 		w.WriteLine("%s old_value;", scalarName)
 		w.WriteLine("bool exchanged;")
 		// Padding: bool is 1 byte, need to pad to align next field or end of struct.
-		// Rust naga emits char _pad2[3] for 4-byte scalars, char _pad2[7] for 8-byte.
 		padSize := int(v.scalar.Width) - 1
 		if padSize > 0 {
 			w.WriteLine("char _pad2[%d];", padSize)
@@ -925,15 +893,13 @@ func (w *Writer) writeAtomicCompareExchangeStructs() {
 }
 
 // writeAtomicCompareExchangeFunctions emits naga_atomic_compare_exchange_weak_explicit
-// template helper functions. Rust naga emits two overloads per scalar type:
-// one for device address space and one for threadgroup.
+// template helper functions.
 func (w *Writer) writeAtomicCompareExchangeFunctions() {
 	for i, v := range w.atomicCompareExchangeTypes {
 		structName := v.atomicExchangeStructName()
 		scalarName := scalarTypeName(v.scalar)
 
 		// Blank line between variants (not before the first one).
-		// Matches Rust naga output.
 		if i > 0 {
 			w.WriteLine("")
 		}
@@ -1057,7 +1023,6 @@ func (w *Writer) writeF2IHelpers() {
 }
 
 // writeF2IHelper emits a single float-to-int helper function overload.
-// Rust naga emits per-(src, vector, dst) overloads with type-specific clamp bounds.
 func (w *Writer) writeF2IHelper(ovl f2iOverload) {
 	funName := f2iFunctionName(ovl.dstScalar)
 
@@ -1091,7 +1056,6 @@ func (w *Writer) writeF2IHelper(ovl f2iOverload) {
 }
 
 // f2iClampBounds returns the (min, max) clamp literal strings for a float-to-int conversion.
-// Matches Rust naga's proc::min_max_float_representable_by.
 func f2iClampBounds(src, dst ir.ScalarType) (string, string) {
 	isF16 := src.Width == 2
 	suffix := ""
@@ -1271,7 +1235,7 @@ func (w *Writer) resolveScalarFromExprType(fn *ir.Function, handle ir.Expression
 }
 
 // writeBufferSizesStruct emits the _mslBufferSizes struct if any global
-// variables contain runtime-sized arrays. Matches Rust naga output:
+// variables contain runtime-sized arrays.
 //
 //	struct _mslBufferSizes {
 //	    uint size0;
@@ -1360,8 +1324,7 @@ func (w *Writer) writeHeader() {
 	w.WriteLine("")
 	w.WriteLine("using metal::uint;")
 	// Trailing blank line is omitted when DefaultConstructible or _RayQuery follows
-	// immediately. Matches Rust naga output where the struct starts right after
-	// "using metal::uint;".
+	// immediately.
 	if !w.needsDefaultConstructible && !w.needsRayQuery {
 		w.WriteLine("")
 	}
@@ -1371,7 +1334,7 @@ func (w *Writer) writeHeader() {
 // used by the ReadZeroSkipWrite bounds check policy. This C++14 struct can be
 // implicitly converted to any default-constructible type via template parameter
 // inference, allowing "DefaultConstructible()" to produce zero values for any
-// type without knowing the type name. Matches Rust naga's put_default_constructible.
+// type without knowing the type name.
 func (w *Writer) writeDefaultConstructible() {
 	if !w.needsDefaultConstructible {
 		return
@@ -1430,7 +1393,6 @@ func (w *Writer) resolveImageTypeFromFunc(fn *ir.Function, handle ir.ExpressionH
 	}
 	expr := &fn.Expressions[handle]
 
-	// Follow FunctionArgument -> function argument type
 	if arg, ok := expr.Kind.(ir.ExprFunctionArgument); ok {
 		if int(arg.Index) < len(fn.Arguments) {
 			tyHandle := fn.Arguments[arg.Index].Type
@@ -1443,7 +1405,6 @@ func (w *Writer) resolveImageTypeFromFunc(fn *ir.Function, handle ir.ExpressionH
 		return nil
 	}
 
-	// Follow GlobalVariable -> global var type
 	if gv, ok := expr.Kind.(ir.ExprGlobalVariable); ok {
 		if int(gv.Variable) < len(w.module.GlobalVariables) {
 			gvar := &w.module.GlobalVariables[gv.Variable]
@@ -1460,7 +1421,6 @@ func (w *Writer) resolveImageTypeFromFunc(fn *ir.Function, handle ir.ExpressionH
 }
 
 // writeTextureSampleBaseClampToEdge emits the helper function for clamped texture sampling.
-// Matches Rust naga's nagaTextureSampleBaseClampToEdge.
 func (w *Writer) writeTextureSampleBaseClampToEdge() {
 	if !w.needsTextureSampleBaseClampToEdge {
 		return
@@ -1565,10 +1525,6 @@ func (w *Writer) writeConvertYuvToRgbAndReturn(l1 string) {
 
 // registerNames assigns unique names to all IR entities.
 //
-// registerNames pre-registers ALL names for the entire module before any code
-// generation, matching Rust naga's namer.reset() behavior (namer.rs).
-//
-// Order matches Rust exactly:
 //  1. Types (with struct member namespaces)
 //  2. Entry points (name + arguments + locals)
 //  3. Functions (name + arguments + locals)
@@ -1584,9 +1540,7 @@ func (w *Writer) registerNames() error {
 	// No need for an entryPointFuncNames map to skip them.
 
 	// 1. Register type names.
-	// Types with built-in MSL names (scalars, vectors, matrices) use "type" as
-	// their base name, matching Rust naga where these types are unnamed in the
-	// arena. Named struct/array types use their WGSL name.
+	// Named struct/array types use their WGSL name.
 	for handle, typ := range w.module.Types {
 		var baseName string
 		if typ.Name != "" {
@@ -1599,8 +1553,6 @@ func (w *Writer) registerNames() error {
 		w.typeNames[ir.TypeHandle(handle)] = name
 
 		// Register struct member names using a fresh namespace scope.
-		// Struct members only need unique names among themselves (not globally),
-		// matching Rust naga's namer.namespace() + call_or() behavior.
 		if st, ok := typ.Inner.(ir.StructType); ok {
 			memberNamer := newNamer()
 			for memberIdx, member := range st.Members {
@@ -1615,14 +1567,11 @@ func (w *Writer) registerNames() error {
 	}
 
 	// 1b. Register type alias names so the namer detects collisions.
-	// In Rust naga, type aliases create type entries with their name,
-	// which the namer processes along with other types.
 	for _, aliasName := range w.module.TypeAliasNames {
 		w.namer.call(aliasName)
 	}
 
 	// 2. Register entry point names, arguments, and locals.
-	// Rust naga registers entry points BEFORE regular functions.
 	for epIdx, ep := range w.module.EntryPoints {
 		epName := w.namer.call(ep.Name)
 		w.names[nameKey{kind: nameKeyEntryPoint, handle1: uint32(epIdx)}] = epName
@@ -1635,8 +1584,6 @@ func (w *Writer) registerNames() error {
 
 		fn := &ep.Function
 
-		// Register entry point argument names via namer.call to match Rust
-		// namer.call_or(&arg.name, "param") behavior.
 		for argIdx, arg := range fn.Arguments {
 			argBase := arg.Name
 			if argBase == "" {
@@ -1673,7 +1620,6 @@ func (w *Writer) registerNames() error {
 		funcName := w.namer.call(baseName)
 		w.names[nameKey{kind: nameKeyFunction, handle1: uint32(handle)}] = funcName
 
-		// Register argument names via namer.call to match Rust.
 		for argIdx, arg := range fn.Arguments {
 			argBase := arg.Name
 			if argBase == "" {
@@ -1706,8 +1652,6 @@ func (w *Writer) registerNames() error {
 		w.names[nameKey{kind: nameKeyGlobalVariable, handle1: uint32(handle)}] = name
 
 		// For external texture globals, register plane and params names.
-		// Matches Rust naga namer.rs: format!("{base}_{suffix}") where
-		// suffix is _plane0, _plane1, _plane2, _params.
 		if int(global.Type) < len(w.module.Types) {
 			if imgType, isImg := w.module.Types[global.Type].Inner.(ir.ImageType); isImg {
 				if imgType.Class == ir.ImageClassExternal {
@@ -1715,7 +1659,6 @@ func (w *Writer) registerNames() error {
 					if base == "" {
 						base = "global"
 					}
-					// Rust: self.call(&format!("{base}_{suffix}"))
 					// suffix includes leading underscore, e.g. "_plane0"
 					// So we get "tex__plane0" which sanitizeName collapses to "tex_plane0"
 					// then namer.call adds trailing _ for digit-ending names.
@@ -1729,7 +1672,6 @@ func (w *Writer) registerNames() error {
 	}
 
 	// 5. Register constant names.
-	// Rust uses const_{type_name} as fallback for unnamed constants.
 	for handle, constant := range w.module.Constants {
 		var baseName string
 		if constant.Name != "" {
@@ -1771,9 +1713,6 @@ func (w *Writer) write(format string, args ...any) {
 }
 
 // writeHelperFunctions writes typed naga_div/naga_mod overloads in first-use order.
-// Rust naga emits per-type overloads using metal::select, not C++ templates.
-// Overloads are written in the order they were first encountered during expression
-// writing, matching Rust naga's write_wrapped_binary_op behavior.
 func (w *Writer) writeHelperFunctions() {
 	if len(w.helperOverloads) == 0 && len(w.dotWrappers) == 0 && len(w.absHelpers) == 0 {
 		return
@@ -1806,12 +1745,10 @@ func (w *Writer) writeHelperFunctions() {
 			w.PopIndent()
 		}
 		w.WriteLine("}")
-		// Rust naga emits a trailing blank line after each helper function.
 		w.WriteLine("")
 	}
 
-	// Abs helpers for signed integers (emitted before dot wrappers to match Rust ordering).
-	// Rust naga emits: T naga_abs(T val) { return metal::select(as_type<T>(-as_type<U>(val)), val, val >= 0); }
+	// Abs helpers for signed integers.
 	for _, a := range w.absHelpers {
 		typeName := scalarTypeName(a.scalar)
 		unsignedScalar := ir.ScalarType{Kind: ir.ScalarUint, Width: a.scalar.Width}
@@ -1899,7 +1836,6 @@ func (w *Writer) writeHelperSubset(overloads []divModOverload, dots []dotWrapper
 	}
 }
 
-// writeHelperSubsetWithAbs writes helpers in the Rust naga order: divmod, abs, dot.
 func (w *Writer) writeHelperSubsetWithAbs(overloads []divModOverload, absHelpers []absHelper, dots []dotWrapper) {
 	w.writeHelperSubsetDivMod(overloads)
 	w.writeHelperSubsetAbs(absHelpers)
@@ -2041,7 +1977,6 @@ func (w *Writer) registerAbsHelper(scalar ir.ScalarType, vecSize ir.VectorSize) 
 }
 
 // writeNegHelper emits a naga_neg function for signed integer negation.
-// Matches Rust: T naga_neg(T val) { return as_type<T>(-as_type<unsigned_T>(val)); }
 func (w *Writer) writeNegHelper(h absHelper) {
 	typeName := scalarTypeName(h.scalar)
 	unsignedName := scalarTypeName(ir.ScalarType{Kind: ir.ScalarUint, Width: h.scalar.Width})
@@ -2079,7 +2014,6 @@ func (w *Writer) getTypeName(handle ir.TypeHandle) string {
 // analyzeGlobalWriteUsage scans all functions and entry points to determine
 // which global variables are written to (via Store/Atomic statements and
 // transitive calls). Builds both module-wide and per-function write usage maps.
-// Matches Rust naga's per-function GlobalUse::WRITE analysis for const qualifier.
 func (w *Writer) analyzeGlobalWriteUsage() {
 	w.globalWriteUsage = make(map[uint32]struct{})
 	w.perFuncWriteUsage = make(map[int]map[uint32]struct{})
@@ -2209,15 +2143,13 @@ func (w *Writer) markGlobalWritePerFunc(handle ir.ExpressionHandle, expressions 
 }
 
 // isStorageGlobalReadOnly returns true if a storage global variable is not
-// written to by the current function. Matches Rust naga's per-function
-// GlobalUse::WRITE analysis: each function parameter gets const based on
-// whether THAT function writes to the global, not module-wide.
+// written to by the current function.
 func (w *Writer) isStorageGlobalReadOnly(handle uint32) bool {
 	global := &w.module.GlobalVariables[handle]
 	if global.Space != ir.SpaceStorage {
 		return false
 	}
-	// Check per-function write usage (matches Rust naga's per-function analysis).
+	// Check per-function write usage.
 	if funcWrites, ok := w.perFuncWriteUsage[int(w.currentFuncHandle)]; ok {
 		_, isWritten := funcWrites[handle]
 		return !isWritten

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -19,7 +29,6 @@ func TestOpt29_ImageUniformSlab_OneWriteForManyOpacities(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Same texture gen, distinct opacities → cannot merge; pre-opt29 = N uniform WriteBuffers.
 	px := []byte{255, 0, 0, 255}
 	const n = 32
 	cmds := make([]ImageDrawCommand, n)
@@ -30,8 +39,8 @@ func TestOpt29_ImageUniformSlab_OneWriteForManyOpacities(t *testing.T) {
 			DstX: x, DstY: 0, DstW: 2, DstH: 2,
 			TLX: x, TLY: 0, TRX: x + 2, TRY: 0, BRX: x + 2, BRY: 2, BLX: x, BLY: 2,
 			U0: 0, V0: 0, U1: 1, V1: 1,
-			Opacity:        0.1 + float32(i)*0.02,
-			ViewportWidth:  200, ViewportHeight: 100,
+			Opacity:       0.1 + float32(i)*0.02,
+			ViewportWidth: 200, ViewportHeight: 100,
 		}
 	}
 	w0 := s.lastSubmitStats.WriteBuffers

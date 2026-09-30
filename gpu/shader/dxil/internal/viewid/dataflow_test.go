@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package viewid
 
 import (
@@ -24,12 +34,6 @@ func scalarBinding(n uint32) *ir.Binding {
 }
 
 // TestTrianglePassThroughFS models the triangle fragment shader:
-//
-//	struct VertexOutput { @builtin(position) position: vec4<f32>,
-//	                      @location(0) color: vec3<f32> };
-//	@fragment fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-//	    return vec4<f32>(input.color, 1.0);
-//	}
 //
 // Expected dependency (after locations-first input sorting):
 //   - input scalars 0..2 (color): contribute to output scalars 0..2
@@ -63,9 +67,9 @@ func TestTrianglePassThroughFS(t *testing.T) {
 	}
 
 	// Expressions:
-	// 0: FunctionArgument(0)      type vout
-	// 1: AccessIndex(0, 1)        type vec3 (input.color)
-	// 2: Literal 1.0              type f32
+	// 0: FunctionArgument(0) type vout
+	// 1: AccessIndex(0, 1) type vec3 (input.color)
+	// 2: Literal 1.0 type f32
 	// 3: Compose vec4(color, 1.0) type vec4
 	fn.Expressions = []ir.Expression{
 		{Kind: ir.ExprFunctionArgument{Index: 0}},
@@ -177,11 +181,7 @@ func TestTrianglePassThroughFS(t *testing.T) {
 }
 
 // TestNonStructReturn exercises the direct vec4 return path (no struct
-// wrapping). Mirrors a WGSL pattern like:
-//
-//	@fragment fn main(@location(0) c: vec4<f32>) -> @location(0) vec4<f32> {
-//	    return c;
-//	}
+// wrapping).
 func TestNonStructReturn(t *testing.T) {
 	mod := makeBasicMod()
 
@@ -251,7 +251,6 @@ func TestScalarTimesVectorPrecision(t *testing.T) {
 	posBinding := ir.Binding(ir.LocationBinding{Location: 0})
 	uvBinding := ir.Binding(ir.LocationBinding{Location: 1})
 
-	// Return type: struct { uv: vec2 @location(0), position: vec4 @builtin(position) }
 	outLocBinding := ir.Binding(ir.LocationBinding{Location: 0})
 	outPosBinding := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinPosition})
 	stHandle := ir.TypeHandle(len(mod.Types))
@@ -275,13 +274,13 @@ func TestScalarTimesVectorPrecision(t *testing.T) {
 
 	// Expressions:
 	// 0: FunctionArgument(0) = pos : vec2
-	// 1: FunctionArgument(1) = uv  : vec2
-	// 2: Literal(1.2)              : f32  (c_scale constant)
-	// 3: Binary(Mul, 2, 0)         : vec2  (c_scale * pos)
-	// 4: Literal(0.0)              : f32
-	// 5: Literal(1.0)              : f32
-	// 6: Compose(vec4, [3, 4, 5])  : vec4  (vec4(c_scale*pos, 0, 1))
-	// 7: Compose(struct, [1, 6])   : VertexOutput
+	// 1: FunctionArgument(1) = uv : vec2
+	// 2: Literal(1.2) : f32 (c_scale constant)
+	// 3: Binary(Mul, 2, 0) : vec2 (c_scale * pos)
+	// 4: Literal(0.0) : f32
+	// 5: Literal(1.0) : f32
+	// 6: Compose(vec4, [3, 4, 5]) : vec4 (vec4(c_scale*pos, 0, 1))
+	// 7: Compose(struct, [1, 6]) : VertexOutput
 	fn.Expressions = []ir.Expression{
 		{Kind: ir.ExprFunctionArgument{Index: 0}},
 		{Kind: ir.ExprFunctionArgument{Index: 1}},
@@ -317,13 +316,10 @@ func TestScalarTimesVectorPrecision(t *testing.T) {
 		Function: fn,
 	}
 
-	// Input signature: pos @location(0) vec2, uv @location(1) vec2.
 	inputs := []SigElement{
 		{ScalarStart: 0, NumChannels: 2, VectorRow: 0},
 		{ScalarStart: 2, NumChannels: 2, VectorRow: 1},
 	}
-	// Output signature (interface order: location first, builtin last):
-	// uv @location(0) vec2, position @builtin(position) vec4.
 	outputs := []SigElement{
 		{ScalarStart: 0, NumChannels: 2, VectorRow: 0},
 		{ScalarStart: 2, NumChannels: 4, VectorRow: 1},
@@ -374,7 +370,6 @@ func TestMatrixVectorMultiplyUnion(t *testing.T) {
 
 	posBinding := ir.Binding(ir.LocationBinding{Location: 0})
 
-	// Result: vec4<f32> @builtin(position)
 	outPosBinding := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinPosition})
 
 	fn := ir.Function{
@@ -385,9 +380,9 @@ func TestMatrixVectorMultiplyUnion(t *testing.T) {
 	}
 
 	// Expressions:
-	// 0: FunctionArgument(0) = pos  : vec4
-	// 1: Literal(zero matrix)       : mat4x4 (stand-in for global uniform)
-	// 2: Binary(Mul, 1, 0)          : vec4  (mat * vec)
+	// 0: FunctionArgument(0) = pos : vec4
+	// 1: Literal(zero matrix) : mat4x4 (stand-in for global uniform)
+	// 2: Binary(Mul, 1, 0) : vec4 (mat * vec)
 	fn.Expressions = []ir.Expression{
 		{Kind: ir.ExprFunctionArgument{Index: 0}},
 		{Kind: ir.ExprZeroValue{Type: mat4H}},
@@ -519,14 +514,6 @@ func builtinBinding(b ir.BuiltinValue) *ir.Binding {
 
 // TestVertexTwoStructsPrecision models the interface/vertex_two_structs shader:
 //
-//	struct Input1 { @builtin(vertex_index) index: u32 }
-//	struct Input2 { @builtin(instance_index) index: u32 }
-//	@vertex
-//	fn vertex_two_structs(in1: Input1, in2: Input2) -> @builtin(position) vec4<f32> {
-//	    var index = 2u;
-//	    return vec4<f32>(f32(in1.index), f32(in2.index), f32(index), 0.0);
-//	}
-//
 // Expected (DXC): output 0 depends on inputs: { 0 }, output 1 depends on inputs: { 4 },
 // outputs 2-3 depend on nothing (constant values).
 func TestVertexTwoStructsPrecision(t *testing.T) {
@@ -535,7 +522,6 @@ func TestVertexTwoStructsPrecision(t *testing.T) {
 	u32H := ir.TypeHandle(len(mod.Types))
 	mod.Types = append(mod.Types, ir.Type{Inner: ir.ScalarType{Kind: ir.ScalarUint, Width: 4}}) // 3: u32
 
-	// Struct Input1 { @builtin(vertex_index) index: u32 }
 	input1H := ir.TypeHandle(len(mod.Types))
 	mod.Types = append(mod.Types, ir.Type{
 		Name: "Input1",
@@ -546,7 +532,6 @@ func TestVertexTwoStructsPrecision(t *testing.T) {
 		},
 	}) // 4: Input1
 
-	// Struct Input2 { @builtin(instance_index) index: u32 }
 	input2H := ir.TypeHandle(len(mod.Types))
 	mod.Types = append(mod.Types, ir.Type{
 		Name: "Input2",
@@ -557,7 +542,6 @@ func TestVertexTwoStructsPrecision(t *testing.T) {
 		},
 	}) // 5: Input2
 
-	// Return type: @builtin(position) vec4<f32>
 	outBinding := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinPosition})
 
 	fn := ir.Function{
@@ -572,17 +556,17 @@ func TestVertexTwoStructsPrecision(t *testing.T) {
 	}
 
 	// Expressions:
-	// 0: FunctionArgument(0)    = in1 : Input1
-	// 1: FunctionArgument(1)    = in2 : Input2
-	// 2: AccessIndex(0, 0)      = in1.index : u32
-	// 3: AccessIndex(1, 0)      = in2.index : u32
-	// 4: As(2, f32)             = f32(in1.index) : f32
-	// 5: As(3, f32)             = f32(in2.index) : f32
-	// 6: Literal(2u)            = 2u : u32
-	// 7: LocalVariable(0)       = &index : ptr<u32>
-	// 8: Load(7)                = *index : u32
-	// 9: As(8, f32)             = f32(index) : f32
-	// 10: Literal(0.0)          = 0.0 : f32
+	// 0: FunctionArgument(0) = in1 : Input1
+	// 1: FunctionArgument(1) = in2 : Input2
+	// 2: AccessIndex(0, 0) = in1.index : u32
+	// 3: AccessIndex(1, 0) = in2.index : u32
+	// 4: As(2, f32) = f32(in1.index) : f32
+	// 5: As(3, f32) = f32(in2.index) : f32
+	// 6: Literal(2u) = 2u : u32
+	// 7: LocalVariable(0) = &index : ptr<u32>
+	// 8: Load(7) = *index : u32
+	// 9: As(8, f32) = f32(index) : f32
+	// 10: Literal(0.0) = 0.0 : f32
 	// 11: Compose(vec4, [4,5,9,10])
 	fn.Expressions = []ir.Expression{
 		{Kind: ir.ExprFunctionArgument{Index: 0}},
@@ -617,8 +601,8 @@ func TestVertexTwoStructsPrecision(t *testing.T) {
 	}
 
 	// Body:
-	// StmtEmit [2..6)   -- lower in1.index, in2.index, f32 casts
-	// StmtEmit [8..12)  -- Load, As, Literal, Compose
+	// StmtEmit [2..6) -- lower in1.index, in2.index, f32 casts
+	// StmtEmit [8..12) -- Load, As, Literal, Compose
 	// StmtReturn(11)
 	ret := ir.ExpressionHandle(11)
 	fn.Body = []ir.Statement{
@@ -634,13 +618,10 @@ func TestVertexTwoStructsPrecision(t *testing.T) {
 	}
 
 	// Input signature: VS inputs in declaration order (InputAssembler packing).
-	// Input1.index = @builtin(vertex_index) at row 0
-	// Input2.index = @builtin(instance_index) at row 1
 	inputs := []SigElement{
 		{ScalarStart: 0, NumChannels: 1, VectorRow: 0, StartCol: 0}, // SV_VertexID
 		{ScalarStart: 1, NumChannels: 1, VectorRow: 1, StartCol: 0}, // SV_InstanceID
 	}
-	// Output: @builtin(position) vec4<f32> at row 0
 	outputs := []SigElement{
 		{ScalarStart: 0, NumChannels: 4, VectorRow: 0, StartCol: 0}, // SV_Position
 	}
@@ -653,9 +634,9 @@ func TestVertexTwoStructsPrecision(t *testing.T) {
 	// Output scalars 0..3 = SV_Position.xyzw
 
 	// DXC expected:
-	//   output 0 depends on inputs: { 0 }       (in1.index -> out.x)
-	//   output 1 depends on inputs: { 4 }       (in2.index -> out.y)
-	//   outputs 2-3: no deps                     (constants)
+	//   output 0 depends on inputs: { 0 } (in1.index -> out.x)
+	//   output 1 depends on inputs: { 4 } (in2.index -> out.y)
+	//   outputs 2-3: no deps (constants)
 	outMask := MaskDwordsForScalars(deps.NumOutputScalars)
 
 	// Input packed 0 (SV_VertexID) -> should set only output bit 0
@@ -705,9 +686,9 @@ func TestExprAliasTaintForwarding(t *testing.T) {
 
 	// Expressions (after mem2reg):
 	// 0: FunctionArgument(0) = vertex_index : u32
-	// 1: ExprAlias(0)        = alias of vertex_index (was: load of promoted local)
-	// 2: ExprAs(1, f32)      = f32(alias) : f32
-	// 3: Literal(0.0)        = 0.0 : f32
+	// 1: ExprAlias(0) = alias of vertex_index (was: load of promoted local)
+	// 2: ExprAs(1, f32) = f32(alias) : f32
+	// 3: Literal(0.0) = 0.0 : f32
 	// 4: Compose(vec4, [2, 3, 3, 3])
 	fn.Expressions = []ir.Expression{
 		{Kind: ir.ExprFunctionArgument{Index: 0}},
@@ -783,8 +764,8 @@ func TestExprPhiTaintMerge(t *testing.T) {
 	// Expressions:
 	// 0: FunctionArgument(0) = a : f32
 	// 1: FunctionArgument(1) = b : f32
-	// 2: ExprPhi([a, b])     = merged value from if/else
-	// 3: Literal(0.0)        = 0.0 : f32
+	// 2: ExprPhi([a, b]) = merged value from if/else
+	// 3: Literal(0.0) = 0.0 : f32
 	// 4: Compose(vec4, [2, 3, 3, 3])
 	fn.Expressions = []ir.Expression{
 		{Kind: ir.ExprFunctionArgument{Index: 0}},

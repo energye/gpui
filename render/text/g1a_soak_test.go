@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -11,7 +21,6 @@ import (
 // shape-result cache and glyph-mask atlas within configured soft limits.
 //
 // This is an engine gate (not a full editor). It does not require GPU.
-// Aligns with ENGINE_GAPS G1.a "atlas 上传有界；无 RSS 斜率爆炸".
 
 func TestG1a_InputReshape_ShapeCacheBounded(t *testing.T) {
 	src, err := NewFontSource(requireTestFont(t), WithParser("own"))

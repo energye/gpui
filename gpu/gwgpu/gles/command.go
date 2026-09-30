@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -56,7 +63,7 @@ func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error) {
 	return cmdBuf, nil
 }
 
-// Finish implements hal.CommandEncoder: same as EndEncoding (webgpu parity).
+// Finish implements hal.CommandEncoder: same as EndEncoding.
 func (e *CommandEncoder) Finish() (hal.CommandBuffer, error) {
 	return e.EndEncoding()
 }
@@ -77,7 +84,6 @@ func (e *CommandEncoder) Destroy() {}
 // TransitionBuffers emits memory barriers for buffer state transitions.
 // GLES only needs explicit barriers when transitioning FROM storage write
 // (compute shader output) to any other usage (vertex, uniform, draw).
-// Matches Rust wgpu-hal/gles command.rs:279-298.
 func (e *CommandEncoder) TransitionBuffers(barriers []hal.BufferBarrier) {
 	var bits uint32
 	for _, bar := range barriers {
@@ -95,7 +101,6 @@ func (e *CommandEncoder) TransitionBuffers(barriers []hal.BufferBarrier) {
 // TransitionTextures emits memory barriers for texture state transitions.
 // GLES only needs explicit barriers when transitioning FROM storage write
 // to any other usage (texture fetch, framebuffer attachment).
-// Matches Rust wgpu-hal/gles command.rs:300-327.
 func (e *CommandEncoder) TransitionTextures(barriers []hal.TextureBarrier) {
 	var bits uint32
 	for _, bar := range barriers {
@@ -124,7 +129,6 @@ func (e *CommandEncoder) ClearBuffer(buffer hal.Buffer, offset, size uint64) {
 }
 
 // CopyBufferToBuffer copies data between buffers.
-// Matches webgpu CommandEncoder.CopyBufferToBuffer flat shape.
 func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, dst hal.Buffer, dstOffset uint64, size uint64) {
 	srcBuf, srcOk := src.(*Buffer)
 	dstBuf, dstOk := dst.(*Buffer)
@@ -144,7 +148,6 @@ func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, ds
 // CopyBufferToTexture copies buffer data to a texture via PBO (pixel unpack buffer).
 // Binds the source buffer as GL_PIXEL_UNPACK_BUFFER, then calls glTexSubImage2D
 // with offset 0 so that GL reads pixel data from the bound PBO.
-// Matches Rust wgpu-hal/src/gles/queue.rs CopyBufferToTexture command.
 func (e *CommandEncoder) CopyBufferToTexture(src hal.Buffer, dst hal.Texture, regions []hal.BufferTextureCopy) {
 	srcBuf, srcOK := src.(*Buffer)
 	dstTex, dstOK := dst.(*Texture)
@@ -189,7 +192,6 @@ func (e *CommandEncoder) CopyTextureToBuffer(src hal.Texture, dst hal.Buffer, re
 // CopyTextureToTexture copies between textures using FBO read + glCopyTexSubImage2D.
 // Attaches the source texture to the read framebuffer, then copies pixels into the
 // destination texture. This works on GL 3.0+ / ES 3.0+ without glCopyImageSubData.
-// Matches Rust wgpu-hal/src/gles/queue.rs CopyTextureToTexture command.
 func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []hal.TextureCopy) {
 	srcTex, srcOK := src.(*Texture)
 	dstTex, dstOK := dst.(*Texture)
@@ -214,7 +216,6 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []ha
 // Each result is a uint64 (8 bytes) written starting at destinationOffset.
 // Uses glGetQueryObjectui64v to read results, then glBufferSubData to write them.
 // Nil or foreign query sets/buffers are ignored (nil-safe).
-// Matches Rust wgpu-hal/src/gles/queue.rs CopyQueryResults command (fallback path).
 func (e *CommandEncoder) ResolveQuerySet(querySet hal.QuerySet, firstQuery, queryCount uint32, destination hal.Buffer, destinationOffset uint64) {
 	qs, qsOK := querySet.(*QuerySet)
 	dstBuf, bufOK := destination.(*Buffer)
@@ -246,7 +247,6 @@ func (e *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.Acceleration
 }
 
 // BeginRenderPass begins a render pass.
-// Matches webgpu CommandEncoder.BeginRenderPass error shape.
 func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error) {
 	rpe := &RenderPassEncoder{
 		encoder: e,
@@ -261,13 +261,11 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 	}
 
 	// Bind the correct framebuffer and set viewport.
-	// Reference wgpu sets viewport at render pass start — required for correct rendering.
 	if desc != nil && len(desc.ColorAttachments) > 0 {
 		e.setupColorAttachment(desc, rpe)
 	}
 
-	// Set draw buffers for MRT. Matches Rust wgpu-hal GLES
-	// SetDrawColorBuffers (command.rs:643-646, queue.rs:1202-1207).
+	// Set draw buffers for MRT.
 	if desc != nil && len(desc.ColorAttachments) > 0 {
 		e.commands = append(e.commands, &SetDrawColorBuffersCommand{
 			count: len(desc.ColorAttachments),
@@ -276,7 +274,6 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 
 	// Record per-buffer clear commands. Uses glClearBufferfv for per-target
 	// clearing instead of global glClearColor+glClear(GL_COLOR_BUFFER_BIT).
-	// Matches Rust wgpu-hal GLES ClearColorF (command.rs:648-676, queue.rs:1222).
 	if desc != nil {
 		for i, ca := range desc.ColorAttachments {
 			if ca.LoadOp == gputypes.LoadOpClear {
@@ -322,7 +319,6 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 // all color attachments of a render pass. For surface targets only attachment[0]
 // is used (surfaces are always single-target). For offscreen targets, all
 // attachments are bound to GL_COLOR_ATTACHMENT0..N.
-// Matches Rust wgpu-hal GLES begin_render_pass (command.rs:552-627).
 func (e *CommandEncoder) setupColorAttachment(desc *hal.RenderPassDescriptor, rpe *RenderPassEncoder) {
 	ca := desc.ColorAttachments[0]
 	tv, ok := ca.View.(*TextureView)
@@ -346,10 +342,9 @@ func (e *CommandEncoder) setupColorAttachment(desc *hal.RenderPassDescriptor, rp
 // sets viewport to surface dimensions. The swapchain FBO is a persistent GL
 // framebuffer owned by the Surface (allocated in Surface.Configure). User
 // render passes target this FBO — never the default framebuffer (FBO 0) —
-// because the scene is intentionally rendered upside-down via naga's in-shader
+// because the scene is intentionally rendered upside-down via the in-shader
 // Y-flip (WriterFlagAdjustCoordinateSpace). Queue.Present performs an explicit
 // Y-flipping glBlitFramebuffer from this FBO to FBO 0 before SwapBuffers.
-// Mirrors Rust wgpu-hal/src/gles/egl.rs Surface::configure/Surface::present.
 func (e *CommandEncoder) setupSurfaceTarget(desc *hal.RenderPassDescriptor, tv *TextureView, rpe *RenderPassEncoder) {
 	if tv.surfaceTex != nil && tv.surfaceTex.surface != nil {
 		surf := tv.surfaceTex.surface
@@ -365,8 +360,7 @@ func (e *CommandEncoder) setupSurfaceTarget(desc *hal.RenderPassDescriptor, tv *
 		}
 		// Attach depth/stencil to the swapchain FBO if requested.
 		// The swapchain FBO is a real GL FBO (not FBO 0), so glFramebufferTexture2D
-		// works. Matches Rust wgpu-hal GLES: BindAttachment for depth/stencil after
-		// ResetFramebuffer { is_default: false } (command.rs:575-601).
+		// works.
 		if desc.DepthStencilAttachment != nil {
 			if dsView, ok := desc.DepthStencilAttachment.View.(*TextureView); ok && dsView.texture != nil {
 				e.commands = append(e.commands, &AttachDepthStencilToFBOCommand{
@@ -383,8 +377,6 @@ func (e *CommandEncoder) setupSurfaceTarget(desc *hal.RenderPassDescriptor, tv *
 
 // setupOffscreenTarget configures an offscreen FBO with all color attachments,
 // depth/stencil attachment, and MSAA resolve.
-// Matches Rust wgpu-hal GLES begin_render_pass (command.rs:558-595):
-// iterates all color_attachments and calls BindAttachment for each.
 func (e *CommandEncoder) setupOffscreenTarget(
 	desc *hal.RenderPassDescriptor,
 	tv *TextureView,
@@ -394,7 +386,6 @@ func (e *CommandEncoder) setupOffscreenTarget(
 
 	// Attach additional color textures (attachments 1..N) to the FBO.
 	// Attachment 0 is already bound by EnsureOffscreenFBOCommand.
-	// Matches Rust BindAttachment for each color_attachments[i] (command.rs:558-595).
 	for i := 1; i < len(desc.ColorAttachments); i++ {
 		ca := desc.ColorAttachments[i]
 		atv, ok := ca.View.(*TextureView)
@@ -438,7 +429,6 @@ func (e *CommandEncoder) setupOffscreenTarget(
 }
 
 // BeginComputePass begins a compute pass.
-// Matches webgpu CommandEncoder.BeginComputePass error shape.
 func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error) {
 	cpe := &ComputePassEncoder{
 		encoder: e,
@@ -538,7 +528,6 @@ func (e *RenderPassEncoder) emitMSAAResolve() {
 // If MSAA resolve is needed, blits the MSAA FBO to the resolve target FBO.
 // If the pass was rendering to an offscreen FBO, rebinds the default framebuffer
 // so subsequent operations do not accidentally target the offscreen texture.
-// Matches webgpu RenderPassEncoder.End error shape.
 func (e *RenderPassEncoder) End() error {
 	if e.msaaTexture != nil {
 		e.emitMSAAResolve()
@@ -678,7 +667,6 @@ func (e *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format gputypes.In
 }
 
 // SetViewport sets the viewport.
-// Matches webgpu RenderPassEncoder.SetViewport flat shape.
 func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32) {
 	e.encoder.commands = append(e.encoder.commands, &SetViewportCommand{
 		x: x, y: y, width: width, height: height,
@@ -688,7 +676,6 @@ func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth 
 
 // SetScissorRect sets the scissor rectangle.
 // With ADJUST_COORDINATE_SPACE, no Y-flip is needed — coordinates pass through directly.
-// Matches webgpu RenderPassEncoder.SetScissorRect flat shape.
 func (e *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
 	e.encoder.commands = append(e.encoder.commands, &SetScissorCommand{
 		x: x, y: y, width: width, height: height,
@@ -719,7 +706,6 @@ func (e *RenderPassEncoder) SetStencilReference(ref uint32) {
 }
 
 // Draw draws primitives.
-// Matches webgpu RenderPassEncoder.Draw flat shape.
 func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32) {
 	topology := gputypes.PrimitiveTopologyTriangleList // default
 	if e.pipeline != nil {
@@ -735,7 +721,6 @@ func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstI
 }
 
 // DrawIndexed draws indexed primitives.
-// Matches webgpu RenderPassEncoder.DrawIndexed flat shape.
 func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32) {
 	topology := gputypes.PrimitiveTopologyTriangleList // default
 	if e.pipeline != nil {
@@ -752,15 +737,13 @@ func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex ui
 	})
 }
 
-// DrawIndirect draws a single indirect record (webgpu has no drawCount).
-// Matches webgpu RenderPassEncoder.DrawIndirect two-arg shape.
+// DrawIndirect draws a single indirect record.
 func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64) {
 	_ = buffer
 	_ = offset
 }
 
 // DrawIndexedIndirect draws a single indexed indirect record.
-// Matches webgpu RenderPassEncoder.DrawIndexedIndirect two-arg shape.
 func (e *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64) {
 	_ = buffer
 	_ = offset
@@ -794,7 +777,6 @@ type ComputePassEncoder struct {
 }
 
 // End finishes the compute pass.
-// Matches webgpu ComputePassEncoder.End error shape.
 func (e *ComputePassEncoder) End() error {
 	// Emit end-of-pass timestamp if requested.
 	if e.endTimestampIndex != nil {
@@ -902,7 +884,6 @@ func (c *BindFramebufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 // BindSurfaceFramebufferCommand binds the Surface's swapchain offscreen
 // framebuffer. Reads surface.swapchainFBO at execute time so reconfigure
 // (e.g. window resize) between encode and submit is handled correctly.
-// Mirrors Rust wgpu-hal/src/gles/egl.rs Surface::configure swapchain FBO.
 type BindSurfaceFramebufferCommand struct {
 	surface *Surface
 }
@@ -968,7 +949,7 @@ func (c *AttachDepthStencilCommand) Execute(ctx *gl.Context, st *glExecState) {
 }
 
 // depthStencilAttachmentPoint returns the GL attachment point for a depth/stencil
-// texture format. Matches Rust wgpu-hal GLES (command.rs:577-580).
+// texture format.
 func depthStencilAttachmentPoint(format gputypes.TextureFormat) uint32 {
 	switch format {
 	case gputypes.TextureFormatDepth24PlusStencil8, gputypes.TextureFormatDepth32FloatStencil8:
@@ -985,7 +966,7 @@ func depthStencilAttachmentPoint(format gputypes.TextureFormat) uint32 {
 // reference a color texture — it operates on whatever FBO is currently bound
 // (typically the surface swapchain FBO).
 //
-// The attachment point is chosen by texture format (Rust wgpu-hal command.rs:577-580):
+// The attachment point is chosen by texture format:
 //   - depth-only → GL_DEPTH_ATTACHMENT
 //   - stencil-only → GL_STENCIL_ATTACHMENT
 //   - depth+stencil → GL_DEPTH_STENCIL_ATTACHMENT
@@ -1005,8 +986,7 @@ func (c *AttachDepthStencilToFBOCommand) Execute(ctx *gl.Context, st *glExecStat
 // When resolveToSurface is true, the destination is the Surface's swapchain
 // offscreen FBO (NOT FBO 0). No Y-flip is applied here — the Y-flip is the
 // sole responsibility of Queue.Present, which blits the swapchain FBO to FBO 0
-// with srcY0=height, srcY1=0 before SwapBuffers. Mirrors Rust wgpu-hal:
-// MSAA resolve lands in an offscreen target, present blit un-flips.
+// with srcY0=height, srcY1=0 before SwapBuffers.
 type MSAAResolveCommand struct {
 	msaaTexture      *Texture // MSAA source texture (SampleCount > 1)
 	resolveTexture   *Texture // Single-sample resolve target (nil when resolveToSurface)
@@ -1018,7 +998,7 @@ type MSAAResolveCommand struct {
 func (c *MSAAResolveCommand) Execute(ctx *gl.Context, st *glExecState) {
 	// Disable scissor test before blit — glBlitFramebuffer respects GL_SCISSOR_TEST
 	// on the draw framebuffer. Without this, only the last scissor rect's pixels
-	// are copied, leaving the rest of the surface black (gg#226).
+	// are copied, leaving the rest of the surface black.
 	if st.setScissorTest(false) {
 		ctx.Disable(gl.SCISSOR_TEST)
 	}
@@ -1085,7 +1065,6 @@ func (c *MSAAResolveCommand) ensureResolveFBO(ctx *gl.Context) bool {
 // AttachColorCommand attaches a color texture to a specific FBO attachment point.
 // Used for MRT (Multiple Render Targets) to bind attachments 1..N.
 // Attachment 0 is bound by EnsureOffscreenFBOCommand.
-// Matches Rust wgpu-hal GLES BindAttachment for color targets (command.rs:580-582).
 type AttachColorCommand struct {
 	attachmentIndex uint32 // 0-based index (attachment point = GL_COLOR_ATTACHMENT0 + index)
 	texture         *Texture
@@ -1098,7 +1077,6 @@ func (c *AttachColorCommand) Execute(ctx *gl.Context, st *glExecState) {
 }
 
 // SetDrawColorBuffersCommand configures the list of draw buffers for MRT output.
-// Matches Rust wgpu-hal GLES SetDrawColorBuffers (command.rs:643-646, queue.rs:1202-1207).
 type SetDrawColorBuffersCommand struct {
 	count int // number of color attachments
 }
@@ -1114,7 +1092,6 @@ func (c *SetDrawColorBuffersCommand) Execute(ctx *gl.Context, st *glExecState) {
 // ClearColorBufferCommand clears a specific color draw buffer using glClearBufferfv.
 // This replaces the old global glClearColor+glClear approach for MRT correctness:
 // each color attachment can have a different clear value.
-// Matches Rust wgpu-hal GLES ClearColorF (command.rs:657-663, queue.rs:1222).
 type ClearColorBufferCommand struct {
 	drawBuffer int32      // 0-based draw buffer index
 	color      [4]float32 // RGBA clear value
@@ -1125,8 +1102,7 @@ func (c *ClearColorBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 		ctx.Disable(gl.SCISSOR_TEST) // Ensure clear covers full framebuffer (not clipped by stale scissor)
 	}
 	// Temporarily enable all color writes so the clear takes effect even if a
-	// previous pipeline masked some channels. Matches Rust behavior which
-	// sets color_mask(true,true,true,true) before clear (queue.rs:1134).
+	// previous pipeline masked some channels.
 	if st.setColorMask(true, true, true, true) {
 		ctx.ColorMask(true, true, true, true)
 	}
@@ -1226,7 +1202,6 @@ func (c *SetPipelineStateCommand) Execute(ctx *gl.Context, st *glExecState) {
 	// Front face — swapped CW↔CCW to compensate for the Y-flip from
 	// ADJUST_COORDINATE_SPACE. The negation of gl_Position.y reverses triangle
 	// winding order, so we swap the front face to keep the same visibility.
-	// Matches Rust wgpu-hal GLES (conv.rs:298-303).
 	wantFront := uint32(gl.CW)
 	if c.frontFace == gputypes.FrontFaceCW {
 		wantFront = gl.CCW
@@ -1239,15 +1214,12 @@ func (c *SetPipelineStateCommand) Execute(ctx *gl.Context, st *glExecState) {
 	c.applyDepthStencilState(ctx, st)
 
 	// Color targets (blend + write mask).
-	// Matches Rust wgpu-hal GLES SetColorTarget (queue.rs:1483-1559):
-	//   - If all targets are identical, use global (non-indexed) calls.
 	//   - If targets differ, use per-draw-buffer indexed calls (GLES 3.2 / GL 4.0).
 	//     Fallback: apply target[0] globally when indexed functions unavailable.
 	c.applyColorTargets(ctx, st)
 }
 
 // applyColorTargets sets blend and write-mask state per render target.
-// Matches Rust wgpu-hal GLES SetColorTarget command (queue.rs:1483-1559).
 func (c *SetPipelineStateCommand) applyColorTargets(ctx *gl.Context, st *glExecState) {
 	if len(c.colorTargets) == 0 {
 		// No color targets — disable blending, allow all color writes.
@@ -1261,7 +1233,6 @@ func (c *SetPipelineStateCommand) applyColorTargets(ctx *gl.Context, st *glExecS
 	}
 
 	// Single target or all targets identical: use global (non-indexed) calls.
-	// Matches Rust path: draw_buffer_index == None (queue.rs:1527-1558).
 	ct := c.colorTargets[0]
 	r := ct.WriteMask&gputypes.ColorWriteMaskRed != 0
 	g := ct.WriteMask&gputypes.ColorWriteMaskGreen != 0
@@ -1394,7 +1365,6 @@ type SetBindGroupCommand struct {
 	// Used to look up the GL slot for each binding instead of the old group*16+binding formula.
 	groupInfos []BindGroupLayoutInfo
 	// samplerBindMap maps texture unit → sampler unit for combined sampler2D.
-	// Built from naga GLSL TextureMappings at pipeline creation (Rust SamplerBindMap pattern).
 	// When non-nil, sampler is bound to the texture's unit instead of its own WGSL binding.
 	samplerBindMap *[maxTextureSlots]int8
 }
@@ -1408,13 +1378,12 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context, st *glExecState) {
 	for _, entry := range c.group.entries {
 		// Look up the GL slot index from the pre-computed per-type sequential
 		// binding table (computed in CreatePipelineLayout). This replaces the old
-		// group*16+binding formula and matches Rust wgpu-hal command.rs:720-783.
 		glBinding := c.lookupSlot(entry.Binding)
 		if glBinding == 0xFF {
 			continue // binding not mapped in pipeline layout
 		}
 
-		// H4-b1: unpack hal entries to concrete gles types (gpu unpack pattern).
+		// unpack hal entries to concrete gles types (gpu unpack pattern).
 		switch {
 		case entry.Buffer != nil:
 			buf, ok := entry.Buffer.(*Buffer)
@@ -1427,7 +1396,6 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context, st *glExecState) {
 
 			// Determine GL buffer target and apply dynamic offset from layout entry.
 			// Storage buffers use GL_SHADER_STORAGE_BUFFER, uniform buffers use GL_UNIFORM_BUFFER.
-			// Matches Rust wgpu-hal/src/gles/command.rs:731-746 (set_bind_group).
 			target, dynOff := c.resolveBufferTarget(entry.Binding, &dynamicIdx)
 			offset += dynOff
 
@@ -1473,10 +1441,7 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context, st *glExecState) {
 			}
 			samplerID := s.id
 			// Determine the correct texture unit for this sampler.
-			// Naga GLSL generates combined sampler2D on the texture's binding,
-			// so the sampler must be bound to the texture's unit — NOT the
-			// sampler's own WGSL binding. SamplerBindMap provides this mapping.
-			// Matches Rust wgpu-hal GLES SamplerBindMap (command.rs:247).
+			// SamplerBindMap provides this mapping.
 			bindUnit := c.resolveSamplerUnit(glBinding)
 			if hal.Logger().Enabled(context.Background(), slog.LevelDebug) {
 				hal.Logger().Debug("gles: binding sampler",
@@ -1520,7 +1485,6 @@ func (c *SetBindGroupCommand) resolveSamplerUnit(glBinding uint32) uint32 {
 // resolveBufferTarget determines the GL buffer target (UNIFORM_BUFFER or SHADER_STORAGE_BUFFER)
 // and dynamic offset for a binding number by looking up the bind group layout entry.
 // Returns the GL target and the dynamic offset to apply (0 if none).
-// Matches Rust wgpu-hal/src/gles/command.rs:731-746 buffer target selection.
 func (c *SetBindGroupCommand) resolveBufferTarget(binding uint32, dynamicIdx *int) (uint32, int) {
 	target := uint32(gl.UNIFORM_BUFFER)
 	dynOffset := 0
@@ -1566,7 +1530,6 @@ func (c *SetVertexBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 	}
 	stride := int32(c.layout.ArrayStride)
 	// Determine divisor from step mode: 0=per-vertex, 1=per-instance.
-	// Matches Rust wgpu-hal/src/gles/queue.rs vertex_attrib_divisor call.
 	var divisor uint32
 	if c.layout.StepMode == gputypes.VertexStepModeInstance {
 		divisor = 1
@@ -1625,7 +1588,6 @@ func (c *SetViewportCommand) Execute(ctx *gl.Context, st *glExecState) {
 // With ADJUST_COORDINATE_SPACE enabled, the scene is rendered upside-down in GL.
 // The scissor coordinates are passed through directly (no Y-flip needed) because
 // the scissor operates in the same flipped coordinate space as the rendered content.
-// This matches Rust wgpu-hal GLES which also passes scissor through without Y-flip.
 type SetScissorCommand struct {
 	x, y, width, height uint32
 }
@@ -1635,7 +1597,7 @@ func (c *SetScissorCommand) Execute(ctx *gl.Context, st *glExecState) {
 		ctx.Enable(gl.SCISSOR_TEST)
 	}
 	// No Y-flip: ADJUST_COORDINATE_SPACE flips the scene in the vertex shader,
-	// so GL pixel Y=0 corresponds to the top of the scene (WebGPU Y=0).
+	// so GL pixel Y=0 corresponds to the top of the scene.
 	// The scissor rect in WebGPU coords maps directly to GL coords.
 	if st.setScissor(int32(c.x), int32(c.y), int32(c.width), int32(c.height)) {
 		ctx.Scissor(int32(c.x), int32(c.y), int32(c.width), int32(c.height))
@@ -1749,7 +1711,7 @@ func (c *DispatchCommand) Execute(ctx *gl.Context, st *glExecState) {
 	ctx.DispatchCompute(c.x, c.y, c.z)
 	// VERTEX_ATTRIB_ARRAY_BARRIER_BIT is required when compute writes an SSBO that
 	// is later read as a vertex buffer (e.g. particles ping-pong). Without it,
-	// vertex fetch reads stale pre-compute data. Found by @lkmavi (PR #215).
+	// vertex fetch reads stale pre-compute data.
 	ctx.MemoryBarrier(gl.SHADER_STORAGE_BARRIER_BIT | gl.VERTEX_ATTRIB_ARRAY_BARRIER_BIT | gl.BUFFER_UPDATE_BARRIER_BIT)
 }
 
@@ -1866,7 +1828,6 @@ func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 // CopyBufferToTextureCommand copies buffer data to a texture using a pixel unpack
 // buffer. Binds the source GL buffer as GL_PIXEL_UNPACK_BUFFER, then calls
 // glTexSubImage2D with offset=0 so GL reads from the bound PBO.
-// Matches Rust wgpu-hal/src/gles/queue.rs CopyBufferToTexture.
 type CopyBufferToTextureCommand struct {
 	srcBuffer *Buffer
 	dstTex    *Texture
@@ -1911,7 +1872,6 @@ func (c *CopyBufferToTextureCommand) Execute(ctx *gl.Context, st *glExecState) {
 // CopyTextureToTextureCommand copies pixels between textures using an FBO.
 // Attaches the source texture to GL_READ_FRAMEBUFFER, then copies into the
 // destination via glCopyTexSubImage2D.
-// Matches Rust wgpu-hal/src/gles/queue.rs CopyTextureToTexture.
 type CopyTextureToTextureCommand struct {
 	srcTex    *Texture
 	dstTex    *Texture
@@ -1956,7 +1916,6 @@ func (c *CopyTextureToTextureCommand) Execute(ctx *gl.Context, st *glExecState) 
 // writes them into the destination buffer via glBufferSubData.
 // Uses the CPU fallback path (no QUERY_BUFFER) to stay compatible with
 // GLES 3.0+ / GL 3.3+. Each result is a uint64 (8 bytes).
-// Matches Rust wgpu-hal/src/gles/queue.rs CopyQueryResults (fallback path).
 type ResolveQuerySetCommand struct {
 	querySet   *QuerySet
 	firstQuery uint32
@@ -1992,7 +1951,6 @@ func (c *ResolveQuerySetCommand) Execute(ctx *gl.Context, st *glExecState) {
 
 // TimestampQueryCommand records a timestamp via glQueryCounter.
 // Used internally by render/compute pass timestamp writes.
-// Matches Rust wgpu-hal/src/gles/queue.rs TimestampQuery command.
 type TimestampQueryCommand struct {
 	query uint32 // GL query object ID
 }
@@ -2166,7 +2124,6 @@ func blendOperationToGL(op gputypes.BlendOperation) uint32 {
 }
 
 // primitiveTopologyToGL converts a WebGPU primitive topology to the corresponding GL constant.
-// Matches Rust wgpu-hal/src/gles/conv.rs map_primitive_topology.
 func primitiveTopologyToGL(topology gputypes.PrimitiveTopology) uint32 {
 	switch topology {
 	case gputypes.PrimitiveTopologyPointList:

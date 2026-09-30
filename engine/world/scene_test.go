@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package world
 
 import (
@@ -13,7 +23,7 @@ import (
 	"github.com/energye/gpui/engine/core"
 )
 
-// Scene/prefab file tests (10.2, S33/W4): the planner's level on disk
+// Scene/prefab file tests: the planner's level on disk
 // loads in one go and opens into a live Scene. Window intent:
 // game_world--case=open; this package only computes file math, so the
 // offscreen golden (file bytes round-trip byte-identical) is the

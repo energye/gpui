@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -18,16 +28,16 @@ import (
 var convexShaderSource string
 
 // convexVertexStride is the byte stride per vertex in the convex render pipeline.
-// Layout per vertex (opt30 compact):
+// Layout per vertex:
 //
-//	position (vec2<f32>)   = 8 bytes  (location 0)
-//	coverage (f32)         = 4 bytes  (location 1)
-//	color    (unorm8x4)    = 4 bytes  (location 2) — GPU expands to vec4<f32>
+//	position (vec2<f32>) = 8 bytes (location 0)
+//	coverage (f32) = 4 bytes (location 1)
+//	color (unorm8x4) = 4 bytes (location 2) — GPU expands to vec4<f32>
 //
 // Total = 16 bytes per vertex (was 28 with float32x4 color). Same shader inputs.
 const convexVertexStride = 16
 
-// convexMeshVertexStride is the SkipAA mesh-only layout (opt33 class B):
+// convexMeshVertexStride is the SkipAA mesh-only layout:
 // position (vec2<f32>) + color (unorm8x4) = 12 bytes. Coverage is always 1.0
 // in vs_mesh; pure-mesh batches skip the constant f32 coverage channel.
 const convexMeshVertexStride = 12
@@ -68,7 +78,7 @@ type ConvexDrawCommand struct {
 	BlendMode render.BlendMode
 
 	// SkipAA disables centroid-fan AA fringe expansion. Used by DrawMesh /
-	// DrawVertices triangle lists (Skia drawVertices semantics): solid
+	// DrawVertices triangle lists: solid
 	// triangles only — much cheaper for dense meshes.
 	SkipAA bool
 
@@ -77,14 +87,12 @@ type ConvexDrawCommand struct {
 	// whole mesh is one command instead of N tri-commands.
 	TriangleList bool
 
-	// PackedVerts is optional pre-built GPU vertex bytes (convexMeshVertexStride
-	// each after opt33). When set for TriangleList+SkipAA mesh path, buildConvexVerticesReuse
-	// memcpy's instead of re-packing Points/VertexColors (opt19).
+	// When set for TriangleList+SkipAA mesh path, buildConvexVerticesReuse
+	// memcpy's instead of re-packing Points/VertexColors.
 	// Lifetime: points into GPURenderContext.convexMeshPacked until Flush
-	// (or present-stash owned copy after opt22 relocate).
 	PackedVerts []byte
 
-	// Indices is optional uint16 triangle indices for PackedVerts (opt22).
+	// Indices is optional uint16 triangle indices for PackedVerts.
 	// When len>=3 with TriangleList+SkipAA+PackedVerts, RecordDraws uses
 	// DrawIndexed — unique verts only (no CPU expand of indexed meshes).
 	// Lifetime: GPURenderContext.convexMeshIdx (or stash-owned copy).
@@ -96,7 +104,7 @@ type ConvexDrawCommand struct {
 //
 // This is Tier 2a in the GPU rendering hierarchy:
 //
-//	Tier 1:  SDF fragment shader (circles, rects, rrects)
+//	Tier 1: SDF fragment shader (circles, rects, rrects)
 //	Tier 2a: Convex fast-path (this) -- single draw, per-edge AA
 //	Tier 2b: Stencil-then-cover -- arbitrary paths
 //
@@ -128,7 +136,7 @@ type ConvexRenderer struct {
 	// but with DepthCompare=GreaterEqual to test against the depth clip buffer.
 	pipelineWithDepthClip hal.RenderPipeline
 
-	// opt33: SkipAA mesh pipelines (12B verts, vs_mesh, coverage=1 constant).
+	// SkipAA mesh pipelines (12B verts, vs_mesh, coverage=1 constant).
 	meshPipelineWithStencil   hal.RenderPipeline
 	meshPipelineWithDepthClip hal.RenderPipeline
 
@@ -136,7 +144,7 @@ type ConvexRenderer struct {
 	// keyed by render.BlendMode (B.02 fixed-function Porter-Duff).
 	blendPipelinesWithStencil map[render.BlendMode]hal.RenderPipeline
 
-	// Clip bind group layout for @group(1). Set by the session before
+	// Set by the session before
 	// pipeline creation. When non-nil, included in the pipeline layout.
 	clipBindLayout hal.BindGroupLayout
 	// defaultClipBindLayout is owned by this renderer and used only when a
@@ -147,25 +155,21 @@ type ConvexRenderer struct {
 	// layout was created, the pipeline must be recreated.
 	pipeLayoutHasClip bool
 
-	// maskBindLayout is @group(2) for L.06 full-surface R8 mask sampling.
 	// Usually session-owned; maskLayoutOwned true only for standalone create.
 	maskBindLayout  hal.BindGroupLayout
 	maskLayoutOwned bool
 }
 
-// SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
-// uniform. Must be called before ensurePipelineWithStencil.
+// Must be called before ensurePipelineWithStencil.
 func (cr *ConvexRenderer) SetClipBindLayout(layout hal.BindGroupLayout) {
 	cr.clipBindLayout = layout
 }
 
-// SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
 func (cr *ConvexRenderer) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	cr.maskBindLayout = layout
 	cr.maskLayoutOwned = false
 }
 
-// MaskBindLayout returns the @group(2) layout for L.06 R8 mask sampling.
 // Creates the pipeline base layouts if needed so the layout is available.
 func (cr *ConvexRenderer) MaskBindLayout() hal.BindGroupLayout {
 	if cr.maskBindLayout == nil {
@@ -211,8 +215,7 @@ func (cr *ConvexRenderer) ensurePipelineWithStencil() error { // Ensure base res
 			return err
 		}
 	}
-	// If the pipeline layout was created without clip but clip is now set,
-	// destroy and recreate so the layout includes @group(1). Without this,
+	// Without this,
 	// SetBindGroup(1, clipBG) crashes on AMD/NVIDIA (Intel tolerates it).
 	if cr.clipBindLayout != nil && !cr.pipeLayoutHasClip {
 		cr.destroyPipeline()
@@ -308,8 +311,7 @@ func (cr *ConvexRenderer) ensureDepthClipPipeline() error {
 // When depthClipped is true (GPU-CLIP-003a), the depth-clipped pipeline
 // variant is used to test fragments against the depth clip buffer.
 
-// ensureMeshPipelineWithStencil creates the opt33 SkipAA mesh pipeline (12B verts,
-// vs_mesh with coverage=1). Shares pipeLayout/shader with the AA convex path.
+// Shares pipeLayout/shader with the AA convex path.
 func (cr *ConvexRenderer) ensureMeshPipelineWithStencil() error {
 	if cr.meshPipelineWithStencil != nil {
 		return nil
@@ -355,7 +357,7 @@ func (cr *ConvexRenderer) ensureMeshPipelineWithStencil() error {
 	return nil
 }
 
-// ensureMeshDepthClipPipeline creates depth-clipped mesh pipeline (opt33).
+// ensureMeshDepthClipPipeline creates depth-clipped mesh pipeline.
 func (cr *ConvexRenderer) ensureMeshDepthClipPipeline() error {
 	if cr.meshPipelineWithDepthClip != nil {
 		return nil
@@ -714,7 +716,7 @@ type convexFrameResources struct {
 	// ranges groups consecutive vertices by blend mode. When empty, a single
 	// SourceOver draw of [firstVertex, vertCount) is used (legacy path).
 	ranges []convexDrawRange
-	// meshCompact: vertex buffer uses convexMeshVertexStride + vs_mesh (opt33).
+	// meshCompact: vertex buffer uses convexMeshVertexStride + vs_mesh.
 	meshCompact bool
 }
 
@@ -745,7 +747,6 @@ func convexVertexLayout() []types.VertexBufferLayout {
 	}
 }
 
-// convexMeshVertexLayout is opt33 SkipAA mesh: pos2 + unorm8x4 color (12B).
 func convexMeshVertexLayout() []types.VertexBufferLayout {
 	return []types.VertexBufferLayout{
 		{
@@ -779,8 +780,7 @@ func BuildConvexVertices(commands []ConvexDrawCommand) []byte {
 
 // packedMeshVertsContiguous returns a zero-copy view over all TriangleList+SkipAA
 // PackedVerts when every command is packed mesh and the byte slices are adjacent
-// in one underlying array (QueueColoredMesh* grow-only packing). opt25: avoids
-// staging memcpy in buildConvexVerticesReuse for multi-DrawMesh flushes.
+// in one underlying array (QueueColoredMesh* grow-only packing).
 func packedMeshVertsContiguous(commands []ConvexDrawCommand) ([]byte, bool) {
 	if len(commands) == 0 {
 		return nil, false
@@ -817,7 +817,7 @@ func packedMeshVertsContiguous(commands []ConvexDrawCommand) ([]byte, bool) {
 }
 
 // packedMeshIndicesContiguous returns LE bytes over concatenated uint16 indices
-// when all cmds are indexed mesh and Indices slices are adjacent (opt25).
+// when all cmds are indexed mesh and Indices slices are adjacent.
 func packedMeshIndicesContiguous(commands []ConvexDrawCommand) (data []byte, count int, ok bool) {
 	if len(commands) == 0 {
 		return nil, 0, false
@@ -867,8 +867,6 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 
 	for i := range commands {
 		cmd := &commands[i]
-		// opt19/opt33: pre-packed mesh verts are 12B; expand to 16B AA layout
-		// (coverage=1) when sharing a buffer with non-mesh convex draws.
 		if convexCmdIsPackedMesh(cmd) {
 			nb := len(cmd.PackedVerts)
 			nb = nb - (nb % convexMeshVertexStride)
@@ -894,7 +892,7 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 			useVC := len(cmd.VertexColors) == n
 			color := cmd.Color
 			if cmd.TriangleList {
-				// Independent tris: walk groups of 3 (Skia drawVertices list).
+				// Independent tris: walk groups of 3.
 				for j := 0; j+2 < n; j += 3 {
 					c0, c1, c2 := color, color, color
 					if useVC {
@@ -1083,7 +1081,6 @@ func writeConvexVertex(buf []byte, px, py, coverage float32, color [4]float32) {
 	binary.LittleEndian.PutUint32(buf[12:16], packColorUnorm8x4(color))
 }
 
-// writeConvexMeshVertex writes opt33 SkipAA mesh vertex: pos2 + unorm8x4 (12B).
 func writeConvexMeshVertex(buf []byte, px, py float32, color [4]float32) {
 	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(px))
 	binary.LittleEndian.PutUint32(buf[4:8], math.Float32bits(py))
@@ -1091,11 +1088,11 @@ func writeConvexMeshVertex(buf []byte, px, py float32, color [4]float32) {
 }
 
 // packColorUnorm8x4 quantizes premultiplied RGBA floats to LE unorm8x4.
-// Class B (opt30): 8-bit color reduces WriteBuffer volume; solid UI colors that
+// Class B: 8-bit color reduces WriteBuffer volume; solid UI colors that
 // are k/255 exact are bit-identical after GPU expand; continuous gradients may
 // differ by ≤1/255 (pixel gates use tolerance).
 //
-// opt31: delegates to scalar packColorUnorm8x4RGBA (mesh VC hot path avoids
+// delegates to scalar packColorUnorm8x4RGBA (mesh VC hot path avoids
 // building a temporary [4]float32 per vertex).
 func packColorUnorm8x4(color [4]float32) uint32 {
 	return packColorUnorm8x4RGBA(color[0], color[1], color[2], color[3])
@@ -1181,8 +1178,6 @@ func convexCmdIsPackedMesh(cmd *ConvexDrawCommand) bool {
 	return cmd != nil && cmd.TriangleList && cmd.SkipAA && len(cmd.PackedVerts) >= convexMeshVertexStride
 }
 
-// allConvexCommandsMeshCompact is true when every command is opt33 packed mesh
-// (12B verts) with SourceOver blend — pure-mesh batches use vs_mesh pipeline.
 func allConvexCommandsMeshCompact(commands []ConvexDrawCommand) bool {
 	if len(commands) == 0 {
 		return false

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build windows
 
 // Package main demonstrates a textured quad rendering using go-webgpu.
@@ -475,7 +485,7 @@ func (app *App) createBuffers() error {
 	// Vertex data: position (x, y) + uv (u, v)
 	// Quad covers most of the screen
 	vertices := []float32{
-		// position      uv
+		// position uv
 		-0.8, 0.8, 0.0, 0.0, // top-left
 		0.8, 0.8, 1.0, 0.0, // top-right
 		-0.8, -0.8, 0.0, 1.0, // bottom-left

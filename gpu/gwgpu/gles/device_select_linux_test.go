@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !nogpu
 
 package gles
@@ -10,11 +20,6 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// P2-2 preference routing on real hardware (default loader view: all
-// vendors visible, no GPUI_POWER pin — the hal-level preference is the
-// honest scope here; the GPUI_POWER→policy mapping lives in render and is
-// covered by the pelican acceptance runs).
-//
 // High must land on the NVIDIA renderer with a discrete label, Low on
 // Mesa hardware (not llvmpipe), fallback on software, None on the live
 // default-display adapter. Enumeration must list more than the first card

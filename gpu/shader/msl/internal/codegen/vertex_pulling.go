@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -17,7 +27,6 @@ func (w *Writer) doVertexPulling(ep *ir.EntryPoint) bool {
 // initVertexPulling initializes VPT state: resolves buffer mapping names,
 // generates unpacking functions, and determines vertex/instance ID needs.
 // Must be called early in writeModule, before any entry points or functions.
-// Matches Rust naga writer.rs ~6430-6496.
 func (w *Writer) initVertexPulling() {
 	if !w.options.VertexPullingTransform || len(w.options.VertexBufferMappings) == 0 {
 		return
@@ -27,7 +36,7 @@ func (w *Writer) initVertexPulling() {
 	w.vptNeedsVertexID = false
 	w.vptNeedsInstanceID = false
 
-	// Generate v_id and i_id names through the namer (matches Rust namer.call order).
+	// Generate v_id and i_id names through the namer.
 	w.vptVertexIDName = w.namer.call("v_id")
 	w.vptInstanceIDName = w.namer.call("i_id")
 
@@ -71,7 +80,6 @@ func (w *Writer) initVertexPulling() {
 }
 
 // writeUnpackingFunction writes a single unpacking function and returns (name, byteCount, dimension).
-// Matches Rust naga writer.rs write_unpacking_function exactly.
 func (w *Writer) writeUnpackingFunction(format VertexFormat) (string, uint32, uint32) {
 	switch format {
 	case VertexFormatUint8:
@@ -284,7 +292,6 @@ func (w *Writer) writeUnpackingFunction(format VertexFormat) (string, uint32, ui
 }
 
 // vptVertexInputDimension returns the number of components for a type used as a vertex input.
-// Matches Rust naga TypeContext::vertex_input_dimension.
 func (w *Writer) vptVertexInputDimension(tyHandle ir.TypeHandle) uint32 {
 	if int(tyHandle) >= len(w.module.Types) {
 		return 1
@@ -299,7 +306,6 @@ func (w *Writer) vptVertexInputDimension(tyHandle ir.TypeHandle) uint32 {
 }
 
 // vptTypeIsInt returns true if the scalar type of tyHandle is integer (signed, unsigned, bool).
-// Matches Rust naga's scalar_is_int.
 func (w *Writer) vptTypeIsInt(tyHandle ir.TypeHandle) bool {
 	if int(tyHandle) >= len(w.module.Types) {
 		return false
@@ -431,7 +437,6 @@ func (w *Writer) vptBufferSizeMembers() []uint32 {
 // Instead of emitting a stage_in struct, it builds the attribute mapping (am_resolved)
 // that will be used later to emit zero-init + bounds-check + unpacking code.
 // Returns the am_resolved map.
-// Matches Rust naga writer.rs ~6818-6862.
 func (w *Writer) writeVPTEntryPointInputStruct(epIdx int, ep *ir.EntryPoint, fn *ir.Function) map[uint32]vptAttributeResolved {
 	amResolved := make(map[uint32]vptAttributeResolved)
 
@@ -500,7 +505,6 @@ func (w *Writer) writeVPTEntryPointInputStruct(epIdx int, ep *ir.EntryPoint, fn 
 }
 
 // writeVPTBufferTypeStructs emits the vb_N_type struct definitions for VPT.
-// Matches Rust naga writer.rs ~6945-6957.
 func (w *Writer) writeVPTBufferTypeStructs() {
 	for _, vbm := range w.vptBufferMappings {
 		w.write("struct %s { %suchar data[%d]; };\n", vbm.tyName, Namespace, vbm.stride)
@@ -509,7 +513,6 @@ func (w *Writer) writeVPTBufferTypeStructs() {
 
 // writeVPTFunctionParams writes VPT-specific entry point parameters:
 // [[vertex_id]], [[instance_id]], buffer pointers, and _mslBufferSizes.
-// Matches Rust naga writer.rs ~7250-7286.
 func (w *Writer) writeVPTFunctionParams(ep *ir.EntryPoint, fn *ir.Function, paramCount *int,
 	vExistingID, iExistingID string) {
 	if w.vptNeedsVertexID && vExistingID == "" {
@@ -530,7 +533,6 @@ func (w *Writer) writeVPTFunctionParams(ep *ir.EntryPoint, fn *ir.Function, para
 
 // writeVPTBodyPrologue writes the VPT body prologue: zero-init attributes,
 // bounds check, buffer element read, and attribute unpacking.
-// Matches Rust naga writer.rs ~7292-7438.
 func (w *Writer) writeVPTBodyPrologue(amResolved map[uint32]vptAttributeResolved,
 	vExistingID, iExistingID string) {
 	for _, vbm := range w.vptBufferMappings {

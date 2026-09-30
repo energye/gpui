@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -8,8 +18,6 @@ import (
 )
 
 // blockEndsWithReturn checks if a block's control flow always ends with a return.
-// This recursively checks the last statement: If/Switch/Block are handled by
-// checking their sub-blocks, matching Rust naga's ensure_block_returns logic.
 func blockEndsWithReturn(block ir.Block) bool {
 	if len(block) == 0 {
 		return false
@@ -44,7 +52,6 @@ const (
 
 // collectOobLocalTypes scans Call statements for pointer arguments that need
 // RZSW bounds checks and collects the types needed for out-of-bounds locals.
-// Matches Rust naga's oob_local_types function in proc/index.rs.
 func (w *Writer) collectOobLocalTypes(fn *ir.Function) {
 	w.oobLocals = make(map[ir.TypeHandle]string)
 
@@ -83,9 +90,6 @@ func (w *Writer) collectOobLocalTypes(fn *ir.Function) {
 	}
 
 	// Assign unique names in sorted order for deterministic output.
-	// Rust naga uses FxHashSet which has hash-dependent iteration order;
-	// sorting by type handle gives us consistent results regardless of
-	// expression renumbering from const-folding.
 	oobHandles := make([]ir.TypeHandle, 0, len(w.oobLocals))
 	for tyHandle := range w.oobLocals {
 		oobHandles = append(oobHandles, tyHandle)
@@ -99,7 +103,7 @@ func (w *Writer) collectOobLocalTypes(fn *ir.Function) {
 }
 
 // exprHasBoundsCheck checks if an expression (or any part of its access chain)
-// has bounds checks. Matches Rust naga's bounds_check_iter having any items.
+// has bounds checks.
 func (w *Writer) exprHasBoundsCheck(handle ir.ExpressionHandle, fn *ir.Function) bool {
 	if int(handle) >= len(fn.Expressions) {
 		return false
@@ -120,8 +124,6 @@ func (w *Writer) exprHasBoundsCheck(handle ir.ExpressionHandle, fn *ir.Function)
 // writeLocalVars writes local variable declarations for the current function.
 // The lowerer sets LocalVariable.Init for const expressions outside loops,
 // and leaves Init=nil for runtime expressions (which use zero-init + Store).
-// Local names are looked up from pre-registered names (registerNames), matching
-// Rust naga's namer.reset() pre-population.
 func (w *Writer) writeLocalVars(fn *ir.Function) error {
 	for i, local := range fn.LocalVars {
 		// Use pre-registered name from registerNames().
@@ -272,8 +274,6 @@ func (w *Writer) getPassThroughGlobals(handle ir.FunctionHandle) []uint32 {
 		}
 	})
 
-	// Collect in global variable declaration order (matching Rust naga which
-	// iterates module.global_variables in order and checks fun_info[handle]).
 	var result []uint32
 	for i := range w.module.GlobalVariables {
 		h := uint32(i)
@@ -335,7 +335,6 @@ func (w *Writer) isEntryPointFunction(_ ir.FunctionHandle) bool {
 
 // writeFunction writes a regular function definition.
 func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error {
-	// Blank line before each function (matches Rust naga: writeln!(self.out)?)
 	w.WriteLine("")
 
 	// Set context
@@ -348,10 +347,8 @@ func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error 
 	w.unnamedCount = 0
 
 	// Pre-scan function body to mark expressions that need baking.
-	// Matches Rust naga's collect_needs_bake_expressions pass.
 	w.collectNeedBakeExpressions(fn)
 	// Find RZSW guarded indices that need baking.
-	// Matches Rust naga's find_checked_indexes pass.
 	w.findGuardedIndices(fn)
 	// Collect oob local types for RZSW pointer bounds checks.
 	w.collectOobLocalTypes(fn)
@@ -374,7 +371,6 @@ func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error 
 		returnType = w.writeTypeName(fn.Result.Type, StorageAccess(0))
 	}
 
-	// Function signature — Rust naga format: each param on own line, 4-space indent
 	w.write("%s %s(", returnType, funcName)
 
 	// Parameters
@@ -452,7 +448,6 @@ func (w *Writer) writeEntryPoints() error {
 
 // writeEntryPoint writes a single entry point function.
 func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
-	// Blank line before each entry point (matches Rust naga: writeln!(self.out)?)
 	w.WriteLine("")
 
 	// Entry point function is stored inline in ep.Function (not in Module.Functions[]).
@@ -500,11 +495,10 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	doVPT := w.doVertexPulling(ep)
 
 	// Write input/output structs if needed.
-	// Namer calls must match Rust naga's exact order (writer.rs ~6815-6867):
-	//   1. namer.call("{fun_name}Input")   — inside writeEntryPointInputStruct
-	//   2. namer.call("varyings")          — always, before output struct
-	//   3. namer.call("{fun_name}Output")  — inside writeEntryPointOutputStruct
-	//   4. namer.call("member")            — always, inside writeEntryPointOutputStruct
+	//   1. namer.call("{fun_name}Input") — inside writeEntryPointInputStruct
+	//   2. namer.call("varyings") — always, before output struct
+	//   3. namer.call("{fun_name}Output") — inside writeEntryPointOutputStruct
+	//   4. namer.call("member") — always, inside writeEntryPointOutputStruct
 	var inputStructName string
 	var hasInputStruct bool
 	var vptAMResolved map[uint32]vptAttributeResolved
@@ -517,7 +511,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 		inputStructName, hasInputStruct = w.writeEntryPointInputStruct(epIdx, ep, fn)
 	}
 
-	// Register "varyings" name BEFORE the output struct, matching Rust naga order.
 	varyingsName := w.namer.call("varyings")
 
 	outputStructName, hasOutputStruct := w.writeEntryPointOutputStruct(epIdx, ep, fn)
@@ -566,15 +559,12 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	}
 	returnType, returnAttr := resolveReturnSignature()
 
-	// Function signature — Rust naga format:
-	// First param: "\n  param", subsequent: "\n, param"
 	w.write("%s %s %s(", stageKeyword, returnType, epName)
 
 	// Collect all parameters, then format them
 	paramCount := 0
 
 	// Build set of globals actually referenced by this entry point (direct + transitive).
-	// Rust naga only emits resources that the entry point actually uses, not ALL globals.
 	epUsedGlobals := make(map[uint32]struct{})
 	if globals, ok := w.funcPassThroughGlobals[epFuncHandle(epIdx)]; ok {
 		for _, h := range globals {
@@ -583,9 +573,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	}
 
 	// Check if we need workgroup zero-initialization for this entry point.
-	// This requires: compute shader + ZeroInitializeWorkgroupMemory + workgroup vars
-	// actually used by this entry point (matching Rust naga, which filters by
-	// !fun_info[handle].is_empty()).
 	needWorkgroupInit := false
 	localInvocationIDName := ""
 	if w.options.ZeroInitializeWorkgroupMemory && ep.Stage == ir.StageCompute {
@@ -600,14 +587,12 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 		}
 	}
 	// Stage input struct — only emit if there are actual varyings (location-bound members).
-	// Rust naga uses has_varyings to decide whether to emit the stage_in parameter.
 	if w.hasVaryings {
 		w.writeEntryPointParam(paramCount, fmt.Sprintf("%s %s [[stage_in]]", inputStructName, varyingsName))
 		paramCount++
 	}
 
 	// Built-in inputs — both direct arguments and struct members.
-	// Rust naga flattens struct arguments and emits builtin members as separate params.
 	// Track if we find a local_invocation_id builtin to reuse for workgroup init.
 	// For VPT: also track existing vertex_id and instance_id.
 	existingLocalInvocationID := ""
@@ -679,7 +664,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 
 	// Workgroup zero-init parameter: __local_invocation_id.
 	// Emitted AFTER builtin parameters but BEFORE resource bindings.
-	// Matches Rust naga: only emit if no existing local_invocation_id argument.
 	if needWorkgroupInit {
 		if existingLocalInvocationID != "" {
 			// Reuse the existing local_invocation_id argument
@@ -698,11 +682,10 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	// preventing collisions when multiple groups share binding numbers.
 	w.computeResourceMap(ep.Name)
 
-	// Global variable parameters — emitted in declaration order (matching Rust naga).
+	// Global variable parameters — emitted in declaration order.
 	// This includes both resource bindings (device/constant with [[buffer]]/[[texture]])
 	// and workgroup variables (threadgroup without binding attributes).
-	// Rust naga iterates module.global_variables in order, emitting all that need
-	// pass-through. The order follows the WGSL source declaration order.
+	// The order follows the WGSL source declaration order.
 	for i, global := range w.module.GlobalVariables {
 		if _, used := epUsedGlobals[uint32(i)]; !used {
 			continue
@@ -745,7 +728,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	}
 
 	// _mslBufferSizes parameter for runtime-sized arrays (and VPT).
-	// Rust naga: needs_buffer_sizes = do_vertex_pulling || any global has runtime-sized array.
 	epNeedsSizesBuffer := doVPT
 	if !epNeedsSizesBuffer && w.needsSizesBuffer {
 		for handle := range epUsedGlobals {
@@ -778,7 +760,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	}
 
 	// Reconstruct entry point arguments from flattened Metal parameters.
-	// Matches Rust naga writer.rs ~line 7528: rebuild structs from stage_in + separate params.
 	emitInputAliases := func() {
 		if !hasInputStruct {
 			return
@@ -839,13 +820,9 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 		}
 	}
 	// Emit inline (constexpr) samplers in the function body.
-	// Matches Rust naga writer.rs ~line 7483: inline samplers are declared
-	// inside the entry point body, not as function parameters.
 	w.writeInlineSamplers(ep.Name, epUsedGlobals)
 
 	// Emit external texture wrapper constructions.
-	// Matches Rust naga writer.rs ~line 7497: construct NagaExternalTextureWrapper
-	// from the individual plane/params arguments for each external texture global.
 	for i := range w.module.GlobalVariables {
 		if _, used := epUsedGlobals[uint32(i)]; !used {
 			continue
@@ -858,10 +835,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	emitInputAliases()
 
 	// Note: output struct variable is NOT pre-declared here.
-	// For struct results, writeEntryPointOutputReturn uses the Rust naga pattern:
-	//   const auto _tmp = <expr>;
-	//   return OutputStruct { _tmp.field1, _tmp.field2 };
-	// For simple results, inline aggregate initialization is used.
 	_ = outputStructName
 
 	// Workgroup variable declarations — function-body scope, threadgroup
@@ -884,7 +857,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	}
 
 	// Workgroup zero-initialization prologue.
-	// Matches Rust naga: zero all workgroup vars if __local_invocation_id == uint3(0).
 	// Must come BEFORE local variables and private var locals.
 	if needWorkgroupInit {
 		if err := w.writeWorkgroupZeroInit(localInvocationIDName, epUsedGlobals); err != nil {
@@ -895,12 +867,10 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	// Emit private global variables as local variables BEFORE function locals.
 	// Metal doesn't support private mutable variables outside of functions,
 	// so we declare them here in the entry point.
-	// Matches Rust naga writer.rs order: private globals come before locals.
 	if err := w.writePrivateVarLocals(fn); err != nil {
 		return err
 	}
 
-	// Local variables — after private globals, matching Rust naga order.
 	if err := w.writeLocalVars(fn); err != nil {
 		return err
 	}
@@ -912,14 +882,11 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 
 	w.PopIndent()
 	w.WriteLine("}")
-	w.WriteLine("") // trailing blank line after entry point (matches Rust naga: writeln!(self.out, "}}")?)
+	w.WriteLine("")
 	return nil
 }
 
 // writeEntryPointInputStruct writes the input struct for an entry point.
-// Matches Rust naga behavior: always emits `struct <name>Input { };` when
-// there are any arguments with bindings, even if the struct body is empty
-// (e.g., compute shaders with only builtin arguments).
 func (w *Writer) writeEntryPointInputStruct(epIdx int, ep *ir.EntryPoint, fn *ir.Function) (string, bool) {
 	// Check what kinds of inputs we have
 	hasLocationInputs := false
@@ -943,8 +910,6 @@ func (w *Writer) writeEntryPointInputStruct(epIdx int, ep *ir.EntryPoint, fn *ir
 	}
 
 	epName := w.getName(nameKey{kind: nameKeyEntryPoint, handle1: uint32(epIdx)})
-	// Use namer.call to generate the input struct name, matching Rust naga:
-	// self.namer.call(&format!("{fun_name}Input"))
 	structName := w.namer.call(epName + "Input")
 
 	if hasLocationInputs {
@@ -970,7 +935,6 @@ func (w *Writer) writeEntryPointInputStruct(epIdx int, ep *ir.EntryPoint, fn *ir
 	}
 
 	// Collect ALL struct args without bindings (flattened struct inputs).
-	// Rust naga flattens location members from ALL struct args into a single input struct.
 	type structArgInfo struct {
 		argIdx int
 		st     ir.StructType
@@ -990,7 +954,7 @@ func (w *Writer) writeEntryPointInputStruct(epIdx int, ep *ir.EntryPoint, fn *ir
 	}
 
 	// Emit empty input struct for entry points with builtin-only arguments
-	// (matching Rust naga behavior), but only if no struct arg will emit it.
+	// , but only if no struct arg will emit it.
 	if hasAnyBindingInputs && len(structArgs) == 0 {
 		emitInputStruct(structName, func() {})
 	}
@@ -1056,7 +1020,6 @@ func (w *Writer) writeEntryPointInputStruct(epIdx int, ep *ir.EntryPoint, fn *ir
 // writeEntryPointOutputStruct writes the output struct for an entry point.
 func (w *Writer) writeEntryPointOutputStruct(epIdx int, ep *ir.EntryPoint, fn *ir.Function) (string, bool) {
 	if fn.Result == nil {
-		// Rust naga always calls namer.call("member") for every entry point,
 		// even if the entry point has no result. This ensures the namer counter
 		// advances consistently. Without this, subsequent entry points get
 		// wrong member name suffixes.
@@ -1073,13 +1036,8 @@ func (w *Writer) writeEntryPointOutputStruct(epIdx int, ep *ir.EntryPoint, fn *i
 	}
 
 	epName := w.getName(nameKey{kind: nameKeyEntryPoint, handle1: uint32(epIdx)})
-	// Use namer.call to generate the output struct name, matching Rust naga:
-	// self.namer.call(&format!("{fun_name}Output"))
 	structName := w.namer.call(epName + "Output")
 
-	// Always register "member" name via namer.call, matching Rust naga (writer.rs:6867):
-	//   let result_member_name = self.namer.call("member");
-	// Rust calls this for EVERY entry point regardless of whether the result is a
 	// struct or not. This ensures the namer counter advances consistently, so later
 	// entry points that do use "member" get the correct suffix (e.g., member_1).
 	resultMemberName := w.namer.call("member")
@@ -1138,7 +1096,6 @@ func (w *Writer) writeEntryPointOutputStruct(epIdx int, ep *ir.EntryPoint, fn *i
 	}
 
 	// Add _point_size member for vertex shaders when AllowAndForcePointSize is enabled.
-	// Matches Rust naga: "float _point_size [[point_size]];"
 	if ep.Stage == ir.StageVertex && w.options.AllowAndForcePointSize {
 		// Check if any member already has PointSize binding
 		hasPointSize := false
@@ -1161,8 +1118,7 @@ func (w *Writer) writeEntryPointOutputStruct(epIdx int, ep *ir.EntryPoint, fn *i
 	return structName, true
 }
 
-// writeEntryPointParam writes a single entry point parameter in Rust naga format.
-// First param (idx 0): "\n  param", subsequent params: "\n, param".
+// First param (idx 0): "\n param", subsequent params: "\n, param".
 func (w *Writer) writeEntryPointParam(idx int, param string) {
 	if idx == 0 {
 		w.write("\n  %s", param)
@@ -1173,8 +1129,8 @@ func (w *Writer) writeEntryPointParam(idx int, param string) {
 
 // writePrivateVarLocals emits private global variables as local variables in the entry point.
 // Metal doesn't support private mutable variables outside of functions, so they must be
-// declared here. Matches Rust naga writer.rs ~line 7450.
-// Iterates globals in declaration order (like Rust), only emitting those actually used.
+// declared here.
+// Iterates globals in declaration order, only emitting those actually used.
 func (w *Writer) writePrivateVarLocals(fn *ir.Function) error {
 	// Build set of referenced private globals from this function's expressions.
 	usedPrivate := make(map[uint32]struct{})
@@ -1212,7 +1168,7 @@ func (w *Writer) writePrivateVarLocals(fn *ir.Function) error {
 		typeName := w.writeTypeName(global.Type, StorageAccess(0))
 		w.WriteIndent()
 		if global.InitExpr != nil {
-			// Init from GlobalExpressions (preferred, matches Rust naga).
+			// Init from GlobalExpressions.
 			w.write("%s %s = ", typeName, name)
 			if err := w.writeGlobalExpression(*global.InitExpr); err != nil {
 				return err
@@ -1263,7 +1219,7 @@ func (w *Writer) writeGlobalExpression(handle ir.ExpressionHandle) error {
 		typeName := w.writeTypeName(k.Type, StorageAccess(0))
 
 		// Handle 0-component Compose for vectors/matrices (from zero-arg constructors).
-		// Expand to explicit zeros: metal::int2(0, 0). Matches Rust naga.
+		// Expand to explicit zeros: metal::int2(0, 0).
 		if len(k.Components) == 0 && int(k.Type) < len(w.module.Types) {
 			switch t := w.module.Types[k.Type].Inner.(type) {
 			case ir.VectorType:
@@ -1334,7 +1290,6 @@ func (w *Writer) writeGlobalExpression(handle ir.ExpressionHandle) error {
 		}
 	case ir.ExprZeroValue:
 		// ZeroValue always renders as "{ty_name} {}" in MSL.
-		// Matches Rust naga put_const_expression: write!(self.out, "{ty_name} {{}}")?;
 		typeName := w.writeTypeName(k.Type, StorageAccess(0))
 		w.write("%s {}", typeName)
 	case ir.ExprConstant:
@@ -1424,8 +1379,6 @@ func (w *Writer) formatGlobalResourceParam(handle uint32, global *ir.GlobalVaria
 		bt, hasMappedBinding = w.currentResourceMap[*global.Binding]
 	}
 
-	// When FakeMissingBindings is enabled and there's no mapping for this resource,
-	// use [[user(fakeN)]] attributes to match Rust naga behavior.
 	useFake := w.options.FakeMissingBindings && !hasMappedBinding
 
 	switch inner := typeInfo.Inner.(type) {
@@ -1516,9 +1469,6 @@ func (w *Writer) writePassThroughParam(handle uint32) {
 
 // computeResourceMap builds the Metal binding index map for the current entry point.
 // If PerEntryPointMap has an explicit mapping for epName, it is used directly.
-// Otherwise, sequential indices per resource type (buffer, texture, sampler) are
-// assigned across all globals sorted by (group, binding), matching the approach
-// used by Rust wgpu-hal's Metal device.
 func (w *Writer) computeResourceMap(epName string) {
 	// Check for explicit mapping first.
 	if w.options.PerEntryPointMap != nil {
@@ -1614,7 +1564,7 @@ func (w *Writer) bindTargetIndex(slot *uint8, binding *ir.ResourceBinding) uint3
 }
 
 // writeInlineSamplers emits constexpr sampler declarations for inline samplers
-// in the current entry point. Matches Rust naga writer.rs ~line 7483.
+// in the current entry point.
 func (w *Writer) writeInlineSamplers(epName string, epUsedGlobals map[uint32]struct{}) {
 	if len(w.options.InlineSamplers) == 0 {
 		return
@@ -1718,9 +1668,7 @@ func (w *Writer) outputMemberAttribute(binding ir.Binding, stage ir.ShaderStage)
 }
 
 // requireBuiltinVersion bumps the minimum required Metal version based on
-// which builtin is used. Matches Rust naga version requirements:
-//   - BuiltinBarycentric requires Metal 2.3+
-//   - BuiltinViewIndex requires Metal 2.2+ (we use 2.3 to match Rust naga snapshot output)
+// which builtin is used.
 func (w *Writer) requireBuiltinVersion(builtin ir.BuiltinValue) {
 	switch builtin {
 	case ir.BuiltinBarycentric:
@@ -1802,7 +1750,6 @@ func locationInputAttribute(loc ir.LocationBinding, stage ir.ShaderStage, scalar
 		return fmt.Sprintf("[[attribute(%d)]]", loc.Location)
 	case ir.StageFragment:
 		// Fragment inputs use user() for custom varyings, with interpolation qualifier.
-		// Rust naga always emits interpolation for fragment inputs.
 		// Integer types default to flat (WGSL spec); floats default to center_perspective.
 		interp := loc.Interpolation
 		if interp == nil && (scalarKind == ir.ScalarSint || scalarKind == ir.ScalarUint) {
@@ -1836,7 +1783,6 @@ func (w *Writer) typeScalarKind(th ir.TypeHandle) ir.ScalarKind {
 
 // resolveInterpolationString returns the MSL interpolation qualifier string
 // for a given interpolation setting. Returns empty string if no qualifier needed.
-// Matches Rust naga's ResolvedInterpolation.
 func resolveInterpolationString(interp *ir.Interpolation) string {
 	if interp == nil {
 		// Default for float fragment inputs: center_perspective
@@ -1868,8 +1814,6 @@ func resolveInterpolationString(interp *ir.Interpolation) string {
 }
 
 // writeWorkgroupZeroInit writes the zero-initialization prologue for workgroup variables.
-// Matches Rust naga: check __local_invocation_id == uint3(0), then zero-init the workgroup
-// vars used by this entry point (Rust filters by !fun_info[handle].is_empty()).
 func (w *Writer) writeWorkgroupZeroInit(localInvIDName string, usedGlobals map[uint32]struct{}) error {
 	w.WriteLine("if (%sall(%s == %suint3(0u))) {", Namespace, localInvIDName, Namespace)
 	w.PushIndent()
@@ -2000,7 +1944,6 @@ func (w *Writer) isExternalTextureGlobal(handle uint32) bool {
 
 // writeExternalTextureEntryPointParams emits the 4 entry point parameters for an external
 // texture global variable: 3 texture2d planes + 1 constant NagaExternalTextureParams buffer.
-// Matches Rust naga writer.rs ~line 7184.
 func (w *Writer) writeExternalTextureEntryPointParams(handle uint32, global *ir.GlobalVariable, epName string, paramCount *int) {
 	// Look up the external texture bind target from the resource map.
 	var extTarget *BindExternalTextureTarget
@@ -2041,7 +1984,6 @@ func (w *Writer) writeExternalTextureEntryPointParams(handle uint32, global *ir.
 
 // writeExternalTextureWrapperConstruction emits the const NagaExternalTextureWrapper construction
 // at the start of an entry point body for an external texture global variable.
-// Matches Rust naga writer.rs ~line 7497.
 func (w *Writer) writeExternalTextureWrapperConstruction(handle uint32) {
 	wrapperName := w.getName(nameKey{kind: nameKeyGlobalVariable, handle1: handle})
 	w.WriteLine("const NagaExternalTextureWrapper %s {", wrapperName)

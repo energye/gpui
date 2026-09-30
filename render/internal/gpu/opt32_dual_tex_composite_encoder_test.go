@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -12,7 +22,7 @@ import (
 )
 
 // TestOpt32_DualTexMultiIntoEncoder_OneFinish records dual-tex multi into an
-// external encoder and Finishes once (class A opt32 building block).
+// external encoder and Finishes once.
 func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 	shared, _ := r73Session(t)
 	device, queue := shared.device, shared.queue
@@ -89,7 +99,6 @@ func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 }
 
 func TestOpt32_EncodeBlitToEncoder_LoadOpUsesFrameRendered(t *testing.T) {
-	// Mirrors encodeBlitToEncoder decision: frameRendered || damage ⇒ Load.
 	frameRendered := true
 	hasDamage := false
 	if !(frameRendered || hasDamage) {

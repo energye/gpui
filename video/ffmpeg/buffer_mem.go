@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -62,7 +72,7 @@ func (b *BPrint) Ptr() unsafe.Pointer {
 	return b.ptr
 }
 
-// BPrintSize is the AVBPrint struct size (bprint.h 钉死 1024).
+// BPrintSize is the AVBPrint struct size.
 const BPrintSize = 1024
 
 var (

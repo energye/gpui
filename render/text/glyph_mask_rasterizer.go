@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -208,8 +218,6 @@ func (r *GlyphMaskRasterizer) rasterizeOutline(
 // RasterizeAliased renders a single glyph into an R8 alpha mask with binary
 // coverage (0 or 255 only). No anti-aliasing, no sub-pixel coverage.
 //
-// This matches Skia's SkFont::Edging::kAlias — the glyph outline is filled
-// with integer scanline walking (NoAAFiller) instead of the AnalyticFiller.
 // The result is a crisp, staircase-edged mask suitable for pixel-art
 // aesthetics, terminal emulators, or bitmap font emulation.
 //
@@ -246,7 +254,7 @@ func (r *GlyphMaskRasterizer) RasterizeAliased(
 
 // RasterizeOutlineAliased renders a pre-extracted glyph outline into an R8 alpha
 // mask with binary (0 or 255) coverage. Same as RasterizeOutline but with no
-// anti-aliasing — matches Skia's SkFont::Edging::kAlias applied to any outline
+// anti-aliasing — matches the SkFont::Edging::kAlias applied to any outline
 // source (own parser, with optional gvar variations).
 func (r *GlyphMaskRasterizer) RasterizeOutlineAliased(
 	outline *GlyphOutline,
@@ -554,7 +562,7 @@ func (r *GlyphMaskRasterizer) rasterizeLCDOutline(
 
 	// Apply LCD filter row-by-row: 3x-wide R8 → per-pixel RGB.
 	// The output is stored as 3 bytes per pixel (R, G, B coverage) which
-	// will be packed into the R8 atlas at 3x width (one R8 texel per channel).
+	// will be packed into the R8 atlas at 3x width.
 	rgbMask := make([]byte, maskW*3*maskH)
 	for row := range maskH {
 		srcRow := oversampled[row*tripleW : row*tripleW+tripleW]

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -20,15 +30,15 @@ var sdfRenderShaderSource string
 // sdfRenderVertexStride is the byte stride per vertex in the SDF render pipeline.
 // Layout per vertex:
 //
-//	position (vec2<f32>) = 8 bytes  (location 0)
-//	local    (vec2<f32>) = 8 bytes  (location 1)
-//	shape_kind (f32)     = 4 bytes  (location 2)
-//	param1   (f32)       = 4 bytes  (location 3)
-//	param2   (f32)       = 4 bytes  (location 4)
-//	param3   (f32)       = 4 bytes  (location 5)
-//	half_stroke (f32)    = 4 bytes  (location 6)
-//	is_stroked (f32)     = 4 bytes  (location 7)
-//	color    (vec4<f32>) = 16 bytes (location 8)
+//	position (vec2<f32>) = 8 bytes (location 0)
+//	local (vec2<f32>) = 8 bytes (location 1)
+//	shape_kind (f32) = 4 bytes (location 2)
+//	param1 (f32) = 4 bytes (location 3)
+//	param2 (f32) = 4 bytes (location 4)
+//	param3 (f32) = 4 bytes (location 5)
+//	half_stroke (f32) = 4 bytes (location 6)
+//	is_stroked (f32) = 4 bytes (location 7)
+//	color (vec4<f32>) = 16 bytes (location 8)
 //
 // Total = 56 bytes per vertex.
 const sdfRenderVertexStride = 64
@@ -46,12 +56,6 @@ const sdfRenderAAMargin = 1.5
 // via a vertex+fragment render pipeline. Instead of a compute shader that
 // writes to a storage buffer, this approach draws bounding quads with a
 // fragment shader that evaluates the SDF per pixel.
-//
-// Advantages over the compute shader approach:
-//   - No readback needed when rendering to a surface (future optimization)
-//   - MSAA hardware resolve for free anti-aliasing
-//   - Simpler pipeline (no storage buffer barriers)
-//   - Works around naga compute shader bugs
 //
 // The pipeline uses the same MSAA+resolve texture pattern as StencilRenderer.
 // For unified rendering via GPURenderSession, pipelineWithStencil is used
@@ -78,7 +82,7 @@ type SDFRenderPipeline struct {
 	// Created on demand when a ScissorGroup has ClipPath set.
 	pipelineWithDepthClip hal.RenderPipeline
 
-	// Clip bind group layout for @group(1). Set by the session before
+	// Set by the session before
 	// pipeline creation. When non-nil, included in the pipeline layout.
 	clipBindLayout hal.BindGroupLayout
 	// defaultClipBindLayout is owned by this pipeline and used only when a
@@ -89,7 +93,7 @@ type SDFRenderPipeline struct {
 	// layout was created, the pipeline must be recreated.
 	pipeLayoutHasClip bool
 
-	// maskBindLayout is @group(2) for L.06 R8 mask sampling. Usually set by
+	// Usually set by
 	// the session (not owned). maskLayoutOwned is true only for standalone
 	// pipelines that create their own layout.
 	maskBindLayout  hal.BindGroupLayout
@@ -109,14 +113,12 @@ type SDFRenderPipeline struct {
 	ledger *PassBindLedger
 }
 
-// SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil. The layout is
 // owned by the session and must not be destroyed by the pipeline.
 func (p *SDFRenderPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
 	p.clipBindLayout = layout
 }
 
-// SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
 func (p *SDFRenderPipeline) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	p.maskBindLayout = layout
 	p.maskLayoutOwned = false
@@ -415,8 +417,7 @@ func (p *SDFRenderPipeline) ensurePipelineWithStencil() error { // Ensure base r
 			return err
 		}
 	}
-	// If the pipeline layout was created without clip but clip is now set,
-	// destroy and recreate so the layout includes @group(1). Without this,
+	// Without this,
 	// SetBindGroup(1, clipBG) crashes on AMD/NVIDIA (Intel tolerates it).
 	if p.clipBindLayout != nil && !p.pipeLayoutHasClip {
 		p.destroyPipeline()
@@ -894,7 +895,7 @@ func makeSDFRenderUniform(w, h uint32, antiAlias bool) []byte {
 	return makeSDFRenderUniformInto(nil, w, h, antiAlias)
 }
 
-// makeSDFRenderUniformInto reuses buf when possible (S6.2 hot path).
+// makeSDFRenderUniformInto reuses buf when possible.
 func makeSDFRenderUniformInto(buf []byte, w, h uint32, antiAlias bool) []byte {
 	if cap(buf) < sdfRenderUniformSize {
 		buf = make([]byte, sdfRenderUniformSize)
@@ -912,6 +913,6 @@ func makeSDFRenderUniformInto(buf []byte, w, h uint32, antiAlias bool) []byte {
 	for i := 12; i < len(buf); i++ {
 		buf[i] = 0
 	}
-	// Intentionally no slogger here: Into is a hot path (S6.2 zero-alloc).
+	// Intentionally no slogger here: Into is a hot path.
 	return buf
 }

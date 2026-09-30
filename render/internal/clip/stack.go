@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package clip
 
 import (
@@ -311,7 +321,7 @@ func (cs *ClipStack) Reset(bounds Rect) {
 	cs.bounds = bounds
 }
 
-// PushRectDifference subtracts rectangle r from the current clip (Skia Difference).
+// PushRectDifference subtracts rectangle r from the current clip.
 // Coverage becomes zero inside r while remaining clip outside r is preserved.
 func (cs *ClipStack) PushRectDifference(r Rect) error {
 	mask, err := NewRectDifferenceMask(cs.bounds, r)

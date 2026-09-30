@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -32,7 +42,6 @@ func TestParseAvar_VazirmatnVar(t *testing.T) {
 	}
 
 	segments := avar.segmentMaps[0]
-	// From skrifa test (avar.rs:173-193): VazirmatnVar has 9 segment map entries.
 	if len(segments) != 9 {
 		t.Fatalf("expected 9 segments, got %d", len(segments))
 	}
@@ -45,8 +54,6 @@ func TestParseAvar_VazirmatnVar(t *testing.T) {
 }
 
 func TestAvarApply_PiecewiseLinear(t *testing.T) {
-	// Test piecewise linear interpolation matching skrifa test
-	// (avar.rs:240-253): coords at [-1.0, -0.5, 0.0, 0.5, 1.0].
 
 	data, err := os.ReadFile("testdata/vazirmatn_var_trimmed.ttf")
 	if err != nil {

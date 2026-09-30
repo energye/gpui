@@ -1,8 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// S3c residual M3 capability gates (B.04/C.06/H.04/I.04/I.07/X.08/X.09/X.10).
 // Architecture: render → webgpu → rwgpu → libwgpu_native where GPU is claimed.
 
 import (

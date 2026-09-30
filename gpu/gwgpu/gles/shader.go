@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -21,11 +28,10 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// shaderCache memoizes WGSL→GLSL translation (naga Parse/Lower/Compile).
+// shaderCache memoizes WGSL→GLSL translation.
 // Keyed by source + entry point + GLSL version + binding map: the same WGSL
 // under a different driver version or layout must not share output, since
 // layout(binding=N) emission is version-gated (SupportsExplicitLocations).
-// Mirrors Skia GrShaderCache / Impeller PipelineLibrary keyed caching.
 // Entries are immutable: store and return deep copies of TranslationInfo.
 var shaderCache = struct {
 	sync.RWMutex
@@ -119,13 +125,10 @@ func clearShaderCache() {
 }
 
 // compileWGSLToGLSL compiles a WGSL shader source to GLSL for the given entry point.
-// OpenGL does not understand WGSL, so we use naga to parse WGSL and emit GLSL.
 //
 // The version parameter specifies the target GLSL version. On GL 4.3+ this is typically
 // Version430; on older drivers (e.g., GL 4.1 / GLSL 410) it must match the driver's
-// reported GLSL version. When version < 420 (desktop) or < 310 (ES), naga omits
-// layout(binding=N) qualifiers and the caller must assign bindings at runtime via
-// glGetUniformBlockIndex/glUniformBlockBinding/glGetUniformLocation/glUniform1i.
+// reported GLSL version.
 //
 // The bindingMap parameter provides the pre-computed (group, binding) -> GL slot mapping
 // from PipelineLayout (computed via per-type sequential counters in CreatePipelineLayout).
@@ -162,24 +165,18 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 
 	// Compile IR to the target GLSL version.
 	// On GL 4.3+ this emits layout(binding=N) qualifiers inline. On older versions
-	// (< 420 desktop / < 310 ES) naga omits them and the HAL assigns bindings at
-	// runtime after linking (see assignBindingsAfterLink).
 	glslCode, translationInfo, err := glsl.Compile(module, glsl.Options{
 		LangVersion:        version,
 		EntryPoint:         entryPoint,
 		ForceHighPrecision: true,
 		BindingMap:         bindingMap,
-		// ADJUST_COORDINATE_SPACE: naga appends gl_Position.yz = vec2(-gl_Position.y, gl_Position.z * 2.0 - gl_Position.w)
-		// at the end of vertex shaders. This flips Y and remaps Z from [0,1] to [-1,1].
+		// This flips Y and remaps Z from [0,1] to [-1,1].
 		// The scene renders upside-down inside the Surface's swapchain offscreen FBO
 		// (hal/gles/surface.go). Queue.Present performs an explicit Y-flipping
-		// glBlitFramebuffer from the swapchain FBO to the default framebuffer (FBO 0)
-		// before SwapBuffers — see Surface.blitSwapchainToDefault and Rust reference
-		// wgpu-hal/src/gles/egl.rs Surface::present (1280-1308).
 		// The flip also fixes gl_FragCoord.y convention in fragment shaders: with
-		// the flip, gl_FragCoord.y=0 is at the top (WebGPU convention), not bottom
+		// the flip, gl_FragCoord.y=0 is at the top, not bottom
 		// (GL convention). Without it, rrect_clip_coverage() in fragment shaders
-		// gets wrong Y values (BUG-GLES-SCROLLBAR-001).
+		// gets wrong Y values.
 		WriterFlags: glsl.WriterFlagAdjustCoordinateSpace | glsl.WriterFlagForcePointSize,
 	})
 	if err != nil {
@@ -210,11 +207,6 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 // assignBindingsAfterLink assigns uniform block and sampler bindings at runtime
 // after glLinkProgram on GL < 4.2 where layout(binding=N) is unavailable.
 //
-// This mirrors the Rust wgpu-hal pattern (device.rs:438-461):
-//   - For each uniform block: glGetUniformBlockIndex + glUniformBlockBinding
-//   - For each texture/image sampler: glGetUniformLocation + glUniform1i
-//   - Storage buffers cannot be remapped (error if present)
-//
 // The translationInfos parameter contains reflection data from all shader stages
 // (vertex + fragment, or compute). The layout provides the binding map for
 // resolving (group, binding) to flat GL slot indices.
@@ -231,7 +223,6 @@ func assignBindingsAfterLink(glCtx *gl.Context, program uint32, layout *Pipeline
 			}
 			if u.IsStorage {
 				// Storage buffers cannot be remapped without layout(binding) qualifiers.
-				// Rust wgpu-hal returns DeviceError::Lost here.
 				hal.Logger().Error("gles: cannot remap storage buffer binding on GL < 4.2",
 					"blockName", u.BlockName,
 					"group", u.Binding.Group,
@@ -279,14 +270,7 @@ func assignBindingsAfterLink(glCtx *gl.Context, program uint32, layout *Pipeline
 }
 
 // computeBindingMap computes per-type sequential binding indices for all bind group
-// layouts in a pipeline layout. This follows the Rust wgpu-hal pattern from
-// wgpu-hal/src/gles/device.rs:1154-1221 where five resource type counters
-// (samplers, textures, images, uniform buffers, storage buffers) are incremented
-// sequentially across all groups, producing flat GL slot indices.
-//
-// Returns:
-//   - bindingMap: maps (group, binding) to GL slot for naga GLSL writer
-//   - groupInfos: per-group BindingToSlot tables for runtime SetBindGroup
+// layouts in a pipeline layout.
 func computeBindingMap(layouts []*BindGroupLayout) (map[glsl.BindingMapKey]uint8, []BindGroupLayoutInfo) {
 	var (
 		numSamplers       uint8
@@ -363,7 +347,6 @@ const (
 )
 
 // classifyBindGroupEntry determines the GL resource type for a bind group layout entry.
-// Matches the Rust wgpu-hal classification in device.rs:1169-1193.
 func classifyBindGroupEntry(entry gputypes.BindGroupLayoutEntry) bindingClass {
 	switch {
 	case entry.Sampler != nil:

@@ -1,12 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package blend provides fast math utilities for alpha blending.
 //
 // The div255 family of functions avoid expensive integer division by using
 // bit shifts and addition. These are critical for performance as mulDiv255
 // is called for every pixel in every blend operation.
-//
-// References:
-//   - Alpha blending without division: https://arxiv.org/abs/2202.02864
-//   - Alvy Ray Smith's technical memos: http://alvyray.com/Memos/
 package blend
 
 // div255 divides x by 255 using fast shift approximation.

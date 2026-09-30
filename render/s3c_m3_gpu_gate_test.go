@@ -1,8 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// S3c M3 advanced 2D / present GPU gate.
 //
 // Architecture: render.Context → accelerator → gpu/webgpu → gpu/rwgpu → libwgpu_native
 // Focus: filter/shadow, color filter, offscreen present path, path measure, recording.
@@ -273,7 +282,6 @@ func TestS3c_M3_DamagePresentPath(t *testing.T) {
 // --- H.05 Path measure ---
 
 func TestS3c_M3_PathLength(t *testing.T) {
-	// CPU geometry gate (no GPU required) but part of M3 completeness.
 	p := render.NewPath()
 	p.MoveTo(0, 0)
 	p.LineTo(30, 0)

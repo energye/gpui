@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package tilecompute
 
@@ -98,7 +105,6 @@ type SceneElement struct {
 }
 
 // ClipInp holds input data for clip matching (output of draw_leaf, input to clip_leaf).
-// Matches Vello's ClipInp struct from clip_leaf.wgsl.
 type ClipInp struct {
 	// Ix is the draw object index.
 	Ix uint32

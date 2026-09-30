@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -46,7 +56,7 @@ func TestS65_LayoutText_UsesShapeCache(t *testing.T) {
 	if len(b2.Quads) != len(b1.Quads) {
 		t.Fatalf("quads %d vs %d", len(b2.Quads), len(b1.Quads))
 	}
-	// opt24: 2nd LayoutText should hit R7.5 layout template (skips reshape).
+	// 2nd LayoutText should hit R7.5 layout template (skips reshape).
 	// Shape-result cache may not see a hit when the template short-circuits.
 	tHits, tMisses, _ := eng.LayoutTemplateCacheStats()
 	st2 := text.ShapeResultCacheStats()

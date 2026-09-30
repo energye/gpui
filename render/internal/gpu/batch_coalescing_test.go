@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -387,7 +397,7 @@ func TestQueueText_MixedSequence(t *testing.T) {
 // runs queued across scissor boundaries are NOT merged into a single batch.
 //
 // Regression test for the bug where QueueGlyphMask merged all same-font/same-color
-// runs into one batch regardless of intervening clip changes.  buildScissorGroups
+// runs into one batch regardless of intervening clip changes. buildScissorGroups
 // then assigned the entire merged batch to the first element's scissor rect,
 // causing text from all subsequent sibling elements to be clipped away.
 //

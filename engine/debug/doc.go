@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package debug freezes the game-side performance and crash numbers.
 //
-// Frozen 2026-09-16 (capability 17.2, P4, S49/W8): CurrentVersion,
+// Frozen 2026-09-16: CurrentVersion,
 // MaxFrames, MaxSpansPerFrame, MaxShaders, MaxNameLen, MaxBytes,
 // MaxMemoryBytes, MaxFrameDt, SlowFrameDt, Span, NewSpan, Frame,
 // NewFrame, SpanStat, ShaderStat, Stats, NewStats, Report,

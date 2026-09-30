@@ -1,14 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 // B1 ffmpeg parity: fragmented MP4 (phone-style边录边存) opens, decodes
 // byte-exact, plays to Ended and seeks to the floor covering frame.
 // Baseline: testdata/b1_ffmpeg.json (ffmpeg 4.4.2, same machine).
-// Peer (read-only, no code copied):
-//   libavformat/mov.c:1946 mov_read_moof + :6057 mov_read_tfhd +
-//   :6125 mov_read_trex + :6151 mov_read_tfdt + :6190 mov_read_trun
-//   (segment assembly) against video/mp4/frag.go attachFragments; libavformat/seek.c binary shape + mov.c:12247
-//   mov_seek_fragment (segment-first) against video/seek_index.go (frag
-//   samples ride the same S8 table, no second index).
 // Pass line: header parity exact (size/codec/profile/level/rate/count/
 // frag segments/timescale/duration) + decode-order POC + every frame vs
 // the .yuv oracle byte-exact + hand-clock play to Ended with zero drops,
@@ -324,7 +328,7 @@ func TestB1PlayToEnd(t *testing.T) {
 }
 
 // TestB1SeekFloor pins seek parity: SeekTo lands the floor covering frame
-// (last PTS <= target from the same S8 table plain clips use); the first
+// ; the first
 // frame shown after the seek carries a stamp >= the landing (the decoder
 // needs its reorder delay, same as plain clips), is monotonic with the
 // landing, and matches the oracle frame's pixels. ffmpeg -ss lands the

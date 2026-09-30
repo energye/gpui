@@ -1,8 +1,13 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
-// Package textutil provides shared text writing utilities for naga codegen backends.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // All three text backends (GLSL, HLSL, MSL) need indent-aware text writing.
 // This package extracts the common IndentWriter to eliminate duplication.
 package textutil

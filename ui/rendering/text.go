@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -42,8 +52,7 @@ type RenderText struct {
 	MaxWidth float64
 	// LineSpacing multiplier for wrapped lines (default 1.2).
 	LineSpacing float64
-	// Align for wrapped text (render.Align*); multi-line paint uses left for MVP.
-	Align render.Align
+	Align       render.Align
 	// MaxLines caps visible lines; 0 = unlimited.
 	MaxLines int
 	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
@@ -57,7 +66,7 @@ type RenderText struct {
 	// FontFamily is the last family string passed to SetFontFamily (diagnostics).
 	FontFamily string
 
-	// measureCache maps measureLine keys → width (R9). Invalidated on text/face/size change.
+	// measureCache maps measureLine keys → width. Invalidated on text/face/size change.
 	// Guarded by measureMu: layout (UI thread) and paint/record (raster
 	// thread) measure concurrently, and an unguarded map fatals the runtime.
 	measureMu    sync.Mutex
@@ -65,10 +74,10 @@ type RenderText struct {
 	measureHits  int64
 	measureMiss  int64
 
-	// textLayout is the single-source layout (R2). Nil = dirty.
+	// textLayout is the single-source layout. Nil = dirty.
 	textLayout *TextLayout
 
-	// lcache是行/段增量引擎(M1-d):单串路径经update增量重排,
+	// lcache是行/段增量引擎:单串路径经update增量重排,
 	// 多run路径仍走全量BuildRenderTextLayout.
 	lcache *layoutCache
 	// effFace是effectiveFace的记忆值:face 对象不可变,输入不变时
@@ -100,7 +109,7 @@ type RenderText struct {
 	// established, not trusted.
 	recordedEver bool
 	// viewportHintY bounds the visible row band for wrapped/multi-line text
-	// (M2 vertical culling). Unset = unbounded, paint skips no rows.
+	// . Unset = unbounded, paint skips no rows.
 	viewportScrollY  float64
 	viewportHeight   float64
 	hasViewportHintY bool
@@ -556,7 +565,7 @@ func (t *RenderText) SetViewportHint(scrollX, visW float64) {
 }
 
 // SetViewportRect extends SetViewportHint with a vertical band for
-// wrapped/multi-line text (M2 vertical culling). scrollY/visH bound the
+// wrapped/multi-line text. scrollY/visH bound the
 // visible rows; visH<=0 clears only the vertical band (horizontal hint kept).
 // Does not mark dirty.
 func (t *RenderText) SetViewportRect(scrollX, visW, scrollY, visH float64) {
@@ -602,7 +611,7 @@ func (t *RenderText) ResetMeasureCacheStats() {
 }
 
 // TreeMeasureCacheStats sums cumulative measure hit/miss over every RenderText
-// in the render tree (R9 measure_cache_hit sampling).
+// in the render tree.
 func TreeMeasureCacheStats(root RenderObject) (hits, misses int64) {
 	if root == nil {
 		return 0, 0
@@ -991,7 +1000,6 @@ func (t *RenderText) Paint(pc *PaintContext) {
 			if m, ok := t.Metrics(); ok && m.Ascent > 0 {
 				ascent = m.Ascent
 			}
-			// M2 纵向裁剪:只提交可见行带(+/-1 行护栏保半行),无 Y hint 时全画.
 			rowLo, rowHi := 0, lay.LineCount()
 			if t.hasViewportHintY {
 				rowLo, rowHi = visibleRowBandOf(lay, t.viewportScrollY, t.viewportHeight)
@@ -1007,7 +1015,7 @@ func (t *RenderText) Paint(pc *PaintContext) {
 				if face != nil && pc.DC != nil && i < lay.LineCount() {
 					glyphs := lay.LineGlyphs(i)
 					// Bulk submission needs a sourced face (outlines/atlas
-					// page); composite faces submit per-face partitions (M2).
+					// page); composite faces submit per-face partitions.
 					// Lines holding color runs bypass bulk: the mask atlas
 					// is outline-only, bulk submit would only hit the
 					// explicit refusal and fall back every frame.
@@ -1022,9 +1030,7 @@ func (t *RenderText) Paint(pc *PaintContext) {
 						ax, ay := pc.Abs(0, y)
 						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
 					} else if t.paintCompositeRuns(pc, lay, i, y, line) {
-						// M2 composite batch submitted per-face partitions.
 					} else if face.Source() == nil {
-						// M1-13: byteOff→X一次建表后O(1)查,不再每字线性扫Carets.
 						// caret为行内相对,键即相对偏移;range line的byteOff同为行内相对.
 						// 同包直读内部表(零拷贝),d5后外部统一走LineCarets.
 						xByOff := caretXByOffset(lay.lines[i].Carets)
@@ -1061,7 +1067,7 @@ func (t *RenderText) Paint(pc *PaintContext) {
 	t.clearPaintDirty()
 }
 
-// paintCompositeRuns submits a composite-face line in per-face batches (M2).
+// paintCompositeRuns submits a composite-face line in per-face batches.
 // Each run covers glyphs[Start:End] with its own sourced face; coordinates
 // stay glyph.X (I1 single source, same as the single-face path above).
 // The single-line viewport cull applies per partition. Reports false when the
@@ -1084,7 +1090,7 @@ func (t *RenderText) paintCompositeRuns(pc *PaintContext, lay *TextLayout, row i
 	for _, r := range runs {
 		part := glyphs[r.Start:r.End]
 		if r.IsColor {
-			// M5: color runs bypass the mask batch entirely (never stuffed
+			// color runs bypass the mask batch entirely (never stuffed
 			// into the mask atlas). Shaped color glyphs keep absolute
 			// glyph.X, so no rebase is needed (unlike pen-origin mask
 			// batches); off-screen parts are GPU-clipped, so no
@@ -1133,7 +1139,7 @@ func rebaseGlyphs(part []text.ShapedGlyph) (shifted []text.ShapedGlyph, off floa
 }
 
 // SubmittedGlyphEstimate returns the glyphs Paint would submit under the
-// current viewport hints (M2 observability, paints nothing). Unbounded (no
+// current viewport hints. Unbounded (no
 // hints) = every line's glyphs; with hints = the culled visible subset —
 // the same gates Paint uses, so the estimate tracks real submissions.
 // Coordinates are untouched (I3: culling only narrows submit range).
@@ -1142,7 +1148,7 @@ func (t *RenderText) SubmittedGlyphEstimate() int {
 		return 0
 	}
 	if t.hasRuns() {
-		// Multi-run rich text still paints per-rune (M5 domain); vertical
+		// Multi-run rich text still paints per-rune; vertical
 		// banding does not apply here, count all spans' runes.
 		total := 0
 		for _, ln := range t.layoutRunLines() {
@@ -1180,8 +1186,6 @@ func (t *RenderText) SubmittedGlyphEstimate() int {
 	return total
 }
 
-// SubmittedMaskGlyphEstimate mirrors SubmittedGlyphEstimate but excludes
-// IsColor runs: the glyphs that would enter the mask atlas (M5 color
 // observability). Color runs paint via the string color path and must not
 // be counted as mask load.
 func (t *RenderText) SubmittedMaskGlyphEstimate() int {
@@ -1283,8 +1287,6 @@ func visibleRunBand(tops []float64, lines []displayLine, scrollY, visH float64) 
 	return lo, hi
 }
 
-// TreeSubmittedGlyphEstimate sums SubmittedGlyphEstimate over every
-// RenderText in the tree (M2 window-level O(V) observability).
 func TreeSubmittedGlyphEstimate(root RenderObject) int {
 	if root == nil {
 		return 0
@@ -1306,7 +1308,7 @@ func TreeSubmittedGlyphEstimate(root RenderObject) int {
 	return total
 }
 
-// caretXByOffset把行内caret表建成byteOff→X索引(M1-13):建表O(n)一次,
+// caretXByOffset把行内caret表建成byteOff→X索引:建表O(n)一次,
 // 之后每字O(1)查.调用方复用,勿每字重建.首个caret胜出(与旧线性扫首命中一致).
 func caretXByOffset(carets []GlyphCaret) map[int]float64 {
 	xByOff := make(map[int]float64, len(carets))

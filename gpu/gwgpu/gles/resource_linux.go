@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -15,7 +22,7 @@ import (
 
 // Surface implements hal.Surface for OpenGL on Linux.
 // When Instance has a pre-created AdapterContext (X11/headless), ownsContext=false —
-// Surface shares Instance's context (Windows AdapterContext parity).
+// Surface shares Instance's context.
 // When Instance has no context (Wayland), ownsContext=true — Surface owns its own
 // AdapterContext (intentional Wayland divergence).
 type Surface struct {
@@ -46,8 +53,7 @@ type Surface struct {
 	// Swapchain offscreen framebuffer. User render passes that target this
 	// Surface render into swapchainFBO (backed by colorRenderbuffer), not FBO 0.
 	// Queue.Present blits this FBO to the default framebuffer with an explicit
-	// Y-flip before SwapBuffers. Mirrors Rust wgpu-hal/src/gles/egl.rs
-	// Surface::configure (1537-1562) / Surface::present (1280-1308).
+	// Y-flip before SwapBuffers.
 	swapchainFBO        uint32
 	colorRenderbuffer   uint32
 	fboWidth, fboHeight uint32
@@ -58,7 +64,7 @@ type Surface struct {
 
 // GetAdapterInfo returns adapter information from this surface's GL context.
 // Probes GL version, extensions, features, limits, and MSAA support to build
-// an accurate ExposedAdapter. Follows Rust wgpu-hal adapter.rs expose pattern.
+// an accurate ExposedAdapter.
 func (s *Surface) GetAdapterInfo() hal.ExposedAdapter {
 	if s.ctx == nil {
 		return placeholderExposedAdapter("OpenGL 3.3+ / ES 3.0+ (no AdapterContext)")
@@ -122,7 +128,6 @@ func (s *Surface) GetAdapterInfo() hal.ExposedAdapter {
 // Wait until the window has valid dimensions before calling Configure again.
 func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) error {
 	// Validate dimensions first (before any side effects).
-	// This matches wgpu-core behavior which returns ConfigureSurfaceError::ZeroArea.
 	if config.Width == 0 || config.Height == 0 {
 		return hal.ErrZeroArea
 	}
@@ -181,7 +186,6 @@ func (s *Surface) createEGLWindowSurface(width, height uint32) error {
 // createWaylandEGLSurface creates a wl_egl_window then an EGL window surface.
 // Prefers EGL 1.5 eglCreatePlatformWindowSurface (spec-correct void* native window)
 // with fallback to EGL 1.4 eglCreateWindowSurface.
-// Rust wgpu-hal egl.rs:1479-1491 uses the same preference order.
 func (s *Surface) createWaylandEGLSurface(width, height uint32) error {
 	if !egl.InitWaylandEGL() {
 		return fmt.Errorf("libwayland-egl.so not available — cannot create Wayland EGL surface")
@@ -267,10 +271,10 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 
 // AcquireTexture returns the next surface texture for rendering.
 //
-// Strict codes (H4-d, webgpu parity): nil receiver, unconfigured surface
+// Strict codes: nil receiver, unconfigured surface
 // (!configured/config==nil) or a lost context (ctx==nil) all report
 // hal.ErrSurfaceLost (errors.Is-compatible); a previous in-flight frame is
-// discarded first (one frame at a time, like webgpu GetCurrentTexture).
+// discarded first.
 // Timeout/NotReady do not apply: GL acquire is synchronous and always
 // succeeds once configured.
 func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error) {

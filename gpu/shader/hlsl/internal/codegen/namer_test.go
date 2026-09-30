@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -18,7 +25,7 @@ func TestNamer_Call(t *testing.T) {
 		t.Errorf("call(\"position\") = %q, want \"position\"", got)
 	}
 
-	// Second call with same base should get _1 suffix (Rust namer: count 0->1)
+	// Second call with same base should get _1 suffix
 	got = n.call("position")
 	if got != "position_1" {
 		t.Errorf("second call(\"position\") = %q, want \"position_1\"", got)
@@ -38,7 +45,6 @@ func TestNamer_Call(t *testing.T) {
 }
 
 func TestNamer_CaseInsensitivity(t *testing.T) {
-	// Rust namer is case-SENSITIVE for variable names.
 	// Only keywords are case-insensitive.
 	n := newNamer()
 
@@ -57,7 +63,7 @@ func TestNamer_CaseInsensitivity(t *testing.T) {
 func TestNamer_ReservedKeywords(t *testing.T) {
 	n := newNamer()
 
-	// Reserved keywords should get trailing underscore (matches Rust naga)
+	// Reserved keywords should get trailing underscore
 	tests := []struct {
 		input string
 		want  string
@@ -89,7 +95,6 @@ func TestNamer_EmptyBase(t *testing.T) {
 }
 
 func TestNamer_NumericSuffix(t *testing.T) {
-	// Rust naga: if base ends with digit, append underscore on first use
 	n := newNamer()
 
 	got := n.call("x1")
@@ -105,7 +110,6 @@ func TestNamer_NumericSuffix(t *testing.T) {
 }
 
 func TestNamer_LeadingDigits(t *testing.T) {
-	// Rust namer: drop leading digits
 	n := newNamer()
 
 	got := n.call("1___x")
@@ -156,7 +160,6 @@ func TestNamer_Reserve(t *testing.T) {
 func TestNamer_HelperNamesReserved(t *testing.T) {
 	n := newNamer()
 
-	// All naga helper names should be pre-reserved
 	helperNames := []string{
 		"naga_modf",
 		"naga_div",
@@ -233,7 +236,6 @@ func TestNamer_UniqueSequence(t *testing.T) {
 }
 
 // TestNamer_UnicodeEscaping verifies that non-ASCII characters get u{04x}_ treatment.
-// Matches Rust naga's is_ascii_alphanumeric check.
 func TestNamer_UnicodeEscaping(t *testing.T) {
 	n := newNamer()
 

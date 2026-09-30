@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -87,8 +97,6 @@ type SurfaceCapabilities struct {
 //
 // The preferred format is obtained from navigator.gpu.getPreferredCanvasFormat()
 // and placed first in the formats list.
-//
-// Matches Rust wgpu SurfaceInterface::get_capabilities for WebSurface.
 func (a *Adapter) GetSurfaceCapabilities(surface *Surface) *SurfaceCapabilities {
 	// Browser WebGPU supports these three formats per spec:
 	// https://gpuweb.github.io/gpuweb/#supported-context-formats
@@ -98,7 +106,7 @@ func (a *Adapter) GetSurfaceCapabilities(surface *Surface) *SurfaceCapabilities 
 		types.TextureFormatRGBA16Float,
 	}
 
-	// Put the preferred format first (Rust wgpu does the same swap).
+	// Put the preferred format first.
 	if surface != nil && surface.browser != nil {
 		preferredStr := surface.browser.GetPreferredCanvasFormat()
 		preferredFmt := browser.TextureFormatFromJS(preferredStr)

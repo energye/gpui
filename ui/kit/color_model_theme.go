@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit
 
 import (
@@ -33,8 +43,6 @@ func ResolveColorModel(seed theme.Tokens) ColorModelResolved {
 	}
 }
 
-// Trigger swatch sizes per tier (color-picker.md §6.2.1):
-// small 16, middle 24, large 32.
 const (
 	ColorModelSwatchSmall  = 16.0
 	ColorModelSwatchMedium = 24.0

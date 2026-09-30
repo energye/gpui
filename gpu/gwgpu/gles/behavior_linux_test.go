@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -14,11 +21,6 @@ import (
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/hal"
 )
-
-// H4-b3 行为差异单测（GL Linux 侧）：提交索引递增、围栏回填 Poll、
-// 映射往返。零 EGL 上下文（NewAdapterContext(nil, &gl.Context{}, false)）
-// 即可跑：Lock 短路返回空函数表，Flush/Finish 是空操作（ffi 层吞掉），
-// 围栏无驱动能力时退化成记数器。
 
 // h4b3BadCmd 充当错类型命令缓冲：满足 hal.CommandBuffer 接口但不是
 // *CommandBuffer，Submit 必须拒收且不推进索引。
@@ -50,7 +52,7 @@ func TestH4B3_GlesSubmitIndexIncrements(t *testing.T) {
 	if got := q.LastSubmissionIndex(); got != 3 {
 		t.Fatalf("LastSubmissionIndex() = %d, want 3", got)
 	}
-	// 无围栏时 Poll 返回已提交最大值（对照 webgpu Queue.Poll 恒 0）。
+	// 无围栏时 Poll 返回已提交最大值。
 	if got := q.Poll(); got != 3 {
 		t.Fatalf("Poll() without fence = %d, want 3", got)
 	}

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -19,7 +29,7 @@ func TestOpt35_FilterPassUniformSlotStride_Aligned(t *testing.T) {
 }
 
 // TestOpt35_FilterPassUniformSlab_OneWriteForMultiPassBlur packs H+V blur
-// (2 passes) into one slab WriteBuffer (class A opt35).
+// (2 passes) into one slab WriteBuffer.
 func TestOpt35_FilterPassUniformSlab_OneWriteForMultiPassBlur(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")

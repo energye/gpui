@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gestures
 
 import "github.com/energye/gpui/ui/input"
@@ -8,9 +18,6 @@ import "github.com/energye/gpui/ui/input"
 //
 //	ID = 0 → mouse primary cursor
 //	ID ≥ 1 → touch slot (multi-touch)
-//
-// (Plan §5: gestures consume input.PointerEvent; the old platform-derived
-// FromPlatform/EffectivePointerID helpers are gone.)
 type PointerEvent = input.PointerEvent
 
 // FromInput extracts a PointerEvent from a normalized input event.

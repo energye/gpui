@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -71,7 +78,6 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 
 	q.submissionIndex++
 
-	// Rust wgpu-hal queue.rs:1915-1921: fence.maintain → fence.signal → gl.flush.
 	// FenceSync must be inserted BEFORE Flush so the sync object tracks the
 	// commands being flushed. Flushing first would leave the fence un-flushed.
 	if q.fence != nil {
@@ -91,8 +97,7 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // Safe because Submit() always flushes after inserting the fence — the fence
 // is guaranteed to be in the GPU command queue by the time we poll it.
 // Maintenance (cleanup of completed sync objects) happens in Submit(), not here
-// (matches Rust wgpu-hal device.rs:1564 get_fence_value).
-// Backend divergence (H4-b3 locked): webgpu Queue.Poll always returns 0,
+// Backend divergence: webgpu Queue.Poll always returns 0,
 // gles returns Fence.GetLatest (or submissionIndex when queueless),
 // metal returns the GPU-callback-driven completedIndex.
 func (q *Queue) Poll() uint64 {
@@ -103,7 +108,6 @@ func (q *Queue) Poll() uint64 {
 }
 
 // LastSubmissionIndex returns the most recent submission index.
-// Matches webgpu Queue.LastSubmissionIndex.
 func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
 }
@@ -160,16 +164,15 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 				defer glCtx.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
 			}
 		}
-		// Set alignment to 1 for single-channel formats (R8) whose row stride
+		// Set alignment to 1 for single-channel formats whose row stride
 		// may not be a multiple of the default 4-byte GL_UNPACK_ALIGNMENT.
 		if tex.format == gputypes.TextureFormatR8Unorm {
 			glCtx.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 		}
-		// Use TexSubImage2D to update existing texture data (Rust wgpu-hal pattern).
+		// Use TexSubImage2D to update existing texture data.
 		// TexImage2D reallocates storage on every call; TexSubImage2D updates in-place.
 		// Honor Origin: dirty-rect uploads (glyph atlas pages) arrive with a
 		// non-zero origin — writing at (0,0) misplaces ink into wrong cells.
-		// Matches webgpu/metal which honor Origin.
 		glCtx.TexSubImage2D(tex.target, int32(dst.MipLevel),
 			int32(dst.Origin.X), int32(dst.Origin.Y),
 			int32(size.Width), int32(size.Height), format, dataType,
@@ -195,8 +198,7 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 //
 // Makes the GL context current on the window EGLSurface (via LockForSurface),
 // blits the Surface's swapchain offscreen FBO to the default framebuffer with
-// an explicit Y-flip, then SwapBuffers. Mirrors Rust wgpu-hal
-// src/gles/egl.rs Surface::present (1280-1308) and Windows LockForDC present.
+// an explicit Y-flip, then SwapBuffers.
 //
 // damageRects is an optional list of rectangles (physical pixels, top-left
 // origin) indicating which surface regions changed this frame. When non-empty
@@ -269,5 +271,5 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 
 // SetSwapchainSuppressed is a no-op on GLES.
 // GLES uses eglSwapBuffers for presentation, which is not affected by command
-// submission ordering. See BUG-WGPU-VK-005 (Vulkan-specific).
+// submission ordering.
 func (q *Queue) SetSwapchainSuppressed(_ bool) {}

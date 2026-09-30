@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import "unsafe"
@@ -5,8 +15,6 @@ import "unsafe"
 // MappedRange provides safe access to a mapped buffer region.
 // Obtained via [Buffer.MappedRange] after a successful [Buffer.Map] or
 // [Buffer.MapAsync]. The data slice is invalidated by [Buffer.Unmap].
-//
-// Matches gogpu/wgpu MappedRange.
 type MappedRange struct {
 	data   unsafe.Pointer
 	size   uint64
@@ -54,8 +62,6 @@ func (m *MappedRange) Offset() uint64 {
 // The buffer must be in the Mapped state ([Buffer.Map] or [Buffer.MapAsync]
 // resolved to success). The returned MappedRange.Bytes() slice is invalidated
 // by [Buffer.Unmap].
-//
-// Matches gogpu/wgpu Buffer.MappedRange(offset, size) (*MappedRange, error).
 func (b *Buffer) MappedRange(offset, size uint64) (*MappedRange, error) {
 	if b == nil || b.handle == 0 {
 		return nil, &WGPUError{Op: "Buffer.MappedRange", Message: "buffer is nil or released"}

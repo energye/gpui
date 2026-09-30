@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -22,9 +32,7 @@ func TestConcurrentInit(t *testing.T) {
 // TestMultipleAdapterRequests validates repeated RequestAdapter on one Instance.
 //
 // Concurrent RequestAdapter on the same Instance is NOT safe on some native
-// backends (observed: wgpu-hal GLES egl BadAccess abort under purego). S1 gate
-// therefore exercises serial multi-request; optional concurrent stress is
-// behind RWGPU_CONCURRENT_STRESS=1.
+// backends.
 func TestMultipleAdapterRequests(t *testing.T) {
 	inst, err := CreateInstance(nil)
 	if err != nil {

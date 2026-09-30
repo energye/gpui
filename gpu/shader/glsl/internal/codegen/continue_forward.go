@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -11,8 +18,6 @@ import "fmt"
 // Unlike HLSL (where ALL switches need continue forwarding because FXC rejects
 // continue in switch), GLSL only needs this for switches rendered as do-while loops.
 // Regular GLSL switches can handle continue natively.
-//
-// Matches Rust naga's back::continue_forward::ContinueCtx (GLSL usage).
 type continueCtx struct {
 	stack []nesting
 }

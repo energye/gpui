@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 // FontFeature enables or disables an OpenType font feature.
@@ -16,8 +26,8 @@ type FontFeature struct {
 //
 // Example:
 //
-//	tnum := text.NewFontFeature("tnum", 1)  // enable tabular nums
-//	liga := text.NewFontFeature("liga", 0)  // disable ligatures
+//	tnum := text.NewFontFeature("tnum", 1) // enable tabular nums
+//	liga := text.NewFontFeature("liga", 0) // disable ligatures
 func NewFontFeature(tag string, value uint32) FontFeature {
 	if len(tag) != 4 {
 		panic("text.NewFontFeature: tag must be exactly 4 bytes, got " + tag)

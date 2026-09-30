@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -12,9 +22,6 @@ import (
 
 // Surface represents a platform rendering surface.
 // On browser, this wraps an HTMLCanvasElement + GPUCanvasContext.
-//
-// Matches Rust wgpu WebSurface which holds a Canvas enum, a GpuCanvasContext,
-// and an optional Gpu reference.
 type Surface struct {
 	browser  *browser.Surface
 	device   *Device
@@ -31,9 +38,6 @@ type Surface struct {
 // is 0, the first <canvas> element in the document is used.
 //
 // For direct js.Value canvas access, use CreateSurfaceFromCanvas instead.
-//
-// Matches Rust wgpu InstanceInterface::create_surface for WebSurface which
-// uses RawWindowHandle::Web to query the DOM by data-raw-handle attribute.
 func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface, error) {
 	if i.released {
 		return nil, ErrReleased
@@ -47,7 +51,7 @@ func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface,
 		// Default: use the first <canvas> in the document.
 		canvas = doc.Call("querySelector", "canvas")
 	} else {
-		// Lookup by data-raw-handle attribute (Rust wgpu convention).
+		// Lookup by data-raw-handle attribute.
 		selector := fmt.Sprintf("[data-raw-handle=\"%d\"]", windowHandle)
 		canvas = doc.Call("querySelector", selector)
 	}
@@ -64,9 +68,6 @@ func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface,
 // This is the browser-specific entry point that accepts a direct canvas
 // reference (HTMLCanvasElement or OffscreenCanvas). Use this when you have
 // a canvas js.Value from JavaScript interop.
-//
-// Matches Rust wgpu's SurfaceTarget::Canvas variant which takes an
-// HtmlCanvasElement directly.
 func (i *Instance) CreateSurfaceFromCanvas(canvas js.Value) (*Surface, error) {
 	if i.released {
 		return nil, ErrReleased
@@ -90,8 +91,6 @@ func (i *Instance) createSurfaceFromCanvas(canvas js.Value) (*Surface, error) {
 // calls GPUCanvasContext.configure() with the device, format, usage, and alpha mode.
 //
 // On browser, PresentMode is ignored (browser always uses FIFO / VSync).
-//
-// Matches Rust wgpu SurfaceInterface::configure for WebSurface.
 func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error {
 	if s.released {
 		return ErrReleased
@@ -103,7 +102,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		return fmt.Errorf("wgpu: device is nil")
 	}
 
-	// Validate present mode (Rust wgpu panics on Mailbox/Immediate on web).
+	// Validate present mode.
 	switch config.PresentMode {
 	case PresentModeMailbox, PresentModeImmediate:
 		return fmt.Errorf("wgpu: present mode %v not supported on browser; only Fifo is supported", config.PresentMode)
@@ -140,8 +139,6 @@ func (s *Surface) Unconfigure() {
 // Returns the surface texture and whether the surface is suboptimal (always
 // false on browser). The texture is automatically presented when the command
 // buffer using it is submitted and control returns to the browser event loop.
-//
-// Matches Rust wgpu SurfaceInterface::get_current_texture for WebSurface.
 func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s.released {
 		return nil, false, ErrReleased
@@ -166,8 +163,7 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 // Present presents a surface texture to the screen.
 //
 // On browser, this is a NO-OP. The swapchain is presented automatically when
-// control returns to the browser event loop. This matches Rust wgpu where
-// WebSurfaceOutputDetail::present() is an empty function.
+// control returns to the browser event loop.
 func (s *Surface) Present(_ *SurfaceTexture) error {
 	// No-op on browser. Presentation is automatic.
 	return nil
@@ -194,7 +190,6 @@ func (s *Surface) ActualExtent() (width, height uint32) {
 //
 // On browser, this is a NO-OP. The browser does not support discarding a
 // surface texture -- it will be presented regardless when the event loop runs.
-// Matches Rust wgpu where WebSurfaceOutputDetail::texture_discard() is a no-op.
 func (s *Surface) DiscardTexture() {
 	// No-op on browser. Cannot discard the texture.
 }

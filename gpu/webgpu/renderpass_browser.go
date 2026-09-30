@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -20,7 +30,7 @@ func (p *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
 }
 
 // SetBindGroup sets a bind group for the given index.
-// Passing group == nil unsets the bind group (WebGPU allows null GPUBindGroup).
+// Passing group == nil unsets the bind group.
 func (p *RenderPassEncoder) SetBindGroup(index uint32, group *BindGroup, offsets []uint32) {
 	if p == nil || p.browser == nil {
 		return

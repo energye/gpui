@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Copyright 2026 The gogpu Authors
@@ -22,7 +32,7 @@ import (
 // =============================================================================
 //
 // These tests render the same scene on two different renderers and compare
-// pixel output. Following Vello's compare_gpu_cpu.rs pattern:
+// pixel output.
 //
 //   - Render identical scene on both paths
 //   - Compare with mean absolute pixel difference
@@ -31,15 +41,13 @@ import (
 //
 // Two test suites:
 //
-//  1. TestGoldenSoftware_CPUSDFvsCPU — compares CPU SDF (the software adapter
+//  1.
 //     fallback path from BUG-SW-002) against pure CPU AnalyticFiller. This
 //     validates that the software adapter routing produces correct output.
 //
 //  2. TestGoldenSoftware_GPUComputeVsCPU — compares GPU compute pipeline
 //     (Vello 10-stage) against CPU reference. Skips without GPU hardware.
 //
-// Reference: vello/vello_tests/tests/compare_gpu_cpu.rs
-//            vello/vello_tests/src/compare.rs
 
 // goldenSoftwareTest defines a rendering comparison test case.
 type goldenSoftwareTest struct {
@@ -135,9 +143,7 @@ func goldenSoftwareTests() []goldenSoftwareTest {
 }
 
 // TestGoldenSoftware_CPUSDFvsCPU compares CPU SDF accelerator output against
-// pure CPU AnalyticFiller output. This validates the BUG-SW-002 software adapter
-// routing: when a software adapter is detected, shapes are routed to the CPU
-// SDF accelerator instead of hanging on the GPU.
+// pure CPU AnalyticFiller output.
 //
 // The CPU SDF accelerator handles circles, ellipses, and rounded rects via
 // per-pixel signed distance fields. Other shapes fall back to AnalyticFiller.
@@ -246,7 +252,7 @@ func renderWithCPU(tc goldenSoftwareTest) *image.RGBA {
 }
 
 // renderWithCPUSDF renders a test scene using render.Context with the CPU SDF
-// accelerator. This simulates the software adapter fallback path (BUG-SW-002):
+// accelerator. This simulates the software adapter fallback path:
 // circles and rounded rects go through SDF, other shapes fall back to
 // AnalyticFiller via ErrFallbackToCPU.
 func renderWithCPUSDF(tc goldenSoftwareTest) *image.RGBA {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package stroke provides stroke expansion algorithms for converting stroked paths to filled outlines.
 //
 // This package implements CPU-side stroke expansion following tiny-skia and kurbo patterns.
@@ -32,9 +42,9 @@
 // # Usage
 //
 //	style := stroke.Stroke{
-//	    Width:      2.0,
-//	    Cap:        stroke.LineCapRound,
-//	    Join:       stroke.LineJoinMiter,
+//	    Width: 2.0,
+//	    Cap: stroke.LineCapRound,
+//	    Join: stroke.LineJoinMiter,
 //	    MiterLimit: 4.0,
 //	}
 //
@@ -54,10 +64,6 @@
 //   - Cubic curves are flattened to line segments based on tolerance
 //
 // # References
-//
-// The algorithm is based on:
-//   - tiny-skia (Rust): path/src/stroker.rs
-//   - kurbo (Rust): src/stroke.rs
 //
 // See GPU-STK-001 in docs/dev/kanban/ for the full task specification.
 package stroke

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -45,7 +52,6 @@ func (w *Writer) resolveExternalTextureBinding(rb *ir.ResourceBinding) *External
 
 // writeGlobalExternalTexture writes the decomposed global declarations for an external texture.
 // Instead of a single Texture2D, it writes 3 plane textures and a params cbuffer.
-// Matches Rust naga's write_global_external_texture.
 func (w *Writer) writeGlobalExternalTexture(gvHandle ir.GlobalVariableHandle, gv *ir.GlobalVariable) {
 	binding := w.resolveExternalTextureBinding(gv.Binding)
 	if binding == nil {
@@ -134,7 +140,6 @@ func (w *Writer) writeExternalTextureFuncArgExpression(funcHandle ir.FunctionHan
 
 // writeExternalTextureHelpers writes the nagaTextureSampleBaseClampToEdge,
 // nagaTextureLoadExternal, and NagaExternalDimensions2D helper functions.
-// These are massive helper functions matching Rust naga's output exactly.
 func (w *Writer) writeExternalTextureSampleHelper() {
 	if w.externalTextureSampleHelperWritten {
 		return

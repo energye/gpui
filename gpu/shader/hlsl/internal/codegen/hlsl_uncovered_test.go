@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -1817,8 +1824,6 @@ func TestWriteHeader(t *testing.T) {
 	w.writeHeader()
 	out := w.String()
 
-	// writeHeader is a no-op to match Rust naga — just verify it doesn't crash
-	// and doesn't add unexpected content
 	if strings.Contains(out, "//") {
 		t.Error("writeHeader should be a no-op (Rust naga emits no header)")
 	}

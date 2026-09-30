@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -84,8 +94,6 @@ func TestS65_PresentListScroll_NoRegress(t *testing.T) {
 	st := text.ShapeResultCacheStats()
 	t.Logf("S6.5 list-scroll present p50=%.2fms budget=%.2f shapeHits=%d misses=%d entries=%d",
 		p50, budget, st.Hits, st.Misses, st.Entries)
-	// opt24/R7.5 layout template short-circuits reshape: shape Hits may stay 0
-	// while Misses remains near unique-row count (not frame_count*rows).
 	if st.Hits < 1 && st.Misses > uint64(len(rows)) {
 		t.Fatalf("expected shape/layout reuse after scroll frames, %+v", st)
 	}
@@ -95,7 +103,6 @@ func TestS65_PresentListScroll_NoRegress(t *testing.T) {
 }
 
 func TestS65_L0_HelpersStillGreen(t *testing.T) {
-	// Keep S6 L0 smoke linked to text path.
 	p1RequireGPU(t)
 	const w, h = 128, 96
 	dc := render.NewContext(w, h)

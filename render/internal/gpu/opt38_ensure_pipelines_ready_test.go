@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -12,7 +22,7 @@ import (
 )
 
 // TestOpt38_EnsurePipelines_ReadyFastPath skips full ensure on warm frames
-// (class A opt38). Second ensurePipelines call must report lastEnsurePipelines=0.
+// . Second ensurePipelines call must report lastEnsurePipelines=0.
 func TestOpt38_EnsurePipelines_ReadyFastPath(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")

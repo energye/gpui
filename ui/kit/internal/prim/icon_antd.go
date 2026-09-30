@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package prim
 
 import (
@@ -9,8 +19,6 @@ import (
 	"github.com/energye/gpui/ui/theme"
 )
 
-// Official antd icon library (1:1): all 848 icons from
-// @ant-design/icons-svg 4.6.0, viewBox 64 64 896 896.
 // Data lives in icon_antd_paths.go (generated); this file parses
 // once, caches, and paints through rendering.FillPath.
 

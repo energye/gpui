@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -7,7 +17,6 @@ import (
 	"github.com/energye/gpui/ui/scene"
 )
 
-// S2 gate (headless): spinner phase updates must not layout; dirty layers == 1.
 func TestS2_Spinner_DirtyLayerAndNoLayout(t *testing.T) {
 	scene.ResetLayerIDGen()
 	spin := rendering.NewRenderSpinner(24)
@@ -57,7 +66,6 @@ func TestS2_Spinner_DirtyLayerAndNoLayout(t *testing.T) {
 	}
 }
 
-// S4 gate: complex static tree + one spinner; static re-raster skipped.
 func TestS4_StaticTree_SpinnerOnlyRaster(t *testing.T) {
 	scene.ResetLayerIDGen()
 	spin := rendering.NewRenderSpinner(20)

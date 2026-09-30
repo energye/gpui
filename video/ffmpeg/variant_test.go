@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -7,8 +17,6 @@ import (
 	"testing"
 )
 
-// 版本装载门禁：默认基础版，GPUI_FFMPEG_VARIANT=full 才进高级版，
-// GPUI_FFMPEG_PATH 直接指文件时指哪找哪。
 // 大白话：不断言库文件在不在（高级版 so 还没编出来），只断言选路逻辑对。
 func TestVariantRouting(t *testing.T) {
 	// 默认：基础版旧名。

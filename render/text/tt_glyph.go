@@ -1,21 +1,26 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — per-glyph outline for hinting.
 //
-// Port of skrifa glyf/mod.rs (glyph loading with phantom points).
 // Loads raw contour points, appends phantom points, scales to 26.6,
 // and prepares the outline for the TT bytecode interpreter.
 //
 // Phantom points encode glyph metrics:
 //
-//	[0] left side bearing origin  (xMin - lsb, 0)
-//	[1] advance width endpoint    (phantom[0].x + advance, 0)
-//	[2] top side bearing          (0, yMax + tsb)
+//	[0] left side bearing origin (xMin - lsb, 0)
+//	[1] advance width endpoint (phantom[0].x + advance, 0)
+//	[2] top side bearing (0, yMax + tsb)
 //	[3] vertical advance endpoint (0, phantom[2].y - vadvance)
 //
 // After hinting, the hinted advance = phantom[1].x - phantom[0].x.
-//
-// Reference: skrifa glyf/mod.rs:529-549 (setup_phantom_points)
-// Reference: skrifa glyf/mod.rs:584-782 (load_simple)
-// Reference: FreeType ttgload.c:1365 (phantom point computation)
 package text
 
 import (
@@ -27,10 +32,6 @@ import (
 // ttGlyphOutline holds the per-glyph data needed for TT bytecode hinting.
 // It includes the outline points (plus 4 phantom points), contour endpoints,
 // glyph instructions, and scratch buffers for the interpreter.
-//
-// This matches the data passed to skrifa's HintOutline struct.
-//
-// Reference: skrifa hint/mod.rs:30-47 (HintOutline)
 type ttGlyphOutline struct {
 	// unscaled contains point coordinates in font units, stored as flat
 	// (x, y) pairs: [x0, y0, x1, y1, ...]. Length = 2 * (numPoints + 4).
@@ -67,8 +68,6 @@ type ttGlyphOutline struct {
 
 // hintedAdvance returns the hinted horizontal advance from the phantom
 // points in 26.6 fixed-point. This is computed as phantom[1].x - phantom[0].x.
-//
-// Reference: skrifa glyf/mod.rs ScaledOutline::advance_width
 func (o *ttGlyphOutline) hintedAdvance() int32 {
 	return o.phantoms[1][0] - o.phantoms[0][0]
 }
@@ -202,11 +201,6 @@ func newTTGlyphLoader(fontData []byte, font *ttFontProgram) (*ttGlyphLoader, err
 //
 // The scale parameter is in 16.16 fixed-point (ppem * 64 * 65536 / upem).
 //
-// Reference: skrifa glyf/mod.rs:584-782 (load_simple)
-// Reference: skrifa glyf/mod.rs:556-582 (load_empty — phantom-only scaling)
-// Reference: skrifa glyf/mod.rs:784-960 (load_composite)
-// Reference: FreeType ttgload.c:1555-1608 (empty glyph shortcut)
-//
 //nolint:nilnil // nil result = "no outline data", not an error
 func (l *ttGlyphLoader) loadGlyphOutline(glyphID uint16, scale int32) (*ttGlyphOutline, error) {
 	if int(glyphID) >= len(l.glyfOff) {
@@ -296,14 +290,6 @@ func (l *ttGlyphLoader) loadGlyphOutline(glyphID uint16, scale int32) (*ttGlyphO
 	advance, lsb := l.glyphMetrics(glyphID)
 
 	// Compute phantom points (in font units).
-	// Matches FreeType / skrifa phantom point layout:
-	//   [0] = (xMin - lsb, 0)             — horizontal origin
-	//   [1] = (phantom[0].x + advance, 0)  — horizontal advance
-	//   [2] = (0, yMax + tsb)              — vertical origin (= ascent)
-	//   [3] = (0, phantom[2].y - vadvance) — vertical advance (= descent)
-	// where tsb = ascent - yMax, vadvance = ascent - descent.
-	// Reference: skrifa glyf/mod.rs:529-549 (setup_phantom_points)
-	// Reference: FreeType ttgload.c:1365
 	var phantomFU [ttPhantomPointCount][2]int32
 	ascent := int32(l.font.os2Ascender)
 	descent := int32(l.font.os2Descender)
@@ -335,9 +321,6 @@ func (l *ttGlyphLoader) loadGlyphOutline(glyphID uint16, scale int32) (*ttGlyphO
 		outline.unscaled[i*2+1] = y
 
 		// Scale font units to 26.6 via rounded 16.16 multiply.
-		// Matches skrifa Scale26Dot6::apply() which uses Fixed::mul (rounded).
-		// Reference: skrifa glyf/mod.rs:399-401 (apply)
-		// Reference: font-types/src/fixed.rs:189-192 (Fixed::mul)
 		sx := ttMul16Dot16(x, scale)
 		sy := ttMul16Dot16(y, scale)
 		outline.original[i] = [2]int32{sx, sy}
@@ -364,7 +347,6 @@ func (l *ttGlyphLoader) loadGlyphOutline(glyphID uint16, scale int32) (*ttGlyphO
 		// Phantom points are off-curve; flags = 0 (already zero-initialized).
 
 		// Round phantom points for hinting (FreeType pattern).
-		// Reference: skrifa glyf/mod.rs:736-739
 		outline.points[idx][0] = ttRound26Dot6(sx)
 		outline.points[idx][1] = ttRound26Dot6(sy)
 	}
@@ -382,8 +364,6 @@ func (l *ttGlyphLoader) loadGlyphOutline(glyphID uint16, scale int32) (*ttGlyphO
 // each component, applying transforms/offsets, and merging into a single
 // ttGlyphOutline. Entry point: seeds cycle-detection map (pre-marked with
 // own ID) and work budget for loadCompositeGlyphOutlineGuarded.
-//
-// Reference: skrifa glyf/mod.rs:784-960 (load_composite)
 func (l *ttGlyphLoader) loadCompositeGlyphOutline(glyphID uint16, scale int32, data []byte, depth int) (*ttGlyphOutline, error) {
 	visiting := map[uint16]bool{glyphID: true}
 	budget := new(int)
@@ -451,7 +431,6 @@ func (l *ttGlyphLoader) loadCompositeGlyphOutlineGuarded(glyphID uint16, scale i
 			if comp.hasTransform {
 				// Apply F2.14 transform in 26.6 space.
 				// F2.14 * 26.6 → result needs >>14 to stay in 26.6.
-				// Matches skrifa load_composite transform application.
 				newSX := (int64(sx)*int64(comp.xx) + int64(sy)*int64(comp.xy) + (1 << 13)) >> 14
 				newSY := (int64(sx)*int64(comp.yx) + int64(sy)*int64(comp.yy) + (1 << 13)) >> 14
 				sx = int32(newSX)
@@ -615,8 +594,6 @@ func (l *ttGlyphLoader) loadGlyphOutlineRecursive(glyphID uint16, scale int32, d
 // When variations is nil or empty, this produces identical output to
 // loadGlyphOutline (no deltas applied).
 //
-// Reference: skrifa glyf/mod.rs:584-782 (load_simple with gvar)
-//
 //nolint:nilnil // nil result = "no simple outline", not an error
 func (l *ttGlyphLoader) loadGlyphOutlineVar(
 	glyphID uint16,
@@ -636,7 +613,7 @@ func (l *ttGlyphLoader) loadGlyphOutlineVar(
 	off := l.glyfOff[glyphID]
 	if off.length == 0 {
 		// Empty glyph with variations: apply gvar phantom deltas, then
-		// scale and round. Matches skrifa load_empty (glyf/mod.rs:556-582).
+		// scale and round.
 		return l.loadEmptyGlyphOutlineVar(glyphID, scale, font, variations), nil
 	}
 
@@ -730,7 +707,6 @@ func (l *ttGlyphLoader) loadGlyphOutlineVar(
 	totalPoints := numPoints + ttPhantomPointCount
 
 	// Build points array for gvar: [x, y] pairs including phantom points.
-	// This matches the structure used by ownParsedFont.applyVariations.
 	gvarPoints := make([][2]int32, totalPoints)
 	for i := range numPoints {
 		gvarPoints[i] = [2]int32{int32(xCoords[i]), int32(yCoords[i])}
@@ -806,10 +782,7 @@ func (l *ttGlyphLoader) loadGlyphOutlineVar(
 // advances — the phantom points encode the advance width.
 //
 // When TT hinting is active, phantom points are rounded to the pixel grid,
-// producing integer-pixel advances. This matches FreeType and skrifa behavior:
-//   - FreeType ttgload.c:1555-1608: scales phantom points for empty glyphs
-//   - skrifa glyf/mod.rs:556-582 (load_empty): scales phantom points
-//   - skrifa glyf/mod.rs:762-773: rounds phantoms when hinting active
+// producing integer-pixel advances.
 //
 // For empty glyphs, bounds are [0,0,0,0], so phantom[0] = (0-lsb, 0) and
 // phantom[1] = (phantom[0]+advance, 0). After scaling+rounding, the advance
@@ -820,8 +793,6 @@ func (l *ttGlyphLoader) loadEmptyGlyphOutline(glyphID uint16, scale int32) *ttGl
 
 	// Compute phantom points in font units.
 	// For empty glyphs, bounds = [0,0,0,0] (no outline data).
-	// Reference: skrifa glyf/mod.rs:289-291 (None => bounds = [0;4])
-	// Reference: FreeType ttgload.c:1261-1262
 	var phantomFU [ttPhantomPointCount][2]int32
 	ascent := int32(l.font.os2Ascender)
 	descent := int32(l.font.os2Descender)
@@ -870,9 +841,6 @@ func (l *ttGlyphLoader) loadEmptyGlyphOutline(glyphID uint16, scale int32) *ttGl
 
 // loadEmptyGlyphOutlineVar creates a phantom-only outline for empty glyphs
 // in variable fonts. This applies gvar phantom point deltas before scaling.
-//
-// Reference: skrifa glyf/mod.rs:556-582 (FreeTypeScaler::load_empty with gvar)
-// Reference: FreeType ttgload.c:1563-1589 (empty glyph with GX_VAR_SUPPORT)
 func (l *ttGlyphLoader) loadEmptyGlyphOutlineVar(
 	glyphID uint16,
 	scale int32,
@@ -899,8 +867,6 @@ func (l *ttGlyphLoader) loadEmptyGlyphOutlineVar(
 	}
 
 	// Apply gvar deltas to phantom points.
-	// FreeType ttgload.c:1584: TT_Vary_Apply_Glyph_Deltas with outline.n_points=0
-	// skrifa glyf/mod.rs:561-570: phantom_point_deltas for empty glyph
 	if font != nil {
 		font.applyVariations(glyphID, gvarPoints, nil, variations)
 	}
@@ -937,7 +903,6 @@ func (l *ttGlyphLoader) loadEmptyGlyphOutlineVar(
 }
 
 // glyphMetrics returns the advance width and left side bearing for a glyph.
-// Matches hmtx table semantics: glyphs beyond numHMtx use the last advance.
 func (l *ttGlyphLoader) glyphMetrics(glyphID uint16) (advance uint16, lsb int16) {
 	gid := int(glyphID)
 	if gid < l.numHMtx {
@@ -1019,8 +984,6 @@ func parseLocaOffsets(data []byte, numGlyphs int, isLong bool) ([]glyfOffset, er
 }
 
 // parseHmtx parses the hmtx table into advance widths and left side bearings.
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/hmtx
 func parseHmtx(data []byte, numHMtx, numGlyphs int) ([]uint16, []int16, error) {
 	longSize := numHMtx * 4
 	if len(data) < longSize {
@@ -1057,9 +1020,6 @@ func parseHmtx(data []byte, numHMtx, numGlyphs int) ([]uint16, []int16, error) {
 // counterpart of hmtx. Layout: numVMtx long metrics (advanceHeight uint16
 // + topSideBearing int16), then topSideBearings for the remaining glyphs
 // (without advanceHeight — those reuse the last long advance).
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/vmtx
-// Reference: FreeType ttmtx.c tt_face_get_metrics (vertical branch)
 func parseVmtx(data []byte, numVMtx, numGlyphs int) ([]uint16, []int16, error) {
 	longSize := numVMtx * 4
 	if len(data) < longSize {
@@ -1094,8 +1054,6 @@ func parseVmtx(data []byte, numVMtx, numGlyphs int) ([]uint16, []int16, error) {
 
 // parseGlyfFlags parses the TrueType simple glyph point flags.
 // Flags support repeat counts via bit 3 (0x08).
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/glyf#simple-glyph-description
 func parseGlyfFlags(data []byte, offset, numPoints int) ([]byte, int, error) {
 	flags := make([]byte, numPoints)
 	pos := offset

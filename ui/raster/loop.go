@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package raster runs the L1 raster thread: consumes frame jobs, calls render present.
 // Must not import gpu (only render).
 package raster
@@ -28,7 +38,7 @@ type Loop struct {
 	jobs  chan FrameJob
 	quit  chan struct{}
 
-	// mu serializes Start/Stop lifecycle transitions (R0-7): Stop closes
+	// mu serializes Start/Stop lifecycle transitions: Stop closes
 	// quit, so a later Start must create a fresh quit channel — otherwise
 	// the new goroutine sees the closed quit immediately and exits without
 	// ever consuming jobs. jobs is never closed and survives restarts.
@@ -62,7 +72,7 @@ func NewLoop(depth int, metrics *scheduler.MetricsStore) *Loop {
 
 // Start launches the raster goroutine locked to an OS thread.
 // Safe to call after Stop: a fresh quit channel is created so the new
-// goroutine does not exit on the previously closed quit (R0-7). A stale
+// goroutine does not exit on the previously closed quit. A stale
 // pending latest-wins job is requeued so its Done waiter still fires.
 func (l *Loop) Start() {
 	if l == nil {
@@ -140,7 +150,7 @@ func (l *Loop) exec(job FrameJob) {
 }
 
 // Stop signals the loop to exit and waits.
-// Safe to call twice and to follow with Start (R0-7 restartable).
+// Safe to call twice and to follow with Start.
 func (l *Loop) Stop() {
 	if l == nil {
 		return

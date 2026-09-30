@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -5,9 +15,6 @@ import (
 	"time"
 )
 
-// TestKeystrokeRatio_M5是G1总收口门禁:BenchmarkKeystroke口径下
-// T(1e6)/T(1e3) ≤ 1.5(硬目标).段长分布沿用M1口径:短段/长段分别测,
-// WrapLong基线取5e3单个完整段(与M1同口径,测段隔离).
 func TestKeystrokeRatio_M5(t *testing.T) {
 	modes := []struct {
 		name    string

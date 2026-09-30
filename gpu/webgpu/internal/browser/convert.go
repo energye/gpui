@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -11,8 +21,6 @@ import (
 
 // PowerPreferenceToJS converts a gputypes.PowerPreference to the JS string
 // expected by GPURequestAdapterOptions.powerPreference.
-//
-// Matches Rust wgpu's map of PowerPreference to GpuPowerPreference.
 func PowerPreferenceToJS(pref types.PowerPreference) string {
 	switch pref {
 	case types.PowerPreferenceLowPower:
@@ -45,9 +53,6 @@ func BuildRequestAdapterOptions(
 }
 
 // BuildDeviceDescriptor constructs a JS GPUDeviceDescriptor object.
-//
-// Matches Rust wgpu WebAdapter::request_device which builds the JS descriptor
-// with requiredFeatures array and requiredLimits object.
 func BuildDeviceDescriptor(
 	label string,
 	requiredFeatures types.Features,
@@ -76,7 +81,7 @@ func BuildDeviceDescriptor(
 // ExtractFeatures reads a GPUSupportedFeatures set and returns gputypes.Features.
 //
 // GPUSupportedFeatures is a Set-like object. We check each known WebGPU feature
-// string using .has(). Matches Rust wgpu's map_wgt_features.
+// string using .has().
 func ExtractFeatures(supported js.Value) types.Features {
 	if supported.IsUndefined() || supported.IsNull() {
 		return 0
@@ -96,7 +101,6 @@ func ExtractFeatures(supported js.Value) types.Features {
 //
 // GPUSupportedLimits has getter properties for each limit. We read them
 // as float64 (JS numbers) and convert to the appropriate Go integer type.
-// Matches Rust wgpu's map_wgt_limits.
 func ExtractLimits(jsLimits js.Value) types.Limits {
 	if jsLimits.IsUndefined() || jsLimits.IsNull() {
 		return types.DefaultLimits()
@@ -142,7 +146,6 @@ type featureMapping struct {
 }
 
 // featuresMappingTable maps Go feature flags to WebGPU JS feature name strings.
-// Matches Rust wgpu's FEATURES_MAPPING constant.
 var featuresMappingTable = []featureMapping{
 	{types.FeatureDepthClipControl, "depth-clip-control"},
 	{types.FeatureDepth32FloatStencil8, "depth32float-stencil8"},
@@ -169,7 +172,6 @@ func featuresToJSArray(features types.Features) js.Value {
 }
 
 // limitsToJSObject converts gputypes.Limits to a JS object for GPUDeviceDescriptor.
-// Only non-zero fields are set, matching Rust wgpu's map_js_sys_limits.
 // JS numbers are f64, so uint64 values are sent as f64 per the WebGPU convention.
 func limitsToJSObject(limits types.Limits) js.Value {
 	obj := js.Global().Get("Object").New()

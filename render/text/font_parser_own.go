@@ -1,12 +1,22 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Own font parser — Pure Go implementation of ParsedFont.
 //
 // ownParsedFont replaces ximageParsedFont with direct binary parsing
 // of TrueType/OpenType tables. Zero external dependencies for font parsing.
 //
 // Implements:
-//   - ParsedFont              (core interface)
-//   - VariableAdvanceProvider  (HVAR-based variable font advance)
-//   - RawFontDataProvider      (raw bytes for auto-hinter and TT interpreter)
+//   - ParsedFont (core interface)
+//   - VariableAdvanceProvider (HVAR-based variable font advance)
+//   - RawFontDataProvider (raw bytes for auto-hinter and TT interpreter)
 //
 // Lazy initialization: table directory is parsed eagerly (cheap), individual
 // tables are parsed on first access via sync.Once (thread-safe).

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -8,9 +15,6 @@
 // This file adds libwayland-egl.so bindings for creating EGL window surfaces
 // on Wayland. Unlike X11 where eglCreateWindowSurface takes the raw X11
 // Window handle, Wayland requires an intermediate wl_egl_window object.
-//
-// Enterprise reference: Rust wgpu-hal egl.rs:1390-1533 (configure),
-// SDL3 SDL_waylandwindow.c:2978.
 package egl
 
 import (

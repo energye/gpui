@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -35,9 +45,7 @@ type StorageTextureBindingLayout = types.StorageTextureBindingLayout
 // BindGroupLayoutEntry describes a single binding in a bind group layout.
 //
 // Exactly one of Buffer, Sampler, Texture, or StorageTexture must be non-nil.
-// This matches the gogpu/wgpu API for cross-project compatibility.
 type BindGroupLayoutEntry struct {
-	// Binding is the binding number (must match @binding in shader).
 	Binding uint32
 	// Visibility specifies which shader stages can access this binding.
 	Visibility types.ShaderStage
@@ -189,9 +197,6 @@ type bindGroupEntryWire struct {
 
 // validateBindGroupEntries returns an error when any entry declares a binding
 // with no resource at all, or references a released resource (handle == 0).
-// Passing such entries to wgpu-native panics in conv.rs ("invalid bind group
-// entry") instead of surfacing a catchable validation error; this check turns
-// that into a Go error (P2).
 func validateBindGroupEntries(entries []BindGroupEntry) error {
 	for i := range entries {
 		e := &entries[i]
@@ -263,7 +268,7 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGr
 	wireDesc.Label = stringToStringView(desc.Label)
 	wireDesc.EntryCount = uintptr(len(desc.Entries))
 
-	// R7.6: stack-allocate layout entries for common small layouts (≤8).
+	// stack-allocate layout entries for common small layouts (≤8).
 	var wireEntries []bindGroupLayoutEntryWire
 	var wireStack [8]bindGroupLayoutEntryWire
 	if n := len(desc.Entries); n > 0 {
@@ -325,13 +330,13 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 	if desc.Layout == nil {
 		return nil, &WGPUError{Op: "CreateBindGroup", Message: "layout is nil"}
 	}
-	// P2: refuse stale/released handles before they reach wgpu-native (panic).
+	// refuse stale/released handles before they reach wgpu-native (panic).
 	if err := validateBindGroupEntries(desc.Entries); err != nil {
 		return nil, err
 	}
 
 	// Convert Go-idiomatic entries to FFI wire entries.
-	// R7.0: stack-allocate wire entries for the common small bind group (≤8).
+	// stack-allocate wire entries for the common small bind group (≤8).
 	var wireEntries []bindGroupEntryWire
 	var wireStack [8]bindGroupEntryWire
 	var wireEntriesPtr uintptr

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "math"
@@ -5,8 +15,6 @@ import "math"
 // DrawRegularPolygon draws a regular polygon with n sides.
 // When rotation=0, odd-sided polygons (triangle, pentagon) have a vertex
 // pointing up, and even-sided polygons (square, hexagon) have a flat top.
-// This matches fogleman/gg behavior and the visual convention for "upright"
-// regular polygons.
 func (c *Context) DrawRegularPolygon(n int, x, y, r, rotation float64) {
 	angle := 2.0 * math.Pi / float64(n)
 	rotation -= math.Pi / 2

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -15,11 +25,6 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-// x11Ime 是 X11 D-Bus IME 的 S1+S2+S3 实现：会话总线 + 上下文 + 会话与锚点
-// S1: 单 Conn 复用 + AddMatch + 无守护降级 + GPUI_IME_DEBUG
-// S2: 探针顺序 + CreateInputContext 双引擎 + SetCapabilities + 异步化 + per-window Destroy
-// S3: FocusIn/Out幂等 + SetCursorLocation/Rect + SetSurroundingText 4000 + SetContentType + XTranslateCoordinates
-// S5: 信号归一 + AttrList
 type x11Ime struct {
 	conn       *dbus.Conn
 	engine     string
@@ -55,7 +60,7 @@ type x11Ime struct {
 	icOwner x11ImeOwner
 }
 
-// S6: 全局 IME 集合用于 NameOwnerChanged 热切
+// 全局 IME 集合用于 NameOwnerChanged 热切
 var (
 	x11ImesMu sync.Mutex
 	x11Imes   = make(map[*x11Ime]struct{})
@@ -292,8 +297,6 @@ func x11AppName() string {
 	return base
 }
 
-// imeForX11 供 x11_linux.go 调用：Q2 单选单探，建窗不阻塞（500ms 超时）
-// S1 三层：按环境变量只选一条总线，ibus 私有 vs fcitx 会话各单例，FlagNoAutoStart 防激活
 func imeForX11(h *x11Host) IME {
 	declared := x11ProbeOrder()
 	if len(declared) == 0 {
@@ -352,7 +355,6 @@ func tryBusFor(engine string) (string, *dbus.Conn, bool) {
 
 // 时序常量集中定义，避免同一个 500ms 在多处各写一遍、改一处漏一处。
 const (
-	// probeTimeout 单次探测/建上下文的超时（S2 规定 500ms，超时即放行不卡建窗）。
 	probeTimeout = 500 * time.Millisecond
 	// probeThrottleInterval 重探全失败后的退避间隔，避免每键全量重探（B2）。
 	probeThrottleInterval = 500 * time.Millisecond
@@ -489,7 +491,6 @@ func (im *x11Ime) destroyCurrentIC() {
 	x11ImeDebug("destroy stale IC %s (engine=%s) after framework switch", obj, eng)
 }
 
-// ensureReprobe 懒重探，脏标记或无对象时按 S2 顺序同步重探
 func (im *x11Ime) ensureReprobe() {
 	if im == nil {
 		return
@@ -585,9 +586,6 @@ func (im *x11Ime) ensureReprobe() {
 		if eng == nil {
 			continue
 		}
-		// 两轮取连接（高可用）：
-		//   第一轮沿用现有连接——绝大多数情况（守护没换、只是掉线重连）走这条，
-		//   代价最低，且不会破坏 S1 的「平时单连接复用」纪律。
 		//   第二轮强制重拨——用于「换了输入法框架」：新守护可能监听在**另一条
 		//   总线地址**上（实测 fcitx5 开在会话总线、真 ibus-daemon 开在
 		//   unix:abstract 私有总线并改写 ~/.config/ibus/bus/），不重拨永远连不上。
@@ -818,7 +816,7 @@ func (im *x11Ime) Close() {
 	}
 }
 
-// S5: 信号循环
+// 信号循环
 
 func (im *x11Ime) startSignalLoop() {
 	if im == nil || im.conn == nil || im.ObjectPath() == "" {
@@ -1158,8 +1156,6 @@ func (im *x11Ime) ObjectPath() dbus.ObjectPath {
 	return im.objectPath
 }
 
-// --- IME 接口（S1/S2/S3/S6）---
-
 func (im *x11Ime) EnableIME(rect Rect) {
 	if im == nil {
 		return
@@ -1306,8 +1302,6 @@ func (im *x11Ime) DisableIME() {
 	im.callFocusOut()
 }
 
-// --- S3 helpers ---
-
 func (im *x11Ime) callFocusIn() {
 	if im == nil || im.conn == nil || im.ObjectPath() == "" {
 		x11ImeDebug("FocusIn skip no object")
@@ -1369,12 +1363,6 @@ func (im *x11Ime) needSwitchBurst(handled, isPress bool) bool {
 }
 
 // refreshCursorOnce 切换补刷（B25）：把预热缓存里的最新锚点实发一次。
-// F-D3 平时门禁不变（非组合期 UpdateCursorRect 仍只预热不实发）；仅当输入法
-// 吃掉按键（handled）且非组合期时由 ProcessKeyEvent（同步/异步）调用 ——
-// 输入法刚做了用户可见动作（如 Shift/Ctrl+Space 切中/拼/en 弹出小框），那小框
-// 按最后收到的矩形摆位，必须把缓存里已是最新的矩形推过去。组合期不调
-//（preedit 变更自带上报）。focused/hasRect 任一不满足静默跳过；
-// same 去重在此不适用（缓存正因去重而从未发出），调用方限 press 以保证只刷一次。
 func (im *x11Ime) refreshCursorOnce() {
 	if im == nil {
 		return
@@ -1492,12 +1480,6 @@ func isX11NavKeysym(ks uint32) bool {
 	return false
 }
 
-// ProcessKeyEvent S4：先走 D-Bus 判 consumed，再本地 Home/End 等分流
-// keycode 为 X 硬件码，state 为 X 修饰位，isPress true=Press false=Release
-// xTime 为 XKeyEvent.time（ms），fcitx 侧透传，0 时回退 time.Now（兼容旧测试）
-// 返回 handled==true 则拦截不再本地插入，50ms 超时按未处理放行
-// ibus 的 ProcessKeyEvent 通过 state 的 IBUS_RELEASE_MASK(1<<30) 区分释放，
-// 实测 state=1<<30 可正常调通，故不再丢弃释放事件。
 func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xTime ...uint32) bool {
 	var xTimeVal uint32
 	if len(xTime) > 0 {
@@ -1630,7 +1612,7 @@ func (im *x11Ime) ProcessKeyEventAsync(keycode uint32, state uint32, isPress boo
 		} else {
 			err = fmt.Errorf("no engine")
 		}
-		// 窗口已关则丢弃 pending，避免向 dead host  push 泄漏
+		// 窗口已关则丢弃 pending，避免向 dead host push 泄漏
 		im.mu.Lock()
 		closed := im.closed
 		im.mu.Unlock()

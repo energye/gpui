@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -294,15 +304,15 @@ func detectRRect(verbs []PathVerb, coords []float64) (DetectedShape, bool) {
 	}
 
 	// Coord layout: MoveTo(2) + [LineTo(2) + CubicTo(6)]*4 = 2 + 4*8 = 34
-	// MoveTo:     coords[0..1]
-	// LineTo 0:   coords[2..3]
-	// CubicTo 0:  coords[4..9]  (c1x,c1y,c2x,c2y,x,y)
-	// LineTo 1:   coords[10..11]
-	// CubicTo 1:  coords[12..17]
-	// LineTo 2:   coords[18..19]
-	// CubicTo 2:  coords[20..25]
-	// LineTo 3:   coords[26..27]
-	// CubicTo 3:  coords[28..33]
+	// MoveTo: coords[0..1]
+	// LineTo 0: coords[2..3]
+	// CubicTo 0: coords[4..9] (c1x,c1y,c2x,c2y,x,y)
+	// LineTo 1: coords[10..11]
+	// CubicTo 1: coords[12..17]
+	// LineTo 2: coords[18..19]
+	// CubicTo 2: coords[20..25]
+	// LineTo 3: coords[26..27]
+	// CubicTo 3: coords[28..33]
 
 	moveX, moveY := coords[0], coords[1]
 
@@ -705,8 +715,8 @@ func circleFromPoints(p0, p1, p2 Point) (cx, cy, r float64, ok bool) {
 
 	// Solve: mid01 + t·perp(ab) == mid12 + s·perp(bc), where perp(v)=( -v.y, v.x ).
 	// perp(ab) = (-ay, ax); perp(bc) = (-by, bx).
-	// Matrix: [ -ay,  by ] [t]   [ mx12-mx01 ]
-	//         [  ax, -bx ] [s] = [ my12-my01 ]
+	// Matrix: [ -ay, by ] [t] [ mx12-mx01 ]
+	//         [ ax, -bx ] [s] = [ my12-my01 ]
 	det := (-ay)*(-bx) - (by)*(ax) // (-ay)(-bx) - (by)(ax) = ay·bx - by·ax
 	if math.Abs(det) < 1e-12 {
 		return 0, 0, 0, false

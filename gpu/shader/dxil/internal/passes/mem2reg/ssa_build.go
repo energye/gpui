@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package mem2reg
 
 import (
@@ -33,9 +43,6 @@ import (
 // matching basic-block prologue, with PhiPredKey -> BBIndex
 // resolved via the emitter's lastBranchContext side state.
 //
-// Reference parity: matches LLVM mem2reg's invariant that every
-// load resolves to either (a) the dominating store's value or
-// (b) a phi merging the dominating values from each predecessor of
 // the load's BB. Structured CFG makes IDF computation trivial:
 // merge BB == statement-after-{if,switch}, loop header == start of
 // loop body.
@@ -81,8 +88,6 @@ func newPhiWalker(ctx *promotionContext) *phiWalker {
 // `var temp: bool` written across branches keeps its alloca lowering;
 // DXC's HLSL frontend handles this by widening the bool to i32 +
 // `icmp ne 0` at the load. Mirroring that widening for our phi path
-// is tracked under BUG-DXIL-041 alongside the loop / switch-merge
-// phi work.
 func selectStructuredCandidates(ctx *promotionContext) map[uint32]struct{} {
 	out := make(map[uint32]struct{})
 	for v, info := range ctx.uses {
@@ -117,9 +122,6 @@ func isBoolLocal(mod *ir.Module, lv *ir.LocalVariable) bool {
 // initialValueOf returns the starting SSA value handle for a candidate
 // variable: its declared Init expression handle if set, otherwise a
 // freshly synthesized ExprZeroValue handle of the variable's type.
-//
-// Mirrors WGSL semantics: reads of a `var` without explicit Init see
-// zero per the WGSL specification. Mirrors initialValues() in promote.go.
 func initialValueOf(ctx *promotionContext, v uint32) ir.ExpressionHandle {
 	lv := &ctx.fn.LocalVars[v]
 	if lv.Init != nil {
@@ -316,7 +318,7 @@ func (w *phiWalker) handleSwitch(stmtPtr *ir.Statement) []ir.Statement {
 
 // handleLoop processes a StmtLoop during the rename pass.
 //
-// LIMITATION (deferred to BUG-DXIL-041): loop-header phi placement
+// LIMITATION: loop-header phi placement
 // requires forward-reference value-ID handling at emit time — the
 // back-edge value is not known until after the body is walked, so
 // the LLVM phi instruction must be allocated first and patched later.
@@ -333,11 +335,6 @@ func (w *phiWalker) handleSwitch(stmtPtr *ir.Statement) []ir.Statement {
 // Variables that are NOT stored inside the loop pass through cleanly:
 // their currentValue at loop entry stays valid throughout because the
 // loop body never overwrites it.
-//
-// The signature returns a (currently always nil) statement slice to
-// stay symmetric with handleIf and handleSwitch — once BUG-DXIL-041
-// adds loop-header phi support the return will carry the synthesized
-// phi statements that walkBlock prepends to the body BB prologue.
 //
 //nolint:unparam // signature kept symmetric with handleIf/handleSwitch
 func (w *phiWalker) handleLoop(stmtPtr *ir.Statement) []ir.Statement {
@@ -408,8 +405,6 @@ func (w *phiWalker) appendPhi(incomings []ir.PhiIncoming) ir.ExpressionHandle {
 	w.ctx.fn.Expressions = append(w.ctx.fn.Expressions, ir.Expression{
 		Kind: ir.ExprPhi{Incoming: incomings},
 	})
-	// Mirror the type of the first incoming into ExpressionTypes so
-	// downstream type queries succeed without re-resolving.
 	if len(incomings) > 0 && int(incomings[0].Value) < len(w.ctx.fn.ExpressionTypes) {
 		w.ctx.fn.ExpressionTypes = append(w.ctx.fn.ExpressionTypes,
 			w.ctx.fn.ExpressionTypes[incomings[0].Value])

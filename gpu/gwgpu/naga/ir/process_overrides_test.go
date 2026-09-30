@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package ir
 
@@ -151,7 +158,7 @@ func TestProcessOverrides_FunctionExprReplacement(t *testing.T) {
 				Stage: StageCompute,
 				Function: Function{
 					Expressions: []Expression{
-						{Kind: ExprOverride{Override: 0}}, // references gain
+						{Kind: ExprOverride{Override: 0}},
 					},
 					ExpressionTypes: []TypeResolution{{}},
 				},

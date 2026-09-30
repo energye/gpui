@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package tilemap
 
 import (
@@ -281,7 +291,7 @@ func TestLODBoundaryIdentical(t *testing.T) {
 			t.Fatalf("rebuild diverged at dist %v", k.Dist)
 		}
 	}
-	// C2: real camera viewport (S08 VisibleWorldRect) feeds the same path:
+	// C2: real camera viewport feeds the same path:
 	// focus is the view center, the rect crosses as core.Rect.
 	// engine/tilemap never imports engine/camera.
 	// (Values mirror camera center math: focus=(x+w/2,y+h/2).)

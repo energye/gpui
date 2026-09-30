@@ -1,10 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
 
 import "sync"
 
-// zwp_text_input_v3 pending-state queue (design D7 / §5.1).
 //
 // The protocol splits every request into two phases: enable /
 // set_surrounding_text / set_content_type / set_cursor_rectangle /
@@ -14,7 +23,6 @@ import "sync"
 // pending until the done(serial) event commits the server round — events
 // of one round must be applied together, in order.
 //
-// Thread model (§4.0): all queue mutations happen on the dispatch thread
 // (wl callbacks run there; poll() drains). The timer-goroutine recheck
 // path (C2) posts a synthetic event instead of touching this state.
 
@@ -22,7 +30,7 @@ import "sync"
 type tiPendingKind uint8
 
 const (
-	tiPendingEnable  tiPendingKind = iota
+	tiPendingEnable tiPendingKind = iota
 	tiPendingDisable
 	tiPendingRect    // set_cursor_rectangle + payload rect
 	tiPendingContent // set_content_type + payload purpose

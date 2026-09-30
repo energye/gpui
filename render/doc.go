@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package render provides a simple 2D graphics library for Go.
 //
 // # Overview
@@ -37,7 +47,7 @@
 // The library is organized into:
 //   - Public API: Context, Path, Paint, Matrix, Point
 //   - Internal: raster (scanline), path (tessellation), blend (compositing)
-//   - Renderers: software, gpu (wgpu)
+//   - Renderers: software, gpu
 //
 // # Coordinate System
 //
@@ -47,23 +57,11 @@
 //   - Y increases down
 //   - Angles in radians, 0 is right, increases counter-clockwise
 //
-// # R2 CPU渐变冻结（S16/W2，见 vertices.go）
-//
 // 老 DrawVertices/DrawMesh 签名不动；新 DrawVerticesEx/DrawMeshEx 带
 // VertDrawOptions/VertDrawResult（Degraded 降级标记）与哨兵错
 // ErrVertsNonFinite/ErrVertsBadIndex。CPU 为预乘重心真渐变，与 GPU 只差抗锯齿。
 //
-// # R4 图集扩展冻结（S30/W4，2.2 的 render 底，前置 S24 R3，见 vertices.go）
-//
 // 老 DrawAtlas 签名不动，只读老字段；新字段零值即老路，逐位一致。
-// 新 DrawAtlasEx 带 AtlasDrawOptions/AtlasDrawResult 与哨兵错
-// ErrAtlasNonFinite/ErrAtlasUnsupportedFilter。AtlasSprite 加
-// Rot/FlipX/FlipY/PivotX/PivotY/Tint/Filter：绕轴心先翻转后旋转，
-// Tint 零结构体即白不透明（直射相乘含 A，显卡走逐顶点 premul 颜色，
-// 与 CPU 真采样同真值，只差采样舍入）；Filter 零值即 Bilinear，单图选
-// Nearest/Bilinear/Bicubic。rot/flip/tint/filter 走显卡四角，
-// CPU 与显卡同拆法只差采样舍入。GOGPU_RENDER_MODE=cpu 强制取 CPU 真值，
-// 离屏对比即未来 game_sprite--case=rot 窗的依据（窗随 P2 建）。
 //
 // # Performance
 //

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -14,7 +24,6 @@ func _rawFontData(font ParsedFont) []byte {
 // TestFindBestYFTAlign verifies findBestYContour reproduces FreeType's
 // afcjk blue-zone values (afcjk.c af_cjk_metrics_init_blues) for every
 // character in the CJKB top fills/flats groups. Reference values are
-// captured directly from FT_TRACE output (wqy-microhei-nohint.ttf,
 // freetype 2.13.1). A want of 0 marks a character FT reports as
 // "contains no (usable) outlines" and that we must skip as well.
 func TestFindBestYFTAlign(t *testing.T) {

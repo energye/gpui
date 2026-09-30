@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -17,14 +27,9 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-// Swapchain manages Configure → GetCurrentTexture → Present for a platform Surface (S.03/S6.8).
+// Swapchain manages Configure → GetCurrentTexture → Present for a platform Surface.
 // It is the production path for window presentation; offscreen textures remain a headless stand-in.
 //
-// S6.8 additions:
-//   - Stats (acquire/present/reconfigure/suboptimal)
-//   - Auto reconfigure on suboptimal / outdated surface
-//   - EndFrameWithDamage hook
-//   - Present-mode preference (Fifo vs low-latency Mailbox)
 
 // acquireTimeout bounds a single surface acquire. Skia (Ganesh Vulkan) and
 // Flutter (Impeller) do NOT bound the acquire — they assume present/acquire
@@ -52,7 +57,7 @@ type Swapchain struct {
 	AlphaMode   CompositeAlphaMode
 
 	// PreferPresentModes, when non-empty, is tried in order during
-	// ConfigureFromCapabilities (S6.8). Empty → prefer Fifo then first available.
+	// ConfigureFromCapabilities. Empty → prefer Fifo then first available.
 	PreferPresentModes []PresentMode
 
 	// supportedPresentModes caches the adapter's surface capability list at
@@ -89,7 +94,7 @@ type Swapchain struct {
 	hungMarkedAt time.Time
 
 	// lastReconfig rate-limits native Surface.Configure. Continuous reconfigure
-	// under long stress (S14) can abort wgpu-native ("failed to initiate panic").
+	// under long stress can abort wgpu-native ("failed to initiate panic").
 	lastReconfig time.Time
 
 	// frameOpen is true between a successful BeginFrame and EndFrame/DiscardFrame.
@@ -100,8 +105,7 @@ type Swapchain struct {
 
 	// --- Device-lost auto recovery (library-level, optional) ---
 	// When RecoveryAdapter is set, BeginFrame attempts RequestDevice + reconfigure
-	// instead of permanently failing. Matches desktop hosts that recreate GPU
-	// state after TDR / driver reset without aborting the process.
+	// instead of permanently failing.
 	RecoveryAdapter hal.Adapter
 	// OnDeviceAbandon is called on the sticky-lost device BEFORE it is Destroy/Release'd
 	// and before RequestDevice. Host must drop all GPU objects (pipelines, pools,
@@ -128,13 +132,12 @@ type Frame struct {
 	Suboptimal bool
 	Width      uint32
 	Height     uint32
-	// DamageRects optionally records dirty regions for EndFrameWithDamage (S6.8).
+	// DamageRects optionally records dirty regions for EndFrameWithDamage.
 	// wgpu-native currently ignores them at present; still used for diagnostics
 	// and future partial-present backends.
 	DamageRects []image.Rectangle
 }
 
-// SwapchainStats is S6.8 diagnostics for the window present path.
 type SwapchainStats struct {
 	Acquires       uint64
 	Presents       uint64
@@ -150,7 +153,7 @@ type SwapchainStats struct {
 }
 
 // NewHalSwapchain builds the hal.Swapchain view of this swapchain so render
-// talks hal only (backend-decouple hard rule: no webgpu types in render).
+// talks hal only.
 func (sc *Swapchain) NewHalSwapchain() hal.Swapchain {
 	return &halSwapchainAdapter{sc: sc}
 }
@@ -179,7 +182,6 @@ func NewSwapchain(surface hal.Surface, device hal.Device, width, height uint32) 
 // Optional: set sc.OnDeviceAbandon before EnableAutoRecover so the host can
 // drop GPUShared/session resources while the old device is still addressable.
 // tryRecover then Destroy/Release's the old device *before* RequestDevice
-// (peak-VRAM safe; Skia abandon-then-recreate).
 // Adapter/callback device params use hal interfaces (7f Device→hal.Device).
 func (sc *Swapchain) EnableAutoRecover(adapter hal.Adapter, deviceLabel string, onRecreated func(hal.Device)) {
 	if sc == nil {
@@ -456,7 +458,7 @@ func (sc *Swapchain) SetPresentModeForce(mode PresentMode) error {
 	return sc.Configure()
 }
 
-// MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame (S6.8).
+// MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame.
 // Call after window resize events or when the compositor reports outdated.
 func (sc *Swapchain) MarkNeedsReconfigure() {
 	if sc != nil {
@@ -564,7 +566,7 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 	}
 	canRecreateSurf := inst != nil && win != 0
 
-	// Engine + host abandon (Skia abandonContext order).
+	// Engine + host abandon.
 	if BeforeDeviceRecover != nil {
 		BeforeDeviceRecover()
 	}
@@ -958,7 +960,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 }
 
 // reconfigureThrottled runs Configure at most once per 500ms to avoid native
-// Surface.Configure thrash under long multi-module stress (S14 soak crash).
+// Surface.Configure thrash under long multi-module stress.
 func (sc *Swapchain) reconfigureThrottled() error {
 	const minInterval = 500 * time.Millisecond
 	if sc == nil {
@@ -1044,7 +1046,7 @@ func (sc *Swapchain) EndFrame(frame *Frame) error {
 }
 
 // EndFrameWithDamage presents the frame, forwarding damage rects when the
-// backend supports partial present (wgpu-native currently ignores them).
+// backend supports partial present.
 func (sc *Swapchain) EndFrameWithDamage(frame *Frame, rects []image.Rectangle) error {
 	return sc.endFrame(frame, rects)
 }

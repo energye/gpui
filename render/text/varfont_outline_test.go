@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -6,8 +16,7 @@ import (
 	"testing"
 )
 
-// --------------------------------------------------------------------------
-// Golden tests for variable font hinting (skrifa single-path parity).
+// Golden tests for variable font hinting.
 //
 // These tests verify that variable fonts receive the SAME hinting treatment
 // as static fonts — matching skrifa's unified load_simple architecture where
@@ -267,8 +276,7 @@ func TestOutline_VarHintedVsUnhinted_Differs(t *testing.T) {
 	t.Logf("advance: unhinted=%.4f, hinted=%.4f", unhinted.Advance, hinted.Advance)
 }
 
-// TestOutline_VarDefault_MatchesStaticRendering verifies that rendered pixels
-// from static and variable@default paths are identical. This is the end-to-end
+// This is the end-to-end
 // test that catches rendering differences caused by hinting divergence.
 func TestOutline_VarDefault_MatchesStaticRendering(t *testing.T) {
 	source := requireTrueTypeVariableFont(t)

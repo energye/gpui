@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 // Copyright 2025 The GoGPU Authors
@@ -24,11 +34,11 @@
 // The backend is organized into subpackages:
 //
 //	hal/gles/
-//	├── gl/       - OpenGL function bindings
-//	├── wgl/      - Windows GL context management
-//	├── glx/      - Linux X11 GL context (planned)
-//	├── egl/      - EGL context for mobile/modern Linux (planned)
-//	└── cgl/      - macOS CGL context (planned)
+//	├── gl/ - OpenGL function bindings
+//	├── wgl/ - Windows GL context management
+//	├── glx/ - Linux X11 GL context (planned)
+//	├── egl/ - EGL context for mobile/modern Linux (planned)
+//	└── cgl/ - macOS CGL context (planned)
 //
 // # Usage
 //
@@ -57,7 +67,6 @@
 //
 // # Command Recording
 //
-// This backend uses a command recording pattern similar to wgpu-hal.
 // Commands are recorded during render/compute pass encoding and
 // executed during Queue.Submit. This allows for:
 //   - State tracking and optimization

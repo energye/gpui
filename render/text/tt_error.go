@@ -1,16 +1,20 @@
-// TrueType bytecode interpreter — error definitions.
+//----------------------------------------
 //
-// Port of skrifa hint/error.rs.
-// Reference: skrifa/src/outline/glyf/hint/error.rs
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
+// TrueType bytecode interpreter — error definitions.
 package text
 
 import "fmt"
 
 // ttHintErrorKind describes the category of error encountered during
 // TrueType bytecode interpretation.
-//
-// Matches skrifa HintErrorKind.
-// Reference: skrifa hint/error.rs:10-33
 type ttHintErrorKind int
 
 const (
@@ -92,9 +96,6 @@ func (k ttHintErrorKind) Error() string {
 
 // ttHintError is a hinting error with additional context about where
 // the error occurred.
-//
-// Matches skrifa HintError.
-// Reference: skrifa hint/error.rs:94-122
 type ttHintError struct {
 	program ttProgramType
 	pc      int

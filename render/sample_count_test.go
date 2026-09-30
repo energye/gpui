@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "testing"
 
-// TestMSAASampleCountConstants pins the documented default: engine = 1x,
-// 4x is opt-in (docs/RENDER_API_CATALOG.md §9 常量总表).
 func TestMSAASampleCountConstants(t *testing.T) {
 	if MSAASampleCount1 != 1 {
 		t.Fatalf("MSAASampleCount1=%d want 1", MSAASampleCount1)

@@ -1,9 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
-
-// S2 facade conversion tests — field completeness and high-risk enum passthrough
-// from webgpu → rwgpu. Native enum→header mapping is owned by S1 (rwgpu).
 
 import (
 	"testing"
@@ -89,7 +96,6 @@ func TestS2ConvertFragmentBlendFields(t *testing.T) {
 		t.Fatalf("alpha blend = %+v", b.Alpha)
 	}
 	// Wire field order for native BlendComponent: Operation, Src, Dst
-	// (must match lib/webgpu.h WGPUBlendComponent).
 	type wireBC struct {
 		Operation types.BlendOperation
 		SrcFactor types.BlendFactor
@@ -239,7 +245,6 @@ func TestS2TextureViewCountUndefinedMapping(t *testing.T) {
 }
 
 func TestS2NoRenderImportRWGPU(t *testing.T) {
-	// Architectural invariant documented in MAINLINE S2: render must not import rwgpu.
 	// This is a lightweight compile-time-oriented reminder; full grep is CI/docs.
 	// Package-level: this file itself is allowed to import rwgpu for conversion asserts.
 }

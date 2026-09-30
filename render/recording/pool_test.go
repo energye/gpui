@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package recording
 
 import (
@@ -146,7 +156,6 @@ func TestResourcePool_GetPath_InvalidRef(t *testing.T) {
 	pool := NewResourcePool()
 	pool.AddPath(render.NewPath())
 
-	// Reference beyond pool size
 	got := pool.GetPath(PathRef(100))
 	if got != nil {
 		t.Errorf("GetPath(invalid ref) = %v, want nil", got)
@@ -396,7 +405,7 @@ func TestReferenceTypes(t *testing.T) {
 	var fontRef FontRef = 1
 
 	// This is a compile-time check - the following should NOT compile:
-	// pathRef = brushRef  // different types
+	// pathRef = brushRef // different types
 	// We verify they're independent types by using them separately
 	_ = pathRef
 	_ = brushRef

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -12,9 +19,6 @@ import (
 // This is efficient for paths with long horizontal spans of constant coverage.
 // Instead of storing per-pixel alpha values, it stores runs of consecutive
 // pixels with the same alpha.
-//
-// The implementation follows tiny-skia's alpha_runs.rs pattern but with
-// Go 1.25+ iterators for efficient traversal.
 //
 // Usage:
 //

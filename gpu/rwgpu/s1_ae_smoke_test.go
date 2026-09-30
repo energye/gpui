@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
-// s1_ae_smoke_test.go — S1 A–E end-to-end native smoke for Skia 2D WebGPU subset.
 //
 // Requires: WGPU_NATIVE_PATH pointing at libwgpu_native.so (or default discovery).
-// Plan: docs/MAINLINE_PLAN.md S1 closeout + docs/RWGPU_SKIA_SUBSET_CHECKLIST.md A–E.
 //
 // Each test exercises a real native call chain (not null-guard only) and, where
 // feasible, verifies GPU-visible results via map/readback.
@@ -566,7 +574,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 		t.Fatalf("WriteBuffer verts: %v", err)
 	}
 
-	// Indices 0,1,2 as uint16. Buffer size must be multiple of 4 (WebGPU).
+	// Indices 0,1,2 as uint16. Buffer size must be multiple of 4.
 	idx := []uint16{0, 1, 2, 0}
 	idxBytes := make([]byte, 8)
 	for i, v := range idx {

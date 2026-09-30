@@ -1,7 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package platform
 
 // Real-window resize-sync tests. Interactive resize on X11/XWayland is
-// driven by _NET_WM_SYNC_REQUEST (the Flutter/Skia/GTK4 model): the
+// driven by _NET_WM_SYNC_REQUEST: the
 // compositor sends a sync request per drag step — live size in l[1]/l[2],
 // serial in l[3]/l[4] — and waits for the counter to pass the serial before
 // showing the painted frame. Without the protocol (gogpu reference model)
@@ -146,21 +156,21 @@ func TestX11RealWindow_SyncRequestAdvancesCounter(t *testing.T) {
 	}
 
 	const (
-		serial  = 123456789
-		wantW   = 700
-		wantH   = 500
+		serial = 123456789
+		wantW  = 700
+		wantH  = 500
 	)
 	// XClientMessageEvent (x86-64): data.l[] at 56, 8 bytes each on x64.
 	var ev [112]byte
-	ev[0] = 33 // ClientMessage
-	w32(ev[:], 32, uint64(st.window))        // window
-	w32(ev[:], 40, uint64(st.atSyncReq))     // message_type
-	w32(ev[:], 48, 32)                       // format
-	w32(ev[:], 56, uint64(st.atSyncReq))     // l[0] = atom
-	w32(ev[:], 64, wantW)                    // l[1] = width
-	w32(ev[:], 72, wantH)                    // l[2] = height
-	w32(ev[:], 80, serial)                   // l[3] = serial low 32 (flags high 32 = 0)
-	w32(ev[:], 88, 0)                        // l[4] = serial high 32
+	ev[0] = 33                           // ClientMessage
+	w32(ev[:], 32, uint64(st.window))    // window
+	w32(ev[:], 40, uint64(st.atSyncReq)) // message_type
+	w32(ev[:], 48, 32)                   // format
+	w32(ev[:], 56, uint64(st.atSyncReq)) // l[0] = atom
+	w32(ev[:], 64, wantW)                // l[1] = width
+	w32(ev[:], 72, wantH)                // l[2] = height
+	w32(ev[:], 80, serial)               // l[3] = serial low 32 (flags high 32 = 0)
+	w32(ev[:], 88, 0)                    // l[4] = serial high 32
 	if rc := testXSendEvent(st.display, st.window, 0, 1<<17 /*StructureNotifyMask*/, &ev[0]); rc == 0 {
 		t.Fatalf("XSendEvent(sync request) failed rc=%d", rc)
 	}
@@ -211,8 +221,6 @@ func TestX11RealWindow_ConfigNotifyDrivesResize(t *testing.T) {
 	st := host.st
 	bindTestX11(host.lib)
 
-	// XConfigureEvent (x86-64): type=22, display@24, event@32, window@40,
-	// x@48, y@52, width@56, height@60, border@64, above@72, override@80.
 	var ev [112]byte
 	ev[0] = 22
 	w32(ev[:], 32, uint64(st.window))

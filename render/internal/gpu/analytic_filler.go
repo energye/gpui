@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Copyright 2026 The gogpu Authors
@@ -16,9 +26,6 @@ import (
 // analytic AA computes the exact area of the shape within each pixel using
 // trapezoidal integration. This provides higher quality anti-aliasing with
 // no supersampling overhead.
-//
-// The algorithm is based on vello's CPU fine rasterizer (fine.rs), which
-// uses the following approach:
 //
 //  1. For each edge crossing a pixel row, compute the Y range it covers
 //  2. Find the X intersections at the top and bottom of the pixel
@@ -301,8 +308,6 @@ func (af *AnalyticFiller) stepCurveSegment(edge *raster.CurveEdgeVariant) bool {
 // where the line enters. This ensures correct backdrop accumulation - pixels
 // to the LEFT of the line get acc=0, pixels to the RIGHT get the accumulated
 // winding from the line crossing.
-//
-// This matches the algorithm in fine.go which processes all pixels in each tile row.
 func (af *AnalyticFiller) computeSegmentCoverage(
 	line *raster.LineEdge,
 	_, _ int32, // ySubpixel, ySubpixelEnd - reserved for future precision improvements

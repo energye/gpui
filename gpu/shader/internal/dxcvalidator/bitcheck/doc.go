@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package bitcheck implements a minimal LLVM 3.7 bitstream reader that
 // walks a DXIL container far enough to verify the `!dx.entryPoints` named
 // metadata is well-formed — specifically that every entry-point tuple has
@@ -6,8 +16,6 @@
 // Microsoft's IDxcValidator (dxil.dll) crashes with an access violation
 // at dxil.dll+0xe9da (NULL+0x18) when it walks entry-point metadata and
 // encounters a null function reference. This package runs as a defensive
-// pre-check inside the dxcvalidator wrapper — ANY input (naga output,
-// DXC output, third-party tool output, hand-crafted garbage) is scanned
 // BEFORE being handed to dxil.dll. Malformed inputs return a clean Go
 // error instead of triggering the AV.
 //

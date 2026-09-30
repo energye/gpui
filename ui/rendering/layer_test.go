@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -27,7 +37,7 @@ func TestRepaintBoundary_StopsPaintBubble(t *testing.T) {
 	}
 }
 
-// TestMarkNeedsPaint_NestedBoundaryIsolation (R2 strict Flutter semantics):
+// TestMarkNeedsPaint_NestedBoundaryIsolation:
 // dirtying a node inside a nested RepaintBoundary dirties only up to that
 // boundary — neither the outer boundary nor the root may become dirty, and
 // idempotent re-marking must not extend the dirty chain.
@@ -57,7 +67,7 @@ func TestMarkNeedsPaint_NestedBoundaryIsolation(t *testing.T) {
 	}
 }
 
-// TestCompositeOnly_OnlyDirtyPathVisits (R2): with several isolated
+// TestCompositeOnly_OnlyDirtyPathVisits: with several isolated
 // boundaries, dirtying one must produce visits proportional to that path —
 // static siblings stay at NeedsPaint()==false and are never visited.
 func TestCompositeOnly_OnlyDirtyPathVisits(t *testing.T) {

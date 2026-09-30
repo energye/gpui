@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -96,7 +106,7 @@ const (
 	BlendCopy = intImage.BlendCopy
 	// BlendPlus is Porter-Duff Plus (B.02 / B.07): clamped source+destination.
 	BlendPlus = intImage.BlendPlus
-	// BlendModulate multiplies source*destination (Skia kModulate / B.07).
+	// BlendModulate multiplies source*destination.
 	BlendModulate = intImage.BlendModulate
 	// BlendDestinationOut is Porter-Duff DstOut (B.02).
 	BlendDestinationOut = intImage.BlendDestinationOut
@@ -200,13 +210,13 @@ func (c *Context) DrawImage(img *ImageBuf, x, y float64) {
 // Example:
 //
 //	dc.DrawImageEx(img, render.DrawImageOptions{
-//	    X:             100,
-//	    Y:             100,
-//	    DstWidth:      200,
-//	    DstHeight:     150,
+//	    X: 100,
+//	    Y: 100,
+//	    DstWidth: 200,
+//	    DstHeight: 150,
 //	    Interpolation: render.InterpBicubic,
-//	    Opacity:       0.8,
-//	    BlendMode:     render.BlendNormal,
+//	    Opacity: 0.8,
+//	    BlendMode: render.BlendNormal,
 //	})
 func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	c.syncPublishedFilterBeforeDraw()
@@ -344,9 +354,8 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	}
 	// No-device gate: only claim the draw when the GPU session can execute
 	// it. Without a device the queued quad never lands in the pixmap while
-	// the CPU fallback is skipped (headless R5 DrawImage readback red).
-	// Mirrors CreateOffscreenTexture's device gate; CPU renders identical
-	// pixels. Optional interface keeps third-party rc impls on old behavior.
+	// the CPU fallback is skipped.
+	// Optional interface keeps third-party rc impls on old behavior.
 	if dr, ok := rc.(interface{ IsDeviceReady() bool }); ok && !dr.IsDeviceReady() {
 		c.recordCPUFallbackReason("image:no-device")
 		return false
@@ -676,7 +685,7 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 	if c == nil || c.pixmap == nil || dst == nil {
 		return false
 	}
-	// R7.2: only FlushGPU when there are pending GPU draws. When the surface
+	// only FlushGPU when there are pending GPU draws. When the surface
 	// is already GPU-filter-published (pixmapFilterStale), FlushGPU is a no-op
 	// for content and only adds queue overhead.
 	pending := 0
@@ -710,7 +719,7 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 	out := (*dst).Data()
 	n := len(out)
 
-	// R7.2: when filter result lives only on GPU, readback once into ImageBuf
+	// when filter result lives only on GPU, readback once into ImageBuf
 	// and refresh pixmap in the same pass (avoid Flush+materialize+copy triple).
 	if c.pixmapFilterStale && !c.filterGPUView.IsNil() && c.filterGPUW == w && c.filterGPUH == h {
 		if c.materializeFilterGPUTo(out, c.pixmap.Data()) {
@@ -843,7 +852,7 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 
 // DrawGPUTextureWithOpacityUV composites a sub-rectangle of a GPU texture with
 // opacity. u0..v1 are normalized source UVs (F1 damage-tight layer composite).
-// Inherits open opacity-group alpha, same as DrawGPUTextureWithOpacity (R6 fix).
+// Inherits open opacity-group alpha, same as DrawGPUTextureWithOpacity.
 func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, u0, v0, u1, v1 float32) {
 	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
 	if !ok {
@@ -885,7 +894,7 @@ func (c *Context) DrawGPUTextureBase(view gpucontext.TextureView, x, y float64, 
 	c.recordGPUOp()
 }
 
-// TextureView is an opaque GPU texture handle (wgpu texture view) re-exported
+// TextureView is an opaque GPU texture handle re-exported
 // for ui-layer retained compositing (picture/layer texture caches). ui/ must
 // not import gpu/ directly; this alias is the ui → render boundary for
 // CreateOffscreenTexture / DrawGPUTexture* handles.

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -8,7 +18,7 @@ import (
 )
 
 // editScroll is the single scroll/record funnel shared by every edit box
-// (InputBox, ViewportInputBox, MultiLineInputBox), aligned with Flutter's
+// (InputBox, ViewportInputBox, MultiLineInputBox), aligned with the
 // one-RenderEditable design: single-line vs multi-line is a property
 // (scrollMetrics.multi), scrolling is one implementation, not per-type
 // scroll code.

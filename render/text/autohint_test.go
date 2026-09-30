@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -1574,10 +1584,6 @@ func countDistinctRounded(values []float32, tolerance float32) int {
 	return len(seen)
 }
 
-// TestAutoHint_V_24px_GoldenCoordinates is a golden-style coordinate test
-// (inspired by skrifa hint/outline.rs tests) verifying exact hinted positions
-// for the 'v' glyph at 24px in Go Regular.
-//
 // The 'v' glyph has 3 distinct Y levels:
 //   - Baseline (Y=0): points 0, 6, 7
 //   - Valley (Y approx -2.83): point 3
@@ -1994,7 +2000,7 @@ func TestAutoHint_Edges_VsSkrifaGolden_Horizontal(t *testing.T) {
 	// Run segment detection.
 	hSegs := computeSegments(&points, dimHorizontal)
 
-	// Adjust segment heights (skrifa parity).
+	// Adjust segment heights.
 	adjustSegmentHeights(&points, hSegs, dimHorizontal)
 
 	// Link segments into stems.
@@ -2118,7 +2124,7 @@ func TestAutoHint_Edges_VsSkrifaGolden_Vertical(t *testing.T) {
 	// Run segment detection.
 	vSegs := computeSegments(&points, dimVertical)
 
-	// Adjust segment heights (skrifa parity).
+	// Adjust segment heights.
 	adjustSegmentHeights(&points, vSegs, dimVertical)
 
 	// Link segments into stems.
@@ -2210,27 +2216,22 @@ func dirStr(d hintDirection) string {
 }
 
 // ============================================================
-// 15. Edge Serif/Link vs Skrifa Rust Test Golden (Full Parity)
-// ============================================================
+// 15.
 
-// TestAutoHint_Edges_VsSkrifaRust_FullParity verifies every field of edge
-// detection against the skrifa Rust unit test golden data from edges.rs.
 // This goes beyond the dump-based tests by also checking serif indices and
 // flags (ROUND/NORMAL), which the dump does not expose.
 //
-// Skrifa Rust golden (edges.rs edges_default test):
-//
 //	H edges:
-//	  edge[0]: fpos=15  opos=15  link=Some(3) serif=None   flags=ROUND
-//	  edge[1]: fpos=123 opos=126 link=Some(2) serif=None   flags=NORMAL
-//	  edge[2]: fpos=186 opos=190 link=Some(1) serif=None   flags=NORMAL
-//	  edge[3]: fpos=205 opos=210 link=Some(0) serif=None   flags=ROUND
+//	  edge[0]: fpos=15 opos=15 link=Some(3) serif=None flags=ROUND
+//	  edge[1]: fpos=123 opos=126 link=Some(2) serif=None flags=NORMAL
+//	  edge[2]: fpos=186 opos=190 link=Some(1) serif=None flags=NORMAL
+//	  edge[3]: fpos=205 opos=210 link=Some(0) serif=None flags=ROUND
 //
 //	V edges:
-//	  edge[0]: fpos=-240 opos=-246 link=None    serif=Some(1) flags=NORMAL
-//	  edge[1]: fpos=481  opos=493  link=Some(2) serif=None    flags=NORMAL
-//	  edge[2]: fpos=592  opos=606  link=Some(1) serif=None    flags=ROUND|SERIF
-//	  edge[3]: fpos=647  opos=663  link=None    serif=Some(2) flags=NORMAL
+//	  edge[0]: fpos=-240 opos=-246 link=None serif=Some(1) flags=NORMAL
+//	  edge[1]: fpos=481 opos=493 link=Some(2) serif=None flags=NORMAL
+//	  edge[2]: fpos=592 opos=606 link=Some(1) serif=None flags=ROUND|SERIF
+//	  edge[3]: fpos=647 opos=663 link=None serif=Some(2) flags=NORMAL
 func TestAutoHint_Edges_VsSkrifaRust_FullParity(t *testing.T) {
 	fontData, err := os.ReadFile("testdata/notoserifhebrew_autohint_metrics.ttf")
 	if err != nil {
@@ -2341,9 +2342,6 @@ func TestAutoHint_Edges_VsSkrifaRust_FullParity(t *testing.T) {
 	linkSegments(vSegs, &scaled.axes[dimVertical], scriptGroupDefault)
 	vEdges := computeEdges(vSegs, &scaled.axes[dimVertical], dimVertical, scriptGroupDefault, false)
 
-	// V edge[0] serifIdx: with script-aware width detection (Hebrew
-	// standard chars), segment linking now correctly produces serifIdx=1
-	// for the descender edge, matching skrifa Rust golden data.
 	wantV := []edgeGoldenFull{
 		{fpos: -240, opos: -246, linkIdx: -1, serifIdx: 1, isRound: false},
 		{fpos: 481, opos: 493, linkIdx: 2, serifIdx: -1, isRound: false},
@@ -2552,11 +2550,7 @@ func TestAutoHint_HintEdges_VsSkrifaGolden_Vertical(t *testing.T) {
 	edges := computeEdges(vSegs, axisMetrics, dimVertical, scriptGroupDefault, false)
 
 	// Manually inject skrifa-equivalent blue zone assignments.
-	// From skrifa Rust test golden (edges.rs edges_default):
-	//   V edge[0]: blue_edge = ScaledWidth{scaled:-246, fitted:-256} (blue index 2)
-	//   V edge[2]: blue_edge = ScaledWidth{scaled:606, fitted:576}  (blue index 0)
-	// These come from Hebrew-specific blue zones which our Latin-based
-	// detection cannot produce. We inject them directly to test hintEdges.
+	// We inject them directly to test hintEdges.
 	skrifaBlue0 := scaledWidth{scaled: -246, fitted: -256} // 26.6 values
 	skrifaBlue2 := scaledWidth{scaled: 606, fitted: 576}   // 26.6 values
 	if len(edges) >= 4 {

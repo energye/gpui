@@ -1,22 +1,25 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// S6.9 — tiered heavy-scene present budgets (not a flat 16.7ms claim).
-//
-// Rules:
-//   - Present-only p50 (no ReadPixels wall-time)
-//   - GPUOps>0, cpu_fallback_ops=0
-//   - P0 main path hard ≤16.7ms; no silent CPU
-//   - P1/P2/P3 budgets relative to frozen S6.0 JSON + absolute caps
 //
 // Env:
-//   WGPU_NATIVE_PATH       required
-//   S6_PERF_WARMUP         default 3
-//   S6_PERF_ITERS          default 6 (S6.9; heavy scenes are long)
-//   S6_MAIN_PATH_BUDGET    default 16.7
-//   S6_9_JSON              default <repo>/tmp/s6_9_heavy_budget.json
-//   S6_9_REGRESS_ONLY=1    skip absolute "must improve" relative gates (still cap)
+//   WGPU_NATIVE_PATH required
+//   S6_PERF_WARMUP default 3
+//   S6_PERF_ITERS default 6
+//   S6_MAIN_PATH_BUDGET default 16.7
+//   S6_9_JSON default <repo>/tmp/s6_9_heavy_budget.json
+//   S6_9_REGRESS_ONLY=1 skip absolute "must improve" relative gates (still cap)
 
 import (
 	"encoding/json"
@@ -32,30 +35,25 @@ import (
 const (
 	s69Version           = "s6.9-heavy-budget-1"
 	s69DefaultIters      = 6
-	s69P1DensityBudgetMs = 33.4 // 2 frames @60fps — density / full-redraw anti-pattern
+	s69P1DensityBudgetMs = 33.4
 	s69P1TargetBudgetMs  = 16.7 // preferred for text/image density once under
-	s69P3RegressPct      = 15.0 // stress: allow mild noise, fail large regress vs S6.0
-	s69P2MustImprovePct  = 8.0  // heavy: require ≥8% better than S6.0 p50
+	s69P3RegressPct      = 15.0
+	s69P2MustImprovePct  = 8.0
 )
 
-// Absolute present p50 ceilings (ms) — set from S6.9 measure + headroom; not 60fps claims.
 var s69AbsoluteCapMs = map[string]float64{
-	// P2 heavy
-	"U05_KitchenSinkStress": 145.0, // S6.9~128; S6.0 160
-	"H02_LayerBlendStack":   210.0, // S6.9~190; S6.0 224
-	"H03_PathStrokeCloud":   90.0,  // S6.9~64;  S6.0 131
-	// P3 stress
-	"H06_NestedClipLayerText": 150.0, // S6.9~96; S6.0 125 — regress gate primary
-	// P1 density soft ceilings (also ≤16.7 preferred for H04/H05)
-	"H01_FullRedrawShell": 33.4,
-	"H04_TextRows40":      16.7,
-	"H05_ImageTileGrid":   16.7,
+	"U05_KitchenSinkStress":   145.0,
+	"H02_LayerBlendStack":     210.0,
+	"H03_PathStrokeCloud":     90.0,
+	"H06_NestedClipLayerText": 150.0,
+	"H01_FullRedrawShell":     33.4,
+	"H04_TextRows40":          16.7,
+	"H05_ImageTileGrid":       16.7,
 }
 
-// Per-scene relative factor vs S6.0 (must be ≤ S6.0 * factor). Empty → tier default.
+// Empty → tier default.
 var s69RelativeFactor = map[string]float64{
-	"H03_PathStrokeCloud": 0.70, // path/tess saw large S6.6 wins
-	// default P2: 0.92 (mustImprove 8%) applied in code
+	"H03_PathStrokeCloud": 0.70,
 }
 
 type s69BudgetRow struct {
@@ -143,11 +141,9 @@ func s69EffectiveBudget(name, tier string, s60p50 float64) (abs, rel, eff float6
 		if rel <= 0 {
 			rel = s6MainPathBudgetMs
 		}
-		// Main path never exceeds hard 16.7; also fail if much worse than S6.0.
 		eff = s6MainPathBudgetMs
 		if rel < eff {
-			// if S6.0 was already well under, keep hard 16.7 (do not tighten to S6.0*1.1 for PASS —
-			// production gate is 60fps). Relative is advisory for "no big regress" checks separately.
+			// Relative is advisory for "no big regress" checks separately.
 		}
 		note = "P0 hard ≤16.7ms present p50"
 		return abs, rel, eff, note
@@ -180,8 +176,7 @@ func s69EffectiveBudget(name, tier string, s60p50 float64) (abs, rel, eff float6
 		if rel > 0 && rel < abs {
 			eff = rel
 		}
-		// When S6.0 is huge and we only modestly improved, abs may be the looser; require BOTH:
-		// p50 <= abs AND p50 <= S6.0 (never worse). Effective for fail uses the stricter of abs and
+		// Effective for fail uses the stricter of abs and
 		// "must improve" rel when S6_9_REGRESS_ONLY is unset.
 		if os.Getenv("S6_9_REGRESS_ONLY") == "1" {
 			eff = abs
@@ -190,7 +185,6 @@ func s69EffectiveBudget(name, tier string, s60p50 float64) (abs, rel, eff float6
 			}
 			note = "P2 regress-only mode: ≤abs and ≤S6.0"
 		} else {
-			// Pass if under abs AND under S6.0*factor (must improve).
 			// Store eff as the stricter of the two for the primary gate.
 			note = fmt.Sprintf("P2 heavy: ≤abs(%.1f) AND ≤S6.0×%.2f (must improve)", abs, factor)
 		}
@@ -230,7 +224,6 @@ func s69ScenePass(name, tier string, p50, s60, abs, rel, eff float64) (ok bool, 
 		if abs > 0 && p50 > abs {
 			return false, fmt.Sprintf("P1 p50=%.2f > abs %.2f", p50, abs)
 		}
-		// No >10% regress vs S6.0 when S6.0 known.
 		if s60 > 0 && p50 > s60*(1.0+s6MainPathRegressPct/100.0) {
 			return false, fmt.Sprintf("P1 p50=%.2f > S6.0×1.10 (%.2f)", p50, s60*1.10)
 		}
@@ -262,7 +255,6 @@ func s69ScenePass(name, tier string, p50, s60, abs, rel, eff float64) (ok bool, 
 	}
 }
 
-// TestS69_HeavyBudget_TierGates measures frozen scenes and enforces tiered budgets vs S6.0.
 func TestS69_HeavyBudget_TierGates(t *testing.T) {
 	p1RequireGPU(t)
 	s60, s60Path := s69LoadS60Baseline(t)
@@ -400,7 +392,6 @@ func joinLines(xs []string) string {
 	return out
 }
 
-// TestS69_Contract_FromJSON validates a previously written S6.9 JSON (CI-friendly if measure already done).
 func TestS69_Contract_FromJSON(t *testing.T) {
 	path := s69JSONPath()
 	raw, err := os.ReadFile(path)

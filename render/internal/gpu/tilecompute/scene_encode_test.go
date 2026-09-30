@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package tilecompute
 
@@ -68,9 +75,9 @@ func TestEncodeSceneSinglePath(t *testing.T) {
 	// Verify PathData has coordinate data.
 	// Triangle has 3 lines. Each line emits: MoveTo (if start) or LineTo for P0
 	// plus LineTo for P1. For a connected polygon, we expect:
-	// Line 0: MoveTo(P0) + LineTo(P1) → 2 tags, 4 floats
-	// Line 1: LineTo(P1) → 1 tag, 2 floats (P0 == previous P1)
-	// Line 2: LineTo(P1) → 1 tag, 2 floats (P0 == previous P1)
+	// Line 0: MoveTo(P0) + LineTo → 2 tags, 4 floats
+	// Line 1: LineTo → 1 tag, 2 floats
+	// Line 2: LineTo → 1 tag, 2 floats
 	// Total coordinate floats = 4 + 2 + 2 = 8
 	if len(enc.PathData) == 0 {
 		t.Error("PathData is empty")

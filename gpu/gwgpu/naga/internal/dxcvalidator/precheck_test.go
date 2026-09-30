@@ -1,7 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // precheck_test.go — unit tests for PreCheckContainer.
 //
-// Tests build malformed fixtures by patching specific bytes on a
-// known-good DXIL blob (tmp/min1_final.dxil, the first-ever naga S_OK
 // fixture). This avoids hand-crafting a DXBC container from scratch
 // and guarantees tests break only when real invariants are violated.
 

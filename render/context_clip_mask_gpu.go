@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -6,7 +16,7 @@ import (
 
 // installGPUClipMask promotes a mask/difference clip (HasMaskClip without
 // gpuClipPath) onto the MaskAware R8 plane so Fill/Stroke can stay on GPU
-// instead of forceCPUClip (P1-2 / C.02 / C.03).
+// instead of forceCPUClip.
 //
 // Returns (cleanup, true) when the GPU mask is installed and forceCPUClip
 // may be cleared. Caller must defer cleanup.

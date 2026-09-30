@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 // RequestAdapterStatus is the status returned by RequestAdapter callback.
@@ -40,9 +50,9 @@ type FeatureLevel uint32
 const (
 	// FeatureLevelUndefined indicates no value is passed. Added in v29.
 	FeatureLevelUndefined FeatureLevel = 0x00000000
-	// FeatureLevelCompatibility indicates the compatibility feature level (WebGPU compat).
+	// FeatureLevelCompatibility indicates the compatibility feature level.
 	FeatureLevelCompatibility FeatureLevel = 0x00000001
-	// FeatureLevelCore indicates the core feature level (full WebGPU).
+	// FeatureLevelCore indicates the core feature level.
 	FeatureLevelCore FeatureLevel = 0x00000002
 )
 
@@ -348,8 +358,7 @@ type PredefinedColorSpace uint32
 
 const (
 	// PredefinedColorSpaceSRGB is the standard sRGB color space.
-	PredefinedColorSpaceSRGB PredefinedColorSpace = 0x00000001
-	// PredefinedColorSpaceDisplayP3 is the Display P3 wide-gamut color space.
+	PredefinedColorSpaceSRGB      PredefinedColorSpace = 0x00000001
 	PredefinedColorSpaceDisplayP3 PredefinedColorSpace = 0x00000002
 )
 

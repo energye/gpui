@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -31,7 +41,7 @@ type shapeResultKey struct {
 	mode      shapeResultMode
 }
 
-// ShapeResultStats reports global shape/layout result cache counters (S6.5).
+// ShapeResultStats reports global shape/layout result cache counters.
 type ShapeResultStats struct {
 	Hits      uint64
 	Misses    uint64
@@ -256,7 +266,7 @@ func (c *shapeResultCache) evictOldestLocked() {
 	}
 }
 
-// FontSourceID returns a stable hash identity for a FontSource (S6.5 cache keys).
+// FontSourceID returns a stable hash identity for a FontSource.
 func FontSourceID(source *FontSource) uint64 {
 	if source == nil {
 		return 0
@@ -374,7 +384,7 @@ func IsHighChurnLabel(s string) bool {
 
 // LayoutGlyphs converts text into positioned glyphs using Face.Glyphs
 // (cmap + advance; no GSUB/GPOS). Results are cached for the GPU LayoutText
-// hot path (S6.5). The returned slice must not be modified by callers.
+// hot path. The returned slice must not be modified by callers.
 // High-churn telemetry labels bypass the cache (see IsHighChurnLabel).
 func LayoutGlyphs(face Face, s string) []ShapedGlyph {
 	if face == nil || s == "" {

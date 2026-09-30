@@ -1,9 +1,13 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
-
-// Package hlsl provides HLSL (High-Level Shading Language) code generation
-// from the naga intermediate representation.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // HLSL is Microsoft's shader language for DirectX and is used extensively
 // on Windows platforms. This package generates HLSL source code compatible
 // with both legacy FXC (Shader Model 5.x) and modern DXC (Shader Model 6.x)
@@ -30,9 +34,9 @@
 //
 // HLSL uses register-based resource binding with spaces:
 //
-//	cbuffer : register(b#, space#)  // Constant buffers
-//	Texture : register(t#, space#)  // Textures/SRVs
-//	Sampler : register(s#, space#)  // Samplers
+//	cbuffer : register(b#, space#) // Constant buffers
+//	Texture : register(t#, space#) // Textures/SRVs
+//	Sampler : register(s#, space#) // Samplers
 //	RWTexture: register(u#, space#) // UAVs
 //
 // The BindingMap in Options allows explicit control over register assignment.

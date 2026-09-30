@@ -1,14 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — graphics state.
 //
-// Port of skrifa hint/graphics.rs (316 LOC).
 // Manages the interpreter's graphics state including projection/freedom
 // vectors, reference points, zone pointers, and retained state.
-//
-// Reference: skrifa/src/outline/glyf/hint/graphics.rs
 package text
 
 // ttCoordAxis describes which axis a measurement or movement applies to.
-// Reference: skrifa hint/graphics.rs:12-18
 type ttCoordAxis uint8
 
 const (
@@ -39,7 +45,6 @@ func (t ttTarget) preserveLinearMetrics() bool {
 }
 
 // isVerticalLCD returns true if the target uses vertical LCD subpixels.
-// Reference: skrifa hint.rs Target::is_vertical_lcd
 func (t ttTarget) isVerticalLCD() bool {
 	return t == ttTargetLCDV
 }
@@ -47,7 +52,6 @@ func (t ttTarget) isVerticalLCD() bool {
 // isGrayscaleClearType returns true for smooth targets that use grayscale
 // rendering (not LCD subpixel). This corresponds to SmoothMode::Normal
 // in skrifa — the default smooth mode without LCD optimization.
-// Reference: skrifa hint.rs:496-501
 func (t ttTarget) isGrayscaleClearType() bool {
 	return t == ttTargetSmooth
 }
@@ -55,8 +59,6 @@ func (t ttTarget) isGrayscaleClearType() bool {
 // ttRetainedGraphicsState holds the persistent portion of the graphics state
 // that survives between interpreter runs (set by CV program, persists for
 // all glyph programs).
-//
-// Reference: skrifa hint/graphics.rs:200-265
 type ttRetainedGraphicsState struct {
 	// autoFlip controls whether CVT entry signs are flipped to match distances.
 	autoFlip bool
@@ -92,7 +94,6 @@ type ttRetainedGraphicsState struct {
 
 // newTTRetainedGraphicsState creates a retained state with the given
 // scale, ppem, and target, all other fields at defaults.
-// Reference: skrifa hint/graphics.rs:268-276
 func newTTRetainedGraphicsState(scale, ppem int32, target ttTarget) ttRetainedGraphicsState {
 	s := defaultRetainedGraphicsState()
 	s.scale = scale
@@ -102,7 +103,6 @@ func newTTRetainedGraphicsState(scale, ppem int32, target ttTarget) ttRetainedGr
 }
 
 // defaultRetainedGraphicsState returns the default retained state.
-// Reference: skrifa hint/graphics.rs:278-301
 func defaultRetainedGraphicsState() ttRetainedGraphicsState {
 	return ttRetainedGraphicsState{
 		autoFlip:          true,
@@ -124,7 +124,6 @@ func defaultRetainedGraphicsState() ttRetainedGraphicsState {
 }
 
 // ttGraphicsState is the full graphics state for the interpreter.
-// Reference: skrifa hint/graphics.rs:24-116
 type ttGraphicsState struct {
 	retained ttRetainedGraphicsState
 
@@ -142,7 +141,6 @@ type ttGraphicsState struct {
 	// Round state.
 	roundState ttRoundState
 
-	// Reference points.
 	rp0 int
 	rp1 int
 	rp2 int
@@ -163,7 +161,6 @@ type ttGraphicsState struct {
 
 	// Backward compatibility mode.
 	// When true, suppresses certain outline modifications for ClearType compat.
-	// Reference: skrifa hint/graphics.rs:93-106
 	backwardCompatibility bool
 
 	// Pedantic mode enables strict error checking.
@@ -176,7 +173,6 @@ type ttGraphicsState struct {
 
 // defaultGraphicsState returns a graphics state with default values.
 // All vectors default to the X axis (0x4000, 0) in 2.14 format.
-// Reference: skrifa hint/graphics.rs:163-192
 func defaultGraphicsState() ttGraphicsState {
 	return ttGraphicsState{
 		retained:              defaultRetainedGraphicsState(),
@@ -206,7 +202,6 @@ func defaultGraphicsState() ttGraphicsState {
 // unscaledToPixels returns the scale factor for converting unscaled points
 // to pixels. For composite glyphs, unscaled points are already scaled
 // so we return the identity (1.0 in 16.16).
-// Reference: skrifa hint/graphics.rs:119-125
 func (gs *ttGraphicsState) unscaledToPixels() int32 {
 	if gs.isComposite {
 		return 1 << 16
@@ -216,7 +211,6 @@ func (gs *ttGraphicsState) unscaledToPixels() int32 {
 
 // reset resets the non-retained portions of the graphics state.
 // Retains the retained state and zone data.
-// Reference: skrifa hint/graphics.rs:132-146
 func (gs *ttGraphicsState) reset() {
 	retained := gs.retained
 	zones := gs.zones
@@ -230,7 +224,6 @@ func (gs *ttGraphicsState) reset() {
 
 // resetRetained resets the retained state to defaults while preserving
 // scale, ppem, and target.
-// Reference: skrifa hint/graphics.rs:149-160
 func (gs *ttGraphicsState) resetRetained() {
 	scale := gs.retained.scale
 	ppem := gs.retained.ppem
@@ -243,7 +236,6 @@ func (gs *ttGraphicsState) resetRetained() {
 
 // updateProjectionState updates cached state derived from projection vectors.
 // This must be called after any vector modification.
-// Reference: skrifa hint/projection.rs:7-51
 func (gs *ttGraphicsState) updateProjectionState() {
 	const one = 0x4000 // 1.0 in 2.14
 
@@ -293,7 +285,6 @@ func (gs *ttGraphicsState) updateProjectionState() {
 
 // project computes the projection of vector (v1 - v2) along the
 // current projection vector.
-// Reference: skrifa hint/projection.rs:56-74
 func (gs *ttGraphicsState) project(v1x, v1y, v2x, v2y int32) int32 {
 	switch gs.projAxis {
 	case ttCoordX:
@@ -309,7 +300,6 @@ func (gs *ttGraphicsState) project(v1x, v1y, v2x, v2y int32) int32 {
 
 // dualProject computes the projection of (v1 - v2) along the
 // current dual projection vector.
-// Reference: skrifa hint/projection.rs:79-97
 func (gs *ttGraphicsState) dualProject(v1x, v1y, v2x, v2y int32) int32 {
 	switch gs.dualProjAxis {
 	case ttCoordX:
@@ -327,7 +317,6 @@ func (gs *ttGraphicsState) dualProject(v1x, v1y, v2x, v2y int32) int32 {
 // current dual projection vector for unscaled (font-unit) points.
 // This is the same operation as dualProject but takes raw int32 coordinates
 // instead of 26.6 fixed-point coordinates.
-// Reference: skrifa hint/projection.rs:99-115
 func (gs *ttGraphicsState) dualProjectUnscaled(v1x, v1y, v2x, v2y int32) int32 {
 	switch gs.dualProjAxis {
 	case ttCoordX:

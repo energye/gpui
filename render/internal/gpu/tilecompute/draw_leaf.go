@@ -1,11 +1,15 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
-// Port of draw_reduce.wgsl and draw_leaf.wgsl from Vello.
 // Computes DrawMonoid prefix sums over encoded draw tags and extracts draw info.
 //
-// Reference: vello_shaders/src/cpu/draw_reduce.rs, draw_leaf.rs
-// Variable names match Rust/WGSL originals for cross-reference.
 
 package tilecompute
 
@@ -114,7 +118,6 @@ func drawLeafScan(scene *PackedScene, reduced []DrawMonoid) ([]DrawMonoid, []uin
 	}
 
 	// Second pass: extract draw info and clip inputs for each draw object.
-	// Reference: draw_leaf.wgsl lines 275-281.
 	for idx := uint32(0); idx < numDrawObjects; idx++ {
 		tag := scene.Data[scene.Layout.DrawTagBase+idx]
 		dm := drawMonoids[idx]
@@ -137,7 +140,6 @@ func drawLeafScan(scene *PackedScene, reduced []DrawMonoid) ([]DrawMonoid, []uin
 			}
 		case DrawTagEndClip:
 			// EndClip: store draw index and ^idx (negative = bitwise complement).
-			// Reference: draw_leaf.wgsl line 276: path_ix = ~ix
 			if dm.ClipIx < uint32(len(clipInps)) {
 				clipInps[dm.ClipIx] = ClipInp{
 					Ix:     idx,

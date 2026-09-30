@@ -1,6 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — hint instance (per-size cached state).
 //
-// Port of skrifa hint/instance.rs (275 LOC).
 // HintInstance caches the results of running fpgm + prep programs for a
 // given font size. This state is reused across all glyph hints at that size.
 //
@@ -8,24 +17,17 @@
 //  1. newTTHintInstance() — allocate buffers, scale CVT, run fpgm + prep
 //  2. hintGlyph() — run per-glyph bytecode using cached state
 //  3. isEnabled() — check if prep disabled hinting
-//
-// Reference: skrifa/src/outline/glyf/hint/instance.rs
 package text
 
 // ttPhantomPointCount is the number of phantom points appended to each glyph.
 // These 4 extra points encode hinted metrics (lsb, advance, tsb, vadvance).
-//
-// Reference: skrifa glyf/mod.rs:34
 const ttPhantomPointCount = 4
 
 // ttHintInstance holds cached state from running the font program (fpgm) and
-// control value program (prep) at a specific font size. This matches skrifa's
-// HintInstance struct.
+// control value program (prep) at a specific font size.
 //
 // The instance is reused for all glyphs at the same ppem to avoid re-running
 // the expensive fpgm/prep programs.
-//
-// Reference: skrifa hint/instance.rs:22-33
 type ttHintInstance struct {
 	// Cached from fpgm execution — function and instruction definitions.
 	functions    []ttDefinition
@@ -47,7 +49,6 @@ type ttHintInstance struct {
 	// defined in fpgm. The glyph engine must have access to all three
 	// bytecodes (fpgm, prep, glyph) so that function calls can switch
 	// to the correct bytecode stream.
-	// Reference: skrifa hint/instance.rs:140-145
 	fpgm []byte
 	prep []byte
 
@@ -65,10 +66,6 @@ type ttHintInstance struct {
 // ppem. Runs fpgm and prep programs to initialize function definitions, CVT,
 // and retained graphics state.
 //
-// This matches skrifa HintInstance::reconfigure.
-//
-// Reference: skrifa hint/instance.rs:36-81
-//
 //nolint:unparam // error return kept for API parity with skrifa HintInstance::reconfigure
 func newTTHintInstance(font *ttFontProgram, ppem int32, target ttTarget) (*ttHintInstance, error) {
 	// Compute scale: ppem * 64 / upem in 16.16 fixed-point.
@@ -78,8 +75,6 @@ func newTTHintInstance(font *ttFontProgram, ppem int32, target ttTarget) (*ttHin
 	//   Fixed::from_bits(ppem * 64) / Fixed::from_bits(upem)
 	// which computes: ((a << 16) + (b >> 1)) / b
 	//
-	// Reference: skrifa glyf/mod.rs Scale26Dot6::new (line 387)
-	// Reference: font-types/src/fixed.rs impl Div for Fixed (line 205)
 	scale := int32(0)
 	if font.unitsPerEm > 0 {
 		a := uint64(ppem*64) << 16
@@ -131,12 +126,9 @@ func newTTHintInstance(font *ttFontProgram, ppem int32, target ttTarget) (*ttHin
 
 	// Run font program (fpgm) — defines functions.
 	// Non-pedantic: fpgm errors are common in production fonts (skrifa ignores them).
-	// We proceed to prep regardless, matching skrifa instance.rs:125.
-	// skrifa non-pedantic: fpgm errors ignored (instance.rs:125)
 	_ = engine.runProgram(ttProgramFont, false)
 
 	// Run control value program (prep) — sets cutins, instruct control, etc.
-	// skrifa non-pedantic: prep errors ignored (instance.rs:131)
 	_ = engine.runProgram(ttProgramControlValue, false)
 
 	// Save retained graphics state.
@@ -167,16 +159,12 @@ func newTTHintInstance(font *ttFontProgram, ppem int32, target ttTarget) (*ttHin
 
 // isEnabled returns true if hinting should be applied.
 // The prep program can disable hinting by setting instruct control bit 0.
-//
-// Reference: skrifa hint/instance.rs:86-89
 func (h *ttHintInstance) isEnabled() bool {
 	return h.graphics.instructControl&1 == 0
 }
 
 // backwardCompatibility returns true if backward compatibility mode is active.
 // This suppresses X-axis movements for ClearType-era fonts.
-//
-// Reference: skrifa hint/instance.rs:93-102
 func (h *ttHintInstance) backwardCompatibility() bool {
 	if h.graphics.target.preserveLinearMetrics() {
 		return true
@@ -196,8 +184,6 @@ func (h *ttHintInstance) backwardCompatibility() bool {
 //   - contours set to the glyph's contour endpoints
 //   - bytecode from the glyph's instructions
 //   - phantom points initialized and appended to the end of points
-//
-// Reference: skrifa hint/instance.rs:104-177
 func (h *ttHintInstance) hintGlyph(outline *ttGlyphOutline) error {
 	numPhysicalPoints := len(outline.points) // includes phantom points
 
@@ -224,7 +210,6 @@ func (h *ttHintInstance) hintGlyph(outline *ttGlyphOutline) error {
 	// copy to preserve the original if the glyph program fails. On success,
 	// hinted points are copied back to outline.points.
 	//
-	// Reference: skrifa hint/instance.rs creates a fresh points buffer per glyph.
 	glyphPoints := make([][2]int32, len(outline.points))
 	copy(glyphPoints, outline.points)
 
@@ -254,7 +239,6 @@ func (h *ttHintInstance) hintGlyph(outline *ttGlyphOutline) error {
 	// Create program state with ALL bytecodes — the glyph program may CALL
 	// functions defined in fpgm. Without fpgm bytecode, CALL instructions
 	// would switch to an empty decoder and silently fail.
-	// Reference: skrifa hint/instance.rs:140-145 passes outlines.fpgm + outlines.prep + outline.bytecode
 	program := newTTProgramState(h.fpgm, h.prep, outline.bytecode, ttProgramGlyph)
 
 	// Create and run engine.
@@ -275,7 +259,6 @@ func (h *ttHintInstance) hintGlyph(outline *ttGlyphOutline) error {
 
 	// Extract phantom points.
 	// If backward compatibility mode is disabled, capture modified phantom points.
-	// Reference: skrifa hint/instance.rs:168-175
 	if !engine.backwardCompatibility() {
 		phantomStart := numPhysicalPoints - ttPhantomPointCount
 		if phantomStart >= 0 && phantomStart+ttPhantomPointCount <= len(outline.points) {
@@ -289,9 +272,6 @@ func (h *ttHintInstance) hintGlyph(outline *ttGlyphOutline) error {
 }
 
 // setup initializes buffers and scales the CVT.
-// Matches skrifa hint/instance.rs:180-235.
-//
-// Reference: skrifa hint/instance.rs:180-235
 func (h *ttHintInstance) setup(font *ttFontProgram, scale int32) {
 	// Allocate function/instruction definition buffers.
 	h.functions = make([]ttDefinition, font.maxFunctionDefs)
@@ -303,8 +283,6 @@ func (h *ttHintInstance) setup(font *ttFontProgram, scale int32) {
 	// Uses rounded 16.16 multiply (Fixed::mul) matching skrifa exactly.
 	// CVT values are in 26.6 (font_units * 64), scale is adjusted: scale >> 6.
 	//
-	// Reference: skrifa hint/instance.rs:236-242
-	// Reference: FreeType ttobjs.c:996
 	h.cvt = make([]int32, len(font.cvt))
 	scaleFrac := scale >> 6 // scale >> 6 = Fixed scale for 26.6 CVT values
 	for i, v := range font.cvt {

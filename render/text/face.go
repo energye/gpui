@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -56,7 +66,7 @@ type Face interface {
 	// Hinting returns the hinting mode configured for this face (set via
 	// [WithHinting], default HintingFull). Both the CPU text.Draw path and the
 	// GPU glyph-mask rasterizer consume the SAME face hinting so their masks
-	// are pixel-identical — Skia's single glyph-cache semantic where CPU and
+	// are pixel-identical — the single glyph-cache semantic where CPU and
 	// GPU text share one strikemaker configuration.
 	Hinting() Hinting
 
@@ -114,14 +124,14 @@ func (f *sourceFace) Metrics() Metrics {
 	}
 
 	return Metrics{
-		Ascent:           fontMetrics.Ascent,
-		Descent:          descent,
-		LineGap:          fontMetrics.LineGap,
-		XHeight:          fontMetrics.XHeight,
-		CapHeight:        fontMetrics.CapHeight,
-		VerticalAscent:   fontMetrics.VerticalAscent,
-		VerticalDescent:  vDescent,
-		VerticalLineGap:  fontMetrics.VerticalLineGap,
+		Ascent:          fontMetrics.Ascent,
+		Descent:         descent,
+		LineGap:         fontMetrics.LineGap,
+		XHeight:         fontMetrics.XHeight,
+		CapHeight:       fontMetrics.CapHeight,
+		VerticalAscent:  fontMetrics.VerticalAscent,
+		VerticalDescent: vDescent,
+		VerticalLineGap: fontMetrics.VerticalLineGap,
 	}
 }
 
@@ -161,7 +171,7 @@ func (f *sourceFace) HasGlyph(r rune) bool {
 
 // glyphAdvance returns the per-glyph advance for the current direction:
 // horizontal (LTR/RTL) uses hmtx advance width; vertical (TTB/BTT) uses the
-// vmtx advance height (M6 vertical metrics). Returns (advance, isVertical).
+// vmtx advance height. Returns (advance, isVertical).
 func (f *sourceFace) glyphAdvance(parsed ParsedFont, gid uint16, varProvider VariableAdvanceProvider) (float64, bool) {
 	isVertical := f.config.direction.IsVertical()
 	if isVertical {
@@ -181,8 +191,6 @@ func (f *sourceFace) glyphAdvance(parsed ParsedFont, gid uint16, varProvider Var
 // Shared by Glyphs (iterator) and AppendGlyphs (append) to avoid divergence.
 func (f *sourceFace) iterGlyphs(text string, visit func(g Glyph) bool) {
 	parsed := f.source.Parsed()
-	// 方向：横排沿 X 推进；竖排（TTB/BTT）沿 Y 推进（vmtx 高度），
-	// X 恒定 0（M6 竖排对齐：glyph.Y 携带垂直位置）。
 	x := 0.0
 	y := 0.0
 	isVertical := f.config.direction.IsVertical()

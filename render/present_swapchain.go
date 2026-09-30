@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package render
 
@@ -8,7 +15,7 @@ import (
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
-// newWebgpuHalSwapchain builds the default hal.Swapchain (Rust path).
+// newWebgpuHalSwapchain builds the default hal.Swapchain.
 func newWebgpuHalSwapchain(surf hal.Surface, dev hal.Device, w, h uint32) hal.Swapchain {
 	return webgpu.NewSwapchain(surf, dev, w, h).NewHalSwapchain()
 }

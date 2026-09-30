@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 // Point propagation for the auto-hinter.
@@ -13,18 +23,12 @@ package text
 //
 // All coordinates are in 26.6 fixed-point (1 unit = 1/64 pixel).
 //
-// References:
-//   - FreeType afhints.c:1324 af_glyph_hints_align_edge_points
-//   - FreeType afhints.c:1399 af_glyph_hints_align_strong_points
-//   - FreeType afhints.c:1673 af_glyph_hints_align_weak_points
-//   - skrifa hint/outline.rs  align_edge_points, align_strong_points, align_weak_points
 
 // alignEdgePoints adjusts all points that belong to edge segments.
 //
 // For Default script group, points snap directly to edge.pos.
 // For CJK script group, points are shifted by the edge delta (edge.pos - edge.opos)
-// unless HORIZONTAL_SNAP / VERTICAL_SNAP flags are set. This matches skrifa
-// hint/outline.rs:42-44 which conditionally snaps for CJK:
+// unless HORIZONTAL_SNAP / VERTICAL_SNAP flags are set.
 //
 //	let snap = group == ScriptGroup::Default
 //	    || (axis.dim == Dim::H && scale.flags.contains(HORIZONTAL_SNAP))
@@ -39,7 +43,6 @@ package text
 //   - When firstPt > lastPt (contour wrap-around), array iteration visits ZERO points
 //   - Array iteration may include non-segment points that happen to be in the range
 //
-// See FreeType afhints.c:1324 and skrifa hint/outline.rs:31.
 // See FreeType afcjk.c:2195 for CJK snap configuration.
 func alignEdgePoints(pa *hintPointArray, segments []hintSegment, edges []*hintEdge, dim hintDimension, group scriptGroup) {
 	touchFlag := pointFlagTouchedY
@@ -91,13 +94,6 @@ func alignEdgePoints(pa *hintPointArray, segments []hintSegment, edges []*hintEd
 //   - If before the first edge → shift by first edge's delta
 //   - If after the last edge → shift by last edge's delta
 //   - If between two edges → linearly interpolate based on edge movement
-//
-// Matches skrifa hint/outline.rs:81 which uses:
-//   - point.fy/fx (i32, font units) for fpos comparison
-//   - point.oy/ox (i32, 26.6 scaled) for position computation
-//   - fixed_mul/fixed_div (16.16) for scale interpolation
-//
-// See FreeType afhints.c:1399 and skrifa hint/outline.rs:81.
 func alignStrongPoints(pa *hintPointArray, edges []*hintEdge, dim hintDimension) {
 	if len(edges) == 0 {
 		return
@@ -169,9 +165,6 @@ func alignStrongPoints(pa *hintPointArray, edges []*hintEdge, dim hintDimension)
 			if denom == 0 {
 				storePoint26dot6(pt, dim, before.pos)
 			} else {
-				// Matches FT afhints.c: scale computed fresh per (before,after)
-				// pair; caching on the edge is wrong because an edge can pair
-				// with different neighbors.
 				scale := fixedDiv26dot6(after.pos-before.pos, int32(denom))
 				fposInt := int32(u - before.fpos) // font unit delta as integer
 				storePoint26dot6(pt, dim, before.pos+fixedMul26dot6(fposInt, scale))
@@ -201,8 +194,6 @@ func alignStrongPoints(pa *hintPointArray, edges []*hintEdge, dim hintDimension)
 
 			if u > before.fpos && u < after.fpos { //nolint:nestif // FreeType aflatin.c port
 				// Interpolate using 16.16 fixed-point scale.
-				// Matches skrifa: scale = fixed_div(after.pos - before.pos, after.fpos - before.fpos)
-				// then: result = before.pos + fixed_mul(u - before.fpos, scale)
 				denom := after.fpos - before.fpos
 				if denom == 0 {
 					storePoint26dot6(pt, dim, before.pos)
@@ -251,13 +242,6 @@ func alignEdgePointCoord(pt *hintPoint, dim hintDimension, pos, delta int32, sna
 //     interpolate based on the touched points' movement
 //  3. Handle wrap-around at contour boundaries
 //
-// Matches skrifa hint/outline.rs:204 exactly:
-//   - Copies x→u, ox→v (or y→u, oy→v) before processing
-//   - IUP operates on u/v fields
-//   - Writes u back to x (or y) after processing
-//
-// See FreeType afhints.c:1673 and skrifa hint/outline.rs:204.
-//
 //nolint:gocognit,gocyclo,cyclop // FreeType afhints.c port — algorithmic complexity is inherent
 func alignWeakPoints(pa *hintPointArray, dim hintDimension) {
 	touchFlag := pointFlagTouchedY
@@ -266,8 +250,6 @@ func alignWeakPoints(pa *hintPointArray, dim hintDimension) {
 	}
 
 	// Copy current coordinates into u/v for interpolation.
-	// Matches skrifa: point.u = point.x, point.v = point.ox (horizontal)
-	//            or:  point.u = point.y, point.v = point.oy (vertical)
 	for i := range pa.pts {
 		pt := &pa.pts[i]
 		if dim == dimHorizontal {
@@ -346,7 +328,6 @@ func alignWeakPoints(pa *hintPointArray, dim hintDimension) {
 	}
 
 	// Write back interpolated values from u to x/y.
-	// Matches skrifa: point.x = point.u (horizontal) or point.y = point.u (vertical).
 	for i := range pa.pts {
 		pt := &pa.pts[i]
 		if dim == dimHorizontal {
@@ -359,8 +340,6 @@ func alignWeakPoints(pa *hintPointArray, dim hintDimension) {
 
 // iupShift26dot6 shifts all untouched points by the same delta as the reference point.
 // Operates on u/v fields (26.6 fixed-point).
-//
-// See FreeType afhints.c:1578 and skrifa hint/outline.rs:312.
 func iupShift26dot6(pts []hintPoint, p1, p2, refIdx int) {
 	ref := &pts[refIdx]
 	delta := ref.u - ref.v
@@ -378,8 +357,6 @@ func iupShift26dot6(pts []hintPoint, p1, p2, refIdx int) {
 
 // iupInterpolate26dot6 interpolates untouched points between two reference points.
 // Operates on u/v fields (26.6 fixed-point).
-//
-// See FreeType afhints.c:1605 and skrifa hint/outline.rs:335.
 //
 //nolint:nestif // FreeType afhints.c port — algorithmic complexity is inherent
 func iupInterpolate26dot6(pts []hintPoint, p1, p2, ref1, ref2 int) {

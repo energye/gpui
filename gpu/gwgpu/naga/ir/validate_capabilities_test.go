@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 import (
@@ -181,7 +191,7 @@ func TestValidateWithCapabilities_AtomicTypes(t *testing.T) {
 }
 
 func TestValidateWithCapabilities_BackwardCompatibility(t *testing.T) {
-	// Validate() (without capabilities) uses CapAll — should accept everything.
+	// Validate() uses CapAll — should accept everything.
 	m := &Module{
 		Types: []Type{
 			{Name: "f64", Inner: ScalarType{Kind: ScalarFloat, Width: 8}},

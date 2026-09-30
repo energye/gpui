@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -7,7 +17,6 @@ import (
 	"github.com/energye/gpui/gpu/shader/ir"
 )
 
-// scalarToDXIL maps a naga ScalarType to a DXIL type.
 // DXIL types are always scalar — vectors are decomposed by the emitter.
 func scalarToDXIL(mod *module.Module, s ir.ScalarType) *module.Type {
 	switch s.Kind {
@@ -66,7 +75,7 @@ func typeToDXIL(mod *module.Module, irMod *ir.Module, inner ir.TypeInner) (*modu
 		// rejected with HRESULT 0x80aa0009 "Invalid record" at the
 		// record-level pre-parse. This was the root cause of the
 		// `gogpu/examples/triangle` / `array<vec2<f32>, 3>` failure
-		// surfaced by `GOGPU_DX12_DXIL_VALIDATE=1` (BUG-DXIL-011).
+		// surfaced by `GOGPU_DX12_DXIL_VALIDATE=1`.
 		flatSize := uint(1)
 		curBase := t
 		hasUnsized := false
@@ -83,11 +92,7 @@ func typeToDXIL(mod *module.Module, irMod *ir.Module, inner ir.TypeInner) (*modu
 				// count and emit an array of the scalar element type.
 				// This is NECESSARY but NOT SUFFICIENT — the store/load
 				// paths on top of this flattened alloca also need to
-				// scale indices by the vector width. See BUG-DXIL-025
-				// for the follow-up SROA-style access lowering; before
-				// that lands, dynamic `array<vec<T,N>, M>` access from
-				// local vars still trips 'Invalid record' at the
-				// bitcode level even though the type is now correct.
+				// scale indices by the vector width.
 				switch leaf := inner.(type) {
 				case ir.VectorType:
 					flatSize *= uint(leaf.Size)
@@ -295,11 +300,6 @@ func flattenStructMember(mod *module.Module, irMod *ir.Module, inner ir.TypeInne
 // and arrays (uses ArrayType.Stride if set). Used by UAV index computation in
 // dxil/internal/emit/resources.go to convert element indices to byte offsets per
 // the DXIL spec for RWRawBuffer (`coord0 in bytes`, see DXIL.rst BufferStore section).
-//
-// References:
-//   - DXC HLOperationLower.cpp:4721 — `EltSize = OP->GetAllocSizeForType(EltTy)` for raw buffers.
-//   - WGSL spec §10.3.3 — matrix layout rules (matCxR with R=3 gets stride 16 not 12).
-//   - DXIL.rst:1789 — BufferStore coord0 semantics by resource kind.
 func elemByteSize(irMod *ir.Module, inner ir.TypeInner) uint32 {
 	switch t := inner.(type) {
 	case ir.ScalarType:

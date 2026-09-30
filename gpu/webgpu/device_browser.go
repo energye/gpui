@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -527,7 +537,7 @@ func convertStencilFaceState(s *StencilFaceState) *browser.StencilFaceStateJS {
 	}
 }
 
-// stencilOpToJS converts StencilOperation (gputypes, webgpu.h spec values) to WebGPU JS string.
+// stencilOpToJS converts StencilOperation to WebGPU JS string.
 func stencilOpToJS(op types.StencilOperation) string {
 	switch op {
 	case types.StencilOperationKeep:

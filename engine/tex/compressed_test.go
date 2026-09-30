@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package tex
 
 import (
@@ -437,7 +447,7 @@ func TestCompressedLongRunStable(t *testing.T) {
 	}
 }
 
-// F: offscreen golden stands in for the window (window-exempt in W1).
+// F: offscreen golden stands in for the window.
 // The frozen spots plus sharp quadrant edges are the evidence both
 // backends share; no game_* window is built for 3.1.
 func TestCompressedOffscreenGolden(t *testing.T) {

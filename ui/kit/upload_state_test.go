@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit_test
 
 import (
@@ -10,7 +20,6 @@ func TestUpload_SelectProgressRemoveMaxCount(t *testing.T) {
 	cases := loadUploadCases(t)
 	uid := cases["uid"].(map[string]any)
 
-	// UPL-S1: select one file lists it with uid fill + onChange.
 	changes := 0
 	sprops := withUploadOnChange(kit.DefaultUploadProps(), func() { changes++ })
 	host := kit.BuildUpload(kit.DefaultScopeCtx(), sprops)
@@ -34,7 +43,6 @@ func TestUpload_SelectProgressRemoveMaxCount(t *testing.T) {
 		t.Fatalf("after 2s = %+v,%v", f, ok)
 	}
 
-	// UPL-S5: remove deletes + notifies; veto blocks.
 	second := host.SelectFiles([]kit.UploadLocalFile{{Name: "b.png"}})
 	if len(second) != 1 || second[0].UID != uid["second"].(string) {
 		t.Fatalf("second uid = %+v", second)
@@ -50,7 +58,6 @@ func TestUpload_SelectProgressRemoveMaxCount(t *testing.T) {
 		t.Fatal("onRemove false must veto")
 	}
 
-	// UPL-S6: maxCount=1 replaces with the latest.
 	mprops := kit.DefaultUploadProps()
 	mprops.MaxCount = 1
 	mhost := kit.BuildUpload(kit.DefaultScopeCtx(), mprops)
@@ -61,7 +68,6 @@ func TestUpload_SelectProgressRemoveMaxCount(t *testing.T) {
 		t.Fatalf("maxCount=1 = %+v", list)
 	}
 
-	// UPL-S7: disabled selects nothing.
 	dprops := kit.DefaultUploadProps()
 	dprops.Disabled = true
 	dhost := kit.BuildUpload(kit.DefaultScopeCtx(), dprops)

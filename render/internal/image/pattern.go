@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package image provides image buffer management for gogpu/gg.
 package image
 
@@ -224,7 +234,6 @@ func (p *ImagePattern) applySpreadMode(u, v float64) (float64, float64) {
 		v -= math.Floor(v)
 
 	case SpreadReflect:
-		// Mirror at boundaries
 		u = reflectCoord(u)
 		v = reflectCoord(v)
 	}

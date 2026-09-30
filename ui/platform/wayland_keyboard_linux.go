@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -24,7 +34,7 @@ import (
 // Protocol (wl_keyboard, stable):
 //
 //	requests: release(0)
-//	events:   keymap(0)[format,fd,size] enter(1)[serial,surface,keys]
+//	events: keymap(0)[format,fd,size] enter(1)[serial,surface,keys]
 //	          leave(2)[serial,surface] key(3)[serial,time,key,state]
 //	          modifiers(4)[serial,depressed,latched,locked,group]
 //	          repeat_info(5)[rate,delay]
@@ -56,19 +66,19 @@ const (
 	wlKbRepeat    = 5
 )
 
-// XKB_KEYMAP_FORMAT_TEXT_V1 and state actions (xkbcommon.h).
+// XKB_KEYMAP_FORMAT_TEXT_V1 and state actions.
 const (
 	xkbKeymapFormatTextV1 = 1
 	xkbKeyDown            = 1
 	xkbKeyUp              = 0
-	// Effective-mod query (xkbcommon.h enum xkb_state_component): currently
+	// Effective-mod query: currently
 	// active and affecting key processing, derived from the other
 	// components. Use this unless explicitly caring how state came about.
 	xkbStateModsEffective = 1 << 3
 )
 
 // Pinned NUL-terminated modifier names for xkb_state_mod_name_is_active
-// (xkbcommon-names.h): Alt lives on Mod1, Meta/Super on Mod4.
+// : Alt lives on Mod1, Meta/Super on Mod4.
 var (
 	wlModNameShift = []byte("Shift\x00")
 	wlModNameCtrl  = []byte("Control\x00")
@@ -145,7 +155,7 @@ type wlKeyboardState struct {
 	heldKS     uintptr     // its keysym
 	repTimer   *time.Timer // fires the next repeat (delay first, then interval)
 
-	// Modifier report cache (S6 §4.4 B 组): last EventModifiersChanged
+	// Modifier report cache: last EventModifiersChanged
 	// state. Guarded by modMu; the track helper dedups so plain typing
 	// stays quiet (mirrors x11TrackMods).
 	modMu      sync.Mutex
@@ -499,7 +509,7 @@ func (st *wlKeyboardState) repeatIntervalLocked() time.Duration {
 
 // fireRepeat pushes one synthesized press and reschedules while the key is
 // still held. Runs on the timer goroutine; pushKey is mutex-guarded.
-// Synthesized presses carry Repeat (S6-P0 "Repeat 必带"); the initial press
+// Synthesized presses carry Repeat; the initial press
 // path shares keysymEvent but leaves it clear.
 func (st *wlKeyboardState) fireRepeat() {
 	st.repeatMu.Lock()

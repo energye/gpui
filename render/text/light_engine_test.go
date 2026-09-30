@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -86,9 +96,6 @@ func outlineLightTop(t *testing.T, out *GlyphOutline) float64 {
 	return top
 }
 
-// TestLightM0TopBlueAnchor M0：有顶横字（日/田/目）顶横锚定蓝线。
-// 覆盖 12–16px（§M0：主蓝字 12–16px 88–96% 归零；anchor=round(816×px/upem)
-// 经验式，NotoSansCJK upem=1000 → 12px=10.0 / 14px=11.0 / 16px=13.0）。
 func TestLightM0TopBlueAnchor(t *testing.T) {
 	cjk, _ := reproLightFont(t)
 	e := New()
@@ -109,7 +116,6 @@ func TestLightM0TopBlueAnchor(t *testing.T) {
 	}
 }
 
-// TestLightM0UnanchoredTop 无直线顶横的字（钮，曲线顶部）M0 不锚（保持原轮廓 top）。
 func TestLightM0UnanchoredTop(t *testing.T) {
 	cjk, _ := reproLightFont(t)
 	e := New()

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -113,16 +123,15 @@ func TestMSL_Switch(t *testing.T) {
 		},
 	}
 	result := compileModule(t, module)
-	// Rust naga uses switch(x) without space before paren
 	mustContainMSL(t, result, "switch(")
-	// Case bodies are wrapped in braces with break inside (Rust naga style).
+	// Case bodies are wrapped in braces with break inside.
 	// Fallthrough case (case 1) has label only, no braces.
 	mustContainMSL(t, result, "case 0: {")
 	mustContainMSL(t, result, "case 1:") // fallthrough: label only, no braces
 	mustContainMSL(t, result, "default: {")
 	// Cases that end with a terminator (Return, Break, Continue, Kill) do NOT get
 	// an extra break; appended. Since all non-fallthrough cases end with StmtReturn,
-	// there should be 0 break statements. This matches Rust naga's is_terminator check.
+	// there should be 0 break statements.
 	lines := strings.Split(result, "\n")
 	breakCount := 0
 	for _, line := range lines {
@@ -645,7 +654,6 @@ func TestMSL_WorkGroupUniformLoad(t *testing.T) {
 	}
 	result := compileModule(t, module)
 	mustContainMSL(t, result, "metal::threadgroup_barrier(metal::mem_flags::mem_threadgroup);")
-	// Matches Rust naga: WorkGroupUniformLoad result is named via namer.call("") -> "unnamed"
 	mustContainMSL(t, result, "unnamed")
 }
 

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Package wgpu provides GPU-accelerated rendering backend using WebGPU.
@@ -307,7 +317,6 @@ func ValidateBlendModeMapping() error {
 }
 
 // BlendParams represents the uniform buffer structure for blend shaders.
-// This matches the BlendParams struct in blend.wgsl.
 type BlendParams struct {
 	Mode    uint32  // Blend mode enum value
 	Alpha   float32 // Layer opacity (0.0 - 1.0)
@@ -315,7 +324,6 @@ type BlendParams struct {
 }
 
 // StripParams represents the uniform buffer structure for strip shaders.
-// This matches the StripParams struct in strip.wgsl.
 type StripParams struct {
 	Color        [4]float32 // Fill color (premultiplied RGBA)
 	TargetWidth  int32      // Output texture width
@@ -325,7 +333,6 @@ type StripParams struct {
 }
 
 // CompositeParams represents the uniform buffer structure for composite shaders.
-// This matches the CompositeParams struct in composite.wgsl.
 type CompositeParams struct {
 	LayerCount uint32 // Number of layers to composite
 	Width      uint32 // Output width
@@ -334,7 +341,6 @@ type CompositeParams struct {
 }
 
 // LayerDescriptor represents a single layer for compositing.
-// This matches the Layer struct in composite.wgsl.
 type LayerDescriptor struct {
 	TextureIdx uint32  // Index into layer textures
 	BlendMode  uint32  // Blend mode for this layer

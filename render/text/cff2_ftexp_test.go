@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -15,12 +25,10 @@ const cff2VFSourceSans = "testdata/source-sans/VF/SourceSans3VF-Upright.otf"
 // bcontour 批量模式一次启动 FT 遍历，避免逐字起进程。
 var cff2FTChars = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
-// TestCFF2VFNoHintMatchesFT 是 CFF2 VF 的正式对照窗（M5 前置，探针升级）：
-// Go 管线提取的 CFF2 轮廓（default master，无 hint）逐点与 FT nohint.
 // contour 批量对照，覆盖率必须 100%（容差 <=0.1px 对应 26.6 定点舍入差）。
 // 缺字体 -> Skipf（禁止静默假绿，见 AGENTS.md）。
 func TestCFF2VFNoHintMatchesFT(t *testing.T) {
-path := cff2VFSourceSans
+	path := cff2VFSourceSans
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("no CFF2 VF font: %v", err)
 	}
@@ -84,7 +92,7 @@ func goSegments(segs []OutlineSegment) [][2]int64 {
 	for _, s := range segs {
 		n := segPointCount(s.Op)
 		for j := 0; j < n; j++ {
-			out = append(out, [2]int64{int64(s.Points[j].X*64), int64(-s.Points[j].Y * 64)})
+			out = append(out, [2]int64{int64(s.Points[j].X * 64), int64(-s.Points[j].Y * 64)})
 		}
 	}
 	return out

@@ -1,7 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 // TypeSize returns the byte size of a type following WGSL/WebGPU alignment rules.
-// Matches Rust naga's TypeInner::try_size(gctx).
 // Returns 0 for opaque types (samplers, images, pointers) and runtime-sized arrays.
 func TypeSize(module *Module, handle TypeHandle) uint32 {
 	if int(handle) >= len(module.Types) {
@@ -44,7 +53,6 @@ func typeInnerSize(module *Module, inner TypeInner) uint32 {
 }
 
 // vectorAlignment returns the alignment in components for a vector size.
-// vec2→2, vec3→4, vec4→4 (matches Rust Alignment::from(VectorSize)).
 func vectorAlignment(size VectorSize) uint32 {
 	switch size {
 	case Vec2:

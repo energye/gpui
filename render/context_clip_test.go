@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -622,10 +632,7 @@ func TestClipPathDeviceSpace(t *testing.T) {
 }
 
 // TestClipRoundRectFillSDF verifies that ClipRoundRect clips CPU SDF-rendered
-// shapes (circles, rrects). This is a regression test for BUG-CLIP-001 where
-// the CPU SDF fallback (SDFAccelerator) rendered shapes without applying the
-// ClipStack per-pixel coverage — content was visible outside the clip boundary
-// on the software backend.
+// shapes (circles, rrects).
 func TestClipRoundRectFillSDF(t *testing.T) {
 	dc := NewContext(200, 200)
 	dc.ClearWithColor(White)
@@ -659,7 +666,7 @@ func TestClipRoundRectFillSDF(t *testing.T) {
 	}
 
 	// Outside clip (10, 100) should be white — left of clip, within circle's
-	// rendering area. BUG-CLIP-001 caused this pixel to be red.
+	// rendering area.
 	outsideLeft := dc.pixmap.GetPixel(10, 100)
 	if outsideLeft.R < 0.9 || outsideLeft.G < 0.9 || outsideLeft.B < 0.9 {
 		t.Errorf("Outside clip (10,100): expected white, got R=%.2f G=%.2f B=%.2f (BUG-CLIP-001)",
@@ -683,7 +690,6 @@ func TestClipRoundRectFillSDF(t *testing.T) {
 
 // TestClipRoundRectFillPath verifies that ClipRoundRect clips non-SDF content
 // (arbitrary paths rendered via the software AnalyticFiller). This ensures the
-// clip fix for BUG-CLIP-001 did not regress the existing path-based clipping.
 func TestClipRoundRectFillPath(t *testing.T) {
 	dc := NewContext(200, 200)
 	dc.ClearWithColor(White)

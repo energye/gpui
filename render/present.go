@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -72,7 +82,7 @@ func preparePresent(c *Context, view gpucontext.TextureView, width, height uint3
 // PresentFrame flushes the current GPU scene into a surface texture view and
 // then invokes present (typically Swapchain.EndFrame / Surface.Present).
 //
-// For retained UI steady frames prefer PresentFrameAuto (S6.1); use PresentFrame
+// For retained UI steady frames prefer PresentFrameAuto; use PresentFrame
 // / PresentFrameFull for bootstrap and deliberate full redraw only.
 //
 // This is the S.03 window present entry point for application code:

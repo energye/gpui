@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -494,7 +504,6 @@ func TestAsMask_AfterFill(t *testing.T) {
 	}
 }
 
-// TestSetMask_Rider21Reproduction reproduces the exact scenario from gg#238.
 // User creates a mask from a circle, sets it, then fills a rectangle.
 // Without the fix, the mask was ignored and the full rectangle was drawn.
 func TestSetMask_Rider21Reproduction(t *testing.T) {

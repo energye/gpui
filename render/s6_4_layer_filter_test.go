@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -41,8 +51,6 @@ func TestS64_FilterPool_ReusesIntermediates(t *testing.T) {
 	if !render.FiltersRegistered() {
 		t.Skip("filters not registered")
 	}
-	// P0-4: ApplyBlur prefers GPU graph (texture/from-view); force pure CPU so the
-	// S6.4 intermediate pool is exercised (R7.2: must clear all three hooks).
 	restore := render.DisableGPUFilterGraphForTest()
 	defer restore()
 

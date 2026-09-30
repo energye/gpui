@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -9,15 +19,6 @@ import (
 
 // waylandController implements WindowController for the Wayland backend via
 // xdg_toplevel requests + configure-driven state reconciliation. Requests
-// are marshalled through libwayland (purego, no CGO); protocol-impossible
-// operations (Position/Focus/AlwaysOnTop/Decoration-toggle) return
-// ErrUnsupported — the honesty contract of ENGINE_WINDOW_API.md §2.5.4.
-// Show/Hide are real (hide = destroy the surface stack, show = recreate —
-// §6.2 of ENGINE_WAYLAND_WINDOW_STANDARD.md).
-//
-// §2.5.5 thread contract: all methods may be called from any goroutine
-// (libwayland proxy marshalling is internally locked during dispatch); the
-// tracked state is guarded by wlWin.ctlMu.
 type waylandController struct {
 	h *wlHost
 }
@@ -59,7 +60,7 @@ func (c *waylandController) SetTitle(t string) {
 	args := []wlArg{argS(cstr(w.titlePin))}
 	w.lib.proxyMarshalArrayFlags(w.toplevel, xdgToplevelSetTitle, 0, 0, 0, &args[0])
 	w.lib.displayFlush(w.display)
-	// The CSD title bar shows the same string (GTK parity).
+	// The CSD title bar shows the same string.
 	if w.csd != nil {
 		w.csd.state.Title = t
 		w.csd.repaintTitle()
@@ -76,9 +77,6 @@ func (c *waylandController) Size() (int, int) {
 	return w.width, w.height
 }
 
-// SetSize routes through the min==max clamp (§2.5.2): Wayland has no direct
-// resize request, so the requested size becomes a hard constraint until
-// SetMinSize/SetMaxSize re-open it or SetResizable(true) restores the user
 // constraints. The compositor confirms with a configure (EventResize). The
 // clamp also locks the CSD resize grips (fixed-size window shows no resize
 // affordances — GTK4 parity).
@@ -148,8 +146,6 @@ func (c *waylandController) SetResizable(r bool) {
 	w.ctlMu.Lock()
 	if r == w.resizable {
 		if r && w.locked {
-			// A SetSize min==max clamp is in effect — SetResizable(true)
-			// lifts it even when the flag did not change (§2.5.2 contract).
 			w.locked = false
 			w.ctlMu.Unlock()
 			if w.csd != nil {
@@ -191,9 +187,6 @@ func (c *waylandController) IsResizable() bool {
 	return w.resizable
 }
 
-// SetDecorations: the CSD is a creation-time choice (subsurfaces + shm
-// buffers); rebuilding it at runtime is not cheap, so the toggle is
-// unsupported (§2.3 Wayland column).
 func (c *waylandController) SetDecorations(dec bool) error {
 	return ErrUnsupported
 }
@@ -232,8 +225,6 @@ func (c *waylandController) SetIgnoreCursorEvents(ignore bool) error {
 	return nil
 }
 
-// Position: xdg has no client-side positioning; the query answers ok=false
-// (zero values ≠ "at origin", §2.5.3).
 func (c *waylandController) Position() (int, int, bool) {
 	return 0, 0, false
 }
@@ -254,8 +245,6 @@ func (c *waylandController) Minimize() {
 	w.topNoArg(xdgToplevelSetMinimized)
 }
 
-// IsMinimized returns the optimistic tracked value (protocol has no
-// minimized state; set_minimized → true, activated configure → false, §3.2).
 func (c *waylandController) IsMinimized() bool {
 	w := c.win()
 	if w == nil {
@@ -310,7 +299,6 @@ func (c *waylandController) SetFullscreen(fs bool) {
 	w.ctlMu.Unlock()
 	w.setStateTriple(mn, mx, fs)
 	if fs {
-		// NULL output = the compositor picks the current output (§2.4).
 		w.top1o(xdgToplevelSetFullscreen, 0)
 	} else {
 		w.topNoArg(xdgToplevelUnsetFullscreen)
@@ -331,8 +319,6 @@ func (c *waylandController) IsFullscreen() bool {
 // stack (Hide → EventHidden{true} → embedder closes the GPU target and calls
 // HiddenSurface.ApplyHiddenDetach — the window truly unmaps, GTK4
 // gdk_wayland_window_hide parity) and Show re-creates it. Show may be called
-// while the stack is gone; EventHidden{false} is then deferred until the
-// re-created surface is re-mapped (§6.2).
 func (c *waylandController) Show() error {
 	w := c.win()
 	if w == nil {
@@ -359,8 +345,6 @@ func (c *waylandController) IsVisible() bool {
 	return !w.isHidden()
 }
 
-// Focus: xdg has no focus request; IsFocused reports the configure-delivered
-// activated state (true value, §2.3 "查=activated").
 func (c *waylandController) Focus() error {
 	return ErrUnsupported
 }
@@ -529,7 +513,7 @@ func wlEdgeOf(e WindowEdge) int {
 }
 
 // StartDrag begins a compositor-driven outbound drag with this window as
-// the source (S6-P1 item 4: 本窗外发拖放): a wl_data_source offering the
+// the source: a wl_data_source offering the
 // payload types (uri-list from Files unless Data overrides, then every
 // Data entry) is passed to wl_data_device.start_drag with the last button
 // serial and no icon. The call returns once the compositor owns the drag —

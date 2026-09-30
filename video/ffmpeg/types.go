@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -7,31 +17,6 @@ import (
 // Field offsets measured from the 7.1 headers plus the build tree
 // (see /tmp/ffprobe_off output). They pin the purego reads below so a
 // header drift fails loudly instead of decoding garbage.
-//
-// Audio companions derived the same way, by walking the 7.1 headers
-// field by field on x86-64 and checking the walk reproduces every
-// pinned video offset above (it does: format=44, width=72/76,
-// sample_rate=152, best_effort=320, duration=432 all land exact):
-// AVCodecParameters runs codec_type@0, codec_id@4, codec_tag@8,
-// extradata@16, extradata_size@24, coded_side_data@32,
-// nb_coded_side_data@40, format@44, bit_rate@48, bits_per_coded@56,
-// bits_per_raw@60, profile@64, level@68, width@72, height@76,
-// sample_aspect_ratio@80, framerate@88, field_order@96,
-// color_range@100, color_primaries@104, color_trc@108,
-// color_space@112, chroma_location@116, video_delay@120,
-// ch_layout@128 (24 bytes: order@+0, nb_channels@+4), sample_rate@152.
-// AVFrame runs data@0, linesize@64, extended_data@96, width@104,
-// height@108, nb_samples@112, format@116, key_frame@120,
-// pict_type@124, sample_aspect_ratio@128, pts@136, pkt_dts@144,
-// time_base@152, quality@160, opaque@168, repeat_pict@176,
-// interlaced_frame@180, top_field_first@184, palette_has_changed@188,
-// sample_rate@192, buf@200, extended_buf@264, nb_extended_buf@272,
-// side_data@280, nb_side_data@288, flags@292, color_range@296,
-// color_primaries@300, color_trc@304, colorspace@308,
-// chroma_location@312, best_effort_timestamp@320, pkt_pos@328,
-// metadata@336, decode_error_flags@344, pkt_size@348,
-// hw_frames_ctx@352, opaque_ref@360, crop_*@368..400,
-// private_ref@400, ch_layout@408 (nb_channels@+412), duration@432.
 const (
 	fmtNbStreams = 44
 	fmtStreams   = 48
@@ -102,7 +87,7 @@ type AVRational struct {
 	Den int32
 }
 
-// AVInteger is one C AVInteger (eight uint16 limbs, 16 bytes, integer.h).
+// AVInteger is one C AVInteger.
 // The C int-math family (av_add_i/av_cmp_i/...) takes and returns it
 // BY VALUE. purego walks struct fields one by one and cannot see inside
 // an array field, so the limbs are spelled out flat (L0..L7).

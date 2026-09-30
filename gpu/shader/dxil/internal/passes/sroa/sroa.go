@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package sroa implements Scalar Replacement of Aggregates for DXIL emit.
 //
 // This pass decomposes struct-typed and array-typed local variables into
@@ -20,10 +30,6 @@
 //     not recursively decomposed — each member becomes one new local of
 //     its member type, which may still be a vector/matrix but is no longer
 //     a struct).
-//
-// Reference:
-//   - DXC: lib/Transforms/Scalar/ScalarReplAggregates.cpp
-//   - LLVM: https://llvm.org/docs/Passes.html#sroa-scalar-replacement-of-aggregates
 package sroa
 
 import (

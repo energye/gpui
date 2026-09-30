@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package webgpu
 
 import "github.com/energye/gpui/gpu/types"
@@ -7,7 +17,7 @@ import "github.com/energye/gpui/gpu/types"
 // use no more than MinBindGroups.
 const MinBindGroups = 4
 
-// MaxBindGroups is the HAL hard cap on bind groups (wgpu-hal MAX_BIND_GROUPS = 8).
+// MaxBindGroups is the HAL hard cap on bind groups.
 // Devices may support up to 8, but only MinBindGroups (4) is guaranteed.
 const MaxBindGroups = 8
 

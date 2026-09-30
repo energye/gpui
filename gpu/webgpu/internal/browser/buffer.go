@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -11,10 +21,6 @@ import (
 //
 // Holds a reference to the JavaScript GPUBuffer object and caches the size
 // to avoid repeated JS property lookups. Tracks the mapped ArrayBuffer
-// so that multiple Go-side GetMappedRange calls reuse a single JS mapping,
-// matching the Rust wgpu WebBuffer/WebBufferMapState pattern -- the WebGPU
-// spec forbids calling GPUBuffer.getMappedRange more than once for the same
-// mapped region.
 type Buffer struct {
 	// ref_ is the GPUBuffer JavaScript object.
 	ref_ js.Value
@@ -29,7 +35,6 @@ type Buffer struct {
 	// Nil (zero Value) when the buffer is not mapped. The WebGPU spec
 	// forbids calling getMappedRange on a GPUBuffer more than once, so
 	// we cache the result and create sub-range Uint8Array views into it.
-	// Matches Rust wgpu WebBufferMapState.mapped_buffer.
 	mappedBuffer js.Value
 
 	// mappedOffset is the start of the overall mapped range.
@@ -74,7 +79,7 @@ func (b *Buffer) Destroy() {
 // will deadlock, because AwaitPromise yields via a channel.
 //
 // On success the mapped range is recorded so that subsequent GetMappedRangeBytes
-// calls can cache the JS ArrayBuffer (matching Rust wgpu WebBuffer.set_mapped_range).
+// calls can cache the JS ArrayBuffer.
 func (b *Buffer) MapAsync(mode uint32, offset, size uint64) error {
 	promise := b.ref_.Call("mapAsync", mode, float64(offset), float64(size))
 	_, err := AwaitPromise(promise)
@@ -82,7 +87,7 @@ func (b *Buffer) MapAsync(mode uint32, offset, size uint64) error {
 		return fmt.Errorf("GPUBuffer.mapAsync: %w", err)
 	}
 	// Record the mapped range so GetMappedRangeBytes can lazily fetch
-	// the ArrayBuffer on the first call (Rust wgpu set_mapped_range).
+	// the ArrayBuffer on the first call.
 	b.mappedOffset = offset
 	b.mappedSize = size
 	return nil
@@ -91,9 +96,7 @@ func (b *Buffer) MapAsync(mode uint32, offset, size uint64) error {
 // ensureMappedBuffer lazily calls GPUBuffer.getMappedRange once for the
 // entire mapped region and caches the result. Subsequent calls to
 // GetMappedRangeBytes create Uint8Array views into this cached ArrayBuffer
-// without additional JS interop. Matches Rust wgpu WebBuffer.get_mapped_range
-// which calls get_mapped_range_with_f64_and_f64 once and then creates
-// Uint8Array views with byte_offset + length.
+// without additional JS interop.
 func (b *Buffer) ensureMappedBuffer() js.Value {
 	if b.mappedBuffer.IsUndefined() || b.mappedBuffer.IsNull() || b.mappedBuffer.Equal(js.Value{}) {
 		b.mappedBuffer = b.ref_.Call("getMappedRange", float64(b.mappedOffset), float64(b.mappedSize))
@@ -107,7 +110,6 @@ func (b *Buffer) ensureMappedBuffer() js.Value {
 //
 // Internally this obtains a Uint8Array view into the cached ArrayBuffer at the
 // correct sub-range offset, then uses js.CopyBytesToGo to transfer data.
-// Matches Rust wgpu WebBufferMappedRange which copies from JS to Rust/WASM heap.
 func (b *Buffer) GetMappedRangeBytes(offset, size uint64) ([]byte, error) {
 	ab := b.ensureMappedBuffer()
 
@@ -126,7 +128,6 @@ func (b *Buffer) GetMappedRangeBytes(offset, size uint64) ([]byte, error) {
 // Internally creates a Uint8Array view into the cached ArrayBuffer and uses
 // js.CopyBytesToJS to transfer data from Go to JS. On Unmap the browser flushes
 // the written data to the GPU.
-// Matches Rust wgpu WebBufferMappedRange.slice_mut + Drop write-back pattern.
 func (b *Buffer) WriteMappedRange(offset uint64, data []byte) error {
 	ab := b.ensureMappedBuffer()
 
@@ -146,8 +147,7 @@ func (b *Buffer) SetMappedAtCreation() {
 }
 
 // Unmap unmaps the buffer, making its mapped ranges invalid, and clears the
-// cached ArrayBuffer. Matches Rust wgpu WebBuffer.unmap which calls
-// inner.unmap() and sets mapped_buffer = None.
+// cached ArrayBuffer.
 func (b *Buffer) Unmap() {
 	b.ref_.Call("unmap")
 	b.mappedBuffer = js.Value{}

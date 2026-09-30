@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package dxil
 
 import (
@@ -13,7 +23,6 @@ func makeModuleWithTypes(types ...ir.Type) *ir.Module {
 
 func TestComputeInputUsedMasks_EmptyBody(t *testing.T) {
 	// Fragment shader with struct input but empty body — no argument accessed.
-	// Mirrors the interpolate shader: fn frag_main(val: FragmentInput) { }
 	f32Type := ir.Type{Inner: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}}
 	vec4Type := ir.Type{Inner: ir.VectorType{Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}, Size: 4}}
 	var posBinding ir.Binding = ir.BuiltinBinding{Builtin: ir.BuiltinPosition}
@@ -48,10 +57,6 @@ func TestComputeInputUsedMasks_EmptyBody(t *testing.T) {
 }
 
 func TestComputeInputUsedMasks_DirectScalarArg(t *testing.T) {
-	// fn main(@builtin(position) pos: vec4<f32>) -> @builtin(frag_depth) f32 {
-	//     return pos.z - 0.1;
-	// }
-	// pos.z access: ExprFunctionArgument -> ExprAccessIndex{idx:2}
 	f32Type := ir.Type{Inner: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}}
 	vec4Type := ir.Type{Inner: ir.VectorType{Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}, Size: 4}}
 	irMod := makeModuleWithTypes(f32Type, vec4Type)
@@ -176,7 +181,6 @@ func TestComputeInputUsedMasks_SwizzleAccess(t *testing.T) {
 }
 
 func TestComputeInputUsedMasks_UnusedVSInput(t *testing.T) {
-	// VS with @builtin(vertex_index) that is NOT used in body.
 	// fn vs_main(vertex: Vertex) -> ... { ... } where vertex_index is a separate arg.
 	u32Type := ir.Type{Inner: ir.ScalarType{Kind: ir.ScalarUint, Width: 4}}
 	irMod := makeModuleWithTypes(u32Type)

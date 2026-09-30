@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import (
@@ -7,11 +17,6 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
-
-// Regression-attack tests for the P3 queue-time fallback: when the session
-// does not exist yet (first frame / after device rebuild), command views must
-// be carried as raw pointers and NOT dropped, and stale raw pointers must
-// never reach wgpu unguarded.
 
 func unsafePointer(v uintptr) unsafe.Pointer { return unsafe.Pointer(v) }
 

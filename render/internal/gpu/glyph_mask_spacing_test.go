@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -12,8 +22,7 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// glyphMaskTestFont returns a usable TTF face or skips. Mirrors the candidate
-// list used by the text package tests.
+// glyphMaskTestFont returns a usable TTF face or skips.
 func glyphMaskTestFont(t *testing.T, size float64) text.Face {
 	t.Helper()
 	candidates := []string{

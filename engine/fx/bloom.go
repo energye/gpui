@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package fx
 
 import (
@@ -137,7 +147,7 @@ func equalExact(a, b []core.Color) bool {
 	return true
 }
 
-// finiteFloat lives in warp.go (S39, same package): shared NaN/Inf guard.
+// finiteFloat lives in warp.go: shared NaN/Inf guard.
 func finiteColor(c core.Color) bool {
 	return finiteFloat(c.R) && finiteFloat(c.G) && finiteFloat(c.B) && finiteFloat(c.A)
 }

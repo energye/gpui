@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "math"
@@ -153,7 +163,7 @@ func (p *Path) ComputeMetrics(tolerance float64) []PathMetric {
 			if !started {
 				return
 			}
-			// Closing edge from current back to subpath start (Flutter/Skia).
+			// Closing edge from current back to subpath start.
 			if current.X != start.X || current.Y != start.Y {
 				appendPt(start)
 			}

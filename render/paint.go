@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 // LineCap specifies the shape of line endpoints.
@@ -36,7 +46,7 @@ const (
 
 // Paint represents the styling information for drawing.
 type Paint struct {
-	// solidColor stores the solid color inline (Skia fColor4f pattern).
+	// solidColor stores the solid color inline.
 	// When isSolid is true, this is the authoritative color source —
 	// Brush and Pattern are nil, avoiding interface boxing allocations.
 	solidColor RGBA

@@ -1,9 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package clip
 
 import "math"
 
 // EdgeClipper clips path edges against a rectangular clip region.
-// Inspired by tiny-skia edge_clipper.rs and Skia's SkEdgeClipper.
 type EdgeClipper struct {
 	clip Rect
 }

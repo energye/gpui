@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -6,7 +16,6 @@ import (
 	"testing"
 )
 
-// TestX11S3SessionAnchor 验证 S3 会话与锚点：FocusIn幂等、UpdateCursorRect composing 实报、4000 居中、PurposePassword 禁推
 func TestX11S3SessionAnchor(t *testing.T) {
 	// FocusIn 幂等：EnableIME 两次，第二次应 guard skip
 	im := &x11Ime{

@@ -1,12 +1,15 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
-
-// Direct port of vello_shaders/src/cpu/path_count.rs
-// Variable names match Rust originals for cross-reference.
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package tilecompute
 
-// pathCountMain is a direct port of path_count_main from path_count.rs.
 // Stage 1: DDA tile walk + backdrop computation + segment counting.
 func pathCountMain(
 	bump *BumpAllocators,

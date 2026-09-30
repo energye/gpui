@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -172,7 +179,7 @@ type BindGroupLayout struct {
 func (l *BindGroupLayout) Destroy() {}
 
 // BindGroup implements hal.BindGroup for OpenGL.
-// Entries hold the canonical hal flat shape directly (H4-b1, no shim):
+// Entries hold the canonical hal flat shape directly:
 // CreateBindGroup stores desc.Entries verbatim, Execute unpacks to *Buffer/
 // *TextureView/*Sampler internally (gpu unpack pattern, not red-line assert).
 type BindGroup struct {
@@ -184,7 +191,7 @@ type BindGroup struct {
 func (g *BindGroup) Destroy() {}
 
 // BindGroupLayoutInfo stores per-group binding-to-slot mapping computed at
-// PipelineLayout creation time. Matches Rust wgpu-hal BindGroupLayoutInfo.
+// PipelineLayout creation time.
 // Each entry in BindingToSlot is indexed by the WGSL binding number and maps
 // to the sequential GL slot index for that resource type. 0xFF means unused.
 type BindGroupLayoutInfo struct {
@@ -192,15 +199,12 @@ type BindGroupLayoutInfo struct {
 }
 
 // PipelineLayout implements hal.PipelineLayout for OpenGL.
-// Stores pre-computed per-type sequential binding indices (Rust wgpu pattern).
-// The BindingMap is used by naga GLSL writer, GroupInfos by SetBindGroup at runtime.
+// Stores pre-computed per-type sequential binding indices.
 type PipelineLayout struct {
 	bindGroupLayouts []*BindGroupLayout
 	// groupInfos stores per-group binding-to-slot tables computed from per-type
 	// sequential counters (samplers, textures, images, uniform buffers, storage buffers).
-	// Matches Rust wgpu-hal/src/gles/mod.rs BindGroupLayoutInfo.
 	groupInfos []BindGroupLayoutInfo
-	// bindingMap maps (group, binding) to flat GL slot index for naga GLSL writer.
 	// Computed simultaneously with groupInfos in CreatePipelineLayout.
 	bindingMap map[glsl.BindingMapKey]uint8
 }
@@ -209,7 +213,6 @@ type PipelineLayout struct {
 func (l *PipelineLayout) Destroy() {}
 
 // ColorTargetDesc describes per-render-target blend and write mask state.
-// Matches Rust wgpu-hal GLES ColorTargetDesc (mod.rs:770-773).
 type ColorTargetDesc struct {
 	Blend     *gputypes.BlendState
 	WriteMask gputypes.ColorWriteMask
@@ -229,7 +232,6 @@ type RenderPipeline struct {
 	multisample       gputypes.MultisampleState
 
 	// Per-target blend and write mask state for MRT.
-	// Matches Rust wgpu-hal GLES RenderPipeline.color_targets (mod.rs:798).
 	// When len == 1, uniform blend/mask is applied globally.
 	// When len > 1, indexed GL calls are used if available (GLES 3.2 / GL 4.0).
 	colorTargets []ColorTargetDesc
@@ -241,11 +243,8 @@ type RenderPipeline struct {
 	vertexBuffers []gputypes.VertexBufferLayout
 
 	// samplerBindMap maps texture unit indices to sampler unit indices.
-	// Built from naga GLSL TranslationInfo.TextureMappings at pipeline creation.
 	// When binding textures, the associated sampler must be bound to the SAME
-	// texture unit (not the sampler's own WGSL binding). This is because naga
-	// GLSL generates combined sampler2D on the texture's binding.
-	// Matches Rust wgpu-hal GLES SamplerBindMap pattern.
+	// texture unit (not the sampler's own WGSL binding).
 	samplerBindMap [maxTextureSlots]int8 // -1 = no sampler, otherwise = sampler glBinding
 }
 
@@ -275,7 +274,6 @@ func (p *ComputePipeline) Destroy() {
 }
 
 // glFence holds a GL sync object paired with its submission value.
-// Matches Rust wgpu-hal/src/gles/fence.rs GLFence struct.
 type glFence struct {
 	sync  uintptr // GL sync object handle from glFenceSync
 	value uint64  // submission index this fence was signaled with
@@ -283,7 +281,6 @@ type glFence struct {
 
 // Fence implements hal.Fence using GL sync objects (glFenceSync).
 // Tracks pending GL sync objects and polls their completion status.
-// Matches Rust wgpu-hal/src/gles/fence.rs Fence struct.
 type Fence struct {
 	lastCompleted atomic.Uint64 // highest known completed value
 	pending       []glFence     // GL sync objects awaiting completion
@@ -301,7 +298,6 @@ func NewFence(glCtx *gl.Context) *Fence {
 // Must be called on the GL thread BEFORE glFlush — the flush sends both the
 // preceding commands and this fence to the GPU together.
 // Returns an error if glFenceSync fails (typically OOM).
-// Matches Rust wgpu-hal/src/gles/fence.rs Fence::signal.
 func (f *Fence) Signal(value uint64) error {
 	if f.glCtx == nil || !f.glCtx.SupportsFenceSync() {
 		f.lastCompleted.Store(value)
@@ -316,7 +312,6 @@ func (f *Fence) Signal(value uint64) error {
 }
 
 // GetLatest polls pending sync objects and returns the highest completed value.
-// Matches Rust wgpu-hal/src/gles/fence.rs Fence::get_latest.
 func (f *Fence) GetLatest() uint64 {
 	maxValue := f.lastCompleted.Load()
 
@@ -352,7 +347,6 @@ func (f *Fence) GetLatest() uint64 {
 }
 
 // Maintain cleans up completed sync objects.
-// Matches Rust wgpu-hal/src/gles/fence.rs Fence::maintain.
 func (f *Fence) Maintain() {
 	if f.glCtx == nil || !f.glCtx.SupportsFenceSync() {
 		return
@@ -374,7 +368,6 @@ func (f *Fence) Maintain() {
 }
 
 // Wait waits for the fence to reach the specified value with timeout.
-// Matches Rust wgpu-hal/src/gles/fence.rs Fence::wait.
 func (f *Fence) Wait(waitValue uint64, timeout time.Duration) bool {
 	if f.lastCompleted.Load() >= waitValue {
 		return true
@@ -438,7 +431,6 @@ func (f *Fence) Reset() {
 }
 
 // Destroy releases all fence resources.
-// Matches Rust wgpu-hal/src/gles/fence.rs Fence::destroy.
 func (f *Fence) Destroy() {
 	if f.glCtx != nil {
 		for _, gf := range f.pending {
@@ -450,7 +442,6 @@ func (f *Fence) Destroy() {
 
 // QuerySet implements hal.QuerySet for OpenGL.
 // Stores GL query object IDs and the target type (GL_TIMESTAMP or GL_ANY_SAMPLES_PASSED).
-// Matches Rust wgpu-hal/src/gles/mod.rs QuerySet struct.
 type QuerySet struct {
 	queries []uint32 // GL query object IDs
 	target  uint32   // GL_TIMESTAMP or GL_ANY_SAMPLES_PASSED_CONSERVATIVE

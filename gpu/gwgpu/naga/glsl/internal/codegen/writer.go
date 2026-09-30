@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -96,15 +103,15 @@ type Writer struct {
 	needsModHelper bool
 	needsDivHelper bool
 
-	// Block ID counter for unique interface block names (matches Rust naga's IdGenerator)
+	// Block ID counter for unique interface block names
 	blockIDCounter uint32
 
-	// Varying counter for unique varying names (matches Rust naga's varying counter)
+	// Varying counter for unique varying names
 	varyingCounter int
 	// Map from location key to varying name for EP IO setup
 	varyingNameMap map[varyingLookupKey]string
 
-	// Feature detection (matches Rust naga's FeaturesManager)
+	// Feature detection
 	features featuresManager
 
 	// Continue forwarding for do-while switches inside loops.
@@ -118,7 +125,7 @@ type Writer struct {
 	// uniformInfos collects reflection data for uniform/storage blocks.
 	// Populated during writeUniformBlock and writeStorageVariable.
 	// Used to build TranslationInfo.Uniforms for the runtime binding fallback
-	// on GL < 4.2. Matches Rust naga's reflection_names_globals.
+	// on GL < 4.2.
 	uniformInfos []UniformInfo
 
 	// Reachability set for dead code elimination.
@@ -170,7 +177,6 @@ type varyingLookupKey struct {
 	stage    ir.ShaderStage
 }
 
-// namer generates unique identifiers, matching Rust naga's Namer.
 // Uses per-name counters (not global) and adds '_' suffix when name ends with digit.
 type namer struct {
 	// unique maps base name → usage count (0 = first use, 1 = second, etc.)
@@ -184,11 +190,6 @@ func newNamer() *namer {
 }
 
 // call generates a unique name based on the given base.
-// Matches Rust naga's Namer::call:
-//   - First use of "foo" → "foo"
-//   - Second use → "foo_1"
-//   - Names ending in digit get trailing '_': "v3" → "v3_"
-//   - Keywords get trailing '_': "main" → "main_"
 func (n *namer) call(base string) string {
 	escaped := sanitizeName(base)
 
@@ -214,11 +215,6 @@ func (n *namer) call(base string) string {
 }
 
 // sanitizeName cleans a name for use as a GLSL identifier.
-// Matches Rust naga's Namer::sanitize:
-//   - Drop leading digits
-//   - Retain only ASCII alphanumeric and '_'
-//   - Collapse consecutive '__' into single '_'
-//   - Trim trailing '_'
 func sanitizeName(name string) string {
 	if name == "" {
 		return "unnamed"
@@ -310,7 +306,7 @@ func (w *Writer) writeModule() error {
 	// 2. Write precision qualifiers (ES only)
 	w.writePrecisionQualifiers()
 
-	// 2b. Write compute layout (Rust naga emits this right after precision, before structs)
+	// 2b. Write compute layout
 	w.writeComputeLayoutEarly()
 
 	// 2b2. Write first instance uniform for vertex shaders using InstanceIndex
@@ -332,8 +328,7 @@ func (w *Writer) writeModule() error {
 		return err
 	}
 
-	// 4b. Write predeclared helper functions (naga_modf, naga_frexp)
-	// Rust naga emits these right after type definitions, before constants.
+	// 4b.
 	w.writePredeclaredHelpers()
 
 	// 5. Write constants
@@ -346,15 +341,13 @@ func (w *Writer) writeModule() error {
 		return err
 	}
 
-	// 7. Write entry point varying declarations (in/out at module level)
-	// Rust naga writes these between globals and functions.
+	// 7.
 	w.writeVaryingDeclarations()
 
 	// 7b. Write polyfill helper functions (mod, div) if needed
 	w.writeHelperFunctions()
 
 	// 7c. Separator between globals/varyings section and functions.
-	// Rust naga always emits a blank line here (after write_varying, before functions).
 	w.WriteLine("")
 
 	// 8. Write regular functions
@@ -400,7 +393,6 @@ func (w *Writer) getSelectedEntryPoint() *ir.EntryPoint {
 }
 
 // writePrecisionQualifiers writes precision qualifiers for ES.
-// Matches Rust naga: blank line, then float and int, then blank line.
 func (w *Writer) writePrecisionQualifiers() {
 	if !w.options.LangVersion.ES {
 		return
@@ -420,7 +412,6 @@ func (w *Writer) registerNames() error {
 		if typ.Name != "" {
 			baseName = typ.Name
 		} else {
-			// Rust naga uses "type" as the default name for unnamed types
 			baseName = "type"
 		}
 		name := w.namer.call(baseName)
@@ -428,7 +419,7 @@ func (w *Writer) registerNames() error {
 		w.typeNames[ir.TypeHandle(handle)] = name
 
 		// Register struct member names in a fresh namespace (per-struct).
-		// Matches Rust naga: self.namespace(members.len(), |namer| { ... })
+		// })
 		if st, ok := typ.Inner.(ir.StructType); ok {
 			memberNamer := newNamer()
 			for memberIdx, member := range st.Members {
@@ -442,8 +433,7 @@ func (w *Writer) registerNames() error {
 	}
 
 	// Register entry point names, arguments, and locals BEFORE constants/globals.
-	// Matches Rust naga namer order: types → EP names+args+locals → functions → globals → constants.
-	// Register ALL entry points (Rust namer is module-wide, not per-EP)
+	// Register ALL entry points
 	for epIdx, ep := range w.module.EntryPoints {
 		epName := w.namer.call(ep.Name)
 		// The selected EP gets "main" as GLSL name
@@ -503,7 +493,7 @@ func (w *Writer) registerNames() error {
 		}
 	}
 
-	// Register constant names (AFTER EP locals and globals, matching Rust)
+	// Register constant names
 	for handle, constant := range w.module.Constants {
 		var baseName string
 		if constant.Name != "" {
@@ -516,11 +506,8 @@ func (w *Writer) registerNames() error {
 	}
 
 	// Register global variable names.
-	// Rust naga's namer.reset calls namer.call_or(&var.name, "global") for EVERY global,
-	// which reserves the name in the namer even if the GLSL name uses _group_G_binding_B_stage.
 	// We must do the same to avoid collisions with local variables that shadow globals.
 	for handle, global := range w.module.GlobalVariables {
-		// Always call the namer to reserve the base name, matching Rust behavior.
 		var baseName string
 		if global.Name != "" {
 			baseName = global.Name
@@ -666,7 +653,6 @@ func (w *Writer) resolveGlobalVarHandle(fn *ir.Function, exprHandle ir.Expressio
 		h := k.Variable
 		return &h
 	case ir.ExprLoad:
-		// Follow through Load to the pointer expression
 		return w.resolveGlobalVarHandle(fn, k.Pointer)
 	default:
 		return nil
@@ -689,7 +675,6 @@ func (w *Writer) getCombinedSamplerName(textureHandle, samplerHandle ir.GlobalVa
 }
 
 // writeTypes writes struct type definitions.
-// Rust naga writes ALL struct types regardless of entry point reachability.
 // Only dynamically-sized structs are skipped (they become buffer blocks).
 func (w *Writer) writeTypes() error {
 	for handle, typ := range w.module.Types {
@@ -700,7 +685,6 @@ func (w *Writer) writeTypes() error {
 
 		// Skip structs ending with a runtime-sized array (dynamically sized).
 		// These are only emitted as buffer blocks, not standalone structs.
-		// Matches Rust naga: !is_dynamically_sized check.
 		if len(st.Members) > 0 {
 			lastMemberType := st.Members[len(st.Members)-1].Type
 			if w.isDynamicallySized(lastMemberType) {
@@ -726,12 +710,10 @@ func (w *Writer) writeTypes() error {
 }
 
 // writeConstants writes constant definitions.
-// Rust naga writes ALL named constants (c.name.is_some()), regardless of
-// whether they are used by the current entry point. No reachability filter.
+// No reachability filter.
 func (w *Writer) writeConstants() error {
 	wrote := false
 	for handle, constant := range w.module.Constants {
-		// Only write named constants (matches Rust: c.name.is_some())
 		if constant.Name == "" {
 			continue
 		}
@@ -898,7 +880,6 @@ func (w *Writer) writeCompositeValue(v ir.CompositeValue, typeHandle ir.TypeHand
 // Texture and sampler globals that are part of combined pairs are skipped here;
 // their combined declarations are emitted by writeCombinedSamplerDeclarations.
 func (w *Writer) writeGlobalVariables() error {
-	// Reset block ID counter — Rust generates IDs at write time, not registration
 	w.blockIDCounter = 0
 
 	// Build a map from texture handle to all combined sampler infos for that texture.
@@ -966,7 +947,6 @@ func (w *Writer) writeGlobalVariables() error {
 			// Push constants emitted as uniform blocks
 			w.writeUniformVariable(name, typeName, global)
 		case ir.SpaceImmediate:
-			// Immediate data (pipeline constants) — Rust uses special naming
 			stage := w.currentEntryPointStage()
 			stageSuffix := "cs"
 			switch stage {
@@ -1002,7 +982,6 @@ func (w *Writer) writeGlobalVariables() error {
 				w.WriteLine("%s %s;", typeName, name)
 			}
 		}
-		// Rust naga adds blank line after each global declaration
 		w.WriteLine("")
 	}
 	return nil
@@ -1131,8 +1110,6 @@ func (w *Writer) writeCombinedSamplerDeclarations() {
 			highp = "highp "
 		}
 
-		// Rust naga: layout(binding) only from binding_map
-		// Look up the texture global's binding from the BindingMap
 		layoutPrefix := ""
 		if int(info.textureHandle) < len(w.module.GlobalVariables) {
 			texGlobal := w.module.GlobalVariables[info.textureHandle]
@@ -1163,7 +1140,7 @@ func (w *Writer) writeUniformVariable(name, typeName string, global ir.GlobalVar
 		}
 	}
 
-	// Non-struct uniform with binding — wrap in block (matches Rust naga)
+	// Non-struct uniform with binding — wrap in block
 	if global.Binding != nil {
 		blockName, instanceName := w.getBlockNames(global)
 		baseType := w.getBaseTypeName(global.Type)
@@ -1185,7 +1162,6 @@ func (w *Writer) writeUniformVariable(name, typeName string, global ir.GlobalVar
 }
 
 // writeUniformBlock emits a GLSL uniform block (UBO) for a struct type.
-// Matches Rust naga naming: TypeName_block_{binding}{Stage} { TypeName _group_G_binding_B_{stage}; }
 func (w *Writer) writeUniformBlock(name, typeName string, global ir.GlobalVariable, st ir.StructType) {
 	blockName, instanceName := w.getBlockNames(global)
 
@@ -1215,11 +1191,6 @@ func (w *Writer) writeUniformBlock(name, typeName string, global ir.GlobalVariab
 	}
 }
 
-// globalBlockNames returns the block name and instance variable name for a
-// uniform/storage global, matching Rust naga's naming convention:
-//   - Block name: "{NamerTypeName}_block_{ID}{Stage}"
-//   - Instance name: "_group_{group}_binding_{binding}_{stage_suffix}"
-//
 // Uses the namer-registered type name (not GLSL type name) for block naming.
 // getBlockNames returns block name (generated at write time with incrementing ID)
 // and instance name (pre-registered during registerNames).
@@ -1236,7 +1207,7 @@ func (w *Writer) getBlockNames(global ir.GlobalVariable) (string, string) {
 		instanceName = "_unknown"
 	}
 
-	// Block name generated at WRITE time (Rust: IdGenerator during writing)
+	// Block name generated at WRITE time
 	typeName := w.typeNames[global.Type]
 	typeName = strings.TrimRight(typeName, "_")
 	stage := w.currentEntryPointStage()
@@ -1301,7 +1272,6 @@ func (w *Writer) currentEntryPointStage() ir.ShaderStage {
 
 // lookupBinding returns the flat binding index for a global variable from the BindingMap.
 // Returns (binding, true) if found, or (0, false) if not mapped.
-// Matches Rust naga's binding_map.get(&resource_binding).
 func (w *Writer) lookupBinding(global ir.GlobalVariable) (uint8, bool) {
 	if global.Binding == nil || w.options.BindingMap == nil {
 		return 0, false
@@ -1386,7 +1356,6 @@ func (w *Writer) writeStorageVariable(name, typeName string, global ir.GlobalVar
 }
 
 // writeVaryingDeclarations writes entry point in/out declarations at module level.
-// Matches Rust naga's write_varying which emits layout(location=N) in/out before functions.
 func (w *Writer) writeVaryingDeclarations() {
 	ep := w.getSelectedEntryPoint()
 	if ep == nil {
@@ -1437,7 +1406,6 @@ func (w *Writer) writeSingleVarying(binding *ir.Binding, typeHandle ir.TypeHandl
 			w.WriteLine("invariant %s;", builtinName)
 		}
 		// ClipDistance: emit "out float gl_ClipDistance[N];" declaration.
-		// Matches Rust naga: re-declare gl_ClipDistance with the array size from the type.
 		if b.Builtin == ir.BuiltinClipDistance && isOutput {
 			if int(typeHandle) < len(w.module.Types) {
 				if arr, ok := w.module.Types[typeHandle].Inner.(ir.ArrayType); ok {
@@ -1475,7 +1443,6 @@ func (w *Writer) writeSingleVarying(binding *ir.Binding, typeHandle ir.TypeHandl
 	}
 	w.varyingNameMap[varyingKey] = varName
 
-	// Rust naga: interpolation only for vertex output and fragment input
 	emitInterp := (stage == ir.StageVertex && isOutput) || (stage == ir.StageFragment && !isOutput)
 
 	interpQual := ""
@@ -1501,7 +1468,6 @@ func (w *Writer) writeSingleVarying(binding *ir.Binding, typeHandle ir.TypeHandl
 		}
 	}
 
-	// Rust naga: layout(location=N) when (supports_explicit_locations OR !emitInterp) AND supports_io_locations
 	canWriteLayout := w.options.LangVersion.supportsExplicitLocations() || !emitInterp
 	writeLayout := canWriteLayout && w.options.LangVersion.supportsIOLocations()
 
@@ -1539,7 +1505,6 @@ func (w *Writer) lookupVaryingNameWithBlend(location uint32, blendSrc *uint32, s
 	return w.varyingName(idx, stage, isOutput)
 }
 
-// varyingName generates the Rust naga naming convention for varying variables.
 func (w *Writer) varyingName(location int, stage ir.ShaderStage, isOutput bool) string {
 	switch stage {
 	case ir.StageVertex:
@@ -1559,7 +1524,7 @@ func (w *Writer) varyingName(location int, stage ir.ShaderStage, isOutput bool) 
 
 // writePredeclaredHelpers writes naga_modf/naga_frexp helper functions.
 // Detects predeclared result types by name pattern and generates the corresponding
-// GLSL wrapper functions. Matches Rust naga's predeclared_types iteration.
+// GLSL wrapper functions.
 func (w *Writer) writePredeclaredHelpers() {
 	for handle, typ := range w.module.Types {
 		name := typ.Name
@@ -1640,11 +1605,8 @@ func (w *Writer) writePredeclaredHelpers() {
 }
 
 // scanNeedBakeExpressions scans function expressions for those that need to be
-// baked into temporary variables. Matches Rust naga's need_bake_expressions scanning.
+// baked into temporary variables.
 //
-// Rust naga uses bake_ref_count(): Access/AccessIndex -> MAX (never bake),
-// ImageSample/ImageLoad/Derivative/Load -> 1 (always bake, handled in shouldBakeExpression),
-// everything else -> 2 (bake when used 2+ times).
 // We count expression references and mark multi-use expressions for baking.
 func (w *Writer) scanNeedBakeExpressions(fn *ir.Function) {
 	// Phase 1: Count references to each expression handle
@@ -1776,7 +1738,7 @@ func (w *Writer) scanNeedBakeExpressions(fn *ir.Function) {
 		handle := ir.ExpressionHandle(i)
 		rc := refCount[handle]
 
-		// Determine bake_ref_count (matches Rust)
+		// Determine bake_ref_count
 		switch expr.Kind.(type) {
 		case ir.ExprAccess, ir.ExprAccessIndex:
 			// Never bake (threshold = MAX)
@@ -1792,7 +1754,7 @@ func (w *Writer) scanNeedBakeExpressions(fn *ir.Function) {
 		}
 	}
 
-	// Phase 3: Math-specific forced baking (matches Rust's explicit inserts)
+	// Phase 3: Math-specific forced baking
 	for _, expr := range fn.Expressions {
 		switch m := expr.Kind.(type) {
 		case ir.ExprMath:
@@ -1854,7 +1816,6 @@ func (w *Writer) writeFunctions() error {
 		if err := w.writeFunction(ir.FunctionHandle(handle), fn); err != nil {
 			return err
 		}
-		// Rust naga adds blank line after each function
 		w.WriteLine("")
 	}
 	return nil
@@ -1882,7 +1843,7 @@ func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error 
 	// Arguments — use C-style array syntax: "type name[N]" not "type[N] name"
 	// Pointer parameters become "inout type name" in GLSL.
 	// Sampler parameters are filtered out — GLSL uses combined texture-sampler types.
-	// Matches Rust naga: filter(|arg| !matches!(arg.ty.inner, TypeInner::Sampler { .. }))
+	// }))
 	args := make([]string, 0, len(fn.Arguments))
 	for argIdx, arg := range fn.Arguments {
 		// Skip sampler arguments — GLSL combines them with texture args
@@ -1905,7 +1866,6 @@ func (w *Writer) writeFunction(handle ir.FunctionHandle, fn *ir.Function) error 
 		}
 
 		// ES requires highp precision qualifier for sampler/image function parameters.
-		// Matches Rust naga: write_type adds precision for Image types on ES.
 		precision := ""
 		if w.options.LangVersion.ES && int(argType) < len(w.module.Types) {
 			if _, isImage := w.module.Types[argType].Inner.(ir.ImageType); isImage {
@@ -1985,7 +1945,6 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 	w.PushIndent()
 
 	// Workgroup variable zero initialization (compute shaders only).
-	// Rust naga: if zero_initialize_workgroup_memory && compute stage
 	if ep.Stage == ir.StageCompute {
 		w.writeWorkgroupVarInit()
 	}
@@ -2002,12 +1961,8 @@ func (w *Writer) writeEntryPoint(epIdx int, ep *ir.EntryPoint) error {
 		return err
 	}
 
-	// Note: coordinate space adjustment and point size for vertex shaders
-	// are now emitted inside writeDirectReturn/writeStructReturn, matching Rust naga.
-
 	w.PopIndent()
 	w.WriteLine("}")
-	// Rust naga adds blank line after entry point (end of file newline)
 	w.WriteLine("")
 
 	w.currentFunction = nil
@@ -2198,7 +2153,6 @@ func (w *Writer) writeResultIO(fn *ir.Function, qualifier string, isVertexOutput
 // NOTE: writeFragmentIO is defined alongside writeVertexIO above.
 
 // writeWorkgroupVarInit emits zero-initialization guard for workgroup variables.
-// Matches Rust naga: if (gl_LocalInvocationID == uvec3(0u)) { var = zero; } barrier();
 func (w *Writer) writeWorkgroupVarInit() {
 	// Collect workgroup globals that need initialization
 	var workgroupVars []struct {
@@ -2459,8 +2413,6 @@ func (w *Writer) writeEarlyDepthTest() {
 	}
 }
 
-// writeComputeLayoutEarly writes the compute layout declaration early in the output,
-// matching Rust naga which emits it right after precision qualifiers.
 func (w *Writer) writeComputeLayoutEarly() {
 	// Find the target entry point
 	for i := range w.module.EntryPoints {
@@ -2499,7 +2451,6 @@ func (w *Writer) writeComputeLayout(ep *ir.EntryPoint) {
 
 // writeFirstInstanceBinding writes "uniform uint naga_vs_first_instance;" for vertex shaders
 // that use InstanceIndex built-in, when DRAW_PARAMETERS is not set.
-// Matches Rust naga behavior.
 func (w *Writer) writeFirstInstanceBinding() {
 	ep := w.getSelectedEntryPoint()
 	if ep == nil || ep.Stage != ir.StageVertex {
@@ -2514,7 +2465,6 @@ func (w *Writer) writeFirstInstanceBinding() {
 }
 
 // writeLocalVars writes local variable declarations, including initializers if present.
-// Matches Rust naga: locals without explicit init get zero-initialized if the type supports it.
 func (w *Writer) writeLocalVars(fn *ir.Function) error {
 	for localIdx, local := range fn.LocalVars {
 		// Use pre-registered name from registerNames (avoids double namer call)
@@ -2547,7 +2497,6 @@ func (w *Writer) writeLocalVars(fn *ir.Function) error {
 			w.WriteLine("%s %s%s = %s;", baseType, localName, arraySuffix, initStr)
 		} else if zeroInit := w.zeroInitValue(local.Type); zeroInit != "" {
 			// No explicit init but type supports zero initialization.
-			// Rust naga always zero-initializes supported types.
 			w.WriteLine("%s %s%s = %s;", baseType, localName, arraySuffix, zeroInit)
 		} else {
 			w.WriteLine("%s %s%s;", baseType, localName, arraySuffix)
@@ -2557,7 +2506,6 @@ func (w *Writer) writeLocalVars(fn *ir.Function) error {
 }
 
 // zeroInitValue returns the GLSL zero-init expression for a type, or "" if not supported.
-// Matches Rust naga's is_value_init_supported + write_zero_init_value.
 func (w *Writer) zeroInitValue(typeHandle ir.TypeHandle) string {
 	if int(typeHandle) >= len(w.module.Types) {
 		return ""
@@ -2724,7 +2672,6 @@ func glslBuiltIn(builtin ir.BuiltinValue, isOutput bool) string {
 	case ir.BuiltinVertexIndex:
 		return "uint(gl_VertexID)"
 	case ir.BuiltinInstanceIndex:
-		// Matches Rust naga: (uint(gl_InstanceID) + naga_vs_first_instance)
 		return "(uint(gl_InstanceID) + naga_vs_first_instance)"
 	case ir.BuiltinFrontFacing:
 		return "gl_FrontFacing"
@@ -2816,7 +2763,6 @@ func glslStorageAccess(access ir.StorageAccess) string {
 }
 
 // formatFloat formats a float32 for GLSL output.
-// Matches Rust Debug format: no '+' in exponent (3.4028235e38 not 3.4028235e+38).
 func formatFloat(f float32) string {
 	s := fmt.Sprintf("%g", f)
 	if !strings.ContainsAny(s, ".eE") {
@@ -2833,5 +2779,5 @@ func formatFloat64(f float64) string {
 	if !strings.ContainsAny(s, ".eE") {
 		s += ".0"
 	}
-	return s + "LF" // double literal suffix (uppercase, matching Rust naga)
+	return s + "LF" // double literal suffix
 }

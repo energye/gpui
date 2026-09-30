@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -13,7 +23,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// DRM relative vblank wait flags (libdrm drm.h).
+// DRM relative vblank wait flags.
 const (
 	drmVBlankRelative  = 0x1
 	drmVBlankSecondary = 0x2

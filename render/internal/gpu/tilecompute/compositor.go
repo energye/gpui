@@ -1,8 +1,14 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Compositing helpers for multi-path rendering.
-// Implements premultiplied source-over blending matching Vello's fine.rs.
 
 package tilecompute
 
@@ -11,8 +17,6 @@ package tilecompute
 // alpha is the path coverage value (0.0-1.0) from the rasterizer.
 // dst is the current pixel color in straight alpha RGBA.
 // Returns the blended color in straight alpha RGBA.
-//
-// The formula matches Vello's fine.rs compositing:
 //
 //	premultiplied src = srcColor * (srcColor.A/255) * alpha
 //	result = src_premul + dst_premul * (1 - src_a)

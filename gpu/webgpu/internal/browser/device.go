@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -9,8 +19,6 @@ import "syscall/js"
 // Pre-binding JS methods at construction time avoids repeated .Get("methodName")
 // calls on every frame. This pattern is used by Ebiten and other Go WASM libraries
 // for optimal performance.
-//
-// Matches Rust wgpu WebDevice which holds the webgpu_sys::GpuDevice value.
 type Device struct {
 	// ref_ is the GPUDevice JavaScript object.
 	ref_ js.Value

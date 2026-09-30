@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -20,9 +30,6 @@ import (
 //
 // Note: the spec does not include width/height/presentMode in the configure()
 // call. Canvas dimensions are set separately via canvas.width/canvas.height.
-//
-// Matches Rust wgpu SurfaceInterface::configure for WebSurface which builds
-// GpuCanvasConfiguration with device, format, usage, alpha_mode, view_formats.
 func BuildSurfaceConfiguration(
 	deviceRef js.Value,
 	format types.TextureFormat,
@@ -35,7 +42,7 @@ func BuildSurfaceConfiguration(
 	config.Set("format", TextureFormatToJS(format))
 
 	// Usage defaults to RENDER_ATTACHMENT in the spec, but we set it explicitly
-	// for clarity (Rust wgpu also sets it explicitly).
+	// for clarity.
 	config.Set("usage", float64(usage))
 
 	config.Set("alphaMode", CompositeAlphaModeToJS(alphaMode))

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package module
 
 import (
@@ -57,7 +67,7 @@ const (
 // to parameter N or return-value attributes).
 const attrSlotFunction = 0xFFFFFFFF
 
-// Attribute record "type" discriminators (dxil_internal.h:103).
+// Attribute record "type" discriminators.
 const (
 	attrTypeEnum      = 0
 	attrTypeEnumValue = 1
@@ -90,7 +100,7 @@ const (
 	constCodeInteger   = 4
 	constCodeFloat     = 6
 	constCodeAggregate = 7
-	// CST_CODE_DATA (LLVM LLVMBitCodes.h: 22) — ConstantDataSequential
+	// CST_CODE_DATA — ConstantDataSequential
 	// serialized as raw inline element values rather than references to
 	// separate module-level constants. Required for consumers that
 	// `dyn_cast<ConstantDataArray>` (e.g. DxilMDHelper::LoadDxilViewIdState).
@@ -214,8 +224,7 @@ func (s *serializer) emitModule() {
 	// emit this as the first sub-block of MODULE. We currently emit it
 	// empty (no abbrevs). A minimal BLOCKINFO still signals "proper
 	// bitcode" to D3D12's parser — absence caused graphics pipeline
-	// rejection even with byte-correct container hashes. Reference:
-	// reference/dxil/mesa/src/microsoft/compiler/dxil_module.c:3947.
+	// rejection even with byte-correct container hashes.
 	s.emitBlockInfoBlock()
 
 	// PARAMATTR_GROUP_BLOCK + PARAMATTR_BLOCK. Per Mesa order (line
@@ -467,12 +476,12 @@ func (s *serializer) emitBlockInfoBlock() {
 
 // emitParamAttrGroupBlock writes the PARAMATTR_GROUP_BLOCK containing the
 // attribute group definitions. Three groups, one per AttrSet kind:
-//   - id=1 {nounwind}              — impure functions, entry points
-//   - id=2 {nounwind, readnone}    — pure intrinsics (threadId, math, ...)
-//   - id=3 {nounwind, readonly}    — memory-reading intrinsics (bufferLoad, ...)
+//   - id=1 {nounwind} — impure functions, entry points
+//   - id=2 {nounwind, readnone} — pure intrinsics (threadId, math, ...)
+//   - id=3 {nounwind, readonly} — memory-reading intrinsics (bufferLoad, ...)
 //
 // All three are applied at the function-level slot. DXC's per-intrinsic
-// classification (lib/HLSL/DxilOperations.cpp OpFuncAttrType) drives which
+// classification drives which
 // group each declaration references; downstream LLVM passes (DCE/GVN/LICM)
 // rely on the precision to reason about safe motion and elimination.
 func (s *serializer) emitParamAttrGroupBlock() {
@@ -579,9 +588,6 @@ func (s *serializer) emitConstant(c *Constant) {
 //
 //	v=-1: (2*1)|1 = 3 — decodes (3>>1, sign=3&1) → -1
 //	v=-2: (2*2)|1 = 5 — decodes (5>>1, sign=5&1) → -2
-//
-// Reference: Mesa dxil_module.c:2590 encode_signed; LLVM
-// llvm/lib/Bitcode/Writer/BitcodeWriter.cpp emit_vbr_signed.
 func encodeSignRotated(v int64) uint64 {
 	if v >= 0 {
 		return uint64(v) << 1
@@ -594,8 +600,6 @@ func encodeSignRotated(v int64) uint64 {
 //   - f16: 16-bit half-float pattern (zero-extended to uint64)
 //   - f32: 32-bit float pattern
 //   - f64: 64-bit double pattern
-//
-// Reference: LLVM LLVMBitCodes.h CST_CODE_FLOAT stores native-width bits.
 func floatBits(c *Constant) uint64 {
 	switch c.ConstType.FloatBits {
 	case 16:
@@ -707,7 +711,6 @@ var standardMetadataKinds = []string{
 }
 
 // metadataKind is the record code for METADATA_KIND entries.
-// Reference: dxil_module.c:2780 METADATA_KIND = 6.
 const metadataKind = 6
 
 // emitMetadataKindTable writes a second METADATA_BLOCK containing the
@@ -745,7 +748,6 @@ func (s *serializer) emitMetadataValue(md *MetadataNode) {
 	switch {
 	case md.ValueFunc != nil:
 		// Function reference: value is the function's global value ID.
-		// Used by !dx.entryPoints[0][0] = void()* @main.
 		valueID = uid(md.ValueFunc.ValueID)
 	case md.ValueConst != nil:
 		valueID = uid(md.ValueConst.ValueID)
@@ -788,8 +790,6 @@ func (s *serializer) emitNamedMetadata(named *NamedMetadataNode) {
 // Within a function body, value IDs are assigned sequentially starting
 // from the next ID after all global values (globals, functions, constants).
 // Operand references use relative encoding: current_value_id - operand_id.
-//
-// Reference: Mesa dxil_module.c emit_function()
 func (s *serializer) emitFunctionBody(fn *Function) {
 	s.w.EnterBlock(functionBlockID, 4)
 
@@ -823,8 +823,6 @@ func (s *serializer) globalValueCount() int {
 }
 
 // emitInstruction writes a single instruction record.
-//
-// Reference: Mesa dxil_module.c emit_instr()
 //
 //nolint:gocognit,gocyclo,cyclop,funlen,maintidx // instruction dispatch requires handling all LLVM instruction kinds
 func (s *serializer) emitInstruction(instr *Instruction, currentValueID int) {
@@ -867,7 +865,6 @@ func (s *serializer) emitInstruction(instr *Instruction, currentValueID int) {
 	case InstrCall:
 		// CALL: [attr, cc, fnty, fn_delta, ...arg_deltas]
 		// With explicit function type (bit 15 set).
-		// Reference: Mesa emit_call(), LLVM 3.7 bitcode format.
 		if instr.CalledFunc != nil {
 			fnDelta := uint64(currentValueID - instr.CalledFunc.ValueID) //nolint:gosec // delta always positive
 

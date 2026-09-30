@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package input
 
 import (
@@ -683,7 +693,7 @@ func mustSoakBuffer(t *testing.T) (*Buffer, *Buffer) {
 	return c, d
 }
 
-// F: offscreen golden stands in for game_input--case=combo (W2 intent).
+// F: offscreen golden stands in for game_input--case=combo.
 // Frozen windows plus shape assertions pin the meaning, not just numbers.
 func TestBufferOffscreenGolden(t *testing.T) {
 	f := loadBufferCases(t)

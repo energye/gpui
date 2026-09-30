@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -23,9 +33,8 @@ type textureKey struct {
 //
 // Deprecated (P5): production paths never call Acquire/Release/EndFrame —
 // only DestroyAll/SetBudget/Stats are used for telemetry. Session textures go
-// through textureSet + pendingTexRetire (P4), and the res.Cache (P1) is the
-// long-term pooling home. Stats remain for the S6.x memory-budget metrics;
-// the allocation path is effectively inert and kept only for tests/metrics.
+// through textureSet + pendingTexRetire, and the res.Cache is the
+// long-term pooling home.
 //
 // This avoids creating expensive GPU textures (MSAA, depth/stencil) per context
 // per frame when multiple contexts share the same dimensions.
@@ -35,7 +44,6 @@ type TexturePool struct {
 	inUse    map[textureKey]int           // count in use this frame
 	budgetMB int                          // max memory in megabytes
 
-	// S6.7 diagnostics
 	hits      uint64 // Acquire returned pooled set
 	misses    uint64 // Acquire returned nil (caller creates)
 	releases  uint64
@@ -101,7 +109,6 @@ func (tp *TexturePool) Release(ts *textureSet, samples uint32) {
 
 // EndFrame frees unused texture sets that were not acquired during this frame.
 // Call this once per frame after all contexts have flushed.
-// S6.7: enforces per-key cap and global budgetMB by destroying LRU excess sets.
 func (tp *TexturePool) EndFrame() {
 	tp.mu.Lock()
 	defer tp.mu.Unlock()
@@ -199,7 +206,6 @@ func (tp *TexturePool) PooledCount() int {
 	return count
 }
 
-// TexturePoolStats is S6.7 diagnostics for MSAA/stencil texture reuse.
 type TexturePoolStats struct {
 	Hits      uint64
 	Misses    uint64

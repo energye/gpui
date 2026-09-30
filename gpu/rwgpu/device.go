@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -76,9 +86,7 @@ func initDeviceCallback() {
 // which turns transient VRAM pressure into hard SIGABRT. We record the last
 // error so CreateTexture/etc. can return a Go error (null handle path).
 //
-// Device-lost is sticky per handle: once the native device is lost, further
-// wgpuSurfaceGetCurrentTexture / Configure calls panic in Rust with
-// "Parent device is lost". Callers must check IsLost() and skip native ops.
+// Callers must check IsLost() and skip native ops.
 
 var (
 	uncapturedErrorCallbackPtr  uintptr
@@ -294,7 +302,6 @@ func (d *Device) MarkLost() {
 // device sticky-lost so subsequent public calls refuse with ErrDeviceLost
 // instead of treating the device as healthy.
 //
-// Critical: wgpuSurfaceGetCurrentTexture panics in Rust when parent is lost.
 // We must mark sticky on the FIRST uncaptured lost message so the next
 // GetCurrentTexture refuses before purego Call.
 func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, userdata1, _ uintptr) uintptr {
@@ -580,7 +587,7 @@ func (d *Device) absorbLostUncapturedLocked() bool {
 }
 
 // SyncLostState pumps instance events and folds pending Uncaptured/DeviceLost
-// into sticky IsLost (Skia abandon signal). Does not call WriteBuffer canary —
+// into sticky IsLost. Does not call WriteBuffer canary —
 // soft native returns errors from GetCurrentTexture/Submit instead of SIGABRT.
 // Safe and idempotent on nil / already-lost devices.
 func (d *Device) SyncLostState() {
@@ -612,7 +619,7 @@ func (d *Device) Destroy() {
 	if d == nil {
 		return
 	}
-	// Sticky abandon (Skia/Flutter) so concurrent ops refuse with ErrDeviceLost.
+	// Sticky abandon so concurrent ops refuse with ErrDeviceLost.
 	d.MarkLost()
 
 	if d.handle == 0 {
@@ -723,7 +730,6 @@ type UncapturedErrorCallbackInfo struct {
 }
 
 // DeviceDescriptor configures device creation.
-// Matches the gogpu/wgpu API for cross-project compatibility.
 type DeviceDescriptor struct {
 	// Label is an optional debug label for the device.
 	Label string
@@ -827,7 +833,6 @@ func (d *Device) CreateDepthTexture(width, height uint32, format types.TextureFo
 //
 // Limits are cached at device creation time and returned by value.
 // No FFI call is made. Returns zero-value Limits if the device is nil.
-// This matches the gogpu/wgpu API signature for cross-project compatibility.
 func (d *Device) Limits() Limits {
 	if d == nil || d.handle == 0 {
 		return Limits{}

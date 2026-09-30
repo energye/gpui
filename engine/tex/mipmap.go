@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package tex
 
 import (
@@ -257,7 +267,6 @@ func LevelSize(w, h, level int) (lw, lh int, ok bool) {
 }
 
 // Table is the per-picture filter switch: one Filter per AssetID.
-// S32 wires it to the draw; R3 only freezes the switch and its math.
 type Table struct {
 	mu sync.RWMutex
 	m  map[core.AssetID]Filter

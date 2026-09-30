@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package noop
@@ -71,7 +81,6 @@ func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error) 
 }
 
 // GetSurfaceCapabilities returns default surface capabilities.
-// Matches webgpu Adapter.GetSurfaceCapabilities name.
 func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities {
 	return &hal.SurfaceCapabilities{
 		Formats: []gputypes.TextureFormat{
@@ -94,5 +103,4 @@ func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities
 }
 
 // Release is a no-op for the noop adapter.
-// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
 func (a *Adapter) Release() {}

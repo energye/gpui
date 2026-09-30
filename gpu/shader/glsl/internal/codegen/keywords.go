@@ -1,11 +1,17 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
 // glslKeywords contains all GLSL reserved words.
 // This includes current keywords, future reserved words, and built-in names.
-// Based on GLSL 4.60 and GLSL ES 3.20 specifications.
 var glslKeywords = map[string]struct{}{
 	// Basic types
 	"void": {}, "bool": {}, "int": {}, "uint": {}, "float": {}, "double": {},

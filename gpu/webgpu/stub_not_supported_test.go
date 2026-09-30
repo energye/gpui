@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -9,10 +19,6 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
-
-// H4-b2 桩定案（webgpu 对照侧）：QuerySet 恒返 ErrTimestampsNotSupported，
-// Bundle/加速结构返错不支持，Destroy/空输入 nil-safe。零 native 依赖，
-// &Device{} 零值即可（对照 H2B 口径）。
 
 func TestH4B2_WebGPUCreateStubsNotSupported(t *testing.T) {
 	d := &Device{}

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -89,7 +99,7 @@ type GPURenderTarget struct {
 //
 //	import _ "github.com/energye/gpui/render/gpu" // enables GPU acceleration
 type GPUAccelerator interface {
-	// Name returns the accelerator name (e.g., "wgpu", "vulkan").
+	// Name returns the accelerator name.
 	Name() string
 
 	// Init initializes GPU resources. Called once during registration.
@@ -234,7 +244,7 @@ type GPUGlyphMaskAccelerator interface {
 // through this interface instead of GPUGlyphMaskAccelerator.
 //
 // The glyph masks are rasterized with binary coverage (0 or 255 only) using
-// the NoAAFiller, matching Skia's SkFont::Edging::kAlias behavior.
+// the NoAAFiller, matching the SkFont::Edging::kAlias behavior.
 type GPUAliasedTextAccelerator interface {
 	DrawGlyphMaskTextAliased(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 }
@@ -271,7 +281,7 @@ type GPUColorGlyphAccelerator interface {
 //
 // Because the mask is produced by the same rasterizer from the same geometry
 // as the CPU path, the GPU output matches the CPU rendering bit-exactly (the
-// vector-outline cover pass cannot reproduce Skia's scanline trapezoid
+// vector-outline cover pass cannot reproduce the scanline trapezoid
 // accumulation on densely overlapping edges).
 type GPUTransformMaskTextAccelerator interface {
 	// DrawGlyphMaskTransformText draws transformed text. devicePath is the
@@ -587,9 +597,6 @@ type RRectClipAware interface {
 // (DepthClipPipeline), then content shaders test against the clip depth.
 // This is GPU-CLIP-003a — the third level of clip support after scissor rect
 // (ClipAware) and SDF rrect (RRectClipAware).
-//
-// Follows the Flutter Impeller pattern: depth buffer for clip discrimination,
-// stencil exclusively for path fill (Tier 2b).
 type PathClipAware interface {
 	// SetClipPath sets an arbitrary clip path for depth-based clipping.
 	// The path is in device-space coordinates. Subsequent GPU draw commands

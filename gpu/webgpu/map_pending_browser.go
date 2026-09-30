@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -22,10 +32,10 @@ type MapPending struct {
 
 // Status returns the current state of the pending map without blocking.
 //
-//   - (true, nil)    -- mapping is ready; call Buffer.MappedRange.
-//   - (false, nil)   -- still pending; the JS event loop has not resolved
+//   - (true, nil) -- mapping is ready; call Buffer.MappedRange.
+//   - (false, nil) -- still pending; the JS event loop has not resolved
 //     the Promise yet.
-//   - (true, err)    -- mapping failed; the buffer is back in the Unmapped
+//   - (true, err) -- mapping failed; the buffer is back in the Unmapped
 //     state and err describes why.
 func (p *MapPending) Status() (ready bool, err error) {
 	if p == nil || p.done == nil {

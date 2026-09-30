@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -13,8 +23,6 @@ import (
 // Promise.then/catch with a channel to yield the goroutine until the JS event
 // loop resolves the promise. The caller MUST be on a goroutine (not the main
 // goroutine) or the program will deadlock.
-//
-// Pattern matches Rust wgpu's wasm_bindgen_futures::JsFuture::from(promise).
 func AwaitPromise(promise js.Value) (js.Value, error) {
 	ch := make(chan promiseResult, 1)
 

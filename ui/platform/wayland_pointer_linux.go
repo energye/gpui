@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -53,7 +63,7 @@ func ptrSurfName(w *wlWin, surface uintptr) string {
 // Protocol (wl_pointer, stable v1 — event subset v1-v5 is enough):
 //
 //	requests: set_cursor(0)[serial,surface,hotspot,h,v], release(1), ...
-//	events:   enter(0)[serial,surface,pos_fixed,surface_x_fixed,surface_y_fixed]
+//	events: enter(0)[serial,surface,pos_fixed,surface_x_fixed,surface_y_fixed]
 //	          leave(1)[serial,surface]
 //	          motion(2)[time,pos_fixed,surface_x_fixed,surface_y_fixed]
 //	          button(3)[serial,time,button,state]
@@ -63,7 +73,7 @@ func ptrSurfName(w *wlWin, surface uintptr) string {
 // enter/motion coords are in surface-local coordinate space *before* the
 // surface's scale is applied (wl_fixed). We treat them as logical px.
 //
-// Window-level pointer model (GTK4 parity): the app sees ONE continuous
+// Window-level pointer model: the app sees ONE continuous
 // coordinate space over the whole window — content + CSD chrome. Pointer
 // coordinates from the decoration subsurfaces are translated into content
 // coordinates (negative y over the title bar); enter/leave are reported only
@@ -211,7 +221,6 @@ func (st *wlPointerState) appXY(surface uintptr, x, y float64) (float64, float64
 	return st.win.csd.appCoords(surface, x, y)
 }
 
-
 // applyCursor routes the cursor update: the zwp_cursor_shape_v1 device when
 // bound (compositor-rendered; no client image traffic), else the CSD
 // wl_cursor_theme path. hit==csdHit{} restores the default arrow.
@@ -230,9 +239,10 @@ func (st *wlPointerState) applyCursor(serial uintptr, hit csdHit) {
 
 // leaveWindow pushes the window-level PointerLeave and clears chrome state
 // (hover highlight + cursor).
-//go:noinline // state here is mutated through uintptr self-pointers, which
 // defeat the optimizer's alias tracking: inlining into a cached-view caller
 // risks stale field reads, so every invocation reloads from memory.
+//
+//go:noinline // state here is mutated through uintptr self-pointers, which
 func (st *wlPointerState) leaveWindow(serial uintptr) {
 	if st == nil || st.win == nil {
 		return
@@ -250,6 +260,7 @@ func (st *wlPointerState) leaveWindow(serial uintptr) {
 // internal content↔chrome crossing consumes lastLeaveOurs via its paired
 // enter; anything left over means the pointer left the window (possibly with
 // no enter at all — pointer over no surface).
+//
 //go:noinline // same uintptr-aliasing reason as leaveWindow.
 func (st *wlPointerState) resolveDeferredLeave() {
 	if st == nil || !st.lastLeaveOurs {
@@ -432,7 +443,7 @@ func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 	}
 
 	// Map evdev button codes → 1/2/3 like platform convention (X11 button
-	// numbers); side buttons map to 8/9 (GTK parity).
+	// numbers); side buttons map to 8/9.
 	switch btn {
 	case 0x110: // BTN_LEFT
 		btn = 1

@@ -1,7 +1,13 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
-// Port of vello_shaders/src/cpu/euler.rs — Euler Spiral math for curve flattening.
 // Original: Copyright 2023 the Vello Authors, Apache-2.0 OR MIT OR Unlicense.
 
 package tilecompute

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package types
 
 // LoadOp describes the load operation for an attachment.
@@ -172,7 +182,6 @@ type BlendComponent struct {
 
 // UsesConstant returns true if this blend component uses the blend constant
 // color (BlendFactorConstant or BlendFactorOneMinusConstant).
-// Matches Rust wgpu-types BlendComponent::uses_constant().
 func (bc BlendComponent) UsesConstant() bool {
 	return bc.SrcFactor == BlendFactorConstant ||
 		bc.SrcFactor == BlendFactorOneMinusConstant ||
@@ -323,8 +332,6 @@ type ColorTargetState struct {
 // This means `PrimitiveState{}` is a fully valid WebGPU-spec-default primitive
 // assembly configuration — no normalization pass is needed anywhere.
 //
-// This is intentionally better than Rust wgpu's approach: Rust relies on
-// `#[derive(Default)] #[default]` annotations to achieve the same result.
 // We get it for free from Go's zero initialization rules.
 type PrimitiveTopology uint32
 
@@ -436,8 +443,6 @@ type PrimitiveState struct {
 // ([PrimitiveTopology], [FrontFace], [CullMode]) have their zero value
 // defined as the spec default. This function is provided for explicit
 // call-site documentation and parity with other Default*State helpers.
-//
-// See Rust wgpu's `PrimitiveState::default()` for the equivalent pattern.
 func DefaultPrimitiveState() PrimitiveState {
 	return PrimitiveState{}
 }

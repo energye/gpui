@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -8,7 +18,7 @@ import (
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
-// texViewNative adapts a hal.TextureView to res.Native (P3). Destroy is
+// texViewNative adapts a hal.TextureView to res.Native. Destroy is
 // idempotent at the webgpu layer (released-guard), so registering the same
 // view for multiple commands is safe.
 type texViewNative struct{ v hal.TextureView }
@@ -23,7 +33,7 @@ func (n texViewNative) Release() {
 // Unlike ImageDrawCommand (CPU pixel upload), this draws a pre-existing GPU
 // texture view directly — zero CPU readback, zero re-upload.
 //
-// The View is a res.View (P3): either a SourceKey resolved at flush time to
+// The View is a res.View: either a SourceKey resolved at flush time to
 // the current active instance (deferred, never a stale snapshot) or a strong
 // Ref to a direct resource. This mirrors the Skia GrSurfaceProxyView
 // direct-bind pattern with deferred/instantiated forms.

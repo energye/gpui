@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -5,7 +15,6 @@ import (
 	"testing"
 )
 
-// 数据常量门禁：16 个数据符号全能读出来，数字大于 0，版本串含 FFmpeg。
 // 大白话：前面函数都能调了，这里验剩下的数据也能拿到，别出现空读。
 func TestDataConst(t *testing.T) {
 	if !Available() {

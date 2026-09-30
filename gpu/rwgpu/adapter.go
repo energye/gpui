@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -25,7 +35,6 @@ type Future struct {
 }
 
 // RequestAdapterOptions configures adapter selection.
-// Matches the gogpu/wgpu API for cross-project compatibility.
 type RequestAdapterOptions struct {
 	// PowerPreference indicates power consumption preference.
 	PowerPreference types.PowerPreference
@@ -428,7 +437,6 @@ type AdapterInfoGo struct {
 //
 // Limits are cached at adapter creation time and returned by value.
 // No FFI call is made. Returns zero-value Limits if the adapter is nil.
-// This matches the gogpu/wgpu API signature for cross-project compatibility.
 func (a *Adapter) Limits() Limits {
 	if a == nil || a.handle == 0 {
 		return Limits{}

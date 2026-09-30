@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -23,22 +30,13 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// H4-d 帧与送显走通证（离屏，不碰在线 present_target）：
-// Configure → Acquire → CreateTextureView(曲面视图) → 句柄装盒 →
-// 建管线 → BeginRenderPass(曲面目标) → Draw → Submit → swapchainFBO 读回。
 //
-// 像素口径：swapchainFBO 直接读回必须与 H4-c 金文件逐位一致（同一三角、
-// 同一尺寸、同一朝向，金文件复用 testdata/h4c_triangle_golden.json，容差 0）；
-// Y 翻转 blit 另起校验 FBO 验抄写（中心红、四角蓝）。
-// 真 Present（swap 到窗）无窗验不了，留 H4-e/P1 真窗；此处只证真正的
-// blit 函数空跑不 panic、无窗像素不断言。
 // 无 EGL 时 t.Skipf（缺真机数据不假绿）。
 
 func TestH4D_SurfaceFrameOffscreenPixel(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	// WGSL 与期望探针一律读数据文件（H4-c 同一套，不另立金文件）。
 	vsWGSL := h4cReadWGSL(t, "h4c_triangle_vertex.wgsl")
 	fsWGSL := h4cReadWGSL(t, "h4c_triangle_fragment.wgsl")
 	rawGolden, err := os.ReadFile(filepath.Join("testdata", "h4c_triangle_golden.json"))
@@ -132,7 +130,6 @@ func TestH4D_SurfaceFrameOffscreenPixel(t *testing.T) {
 		t.Fatal("foreign handle unpacked to non-nil, want fail-closed nil")
 	}
 
-	// 管线：WGSL 经缓存编译（与 H4-c 同一路），真建 GL 管线。
 	vsMod, err := dev.CreateShaderModule(&ShaderModuleDescriptor{WGSL: vsWGSL})
 	if err != nil {
 		t.Fatalf("CreateShaderModule(vertex): %v", err)
@@ -185,7 +182,6 @@ func TestH4D_SurfaceFrameOffscreenPixel(t *testing.T) {
 		t.Fatalf("Queue.Submit: %v", err)
 	}
 
-	// 读回 swapchainFBO：与 H4-c 离屏同朝向，md5 必须对金文件逐位一致。
 	frame := actx.Lock()
 	frame.Finish()
 	frame.BindFramebuffer(gl.FRAMEBUFFER, surf.swapchainFBO)

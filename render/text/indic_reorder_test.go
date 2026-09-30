@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import "testing"
@@ -203,7 +213,7 @@ func TestIndicConsonantPos_PeerScripts(t *testing.T) {
 }
 
 func TestIndicInitial_RephAfterMultiConsonantBase(t *testing.T) {
-	// र् + क + ् + त → क + ् + त + र + ्  (reph after base Ta)
+	// र् + क + ् + त → क + ् + त + र + ् (reph after base Ta)
 	runes := []rune{devaRa, devaHalant, 0x0915, devaHalant, 0x0924}
 	units := reorderIndicInitial(runes)
 	got := indicUnitsToRunes(units)
@@ -261,7 +271,7 @@ func TestIndicFinal_RephAfterMatras(t *testing.T) {
 }
 
 func TestIndicSyllableSplit_ConsonantCluster(t *testing.T) {
-	// क + ् + त + ि  one syllable
+	// क + ् + त + ि one syllable
 	runes := []rune{0x0915, devaHalant, 0x0924, devaIMatra}
 	units := make([]indicUnit, len(runes))
 	for i, r := range runes {

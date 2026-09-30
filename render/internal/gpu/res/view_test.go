@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package res
 
 import (
@@ -6,8 +16,7 @@ import (
 )
 
 // View three-state semantics: deferred key, direct ref, queue-time raw
-// pointer. These pin the P3 queue-time fallback used when a session does not
-// exist yet at command-queue time (first frame / after device rebuild).
+// pointer.
 
 func TestView_RawFallbackSemantics(t *testing.T) {
 	p1 := unsafe.Pointer(uintptr(0x1000))

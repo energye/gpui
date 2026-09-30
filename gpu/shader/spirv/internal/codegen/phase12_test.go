@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -1227,8 +1237,6 @@ func TestCollectUsedGlobalVars_NoDuplicates(t *testing.T) {
 // - ShaderNonUniform capability
 // - SPV_EXT_descriptor_indexing extension
 // - NonUniform decorations on AccessChain and Load results
-//
-// Matches Rust naga behavior: decorate_non_uniform_binding_array_access.
 func TestNonUniformBindingArrayDecoration(t *testing.T) {
 	source := `
 @group(0) @binding(0) var textures: binding_array<texture_2d<f32>, 4>;

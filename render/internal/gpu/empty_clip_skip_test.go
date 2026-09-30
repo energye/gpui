@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import (
@@ -8,7 +18,7 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 )
 
-// Empty-clip dispatch (Skia isClipEmpty): draws recorded under an empty clip
+// Empty-clip dispatch: draws recorded under an empty clip
 // must join an explicitly empty scissor group that dispatch skips — never the
 // unclipped (nil-rect, full-target) group. Regression test for the F-box text
 // overdraw on window shrink: a box scrolled/clipped fully outside the pixmap

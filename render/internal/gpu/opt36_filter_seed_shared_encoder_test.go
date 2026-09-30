@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -12,7 +22,7 @@ import (
 )
 
 // TestOpt36_FilterSeedSharedEncoder_OneFinish encodes a seed clear pass then
-// continues the blur graph on the same encoder (class A opt36).
+// continues the blur graph on the same encoder.
 func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Skip("WGPU_NATIVE_PATH required")

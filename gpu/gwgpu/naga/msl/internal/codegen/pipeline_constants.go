@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -10,15 +20,8 @@ import (
 // applyPipelineConstants creates a copy of the module with override values
 // substituted according to the provided pipeline constants map.
 //
-// Pipeline constants are matched to overrides by:
-//   - Numeric @id: the key is the decimal string of the @id value (e.g., "0", "1300")
-//   - Name: the key is the override's identifier name (e.g., "depth", "width")
-//
 // The f64 value is converted to the override's declared scalar type following
-// the WebIDL conversion rules (same as Rust naga's map_value_to_literal).
-//
-// This function also updates GlobalExpressions to replace Override init expressions
-// with resolved literal values, matching Rust naga's process_overrides pass.
+// the WebIDL conversion rules.
 func applyPipelineConstants(module *ir.Module, constants map[string]float64) *ir.Module {
 	// Create a shallow copy of the module so we don't mutate the original.
 	m := *module
@@ -185,12 +188,10 @@ func applyPipelineConstants(module *ir.Module, constants map[string]float64) *ir
 	}
 
 	// EntryPoints and Functions already deep-copied above (lines 39-80).
-	// Phase 5: Rebuild function expression arenas, matching Rust naga's
 	// process_function behavior. This replaces Override expressions with
 	// resolved constant references, evaluates expressions with constant
 	// operands (deep-copying constant values into the arena first), and
 	// renumbers all expression handles. This produces the same expression
-	// indices as Rust naga.
 	for epIdx := range m.EntryPoints {
 		ep := &m.EntryPoints[epIdx]
 		processFunctionOverrides(&m, &ep.Function, overrideValues)
@@ -382,7 +383,7 @@ func literalToFloat64(lit ir.LiteralValue) (float64, bool) {
 }
 
 // scalarValueToLiteral converts a float64 pipeline constant value to a LiteralValue
-// matching the target scalar type. Follows WebIDL conversion rules.
+// matching the target scalar type.
 func scalarValueToLiteral(value float64, scalar ir.ScalarType) ir.LiteralValue {
 	switch scalar.Kind {
 	case ir.ScalarBool:
@@ -447,14 +448,6 @@ func literalToScalarValue(lit ir.LiteralValue) *ir.ScalarValue {
 	return nil
 }
 
-// processFunctionOverrides rebuilds a function's expression arena after override
-// resolution, matching Rust naga's process_function behavior. This:
-//   - Replaces ExprOverride with ExprOverride (kept for MSL writer to emit constant name)
-//   - Deep-copies resolved override literal values into the arena when needed for
-//     constant evaluation (matching Rust's check_and_get behavior)
-//   - Evaluates Binary/Unary expressions with all-const operands to literals
-//   - Renumbers all expression handles to match Rust's sequential arena rebuild
-//   - Updates statements, local variable inits, and named expressions
 func processFunctionOverrides(m *ir.Module, fn *ir.Function, overrideValues map[ir.OverrideHandle]ir.LiteralValue) {
 	if len(fn.Expressions) == 0 {
 		return
@@ -509,7 +502,7 @@ func processFunctionOverrides(m *ir.Module, fn *ir.Function, overrideValues map[
 
 	// checkAndGetConst resolves an expression handle in the new arena to a literal
 	// value for evaluation. If the expression is an Override or Constant, deep-copies
-	// the resolved literal into the arena first (matching Rust's check_and_get).
+	// the resolved literal into the arena first.
 	// Returns the handle to use for evaluation and whether it resolved to a literal.
 	checkAndGetConst := func(h ir.ExpressionHandle) (ir.ExpressionHandle, ir.LiteralValue) {
 		if int(h) >= len(newExprs) {
@@ -1062,7 +1055,7 @@ func adjustSubgroupGatherStmt(k ir.StmtSubgroupGather, adjust func(ir.Expression
 }
 
 // mapValueToScalar converts a float64 pipeline constant value to an IR ScalarValue
-// matching the target scalar type. Follows WebIDL conversion rules.
+// matching the target scalar type.
 func mapValueToScalar(value float64, scalar ir.ScalarType) (ir.ScalarValue, error) {
 	switch scalar.Kind {
 	case ir.ScalarBool:

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import "image"
@@ -51,7 +61,7 @@ func damageRectsUnion(rects []image.Rectangle) image.Rectangle {
 //
 // Returns an empty rect when rects is empty, or when no damage rect overlaps
 // the group. Callers must distinguish:
-//   - empty input  → no damage tracking → full group scissor
+//   - empty input → no damage tracking → full group scissor
 //   - non-empty in, empty out → damage present but group clean → skip group
 func damageRectsRelevantToGroup(groupClip *[4]uint32, surfaceW, surfaceH uint32, rects []image.Rectangle) image.Rectangle {
 	if len(rects) == 0 {

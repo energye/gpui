@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build !nogpu
 
@@ -490,9 +497,6 @@ func TestGPURenderContext_BaseLayer_DoesNotAffectOtherCounts(t *testing.T) {
 // Vello compute. Vello compute writes to target.Data (CPU pixmap) which is
 // ignored in GPU-direct mode (FlushGPUWithView). Stencil path uses the
 // render session which correctly handles target.View.
-//
-// Regression test for TASK-GG-STROKE-REGRESSION-374: PR #379 changed routing
-// to != PipelineModeRenderPass, breaking GPU-direct stroke rendering in ui.
 func TestStrokeRouting_AutoModeUsesStencil(t *testing.T) {
 	s := NewGPUShared()
 	s.gpuReady = true

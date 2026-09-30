@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -98,10 +105,10 @@ func TestComputeBindingMap_MixedResources(t *testing.T) {
 	bindingMap, groupInfos := computeBindingMap(layouts)
 
 	// Verify per-type sequential counters:
-	// Samplers:  group0/binding0 -> slot 0
-	// Textures:  group0/binding1 -> slot 0
-	// Uniforms:  group0/binding2 -> slot 0
-	// Storage:   group1/binding0 -> slot 0
+	// Samplers: group0/binding0 -> slot 0
+	// Textures: group0/binding1 -> slot 0
+	// Uniforms: group0/binding2 -> slot 0
+	// Storage: group1/binding0 -> slot 0
 	wantBindings := map[glsl.BindingMapKey]uint8{
 		{Group: 0, Binding: 0}: 0, // sampler
 		{Group: 0, Binding: 1}: 0, // texture
@@ -234,7 +241,7 @@ func TestComputeBindingMap_StorageTexture(t *testing.T) {
 	bindingMap, _ := computeBindingMap(layouts)
 
 	// Textures: binding 0 -> slot 0, binding 2 -> slot 1
-	// Images:   binding 1 -> slot 0
+	// Images: binding 1 -> slot 0
 	slot0, ok := bindingMap[glsl.BindingMapKey{Group: 0, Binding: 0}]
 	if !ok || slot0 != 0 {
 		t.Errorf("texture slot = %d, want 0", slot0)
@@ -325,7 +332,7 @@ func TestClassifyBindGroupEntry(t *testing.T) {
 // =============================================================================
 
 // TestAssignBindingsAfterLink_StorageBufferReturnsError verifies that storage
-// buffers cannot be remapped at runtime (Rust wgpu-hal returns DeviceError::Lost).
+// buffers cannot be remapped at runtime.
 func TestAssignBindingsAfterLink_StorageBufferReturnsError(t *testing.T) {
 	layout := &PipelineLayout{
 		bindingMap: map[glsl.BindingMapKey]uint8{

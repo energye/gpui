@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package platform
 
 import (
@@ -112,7 +122,7 @@ var ErrUnsupported = errors.New("platform: window operation not supported")
 // fundamentally impossible on a protocol return ErrUnsupported (Wayland:
 // SetPosition/Focus/SetAlwaysOnTop/SetDecorations). Queries return
 // zero values when the backend cannot answer. See docs/ENGINE_WINDOW_API.md
-// (§3 capability matrix) for the per-platform column.
+// for the per-platform column.
 type WindowController interface {
 	// Title returns the current window title.
 	Title() string

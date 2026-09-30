@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -37,9 +44,7 @@ func (d *Device) canCreateICBPipeline(desc *hal.RenderPipelineDescriptor, pipeli
 	if d == nil || d.raw == 0 || pipelineDesc == 0 || !renderPipelineICBCandidate(desc) {
 		return false
 	}
-	// Metal family support is cumulative. Apple8+ devices also report Apple7,
-	// so this admits the M1 proof family and later Apple GPU families while
-	// leaving Intel and AMD devices on the ordinary path.
+	// Metal family support is cumulative.
 	if !DeviceSupportsFamily(d.raw, MTLGPUFamilyApple7) {
 		return false
 	}

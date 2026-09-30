@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package mem2reg
 
 import (
@@ -126,9 +136,7 @@ func TestPhaseBSwitchNoWritePassThrough(t *testing.T) {
 	}
 }
 
-// TestPhaseBLoopDisqualification verifies that a variable stored inside a
-// loop body is removed from the candidate set (conservative behavior per
-// BUG-DXIL-041). The variable keeps its alloca lowering.
+// The variable keeps its alloca lowering.
 //
 // Real pattern: for-loop incrementing a counter (`var i: i32 = 0; loop { i++; ... }`).
 //

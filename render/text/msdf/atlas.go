@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package msdf
 
 import (
@@ -9,7 +19,7 @@ import (
 )
 
 // msdfErrorCorrectionThreshold is the maximum allowed deviation (as a
-// fraction of full range) of any channel from the median.  Channels that
+// fraction of full range) of any channel from the median. Channels that
 // exceed this are clamped toward the median, preventing bilinear filtering
 // from producing incorrect median values at texel boundaries.
 // 0.40: preserves multi-channel encoding for thin strokes while eliminating

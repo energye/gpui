@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -173,17 +183,11 @@ func TestInputUsedMaskNull(t *testing.T) {
 // TestInputUsedMaskSortedOrder verifies that computeInputElementUsedMasks
 // assigns masks in sorted signature order (locations before builtins) rather
 // than declaration order. Regression test for the msl-varyings/fs_main bug
-// where @builtin(position) from arg0 got LOC's slot and @location(1) from
-// arg1 got SV_Position's slot.
 func TestInputUsedMaskSortedOrder(t *testing.T) {
-	// Fragment shader with:
-	//   arg0: VertexOutput { @builtin(position) position: vec4f }
-	//   arg1: NoteInstance { @location(1) position: vec2f }
-	// Sorted order: LOC1 (sig element 0), SV_Position (sig element 1)
 	vec4Type := ir.TypeHandle(0)
 	vec2Type := ir.TypeHandle(1)
-	vertexOutputType := ir.TypeHandle(2) // struct { @builtin(position) vec4f }
-	noteInstanceType := ir.TypeHandle(3) // struct { @location(1) vec2f }
+	vertexOutputType := ir.TypeHandle(2)
+	noteInstanceType := ir.TypeHandle(3)
 
 	posBinding := ir.Binding(ir.BuiltinBinding{Builtin: ir.BuiltinPosition})
 	loc1Binding := ir.Binding(ir.LocationBinding{Location: 1})
@@ -208,8 +212,8 @@ func TestInputUsedMaskSortedOrder(t *testing.T) {
 		Function: ir.Function{
 			Name: "fs_main",
 			Arguments: []ir.FunctionArgument{
-				{Type: vertexOutputType}, // arg0: has @builtin(position)
-				{Type: noteInstanceType}, // arg1: has @location(1)
+				{Type: vertexOutputType},
+				{Type: noteInstanceType},
 			},
 			Result: &ir.FunctionResult{
 				Type:    vec4Type,

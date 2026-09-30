@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -31,7 +41,6 @@ const (
 	ibusAttrName     = "IBusAttribute"
 )
 
-// ImeSegment.Attr 取值（与 IBus 属性类型对应，见 docs §15 B21）。
 const (
 	ImeAttrUnderline = 1 // 下划线（IBus ATTR_UNDERLINE 单线；前景色属性亦归入此值）
 	ImeAttrDouble    = 2 // 双下划线（ATTR_UNDERLINE + UNDERLINE_DOUBLE）
@@ -104,9 +113,6 @@ type ibusAttrWire struct {
 	End   uint32
 }
 
-// parseIBusAttrList 解析线上真实格式的 AttrList：
-// (sa{sv}av) ["IBusAttrList", {}, [<(sa{sv}uuuu) ["IBusAttribute", {}, type, value, start, end]>, ...]]
-// 实测 fcitx5/ibus 均按此结构下发（见 docs/ENGINE_TEXT_X11_IME_REQUIREMENT.md §15 B21）。
 func parseIBusAttrList(v dbus.Variant, textLen int) []ImeSegment {
 	if v.Signature().String() == "" {
 		return nil

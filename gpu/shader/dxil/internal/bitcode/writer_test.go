@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package bitcode
 
 import (
@@ -89,7 +99,7 @@ func TestWriteVBR_LargeValue(t *testing.T) {
 	// VBR(4) encoding of 27:
 	// 27 = 0b11011
 	// Chunk 1: 011 | 1 (continuation) = 1011 (0xB)
-	// Chunk 2: 011 | 0 (last)         = 0011 (0x3)
+	// Chunk 2: 011 | 0 (last) = 0011 (0x3)
 	// Total: 0011_1011 in bit order = 0x3B when read as 8 bits
 	w := NewWriter(2)
 	w.WriteVBR(27, 4)
@@ -131,9 +141,8 @@ func TestWriteVBR_ThreeChunks(t *testing.T) {
 }
 
 func TestEncodeSignedVBR(t *testing.T) {
-	// Reference: LLVM 3.7 BitcodeWriter.cpp emitSignedInt64.
 	//   v >= 0 → v << 1
-	//   v <  0 → (-v << 1) | 1
+	//   v < 0 → (-v << 1) | 1
 	tests := []struct {
 		name  string
 		input int64

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -161,7 +168,6 @@ func TestGLSLVersionToNaga_SupportsExplicitLocations(t *testing.T) {
 
 func TestShaderBindingLayout(t *testing.T) {
 	// Verify that shaderBindingLayout is true iff SupportsExplicitLocations is true.
-	// This mirrors Rust wgpu-hal PrivateCapabilities::SHADER_BINDING_LAYOUT.
 	tests := []struct {
 		name        string
 		glslVersion int

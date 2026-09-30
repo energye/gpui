@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -9,7 +19,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-// Shared-device recovery (R0-6).
+// Shared-device recovery.
 //
 // Every L1 window borrows one process device but owns its own surface and
 // swapchain. The per-swapchain auto-recovery (EnableAutoRecover /
@@ -53,7 +63,7 @@ func RecoverSharedDevice() error {
 	}
 
 	// Phase A: every window drops GPU objects while the old device is
-	// still addressable (Skia abandonContext order). Capture the surface
+	// still addressable. Capture the surface
 	// format for the accelerator rebind below.
 	var format types.TextureFormat
 	formatSet := false
@@ -114,7 +124,7 @@ func RecoverSharedDevice() error {
 
 	// Phase C: reconfigure every live target onto the new device.
 	// Buffers from the old swapchain are undefined — arm the same 3-frame
-	// full-write budget a resize uses (Skia recreate semantics).
+	// full-write budget a resize uses.
 	var firstErr error
 	for _, t := range targets {
 		t.mu.Lock()

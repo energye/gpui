@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder
 
 import (
@@ -47,7 +57,7 @@ func TestHandleLifecycle_Occluded(t *testing.T) {
 }
 
 // TestHandleLifecycle_Hidden parks headless: hide latches the flag without a
-// live loop or present target. Show needs a real window (step 5 真窗).
+// live loop or present target. Show needs a real window.
 func TestHandleLifecycle_Hidden(t *testing.T) {
 	a := newLifecycleApp(t)
 	hid := input.FromPlatform(platform.Event{Type: platform.EventHidden, Hidden: true}, input.Modifiers{})

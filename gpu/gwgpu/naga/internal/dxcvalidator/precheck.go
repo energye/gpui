@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // precheck.go — DXBC container structural pre-check.
 //
 // This file implements PreCheckContainer, a fast fixed-offset structural
@@ -30,8 +40,6 @@
 //   - Cross-part consistency (PSV0 counts vs ISG1/OSG1 element counts)
 //   - Repairing malformed containers (this layer rejects; it does not fix)
 //
-// Reference: dxil/internal/container/container.go (emit path) and
-// dxil/internal/container/psv.go (PSV0 layout).
 
 package dxcvalidator
 
@@ -115,9 +123,6 @@ type precheckPart struct {
 // PreCheckContainer never mutates the input and never allocates beyond
 // small bounded slices for the part table view.
 //
-// Corpus impact note: when first enabled on the 237-entry naga test corpus,
-// this check reshuffles ~113 entries from the "INVALID" bin (previously
-// reported by dxil.dll) into the "VALIDATE_ERROR" bin (now reported here).
 // The VALID count is unchanged (1/237 — the golden fixture), and the total
 // failing count is unchanged. The reshuffled entries are genuinely broken:
 // most are compute shaders whose PSV0 emitter still defaults ShaderStage=1
@@ -187,8 +192,8 @@ func parseContainerParts(blob []byte) ([]precheckPart, error) {
 		return nil, fmt.Errorf("dxcvalidator: precheck: %w", ErrBadMagic)
 	}
 	// Byte layout mirrors container.Bytes():
-	//   0..3   : magic
-	//   4..19  : digest
+	//   0..3 : magic
+	//   4..19 : digest
 	//   20..21 : major
 	//   22..23 : minor
 	//   24..27 : total file size
@@ -244,12 +249,12 @@ func parseContainerParts(blob []byte) ([]precheckPart, error) {
 //
 // Layout (see dxil/internal/container/psv.go:EncodePSV0):
 //
-//	[0..3]                  psv_size (uint32)
-//	[4..4+psv_size]         PSVRuntimeInfo3 (52 B minimum for modern dxil.dll)
-//	[...]                   resource_count (uint32) + bindings
-//	[...]                   string_table_size (uint32) + data
-//	[...]                   sem_index_count (uint32) + data
-//	[...]                   optional PSVSignatureElement array
+//	[0..3] psv_size (uint32)
+//	[4..4+psv_size] PSVRuntimeInfo3 (52 B minimum for modern dxil.dll)
+//	[...] resource_count (uint32) + bindings
+//	[...] string_table_size (uint32) + data
+//	[...] sem_index_count (uint32) + data
+//	[...] optional PSVSignatureElement array
 //
 // Stage byte is PSVRuntimeInfo1 offset 0 = PSVRuntimeInfo0 offset 24 =
 // data[4+24] = data[28].

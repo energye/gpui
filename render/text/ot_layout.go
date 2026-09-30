@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // OpenType Layout shared structures — ScriptList, FeatureList, LookupList, Coverage.
 //
 // These structures are shared between GSUB and GPOS table parsers. They follow
@@ -8,8 +18,6 @@
 //   - LookupList → Lookup → subtables
 //   - Coverage → glyph containment check (Format 1: list, Format 2: ranges)
 //   - ClassDef → glyph class assignment (Format 1: array, Format 2: ranges)
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2
 //
 // This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
 package text

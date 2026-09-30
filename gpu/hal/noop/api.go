@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package noop
@@ -63,13 +73,9 @@ func (i *Instance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter {
 }
 
 // Release is a no-op for the noop instance.
-// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
 func (i *Instance) Release() {}
 
 // RequestAdapter returns the default noop adapter.
-// Matches webgpu Instance.RequestAdapter shape; options are accepted
-// for API compatibility (PowerPreference/CompatibleSurface are moot —
-// noop has a single adapter).
 func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
 	var surface hal.Surface
 	if opts != nil {

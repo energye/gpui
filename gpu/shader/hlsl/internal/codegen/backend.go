@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -27,13 +34,12 @@ type Options struct {
 	// SamplerBufferBindingMap maps group numbers to bind targets for
 	// sampler index buffers (StructuredBuffer<uint>). When a sampler is
 	// encountered, the sampler heap arrays and corresponding index buffer
-	// are written. Matches Rust naga's sampler_buffer_binding_map.
+	// are written.
 	SamplerBufferBindingMap map[uint32]BindTarget
 
 	// ExternalTextureBindingMap maps resource bindings to external texture
 	// bind targets. External textures are decomposed into 3 plane textures
 	// and a parameters cbuffer.
-	// Matches Rust naga's Options::external_texture_binding_map.
 	ExternalTextureBindingMap ExternalTextureBindingMap
 
 	// FakeMissingBindings generates automatic bindings for resources
@@ -57,7 +63,6 @@ type Options struct {
 	// for dynamic storage buffer offset constant buffers. When a storage buffer
 	// binding has DynamicStorageBufferOffsetsIndex set, the generated HLSL adds
 	// the dynamic offset from the corresponding constant buffer to Load/Store addresses.
-	// Matches Rust naga's Options::dynamic_storage_buffer_offsets_targets.
 	DynamicStorageBufferOffsetsTargets map[uint32]OffsetsBindTarget
 
 	// SpecialConstantsBinding specifies the binding for the NagaConstants
@@ -65,7 +70,6 @@ type Options struct {
 	// struct with first_vertex, first_instance, and other fields. Vertex
 	// and instance indices are offset by these values, and NumWorkGroups
 	// is replaced with a uint3 from these values.
-	// Matches Rust naga's special_constants_binding option.
 	SpecialConstantsBinding *BindTarget
 
 	// EntryPoint specifies which entry point to compile.
@@ -76,7 +80,6 @@ type Options struct {
 	// generating the output interface of vertex entry points.
 	// If provided, vertex outputs not consumed by this fragment shader's
 	// inputs will be stripped from the vertex output struct.
-	// Matches Rust naga's FragmentEntryPoint.
 	FragmentEntryPoint *FragmentEntryPoint
 }
 
@@ -92,7 +95,6 @@ type FragmentEntryPoint struct {
 
 // DefaultOptions returns sensible default options for HLSL generation.
 // Uses Shader Model 5.1 with safe defaults enabled.
-// Matches Rust naga's Default for Options.
 func DefaultOptions() *Options {
 	return &Options{
 		ShaderModel: ShaderModel5_1,

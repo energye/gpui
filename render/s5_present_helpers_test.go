@@ -1,10 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// Shared present-path helpers used by S6 baseline / frame / budget gates.
 //
-// Extracted from the archived S5.1–S5.4 harness (Test* functions removed).
 // Timed path = draw + PresentFrame/PresentFrameDamageRects (FlushGPUWithView*).
 // No ReadPixels in the timed path.
 
@@ -158,7 +166,7 @@ func s5MeasurePresent(t *testing.T, sc s5Scene, warmup, iters int) s5SceneResult
 
 		if sc.Retained {
 			frameDC = dc
-			// Steady-state: no full wipe (S5.2). Damage draws only issue dirty cmds.
+			// Steady-state: no full wipe. Damage draws only issue dirty cmds.
 		} else {
 			frameDC = render.NewContext(sc.W, sc.H)
 			closeDC = true
@@ -436,8 +444,6 @@ func s5Scenes() []s5Scene {
 	}
 }
 
-// compMakeImage builds a solid RGBA8 image of the given color (shared by
-// s6_7_resources_test; formerly defined with the archived P1 matrix tests).
 func compMakeImage(t *testing.T, w, h int, r, g, b uint8) *render.ImageBuf {
 	t.Helper()
 	img, err := render.NewImageBuf(w, h, render.FormatRGBA8)

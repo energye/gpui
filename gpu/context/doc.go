@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package gpucontext provides shared GPU infrastructure for the gogpu ecosystem.
 //
 // This package defines interfaces and utilities used across multiple gogpu
@@ -23,7 +33,7 @@
 // # Design Principles
 //
 // This package follows the wgpu ecosystem pattern where shared types
-// are separated from implementation (cf. wgpu-types in Rust).
+// are separated from implementation.
 //
 // The key insight is that GPU context (device + queue + related state)
 // is a universal concept across Vulkan, CUDA, OpenGL, and WebGPU.
@@ -46,10 +56,8 @@
 //	// In gogpu/gg — extracts concrete type from handle
 //	func initGPU(provider gpucontext.DeviceProvider) {
 //	    dev := provider.Device()
-//	    wgpuDev := (*wgpu.Device)(dev.Pointer())
+//	    wgpuDev :=(dev.Pointer())
 //	}
-//
-// Reference: https://github.com/energye/gpui/gpu/context
 package context
 
 const stringNone = "None"

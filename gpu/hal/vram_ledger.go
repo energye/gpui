@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package hal
 
@@ -12,7 +19,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-// Process VRAM ledger (Skia setResourceCacheLimit pattern): every texture,
+// Process VRAM ledger: every texture,
 // buffer, pipeline, sampler, and swapchain-surface creation estimates its
 // bytes from the descriptor and charges a process-wide account; every
 // Release/Destroy/Unconfigure refunds it. When an estimate would exceed the
@@ -25,7 +32,7 @@ import (
 // totals by spec) nor GL reports real usage. It bounds OUR process demand
 // so multi-window/multi-program coexistence degrades gracefully (fail fast
 // → 1x1 fallback → latched retry) instead of dying in the driver.
-// Both backends (WebGPU native, pure-Go GL) charge the same account;
+// Both backends charge the same account;
 // render reads the totals for watermarks without knowing who charged.
 //
 // Budget: GPUI_VRAM_BUDGET_MB (default 768, 0 = disable). The default sits

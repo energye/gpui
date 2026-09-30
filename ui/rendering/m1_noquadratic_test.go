@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -7,9 +17,7 @@ import (
 	"time"
 )
 
-// M1-a red-light tests:面2查询去O(n²).
 // CaretForOffset/BoxesForRange当前走全表遍历+行内线性扫,行数×10耗时×100.
-// 本文件先红后绿:下面的比值门禁在改动前必须红.
 // medianOf5取中位数抗负载抖动(同仓TestCaretBuild_NoQuadratic做法),阈值不动.
 
 func m1ManyLinesDoc(n int) string {
@@ -158,12 +166,7 @@ func m1TimeKeystroke(t *testing.T, n, perLine int, w float64) time.Duration {
 	return time.Since(start) / reps
 }
 
-// TestKeystrokeRatio_M1端到端击键门禁:单次改字耗时比值≤5(阈值不动).
 // 三模式:不回绕/回绕短段(36字/段)/回绕长段(5000字/段,取计划下限).
-// 基线档必须与被测档同段长,否则比值混入段长缩放:1e3字装不下5000字段,
-// 故WrapLong基线取5e3(单个完整段),测的是段数×20下耗时是否持平(段隔离),
-// 而非段长×5的O(段长)缩放(那是已签约的复杂度,非门禁对象).长段另
-// 断言T(1e5)/T(1e4)≤2(同段长,段隔离的纯净证据).
 func TestKeystrokeRatio_M1(t *testing.T) {
 	modes := []struct {
 		name    string

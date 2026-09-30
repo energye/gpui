@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -43,7 +53,7 @@ type Device struct {
 	limits Limits // cached at request time, returned by Limits() without FFI call
 	// instance is the parent Instance handle. Used to call
 	// wgpuInstanceProcessEvents so DeviceLost callbacks registered with
-	// WGPUCallbackMode_AllowProcessEvents (webgpu.h) are delivered before
+	// WGPUCallbackMode_AllowProcessEvents are delivered before
 	// Surface.GetCurrentTexture.
 	instance uintptr
 	// callbackUserdata is the stable slot id passed as Userdata1 on
@@ -185,7 +195,7 @@ type Surface struct {
 	handle uintptr
 	device uintptr
 	// deviceRef is the Go Device used at Configure time. Provides instance
-	// for ProcessEvents and sticky lost checks (webgpu.h contract).
+	// for ProcessEvents and sticky lost checks.
 	deviceRef *Device
 	// abandoned is sticky once parent device-lost is observed on this surface.
 	// After abandon: Unconfigure/Release skip native calls when parent is lost;

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scheduler
 
 import (
@@ -18,7 +28,7 @@ func trackerWithSeries(elapsed float64, series func(t float64) int64) *ProcessTr
 	return tr
 }
 
-// Steady-state M-RSS-SLOPE semantics (R7 RSS gate honesty): the warmup
+// Steady-state M-RSS-SLOPE semantics: the warmup
 // equilibrium ramp is discarded; a plateau folds to ~0.
 func TestRSSSlope_SteadyStateFoldsWarmupRamp(t *testing.T) {
 	// 60s run: 46MB→310MB over the first 10s, then ~85KB/s creep.

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -7,8 +17,7 @@ import "syscall/js"
 // ComputePassEncoder wraps a browser GPUComputePassEncoder with pre-bound methods.
 //
 // Pre-binding JS methods at construction time avoids repeated property lookups
-// during compute dispatch. Matches Rust wgpu WebComputePassEncoder which holds
-// webgpu_sys::GpuComputePassEncoder.
+// during compute dispatch.
 type ComputePassEncoder struct {
 	// ref_ is the GPUComputePassEncoder JavaScript object.
 	ref_ js.Value
@@ -40,9 +49,6 @@ func (p *ComputePassEncoder) SetPipeline(pipeline js.Value) {
 }
 
 // SetBindGroup sets a bind group at the given index.
-//
-// When dynamicOffsets is non-empty, the offsets are passed as a Uint32Array,
-// matching Rust wgpu's set_bind_group_with_u32_slice_and_f64_and_dynamic_offsets_data_length.
 func (p *ComputePassEncoder) SetBindGroup(index uint32, group js.Value, dynamicOffsets []uint32) {
 	if len(dynamicOffsets) == 0 {
 		p.fnSetBindGroup.Invoke(index, group)
@@ -56,7 +62,6 @@ func (p *ComputePassEncoder) SetBindGroup(index uint32, group js.Value, dynamicO
 }
 
 // DispatchWorkgroups dispatches compute work.
-// Matches Rust: dispatch_workgroups_with_workgroup_count_y_and_workgroup_count_z.
 func (p *ComputePassEncoder) DispatchWorkgroups(x, y, z uint32) {
 	p.fnDispatchWorkgroups.Invoke(x, y, z)
 }

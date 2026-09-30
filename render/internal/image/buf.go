@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package image provides image buffer management for gogpu/gg.
 //
 // This package implements enterprise-grade image handling with support for
@@ -37,7 +47,6 @@ var (
 // Thread safety: ImageBuf is safe for concurrent read access. Write operations
 // (Set*, Clear, InvalidatePremulCache) require external synchronization.
 // nextImageBufGenID is a process-global monotonic counter for ImageBuf identity.
-// Follows the Skia SkPixelRef::getGenerationID() pattern (ADR-014).
 var nextImageBufGenID atomic.Uint64
 
 // ImageBuf is a memory-efficient image buffer with support for multiple pixel formats.
@@ -259,7 +268,7 @@ func (b *ImageBuf) GenerationID() uint64 {
 
 // NotifyPixelsChanged assigns a new generation ID and invalidates the premul
 // cache. Call after mutating pixel data in place (e.g. offscreen effect RT
-// republish). Mirrors Pixmap.NotifyPixelsChanged / Skia SkPixelRef pattern.
+// republish).
 func (b *ImageBuf) NotifyPixelsChanged() {
 	if b == nil {
 		return
@@ -269,7 +278,7 @@ func (b *ImageBuf) NotifyPixelsChanged() {
 }
 
 // MarkEphemeral sets GenerationID to 0 so the GPU image cache uploads this
-// buffer for a single frame and releases it via ReleaseEphemeral (S6.7).
+// buffer for a single frame and releases it via ReleaseEphemeral.
 // Use for continuous animated offscreen effect RTs republished every frame —
 // bumping a new genID each frame would grow the long-term cache / VRAM.
 func (b *ImageBuf) MarkEphemeral() {

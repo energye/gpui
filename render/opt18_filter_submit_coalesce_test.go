@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -11,7 +21,7 @@ import (
 )
 
 // TestOpt18_ApplyBlur_MeshSeedGPUFilter keeps GPU filter publish + no CPU
-// fallback after mesh seed coalesce (opt18 single Queue.Submit path).
+// fallback after mesh seed coalesce.
 func TestOpt18_ApplyBlur_MeshSeedGPUFilter(t *testing.T) {
 	requireR72GPU(t)
 	if !render.GPUFilterGraphRegistered() {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -212,16 +222,11 @@ func TestPathTilingFullShader(t *testing.T) {
 	t.Logf("Compiled %d bytes", len(spirvBytes))
 }
 
-// TestVarInitAfterLocalVarModification is a regression test for NAGA-SPV-007:
-// the SPIR-V prologue pre-computed var init expressions before the function body,
-// causing stale values when the init referenced a local variable modified by
-// preceding control flow.
-//
 // Pattern from path_tiling.wgsl:
 //
 //	var xy0 = select(p1, p0, is_down);
 //	if cond { xy0 = clipped_value; }
-//	var p0out = xy0 - tile_xy;  // MUST use post-clipping xy0!
+//	var p0out = xy0 - tile_xy; // MUST use post-clipping xy0!
 //
 // Before the fix, p0out was computed in the PROLOGUE using the initial xy0,
 // producing wrong results (12.5% pixel diff in path_tiling).
@@ -421,8 +426,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // TestVarInitConstNotAffected verifies that var inits with constant expressions
 // are still pre-computed in the prologue (not needlessly moved to body position).
-// This ensures the fix for NAGA-SPV-007 doesn't regress performance by moving
-// ALL var inits to body position.
 func TestVarInitConstNotAffected(t *testing.T) {
 	const shader = `
 @group(0) @binding(0) var<uniform> config: vec4<f32>;

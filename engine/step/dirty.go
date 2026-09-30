@@ -1,6 +1,16 @@
-// Dynamic dirty tracker (capability 8.3, P2, S37/W5).
+//----------------------------------------
 //
-// Frozen 2026-09-15 (capability 8.3, P2, S37/W5): MaxDirtyRects,
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
+// Dynamic dirty tracker.
+//
+// Frozen 2026-09-15: MaxDirtyRects,
 // DirtyStats, DirtyTracker, NewDirtyTracker, NewSpriteDirtyTracker,
 // DirtyForMove. Additive changes only.
 //

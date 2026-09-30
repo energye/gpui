@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -125,7 +135,6 @@ func registerResampleAudio(h uintptr) {
 	purego.RegisterLibFunc(&fSwrSetMatrix, h, "swr_set_matrix")
 }
 
-// Alloc 音频采样队列存取（对 av_audio_fifo_alloc；参数 sample_fmt（采样格式枚举数，如 1=S16）、channels、nb_samples；成功回 C 指针，失败回 nil；新建的记得调对应 Free；nil 接收器直接回零值，不崩）。
 func (x *Resampler) Alloc(sample_fmt int32, channels int32, nb_samples int32) unsafe.Pointer {
 	mustUse(ensureModResample())
 	return fAvAudioFifoAlloc(sample_fmt, channels, nb_samples)

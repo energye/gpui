@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Copyright 2026 The gogpu Authors
@@ -11,7 +21,6 @@ import (
 )
 
 // AnalyticFillerVello implements the Vello CPU fine rasterizer algorithm.
-// This is a direct port of vello_shaders/src/cpu/fine.rs fill_path function.
 //
 // The algorithm computes per-pixel coverage using exact geometric calculations
 // without supersampling.
@@ -85,7 +94,7 @@ func (af *AnalyticFillerVello) collectSegments(eb *raster.EdgeBuilder, _ float32
 
 	for i := range velloLines {
 		vl := &velloLines[i]
-		// VelloLine stores pixel-space coords, normalized (P0.y <= P1.y)
+		// VelloLine stores pixel-space coords, normalized
 		x0, y0 := vl.P0[0], vl.P0[1]
 		x1, y1 := vl.P1[0], vl.P1[1]
 

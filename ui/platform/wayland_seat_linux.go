@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -32,7 +42,7 @@ const (
 	wlSeatEvName         = 1
 )
 
-// seatCapMask bits (compositor capabilities).
+// seatCapMask bits.
 const (
 	seatCapPointer  = 1
 	seatCapKeyboard = 2
@@ -52,7 +62,7 @@ type wlSeatState struct {
 	// Used as Event.DeviceName: the protocol reports capability bits only,
 	// never per-device names.
 	seatName string
-	// pending device creation (called once after capabilities arrives)
+	// pending device creation
 	pendingKeys  bool
 	pendingPtrs  bool
 	pendingTouch bool // wl_touch, gated on the seat touch capability bit
@@ -208,7 +218,7 @@ func (w *wlWin) pushDev(ev Event) {
 	w.devMu.Unlock()
 }
 
-// Device hot-plug (S6-P1 H 组 Wayland 侧): seat capabilities diff reports
+// Device hot-plug: seat capabilities diff reports
 // EventDeviceAdded/Removed (键/鼠/触; 笔走 tablet 协议二期, 见
 // wayland_tablet_linux.go).
 

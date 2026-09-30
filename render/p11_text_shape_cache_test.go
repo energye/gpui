@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render_test
 
 import (
@@ -33,8 +43,6 @@ func p11CJKFace(t *testing.T, size float64) text.Face {
 	return nil
 }
 
-// TestP11_CJKDrawString_ShapeCacheWarm verifies X.02 / P1-1:
-// repeated CJK DrawString hits shape/layout cache and stays on GPU (cpu_fb=0).
 func TestP11_CJKDrawString_ShapeCacheWarm(t *testing.T) {
 	requireNativeGPU(t)
 	face := p11CJKFace(t, 18)
@@ -77,9 +85,7 @@ func TestP11_CJKDrawString_ShapeCacheWarm(t *testing.T) {
 	if stats.CPUFallbackOps > 0 {
 		t.Fatalf("CJK text cpu_fb: %s", stats.LogLine())
 	}
-	// 3 unique + 1 repeat. R7.5/opt24 layout template may short-circuit
-	// LayoutGlyphs on the repeat, so shape Hits can stay 0 while Misses
-	// remains at the unique-label count (no extra miss for the repeat).
+	// 3 unique + 1 repeat.
 	if st.Misses < 1 {
 		t.Fatalf("expected at least one shape miss for unique labels, %+v", st)
 	}

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Copyright 2026 The gogpu Authors
@@ -297,7 +307,6 @@ func BenchmarkFillPath(b *testing.B) {
 }
 
 // normalizedLine holds a line segment normalized for comparison.
-// P0.y <= P1.y, with isDown indicating original direction.
 type normalizedLine struct {
 	x0, y0 float32
 	x1, y1 float32
@@ -321,7 +330,7 @@ func reconstituteLine(line *raster.LineEdge, aaScale float32) normalizedLine {
 }
 
 // velloToNormalized converts a raster.VelloLine to normalizedLine.
-// VelloLine is already normalized (P0.y <= P1.y).
+// VelloLine is already normalized.
 func velloToNormalized(vl raster.VelloLine) normalizedLine {
 	return normalizedLine{
 		x0: vl.P0[0], y0: vl.P0[1],
@@ -363,7 +372,7 @@ func sortNormalized(lines []normalizedLine) {
 //  1. Axis-aligned shapes: exact coordinate match (tolerance 1e-4)
 //  2. Diagonal shapes: Y coordinates match exactly, X offset is bounded
 //  3. Direction (IsDown/Winding) is consistent between representations
-//  4. Both representations are properly normalized (P0.y <= P1.y)
+//  4. Both representations are properly normalized
 func TestVelloLineCoordinateValidation(t *testing.T) {
 	const aaShift = 2
 	aaScale := float32(int32(1) << uint(aaShift)) // 4.0
@@ -518,8 +527,6 @@ func TestVelloLineCoordinateValidation(t *testing.T) {
 					"x0=%.6f, x1=%.6f (expected < 1e-4)", maxDX0, maxDX1)
 			}
 
-			// Verify direction consistency: both representations must be
-			// normalized with P0.y <= P1.y.
 			for i, v := range velloNorm {
 				if v.y0 > v.y1 {
 					t.Errorf("velloNorm[%d] not normalized: y0=%.4f > y1=%.4f",

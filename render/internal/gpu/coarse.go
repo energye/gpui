@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -345,12 +355,6 @@ func (cr *CoarseRasterizer) TileRows() uint16 {
 //
 // The prefix sum is bounded to the tile columns that actually contain entries
 // (per-row [minX, maxX] range). This matches Vello's backdrop_dyn.wgsl which
-// runs the prefix sum per-path within path.bbox, NOT across the full viewport.
-// Without this bound, unclosed contours (from rotation or clipping) would leak
-// winding to the right edge of the viewport (BUG-BACKDROP-001, ADR-042).
-//
-// Reference: Vello backdrop_dyn.wgsl (per-path bbox), backdrop.rs (CPU ref),
-// tilecompute/rasterizer.go:87-99 (our correct tilecompute implementation).
 func (cr *CoarseRasterizer) CalculateBackdrop() []int32 {
 	if cr.segments == nil || len(cr.entries) == 0 {
 		return nil

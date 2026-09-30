@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -516,7 +526,6 @@ func (cpe *ComputePassEncoder) Handle() uintptr { return cpe.handle }
 // Submit submits command buffers for execution.
 // Returns the submission index (uint64) and nil on success. The submission
 // index can be used with Device.Poll to track when work completes.
-// Matches gogpu/wgpu Queue.Submit(commands ...*CommandBuffer) (uint64, error).
 func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 	if err := gateQueue("Queue.Submit", q); err != nil {
 		return 0, err

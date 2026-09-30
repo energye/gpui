@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -23,7 +33,7 @@ func (t *Texture) Format() TextureFormat { return t.format }
 func (t *Texture) Released() bool { return t != nil && t.released }
 
 // Release frees the texture. On native this maps to wgpuTextureDestroy +
-// Release so GPU memory is reclaimed immediately (WebGPU texture.destroy).
+// Release so GPU memory is reclaimed immediately.
 // Release-only left device heaps pinned across AutoRecover on libwgpu_native
 // (process VRAM ≈ old+new RequestDevice reserve → CreateTexture OOM).
 func (t *Texture) Release() {
@@ -40,16 +50,12 @@ func (t *Texture) Release() {
 // Destroy implements hal.Texture: same as Release.
 func (t *Texture) Destroy() { t.Release() }
 
-// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
 func (t *Texture) NativeHandle() uintptr { return 0 }
 
-// CurrentUsage implements hal.Texture: Rust manages barriers internally, returns 0.
 func (t *Texture) CurrentUsage() TextureUsage { return 0 }
 
-// AddPendingRef implements hal.Texture: no-op on Rust.
 func (t *Texture) AddPendingRef() {}
 
-// DecPendingRef implements hal.Texture: no-op on Rust.
 func (t *Texture) DecPendingRef() {}
 
 // TextureView represents a view into a texture.
@@ -88,7 +94,6 @@ func (v *TextureView) Release() {
 // Destroy implements hal.TextureView: same as Release.
 func (v *TextureView) Destroy() { v.Release() }
 
-// NativeHandle implements hal.NativeHandle: Rust handle not exposed, returns 0.
 func (v *TextureView) NativeHandle() uintptr { return 0 }
 
 var (

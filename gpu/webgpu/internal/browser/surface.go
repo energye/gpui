@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -8,27 +18,24 @@ import (
 	"syscall/js"
 )
 
-// ErrCanvasContextFailed is returned when canvas.getContext("webgpu") returns null.
+// ErrCanvasContextFailed is returned when canvas.getContext returns null.
 // This happens when WebGPU is not available or the canvas is already bound to
 // another context type (e.g., "2d" or "webgl2").
-//
-// Matches Rust wgpu's CreateSurfaceErrorKind::Web for the null-context case.
 var ErrCanvasContextFailed = errors.New("wgpu: canvas.getContext(\"webgpu\") returned null; webgpu not available or canvas already in use")
 
 // Surface wraps an HTML canvas element and its GPUCanvasContext.
 //
 // On the browser, a "surface" is a canvas + the GPUCanvasContext obtained from
-// canvas.getContext("webgpu"). The context is configured with a device, format,
+// canvas.getContext. The context is configured with a device, format,
 // and size, then getCurrentTexture() returns the next frame texture.
 //
 // Presentation happens automatically when the JS event loop runs -- there is no
-// explicit present() call. This matches Rust wgpu WebSurface / WebSurfaceOutputDetail
-// where present() and texture_discard() are both no-ops.
+// explicit present() call.
 type Surface struct {
 	// canvas is the HTMLCanvasElement (or OffscreenCanvas).
 	canvas js.Value
 
-	// context is the GPUCanvasContext from canvas.getContext("webgpu").
+	// context is the GPUCanvasContext from canvas.getContext.
 	context js.Value
 
 	// gpu is the navigator.gpu reference, used for getPreferredCanvasFormat().
@@ -50,13 +57,11 @@ type Surface struct {
 // The gpu parameter is the navigator.gpu object (needed for getPreferredCanvasFormat).
 // The canvas must be an HTMLCanvasElement or OffscreenCanvas.
 //
-// Returns ErrCanvasContextFailed if getContext("webgpu") returns null (WebGPU
+// Returns ErrCanvasContextFailed if getContext returns null (WebGPU
 // not available or canvas already in use). Panics if getContext throws an
 // exception (indicates misuse of canvas state).
-//
-// Matches Rust wgpu ContextWebGpu::create_surface_from_context.
 func NewSurface(gpu js.Value, canvas js.Value) (*Surface, error) {
-	// Call canvas.getContext("webgpu"). This may return null (not supported
+	// Call canvas.getContext. This may return null (not supported
 	// or canvas already has another context) or throw (canvas state misuse).
 	//
 	// See: https://html.spec.whatwg.org/multipage/canvas.html#dom-canvas-getcontext
@@ -82,10 +87,8 @@ func NewSurface(gpu js.Value, canvas js.Value) (*Surface, error) {
 //
 // This sets the canvas dimensions and calls context.configure() with the
 // provided parameters. After Configure, GetCurrentTexture() can be called.
-//
-// Matches Rust wgpu SurfaceInterface::configure for WebSurface.
 func (s *Surface) Configure(config js.Value, width, height uint32, format string) {
-	// Set canvas dimensions (Rust wgpu does this in configure too).
+	// Set canvas dimensions.
 	s.canvas.Set("width", width)
 	s.canvas.Set("height", height)
 
@@ -114,8 +117,6 @@ func (s *Surface) Unconfigure() {
 // the browser event loop after the command buffer using it is submitted.
 //
 // Returns an error if the surface is not configured.
-//
-// Matches Rust wgpu SurfaceInterface::get_current_texture for WebSurface.
 func (s *Surface) GetCurrentTexture() (*Texture, error) {
 	if !s.configured {
 		return nil, fmt.Errorf("wgpu: surface not configured")
@@ -135,9 +136,6 @@ func (s *Surface) GetCurrentTexture() (*Texture, error) {
 // "bgra8unorm" or "rgba8unorm" depending on the platform.
 //
 // See: https://www.w3.org/TR/webgpu/#dom-gpu-getpreferredcanvasformat
-//
-// Matches Rust wgpu SurfaceInterface::get_capabilities which reads
-// gpu.get_preferred_canvas_format() to order the formats list.
 func (s *Surface) GetPreferredCanvasFormat() string {
 	if s.gpu.IsUndefined() || s.gpu.IsNull() {
 		return "bgra8unorm" // safe fallback
@@ -164,8 +162,6 @@ func (s *Surface) Format() string { return s.format }
 func (s *Surface) Configured() bool { return s.configured }
 
 // Destroy releases the surface. On browser this unconfigures the context.
-// Matches Rust wgpu Drop for WebSurface (no-op in Rust, but we unconfigure
-// for clean teardown).
 func (s *Surface) Destroy() {
 	if s.configured {
 		s.Unconfigure()

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Copyright 2026 The gogpu Authors
@@ -5,11 +15,6 @@
 
 // Package gpu provides CPU-based rendering with Vello-style analytic AA.
 //
-// This file is a 1:1 port of Vello's CPU fine rasterizer from:
-// - vello_shaders/src/cpu/fine.rs (fill_path function)
-// - vello_shaders/src/cpu/path_tiling.rs (segment binning with y_edge)
-// - vello_shaders/src/cpu/path_count.rs (backdrop computation)
-// - vello_shaders/src/cpu/backdrop.rs (backdrop prefix sum)
 
 package gpu
 
@@ -34,7 +39,6 @@ const (
 	velloRobustEpsilon float32 = 2e-7
 )
 
-// PathSegment is a direct port of Vello's PathSegment struct.
 // Coordinates are relative to tile origin (0..TileWidth, 0..TileHeight).
 type PathSegment struct {
 	Point0 [2]float32 // Start point (tile-relative)
@@ -112,10 +116,10 @@ func (tr *TileRasterizer) Fill(
 		pathMaxY = tr.height
 	}
 
-	// 1. Bin segments to tiles (port of path_count.rs + path_tiling.rs)
+	// 1.
 	tr.binSegments(eb, aaScale)
 
-	// 2. Prefix sum for backdrop (port of backdrop.rs)
+	// 2.
 	tr.computeBackdropPrefixSum()
 
 	// 3. Rasterize row by row
@@ -158,7 +162,6 @@ func (tr *TileRasterizer) Fill(
 }
 
 // computeBackdropPrefixSum applies prefix sum to backdrop values.
-// Direct port of backdrop.rs - for each row, sum backdrops from left to right.
 func (tr *TileRasterizer) computeBackdropPrefixSum() {
 	for ty := 0; ty < tr.tilesY; ty++ {
 		sum := 0
@@ -171,7 +174,6 @@ func (tr *TileRasterizer) computeBackdropPrefixSum() {
 }
 
 // velloSpan computes the number of tiles a segment spans.
-// Direct port of util.rs span function.
 func velloSpan(a, b float32) int {
 	maxVal := a
 	if b > maxVal {
@@ -189,7 +191,6 @@ func velloSpan(a, b float32) int {
 }
 
 // binSegments distributes edge segments to tiles.
-// Direct port of path_count.rs (backdrop) + path_tiling.rs (segments with y_edge).
 //
 //nolint:gocognit,gocyclo,cyclop,funlen,maintidx // Direct port of Vello algorithm
 func (tr *TileRasterizer) binSegments(eb *raster.EdgeBuilder, _ float32) {
@@ -218,8 +219,7 @@ func (tr *TileRasterizer) binSegments(eb *raster.EdgeBuilder, _ float32) {
 	}
 
 	for _, vl := range eb.VelloLines() {
-		// VelloLine stores original float32 coordinates in pixel space,
-		// normalized so P0.y <= P1.y. No fixed-point quantization loss.
+		// No fixed-point quantization loss.
 		x0, y0 := vl.P0[0], vl.P0[1]
 		x1, y1 := vl.P1[0], vl.P1[1]
 
@@ -236,7 +236,6 @@ func (tr *TileRasterizer) binSegments(eb *raster.EdgeBuilder, _ float32) {
 		s1x := x1 * velloTileScale
 		s1y := y1 * velloTileScale
 
-		// DDA setup from path_count.rs
 		countX := velloSpan(s0x, s1x) - 1
 		count := countX + velloSpan(s0y, s1y)
 
@@ -413,8 +412,6 @@ func (tr *TileRasterizer) binSegments(eb *raster.EdgeBuilder, _ float32) {
 				continue
 			}
 
-			// top_edge detection from path_count.rs
-			// top_edge is true when segment enters tile from the top edge.
 			// For i==0: check if segment starts at tile boundary (y0 == s0y)
 			// For i>0: check if segment enters tile from top (lastZ == z)
 			topEdge := false
@@ -470,7 +467,6 @@ func (tr *TileRasterizer) binSegments(eb *raster.EdgeBuilder, _ float32) {
 			// See docs/dev/VELLO_RUST_COMPARISON.md for full experiment log.
 			_ = bounds // Used in vertical edge fix above
 
-			// Now add the segment to this tile using path_tiling.rs logic
 			tr.addSegmentToTile(x0, y0, x1, y1, tileX, tileY, isDown, i, count, a, b, tileY0, sign, isPositiveSlope, epsilon, noYEdge)
 
 			lastZ = z
@@ -479,7 +475,6 @@ func (tr *TileRasterizer) binSegments(eb *raster.EdgeBuilder, _ float32) {
 }
 
 // addSegmentToTile clips and adds a segment to a specific tile.
-// Port of path_tiling.rs segment clipping and y_edge calculation.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // Direct port of Vello algorithm
 func (tr *TileRasterizer) addSegmentToTile(
@@ -503,8 +498,6 @@ func (tr *TileRasterizer) addSegmentToTile(
 	xy0x, xy0y := x0, y0
 	xy1x, xy1y := x1, y1
 
-	// Clip to tile boundaries (from path_tiling.rs)
-	// Uses i > 0 (not i > imin) matching Vello path_tiling.rs seg_within_line > 0
 	if i > 0 { //nolint:nestif // direct port of Vello clipping logic
 		zPrev := float32(math.Floor(float64(a*float32(i-1) + b)))
 		z := float32(math.Floor(float64(a*float32(i) + b)))
@@ -543,7 +536,6 @@ func (tr *TileRasterizer) addSegmentToTile(
 		}
 	}
 
-	// Uses i < count-1 (not i < imax-1) matching Vello path_tiling.rs seg_within_line < count-1
 	if i < count-1 { //nolint:nestif // direct port of Vello clipping logic
 		zNext := float32(math.Floor(float64(a*float32(i+1) + b)))
 		z := float32(math.Floor(float64(a*float32(i) + b)))
@@ -588,7 +580,6 @@ func (tr *TileRasterizer) addSegmentToTile(
 	p1x := xy1x - tileLeftX
 	p1y := xy1y - tileTopY
 
-	// Apply numerical robustness and compute y_edge (from path_tiling.rs)
 	yEdge := noYEdge
 
 	// FIX DISABLED FOR TESTING - was causing over-fill on circle
@@ -649,9 +640,7 @@ func (tr *TileRasterizer) addSegmentToTile(
 }
 
 // fillTileScanline computes coverage for one scanline within a tile.
-// Direct port of fine.rs fill_path function for a single row.
 //
-// This is a 1:1 port of Vello's fine.rs lines 51-109.
 // No workarounds, no problem-tile/row detection — pure Vello algorithm.
 // Uses tile-relative coordinates consistently (matching GPU fine.wgsl).
 func (tr *TileRasterizer) fillTileScanline(tile *VelloTile, localY int, fillRule raster.FillRule) {
@@ -676,8 +665,6 @@ func (tr *TileRasterizer) fillTileScanline(tile *VelloTile, localY int, fillRule
 
 		// y_edge: signum(delta.x) * clamp(yi - y_edge + 1, 0, 1)
 		// Uses tile-relative coords consistently (matching GPU fine.wgsl).
-		// CPU fine.rs uses absolute coords but gives equivalent results
-		// since y_tile + yi - absolute_y_edge = localY - tile_relative_y_edge.
 		var yEdge float32
 		if delta[0] > 0 {
 			yEdge = clamp32(yf-seg.YEdge+1.0, 0, 1)
@@ -713,18 +700,15 @@ func (tr *TileRasterizer) fillTileScanline(tile *VelloTile, localY int, fillRule
 					a = (b + 0.5*(d*d-c*c) - xmin) / denom
 				}
 
-				// Combined yEdge + a*dy — matches fine.rs:87
 				tr.area[i] += yEdge + a*dy
 			}
 		} else if yEdge != 0 {
-			// Horizontal segment: only yEdge contribution — matches fine.rs:89-92
 			for i := 0; i < VelloTileWidth; i++ {
 				tr.area[i] += yEdge
 			}
 		}
 	}
 
-	// Apply fill rule — matches fine.rs:96-109
 	if fillRule == raster.FillRuleEvenOdd {
 		for i := 0; i < VelloTileWidth; i++ {
 			a := tr.area[i]

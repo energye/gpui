@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render_test
 
 import (
@@ -69,7 +79,7 @@ func TestP04_ApplyBlurGPU(t *testing.T) {
 }
 
 // TestP04_ApplyDropShadowGPU verifies DropShadow single-op GPU route.
-// Transparent canvas is required: shadow is extracted from alpha (Skia/CSS model).
+// Transparent canvas is required: shadow is extracted from alpha.
 func TestP04_ApplyDropShadowGPU(t *testing.T) {
 	requireNativeGPU(t)
 	if !render.FiltersRegistered() {

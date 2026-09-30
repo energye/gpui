@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -296,7 +306,7 @@ func TestX11DnDFilesPlusTextData(t *testing.T) {
 	}
 }
 
-// Outbound source via the public API (S6-P1 item 4): the source window's
+// Outbound source via the public API: the source window's
 // controller drops Files + Data onto the explicit target; the target must
 // see Enter/Over plus one Drop carrying both.
 func TestX11DnDSourceStartDragTo(t *testing.T) {

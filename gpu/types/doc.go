@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package gputypes provides WebGPU type definitions for the gogpu ecosystem.
 //
 // gputypes is the single source of truth for WebGPU types, providing all enums,
@@ -11,12 +21,12 @@
 //	              gputypes (zero deps)
 //	                     │
 //	     ┌───────────────┼───────────────┐
-//	     ▼               ▼               ▼
-//	gpucontext         wgpu       go-webgpu/webgpu
-//	     │               │               │
+//	     ▼ ▼ ▼
+//	gpucontext wgpu go-webgpu/webgpu
+//	     │ │ │
 //	     └───────┬───────┴───────┬───────┘
-//	             ▼               ▼
-//	          gogpu           born-ml
+//	             ▼ ▼
+//	          gogpu born-ml
 //
 // # Type Categories
 //
@@ -52,16 +62,13 @@
 //	usage := gputypes.TextureUsageCopySrc | gputypes.TextureUsageRenderAttachment
 //
 //	desc := gputypes.TextureDescriptor{
-//	    Size:   gputypes.Extent3D{Width: 800, Height: 600, DepthOrArrayLayers: 1},
+//	    Size: gputypes.Extent3D{Width: 800, Height: 600, DepthOrArrayLayers: 1},
 //	    Format: format,
-//	    Usage:  usage,
+//	    Usage: usage,
 //	}
 //
 // # WebGPU Specification
 //
 // Types follow the W3C WebGPU specification:
 // https://www.w3.org/TR/webgpu/
-//
-// Naming conventions follow wgpu-types (Rust) where applicable:
-// https://docs.rs/wgpu-types
 package types

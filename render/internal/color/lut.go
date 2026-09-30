@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package color provides fast color space conversion using lookup tables.
 //
 // The lookup tables (LUT) provide O(1) sRGB ↔ Linear conversions,
@@ -6,10 +16,6 @@
 //
 // sRGB is the standard color space for images and displays, but blending
 // operations should be performed in linear space for physically correct results.
-//
-// References:
-//   - sRGB specification: https://www.w3.org/Graphics/Color/sRGB
-//   - GPU Gems 3, Chapter 24: https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-24-importance-being-linear
 package color
 
 import "math"

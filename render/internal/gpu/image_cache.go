@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -14,12 +24,12 @@ import (
 
 // defaultImageCacheBudget is the maximum number of cached image textures.
 // LRU eviction removes the least recently used entry when exceeded.
-const defaultImageCacheBudget = 128 // S6.7: raised from 64 for denser UI icon sets
+const defaultImageCacheBudget = 128
 
 // defaultImageCacheBudgetBytes caps resident image texture bytes (~64 MiB).
 const defaultImageCacheBudgetBytes int64 = 64 << 20
 
-// Fair-share floors (R0-5): per-window image-cache caps never shrink below
+// Fair-share floors: per-window image-cache caps never shrink below
 // these, no matter how many windows share the device.
 const (
 	minImageCacheBudget      = 16
@@ -48,9 +58,6 @@ type imageCacheEntry struct {
 //
 // The cache is NOT thread-safe — accessed only from the render path
 // which is serialized per GPURenderContext.
-//
-// S6.7: entry + byte budgets, upload diagnostics, ephemeral (gen=0) release,
-// staging scratch pool for non-tight stride copies.
 type ImageCache struct {
 	device hal.Device
 	queue  hal.Queue
@@ -59,7 +66,7 @@ type ImageCache struct {
 	budget      int
 	budgetBytes int64
 	// explicitBudgets marks SetBudgets overrides: explicit per-cache tuning
-	// wins over the multi-window fair share below (R0-5).
+	// wins over the multi-window fair share below.
 	explicitBudgets bool
 	usedBytes       int64
 	gen             uint64 // global LRU generation counter
@@ -73,13 +80,13 @@ type ImageCache struct {
 	evictions        uint64
 	ephemeralUploads uint64
 
-	// gen==0 textures live for one frame then must be released (S6.7 leak fix).
+	// gen==0 textures live for one frame then must be released.
 	ephemeral []*imageCacheEntry
 
 	// pending holds entries retired by eviction / size-replace during encode.
 	// Their views may still be referenced by this frame's already-encoded
 	// commands (shared-encoder path encodes before the final Submit), so the
-	// native release is deferred to a submission-completion point (P4).
+	// native release is deferred to a submission-completion point.
 	pending []*imageCacheEntry
 
 	// destroyed latches session teardown; a destroyed cache purges to zero
@@ -128,7 +135,7 @@ func NewImageCache(device hal.Device, queue hal.Queue) *ImageCache {
 }
 
 // SetBudgets updates entry and byte soft limits (tests/tuning).
-// Explicit values win over the multi-window fair share (R0-5).
+// Explicit values win over the multi-window fair share.
 func (c *ImageCache) SetBudgets(entries int, bytes int64) {
 	if c == nil {
 		return
@@ -191,7 +198,6 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	key := cmd.GenerationID
 	if key == 0 {
 		// No generation ID — upload without long-term caching (temporary data).
-		// S6.7: track as ephemeral and release via ReleaseEphemeral after submit.
 		entry, err := c.uploadImage(cmd)
 		if err != nil {
 			return nil, err
@@ -241,9 +247,6 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 // ReleaseEphemeral frees textures whose frame lifetime is over: gen==0
 // uploads (ephemeral) and entries retired by eviction / size-replace
 // (pending). Must be called AFTER the GPU has finished the frame (submit
-// completion), never mid-encode — a retired view may still be referenced by
-// this frame's encoded commands (P4; previously this ran before Submit on
-// the shared-encoder path and could release a view still in use).
 func (c *ImageCache) ReleaseEphemeral() {
 	if c == nil {
 		return
@@ -391,7 +394,6 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 	if stride == w*4 {
 		pixelData = cmd.PixelData[:need]
 	} else {
-		// S6.7: pool staging for non-tight rows.
 		staging = acquireImageStaging(need)
 		pixelData = *staging
 		for row := 0; row < h; row++ {
@@ -439,7 +441,7 @@ func (c *ImageCache) removeEntry(key uint64, entry *imageCacheEntry) {
 	if entry == nil {
 		return
 	}
-	// P4: defer the native release to a submission-completion point. The view
+	// defer the native release to a submission-completion point. The view
 	// may still be referenced by this frame's already-encoded commands; the
 	// entry stays in `pending` until ReleaseEphemeral runs post-submit.
 	c.pending = append(c.pending, entry)
@@ -481,7 +483,7 @@ func (c *ImageCache) evictOldest() {
 	}
 }
 
-// ImageCacheStats returns cache statistics for diagnostics (S4.3/S6.7).
+// ImageCacheStats returns cache statistics for diagnostics.
 type ImageCacheStats struct {
 	Entries          int
 	Budget           int

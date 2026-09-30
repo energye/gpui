@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -59,7 +69,7 @@ func TestWaylandCSDResizeFillsBeforeCommit(t *testing.T) {
 	}
 }
 
-// Wayland CSD interaction-behavior tests (GTK4-aligned window capabilities):
+// Wayland CSD interaction-behavior tests:
 // release-inside button semantics, right-click caption window menu, fixed-size
 // windows showing no resize grips, and window-level pointer coordinates.
 // Real-window tests: skipped with a reason when no compositor / no CSD.
@@ -154,7 +164,7 @@ func TestWaylandCSDRightCaptionMenu(t *testing.T) {
 
 // TestWaylandCSDLockedNoResize: a size-locked window (SetSize min==max clamp
 // or SetResizable(false)) shows no resize grips; lifting the clamp restores
-// them (GTK4 parity: fixed-size windows have no resize affordances).
+// them.
 func TestWaylandCSDLockedNoResize(t *testing.T) {
 	win := openTestWayland(t)
 	defer win.Close()
@@ -443,8 +453,6 @@ func TestWaylandCSDCursorHotspot(t *testing.T) {
 	}
 	// The cursor image's wl_buffer must come from wl_cursor_image_get_buffer
 	// (the struct does not store it). A garbage value sent to attach makes
-	// the compositor kill the connection ("invalid arguments for
-	// wl_surface@N.attach") — verify the attached proxy carries a plausible
 	// wire id (wl_proxy = { wl_object { interface*, id, version } ... }, id
 	// at offset 8 on amd64; object ids are small, heap pointers are not).
 	if csd.cursorBuf == 0 {
@@ -454,7 +462,6 @@ func TestWaylandCSDCursorHotspot(t *testing.T) {
 		// libwayland build (verified empirically against the known-good CSD
 		// shm buffer: same interface pointer at +0, small odd client-side
 		// id at +16). A garbage value here is what killed the connection on
-		// mutter ("invalid arguments for wl_surface@N.attach").
 		id := *(*uint32)(unsafe.Pointer(csd.cursorBuf + 16))
 		if id == 0 || id > 1<<20 {
 			t.Errorf("cursor buffer wire id = %d (0x%x), want small wl object id", id, id)

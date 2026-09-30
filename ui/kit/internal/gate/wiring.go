@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gate
 
 import (
@@ -22,8 +32,6 @@ func CheckWiring(imports []string) (bool, []string) {
 }
 
 func isForbiddenImport(p string) bool {
-	// Matches ".../render", ".../render/...", ".../gpu", ".../gpu/...",
-	// and the quoted forms used in go list output.
 	if p == "render" || p == "gpu" {
 		return true
 	}

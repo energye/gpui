@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -35,8 +45,6 @@ func m5ColorFace(t *testing.T) text.Face {
 	return mf
 }
 
-// TestIsColorText_M5 locks the M5-1 detector: emoji-presentation sequences
-// are color, plain text is not.
 func TestIsColorText_M5(t *testing.T) {
 	for _, s := range []string{"🎉", "👨\u200d👩\u200d👧", "hello 🎉", "👋🏽"} {
 		if !isColorText(s) {
@@ -50,8 +58,6 @@ func TestIsColorText_M5(t *testing.T) {
 	}
 }
 
-// TestColorRunMarked_M5 locks M5-1 marking: the emoji run of a mixed line
-// carries IsColor with its byte range; the latin run does not.
 func TestColorRunMarked_M5(t *testing.T) {
 	mf := m5ColorFace(t)
 	line := "hi 🎉"
@@ -89,9 +95,6 @@ func TestColorRunMarked_M5(t *testing.T) {
 	}
 }
 
-// TestColorRunBypassesMask_M5 locks M5-1 routing: mask load excludes color
-// runs while total submissions still count them (separate channel, I3 holds:
-// coordinates untouched).
 func TestColorRunBypassesMask_M5(t *testing.T) {
 	mf := m5ColorFace(t)
 	rt := NewRenderText("hi 🎉 bye")

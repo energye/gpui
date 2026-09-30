@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
@@ -244,9 +254,9 @@ func (p *ComputePassEncoder) DispatchWorkgroups(x, y, z uint32) error {
 // The buffer must contain a DispatchIndirectArgs structure:
 //
 //	struct DispatchIndirectArgs {
-//	    x: u32,     // Number of workgroups in X
-//	    y: u32,     // Number of workgroups in Y
-//	    z: u32,     // Number of workgroups in Z
+//	    x: u32, // Number of workgroups in X
+//	    y: u32, // Number of workgroups in Y
+//	    z: u32, // Number of workgroups in Z
 //	}
 //
 // Parameters:

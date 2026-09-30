@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package audio
 
 import (
@@ -32,7 +42,7 @@ func clampPan(p float64) float64 {
 }
 
 // panOf maps the horizontal gap to [-1,1]. Range 0 never attenuates but
-// still pans (Godot parity); otherwise the gap is relative to the range
+// still pans; otherwise the gap is relative to the range
 // so the range edge pans fully at strength 1.
 func panOf(dx, rng, strength float64) float64 {
 	if rng == 0 {
@@ -64,7 +74,7 @@ type PosSound struct {
 }
 
 // NewPosSound builds a source. Pos must be finite, Range finite and >= 0
-// (0 never attenuates, Godot parity), Attenuation finite and >= 0
+// , Attenuation finite and >= 0
 // (1 linear, 2 squared, 0 no falloff inside the range), PanStrength
 // finite and >= 0 (0 mono, 1 normal). Bad arguments return a core
 // InvalidArg error and store nothing.

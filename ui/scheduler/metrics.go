@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scheduler
 
 import (
@@ -18,7 +28,7 @@ const intervalRingCap = 256
 // slice each time costs ~250KB/s of pure GC churn for identical results.
 var percentilePool = sync.Pool{New: func() any { return make([]float64, intervalRingCap) }}
 
-// Present-policy names for Metrics JSON (ENGINE_UI_WIDGET_RENDER W0+).
+// Present-policy names for Metrics JSON.
 const (
 	PresentPolicyFullPaint = "full_paint"
 	PresentPolicyRetained  = "retained"
@@ -63,10 +73,10 @@ type FrameMetrics struct {
 	// Layout/paint flush counters (cumulative; wired by PipelineApp)
 	LayoutCount         int64 `json:"layout_count"`
 	PaintCount          int64 `json:"paint_count"`
-	PaintVisits         int64 `json:"paint_visits,omitempty"` // last frame node visits (R2)
+	PaintVisits         int64 `json:"paint_visits,omitempty"` // last frame node visits
 	RasterLayerCount    int64 `json:"raster_layer_count"`
 	CompositeLayerCount int64 `json:"composite_layer_count"`
-	FilterLayerCount    int64 `json:"filter_layer_count"` // color/image filter layers applied last composite (R20)
+	FilterLayerCount    int64 `json:"filter_layer_count"` // color/image filter layers applied last composite
 
 	// Present locality (序13 dirty-rect path; 0/empty when unavailable).
 	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
@@ -88,9 +98,8 @@ type FrameMetrics struct {
 	DirtyLayerIDs     []uint64 `json:"dirty_layer_ids,omitempty"`
 	DamageMultiFrames int64    `json:"damage_multi_frames,omitempty"`
 
-	// PresentPolicy is the window paint/present strategy name (W0+).
+	// PresentPolicy is the window paint/present strategy name.
 	// Values: PresentPolicyFullPaint | PresentPolicyRetained | PresentPolicyHybrid.
-	// Default for PipelineApp is retained since W6.
 	PresentPolicy string `json:"present_policy,omitempty"`
 
 	// VSyncSource is "true" | "fallback" | "" (unknown).
@@ -113,7 +122,7 @@ type FrameMetrics struct {
 
 	// CPUUIPct / CPURasterPct are **path work-share proxies**, not OS-thread DevTools %.
 	// They split cumulative NoteBuildMs vs NoteRasterMs wall work:
-	//   share = pathSum / (buildSum+rasterSum) * 100  (sums to ~100 when both sides fed)
+	//   share = pathSum / (buildSum+rasterSum) * 100 (sums to ~100 when both sides fed)
 	// When cpu_pct_avg > 0, values are further scaled: processCPU * share
 	// so UI+Raster ≈ process CPU and still diverge when work is one-sided.
 	// Zero/omitted when no build/raster notes yet (honest unavailable).
@@ -137,7 +146,7 @@ type FrameMetrics struct {
 	// the honest common case, not "unavailable").
 	GPUFallbacks int `json:"gpu_fallbacks"`
 
-	// Boundary cache counters (W1 R3; cumulative across NoteBoundaryFrame calls).
+	// Boundary cache counters.
 	BoundaryRerecord int64 `json:"boundary_rerecord,omitempty"`
 	BoundarySkip     int64 `json:"boundary_skip,omitempty"`
 	// BoundaryCount is last reported tree boundary count (R3b; optional).
@@ -150,15 +159,13 @@ type FrameMetrics struct {
 	ShellRerecord int64 `json:"shell_rerecord,omitempty"`
 	ShellSkip     int64 `json:"shell_skip,omitempty"`
 
-	// SaveLayer budget outcome counters (W2 R18; cumulative per NoteSaveLayer
-	// call — Allow = push accepted, Reject = SaveLayerBudget refused the op).
 	SaveLayerAllow  int64 `json:"savelayer_allow,omitempty"`
 	SaveLayerReject int64 `json:"savelayer_reject,omitempty"`
 
-	// PictureOpCount is last-frame display-list op count (W1 R5).
+	// PictureOpCount is last-frame display-list op count.
 	PictureOpCount int64 `json:"picture_op_count,omitempty"`
 
-	// Cache budget observability (W6 R14): CacheEntries is the current
+	// Cache budget observability: CacheEntries is the current
 	// combined entry count of the two layer caches (boundary Picture cache +
 	// retained-path texture LRU); CacheEvictions is the cumulative count of
 	// entries dropped by the explicit budgets / capacity LRU / generational
@@ -166,15 +173,15 @@ type FrameMetrics struct {
 	CacheEntries   int64 `json:"cache_entries,omitempty"`
 	CacheEvictions int64 `json:"cache_evictions,omitempty"`
 	// BudgetRefusals is the cumulative count of EnsureCapacity growth
-	// refusals under multi-window budget pressure (R0-5; X9 observability).
+	// refusals under multi-window budget pressure.
 	BudgetRefusals int64 `json:"budget_refusals,omitempty"`
 
 	// MeasureCacheHit is cumulative text-measure cache hits since last reset
-	// (W1 R9). MeasureCacheMiss is the miss counterpart for hits≥miss proof.
+	// . MeasureCacheMiss is the miss counterpart for hits≥miss proof.
 	MeasureCacheHit  int64 `json:"measure_cache_hit"`
 	MeasureCacheMiss int64 `json:"measure_cache_miss"`
 
-	// Virtual-list virtualization (W3 R7/R7b; per-frame sample by PipelineApp).
+	// Virtual-list virtualization.
 	// BindCount/ItemCount describe the most recently rebound VirtualList: the
 	// R7 gate is bind_count ≪ item_count (only viewport cells mounted).
 	// Omitted while no VirtualList has bound (windows without lists).
@@ -185,7 +192,7 @@ type FrameMetrics struct {
 	// their cached Picture and are not counted.
 	ScrollRerecord int64 `json:"scroll_rerecord,omitempty"`
 
-	// H-family first-present observation (R16 M-WARMUP / M-TIME-TO-FIRST-PRESENT).
+	// H-family first-present observation.
 	// Warmup is true when the Open-time warm-up full paint actually ran before
 	// the first loop present. TimeToFirstPresentMs is wall ms from Open to the
 	// first present completing. FirstPresentPaintCount is the pipe paint count
@@ -454,7 +461,7 @@ func (s *MetricsStore) SetRasterLayerCount(n int64) {
 	s.mu.Unlock()
 }
 
-// SetFilterLayerCount records filter layers applied in the last composite (R20).
+// SetFilterLayerCount records filter layers applied in the last composite.
 func (s *MetricsStore) SetFilterLayerCount(n int64) {
 	if s == nil {
 		return
@@ -484,7 +491,7 @@ func (s *MetricsStore) SetPaintCount(n int64) {
 	s.mu.Unlock()
 }
 
-// SetPaintVisits records the last frame's node paint visits (R2 locality proof).
+// SetPaintVisits records the last frame's node paint visits.
 func (s *MetricsStore) SetPaintVisits(n int64) {
 	if s == nil {
 		return
@@ -494,7 +501,7 @@ func (s *MetricsStore) SetPaintVisits(n int64) {
 	s.mu.Unlock()
 }
 
-// SetVirtualBind samples the most recently rebound VirtualList window (R7):
+// SetVirtualBind samples the most recently rebound VirtualList window:
 // bind = currently mounted cells, itemCount = logical row count.
 func (s *MetricsStore) SetVirtualBind(bind, itemCount int64) {
 	if s == nil {
@@ -606,7 +613,7 @@ func (s *MetricsStore) NoteGPUBackend(backend string, fallbacks int) {
 	s.mu.Unlock()
 }
 
-// NoteBoundaryFrame accumulates per-frame RepaintBoundary cache stats (W1 R3).
+// NoteBoundaryFrame accumulates per-frame RepaintBoundary cache stats.
 // rerecord/skip are typically that frame's FrameRerecord/FrameSkip from BoundaryCache.
 func (s *MetricsStore) NoteBoundaryFrame(rerecord, skip int64) {
 	if s == nil {
@@ -619,7 +626,7 @@ func (s *MetricsStore) NoteBoundaryFrame(rerecord, skip int64) {
 }
 
 // NoteShellBoundaryFrame accumulates the shell-tagged boundary cache stats
-// (R21 shell/content layering). A scrolling body must keep shellRerecord == 0
+// . A scrolling body must keep shellRerecord == 0
 // while its shell Picture cache Replays.
 func (s *MetricsStore) NoteShellBoundaryFrame(shellRerecord, shellSkip int64) {
 	if s == nil {
@@ -631,7 +638,7 @@ func (s *MetricsStore) NoteShellBoundaryFrame(shellRerecord, shellSkip int64) {
 	s.mu.Unlock()
 }
 
-// NoteSaveLayer accumulates per-frame SaveLayer budget outcomes (W2 R18).
+// NoteSaveLayer accumulates per-frame SaveLayer budget outcomes.
 // allow/reject are that frame's accepted / budget-refused SaveLayer pushes.
 func (s *MetricsStore) NoteSaveLayer(allow, reject int64) {
 	if s == nil {
@@ -657,7 +664,7 @@ func (s *MetricsStore) SetCacheBudget(entries, evictions int64) {
 }
 
 // SetBudgetRefusals records the cumulative EnsureCapacity growth refusal
-// count (R0-5 / X9 observability). Sampled per frame by PipelineApp.
+// count. Sampled per frame by PipelineApp.
 func (s *MetricsStore) SetBudgetRefusals(n int64) {
 	if s == nil {
 		return
@@ -678,7 +685,7 @@ func (s *MetricsStore) SetBoundaryDiscovery(count, maxDepth int) {
 	s.mu.Unlock()
 }
 
-// SetPictureOpCount records last-frame display-list op count (R5).
+// SetPictureOpCount records last-frame display-list op count.
 func (s *MetricsStore) SetPictureOpCount(n int) {
 	if s == nil {
 		return
@@ -688,7 +695,7 @@ func (s *MetricsStore) SetPictureOpCount(n int) {
 	s.mu.Unlock()
 }
 
-// SetMeasureCacheStats records cumulative text measure hit/miss (R9).
+// SetMeasureCacheStats records cumulative text measure hit/miss.
 func (s *MetricsStore) SetMeasureCacheStats(hits, misses int64) {
 	if s == nil {
 		return
@@ -699,7 +706,7 @@ func (s *MetricsStore) SetMeasureCacheStats(hits, misses int64) {
 	s.mu.Unlock()
 }
 
-// SetFirstPresent records the H-family first-present observation (R16):
+// SetFirstPresent records the H-family first-present observation:
 // warmup = Open-time warm-up full paint ran; ms = wall ms from Open to first
 // present completing; paintCount = pipe paint count at that moment (>0 =
 // first frame has content). Call exactly once at the first present.

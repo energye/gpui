@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder
 
 import (
@@ -8,11 +18,7 @@ import (
 	"sync/atomic"
 )
 
-// faultOOM is the test-only OOM fault injector for the X12 power-loss path
-// (§18.3 #11): the real exit chain (present fail → oomExit.Note → latch →
-// quit → Run returns the human-readable reason) can only be exercised by
-// feeding the present loop actual OOM-class errors, which needs either a
-// dying GPU or this hook. Gated by GPUI_FAULT_OOM="after:count" — e.g.
+// Gated by GPUI_FAULT_OOM="after:count" — e.g.
 // "60:3" injects 3 consecutive OOM-class present failures starting at the
 // 60th submit. Empty/unset = fully inert (one atomic load per present).
 // Default off; no production path reads this file's state.

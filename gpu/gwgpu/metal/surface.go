@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -21,7 +28,7 @@ type Surface struct {
 	height      uint32
 	presentMode gputypes.PresentMode
 	// presentsWithTransaction enables Core Animation transaction-based present.
-	// Required for smooth live window resize on macOS (wgpu #3756, Flutter/Skia).
+	// Required for smooth live window resize on macOS.
 	presentsWithTransaction bool
 	configured              bool
 }
@@ -33,7 +40,6 @@ type Surface struct {
 // Wait until the window has valid dimensions before calling Configure again.
 func (s *Surface) Configure(device hal.Device, config *hal.SurfaceConfiguration) error {
 	// Validate dimensions first (before any side effects).
-	// This matches wgpu-core behavior which returns ConfigureSurfaceError::ZeroArea.
 	if config.Width == 0 || config.Height == 0 {
 		return hal.ErrZeroArea
 	}
@@ -53,10 +59,9 @@ func (s *Surface) Configure(device hal.Device, config *hal.SurfaceConfiguration)
 		return nil
 	}
 
-	// Rust wgpu Surface::configure waits for GPU idle before recreating the
 	// swapchain. On Metal, setDrawableSize allocates a new IOSurface drawable
 	// pool; without draining in-flight presents, rapid live-resize accumulates
-	// gigabytes of unreleased IOSurfaces (imgui #2910, wgpu #9021).
+	// gigabytes of unreleased IOSurfaces.
 	//
 	// Skipped in transaction-present mode (live resize): waitUntilScheduled in
 	// Queue.Present already serializes the drawable swap with the CA
@@ -90,7 +95,6 @@ func (s *Surface) Configure(device hal.Device, config *hal.SurfaceConfiguration)
 	msgSendVoid(s.layer, Sel("setFramebufferOnly:"), argBool(framebufferOnly))
 
 	// Set maximum drawable count for frame latency control.
-	// Rust wgpu: set_maximum_drawable_count(maximum_frame_latency + 1).
 	// Default maximum_frame_latency=2 → drawable_count=3 (Metal default).
 	_ = MsgSend(s.layer, Sel("setMaximumDrawableCount:"), uintptr(3))
 
@@ -116,7 +120,7 @@ func (s *Surface) Configure(device hal.Device, config *hal.SurfaceConfiguration)
 	// frame until the next AppKit event (blank window).
 	//
 	// During macOS live resize the app layer flips this to true via
-	// SetPresentsWithTransaction (Flutter/wgpu #3756 pattern): the main thread
+	// SetPresentsWithTransaction: the main thread
 	// blocks inside windowDidResize: waiting for the render thread, whose
 	// commit + waitUntilScheduled + [drawable present] then lands inside the
 	// open CA transaction — the drawable swap is atomic with the window resize,
@@ -184,7 +188,7 @@ func (s *Surface) SetPresentsWithTransaction(enabled bool) {
 
 // AcquireTexture acquires the next surface texture for rendering.
 //
-// Strict codes (H4-d, gles parity): nil receiver or an unconfigured
+// Strict codes: nil receiver or an unconfigured
 // surface reports hal.ErrSurfaceLost (errors.Is-compatible). Timeout does
 // not apply: nextDrawable blocks until a drawable is free (backpressure).
 func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error) {

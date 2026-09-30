@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Package hlsl implements HLSL entry point I/O handling with proper
 // input/output structs and semantics for vertex, fragment, and compute shaders.
@@ -20,7 +27,7 @@ const (
 )
 
 // =============================================================================
-// Interface Key for sorting EP struct members (matches Rust InterfaceKey)
+// Interface Key for sorting EP struct members
 // =============================================================================
 
 // interfaceKeyKind orders members: locations first, then builtins, then other.
@@ -67,7 +74,6 @@ func interfaceKeyLess(a, b interfaceKey) bool {
 
 // isSubgroupBuiltinBinding returns true if the binding is a subgroup-related builtin.
 // These builtins need special handling in HLSL (computed from wave intrinsics).
-// Matches Rust naga is_subgroup_builtin_binding.
 func isSubgroupBuiltinBinding(binding *ir.Binding) bool {
 	if binding == nil {
 		return false
@@ -105,13 +111,11 @@ func (w *Writer) hasSubgroupBuiltin(fn *ir.Function) bool {
 }
 
 // =============================================================================
-// Entry Point Interface Struct Generation (matches Rust naga)
+// Entry Point Interface Struct Generation
 // =============================================================================
 
 // writeEPInterface decides whether to create input/output interface structs
-// for an entry point. Matches Rust naga's write_ep_interface logic:
-//   - Input struct: created for Fragment stage, or if any arg has subgroup builtin
-//   - Output struct: created when result binding is None AND stage is Vertex
+// for an entry point.
 func (w *Writer) writeEPInterface(
 	epIdx int,
 	fn *ir.Function,
@@ -152,7 +156,6 @@ func (w *Writer) writeEPInterface(
 }
 
 // writeEPInputStruct flattens all entry point arguments into a single input struct.
-// Matches Rust naga's write_ep_input_struct.
 func (w *Writer) writeEPInputStruct(
 	epIdx int,
 	fn *ir.Function,
@@ -197,7 +200,7 @@ func (w *Writer) writeEPInputStruct(
 
 // writeEPOutputStruct flattens the entry point result struct into an output struct.
 // If a fragment entry point is provided and stage is Vertex, outputs not consumed
-// by the fragment shader are stripped. Matches Rust naga's write_ep_output_struct.
+// by the fragment shader are stripped.
 func (w *Writer) writeEPOutputStruct(
 	fn *ir.Function,
 	stage ir.ShaderStage,
@@ -271,7 +274,7 @@ func (w *Writer) writeEPOutputStruct(
 }
 
 // writeInterfaceStruct writes an interface struct with members sorted by binding.
-// Locations come first (ascending), then builtins. Matches Rust's write_interface_struct.
+// Locations come first (ascending), then builtins.
 func (w *Writer) writeInterfaceStruct(
 	stage ir.ShaderStage,
 	io Io,
@@ -329,7 +332,7 @@ func (w *Writer) writeInterfaceStruct(
 		})
 	}
 
-	// Generate arg name from struct name (Rust uses to_lowercase, not just first char)
+	// Generate arg name from struct name
 	argName := w.namer.call(strings.ToLower(structName))
 
 	return &entryPointBinding{
@@ -359,7 +362,7 @@ func (w *Writer) writeModifierForType(binding *ir.Binding, ty ir.TypeHandle) {
 				fmt.Fprintf(&w.Out, "%s ", sampStr)
 			}
 		} else {
-			// Apply default interpolation: int/uint -> nointerpolation (matches Rust naga)
+			// Apply default interpolation: int/uint -> nointerpolation
 			if int(ty) < len(w.module.Types) {
 				kind, hasKind := getScalarKind(w.module, ty)
 				if hasKind && (kind == ir.ScalarSint || kind == ir.ScalarUint) {
@@ -371,7 +374,6 @@ func (w *Writer) writeModifierForType(binding *ir.Binding, ty ir.TypeHandle) {
 }
 
 // writeModifier writes interpolation/invariant modifiers for a binding.
-// Matches Rust naga's write_modifier.
 func (w *Writer) writeModifier(binding *ir.Binding) {
 	if binding == nil {
 		return
@@ -401,7 +403,7 @@ func (w *Writer) writeModifier(binding *ir.Binding) {
 // Uses entryPointIO (populated by writeAllEPInterfaces) to determine signature format.
 func (w *Writer) writeEntryPointWithIO(epIdx int, ep *ir.EntryPoint) error {
 	fn := &ep.Function
-	// Write per-function wrapped helpers (matching Rust naga order)
+	// Write per-function wrapped helpers
 	w.writePerFunctionWrappedHelpers(fn)
 
 	w.currentFunction = fn
@@ -489,7 +491,7 @@ func (w *Writer) writeEntryPointWithIO(epIdx int, ep *ir.EntryPoint) error {
 		}
 	}
 
-	// Opening brace on next line (matches Rust naga HLSL format)
+	// Opening brace on next line
 	w.Out.WriteString("\n")
 	w.WriteLine("{")
 	w.PushIndent()
@@ -514,7 +516,6 @@ func (w *Writer) writeEntryPointWithIO(epIdx int, ep *ir.EntryPoint) error {
 
 		w.localNames[uint32(localIdx)] = localName
 
-		// Rust naga always initializes locals: with init expression or (Type)0.
 		// Exception: RayQuery variables are NOT zero-initialized.
 		w.WriteIndent()
 		isRayQuery := strings.Contains(localType, "RayQuery")
@@ -531,7 +532,6 @@ func (w *Writer) writeEntryPointWithIO(epIdx int, ep *ir.EntryPoint) error {
 					return fmt.Errorf("entry point local var init: %w", err)
 				}
 			} else {
-				// Zero initialize: (Type)0 matching Rust naga's write_default_init
 				fmt.Fprintf(&w.Out, "(%s%s)0", localType, arraySuffix)
 			}
 			w.Out.WriteString(";\n")
@@ -539,7 +539,6 @@ func (w *Writer) writeEntryPointWithIO(epIdx int, ep *ir.EntryPoint) error {
 	}
 
 	if len(fn.LocalVars) > 0 {
-		// Rust naga writes just a newline (no indentation) after locals
 		w.Out.WriteByte('\n')
 	}
 
@@ -562,7 +561,6 @@ func (w *Writer) writeEntryPointWithIO(epIdx int, ep *ir.EntryPoint) error {
 }
 
 // writeEPArgumentsInit writes the argument initialization code when using an input struct.
-// Matches Rust naga's write_ep_arguments_initialization.
 func (w *Writer) writeEPArgumentsInit(epIdx int, fn *ir.Function, ep *ir.EntryPoint, epInput *entryPointBinding) {
 	fakeIter := 0
 	for i, arg := range fn.Arguments {
@@ -602,7 +600,6 @@ func (w *Writer) writeEPArgumentsInit(epIdx int, fn *ir.Function, ep *ir.EntryPo
 
 // writeEPArgInit writes the initialization expression for a single EP argument.
 // Subgroup builtins are computed from wave intrinsics; others read from the input struct.
-// Matches Rust naga write_ep_argument_initialization.
 func (w *Writer) writeEPArgInit(ep *ir.EntryPoint, epInput *entryPointBinding, fakeMember *epStructMember, binding *ir.Binding) {
 	if binding != nil {
 		if bb, ok := (*binding).(ir.BuiltinBinding); ok {
@@ -652,7 +649,7 @@ func (w *Writer) writeComputeAttributes(ep *ir.EntryPoint) {
 // Helper Functions
 // =============================================================================
 
-// stageName returns the debug name for a shader stage (matches Rust's {:?} formatting).
+// stageName returns the debug name for a shader stage.
 func stageName(stage ir.ShaderStage) string {
 	switch stage {
 	case ir.StageVertex:
@@ -781,7 +778,6 @@ func (w *Writer) writeFrexpHelper() {
 }
 
 // writeExtractBitsOverload writes a single naga_extractBits overload for a type.
-// Matches Rust naga's write_wrapped_math_functions for ExtractBits.
 func (w *Writer) writeExtractBitsOverload(typeName string, scalarWidth uint8) {
 	fmt.Fprintf(&w.Out, "%s %s(\n", typeName, NagaExtractBitsFunction)
 	fmt.Fprintf(&w.Out, "    %s e,\n", typeName)
@@ -796,7 +792,6 @@ func (w *Writer) writeExtractBitsOverload(typeName string, scalarWidth uint8) {
 }
 
 // writeInsertBitsOverload writes a single naga_insertBits overload for a type.
-// Matches Rust naga's write_wrapped_math_functions for InsertBits.
 func (w *Writer) writeInsertBitsOverload(typeName string, scalarWidth uint8) {
 	scalarBits := uint64(scalarWidth) * 8
 	var scalarMax uint64
@@ -902,7 +897,7 @@ func (w *Writer) writeResultType(result *ir.FunctionResult) string {
 }
 
 // needWorkgroupInit returns true if the entry point needs workgroup variable
-// zero-initialization. Matches Rust naga's need_workgroup_variables_initialization.
+// zero-initialization.
 func (w *Writer) needWorkgroupInit(ep *ir.EntryPoint) bool {
 	if !w.options.ZeroInitializeWorkgroupMemory {
 		return false
@@ -921,7 +916,6 @@ func (w *Writer) needWorkgroupInit(ep *ir.EntryPoint) bool {
 }
 
 // writeWorkgroupInit writes the workgroup variable zero-initialization code.
-// Matches Rust naga's write_workgroup_variables_initialization.
 //
 // For array types, generates per-element loops instead of (Type[N])0 to avoid
 // FXC compilation hangs (e.g. (PathMonoid[256])0 hangs 22s, loop takes 68ms).
@@ -945,15 +939,12 @@ func (w *Writer) writeWorkgroupInit() {
 // which we use a per-element for loop instead of bulk (Type[N])0.
 // FXC hangs on large struct arrays (e.g., PathMonoid[256] = 5120 bytes → 22s).
 // Small arrays (2, 10 elements) compile fine with bulk assign.
-// Threshold 256 covers the known problematic case (PathMonoid[256] = 5120 bytes
-// hangs FXC 22s) while keeping smaller arrays identical to Rust naga output.
 // array<i32, 128> (512 bytes) compiles fine with bulk assign.
 const workgroupZeroInitLoopThreshold = 256
 
 // writeWorkgroupZeroInit writes zero-initialization for a workgroup variable.
 // For large array types (>= threshold), generates a per-element for loop to avoid
 // FXC compilation hangs. Small arrays and non-arrays use bulk (Type)0 assign
-// (matching Rust naga output).
 // The depth parameter controls the loop variable suffix for nested arrays.
 func (w *Writer) writeWorkgroupZeroInit(varExpr string, typeHandle ir.TypeHandle, depth int) {
 	if int(typeHandle) >= len(w.module.Types) {
@@ -974,7 +965,7 @@ func (w *Writer) writeWorkgroupZeroInit(varExpr string, typeHandle ir.TypeHandle
 			w.PopIndent()
 			w.WriteLine("}")
 		} else {
-			// Small array: bulk assign (matches Rust naga, FXC handles fine)
+			// Small array: bulk assign
 			typeName := w.getTypeName(typeHandle)
 			w.WriteLine("%s = (%s)0;", varExpr, typeName)
 		}

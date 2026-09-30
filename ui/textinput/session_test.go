@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -13,10 +23,10 @@ type recAdapter struct {
 	rects    []platform.Rect
 }
 
-func (a *recAdapter) Enable(f platform.FieldSnapshot)    { a.enables = append(a.enables, f) }
-func (a *recAdapter) Disable()                           { a.disables++ }
-func (a *recAdapter) CaretMoved(r platform.Rect)         { a.rects = append(a.rects, r) }
-func (a *recAdapter) SetPurpose(ct platform.ContentType) {}
+func (a *recAdapter) Enable(f platform.FieldSnapshot)         { a.enables = append(a.enables, f) }
+func (a *recAdapter) Disable()                                { a.disables++ }
+func (a *recAdapter) CaretMoved(r platform.Rect)              { a.rects = append(a.rects, r) }
+func (a *recAdapter) SetPurpose(ct platform.ContentType)      {}
 func (a *recAdapter) PushSurrounding(text string, cursor int) {}
 
 type fakeField struct{}
@@ -72,7 +82,7 @@ func TestSessionComposingLeg(t *testing.T) {
 func TestSessionCaretMovedDedup(t *testing.T) {
 	s, ed, ad := newTestSession()
 	s.AttachEditor(ed, fakeField{})
-	// R4: non-composing is preheat only, no push
+	// non-composing is preheat only, no push
 	n := len(ad.rects)
 	r := platform.Rect{X: 1, Y: 2, W: 3, H: 4}
 	s.CaretMoved(r)

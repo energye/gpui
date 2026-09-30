@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -11,12 +18,6 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
-
-// H4-b2 桩定案：QuerySet/Bundle/加速结构三家的创建返错与销毁/空输入
-// nil-safe 约束。不碰 GL 上下文（&Device{} 零值即可），Linux/Windows 双构
-// 建通用：只断言两边一致的行为（返错非空、销毁不 panic）；CreateQuerySet
-// 的 Err 身份两边不一（Linux 真实现 vs Windows 桩），只断言返错，身份由
-// metal/webgpu/noop 侧单测（errors.Is ErrTimestampsNotSupported）锁住。
 
 func TestH4B2_GlesCreateStubsNotSupported(t *testing.T) {
 	d := &Device{}

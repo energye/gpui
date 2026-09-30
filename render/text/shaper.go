@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import "sync"
@@ -14,9 +24,6 @@ type Shaper interface {
 	Shape(text string, face Face) []ShapedGlyph
 }
 
-// defaultShaper is initialized to HbShaper (HarfBuzz Go port) per
-// ENGINE_TEXT_SHAPING_PLAN M1: the shaping layer (A class) runs on
-// HarfBuzz; the pixel layer (hint/rasterization) stays self-developed.
 // This variable is set before any concurrent access (during init).
 var defaultShaper = NewHbShaper()
 
@@ -52,8 +59,7 @@ func GetShaper() Shaper {
 // It converts text to positioned glyphs using the given face.
 // The font size is obtained from face.Size().
 //
-// S6.5: results are cached in the process-wide shape result cache when the face
-// has a FontSource. Cached slices must not be modified by callers.
+// Cached slices must not be modified by callers.
 // Use ClearShapeResultCache / ShapeResultCacheStats for diagnostics.
 func Shape(textStr string, face Face) []ShapedGlyph {
 	if textStr == "" || face == nil {
@@ -71,8 +77,7 @@ func Shape(textStr string, face Face) []ShapedGlyph {
 	})
 }
 
-// ShapeUncached always runs the global shaper without consulting the S6.5
-// result cache. Useful for tests and one-shot offline work.
+// Useful for tests and one-shot offline work.
 func ShapeUncached(textStr string, face Face) []ShapedGlyph {
 	return GetShaper().Shape(textStr, face)
 }

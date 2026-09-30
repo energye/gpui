@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -226,14 +236,14 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 }
 `
 
-// R7.3: static encoder descriptors (no per-call heap for Label string header).
+// static encoder descriptors (no per-call heap for Label string header).
 var (
 	dualTexMultiEncoderDesc     = &hal.CommandEncoderDescriptor{Label: "dual_tex_multi_enc"}
 	dualTexCompositeEncoderDesc = &hal.CommandEncoderDescriptor{Label: "dual_tex_composite_enc"}
 	dualTexViewsEncoderDesc     = &hal.CommandEncoderDescriptor{Label: "dual_tex_views_bgra_enc"}
 )
 
-// opt37: multi-op dual-tex uniforms share one slab. Payload is 48B; stride must
+// multi-op dual-tex uniforms share one slab. Payload is 48B; stride must
 // be a multiple of minUniformBufferOffsetAlignment (default 256).
 const dualTexUniformSlotStride = 256
 const dualTexUniformPayloadSize = 48
@@ -250,7 +260,7 @@ type dualTexBlendCache struct {
 	pipelineBGRA hal.RenderPipeline // BGRA8 target (layers/swapchain)
 	sampler      hal.Sampler
 	uniform      hal.Buffer
-	// opt37: multi-op uniform slab (stride dualTexUniformSlotStride); one WriteBuffer.
+	// multi-op uniform slab (stride dualTexUniformSlotStride); one WriteBuffer.
 	uniformSlab    hal.Buffer
 	uniformSlabCap uint64
 	// Diagnostics for unit tests (last multi IntoEncoder run).
@@ -258,7 +268,7 @@ type dualTexBlendCache struct {
 	lastMultiUniformWB    int
 	// F1: pool bounds-sized BGRA temps (out / dest snaps).
 	outPool map[[2]int][]dualTexPooledTex
-	// Bind groups keyed by dst/src/uniform view pointers (opt26 multi-slot reuse).
+	// Bind groups keyed by dst/src/uniform view pointers.
 	bgCache map[dualTexBGKey]hal.BindGroup
 	// multiBG: per-op slot reuse for dualTexAdvancedBlendViewsMultiBundle.
 	// After Queue.Submit of the previous frame, slot BGs are safe to replace.
@@ -655,7 +665,6 @@ func dualTexAdvancedBlend(
 			return nil, nil, err
 		}
 		if data != nil {
-			// Align pitch to 256 for multi-row uploads.
 			tight := uint32(bw * 4) //nolint:gosec
 			aligned := alignTextureBytesPerRow(tight)
 			upload := data
@@ -882,7 +891,7 @@ func dualTexCreateTexFmt(device hal.Device, queue hal.Queue, label string, bw, b
 		upload := data
 		var padScratch *[]byte
 		if aligned != tight && bh > 1 {
-			// R7.1: reuse image staging pool for row-pitch padding (WriteTexture copies immediately).
+			// reuse image staging pool for row-pitch padding (WriteTexture copies immediately).
 			need := int(aligned) * bh
 			padScratch = acquireImageStaging(need)
 			padded := *padScratch
@@ -915,7 +924,7 @@ func dualTexCreateTexFmt(device hal.Device, queue hal.Queue, label string, bw, b
 // result texture/view WITHOUT CPU map/Poll. Caller must keep tex alive until
 // after the frame Flush (see retainBrushCoverResult).
 
-// dualTexParamsPool reuses the 48-byte CPU uniform staging for dual-tex (R7.1).
+// dualTexParamsPool reuses the 48-byte CPU uniform staging for dual-tex.
 // WriteBuffer copies into the queue before return, so recycling after Write is safe.
 var dualTexParamsPool = sync.Pool{
 	New: func() any {
@@ -938,7 +947,7 @@ func dualTexWriteParams(queue hal.Queue, uniform hal.Buffer, modeU uint32, u0, v
 	return err
 }
 
-// packDualTexParams writes the 48-byte dual-tex Params payload into dst (opt37).
+// packDualTexParams writes the 48-byte dual-tex Params payload into dst.
 func packDualTexParams(dst []byte, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) {
 	if len(dst) < dualTexUniformPayloadSize {
 		return
@@ -1240,7 +1249,6 @@ type dualTexViewBlendOut struct {
 	opacity float32
 }
 
-// ensureUniformSlab grows/creates the opt37 multi-op uniform slab for n slots.
 // Recreating the slab clears multiBG (entries pin the old buffer+offset).
 func (c *dualTexBlendCache) ensureUniformSlab(device hal.Device, n int) (hal.Buffer, error) {
 	if c == nil || device == nil || n <= 0 {
@@ -1283,7 +1291,7 @@ func (c *dualTexBlendCache) ensureUniformSlab(device hal.Device, n int) (hal.Buf
 	return b, nil
 }
 
-// dualTexMultiBundle is a finished dual-tex multi pass ready for submit (R7.3).
+// dualTexMultiBundle is a finished dual-tex multi pass ready for submit.
 // When Cmd is non-nil, caller must Submit then call Cleanup (bind groups).
 // When Cmd is nil, work was already submitted and Cleanup is a no-op.
 type dualTexMultiBundle struct {
@@ -1292,7 +1300,7 @@ type dualTexMultiBundle struct {
 	Cleanup func()
 }
 
-// multiBindGroup returns a cached bind group for multi-bundle op slot i (opt26).
+// multiBindGroup returns a cached bind group for multi-bundle op slot i.
 // Same dst/src/uniform pointers reuse the native BG — avoids per-frame CreateBindGroup.
 // Safe to replace a slot after the previous frame's dual-tex CB has been Submitted
 // (Cleanup no longer Releases BGs; ownership stays on the cache).
@@ -1357,7 +1365,7 @@ func (c *dualTexBlendCache) multiBindGroup(
 }
 
 // dualTexAdvancedBlendViewsMultiIntoEncoder records multi dual-tex advanced
-// blend passes into enc without Finish/Submit (opt32). Caller owns encoder
+// blend passes into enc without Finish/Submit. Caller owns encoder
 // lifecycle. Out textures must stay alive until Submit samples them.
 func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	device hal.Device,
@@ -1438,7 +1446,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	if len(prepared) == 0 {
 		return nil, fmt.Errorf("dual-tex multi into: no valid ops")
 	}
-	// opt37: one WriteBuffer for all multi-op uniforms.
+	// one WriteBuffer for all multi-op uniforms.
 	packBytes := len(prepared) * dualTexUniformSlotStride
 	if err := queue.WriteBuffer(slab, 0, paramsScratch[:packBytes]); err != nil {
 		for _, p := range prepared {
@@ -1495,8 +1503,8 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 
 // dualTexAdvancedBlendViewsMultiBundle encodes multi dual-tex advanced blends.
 // submitNow=true: Submit immediately (legacy). submitNow=false: return Cmd for
-// coalesced Queue.Submit with a following blit CB (R7.3).
-// opt32: prefer dualTexAdvancedBlendViewsMultiIntoEncoder when the next blit
+// coalesced Queue.Submit with a following blit CB.
+// prefer dualTexAdvancedBlendViewsMultiIntoEncoder when the next blit
 // can share the same CommandEncoder (one Finish for multi+composite).
 func dualTexAdvancedBlendViewsMultiBundle(
 	device hal.Device,
@@ -1545,11 +1553,11 @@ func dualTexAdvancedBlendViewsMultiBundle(
 			}
 			return dualTexMultiBundle{}, err
 		}
-		// BGs owned by cache (opt26); outs released by caller via putOutBGRA/cool.
+		// BGs owned by cache; outs released by caller via putOutBGRA/cool.
 		return dualTexMultiBundle{Outs: outs, Cleanup: func() {}}, nil
 	}
 
-	// Deferred submit: BGs stay on dualTexBlendCache.multiBG for reuse (opt26).
+	// Deferred submit: BGs stay on dualTexBlendCache.multiBG for reuse.
 	return dualTexMultiBundle{
 		Outs:    outs,
 		Cmd:     cmd,

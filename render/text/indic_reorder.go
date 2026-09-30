@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Indic syllable reordering (ENGINE_GAPS G1.c lightweight subset).
 //
 // Implements a Devanagari-oriented initial + final reorder sufficient for
@@ -19,8 +29,6 @@
 //  2. cmap → glyphs (clusters = original source indices)
 //  3. staged GSUB / GPOS
 //  4. final reorder on glyphs by cluster (pre | base-group | below | above | post | reph)
-//
-// Reference: Microsoft OpenType Devanagari / Khmer / Myanmar shaping (simplified).
 package text
 
 // Devanagari code points used by the lightweight classifier.

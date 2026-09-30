@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -84,7 +94,7 @@ func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*Pipeline
 		return nil, &WGPUError{Op: "CreatePipelineLayout", Message: "descriptor is nil"}
 	}
 
-	// R7.6: stack-allocate layout handles for common small pipeline layouts (≤8).
+	// stack-allocate layout handles for common small pipeline layouts (≤8).
 	var layoutsPtr uintptr
 	var handles []uintptr
 	var handleStack [8]uintptr

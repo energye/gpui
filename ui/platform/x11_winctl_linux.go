@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -253,8 +263,7 @@ func (c *x11Controller) SetMaxSize(w, h int) {
 }
 
 // SetResizable locks (min==max=current size) or unlocks (restore user
-// constraints) the window via size hints. This matches the winit/GTK
-// "resizable=false → fixed size" contract on X11.
+// constraints) the window via size hints.
 func (c *x11Controller) SetResizable(r bool) {
 	s := c.st()
 	if s == nil {
@@ -382,7 +391,7 @@ func (c *x11Controller) Minimize() {
 	s.mu.Unlock()
 	lib.iconifyWindow(s.display, s.window, 0)
 	c.flush()
-	// Self-report the transition (R17): the optimistic set above would make
+	// Self-report the transition: the optimistic set above would make
 	// the later WM_STATE PropertyNotify reconcile see "no change" and stay
 	// quiet — same reason Show pushes its own Hidden event. If the WM
 	// refuses the iconify, a later reconcile corrects back to unminimized.
@@ -504,7 +513,6 @@ func (c *x11Controller) sendNetState(state1, state2 uintptr, action int) {
 	*(*uintptr)(unsafe.Pointer(&ev[32])) = s.root             // window
 	*(*uintptr)(unsafe.Pointer(&ev[40])) = s.atNetState       // message_type
 	*(*int32)(unsafe.Pointer(&ev[48])) = 32                   // format
-	// data.l[0..2] (long[5] @56)
 	*(*int64)(unsafe.Pointer(&ev[56])) = int64(action)
 	*(*int64)(unsafe.Pointer(&ev[64])) = int64(state1)
 	*(*int64)(unsafe.Pointer(&ev[72])) = int64(state2)
@@ -581,8 +589,6 @@ func (c *x11Controller) Show() error {
 	}
 	lib.mapWindow(s.display, s.window)
 	c.flush()
-	// S6-P0 Hidden emission: the pump cannot tell Show apart from a
-	// minimize-restore (both map), so the controller reports its own call.
 	// Flag-guarded (not flag-on-pump-state): back-to-back calls stay exact
 	// even before the MapNotify round-trips.
 	s.mu.Lock()
@@ -619,7 +625,6 @@ func (c *x11Controller) Hide() error {
 	s.mu.Unlock()
 	lib.unmapWindow(s.display, s.window)
 	c.flush()
-	// S6-P0 Hidden emission: Hide (Withdrawn) shares UnmapNotify with
 	// minimize (Iconic), so the controller reports its own call. Minimize()
 	// never pushes — no confusion between the two paths.
 	if c.h != nil {
@@ -677,7 +682,6 @@ func (c *x11Controller) SetAlwaysOnTop(on bool) error {
 }
 
 // xCursorShapes maps cross-platform Cursor to X cursor-font glyph numbers
-// (cursorfont.h; used by XCreateFontCursor).
 func (c *x11Controller) cursorShape(cur Cursor) (uint, bool) {
 	switch cur {
 	case CursorText:

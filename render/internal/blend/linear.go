@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package blend implements linear color space blending operations.
 //
 // This file implements linear-space versions of all blend modes.
@@ -5,10 +15,6 @@
 // color math in linear RGB rather than sRGB space.
 //
 // Key principle: Alpha is ALWAYS linear - only RGB channels undergo gamma conversion.
-//
-// References:
-//   - GPU Gems 3: "The Importance of Being Linear"
-//   - W3C Compositing and Blending Level 1: https://www.w3.org/TR/compositing-1/
 package blend
 
 import (

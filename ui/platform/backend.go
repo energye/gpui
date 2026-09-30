@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package platform
 
 import "fmt"
@@ -7,9 +17,9 @@ import "fmt"
 // display detection.
 //
 // The backend is deliberately split into three concerns (see the plan):
-//   - Create:  build a native window (own the event loop sources).
-//   - Adopt:   bind an existing native surface/handle (embedding scenarios).
-//   - Window:  the produced object owns Host (events/size/scale) plus optional
+//   - Create: build a native window (own the event loop sources).
+//   - Adopt: bind an existing native surface/handle (embedding scenarios).
+//   - Window: the produced object owns Host (events/size/scale) plus optional
 //     IME/Clipboard capabilities discovered at bind time.
 type Backend interface {
 	// Kind is the platform this backend serves.

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package parser
 
 import (
@@ -330,7 +340,6 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
 		t.Errorf("expected function name 'cs_main', got %q", fn.Name)
 	}
 
-	// Should have @compute and @workgroup_size attributes
 	if len(fn.Attributes) != 2 {
 		t.Errorf("expected 2 attributes, got %d", len(fn.Attributes))
 	}
@@ -488,7 +497,6 @@ func TestParsePointerType(t *testing.T) {
 	}
 }
 
-// TestParseSwitchStatement tests parsing of switch statements (NAGA-002).
 func TestParseSwitchStatement(t *testing.T) {
 	source := `@fragment
 fn main(@location(0) idx: u32) -> @location(0) vec4<f32> {
@@ -596,7 +604,6 @@ func TestParseHexLiteralBitwiseOps(t *testing.T) {
 	}
 }
 
-// TestParseLocalConst tests parsing of local const declarations (NAGA-002).
 func TestParseLocalConst(t *testing.T) {
 	source := `@vertex
 fn main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {

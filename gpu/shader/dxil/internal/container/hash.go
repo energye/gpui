@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package container implements DXIL container hashing.
 //
 // This file implements the BYPASS hash sentinel and the retail hash
@@ -14,8 +24,6 @@ import (
 // When this 16-byte value is placed in the container header's digest field,
 // the D3D12 runtime (AgilitySDK 1.615+) allows the shader to execute
 // without validating the hash.
-//
-// Reference: https://github.com/microsoft/hlsl-specs/blob/main/proposals/infra/INF-0004-validator-hashing.md
 var BypassHash = [16]byte{
 	0x01, 0x01, 0x01, 0x01,
 	0x01, 0x01, 0x01, 0x01,
@@ -54,8 +62,7 @@ func SetBypassHash(containerData []byte) {
 // "Shader is corrupt" (HRESULT 0x80070057) even when the container hash
 // and bitcode are valid.
 //
-// Reference: empirically confirmed that DXC's HASH part body equals
-// md5(DXIL_bitcode_only) for its compiled shaders. Flags byte is retail (0).
+// Flags byte is retail (0).
 func WriteShaderHashPart(containerData []byte) error {
 	if len(containerData) < 32 {
 		return nil
@@ -204,8 +211,7 @@ func retailMD5Block(data []byte, byteCount, offset, i, n uint32,
 }
 
 // md5Transform performs one MD5 block transformation on state using
-// the 16-word input block pX. This is a direct port of the MD5 algorithm
-// from RFC 1321 / INF-0004 and cannot be meaningfully decomposed.
+// the 16-word input block pX.
 //
 //nolint:funlen // MD5 algorithm: 64 fixed operations per RFC 1321
 func md5Transform(state *[4]uint32, pX []uint32) {

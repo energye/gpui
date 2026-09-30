@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -5,7 +15,6 @@ import (
 	"unsafe"
 )
 
-// 变参四件套门禁：Go 拼串版 6 个入口，整数、字符串、浮点全对。
 // 大白话：C 那边是边拼边干，Go 这边先拼好再干。这里验拼出来的
 // 东西和 C 干出来的一个样，浮点也不错。
 func TestVariadicGo(t *testing.T) {

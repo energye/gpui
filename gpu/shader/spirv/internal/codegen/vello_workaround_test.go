@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -217,8 +227,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 	t.Logf("Compiled %d bytes, control flow valid", len(spirvBytes))
 }
 
-// TestSpanFullShaderDump compiles both versions of path_count.wgsl through Go naga
-// and saves the SPIR-V to files for comparison with Rust naga output and spirv-val.
 func TestSpanFullShaderDump(t *testing.T) {
 	for _, tc := range []struct {
 		name, input, output string
@@ -306,7 +314,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 // TestBoolEqualUsesLogicalEqual verifies that bool==bool comparison emits
 // OpLogicalEqual (not OpIEqual) and bool!=bool emits OpLogicalNotEqual
 // (not OpINotEqual). SPIR-V spec requires logical ops for boolean operands.
-// Bug: NAGA-SPV-007 — OpIEqual with bool operands fails spirv-val.
 func TestBoolEqualUsesLogicalEqual(t *testing.T) {
 	const shader = `
 @group(0) @binding(0) var<storage, read_write> out: array<u32>;
@@ -353,8 +360,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // TestDeferredStoreTransitiveDeps verifies that var X = Y is correctly deferred
 // when Y itself depends on a function call result.
-// Bug: NAGA-SPV-008 — `var imax = count` was initialized in prologue before
-// `count` was ready (count deferred due to span() call in its init).
 func TestDeferredStoreTransitiveDeps(t *testing.T) {
 	const shader = `
 @group(0) @binding(0) var<storage, read_write> out: array<u32>;

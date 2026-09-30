@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // kern table parser — fallback kerning for fonts without GPOS.
 //
 // Parses the legacy 'kern' table (format 0) which stores kerning as
@@ -8,8 +18,6 @@
 // The kern table is only used as a fallback when:
 //   - No GPOS table is present, OR
 //   - The GPOS table does not contain a 'kern' feature
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/kern
 //
 // This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
 package text

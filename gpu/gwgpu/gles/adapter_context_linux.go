@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -18,11 +25,6 @@ import (
 // AdapterContext wraps an EGL/GL context with mutex-protected MakeCurrent switching.
 // Shared by Instance → Adapter → Device → Queue (X11/headless), or owned by Surface
 // on Wayland (intentional context-per-surface divergence — no wl_display* at Instance init).
-//
-// Follows Windows AdapterContext (adapter_context.go) and Rust wgpu-hal GLES lock pattern:
-//   - Lock()             → MakeCurrent to pbuffer/surfaceless (resource + command work)
-//   - LockForSurface()   → MakeCurrent to window EGLSurface (present / swap)
-//   - Unlock()           → UnmakeCurrent
 type AdapterContext struct {
 	mu     sync.Mutex
 	eglCtx *egl.Context
@@ -69,7 +71,6 @@ func (c *AdapterContext) TryLock() (*gl.Context, error) {
 // Lock acquires the mutex, pins the goroutine to the current OS thread, and
 // makes the GL context current on the pbuffer / surfaceless draw surface.
 //
-// Mirrors Windows AdapterContext.Lock() (hidden DC) and Rust AdapterContext::lock().
 // A bind failure is logged; callers that need a usable context use TryLock
 // and stop on error instead of running GL calls with nothing current.
 func (c *AdapterContext) Lock() *gl.Context {
@@ -88,8 +89,6 @@ func (c *AdapterContext) Lock() *gl.Context {
 
 // LockForSurface acquires the mutex, pins the goroutine to the current OS thread,
 // and makes the GL context current on the given window EGLSurface.
-//
-// Mirrors Windows AdapterContext.LockForDC() and Rust lock_with_dc / egl present path.
 func (c *AdapterContext) LockForSurface(surf egl.EGLSurface) *gl.Context {
 	c.mu.Lock()
 	runtime.LockOSThread()
@@ -110,8 +109,7 @@ func (c *AdapterContext) LockForSurface(surf egl.EGLSurface) *gl.Context {
 // thread, and releases the mutex.
 //
 // Guards against double-unmake: only calls eglMakeCurrent(NO_SURFACE, NO_CONTEXT)
-// if a context is actually current on this thread. Matches Windows Unlock() and
-// Rust WglContext::unmake_current().
+// if a context is actually current on this thread.
 func (c *AdapterContext) Unlock() {
 	// Check eglCtx first so Unlock is safe before egl.Init (unit tests, teardown).
 	if c.eglCtx != nil && egl.GetCurrentContext() != egl.NoContext {

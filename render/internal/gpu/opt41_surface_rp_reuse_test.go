@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import (
@@ -7,7 +17,7 @@ import (
 )
 
 // TestOpt41_SurfaceRenderPassDesc_NoAllocWarm ensures surfaceRenderPassDesc
-// reuses backing storage after first init (class A opt41).
+// reuses backing storage after first init.
 func TestOpt41_SurfaceRenderPassDesc_NoAllocWarm(t *testing.T) {
 	s := &GPURenderSession{}
 	// stencil view pointer only used as identity; no native calls.

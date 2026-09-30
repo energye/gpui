@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -21,13 +31,12 @@ type PaintContext struct {
 	PaintVisits      *int64
 	// LayerBudget limits SaveLayer ops this frame (F16). Nil = unlimited.
 	LayerBudget *SaveLayerBudget
-	// LayerStats accumulates SaveLayer allow/reject outcomes (W2 R18).
+	// LayerStats accumulates SaveLayer allow/reject outcomes.
 	// Nil = no counting. Lifetime owned by the embedder (PipelineApp).
 	LayerStats *SaveLayerStats
 	// saveLayerDepth tracks unmatched SaveLayer pushes (Restore pairs).
 	saveLayerDepth int
-	// BoundaryCache enables W1 Picture-backed RepaintBoundary reuse (R3).
-	BoundaryCache *BoundaryCache
+	BoundaryCache  *BoundaryCache
 	// UseBoundaryCache gates tryReplay/store on repaint boundaries.
 	UseBoundaryCache bool
 	// DebugRepaint (R12b): after a live (non-Replay) paint of a node, draw a
@@ -160,7 +169,7 @@ func (pc *PaintContext) PopClip() {
 //
 //	boundsW/H — logical size used for SaveLayerBudget area accounting (must be >0
 //	             when a budget is set; full-surface isolation is still used by render).
-//	opacity   — group opacity 0..1 when compositing back (≤0 treated as 1).
+//	opacity — group opacity 0..1 when compositing back (≤0 treated as 1).
 //
 // Returns false if LayerBudget rejects the op (no layer pushed). Pair with Restore.
 // Uses render.PushLayerIsolated (true offscreen, not F1 opacity-group).
@@ -420,7 +429,7 @@ type SaveLayerBudget struct {
 	area    float64
 }
 
-// SaveLayerStats accumulates SaveLayer budget outcomes (W2 R18): Allow counts
+// SaveLayerStats accumulates SaveLayer budget outcomes: Allow counts
 // accepted pushes, Reject counts budget-refused ones. Shared across frames by
 // the embedder; atomics keep paint-thread increments safe for main-thread reads.
 type SaveLayerStats struct {

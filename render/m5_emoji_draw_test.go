@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -7,9 +17,6 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// TestColorEmojiDrawStringNoCrash_M5 locks the M5-window crash: drawing an
-// emoji run through a DejaVu+NotoColorEmoji MultiFace must not nil-deref in
-// DrawWithEmoji's face.Source() chain (CPU bitmap path).
 func TestColorEmojiDrawStringNoCrash_M5(t *testing.T) {
 	open := func(p string) text.Face {
 		b, err := os.ReadFile(p)

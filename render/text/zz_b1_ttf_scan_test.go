@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -9,8 +19,6 @@ import (
 	"testing"
 )
 
-// zz_b1_ttf_scan_test.go —— 阶段 B1b：TTF 自动加框 26.6 直通链四维度对照
-// （docs ENGINE_TEXT_RASTER_FT_ALIGN_PLAN.md §阶段B B1b）。
 //
 // 引擎侧：ParseGlyfContours → autoHintContourPoints（26.6 定点 Y-up，
 // 不平移）→ hintedContoursToFT26 直通出口（不经过 contoursToOutline 的
@@ -232,17 +240,17 @@ func b1TTFRunScan(t *testing.T, name, fontPath, listPath string, wantCount int, 
 					bad++
 					badR = append(badR, r)
 					offBad = true
-				if dbgN < 3 {
-					dbgN++
-					fmt.Printf("  DBGC %U @%.0fpx pt%d: engine(%d,%d) ft(%d,%d) tag %d vs %d\n",
-						r, px, i, p.x, p.y, ftG.pts[i][0], ftG.pts[i][1],
-						int(tags[i]), ftG.pts[i][2])
-					fmt.Printf("  DBGH %U @%.0fpx: hinted[0]=(%d,%d) len=%d upm=%d scale=%v\n",
-						r, px, int32(hinted.Points[0].X), int32(hinted.Points[0].Y),
-						len(hinted.Points), face.UnitsPerEm(), px/float64(face.UnitsPerEm()))
-				}
-				if r == 0x513F {
-					fmt.Printf("  DBGFULL %U @%.0fpx:\n", r, px)
+					if dbgN < 3 {
+						dbgN++
+						fmt.Printf("  DBGC %U @%.0fpx pt%d: engine(%d,%d) ft(%d,%d) tag %d vs %d\n",
+							r, px, i, p.x, p.y, ftG.pts[i][0], ftG.pts[i][1],
+							int(tags[i]), ftG.pts[i][2])
+						fmt.Printf("  DBGH %U @%.0fpx: hinted[0]=(%d,%d) len=%d upm=%d scale=%v\n",
+							r, px, int32(hinted.Points[0].X), int32(hinted.Points[0].Y),
+							len(hinted.Points), face.UnitsPerEm(), px/float64(face.UnitsPerEm()))
+					}
+					if r == 0x513F {
+						fmt.Printf("  DBGFULL %U @%.0fpx:\n", r, px)
 						for j := range pts {
 							fmt.Printf("    pt%d engine(%d,%d) ft(%d,%d)\n",
 								j, pts[j].x, pts[j].y, ftG.pts[j][0], ftG.pts[j][1])

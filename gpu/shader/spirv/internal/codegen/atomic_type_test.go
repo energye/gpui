@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -7,9 +17,6 @@ import (
 // TestAtomicI32ResultType verifies that atomicAdd on atomic<i32> emits
 // OpAtomicIAdd with int result type (not uint). SPIR-V spec requires the
 // result type to match the pointed-to scalar type.
-// Bug: NAGA-SPV-009 — resolveAtomicScalarKind returned ScalarUint for struct
-// field access (e.g., tiles[i].backdrop) because ResolveExpressionType returns
-// AtomicType directly, not wrapped in PointerType.
 func TestAtomicI32ResultType(t *testing.T) {
 	const shader = `
 struct Tile {

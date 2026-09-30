@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -6,8 +16,6 @@ import (
 	"github.com/energye/gpui/ui/input"
 )
 
-// M3.5: PreeditEvent.Cursor 是字节偏移（<0 = 末尾）。光标映射必须钳制到
-// [0,len] 并对齐到 rune 边界，否则半个 CJK 字上的取值会静默错位。
 func TestSessionPreeditCursorClamp_M35(t *testing.T) {
 	// "ni你好": n(0) i(1) 你(2,3,4) 好(5,6,7)，共 8 字节、4 个 UTF16 单位。
 	const preedit = "ni你好"
@@ -39,8 +47,6 @@ func TestSessionPreeditCursorClamp_M35(t *testing.T) {
 	}
 }
 
-// M3.5: ImeSession.DeleteSurrounding(before,after) 转 Editor 相对偏移时
-// 不得静默丢弃（韩文等依赖该事件删词），after=0 与越界必须分别正确处理。
 func TestSessionDeleteSurroundingCounts_M35(t *testing.T) {
 	t.Run("before only", func(t *testing.T) {
 		s, ed, _ := newTestSession()

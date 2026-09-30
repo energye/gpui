@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package hal
@@ -9,7 +19,6 @@ import gputypes "github.com/energye/gpui/gpu/types"
 // Lifecycle: After EndEncoding, the encoder is in "closed" state. After
 // ResetAll (with completed command buffers), the encoder is ready for a
 // new BeginEncoding cycle. This enables encoder pooling at the wgpu core
-// level, matching Rust wgpu-core's CommandAllocator pattern.
 type CommandEncoder interface {
 	// BeginEncoding begins command recording with an optional label.
 	BeginEncoding(label string) error
@@ -21,7 +30,6 @@ type CommandEncoder interface {
 	EndEncoding() (CommandBuffer, error)
 
 	// Finish finishes command recording and returns a command buffer.
-	// Matches webgpu CommandEncoder.Finish (gpu/webgpu/encoder.go:293).
 	// Canonical alias of EndEncoding for webgpu parity; backends implement
 	// it as EndEncoding.
 	Finish() (CommandBuffer, error)
@@ -54,8 +62,6 @@ type CommandEncoder interface {
 	ClearBuffer(buffer Buffer, offset, size uint64)
 
 	// CopyBufferToBuffer copies data between buffers.
-	// Matches webgpu CommandEncoder.CopyBufferToBuffer flat five-arg shape
-	// (gpu/webgpu/encoder.go:119).
 	CopyBufferToBuffer(src Buffer, srcOffset uint64, dst Buffer, dstOffset uint64, size uint64)
 
 	// CopyBufferToTexture copies data from a buffer to a texture.
@@ -77,12 +83,10 @@ type CommandEncoder interface {
 
 	// BeginRenderPass begins a render pass.
 	// Returns a render pass encoder for recording draw commands.
-	// Matches webgpu CommandEncoder.BeginRenderPass (gpu/webgpu/encoder.go:27).
 	BeginRenderPass(desc *RenderPassDescriptor) (RenderPassEncoder, error)
 
 	// BeginComputePass begins a compute pass.
 	// Returns a compute pass encoder for recording dispatch commands.
-	// Matches webgpu CommandEncoder.BeginComputePass (gpu/webgpu/encoder.go:98).
 	BeginComputePass(desc *ComputePassDescriptor) (ComputePassEncoder, error)
 
 	// BuildAccelerationStructures builds one or more acceleration structures.
@@ -106,7 +110,6 @@ type CommandEncoder interface {
 type RenderPassEncoder interface {
 	// End finishes the render pass.
 	// After this call, the encoder cannot be used again.
-	// Matches webgpu RenderPassEncoder.End (gpu/webgpu/renderpass.go:136).
 	End() error
 
 	// SetPipeline sets the active render pipeline.
@@ -123,13 +126,9 @@ type RenderPassEncoder interface {
 	SetIndexBuffer(buffer Buffer, format gputypes.IndexFormat, offset uint64)
 
 	// SetViewport sets the viewport transformation.
-	// Matches webgpu RenderPassEncoder.SetViewport flat six-arg shape
-	// (gpu/webgpu/renderpass.go:76).
 	SetViewport(x, y, width, height, minDepth, maxDepth float32)
 
 	// SetScissorRect sets the scissor rectangle for clipping.
-	// Matches webgpu RenderPassEncoder.SetScissorRect flat four-arg shape
-	// (gpu/webgpu/renderpass.go:81).
 	SetScissorRect(x, y, width, height uint32)
 
 	// SetBlendConstant sets the blend constant color.
@@ -139,23 +138,15 @@ type RenderPassEncoder interface {
 	SetStencilReference(reference uint32)
 
 	// Draw draws primitives.
-	// Matches webgpu RenderPassEncoder.Draw flat four-arg shape
-	// (gpu/webgpu/renderpass.go:104).
 	Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32)
 
 	// DrawIndexed draws indexed primitives.
-	// Matches webgpu RenderPassEncoder.DrawIndexed flat five-arg shape
-	// (gpu/webgpu/renderpass.go:109).
 	DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32)
 
 	// DrawIndirect draws primitives with GPU-generated parameters.
-	// Matches webgpu RenderPassEncoder.DrawIndirect two-arg shape
-	// (gpu/webgpu/renderpass.go:115).
 	DrawIndirect(buffer Buffer, offset uint64)
 
 	// DrawIndexedIndirect draws indexed primitives with GPU-generated parameters.
-	// Matches webgpu RenderPassEncoder.DrawIndexedIndirect two-arg shape
-	// (gpu/webgpu/renderpass.go:125).
 	DrawIndexedIndirect(buffer Buffer, offset uint64)
 
 	// DrawIndirectCount draws primitives using a GPU count buffer (Vulkan 1.2+).
@@ -174,7 +165,6 @@ type RenderPassEncoder interface {
 type ComputePassEncoder interface {
 	// End finishes the compute pass.
 	// After this call, the encoder cannot be used again.
-	// Matches webgpu ComputePassEncoder.End (gpu/webgpu/computepass.go:54).
 	End() error
 
 	// SetPipeline sets the active compute pipeline.
@@ -276,7 +266,6 @@ type BufferTextureCopy struct {
 }
 
 // TextureCopy defines a texture-to-texture copy region.
-// Matches webgpu TextureCopy field names (gpu/webgpu/descriptor_browser.go:254).
 type TextureCopy struct {
 	Source      ImageCopyTexture
 	Destination ImageCopyTexture

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package types
 
 // GWGPU compat: downlevel capability reporting (ported from
@@ -15,15 +25,12 @@ import "strings"
 // tracks exactly what each backend supports, enabling consumers to make informed
 // decisions (e.g., GPU compute vs CPU fallback).
 //
-// This is a Rust wgpu extension — the term "downlevel" does not appear in the
 // W3C WebGPU specification. Of 27 flags, 24 track capabilities required by the
 // spec for core (conformant) adapters, 1 (AnisotropicFiltering) is not required
 // by the spec, and 2 (MSL21, SurfaceViewFormats) are backend-specific.
 //
 // You can check whether a set of flags is compliant through the
 // DownlevelCapabilities.IsWebGPUCompliant method.
-//
-// Bit positions match Rust wgpu-types (limits.rs:1102-1246).
 type DownlevelFlags uint32
 
 const (
@@ -143,8 +150,7 @@ const (
 	// See https://www.w3.org/TR/webgpu/#adapter-capability-guarantees.
 	DownlevelFlagsTextureCompression DownlevelFlags = 1 << 25
 
-	// DownlevelFlagsLinearInterpolation indicates support for @interpolate(linear)
-	// (a.k.a. noperspective) on shader inter-stage variables.
+	// noperspective) on shader inter-stage variables.
 	// GLSL ES has no noperspective qualifier, so the GLES backend only supports this
 	// on desktop OpenGL, not on GLES/WebGL2.
 	DownlevelFlagsLinearInterpolation DownlevelFlags = 1 << 26
@@ -220,7 +226,6 @@ func DownlevelFlagsAll() DownlevelFlags {
 
 // DownlevelFlagsCompliant returns all flags that indicate WebGPU compliance.
 // This is all flags except AnisotropicFiltering, which is not required by WebGPU.
-// Matches Rust wgpu-types DownlevelFlags::compliant() (limits.rs:1249-1257).
 func DownlevelFlagsCompliant() DownlevelFlags {
 	return DownlevelFlagsAll() &^ DownlevelFlagsAnisotropicFiltering
 }
@@ -255,12 +260,10 @@ func (sm ShaderModel) String() string {
 
 // DownlevelLimits represents additional limits on a downlevel adapter.
 // Currently empty, reserved for future use.
-// Matches Rust wgpu-types DownlevelLimits (limits.rs:1044).
 type DownlevelExtraLimits struct{}
 
 // DownlevelCapabilities lists various ways the underlying platform does not
 // conform to the WebGPU standard.
-// Matches Rust wgpu-types DownlevelCapabilities (limits.rs:1056-1063).
 type DownlevelCapabilities struct {
 	// Flags is the combined boolean flags.
 	Flags DownlevelFlags
@@ -272,7 +275,6 @@ type DownlevelCapabilities struct {
 
 // DefaultDownlevelCapabilities returns the default DownlevelCapabilities,
 // representing a fully WebGPU-compliant adapter.
-// Matches Rust Default for DownlevelCapabilities (limits.rs:1065-1072).
 func DefaultDownlevelCapabilities() DownlevelCapabilities {
 	return DownlevelCapabilities{
 		Flags:       DownlevelFlagsAll(),
@@ -287,7 +289,6 @@ func DefaultDownlevelCapabilities() DownlevelCapabilities {
 // If this returns false, some parts of the API will result in validation errors
 // where they would not normally. These parts can be determined by the values
 // in this structure.
-// Matches Rust DownlevelCapabilities::is_webgpu_compliant() (limits.rs:1075-1085).
 func (dc DownlevelCapabilities) IsWebGPUCompliant() bool {
 	return dc.Flags.Contains(DownlevelFlagsCompliant()) &&
 		dc.Limits == DownlevelExtraLimits{} &&

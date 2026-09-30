@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package backend
 
 import (
@@ -225,12 +235,7 @@ func TestPackSignatureElements_OtherBindingPlaceholder(t *testing.T) {
 
 // TestSortFlatBindings_LocationsBeforeBuiltins verifies that
 // SortFlatBindings reorders bindings so locations come before builtins.
-// This matches DXC's fragment input signature element ordering.
 func TestSortFlatBindings_LocationsBeforeBuiltins(t *testing.T) {
-	// Simulate the msl-varyings fragment shader case:
-	// arg 0 = VertexOutput with @builtin(position)
-	// arg 1 = NoteInstance with @location(1)
-	// Expected after sort: location(1) first, then builtin(position).
 	bindings := []ir.Binding{
 		ir.BuiltinBinding{Builtin: ir.BuiltinPosition},
 		ir.LocationBinding{Location: 1},

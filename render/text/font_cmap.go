@@ -1,15 +1,21 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Cmap table parser — character to glyph ID mapping.
 //
 // Supports the three most common cmap subtable formats:
-//   - Format 4:  Segment mapping to delta values (BMP characters)
-//   - Format 6:  Trimmed table mapping (sequential range)
+//   - Format 4: Segment mapping to delta values (BMP characters)
+//   - Format 6: Trimmed table mapping (sequential range)
 //   - Format 12: Segmented coverage (full Unicode, 32-bit code points)
 //
 // Selection priority: format 12 > format 4 > format 6.
-// This matches Skia/FreeType/skrifa priority (prefer full Unicode coverage).
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap
-// Reference: skrifa read-fonts/src/tables/cmap.rs
 //
 // This file is part of Phase 3a (ADR-048: Pure Go Font Stack).
 package text
@@ -162,7 +168,7 @@ type cmapFormat4 struct {
 //	uint16 endCode[segCount]
 //	uint16 reservedPad
 //	uint16 startCode[segCount]
-//	int16  idDelta[segCount]
+//	int16 idDelta[segCount]
 //	uint16 idRangeOffset[segCount]
 //	uint16 glyphIdArray[variable]
 func parseCmapFormat4(data []byte) *cmapLookup {
@@ -324,11 +330,11 @@ type cmapFormat12Group struct {
 //
 // Layout:
 //
-//	uint16  format (12)
-//	uint16  reserved
-//	uint32  length
-//	uint32  language
-//	uint32  numGroups
+//	uint16 format (12)
+//	uint16 reserved
+//	uint32 length
+//	uint32 language
+//	uint32 numGroups
 //	Group[numGroups]:
 //	    uint32 startCharCode
 //	    uint32 endCharCode

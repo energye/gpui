@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Package render provides the integration layer between gg and GPU frameworks.
 //
@@ -80,21 +87,21 @@
 //	                 User Application
 //	                       │
 //	      ┌────────────────┼────────────────┐
-//	      │                │                │
-//	      ▼                ▼                ▼
-//	     App       render.Context         render.Scene
-//	 (windowing)     (immediate)        (retained)
-//	      │                │                │
+//	      │ │ │
+//	      ▼ ▼ ▼
+//	     App render.Context render.Scene
+//	 (windowing) (immediate) (retained)
+//	      │ │ │
 //	      └────────────────┼────────────────┘
 //	                       │
 //	                       ▼
 //	                 render package
 //	      ┌────────────────┼────────────────┐
-//	      │                │                │
-//	      ▼                ▼                ▼
-//	DeviceHandle     RenderTarget       Renderer
-//	(GPU access)    (output target)   (execution)
-//	      │                │                │
+//	      │ │ │
+//	      ▼ ▼ ▼
+//	DeviceHandle RenderTarget Renderer
+//	(GPU access) (output target) (execution)
+//	      │ │ │
 //	      └────────────────┼────────────────┘
 //	                       │
 //	                       ▼

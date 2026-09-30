@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package hal
@@ -5,18 +15,17 @@ package hal
 import gputypes "github.com/energye/gpui/gpu/types"
 
 // MaxColorAttachments is the WebGPU specification limit for the number of
-// color attachments per render pass. Matches Rust wgpu MAX_COLOR_ATTACHMENTS.
+// color attachments per render pass.
 const MaxColorAttachments = 8
 
 // MaxTotalAttachments is the maximum number of Vulkan attachments in a single
 // render pass: up to 8 color + 8 resolve (one per color for MSAA) + 1 depth/stencil.
-// Matches Rust wgpu-hal vulkan MAX_TOTAL_ATTACHMENTS.
 const MaxTotalAttachments = MaxColorAttachments*2 + 1
 
 // InstanceDescriptor describes how to create a GPU instance.
 // Superset of gpu/webgpu InstanceDescriptor: backend selectors plus the
 // X11 connection fields (XlibDisplay/XlibScreen, X11-only, ignored by
-// non-X11 backends). Matches gpu/webgpu/instance.go:16 shapes.
+// non-X11 backends).
 // Wayland/Windows/macOS need no instance fields: their handles ride the
 // SurfaceTarget at surface creation (hal/surface_target.go:19).
 type InstanceDescriptor struct {
@@ -41,7 +50,6 @@ type InstanceDescriptor struct {
 }
 
 // RequestAdapterOptions controls adapter selection.
-// Mirrors gpu/webgpu RequestAdapterOptions (gpu/webgpu/types.go:101).
 // CompatibleSurface stays the hal.Surface interface: hal cannot name
 // *webgpu.Surface (webgpu already imports hal, so that would be an import
 // cycle). It is the hal-side equivalent of webgpu's *Surface (nilable
@@ -57,7 +65,6 @@ type RequestAdapterOptions struct {
 }
 
 // DeviceDescriptor configures device creation.
-// Mirrors gpu/webgpu DeviceDescriptor (gpu/webgpu/adapter.go:14).
 type DeviceDescriptor struct {
 	Label            string
 	RequiredFeatures gputypes.Features
@@ -153,7 +160,6 @@ const (
 )
 
 // SurfaceConfiguration describes surface settings.
-// Mirrors gpu/webgpu SurfaceConfiguration (Width/Height/Format/Usage/PresentMode/AlphaMode).
 type SurfaceConfiguration struct {
 	// Width of the surface in pixels.
 	Width uint32
@@ -296,7 +302,6 @@ type BindGroupLayoutDescriptor struct {
 // Sampler/TextureView), 类型提取为 hal 接口以避免 webgpu 循环引用.
 // Exactly one of Buffer, Sampler, TextureView should be set.
 type BindGroupEntry struct {
-	// Binding is the binding number (must match @binding in shader).
 	Binding uint32
 
 	// Buffer binds a buffer range (nil if not a buffer binding).
@@ -324,7 +329,7 @@ type BindGroupDescriptor struct {
 	Layout BindGroupLayout
 
 	// Entries are the resource bindings.
-	// Canonical hal shape (片5, webgpu 为准): []BindGroupEntry above.
+	// Canonical hal shape: []BindGroupEntry above.
 	// gputypes.BindGroupEntry (uintptr 柄形) remains for gwgpu internal
 	// use until H4收敛, see gpu/types/binding.go:106.
 	Entries []BindGroupEntry
@@ -358,7 +363,6 @@ type Range struct {
 }
 
 // ShaderModuleDescriptor describes a shader module.
-// Mirrors gpu/webgpu ShaderModuleDescriptor flat shape (Label/WGSL/SPIRV).
 type ShaderModuleDescriptor struct {
 	// Label is an optional debug name.
 	Label string

@@ -1,8 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 //
 // This file implements the main auto-hinter pipeline for Latin script.
 // It is a Go port of the FreeType auto-hinter (aflatin.c) and skrifa
-// (Rust fontations). The pipeline:
+// . The pipeline:
 //
 //  1. Compute standard stem widths from a reference glyph ('o')
 //  2. Detect blue zones from reference characters (THEZOCQS, etc.)
@@ -11,11 +21,6 @@
 //  5. Match edges to blue zones
 //  6. Grid-fit edges: blue-anchored → stems → serifs → singles
 //  7. Propagate edge positions to all outline points
-//
-// References:
-//   - FreeType aflatin.c (5102 LOC) — THE primary reference
-//   - skrifa fontations (Rust) — cleaner architecture, same algorithms
-//   - Skia SkAutoHinter — validates our approach
 package text
 
 import (
@@ -25,7 +30,7 @@ import (
 )
 
 // ============================================================
-// Fixed-Point Arithmetic (FreeType/skrifa parity)
+// Fixed-Point Arithmetic
 // ============================================================
 //
 // FreeType and skrifa use integer fixed-point arithmetic throughout
@@ -38,10 +43,6 @@ import (
 // All hinting arithmetic operates in these integer formats. Float is used
 // only at boundaries: font units → 26.6 on input, 26.6 → float32 on output.
 //
-// References:
-//   - FreeType include/freetype/fttypes.h: FT_F26Dot6, FT_Fixed (16.16)
-//   - FreeType ftcalc.h: FT_MulFix, FT_DivFix, FT_PIX_ROUND
-//   - skrifa metrics/mod.rs: fixed_mul, fixed_div, pix_round, pix_floor
 
 // f26dot6 is 26.6 fixed-point: 1 unit = 1/64 pixel.
 // Used for coordinates and positions in the auto-hinter.
@@ -52,7 +53,6 @@ type f26dot6 = int32
 // unused-type lint warnings — the int32 bit pattern is self-documenting.
 
 // f26dot6FromFloat converts a pixel value to 26.6 fixed-point.
-// Matches FreeType's float-to-fixed conversion: round(px * 64).
 func f26dot6FromFloat(px float64) f26dot6 {
 	return int32(math.Round(px * 64))
 }
@@ -64,14 +64,12 @@ func f26dot6ToFloat(v f26dot6) float32 {
 
 // f26dot6Round rounds a 26.6 value to the nearest integer pixel.
 // Equivalent to FreeType's FT_PIX_ROUND: (x + 32) & ~63.
-// Matches skrifa metrics/mod.rs: pix_round.
 func f26dot6Round(v f26dot6) f26dot6 {
 	return (v + 32) & ^63
 }
 
 // f26dot6Floor rounds a 26.6 value down to the nearest integer pixel.
 // Equivalent to FreeType's FT_PIX_FLOOR: x & ~63.
-// Matches skrifa metrics/mod.rs: pix_floor.
 func f26dot6Floor(v f26dot6) f26dot6 {
 	return v & ^63
 }
@@ -81,7 +79,6 @@ func f26dot6Floor(v f26dot6) f26dot6 {
 // operations matching skrifa's fixed_mul/fixed_div) instead of FT_MulFix/FT_DivFix.
 
 // fixedMul26dot6 multiplies two values as 16.16 fixed-point.
-// Matches skrifa Fixed::Mul (font-types/src/fixed.rs:189):
 //
 //	ab = a * b; result = (ab + 0x8000 - (1 if ab<0 else 0)) >> 16
 //
@@ -96,7 +93,6 @@ func fixedMul26dot6(a, b int32) int32 {
 }
 
 // fixedDiv26dot6 divides two values as 16.16 fixed-point with rounding.
-// Matches skrifa Fixed::Div (font-types/src/fixed.rs:198):
 //
 //	Uses absolute values, adds half-divisor for rounding:
 //	result = (|a| << 16 + |b|/2) / |b|, with sign applied.
@@ -238,7 +234,6 @@ func autoHintOutlineVar(outline *GlyphOutline, variedContours *GlyfContours, fon
 
 // hintedEdgeMetrics captures the leftmost and rightmost horizontal edge
 // positions (original and hinted) from the auto-hinting pipeline. These
-// are used to compute adjusted advance widths per skrifa instance.rs:127-183.
 //
 // Values are in 26.6 fixed-point.
 type hintedEdgeMetrics struct {
@@ -250,7 +245,7 @@ type hintedEdgeMetrics struct {
 }
 
 // computeAdjustedAdvance computes the hinted advance width from raw advance
-// and edge metrics. This is a faithful port of skrifa instance.rs:127-183.
+// and edge metrics.
 //
 // The algorithm:
 //  1. Scale the font-unit advance to 26.6 via fixed-point multiply
@@ -261,16 +256,9 @@ type hintedEdgeMetrics struct {
 //  6. Return pp2x - pp1x as the adjusted advance
 //
 // For fixed-width fonts or when advance is zero, special handling applies.
-//
-// References:
-//   - skrifa instance.rs:127-183 (advance adjustment)
-//   - FreeType afloader.c:422 (FT_PIX_ROUND adjustment)
 func computeAdjustedAdvance(fontUnitAdvance int32, xScale16dot16 int32, metrics hintedEdgeMetrics, light bool) (advance int32, pp1x int32) {
 	pp2x := fixedMul26dot6(fontUnitAdvance, xScale16dot16)
 
-	// FT light mode skips the phantom-point adjustment entirely
-	// (afloader.c:422 `scaler.render_mode != FT_RENDER_MODE_LIGHT`;
-	// skrifa instance.rs:126-159 `is_light` branch): pp1.x stays 0 and the
 	// glyph outline is NOT translated. Only non-light (full) hinting adjusts
 	// the side bearings from the hinted left/right edges.
 	if light {
@@ -318,8 +306,7 @@ func computeAdjustedAdvance(fontUnitAdvance int32, xScale16dot16 int32, metrics 
 // (e.g., empty glyph, CFF font). Composite glyphs are handled by
 // ParseGlyfContours which recursively flattens components.
 //
-// In addition to hinting coordinates, this computes adjusted advance widths
-// using the skrifa advance adjustment algorithm (instance.rs:127-183). The
+// The
 // adjusted advance is stored in outline.Advance and the outline is translated
 // by -pp1x to account for the shifted left side bearing.
 func autoHintViaContours(outline *GlyphOutline, fontData []byte, font ParsedFont, ppem float64, hinting Hinting) bool {
@@ -335,7 +322,6 @@ func autoHintViaContours(outline *GlyphOutline, fontData []byte, font ParsedFont
 		return false
 	}
 
-	// Compute adjusted advance width (skrifa instance.rs:127-183).
 	// Get font-unit advance from ParsedFont. GlyphAdvance at UPM returns
 	// the font-unit value as a float (fontUnitAdvance * upm/upm = fontUnits).
 	upm := font.UnitsPerEm()
@@ -345,7 +331,6 @@ func autoHintViaContours(outline *GlyphOutline, fontData []byte, font ParsedFont
 	adjustedAdvance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, edgeMetrics, hinting == HintingVertical)
 
 	// Translate outline points by -pp1x if the left phantom shifted.
-	// This matches skrifa instance.rs:165-168.
 	if pp1x != 0 {
 		for i := range hinted.Points {
 			hinted.Points[i].X -= int32(pp1x)
@@ -361,7 +346,6 @@ func autoHintViaContours(outline *GlyphOutline, fontData []byte, font ParsedFont
 	refreshOutlineBounds(outline)
 
 	// Set adjusted advance (convert from 26.6 to pixels, then round).
-	// Matches skrifa instance.rs:183: F26Dot6::from_bits(pix_round(advance)).to_f32()
 	outline.Advance = f26dot6ToFloat(f26dot6Round(adjustedAdvance))
 
 	return true
@@ -384,7 +368,6 @@ func autoHintViaContoursPreloaded(outline *GlyphOutline, contours *GlyfContours,
 		return false
 	}
 
-	// Compute adjusted advance width (skrifa instance.rs:127-183).
 	upm := font.UnitsPerEm()
 	fontUnitAdvance := int32(math.Round(font.GlyphAdvance(uint16(outline.GID), float64(upm))))
 	xScale := computeScale16dot16(ppem / float64(upm))
@@ -427,7 +410,6 @@ func autoHintViaContoursPreloaded(outline *GlyphOutline, contours *GlyfContours,
 //
 // Returns the hinted contours (coordinates in PIXEL space, 26.6) and the
 // horizontal edge metrics for advance width adjustment. The caller uses the
-// edge metrics to compute the adjusted advance per skrifa instance.rs:127-183.
 func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID, ppem float64, hinting Hinting) (*GlyfContours, hintedEdgeMetrics) {
 	var metrics hintedEdgeMetrics
 
@@ -501,7 +483,7 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 			continue
 		}
 
-		// Adjust segment heights (skrifa parity).
+		// Adjust segment heights.
 		adjustSegmentHeights(&points, segments, dim)
 
 		// Link segments into stems.
@@ -525,10 +507,6 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 		}
 
 		// Grid-fit edges.
-		// hint_top_to_bottom only applies to the vertical axis
-		// (skrifa hint/edges.rs:26, SFNT_script hint_top_to_bottom);
-		// top-to-bottom scripts (Devanagari, Bengali, Gurmukhi, Gothic,
-		// Mongolian) reverse the adjust_link order checks.
 		topToBottom := dim == dimVertical && script.hintTopToBottom
 		hintEdges(edges, axisMetrics, group, topToBottom, dim)
 
@@ -538,8 +516,6 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 		alignWeakPoints(&points, dim)
 
 		// Capture horizontal edge metrics for advance adjustment.
-		// Matches skrifa hint/mod.rs:175-184: after H-dimension complete,
-		// record leftmost and rightmost edge opos/pos.
 		if dim == dimHorizontal && len(edges) > 1 {
 			metrics.hasEdges = true
 			metrics.leftOpos = edges[0].opos
@@ -589,11 +565,6 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 //   - Off-curve points produce QuadTo segments (with implied on-curve midpoints
 //     between consecutive off-curve points, per TrueType spec)
 //   - The first point of each contour produces a MoveTo
-//
-// References:
-//   - TrueType glyf table spec: consecutive off-curve points imply an on-curve
-//     midpoint between them.
-//   - FreeType FT_Outline_Decompose (ftoutln.c) — canonical outline decomposition
 func contoursToOutline(contours *GlyfContours) *GlyphOutline {
 	if contours == nil || len(contours.Points) == 0 {
 		return &GlyphOutline{}
@@ -869,18 +840,18 @@ type scaledStyleMetrics struct {
 
 // scaledAxisMetrics holds scaled metrics for one axis.
 type scaledAxisMetrics struct {
-	widths            []scaledWidth
-	standardWidth     int32   // standard width in font units
-	maxWidth          int32   // maximum width in font units (for segment linking)
-	edgeDistThreshold float32 // scaled: font-units edt × scale (px)
-	edgeDistThresholdUnscaled int32 // unscaled edt in font units (for the FT_DivFix(FT_MulFix(...)) edge grouping threshold)
-	scale             float64 // ppem / unitsPerEm
-	scale16dot16      int32   // scale as 16.16 fixed-point
-	unitsPerEm        int     // font UPM (for derived constants in segment linking)
-	blues             []scaledBlue
-	isExtraLight      bool
-	doStemAdjust      bool          // FT AF_LATIN_HINTS_STEM_ADJUST; off for FT light mode
-	majorDir          hintDirection // major direction for blue edge matching
+	widths                    []scaledWidth
+	standardWidth             int32   // standard width in font units
+	maxWidth                  int32   // maximum width in font units (for segment linking)
+	edgeDistThreshold         float32 // scaled: font-units edt × scale (px)
+	edgeDistThresholdUnscaled int32   // unscaled edt in font units (for the FT_DivFix(FT_MulFix(...)) edge grouping threshold)
+	scale                     float64 // ppem / unitsPerEm
+	scale16dot16              int32   // scale as 16.16 fixed-point
+	unitsPerEm                int     // font UPM (for derived constants in segment linking)
+	blues                     []scaledBlue
+	isExtraLight              bool
+	doStemAdjust              bool          // FT AF_LATIN_HINTS_STEM_ADJUST; off for FT light mode
+	majorDir                  hintDirection // major direction for blue edge matching
 }
 
 // scaledWidth holds a width value in both scaled and fitted forms.
@@ -924,8 +895,6 @@ func computeUnscaledMetricsForScript(font ParsedFont, script *scriptClass) *unsc
 // scale returns scaled metrics for the given scale factor.
 // Routes to CJK-specific scaling for CJK script group, which differs
 // from Default in width and blue zone handling.
-//
-// See skrifa metrics/scale.rs scale_style_metrics.
 func (m *unscaledStyleMetrics) scale(scaleFactor float64) *scaledStyleMetrics {
 	sm := &scaledStyleMetrics{scale: scaleFactor}
 	if m.group == scriptGroupCJK {
@@ -959,10 +928,7 @@ func (m *unscaledStyleMetrics) scaleWithUPM(scaleFactor float64, upm int) *scale
 	for dim := range 2 {
 		sm.axes[dim].unitsPerEm = upm
 	}
-	// Set major direction per axis. TrueType default orientation (None):
-	//   - H-axis (vertical stems): major = dirUp
-	//   - V-axis (horizontal stems): major = dirLeft
-	// See skrifa topo/mod.rs:96-101 Axis::reset.
+	// Set major direction per axis.
 	sm.axes[dimHorizontal].majorDir = dirUp
 	sm.axes[dimVertical].majorDir = dirLeft
 	return sm
@@ -974,16 +940,11 @@ func (m *unscaledStyleMetrics) scaleWithUPM(scaleFactor float64, upm int) *scale
 // FreeType afhints.c:942-949 sets the axes' major directions from the outline
 // orientation detected in FT_Outline_Get_Orientation:
 //
-//	TrueType (clockwise): H major = UP,    V major = LEFT
+//	TrueType (clockwise): H major = UP, V major = LEFT
 //	PostScript (counter-clockwise): H major = DOWN, V major = RIGHT
 //
-// skrifa topo/mod.rs Axis::reset performs the same mapping keyed on
-// Orientation::Clockwise. The orientation is computed from the shoelace area
-// over each contour's points (skrifa outline.rs compute_orientation, same
-// polygon formula as FT_Outline_Get_Orientation):
-//
-//	area >  0  -> counter-clockwise (PostScript orientation)
-//	area <= 0  -> clockwise / degenerate  (TrueType default)
+//	area > 0 -> counter-clockwise (PostScript orientation)
+//	area <= 0 -> clockwise / degenerate (TrueType default)
 //
 // Glyphs from TrueType fonts are normally clockwise, so the TrueType default
 // set in scaleWithUPM is correct for most fonts. Some CJK fonts (e.g. the
@@ -1007,8 +968,8 @@ func (sm *scaledStyleMetrics) applyOutlineOrientation(contours *GlyfContours) {
 // face RIGHT and vertical stems face UP, flipping both blue-zone matching
 // and segment linking in FreeType af_glyph_hints_reload (afhints.c:940-949).
 //
-// area >  0  -> counter-clockwise (PostScript orientation)
-// area <= 0  -> clockwise / degenerate  (TrueType default)
+// area > 0 -> counter-clockwise (PostScript orientation)
+// area <= 0 -> clockwise / degenerate (TrueType default)
 func outlineHasPSOrientation(contours *GlyfContours) bool {
 	var area int64
 	start := 0
@@ -1032,12 +993,12 @@ func outlineHasPSOrientation(contours *GlyfContours) bool {
 // scaleTo scales axis metrics to the given scale factor.
 func (a *unscaledAxisMetrics) scaleTo(scale float64) scaledAxisMetrics {
 	sa := scaledAxisMetrics{
-		standardWidth:            a.standardWidth,
-		edgeDistThreshold:        float32(float64(a.edgeDistThreshold) * scale),
+		standardWidth:             a.standardWidth,
+		edgeDistThreshold:         float32(float64(a.edgeDistThreshold) * scale),
 		edgeDistThresholdUnscaled: a.edgeDistThreshold,
-		scale:                    scale,
-		scale16dot16:             computeScale16dot16(scale),
-		doStemAdjust:             true, // FT normal mode default; FT light clears it
+		scale:                     scale,
+		scale16dot16:              computeScale16dot16(scale),
+		doStemAdjust:              true, // FT normal mode default; FT light clears it
 	}
 
 	// Set max width from unscaled widths.
@@ -1048,8 +1009,6 @@ func (a *unscaledAxisMetrics) scaleTo(scale float64) scaledAxisMetrics {
 	}
 
 	// Scale widths to 26.6 fixed-point.
-	// Matches skrifa: scaled = fixed_mul(width, axis_scale) where axis_scale
-	// is in 16.16 and width is in font units (treated as 26.6 * 64 = integer).
 	sa.widths = make([]scaledWidth, len(a.widths))
 	for i, w := range a.widths {
 		scaled := f26dot6FromFloat(float64(w) * scale)
@@ -1067,17 +1026,14 @@ func (a *unscaledAxisMetrics) scaleTo(scale float64) scaledAxisMetrics {
 // scaleToCJK scales CJK axis metrics. Unlike Default scaling, CJK never
 // computes scaled width values — they are always zeroed. Width metrics
 // (standardWidth, edgeDistThreshold) are preserved for segment linking.
-//
-// See skrifa metrics/scale.rs scale_cjk_axis_metrics, line 326:
-// "FreeType never seems to compute scaled width values."
 func (a *unscaledAxisMetrics) scaleToCJK(scale float64) scaledAxisMetrics {
 	sa := scaledAxisMetrics{
-		standardWidth:            a.standardWidth,
-		edgeDistThreshold:        float32(float64(a.edgeDistThreshold) * scale),
+		standardWidth:             a.standardWidth,
+		edgeDistThreshold:         float32(float64(a.edgeDistThreshold) * scale),
 		edgeDistThresholdUnscaled: a.edgeDistThreshold,
-		scale:                    scale,
-		scale16dot16:             computeScale16dot16(scale),
-		doStemAdjust:             true,
+		scale:                     scale,
+		scale16dot16:              computeScale16dot16(scale),
+		doStemAdjust:              true,
 	}
 
 	// Set max width from unscaled widths.
@@ -1121,8 +1077,6 @@ func pixRound(x float32) float32 {
 // computeScale16dot16 computes a 16.16 fixed-point scale factor from a
 // floating-point scale (ppem / unitsPerEm).
 //
-// Matches skrifa's Scale::new computation exactly:
-//
 //	scale = (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits()
 //
 // which is: ((ppem * 64) << 16) / upm using integer division (truncation).
@@ -1139,7 +1093,6 @@ func computeScale16dot16(scale float64) int32 {
 }
 
 // derivedConstant computes a scaled constant from units_per_em.
-// Matches FreeType's AF_LATIN_CONSTANT macro with the standard value of 50.
 func derivedConstant(unitsPerEm int) int32 {
 	return int32(50 * unitsPerEm / 2048)
 }

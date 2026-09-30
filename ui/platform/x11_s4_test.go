@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -42,7 +52,7 @@ func TestX11S4ProcessKeyEvent(t *testing.T) {
 	if empty.ProcessKeyEvent(38, 0, true) {
 		t.Fatalf("B14 empty path should not be handled")
 	}
-	// B14: timeout within 150ms+margin (S4 fix for m/没 deadline)
+	// B14: timeout within 150ms+margin
 	t0 := time.Now()
 	handled := x.ProcessKeyEvent(38, 0, true)
 	elapsed := time.Since(t0)

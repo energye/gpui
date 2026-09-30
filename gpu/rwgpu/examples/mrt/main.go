@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build windows
 
 // Package main demonstrates Multiple Render Targets (MRT) using go-webgpu.
@@ -388,7 +398,7 @@ func (app *App) createExtraTexture() error {
 func (app *App) createVertexBuffer() error {
 	// Vertex data: position (x, y) + color (r, g, b)
 	vertices := []float32{
-		// position (x, y)    color (r, g, b)
+		// position (x, y) color (r, g, b)
 		0.0, 0.5, 1.0, 0.0, 0.0, // top - red
 		-0.5, -0.5, 0.0, 1.0, 0.0, // bottom-left - green
 		0.5, -0.5, 0.0, 0.0, 1.0, // bottom-right - blue

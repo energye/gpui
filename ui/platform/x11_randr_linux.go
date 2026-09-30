@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -14,19 +24,18 @@ import (
 // 无 RandR 时回退到 XTranslateCoordinates 的 root 坐标。
 
 type xrandrLib struct {
-	lib           uintptr
-	getMonitors   func(dpy uintptr, win uintptr, getActive int, nmonitors *int) uintptr
-	freeMonitors  func(monitors uintptr) int
-	getResources  func(dpy uintptr, win uintptr) uintptr
-	freeResources func(res uintptr) int
-	getCrtcInfo   func(dpy uintptr, res uintptr, crtc uintptr) uintptr
-	freeCrtcInfo  func(info uintptr) int
-	// S6-P0 scale notices: extension event base + root selection.
+	lib            uintptr
+	getMonitors    func(dpy uintptr, win uintptr, getActive int, nmonitors *int) uintptr
+	freeMonitors   func(monitors uintptr) int
+	getResources   func(dpy uintptr, win uintptr) uintptr
+	freeResources  func(res uintptr) int
+	getCrtcInfo    func(dpy uintptr, res uintptr, crtc uintptr) uintptr
+	freeCrtcInfo   func(info uintptr) int
 	queryExtension func(dpy uintptr, eventBase, errorBase *int32) int
 	selectInput    func(dpy, win uintptr, mask int) int
 }
 
-// RandR screen-change notice (Xrandr.h): the event number is an offset from
+// RandR screen-change notice: the event number is an offset from
 // the extension event base; RRScreenChangeNotifyMask selects it on the root.
 const (
 	rrScreenChangeNotify     = 0

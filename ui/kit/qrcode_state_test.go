@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit_test
 
 import (
@@ -13,7 +23,6 @@ func qrProps(value string) kit.QRCodeProps {
 }
 
 func TestQRCode_StateMachineMatchesCases(t *testing.T) {
-	// QR-S1/S2: non-empty value encodes; default size 160.
 	host := kit.BuildQRCode(kit.DefaultScopeCtx(), qrProps("https://ant.design"))
 	if host.Modules() < 21 {
 		t.Fatalf("modules = %d want >= 21", host.Modules())
@@ -29,7 +38,6 @@ func TestQRCode_StateMachineMatchesCases(t *testing.T) {
 	if empty.Modules() != 0 || empty.Matrix() != nil {
 		t.Fatal("empty value must yield no matrix")
 	}
-	// QR-S3/S4: expired cover + refresh fires once.
 	host.SetCoverStatus(kit.QRCodeStatusExpired)
 	if !host.HasCover() {
 		t.Fatal("expired must show cover")
@@ -43,14 +51,12 @@ func TestQRCode_StateMachineMatchesCases(t *testing.T) {
 	if active.ClickRefresh() {
 		t.Fatal("active must not refresh")
 	}
-	// QR-S5: icon flag follows props.
 	iprops := qrProps("x")
 	iprops.Icon = "https://example.com/logo.png"
 	ihost := kit.BuildQRCode(kit.DefaultScopeCtx(), iprops)
 	if !ihost.HasIcon() {
 		t.Fatal("icon src must report HasIcon")
 	}
-	// QR-S9/S10: loading spins with Tick; scanned covers.
 	lhost := kit.BuildQRCode(kit.DefaultScopeCtx(), qrProps("x"))
 	lhost.SetCoverStatus(kit.QRCodeStatusLoading)
 	lhost.Tick(0.25)
@@ -64,7 +70,6 @@ func TestQRCode_StateMachineMatchesCases(t *testing.T) {
 	if !lhost.HasCover() || lhost.CoverText() == "" {
 		t.Fatal("scanned must cover with copy")
 	}
-	// QR-S11: statusRender overrides default cover copy.
 	sprops := qrProps("x")
 	sprops.Status = kit.QRCodeStatusExpired
 	sprops.StatusRender = func(kit.QRCodeStatusInfo) string { return "custom cover" }

@@ -1,11 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
-// Type 2 charstring 解释器（M1）。
 //
 // 语义对齐 freetype-2.14.3 src/psaux/cffdecode.c 的
 // cff_decoder_parse_charstrings（宽度判定 / flex 点序列 / 轮廓闭合）。
-// 输出字体单位（cs）精确轮廓与 hstem/vstem 对，供 cf2HintMap（M2）使用，
-// 消除从 26.6 像素反推的 ±1.3FU 误差（§13.4）。
 
 import (
 	"fmt"
@@ -46,11 +53,8 @@ type csOutline struct {
 	hasWidth bool
 	seac     *csSeac
 	// hintmaskCount 是 charstring 中 hintmask/cntrmask 操作符出现次数。
-	// 0 = 单区（全 stem 一直激活，M2 验证线）；>0 = 多区（M3 hintmask 分区）。
 	hintmaskCount int
-	// maskEvents 记录每个 hintmask/cntrmask 事件（M3 分区依据）：
-	// 事件后产出的路径点（pts[atPt:]）用该 mask 的 hintmap。
-	maskEvents []csMaskEvent
+	maskEvents    []csMaskEvent
 }
 
 // csMaskEvent 是一次 hintmask/cntrmask 事件（cf2 语义：psintrp.c HINTMASK 分支）。
@@ -79,7 +83,6 @@ type csInterp struct {
 	maskSincePath bool   // 最近一次 path op 后是否读到过 mask（FT isNew）
 	depth         int
 
-	// CFF2 模式（M5）：可变字体 charstring 支持 vsindex/blend。
 	// vsIndex 是当前生效的 ItemVariationData 下标（op 15 更新，初始 = Private
 	// DICT op 22 的 vsindex）；blend 是字体的变体数据（见 cff2.go）。
 	isCFF2  bool
@@ -113,7 +116,6 @@ func interpretCharstring(data []byte, subrs, gsubrs [][]byte, nominalWidthX floa
 	return &ip.out, nil
 }
 
-// interpretCharstring2 解释一条 CFF2 charstring（M5）。
 // CFF2 语义差异（psintrp.c:570-598）：
 //   - charstring 无 width 参数（haveWidth 始终 TRUE，width = defaultWidthX）。
 //   - 支持 vsindex(15) / blend(16) 变体指令。
@@ -605,7 +607,7 @@ func (ip *csInterp) exec(op int) error {
 		// sum16>>10，四舍五入回整数 FUnit 会引入 0.5 FUnit 级误差）。
 		args := ip.stack[len(ip.stack)-need : len(ip.stack)-1]
 		for i := 0; i < n; i++ {
-			sum := int64(args[i]*65536)
+			sum := int64(args[i] * 65536)
 			for j := 0; j < k; j++ {
 				// FT_MulFix(BV_j, delta16_j) = (BV_j*delta16_j + 0x8000)>>16
 				// （FT psintrp.c cf2_doBlend：BV 与 delta 均 16.16，乘积回 16.16）。

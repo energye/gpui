@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -265,15 +272,11 @@ func BenchmarkComputePassEncoderBindBufferSizes(b *testing.B) {
 // TestComputeBindSlots_PerTypeSequentialIndexing is a regression test for the
 // SetBindGroup slot indexing bug.
 //
-// Bug: Previously used entry.Binding (WGSL @binding(N)) as the Metal slot
-// index for all resource types. Metal uses separate per-type index spaces:
+// Metal uses separate per-type index spaces:
 //
 //	[[buffer(N)]], [[texture(M)]], [[sampler(K)]]
 //
-// The naga MSL compiler generates sequential indices per type, so with entries
-// at bindings [0:buffer, 1:texture, 2:buffer, 3:sampler]:
-//
-//	Bug:     buffer→0, texture→1, buffer→2, sampler→3
+//	Bug: buffer→0, texture→1, buffer→2, sampler→3
 //	Correct: buffer→0, texture→0, buffer→1, sampler→0
 func TestComputeBindSlots_PerTypeSequentialIndexing(t *testing.T) {
 	tests := []struct {

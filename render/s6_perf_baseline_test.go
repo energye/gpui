@@ -1,21 +1,29 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// S6.0 deep performance baseline + regression lock (measure-only).
 //
-// Frozen present-only scene set = S5 U/P scenes + heavy H* scenes (full redraw /
 // layer / path / text / image). Dual track: present-only primary; optional
 // single-scene readback contrast for documentation (not a 60fps claim).
 //
 // Env:
-//   WGPU_NATIVE_PATH     required
-//   S6_PERF_WARMUP       default 3 (locked in docs/S6_PERF_BASELINE.md)
-//   S6_PERF_ITERS        default 10
-//   S6_PERF_JSON         default <repo>/tmp/s6_present_baseline.json
-//   S6_WRITE_BASELINE=1  overwrite frozen baseline JSON (default: keep freeze; always write s6_present_latest.json)
-//   S6_MAIN_PATH_BUDGET  default 16.7 (p50 ms)
-//   S6_REGRESS_PCT       default 10 (main-path allowed regression vs budget floor)
+//   WGPU_NATIVE_PATH required
+//   S6_PERF_WARMUP default 3 (locked in docs/S6_PERF_BASELINE.md)
+//   S6_PERF_ITERS default 10
+//   S6_PERF_JSON default <repo>/tmp/s6_present_baseline.json
+//   S6_WRITE_BASELINE=1 overwrite frozen baseline JSON (default: keep freeze; always write s6_present_latest.json)
+//   S6_MAIN_PATH_BUDGET default 16.7 (p50 ms)
+//   S6_REGRESS_PCT default 10 (main-path allowed regression vs budget floor)
 
 import (
 	"encoding/json"
@@ -30,7 +38,6 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// S6.0 locked defaults (document must match).
 const (
 	s6DefaultWarmup      = 3
 	s6DefaultIters       = 10
@@ -39,7 +46,6 @@ const (
 	s6BaselineVersion    = "s6.0-present-1"
 )
 
-// Frozen scene names for S6 — do not rename/remove without bumping baseline version.
 var s6FrozenSceneNames = []string{
 	"P01_SolidPresent",
 	"U01_StaticShell",
@@ -268,7 +274,6 @@ func s6HeavyScenes() []s5Scene {
 }
 
 func s6AllScenes() []s5Scene {
-	// Frozen order: S5 scenes then heavy.
 	out := append([]s5Scene{}, s5Scenes()...)
 	out = append(out, s6HeavyScenes()...)
 	return out
@@ -371,7 +376,7 @@ func TestS6_PresentBaseline_Scenes(t *testing.T) {
 	if err := os.WriteFile(latest, raw, 0o644); err != nil {
 		t.Fatalf("write %s: %v", latest, err)
 	}
-	// Frozen S6.0 baseline is authoritative for S6.9 relative gates. Only refresh
+	// Only refresh
 	// when missing or S6_WRITE_BASELINE=1 (explicit re-freeze). Full unit suites must
 	// not clobber the freeze with same-day noise and then require "must improve" vs self.
 	writeFreeze := os.Getenv("S6_WRITE_BASELINE") == "1"
@@ -431,7 +436,6 @@ func s6MeasureReadbackContrast(t *testing.T, warmup, iters int) *s6ReadbackNote 
 	}
 }
 
-// TestS6_RegressionLock_Contract verifies S6.0 freeze invariants after baseline JSON exists.
 // Run after TestS6_PresentBaseline_Scenes in CI, or alone if JSON already present.
 func TestS6_RegressionLock_Contract(t *testing.T) {
 	p1RequireGPU(t)
@@ -489,7 +493,6 @@ func TestS6_RegressionLock_Contract(t *testing.T) {
 		len(doc.Scenes), doc.MainPathBudgetMs, doc.ReadbackContrast.PresentP50Ms, doc.ReadbackContrast.ReadbackP50Ms)
 }
 
-// TestS6_L0_MainPathStillGreen is the L0 smoke required every later S6.x slice.
 func TestS6_L0_MainPathStillGreen(t *testing.T) {
 	p1RequireGPU(t)
 	budget := s5EnvFloat("S6_MAIN_PATH_BUDGET", s6MainPathBudgetMs)

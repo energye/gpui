@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -17,10 +27,6 @@ const clipParamsSize = 32
 // ClipParams holds the parameters for analytic RRect clipping in fragment
 // shaders. When Enabled is 1.0, the fragment shader evaluates the RRect SDF
 // per pixel and multiplies the output alpha by the clip coverage.
-//
-// This struct is serialized to a 32-byte uniform buffer bound at @group(1)
-// @binding(0) across all 5 render pipelines (SDF, convex, cover, MSDF text,
-// glyph mask).
 type ClipParams struct {
 	// RectX1, RectY1 are the left-top corner in device pixels.
 	RectX1, RectY1 float32
@@ -33,7 +39,7 @@ type ClipParams struct {
 }
 
 // Bytes serializes ClipParams to a fresh 32-byte buffer suitable for GPU upload.
-// Hot paths should prefer BytesInto to avoid per-call allocation (S6.2).
+// Hot paths should prefer BytesInto to avoid per-call allocation.
 func (p *ClipParams) Bytes() []byte {
 	return p.BytesInto(nil)
 }

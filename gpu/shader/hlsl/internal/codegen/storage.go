@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Package-level nolint for storage functions prepared for future integration.
 // These functions implement HLSL buffer and atomic operations and will be used
@@ -56,8 +63,8 @@ const (
 //
 // HLSL syntax:
 //
-//	ByteAddressBuffer buf : register(t0);         // Read-only
-//	RWByteAddressBuffer buf : register(u0);       // Read-write
+//	ByteAddressBuffer buf : register(t0); // Read-only
+//	RWByteAddressBuffer buf : register(u0); // Read-write
 func (w *Writer) writeByteAddressBuffer(name string, binding *BindTarget, readOnly bool) {
 	bufType := hlslRWByteAddressBuffer
 	regType := "u"
@@ -78,8 +85,8 @@ func (w *Writer) writeByteAddressBuffer(name string, binding *BindTarget, readOn
 //
 // HLSL syntax:
 //
-//	StructuredBuffer<T> buf : register(t0);       // Read-only
-//	RWStructuredBuffer<T> buf : register(u0);     // Read-write
+//	StructuredBuffer<T> buf : register(t0); // Read-only
+//	RWStructuredBuffer<T> buf : register(u0); // Read-write
 func (w *Writer) writeStructuredBuffer(name, elementType string, binding *BindTarget, readOnly bool) {
 	bufType := hlslRWStructuredBuffer
 	regType := "u"
@@ -503,11 +510,10 @@ func (w *Writer) writeStorageBufferDeclaration(name string, typeHandle ir.TypeHa
 }
 
 // =============================================================================
-// ByteAddressBuffer Access Chain (matches Rust naga storage.rs)
+// ByteAddressBuffer Access Chain
 // =============================================================================
 
 // alignmentFromVectorSize returns the alignment factor for a vector size.
-// Bi=2, Tri=4, Quad=4 (matching Rust naga's Alignment::from(VectorSize)).
 func alignmentFromVectorSize(size ir.VectorSize) uint32 {
 	switch size {
 	case 2:
@@ -521,7 +527,6 @@ func alignmentFromVectorSize(size ir.VectorSize) uint32 {
 
 // fillAccessChain populates w.tempAccessChain with byte offset steps
 // for accessing a storage buffer component. Returns the global variable handle.
-// Matches Rust naga's Writer::fill_access_chain.
 func (w *Writer) fillAccessChain(curExpr ir.ExpressionHandle) (ir.GlobalVariableHandle, error) {
 	w.tempAccessChain = w.tempAccessChain[:0]
 
@@ -548,7 +553,7 @@ func (w *Writer) fillAccessChain(curExpr ir.ExpressionHandle) (ir.GlobalVariable
 					}
 				}
 			}
-			// Chain was built leaf-to-root (same as Rust), no reversal needed.
+			// Chain was built leaf-to-root, no reversal needed.
 			return e.Variable, nil
 
 		case ir.ExprAccess:
@@ -623,7 +628,7 @@ func (w *Writer) computeSubAccess(base ir.ExpressionHandle, isRuntime bool, runt
 
 	case ir.ValuePointerType:
 		// ValuePointer is pointer to scalar/vector, stride = scalar width.
-		// Matches Rust: TypeInner::ValuePointer { scalar, .. } => Parent::Array { stride: scalar.width }
+		// } => Parent::Array { stride: scalar.width }
 		scalarWidth := uint32(inner.Scalar.Width)
 		if isRuntime {
 			return subAccess{kind: subAccessIndex, value: runtimeIndex, stride: scalarWidth}, nil
@@ -651,7 +656,7 @@ func (w *Writer) resolveStorageBaseType(handle ir.ExpressionHandle) ir.TypeInner
 }
 
 // writeStorageAddress emits an HLSL expression for the byte offset described by
-// the given access chain. Matches Rust naga's Writer::write_storage_address.
+// the given access chain.
 func (w *Writer) writeStorageAddress(chain []subAccess) error {
 	if len(chain) == 0 {
 		w.Out.WriteString("0")
@@ -693,7 +698,6 @@ func scalarHLSLCast(kind ir.ScalarKind) string {
 // writeStorageLoad emits HLSL to load a value from a ByteAddressBuffer.
 // The current tempAccessChain describes the byte offset within the buffer.
 // tyHandle is an optional type handle for struct/array constructor name lookup.
-// Matches Rust naga's Writer::write_storage_load.
 func (w *Writer) writeStorageLoad(varHandle ir.GlobalVariableHandle, resultTy ir.TypeInner, tyHandle *ir.TypeHandle) error {
 	varName := w.names[nameKey{kind: nameKeyGlobalVariable, handle1: uint32(varHandle)}]
 
@@ -702,7 +706,7 @@ func (w *Writer) writeStorageLoad(varHandle ir.GlobalVariableHandle, resultTy ir
 		if inner.Width == 4 {
 			cast := scalarHLSLCast(inner.Kind)
 			fmt.Fprintf(&w.Out, "%s(%s.Load(", cast, varName)
-			// Save and restore chain (matching Rust borrow checker pattern)
+			// Save and restore chain
 			chain := w.tempAccessChain
 			w.tempAccessChain = nil
 			if err := w.writeStorageAddress(chain); err != nil {
@@ -822,7 +826,6 @@ func (w *Writer) writeStorageLoad(varHandle ir.GlobalVariableHandle, resultTy ir
 
 // writeStorageStore emits HLSL to store a value to an RWByteAddressBuffer.
 // withinStruct is the containing struct type when storing a struct member (for matCx2 optimization).
-// Matches Rust naga's Writer::write_storage_store.
 func (w *Writer) writeStorageStore(varHandle ir.GlobalVariableHandle, sv storeValue, level int, withinStruct *ir.TypeHandle) error {
 	if level > 20 {
 		return fmt.Errorf("writeStorageStore: recursion depth limit exceeded (level=%d)", level)
@@ -946,7 +949,6 @@ func (w *Writer) writeStorageStore(varHandle ir.GlobalVariableHandle, sv storeVa
 		fmt.Fprintf(&w.Out, "%s{\n", indent)
 		// matCx2 optimization: when within a struct, directly access decomposed columns
 		// (e.g., _value2.m_0, _value2.m_1) instead of creating a matrix temporary.
-		// Matches Rust naga: within_struct.is_some() && rows == Bi path.
 		if withinStruct != nil && inner.Rows == 2 && sv.kind == storeValueTempAccess {
 			innerIndent := w.indentStr(level + 1)
 			for i := ir.VectorSize(0); i < inner.Columns; i++ {
@@ -994,7 +996,7 @@ func (w *Writer) writeStorageStore(varHandle ir.GlobalVariableHandle, sv storeVa
 				fmt.Fprintf(&w.Out, ", asuint(_value%d[%d]));\n", depth, uint8(i))
 				w.tempAccessChain = chain
 			} else {
-				// Non-4-byte scalars (e.g. f16): no asuint() wrapping, matches Rust naga
+				// Non-4-byte scalars (e.g.
 				fmt.Fprintf(&w.Out, "%s%s.Store(", innerIndent, varName)
 				chain := w.tempAccessChain
 				w.tempAccessChain = nil

@@ -1,8 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// P1 Tier A — complex UI scene matrix (controls morphology, not control widgets).
 //
 // Architecture:
 //   render.Context → accelerator → gpu/webgpu → gpu/rwgpu → libwgpu_native
@@ -12,7 +21,6 @@ package render_test
 //   - Pixel / region checks for critical structure
 //   - Scenes model Ant Design–class drawing density (rrect, layer, clip, text, grid)
 //
-// IDs A1–A8 match docs/OPTIMIZATION_PLAN.md P1 Tier A.
 
 import (
 	"fmt"
@@ -2969,7 +2977,7 @@ func TestP1_L2_TableSelectionToasts(t *testing.T) {
 
 // --- Tier M: chart/dashboard with advanced blend accents ---
 
-// M1: dashboard cards + Difference/Darken accent overlays (UI viz morphology).
+// dashboard cards + Difference/Darken accent overlays (UI viz morphology).
 func TestP1_M1_ChartDashboardBlend(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 560, 360
@@ -3053,7 +3061,7 @@ func TestP1_M1_ChartDashboardBlend(t *testing.T) {
 	}
 }
 
-// M2: multi-layer map-like heat using SoftLight/Lighten (geo-dashboard morph).
+// multi-layer map-like heat using SoftLight/Lighten (geo-dashboard morph).
 func TestP1_M2_HeatmapSoftLightDensity(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 400, 300
@@ -3475,7 +3483,7 @@ func TestP1_O2_GanttDependencyDensity(t *testing.T) {
 
 // --- Tier P: advanced blend + compute path UI morphology ---
 
-// P1: dense cards + staged advanced blends (ColorBurn/Exclusion/SoftLight).
+// dense cards + staged advanced blends (ColorBurn/Exclusion/SoftLight).
 // Dual-tex blends sample destination pixmap — FlushGPU before blend ops.
 // ColorBurn over pure white is mathematically near-identity; sample over inked bars.
 func TestP1_P1_AdvancedBlendCompositeDensity(t *testing.T) {
@@ -3595,7 +3603,7 @@ func TestP1_P1_AdvancedBlendCompositeDensity(t *testing.T) {
 	}
 }
 
-// P2: UI chrome + compute-path canvas (K.01) in one scene.
+// UI chrome + compute-path canvas (K.01) in one scene.
 func TestP1_P2_ComputePathUIChromeDensity(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 520, 360
@@ -3897,7 +3905,7 @@ func TestP1_Q2_TriplePaneDamageDensity(t *testing.T) {
 
 // --- Tier R: spreadsheet / data-grid density ---
 
-// R1: frozen header + many cells + selection + formula bar.
+// frozen header + many cells + selection + formula bar.
 func TestP1_R1_SpreadsheetGridDensity(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 760, 420
@@ -4001,7 +4009,7 @@ func TestP1_R1_SpreadsheetGridDensity(t *testing.T) {
 	p1NotNearWhite(t, "col header", r3, g3, b3)
 }
 
-// R2: pivot-like heatmap cells + legend + filter chips.
+// pivot-like heatmap cells + legend + filter chips.
 func TestP1_R2_PivotHeatmapDensity(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 640, 400
@@ -4069,7 +4077,7 @@ func TestP1_R2_PivotHeatmapDensity(t *testing.T) {
 
 // --- Tier S: kanban + storyboard density ---
 
-// S1: kanban columns with cards, badges, and drag ghost.
+// kanban columns with cards, badges, and drag ghost.
 func TestP1_S1_KanbanBoardDensity(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 780, 420
@@ -4154,7 +4162,7 @@ func TestP1_S1_KanbanBoardDensity(t *testing.T) {
 	}
 }
 
-// S2: storyboard / filmstrip frames with non-affine image quads.
+// storyboard / filmstrip frames with non-affine image quads.
 func TestP1_S2_StoryboardFilmstripDensity(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 720, 320

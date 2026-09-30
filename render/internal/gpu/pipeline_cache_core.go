@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
@@ -646,23 +656,23 @@ func createRenderPipeline(device hal.Device, desc *RenderPipelineDescriptor) (*R
 	// gpuDesc := &hal.RenderPipelineDescriptor{
 	//     Label: desc.Label,
 	//     Vertex: hal.VertexState{
-	//         Module:     desc.VertexShader.Raw(),
+	//         Module: desc.VertexShader.Raw(),
 	//         EntryPoint: vertexEntry,
-	//         Buffers:    convertVertexBufferLayouts(desc.VertexBufferLayouts),
+	//         Buffers: convertVertexBufferLayouts(desc.VertexBufferLayouts),
 	//     },
 	//     Fragment: &hal.FragmentState{
-	//         Module:     desc.FragmentShader.Raw(),
+	//         Module: desc.FragmentShader.Raw(),
 	//         EntryPoint: fragmentEntry,
 	//         Targets: []hal.ColorTargetState{{
-	//             Format:    desc.ColorFormat,
-	//             Blend:     convertBlendState(desc.BlendState),
+	//             Format: desc.ColorFormat,
+	//             Blend: convertBlendState(desc.BlendState),
 	//             WriteMask: gputypes.ColorWriteMaskAll,
 	//         }},
 	//     },
 	//     Primitive: hal.PrimitiveState{
-	//         Topology:  desc.PrimitiveTopology,
+	//         Topology: desc.PrimitiveTopology,
 	//         FrontFace: desc.FrontFace,
-	//         CullMode:  desc.CullMode,
+	//         CullMode: desc.CullMode,
 	//     },
 	//     DepthStencil: convertDepthState(desc),
 	//     Multisample: hal.MultisampleState{
@@ -706,7 +716,7 @@ func createComputePipeline(device hal.Device, desc *ComputePipelineDescriptor) (
 	// gpuDesc := &hal.ComputePipelineDescriptor{
 	//     Label: desc.Label,
 	//     Compute: hal.ProgrammableStageDescriptor{
-	//         Module:     desc.ComputeShader.Raw(),
+	//         Module: desc.ComputeShader.Raw(),
 	//         EntryPoint: entryPoint,
 	//     },
 	// }

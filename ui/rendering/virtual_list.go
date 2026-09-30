@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -22,7 +32,7 @@ type VirtualList struct {
 	Base
 	ItemCount  int
 	ItemExtent float64 // fixed-row height, or fallback when ItemExtentAt returns ≤0
-	// ItemExtentAt when non-nil enables variable-height mode (P2).
+	// ItemExtentAt when non-nil enables variable-height mode.
 	ItemExtentAt ItemExtentFunc
 	Builder      ItemBuilder
 	CacheExtent  float64 // extra logical px above/below viewport
@@ -103,7 +113,7 @@ func (v *VirtualList) InvalidateExtents() {
 }
 
 // RefreshExtents re-reads heights over [first, last) and patches the prefix
-// in place (M4.1: 懒测量的增量发布). Cost is O(last-first) extent calls +
+// in place. Cost is O(last-first) extent calls +
 // one O(n) suffix shift with plain float adds and zero allocation — about
 // 10x cheaper than a full rebuild (which also pays per-row closure calls
 // plus an 8MB alloc per 1e6 rows). Reports whether any height changed.
@@ -608,7 +618,7 @@ func (v *VirtualList) HitTest(p Point) RenderObject {
 	return nil
 }
 
-// ---- metrics pickup (R7/R7b; sampled by PipelineApp after present) ----
+// ---- metrics pickup ----
 
 // virtualBindSnap is the latest rebind window. Single-list windows are exact;
 // with several lists the most recent rebind wins.

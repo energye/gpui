@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -75,7 +82,6 @@ func initHiddenWindowProcs() error {
 
 // registerHiddenWindowClass registers a window class for hidden GL windows.
 // Uses CS_OWNDC so each window gets a persistent DC (required for WGL).
-// Follows Rust wgpu-hal wgl.rs:272-342.
 func registerHiddenWindowClass() error {
 	var regErr error
 	hiddenClassOnce.Do(func() {
@@ -108,9 +114,7 @@ func registerHiddenWindowClass() error {
 // HiddenWindow holds a hidden 1×1 window used to host the GL context.
 // Created on the calling thread (not a goroutine) because Windows HWND/HDC
 // handles are thread-safe but CS_OWNDC gives a persistent DC tied to the window.
-// Follows Rust wgpu-hal wgl.rs:344-446 (InstanceDevice pattern).
 //
-// Rust uses a dedicated OS thread because Rust threads = OS threads.
 // In Go, goroutines migrate between OS threads, so we create the hidden window
 // on the caller's thread instead. The window has no message pump — it exists
 // solely to own a DC for the GL context.

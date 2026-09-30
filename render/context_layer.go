@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -44,7 +54,7 @@ type Layer struct {
 // layerStack manages the layer hierarchy for the context.
 type layerStack struct {
 	layers []*Layer
-	// pool reuses full-surface layer Pixmaps (S6.4). intImage.Pool is ImageBuf-only.
+	// pool reuses full-surface layer Pixmaps. intImage.Pool is ImageBuf-only.
 	pool *pixmapPool
 }
 
@@ -56,7 +66,6 @@ func newLayerStack() *layerStack {
 	}
 }
 
-// LayerPoolStats returns S6.4 layer pixmap pool counters for the context.
 func (c *Context) LayerPoolStats() (gets, puts, hits, misses int) {
 	if c == nil || c.layerStack == nil || c.layerStack.pool == nil {
 		return 0, 0, 0, 0
@@ -156,7 +165,7 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear, 
 		}
 	}
 
-	// Acquire layer surface from pool (S6.4: avoid per-push NewPixmap).
+	// Acquire layer surface from pool.
 	var layerPixmap *Pixmap
 	if layer.gpuView.IsNil() {
 		if clear {
@@ -380,7 +389,6 @@ func (c *Context) PopLayer() {
 		}
 		layer.gpuView = gpucontext.TextureView{}
 
-		// P1-3 / F.03: do NOT mid-frame FlushGPU when compositing onto the base
 		// (or CPU parent). The GPU texture blit stays queued and materializes on
 		// the next FlushGPU / Image / PresentFrame — single submit per frame.
 		// Callers that sample pixmap.GetPixel without Flush must FlushGPU first
@@ -402,7 +410,7 @@ func (c *Context) PopLayer() {
 		layer.gpuView = gpucontext.TextureView{}
 	}
 
-	// Return layer surface to pool (S6.4).
+	// Return layer surface to pool.
 	if c.layerStack.pool != nil {
 		c.layerStack.pool.Put(layer.pixmap)
 	}
@@ -417,8 +425,6 @@ func (c *Context) PopLayer() {
 //
 // This produces different results from SetMask: PushMaskLayer masks the
 // composited group, while SetMask masks each shape individually.
-//
-// Matches Vello push_mask_layer() semantics (research §4).
 //
 // Example:
 //
@@ -446,7 +452,7 @@ func (c *Context) PushMaskLayer(mask *Mask) {
 		c.basePixmap = c.pixmap
 	}
 
-	// Acquire layer surface from pool (S6.4).
+	// Acquire layer surface from pool.
 	layerPixmap := c.layerStack.pool.Get(c.width, c.height)
 
 	// Create layer with mask.
@@ -458,7 +464,7 @@ func (c *Context) PushMaskLayer(mask *Mask) {
 	}
 
 	// R1 residual fix: mask layers also get a GPU RT so in-layer Fill/Stroke
-	// stay on GPU. Pop uses CompositeMaskedLayer (R8 modulate) or CPU mask.
+	// stay on GPU. Pop uses CompositeMaskedLayer or CPU mask.
 	pw, ph := layerPixmap.Width(), layerPixmap.Height()
 	if pw > 0 && ph > 0 {
 		view, release := c.CreateOffscreenTexture(pw, ph)
@@ -699,7 +705,7 @@ func (c *Context) noteLayerCPUDraw() {
 	}
 }
 
-// materializeLayerGPUToPixmap readbacks a layer GPU RT into its pixmap (R1).
+// materializeLayerGPUToPixmap readbacks a layer GPU RT into its pixmap.
 func (c *Context) materializeLayerGPUToPixmap(layer *Layer) bool {
 	if c == nil || layer == nil || layer.gpuView.IsNil() || layer.pixmap == nil {
 		return false
@@ -752,7 +758,7 @@ func (c *Context) seedTopLayerGPUFromPixmap() bool {
 	return true
 }
 
-// compositeLayerMaskedGPU dual-path: GPU layer RT × R8 mask → parent (R1 L.02 mask).
+// compositeLayerMaskedGPU dual-path: GPU layer RT × R8 mask → parent.
 func (c *Context) compositeLayerMaskedGPU(layer *Layer, parent *Pixmap) bool {
 	if c == nil || layer == nil || parent == nil || layer.mask == nil || layer.gpuView.IsNil() {
 		return false

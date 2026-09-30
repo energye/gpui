@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package msdf
 
 import (
@@ -102,9 +112,6 @@ type Edge struct {
 	Type EdgeType
 
 	// Points contains the control and end points for this edge.
-	// Linear: P0 (start), P1 (end)
-	// Quadratic: P0 (start), P1 (control), P2 (end)
-	// Cubic: P0 (start), P1 (control1), P2 (control2), P3 (end)
 	Points [4]Point
 
 	// Color determines which channels this edge affects.
@@ -226,7 +233,6 @@ func (e *Edge) Clone() Edge {
 // evaluateQuadratic evaluates a quadratic Bezier curve at parameter t.
 func evaluateQuadratic(p0, p1, p2 Point, t float64) Point {
 	u := 1 - t
-	// B(t) = (1-t)^2*P0 + 2*(1-t)*t*P1 + t^2*P2
 	return Point{
 		u*u*p0.X + 2*u*t*p1.X + t*t*p2.X,
 		u*u*p0.Y + 2*u*t*p1.Y + t*t*p2.Y,
@@ -238,7 +244,6 @@ func evaluateCubic(p0, p1, p2, p3 Point, t float64) Point {
 	u := 1 - t
 	u2 := u * u
 	t2 := t * t
-	// B(t) = (1-t)^3*P0 + 3*(1-t)^2*t*P1 + 3*(1-t)*t^2*P2 + t^3*P3
 	return Point{
 		u*u2*p0.X + 3*u2*t*p1.X + 3*u*t2*p2.X + t*t2*p3.X,
 		u*u2*p0.Y + 3*u2*t*p1.Y + 3*u*t2*p2.Y + t*t2*p3.Y,
@@ -248,7 +253,7 @@ func evaluateCubic(p0, p1, p2, p3 Point, t float64) Point {
 // quadraticDerivative returns the derivative of a quadratic Bezier at t.
 func quadraticDerivative(p0, p1, p2 Point, t float64) Point {
 	u := 1 - t
-	// B'(t) = 2*(1-t)*(P1-P0) + 2*t*(P2-P1)
+	// B'(t) = 2*(1-t)* + 2*t*
 	return Point{
 		2*u*(p1.X-p0.X) + 2*t*(p2.X-p1.X),
 		2*u*(p1.Y-p0.Y) + 2*t*(p2.Y-p1.Y),
@@ -258,7 +263,7 @@ func quadraticDerivative(p0, p1, p2 Point, t float64) Point {
 // cubicDerivative returns the derivative of a cubic Bezier at t.
 func cubicDerivative(p0, p1, p2, p3 Point, t float64) Point {
 	u := 1 - t
-	// B'(t) = 3*(1-t)^2*(P1-P0) + 6*(1-t)*t*(P2-P1) + 3*t^2*(P3-P2)
+	// B'(t) = 3*(1-t)^2* + 6*(1-t)*t* + 3*t^2*
 	return Point{
 		3*u*u*(p1.X-p0.X) + 6*u*t*(p2.X-p1.X) + 3*t*t*(p3.X-p2.X),
 		3*u*u*(p1.Y-p0.Y) + 6*u*t*(p2.Y-p1.Y) + 3*t*t*(p3.Y-p2.Y),
@@ -472,7 +477,7 @@ func newtonRefineCubic(p0, p1, p2, p3, p Point, t float64) float64 {
 
 // cubicSecondDerivative returns the second derivative of a cubic Bezier at t.
 func cubicSecondDerivative(p0, p1, p2, p3 Point, t float64) Point {
-	// B''(t) = 6*(1-t)*(P2-2*P1+P0) + 6*t*(P3-2*P2+P1)
+	// B''(t) = 6*(1-t)* + 6*t*
 	a := p2.Sub(p1.Mul(2)).Add(p0)
 	b := p3.Sub(p2.Mul(2)).Add(p1)
 	u := 1 - t

@@ -1,10 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
 	"testing"
 )
-
-// M1-d红灯:增量Update快照必须与直接构建逐字节一致;只重建影响区.
 
 func m1UpdateEquiv(t *testing.T, c *layoutCache, text string, w float64) {
 	t.Helper()
@@ -20,14 +28,14 @@ func TestLayoutUpdate_Equiv_M1(t *testing.T) {
 		c := newLayoutCache()
 		doc := "aaa\nbbb\nccc"
 		m1UpdateEquiv(t, c, doc, w)
-		m1UpdateEquiv(t, c, "aaa\nBBXb\nccc", w)   // 行内改字
-		m1UpdateEquiv(t, c, "aaa\nBBXb\ncccddd", w) // 末尾追加
-		m1UpdateEquiv(t, c, "Xaaa\nBBXb\ncccddd", w) // 首部插入
+		m1UpdateEquiv(t, c, "aaa\nBBXb\nccc", w)       // 行内改字
+		m1UpdateEquiv(t, c, "aaa\nBBXb\ncccddd", w)    // 末尾追加
+		m1UpdateEquiv(t, c, "Xaaa\nBBXb\ncccddd", w)   // 首部插入
 		m1UpdateEquiv(t, c, "Xaaa\nBB\nXb\ncccddd", w) // 插入换行拆行
-		m1UpdateEquiv(t, c, "Xaaa\nBBXb\ncccddd", w)  // 删除换行并行
-		m1UpdateEquiv(t, c, "", w)                  // 清空
-		m1UpdateEquiv(t, c, "hello", w)             // 从空重建
-		m1UpdateEquiv(t, c, "hello", w)             // 同文重建
+		m1UpdateEquiv(t, c, "Xaaa\nBBXb\ncccddd", w)   // 删除换行并行
+		m1UpdateEquiv(t, c, "", w)                     // 清空
+		m1UpdateEquiv(t, c, "hello", w)                // 从空重建
+		m1UpdateEquiv(t, c, "hello", w)                // 同文重建
 	}
 }
 

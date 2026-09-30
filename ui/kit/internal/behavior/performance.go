@@ -1,10 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package behavior
 
-// Performance facade (F0-5 §6.4): budgets plus isolation helpers.
 // It never measures GPU itself; it owns the thresholds and the
 // cache/virtual bookkeeping that product windows assert against.
 
-// Budgets mirrors ENGINE §2.2.2 steady-window expectations.
 type Budgets struct {
 	MinFPSWall float64
 	MaxP95Ms   float64

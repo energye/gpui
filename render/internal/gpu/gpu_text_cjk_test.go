@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -110,9 +120,6 @@ func TestIsCJKRune_TextRendering(t *testing.T) {
 }
 
 func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
-	// Enterprise validation: light hinting (FT_LOAD_TARGET_LIGHT parity) after
-	// M0–M5 自研引擎全绿（2026-08-08 切换决策）。CJK SDR 走 light；
-	// CJK HiDPI（≥2x）与旋转/大字号走 None（现行规则见 selectGlyphMaskHinting）。
 	tests := []struct {
 		name        string
 		isCJK       bool

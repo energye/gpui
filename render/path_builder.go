@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // path_builder.go
 
 package render
@@ -47,8 +57,7 @@ func (b *PathBuilder) Close() *PathBuilder {
 
 // Rect adds a rectangle to the path.
 func (b *PathBuilder) Rect(x, y, w, h float64) *PathBuilder {
-	// Convergence (§7.5): single shared implementation in Path.Rectangle
-	// (SkPath::addRect semantics). Same output as the former inline version.
+	// Same output as the former inline version.
 	b.path.Rectangle(x, y, w, h)
 	return b
 }
@@ -78,14 +87,12 @@ func (b *PathBuilder) RoundRect(x, y, w, h, r float64) *PathBuilder {
 
 // Circle adds a circle to the path.
 func (b *PathBuilder) Circle(cx, cy, r float64) *PathBuilder {
-	// Convergence (§7.5): delegate to Path.Circle (same k = 4/3(√2-1)).
 	b.path.Circle(cx, cy, r)
 	return b
 }
 
 // Ellipse adds an ellipse to the path.
 func (b *PathBuilder) Ellipse(cx, cy, rx, ry float64) *PathBuilder {
-	// Convergence (§7.5): delegate to Path.Ellipse (same k).
 	b.path.Ellipse(cx, cy, rx, ry)
 	return b
 }

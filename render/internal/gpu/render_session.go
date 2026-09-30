@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -76,18 +86,13 @@ type ScissorGroup struct {
 	GlyphMaskBatches   []GlyphMaskBatch
 }
 
-// S6.2: static encoder descriptors avoid per-frame descriptor heap allocs.
 var (
 	sessionSurfaceEncoderDesc = &hal.CommandEncoderDescriptor{Label: "session_surface_encoder"}
 	sessionEncoderDesc        = &hal.CommandEncoderDescriptor{Label: "session_encoder"}
 	sessionBlitEncoderDesc    = &hal.CommandEncoderDescriptor{Label: "session_blit_encoder"}
 )
 
-// pendingTexRetire holds textures/views retired during a rebuild. They are
-// released at the next safe point (after the GPU has finished the frame that
-// may still reference them) — aligned with prevCmdBufs semantics (P4:
-// rebuild must not immediately destroy old views still referenced by queued
-// commands; that was the resize-crash root cause).
+// pendingTexRetire holds textures/views retired during a rebuild.
 type pendingTexRetire struct {
 	views []hal.TextureView
 	texs  []hal.Texture
@@ -161,7 +166,7 @@ func (q *pendingBufRetire) PendingCount() int {
 	return len(q.bufs)
 }
 
-// SubmitPathStats records per-frame encode/submit CPU-path counters (S6.2).
+// SubmitPathStats records per-frame encode/submit CPU-path counters.
 type SubmitPathStats struct {
 	Groups          int
 	EncodersCreated int
@@ -170,17 +175,16 @@ type SubmitPathStats struct {
 	WriteBytes      int64
 	SingleGroupFast bool
 	// CoalescedCBs is the number of command buffers in the last Submit call
-	// (R7.3: dual-tex multi + blit may share one Queue.Submit).
 	CoalescedCBs int
 	// ErrorScopeErrors counts wgpu validation/device errors captured by the
-	// per-submit error scope (P2). Zero on healthy frames; >0 means a GPU-side
+	// per-submit error scope. Zero on healthy frames; >0 means a GPU-side
 	// error was caught instead of crashing the process.
 	ErrorScopeErrors int
 }
 
-// BatchDrawStats records per-tier draw/quad counts after coalescing (S6.3).
+// BatchDrawStats records per-tier draw/quad counts after coalescing.
 // Draw counts are post-merge GPU draw calls; quad/shape counts are geometry units.
-// imageUniformLastKey tracks last uploaded image/gpu-tex uniform (opt24).
+// imageUniformLastKey tracks last uploaded image/gpu-tex uniform.
 type imageUniformLastKey struct {
 	w, h    uint32
 	opacity float32
@@ -188,9 +192,9 @@ type imageUniformLastKey struct {
 }
 
 // gpuTexBGSlotCache holds up to 4 view→bind-group pairs for one uniform slot
-// (opt27). Size matches filter publish free-list cadence. The key is the
+// . Size matches filter publish free-list cadence. The key is the
 // resolved native view identity — a texture rebuilt mid-frame resolves to a
-// different view, invalidating the entry naturally (P3).
+// different view, invalidating the entry naturally.
 type gpuTexBGSlotCache struct {
 	entries [4]struct {
 		view hal.TextureView
@@ -334,13 +338,13 @@ type GPURenderSession struct {
 	// Shared textures (MSAA 4x color + depth/stencil + 1x resolve).
 	textures textureSet
 
-	// Deferred-release queue for textures retired during rebuild (P4).
+	// Deferred-release queue for textures retired during rebuild.
 	// Old views may still be referenced by commands queued this frame, so
 	// they are released only after the GPU has finished (BeginFrame /
 	// drainQueue points), never immediately on rebuild.
 	pendingTexRetire pendingTexRetire
 
-	// Resource registry for command views (P3): view registration at queue
+	// Resource registry for command views: view registration at queue
 	// time and deferred SourceKey resolution at flush time.
 	resReg *res.Registry
 
@@ -369,14 +373,14 @@ type GPURenderSession struct {
 	convexRenderer     *ConvexRenderer
 	stencilRenderer    *StencilRenderer
 	ownsShapePipelines bool
-	// opt38: skip ensurePipelines body when pipelines already match clip/mask layouts.
+	// skip ensurePipelines body when pipelines already match clip/mask layouts.
 	pipelinesReady       bool
 	pipelinesReadyClip   hal.BindGroupLayout
 	pipelinesReadyMask   hal.BindGroupLayout
 	lastEnsurePipelines  int // diagnostic: 0=skipped fast, 1=full ensure (last call)
 	ensurePipelinesFastN uint64
 	ensurePipelinesFullN uint64
-	// opt41: reuse surface render-pass descriptor + attachments (no per-encode alloc).
+	// reuse surface render-pass descriptor + attachments (no per-encode alloc).
 	surfaceColorAtt [1]hal.RenderPassColorAttachment
 	surfaceDSAtt    hal.RenderPassDepthStencilAttachment
 	surfaceRPDesc   hal.RenderPassDescriptor
@@ -402,26 +406,25 @@ type GPURenderSession struct {
 	sdfVertBufCap uint64
 	sdfUniformBuf hal.Buffer
 	sdfBindGroup  hal.BindGroup
-	// Convex vertex buffer ring (opt20 dual + opt21 defer-submit):
+	// Convex vertex buffer ring:
 	// WriteBuffer must not overwrite a buffer still referenced by an
 	// unsubmitted leading CB (mid-frame layer RT fills). Ring size covers
 	// several deferred layer flushes + present before a coalesced Submit.
 	convexVertBufs    [4]hal.Buffer
 	convexVertBufCaps [4]uint64
 	convexVertSlot    int
-	// opt39: per-ring-slot vertex content fingerprint (same idea as opt24 indices /
-	// opt28 image verts). Mid-frame layer/base flushes often re-upload identical
+	// Mid-frame layer/base flushes often re-upload identical
 	// packed mesh/convex bytes into the next ring slot — skip WriteBuffer on hit.
 	convexVertSlotHash [4]uint64
 	convexVertSlotLen  [4]int
 	deferredConvexUses int  // builds encoded into leadSubmitCBs since last Submit
 	deferSurfaceSubmit bool // encode+enqueue instead of Queue.Submit
-	// opt22: index buffer ring for DrawIndexed mesh path.
+	// index buffer ring for DrawIndexed mesh path.
 	convexIndexBufs    [4]hal.Buffer
 	convexIndexBufCaps [4]uint64
 	convexIndexSlot    int
 	convexIndexStaging []byte
-	// opt24: per-ring-slot index content fingerprint. Topology often recurs
+	// per-ring-slot index content fingerprint. Topology often recurs
 	// across layer/base/glow flushes; reuse a ring buffer whose payload hash
 	// matches instead of thrashing WriteBuffer (and avoid full snap memcpy).
 	convexIndexSlotHash [4]uint64
@@ -432,7 +435,7 @@ type GPURenderSession struct {
 	// Tier 3: Image textured quad persistent buffers.
 	imageVertBuf    hal.Buffer
 	imageVertBufCap uint64
-	// opt29: single slab for all image uniforms (stride imageUniformSlotStride).
+	// single slab for all image uniforms (stride imageUniformSlotStride).
 	// One WriteBuffer uploads every slot instead of N×80B native calls (atlas opacity).
 	imageUniformSlab    hal.Buffer
 	imageUniformSlabCap uint64 // bytes
@@ -446,9 +449,9 @@ type GPURenderSession struct {
 	imageUniformScratch   []byte
 	imageDrawCallScratch  []imageDrawCall
 	imageSliceDrawScratch []imageDrawCall
-	// opt24: skip image uniform WriteBuffer when viewport/opacity unchanged.
+	// skip image uniform WriteBuffer when viewport/opacity unchanged.
 	imageUniformLast []imageUniformLastKey
-	// opt28: skip image vertex WriteBuffer when packed quads match last upload.
+	// skip image vertex WriteBuffer when packed quads match last upload.
 	imageVertLastHash  uint64
 	imageVertLastLen   int
 	imageVertLastValid bool
@@ -460,29 +463,24 @@ type GPURenderSession struct {
 	imgCalmStaging     int
 	imgCalmVert        int
 	imgCalmSlab        int
-	// S6.3 coalesce scratch (grow-only; present path reuses across frames).
 	coalesceTextOut    []TextBatch
 	coalesceTextQuads  []TextQuad
 	coalesceGlyphOut   []GlyphMaskBatch
 	coalesceGlyphQuads []GlyphMaskQuad
-	// S4.1 last-frame image batch stats (tests / profiling).
 	lastImageDrawCalls int
 	lastImageQuads     int
 
-	// S6.3 multi-tier batch draw stats (most recent frame).
 	lastBatchStats BatchDrawStats
 
-	// S6.2 submit/record path diagnostics (most recent frame).
 	lastSubmitStats SubmitPathStats
 	// passLedger dedups identical binds within one pass (all tiers share
 	// it; each tier's Draw invalidates). Bumped per pass via
 	// BeginPassLedger; attached to the SDF tier at encode time.
 	passLedger PassBindLedger
-	// R7.3: command buffers to prepend on next surface Submit (dual-tex multi).
+	// command buffers to prepend on next surface Submit (dual-tex multi).
 	leadSubmitCBs   []hal.CommandBuffer
 	leadSubmitClean []func()
 
-	// S6.2 reusable scratch (avoid per-frame concat/uniform allocs).
 	clipBytesScratch    []byte
 	uniformBytesScratch []byte
 	scratchSDF          []SDFRenderShape
@@ -531,7 +529,7 @@ type GPURenderSession struct {
 	glyphMaskBindGroups   []hal.BindGroup
 	glyphMaskBGViews      []hal.TextureView // stable atlas view keys for BG reuse
 	glyphMaskBGIsLCD      []bool
-	glyphMaskPendingViews []glyphMaskPendingView // deferred bind group creation (BUG-GPU-001)
+	glyphMaskPendingViews []glyphMaskPendingView // deferred bind group creation
 	// CPU staging reuse (avoid per-frame make for HUD/text quads).
 	glyphMaskQuadScratch      []GlyphMaskQuad
 	glyphMaskVertStaging      []byte
@@ -547,23 +545,20 @@ type GPURenderSession struct {
 	gpuTexVertBufCap     uint64
 	gpuTexBaseVertBuf    hal.Buffer // base layer only (1 quad, never shares with overlays)
 	gpuTexBaseVertBufCap uint64
-	// opt40: single slab for all gpu-tex uniforms (stride imageUniformSlotStride).
-	// Mirrors opt29 image path — one WriteBuffer instead of N×80B native calls when
-	// multi-quad glow/layer blits share a frame.
+	// single slab for all gpu-tex uniforms (stride imageUniformSlotStride).
 	gpuTexUniformSlab    hal.Buffer
 	gpuTexUniformSlabCap uint64
 	gpuTexUniformSlots   int
-	// Legacy per-slot buffers kept nil after opt40; Destroy still nils the slice.
-	gpuTexUniformBufs []hal.Buffer
-	// opt27: per-poolIdx small view→BG ring. Filter promote ping-pongs publish
+	gpuTexUniformBufs    []hal.Buffer
+	// per-poolIdx small view→BG ring. Filter promote ping-pongs publish
 	// TextureViews; single last-view cache was a guaranteed miss every frame.
 	gpuTexBGCaches        []gpuTexBGSlotCache
 	gpuTexVertexStaging   []byte
 	gpuTexUniformScratch  []byte
 	gpuTexDrawCallScratch []imageDrawCall
-	// opt24: skip gpu-tex uniform WriteBuffer when viewport/opacity unchanged.
+	// skip gpu-tex uniform WriteBuffer when viewport/opacity unchanged.
 	gpuTexUniformLast []imageUniformLastKey
-	// opt28: skip gpu-tex vertex WriteBuffer when packed quads match last upload
+	// skip gpu-tex vertex WriteBuffer when packed quads match last upload
 	// (base and overlay tracked separately).
 	gpuTexVertLastHash      uint64
 	gpuTexVertLastLen       int
@@ -589,7 +584,7 @@ type GPURenderSession struct {
 	texCalmSlab        int
 
 	// Bind groups pending release — deferred until after command buffer submit.
-	// WebGPU requires bind groups to be alive at submit time (wgpu-core track/mod.rs:631).
+	// WebGPU requires bind groups to be alive at submit time.
 	// Skia Graphite pattern: batch-release after GPU completion.
 	pendingBindGroupRelease []hal.BindGroup
 
@@ -677,14 +672,13 @@ type GPURenderSession struct {
 	// nil means full framebuffer (default, no clipping).
 	scissorRect *[4]uint32
 
-	// RRect clip bind group infrastructure. All 5 pipelines share the same
+	// RRect clip bind group infrastructure.
 	// clip bind group layout at @group(1) @binding(0). A no-clip bind group
 	// (clip_enabled=0.0) is created once and reused for groups without RRect clip.
 	clipBindLayout   hal.BindGroupLayout
 	noClipUniformBuf hal.Buffer
 	noClipBindGroup  hal.BindGroup
 
-	// L.06 cover-inline R8 mask (@group(2) on convex + SDF).
 	maskBindLayout  hal.BindGroupLayout // session-owned, shared by pipelines
 	noMaskTex       hal.Texture
 	noMaskView      hal.TextureView
@@ -712,13 +706,13 @@ func NewGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32)
 		resReg:      res.NewRegistry(),
 	}
 	// GPU-CLIP-003a: depth-clip pipeline for arbitrary path clipping
-	// (Skia stencil-then-cover). Constructed eagerly — no GPU work happens
+	// . Constructed eagerly — no GPU work happens
 	// until ensurePipeline() compiles on first depth-clipped frame.
 	s.depthClipPipeline = NewDepthClipPipeline(device, queue, sampleCount)
 	// P6: submission-tracked deferred release (in-flight resources survive
 	// until the GPU finishes the submit).
 	s.sub = res.NewSubmission(s.resReg)
-	// P4: rebuild must not immediately destroy old texture views — commands
+	// rebuild must not immediately destroy old texture views — commands
 	// queued earlier in the frame may still reference them. Route retired
 	// session textures through the deferred-release queue instead.
 	s.textures.retireFn = func(tex hal.Texture, view hal.TextureView) {
@@ -768,8 +762,6 @@ func (s *GPURenderSession) InvalidateForDeviceLoss() {
 	s.pendingBufRetire.bufs = s.pendingBufRetire.bufs[:0]
 }
 
-// Reg returns the session's resource registry (P3: view registration and
-// deferred resolution for command views).
 func (s *GPURenderSession) Reg() *res.Registry {
 	if s == nil {
 		return nil
@@ -777,8 +769,6 @@ func (s *GPURenderSession) Reg() *res.Registry {
 	return s.resReg
 }
 
-// ResolveStats returns the registry's deferred-resolution hit/miss counters
-// (§6.2 frame gate: ResolveMiss must stay 0 under resize).
 func (s *GPURenderSession) ResolveStats() (hits, misses uint64) {
 	if s == nil || s.resReg == nil {
 		return 0, 0
@@ -787,7 +777,7 @@ func (s *GPURenderSession) ResolveStats() (hits, misses uint64) {
 }
 
 // ResolveCommandView resolves a command View to its concrete texture view at
-// flush time (P3, GrSurfaceProxy instantiation timing):
+// flush time:
 //   - deferred SourceKey → current active instance for the role (retry after
 //     rebuild); the transient ref is released before returning;
 //   - direct Ref → the registered resource, still owned by the command.
@@ -879,8 +869,6 @@ func (s *GPURenderSession) RetireTexture(tex hal.Texture, view hal.TextureView) 
 	s.pendingTexRetire.Add(view, tex)
 }
 
-// PendingTexRetireCount returns the deferred-release queue depth (S6.x
-// diagnostics; 0 on healthy steady-state frames).
 func (s *GPURenderSession) PendingTexRetireCount() int {
 	if s == nil {
 		return 0
@@ -918,7 +906,7 @@ func (s *GPURenderSession) SetSurfaceTarget(view hal.TextureView, width, height 
 		}
 		s.textures.destroyTextures()
 		// GPU was drained above (or nothing in flight): safe to release the
-		// textures and grow-retired buffers immediately (P4/P6).
+		// textures and grow-retired buffers immediately.
 		s.pendingTexRetire.Drain()
 		s.pendingBufRetire.Drain()
 	}
@@ -968,7 +956,7 @@ func (s *GPURenderSession) BeginFrame() {
 	// when buffers remain to avoid holding MSAA memory across many sizes.
 	// Offscreen mode: there is no vsync/present barrier — always WaitIdle
 	// before FreeCommandBuffer so session textures can be recreated safely.
-	// opt21: never leave deferred leading CBs stranded across frames.
+	// never leave deferred leading CBs stranded across frames.
 	if len(s.leadSubmitCBs) > 0 {
 		_ = s.FlushLeadingSubmitsOnly()
 	}
@@ -990,7 +978,7 @@ func (s *GPURenderSession) BeginFrame() {
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
 	s.lastSubmitUsedSurface = false
-	// P4: the previous frame's GPU work has completed at this point (vsync
+	// the previous frame's GPU work has completed at this point (vsync
 	// barrier or the drainQueue above) — release textures retired by that
 	// frame's rebuilds.
 	s.pendingTexRetire.Drain()
@@ -1016,8 +1004,7 @@ func (s *GPURenderSession) BeginFrame() {
 	s.imgLastStagingNeed, s.imgLastVertNeed, s.imgLastSlabNeed = 0, 0, 0
 }
 
-// texShrinkCalmFrames is ~2s @60fps of tiny use before a grow-only texture
-// buffer is retired (R6-2). Long enough that scroll/zoom transients never
+// buffer is retired. Long enough that scroll/zoom transients never
 // trigger shrink churn; short enough that a closed heavy window's peak does
 // not pin megabytes for the process lifetime.
 const texShrinkCalmFrames = 120
@@ -1178,8 +1165,6 @@ func extractTextureView(view gpucontext.TextureView) hal.TextureView {
 // colorAttachment returns the render pass color attachment descriptor.
 // When sampleCount > 1 (MSAA), renders to msaaView and resolves to targetView.
 // When sampleCount == 1, renders DIRECTLY to targetView (no MSAA indirection).
-// This fixes BUG-GPU-002: on llvmpipe, ResolveTarget with sampleCount=1 is
-// spec-invalid (Vulkan backend skips resolve → content stays in msaaView, target empty).
 // Also avoids Mesa 23.2.1 lavapipe MSAA resolve regression for offscreen textures.
 func (s *GPURenderSession) colorAttachment(targetView hal.TextureView, loadOp types.LoadOp) hal.RenderPassColorAttachment {
 	if s.sampleCount > 1 && s.textures.msaaView != nil {
@@ -1211,7 +1196,7 @@ func (s *GPURenderSession) colorAttachment(targetView hal.TextureView, loadOp ty
 
 // surfaceRenderPassDesc fills s.surfaceRPDesc for a surface/offscreen pass with
 // depth+stencil. Reuses backing storage so encodeSubmit* avoids heap allocs
-// every frame (opt41 class A).
+// every frame.
 func (s *GPURenderSession) surfaceRenderPassDesc(
 	label string,
 	view hal.TextureView,
@@ -1384,8 +1369,6 @@ func (s *GPURenderSession) RenderFrame(
 		return fmt.Errorf("ensure textures: %w", err)
 	}
 
-	// Clip bind layout must be created BEFORE pipelines, because pipeline
-	// layout creation includes the clip layout at @group(1).
 	if err := s.ensureClipBindLayout(); err != nil {
 		return fmt.Errorf("ensure clip bind layout: %w", err)
 	}
@@ -1439,7 +1422,7 @@ func (s *GPURenderSession) RenderFrame(
 // groupResources holds pre-built GPU resources for a single ScissorGroup.
 type groupResources struct {
 	scissorRect   *[4]uint32
-	clipBindGroup hal.BindGroup // @group(1) bind group for RRect clip (or no-clip)
+	clipBindGroup hal.BindGroup
 	depthClipRes  *DepthClipResources
 	hasDepthClip  bool
 	sdfRes        *sdfFrameResources
@@ -1461,7 +1444,7 @@ type groupResources struct {
 // For frames with no scissor changes (single group with nil rect), this
 // behaves identically to the original RenderFrame.
 func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, groups []ScissorGroup, baseLayer *GPUTextureDrawCommand, sharedEncoder hal.CommandEncoder) error { //nolint:gocognit,gocyclo,cyclop,funlen,maintidx // sequential resource setup + group dispatch
-	// opt21: deferred layer RT CBs share this session's MSAA/depth textures.
+	// deferred layer RT CBs share this session's MSAA/depth textures.
 	// Drain them before encoding a new pass that reuses those attachments
 	// (and before empty early-return) so advanced-blend Present never samples
 	// an unsubmitted layer RT. Multiple layer fills still coalesce into one
@@ -1474,10 +1457,8 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// vertices inside its own damage scissor and resolves to an empty texture
 	// (two SaveLayer groups per frame lost the first card; a single card never
 	// triggered it). Draining here submits the previous layer pass while its
-	// staging data is still intact. opt21's coalescing still holds for the
-	// common single-layer steady frame (nothing to drain).
+	// staging data is still intact.
 	//
-	// opt34: do NOT drain when recording into sharedEncoder (opt32 dual-tex
 	// composite / ADR-017). Caller Finishes then submitWithLeading so layers +
 	// dual-tex + blit stay one Queue.Submit. Draining here forced a mid-frame
 	// Submit and left the composite CB alone (extra Finish/Submit tax on L3).
@@ -1512,8 +1493,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 		}
 		return fmt.Errorf("ensure textures: %w", err)
 	}
-	// Clip bind layout must be created BEFORE pipelines, because pipeline
-	// layout creation includes the clip layout at @group(1).
 	if err := s.ensureClipBindLayout(); err != nil {
 		return fmt.Errorf("ensure clip bind layout: %w", err)
 	}
@@ -1537,7 +1516,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	}
 	// Reset clip pool usage for this frame.
 	s.clipPoolUsed = 0
-	// Reset S6.2 path stats; encoder/submit counters accumulate in encodeSubmit*.
 	s.lastSubmitStats = SubmitPathStats{Groups: len(groups)}
 	s.lastBatchStats = BatchDrawStats{}
 
@@ -1547,8 +1525,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// methods write to session-level shared buffers, so calling them per-group
 	// would overwrite previous groups' data.
 	//
-	// S6.2: single-group frames skip concat (use group slices directly) and
-	// multi-group frames reuse session scratch buffers.
 	var allSDF []SDFRenderShape
 	var allConvex []ConvexDrawCommand
 	var allStencil []StencilPathCommand
@@ -1569,7 +1545,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	if len(groups) == 1 {
 		s.lastSubmitStats.SingleGroupFast = true
 		g := &groups[0]
-		// S6.3: deepen text/glyph runs inside the group (never cross scissor).
 		g.TextBatches = s.coalesceTextBatches(g.TextBatches)
 		g.GlyphMaskBatches = s.coalesceGlyphMaskBatches(g.GlyphMaskBatches)
 		allSDF = g.SDFShapes
@@ -1593,7 +1568,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 		s.scratchGlyph = s.scratchGlyph[:0]
 		for i := range groups {
 			g := &groups[i]
-			// S6.3: deepen text/glyph runs inside each scissor group only.
 			g.TextBatches = s.coalesceTextBatches(g.TextBatches)
 			g.GlyphMaskBatches = s.coalesceGlyphMaskBatches(g.GlyphMaskBatches)
 			gOff[i] = groupOffset{
@@ -1652,8 +1626,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	var combinedImageRes *imageFrameResources
 	if len(allImage) > 0 {
-		// S4.1: seal batch merges at scissor-group boundaries so multi-quad
-		// draws never span different scissors (sliceImageResources assumes this).
 		if cap(s.scratchImageSeal) < len(allImage) {
 			s.scratchImageSeal = make([]bool, len(allImage))
 		} else {
@@ -1676,7 +1648,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	var combinedGPUTexRes *imageFrameResources
 	if len(allGPUTex) > 0 {
-		// S6.3: seal multi-quad GPU-tex merges at scissor-group boundaries.
 		if cap(s.scratchImageSeal) < len(allGPUTex) {
 			// Reuse image seal scratch only when image path did not need larger; grow as needed.
 			s.scratchImageSeal = make([]bool, len(allGPUTex))
@@ -1716,7 +1687,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 		combinedGlyphRes = res
 	}
 
-	// S6.3: record post-coalesce geometry / draw stats (image/gpu-tex set in builders).
 	if len(allSDF) > 0 {
 		s.lastBatchStats.SDFShapes = len(allSDF)
 		s.lastBatchStats.SDFDraws = 1 // one multi-shape draw per combined SDF buffer
@@ -1742,7 +1712,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 			s.lastBatchStats.GlyphQuads += len(allGlyph[i].Quads)
 		}
 	}
-	// Keep S4.1 image stats mirrored into BatchDrawStats.
 	s.lastBatchStats.ImageDraws = s.lastImageDrawCalls
 	s.lastBatchStats.ImageQuads = s.lastImageQuads
 
@@ -1775,12 +1744,9 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 			if dcErr == nil && res != nil {
 				grpRes[i].depthClipRes = res
 				grpRes[i].hasDepthClip = true
-				// GPU-CLIP-003a-AA (Skia kCoverage): at sampleCount==1 the
+				// GPU-CLIP-003a-AA: at sampleCount==1 the
 				// stencil+depth phases are binary — a pixel either passes the
 				// depth test or not — so the clip boundary aliases. Build a
-				// full-frame R8 coverage mask (CPU analytic AA, same algorithm
-				// as the software renderer) and let content pipelines sample
-				// it via the L.06 @group(2) mask channel.
 				if s.sampleCount <= 1 {
 					if err := s.ensureMaskDefaults(); err != nil {
 						slogger().Warn("depth clip mask defaults", "err", err)
@@ -1898,8 +1864,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// handles this correctly: fullSurface := !s.frameRendered forces a FULL
 	// composite when the view is fresh ("swapchain image rotation with
 	// per-frame views"). Mirror exactly that semantics here for grouped
-	// passes: fresh view ⇒ full composite (Clear + every group at its own
-	// full scissor); only same-view continued flushes (mid-frame layer pops)
 	// may Load + damage-scissor. Dropping the rects also re-enables full
 	// group scissors via applyGroupScissorWithDamageRects' empty-damage
 	// branch.
@@ -1998,7 +1962,7 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
 	s.textures.destroyTextures()
-	// GPU drained above: release anything retired by this purge now (P4/P6).
+	// GPU drained above: release anything retired by this purge now.
 	s.pendingTexRetire.Drain()
 	s.pendingBufRetire.Drain()
 	s.surfaceView = nil
@@ -2079,10 +2043,10 @@ func (s *GPURenderSession) Destroy() {
 	// Session teardown: the size-keyed stencil pool survives destroyTextures
 	// by design (per-frame size flips), so it must be flushed explicitly here.
 	s.textures.ClearStencilPool()
-	// GPU drained above: release anything retired during teardown now (P4/P6).
+	// GPU drained above: release anything retired during teardown now.
 	s.pendingTexRetire.Drain()
 	s.pendingBufRetire.Drain()
-	// P3: drop command-view registry entries (idempotent; device-loss teardown
+	// drop command-view registry entries (idempotent; device-loss teardown
 	// goes through abandon → InvalidateAll, not here).
 	if s.resReg != nil {
 		s.resReg.ReleaseAll()
@@ -2567,9 +2531,6 @@ func (s *GPURenderSession) ensureDepthClipPipelineVariants() error {
 	return nil
 }
 
-// ensureClipBindLayout creates the shared bind group layout for the RRect
-// clip uniform at @group(1) @binding(0), plus the no-clip bind group that
-// is used when no RRect clip is active.
 func (s *GPURenderSession) ensureClipBindLayout() error {
 	if s.clipBindLayout != nil {
 		return nil
@@ -2661,12 +2622,10 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (hal.BindGroup, 
 	return bg, nil
 }
 
-// ClipBindLayout returns the shared clip bind group layout for @group(1).
 // Pipeline creation methods use this to include the clip layout in their
 // pipeline layouts. Must call ensureClipBindLayout() first.
 
-// ensureMaskDefaults creates the disabled (1x1 white R8) mask bind group for
-// convex @group(2). Safe to call multiple times.
+// Safe to call multiple times.
 func (s *GPURenderSession) ensureMaskBindLayout() error {
 	if s.maskBindLayout != nil {
 		return nil
@@ -2806,7 +2765,6 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	return nil
 }
 
-// PrepareFrameMask selects the convex @group(2) bind group for this frame.
 // When shared has an active MaskAware R8 texture, cover shaders sample it inline.
 func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error {
 	if err := s.ensureMaskDefaults(); err != nil {
@@ -3001,8 +2959,7 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w, h uint32) (*convexFrameResources, error) {
 	var vertexData []byte
 	meshCompact := allConvexCommandsMeshCompact(commands)
-	// opt20/opt25/opt33: pure packed mesh WriteBuffer from PackedVerts (12B when
-	// meshCompact). Mixed frames expand mesh→16B AA layout via buildConvexVerticesReuse.
+	// Mixed frames expand mesh→16B AA layout via buildConvexVerticesReuse.
 	if meshCompact {
 		if data, ok := packedMeshVertsContiguous(commands); ok {
 			vertexData = data
@@ -3058,7 +3015,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		s.convexVertSlotLen[slot] = 0
 	}
 	vertBuf := s.convexVertBufs[slot]
-	// opt39: sticky WriteBuffer for classic (non-meshCompact) convex only.
+	// sticky WriteBuffer for classic (non-meshCompact) convex only.
 	// Animated packed mesh (meshCompact) almost always misses; fingerprint would
 	// be pure O(n) tax on L3 before the unavoidable WriteBuffer.
 	if meshCompact {
@@ -3124,7 +3081,6 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		s.convexBindGroup = bg
 	}
 
-	// opt22/opt23: upload uint16 indices for indexed mesh commands.
 	// LE hosts: WriteBuffer directly from []uint16 (zero-copy). Multi-cmd
 	// still concatenates into convexIndexStaging.
 	var indexBuf hal.Buffer
@@ -3136,8 +3092,6 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	if totalIdx > 0 {
 		need := totalIdx * 2
 		var indexBytes []byte
-		// opt23/opt25: map []uint16 as LE bytes when single-cmd or multi-cmd
-		// Indices slices are contiguous in convexMeshIdx (no staging concat).
 		if data, n, ok := packedMeshIndicesContiguous(commands); ok && n == totalIdx {
 			indexBytes = data
 		} else if len(commands) == 1 && convexCmdIndexCount(&commands[0]) == totalIdx && totalIdx > 0 {
@@ -3162,7 +3116,6 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 			}
 			indexBytes = s.convexIndexStaging
 		}
-		// opt24/opt26: reuse any ring slot that already holds this topology (hash+len).
 		// Word-mix fingerprint avoids hash.Hash heap/interface overhead (pprof fnv.Write).
 		sum := indexBytesFingerprint(indexBytes)
 		reused := false
@@ -3645,7 +3598,7 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 			continue
 		}
 
-		// Compose ortho projection at flush time (ADR-025, Skia sk_RTAdjust).
+		// Compose ortho projection at flush time.
 		ortho := render.Matrix{
 			A: 2.0 / float64(s.frameW), B: 0, C: -1.0,
 			D: 0, E: -2.0 / float64(s.frameH), F: 1.0,
@@ -3816,7 +3769,7 @@ func (s *GPURenderSession) prepareGlyphMaskResources(batches []GlyphMaskBatch) (
 	// stabilization. ensureGlyphMaskPipeline above may have triggered
 	// destroyPipeline + recreate (clip layout change on first frame).
 	// Bind groups created before this point would reference the destroyed
-	// uniformLayout. BUG-GPU-001.
+	// uniformLayout.
 	s.materializeGlyphMaskBindGroups()
 	res, err := s.buildGlyphMaskResources(batches)
 	if err != nil {
@@ -3828,7 +3781,7 @@ func (s *GPURenderSession) prepareGlyphMaskResources(batches []GlyphMaskBatch) (
 // buildImageResources creates GPU resources for all image draw commands in the
 // current frame. Vertices for every quad are packed into one buffer. Consecutive
 // commands with the same texture/opacity/filter coalesce into a single bind
-// group + multi-quad Draw (S4.1), except where batchSeal[i] is true (cannot
+// group + multi-quad Draw, except where batchSeal[i] is true (cannot
 // merge command i with the previous one — typically a scissor-group boundary).
 func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uint32, batchSeal []bool) (*imageFrameResources, error) {
 	if len(cmds) == 0 {
@@ -3869,7 +3822,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		s.imageVertBufCap = needed
 		s.imageVertLastValid = false
 	}
-	// opt28: atlas/marker quads often stable across mid-frame flushes; skip
+	// atlas/marker quads often stable across mid-frame flushes; skip
 	// WriteBuffer when packed vertex bytes match the live GPU buffer contents.
 	vertHash := indexBytesFingerprint(allVertData)
 	if !s.imageVertLastValid || s.imageVertLastLen != len(allVertData) || s.imageVertLastHash != vertHash {
@@ -3887,7 +3840,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		s.imageDrawCallScratch = s.imageDrawCallScratch[:0]
 	}
 	drawCalls := s.imageDrawCallScratch
-	// opt29: first collect coalesced slots, pack uniforms into one slab, one WriteBuffer.
+	// first collect coalesced slots, pack uniforms into one slab, one WriteBuffer.
 	type imageSlot struct {
 		opacity              float32
 		texView              hal.TextureView
@@ -4057,12 +4010,11 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	}, nil
 }
 
-// LastImageBatchStats returns the most recent image multi-quad batch stats (S4.1).
+// LastImageBatchStats returns the most recent image multi-quad batch stats.
 func (s *GPURenderSession) LastImageBatchStats() (drawCalls, quads int) {
 	return s.lastImageDrawCalls, s.lastImageQuads
 }
 
-// LastSubmitPathStats returns S6.2 encode/submit counters from the last frame.
 func (s *GPURenderSession) LastSubmitPathStats() SubmitPathStats {
 	return s.lastSubmitStats
 }
@@ -4075,7 +4027,7 @@ func (s *GPURenderSession) allocConvexVertSlot() int {
 	if n == 0 {
 		return 0
 	}
-	// opt39: when nothing deferred holds convex verts, stay on slot 0 so sticky
+	// when nothing deferred holds convex verts, stay on slot 0 so sticky
 	// vertex fingerprints can hit across consecutive builds (static mesh/UI).
 	if s.deferredConvexUses == 0 && len(s.leadSubmitCBs) == 0 {
 		s.convexVertSlot = 0
@@ -4088,7 +4040,7 @@ func (s *GPURenderSession) allocConvexVertSlot() int {
 	return s.convexVertSlot
 }
 
-// SetDeferSurfaceSubmit toggles encode-only surface finishes (opt21).
+// SetDeferSurfaceSubmit toggles encode-only surface finishes.
 // When true, encodeSubmitSurface* / encodeBlitOnlyPass enqueue the CB via
 // EnqueueLeadingSubmit instead of Queue.Submit — caller must later
 // submitWithLeading / FlushLeadingSubmitsOnly (usually Present).
@@ -4118,7 +4070,7 @@ func (s *GPURenderSession) finishSurfaceSubmit(cmd hal.CommandBuffer) error {
 }
 
 // EnqueueLeadingSubmit holds a finished command buffer to be submitted together
-// with the next surface/blit Submit (R7.3 dual-tex multi + composite).
+// with the next surface/blit Submit.
 // cleanup runs after a successful or failed submit attempt (bind-group free).
 func (s *GPURenderSession) EnqueueLeadingSubmit(cmd hal.CommandBuffer, cleanup func()) {
 	if s == nil || cmd == nil {
@@ -4133,7 +4085,7 @@ func (s *GPURenderSession) EnqueueLeadingSubmit(cmd hal.CommandBuffer, cleanup f
 	}
 }
 
-// withSubmitErrorScope wraps a queue submit in a validation error scope (P2).
+// withSubmitErrorScope wraps a queue submit in a validation error scope.
 // WGPU validation/device errors become catchable Go errors reported through
 // slogger + SubmitPathStats instead of an uncaptured abort. The scope is
 // push/pop'd strictly around the closure; PushErrorScope/PopErrorScope are
@@ -4173,7 +4125,7 @@ func (s *GPURenderSession) submitWithLeading(cmd hal.CommandBuffer) error {
 				c()
 			}
 		}
-		// P4: ImageCache retirements (evict/size-replace/gen==0) release only
+		// ImageCache retirements (evict/size-replace/gen==0) release only
 		// AFTER the submit — their views may be referenced by this submit.
 		if s.imageCache != nil {
 			s.imageCache.ReleaseEphemeral()
@@ -4238,13 +4190,12 @@ func (s *GPURenderSession) FlushLeadingSubmitsOnly() error {
 	return s.submitWithLeading(nil)
 }
 
-// LastBatchDrawStats returns S6.3 post-coalesce draw/quad counters from the last frame.
 func (s *GPURenderSession) LastBatchDrawStats() BatchDrawStats {
 	return s.lastBatchStats
 }
 
 // indexBytesFingerprint is a non-cryptographic 64-bit mix of index upload bytes
-// (opt26). Cheaper than hash/fnv.New64a on the convex sticky path.
+// . Cheaper than hash/fnv.New64a on the convex sticky path.
 func indexBytesFingerprint(b []byte) uint64 {
 	const (
 		offset = 14695981039346656037
@@ -4338,7 +4289,6 @@ func (s *GPURenderSession) gpuTexBGCacheCount() int {
 	return n
 }
 
-// queueWriteBuffer wraps Queue.WriteBuffer and accounts S6.2 diagnostics.
 func (s *GPURenderSession) queueWriteBuffer(buf hal.Buffer, offset uint64, data []byte) error {
 	s.lastSubmitStats.WriteBuffers++
 	s.lastSubmitStats.WriteBytes += int64(len(data))
@@ -4437,15 +4387,11 @@ func (s *GPURenderSession) coalesceGlyphMaskBatches(in []GlyphMaskBatch) []Glyph
 //
 // isBaseLayer selects a separate vertex buffer for the base layer to prevent
 // base layer vertices (full-screen quad) from overwriting overlay vertices
-// (BUG-GG-GPU-TEXTURE-OVERLAY-SIZE).
-//
-// S6.3: consecutive overlays with the same texture view / opacity / viewport
-// coalesce into multi-quad draws unless batchSeal[j] is true (scissor boundary).
 func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand, w, h uint32, isBaseLayer bool, batchSeal []bool) (*imageFrameResources, error) {
 	if len(cmds) == 0 {
 		return nil, nil //nolint:nilnil // no GPU texture commands
 	}
-	// P3: release the strong refs registered at queue time once the commands
+	// release the strong refs registered at queue time once the commands
 	// have been consumed (all return paths). The webgpu view release is
 	// idempotent, so shared registration across commands is safe.
 	defer func() {
@@ -4502,7 +4448,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	}
 
 	// Select vertex buffer: base layer and overlays use SEPARATE buffers
-	// to prevent overwrite (BUG-GG-GPU-TEXTURE-OVERLAY-SIZE).
+	// to prevent overwrite.
 	vertBufPtr := &s.gpuTexVertBuf
 	vertCapPtr := &s.gpuTexVertBufCap
 	label := "gpu_tex_vert_buf"
@@ -4537,7 +4483,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		*vertCapPtr = needed
 		*validPtr = false
 	}
-	// opt28: glow/filter publish often reuses the same present rect; skip
+	// glow/filter publish often reuses the same present rect; skip
 	// vertex WriteBuffer when packed quads are unchanged.
 	vertHash := indexBytesFingerprint(allVertData)
 	if !*validPtr || *lenPtr != len(allVertData) || *hashPtr != vertHash {
@@ -4549,7 +4495,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		*validPtr = true
 	}
 
-	// opt40: collect coalesced slots first, pack uniforms into one slab WriteBuffer.
+	// collect coalesced slots first, pack uniforms into one slab WriteBuffer.
 	type gpuTexSlot struct {
 		opacity              float32
 		texView              hal.TextureView
@@ -4574,7 +4520,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		cmd := &cmds[i]
 		texView, ok := s.ResolveCommandView(&cmd.View)
 		if !ok {
-			// P3: view unresolvable (rebuild mid-frame / stale key) — skip the
+			// view unresolvable (rebuild mid-frame / stale key) — skip the
 			// batch instead of feeding a released handle to wgpu.
 			i = j
 			continue
@@ -4711,8 +4657,6 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 
 // sliceImageResources creates an imageFrameResources covering the draw calls
 // whose vertices lie entirely within the command sub-range [cmdStart, cmdStart+cmdCount).
-// S4.1 multi-quad batches are included only when fully inside the range (they never
-// cross scissor-group seals by construction).
 func (s *GPURenderSession) sliceImageResources(
 	combined *imageFrameResources,
 	cmdStart, cmdCount int,
@@ -4907,7 +4851,7 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 	drawCalls := make([]glyphMaskDrawCall, 0, len(batches))
 	quadOffset := 0
 
-	// Ortho projection from actual render target dimensions (ADR-025, Skia sk_RTAdjust).
+	// Ortho projection from actual render target dimensions.
 	// Applied at flush time, not draw time, so offscreen textures get correct projection.
 	vw := float64(viewportW)
 	vh := float64(viewportH)
@@ -4934,7 +4878,7 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 		// Write uniform data for this batch.
 		var uniformData []byte
 		if batch.IsLCD {
-			// R7.1: share session scratch (LCD 96B ≥ grayscale 80B).
+			// share session scratch (LCD 96B ≥ grayscale 80B).
 			uniformData = makeGlyphMaskLCDUniformInto(s.glyphMaskUniformScratch, finalTransform, batch.Color, batch.AtlasWidth, batch.AtlasHeight)
 			s.glyphMaskUniformScratch = uniformData
 		} else {
@@ -4992,7 +4936,7 @@ func (s *GPURenderSession) ensureGlyphMaskBatchPools(n int) {
 // glyphMaskPendingView stores an atlas view for deferred bind group creation.
 // Bind groups must be created AFTER pipeline stabilization (ensureClipBindLayout
 // may trigger destroyPipeline → uniformLayout released → stale bind groups).
-// BUG-GPU-001: on llvmpipe (strict), stale bind groups cause text to be invisible.
+// on llvmpipe (strict), stale bind groups cause text to be invisible.
 type glyphMaskPendingView struct {
 	batchIndex int
 	atlasView  hal.TextureView
@@ -5004,7 +4948,7 @@ type glyphMaskPendingView struct {
 // The actual bind group is created in materializeGlyphMaskBindGroups() which runs
 // AFTER pipeline stabilization inside RenderFrameGrouped/RenderFrame. This prevents
 // the stale bind group bug where destroyPipeline releases uniformLayout but bind
-// groups still reference the old layout (BUG-GPU-001).
+// groups still reference the old layout.
 func (s *GPURenderSession) SetGlyphMaskAtlasView(batchIndex int, atlasView hal.TextureView, isLCD bool) {
 	s.setGlyphAtlasView(batchIndex, atlasView, isLCD, false)
 }
@@ -5041,9 +4985,7 @@ func (s *GPURenderSession) setGlyphAtlasView(batchIndex int, atlasView hal.Textu
 
 // materializeGlyphMaskBindGroups creates bind groups from pending atlas views.
 // Must be called AFTER pipeline stabilization (ensureGlyphMaskPipeline with
-// final clip layout). This is the fix for BUG-GPU-001: on the first frame,
-// ensureClipBindLayout triggers pipeline recreation which destroys uniformLayout;
-// bind groups created before that point reference the destroyed layout.
+// final clip layout).
 func (s *GPURenderSession) materializeGlyphMaskBindGroups() {
 	if len(s.glyphMaskPendingViews) == 0 || s.glyphMaskPipeline == nil {
 		return
@@ -5125,7 +5067,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
-	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
+	// defer-based safety net ensures the encoder
 	// is always finalized even if a panic or unexpected error path is hit.
 	// DiscardEncoding is idempotent (no-op if already released by Finish).
 	encoderConsumed := false
@@ -5157,7 +5099,6 @@ func (s *GPURenderSession) encodeSubmitReadback(
 	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
 	s.applyScissorRect(rp)
 
-	// Bind no-clip at @group(1) for non-grouped path (no RRect clip).
 	// Clip bind group is passed to each RecordDraws (must be bound AFTER
 	// SetPipeline due to Vulkan pipeline layout requirement).
 	clipBG := s.noClipBindGroup
@@ -5222,7 +5163,7 @@ func (s *GPURenderSession) copySubmitAndReadback(
 		return fmt.Errorf("resolve texture nil in copySubmitAndReadback (concurrent resize?)")
 	}
 
-	// BUG-GG-ENCODER-LIFECYCLE-001: this method takes ownership of encoder.
+	// this method takes ownership of encoder.
 	// Defer ensures DiscardEncoding on any error or panic before Finish.
 	// DiscardEncoding is idempotent (no-op if already released by Finish).
 	encoderConsumed := false
@@ -5290,8 +5231,6 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	if err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
-	// P4/P6: the synchronous Map is the completion barrier — the GPU has
-	// actually finished, so release this frame's retirements (textures,
 	// buffers, image-cache pending) and resolve the submission. Critical for
 	// offscreen readback paths that may never reach BeginFrame: without this
 	// the retire queues accumulate across resize/rebuild cycles (VRAM leak).
@@ -5355,7 +5294,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 		return fmt.Errorf("create command encoder: %w", err)
 	}
 	s.lastSubmitStats.EncodersCreated++
-	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
+	// defer-based safety net ensures the encoder
 	// is always finalized even if a panic or unexpected error path is hit.
 	// DiscardEncoding is idempotent (no-op if already released by Finish).
 	encoderConsumed := false
@@ -5447,7 +5386,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// manifests as trail artifacts from incomplete MSAA resolve).
 	// All command buffers are freed at the start of the NEXT frame
 	// (BeginFrame) when VSync guarantees the GPU is done.
-	// R7.3: coalesce deferred dual-tex multi CB when present.
+	// coalesce deferred dual-tex multi CB when present.
 	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
@@ -5463,7 +5402,6 @@ func (s *GPURenderSession) encodeSubmitSurface(
 // the given render pass encoder. This is the inner loop of the grouped
 // encode methods — called once per scissor group within a single render pass.
 func (s *GPURenderSession) recordGroupDraws(rp hal.RenderPassEncoder, gr *groupResources) {
-	// Clip bind group is passed to each RecordDraws so it is bound at @group(1)
 	// AFTER SetPipeline and BEFORE Draw. Vulkan requires a valid pipeline
 	// layout when calling vkCmdBindDescriptorSets.
 	clipBG := gr.clipBindGroup
@@ -5477,10 +5415,7 @@ func (s *GPURenderSession) recordGroupDraws(rp hal.RenderPassEncoder, gr *groupR
 		s.passLedger.Invalidate()
 	}
 
-	// At sampleCount==1, the depth-clip boundary is binary (aliased). When a
-	// per-group coverage mask was built (Skia kCoverage), bind it to the L.06
-	// @group(2) mask channel so content pipelines multiply fragment alpha by
-	// the clipped coverage gradient — a smooth edge instead of hard steps.
+	// At sampleCount==1, the depth-clip boundary is binary (aliased).
 	// Falls back to the frame mask (Context mask or disabled) when absent.
 	maskBG := s.frameMaskBindGroup()
 	if gr.hasDepthClip && gr.depthClipRes != nil && gr.depthClipRes.maskBG != nil {
@@ -5587,7 +5522,7 @@ func (s *GPURenderSession) applyGroupScissorWithDamage(rp hal.RenderPassEncoder,
 // applyGroupScissorWithDamageRects is the multi-rect form of
 // applyGroupScissorWithDamage. Instead of using a global damage union (which
 // over-widens scissor when distant rects exist), it unions only those damage
-// rects that overlap this group (R7.4).
+// rects that overlap this group.
 //
 // Semantics:
 //   - no damage rects → full group scissor (same as empty single damage)
@@ -5718,7 +5653,7 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
-	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
+	// defer-based safety net ensures the encoder
 	// is always finalized even if a panic or unexpected error path is hit.
 	// DiscardEncoding is idempotent (no-op if already released by Finish).
 	encoderConsumed := false
@@ -5813,8 +5748,6 @@ func (s *GPURenderSession) isBlitOnly(grpRes []groupResources, baseLayerRes *ima
 	return hasBase || hasOverlay
 }
 
-// blitClipBG returns the bind group a compositor blit must bind at @group(1):
-// the group's RRect clip when present, else the shared no-clip group.
 func (s *GPURenderSession) blitClipBG(gr *groupResources) hal.BindGroup {
 	if gr != nil && gr.clipBindGroup != nil {
 		return gr.clipBindGroup
@@ -5934,7 +5867,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	}
 	encoderConsumed = true
 
-	// R7.3: coalesce deferred dual-tex multi CB with blit CB.
+	// coalesce deferred dual-tex multi CB with blit CB.
 	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
 	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
 		return fmt.Errorf("submit blit: %w", err)
@@ -5960,7 +5893,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 		return fmt.Errorf("create command encoder: %w", err)
 	}
 	s.lastSubmitStats.EncodersCreated++
-	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
+	// defer-based safety net ensures the encoder
 	// is always finalized even if a panic or unexpected error path is hit.
 	// DiscardEncoding is idempotent (no-op if already released by Finish).
 	encoderConsumed := false
@@ -5996,7 +5929,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// min_binding_size=None vs SDF Some(16) vs textured_quad Some(80)+tex).
 	// wgpu validates the currently set bind groups against each new pipeline;
 	// a single long pass that switches stencil→SDF/image can therefore
-	// validation-panic on submit (mem_anim S04/S11/S12/S16). We still use one
+	// validation-panic on submit. We still use one
 	// pass for throughput, but each Record* rebinds group 0 after SetPipeline.
 	// If a group's draw list is empty after damage scissor, it is skipped.
 	rpDesc := s.surfaceRenderPassDesc("session_surface_pass", view, colorLoadOp, stencilLoadOp, depthLoadOp)
@@ -6022,7 +5955,6 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 
 	// Render each group with its scissor rect applied.
-	// S4.4 + R7.4: per-group relevant damage (not global multi-rect AABB).
 	for i := range grpRes {
 		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
 			s.recordGroupDraws(rp, &grpRes[i])
@@ -6040,7 +5972,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 	encoderConsumed = true
 
-	// R7.3: coalesce deferred dual-tex multi CB with this blit/surface CB.
+	// coalesce deferred dual-tex multi CB with this blit/surface CB.
 	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
 	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
@@ -6101,7 +6033,7 @@ func (s *GPURenderSession) encodeToEncoder(
 		s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
 	}
 
-	// R7.4: per-group relevant damage scissor (not global multi-rect AABB).
+	// per-group relevant damage scissor (not global multi-rect AABB).
 	for i := range grpRes {
 		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
 			s.recordGroupDraws(rp, &grpRes[i])
@@ -6130,7 +6062,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 		return fmt.Errorf("ensure blit pipeline: %w", err)
 	}
 
-	// opt32/F1: match encodeBlitOnlyPass LoadOp. Shared-encoder composite
+	// Shared-encoder composite
 	// onto frameScratch must LoadOpLoad so base+HUD survive dual-tex overlays.
 	if view != s.lastView {
 		s.frameRendered = false
@@ -6169,7 +6101,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes, s.noClipBindGroup)
 	}
 
-	// R7.4: overlay scissor uses group-relevant damage (same as encodeBlitOnlyPass).
+	// overlay scissor uses group-relevant damage (same as encodeBlitOnlyPass).
 	for i := range grpRes {
 		gr := &grpRes[i]
 		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {

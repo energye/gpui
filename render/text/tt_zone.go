@@ -1,13 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — glyph zones.
 //
-// Port of skrifa hint/zone.rs (835 LOC).
 // Manages twilight and glyph zone point arrays for the interpreter.
-//
-// Reference: skrifa/src/outline/glyf/hint/zone.rs
 package text
 
 // ttZonePointer selects either the twilight or glyph zone.
-// Reference: skrifa hint/zone.rs:19-25
 type ttZonePointer uint8
 
 const (
@@ -28,7 +34,6 @@ func ttZonePointerFromInt32(v int32) (ttZonePointer, error) {
 }
 
 // ttPointFlags tracks per-point state during hinting.
-// Reference: skrifa zone.rs uses PointFlags from read_fonts
 type ttPointFlags uint8
 
 const (
@@ -43,8 +48,6 @@ const (
 //   - unscaled: original font-unit points
 //   - original: scaled but unhinted points (snapshot before hinting)
 //   - points: current (hinted) points — modified by instructions
-//
-// Reference: skrifa hint/zone.rs:48-58
 type ttZone struct {
 	unscaled []int32        // pairs of (x, y) in font units
 	original [][2]int32     // scaled points (x, y) in 26.6
@@ -59,7 +62,6 @@ func (z *ttZone) pointCount() int {
 }
 
 // point returns the hinted point at the given index.
-// Reference: skrifa hint/zone.rs:78-83
 func (z *ttZone) point(index int) ([2]int32, error) {
 	if index < 0 || index >= len(z.points) {
 		return [2]int32{}, ttErrInvalidPointIndex
@@ -77,7 +79,6 @@ func (z *ttZone) setPoint(index int, x, y int32) error {
 }
 
 // originalPoint returns the original (pre-hinting) point at the given index.
-// Reference: skrifa hint/zone.rs:89-94
 func (z *ttZone) originalPoint(index int) ([2]int32, error) {
 	if index < 0 || index >= len(z.original) {
 		return [2]int32{}, ttErrInvalidPointIndex
@@ -96,7 +97,6 @@ func (z *ttZone) setOriginalPoint(index int, x, y int32) error {
 
 // unscaledPoint returns the unscaled point at the given index as (x, y).
 // If the index is out of range, returns (0, 0).
-// Reference: skrifa hint/zone.rs:100-107
 func (z *ttZone) unscaledPoint(index int) (int32, int32) {
 	i := index * 2
 	if i < 0 || i+1 >= len(z.unscaled) {
@@ -196,11 +196,8 @@ func (z *ttZone) contourEnd(contourIndex int) (int, error) {
 //   - X adjustments are suppressed (point.x NOT moved, but still touched)
 //   - Y adjustments are suppressed ONLY after IUP has been done on both axes
 //
-// This matches skrifa zone.rs:417-468 where backward compat is enforced at the
 // move level, NOT at the instruction level. Individual instructions (MDRP, MIRP,
 // etc.) must NOT check backward compat themselves.
-//
-// Reference: skrifa hint/zone.rs:417-468
 func (z *ttZone) movePoint(gs *ttGraphicsState, index int, distance int32) error {
 	if index < 0 || index >= len(z.points) {
 		if gs.isPedantic {
@@ -226,7 +223,6 @@ func (z *ttZone) movePoint(gs *ttGraphicsState, index int, distance int32) error
 	default:
 		// Non-axis-aligned freedom vector: decompose distance along each axis
 		// using mul_div(distance, fv_component, fdotp) = distance * fv / fdotp.
-		// This matches skrifa zone.rs:448-464 exactly.
 		fv := gs.freedomVector
 		fdotp := gs.fdotp
 		if fv[0] != 0 {

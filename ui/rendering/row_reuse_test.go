@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -13,8 +23,6 @@ import (
 func wrapSingle(s string) text.WrapResult {
 	return text.WrapResult{Text: s, Start: 0, End: len(s)}
 }
-
-// 遗留#1 (§9):单行长行整形 O(L)。行内整形复用:只重整变更 run + 拼接前后缀。
 
 // rowsEqualReuse compares an incrementally reused row against a full rebuild.
 // Ints/strings/glyph IDs must match exactly; X may differ by ≤1e-9px because

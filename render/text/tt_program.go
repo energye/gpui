@@ -1,14 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — program state.
 //
-// Port of skrifa hint/program.rs (163 LOC).
 // Manages bytecode storage, instruction decoding, and the call stack
 // for the three program types (Font, ControlValue, Glyph).
-//
-// Reference: skrifa/src/outline/glyf/hint/program.rs
 package text
 
 // ttProgramType describes the source of a piece of bytecode.
-// Reference: skrifa hint/program.rs:13-24
 type ttProgramType uint8
 
 const (
@@ -23,7 +29,6 @@ const (
 )
 
 // ttProgramState manages active programs and instruction decoding.
-// Reference: skrifa hint/program.rs:27-38
 type ttProgramState struct {
 	// bytecode for each of the three program types.
 	bytecode [3][]byte
@@ -38,7 +43,6 @@ type ttProgramState struct {
 }
 
 // newTTProgramState creates a program state for the given bytecodes.
-// Reference: skrifa hint/program.rs:41-55
 func newTTProgramState(fontCode, cvCode, glyphCode []byte, initial ttProgramType) ttProgramState {
 	return ttProgramState{
 		bytecode:  [3][]byte{fontCode, cvCode, glyphCode},
@@ -64,7 +68,6 @@ func getBytecodeSlice(bytecode [3][]byte, program ttProgramType) []byte {
 }
 
 // resetProgram resets the state for execution of the given program.
-// Reference: skrifa hint/program.rs:58-63
 func (ps *ttProgramState) resetProgram(program ttProgramType) {
 	ps.initial = program
 	ps.current = program
@@ -74,7 +77,6 @@ func (ps *ttProgramState) resetProgram(program ttProgramType) {
 
 // enter jumps to the code in the given definition and sets it up for
 // execution count times (for LOOPCALL).
-// Reference: skrifa hint/program.rs:67-79
 func (ps *ttProgramState) enter(def ttDefinition, count int32) error {
 	program := def.program()
 	pc := def.start
@@ -96,7 +98,6 @@ func (ps *ttProgramState) enter(def ttDefinition, count int32) error {
 // leave exits the current function definition.
 // If loop count > 1, restarts from the beginning of the definition.
 // Otherwise, resumes at the caller.
-// Reference: skrifa hint/program.rs:87-101
 func (ps *ttProgramState) leave() error {
 	record, err := ps.callStack.pop()
 	if err != nil {

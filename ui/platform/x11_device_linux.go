@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -10,7 +20,7 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// X11 device hot-plug (S6-P1 H 组 X11 侧).
+// X11 device hot-plug.
 //
 // 监听 XI2 层级变化 (XI_HierarchyChanged, evtype 11) 报键盘/鼠标/触控/笔的
 // 增减：Added → EventDeviceAdded，Removed → EventDeviceRemoved。
@@ -314,7 +324,7 @@ func (h *x11Host) decodeXIHierarchy(buf []byte) ([]Event, bool) {
 	if !ok || len(infos) == 0 {
 		return nil, false
 	}
-	// Pen hot-plug follows the same hierarchy broadcast (S6-P2 E 组).
+	// Pen hot-plug follows the same hierarchy broadcast.
 	x11StylusOnHierarchy(st, infos)
 	evs := xiHierarchyToEvents(st, infos)
 	if len(evs) == 0 {

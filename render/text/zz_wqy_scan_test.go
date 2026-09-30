@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -9,12 +19,6 @@ import (
 	"testing"
 )
 
-// TestScanWqyCJKLight：M4a 全字集回归窗（docs §5.2a M4b-3）。
-//
-// 字表 = testdata/cjk3000.txt（《通用规范汉字表》一级字表前 3000 常用字，
-// 与 cf2 的 M3 全字集回归同表，保证可比）。对照 = ftexp bcontour 批量模式
-// 取 wqy-microhei-nohint.ttf（glyf 无字节码 CJK 主字体）FT-light 26.6 轮廓，
-// 与 ExtrisOpeningHinted 逐点对照。
 func TestScanWqyCJK3000(t *testing.T) {
 	raw, err := os.ReadFile("hint/testdata/cjk3000.txt")
 	if err != nil {

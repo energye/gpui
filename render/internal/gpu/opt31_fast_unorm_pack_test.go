@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -9,8 +19,6 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// refPackColorUnorm8x4 is the pre-opt31 reference (array + clampUnorm8).
-// Kept only in tests to prove opt31 scalar pack is bit-identical.
 func refPackColorUnorm8x4(color [4]float32) uint32 {
 	return uint32(clampUnorm8(color[0])) |
 		uint32(clampUnorm8(color[1]))<<8 |

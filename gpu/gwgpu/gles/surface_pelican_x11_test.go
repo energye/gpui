@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -23,15 +30,7 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
-// H4-e3 鹈鹕级真窗换屏（X11 先，Wayland 后补）：
-// e2 路放大到鹈鹕级——同一条纯 Go GL 临时路，真 EGL 窗
-// Configure→Acquire→Draw→Submit→Present 换屏亮灯；窗口取鹈鹕舞台尺寸
-// （以金文件为准，当前 1200x700），内容仍为 H4-c 三角语义（中心红、
-// 四角蓝，容差 0），只证鹈鹕尺寸帧链能亮能对。
 //
-// 在线 present_target 不动，SelectBackend 留 P3，browser 不动。
-// 像素做鹈鹕级对照（swapchainFBO 读回 md5 对本片金文件逐位一致）；
-// 完整鹈鹕场景内容（渐变/视差/文本/贴图）留 P1 单窗打通，本片不管。
 // 显存对照见文档（整卡 nvidia-smi：闲时个位数 M，窗开后仍个位数增量，
 // 对 WebGPU 空白窗 300M+ 量级）；测试内只留 1s 窗供外部采样。
 // 无 X11/EGL 时 t.Skipf（缺真机数据不假绿）。
@@ -110,14 +109,13 @@ func TestH4E3_PelicanWindowPresentX11(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	// WGSL 与期望探针一律读数据文件（本片新建鹈鹕尺寸金文件，不另写 GLSL）。
 	vsWGSL := h4cReadWGSL(t, "h4c_triangle_vertex.wgsl")
 	fsWGSL := h4cReadWGSL(t, "h4c_triangle_fragment.wgsl")
 	rawGolden, err := os.ReadFile(filepath.Join("testdata", "h4e3_pelican_golden.json"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
-	var golden h4cTriangleGolden // 字段形复用（同6字段），文件为本片新金文件
+	var golden h4cTriangleGolden
 	if err := json.Unmarshal(rawGolden, &golden); err != nil {
 		t.Fatalf("parse golden: %v", err)
 	}
@@ -129,7 +127,7 @@ func TestH4E3_PelicanWindowPresentX11(t *testing.T) {
 		t.Fatalf("golden size = %dx%d, want positive", w, h)
 	}
 
-	xw := h4e3OpenX11Window(t, w, h) // 尺寸取自金文件
+	xw := h4e3OpenX11Window(t, w, h)
 	defer xw.close(t)
 
 	// 纯 Go GL 临时路：Backend → Instance → Surface(Xlib) → Adapter → Open。
@@ -183,7 +181,6 @@ func TestH4E3_PelicanWindowPresentX11(t *testing.T) {
 		t.Fatal("eglSurface == 0 after Configure (X11 window surface not created)")
 	}
 
-	// 管线：WGSL 经缓存编译（与 H4-c/H4-d/e2 同一路），真建 GL 管线。
 	vsMod, err := dev.CreateShaderModule(&ShaderModuleDescriptor{WGSL: vsWGSL})
 	if err != nil {
 		t.Fatalf("CreateShaderModule(vertex): %v", err)

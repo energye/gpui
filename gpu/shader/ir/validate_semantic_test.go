@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 import (
@@ -288,7 +298,6 @@ func TestValidateSemantic_EntryPoints(t *testing.T) {
 	})
 
 	t.Run("vertex with struct position builtin", func(t *testing.T) {
-		// This is a POSITIVE test: struct member has @builtin(position), should pass.
 		posBinding := Binding(BuiltinBinding{Builtin: BuiltinPosition})
 		module := &Module{
 			Types: []Type{

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -7,8 +17,6 @@ import (
 	"testing"
 )
 
-// TestScanKR：韩文 CFF 扩集（docs §5.1 M3 收尾项）。
-//
 // 全 11172 个 Hangul 音节（U+AC00–U+D7A3，字表文件 testdata/kr_all.txt）
 // 对照 ftexp bcontour 批量模式（FT-light 26.6，face 0 与 m2Font Face(14)
 // 同一 TTC 的 CFF 数据）。

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Font table directory parser — Pure Go binary parsing.
 //
 // Provides indexed table directory access for TrueType/OpenType fonts
@@ -33,10 +43,10 @@ func parseFontTablesIndex(fontData []byte, index int) (map[string][]byte, error)
 	}
 
 	// TTC header:
-	//   Tag      ttcTag    ('ttcf')
-	//   uint16   majorVersion
-	//   uint16   minorVersion
-	//   uint32   numFonts
+	//   Tag ttcTag ('ttcf')
+	//   uint16 majorVersion
+	//   uint16 minorVersion
+	//   uint32 numFonts
 	//   Offset32 offsets[numFonts]
 	if len(fontData) < 12 {
 		return nil, errors.New("TTC header too short")

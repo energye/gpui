@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -501,7 +511,7 @@ func TestCubicBez_Deriv(t *testing.T) {
 	deriv := c.Deriv()
 
 	// Check derivative is a quadratic
-	// At t=0, tangent should be 3*(P1-P0) = 3*(1,0) = (3,0)
+	// At t=0, tangent should be 3* = 3*(1,0) = (3,0)
 	d0 := deriv.Eval(0)
 	expected0 := Pt(3*(c.P1.X-c.P0.X), 3*(c.P1.Y-c.P0.Y))
 	if !pointsEqual(d0, expected0, epsilon) {
@@ -512,13 +522,11 @@ func TestCubicBez_Deriv(t *testing.T) {
 func TestCubicBez_Tangent(t *testing.T) {
 	c := NewCubicBez(Pt(0, 0), Pt(10, 0), Pt(10, 10), Pt(0, 10))
 
-	// At t=0, tangent should point in direction of P1-P0
 	tan0 := c.Tangent(0)
 	if tan0.X <= 0 {
 		t.Errorf("Tangent at t=0 should point right, got %v", tan0)
 	}
 
-	// At t=1, tangent should point in direction of P3-P2
 	tan1 := c.Tangent(1)
 	if tan1.X >= 0 {
 		t.Errorf("Tangent at t=1 should point left, got %v", tan1)

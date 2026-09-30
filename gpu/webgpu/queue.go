@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -19,7 +29,7 @@ type Queue struct {
 }
 
 // OnSubmittedWorkDone registers a callback that fires once all GPU work
-// submitted before this call has completed (P6, Skia command-buffer refs).
+// submitted before this call has completed.
 // The returned rwgpu Future must be polled (Device.Poll /
 // rwgpu.WaitForFuture) for the callback to fire; the frame path uses the
 // existing BeginFrame vsync/drainQueue sync points instead of blocking.
@@ -36,7 +46,7 @@ func (q *Queue) OnSubmittedWorkDone() (rwgpu.Future, error) {
 // Submit submits command buffers for execution.
 // Returns a submission index that can be used to track completion.
 //
-// R7.0: avoid per-submit heap allocation on the dominant 1-CB path and for
+// avoid per-submit heap allocation on the dominant 1-CB path and for
 // small multi-CB submits (≤8). Semantics unchanged: non-nil CBs are marked
 // submitted; only CBs with a live native handle are passed to rwgpu.
 // Implements hal.Queue (takes hal.CommandBuffer interfaces, internal unpack;
@@ -134,7 +144,7 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 }
 
 // Poll returns the last completed submission index. Non-blocking.
-// On the wgpu-native backend, returns 0 (wgpu-native does not expose poll on queue).
+// On the wgpu-native backend, returns 0.
 func (q *Queue) Poll() uint64 {
 	return 0
 }
@@ -162,7 +172,7 @@ func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
 }
 
 // WriteTexture writes data to a texture.
-// R7.0: stack-allocate destination/layout/size descriptors (no per-call heap).
+// stack-allocate destination/layout/size descriptors (no per-call heap).
 // Implements hal.Queue (ImageCopyTexture aliased to hal; .Texture unpacked).
 func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal.ImageDataLayout, size *hal.Extent3D) error {
 	if err := prepareQueueCall(q); err != nil {
@@ -238,8 +248,6 @@ func (q *Queue) Release() {
 }
 
 // Present presents a surface texture (hal.Queue conformance).
-// The Rust backend owns swapchain timing through Surface.Present; this
-// delegates to the given surface and ignores damage rects (wgpu-native
 // has no damage-aware present). Surface/texture are unpacked; wrong types
 // or nils fail without touching GPU state.
 func (q *Queue) Present(surface hal.Surface, texture hal.SurfaceTexture, _ []image.Rectangle) error {
@@ -257,7 +265,6 @@ func (q *Queue) Present(surface hal.Surface, texture hal.SurfaceTexture, _ []ima
 // GetTimestampPeriod implements hal.Queue: wgpu-native does not expose it, returns 0.
 func (q *Queue) GetTimestampPeriod() float32 { return 0 }
 
-// SupportsCommandBufferCopies implements hal.Queue: Rust submits via command buffers.
 func (q *Queue) SupportsCommandBufferCopies() bool { return true }
 
 var _ hal.Queue = (*Queue)(nil)

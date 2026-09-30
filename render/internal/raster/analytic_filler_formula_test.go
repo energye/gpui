@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -11,19 +18,19 @@ import (
 // Skia AAA formula unit tests.
 //
 // Every formula ported from SkScan_AAAPath.cpp is tested with expected values
-// derived from Skia's reference implementation. The goal is to catch any
+// derived from the reference implementation. The goal is to catch any
 // accidental change to a formula — each test pins the exact numeric output.
 //
 // Skia source reference:
-//   skia/src/core/SkScan_AAAPath.cpp (2024 Skia HEAD)
+//   skia/src/core/SkScan_AAAPath.cpp
 //
 // Notation:
-//   SK_Fixed1    = 1 << 16 = 65536  (skFixed1 in our code)
-//   SK_FixedHalf = 1 << 15 = 32768  (skFixedHalf in our code)
+//   SK_Fixed1 = 1 << 16 = 65536 (skFixed1 in our code)
+//   SK_FixedHalf = 1 << 15 = 32768 (skFixedHalf in our code)
 // =============================================================================
 
 // --- 1. trapezoidToAlpha -------------------------------------------------
-// Skia: trapezoid_to_alpha (SkScan_AAAPath.cpp:547-553)
+// Skia: trapezoid_to_alpha
 //
 //   Area of trapezoid with height = 1 full pixel.
 //   Two parallel sides l1, l2 (in 16.16 fixed-point).
@@ -92,7 +99,7 @@ func TestFormulaTrapezoidToAlpha(t *testing.T) {
 }
 
 // --- 2. partialTriangleToAlpha -------------------------------------------
-// Skia: partial_triangle_to_alpha (SkScan_AAAPath.cpp:555-562)
+// Skia: partial_triangle_to_alpha
 //
 //   Area of right triangle with legs a and a*b.
 //   Both in 16.16 fixed-point, a clamped to [0, SK_Fixed1].
@@ -181,7 +188,7 @@ func TestFormulaPartialTriangleToAlpha(t *testing.T) {
 }
 
 // --- 3. getPartialAlpha8 -------------------------------------------------
-// Skia: get_partial_alpha(SkAlpha, SkAlpha) (SkScan_AAAPath.cpp:565-567)
+// Skia: get_partial_alpha(SkAlpha, SkAlpha)
 //
 //   result = (alpha * fullAlpha) >> 8
 //   Uses TRUNCATION, not rounding.
@@ -248,7 +255,7 @@ func TestFormulaGetPartialAlpha8(t *testing.T) {
 }
 
 // --- 4. fixedToAlpha -----------------------------------------------------
-// Skia: fixed_to_alpha (SkScan_AAAPath.cpp:572-575)
+// Skia: fixed_to_alpha
 //
 //   get_partial_alpha(0xFF, f) = (255 * f + SK_FixedHalf) >> 16
 //   Uses ROUNDING (contrast with getPartialAlpha8 which truncates).
@@ -321,7 +328,7 @@ func TestFormulaFixedToAlpha(t *testing.T) {
 func TestFormulaFixedToAlphaRounding(t *testing.T) {
 	// Rounding test: f = 129 (just over 128 when scaled by 255/65536).
 	// Without rounding: (255 * 129) >> 16 = 32895 >> 16 = 0
-	// With rounding:    (255 * 129 + 32768) >> 16 = 65663 >> 16 = 1
+	// With rounding: (255 * 129 + 32768) >> 16 = 65663 >> 16 = 1
 	f := int32(129)
 	got := fixedToAlpha(f)
 	wantRounded := uint8(1)
@@ -334,7 +341,7 @@ func TestFormulaFixedToAlphaRounding(t *testing.T) {
 }
 
 // --- 5. snapY (in curve_edge.go) -----------------------------------------
-// Skia: SnapY (SkAnalyticEdge.h:52)
+// Skia: SnapY
 //
 //   Rounds FDot16 Y to nearest 1/4 pixel boundary (with accuracy=2).
 //   mask = ^((1 << (16 - 2)) - 1) = ^(0x3FFF - 1) = 0xFFFFC000
@@ -507,7 +514,7 @@ func TestFormulaSafeAddAlpha(t *testing.T) {
 }
 
 // --- 7. approximateIntersection ------------------------------------------
-// Skia: approximate_intersection (SkScan_AAAPath.cpp:539-545)
+// Skia: approximate_intersection
 //
 //   Approximates the X of intersection between two lines defined by:
 //   line1: (l1, y) → (r1, y+1) and line2: (l2, y) → (r2, y+1).
@@ -905,7 +912,7 @@ func TestFormulaDeduplicateInt32s(t *testing.T) {
 }
 
 // --- 14. Formula interaction tests ---------------------------------------
-// Test that formulas work together correctly, matching Skia's pipeline.
+// Test that formulas work together correctly, matching the pipeline.
 
 func TestFormulaInteractionTrapezoidWithPartialAlpha(t *testing.T) {
 	// Skia pattern: for 1-pixel wide edges, trapezoidToAlpha gives the
@@ -944,7 +951,7 @@ func TestFormulaInteractionFixedToAlphaSubStrips(t *testing.T) {
 	if a1 != 64 {
 		t.Errorf("fixedToAlpha(quarter) = %d, want 64", a1)
 	}
-	// Sum can be up to 256 — this is by design (Skia clamps in safeAddAlpha).
+	// Sum can be up to 256 — this is by design.
 	if sum < 255 || sum > 256 {
 		t.Errorf("4 * fixedToAlpha(quarter) = %d, want 255 or 256", sum)
 	}
@@ -1035,7 +1042,7 @@ func TestFormulaBoundaryValues(t *testing.T) {
 	})
 }
 
-// TestFormulaPixelDY verifies PixelDY matches Skia's fDY = abs(FDot6Div(dy, dx)).
+// TestFormulaPixelDY verifies PixelDY matches the fDY = abs(FDot6Div(dy, dx)).
 // Skia: SkAnalyticEdge.cpp:197-199. NOT 1/slope — different due to integer rounding.
 func TestFormulaPixelDY(t *testing.T) {
 	tests := []struct {
@@ -1282,7 +1289,7 @@ func TestFormulaHasEdgeCrossing(t *testing.T) {
 	}
 }
 
-// TestFormulaCompositeOnWhite verifies Skia's exact SkAlphaMulQ compositing.
+// TestFormulaCompositeOnWhite verifies the exact SkAlphaMulQ compositing.
 func TestFormulaCompositeOnWhite(t *testing.T) {
 	tests := []struct {
 		cov                 uint32

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -392,7 +402,6 @@ func TestCompile_EntryPointStructReturnMapping(t *testing.T) {
 	if strings.Contains(result, "return output;") {
 		t.Error("Did not expect entry point to return the undecorated struct")
 	}
-	// Expect Rust naga pattern: const auto _tmp = ...; return OutputStruct { _tmp.field1, _tmp.field2 };
 	if !strings.Contains(result, "const auto _tmp = ") {
 		t.Error("Expected 'const auto _tmp = ...' for output struct return")
 	}
@@ -466,7 +475,6 @@ func TestCompile_FragmentStageInStructInput(t *testing.T) {
 		t.Fatalf("Compile failed: %v", err)
 	}
 
-	// Rust naga pattern: stage_in struct has ONLY location members
 	if !strings.Contains(result, "fs_mainInput") {
 		t.Error("Expected input struct for fragment entry point")
 	}
@@ -683,9 +691,6 @@ func TestMSL_PassThroughGlobals(t *testing.T) {
 		}
 	}
 
-	// Entry point should have [[texture(0)]] and [[sampler(0)]]
-	// Sampler gets index 0 because Metal indices are sequential per resource type
-	// (not the raw WGSL binding number), matching Rust wgpu-hal behavior.
 	if !strings.Contains(result, "[[texture(0)]]") {
 		t.Error("Expected [[texture(0)]] on entry point param")
 	}
@@ -711,11 +716,8 @@ func TestMSL_PassThroughGlobals(t *testing.T) {
 
 // TestMSL_MultiGroupBindingIndices verifies that globals from different bind
 // groups get unique Metal buffer indices. Before the fix, @group(0) @binding(0)
-// and @group(1) @binding(0) both mapped to [[buffer(0)]], causing a Metal
 // shader compilation error. After the fix, they get sequential indices:
 // [[buffer(0)]] and [[buffer(1)]].
-//
-// This is the regression test for gogpu/gg#209.
 func TestMSL_MultiGroupBindingIndices(t *testing.T) {
 	// Types: 0=f32, 1=vec4f, 2=Uniforms{viewport:vec4f}, 3=ClipParams{rect:vec4f}
 	tVec4 := ir.TypeHandle(1)

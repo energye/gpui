@@ -1,13 +1,22 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// S3a M0–M1 GPU fixed-pixel gate.
 //
 // Architecture under test:
 //   render.Context → GPU accelerator → gpu/webgpu → gpu/rwgpu → libwgpu_native
 //
-// Hard rules (MAINLINE_PLAN S3):
+// Hard rules:
 //   - WGPU_NATIVE_PATH / accelerator path required
 //   - GPUOps must be > 0 after FlushGPU (no silent CPU-only pass)
 //   - Pixel checks prove semantics (not only “did not crash”)
@@ -78,8 +87,6 @@ func s3aWhiteBG(dc *render.Context, w, h int) {
 	_ = dc.Fill()
 }
 
-// --- M0 ---
-
 func TestS3a_M0_ClearWithColor(t *testing.T) {
 	s3aRequireGPU(t)
 	dc := render.NewContext(32, 32)
@@ -120,8 +127,6 @@ func TestS3a_M0_SolidFillRect(t *testing.T) {
 	s3aAlmost(t, "out-g", g, 255, 5)
 	s3aAlmost(t, "out-b", b, 255, 5)
 }
-
-// --- M1 path / stroke / shapes ---
 
 func TestS3a_M1_StrokeRect(t *testing.T) {
 	s3aRequireGPU(t)
@@ -229,8 +234,6 @@ func TestS3a_M1_Hairline(t *testing.T) {
 		}
 	}
 }
-
-// --- M1 transform / clip / AA ---
 
 func TestS3a_M1_CTMTranslate(t *testing.T) {
 	s3aRequireGPU(t)

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package recording provides types for recording drawing operations.
 //
 // The recording system enables vector export (PDF, SVG) by capturing drawing
@@ -5,7 +15,7 @@
 // Commands are stored in a Recording and can be replayed to any backend.
 //
 // Design follows Cairo's approach of typed command structs for inspectability
-// and debuggability, rather than Skia's binary serialization format.
+// and debuggability, rather than the binary serialization format.
 //
 // # Architecture
 //

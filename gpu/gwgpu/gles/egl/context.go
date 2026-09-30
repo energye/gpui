@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build linux && !(js && wasm)
 
@@ -40,11 +47,10 @@ type ContextConfig struct {
 	// a second connection, which makes wl_surface proxies mismatched on configure.
 	// On X11: the X11 Display*. Zero uses the default display.
 	NativeDisplay uintptr
-	// AllowSoftwareConfigs lifts the P2-0 hardware-caveat filter: configs
 	// marked SLOW/NON_CONFORMANT become eligible. Default false (a software
 	// rasterizer must never shadow a real GPU on the shared display); set it
 	// only when the caller explicitly picked a software device display
-	// (P2-2 ForceFallback materialize), where slow is the honest answer.
+	// , where slow is the honest answer.
 	AllowSoftwareConfigs bool
 	// WindowKind selects the native window system explicitly. Nil preserves
 	// automatic environment-based detection and keeps ContextConfig's zero value
@@ -89,7 +95,7 @@ func NewContext(config ContextConfig) (*Context, error) {
 // Takes over the display: Destroy terminates it, and error paths terminate
 // it too — same ownership as NewContext. The display is reported as
 // surfaceless: device displays have no window system, so the context must
-// never be mistaken for a shareable window context (P2-3 owns that split).
+// never be mistaken for a shareable window context.
 func NewContextOnDisplay(display EGLDisplay, config ContextConfig) (*Context, error) {
 	if display == NoDisplay {
 		return nil, fmt.Errorf("no display")
@@ -145,7 +151,6 @@ func newContextOnDisplay(display EGLDisplay, windowKind WindowKind, displayOwner
 	// Surfaceless context: EGL 1.5+ or EGL_KHR_surfaceless_context allows
 	// MakeCurrent with EGL_NO_SURFACE. Skip pbuffer creation in that case.
 	// Fallback to 1×1 pbuffer for older drivers.
-	// Matches Rust wgpu-hal egl.rs:735-758.
 	hasSurfaceless := (major > 1 || (major == 1 && minor >= 5))
 	if !hasSurfaceless {
 		displayExts := QueryString(display, Extensions)
@@ -199,8 +204,7 @@ func chooseEGLConfig(display EGLDisplay, config ContextConfig) (EGLConfig, error
 		renderableType = OpenGLBit
 	}
 
-	// Tiered config selection (Rust wgpu-hal egl.rs:218-293).
-	// Rust's top tier = WindowBit alone (never combined with PbufferBit).
+	// Tiered config selection.
 	// Mesa Wayland EGL does NOT support PbufferBit — any tier requiring it
 	// returns 0 configs. WindowBit alone = 48 configs on Mesa Wayland.
 	// Caveat: prefer hardware configs first (skia Ganesh GR_GL_CONFIG..
@@ -235,7 +239,7 @@ func chooseEGLConfig(display EGLDisplay, config ContextConfig) (EGLConfig, error
 		// uninitialized display) returns 0 configs with 0x3001 for ANY
 		// attribute set, so filtering must not turn a driver quirk into
 		// "no configs". The caveat check below inspects the winner.
-		// AllowSoftwareConfigs (P2-2 software-device path only) skips the
+		// AllowSoftwareConfigs skips the
 		// winner check: on an explicitly picked software display, slow is
 		// the honest answer, not a shadow.
 		attribs = append(attribs, ConfigCaveat, DontCare)

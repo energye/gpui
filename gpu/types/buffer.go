@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package types
 
 // BufferUsage describes how a buffer can be used.
@@ -88,9 +98,7 @@ func (s BufferMapState) String() string {
 
 // MapMode describes the access mode for buffer mapping.
 //
-// This is a bit flag type. Matches gpu/webgpu MapMode
-// (gpu/webgpu/map_types.go:8, no None member); a zero value means
-// no access and is invalid for map operations.
+// This is a bit flag type.
 type MapMode uint32
 
 const (

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -186,7 +196,7 @@ func (a *SDFAccelerator) ClearClipPath() {
 // CanAccelerate reports whether this accelerator supports the given operation.
 // Returns false when the rendering strategy is strategyRasterAtlas (software
 // adapters) — shapes route to CPU rasterizer instead, preventing SDF pipeline
-// hang (Skia kRasterAtlas pattern, BUG-SW-002).
+// hang.
 func (a *SDFAccelerator) CanAccelerate(op render.AcceleratedOp) bool {
 	if a.shared == nil {
 		return false
@@ -286,7 +296,7 @@ func (a *SDFAccelerator) AbandonDeviceProvider() {
 }
 
 // PurgeSurfaceResources drops surface-sized GPU attachments on all live
-// contexts without abandoning the device (Skia freeGpuResources for surfaces).
+// contexts without abandoning the device.
 func (a *SDFAccelerator) PurgeSurfaceResources() {
 	a.mu.Lock()
 	shared := a.shared
@@ -301,7 +311,7 @@ func (a *SDFAccelerator) PurgeSurfaceResources() {
 }
 
 // CanRenderDirect reports whether the GPU accelerator can render to a surface.
-// Returns false on software adapters — SDF pipelines hang on CPU (BUG-SW-002).
+// Returns false on software adapters — SDF pipelines hang on CPU.
 func (a *SDFAccelerator) CanRenderDirect() bool {
 	// GPUShared.CanRenderDirect() already checks softwareMode under lock.
 	return a.shared.CanRenderDirect()
@@ -470,7 +480,6 @@ func (a *SDFAccelerator) GlyphAtlasStats() (hits, misses uint64, entryCount, pag
 	return a.shared.glyphMaskEngine.atlas.Stats()
 }
 
-// GlyphMaskUploadStats returns S4.2/S6.5 upload stats from the last atlas sync.
 func (a *SDFAccelerator) GlyphMaskUploadStats() (bytes int64, regions, partial, full int) {
 	if a.shared == nil || a.shared.glyphMaskEngine == nil {
 		return 0, 0, 0, 0
@@ -478,7 +487,6 @@ func (a *SDFAccelerator) GlyphMaskUploadStats() (bytes int64, regions, partial, 
 	return a.shared.glyphMaskEngine.LastUploadStats()
 }
 
-// GeometryCacheStats returns S4.3/S6.6 path/stroke/dash/convex cache stats.
 func (a *SDFAccelerator) GeometryCacheStats() GeometryCacheStats {
 	if a.shared == nil {
 		return GeometryCacheStats{}
@@ -501,14 +509,13 @@ func (a *SDFAccelerator) ImageCacheStatsFromDefault() ImageCacheStats {
 	return a.defaultCtx.session.imageCache.Stats()
 }
 
-// ResourceUploadStats aggregates S6.7 upload/resource diagnostics from default session + shared pools.
 type ResourceUploadStats struct {
 	Image   ImageCacheStats
 	Texture TexturePoolStats
 	Memory  GPUMemoryStats
 }
 
-// ResourceUploadStats returns combined resource diagnostics (S6.7).
+// ResourceUploadStats returns combined resource diagnostics.
 func (a *SDFAccelerator) ResourceUploadStats() ResourceUploadStats {
 	var out ResourceUploadStats
 	if a == nil {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -25,8 +35,6 @@ const (
 
 // emitExpression evaluates a single expression and returns its DXIL value ID.
 // For vector types, returns the ID of the first component.
-//
-// Reference: Mesa nir_to_dxil.c emit_alu()
 //
 //nolint:gocyclo,cyclop,funlen // expression dispatch requires handling all expression kinds
 func (e *Emitter) emitExpression(fn *ir.Function, handle ir.ExpressionHandle) (int, error) {
@@ -339,8 +347,7 @@ func (e *Emitter) emitAccessIndex(fn *ir.Function, ai ir.ExprAccessIndex) (int, 
 	// occurs when callee's body does `arg.field` (struct) or `arg[N]` (const-
 	// index array). DXIL forbids materializing the aggregate Load — peel to
 	// the slot alloca, emit struct/array GEP to the indexed element, Load
-	// scalar. Mirrors DXC AlwaysInliner + SROA: alloca + per-field GEP + load,
-	// never a full aggregate load.
+	// scalar.
 	if id, handled, err := e.tryInlineLoadOfLocalVarAccessIndex(fn, ai); err != nil {
 		return 0, err
 	} else if handled {
@@ -417,8 +424,6 @@ func (e *Emitter) emitAccessIndex(fn *ir.Function, ai ir.ExprAccessIndex) (int, 
 			// chain `globals_struct.arr[i]` therefore needs a SINGLE flat
 			// GEP with all indices [0, structField, arrayIndex] instead
 			// of two separate GEPs %x = struct_gep; %y = arr_gep %x.
-			// Mirrors Mesa nir_to_dxil deref_to_gep which walks the deref
-			// chain and emits one flat gep per shared variable access.
 			if id, handled := e.tryFlatGEPWorkgroupNested(fn, ai, bai); handled {
 				return id, nil
 			}
@@ -463,7 +468,7 @@ func (e *Emitter) emitAccessIndex(fn *ir.Function, ai ir.ExprAccessIndex) (int, 
 		}
 	}
 
-	// BUG-DXIL-005: scalar-component access of a struct-vector field.
+	// scalar-component access of a struct-vector field.
 	// Pattern: AccessIndex(AccessIndex(LocalVariable(s), fieldIdx), compIdx)
 	// where the field is a vector and compIdx selects one scalar component.
 	// Without this, the outer index falls through to getComponentID(inner, k)
@@ -493,9 +498,6 @@ func (e *Emitter) emitAccessIndex(fn *ir.Function, ai ir.ExprAccessIndex) (int, 
 //
 // The fix is to emit a direct GEP into the local struct alloca using the
 // correct flat component index, producing a real pointer value. This is the
-// access-side symmetric counterpart to tryStructMemberComponentStore and
-// closes the load side of BUG-DXIL-004 for per-component loads (the existing
-// tryStructVectorMemberLoad only handles whole-vector loads of a struct field).
 func (e *Emitter) tryStructVectorComponentAccess(fn *ir.Function, outer ir.ExprAccessIndex) (int, bool) {
 	innerAI, ok := fn.Expressions[outer.Base].Kind.(ir.ExprAccessIndex)
 	if !ok {
@@ -728,9 +730,6 @@ func (e *Emitter) scaleIndexForVecArray(fn *ir.Function, varIdx uint32, indexID 
 // equivalent chain of two GEPs as 'TGSM pointers must originate from an
 // unambiguous TGSM global variable' because GEP-of-GEP loses the
 // origin tracking. Returns (-1, false) if the chain doesn't match.
-//
-// Reference: Mesa nir_to_dxil deref_to_gep walks the entire deref chain
-// and emits gep_indices[0] = global_var, then one index per deref step.
 func (e *Emitter) tryFlatGEPWorkgroupNested(fn *ir.Function, ai, bai ir.ExprAccessIndex) (int, bool) {
 	// Inner base must be an ExprGlobalVariable for a workgroup-space global.
 	gv, ok := fn.Expressions[bai.Base].Kind.(ir.ExprGlobalVariable)
@@ -837,10 +836,6 @@ func (e *Emitter) tryAccessIndexArrayGEP(fn *ir.Function, acc ir.ExprAccess, bas
 // Returns (-1, false) if the chain doesn't match (not a nested access on a
 // local var array, runtime-sized array, or vector/matrix leaf for which the
 // flattening multiplier interacts with vector lanes — left as future work).
-//
-// Reference: LLVM langref getelementptr semantics; Mesa nir_to_dxil
-// deref_to_gep walks the entire deref chain and emits one flat gep per
-// alloca'd variable.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // walks an arbitrary-depth IR access chain
 func (e *Emitter) tryFlatGEPLocalVarNested(fn *ir.Function, baseExpr ir.ExpressionHandle, lastIndexValueID int) (int, bool) {
@@ -1101,8 +1096,6 @@ func (e *Emitter) emitStructFieldGEP(basePtrID int, dxilStructTy *module.Type, s
 // For UAV pointer chains, this is handled by resolveUAVPointerChain.
 // For local/workgroup arrays, emits a GEP instruction to compute the element pointer.
 //
-// Reference: LLVM GEP semantics — getelementptr [N x T]*, i32 0, i32 index → T*
-//
 //nolint:gocognit,gocyclo,cyclop // dispatch logic for array/binding-array/UAV access patterns
 func (e *Emitter) emitAccess(fn *ir.Function, acc ir.ExprAccess) (int, error) {
 	// Inline-pass Load-of-localvar fast path. The IR-level inline pass spills
@@ -1121,7 +1114,7 @@ func (e *Emitter) emitAccess(fn *ir.Function, acc ir.ExprAccess) (int, error) {
 		return id, nil
 	}
 
-	// Const vector-array fast path (BUG-DXIL-025). If the base is a
+	// Const vector-array fast path. If the base is a
 	// local var that was registered in localConstVecArrays by
 	// emitArrayLocalVariable, return a sentinel pointer ID: emitLoad
 	// will look up the same table and materialize per-lane scalars via
@@ -1455,8 +1448,7 @@ func (e *Emitter) emitBinary(fn *ir.Function, bin ir.ExprBinary) (int, error) {
 
 	// LLVM Reassociate pass: for chains of commutative+associative ops
 	// (e.g. a+b+c), flatten the tree, emit all leaves, sort by value ID,
-	// and rebuild left-leaning. This matches DXC's -O3 pipeline which
-	// includes the LLVM Reassociate pass before codegen.
+	// and rebuild left-leaning.
 	if isCommutativeBinOp(bin.Op) {
 		leaves := e.flattenBinaryChain(fn, bin.Op, bin.Left, bin.Right)
 		if len(leaves) > 2 {
@@ -1485,7 +1477,6 @@ func (e *Emitter) emitBinary(fn *ir.Function, bin ir.ExprBinary) (int, error) {
 	// 2. When both are non-constant, higher value ID goes first.
 	//    LLVM ranks operands by "complexity" — for two instructions of the
 	//    same kind the operand with the higher value number sorts first.
-	//    This matches DXC's -dumpbin output for golden parity.
 	if isCommutativeBinOp(bin.Op) {
 		lConst := e.isConstValueID(lhs)
 		rConst := e.isConstValueID(rhs)
@@ -1622,7 +1613,7 @@ func selectDivOp(isFloat, isSigned bool) BinOpKind {
 
 // emitModulo emits a modulo/remainder operation. DXIL does not support FRem
 // natively (DXC rejects it with "Invalid record"), so float modulo is lowered
-// to: a - b * floor(a / b). This matches Mesa nir_to_dxil.c lower_fmod.
+// to: a - b * floor(a / b).
 //
 // For unsigned integer modulo by a constant power of 2, DXC's LLVM
 // InstCombine applies strength reduction: urem x, 2^N -> and x, (2^N - 1).
@@ -1644,7 +1635,6 @@ func (e *Emitter) emitModulo(resultTy *module.Type, lhs, rhs int, isFloat, isSig
 // tryURemToBitwiseAnd checks whether valueID refers to an integer constant
 // that is a power of 2 (>= 2). If so, returns the value ID for the bitmask
 // (value - 1) for use in strength reduction: urem x, 2^N -> and x, (2^N - 1).
-// This matches DXC's LLVM InstCombine pass.
 func (e *Emitter) tryURemToBitwiseAnd(valueID int) (int, bool) {
 	c, ok := e.constMap[valueID]
 	if !ok || c.IsUndef || c.IsAggregate {
@@ -1678,7 +1668,6 @@ func (e *Emitter) addMulOrShlInstr(resultTy *module.Type, lhs, rhs int) int {
 // tryMulToShl checks whether valueID refers to an integer constant that is a
 // power of 2 (>= 2). If so, returns the value ID for the shift amount
 // (log2(value)) for use in strength reduction: mul X, 2^N -> shl X, N.
-// This matches DXC's LLVM InstCombine pass.
 func (e *Emitter) tryMulToShl(valueID int) (int, bool) {
 	c, ok := e.constMap[valueID]
 	if !ok || c.IsUndef || c.IsAggregate {
@@ -1707,8 +1696,7 @@ func (e *Emitter) tryMulToShl(valueID int) (int, bool) {
 
 // trySubToAddNeg checks whether valueID refers to a positive integer constant.
 // If so, returns the value ID for the negated constant (-value) for use in
-// canonicalization: sub X, C -> add X, -C. This matches DXC's LLVM
-// canonicalization where sub is converted to add with negative operand.
+// canonicalization: sub X, C -> add X, -C.
 func (e *Emitter) trySubToAddNeg(valueID int) (int, bool) {
 	c, ok := e.constMap[valueID]
 	if !ok || c.IsUndef || c.IsAggregate {
@@ -1852,7 +1840,6 @@ func (e *Emitter) tryFoldIntBinOp(op ir.BinaryOperator, lhs, rhs int, _ bool) (i
 
 // tryShlAndCombine detects mul(and(X, C1), 2^N) or mul(as(and(X, C1)), 2^N)
 // in the IR expression tree and rewrites to and(shl(X, N), C1 << N). This
-// matches LLVM InstCombine's canonicalization which hoists the shift before
 // the and and adjusts the mask. The As (cast) peeling handles cases like
 // i32(vertex_index & 1u) * 2 where a u32->i32 cast wraps the And.
 // Returns (valueID, true) if the transform applied, (0, false) otherwise.
@@ -2208,7 +2195,7 @@ func (e *Emitter) emitReassociatedChain(fn *ir.Function, op ir.BinaryOperator,
 	elemType ir.TypeInner, leaves []ir.ExpressionHandle,
 ) (int, error) {
 	// Sort leaves by emission priority: already-emitted (0), memory-reading (1),
-	// pure ALU (2). This matches DXC's scheduling preference for memory reads.
+	// pure ALU (2).
 	//
 	sort.SliceStable(leaves, func(i, j int) bool {
 		pi := e.leafEmitPriority(fn, leaves[i])
@@ -2606,7 +2593,6 @@ func (e *Emitter) emitMatrixTranspose(fn *ir.Function, mathExpr ir.ExprMath) (in
 	return comps[0], nil
 }
 
-// selectBinaryOpcode returns the LLVM binary/comparison opcode for a naga binary operator.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // complete binary op dispatch table
 func selectBinaryOpcode(op ir.BinaryOperator, leftType ir.TypeInner) (BinOpKind, CmpPredicate, bool, error) {
@@ -3226,9 +3212,6 @@ func (e *Emitter) emitMathDot(fn *ir.Function, mathExpr ir.ExprMath) (int, error
 // lowering DXC produces for HLSL 'dot(int2, int2)' and similar. Verified
 // via dxc -T cs_6_0 on a structured-buffer integer dot: DXC emits
 //
-//	%prod1 = mul i32 a.1, b.1            ; trailing product
-//	%dot   = call i32 @dx.op.tertiary.i32(i32 48, a.0, b.0, %prod1)  ; IMad
-//
 // and for 3/4 component vectors iterates the IMad accumulator with the
 // next 'a.i * b.i' product. Using plain IMul+IAdd works but is a regression
 // from the reference — DXC's IMad (opcode 48, tertiary int) is a fused
@@ -3469,13 +3452,11 @@ func (e *Emitter) emitMathNormalize(fn *ir.Function, mathExpr ir.ExprMath) (int,
 	return comps[0], nil
 }
 
-// mathToDxOpUnary maps naga MathFunction to dx.op opcode and name for unary functions.
-//
-// DXIL function naming convention (per dxc DxilOperations.cpp): the function
+// DXIL function naming convention: the function
 // name is dx.op.<OpClass>.<overload>. Float-domain unary opcodes share the
 // "unary" class, integer bit-counting ops share "unaryBits". Using
 // per-opcode names (dx.op.fmin etc.) produces "is not a DXILOpFunction"
-// validation errors. BUG-DXIL-022 follow-up.
+// validation errors.
 //
 //nolint:gocyclo,cyclop // math function mapping requires many cases
 func mathToDxOpUnary(mf ir.MathFunction) (DXILOpcode, string, error) {
@@ -3677,8 +3658,8 @@ func (e *Emitter) emitMathInsertBits(fn *ir.Function, mathExpr ir.ExprMath) (int
 // Ldexp at all. DXC's HLSL frontend lowers it in HLOperationLower.cpp:
 //
 //	Value *TranslateLdExp(CallInst *CI, ...) {
-//	    Value *src0 = CI->getArgOperand(0);  // x    (already float)
-//	    Value *src1 = CI->getArgOperand(1);  // exp  (already float)
+//	    Value *src0 = CI->getArgOperand(0); // x (already float)
+//	    Value *src1 = CI->getArgOperand(1); // exp (already float)
 //	    Value *exp =
 //	        TrivialDxilUnaryOperation(OP::OpCode::Exp, src1, ...);
 //	    return Builder.CreateFMul(exp, src0);
@@ -3697,9 +3678,6 @@ func (e *Emitter) emitMathInsertBits(fn *ir.Function, mathExpr ir.ExprMath) (int
 // DXIL `dx.op.unary.*` opcodes are scalar-only, so each lane becomes
 // its own sitofp + exp + fmul triple and the result is tracked via
 // pendingComponents like other vectorised math intrinsics.
-//
-// Reference: `reference/dxil/dxc/lib/HLSL/HLOperationLower.cpp:2504`
-// (TranslateLdExp); WGSL spec §16.6.26 (ldexp signatures).
 func (e *Emitter) emitMathLdexp(fn *ir.Function, mathExpr ir.ExprMath) (int, error) {
 	if mathExpr.Arg1 == nil {
 		return 0, fmt.Errorf("ldexp requires 2 arguments")
@@ -3755,9 +3733,7 @@ func (e *Emitter) emitMathLdexp(fn *ir.Function, mathExpr ir.ExprMath) (int, err
 //	d = dot(N, I)
 //	k = 1.0 - eta*eta * (1.0 - d*d)
 //	if k < 0.0: return zero vector
-//	else:       return eta * I - (eta * d + sqrt(k)) * N
-//
-// Reference: GLSL spec 8.5 Geometric Functions.
+//	else: return eta * I - (eta * d + sqrt(k)) * N
 func (e *Emitter) emitMathRefract(fn *ir.Function, mathExpr ir.ExprMath) (int, error) {
 	if _, err := e.emitExpression(fn, mathExpr.Arg); err != nil {
 		return 0, fmt.Errorf("refract I: %w", err)
@@ -3895,8 +3871,6 @@ func (e *Emitter) emitMathModf(fn *ir.Function, mathExpr ir.ExprMath) (int, erro
 
 	// Result struct has {fract, whole} for scalar, or flattened for vectors:
 	// {fract0, fract1, ..., whole0, whole1, ...} OR {fract, whole}.
-	// Naga IR modf returns __modf_result with members [fract, whole],
-	// where each is scalar or vector matching the input type.
 	// Flatten as: fract components first, then whole components.
 	comps := make([]int, 2*size)
 	for i := 0; i < size; i++ {
@@ -3919,7 +3893,7 @@ func (e *Emitter) emitMathModf(fn *ir.Function, mathExpr ir.ExprMath) (int, erro
 // DXIL has no native frexp. We compute:
 //
 //	abs_x = fabs(x)
-//	exp_raw = floor(log2(abs_x)) + 1    (for x != 0)
+//	exp_raw = floor(log2(abs_x)) + 1 (for x != 0)
 //	exp_i = ftoi(exp_raw)
 //	fract = x * exp2(-exp_raw)
 //
@@ -3995,9 +3969,6 @@ func (e *Emitter) emitMathFrexp(fn *ir.Function, mathExpr ir.ExprMath) (int, err
 //
 // These opcodes do NOT introduce the LLVM half type, so the shader does
 // not require the NativeLowPrecision (UseNativeLowPrecision) shader flag.
-// This matches DXC's lowering of HLSL f32tof16/f16tof32 which also avoids
-// native half — the DXIL spec explicitly notes these are "not related to
-// min-precision" (DXIL.rst lines 2249-2250).
 //
 // For vectors, applies per-component.
 func (e *Emitter) emitMathQuantizeF16(fn *ir.Function, mathExpr ir.ExprMath) (int, error) {
@@ -4196,8 +4167,6 @@ func (e *Emitter) emitSelect(fn *ir.Function, sel ir.ExprSelect) (int, error) {
 // For a global variable that is a struct with a runtime array as last member:
 // offset = last member's offset, stride from the array type.
 //
-// Reference: Mesa nir_to_dxil.c emit_get_ssbo_size() ~4344
-//
 //nolint:nestif,gocognit,gocyclo,cyclop,funlen // type resolution for array vs struct wrapping the runtime array
 func (e *Emitter) emitArrayLength(fn *ir.Function, al ir.ExprArrayLength) (int, error) {
 	// Resolve the global variable that owns this runtime array.
@@ -4370,10 +4339,10 @@ func (e *Emitter) emitArrayLength(fn *ir.Function, al ir.ExprArrayLength) (int, 
 //
 // Shape produced per lane:
 //
-//	cmp0  = icmp eq i32 idx, 0
-//	selN  = table[N-1][lane]                              (initial)
-//	cmpK  = icmp eq i32 idx, K     for K = N-2 down to 0
-//	selK  = select cmpK, table[K][lane], selK+1
+//	cmp0 = icmp eq i32 idx, 0
+//	selN = table[N-1][lane] (initial)
+//	cmpK = icmp eq i32 idx, K for K = N-2 down to 0
+//	selK = select cmpK, table[K][lane], selK+1
 //	lane0 = final select
 //
 // tryLoadInitOnly checks if a load targets an init-only local variable
@@ -4518,7 +4487,7 @@ func (e *Emitter) tryLoadFromConstVecArray(fn *ir.Function, load ir.ExprLoad) (i
 
 // emitLoad emits a load through a pointer.
 func (e *Emitter) emitLoad(fn *ir.Function, load ir.ExprLoad) (int, error) {
-	// Const vector-array fast path (BUG-DXIL-025). Load from
+	// Const vector-array fast path. Load from
 	// `Access(LocalVariable, idx)` where the local is a constant-init
 	// vector array. Emit a per-lane select chain indexed by the
 	// runtime `idx` expression — effectively what DXC's SROA + GVN
@@ -4530,14 +4499,12 @@ func (e *Emitter) emitLoad(fn *ir.Function, load ir.ExprLoad) (int, error) {
 
 	// Check if this load is from a CBV (constant buffer) pointer chain.
 	// CBV loads use dx.op.cbufferLoadLegacy instead of LLVM load instructions.
-	// Reference: Mesa nir_to_dxil.c emit_load_ubo_vec4() line ~3527
 	if chain, ok := e.resolveCBVPointerChain(fn, load.Pointer); ok {
 		return e.emitCBVLoad(fn, chain)
 	}
 
 	// Check if this load is from a UAV (storage buffer) pointer chain.
 	// UAV loads use dx.op.bufferLoad instead of LLVM load instructions.
-	// Reference: Mesa nir_to_dxil.c emit_bufferload_call() line ~833
 	if chain, ok := e.resolveUAVPointerChain(fn, load.Pointer); ok {
 		return e.emitUAVLoad(fn, chain)
 	}
@@ -4601,8 +4568,6 @@ func (e *Emitter) emitLoad(fn *ir.Function, load ir.ExprLoad) (int, error) {
 	// For struct types, decompose into per-member scalar loads.
 	// This handles cases where the pointer source is not a simple local/global variable.
 	//
-	// BUG-DXIL-026 (remaining 4 tilecompute shaders): when the pointer chains
-	// through an AccessIndex / Access rooted at a workgroup addrspace(3)
 	// global (e.g. `sh[lid.x]` where `sh: array<PathMonoid, 256>`), the
 	// per-field GEPs must carry addrspace 3 so the subsequent scalar load's
 	// explicit type matches the pointee type of the addrspace(3) pointer.
@@ -4644,8 +4609,8 @@ func (e *Emitter) emitLoad(fn *ir.Function, load ir.ExprLoad) (int, error) {
 // local variable and expands them into per-component scalar loads.
 //
 // Patterns handled:
-//   - ExprLoad(ExprAccessIndex(ExprLocalVariable(v), idx))  -- constant index
-//   - ExprLoad(ExprAccess(ExprLocalVariable(v), idxExpr))   -- dynamic index
+//   - ExprLoad(ExprAccessIndex(ExprLocalVariable(v), idx)) -- constant index
+//   - ExprLoad(ExprAccess(ExprLocalVariable(v), idxExpr)) -- dynamic index
 //
 // where v has type array<vec<T,W>, N> and the DXIL alloca is [N*W x T].
 // The GEP from tryLocalVarAccessIndex/emitAccess already points to the first
@@ -4781,11 +4746,6 @@ func (e *Emitter) tryLoadVectorFromFlatArray(
 // We use AddInstruction (not Prepend) because subsequent statements
 // in the merge body emit AFTER the phi, never before — so phis end
 // up at BB[0..k-1] in the order mem2reg placed them.
-//
-// Reference parity: matches LLVM mem2reg's invariant that phi
-// instructions live at the start of the merge BB; the per-incoming
-// (value, predecessor BB) pairs come from the structured-CFG
-// branch snapshot in e.lastBranchBBs (PhiPredKey -> BB index).
 func (e *Emitter) emitPhi(fn *ir.Function, phi ir.ExprPhi) (int, error) {
 	if e.lastBranchBBs == nil {
 		return 0, fmt.Errorf("ExprPhi without preceding branch context: phi must "+
@@ -4854,9 +4814,6 @@ func (e *Emitter) resolvePhiPredBB(key ir.PhiPredKey, caseIdx uint32) (int, erro
 		}
 		return bbs.caseEndBBs[caseIdx], nil
 	case ir.PhiPredLoopInit, ir.PhiPredLoopBackEdge, ir.PhiPredFallThrough:
-		// Loop phi placement is deferred to BUG-DXIL-041 — mem2reg
-		// Phase B walker disqualifies any candidate stored inside
-		// a loop, so these PredKeys should never appear in emitted IR.
 		return 0, fmt.Errorf("PhiPredKey %d (loop / fallthrough) not yet supported by emit", key)
 	default:
 		return 0, fmt.Errorf("unknown PhiPredKey %d", key)
@@ -5018,7 +4975,7 @@ func workgroupFieldRoot(e *Emitter, basePtrID int) (workgroupFieldOrigin, bool) 
 // loads with per-component tracking. Returns (id, true, nil) when handled, or
 // (0, false, nil) when the pattern does not match.
 //
-// Bug this fixes (BUG-DXIL-004): for `p.vel` where `p: {pos:vec2,vel:vec2}`,
+// Bug this fixes: for `p.vel` where `p: {pos:vec2,vel:vec2}`,
 // emitAccessIndex → emitStructFieldGEP yields a GEP to a single scalar (vel.x).
 // The generic emitLoad path then emits one scalar load, leaving component 1
 // unresolved; getComponentID(p.vel, 1) falls back to `base+1` which points at
@@ -5249,8 +5206,6 @@ func (e *Emitter) resolvePointerAddrSpace(fn *ir.Function, ptrHandle ir.Expressi
 // For scalar types, a single alloca is emitted.
 // For vector types (vec2/vec3/vec4), one alloca per component is emitted
 // since DXIL scalarizes all vector operations.
-//
-// Reference: Mesa nir_to_dxil.c emit_scratch() — dxil_emit_alloca(mod, type, 1, 16)
 func (e *Emitter) emitLocalVariable(fn *ir.Function, lv ir.ExprLocalVariable) (int, error) {
 	// Return cached alloca pointer if already emitted.
 	if ptr, ok := e.localVarPtrs[lv.Variable]; ok {
@@ -5296,7 +5251,6 @@ func (e *Emitter) emitLocalVariable(fn *ir.Function, lv ir.ExprLocalVariable) (i
 
 	// Alignment: log2(align) + 1, with bit 6 set for explicit type (LLVM 3.7).
 	// Mesa: util_logbase2(align) + 1, then |= (1 << 6).
-	// Reference: Mesa dxil_module.c dxil_emit_alloca().
 	align := e.alignForType(elemTy)
 	alignFlags := align | (1 << 6)
 
@@ -5359,11 +5313,6 @@ func (e *Emitter) emitStructLocalVariable(varIdx uint32, localVar *ir.LocalVaria
 // which covers every basic graphics shader in the gogpu ecosystem
 // (triangle, particles, etc.). Dynamic indices turn into per-lane
 // select chains; constant indices fold to literal constants.
-//
-// Reference: BUG-DXIL-011 (D3D12 runtime format validator) +
-// `reference/dxil/mesa/src/microsoft/compiler/nir_to_dxil.c:6300`
-// (`nir_lower_indirect_derefs_to_if_else_trees` with
-// `nir_var_function_temp` target).
 func (e *Emitter) emitArrayLocalVariable(varIdx uint32, localVar *ir.LocalVariable, irType ir.Type) (int, error) {
 	// SROA fast path: constant-init vector-element array.
 	if e.tryRegisterLocalConstVecArray(varIdx, localVar, irType) {
@@ -5529,8 +5478,6 @@ func (e *Emitter) emitGlobalVarAlloca(varHandle ir.GlobalVariableHandle) (int, e
 	// instead of a function-local alloca. atomicrmw on alloca pointers
 	// (addrspace 0) is rejected by the validator with 'Non-groupshared
 	// or node record destination to atomic operation'. The proper DXIL
-	// encoding is a top-level @globalshared.X = addrspace(3) global,
-	// matching DXC's groupshared HLSL lowering.
 	//
 	// For struct-typed workgroup vars, DXC decomposes the struct into
 	// separate per-member globals, each with its own MSVC-mangled name
@@ -5601,9 +5548,6 @@ func (e *Emitter) emitGlobalVarAlloca(varHandle ir.GlobalVariableHandle) (int, e
 // decomposeWorkgroupStruct creates per-member addrspace(3) globals for a
 // struct-typed workgroup variable, matching DXC's groupshared decomposition.
 //
-// DXC flattens each struct member into its own global with an MSVC-mangled
-// name:  \01?<var>@@3U<StructType>@@A.<memberIdx>
-// Multi-dimensional arrays get a ".1dim" suffix after flattening to 1D.
 // Atomic members are unwrapped to their scalar type.
 //
 // The sentinel value -1 is stored in globalVarAllocas to indicate that this
@@ -5619,7 +5563,6 @@ func (e *Emitter) decomposeWorkgroupStruct(
 		varName += "_"
 	}
 
-	// Name prefix: \01?<var>@@3U<StructName>@@A
 	namePrefix := "\x01?" + varName + "@@3U" + structTypeName + "@@A"
 
 	for i, m := range st.Members {
@@ -5894,7 +5837,6 @@ func (e *Emitter) resolveLoadTypeFromExpressionInfo(fn *ir.Function, ptrHandle i
 // alignForType returns the LLVM bitcode alignment encoding for a DXIL type.
 // The encoding is log2(bytes)+1, where 0 means default. This value is used
 // directly in INST_STORE, INST_LOAD, and INST_ALLOCA records.
-// Reference: Mesa dxil_module.c uses util_logbase2(align)+1 for all three.
 func (e *Emitter) alignForType(ty *module.Type) int {
 	switch ty.Kind {
 	case module.TypeFloat:
@@ -6085,8 +6027,7 @@ func (e *Emitter) emitGlobalExpression(handle ir.ExpressionHandle) (int, error) 
 		// we fell through to the default branch and returned an i32
 		// zero where the downstream use expected an f32, producing a
 		// type mismatch in the CALL/STORE record and rejection with
-		// HRESULT 0x80aa0009 'Invalid record'. Reference: WGSL spec
-		// §12.5 (override declarations; constant expressions).
+		// HRESULT 0x80aa0009 'Invalid record'.
 		return e.foldGlobalBinary(gk)
 
 	case ir.ExprUnary:
@@ -6230,8 +6171,6 @@ func (e *Emitter) globalHandleFor(target interface{}) ir.ExpressionHandle {
 }
 
 // emitAs emits a type cast expression using LLVM cast instructions.
-//
-// Reference: Mesa nir_to_dxil.c emit_cast(), SPIR-V backend emitAs().
 func (e *Emitter) emitAs(fn *ir.Function, as ir.ExprAs) (int, error) {
 	src, err := e.emitExpression(fn, as.Expr)
 	if err != nil {
@@ -6340,7 +6279,7 @@ func (e *Emitter) emitVectorCast(_ *ir.Function, handle ir.ExpressionHandle, vec
 }
 
 // emitBoolToNumericDXIL converts a bool (i1) to a numeric type.
-// bool → int:   ZExt i1 → i32 (produces 0 or 1)
+// bool → int: ZExt i1 → i32 (produces 0 or 1)
 // bool → float: ZExt i1 → i32, then UIToFP i32 → float
 func (e *Emitter) emitBoolToNumericDXIL(src int, dstScalar ir.ScalarType) (int, error) {
 	switch dstScalar.Kind {
@@ -6359,7 +6298,7 @@ func (e *Emitter) emitBoolToNumericDXIL(src int, dstScalar ir.ScalarType) (int, 
 }
 
 // emitNumericToBoolDXIL converts a numeric type to bool (i1) via comparison with zero.
-// int → bool:   ICmp NE val, 0
+// int → bool: ICmp NE val, 0
 // float → bool: FCmp ONE val, 0.0
 func (e *Emitter) emitNumericToBoolDXIL(src int, srcScalar ir.ScalarType) (int, error) {
 	switch srcScalar.Kind {
@@ -6560,13 +6499,11 @@ func (e *Emitter) emitSwizzle(fn *ir.Function, sw ir.ExprSwizzle) (int, error) {
 
 // emitDerivative emits a fragment shader derivative as a dx.op call.
 //
-// Maps naga DerivativeAxis + DerivativeControl to dx.op opcodes:
-//
 //	X + Coarse → dx.op.derivCoarseX (83)
 //	Y + Coarse → dx.op.derivCoarseY (84)
-//	X + Fine   → dx.op.derivFineX   (85)
-//	Y + Fine   → dx.op.derivFineY   (86)
-//	Width      → derivCoarseX + derivCoarseY (abs sum, fwidth)
+//	X + Fine → dx.op.derivFineX (85)
+//	Y + Fine → dx.op.derivFineY (86)
+//	Width → derivCoarseX + derivCoarseY (abs sum, fwidth)
 func (e *Emitter) emitDerivative(fn *ir.Function, deriv ir.ExprDerivative) (int, error) {
 	arg, err := e.emitExpression(fn, deriv.Expr)
 	if err != nil {
@@ -6634,8 +6571,6 @@ func derivativeOp(axis ir.DerivativeAxis, control ir.DerivativeControl) DXILOpco
 }
 
 // emitRelational emits a relational test function as a dx.op call.
-//
-// Maps naga RelationalFunction to dx.op:
 //
 //	IsNan → dx.op.isNaN (8)
 //	IsInf → dx.op.isInf (9)
@@ -6792,8 +6727,7 @@ func (e *Emitter) emitMathPack2x16float(fn *ir.Function, mathExpr ir.ExprMath) (
 	return result, nil
 }
 
-// getDxOpLegacyF32ToF16Func returns the dx.op.legacyF32ToF16 declaration:
-// i32 @dx.op.legacyF32ToF16(i32 opcode, float value). No overload suffix
+// No overload suffix
 // (opcode name is already type-specific).
 func (e *Emitter) getDxOpLegacyF32ToF16Func() *module.Function {
 	f32Ty := e.mod.GetFloatType(32)
@@ -6802,8 +6736,7 @@ func (e *Emitter) getDxOpLegacyF32ToF16Func() *module.Function {
 	return e.getOrCreateDxOpFunc("dx.op.legacyF32ToF16", overloadVoid, funcTy)
 }
 
-// getDxOpLegacyF16ToF32Func returns the dx.op.legacyF16ToF32 declaration:
-// float @dx.op.legacyF16ToF32(i32 opcode, i32 value). No overload suffix.
+// No overload suffix.
 func (e *Emitter) getDxOpLegacyF16ToF32Func() *module.Function {
 	f32Ty := e.mod.GetFloatType(32)
 	i32Ty := e.mod.GetIntType(32)
@@ -6957,8 +6890,7 @@ func (e *Emitter) emitUnpackNorm(fn *ir.Function, mathExpr ir.ExprMath,
 // emitMathUnpack2x16float unpacks u32 into vec2<f32> as two f16 values.
 //
 // Lowered via dx.op.legacyF16ToF32 (opcode 131). Takes an i32 with the
-// f16 bit pattern in the low 16 bits and returns an f32. Mirrors dxc's
-// lowering of HLSL f16tof32 and avoids the minprecision-bitcast rule.
+// f16 bit pattern in the low 16 bits and returns an f32.
 func (e *Emitter) emitMathUnpack2x16float(fn *ir.Function, mathExpr ir.ExprMath) (int, error) {
 	arg, err := e.emitExpression(fn, mathExpr.Arg)
 	if err != nil {
@@ -7199,18 +7131,11 @@ func (e *Emitter) tryInlineLoadOfLocalVarAccess(fn *ir.Function, acc ir.ExprAcce
 // hlslMangledGroupsharedName produces the MSVC-decorated name for a
 // groupshared (workgroup) variable, matching DXC's HLSL lowering.
 //
-// Format: \01?<hlsl_name>@@3<type_code>A
-//
 // The \01 prefix is LLVM's marker for an already-mangled name.
-// @@3 encodes "global" storage class in MSVC decoration.
 // The type code follows MSVC C++ name decoration rules:
 //   - Scalar: M=float, I=uint32, H=int32, _K=uint64, _J=int64
-//   - Array:  PA<element_code> (pointer to array of element)
+//   - Array: PA<element_code> (pointer to array of element)
 //   - A suffix terminates the decoration.
-//
-// For struct-typed variables, DXC uses U<struct_name>@@A.<member_suffix>
-// which requires per-member SROA decomposition; we fall back to the raw
-// IR name when the type cannot be simply encoded.
 func hlslMangledGroupsharedName(irMod *ir.Module, gv *ir.GlobalVariable) string {
 	name := gv.Name
 	// Apply HLSL namer trailing-underscore rule: names ending with an
@@ -7221,7 +7146,6 @@ func hlslMangledGroupsharedName(irMod *ir.Module, gv *ir.GlobalVariable) string 
 
 	typeCode := msvcTypeCode(irMod, gv.Type)
 	if typeCode == "" {
-		// Cannot encode -- use raw name (unnamed global @N).
 		return gv.Name
 	}
 

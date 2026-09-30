@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -18,7 +28,7 @@ const gradientEdgeSamples = 16
 // GPU-FIRST invariant: try native GPU stages first (span/field/convex Gouraud/
 // image-pattern rect). Only when those fail, try GPU* upgrades in order:
 // fillLinear/Radial/SweepGradientFieldMasked / fillColorAtFieldMaskedGPU / fillImagePatternFieldMasked
-// (field×coverage + GPU R8) → fillBrushCoverageColorAt → fillBrushAsImage.
+// → fillBrushCoverageColorAt → fillBrushAsImage.
 // Never skip native stages to go straight to pure CPU.
 // Returns ErrFallbackToCPU only when no GPU path (including bootstrap) works.
 func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {

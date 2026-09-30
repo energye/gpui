@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package module
 
 import (
@@ -309,7 +319,7 @@ func TestSerialize_WithMetadata(t *testing.T) {
 func TestEncodeSignRotated(t *testing.T) {
 	// LLVM 3.7 sign-rotated VBR encoding for signed integers:
 	//   non-negative N → N << 1
-	//   negative N     → ((-N) << 1) | 1
+	//   negative N → ((-N) << 1) | 1
 	//
 	// Pinned against Mesa dxil_module.c:2590 encode_signed. The previous
 	// test expected -1→1 / -2→3 / -100→199, matching the (buggy)

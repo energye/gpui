@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -8,8 +18,6 @@ import (
 )
 
 // Instance is the browser WebGPU entry point, wrapping navigator.gpu.
-//
-// Matches Rust wgpu ContextWebGpu which holds an Option<Gpu>.
 type Instance struct {
 	// gpu is the navigator.gpu JavaScript object (GPUInstance).
 	gpu js.Value
@@ -41,9 +49,6 @@ func NewInstance() (*Instance, error) {
 //
 // Returns ErrAdapterNotFound if the browser cannot find a suitable adapter
 // (same as navigator.gpu.requestAdapter() returning null).
-//
-// Matches Rust wgpu ContextWebGpu::request_adapter which calls
-// gpu.request_adapter_with_options and awaits the promise.
 func (inst *Instance) RequestAdapter(options js.Value) (*Adapter, error) {
 	var promise js.Value
 	if options.IsUndefined() || options.IsNull() {

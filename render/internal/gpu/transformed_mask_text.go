@@ -1,10 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 // Package gpu: kTransformedMask text semantic — whole-string alpha masks
 // CPU-rasterized by the same Skia-AAA software filler the CPU Tier2 outline
 // path uses, uploaded to the glyph-mask atlas and drawn as one textured quad.
 // The GPU output matches the CPU rendering bit-exactly (the vector-outline
-// cover pass cannot reproduce Skia's scanline trapezoid accumulation on
+// cover pass cannot reproduce the scanline trapezoid accumulation on
 // densely overlapping edges, which is why rotated text used to diverge).
 
 package gpu

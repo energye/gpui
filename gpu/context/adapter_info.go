@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package context
 
@@ -12,7 +19,7 @@ const (
 	AdapterTypeDiscrete AdapterType = iota
 	// AdapterTypeIntegrated is an integrated GPU (Intel Iris, AMD Vega iGPU).
 	AdapterTypeIntegrated
-	// AdapterTypeSoftware is a CPU-based software renderer (llvmpipe, SwiftShader, gogpu/wgpu software HAL).
+	// AdapterTypeSoftware is a CPU-based software renderer.
 	AdapterTypeSoftware
 	// AdapterTypeUnknown means the adapter type could not be determined.
 	AdapterTypeUnknown

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -7,8 +17,7 @@ package webgpu
 // On the browser backend, MappedRange lazily copies data from the JS
 // ArrayBuffer into a Go byte slice on first Bytes() call (read path),
 // or provides a staging slice for writes that is flushed back to JS on
-// Flush(). This matches the Rust wgpu WebBufferMappedRange pattern:
-// actual_mapping (JS Uint8Array) + temporary_mapping (Rust/WASM heap copy).
+// Flush().
 //
 // The MappedRange is invalidated when the owning buffer is unmapped.
 type MappedRange struct {
@@ -18,12 +27,11 @@ type MappedRange struct {
 	valid  bool
 
 	// cached holds the Go-side copy of the mapped data. Lazily populated
-	// on first Bytes() call (matching Rust temporary_mapping: OnceCell).
+	// on first Bytes() call.
 	cached []byte
 
 	// dirty tracks whether the cached slice has been modified via
 	// BytesMut(). If true, Flush() or Unmap will write data back to JS.
-	// Matches Rust temporary_mapping_modified.
 	dirty bool
 }
 
@@ -50,8 +58,7 @@ func (m *MappedRange) Bytes() []byte {
 //
 // The returned slice is a Go-heap copy. Changes are NOT visible on the GPU
 // until Flush() is called (or the buffer is unmapped, which auto-flushes
-// dirty ranges). This matches the Rust wgpu pattern where Drop on
-// WebBufferMappedRange writes back if temporary_mapping_modified is true.
+// dirty ranges).
 func (m *MappedRange) BytesMut() []byte {
 	if m == nil || !m.valid || m.buf == nil || m.buf.browser == nil {
 		return nil
@@ -65,9 +72,6 @@ func (m *MappedRange) BytesMut() []byte {
 
 // Flush writes the cached data back to the JS ArrayBuffer.
 // Only needed after BytesMut(); Bytes()-only usage does not require Flush.
-//
-// This is the Go equivalent of the Rust WebBufferMappedRange Drop handler
-// that copies temporary_mapping back to actual_mapping when modified.
 func (m *MappedRange) Flush() error {
 	if m == nil || !m.valid || !m.dirty || m.buf == nil || m.buf.browser == nil {
 		return nil
@@ -102,7 +106,7 @@ func (m *MappedRange) Release() {
 	if m == nil {
 		return
 	}
-	// Auto-flush dirty data (matches Rust Drop behavior).
+	// Auto-flush dirty data.
 	if m.dirty && m.valid && m.buf != nil && m.buf.browser != nil {
 		_ = m.buf.browser.WriteMappedRange(m.offset, m.cached)
 	}

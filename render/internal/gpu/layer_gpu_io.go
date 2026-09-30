@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -12,7 +22,7 @@ import (
 )
 
 // ReadbackViewRGBA copies a full BGRA8 offscreen texture view into tight RGBA8.
-// Used to materialize layer GPU RTs before mask modulation / CPU composite (R1 residual).
+// Used to materialize layer GPU RTs before mask modulation / CPU composite.
 func (rc *GPURenderContext) ReadbackViewRGBA(view gpucontext.TextureView, w, h int) ([]byte, error) {
 	if rc == nil || view.IsNil() || w <= 0 || h <= 0 {
 		return nil, fmt.Errorf("ReadbackViewRGBA: bad args")
@@ -93,7 +103,7 @@ func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data [
 		return fmt.Errorf("UploadRGBAToView: nil texture")
 	}
 	// Pixmap is RGBA, offscreen texture is BGRA8Unorm — swizzle R↔B.
-	// R7.1: stage via imageStagingPool (WriteTexture copies before return).
+	// stage via imageStagingPool (WriteTexture copies before return).
 	bgraScratch := acquireImageStaging(need)
 	bgra := *bgraScratch
 	for i := 0; i < need; i += 4 {
@@ -143,7 +153,7 @@ func (rc *GPURenderContext) MarkViewHasContent(view gpucontext.TextureView) {
 }
 
 // CompositeMaskedLayer materializes a GPU layer RT, modulates by R8 mask on GPU,
-// and SourceOver-composites onto parent RGBA (PushMaskLayer Pop path, R1).
+// and SourceOver-composites onto parent RGBA.
 func (rc *GPURenderContext) CompositeMaskedLayer(
 	parentData []byte, parentW, parentH int,
 	srcView gpucontext.TextureView, srcW, srcH int,

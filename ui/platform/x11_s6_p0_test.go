@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -13,7 +23,7 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// S6-P0 X11 backend reporting tests (real X server, no WM needed). Each test
+// Each test
 // opens its own window; assertions pump the real event queue (synthetic
 // client messages for close/buttons/keys, direct property writes for state).
 
@@ -556,7 +566,7 @@ func TestX11StateReadback(t *testing.T) {
 
 func TestXI2ParseTouch(t *testing.T) {
 	// No display needed: the parser is verified against the XIDeviceEvent
-	// layout (XInput2.h) with crafted bytes.
+	// layout with crafted bytes.
 	mkXI := func(detail uint32, x, y float64) []byte {
 		buf := make([]byte, 120)
 		binary.LittleEndian.PutUint32(buf[56:], detail)
@@ -768,10 +778,7 @@ func x11AttrOK() bool {
 	return x11AttrLib != 0 && x11AttrGet != nil
 }
 
-// x11MapStateOff = 92: XWindowAttributes.map_state on linux amd64
-// (x@0 y@4 w@8 h@12 border@16 depth@20 visual@24 root@32 class@40
-// bit_grav@44 win_grav@48 backing@52 planes@56 pixel@64 save_under@72
-// colormap@80 map_installed@88 map_state@92). Validated live: a mapped
+// Validated live: a mapped
 // window reads 2 (IsViewable), a hidden one 0 (IsUnmapped).
 const x11MapStateOff = 92
 

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -11,9 +21,6 @@ import (
 	"github.com/go-text/typesetting/font/opentype/tables"
 )
 
-// TestCFF2VarBlendMatchGT 对照 go-text 的 CFF2 变体 blend：同一 glyph
-// 在 wght=0/0.5/1/-1 坐标下解释出的轮廓必须逐点一致（对照器 = 门禁）。
-//
 // 字集 = a-z/A-Z/0-9 全 62 字（与 TestLightHintCFF2 同一 sample），
 // 4 个 wght 点位全覆盖。
 //
@@ -85,9 +92,6 @@ func TestCFF2VarBlendMatchGT(t *testing.T) {
 	}
 }
 
-// dropPerContour 把 cs.pts 按轮廓删闭合冗余点（cs.pts 含每轮廓闭合点，
-// psh_light 映射层才删，FT ps_builder_close_contour 语义；门禁是解释器级
-// 对照，按轮廓删闭合冗余点，同 gt 侧 expandGTSegs 的 q32 判定）。
 func dropPerContour(cs *csOutline, _ uint16) [][]float64 {
 	var out [][]float64
 	off := 0
@@ -182,7 +186,6 @@ func expandGTSegs(gtSeq []opentype.Segment) [][]float64 {
 	return dropClosePoints(gtPts)
 }
 
-// hasOp15 判断 charstring 是否含 vsindex(15) 指令（M5 vsindex 语义扫描）。
 func hasOp15(b []byte) bool {
 	for _, x := range b {
 		if x == 15 {

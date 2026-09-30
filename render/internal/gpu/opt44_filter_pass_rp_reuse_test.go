@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -9,7 +19,7 @@ import (
 )
 
 // TestOpt44_FilterPassRenderPassDesc_NoAllocWarm ensures filter-pass RP desc
-// reuses backing storage after first init (class A opt44 / R8.3).
+// reuses backing storage after first init.
 func TestOpt44_FilterPassRenderPassDesc_NoAllocWarm(t *testing.T) {
 	c := &filterGPUCache{}
 	fakeView := &testTextureView{}

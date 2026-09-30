@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render_test
 
 import (
@@ -8,9 +18,6 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
-// TestP13_LayerPop_BatchesUntilFinalFlush verifies F.03 / P1-3:
-// nested Normal layers composite via GPU texture draws without mid-frame
-// FlushGPU per Pop; a single end-of-frame Flush materializes everything.
 func TestP13_LayerPop_BatchesUntilFinalFlush(t *testing.T) {
 	requireNativeGPU(t)
 

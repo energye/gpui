@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !nogpu
 
 package render
@@ -10,8 +20,6 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// P1-2 online smoke: GPUI_BACKEND=go opens an X11 window through the real
-// online path (NewPresentTarget -> GL swapchain -> PresentClear) and
 // presents two frames. Proves the thin interface wiring end to end;
 // pixel-exact pelican validation stays in the offscreen feature gate.
 func TestP1GLPresentX11OnlineSmoke(t *testing.T) {

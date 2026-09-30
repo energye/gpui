@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -9,17 +19,14 @@ import (
 	"github.com/energye/gpui/ui/scene"
 )
 
-// Render matrix headless gates (M1–M5 contract level).
+// Render matrix headless gates.
 //
 // Honesty (PARTIAL Flutter alignment):
 //   - These tests lock DirtyLayerIDs / CompositeOnly PaintVisits / layout locality.
 //   - They do NOT prove GPU dirty-RECT partial present (PipelineApp still force full clear+paint; P6).
 //   - RasterizeDirty counts are scene/stats locality, not per-layer GPU RT reuse.
 //
-// M1 (static + spinner) remains canonical in spinner_test.go:
-//   TestS2_Spinner_DirtyLayerAndNoLayout, TestS4_StaticTree_SpinnerOnlyRaster.
 
-// TestM1_PointsToS2S4 documents the M1 axis without duplicating S2/S4 bodies.
 func TestM2_MultiBoundary_DirtyLocality(t *testing.T) {
 	scene.ResetLayerIDGen()
 	const (
@@ -228,5 +235,3 @@ func TestM5_GradientBoundary_DirtyLocality(t *testing.T) {
 		t.Fatalf("PaintVisits=%d too high for one gradient boundary", visits)
 	}
 }
-
-// TestM3_ScrollAxis_PointsToS5S6 keeps M3 documented; canonical gates live in virtual_list/viewport tests.

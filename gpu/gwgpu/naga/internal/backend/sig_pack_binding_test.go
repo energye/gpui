@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package backend
 
 import (
@@ -99,8 +109,6 @@ func TestSigElementInfoForBinding_ClipDistance(t *testing.T) {
 	}
 }
 
-// TestSigElementInfoForBinding_LocationFragTarget verifies that fragment
-// shader @location outputs map to SV_Target with Register = SemanticIndex.
 func TestSigElementInfoForBinding_LocationFragTarget(t *testing.T) {
 	mod := buildModule(ir.VectorType{Size: ir.Vec4, Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}})
 

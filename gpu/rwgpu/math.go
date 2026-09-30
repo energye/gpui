@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // math.go contains 3D math helpers optimized for WebGPU/WGSL compatibility.
 
 package rwgpu
@@ -7,7 +17,6 @@ import "math"
 // Mat4 represents a 4x4 matrix in column-major order, compatible with WGSL mat4x4<f32>.
 // Layout: [col0, col1, col2, col3] where each column is [x, y, z, w].
 // Element at column c, row r is at index c*4+r.
-// This matches WebGPU/WGSL/OpenGL convention (column-major).
 type Mat4 [16]float32
 
 // Vec3 represents a 3D vector with X, Y, Z components.

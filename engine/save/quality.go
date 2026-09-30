@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package save carries the quality-tier math every 2.5D play follows.
 //
-// Frozen 2026-09-16 (capability 16.2, P4, S51/W9): Level, LevelHigh,
+// Frozen 2026-09-16: Level, LevelHigh,
 // LevelMedium, LevelLow, ParseLevel, Spec, SpecFor, Quality, NewQuality,
 // ParseQuality, LoadQuality, Encode, StoreQuality, Level, Spec, Equal,
 // Switch. Additive changes only.

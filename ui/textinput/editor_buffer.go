@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import "github.com/energye/gpui/ui/textbuffer"
@@ -75,7 +85,6 @@ func (e *Editor) mirrorMaybeRelease() {
 
 // SetBufferFallback pins the large-document mirror to plain-string mode
 // (true) or releases it back to automatic mode (false). It makes the M3.5
-// degradation path reachable from production: without it only tests could
 // flip bufForceString. Applied to the active mirror immediately; both
 // directions pay one O(n) conversion on a large doc (materialize on enable,
 // tree rebuild on disable). Small docs are unaffected (mirror stays off).

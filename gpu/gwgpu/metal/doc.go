@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 // Copyright 2025 The GoGPU Authors
@@ -44,10 +54,4 @@
 // This backend uses autorelease pools to manage object lifetimes correctly.
 //
 // # References
-//
-//   - Apple Metal Documentation: https://developer.apple.com/metal/
-//   - Metal Feature Set Tables: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
-//   - Ebitengine Metal backend: Uses purego patterns (excellent reference)
-//   - metal-rs: Rust Metal bindings (architecture reference)
-//   - wgpu-hal Metal: Comprehensive implementation reference
 package metal

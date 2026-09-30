@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package step
 
 import (
@@ -401,7 +411,6 @@ func TestClockLongRunNoDrift(t *testing.T) {
 	}
 }
 
-// F:离屏金对照窗(W2先离屏,真窗game_step--case=pause后建):冻结数加形状断言.
 func TestClockOffscreenGolden(t *testing.T) {
 	f := loadTimeCases(t)
 	// Golden numbers stay frozen.

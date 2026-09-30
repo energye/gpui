@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 import (
@@ -29,7 +39,7 @@ func WallPast(deadline int64) bool { return wallMs() >= deadline }
 // WallSleep sleeps ms wall-clock (paced tests yield the background).
 func WallSleep(ms int64) { time.Sleep(time.Duration(ms) * time.Millisecond) }
 
-// releasePix returns a streaming convert buffer (S6). No-op for nil and
+// releasePix returns a streaming convert buffer. No-op for nil and
 // for sizes the current pool no longer takes (resolution switch just
 // rebuilt: the old slice falls back to GC on this cold path instead of
 // polluting the new pool's counters).
@@ -77,7 +87,7 @@ func (p *Player) assignPTS(pts int64) int64 {
 }
 
 // Poll returns the newest due frame (at most one per tick), or
-// (nil, true) when playback ended. Streaming Pix lifetime (S6): the
+// (nil, true) when playback ended. Streaming Pix lifetime: the
 // returned Pix stays valid until the next Poll or Close, then it is
 // recycled — copy what the display needs during the tick (the windows
 // blit synchronously).
@@ -109,7 +119,7 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 	fr, skipped, ok := p.q.PollDue(due)
 	_ = skipped
 	if ok {
-		// S6: the display now owns fr.Pix; the previously shown
+		// the display now owns fr.Pix; the previously shown
 		// buffer goes back. Dropped stale frames never reach here
 		// (the queue observer already returned them).
 		p.mu.Lock()

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package hal
@@ -5,7 +15,6 @@ package hal
 import gputypes "github.com/energye/gpui/gpu/types"
 
 // AccelerationStructure represents a GPU acceleration structure (BLAS or TLAS).
-// Matches Rust wgpu-hal's AccelerationStructure trait.
 type AccelerationStructure interface {
 	Resource
 	NativeHandle

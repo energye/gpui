@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import "github.com/energye/gpui/render"
@@ -79,7 +89,7 @@ func RasterizeDirtyToContext(pkt *FramePacket, dc *render.Context) RasterStats {
 }
 
 // CountPictureOps sums display-list op counts of every PictureLayer in the
-// packet (R5 picture_op_count metric). Replay-free: walks the tree only.
+// packet. Replay-free: walks the tree only.
 func CountPictureOps(pkt *FramePacket) int {
 	if pkt == nil {
 		return 0

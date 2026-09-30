@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package image provides image buffer management for gogpu/gg.
 package image
 
@@ -9,9 +19,9 @@ import (
 //
 // The transformation is represented as a 3x3 matrix:
 //
-//	| a  b  c |
-//	| d  e  f |
-//	| 0  0  1 |
+//	| a b c |
+//	| d e f |
+//	| 0 0 1 |
 //
 // This allows for translation, rotation, scaling, and shearing operations.
 type Affine struct {

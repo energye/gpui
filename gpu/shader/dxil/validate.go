@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package dxil
 
 import (
@@ -34,7 +44,7 @@ const (
 
 // Validate inspects a DXBC container produced by Compile and returns a
 // non-nil error if any layer rejects it. Intended to be called by
-// consumers (e.g. wgpu hal/dx12) right after Compile so that bogus
+// consumers right after Compile so that bogus
 // bytecode surfaces a readable diagnostic *before* the D3D12 runtime
 // folds it into an opaque E_INVALIDARG at pipeline creation time.
 //

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -843,7 +853,7 @@ func applyAlphaMask(pm *render.Pixmap, mask []byte) {
 			data[i*4+3] = 0
 		} else if m < 255 {
 			// Premultiplied alpha: multiply all channels by mask/255.
-			// Uses +127 for correct rounding (matches Skia/Cairo convention).
+			// Uses +127 for correct rounding.
 			data[i*4] = uint8((uint32(data[i*4])*m + 127) / 255)
 			data[i*4+1] = uint8((uint32(data[i*4+1])*m + 127) / 255)
 			data[i*4+2] = uint8((uint32(data[i*4+2])*m + 127) / 255)

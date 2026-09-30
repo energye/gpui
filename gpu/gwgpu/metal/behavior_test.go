@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -22,8 +29,6 @@ func (h4b3BadBuf) Size() uint64                { return 0 }
 func (h4b3BadBuf) Usage() gputypes.BufferUsage { return 0 }
 func (h4b3BadBuf) Label() string               { return "" }
 
-// H4-b3 行为差异单测（Metal 侧）：提交索引递增、映射越界报错、Unmap
-// 幂等、围栏错类型报错、设备丢失/错误作用域桩语义。
 // 本机（Linux）只验编译；真机跑时 Submit 空包只建自动释放池＋推进索引
 //（无命令缓冲不提交 MTL 命令），其余用例只用零值 Device/Queue，不建
 // MTLDevice。锁住的对照关系：Poll 走 completedIndex（GPU 回调推进，

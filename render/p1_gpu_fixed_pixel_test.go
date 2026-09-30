@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -10,9 +20,6 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 	"github.com/energye/gpui/render/internal/blend"
 )
-
-// P1.2: fixed-pixel tests on the real render Context + GPU accelerator path
-// (webgpu -> rwgpu -> libwgpu_native), with CPU readback via FlushGPU/SavePNG path.
 
 func requireNativeGPU(t *testing.T) {
 	t.Helper()
@@ -87,7 +94,6 @@ func TestP12GPUFixedPixel_SourceOverPremul(t *testing.T) {
 		t.Fatalf("expected GPU ops on accelerator path, got %s", stats.LogLine())
 	}
 
-	// Reference: straight red@50 over opaque blue using package blend after premul.
 	// premul src = (128,0,0,128) approx; dst = (0,0,255,255)
 	sr := blend.GetBlendFunc(blend.BlendSourceOver)
 	// mulDiv style: 255*0.5 = 127.5 -> use 128

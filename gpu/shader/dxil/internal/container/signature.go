@@ -1,17 +1,24 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package container — signature encoding for ISG1/OSG1 parts.
 //
 // Each signature part has the layout:
 //
 //	Header:
-//	  ParamCount  uint32   // total number of signature elements
-//	  ParamOffset uint32   // byte offset from part start to first element (always 8)
+//	  ParamCount uint32 // total number of signature elements
+//	  ParamOffset uint32 // byte offset from part start to first element (always 8)
 //	Elements:
-//	  [ParamCount]SignatureElement  // each 32 bytes
+//	  [ParamCount]SignatureElement // each 32 bytes
 //	StringTable:
 //	  null-terminated semantic name strings, 4-byte aligned
-//
-// Reference: Mesa dxil_container.c dxil_container_add_io_signature(),
-// Mesa dxil_signature.h struct dxil_signature_element.
 package container
 
 import (
@@ -24,7 +31,6 @@ type SystemValueKind uint32
 
 // D3D_NAME values for ISG1/OSG1 signature elements.
 // These match the D3D_NAME enumeration from d3dcommon.h, NOT the DXIL semantic kind.
-// Reference: D3D12 SDK d3dcommon.h enum D3D_NAME
 const (
 	SVArbitrary         SystemValueKind = 0  // D3D_NAME_UNDEFINED — user-defined (TEXCOORD, etc.)
 	SVPosition          SystemValueKind = 1  // D3D_NAME_POSITION — SV_Position
@@ -69,16 +75,16 @@ type SignatureElement struct {
 // signatureElementSize is the binary size of one dxil_signature_element.
 // Layout (32 bytes total):
 //
-//	stream:               uint32 (offset 0)
+//	stream: uint32 (offset 0)
 //	semantic_name_offset: uint32 (offset 4)
-//	semantic_index:       uint32 (offset 8)
-//	system_value:         uint32 (offset 12)
-//	comp_type:            uint32 (offset 16)
-//	register:             uint32 (offset 20)
-//	mask:                 uint8  (offset 24)
-//	rw_mask:              uint8  (offset 25)
-//	pad:                  uint16 (offset 26)
-//	min_precision:        uint32 (offset 28)
+//	semantic_index: uint32 (offset 8)
+//	system_value: uint32 (offset 12)
+//	comp_type: uint32 (offset 16)
+//	register: uint32 (offset 20)
+//	mask: uint8 (offset 24)
+//	rw_mask: uint8 (offset 25)
+//	pad: uint16 (offset 26)
+//	min_precision: uint32 (offset 28)
 const signatureElementSize = 32
 
 // EncodeSignature serializes a list of SignatureElements into the ISG1/OSG1

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package blend implements advanced separable and non-separable blend modes.
 //
 // This file implements advanced blend modes beyond Porter-Duff compositing,
@@ -5,10 +15,6 @@
 //
 // Separable blend modes operate on each color channel independently.
 // Non-separable blend modes require color space conversions (HSL/HSV).
-//
-// References:
-//   - W3C Compositing and Blending Level 1: https://www.w3.org/TR/compositing-1/
-//   - PDF Blend Modes: Addendum (ISO 32000-1:2008)
 package blend
 
 import "math"

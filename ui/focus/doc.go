@@ -1,8 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package focus provides a minimal focus tree and keyboard routing skeleton (P5c).
 //
-//	FocusManager  — one primary focus per window/scope
-//	FocusNode     — RequestFocus / Unfocus / OnKey / OnFocusChange
-//	Tab order     — registration order; optional TabIndex > 0 sorts first
+//	FocusManager — one primary focus per window/scope
+//	FocusNode — RequestFocus / Unfocus / OnKey / OnFocusChange
+//	Tab order — registration order; optional TabIndex > 0 sorts first
 //
 // Non-goals: Shortcuts/Actions system, IME, platform a11y bridge.
 //

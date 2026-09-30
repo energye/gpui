@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -9,8 +19,6 @@ import "syscall/js"
 // Pre-binding JS methods at construction time avoids repeated .Get("methodName")
 // calls on every frame. The browser's GPUCommandEncoder records GPU commands
 // that are later submitted via Queue.Submit.
-//
-// Matches Rust wgpu WebCommandEncoder which holds the webgpu_sys::GpuCommandEncoder.
 type CommandEncoder struct {
 	// ref_ is the GPUCommandEncoder JavaScript object.
 	ref_ js.Value
@@ -57,7 +65,6 @@ func (e *CommandEncoder) BeginComputePass(desc js.Value) *ComputePassEncoder {
 }
 
 // CopyBufferToBuffer records a buffer-to-buffer copy command.
-// Matches Rust wgpu: copy_buffer_to_buffer_with_f64_and_f64_and_f64.
 func (e *CommandEncoder) CopyBufferToBuffer(src js.Value, srcOffset uint64, dst js.Value, dstOffset uint64, size uint64) {
 	e.fnCopyBufferToBuffer.Invoke(src, float64(srcOffset), dst, float64(dstOffset), float64(size))
 }

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -595,11 +605,10 @@ func TestParseSVGPath_ComplexMultiCommand(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 	elems := collectVerbs(p)
-	// M10,10 + L20,20 + C... + Q... + Z + M80,80 + l... = 7.
+	// + Q... = 7.
 	if len(elems) != 7 {
 		t.Errorf("expected 7 elements, got %d", len(elems))
 	}
-	// After Z + M80,80 + l-10,-10, current point = (70, 70).
 	pt := p.CurrentPoint()
 	if pt.X != 70 || pt.Y != 70 {
 		t.Errorf("CurrentPoint = (%v, %v), want (70, 70)", pt.X, pt.Y)

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -349,10 +359,8 @@ func TestFineShaderCompilation(t *testing.T) {
 		t.Fatal("fine shader source is empty")
 	}
 
-	// Test compilation via naga
 	spirvBytes, err := shader.Compile(fineShaderWGSL)
 	if err != nil {
-		// Check for known naga limitations and skip gracefully
 		errStr := err.Error()
 		if contains(errStr, "runtime-sized arrays not yet implemented") {
 			t.Skip("Skipping: naga doesn't yet support runtime-sized arrays (needed for storage buffers)")

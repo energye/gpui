@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package clock
 
 import (
@@ -38,7 +48,7 @@ type Queue struct {
 	depthN   int64
 	// onDrop observes frames discarded without display (stale catch-up
 	// drops in PollDue, rewinds in Clear/Reset). The video player sets
-	// it to return pooled buffers (S6); nil keeps old behaviour.
+	// it to return pooled buffers; nil keeps old behaviour.
 	onDrop func(*Frame)
 }
 

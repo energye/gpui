@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -240,7 +250,7 @@ func TestWrappedModI32UsesOpSRem(t *testing.T) {
 
 	spvBytes := compileModule(t, module)
 
-	// Should have OpSRem (Rust uses SRem for signed modulo, not SMod)
+	// Should have OpSRem
 	if !divmodHasOpcode(spvBytes, OpSRem) {
 		t.Error("signed modulo wrapper should use OpSRem, not OpSMod")
 	}

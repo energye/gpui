@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -146,7 +156,6 @@ func (p *RenderPassEncoder) End() error {
 	return nil
 }
 
-// DrawIndirectCount implements hal.RenderPassEncoder: Rust has no count buffer, lowers to max.
 func (p *RenderPassEncoder) DrawIndirectCount(buffer hal.Buffer, offset uint64, countBuffer hal.Buffer, countOffset uint64, maxDrawCount uint32) {
 	hal.RecordIndirectCountMax(p.DrawIndirect, buffer, offset, countBuffer, countOffset, maxDrawCount)
 }
@@ -156,7 +165,6 @@ func (p *RenderPassEncoder) DrawIndexedIndirectCount(buffer hal.Buffer, offset u
 	hal.RecordIndirectCountMax(p.DrawIndexedIndirect, buffer, offset, countBuffer, countOffset, maxDrawCount)
 }
 
-// ExecuteBundle implements hal.RenderPassEncoder: Rust has no bundles, no-op.
 func (p *RenderPassEncoder) ExecuteBundle(_ hal.RenderBundle) {}
 
 var _ hal.RenderPassEncoder = (*RenderPassEncoder)(nil)

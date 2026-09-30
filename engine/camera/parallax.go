@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package camera
 
 import (
@@ -28,7 +38,6 @@ type Layer struct {
 //
 // Offset is an extra shift in world units.
 //
-// Mirror is the repeat period in world units per axis; 0 disables repeat
 // on that axis. Negative or non-finite components are a core InvalidArg
 // error, never a silently wrapped layer.
 func NewLayer(factor, offset, mirror core.Vec2) (Layer, error) {
@@ -53,7 +62,6 @@ func (l Layer) Factor() core.Vec2 { return l.factor }
 // Offset returns the extra shift in world units.
 func (l Layer) Offset() core.Vec2 { return l.offset }
 
-// Mirror returns the repeat period per axis (0 disables that axis).
 func (l Layer) Mirror() core.Vec2 { return l.mirror }
 
 // wrapOne folds x into [0, m) when m > 0; otherwise x passes through.

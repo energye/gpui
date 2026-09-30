@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package dce
 
 import (
@@ -424,8 +434,7 @@ func TestWriteOnlyLocalNeverRead(t *testing.T) {
 
 // TestDeadIfEliminated verifies that an if statement with empty
 // accept+reject blocks and a dead condition is entirely removed
-// (ADCE-style dead control flow elimination). This matches DXC's
-// behavior for shaders like empty-if.wgsl where the if body is empty.
+// (ADCE-style dead control flow elimination).
 func TestDeadIfEliminated(t *testing.T) {
 	mod := &ir.Module{}
 

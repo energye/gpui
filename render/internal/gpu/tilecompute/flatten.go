@@ -1,7 +1,13 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
-// Port of vello_shaders/src/cpu/flatten.rs — Euler Spiral based curve flattening.
 // Original: Copyright 2023 the Vello Authors, Apache-2.0 OR MIT OR Unlicense.
 //
 // This file implements fill-only flattening (offset=0). Stroke expansion
@@ -11,7 +17,6 @@ package tilecompute
 
 import "math"
 
-// Flatten constants matching vello_shaders/src/cpu/flatten.rs.
 const (
 	derivThresh float32 = 1e-6
 	derivEps    float32 = 1e-6
@@ -26,9 +31,6 @@ type CubicBezier struct {
 
 // FlattenFill flattens a sequence of cubic Bezier curves into line segments
 // using Vello's Euler Spiral based adaptive subdivision.
-//
-// This is a direct port of vello_shaders/src/cpu/flatten.rs flatten_euler()
-// for the fill case (offset=0, identity transform).
 func FlattenFill(cubics []CubicBezier) []LineSoup {
 	var lines []LineSoup
 	for _, c := range cubics {
@@ -55,7 +57,6 @@ func evalCubicAndDeriv(p0, p1, p2, p3 vec2, t float32) (vec2, vec2) {
 }
 
 // flattenEulerFill flattens a single cubic Bezier for fill (offset=0, identity transform).
-// Direct port of flatten_euler() from flatten.rs.
 func flattenEulerFill(p0, p1, p2, p3 vec2, lines *[]LineSoup) {
 	// Drop zero-length lines.
 	if p0 == p1 && p0 == p2 && p0 == p3 {

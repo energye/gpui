@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -1042,7 +1052,7 @@ func BenchmarkSparseStripsPool(b *testing.B) {
 }
 
 // =============================================================================
-// Winding Propagation Tests (BUG-SPARSE-STRIPS-001)
+// Winding Propagation Tests
 // =============================================================================
 
 // TestWindingPropagationBetweenTiles verifies that winding is correctly
@@ -1050,7 +1060,7 @@ func BenchmarkSparseStripsPool(b *testing.B) {
 // has its left edge in tile 0 and right edge in tile 9; tiles between
 // them must be fully filled via backdrop prefix-sum propagation.
 //
-// Before the fix (BUG-SPARSE-STRIPS-001), interior tiles that had no
+// Before the fix, interior tiles that had no
 // segment entries and zero backdrop would render empty because
 // CalculateBackdrop only wrote values at tiles with coarse entries,
 // not for the entire row. The fix implements a Vello-style left-to-right
@@ -1060,8 +1070,6 @@ func BenchmarkSparseStripsPool(b *testing.B) {
 // The rectangle uses tile-aligned Y coordinates (y=0 to y=8) so that
 // edge segments cross tile TOP boundaries, setting winding=true in the
 // coarse entries. This ensures backdrop propagation covers all tile rows.
-//
-// Reference: Vello tilecompute/shaders/backdrop.wgsl, strip.rs:259-263
 func TestWindingPropagationBetweenTiles(t *testing.T) {
 	// Canvas: 40x8 pixels = 10x2 tiles (TileSize=4)
 	// Rectangle from (1,0) to (39,8) — left edge in tile col 0,

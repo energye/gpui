@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package behavior
 
 import (
@@ -7,7 +17,6 @@ import (
 	"github.com/energye/gpui/ui/theme"
 )
 
-// Semantics facade (F0-5 §6.2): F0 only checks named-plus-role.
 // Merge/exclude actions stay in the engine backlog; this file never
 // reimplements the semantics tree, it only audits it.
 

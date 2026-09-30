@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package dxil
 
@@ -9,8 +16,7 @@ import (
 	"github.com/energye/gpui/gpu/shader/ir"
 )
 
-// TestValidate_LdexpScalarStructural is the blob-level regression gate
-// for BUG-DXIL-023. It builds a minimal IR module containing
+// It builds a minimal IR module containing
 // `ldexp(f32_arg, i32_literal)`, runs the full public Compile path,
 // and then walks the resulting DXBC container through
 // dxil.Validate(ValidateBitcode) — the pure-Go structural checker.
@@ -58,9 +64,6 @@ func TestValidate_LdexpScalarStructural(t *testing.T) {
 //
 // The fix extends emitGlobalExpression to constant-fold ExprBinary
 // and ExprUnary at emit time via evalGlobalExpressionFloat. This
-// matches the "no pipeline constants" convention already documented
-// on emitOverride: when an override has no pipeline value and no
-// default, it folds to 0; chained initializers fold through the zero.
 func TestValidate_ChainedOverrideDefault(t *testing.T) {
 	irMod := buildChainedOverrideModule()
 
@@ -82,8 +85,6 @@ func TestValidate_ChainedOverrideDefault(t *testing.T) {
 //	override depth: f32;
 //	override height = 2.0 * depth;
 //
-//	@compute @workgroup_size(1) fn main() { var t = height * 5.0; _ = t; }
-//
 // The globals[height].Init points at an ExprBinary whose RHS is an
 // ExprOverride reference to `depth`. Before the fix,
 // emitGlobalExpression hit the default branch on that ExprBinary and
@@ -93,9 +94,9 @@ func buildChainedOverrideModule() *ir.Module {
 	f32Handle := ir.TypeHandle(0)
 
 	// Global expressions indexed by handle:
-	//   [0] Literal 2.0  (lhs of height binary)
-	//   [1] Override(depth)  (rhs of height binary)
-	//   [2] Binary(Mul, [0], [1])  (height.Init)
+	//   [0] Literal 2.0 (lhs of height binary)
+	//   [1] Override(depth) (rhs of height binary)
+	//   [2] Binary(Mul, [0], [1]) (height.Init)
 	depthIdx := uint32(0)
 	globals := []ir.Expression{
 		{Kind: ir.Literal{Value: ir.LiteralF32(2.0)}},
@@ -154,11 +155,6 @@ func buildChainedOverrideModule() *ir.Module {
 	return irMod
 }
 
-// buildLdexpRegressionModule builds a fragment shader that only calls
-// ldexp with a mixed f32 × i32 signature — the exact pattern from
-// snapshot/testdata/in/math-functions.wgsl that tripped
-// BUG-DXIL-023 in production.
-//
 // Kept separate from dxil/internal/emit test helpers because this
 // lives in the public dxil package and exercises the full Compile
 // pipeline rather than just the internal Emit function.

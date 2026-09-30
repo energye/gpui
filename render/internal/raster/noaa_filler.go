@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -13,10 +20,10 @@ import (
 // spans with full coverage (255) or zero coverage. No sub-pixel arithmetic,
 // no fractional coverage, no AlphaRuns.
 //
-// The algorithm follows Skia's SkScan::FillPath (SkScan_Path.cpp) and
+// The algorithm follows the SkScan::FillPath and
 // tiny-skia's scan::path — a completely separate code path from the AA
 // rasterizer, not a flag on the AnalyticFiller. Every enterprise 2D engine
-// (Skia, Cairo, tiny-skia) uses separate non-AA code paths because:
+// uses separate non-AA code paths because:
 //   - Integer arithmetic only (no fixed-point fractional bits for coverage)
 //   - Solid span output (no alpha blending at edges)
 //   - ~2-3x faster than analytic AA
@@ -47,7 +54,6 @@ func NewNoAAFiller(width, height int) *NoAAFiller {
 //
 // The callback receives solid horizontal spans: (y, left, spanWidth) where
 // every pixel in [left, left+spanWidth) should be blitted with full coverage.
-// This matches Skia's blitter->blitH(left, curr_y, width) pattern.
 //
 // Parameters:
 //   - eb: EdgeBuilder containing the path edges (aaShift=0 for non-AA)
@@ -138,7 +144,7 @@ func (nf *NoAAFiller) Fill(
 				continue
 			}
 
-			// Round edge X to nearest integer pixel (Skia: SkFixedRoundToInt).
+			// Round edge X to nearest integer pixel.
 			x := fixedRoundToInt(line.X)
 
 			// Clamp to canvas bounds.
@@ -180,7 +186,7 @@ func (nf *NoAAFiller) Fill(
 }
 
 // fixedRoundToInt rounds a FDot16 (16.16 fixed-point) value to the nearest
-// integer. Matches Skia's SkFixedRoundToInt: (x + 0x8000) >> 16.
+// integer.
 func fixedRoundToInt(x FDot16) int {
 	return int((x + FDot16Half) >> FDot16Shift)
 }

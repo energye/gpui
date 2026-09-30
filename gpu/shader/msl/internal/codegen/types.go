@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -63,7 +73,6 @@ func (w *Writer) writeTypeDefinition(handle ir.TypeHandle, typ *ir.Type) error {
 
 	case ir.ImageType:
 		// Emit NagaExternalTextureWrapper struct once when we encounter an external image type.
-		// Matches Rust naga: writer.rs ~line 4438.
 		if inner.Class == ir.ImageClassExternal && !w.externalTextureWrapperEmitted {
 			// Get the NagaExternalTextureParams type name.
 			if w.module.SpecialTypes.ExternalTextureParams != nil {
@@ -83,8 +92,6 @@ func (w *Writer) writeTypeDefinition(handle ir.TypeHandle, typ *ir.Type) error {
 
 	case ir.BindingArrayType:
 		// Emit NagaArgumentBufferWrapper template struct once.
-		// Matches Rust naga: Metal argument buffers need an indirection wrapper
-		// because textures/samplers can't be directly in argument buffer arrays.
 		if !w.argumentBufferWrapperEmitted {
 			w.WriteLine("template <typename T>")
 			w.WriteLine("struct NagaArgumentBufferWrapper {")
@@ -111,12 +118,11 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 	lastOffset := uint32(0)
 	for memberIdx, member := range st.Members {
 		// Insert padding bytes if there's a gap between the previous member's end
-		// and this member's offset. Matches Rust naga: writer.rs ~line 4519.
+		// and this member's offset.
 		if member.Offset > lastOffset {
 			pad := member.Offset - lastOffset
 			w.WriteLine("char _pad%d[%d];", memberIdx, pad)
 			// Track that this member has padding before it, for aggregate init.
-			// Matches Rust naga's struct_member_pads set.
 			w.structPads[nameKey{kind: nameKeyStructMember, handle1: uint32(handle), handle2: uint32(memberIdx)}] = struct{}{}
 		}
 
@@ -135,7 +141,7 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 		lastOffset = member.Offset + w.typeSize(member.Type)
 
 		// For unpacked vec3 types, MSL pads them to 16 bytes (4-component alignment),
-		// so add one extra scalar width. Matches Rust naga: writer.rs ~line 4558.
+		// so add one extra scalar width.
 		if packed == nil {
 			if int(member.Type) < len(w.module.Types) {
 				if vec, ok := w.module.Types[member.Type].Inner.(ir.VectorType); ok && vec.Size == ir.Vec3 {
@@ -147,7 +153,7 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 
 	// Emit trailing padding if the struct's span exceeds the last member's end.
 	// This ensures the struct's total size matches the expected layout for uniform
-	// and storage buffer types. Matches Rust naga: writer.rs ~line 4568.
+	// and storage buffer types.
 	if lastOffset < st.Span {
 		pad := st.Span - lastOffset
 		w.WriteLine("char _pad%d[%d];", len(st.Members), pad)
@@ -162,7 +168,6 @@ func (w *Writer) writeStructDefinition(handle ir.TypeHandle, _ string, st ir.Str
 // For fixed-size arrays, emits a wrapper struct with an inner array member.
 // For runtime-sized (dynamic) arrays, emits a typedef with size [1] so that
 // the type name is available for buffer parameter declarations.
-// Rust naga reference: writer.rs ~line 4508, IndexableLength::Dynamic => typedef T name[1].
 func (w *Writer) writeArrayWrapper(handle ir.TypeHandle, arr ir.ArrayType) error {
 	wrapperName := w.getTypeName(handle)
 	elementType := w.writeTypeName(arr.Base, StorageAccess(0))
@@ -433,8 +438,6 @@ func (w *Writer) imageTypeName(img ir.ImageType, _ StorageAccess) string {
 		}
 	case ir.ImageClassStorage:
 		// Use the actual storage access mode from the IR.
-		// Rust naga: read-only storage textures use access::read,
-		// write-only use access::write, read_write use access::read_write.
 		switch img.StorageAccess {
 		case ir.StorageAccessRead:
 			accessStr = Namespace + "access::read"
@@ -457,7 +460,6 @@ func (w *Writer) imageTypeName(img ir.ImageType, _ StorageAccess) string {
 }
 
 // storageFormatToMSLType returns the MSL sample type for a storage format.
-// Matches Rust naga: most formats use float, int, or uint based on the format suffix.
 // R64Uint/R64Sint use ulong/long (require Metal 3.1).
 func storageFormatToMSLType(format ir.StorageFormat) string {
 	switch format {
@@ -488,18 +490,15 @@ func (w *Writer) atomicTypeName(a ir.AtomicType) string {
 			return Namespace + "atomic_int"
 		}
 		// MSL uses atomic_long (not atomic<long>) for 64-bit signed atomics.
-		// Matches Rust naga output.
 		return Namespace + "atomic_long"
 	case ir.ScalarUint:
 		if a.Scalar.Width == 4 {
 			return Namespace + "atomic_uint"
 		}
 		// MSL uses atomic_ulong (not atomic<ulong>) for 64-bit unsigned atomics.
-		// Matches Rust naga output.
 		return Namespace + "atomic_ulong"
 	case ir.ScalarFloat:
 		// MSL 3.1+ supports atomic_float for f32 atomics.
-		// Matches Rust naga output.
 		return Namespace + "atomic_float"
 	default:
 		return Namespace + "atomic_uint"
@@ -513,8 +512,6 @@ func (w *Writer) packedVectorTypeName(scalar ir.ScalarType) string {
 }
 
 // shouldPackMember checks if a struct member should use packed vector type.
-// Matches Rust naga's should_pack_struct_member exactly: a vec3 member is packed
-// if and only if the layout is "tight" (next member starts immediately after the
 // vec3's logical size with no alignment padding). This applies to vec3 with
 // scalar width 2 (half) or 4 (float/int/uint).
 func (w *Writer) shouldPackMember(st ir.StructType, memberIdx int) *ir.ScalarType {
@@ -559,7 +556,7 @@ func (w *Writer) shouldPackMember(st ir.StructType, memberIdx int) *ir.ScalarTyp
 }
 
 // typeSize returns the size in bytes for a type handle, used for struct padding
-// calculation. Matches Rust naga TypeInner::size().
+// calculation.
 func (w *Writer) typeSize(handle ir.TypeHandle) uint32 {
 	if int(handle) >= len(w.module.Types) {
 		return 4
@@ -571,8 +568,7 @@ func (w *Writer) typeSize(handle ir.TypeHandle) uint32 {
 	case ir.VectorType:
 		return uint32(inner.Size) * uint32(inner.Scalar.Width)
 	case ir.MatrixType:
-		// Matrix columns are aligned like vectors. Matches Rust naga:
-		// Alignment::from(rows) * scalar.width * columns.
+		// Matrix columns are aligned like vectors.
 		// For vec3 columns: stride is 4 * scalar_width (not 3 * scalar_width).
 		scalarWidth := uint32(inner.Scalar.Width)
 		if scalarWidth == 0 {
@@ -597,7 +593,6 @@ func (w *Writer) typeSize(handle ir.TypeHandle) uint32 {
 			}
 			return stride * (*inner.Size.Constant)
 		}
-		// Dynamic arrays: Rust naga returns 1 * stride (at least one element).
 		// This is needed for correct trailing padding calculation in structs.
 		stride := inner.Stride
 		if stride == 0 {
@@ -634,12 +629,10 @@ func (w *Writer) writeConstants() error {
 	for handle := range w.module.Constants {
 		constant := &w.module.Constants[handle]
 		// Skip unnamed constants (component sub-values of composites).
-		// Matches Rust naga which only emits constants with c.name.is_some().
 		if constant.Name == "" {
 			continue
 		}
 		// Skip abstract-typed constants (e.g., `const ONE = 1;` without explicit type).
-		// In Rust naga, these are removed by the compact pass before reaching the MSL writer.
 		if constant.IsAbstract {
 			continue
 		}
@@ -649,8 +642,7 @@ func (w *Writer) writeConstants() error {
 	}
 
 	// Write overrides as constant declarations.
-	// In Rust naga, process_overrides converts Override expressions to Constants
-	// before the MSL writer runs. We emit them directly as constants here.
+	// We emit them directly as constants here.
 	for handle := range w.module.Overrides {
 		ov := &w.module.Overrides[handle]
 		if err := w.writeOverrideAsConstant(ir.OverrideHandle(handle), ov); err != nil {
@@ -662,7 +654,6 @@ func (w *Writer) writeConstants() error {
 }
 
 // writeOverrideAsConstant writes an override as a MSL constant declaration.
-// This matches Rust naga's process_overrides which converts overrides to constants.
 func (w *Writer) writeOverrideAsConstant(handle ir.OverrideHandle, ov *ir.Override) error {
 	name := w.getName(nameKey{kind: nameKeyOverride, handle1: uint32(handle)})
 	typeName := w.writeTypeName(ov.Ty, StorageAccess(0))
@@ -687,7 +678,6 @@ func (w *Writer) writeConstant(handle ir.ConstantHandle, constant *ir.Constant) 
 
 	w.write("constant %s %s = ", typeName, name)
 	// If Value is nil, the constant uses Init (GlobalExpressions handle) instead.
-	// This matches Rust naga which always uses put_const_expression(constant.init, ...).
 	if constant.Value == nil {
 		if err := w.writeGlobalExpression(constant.Init); err != nil {
 			return err
@@ -721,7 +711,6 @@ func (w *Writer) writeConstantValue(value ir.ConstantValue, typeHandle ir.TypeHa
 		typeName := w.writeTypeName(typeHandle, StorageAccess(0))
 		// Arrays (wrapped in structs) and user-defined structs use brace initialization.
 		// Vectors and matrices use constructor call parentheses.
-		// Matches Rust naga MSL output.
 		useBraces := false
 		if _, ok := w.arrayWrappers[typeHandle]; ok {
 			useBraces = true

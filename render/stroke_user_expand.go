@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -12,7 +22,6 @@ import (
 // normal path storage (pre-deviceMatrix). doFill then applies HiDPI deviceMatrix.
 //
 // This fixes T.03: non-uniform scale produces anisotropic stroke thickness
-// (Skia/Cairo: stroke in user space, then transform the outline).
 func (c *Context) expandStrokeToPathSpace() *Path {
 	if c.path == nil || c.path.NumVerbs() == 0 {
 		return nil
@@ -107,7 +116,7 @@ func expandStrokePath(p *Path, width float64, paint *Paint) *Path {
 // matrixRequiresUserSpaceStroke reports whether the current CTM needs stroke
 // expansion in pure user space (then transform the outline). True for
 // non-uniform scale or skew — direct device-space expand cannot produce
-// anisotropic thickness (T.03 / Skia).
+// anisotropic thickness.
 func (c *Context) matrixRequiresUserSpaceStroke() bool {
 	if c == nil {
 		return false

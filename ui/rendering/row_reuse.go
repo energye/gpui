@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -8,7 +18,7 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// 行内整形复用(遗留#1,M5§9):单行文档击键只重整变更 run,前后缀拼接。
+// 行内整形复用:单行文档击键只重整变更 run,前后缀拼接。
 // 后缀 X 为整体平移(旧值+位移),与全量重累加有末位 ulp 差,测试按 1e-9 断言。
 
 // reuseMinLineBytes是复用门槛:短行走全量(输出与此前逐位一致),

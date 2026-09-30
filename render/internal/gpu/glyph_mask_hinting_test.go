@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -14,7 +24,7 @@ import (
 // axis-aligned Latin/CJK text now uses HintingFull (FT_LOAD_TARGET_LIGHT
 // parity) — the self-own light engine (CFF cf2 + glyf autofit + bytecode
 // composite + CFF2 variable) is verified point-identical to FreeType light
-// (hint 包 M1–M5 对照全绿, 2026-08-08). R21 时期自研 Vertical/Full 引擎与
+// . R21 时期自研 Vertical/Full 引擎与
 // FT 结构不一致，故当时退回 None；引擎对齐后解除硬编码。
 //
 // 旋转/倾斜矩阵、CJK HiDPI（deviceScale≥2）仍走 HintingNone。大字号

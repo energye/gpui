@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -17,8 +27,6 @@ import (
 )
 
 // waylandBackend implements Backend for Wayland (wl_display* + wl_surface*).
-// Ported from the verified exhost Wayland host, restructured into Create
-// (window lifecycle) / wlHost (event pump) / capability probing.
 type waylandBackend struct{}
 
 func init() { Register(PlatformWayland, &waylandBackend{}) }
@@ -128,7 +136,7 @@ type wlLib struct {
 	ifaceSeat       uintptr
 	ifaceKeyboard   uintptr
 	ifacePointer    uintptr
-	ifaceTouch      uintptr // wl_touch (capabilities-gated; 0 = no touch device)
+	ifaceTouch      uintptr // wl_touch
 	ifaceCallback   uintptr // wl_callback (wl_surface.frame return; frame-presented notice)
 	// CSD (client-side decorations) interfaces.
 	ifaceShm           uintptr
@@ -494,10 +502,7 @@ type wlWin struct {
 	suspended bool // EventOccluded dedup
 	tiled     bool // xdg tiled state (5..8); informational (CSD)
 
-	// ctlMu guards the WindowController-tracked state below. Controller
-	// methods may be called from any goroutine (§2.5.5 thread contract);
-	// wlTopConfigure reconciles the configure-driven fields on the event
-	// thread.
+	// ctlMu guards the WindowController-tracked state below.
 	ctlMu      sync.Mutex
 	title      string // tracked at Create/SetTitle
 	minW, minH int    // user min constraint (0 = unconstrained)
@@ -668,8 +673,6 @@ func waylandCreate(opts Options) (*Window, error) {
 
 	// Tracked window policy for the surface stack (min/max/resizable/
 	// fullscreen/decorations). Create-time constraints are applied via
-	// applySurfaceConfig after the first configure; the same tracked state
-	// is re-asserted verbatim when Show re-creates the stack (§6.2).
 	win.ctlMu.Lock()
 	win.minW, win.minH = opts.MinWidth, opts.MinHeight
 	win.maxW, win.maxH = opts.MaxWidth, opts.MaxHeight
@@ -704,7 +707,7 @@ func waylandCreate(opts Options) (*Window, error) {
 	//
 	// Input is ON by default (standard Wayland client behavior; matches GTK/
 	// Chromium). To opt out of one or all bindings set the flag to "0":
-	//   GPUI_WL_KEYBOARD=0  GPUI_WL_POINTER=0  GPUI_WL_TEXTINPUT=0  GPUI_WL_TOUCH=0
+	//   GPUI_WL_KEYBOARD=0 GPUI_WL_POINTER=0 GPUI_WL_TEXTINPUT=0 GPUI_WL_TOUCH=0
 	// or disable everything with GPUI_WL_NO_INPUT=1.
 	seatEnabled := os.Getenv("GPUI_WL_NO_INPUT") != "1"
 	if win.seatName != 0 && seatEnabled {
@@ -738,7 +741,6 @@ func waylandCreate(opts Options) (*Window, error) {
 		}
 	}
 
-	// Options.Visible=false: open the window hidden (§9 二.2.1 隐藏窗口).
 	if opts.Visible != nil && !*opts.Visible {
 		win.hideNative()
 	}
@@ -756,11 +758,6 @@ func waylandCreate(opts Options) (*Window, error) {
 //
 // async=false blocks until the first configure is acked+committed (Open path
 // — single-threaded, before the event pump starts). async=true returns right
-// after the commit (Show-after-hide path): the pump thread is the only
-// dispatcher, so the non-pump goroutine never dispatches; wlXdgConfigure
-// acks the first new configure and maps the window, and poll emits
-// EventHidden{Hidden:false} once it observes the re-map (§6.2), which is when
-// the embedder recreates the GPU present target on the NEW wl_surface.
 func (w *wlWin) createSurfaceStack(async bool) error {
 	if w == nil || w.lib == nil {
 		return nil
@@ -822,9 +819,6 @@ func (w *wlWin) createSurfaceStack(async bool) error {
 	// for a preferred mode and the compositor answers with a configure(mode)
 	// event telling which side actually draws the chrome. GNOME 42 has no
 	// such global (decoName==0 → we always draw CSD). When it exists:
-	//   - decorated: request server_side (compositor chrome preferred, GTK
-	//     default); configure(server_side) hides our CSD, configure
-	//     (client_side) keeps it (engine docs §9 一.3 装饰协商).
 	//   - frameless: request none (no chrome at all).
 	if w.decoName != 0 {
 		w.decoMgr = w.bind(w.registry, w.decoName, uintptr(unsafe.Pointer(&ifaceDecoMgr)), 1)
@@ -850,10 +844,6 @@ func (w *wlWin) createSurfaceStack(async bool) error {
 		}
 	}
 
-	// Maximized: set_maximized BEFORE the first commit so the compositor
-	// never shows a non-maximized frame (main doc §2.4: 首 commit 前
-	// set_maximized; the requested size from the first configure is then the
-	// maximized size, which the CSD ignores when maximized).
 	w.ctlMu.Lock()
 	maximized := w.maximized
 	w.ctlMu.Unlock()
@@ -882,7 +872,6 @@ func (w *wlWin) createSurfaceStack(async bool) error {
 // toplevel after its first configure: creation-time size constraints (0 =
 // unconstrained), the min==max fixed-size clamp (SetSize/SetResizable),
 // fullscreen, and the CSD. Uses the tracked state, so a hide/show re-create
-// re-asserts the same policy verbatim (§6.2).
 func (w *wlWin) applySurfaceConfig() {
 	if w == nil || w.lib == nil || w.toplevel == 0 {
 		return
@@ -898,13 +887,10 @@ func (w *wlWin) applySurfaceConfig() {
 	w.top2i(xdgToplevelSetMinSize, minW, minH)
 	w.top2i(xdgToplevelSetMaxSize, maxW, maxH)
 	if !resizable || locked {
-		// Fixed-size window: min==max locks at the current size (§2.5.2
-		// Wayland clamp contract; unlock via SetMinSize/SetMaxSize/SetResizable).
 		w.top2i(xdgToplevelSetMinSize, w.width, w.height)
 		w.top2i(xdgToplevelSetMaxSize, w.width, w.height)
 	}
 	if fullscreen {
-		// set_fullscreen(NULL) → the compositor's current output (§2.4).
 		w.top1o(xdgToplevelSetFullscreen, 0)
 	}
 	// Client-side decorations (CSD): GNOME provides no server-side chrome, so
@@ -926,8 +912,7 @@ func (w *wlWin) applySurfaceConfig() {
 // compositor/wm_base and seat-derived devices (keyboard/pointer/IME/
 // data-device) alive. Destroying the wl_surface unmaps the window — xdg has
 // no unmap request, so destroy + recreate on Show is the standard approach
-// (GTK4 gdk_wayland_window_hide parity). Must run only after the GPU present
-// target backing this wl_surface has been closed (embedder order, §6.2).
+// . Must run only after the GPU present
 func (w *wlWin) destroySurfaceStack() {
 	if w == nil || w.lib == nil {
 		return
@@ -1263,9 +1248,6 @@ func (w *wlWin) minimizedNow(activated bool) bool {
 	return w.minimized
 }
 
-// setStateTriple records the minimized/maximized/fullscreen triple and queues
-// EventStateChanged when it moved since the last report — the Wayland half of
-// the X11 reconcileWindowState contract (§4.4 KindStateChanged: configure is
 // the true value, optimistic request flags reconcile against it). Every
 // triple mutation (configure + Minimize/Maximize/Unmaximize/SetFullscreen)
 // routes through here, so each transition surfaces exactly once; repeats and
@@ -1301,7 +1283,6 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	// Reconcile configure-driven state with the controller-tracked values
 	// (configure is the true value; controller requests are optimistic until
 	// the compositor confirms). Activated ⇒ the window was just restored from
-	// minimize (protocol has no minimized state → optimistic tracking, §3.2).
 	// The triple write goes through setStateTriple so every move — compositor
 	// or request driven — surfaces exactly once as EventStateChanged.
 	newMin := w.minimizedNow(states.activated)
@@ -1330,11 +1311,7 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 			wi, hi, states.maximized, states.fullscreen, states.resizing, states.activated, states.tiled, states.suspended)
 	}
 	if wi > 0 && hi > 0 {
-		// Maximized (not fullscreen): the compositor configures the FULL
-		// work area — the content must shrink by the title-bar height (the
-		// bar (subsurface at (0,-32)) occupies the work area's top strip,
-		// so total window (content + chrome) == work area and the bar stays
-		// visible when maximized, §6). Fullscreen keeps the full configure
+		// Fullscreen keeps the full configure
 		// size (no chrome shown).
 		//
 		// BUT the configure may also arrive as the CONTENT height itself:
@@ -1566,7 +1543,6 @@ func (h *wlHost) destroy() {
 // ApplyHiddenDetach implements platform.HiddenSurface: called by the embedder
 // AFTER the GPU present target (wgpu WSI surface backed by the content
 // wl_surface) has been closed. Destroying the surface stack unmaps the window
-// (xdg has no unmap request; GTK4 parity: hide = destroy, show = recreate).
 // Seat-derived devices (keyboard/pointer/IME/data-device) survive.
 func (h *wlHost) ApplyHiddenDetach() {
 	if h == nil || h.win == nil {
@@ -1847,10 +1823,6 @@ func (h *wlHost) poll() []Event {
 		w.devEvents = nil
 	}
 	w.devMu.Unlock()
-	// Show re-created the surface stack (async path): the re-map completes
-	// when the first new configure is acked+committed here on the event
-	// thread; only then does the embedder recreate the GPU present target
-	// against the NEW wl_surface (§6.2).
 	w.ctlMu.Lock()
 	if w.recreated && w.configured {
 		w.recreated = false

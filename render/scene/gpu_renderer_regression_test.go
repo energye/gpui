@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -5,8 +15,6 @@ import (
 
 	render "github.com/energye/gpui/render"
 )
-
-// --- Regression: BUG-GG-GPU-SCENE-RENDERER-TEXT-001 ---
 
 func TestGPUSceneRenderer_FillAppliesCTM(t *testing.T) {
 	dc := render.NewContext(200, 200)
@@ -147,8 +155,6 @@ func TestGPUSceneRenderer_MultipleTransformsNoStackCorruption(t *testing.T) {
 	}
 }
 
-// --- Regression: BUG-GG-GPU-SCENE-CLIP-001 ---
-// TagTransform inside a BeginClip/EndClip region must NOT pop the clip's
 // Push(). The old code used Push/Pop for transforms which corrupted the clip
 // stack when a TagTransform appeared between BeginClip and EndClip.
 // Fix: transforms use dc.SetTransform() (direct matrix replacement) instead

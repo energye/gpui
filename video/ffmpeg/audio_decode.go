@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -399,8 +409,6 @@ func (a *AudioStream) convertFrame(ms int64) (*AudioFrame2, error) {
 	}, nil
 }
 
-// sampleFmtFloat is AV_SAMPLE_FMT_FLT (interleaved float32), walked
-// from samplefmt.h: NONE=-1, U8=0, S16=1, S32=2, FLT=3.
 const sampleFmtFloat = 3
 
 // itoa formats a small int without importing strconv (keeps this file

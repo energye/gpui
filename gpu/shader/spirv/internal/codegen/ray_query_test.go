@@ -1,11 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
 	"testing"
 )
 
-// TestRayQueryHelperFunctionsGenerated verifies that ray query operations
-// generate helper functions (not inline opcodes), matching Rust naga's pattern.
 func TestRayQueryHelperFunctionsGenerated(t *testing.T) {
 	// Use the actual ray-query shader from test inputs
 	source := `

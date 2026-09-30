@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -11,7 +21,7 @@ import (
 // TestTTGolden_SegoeUI_W_12ppem validates TT interpreter output for Segoe UI
 // 'w' (GID=90) at 12ppem against skrifa golden coordinates.
 //
-// Golden data extracted from skrifa (Rust fontations) with HintingMode::Smooth.
+// Golden data extracted from skrifa with HintingMode::Smooth.
 // Coordinates are in pixels (Y-UP). Our output uses Y-DOWN, so we negate Y.
 //
 // Grid-fitted endpoints (on-curve, Y-touched) must match within tight tolerance

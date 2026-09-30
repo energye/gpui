@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package bitcheck
 
 import (
@@ -7,7 +17,6 @@ import (
 
 // blockWriter extends testWriter with the block enter / exit and
 // unabbreviated-record helpers we need to build end-to-end fixtures.
-// Mirrors dxil/internal/bitcode/writer.go.
 type blockWriter struct {
 	*testWriter
 	abbrevWidth uint
@@ -295,16 +304,14 @@ func TestBlockReader_MalformedBlockLength(t *testing.T) {
 
 // TestBlockReader_DefineAbbrev_FixedOperand round-trips a single
 // DEFINE_ABBREV followed by a record that uses it. This is the one
-// path our naga emitter never exercises but that DXC output uses
-// heavily.
 func TestBlockReader_DefineAbbrev_FixedOperand(t *testing.T) {
 	w := newBlockWriter(2)
 	w.enterBlock(15, 3) // METADATA_BLOCK, 3-bit abbrev id
 
 	// Emit DEFINE_ABBREV:
 	//   numops = 2
-	//   op0 = Fixed(6)   → record code
-	//   op1 = Fixed(8)   → one data byte
+	//   op0 = Fixed(6) → record code
+	//   op1 = Fixed(8) → one data byte
 	w.emitAbbrevID(abbrevDefineAbbrev)
 	w.writeVBR(2, 5)  // numops
 	w.writeBits(0, 1) // op0: not literal

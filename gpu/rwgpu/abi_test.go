@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 // abi_test.go — ABI validation tests for wgpu-native v29 migration.
@@ -161,30 +171,30 @@ func TestABIStructFieldOffsets(t *testing.T) {
 		// v29 NEW: maxImmediateSize added as last field.
 		//
 		// Expected layout (all uint32 unless noted):
-		// offset 0:   nextInChain (uintptr/8)
-		// offset 8:   maxTextureDimension1D (uint32)
-		// offset 12:  maxTextureDimension2D (uint32)
-		// offset 16:  maxTextureDimension3D (uint32)
-		// offset 20:  maxTextureArrayLayers (uint32)
-		// offset 24:  maxBindGroups (uint32)
-		// offset 28:  maxBindGroupsPlusVertexBuffers (uint32)
-		// offset 32:  maxBindingsPerBindGroup (uint32)
-		// offset 36:  maxDynamicUniformBuffersPerPipelineLayout (uint32)
-		// offset 40:  maxDynamicStorageBuffersPerPipelineLayout (uint32)
-		// offset 44:  maxSampledTexturesPerShaderStage (uint32)
-		// offset 48:  maxSamplersPerShaderStage (uint32)
-		// offset 52:  maxStorageBuffersPerShaderStage (uint32)
-		// offset 56:  maxStorageTexturesPerShaderStage (uint32)
-		// offset 60:  maxUniformBuffersPerShaderStage (uint32)  [last of 14 uint32s]
+		// offset 0: nextInChain (uintptr/8)
+		// offset 8: maxTextureDimension1D (uint32)
+		// offset 12: maxTextureDimension2D (uint32)
+		// offset 16: maxTextureDimension3D (uint32)
+		// offset 20: maxTextureArrayLayers (uint32)
+		// offset 24: maxBindGroups (uint32)
+		// offset 28: maxBindGroupsPlusVertexBuffers (uint32)
+		// offset 32: maxBindingsPerBindGroup (uint32)
+		// offset 36: maxDynamicUniformBuffersPerPipelineLayout (uint32)
+		// offset 40: maxDynamicStorageBuffersPerPipelineLayout (uint32)
+		// offset 44: maxSampledTexturesPerShaderStage (uint32)
+		// offset 48: maxSamplersPerShaderStage (uint32)
+		// offset 52: maxStorageBuffersPerShaderStage (uint32)
+		// offset 56: maxStorageTexturesPerShaderStage (uint32)
+		// offset 60: maxUniformBuffersPerShaderStage (uint32) [last of 14 uint32s]
 		// --- padding to 8-byte align uint64 ---
-		// offset 64:  maxUniformBufferBindingSize (uint64)
-		// offset 72:  maxStorageBufferBindingSize (uint64)
+		// offset 64: maxUniformBufferBindingSize (uint64)
+		// offset 72: maxStorageBufferBindingSize (uint64)
 		// --- v29 MOVED here (were at end in v27): ---
-		// offset 80:  minUniformBufferOffsetAlignment (uint32)
-		// offset 84:  minStorageBufferOffsetAlignment (uint32)
-		// offset 88:  maxVertexBuffers (uint32)
+		// offset 80: minUniformBufferOffsetAlignment (uint32)
+		// offset 84: minStorageBufferOffsetAlignment (uint32)
+		// offset 88: maxVertexBuffers (uint32)
 		// --- padding to 8-byte align uint64 ---
-		// offset 96:  maxBufferSize (uint64)
+		// offset 96: maxBufferSize (uint64)
 		// offset 104: maxVertexAttributes (uint32)
 		// offset 108: maxVertexBufferArrayStride (uint32)
 		// offset 112: maxInterStageShaderVariables (uint32)
@@ -196,7 +206,7 @@ func TestABIStructFieldOffsets(t *testing.T) {
 		// offset 136: maxComputeWorkgroupSizeY (uint32)
 		// offset 140: maxComputeWorkgroupSizeZ (uint32)
 		// offset 144: maxComputeWorkgroupsPerDimension (uint32)
-		// offset 148: maxImmediateSize (uint32)  [NEW v29]
+		// offset 148: maxImmediateSize (uint32) [NEW v29]
 		// total: 152 bytes
 
 		var l limitsWire
@@ -992,7 +1002,7 @@ func TestABIWireStructAlignment(t *testing.T) {
 	})
 
 	t.Run("bindGroupLayoutEntryWire_visibility_uint64", func(t *testing.T) {
-		// CRITICAL: Visibility must be uint64 (WGPUShaderStageFlags = WGPUFlags = uint64 in wgpu-native).
+		// CRITICAL: Visibility must be uint64.
 		// This is NOT uint32 as in the webgpu.h spec — wgpu-native uses WGPUFlags typedef.
 		// Verify the Visibility field size via its offset and the next field offset.
 		var e bindGroupLayoutEntryWire

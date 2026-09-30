@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -121,7 +128,7 @@ func TestInferDeviceType(t *testing.T) {
 		{"NVIDIA Corporation", "NVIDIA Tegra X1", gputypes.DeviceTypeIntegratedGPU},
 		{"Apple", "Apple M1 Pro", gputypes.DeviceTypeIntegratedGPU},
 
-		// Discrete desktop GPUs (P2-2: real dGPU label, not Other)
+		// Discrete desktop GPUs
 		{"NVIDIA Corporation", "NVIDIA GeForce RTX 4090", gputypes.DeviceTypeDiscreteGPU},
 		{"NVIDIA Corporation", "NVIDIA GeForce 940MX/PCIe/SSE2", gputypes.DeviceTypeDiscreteGPU},
 		{"ATI Technologies Inc.", "AMD Radeon RX 7900 XT", gputypes.DeviceTypeDiscreteGPU},

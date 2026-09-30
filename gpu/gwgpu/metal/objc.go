@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build darwin && !(js && wasm)
 
@@ -405,8 +412,7 @@ func alignUp(val, align uintptr) uintptr {
 // commit, waitUntilCompleted), the return value is meaningless — objc_msgSend
 // always returns a register-sized value regardless of the method's actual return
 // type. Callers discard with `_ = MsgSend(...)`. This is the standard pattern
-// for Go↔ObjC bridges without CGO; Rust wgpu-hal/metal uses the same approach
-// via the objc crate's msg_send! macro which also ignores void returns.
+// macro which also ignores void returns.
 func MsgSend(obj ID, sel SEL, args ...uintptr) ID {
 	return msgSendID(obj, sel, pointerArgs(args)...)
 }
@@ -585,19 +591,18 @@ func goStringFromCStr(cstr uintptr) string {
 // Objective-C blocks (closures) follow a documented ABI layout:
 //
 //	struct Block_literal {
-//	    void *isa;           // &_NSConcreteStackBlock or &_NSConcreteGlobalBlock
-//	    int  flags;          // Block flags (see blockHasCopyDispose, etc.)
-//	    int  reserved;       // Always 0
-//	    void *invoke;        // Function pointer: (block_ptr, args...) -> ret
+//	    void *isa; // &_NSConcreteStackBlock or &_NSConcreteGlobalBlock
+//	    int flags; // Block flags (see blockHasCopyDispose, etc.)
+//	    int reserved; // Always 0
+//	    void *invoke; // Function pointer: (block_ptr, args...) -> ret
 //	    struct Block_descriptor *descriptor;
 //	    // Captured variables follow (we embed a block ID here)
-//	    uint64 blockID;      // Index into blockRegistry for Go-side state
+//	    uint64 blockID; // Index into blockRegistry for Go-side state
 //	};
 //
 // The invoke function receives the block pointer as its first argument,
 // allowing us to read blockID and look up the associated Go channel.
 //
-// Reference: https://clang.llvm.org/docs/Block-ABI-Apple.html
 
 // blockLiteral is the Go representation of an ObjC Block_literal struct.
 // It matches the C ABI layout expected by the Objective-C runtime.
@@ -634,7 +639,6 @@ var blockPinRegistry sync.Map // map[uint64]*blockLiteral
 // blockPtrToID maps block pointer (uintptr) → blockID (uint64).
 // Reverse lookup used by callbacks to recover the blockID without converting
 // the uintptr to unsafe.Pointer — avoids checkptr violation under -race.
-// Follows purego pattern: block pointer used as opaque integer key only.
 // See issue #293.
 var blockPtrToID sync.Map // map[uintptr]uint64
 
@@ -993,9 +997,6 @@ func newFrameCompletionBlock(frameSemaphore chan struct{}) uintptr {
 // When the GPU finishes executing the last command buffer of a Submit batch,
 // Metal invokes the block. We look up the block ID in the registry, retrieve
 // the captured submission index, and atomically store it in the target counter.
-// This provides actual GPU completion tracking for Poll(), matching
-// the Rust wgpu-hal Metal backend pattern (Fence.completed_value: Arc<AtomicU64>
-// updated via addCompletedHandler in Queue::submit).
 
 // gpuCompletionEntry holds the target atomic counter and the submission index
 // value to store when the GPU finishes the associated command buffer.

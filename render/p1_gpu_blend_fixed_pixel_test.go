@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -40,9 +50,7 @@ func TestP12GPUFixedPixel_BlendCopy(t *testing.T) {
 		t.Fatalf("B.02 Copy requires GPUOps>0: %s", stats.LogLine())
 	}
 
-	// Center: Copy 50% red replaces blue on the GPU RT. After readback
-	// composites over white, expect ~ (255,127,127) pink — not purple
-	// SourceOver red@50 over blue ~(128,0,128).
+	// Center: Copy 50% red replaces blue on the GPU RT.
 	r, g, b, a := sampleRGBA(dc, 32, 32)
 	t.Logf("copy center rgba=%d,%d,%d,%d", r, g, b, a)
 	if r < 200 {

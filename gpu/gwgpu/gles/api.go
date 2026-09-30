@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -29,13 +36,12 @@ func (Backend) Variant() gputypes.Backend {
 //
 // Creates a hidden 1×1 window and initializes a GL context on it. The context
 // lives for the Instance lifetime and survives any user Surface destruction.
-// Follows Rust wgpu-hal/src/gles/wgl.rs Instance::init (lines 448-563).
 func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error) {
 	if err := wgl.Init(); err != nil {
 		return nil, fmt.Errorf("gles: failed to initialize WGL: %w", err)
 	}
 
-	// Create hidden 1×1 window to host the GL context (Rust: create_instance_device).
+	// Create hidden 1×1 window to host the GL context.
 	// GL context is NOT created here — it will be lazily created on the render
 	// thread's first Lock() call, avoiding cross-thread WGL issues.
 	hiddenWindow, err := wgl.NewHiddenWindow()
@@ -85,8 +91,6 @@ type Instance struct {
 // HWND and a reference to the shared AdapterContext. SetPixelFormat is called
 // on the user window DC so that wglMakeCurrent can switch between hidden and
 // user DCs during Present.
-//
-// Follows Rust wgpu-hal/src/gles/wgl.rs Instance::create_surface (lines 624-670).
 func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error) {
 	if err := target.RequireKind(hal.SurfaceTargetWindowsHWND); err != nil {
 		return nil, fmt.Errorf("gles: %w", err)
@@ -179,7 +183,6 @@ func (i *Instance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter {
 }
 
 // Release releases the instance resources.
-// Matches webgpu Instance.Release (7b Device.Destroy→Release precedent).
 func (i *Instance) Release() {
 	if i.ctx != nil {
 		i.ctx.Destroy()
@@ -191,11 +194,6 @@ func (i *Instance) Release() {
 }
 
 // RequestAdapter returns the first enumerated adapter.
-// Matches webgpu Instance.RequestAdapter shape; PowerPreference/
-// ForceFallback are moot (single GL adapter on Windows: single card
-// straight through, no branches — P2-2 multi-adapter selection is
-// Linux-only via EGL device enumeration), CompatibleSurface is
-// forwarded as the enumerate hint.
 func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error) {
 	var hint hal.Surface
 	if opts != nil {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -41,7 +51,7 @@ func (m PresentMode) String() string {
 	}
 }
 
-// Damage planning knobs (S6.1). Values are part of the frame-enforce contract;
+// Damage planning knobs. Values are part of the frame-enforce contract;
 // change only with docs/S6_1_FRAME_ENFORCE.md + TestS61_* updates.
 const (
 	// MaxTrackedDamageRects is the public name for the trackDamage collapse threshold.
@@ -81,7 +91,7 @@ func (c *Context) BeginFrame() {
 	// (hit uses layout offsets; paint must share the same Y-down origin).
 	c.Identity()
 	c.ResetFrameDamage()
-	// P1-3: per-frame flush metric (F.03).
+	// per-frame flush metric (F.03).
 	c.pathStats.FrameFlushes = 0
 	// Frame boundary: free previous GPU command buffers + reset LoadOp state.
 	// Apps (e.g. particle_kitchen_sink) call BeginFrame each tick; without this
@@ -260,10 +270,10 @@ func (c *Context) PresentFrameFull(view gpucontext.TextureView, width, height ui
 
 // PresentFrameAuto presents according to PlanPresent(width, height).
 //
-//	idle          → no FlushGPU, present callback not invoked
-//	damage_multi  → PresentFrameDamageRects
-//	damage_union  → PresentFrameDamage
-//	full          → PresentFrameFull
+//	idle → no FlushGPU, present callback not invoked
+//	damage_multi → PresentFrameDamageRects
+//	damage_union → PresentFrameDamage
+//	full → PresentFrameFull
 //
 // Application code for retained UI should default to this helper instead of
 // always calling PresentFrame (which implies a full clear path).

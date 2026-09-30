@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render_test
 
 import (
@@ -15,15 +25,14 @@ import (
 	"github.com/energye/gpui/render/internal/testutil/imagediff"
 )
 
-// R5 S35: game_sprite--case=depth 窗随 P2 建，S35 只留离屏对比。
 // 本文件只读 render/testdata/depth_r5_cases.json，不硬编码标准色。
 
 type depthSpriteDef struct {
-	Name    string    `json:"name"`
+	Name    string     `json:"name"`
 	Src     [4]float64 `json:"src"`
 	Dst     [4]float64 `json:"dst"`
-	Opacity float64   `json:"opacity"`
-	Depth   float64   `json:"depth"`
+	Opacity float64    `json:"opacity"`
+	Depth   float64    `json:"depth"`
 }
 
 type depthProbeDef struct {
@@ -55,8 +64,8 @@ type depthR5Cases struct {
 			RGBA [4]int `json:"rgba"`
 		} `json:"quads"`
 	} `json:"atlas"`
-	DepthNote     string `json:"depth_note"`
-	Parity        struct {
+	DepthNote string `json:"depth_note"`
+	Parity    struct {
 		MaxChangedPct float64 `json:"max_changed_pct"`
 		MaxMeanAbs    float64 `json:"max_mean_abs"`
 		Note          string  `json:"note"`
@@ -514,7 +523,6 @@ func TestDepthR5CPUGPUParity(t *testing.T) {
 	}
 }
 
-// F: 离屏金比对即未来 game_sprite--case=depth 窗的依据（窗随 P2 建）。
 func TestDepthR5OffscreenGolden(t *testing.T) {
 	withDepthCPU(t)
 	c := loadDepthR5Cases(t)

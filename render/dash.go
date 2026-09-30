@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import "math"
@@ -22,9 +32,9 @@ type Dash struct {
 //
 // Examples:
 //
-//	NewDash(5, 3)       // 5 units dash, 3 units gap
+//	NewDash(5, 3) // 5 units dash, 3 units gap
 //	NewDash(10, 5, 2, 5) // 10 dash, 5 gap, 2 dash, 5 gap
-//	NewDash(5)          // equivalent to [5, 5]
+//	NewDash(5) // equivalent to [5, 5]
 //
 // Returns nil if no lengths are provided or all lengths are zero.
 func NewDash(lengths ...float64) *Dash {
@@ -180,7 +190,7 @@ func (d *Dash) effectiveArray() []float64 {
 // If dash is nil or not dashed, returns p unchanged.
 //
 // Used by both software stroke and GPU stroke expansion so dash semantics
-// stay consistent (Cairo/Skia-style pattern application before stroke expand).
+// stay consistent.
 func ApplyDash(p *Path, dash *Dash) *Path {
 	return dashPath(p, dash)
 }

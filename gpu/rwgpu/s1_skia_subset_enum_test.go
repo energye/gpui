@@ -1,9 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
-// s1_skia_subset_enum_test.go — S1 header-lock tests for the Skia 2D WebGPU subset.
-//
-// Authority: lib/webgpu.h (wgpu-native v29)
-// Plan: docs/MAINLINE_PLAN.md S1 + docs/RWGPU_SKIA_SUBSET_CHECKLIST.md
 //
 // Two classes of enums:
 //  1. Identity: gputypes values match header; wire uses uint32(enum) directly.

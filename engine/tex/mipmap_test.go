@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package tex
 
 import (
@@ -422,7 +432,7 @@ func TestMipmapLongRunStable(t *testing.T) {
 	}
 }
 
-// F: offscreen golden stands in for game_tex (W3 window intent, built with P2).
+// F: offscreen golden stands in for game_tex.
 // The frozen checker halves plus level means are the evidence the far view
 // shares with the future far-tree window; no game_* window exists yet.
 func TestMipmapOffscreenGolden(t *testing.T) {

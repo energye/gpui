@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -13,7 +23,7 @@ import (
 // Say it plain: 把解出来的 YUV 转成屏幕要的 RGBA (尺寸也能顺手缩放),
 // 转之前先问一句支不支持这个格式.
 
-// 常用像素格式 (pixfmt.h 枚举: NONE=-1 起递增):
+// 常用像素格式:
 // YUV420P=0, RGB24=2, RGBA=26, BGRA=28, NV12=23, GRAY8=8.
 const (
 	PixFmtNone    int32 = -1
@@ -30,7 +40,7 @@ const (
 	PixFmtBGRA    int32 = 28
 )
 
-// 缩放算法 (swscale.h: FAST_BILINEAR=1, BILINEAR=2, BICUBIC=4, ...).
+// 缩放算法.
 const (
 	SwsFastBilinear int32 = 1
 	SwsBilinear     int32 = 2

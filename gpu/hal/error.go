@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package hal
@@ -85,7 +95,6 @@ var (
 )
 
 // GPUError represents a captured GPU error from an error scope.
-// Mirrors gpu/webgpu GPUError (gpu/webgpu/error.go:96).
 type GPUError struct {
 	Type    ErrorFilter
 	Message string
@@ -97,7 +106,6 @@ func (e *GPUError) Error() string {
 }
 
 // ErrorFilter selects which errors an error scope captures.
-// Mirrors gpu/webgpu ErrorFilter (gpu/webgpu/error.go:110).
 type ErrorFilter int
 
 const (

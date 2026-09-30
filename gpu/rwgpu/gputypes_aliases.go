@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import "github.com/energye/gpui/gpu/types"
@@ -73,7 +83,7 @@ type LoadOp = types.LoadOp
 type StoreOp = types.StoreOp
 
 // Features is a bitmask of enabled GPU features.
-// Note: Limits is defined as a native FFI struct in adapter.go (matches wgpu-native ABI).
+// Note: Limits is defined as a native FFI struct in adapter.go.
 type Features = types.Features
 
 // --- BufferUsage constants ---

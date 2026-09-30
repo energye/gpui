@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package lower
 
 import (
@@ -150,8 +160,6 @@ func TestLowerer_TypeInference(t *testing.T) {
 
 func TestLowerer_TypeInference_BinaryOp(t *testing.T) {
 	// Create AST for function with binary operation on literals.
-	// The constant evaluator folds 1.0 + 2.0 to Literal(F32(3.0)),
-	// matching Rust naga behavior.
 	ast := &parser.Module{
 		Functions: []*parser.FunctionDecl{
 			{
@@ -209,8 +217,6 @@ func TestLowerer_TypeInference_BinaryOp(t *testing.T) {
 
 func TestLowerer_TypeInference_Comparison(t *testing.T) {
 	// Create AST for function with comparison on literals.
-	// The constant evaluator folds 1.0 < 2.0 to Literal(Bool(true)),
-	// matching Rust naga behavior.
 	ast := &parser.Module{
 		Functions: []*parser.FunctionDecl{
 			{
@@ -841,9 +847,6 @@ func TestLowerer_ArrayInit_ExplicitType(t *testing.T) {
 	}
 }
 
-// TestAbstractConstantsDontRegisterTypes verifies that abstract module-scope constants
-// (e.g., `const g0 = 1;`) do NOT register types in the type arena, matching Rust naga
-// where abstract constants are stored in the frontend context and never in the module.
 func TestAbstractConstantsDontRegisterTypes(t *testing.T) {
 	source := `
 const g0 = 1;
@@ -913,9 +916,6 @@ fn main() {
 	}
 }
 
-// TestAbstractLocalConstsDeferExpression verifies that abstract local const declarations
-// create deferred expressions that are re-lowered at use site, matching Rust naga where
-// abstract const expressions become dead after concretization and compact removes them.
 func TestAbstractLocalConstsDeferExpression(t *testing.T) {
 	source := `
 @compute @workgroup_size(1)

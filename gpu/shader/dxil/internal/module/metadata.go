@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package module
 
 // MetadataNodeKind identifies the type of a metadata node.
@@ -27,7 +37,6 @@ type MetadataNode struct {
 	// For MDValue referencing a function: the referenced function.
 	// When set, ValueConst is ignored and the metadata value record
 	// emits [pointer-to-function-type-id, function.ValueID]. This is
-	// how DXIL encodes !dx.entryPoints[0][0] = void()* @main.
 	ValueFunc *Function
 
 	// For MDTuple: sub-nodes. A nil entry represents a null operand.
@@ -73,8 +82,6 @@ func (m *Module) AddMetadataValue(ty *Type, c *Constant) *MetadataNode {
 // representation required for !dx.entryPoints[0][0] (the entry function
 // pointer) — the DXIL validator dereferences this pointer when walking
 // entry points, so it must NOT be a null metadata operand.
-//
-// Reference: Mesa dxil_get_metadata_func() in dxil_module.c.
 func (m *Module) AddMetadataFunc(fn *Function) *MetadataNode {
 	ptrTy := m.GetPointerType(fn.FuncType)
 	node := &MetadataNode{

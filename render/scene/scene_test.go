@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -932,7 +942,7 @@ func BenchmarkScenePoolGetPut(b *testing.B) {
 
 // TestEncodingBoundsWithTransform verifies that encoding bounds include
 // transformed coordinates, not just raw path coords. This is the fix for
-// gg#116: WithTransform caused invisible rendering because the tile-based
+// WithTransform caused invisible rendering because the tile-based
 // renderer's early-out check used untransformed encoding bounds.
 func TestEncodingBoundsWithTransform(t *testing.T) {
 	scene := NewScene()

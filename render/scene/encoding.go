@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -290,8 +300,8 @@ func max32(a, b float32) float32 {
 // Affine represents a 2D affine transformation matrix.
 // The matrix is stored in row-major order as:
 //
-//	| A  B  C |
-//	| D  E  F |
+//	| A B C |
+//	| D E F |
 //
 // Where a point (x, y) is transformed to:
 //
@@ -309,8 +319,8 @@ func IdentityAffine() Affine {
 
 // NewAffine creates an affine transformation from individual matrix components.
 //
-//	| a  b  c |
-//	| d  e  f |
+//	| a b c |
+//	| d e f |
 func NewAffine(a, b, c, d, e, f float32) Affine {
 	return Affine{A: a, B: b, C: c, D: d, E: e, F: f}
 }

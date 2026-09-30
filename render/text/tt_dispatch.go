@@ -1,13 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — opcode dispatch.
 //
-// Port of skrifa hint/engine/dispatch.rs (243 LOC).
 // Maps all ~200 TrueType opcodes to their handler functions.
-//
-// Reference: skrifa/src/outline/glyf/hint/engine/dispatch.rs
 package text
 
 // TrueType opcode constants.
-// Reference: OpenType spec, TrueType instruction set.
 const (
 	opSVTCA0   = 0x00 // Set freedom & projection vectors to Y axis
 	opSVTCA1   = 0x01 // Set freedom & projection vectors to X axis
@@ -48,7 +54,7 @@ const (
 	opDEPTH    = 0x24 // Push stack depth
 	opCINDEX   = 0x25 // Copy indexed element
 	opMINDEX   = 0x26 // Move indexed element
-	opALIGNPTS = 0x27 // Align points
+	opALIGNPTS = 0x27
 	// 0x28 unused
 	opUTP      = 0x29 // Untouch point
 	opLOOPCALL = 0x2A // Loop and call function
@@ -69,7 +75,7 @@ const (
 	opIP       = 0x39 // Interpolate point
 	opMSIRP0   = 0x3A // Move stack indirect relative point (no set rp0)
 	opMSIRP1   = 0x3B // Move stack indirect relative point (set rp0)
-	opALIGNRP  = 0x3C // Align to reference point
+	opALIGNRP  = 0x3C
 	opRTDG     = 0x3D // Round to double grid
 	opMIAP0    = 0x3E // Move indirect absolute point (no round)
 	opMIAP1    = 0x3F // Move indirect absolute point (round)
@@ -102,7 +108,7 @@ const (
 	opAND      = 0x5A // Logical and
 	opOR       = 0x5B // Logical or
 	opNOT      = 0x5C // Logical not
-	opDELTAP1  = 0x5D // Delta exception P1
+	opDELTAP1  = 0x5D
 	opSDB      = 0x5E // Set delta base
 	opSDS      = 0x5F // Set delta shift
 	opADD      = 0x60 // Add
@@ -122,8 +128,8 @@ const (
 	opNROUND10 = 0x6E // No round (white)
 	opNROUND11 = 0x6F // No round (reserved)
 	opWCVTF    = 0x70 // Write CVT in font units
-	opDELTAP2  = 0x71 // Delta exception P2
-	opDELTAP3  = 0x72 // Delta exception P3
+	opDELTAP2  = 0x71
+	opDELTAP3  = 0x72
 	opDELTAC1  = 0x73 // Delta exception C1
 	opDELTAC2  = 0x74 // Delta exception C2
 	opDELTAC3  = 0x75 // Delta exception C3
@@ -166,7 +172,6 @@ const (
 )
 
 // dispatch executes the handler for the given opcode.
-// Reference: skrifa hint/engine/dispatch.rs:98-243
 func (e *ttEngine) dispatch(opcode byte) error {
 	switch {
 	// Vector setting (0x00-0x0E)
@@ -187,7 +192,6 @@ func (e *ttEngine) dispatch(opcode byte) error {
 	case opcode == opISECT:
 		return e.opIsect()
 
-	// Reference points and zone pointers (0x10-0x17)
 	case opcode == opSRP0:
 		return e.opSrp0()
 	case opcode == opSRP1:

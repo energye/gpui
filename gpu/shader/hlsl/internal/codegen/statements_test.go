@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -283,7 +290,7 @@ func TestIsPointerExpressionAccessIndex(t *testing.T) {
 
 func TestBakeRefCountForLoad(t *testing.T) {
 	// Load expressions have bake_ref_count=1, so they should always be baked
-	// when referenced at least once (matching Rust naga behavior).
+	// when referenced at least once.
 	load := ir.ExprLoad{Pointer: 0}
 	got := bakeRefCount(load)
 	if got != 1 {

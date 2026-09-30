@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -10,7 +20,7 @@ import (
 // nestedPair builds parent/child viewports with Parent handoff wired.
 //
 //	parentVP (100×200) content height 500 → maxScrollY=300
-//	childVP  nested content height 400 → maxScrollY set explicitly
+//	childVP nested content height 400 → maxScrollY set explicitly
 func nestedPair(t *testing.T) (parentVP, childVP *rendering.RenderViewport, childSC *rendering.Scrollable) {
 	t.Helper()
 	const W, parentH = 100.0, 200.0

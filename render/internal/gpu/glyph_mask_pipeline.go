@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -27,8 +37,8 @@ var glyphColorShaderSource string
 // glyphMaskVertexStride is the byte stride per vertex in the glyph mask pipeline.
 // Layout per vertex (matches MSDF text pipeline for Intel Vulkan driver compat):
 //
-//	position  (vec2<f32>) =  8 bytes  (location 0)
-//	tex_coord (vec2<f32>) =  8 bytes  (location 1)
+//	position (vec2<f32>) = 8 bytes (location 0)
+//	tex_coord (vec2<f32>) = 8 bytes (location 1)
 //
 // Total = 16 bytes per vertex.
 // Color is passed via per-batch uniform buffer (not per-vertex).
@@ -38,7 +48,7 @@ const glyphMaskVertexStride = 16
 // Layout (grayscale):
 //
 //	transform (mat4x4<f32>) = 64 bytes
-//	color     (vec4<f32>)   = 16 bytes
+//	color (vec4<f32>) = 16 bytes
 //
 // Total = 80 bytes.
 const glyphMaskUniformSize = 80
@@ -46,17 +56,17 @@ const glyphMaskUniformSize = 80
 // glyphMaskLCDUniformSize is the byte size of the LCD uniform buffer.
 // Layout:
 //
-//	transform  (mat4x4<f32>) = 64 bytes
-//	color      (vec4<f32>)   = 16 bytes
-//	atlas_size (vec2<f32>)   =  8 bytes
-//	_pad       (vec2<f32>)   =  8 bytes
+//	transform (mat4x4<f32>) = 64 bytes
+//	color (vec4<f32>) = 16 bytes
+//	atlas_size (vec2<f32>) = 8 bytes
+//	_pad (vec2<f32>) = 8 bytes
 //
 // Total = 96 bytes.
 const glyphMaskLCDUniformSize = 96
 
 // GlyphMaskPipeline manages GPU resources for alpha mask text rendering
 // (Tier 6). Each text run is rendered as a set of textured quads using
-// indexed drawing. The fragment shader samples a single-channel (R8) alpha
+// indexed drawing. The fragment shader samples a single-channel alpha
 // atlas and multiplies by the text color for premultiplied output.
 //
 // The pipeline uses the same MSAA+depth/stencil texture pattern as
@@ -113,14 +123,13 @@ type GlyphMaskPipeline struct {
 	lcdUniformLayout hal.BindGroupLayout
 	lcdPipeLayout    hal.PipelineLayout
 	// Two-pass LCD (true per-channel ClearType without dual-source blending):
-	// 1) darken: out = dst * (1 - cov_rgb)   blend Zero / OneMinusSrc
-	// 2) add:    out = dst + color * cov_rgb blend One / One
+	// 1) darken: out = dst * (1 - cov_rgb) blend Zero / OneMinusSrc
+	// 2) add: out = dst + color * cov_rgb blend One / One
 	lcdPipelineDarken hal.RenderPipeline
 	lcdPipelineAdd    hal.RenderPipeline
 	// lcdPipelineWithStencil is kept as an alias of lcdPipelineAdd for older checks.
 	lcdPipelineWithStencil hal.RenderPipeline
 
-	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
 	clipBindLayout hal.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
@@ -142,7 +151,6 @@ func NewGlyphMaskPipeline(device hal.Device, queue hal.Queue, sampleCount uint32
 	}
 }
 
-// SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil. The layout is
 // owned by the session and must not be destroyed by the pipeline.
 func (p *GlyphMaskPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
@@ -296,8 +304,7 @@ func (p *GlyphMaskPipeline) ensurePipelineWithStencil() error {
 	if err := p.ensureSharedResources(); err != nil {
 		return err
 	}
-	// If the pipeline layout was created without clip but clip is now set,
-	// destroy and recreate so the layout includes @group(1). Without this,
+	// Without this,
 	// SetBindGroup(1, clipBG) crashes on AMD/NVIDIA (Intel tolerates it).
 	if p.clipBindLayout != nil && !p.pipeLayoutHasClip {
 		p.destroyPipeline()
@@ -524,7 +531,7 @@ func (p *GlyphMaskPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *gly
 // rendering. Uses a separate shader (glyph_mask_lcd.wgsl) with a different
 // uniform struct (96 bytes: includes atlas_size for texel stepping).
 //
-// This is a separate pipeline from the grayscale one (Skia pattern) to avoid
+// This is a separate pipeline from the grayscale one to avoid
 // the Intel Vulkan null pipeline handle bug that occurs when adding fields to
 // the grayscale uniform struct.
 func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
@@ -600,7 +607,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 	p.lcdPipeLayout = lcdPipeLayout
 	p.lcdPipeLayoutHasClip = hasClip
 
-	// Two-pass LCD blends (Skia/DirectWrite ClearType without dual-source).
+	// Two-pass LCD blends.
 	darkenBlend := types.BlendState{
 		Color: types.BlendComponent{
 			SrcFactor: types.BlendFactorZero,
@@ -745,7 +752,6 @@ type glyphMaskDrawCall struct {
 	bindGroup   hal.BindGroup
 	// isLCD selects LCD vs grayscale pipeline for THIS draw only.
 	// Mixed LCD/grayscale batches in one frame must not share a frame-level pipeline
-	// (LCD BGL minBindingSize=96 vs grayscale=80 → wgpu validation abort).
 	isLCD bool
 	// isColor selects the RGBA color pipeline for THIS draw only.
 	// Color batches never merge with mask batches (see CanMerge).
@@ -764,14 +770,11 @@ type glyphMaskFrameResources struct {
 // ---- Vertex layout ----
 
 // glyphMaskVertexLayout returns the vertex buffer layout for the glyph mask pipeline.
-// Matches VertexInput in glyph_mask.wgsl:
 //
-//	location 0: position  (vec2<f32>)
+//	location 0: position (vec2<f32>)
 //	location 1: tex_coord (vec2<f32>)
 //
 // Color and is_lcd are in the uniform buffer (per-batch, not per-vertex).
-// This matches the MSDF text pipeline layout and avoids Intel Vulkan driver
-// issues with >2 vertex attributes.
 func glyphMaskVertexLayout() []types.VertexBufferLayout {
 	return []types.VertexBufferLayout{
 		{
@@ -828,7 +831,7 @@ type GlyphMaskBatch struct {
 	AtlasWidth  float32
 	AtlasHeight float32
 
-	// AtlasPageIndex identifies which atlas page (R8 texture) to use.
+	// AtlasPageIndex identifies which atlas page to use.
 	AtlasPageIndex int
 
 	// IsColor marks batches sampling RGBA color atlas pages instead of the
@@ -982,7 +985,7 @@ func makeGlyphMaskUniformInto(buf []byte, transform render.Matrix, color [4]floa
 
 	// Transform: WGSL mat4x4<f32> is stored COLUMN-MAJOR in memory.
 	// Column-major storage for WGSL:
-	//   col0=[A,D,0,0]  col1=[B,E,0,0]  col2=[0,0,1,0]  col3=[C,F,0,1]
+	//   col0=[A,D,0,0] col1=[B,E,0,0] col2=[0,0,1,0] col3=[C,F,0,1]
 	t := [16]float32{
 		float32(transform.A), float32(transform.D), 0, 0, // column 0
 		float32(transform.B), float32(transform.E), 0, 0, // column 1

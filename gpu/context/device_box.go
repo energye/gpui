@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build !(js && wasm)
 
@@ -12,12 +19,12 @@ import (
 )
 
 // Device/Queue/Adapter handles gain a boxed hal-interface encoding so any
-// backend (Rust WebGPU, pure-Go GL/Metal) can travel through the opaque
+// backend can travel through the opaque
 // gpucontext handles without concrete type asserts.
 //
-// Legacy producers pack raw concrete pointers (*webgpu.Device etc.); Unpack
+// Legacy producers pack raw concrete pointers; Unpack
 // fails those closed (magic mismatch) and callers fall back to the legacy
-// concrete assert. New producers (P1 GL) pack with PackDevice/PackQueue/
+// concrete assert. New producers pack with PackDevice/PackQueue/
 // PackAdapter here. Same precedent as texture_view_box.go (H3 black-screen
 // fix): never put a foreign concrete pointer directly into a handle.
 

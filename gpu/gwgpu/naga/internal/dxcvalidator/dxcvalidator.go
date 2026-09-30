@@ -1,6 +1,13 @@
-// Package dxcvalidator wraps Microsoft's IDxcValidator (dxil.dll) so naga
-// can run real DXIL validation against generated containers from Pure Go.
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // The validator lives in dxil.dll, ships with the Windows 10 SDK, and is
 // only available on Windows. On other platforms every call returns
 // ErrUnsupported.

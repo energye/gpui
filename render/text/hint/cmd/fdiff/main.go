@@ -1,14 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // fdiff 逐字 diff 对照器：自研 light 渲染 vs 系统 FreeType light（开发期度量衡）。
 //
 // 用法:
-//
-//	fdiff <font> <mode> <px> <runes|@group> [outdir]
-//
-//	mode: cjk   = text.ModeLightCJK（afcjk 移植，M0 起）
-//	      latin = text.ModeLightLatin（tt_engine light，L0 起）
-//	      none  = 原始轮廓（骨架期/基线对照）
-//	px:   字号，可逗号分隔多档（如 12,14,16）
-//	runes:直接字符序列，或 @分组名（VerifierSet 组名）
 //
 // 对每个 (rune,px)：自研光栅 PGM 与 ftexp(FT-light) PGM 逐像素 diff，
 // 输出每字形一行指标 + 汇总。PGM 落盘 outdir（默认 /tmp/opencode/fdiff_out）。
@@ -326,8 +328,6 @@ func main() {
 	fmt.Printf("== TOTAL mism=%d mism16=%d union=%d ratio=%.1f%% ink self=%d ft=%d\n",
 		totM0, totM16, totUnion, ratio, totInkSelf, totInkFT)
 }
-
-// ---- 轮廓级对照（M0 主验证）：自研 hint 轮廓 vs FT light 网格化轮廓 ----
 
 type ftContour struct {
 	np, nc int

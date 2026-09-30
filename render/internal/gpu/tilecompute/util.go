@@ -1,8 +1,14 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Package tilecompute is a direct 1:1 port of Vello's CPU rasterization pipeline.
-// Variable names and logic match the Rust originals for easy cross-reference.
 // This is intentionally NOT idiomatic Go — it prioritizes pixel-perfect matching.
 //
 // Source: linebender/vello vello_shaders/src/cpu/
@@ -10,7 +16,6 @@ package tilecompute
 
 import "math"
 
-// Constants from util.rs
 const (
 	// oneMinusULP is the largest f32 strictly less than 1.
 	// Ensures floor(a * i + b) == 0 for i == 0.
@@ -59,7 +64,6 @@ func ceil32(x float32) float32  { return float32(math.Ceil(float64(x))) }
 func round32(x float32) float32 { return float32(math.Round(float64(x))) }
 func abs32(x float32) float32   { return float32(math.Abs(float64(x))) }
 
-// min32 matches Rust's f32::min — returns non-NaN value if one is NaN.
 func min32(a, b float32) float32 {
 	if a != a { //nolint:gocritic // NaN check (a is NaN)
 		return b
@@ -73,7 +77,6 @@ func min32(a, b float32) float32 {
 	return b
 }
 
-// max32 matches Rust's f32::max — returns non-NaN value if one is NaN.
 func max32(a, b float32) float32 {
 	if a != a { //nolint:gocritic // NaN check (a is NaN)
 		return b
@@ -112,8 +115,6 @@ func pow32(base float32, exp int) float32 {
 	return result
 }
 
-// signum32 matches Rust's f32::signum exactly:
-// positive → 1.0, negative → -1.0, +0.0 → 1.0, -0.0 → -1.0
 func signum32(x float32) float32 {
 	if x > 0 {
 		return 1
@@ -121,7 +122,6 @@ func signum32(x float32) float32 {
 	if x < 0 {
 		return -1
 	}
-	// Match Rust: 0.0 → 1.0, -0.0 → -1.0
 	if math.Float32bits(x)&(1<<31) != 0 {
 		return -1
 	}

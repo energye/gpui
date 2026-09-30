@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -7,9 +17,6 @@ import (
 	"time"
 )
 
-// Real-window tests for the §9 standard window requirements (ui/platform
-// layer only, no GPU): app icon name (app_id), hide/show visibility, and
-// clipboard read/write through the real compositor selection broadcast
 // (two windows on two wl_display connections). Skipped with a reason when no
 // compositor is reachable — never silently green.
 

@@ -1,6 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
-// M4 红灯测试:纵向行虚拟化 + 懒测量(ENGINE_TEXT_SCALE_PLAN §M4).
 // 被测 API 尚不存在,本文件先红,实现落 ui/rendering/virtual_text_lines.go 后转绿.
 
 import (

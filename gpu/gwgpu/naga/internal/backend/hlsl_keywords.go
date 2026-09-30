@@ -1,11 +1,17 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package backend
 
 // HLSLReservedKeywords contains all HLSL reserved keywords (case-sensitive).
 // Shared between HLSL codegen (namer) and DXIL backend (NeedsTrailingUnderscore).
-// Based on Microsoft HLSL documentation and Rust naga implementation.
 var HLSLReservedKeywords = map[string]struct{}{
 	// =========================================================================
 	// FXC Keywords (~125 keywords)
@@ -584,9 +590,6 @@ var HLSLReservedKeywords = map[string]struct{}{
 	"SV_ShadingRate":            {},
 	"SV_CullPrimitive":          {},
 
-	// =========================================================================
-	// Naga Helper Names (reserved to avoid conflicts)
-	// =========================================================================
 	"naga_modf":                             {},
 	"naga_frexp":                            {},
 	"naga_extractBits":                      {},

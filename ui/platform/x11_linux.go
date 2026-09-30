@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -98,7 +108,7 @@ const (
 		xVisibilityChangeMask | xPropertyChangeMask | xEnterWindowMask | xLeaveWindowMask
 )
 
-// XSizeHints flags (Xutil.h PMinSize/PMaxSize/PBaseSize/PSize).
+// XSizeHints flags.
 const (
 	pSize     = 1 << 3
 	pMinSize  = 1 << 4
@@ -108,31 +118,29 @@ const (
 
 // X event field offsets (linux amd64 Xlib layout — matches exhost verified).
 const (
-	xevTypeOff        = 0
-	xevSerialOff      = 8  // last server-processed request serial at event time
-	xevXOff           = 48 // XConfigureEvent x
-	xevYOff           = 52 // XConfigureEvent y
-	xevWidthOff       = 56 // XConfigureEvent
-	xevHeightOff      = 60
-	xevClientData0Off = 56 // XClientMessageEvent.data.l[0]
-	xevAtomOff        = 40 // XPropertyEvent.atom
-	xevWindowOff      = 32 // XPropertyEvent.window (also ClientMessage/Crossing window)
-	xevPointerXOff    = 64
-	xevPointerYOff    = 68
-	xevButtonOff      = 84 // button (press/release) or keycode (key)
-	xevKeycodeOff     = 84
-	xevStateOff       = 88 // XVisibilityEvent.state
-	xevKeyStateOff    = 80 // XKeyEvent.state
-	xevKeyTimeOff     = 56 // XKeyEvent.time (Time is 8 bytes)
-	xevFocusModeOff   = 40 // XFocusChangeEvent.mode (NotifyGrab = grab break)
-	xevCrossModeOff   = 80 // XCrossingEvent.mode (NotifyGrab = pointer grabbed away)
-	// XPresentNotifyEvent.window (linux amd64: type@0 serial@8 send_event@16
-	// display@24 window@32 — Present extension).
+	xevTypeOff          = 0
+	xevSerialOff        = 8  // last server-processed request serial at event time
+	xevXOff             = 48 // XConfigureEvent x
+	xevYOff             = 52 // XConfigureEvent y
+	xevWidthOff         = 56 // XConfigureEvent
+	xevHeightOff        = 60
+	xevClientData0Off   = 56 // XClientMessageEvent.data.l[0]
+	xevAtomOff          = 40 // XPropertyEvent.atom
+	xevWindowOff        = 32 // XPropertyEvent.window (also ClientMessage/Crossing window)
+	xevPointerXOff      = 64
+	xevPointerYOff      = 68
+	xevButtonOff        = 84 // button (press/release) or keycode (key)
+	xevKeycodeOff       = 84
+	xevStateOff         = 88 // XVisibilityEvent.state
+	xevKeyStateOff      = 80 // XKeyEvent.state
+	xevKeyTimeOff       = 56 // XKeyEvent.time (Time is 8 bytes)
+	xevFocusModeOff     = 40 // XFocusChangeEvent.mode (NotifyGrab = grab break)
+	xevCrossModeOff     = 80 // XCrossingEvent.mode (NotifyGrab = pointer grabbed away)
 	xevPresentWindowOff = 32
 	xGenericEvent       = 35 // X generic-extension event (XI2 touch arrives here)
 )
 
-// XI2 touch event types (XInput2.h) + selection constants.
+// XI2 touch event types + selection constants.
 const (
 	xiTouchBegin  = 18
 	xiTouchUpdate = 19
@@ -140,7 +148,7 @@ const (
 	xiAllMaster   = 1 // XIAllMasterDevices
 )
 
-// XIDeviceEvent field offsets (linux amd64, XInput2.h): doubles are native
+// XIDeviceEvent field offsets: doubles are native
 // doubles after XGetEventData conversion (wire FP1616 handled by libXi).
 const (
 	xiEvExtensionOff = 32
@@ -150,7 +158,7 @@ const (
 	xiEvYOff         = 112 // event_y (window-relative)
 )
 
-// X event codes + mask bits (X.h).
+// X event codes + mask bits.
 const (
 	xFocusChangeMask      = 1 << 21
 	xVisibilityChangeMask = 1 << 16
@@ -183,7 +191,7 @@ const xControlMask = 1 << 2 // X11 ControlMask
 const xMod1Mask = 1 << 3    // X11 Mod1Mask (Alt on most layouts)
 const xMod4Mask = 1 << 6    // X11 Mod4Mask (Super/Meta on most layouts)
 
-// X11 notify modes (X.h NotifyNormal/NotifyGrab/NotifyUngrab/NotifyWhileGrabbed).
+// X11 notify modes.
 // FocusOut or LeaveNotify with a grab mode means another client grabbed the
 // input mid-gesture: the ongoing pointer sequence is aborted, not released.
 const (
@@ -193,7 +201,7 @@ const (
 	xNotifyWhileGrabbed = 3
 )
 
-// xSizeHints subset (Xutil.h) — layout matches linux/amd64 libX11.
+// xSizeHints subset — layout matches linux/amd64 libX11.
 type xSizeHints struct {
 	Flags      int64
 	X, Y       int32
@@ -214,7 +222,7 @@ type xSizeHints struct {
 	WinGravity int32
 }
 
-// xClassHint (Xutil.h).
+// xClassHint.
 type xClassHint struct {
 	ResName  *byte
 	ResClass *byte
@@ -280,8 +288,7 @@ func x11TranslateToRoot(st *x11State, x, y int) (int, int, bool) {
 	return int(dx), int(dy), true
 }
 
-// x11Create opens a new X11 window. Ported from the verified exhost host,
-// restructured so window lifecycle and event pumping are separate.
+// x11Create opens a new X11 window.
 func x11Create(opts Options) (*Window, error) {
 	w, h, title := opts.Width, opts.Height, opts.Title
 	if w < 1 {
@@ -526,11 +533,11 @@ func x11Create(opts Options) (*Window, error) {
 	if xPresentFuncsOK && xPresentQueryExt(dpy, &presentBase, &presentErr) != 0 {
 		st.presentBase = int(presentBase)
 		st.presentOK = true
-		// PresentCompleteNotifyMask = 1L<<0 (Present extension present.h).
+		// PresentCompleteNotifyMask = 1L<<0.
 		xPresentSelectInp(dpy, win, 1)
 		st.xPresentNotifyMSC = xPresentNotifyMSC
 	}
-	// RandR scale probe (S6-P0 KindScale): select screen-change notices on
+	// RandR scale probe: select screen-change notices on
 	// the root and watch RESOURCE_MANAGER writes there (Xft.dpi). Best
 	// effort — unavailable servers simply never report EventScale.
 	if rl := xrandrLoad(); rl != nil && xrandrOK && rl.queryExtension != nil && rl.selectInput != nil {
@@ -623,7 +630,7 @@ func x11Create(opts Options) (*Window, error) {
 	// XI2 touch probe (best-effort, silent when unavailable).
 	st.xiMajor = x11ProbeTouch(dpy, win)
 	st.xiTouch = st.xiMajor != 0
-	// XI hierarchy probe (S6-P1 device hot-plug): shares xiMajor, selection
+	// XI hierarchy probe: shares xiMajor, selection
 	// is per-deviceid so it coexists with the touch selection above.
 	if major, ok := x11SelectHierarchy(dpy, win); ok {
 		if st.xiMajor == 0 {
@@ -634,7 +641,7 @@ func x11Create(opts Options) (*Window, error) {
 	st.devClasses = make(map[int]DeviceClass)
 	st.devNames = make(map[int]string)
 	x11SeedDeviceCache(st)
-	// Pen slaves (S6-P2 E 组): per-device XI Button/Motion selection; silent
+	// Pen slaves: per-device XI Button/Motion selection; silent
 	// without libXi / old server / no pen hardware.
 	x11SeedStylus(st)
 
@@ -725,7 +732,6 @@ type x11State struct {
 	// the app as a ConfigureNotify after the startup drain (setSize reports
 	// "no change" against the probed size). Deliver it once as an initial
 	// EventResize so the first layout matches the actual window size
-	// (Flutter/Skia deliver initial window metrics at startup).
 	initResizePending bool
 
 	// Async window state (updated by events + controller).
@@ -755,7 +761,6 @@ type x11State struct {
 	repeatKeycode uint32
 	repeatTime    uint32
 
-	// Modifier tracking (§4.4 B 组): last reported held state + last pointer
 	// position for grab-break cancel stamping. Guarded by mu with the rest
 	// of the async window state; the pump thread owns writes.
 	modShift   bool
@@ -770,7 +775,7 @@ type x11State struct {
 	// xiMajor is the extension opcode GenericEvents are checked against.
 	xiTouch bool
 	xiMajor int32
-	// XI hierarchy gate (S6-P1 device hot-plug): xiHierarchy set at Create
+	// XI hierarchy gate: xiHierarchy set at Create
 	// when XI 2.0+ selects XI_HierarchyChanged on XIAllDevices. Shares
 	// xiMajor (same extension opcode); touch and hierarchy selections are
 	// per-deviceid and coexist.
@@ -782,7 +787,7 @@ type x11State struct {
 	devMu      sync.Mutex
 	devClasses map[int]DeviceClass
 	devNames   map[int]string
-	// Pen cache (S6-P2 E 组): per-slave valuator maps + XI selections +
+	// Pen cache: per-slave valuator maps + XI selections +
 	// small tool IDs (0 = primary pen). Seeded at Create, hot-plug follows
 	// hierarchy events; removals keep IDs stable.
 	stylusMu   sync.Mutex
@@ -814,7 +819,7 @@ type x11State struct {
 	// presentOK=false → scheduler falls back to the DRM vblank waiter.
 	presentBase int
 	presentOK   bool
-	// RandR scale notices (S6-P0 KindScale): RRScreenChangeNotify arrives at
+	// RandR scale notices: RRScreenChangeNotify arrives at
 	// rrBase + 0 when outputs/modes change; Xft.dpi writes (Settings scale
 	// flips change no pixels) arrive as root PropertyNotify on atResManager.
 	// Both feed reconcileScale; rrOK=false keeps scale 1.
@@ -824,7 +829,6 @@ type x11State struct {
 	// xPresentNotifyMSC is bound at Create for RequestFrameNotify (raster thread).
 	xPresentNotifyMSC func(dpy uintptr, win uintptr, target, divisor, remainder uint64) int
 
-	// XDND drag-and-drop target state (S6-P1 file-first: Enter/Position/Leave
 	// + text/uri-list Drop). Atoms resolved at Create; dndMu guards the
 	// in-flight drag below (event pump thread + test source helpers).
 	atXdndAware, atXdndEnter, atXdndPosition uintptr
@@ -877,7 +881,7 @@ type x11Host struct {
 	wakeMu    sync.Mutex
 	wake      chan struct{}
 	destroyFn func()
-	// S2: per-window D-Bus IME，共享 Conn 但每窗一 InputContext
+	// per-window D-Bus IME，共享 Conn 但每窗一 InputContext
 	ime IME
 	// X11 clipboard (ICCCM CLIPBOARD)
 	clip Clipboard
@@ -909,8 +913,6 @@ type x11Host struct {
 	keyMu       sync.Mutex
 	pendingKeys []Event
 
-	// evMu guards controller-pushed events (Hide/Show → EventHidden):
-	// controller calls run on any goroutine (§2.5.5), the pump drains.
 	evMu          sync.Mutex
 	pendingEvents []Event
 }
@@ -954,7 +956,7 @@ func (h *x11Host) destroy() {
 	if h == nil {
 		return
 	}
-	// S2: per-window Destroy InputContext，避免泄漏
+	// per-window Destroy InputContext，避免泄漏
 	if h.ime != nil {
 		if closer, ok := h.ime.(interface{ Close() }); ok {
 			closer.Close()
@@ -1404,7 +1406,7 @@ func (h *x11Host) drainX() []Event {
 			if restored {
 				h.pushEvent(Event{Type: EventHidden, Hidden: false})
 			}
-			// Restore from iconify must be observable (R17): the silent
+			// Restore from iconify must be observable: the silent
 			// reset above would swallow the follow-up WM_STATE
 			// PropertyNotify (reconcile sees no change), so report the
 			// transition here. A later reconcile self-heals if the WM
@@ -1451,8 +1453,6 @@ func (h *x11Host) drainX() []Event {
 			px, py, has := st.lastPX, st.lastPY, st.hasPtrPos
 			st.mu.Unlock()
 			out = append(out, Event{Type: EventFocus, Focused: false})
-			// Grab-break cancel (§4.4 C 组): focus lost to a grab means the
-			// ongoing pointer sequence is aborted, not released.
 			if mode := int(readI32(buf[:], xevFocusModeOff)); mode == xNotifyGrab ||
 				mode == xNotifyWhileGrabbed {
 				if !has {
@@ -1474,7 +1474,6 @@ func (h *x11Host) drainX() []Event {
 			st.lastPX, st.lastPY, st.hasPtrPos = px, py, true
 			st.mu.Unlock()
 			out = append(out, Event{Type: EventPointer, Pointer: PointerLeave, X: px, Y: py})
-			// Grab-break cancel (§4.4 C 组): pointer grabbed away mid-gesture.
 			if mode := int(readI32(buf[:], xevCrossModeOff)); mode == xNotifyGrab {
 				out = append(out, Event{Type: EventPointer, Pointer: PointerCancel, X: px, Y: py})
 			}
@@ -1500,7 +1499,7 @@ func (h *x11Host) drainX() []Event {
 					out = append(out, mev)
 				}
 				ev.Repeat = repeat
-				// S4: X11 挂起队列等真回话，不靠固定闹钟（m/没 双写根治）
+				// X11 挂起队列等真回话，不靠固定闹钟（m/没 双写根治）
 				if h.ime != nil {
 					if x, ok := h.ime.(*x11Ime); ok && x != nil {
 						keycode := uint32(readU32(buf[:], xevKeycodeOff))
@@ -1594,10 +1593,6 @@ func (h *x11Host) drainX() []Event {
 			}
 		case xPropertyNotify:
 			// INCR incremental chunks are polled in readProperty; no app event needed.
-			// S6-P0 state readback: WM-driven _NET_WM_STATE/WM_STATE changes
-			// reconcile the optimistic flags and surface real transitions.
-			// S6-P0 scale: RESOURCE_MANAGER writes on the root (Xft.dpi —
-			// Settings scale flips change no pixels) re-derive the scale.
 			if atom := uintptr(readU64(buf[:], xevAtomOff)); atom != 0 {
 				switch {
 				case atom == st.atNetState || atom == st.atWMState:
@@ -1635,8 +1630,6 @@ func (h *x11Host) decodePointer(t int, buf []byte) (Event, bool) {
 			}
 			return ev, true
 		}
-		// S6-P0 horizontal tilt at the source (mirrors 4/5; press edge only
-		// so one tilt ticks once — the release stays an ordinary Up).
 		// fromplatform keeps a fallback for backends reporting 6/7 as buttons.
 		if t == xButtonPress && (btn == 6 || btn == 7) {
 			ev.Pointer = PointerScroll
@@ -1932,7 +1925,7 @@ func x11ReadWindowStates(st *x11State) (minimized, maximized, fullscreen bool, o
 	return minimized, maximized, fullscreen, true
 }
 
-// --- XInput2 touch (S6-P0 backend touch产出) ---
+// --- XInput2 touch ---
 //
 // Probe (XI 2.2+) + select at Create; GenericEvent cookies decode into
 // EventTouch. Everything is gated: no libXi / old server / no touch device

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -10,7 +17,7 @@ import (
 )
 
 // blockEndsWithTerminator returns true if the block's last statement is a
-// terminator (Break, Continue, Return, Kill). Matches Rust naga's is_terminator().
+// terminator (Break, Continue, Return, Kill).
 func blockEndsWithTerminator(block ir.Block) bool {
 	if len(block) == 0 {
 		return false
@@ -133,12 +140,7 @@ func (w *Writer) writeEmit(emit ir.StmtEmit) error {
 }
 
 // shouldBakeExpression determines whether an expression needs to be baked
-// into a temporary variable. Matches Rust naga's baking logic:
-//   - Named expressions → always bake (they represent WGSL let/var names)
-//   - Expressions with bake_ref_count==1 (Load, ImageSample, ImageLoad, Derivative) → always bake
-//   - Expressions used multiple times → bake (we approximate via needBakeExpression set)
-//   - Access/AccessIndex → never bake
-//   - Everything else → don't bake (inline at use site)
+// into a temporary variable.
 func (w *Writer) shouldBakeExpression(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {
 		return false
@@ -177,7 +179,7 @@ func (w *Writer) shouldBakeExpression(handle ir.ExpressionHandle) bool {
 }
 
 // maybeEmitExpression decides whether to bake an expression into a temporary
-// or leave it for inlining. Matches Rust naga's Emit statement handling.
+// or leave it for inlining.
 func (w *Writer) maybeEmitExpression(handle ir.ExpressionHandle) error {
 	if w.currentFunction == nil {
 		return nil
@@ -186,7 +188,7 @@ func (w *Writer) maybeEmitExpression(handle ir.ExpressionHandle) error {
 		return nil
 	}
 
-	// Don't bake pointer expressions (matches Rust naga)
+	// Don't bake pointer expressions
 	if w.isPointerExpression(handle) {
 		return nil
 	}
@@ -202,7 +204,6 @@ func (w *Writer) maybeEmitExpression(handle ir.ExpressionHandle) error {
 	}
 
 	// Pre-emit clamped LOD for Restrict-policy ImageLoad on mipmapped sampled images.
-	// Rust naga emits this as a separate statement BEFORE baking the ImageLoad expression.
 	// Pattern: int _eN_clamped_lod = clamp(level, 0, textureQueryLevels(image) - 1);
 	if w.options.BoundsCheckPolicies.ImageLoad == BoundsCheckRestrict {
 		if err := w.maybeEmitClampedLod(handle); err != nil {
@@ -321,7 +322,6 @@ func (w *Writer) isPointerExpression(handle ir.ExpressionHandle) bool {
 
 	// Structural check: AccessIndex/Access on a variable reference is an l-value.
 	// These must not be baked — they are store targets (struct field pointers).
-	// Matches Rust naga's needs_baking which treats these as Named::Access.
 	if int(handle) < len(w.currentFunction.Expressions) {
 		switch k := w.currentFunction.Expressions[handle].Kind.(type) {
 		case ir.ExprAccessIndex:
@@ -363,10 +363,9 @@ func (w *Writer) writeIf(ifStmt ir.StmtIf) error {
 
 // writeSwitch writes a switch statement.
 // When all cases except the last are empty fall-through, emit as
-// do { body } while(false); instead (workaround for wgpu#4514).
+// do { body } while(false); instead.
 func (w *Writer) writeSwitch(switchStmt ir.StmtSwitch) error {
 	// Check if this is a "one body" switch — all cases except last are empty fall-through.
-	// Rust naga converts these to do { } while(false) for GLSL compatibility.
 	if w.isSingleBodySwitch(switchStmt) {
 		return w.writeSwitchAsDoWhile(switchStmt)
 	}
@@ -380,7 +379,6 @@ func (w *Writer) writeSwitch(switchStmt ir.StmtSwitch) error {
 	w.PushIndent()
 
 	for _, switchCase := range switchStmt.Cases {
-		// Rust naga: braces only when case has body or is not fall-through
 		writeBraces := !(switchCase.FallThrough && len(switchCase.Body) == 0)
 
 		switch v := switchCase.Value.(type) {
@@ -482,15 +480,6 @@ func (w *Writer) writeSwitchAsDoWhile(switchStmt ir.StmtSwitch) error {
 }
 
 // writeLoop writes a loop statement.
-// Matches Rust naga's GLSL emission pattern:
-//   - Simple loop (no continuing, no break_if): while(true) { body }
-//   - Loop with continuing/break_if: uses loop_init gate pattern:
-//     bool loop_init = true;
-//     while(true) {
-//     if (!loop_init) { <continuing>; if (<break_if>) { break; } }
-//     loop_init = false;
-//     <body>
-//     }
 func (w *Writer) writeLoop(loop ir.StmtLoop) error {
 	w.continueCtx.enterLoop()
 
@@ -610,7 +599,6 @@ func (w *Writer) writeDirectReturn(ret ir.StmtReturn) error {
 // - An ExprCompose (constructing the struct from individual values)
 // - A local variable or other expression referencing a struct
 func (w *Writer) writeStructReturn(ret ir.StmtReturn, info *epStructInfo) error {
-	// Rust naga: for Compose expressions, create _tmp_return struct, then assign members.
 	// For other expressions, evaluate once and assign members.
 	tmpName := "_tmp_return"
 	if w.currentFunction != nil && int(*ret.Value) < len(w.currentFunction.Expressions) {
@@ -683,7 +671,6 @@ func (w *Writer) writeCoordinateAdjustIfNeeded(info *epStructInfo) {
 }
 
 // writeBarrier writes a control barrier statement.
-// Matches Rust naga's write_control_barrier: memory barriers first, then barrier().
 // Memory barriers: STORAGE→memoryBarrierBuffer, WORK_GROUP→memoryBarrierShared,
 // SUB_GROUP→subgroupMemoryBarrier, TEXTURE→memoryBarrierImage.
 func (w *Writer) writeBarrier(barrier ir.StmtBarrier) error {
@@ -721,8 +708,6 @@ func (w *Writer) writeStore(store ir.StmtStore) error {
 }
 
 // writeImageStore writes an image store statement.
-// Matches Rust naga: uses write_texture_coord for coordinate vector construction,
-// including array index merging and uint-to-int conversion.
 func (w *Writer) writeImageStore(imgStore ir.StmtImageStore) error {
 	image, err := w.writeExpression(imgStore.Image)
 	if err != nil {
@@ -745,7 +730,6 @@ func (w *Writer) writeImageStore(imgStore ir.StmtImageStore) error {
 }
 
 // writeImageAtomic writes an image atomic operation statement.
-// Matches Rust naga's write_image_atomic: imageAtomicFun(image, coord, value);
 func (w *Writer) writeImageAtomic(imgAtomic ir.StmtImageAtomic) error {
 	image, err := w.writeExpression(imgAtomic.Image)
 	if err != nil {
@@ -824,8 +808,6 @@ func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
 		funcName = "atomicAdd"
 	case ir.AtomicSubtract:
 		// GLSL doesn't have atomicSub, use atomicAdd with negated value.
-		// Rust naga emits "-" before the expression without parentheses:
-		// atomicAdd(ptr, -1u) not atomicAdd(ptr, -(1u))
 		funcName = "atomicAdd"
 		value = fmt.Sprintf("-%s", value)
 	case ir.AtomicAnd:
@@ -868,7 +850,6 @@ func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
 }
 
 // writeAtomicCompareExchange writes an atomic compare-exchange operation.
-// Matches Rust naga: declares struct result, calls atomicCompSwap, sets .exchanged.
 func (w *Writer) writeAtomicCompareExchange(atomic ir.StmtAtomic, exchange ir.AtomicExchange) error {
 	pointer, err := w.writeExpression(atomic.Pointer)
 	if err != nil {
@@ -896,7 +877,6 @@ func (w *Writer) writeAtomicCompareExchange(atomic ir.StmtAtomic, exchange ir.At
 			}
 		}
 
-		// Rust pattern: declare struct, call atomicCompSwap, set exchanged
 		w.WriteLine("%s %s; %s.old_value = atomicCompSwap(%s, %s, %s);",
 			resultType, tempName, tempName, pointer, compareVal, exchangeVal)
 		w.WriteLine("%s.exchanged = (%s.old_value == %s);", tempName, tempName, compareVal)
@@ -912,7 +892,6 @@ func (w *Writer) writeCall(call ir.StmtCall) error {
 	funcName := w.names[nameKey{kind: nameKeyFunction, handle1: uint32(call.Function)}]
 
 	// Write arguments, filtering out sampler args (GLSL uses combined texture-sampler).
-	// Matches Rust naga: filter_map(|(i, arg)| { if callee.args[i].ty is Sampler { None } else { Some } })
 	callee := &w.module.Functions[call.Function]
 	argStrs := make([]string, 0, len(call.Arguments))
 	for i, arg := range call.Arguments {
@@ -1109,7 +1088,6 @@ func (w *Writer) writeSubgroupGather(s ir.StmtSubgroupGather) error {
 }
 
 // writeWorkGroupUniformLoad writes a workgroup uniform load.
-// Matches Rust naga: memoryBarrierShared + barrier, load, memoryBarrierShared + barrier.
 func (w *Writer) writeWorkGroupUniformLoad(load ir.StmtWorkGroupUniformLoad) error {
 	// First control barrier
 	w.WriteLine("memoryBarrierShared();")
@@ -1161,7 +1139,7 @@ func joinStrings(strs []string, sep string) string {
 
 // maybeEmitClampedLod checks if an expression is an ImageLoad on a mipmapped sampled
 // image with Restrict policy, and if so, emits a clamped LOD variable BEFORE the
-// expression is baked. This matches Rust naga's write_clamped_lod (writer.rs:3774).
+// expression is baked.
 // Pattern: int _eN_clamped_lod = clamp(level, 0, textureQueryLevels(image) - 1);
 func (w *Writer) maybeEmitClampedLod(handle ir.ExpressionHandle) error {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {

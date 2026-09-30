@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package main
 
 import (
@@ -172,7 +182,7 @@ func main() {
 		fmt.Printf("FAIL FT_Load_Glyph err=%d\n", err)
 		os.Exit(1)
 	}
-	// face layout (x86_64, freetype.h FT_FaceRec): num_*(32) + names(16) +
+	// face layout: num_*(32) + names(16) +
 	// ints+ptrs(24) + generic(16) + bbox 4×FT_Pos(32) + 8 shorts(16)
 	// → glyph slot ptr at offset 152.
 	slot := *(*uintptr)(unsafe.Pointer(face + 152))
@@ -700,7 +710,7 @@ func runBatchContour() {
 //
 // Block format (per rune):
 //
-//	# B <rune> <w> <h> <left> <top>   (w=0,h=0 when MISSING/FAIL)
+//	# B <rune> <w> <h> <left> <top> (w=0,h=0 when MISSING/FAIL)
 //	<w*h gray values, one row per line>
 func runBatchPGM() {
 	if len(os.Args) < 6 {
@@ -812,8 +822,8 @@ func runBatchPGM() {
 // outline (FT_Outline) as 26.6 fixed-point vertices:
 //
 //	NPOINTS NCONTOURS ADV26
-//	x26 y26 tag   (per point)
-//	E0 E1 ...     (contour ends, FT_Vector = 2×int64, tags = 1 byte/point)
+//	x26 y26 tag (per point)
+//	E0 E1 ... (contour ends, FT_Vector = 2×int64, tags = 1 byte/point)
 func runContour() {
 	if len(os.Args) < 4 {
 		fmt.Fprintln(os.Stderr, "usage: ftexp contour <ttf|ttc> <rune> <sizePx> <hint:l|n>")
@@ -956,8 +966,7 @@ func runMetrics() {
 		fmt.Fprintln(os.Stderr, "FAIL face")
 		os.Exit(1)
 	}
-	// FT_FaceRec (x86_64): ... generic(16) bbox(32) units_per_em@136
-	// ascender@138 descender@140 height@142 ... glyph@152 (已知)
+	// FT_FaceRec (x86_64): ...
 	units := *(*int16)(unsafe.Pointer(face + 136))
 	asc := *(*int16)(unsafe.Pointer(face + 138))
 	desc := *(*int16)(unsafe.Pointer(face + 140))
@@ -974,7 +983,8 @@ func runMetrics() {
 // render/text vertical metrics (vmtx) alignment tests.
 //
 // Usage: ftexp vadv <ttf|ttc> <sizePx> <listFile> [faceIdx]
-//   sizePx in pixels (ppem); faceIdx optional for TTC collections (default 0).
+//
+//	sizePx in pixels (ppem); faceIdx optional for TTC collections (default 0).
 func runBatchVAdv() {
 	if len(os.Args) < 5 {
 		fmt.Fprintln(os.Stderr, "usage: ftexp vadv <ttf|ttc> <sizePx> <listFile> [faceIdx]")
@@ -1077,7 +1087,6 @@ func runFaces() {
 		if err := ftNewFace(lib, &data[0], int64(len(data)), i, &face); err != 0 {
 			break
 		}
-		// FT_FaceRec (x86_64): family_name@40 (const char*), style_name@48.
 		fam := *(*unsafe.Pointer)(unsafe.Pointer(face + 40))
 		sty := *(*unsafe.Pointer)(unsafe.Pointer(face + 48))
 		family, style := "", ""
@@ -1096,7 +1105,7 @@ func goString(p *byte) string {
 		return ""
 	}
 	n := 0
-	for *( *byte)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + uintptr(n))) != 0 {
+	for *(*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + uintptr(n))) != 0 {
 		n++
 	}
 	return string(unsafe.Slice(p, n))

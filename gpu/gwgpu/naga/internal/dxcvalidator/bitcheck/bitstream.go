@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // bitstream.go — primitive bit-level reader for the LLVM 3.7 bitstream
 // format.
 //
@@ -14,8 +24,6 @@
 // The reader never panics on malformed input; every primitive returns a
 // typed error when the bit cursor would run past the end of the blob.
 //
-// Reference: https://releases.llvm.org/3.7.1/docs/BitCodeFormat.html
-// Mirror: dxil/internal/bitcode/writer.go
 
 package bitcheck
 
@@ -100,8 +108,6 @@ func (r *Reader) readBit() uint64 {
 // ReadFixed reads a fixed-width integer value from the bitstream.
 // width must be in [1, 64]. Returns ErrInvalidWidth otherwise and
 // ErrUnexpectedEOF if the read would run past the end of the stream.
-//
-// Mirror: bitcode.Writer.WriteFixed.
 func (r *Reader) ReadFixed(width uint) (uint64, error) {
 	if width == 0 || width > 64 {
 		return 0, fmt.Errorf("ReadFixed(%d): %w", width, ErrInvalidWidth)
@@ -121,8 +127,6 @@ func (r *Reader) ReadFixed(width uint) (uint64, error) {
 // VBR(n) splits the value into chunks of (n-1) data bits. The high bit
 // of each chunk is set to 1 when more chunks follow, 0 on the last
 // chunk. width must be >= 2.
-//
-// Mirror: bitcode.Writer.WriteVBR.
 func (r *Reader) ReadVBR(width uint) (uint64, error) {
 	if width < 2 || width > 32 {
 		return 0, fmt.Errorf("ReadVBR(%d): %w", width, ErrInvalidWidth)
@@ -160,8 +164,6 @@ func (r *Reader) ReadVBR(width uint) (uint64, error) {
 }
 
 // ReadChar6 reads a 6-bit character and returns its decoded ASCII byte.
-//
-// Mirror: bitcode.Writer.WriteChar6 / EncodeChar6.
 func (r *Reader) ReadChar6() (byte, error) {
 	v, err := r.ReadFixed(6)
 	if err != nil {
@@ -173,11 +175,11 @@ func (r *Reader) ReadChar6() (byte, error) {
 // DecodeChar6 converts a 6-bit encoded value back to its ASCII byte.
 // The encoding is:
 //
-//	0..25  → 'a'..'z'
+//	0..25 → 'a'..'z'
 //	26..51 → 'A'..'Z'
 //	52..61 → '0'..'9'
-//	62     → '.'
-//	63     → '_'
+//	62 → '.'
+//	63 → '_'
 func DecodeChar6(v uint32) (byte, error) {
 	switch {
 	case v < 26:
@@ -199,8 +201,6 @@ func DecodeChar6(v uint32) (byte, error) {
 // over zero bits. Returns an error only if the alignment walks past the
 // end of the stream AND there were non-zero pad bits — callers may hit
 // legitimate end-of-stream alignment on the last word.
-//
-// Mirror: bitcode.Writer.Align32.
 func (r *Reader) Align32() error {
 	rem := r.bitPos & 31
 	if rem == 0 {

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -19,7 +26,6 @@ func (p *testPath) Verbs() []PathVerb { return p.verbs }
 func (p *testPath) Points() []float32 { return p.points }
 
 // makeCirclePath creates a circle path using 4 cubic Bezier curves.
-// This matches the standard SVG/Canvas circle approximation.
 func makeCirclePath(cx, cy, r float64) *testPath {
 	const kappa = 0.5522847498 // 4*(sqrt(2)-1)/3
 	k := r * kappa

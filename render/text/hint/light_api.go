@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -5,10 +15,7 @@ import (
 	"fmt"
 )
 
-// 本文件是 hint 引擎对外的唯一公开入口（渲染层接线层）：
-//   - CFF1（pshinter light）：cff.go/cffcs.go/psh_light.go 已逐点对照
-//     FT-light 全字集闭环（docs §5.1 M2/M3，3000 字 + 韩 + 泰）。
-//   - CFF2（cf2 light）：cff2.go/cffcs.go(M5)/psh_light.go 对照
+//   - CFF2（cf2 light）：cff2.go/cffcs.go/psh_light.go 对照
 //     SourceSans3 VF 全字母（探针阶段）。
 //
 // 输出约定：
@@ -25,11 +32,11 @@ type LightPt struct {
 
 // LightHint 对单个字形执行 CFF/CFF2 light 拟合（对齐 FT_LOAD_TARGET_LIGHT）。
 //
-// raw    ：字体的原始文件字节（可能是 TTC/OTC 容器）
+// raw ：字体的原始文件字节（可能是 TTC/OTC 容器）
 // faceIdx ：容器内 face 索引（普通字体传 0）
 // isCFF2 ：true 走 CFF2（可变字体），false 走 CFF1
-// gid    ：字形索引
-// px     ：ppem 字号（像素）
+// gid ：字形索引
+// px ：ppem 字号（像素）
 //
 // 返回：
 //   - pts：全部轮廓点（26.6 定点，Y-up），含 off-curve 控制点，

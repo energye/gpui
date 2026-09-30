@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package input
 
 // Kind classifies the cross-platform input event.
@@ -48,7 +58,7 @@ const (
 	KindFramePresented
 	// KindResizeSync reports an X11 sync-resize frame request (no payload).
 	KindResizeSync
-	// KindMonitorChanged reports display add/remove (P2 placeholder shape).
+	// KindMonitorChanged reports display add/remove.
 	KindMonitorChanged
 	// KindModifiersChanged reports a lone modifier-state change (reuses Modifiers).
 	KindModifiersChanged
@@ -60,7 +70,7 @@ const (
 	KindPinch
 	// KindRotate reports a two-finger rotation gesture step.
 	KindRotate
-	// KindSmartMagnify reports a smart-zoom tap (no payload, P2 placeholder).
+	// KindSmartMagnify reports a smart-zoom tap.
 	KindSmartMagnify
 	// KindDragEnter/KindDragOver report a drag hovering the window (reuses Drag).
 	KindDragEnter
@@ -203,7 +213,7 @@ type Event struct {
 	State WindowState
 	// KindThemeChanged: true = dark mode.
 	Dark bool
-	// KindMonitorChanged: display set snapshot (P2 placeholder shape).
+	// KindMonitorChanged: display set snapshot.
 	Monitor MonitorEvent
 	// KindLocaleChanged: system language/direction.
 	Locale LocaleEvent
@@ -299,10 +309,7 @@ func (p Phase) String() string {
 	}
 }
 
-// StylusEvent is a pen sample for KindStylus. Kind carries the
-// Down/Move/Up phase (Cancel on grab loss); Pressure is 0–1 (0 = unknown/
-// hover, sensor-less pens report 1 per §4.4 E 组); Tilt is in degrees
-// (0 = unknown).
+// StylusEvent is a pen sample for KindStylus.
 type StylusEvent struct {
 	Kind         PointerKind
 	ID           int // pen tool id (0 = primary pen, extra pens ≥ 1)
@@ -326,7 +333,6 @@ type RotateEvent struct {
 
 // DragEvent is the drag-and-drop payload for KindDragEnter / KindDragOver /
 // KindDrop (position in window logical pixels). Files lands first; Data is
-// the P2 per-MIME extension (nil = unsupported).
 type DragEvent struct {
 	X, Y      float64
 	MIMETypes []string

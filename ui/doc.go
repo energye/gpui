@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package ui is the L1/L2 UI engine (Flutter-style pipeline) for gpui.
 //
 // Status: P0–P5 implemented. See docs/ENGINE_L1_CLOSEOUT.md / ENGINE_PHASE_P5.md.
@@ -18,31 +28,30 @@
 //	See docs/ENGINE_CODING_RULES.md.
 //
 // Boundary (hard): demo/smoke scenes live under examples/, never as ui/* packages.
-// See docs/ENGINE_CODING_RULES.md §5 (architecture vs examples).
 //
 // Docs:
 //
-//	docs/ENGINE_L1_CLOSEOUT.md      — status, verify commands, limits
-//	docs/ENGINE_CODING_RULES.md     — no-CGO / purego / dependency / examples boundary
+//	docs/ENGINE_L1_CLOSEOUT.md — status, verify commands, limits
+//	docs/ENGINE_CODING_RULES.md — no-CGO / purego / dependency / examples boundary
 //	docs/ENGINE_FLUTTER_SKIA_ARCH.md — architecture
-//	docs/ENGINE_UI_RENDER_BASE.md   — capability matrix
-//	docs/ENGINE_PHASE_P0_P3.md      — phase tasks
+//	docs/ENGINE_UI_RENDER_BASE.md — capability matrix
+//	docs/ENGINE_PHASE_P0_P3.md — phase tasks
 //
 // Subpackages:
 //
-//	ui/platform   — Host, NativeSurface, events, vsync waiter
-//	ui/scheduler  — frame modes, ticker registry, metrics
-//	ui/raster     — raster thread queue (SubmitLatest, pending)
-//	ui/embedder   — App (clear) · PipelineApp (tree + async present)
-//	ui/rendering  — RenderObject, PipelineOwner, PaintContext, Spinner, BuildLayerTree
-//	ui/scene      — Layer tree, FramePacket COW, RasterizeDirty
-//	ui/animation  — Controller · Curve · AnimatedOpacity (P3/P5e)
-//	ui/semantics  — role/label skeleton (P5e)
-//	ui/theme      — Tokens · Provider (P5e)
-//	ui/io         — async image decode pool (F12)
-//	ui/gestures   — GestureArena · Tap/Pan (P5a)
-//	ui/focus      — FocusManager · Tab · key route (P5c)
-//	ui/overlay    — Overlay band insert/hit (P5d)
+//	ui/platform — Host, NativeSurface, events, vsync waiter
+//	ui/scheduler — frame modes, ticker registry, metrics
+//	ui/raster — raster thread queue (SubmitLatest, pending)
+//	ui/embedder — App (clear) · PipelineApp (tree + async present)
+//	ui/rendering — RenderObject, PipelineOwner, PaintContext, Spinner, BuildLayerTree
+//	ui/scene — Layer tree, FramePacket COW, RasterizeDirty
+//	ui/animation — Controller · Curve · AnimatedOpacity
+//	ui/semantics — role/label skeleton (P5e)
+//	ui/theme — Tokens · Provider (P5e)
+//	ui/io — async image decode pool (F12)
+//	ui/gestures — GestureArena · Tap/Pan (P5a)
+//	ui/focus — FocusManager · Tab · key route (P5c)
+//	ui/overlay — Overlay band insert/hit (P5d)
 //
 // Coordinates: layout/hit/pointer = logical pixels, Y-down; GPU = physical × dpr.
 package ui

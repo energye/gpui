@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -443,8 +453,6 @@ func TestBlendPixelBoundsCheck(t *testing.T) {
 	blendPixel(target, 5, 10, Red, 1.0, nil)
 }
 
-// --- BUG-CLIP-001: ClipCoverage in CPU SDF path ---
-
 // TestBlendPixelClipCoverage verifies that blendPixel respects paint.ClipCoverage.
 func TestBlendPixelClipCoverage(t *testing.T) {
 	const w, h = 20, 20
@@ -544,7 +552,6 @@ func TestBlendPixelPartialClip(t *testing.T) {
 }
 
 // TestSDFCircleFillClipped verifies that CPU SDF circle rendering is clipped.
-// This is the core regression test for BUG-CLIP-001.
 func TestSDFCircleFillClipped(t *testing.T) {
 	const w, h = 100, 100
 	stride := w * 4

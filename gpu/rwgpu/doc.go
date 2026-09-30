@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package wgpu provides Zero-CGO WebGPU bindings for Go.
 //
-// This package wraps wgpu-native (Rust WebGPU implementation) using pure Go FFI
+// This package wraps wgpu-native using pure Go FFI
 // via syscall on Windows and dlopen on Unix. No CGO is required.
 //
 // # Thread Safety
@@ -24,7 +34,6 @@
 //
 // General rule: different GPU objects can be used from different goroutines,
 // but a single object should not be accessed concurrently.
-// This matches the WebGPU spec threading model.
 //
 // # Quick Start
 //
@@ -77,7 +86,7 @@
 //
 // All WebGPU objects must be released when no longer needed:
 //
-//	buffer := device.CreateBuffer(&wgpu.BufferDescriptor{...})
+//	buffer := device.CreateBuffer
 //	defer buffer.Release()
 //
 // # Render Pipeline
@@ -91,14 +100,14 @@
 //	// Create render pipeline
 //	pipeline := device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
 //	    Vertex: wgpu.VertexState{
-//	        Module:     vsModule,
+//	        Module: vsModule,
 //	        EntryPoint: "main",
-//	        Buffers:    []wgpu.VertexBufferLayout{vertexBufferLayout},
+//	        Buffers: []wgpu.VertexBufferLayout{vertexBufferLayout},
 //	    },
 //	    Fragment: &wgpu.FragmentState{
-//	        Module:     fsModule,
+//	        Module: fsModule,
 //	        EntryPoint: "main",
-//	        Targets:    []wgpu.ColorTargetState{{Format: format, WriteMask: gputypes.ColorWriteMaskAll}},
+//	        Targets: []wgpu.ColorTargetState{{Format: format, WriteMask: gputypes.ColorWriteMaskAll}},
 //	    },
 //	    // ... other configuration
 //	})
@@ -124,7 +133,7 @@
 //
 //	// Create indirect buffer with draw args
 //	args := wgpu.DrawIndirectArgs{
-//	    VertexCount:   3,
+//	    VertexCount: 3,
 //	    InstanceCount: 100,
 //	}
 //	// Write to buffer...
@@ -147,7 +156,7 @@
 //	defer bundle.Release()
 //
 //	// Later, in a render pass:
-//	renderPass.ExecuteBundles([]*wgpu.RenderBundle{bundle})
+//	renderPass.ExecuteBundles
 //
 // # Platform Support
 //

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package dxil
 
 import "github.com/energye/gpui/gpu/shader/ir"
@@ -16,7 +26,7 @@ type inputUsageKey struct {
 // which components of each input argument are actually read. Returns a map
 // from (argIdx, memberIdx) to a bitmask of used components (bit 0 = x, etc.).
 //
-// This mirrors DXC's MarkUsedSignatureElements pass (DxilPreparePasses.cpp:290)
+// This mirrors DXC's MarkUsedSignatureElements pass
 // which iterates all loadInput instructions and ORs the column bit into the
 // element's usage mask. Since DXC runs DCE before this pass, unused inputs
 // have no loadInput instructions and get UsageMask = 0.

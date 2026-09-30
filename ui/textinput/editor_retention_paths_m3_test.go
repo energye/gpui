@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -9,9 +19,6 @@ import (
 // TestUndoDelta_NoDocRetention_M3 does not exercise (it only uses
 // SetTextSimple): DeleteSurrounding, AddText-over-selection and the IME
 // composing entry (BeginComposing → DeleteSelected). The first edit after
-// SetTextSimple slices the original document array, so at HEAD (no Clone)
-// its delta aliases the full doc backing and this test fails; with the M3
-// pushDelta Clone fix all deltas are independent copies (I4).
 func TestUndoDelta_NoDocRetention_Paths_M3(t *testing.T) {
 	doc := m3Doc(t, 100000)
 	docBase := uintptr(unsafe.Pointer(unsafe.StringData(doc)))

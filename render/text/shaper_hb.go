@@ -1,8 +1,14 @@
-// HbShaper — HarfBuzz Go 移植（go-text/typesetting/harfbuzz）驱动的 shaper。
+//----------------------------------------
 //
-// ENGINE_TEXT_SHAPING_PLAN（2026-08-05）：shaping 层（A 类）替换为 HarfBuzz，
-// 像素层（B 类：hint / 光栅化 / 缓存）保持自研。M0 目标：Latin 文本走 HarfBuzz
-// 输出，与自研 OwnShaper 行为对齐（glyph 序列 + advance）。
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
+// HbShaper — HarfBuzz Go 移植（go-text/typesetting/harfbuzz）驱动的 shaper。
 //
 // 分工对照（用户确认）：
 //   - A 类（换用 HarfBuzz）：GSUB/GPOS 引擎、Indic/Arabic 复杂脚本、NFC、AAT…
@@ -85,7 +91,7 @@ func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph {
 			buf.AddRune(' ', i)
 			tabClusters = append(tabClusters, i)
 		case r < 0x20:
-			continue // control chars dropped (OwnShaper parity)
+			continue // control chars dropped
 		default:
 			buf.AddRune(r, i)
 		}

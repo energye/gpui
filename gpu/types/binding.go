@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package types
 
 // BindGroupLayoutDescriptor describes a bind group layout.
@@ -12,7 +22,6 @@ type BindGroupLayoutDescriptor struct {
 //
 // Exactly one of Buffer, Sampler, Texture, or StorageTexture must be set.
 type BindGroupLayoutEntry struct {
-	// Binding is the binding number (must match @binding in shader).
 	Binding uint32
 	// Visibility specifies which shader stages can access this binding.
 	Visibility ShaderStages
@@ -164,7 +173,7 @@ type PipelineLayoutDescriptor struct {
 
 // PushConstantRange describes a push constant range.
 //
-// Note: Push constants are a non-standard extension (not in WebGPU spec).
+// Note: Push constants are a non-standard extension.
 type PushConstantRange struct {
 	// Stages are the shader stages that can access this range.
 	Stages ShaderStages

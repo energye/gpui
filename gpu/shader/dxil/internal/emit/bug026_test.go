@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -7,7 +17,6 @@ import (
 	"github.com/energye/gpui/gpu/shader/ir"
 )
 
-// Unit tests for BUG-DXIL-026 helpers.
 //
 // End-to-end validation is covered by snapshot.TestDxilValGGProduction
 // (57 production gg entry points) and snapshot.TestDxilValSummary (170
@@ -47,7 +56,6 @@ func TestFlattenScalarFields_Vector(t *testing.T) {
 }
 
 func TestFlattenScalarFields_MixedStruct(t *testing.T) {
-	// struct Segment { x: f32, w: i32 } — the BUG-DXIL-026 Group A seed.
 	f32 := ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}
 	i32 := ir.ScalarType{Kind: ir.ScalarSint, Width: 4}
 	mod := &ir.Module{

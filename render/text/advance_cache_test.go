@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -15,7 +25,6 @@ func testAdvanceFace(t *testing.T, points float64) Face {
 	return face
 }
 
-// M0 item 6: repeated advances must hit the cache.
 func TestAdvanceCache_Hit(t *testing.T) {
 	face := testAdvanceFace(t, 16)
 	ClearAdvanceCache()
@@ -78,8 +87,6 @@ func TestAdvanceCache_Capacity(t *testing.T) {
 	}
 }
 
-// M0 item 6 gate (stable form): the cached steady path must be all hits,
-// must not be pathologically slower than the uncached compute, and the tail
 // must stay bounded (P99 不劣化). The absolute ≤250ns target from the plan
 // is recorded here as pending: this box's floor for a full RuneAdvance
 // (glyph index ~33ns + bounds ~115ns + dispatch, all outside advance scope)

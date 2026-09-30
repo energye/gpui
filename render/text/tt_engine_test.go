@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — engine tests.
 //
 // Smoke tests for Phase A: validates core engine infrastructure,
 // stack operations, program execution, and key opcodes.
-//
-// Reference: skrifa hint/engine/ test suite
 package text
 
 import (
@@ -12,7 +20,6 @@ import (
 )
 
 // newTestEngine creates a minimal engine for testing.
-// Matches skrifa's MockEngine pattern.
 func newTestEngine() *ttEngine {
 	retained := newTTRetainedGraphicsState(1<<16, 16, ttTargetSmooth)
 	program := newTTProgramState(nil, nil, nil, ttProgramFont)

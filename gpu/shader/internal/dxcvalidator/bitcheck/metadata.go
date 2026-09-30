@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // metadata.go — METADATA_BLOCK walker scoped to the named metadata
 // node `!dx.entryPoints`. The goal is narrow: build just enough of
 // the metadata node table to answer "does every entry-point tuple
@@ -6,21 +16,20 @@
 // Metadata record layout (LLVM 3.7, mirrors
 // dxil/internal/module/serialize.go):
 //
-//	METADATA_STRING    = 1 → [bytes*]                          (1 node slot)
-//	METADATA_VALUE     = 2 → [typeID, valueID]                 (1 node slot)
-//	METADATA_NODE      = 3 → [n x (mdNodeID+1)]                (1 node slot)
-//	METADATA_NAME      = 4 → [bytes*]                          (no slot)
-//	METADATA_DISTINCT_NODE = 5 → same layout as METADATA_NODE  (1 node slot)
-//	METADATA_OLD_NODE     = 8 → [n x typeID, n x valueID pairs] (1 node slot)
-//	METADATA_OLD_FN_NODE  = 9 → old-function node               (1 node slot)
-//	METADATA_NAMED_NODE  = 10 → [mdNodeID*] referenced by prior METADATA_NAME
+//	METADATA_STRING = 1 → [bytes*] (1 node slot)
+//	METADATA_VALUE = 2 → [typeID, valueID] (1 node slot)
+//	METADATA_NODE = 3 → [n x (mdNodeID+1)] (1 node slot)
+//	METADATA_NAME = 4 → [bytes*] (no slot)
+//	METADATA_DISTINCT_NODE = 5 → same layout as METADATA_NODE (1 node slot)
+//	METADATA_OLD_NODE = 8 → [n x typeID, n x valueID pairs] (1 node slot)
+//	METADATA_OLD_FN_NODE = 9 → old-function node (1 node slot)
+//	METADATA_NAMED_NODE = 10 → [mdNodeID*] referenced by prior METADATA_NAME
 //
 // Node IDs are 0-based, assigned in declaration order. In tuple
 // operands they are stored as (nodeID+1) so that 0 means "null
 // metadata operand". In METADATA_NAMED_NODE operands they are stored
 // as raw 0-based indices.
 //
-// Our naga emitter only emits METADATA_STRING, METADATA_VALUE,
 // METADATA_NODE, METADATA_NAME and METADATA_NAMED_NODE. We also
 // recognize METADATA_DISTINCT_NODE / METADATA_OLD_NODE /
 // METADATA_OLD_FN_NODE so DXC-generated bitcode walks cleanly; other
@@ -52,8 +61,7 @@ const (
 // dxEntryPointsName is the named-metadata key we scan for.
 const dxEntryPointsName = "dx.entryPoints"
 
-// Typed errors for the metadata walker. Each maps to one documented
-// AV / misuse class from BUG-DXIL-VALIDATOR-REAL Phase 0 findings.
+// Typed errors for the metadata walker.
 var (
 	// ErrMissingEntryPoints — the bitcode has a METADATA_BLOCK but no
 	// `dx.entryPoints` named metadata. Required for every DXIL shader.
@@ -61,7 +69,7 @@ var (
 
 	// ErrNullEntryPointFunction — an entry-point tuple references a
 	// null function reference in operand 0. Triggers IDxcValidator AV
-	// at dxil.dll+0xe9da on Windows (BUG-DXIL-012).
+	// at dxil.dll+0xe9da on Windows.
 	ErrNullEntryPointFunction = errors.New("bitcheck: null entry-point function reference")
 
 	// ErrEmptyEntryPointTuple — an entry-point tuple has zero operands.
@@ -225,14 +233,13 @@ func recordBytesToString(rec Record) string {
 
 // verifyEntryPoints inspects the entry-point tuples referenced by the
 // `dx.entryPoints` named metadata and returns a typed error for the
-// first malformed case. Matches the three acceptance-criteria errors
-// exactly:
+// first malformed case.
 //
-//   - no named entry             → ErrMissingEntryPoints
-//   - tuple has 0 operands       → ErrEmptyEntryPointTuple
-//   - tuple op0 is 0 (null ref)  → ErrNullEntryPointFunction
+//   - no named entry → ErrMissingEntryPoints
+//   - tuple has 0 operands → ErrEmptyEntryPointTuple
+//   - tuple op0 is 0 (null ref) → ErrNullEntryPointFunction
 //   - tuple op0 → METADATA_VALUE
-//     with valueID = 0           → ErrNullEntryPointFunction
+//     with valueID = 0 → ErrNullEntryPointFunction
 //
 // Any other structural inconsistency (out-of-range node ref, wrong
 // kind on a resolved node) returns ErrMalformedBitstream.
@@ -276,9 +283,7 @@ func (tbl *metadataTable) verifyEntryPoints() error {
 		// DXC output uses the same kind. Any other kind is suspicious
 		// enough to call out as malformed.
 		if refNode.kind == mdNodeValue && refNode.valueID == 0 && refNode.typeID == 0 {
-			// Both type and value zero: this is a null METADATA_VALUE
-			// pair — the classic fallback from BUG-DXIL-012 when the
-			// emitter had no mainFn. Reject.
+			// Reject.
 			return fmt.Errorf("dx.entryPoints[%d] references METADATA_VALUE(type=0, value=0): %w",
 				i, ErrNullEntryPointFunction)
 		}

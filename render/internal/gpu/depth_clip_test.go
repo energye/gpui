@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -642,7 +652,7 @@ func TestGPURenderSession_EnsureStagePipelines_CreatesDepthClip(t *testing.T) {
 }
 
 // TestClipPathCoverageMask_AnalyticAA verifies the CPU analytic-AA coverage
-// mask generator (Skia kCoverage / Flutter ClipMask) that fixes aliased
+// mask generator that fixes aliased
 // depth-clip edges at sampleCount==1: pixels well inside the clip path are
 // 255, far outside are 0, and the boundary band carries intermediate values
 // (a smooth gradient instead of the binary depth test's hard step).
@@ -708,9 +718,6 @@ func TestClipPathCoverageMask_EmptyPath(t *testing.T) {
 	}
 }
 
-// TestBuildClipMask_SampleCount1 creates the coverage mask through the
-// production path (pipeline + mask defaults) and verifies the bind group
-// lands on the resources so recordGroupDraws can bind it at @group(2).
 func TestBuildClipMask_SampleCount1(t *testing.T) {
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -14,12 +24,6 @@ import (
 // **逐字节（含 0 值）** 一致，15 档（8/10/12/14/16/18/20/24/28/32/40/48/56/64/72px）
 // × 全字集。输入 = FT light 26.6 轮廓（ftexp bcontour），输出对照 FT 灰度位图
 // （ftexp bpgm），bitmap_left/top 对齐，逐像素 bad 计数，bad>0 判 FAIL。
-//
-// 矩阵范围（docs/ENGINE_TEXT_RASTER_FT_ALIGN_PLAN.md §B2）：
-//   - CFF：cjk3000 × NotoSansCJK-Regular.ttc face0(JP)；kr_all × face1(KR)；
-//     th_all × hint/testdata/NotoSansThai-Regular.otf
-//   - TTF：wqy-microhei-nohint × cjk3000 抽样 300（B2 全量 TTF 位图时长不可控）；
-//     latin_all × FreeSans/DejaVuSans 全量
 func TestB2BitmapCJK(t *testing.T) {
 	b2BitmapRunScan(t, "noto-cjk-jp", "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0,
 		"hint/testdata/cjk3000.txt", 3000, 0, b2c15pxs())

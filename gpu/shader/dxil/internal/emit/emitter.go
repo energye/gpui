@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package emit
 
 import (
@@ -25,7 +35,6 @@ type Emitter struct {
 	mod  *module.Module
 	opts EmitOptions
 
-	// Value numbering: maps naga expression handles to DXIL value IDs.
 	// For scalar types, stores a single value ID.
 	// For vector types, stores per-component IDs in exprComponents.
 	exprValues map[ir.ExpressionHandle]int
@@ -146,9 +155,6 @@ type Emitter struct {
 
 	// decomposedWGMembers maps (globalVarHandle, memberIndex) to the
 	// emitter value ID of the per-member decomposed workgroup global.
-	// DXC decomposes struct-typed groupshared variables into separate
-	// globals per member, each with the member's own type and an MSVC-
-	// mangled name like \01?name@@3U<StructType>@@A.<memberIdx>.
 	// When this map is populated for a global, tryGlobalVarAccessIndex
 	// returns the member global directly instead of emitting a GEP
 	// into a monolithic struct global.
@@ -191,10 +197,7 @@ type Emitter struct {
 	// snapshot from a prior construct cannot accidentally feed into a
 	// later phi.
 	//
-	// Reference parity: LLVM mem2reg emits phi instructions at the
-	// start of the merge BB after both branches' final instructions
-	// have been emitted; the BB-of-incoming-value is exactly the
-	// branch's terminator BB. We track that here.
+	// We track that here.
 	lastBranchBBs *branchBBs
 
 	// dx.op function declarations (lazily created).
@@ -218,7 +221,7 @@ type Emitter struct {
 	// Resource bindings: analyzed from GlobalVariables.
 	resources        []resourceInfo
 	resourceHandles  map[ir.GlobalVariableHandle]int  // global var handle -> index in resources
-	reachableGlobals map[ir.GlobalVariableHandle]bool // BUG-DXIL-016: globals transitively used by current entry point
+	reachableGlobals map[ir.GlobalVariableHandle]bool // globals transitively used by current entry point
 
 	// Cached DXIL resource types (lazily created).
 	dxHandleType *module.Type
@@ -253,10 +256,7 @@ type Emitter struct {
 	// body inline inside the caller's basic block. Affects StmtReturn: instead
 	// of emitting a ret instruction, the return value is captured into
 	// inlineReturnValue / inlineReturnComponents so the caller's call.Result
-	// can consume it. Matches DXC's AlwaysInliner semantics
-	// (lib/HLSL/DxilLinker.cpp:1248) — DXIL forbids struct insertvalue/
-	// extractvalue, so helper functions with aggregate args/returns CANNOT
-	// exist as standalone LLVM functions and must be inlined at every call.
+	// can consume it.
 	inInlineExpansion      bool
 	inlineReturnValue      int
 	inlineReturnComponents []int
@@ -276,9 +276,6 @@ type Emitter struct {
 
 	// currentEntryPoint is the entry point being emitted, used to scope
 	// shader-flag computation to the reachable call graph only. Mirrors
-	// DXC's ShaderFlags::CollectShaderFlags(Function*, ...) which is a
-	// per-function (not per-module) operation — merging happens later via
-	// AdjustMinimumShaderModelAndFlags after walking called functions.
 	// See DxilShaderFlags.cpp:393. Without per-EP scoping, sibling EPs
 	// in the same module (e.g. ray-query.wgsl's main + main_candidate)
 	// leak each other's feature flags and trip 'Flags must match usage'.
@@ -303,7 +300,6 @@ type Emitter struct {
 	// with the HLSL backend. Populated by analyzeResources when any
 	// global is a SamplerType. nil → no samplers, fall back to the
 	// pre-existing direct-binding path. See sampler_heap.go for the
-	// model and BUG-DXIL-035 for the cross-backend rationale.
 	samplerHeap *samplerHeapState
 
 	// inputUsedMasks records per-input-signature-element the component
@@ -435,16 +431,12 @@ const (
 )
 
 // BindingLocation identifies a resource in the source shader.
-// Mirror of dxil.BindingLocation kept in this internal package so that
-// emit does not have to import the public dxil package (which would
-// create an import cycle since dxil imports emit).
 type BindingLocation struct {
 	Group   uint32
 	Binding uint32
 }
 
 // BindTarget specifies the DXIL register binding for a resource.
-// Mirror of dxil.BindTarget.
 type BindTarget struct {
 	Space            uint32
 	Register         uint32
@@ -452,11 +444,11 @@ type BindTarget struct {
 }
 
 // BindingMap maps source-shader binding locations to DXIL register
-// bindings. Mirror of dxil.BindingMap.
+// bindings.
 type BindingMap map[BindingLocation]BindTarget
 
 // SamplerHeapBindTargets specifies binding targets for synthesized
-// sampler heap arrays. Mirror of dxil.SamplerHeapBindTargets.
+// sampler heap arrays.
 type SamplerHeapBindTargets struct {
 	StandardSamplers   BindTarget
 	ComparisonSamplers BindTarget
@@ -486,7 +478,7 @@ type EmitOptions struct {
 	// referenced by the entry point being compiled. analyzeResources
 	// skips globals not in this set so multi-EP modules don't leak
 	// unrelated bindings into the per-EP DXIL container. nil means
-	// "include every global" (single-EP modules / tests). BUG-DXIL-016.
+	// "include every global" (single-EP modules / tests).
 	ReachableGlobals map[ir.GlobalVariableHandle]bool
 
 	// InputUsedMasks holds per-input-argument component usage masks
@@ -573,7 +565,6 @@ func EmitWithFlags(irMod *ir.Module, opts EmitOptions) (*module.Module, uint64, 
 	return mod, e.finalShaderFlags, nil
 }
 
-// stageToShaderKind maps naga ShaderStage to DXIL ShaderKind.
 func stageToShaderKind(stage ir.ShaderStage) module.ShaderKind {
 	switch stage {
 	case ir.StageVertex:
@@ -655,7 +646,7 @@ func collectCalledFunctions(fn *ir.Function, allFunctions []ir.Function) map[ir.
 // FunctionHasComplexLocals reports whether any local variable of fn has
 // a type our standalone-helper emission cannot scalarize. Exported so
 // dxil.Compile can mirror the same eligibility gate inside the IR inline
-// policy (BUG-DXIL-029).
+// policy.
 func FunctionHasComplexLocals(fn *ir.Function, irMod *ir.Module) bool {
 	return functionHasComplexLocals(fn, irMod)
 }
@@ -797,8 +788,7 @@ func (e *Emitter) emitHelperFunctions(calledFunctions map[ir.FunctionHandle]bool
 				unsupported = true
 			}
 			// Vector / aggregate return: always inline to avoid invalid
-			// insertvalue/extractvalue on struct types. Matches DXC's
-			// AlwaysInliner behavior (lib/HLSL/DxilLinker.cpp:1248).
+			// insertvalue/extractvalue on struct types.
 			if componentCount(resultIRType.Inner) > 1 {
 				unsupported = true
 			}
@@ -1049,7 +1039,7 @@ func (e *Emitter) emitEntryPoint(ep *ir.EntryPoint) error {
 	// The LLVM function symbol must match the entry-point name that's
 	// also written into dx.entryPoints[0][1] and PSV0's EntryFunctionName
 	// string. dxc mirrors the HLSL function name into the LLVM symbol;
-	// we mirror ep.Name. BUG-DXIL-022 follow-up.
+	// we mirror ep.Name.
 	mainFn := e.mod.AddFunction(ep.Name, funcTy, false)
 	e.mainFn = mainFn
 	bb := mainFn.AddBasicBlock("entry")
@@ -1094,7 +1084,7 @@ func (e *Emitter) emitEntryPoint(ep *ir.EntryPoint) error {
 	}
 
 	// Analyze and create resource bindings before function body emission.
-	// e.reachableGlobals (BUG-DXIL-016) was set from EmitOptions and
+	// e.reachableGlobals was set from EmitOptions and
 	// gates analyzeResources to only the globals used by THIS entry
 	// point — multi-EP modules share the global arena and would
 	// otherwise produce fake "Resource X overlap" errors.
@@ -1335,19 +1325,19 @@ func (e *Emitter) finalizeHelperFunction(fn *module.Function, helperConstMap map
 //
 // Instruction operand layouts:
 //
-//	InstrBinOp:      [lhs, rhs, opcode]           → values at [0, 1]
-//	InstrCmp:        [lhs, rhs, predicate]         → values at [0, 1]
-//	InstrSelect:     [cond, trueVal, falseVal]     → values at [0, 1, 2]
-//	InstrCast:       [src, castOpcode]              → values at [0]
-//	InstrExtractVal: [src, index]                   → values at [0]
-//	InstrAlloca:     [allocTyID, sizeTyID, sizeValID, alignFlags] → values at [2]
-//	InstrLoad:       [ptr, typeID, align, isVolatile] → values at [0]
-//	InstrStore:      [ptr, value, align, isVolatile]  → values at [0, 1]
-//	InstrCall:       [arg0, arg1, ...]              → all are values
-//	InstrBr:         [bbIdx] or [trueBB, falseBB, cond] → values at [2] for cond branch
-//	InstrRet:        uses ReturnValue field, not Operands → none
-//	InstrGEP:        not yet used
-//	InstrPhi:        not yet used
+//	InstrBinOp: [lhs, rhs, opcode] → values at [0, 1]
+//	InstrCmp: [lhs, rhs, predicate] → values at [0, 1]
+//	InstrSelect: [cond, trueVal, falseVal] → values at [0, 1, 2]
+//	InstrCast: [src, castOpcode] → values at [0]
+//	InstrExtractVal: [src, index] → values at [0]
+//	InstrAlloca: [allocTyID, sizeTyID, sizeValID, alignFlags] → values at [2]
+//	InstrLoad: [ptr, typeID, align, isVolatile] → values at [0]
+//	InstrStore: [ptr, value, align, isVolatile] → values at [0, 1]
+//	InstrCall: [arg0, arg1, ...] → all are values
+//	InstrBr: [bbIdx] or [trueBB, falseBB, cond] → values at [2] for cond branch
+//	InstrRet: uses ReturnValue field, not Operands → none
+//	InstrGEP: not yet used
+//	InstrPhi: not yet used
 //
 //nolint:cyclop // one case per instruction kind — simple dispatch, not real complexity
 func valueOperandIndices(instr *module.Instruction) []int {
@@ -1412,9 +1402,6 @@ func valueOperandIndices(instr *module.Instruction) []int {
 
 // emitMetadata writes the required DXIL metadata nodes.
 func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error {
-	// Defensive guard: BUG-DXIL-012 documented that an unset e.mainFn here
-	// causes us to emit !dx.entryPoints[0][0] = null, which makes
-	// IDxcValidator AV at dxil.dll+0xe9da inside its entry-point walker.
 	// We refuse to emit a container that would trigger that AV class —
 	// even if downstream callers swallow the error, this turns a silent
 	// post-emit crash into an immediate, attributable Go error.
@@ -1423,12 +1410,9 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 	}
 	i32Ty := e.mod.GetIntType(32)
 
-	// llvm.ident = !{!"dxil-go-naga"} — registered FIRST so the named-metadata
-	// declaration order in the bitcode matches DXC's output (DXC emits
-	// !llvm.ident before any !dx.* entries; see any DXC -dumpbin output).
 	// Order doesn't affect semantics — the validator accepts either ordering —
 	// but matching DXC byte-for-byte simplifies golden parity diffing
-	// (TestDxilDxcGolden) since the metadata reference IDs (!M0, !M1, ...)
+	// (TestDxilDxcGolden) since the metadata reference IDs
 	// renumber in declaration order.
 	mdIdent := e.mod.AddMetadataString("dxil-go-naga")
 	mdIdentTuple := e.mod.AddMetadataTuple([]*module.MetadataNode{mdIdent})
@@ -1446,12 +1430,10 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 	// dxil.dll cross-checks against the PSV0 part. validator 1.6 expects
 	// PSVRuntimeInfo1 (36 B), 1.7 expects PSVRuntimeInfo2 (48 B), 1.8 expects
 	// PSVRuntimeInfo3 (52 B). BUG-DXIL-009 emits PSVRuntimeInfo3 (52 B) in
-	// PSV0 unconditionally, so we MUST declare validator 1.8+ here for the
 	// two values to agree. Mismatch returns 0x80aa0013 with text:
 	//   "DXIL container mismatch for 'PSVRuntimeInfoSize' between
 	//    'PSV0' part:('52') and DXIL module:('48')"
 	// dxc.exe's own output uses validator 1.8 unconditionally; we mirror.
-	// BUG-DXIL-013.
 	mdValMajor := e.mod.AddMetadataValue(i32Ty, e.getIntConst(1))
 	mdValMinor := e.mod.AddMetadataValue(i32Ty, e.getIntConst(8))
 	mdValVer := e.mod.AddMetadataTuple([]*module.MetadataNode{mdValMajor, mdValMinor})
@@ -1489,7 +1471,6 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 	// Tag 0 = ShaderFlags (i64). Tag 4 = NumThreads (compute/mesh).
 	// Tag 9 = MSState (mesh). Tags must appear in ascending order; DXC
 	// emits the ShaderFlags tag first when non-zero. BUG-DXIL-022
-	// follow-up: previously we never emitted tag 0, so dxil.dll
 	// reported "Flags must match usage. note: declared=0, actual=N"
 	// for every shader that touched a raw/structured buffer.
 	var propPairs []*module.MetadataNode
@@ -1514,7 +1495,6 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 		// is the same kDxilNumThreadsTag(4) used by compute. Without
 		// this our task shader had no NumThreads metadata and dxil.dll
 		// read garbage values (0,0,184) from uninitialized memory.
-		// BUG-DXIL-008 follow-up.
 		propPairs = append(propPairs, e.computePropertyPairs(ep)...)
 	}
 	var mdProperties *module.MetadataNode
@@ -1527,7 +1507,7 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 	// where each component is null OR an MDNode listing per-element nodes.
 	// The whole tuple is null only if all three signatures are empty.
 	//
-	// BUG-DXIL-021: compute and amplification shaders have no I/O signatures.
+	// compute and amplification shaders have no I/O signatures.
 	// Their kernel arguments (WorkgroupID / LocalInvocationID / DispatchThreadID
 	// / payload) are NOT I/O signature elements — they're read via dedicated
 	// dx.op intrinsics (threadId, groupId, flattenedThreadIdInGroup, ...).
@@ -1537,7 +1517,7 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 	// declares an input signature" and rejected the container with
 	// "Missing part 'Program Input Signature' required by module" (and
 	// "Semantic 'TEXCOORD' is invalid as cs PatchConstant" for the same
-	// shaders). Mirror dxc: nil signatures triplet for compute / amplification.
+	// shaders).
 	var mdSignatures *module.MetadataNode
 	switch kind {
 	case module.MeshShader:
@@ -1548,17 +1528,13 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 		mdSignatures = e.emitGraphicsSignatureMetadata(ep, kind)
 	}
 
-	// dx.entryPoints = !{!{void()* @main, !"main", !signatures, !resources, !properties}}
-	// The function pointer (operand 0) must reference the entry function — a null
-	// here causes the DXIL validator to AV at dxil.dll+0xe9da when walking entry
-	// points. See BUG-DXIL-012.
 	var mdFunc *module.MetadataNode
 	if e.mainFn != nil {
 		mdFunc = e.mod.AddMetadataFunc(e.mainFn)
 	}
 	mdName := e.mod.AddMetadataString(ep.Name)
 	mdEntry := e.mod.AddMetadataTuple([]*module.MetadataNode{
-		mdFunc,       // function pointer to @main
+		mdFunc,
 		mdName,       // entry point name
 		mdSignatures, // signatures triplet (or nil if all empty)
 		mdResources,  // resources (nil if none)
@@ -1576,8 +1552,6 @@ func (e *Emitter) emitMetadata(ep *ir.EntryPoint, kind module.ShaderKind) error 
 //
 //	[i32 kDxilNumThreadsTag, !{i32 X, i32 Y, i32 Z}]
 //	kDxilNumThreadsTag = 4
-//
-// Reference: Mesa nir_to_dxil.c emit_threads() ~1785, emit_tag() ~1967
 func (e *Emitter) computePropertyPairs(ep *ir.EntryPoint) []*module.MetadataNode {
 	i32Ty := e.mod.GetIntType(32)
 	mdTag := e.mod.AddMetadataValue(i32Ty, e.getIntConst(4))
@@ -1600,14 +1574,14 @@ func (e *Emitter) computePropertyPairs(ep *ir.EntryPoint) []*module.MetadataNode
 // Bit layout matches dxc DxilShaderFlags.h struct field order (verified
 // by hand against actual=N hex values reported by dxilval --wgsl):
 //
-//	bit  4: EnableRawAndStructuredBuffers (0x10)
-//	bit  5: LowPrecisionPresent           (0x20)
-//	bit 16: UAVsAtEveryStage              (0x10000)
-//	bit 20: Int64Ops                      (0x100000)
-//	bit 23: UseNativeLowPrecision         (0x800000)
-//	bit 25: RaytracingTier1_1             (0x2000000)
+//	bit 4: EnableRawAndStructuredBuffers (0x10)
+//	bit 5: LowPrecisionPresent (0x20)
+//	bit 16: UAVsAtEveryStage (0x10000)
+//	bit 20: Int64Ops (0x100000)
+//	bit 23: UseNativeLowPrecision (0x800000)
+//	bit 25: RaytracingTier1_1 (0x2000000)
 //
-// We add more bits as we hit the next walls. BUG-DXIL-022 follow-up.
+// We add more bits as we hit the next walls.
 //
 //nolint:gocognit,cyclop,gocyclo // single dispatch table over independent flag bits
 func (e *Emitter) computeBitcodeShaderFlags() uint64 {
@@ -1679,7 +1653,7 @@ func (e *Emitter) computeBitcodeShaderFlags() uint64 {
 	}
 	if e.moduleUsesDouble() {
 		// DXC's CollectShaderFlagsForModule sets both bits together
-		// whenever any f64 type appears (DxilShaderFlags.cpp). Bit 2 is
+		// whenever any f64 type appears. Bit 2 is
 		// the historical D3D11 "doubles enabled" flag; bit 6 was added
 		// for the double-extensions instructions (FMA on doubles, etc.)
 		// and DXC always pairs them.
@@ -1688,7 +1662,6 @@ func (e *Emitter) computeBitcodeShaderFlags() uint64 {
 	}
 	// Note: NativeLowPrecision (UseNativeLowPrecision bit 23 + LowPrecisionPresent
 	// bit 5) is intentionally NOT set. Our DXC golden pipeline uses naga HLSL
-	// which emits min16float for WGSL f16 (polyfill semantics, no -enable-16bit-types).
 	// DXC therefore never sets these flags. QuantizeF16 uses dx.op.legacyF32ToF16 /
 	// legacyF16ToF32 (opcodes 130/131) which do not introduce the LLVM half type.
 	// When we add native -enable-16bit-types support, these flags should be gated
@@ -1710,7 +1683,7 @@ func (e *Emitter) computeBitcodeShaderFlags() uint64 {
 		// (both storage buffers and typed textures). DXC sets
 		// AtomicInt64OnHeapResource (bit 32) when 64-bit atomics target
 		// a resource resolved via CreateHandleFromHeap rather than
-		// CreateHandle (DxilShaderFlags.cpp ~line 663).
+		// CreateHandle.
 		flags |= 0x100000000 // AtomicInt64OnHeapResource (bit 32)
 	}
 	if e.moduleUsesWaveOps() {
@@ -1843,8 +1816,7 @@ func (e *Emitter) moduleUsesInt64GroupSharedAtomic() bool {
 }
 
 // globalVarHasInt64Atomic walks a global var's type for an AtomicType
-// wrapping i64/u64. Mirrors dxil.go globalUsesInt64Atomic but lives here
-// because the emitter needs it during shader-flag computation.
+// wrapping i64/u64.
 func globalVarHasInt64Atomic(irMod *ir.Module, gv *ir.GlobalVariable) bool {
 	if gv == nil || int(gv.Type) >= len(irMod.Types) {
 		return false
@@ -1878,7 +1850,7 @@ func globalVarHasInt64Atomic(irMod *ir.Module, gv *ir.GlobalVariable) bool {
 // createHandleFromHeap for all resource handles, any 64-bit atomic on
 // a storage buffer or typed resource counts. DXC sets
 // m_bAtomicInt64OnHeapResource (bit 32) when the resource comes from
-// CreateHandleFromHeap (DxilShaderFlags.cpp ~line 663).
+// CreateHandleFromHeap.
 func (e *Emitter) moduleUsesInt64HeapAtomic() bool {
 	for i := range e.ir.GlobalVariables {
 		gv := &e.ir.GlobalVariables[i]
@@ -2024,7 +1996,6 @@ func isDoubleType(t *module.Type) bool {
 
 // moduleUsesInt64 returns true if the EMITTED bitcode actually contains
 // i64 types — function declaration signatures or instruction result types.
-// Mirrors the moduleUsesDouble approach: scan the emitted module (e.mod),
 // NOT the IR type arena (e.ir.Types). This prevents false positives when
 // constant-folded expressions eliminate all i64 code (e.g.,
 // conversion-float-to-int.wgsl where i64() casts on constants are folded).
@@ -2068,8 +2039,6 @@ func isInt64Type(t *module.Type) bool {
 // the blob, so the validator computes actual=no-raytracing and the
 // declared flag must match.
 //
-// Mirrors DXC's ShaderFlags::CollectShaderFlags which is per-function
-// (DxilShaderFlags.cpp:393) and merged over the call graph by
 // AdjustMinimumShaderModelAndFlags. dxil.go:moduleUsesRayQuery is still
 // module-wide because it drives the SM 6.5 auto-upgrade which is
 // correctly conservative (upgrade affects the whole module).
@@ -2352,15 +2321,13 @@ func (e *Emitter) emitMeshSignatureMetadata(ep *ir.EntryPoint) *module.MetadataN
 	return e.mod.AddMetadataTuple([]*module.MetadataNode{nil, mdOutputSigs, nil})
 }
 
-// dxilArbitrarySemantic is the default DXIL semantic name used for
-// WGSL @location(N) varyings that don't map to a system value. Sourced
+// Sourced
 // from backend.LocationSemantic so HLSL, DXIL, and wgpu/hal/dx12's
-// input-layout SemanticName cannot drift (BUG-DXIL-028).
+// input-layout SemanticName cannot drift.
 const dxilArbitrarySemantic = backend.LocationSemantic
 
 // dxilSigInfo holds the per-element data needed to build a !dx.entryPoints
-// signature element for graphics stages. Mirrors the relevant subset of
-// DxilSignatureElement.
+// signature element for graphics stages.
 type dxilSigInfo struct {
 	id          int64
 	semName     string
@@ -2378,13 +2345,9 @@ type dxilSigInfo struct {
 // isSystemManagedOutputSemantic reports whether a DXIL SemanticKind
 // identifies a pixel-stage SIGNATURE element that the signature allocator
 // refuses to pack into a real row/col — i.e. one that must carry
-// StartRow = -1, StartCol = -1. Mirrors DXC's DxilSignatureAllocator
-// behavior: the Depth family, Coverage, StencilRef (outputs), and
-// SampleIndex (input) are system-managed and read/written via dedicated
-// dx.op calls (storeDepth, storeCoverage, sampleIndex) even though a
-// signature element is still emitted to declare them.
+// StartRow = -1, StartCol = -1.
 //
-// The DXC validator rule (DxilValidation.cpp:4538) checks
+// The DXC validator rule checks
 // SemanticInterpretationKind. NotPacked and Shadow both imply
 // ShouldBeAllocated=false. NotPacked: depth family, coverage on output.
 // Shadow: SampleIndex on PS input. We unify both under the same helper
@@ -2412,7 +2375,6 @@ func isSystemManagedOutputSemantic(semKind int64) bool {
 	return false
 }
 
-// builtinToDXILSemantic maps a naga BuiltinValue to (DXIL SemanticKind, semantic name).
 func builtinToDXILSemantic(b ir.BuiltinValue) (int64, string) {
 	switch b {
 	case ir.BuiltinPosition:
@@ -2438,7 +2400,6 @@ func builtinToDXILSemantic(b ir.BuiltinValue) (int64, string) {
 	}
 }
 
-// dxilCompTypeForScalar maps a naga ScalarKind to DXIL ComponentType enum.
 func dxilCompTypeForScalar(kind ir.ScalarKind) int64 {
 	switch kind {
 	case ir.ScalarFloat:
@@ -2502,9 +2463,7 @@ func describeIRType(irMod *ir.Module, th ir.TypeHandle) (int64, int64) {
 
 // interpolationModeForBinding maps a (LocationBinding interpolation,
 // stage, direction) triple to its DXIL InterpolationMode enum value.
-// Mirrors dxil.go:psvInterpolationMode — direction-aware: only the
-// CARRIER directions (vertex out, fragment in) emit a non-Undefined
-// interp value; vertex in, fragment out, compute, etc. emit 0.
+// emit 0.
 func interpolationModeForBinding(interp *ir.Interpolation, isFragment, isOutput bool) uint8 {
 	isVertex := !isFragment
 	carries := (isVertex && isOutput) || (isFragment && !isOutput)
@@ -2539,7 +2498,6 @@ func interpolationModeForBinding(interp *ir.Interpolation, isFragment, isOutput 
 	return 2
 }
 
-// makeSigInfo builds a dxilSigInfo from a naga binding and IR type.
 func makeSigInfo(irMod *ir.Module, id int, binding ir.Binding, th ir.TypeHandle, isOutput, isFragment bool) dxilSigInfo {
 	info := dxilSigInfo{
 		id:         int64(id),
@@ -2576,11 +2534,11 @@ func makeSigInfo(irMod *ir.Module, id int, binding ir.Binding, th ir.TypeHandle,
 		}
 		// Direction-aware interpolation. Verified against dxc reference
 		// (vs_flat_out.hlsl). Carriers:
-		//   stage    direction  carries
-		//   vertex   in         no
-		//   vertex   out        YES — to-rasterizer values
-		//   fragment in         YES — from-rasterizer values
-		//   fragment out        no — SV_Target / SV_Depth
+		//   stage direction carries
+		//   vertex in no
+		//   vertex out YES — to-rasterizer values
+		//   fragment in YES — from-rasterizer values
+		//   fragment out no — SV_Target / SV_Depth
 		//
 		// Vertex output and fragment input MUST emit identical interp
 		// values for the same semantic.
@@ -2598,12 +2556,9 @@ func makeSigInfo(irMod *ir.Module, id int, binding ir.Binding, th ir.TypeHandle,
 	case ir.LocationBinding:
 		info.semKind = 0 // Arbitrary
 		info.semIndex = int64(b.Location)
-		// Dual-source blending: @blend_src(N) overrides Location for the
 		// SV_Target index. DXC HLSL writes dual source as SV_Target0 +
 		// SV_Target1 (rows 0 and 1) and the runtime maps target 1 as the
-		// dual-source alpha. Mirror the rewrite here so the bitcode
-		// metadata side agrees with the OSG1 container side
-		// (bindingToSignatureElements applies the same override).
+		// dual-source alpha.
 		if b.BlendSrc != nil && isFragment && isOutput {
 			info.semIndex = int64(*b.BlendSrc)
 		}
@@ -2613,12 +2568,6 @@ func makeSigInfo(irMod *ir.Module, id int, binding ir.Binding, th ir.TypeHandle,
 			info.interpMode = 0 // Undefined for fragment outputs (SV_Target)
 		} else {
 			info.semName = dxilArbitrarySemantic
-			// BUG-DXIL-019 follow-up: read the WGSL @interpolate
-			// attribute instead of hard-coding. Mirrors PSV0 side
-			// (dxil.go:psvInterpolationMode). Without this, vertex
-			// outputs with @interpolate(flat) get bitcode interp=0
-			// (Undefined) while PSV0 gets interp=1 (Constant), and
-			// dxil.dll rejects with "SigOutputElement mismatch".
 			info.interpMode = int64(interpolationModeForBinding(b.Interpolation, isFragment, isOutput))
 		}
 	default:
@@ -2636,7 +2585,7 @@ func makeSigInfo(irMod *ir.Module, id int, binding ir.Binding, th ir.TypeHandle,
 // pack multiple elements into a single row only when their components
 // don't overlap and their interpolation modes match. We currently
 // assign one element per row for both inputs and outputs, mirroring
-// what buildGraphicsPSVSigs does on the PSV0 side. BUG-DXIL-019.
+// what buildGraphicsPSVSigs does on the PSV0 side.
 //
 // BuiltinViewIndex is skipped — SV_ViewID is read via dx.op.viewID()
 // intrinsic, not via a signature element.
@@ -2657,10 +2606,7 @@ func (e *Emitter) collectGraphicsSignatures(ep *ir.EntryPoint, isFragment bool) 
 		return false
 	}
 
-	// skipInputBuiltin handles the additional input-only exclusions:
-	// @builtin(sample_mask) on a fragment input maps to SV_Coverage,
-	// which DXC declares as NotInSig for PS input (DxilSigPoint.inl:97-98
-	// 'NotInSig _50'). The value is read via dx.op.coverage(91) instead.
+	// The value is read via dx.op.coverage(91) instead.
 	// The validator rejects 'Semantic SV_Coverage is invalid as ps Input'
 	// when an SV_Coverage element appears in the PS input signature.
 	skipInputBuiltin := func(b ir.Binding) bool {
@@ -2767,7 +2713,7 @@ func (e *Emitter) collectGraphicsSignatures(ep *ir.EntryPoint, isFragment bool) 
 
 // collectFlatArgBindings flattens a function's arg list (and any struct-typed
 // arg's members) into a sorted (binding, type) pair list using the shared
-// interface-order convention. Mirrors dxil/dxil.go collectFlatBindings.
+// interface-order convention.
 func collectFlatArgBindings(irMod *ir.Module, args []ir.FunctionArgument, isVSInput bool) ([]ir.Binding, []ir.TypeHandle) {
 	var bindings []ir.Binding
 	var types []ir.TypeHandle
@@ -2805,17 +2751,17 @@ func collectFlatArgBindings(irMod *ir.Module, args []ir.FunctionArgument, isVSIn
 //
 // Layout (matches dxc DxilMDHelper::EmitSignatureElement):
 //
-//	[0]  i32 ID
-//	[1]  !"SemanticName"
-//	[2]  i8  CompType
-//	[3]  i8  SemanticKind
-//	[4]  !{i32 ...}  semantic index vector
-//	[5]  i8  InterpolationMode
-//	[6]  i32 Rows
-//	[7]  i8  Cols
-//	[8]  i32 StartRow
-//	[9]  i8  StartCol
-//	[10] !{i32 3, i32 mask} | null  extended properties — kDxilSignatureElement
+//	[0] i32 ID
+//	[1] !"SemanticName"
+//	[2] i8 CompType
+//	[3] i8 SemanticKind
+//	[4] !{i32 ...} semantic index vector
+//	[5] i8 InterpolationMode
+//	[6] i32 Rows
+//	[7] i8 Cols
+//	[8] i32 StartRow
+//	[9] i8 StartCol
+//	[10] !{i32 3, i32 mask} | null extended properties — kDxilSignatureElement
 //	                          UsageCompMaskTag(3) followed by the mask of
 //	                          components actually used. null when unused.
 //
@@ -2941,9 +2887,9 @@ func (e *Emitter) emitGraphicsSignatureMetadata(ep *ir.EntryPoint, kind module.S
 //
 // where:
 //
-//	inputComps  = sum of per-input  component counts (or 1 if empty)
+//	inputComps = sum of per-input component counts (or 1 if empty)
 //	outputComps = sum of per-output component counts
-//	trailing 1  = "no per-view dependencies, single view used"
+//	trailing 1 = "no per-view dependencies, single view used"
 //
 // This is a minimal valid encoding that satisfies the validator without
 // performing real per-component view-id dependency analysis.
@@ -2952,7 +2898,7 @@ func (e *Emitter) emitGraphicsSignatureMetadata(ep *ir.EntryPoint, kind module.S
 // Called from emitMetadata for VS/PS/HS/DS/GS (mesh shaders use
 // emitViewIDState which emits a different layout).
 //
-// Canonical DXC form (restored session 12, BUG-DXIL-018):
+// Canonical DXC form:
 //
 //	!dx.viewIdState = !{!N}
 //	!N = !{[3 x i32] [i32 inComps, i32 outComps, i32 1]}
@@ -2964,7 +2910,7 @@ func (e *Emitter) emitGraphicsSignatureMetadata(ep *ir.EntryPoint, kind module.S
 //
 // The metadata operand is a ConstantAsMetadata wrapping a [3 x i32]
 // aggregate constant. `DxilMDHelper::LoadDxilViewIdState`
-// (dxc/lib/DXIL/DxilMetadataHelper.cpp:2211) validates exactly this
+// validates exactly this
 // shape — D3D12 runtime format validation calls `LoadDxilViewIdState`
 // during CreateGraphicsPipelineState, so deviations (e.g. scalar tuple)
 // are rejected with 0x80aa000f DXC_E_INCORRECT_DXIL_METADATA.
@@ -3010,8 +2956,6 @@ func (e *Emitter) emitGraphicsViewIDState(ep *ir.EntryPoint) {
 		}
 	}
 
-	// BUG-DXIL-018 Phase 3: emit the canonical DXC viewIdState payload
-	// shape per DxilViewIdState::Serialize (ComputeViewIdState.cpp:252):
 	//
 	//   [NumInputScalars,
 	//    NumOutputScalars,
@@ -3030,7 +2974,6 @@ func (e *Emitter) emitGraphicsViewIDState(ep *ir.EntryPoint) {
 	// contribution section is empty (NumInputs * 0 = 0 dwords). Do NOT
 	// pad outUINTs to 1 here; that inflates the array from [2 x i32] to
 	// [2+inComps x i32] with trailing zeros, mismatching the DXC golden.
-	// Reference: ComputeViewIdState.cpp:208 RoundUpToUINT, line 264-268.
 	totalUINTs := 2 + uint64(inComps)*uint64(outUINTs)
 	values := make([]uint64, totalUINTs)
 	values[0] = uint64(inComps)
@@ -3080,8 +3023,6 @@ func (e *Emitter) emitGraphicsViewIDState(ep *ir.EntryPoint) {
 // The iteration order MUST match the signature element order produced by
 // collectGraphicsSignatures / collectFlatArgBindings -- which sorts
 // locations before builtins for non-VS inputs. An earlier version
-// iterated arguments in declaration order, causing the usage mask for
-// a builtin (@builtin(position)) in arg0 to land on the LOC slot when
 // a location from arg1 was sorted first. This produced incorrect null
 // extended-properties metadata for used inputs and non-null for unused.
 func (e *Emitter) computeInputElementUsedMasks(ep *ir.EntryPoint, inElems []viewid.SigElement) []int64 {
@@ -3173,10 +3114,7 @@ func sigInfosToViewIDElems(infos []dxilSigInfo) []viewid.SigElement {
 		// (PackSignatureElements) assigned, not arg/struct-member order.
 		// DXC's GetLinearIndex(elem, row, col) = elem.StartRow*4 + col,
 		// so output indices in `dx.viewIdState` and PSV0 dependency tables
-		// are anchored to the register slot. After BUG-DXIL-029 reordered
-		// outputs to match DXC (locations first, builtins last), the
-		// arg-order counter diverged from the register, producing
-		// "output 4" where DXC has "output 0".
+		// are anchored to the register slot.
 		var row, col uint32
 		if !sysManaged && info.startRow >= 0 {
 			row = uint32(info.startRow) //nolint:gosec // startRow ≥ 0 after bound check
@@ -3197,7 +3135,6 @@ func sigInfosToViewIDElems(infos []dxilSigInfo) []viewid.SigElement {
 	return out
 }
 
-// meshTopologyToDXIL maps naga mesh output topology to DXIL output topology.
 // DXIL: 0=undefined, 1=line, 2=triangle
 func meshTopologyToDXIL(t ir.MeshOutputTopology) int64 {
 	switch t {
@@ -3564,8 +3501,6 @@ func (e *Emitter) addBinOpInstr(resultTy *module.Type, op BinOpKind, lhs, rhs in
 // resultTy is the pointer type of the result.
 // ptrID is the base pointer value ID.
 // indexIDs are the index value IDs (first is always the array-level index, then struct indices).
-//
-// Reference: Mesa dxil_module.c dxil_emit_gep_instr()
 func (e *Emitter) addGEPInstr(sourceElemTy, resultTy *module.Type, ptrID int, indexIDs []int) int {
 	valueID := e.allocValue()
 	operands := make([]int, 3+len(indexIDs))
@@ -3601,7 +3536,6 @@ func (e *Emitter) addCmpInstr(pred CmpPredicate, lhs, rhs int) int {
 }
 
 // getDxOpStoreFunc creates a dx.op.storeOutput function declaration.
-// storeOutput: void @dx.op.storeOutput.TYPE(i32 opcode, i32 outputID, i32 row, i8 col, TYPE value)
 func (e *Emitter) getDxOpStoreFunc(ol overloadType) *module.Function {
 	name := "dx.op.storeOutput"
 	key := dxOpKey{name: name, overload: ol}
@@ -3624,7 +3558,6 @@ func (e *Emitter) getDxOpStoreFunc(ol overloadType) *module.Function {
 }
 
 // getDxOpLoadFunc creates a dx.op.loadInput function declaration.
-// loadInput: TYPE @dx.op.loadInput.TYPE(i32 opcode, i32 inputID, i32 row, i8 col, i32 vertexID)
 func (e *Emitter) getDxOpLoadFunc(ol overloadType) *module.Function {
 	name := "dx.op.loadInput"
 	key := dxOpKey{name: name, overload: ol}
@@ -3668,7 +3601,6 @@ func overloadSuffix(ol overloadType) string {
 }
 
 // getDxOpUnaryFunc creates a dx.op unary function declaration.
-// Signature: TYPE @dx.op.NAME.TYPE(i32 opcode, TYPE value)
 func (e *Emitter) getDxOpUnaryFunc(name string, ol overloadType) *module.Function {
 	key := dxOpKey{name: name, overload: ol}
 	if fn, ok := e.dxOpFuncs[key]; ok {
@@ -3689,7 +3621,6 @@ func (e *Emitter) getDxOpUnaryFunc(name string, ol overloadType) *module.Functio
 }
 
 // getDxOpBinaryFunc creates a dx.op binary function declaration.
-// Signature: TYPE @dx.op.NAME.TYPE(i32 opcode, TYPE a, TYPE b)
 func (e *Emitter) getDxOpBinaryFunc(name string, ol overloadType) *module.Function {
 	key := dxOpKey{name: name, overload: ol}
 	if fn, ok := e.dxOpFuncs[key]; ok {
@@ -3710,7 +3641,6 @@ func (e *Emitter) getDxOpBinaryFunc(name string, ol overloadType) *module.Functi
 }
 
 // getDxOpTernaryFunc creates a dx.op ternary function declaration.
-// Signature: TYPE @dx.op.NAME.TYPE(i32 opcode, TYPE a, TYPE b, TYPE c)
 func (e *Emitter) getDxOpTernaryFunc(name string, ol overloadType) *module.Function {
 	key := dxOpKey{name: name, overload: ol}
 	if fn, ok := e.dxOpFuncs[key]; ok {
@@ -3732,7 +3662,6 @@ func (e *Emitter) getDxOpTernaryFunc(name string, ol overloadType) *module.Funct
 
 // getDxOpDotFunc creates a dx.op dot product function declaration.
 // Dot products take 2*size scalar params and return a scalar.
-// Signature: float @dx.op.dotN.f32(i32 opcode, float ax, float ay, ..., float bx, float by, ...)
 func (e *Emitter) getDxOpDotFunc(size int, ol overloadType) *module.Function {
 	name := fmt.Sprintf("dx.op.dot%d", size)
 	key := dxOpKey{name: name, overload: ol}
@@ -3783,7 +3712,6 @@ func (e *Emitter) overloadReturnType(ol overloadType) *module.Type {
 	}
 }
 
-// overloadForScalar picks the overload type matching a naga scalar.
 func overloadForScalar(s ir.ScalarType) overloadType {
 	switch s.Kind {
 	case ir.ScalarFloat:
@@ -3812,7 +3740,6 @@ func overloadForScalar(s ir.ScalarType) overloadType {
 }
 
 // classifyDxOpAttr returns the AttrSet for a dx.op intrinsic by full name.
-// Mirrors DXC's per-OpCode classification in lib/HLSL/DxilOperations.cpp
 // OpFuncAttrType. Names checked by prefix because per-overload functions
 // have suffixes (e.g., dx.op.bufferLoad.f32, dx.op.bufferLoad.i32).
 //
@@ -3836,7 +3763,6 @@ func overloadForScalar(s ir.ScalarType) overloadType {
 //	barrier, discard, emitStream, cutStream, etc.
 //
 // Default for unrecognized dx.op names = AttrSetNounwind (impure-safe).
-// The entry point @main always carries AttrSetNounwind (set by AddFunction).
 func classifyDxOpAttr(fullName string) uint32 {
 	const prefix = "dx.op."
 	if len(fullName) < len(prefix) || fullName[:len(prefix)] != prefix {

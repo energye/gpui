@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -211,8 +221,7 @@ func m3TimePushDelta(t *testing.T, n int) time.Duration {
 	return time.Since(start) / reps
 }
 
-// TestPushHistory_NoQuadratic_M3 locks M3 complexity: single push cost
-// independent of doc length. Old full-snapshot path measured ~34x here.
+// Old full-snapshot path measured ~34x here.
 func TestPushHistory_NoQuadratic_M3(t *testing.T) {
 	var a, b []time.Duration
 	for i := 0; i < 5; i++ {

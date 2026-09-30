@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package world
 
 import (
@@ -8,7 +18,7 @@ import (
 	"github.com/energye/gpui/engine/core"
 )
 
-// Scene lifecycle (10.3, S34/W4): birth, activation, sleep, destroy.
+// Scene lifecycle: birth, activation, sleep, destroy.
 //
 // Scene owns one World for entity storage; lifecycle state lives beside
 // it. Spawn births active; Sleep parks alive but inactive; Wake
@@ -20,7 +30,7 @@ import (
 //
 // Use World for placement and comp reads/writes; births, deaths, and
 // level switches go through Scene. Never call Spawn, Despawn, or Clear on
-// the returned World. File load/save lives in the 10.2 section (S33).
+// the returned World. File load/save lives in the 10.2 section.
 //
 // Errors: missing ids are NotFound; nil scenes take InvalidArg on writes
 // and park on reads.
@@ -211,8 +221,7 @@ func (s *Scene) World() *World {
 	return &s.w
 }
 
-// Scene files (10.2, S33/W4): the level on disk. S34 above owns the
-// live Scene; SceneFile below is only the filed shape (name, version,
+// Scene files: the level on disk.
 // entities with parent links, comps, referenced asset ids). LoadScene
 // reads it, Open builds a live Scene with every birth active plus the
 // filed-name to live-id index. Parents are always filed before their

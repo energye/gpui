@@ -1,15 +1,18 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // CPU equivalent of Vello's clip_reduce.wgsl + clip_leaf.wgsl.
-// Matches BeginClip/EndClip pairs and fixes up EndClip draw monoids
-// so that EndClip has access to its matching BeginClip's path_ix
-// and scene_offset.
 //
 // On GPU, Vello uses a parallel bicyclic semigroup algorithm.
 // On CPU, a simple stack-based approach is correct and efficient.
 //
-// Reference: vello_shaders/shader/clip_leaf.wgsl lines 187-203
 
 package tilecompute
 

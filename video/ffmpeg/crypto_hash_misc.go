@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ffmpeg
 
 import (
@@ -1623,7 +1633,6 @@ func (self *Prober) FindBestPixFmtOf2(dst_pix_fmt1 int32, dst_pix_fmt2 int32, sr
 	return fAvFindBestPixFmtOf2(dst_pix_fmt1, dst_pix_fmt2, src_pix_fmt, has_alpha, loss_ptr)
 }
 
-// FindDefaultStreamIndex 找默认播的那条流序号（对 av_find_default_stream_index；参数 s（格式上下文）；回流序号，无流回 -1；nil 上下文会崩，传真对象）.
 func (self *Util) FindDefaultStreamIndex(s unsafe.Pointer) int32 {
 	mustUse(ensureModCrypto())
 	return fAvFindDefaultStreamIndex(s)
@@ -1892,7 +1901,7 @@ func (self *Util) HexDumpLog(avcl unsafe.Pointer, level int32, buf unsafe.Pointe
 	fAvHexDumpLog(avcl, level, buf, size)
 }
 
-// HmacAlloc 新建一个 HMAC 算子（对 av_hmac_alloc；参数 typ 是哈希类型枚举数（0=MD5、1=SHA1、2=SHA224、3=SHA256 等，见 hmac.h）；成功回新算子，用完拿 HmacFree 放；无状态调用）。
+// HmacAlloc 新建一个 HMAC 算子（对 av_hmac_alloc；参数 typ 是哈希类型枚举数；成功回新算子，用完拿 HmacFree 放；无状态调用）。
 func (self *Crypto) HmacAlloc(typ int32) unsafe.Pointer {
 	mustUse(ensureModCrypto())
 	return fAvHmacAlloc(typ)

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package tilemap
 
 import (
@@ -411,7 +421,7 @@ func TestChunkBoundaryIdentical(t *testing.T) {
 	if len(first) == 0 || len(second) != 0 {
 		t.Errorf("reload = %v then %v, want new then empty", first, second)
 	}
-	// C2: real camera viewport (S08 VisibleWorldRect) feeds the same path:
+	// C2: real camera viewport feeds the same path:
 	// a 256x256 screen centered on the 16x16 map sees the middle 2x2 chunks.
 	// engine/tilemap never imports engine/camera; the rect crosses as core.Rect.
 	// (Values mirror camera center math: view=(cx-128,cy-128,256,256).)

@@ -1,11 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
 	"testing"
 )
 
-// M1-c红灯:点击定位不得落进簇内.布局"e+音标+x"(nil face每字10px):
-// carets为0,1,3,4;在X(1)=10处点击,中点规则先给1,须再吸附到簇首0.
 func TestClusterBoundary_ClickNoSplit_M1(t *testing.T) {
 	txt := "e\u0301x"
 	lay := BuildTextLayout(txt, nil, 14, 0, 1.2)
@@ -24,7 +32,6 @@ func TestClusterBoundary_ClickNoSplit_M1(t *testing.T) {
 	}
 }
 
-// M1-c:簇首/簇尾/串尾点击保持原语义(只验不劈簇,不改中点规则).
 func TestClusterBoundary_ClickEdges_M1(t *testing.T) {
 	txt := "e\u0301x"
 	lay := BuildTextLayout(txt, nil, 14, 0, 1.2)

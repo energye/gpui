@@ -1,17 +1,22 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — value stack.
 //
-// Port of skrifa hint/value_stack.rs (388 LOC).
 // Manages the TrueType interpreter's operand stack.
-//
-// Reference: skrifa/src/outline/glyf/hint/value_stack.rs
 package text
 
 // ttValueStack is the operand stack for the TrueType interpreter.
 //
 // Uses a pre-allocated slice as backing store. Stack grows upward.
 // In non-pedantic mode, underflow returns 0 instead of error.
-//
-// Reference: skrifa hint/value_stack.rs:16-28
 type ttValueStack struct {
 	values   []int32
 	top      int
@@ -19,7 +24,6 @@ type ttValueStack struct {
 }
 
 // newTTValueStack creates a value stack with the given capacity.
-// Reference: skrifa hint/value_stack.rs:23-29
 func newTTValueStack(capacity int, pedantic bool) ttValueStack {
 	return ttValueStack{
 		values:   make([]int32, capacity),
@@ -29,7 +33,6 @@ func newTTValueStack(capacity int, pedantic bool) ttValueStack {
 }
 
 // len returns the current depth of the stack.
-// Reference: skrifa hint/value_stack.rs:33
 func (s *ttValueStack) len() int {
 	return s.top
 }
@@ -40,7 +43,6 @@ func (s *ttValueStack) activeValues() []int32 {
 }
 
 // push pushes a value onto the stack.
-// Reference: skrifa hint/value_stack.rs:48-56
 func (s *ttValueStack) push(value int32) error {
 	if s.top >= len(s.values) {
 		return ttErrValueStackOverflow
@@ -52,7 +54,6 @@ func (s *ttValueStack) push(value int32) error {
 
 // pushN pushes multiple values from a byte slice as unsigned bytes.
 // Used for PUSHB/NPUSHB instructions.
-// Reference: skrifa hint/value_stack.rs:64-78
 func (s *ttValueStack) pushBytes(data []byte) error {
 	count := len(data)
 	if s.top+count > len(s.values) {
@@ -67,7 +68,6 @@ func (s *ttValueStack) pushBytes(data []byte) error {
 
 // pushWords pushes multiple 16-bit signed words onto the stack.
 // Used for PUSHW/NPUSHW instructions.
-// Reference: skrifa hint/value_stack.rs:64-78
 func (s *ttValueStack) pushWords(data []int16) error {
 	count := len(data)
 	if s.top+count > len(s.values) {
@@ -82,7 +82,6 @@ func (s *ttValueStack) pushWords(data []int16) error {
 
 // peek returns the top value without removing it.
 // Returns 0 if stack is empty.
-// Reference: skrifa hint/value_stack.rs:80-86
 func (s *ttValueStack) peek() (int32, bool) {
 	if s.top > 0 {
 		return s.values[s.top-1], true
@@ -92,7 +91,6 @@ func (s *ttValueStack) peek() (int32, bool) {
 
 // pop removes and returns the top value.
 // In non-pedantic mode, underflow returns 0.
-// Reference: skrifa hint/value_stack.rs:93-102
 func (s *ttValueStack) pop() (int32, error) {
 	if s.top > 0 {
 		s.top--
@@ -119,7 +117,6 @@ func (s *ttValueStack) popN(n int) error {
 }
 
 // popUsize pops a value intended as a usize index.
-// Reference: skrifa hint/value_stack.rs:111-113
 func (s *ttValueStack) popUsize() (int, error) {
 	v, err := s.pop()
 	return int(v), err
@@ -127,7 +124,6 @@ func (s *ttValueStack) popUsize() (int, error) {
 
 // popCountChecked pops a value intended as a count.
 // Negative values return error in pedantic mode, 0 otherwise.
-// Reference: skrifa hint/value_stack.rs:119-126
 func (s *ttValueStack) popCountChecked() (int, error) {
 	v, err := s.pop()
 	if err != nil {
@@ -143,7 +139,6 @@ func (s *ttValueStack) popCountChecked() (int, error) {
 }
 
 // applyUnary pops one value, applies op, and pushes the result.
-// Reference: skrifa hint/value_stack.rs:131-137
 func (s *ttValueStack) applyUnary(op func(int32) (int32, error)) error {
 	a, err := s.pop()
 	if err != nil {
@@ -157,7 +152,6 @@ func (s *ttValueStack) applyUnary(op func(int32) (int32, error)) error {
 }
 
 // applyBinary pops b then a, applies op(a,b), pushes result.
-// Reference: skrifa hint/value_stack.rs:142-149
 func (s *ttValueStack) applyBinary(op func(int32, int32) (int32, error)) error {
 	b, err := s.pop()
 	if err != nil {
@@ -175,13 +169,11 @@ func (s *ttValueStack) applyBinary(op func(int32, int32) (int32, error)) error {
 }
 
 // clear empties the stack.
-// Reference: skrifa hint/value_stack.rs:157
 func (s *ttValueStack) clear() {
 	s.top = 0
 }
 
 // dup duplicates the top element.
-// Reference: skrifa hint/value_stack.rs:165-173
 func (s *ttValueStack) dup() error {
 	v, ok := s.peek()
 	if !ok {
@@ -194,7 +186,6 @@ func (s *ttValueStack) dup() error {
 }
 
 // swap swaps the top two elements.
-// Reference: skrifa hint/value_stack.rs:180-185
 func (s *ttValueStack) swap() error {
 	a, err := s.pop()
 	if err != nil {
@@ -212,7 +203,6 @@ func (s *ttValueStack) swap() error {
 
 // copyIndex implements CINDEX: copy the indexed element to top.
 // Top of stack contains the 1-based index.
-// Reference: skrifa hint/value_stack.rs:192-198
 func (s *ttValueStack) copyIndex() error {
 	if s.top < 1 {
 		return ttErrValueStackUnderflow
@@ -229,7 +219,6 @@ func (s *ttValueStack) copyIndex() error {
 
 // moveIndex implements MINDEX: move the indexed element to top.
 // Top of stack contains the 1-based index. Removes from original position.
-// Reference: skrifa hint/value_stack.rs:205-214
 func (s *ttValueStack) moveIndex() error {
 	if s.top < 1 {
 		return ttErrValueStackUnderflow
@@ -252,7 +241,6 @@ func (s *ttValueStack) moveIndex() error {
 }
 
 // roll rotates the top three elements: a,b,c -> b,c,a.
-// Reference: skrifa hint/value_stack.rs:223-231
 func (s *ttValueStack) roll() error {
 	a, err := s.pop()
 	if err != nil {

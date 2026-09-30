@@ -1,9 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package parser
 
 // DependencyOrder returns declarations sorted in dependency order using
-// DFS-based topological sort. This matches Rust naga's visit_ordered()
-// from front/wgsl/index.rs — declarations are ordered so that every
-// declaration appears after all declarations it references.
+// DFS-based topological sort.
 //
 // When there are no dependencies between declarations, they appear
 // in source order (the outer DFS loop iterates in original order).
@@ -34,7 +42,6 @@ func DependencyOrder(decls []Decl) []Decl {
 	}
 
 	// DFS topological sort (Tarjan-style post-order).
-	// Matches Rust naga's DependencySolver::dfs.
 	visited := make([]bool, n)
 	onStack := make([]bool, n)
 	result := make([]Decl, 0, n)
@@ -48,7 +55,7 @@ func DependencyOrder(decls []Decl) []Decl {
 
 		for _, j := range deps[i] {
 			if onStack[j] {
-				continue // cycle — skip (Rust reports error, we tolerate)
+				continue // cycle — skip
 			}
 			if !visited[j] {
 				dfs(j)
@@ -91,7 +98,6 @@ func declName(d Decl) string {
 }
 
 // collectDeclDependencies returns the set of global names referenced by a declaration.
-// Matches Rust naga's dependency collection during parsing.
 func collectDeclDependencies(d Decl) []string {
 	seen := make(map[string]bool)
 	var refs []string

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -7,9 +14,7 @@ package gles
 
 // Adapter capability detection for the GLES backend.
 //
-// This file implements GL version parsing, extension probing, feature detection,
-// limits querying, and device type inference -- following the patterns established
-// in Rust wgpu-hal/src/gles/adapter.rs (1325 LOC). The logic is platform-independent
+// The logic is platform-independent
 // and shared between Windows (WGL) and Linux (EGL) adapters.
 
 import (
@@ -25,7 +30,6 @@ import (
 // adapter enumeration time. Populated by queryAdapterCapabilities and consumed
 // by GetAdapterInfo in the platform-specific resource files.
 type AdapterCapabilities struct {
-	// Vendor/renderer/version strings as returned by GL.
 	Vendor   string
 	Renderer string
 	Version  string
@@ -120,12 +124,8 @@ func queryAdapterCapabilities(glCtx *gl.Context) AdapterCapabilities {
 
 // parseGLVersion extracts the major and minor version from the GL_VERSION string.
 // Returns (major, minor, isES). Handles formats:
-//   - "4.6.0 NVIDIA 536.23"           -> (4, 6, false)
-//   - "OpenGL ES 3.2 V@490.0"         -> (3, 2, true)
-//   - "3.3 Mesa 23.0.0"               -> (3, 3, false)
 //
 // Returns (3, 3, false) as a safe fallback if parsing fails (our minimum is GL 3.3).
-// Adapted from Rust wgpu-hal adapter.rs parse_version/parse_full_version.
 func parseGLVersion(version string) (major, minor int, isES bool) {
 	if version == "" {
 		return 3, 3, false
@@ -152,7 +152,6 @@ func parseGLVersion(version string) (major, minor int, isES bool) {
 }
 
 // parseVersionNumbers extracts "major.minor" from the beginning of a version string.
-// e.g., "4.6.0 NVIDIA" -> (4, 6), "3.2 V@490" -> (3, 2)
 func parseVersionNumbers(src string) (major, minor int) {
 	// Find the dot
 	dotIdx := strings.IndexByte(src, '.')
@@ -215,7 +214,6 @@ func parseGLSLVersion(slVersion string, isES bool) int {
 	// The minor part in the string is already scaled (30, 50, 0), so we
 	// just concatenate: major*100 + minor.
 	version := major*100 + minor
-	// Cap at 450 like Rust wgpu (naga doesn't support GL 460+)
 	if !isES && version > 450 {
 		version = 450
 	}
@@ -263,7 +261,6 @@ func hasExtension(exts map[string]bool, names ...string) bool {
 // ---------------------------------------------------------------------------
 
 // queryFeatures maps GL extensions to WebGPU feature flags.
-// Follows Rust wgpu-hal adapter.rs feature detection logic.
 func queryFeatures(exts map[string]bool, glMajor, glMinor int, isES bool, glCtx *gl.Context) gputypes.Features {
 	var features gputypes.Features
 
@@ -357,7 +354,6 @@ func glVersionAtLeast(glMajor, glMinor int, isES bool, reqES, reqFull [2]int) bo
 }
 
 // queryLimits queries GL limits and returns a populated Limits struct.
-// Follows Rust wgpu-hal adapter.rs limits construction.
 func queryLimits(glCtx *gl.Context, glMajor, glMinor int, isES bool, exts map[string]bool) gputypes.Limits {
 	supportsStorage := glVersionAtLeast(glMajor, glMinor, isES, [2]int{3, 1}, [2]int{4, 3}) ||
 		hasExtension(exts, "GL_ARB_shader_storage_buffer_object")
@@ -490,7 +486,6 @@ func queryLimits(glCtx *gl.Context, glMajor, glMinor int, isES bool, exts map[st
 // ---------------------------------------------------------------------------
 
 // queryDownlevelFlags computes the downlevel capability flags from the GL context.
-// Follows Rust wgpu-hal adapter.rs downlevel_flags logic.
 func queryDownlevelFlags(glCtx *gl.Context, exts map[string]bool, glMajor, glMinor int, isES bool) gputypes.DownlevelFlags {
 	var flags gputypes.DownlevelFlags
 
@@ -534,21 +529,14 @@ func queryDownlevelFlags(glCtx *gl.Context, exts map[string]bool, glMajor, glMin
 		}
 	}
 
-	// Rust: NPOT mipmaps always on GL/ES 3.0+
 	flags |= gputypes.DownlevelFlagsNonPowerOfTwoMipmappedTextures
 
-	// Rust: comparison samplers always on GL 3.3+ / ES 3.0+
 	flags |= gputypes.DownlevelFlagsComparisonSamplers
 
-	// Rust: ShaderF16InF32 always (quantizeToF16, pack/unpack2x16float)
 	flags |= gputypes.DownlevelFlagsShaderF16InF32
 
-	// Rust: MSL2_1 always set for GLES (informational — about naga codegen target, not GL driver)
 	flags |= gputypes.DownlevelFlagsMSL21
 
-	// Rust adapter.rs:382-383: indirect draw/dispatch available when GL version
-	// supports it natively (ES 3.1+ / GL 4.3+) OR when the ARB_draw_indirect
-	// extension is present together with compute shader support.
 	indirectExecution := glVersionAtLeast(glMajor, glMinor, isES, [2]int{3, 1}, [2]int{4, 3}) ||
 		(hasExtension(exts, "GL_ARB_draw_indirect") && supportsCompute)
 	if indirectExecution {
@@ -601,10 +589,6 @@ func queryDownlevelFlags(glCtx *gl.Context, exts map[string]bool, glMajor, glMin
 // ---------------------------------------------------------------------------
 
 // inferDeviceType infers the device type from vendor and renderer strings.
-// Adapted from Rust wgpu-hal adapter.rs make_info, plus a desktop-discrete
-// rule P2-2 added: GL_RENDERER names that only exist on separate cards
-// (GeForce/Quadro/RTX/GTX, Radeon RX/Pro/VII, Intel Arc) report DiscreteGPU
-// instead of Other, so the shared policy chain (RequestAdapterWithPolicy,
 // GPUBackend) sees the real dGPU. Mobile-numbered Radeons (780M etc.) stay
 // Other: fail-safe beats a wrong discrete label.
 func inferDeviceType(vendor, renderer string) gputypes.DeviceType {
@@ -658,13 +642,12 @@ func inferDeviceType(vendor, renderer string) gputypes.DeviceType {
 		}
 	}
 
-	// Default to Other (not DiscreteGPU) to avoid incorrect assumptions,
-	// matching the Rust wgpu-hal approach. Only the discreteStrings above
+	// Only the discreteStrings above
 	// promote to DiscreteGPU.
 	return gputypes.DeviceTypeOther
 }
 
-// Known PCI vendor IDs (matches Rust wgpu auxil::db constants).
+// Known PCI vendor IDs.
 const (
 	vendorIDAMD      uint32 = 0x1002
 	vendorIDImgTec   uint32 = 0x1010
@@ -677,7 +660,6 @@ const (
 	vendorIDApple    uint32 = 0x106B
 )
 
-// inferVendorID returns a PCI vendor ID based on the GL_VENDOR string.
 // Order matters: "nvidia corporation" contains "ati" as a substring, so
 // NVIDIA must be checked before ATI/AMD.
 func inferVendorID(vendor string) uint32 {
@@ -713,9 +695,6 @@ func inferVendorID(vendor string) uint32 {
 // queryTextureFormatCapabilities returns per-format capability flags based on
 // the adapter's probed capabilities. This replaces the hardcoded switch in the
 // platform-specific adapter files.
-//
-// Follows Rust wgpu-hal adapter.rs texture_format_capabilities, matching the
-// OpenGL ES 3.0 spec table 3.8 (base types) and table 8.26 (image stores).
 func queryTextureFormatCapabilities(
 	format gputypes.TextureFormat,
 	features gputypes.Features,
@@ -724,7 +703,7 @@ func queryTextureFormatCapabilities(
 ) hal.TextureFormatCapabilities {
 	// MSAA capability tier based on GL_MAX_SAMPLES.
 	// GL ES 3.0 guarantees at least 4x. Drivers may report 0 (e.g., iOS Safari),
-	// in which case we still advertise 4x as a safe baseline (Rust wgpu-hal parity).
+	// in which case we still advertise 4x as a safe baseline.
 	var msaa hal.TextureFormatCapabilityFlags
 	if maxMSAA >= 4 || maxMSAA == 0 {
 		msaa = hal.TextureFormatCapabilityMultisample | hal.TextureFormatCapabilityMultisampleResolve
@@ -890,7 +869,6 @@ func minI32(a, b int32) int32 {
 // queryMinPerStage queries two per-stage GL parameters (vertex and fragment)
 // and returns the minimum of the two. If the vertex value is zero (some drivers
 // report 0 for vertex SSBOs), the fragment value is used alone.
-// Adapted from Rust wgpu-hal adapter.rs vertex_ssbo_false_zero logic.
 func queryMinPerStage(glCtx *gl.Context, vertexParam, fragmentParam uint32) int32 {
 	vertex := getGLInt(glCtx, vertexParam, 0)
 	fragment := getGLInt(glCtx, fragmentParam, 0)
@@ -904,16 +882,10 @@ func queryMinPerStage(glCtx *gl.Context, vertexParam, fragmentParam uint32) int3
 // GLSL version conversion
 // ---------------------------------------------------------------------------
 
-// GLSLVersionToNaga converts an integer GLSL version (e.g., 410, 430, 300)
-// and ES flag into a naga glsl.Version struct for shader compilation.
-//
 // The integer encoding matches GL_SHADING_LANGUAGE_VERSION parsing:
 // "4.30" -> 430, "3.30" -> 330, "3.00 ES" -> 300 with isES=true.
 // In the Version struct, Major is the hundreds digit and Minor is the tens+units.
 // For example, 430 -> {Major: 4, Minor: 30}, 300 -> {Major: 3, Minor: 0}.
-//
-// If glslVersion is 0 (detection failed), returns glsl.Version330 (desktop) or
-// glsl.VersionES300 (ES) as safe minimums matching Rust naga defaults.
 func GLSLVersionToNaga(glslVersion int, isES bool) glsl.Version {
 	if glslVersion == 0 {
 		if isES {

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -20,8 +30,6 @@ func testShapingMultiFace(t *testing.T) text.Face {
 	return face
 }
 
-// M0 item 8: Runs()∩Segments() must split same-face different-script text
-// (arabic has glyphs in DejaVu, so Runs() alone yields 1 run and no shaping).
 func TestIntersectRuns_ArabicLatin(t *testing.T) {
 	face := testShapingMultiFace(t)
 	runs := itemizeRuns("مرحبا hello", face)
@@ -43,7 +51,6 @@ func TestIntersectRuns_ArabicLatin(t *testing.T) {
 	}
 }
 
-// M0 item 8: RTL runs come back in visual order with logical clusters kept.
 func TestIntersectRuns_RTLVisual(t *testing.T) {
 	face := testShapingMultiFace(t)
 	_, _, glyphs := buildCaretsForLine("مرحبا", face)
@@ -64,10 +71,6 @@ func TestIntersectRuns_RTLVisual(t *testing.T) {
 	}
 }
 
-// M0 items 9-10: with shaping open, MultiFace layouts carry real GIDs and
-// caret end matches glyph end (bulk precondition). Paint routing itself
-// stays per-rune for sourceless faces until M2 (bulk+MultiFace draws blank),
-// locked by TestPaintMultiFace_Ink below.
 func TestPaintUsesShapedX_MultiFaceBulk(t *testing.T) {
 	face := testShapingMultiFace(t)
 	var b strings.Builder
@@ -96,7 +99,6 @@ func TestPaintUsesShapedX_MultiFaceBulk(t *testing.T) {
 	}
 }
 
-// M0 item 8 熔断: caret build must be O(n) — per-rune cost stable across N.
 // Ratio reading: (T(1e5)/1e5)/(T(1e3)/1e3) ≈ 1 for O(n), ≈ 100 for O(n²).
 // Median-of-5 per size: robust to single-spike jitter on shared boxes, still
 // trips on real quadratic blowup (100x >> 1.5 either way).
@@ -155,11 +157,9 @@ func BenchmarkCaretBuild(b *testing.B) {
 	}
 }
 
-// BenchmarkShapeLine compares batched run shaping (M0 item 8 path) against
+// BenchmarkShapeLine compares batched run shaping against
 // naive per-rune shaping on mixed text, for the CI trend record.
-// Measured 2026-09-03 (warm S6.5): 1.9x @1e3, 2.7x @1e4 — below the plan's
-// 5x premise (both arms hit the result cache; the 5x assumed uncached
-// shaping). No assert: kept as trend data, not a gate.
+// No assert: kept as trend data, not a gate.
 func BenchmarkShapeLine(b *testing.B) {
 	face, _, err := text.LoadMultiFace(16)
 	if err != nil || face == nil {
@@ -211,7 +211,7 @@ func BenchmarkShapeLine(b *testing.B) {
 }
 
 // TestPaintMultiFace_Ink locks the pixel restoration: MultiFace text must
-// leave ink (bulk+MultiFace draws blank, so paint stays per-rune until M2).
+// leave ink.
 func TestPaintMultiFace_Ink(t *testing.T) {
 	face := testShapingMultiFace(t)
 	txt := NewRenderText("hello world")

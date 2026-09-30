@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -8,8 +18,6 @@ import (
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/gpu"
 )
-
-// Round-1 residual CPU→GPU fixes (docs/GPU_FIRST_ROUTING.md §7.1).
 
 func TestR1_PushMaskLayerGPU(t *testing.T) {
 	requireNativeGPU(t)

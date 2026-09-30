@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit_test
 
 import (
@@ -7,7 +17,6 @@ import (
 )
 
 func TestUpload_BeforeUploadCustomRequestControlled(t *testing.T) {
-	// UPL-S2: beforeUpload false keeps the file listed without uploading.
 	sprops := kit.DefaultUploadProps()
 	sprops.BeforeUpload = func(f kit.UploadLocalFile, b []kit.UploadLocalFile) kit.UploadBeforeAction {
 		return kit.UploadBeforeSkip
@@ -36,7 +45,6 @@ func TestUpload_BeforeUploadCustomRequestControlled(t *testing.T) {
 		t.Fatal("ignored file must not enter the list")
 	}
 
-	// UPL-S3/S4: business customRequest drives progress/success/error.
 	var captured kit.UploadRequestOptions
 	cprops := kit.DefaultUploadProps()
 	cprops.CustomRequest = func(o kit.UploadRequestOptions) { captured = o }

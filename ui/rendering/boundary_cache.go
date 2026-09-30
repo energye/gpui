@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -8,10 +18,10 @@ import (
 	"github.com/energye/gpui/ui/scene"
 )
 
-// BoundaryCache holds Picture-backed caches for RepaintBoundary nodes (R3).
+// BoundaryCache holds Picture-backed caches for RepaintBoundary nodes.
 // Clean boundaries Replay the stored Picture (skip re-record); dirty ones
 // re-paint and re-record. Works under FullPaint so skip is observable without
-// Retained Present (ENGINE_UI_WIDGET_RENDER R3).
+// Retained Present.
 //
 // Nested model (Flutter layers, Picture MVP):
 //   - Each RepaintBoundary owns a Picture of **own content only**.
@@ -19,7 +29,7 @@ import (
 //     after a container tryReplay the caller still walks nested RB children so
 //     each child can tryReplay/rerecord independently.
 //   - Therefore only-inner-dirty never forces an outer rerecord, and a clean
-//     outer Replay cannot show stale child colors (R3 内脏不外溢).
+//     outer Replay cannot show stale child colors.
 //
 // Cacheability (correctness-first): a boundary whose own content contains RO
 // types the MVP recorder cannot faithfully capture (e.g. Viewport) is marked
@@ -29,7 +39,7 @@ type BoundaryCache struct {
 	// mu guards every field below. Paint runs on the UI thread (inline,
 	// snapshot) and the raster thread (retained record) concurrently
 	// post-T2, and Clear arrives on the UI event thread — an unguarded
-	// map is a fatal concurrent read/write, not just a race (R1).
+	// map is a fatal concurrent read/write, not just a race.
 	// Methods take the lock for their whole body; none call back into
 	// another locked method (recordOwnContent never touches the cache),
 	// so method-scoped locking cannot deadlock.
@@ -43,7 +53,7 @@ type BoundaryCache struct {
 	FrameSkip     int64
 	// FrameMiss counts boundaries that wanted a Replay but had none (diagnostics).
 	FrameMiss int64
-	// Shell/content partitioning (W2 R21): boundaries tagged with
+	// Shell/content partitioning: boundaries tagged with
 	// SetShellBoundary are counted separately, so a scrolling body can prove
 	// the shell's Picture cache is never re-recorded (shell rerecord == 0).
 	// Global counters above still include shell boundaries (backward compat).
@@ -53,7 +63,7 @@ type BoundaryCache struct {
 	FrameShellSkip     int64
 
 	// Evictions is the cumulative count of entries dropped by the budget
-	// (explicit cap via SetMaxEntries) or by generational sweep (R14).
+	// (explicit cap via SetMaxEntries) or by generational sweep.
 	Evictions int64
 
 	// frame is the present-paint generation (BeginFrame counter); it drives
@@ -67,7 +77,7 @@ type BoundaryCache struct {
 // Generational eviction tuning: an entry untouched for evictFrames presents
 // (~2s at 60Hz) is dropped at the next sweep. Scrolled-out VirtualList cells
 // must release their recorded Pictures — without eviction a long scroll
-// retains every cell ever seen (R7: live heap ~85MB, RSS slope ≫ budget).
+// retains every cell ever seen.
 // Live boundaries (shell, static panels) are touched every frame by
 // tryReplay/Store and are never evicted; a re-entered cell simply records
 // once again (honest scroll_rerecord cost).
@@ -118,7 +128,7 @@ func (c *BoundaryCache) BeginFrame() {
 	c.enforceBudgetLocked()
 }
 
-// SetMaxEntries sets the explicit budget cap (R14). 0 = unlimited (default;
+// SetMaxEntries sets the explicit budget cap. 0 = unlimited (default;
 // generational sweep still bounds long-run growth). A cap below the current
 // entry count takes effect on the next Store: the oldest-lastSeen entries are
 // dropped first until under budget. Correctness never depends on the cache —
@@ -204,7 +214,7 @@ func (b *Base) EnsureCacheID() uint64 {
 	return b.ensureCacheID()
 }
 
-// Clear drops all Picture entries (resize / DPR change — R11).
+// Clear drops all Picture entries.
 func (c *BoundaryCache) Clear() {
 	if c == nil {
 		return
@@ -302,7 +312,7 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	// Content fingerprint must match (content changed → invalidate).
 	// Origin shift is allowed: scroll reuse (R7b) moves the cell without changing
 	// its Picture content. We replay translated to the current origin instead of
-	// invalidating. Static trees (R3/R3b) have zero shift → behavior unchanged.
+	// invalidating. Static trees have zero shift → behavior unchanged.
 	curKey := contentKeyOf(n, sz.Width, sz.Height)
 	if curKey != 0 && e.contentKey != 0 && curKey != e.contentKey {
 		e.valid = false
@@ -380,7 +390,7 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 	// No ancestor invalidate: parents do not bake nested RB children.
 }
 
-// shellOf reports whether n was tagged as window-shell content (R21). A node
+// shellOf reports whether n was tagged as window-shell content. A node
 // without a Base (or a non-boundary node) is never shell.
 func shellOf(n RenderObject) bool {
 	if n == nil || !n.IsRepaintBoundary() {
@@ -392,7 +402,7 @@ func shellOf(n RenderObject) bool {
 	return false
 }
 
-// ShellFrameCounts returns the current frame's shell skip/rerecord (R21).
+// ShellFrameCounts returns the current frame's shell skip/rerecord.
 func (c *BoundaryCache) ShellFrameCounts() (rerecord, skip int64) {
 	if c == nil {
 		return 0, 0
@@ -487,8 +497,7 @@ func contentKeyOf(n RenderObject, w, h float64) uint64 {
 }
 
 // absoluteContentKey fingerprints an AbsoluteBox boundary's own content
-// (background + non-RepaintBoundary descendants). Mirrors recordOwnContent
-// selection so scroll reuse (R7b) detects content change without re-recording.
+// (background + non-RepaintBoundary descendants).
 func absoluteContentKey(a *AbsoluteBox, w, h float64) uint64 {
 	if a == nil {
 		return 0

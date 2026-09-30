@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -123,7 +133,7 @@ func TestProcessFunctionOverrides_NamedExpressions(t *testing.T) {
 
 func TestProcessFunctionOverrides_ExpressionIndexShift(t *testing.T) {
 	// Verify that expression indices shift correctly when override const
-	// values are deep-copied into the arena (matching Rust naga behavior).
+	// values are deep-copied into the arena.
 	// Override(X) + const eval creates extra expressions in the arena.
 	module := &ir.Module{
 		Types: []ir.Type{

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package sprite
 
 import (
@@ -434,9 +444,6 @@ func TestBatchOffscreenGolden(t *testing.T) {
 			}
 		}
 	}
-	// Shape: thousand-tree pattern stays one draw (window intent:
-	// game_sprite --case=batch draws a thousand trees in one submit;
-	// the window itself lands with P2, this golden is the offscreen proof).
 	mini := mustFindBatchCase(t, f, "thousand_trees_mini")
 	if mini.WantCalls != 1 {
 		t.Errorf("thousand_trees_mini calls = %d, want 1", mini.WantCalls)

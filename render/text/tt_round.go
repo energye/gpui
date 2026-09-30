@@ -1,14 +1,20 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // TrueType bytecode interpreter — round state.
 //
-// Port of skrifa hint/round.rs (240 LOC).
 // Implements all TrueType rounding modes: Grid, HalfGrid, DoubleGrid,
 // DownToGrid, UpToGrid, Off, Super, Super45.
-//
-// Reference: skrifa/src/outline/glyf/hint/round.rs
 package text
 
 // ttRoundMode selects the rounding strategy.
-// Reference: skrifa hint/round.rs:6-48
 type ttRoundMode uint8
 
 const (
@@ -31,7 +37,6 @@ const (
 )
 
 // ttRoundState controls rounding behavior.
-// Reference: skrifa hint/round.rs:53-59
 type ttRoundState struct {
 	mode      ttRoundMode
 	threshold int32
@@ -40,7 +45,6 @@ type ttRoundState struct {
 }
 
 // defaultRoundState returns the default round state (Grid mode, period=64).
-// Reference: skrifa hint/round.rs:61-69
 func defaultRoundState() ttRoundState {
 	return ttRoundState{
 		mode:      ttRoundGrid,
@@ -51,11 +55,9 @@ func defaultRoundState() ttRoundState {
 }
 
 // round applies the current rounding mode to a 26.6 distance value.
-// Reference: skrifa hint/round.rs:73-165
 func (rs *ttRoundState) round(distance int32) int32 {
 	switch rs.mode {
 	case ttRoundGrid:
-		// Reference: skrifa hint/round.rs:87-93
 		if distance >= 0 {
 			r := ttRound26Dot6(distance)
 			if r < 0 {
@@ -70,9 +72,6 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return r
 
 	case ttRoundHalfGrid:
-		// Reference: skrifa hint/round.rs:79-85; FreeType
-		// Round_To_Half_Grid (ttinterp.c:2042-2066) clamps the
-		// near-zero result to ±32 (half grid), not 0 — the other
 		// round modes clamp to 0. FT 2.11 sets all compensations to
 		// 0 (ttobjs.c:1172-1175) so the clamp branch is unreachable
 		// in practice, but keep FT semantics for correctness.
@@ -90,7 +89,6 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return r
 
 	case ttRoundDoubleGrid:
-		// Reference: skrifa hint/round.rs:95-101
 		if distance >= 0 {
 			r := ttRoundPad(distance, 32)
 			if r < 0 {
@@ -105,7 +103,6 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return r
 
 	case ttRoundDownToGrid:
-		// Reference: skrifa hint/round.rs:103-109
 		if distance >= 0 {
 			r := ttFloor26Dot6(distance)
 			if r < 0 {
@@ -120,7 +117,6 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return r
 
 	case ttRoundUpToGrid:
-		// Reference: skrifa hint/round.rs:111-117
 		if distance >= 0 {
 			r := ttCeil26Dot6(distance)
 			if r < 0 {
@@ -135,7 +131,6 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return r
 
 	case ttRoundSuper:
-		// Reference: skrifa hint/round.rs:119-137
 		if distance >= 0 {
 			val := ((distance + (rs.threshold - rs.phase)) & -rs.period) + rs.phase
 			if val < 0 {
@@ -150,7 +145,6 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return val
 
 	case ttRoundSuper45:
-		// Reference: skrifa hint/round.rs:139-159
 		if distance >= 0 {
 			val := (((distance + (rs.threshold - rs.phase)) / rs.period) *
 				rs.period) + rs.phase
@@ -167,7 +161,6 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return val
 
 	case ttRoundOff:
-		// Reference: skrifa hint/round.rs:161
 		return distance
 
 	default:

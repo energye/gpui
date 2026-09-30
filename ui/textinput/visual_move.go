@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package textinput
 
 import (
@@ -38,7 +48,6 @@ func visualStepByte(e *Editor, fromByte, delta int, lay *rendering.TextLayout) (
 	if !ok {
 		return 0, 0, false
 	}
-	// M1-c:按字素簇 stepping,不再逐rune走缝.簇起点=行内相对簇表+行基.
 	// 簇表随排版缓存,逐键不再整行重切;表内二分,行程与行位置无关.
 	rel := lay.LineClusterStarts(lineIdx)
 	if delta > 0 {
@@ -86,7 +95,6 @@ func nearestLineByte(lay *rendering.TextLayout, target int, x float64) (int, boo
 		}
 	}
 	off := tCarets[bestIdx].ByteOff
-	// M1-c:粘滞列命中的caret可能在簇内,按簇吸附(downstream).簇表复用排版缓存.
 	return tStart + text.SnapInStarts(lay.LineClusterStarts(target), off-tStart, true), true
 }
 
@@ -111,7 +119,7 @@ func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 // MoveVisualUp / MoveVisualDown implement Flutter sticky-column caret movement.
 // caretCol is captured from the current penX on first up/down and reused until
 // a horizontal move, click, SetCaret, Home/End clears it (mirrors F-A5).
-func (e *Editor) MoveVisualUp(lay *rendering.TextLayout) bool { return e.moveVisualVertical(lay, -1) }
+func (e *Editor) MoveVisualUp(lay *rendering.TextLayout) bool   { return e.moveVisualVertical(lay, -1) }
 func (e *Editor) MoveVisualDown(lay *rendering.TextLayout) bool { return e.moveVisualVertical(lay, 1) }
 
 func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
@@ -147,7 +155,6 @@ func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
 	if !ok {
 		return false
 	}
-	// F-S2: must go through SetSelection to enforce composing && !collapsed and EditableRange clamp.
 	cu := e.extentForBytes(curByte, off)
 	if !e.SetSelection(TextRange{Base: cu, Extent: cu}) {
 		return false

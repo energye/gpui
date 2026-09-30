@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux
 
 package platform
@@ -140,11 +150,6 @@ func x11PidAlive(pidStr string) bool {
 // 与旧实现的关键差别：旧版用 sync.Once，**成败都永久缓存**，导致用户把输入法
 // 换成真 ibus-daemon 后（地址文件被新守护改写、总线地址整个变了）程序仍抱着
 // 启动时那条连接不放，输入上下文建不出来，只能重启进程。
-//
-// 现在改为「可失效的缓存 + 单飞」：
-//   - 命中缓存且连接仍健康 → 直接复用，多窗口连接数恒为 1（S1 纪律不变）；
-//   - force=true（已确认换了框架）→ 作废缓存重新解析地址并拨号；
-//   - 单飞保证并发调用只拨一条，不会因多窗口同时重探而连接数爆炸。
 func dialIbusPrivate(force bool) (*dbus.Conn, error) {
 	var old *dbus.Conn
 

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -126,7 +136,7 @@ const (
 // The first element (index 0) is always BreakNo (can't break before first char).
 //
 // Word modes (WrapWord / WrapWordChar) use the full UAX #14 line breaking
-// rules via typesetting/segmenter (M3: C-class segmenter integration).
+// rules via typesetting/segmenter.
 // WrapChar keeps per-character breaks (UAX #14 does not apply to it).
 func findBreakOpportunities(text string, mode WrapMode) []BreakOpportunity {
 	if text == "" {

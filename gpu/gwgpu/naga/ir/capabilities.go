@@ -1,28 +1,30 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 // Capabilities represents hardware/API features available to the shader.
-// Mirrors Rust naga valid::Capabilities bitflags.
 //
 // When compiling WGSL, types like f64, i64, u64, and f16 are only valid
 // if the caller enables the corresponding capability. Without it, the
 // lowerer rejects the shader with a descriptive error.
-//
-// Default value (0) means no extended capabilities are enabled,
-// which matches Rust naga's default behavior where only f32/i32/u32/bool
-// are allowed without explicit capability opt-in.
 type Capabilities uint32
 
 const (
 	// CapFloat64 enables f64 scalar type (Float width=8).
-	// Maps to Rust naga valid::Capabilities::FLOAT64 (1 << 1).
 	CapFloat64 Capabilities = 1 << 1
 
 	// CapShaderInt64 enables i64 and u64 scalar types (Sint/Uint width=8).
-	// Maps to Rust naga valid::Capabilities::SHADER_INT64 (1 << 16).
 	CapShaderInt64 Capabilities = 1 << 16
 
 	// CapShaderFloat16 enables f16 scalar type (Float width=2).
-	// Maps to Rust naga valid::Capabilities::SHADER_FLOAT16 (1 << 26).
 	CapShaderFloat16 Capabilities = 1 << 26
 
 	// CapAll enables all capabilities. Used by test infrastructure

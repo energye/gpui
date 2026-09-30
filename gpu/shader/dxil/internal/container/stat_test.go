@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package container
 
@@ -17,7 +24,7 @@ import (
 //   - raw bitcode body (Option A: duplicate of the main DXIL bitcode)
 //
 // Required by the D3D12 runtime format validator for graphics
-// pipelines (BUG-DXIL-011). IDxcValidator accepts containers without
+// pipelines. IDxcValidator accepts containers without
 // STAT (returns S_OK), but D3D12 CreateGraphicsPipelineState rejects
 // them with STATE_CREATION error id 67 / 93. DXC always emits STAT;
 // we mirror that.

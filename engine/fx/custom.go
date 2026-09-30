@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package fx
 
 import (
@@ -7,7 +17,7 @@ import (
 	"github.com/energye/gpui/engine/core"
 )
 
-// Frozen custom-material budgets and names (capability 5.5, P3, S44/W6).
+// Frozen custom-material budgets and names.
 const (
 	// MaxCustomNameLen caps a material name in bytes.
 	MaxCustomNameLen = 64

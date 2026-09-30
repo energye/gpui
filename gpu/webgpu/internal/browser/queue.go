@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package browser
@@ -7,7 +17,7 @@ import "syscall/js"
 // Queue wraps a browser GPUQueue with pre-bound submission and write methods.
 //
 // Pre-binding JS methods at construction time avoids repeated property lookups
-// on every submit/write call. Matches Rust wgpu WebQueue.
+// on every submit/write call.
 type Queue struct {
 	// ref_ is the GPUQueue JavaScript object.
 	ref_ js.Value
@@ -35,7 +45,6 @@ func (q *Queue) Ref() js.Value {
 }
 
 // Submit submits an array of GPUCommandBuffer js.Values for execution.
-// Rust wgpu collects command buffers into a js_sys::Array and calls queue.submit(&array).
 func (q *Queue) Submit(commandBuffers []js.Value) {
 	arr := js.Global().Get("Array").New(len(commandBuffers))
 	for i, cb := range commandBuffers {
@@ -45,10 +54,6 @@ func (q *Queue) Submit(commandBuffers []js.Value) {
 }
 
 // WriteBuffer writes Go byte data to a GPU buffer.
-//
-// Rust wgpu creates a Uint8Array from the data, then passes its .buffer() (ArrayBuffer)
-// to writeBuffer. We use js.CopyBytesToJS for the Go-to-JS data transfer, which is the
-// standard Go WASM pattern (equivalent to Rust's Uint8Array::from(data)).
 //
 // Signature: queue.writeBuffer(buffer, bufferOffset, data, dataOffset, size)
 func (q *Queue) WriteBuffer(buffer js.Value, bufferOffset uint64, data []byte) {
@@ -68,8 +73,7 @@ func (q *Queue) WriteBuffer(buffer js.Value, bufferOffset uint64, data []byte) {
 // destination = GPUTexelCopyTextureInfo, dataLayout = GPUTexelCopyBufferLayout,
 // size = GPUExtent3DDict.
 //
-// Rust wgpu creates a Uint8Array from the data, passes .buffer() (ArrayBuffer) to
-// writeTexture. We use js.CopyBytesToJS for the Go→JS transfer.
+// We use js.CopyBytesToJS for the Go→JS transfer.
 func (q *Queue) WriteTexture(destination js.Value, data []byte, dataLayout js.Value, size js.Value) {
 	jsArray := js.Global().Get("Uint8Array").New(len(data))
 	js.CopyBytesToJS(jsArray, data)

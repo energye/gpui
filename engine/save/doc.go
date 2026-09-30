@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package save freezes the file-side progress math every 2.5D play feeds.
 //
-// Frozen 2026-09-15 (capability 16.1, P0, S15/W1): CurrentVersion,
+// Frozen 2026-09-15: CurrentVersion,
 // MaxSlots, MaxInventory, MaxItemCount, MaxStars, MaxStarsPerLevel,
 // MaxNameLen, MaxBytes, Item, NewItem, ID, Count, Progress, NewProgress,
 // Level, Checkpoint, Play, PlayMs, Save, New, Slot, Version, Progress,

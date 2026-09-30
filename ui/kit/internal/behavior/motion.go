@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package behavior
 
 import (
@@ -162,8 +172,6 @@ func CanWave(motion scope.MotionConfig, cfg WaveConfig) bool {
 	return true
 }
 
-// WaveColor picks the ripple color: border color when bordered,
-// otherwise the background color (follows WIDGET_MODEL §4).
 func WaveColor(border, bg theme.Color, hasBorder bool) theme.Color {
 	if hasBorder {
 		return border

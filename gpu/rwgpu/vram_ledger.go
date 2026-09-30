@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package rwgpu
 
@@ -8,7 +15,7 @@ import (
 )
 
 // Thin re-exports over the shared hal ledger (gpu/hal/vram_ledger.go).
-// The ledger moved to hal so both backends (WebGPU native, pure-Go GL)
+// The ledger moved to hal so both backends
 // charge one process account; these wrappers keep existing callers and
 // tests compiling unchanged. New code calls hal directly.
 

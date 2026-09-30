@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -17,7 +27,6 @@ type Queue struct {
 
 // Submit submits command buffers for execution.
 // Returns 0 for the submission index (browser does not track indices).
-// Matches Rust wgpu WebQueue::submit which collects into js_sys::Array.
 func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
 	if q.released {
 		return 0, ErrReleased
@@ -40,8 +49,6 @@ func (q *Queue) Poll() uint64 {
 }
 
 // WriteBuffer writes data to a buffer.
-// Uses js.CopyBytesToJS for Go-to-JS data transfer (same pattern as Rust's
-// Uint8Array::from(data).buffer()).
 func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 	if q.released {
 		return ErrReleased
@@ -54,8 +61,6 @@ func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 }
 
 // WriteTexture writes data to a texture.
-// Matches Rust wgpu WebQueue::write_texture layout: offset/bytesPerRow/rowsPerImage
-// are set on a GPUTexelCopyBufferLayout JS object.
 func (q *Queue) WriteTexture(dst *ImageCopyTexture, data []byte, layout *ImageDataLayout, size *Extent3D) error {
 	if q.released {
 		return ErrReleased

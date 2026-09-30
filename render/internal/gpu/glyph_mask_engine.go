@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -44,18 +54,17 @@ type GlyphMaskEngine struct {
 	pageTextures []hal.Texture
 	pageViews    []hal.TextureView
 
-	// S4.2 upload convergence stats (last SyncAtlasTextures call).
 	lastUploadBytes    int64
 	lastUploadRegions  int
 	lastPartialUploads int
 	lastFullUploads    int
 	totalUploadBytes   int64
 
-	// opt13: reuse quad slice inside layoutGlyphs (callers must own a copy
+	// reuse quad slice inside layoutGlyphs (callers must own a copy
 	// before the next LayoutText — QueueGlyphMask copies into context store).
 	quadScratch []GlyphMaskQuad
 
-	// R7.5: origin-free layout template cache for scroll/HUD reuse.
+	// origin-free layout template cache for scroll/HUD reuse.
 	// Geometry is cached without absolute x/y/color; safe rebase translates quads.
 	// Templates hold atlas UVs — layoutCacheAtlasGen tracks atlas.Generation() and
 	// drops the cache when pages are reset/cleared (compact / LRU page reclaim).
@@ -66,12 +75,12 @@ type GlyphMaskEngine struct {
 	layoutCacheMiss     uint64
 	layoutCacheAtlasGen uint64
 
-	// opt26: cache computeGlyphMaskFontID by FontSource pointer (name+glyphCount hash).
+	// cache computeGlyphMaskFontID by FontSource pointer (name+glyphCount hash).
 	fontIDCache map[uintptr]uint64
 }
 
 // glyphLayoutTemplateKey identifies shaped+rasterized glyph geometry independent
-// of draw origin and color (R7.5). Matrix must be pure translate to participate.
+// of draw origin and color. Matrix must be pure translate to participate.
 type glyphLayoutTemplateKey struct {
 	textHash uint64
 	fontID   uint64
@@ -116,7 +125,7 @@ func (e *GlyphMaskEngine) SetLCDLayout(layout text.LCDLayout) {
 		e.lcdLayout = layout
 		// Clear atlas: existing masks were rasterized for different layout.
 		e.atlas.Clear()
-		// R7.5: templates reference atlas UVs — drop them with the atlas.
+		// templates reference atlas UVs — drop them with the atlas.
 		e.dropLayoutTemplateCache()
 	}
 }
@@ -185,15 +194,14 @@ func (e *GlyphMaskEngine) LayoutText(
 		}
 	}
 
-	// opt24: try layout template BEFORE LayoutGlyphs — shaped is unused on hit
+	// try layout template BEFORE LayoutGlyphs — shaped is unused on hit
 	// (layoutTemplateGet only needs key+origin). Static HUD/list strings skip
 	// shape entirely; dynamic strings still shape on miss.
 	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, false, hinting, matrix); ok {
 		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
-		// S6.5: LayoutGlyphs caches Face.Glyphs (shape-level).
-		// R7.5: origin-free layout template + safe quad rebase for scroll/HUD.
+		// origin-free layout template + safe quad rebase for scroll/HUD.
 		// Skip template put for high-churn telemetry strings (unique every frame).
 		shaped := text.LayoutGlyphs(face, s)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, false)
@@ -212,7 +220,7 @@ func (e *GlyphMaskEngine) LayoutText(
 // also sets GlyphMaskFlagAliased in the cache key so aliased and AA masks
 // are cached separately.
 //
-// This implements Skia's SkFont::Edging::kAlias behavior for the Tier 6
+// This implements the SkFont::Edging::kAlias behavior for the Tier 6
 // glyph mask pipeline.
 func (e *GlyphMaskEngine) LayoutTextAliased(
 	face text.Face,
@@ -249,12 +257,11 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		}
 	}
 
-	// opt24: template hit before shape (same as LayoutText).
+	// template hit before shape (same as LayoutText).
 	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, true, hinting, matrix); ok {
 		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
-		// S6.5 shape cache + R7.5 layout template (aliased flag in key).
 		shaped := text.LayoutGlyphs(face, s)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, false)
 		if !text.IsHighChurnLabel(s) {
@@ -337,7 +344,7 @@ type glyphMaskParams struct {
 // resolveGlyphMaskParams derives the per-text-run rendering parameters from
 // the face configuration and the current CTM: raster scale (from the matrix),
 // glyph-mask font size, font ID + parsed font for rasterization, CJK
-// detection, hinting (face-config, Skia single-cache semantic), LCD mode
+// detection, hinting, LCD mode
 // (disabled for aliased runs — binary coverage is incompatible with 3x
 // horizontal subpixel oversampling) and the premultiplied batch color.
 func (e *GlyphMaskEngine) resolveGlyphMaskParams(face text.Face, s string, color render.RGBA, matrix render.Matrix, deviceScale float64, aliased bool) (glyphMaskParams, error) {
@@ -438,7 +445,7 @@ func snapXGrid(glyphs []text.ShapedGlyph, x, deviceScale float64) []float64 {
 // devScaleX can differ from devScaleY for scaled CTMs: X sub-pixel phase is
 // measured at the raster resolution (deviceScale*rasterScale) so the mask's
 // pixel grid aligns with CPU text.Draw's continuous placement, while Y keeps
-// the axis deviceScale (integer baseline, CPU parity at scaled sizes).
+// the axis deviceScale.
 func glyphPlacement(absX, absY, devScaleX, devScaleY float64, hinting text.Hinting, snappedDevX float64, snapX bool) (px, py, fracX, fracY float64) {
 	devX := absX * devScaleX
 	devY := absY * devScaleY
@@ -570,7 +577,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		}
 		absX, absY, fracX, fracY := glyphPlacement(x+glyph.X, y+glyph.Y, devScaleX, deviceScale, hinting, snapped, snapX)
 
-		// Size bucket quantization (Skia pattern): under atlas pressure,
+		// Size bucket quantization: under atlas pressure,
 		// rasterize at a coarse bucket size and scale quads to actual size.
 		// ADR-027: CJK glyphs always rasterize at exact size — bucket scaling
 		// is visible on dense CJK strokes. Skia never buckets DirectMask glyphs.
@@ -657,7 +664,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		// the CTM Y scale baked into rasterSize, then scale by bucketScale to
 		// match the actual display size.
 		// In normal mode bucketScale=1.0 (no-op). In bucketed mode
-		// bucketScale = actualSize/bucketSize (Skia strikeToSourceScale).
+		// bucketScale = actualSize/bucketSize.
 		scale := bucketScale / (deviceScale * rasterScale)
 
 		// For LCD glyphs, the atlas region.Width is 3x the logical pixel width.
@@ -691,7 +698,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	}
 
 	// Store device-space CTM only — ortho projection is deferred to flush time
-	// when the actual render target dimensions are known (ADR-025, Skia sk_RTAdjust pattern).
+	// when the actual render target dimensions are known.
 	// This enables correct rendering to offscreen textures of any size.
 
 	// Atlas dimensions for the LCD shader's texel stepping.
@@ -765,10 +772,8 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 // Must be called before rendering any glyph mask batches. Creates new
 // textures on first use and re-uploads data when pages are modified.
 //
-// S4.2: prefers partial dirty-region uploads (with 256-byte row alignment)
-// when the dirty area is <50% of the page; otherwise falls back to full-page
 // upload. Advances the atlas frame after upload so LRU compaction can reclaim
-// stale pages (Skia GrAtlasManager::postFlush pattern).
+// stale pages.
 func (e *GlyphMaskEngine) SyncAtlasTextures(device hal.Device, queue hal.Queue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -851,7 +856,7 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device hal.Device, queue hal.Queue) 
 			byteCount = pageSize * pageSize
 			e.lastFullUploads++
 		} else {
-			// Partial upload with 256-byte row alignment (WebGPU multi-row rule).
+			// Partial upload with 256-byte row alignment.
 			x, y, w, h := up.X, up.Y, up.W, up.H
 			if x < 0 {
 				x = 0
@@ -919,7 +924,6 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device hal.Device, queue hal.Queue) 
 	return nil
 }
 
-// LastUploadStats returns S4.2 stats from the most recent SyncAtlasTextures.
 func (e *GlyphMaskEngine) LastUploadStats() (bytes int64, regions, partial, full int) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -1021,7 +1025,7 @@ func stringContainsCJK(s string) bool {
 func selectGlyphMaskHinting(fontSize float64, matrix render.Matrix, isCJK bool, deviceScale float64, faceHinting text.Hinting) text.Hinting {
 	// The GPU glyph-mask rasterizer consumes the SAME hinting as the CPU
 	// text.Draw path — the face's configured hinting (WithHinting, default
-	// HintingFull) — Skia's single-glyph-cache semantic where CPU and GPU
+	// HintingFull) — the single-glyph-cache semantic where CPU and GPU
 	// share one strikemaker configuration. No size/script/DPI policy is
 	// applied here: any such rule would diverge GPU output from the CPU
 	// bitmap. Grid-fitting is dropped only when the pixel grid is not
@@ -1075,7 +1079,7 @@ func computeGlyphMaskFontID(source *text.FontSource) uint64 {
 	if fullName == "" {
 		fullName = source.Name()
 	}
-	// Avoid fmt.Fprintf on the hot path (opt26): Write name + ':' + decimal digits.
+	// Avoid fmt.Fprintf on the hot path: Write name + ':' + decimal digits.
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(fullName))
 	_, _ = h.Write([]byte{':'})
@@ -1095,7 +1099,7 @@ func computeGlyphMaskFontID(source *text.FontSource) uint64 {
 	return h.Sum64()
 }
 
-// fontID returns computeGlyphMaskFontID with per-engine pointer cache (opt26).
+// fontID returns computeGlyphMaskFontID with per-engine pointer cache.
 func (e *GlyphMaskEngine) fontID(source *text.FontSource) uint64 {
 	if source == nil {
 		return 0

@@ -1,6 +1,14 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Auto-generated from skrifa golden data. DO NOT EDIT.
-// Source: skrifa hint/instance.rs with SKRIFA_DUMP_GOLDEN=1
-// Font: tthint_subset.ttf, GID 1 (glyph A), target=smooth, backward_compat=true
 package text
 
 // skrifa26Dot6GID1at12ppem contains the 26.6 fixed-point hinted coordinates

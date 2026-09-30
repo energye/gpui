@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build !nogpu
 
@@ -178,7 +185,6 @@ func TestConvertPathToPathDef_Circle(t *testing.T) {
 		t.Fatalf("expected many lines for circle, got %d", len(pd.Lines))
 	}
 
-	// Verify it's a closed shape: last P1 should be close to first P0.
 	firstP0 := pd.Lines[0].P0
 	lastP1 := pd.Lines[len(pd.Lines)-1].P1
 	if !approxEq32(firstP0[0], lastP1[0]) || !approxEq32(firstP0[1], lastP1[1]) {

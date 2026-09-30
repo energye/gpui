@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -63,8 +73,6 @@ func (fr *FineRasterizer) FillRule() scene.FillStyle {
 // non-zero backdrop winding but no segment entries. These are the interior
 // tiles of filled shapes (e.g., the middle of a wide rectangle).
 //
-// Reference: Vello backdrop.wgsl prefix sum + fine.wgsl backdrop fill.
-//
 //nolint:gocognit // Complexity inherent to tile iteration + backdrop-only emission
 func (fr *FineRasterizer) Rasterize(
 	coarse *CoarseRasterizer,
@@ -101,7 +109,7 @@ func (fr *FineRasterizer) Rasterize(
 	// windingDelta tracks net integer winding from processed segments on the
 	// current row. When jumping to a non-adjacent tile on the same row, we
 	// propagate this delta into accumulatedWinding so that sub-pixel area
-	// contributions are not lost. Matches Rust Vello strip.rs:259-263.
+	// contributions are not lost.
 	var windingDelta int32
 
 	for i, entry := range entries {
@@ -125,9 +133,6 @@ func (fr *FineRasterizer) Rasterize(
 
 			// When jumping to a non-adjacent tile on the same row,
 			// propagate windingDelta into accumulatedWinding.
-			// Rust Vello strip.rs:263: accumulated_winding = f32x4::splat(s, winding_delta as f32)
-			// The backdrop provides coarse integer winding; windingDelta adds the
-			// net contribution from segments processed in previous tiles on this row.
 			if windingDelta != 0 {
 				wdF := float32(windingDelta)
 				for y := 0; y < TileSize; y++ {
@@ -316,7 +321,7 @@ func (fr *FineRasterizer) processSegment(
 
 			// Calculate Y coordinates where line intersects pixel left and right edges
 			// Using: y = lineTopY + (x - lineTopX) * ySlope
-			// and:   x = lineTopX + (y - lineTopY) * xSlope
+			// and: x = lineTopX + (y - lineTopY) * xSlope
 			linePxLeftY := lineTopY + (pxLeftX-lineTopX)*ySlope
 			linePxRightY := lineTopY + (pxRightX-lineTopX)*ySlope
 
@@ -842,8 +847,6 @@ func (sr *StripRenderer) RenderTiles(
 			// When jumping to a non-adjacent tile on the same row, propagate
 			// windingDelta into accumulatedWinding so that sub-pixel area
 			// contributions from prior tiles are not lost.
-			// Matches Rust Vello strip.rs:259-263:
-			//   accumulated_winding = f32x4::splat(s, winding_delta as f32)
 			if !prevLocation && windingDelta != 0 {
 				wdF := float32(windingDelta)
 				for y := 0; y < TileSize; y++ {

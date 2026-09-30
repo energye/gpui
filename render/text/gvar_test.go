@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -335,7 +345,6 @@ func TestApplyScalar(t *testing.T) {
 
 func TestIupInterpolate_Shift(t *testing.T) {
 	// Single delta point in contour -> shift all points.
-	// From skrifa test (deltas.rs:323-335).
 	outlinePoints := [][2]int32{{245, 630}, {260, 700}, {305, 680}}
 	contourEnds := []uint16{2}
 	totalPoints := 3
@@ -368,7 +377,6 @@ func TestIupInterpolate_Shift(t *testing.T) {
 
 func TestIupInterpolate_TwoRefPoints(t *testing.T) {
 	// Two reference points with interpolation between them.
-	// From skrifa test (deltas.rs:339-353) adjusted for integer math.
 	outlinePoints := [][2]int32{{245, 630}, {260, 700}, {305, 680}}
 	contourEnds := []uint16{2}
 	totalPoints := 3
@@ -534,11 +542,6 @@ func TestGvarVariationDeltas_DefaultCoords(t *testing.T) {
 
 func TestGvarVariationDeltas_PhantomPoints(t *testing.T) {
 	// Skrifa golden data for VazirmatnVar glyph A phantom point deltas.
-	// From gvar.rs test phantom_point_deltas (lines 493-530):
-	//   wght=+1.0: [(0,0), (59,0), (0,9), (0,0)]
-	//   wght=-1.0: [(0,0), (-113,0), (0,-21), (0,0)]
-	//   wght=+0.5: [(0,0), (29.5,0), (0,4.5), (0,0)]
-	//   wght=-0.5: [(0,0), (-56.5,0), (0,-10.5), (0,0)]
 	data, err := os.ReadFile("testdata/vazirmatn_var_trimmed.ttf")
 	if err != nil {
 		t.Fatalf("failed to read font: %v", err)
@@ -1107,8 +1110,6 @@ func TestGvar_DiagnosticDump(t *testing.T) {
 // TestGolden_NormalizeCoords_MultiAxis validates that normalizeCoords always
 // returns a coords array whose length equals the number of fvar axes, even
 // when only a subset of axes is specified in the variations.
-//
-// Golden values derived from skrifa variation.rs:location_to_slice pattern:
 //
 //	let mut location = vec![NormalizedCoord::default(); axes.len()];
 //	axes.location_to_slice([("wght", 250.0)], &mut location);

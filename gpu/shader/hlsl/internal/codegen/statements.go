@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Package hlsl implements HLSL statement generation for all IR statement types.
 // Statement functions are called via writeBlock from function body and entry point writers.
@@ -13,12 +20,11 @@ import (
 )
 
 // =============================================================================
-// Expression Baking Analysis (matches Rust naga's update_expressions_to_bake)
+// Expression Baking Analysis
 // =============================================================================
 
 // updateExpressionsToBake analyzes a function and determines which expressions
 // need to be baked (assigned to temporary variables) vs inlined.
-// Matches Rust naga's logic based on bake_ref_count and actual reference counts.
 func (w *Writer) updateExpressionsToBake(fn *ir.Function) {
 	w.needBakeExpressions = make(map[ir.ExpressionHandle]struct{})
 
@@ -130,7 +136,7 @@ func (w *Writer) updateExpressionsToBake(fn *ir.Function) {
 		}
 	}
 
-	// Additional force-bake rules (matches Rust's update_expressions_to_bake):
+	// Additional force-bake rules:
 	// - Derivative Width+Coarse/Fine: force bake the inner expr
 	// - Pack/Unpack/Dot4 args: force bake because they are emitted multiple times in polyfills
 	// - CountLeadingZeros on sint: force bake
@@ -224,7 +230,6 @@ func (w *Writer) countStmtRefs(block ir.Block, count func(ir.ExpressionHandle)) 
 }
 
 // bakeRefCount returns the minimum reference count needed for baking.
-// Matches Rust naga's Expression::bake_ref_count.
 func bakeRefCount(kind ir.ExpressionKind) int {
 	switch kind.(type) {
 	case ir.ExprAccess, ir.ExprAccessIndex:
@@ -322,7 +327,6 @@ func (w *Writer) writeEmitStatement(s ir.StmtEmit) error {
 }
 
 // writeEmittedExpression writes an emitted expression as a variable declaration.
-// Matches Rust naga: only bake if it's a named expression or in needBakeExpressions.
 // Pointer and variable reference expressions are never baked.
 func (w *Writer) writeEmittedExpression(handle ir.ExpressionHandle) error {
 	// Check if this expression has a name already (from a previous bake)
@@ -330,7 +334,7 @@ func (w *Writer) writeEmittedExpression(handle ir.ExpressionHandle) error {
 		return nil
 	}
 
-	// Don't bake pointer expressions (matches Rust naga)
+	// Don't bake pointer expressions
 	if w.isPointerExpression(handle) {
 		return nil
 	}
@@ -356,9 +360,7 @@ func (w *Writer) writeEmittedExpression(handle ir.ExpressionHandle) error {
 		return nil // inline this expression
 	}
 
-	// Get expression type. If not resolved in ExpressionTypes, try resolving
-	// from the expression shape (Splat, Compose, etc.) — matches Rust naga which
-	// always has types resolved for emitted expressions.
+	// Get expression type.
 	exprType := w.getExpressionType(handle)
 	if exprType == nil {
 		exprType = w.resolveExpressionTypeFallback(handle)
@@ -449,7 +451,6 @@ func (w *Writer) resolveExpressionTypeFallback(handle ir.ExpressionHandle) *ir.T
 
 // isPointerExpression returns true if the expression has a pointer type.
 // Pointer expressions are never baked — they are address-space references.
-// Matches Rust naga's ptr_class check in the Emit handler.
 func (w *Writer) isPointerExpression(handle ir.ExpressionHandle) bool {
 	if w.currentFunction == nil {
 		return false
@@ -537,14 +538,9 @@ func (w *Writer) writeIfStatement(s ir.StmtIf) error {
 }
 
 // writeSwitchStatement writes a switch statement.
-// Matches Rust naga: `switch(expr) { case N: { body } }`
-// - No space between `switch` and `(`
-// - Each non-empty case body is wrapped in `{ }`
-// - Uses continueCtx to forward continue statements inside switches within loops.
 func (w *Writer) writeSwitchStatement(s ir.StmtSwitch) error {
 	// Check if there is only one body: all cases except the last are empty fall-throughs.
 	// FXC doesn't handle these correctly, so emit do {} while(false) instead.
-	// Matches Rust naga's one_body optimization.
 	oneBody := true
 	if len(s.Cases) > 1 {
 		for i := 0; i < len(s.Cases)-1; i++ {
@@ -616,7 +612,7 @@ func (w *Writer) writeSwitchStatement(s ir.StmtSwitch) error {
 }
 
 // blockEndsWithTerminator returns true if the block's last statement is a
-// terminator (Break, Continue, Return, Kill). Matches Rust naga's is_terminator().
+// terminator (Break, Continue, Return, Kill).
 func blockEndsWithTerminator(block ir.Block) bool {
 	if len(block) == 0 {
 		return false
@@ -629,7 +625,6 @@ func blockEndsWithTerminator(block ir.Block) bool {
 }
 
 // writeSwitchCase writes a single switch case.
-// Matches Rust naga: each non-empty case body is wrapped in `{ }` braces.
 // Fall-through cases with empty bodies don't get braces.
 func (w *Writer) writeSwitchCase(c *ir.SwitchCase) error {
 	// Write case label at current indent + 1
@@ -649,7 +644,7 @@ func (w *Writer) writeSwitchCase(c *ir.SwitchCase) error {
 		return fmt.Errorf("unsupported switch value type: %T", c.Value)
 	}
 
-	// Determine if we need block braces (Rust naga: non-empty OR non-fallthrough gets braces)
+	// Determine if we need block braces
 	writeBlockBraces := !(c.FallThrough && len(c.Body) == 0)
 	if writeBlockBraces {
 		w.Out.WriteString(" {\n")
@@ -681,11 +676,10 @@ func (w *Writer) writeSwitchCase(c *ir.SwitchCase) error {
 }
 
 // writeLoopStatement writes a loop statement.
-// Naga loops are while(true) with explicit break conditions.
 //
-// Architecture (matches Rust naga writer.rs:2323-2368):
+// Architecture:
 //   - loop_init gate: ALWAYS when continuing block exists (independent of ForceLoopBounding)
-//   - uint2 counter:  ONLY when ForceLoopBounding=true
+//   - uint2 counter: ONLY when ForceLoopBounding=true
 //   - continuing at top of loop body, guarded by if (!loop_init): ALWAYS when continuing exists
 func (w *Writer) writeLoopStatement(s ir.StmtLoop) error {
 	hasContinuing := len(s.Continuing) > 0 || s.BreakIf != nil
@@ -789,7 +783,6 @@ func (w *Writer) writeContinueStatement() error {
 // =============================================================================
 
 // writeReturnStatement writes a return statement.
-// For EP functions returning structs with output struct conversion, matches Rust naga pattern:
 //
 //	const StructType var = expr;
 //	const OutputType var_1 = { var.member1, var.member2, ... };
@@ -800,8 +793,6 @@ func (w *Writer) writeReturnStatement(s ir.StmtReturn) error {
 		return nil
 	}
 
-	// Check if return value is a struct type - needs special handling
-	// Rust naga always wraps struct returns in a const variable
 	returnType := w.getExpressionType(*s.Value)
 	if returnType == nil {
 		returnType = w.inferExpressionType(*s.Value)
@@ -908,7 +899,6 @@ func (w *Writer) writeBarrierStatement(s ir.StmtBarrier) error {
 	hasTexture := s.Flags&ir.BarrierTexture != 0
 	hasSubgroup := s.Flags&ir.BarrierSubGroup != 0
 
-	// Matches Rust naga write_control_barrier: emit each barrier type independently.
 	// SubGroup barrier is a no-op in HLSL (does not exist in DirectX).
 	if hasStorage {
 		w.WriteLine("DeviceMemoryBarrierWithGroupSync();")
@@ -916,7 +906,7 @@ func (w *Writer) writeBarrierStatement(s ir.StmtBarrier) error {
 	if hasWorkgroup {
 		w.WriteLine("GroupMemoryBarrierWithGroupSync();")
 	}
-	// SUB_GROUP: no-op in HLSL (matches Rust naga)
+	// SUB_GROUP: no-op in HLSL
 	if hasTexture {
 		w.WriteLine("DeviceMemoryBarrierWithGroupSync();")
 	}
@@ -959,7 +949,6 @@ func (w *Writer) writeStoreStatement(s ir.StmtStore) error {
 	w.Out.WriteString(" = ")
 
 	// Cast RHS when storing to a struct member that is matCx2 or array-of-matCx2.
-	// Matches Rust naga: get_inner_matrix_of_struct_array_member wrapping.
 	castClose := w.writeMatCx2StoreCastIfNeeded(s.Pointer)
 
 	if err := w.writeExpression(s.Value); err != nil {
@@ -973,7 +962,6 @@ func (w *Writer) writeStoreStatement(s ir.StmtStore) error {
 // writeMatCx2StoreCastIfNeeded checks if the store target is a struct member that
 // is matCx2 or array-of-matCx2, and if so writes a cast prefix.
 // Returns the closing string to write after the value (e.g. ")").
-// Matches Rust naga: wraps RHS in (__matCx2) or (__matCx2[N]) cast.
 func (w *Writer) writeMatCx2StoreCastIfNeeded(pointer ir.ExpressionHandle) string {
 	if w.currentFunction == nil {
 		return ""
@@ -1014,7 +1002,6 @@ func (w *Writer) writeMatCx2StoreCastIfNeeded(pointer ir.ExpressionHandle) strin
 
 // getInnerMatrixOfStructArrayMember walks an access chain to find if the target
 // is a struct member that is matCx2 or array-of-matCx2.
-// Matches Rust naga get_inner_matrix_of_struct_array_member.
 func (w *Writer) getInnerMatrixOfStructArrayMember(handle ir.ExpressionHandle) *matrixTypeInfo {
 	if w.currentFunction == nil || int(handle) >= len(w.currentFunction.Expressions) {
 		return nil
@@ -1282,7 +1269,6 @@ func (w *Writer) writeMatCx2StoreIfNeeded(s ir.StmtStore) (bool, error) {
 		fmt.Fprintf(&w.Out, ".%s_%d", fieldName, vectorIdx.static_)
 		if scalarIdx != nil {
 			if scalarIdx.isStatic {
-				// Rust naga uses [N] form for scalar access on decomposed matCx2 columns
 				fmt.Fprintf(&w.Out, "[%d]", scalarIdx.static_)
 			} else {
 				w.Out.WriteByte('[')
@@ -1347,7 +1333,6 @@ func (w *Writer) writeMatCx2StoreIfNeeded(s ir.StmtStore) (bool, error) {
 // findMatCx2InAccessChain walks the store pointer access chain to find a matCx2 struct member.
 // Returns (matExprHandle, vectorIdx, scalarIdx) where matExprHandle is the expression handle
 // of the AccessIndex that points to the matCx2 member, or nil if not found.
-// Matches Rust naga's find_matrix_in_access_chain.
 func (w *Writer) findMatCx2InAccessChain(pointer ir.ExpressionHandle) (*ir.ExpressionHandle, *matCx2StoreIndex, *matCx2StoreIndex) {
 	cur := pointer
 	var vectorIdx, scalarIdx *matCx2StoreIndex
@@ -1548,7 +1533,6 @@ func (w *Writer) writeImageStoreStatement(s ir.StmtImageStore) error {
 }
 
 // writeImageAtomicStatement writes an atomic operation on a storage texture texel.
-// Matches Rust naga: InterlockedXxx(image[coord], value);
 func (w *Writer) writeImageAtomicStatement(s ir.StmtImageAtomic) error {
 	w.WriteIndent()
 
@@ -1561,8 +1545,6 @@ func (w *Writer) writeImageAtomicStatement(s ir.StmtImageAtomic) error {
 	}
 	w.Out.WriteByte('[')
 
-	// Write texture coordinates, merging array_index if present
-	// Matches Rust: write_texture_coordinates("int", coordinate, array_index, None, ...)
 	if s.ArrayIndex != nil {
 		// Need to compose coordinate with array index
 		numCoords := 1
@@ -1605,12 +1587,6 @@ func (w *Writer) writeImageAtomicStatement(s ir.StmtImageAtomic) error {
 // =============================================================================
 
 // writeAtomicStatement writes an atomic operation statement.
-// Matches Rust naga's Statement::Atomic handling:
-// - WorkGroup space: InterlockedXxx(pointer, ...)
-// - Storage space: buffer.InterlockedXxx[64](byte_offset, ...)
-// - Result declaration: type _eN; before the call
-// - Subtract: negate value argument
-// - CompareExchange: extra compare arg, .old_value, .exchanged follow-up
 func (w *Writer) writeAtomicStatement(s ir.StmtAtomic) error {
 	w.WriteIndent()
 
@@ -1623,7 +1599,7 @@ func (w *Writer) writeAtomicStatement(s ir.StmtAtomic) error {
 		compareExpr = xchg.Compare
 	}
 
-	// Declare result variable if needed (matches Rust: "type _eN; ")
+	// Declare result variable if needed
 	var resVarName string
 	if s.Result != nil {
 		resHandle := *s.Result
@@ -1701,7 +1677,7 @@ func (w *Writer) writeAtomicStatement(s ir.StmtAtomic) error {
 }
 
 // writeAtomicTail writes the remaining arguments of an atomic call after the first
-// argument (pointer or byte offset). Matches Rust naga's emit_hlsl_atomic_tail.
+// argument (pointer or byte offset).
 func (w *Writer) writeAtomicTail(fun ir.AtomicFunction, compareExpr *ir.ExpressionHandle, value ir.ExpressionHandle, resVarName string) {
 	if compareExpr != nil {
 		w.Out.WriteString(", ")
@@ -1724,7 +1700,6 @@ func (w *Writer) writeAtomicTail(fun ir.AtomicFunction, compareExpr *ir.Expressi
 }
 
 // atomicFunSuffix returns the HLSL suffix for an atomic function.
-// Matches Rust naga's AtomicFunction::to_hlsl_suffix.
 func atomicFunSuffix(fun ir.AtomicFunction) string {
 	switch f := fun.(type) {
 	case ir.AtomicAdd, ir.AtomicSubtract:
@@ -1836,7 +1811,6 @@ func (w *Writer) writeCallStatement(s ir.StmtCall) error {
 	}
 
 	// If there's a result, declare a typed local variable and assign it.
-	// Matches Rust naga: `const TYPE _eN[SIZE] = func();`
 	if s.Result != nil {
 		typeName := hlslTypeFloat // fallback
 		arraySuffix := ""
@@ -1869,7 +1843,6 @@ func (w *Writer) writeCallStatement(s ir.StmtCall) error {
 }
 
 // writeWorkGroupUniformLoadStatement writes a workgroup uniform load statement.
-// Matches Rust naga: barrier, typed named expression (type _eN = pointer;), barrier.
 func (w *Writer) writeWorkGroupUniformLoadStatement(s ir.StmtWorkGroupUniformLoad) error {
 	// First barrier
 	w.WriteLine("GroupMemoryBarrierWithGroupSync();")
@@ -1932,7 +1905,6 @@ func (w *Writer) writeRayQueryStatement(s ir.StmtRayQuery) error {
 }
 
 // writeRayQueryInitialize writes ray query initialization.
-// Matches Rust naga: rq.TraceRayInline(accel, desc.flags, desc.cull_mask, RayDescFromRayDesc_(desc))
 func (w *Writer) writeRayQueryInitialize(query ir.ExpressionHandle, f ir.RayQueryInitialize) error {
 	w.WriteIndent()
 	if err := w.writeExpression(query); err != nil {
@@ -1971,7 +1943,6 @@ func (w *Writer) writeRayQueryInitialize(query ir.ExpressionHandle, f ir.RayQuer
 }
 
 // writeRayQueryProceed writes ray query proceed.
-// Matches Rust naga: `const bool _eN = rq.Proceed();`
 func (w *Writer) writeRayQueryProceed(query ir.ExpressionHandle, f ir.RayQueryProceed) error {
 	w.WriteIndent()
 	name := w.nameExpression(f.Result)
@@ -2033,7 +2004,6 @@ func (w *Writer) writeFunctionBody(fn *ir.Function) error {
 		// HLSL arrays: type name[size], not type[size] name
 		localType, arraySuffix := w.getTypeNameWithArraySuffix(local.Type)
 
-		// Rust naga always initializes locals: with init expression or (Type)0.
 		// Exception: RayQuery variables are NOT zero-initialized (no init in HLSL).
 		w.WriteIndent()
 		isRayQuery := strings.Contains(localType, "RayQuery")
@@ -2050,7 +2020,6 @@ func (w *Writer) writeFunctionBody(fn *ir.Function) error {
 					return fmt.Errorf("local var init: %w", err)
 				}
 			} else {
-				// Zero initialize: (Type)0 matching Rust naga's write_default_init
 				fmt.Fprintf(&w.Out, "(%s%s)0", localType, arraySuffix)
 			}
 			w.Out.WriteString(";\n")
@@ -2058,7 +2027,6 @@ func (w *Writer) writeFunctionBody(fn *ir.Function) error {
 	}
 
 	if len(fn.LocalVars) > 0 {
-		// Rust naga writes just a newline (no indentation) after locals
 		w.Out.WriteByte('\n')
 	}
 
@@ -2067,7 +2035,6 @@ func (w *Writer) writeFunctionBody(fn *ir.Function) error {
 }
 
 // writeSubgroupBallotStatement writes a SubgroupBallot statement.
-// Matches Rust naga: `const uint4 _eN = WaveActiveBallot(predicate);`
 func (w *Writer) writeSubgroupBallotStatement(s ir.StmtSubgroupBallot) error {
 	w.WriteIndent()
 	name := w.nameExpression(s.Result)
@@ -2084,7 +2051,6 @@ func (w *Writer) writeSubgroupBallotStatement(s ir.StmtSubgroupBallot) error {
 }
 
 // writeSubgroupCollectiveOperationStatement writes a SubgroupCollectiveOperation statement.
-// Matches Rust naga: `const TYPE _eN = WaveActiveOp(argument);`
 func (w *Writer) writeSubgroupCollectiveOperationStatement(s ir.StmtSubgroupCollectiveOperation) error {
 	w.WriteIndent()
 	name := w.nameExpression(s.Result)
@@ -2142,7 +2108,6 @@ func (w *Writer) writeSubgroupCollectiveOperationStatement(s ir.StmtSubgroupColl
 }
 
 // writeSubgroupGatherStatement writes a SubgroupGather statement.
-// Matches Rust naga: `const TYPE _eN = WaveReadLaneAt/First/QuadRead...(argument, index);`
 func (w *Writer) writeSubgroupGatherStatement(s ir.StmtSubgroupGather) error {
 	w.WriteIndent()
 	name := w.nameExpression(s.Result)

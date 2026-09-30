@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering
 
 import (
@@ -5,9 +15,6 @@ import (
 	"testing"
 )
 
-// TestEllipsizePrefixMatches_M5 locks M5-5: the prefix-sum O(log n) ellipsis
-// locator returns byte-identical results to the binary-search implementation
-// on short, long, CJK and already-ellipsized inputs.
 func TestEllipsizePrefixMatches_M5(t *testing.T) {
 	mk := func() *RenderText {
 		rt := NewRenderText("")
@@ -55,7 +62,6 @@ func trimEllipsis(s string) []rune {
 }
 
 // BenchmarkEllipsizePrefix reports ellipsis-fit cost at two magnitudes
-// (M5-5 complexity evidence, run alone: timing-sensitive).
 func BenchmarkEllipsizePrefix(b *testing.B) {
 	for _, n := range []int{1000, 100000} {
 		s := strings.Repeat("a世", n/2)

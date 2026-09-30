@@ -1,13 +1,23 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 // VR7-T ffmpeg parity (convert time only; D/M/A/P/G untouched).
 // Baseline: testdata/vr7t_ffmpeg.json vr7_t section (ffmpeg 4.4.2, same machine).
 // Peer: ffmpeg -hide_banner -benchmark -i <clip> -pix_fmt rgba -f null -
-// utime/frame (libswscale convert slice, see §11.6 S1) against Player
+// utime/frame against Player
 // Stats.DecodeMsAvg (streaming path convert-only wall clock).
 // Pass line: ours avg <= ffmpeg same-clip rgba utime/frame. Miss goes to
 // S1, never by lowering the budget. Only DecodeMsAvg is asserted here;
-// p95 is logged for info (jittery, judged at S1 time).
+// p95 is logged for info.
 // Clip is tracked in git: absent files FAIL, not skip.
 
 import (

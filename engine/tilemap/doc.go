@@ -1,17 +1,27 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package tilemap freezes the CPU-side tile math every 2.5D map feeds.
 //
-// Frozen 2026-09-15 (capability 7.1, P2, S05/W1): Orientation, LayerKind,
+// Frozen 2026-09-15: Orientation, LayerKind,
 // Tileset, Layer, Object, Tilemap, NewTilemap, AddLayer, AddObject,
 // LayerIndex, At, CellToWorld, WorldToCell, CellBounds, ObjectsIn,
 // IsSolidAt, NavCostAt, OccludedAt, AutoMaskAt, AutoVariant4, ParseTMX,
 // Iso, NewIso, TileToWorld, WorldToTile, TileCenter, DiamondContains.
-// Frozen 2026-09-15 (capability 7.2, P2, S20/W2): Chunk, ChunkID,
+// Frozen 2026-09-15: Chunk, ChunkID,
 // NewChunker, MaxChunks, ChunkOf, ChunkBounds, Needed, Load, Unload,
 // Update, Visible, Loaded, IsLoaded, Reset, LoadedCount, ChunkCols,
 // ChunkRows. The caller feeds camera VisibleWorldRect in as a core.Rect
 // and draws the returned ids with the existing render draws.
 // Additive changes only.
-// Frozen 2026-09-15 (capability 7.3, P2, S26/W3): Level, LevelNear,
+// Frozen 2026-09-15: Level, LevelNear,
 // LevelFar, LOD, NewLOD, ChunkDist. The caller feeds the camera focus
 // (VisibleWorldRect center as core.Vec2) and draws each chunk at its
 // returned level. The LOD rule file format stays unfrozen (后冻): no

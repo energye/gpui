@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package webgpu
@@ -10,7 +20,7 @@ import (
 )
 
 // halSwapchainAdapter exposes *Swapchain as hal.Swapchain so render talks
-// hal only. Default Rust path delegates unchanged (zero behavior delta).
+// hal only.
 type halSwapchainAdapter struct {
 	sc *Swapchain
 }

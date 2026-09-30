@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !(js && wasm)
 
 package gles
@@ -9,8 +19,6 @@ import (
 	"strings"
 )
 
-// Vendor pinning for P2-0 (same policy knob as WebGPU: GPUI_POWER).
-//
 // EGL vendor arbitration (libglvnd) picks whichever ICD answers first for
 // an X11 display. On hybrid boxes that lottery can land on the software
 // rasterizer (llvmpipe) while real GPUs sit idle — the window then renders
@@ -19,9 +27,9 @@ import (
 // JSON files; only listed vendors are used. Same env-before-first-EGL-call
 // shape as prime_linux.go (DRI_PRIME); explicit user values always win.
 //
-// high     → NVIDIA ICD first (discrete-first, WebGPU PolicyHigh)
-// low      → Mesa ICD first (integrated-first, WebGPU PolicyLow)
-// unset    → untouched (loader default; single-vendor machines unaffected)
+// high → NVIDIA ICD first
+// low → Mesa ICD first
+// unset → untouched
 //
 // ICD files are discovered by scanning the vendor dir and matching
 // library_path (distro file names differ: 10_nvidia.json here, elsewhere
@@ -30,7 +38,6 @@ const glvndVendorDir = "/usr/share/glvnd/egl_vendor.d"
 
 // vendorPinForPower maps policy to a __EGL_VENDOR_LIBRARY_FILENAMES value.
 // Empty return = leave the env alone. dir is a parameter so tests can
-// point at a fixture tree; production passes glvndVendorDir.
 func vendorPinForPower(power, eglVendorEnv, dir string) (string, bool) {
 	if strings.TrimSpace(eglVendorEnv) != "" {
 		return "", false
@@ -57,8 +64,6 @@ type glvndICD struct {
 	} `json:"ICD"`
 }
 
-// findVendorJSON returns the ICD file whose library_path mentions want
-// (case-insensitive: libEGL_nvidia.so.0, libEGL_mesa.so.0, ...).
 func findVendorJSON(dir, want string) string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

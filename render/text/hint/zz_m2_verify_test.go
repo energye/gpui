@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package hint
 
 import (
@@ -9,17 +19,11 @@ import (
 )
 
 // rd 记录单字 rune 与其 charstring 内 hintmask/cntrmask 出现次数。
-// mask == 0 → 单区（M2 验证线）；mask > 0 → 多区（M3 hintmask 分区）。
 type rd struct {
 	r    rune
 	mask int
 }
 
-// 临时 M2 扩展验证：多字号 × 常用字 light 轮廓逐点 26.6 vs ftexp。
-//
-// 拆分逻辑（docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5.1 M2 验证线）：
-//   - hintmaskCount == 0：单区字（M2 验证线，必须 100% 归零）
-//   - hintmaskCount >  0：多 mask 字（M3 hintmask 分区任务，本测试 t.Skip）
 func TestM2VerifyGrid(t *testing.T) {
 	f, cd := m2Font(t)
 	upem := f.UnitsPerEm()
@@ -82,7 +86,6 @@ func TestM2VerifyGrid(t *testing.T) {
 		t.Logf("单区字 %d × %d 字号全部逐点一致", len(single), len(pixes))
 	}
 
-	// 多 mask 字：M3 分区验证（明/晴 mask=2 等）
 	totalBad2 := 0
 	badRunes2 := map[rune][]string{}
 	for _, px := range pixes {
@@ -156,7 +159,6 @@ func TestM2VerifyEdge(t *testing.T) {
 	}
 }
 
-// TestM2VStem：X 轴 vstem 直通验证（应与 FT 一致，M2 范围 X=直通）。
 func TestM2VStem(t *testing.T) {
 	f, cd := m2Font(t)
 	upem := f.UnitsPerEm()

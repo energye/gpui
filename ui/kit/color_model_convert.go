@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit
 
 import (
@@ -5,9 +15,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-// HSB→RGB and RGB→HSB follow docs/antd/color-picker.md §6.4, matched
-// to @rc-component/color-picker within ±1 per channel.
 
 // ColorModelHSBToRGB converts H(0..360) S/B/A(0..1) to 0..255 ints.
 func ColorModelHSBToRGB(h, s, b float64) (r, g, bl int) {

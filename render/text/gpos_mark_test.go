@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import "testing"
@@ -128,8 +138,8 @@ func TestGPOS_MarkToLig_Anchor(t *testing.T) {
 	//   [12] anchor1 (120,70)
 	ligAttach := []byte{
 		0, 2, // componentCount
-		0, 6, // c0 anchor @6
-		0, 12, // c1 anchor @12
+		0, 6,
+		0, 12,
 		0, 1, 0, 40, 0, 70, // anchor0
 		0, 1, 0, 120, 0, 70, // anchor1
 	}

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -10,8 +20,6 @@ import (
 )
 
 // testSampleCount probes the device for 4x MSAA support, falling back to 1x.
-// Mirrors the production resolveSampleCount (Skia Graphite pattern) so tests
-// work on software backends that reject SampleCount=4.
 func testSampleCount(t *testing.T, device hal.Device) uint32 {
 	t.Helper()
 	return resolveSampleCount(device)

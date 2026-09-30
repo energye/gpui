@@ -1,11 +1,17 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import "testing"
 
-// TestLoadMultiFace_WarmsHbFonts_M38 locks M3.8: loading system faces must
-// pre-build the HarfBuzz font objects, so the one-time parse cost is paid at
-// load instead of inside the first timed layout
-// (TestTextLayout_LongBuild_RealFace cold-build overrun).
 func TestLoadMultiFace_WarmsHbFonts_M38(t *testing.T) {
 	hs, ok := GetShaper().(*HbShaper)
 	if !ok {

@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package surface
 
@@ -12,7 +19,7 @@ import (
 // GPUSurface is a GPU-accelerated surface wrapper.
 //
 // This is a minimal stub implementation that wraps an external GPU backend.
-// The actual GPU implementation is provided by the backend (e.g., gogpu/wgpu).
+// The actual GPU implementation is provided by the backend.
 //
 // To use GPUSurface, you must provide a GPUBackend implementation.
 // This allows gg to remain independent of specific GPU libraries.
@@ -22,7 +29,7 @@ import (
 //	// In gogpu package:
 //	type gogpuBackend struct {
 //	    device *wgpu.Device
-//	    queue  *wgpu.Queue
+//	    queue *wgpu.Queue
 //	    // ...
 //	}
 //

@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build windows && !(js && wasm)
 
@@ -126,7 +133,6 @@ func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error) 
 }
 
 // GetSurfaceCapabilities returns surface capabilities.
-// Matches webgpu Adapter.GetSurfaceCapabilities name.
 func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities {
 	return &hal.SurfaceCapabilities{
 		Formats: []gputypes.TextureFormat{
@@ -147,7 +153,6 @@ func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities
 }
 
 // Release releases the adapter.
-// Matches webgpu Adapter.Release (7b Device.Destroy→Release precedent).
 func (a *Adapter) Release() {
 	// Adapter doesn't own the GL context
 }

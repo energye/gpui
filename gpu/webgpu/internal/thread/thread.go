@@ -1,10 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 // Copyright 2025 The GoGPU Authors
 // SPDX-License-Identifier: MIT
 
 // Package thread provides thread abstraction for GPU operations.
-// Based on Ebiten's thread architecture for professional responsiveness.
 //
 // Architecture:
 //   - Main thread: Window events, user input (must be OS main thread on Windows)

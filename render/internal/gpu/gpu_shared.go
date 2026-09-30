@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -19,7 +29,7 @@ import (
 
 // gpuRenderStrategy controls which GPU rendering tiers are available based on
 // adapter capabilities. This follows the Skia Graphite PathRendererStrategy
-// pattern (RendererProvider.cpp:39-97) where the rendering approach is
+// pattern where the rendering approach is
 // auto-selected at init time based on adapter type and MSAA support:
 //
 //   - strategyFull: all tiers (SDF, stencil, MSDF text, compute) with MSAA
@@ -31,7 +41,6 @@ type gpuRenderStrategy int
 
 const (
 	// strategyFull — all shapes via GPU with MSAA (hardware adapter, 4x MSAA).
-	// Matches Skia Graphite kComputeMSAA8 / kTessellation path.
 	strategyFull gpuRenderStrategy = iota
 
 	// strategyNoMSAA — GPU shapes without MSAA (hardware adapter, 1x sample).
@@ -41,9 +50,8 @@ const (
 	strategyNoMSAA
 
 	// strategyRasterAtlas — CPU shapes, GPU textures only (software adapter).
-	// Matches Skia Graphite kRasterAtlas: shapes route to CPU rasterizer,
 	// GPU is used only for texture upload and compositing. Prevents SDF
-	// pipeline hangs on software/CPU adapters (BUG-SW-002).
+	// pipeline hangs on software/CPU adapters.
 	strategyRasterAtlas
 )
 
@@ -101,7 +109,6 @@ type GPUShared struct {
 	// Compute pipeline.
 	velloAccel *VelloAccelerator
 
-	// S4.3/S6.6 geometry caches (shared across contexts).
 	pathGeomCache   *PathGeometryCache
 	strokeGeomCache *StrokeGeometryCache
 	dashGeomCache   *DashGeometryCache
@@ -137,17 +144,17 @@ type GPUShared struct {
 	sampleCount uint32
 
 	// msaaDowngraded latches when texture-allocation OOM forces the shared
-	// pipeline set to 1x (Skia/Flutter resource-pressure semantics).
+	// pipeline set to 1x.
 	msaaDowngraded bool
 
 	deviceReady    bool              // device available for texture/buffer ops (true on all strategies incl. rasterAtlas)
 	gpuReady       bool              // shape/text rendering pipelines initialized (false on rasterAtlas)
 	softwareMode   bool              // true when software/CPU adapter detected (informational, does not disable GPU)
-	strategy       gpuRenderStrategy // auto-detected rendering strategy (Skia PathRendererStrategy pattern)
+	strategy       gpuRenderStrategy // auto-detected rendering strategy
 	externalDevice bool              // true when using shared device (don't destroy on Close)
 
 	// deviceGen increments on every logical device install (SetDeviceProvider / initGPU).
-	// Per-context GPURenderSession must rebuild when gen changes (Skia abandon+recreate).
+	// Per-context GPURenderSession must rebuild when gen changes.
 	deviceGen uint64
 
 	// liveCtxs: per-window GPURenderContexts that hold session MSAA/depth textures.
@@ -248,7 +255,7 @@ func (s *GPUShared) SetForceSDF(force bool) {
 
 // SetDeviceProvider switches to a shared GPU device from an external provider
 // (e.g., gogpu). The provider's Device() must return a gpucontext handle
-// wrapping a hal.Device (see webgpu.DeviceToHandle).
+// wrapping a hal.Device.
 //
 // Software adapters (llvmpipe, SwiftShader, WARP) are treated as full GPU
 // implementations per enterprise pattern (ADR-046): Skia Graphite runs CI on
@@ -306,10 +313,10 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 
 	// MSAA sample count for the window/external device comes straight from
 	// render.MSAASampleCount() — the code-level config or the engine default
-	// of 1x (analytic fringe coverage, Skia kCoverage). No extra branching.
+	// of 1x. No extra branching.
 	s.sampleCount = resolveSampleCount(s.device)
 
-	// Auto-detect rendering strategy (Skia PathRendererStrategy pattern).
+	// Auto-detect rendering strategy.
 	s.strategy = s.detectStrategy()
 
 	s.deviceReady = true
@@ -346,7 +353,7 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 
 // PurgeAllSurfaceResources frees surface-bound GPU memory on every live
 // context (depth/MSAA/offscreen pools) without abandoning the device.
-// Call when the window is unpresentable (Skia freeGpuResources pattern).
+// Call when the window is unpresentable.
 func (s *GPUShared) PurgeAllSurfaceResources() {
 	if s == nil {
 		return
@@ -408,7 +415,7 @@ func (s *GPUShared) AbandonExternalDevice() {
 // CanRenderDirect reports whether the GPU is initialized and can render
 // directly to a surface. Returns false when the rendering strategy is
 // strategyRasterAtlas (software/CPU adapters) — shapes route to CPU
-// rasterizer instead (BUG-SW-002, Skia kRasterAtlas pattern).
+// rasterizer instead.
 func (s *GPUShared) CanRenderDirect() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -535,7 +542,6 @@ func (s *GPUShared) SampleCount() uint32 {
 
 // RequestMSAADowngrade drops the shared MSAA sample count to 1 after a
 // device-memory OOM (e.g., multi-window stolen-memory budget on iGPUs).
-// Mirrors Skia/Flutter resource-pressure semantics: degrade quality instead
 // of failing frames. The 4x pipelines are destroyed so ensurePipelines
 // rebuilds them at 1x, and deviceGen bumps so every render context rebuilds
 // its session at the lower sample count on the next flush. Idempotent; the
@@ -570,7 +576,6 @@ func (s *GPUShared) RequestMSAADowngrade() {
 // sampleCount are resolved.
 //
 // This follows the Skia Graphite RendererProvider pattern
-// (RendererProvider.cpp:84-97):
 //
 //	prefer compute > tessellation > raster atlas
 //
@@ -578,7 +583,7 @@ func (s *GPUShared) RequestMSAADowngrade() {
 //
 //	softwareMode=false, MSAA=4x → strategyFull (all GPU tiers)
 //	softwareMode=false, MSAA=1x → strategyNoMSAA (GPU without MSAA)
-//	softwareMode=true            → strategyRasterAtlas (CPU shapes, GPU textures)
+//	softwareMode=true → strategyRasterAtlas (CPU shapes, GPU textures)
 func (s *GPUShared) detectStrategy() gpuRenderStrategy {
 	if s.softwareMode {
 		return strategyRasterAtlas
@@ -591,7 +596,7 @@ func (s *GPUShared) detectStrategy() gpuRenderStrategy {
 
 // resolveSampleCount returns the MSAA sample count for a GPU session:
 // render.MSAASampleCount() — the code-level config or the engine default of
-// 1x (analytic fringe coverage, Skia kCoverage). No device probing: the
+// 1x. No device probing: the
 // engine default is 1 sample per pixel; 4x is an explicit opt-in via
 // SetMSAASampleCount.
 func resolveSampleCount(_ hal.Device) uint32 {
@@ -614,7 +619,7 @@ func (s *GPUShared) ensureGPU() error {
 
 // ensurePipelines lazily creates shape rendering pipelines. Skipped on
 // rasterAtlas — SDF/stencil/convex pipelines hang on software SPIR-V
-// interpreter (BUG-SW-002). Must be called with s.mu held.
+// interpreter. Must be called with s.mu held.
 func (s *GPUShared) ensurePipelines() {
 	if s.strategy == strategyRasterAtlas {
 		return
@@ -725,10 +730,10 @@ func (s *GPUShared) initGPU() error {
 	s.queue = device.Queue()
 	s.deviceGen++
 
-	// Probe MSAA support (Skia Graphite pattern: try 4x, fallback to 1x).
+	// Probe MSAA support.
 	s.sampleCount = resolveSampleCount(s.device)
 
-	// Auto-detect rendering strategy (Skia PathRendererStrategy pattern).
+	// Auto-detect rendering strategy.
 	s.strategy = s.detectStrategy()
 
 	s.deviceReady = true
@@ -989,7 +994,7 @@ func (s *GPUShared) registerFilterGraphIfNeeded() {
 	gpuFilterGraphRegistered = true
 }
 
-// PathGeomCache returns the shared path tessellation cache (S4.3), creating if needed.
+// PathGeomCache returns the shared path tessellation cache, creating if needed.
 func (s *GPUShared) PathGeomCache() *PathGeometryCache {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -999,7 +1004,7 @@ func (s *GPUShared) PathGeomCache() *PathGeometryCache {
 	return s.pathGeomCache
 }
 
-// StrokeGeomCache returns the shared stroke expansion cache (S4.3).
+// StrokeGeomCache returns the shared stroke expansion cache.
 func (s *GPUShared) StrokeGeomCache() *StrokeGeometryCache {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1009,7 +1014,7 @@ func (s *GPUShared) StrokeGeomCache() *StrokeGeometryCache {
 	return s.strokeGeomCache
 }
 
-// DashGeomCache returns the shared dash geometry cache (S6.6).
+// DashGeomCache returns the shared dash geometry cache.
 func (s *GPUShared) DashGeomCache() *DashGeometryCache {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1019,7 +1024,7 @@ func (s *GPUShared) DashGeomCache() *DashGeometryCache {
 	return s.dashGeomCache
 }
 
-// ConvexPathCache returns the shared convex classification cache (S6.6).
+// ConvexPathCache returns the shared convex classification cache.
 func (s *GPUShared) ConvexPathCache() *ConvexPathCache {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1029,7 +1034,7 @@ func (s *GPUShared) ConvexPathCache() *ConvexPathCache {
 	return s.convexPathCache
 }
 
-// GeometryCacheStats aggregates path/stroke/dash/convex cache counters (S6.6).
+// GeometryCacheStats aggregates path/stroke/dash/convex cache counters.
 func (s *GPUShared) GeometryCacheStats() GeometryCacheStats {
 	if s == nil {
 		return GeometryCacheStats{}

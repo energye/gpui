@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rwgpu
 
 import (
@@ -27,7 +37,7 @@ type TextureDescriptor struct {
 type textureDescriptorWire struct {
 	NextInChain     uintptr
 	Label           StringView
-	Usage           uint64 // TextureUsage bitflags (uint64 in wgpu-native!)
+	Usage           uint64 // TextureUsage bitflags
 	Dimension       uint32 // TextureDimension (needs +1 shift)
 	Size            types.Extent3D
 	Format          uint32 // TextureFormat (converted via map)
@@ -63,7 +73,7 @@ type textureViewDescriptorWire struct {
 	ArrayLayerCount uint32
 	Aspect          TextureAspect
 	_pad            [4]byte
-	Usage           uint64 // TextureUsage bitflags (uint64 in wgpu-native!)
+	Usage           uint64 // TextureUsage bitflags
 }
 
 // CreateView creates a view into this texture.
@@ -265,7 +275,7 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 	var viewFormatCount uintptr
 	var viewFormatsPtr uintptr
 	if len(desc.ViewFormats) > 0 {
-		// Convert to uint32 slice (gputypes values equal wgpu-native values)
+		// Convert to uint32 slice
 		wireFormats := make([]uint32, len(desc.ViewFormats))
 		for i, f := range desc.ViewFormats {
 			wireFormats[i] = uint32(f)
@@ -357,7 +367,6 @@ type TexelCopyBufferInfo struct {
 }
 
 // ImageCopyTexture describes a texture subresource and origin for copy/write operations.
-// Matches gogpu/wgpu ImageCopyTexture.
 type ImageCopyTexture struct {
 	Texture  *Texture
 	MipLevel uint32
@@ -383,7 +392,6 @@ func (i *ImageCopyTexture) toWire() TexelCopyTextureInfo {
 }
 
 // ImageDataLayout describes the layout of image data in a buffer.
-// Matches gogpu/wgpu ImageDataLayout.
 type ImageDataLayout struct {
 	Offset       uint64
 	BytesPerRow  uint32
@@ -460,7 +468,6 @@ func (q *Queue) WriteTextureRaw(dest *TexelCopyTextureInfo, data []byte, layout 
 }
 
 // BufferTextureCopy defines a buffer-texture copy region.
-// Matches gogpu/wgpu BufferTextureCopy.
 type BufferTextureCopy struct {
 	// BufferLayout describes the memory layout of the buffer data.
 	BufferLayout ImageDataLayout
@@ -471,7 +478,6 @@ type BufferTextureCopy struct {
 }
 
 // TextureCopy describes a texture-to-texture copy region.
-// Matches gogpu/wgpu TextureCopy.
 type TextureCopy struct {
 	// Source describes the source texture subresource and origin.
 	Source ImageCopyTexture

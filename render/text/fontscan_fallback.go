@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -12,7 +22,6 @@ import (
 )
 
 // fontScanFallback resolves missing glyphs against the system font index
-// (M3: C-class fontscan integration).
 //
 // Policy:
 //   - Lazy: the system font scan happens on the first rune miss, not at startup.
@@ -29,9 +38,9 @@ import (
 type fontScanFallback struct {
 	mu         sync.Mutex
 	initOnce   sync.Once
-	fontMap    *fontscan.FontMap // nil if system scan failed
+	fontMap    *fontscan.FontMap    // nil if system scan failed
 	footprints []fontscan.Footprint // family lookup data (SystemFontForFamily)
-	pathCache  map[rune]string // rune → font file path ("" = not found)
+	pathCache  map[rune]string      // rune → font file path ("" = not found)
 	faceCache  map[fallbackKey]Face
 }
 
@@ -172,8 +181,7 @@ func ClearFontScanFallbackCache() {
 	globalFallback.faceCache = make(map[fallbackKey]Face, 64)
 }
 
-// ---------------------------------------------------------------------------
-// Family matching (M7: FontMgr-equivalent lookup).
+// Family matching.
 //
 // Reuses the same lazily-built system font index (fontscan.SystemFonts) as
 // the missing-glyph fallback, so family queries do not trigger a second

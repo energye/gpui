@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package backend
 
 import (
@@ -9,7 +19,7 @@ import (
 // EntryInterfaceOrder ranks an entry-point struct member's binding for
 // graphics-pipeline output-signature register assignment.
 //
-// Convention (matches DXC HLSL frontend and naga's own HLSL backend wrapper):
+// Convention (matches DXC HLSL frontend and the own HLSL backend wrapper):
 //   - Location bindings come FIRST, sorted ascending by location index
 //   - Builtin bindings come LAST, ordered by builtin enum value
 //   - Anything else (no binding, etc.) is sorted to the end
@@ -27,8 +37,6 @@ import (
 // individual store is well-typed but the OSG1 register slot the storeOutput
 // targets does not match what the entry point metadata declares.
 //
-// Mirrors hlsl/functions.go:interfaceKey/Less which already sorts the HLSL
-// `_vs_main`-style wrapper struct the same way before emission.
 
 // MemberInterfaceKey is the per-member sort key used to order struct members
 // for graphics output emission.
@@ -42,9 +50,7 @@ type MemberInterfaceKey struct {
 type MemberInterfaceKind int
 
 const (
-	// MemberLocation is a @location(N) binding — sorted first by Location.
 	MemberLocation MemberInterfaceKind = iota
-	// MemberBuiltin is a @builtin(...) binding — sorted second by Builtin enum.
 	MemberBuiltin
 	// MemberOther is the catch-all (nil binding, unrecognized) — sorted last.
 	MemberOther
@@ -136,18 +142,10 @@ func SortedMemberIndices(members []ir.StructMember) []int {
 	return out
 }
 
-// SortFlatBindings sorts parallel (bindings, types) slices in graphics
-// interface order: @location bindings first (ascending by location index),
-// then @builtin bindings (ascending by builtin enum value).
-//
 // This is needed when multiple struct-typed arguments each contribute
 // members to the flat input binding list. SortedMemberIndices handles
 // within-struct ordering, but cross-argument ordering requires a final
 // sort of the concatenated result. Without this, a builtin from an
-// earlier argument (e.g., @builtin(position) from VertexOutput) appears
-// before a location from a later argument (e.g., @location(1) from
-// NoteInstance), producing wrong register assignments for fragment input
-// signatures.
 //
 // isVSInput should be true for vertex shader inputs (InputAssembler
 // packing). DXC keeps VS inputs in declaration order — system values

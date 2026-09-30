@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package embedder_test
 
 import (
@@ -9,9 +19,6 @@ import (
 	"github.com/energye/gpui/ui/scheduler"
 )
 
-// TestRetainedCompositeOnly_SteadyDamageSmall: W2 path — after full warm paint,
-// only hot dirty under CompositeOnly must produce damage ≪ surface (static kept
-// by not redrawing, LoadOpLoad on real Present).
 func TestRetainedCompositeOnly_SteadyDamageSmall(t *testing.T) {
 	const W, H = 400, 200
 	static := rendering.NewRenderColorBox(80, 80, 0.1, 0.6, 0.2, 1)

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -8,8 +18,6 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex ensures the opt23
-// tight pack path produces identical packed verts to writeConvexVertex.
 func TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex(t *testing.T) {
 	positions := []render.Point{{X: 1.5, Y: 2.25}, {X: 10, Y: 0}, {X: 0, Y: 10}, {X: 4, Y: 8}}
 	colors := []render.RGBA{

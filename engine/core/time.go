@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package core
 
 import "math"
@@ -47,7 +57,7 @@ func (d Duration) Clamp(min, max Duration) Duration {
 }
 
 // Step is one fixed logic tick: sequence number plus its width. The fixed
-// loop itself lives in engine/step (capabilities 8.1/11.1); core only keeps
+// loop itself lives in engine/step; core only keeps
 // the drift-free counting so every consumer agrees on "which tick".
 type Step struct {
 	Index uint64

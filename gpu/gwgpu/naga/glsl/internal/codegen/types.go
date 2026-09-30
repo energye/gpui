@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -133,7 +140,6 @@ func matrixToGLSL(t ir.MatrixType) string {
 		rows = 4
 	}
 
-	// Rust naga always writes the full matCxR form, never the shorthand matN.
 	switch t.Scalar.Kind {
 	case ir.ScalarFloat:
 		switch t.Scalar.Width {

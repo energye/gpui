@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -259,7 +269,7 @@ func (r *GPUSceneRenderer) resolveText(scene *Scene, run GlyphRunData, glyphs []
 // Before this fix, only translation (C, F) was used — images rendered at
 // source pixel size, ignoring scale. On HiDPI displays where the scene
 // encodes an inverse-DPI affine (e.g. scale=0.5 for 2x Retina), this
-// caused SVG icons to appear 2x too large (ui#101 Thread C, gg#308).
+// caused SVG icons to appear 2x too large.
 func (r *GPUSceneRenderer) resolveImage(scene *Scene, imageIndex uint32, transform Affine) {
 	images := scene.Images()
 	if int(imageIndex) >= len(images) {

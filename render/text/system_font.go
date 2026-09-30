@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // System / default font resolution for render/text.
 //
 // Policy:
@@ -290,7 +300,7 @@ func assembleFaces(points float64, chain []FontRole, candidates func(FontRole) [
 
 // warmHbFonts pre-builds the HarfBuzz font objects for faces now, so the
 // one-time parse cost is paid at load instead of inside the first timed
-// layout (M3.8: TestTextLayout_LongBuild_RealFace cold-build overrun).
+// layout.
 // Failures are ignored: Shape still builds lazily on demand as before,
 // so behavior is unchanged when warming is skipped or fails.
 func warmHbFonts(faces []Face) {

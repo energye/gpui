@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -127,7 +137,7 @@ func TestSelectGlyphMaskLCD_LCDLayoutAware(t *testing.T) {
 }
 
 func TestGlyphMaskLCDUniformSize(t *testing.T) {
-	// LCD uniform must be 96 bytes (16-byte aligned for WebGPU).
+	// LCD uniform must be 96 bytes.
 	if glyphMaskLCDUniformSize != 96 {
 		t.Errorf("glyphMaskLCDUniformSize = %d, want 96", glyphMaskLCDUniformSize)
 	}

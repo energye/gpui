@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package msl
 
@@ -73,7 +80,6 @@ type BoundsCheckPolicies struct {
 }
 
 // Contains returns true if any of the policy fields equals the given policy.
-// Note: BindingArray is intentionally excluded, matching the Rust implementation.
 func (p BoundsCheckPolicies) Contains(policy BoundsCheckPolicy) bool {
 	return p.Index == policy || p.Buffer == policy || p.Image == policy
 }

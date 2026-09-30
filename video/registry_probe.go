@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 import (
@@ -8,7 +18,7 @@ import (
 	ff "github.com/energye/gpui/video/ffmpeg"
 )
 
-// Container and codec names (§4.4, VR9). The player decodes through
+// The player decodes through
 // ffmpeg (video/ffmpeg + libgpui_ffmpeg); these names are the stable
 // capability answers, not a Go decode table. Kept so callers can ask
 // before opening without guessing.

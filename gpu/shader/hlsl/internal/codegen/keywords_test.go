@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -62,7 +69,6 @@ func TestIsReserved(t *testing.T) {
 		{"semantic_target", "SV_Target", true},
 		{"semantic_dispatchThread", "SV_DispatchThreadID", true},
 
-		// Naga helper names
 		{"naga_modf", "naga_modf", true},
 		{"naga_div", "naga_div", true},
 		{"naga_sampler_heap", "_naga_sampler_heap", true},
@@ -160,7 +166,7 @@ func TestEscape(t *testing.T) {
 		// Empty string
 		{"empty", "", UnnamedIdentifier},
 
-		// Reserved keywords get suffixed (matches Rust naga)
+		// Reserved keywords get suffixed
 		{"escape_float", "float", "float_"},
 		{"escape_int", "int", "int_"},
 		{"escape_struct", "struct", "struct_"},
@@ -250,7 +256,6 @@ func TestTypeShorthandsGeneration(t *testing.T) {
 }
 
 func TestNagaHelperConstants(t *testing.T) {
-	// Verify that Naga helper constants have expected values
 	tests := []struct {
 		name     string
 		constant string
@@ -365,7 +370,7 @@ func BenchmarkIsReserved(b *testing.B) {
 		"float4",        // Type shorthand
 		"myVariable",    // Not reserved
 		"WaveActiveSum", // DXC intrinsic
-		"naga_modf",     // Naga helper
+		"naga_modf",
 	}
 
 	b.ResetTimer()

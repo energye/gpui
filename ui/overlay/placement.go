@@ -1,10 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package overlay
 
 import "github.com/energye/gpui/ui/rendering"
 
 // Placement is one of the twelve Ant anchor positions.
 //
-// Aligned to antd _util/placements.ts PlacementAlignMap:
 // top/bottom/left/right + corner variants. Corner names read from the
 // anchor side first (topLeft = above the anchor, hugging its left edge).
 type Placement string
@@ -79,7 +88,7 @@ func (o *ResolveOptions) withDefaults() ResolveOptions {
 
 // Resolved is the overlay origin plus arrow geometry in overlay coordinates.
 type Resolved struct {
-	X, Y   float64
+	X, Y    float64
 	Actual  Placement
 	Flipped bool
 	// Arrow center within the overlay box (for drawing the caret).

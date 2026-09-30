@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package viewid
 
 import (
@@ -120,7 +130,6 @@ func (s *analysisState) handleReturn(ret ir.StmtReturn) {
 //
 // The return value's components are laid out in DECLARATION order
 // (Compose/Return places them in the source struct field order). The
-// caller's outputs slice is in PACKED INTERFACE order (locations first,
 // builtins last — see backend.SortedMemberIndices, BUG-DXIL-029). Walk
 // the members in interface order so outputTaint[sigIdx] receives the
 // taint from the corresponding flat component span in valTaint.

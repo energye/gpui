@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
@@ -70,7 +80,7 @@ func TestR72_ApplyBlur_GPUFilterTextureNoExportPrefer(t *testing.T) {
 }
 
 // TestR72_ExportImageBuf_AfterGPUFilter_NoPendingSucceeds: after GPU filter
-// publish, Export with no pending draws must succeed (R7.2 single materialize).
+// publish, Export with no pending draws must succeed.
 func TestR72_ExportImageBuf_AfterGPUFilter_NoPendingSucceeds(t *testing.T) {
 	requireR72GPU(t)
 	if !render.GPUFilterGraphRegistered() {

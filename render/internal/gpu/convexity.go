@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -14,9 +24,6 @@ const convexityEpsilon = 1e-10
 // left, Y goes up then down). Stroke-expanded outlines with inner join
 // pivots can produce more flips while still having consistent cross-product
 // signs — this check catches those self-intersecting false positives.
-//
-// Matches Skia IsConcaveBySign (SkPathPriv.cpp:445, threshold 3) and
-// femtovg (path/cache.rs:864, requires exactly 2).
 const maxConvexDirectionFlips = 3
 
 // ConvexityResult provides detailed convexity analysis of a polygon.
@@ -41,7 +48,7 @@ type ConvexityResult struct {
 //
 // This is an O(n) algorithm that computes the cross product of consecutive edge
 // vectors and verifies they all have the same sign, combined with a direction-flip
-// check per axis (Skia IsConcaveBySign / femtovg pattern) to reject self-intersecting
+// check per axis to reject self-intersecting
 // stroke outlines that pass the cross-product check.
 func IsConvex(points []render.Point) bool {
 	return AnalyzeConvexity(points).Convex
@@ -118,8 +125,6 @@ func countCrossProductSigns(points []render.Point) (positive, negative int) {
 // on each axis (X and Y). A simple convex polygon changes direction at most
 // twice per axis (going around the boundary once). Self-intersecting stroke
 // outlines with inner join V-shapes produce many more flips.
-//
-// Matches Skia IsConcaveBySign (SkPathPriv.cpp:445).
 func countDirectionFlips(points []render.Point) (xFlips, yFlips int) {
 	n := len(points)
 	var prevDX, prevDY int

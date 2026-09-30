@@ -1,5 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package prim layout facades: pure layout math plus builders over
-// existing ui/rendering nodes (P1).
+// existing ui/rendering nodes.
 //
 // rendering.RenderObject seals its implementation to ui/rendering
 // (unexported setSize/clear methods), so this package does not declare

@@ -1,6 +1,15 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
-// VR6 ffmpeg parity: fault gates must meet the §12.1 VR6 row.
 // Baseline: testdata/vr6_ffmpeg.json (ffmpeg 4.4.2, same machine).
 // Peer: ffmpeg -v error -i <bad> -f null - (exit + stderr) plus
 // -f framehash - (decoded dts+hash) against Classify buckets plus the

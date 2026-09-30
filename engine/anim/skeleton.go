@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package anim
 
 import (
@@ -19,8 +29,7 @@ import (
 // matches.
 var CurrentSkeletonVersion = core.Version{Major: 4, Minor: 0}
 
-// BlendMode selects how BlendFrom combines two poses. The S46 state
-// machine will drive this; 4.3 only freezes the entry.
+// BlendMode selects how BlendFrom combines two poses.
 type BlendMode int
 
 const (

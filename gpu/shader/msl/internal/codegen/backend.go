@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -69,9 +79,6 @@ type BoundsCheckPolicies struct {
 }
 
 // Contains returns true if any of the policy fields equals the given policy.
-// This matches Rust naga's BoundsCheckPolicies::contains method,
-// used to determine if helper structs like DefaultConstructible are needed.
-// Note: BindingArray is intentionally excluded, matching the Rust implementation.
 func (p BoundsCheckPolicies) Contains(policy BoundsCheckPolicy) bool {
 	return p.Index == policy || p.Buffer == policy || p.Image == policy
 }
@@ -231,10 +238,7 @@ type Options struct {
 	FakeMissingBindings bool
 
 	// PipelineConstants specifies values for pipeline-overridable constants.
-	// Keys are either the numeric @id as a decimal string (e.g., "0", "1300")
-	// or the override's identifier name (e.g., "depth", "width").
 	// Values are f64 representations that get converted to the override's type.
-	// Matches Rust naga's PipelineConstants type.
 	PipelineConstants map[string]float64
 
 	// AllowAndForcePointSize forces point size output for vertex shaders.
@@ -255,7 +259,6 @@ type Options struct {
 }
 
 // VertexFormat describes the format of a vertex attribute.
-// Matches Rust naga's back::msl::VertexFormat enum.
 type VertexFormat int
 
 const (

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package filter
 
 import (
@@ -8,10 +18,10 @@ import (
 // ColorMatrixFilter applies a 4x5 color transformation matrix to an image.
 // The transformation is:
 //
-//	[R']   [a00 a01 a02 a03 a04]   [R]
+//	[R'] [a00 a01 a02 a03 a04] [R]
 //	[G'] = [a10 a11 a12 a13 a14] * [G]
-//	[B']   [a20 a21 a22 a23 a24]   [B]
-//	[A']   [a30 a31 a32 a33 a34]   [A]
+//	[B'] [a20 a21 a22 a23 a24] [B]
+//	[A'] [a30 a31 a32 a33 a34] [A]
 //	                               [1]
 //
 // The fifth column provides bias/offset values.

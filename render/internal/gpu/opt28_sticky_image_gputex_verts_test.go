@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -87,7 +97,7 @@ func TestOpt28_GPUTexVertSticky_SkipsRepeatWrite(t *testing.T) {
 	}
 	t.Cleanup(func() { view.Destroy(); tex.Destroy() })
 
-	// P3: register the test view under a deferred SourceKey so build
+	// register the test view under a deferred SourceKey so build
 	// resolution succeeds on every repeated build (transient refs are
 	// resolved-and-released per call).
 	key := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 3}

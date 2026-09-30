@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build js && wasm
 
 package webgpu
@@ -167,12 +177,12 @@ type ComputePipelineDescriptor struct {
 	Module     *ShaderModule
 	EntryPoint string
 
-	// Constants are pipeline-overridable constants (WebGPU spec).
+	// Constants are pipeline-overridable constants.
 	// Browser passes these to GPUDevice.createComputePipeline() constants dict.
 	Constants map[string]float64
 
 	// ZeroInitializeWorkgroupMemory controls workgroup memory zero-init.
-	// Browser ignores this (WebGPU spec mandates zero-init in browser).
+	// Browser ignores this.
 	ZeroInitializeWorkgroupMemory *bool
 }
 

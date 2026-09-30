@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package parser
 
 // Module represents a WGSL module (translation unit).
@@ -12,9 +22,6 @@ type Module struct {
 	Overrides   []*OverrideDecl
 
 	// Declarations preserves all top-level declarations in source order.
-	// This is used by the lowerer to register types in the same order as
-	// Rust naga, which processes declarations via topological sort that
-	// closely follows source order.
 	Declarations []Decl
 }
 
@@ -77,7 +84,7 @@ type FunctionDecl struct {
 	Name        string
 	Params      []*Parameter
 	ReturnType  Type
-	ReturnAttrs []Attribute // Attributes on return type (e.g., @builtin(position), @location(0))
+	ReturnAttrs []Attribute
 	Attributes  []Attribute
 	Body        *BlockStmt
 	Span        Span
@@ -123,7 +130,6 @@ func (c *ConstDecl) declNode() {}
 func (c *ConstDecl) stmtNode() {} // Allow const as local statement
 
 // OverrideDecl represents an override declaration (pipeline-overridable constant).
-// WGSL spec: @id(N) override name: type = default;
 type OverrideDecl struct {
 	Name       string
 	Type       Type
@@ -156,7 +162,6 @@ func (c *ConstAssertDecl) Pos() Span { return c.Span }
 func (c *ConstAssertDecl) declNode() {}
 func (c *ConstAssertDecl) stmtNode() {} // Also valid as a statement inside functions
 
-// Attribute represents an attribute (e.g., @location(0)).
 type Attribute struct {
 	Name string
 	Args []Expr

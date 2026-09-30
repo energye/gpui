@@ -1,6 +1,16 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package fx freezes the CPU-side full-screen effect math every 2.5D play feeds.
 //
-// Frozen 2026-09-15 (capability 5.3, P3, S39/W5): Noise, Warp, NewWarp,
+// Frozen 2026-09-15: Noise, Warp, NewWarp,
 // OffsetAt, WarpPoint, SampleClamped, WarpRGBA, SetStrength, SetNoise,
 // MaxWarpPixels. Additive changes only.
 //
@@ -27,7 +37,7 @@
 // Warp) is the exact identity, and any non-finite input yields the zero
 // offset, never a panic and never a NaN leaking downstream.
 //
-// Frozen 2026-09-15 (capability 5.5, P3, S44/W6): Custom, NewCustom,
+// Frozen 2026-09-15: Custom, NewCustom,
 // NewIdentity, NewOutline, NewDissolve, Registry, MaxCustomNameLen,
 // MaxCustomParams, MaxCustomOutlineWidth, MaxCustomSeed, MaxCustomSlots,
 // CustomIdentity, CustomOutline, CustomDissolve. Additive changes only.

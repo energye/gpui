@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package blend
 
 import "testing"
@@ -18,7 +28,7 @@ func TestP03FixedPixels_UICriticalModes(t *testing.T) {
 	// Premul fixtures:
 	//  - opaque red / blue / white / black
 	//  - 50% gray premul: straight (128,128,128,128) already is premul of (255,255,255,128)?
-	//    For straight gray 255 with a=128: premul rgb = 128. So (128,128,128,128) is premul white@50%.
+	//    For straight gray 255 with a=128: premul rgb = 128.
 	cases := []caseT{
 		// SourceOver / Normal equivalence target
 		{

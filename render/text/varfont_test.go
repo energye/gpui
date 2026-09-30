@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -738,8 +748,6 @@ func TestVariations_OutlineExtraction(t *testing.T) {
 
 // TestVariations_AliasedRendering verifies that DrawAliased produces binary
 // (0 or 255) coverage with variable fonts — no intermediate alpha values.
-// This is the regression test for @tsl0922's report that TextModeAliased
-// didn't work with variable fonts.
 func TestVariations_AliasedRendering(t *testing.T) {
 	source := requireTrueTypeVariableFont(t)
 	defer func() { _ = source.Close() }()

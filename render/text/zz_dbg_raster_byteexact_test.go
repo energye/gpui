@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -60,8 +70,8 @@ func TestDbgRasterByteExact(t *testing.T) {
 			}
 
 			// 3) 映射：FT(fx,fy) → 自研(mx,my)
-			//   x: BearingX + mx = left + fx           → mx = left + fx - BearingX
-			//   y: BearingY - my = top - fy            → my = BearingY - top + fy
+			//   x: BearingX + mx = left + fx → mx = left + fx - BearingX
+			//   y: BearingY - my = top - fy → my = BearingY - top + fy
 			bad := 0
 			total := 0
 			for fy := 0; fy < fh; fy++ {

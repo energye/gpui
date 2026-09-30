@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -189,7 +196,7 @@ func TestHLSL_FunctionalCast(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := w.Out.String()
-	// Should use functional cast: float(...)  NOT (float)(...)
+	// Should use functional cast: float(...) NOT (float)(...)
 	if strings.Contains(got, "(float)(") {
 		t.Errorf("should use functional cast, got C-style: %q", got)
 	}

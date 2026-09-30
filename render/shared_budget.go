@@ -1,11 +1,21 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
-// Shared-window budget coordination (R0-5) and shared-device recovery
-// registry (R0-6). All state is guarded by shareMu in present_target.go;
+// Shared-window budget coordination and shared-device recovery
+// registry. All state is guarded by shareMu in present_target.go;
 // shareGen bumps every time the published device changes (publish or
 // shared recovery) so the present path can detect a device swap.
 //
@@ -23,7 +33,7 @@ var shareGen uint64
 
 // SharedWindowCount reports how many live windows share the process device
 // (0 when no share is published). Per-window caches divide process budgets
-// by this number (R0-5 fair share).
+// by this number.
 func SharedWindowCount() int {
 	shareMu.Lock()
 	defer shareMu.Unlock()
@@ -56,7 +66,7 @@ func VramLiveCount() int {
 	return webgpu.VramLiveCount()
 }
 
-// VramPeakBytes reports the high-water mark (R6 post-fix measurement).
+// VramPeakBytes reports the high-water mark.
 func VramPeakBytes() uint64 {
 	return webgpu.VramPeakBytes()
 }
@@ -64,7 +74,7 @@ func VramPeakBytes() uint64 {
 // VramPressureHigh reports whether the process ledger already holds past
 // the low-VRAM waterline (same 80% gate the adapter policy uses to switch
 // descriptors). Per-window caches refuse automatic growth past this point
-// when more than one window is live (R0-5).
+// when more than one window is live.
 func VramPressureHigh() bool {
 	return lowVRAMWaterlineTripped()
 }
@@ -82,7 +92,7 @@ const pictureCacheBudgetDivisor = 4
 const minPictureCacheEntries = 64
 
 // PictureCacheFairMax computes the per-window entry ceiling for the
-// picture texture cache (R0-5). avgEntryBytes estimates one entry
+// picture texture cache. avgEntryBytes estimates one entry
 // (pass 0 to use fallbackBytes); fallbackBytes estimates one entry when
 // the cache is still empty (pass 0 for a 256×256 RGBA guess).
 // Returns 0 when a single window (or none) is live, meaning "no cap —

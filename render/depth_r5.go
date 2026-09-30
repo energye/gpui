@@ -1,16 +1,19 @@
-// R5 深度分支冻结（S35/W5，1.2 的 render 底，前置 S30 R4，状态落 1.2 行）。
+//----------------------------------------
 //
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // 一句话：远先近后，画家算法盖对，老接口一个不动。
-// 本文件是 1.2 render 底的新分支，与 game/sprite/ysort.go 本体无关
-// （那是 S41 的事，本分支不碰它，只对齐口径）。
 //
 // 口径（与 game/camera/project.go 同口径）：
 //   - Depth 越大越远（与 Projector.DepthToScale 一致：越大 scale 越小越远），
 //     Sort 按 Depth 降序（远先近后），近的后画盖住远的。
 //   - 同深用稳定排序保输入序，不闪；输入片不改，返回新片。
-//   - DepthTest 开关只在本分支生效：true 强制远先近后，false 保输入序
-//    （老味，不排序）。硬件 DepthCompare=GreaterEqual 仍只给裁剪用
-//    （depth_clip.wgsl 等），游戏深度硬件比较等 S41 接线，本分支不碰管线。
 //
 // 新函数新分支，老接口不动：
 //   - DepthSprite / DepthDrawOptions / DepthDrawResult / ErrDepthNonFinite
@@ -19,7 +22,6 @@
 //
 // 坏路：空批跳过（Skipped），非有限 Depth/精灵返回 ErrDepthNonFinite
 // 且什么都不画，未知过滤透传 ErrAtlasUnsupportedFilter。
-// 窗口意图：game_sprite--case=depth 随 P2 建，S35 只留离屏对比。
 package render
 
 import (
@@ -35,8 +37,8 @@ var ErrDepthNonFinite = errors.New("render: non-finite depth sprite")
 // 底层走 DrawAtlasEx，染色等仍记 verts:DrawAtlas。
 const DepthCPUFallbackReason = AtlasCPUFallbackReason
 
-// DepthSprite 是一张带深度的图集小块（R5 新分支）。
-// Sprite 复用 AtlasSprite 全字段（R4 rot/flip/tint/filter 透传），
+// DepthSprite 是一张带深度的图集小块。
+// Sprite 复用 AtlasSprite 全字段，
 // Depth 与 camera.Projector 同口径：越大越远；Name 只做调试键。
 type DepthSprite struct {
 	Sprite AtlasSprite
@@ -44,7 +46,7 @@ type DepthSprite struct {
 	Name   string
 }
 
-// DepthDrawOptions 是 DrawDepthSprites 的选项（R5 预留，零值即默认）。
+// DepthDrawOptions 是 DrawDepthSprites 的选项。
 type DepthDrawOptions struct {
 	// DepthTest 为 true 强制远先近后（画家算法）；false 保输入序（老味）。
 	DepthTest bool
@@ -123,7 +125,7 @@ func IsDepthSorted(in []DepthSprite) bool {
 	return true
 }
 
-// DrawDepthSprites 按深度开关画一批（R5 新函数，老路不动）。
+// DrawDepthSprites 按深度开关画一批。
 // DepthTest=true 先稳定降序再调 DrawAtlasEx（远先画近后盖）；
 // false 保输入序直接调。空批或全跳过返回 Skipped；
 // 非有限与未知过滤返回哨兵错且什么都不画；输入片不改。

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -103,7 +113,7 @@ func TestPaintContext_PushClipRRect_ZeroRadiusFallsBackToRect(t *testing.T) {
 	}
 }
 
-// TestRenderClipRRect_HitTest proves clipping is honored by hit testing (R13):
+// TestRenderClipRRect_HitTest proves clipping is honored by hit testing:
 // points outside the clip are rejected, points inside hit children, and a
 // child that overflows the clip is only hittable inside the clip bounds.
 func TestRenderClipRRect_HitTest(t *testing.T) {
@@ -124,7 +134,6 @@ func TestRenderClipRRect_HitTest(t *testing.T) {
 		{"inside hits child", rendering.Point{X: 20, Y: 20}, "clipped"},
 		// (10,10) is the clip's local (0,0): inside the AABB but outside the
 		// r=4 TL corner circle (d²=32>16) → rejected by exact RRect.contains
-		// (Flutter parity; the old AABB test expected a hit here).
 		{"corner pixel rejected", rendering.Point{X: 10, Y: 10}, ""},
 		// Local (39,39) is in the BR corner quadrant at d²=18 > 16 → hole.
 		{"br corner hole rejected", rendering.Point{X: 10 + 39, Y: 10 + 39}, ""},

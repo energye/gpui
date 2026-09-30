@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package types
 
 // VertexFormat describes a vertex attribute format.
@@ -202,8 +212,7 @@ type VertexAttribute struct {
 	// Format is the attribute format.
 	Format VertexFormat
 	// Offset is the byte offset within the vertex buffer stride.
-	Offset uint64
-	// ShaderLocation is the @location in the shader.
+	Offset         uint64
 	ShaderLocation uint32
 }
 

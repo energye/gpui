@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package container
 
@@ -16,7 +23,7 @@ import "encoding/binary"
 //   - ID3D12ShaderReflection API consumers (tooling path, not the
 //     pipeline creation path)
 //
-// IDxcValidator does NOT require STAT; only the runtime does. See
+// IDxcValidator does NOT require STAT; only the runtime does.
 // BUG-DXIL-011 for the empirical proof (2026-04-14 session). Mesa's
 // dxil_container.h defines the same FourCC but does not emit the
 // part — Mesa-driven Vulkan-on-D3D12 (dzn/dozen) is almost entirely
@@ -26,7 +33,6 @@ var FourCCSTAT = fourCC('S', 'T', 'A', 'T')
 
 // AddSTATPart emits a "Shader Statistics" part whose body wraps the
 // same LLVM 3.7 bitcode as the main DXIL part under a DxilProgramHeader
-// (the Option A shape from BUG-DXIL-011).
 //
 // DXC constructs STAT by cloning the LLVM module, stripping function
 // bodies via StripAndCreateReflectionStream, and re-serializing. The
@@ -52,13 +58,6 @@ var FourCCSTAT = fourCC('S', 'T', 'A', 'T')
 // for future compatibility if a future D3D12 runtime tightens the
 // format check. As of validator 1.8 / AgilitySDK 1.615, Option A
 // suffices.
-//
-// Reference:
-//   - reference/dxil/dxc/lib/DxilContainer/DxilContainerAssembler.cpp
-//     StripAndCreateReflectionStream (line 1873)
-//     SerializeDxilContainerForModule STAT emission (line 2091)
-//   - reference/dxil/mesa/src/microsoft/compiler/dxil_container.h:65
-//     (DXIL_STAT fourCC definition; no emission site)
 func (c *Container) AddSTATPart(shaderKind, majorVer, minorVer uint32, bitcodeData []byte) {
 	// The DxilProgramHeader layout matches AddDXILPart exactly: 24
 	// bytes of fixed header followed by the bitcode stream.

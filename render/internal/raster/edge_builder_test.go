@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package raster
 
@@ -242,7 +249,6 @@ func TestEdgeBuilderVelloLines(t *testing.T) {
 		t.Error("VelloLines should be populated when flattenCurves is true")
 	}
 
-	// Each VelloLine should have P0.y <= P1.y (normalized)
 	for i, vl := range velloLines {
 		if vl.P0[1] > vl.P1[1] {
 			t.Errorf("VelloLine[%d]: P0.y=%f > P1.y=%f (should be normalized)", i, vl.P0[1], vl.P1[1])

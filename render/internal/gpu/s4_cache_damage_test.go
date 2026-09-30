@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -9,8 +19,6 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// TestS44_SharedPathCacheAcrossContexts verifies S4.3 caches live on GPUShared
-// and accumulate hits when the same path is tessellated repeatedly (retained).
 func TestS44_SharedPathCacheAcrossContexts(t *testing.T) {
 	shared := NewGPUShared()
 	defer shared.Close()
@@ -55,7 +63,7 @@ func TestS44_SharedPathCacheAcrossContexts(t *testing.T) {
 	}
 }
 
-// TestS44_StrokeCache_SharedRetainedHit covers stroke expansion reuse (S4.3/S4.4 retained).
+// TestS44_StrokeCache_SharedRetainedHit covers stroke expansion reuse.
 func TestS44_StrokeCache_SharedRetainedHit(t *testing.T) {
 	shared := NewGPUShared()
 	defer shared.Close()

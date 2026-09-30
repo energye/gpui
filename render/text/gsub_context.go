@@ -1,10 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // GSUB Lookup Type 5 (Contextual), Type 6 (Chaining Contextual), Type 8 (Reverse).
 //
 // ENGINE_GAPS G1.c — complex OT shaping. Nested substitutions resolve through
 // the existing Type 1–4 (and Type 7 extension) implementations via the parent
 // gsubTable lookup list.
-//
-// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/gsub
 //
 // Formats:
 //   - Type 5 Format 1/2/3

@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -18,7 +28,6 @@ var (
 )
 
 // nextPixmapGenID is a process-global monotonic counter for Pixmap identity.
-// Follows the Skia SkPixelRef::getGenerationID() pattern (ADR-014).
 var nextPixmapGenID atomic.Uint64
 
 // Pixmap represents a rectangular pixel buffer.
@@ -93,7 +102,7 @@ func (p *Pixmap) GenerationID() uint64 {
 // NotifyPixelsChanged assigns a new generation ID, invalidating any cached
 // GPU textures. Call after modifying pixel data directly (e.g., bulk writes).
 // Individual SetPixel/Clear calls do NOT auto-notify — call explicitly after
-// batch mutations. Follows Skia's SkPixelRef::notifyPixelsChanged() pattern.
+// batch mutations.
 func (p *Pixmap) NotifyPixelsChanged() {
 	p.genID = nextPixmapGenID.Add(1)
 }

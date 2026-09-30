@@ -1,11 +1,18 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package text provides GPU text rendering infrastructure.
 //
 // This file provides variation coordinate normalization: converting
 // user-space variation values (e.g., weight=700) to F2.14 normalized
 // coordinates (range -1.0 to +1.0, stored as int16 -16384 to +16384).
-//
-// Reference: skrifa (Google fontations) skrifa/src/metrics.rs
-// Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#algorithm-for-normalizing-a-value
 package text
 
 // fvarAxis holds the axis definition from the fvar table, used for
@@ -25,9 +32,6 @@ type fvarAxis struct {
 //   - Otherwise, use the axis default value
 //   - Normalize to [-1.0, +1.0] range relative to (min, default, max)
 //   - Store as F2.14 int16 (multiply by 16384)
-//
-// Matches the OpenType normalization algorithm:
-// https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#algorithm-for-normalizing-a-value
 func normalizeCoords(axes []fvarAxis, variations []FontVariation) []int16 {
 	coords := make([]int16, len(axes))
 	for i, axis := range axes {
@@ -45,9 +49,9 @@ func normalizeCoords(axes []fvarAxis, variations []FontVariation) []int16 {
 
 // normalizeValue normalizes a single axis value to F2.14 format.
 //
-//   - value == default  → 0
-//   - value < default   → linear interpolation in [axisMin, default] → [-1.0, 0.0]
-//   - value > default   → linear interpolation in [default, axisMax] → [0.0, +1.0]
+//   - value == default → 0
+//   - value < default → linear interpolation in [axisMin, default] → [-1.0, 0.0]
+//   - value > default → linear interpolation in [default, axisMax] → [0.0, +1.0]
 //   - result is clamped to [-16384, +16384] (F2.14 range)
 func normalizeValue(value, axisMin, def, axisMax float32) int16 {
 	if value == def {

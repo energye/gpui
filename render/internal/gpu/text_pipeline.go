@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package gpu
@@ -42,8 +52,8 @@ var (
 // textVertexStride is the byte stride per vertex in the MSDF text pipeline.
 // Layout per vertex:
 //
-//	position  (vec2<f32>) = 8 bytes  (location 0)
-//	tex_coord (vec2<f32>) = 8 bytes  (location 1)
+//	position (vec2<f32>) = 8 bytes (location 0)
+//	tex_coord (vec2<f32>) = 8 bytes (location 1)
 //
 // Total = 16 bytes per vertex.
 const textVertexStride = 16
@@ -92,7 +102,6 @@ type MSDFTextPipeline struct {
 	// Default sampler for MSDF textures (linear filtering).
 	sampler hal.Sampler
 
-	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
 	clipBindLayout hal.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
@@ -112,7 +121,6 @@ func NewMSDFTextPipeline(device hal.Device, queue hal.Queue, sampleCount uint32)
 	}
 }
 
-// SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil. The layout is
 // owned by the session and must not be destroyed by the pipeline.
 func (p *MSDFTextPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
@@ -256,8 +264,7 @@ func (p *MSDFTextPipeline) ensurePipelineWithStencil() error { // Ensure base re
 			return err
 		}
 	}
-	// If the pipeline layout was created without clip but clip is now set,
-	// destroy and recreate so the layout includes @group(1). Without this,
+	// Without this,
 	// SetBindGroup(1, clipBG) crashes on AMD/NVIDIA (Intel tolerates it).
 	if p.clipBindLayout != nil && !p.pipeLayoutHasClip {
 		p.destroyPipeline()
@@ -416,7 +423,6 @@ type textFrameResources struct {
 }
 
 // textVertexLayout returns the vertex buffer layout for the MSDF text pipeline.
-// Matches VertexInput in msdf_text.wgsl:
 //
 //	location 0: position (vec2<f32>)
 //	location 1: tex_coord (vec2<f32>)
@@ -470,7 +476,6 @@ type TextQuad struct {
 }
 
 // TextVertex represents a single vertex for text rendering.
-// Matches the VertexInput struct in msdf_text.wgsl.
 type TextVertex struct {
 	// Position in local/screen space
 	X, Y float32
@@ -480,7 +485,6 @@ type TextVertex struct {
 }
 
 // TextUniforms represents the uniform buffer for text shaders.
-// Matches the TextUniforms struct in msdf_text.wgsl.
 type TextUniforms struct {
 	// Transform matrix (4x4 for alignment, row-major)
 	// Maps local coordinates to clip space [-1, 1]
@@ -654,15 +658,15 @@ func makeTextUniformInto(buf []byte, color render.RGBA, transform render.Matrix,
 	// Transform: WGSL mat4x4<f32> is stored COLUMN-MAJOR in memory.
 	// Each group of 4 floats is one column vector.
 	//
-	// Affine 2D transform: x' = Ax + By + C,  y' = Dx + Ey + F
+	// Affine 2D transform: x' = Ax + By + C, y' = Dx + Ey + F
 	// As a 4x4 matrix (math notation, row-major):
-	//   | A  B  0  C |
-	//   | D  E  0  F |
-	//   | 0  0  1  0 |
-	//   | 0  0  0  1 |
+	//   | A B 0 C |
+	//   | D E 0 F |
+	//   | 0 0 1 0 |
+	//   | 0 0 0 1 |
 	//
 	// Column-major storage for WGSL:
-	//   col0=[A,D,0,0]  col1=[B,E,0,0]  col2=[0,0,1,0]  col3=[C,F,0,1]
+	//   col0=[A,D,0,0] col1=[B,E,0,0] col2=[0,0,1,0] col3=[C,F,0,1]
 	t := [16]float32{
 		float32(transform.A), float32(transform.D), 0, 0, // column 0
 		float32(transform.B), float32(transform.E), 0, 0, // column 1

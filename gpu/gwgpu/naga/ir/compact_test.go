@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package ir
 
 import (
@@ -121,8 +131,8 @@ func TestCompactUnused_RemovesUnusedGlobals(t *testing.T) {
 				Function: Function{
 					Name: "main",
 					Expressions: []Expression{
-						{Kind: ExprGlobalVariable{Variable: 0}}, // references global 0
-						{Kind: ExprGlobalVariable{Variable: 2}}, // references global 2
+						{Kind: ExprGlobalVariable{Variable: 0}},
+						{Kind: ExprGlobalVariable{Variable: 2}},
 					},
 					Body: []Statement{},
 				},
@@ -326,7 +336,7 @@ func TestCompactTypes_RemapsHandlesInTypes(t *testing.T) {
 			{Name: "C", Type: 1},
 		},
 		GlobalVariables: []GlobalVariable{
-			{Name: "g", Type: 2}, // reference type 2 to keep it
+			{Name: "g", Type: 2},
 		},
 	}
 
@@ -358,7 +368,7 @@ func TestCompactTypes_UnnamedUnreferenced(t *testing.T) {
 			{Name: "", Inner: ScalarType{Kind: ScalarUint, Width: 4}},  // unnamed, unreferenced
 		},
 		Constants: []Constant{
-			{Name: "x", Type: 0}, // references type[0]
+			{Name: "x", Type: 0},
 		},
 	}
 
@@ -371,8 +381,6 @@ func TestCompactTypes_UnnamedUnreferenced(t *testing.T) {
 }
 
 func TestCompactTypes_NamedTypesKept(t *testing.T) {
-	// ALL named types are kept even without direct references,
-	// matching Rust naga's compact pass which preserves named types.
 	module := &Module{
 		Types: []Type{
 			{Name: "MyStruct", Inner: StructType{
@@ -386,7 +394,6 @@ func TestCompactTypes_NamedTypesKept(t *testing.T) {
 	CompactTypes(module)
 
 	// Both kept: MyStruct (named struct) and Vec2Alias (named alias).
-	// Rust naga keeps ALL named types regardless of reference count.
 	if len(module.Types) != 2 {
 		t.Errorf("expected 2 types (both named, both kept), got %d", len(module.Types))
 	}
@@ -751,7 +758,7 @@ func TestReorderTypes_ReordersBasedOnTypeUseOrder(t *testing.T) {
 		},
 		TypeUseOrder: []TypeHandle{1, 0}, // f32 first, u32 second
 		Constants: []Constant{
-			{Name: "C", Type: 0}, // references u32
+			{Name: "C", Type: 0},
 		},
 	}
 
@@ -2705,7 +2712,7 @@ func TestRemapFunctionTypes_AbstractTypeRemoved(t *testing.T) {
 
 	f := &Function{
 		ExpressionTypes: []TypeResolution{
-			{Handle: func() *TypeHandle { h := TypeHandle(0); return &h }()}, // references removed type
+			{Handle: func() *TypeHandle { h := TypeHandle(0); return &h }()},
 		},
 	}
 

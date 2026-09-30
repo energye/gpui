@@ -1,11 +1,21 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package step freezes the CPU-side step helpers every 2.5D loop feeds.
 //
-// Frozen 2026-09-15 (capability 8.2, P0, S12/W1): Pool, NewPool, Stats,
+// Frozen 2026-09-15: Pool, NewPool, Stats,
 // GetVec, PutVec, GetColor, PutColor, GetFloat, PutFloat,
 // RetainedBytes, HitRate, ResetStats, MaxLen, MaxRetained, VecBytes,
 // ColorBytes, FloatBytes. Additive changes only.
 //
-// Frozen 2026-09-15 (capability 8.1+11.1, P0, S03/W1): Fixed, NewFixed,
+// Frozen 2026-09-15: Fixed, NewFixed,
 // Dt, Steps, Elapsed, Accum, Alpha, Advance, Reset, Interp, InterpFloat,
 // InterpVec, MaxFrame. Additive changes only.
 //
@@ -16,7 +26,7 @@
 // caller converts once at the render boundary with Vec2.ToRenderPoint.
 // No Vec2, Color, or AssetID is redefined here.
 //
-// Frozen 2026-09-15 (capability 11.2, P0, S18/W2): Clock, NewClock,
+// Frozen 2026-09-15: Clock, NewClock,
 // MaxScale, SetTimeScale, TimeScale, SetPaused, Paused, Pause, Resume,
 // Split, Advance, WorldElapsed, UIElapsed, Reset. Additive changes only.
 //

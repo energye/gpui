@@ -1,11 +1,19 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
 	"testing"
 )
 
-// TestDPRQuantNoExplosion_M5 locks M5-4: the implemented 1/4px quantization
-// (SubpixelXQ2/YQ2) keeps atlas key cardinality bounded across DPR scales.
 // 1 glyph x 4 DPR sizes x N fractional offsets must collapse to
 // 4 sizes x 4 X-quarters = 16 keys no matter how dense the offset sweep is.
 func TestDPRQuantNoExplosion_M5(t *testing.T) {

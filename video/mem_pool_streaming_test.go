@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package video
 
 import (
@@ -6,13 +16,6 @@ import (
 	"time"
 )
 
-// TestS6StreamingPoolSteady pins the S6 wiring on the real streaming path:
-// convert buffers come from the RGBA pool (hits climb past 90%), every
-// borrowed buffer comes back (zero outstanding after Close), and playback
-// still runs to Ended. Heap-delta is deliberately NOT the probe here —
-// the decoder's own YUV pictures are not pooled yet (S6 wires RGBA first,
-// YUV follows later), so the crisp signal is pool misses staying flat
-// while frames stream, not whole-process bytes.
 func TestS6StreamingPoolSteady(t *testing.T) {
 	name := longClip(t)
 	h := &handClock{}
@@ -74,10 +77,6 @@ func TestS6StreamingPoolSteady(t *testing.T) {
 	}
 }
 
-// TestS6SmallClipPooled pins the S6 boundary on ffmpeg: small clips
-// stream exactly like big ones (no buffered path anymore), so their
-// buffers also come from the RGBA pool and come back (zero outstanding
-// after Close).
 func TestS6SmallClipPooled(t *testing.T) {
 	h := &handClock{}
 	p, err := OpenFile("testdata/vr2_m_bframes.mp4", Options{NowMs: h.at})

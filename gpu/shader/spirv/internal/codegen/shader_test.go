@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package codegen
 
 import (
@@ -1162,19 +1172,11 @@ fn main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 	}
 }
 
-// TestBuiltinPositionFragCoord verifies that @builtin(position) on a fragment
-// shader input is emitted as BuiltIn FragCoord (15), not BuiltIn Position (0).
-//
-// In WGSL, @builtin(position) has dual semantics:
-//   - Vertex shader output: SPIR-V BuiltIn Position (0)
-//   - Fragment shader input: SPIR-V BuiltIn FragCoord (15)
-//
 // Using BuiltIn Position on a fragment shader input causes a Vulkan validation
 // error: "BuiltIn Position to be used only with Vertex, TessellationControl,
 // TessellationEvaluation or Geometry execution models."
 func TestBuiltinPositionFragCoord(t *testing.T) {
-	// Shader with both vertex and fragment entry points sharing VertexOutput
-	// struct that has @builtin(position). The vertex output should emit
+	// The vertex output should emit
 	// BuiltIn Position; the fragment input should emit BuiltIn FragCoord.
 	source := `
 struct VertexOutput {
@@ -1314,11 +1316,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 	t.Logf("Successfully verified Position/FragCoord BuiltIn decorations: %d bytes", len(spirvBytes))
 }
 
-// TestBuiltinPositionFragCoordDirectBinding verifies that @builtin(position) as
-// a direct function result/argument (not in a struct) also correctly maps to
-// BuiltIn Position for vertex output and BuiltIn FragCoord for fragment input.
 func TestBuiltinPositionFragCoordDirectBinding(t *testing.T) {
-	// Fragment shader that takes @builtin(position) directly as a parameter
 	source := `
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
@@ -1395,7 +1393,6 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 		offset += wordCount
 	}
 
-	// The fragment input @builtin(position) should be FragCoord, NOT Position
 	for varID, builtIn := range varBuiltIn {
 		sc, ok := varStorageClass[varID]
 		if !ok {
@@ -1669,9 +1666,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 // cause two call results to be inlined into a single expression tree used by a
 // `var` init. This is the exact path_count.wgsl pattern:
 //
-//	let count_x = span(s0.x, s1.x) - 1u;    // inlined (let)
-//	let count = count_x + span(s0.y, s1.y);  // inlined (let)
-//	var imax = count;                         // init has TWO CallResults
+//	let count_x = span(s0.x, s1.x) - 1u; // inlined (let)
+//	let count = count_x + span(s0.y, s1.y); // inlined (let)
+//	var imax = count; // init has TWO CallResults
 func TestCompileMultipleCallResultsInlinedLet(t *testing.T) {
 	source := `
 fn span(a: f32, b: f32) -> u32 {

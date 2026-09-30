@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import intImage "github.com/energye/gpui/render/internal/image"
@@ -17,8 +27,8 @@ import intImage "github.com/energye/gpui/render/internal/image"
 //
 // Always convert explicitly:
 //
-//	paint := sceneMode.ToPaintBlendMode()   // scene → render
-//	fn := sceneMode.ToInternalBlendMode()   // scene → internal/blend
+//	paint := sceneMode.ToPaintBlendMode() // scene → render
+//	fn := sceneMode.ToInternalBlendMode() // scene → internal/blend
 //
 // Never write render.BlendMode(sceneMode) or scene.BlendMode(paintMode).
 type BlendMode = intImage.BlendMode

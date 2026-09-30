@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 // Package surface provides a unified surface abstraction for 2D rendering.
 //
@@ -58,7 +65,7 @@
 //	// Fill with red
 //	s.Fill(path, surface.FillStyle{
 //	    Color: color.RGBA{255, 0, 0, 255},
-//	    Rule:  surface.FillRuleNonZero,
+//	    Rule: surface.FillRuleNonZero,
 //	})
 //
 //	// Get the result

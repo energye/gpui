@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gpu
 
 import (
@@ -106,7 +116,7 @@ func bicubicSample16(img *intImage.ImageBuf, u, v float64) (r, g, b, a byte) {
 			accA += float64(pa) * weight
 		}
 	}
-	// No weight normalization (matches CPU bicubicInterp + Skia): kernel sums
+	// No weight normalization: kernel sums
 	// to 1.0; clamp-to-edge handles borders.
 	clamp := func(x float64) byte {
 		if x < 0 {

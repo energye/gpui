@@ -1,16 +1,26 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 // Package anim freezes the CPU-side motion math every 2.5D play feeds.
 //
-// Frozen 2026-09-15 (capability 4.1, P0, S04/W1): Kind, Ease, Lerp,
+// Frozen 2026-09-15: Kind, Ease, Lerp,
 // Name, Parse, Valid. Additive changes only.
 //
-// Frozen 2026-09-15 (capability 4.2, P1b, S17/W2): LoopMode
+// Frozen 2026-09-15: LoopMode
 // (LoopOnce/LoopLoop/LoopPingPong), Key{At,Value,Ease}, Event{At,Name},
 // Timeline{NewTimeline,SetLoop,AddKey,AddEvent,Sample,Update,OnEvent,
 // Seek,Pos,IsPlaying,Pause,Resume,TrackNames,KeyCount,EventCount}.
 // Time is core.Duration (integer milliseconds); values are plain float64
 // sampled with the frozen 4.1 curves. Additive changes only.
 //
-// Frozen 2026-09-15 (capability 4.3, P2 long chain, S42/W6): Skeleton,
+// Frozen 2026-09-15: Skeleton,
 // Bone, Slot, Skin, Attachment, VertexWeight, IKConstraint,
 // TransformConstraint, BoneLocal, Pose, BlendMode
 // (BlendReplace/BlendAdditive), CurrentSkeletonVersion, ParseSkeleton,
@@ -23,8 +33,6 @@
 // order (slots order plus SetDrawOrder permutation), IK (one-bone aim
 // plus two-bone analytic with bend and mix) and transform constraints
 // (mix rotate/translate/scale/shear). Pose holds per-bone local
-// overrides plus world matrices; SkinVertices blends mesh vertices in
-// bone space; BlendAdditive is the mix entry the S46 state machine
 // will drive. Only core numbers are used (Vec2, Mat2D, Color,
 // AssetID, Version); render types are reached through the core
 // ToRender helpers at the boundary, never imported here.
@@ -41,7 +49,7 @@
 // bone/slot/skin/attachment is NotFound, a bad draw order or NaN/Inf
 // number is InvalidArg. A nil Skeleton or Pose never panics.
 //
-// Frozen 2026-09-16 (capability 4.4, P2 long chain, S46/W7): State
+// Frozen 2026-09-16: State
 // (Name, CanTo, Blend), Machine (NewMachine, AddState, Has,
 // StateCount, States, Start, Request, Update, Current, From, To,
 // Blending, Progress, Weights, BlendDur, Elapsed). Blend is the outgoing
@@ -59,7 +67,7 @@
 // opacity and widgets). Game play needs the full Godot-style family
 // (sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic
 // each in, out, in-out plus linear) with frozen string names so timeline
-// keys (capability 4.2) and asset files can name a curve and replay it.
+// keys and asset files can name a curve and replay it.
 // The two packages stay separate on purpose and never import each other.
 //
 // Math (Godot Tween TransitionType plus EaseType, Penner analytic form;

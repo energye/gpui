@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package wgsl
 
 import (
@@ -598,7 +608,6 @@ fn foo() {
 			errContains: "textureSampleBaseClampToEdge requires at least 3 arguments",
 		},
 
-		// --- Compute entry point missing @workgroup_size ---
 		{
 			name:        "compute_missing_workgroup_size",
 			source:      `@compute fn main() {}`,
@@ -776,7 +785,6 @@ func TestWGSLErrors_ConstAssert(t *testing.T) {
 	}
 }
 
-// TestWGSLErrors_BindingGroupValidation tests that @binding and @group must appear together.
 func TestWGSLErrors_BindingGroupValidation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -784,31 +792,26 @@ func TestWGSLErrors_BindingGroupValidation(t *testing.T) {
 		wantErr     bool
 		errContains string
 	}{
-		// Valid: both @group and @binding present
 		{
 			name:   "both_group_and_binding",
 			source: `@group(0) @binding(0) var<storage> data: array<u32>;`,
 		},
-		// Valid: @binding before @group (order doesn't matter)
 		{
 			name:   "binding_before_group",
 			source: `@binding(1) @group(2) var<uniform> data: vec4<f32>;`,
 		},
-		// Invalid: @binding without @group
 		{
 			name:        "binding_without_group",
 			source:      `@binding(0) var<storage> data: array<u32>;`,
 			wantErr:     true,
 			errContains: "@binding requires @group",
 		},
-		// Invalid: @group without @binding
 		{
 			name:        "group_without_binding",
 			source:      `@group(0) var<storage> data: array<u32>;`,
 			wantErr:     true,
 			errContains: "@group requires @binding",
 		},
-		// Valid: no @group or @binding (private variable)
 		{
 			name:   "no_group_no_binding",
 			source: `var<private> data: f32;`,
@@ -834,7 +837,6 @@ func TestWGSLErrors_BindingGroupValidation(t *testing.T) {
 	}
 }
 
-// TestWGSLErrors_MustUse tests that @must_use function results cannot be discarded.
 func TestWGSLErrors_MustUse(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -842,7 +844,6 @@ func TestWGSLErrors_MustUse(t *testing.T) {
 		wantErr     bool
 		errContains string
 	}{
-		// Error: @must_use result discarded as statement
 		{
 			name: "must_use_discarded_as_statement",
 			source: `
@@ -851,49 +852,42 @@ fn test() { foo(); }`,
 			wantErr:     true,
 			errContains: "@must_use",
 		},
-		// OK: @must_use result used in return
 		{
 			name: "must_use_used_in_return",
 			source: `
 @must_use fn foo() -> u32 { return 42; }
 fn test() -> u32 { return foo(); }`,
 		},
-		// OK: @must_use result used in let binding
 		{
 			name: "must_use_used_in_let",
 			source: `
 @must_use fn foo() -> u32 { return 42; }
 fn test() { let x = foo(); _ = x; }`,
 		},
-		// OK: @must_use result used in var binding
 		{
 			name: "must_use_used_in_var",
 			source: `
 @must_use fn foo() -> u32 { return 42; }
 fn test() { var x = foo(); _ = x; }`,
 		},
-		// OK: @must_use result used in phony assignment
 		{
 			name: "must_use_used_in_phony",
 			source: `
 @must_use fn foo() -> u32 { return 42; }
 fn test() { _ = foo(); }`,
 		},
-		// OK: function without @must_use can be discarded
 		{
 			name: "no_must_use_discarded",
 			source: `
 fn foo() -> u32 { return 42; }
 fn test() { foo(); }`,
 		},
-		// OK: void function without @must_use (no return value)
 		{
 			name: "void_function_discarded",
 			source: `
 fn foo() {}
 fn test() { foo(); }`,
 		},
-		// Error: @must_use result discarded inside entry point
 		{
 			name: "must_use_discarded_in_entry_point",
 			source: `
@@ -903,7 +897,6 @@ fn main() { foo(); }`,
 			wantErr:     true,
 			errContains: "@must_use",
 		},
-		// OK: @must_use result used in expression
 		{
 			name: "must_use_used_in_expression",
 			source: `

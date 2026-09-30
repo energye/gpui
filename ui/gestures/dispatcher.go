@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package gestures
 
 import "github.com/energye/gpui/ui/input"
@@ -62,7 +72,7 @@ func (d *Dispatcher) HandleEvent(e PointerEvent) {
 }
 
 // HandleBatch processes a list of events, coalescing consecutive PointerMove
-// samples to the latest point (P4 S6 / P5 A.1).
+// samples to the latest point.
 func (d *Dispatcher) HandleBatch(evs []PointerEvent, downPath func(e PointerEvent) []PointerTarget) {
 	if d == nil {
 		return

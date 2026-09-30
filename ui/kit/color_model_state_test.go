@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package kit_test
 
 import (
@@ -12,7 +22,6 @@ func colorValue(hex string) kit.ColorModelValue {
 }
 
 func TestColorModel_StateMachineMatchesCases(t *testing.T) {
-	// CP-S1/S2: drag fires change, release fires complete.
 	host := kit.BuildColorModel(kit.DefaultScopeCtx(), kit.DefaultColorModelProps())
 	changes := 0
 	completes := 0
@@ -38,7 +47,6 @@ func TestColorModel_StateMachineMatchesCases(t *testing.T) {
 		t.Fatal("CommitChange must fire complete")
 	}
 
-	// CP-S4: clear path.
 	cprops := kit.DefaultColorModelProps()
 	cprops.AllowClear = true
 	cprops.DefaultValue = colorValue("#1677ff")
@@ -58,7 +66,6 @@ func TestColorModel_StateMachineMatchesCases(t *testing.T) {
 		t.Fatal("clear without allowClear must fail")
 	}
 
-	// CP-S5/S6: disabled matrix.
 	dprops := kit.DefaultColorModelProps()
 	dprops.Disabled = true
 	dhost := kit.BuildColorModel(kit.DefaultScopeCtx(), dprops)
@@ -82,7 +89,6 @@ func TestColorModel_StateMachineMatchesCases(t *testing.T) {
 		t.Fatal("disabledAlpha must block alpha drag")
 	}
 
-	// CP-S8: controlled value never self-moves; outside drives it.
 	vprops := kit.DefaultColorModelProps()
 	vhost := kit.BuildColorModel(kit.DefaultScopeCtx(), vprops)
 	keep := colorValue("#1677ff")

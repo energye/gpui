@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build linux && !nogpu
 
 package render_test
@@ -12,7 +22,7 @@ import (
 	gputypes "github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
 
-	// Register the pure-Go GL backend (P1 temporary path).
+	// Register the pure-Go GL backend.
 	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 	// Register the render GPU accelerator (provider injection target).
 	_ "github.com/energye/gpui/render/gpu"
@@ -125,9 +135,7 @@ func p1GLDevice(t *testing.T) (hal.Device, hal.Adapter) {
 	return dev, ad
 }
 
-// TestP1GLOffscreenSolidProbe is the P1-1b first probe: solid fill through
-// the boxed GL device must take the GPU path with zero CPU fallback and
-// produce the exact pixel. No X11/EGL/GPU => Skip (no fake green).
+// No X11/EGL/GPU => Skip (no fake green).
 func TestP1GLOffscreenSolidProbe(t *testing.T) {
 	dev, ad := p1GLDevice(t)
 
@@ -164,7 +172,7 @@ func TestP1GLOffscreenSolidProbe(t *testing.T) {
 // TestP1GLOffscreenSolidCorner locks offscreen readback orientation: a 16x16
 // rect at (0,0) must land top-left, not bottom-left. Center-only probes stay
 // green under a Y-flip; this corner probe caught the CopyTextureToBuffer
-// extra-flip (P1-1b-2) where (8,8) was transparent and (8,55) was red.
+// extra-flip where (8,8) was transparent and (8,55) was red.
 func TestP1GLOffscreenSolidCorner(t *testing.T) {
 	dev, ad := p1GLDevice(t)
 
@@ -230,8 +238,6 @@ func TestP1GLOffscreenSolidDoubleFlush(t *testing.T) {
 	}
 }
 
-// TestP1GLOffscreenTexturedQuad is the P1-1b texture-path isolate: a solid
-// red ImageBuf drawn via DrawImage must take the GPU path and read back red.
 // If this fails while the solid-fill probe passes, the textured-quad pipeline
 // (QueueImageDraw: ramp/image uploads) is broken on GL, not the gradient math.
 func TestP1GLOffscreenTexturedQuad(t *testing.T) {

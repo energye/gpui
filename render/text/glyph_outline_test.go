@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -245,11 +255,6 @@ func TestAffineTransform(t *testing.T) {
 		translate := TranslateTransform(5, 5)
 		combined := scale.Multiply(translate)
 
-		// Multiply applies left transform first (scale), then right transform (translate)
-		// So: (10, 10) * 2 = (20, 20), then + (5*2, 5*2) = (30, 30)
-		// Actually, the matrix multiplication formula is: M1 * M2 * point
-		// which means: apply M2 first (translate: add 5,5), then M1 (scale: multiply)
-		// (10, 10) + (5, 5) = (15, 15) * 2 = (30, 30)
 		x, y := combined.TransformPoint(10, 10)
 		if x != 30 || y != 30 {
 			t.Errorf("Combined transform expected (30, 30), got (%v, %v)", x, y)

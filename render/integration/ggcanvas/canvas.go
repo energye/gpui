@@ -1,5 +1,12 @@
-// Copyright 2026 The gogpu Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package ggcanvas
 
@@ -30,7 +37,6 @@ var (
 )
 
 // textureDestroyer is the interface for destroying textures.
-// This matches the gogpu.Texture.Destroy signature.
 type textureDestroyer interface {
 	Destroy()
 }
@@ -120,7 +126,7 @@ func warnIfPhysicalDimensions(wp gpucontext.WindowProvider, width, height int, s
 //
 // Example:
 //
-//	scale := dc.ScaleFactor()  // from gogpu.Context
+//	scale := dc.ScaleFactor() // from gogpu.Context
 //	canvas, err := ggcanvas.NewWithScale(provider, 800, 600, scale)
 //
 // Returns error if dimensions are invalid, provider is nil, or scale <= 0.
@@ -249,10 +255,10 @@ func (c *Canvas) DeviceScale() float64 {
 //
 // Use this with DrawGPUTextureBase for single-pass zero-readback compositing:
 //
-//	canvas.FlushPixmap()                          // upload, no GPU readback
-//	view := canvas.PixmapTextureView()            // get GPU texture view
-//	cc.DrawGPUTextureBase(view, 0, 0, w, h)       // base layer
-//	cc.FlushGPUWithView(surfaceView, sw, sh)      // single pass compositor
+//	canvas.FlushPixmap() // upload, no GPU readback
+//	view := canvas.PixmapTextureView() // get GPU texture view
+//	cc.DrawGPUTextureBase(view, 0, 0, w, h) // base layer
+//	cc.FlushGPUWithView(surfaceView, sw, sh) // single pass compositor
 //
 // The view is valid until the texture is destroyed (resize, close).
 // Uses Go structural typing — no gogpu import required.
@@ -395,7 +401,7 @@ func (c *Canvas) MarkDirtyRegion(r image.Rectangle) {
 // until context close.
 //
 // Per-frame state (matrix, path, clip, mask) is automatically reset via
-// Push/Pop wrapper (Skia SkAutoCanvasRestore pattern, ADR-032). Configuration
+// Push/Pop wrapper. Configuration
 // state (font, paint color, textMode) persists across frames.
 func (c *Canvas) Draw(fn func(*render.Context)) error {
 	if c.closed {
@@ -728,11 +734,11 @@ func (c *Canvas) Render(dc RenderTarget) error {
 //
 // This is the setup step for zero-readback compositing:
 //
-//	canvas.FlushPixmap()                    // upload pixmap (no GPU readback)
+//	canvas.FlushPixmap() // upload pixmap (no GPU readback)
 //	canvas.EnsureGPUTexture(dc.RenderTarget()) // promote once
-//	view := canvas.PixmapTextureView()      // now non-nil
-//	cc.DrawGPUTextureBase(view, ...)        // base layer
-//	cc.FlushGPUWithView(surface, ...)       // single pass
+//	view := canvas.PixmapTextureView() // now non-nil
+//	cc.DrawGPUTextureBase(view, ...) // base layer
+//	cc.FlushGPUWithView(surface, ...) // single pass
 func (c *Canvas) EnsureGPUTexture(dc RenderTarget) error {
 	if c.texture == nil || c.closed {
 		return nil

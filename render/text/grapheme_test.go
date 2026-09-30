@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -5,7 +15,6 @@ import (
 	"testing"
 )
 
-// M1-c红灯:UAX#29字素簇起点(字节偏移,末尾哨兵=串长).
 // 注意:必须用e+U+0301(3字节),预合成的é(U+00E9)本来就是单字,不算组合.
 func TestClusterBoundary_CombiningMark(t *testing.T) {
 	if got, want := ClusterStarts("e\u0301"), []int{0, 3}; !reflect.DeepEqual(got, want) {

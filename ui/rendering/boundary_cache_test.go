@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package rendering_test
 
 import (
@@ -8,7 +18,6 @@ import (
 )
 
 // paintWithCache runs a FullPaint-style walk with a shared BoundaryCache
-// (same path W1 windows use via PipelineOwner.BoundaryCache).
 func paintWithCache(t *testing.T, root rendering.RenderObject, cache *rendering.BoundaryCache, w, h int) (rerecord, skip int64) {
 	t.Helper()
 	dc := render.NewContext(w, h)
@@ -301,7 +310,7 @@ func TestBoundaryCache_NestedOuterNoRerecordWhenInnerDirty(t *testing.T) {
 }
 
 func TestCountRepaintBoundaries_NestedDepth(t *testing.T) {
-	// root (no) → outer (yes) → mid (yes) → leaf (yes)  depth 3
+	// root (no) → outer (yes) → mid (yes) → leaf (yes) depth 3
 	leaf := rendering.NewRenderColorBox(8, 8, 1, 0, 0, 1)
 	leaf.SetRepaintBoundary(true)
 	mid := rendering.NewAbsoluteBox(40, 40)
@@ -372,7 +381,7 @@ func TestPipelineOwner_BoundaryCachePersists(t *testing.T) {
 // TestBoundaryCache_NonCacheableNeverReplays: a boundary whose own content
 // contains RO types the MVP recorder cannot capture (here a Viewport) must not
 // be cached — tryReplay must always miss so live content is never dropped from
-// a stale-frame Replay (correctness-first R3 rewrite).
+// a stale-frame Replay.
 func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
 	inner := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
 	vp := rendering.NewRenderViewport(inner)
@@ -403,8 +412,7 @@ func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
 // TestBoundaryCache_DPRInvalidateReRecords: R11 — programmatic full
 // invalidation (DPR change path, PipelineApp.InvalidateBoundaryCache → Clear)
 // must drop all entries: next frame re-records (no skip), then steady frames
-// replay again (skip resumes). Mirrors TestBoundaryCache_SizeChangeInvalidates
-// for the Clear path.
+// replay again (skip resumes).
 func TestBoundaryCache_DPRInvalidateReRecords(t *testing.T) {
 	box := rendering.NewRenderColorBox(20, 20, 0.3, 0.8, 0.2, 1)
 	box.SetRepaintBoundary(true)
@@ -503,7 +511,7 @@ func TestCompositingBits_IncrementalFlush(t *testing.T) {
 }
 
 // TestBoundaryCache_ShellBodyPartition: shell-tagged boundaries count in the
-// shell bucket separately from body boundaries (R21 shell/content layering).
+// shell bucket separately from body boundaries.
 // Frame 1 cold-records both; frame 2 dirties ONLY the body — the shell boundary
 // Replays (shell skip +1) with shell rerecord staying 0.
 func TestBoundaryCache_ShellBodyPartition(t *testing.T) {
@@ -551,14 +559,14 @@ func TestBoundaryCache_ShellBodyPartition(t *testing.T) {
 	if cache.FrameRerecord < 1 {
 		t.Fatalf("frame2 body rerecord=%d want ≥1", cache.FrameRerecord)
 	}
-	// Global counters still include shell (backward compat with R3/R4b gates).
+	// Global counters still include shell.
 	if cache.ShellRerecord != 1 {
 		t.Fatalf("lifetime shell_rerecord=%d want 1", cache.ShellRerecord)
 	}
 }
 
 // TestBase_SetShellBoundary_Toggle: the tag survives toggling and reports false
-// by default; re-tagging is idempotent (R21).
+// by default; re-tagging is idempotent.
 func TestBase_SetShellBoundary_Toggle(t *testing.T) {
 	b := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
 	if b.IsShellBoundary() {

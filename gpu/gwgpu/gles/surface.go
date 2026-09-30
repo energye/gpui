@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 //go:build (windows || linux) && !(js && wasm)
 
@@ -79,8 +86,6 @@ func destroySwapchainFBO(glCtx *gl.Context, fbo, colorRbo uint32) {
 // blitSwapchainToDefaultWith performs the present-time Y-flipping blit from
 // the Surface's swapchain FBO to the default framebuffer (FBO 0).
 // Must be called with GL context current on the user window DC.
-//
-// Mirrors Rust wgpu-hal/src/gles/egl.rs Surface::present (1280-1308).
 func (s *Surface) blitSwapchainToDefaultWith(glCtx *gl.Context) {
 	if glCtx == nil || s.swapchainFBO == 0 {
 		return

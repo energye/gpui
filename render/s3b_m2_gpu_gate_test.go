@@ -1,13 +1,22 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !nogpu
 
 package render_test
 
-// S3b M2 UI-level 2D GPU fixed-pixel gate.
 //
 // Architecture under test:
 //   render.Context → GPU accelerator → gpu/webgpu → gpu/rwgpu → libwgpu_native
 //
-// Hard rules (MAINLINE_PLAN S3):
+// Hard rules:
 //   - WGPU_NATIVE_PATH / accelerator path required
 //   - GPUOps must be > 0 after FlushGPU (no silent CPU-only pass)
 //   - Pixel checks prove semantics (not only "did not crash")
@@ -174,7 +183,6 @@ func TestS3b_M2_DrawImageOpacity(t *testing.T) {
 	})
 	s3bFlushGPU(t, dc)
 	r, g, b, _ := s3bSample(dc, 30, 30)
-	// red@0.5 over white → similar to premul alpha fill
 	s3bAlmost(t, "r", r, 255, 20)
 	s3bAlmost(t, "g", g, 128, 40)
 	s3bAlmost(t, "b", b, 128, 40)

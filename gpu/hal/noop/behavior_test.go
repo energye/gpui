@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package noop
@@ -9,11 +19,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 )
-
-// H4-b3 行为差异单测（noop 同步参照）：内存后端，所有提交立即可见，
-// 无需 GPU。锁住与 webgpu 对照的四项——提交索引递增、围栏记数、映射
-// 越界报错、Unmap 幂等。差异点：noop Poll 追平提交值（对照 webgpu
-// 恒 0），Unmap 传错类型返回 nil（对照 webgpu 报错）。
 
 func TestH4B3_NoopSubmitIndexIncrements(t *testing.T) {
 	q := &Queue{}
@@ -33,7 +38,7 @@ func TestH4B3_NoopSubmitIndexIncrements(t *testing.T) {
 	if got := q.LastSubmissionIndex(); got != 3 {
 		t.Fatalf("LastSubmissionIndex() = %d, want 3", got)
 	}
-	// 同步后端：提交即完成，Poll 追平（对照 webgpu 恒 0）。
+	// 同步后端：提交即完成，Poll 追平。
 	if got := q.Poll(); got != 3 {
 		t.Fatalf("Poll() = %d, want 3 (synchronous backend)", got)
 	}
@@ -94,7 +99,7 @@ func TestH4B3_NoopMapInvalidRangeAndUnmapIdempotent(t *testing.T) {
 	if _, err := d.MapBuffer(nil, 0, 1); !errors.Is(err, hal.ErrInvalidMapRange) {
 		t.Fatalf("MapBuffer(nil) = %v, want ErrInvalidMapRange", err)
 	}
-	// Unmap 幂等：错类型/重复调用都返回 nil（对照 webgpu 错类型报错）。
+	// Unmap 幂等：错类型/重复调用都返回 nil。
 	if err := d.UnmapBuffer(nil); err != nil {
 		t.Fatalf("UnmapBuffer(nil) = %v, want nil", err)
 	}

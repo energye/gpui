@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 //go:build !(js && wasm)
 
 package noop
@@ -16,7 +26,6 @@ type Queue struct {
 
 // Submit simulates command buffer submission.
 // Returns a monotonically increasing submission index.
-// Matches webgpu Queue.Submit variadic shape.
 func (q *Queue) Submit(_ ...hal.CommandBuffer) (uint64, error) {
 	q.submissionIndex++
 	return q.submissionIndex, nil
@@ -24,14 +33,13 @@ func (q *Queue) Submit(_ ...hal.CommandBuffer) (uint64, error) {
 
 // Poll returns the highest submission index known to be completed.
 // Noop backend is synchronous — all submissions are immediately complete.
-// Backend divergence (H4-b3 locked): webgpu Queue.Poll always returns 0,
+// Backend divergence: webgpu Queue.Poll always returns 0,
 // noop returns the submission index (submitted == completed).
 func (q *Queue) Poll() uint64 {
 	return q.submissionIndex
 }
 
 // LastSubmissionIndex returns the most recent submission index.
-// Matches webgpu Queue.LastSubmissionIndex.
 func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
 }
@@ -73,5 +81,4 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 }
 
 // SetSwapchainSuppressed is a no-op on the noop backend.
-// See BUG-WGPU-VK-005 (Vulkan-specific).
 func (q *Queue) SetSwapchainSuppressed(_ bool) {}

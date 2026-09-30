@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -8,7 +18,6 @@ import (
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
-// R1 梯形贴图接口冻结（S01/W1，前置 0.0）。
 //
 // 一句话：显卡把四边形拆成 TL-TR-BL 与 TR-BR-BL 两个三角分别贴图，
 // CPU 必须按同样拆法逐像素采样，不许再拉成方块，也不许静默画错。
@@ -149,7 +158,7 @@ func applyBayerDither4(pm *Pixmap) {
 // DrawImageQuad draws an image into a free-form destination quad (T.04 non-affine subset).
 // corners are user-space points in order: top-left, top-right, bottom-right, bottom-left.
 // GPU path uses QueueImageDraw with arbitrary corner mapping (perspective-like trapezoids).
-// CPU path uses the same TL-TR-BL + TR-BR-BL split for pixel parity (R1).
+// CPU path uses the same TL-TR-BL + TR-BR-BL split for pixel parity.
 // Compat wrapper: defaults Bilinear + opaque + Normal, degenerate quads no-op.
 func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point) {
 	_ = c.DrawImageQuadEx(img, corners, QuadDrawOptions{
@@ -511,7 +520,6 @@ func (c *Context) PushBackdropLayer(blendMode BlendMode, opacity float64) {
 	c.applyDitherIfEnabled()
 
 	parent := c.pixmap
-	// S6.4: push layer without Clear — full backdrop copy overwrites every pixel.
 	c.pushLayerSurface(blendMode, opacity, false, false)
 	if parent != nil && c.pixmap != nil {
 		dst := c.pixmap.Data()

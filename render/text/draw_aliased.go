@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package text
 
 import (
@@ -7,7 +17,7 @@ import (
 
 // DrawAliased renders text to a destination image using binary (non-anti-aliased)
 // coverage. Every pixel in the output is either fully transparent or fully opaque
-// (alpha 0 or 255). This matches Skia's SkFont::Edging::kAlias behavior.
+// (alpha 0 or 255).
 //
 // The function uses GlyphMaskRasterizer.RasterizeAliased internally, which routes
 // through NoAAFiller (integer scanline, binary coverage) instead of AnalyticFiller.

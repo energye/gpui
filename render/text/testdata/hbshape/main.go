@@ -1,24 +1,34 @@
-// hbshape — 原生 HarfBuzz（libharfbuzz.so）shaping 对照度量衡。
+//----------------------------------------
 //
-// S1 用途：验证生产 shaping 路径（HbShaper = go-text/typesetting/harfbuzz
-// 移植）在复杂脚本上与原生 libharfbuzz 输出一致（skeleton：
-// gid/cluster/xoffset/yoffset 必须完全一致；advance 记录不判，沿用 M2 判据）。
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
+// hbshape — 原生 HarfBuzz（libharfbuzz.so）shaping 对照度量衡。
 //
 // 只存源码，不提交二进制；测试经 hbshapeLocal(t) 解析（$HBSHAPE_BIN →
 // 已构建产物 → 拷贝源码到 TempDir go build 重建，需 go + purego）。
 //
 // 用法: hbshape <ttf|ttc> <text> [script] [lang] [direction] [sizePx] [faceIdx]
-//   script    = 三字母 OpenType 标签（默认 auto 按首字符探测）
-//   lang      = BCP47（默认 en）
-//   direction = ltr|rtl|ttb|btt（默认 ltr）
-//   sizePx    = 字号（默认 16，仅影响 advance 不影响 gid/cluster/offset）
-//   faceIdx   = TTC face 序号（默认 0）
+//
+//	script = 三字母 OpenType 标签（默认 auto 按首字符探测）
+//	lang = BCP47（默认 en）
+//	direction = ltr|rtl|ttb|btt（默认 ltr）
+//	sizePx = 字号（默认 16，仅影响 advance 不影响 gid/cluster/offset）
+//	faceIdx = TTC face 序号（默认 0）
+//
 // 输出: 每 glyph 一行 "gid cluster xoff yoff xadv yadv"（26.6 定点，
-//   harfbuzz 位置单位 = font units，未设 scale 时）。
+//
+//	harfbuzz 位置单位 = font units，未设 scale 时）。
 //
 // 注意: 不设 hb_font_set_scale（保持 font units），所以 xadv/yadv 是
-//   font units 整数；gid/cluster/offset 与 scale 无关，是对照骨架的
-//   核心。go-text 侧对照时用相同 upem 缩放即可。
+//
+//	font units 整数；gid/cluster/offset 与 scale 无关，是对照骨架的
+//	核心。go-text 侧对照时用相同 upem 缩放即可。
 package main
 
 import (
@@ -66,19 +76,19 @@ const (
 )
 
 type hbGlyphInfo struct {
-	Codepoint   uint32
-	Mask        uint32
-	Cluster     uint32
-	Var1        uint32
-	Var2        uint32
+	Codepoint uint32
+	Mask      uint32
+	Cluster   uint32
+	Var1      uint32
+	Var2      uint32
 }
 
 type hbGlyphPosition struct {
-	XAdvance   int32
-	YAdvance   int32
-	XOffset    int32
-	YOffset    int32
-	Var        int32
+	XAdvance int32
+	YAdvance int32
+	XOffset  int32
+	YOffset  int32
+	Var      int32
 }
 
 func mustLoad() {

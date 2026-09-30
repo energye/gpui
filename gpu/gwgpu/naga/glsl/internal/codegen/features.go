@@ -1,5 +1,12 @@
-// Copyright 2025 The GoGPU Authors
-// SPDX-License-Identifier: MIT
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
 
 package codegen
 
@@ -8,7 +15,6 @@ import (
 )
 
 // Features represents required GLSL features as bitflags.
-// Matches Rust naga's back::glsl::Features.
 type Features uint32
 
 const (
@@ -54,7 +60,6 @@ func (fm *featuresManager) contains(f Features) bool {
 }
 
 // writeExtensions writes all required GL extension directives.
-// Matches Rust naga's FeaturesManager::write.
 func (fm *featuresManager) writeExtensions(w *Writer) {
 	opts := w.options
 
@@ -148,7 +153,6 @@ func (fm *featuresManager) writeExtensions(w *Writer) {
 }
 
 // collectFeatures scans the module and entry point to determine required features.
-// Matches Rust naga's Writer::collect_required_features.
 func (w *Writer) collectFeatures() {
 	ep := w.getSelectedEntryPoint()
 	if ep == nil {
@@ -303,7 +307,6 @@ func (w *Writer) scanExpressionFeatures(ep *ir.EntryPoint) {
 				}
 			case ir.ExprImageLoad:
 				// Bounds-checked image loads with sample/level need extension.
-				// Matches Rust naga: only when BoundsCheckPolicy != Unchecked.
 				if w.options.BoundsCheckPolicies.ImageLoad != BoundsCheckUnchecked {
 					if k.Sample != nil {
 						w.features.request(FeatureTextureSamples)

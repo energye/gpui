@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package lower
 
 import (
@@ -39,7 +49,7 @@ type Lowerer struct {
 	// Function resolution
 	functions       map[string]ir.FunctionHandle // Named function lookup (non-entry-point only)
 	entryPointFuncs map[string]bool              // Names of entry point functions
-	funcMustUse     map[string]bool              // Functions with @must_use attribute
+	funcMustUse     map[string]bool
 
 	// Variable usage tracking for unused variable warnings
 	localDecls        map[string]parser.Span // Where each local variable was declared
@@ -62,7 +72,6 @@ type Lowerer struct {
 
 	// nonConstExprs tracks expression handles that are forced non-const.
 	// WGSL spec: "let" binding initializers are not const expressions.
-	// Matches Rust naga's force_non_const in the ExpressionKindTracker.
 	// Any expression referencing a non-const handle cannot be constant-folded.
 	nonConstExprs map[ir.ExpressionHandle]bool
 
@@ -73,9 +82,6 @@ type Lowerer struct {
 
 	// emitStateStart tracks the start of the current pending emit range.
 	// Set by emitStart(), cleared by emitFinish(). Used by lowerCall()
-	// to flush pending argument sub-expressions before the StmtCall,
-	// matching Rust naga's Emitter pattern where the emitter is flushed
-	// before any side-effectful statement.
 	emitStateStart *ir.ExpressionHandle
 
 	// currentEmitTarget is the statement block that the current emitter
@@ -83,7 +89,6 @@ type Lowerer struct {
 	currentEmitTarget *[]ir.Statement
 
 	// Per-function cache for GlobalVariable expressions.
-	// Rust naga creates ONE expression per global variable reference and reuses it.
 	// Without caching, we create a new expression each time a global is referenced,
 	// causing expression count divergence (e.g., 39 vs 37 expressions).
 	globalExprCache map[ir.GlobalVariableHandle]ir.ExpressionHandle
@@ -100,8 +105,6 @@ type Lowerer struct {
 
 	// globalVarInitASTs stores AST init expressions for global variables
 	// whose initializers are constructor calls (structs, vectors, etc.).
-	// These are lowered directly into GlobalExpressions (not Constants)
-	// to match Rust naga's behavior where global var inits are expression trees.
 	globalVarInitASTs map[ir.GlobalVariableHandle]parser.Expr
 
 	// constsWithInlineInit tracks constants whose Init was set inline during lowering.
@@ -113,7 +116,6 @@ type Lowerer struct {
 }
 
 // abstractConstInfo stores information about abstract constants (no explicit type).
-// In Rust naga, abstract constants are NOT added to module.constants; they are
 // inlined at use sites during lowering. We mirror this by storing their values
 // in a separate map to avoid registering abstract types in the type arena.
 type abstractConstInfo struct {
@@ -218,7 +220,6 @@ func lowerImpl(ast *parser.Module, source string) (*LowerResult, error) {
 	// Register built-in types
 	l.registerBuiltinTypes()
 
-	// Dependency-ordered single-pass processing matching Rust naga's visit_ordered().
 	// Declarations are topologically sorted by their dependencies, then processed
 	// in a single pass. This ensures every declaration is lowered AFTER all
 	// declarations it references, producing identical type registration order.
@@ -226,12 +227,9 @@ func lowerImpl(ast *parser.Module, source string) (*LowerResult, error) {
 
 	// Pre-register function names to support forward references.
 	// Entry point functions are NOT added to Module.Functions[] — they are
-	// stored inline in EntryPoint.Function (matching Rust naga). Only
+	// stored inline in EntryPoint.Function. Only
 	// regular (non-entry-point) functions get FunctionHandle assignments.
-	// IMPORTANT: Handles are assigned in dependency-sorted order (not source order)
-	// to match Rust naga's visit_ordered() which processes functions in DFS post-order.
 	{
-		// First pass: identify entry points and @must_use functions
 		for _, f := range ast.Functions {
 			if l.entryPointStage(f.Attributes) != nil {
 				l.entryPointFuncs[f.Name] = true
@@ -285,7 +283,6 @@ func lowerImpl(ast *parser.Module, source string) (*LowerResult, error) {
 			processedFunctions[d.Name] = true
 		case *parser.ConstAssertDecl:
 			// Module-scope const_assert — evaluate and error if false.
-			// Matches Rust naga: ConstAssertFailed / NotBool.
 			if err := l.evalConstAssert(d.Condition); err != nil {
 				l.addError(err.Error(), d.Span)
 			}
@@ -310,27 +307,18 @@ func lowerImpl(ast *parser.Module, source string) (*LowerResult, error) {
 	l.module.Types = l.registry.GetTypes()
 
 	// NOTE: CompactUnused (remove unreachable globals/functions) is NOT called here.
-	// Rust naga's lower() calls compact(KeepUnused::Yes) which keeps unused globals/functions.
 	// The second compact(KeepUnused::No) is only for backend snapshot generation.
 	// CompactUnused should be called separately before backend compilation if needed.
 
-	// Compact constants: remove abstract-typed constants (matching Rust naga's
-	// compact which removes constants with is_abstract types).
 	// Must run BEFORE CompactTypes so that removed constants' types become unreferenced.
 	ir.CompactConstants(l.module)
 
 	// Compact expressions: remove unreferenced expressions from each function.
-	// This matches Rust naga's compact pass which removes dead expressions
-	// (e.g., original abstract literals replaced by concretized versions).
 	// Must run BEFORE CompactTypes so that types referenced only by dead
 	// expressions (e.g., Compose for local const vec3) become unreferenced.
 	ir.CompactExpressions(l.module)
 
 	// Compact types: remove anonymous types not referenced by any handle.
-	// This matches Rust naga's compact::compact(module, KeepUnused::Yes)
-	// called at the end of lower(), which removes scalar types that were
-	// registered during vec/mat/atomic resolution but are only embedded
-	// by value (not referenced by handle) in Vector/Matrix/Atomic types.
 	ir.CompactTypes(l.module)
 
 	// Reorder surviving types in first-registration order.
@@ -339,12 +327,9 @@ func lowerImpl(ast *parser.Module, source string) (*LowerResult, error) {
 	// Remove duplicate/redundant Emit statements.
 	// Our emitter sometimes generates duplicate Emit ranges (e.g., Emit(7..8) twice)
 	// when function call flushes interact with statement-level emit wrappers.
-	// Rust naga doesn't have this issue because its emitter uses a different restart mechanism.
 	ir.DeduplicateEmits(l.module)
 
 	// Build GlobalExpressions arena from Constants, Overrides, and GlobalVariable inits.
-	// This mirrors Rust naga's Module.global_expressions which stores init expressions
-	// for all module-scope entities.
 	l.buildGlobalExpressions()
 
 	return &LowerResult{
@@ -367,8 +352,7 @@ func (l *Lowerer) addGlobalExpr(kind ir.ExpressionKind) ir.ExpressionHandle {
 
 // expandZeroArgsToGlobalExprs expands a zero-arg constructor into explicit zero Literal
 // global expressions. For VectorType, creates N zero Literals. For MatrixType, creates
-// column vectors of zero Literals. Matches Rust naga where vec2() inside mat2x2<f32>()
-// expands to Compose(vec2f, [Lit(0.0), Lit(0.0)]).
+// column vectors of zero Literals.
 func (l *Lowerer) expandZeroArgsToGlobalExprs(inner ir.TypeInner) []ir.ExpressionHandle {
 	switch t := inner.(type) {
 	case ir.VectorType:
@@ -386,8 +370,7 @@ func (l *Lowerer) expandZeroArgsToGlobalExprs(inner ir.TypeInner) []ir.Expressio
 
 // buildZeroCompose creates a Compose global expression with explicit zero literal components.
 // This is used when a zero-arg partial constructor (e.g., vec2()) is concretized via
-// a type annotation (e.g., `: vec2<i32> = vec2()`). In Rust naga, concretization of
-// ZeroValue(abstract) expands to Compose(concrete, [Literal(0), Literal(0), ...]).
+// a type annotation (e.g., `: vec2<i32> = vec2()`).
 func (l *Lowerer) buildZeroCompose(typeHandle ir.TypeHandle) ir.ExpressionHandle {
 	if int(typeHandle) >= len(l.module.Types) {
 		return l.addGlobalExpr(ir.ExprZeroValue{Type: typeHandle})
@@ -448,21 +431,17 @@ func (l *Lowerer) markConstInlineInit(ch ir.ConstantHandle) {
 // registerBuiltinTypes is a no-op placeholder for future use.
 // All types (including f32, i32, u32, bool) are created on-demand when first
 // referenced. This matches Rust naga behavior where types are added to the arena
-// lazily, ensuring identical type numbering for Rust reference compatibility.
-// See resolveNamedType() for lazy type registration of all named types.
 func (l *Lowerer) registerBuiltinTypes() {
 	// All types are registered lazily in resolveNamedType().
 }
 
 // generateExternalTextureTypes creates the special NagaExternalTextureParams and
 // NagaExternalTextureTransferFn types needed by backends for external texture lowering.
-// Mirrors Rust naga's Module::generate_external_texture_types().
 func (l *Lowerer) generateExternalTextureTypes() {
 	if l.module.SpecialTypes.ExternalTextureParams != nil {
 		return // Already generated
 	}
 
-	// Register component types in the same order as Rust naga
 	tyF32 := l.registerType("", ir.ScalarType{Kind: ir.ScalarFloat, Width: 4})
 	tyU32 := l.registerType("", ir.ScalarType{Kind: ir.ScalarUint, Width: 4})
 	tyVec2U := l.registerType("", ir.VectorType{Size: ir.Vec2, Scalar: ir.ScalarType{Kind: ir.ScalarUint, Width: 4}})
@@ -524,8 +503,6 @@ func (l *Lowerer) registerRayQueryConstants() {
 		{"RAY_FLAG_SKIP_TRIANGLES", 0x100},
 		{"RAY_FLAG_SKIP_AABBS", 0x200},
 	}
-	// Store as inline constants (Rust naga inlines these during lowering,
-	// they don't appear as module-level Constants).
 	for _, c := range rayFlagConstants {
 		l.inlineConstants[c.name] = ir.LiteralU32(c.val)
 	}
@@ -574,8 +551,6 @@ func (l *Lowerer) registerRayIntersectionType() {
 	if _, exists := l.types["RayIntersection"]; exists {
 		return
 	}
-	// Match Rust naga type_gen.rs registration order exactly:
-	// ty_flag (U32), ty_scalar (F32), ty_barycentrics (Vec2<f32>), ty_bool, ty_transform (Mat4x3<f32>)
 	u32Handle := l.registerType("u32", ir.ScalarType{Kind: ir.ScalarUint, Width: 4})
 	f32Handle := l.registerType("f32", ir.ScalarType{Kind: ir.ScalarFloat, Width: 4})
 	vec2f32Handle := l.registerType("", ir.VectorType{Size: ir.Vec2, Scalar: ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}})
@@ -633,7 +608,6 @@ func (l *Lowerer) registerTypeSilent(inner ir.TypeInner) ir.TypeHandle {
 
 // registerNamedType stores the type with a visible name in the arena.
 // Use this for types that should have a name in the output (structs, aliases).
-// In Rust naga, struct types are inserted with name: Some("StructName").
 func (l *Lowerer) registerNamedType(name string, inner ir.TypeInner) ir.TypeHandle {
 	handle := l.registry.GetOrCreate(name, inner)
 
@@ -648,16 +622,10 @@ func (l *Lowerer) registerNamedType(name string, inner ir.TypeInner) ir.TypeHand
 }
 
 // lowerAlias registers a type alias, mapping the alias name to the resolved type.
-// Matches Rust naga where ensure_type_exists(Some(alias_name), inner) creates a
-// new type entry with the alias name, distinct from any anonymous type with the
-// same inner. This is because Rust's UniqueArena deduplicates by the full Type
-// struct including name, so Type{name: Some("Mat"), inner: Matrix{...}} is
-// distinct from Type{name: None, inner: Matrix{...}}.
 func (l *Lowerer) lowerAlias(a *parser.AliasDecl) error {
 	// Save TypeUseOrder length — resolveType may register intermediate types
 	// (e.g., anonymous scalar for vec3<f32>) that should NOT appear in
 	// TypeUseOrder at the alias position. In Rust naga, resolve_named_ast_type
-	// computes the inner type and calls ensure_type_exists(Some(name), inner)
 	// which only registers the NAMED type in the arena order. Intermediate
 	// types (like anonymous scalars) are registered too, but at their resolution
 	// position, not at the alias position. We achieve the same by rolling back
@@ -672,7 +640,6 @@ func (l *Lowerer) lowerAlias(a *parser.AliasDecl) error {
 	// Get the inner type from the resolved handle
 	inner := l.module.Types[typeHandle].Inner
 
-	// In Rust naga, ensure_type_exists(Some(alias_name), inner) creates a new
 	// type entry with the alias name. The UniqueArena treats
 	// Type{name: Some("Mat"), inner: Matrix{...}} as distinct from
 	// Type{name: None, inner: Matrix{...}}.
@@ -684,9 +651,6 @@ func (l *Lowerer) lowerAlias(a *parser.AliasDecl) error {
 	switch inner.(type) {
 	case ir.ScalarType, ir.VectorType, ir.MatrixType:
 		// For Scalar/Vector/Matrix: create a SEPARATE named type entry.
-		// In Rust naga, UniqueArena deduplicates on (name, inner), so
-		// Type{name: Some("Mat"), inner: Matrix{...}} is distinct from
-		// Type{name: None, inner: Matrix{...}}.
 		l.module.TypeUseOrder = l.module.TypeUseOrder[:savedLen]
 		aliasHandle := l.registry.GetOrCreate(a.Name, inner)
 		l.module.Types = l.registry.GetTypes()
@@ -695,7 +659,6 @@ func (l *Lowerer) lowerAlias(a *parser.AliasDecl) error {
 	default:
 		// For RayQuery, AccelerationStructure, etc.: rename the existing type
 		// entry in-place. In Rust naga, resolve_named_ast_type creates a single
-		// entry with the alias name. There's no separate anonymous entry.
 		// E.g., `alias rq = ray_query;` → Type{name: "rq", inner: RayQuery}.
 		if l.module.Types[typeHandle].Name == "" {
 			l.module.Types[typeHandle].Name = a.Name
@@ -718,21 +681,17 @@ func (l *Lowerer) lowerStruct(s *parser.StructDecl) error {
 			return fmt.Errorf("struct %s member %s: %w", s.Name, m.Name, err)
 		}
 
-		// Extract binding from member attributes (@builtin, @location, @blend_src, @interpolate, etc.)
 		binding := l.memberBindings(m.Attributes)
 		// Apply default interpolation for Location bindings based on type
-		// (Rust naga's Binding::apply_default_interpolation)
 		binding = l.applyDefaultInterpolation(binding, typeHandle)
 
 		// Calculate proper alignment and size for WGSL uniform buffer layout
 		align, size := l.typeAlignmentAndSize(typeHandle)
 
-		// Check for explicit @align(N) attribute on the member
 		if explicitAlign := getAlignAttribute(m.Attributes); explicitAlign > 0 {
 			align = explicitAlign
 		}
 
-		// Check for explicit @size(N) attribute on the member
 		if explicitSize := getSizeAttribute(m.Attributes); explicitSize > 0 {
 			size = explicitSize
 		}
@@ -741,7 +700,6 @@ func (l *Lowerer) lowerStruct(s *parser.StructDecl) error {
 			maxAlign = align
 		}
 
-		// Align offset to the type's alignment requirement
 		offset = (offset + align - 1) &^ (align - 1)
 
 		members[i] = ir.StructMember{
@@ -758,7 +716,6 @@ func (l *Lowerer) lowerStruct(s *parser.StructDecl) error {
 	return nil
 }
 
-// getAlignAttribute extracts the value from an @align(N) attribute, returns 0 if not found.
 func getAlignAttribute(attrs []parser.Attribute) uint32 {
 	for _, attr := range attrs {
 		if attr.Name == "align" && len(attr.Args) == 1 {
@@ -773,7 +730,6 @@ func getAlignAttribute(attrs []parser.Attribute) uint32 {
 	return 0
 }
 
-// getSizeAttribute extracts the value from a @size(N) attribute, returns 0 if not found.
 func getSizeAttribute(attrs []parser.Attribute) uint32 {
 	for _, attr := range attrs {
 		if attr.Name == "size" && len(attr.Args) == 1 {
@@ -789,23 +745,17 @@ func getSizeAttribute(attrs []parser.Attribute) uint32 {
 }
 
 // typeAlignmentAndSize returns the alignment and size of a type for uniform buffer layout.
-// Follows WGSL/WebGPU alignment rules (similar to std140 but with some differences).
 func (l *Lowerer) typeAlignmentAndSize(handle ir.TypeHandle) (align, size uint32) {
 	typ := l.module.Types[handle]
 
 	switch t := typ.Inner.(type) {
 	case ir.ScalarType:
 		// WGSL layout: use scalar.width as both alignment and size.
-		// Matches Rust naga layouter: Alignment::new(scalar.width), size = scalar.width.
 		// Bool(1) → align=1, size=1; f16(2) → align=2, size=2; f32(4) → align=4, size=4.
 		w := uint32(t.Width)
 		return w, w
 
 	case ir.VectorType:
-		// Matches Rust naga layouter:
-		// size = vec_size * scalar.width
-		// alignment = Alignment::from(vec_size) * Alignment::new(scalar.width)
-		// where Alignment::from: Bi→2, Tri→4, Quad→4
 		scalarWidth := uint32(t.Scalar.Width)
 		var vecAlignFactor uint32
 		switch t.Size {
@@ -820,9 +770,6 @@ func (l *Lowerer) typeAlignmentAndSize(handle ir.TypeHandle) (align, size uint32
 
 	case ir.MatrixType:
 		// Matrix layout: column-major, each column is a vec with alignment.
-		// Matches Rust naga layouter:
-		//   alignment = Alignment::from(rows) * Alignment::new(scalar.width)
-		//   size = alignment * columns (via try_size = Alignment::from(rows) * scalar.width * columns)
 		scalarWidth := uint32(t.Scalar.Width)
 		var rowsAlignFactor uint32
 		switch t.Rows {
@@ -838,11 +785,9 @@ func (l *Lowerer) typeAlignmentAndSize(handle ir.TypeHandle) (align, size uint32
 
 	case ir.ArrayType:
 		// Array layout uses element alignment and stride.
-		// Matches Rust naga layouter: alignment = base element alignment,
-		// stride = alignment.round_up(element_size).
 		// Note: uniform buffer 16-byte array stride requirement is enforced
 		// by the WGSL spec for uniform address space, but the general type
-		// layout uses natural alignment (Rust naga: layouter.rs line 219-230).
+		// layout uses natural alignment.
 		elemAlign, elemSize := l.typeAlignmentAndSize(t.Base)
 		stride := (elemSize + elemAlign - 1) &^ (elemAlign - 1)
 		if t.Size.Constant != nil {
@@ -903,7 +848,6 @@ func (l *Lowerer) lowerGlobalVar(v *parser.VarDecl) error {
 
 	var binding *ir.ResourceBinding
 
-	// Parse @group and @binding attributes
 	hasGroup := false
 	hasBinding := false
 	for _, attr := range v.Attributes {
@@ -929,7 +873,6 @@ func (l *Lowerer) lowerGlobalVar(v *parser.VarDecl) error {
 		}
 	}
 
-	// Validate that @binding and @group appear together.
 	// WGSL spec requires both attributes on resource variables.
 	if hasBinding && !hasGroup {
 		return fmt.Errorf("global var '%s': @binding requires @group attribute", v.Name)
@@ -955,7 +898,6 @@ func (l *Lowerer) lowerGlobalVar(v *parser.VarDecl) error {
 	}
 
 	// Evaluate global variable initializer.
-	// Rust naga stores global var init as a handle into GlobalExpressions (not Constants).
 	// For scalar literals, create a Literal in GlobalExpressions directly.
 	var init *ir.ConstantHandle
 	var initExpr *ir.ExpressionHandle
@@ -1021,7 +963,6 @@ func (l *Lowerer) lowerGlobalVar(v *parser.VarDecl) error {
 
 // lowerGlobalVarInit evaluates a global variable initializer as a constant expression
 // and returns the constant handle. This handles simple literal initializers.
-// Matches Rust naga where global var inits are stored as global constant expressions.
 func (l *Lowerer) lowerGlobalVarInit(varName string, typeHandle ir.TypeHandle, init parser.Expr) (ir.ConstantHandle, error) {
 	lit, ok := init.(*parser.Literal)
 	if !ok {
@@ -1124,7 +1065,6 @@ func (l *Lowerer) lowerOverride(o *parser.OverrideDecl) error {
 		typeHandle = l.registerType("f32", ir.ScalarType{Kind: ir.ScalarFloat, Width: 4})
 	}
 
-	// Parse @id attribute.
 	var id *uint16
 	for _, attr := range o.Attributes {
 		if attr.Name == "id" && len(attr.Args) > 0 {
@@ -1188,13 +1128,11 @@ func (l *Lowerer) inferOverrideType(init parser.Expr) ir.TypeHandle {
 			return l.registerType("bool", ir.ScalarType{Kind: ir.ScalarBool, Width: 1})
 		}
 	case *parser.Ident:
-		// Reference to another override — inherit its type.
 		if oh, ok := l.moduleOverrides[e.Name]; ok {
 			if int(oh) < len(l.module.Overrides) {
 				return l.module.Overrides[oh].Ty
 			}
 		}
-		// Reference to an abstract constant — infer concrete type.
 		if info, ok := l.abstractConstants[e.Name]; ok && info.scalarValue != nil {
 			switch info.scalarValue.Kind {
 			case ir.ScalarSint:
@@ -1205,7 +1143,6 @@ func (l *Lowerer) inferOverrideType(init parser.Expr) ir.TypeHandle {
 				return l.registerType("", ir.ScalarType{Kind: ir.ScalarFloat, Width: 4})
 			}
 		}
-		// Reference to a constant — inherit its type.
 		if ch, ok := l.moduleConstants[e.Name]; ok {
 			if int(ch) < len(l.module.Constants) {
 				return l.module.Constants[ch].Type
@@ -1406,16 +1343,12 @@ func (l *Lowerer) lowerConstant(c *parser.ConstDecl) error {
 		return fmt.Errorf("module constant '%s' must have initializer", c.Name)
 	}
 
-	// Track whether this constant has abstract type in Rust naga.
-	// In Rust naga, constants whose type is abstract (e.g., `const ONE = 1;`)
-	// are NOT added to module.constants at all — they are inlined at use sites.
 	// We mirror this by storing abstract constants in a separate map to avoid
 	// registering abstract types in the type arena (which would pollute type order).
 	isAbstract := c.Type == nil && !l.initHasConcreteType(c.Init)
 
 	// For abstract constants: store in abstractConstants map WITHOUT registering
-	// types or adding to module.Constants. This matches Rust naga where abstract
-	// constants exist only in the frontend context and are never in the module.
+	// types or adding to module.Constants.
 	if isAbstract {
 		return l.lowerAbstractConstant(c)
 	}
@@ -1447,7 +1380,7 @@ func (l *Lowerer) lowerConstant(c *parser.ConstDecl) error {
 	}
 
 	// Build GlobalExpressions inline for concrete constants.
-	// Building inline ensures types are registered in source order (matching Rust naga).
+	// Building inline ensures types are registered in source order.
 	for i := constsBefore; i < len(l.module.Constants); i++ {
 		if l.module.Constants[i].IsAbstract {
 			continue // Should not happen now, but keep as safety
@@ -1790,8 +1723,6 @@ func (l *Lowerer) lowerConstantAlias(name string, typ parser.Type, ident *parser
 	}
 
 	handle := ir.ConstantHandle(len(l.module.Constants))
-	// If the source has Init (inline GE), share it — matching Rust naga where
-	// alias constants point to the same global expression as the source.
 	if l.constsWithInlineInit[srcHandle] {
 		l.module.Constants = append(l.module.Constants, ir.Constant{
 			Name: name,
@@ -1921,7 +1852,7 @@ func (l *Lowerer) lowerConstantVectorBinaryExpr(name string, typ parser.Type, ex
 		expr.Op == parser.TokenLess || expr.Op == parser.TokenLessEqual ||
 		expr.Op == parser.TokenGreater || expr.Op == parser.TokenGreaterEqual
 
-	// Evaluate component-wise and create GE directly (matching Rust naga).
+	// Evaluate component-wise and create GE directly.
 	geComponents := make([]ir.ExpressionHandle, numComponents)
 	for i := 0; i < numComponents; i++ {
 		leftSV, lOK := l.module.Constants[leftComps.Components[i]].Value.(ir.ScalarValue)
@@ -2096,8 +2027,6 @@ func (l *Lowerer) evalScalarArithmetic(op parser.TokenKind, left, right ir.Scala
 	}
 }
 
-// float32ToHalf converts a float32 value to IEEE 754 half-precision (16-bit) bits
-// using round-to-nearest-even (banker's rounding), matching Rust's f16::from_f32.
 func float32ToHalf(f float32) uint16 {
 	bits := math.Float32bits(f)
 	sign := (bits >> 31) & 1
@@ -2557,15 +2486,10 @@ func (l *Lowerer) lowerCompositeConstant(name string, declType parser.Type, cons
 		return nil
 	}
 
-	// For concrete constants: build GlobalExpressions matching Rust naga where
-	// scalar components are in global_expressions (not in constants).
-
 	// Zero-value composite constructor with no args.
 	// Two cases depending on whether the type came from the constructor or declaration:
 	// 1. Constructor has explicit type: vec2<u32>() → ZeroValue(typeHandle)
 	// 2. Type from annotation: `: vec2<i32> = vec2()` → Compose with explicit zeros
-	// Case 2 matches Rust naga where abstract vec2() is concretized by the type annotation,
-	// and concretization expands ZeroValue(abstract) → Compose(concrete, [0, 0, ...]).
 	if len(construct.Args) == 0 {
 		if typeFromDeclType {
 			// Type came from declaration annotation. Expand to Compose with explicit zeros.
@@ -2604,8 +2528,6 @@ func (l *Lowerer) lowerCompositeConstant(name string, declType parser.Type, cons
 		if mat, ok := inner.(ir.MatrixType); ok {
 			componentHandles = l.groupMatrixConstantColumns(name, mat, componentHandles)
 		}
-		// Convert sub-constants to GE handles, matching Rust naga which stores
-		// everything in global_expressions (not as separate named constants).
 		geComponents = make([]ir.ExpressionHandle, len(componentHandles))
 		for i, ch := range componentHandles {
 			if int(ch) < len(l.module.Constants) {
@@ -2659,7 +2581,7 @@ func (l *Lowerer) lowerCompositeConstant(name string, declType parser.Type, cons
 		geComponents = l.groupMatrixGlobalExprColumns(mat, typeHandle, geComponents)
 	}
 
-	// Vector with single scalar arg → Splat (matching Rust naga).
+	// Vector with single scalar arg → Splat.
 	// E.g., vec3<f32>(0.0) → Splat(size=Tri, value=Literal(0.0))
 	var initHandle ir.ExpressionHandle
 	if vec, ok := inner.(ir.VectorType); ok && len(construct.Args) == 1 && len(geComponents) == 1 {
@@ -2680,7 +2602,6 @@ func (l *Lowerer) lowerCompositeConstant(name string, declType parser.Type, cons
 
 // evalConstantArgsAsGlobalExprs evaluates constant constructor args as GlobalExpressions.
 // Returns ExpressionHandles into Module.GlobalExpressions (not ConstantHandles).
-// This matches Rust naga where scalar components of composites are in global_expressions.
 func (l *Lowerer) evalConstantArgsAsGlobalExprs(name string, args []parser.Expr, parentType ir.TypeInner) ([]ir.ExpressionHandle, error) {
 	var componentScalar ir.ScalarType
 	switch t := parentType.(type) {
@@ -2724,8 +2645,7 @@ func (l *Lowerer) evalConstantArgsAsGlobalExprs(name string, args []parser.Expr,
 			// Nested constructor (e.g., vec2(1, 2) inside vec4(vec2(1,2), vec2(3,4)))
 			// Resolve nested type and recurse.
 			// When the nested constructor is partial (no type params), concretize its
-			// scalar to match the parent's component scalar. This matches Rust naga
-			// where abstract sub-vectors are concretized to the parent's scalar type.
+			// scalar to match the parent's component scalar.
 			var nestedType ir.TypeHandle
 			if a.Type != nil {
 				var err error
@@ -2752,8 +2672,6 @@ func (l *Lowerer) evalConstantArgsAsGlobalExprs(name string, args []parser.Expr,
 				var subHandles []ir.ExpressionHandle
 				if len(a.Args) == 0 {
 					// Zero-arg nested constructor: expand to explicit zero Literal components.
-					// Rust naga expands vec2() to Compose(vec2, [Lit(0.0), Lit(0.0)]),
-					// not Compose(vec2, []).
 					subHandles = l.expandZeroArgsToGlobalExprs(nestedInner)
 				} else {
 					var err error
@@ -2784,7 +2702,6 @@ func (l *Lowerer) evalConstantArgsAsGlobalExprs(name string, args []parser.Expr,
 					return nil, fmt.Errorf("abstract constant %q has no scalar value", a.Name)
 				}
 			} else if ch, ok := l.moduleConstants[a.Name]; ok {
-				// Reference to another constant
 				if int(ch) < len(l.module.Constants) {
 					c := &l.module.Constants[ch]
 					// Use the constant's Init (GlobalExpression) if available
@@ -2994,7 +2911,6 @@ func (l *Lowerer) evalConstantArgs(name string, args []parser.Expr, parentType i
 				})
 				componentHandles[i] = compHandle
 			} else if constHandle, exists := l.moduleConstants[a.Name]; exists {
-				// Reference to another constant
 				componentHandles[i] = constHandle
 			} else {
 				return nil, fmt.Errorf("module constant '%s' arg %d: unknown constant '%s'", name, i, a.Name)
@@ -3330,8 +3246,6 @@ func (l *Lowerer) inferCompositeConstantType(construct *parser.ConstructExpr, us
 	case len(named.Name) == 4 && named.Name[:3] == "vec":
 		size := named.Name[3] - '0'
 		// Register scalar type first, matching resolveParameterizedType behavior.
-		// This ensures type ordering matches Rust naga where the scalar is registered
-		// before the vector in the type arena.
 		l.registerType("", scalar)
 		return l.registerType("", ir.VectorType{
 			Size:   ir.VectorSize(size),
@@ -3340,8 +3254,7 @@ func (l *Lowerer) inferCompositeConstantType(construct *parser.ConstructExpr, us
 	case len(named.Name) >= 5 && named.Name[:3] == "mat":
 		cols := named.Name[3] - '0'
 		rows := named.Name[5] - '0'
-		// WGSL matrices only support float scalars. Abstract integer args
-		// must concretize to f32, matching Rust naga behavior.
+		// WGSL matrices only support float scalars.
 		if scalar.Kind == ir.ScalarSint || scalar.Kind == ir.ScalarUint {
 			scalar = ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}
 		}
@@ -3718,7 +3631,6 @@ func (l *Lowerer) lowerFunction(f *parser.FunctionDecl) error {
 
 		binding := l.paramBinding(p.Attributes)
 		// Apply default interpolation for Location bindings based on type
-		// (Rust naga's Binding::apply_default_interpolation)
 		binding = l.applyDefaultInterpolation(binding, typeHandle)
 		fn.Arguments[i] = ir.FunctionArgument{
 			Name:    p.Name,
@@ -3731,7 +3643,6 @@ func (l *Lowerer) lowerFunction(f *parser.FunctionDecl) error {
 			Kind: ir.ExprFunctionArgument{Index: uint32(i)},
 		})
 		l.locals[p.Name] = exprHandle
-		// Rust naga adds function arguments to named_expressions
 		fn.NamedExpressions[exprHandle] = p.Name
 	}
 
@@ -3743,7 +3654,6 @@ func (l *Lowerer) lowerFunction(f *parser.FunctionDecl) error {
 		}
 		retBinding := l.returnBinding(f.ReturnAttrs)
 		// Apply default interpolation for Location bindings based on type
-		// (Rust naga's Binding::apply_default_interpolation)
 		retBinding = l.applyDefaultInterpolation(retBinding, typeHandle)
 		fn.Result = &ir.FunctionResult{
 			Type:    typeHandle,
@@ -3758,7 +3668,6 @@ func (l *Lowerer) lowerFunction(f *parser.FunctionDecl) error {
 		}
 	}
 
-	// Rust naga calls proc::ensure_block_returns after lowering the body.
 	// This ensures every control flow path ends with a Return statement.
 	ensureBlockReturns(&fn.Body)
 
@@ -3773,15 +3682,13 @@ func (l *Lowerer) lowerFunction(f *parser.FunctionDecl) error {
 	stage := l.entryPointStage(f.Attributes)
 	if stage != nil {
 		// Entry point functions are stored inline in EntryPoint.Function,
-		// NOT in Module.Functions[] (matching Rust naga).
+		// NOT in Module.Functions[].
 		ep := ir.EntryPoint{
 			Name:     f.Name,
 			Stage:    *stage,
 			Function: *fn,
 		}
 		// Extract workgroup_size for compute/mesh/task shaders.
-		// Validate that @workgroup_size is present — required by WGSL spec.
-		// Matches Rust naga: Error::MissingWorkgroupSize.
 		if *stage == ir.StageCompute || *stage == ir.StageMesh || *stage == ir.StageTask {
 			hasWGSize := false
 			for _, attr := range f.Attributes {
@@ -3799,9 +3706,7 @@ func (l *Lowerer) lowerFunction(f *parser.FunctionDecl) error {
 		if *stage == ir.StageFragment {
 			ep.EarlyDepthTest = l.extractEarlyDepthTest(f.Attributes)
 		}
-		// Extract task_payload from @payload(varName) attribute
 		ep.TaskPayload = l.extractTaskPayload(f.Attributes)
-		// Extract mesh_info from @mesh(outputVar) attribute
 		if *stage == ir.StageMesh {
 			ep.MeshInfo = l.extractMeshInfo(f.Attributes)
 		}
@@ -3933,7 +3838,6 @@ func (l *Lowerer) lowerStatement(stmt parser.Stmt, target *[]ir.Statement) error
 		return fmt.Errorf("'break if' must appear inside a continuing block of a loop")
 	case *parser.ConstAssertDecl:
 		// const_assert is a compile-time assertion — WGSL spec requires evaluation.
-		// Matches Rust naga: eval_expr_to_bool → ConstAssertFailed / NotBool.
 		return l.evalConstAssert(s.Condition)
 	case *parser.ContinueStmt:
 		*target = append(*target, ir.Statement{Kind: ir.StmtContinue{}})
@@ -4000,9 +3904,7 @@ func (l *Lowerer) lowerLocalVar(v *parser.VarDecl, target *[]ir.Statement) error
 	var initHandle *ir.ExpressionHandle
 	hasExplicitType := false
 
-	// Resolve explicit type BEFORE initializer (matching Rust naga order).
-	// Rust's resolve_ast_type runs before type_and_init, ensuring types like
-	// i32 are registered before vec2<i32> constructors reference them.
+	// Resolve explicit type BEFORE initializer.
 	if v.Type != nil {
 		var err error
 		typeHandle, err = l.resolveType(v.Type)
@@ -4019,8 +3921,6 @@ func (l *Lowerer) lowerLocalVar(v *parser.VarDecl, target *[]ir.Statement) error
 		if err != nil {
 			return err
 		}
-		// DON'T emitFinish here — emit after LocalVariable expression
-		// to match Rust's interrupt_emitter(LocalVariable) + emitter.finish() pattern.
 		initHandle = &init
 	}
 
@@ -4040,15 +3940,12 @@ func (l *Lowerer) lowerLocalVar(v *parser.VarDecl, target *[]ir.Statement) error
 	// Concretize abstract literals in the initializer to match the variable's type.
 	// For explicit type: var x: u32 = 42 → concretize AbstractInt(42) to LiteralU32(42).
 	// For inferred type: var idx = 1 → concretize AbstractInt(1) to LiteralI32(1).
-	// Rust naga always concretizes abstract literals at var declaration sites.
 	if initHandle != nil {
 		l.concretizeExpressionToType(*initHandle, typeHandle)
 	}
 
 	localIdx := uint32(len(l.currentFunc.LocalVars))
 
-	// Rust naga merges const initializers into LocalVariable.Init when outside
-	// a loop, and splits into zero-init + Store for runtime expressions or when
 	// inside a loop. This ensures correct behavior for side-effectful expressions
 	// (function calls, derivatives, loads) while producing cleaner output for
 	// simple constant initializers.
@@ -4072,9 +3969,6 @@ func (l *Lowerer) lowerLocalVar(v *parser.VarDecl, target *[]ir.Statement) error
 	})
 
 	// Create local variable expression using interrupt_emitter pattern.
-	// Matches Rust: interrupt_emitter(LocalVariable) flushes the current emit
-	// (covering init expressions), adds LocalVariable outside emit range,
-	// then block.extend(emitter.finish()) adds any remaining emit.
 	exprHandle := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprLocalVariable{Variable: localIdx},
 	})
@@ -4108,14 +4002,10 @@ func (l *Lowerer) lowerLocalVar(v *parser.VarDecl, target *[]ir.Statement) error
 
 // isConstExpression returns true if the expression is a compile-time constant
 // that can be used as a local variable initializer (merged into the declaration).
-// This matches Rust naga's is_const_or_override check: literals, zero values,
-// module constants, and compositions/splats of constant sub-expressions.
 func (l *Lowerer) isConstExpression(handle ir.ExpressionHandle) bool {
 	if l.currentFunc == nil || int(handle) >= len(l.currentFunc.Expressions) {
 		return false
 	}
-	// Rust naga's ExpressionKindTracker: let-bound expressions are forced non-const.
-	// This matches force_non_const() in the WGSL lowerer.
 	if l.nonConstExprs != nil && l.nonConstExprs[handle] {
 		return false
 	}
@@ -4150,8 +4040,6 @@ func (l *Lowerer) isConstExpression(handle ir.ExpressionHandle) bool {
 }
 
 // constEvalExprToU32 tries to evaluate an expression as a compile-time constant u32.
-// This matches Rust naga's const_eval_expr_to_u32: it checks if the expression is a
-// const expression (literal, constant, etc.) and evaluates it to a u32 value.
 // Returns (value, true) on success, (0, false) if not a constant or out of range.
 func (l *Lowerer) constEvalExprToU32(handle ir.ExpressionHandle) (uint32, bool) {
 	if l.currentFunc == nil || int(handle) >= len(l.currentFunc.Expressions) {
@@ -4184,13 +4072,8 @@ func (l *Lowerer) constEvalExprToU32(handle ir.ExpressionHandle) (uint32, bool) 
 // lowerAssign converts an assignment statement to IR.
 func (l *Lowerer) lowerAssign(assign *parser.AssignStmt, target *[]ir.Statement) error {
 	// WGSL discard pattern: _ = expr; evaluates RHS for side effects, discards result.
-	// Matches Rust naga: preserve as named expression "phony" so backends emit it.
 	if ident, ok := assign.Left.(*parser.Ident); ok && ident.Name == "_" {
-		// Try const-evaluating the phony RHS. Rust naga's ConstantEvaluator
-		// evaluates pure constant expressions (like select(1, 2f, false)) at
-		// lowering time, producing a single ExprConstant in the function arena
-		// instead of separate literal + operation expressions. This keeps
-		// expression handle numbering aligned with Rust.
+		// Try const-evaluating the phony RHS.
 		if handle, ok := l.tryConstEvalPhonyExpr(assign.Right); ok {
 			// Const-evaluated results (Literal/Constant) are non-emittable,
 			// so no Emit statement is needed.
@@ -4203,12 +4086,10 @@ func (l *Lowerer) lowerAssign(assign *parser.AssignStmt, target *[]ir.Statement)
 		if err != nil {
 			return err
 		}
-		// Matches Rust naga: expression() concretizes abstract values.
 		// Phony assignments use the standard expression() path which
 		// calls concretize() after evaluation.
 		l.concretizeAbstractToDefault(rhs)
 		l.emitFinish(emitStart, target)
-		// Matches Rust naga: ALL phony assignments are added unconditionally.
 		l.addPhonyExpression(rhs)
 		return nil
 	}
@@ -4234,7 +4115,7 @@ func (l *Lowerer) lowerAssign(assign *parser.AssignStmt, target *[]ir.Statement)
 		return l.lowerSwizzleAssign(sa, assign.Op, assign.Right, target)
 	}
 
-	// Start emit range BEFORE LHS lowering. Rust naga's emitter covers both
+	// Start emit range BEFORE LHS lowering.
 	// the LHS reference chain and RHS value in a single Emit statement. This
 	// ensures that Load expressions created as part of LHS dynamic indexing
 	// (e.g., alignment.v3[idx] = 3.0 creates a Load of idx) are covered by
@@ -4259,21 +4140,14 @@ func (l *Lowerer) lowerAssign(assign *parser.AssignStmt, target *[]ir.Statement)
 		return err
 	}
 
-	// Handle compound assignments (+=, -=, etc.)
-	// Matches Rust naga's increment/compound-assign order:
 	// 1. Concretize the RHS value (creates literal expression if needed)
 	// 2. Load the current LHS value from the pointer
 	// 3. Create the binary operation (left=Load, right=concretized value)
-	// This order matters for expression handle numbering to match Rust.
 	if assign.Op != parser.TokenEqual {
 		op := l.assignOpToBinary(assign.Op)
 		// Concretize abstract literals BEFORE loading the pointer value.
-		// This matches Rust naga where the literal is created first (via
-		// interrupt_emitter) and then the Load expression is appended.
 		l.concretizeCompoundAssignRHS(pointer, &value)
 		// Apply load rule to get the current value from the pointer.
-		// Must happen BEFORE Splat to match Rust expression ordering:
-		// concretize → Load → Splat → Binary
 		loaded := l.applyLoadRule(pointer)
 		// Splat scalar RHS to match vector LHS (e.g., a += 1.0 where a: vec2<f32>).
 		value = l.splatScalarToMatchPointer(pointer, value)
@@ -4516,10 +4390,10 @@ func (l *Lowerer) lowerSwizzleAssign(
 
 // chainedSwizzleAssignInfo describes a chained or indexed swizzle on the LHS of an
 // assignment. Covers Dawn patterns 3-4, 7-11:
-//   - v.zyx.x = 1.0           (chained single: resolvedIndices = [2])
-//   - v.zyx.yz = vec2(1,2)    (chained multi:  resolvedIndices = [1,0])
-//   - v.zyx[1] = 1.0          (indexed const:  resolvedIndices = [1])
-//   - v.zyx[i] = 1.0          (indexed dynamic: swizzleMap + dynamicIndex)
+//   - v.zyx.x = 1.0 (chained single: resolvedIndices = [2])
+//   - v.zyx.yz = vec2(1,2) (chained multi: resolvedIndices = [1,0])
+//   - v.zyx[1] = 1.0 (indexed const: resolvedIndices = [1])
+//   - v.zyx[i] = 1.0 (indexed dynamic: swizzleMap + dynamicIndex)
 type chainedSwizzleAssignInfo struct {
 	base            parser.Expr // The ultimate vector variable base (e.g., "v")
 	resolvedIndices []uint32    // Final indices in original vector space (nil for dynamic)
@@ -4939,7 +4813,6 @@ func (l *Lowerer) lowerIf(ifStmt *parser.IfStmt, target *[]ir.Statement) error {
 		switch e := ifStmt.Else.(type) {
 		case *parser.BlockStmt:
 			// Plain else block: lower contents directly into reject (no StmtBlock wrapper).
-			// Matches Rust naga where else body content goes directly into reject block.
 			if err := l.lowerBlock(e, &reject); err != nil {
 				l.popScope()
 				return err
@@ -4986,9 +4859,6 @@ func (l *Lowerer) lowerFor(forStmt *parser.ForStmt, target *[]ir.Statement) erro
 	var body, continuing []ir.Statement
 
 	// Add condition check at start of body.
-	// Rust naga uses: if (condition) {} else { break; }
-	// instead of: if (!condition) { break; }
-	// This avoids creating an extra negation expression in the IR.
 	if forStmt.Condition != nil {
 		emitStart := l.emitStartWithTarget(&body)
 		condition, err := l.lowerExpression(forStmt.Condition, &body)
@@ -5005,7 +4875,6 @@ func (l *Lowerer) lowerFor(forStmt *parser.ForStmt, target *[]ir.Statement) erro
 		})
 	}
 
-	// Rust naga wraps the for loop body in a Block statement.
 	// This produces { ... } scope in the output, matching the reference.
 	l.pushScope()
 	var innerBody []ir.Statement
@@ -5050,9 +4919,6 @@ func (l *Lowerer) lowerWhile(whileStmt *parser.WhileStmt, target *[]ir.Statement
 	}
 
 	l.emitFinish(emitStart, &body)
-	// Rust naga uses: if (condition) {} else { break; }
-	// instead of: if (!condition) { break; }
-	// This avoids negation and matches the Rust MSL output.
 	body = append(body, ir.Statement{
 		Kind: ir.StmtIf{
 			Condition: condition,
@@ -5061,7 +4927,6 @@ func (l *Lowerer) lowerWhile(whileStmt *parser.WhileStmt, target *[]ir.Statement
 		},
 	})
 
-	// Rust naga wraps the while loop body in a Block statement.
 	// This produces { ... } scope in the output, matching the reference.
 	l.pushScope()
 	var innerBody []ir.Statement
@@ -5155,8 +5020,6 @@ func (l *Lowerer) lowerSwitch(switchStmt *parser.SwitchStmt, target *[]ir.Statem
 		return fmt.Errorf("switch selector: %w", err)
 	}
 	// Determine consensus type for selector + all case values.
-	// Matches Rust naga: automatic_conversion_consensus across selector and cases,
-	// defaulting to I32 if all are abstract.
 	consensusUnsigned := false
 	// Check if selector is already U32.
 	if inner := l.resolveExprTypeInner(selector); inner != nil {
@@ -5207,7 +5070,7 @@ func (l *Lowerer) lowerSwitch(switchStmt *parser.SwitchStmt, target *[]ir.Statem
 		} else {
 			// For multi-selector cases (e.g., case 3, 4: { body }),
 			// emit N-1 fallthrough cases with empty bodies, then the
-			// final case with the actual body. Matches Rust naga IR.
+			// final case with the actual body.
 			//
 			// When IsDefault is true with selectors, emit in source order.
 			// case default, 6: -> default: (fallthrough), case 6: { body }
@@ -5226,7 +5089,6 @@ func (l *Lowerer) lowerSwitch(switchStmt *parser.SwitchStmt, target *[]ir.Statem
 					return fmt.Errorf("switch case %d selector: %w", i, err)
 				}
 				// Coerce case value to consensus type.
-				// Matches Rust naga: all case values match the consensus scalar type.
 				if consensusUnsigned {
 					if v, ok := value.(ir.SwitchValueI32); ok {
 						value = ir.SwitchValueU32(uint32(v))
@@ -5300,7 +5162,6 @@ func (l *Lowerer) lowerSwitchCaseValue(expr parser.Expr) (ir.SwitchValue, error)
 // Returns an error if the condition evaluates to false.
 // If the expression cannot be evaluated (complex const functions, float comparisons),
 // it is silently accepted to avoid regressions on valid but complex shaders.
-// Matches Rust naga's ConstAssertFailed error for the evaluable case.
 func (l *Lowerer) evalConstAssert(condition parser.Expr) error {
 	val, ok := l.tryEvalConstantBool(condition)
 	if !ok {
@@ -5720,16 +5581,12 @@ func parseIntLiteral(s string) (int64, string) {
 
 // lowerLocalConst converts a local const declaration to IR.
 // Local const is treated as a named expression (similar to let).
-// Matches Rust naga: let bindings are stored in Function.NamedExpressions
-// so backends emit them as named temporaries even if unused.
 func (l *Lowerer) lowerLocalConst(decl *parser.ConstDecl, target *[]ir.Statement) error {
 	if decl.Init == nil {
 		return fmt.Errorf("local const '%s' must have initializer", decl.Name)
 	}
 
-	// Resolve explicit type BEFORE initializer (matching Rust naga order).
-	// Rust's resolve_ast_type runs in const context before type_and_init,
-	// ensuring scalar types are registered before vector constructors reference them.
+	// Resolve explicit type BEFORE initializer.
 	var explicitType ir.TypeHandle
 	hasExplicitType := false
 	if decl.Type != nil {
@@ -5741,18 +5598,13 @@ func (l *Lowerer) lowerLocalConst(decl *parser.ConstDecl, target *[]ir.Statement
 		hasExplicitType = true
 	}
 
-	// For abstract local const declarations (no explicit type, abstract init),
-	// store the init AST for deferred lowering at use site, matching Rust naga
-	// where abstract const expressions are created during declaration but removed
-	// by compact. The concrete expressions are created fresh when referenced.
+	// The concrete expressions are created fresh when referenced.
 	if decl.IsConst && !hasExplicitType && !l.initHasConcreteType(decl.Init) {
 		l.scopeSet(decl.Name)
 		l.localAbstractASTs[decl.Name] = decl.Init
 		l.localConsts[decl.Name] = true
 
-		// Still create the abstract expression to match Rust naga's pattern:
-		// Rust creates the expression during const declaration but it becomes dead
-		// after concretization at the use site. CompactExpressions removes it.
+		// CompactExpressions removes it.
 		emitStart := l.emitStartWithTarget(target)
 		initHandle, err := l.lowerExpression(decl.Init, target)
 		if err != nil {
@@ -5938,9 +5790,7 @@ func (l *Lowerer) lowerLiteral(lit *parser.Literal) (ir.ExpressionHandle, error)
 // lowerBinary converts a binary expression to IR.
 func (l *Lowerer) lowerBinary(bin *parser.BinaryExpr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	// Fast path: if both operands are AST literals, try folding directly
-	// without creating intermediate expressions. This matches Rust naga's
-	// try_eval_and_append which evaluates const expressions before appending,
-	// avoiding extra expression arena entries.
+	// without creating intermediate expressions.
 	if result, ok := l.tryFoldASTBinary(bin); ok {
 		return result, nil
 	}
@@ -5948,8 +5798,6 @@ func (l *Lowerer) lowerBinary(bin *parser.BinaryExpr, target *[]ir.Statement) (i
 	op := l.tokenToBinaryOp(bin.Op)
 
 	// Short-circuit logical operators (&&, ||) in runtime context.
-	// Rust naga converts these to If-blocks to avoid evaluating RHS when
-	// LHS determines the result. See front/wgsl/lower/mod.rs:2441-2563.
 	if (op == ir.BinaryLogicalAnd || op == ir.BinaryLogicalOr) && l.currentFunc != nil {
 		return l.lowerLogicalShortCircuit(op, bin.Left, bin.Right, target)
 	}
@@ -5971,12 +5819,8 @@ func (l *Lowerer) lowerBinary(bin *parser.BinaryExpr, target *[]ir.Statement) (i
 	// Exception: for shift operations, the left and right operands have
 	// independent types, so don't concretize one based on the other.
 	if op == ir.BinaryShiftLeft || op == ir.BinaryShiftRight {
-		// Rust naga: right operand must be u32 (try_automatic_conversion_for_leaf_scalar).
 		// If right is abstract int, convert to u32.
 		right = l.concretizeShiftRight(right)
-		// Rust naga: if right is NOT a const expression, concretize left.
-		// This creates a NEW expression (matching Rust's const evaluator behavior
-		// where concretize appends to the expression arena rather than modifying in place).
 		if !l.isConstExpression(right) {
 			left = l.concretizeShiftLeft(left)
 		}
@@ -5985,21 +5829,16 @@ func (l *Lowerer) lowerBinary(bin *parser.BinaryExpr, target *[]ir.Statement) (i
 	}
 
 	// Constant fold: binary ops on scalar literals.
-	// Matches Rust naga constant evaluator binary_op folding.
 	if result, ok := l.tryFoldBinaryOp(op, left, right); ok {
 		return result, nil
 	}
 
 	// Constant fold: binary ops on vector of literals (Compose/Splat).
-	// Matches Rust naga constant evaluator which folds Compose op Compose,
-	// Compose op Literal (broadcast), and Literal op Compose (broadcast).
 	if result, ok := l.tryFoldVectorBinaryOp(op, left, right); ok {
 		return result, nil
 	}
 
 	// Insert Splat for non-multiply operations with mixed vector/scalar operands.
-	// Rust naga inserts Splat for Add, Subtract, Divide, and Modulo but NOT Multiply,
-	// because backends handle vec*scalar natively. See binary_op_splat in Rust source.
 	left, right = l.binaryOpSplat(op, left, right)
 
 	return l.addExpression(ir.Expression{
@@ -6008,7 +5847,6 @@ func (l *Lowerer) lowerBinary(bin *parser.BinaryExpr, target *[]ir.Statement) (i
 }
 
 // lowerLogicalShortCircuit generates short-circuit IR for && and ||.
-// Matches Rust naga front/wgsl/lower/mod.rs:2441-2563.
 //
 // For &&:
 //
@@ -6029,7 +5867,7 @@ func (l *Lowerer) lowerLogicalShortCircuit(op ir.BinaryOperator, leftAST, rightA
 	}
 
 	// Const short-circuit: if LHS is a const bool literal, we can short-circuit
-	// without creating If-blocks (matches Rust const context path).
+	// without creating If-blocks.
 	if lit, ok := l.extractConstLiteral(left); ok {
 		if boolVal, isBool := lit.(ir.LiteralBool); isBool {
 			if (op == ir.BinaryLogicalAnd && !bool(boolVal)) ||
@@ -6123,7 +5961,6 @@ func (l *Lowerer) lowerLogicalShortCircuit(op ir.BinaryOperator, leftAST, rightA
 	l.currentEmitTarget = target
 
 	// Result: create a NEW LocalVariable reference for the Load.
-	// Rust naga creates a separate expression for each reference to a local var.
 	loadPointer := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprLocalVariable{Variable: uint32(localIdx)},
 	})
@@ -6137,8 +5974,6 @@ func (l *Lowerer) lowerLogicalShortCircuit(op ir.BinaryOperator, leftAST, rightA
 // tryFoldASTBinary attempts to fold a binary expression directly from AST literals,
 // computing the result in Go values without creating intermediate expression handles.
 // Only the final result Literal is added to the expression arena.
-// This matches Rust naga's try_eval_and_append which evaluates const expressions
-// before appending, producing exactly 1 expression instead of 3.
 func (l *Lowerer) tryFoldASTBinary(bin *parser.BinaryExpr) (ir.ExpressionHandle, bool) {
 	leftLit, leftOK := bin.Left.(*parser.Literal)
 	rightLit, rightOK := bin.Right.(*parser.Literal)
@@ -6152,15 +5987,12 @@ func (l *Lowerer) tryFoldASTBinary(bin *parser.BinaryExpr) (ir.ExpressionHandle,
 		return 0, false
 	}
 
-	// Concretize abstract types: match Rust's consensus rules.
 	// AbstractFloat + AbstractInt → AbstractFloat
 	// AbstractFloat + F32 → F32
 	// AbstractInt + I32 → I32
 	// etc.
 	leftVal, rightVal = concretizeLiteralPair(leftVal, rightVal)
 
-	// Skip 64-bit folding — Rust naga's constant evaluator doesn't implement
-	// I64/U64/F64 binary arithmetic, keeping them as separate expressions.
 	if is64BitLiteral(leftVal) || is64BitLiteral(rightVal) {
 		return 0, false
 	}
@@ -6305,7 +6137,6 @@ func foldBinaryLiterals(op ir.BinaryOperator, left, right ir.LiteralValue) (ir.L
 		vl, _ := literalToF64(left)
 		vr, _ := literalToF64(right)
 		// For F16 operands, round to f16 precision before computing.
-		// This matches Rust naga which stores f16 as actual half-precision.
 		_, leftIsF16 := left.(ir.LiteralF16)
 		_, rightIsF16 := right.(ir.LiteralF16)
 		if leftIsF16 || rightIsF16 {
@@ -6518,8 +6349,7 @@ func (l *Lowerer) concretizeBinaryOperands(left, right ir.ExpressionHandle) (ir.
 
 	// If both are abstract or neither is abstract, nothing to do for direct literals.
 	// But also check for abstract types in non-literal expressions (e.g., Splat/Compose
-	// containing abstract values). Rust naga uses automatic_conversion_consensus which
-	// examines resolved types, not just literal expressions.
+	// containing abstract values).
 	if leftAbstractAny == rightAbstractAny && !leftAbstractAny {
 		// Neither direct operand is abstract. Check resolved types for composite
 		// abstract expressions (Splat, Compose with abstract scalars).
@@ -6542,8 +6372,6 @@ func (l *Lowerer) concretizeBinaryOperands(left, right ir.ExpressionHandle) (ir.
 		return left, right
 	}
 
-	// In Rust naga, concretization creates a NEW expression via try_eval_and_append
-	// (constant evaluator folds As(AbstractLit, ConcreteType) -> Literal(ConcreteVal)).
 	// This means the concretized literal appears AFTER any expressions created
 	// for the other operand (e.g., GlobalVariable + Load). We replicate this by
 	// creating a new literal expression via interruptEmitter instead of in-place update.
@@ -6587,7 +6415,6 @@ func (l *Lowerer) exprHasAbstractType(handle ir.ExpressionHandle) bool {
 }
 
 // concretizeShiftRight converts the right operand of a shift to u32 if it's abstract.
-// Matches Rust naga's try_automatic_conversion_for_leaf_scalar(right, U32).
 func (l *Lowerer) concretizeShiftRight(handle ir.ExpressionHandle) ir.ExpressionHandle {
 	if isAbstract, val := l.isAbstractIntLiteral(handle); isAbstract {
 		return l.interruptEmitter(ir.Expression{
@@ -6598,10 +6425,7 @@ func (l *Lowerer) concretizeShiftRight(handle ir.ExpressionHandle) ir.Expression
 }
 
 // concretizeShiftLeft concretizes the left operand of a shift when the right
-// operand is not a const expression. Matches Rust naga's behavior where
-// concretize() calls the constant evaluator's cast(), which creates a NEW
-// expression in the function's arena (rather than modifying in place).
-// AbstractInt concretizes to I32, AbstractFloat concretizes to F32.
+// operand is not a const expression. Matches Rust the behavior where
 func (l *Lowerer) concretizeShiftLeft(handle ir.ExpressionHandle) ir.ExpressionHandle {
 	if l.currentFunc == nil || int(handle) >= len(l.currentFunc.Expressions) {
 		return handle
@@ -6626,8 +6450,6 @@ func (l *Lowerer) concretizeShiftLeft(handle ir.ExpressionHandle) ir.ExpressionH
 
 // concretizeCompoundAssignRHS concretizes the RHS of a compound assignment (+=, -=, etc.)
 // to match the pointed-to type of the LHS pointer. This is called BEFORE the Load expression
-// is created, matching Rust naga's order where the concretized literal appears in the
-// expression arena before the Load.
 func (l *Lowerer) concretizeCompoundAssignRHS(pointer ir.ExpressionHandle, value *ir.ExpressionHandle) {
 	isAbstract, intVal := l.isAbstractIntLiteral(*value)
 	isAbstractFloat := false
@@ -6645,8 +6467,6 @@ func (l *Lowerer) concretizeCompoundAssignRHS(pointer ir.ExpressionHandle, value
 }
 
 // splatScalarToMatchPointer wraps a scalar RHS in Splat if the LHS pointer points to a vector.
-// Matches Rust naga: compound assignments like `a += 1.0` where `a: vec2<f32>` create
-// Splat(Vec2, Literal(1.0)) for the RHS before the Binary operation.
 func (l *Lowerer) splatScalarToMatchPointer(pointer, value ir.ExpressionHandle) ir.ExpressionHandle {
 	if l.currentFunc == nil {
 		return value
@@ -6704,8 +6524,6 @@ func (l *Lowerer) resolvePointerScalar(pointer ir.ExpressionHandle) (ir.ScalarTy
 	return l.resolveExprScalar(pointer)
 }
 
-// concretizeBinaryOperandNew creates a NEW concrete literal expression for a binary
-// operand, matching Rust naga's behavior where concretization via convert_to_leaf_scalar
 // creates a new expression handle (not in-place update). The original abstract literal
 // becomes orphaned and is removed by CompactExpressions.
 func (l *Lowerer) concretizeBinaryOperandNew(_ ir.ExpressionHandle, isInt bool, intVal int64, floatVal float64, target ir.ScalarType) ir.ExpressionHandle {
@@ -6769,7 +6587,7 @@ func (l *Lowerer) computeConcreteLiteral(isInt bool, intVal int64, floatVal floa
 }
 
 // binaryOpSplat inserts Splat expressions for non-multiply binary operations with
-// mixed vector/scalar operands. This matches Rust naga's binary_op_splat behavior.
+// mixed vector/scalar operands.
 // Multiply is excluded because backends handle vec*scalar natively.
 func (l *Lowerer) binaryOpSplat(op ir.BinaryOperator, left, right ir.ExpressionHandle) (ir.ExpressionHandle, ir.ExpressionHandle) {
 	switch op {
@@ -6845,7 +6663,6 @@ func (l *Lowerer) isAbstractIntLiteral(handle ir.ExpressionHandle) (bool, int64)
 
 // concretizeAbstractToUint concretizes an abstract integer literal to U32.
 // Used when switch consensus type is unsigned (e.g., case 0u forces selector to u32).
-// Matches Rust naga's automatic_conversion_consensus + convert_to_leaf_scalar.
 func (l *Lowerer) concretizeAbstractToUint(handle ir.ExpressionHandle) {
 	if l.currentFunc == nil || int(handle) >= len(l.currentFunc.Expressions) {
 		return
@@ -6868,7 +6685,6 @@ func (l *Lowerer) concretizeAbstractToUint(handle ir.ExpressionHandle) {
 // concretizeAbstractToDefault concretizes an abstract literal or abstract
 // expression tree to its default concrete type: AbstractInt → I32, AbstractFloat → F32.
 // For Compose expressions, recursively concretizes components.
-// This matches Rust naga's Scalar::concretize() behavior.
 func (l *Lowerer) concretizeAbstractToDefault(handle ir.ExpressionHandle) {
 	if l.currentFunc == nil || int(handle) >= len(l.currentFunc.Expressions) {
 		return
@@ -6926,7 +6742,6 @@ func (l *Lowerer) concretizeMathArgsWithHint(args []ir.ExpressionHandle, floatOn
 	} else {
 		// No concrete argument found. Determine consensus among abstract types:
 		// If any arg is AbstractFloat, ALL should become F32 (float wins over int).
-		// This matches Rust naga's automatic_conversion_consensus.
 		hasAbstractFloat := false
 		for _, arg := range args {
 			if int(arg) < len(l.currentFunc.Expressions) {
@@ -7117,9 +6932,6 @@ func (l *Lowerer) concretizeExpressionToScalar(handle ir.ExpressionHandle, scala
 
 // expandZeroValueToCompose expands a zero-valued vector or matrix type into
 // explicit Compose expressions with zero-valued literal components.
-// This matches Rust naga's behavior where partial constructors like vec2()
-// go through abstract→concrete conversion which expands ZeroValue via the
-// constant evaluator's cast → eval_zero_value path.
 // Returns the expression handle and true if expansion was performed.
 func (l *Lowerer) expandZeroValueToCompose(typeHandle ir.TypeHandle) (ir.ExpressionHandle, bool) {
 	if int(typeHandle) >= len(l.module.Types) {
@@ -7259,8 +7071,6 @@ func (l *Lowerer) inlineCompositeConstant(cv ir.CompositeValue, typeHandle ir.Ty
 
 	// Vector with single scalar component (splat) → Splat.
 	// Only genuine single-arg splat constructors (e.g., vec4(1i)) become Splat.
-	// Multi-arg constructors with same values (e.g., vec2(1.0, 1.0)) stay as Compose,
-	// matching Rust naga's constant evaluator behavior.
 	if vec, ok := l.module.Types[typeHandle].Inner.(ir.VectorType); ok {
 		if len(cv.Components) == 1 {
 			if int(cv.Components[0]) < len(l.module.Constants) {
@@ -7627,8 +7437,6 @@ func (l *Lowerer) concretizeComponentLiterals(components []ir.ExpressionHandle, 
 // concretizeComponentsToScalar concretizes all abstract literal components
 // in the given slice to match the target scalar type. This handles the WGSL
 // automatic type conversion for constructor arguments.
-// Creates NEW expressions (via interruptEmitter) to match Rust naga's behavior
-// where concretization creates new expression handles, leaving originals orphaned.
 func (l *Lowerer) concretizeComponentsToScalar(components []ir.ExpressionHandle, target ir.ScalarType) {
 	for i, comp := range components {
 		isAbstract, isFloat, intVal, floatVal := l.isAbstractLiteral(comp)
@@ -7863,11 +7671,7 @@ func (l *Lowerer) concretizeExpressionToType(handle ir.ExpressionHandle, targetT
 	}
 
 	// ZeroValue expression → expand to Compose+Literal for vector/matrix types
-	// when the type needs to change (abstract → concrete). Rust naga creates
-	// ZeroValue(abstract_int vec) for partial constructors like vec2(), then
-	// concretization casts it which expands ZeroValue to Compose+Literal.
-	// When the type already matches (concrete ZeroValue), keep it as ZeroValue
-	// to match Rust which also keeps ZeroValue for concrete zero-arg constructors.
+	// when the type needs to change (abstract → concrete).
 	if zv, ok := expr.Kind.(ir.ExprZeroValue); ok {
 		if zv.Type == targetType {
 			return // already correct type, keep as ZeroValue
@@ -7949,8 +7753,7 @@ func (l *Lowerer) lowerUnary(un *parser.UnaryExpr, target *[]ir.Statement) (ir.E
 	}
 
 	// Constant fold: negate of a literal directly, without creating the positive
-	// literal first. This matches Rust naga's constant evaluator which evaluates
-	// the entire expression, avoiding extra expression handles.
+	// literal first.
 	if un.Op == parser.TokenMinus {
 		if lit, ok := un.Operand.(*parser.Literal); ok {
 			if result, err := l.lowerNegatedLiteral(lit); err == nil {
@@ -8144,9 +7947,6 @@ func (l *Lowerer) lowerCall(call *parser.CallExpr, target *[]ir.Statement) (ir.E
 		return 0, fmt.Errorf("unknown function: %s", funcName)
 	}
 
-	// Enforce @must_use: if the function is marked @must_use and its result
-	// is discarded as a statement, emit an error.
-	// Matches Rust naga: FunctionMustUseUnused.
 	if l.funcMustUse[funcName] && l.isStatement {
 		return 0, fmt.Errorf("result of @must_use function '%s' must be used", funcName)
 	}
@@ -8184,8 +7984,6 @@ func (l *Lowerer) lowerCall(call *parser.CallExpr, target *[]ir.Statement) (ir.E
 	}
 
 	// Flush pending emit range before the StmtCall.
-	// Rust naga emits argument sub-expressions BEFORE the call statement,
-	// then emits the CallResult in a separate emit range AFTER the call.
 	// Without this flush, all expressions (arguments + result) end up in
 	// a single Emit range AFTER the call, causing the MSL writer to inline
 	// arguments into the call and emit dead loads afterward.
@@ -8227,16 +8025,14 @@ func (l *Lowerer) lowerCall(call *parser.CallExpr, target *[]ir.Statement) (ir.E
 // lowerConstruct converts a type constructor to IR.
 func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	// Check if this is an inferred matrix constructor with scalar args.
-	// For inferred types (no type params), Rust creates per-column Compose
-	// interleaved with scalar Literals. For explicit types, all scalars first.
+	// For explicit types, all scalars first.
 	typeExplicit := true
 	typeHandle, err := l.resolveType(cons.Type)
 	if err != nil {
 		typeExplicit = false
 	}
 
-	// For inferred matrix scalar constructs, use per-column lowering
-	// to match Rust expression ordering. Explicit-type matrices (mat2x2<f32>)
+	// Explicit-type matrices (mat2x2<f32>)
 	// keep all-scalars-first ordering in function body.
 	if !typeExplicit && l.isMatrixScalarConstruct(cons) {
 		return l.lowerMatrixScalarConstruct(cons, target)
@@ -8315,16 +8111,10 @@ func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statem
 	// vec2<i32>() → ZeroValue(vec2<i32>)
 	// MSL: metal::int2 {} (brace-init)
 	//
-	// However, for partial constructors (typeExplicit == false), Rust naga
-	// creates ZeroValue(vec<AbstractInt>) then converts to the target type via
-	// the constant evaluator's cast path, which expands ZeroValue to
 	// Compose(Literal(0), Literal(0), ...). We match this by expanding
 	// partial zero-arg constructors to Compose with zero literals.
 	if len(components) == 0 {
 		if !typeExplicit {
-			// Partial constructor (e.g., vec2() with target type from let annotation):
-			// expand to Compose with zero-valued literals to match Rust's
-			// abstract→concrete conversion path.
 			if expanded, ok := l.expandZeroValueToCompose(typeHandle); ok {
 				return expanded, nil
 			}
@@ -8355,14 +8145,13 @@ func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statem
 	}
 
 	// Matrix type with single matrix argument: type conversion or identity.
-	// Matches Rust naga construction.rs "Matrix conversion" case.
 	targetType := l.module.Types[typeHandle]
 	if mat, ok := targetType.Inner.(ir.MatrixType); ok && len(components) == 1 {
 		argType, err := ir.ResolveExpressionType(l.module, l.currentFunc, components[0])
 		if err == nil {
 			argInner := ir.TypeResInner(l.module, argType)
 			if argMat, ok := argInner.(ir.MatrixType); ok && argMat.Columns == mat.Columns && argMat.Rows == mat.Rows {
-				// Same dimensions: if scalar differs, produce As conversion (Rust naga behavior).
+				// Same dimensions: if scalar differs, produce As conversion.
 				if argMat.Scalar != mat.Scalar {
 					width := mat.Scalar.Width
 					return l.addExpression(ir.Expression{
@@ -8398,7 +8187,6 @@ func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statem
 			argInner := ir.TypeResInner(l.module, argType)
 			if argVec, ok := argInner.(ir.VectorType); ok && argVec.Size == vec.Size {
 				// Identity conversion (same scalar) with inferred type: return arg directly.
-				// Explicit type constructors still create As (matches Rust: vec2<u32>(vec2<u32>()) keeps As).
 				if argVec.Scalar == vec.Scalar && !typeExplicit {
 					return components[0], nil
 				}
@@ -8415,7 +8203,6 @@ func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statem
 		}
 
 		// WGSL splat constructor: vec3(scalar) → ExprSplat.
-		// Rust naga creates Splat { size, value } instead of Compose with repeated components.
 		// Only applies when the single argument is a scalar (not a vector).
 		argIsScalar := false
 		if argType, err2 := ir.ResolveExpressionType(l.module, l.currentFunc, components[0]); err2 == nil {
@@ -8430,7 +8217,6 @@ func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statem
 				l.concretizeComponentsToScalar(components, vec.Scalar)
 			}
 			// Convert concrete scalars of different kind (e.g., u32→f32 for vec4f(u32_val)).
-			// Rust naga calls convert_slice_to_common_leaf_scalar which inserts As expressions.
 			if typeExplicit {
 				if argType2, err2 := ir.ResolveExpressionType(l.module, l.currentFunc, components[0]); err2 == nil {
 					argInner2 := ir.TypeResInner(l.module, argType2)
@@ -8481,9 +8267,6 @@ func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statem
 	}
 
 	// Matrix with scalar args: group into column vectors.
-	// mat2x2(1, 2, 3, 4) → Compose(mat2x2, [Compose(vec2, [1, 2]), Compose(vec2, [3, 4])])
-	// Matches Rust naga which always structures matrix Compose with column vector components.
-	// When grouping scalars into columns, Rust uses an anonymous matrix type for the
 	// final Compose (not the named alias type). This is because the column grouping creates
 	// new intermediate expressions, and the final Compose type should be anonymous.
 	origLen := len(components)
@@ -8491,8 +8274,6 @@ func (l *Lowerer) lowerConstruct(cons *parser.ConstructExpr, target *[]ir.Statem
 	composeType := typeHandle
 	if origLen > 0 && len(grouped) != origLen {
 		// Grouping happened — use anonymous type for the final Compose.
-		// Rust naga creates the matrix Compose with an anonymous type handle,
-		// not the named alias handle.
 		if int(typeHandle) < len(l.module.Types) {
 			if mat, ok := l.module.Types[typeHandle].Inner.(ir.MatrixType); ok {
 				composeType = l.registerType("", mat)
@@ -8527,7 +8308,6 @@ func (l *Lowerer) isMatrixScalarConstruct(cons *parser.ConstructExpr) bool {
 		return false
 	}
 	// All args must be abstract literals (no suffix like 1.0f, 2i, 3u).
-	// Rust only interleaves for all-abstract-int args via constant evaluator.
 	// Mixed concrete/abstract uses standard all-scalars-first ordering.
 	for _, arg := range cons.Args {
 		switch a := arg.(type) {
@@ -8552,7 +8332,7 @@ func (l *Lowerer) isMatrixScalarConstruct(cons *parser.ConstructExpr) bool {
 
 // lowerMatrixScalarConstruct lowers a matrix constructor with scalar args
 // by grouping args per-column: lower row literals then immediately create
-// column Compose. This matches Rust expression ordering.
+// column Compose.
 func (l *Lowerer) lowerMatrixScalarConstruct(cons *parser.ConstructExpr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	nt := cons.Type.(*parser.NamedType)
 	name := nt.Name
@@ -8674,8 +8454,6 @@ func (l *Lowerer) zeroLiteral(scalar ir.ScalarType) ir.LiteralValue {
 
 // lowerMember converts a member access to IR.
 //
-// Matches Rust naga's Load Rule: member access on a pointer base (variable reference)
-// produces AccessIndex on the pointer, NOT Load-then-AccessIndex on the value.
 // This means the IR is: GlobalVar → AccessIndex(.x) → Load, producing a scalar load,
 // rather than: GlobalVar → Load (whole struct) → AccessIndex(.x).
 // The caller's applyLoadRule handles the final Load on the pointer-based AccessIndex.
@@ -8759,14 +8537,8 @@ func (l *Lowerer) lowerMember(mem *parser.MemberExpr, target *[]ir.Statement) (i
 	}), nil
 }
 
-// tryLowerBuiltinResultMember checks if a member access is on a builtin that returns
-// a struct result (modf, frexp) and lowers it as Math + AccessIndex, matching Rust naga.
-//
 // WGSL modf(x) returns __modf_result_f32 { fract: f32, whole: f32 }
 // WGSL frexp(x) returns __frexp_result_f32 { fract: f32, exp: i32 }
-//
-// Rust naga keeps the Modf/Frexp expression returning the struct and uses AccessIndex
-// to extract members: index 0 = fract, index 1 = whole/exp.
 //
 // Returns (handle, true) if handled, or (0, false) if not a builtin result access.
 func (l *Lowerer) tryLowerBuiltinResultMember(mem *parser.MemberExpr, target *[]ir.Statement) (ir.ExpressionHandle, bool) {
@@ -9080,9 +8852,7 @@ func (l *Lowerer) resolveTargetScalarKind(t parser.Type) (ir.ScalarKind, error) 
 func (l *Lowerer) lowerIndex(idx *parser.IndexExpr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	// Try compile-time constant array element evaluation.
 	// When indexing an abstract composite constant with a literal index,
-	// evaluate at compile time and inline just the element. This matches
-	// Rust naga's constant evaluator which resolves positions[0] to the
-	// vec4 literal directly, without materializing the full array.
+	// evaluate at compile time and inline just the element.
 	if h, ok := l.tryConstantArrayIndex(idx, target); ok {
 		return h, nil
 	}
@@ -9090,7 +8860,7 @@ func (l *Lowerer) lowerIndex(idx *parser.IndexExpr, target *[]ir.Statement) (ir.
 	// Use lowerExpressionForRef to keep the base as a reference/pointer when possible.
 	// This avoids loading the whole struct/array before indexing. Instead, AccessIndex
 	// operates on the pointer chain, and the caller's applyLoadRule adds Load on the
-	// final result. Matches Rust naga's pointer-chain-then-load pattern.
+	// final result.
 	base, err := l.lowerExpressionForRef(idx.Expr, target)
 	if err != nil {
 		return 0, err
@@ -9102,8 +8872,6 @@ func (l *Lowerer) lowerIndex(idx *parser.IndexExpr, target *[]ir.Statement) (ir.
 // When an IndexExpr accesses an abstract composite constant with a literal index,
 // this directly inlines the element instead of materializing the full array.
 //
-// OPTIMIZATION vs Rust naga (documented in docs/dev/research/IR-DEEP-ANALYSIS.md):
-// Rust creates Constant(handle) → AccessIndex → ConstantEvaluator → compact (3 steps).
 // We resolve directly to Literal+Compose in 1 step — fewer arena allocations,
 // no compact cleanup needed. Both produce identical backend output because
 // Literal/Constant/GlobalVariable are needs_pre_emit (order-independent in IR).
@@ -9157,7 +8925,6 @@ func (l *Lowerer) tryConstantArrayIndex(idx *parser.IndexExpr, target *[]ir.Stat
 	}
 	elem := &l.module.Constants[elemHandle]
 
-	// Inline the element, matching Rust naga's constant evaluator behavior.
 	// The element type needs concretization: abstract float -> f32.
 	return l.inlineConstantValue(elem, target)
 }
@@ -9214,16 +8981,12 @@ func isExprCallResult(kind ir.ExpressionKind) bool {
 
 func (l *Lowerer) addExpression(expr ir.Expression) ir.ExpressionHandle {
 	// Try const-folding before adding the expression.
-	// This matches Rust naga's try_eval_and_append which evaluates const
 	// expressions at compile time. Dead intermediate expressions from
 	// const-folding are removed by CompactExpressions.
 	if folded, ok := l.tryConstFoldExpr(expr); ok {
 		return folded
 	}
 
-	// Rust naga's constant_evaluator::append_expr auto-interrupts the emitter
-	// for "needs_pre_emit" expressions (Literal, Constant, ZeroValue,
-	// GlobalVariable, FunctionArgument, LocalVariable, Override).
 	// These expressions are considered pre-emitted and must not be covered
 	// by Emit statements. When the emitter is running, we flush the current
 	// Emit range, add the expression outside, then restart the emitter.
@@ -9245,7 +9008,6 @@ func (l *Lowerer) addExpression(expr ir.Expression) ir.ExpressionHandle {
 
 // needsPreEmit returns true if the expression is considered pre-emitted
 // (emitted at function start) and should not be covered by Emit statements.
-// Matches Rust naga's Expression::needs_pre_emit().
 func needsPreEmit(expr ir.Expression) bool {
 	switch expr.Kind.(type) {
 	case ir.Literal, ir.ExprConstant, ir.ExprOverride, ir.ExprZeroValue,
@@ -9258,7 +9020,6 @@ func needsPreEmit(expr ir.Expression) bool {
 
 // tryConstFoldExpr attempts to evaluate a const expression at compile time.
 // Returns the handle to the folded result and true if successful.
-// This matches Rust naga's try_eval_and_append_impl for function body expressions.
 func (l *Lowerer) tryConstFoldExpr(expr ir.Expression) (ir.ExpressionHandle, bool) {
 	if l.currentFunc == nil {
 		return 0, false
@@ -9267,9 +9028,7 @@ func (l *Lowerer) tryConstFoldExpr(expr ir.Expression) (ir.ExpressionHandle, boo
 	switch k := expr.Kind.(type) {
 	case ir.ExprConstant:
 		// Deep-copy abstract constants into function arena.
-		// Rust naga's check_and_get copies ALL constants, but that requires
-		// full constant evaluator support (folding mix, bitcast, etc.) to avoid
-		// expression count explosion. We copy only abstract for now.
+		// We copy only abstract for now.
 		if int(k.Constant) < len(l.module.Constants) {
 			c := &l.module.Constants[k.Constant]
 			if c.IsAbstract || (int(c.Type) < len(l.module.Types) && ir.IsAbstractType(l.module.Types[c.Type].Inner, l.module.Types)) {
@@ -9287,7 +9046,6 @@ func (l *Lowerer) tryConstFoldExpr(expr ir.Expression) (ir.ExpressionHandle, boo
 	case ir.ExprAs:
 		return l.constFoldAs(k)
 	case ir.ExprCompose:
-		// Rust naga's constant evaluator check_and_get() deep-copies constants
 		// when they appear as components of Compose. This replaces Constant
 		// references with the copied init value (Literal/Compose/ZeroValue).
 		// Do this BEFORE constFoldCompose to ensure the components are in the
@@ -9305,8 +9063,6 @@ func (l *Lowerer) tryConstFoldExpr(expr ir.Expression) (ir.ExpressionHandle, boo
 
 // deepCopyComposeConstants checks if a Compose expression has any Constant
 // sub-expressions and deep-copies them into the function arena. This matches
-// Rust naga's check_and_get() which deep-copies constants when they appear
-// as components of Compose expressions. Returns true if any components were replaced.
 func (l *Lowerer) deepCopyComposeConstants(compose *ir.ExprCompose) bool {
 	if l.currentFunc == nil {
 		return false
@@ -9387,7 +9143,7 @@ func (l *Lowerer) constFoldSelect(sel ir.ExprSelect) (ir.ExpressionHandle, bool)
 		}
 	}
 
-	// Create result Compose with reject's type (matches Rust)
+	// Create result Compose with reject's type
 	return l.addExpressionRaw(ir.Expression{
 		Kind: ir.ExprCompose{
 			Type:       rejectCompose.Type,
@@ -9397,15 +9153,11 @@ func (l *Lowerer) constFoldSelect(sel ir.ExprSelect) (ir.ExpressionHandle, bool)
 }
 
 // constFoldCompose flattens a Compose with nested vector components into a
-// flat Compose with scalar literals. This matches Rust naga's constant evaluator
-// which evaluates Compose expressions, making intermediate vector types dead
-// so CompactTypes can remove them.
+// flat Compose with scalar literals.
 //
 // vec4(vec3(vec2(6, 7), 8), 9) → Compose(vec4<i32>, [I32(6), I32(7), I32(8), I32(9)])
 // The intermediate vec3<i32> and vec2<i32> Compose expressions become dead.
 // constFoldMath evaluates math functions with constant arguments.
-// Currently handles dot4I8Packed and dot4U8Packed matching Rust naga's
-// constant_evaluator::packed_dot_product.
 func (l *Lowerer) constFoldMath(m ir.ExprMath) (ir.ExpressionHandle, bool) {
 	switch m.Fun {
 	case ir.MathDot4I8Packed, ir.MathDot4U8Packed:
@@ -9416,7 +9168,7 @@ func (l *Lowerer) constFoldMath(m ir.ExprMath) (ir.ExpressionHandle, bool) {
 }
 
 // constFoldPackedDotProduct evaluates dot4I8Packed(a, b) and dot4U8Packed(a, b)
-// with constant U32 arguments. Matches Rust naga's packed_dot_product.
+// with constant U32 arguments.
 func (l *Lowerer) constFoldPackedDotProduct(m ir.ExprMath) (ir.ExpressionHandle, bool) {
 	if m.Arg1 == nil {
 		return 0, false
@@ -9482,7 +9234,6 @@ func (l *Lowerer) extractConstU32(handle ir.ExpressionHandle) (uint32, bool) {
 }
 
 func (l *Lowerer) constFoldCompose(compose ir.ExprCompose) (ir.ExpressionHandle, bool) {
-	// Rust naga's constant evaluator does NOT flatten vector Compose expressions.
 	// It preserves the original structure (e.g., Compose(Splat, Literal) stays as-is).
 	// We match this behavior to produce identical IR.
 	if int(compose.Type) >= len(l.module.Types) {
@@ -9563,8 +9314,6 @@ func (l *Lowerer) constFoldCompose(compose ir.ExprCompose) (ir.ExpressionHandle,
 // constFoldSwizzle evaluates swizzle on a const Compose/Splat expression.
 // vec4(1,2,3,4).wzyx → vec4(4,3,2,1)
 // Handles nested Compose (e.g., vec4(vec2(1,2), vec2(3,4))) by flattening.
-// Creates NEW literal expressions in swizzled order matching Rust naga's
-// constant evaluator which creates fresh expressions via register_evaluated_expr.
 func (l *Lowerer) constFoldSwizzle(sw ir.ExprSwizzle) (ir.ExpressionHandle, bool) {
 	if !l.isConstExpression(sw.Vector) {
 		return 0, false
@@ -9576,8 +9325,7 @@ func (l *Lowerer) constFoldSwizzle(sw ir.ExprSwizzle) (ir.ExpressionHandle, bool
 		return 0, false
 	}
 
-	// Extract swizzled components. When the swizzle reorders AND all flattened
-	// handles are unique (from a non-Splat Compose), create fresh copies so that
+	// Extract swizzled components.
 	// after compact the expression ordering matches Rust naga. When handles are
 	// shared (Splat-derived), reuse them to avoid duplication.
 	size := int(sw.Size)
@@ -9820,7 +9568,6 @@ func (l *Lowerer) convertLiteral(lit ir.LiteralValue, kind ir.ScalarKind, width 
 
 // deepCopyConstExpr deep-copies a const expression into the function's expression arena.
 // For Constant references, this reconstructs the value from the constant's Value field
-// (like Rust's check_and_get + copy_from which copies from GlobalExpressions).
 // For expressions already in the function arena (Literal, Compose, etc.), copies them.
 func (l *Lowerer) deepCopyConstExpr(handle ir.ExpressionHandle) (ir.ExpressionHandle, bool) {
 	if l.currentFunc == nil || int(handle) >= len(l.currentFunc.Expressions) {
@@ -9834,7 +9581,7 @@ func (l *Lowerer) deepCopyConstExpr(handle ir.ExpressionHandle) (ir.ExpressionHa
 	case ir.ExprZeroValue:
 		return l.addExpressionRaw(expr), true
 	case ir.ExprConstant:
-		// Reconstruct from constant's Value (like Rust's copy_from GlobalExpressions)
+		// Reconstruct from constant's Value
 		return l.deepCopyConstantValue(k.Constant)
 	case ir.ExprCompose:
 		// Deep-copy all components first
@@ -9863,8 +9610,7 @@ func (l *Lowerer) deepCopyConstExpr(handle ir.ExpressionHandle) (ir.ExpressionHa
 }
 
 // deepCopyConstantValue reconstructs a constant's value as expressions in the
-// function's expression arena. This matches Rust's copy_from which deep-copies
-// constant initializer expression trees from GlobalExpressions into function scope.
+// function's expression arena.
 func (l *Lowerer) deepCopyConstantValue(constHandle ir.ConstantHandle) (ir.ExpressionHandle, bool) {
 	if int(constHandle) >= len(l.module.Constants) {
 		return 0, false
@@ -9951,7 +9697,6 @@ func (l *Lowerer) deepCopyGlobalExpr(handle ir.ExpressionHandle) (ir.ExpressionH
 
 // flattenConstCompose flattens a const Compose expression into scalar component handles.
 // For Compose(vec4, [Compose(vec2, [a,b]), Compose(vec2, [c,d])]) → [a, b, c, d].
-// This matches Rust's flatten_compose used in the constant evaluator.
 func (l *Lowerer) flattenConstCompose(handle ir.ExpressionHandle) ([]ir.ExpressionHandle, bool) {
 	if l.currentFunc == nil || int(handle) >= len(l.currentFunc.Expressions) {
 		return nil, false
@@ -10060,8 +9805,6 @@ func (l *Lowerer) addExpressionRaw(expr ir.Expression) ir.ExpressionHandle {
 // applyLoadRule implements the WGSL Load Rule: if expr is a reference-producing
 // expression (GlobalVariable in non-Handle space, LocalVariable, or FunctionArgument
 // with pointer type), wrap it with ExprLoad to produce a value.
-// This matches Rust naga's apply_load_rule which inserts explicit Load expressions
-// for variable references, ensuring expression handle numbering matches Rust.
 func (l *Lowerer) applyLoadRule(handle ir.ExpressionHandle) ir.ExpressionHandle {
 	if l.currentFunc == nil {
 		return handle
@@ -10262,13 +10005,9 @@ func (l *Lowerer) lowerIndexForRef(idx *parser.IndexExpr, target *[]ir.Statement
 
 // lowerIndexWithBase is the shared implementation for lowerIndex and lowerIndexForRef.
 // It resolves the index expression and decides between AccessIndex (compile-time constant)
-// and Access (runtime expression). Matches Rust naga's const_eval_expr_to_u32 approach:
-// always lower the index expression first (adding it to the arena, which interrupts the
-// emitter for needs_pre_emit expressions like Literals), THEN check if it evaluates to
-// a compile-time constant u32. This ensures the same emitter interrupt pattern as Rust.
-// The intermediate expression is removed by the compact pass after lowering.
+// and Access (runtime expression). Matches Rust the const_eval_expr_to_u32 approach:
 func (l *Lowerer) lowerIndexWithBase(idx *parser.IndexExpr, base ir.ExpressionHandle, target *[]ir.Statement) (ir.ExpressionHandle, error) {
-	// Always lower the index expression first (matching Rust naga).
+	// Always lower the index expression first.
 	// This adds it to the arena and interrupts the emitter for literals.
 	index, err := l.lowerExpression(idx.Index, target)
 	if err != nil {
@@ -10335,9 +10074,6 @@ func (l *Lowerer) emitFinish(start ir.ExpressionHandle, target *[]ir.Statement) 
 // Constant, Override, LocalVariable, FunctionArgument, CallResult, etc.)
 // while ensuring it falls outside any emit range.
 //
-// This matches Rust naga's interrupt_emitter pattern: the current emit range
-// is flushed (if any emittable expressions were added), then the expression
-// is appended, then the emitter is restarted after the new expression.
 // The result is that non-emittable expressions are never covered by Emit statements.
 func (l *Lowerer) interruptEmitter(expr ir.Expression) ir.ExpressionHandle {
 	// Flush any pending emittable expressions in the current range.
@@ -10396,7 +10132,6 @@ func countStatementsDeep(block *parser.BlockStmt) int {
 }
 
 // ensureBlockReturns ensures every control flow path in a block ends with a Return.
-// This matches Rust naga's proc::ensure_block_returns (terminator.rs).
 // It recursively descends into the last statement's sub-blocks if they are
 // Block, If, or Switch, and appends Return{value: None} where needed.
 func ensureBlockReturns(block *[]ir.Statement) {
@@ -10431,11 +10166,6 @@ func ensureBlockReturns(block *[]ir.Statement) {
 }
 
 // tryConstEvalPhonyExpr attempts to const-evaluate a phony assignment RHS expression.
-// Rust naga's ConstantEvaluator evaluates pure constant expressions (like select(1, 2f, false))
-// at lowering time into a single expression, rather than creating separate literal + operation
-// expressions in the function arena. This method replicates that behavior for select() calls
-// with all-literal scalar arguments, producing a single Literal expression that matches
-// Rust's expression handle numbering.
 //
 // Returns the expression handle and true if const-evaluation succeeded, or (0, false) if the
 // expression is not const-evaluable and should be lowered normally.
@@ -10558,8 +10288,6 @@ func (l *Lowerer) concretizeLiteralValue(result, falseVal, trueVal ir.LiteralVal
 
 // addPhonyExpression registers an expression as a phony named expression.
 // This is used for WGSL phony assignments (_ = expr) and let _ = expr.
-// Matches Rust naga: phony assignments are stored in NamedExpressions with
-// the name "phony", and the namer handles collision avoidance (phony_1, etc.).
 func (l *Lowerer) addPhonyExpression(handle ir.ExpressionHandle) {
 	if l.currentFunc == nil || l.currentFunc.NamedExpressions == nil {
 		return
@@ -10662,8 +10390,7 @@ func (l *Lowerer) scalarValueToLiteralWithType(sv ir.ScalarValue, typeHandle ir.
 
 func (l *Lowerer) resolveIdentifier(name string) (ir.ExpressionHandle, error) {
 	// Check abstract local consts first — re-lower the AST fresh at use site.
-	// In Rust naga, the original abstract expression becomes dead and compact
-	// removes it. A fresh concretized expression is created at the reference site.
+	// A fresh concretized expression is created at the reference site.
 	if ast, ok := l.localAbstractASTs[name]; ok {
 		l.usedLocals[name] = true
 		handle, err := l.lowerExpression(ast, l.currentEmitTarget)
@@ -10681,7 +10408,6 @@ func (l *Lowerer) resolveIdentifier(name string) (ir.ExpressionHandle, error) {
 	}
 
 	// Check inline constants (predeclared WGSL values like RAY_FLAG_*).
-	// These are inlined as literal expressions, matching Rust naga behavior.
 	if lit, ok := l.inlineConstants[name]; ok {
 		return l.interruptEmitter(ir.Expression{
 			Kind: ir.Literal{Value: lit},
@@ -10697,8 +10423,6 @@ func (l *Lowerer) resolveIdentifier(name string) (ir.ExpressionHandle, error) {
 	}
 
 	// Check abstract constants — inlined at use site, never in module.Constants.
-	// In Rust naga, abstract constants are not added to the module; their values
-	// are substituted directly at reference sites.
 	if info, ok := l.abstractConstants[name]; ok {
 		if info.scalarValue != nil {
 			lit := scalarValueToAbstractLiteral(*info.scalarValue)
@@ -10744,8 +10468,6 @@ func (l *Lowerer) resolveIdentifier(name string) (ir.ExpressionHandle, error) {
 	}
 
 	// Check globals — interrupt emitter (non-emittable).
-	// Rust naga creates separate GlobalVariable expressions for each reference,
-	// each via interrupt_emitter so they fall outside emit ranges.
 	if handle, ok := l.globals[name]; ok {
 		exprHandle := l.interruptEmitter(ir.Expression{
 			Kind: ir.ExprGlobalVariable{Variable: handle},
@@ -10978,8 +10700,6 @@ func (l *Lowerer) resolveNamedType(t *parser.NamedType) (ir.TypeHandle, error) {
 	}
 
 	// Lazy registration of all named types — created on first use only.
-	// This matches Rust naga behavior where types are added to the arena on demand,
-	// ensuring identical type numbering for Rust reference compatibility.
 	switch t.Name {
 	case "f32":
 		return l.registerType("f32", ir.ScalarType{Kind: ir.ScalarFloat, Width: 4}), nil
@@ -11019,7 +10739,6 @@ func (l *Lowerer) resolveNamedType(t *parser.NamedType) (ir.TypeHandle, error) {
 		imgType := l.parseTextureType(t)
 		// When encountering texture_external, generate the special param/transfer types
 		// that backends need for lowering external textures to ordinary textures.
-		// This mirrors Rust naga's ctx.module.generate_external_texture_types().
 		if imgType.Class == ir.ImageClassExternal {
 			l.generateExternalTextureTypes()
 		}
@@ -11038,9 +10757,6 @@ func (l *Lowerer) resolveNamedType(t *parser.NamedType) (ir.TypeHandle, error) {
 }
 
 func (l *Lowerer) resolveParameterizedType(t *parser.NamedType) (ir.TypeHandle, error) {
-	// Vector types: vec2<f32>, vec3<T>, vec4<T>
-	// Rust naga registers the scalar type via resolve_ast_type, then compaction
-	// (compact::compact with KeepUnused::Yes at the end of lower()) removes
 	// anonymous scalars only embedded in Vector/Matrix. We replicate this by
 	// registering the scalar here, and running compactTypes() after lowering.
 	if len(t.Name) == 4 && t.Name[:3] == "vec" {
@@ -11092,9 +10808,6 @@ func (l *Lowerer) resolveParameterizedType(t *parser.NamedType) (ir.TypeHandle, 
 		return l.registerType("", imgType), nil
 	}
 
-	// Atomic types: atomic<u32>, atomic<i32>
-	// Rust naga embeds the scalar directly in the Atomic TypeInner without
-	// creating a separate type arena entry for it (ast::Type::Atomic(scalar)).
 	// We replicate this by resolving the scalar from the type name instead of
 	// calling resolveType, which would register a standalone scalar handle and
 	// shift all subsequent type handles by one.
@@ -11115,9 +10828,7 @@ func (l *Lowerer) resolveParameterizedType(t *parser.NamedType) (ir.TypeHandle, 
 }
 
 // resolveScalarFromName extracts a scalar type from a type AST node without
-// registering it in the type arena. This matches Rust naga behavior where
-// atomic<T> embeds the scalar directly (ast::Type::Atomic(scalar)) rather than
-// referencing a separate type handle.
+// registering it in the type arena.
 func (l *Lowerer) resolveScalarFromName(typ parser.Type) (ir.ScalarType, error) {
 	named, ok := typ.(*parser.NamedType)
 	if !ok || len(named.TypeParams) != 0 {
@@ -11239,7 +10950,7 @@ func (l *Lowerer) lowerBuiltinConstructor(name string, args []parser.Expr, targe
 		})
 	}
 
-	// Zero-arg constructor: emit ZeroValue (matches Rust naga).
+	// Zero-arg constructor: emit ZeroValue.
 	if len(components) == 0 {
 		return l.interruptEmitter(ir.Expression{
 			Kind: ir.ExprZeroValue{Type: typeHandle},
@@ -11251,7 +10962,7 @@ func (l *Lowerer) lowerBuiltinConstructor(name string, args []parser.Expr, targe
 		l.concretizeComponentsToScalar(components, scalar)
 	}
 
-	// Single scalar arg to vector constructor: Splat (matches Rust naga).
+	// Single scalar arg to vector constructor: Splat.
 	if vec, ok := l.module.Types[typeHandle].Inner.(ir.VectorType); ok && len(components) == 1 {
 		argType, resolveErr := ir.ResolveExpressionType(l.module, l.currentFunc, components[0])
 		if resolveErr == nil {
@@ -11264,7 +10975,7 @@ func (l *Lowerer) lowerBuiltinConstructor(name string, args []parser.Expr, targe
 		}
 	}
 
-	// Matrix with scalar args: group into column vectors (matches Rust naga).
+	// Matrix with scalar args: group into column vectors.
 	components = l.groupMatrixColumns(typeHandle, components)
 
 	return l.addExpression(ir.Expression{
@@ -11284,7 +10995,7 @@ func (l *Lowerer) lowerShortAliasConstructor(alias shortTypeAlias, args []parser
 		return 0, fmt.Errorf("short type alias %s<%s>: %w", alias.baseName, alias.scalarName, err)
 	}
 
-	// Zero-arg constructor: emit ZeroValue (matches Rust naga).
+	// Zero-arg constructor: emit ZeroValue.
 	// E.g., vec2i() → ZeroValue(vec2<i32>)
 	if len(args) == 0 {
 		return l.interruptEmitter(ir.Expression{
@@ -11337,8 +11048,6 @@ func (l *Lowerer) lowerShortAliasConstructor(alias shortTypeAlias, args []parser
 				}), nil
 			}
 		}
-		// Splat: vec3f(1.0) -> Splat(Tri, 1.0)
-		// Rust naga generates a Splat expression, not Compose with duplicated args.
 		l.concretizeComponentsToScalar(components, vec.Scalar)
 		// Convert concrete scalars of different kind (e.g., u32→f32 for vec4f(u32_val)).
 		if argType2, err2 := ir.ResolveExpressionType(l.module, l.currentFunc, components[0]); err2 == nil {
@@ -11362,7 +11071,7 @@ func (l *Lowerer) lowerShortAliasConstructor(alias shortTypeAlias, args []parser
 	}
 
 	// Handle matrix with single argument: check if it's a matrix-to-matrix conversion
-	// (e.g., mat2x2h(mat2x2f_val)). Matches Rust naga construction.rs "Matrix conversion" case.
+	// (e.g., mat2x2h(mat2x2f_val)).
 	if mat, ok := targetType.Inner.(ir.MatrixType); ok && len(components) == 1 {
 		argType, resolveErr := ir.ResolveExpressionType(l.module, l.currentFunc, components[0])
 		if resolveErr == nil {
@@ -11386,7 +11095,7 @@ func (l *Lowerer) lowerShortAliasConstructor(alias shortTypeAlias, args []parser
 		l.concretizeComponentsToScalar(components, scalar)
 	}
 
-	// Matrix with scalar args: group into column vectors (matches Rust naga).
+	// Matrix with scalar args: group into column vectors.
 	components = l.groupMatrixColumns(typeHandle, components)
 
 	return l.addExpression(ir.Expression{
@@ -11640,9 +11349,6 @@ func (l *Lowerer) lowerMathCall(mathFunc ir.MathFunction, args []parser.Expr, ta
 		}
 	}
 
-	// Constant fold: dot(vec_const, vec_const) → scalar_result
-	// Matches Rust naga constant evaluator which folds dot products when both
-	// arguments are compile-time constant vectors (Splat or Compose of literals).
 	if mathFunc == ir.MathDot && arg1 != nil {
 		if result, ok := l.tryFoldDot(arg0, *arg1); ok {
 			return result, nil
@@ -11650,7 +11356,6 @@ func (l *Lowerer) lowerMathCall(mathFunc ir.MathFunction, args []parser.Expr, ta
 	}
 
 	// Constant fold: scalar math on literal arguments.
-	// Exclude Mix: Rust naga returns NotImplemented for Mix const-eval.
 	if mathFunc != ir.MathMix {
 		if result, ok := l.tryFoldScalarMath(mathFunc, arg0, arg1, arg2); ok {
 			return result, nil
@@ -11658,8 +11363,6 @@ func (l *Lowerer) lowerMathCall(mathFunc ir.MathFunction, args []parser.Expr, ta
 	}
 
 	// Constant fold: vector math on Compose/Splat of literals (component-wise).
-	// Exclude Mix: Rust naga's constant evaluator returns NotImplemented for Mix,
-	// so it stays as a Math expression in the IR (not folded).
 	if mathFunc != ir.MathMix {
 		if result, ok := l.tryFoldVectorMath(mathFunc, arg0, arg1, arg2); ok {
 			return result, nil
@@ -11811,7 +11514,6 @@ func (l *Lowerer) extractConstLiteral(handle ir.ExpressionHandle) (ir.LiteralVal
 			}
 		}
 	}
-	// Follow ExprConstant to the constant's value.
 	// Overrides are now separate (ExprOverride), so ExprConstant is always a real constant.
 	if constRef, ok := expr.(ir.ExprConstant); ok {
 		constIdx := constRef.Constant
@@ -11873,7 +11575,6 @@ func (l *Lowerer) extractConstVectorLiterals(handle ir.ExpressionHandle) ([]ir.L
 		return result, true
 
 	case ir.ExprConstant:
-		// Follow Constant reference to extract vector components.
 		constIdx := k.Constant
 		if int(constIdx) >= len(l.module.Constants) {
 			return nil, false
@@ -11983,7 +11684,6 @@ func isFloatLiteral(v ir.LiteralValue) bool {
 }
 
 // is64BitLiteral returns true if the literal is a 64-bit type (I64, U64, F64).
-// Rust naga's constant evaluator doesn't implement binary ops for these types.
 func is64BitLiteral(v ir.LiteralValue) bool {
 	switch v.(type) {
 	case ir.LiteralI64, ir.LiteralU64, ir.LiteralF64:
@@ -12029,7 +11729,6 @@ func makeFloatLiteral(template ir.LiteralValue, val float64) ir.LiteralValue {
 
 // tryFoldDot attempts to constant-fold dot(vec_a, vec_b) when both arguments
 // are compile-time constant vectors (Splat of literal, Compose of literals).
-// Matches Rust naga constant evaluator dot product folding.
 func (l *Lowerer) tryFoldDot(a, b ir.ExpressionHandle) (ir.ExpressionHandle, bool) {
 	aVals, aOk := l.extractConstVectorLiterals(a)
 	if !aOk {
@@ -12076,11 +11775,6 @@ func (l *Lowerer) tryFoldDot(a, b ir.ExpressionHandle) (ir.ExpressionHandle, boo
 
 // tryFoldScalarMath attempts to constant-fold scalar math functions
 // when all arguments are compile-time constant literals.
-// Matches Rust naga constant evaluator: abs, min, max, clamp, saturate,
-// pow, sqrt, inverseSqrt, exp, exp2, log, log2, sign, fma, step,
-// ceil, floor, round, fract, trunc, trig functions, radians, degrees,
-// countTrailingZeros, countLeadingZeros, countOneBits, reverseBits,
-// firstTrailingBit, firstLeadingBit.
 func (l *Lowerer) tryFoldScalarMath(
 	mathFunc ir.MathFunction,
 	arg0 ir.ExpressionHandle,
@@ -12293,7 +11987,6 @@ func (l *Lowerer) tryFoldScalarMath(
 
 func (l *Lowerer) foldClamp(val, lo, hi ir.LiteralValue) (ir.ExpressionHandle, bool) {
 	// Promote all to a common type: if any is float, all become float.
-	// This matches Rust naga's automatic_conversion_consensus for abstract types.
 	val, lo, hi = promoteToConsensus3(val, lo, hi)
 
 	if isIntegerLiteral(val) && isIntegerLiteral(lo) && isIntegerLiteral(hi) {
@@ -12362,7 +12055,6 @@ func promoteIntToFloat(v ir.LiteralValue) ir.LiteralValue {
 
 // roundToF16 converts a float32 value to half-precision (float16) and back,
 // rounding to the nearest representable f16 value. This ensures f16 arithmetic
-// uses the correct precision, matching Rust naga's half-precision evaluation.
 func roundToF16(v float32) float32 {
 	bits := math.Float32bits(v)
 	sign := bits >> 31
@@ -12697,8 +12389,7 @@ func (l *Lowerer) foldFirstLeadingBit(lit ir.LiteralValue) (ir.ExpressionHandle,
 
 // tryFoldVectorMath attempts to constant-fold a math function applied to a vector
 // of constant literals (Compose or Splat). Applies the scalar fold component-wise
-// and returns a new Compose expression. Matches Rust naga constant evaluator
-// which folds vector math when all components are compile-time constants.
+// and returns a new Compose expression.
 func (l *Lowerer) tryFoldVectorMath(
 	mathFunc ir.MathFunction,
 	arg0 ir.ExpressionHandle,
@@ -12759,7 +12450,6 @@ func (l *Lowerer) tryFoldVectorMath(
 	}
 
 	// Use addExpression (not interruptEmitter) for the Compose result.
-	// In Rust naga, Compose does NOT need pre-emit, so it stays in the
 	// current emit range. This ensures named expressions (let bindings)
 	// that point to this Compose are properly emitted as local variables.
 	return l.addExpression(ir.Expression{
@@ -13040,7 +12730,6 @@ func (l *Lowerer) tryFoldAs(expr ir.ExpressionHandle, kind ir.ScalarKind, width 
 	case ir.ScalarSint:
 		var result int64
 		if isFloat {
-			// Clamp to valid int range, matching Rust naga's IntFloatLimits.
 			if width == 4 {
 				var minVal, maxVal float64
 				if srcIsF64 {
@@ -13088,7 +12777,6 @@ func (l *Lowerer) tryFoldAs(expr ir.ExpressionHandle, kind ir.ScalarKind, width 
 	case ir.ScalarUint:
 		var result uint64
 		if isFloat {
-			// Clamp to valid uint range, matching Rust naga's IntFloatLimits.
 			if width == 4 {
 				var maxVal float64
 				if srcIsF64 {
@@ -13161,7 +12849,7 @@ func (l *Lowerer) tryFoldAs(expr ir.ExpressionHandle, kind ir.ScalarKind, width 
 }
 
 // tryFoldBinaryOp attempts to constant-fold a binary operation when both
-// operands are scalar literals. Matches Rust naga constant evaluator binary_op.
+// operands are scalar literals.
 func (l *Lowerer) tryFoldBinaryOp(op ir.BinaryOperator, left, right ir.ExpressionHandle) (ir.ExpressionHandle, bool) {
 	litL, okL := l.extractConstLiteral(left)
 	litR, okR := l.extractConstLiteral(right)
@@ -13169,8 +12857,6 @@ func (l *Lowerer) tryFoldBinaryOp(op ir.BinaryOperator, left, right ir.Expressio
 		return 0, false
 	}
 
-	// Skip I64/U64 folding — Rust naga's constant evaluator doesn't implement
-	// I64/U64 binary arithmetic, so these remain as separate Binary expressions.
 	if is64BitLiteral(litL) || is64BitLiteral(litR) {
 		return 0, false
 	}
@@ -13424,7 +13110,6 @@ func (l *Lowerer) lowerSelectCall(args []parser.Expr, target *[]ir.Statement) (i
 	}
 
 	// Concretize abstract literals in value arguments.
-	// Matches Rust naga: automatic_conversion_consensus for select args.
 	falseVal, trueVal = l.concretizeBinaryOperands(falseVal, trueVal)
 	// If both are still abstract, concretize to defaults (AbstractInt→I32, AbstractFloat→F32)
 	l.concretizeAbstractToDefault(falseVal)
@@ -13473,7 +13158,6 @@ func (l *Lowerer) lowerDerivativeCall(deriv ir.ExprDerivative, args []parser.Exp
 	if err != nil {
 		return 0, err
 	}
-	// Matches Rust naga: expression() concretizes abstract values.
 	// Derivative functions accept float types, so concretize AbstractFloat → F32.
 	l.concretizeAbstractToDefault(expr)
 	deriv.Expr = expr
@@ -13544,15 +13228,11 @@ func (l *Lowerer) returnBinding(attrs []parser.Attribute) *ir.Binding {
 }
 
 // memberBindings extracts a binding from a list of struct member attributes.
-// Unlike the single-attribute memberBinding, this accumulates @location, @blend_src,
-// and @interpolate into a single LocationBinding.
 func (l *Lowerer) memberBindings(attrs []parser.Attribute) *ir.Binding {
 	return l.collectBinding(attrs)
 }
 
 // collectBinding processes a list of attributes and returns the combined binding.
-// For LocationBinding, it accumulates @location, @blend_src, and @interpolate
-// from separate attributes into a single binding.
 func (l *Lowerer) collectBinding(attrs []parser.Attribute) *ir.Binding {
 	var locBinding *ir.LocationBinding
 	var builtinBinding *ir.Binding
@@ -13599,7 +13279,6 @@ func (l *Lowerer) collectBinding(attrs []parser.Attribute) *ir.Binding {
 		}
 	}
 
-	// Check for @invariant attribute and apply to Position built-in
 	if builtinBinding != nil {
 		for i := range attrs {
 			if attrs[i].Name == "invariant" {
@@ -13622,7 +13301,6 @@ func (l *Lowerer) collectBinding(attrs []parser.Attribute) *ir.Binding {
 	return nil
 }
 
-// parseInterpolateAttr parses @interpolate(kind[, sampling]) into an Interpolation.
 func (l *Lowerer) parseInterpolateAttr(attr *parser.Attribute) *ir.Interpolation {
 	if len(attr.Args) == 0 {
 		return nil
@@ -13664,16 +13342,10 @@ func (l *Lowerer) parseInterpolateAttr(attr *parser.Attribute) *ir.Interpolation
 	}
 }
 
-// applyDefaultInterpolation applies the default interpolation for a binding
-// based on the type, matching Rust naga's Binding::apply_default_interpolation.
-//
 // For Location bindings with no explicit interpolation:
 // - Float scalar/vector/matrix -> Perspective + Center
 // - Integer/bool scalar/vector -> Flat (no sampling)
 //
-// This ensures that integer Location bindings get the Flat decoration in SPIR-V
-// (per Vulkan VUID-StandaloneSpirv-Flat-04744) and that the IR matches Rust naga's
-// expected interpolation values for all I/O bindings.
 // applyDefaultInterpolation modifies a *ir.Binding in place if it is a LocationBinding
 // without explicit interpolation. Returns the (possibly modified) binding.
 func (l *Lowerer) applyDefaultInterpolation(binding *ir.Binding, typeHandle ir.TypeHandle) *ir.Binding {
@@ -13759,9 +13431,7 @@ func (l *Lowerer) entryPointStage(attrs []parser.Attribute) *ir.ShaderStage {
 // extractWorkgroupSize extracts workgroup_size from attributes.
 // Returns [x, y, z] where defaults are 1.
 // Handles literal values, constant references (TWO, THREE), and simple
-// constant expressions (TWO - 1u). Matches Rust naga's const_u32 evaluation.
-// extractEarlyDepthTest checks for @early_depth_test attribute and returns the configuration.
-// Matches Rust: @early_depth_test(force) → Force, @early_depth_test(less_equal) → Allow(LessEqual).
+// constant expressions (TWO - 1u).
 func (l *Lowerer) extractEarlyDepthTest(attrs []parser.Attribute) *ir.EarlyDepthTest {
 	for _, attr := range attrs {
 		if attr.Name != "early_depth_test" {
@@ -13853,7 +13523,6 @@ func (l *Lowerer) evalConstU32Expr(expr parser.Expr) (uint32, bool) {
 	return 0, false
 }
 
-// extractTaskPayload extracts the task payload global variable from @payload(varName) attribute.
 func (l *Lowerer) extractTaskPayload(attrs []parser.Attribute) *ir.GlobalVariableHandle {
 	for _, attr := range attrs {
 		if attr.Name != "payload" {
@@ -13875,7 +13544,6 @@ func (l *Lowerer) extractTaskPayload(attrs []parser.Attribute) *ir.GlobalVariabl
 	return nil
 }
 
-// extractMeshInfo extracts mesh shader info from @mesh(outputVar) attribute.
 // Analyzes the output variable's type to determine topology, max_vertices, max_primitives,
 // vertex_output_type, and primitive_output_type.
 func (l *Lowerer) extractMeshInfo(attrs []parser.Attribute) *ir.MeshStageInfo {
@@ -14343,12 +14011,10 @@ func (l *Lowerer) registerUnusedLetBindings() {
 	}
 	for name, handle := range l.locals {
 		// Skip local const declarations — they are inlined, not named expressions.
-		// Matches Rust naga where local const is Declared::Const, not in named_expressions.
 		if l.localConsts[name] {
 			continue
 		}
-		// Skip var declarations — Rust naga does NOT add var declarations to
-		// named_expressions. Only let bindings get named expression treatment.
+		// Only let bindings get named expression treatment.
 		// This allows CompactExpressions to remove unused LocalVariable expressions
 		// for const-init vars that are never referenced.
 		if l.localIsVar[name] {
@@ -14367,9 +14033,6 @@ func (l *Lowerer) registerUnusedLetBindings() {
 			isExprCallResult(l.currentFunc.Expressions[handle].Kind) {
 			continue
 		}
-		// Skip bare literals — they are constant-folded and inlined at use sites,
-		// matching Rust naga behavior where literal let bindings don't appear as
-		// named temporaries.
 		if int(handle) < len(l.currentFunc.Expressions) {
 			if _, isLiteral := l.currentFunc.Expressions[handle].Kind.(ir.Literal); isLiteral {
 				continue
@@ -14499,7 +14162,6 @@ func (l *Lowerer) swizzlePattern(member string, vecSize ir.VectorSize) (ir.Vecto
 
 	// Validate namespace consistency: all components must be xyzw or all rgba.
 	// Mixing namespaces (e.g., v.xg) is invalid per WGSL spec.
-	// Matches Rust naga: Components::new() validates all chars are same namespace.
 	firstNs := swizzleComponentNamespace(member[0])
 	if firstNs == swizzleNsNone {
 		return 0, [4]ir.SwizzleComponent{}, fmt.Errorf("invalid swizzle component %q", member)
@@ -14634,9 +14296,6 @@ func (l *Lowerer) lowerTextureCall(name string, args []parser.Expr, target *[]ir
 		return l.lowerTextureSample(args, target, ir.SampleLevelAuto{})
 
 	case "textureSampleBias":
-		// textureSampleBias(t, s, coord, [array_index,] bias [, offset])
-		// Pass all args — lowerTextureSample lowers image/sampler/coord/array_index first,
-		// then we lower bias AFTER to match Rust expression ordering.
 		if len(args) < 4 {
 			return 0, fmt.Errorf("textureSampleBias requires at least 4 arguments")
 		}
@@ -14745,7 +14404,7 @@ func (l *Lowerer) lowerTextureCall(name string, args []parser.Expr, target *[]ir
 
 // lowerTextureSample converts a texture sampling call to IR.
 // lowerTextureSampleWithDeferredLevel lowers image/sampler/coord/array_index via
-// lowerTextureSample, then lowers the level/bias arg AFTER (matching Rust expression order).
+// lowerTextureSample, then lowers the level/bias arg AFTER.
 func (l *Lowerer) lowerTextureSampleWithDeferredLevel(sampleArgs []parser.Expr, levelArg parser.Expr, kind string, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	// First lower image/sampler/coord/array_index (creates GlobalVariable expressions)
 	// by calling lowerTextureSample with a placeholder level.
@@ -14899,7 +14558,6 @@ func (l *Lowerer) lowerTextureSample(args []parser.Expr, target *[]ir.Statement,
 	}
 
 	// Texture sample coordinates must be float. Convert abstract/concrete int to float.
-	// Matches Rust naga's automatic_conversion for texture coordinate arguments.
 	l.convertExpressionToFloat(coord)
 
 	// Check if texture is arrayed to determine how to interpret extra arguments
@@ -15030,8 +14688,8 @@ func (l *Lowerer) lowerTextureSampleClampToEdge(args []parser.Expr, target *[]ir
 // lowerTextureGather converts textureGather to IR.
 // Two overloads:
 //
-//	textureGather(component, texture, sampler, coords [, offset])    — sampled/multisampled textures
-//	textureGather(texture, sampler, coords [, offset])               — depth textures (component always 0)
+//	textureGather(component, texture, sampler, coords [, offset]) — sampled/multisampled textures
+//	textureGather(texture, sampler, coords [, offset]) — depth textures (component always 0)
 func (l *Lowerer) lowerTextureGather(args []parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	if len(args) < 3 {
 		return 0, fmt.Errorf("textureGather requires at least 3 arguments, got %d", len(args))
@@ -15273,10 +14931,10 @@ func (l *Lowerer) getTextureImageType(expr parser.Expr) (ir.ImageType, bool) {
 // lowerTextureLoad converts a texture load call to IR.
 func (l *Lowerer) lowerTextureLoad(args []parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	// textureLoad has different signatures:
-	//   textureLoad(t, coords, level)               — sampled textures
-	//   textureLoad(t, coords, array_index, level)  — arrayed sampled textures
-	//   textureLoad(t, coords, sample_index)         — multisampled textures
-	//   textureLoad(t, coords)                       — storage textures
+	//   textureLoad(t, coords, level) — sampled textures
+	//   textureLoad(t, coords, array_index, level) — arrayed sampled textures
+	//   textureLoad(t, coords, sample_index) — multisampled textures
+	//   textureLoad(t, coords) — storage textures
 	image, err := l.lowerExpression(args[0], target)
 	if err != nil {
 		return 0, err
@@ -15339,8 +14997,8 @@ func (l *Lowerer) lowerTextureLoad(args []parser.Expr, target *[]ir.Statement) (
 // lowerTextureStore converts a texture store call to IR.
 func (l *Lowerer) lowerTextureStore(args []parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	// textureStore has different signatures:
-	//   textureStore(t, coords, value)               — non-arrayed storage textures
-	//   textureStore(t, coords, array_index, value)  — arrayed storage textures
+	//   textureStore(t, coords, value) — non-arrayed storage textures
+	//   textureStore(t, coords, array_index, value) — arrayed storage textures
 	if len(args) < 3 {
 		return 0, fmt.Errorf("textureStore requires at least 3 arguments")
 	}
@@ -15374,7 +15032,6 @@ func (l *Lowerer) lowerTextureStore(args []parser.Expr, target *[]ir.Statement) 
 	}
 
 	// Concretize the value argument based on the storage texture's format scalar kind.
-	// This matches Rust naga's expression_with_leaf_scalar for textureStore.
 	if imgType, ok := l.getTextureImageType(args[0]); ok && imgType.Class == ir.ImageClassStorage {
 		scalarKind := imgType.StorageFormat.ScalarKind()
 		switch scalarKind {
@@ -15484,7 +15141,6 @@ func (l *Lowerer) lowerTextureQuery(args []parser.Expr, target *[]ir.Statement, 
 	}
 
 	// For textureDimensions with level argument — concretize abstract int to i32.
-	// Rust naga concretizes the level argument (e.g., literal 1 → I32(1)).
 	if len(args) > 1 {
 		if sizeQuery, ok := query.(ir.ImageQuerySize); ok {
 			level, err := l.lowerExpression(args[1], target)
@@ -15575,8 +15231,6 @@ func (l *Lowerer) lowerAtomicCall(atomicFunc ir.AtomicFunction, args []parser.Ex
 	// For 64-bit atomic min/max called as a statement (result discarded),
 	// set Result to nil. MSL backend then uses non-fetch versions
 	// (atomic_min_explicit, atomic_max_explicit) for 64-bit values.
-	// Matches Rust naga: SHADER_INT64_ATOMIC_MIN_MAX support means
-	// 64-bit min/max never have result handles, while 32-bit atomics always do.
 	is64BitMinMax := false
 	if l.isStatement {
 		switch atomicFunc.(type) {
@@ -15592,8 +15246,6 @@ func (l *Lowerer) lowerAtomicCall(atomicFunc ir.AtomicFunction, args []parser.Ex
 
 	if is64BitMinMax {
 		// Flush pending emit range before the atomic statement.
-		// Ensures Load expressions for the value argument are emitted
-		// before the StmtAtomic, matching Rust naga's named expression ordering.
 		if l.emitStateStart != nil {
 			emitStart := *l.emitStateStart
 			l.emitFinish(emitStart, target)
@@ -15612,8 +15264,6 @@ func (l *Lowerer) lowerAtomicCall(atomicFunc ir.AtomicFunction, args []parser.Ex
 		l.currentEmitTarget = target
 		// Return 0 as dummy handle (won't be used since this is a statement,
 		// i.e., isStatement=true and the caller discards the result).
-		// Do NOT create a dummy AtomicResult expression — Rust naga doesn't,
-		// and extra expressions shift all subsequent expression indices.
 		return 0, nil
 	}
 
@@ -15623,7 +15273,7 @@ func (l *Lowerer) lowerAtomicCall(atomicFunc ir.AtomicFunction, args []parser.Ex
 
 	// Create atomic result expression with the scalar type.
 	// Use interruptEmitter: AtomicResult is not a computed expression,
-	// it's produced by the Atomic statement (matches Rust naga).
+	// it's produced by the Atomic statement.
 	resultHandle := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprAtomicResult{Ty: scalarTypeHandle, Comparison: false},
 	})
@@ -15660,8 +15310,6 @@ func (l *Lowerer) lowerAtomicStore(args []parser.Expr, target *[]ir.Statement) (
 	// Concretize abstract value to match the atomic's element type.
 	l.concretizeStoreValue(pointer, value)
 
-	// Rust naga emits a plain Store for atomicStore, not an Atomic statement.
-	// See naga/src/front/wgsl/lower/mod.rs around line 2895.
 	*target = append(*target, ir.Statement{
 		Kind: ir.StmtStore{
 			Pointer: pointer,
@@ -15673,8 +15321,6 @@ func (l *Lowerer) lowerAtomicStore(args []parser.Expr, target *[]ir.Statement) (
 }
 
 // lowerAtomicLoad converts atomicLoad(&ptr) to IR.
-// Rust naga lowers atomicLoad to a plain Expression::Load { pointer },
-// not to a Statement::Atomic. See naga/src/front/wgsl/lower/mod.rs.
 func (l *Lowerer) lowerAtomicLoad(args []parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	if len(args) < 1 {
 		return 0, fmt.Errorf("atomicLoad requires 1 argument")
@@ -15685,7 +15331,6 @@ func (l *Lowerer) lowerAtomicLoad(args []parser.Expr, target *[]ir.Statement) (i
 		return 0, err
 	}
 
-	// Rust naga emits Expression::Load { pointer } for atomicLoad.
 	return l.addExpression(ir.Expression{
 		Kind: ir.ExprLoad{Pointer: pointer},
 	}), nil
@@ -15694,7 +15339,7 @@ func (l *Lowerer) lowerAtomicLoad(args []parser.Expr, target *[]ir.Statement) (i
 // lowerTypeConstructorCall handles a constructor call for a named type (struct, vector, matrix,
 // scalar, or type alias). E.g., VertexOutput(pos, uv), FVec3(0.0), Mat(1.0, 2.0, 3.0, 4.0).
 func (l *Lowerer) lowerTypeConstructorCall(typeHandle ir.TypeHandle, args []parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
-	// Zero-arg constructor: emit ZeroValue (matches Rust naga).
+	// Zero-arg constructor: emit ZeroValue.
 	// E.g., MyStruct() → ZeroValue(MyStruct)
 	if len(args) == 0 {
 		return l.interruptEmitter(ir.Expression{
@@ -15761,7 +15406,6 @@ func (l *Lowerer) lowerTypeConstructorCall(typeHandle ir.TypeHandle, args []pars
 			}
 		}
 		// Splat: single scalar -> vector via Splat expression.
-		// Matches Rust naga which generates Splat for single-scalar vector constructors.
 		// Concretize abstract literals first.
 		l.concretizeComponentsToScalar(components, vec.Scalar)
 		// Convert concrete scalars of different kind (e.g., u32→f32 for vec4f(u32_val)).
@@ -15798,9 +15442,7 @@ func (l *Lowerer) lowerTypeConstructorCall(typeHandle ir.TypeHandle, args []pars
 		l.concretizeComponentsToScalar(components, scalar)
 	}
 
-	// Matrix with scalar args: group into column vectors (matches Rust naga).
-	// When grouping scalars into columns, Rust uses an anonymous matrix type for the
-	// final Compose (not the named alias type).
+	// Matrix with scalar args: group into column vectors.
 	{
 		origLen := len(components)
 		components = l.groupMatrixColumns(typeHandle, components)
@@ -15827,7 +15469,6 @@ func (l *Lowerer) lowerWorkgroupUniformLoad(args []parser.Expr, target *[]ir.Sta
 	}
 
 	// Use lowerExpressionForRef to preserve the pointer (no load rule).
-	// Matches Rust naga which passes the pointer directly to WorkGroupUniformLoad.
 	pointer, err := l.lowerExpressionForRef(args[0], target)
 	if err != nil {
 		return 0, err
@@ -15835,7 +15476,6 @@ func (l *Lowerer) lowerWorkgroupUniformLoad(args []parser.Expr, target *[]ir.Sta
 
 	// Use interruptEmitter to ensure WorkGroupUniformLoadResult falls outside
 	// emit ranges (it's a pre-emit expression, like AtomicResult and CallResult).
-	// Matches Rust naga's interrupt_emitter call for this expression.
 	resultHandle := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprWorkGroupUniformLoadResult{},
 	})
@@ -15919,7 +15559,6 @@ func (l *Lowerer) lowerSubgroupBallot(args []parser.Expr, target *[]ir.Statement
 		predicate = &pred
 	}
 
-	// SubgroupBallotResult uses interrupt_emitter in Rust naga — must be outside Emit range.
 	resultHandle := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprSubgroupBallotResult{},
 	})
@@ -15953,7 +15592,6 @@ func (l *Lowerer) lowerSubgroupCollectiveOperation(op ir.SubgroupOperation, cop 
 
 	typeHandle := l.ensureTypeHandle(argType)
 
-	// SubgroupOperationResult uses interrupt_emitter in Rust naga — must be outside Emit range.
 	resultHandle := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprSubgroupOperationResult{Type: typeHandle},
 	})
@@ -16051,7 +15689,6 @@ func (l *Lowerer) lowerSubgroupGather(gatherKind string, args []parser.Expr, tar
 
 	typeHandle := l.ensureTypeHandle(argType)
 
-	// SubgroupOperationResult uses interrupt_emitter in Rust naga — must be outside Emit range.
 	resultHandle := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprSubgroupOperationResult{Type: typeHandle},
 	})
@@ -16096,7 +15733,6 @@ func (l *Lowerer) lowerQuadSwap(funcName string, args []parser.Expr, target *[]i
 
 	typeHandle := l.ensureTypeHandle(argType)
 
-	// SubgroupOperationResult uses interrupt_emitter in Rust naga — must be outside Emit range.
 	resultHandle := l.interruptEmitter(ir.Expression{
 		Kind: ir.ExprSubgroupOperationResult{Type: typeHandle},
 	})
@@ -16124,8 +15760,6 @@ func (l *Lowerer) ensureTypeHandle(res ir.TypeResolution) ir.TypeHandle {
 }
 
 // lowerAtomicCompareExchange converts atomicCompareExchangeWeak to IR.
-// atomicCompareExchangeWeak(ptr, compare, value) -> __atomic_compare_exchange_result<T>
-// Rust naga creates a predeclared struct result type with old_value and exchanged fields.
 func (l *Lowerer) lowerAtomicCompareExchange(args []parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	if len(args) < 3 {
 		return 0, fmt.Errorf("atomicCompareExchangeWeak requires 3 arguments")
@@ -16157,7 +15791,6 @@ func (l *Lowerer) lowerAtomicCompareExchange(args []parser.Expr, target *[]ir.St
 	atomicScalar := l.resolveAtomicScalarFromPointer(pointer)
 
 	// Create the predeclared __atomic_compare_exchange_result<T> struct type.
-	// This matches Rust naga's special_types.predeclared_types entry.
 	resultStructType := l.getOrCreateAtomicCompareExchangeResultType(atomicScalar)
 
 	// Create atomic result expression with the struct type.
@@ -16205,7 +15838,6 @@ func (l *Lowerer) resolveAtomicScalarFromPointer(pointer ir.ExpressionHandle) ir
 
 // getOrCreateAtomicCompareExchangeResultType creates (or reuses) the predeclared
 // __atomic_compare_exchange_result<T> struct type for the given scalar.
-// Matches Rust naga's predeclared_types handling.
 func (l *Lowerer) getOrCreateAtomicCompareExchangeResultType(scalar ir.ScalarType) ir.TypeHandle {
 	// Build the name: e.g., "__atomic_compare_exchange_result<Uint,4>"
 	kindName := ""
@@ -16226,20 +15858,18 @@ func (l *Lowerer) getOrCreateAtomicCompareExchangeResultType(scalar ir.ScalarTyp
 		}
 	}
 
-	// Register bool type first, then scalar type (matching Rust naga's
-	// predeclared type registration order where bool comes before the value scalar).
 	boolTypeHandle := l.registerType("", ir.ScalarType{Kind: ir.ScalarBool, Width: 1})
 
 	// Register the scalar type (for old_value member)
 	scalarTypeHandle := l.registerType("", scalar)
 
-	// Create the struct type (named, matching Rust naga's predeclared types)
+	// Create the struct type
 	return l.registerNamedType(name, ir.StructType{
 		Members: []ir.StructMember{
 			{Name: "old_value", Type: scalarTypeHandle, Offset: 0},
 			{Name: "exchanged", Type: boolTypeHandle, Offset: uint32(scalar.Width)},
 		},
-		Span: uint32(scalar.Width) * 2, // Matches Rust: scalar.width * 2
+		Span: uint32(scalar.Width) * 2,
 	})
 }
 
@@ -16278,8 +15908,6 @@ func (l *Lowerer) lowerRayQueryCall(name string, args []parser.Expr, target *[]i
 		if err != nil {
 			return 0, fmt.Errorf("rayQueryInitialize descriptor: %w", err)
 		}
-		// Flush emitter before RayQuery statement (matching Rust naga:
-		// emitter.finish() → push RayQuery → emitter.start())
 		if l.emitStateStart != nil && l.currentEmitTarget != nil {
 			start := *l.emitStateStart
 			if l.currentExprIdx > start {
@@ -16313,8 +15941,6 @@ func (l *Lowerer) lowerRayQueryCall(name string, args []parser.Expr, target *[]i
 		if err != nil {
 			return 0, fmt.Errorf("rayQueryProceed: %w", err)
 		}
-		// Rust naga uses interrupt_emitter for RayQueryProceedResult,
-		// which flushes the current emit range before the expression.
 		// This produces: Emit → RayQueryProceedResult → StmtRayQuery.
 		resultHandle := l.interruptEmitter(ir.Expression{
 			Kind: ir.ExprRayQueryProceedResult{},
@@ -16422,8 +16048,6 @@ func (l *Lowerer) lowerRayQueryCall(name string, args []parser.Expr, target *[]i
 // Returns the LocalVariable handle directly (no load rule applied).
 func (l *Lowerer) lowerRayQueryPointer(arg parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	// The argument is typically &rq (UnaryExpr with TokenAmpersand).
-	// Use lowerExpressionForRef to avoid applying the load rule,
-	// matching Rust naga which keeps the pointer as LocalVariable.
 	if unary, ok := arg.(*parser.UnaryExpr); ok && unary.Op == parser.TokenAmpersand {
 		return l.lowerExpressionForRef(unary.Operand, target)
 	}
@@ -16432,10 +16056,8 @@ func (l *Lowerer) lowerRayQueryPointer(arg parser.Expr, target *[]ir.Statement) 
 }
 
 // buildGlobalExpressions populates Module.GlobalExpressions from Overrides,
-// Constants, and GlobalVariable init values. This mirrors Rust naga's
-// global_expressions arena where all module-scope init values are stored.
+// Constants, and GlobalVariable init values.
 //
-// The order follows Rust naga's lowering convention:
 // 1. Override init expressions (created during override lowering)
 // 2. GlobalVariable init expressions
 // 3. Constant init expressions
@@ -16496,7 +16118,6 @@ func (l *Lowerer) buildGlobalExpressions() {
 
 	// Phase 1: Process overrides.
 	// Each override with an init expression gets a global expression.
-	// Overrides without init (no default) get Init: nil — matching Rust naga.
 	for oh := ir.OverrideHandle(0); int(oh) < len(m.Overrides); oh++ {
 		initExpr, hasInit := l.overrideInitExprs[oh]
 		if !hasInit {
@@ -16638,8 +16259,6 @@ func (l *Lowerer) buildGlobalExprFromAST(
 		}
 
 		// Zero-arg constructor: expand to explicit zero Literals + Compose.
-		// Rust naga expands vec2() to Compose(vec2, [Literal(0), Literal(0)]) for
-		// global var inits, not ZeroValue. This matches the GE count exactly.
 		if len(e.Args) == 0 {
 			return l.expandZeroConstructGE(typeH, addExpr)
 		}
@@ -16653,7 +16272,7 @@ func (l *Lowerer) buildGlobalExprFromAST(
 			components[i] = h
 		}
 
-		// Vector with single scalar arg → Splat (matching Rust naga).
+		// Vector with single scalar arg → Splat.
 		if int(typeH) < len(l.module.Types) {
 			if vec, ok := l.module.Types[typeH].Inner.(ir.VectorType); ok && len(e.Args) == 1 {
 				return addExpr(ir.ExprSplat{Size: vec.Size, Value: components[0]}), true
@@ -16686,7 +16305,6 @@ func (l *Lowerer) buildGlobalExprFromAST(
 				return addExpr(ir.Literal{Value: lit}), true
 			}
 		}
-		// Reference to a module-scope constant.
 		if ch, ok := l.moduleConstants[e.Name]; ok {
 			if int(ch) < len(l.module.Constants) {
 				c := &l.module.Constants[ch]
@@ -16707,8 +16325,7 @@ func (l *Lowerer) buildGlobalExprFromAST(
 }
 
 // expandZeroConstructGE creates explicit zero Literal + Compose global expressions
-// for a zero-arg constructor. Rust naga expands vec2() to Compose(vec2, [Lit(0), Lit(0)])
-// in global_expressions, not ZeroValue.
+// for a zero-arg constructor.
 func (l *Lowerer) expandZeroConstructGE(
 	typeH ir.TypeHandle,
 	addExpr func(ir.ExpressionKind) ir.ExpressionHandle,
@@ -16808,7 +16425,6 @@ func (l *Lowerer) buildOverrideGlobalExpr(
 		return addExpr(ir.Literal{Value: ir.LiteralU32(e.Value)})
 
 	case ir.OverrideInitRef:
-		// Reference to another override -> Override expression.
 		// First ensure the referenced override has a global expression.
 		if _, ok := overrideToGlobalExpr[e.Handle]; !ok {
 			if int(e.Handle) < len(l.module.Overrides) {

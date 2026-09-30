@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package render
 
 import (
@@ -33,7 +43,6 @@ func forceTextMode() (TextMode, bool) {
 	}
 }
 
-// Align specifies text horizontal alignment.
 // This is a type alias for text.Alignment, provided for fogleman/gg compatibility.
 type Align = text.Alignment
 
@@ -71,7 +80,7 @@ func (c *Context) Font() text.Face {
 // Rotate, and Skew transforms affect text rendering, not just position.
 // Otherwise, the CPU text pipeline is used with transform-aware rendering:
 //   - Translation-only: bitmap fast path (zero quality loss)
-//   - Uniform scale ≤256px: bitmap at device size (Strategy A, Skia pattern)
+//   - Uniform scale ≤256px: bitmap at device size
 //   - Everything else: glyph outlines as vector paths (Strategy B, Vello pattern)
 //
 // The baseline is the line on which most letters sit. Characters with
@@ -259,8 +268,7 @@ func (c *Context) dispatchText(s string, x, y float64) {
 
 // needsOutlineTransform reports whether the current CTM contains rotation,
 // shear, or non-uniform scale — transforms under which fixed-resolution
-// bitmap/SDF text pipelines visibly degrade. Mirrors the CPU tier selection
-// (Tier 2 outlines) and Skia's transformed-text handling.
+// bitmap/SDF text pipelines visibly degrade.
 func (c *Context) needsOutlineTransform() bool {
 	m := c.matrix
 	// Rotation or shear: off-axis columns in the affine matrix.
@@ -736,7 +744,7 @@ func (c *Context) selectTextStrategy() TextMode {
 		return TextModeBitmap
 	}
 	// Transform-quality routing: rotated/sheared/non-uniform transforms render
-	// glyph outlines as paths (GPU stencil+cover / CPU Tier 2). Skia's
+	// glyph outlines as paths (GPU stencil+cover / CPU Tier 2). the
 	// kTransformedMask (rotated bitmap quads) is not enabled: the glyph-mask
 	// pipeline renders rotated quads incorrectly under multi-draw accumulation
 	// (observed black flooding in the 9-cell render_text_transform example) —
@@ -1094,7 +1102,7 @@ func (c *Context) drawStringCPUAliased(s string, x, y float64) {
 // For thick strokes (lineWidth > 2), use [Context.SetLineJoin] with [LineJoinRound]
 // to avoid miter spikes at glyph segment junctions. Glyph outlines contain many
 // short curve segments, and the default [LineJoinMiter] produces sharp spikes at
-// each junction. All enterprise text renderers (Skia, Cairo, Qt) recommend or
+// each junction. All enterprise text renderers recommend or
 // default to round joins for stroked text.
 //
 // Unlike DrawString, StrokeString always uses vector outlines regardless of the

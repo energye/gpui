@@ -1,3 +1,13 @@
+//----------------------------------------
+//
+// Copyright © yanghy. All Rights Reserved.
+//
+// Licensed under Apache License Version 2.0, January 2004
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+//----------------------------------------
+
 package scene
 
 import (
@@ -20,7 +30,7 @@ type Layer interface {
 // layerIDGen allocates monotonic ids for boundary / picture layers.
 var layerIDGen uint64
 
-// NextLayerID returns a new non-zero layer id (not concurrency-hardened beyond atomic-ish P2 use).
+// NextLayerID returns a new non-zero layer id.
 func NextLayerID() uint64 {
 	layerIDGen++
 	if layerIDGen == 0 {
@@ -265,7 +275,7 @@ func NewBackdropFilterLayer(blurRadius, opacity float64) *BackdropFilterLayer {
 
 func (b *BackdropFilterLayer) Kind() string { return "backdrop_filter" }
 
-// PictureLayer holds a retained picture (or a re-record flag for P3 raster).
+// PictureLayer holds a retained picture.
 // When Picture.Ops is non-empty, the display list can be Replay'd onto a Context
 // without re-walking the RO tree. NeedsRaster still tracks dirty vs static reuse
 // in RasterizeDirty (flag/stats path — not dirty-rect Present).
@@ -281,7 +291,7 @@ type PictureLayer struct {
 	// RasterExtra is an optional raster-thread paint callback for node content
 	// the UI-thread PictureRecorder cannot capture (RenderBox.OnPaint). It is
 	// executed during texture record (phase 1) in layer-local coordinates,
-	// either alone (empty Picture) or after Picture replay. Flutter's
+	// either alone (empty Picture) or after Picture replay. the
 	// RenderBox.paint semantics: every node's own paint enters the display
 	// list — callbacks that need a live DC are deferred to the raster thread.
 	RasterExtra func(dc *render.Context)
@@ -335,7 +345,7 @@ type BoundaryLayer struct {
 	OffsetLayer
 	// Source is an optional debug tag (e.g. "spinner").
 	Source string
-	// Shell marks a window-shell boundary (R21 shell/content layering). The
+	// Shell marks a window-shell boundary. The
 	// retained textured composite partitions its per-frame skip/rerecord by
 	// this flag so a scrolling body proves the shell texture never re-records.
 	Shell bool
