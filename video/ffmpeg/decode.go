@@ -33,18 +33,28 @@ type StreamInfo struct {
 	SrcPixFmt int32
 }
 
-// VideoFrame is one decoded picture in packed RGBA, ready to wrap into
+// VideoFrame is one decoded picture, ready to wrap into
 // the current library's frame type (width, height, pixels, stamp).
+// RGBA shape: Pix holds 4*Width*Height (default, Pix path).
+// NV12 shape (SetNV12 path): Y holds Width*Height luma and UV holds
+// Width*Height/2 interleaved chroma; Pix is nil. NV12 reports which
+// shape this frame carries.
 // Pix comes from the Decoder's PixPool when set (player path, pooled
-// reuse, steady zero-alloc); otherwise it is a fresh buffer.
+// reuse, steady zero-alloc); otherwise it is a fresh buffer. Same for
+// Y/UV via SetPlanePool.
 // Call Release exactly once when the picture is dropped before display;
 // displayed frames transfer ownership to the display pool instead.
 type VideoFrame struct {
 	Width  int
 	Height int
-	Pix    []byte // RGBA, length 4*Width*Height
+	Pix    []byte // RGBA, length 4*Width*Height (NV12 shape: nil)
+	Y      []byte // NV12 luma, length Width*Height (RGBA shape: nil)
+	UV     []byte // NV12 interleaved chroma, length Width*Height/2 (RGBA: nil)
+	NV12   bool   // true when Y/UV carry the picture
 	PTSMs  int64
 	put    func([]byte)
+	putY   func([]byte)
+	putUV  func([]byte)
 }
 
 // Release returns the frame's pixels to the pool (no-op for fresh
@@ -54,12 +64,19 @@ func (f *VideoFrame) Release() {
 	if f == nil {
 		return
 	}
-	put := f.put
-	pix := f.Pix
-	f.put = nil
-	f.Pix = nil
+	put, pix := f.put, f.Pix
+	putY, y := f.putY, f.Y
+	putUV, uv := f.putUV, f.UV
+	f.put, f.Pix = nil, nil
+	f.putY, f.putUV, f.Y, f.UV = nil, nil, nil, nil
 	if put != nil && len(pix) > 0 {
 		put(pix)
+	}
+	if putY != nil && len(y) > 0 {
+		putY(y)
+	}
+	if putUV != nil && len(uv) > 0 {
+		putUV(uv)
 	}
 }
 
@@ -80,6 +97,9 @@ type Decoder struct {
 	swsW     int32
 	swsH     int32
 	swsFmt   int32
+	// nv12 selects NV12 plane output in Next (odd sizes still fall
+	// back to RGBA inside, since NV12 needs even width/height).
+	nv12     bool
 	draining bool
 	drained  bool
 	shown    int64
@@ -90,6 +110,13 @@ type Decoder struct {
 	// allocating ~w*h*4 per frame; nil keeps fresh buffers).
 	pixGet func(int) []byte
 	pixPut func([]byte)
+	// yGet/uvGet/putY/putUV borrow and return NV12 planes (SetNV12
+	// path): Y is w*h luma bytes, UV is w*h/2 interleaved chroma.
+	// Nil keeps fresh buffers. RGBA hooks stay untouched for fallback.
+	yGet  func(int) []byte
+	uvGet func(int) []byte
+	putY  func([]byte)
+	putUV func([]byte)
 	// P1 硬解记账：设备引用交解码器拥有（随释放，Close 不碰），
 	// 跳板句柄随本结构保活，swFrame 是复用的回传目标。
 	hw       hwState
@@ -108,6 +135,24 @@ func (d *Decoder) SetPixPool(get func(int) []byte, put func([]byte)) {
 	}
 	d.pixGet = get
 	d.pixPut = put
+}
+
+// SetPlanePool wires pooled NV12 plane reuse: yGet borrows a w*h luma
+// buffer, uvGet a w*h/2 chroma buffer. Nil clears back to fresh buffers.
+func (d *Decoder) SetPlanePool(yGet, uvGet func(int) []byte, putY, putUV func([]byte)) {
+	if d == nil {
+		return
+	}
+	d.yGet, d.uvGet, d.putY, d.putUV = yGet, uvGet, putY, putUV
+}
+
+// SetNV12 selects NV12 plane output in Next (odd sizes still fall back
+// to RGBA inside, since NV12 needs even width/height).
+func (d *Decoder) SetNV12(on bool) {
+	if d == nil {
+		return
+	}
+	d.nv12 = on
 }
 
 // RawFormatCtx exposes the underlying AVFormatContext* for demux-layer
@@ -156,6 +201,26 @@ func (d *Decoder) HWStats() HWStats {
 
 // Info returns the stream facts gathered at open.
 func (d *Decoder) Info() StreamInfo { return d.info }
+
+// openCodecCtx opens the decoder with threaded decode enabled
+// (threads=0 means auto = CPU count, the ffmpeg/ffplay standard).
+// A dict failure never fails the open: it falls back to single-thread.
+func openCodecCtx(cc, decPtr unsafe.Pointer) int32 {
+	d := NewDictionary()
+	if d != nil {
+		if err := d.Set("threads", "0", 0); err == nil {
+			raw := d.Take()
+			dp := raw
+			ret := fOpen2(cc, decPtr, unsafe.Pointer(&dp))
+			if dp != nil {
+				fDictFree(&dp)
+			}
+			return ret
+		}
+		d.Free()
+	}
+	return fOpen2(cc, decPtr, nil)
+}
 
 // Open opens a local file path or URL with ffmpeg's own demuxer.
 // The build enables file, http, https, tcp, udp, tls, rtmp and friends,
@@ -234,7 +299,7 @@ func Open(path string) (*Decoder, error) {
 			hwFallbacks = 1
 		}
 	}
-	if ret := fOpen2(cc, decPtr, nil); ret < 0 {
+	if ret := openCodecCtx(cc, decPtr); ret < 0 {
 		if hwPix >= 0 {
 			// 硬解开崩了： free 掉重开软解，多记一笔回落。
 			hwFallbacks++
@@ -248,7 +313,7 @@ func Open(path string) (*Decoder, error) {
 				fFreeCtx(&cc)
 				return nil, fmt.Errorf("ffmpeg: params %s: %s", path, errText(ret))
 			}
-			if ret := fOpen2(cc, decPtr, nil); ret < 0 {
+			if ret := openCodecCtx(cc, decPtr); ret < 0 {
 				fFreeCtx(&cc)
 				return nil, fmt.Errorf("ffmpeg: open decoder %s: %s", path, errText(ret))
 			}
@@ -310,7 +375,7 @@ func Open(path string) (*Decoder, error) {
 		fmtCtx: fmtCtx, codecCtx: cc, vidIdx: vid,
 		tbNum: tbNum, tbDen: tbDen,
 		pkt: pkt, frame: fr,
-		lastMs: -1,
+		lastMs:   -1,
 		hwPixFmt: hwPix, hwGetFmt: hwCb,
 	}
 	d.hw.name.Store(hwName)
@@ -331,6 +396,154 @@ func (d *Decoder) ptsToMs(pts int64) int64 {
 		return 0
 	}
 	return pts * int64(d.tbNum) * 1000 / int64(d.tbDen)
+}
+
+// nv12Bytes reports Y and UV plane sizes for w×h.
+func nv12Bytes(w, h int) (yN, uvN int) { return w * h, w * h / 2 }
+
+// borrowPlanes borrows pooled NV12 planes (fresh buffers when no plane
+// pool is wired). ok=false returns what it borrowed, so callers never
+// leak a half-built pair.
+func (d *Decoder) borrowPlanes(yN, uvN int) (y, uv []byte, ok bool) {
+	if d.yGet != nil {
+		y = d.yGet(yN)
+		if len(y) != yN {
+			if d.putY != nil && len(y) > 0 {
+				d.putY(y)
+			}
+			return nil, nil, false
+		}
+	} else {
+		y = make([]byte, yN)
+	}
+	if d.uvGet != nil {
+		uv = d.uvGet(uvN)
+		if len(uv) != uvN {
+			if d.putUV != nil && len(uv) > 0 {
+				d.putUV(uv)
+			}
+			if d.putY != nil {
+				d.putY(y)
+			}
+			return nil, nil, false
+		}
+	} else {
+		uv = make([]byte, uvN)
+	}
+	return y, uv, true
+}
+
+// giveBackPlanes returns a half-built pair (wrong pool sizes, shape
+// surprise): wrong sizes drop and count, never pollute the pool.
+func (d *Decoder) giveBackPlanes(y, uv []byte) {
+	if d.putY != nil && len(y) > 0 {
+		d.putY(y)
+	}
+	if d.putUV != nil && len(uv) > 0 {
+		d.putUV(uv)
+	}
+}
+
+// convertNV12 rearranges one decoded soft AVFrame into pooled NV12
+// planes: NV12 input is a direct copy, YUV420P takes one cheap
+// interleave pass (no arithmetic). Hard frames never reach here:
+// frameToVideo diverts them to swFrameNV12From (direct plane copy off
+// the transfer target). Odd sizes and exotic sources fall back to
+// RGBA. convertNV12 unrefs the frame exactly once on every path,
+// like convertFrame.
+func (d *Decoder) convertNV12(ms int64) (*VideoFrame, error) {
+	if err := ensureModDecode(); err != nil {
+		return nil, err
+	}
+	w := int(loadInt32(d.frame, frameWidth))
+	h := int(loadInt32(d.frame, frameHeight))
+	srcFmt := loadInt32(d.frame, frameFormat)
+	if w < 1 || h < 1 || w > 8192 || h > 8192 {
+		return nil, fmt.Errorf("ffmpeg: bad frame %dx%d fmt %d", w, h, srcFmt)
+	}
+	if w%2 != 0 || h%2 != 0 || w*h/2 <= 0 {
+		return d.convertFrame(ms)
+	}
+	if srcFmt != PixFmtNV12 && srcFmt != PixFmtYUV420P {
+		return d.convertFrame(ms)
+	}
+	yN, uvN := nv12Bytes(w, h)
+	y, uv, ok := d.borrowPlanes(yN, uvN)
+	if !ok {
+		return nil, fmt.Errorf("ffmpeg: pool gave wrong NV12 sizes, want %d/%d", yN, uvN)
+	}
+	if copyNV12Frame(d.frame, y, uv, w, h, srcFmt) {
+		fFrameUnref(d.frame)
+		return &VideoFrame{Width: w, Height: h, Y: y, UV: uv, NV12: true, PTSMs: ms, putY: d.putY, putUV: d.putUV}, nil
+	}
+	if interleavePlanar(d.frame, y, uv, w, h, srcFmt) {
+		fr := &VideoFrame{Width: w, Height: h, Y: y, UV: uv, NV12: true, PTSMs: ms, putY: d.putY, putUV: d.putUV}
+		fFrameUnref(d.frame)
+		return fr, nil
+	}
+	d.giveBackPlanes(y, uv)
+	return nil, fmt.Errorf("ffmpeg: unsupported src fmt %d for NV12", srcFmt)
+}
+
+// copyNV12Frame copies AVFrame planes straight out when the source is
+// already NV12 in memory: row copies only, no arithmetic. It reports
+// false for any other pixel format.
+func copyNV12Frame(fr unsafe.Pointer, y, uv []byte, w, h int, srcFmt int32) bool {
+	if srcFmt != PixFmtNV12 {
+		return false
+	}
+	var srcPtrs [8]unsafe.Pointer
+	var srcStrides [8]int32
+	for i := 0; i < 2; i++ {
+		srcPtrs[i] = loadPtr(fr, frameData+uintptr(i)*8)
+		srcStrides[i] = loadInt32(fr, frameLinesize+uintptr(i)*4)
+		if srcPtrs[i] == nil || srcStrides[i] <= 0 {
+			return false
+		}
+	}
+	yp := unsafe.Pointer(&y[0])
+	uvp := unsafe.Pointer(&uv[0])
+	copyPlane(yp, srcPtrs[0], w, h, int(srcStrides[0]), w)
+	copyPlane(uvp, srcPtrs[1], w, h/2, int(srcStrides[1]), w)
+	return true
+}
+
+// copyPlane copies h rows of rowLen bytes honoring a source stride.
+func copyPlane(dst, src unsafe.Pointer, rowLen, h, srcStride, _ int) {
+	for y := 0; y < h; y++ {
+		d := unsafe.Slice((*byte)(unsafe.Add(dst, uintptr(y*rowLen))), rowLen)
+		s := unsafe.Slice((*byte)(unsafe.Add(src, uintptr(y*srcStride))), rowLen)
+		copy(d, s)
+	}
+}
+
+// interleavePlanar rearranges planar YUV420P into NV12 (Y direct row
+// copy, U/V interleaved into UV): one cheap pass, no arithmetic.
+// It reports false for non-YUV420P sources (caller falls back to RGBA).
+func interleavePlanar(fr unsafe.Pointer, y, uv []byte, w, h int, srcFmt int32) bool {
+	if srcFmt != PixFmtYUV420P {
+		return false
+	}
+	var srcPtrs [8]unsafe.Pointer
+	var srcStrides [8]int32
+	for i := 0; i < 3; i++ {
+		srcPtrs[i] = loadPtr(fr, frameData+uintptr(i)*8)
+		srcStrides[i] = loadInt32(fr, frameLinesize+uintptr(i)*4)
+		if srcPtrs[i] == nil || srcStrides[i] <= 0 {
+			return false
+		}
+	}
+	copyPlane(unsafe.Pointer(&y[0]), srcPtrs[0], w, h, int(srcStrides[0]), w)
+	hw, hh := w/2, h/2
+	for y := 0; y < hh; y++ {
+		u := unsafe.Slice((*byte)(unsafe.Add(srcPtrs[1], uintptr(y*int(srcStrides[1])))), hw)
+		v := unsafe.Slice((*byte)(unsafe.Add(srcPtrs[2], uintptr(y*int(srcStrides[2])))), hw)
+		row := uv[y*w : y*w+w]
+		for x := 0; x < hw; x++ {
+			row[2*x], row[2*x+1] = u[x], v[x]
+		}
+	}
+	return true
 }
 
 // ensureSws rebuilds the RGBA converter when the frame shape changes.
@@ -444,6 +657,13 @@ func (d *Decoder) frameToVideo(ms int64) (*VideoFrame, error) {
 		d.hwSettled = true
 		fr, err := d.convertFrameFrom(d.swFrame, ms)
 		fFrameUnref(d.frame)
+		if d.nv12 && err == nil && fr != nil && !fr.NV12 {
+			if nv := d.swFrameNV12From(d.swFrame, fr); nv != nil {
+				return nv, nil
+			}
+			// Plane read failed (shape surprise): keep the RGBA
+			// frame, never drop a picture for the plane path.
+		}
 		fFrameUnref(d.swFrame)
 		return fr, err
 	}
@@ -453,9 +673,41 @@ func (d *Decoder) frameToVideo(ms int64) (*VideoFrame, error) {
 		d.hw.active.Store(false)
 		d.hw.fallbacks.Add(1)
 	}
+	// NV12 shape: soft frames take one cheap interleave pass here.
+	// Hard frames never reach this branch: frameToVideo diverts them
+	// to swFrameNV12 (direct plane copy off the transfer target).
+	// Odd sizes and exotic sources fall back to RGBA. convertNV12
+	// unrefs the frame exactly once on every path, like convertFrame.
+	if d.nv12 {
+		return d.convertNV12(ms)
+	}
 	fr, err := d.convertFrame(ms)
 	fFrameUnref(d.frame)
 	return fr, err
+}
+
+// swFrameNV12 reads the back-transferred swFrame straight into pooled
+// NV12 planes (the transfer target is NV12 already; src is the transfer
+// frame, not the consumed hw frame). The actual source format is read
+// off the frame and must be NV12, else nil. It reports nil on any shape
+// surprise (caller keeps the RGBA frame, never drops it).
+// No extra scaler runs here, so the hard path never pays RGBA twice.
+func (d *Decoder) swFrameNV12From(src unsafe.Pointer, fr *VideoFrame) *VideoFrame {
+	if loadInt32(src, frameFormat) != PixFmtNV12 {
+		return nil
+	}
+	yN, uvN := nv12Bytes(fr.Width, fr.Height)
+	y, uv, ok := d.borrowPlanes(yN, uvN)
+	if !ok {
+		return nil
+	}
+	if !copyNV12Frame(src, y, uv, fr.Width, fr.Height, PixFmtNV12) {
+		d.giveBackPlanes(y, uv)
+		return nil
+	}
+	nv := &VideoFrame{Width: fr.Width, Height: fr.Height, Y: y, UV: uv, NV12: true, PTSMs: fr.PTSMs, putY: d.putY, putUV: d.putUV}
+	fr.Release()
+	return nv
 }
 
 // Next decodes the next displayable picture in presentation order.

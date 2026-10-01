@@ -111,10 +111,14 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 		if fr == nil {
 			return
 		}
+		if fr.NV12 {
+			p.releasePlanes(fr.Y, fr.UV)
+			return
+		}
 		p.releasePix(fr.Pix)
 	})
-	// Pooled reuse: ffmpeg scales straight into display-pool buffers,
-	// so steady play borrows instead of allocating ~w*h*4 per frame.
+	// Pooled reuse: ffmpeg converts straight into display-pool buffers,
+	// so steady play borrows instead of allocating per frame.
 	// get borrows when the pool already fits this size, else a fresh
 	// buffer (cold open / resolution switch); put parks via releasePix
 	// (wrong sizes drop and count, never pollute the pool).
@@ -128,10 +132,32 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 		},
 		func(b []byte) { p.releasePix(b) },
 	)
+	// NV12 planes ride the same pools: Y is w*h, UV is w*h/2.
+	dec.SetPlanePool(
+		func(size int) []byte {
+			if lv := p.pooled.Load(); lv != nil && lv.pools != nil && lv.pools.NV12Y != nil &&
+				lv.pools.NV12Y.BufSize() == size {
+				return lv.pools.NV12Y.Acquire()
+			}
+			return make([]byte, size)
+		},
+		func(size int) []byte {
+			if lv := p.pooled.Load(); lv != nil && lv.pools != nil && lv.pools.NV12UV != nil &&
+				lv.pools.NV12UV.BufSize() == size {
+				return lv.pools.NV12UV.Acquire()
+			}
+			return make([]byte, size)
+		},
+		func(b []byte) { p.releasePlaneY(b) },
+		func(b []byte) { p.releasePlaneUV(b) },
+	)
+	dec.SetNV12(true)
 	// Sync phase: decode the first displayable frame on the opener
 	// thread, so Open returns with pixels ready and Info honest. The
 	// pool already exists for the real size, so the decode borrows into
-	// it: the ffmpeg buffer IS the queued Pix (no second buffer).
+	// it: the ffmpeg buffer IS the queued planes (no second buffer).
+	// Wiring above must precede this first Next: the sync decode also
+	// runs through the NV12 path, so the queued first frame is planes.
 	p.remakeLive(info.Width, info.Height)
 	t0 := time.Now()
 	fr0, err := dec.Next()
@@ -146,7 +172,11 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 	p.info.Height = cf.Height
 	p.lastPTS = cf.PTSMs
 	if ok, _ := p.q.Push(cf); !ok {
-		p.releasePix(cf.Pix)
+		if cf.NV12 {
+			p.releasePlanes(cf.Y, cf.UV)
+		} else {
+			p.releasePix(cf.Pix)
+		}
 		return nil, fmt.Errorf("%w: queue closed during open %s", ErrClosed, path)
 	}
 	p.mu.Lock()
@@ -162,7 +192,9 @@ func openFFmpeg(path string, opt Options) (*Player, error) {
 	return p, nil
 }
 
-// wrapFFFrame converts one ffmpeg RGBA picture into a clock frame.
+// wrapFFFrame converts one ffmpeg picture into a clock frame.
+// NV12 shape keeps Y/UV planes (player path wires plane pools);
+// RGBA shape keeps Pix. PTS gets the epoch offset on loop passes.
 // superseded display, Close). Loop passes add the epoch offset so stamps
 // keep counting up.
 func (p *Player) wrapFFFrame(vf *ff.VideoFrame) (*clock.Frame, float64) {
@@ -170,9 +202,6 @@ func (p *Player) wrapFFFrame(vf *ff.VideoFrame) (*clock.Frame, float64) {
 	if lv := p.pooled.Load(); lv == nil || lv.w != w || lv.h != h {
 		p.remakeLive(w, h)
 	}
-	buf := vf.Pix
-	vf.Pix = nil
-	vf.Release()
 	pts := vf.PTSMs
 	p.dmu.Lock()
 	epoch := p.epoch
@@ -181,7 +210,18 @@ func (p *Player) wrapFFFrame(vf *ff.VideoFrame) (*clock.Frame, float64) {
 		pts += epoch
 	}
 	pts = p.assignPTS(pts)
-	fr := &clock.Frame{Width: w, Height: h, Pix: buf, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: p.nextSeq}
+	var fr *clock.Frame
+	if vf.NV12 {
+		y, uv := vf.Y, vf.UV
+		vf.Y, vf.UV = nil, nil
+		vf.Release()
+		fr = &clock.Frame{Width: w, Height: h, Pix: nil, NV12: true, Y: y, UV: uv, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: p.nextSeq}
+	} else {
+		buf := vf.Pix
+		vf.Pix = nil
+		vf.Release()
+		fr = &clock.Frame{Width: w, Height: h, Pix: buf, PTSMs: pts, DurMs: frameStepMs(p.frameRate), Seq: p.nextSeq}
+	}
 	p.nextSeq++
 	p.lastPTS = pts
 	return fr, 0
@@ -295,7 +335,11 @@ func (p *Player) ffDecodeLoop() {
 		cf, el := p.wrapFFFrame(vf)
 		el += nextEl
 		if ok, _ := p.q.Push(cf); !ok {
-			p.releasePix(cf.Pix)
+			if cf.NV12 {
+				p.releasePlanes(cf.Y, cf.UV)
+			} else {
+				p.releasePix(cf.Pix)
+			}
 			return
 		}
 		p.dmu.Lock()

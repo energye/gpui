@@ -212,8 +212,10 @@ type Player struct {
 	pooled atomic.Pointer[pooledLive]
 	// lastPix is the currently displayed Pix: valid until the next Poll
 	// or Close, then recycled. Guarded by mu (Poll is one display
-	// thread, Close races it).
-	lastPix []byte
+	// thread, Close races it). NV12 shape keeps Y/UV instead.
+	lastPix   []byte
+	lastPixY  []byte
+	lastPixUV []byte
 	// ffdec is the ffmpeg backend decoder.
 	ffdec *ffDecoder
 	// ffaud is the ffmpeg backend audio decoder (nil on silent clips).

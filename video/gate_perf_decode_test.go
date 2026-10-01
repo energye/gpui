@@ -120,16 +120,16 @@ func TestVR7DFFmpegParity(t *testing.T) {
 			// VR7-D only: decode p95 vs same-clip ffmpeg utime/frame.
 			// Other VR7 rows (T/M/A/P/G) are not asserted here.
 			// ffmpeg-backend note: decTimes now measures demux+decode
-			// +RGBA scale per Next call, while the committed 4.4.2
-			// baseline is decode-only to null (no scale) — different
+			// +NV12 planes per Next call, while the committed 4.4.2
+			// baseline is decode-only to null (no convert) — different
 			// quantities, so the budget line is LOG-ONLY until a
-			// scale-inclusive ffmpeg baseline lands (see t-vr7d-base).
+			// convert-inclusive ffmpeg baseline lands (see t-vr7d-base).
 			// What stays gated: timing is wired (p95 > 0, not a
 			// vacuous zero) and the play reaches Ended above.
 			if st.DecodeMsP95 <= 0 {
 				t.Fatalf("%s: decode_ms_p95=%.2fms, want > 0 (timing must be wired, never vacuous)", clip.File, st.DecodeMsP95)
 			}
-			t.Logf("%s: VR7-D report (log-only): ours decode_ms_p95=%.2fms vs ffmpeg-4.4.2 decode-only %.2fms (gap %.2fx, quantities differ: ours incl. RGBA scale)",
+			t.Logf("%s: VR7-D report (log-only): ours decode_ms_p95=%.2fms vs ffmpeg-4.4.2 decode-only %.2fms (gap %.2fx, quantities differ: ours incl. NV12 planes)",
 				clip.File, st.DecodeMsP95, clip.Benchmark.PerFrame, st.DecodeMsP95/clip.Benchmark.PerFrame)
 		})
 	}

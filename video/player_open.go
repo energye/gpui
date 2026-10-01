@@ -114,13 +114,18 @@ func (p *Player) Close() {
 		if fr == nil {
 			continue
 		}
+		if fr.NV12 {
+			p.releasePlanes(fr.Y, fr.UV)
+			continue
+		}
 		p.releasePix(fr.Pix)
 	}
 	p.mu.Lock()
-	last := p.lastPix
-	p.lastPix = nil
+	last, lastY, lastUV := p.lastPix, p.lastPixY, p.lastPixUV
+	p.lastPix, p.lastPixY, p.lastPixUV = nil, nil, nil
 	p.mu.Unlock()
 	p.releasePix(last)
+	p.releasePlanes(lastY, lastUV)
 	if ffdec != nil {
 		ffdec.Close()
 	}

@@ -19,13 +19,18 @@ import (
 // Single digits on purpose: the queue is a shock absorber, not storage.
 const DefaultCap = 4
 
-// Frame is one presentable picture. Pix is packed RGBA owned by whoever
-// holds the frame; PTSMs is the display stamp in milliseconds, monotonic
-// within a run (loops keep counting up); DurMs covers to the next stamp.
+// Frame is one presentable picture. RGBA shape: Pix holds packed RGBA.
+// NV12 shape (NV12 true): Y holds Width*Height luma, UV holds
+// Width*Height/2 interleaved chroma, Pix is nil. PTSMs is the display
+// stamp in milliseconds, monotonic within a run (loops keep counting
+// up); DurMs covers to the next stamp.
 type Frame struct {
 	Width  int
 	Height int
 	Pix    []byte
+	NV12   bool
+	Y      []byte
+	UV     []byte
 	PTSMs  int64
 	DurMs  int64
 	Seq    int64

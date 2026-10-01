@@ -57,10 +57,47 @@ func (p *Player) releasePix(b []byte) {
 	lv.pools.RGBA.Release(b)
 }
 
+// releasePlanes returns NV12 streaming planes. Sizes must match the
+// current pool snapshot, else the slices fall back to GC like Pix.
+func (p *Player) releasePlanes(y, uv []byte) {
+	p.releasePlaneY(y)
+	p.releasePlaneUV(uv)
+}
+
+// releasePlaneY returns one Y plane (decoder put hook).
+func (p *Player) releasePlaneY(b []byte) {
+	if len(b) == 0 {
+		return
+	}
+	lv := p.pooled.Load()
+	if lv == nil || lv.pools == nil || lv.pools.NV12Y == nil {
+		return
+	}
+	if len(b) != lv.pools.NV12Y.BufSize() {
+		return
+	}
+	lv.pools.NV12Y.Release(b)
+}
+
+// releasePlaneUV returns one UV plane (decoder put hook).
+func (p *Player) releasePlaneUV(b []byte) {
+	if len(b) == 0 {
+		return
+	}
+	lv := p.pooled.Load()
+	if lv == nil || lv.pools == nil || lv.pools.NV12UV == nil {
+		return
+	}
+	if len(b) != lv.pools.NV12UV.BufSize() {
+		return
+	}
+	lv.pools.NV12UV.Release(b)
+}
+
 // remakeLive builds (or rebuilds on resolution change) the streaming pool
 // set. Cold path only: steady frames always match the loaded snapshot
-// above. Caps park queue + displayed + in-flight + 1 spare RGBA frame, so
-// steady play never evicts.
+// above. Caps park queue + displayed + in-flight + 1 spare frame per
+// shape, so steady play never evicts.
 func (p *Player) remakeLive(w, h int) *pooledLive {
 	work := 256 << 10
 	qcap := p.q.Cap()
@@ -68,10 +105,13 @@ func (p *Player) remakeLive(w, h int) *pooledLive {
 		qcap = clock.DefaultCap
 	}
 	spare := qcap + 3
+	yN, uvN := NV12Bytes(w, h)
 	ps := &Pools{
-		YUV:  NewPool("yuv", YUVBytes(w, h), YUVBytes(w, h)),
-		RGBA: NewPool("rgba", RGBABytes(w, h), spare*RGBABytes(w, h)),
-		Work: NewPool("work", work, work),
+		YUV:    NewPool("yuv", YUVBytes(w, h), YUVBytes(w, h)),
+		RGBA:   NewPool("rgba", RGBABytes(w, h), spare*RGBABytes(w, h)),
+		Work:   NewPool("work", work, work),
+		NV12Y:  NewPool("nv12y", yN, spare*yN),
+		NV12UV: NewPool("nv12uv", uvN, spare*uvN),
 	}
 	lv := &pooledLive{pools: ps, w: w, h: h, workSize: work, capBytes: spare * RGBABytes(w, h)}
 	p.pooled.Store(lv)
@@ -119,14 +159,15 @@ func (p *Player) Poll() (f *clock.Frame, ended bool) {
 	fr, skipped, ok := p.q.PollDue(due)
 	_ = skipped
 	if ok {
-		// the display now owns fr.Pix; the previously shown
-		// buffer goes back. Dropped stale frames never reach here
-		// (the queue observer already returned them).
+		// the display now owns the frame planes; the previously
+		// shown buffers go back. Dropped stale frames never reach
+		// here (the queue observer already returned them).
 		p.mu.Lock()
-		old := p.lastPix
-		p.lastPix = fr.Pix
+		old, oldY, oldUV := p.lastPix, p.lastPixY, p.lastPixUV
+		p.lastPix, p.lastPixY, p.lastPixUV = fr.Pix, fr.Y, fr.UV
 		p.mu.Unlock()
 		p.releasePix(old)
+		p.releasePlanes(oldY, oldUV)
 		p.mu.Lock()
 		p.shown++
 		p.lastShown = fr.PTSMs

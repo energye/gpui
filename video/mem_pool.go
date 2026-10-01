@@ -139,20 +139,28 @@ func (p *Pool) Outstanding() int64 {
 // the same arithmetic so caps match the real buffers).
 func RGBABytes(w, h int) int { return w * h * 4 }
 
+// NV12Bytes returns the Y and UV plane sizes for w×h.
+func NV12Bytes(w, h int) (yN, uvN int) { return w * h, w * h / 2 }
+
 // YUVBytes returns the planar 4:2:0 total for w×h.
 func YUVBytes(w, h int) int { return w*h + w*h/2 }
 
 // frames, bitstream workspace. Independent so one pressure never borrows
 // from another; leak-checked separately.
 type Pools struct {
-	YUV  *Pool
-	RGBA *Pool
-	Work *Pool
+	YUV    *Pool
+	RGBA   *Pool
+	Work   *Pool
+	NV12Y  *Pool
+	NV12UV *Pool
 }
 
-// NewPools sizes the three pools for one resolution (call again on
+// NewPools sizes the pools for one resolution (call again on
 // resolution switch; steady reuse never regrows). workSize covers one
-// sample payload upper bound; capBytes bound total parked memory.
+// sample payload upper bound; capBytes is the legacy parked-memory
+// budget shared by YUV/RGBA/Work. NV12Y/UV carry queue + displayed +
+// in-flight + 1 spare frame each (qcap+3), so steady NV12 play never
+// evicts either.
 func NewPools(w, h, workSize int, capBytes int) *Pools {
 	if workSize <= 0 {
 		workSize = 256 << 10
@@ -161,10 +169,14 @@ func NewPools(w, h, workSize int, capBytes int) *Pools {
 	if per <= 0 {
 		per = capBytes
 	}
+	yN, uvN := NV12Bytes(w, h)
+	const spare = 4 + 3 // DefaultCap + displayed + in-flight + spare
 	return &Pools{
-		YUV:  NewPool("yuv", YUVBytes(w, h), per),
-		RGBA: NewPool("rgba", RGBABytes(w, h), per),
-		Work: NewPool("work", workSize, per),
+		YUV:    NewPool("yuv", YUVBytes(w, h), per),
+		RGBA:   NewPool("rgba", RGBABytes(w, h), per),
+		Work:   NewPool("work", workSize, per),
+		NV12Y:  NewPool("nv12y", yN, spare*yN),
+		NV12UV: NewPool("nv12uv", uvN, spare*uvN),
 	}
 }
 
