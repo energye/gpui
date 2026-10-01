@@ -850,6 +850,69 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 	c.recordGPUOp()
 }
 
+// DrawVideoSlot composites one uploaded video slot as a textured quad.
+// Fast path for P2 direct upload: the slot texture was rewritten in place
+// by VideoTexturePool.Upload, so this call queues zero-upload GPU-to-GPU
+// compositing and returns true. It reuses the DrawGPUTexture queue path
+// (CTM + scissor clip + group-opacity inherit) and adds no work to the
+// generic DrawImage path: existing callers never enter here.
+//
+// Fail-closed: no GPU session, nil slot/view, or bad size returns false;
+// the caller then falls back to DrawVideoFrame (generic DrawImage) and
+// counts one CPU fallback. Sampling uses the GPU default (bilinear-grade);
+// per-mode interpolation selection stays on the generic path.
+func (c *Context) DrawVideoSlot(slot *VideoSlot, opts VideoDrawOptions) bool {
+	if c == nil || slot == nil || slot.View == nil || slot.Texture == nil {
+		return false
+	}
+	if slot.W <= 0 || slot.H <= 0 {
+		return false
+	}
+	if opts.Opacity < 0 {
+		return false
+	}
+	view := slot.packedView()
+	if view.IsNil() {
+		return false
+	}
+	c.syncPublishedFilterBeforeDraw()
+	rc := c.gpuCtxOps()
+	if rc == nil {
+		return false
+	}
+	// No-device gate (same as tryGPUDrawImage): only claim the draw when
+	// the GPU session can execute it. Without a device the queued quad
+	// never lands in the pixmap while the CPU fallback is skipped.
+	if dr, ok := rc.(interface{ IsDeviceReady() bool }); ok && !dr.IsDeviceReady() {
+		return false
+	}
+	dw, dh := opts.DstWidth, opts.DstHeight
+	if dw <= 0 {
+		dw = float64(slot.W)
+	}
+	if dh <= 0 {
+		dh = float64(slot.H)
+	}
+	opacity := float32(opts.Opacity)
+	if opacity == 0 {
+		opacity = 1.0
+	}
+	ctm := c.totalMatrix()
+	tl := ctm.TransformPoint(Pt(opts.X, opts.Y))
+	br := ctm.TransformPoint(Pt(opts.X+dw, opts.Y+dh))
+	target := c.gpuRenderTarget()
+	defer c.setGPUClipRect()()
+	if mul := c.layerOpacityMul(); mul < 1 {
+		opacity *= float32(mul)
+	}
+	rc.QueueGPUTextureDraw(target, view,
+		float32(tl.X), float32(tl.Y),
+		float32(br.X-tl.X), float32(br.Y-tl.Y),
+		opacity, uint32(target.Width), uint32(target.Height)) //nolint:gosec // viewport fits uint32
+	c.recordGPUOp()
+	return true
+}
+
 // DrawGPUTextureWithOpacityUV composites a sub-rectangle of a GPU texture with
 // opacity. u0..v1 are normalized source UVs (F1 damage-tight layer composite).
 // Inherits open opacity-group alpha, same as DrawGPUTextureWithOpacity.

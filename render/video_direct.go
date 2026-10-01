@@ -15,11 +15,14 @@ import (
 	"sync"
 	"sync/atomic"
 
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 )
 
 // P0 video foundation: backend query + independent texture pool + fallback count.
+// P2 direct upload: in-place rewrite via hal.Queue.WriteTexture + upload
+// counting + zero-upload quad via Context.DrawVideoSlot (context_image.go).
 //
 // Video textures live outside the 64MB generic image cache and never take part
 // in its eviction. One video route owns one slot, rewritten in place.
@@ -125,6 +128,7 @@ type VideoPoolStats struct {
 	Idle      int
 	Peak      int
 	Evictions uint64
+	Uploads   uint64
 }
 
 // VideoTexturePool holds video textures apart from the image cache.
@@ -135,6 +139,7 @@ type VideoTexturePool struct {
 	live      map[*VideoSlot]struct{}
 	peak      int
 	evictions uint64
+	uploads   uint64
 	maxSlots  int
 }
 
@@ -227,7 +232,13 @@ func (p *VideoTexturePool) Stats() VideoPoolStats {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return VideoPoolStats{Live: len(p.live), Idle: len(p.idle), Peak: p.peak, Evictions: p.evictions}
+	return VideoPoolStats{
+		Live:      len(p.live),
+		Idle:      len(p.idle),
+		Peak:      p.peak,
+		Evictions: p.evictions,
+		Uploads:   p.uploads,
+	}
 }
 
 // Close destroys idle and live textures. Borrowed device is untouched.
@@ -267,4 +278,154 @@ func (s *VideoSlot) destroy(device hal.Device) {
 		}
 		s.Texture = nil
 	}
+}
+
+// videoUploadTotal counts direct texture rewrites process-wide.
+// P2 evidence uses it against shown new frames: no extra retransmit.
+var videoUploadTotal atomic.Uint64
+
+// VideoUploadTotal reports process-wide direct upload count.
+func VideoUploadTotal() uint64 {
+	return videoUploadTotal.Load()
+}
+
+// videoBytesPerRow reports the tight RGBA row stride when it satisfies
+// the backend row alignment. Standard video widths already satisfy it
+// (width*4 is a multiple of 256 for 1280/1920/2560/3840).
+func videoBytesPerRow(w int) (uint32, bool) {
+	if w <= 0 {
+		return 0, false
+	}
+	row := int64(w) * 4
+	if row <= 0 || row > int64(^uint32(0)) {
+		return 0, false
+	}
+	if row%int64(videoRowPitchAlignment) != 0 {
+		return 0, false
+	}
+	return uint32(row), true
+}
+
+// Upload rewrites the slot texture in place with tight RGBA pixels.
+// Size must match the slot; len(pix) must hold w*h*4. Same-size reuse
+// keeps the texture, so steady play pays one whole upload per new frame.
+// Unaligned widths and missing queue/device report an error so the caller
+// falls back to the generic DrawImage path and counts it.
+func (p *VideoTexturePool) Upload(s *VideoSlot, pix []byte) error {
+	if p == nil || p.device == nil {
+		return fmt.Errorf("render: video upload has no device")
+	}
+	if s == nil || s.Texture == nil {
+		return fmt.Errorf("render: video upload has no slot")
+	}
+	if s.W <= 0 || s.H <= 0 {
+		return fmt.Errorf("render: video slot size %dx%d invalid", s.W, s.H)
+	}
+	row, ok := videoBytesPerRow(s.W)
+	if !ok {
+		return fmt.Errorf("render: video width %d breaks row alignment", s.W)
+	}
+	need := int64(s.W) * int64(s.H) * 4
+	if int64(len(pix)) < need {
+		return fmt.Errorf("render: video pixels %d bytes, want %d", len(pix), need)
+	}
+	queue := p.device.Queue()
+	if queue == nil {
+		return fmt.Errorf("render: video upload has no queue")
+	}
+	dst := &hal.ImageCopyTexture{
+		Texture:  s.Texture,
+		MipLevel: 0,
+		Aspect:   types.TextureAspectAll,
+	}
+	layout := &hal.ImageDataLayout{
+		Offset:       0,
+		BytesPerRow:  row,
+		RowsPerImage: uint32(s.H),
+	}
+	size := &hal.Extent3D{
+		Width:              uint32(s.W),
+		Height:             uint32(s.H),
+		DepthOrArrayLayers: 1,
+	}
+	if err := queue.WriteTexture(dst, pix[:need], layout, size); err != nil {
+		return fmt.Errorf("render: video WriteTexture %dx%d: %w", s.W, s.H, err)
+	}
+	p.mu.Lock()
+	p.uploads++
+	p.mu.Unlock()
+	videoUploadTotal.Add(1)
+	return nil
+}
+
+// AcquireForFrame reuses cur when the size matches, otherwise releases it
+// and acquires the new size. It reports rebuilt=true only on size change,
+// so callers keep one texture per video route in steady play. Nil pool or
+// bad size returns an error so the caller falls back to the generic path.
+func (p *VideoTexturePool) AcquireForFrame(cur *VideoSlot, w, h int) (*VideoSlot, bool, error) {
+	if p == nil {
+		return nil, false, fmt.Errorf("render: video pool has no device")
+	}
+	if w < 1 || h < 1 {
+		return nil, false, fmt.Errorf("render: video slot size %dx%d invalid", w, h)
+	}
+	if cur != nil && cur.W == w && cur.H == h {
+		return cur, false, nil
+	}
+	if cur != nil {
+		p.Release(cur)
+	}
+	s, err := p.Acquire(w, h)
+	if err != nil {
+		return nil, false, err
+	}
+	return s, true, nil
+}
+
+// VideoDrawOptions describes where one uploaded frame lands on screen.
+// Decoding resolution stays fixed; only the destination rect scales.
+type VideoDrawOptions struct {
+	X             float64
+	Y             float64
+	DstWidth      float64
+	DstHeight     float64
+	Opacity       float64
+	Interpolation InterpolationMode
+}
+
+// DrawVideoFrame draws one frame through the generic image path after the
+// caller uploaded it with Upload. It is the guaranteed-picture fallback:
+// use Context.DrawVideoSlot first for the zero-upload quad, and call this
+// only when DrawVideoSlot reports false. No-new-frame means the caller
+// skips both Upload and drawing, so upload count stays equal to shown
+// new frames.
+func (c *Context) DrawVideoFrame(img *ImageBuf, opts VideoDrawOptions) bool {
+	if c == nil || img == nil || img.Disposed() {
+		return false
+	}
+	if opts.Opacity == 0 {
+		opts.Opacity = 1.0
+	}
+	if opts.Interpolation == 0 {
+		opts.Interpolation = InterpBilinear
+	}
+	c.DrawImageEx(img, DrawImageOptions{
+		X:             opts.X,
+		Y:             opts.Y,
+		DstWidth:      opts.DstWidth,
+		DstHeight:     opts.DstHeight,
+		Interpolation: opts.Interpolation,
+		Opacity:       opts.Opacity,
+		BlendMode:     BlendNormal,
+	})
+	return true
+}
+
+// packedView boxes the slot texture view into the opaque GPU handle for
+// Context.DrawVideoSlot. Nil slot/view yields the zero handle (fail closed).
+func (s *VideoSlot) packedView() gpucontext.TextureView {
+	if s == nil || s.View == nil {
+		return gpucontext.TextureView{}
+	}
+	return gpucontext.PackTextureView(s.View)
 }
