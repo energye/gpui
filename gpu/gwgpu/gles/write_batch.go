@@ -20,7 +20,10 @@ import (
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 )
 
-// pendingWrite stages one Queue.WriteBuffer call.
+// pendingWrite stages one Queue.WriteBuffer call. Data is a slice of the
+// caller's buffer owned by the queue: all flushes happen-before the next
+// WriteBuffer returns (Submit/Present drain inline, overflow drains before
+// stage returns), so no copy is needed and no caller may mutate after.
 type pendingWrite struct {
 	buf    *Buffer
 	offset uint64

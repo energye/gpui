@@ -855,6 +855,17 @@ func (a *GlyphMaskAtlas) PageR8Data(index int) (data []byte, width, height int) 
 	return page.Data, page.Size, page.Size
 }
 
+// PageBytes returns the full-page byte cost for budget estimates
+// (R8: one byte per texel). Unknown pages report 0.
+func (a *GlyphMaskAtlas) PageBytes(index int) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if index < 0 || index >= len(a.pages) {
+		return 0
+	}
+	return a.pages[index].Size * a.pages[index].Size
+}
+
 // MarkClean marks a page as uploaded to GPU.
 func (a *GlyphMaskAtlas) MarkClean(index int) {
 	a.mu.Lock()
@@ -870,6 +881,11 @@ type GlyphMaskDirtyUpload struct {
 	Index      int
 	X, Y, W, H int  // region in page pixels
 	FullPage   bool // true → upload entire page (region still valid as full size)
+	// Deferred marks an upload held back by the per-frame upload budget:
+	// it stays dirty in the atlas and rides the next frame. DeferredBytes
+	// carries the byte estimate for pacing diagnostics.
+	Deferred      bool
+	DeferredBytes int
 }
 
 // DirtyUploads returns per-page dirty regions for GPU upload.

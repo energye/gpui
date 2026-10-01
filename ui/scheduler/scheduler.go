@@ -56,6 +56,11 @@ type FrameScheduler struct {
 	metrics  MetricsStore
 	animTick time.Duration
 	lastTick time.Time
+	// lastTargetAt is the previous frame's target time (Flutter Animator
+	// frame_target_time semantics): Tick dt is this frame's target minus
+	// the last one, so a late wake keeps the same step instead of doubling
+	// the visible advance. Zero until the first tick.
+	lastTargetAt time.Time
 	// lastFrameAt is when the last frame was actually rendered (FrameDue
 	// software pacing). Guarded by mu.
 	lastFrameAt time.Time
@@ -582,16 +587,29 @@ func (s *FrameScheduler) WaitFramePace(host platform.Host) {
 	// Non-blocking: frame pacing is gated by FrameDue at the render point.
 }
 
-// Tick advances tickers with the display-period dt (boundaryPeriodLocked),
-// not the wall gap: wall-gap dt turns one late wake into a doubled step.
-// A missed slot keeps the same step and lands on the next boundary.
+// Tick advances tickers with the frame target-time step, not the wall gap:
+// dt is this frame's target time minus the previous frame's target time
+// (Flutter Animator frame_target_time semantics). On a healthy cadence the
+// target advances one display period per frame, so dt stays constant and a
+// late wake keeps the same step instead of doubling the visible advance
+// (wall-gap dt turns one late wake into a doubled step). The first tick
+// uses one display period.
 func (s *FrameScheduler) Tick() bool {
 	if s == nil {
 		return false
 	}
 	now := time.Now()
 	s.mu.Lock()
-	dt := s.boundaryPeriodLocked().Seconds()
+	period := s.boundaryPeriodLocked()
+	if s.lastTargetAt.IsZero() {
+		s.lastTargetAt = now
+	} else {
+		s.lastTargetAt = s.lastTargetAt.Add(period)
+		if s.lastTargetAt.After(now) {
+			s.lastTargetAt = now
+		}
+	}
+	dt := period.Seconds()
 	s.lastTick = now
 	s.mu.Unlock()
 	s.tickers.TickAll(dt)

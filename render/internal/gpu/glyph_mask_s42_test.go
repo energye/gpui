@@ -69,4 +69,41 @@ func TestS42_SyncAtlasTextures_PartialThenHit(t *testing.T) {
 	if bytes3 >= 1024*1024 {
 		t.Fatalf("partial upload too large: %d", bytes3)
 	}
+	if d := eng.LastDeferredUploadBytes(); d != 0 {
+		t.Fatalf("small upload must not defer, deferred=%d", d)
+	}
+}
+
+func TestUploadBudget_DefersLargeFirst(t *testing.T) {
+	full := text.GlyphMaskDirtyUpload{Index: 0, FullPage: true}
+	small := text.GlyphMaskDirtyUpload{Index: 1, X: 0, Y: 0, W: 64, H: 64}
+	pageBytes := func(idx int) int {
+		if idx == 0 {
+			return 1024 * 1024
+		}
+		return 0
+	}
+	// Budget below the full page but above the small region: full page
+	// defers, small region still uploads the same frame.
+	out := applyGlyphUploadBudget(pageBytes, []text.GlyphMaskDirtyUpload{full, small}, 256*1024)
+	if len(out) != 2 {
+		t.Fatalf("want 2 entries back, got %d", len(out))
+	}
+	var sawDeferredFull, sawLiveSmall bool
+	for _, up := range out {
+		if up.FullPage && up.Deferred {
+			sawDeferredFull = true
+		}
+		if !up.FullPage && !up.Deferred && up.W == 64 && up.H == 64 {
+			sawLiveSmall = true
+		}
+	}
+	if !sawDeferredFull || !sawLiveSmall {
+		t.Fatalf("budget must defer the full page and keep the small region: %+v", out)
+	}
+	// Within budget: nothing defers.
+	clean := applyGlyphUploadBudget(pageBytes, []text.GlyphMaskDirtyUpload{small}, 256*1024)
+	if clean[0].Deferred {
+		t.Fatalf("within-budget upload must not defer: %+v", clean)
+	}
 }

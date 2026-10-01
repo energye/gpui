@@ -18,6 +18,7 @@ import (
 	"hash/fnv"
 	"math"
 	"os"
+	"sort"
 	"sync"
 	"unsafe"
 
@@ -58,6 +59,7 @@ type GlyphMaskEngine struct {
 	lastUploadRegions  int
 	lastPartialUploads int
 	lastFullUploads    int
+	lastDeferredBytes  int64
 	totalUploadBytes   int64
 
 	// reuse quad slice inside layoutGlyphs (callers must own a copy
@@ -771,8 +773,7 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 // SyncAtlasTextures uploads dirty atlas pages to the GPU as R8 textures.
 // Must be called before rendering any glyph mask batches. Creates new
 // textures on first use and re-uploads data when pages are modified.
-//
-// upload. Advances the atlas frame after upload so LRU compaction can reclaim
+// Advances the atlas frame after upload so LRU compaction can reclaim
 // stale pages.
 func (e *GlyphMaskEngine) SyncAtlasTextures(device hal.Device, queue hal.Queue) error {
 	e.mu.Lock()
@@ -783,13 +784,23 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device hal.Device, queue hal.Queue) 
 	e.lastUploadRegions = 0
 	e.lastPartialUploads = 0
 	e.lastFullUploads = 0
+	e.lastDeferredBytes = 0
 	if len(uploads) == 0 {
 		// Still advance frame so compaction runs even on hit-only frames.
 		e.atlas.AdvanceFrame()
 		return nil
 	}
+	// Skia upload budget: cap bytes pushed per frame so one glyph-heavy
+	// frame never stalls the raster thread. Over-budget uploads stay dirty
+	// and ride the next frame (atlas stays valid — quads only reference
+	// regions, and MarkClean runs solely for the uploaded ones below).
+	// Deferred entries skip the upload loop via up.Deferred.
+	uploads = applyGlyphUploadBudget(e.atlas.PageBytes, uploads, glyphUploadBudgetBytesPerFrame)
 
 	for _, up := range uploads {
+		if up.Deferred {
+			continue
+		}
 		idx := up.Index
 		r8Data, pageSize, _ := e.atlas.PageR8Data(idx)
 		if r8Data == nil || pageSize == 0 {
@@ -917,6 +928,13 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device hal.Device, queue hal.Queue) 
 		e.lastUploadRegions++
 		e.atlas.MarkClean(idx)
 	}
+	// Deferred bytes stay dirty for the next frame; report them so frame
+	// pacing can tell a budget-trimmed frame from a fully-synced one.
+	for _, up := range uploads {
+		if up.Deferred {
+			e.lastDeferredBytes += int64(up.DeferredBytes)
+		}
+	}
 
 	e.totalUploadBytes += e.lastUploadBytes
 	// Skia postFlush: advance frame after atlas work so stale pages compact.
@@ -928,6 +946,76 @@ func (e *GlyphMaskEngine) LastUploadStats() (bytes int64, regions, partial, full
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.lastUploadBytes, e.lastUploadRegions, e.lastPartialUploads, e.lastFullUploads
+}
+
+// LastDeferredUploadBytes reports bytes held back by the per-frame upload
+// budget for the next frame (0 when the frame fully synced).
+func (e *GlyphMaskEngine) LastDeferredUploadBytes() int64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastDeferredBytes
+}
+
+// glyphUploadBudgetBytesPerFrame caps R8 atlas bytes pushed per frame so one
+// glyph-heavy frame never stalls the raster thread (Skia GrUploadBudgetedOp
+// parity: uploads are work, budgeted separately from drawing).
+const glyphUploadBudgetBytesPerFrame = 256 * 1024
+
+// applyGlyphUploadBudget trims a DirtyUploads list to the byte budget,
+// largest-first excluded: full-page entries drop first (they cost a whole
+// page each), then the biggest partials. Trimmed entries return with
+// Deferred set and stay dirty in the atlas for the next frame; their byte
+// estimate rides DeferredBytes for pacing diagnostics. pageBytes maps a
+// page index to its full-page byte cost (nil-safe: unknown pages count 0).
+func applyGlyphUploadBudget(pageBytes func(idx int) int, uploads []text.GlyphMaskDirtyUpload, budget int) []text.GlyphMaskDirtyUpload {
+	if budget <= 0 || len(uploads) == 0 {
+		return uploads
+	}
+	cost := func(up text.GlyphMaskDirtyUpload) int {
+		if up.FullPage {
+			return pageBytes(up.Index)
+		}
+		if up.W <= 0 || up.H <= 0 {
+			return 0
+		}
+		return up.W * up.H
+	}
+	total := 0
+	for _, up := range uploads {
+		total += cost(up)
+	}
+	if total <= budget {
+		return uploads
+	}
+	// Drop largest-first so the surviving set keeps the most glyphs live.
+	order := make([]int, len(uploads))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(a, b int) bool {
+		ca, cb := cost(uploads[order[a]]), cost(uploads[order[b]])
+		if ca != cb {
+			return ca > cb
+		}
+		return order[a] < order[b]
+	})
+	over := total - budget
+	dropped := make([]bool, len(uploads))
+	for _, i := range order {
+		if over <= 0 {
+			break
+		}
+		over -= cost(uploads[i])
+		dropped[i] = true
+	}
+	out := uploads
+	for i := range out {
+		if dropped[i] {
+			out[i].Deferred = true
+			out[i].DeferredBytes = cost(uploads[i])
+		}
+	}
+	return out
 }
 
 // AtlasStats returns hit/miss/entry/page counts from the underlying atlas.

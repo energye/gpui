@@ -17,6 +17,9 @@ import (
 )
 
 // Ticker is driven once per active frame (Flutter-style).
+// The dt is the frame target time minus the previous frame's target time
+// (Flutter Animator BeginFrame target-time semantics): constant on a
+// healthy cadence, so sim steps stay uniform even when a wake runs late.
 // Return false to unregister after this tick.
 type Ticker interface {
 	Tick(dt float64) bool
