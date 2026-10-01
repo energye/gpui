@@ -98,16 +98,19 @@ const (
 	trailR, trailG, trailB = 1.0, 0.65, 0.15
 )
 
-// fitWorldSize reports the live body size for the world view. It reads
-// the real window client area when known (set by applyWindowSize on open
-// and on every resize) and falls back to the design size before the
-// window exists (probes, goldens, gates all use this fallback).
+// fitWorldSize reports the live body size for the world view: the design
+// viewport plus the exact window delta, so 1200x800 lands pixel-exact on
+// the design size and every extra window pixel grows the world one to
+// one. It reads the real window client area when known (set by
+// applyWindowSize on open and on every resize) and falls back to the
+// design size before the window exists (probes, goldens, gates all use
+// this fallback).
 var liveWinW, liveWinH float64
 
 func fitWorldSize() (float64, float64) {
 	if liveWinW > 0 && liveWinH > 0 {
-		w := liveWinW - (worldX + 304.0)
-		h := liveWinH - (worldY + 368.0)
+		w := viewW + (liveWinW - winW)
+		h := viewH + (liveWinH - winH)
 		if w < 320 {
 			w = 320
 		}
@@ -658,25 +661,28 @@ type chaseSim struct {
 
 	// Chunk cache: the view drifts ~3px/frame but the 256px chunk range
 	// flips rarely; equal ranges skip Update/Visible (same loaded set).
-	hasCache       bool
-	cachedCX0      int
-	cachedCY0      int
-	cachedCX1      int
-	cachedCY1      int
-	cachedVis      []tilemap.ChunkID
-	cachedLoaded   int
-	deepScratch    []sprite.DeepItem
-	paintItems     []chaseDrawItem
-	paintFlat      []render.AtlasSprite
-	propSprites    []sprite.Sprite
-	trailPtsBuf    []core.Vec2
-	poolPtsBuf     []particle.Particle
-	labelTick      int
-	sortMismatches int
-	hitch20        int64
-	lastTickWall   time.Time
-	haveTickWall   bool
-	memStart       runtime.MemStats
+	hasCache bool
+	// appliedWinW/H is the window size the world layout was last built
+	// for; Tick re-applies when the recorded live size moves.
+	appliedWinW, appliedWinH float64
+	cachedCX0                int
+	cachedCY0                int
+	cachedCX1                int
+	cachedCY1                int
+	cachedVis                []tilemap.ChunkID
+	cachedLoaded             int
+	deepScratch              []sprite.DeepItem
+	paintItems               []chaseDrawItem
+	paintFlat                []render.AtlasSprite
+	propSprites              []sprite.Sprite
+	trailPtsBuf              []core.Vec2
+	poolPtsBuf               []particle.Particle
+	labelTick                int
+	sortMismatches           int
+	hitch20                  int64
+	lastTickWall             time.Time
+	haveTickWall             bool
+	memStart                 runtime.MemStats
 
 	carX, carY float64
 	dir        float64
@@ -693,17 +699,26 @@ type chaseSim struct {
 	fulls      int
 
 	camL, chunkL, sortL, trailL, dirtyL, fpsL *rendering.RenderText
+	worldTitleL, countersTitleL, noteL        *rendering.RenderText
 }
 
 // layoutWorldToWindow stretches the world and overlay boxes to the live
-// window size and re-asserts the repaint boundary, so a resize fills the
-// screen instead of leaving the old 880x360 box floating.
+// body size and grows the camera viewport with them, so a resize fills
+// the panel instead of leaving the old box floating. The world never
+// grows past the body panel, so it cannot cover the counters below it.
+// At 1200x800 every number lands back on the design values, so gates
+// and pixels are unaffected.
 func (s *chaseSim) layoutWorldToWindow() {
 	if s == nil {
 		return
 	}
 	w, h := fitWorldSize()
 	worldWW, worldWH = w, h
+	dh := h - viewH
+	_ = s.cam.SetViewport(core.V2(w, h))
+	if w < worldW && h < worldH {
+		_ = s.cam.SetLimit(core.NewRect(w/2, h/2, worldW-w, worldH-h))
+	}
 	for _, box := range []*rendering.RenderBox{s.worldBox, s.overlay} {
 		if box == nil {
 			continue
@@ -712,6 +727,55 @@ func (s *chaseSim) layoutWorldToWindow() {
 		box.SetRepaintBoundary(true)
 		box.MarkNeedsPaint()
 	}
+	countY = 420.0 + dh
+	noteY = 620.0 + dh
+	// Counters stay inside the body panel: clamp them above the panel
+	// bottom so a smaller window never pushes them out of view. Panel
+	// geometry mirrors the shell (top 48, HUD 72, gaps 12).
+	legH := liveWinH - 48.0 - 72.0 - 24.0
+	if legH < 200 {
+		legH = 200
+	}
+	maxCountY := worldY + legH - 70.0
+	if countY > maxCountY {
+		countY = maxCountY
+	}
+	maxNoteY := worldY + legH - 20.0
+	if noteY > maxNoteY {
+		noteY = maxNoteY
+	}
+	if s.shell != nil {
+		if s.worldTitleL != nil {
+			s.shell.Body.Place(s.worldTitleL, worldX, worldY-24)
+		}
+		if s.countersTitleL != nil {
+			s.shell.Body.Place(s.countersTitleL, countX, countY-24)
+		}
+		s.shell.Body.Place(s.camL, countX, countY+10)
+		s.shell.Body.Place(s.chunkL, countX+300, countY+10)
+		s.shell.Body.Place(s.sortL, countX+560, countY+10)
+		s.shell.Body.Place(s.trailL, countX, countY+36)
+		s.shell.Body.Place(s.dirtyL, countX+300, countY+36)
+		s.shell.Body.Place(s.fpsL, countX+560, countY+36)
+		if s.noteL != nil {
+			s.shell.Body.Place(s.noteL, countX, noteY)
+		}
+		// A resize moves every body child at once (box sizes and label
+		// rows follow the window delta), so re-layout and repaint the whole
+		// shell: otherwise a mid-drag frame can paint children from stale
+		// offsets/pictures (title/counts/world drift for a frame, then
+		// snap back).
+		s.shell.Body.Box.MarkNeedsLayout()
+		s.shell.Body.Box.MarkNeedsPaint()
+		if s.shell.Root != nil {
+			s.shell.Root.MarkNeedsLayout()
+		}
+	}
+	// Viewport changed: drop the chunk range cache so the next tick
+	// re-resolves visible chunks for the new view instead of reusing the
+	// old 880x360 set.
+	s.hasCache = false
+	s.appliedWinW, s.appliedWinH = liveWinW, liveWinH
 }
 
 type ticker struct{ s *chaseSim }
@@ -728,6 +792,15 @@ func (t *ticker) Tick(dt float64) bool {
 	}
 	if dt > 0.05 {
 		dt = 0.05
+	}
+	// Pending window size: applied once per frame, before layout and
+	// paint, so a drag storm lays out and paints exactly one size per
+	// frame (no half-applied tree, no stale pictures).
+	if liveWinW > 0 && liveWinH > 0 && (liveWinW != s.appliedWinW || liveWinH != s.appliedWinH) {
+		if s.shell != nil {
+			s.shell.Resize(liveWinW, liveWinH)
+		}
+		s.layoutWorldToWindow()
 	}
 	s.frames++
 	// Car loops horizontally.
@@ -1057,7 +1130,8 @@ func main() {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	shell.Body.Place(wrkit.Label("CHASE 世界跟随区", 13, 0.55, 0.75, 0.95), worldX, worldY-24)
+	sim.worldTitleL = wrkit.Label("CHASE 世界跟随区", 13, 0.55, 0.75, 0.95)
+	shell.Body.Place(sim.worldTitleL, worldX, worldY-24)
 	sim.worldBox = rendering.NewRenderBox()
 	sim.worldBox.FixedWidth, sim.worldBox.FixedHeight = worldWW, worldWH
 	sim.worldBox.SetRepaintBoundary(true)
@@ -1079,7 +1153,8 @@ func main() {
 		for _, r := range live.show {
 			sx := r.X - view.X
 			sy := r.Y - view.Y
-			if sx+r.W < 0 || sy+r.H < 0 || sx > viewW || sy > viewH {
+			vp := live.cam.Viewport()
+			if sx+r.W < 0 || sy+r.H < 0 || sx > vp.X || sy > vp.Y {
 				continue
 			}
 			pc.DC.DrawRectangle(ax+sx, ay+sy, r.W, r.H)
@@ -1088,7 +1163,8 @@ func main() {
 	}
 	shell.Body.Place(sim.overlay, worldX, worldY)
 
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), countX, countY-24)
+	sim.countersTitleL = wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95)
+	shell.Body.Place(sim.countersTitleL, countX, countY-24)
 	sim.camL = wrkit.Label("镜头 -", 12, 0.92, 0.94, 0.98)
 	shell.Body.Place(sim.camL, countX, countY+10)
 	sim.chunkL = wrkit.Label("分区 -", 12, 0.92, 0.94, 0.98)
@@ -1101,7 +1177,8 @@ func main() {
 	shell.Body.Place(sim.dirtyL, countX+300, countY+36)
 	sim.fpsL = wrkit.Label("帧率 -", 12, 0.92, 0.94, 0.98)
 	shell.Body.Place(sim.fpsL, countX+560, countY+36)
-	shell.Body.Place(wrkit.Label("红车循环追·镜头跟·黄框脏区·橙条拖尾·灰炉烟·绿树灰石按远近盖", 12, 0.70, 0.78, 0.88), countX, noteY)
+	sim.noteL = wrkit.Label("红车循环追·镜头跟·黄框脏区·橙条拖尾·灰炉烟·绿树灰石按远近盖", 12, 0.70, 0.78, 0.88)
+	shell.Body.Place(sim.noteL, countX, noteY)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_stage_chase", Decorations: true, Resizable: true})
 	if err != nil {
@@ -1111,11 +1188,18 @@ func main() {
 	defer win.Close()
 	ctl := win.Controls()
 	// Seed the live size from the real window before first paint; probes
-	// ran before open, so they keep the 880x360 fallback by design.
+	// ran before open, so they keep the design fallback by design. The
+	// viewport then follows the window: at 1200x800 it lands pixel-exact
+	// on the design size, bigger windows grow the world one to one.
+	exactSize := true
 	if w, h := win.Host().Size(); w > 0 && h > 0 {
 		applyWindowSize(float64(w), float64(h))
+		exactSize = w == winW && h == winH
 	} else {
 		applyWindowSize(winW, winH)
+	}
+	if !exactSize {
+		fmt.Fprintf(os.Stderr, "game_stage_chase: off-design window %.0fx%.0f, viewport follows live size\n", liveWinW, liveWinH)
 	}
 	sim.layoutWorldToWindow()
 	var summary manualSummary
@@ -1153,9 +1237,13 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					// Record only: the shell/world relayout runs once per
+					// frame at the top of Tick (same frame, before layout
+					// and paint), so intermediate drag sizes never paint
+					// a half-applied tree. Auto-only gates still pin the
+					// numbers below; goldens compare the static chrome
+					// rects, and the S52 card runs at 1200x800.
 					applyWindowSize(float64(ev.Width), float64(ev.Height))
-					sim.layoutWorldToWindow()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_stage_chase: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -1363,7 +1451,12 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 	}
 	ax, ay := pc.Abs(0, 0)
 	view := s.cam.VisibleWorldRect()
-	// Ground: view-sized dark base.
+	// Ground: view-sized dark base, clipped to this box so chunk/tile
+	// paint can never spill past the panel while dragging (stale pictures
+	// replay under the live offset otherwise).
+	bsClip := s.worldBox.Size()
+	pc.DC.Push()
+	pc.DC.ClipRect(ax, ay, bsClip.Width, bsClip.Height)
 	pc.DC.SetRGB(0.10, 0.12, 0.12)
 	pc.DC.DrawRectangle(ax, ay, worldWW, worldWH)
 	_ = pc.DC.Fill()
@@ -1431,6 +1524,8 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 	}
 	// Car trail ribbon: newest widest brightest.
 	// Reused backing: AppendPoints fills the same array every paint.
+	// Screen clips follow the live viewport, not the design constants.
+	vp := s.cam.Viewport()
 	if s.trail != nil {
 		pts := s.trail.AppendPoints(s.trailPtsBuf[:0])
 		s.trailPtsBuf = pts
@@ -1439,7 +1534,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 			if !ok {
 				continue
 			}
-			if sc.X < -20 || sc.Y < -20 || sc.X > viewW+20 || sc.Y > viewH+20 {
+			if sc.X < -20 || sc.Y < -20 || sc.X > vp.X+20 || sc.Y > vp.Y+20 {
 				continue
 			}
 			w, err := s.trail.WidthAt(i)
@@ -1471,7 +1566,7 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 			if !ok {
 				continue
 			}
-			if sc.X < -12 || sc.Y < -12 || sc.X > viewW+12 || sc.Y > viewH+12 {
+			if sc.X < -12 || sc.Y < -12 || sc.X > vp.X+12 || sc.Y > vp.Y+12 {
 				continue
 			}
 			c := s.pool.ColorOf(pt)
@@ -1500,4 +1595,5 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 	if len(flat) > 0 && s.atlas != nil {
 		_, _ = pc.DC.DrawAtlasEx(s.atlas, flat, render.AtlasDrawOptions{})
 	}
+	pc.DC.Pop()
 }
