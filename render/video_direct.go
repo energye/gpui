@@ -429,3 +429,187 @@ func (s *VideoSlot) packedView() gpucontext.TextureView {
 	}
 	return gpucontext.PackTextureView(s.View)
 }
+
+// VideoBridge converges one video route: pool + current slot + owned
+// fallback buffer. Windows call Show per new frame; Show uploads once then
+// draws via the zero-upload quad, falling back to the generic path with a
+// block copy when direct fails. No-new-frame means the caller skips Show,
+// so upload count stays equal to shown new frames. ShowSeq takes a caller
+// frame sequence: repeat calls with the same seq redraw the uploaded frame
+// into another rect (same-source multi-size views) without re-uploading.
+//
+// Fast path pays zero CPU conversion: Upload takes raw RGBA straight into
+// the texture. Video frames are opaque (ffmpeg RGBA alpha is 255), so
+// straight equals premultiplied and PremultipliedData is skipped. The
+// fallback path owns its buffer and copies rows in one block, never the
+// old per-pixel loop.
+type VideoBridge struct {
+	mu        sync.Mutex
+	pool      *VideoTexturePool
+	slot      *VideoSlot
+	fallback  *ImageBuf
+	frames    uint64
+	uploads   uint64
+	fallbacks uint64
+	redraws   uint64
+	lastSeq   uint64
+	hasSeq    bool
+	lastW     int
+	lastH     int
+	fbSeq     uint64
+	hasFbSeq  bool
+}
+
+// NewVideoBridge creates one route on the borrowed device.
+// Nil device yields a fallback-only bridge: Show always takes the generic
+// path and counts fallbacks, never crashes.
+func NewVideoBridge(device hal.Device) *VideoBridge {
+	if device == nil {
+		return &VideoBridge{}
+	}
+	return &VideoBridge{pool: NewVideoTexturePool(device)}
+}
+
+// EnsureDevice attaches the pool device when the window device opens after
+// the bridge was created fallback-only. No-op when already attached.
+func (b *VideoBridge) EnsureDevice(device hal.Device) {
+	if b == nil || device == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.pool != nil {
+		return
+	}
+	b.pool = NewVideoTexturePool(device)
+}
+
+// Show uploads one new frame and draws it. It returns direct=true when the
+// zero-upload quad was queued, false when the generic fallback was used.
+// Either way the picture is drawn when ok=true; ok=false means nothing was
+// drawn (bad args or fallback buffer failure).
+func (b *VideoBridge) Show(c *Context, w, h int, pix []byte, opts VideoDrawOptions) (direct, ok bool) {
+	return b.showImpl(0, false, c, w, h, pix, opts)
+}
+
+// ShowSeq uploads frame seq once then draws it; repeat calls with the same
+// seq redraw the uploaded frame into another rect without re-uploading.
+// Either way the picture is drawn when ok=true.
+func (b *VideoBridge) ShowSeq(seq uint64, c *Context, w, h int, pix []byte, opts VideoDrawOptions) (direct, ok bool) {
+	return b.showImpl(seq, true, c, w, h, pix, opts)
+}
+
+func (b *VideoBridge) showImpl(seq uint64, useSeq bool, c *Context, w, h int, pix []byte, opts VideoDrawOptions) (direct, ok bool) {
+	if b == nil || c == nil {
+		return false, false
+	}
+	need := int64(w) * int64(h) * 4
+	if w < 1 || h < 1 || need <= 0 || int64(len(pix)) < need {
+		return false, false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if useSeq && b.hasSeq && seq == b.lastSeq && w == b.lastW && h == b.lastH {
+		// Same frame, second view: no re-upload, just redraw.
+		b.redraws++
+		if b.slot != nil && c.DrawVideoSlot(b.slot, opts) {
+			return true, true
+		}
+		if b.hasFbSeq && b.fbSeq == seq && b.fallback != nil && !b.fallback.Disposed() {
+			return false, c.DrawVideoFrame(b.fallback, opts)
+		}
+		return false, false
+	}
+	b.frames++
+	if useSeq {
+		b.hasSeq, b.lastSeq, b.lastW, b.lastH = true, seq, w, h
+	}
+	if b.pool != nil {
+		slot, _, err := b.pool.AcquireForFrame(b.slot, w, h)
+		if err == nil {
+			b.slot = slot
+			if uerr := b.pool.Upload(slot, pix[:need]); uerr == nil {
+				b.uploads++
+				if c.DrawVideoSlot(slot, opts) {
+					return true, true
+				}
+			}
+		}
+	}
+	if !b.ensureFallbackLocked(w, h) {
+		return false, false
+	}
+	dst := b.fallback.Data()
+	if int64(len(dst)) < need {
+		return false, false
+	}
+	copy(dst[:need], pix[:need])
+	b.fallback.MarkPixelsDirty()
+	b.fallbacks++
+	if useSeq {
+		b.hasFbSeq, b.fbSeq = true, seq
+	}
+	c.RecordVideoFallback("direct-fallback")
+	return false, c.DrawVideoFrame(b.fallback, opts)
+}
+
+// ensureFallbackLocked keeps one owned buffer at the current size.
+// Caller holds b.mu.
+func (b *VideoBridge) ensureFallbackLocked(w, h int) bool {
+	if b.fallback != nil && !b.fallback.Disposed() {
+		if fw, fh := b.fallback.Bounds(); fw == w && fh == h {
+			return true
+		}
+		b.fallback.Dispose()
+		b.fallback = nil
+	}
+	buf, err := NewImageBuf(w, h, FormatRGBA8)
+	if err != nil || buf == nil {
+		return false
+	}
+	b.fallback = buf
+	return true
+}
+
+// BridgeStats snapshots one route: frames seen, direct uploads, fallbacks.
+type BridgeStats struct {
+	Frames    uint64
+	Uploads   uint64
+	Fallbacks uint64
+	Redraws   uint64
+	Live      int
+	Idle      int
+	Evictions uint64
+}
+
+// Stats snapshots the bridge.
+func (b *VideoBridge) Stats() BridgeStats {
+	if b == nil {
+		return BridgeStats{}
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	st := BridgeStats{Frames: b.frames, Uploads: b.uploads, Fallbacks: b.fallbacks, Redraws: b.redraws}
+	if b.pool != nil {
+		ps := b.pool.Stats()
+		st.Live, st.Idle, st.Evictions = ps.Live, ps.Idle, ps.Evictions
+	}
+	return st
+}
+
+// Close releases the slot and fallback buffer. Borrowed device untouched.
+func (b *VideoBridge) Close() {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.pool != nil && b.slot != nil {
+		b.pool.Release(b.slot)
+		b.slot = nil
+	}
+	if b.fallback != nil {
+		b.fallback.Dispose()
+		b.fallback = nil
+	}
+}

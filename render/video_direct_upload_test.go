@@ -191,3 +191,118 @@ func TestVideoSlotFailClosedWithoutGPU(t *testing.T) {
 	}
 	pool.Release(s)
 }
+
+func TestVideoBridgeFallbackConverged(t *testing.T) {
+	cases := loadVideoUploadCases(t)
+	c := cases.Aligned[0]
+	dev := openNoopVideoDevice(t)
+	br := NewVideoBridge(dev)
+	defer br.Close()
+	dc := NewContext(64, 64)
+	pix := make([]byte, c.W*c.H*4)
+	for i := range pix {
+		pix[i] = 0x7f
+	}
+	// Noop has no GPU session: Upload succeeds, DrawVideoSlot fails
+	// closed, bridge converges to one block-copy fallback draw.
+	direct, ok := br.Show(dc, c.W, c.H, pix, VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok {
+		t.Fatal("Bridge Show ok=false, want true via fallback")
+	}
+	if direct {
+		t.Fatal("Bridge Show direct=true without GPU, want fallback")
+	}
+	st := br.Stats()
+	if st.Frames != 1 || st.Uploads != 1 || st.Fallbacks != 1 {
+		t.Fatalf("bridge stats=%+v, want frames=1 uploads=1 fallbacks=1", st)
+	}
+	if st.Evictions != 0 {
+		t.Fatalf("bridge evictions=%d, want 0", st.Evictions)
+	}
+	if len(dc.FrameDamage()) == 0 {
+		t.Fatal("Bridge fallback left no damage")
+	}
+	// Second frame same size reuses slot: uploads grow, no rebuild.
+	direct, ok = br.Show(dc, c.W, c.H, pix, VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok || direct {
+		t.Fatalf("second Show direct=%v ok=%v, want false/true", direct, ok)
+	}
+	if st := br.Stats(); st.Frames != 2 || st.Uploads != 2 || st.Fallbacks != 2 {
+		t.Fatalf("second stats=%+v, want 2/2/2", st)
+	}
+	// Bad args draw nothing.
+	if _, ok := br.Show(dc, 0, 10, pix, VideoDrawOptions{}); ok {
+		t.Fatal("Show bad size ok=true, want false")
+	}
+	if _, ok := br.Show(nil, c.W, c.H, pix, VideoDrawOptions{}); ok {
+		t.Fatal("Show nil context ok=true, want false")
+	}
+}
+
+func TestVideoBridgeNilDeviceFallbackOnly(t *testing.T) {
+	cases := loadVideoUploadCases(t)
+	c := cases.Aligned[0]
+	br := NewVideoBridge(nil)
+	defer br.Close()
+	dc := NewContext(64, 64)
+	pix := make([]byte, c.W*c.H*4)
+	direct, ok := br.Show(dc, c.W, c.H, pix, VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok || direct {
+		t.Fatalf("nil-device Show direct=%v ok=%v, want false/true", direct, ok)
+	}
+	if st := br.Stats(); st.Frames != 1 || st.Uploads != 0 || st.Fallbacks != 1 {
+		t.Fatalf("nil-device stats=%+v, want 1/0/1", st)
+	}
+}
+
+func TestVideoBridgeShowSeqUploadsOnce(t *testing.T) {
+	cases := loadVideoUploadCases(t)
+	c := cases.Aligned[0]
+	dev := openNoopVideoDevice(t)
+	br := NewVideoBridge(dev)
+	defer br.Close()
+	dc := NewContext(64, 64)
+	pix := make([]byte, c.W*c.H*4)
+	for i := range pix {
+		pix[i] = 0x7f
+	}
+	// First view uploads (noop has no GPU session: falls back after upload).
+	direct, ok := br.ShowSeq(7, dc, c.W, c.H, pix, VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok || direct {
+		t.Fatalf("first ShowSeq direct=%v ok=%v, want false/true", direct, ok)
+	}
+	// Second view same seq redraws without re-uploading.
+	direct, ok = br.ShowSeq(7, dc, c.W, c.H, pix, VideoDrawOptions{X: 32, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok || direct {
+		t.Fatalf("redraw ShowSeq direct=%v ok=%v, want false/true", direct, ok)
+	}
+	st := br.Stats()
+	if st.Frames != 1 || st.Uploads != 1 || st.Fallbacks != 1 || st.Redraws != 1 {
+		t.Fatalf("seq stats=%+v, want frames=1 uploads=1 fallbacks=1 redraws=1", st)
+	}
+	// New seq uploads again.
+	if _, ok := br.ShowSeq(8, dc, c.W, c.H, pix, VideoDrawOptions{}); !ok {
+		t.Fatal("new seq ShowSeq ok=false, want true")
+	}
+	if st := br.Stats(); st.Frames != 2 || st.Uploads != 2 {
+		t.Fatalf("new seq stats=%+v, want frames=2 uploads=2", st)
+	}
+}
+
+func TestVideoBridgeEnsureDevice(t *testing.T) {
+	br := NewVideoBridge(nil)
+	defer br.Close()
+	dev := openNoopVideoDevice(t)
+	br.EnsureDevice(dev)
+	br.EnsureDevice(dev)
+	dc := NewContext(64, 64)
+	cases := loadVideoUploadCases(t)
+	c := cases.Aligned[0]
+	pix := make([]byte, c.W*c.H*4)
+	if _, ok := br.Show(dc, c.W, c.H, pix, VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18}); !ok {
+		t.Fatal("Show after EnsureDevice ok=false, want true")
+	}
+	if st := br.Stats(); st.Uploads != 1 {
+		t.Fatalf("stats=%+v, want uploads=1", st)
+	}
+}

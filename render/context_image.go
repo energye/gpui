@@ -910,6 +910,10 @@ func (c *Context) DrawVideoSlot(slot *VideoSlot, opts VideoDrawOptions) bool {
 		float32(br.X-tl.X), float32(br.Y-tl.Y),
 		opacity, uint32(target.Width), uint32(target.Height)) //nolint:gosec // viewport fits uint32
 	c.recordGPUOp()
+	// Damage follows the logical dest rect so PresentFrameDamage skips
+	// clean frames: no-new-frame callers skip Show entirely, so no damage
+	// is recorded and the last texture stays on screen untouched.
+	c.TrackDamageRect(image.Rect(int(opts.X), int(opts.Y), int(opts.X+dw), int(opts.Y+dh)))
 	return true
 }
 
