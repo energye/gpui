@@ -109,21 +109,25 @@ func main() {
 	// engine (A4 owns the speaker); the window proves the sync. Loop is
 	// off (loop+seek goes to VC1): the window wraps by seeking to head.
 	// Real footage (no synthetic gate clip): 960x400 shown at 480x200.
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	live, err := govideo.OpenFile(resolveTestdata("vr_oceans.mp4"), govideo.Options{})
 	liveErr := ""
 	if err != nil {
 		liveErr = "直播打不开：" + err.Error()
 	}
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
 	if live != nil {
 		defer live.Close()
 		if !live.HasAudio() || live.Master() != govideo.MasterAudio {
 			liveErr = "直播没进声领模式"
 		}
-		liveImg = rendering.NewRenderImage(480, 200)
+		bridge := render.NewVideoBridge(nil)
+		defer bridge.Close()
+		var liveNode *rendering.RenderVideo
+		liveNode = rendering.NewRenderVideo(480, 200, bridge)
 		shell.Body.LabelAt("直播（有声片循环，声领画随）", 13, 20, 200, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 226)
+		shell.Body.Place(liveNode, 20, 226)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -206,6 +210,11 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
@@ -257,11 +266,7 @@ func main() {
 					pendingRecoverSince = time.Time{}
 					seekNote += " 已恢复"
 				}
-				if liveBuf == nil {
-					liveBuf, _ = render.NewImageBuf(f.Width, f.Height, render.FormatRGBA8)
-				}
-				blitRGBA(liveBuf, f.Pix, f.Width, f.Height)
-				liveImg.SetImageShared(liveBuf)
+				liveNode.SetFrame(f.Width, f.Height, f.Pix)
 			} else if ended {
 				if _, err := live.SeekTo(0); err != nil {
 					liveErr = "绕回跳失败：" + err.Error()
@@ -420,31 +425,6 @@ func failGateJSON(ev a2Evidence, stage string) {
 		"gate_error":   ev.ErrText,
 	})
 	fmt.Fprintln(os.Stdout, string(b))
-}
-
-// blitRGBA copies a player frame into the shared display buffer and flags
-// it for GPU reupload (window side only).
-func blitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	data := dst.Data()
-	rowLen := w * 4
-	if len(data) >= h*rowLen {
-		for y := 0; y < h; y++ {
-			copy(data[y*rowLen:(y+1)*rowLen], pix[y*rowLen:(y+1)*rowLen])
-		}
-		dst.MarkPixelsDirty()
-		dst.InvalidatePremulCache()
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }

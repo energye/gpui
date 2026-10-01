@@ -127,31 +127,18 @@ func main() {
 		gateOK = 0
 		yuvReady = 0
 	}
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	pools := st.pools
 	if pools == nil || pools.Work.BufSize() < workBufSize {
 		pools = govideo.NewPools(liveW, liveH, workBufSize, 64<<20)
 	}
 	if live != nil {
 		defer live.Close()
-		var bufErr error
-		// FormatRGBAPremul: our frames are fully opaque (alpha 255, the
-		// color converter writes 255 everywhere), so straight == premul
-		// bit for bit. Storing premul-labeled skips the 8MB
-		// straight→premul recompute on every upload present
-		// (PremultipliedData returns the buffer directly for premul
-		// formats) with zero pixel difference — verified by the VR2
-		// 1080p byte-exact gate plus the variance cross-check below.
-		liveBuf, bufErr = render.NewImageBuf(liveW, liveH, render.FormatRGBAPremul)
-		if bufErr != nil && gateErr == "" {
-			gateErr = "显存建不起：" + bufErr.Error()
-			gateOK = 0
-			yuvReady = 0
-		}
-		liveImg = rendering.NewRenderImage(480, 270)
+		liveNode = rendering.NewRenderVideo(480, 270, bridge)
 		shell.Body.LabelAt("直播（1080p循环120秒，走池不黑不花）", 13, 20, 230, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 256)
+		shell.Body.Place(liveNode, 20, 256)
 	}
 
 	// Video-core steady probe (§2.7 alloc gate): an isolated loop player
@@ -198,10 +185,15 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
-		if live != nil && liveBuf != nil {
+		if live != nil && liveNode != nil {
 			if f, _ := live.Poll(); f != nil {
 				liveShown++
 				// Per-frame pool work: black detection via pooled copy.
@@ -242,11 +234,10 @@ func main() {
 					liveNote = fmt.Sprintf("尺寸漂移 %dx%d", f.Width, f.Height)
 				} else {
 					// damage_present (§2.1): a new frame is due only
-					// ~5/s; reupload + resample only then. Uploading
-					// the same 8MB at 60Hz cost p95 with no visual
-					// difference (VR7 green RUN60s proved it).
-					fastBlitRGBA(liveBuf, f.Pix, liveW, liveH)
-					liveImg.SetImageShared(liveBuf)
+					// ~5/s; SetFrame only then. Same 8MB at 60Hz would
+					// cost p95 with no visual difference (VR7 green
+					// RUN60s proved it).
+					liveNode.SetFrame(f.Width, f.Height, f.Pix)
 				}
 			}
 		}
@@ -450,31 +441,6 @@ func probeVideoSteady(path string, workSize int) (perFrameB, shown int64, err er
 		return 0, 0, fmt.Errorf("一帧没播出来")
 	}
 	return int64(m1.TotalAlloc-m0.TotalAlloc) / shown, shown, nil
-}
-
-// fastBlitRGBA is the row-copy fast path: RGBA8 rows are contiguous, so
-// one copy per row replaces w*h SetRGBA calls (VC0's fix, reused here).
-func fastBlitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	data := dst.Data()
-	rowLen := w * 4
-	if len(data) >= h*rowLen {
-		for y := 0; y < h; y++ {
-			copy(data[y*rowLen:(y+1)*rowLen], pix[y*rowLen:(y+1)*rowLen])
-		}
-		dst.MarkPixelsDirty()
-		dst.InvalidatePremulCache()
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }

@@ -114,19 +114,22 @@ func main() {
 
 	// Live picture: replay the first clip on the window clock, pause in
 	// the second half to prove Pause truly stops the picture.
+	// Runs on the P2 direct bridge: frames upload once and draw as a
+	// zero-upload quad; the window device is borrowed on the tick.
 	live, err := govideo.OpenFile(states[0].path, govideo.Options{Loop: true})
 	if err != nil && playErr == "" {
 		playErr = "直播打不开：" + err.Error()
 		allPlayed = false
 		yuvReady = 0
 	}
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	if live != nil {
 		defer live.Close()
-		liveImg = rendering.NewRenderImage(360, 360)
+		liveNode = rendering.NewRenderVideo(360, 360, bridge)
 		shell.Body.LabelAt("直播（后半暂停，真停）", 13, 20, 180, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 206)
+		shell.Body.Place(liveNode, 20, 206)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -156,11 +159,16 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
 		// Pause proof: hold the player for the middle third of the run.
-		if live != nil {
+		if live != nil && liveNode != nil {
 			elapsed := float64(hotTick) / 60.0
 			third := float64(secs) / 3.0
 			if elapsed > third && elapsed < 2*third {
@@ -178,11 +186,7 @@ func main() {
 			}
 			if f, _ := live.Poll(); f != nil {
 				liveShown++
-				if liveBuf == nil {
-					liveBuf, _ = render.NewImageBuf(f.Width, f.Height, render.FormatRGBA8)
-				}
-				blitRGBA(liveBuf, f.Pix, f.Width, f.Height)
-				liveImg.SetImageShared(liveBuf)
+				liveNode.SetFrame(f.Width, f.Height, f.Pix)
 			}
 		}
 
@@ -259,23 +263,6 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "video_vr4_play: 通过 解码=%d 显示=%d 丢=%d 直播=%d 上屏=%d 用时=%.1f秒\n",
 		framesDecoded, framesShown, dropped, liveShown, app.PresentCount(), elapsed)
-}
-
-// blitRGBA copies a player frame into the shared display buffer and flags
-// it for GPU reupload (window side only). Without MarkPixelsDirty the GPU
-// texture cache keys on GenerationID and would keep showing the first
-// frame forever: numbers run, picture frozen.
-func blitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }

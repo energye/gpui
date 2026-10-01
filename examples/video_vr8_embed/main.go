@@ -88,10 +88,9 @@ func main() {
 		shell.Body.LabelAt(ln, 12, 20, 76+float64(i)*24, 0.72, 0.8, 0.9)
 	}
 
-	// Live picture: same 720p clip looping. One 1280x720 buffer for the
-	// whole run (never per-frame alloc); two targets share it to prove
-	// scaling sits in the display rect — decode stays full 1280x720
-	// (§2.8: no decode-side downscale).
+	// Live picture: same 720p clip looping, drawn by one video node
+	// plus a same-source second view (one upload, two draws).
+	// Decode stays full 1280x720 (§2.8: no decode-side downscale).
 	const liveW, liveH = 1280, 720
 	live, err := govideo.OpenFile(st.path, govideo.Options{Loop: true})
 	if err != nil && gateErr == "" {
@@ -99,33 +98,27 @@ func main() {
 		gateOK = 0
 		yuvReady = 0
 	}
-	var liveImg, smallImg *rendering.RenderImage
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode, smallNode *rendering.RenderVideo
 	var clipNode *rendering.RenderClipRRect
 	var opNode *rendering.RenderOpacity
 	var overlayWrap *rendering.RenderOpacity
-	var liveBuf *render.ImageBuf
 	const mainW, mainH = 480.0, 270.0
 	const smallW, smallH = 240.0, 135.0
 	if live != nil {
 		defer live.Close()
-		var bufErr error
-		liveBuf, bufErr = render.NewImageBuf(liveW, liveH, render.FormatRGBA8)
-		if bufErr != nil && gateErr == "" {
-			gateErr = "显存建不起：" + bufErr.Error()
-			gateOK = 0
-			yuvReady = 0
-		}
 		shell.Body.LabelAt("内嵌视频（缩放+裁剪+透明，同场景合成）", 13, 20, 180, 0.6, 0.8, 0.95)
-		liveImg = rendering.NewRenderImage(mainW, mainH)
-		clipNode = rendering.NewRenderClipRRect(liveImg)
+		liveNode = rendering.NewRenderVideo(mainW, mainH, bridge)
+		clipNode = rendering.NewRenderClipRRect(liveNode)
 		clipNode.FixedWidth, clipNode.FixedHeight = mainW, mainH
 		clipNode.Radius = 12
 		opNode = rendering.NewRenderOpacity(1.0, clipNode)
 		opNode.FixedWidth, opNode.FixedHeight = mainW, mainH
 		shell.Body.Place(opNode, 20, 206)
 		shell.Body.LabelAt("同源第二尺寸（缩放走目标矩形）", 13, 520, 180, 0.6, 0.8, 0.95)
-		smallImg = rendering.NewRenderImage(smallW, smallH)
-		shell.Body.Place(smallImg, 520, 206)
+		smallNode = rendering.NewRenderVideo(smallW, smallH, bridge)
+		shell.Body.Place(smallNode, 520, 206)
 		// Translucent overlay covering one corner of the main video:
 		// existing color box + existing opacity, no new channel. It is
 		// placed after the video so it composites on top.
@@ -170,16 +163,21 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
 		// Mid-run resize proof (no assert crash): shrink once, restore
 		// once. Both go through Width/Fixed + MarkNeedsLayout, the same
 		// path a real window resize takes.
-		if liveImg != nil && clipNode != nil && opNode != nil {
+		if liveNode != nil && clipNode != nil && opNode != nil {
 			if resizeStage == 0 && hotTick == 600 {
-				liveImg.Width, liveImg.Height = 360, 202
-				liveImg.MarkNeedsLayout()
+				liveNode.Width, liveNode.Height = 360, 202
+				liveNode.MarkNeedsLayout()
 				clipNode.FixedWidth, clipNode.FixedHeight = 360, 202
 				clipNode.MarkNeedsLayout()
 				opNode.FixedWidth, opNode.FixedHeight = 360, 202
@@ -188,8 +186,8 @@ func main() {
 				resizeNote = "已缩小360x202"
 				shownAtShrink = liveShown
 			} else if resizeStage == 1 && hotTick == 1200 {
-				liveImg.Width, liveImg.Height = mainW, mainH
-				liveImg.MarkNeedsLayout()
+				liveNode.Width, liveNode.Height = mainW, mainH
+				liveNode.MarkNeedsLayout()
 				clipNode.FixedWidth, clipNode.FixedHeight = mainW, mainH
 				clipNode.MarkNeedsLayout()
 				opNode.FixedWidth, opNode.FixedHeight = mainW, mainH
@@ -199,19 +197,14 @@ func main() {
 			}
 		}
 
-		if live != nil && liveBuf != nil {
+		if live != nil && liveNode != nil && smallNode != nil {
 			if f, _ := live.Poll(); f != nil {
 				liveShown++
 				if f.Width != liveW || f.Height != liveH {
 					liveNote = fmt.Sprintf("尺寸漂移 %dx%d", f.Width, f.Height)
 				} else {
-					fastBlitRGBA(liveBuf, f.Pix, liveW, liveH)
-					if liveImg != nil {
-						liveImg.SetImageShared(liveBuf)
-					}
-					if smallImg != nil {
-						smallImg.SetImageShared(liveBuf)
-					}
+					liveNode.SetFrame(f.Width, f.Height, f.Pix)
+					smallNode.SetFrame(f.Width, f.Height, f.Pix)
 					lastVar = pixVar(f.Pix)
 				}
 			}
@@ -256,7 +249,7 @@ func main() {
 	overlayOK := 0
 	resizeOK := 0
 	embedOK := 0
-	if liveImg != nil && smallImg != nil {
+	if liveNode != nil && smallNode != nil {
 		scaleOK = 1
 	}
 	if clipNode != nil && opNode != nil {
@@ -326,31 +319,6 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "video_vr8_embed: 通过 解码=%d 显示=%d 直播=%d 内嵌=%d 改尺寸=%s 上屏=%d 用时=%.1f秒\n",
 		st.decoded, st.shown, liveShown, embedOK, resizeNote, app.PresentCount(), elapsed)
-}
-
-// fastBlitRGBA is the row-copy fast path: RGBA8 rows are contiguous, so
-// one copy per row replaces w*h SetRGBA calls (VC0's fix, reused here).
-func fastBlitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	data := dst.Data()
-	rowLen := w * 4
-	if len(data) >= h*rowLen {
-		for y := 0; y < h; y++ {
-			copy(data[y*rowLen:(y+1)*rowLen], pix[y*rowLen:(y+1)*rowLen])
-		}
-		dst.MarkPixelsDirty()
-		dst.InvalidatePremulCache()
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }

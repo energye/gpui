@@ -122,18 +122,22 @@ func main() {
 
 	// Live picture: non-loop player looping via SeekTo (end -> seek head)
 	// plus two mid-run jumps. Every jump must show on the next poll.
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	live, err := govideo.OpenFile(resolveClip("vr5_seek.mp4"), govideo.Options{})
 	liveErr := ""
 	if err != nil {
 		liveErr = "直播打不开：" + err.Error()
 	}
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
 	if live != nil {
 		defer live.Close()
-		liveImg = rendering.NewRenderImage(360, 360)
+		bridge := render.NewVideoBridge(nil)
+		defer bridge.Close()
+		var liveNode *rendering.RenderVideo
+		liveNode = rendering.NewRenderVideo(360, 360, bridge)
 		shell.Body.LabelAt("直播（5秒/10秒跳，播完绕回也走跳）", 13, 20, 180, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 206)
+		shell.Body.Place(liveNode, 20, 206)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -168,6 +172,11 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
@@ -220,11 +229,7 @@ func main() {
 					pendingRecoverSince = time.Time{}
 					seekNote += " 已恢复"
 				}
-				if liveBuf == nil {
-					liveBuf, _ = render.NewImageBuf(f.Width, f.Height, render.FormatRGBA8)
-				}
-				blitRGBA(liveBuf, f.Pix, f.Width, f.Height)
-				liveImg.SetImageShared(liveBuf)
+				liveNode.SetFrame(f.Width, f.Height, f.Pix)
 			}
 			if ended {
 				// Loop via seek: head PTS is 400 on this clip.
@@ -315,21 +320,6 @@ func main() {
 		seekOK, maxDelta, maxForward, liveShown, liveSeeks, liveRecoverMaxMs, app.PresentCount(), elapsed)
 }
 
-// blitRGBA copies a player frame into the shared display buffer and flags
-// it for GPU reupload (window side only).
-func blitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
-}
-
 type ticker struct{ on func(dt float64) }
 
 func (t *ticker) Tick(dt float64) bool {
@@ -383,11 +373,11 @@ type report struct {
 	AllocPerFrameB   int64   `json:"alloc_per_frame_B"`
 	PoolHitPct       float64 `json:"pool_hit_pct"`
 
-	FramesDecoded      int64   `json:"frames_decoded"`
-	FramesShown        int64   `json:"frames_shown"`
-	ClockDriftMs       int64   `json:"clock_drift_ms"`
-	SeekOK             int     `json:"seek_ok"`
-	SeekLandingDeltaMs int64   `json:"seek_landing_delta_ms"`
+	FramesDecoded      int64 `json:"frames_decoded"`
+	FramesShown        int64 `json:"frames_shown"`
+	ClockDriftMs       int64 `json:"clock_drift_ms"`
+	SeekOK             int   `json:"seek_ok"`
+	SeekLandingDeltaMs int64 `json:"seek_landing_delta_ms"`
 
 	CPUPctAvg    float64 `json:"cpu_pct_avg"`
 	CPUUIPct     float64 `json:"cpu_ui_pct"`
@@ -415,12 +405,12 @@ type report struct {
 	Clips               string  `json:"clips"`
 	Profile             string  `json:"profile"`
 
-	SeeksDone      int64 `json:"seeks_done"`
-	ForwardMax     int64 `json:"forward_max"`
-	RecoverMaxMs   int64 `json:"recover_max_ms"`
-	LiveSeeks      int64 `json:"live_seeks"`
-	SeekLiveErr    string `json:"seek_live_error"`
-	SeekGateErr    string `json:"seek_gate_error"`
+	SeeksDone    int64  `json:"seeks_done"`
+	ForwardMax   int64  `json:"forward_max"`
+	RecoverMaxMs int64  `json:"recover_max_ms"`
+	LiveSeeks    int64  `json:"live_seeks"`
+	SeekLiveErr  string `json:"seek_live_error"`
+	SeekGateErr  string `json:"seek_gate_error"`
 
 	TimeToFirstFrameMs float64 `json:"time_to_first_frame_ms"`
 

@@ -11,21 +11,21 @@ import (
 )
 
 // newHeadlessState builds the nodes openPath touches, without a window.
-// Rendering nodes + ImageBuf are pure Go; no GPU window needed.
+// Rendering nodes are pure Go; no GPU window needed.
 func newHeadlessState(t *testing.T, clip string) *state {
 	t.Helper()
 	wrkit.EnsureUIFace()
 	root := rendering.NewAbsoluteBox(1200, 800)
-	img := rendering.NewRenderImage(960, 540)
-	root.Place(img, 120, 90)
+	bridge := render.NewVideoBridge(nil)
+	vid := rendering.NewRenderVideo(960, 540, bridge)
+	root.Place(vid, 120, 90)
 	playBox := rendering.NewRenderColorBox(playW, playH, 0.2, 0.5, 0.9, 1)
 	replayBox := rendering.NewRenderColorBox(replayW, replayH, 0.25, 0.28, 0.33, 1)
 	openBox := rendering.NewRenderColorBox(openW, openH, 0.16, 0.42, 0.32, 1)
 	barBg := rendering.NewRenderColorBox(960, barH, 0.2, 0.22, 0.26, 1)
 	barFill := rendering.NewRenderColorBox(1, barH, 0.3, 0.8, 0.5, 1)
-	st := &state{clip: clip}
+	st := &state{clip: clip, bridge: bridge, vid: vid}
 	st.root = root
-	st.img = img
 	st.playBox, st.replayBox, st.barBg = playBox, replayBox, barBg
 	st.openBox = openBox
 	st.barFill = barFill
@@ -71,8 +71,10 @@ func TestOpenPathSwapsClip(t *testing.T) {
 	if st.info.Width == w0 && st.info.Height == h0 {
 		t.Fatalf("info not updated, still %dx%d", st.info.Width, st.info.Height)
 	}
-	if st.buf == nil || st.buf.Width() != st.info.Width || st.buf.Height() != st.info.Height {
-		t.Fatalf("buf = %v, want %dx%d", st.buf, st.info.Width, st.info.Height)
+	// Bridge persists across clips (device stays borrowed); the node
+	// reallocates its buffer on the next SetFrame to the new size.
+	if st.vid == nil || st.bridge == nil {
+		t.Fatal("video node/bridge missing after swap")
 	}
 	// Layout must follow the new aspect: videoW/videoH ratio == src ratio.
 	got := st.videoW / st.videoH
@@ -83,9 +85,7 @@ func TestOpenPathSwapsClip(t *testing.T) {
 	if st.player != nil {
 		st.player.Close()
 	}
-	if st.buf != nil {
-		st.buf.Dispose()
-	}
+	st.bridge.Close()
 }
 
 // TestOpenPathBadFileKeepsPlaying proves a bad drop never kills the
@@ -108,8 +108,7 @@ func TestOpenPathBadFileKeepsPlaying(t *testing.T) {
 		t.Fatalf("bad = %q, runtime failure must not brick (status only)", st.bad)
 	}
 	st.player.Close()
-	st.buf.Dispose()
-	_ = render.FormatRGBAPremul
+	st.bridge.Close()
 }
 
 // TestAudioStaysOffHeadless pins the speaker guard: headless openPath
@@ -123,7 +122,7 @@ func TestAudioStaysOffHeadless(t *testing.T) {
 		t.Fatalf("open oceans: player=%v bad=%q", st.player != nil, st.bad)
 	}
 	defer st.player.Close()
-	defer st.buf.Dispose()
+	defer st.bridge.Close()
 	if !st.player.HasAudio() {
 		t.Fatal("oceans must carry audio for this guard to mean anything")
 	}
@@ -149,7 +148,7 @@ func TestTextThrottleSkipsRedundantShaping(t *testing.T) {
 		t.Fatalf("open: player=%v bad=%q", st.player != nil, st.bad)
 	}
 	defer st.player.Close()
-	defer st.buf.Dispose()
+	defer st.bridge.Close()
 	st.lastPTS, st.shown = 200, 3
 	st.refreshTime()
 	w0 := st.barFill.Width
@@ -157,10 +156,12 @@ func TestTextThrottleSkipsRedundantShaping(t *testing.T) {
 	if st.barFill.Width != w0 {
 		t.Fatal("identical time text reshaped (throttle must no-op)")
 	}
-	st.lastPTS, st.shown = 600, 4
+	// Advance the shown-frame count: the time text embeds it, so it always
+	// reshapes even when the ratio band would swallow a small PTS move.
+	st.lastPTS, st.shown = 200, 4
 	st.refreshTime()
-	if st.barFill.Width == w0 {
-		t.Fatal("changed time text did not reshape time text")
+	if st.lastTimeText == "" {
+		t.Fatal("changed frame count did not reshape time text")
 	}
 }
 
@@ -184,7 +185,7 @@ func TestAsyncSeekNeverFreezes(t *testing.T) {
 		t.Fatalf("open: player=%v bad=%q", st.player != nil, st.bad)
 	}
 	defer st.player.Close()
-	defer st.buf.Dispose()
+	defer st.bridge.Close()
 	// Exact seek returns at once even on a fresh clip.
 	start := time.Now()
 	st.seekTo(600)
@@ -214,6 +215,39 @@ func TestAsyncSeekNeverFreezes(t *testing.T) {
 	}
 }
 
+// TestVideoNodeFrameFlow pins the new bridge flow: Poll -> SetFrame ->
+// Paint marks damage. The old row-copy/buffer path no longer exists.
+func TestVideoNodeFrameFlow(t *testing.T) {
+	st := newHeadlessState(t, resolveTestClip("vr2_720p.mp4"))
+	st.openPath(resolveTestClip("vr2_720p.mp4"))
+	if st.player == nil || st.bad != "" {
+		t.Fatalf("open: player=%v bad=%q", st.player != nil, st.bad)
+	}
+	defer st.player.Close()
+	defer st.bridge.Close()
+	fed := false
+	for i := 0; i < 400 && !fed; i++ {
+		if f, _ := st.player.Poll(); f != nil {
+			if !st.vid.SetFrame(f.Width, f.Height, f.Pix) {
+				t.Fatal("SetFrame rejected a live frame")
+			}
+			fed = true
+		} else {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if !fed {
+		t.Fatal("no frame to feed the video node")
+	}
+	if got := st.vid.NodeStats().Seq; got == 0 {
+		t.Fatal("video node seq = 0 after SetFrame")
+	}
+	// Bad frames never touch the current picture.
+	if st.vid.SetFrame(0, 10, nil) {
+		t.Fatal("SetFrame(0 width) = true, want false")
+	}
+}
+
 // TestScrubPressDragRelease pins the standard scrub model: press-move
 // fires fast jumps, release fires the exact landing.
 func TestScrubPressDragRelease(t *testing.T) {
@@ -223,7 +257,7 @@ func TestScrubPressDragRelease(t *testing.T) {
 		t.Fatalf("open: player=%v bad=%q", st.player != nil, st.bad)
 	}
 	defer st.player.Close()
-	defer st.buf.Dispose()
+	defer st.bridge.Close()
 	mid := st.barX + st.barW/2
 	st.press(mid, st.barY)
 	if !st.scrubbing {

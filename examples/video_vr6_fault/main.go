@@ -93,18 +93,22 @@ func main() {
 	}
 
 	// Live picture: good clip looping proves the process survives faults.
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	live, err := govideo.OpenFile(resolveClip("vr2_m_bframes.mp4"), govideo.Options{Loop: true})
 	liveErr := ""
 	if err != nil {
 		liveErr = "直播打不开：" + err.Error()
 	}
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
 	if live != nil {
 		defer live.Close()
-		liveImg = rendering.NewRenderImage(360, 360)
+		bridge := render.NewVideoBridge(nil)
+		defer bridge.Close()
+		var liveNode *rendering.RenderVideo
+		liveNode = rendering.NewRenderVideo(360, 360, bridge)
 		shell.Body.LabelAt("直播（坏例跑完照播）", 13, 20, 220, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 246)
+		shell.Body.Place(liveNode, 20, 246)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -133,17 +137,18 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
 		if live != nil {
 			if f, _ := live.Poll(); f != nil {
 				liveShown++
-				if liveBuf == nil {
-					liveBuf, _ = render.NewImageBuf(f.Width, f.Height, render.FormatRGBA8)
-				}
-				blitRGBA(liveBuf, f.Pix, f.Width, f.Height)
-				liveImg.SetImageShared(liveBuf)
+				liveNode.SetFrame(f.Width, f.Height, f.Pix)
 			}
 		}
 
@@ -211,21 +216,6 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "video_vr6_fault: 通过 容错=%d/%d 直播=%d 上屏=%d 用时=%.1f秒\n",
 		pass, total, liveShown, app.PresentCount(), elapsed)
-}
-
-// blitRGBA copies a player frame into the shared display buffer and flags
-// it for GPU reupload (window side only).
-func blitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }
@@ -313,10 +303,10 @@ type report struct {
 	Clips               string  `json:"clips"`
 	Profile             string  `json:"profile"`
 
-	FaultCasesPass  int    `json:"fault_cases_pass"`
-	FaultTotal      int    `json:"fault_total"`
-	FaultGateErr    string `json:"fault_gate_error"`
-	FaultLiveErr    string `json:"fault_live_error"`
+	FaultCasesPass int    `json:"fault_cases_pass"`
+	FaultTotal     int    `json:"fault_total"`
+	FaultGateErr   string `json:"fault_gate_error"`
+	FaultLiveErr   string `json:"fault_live_error"`
 
 	TimeToFirstFrameMs float64 `json:"time_to_first_frame_ms"`
 

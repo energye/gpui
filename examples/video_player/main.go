@@ -83,8 +83,11 @@ func main() {
 	fileLabel := wrkit.Label("", 13, 0.72, 0.8, 0.9)
 	root.Place(fileLabel, 20, 46)
 
-	img := rendering.NewRenderImage(videoW, videoH)
-	root.Place(img, videoX, videoY)
+	// Video runs on the P2 direct bridge: frames upload once and draw
+	// as a zero-upload quad; the window device is borrowed on the tick.
+	bridge := render.NewVideoBridge(nil)
+	vid := rendering.NewRenderVideo(videoW, videoH, bridge)
+	root.Place(vid, videoX, videoY)
 
 	playBox := rendering.NewRenderColorBox(playW, playH, 0.2, 0.5, 0.9, 1)
 	root.Place(playBox, 120, 650)
@@ -114,18 +117,13 @@ func main() {
 	helpLabel := wrkit.Label("空格=播/停 ←/→=±1秒 ,/.=上下关键帧 .=单步 1/2/3/4=0.5/1/2/4x 拖条=快 scrub Q=退出", 12, 0.55, 0.65, 0.75)
 	root.Place(helpLabel, 120, 746)
 
-	st := &state{clip: clip, rateIdx: 1}
+	st := &state{clip: clip, rateIdx: 1, bridge: bridge, vid: vid}
 	if player != nil {
 		st.player = player
 		st.info = player.Info()
 		st.durMs = st.info.DurMs
 		if st.durMs <= 0 && st.info.Frames > 0 {
 			st.durMs = int64(st.info.Frames) * 200
-		}
-		var bufErr error
-		st.buf, bufErr = render.NewImageBuf(st.info.Width, st.info.Height, render.FormatRGBAPremul)
-		if bufErr != nil {
-			st.fatal(fmt.Sprintf("显存建不起：%v", bufErr))
 		}
 		fileLabel.SetText(fmt.Sprintf("%s  %dx%d  %.1ffps  %s  %d帧  %s/%s  %s",
 			shortName(clip), st.info.Width, st.info.Height, st.info.FrameRate,
@@ -149,7 +147,7 @@ func main() {
 	}
 	st.fileLabel, st.statusLabel = fileLabel, statusLabel
 	st.timeLabel, st.playLabel = timeLabel, playLabel
-	st.img, st.barFill = img, barFill
+	st.vid, st.barFill = vid, barFill
 	st.root = root
 	st.playBox, st.replayBox, st.barBg = playBox, replayBox, barBg
 	st.openBox = openBox
@@ -272,8 +270,11 @@ func main() {
 	}
 	app.Close()
 	win.Close()
-	fmt.Fprintf(os.Stderr, "video_player: 关窗 %s 显示=%d 上屏=%d fps=%.1f 用时=%.1fs 音频=%s\n",
-		shortName(clip), st.shown, presents, fps, elapsed, audioLine)
+	if st.bridge != nil {
+		st.bridge.Close()
+	}
+	fmt.Fprintf(os.Stderr, "video_player: 关窗 %s 显示=%d 上屏=%d fps=%.1f 用时=%.1fs 音频=%s 直传=%+v\n",
+		shortName(clip), st.shown, presents, fps, elapsed, audioLine, st.bridge.Stats())
 }
 
 // state is the demo playback state. The engine SeekTo is async by
@@ -285,7 +286,11 @@ type state struct {
 	player *govideo.Player
 	info   govideo.Info
 	durMs  int64
-	buf    *render.ImageBuf
+	// bridge owns the P2 direct texture (upload once, zero-upload quad,
+	// fallback counted); vid feeds it raw frames from Poll. No ImageBuf
+	// lives here: the old row-copy + generic image path is retired.
+	bridge *render.VideoBridge
+	ticks  int
 
 	// Sound rides along by default: enableAudio is true under a real
 	// window (main sets it), false in headless tests so tests never
@@ -318,23 +323,23 @@ type state struct {
 	scrubbing bool
 	rateIdx   int
 
-	img                      *rendering.RenderImage
-	barFill                  *rendering.RenderColorBox
-	fileLabel, statusLabel  *rendering.RenderText
-	timeLabel, playLabel    *rendering.RenderText
-	root                     *rendering.AbsoluteBox
+	vid                       *rendering.RenderVideo
+	barFill                   *rendering.RenderColorBox
+	fileLabel, statusLabel    *rendering.RenderText
+	timeLabel, playLabel      *rendering.RenderText
+	root                      *rendering.AbsoluteBox
 	playBox, replayBox, barBg *rendering.RenderColorBox
-	openBox                  *rendering.RenderColorBox
+	openBox                   *rendering.RenderColorBox
 	replayLabel, helpLabel    *rendering.RenderText
-	openLabel                *rendering.RenderText
+	openLabel                 *rendering.RenderText
 	// Current layout in window logical px (applyLayout owns these;
 	// click/paint math reads them, never the defaults above).
-	winW, winH                         float64
-	videoX, videoY, videoW, videoH     float64
-	playX, playY, replayX, replayY     float64
-	openX, openY                       float64
-	barX, barY, barW                   float64
-	statusX, statusY, timeY, helpY     float64
+	winW, winH                     float64
+	videoX, videoY, videoW, videoH float64
+	playX, playY, replayX, replayY float64
+	openX, openY                   float64
+	barX, barY, barW               float64
+	statusX, statusY, timeY, helpY float64
 }
 
 // applyLayout fits the video into the window keeping its aspect ratio
@@ -374,10 +379,10 @@ func (st *state) applyLayout(winW, winH float64) {
 	st.barW = availW
 	st.timeY, st.helpY = st.barY+22, st.barY+46
 
-	if st.img != nil {
-		st.img.Width, st.img.Height = dispW, dispH
-		st.img.MarkNeedsLayout()
-		st.root.Place(st.img, st.videoX, st.videoY)
+	if st.vid != nil {
+		st.vid.Width, st.vid.Height = dispW, dispH
+		st.vid.MarkNeedsLayout()
+		st.root.Place(st.vid, st.videoX, st.videoY)
 	}
 	if st.playBox != nil {
 		st.root.Place(st.playBox, st.playX, st.playY)
@@ -741,19 +746,24 @@ func (st *state) cycleRate() {
 
 // tick polls one due frame and paints it. Pause freezes via the player
 // clock, so polling while paused just yields nil and holds the picture.
+// Frames feed the video node (one block copy; Poll recycles its Pix);
+// the bridge uploads once and draws the zero-upload quad.
 func (st *state) tick() {
 	p := st.player
-	if p == nil || st.bad != "" || st.buf == nil {
+	if p == nil || st.bad != "" || st.bridge == nil || st.vid == nil {
 		return
+	}
+	st.ticks++
+	if st.ticks%30 == 0 {
+		if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+			st.bridge.EnsureDevice(dev)
+		}
 	}
 	f, ended := p.Poll()
 	if f != nil {
 		st.shown++
 		st.lastPTS = f.PTSMs
-		fastBlitRGBA(st.buf, f.Pix, f.Width, f.Height)
-		if st.img != nil {
-			st.img.SetImageShared(st.buf)
-		}
+		st.vid.SetFrame(f.Width, f.Height, f.Pix)
 		st.dirtyFrame = true
 		if st.ended {
 			st.ended = false
@@ -1009,9 +1019,10 @@ func (st *state) nextKeyframe() {
 }
 
 // openPath swaps the clip while the window stays open: probe first so a
-// bad file never kills the current playback, then rebuild the display
-// buffer for the new size and re-fit the layout (aspect may change).
-// Runs on the UI loop thread (events share it with the ticker).
+// bad file never kills the current playback, then re-fit the layout
+// (aspect may change). The bridge persists across clips (device stays
+// borrowed); the next SetFrame reallocates the node buffer to the new
+// size. Runs on the UI loop thread (events share it with the ticker).
 func (st *state) openPath(path string) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -1030,20 +1041,11 @@ func (st *state) openPath(path string) {
 		st.status("打不开：" + govideo.Classify(err).Readable())
 		return
 	}
-	nbuf, err := render.NewImageBuf(next.Info().Width, next.Info().Height, render.FormatRGBAPremul)
-	if err != nil {
-		next.Close()
-		st.status(fmt.Sprintf("显存建不起：%v", err))
-		return
-	}
 	if st.player != nil {
 		st.stopAudio()
 		st.player.Close()
 	}
-	if st.buf != nil {
-		st.buf.Dispose()
-	}
-	st.player, st.buf = next, nbuf
+	st.player = next
 	st.clip = path
 	st.info = next.Info()
 	st.durMs = st.info.DurMs
@@ -1126,35 +1128,6 @@ func cleanDropPath(p string) string {
 		p = strings.TrimPrefix(p, "file://")
 	}
 	return p
-}
-
-// fastBlitRGBA copies a player frame into the display buffer row by row
-// (one copy per row instead of w*h SetRGBA calls) and flags it for GPU
-// reupload. Frames from the player are opaque (alpha 255), so the buffer
-// is FormatRGBAPremul: for opaque pixels premultiplied == straight,
-// which skips the per-frame O(w*h) premultiply pass on upload and its
-// extra buffer. Window side only; video core never imports render.
-func fastBlitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	data := dst.Data()
-	rowLen := w * 4
-	if len(data) >= h*rowLen {
-		for y := 0; y < h; y++ {
-			copy(data[y*rowLen:(y+1)*rowLen], pix[y*rowLen:(y+1)*rowLen])
-		}
-		dst.MarkPixelsDirty()
-		dst.InvalidatePremulCache()
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }

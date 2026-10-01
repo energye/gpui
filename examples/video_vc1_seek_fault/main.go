@@ -146,25 +146,23 @@ func main() {
 	// Live picture: good dual-IDR clip, non-loop player driven by SeekTo —
 	// two scheduled mid-run jumps plus end-of-stream wrap. Mid-run faults
 	// never touch this player, proving bad files don't affect good ones.
+	// Runs on the P2 direct bridge: frames upload once and draw as a
+	// zero-upload quad; the window device is borrowed on the tick.
 	live, err := govideo.OpenFile(resolveClip("vr5_seek.mp4"), govideo.Options{})
 	liveErr := ""
 	if err != nil {
 		liveErr = "直播打不开：" + err.Error()
 	}
-	// Good clip is 96x96 — one buffer for the whole run, never per-frame.
+	// Good clip is 96x96 — the bridge keeps one texture, never per-frame.
 	const liveW, liveH = 96, 96
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	if live != nil {
 		defer live.Close()
-		var bufErr error
-		liveBuf, bufErr = render.NewImageBuf(liveW, liveH, render.FormatRGBA8)
-		if bufErr != nil && liveErr == "" {
-			liveErr = "显存建不起：" + bufErr.Error()
-		}
-		liveImg = rendering.NewRenderImage(360, 360)
+		liveNode = rendering.NewRenderVideo(360, 360, bridge)
 		shell.Body.LabelAt("直播（跳两次+绕回，好片不受坏例影响）", 13, 20, 280, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 306)
+		shell.Body.Place(liveNode, 20, 306)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -199,10 +197,15 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
-		if live != nil && liveBuf != nil {
+		if live != nil && liveNode != nil {
 			elapsed := float64(hotTick) / 60.0
 			if !didJump1 && elapsed > 10 {
 				didJump1 = true
@@ -252,8 +255,7 @@ func main() {
 				if f.Width != liveW || f.Height != liveH {
 					seekNote = fmt.Sprintf("尺寸漂移 %dx%d", f.Width, f.Height)
 				} else {
-					fastBlitRGBA(liveBuf, f.Pix, liveW, liveH)
-					liveImg.SetImageShared(liveBuf)
+					liveNode.SetFrame(f.Width, f.Height, f.Pix)
 				}
 			}
 			if ended {
@@ -357,31 +359,6 @@ func main() {
 		seekPass, len(seekGates), faultPass, faultTotal, liveShown, liveSeeks, liveRecoverMaxMs, app.PresentCount(), elapsed)
 }
 
-// fastBlitRGBA is the row-copy fast path: RGBA8 rows are contiguous, so
-// one copy per row replaces w*h SetRGBA calls (VC0's fix, reused here).
-func fastBlitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	data := dst.Data()
-	rowLen := w * 4
-	if len(data) >= h*rowLen {
-		for y := 0; y < h; y++ {
-			copy(data[y*rowLen:(y+1)*rowLen], pix[y*rowLen:(y+1)*rowLen])
-		}
-		dst.MarkPixelsDirty()
-		dst.InvalidatePremulCache()
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
-}
-
 type ticker struct{ on func(dt float64) }
 
 func (t *ticker) Tick(dt float64) bool {
@@ -435,11 +412,11 @@ type report struct {
 	AllocPerFrameB   int64   `json:"alloc_per_frame_B"`
 	PoolHitPct       float64 `json:"pool_hit_pct"`
 
-	FramesDecoded      int64   `json:"frames_decoded"`
-	FramesShown        int64   `json:"frames_shown"`
-	ClockDriftMs       int64   `json:"clock_drift_ms"`
-	SeekOK             int     `json:"seek_ok"`
-	SeekLandingDeltaMs int64   `json:"seek_landing_delta_ms"`
+	FramesDecoded      int64 `json:"frames_decoded"`
+	FramesShown        int64 `json:"frames_shown"`
+	ClockDriftMs       int64 `json:"clock_drift_ms"`
+	SeekOK             int   `json:"seek_ok"`
+	SeekLandingDeltaMs int64 `json:"seek_landing_delta_ms"`
 
 	CPUPctAvg    float64 `json:"cpu_pct_avg"`
 	CPUUIPct     float64 `json:"cpu_ui_pct"`
@@ -467,16 +444,16 @@ type report struct {
 	Clips               string  `json:"clips"`
 	Profile             string  `json:"profile"`
 
-	SeekPass      int    `json:"seek_pass"`
-	SeekTotal     int    `json:"seek_total"`
-	ForwardMax    int64  `json:"forward_max"`
-	RecoverMaxMs  int64  `json:"recover_max_ms"`
-	LiveSeeks     int64  `json:"live_seeks"`
-	FaultPass     int    `json:"fault_cases_pass"`
-	FaultTotal    int    `json:"fault_total"`
-	SeekGateErr   string `json:"seek_gate_error"`
-	FaultGateErr  string `json:"fault_gate_error"`
-	LiveErr       string `json:"live_error"`
+	SeekPass     int    `json:"seek_pass"`
+	SeekTotal    int    `json:"seek_total"`
+	ForwardMax   int64  `json:"forward_max"`
+	RecoverMaxMs int64  `json:"recover_max_ms"`
+	LiveSeeks    int64  `json:"live_seeks"`
+	FaultPass    int    `json:"fault_cases_pass"`
+	FaultTotal   int    `json:"fault_total"`
+	SeekGateErr  string `json:"seek_gate_error"`
+	FaultGateErr string `json:"fault_gate_error"`
+	LiveErr      string `json:"live_error"`
 
 	TimeToFirstFrameMs float64 `json:"time_to_first_frame_ms"`
 

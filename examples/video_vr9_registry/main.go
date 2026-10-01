@@ -89,9 +89,8 @@ func main() {
 		shell.Body.LabelAt(ln, 12, 20, 76+float64(i)*24, 0.72, 0.8, 0.9)
 	}
 
-	// Live picture: same 720p clip looping. One 1280x720 buffer for the
-	// whole run (never per-frame alloc); display scales to 480x270 via
-	// the target rect — no decode-side downscale (§2.8).
+	// Live picture: same 720p clip looping, drawn by one video node.
+	// Decode stays full 1280x720 (§2.8: no decode-side downscale).
 	const liveW, liveH = 1280, 720
 	live, err := govideo.OpenFile(st.path, govideo.Options{Loop: true})
 	if err != nil && gateErr == "" {
@@ -99,20 +98,14 @@ func main() {
 		gateOK = 0
 		yuvReady = 0
 	}
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	if live != nil {
 		defer live.Close()
-		var bufErr error
-		liveBuf, bufErr = render.NewImageBuf(liveW, liveH, render.FormatRGBA8)
-		if bufErr != nil && gateErr == "" {
-			gateErr = "显存建不起：" + bufErr.Error()
-			gateOK = 0
-			yuvReady = 0
-		}
-		liveImg = rendering.NewRenderImage(480, 270)
+		liveNode = rendering.NewRenderVideo(480, 270, bridge)
 		shell.Body.LabelAt("直播（同片走注册表循环，不黑不花）", 13, 20, 180, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 206)
+		shell.Body.Place(liveNode, 20, 206)
 		shell.Body.LabelAt(fmt.Sprintf("注册用例 %d/%d（探测+能力+注册名+播出+别名+三坏例+H265三项）", st.pass, st.total), 12, 520, 206, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏盒：%s", shortErr(st.badShellErr, 40)), 12, 520, 232, 0.72, 0.8, 0.9)
 		shell.Body.LabelAt(fmt.Sprintf("坏编码：%s", shortErr(st.badCodecErr, 40)), 12, 520, 258, 0.72, 0.8, 0.9)
@@ -149,19 +142,21 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
-		if live != nil && liveBuf != nil {
+		if live != nil && liveNode != nil {
 			if f, _ := live.Poll(); f != nil {
 				liveShown++
 				if f.Width != liveW || f.Height != liveH {
 					liveNote = fmt.Sprintf("尺寸漂移 %dx%d", f.Width, f.Height)
 				} else {
-					fastBlitRGBA(liveBuf, f.Pix, liveW, liveH)
-					if liveImg != nil {
-						liveImg.SetImageShared(liveBuf)
-					}
+					liveNode.SetFrame(f.Width, f.Height, f.Pix)
 					lastVar = pixVar(f.Pix)
 				}
 			}
@@ -281,31 +276,6 @@ func pixVar(pix []byte) float64 {
 		dev += d
 	}
 	return dev / n
-}
-
-// fastBlitRGBA is the row-copy fast path: RGBA8 rows are contiguous, so
-// one copy per row replaces w*h SetRGBA calls (VC0's fix, reused here).
-func fastBlitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	data := dst.Data()
-	rowLen := w * 4
-	if len(data) >= h*rowLen {
-		for y := 0; y < h; y++ {
-			copy(data[y*rowLen:(y+1)*rowLen], pix[y*rowLen:(y+1)*rowLen])
-		}
-		dst.MarkPixelsDirty()
-		dst.InvalidatePremulCache()
-		return
-	}
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }

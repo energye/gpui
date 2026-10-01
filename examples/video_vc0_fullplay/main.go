@@ -87,32 +87,22 @@ func main() {
 
 	// Live picture: the same clip looping so eyes can verify motion
 	// while the startup gate already proved one full pass to Ended.
-	// The frame buffer is sized ONCE from the startup chain's clip info
-	// (1280x720) — VR4/VC0 use one buffer per window, never per-frame alloc.
-	liveW, liveH := 1280, 720
-	if st.width > 0 && st.height > 0 {
-		liveW, liveH = int(st.width), int(st.height)
-	}
+	// Runs on the P2 direct bridge: frames upload once and draw as a
+	// zero-upload quad; the window device is borrowed on the tick.
 	live, err := govideo.OpenFile(st.path, govideo.Options{Loop: true})
 	if err != nil && chainErr == "" {
 		chainErr = "直播打不开：" + err.Error()
 		chainOK = 0
 		yuvReady = 0
 	}
-	var liveImg *rendering.RenderImage
-	var liveBuf *render.ImageBuf
+	bridge := render.NewVideoBridge(nil)
+	defer bridge.Close()
+	var liveNode *rendering.RenderVideo
 	if live != nil {
 		defer live.Close()
-		var bufErr error
-		liveBuf, bufErr = render.NewImageBuf(liveW, liveH, render.FormatRGBA8)
-		if bufErr != nil && chainErr == "" {
-			chainErr = "显存建不起：" + bufErr.Error()
-			chainOK = 0
-			yuvReady = 0
-		}
-		liveImg = rendering.NewRenderImage(480, 270)
+		liveNode = rendering.NewRenderVideo(480, 270, bridge)
 		shell.Body.LabelAt("直播（同片循环，不黑不花）", 13, 20, 230, 0.6, 0.8, 0.95)
-		shell.Body.Place(liveImg, 20, 256)
+		shell.Body.Place(liveNode, 20, 256)
 	}
 
 	var proc scheduler.ProcessTracker
@@ -142,18 +132,18 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		if hotTick%30 == 0 {
+			if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
+				bridge.EnsureDevice(dev)
+			}
+		}
 		app.ScheduleFrame()
 		proc.Sample()
 
-		if live != nil && liveBuf != nil {
+		if live != nil && liveNode != nil {
 			if f, _ := live.Poll(); f != nil {
 				liveShown++
-				if f.Width != liveW || f.Height != liveH {
-					liveNote = fmt.Sprintf("尺寸漂移 %dx%d", f.Width, f.Height)
-				} else {
-					fastBlitRGBA(liveBuf, f.Pix, liveW, liveH)
-					liveImg.SetImageShared(liveBuf)
-				}
+				liveNode.SetFrame(f.Width, f.Height, f.Pix)
 			}
 		}
 
@@ -226,41 +216,6 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "video_vc0_fullplay: 通过 解码=%d 显示=%d 丢=%d 直播=%d 上屏=%d 用时=%.1f秒\n",
 		st.decoded, st.shown, st.dropped, liveShown, app.PresentCount(), elapsed)
-}
-
-// blitRGBA copies a player frame into the shared display buffer and flags
-// it for GPU reupload (window side only). Without MarkPixelsDirty the GPU
-// texture cache keys on GenerationID and would keep showing the first
-// frame forever: numbers run, picture frozen.
-func blitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	fastBlitRGBA(dst, pix, w, h)
-}
-
-// fastBlitRGBA is the row-copy fast path: RGBA8 rows are contiguous, so
-// one copy per row replaces w*h SetRGBA calls (520x faster on 720p, and
-// the fix that took VC0 from 41fps/p95 65ms to the 60档 line).
-func fastBlitRGBA(dst *render.ImageBuf, pix []byte, w, h int) {
-	if dst == nil || len(pix) < w*h*4 {
-		return
-	}
-	data := dst.Data()
-	rowLen := w * 4
-	if len(data) >= h*rowLen {
-		for y := 0; y < h; y++ {
-			copy(data[y*rowLen:(y+1)*rowLen], pix[y*rowLen:(y+1)*rowLen])
-		}
-		dst.MarkPixelsDirty()
-		dst.InvalidatePremulCache()
-		return
-	}
-	// Strided fallback (kept, never hit on RGBA8): per-pixel copy.
-	for yy := 0; yy < h; yy++ {
-		for xx := 0; xx < w; xx++ {
-			o := (yy*w + xx) * 4
-			_ = dst.SetRGBA(xx, yy, pix[o], pix[o+1], pix[o+2], pix[o+3])
-		}
-	}
-	dst.MarkPixelsDirty()
 }
 
 type ticker struct{ on func(dt float64) }
