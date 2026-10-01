@@ -733,14 +733,16 @@ func (a *GlyphMaskAtlas) evictTail() {
 
 // resetPage clears a page's allocator and pixel data, making it available
 // for new allocations. Entries referencing this page must already be removed.
-// Must be called with a.mu held.
+// The page is left clean: its GPU texture already holds these zeros from
+// the original full-page upload at creation, and no subsequent upload ever
+// wrote anything else to it — re-uploading the same zeros would burn a
+// full-page transfer for no visible change. Must be called with a.mu held.
 func (a *GlyphMaskAtlas) resetPage(page *glyphMaskPage) {
 	page.allocator.Reset()
 	clear(page.Data)
-	// Full-page dirty so GPU texture is zeroed after eviction/reset.
-	page.dirty = true
+	page.dirty = false
 	page.dirtyMinX, page.dirtyMinY = 0, 0
-	page.dirtyMaxX, page.dirtyMaxY = page.Size, page.Size
+	page.dirtyMaxX, page.dirtyMaxY = 0, 0
 	page.entryCount = 0
 	// UV identity for any external caches (layout templates) is now invalid.
 	a.generation.Add(1)
