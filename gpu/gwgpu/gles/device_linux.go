@@ -99,27 +99,25 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (hal.Buffer, error) {
 		usage:  desc.Usage,
 		label:  desc.Label,
 		glCtx:  glCtx,
+		ctx:    d.ctx,
 	}
 
 	// Handle MappedAtCreation
 	if desc.MappedAtCreation {
 		buf.mapped = make([]byte, desc.Size)
 	}
-	hal.VramAdd(buf.NativeHandle(), desc.Size)
+	hal.VramAdd(vramBufferHandle(buf.id), desc.Size)
 
 	return buf, nil
 }
 
-// DestroyBuffer destroys a GPU buffer.
-// Caller must not hold the AdapterContext lock; this method acquires it so
-// glDeleteBuffers runs with a current context after Unlock unmakes between ops.
+// DestroyBuffer destroys a GPU buffer. Delegates to the self-locked
+// Buffer.Destroy (Windows twin: device.go); no pre-lock (non-reentrant).
 func (d *Device) DestroyBuffer(buffer hal.Buffer) {
 	b, ok := buffer.(*Buffer)
-	if !ok || d.ctx == nil {
+	if !ok {
 		return
 	}
-	_ = d.ctx.Lock()
-	defer d.ctx.Unlock()
 	b.Destroy()
 }
 
@@ -263,8 +261,8 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 			int32(desc.Size.Width), int32(desc.Size.Height), true)
 		if glErr := glCtx.GetError(); glErr != 0 {
 			glCtx.DeleteTextures(id)
-			return nil, fmt.Errorf("gles: TexImage2DMultisample failed: GL error 0x%x (format=0x%x, samples=%d, %dx%d)",
-				glErr, internalFormat, sampleCount, desc.Size.Width, desc.Size.Height)
+			return nil, glAllocErr("TexImage2DMultisample", glErr,
+				fmt.Sprintf("format=0x%x, samples=%d, %dx%d", internalFormat, sampleCount, desc.Size.Width, desc.Size.Height))
 		}
 
 	case gl.TEXTURE_2D:
@@ -275,8 +273,8 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 				width, height, 0, format, dataType, 0)
 			if glErr := glCtx.GetError(); glErr != 0 {
 				glCtx.DeleteTextures(id)
-				return nil, fmt.Errorf("gles: TexImage2D failed: GL error 0x%x (format=0x%x, level=%d, %dx%d)",
-					glErr, internalFormat, level, width, height)
+				return nil, glAllocErr("TexImage2D", glErr,
+					fmt.Sprintf("format=0x%x, level=%d, %dx%d", internalFormat, level, width, height))
 			}
 		}
 
@@ -288,6 +286,11 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 				height := maxInt32(1, int32(desc.Size.Height>>level))
 				glCtx.TexImage2D(faceTarget, int32(level), int32(internalFormat),
 					width, height, 0, format, dataType, 0)
+				if glErr := glCtx.GetError(); glErr != 0 {
+					glCtx.DeleteTextures(id)
+					return nil, glAllocErr("TexImage2D-cube", glErr,
+						fmt.Sprintf("format=0x%x, face=%d, level=%d, %dx%d", internalFormat, face, level, width, height))
+				}
 			}
 		}
 	}
@@ -314,7 +317,7 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 		"width", desc.Size.Width,
 		"height", desc.Size.Height,
 	)
-	hal.VramAdd(uintptr(id), need)
+	hal.VramAdd(vramTextureHandle(id), need)
 
 	return &Texture{
 		id:          id,
@@ -325,17 +328,17 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 		mipLevels:   desc.MipLevelCount,
 		sampleCount: sampleCount,
 		glCtx:       glCtx,
+		ctx:         d.ctx,
 	}, nil
 }
 
-// DestroyTexture destroys a GPU texture.
+// DestroyTexture destroys a GPU texture. Delegates to the self-locked
+// Texture.Destroy (Windows twin: device.go); no pre-lock (non-reentrant).
 func (d *Device) DestroyTexture(texture hal.Texture) {
 	t, ok := texture.(*Texture)
-	if !ok || d.ctx == nil {
+	if !ok {
 		return
 	}
-	_ = d.ctx.Lock()
-	defer d.ctx.Unlock()
 	t.Destroy()
 }
 
@@ -379,23 +382,26 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (hal.Sampler, error) {
 	defer d.ctx.Unlock()
 
 	if desc == nil {
-		return &Sampler{glCtx: glCtx}, nil
+		return &Sampler{glCtx: glCtx, ctx: d.ctx}, nil
 	}
 	id := configureSampler(glCtx, desc)
+	if id != 0 {
+		hal.VramAdd(vramSamplerHandle(id), hal.VramSamplerBytes)
+	}
 	return &Sampler{
 		id:    id,
 		glCtx: glCtx,
+		ctx:   d.ctx,
 	}, nil
 }
 
-// DestroySampler destroys a sampler.
+// DestroySampler destroys a sampler. Delegates to the self-locked
+// Sampler.Destroy (no pre-lock: see DestroyBuffer).
 func (d *Device) DestroySampler(sampler hal.Sampler) {
 	s, ok := sampler.(*Sampler)
-	if !ok || d.ctx == nil {
+	if !ok {
 		return
 	}
-	_ = d.ctx.Lock()
-	defer d.ctx.Unlock()
 	s.Destroy()
 }
 
@@ -461,17 +467,17 @@ func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (hal.ShaderMod
 		wgsl:  desc.WGSL,
 		spirv: desc.SPIRV,
 		glCtx: d.ctx.GL(),
+		ctx:   d.ctx,
 	}, nil
 }
 
-// DestroyShaderModule destroys a shader module.
+// DestroyShaderModule destroys a shader module. Delegates to the
+// self-locked ShaderModule.Destroy (no pre-lock: see DestroyBuffer).
 func (d *Device) DestroyShaderModule(module hal.ShaderModule) {
 	m, ok := module.(*ShaderModule)
-	if !ok || d.ctx == nil {
+	if !ok {
 		return
 	}
-	_ = d.ctx.Lock()
-	defer d.ctx.Unlock()
 	m.Destroy()
 }
 
@@ -598,6 +604,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 		programID:         programID,
 		layout:            layout,
 		glCtx:             glCtx,
+		ctx:               d.ctx,
 		primitiveTopology: desc.Primitive.Topology,
 		cullMode:          desc.Primitive.CullMode,
 		frontFace:         desc.Primitive.FrontFace,
@@ -605,6 +612,9 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 		multisample:       desc.Multisample,
 		colorTargets:      colorTargets,
 		vertexBuffers:     desc.Vertex.Buffers,
+	}
+	if programID != 0 {
+		hal.VramAdd(vramProgramHandle(programID), hal.VramPipelineBytes)
 	}
 
 	// Build SamplerBindMap from TextureMappings using pre-computed BindingMap.
@@ -628,14 +638,13 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 	return pipeline, nil
 }
 
-// DestroyRenderPipeline destroys a render pipeline.
+// DestroyRenderPipeline destroys a render pipeline. Delegates to the
+// self-locked RenderPipeline.Destroy (no pre-lock: see DestroyBuffer).
 func (d *Device) DestroyRenderPipeline(pipeline hal.RenderPipeline) {
 	p, ok := pipeline.(*RenderPipeline)
-	if !ok || d.ctx == nil {
+	if !ok {
 		return
 	}
-	_ = d.ctx.Lock()
-	defer d.ctx.Unlock()
 	p.Destroy()
 }
 
@@ -703,6 +712,9 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (hal.Com
 
 	glCtx.DeleteShader(computeID)
 
+	if programID != 0 {
+		hal.VramAdd(vramProgramHandle(programID), hal.VramPipelineBytes)
+	}
 	hal.Logger().Debug("gles: compute pipeline created",
 		"programID", programID,
 		"entryPoint", desc.EntryPoint,
@@ -713,17 +725,17 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (hal.Com
 		programID: programID,
 		layout:    layout,
 		glCtx:     glCtx,
+		ctx:       d.ctx,
 	}, nil
 }
 
-// DestroyComputePipeline destroys a compute pipeline.
+// DestroyComputePipeline destroys a compute pipeline. Delegates to the
+// self-locked ComputePipeline.Destroy (no pre-lock: see DestroyBuffer).
 func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline) {
 	p, ok := pipeline.(*ComputePipeline)
-	if !ok || d.ctx == nil {
+	if !ok {
 		return
 	}
-	_ = d.ctx.Lock()
-	defer d.ctx.Unlock()
 	p.Destroy()
 }
 
@@ -734,9 +746,14 @@ func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error)
 	return nil, hal.ErrTimestampsNotSupported
 }
 
-// DestroyQuerySet is a nil-safe no-op (Windows creates nothing;
-// add Lock with GL objects if queries get implemented).
-func (d *Device) DestroyQuerySet(_ hal.QuerySet) {
+// DestroyQuerySet destroys a query set. Delegates to the self-locked
+// QuerySet.Destroy (no pre-lock: see DestroyBuffer).
+func (d *Device) DestroyQuerySet(qs hal.QuerySet) {
+	q, ok := qs.(*QuerySet)
+	if !ok || q == nil {
+		return
+	}
+	q.Destroy()
 }
 
 // CreateCommandEncoder creates a command encoder.
@@ -761,45 +778,81 @@ func (d *Device) CreateCommandEncoder(_ *CommandEncoderDescriptor) (hal.CommandE
 
 // CreateFence creates a synchronization fence.
 func (d *Device) CreateFence() (hal.Fence, error) {
-	return NewFence(d.ctx.GL()), nil
+	f := NewFence(d.ctx.GL())
+	f.ctx = d.ctx
+	return f, nil
 }
 
-// DestroyFence destroys a fence.
+// DestroyFence destroys a fence. Delegates to the self-locked
+// Fence.Destroy (no pre-lock: see DestroyBuffer).
 func (d *Device) DestroyFence(fence hal.Fence) {
 	f, ok := fence.(*Fence)
-	if !ok || d.ctx == nil {
+	if !ok {
 		return
 	}
-	_ = d.ctx.Lock()
-	defer d.ctx.Unlock()
 	f.Destroy()
 }
 
-// WaitForFence waits for a fence to reach the specified value.
+// WaitForFence waits for a fence to reach the specified value. The wait
+// issues GL queries (see Fence contract in resource.go), so it binds
+// first; on bind failure it answers from the cached value.
 func (d *Device) WaitForFence(fence hal.Fence, value uint64, timeout time.Duration) (bool, error) {
 	f, ok := fence.(*Fence)
 	if !ok {
 		return false, fmt.Errorf("gles: invalid fence type")
 	}
+	if d.ctx == nil {
+		return f.Wait(value, timeout), nil
+	}
+	if _, err := d.ctx.TryLock(); err != nil {
+		return f.lastCompleted.Load() >= value, nil
+	}
+	defer d.ctx.Unlock()
 	return f.Wait(value, timeout), nil
 }
 
-// ResetFence resets a fence to the unsignaled state.
+// ResetFence resets a fence to the unsignaled state. Binds first: Reset
+// deletes GL sync objects, which is a silent no-op with nothing current.
+// No-context devices (nil EGL in tests, nil ctx) reset the bookkeeping
+// directly — same as the counter fallback path, no GL touched.
 func (d *Device) ResetFence(fence hal.Fence) error {
 	f, ok := fence.(*Fence)
 	if !ok {
 		return fmt.Errorf("gles: invalid fence type")
 	}
+	if d.ctx == nil {
+		f.Reset()
+		return nil
+	}
+	if _, err := d.ctx.TryLock(); err != nil {
+		// No GL context (unit-test devices, teardown): the fence holds
+		// no sync objects in this state, so reset the counters inline.
+		// Only a live GL fence with pending sync objects needs the bind.
+		if f.glCtx == nil || !f.glCtx.SupportsFenceSync() {
+			f.Reset()
+			return nil
+		}
+		return fmt.Errorf("gles: ResetFence bind failed: %w", err)
+	}
+	defer d.ctx.Unlock()
 	f.Reset()
 	return nil
 }
 
 // GetFenceStatus returns true if the fence is signaled (non-blocking).
+// Binds first like WaitForFence; on bind failure answers from cache.
 func (d *Device) GetFenceStatus(fence hal.Fence) (bool, error) {
 	f, ok := fence.(*Fence)
 	if !ok {
 		return false, fmt.Errorf("gles: invalid fence type")
 	}
+	if d.ctx == nil {
+		return f.GetValue() > 0, nil
+	}
+	if _, err := d.ctx.TryLock(); err != nil {
+		return f.lastCompleted.Load() > 0, nil
+	}
+	defer d.ctx.Unlock()
 	return f.GetValue() > 0, nil
 }
 
@@ -843,7 +896,10 @@ func (d *Device) TlasInstanceToBytes(_ hal.TlasInstance) []byte { return nil }
 // WaitIdle waits for all GPU work to complete.
 func (d *Device) WaitIdle() error {
 	if d.ctx != nil && d.ctx.GL() != nil {
-		glCtx := d.ctx.Lock()
+		glCtx, err := d.ctx.TryLock()
+		if err != nil {
+			return nil
+		}
 		defer d.ctx.Unlock()
 		glCtx.Finish()
 	}
@@ -874,11 +930,14 @@ func (d *Device) Release() {
 		d.vao = 0
 		return
 	}
-	glCtx := d.ctx.Lock()
+	glCtx, err := d.ctx.TryLock()
+	if err != nil {
+		return
+	}
+	defer d.ctx.Unlock()
 	if glCtx != nil {
 		glCtx.DeleteVertexArrays(d.vao)
 	}
-	d.ctx.Unlock()
 	d.vao = 0
 }
 

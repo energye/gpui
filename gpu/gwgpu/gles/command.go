@@ -358,14 +358,15 @@ func (e *CommandEncoder) setupSurfaceTarget(desc *hal.RenderPassDescriptor, tv *
 				maxDepth: 1,
 			})
 		}
-		// Attach depth/stencil to the swapchain FBO if requested.
-		// The swapchain FBO is a real GL FBO (not FBO 0), so glFramebufferTexture2D
-		// works.
+		// Attach depth/stencil only when it covers the color target (helper
+		// keeps the surface and offscreen paths in one place).
 		if desc.DepthStencilAttachment != nil {
 			if dsView, ok := desc.DepthStencilAttachment.View.(*TextureView); ok && dsView.texture != nil {
-				e.commands = append(e.commands, &AttachDepthStencilToFBOCommand{
-					depthTexture: dsView.texture,
-				})
+				if depthSizeMatches(dsView.texture, surf.fboWidth, surf.fboHeight) {
+					e.commands = append(e.commands, &AttachDepthStencilToFBOCommand{
+						depthTexture: dsView.texture,
+					})
+				}
 			}
 		}
 		return
@@ -373,6 +374,20 @@ func (e *CommandEncoder) setupSurfaceTarget(desc *hal.RenderPassDescriptor, tv *
 	// Fallback: no surface texture (shouldn't normally happen for isSurface=true
 	// views, but preserves prior behavior for tests / degenerate cases).
 	e.commands = append(e.commands, &BindFramebufferCommand{fbo: 0})
+}
+
+// depthSizeMatches reports whether a depth/stencil texture covers a w×h
+// color target. A degraded 1x1 depth serving a full-size target must not
+// attach: the pair reports FBO-complete yet silently drops all color draws
+// (probe-verified 64x64 color + 1x1 depth clears to zero), so drawing runs
+// without depth and depth returns on the next full-size probe. Both the
+// surface path (target = swapchain FBO size) and the offscreen path
+// (target = color texture size) share it.
+func depthSizeMatches(tex *Texture, w, h uint32) bool {
+	if tex == nil {
+		return false
+	}
+	return tex.size.Width == w && tex.size.Height == h
 }
 
 // setupOffscreenTarget configures an offscreen FBO with all color attachments,
@@ -398,13 +413,16 @@ func (e *CommandEncoder) setupOffscreenTarget(
 		})
 	}
 
-	// Attach depth/stencil texture to the FBO if provided.
+	// Attach depth/stencil only when it covers the color target (twin of the
+	// surface path above).
 	if desc.DepthStencilAttachment != nil {
 		if dsView, ok := desc.DepthStencilAttachment.View.(*TextureView); ok && dsView.texture != nil {
-			e.commands = append(e.commands, &AttachDepthStencilCommand{
-				colorTexture: tv.texture,
-				depthTexture: dsView.texture,
-			})
+			if tv.texture != nil && depthSizeMatches(dsView.texture, tv.texture.size.Width, tv.texture.size.Height) {
+				e.commands = append(e.commands, &AttachDepthStencilCommand{
+					colorTexture: tv.texture,
+					depthTexture: dsView.texture,
+				})
+			}
 		}
 	}
 

@@ -31,13 +31,13 @@ type Surface struct {
 	config     *hal.SurfaceConfiguration
 
 	// Swapchain offscreen framebuffer. User render passes that target this
-	// Surface render into swapchainFBO (backed by colorRenderbuffer), not FBO 0.
-	// Queue.Present blits this FBO to the default framebuffer with an explicit
-	// Y-flip before SwapBuffers.
-	swapchainFBO      uint32
-	colorRenderbuffer uint32
-	fboWidth          uint32
-	fboHeight         uint32
+	// Surface render into swapchainFBO (backed by a color texture, not
+	// FBO 0). Queue.Present blits this FBO to the default framebuffer
+	// with an explicit Y-flip before SwapBuffers.
+	swapchainFBO uint32
+	colorTexture uint32
+	fboWidth     uint32
+	fboHeight    uint32
 	// vramHandle is the ledger slot for the swapchain surface bytes
 	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
 	vramHandle uintptr
@@ -129,6 +129,15 @@ func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) erro
 		wgl.ReleaseDC(s.hwnd, hdc)
 	}
 
+	// Same-extent/format fast path (shared helper in surface.go; Linux twin:
+	// resource_linux.go): a present-mode flip must not realloc the FBO when
+	// the size did not change. Skip only with a live FBO backing the size;
+	// FBO 0 retries.
+	if s.sameExtentConfigured(config) {
+		s.config = config
+		return nil
+	}
+
 	// Scope 2: Allocate swapchain FBO on hidden DC. Stop on bind failure
 	// (Linux twin: resource_linux.go); a 0 handle would only fail later
 	// with a bare Gen error and hide the real cause.
@@ -152,13 +161,13 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 	glCtx := s.ctx.Lock()
 	defer s.ctx.Unlock()
 
-	destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorRenderbuffer)
+	destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorTexture)
 	if s.vramHandle != 0 {
 		hal.VramForget(s.vramHandle)
 		s.vramHandle = 0
 	}
 	s.swapchainFBO = 0
-	s.colorRenderbuffer = 0
+	s.colorTexture = 0
 	s.fboWidth = 0
 	s.fboHeight = 0
 	s.current = nil
@@ -222,14 +231,17 @@ func (s *Surface) ActualExtent() (width, height uint32) {
 
 // Destroy releases the surface resources.
 // Does NOT destroy the GL context — that's owned by Instance.
+// Bind failure (driver gone) still clears bookkeeping: handles die
+// with the driver.
 func (s *Surface) Destroy() {
 	if s.ctx != nil {
-		glCtx := s.ctx.Lock()
-		destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorRenderbuffer)
-		s.ctx.Unlock()
+		if glCtx, err := s.ctx.TryLock(); err == nil {
+			defer s.ctx.Unlock()
+			destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorTexture)
+		}
 	}
 	s.swapchainFBO = 0
-	s.colorRenderbuffer = 0
+	s.colorTexture = 0
 	s.current = nil
 }
 

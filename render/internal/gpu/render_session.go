@@ -893,22 +893,27 @@ func (s *GPURenderSession) SetSurfaceTarget(view hal.TextureView, width, height 
 	modeChanged := (view == nil) != (s.surfaceView == nil)
 	sizeChanged := width != s.surfaceWidth || height != s.surfaceHeight
 	if modeChanged || sizeChanged {
-		// Drain the GPU before destroying textures — an in-flight command
-		// buffer may still reference framebuffers built from these views.
-		if len(s.prevCmdBufs) > 0 {
-			s.drainQueue()
-			for _, cb := range s.prevCmdBufs {
-				if cb != nil {
-					s.device.FreeCommandBuffer(cb)
-				}
+		// Offscreen (view == nil) only: no present barrier exists, so drain
+		// before destroying. Surface resizes skip the drain: retired
+		// textures ride pendingTexRetire and release at the next BeginFrame
+		// after the present barrier (same parity as ensureTexturesForView).
+		// The BeginFrame below frees previous-frame CBs the same way.
+		if view == nil {
+			// Drain the GPU before destroying textures — an in-flight command
+			// buffer may still reference framebuffers built from these views.
+			if len(s.prevCmdBufs) > 0 {
+				s.drainQueue()
+				s.freePrevCmdBufs()
 			}
-			s.prevCmdBufs = s.prevCmdBufs[:0]
 		}
 		s.textures.destroyTextures()
-		// GPU was drained above (or nothing in flight): safe to release the
-		// textures and grow-retired buffers immediately.
-		s.pendingTexRetire.Drain()
-		s.pendingBufRetire.Drain()
+		if view == nil {
+			// GPU was drained above (or nothing in flight): safe to release the
+			// textures and grow-retired buffers immediately. Surface mode
+			// defers to the next BeginFrame post-present drain instead.
+			s.pendingTexRetire.Drain()
+			s.pendingBufRetire.Drain()
+		}
 	}
 
 	// Detect new frame: swapchain creates a new TextureView each frame
@@ -934,6 +939,19 @@ func (s *GPURenderSession) SetSurfaceTarget(view hal.TextureView, width, height 
 			"modeChanged", modeChanged, "sizeChanged", sizeChanged,
 		)
 	}
+}
+
+// freePrevCmdBufs releases previous-frame command buffers. Call only where
+// no present barrier exists (offscreen paths) or after an explicit drain:
+// the buffers may still be in flight otherwise. Surface paths rely on the
+// present barrier + BeginFrame instead and must not call this mid-frame.
+func (s *GPURenderSession) freePrevCmdBufs() {
+	for _, cb := range s.prevCmdBufs {
+		if cb != nil {
+			s.device.FreeCommandBuffer(cb)
+		}
+	}
+	s.prevCmdBufs = s.prevCmdBufs[:0]
 }
 
 // BeginFrame resets per-frame state. Call this at the start of each frame
@@ -971,12 +989,7 @@ func (s *GPURenderSession) BeginFrame() {
 	if len(s.prevCmdBufs) > 0 && (forceDrain || !s.lastSubmitUsedSurface) {
 		s.drainQueue()
 	}
-	for _, cb := range s.prevCmdBufs {
-		if cb != nil {
-			s.device.FreeCommandBuffer(cb)
-		}
-	}
-	s.prevCmdBufs = s.prevCmdBufs[:0]
+	s.freePrevCmdBufs()
 	s.lastSubmitUsedSurface = false
 	// the previous frame's GPU work has completed at this point (vsync
 	// barrier or the drainQueue above) — release textures retired by that
@@ -1258,14 +1271,15 @@ func (s *GPURenderSession) ensureTexturesForView(activeView hal.TextureView, w, 
 	modeNeedsResolve := activeView == nil
 	hasResolve := s.textures.resolveTex != nil
 	modeChanged := hasSessionTex && (modeNeedsResolve != hasResolve)
-	if (sizeChanged || modeChanged) && (len(s.prevCmdBufs) > 0 || hasSessionTex) {
+	if (sizeChanged || modeChanged) && (len(s.prevCmdBufs) > 0 || hasSessionTex) && activeView == nil {
+		// Offscreen only: no present barrier exists, so drain before
+		// destroying. Surface mode (activeView != nil) skips the drain:
+		// retired textures ride pendingTexRetire and release at the next
+		// BeginFrame after the present barrier (Flutter fl_framebuffer
+		// parity: glDelete with no glFinish). Draining here stalled every
+		// resize-storm frame (glFinish each step, p99 ~376ms on GL).
 		s.drainQueue()
-		for _, cb := range s.prevCmdBufs {
-			if cb != nil {
-				s.device.FreeCommandBuffer(cb)
-			}
-		}
-		s.prevCmdBufs = s.prevCmdBufs[:0]
+		s.freePrevCmdBufs()
 	}
 
 	if activeView != nil {
@@ -1955,13 +1969,13 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	}
 	s.leadSubmitClean = s.leadSubmitClean[:0]
 	s.deferredConvexUses = 0
-	for _, cb := range s.prevCmdBufs {
-		if cb != nil {
-			s.device.FreeCommandBuffer(cb)
-		}
-	}
-	s.prevCmdBufs = s.prevCmdBufs[:0]
+	s.freePrevCmdBufs()
 	s.textures.destroyTextures()
+	// The size-keyed stencil pool is not covered by destroyTextures: without
+	// this an OOM purge leaves up to stencilPoolCap stale depth textures
+	// pinned while the retry runs. Queued through retireFn (no WaitIdle
+	// stall here — same semantics as destroyTextures above).
+	s.textures.ClearStencilPool()
 	// GPU drained above: release anything retired by this purge now.
 	s.pendingTexRetire.Drain()
 	s.pendingBufRetire.Drain()
@@ -1999,12 +2013,7 @@ func (s *GPURenderSession) Destroy() {
 	}
 	s.leadSubmitClean = s.leadSubmitClean[:0]
 	s.deferredConvexUses = 0
-	for _, cb := range s.prevCmdBufs {
-		if cb != nil {
-			s.device.FreeCommandBuffer(cb)
-		}
-	}
-	s.prevCmdBufs = s.prevCmdBufs[:0]
+	s.freePrevCmdBufs()
 	s.destroyPersistentBuffers()
 	// Only destroy shape pipelines created by this session. Shared pipelines
 	// injected via SetSDFPipeline/SetConvexRenderer/SetStencilRenderer are owned

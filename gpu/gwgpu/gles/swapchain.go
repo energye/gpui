@@ -166,7 +166,21 @@ func (sc *Swapchain) ConfigureFromCapabilities(adapter hal.Adapter) error {
 	return sc.Configure()
 }
 
-// Resize updates extent and reconfigures on change.
+// applyOrRevert runs apply, then Configure; on failure it runs revert and
+// returns the error. Caller must hold sc.mu. Resize and SetPresentModeForce
+// share it so a failed Configure never leaves a size/mode whose FBO was
+// just destroyed (empty shell blitting nothing until the storm settles).
+func (sc *Swapchain) applyOrRevert(apply, revert func()) error {
+	apply()
+	if err := sc.Configure(); err != nil {
+		revert()
+		return err
+	}
+	return nil
+}
+
+// Resize updates extent and reconfigures on change. The new size is only
+// committed when Configure succeeds (via applyOrRevert).
 func (sc *Swapchain) Resize(width, height uint32) error {
 	if sc == nil {
 		return fmt.Errorf("gles: swapchain is nil")
@@ -179,9 +193,11 @@ func (sc *Swapchain) Resize(width, height uint32) error {
 	if sc.Width == width && sc.Height == height && sc.configured {
 		return nil
 	}
-	sc.Width = width
-	sc.Height = height
-	return sc.Configure()
+	oldW, oldH := sc.Width, sc.Height
+	return sc.applyOrRevert(
+		func() { sc.Width, sc.Height = width, height },
+		func() { sc.Width, sc.Height = oldW, oldH },
+	)
 }
 
 // PresentModeForVsync picks Fifo steady vs Immediate low-latency.
@@ -192,7 +208,8 @@ func (sc *Swapchain) PresentModeForVsync(on bool) gputypes.PresentMode {
 	return hal.PresentModeImmediate
 }
 
-// SetPresentModeForce reconfigures with an explicit mode.
+// SetPresentModeForce reconfigures with an explicit mode. The mode is only
+// committed when Configure succeeds (via applyOrRevert, same as Resize).
 func (sc *Swapchain) SetPresentModeForce(mode gputypes.PresentMode) error {
 	if sc == nil {
 		return fmt.Errorf("gles: swapchain is nil")
@@ -205,8 +222,11 @@ func (sc *Swapchain) SetPresentModeForce(mode gputypes.PresentMode) error {
 	if sc.PresentMode == mode && sc.configured {
 		return nil
 	}
-	sc.PresentMode = mode
-	return sc.Configure()
+	old := sc.PresentMode
+	return sc.applyOrRevert(
+		func() { sc.PresentMode = mode },
+		func() { sc.PresentMode = old },
+	)
 }
 
 // BeginFrame acquires the next surface texture and boxes its view.
@@ -228,6 +248,25 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if !sc.configured {
 		if err := sc.Configure(); err != nil {
 			return nil, err
+		}
+	}
+	// Borrowed-frame convergence: a storm step may have borrowed the old FBO
+	// (fbo size != requested size) to survive transient driver pressure.
+	// Retry the rebuild on every later present until it converges; failures
+	// keep borrowing (Configure returns nil on borrow), so this never fails
+	// the frame. All inside the GL backend; render never sees a failure and
+	// never re-arms swapchainPending, so one transient stall cannot turn
+	// into a per-present reconfig loop.
+	if sc.configured {
+		if s, ok := sc.surf.(*Surface); ok && s.borrowedSize(sc.Width, sc.Height) {
+			_ = sc.surf.Configure(sc.dev, &hal.SurfaceConfiguration{
+				Width:       sc.Width,
+				Height:      sc.Height,
+				Format:      sc.Format,
+				Usage:       sc.Usage,
+				PresentMode: sc.PresentMode,
+				AlphaMode:   sc.AlphaMode,
+			})
 		}
 	}
 	acq, err := sc.surf.AcquireTexture(nil)

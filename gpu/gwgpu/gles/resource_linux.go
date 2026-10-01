@@ -51,11 +51,11 @@ type Surface struct {
 	isWayland bool    // true if the Context was created for Wayland
 
 	// Swapchain offscreen framebuffer. User render passes that target this
-	// Surface render into swapchainFBO (backed by colorRenderbuffer), not FBO 0.
-	// Queue.Present blits this FBO to the default framebuffer with an explicit
-	// Y-flip before SwapBuffers.
+	// Surface render into swapchainFBO (backed by a color texture, not
+	// FBO 0). Queue.Present blits this FBO to the default framebuffer
+	// with an explicit Y-flip before SwapBuffers.
 	swapchainFBO        uint32
-	colorRenderbuffer   uint32
+	colorTexture        uint32
 	fboWidth, fboHeight uint32
 	// vramHandle is the ledger slot for the swapchain surface bytes
 	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
@@ -152,6 +152,13 @@ func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) erro
 		}
 	}
 
+	// Same-extent/format fast path (shared helper in surface.go; Windows
+	// twin: resource_windows.go).
+	if s.sameExtentConfigured(config) {
+		s.config = config
+		return nil
+	}
+
 	// Swapchain FBO allocation needs a current context (Lock). A bind
 	// failure used to fall through into 0-handle allocs; stop instead —
 	// the caller surfaces the EGL error instead of a bare Gen failure.
@@ -237,20 +244,66 @@ func (s *Surface) createX11EGLSurface() error {
 	return nil
 }
 
+// recreateEGLWindowSurface destroys a dead EGL window surface and creates
+// a fresh one from the same native window (Flutter
+// AndroidSurfaceGLSkia::OnScreenSurfaceResize parity: ClearCurrent, reset
+// the old surface so its destructor runs, create the new surface, then
+// MakeCurrent). Called once after a MakeCurrent(surface) BadAlloc /
+// BadSurface failure during Present: the maximized-window logs show the
+// same 0x94a31b1 surface failing 17x without ever being rebuilt, so every
+// later frame drew into the void. Caller must NOT hold the AdapterContext
+// lock (the failed TryLockForSurface already released it).
+func (s *Surface) recreateEGLWindowSurface() error {
+	if s == nil || s.ctx == nil || s.ctx.EGL() == nil || s.windowHandle == 0 {
+		return fmt.Errorf("gles: cannot recreate EGL surface (no context/window)")
+	}
+	disp := s.eglDisplay
+	if disp == 0 {
+		disp = s.ctx.EGL().Display()
+	}
+	// Ensure the dead surface is not current before destroying it
+	// (Flutter windows/egl Surface::Destroy parity).
+	egl.MakeCurrent(disp, egl.NoSurface, egl.NoSurface, egl.NoContext)
+	if s.eglSurface != 0 && disp != 0 {
+		egl.DestroySurface(disp, s.eglSurface)
+		s.eglSurface = 0
+	}
+	// Wayland owns an extra wl_egl_window wrapper: drop it so the create
+	// below builds a fresh one at the current size.
+	if s.eglWindow != 0 {
+		egl.WlEGLWindowDestroy(s.eglWindow)
+		s.eglWindow = 0
+	}
+	w, h := uint32(0), uint32(0)
+	if s.config != nil {
+		w, h = s.config.Width, s.config.Height
+	}
+	if err := s.createEGLWindowSurface(w, h); err != nil {
+		return err
+	}
+	hal.Logger().Info("gles: EGL window surface recreated",
+		"eglSurface", fmt.Sprintf("0x%x", s.eglSurface),
+		"window", fmt.Sprintf("0x%x", s.windowHandle),
+	)
+	return nil
+}
+
 // Unconfigure marks the surface as unconfigured and releases the EGL window
-// surface and wl_egl_window (on Wayland).
+// surface and wl_egl_window (on Wayland). Bind failure (driver gone) still
+// clears bookkeeping: handles die with the driver.
 func (s *Surface) Unconfigure(_ hal.Device) {
 	if s.ctx != nil {
-		glCtx := s.ctx.Lock()
-		destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorRenderbuffer)
-		s.ctx.Unlock()
+		if glCtx, err := s.ctx.TryLock(); err == nil {
+			defer s.ctx.Unlock()
+			destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorTexture)
+		}
 	}
 	if s.vramHandle != 0 {
 		hal.VramForget(s.vramHandle)
 		s.vramHandle = 0
 	}
 	s.swapchainFBO = 0
-	s.colorRenderbuffer = 0
+	s.colorTexture = 0
 	s.fboWidth = 0
 	s.fboHeight = 0
 	s.current = nil
@@ -327,15 +380,18 @@ func (s *Surface) ActualExtent() (width, height uint32) {
 
 // Destroy releases the surface resources.
 // Order: GL resources → EGL surface → wl_egl_window → AdapterContext (if owned).
+// Bind failure (driver gone) still clears bookkeeping: handles die
+// with the driver.
 func (s *Surface) Destroy() {
 	// Release swapchain FBO before tearing down the GL context.
 	if s.ctx != nil {
-		glCtx := s.ctx.Lock()
-		destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorRenderbuffer)
-		s.ctx.Unlock()
+		if glCtx, err := s.ctx.TryLock(); err == nil {
+			defer s.ctx.Unlock()
+			destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorTexture)
+		}
 	}
 	s.swapchainFBO = 0
-	s.colorRenderbuffer = 0
+	s.colorTexture = 0
 	s.fboWidth = 0
 	s.fboHeight = 0
 	s.current = nil

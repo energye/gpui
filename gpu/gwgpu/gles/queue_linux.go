@@ -102,6 +102,14 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // metal returns the GPU-callback-driven completedIndex.
 func (q *Queue) Poll() uint64 {
 	if q.fence != nil {
+		// Fence poll issues GL queries: bind first so they run on a
+		// current context (see Fence contract in resource.go). On bind
+		// failure fall back to the cached value — same as the
+		// no-fence-sync path, no GL touched.
+		if _, err := q.ctx.TryLock(); err != nil {
+			return q.fence.lastCompleted.Load()
+		}
+		defer q.ctx.Unlock()
 		return q.fence.GetLatest()
 	}
 	return q.submissionIndex
@@ -123,9 +131,15 @@ func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
 		return nil
 	}
 	if q.batch.stage(buf, offset, data) {
-		glCtx := q.ctx.Lock()
+		// Flush now: the batch just crossed the size threshold. Bind
+		// failure keeps the payload staged (no drain) for the next
+		// Submit/Present instead of dropping it.
+		glCtx, err := q.ctx.TryLock()
+		if err != nil {
+			return fmt.Errorf("gles: WriteBuffer flush bind failed: %w", err)
+		}
+		defer q.ctx.Unlock()
 		flushWriteBatch(glCtx, newGLExecState(), q.batch.drain())
-		q.ctx.Unlock()
 	}
 	return nil
 }
@@ -212,7 +226,24 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 		return fmt.Errorf("gles: invalid surface type")
 	}
 
-	glCtx := q.ctx.LockForSurface(surf.eglSurface)
+	// Bind-or-stop: a failed MakeCurrent(surface) must not fall through
+	// into blit + SwapBuffers with nothing current (the old LockForSurface
+	// returned gl anyway, drawing 17 dead frames into the void after a
+	// maximize BadAlloc 0x3003). On failure rebuild the dead EGL surface
+	// once (Flutter OnScreenSurfaceResize parity) and retry the bind once;
+	// a still-dead surface skips the frame with an error so the caller
+	// keeps the last good image instead of presenting transparent.
+	glCtx, err := q.ctx.TryLockForSurface(surf.eglSurface)
+	if err != nil {
+		if rerr := surf.recreateEGLWindowSurface(); rerr == nil {
+			glCtx, err = q.ctx.TryLockForSurface(surf.eglSurface)
+		} else {
+			hal.Logger().Warn("gles: Present surface dead, recreate failed", "err", rerr)
+		}
+		if err != nil {
+			return fmt.Errorf("gles: Present bind surface failed (skip frame): %w", err)
+		}
+	}
 	defer q.ctx.Unlock()
 
 	if list := q.batch.drain(); len(list) > 0 {
@@ -227,7 +258,10 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 		// Stack-allocate for up to 8 rects (8 * 4 = 32 ints).
 		var stackInts [32]int32
 		ints := stackInts[:0]
-		surfaceHeight := int32(surf.fboHeight)
+		// Damage rects arrive in surface (config-size) coordinates; flip
+		// against the config height, which is the window size. Normally it
+		// equals the FBO height; while borrowing an old FBO they differ.
+		surfaceHeight := surf.presentHeight()
 		for _, r := range damageRects {
 			// Y-flip: EGL uses bottom-left origin.
 			// egl_y = surface_height - rect.Max.Y

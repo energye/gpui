@@ -83,6 +83,14 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // metal returns the GPU-callback-driven completedIndex.
 func (q *Queue) Poll() uint64 {
 	if q.fence != nil {
+		// Fence poll issues GL queries: bind first so they run on a
+		// current context (see Fence contract in resource.go). On bind
+		// failure fall back to the cached value — same as the
+		// no-fence-sync path, no GL touched.
+		if _, err := q.ctx.TryLock(); err != nil {
+			return q.fence.lastCompleted.Load()
+		}
+		defer q.ctx.Unlock()
 		return q.fence.GetLatest()
 	}
 	return q.submissionIndex
@@ -104,9 +112,15 @@ func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
 		return nil
 	}
 	if q.batch.stage(buf, offset, data) {
-		glCtx := q.ctx.Lock()
+		// Flush now: the batch just crossed the size threshold. Bind
+		// failure keeps the payload staged (no drain) for the next
+		// Submit/Present instead of dropping it.
+		glCtx, err := q.ctx.TryLock()
+		if err != nil {
+			return fmt.Errorf("gles: WriteBuffer flush bind failed: %w", err)
+		}
+		defer q.ctx.Unlock()
 		flushWriteBatch(glCtx, newGLExecState(), q.batch.drain())
-		q.ctx.Unlock()
 	}
 	return nil
 }

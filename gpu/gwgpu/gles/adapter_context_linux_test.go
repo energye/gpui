@@ -235,6 +235,70 @@ func TestDevice_DestroyPaths_AcquireLock(t *testing.T) {
 	d.DestroyRenderPipeline(&RenderPipeline{glCtx: glCtx})
 	d.DestroyComputePipeline(&ComputePipeline{glCtx: glCtx})
 	d.DestroyFence(&Fence{glCtx: glCtx})
+	d.DestroyQuerySet(&QuerySet{queries: []uint32{7}, glCtx: glCtx})
+}
+
+// TestDestroy_RetryAfterBindFailure locks the retry contract: a Destroy
+// whose bind fails must keep the GL ids AND the ledger slot so a later
+// Destroy (after recovery) really deletes instead of leaking. Nil-EGL
+// contexts always fail TryLock, which reproduces the driver-gone path
+// without a GPU.
+func TestDestroy_RetryAfterBindFailure(t *testing.T) {
+	newNilCtx := func() *AdapterContext {
+		return NewAdapterContext(nil, &gl.Context{}, false)
+	}
+	t.Run("Buffer", func(t *testing.T) {
+		b := &Buffer{id: 41, size: 64, ctx: newNilCtx()}
+		b.Destroy()
+		if b.id == 0 {
+			t.Fatal("bind failure must restore buffer id for retry")
+		}
+		if hal.VramLiveBytes() == 0 {
+			t.Skip("ledger disabled in this env; id-restore above is the assertion")
+		}
+	})
+	t.Run("Texture", func(t *testing.T) {
+		tx := &Texture{id: 42, fbo: 9, ctx: newNilCtx(),
+			size:      hal.Extent3D{Width: 64, Height: 64, DepthOrArrayLayers: 1},
+			mipLevels: 1, sampleCount: 1, format: gputypes.TextureFormatRGBA8Unorm}
+		tx.Destroy()
+		if tx.id == 0 || tx.fbo == 0 {
+			t.Fatal("bind failure must restore texture id/fbo for retry")
+		}
+	})
+	t.Run("Sampler", func(t *testing.T) {
+		s := &Sampler{id: 43, ctx: newNilCtx()}
+		s.Destroy()
+		if s.id == 0 {
+			t.Fatal("bind failure must restore sampler id for retry")
+		}
+	})
+	t.Run("RenderPipeline", func(t *testing.T) {
+		p := &RenderPipeline{programID: 44, ctx: newNilCtx()}
+		p.Destroy()
+		if p.programID == 0 {
+			t.Fatal("bind failure must restore program id for retry")
+		}
+	})
+	t.Run("FenceSyncs", func(t *testing.T) {
+		f := &Fence{pending: []glFence{{sync: 1234, value: 9}}, ctx: newNilCtx()}
+		f.Destroy()
+		if len(f.pending) == 0 {
+			t.Fatal("bind failure must restore fence syncs for retry")
+		}
+		p2 := &Fence{pending: []glFence{{sync: 1235, value: 10}}, ctx: newNilCtx()}
+		p2.Reset()
+		if len(p2.pending) == 0 {
+			t.Fatal("bind failure must restore fence syncs for retry (Reset)")
+		}
+	})
+	t.Run("QuerySet", func(t *testing.T) {
+		q := &QuerySet{queries: []uint32{45}, ctx: newNilCtx()}
+		q.Destroy()
+		if len(q.queries) == 0 {
+			t.Fatal("bind failure must restore query ids for retry")
+		}
+	})
 }
 
 func TestAdapterContext_Destroy_SerializedWithLock(t *testing.T) {

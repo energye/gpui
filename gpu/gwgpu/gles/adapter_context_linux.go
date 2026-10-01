@@ -47,11 +47,11 @@ func NewAdapterContext(eglCtx *egl.Context, glCtx *gl.Context, owns bool) *Adapt
 // no-ops (0 handles, FALSE status, empty info logs).
 var LockMakeCurrentErr = fmt.Errorf("gles: AdapterContext: MakeCurrent failed")
 
-// TryLock is Lock with a usable error: nil gl + nil error means ready,
-// nil gl + LockMakeCurrentErr means the context did not bind (typically
-// EGL_BAD_ACCESS 0x3002: another thread holds it, or the display went
-// away). Callers stop instead of issuing GL calls into the void.
-func (c *AdapterContext) TryLock() (*gl.Context, error) {
+// tryLockWith pins the goroutine, checks the EGL context, and runs bind
+// (MakeCurrent on the pbuffer/surfaceless surface, or MakeCurrentSurface on
+// a window surface). Shared by TryLock and TryLockForSurface so the
+// lock/thread/error flow lives once.
+func (c *AdapterContext) tryLockWith(bind func(*egl.Context) error) (*gl.Context, error) {
 	c.mu.Lock()
 	runtime.LockOSThread()
 
@@ -60,12 +60,20 @@ func (c *AdapterContext) TryLock() (*gl.Context, error) {
 		runtime.UnlockOSThread()
 		return nil, fmt.Errorf("gles: AdapterContext: nil egl context")
 	}
-	if err := c.eglCtx.MakeCurrent(); err != nil {
+	if err := bind(c.eglCtx); err != nil {
 		c.mu.Unlock()
 		runtime.UnlockOSThread()
 		return nil, fmt.Errorf("%w: %v", LockMakeCurrentErr, err)
 	}
 	return c.gl, nil
+}
+
+// TryLock is Lock with a usable error: non-nil gl + nil error means ready,
+// nil gl + LockMakeCurrentErr means the context did not bind (typically
+// EGL_BAD_ACCESS 0x3002: another thread holds it, or the display went
+// away). Callers stop instead of issuing GL calls into the void.
+func (c *AdapterContext) TryLock() (*gl.Context, error) {
+	return c.tryLockWith(func(ec *egl.Context) error { return ec.MakeCurrent() })
 }
 
 // Lock acquires the mutex, pins the goroutine to the current OS thread, and
@@ -85,6 +93,16 @@ func (c *AdapterContext) Lock() *gl.Context {
 		slog.Error("gles: AdapterContext.Lock MakeCurrent failed", "err", err)
 	}
 	return c.gl
+}
+
+// TryLockForSurface is the TryLock twin for a window EGLSurface: non-nil gl
+// + nil error means ready, nil gl + LockMakeCurrentErr means the bind
+// failed (dead surface, BadAlloc 0x3003, display lost). Callers stop
+// instead of issuing GL calls into the void — the old LockForSurface
+// logged and still returned gl, so Present blitted and swapped unbound
+// (transparent stall).
+func (c *AdapterContext) TryLockForSurface(surf egl.EGLSurface) (*gl.Context, error) {
+	return c.tryLockWith(func(ec *egl.Context) error { return ec.MakeCurrentSurface(surf) })
 }
 
 // LockForSurface acquires the mutex, pins the goroutine to the current OS thread,

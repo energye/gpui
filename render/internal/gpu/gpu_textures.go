@@ -380,6 +380,10 @@ func (ts *textureSet) ensureSurfaceTextures(device hal.Device, w, h uint32, labe
 		return nil
 	}
 	ts.destroyTextures()
+	// Drop pool entries from older window sizes: without this each storm
+	// step pins one more full-window depth texture (see
+	// pruneStencilPoolExcept). Queued through retireFn — no WaitIdle stall.
+	ts.pruneStencilPoolExcept(w, h)
 
 	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
@@ -485,6 +489,28 @@ func (ts *textureSet) ensureSurfaceTextures(device hal.Device, w, h uint32, labe
 	return nil
 }
 
+// pruneStencilPoolExcept releases every pooled depth/stencil entry except
+// (w,h). Called on window size change: each drag-storm step would otherwise
+// leave its size behind, pinning up to stencilPoolCap stale full-window
+// depth textures (~60MB at 1868x1016) after the storm settles — measured
+// 80M baseline growing to 170M on repeated drags. Evicted entries go
+// through releaseOrRetire (deferred via retireFn, no WaitIdle stall), like
+// LRU evictions and ClearStencilPool.
+func (ts *textureSet) pruneStencilPoolExcept(w, h uint32) {
+	if ts.stencilPool == nil {
+		return
+	}
+	for k, e := range ts.stencilPool {
+		if k.w == w && k.h == h {
+			continue
+		}
+		if e != nil {
+			ts.releaseOrRetire(e.tex, e.view)
+		}
+		delete(ts.stencilPool, k)
+	}
+}
+
 // ClearStencilPool releases every pooled depth/stencil texture (session
 // teardown). Call only when the GPU is idle/drained.
 func (ts *textureSet) ClearStencilPool() {
@@ -536,7 +562,8 @@ func (ts *textureSet) destroyTextures() {
 	// out per-frame size flips of the pass target. Flushing here
 	// would evict every pooled stencil on each flip — the exact churn the
 	// pool exists to prevent. The pool drains via takePooledStencil LRU
-	// eviction and via ClearPool on session teardown.
+	// eviction, via pruneStencilPoolExcept on window size change, and via
+	// ClearPool on session teardown.
 	if ts.resolveView != nil {
 		ts.releaseOrRetire(nil, ts.resolveView)
 		ts.resolveView = nil
