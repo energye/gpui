@@ -20,10 +20,13 @@ import (
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 )
 
-// pendingWrite stages one Queue.WriteBuffer call. Data is a slice of the
-// caller's buffer owned by the queue: all flushes happen-before the next
-// WriteBuffer returns (Submit/Present drain inline, overflow drains before
-// stage returns), so no copy is needed and no caller may mutate after.
+// pendingWrite stages one Queue.WriteBuffer call. Data aliases the caller's
+// buffer when the caller guarantees it is not mutated before the next drain
+// (all flushes happen-before the next WriteBuffer returns: Submit/Present
+// drain inline, overflow drains before stage returns), otherwise the caller
+// must pass a copy. Zero-copy staging (Rust wgpu staging-belt parity —
+// Queue.writeBuffer takes a view, no CPU copy): the hot upload path passes
+// slab-owned bytes that are never mutated after staging, so no copy is made.
 type pendingWrite struct {
 	buf    *Buffer
 	offset uint64
@@ -46,11 +49,12 @@ type writeBatch struct {
 const maxStagedBytes = 32 << 20
 
 func (b *writeBatch) stage(buf *Buffer, offset uint64, data []byte) (overflow bool) {
-	cp := append([]byte(nil), data...)
+	// Alias, don't copy: the type contract above guarantees the caller
+	// won't mutate data before the next drain consumes it.
 	b.mu.Lock()
-	b.list = append(b.list, pendingWrite{buf: buf, offset: offset, data: cp, seq: b.seq})
+	b.list = append(b.list, pendingWrite{buf: buf, offset: offset, data: data, seq: b.seq})
 	b.seq++
-	b.bytes += uint64(len(cp))
+	b.bytes += uint64(len(data))
 	overflow = b.bytes > maxStagedBytes
 	b.mu.Unlock()
 	return overflow
@@ -96,7 +100,10 @@ func flushWriteBatch(glCtx *gl.Context, st *glExecState, list []pendingWrite) {
 			glCtx.BindBuffer(buf.target, buf.id)
 		}
 		// Sweep overlapping/contiguous ranges into single uploads.
+		// Copy-on-merge: a staged slice aliases its caller, so merging must
+		// never rewrite it in place — take ownership on first merge.
 		cur := ws[0]
+		curOwned := false
 		emit := func(seg pendingWrite) {
 			if len(seg.data) == 0 {
 				return
@@ -108,10 +115,11 @@ func flushWriteBatch(glCtx *gl.Context, st *glExecState, list []pendingWrite) {
 			if nxt.offset <= curEnd {
 				// Overlap or touching: extend, later bytes winning.
 				need := nxt.offset + uint64(len(nxt.data)) - cur.offset
-				if uint64(len(cur.data)) < need {
+				if !curOwned || uint64(len(cur.data)) < need {
 					ext := make([]byte, need)
 					copy(ext, cur.data)
 					cur.data = ext
+					curOwned = true
 				}
 				copy(cur.data[nxt.offset-cur.offset:], nxt.data)
 				continue
