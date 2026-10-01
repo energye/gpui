@@ -14,12 +14,11 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// RenderVideo shows one decoded stream through the P2 direct bridge
-// (render.VideoBridge): the window feeds raw RGBA frames, Paint draws via
-// ShowSeq (upload once, zero-upload quad, fallback counted). It never
-// decodes, never imports video/ffmpeg, never runs per-pixel loops: frame
-// bytes arrive by SetFrame (one block copy into an owned buffer) and the
-// bridge owns upload/draw/fallback.
+// RenderVideo shows one decoded stream through the P2 direct bridge.
+// Upload happens on the tick (UploadFrame copies synchronously, so the
+// Poll pix may be recycled right after); Paint only draws the uploaded
+// frame (DrawCurrent, zero-upload quad, fallback counted). It never
+// decodes, never imports video/ffmpeg, never runs per-pixel loops.
 //
 // Layering: this node knows render only (same as RenderImage); the Player
 // stays in the example, which Polls on the tick and feeds frames here.
@@ -29,10 +28,8 @@ type RenderVideo struct {
 	bridge        *render.VideoBridge
 	smallW        float64
 	smallH        float64
-	buf           []byte
 	fw            int
 	fh            int
-	seq           uint64
 	hasFrame      bool
 	drewOK        bool
 	directLast    bool
@@ -58,23 +55,21 @@ func NewRenderVideoPiP(w, h, smallW, smallH float64, bridge *render.VideoBridge)
 	return v
 }
 
-// SetFrame installs one decoded frame (fw×fh RGBA). It block-copies pix
-// into an owned buffer (Poll recycles its Pix on the next call) and marks
-// paint dirty. Bad args are rejected without touching the current picture.
-func (v *RenderVideo) SetFrame(fw, fh int, pix []byte) bool {
-	if v == nil || fw < 1 || fh < 1 {
+// UploadFrame uploads one new frame on the tick and marks paint dirty.
+// pix is copied synchronously into the texture (and the fallback shadow),
+// so Poll may recycle it right after this returns.
+func (v *RenderVideo) UploadFrame(fw, fh int, pix []byte) bool {
+	if v == nil || v.bridge == nil || fw < 1 || fh < 1 {
 		return false
 	}
 	need := fw * fh * 4
 	if need <= 0 || len(pix) < need {
 		return false
 	}
-	if len(v.buf) != need {
-		v.buf = make([]byte, need)
-		v.fw, v.fh = fw, fh
+	if !v.bridge.UploadFrame(fw, fh, pix[:need]) {
+		return false
 	}
-	copy(v.buf, pix[:need])
-	v.seq++
+	v.fw, v.fh = fw, fh
 	v.hasFrame = true
 	m := sampleMean(pix[:need])
 	if !v.firstSet {
@@ -83,6 +78,12 @@ func (v *RenderVideo) SetFrame(fw, fh int, pix []byte) bool {
 	v.lastMean = m
 	v.MarkNeedsPaint()
 	return true
+}
+
+// SetFrame keeps the old Paint-fed shape: it uploads immediately.
+// Prefer UploadFrame (same cost, clearer tick/paint split).
+func (v *RenderVideo) SetFrame(fw, fh int, pix []byte) bool {
+	return v.UploadFrame(fw, fh, pix)
 }
 
 // sampleMean estimates frame brightness by strided sampling (cheap
@@ -113,7 +114,6 @@ type VideoNodeStats struct {
 	SmallDrew  bool
 	FirstMean  float64
 	LastMean   float64
-	Seq        uint64
 }
 
 // NodeStats snapshots the node.
@@ -123,7 +123,7 @@ func (v *RenderVideo) NodeStats() VideoNodeStats {
 	}
 	return VideoNodeStats{
 		DrewOK: v.drewOK, DirectLast: v.directLast, SmallDrew: v.smallDrew,
-		FirstMean: v.firstMean, LastMean: v.lastMean, Seq: v.seq,
+		FirstMean: v.firstMean, LastMean: v.lastMean,
 	}
 }
 
@@ -157,14 +157,14 @@ func (v *RenderVideo) Paint(pc *PaintContext) {
 	}
 	sz := v.size
 	ax, ay := pc.Abs(0, 0)
-	direct, ok := v.bridge.ShowSeq(v.seq, pc.DC, v.fw, v.fh, v.buf, render.VideoDrawOptions{
+	direct, ok := v.bridge.DrawCurrent(pc.DC, render.VideoDrawOptions{
 		X: ax, Y: ay, DstWidth: sz.Width, DstHeight: sz.Height, Opacity: 1,
 	})
 	v.drewOK, v.directLast = ok, direct
 	if ok && v.smallW > 0 && v.smallH > 0 {
 		sx := ax + sz.Width - v.smallW - 12
 		sy := ay + sz.Height - v.smallH - 12
-		_, ok2 := v.bridge.ShowSeq(v.seq, pc.DC, v.fw, v.fh, v.buf, render.VideoDrawOptions{
+		_, ok2 := v.bridge.DrawCurrent(pc.DC, render.VideoDrawOptions{
 			X: sx, Y: sy, DstWidth: v.smallW, DstHeight: v.smallH, Opacity: 1,
 		})
 		if ok2 {

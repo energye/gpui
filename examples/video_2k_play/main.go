@@ -105,7 +105,7 @@ func main() {
 		}
 		if f, _ := live.Poll(); f != nil {
 			liveShown++
-			node.SetFrame(f.Width, f.Height, f.Pix)
+			node.UploadFrame(f.Width, f.Height, f.Pix)
 		}
 		app.ScheduleFrame()
 		proc.Sample()

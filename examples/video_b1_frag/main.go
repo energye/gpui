@@ -206,7 +206,7 @@ func main() {
 		if live != nil {
 			if f, _ := live.Poll(); f != nil {
 				liveShown++
-				liveNode.SetFrame(f.Width, f.Height, f.Pix)
+				liveNode.UploadFrame(f.Width, f.Height, f.Pix)
 			}
 		}
 

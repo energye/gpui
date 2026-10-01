@@ -237,7 +237,7 @@ func main() {
 					// ~5/s; SetFrame only then. Same 8MB at 60Hz would
 					// cost p95 with no visual difference (VR7 green
 					// RUN60s proved it).
-					liveNode.SetFrame(f.Width, f.Height, f.Pix)
+					liveNode.UploadFrame(f.Width, f.Height, f.Pix)
 				}
 			}
 		}

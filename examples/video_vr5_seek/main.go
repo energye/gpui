@@ -229,7 +229,7 @@ func main() {
 					pendingRecoverSince = time.Time{}
 					seekNote += " 已恢复"
 				}
-				liveNode.SetFrame(f.Width, f.Height, f.Pix)
+				liveNode.UploadFrame(f.Width, f.Height, f.Pix)
 			}
 			if ended {
 				// Loop via seek: head PTS is 400 on this clip.

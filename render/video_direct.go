@@ -458,6 +458,11 @@ type VideoBridge struct {
 	lastH     int
 	fbSeq     uint64
 	hasFbSeq  bool
+	// shadow retains the last uploaded frame for the fallback draw
+	// (UploadFrame copies synchronously; Poll recycles its Pix).
+	shadow []byte
+	// hasFrame reports an uploaded frame ready for DrawCurrent.
+	hasFrame bool
 }
 
 // NewVideoBridge creates one route on the borrowed device.
@@ -553,6 +558,80 @@ func (b *VideoBridge) showImpl(seq uint64, useSeq bool, c *Context, w, h int, pi
 	return false, c.DrawVideoFrame(b.fallback, opts)
 }
 
+// UploadFrame uploads one new frame into the slot without drawing.
+// Call it on the tick with the Poll pix (valid until the next Poll):
+// the upload copies synchronously, so the pix may be recycled right
+// after it returns. Draw with DrawCurrent in Paint. No-new-frame means
+// the caller skips UploadFrame, so uploads stay equal to shown frames.
+// It returns false when there is no device yet or the upload failed —
+// the Paint draw then falls back and counts one fallback.
+func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
+	if b == nil {
+		return false
+	}
+	need := int64(w) * int64(h) * 4
+	if w < 1 || h < 1 || need <= 0 || int64(len(pix)) < need {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.pool == nil {
+		return false
+	}
+	slot, _, err := b.pool.AcquireForFrame(b.slot, w, h)
+	if err != nil {
+		return false
+	}
+	b.slot = slot
+	b.lastW, b.lastH = w, h
+	if uerr := b.pool.Upload(slot, pix[:need]); uerr != nil {
+		return false
+	}
+	b.frames++
+	b.uploads++
+	b.hasFrame = true
+	if len(b.shadow) != int(need) {
+		b.shadow = make([]byte, need)
+	}
+	copy(b.shadow, pix[:need])
+	return true
+}
+
+// DrawCurrent draws the last uploaded frame. Call it in Paint with the
+// display rect: zero-upload quad on the fast path, generic fallback
+// (block copy, counted) otherwise. ok=false means nothing was drawn.
+func (b *VideoBridge) DrawCurrent(c *Context, opts VideoDrawOptions) (direct, ok bool) {
+	if b == nil || c == nil {
+		return false, false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if !b.hasFrame || b.slot == nil {
+		return false, false
+	}
+	if c.DrawVideoSlot(b.slot, opts) {
+		return true, true
+	}
+	w, h := b.lastW, b.lastH
+	pix := b.shadow
+	if len(pix) == 0 {
+		return false, false
+	}
+	if !b.ensureFallbackLocked(w, h) {
+		return false, false
+	}
+	dst := b.fallback.Data()
+	need := int64(w) * int64(h) * 4
+	if int64(len(dst)) < need || int64(len(pix)) < need {
+		return false, false
+	}
+	copy(dst[:need], pix[:need])
+	b.fallback.MarkPixelsDirty()
+	b.fallbacks++
+	c.RecordVideoFallback("direct-fallback")
+	return false, c.DrawVideoFrame(b.fallback, opts)
+}
+
 // ensureFallbackLocked keeps one owned buffer at the current size.
 // Caller holds b.mu.
 func (b *VideoBridge) ensureFallbackLocked(w, h int) bool {
@@ -612,4 +691,6 @@ func (b *VideoBridge) Close() {
 		b.fallback.Dispose()
 		b.fallback = nil
 	}
+	b.shadow = nil
+	b.hasFrame = false
 }

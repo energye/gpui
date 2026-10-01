@@ -255,6 +255,40 @@ func TestVideoBridgeNilDeviceFallbackOnly(t *testing.T) {
 	}
 }
 
+func TestVideoBridgeTickUploadPaintDraw(t *testing.T) {
+	cases := loadVideoUploadCases(t)
+	c := cases.Aligned[0]
+	dev := openNoopVideoDevice(t)
+	br := NewVideoBridge(dev)
+	defer br.Close()
+	pix := make([]byte, c.W*c.H*4)
+	for i := range pix {
+		pix[i] = 0x7f
+	}
+	// Tick: upload copies synchronously (noop uploads fine).
+	if !br.UploadFrame(c.W, c.H, pix) {
+		t.Fatal("UploadFrame = false, want true")
+	}
+	// Paint: draw without a GPU session falls back honestly.
+	dc := NewContext(64, 64)
+	direct, ok := br.DrawCurrent(dc, VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok || direct {
+		t.Fatalf("DrawCurrent direct=%v ok=%v, want false/true", direct, ok)
+	}
+	st := br.Stats()
+	if st.Frames != 1 || st.Uploads != 1 || st.Fallbacks != 1 {
+		t.Fatalf("split stats=%+v, want frames=1 uploads=1 fallbacks=1", st)
+	}
+	// Bad upload draws nothing.
+	if br.UploadFrame(0, 10, nil) {
+		t.Fatal("UploadFrame bad size = true, want false")
+	}
+	var nilBridge *VideoBridge
+	if _, ok := nilBridge.DrawCurrent(dc, VideoDrawOptions{}); ok {
+		t.Fatal("nil bridge DrawCurrent ok=true, want false")
+	}
+}
+
 func TestVideoBridgeShowSeqUploadsOnce(t *testing.T) {
 	cases := loadVideoUploadCases(t)
 	c := cases.Aligned[0]

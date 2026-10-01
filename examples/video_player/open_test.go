@@ -215,8 +215,10 @@ func TestAsyncSeekNeverFreezes(t *testing.T) {
 	}
 }
 
-// TestVideoNodeFrameFlow pins the new bridge flow: Poll -> SetFrame ->
-// Paint marks damage. The old row-copy/buffer path no longer exists.
+// TestVideoNodeFrameFlow pins the new bridge flow: Poll -> UploadFrame
+// (tick upload, device borrowed by the window; headless has none, so
+// UploadFrame returns false) -> Paint marks damage in the window run.
+// The old row-copy/buffer path no longer exists.
 func TestVideoNodeFrameFlow(t *testing.T) {
 	st := newHeadlessState(t, resolveTestClip("vr2_720p.mp4"))
 	st.openPath(resolveTestClip("vr2_720p.mp4"))
@@ -228,8 +230,10 @@ func TestVideoNodeFrameFlow(t *testing.T) {
 	fed := false
 	for i := 0; i < 400 && !fed; i++ {
 		if f, _ := st.player.Poll(); f != nil {
-			if !st.vid.SetFrame(f.Width, f.Height, f.Pix) {
-				t.Fatal("SetFrame rejected a live frame")
+			// Headless bridge has no device: upload refuses honestly;
+			// the window run proves the true path with a borrowed device.
+			if st.vid.UploadFrame(f.Width, f.Height, f.Pix) {
+				t.Fatal("headless UploadFrame = true without a device, want false")
 			}
 			fed = true
 		} else {
@@ -239,12 +243,9 @@ func TestVideoNodeFrameFlow(t *testing.T) {
 	if !fed {
 		t.Fatal("no frame to feed the video node")
 	}
-	if got := st.vid.NodeStats().Seq; got == 0 {
-		t.Fatal("video node seq = 0 after SetFrame")
-	}
 	// Bad frames never touch the current picture.
-	if st.vid.SetFrame(0, 10, nil) {
-		t.Fatal("SetFrame(0 width) = true, want false")
+	if st.vid.UploadFrame(0, 10, nil) {
+		t.Fatal("UploadFrame(0 width) = true, want false")
 	}
 }
 

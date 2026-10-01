@@ -255,7 +255,7 @@ func main() {
 				if f.Width != liveW || f.Height != liveH {
 					seekNote = fmt.Sprintf("尺寸漂移 %dx%d", f.Width, f.Height)
 				} else {
-					liveNode.SetFrame(f.Width, f.Height, f.Pix)
+					liveNode.UploadFrame(f.Width, f.Height, f.Pix)
 				}
 			}
 			if ended {

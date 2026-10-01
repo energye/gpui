@@ -266,7 +266,7 @@ func main() {
 					pendingRecoverSince = time.Time{}
 					seekNote += " 已恢复"
 				}
-				liveNode.SetFrame(f.Width, f.Height, f.Pix)
+				liveNode.UploadFrame(f.Width, f.Height, f.Pix)
 			} else if ended {
 				if _, err := live.SeekTo(0); err != nil {
 					liveErr = "绕回跳失败：" + err.Error()
