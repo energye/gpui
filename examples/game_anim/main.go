@@ -2,8 +2,9 @@
 //
 // --case=sk is the 4.3 skeleton window (walk/run/jump on true art).
 // --case=fsm below is the 4.4 blend state machine window (switch crisp,
-// blend bar live). Each ability keeps its own case; no combo window
-// stands in for a single ability.
+// blend bar live). --case=tl further below is the 4.2 keyframe timeline
+// window (interpolation, loop wraps, cue order). Each ability keeps its
+// own case; no combo window stands in for a single ability.
 //
 // Window: 1200x800, title game_anim. Three cards WALK/RUN/JUMP paint the
 // same 13-bone upright person from the window-local testdata/sk_hero.json
@@ -916,7 +917,7 @@ func numExtra(m map[string]any, k string) (float64, bool) {
 }
 
 func main() {
-	caseFlag := flag.String("case", "sk", "anim case: sk (walk/run/jump bones) or fsm (4.4 blend state machine)")
+	caseFlag := flag.String("case", "sk", "anim case: sk (walk/run/jump bones), fsm (4.4 blend state machine), or tl (4.2 keyframe timeline)")
 	autoOnly := flag.Bool("auto-only", false, "run selftest + short real window and exit (gate mode)")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase timeout in seconds (0 = until window close)")
 	flag.Parse()
@@ -924,8 +925,12 @@ func main() {
 		runFSMCase(*autoOnly, *manualSeconds)
 		return
 	}
+	if *caseFlag == "tl" {
+		runTLCase(*autoOnly, *manualSeconds)
+		return
+	}
 	if *caseFlag != "sk" {
-		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want sk or fsm (tl gets its own case later, no combo)\n", *caseFlag)
+		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want sk, fsm, or tl (one ability per case, no combo)\n", *caseFlag)
 		os.Exit(2)
 	}
 
@@ -2042,4 +2047,926 @@ func itoa(v int64) string {
 		buf[i] = '-'
 	}
 	return string(buf[i:])
+}
+
+// ---- --case=tl: 4.2 keyframe timeline independent window ----
+//
+// Static paint (golden-covered): three sequence cards (step squares plus
+// frozen end-value bars) and the frozen curve strip (x blue, alpha
+// orange, red key dot, event rail). Live paint (masked out): the loop
+// progress bar plus the current x/alpha readouts, so a human sees
+// interpolation and wraps arrive on time while the golden stays
+// deterministic. Numbers come from the window-local
+// testdata/tl_timeline.json, a copy of the engine/anim frozen cases;
+// engine/anim is only called, never read across for data.
+
+const (
+	tlAbilityID = "anim-tl"
+	tlScenario  = "game_anim--case=tl"
+
+	tlOffW, tlOffH = 640, 200
+	tlCurveOX      = 40.0
+	tlCurveOY      = 20.0
+	tlCurveW       = 420.0
+	tlCurveH       = 140.0
+	tlRailX        = 480.0
+	tlRailY        = 20.0
+	tlRailW        = 120.0
+	tlRailH        = 160.0
+
+	tlCardW, tlCardH   = 280.0, 220.0
+	tlStripW, tlStripH = 864.0, 170.0
+
+	tlXMax   = 30.0 // frozen x range in tl_timeline.json
+	tlDurMs  = 1000 // frozen duration in tl_timeline.json
+	tlEvtMin = 3    // auto run must fire at least this many cues live
+)
+
+// Hardcoded tolerance for the frozen number contract.
+const tlLogicEps = 1e-9
+
+type tlKeyDef struct {
+	AtMs  int64   `json:"at_ms"`
+	Value float64 `json:"value"`
+	Ease  string  `json:"ease"`
+}
+
+type tlTrackDef struct {
+	Name string     `json:"name"`
+	Keys []tlKeyDef `json:"keys"`
+}
+
+type tlEventDef struct {
+	AtMs int64  `json:"at_ms"`
+	Name string `json:"name"`
+}
+
+type tlStepDef struct {
+	DtMs       int64              `json:"dt_ms"`
+	WantPos    int64              `json:"want_pos"`
+	Want       map[string]float64 `json:"want"`
+	WantEvents []string           `json:"want_events"`
+}
+
+type tlSeqDef struct {
+	Name  string      `json:"name"`
+	Loop  string      `json:"loop"`
+	Steps []tlStepDef `json:"steps"`
+}
+
+type tlFile struct {
+	DurationMs int64        `json:"duration_ms"`
+	Tracks     []tlTrackDef `json:"tracks"`
+	Events     []tlEventDef `json:"events"`
+	Sequences  []tlSeqDef   `json:"sequences"`
+}
+
+func loadTLFile() (tlFile, error) {
+	var f tlFile
+	raw, err := os.ReadFile(filepath.Join(testdataDir, "tl_timeline.json"))
+	if err != nil {
+		return f, err
+	}
+	if err := json.Unmarshal(raw, &f); err != nil {
+		return f, err
+	}
+	if len(f.Tracks) != 3 || len(f.Events) != 6 || len(f.Sequences) != 3 {
+		return f, fmt.Errorf("want 3 tracks/6 events/3 sequences, got %d/%d/%d",
+			len(f.Tracks), len(f.Events), len(f.Sequences))
+	}
+	return f, nil
+}
+
+func tlLoopOf(s string) (anim.LoopMode, error) {
+	switch s {
+	case "once":
+		return anim.LoopOnce, nil
+	case "loop":
+		return anim.LoopLoop, nil
+	case "pingpong":
+		return anim.LoopPingPong, nil
+	}
+	return anim.LoopOnce, fmt.Errorf("unknown loop %q", s)
+}
+
+func buildTLTimeline(f tlFile, loop anim.LoopMode) (*anim.Timeline, error) {
+	tl, err := anim.NewTimeline(core.Milliseconds(f.DurationMs))
+	if err != nil {
+		return nil, err
+	}
+	if err := tl.SetLoop(loop); err != nil {
+		return nil, err
+	}
+	for _, tr := range f.Tracks {
+		for _, k := range tr.Keys {
+			kind, err := anim.Parse(k.Ease)
+			if err != nil {
+				return nil, err
+			}
+			if err := tl.AddKey(tr.Name, anim.Key{
+				At:    core.Milliseconds(k.AtMs),
+				Value: k.Value,
+				Ease:  kind,
+			}); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, e := range f.Events {
+		if err := tl.AddEvent(core.Milliseconds(e.AtMs), e.Name); err != nil {
+			return nil, err
+		}
+	}
+	return tl, nil
+}
+
+func tlEventNames(evs []anim.Event) []string {
+	out := []string{}
+	for _, e := range evs {
+		out = append(out, e.Name)
+	}
+	return out
+}
+
+// tlRunProbes checks the frozen contract: key hits, linear midpoints,
+// wrap mirrors, and all three sequences replay to their frozen wants
+// with the cues in order.
+func tlRunProbes(f tlFile) (map[string]any, bool) {
+	out := map[string]any{}
+	ok := true
+	fail := func(k string) {
+		out[k] = false
+		ok = false
+	}
+	if f.DurationMs != tlDurMs {
+		out["duration_ms"] = f.DurationMs
+		fail("duration_ok")
+	} else {
+		out["duration_ok"] = true
+	}
+	once, err := buildTLTimeline(f, anim.LoopOnce)
+	if err != nil {
+		out["build"] = err.Error()
+		fail("seq_ok")
+		out["probe_ok"] = false
+		return out, false
+	}
+	if got := once.TrackNames(); len(got) != 3 || got[0] != "alpha" || got[1] != "slash" || got[2] != "x" {
+		out["tracks"] = got
+		fail("tracks_ok")
+	} else {
+		out["tracks_ok"] = true
+	}
+	wantEvOrder := []string{"enter", "slash_show", "sfx_swing", "call_spawn", "hide", "exit"}
+	gotEvOrder := []string{}
+	for _, e := range f.Events {
+		gotEvOrder = append(gotEvOrder, e.Name)
+	}
+	if !sameStrings(gotEvOrder, wantEvOrder) {
+		out["events"] = gotEvOrder
+		fail("events_ok")
+	} else {
+		out["events_ok"] = true
+	}
+	// Key hits land exactly; linear midpoints pin the wiring.
+	keyOK := true
+	for _, kh := range []struct {
+		track string
+		atMs  int64
+		want  float64
+	}{
+		{"x", 250, 10}, {"x", 500, 20}, {"x", 750, 15}, {"x", 1000, 30},
+		{"alpha", 250, 0.5}, {"slash", 500, 1},
+	} {
+		v, kOK := once.Sample(kh.track, core.Milliseconds(kh.atMs))
+		if !kOK || math.Abs(v-kh.want) >= tlLogicEps {
+			out["key_"+kh.track+"_"+itoa(kh.atMs)] = v
+			keyOK = false
+		}
+	}
+	out["key_ok"] = keyOK
+	if !keyOK {
+		ok = false
+	}
+	// Wrap reads mirror: loop lands back on the start, pingpong bounces.
+	wrapOK := true
+	loopTL, _ := buildTLTimeline(f, anim.LoopLoop)
+	ppTL, _ := buildTLTimeline(f, anim.LoopPingPong)
+	if loopTL != nil && ppTL != nil {
+		a, _ := loopTL.Sample("x", core.Milliseconds(1100))
+		b, _ := loopTL.Sample("x", core.Milliseconds(100))
+		c, _ := ppTL.Sample("x", core.Milliseconds(1100))
+		d, _ := ppTL.Sample("x", core.Milliseconds(900))
+		if a != b || c != d {
+			out["wrap"] = []float64{a, b, c, d}
+			wrapOK = false
+		}
+	} else {
+		wrapOK = false
+	}
+	out["wrap_ok"] = wrapOK
+	if !wrapOK {
+		ok = false
+	}
+	// All three sequences freeze: pos, x/alpha/slash, cue order per step.
+	seqOK := true
+	var onceOrder []string
+	for _, seq := range f.Sequences {
+		loop, err := tlLoopOf(seq.Loop)
+		if err != nil {
+			seqOK = false
+			break
+		}
+		tl, err := buildTLTimeline(f, loop)
+		if err != nil {
+			seqOK = false
+			break
+		}
+		for i, st := range seq.Steps {
+			fired, uOK := tl.Update(core.Milliseconds(st.DtMs))
+			if !uOK {
+				seqOK = false
+				break
+			}
+			if got := tlEventNames(fired); !sameStrings(got, st.WantEvents) {
+				out[seq.Name+"_ev_"+itoa(int64(i))] = got
+				seqOK = false
+			}
+			if pos := tl.Pos().Milliseconds(); pos != st.WantPos {
+				out[seq.Name+"_pos_"+itoa(int64(i))] = pos
+				seqOK = false
+			}
+			for _, tr := range []string{"x", "alpha", "slash"} {
+				v, vOK := tl.Sample(tr, tl.Pos())
+				if !vOK || math.Abs(v-st.Want[tr]) >= tlLogicEps {
+					out[seq.Name+"_"+tr+"_"+itoa(int64(i))] = v
+					seqOK = false
+				}
+			}
+			if seq.Name == "once_attack" {
+				onceOrder = append(onceOrder, tlEventNames(fired)...)
+			}
+		}
+		if !seqOK {
+			break
+		}
+	}
+	out["seq_ok"] = seqOK
+	if !seqOK {
+		ok = false
+	}
+	// The forward cue order is the spec order (At=0 stays silent first).
+	orderOK := sameStrings(onceOrder, []string{"slash_show", "sfx_swing", "call_spawn", "hide", "exit"})
+	out["event_order"] = onceOrder
+	out["event_order_ok"] = orderOK
+	if !orderOK {
+		ok = false
+	}
+	// Sample is pure: same args read bitwise equal and move nothing.
+	pureOK := true
+	pos := once.Pos()
+	for _, at := range []int64{0, 100, 250, 999, 1000, 5000} {
+		a, oka := once.Sample("x", core.Milliseconds(at))
+		b, okb := once.Sample("x", core.Milliseconds(at))
+		if !oka || !okb || a != b {
+			pureOK = false
+			break
+		}
+	}
+	if once.Pos() != pos {
+		pureOK = false
+	}
+	out["pure_ok"] = pureOK
+	if !pureOK {
+		ok = false
+	}
+	out["probe_ok"] = ok
+	return out, ok
+}
+
+// tlParity is the C-both-sides evidence for a pure-math package: the
+// same dt stream replays samples and cues bitwise identically, and the
+// track table never moves.
+func tlParity(f tlFile) bool {
+	replay := func() ([]float64, []anim.Event, bool) {
+		tl, err := buildTLTimeline(f, anim.LoopLoop)
+		if err != nil {
+			return nil, nil, false
+		}
+		var vals []float64
+		var evs []anim.Event
+		for i := 0; i < 500; i++ {
+			fired, uOK := tl.Update(core.Milliseconds(16))
+			if !uOK {
+				return nil, nil, false
+			}
+			evs = append(evs, fired...)
+			evs = append(evs, anim.Event{At: -1, Name: "|"})
+			for _, tr := range []string{"x", "alpha", "slash"} {
+				v, vOK := tl.Sample(tr, tl.Pos())
+				if !vOK {
+					return nil, nil, false
+				}
+				vals = append(vals, v)
+			}
+		}
+		return vals, evs, true
+	}
+	av, ae, aOK := replay()
+	bv, be, bOK := replay()
+	if !aOK || !bOK || len(av) != len(bv) || len(ae) != len(be) {
+		return false
+	}
+	for i := range av {
+		if av[i] != bv[i] || ae[i] != be[i] {
+			return false
+		}
+	}
+	a, err := buildTLTimeline(f, anim.LoopLoop)
+	if err != nil {
+		return false
+	}
+	return sameStrings(a.TrackNames(), []string{"alpha", "slash", "x"})
+}
+
+// tlCurveXY maps (time ms, value) to curve-box pixels.
+func tlCurveXY(ox, oy, w, h, tMs, v, vMax float64) (float64, float64) {
+	return ox + tMs/float64(tlDurMs)*w, oy + h - v/vMax*h
+}
+
+// paintTLCurve draws the frozen interpolation read: x in blue, alpha in
+// orange, a red dot on the x=10 key. Slash stays numeric (probes cover
+// it); paint keeps two lines so the probes never fight an overlap.
+func paintTLCurve(dc *render.Context, tl *anim.Timeline, ox, oy, w, h float64) {
+	if dc == nil || tl == nil {
+		return
+	}
+	dc.SetRGBA(1, 1, 1, 1)
+	dc.DrawRectangle(ox, oy, w, h)
+	_ = dc.Fill()
+	dc.SetRGBA(0.82, 0.84, 0.87, 1)
+	dc.SetLineWidth(1)
+	dc.DrawLine(ox, oy+h/2, ox+w, oy+h/2)
+	_ = dc.Stroke()
+	line := func(track string, vMax float64, r, g, b float64) {
+		dc.SetRGBA(r, g, b, 1)
+		dc.SetLineCap(render.LineCapRound)
+		dc.SetLineWidth(4)
+		first := true
+		for ms := int64(0); ms <= tlDurMs; ms += 10 {
+			v, vOK := tl.Sample(track, core.Milliseconds(ms))
+			if !vOK {
+				return
+			}
+			px, py := tlCurveXY(ox, oy, w, h, float64(ms), v, vMax)
+			if first {
+				dc.MoveTo(px, py)
+				first = false
+			} else {
+				dc.LineTo(px, py)
+			}
+		}
+		_ = dc.Stroke()
+	}
+	line("x", tlXMax, 0.27, 0.42, 0.85)
+	line("alpha", 1, 0.95, 0.55, 0.15)
+	dx, dy := tlCurveXY(ox, oy, w, h, 250, 10, tlXMax)
+	dc.SetRGBA(0.85, 0.15, 0.12, 1)
+	dc.DrawCircle(dx, dy, 6)
+	_ = dc.Fill()
+	dc.SetRGBA(0.25, 0.27, 0.30, 1)
+	dc.SetLineWidth(1.5)
+	dc.DrawRectangle(ox, oy, w, h)
+	_ = dc.Stroke()
+}
+
+// paintTLRail draws the frozen cue rail: one dark square per event in
+// file order on a gray track.
+func paintTLRail(dc *render.Context, n int, x, y, w, h float64) {
+	if dc == nil {
+		return
+	}
+	dc.SetRGBA(0.88, 0.89, 0.91, 1)
+	dc.DrawRectangle(x, y, w, h)
+	_ = dc.Fill()
+	for i := 0; i < n; i++ {
+		dc.SetRGBA(0.25, 0.27, 0.30, 1)
+		dc.DrawRectangle(x+w/2-8, y+6+float64(i)*25, 16, 16)
+		_ = dc.Fill()
+	}
+	dc.SetRGBA(0.25, 0.27, 0.30, 1)
+	dc.SetLineWidth(1.2)
+	dc.DrawRectangle(x, y, w, h)
+	_ = dc.Stroke()
+}
+
+// paintTLCard draws one static sequence card: step squares on top, the
+// frozen end x (blue) and alpha (orange) bars at the bottom.
+func paintTLCard(dc *render.Context, seq tlSeqDef, x, y, w, h float64) {
+	if dc == nil {
+		return
+	}
+	dc.SetRGBA(1, 1, 1, 1)
+	dc.DrawRectangle(x, y, w, h)
+	_ = dc.Fill()
+	dc.SetRGBA(0.55, 0.58, 0.62, 1)
+	dc.SetLineWidth(1.5)
+	dc.DrawRectangle(x, y, w, h)
+	_ = dc.Stroke()
+	paintFSMSquares(dc, x+16, y+16, len(seq.Steps))
+	if len(seq.Steps) == 0 {
+		return
+	}
+	last := seq.Steps[len(seq.Steps)-1].Want
+	paintFSMBar(dc, x+16, y+h-52, w-32, 22, last["x"]/tlXMax*200, 200)
+	paintFSMBar(dc, x+16, y+h-24, w-32, 14, last["alpha"]*200, 200)
+}
+
+// paintTLOffscreen draws the frozen strip shared with the window.
+func paintTLOffscreen(dc *render.Context, tl *anim.Timeline, nEvents int) {
+	dc.ClearWithColor(render.White)
+	paintTLCurve(dc, tl, tlCurveOX, tlCurveOY, tlCurveW, tlCurveH)
+	paintTLRail(dc, nEvents, tlRailX, tlRailY, tlRailW, tlRailH)
+}
+
+func renderTLOffscreen(tl *anim.Timeline, nEvents int) image.Image {
+	prev, had := os.LookupEnv("GOGPU_RENDER_MODE")
+	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
+	defer func() {
+		if had {
+			_ = os.Setenv("GOGPU_RENDER_MODE", prev)
+		} else {
+			_ = os.Unsetenv("GOGPU_RENDER_MODE")
+		}
+	}()
+	dc := render.NewContext(tlOffW, tlOffH)
+	defer dc.Close()
+	paintTLOffscreen(dc, tl, nEvents)
+	raw := dc.Image()
+	cp := image.NewRGBA(raw.Bounds())
+	if rgba, isRGBA := raw.(*image.RGBA); isRGBA {
+		copy(cp.Pix, rgba.Pix)
+		return cp
+	}
+	for y := 0; y < tlOffH; y++ {
+		for x := 0; x < tlOffW; x++ {
+			cp.Set(x, y, raw.At(x, y))
+		}
+	}
+	return cp
+}
+
+// runTLPixelProbes asserts the frozen strip: white field, blue x line,
+// orange alpha line, red key dot, dark event tick.
+func runTLPixelProbes(img image.Image) (map[string]any, bool) {
+	out := map[string]any{}
+	ok := true
+	if r, g, b, valid := sampleByte(img, tlOffW-7, 6); !valid || !closeByte(r, 255) || !closeByte(g, 255) || !closeByte(b, 255) {
+		out["field"] = []int{int(r), int(g), int(b)}
+		out["field_ok"] = false
+		ok = false
+	} else {
+		out["field_ok"] = true
+	}
+	// x midpoint of the first linear segment (t=125ms, x=5).
+	mx, my := tlCurveXY(tlCurveOX, tlCurveOY, tlCurveW, tlCurveH, 125, 5, tlXMax)
+	if r, g, b, valid := sampleByte(img, int(mx+0.5), int(my+0.5)); !valid || r < 40 || r > 110 || g < 80 || g > 140 || b < 180 {
+		out["x_mid"] = []int{int(r), int(g), int(b)}
+		out["x_mid_ok"] = false
+		ok = false
+	} else {
+		out["x_mid_ok"] = true
+	}
+	// Alpha midpoint of its first linear fall (t=125ms, alpha=0.75).
+	ax, ay := tlCurveXY(tlCurveOX, tlCurveOY, tlCurveW, tlCurveH, 125, 0.75, 1)
+	if r, g, b, valid := sampleByte(img, int(ax+0.5), int(ay+0.5)); !valid || r < 200 || g < 100 || g > 180 || b > 90 {
+		out["alpha_mid"] = []int{int(r), int(g), int(b)}
+		out["alpha_mid_ok"] = false
+		ok = false
+	} else {
+		out["alpha_mid_ok"] = true
+	}
+	// Red key dot on x=10 at 250ms.
+	dx, dy := tlCurveXY(tlCurveOX, tlCurveOY, tlCurveW, tlCurveH, 250, 10, tlXMax)
+	if r, g, b, valid := sampleByte(img, int(dx+0.5), int(dy+0.5)); !valid || r < 180 || g > 90 || b > 80 {
+		out["key_dot"] = []int{int(r), int(g), int(b)}
+		out["key_dot_ok"] = false
+		ok = false
+	} else {
+		out["key_dot_ok"] = true
+	}
+	// First event tick reads dark on the rail.
+	if r, g, b, valid := sampleByte(img, int(tlRailX+tlRailW/2), int(tlRailY+6+8)); !valid || r > 90 || g > 90 || b > 110 {
+		out["tick"] = []int{int(r), int(g), int(b)}
+		out["tick_ok"] = false
+		ok = false
+	} else {
+		out["tick_ok"] = true
+	}
+	out["pixel_ok"] = ok
+	return out, ok
+}
+
+func checkTLGolden(cur image.Image) (diffPct float64, totalPx int64, firstRun, ok bool) {
+	_ = os.MkdirAll(testdataDir, 0o755)
+	basePath := filepath.Join(testdataDir, "tl_golden.png")
+	if _, err := os.Stat(basePath); err != nil {
+		f, err := os.Create(basePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "game_anim: tl golden store %s: %v\n", basePath, err)
+			return 100, 0, false, false
+		}
+		_ = png.Encode(f, cur)
+		_ = f.Close()
+		fmt.Fprintf(os.Stderr, "game_anim: tl golden baseline stored: %s\n", basePath)
+		return 0, 0, true, true
+	}
+	f, err := os.Open(basePath)
+	if err != nil {
+		return 100, 0, false, false
+	}
+	want, err := png.Decode(f)
+	_ = f.Close()
+	if err != nil {
+		return 100, 0, false, false
+	}
+	if !want.Bounds().Eq(cur.Bounds()) {
+		return 100, int64(cur.Bounds().Dx() * cur.Bounds().Dy()), false, false
+	}
+	var diff int64
+	total := int64(cur.Bounds().Dx() * cur.Bounds().Dy())
+	for y := 0; y < cur.Bounds().Dy(); y++ {
+		for x := 0; x < cur.Bounds().Dx(); x++ {
+			ar, ag, ab, aa := cur.At(x, y).RGBA()
+			br, bg, bb, ba := want.At(x, y).RGBA()
+			if ar != br || ag != bg || ab != bb || aa != ba {
+				diff++
+			}
+		}
+	}
+	if total > 0 {
+		diffPct = 100 * float64(diff) / float64(total)
+	}
+	return diffPct, total, false, diff == 0
+}
+
+// tlSelftest runs the three evidences headless: logic probes, pixel
+// probes, offscreen golden. Parity is the double-replay contract above.
+func tlSelftest(f tlFile) (extra map[string]any, ok bool) {
+	extra = map[string]any{}
+	probeMap, probeOK := tlRunProbes(f)
+	for k, v := range probeMap {
+		extra[k] = v
+	}
+	parityOK := tlParity(f)
+	extra["parity_replay_ok"] = parityOK
+	extra["parity_changed_pct"] = 0.0
+	extra["parity_mean_abs"] = 0.0
+	extra["parity_ok"] = parityOK
+	// Once-mode paint head: the right edge holds the last key instead
+	// of wrapping back to 0, so the frozen curve ends on x=30.
+	paintHead, err := buildTLTimeline(f, anim.LoopOnce)
+	if err != nil {
+		extra["pixel_ok"] = false
+		return extra, false
+	}
+	cpuImg := renderTLOffscreen(paintHead, len(f.Events))
+	if cpuImg == nil {
+		extra["pixel_ok"] = false
+		return extra, false
+	}
+	pixMap, pixOK := runTLPixelProbes(cpuImg)
+	for k, v := range pixMap {
+		extra[k] = v
+	}
+	_ = os.MkdirAll(testdataDir, 0o755)
+	if fh, err := os.Create(filepath.Join(testdataDir, "tl_last.png")); err == nil {
+		_ = png.Encode(fh, cpuImg)
+		_ = fh.Close()
+	}
+	goldenDiff, goldenTotal, goldenFirst, goldenOK := checkTLGolden(cpuImg)
+	extra["golden_diff_pct"] = goldenDiff
+	extra["golden_total_px"] = goldenTotal
+	if goldenFirst {
+		extra["golden_first_run"] = 1
+	}
+	extra["golden_ok"] = goldenOK
+	ok = probeOK && parityOK && pixOK && (goldenOK || goldenFirst)
+	fmt.Fprintf(os.Stderr, "game_anim: tl selftest probe=%v parity=%v pixel=%v golden=%.4f%%(first=%v) ok=%v\n",
+		probeOK, parityOK, pixOK, goldenDiff, goldenFirst, ok)
+	return extra, ok
+}
+
+func runTLCase(autoOnly bool, manualSeconds int) {
+	secs, secsSet := wrkit.RunSecondsOpt()
+	if autoOnly {
+		if !secsSet {
+			secs = 8
+			secsSet = true
+		}
+	} else if manualSeconds > 0 {
+		secs = manualSeconds
+		secsSet = true
+	}
+	wrkit.EnsureUIFace()
+
+	tlf, err := loadTLFile()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: load tl_timeline.json: %v\n", err)
+		os.Exit(1)
+	}
+
+	extra, ok := tlSelftest(tlf)
+	if !ok {
+		raw, _ := json.Marshal(map[string]any{"ability_id": tlAbilityID, "scenario": tlScenario, "extra": extra, "pass": false})
+		fmt.Println(string(raw))
+		fmt.Fprintln(os.Stderr, "game_anim: tl selftest FAIL, not opening window")
+		os.Exit(1)
+	}
+	if !autoOnly && !secsSet && manualSeconds <= 0 {
+		fmt.Fprintln(os.Stderr, "game_anim: tl selftest done, entering manual phase (close X to finish)")
+	}
+
+	live, err := buildTLTimeline(tlf, anim.LoopLoop)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: build tl timeline: %v\n", err)
+		os.Exit(1)
+	}
+	// Static paint reads a once-mode head so the right edge holds the
+	// last key (loop mode would wrap t=1000 back to 0 and dive the end).
+	paintTL, err := buildTLTimeline(tlf, anim.LoopOnce)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: build tl paint timeline: %v\n", err)
+		os.Exit(1)
+	}
+
+	var proc scheduler.ProcessTracker
+	proc.Start()
+
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: winTitle, Decorations: true})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
+		os.Exit(1)
+	}
+	host := win.Host()
+	ctl := win.Controls()
+
+	shell := wrkit.NewShell(winW, winH, "game_anim --case=tl 插值循环事件准时 (4.2)", []string{
+		"ONCE/LOOP/PINGPONG 同一条时间轴",
+		"方块=序列步数, 蓝条=末步x",
+		"蓝=x走位 橙=alpha 红点=键",
+		"右灰条=6事件, 黑块=到时",
+		"活条跟循环头走, 事件到时",
+		"JSON看parity+探针+金图",
+		"--case=tl, 只要这一个",
+		"sk/fsm各有各case不混",
+	})
+
+	// Three static cards plus the static curve strip (golden-covered).
+	for i, seq := range tlf.Sequences {
+		seq := seq
+		lx := 8 + float64(i)*288
+		shell.Body.LabelAt(seq.Name+" "+seq.Loop, 13, lx, 8, 0.75, 0.82, 0.9)
+		box := rendering.NewRenderBox()
+		box.FixedWidth, box.FixedHeight = tlCardW, tlCardH
+		box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+			if pc == nil || pc.DC == nil {
+				return
+			}
+			ax, ay := pc.Abs(0, 0)
+			paintTLCard(pc.DC, seq, ax, ay, size.Width, size.Height)
+		}
+		shell.Body.Place(box, lx, 40)
+	}
+	strip := rendering.NewRenderBox()
+	strip.FixedWidth, strip.FixedHeight = tlStripW, tlStripH
+	strip.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.SetRGB(1, 1, 1)
+		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		paintTLCurve(pc.DC, paintTL, ax+222, ay+15, 620, 140)
+		paintTLRail(pc.DC, len(tlf.Events), ax+20, ay+15, 150, 140)
+	}
+	shell.Body.Place(strip, 8, 270)
+
+	// Live loop head (masked from the golden): progress, x dot, alpha.
+	liveBox := rendering.NewRenderBox()
+	liveBox.FixedWidth, liveBox.FixedHeight = 400, 120
+	liveBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.SetRGB(1, 1, 1)
+		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		posMs := float64(live.Pos().Milliseconds())
+		paintFSMBar(pc.DC, ax+16, ay+16, size.Width-32, 24, posMs, tlDurMs)
+		xv, _ := live.Sample("x", live.Pos())
+		av, _ := live.Sample("alpha", live.Pos())
+		paintFSMBar(pc.DC, ax+16, ay+50, size.Width-32, 24, xv/tlXMax*200, 200)
+		paintFSMBar(pc.DC, ax+16, ay+84, size.Width-32, 20, av*200, 200)
+		pc.DC.SetRGBA(0.85, 0.15, 0.12, 1)
+		mx := ax + 16 + (size.Width-32)*posMs/tlDurMs
+		pc.DC.DrawRectangle(mx-3, ay+48, 6, 6)
+		_ = pc.DC.Fill()
+	}
+	shell.Body.Place(liveBox, 8, 470)
+	status := wrkit.Label("TL loop wraps=0 events=0", 12, 0.70, 0.78, 0.88)
+	shell.Body.Place(status, 424, 470)
+	chain := wrkit.Label("engine/anim只算数: Timeline直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
+	shell.Body.Place(chain, 424, 494)
+
+	var summary manualSummary
+	summary.Note = "case=tl"
+	elapsed := 0.0
+	wraps := 0
+	evTotal := 0
+	lastEv := "-"
+	var evLog []string
+	setTitle := func() {
+		if ctl == nil {
+			return
+		}
+		ctl.SetTitle(fmt.Sprintf("%s — tl=%dms wraps=%d ev=%d ptr=%d key=%d rs=%d t=%.0fs",
+			winTitle, live.Pos().Milliseconds(), wraps, evTotal, summary.Pointer, summary.Key, summary.Resize, elapsed))
+	}
+
+	_ = os.MkdirAll(testdataDir, 0o755)
+	snapPath := filepath.Join(testdataDir, "tl_final.png")
+
+	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
+		OnEvent: func(ev platform.Event) {
+			switch ev.Type {
+			case platform.EventClose, platform.EventCloseRequested:
+				fmt.Fprintf(os.Stderr, "game_anim: tl close (%s)\n", win.Backend())
+			case platform.EventResize:
+				summary.Resize++
+				fmt.Fprintf(os.Stderr, "game_anim: tl resize %dx%d\n", ev.Width, ev.Height)
+				if ev.Width > 0 && ev.Height > 0 {
+					shell.Resize(float64(ev.Width), float64(ev.Height))
+				}
+				setTitle()
+			case platform.EventPointer:
+				summary.Pointer++
+				fmt.Fprintf(os.Stderr, "game_anim: tl pointer kind=%v @(%.0f,%.0f)\n", ev.Pointer, ev.X, ev.Y)
+				setTitle()
+			case platform.EventKey:
+				if ev.Pressed {
+					summary.Key++
+					fmt.Fprintf(os.Stderr, "game_anim: tl key code=%d rune=%q\n", ev.KeyCode, string(ev.Rune))
+					setTitle()
+				}
+			default:
+				fmt.Fprintf(os.Stderr, "game_anim: tl event %s\n", ev.Type)
+			}
+		},
+	})
+
+	probeOK, _ := numExtra(extra, "probe_ok")
+	pixelOK, _ := numExtra(extra, "pixel_ok")
+	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
+		elapsed += dt
+		prev := live.Pos()
+		fired, _ := live.Update(core.SecondsFloat(dt))
+		if live.Pos() < prev {
+			wraps++
+		}
+		if len(fired) > 0 {
+			for _, e := range fired {
+				evLog = append(evLog, e.Name)
+				evTotal++
+				lastEv = e.Name
+			}
+			status.SetText(fmt.Sprintf("TL loop wraps=%d events=%d last=%s", wraps, evTotal, lastEv))
+			status.MarkNeedsPaint()
+			setTitle()
+		}
+		liveBox.MarkNeedsPaint()
+		app.ScheduleFrame()
+		proc.Sample()
+		shell.NoteHUDTick(dt)
+		snapH := app.Metrics().Snapshot()
+		gateOK := snapH.PaintCount > 0 && probeOK == 1 && pixelOK == 1
+		shell.UpdateHUD(tlAbilityID, "Steady", app, gateOK,
+			fmt.Sprintf("presents=%d pos=%d wraps=%d", app.PresentCount(), live.Pos().Milliseconds(), wraps),
+			"once/loop/pingpong")
+	}})
+	app.Scheduler().SetMode(scheduler.ModePersistent)
+
+	if err := app.Open(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
+		os.Exit(1)
+	}
+	t0 := time.Now()
+	if err := app.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
+		os.Exit(1)
+	}
+	proc.Stop()
+	app.Close()
+	win.Close()
+	proc.NoteAfterClose()
+	proc.Apply(app.Metrics())
+
+	elapsedSec := time.Since(t0).Seconds()
+	snap := app.Metrics().Snapshot()
+	wrkit.MergeBoundaryCache(app, &snap)
+
+	// Window golden over the static mask (status line, live box, HUD
+	// excluded: live numbers by design). Body at (284,60).
+	goldenRects := []wrsoak.Rect{
+		{X: 0, Y: 0, W: winW, H: 48},
+		{X: 12, Y: 60, W: 260, H: 656},
+		{X: 284 + 8, Y: 60 + 40, W: tlCardW, H: tlCardH},
+		{X: 284 + 296, Y: 60 + 40, W: tlCardW, H: tlCardH},
+		{X: 284 + 584, Y: 60 + 40, W: tlCardW, H: tlCardH},
+		{X: 284 + 8, Y: 60 + 270, W: tlStripW, H: tlStripH},
+	}
+	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_anim", testdataDir, "tl_final.png", "tl_final_base.png", goldenRects, winW)
+
+	parityContract, _ := numExtra(extra, "parity_ok")
+	goldenDiff, _ := numExtra(extra, "golden_diff_pct")
+	goldenTotal, _ := numExtra(extra, "golden_total_px")
+	xv, _ := live.Sample("x", live.Pos())
+	av, _ := live.Sample("alpha", live.Pos())
+	sv, _ := live.Sample("slash", live.Pos())
+	extra["tl_wraps"] = wraps
+	extra["tl_events_total"] = evTotal
+	extra["tl_events"] = evLog
+	extra["tl_pos_ms"] = live.Pos().Milliseconds()
+	extra["tl_x"] = xv
+	extra["tl_alpha"] = av
+	extra["tl_slash"] = sv
+	extra["tl_active"] = live.Loop().String()
+	extra["case"] = "tl"
+	extra["tracks"] = "x,alpha,slash"
+	extra["sequences"] = "once_attack,loop_wrap,pingpong_bounce"
+	extra["win_golden_diff_pct"] = winGoldenDiff
+	extra["win_golden_total_px"] = winGoldenTotal
+	if winGoldenFirst {
+		extra["win_golden_first"] = 1
+	}
+	extra["pointer_events"] = summary.Pointer
+	extra["key_events"] = summary.Key
+	extra["resize_events"] = summary.Resize
+	extra["manual_timed"] = secsSet
+
+	report := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID:     tlAbilityID,
+		Scenario:      tlScenario,
+		Snap:          snap,
+		PresentCount:  app.PresentCount(),
+		ElapsedSec:    elapsedSec,
+		SurfaceAreaPx: winW * winH,
+		Warmup:        true,
+		Extra:         extra,
+	})
+	raw, _ := json.Marshal(report)
+	fmt.Println(string(raw))
+
+	pass := true
+	mustPass := func(cond bool, msg string, args ...any) {
+		if !cond {
+			fmt.Fprintf(os.Stderr, "FAIL: "+msg+"\n", args...)
+			pass = false
+		}
+	}
+	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{MinPresents: 1}); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL:", err)
+		pass = false
+	}
+	mustPass(parityContract == 1, "parity_ok=%v want 1 (three-sequence replay bitwise + event order)", extra["parity_ok"])
+	mustPass(probeOK == 1, "probe_ok=%v want 1 (keys/wrap/3-seq frozen/order)", extra["probe_ok"])
+	mustPass(pixelOK == 1, "pixel_ok=%v want 1 (x/alpha/dot/tick probes)", extra["pixel_ok"])
+	if fr, _ := numExtra(extra, "golden_first_run"); fr != 1 {
+		mustPass(goldenDiff == goldenTol, "golden_diff_pct=%.4f want %.1f over %d px", goldenDiff, goldenTol, int64(goldenTotal))
+	}
+	if !winGoldenFirst {
+		mustPass(winGoldenDiff == goldenTol, "win_golden_diff_pct=%.4f want %.1f over %d px", winGoldenDiff, goldenTol, winGoldenTotal)
+	}
+	mustPass(wraps >= switchMin, "tl_wraps=%d want >=%d (loop head wrapped)", wraps, switchMin)
+	mustPass(evTotal >= tlEvtMin, "tl_events_total=%d want >=%d (cues fired live)", evTotal, tlEvtMin)
+
+	if autoOnly {
+		summary.Timed = secsSet
+		if !pass {
+			os.Exit(1)
+		}
+		fps := report.FPSInterval
+		fmt.Fprintf(os.Stderr, "game_anim: OK case=tl presents=%d fps=%.1f p95=%.1f parity=%v golden=%.4f%% win_golden=%.4f%% wraps=%d events=%d elapsed=%.1fs\n",
+			app.PresentCount(), fps, snap.P95FrameIntervalMs, extra["parity_ok"], goldenDiff, winGoldenDiff, wraps, evTotal, elapsedSec)
+		return
+	}
+	summary.Timed = secsSet
+	fmt.Fprintf(os.Stderr, "game_anim: case=tl backend=%s presents=%d parity=%v golden=%.4f%% win_golden=%.4f%% wraps=%d events=%d elapsed=%.1fs ptr=%d key=%d rs=%d\n",
+		win.Backend(), app.PresentCount(), extra["parity_ok"], goldenDiff, winGoldenDiff, wraps, evTotal, elapsedSec, summary.Pointer, summary.Key, summary.Resize)
 }

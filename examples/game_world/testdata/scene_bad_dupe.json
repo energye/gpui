@@ -1,0 +1,1 @@
+{"version":"1.0","name":"open","entities":[{"name":"hero","parent":"","local":{"pos":[0,0],"rot":0,"scale":[1,1]},"comps":[]},{"name":"hero","parent":"","local":{"pos":[1,1],"rot":0,"scale":[1,1]},"comps":[]}]}

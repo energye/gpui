@@ -1,0 +1,46 @@
+{
+  "defaults": {"snap_length": 0.1, "floor_max_angle_rad": 0.7853981633974483, "safe_margin": 0.08, "mode": "grounded"},
+  "configs": [
+    {"name": "default", "mode": "grounded", "snap": 0.1, "max_rad": 0.7853981633974483, "margin": 0.08, "valid": true},
+    {"name": "floating", "mode": "floating", "snap": 0.1, "max_rad": 0.7853981633974483, "margin": 0.08, "valid": true},
+    {"name": "zero_snap", "mode": "grounded", "snap": 0.0, "max_rad": 0.7853981633974483, "margin": 0.08, "valid": true},
+    {"name": "neg_snap", "mode": "grounded", "snap": -0.1, "max_rad": 0.7853981633974483, "margin": 0.08, "valid": false},
+    {"name": "bad_mode", "mode": "orbit", "snap": 0.1, "max_rad": 0.7853981633974483, "margin": 0.08, "valid": false},
+    {"name": "neg_margin", "mode": "grounded", "snap": 0.1, "max_rad": 0.7853981633974483, "margin": -0.01, "valid": false}
+  ],
+  "slopes": [
+    {"name": "flat", "a": [0, 100], "b": [100, 100], "one_way": false},
+    {"name": "ramp", "a": [0, 100], "b": [100, 80], "one_way": false},
+    {"name": "steep", "a": [0, 100], "b": [20, 0], "one_way": false},
+    {"name": "oneway", "a": [0, 80], "b": [100, 80], "one_way": true},
+    {"name": "wall", "a": [50, 0], "b": [50, 100], "one_way": false}
+  ],
+  "normals": [
+    {"slope": "flat", "want": [0, -1], "ok": true},
+    {"slope": "ramp", "want": [-0.19611613513818404, -0.9805806756909201], "ok": true},
+    {"slope": "oneway", "want": [0, -1], "ok": true},
+    {"slope": "wall", "want": [0, 0], "ok": false}
+  ],
+  "grounded": [
+    {"name": "exact_flat", "cfg": "default", "feet": [50, 100], "want": "flat", "ok": true},
+    {"name": "gap_bridged", "cfg": "default", "feet": [50, 99.95], "want": "flat", "ok": true},
+    {"name": "gap_too_far", "cfg": "default", "feet": [50, 99.8], "want": "", "ok": false},
+    {"name": "sink_allowed", "cfg": "default", "feet": [50, 100.05], "want": "flat", "ok": true},
+    {"name": "sink_too_deep", "cfg": "default", "feet": [50, 100.2], "want": "", "ok": false},
+    {"name": "ramp_holds", "cfg": "default", "feet": [50, 90], "want": "ramp", "ok": true},
+    {"name": "steep_no_floor", "cfg": "default", "feet": [10, 50], "want": "", "ok": false},
+    {"name": "floating_no_floor", "cfg": "floating", "feet": [50, 100], "want": "", "ok": false},
+    {"name": "zero_snap_exact", "cfg": "zero_snap", "feet": [50, 100], "want": "flat", "ok": true},
+    {"name": "zero_snap_gap", "cfg": "zero_snap", "feet": [50, 99.99], "want": "", "ok": false}
+  ],
+  "steps": [
+    {"name": "stand_flat", "cfg": "default", "slopes": ["flat"], "feet": [50, 100], "vel": [0, 0], "dt": 0.016, "want_pos": [50, 100], "want_ground": "flat", "want_floor": true, "want_head": false},
+    {"name": "fall_gap_snaps", "cfg": "default", "slopes": ["flat"], "feet": [50, 99.95], "vel": [0, 10], "dt": 0.001, "want_pos": [50, 100], "want_ground": "flat", "want_floor": true, "want_head": false},
+    {"name": "fall_far_air", "cfg": "default", "slopes": ["flat"], "feet": [50, 90], "vel": [0, 10], "dt": 0.001, "want_pos": [50, 90.01], "want_ground": "", "want_floor": false, "want_head": false},
+    {"name": "float_gap_air", "cfg": "floating", "slopes": ["flat"], "feet": [50, 99.95], "vel": [0, 10], "dt": 0.001, "want_pos": [50, 99.96], "want_ground": "", "want_floor": false, "want_head": false},
+    {"name": "rise_oneway_pass", "cfg": "default", "slopes": ["oneway"], "feet": [50, 90], "vel": [0, -200], "dt": 0.1, "want_pos": [50, 70], "want_ground": "", "want_floor": false, "want_head": false},
+    {"name": "fall_oneway_land", "cfg": "default", "slopes": ["oneway"], "feet": [50, 70], "vel": [0, 100], "dt": 0.1, "want_pos": [50, 80], "want_ground": "oneway", "want_floor": true, "want_head": false},
+    {"name": "steep_touch_no_floor", "cfg": "default", "slopes": ["steep"], "feet": [10, 40], "vel": [0, 100], "dt": 0.1, "want_pos": [10, 50], "want_ground": "", "want_floor": false, "want_head": false},
+    {"name": "walk_ramp_hold", "cfg": "default", "slopes": ["ramp"], "feet": [0, 100], "vel": [100, -20], "dt": 0.1, "want_pos": [10, 98], "want_ground": "ramp", "want_floor": true, "want_head": false}
+  ]
+}
