@@ -1422,8 +1422,9 @@ W25总指标：三项全正式包三遍最差，每项双数（离屏对比＋�
 
 #### W26 地基重写下（S116–S119，靠W25，波内可并行，一窗一会话，按W块拿活）
 
-S116 粒子重写（等 S38/S43，G09/G10，窗game_particles2d--case=storm）：
-十万级＋视口裁剪＋改比不重启＋多级子发射，8192 硬顶作废，老 GPUPool 只读保留。
+S116 粒子重写（等 S38/S43，G09/G10，窗game_particles2d--case=storm，接管S43）：
+十万级＋视口裁剪＋改比不重启＋多级子发射，8192 硬顶作废，老 GPUPool 只读保留；
+S43先行万级，S116全套整体接管。
 详见 `docs/2.5D/G32.md`（S116原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
 S117 资产重写（等 S15/S19，G22/G35，窗game_asset--case=large）：
@@ -1434,17 +1435,19 @@ S118 灯管线转 GPU（等 S45/S63/S66，G14/G15/G20，torch/shadow重验）：
 逐像素 CPU 三重循环改 GPU 灯累积，老 LitCPU 只读保留作对照；8 灯 64x64 预算重定。
 详见 `docs/2.5D/G32.md`（S118原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
-S119 动画重写（等 S04/S46，G06/G07/G13，窗game_anim--case=hero＋game_light重验）：
-时间轴改多軌资源＋播放器分层，状态机改图机（travel/条件/switch 三档/xfade），
-骨骼补修改栈＋蒙皮权重；缓动数学保留，旧 timeline/statemachine 只读保留。
+S119 动画重写（等 S04/S46，G06/G07/G13，窗game_anim--case=hero＋game_light重验，接管S99骨骼全集）：
+时间轴改多軌资源＋播放器分层（含动画库建库查表、播放排队分段抢拍、Tween补间链），状态机改图机
+（travel/条件/switch 三档/xfade），骨骼补修改栈＋蒙皮权重＋重定向映射（一套动画多体型复用）；
+缓动数学保留，旧 timeline/statemachine 只读保留；S99先行小套，S119重写时整体接管。
 详见 `docs/2.5D/G32.md`（S119原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
 W26总指标：四项全正式包三遍最差，每窗双JSON（hero人工转身事件非0），新旧对照三数全贴，少一项W27不开。
 
 #### W27 导航寻路（S120–S122，靠W26，波内可并行，一窗一会话，按W块拿活）
 
-S120 寻路导航全套（等 S113/S114，G27，窗examples/game_nav新建）：
+S120 寻路导航全套（等 S113/S114，G27，窗examples/game_nav新建，接管S87）：
 NavServer＋Agent/Region/Link/Obstacle＋bake，老 tilemap KindNavigation 只读保留；
+S87先行小套（旧物理上），S120随新物理全套整体接管；
 大地图怪群走位不穿墙，人工点选事件非0。
 详见 `docs/2.5D/G33.md`（S120原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
@@ -1477,7 +1480,7 @@ S125 自定义着色器链（等 S66，G20，窗game_fx--case=shader）：
 详见 `docs/2.5D/G35.md`（S125原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
 S126 材质混合链＋多边形网格（等 S62，G13/G16，窗game_tex重验＋game_sprite重验）：
-BlendMode6 档/LightMode3 档＋next_pass/render_priority，Polygon2D＋MeshInstance2D，
+BlendMode6 档/LightMode3 档＋next_pass/render_priority＋整组调透明，Polygon2D＋MeshInstance2D，
 多网格同画（万级同图一次画）。
 详见 `docs/2.5D/G35.md`（S126原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
@@ -1489,16 +1492,18 @@ W29总指标：三项全正式包三遍最差，每窗双JSON，着色器/混合
 
 #### W30 系统封口（S128–S130，靠W29，波内可并行，一窗一会话，按W块拿活）
 
-S128 多总线混音（等 S13/S14/S89，G28–G31，窗复用不新建，N6转正收尾）：
-6×4 总线＋send/solo＋闪避，单 Bus 只读保留；大包几十路同响人工听＋波形。
+S128 多总线混音（等 S13/S14/S89，G28–G31，窗复用不新建，N6转正收尾，接管S89）：
+6×4 总线＋send/solo＋闪避，单 Bus 只读保留；大包几十路同响人工听＋波形；
+S89先行64路，S128全套整体接管。
 详见 `docs/2.5D/G36.md`（S128原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
 S129 手柄库＋视口事件路由（等 S07/S23，G32，窗game_input重验）：
 手柄 DB 映射＋键位表，视口 push/gui/shortcut/unhandled/drag 路由，旧 Map 保留做强度计算。
 详见 `docs/2.5D/G36.md`（S129原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
-S130 形状关节全套（等 S113，G23/G24，窗game_physics--case=shapes）：
-capsule/多边形/线段＋Pin/Groove/Spring，静态 Query 只读保留。
+S130 形状关节全套（等 S113，G23/G24，窗game_physics--case=shapes，接管S100）：
+capsule/多边形/线段＋ShapeCast用体扫掠＋Pin/Groove/Spring，静态 Query 只读保留；
+S100先行小套，S130随新物理全套整体接管。
 详见 `docs/2.5D/G36.md`（S130原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
 W30总指标：三项全正式包三遍最差，每窗（复用窗）双JSON，混音/路由/关节三数全过，少一项W31不开。
@@ -1536,21 +1541,21 @@ W31总指标：单测＋自动＋人工＋8小时报表＋三遍最差全贴，�
 | S113 | 物理重写 | S06/S21/S22 | game_physics--case=large | 未开工 |
 | S114 | 世界重写 | S33 | game_world--case=large | 未开工 |
 | S115 | 主循环并行 | S114 | 离屏对比 | 未开工 |
-| S116 | 粒子重写 | S38/S43 | game_particles2d--case=storm | 未开工 |
+| S116 | 粒子重写 | S38/S43 | game_particles2d--case=storm | 未开工，接管S43 |
 | S117 | 资产重写 | S15/S19 | game_asset--case=large | 未开工 |
 | S118 | 灯管线转GPU | S45/S63/S66 | torch/shadow重验 | 未开工 |
-| S119 | 动画重写 | S04/S46 | game_anim--case=hero＋light重验 | 未开工 |
-| S120 | 寻路导航全套 | S113/S114 | game_nav新建 | 未开工 |
+| S119 | 动画重写 | S04/S46 | game_anim--case=hero＋light重验 | 未开工，含库/播放器/Tween/重定向，接管S99 |
+| S120 | 寻路导航全套 | S113/S114 | game_nav新建 | 未开工，接管S87 |
 | S121 | 路径跟随＋标记同步 | S120 | 随S120 | 未开工 |
 | S122 | 可见通知＋进屏启停 | S114/S120 | 随S120 | 未开工 |
 | S123 | 混合树＋混合空间 | S119 | game_anim--case=blend | 未开工 |
 | S124 | 动画事件＋分层＋根运动 | S123 | 随S123 | 未开工 |
 | S125 | 自定义着色器链 | S66 | game_fx--case=shader | 未开工 |
-| S126 | 材质混合链＋多边形网格 | S62 | tex/sprite重验 | 未开工 |
+| S126 | 材质混合链＋多边形网格 | S62 | tex/sprite重验 | 未开工，含整组调透明 |
 | S127 | HDR全套 | S66 | game_fx--case=hdr | 未开工 |
-| S128 | 多总线混音 | S13/S14/S89 | 复用不新建 | 未开工 |
+| S128 | 多总线混音 | S13/S14/S89 | 复用不新建 | 未开工，接管S89 |
 | S129 | 手柄库＋事件路由 | S07/S23 | game_input重验 | 未开工 |
-| S130 | 形状关节全套 | S113 | game_physics--case=shapes | 未开工 |
+| S130 | 形状关节全套 | S113 | game_physics--case=shapes | 未开工，含用体扫掠，接管S100 |
 | S131 | 线程模型＋大包关门 | W25–W30＋S90 | 追车siege | 未开工 |
 
 #### V7 门禁挂波（W25靠W24，W26靠W25，W27靠W26，W28靠W27，W29靠W28，W30靠W29，W31靠W30串行）
