@@ -656,7 +656,8 @@ func runProbes() probeResult {
 
 // camSim is the live window state: a real camera chases waypoints with a
 // dead zone, parallax bands drift with real layers, and one listener
-// rides the camera while three fixed sounds mix through it.
+// rides the camera while three fixed sounds mix through it. Full-window
+// content: road fills the window, one overlay line floats at top-left.
 type camSim struct {
 	cam       camera.Camera
 	target    core.Vec2
@@ -670,15 +671,14 @@ type camSim struct {
 	bus       *audio.Bus
 	mixer     *audio.Mixer
 	app       *embedder.PipelineApp
-	shell     *wrkit.ShellChrome
+	root      *rendering.AbsoluteBox
 	phase     *wrkit.PhaseClock
 	road      *rendering.RenderBox
 	car       *rendering.RenderColorBox
-	targetL   *rendering.RenderText
-	camL      *rendering.RenderText
-	mixL      *rendering.RenderText
-	fpsL      *rendering.RenderText
+	// Thick content: foreground occluder posts + parallax far mountain.
+	occlX     []float64
 	frames    int
+	overlay   *rendering.RenderText
 	camTravel float64
 	moves     int
 	holds     int
@@ -730,14 +730,21 @@ func (t *ticker) Tick(dt float64) bool {
 	// S77: the hear point rides the effective center every frame.
 	_ = s.listener.FollowCamera(s.cam.EffectivePos())
 	if scr, ok := s.cam.WorldToScreen(s.target); ok {
-		s.car.MoveTo(roadX+scr.X-12, roadY+scr.Y-12)
+		// Car is road-local at full-window size: road fills the window.
+		s.car.MoveTo(scr.X-12, scr.Y-12)
+	}
+	// Thick content: foreground occluder posts drift with the lens.
+	for i := range s.occlX {
+		s.occlX[i] -= 60 * dt
+		if s.occlX[i] < -40 {
+			s.occlX[i] = float64(winW + 40)
+		}
 	}
 	s.road.MarkNeedsPaint()
-	s.targetL.SetText(fmt.Sprintf("目标 %.0f,%.0f", s.target.X, s.target.Y))
-	s.camL.SetText(fmt.Sprintf("画面 %.0f,%.0f", pos.X, pos.Y))
+	// Single floating overlay line at top-left over the picture.
 	mixes, _ := audio.MixCurrent(s.sounds)
 	gains := make([]float64, 0, len(mixes))
-	txt := "听者 "
+	txt := "听 "
 	for i, m := range mixes {
 		if i > 0 {
 			txt += " "
@@ -746,20 +753,16 @@ func (t *ticker) Tick(dt float64) bool {
 		gains = append(gains, audio.CombineGains(m.Gain, s.bus.Gain(), 1))
 	}
 	held := s.mixer.Mix(gains)
-	txt += fmt.Sprintf(" 合%.2f留%d", held.Total, held.Kept)
-	s.mixL.SetText(txt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	phase := s.phase.Advance(dt)
-	gateOK := s.camTravel > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("game-camera", phase, s.app, gateOK,
-		fmt.Sprintf("tgt=%.0f cam=%.0f", s.target.X, pos.X),
-		fmt.Sprintf("moves=%d holds=%d", s.moves, s.holds))
+	if s.overlay != nil {
+		s.overlay.SetText(fmt.Sprintf("fps %.0f tgt %.0f,%.0f cam %.0f,%.0f %s 合%.2f留%d mv%d",
+			fps, s.target.X, s.target.Y, pos.X, pos.Y, txt, held.Total, held.Kept, s.moves))
+	}
+	_ = s.phase.Advance(dt)
 	s.app.ScheduleFrame()
 	return true
 }
@@ -832,16 +835,11 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_camera — S55 镜头长路 (game-camera)", []string{
-		"跟随收敛·限位钳住·平滑",
-		"远慢近快·10公里无缝",
-		"死区内驻·区外跟",
-		"黄框=限位·红块=目标",
-		"右栏 目标/画面/听感",
-		"JSON见 ability_extra",
-	})
+	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: skyR, G: skyG, B: skyB, A: 1}
 
-	cam, err := camera.NewCamera(core.V2(roadW, roadH))
+	// Full-window lens: camera viewport matches the window.
+	cam, err := camera.NewCamera(core.V2(float64(winW), float64(winH)))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: NewCamera:", err)
 		os.Exit(1)
@@ -898,7 +896,8 @@ func main() {
 		sounds:    sounds,
 		bus:       bus,
 		mixer:     mixer,
-		shell:     shell,
+		root:      root,
+		occlX:     []float64{200, 600, 1000},
 		lastPos:   cam.Pos(),
 	}
 	if secs > 0 {
@@ -907,9 +906,12 @@ func main() {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	shell.Body.Place(wrkit.Label("ROAD 长路跟随", 13, 0.55, 0.75, 0.95), roadX, roadY-24)
+	// Full-window content: road fills the window (no partitions).
+	// Thick: follow + shake + parallax far mountain + foreground occluders
+	// + limit frame + audio mixes all in the same picture.
+	rw, rh := float64(winW), float64(winH)
 	sim.road = rendering.NewRenderBox()
-	sim.road.FixedWidth, sim.road.FixedHeight = roadW, roadH
+	sim.road.FixedWidth, sim.road.FixedHeight = rw, rh
 	sim.road.SetRepaintBoundary(true)
 	sim.road.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc == nil || pc.DC == nil {
@@ -917,13 +919,28 @@ func main() {
 		}
 		ax, ay := pc.Abs(0, 0)
 		pc.DC.SetRGBA(skyR, skyG, skyB, 1)
-		pc.DC.DrawRectangle(ax, ay, roadW, roadH)
+		pc.DC.DrawRectangle(ax, ay, rw, rh)
 		_ = pc.DC.Fill()
 		// Parallax stripes: real Layer.Shift mapped through the projector
 		// so far bands visibly lag the lens.
-		proj, err := camera.NewProjector(500, core.V2(roadW/2, roadH/2), sim.cam.EffectivePos())
+		proj, err := camera.NewProjector(500, core.V2(rw/2, rh/2), sim.cam.EffectivePos())
 		if err != nil {
 			return
+		}
+		// Far mountain ridge (slowest layer) across the full width.
+		for k := 0; k < 8; k++ {
+			w := core.V2(float64(k*220), 60)
+			sh, ok := sim.layers[3].Shift(w, sim.cam.EffectivePos())
+			if !ok {
+				continue
+			}
+			sp, _, ok := proj.Project(sh, 0)
+			if !ok {
+				continue
+			}
+			pc.DC.SetRGBA(farR, farG, farB, 1)
+			pc.DC.DrawRectangle(ax+sp.X-40, ay+sp.Y-30, 80, 60)
+			_ = pc.DC.Fill()
 		}
 		bandCols := [][3]float64{{farR, farG, farB}, {nearR, nearG, nearB}}
 		for bi := 0; bi < 2; bi++ {
@@ -938,7 +955,7 @@ func main() {
 					continue
 				}
 				px, py := ax+sp.X-30, ay+sp.Y-14
-				if px < ax-60 || px > ax+roadW+60 || py < ay-40 || py > ay+roadH+40 {
+				if px < ax-60 || px > ax+rw+60 || py < ay-40 || py > ay+rh+40 {
 					continue
 				}
 				pc.DC.SetRGBA(bandCols[bi][0], bandCols[bi][1], bandCols[bi][2], 1)
@@ -973,28 +990,25 @@ func main() {
 				prevX, prevY, havePrev = sp.X, sp.Y, true
 			}
 		}
+		// Foreground occluder posts: same height as the window, drawn over
+		// everything to prove foreground occlusion in one picture.
+		for _, ox := range sim.occlX {
+			pc.DC.SetRGBA(0.05, 0.05, 0.07, 0.85)
+			pc.DC.DrawRectangle(ax+ox, ay, 36, rh)
+			_ = pc.DC.Fill()
+		}
 	}
-	shell.Body.Place(sim.road, roadX, roadY)
+	root.Place(sim.road, 0, 0)
 	sim.car = rendering.NewRenderColorBox(24, 24, dotR, dotG, dotB, 1)
 	if scr, ok := sim.cam.WorldToScreen(sim.target); ok {
-		shell.Body.Place(sim.car, roadX+scr.X-12, roadY+scr.Y-12)
+		root.Place(sim.car, scr.X-12, scr.Y-12)
 	} else {
-		shell.Body.Place(sim.car, roadX+roadW/2-12, roadY+roadH/2-12)
+		root.Place(sim.car, rw/2-12, rh/2-12)
 	}
 
-	shell.Body.Place(wrkit.Label("READOUT 读数", 13, 0.55, 0.75, 0.95), infoX, infoY-24)
-	sim.targetL = wrkit.Label("目标 300,250", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.targetL, infoX, infoY+10)
-	sim.camL = wrkit.Label("画面 300,250", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.camL, infoX, infoY+36)
-	sim.mixL = wrkit.Label("听者 --", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.mixL, infoX, infoY+62)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, infoX, infoY+88)
-	shell.Body.Place(wrkit.Label("WASD推目标·空格抖一下", 12, 0.70, 0.78, 0.88), infoX, infoY+114)
-	shell.Body.Place(wrkit.Label("点一下路把目标拉过去", 12, 0.70, 0.78, 0.88), infoX, infoY+136)
-
-	shell.Body.Place(wrkit.Label("红块=目标 · 黄框=限位 · 远带跑得慢 · 右栏目标/画面分开读", 12, 0.70, 0.78, 0.88), roadX, noteY)
+	// One-line floating overlay at top-left over the picture (no own band).
+	sim.overlay = wrkit.Label("--", 13, 1, 1, 1)
+	root.Place(sim.overlay, 12, 10)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_camera", Decorations: true})
 	if err != nil {
@@ -1005,7 +1019,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: skyR, ClearG: skyG, ClearB: skyB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -1016,14 +1030,10 @@ func main() {
 				return
 			case platform.EventPointer:
 				summary.Pointer++
-				// Drag the target toward the pressed road point.
-				sx := ev.X - (284 + roadX)
-				sy := ev.Y - (60 + roadY)
-				if sx >= 0 && sy >= 0 && sx < roadW && sy < roadH {
-					if w, ok := sim.cam.ScreenToWorld(core.V2(sx, sy)); ok {
-						sim.target = w
-						sim.wpClock = 0
-					}
+				// Drag the target toward the pressed point (full window).
+				if w, ok := sim.cam.ScreenToWorld(core.V2(ev.X, ev.Y)); ok {
+					sim.target = w
+					sim.wpClock = 0
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_camera: pointer %s (%.0f,%.0f) n=%d\n",
@@ -1064,7 +1074,8 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsLayout()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_camera: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -1086,7 +1097,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

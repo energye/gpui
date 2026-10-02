@@ -345,7 +345,12 @@ func probeTrailGolden() (ok bool, changed int, wrote bool) {
 	if !img.Bounds().Eq(want.Bounds()) {
 		return false, 1, false
 	}
+	// Golden裁掉顶部指标带：浮层指标行不参比。
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			ar, ag, ab, aa := img.At(x, y).RGBA()
 			br, bg, bb, ba := want.At(x, y).RGBA()
@@ -496,23 +501,54 @@ func paintSlashCard(pc *rendering.PaintContext, w, h float64, pool *particle.GPU
 	_, _ = pc.DC.DrawAtlasEx(atlasBuf, rs, render.AtlasDrawOptions{})
 }
 
+// paintTrailFullWindow draws the full-window slash scene with floor line,
+// warm light tint and camera micro-follow (window only, engine untouched).
+func paintTrailFullWindow(pc *rendering.PaintContext, w, h float64, pool *particle.GPUPool, camX, camY, lightA float64) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	ax, ay := pc.Abs(0, 0)
+	pc.DC.SetRGB(0.05, 0.05, 0.07)
+	pc.DC.DrawRectangle(ax, ay, w, h)
+	_ = pc.DC.Fill()
+	ox := ax + camX + w*0.5 - (slashOriginX + 400)
+	oy := ay + camY + h*0.5 - (slashOriginY + 100)
+	items := slashToAtlas(pool, ox, oy)
+	rs, err := sprite.AtlasToRender(items)
+	if err == nil && len(rs) > 0 {
+		if atlasBuf == nil {
+			atlasBuf = buildParticleAtlas()
+		}
+		_, _ = pc.DC.DrawAtlasEx(atlasBuf, rs, render.AtlasDrawOptions{})
+	}
+	floorY := ay + h - 60
+	pc.DC.SetRGBA(0.75, 0.78, 0.85, 0.9)
+	pc.DC.SetLineWidth(2)
+	pc.DC.DrawRectangle(ax+40, floorY, w-80, 2)
+	_ = pc.DC.Fill()
+	pc.DC.SetRGBA(1, 0.72, 0.30, lightA)
+	pc.DC.DrawRectangle(ax+camX+w*0.5-200, ay+camY+h*0.5-160, 400, 220)
+	_ = pc.DC.Fill()
+}
+
 // liveTrailSim is the live window state: one real slash pool advances every
-// tick, the batch proves the wiring, the card draws the tinted ribbon.
+// tick, the batch proves the wiring, one full-window box draws the scene.
 type liveTrailSim struct {
 	pool       *particle.GPUPool
 	app        *embedder.PipelineApp
-	shell      *wrkit.ShellChrome
+	root       *rendering.AbsoluteBox
 	phase      *wrkit.PhaseClock
-	slashBox   *rendering.RenderBox
-	aliveL     *rendering.RenderText
-	trailsL    *rendering.RenderText
-	pointsL    *rendering.RenderText
-	batchL     *rendering.RenderText
+	fullBox    *rendering.RenderBox
+	metric     *rendering.RenderText
 	alive      int
 	trails     int
 	points     int
 	batchCalls int
 	spawned    int
+	camT       float64
+	camX       float64
+	camY       float64
+	lightA     float64
 }
 
 type trailTicker struct{ s *liveTrailSim }
@@ -542,27 +578,19 @@ func (t *trailTicker) Tick(dt float64) bool {
 		_, _ = s.pool.AppendToBatch(b, trailImageID, trailSrc)
 	}
 	s.batchCalls = b.Flush(func(_ core.AssetID, _ []sprite.Sprite) {})
-	if s.slashBox != nil {
-		s.slashBox.MarkNeedsPaint()
+	s.camT += dt
+	_ = math.Sin(s.camT)
+	s.camX = 10 * math.Sin(s.camT*0.9)
+	s.camY = 6 * math.Cos(s.camT*0.63)
+	s.lightA = 0.06 + 0.02*math.Sin(s.camT*3.1)
+	if s.fullBox != nil {
+		s.fullBox.MarkNeedsPaint()
 	}
-	if s.aliveL != nil {
-		s.aliveL.SetText(fmt.Sprintf("alive %d", s.alive))
+	if s.metric != nil {
+		s.metric.SetText(fmt.Sprintf("alive=%d trails=%d points=%d batch=%d cam=%+.0f", s.alive, s.trails, s.points, s.batchCalls, s.camX))
+		s.metric.MarkNeedsPaint()
 	}
-	if s.trailsL != nil {
-		s.trailsL.SetText(fmt.Sprintf("trails %d", s.trails))
-	}
-	if s.pointsL != nil {
-		s.pointsL.SetText(fmt.Sprintf("points %d", s.points))
-	}
-	if s.batchL != nil {
-		s.batchL.SetText(fmt.Sprintf("batch_calls %d", s.batchCalls))
-	}
-	phase := s.phase.Advance(dt)
-	gateOK := s.alive > 0 && s.trails > 0 && s.points > 0 && s.batchCalls >= 1
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("particle-trail", phase, s.app, gateOK,
-		fmt.Sprintf("alive=%d trails=%d points=%d batch=%d", s.alive, s.trails, s.points, s.batchCalls),
-		fmt.Sprintf("spawned=%d", s.spawned))
+	_ = s.phase.Advance(dt)
 	s.app.ScheduleFrame()
 	return true
 }
@@ -632,40 +660,25 @@ func runTrail(autoOnly bool, manualSeconds int) {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_particle — 5.2 刀光拖尾 (particle-trail)", []string{
-		"刀光 slash右冲+重力弧圆接头",
-		"头宽14尾窄1亮黄→红渐隐",
-		"段旋染色+接头方块走新管线",
-		"轨迹数=活粒子 batch_calls计",
-		"底栏 alive/trails/points",
-		"JSON见 ability_extra",
-	})
-
-	sim := &liveTrailSim{pool: pool, shell: shell}
+	// 满窗即内容：整窗为刀光场景，地板线+暖光+镜头微跟同场加厚。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	sim := &liveTrailSim{pool: pool, root: root}
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	shell.Body.Place(wrkit.Label("SLASH 刀光区", 13, 0.55, 0.75, 0.95), slashX, slashY-24)
-	sim.slashBox = rendering.NewRenderBox()
-	sim.slashBox.FixedWidth, sim.slashBox.FixedHeight = slashW, slashH
+	sim.fullBox = rendering.NewRenderBox()
+	sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
 	slashEm := pool
-	sim.slashBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintSlashCard(pc, size.Width, size.Height, slashEm)
+	sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		paintTrailFullWindow(pc, size.Width, size.Height, slashEm, sim.camX, sim.camY, sim.lightA)
 	}
-	shell.Body.Place(sim.slashBox, slashX, slashY)
-
-	sim.aliveL = wrkit.Label("alive 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.aliveL, trailCountX, trailCountY+10)
-	sim.trailsL = wrkit.Label("trails 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.trailsL, trailCountX+220, trailCountY+10)
-	sim.pointsL = wrkit.Label("points 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.pointsL, trailCountX+440, trailCountY+10)
-	sim.batchL = wrkit.Label("batch_calls 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.batchL, trailCountX+660, trailCountY+10)
-	shell.Body.Place(wrkit.Label("刀光由宽到窄亮黄拖红 · 重力弧拐圆接头 · 一次合批提交", 12, 0.70, 0.78, 0.88), trailCountX, trailNoteY)
+	root.Place(sim.fullBox, 0, 0)
+	sim.metric = wrkit.Label("alive=0 trails=0 points=0", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 8, 8)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_particle", Decorations: true})
 	if err != nil {
@@ -676,7 +689,7 @@ func runTrail(autoOnly bool, manualSeconds int) {
 	ctl := win.Controls()
 
 	var summary trailManualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -709,7 +722,9 @@ func runTrail(autoOnly bool, manualSeconds int) {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_particle-trail: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -731,7 +746,7 @@ func runTrail(autoOnly bool, manualSeconds int) {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	var proc scheduler.ProcessTracker

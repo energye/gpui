@@ -309,21 +309,23 @@ func runProbes() probeResult {
 
 // chaseSim is the live window state: real tracker + real layer advance the
 // car every frame, and the overlay strokes exactly the kept dirty rects.
+// Full-window content: runway fills the window, one overlay line floats
+// at top-left.
 type chaseSim struct {
 	tracker *dirty.DirtyTracker
 	layer   *scene.DirtyLayer
 	app     *embedder.PipelineApp
-	shell   *wrkit.ShellChrome
+	root    *rendering.AbsoluteBox
 	phase   *wrkit.PhaseClock
 	overlay *rendering.RenderBox
 	show    []scene.DirtyRect
 	fullBar *rendering.RenderColorBox
 	car     *rendering.RenderColorBox
-	dirtyL  *rendering.RenderText
-	fullL   *rendering.RenderText
-	fpsL    *rendering.RenderText
-	skipL   *rendering.RenderText
-	movedL  *rendering.RenderText
+	// Thick content: three extra chase sprites + frame counter line.
+	extras  []*rendering.RenderColorBox
+	extraX  []float64
+	extraD  []float64
+	infoL   *rendering.RenderText
 	carX    float64
 	dir     float64
 	movedPx float64
@@ -384,31 +386,38 @@ func (t *ticker) Tick(dt float64) bool {
 		s.maxSeen = len(kept)
 	}
 	full := s.tracker.NeedsFull()
-	s.car.MoveTo(runX+s.carX, runY+carY)
+	s.car.MoveTo(s.carX, carY)
+	// Thick: three extra sprites pace at different speeds (multi-sprite).
+	for i := range s.extras {
+		ex := s.extraX[i] + s.extraD[i]*carSpeed*0.6*dt
+		if ex >= runW-8-32 {
+			ex, s.extraD[i] = runW-8-32, -1
+		}
+		if ex <= 8 {
+			ex, s.extraD[i] = 8, 1
+		}
+		s.extraX[i] = ex
+		s.extras[i].MoveTo(ex, carY+60+float64(i*40))
+	}
 	s.overlay.MarkNeedsPaint()
 	s.tracker.Clear()
 	s.layer.Clear()
 
-	phase := s.phase.Advance(dt)
+	_ = s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	dirtyTxt := fmt.Sprintf("脏块数 %d", len(kept))
+	// Single floating overlay line at top-left over the picture.
+	dirtyTxt := fmt.Sprintf("dirty %d", len(kept))
 	if full {
-		dirtyTxt = "脏块数 FULL"
+		dirtyTxt = "dirty FULL"
 	}
-	s.dirtyL.SetText(dirtyTxt)
-	s.fullL.SetText(fmt.Sprintf("整屏回退数 %d", s.tracker.Stats().FullFallbacks))
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	s.skipL.SetText(fmt.Sprintf("静态skip %d", snap.BoundarySkip))
-	s.movedL.SetText(fmt.Sprintf("位移 %.0fpx", s.movedPx))
-	gateOK := s.app.PresentCount() >= 0 && s.movedPx > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("step-dirty", phase, s.app, gateOK,
-		fmt.Sprintf("dirty=%d full=%d", len(kept), s.tracker.Stats().FullFallbacks),
-		fmt.Sprintf("moved=%.0fpx", s.movedPx))
+	if s.infoL != nil {
+		s.infoL.SetText(fmt.Sprintf("fps %.0f frame %d %s full %d skip %d moved %.0fpx",
+			fps, s.frames, dirtyTxt, s.tracker.Stats().FullFallbacks, snap.BoundarySkip, s.movedPx))
+	}
 	s.app.ScheduleFrame()
 	return true
 }
@@ -481,14 +490,8 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_step — 8.3 追车脏区 (step-dirty)", []string{
-		"静态底图留存·全程零脏",
-		"追车每帧只更脏区",
-		"黄框=脏区描边",
-		"青条=突发整屏对照",
-		"右栏 脏块/回退/帧率",
-		"JSON见 ability_extra",
-	})
+	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: runR, G: runG, B: runB, A: 1}
 
 	// Scene tree: static layer stays clean forever, sprite layer takes the
 	// chase moves. Static is never marked: the skip evidence is live.
@@ -504,9 +507,11 @@ func main() {
 	sim := &chaseSim{
 		tracker: tracker,
 		layer:   spriteLayer,
-		shell:   shell,
+		root:    root,
 		carX:    carMinX,
 		dir:     1,
+		extraX:  []float64{60, 200, 320},
+		extraD:  []float64{1, -1, 1},
 	}
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
@@ -514,23 +519,20 @@ func main() {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	// Left: static retained blocks (repaint boundary, never dirtied).
-	shell.Body.Place(wrkit.Label("STATIC 留存·零脏", 13, 0.55, 0.75, 0.95), staticX, staticY-24)
+	// Full-window content: runway fills the window (no partitions).
+	// Static retained blocks live in the background (never dirtied), the
+	// chase runway is the window itself. Thick: main car + three extra
+	// sprites + frame counter all share the same picture.
+	rw, rh := float64(winW), float64(winH)
 	staticA := rendering.NewRenderColorBox(200, 150, staticAR, staticAG, staticAB, 1)
 	staticA.SetRepaintBoundary(true)
-	shell.Body.Place(staticA, staticX+10, staticY+10)
+	root.Place(staticA, 10, 60)
 	staticB := rendering.NewRenderColorBox(200, 120, staticBR, staticBG, staticBB, 1)
 	staticB.SetRepaintBoundary(true)
-	shell.Body.Place(staticB, staticX+10, staticY+180)
-	shell.Body.Place(wrkit.Label("全程skip·不重画", 12, 0.70, 0.78, 0.88), staticX+10, staticY+312)
-
-	// Middle: chase runway (background + car + burst bar + dirty overlay).
-	shell.Body.Place(wrkit.Label("CHASE 追车跑道", 13, 0.55, 0.75, 0.95), runX, runY-24)
-	runway := rendering.NewRenderColorBox(runW, runH, runR, runG, runB, 1)
-	shell.Body.Place(runway, runX, runY)
+	root.Place(staticB, rw-210, rh-180)
 	// Lane guides live on the runway background (static paint, no dirty).
 	lane := rendering.NewRenderBox()
-	lane.FixedWidth, lane.FixedHeight = runW, runH
+	lane.FixedWidth, lane.FixedHeight = rw, rh
 	lane.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc == nil || pc.DC == nil {
 			return
@@ -538,19 +540,24 @@ func main() {
 		ax, ay := pc.Abs(0, 0)
 		pc.DC.SetRGBA(0.9, 0.9, 0.9, 0.25)
 		pc.DC.SetLineWidth(1)
-		pc.DC.DrawLine(ax, ay+carY-8, ax+runW, ay+carY-8)
+		pc.DC.DrawLine(ax, ay+carY-8, ax+rw, ay+carY-8)
 		_ = pc.DC.Stroke()
-		pc.DC.DrawLine(ax, ay+carY+carH+8, ax+runW, ay+carY+carH+8)
+		pc.DC.DrawLine(ax, ay+carY+carH+8, ax+rw, ay+carY+carH+8)
 		_ = pc.DC.Stroke()
 	}
-	shell.Body.Place(lane, runX, runY)
+	root.Place(lane, 0, 0)
 	sim.car = rendering.NewRenderColorBox(carW, carH, carR, carG, carB, 1)
-	shell.Body.Place(sim.car, runX+carMinX, runY+carY)
-	sim.fullBar = rendering.NewRenderColorBox(runW, runH, 0.2, 0.8, 0.9, 1)
+	root.Place(sim.car, carMinX, carY)
+	for i := 0; i < 3; i++ {
+		ex := rendering.NewRenderColorBox(32, 20, carR*0.7, carG+0.2, carB+0.3, 1)
+		root.Place(ex, sim.extraX[i], carY+60+float64(i*40))
+		sim.extras = append(sim.extras, ex)
+	}
+	sim.fullBar = rendering.NewRenderColorBox(rw, rh, 0.2, 0.8, 0.9, 1)
 	sim.fullBar.SetAlpha(0)
-	shell.Body.Place(sim.fullBar, runX, runY)
+	root.Place(sim.fullBar, 0, 0)
 	sim.overlay = rendering.NewRenderBox()
-	sim.overlay.FixedWidth, sim.overlay.FixedHeight = runW, runH
+	sim.overlay.FixedWidth, sim.overlay.FixedHeight = rw, rh
 	sim.overlay.SetRepaintBoundary(true)
 	sim.overlay.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc == nil || pc.DC == nil {
@@ -564,24 +571,11 @@ func main() {
 			_ = pc.DC.Stroke()
 		}
 	}
-	shell.Body.Place(sim.overlay, runX, runY)
+	root.Place(sim.overlay, 0, 0)
 
-	// Right: live counters (dirty / full fallbacks / fps).
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), countX, countY-24)
-	sim.dirtyL = wrkit.Label("脏块数 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.dirtyL, countX, countY+10)
-	sim.fullL = wrkit.Label("整屏回退数 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fullL, countX, countY+36)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, countX, countY+62)
-	sim.skipL = wrkit.Label("静态skip 0", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.skipL, countX, countY+88)
-	sim.movedL = wrkit.Label("位移 0px", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.movedL, countX, countY+114)
-	shell.Body.Place(wrkit.Label("MaxDirtyRects=16", 12, 0.70, 0.78, 0.88), countX, countY+140)
-	shell.Body.Place(wrkit.Label("超16块退整屏", 12, 0.70, 0.78, 0.88), countX, countY+162)
-
-	shell.Body.Place(wrkit.Label("黄框=本帧脏区并集 · 青条=突发全动整屏对照 · 右栏为live计数", 12, 0.70, 0.78, 0.88), staticX, noteY)
+	// One-line floating overlay at top-left over the picture (no own band).
+	sim.infoL = wrkit.Label("--", 13, 1, 1, 1)
+	root.Place(sim.infoL, 12, 10)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_step", Decorations: true})
 	if err != nil {
@@ -592,7 +586,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -625,7 +619,8 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsLayout()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_step: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -647,7 +642,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

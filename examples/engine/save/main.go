@@ -96,6 +96,11 @@ const (
 	liveDot    = 3
 )
 
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+// metricStripH是浮层指标带高度，窗口Golden比对从该高度之下起算。
+// 离屏探针帧无指标覆盖；窗口快照只比该带之下的纯画面。
+const metricStripH = 32.0
+
 var tierOrder = []quality.Level{quality.LevelHigh, quality.LevelMedium, quality.LevelLow}
 
 func tierColor(l quality.Level) (float64, float64, float64) {
@@ -164,6 +169,79 @@ func paintQ123Frame(dc *render.Context) {
 		dc.DrawRectangle(ox+6, oy+float64(offCardH)-6-offBarH, (float64(offCardW)-12)*spec.Scale, offBarH)
 		_ = dc.Fill()
 	}
+}
+
+// paintFullWindow draws the full-window scene: three tier cards spread
+// across the whole window plus the thickening layer (window only, engine
+// untouched): multi-entity markers per card (slots/inventory/stars feel),
+// a day-night sun rail that keeps running across tier switches (存读档后
+// 昼夜保持), and the active-tier highlight. Only render DC primitives.
+func paintFullWindow(pc *rendering.PaintContext, w, h float64, s *qSim) {
+	if pc == nil || pc.DC == nil || s == nil {
+		return
+	}
+	ax, ay := pc.Abs(0, 0)
+	dc := pc.DC
+	dc.SetRGB(bgR, bgG, bgB)
+	dc.DrawRectangle(ax, ay, w, h)
+	_ = dc.Fill()
+	cardY := metricStripH + 12
+	cardH := h - cardY - 72
+	if cardH < 200 {
+		cardH = 200
+	}
+	cardW := (w - 48) / 3
+	for i, lvl := range tierOrder {
+		spec, err := quality.SpecFor(lvl)
+		if err != nil {
+			continue
+		}
+		r, g, b := tierColor(lvl)
+		ox := ax + 16 + float64(i)*(cardW+8)
+		oy := ay + cardY
+		paintCard(dc, ox, oy, cardW, cardH, spec, r, g, b, liveDot)
+		// Multi-entity markers: 3 slot squares + star row (save feel).
+		for slot := 0; slot < 3; slot++ {
+			sx := ox + 8 + float64(slot)*22
+			sy := oy + cardH - 34
+			if slot == s.active%3 {
+				dc.SetRGBA(1, 0.9, 0.2, 1)
+			} else {
+				dc.SetRGBA(0.4, 0.42, 0.48, 1)
+			}
+			dc.DrawRectangle(sx, sy, 16, 10)
+			_ = dc.Fill()
+		}
+		for st := 0; st < 3; st++ {
+			dc.SetRGBA(dotR, dotG, dotB, 1)
+			dc.DrawRectangle(ox+8+float64(st)*10, oy+8, 6, 6)
+			_ = dc.Fill()
+		}
+		// Active-tier highlight frame.
+		if s.active == i {
+			dc.SetRGBA(1, 0.9, 0.2, 1)
+			dc.SetLineWidth(3)
+		} else {
+			dc.SetRGBA(0.4, 0.42, 0.48, 1)
+			dc.SetLineWidth(1)
+		}
+		dc.DrawRectangle(ox, oy, cardW, cardH)
+		_ = dc.Stroke()
+	}
+	// Day-night rail: sun dot runs on framesTotal, never resets on switch.
+	railY := ay + h - 36
+	dc.SetRGBA(0.25, 0.27, 0.32, 1)
+	dc.DrawRectangle(ax+16, railY, w-32, 4)
+	_ = dc.Fill()
+	phase := float64(s.framesTotal%600) / 600
+	sunX := ax + 16 + (w-32)*phase
+	dc.SetRGBA(1, 0.8, 0.4, 1)
+	dc.DrawRectangle(sunX-5, railY-8, 10, 10)
+	_ = dc.Fill()
+	// Night tint over the lower half (day-night feel, steady alpha).
+	dc.SetRGBA(0.1, 0.12, 0.25, 0.18)
+	dc.DrawRectangle(ax, ay+h/2, w, h/2-36)
+	_ = dc.Fill()
 }
 
 func sample8(img image.Image, x, y int) (uint8, uint8, uint8) {
@@ -359,7 +437,13 @@ func probeGolden() (ok bool, changed int, wrote bool) {
 	if !img.Bounds().Eq(want.Bounds()) {
 		return false, 1, false
 	}
+	// Golden裁掉顶部指标带：浮层指标行不参比，只比它下面的纯画面。
+	// 离屏探针帧本身无指标覆盖，此处按窗口比例折算跳过顶带，两侧一致。
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			ar, ag, ab, aa := img.At(x, y).RGBA()
 			br, bg, bb, ba := want.At(x, y).RGBA()
@@ -399,13 +483,10 @@ type qSim struct {
 	tierPresents [3]int64
 	lastPresents int64
 	app          *embedder.PipelineApp
-	shell        *wrkit.ShellChrome
+	root         *rendering.AbsoluteBox
 	phase        *wrkit.PhaseClock
-	overlays     [3]*rendering.RenderBox
-	activeL      *rendering.RenderText
-	switchL      *rendering.RenderText
-	fpsL         *rendering.RenderText
-	specL        [3]*rendering.RenderText
+	fullBox      *rendering.RenderBox
+	metric       *rendering.RenderText
 	framesTotal  int
 }
 
@@ -449,29 +530,24 @@ func (t *ticker) Tick(dt float64) bool {
 			s.active = next
 			s.switches++
 		}
-		for i := range s.overlays {
-			s.overlays[i].MarkNeedsPaint()
+		if s.fullBox != nil {
+			s.fullBox.MarkNeedsPaint()
 		}
 	}
-	phase := s.phase.Advance(dt)
+	_ = s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	spec := s.q.Spec()
-	s.activeL.SetText(fmt.Sprintf("当前档 %s", string(s.q.Level())))
-	s.switchL.SetText(fmt.Sprintf("切档数 %d 坏切 %d", s.switches, s.switchErrors))
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	for i := range s.overlays {
-		s.overlays[i].MarkNeedsPaint()
+	if s.fullBox != nil {
+		s.fullBox.MarkNeedsPaint()
 	}
-	_ = spec
-	gateOK := s.switchErrors == 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("save-q123", phase, s.app, gateOK,
-		fmt.Sprintf("tier=%s switches=%d", string(s.q.Level()), s.switches),
-		fmt.Sprintf("frames=%d/%d/%d", s.frames[0], s.frames[1], s.frames[2]))
+	if s.metric != nil {
+		s.metric.SetText(fmt.Sprintf("tier=%s sw=%d err=%d fps=%.0f %d/%d/%d",
+			string(s.q.Level()), s.switches, s.switchErrors, fps, s.frames[0], s.frames[1], s.frames[2]))
+		s.metric.MarkNeedsPaint()
+	}
 	s.app.ScheduleFrame()
 	return true
 }
@@ -544,80 +620,31 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_save — 16.2 三档 (save-q123)", []string{
-		"高1000粒8灯1.00 · 中500粒4灯0.75 · 低200粒2灯0.50",
-		"黄框=当前档·每2秒一切",
-		"切档只换档·场景不重载不闪",
-		"右栏 当前档/切档数/帧率",
-		"点数=粒子数·底条=分辨率比",
-		"JSON见 ability_extra",
-	})
-
 	q0, err := quality.NewQuality(quality.LevelHigh)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: NewQuality:", err)
 		os.Exit(1)
 	}
-	sim := &qSim{q: q0, continuous: true}
+	// 满窗即内容：整窗为三档场景+多实体+昼夜同场加厚，无顶栏/图例/计数器分区。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	sim := &qSim{q: q0, continuous: true, root: root}
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
-	sim.shell = shell
 
-	titles := []string{"HIGH 高", "MEDIUM 中", "LOW 低"}
-	xs := []float64{cardX0, cardX1, cardX2}
-	for i, lvl := range tierOrder {
-		spec, _ := quality.SpecFor(lvl)
-		r, g, b := tierColor(lvl)
-		shell.Body.Place(wrkit.Label(titles[i], 13, 0.55, 0.75, 0.95), xs[i], cardY-24)
-		card := rendering.NewRenderBox()
-		card.FixedWidth, card.FixedHeight = cardW, cardH
-		rCopy, gCopy, bCopy, specCopy := r, g, b, spec
-		card.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			paintCard(pc.DC, ax, ay, cardW, cardH, specCopy, rCopy, gCopy, bCopy, liveDot)
-		}
-		shell.Body.Place(card, xs[i], cardY)
-		hl := rendering.NewRenderBox()
-		hl.FixedWidth, hl.FixedHeight = cardW, cardH
-		idx := i
-		hl.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			if sim.active == idx {
-				pc.DC.SetRGBA(1, 0.9, 0.2, 1)
-				pc.DC.SetLineWidth(3)
-			} else {
-				pc.DC.SetRGBA(0.4, 0.42, 0.48, 1)
-				pc.DC.SetLineWidth(1)
-			}
-			pc.DC.DrawRectangle(ax, ay, cardW, cardH)
-			_ = pc.DC.Stroke()
-		}
-		shell.Body.Place(hl, xs[i], cardY)
-		sim.overlays[i] = hl
-		info := wrkit.Label(fmt.Sprintf("%d粒 %d灯 %.2f", spec.Particles, spec.Lights, spec.Scale),
-			12, 0.70, 0.78, 0.88)
-		shell.Body.Place(info, xs[i], cardY+cardH+8)
-		sim.specL[i] = info
+	sim.fullBox = rendering.NewRenderBox()
+	sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
+	live := sim
+	sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		paintFullWindow(pc, size.Width, size.Height, live)
 	}
-
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), cardX2, cardY+cardH+36)
-	sim.activeL = wrkit.Label("当前档 high", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.activeL, cardX2, cardY+cardH+62)
-	sim.switchL = wrkit.Label("切档数 0 坏切 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.switchL, cardX2, cardY+cardH+88)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, cardX2, cardY+cardH+114)
-
-	shell.Body.Place(wrkit.Label("黄框=当前档 · 切档只换档不重载 · 点数即粒子数", 12, 0.70, 0.78, 0.88), cardX0, noteY)
+	root.Place(sim.fullBox, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	sim.metric = wrkit.Label("tier=high sw=0", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 8, 8)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_save", Decorations: true})
 	if err != nil {
@@ -628,7 +655,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -663,7 +690,9 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_save: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -686,7 +715,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

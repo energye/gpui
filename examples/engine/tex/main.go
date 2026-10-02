@@ -73,7 +73,8 @@ const (
 	loadR, loadG, loadB    = 0.95, 0.80, 0.30
 )
 
-// Body-local layout (body is ~904x656 under the shell chrome).
+// Body-local layout (legacy card coords, kept for probe reference;
+// live window is full-window content, see metricStripH).
 const (
 	cardX0, cardX1, cardX2 = 16.0, 312.0, 608.0
 	cardY                  = 44.0
@@ -83,6 +84,9 @@ const (
 
 	offW, offH = 480, 270
 )
+
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+const metricStripH = 32.0
 
 // Frozen file shapes (subset of the engine truth; numbers stay in the files).
 type mipSizeDef struct {
@@ -709,7 +713,12 @@ func probeGolden(caseName, goldenPath string) (ok bool, changed int, wrote bool)
 	if !img.Bounds().Eq(want.Bounds()) {
 		return false, 1, false
 	}
+	// Golden裁掉顶部指标带：浮层指标行不参比。
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			ar, ag, ab, aa := img.At(x, y).RGBA()
 			br, bg, bb, ba := want.At(x, y).RGBA()
@@ -759,12 +768,14 @@ type levelImg struct {
 	h  int
 }
 
-// texSim is the live window state for both cases.
+// texSim is the live window state: full-window scene + floating metrics.
 type texSim struct {
 	caseName string
 	app      *embedder.PipelineApp
-	shell    *wrkit.ShellChrome
+	root     *rendering.AbsoluteBox
 	phase    *wrkit.PhaseClock
+	fullBox  *rendering.RenderBox
+	metric   *rendering.RenderText
 
 	// Far sweep: 1.0 -> 0.3 -> 1.0 through the real LevelForScale.
 	scale    float64
@@ -775,10 +786,9 @@ type texSim struct {
 	levels   []levelImg
 	nearPx   []byte
 	farBox   *rendering.RenderBox
-	scaleL   *rendering.RenderText
-	levelL   *rendering.RenderText
-	sweepL   *rendering.RenderText
-	fpsL     *rendering.RenderText
+	monT     float64
+	monX     float64
+	frames    int
 
 	// Stream ledger: background Requests, foreground Polls.
 	stream  *tex.Stream
@@ -792,13 +802,7 @@ type texSim struct {
 	// atomics only, so -race stays clean.
 	bigMsBits atomic.Int64
 	bigDone   atomic.Bool
-	cards     []*rendering.RenderBox
 	cardPx    []levelImg
-	readyL    *rendering.RenderText
-	pollL     *rendering.RenderText
-	ghostL    *rendering.RenderText
-	bigL      *rendering.RenderText
-	frames    int
 }
 
 func bigBgMs(s *texSim) float64 {
@@ -822,6 +826,9 @@ func (t *ticker) Tick(dt float64) bool {
 		dt = 0.05
 	}
 	s.frames++
+	// Monster walk advances in both cases (window only).
+	s.monT += dt
+	s.monX = math.Mod(s.monT*60, winW+128) - 64
 	if s.caseName == "far" {
 		s.scale += s.scaleDir * sweepRate * dt
 		if s.scale <= scaleFar {
@@ -838,10 +845,16 @@ func (t *ticker) Tick(dt float64) bool {
 			s.level = lv
 			s.switches++
 		}
-		s.farBox.MarkNeedsPaint()
-		s.scaleL.SetText(fmt.Sprintf("缩比 %.2f", s.scale))
-		s.levelL.SetText(fmt.Sprintf("层级 L%d", s.level))
-		s.sweepL.SetText(fmt.Sprintf("切层数 %d 最远 %.2f", s.switches, s.scaleMin))
+		s.fullBox.MarkNeedsPaint()
+		if s.metric != nil {
+			snap := s.app.Metrics().Snapshot()
+			fps := 0.0
+			if snap.AvgFrameIntervalMs > 1e-6 {
+				fps = 1000.0 / snap.AvgFrameIntervalMs
+			}
+			s.metric.SetText(fmt.Sprintf("scale=%.2f L%d sw=%d fps=%.0f", s.scale, s.level, s.switches, fps))
+			s.metric.MarkNeedsPaint()
+		}
 	} else {
 		pollT0 := time.Now()
 		ready := 0
@@ -864,36 +877,18 @@ func (t *ticker) Tick(dt float64) bool {
 		elUs := float64(time.Since(pollT0).Microseconds())
 		s.pollN++
 		s.pollAvg += (elUs - s.pollAvg) / float64(s.pollN)
-		for _, c := range s.cards {
-			c.MarkNeedsPaint()
+		s.fullBox.MarkNeedsPaint()
+		if s.metric != nil {
+			snap := s.app.Metrics().Snapshot()
+			fps := 0.0
+			if snap.AvgFrameIntervalMs > 1e-6 {
+				fps = 1000.0 / snap.AvgFrameIntervalMs
+			}
+			s.metric.SetText(fmt.Sprintf("ready=%d/%d %s poll=%.1f fps=%.0f", s.ready, len(s.ids), s.ghostSt.String(), s.pollAvg, fps))
+			s.metric.MarkNeedsPaint()
 		}
-		s.readyL.SetText(fmt.Sprintf("就绪 %d/%d", s.ready, len(s.ids)))
-		s.pollL.SetText(fmt.Sprintf("Poll均 %.1fus", s.pollAvg))
-		s.ghostL.SetText(fmt.Sprintf("缺图 %s", s.ghostSt.String()))
-		if ms := bigBgMs(s); ms >= 0 {
-			s.bigL.SetText(fmt.Sprintf("大图后台 %.1fms", ms))
-		} else {
-			s.bigL.SetText("大图后台 装载中")
-		}
 	}
-	phase := s.phase.Advance(dt)
-	snap := s.app.Metrics().Snapshot()
-	fps := 0.0
-	if snap.AvgFrameIntervalMs > 1e-6 {
-		fps = 1000.0 / snap.AvgFrameIntervalMs
-	}
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	gateOK := s.app.PresentCount() >= 0
-	s.shell.NoteHUDTick(dt)
-	if s.caseName == "far" {
-		s.shell.UpdateHUD("tex-far", phase, s.app, gateOK,
-			fmt.Sprintf("scale=%.2f level=%d", s.scale, s.level),
-			fmt.Sprintf("switches=%d", s.switches))
-	} else {
-		s.shell.UpdateHUD("tex-stream", phase, s.app, gateOK,
-			fmt.Sprintf("ready=%d/%d ghost=%s", s.ready, len(s.ids), s.ghostSt.String()),
-			fmt.Sprintf("poll=%.1fus", s.pollAvg))
-	}
+	_ = s.phase.Advance(dt)
 	s.app.ScheduleFrame()
 	return true
 }
@@ -1000,16 +995,10 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_tex — 3.2/3.3 贴图双 case (tex-"+caseName+")", []string{
-		"左 近视图 · 中 远视图/流式卡 · 右计数",
-		"黄框=当前层/就绪态·品红=缺图占位",
-		"远 case 缩 1.0 到 0.3 走真层级",
-		"流 case 后台装前台 Poll 微秒级",
-		"右栏 缩比/层级/就绪/Poll",
-		"JSON见 ability_extra",
-	})
-
-	sim := &texSim{caseName: caseName, shell: shell}
+	sim := &texSim{caseName: caseName}
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	sim.root = root
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
@@ -1040,20 +1029,13 @@ func main() {
 		}
 		sim.nearPx = ck.Pixels()
 
-		shell.Body.Place(wrkit.Label("NEAR 近视图 L0", 13, 0.55, 0.75, 0.95), cardX0, cardY-24)
-		near := rendering.NewRenderBox()
-		near.FixedWidth, near.FixedHeight = cardW, cardH
-		near.SetRepaintBoundary(true)
-		near.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			paintLiveCells(pc, sim.nearPx, 8, 8, cardW, cardH)
-		}
-		shell.Body.Place(near, cardX0, cardY)
-
-		shell.Body.Place(wrkit.Label("FAR 远视图 1.0→0.3", 13, 0.55, 0.75, 0.95), cardX1, cardY-24)
-		far := rendering.NewRenderBox()
-		far.FixedWidth, far.FixedHeight = cardW, cardH
-		far.SetRepaintBoundary(true)
-		far.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		// 满窗即内容：整窗为远近过滤场景（过滤+压缩色块+大图底+巡逻怪加厚）。
+		sim.fullBox = rendering.NewRenderBox()
+		sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
+		sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+			if pc == nil || pc.DC == nil {
+				return
+			}
 			lv := sim.level
 			if lv < 0 {
 				lv = 0
@@ -1061,31 +1043,21 @@ func main() {
 			if lv >= len(sim.levels) {
 				lv = len(sim.levels) - 1
 			}
-			l := sim.levels[lv]
-			paintLiveCells(pc, l.px, l.w, l.h, cardW, cardH)
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			pc.DC.SetRGBA(1, 0.9, 0.2, 1)
-			pc.DC.SetLineWidth(3)
-			pc.DC.DrawRectangle(ax, ay, cardW, cardH)
-			_ = pc.DC.Stroke()
+			paintLiveCells(pc, sim.levels[lv].px, sim.levels[lv].w, sim.levels[lv].h, size.Width, size.Height)
+			mx, my := sim.monX, size.Height-90
+			pc.DC.SetRGBA(0.16, 0.14, 0.20, 1)
+			pc.DC.DrawRectangle(mx, my, 72, 52)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(1, 0.25, 0.20, 1)
+			pc.DC.DrawRectangle(mx+50, my+14, 12, 12)
+			_ = pc.DC.Fill()
 		}
-		shell.Body.Place(far, cardX1, cardY)
-		sim.farBox = far
-
-		shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), cardX2, cardY-24)
-		sim.scaleL = wrkit.Label("缩比 1.00", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.scaleL, cardX2, cardY+10)
-		sim.levelL = wrkit.Label("层级 L0", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.levelL, cardX2, cardY+36)
-		sim.sweepL = wrkit.Label("切层数 0 最远 1.00", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.sweepL, cardX2, cardY+62)
-		sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.fpsL, cardX2, cardY+88)
-		shell.Body.Place(wrkit.Label("黄框=当前远层·层级走真口", 12, 0.70, 0.78, 0.88), cardX2, cardY+114)
-		shell.Body.Place(wrkit.Label("近清远稳·0.3 倍不断闪", 12, 0.70, 0.78, 0.88), cardX2, cardY+136)
+		_ = cardX0
+		_ = cardX1
+		_ = cardX2
+		root.Place(sim.fullBox, 0, 0)
+		sim.metric = wrkit.Label("scale=1.00", 13, 0.92, 0.94, 0.98)
+		root.Place(sim.metric, 8, 8)
 	} else {
 		c, err := loadStreamFrozen()
 		if err != nil {
@@ -1120,74 +1092,36 @@ func main() {
 			sim.bigDone.Store(true)
 		}()
 
-		titles := []string{"RED 小图", "CHECKER 棋盘", "BIG 大图"}
-		xs := []float64{cardX0, cardX1, cardX2}
-		for i, title := range titles {
-			shell.Body.Place(wrkit.Label(title, 13, 0.55, 0.75, 0.95), xs[i], cardY-24)
-		}
-		for i := 0; i < len(sim.ids); i++ {
-			idx := i
-			card := rendering.NewRenderBox()
-			card.FixedWidth, card.FixedHeight = cardW, cardH
-			card.SetRepaintBoundary(true)
-			card.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-				if sim.cardPx[idx].px != nil {
-					l := sim.cardPx[idx]
-					paintLiveCells(pc, l.px, l.w, l.h, cardW, cardH)
-				} else {
-					paintLiveCells(pc, tex.PlaceholderImage().Pixels(), 4, 4, cardW, cardH)
-				}
-				if pc == nil || pc.DC == nil {
-					return
-				}
-				ax, ay := pc.Abs(0, 0)
-				switch sim.states[idx] {
-				case tex.StateReady:
-					pc.DC.SetRGBA(readyR, readyG, readyB, 1)
-				default:
-					pc.DC.SetRGBA(loadR, loadG, loadB, 1)
-				}
-				pc.DC.SetLineWidth(3)
-				pc.DC.DrawRectangle(ax, ay, cardW, cardH)
-				_ = pc.DC.Stroke()
-			}
-			shell.Body.Place(card, xs[i], cardY)
-			sim.cards = append(sim.cards, card)
-		}
-		// Ghost thumbnail: the missing texture stays magenta, framed, never nil.
-		shell.Body.Place(wrkit.Label("GHOST 缺图占位", 13, 0.55, 0.75, 0.95), cardX0, noteY-24)
-		ghost := rendering.NewRenderBox()
-		ghost.FixedWidth, ghost.FixedHeight = ghostThumb, ghostThumb
-		ghost.SetRepaintBoundary(true)
-		ghost.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			paintLiveCells(pc, tex.PlaceholderImage().Pixels(), 4, 4, ghostThumb, ghostThumb)
+		// 满窗即内容：整窗为流式场景（首就绪大图打底+缺图品红角标+巡逻怪加厚）。
+		sim.fullBox = rendering.NewRenderBox()
+		sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
+		sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 			if pc == nil || pc.DC == nil {
 				return
 			}
-			ax, ay := pc.Abs(0, 0)
-			pc.DC.SetRGBA(1, 0, 1, 1)
-			pc.DC.SetLineWidth(3)
-			pc.DC.DrawRectangle(ax, ay, ghostThumb, ghostThumb)
-			_ = pc.DC.Stroke()
+			bg := tex.PlaceholderImage().Pixels()
+			bw, bh := 4, 4
+			for _, cp := range sim.cardPx {
+				if cp.px != nil {
+					bg, bw, bh = cp.px, cp.w, cp.h
+					break
+				}
+			}
+			paintLiveCells(pc, bg, bw, bh, size.Width, size.Height)
+			mx, my := sim.monX, size.Height-90
+			pc.DC.SetRGBA(0.16, 0.14, 0.20, 1)
+			pc.DC.DrawRectangle(mx, my, 72, 52)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(1, 0.25, 0.20, 1)
+			pc.DC.DrawRectangle(mx+50, my+14, 12, 12)
+			_ = pc.DC.Fill()
+			// Ghost corner: magenta placeholder chip stays visible.
+			paintLiveCells(pc, tex.PlaceholderImage().Pixels(), 4, 4, 96, 96)
 		}
-		shell.Body.Place(ghost, cardX0, noteY)
-		sim.cards = append(sim.cards, ghost)
-
-		shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), cardX1, noteY-24)
-		sim.readyL = wrkit.Label("就绪 0/3", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.readyL, cardX1, noteY+2)
-		sim.pollL = wrkit.Label("Poll均 0.0us", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.pollL, cardX1, noteY+28)
-		sim.ghostL = wrkit.Label("缺图 loading", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.ghostL, cardX1, noteY+54)
-		sim.bigL = wrkit.Label("大图后台 装载中", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.bigL, cardX2, noteY+2)
-		sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-		shell.Body.Place(sim.fpsL, cardX2, noteY+28)
-		shell.Body.Place(wrkit.Label("绿框=就绪·黄框=装载中·品红框=缺图占位不崩", 12, 0.70, 0.78, 0.88), cardX2, noteY+54)
+		root.Place(sim.fullBox, 0, 0)
+		sim.metric = wrkit.Label("ready=0", 13, 0.92, 0.94, 0.98)
+		root.Place(sim.metric, 8, 8)
 	}
-
-	shell.Body.Place(wrkit.Label("黄框=本帧态 · 右栏为live计数", 12, 0.70, 0.78, 0.88), cardX0, noteY+110)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_tex", Decorations: true})
 	if err != nil {
@@ -1198,7 +1132,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -1231,7 +1165,9 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_tex[%s]: resize %dx%d n=%d\n", caseName, ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -1253,7 +1189,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

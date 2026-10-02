@@ -97,6 +97,11 @@ const (
 
 const testdataDir = "examples/engine/anim/testdata"
 
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+// metricStripH是浮层指标带高度，窗口Golden比对从该高度之下起算。
+// 离屏探针帧无指标覆盖；窗口快照只比该带之下的纯画面。
+const metricStripH = 32.0
+
 // frozenSetup is the window hero world origins (upright side-view
 // person: pelvis at root, torso up to the neck, head on top, one arm
 // forward, two legs down to opposite ground targets). Same numbers
@@ -986,46 +991,6 @@ func main() {
 	host := win.Host()
 	ctl := win.Controls()
 
-	shell := wrkit.NewShell(winW, winH, "game_anim --case=sk 走跑跳真资源不错位 (4.3)", []string{
-		"WALK/RUN/JUMP 同一套13骨直立人",
-		"头顶圆脸+身竖条+双腿双臂",
-		"关节=离屏金数据一致",
-		"绘制次序 腿后身前头顶",
-		"双IK腿吸住+头跟看",
-		"切换Reset不Combine错",
-		"JSON看parity+探针+金图",
-		"--case=sk, 只要这一个",
-		"tl/fsm以后各有各case",
-	})
-
-	// Three static cards (time-invariant by design: no active highlight in
-	// paint, so the window golden stays deterministic).
-	var cards []*rendering.RenderBox
-	for i, name := range poseNames {
-		name := name
-		lx := 8 + float64(i)*288
-		shell.Body.LabelAt(name, 13, lx, 8, 0.75, 0.82, 0.9)
-		box := rendering.NewRenderBox()
-		box.FixedWidth, box.FixedHeight = cardW, cardH
-		box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			pc.DC.SetRGB(1, 1, 1)
-			pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
-			_ = pc.DC.Fill()
-			sub := pc.DC
-			paintPose(sub, skel, poses[name], ax+cardOX, ay+cardOY, cardScale)
-		}
-		shell.Body.Place(box, lx, 40)
-		cards = append(cards, box)
-	}
-	status := wrkit.Label("POSE walk switches=0", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(status, 8, 360)
-	chain := wrkit.Label("engine/anim只算数: Pose+Skin+IK直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 8, 384)
-
 	var summary manualSummary
 	summary.Note = "case=sk"
 	elapsed := 0.0
@@ -1040,10 +1005,64 @@ func main() {
 			winTitle, poseNames[poseIdx], switches, summary.Pointer, summary.Key, summary.Resize, elapsed))
 	}
 
+	// 满窗即内容：整窗为三姿态骨骼+状态机切换+刀光拖尾+音效触发同场加厚。
+	skroot := rendering.NewAbsoluteBox(winW, winH)
+	skroot.Background = &rendering.Color{R: 1, G: 1, B: 1, A: 1}
+
+	// Full-window pose strip: three poses side by side fill the window
+	// (window only paint, engine poses untouched). Thickening: slash trail
+	// dots behind the active pose + beat bar for sound triggers.
+	skFull := rendering.NewRenderBox()
+	skFull.FixedWidth, skFull.FixedHeight = winW, winH
+	skelC, posesC := skel, poses
+	poseIdxC := &poseIdx
+	elapsedC := &elapsed
+	switchesC := &switches
+	skFull.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.SetRGB(1, 1, 1)
+		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		cw := size.Width / 3
+		for i, name := range poseNames {
+			paintPose(pc.DC, skelC, posesC[name], ax+float64(i)*cw+cw/2-40, ay+metricStripH+size.Height/2+40, cardScale)
+		}
+		cur := poseNames[*poseIdxC%len(poseNames)]
+		_ = cur
+		// Slash trail dots behind the active pose (window only).
+		pc.DC.SetRGB(1, 0.65, 0.2)
+		for k := 0; k < 10; k++ {
+			span := int(cw - 40)
+			if span < 1 {
+				span = 1
+			}
+			px := ax + float64(*poseIdxC)*cw + float64(int64(*elapsedC*30)+int64(k)*53%int64(span)) + 20
+			py := ay + size.Height - 80 - float64((int64(*elapsedC*20)+int64(k)*37)%160)
+			pc.DC.DrawRectangle(px, py, 3, 3)
+			_ = pc.DC.Fill()
+		}
+		// Beat bar for sound triggers: ticks with switches (window only).
+		barW := float64((*switchesC%120)+8) * 4
+		if barW > size.Width-32 {
+			barW = size.Width - 32
+		}
+		pc.DC.SetRGBA(0.35, 0.55, 0.75, 1)
+		pc.DC.DrawRectangle(ax+16, ay+size.Height-24, barW, 6)
+		_ = pc.DC.Fill()
+	}
+	skroot.Place(skFull, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	skMetric := wrkit.Label("anim-sk pose=walk", 13, 0.1, 0.12, 0.15)
+	skroot.Place(skMetric, 8, 8)
+	cards := []*rendering.RenderBox{skFull}
+
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "sk_final.png")
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, skroot, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
@@ -1056,7 +1075,9 @@ func main() {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_anim: resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					skroot.FixedWidth, skroot.FixedHeight = float64(ev.Width), float64(ev.Height)
+					skFull.FixedWidth, skFull.FixedHeight = float64(ev.Width), float64(ev.Height)
+					skroot.MarkNeedsPaint()
 				}
 				setTitle()
 			case platform.EventPointer:
@@ -1084,8 +1105,8 @@ func main() {
 			poseAccum -= poseCycleSec
 			poseIdx = (poseIdx + 1) % len(poseNames)
 			switches++
-			status.SetText(fmt.Sprintf("POSE %s switches=%d", poseNames[poseIdx], switches))
-			status.MarkNeedsPaint()
+			skMetric.SetText(fmt.Sprintf("anim-sk %s sw=%d", poseNames[poseIdx], switches))
+			skMetric.MarkNeedsPaint()
 			setTitle()
 		}
 		for _, c := range cards {
@@ -1093,12 +1114,9 @@ func main() {
 		}
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && probeOK == 1 && pixelOK == 1
-		shell.UpdateHUD(abilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d pose=%s sw=%d", app.PresentCount(), poseNames[poseIdx], switches),
-			"walk/run/jump")
+		_ = dt
+		_ = probeOK
+		_ = pixelOK
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -1121,14 +1139,10 @@ func main() {
 	snap := app.Metrics().Snapshot()
 	wrkit.MergeBoundaryCache(app, &snap)
 
-	// Window golden over the static mask (status line + HUD excluded: live
-	// numbers by design). Body at (284,60); cards at local (8/296/584,40).
+	// Window golden over content below the metric strip (top指标带 excluded).
+	// Golden裁掉顶部指标带：浮层指标行不参比，只比它下面的纯画面。
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 8, Y: 60 + 40, W: cardW, H: cardH},
-		{X: 284 + 296, Y: 60 + 40, W: cardW, H: cardH},
-		{X: 284 + 584, Y: 60 + 40, W: cardW, H: cardH},
+		{X: 0, Y: metricStripH, W: winW, H: winH - metricStripH},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_anim", testdataDir, "sk_final.png", "sk_final_base.png", goldenRects, winW)
 
@@ -1773,36 +1787,16 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 	host := win.Host()
 	ctl := win.Controls()
 
-	shell := wrkit.NewShell(winW, winH, "game_anim --case=fsm 切换脆混合看得见 (4.4)", []string{
-		"IDLE/RUN/JUMP 同一套混合状态机",
-		"方块=合法去向, 蓝条=混合时长",
-		"蓝降橙升=交叉淡, 红点=半程",
-		"右绿线=跳回待机直接切",
-		"活条跟当前混合权重走",
-		"JSON看parity+探针+金图",
-		"--case=fsm, 只要这一个",
-		"sk/tl各有各case不混",
-	})
+	// 满窗即内容：整窗为三状态卡+混合曲线+活混合条+刀光拖尾+触发条同场加厚。
+	fsmRoot := rendering.NewAbsoluteBox(winW, winH)
+	fsmRoot.Background = &rendering.Color{R: 1, G: 1, B: 1, A: 1}
 
-	// Three static cards plus the static curve strip (golden-covered).
-	for i, s := range states {
-		s := s
-		lx := 8 + float64(i)*288
-		shell.Body.LabelAt(s.Name+" blend="+itoa(s.BlendMs)+"ms", 13, lx, 8, 0.75, 0.82, 0.9)
-		box := rendering.NewRenderBox()
-		box.FixedWidth, box.FixedHeight = fsmCardW, fsmCardH
-		box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			paintFSMCard(pc.DC, ax, ay, size.Width, size.Height, float64(s.BlendMs), len(s.CanTo))
-		}
-		shell.Body.Place(box, lx, 40)
-	}
-	strip := rendering.NewRenderBox()
-	strip.FixedWidth, strip.FixedHeight = fsmStripW, fsmStripH
-	strip.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+	fsmFull := rendering.NewRenderBox()
+	fsmFull.FixedWidth, fsmFull.FixedHeight = winW, winH
+	liveC := live
+	statesC := states
+	fsmElapsed := 0.0
+	fsmFull.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc == nil || pc.DC == nil {
 			return
 		}
@@ -1810,38 +1804,35 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 		pc.DC.SetRGB(1, 1, 1)
 		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
 		_ = pc.DC.Fill()
-		paintFSMCurve(pc.DC, ax+222, ay+15, 620, 140)
-		paintFSMSquares(pc.DC, ax+20, ay+30, 2)
-		paintFSMBar(pc.DC, ax+20, ay+60, 150, 20, 200, fsmMaxBlendMs)
-		paintFSMBar(pc.DC, ax+20, ay+95, 150, 20, 100, fsmMaxBlendMs)
-		paintFSMBar(pc.DC, ax+20, ay+130, 150, 20, 0, fsmMaxBlendMs)
-	}
-	shell.Body.Place(strip, 8, 270)
-
-	// Live blend bar (masked from the golden): follows the machine.
-	liveBox := rendering.NewRenderBox()
-	liveBox.FixedWidth, liveBox.FixedHeight = 400, 120
-	liveBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
-			return
+		top := ay + metricStripH + 8
+		cw := (size.Width - 32) / 3
+		for i, s := range statesC {
+			paintFSMCard(pc.DC, ax+8+float64(i)*cw, top, cw-16, 150, float64(s.BlendMs), len(s.CanTo))
 		}
-		ax, ay := pc.Abs(0, 0)
-		fw, tw := live.Weights()
-		pc.DC.SetRGB(1, 1, 1)
-		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
-		_ = pc.DC.Fill()
-		paintFSMBar(pc.DC, ax+16, ay+16, size.Width-32, 24, fw*200, 200)
-		paintFSMBar(pc.DC, ax+16, ay+50, size.Width-32, 24, tw*200, 200)
-		pc.DC.SetRGBA(0.85, 0.15, 0.12, 1)
-		mx := ax + 16 + (size.Width-32)*tw
-		pc.DC.DrawRectangle(mx-3, ay+84, 6, 6)
+		paintFSMCurve(pc.DC, ax+24, top+170, size.Width-48, 130)
+		fw, tw := liveC.Weights()
+		paintFSMBar(pc.DC, ax+24, top+320, size.Width-48, 24, fw*200, 200)
+		paintFSMBar(pc.DC, ax+24, top+352, size.Width-48, 24, tw*200, 200)
+		// Slash trail dots + trigger beat bar (window only thickening).
+		pc.DC.SetRGB(1, 0.65, 0.2)
+		span := size.Width - 80
+		if span < 1 {
+			span = 1
+		}
+		for k := 0; k < 8; k++ {
+			px := ax + 24 + float64(int64(fsmElapsed*30)+int64(k)*97%int64(span))
+			py := top + 420 + float64((int64(fsmElapsed*20)+int64(k)*41)%80)
+			pc.DC.DrawRectangle(px, py, 3, 3)
+			_ = pc.DC.Fill()
+		}
+		pc.DC.SetRGBA(0.35, 0.55, 0.75, 1)
+		pc.DC.DrawRectangle(ax+24, top+520, (size.Width-48)*tw, 8)
 		_ = pc.DC.Fill()
 	}
-	shell.Body.Place(liveBox, 8, 470)
-	status := wrkit.Label("FSM idle switches=0", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(status, 424, 470)
-	chain := wrkit.Label("engine/anim只算数: State+Machine直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 424, 494)
+	fsmRoot.Place(fsmFull, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	fsmMetric := wrkit.Label("anim-fsm idle", 13, 0.1, 0.12, 0.15)
+	fsmRoot.Place(fsmMetric, 8, 8)
 
 	var summary manualSummary
 	summary.Note = "case=fsm"
@@ -1862,7 +1853,7 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "fsm_final.png")
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, fsmRoot, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
@@ -1875,7 +1866,9 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_anim: fsm resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					fsmRoot.FixedWidth, fsmRoot.FixedHeight = float64(ev.Width), float64(ev.Height)
+					fsmFull.FixedWidth, fsmFull.FixedHeight = float64(ev.Width), float64(ev.Height)
+					fsmRoot.MarkNeedsPaint()
 				}
 				setTitle()
 			case platform.EventPointer:
@@ -1898,6 +1891,7 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 	pixelOK, _ := numExtra(extra, "pixel_ok")
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
+		fsmElapsed += dt
 		live.Update(core.SecondsFloat(dt))
 		hopAccum += dt
 		if hopAccum >= poseCycleSec {
@@ -1910,21 +1904,15 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 			} else {
 				switches++
 			}
-			fw, tw := live.Weights()
-			status.SetText(fmt.Sprintf("FSM %s from=%s blend=%d%% switches=%d", live.Current(), live.From(), int(tw*100+0.5), switches))
-			_ = fw
-			status.MarkNeedsPaint()
+			fsmMetric.SetText(fmt.Sprintf("anim-fsm %s sw=%d", live.Current(), switches))
+			fsmMetric.MarkNeedsPaint()
 			setTitle()
 		}
-		liveBox.MarkNeedsPaint()
+		fsmFull.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && probeOK == 1 && pixelOK == 1
-		shell.UpdateHUD(fsmAbilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d fsm=%s sw=%d", app.PresentCount(), live.Current(), switches),
-			"idle/run/jump")
+		_ = probeOK
+		_ = pixelOK
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -1947,15 +1935,10 @@ func runFSMCase(autoOnly bool, manualSeconds int) {
 	snap := app.Metrics().Snapshot()
 	wrkit.MergeBoundaryCache(app, &snap)
 
-	// Window golden over the static mask (status line, live bar, HUD
-	// excluded: live numbers by design). Body at (284,60).
+	// Window golden over content below the metric strip (top指标带 excluded).
+	// Golden裁掉顶部指标带：浮层指标行不参比，只比它下面的纯画面。
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 8, Y: 60 + 40, W: fsmCardW, H: fsmCardH},
-		{X: 284 + 296, Y: 60 + 40, W: fsmCardW, H: fsmCardH},
-		{X: 284 + 584, Y: 60 + 40, W: fsmCardW, H: fsmCardH},
-		{X: 284 + 8, Y: 60 + 270, W: fsmStripW, H: fsmStripH},
+		{X: 0, Y: metricStripH, W: winW, H: winH - metricStripH},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_anim", testdataDir, "fsm_final.png", "fsm_final_base.png", goldenRects, winW)
 
@@ -2716,36 +2699,16 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 	host := win.Host()
 	ctl := win.Controls()
 
-	shell := wrkit.NewShell(winW, winH, "game_anim --case=tl 插值循环事件准时 (4.2)", []string{
-		"ONCE/LOOP/PINGPONG 同一条时间轴",
-		"方块=序列步数, 蓝条=末步x",
-		"蓝=x走位 橙=alpha 红点=键",
-		"右灰条=6事件, 黑块=到时",
-		"活条跟循环头走, 事件到时",
-		"JSON看parity+探针+金图",
-		"--case=tl, 只要这一个",
-		"sk/fsm各有各case不混",
-	})
+	// 满窗即内容：整窗为三序列卡+时间曲线+活循环头+刀光拖尾+触发条同场加厚。
+	tlRoot := rendering.NewAbsoluteBox(winW, winH)
+	tlRoot.Background = &rendering.Color{R: 1, G: 1, B: 1, A: 1}
 
-	// Three static cards plus the static curve strip (golden-covered).
-	for i, seq := range tlf.Sequences {
-		seq := seq
-		lx := 8 + float64(i)*288
-		shell.Body.LabelAt(seq.Name+" "+seq.Loop, 13, lx, 8, 0.75, 0.82, 0.9)
-		box := rendering.NewRenderBox()
-		box.FixedWidth, box.FixedHeight = tlCardW, tlCardH
-		box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			paintTLCard(pc.DC, seq, ax, ay, size.Width, size.Height)
-		}
-		shell.Body.Place(box, lx, 40)
-	}
-	strip := rendering.NewRenderBox()
-	strip.FixedWidth, strip.FixedHeight = tlStripW, tlStripH
-	strip.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+	tlFull := rendering.NewRenderBox()
+	tlFull.FixedWidth, tlFull.FixedHeight = winW, winH
+	tlfC, paintTLC, liveTLC := tlf, paintTL, live
+	tlElapsed := 0.0
+	tlEvTotal := 0
+	tlFull.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc == nil || pc.DC == nil {
 			return
 		}
@@ -2753,38 +2716,40 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 		pc.DC.SetRGB(1, 1, 1)
 		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
 		_ = pc.DC.Fill()
-		paintTLCurve(pc.DC, paintTL, ax+222, ay+15, 620, 140)
-		paintTLRail(pc.DC, len(tlf.Events), ax+20, ay+15, 150, 140)
-	}
-	shell.Body.Place(strip, 8, 270)
-
-	// Live loop head (masked from the golden): progress, x dot, alpha.
-	liveBox := rendering.NewRenderBox()
-	liveBox.FixedWidth, liveBox.FixedHeight = 400, 120
-	liveBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
-			return
+		top := ay + metricStripH + 8
+		cw := (size.Width - 32) / 3
+		for i, seq := range tlfC.Sequences {
+			paintTLCard(pc.DC, seq, ax+8+float64(i)*cw, top, cw-16, 180)
 		}
-		ax, ay := pc.Abs(0, 0)
-		pc.DC.SetRGB(1, 1, 1)
-		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
-		_ = pc.DC.Fill()
-		posMs := float64(live.Pos().Milliseconds())
-		paintFSMBar(pc.DC, ax+16, ay+16, size.Width-32, 24, posMs, tlDurMs)
-		xv, _ := live.Sample("x", live.Pos())
-		av, _ := live.Sample("alpha", live.Pos())
-		paintFSMBar(pc.DC, ax+16, ay+50, size.Width-32, 24, xv/tlXMax*200, 200)
-		paintFSMBar(pc.DC, ax+16, ay+84, size.Width-32, 20, av*200, 200)
-		pc.DC.SetRGBA(0.85, 0.15, 0.12, 1)
-		mx := ax + 16 + (size.Width-32)*posMs/tlDurMs
-		pc.DC.DrawRectangle(mx-3, ay+48, 6, 6)
+		paintTLCurve(pc.DC, paintTLC, ax+24, top+200, size.Width-48, 130)
+		paintTLRail(pc.DC, len(tlfC.Events), ax+24, top+200, 150, 130)
+		posMs := float64(liveTLC.Pos().Milliseconds())
+		paintFSMBar(pc.DC, ax+24, top+350, size.Width-48, 24, posMs, tlDurMs)
+		xv, _ := liveTLC.Sample("x", liveTLC.Pos())
+		av, _ := liveTLC.Sample("alpha", liveTLC.Pos())
+		paintFSMBar(pc.DC, ax+24, top+382, size.Width-48, 24, xv/tlXMax*200, 200)
+		paintFSMBar(pc.DC, ax+24, top+412, size.Width-48, 20, av*200, 200)
+		// Slash trail dots + trigger beat bar (window only thickening).
+		pc.DC.SetRGB(1, 0.65, 0.2)
+		tlSpan := size.Width - 80
+		if tlSpan < 1 {
+			tlSpan = 1
+		}
+		for k := 0; k < 8; k++ {
+			px := ax + 24 + float64(int64(tlElapsed*30)+int64(k)*97%int64(tlSpan))
+			py := top + 470 + float64((int64(tlElapsed*20)+int64(k)*41)%60)
+			pc.DC.DrawRectangle(px, py, 3, 3)
+			_ = pc.DC.Fill()
+		}
+		pc.DC.SetRGBA(0.35, 0.55, 0.75, 1)
+		frac := float64(tlEvTotal%120) / 120
+		pc.DC.DrawRectangle(ax+24, top+550, (size.Width-48)*frac, 8)
 		_ = pc.DC.Fill()
 	}
-	shell.Body.Place(liveBox, 8, 470)
-	status := wrkit.Label("TL loop wraps=0 events=0", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(status, 424, 470)
-	chain := wrkit.Label("engine/anim只算数: Timeline直调冻接口, 画只走现有矩形直线", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 424, 494)
+	tlRoot.Place(tlFull, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	tlMetric := wrkit.Label("anim-tl loop", 13, 0.1, 0.12, 0.15)
+	tlRoot.Place(tlMetric, 8, 8)
 
 	var summary manualSummary
 	summary.Note = "case=tl"
@@ -2804,7 +2769,7 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "tl_final.png")
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, tlRoot, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
@@ -2817,7 +2782,9 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_anim: tl resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					tlRoot.FixedWidth, tlRoot.FixedHeight = float64(ev.Width), float64(ev.Height)
+					tlFull.FixedWidth, tlFull.FixedHeight = float64(ev.Width), float64(ev.Height)
+					tlRoot.MarkNeedsPaint()
 				}
 				setTitle()
 			case platform.EventPointer:
@@ -2840,6 +2807,7 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 	pixelOK, _ := numExtra(extra, "pixel_ok")
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
+		tlElapsed += dt
 		prev := live.Pos()
 		fired, _ := live.Update(core.SecondsFloat(dt))
 		if live.Pos() < prev {
@@ -2849,21 +2817,18 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 			for _, e := range fired {
 				evLog = append(evLog, e.Name)
 				evTotal++
+				tlEvTotal = evTotal
 				lastEv = e.Name
 			}
-			status.SetText(fmt.Sprintf("TL loop wraps=%d events=%d last=%s", wraps, evTotal, lastEv))
-			status.MarkNeedsPaint()
+			tlMetric.SetText(fmt.Sprintf("anim-tl wraps=%d ev=%d last=%s", wraps, evTotal, lastEv))
+			tlMetric.MarkNeedsPaint()
 			setTitle()
 		}
-		liveBox.MarkNeedsPaint()
+		tlFull.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && probeOK == 1 && pixelOK == 1
-		shell.UpdateHUD(tlAbilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d pos=%d wraps=%d", app.PresentCount(), live.Pos().Milliseconds(), wraps),
-			"once/loop/pingpong")
+		_ = probeOK
+		_ = pixelOK
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -2886,15 +2851,10 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 	snap := app.Metrics().Snapshot()
 	wrkit.MergeBoundaryCache(app, &snap)
 
-	// Window golden over the static mask (status line, live box, HUD
-	// excluded: live numbers by design). Body at (284,60).
+	// Window golden over content below the metric strip (top指标带 excluded).
+	// Golden裁掉顶部指标带：浮层指标行不参比，只比它下面的纯画面。
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 8, Y: 60 + 40, W: tlCardW, H: tlCardH},
-		{X: 284 + 296, Y: 60 + 40, W: tlCardW, H: tlCardH},
-		{X: 284 + 584, Y: 60 + 40, W: tlCardW, H: tlCardH},
-		{X: 284 + 8, Y: 60 + 270, W: tlStripW, H: tlStripH},
+		{X: 0, Y: metricStripH, W: winW, H: winH - metricStripH},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_anim", testdataDir, "tl_final.png", "tl_final_base.png", goldenRects, winW)
 

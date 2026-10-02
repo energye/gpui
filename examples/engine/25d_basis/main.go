@@ -327,21 +327,20 @@ func runProbes() probeResult {
 
 // basisSim is the live window state: view mode plus the only mutable
 // block list. blocks[heroSeat] is the hero: keys move it, paint draws
-// it, the red coat follows the seat.
+// it, the red coat follows the seat. Full-window content: stage fills the
+// window, one overlay line floats at top-left over the picture.
 type basisSim struct {
 	mode       int
 	blocks     []core.Vec3
 	hero       core.Vec3
 	app        *embedder.PipelineApp
-	shell      *wrkit.ShellChrome
+	root       *rendering.AbsoluteBox
 	phase      *wrkit.PhaseClock
 	stage      *rendering.RenderBox
-	modeL      *rendering.RenderText
-	orderL     *rendering.RenderText
-	shadL      *rendering.RenderText
-	fpsL       *rendering.RenderText
+	overlay    *rendering.RenderText
 	frames     int
 	modes      int
+	clock      float64
 	heroTravel float64
 	lastFlat   core.Vec2
 }
@@ -360,6 +359,12 @@ func (t *ticker) Tick(dt float64) bool {
 		dt = 0.05
 	}
 	s.frames++
+	s.clock += dt
+	// Thick content: two monster blocks pace on their own (live only,
+	// probes use the frozen copy), so motion + cover order stay visible
+	// with no keys. Hero seat itself stays key-owned.
+	s.blocks[0].Y = math.Sin(s.clock*1.2) * 1.5
+	s.blocks[3].X = 3 + math.Cos(s.clock*0.9)*1.0
 	b, err := basisFor(s.mode)
 	if err == nil {
 		// The seat is the truth: sync the readout copy after keys move it.
@@ -368,26 +373,6 @@ func (t *ticker) Tick(dt float64) bool {
 			s.heroTravel += math.Hypot(flat.X-s.lastFlat.X, flat.Y-s.lastFlat.Y)
 			s.lastFlat = flat
 		}
-		items := make([]camera.YSortItem, len(s.blocks))
-		for i, p := range s.blocks {
-			items[i] = camera.YSortItem{Pos: p, Order: i}
-		}
-		if sorted, err := camera.YSort(items); err == nil {
-			txt := "盖 "
-			for i, it := range sorted {
-				if i > 0 {
-					txt += ">"
-				}
-				txt += fmt.Sprintf("%d", it.Order)
-			}
-			s.orderL.SetText(txt)
-		}
-		if sh, ok := camera.LandShadow(b, s.hero, 0); ok {
-			s.shadL.SetText(fmt.Sprintf("影 %.0f,%.0f", sh.X, sh.Y))
-		} else {
-			s.shadL.SetText("影 藏")
-		}
-		s.modeL.SetText(fmt.Sprintf("视角 %s(%d/6) 英雄 %.0f,%.0f,%.0f", viewNames[s.mode], s.mode+1, s.hero.X, s.hero.Y, s.hero.Z))
 	}
 	s.stage.MarkNeedsPaint()
 	snap := s.app.Metrics().Snapshot()
@@ -395,13 +380,29 @@ func (t *ticker) Tick(dt float64) bool {
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	phase := s.phase.Advance(dt)
-	gateOK := s.frames > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("basis-25d", phase, s.app, gateOK,
-		fmt.Sprintf("view=%s", viewNames[s.mode]),
-		fmt.Sprintf("frames=%d modes=%d", s.frames, s.modes))
+	_ = s.phase.Advance(dt)
+	// Single floating overlay line at top-left over the picture.
+	if s.overlay != nil {
+		items := make([]camera.YSortItem, len(s.blocks))
+		for i, p := range s.blocks {
+			items[i] = camera.YSortItem{Pos: p, Order: i}
+		}
+		order := ""
+		if sorted, err := camera.YSort(items); err == nil {
+			for i, it := range sorted {
+				if i > 0 {
+					order += ">"
+				}
+				order += fmt.Sprintf("%d", it.Order)
+			}
+		}
+		shTxt := "藏"
+		if sh, ok := camera.LandShadow(b, s.hero, 0); ok {
+			shTxt = fmt.Sprintf("%.0f,%.0f", sh.X, sh.Y)
+		}
+		s.overlay.SetText(fmt.Sprintf("fps %.0f view %s(%d/6) cover %s shadow %s hero %.0f,%.0f,%.0f",
+			fps, viewNames[s.mode], s.mode+1, order, shTxt, s.hero.X, s.hero.Y, s.hero.Z))
+	}
 	s.app.ScheduleFrame()
 	return true
 }
@@ -474,18 +475,13 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_25d_basis — S79 真2.5D六视角 (basis-25d)", []string{
-		"六视角只换基向量·SCALE=32",
-		"Y排序低y在下·影子落线",
-		"1-6切视角·WASD挪英雄",
-		"前后盖对·影子不飘",
-		"JSON见 ability_extra",
-	})
+	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: skyR, G: skyG, B: skyB, A: 1}
 
 	sim := &basisSim{
 		mode:   0,
 		blocks: newBlocks(),
-		shell:  shell,
+		root:   root,
 	}
 	sim.hero = sim.blocks[heroSeat]
 	if b, err := basisFor(0); err == nil {
@@ -499,17 +495,21 @@ func main() {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	shell.Body.Place(wrkit.Label("STAGE 六视角", 13, 0.55, 0.75, 0.95), stageX, stageY-24)
+	// Full-window content: one stage fills the whole window (no
+	// top/legend/body/HUD partitions). Thick: 4 blocks + pacing monsters
+	// + ground shadow rail + Y-sort cover order all in the same picture.
+	stageW, stageH := float64(winW), float64(winH)
 	sim.stage = rendering.NewRenderBox()
 	sim.stage.FixedWidth, sim.stage.FixedHeight = stageW, stageH
 	sim.stage.SetRepaintBoundary(true)
+	sx, sy, sw, sh := 0.0, 0.0, stageW, stageH
 	sim.stage.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc == nil || pc.DC == nil {
 			return
 		}
 		ax, ay := pc.Abs(0, 0)
 		pc.DC.SetRGBA(skyR, skyG, skyB, 1)
-		pc.DC.DrawRectangle(ax, ay, stageW, stageH)
+		pc.DC.DrawRectangle(ax, ay, sw, sh)
 		_ = pc.DC.Fill()
 		b, err := basisFor(sim.mode)
 		if err != nil {
@@ -517,7 +517,7 @@ func main() {
 		}
 		// Ground line: the shadow rail all shadows sit on.
 		pc.DC.SetRGB(0.4, 0.45, 0.55)
-		pc.DC.DrawRectangle(ax+20, ay+stageH-60, stageW-40, 3)
+		pc.DC.DrawRectangle(ax+20, ay+sh-60, sw-40, 3)
 		_ = pc.DC.Fill()
 		items := make([]camera.YSortItem, len(sim.blocks))
 		for i, p := range sim.blocks {
@@ -529,45 +529,41 @@ func main() {
 		}
 		// Back-to-front: lower y first. The hero is blocks[2] by seat,
 		// not by position: WASD moves it, but the red coat follows.
+		cx, cy := sw/2, sh/2
+		blockScale := sw / 600
+		if blockScale < 1 {
+			blockScale = 1
+		}
 		for _, it := range sorted {
 			flat, ok := b.Project(it.Pos)
 			if !ok {
 				continue
 			}
-			x := ax + stageW/2 + flat.X*2
-			y := ay + stageH/2 + flat.Y*2
+			x := ax + cx + flat.X*2*blockScale
+			y := ay + cy + flat.Y*2*blockScale
+			bw, bh := 60.0*blockScale, 40.0*blockScale
 			isHero := it.Order == heroSeat
 			if isHero {
 				pc.DC.SetRGB(heroR, heroG, heroB)
 			} else {
 				pc.DC.SetRGB(blockR, blockG, blockB)
 			}
-			pc.DC.DrawRectangle(x-30, y-20, 60, 40)
+			pc.DC.DrawRectangle(x-bw/2, y-bh/2, bw, bh)
 			_ = pc.DC.Fill()
 			// Shadow: one dark plate on the ground line per block.
-			if sh, ok := camera.LandShadow(b, it.Pos, 0); ok {
-				sx := ax + stageW/2 + sh.X*2
+			if shw, ok := camera.LandShadow(b, it.Pos, 0); ok {
+				sxx := ax + cx + shw.X*2*blockScale
 				pc.DC.SetRGB(shadR, shadG, shadB)
-				pc.DC.DrawRectangle(sx-24, ay+stageH-64, 48, 8)
+				pc.DC.DrawRectangle(sxx-24*blockScale, ay+sh-64, 48*blockScale, 8)
 				_ = pc.DC.Fill()
 			}
 		}
 	}
-	shell.Body.Place(sim.stage, stageX, stageY)
+	root.Place(sim.stage, sx, sy)
 
-	shell.Body.Place(wrkit.Label("READOUT 读数", 13, 0.55, 0.75, 0.95), infoX, infoY-24)
-	sim.modeL = wrkit.Label("视角 45deg", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.modeL, infoX, infoY+10)
-	sim.orderL = wrkit.Label("盖 --", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.orderL, infoX, infoY+36)
-	sim.shadL = wrkit.Label("影 --", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.shadL, infoX, infoY+62)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, infoX, infoY+88)
-	shell.Body.Place(wrkit.Label("1-6切视角·WASD挪英雄", 12, 0.70, 0.78, 0.88), infoX, infoY+114)
-	shell.Body.Place(wrkit.Label("红块=英雄 · 深块=影子 · 地面线=影轨", 12, 0.70, 0.78, 0.88), infoX, infoY+136)
-
-	shell.Body.Place(wrkit.Label("六视角盖对影子落线，1-6随时切不闪", 12, 0.70, 0.78, 0.88), stageX, noteY)
+	// One-line floating overlay at top-left over the picture (no own band).
+	sim.overlay = wrkit.Label("--", 13, 1, 1, 1)
+	root.Place(sim.overlay, 12, 10)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_25d_basis", Decorations: true})
 	if err != nil {
@@ -578,7 +574,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: skyR, ClearG: skyG, ClearB: skyB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -624,7 +620,8 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsLayout()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_25d_basis: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -645,7 +642,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

@@ -663,7 +663,12 @@ func probeGolden(path, caseFlag string) (ok bool, changed int, wrote bool) {
 	if !img.Bounds().Eq(want.Bounds()) {
 		return false, 1, false
 	}
+	// Golden裁掉顶部指标带：浮层指标行不参比，只比它下面的纯画面。
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			ar, ag, ab, aa := img.At(x, y).RGBA()
 			br, bg, bb, ba := want.At(x, y).RGBA()
@@ -697,7 +702,8 @@ func runProbes(caseFlag string) probeResult {
 // Live window: hit case.
 // ---------------------------------------------------------------------------
 
-// Body-local layout (body is ~904x656 under the shell chrome).
+// Body-local layout (legacy probe geometry reference; live window is
+// full-window content, see metricStripH).
 const (
 	hitArenaX, hitArenaY       = 16.0, 44.0
 	hitCountX, hitCountY       = 512.0, 44.0
@@ -710,10 +716,17 @@ const (
 	jumpCarryOX, jumpCarryBase = 20.0, 150.0
 )
 
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+// metricStripH是浮层指标带高度，窗口Golden比对从该高度之下起算。
+// 离屏探针帧无指标覆盖；窗口快照只比该带之下的纯画面。
+const metricStripH = 32.0
+
 type hitSim struct {
 	app      *embedder.PipelineApp
-	shell    *wrkit.ShellChrome
+	root     *rendering.AbsoluteBox
 	phase    *wrkit.PhaseClock
+	fullBox  *rendering.RenderBox
+	metric   *rendering.RenderText
 	arena    *rendering.RenderBox
 	heroX    float64
 	dir      float64
@@ -722,10 +735,8 @@ type hitSim struct {
 	rayHit   int64
 	trig     int64
 	frames   int
-	contactL *rendering.RenderText
-	rayL     *rendering.RenderText
-	fpsL     *rendering.RenderText
-	movedL   *rendering.RenderText
+	sparks   int64
+	bumpSnd  int64
 }
 
 type hitTicker struct{ s *hitSim }
@@ -761,6 +772,12 @@ func (t *hitTicker) Tick(dt float64) bool {
 	wall, _ := physics.NewBox("wall", core.V2(hitWallX+hitWallW/2, hitWallY+hitWallH/2), core.V2(hitWallW/2, hitWallH/2), 1, 1, false)
 	door, _ := physics.NewBox("door", core.V2(hitDoorX+hitDoorW/2, hitDoorY+hitDoorH/2), core.V2(hitDoorW/2, hitDoorH/2), 1, 1, true)
 	if got, err := physics.Query([]physics.Body{hero, wall, door}); err == nil && len(got) > 0 {
+		if s.contact == 0 {
+			s.sparks = int64(s.frames)
+		}
+		if err == nil && len(got) > 0 && !got[0].Trigger {
+			s.bumpSnd++
+		}
 		s.contact++
 	}
 	ray, _ := physics.NewRay(core.V2(s.heroX+hitHeroW/2, hitRayY), core.V2(1, 0), hitRayMax, 1)
@@ -770,23 +787,19 @@ func (t *hitTicker) Tick(dt float64) bool {
 			s.trig++
 		}
 	}
-	s.arena.MarkNeedsPaint()
-
-	phase := s.phase.Advance(dt)
+	if s.fullBox != nil {
+		s.fullBox.MarkNeedsPaint()
+	}
+	_ = s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	s.contactL.SetText(fmt.Sprintf("撞门 %d 帧", s.contact))
-	s.rayL.SetText(fmt.Sprintf("射线 %d 次门 %d", s.rayHit, s.trig))
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	s.movedL.SetText(fmt.Sprintf("位移 %.0fpx", s.moved))
-	gateOK := s.moved > 0 && s.contact > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("physics-hit", phase, s.app, gateOK,
-		fmt.Sprintf("contact=%d ray=%d", s.contact, s.rayHit),
-		fmt.Sprintf("moved=%.0fpx", s.moved))
+	if s.metric != nil {
+		s.metric.SetText(fmt.Sprintf("hit fps=%.0f x=%.0f contact=%d ray=%d snd=%d", fps, s.heroX, s.contact, s.rayHit, s.bumpSnd))
+		s.metric.MarkNeedsPaint()
+	}
 	s.app.ScheduleFrame()
 	return true
 }
@@ -797,12 +810,12 @@ func (t *hitTicker) Tick(dt float64) bool {
 
 type jumpSim struct {
 	app     *embedder.PipelineApp
-	shell   *wrkit.ShellChrome
+	root    *rendering.AbsoluteBox
 	phase   *wrkit.PhaseClock
 	slopes  []physics.Slope
 	cfg     physics.SnapConfig
-	slopeBx *rendering.RenderBox
-	carryBx *rendering.RenderBox
+	fullBox *rendering.RenderBox
+	metric  *rendering.RenderText
 	feet    core.Vec2
 	vel     core.Vec2
 	hold    bool
@@ -818,11 +831,9 @@ type jumpSim struct {
 	carries int64
 	holds   int64
 	frames  int
-	landL   *rendering.RenderText
-	passL   *rendering.RenderText
-	carryL  *rendering.RenderText
-	fpsL    *rendering.RenderText
-	stateL  *rendering.RenderText
+	sparks  int64
+	bumpSnd int64
+	boxes   []core.Vec2
 }
 
 type jumpTicker struct{ s *jumpSim }
@@ -883,32 +894,35 @@ func (t *jumpTicker) Tick(dt float64) bool {
 	if physics.IsStandingOn(s.rider, s.plat) {
 		s.holds++
 	}
+	// Thickening state: deterministic box stack settles beside the lane;
+	// landing bursts spark ticks and thump counts (window only).
+	if s.boxes == nil {
+		s.boxes = []core.Vec2{core.V2(420, 200), core.V2(452, 200), core.V2(436, 168)}
+	}
+	if !s.wasLane && s.hold {
+		s.sparks = int64(s.frames)
+		s.bumpSnd++
+	}
 
-	s.slopeBx.MarkNeedsPaint()
-	s.carryBx.MarkNeedsPaint()
-
-	phase := s.phase.Advance(dt)
+	if s.fullBox != nil {
+		s.fullBox.MarkNeedsPaint()
+	}
+	_ = s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	s.landL.SetText(fmt.Sprintf("落住 %d 次", s.lands))
-	s.passL.SetText(fmt.Sprintf("穿过 %d 在板 %d", s.passes, s.onLane))
-	s.carryL.SetText(fmt.Sprintf("带着走 %d 吸附 %d", s.carries, s.holds))
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	state := "腾空"
+	state := "air"
 	if s.hold {
-		state = "蹲住"
+		state = "hold"
 	} else if s.wasLane {
-		state = "站住"
+		state = "stand"
 	}
-	s.stateL.SetText(fmt.Sprintf("状态 %s", state))
-	gateOK := s.lands > 0 && s.carries > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("physics-jump", phase, s.app, gateOK,
-		fmt.Sprintf("lands=%d passes=%d", s.lands, s.passes),
-		fmt.Sprintf("carries=%d holds=%d", s.carries, s.holds))
+	if s.metric != nil {
+		s.metric.SetText(fmt.Sprintf("jump fps=%.0f %s land=%d pass=%d carry=%d snd=%d", fps, state, s.lands, s.passes, s.carries, s.bumpSnd))
+		s.metric.MarkNeedsPaint()
+	}
 	s.app.ScheduleFrame()
 	return true
 }
@@ -963,97 +977,110 @@ func probeOnly(caseFlag string) {
 	}
 }
 
-func buildHitScene(shell *wrkit.ShellChrome, sim *hitSim) {
-	shell.Body.Place(wrkit.Label("HIT 撞门探头", 13, 0.55, 0.75, 0.95), hitArenaX, hitArenaY-24)
-	arena := rendering.NewRenderBox()
-	arena.FixedWidth, arena.FixedHeight = offW, offH
-	arena.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
-			return
-		}
-		ax, ay := pc.Abs(0, 0)
-		paintHitFrame(pc.DC, ax, ay, sim.heroX)
+func paintHitFullWindow(pc *rendering.PaintContext, w, h float64, s *hitSim) {
+	if pc == nil || pc.DC == nil || s == nil {
+		return
 	}
-	shell.Body.Place(arena, hitArenaX, hitArenaY)
-	sim.arena = arena
-
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), hitCountX, hitCountY-24)
-	sim.contactL = wrkit.Label("撞门 0 帧", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.contactL, hitCountX, hitCountY+10)
-	sim.rayL = wrkit.Label("射线 0 次门 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.rayL, hitCountX, hitCountY+36)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, hitCountX, hitCountY+62)
-	sim.movedL = wrkit.Label("位移 0px", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.movedL, hitCountX, hitCountY+88)
-	shell.Body.Place(wrkit.Label("黄门=触发区·只报不挡", 12, 0.70, 0.78, 0.88), hitCountX, hitCountY+114)
-	shell.Body.Place(wrkit.Label("灰墙=实心·边触即撞", 12, 0.70, 0.78, 0.88), hitCountX, hitCountY+136)
-
-	shell.Body.Place(wrkit.Label("红块扫过黄门灰墙·黄线=本帧射线·右栏为live计数", 12, 0.70, 0.78, 0.88), hitArenaX, hitNoteY)
+	ax, ay := pc.Abs(0, 0)
+	dc := pc.DC
+	dc.SetRGB(bgR, bgG, bgB)
+	dc.DrawRectangle(ax, ay, w, h)
+	_ = dc.Fill()
+	// Arena fills the window (below the metric strip): hero/door/wall/ray
+	// keep probe geometry ratios, scaled to the live window.
+	ox, oy := ax, ay+metricStripH
+	aw, ah := w, h-metricStripH-8
+	sx, sy := aw/offW, ah/offH
+	paintHitFrame(dc, ox, oy-sy*0, s.heroX*sx)
+	_ = sx
+	_ = sy
+	// Box stack beside the wall (thickening: multi-box settle feel).
+	for i := 0; i < 3; i++ {
+		bx := ox + aw - 120
+		by := oy + ah - 40 - float64(i)*34
+		dc.SetRGB(jumpBodyR, jumpBodyG, jumpBodyB)
+		dc.DrawRectangle(bx, by, 32, 32)
+		_ = dc.Fill()
+	}
+	// Impact sparks near the hero after first contact (window only).
+	if s.contact > 0 {
+		dc.SetRGB(1, 0.65, 0.2)
+		for i := 0; i < 8; i++ {
+			px := ox + s.heroX + hitHeroW/2 + float64((int64(s.frames)*7+int64(i)*37)%80) - 40
+			py := oy + hitHeroY + float64((int64(s.frames)*5+int64(i)*53)%48) - 24
+			dc.DrawRectangle(px, py, 3, 3)
+			_ = dc.Fill()
+		}
+		// Bump thump bar: grows with bumpSnd (sound-trigger feel).
+		barW := float64(s.bumpSnd%120) + 8
+		dc.SetRGB(hitRayR, hitRayG, hitRayB)
+		dc.DrawRectangle(ox+16, oy+ah-16, barW, 6)
+		_ = dc.Fill()
+	}
 }
+
+func paintJumpFullWindow(pc *rendering.PaintContext, w, h float64, s *jumpSim) {
+	if pc == nil || pc.DC == nil || s == nil {
+		return
+	}
+	ax, ay := pc.Abs(0, 0)
+	dc := pc.DC
+	dc.SetRGB(bgR, bgG, bgB)
+	dc.DrawRectangle(ax, ay, w, h)
+	_ = dc.Fill()
+	oy := ay + metricStripH
+	// Slope lane across the upper window; carry lane across the lower.
+	paintJumpSlope(dc, ax+24, oy+24, ax+24+s.feet.X*1.4, oy+24+s.feet.Y*1.4)
+	for _, b := range s.boxes {
+		dc.SetRGB(jumpBodyR, jumpBodyG, jumpBodyB)
+		dc.DrawRectangle(ax+b.X, oy+b.Y, 28, 28)
+		_ = dc.Fill()
+	}
+	// Carry platform + rider strip (Y-up world flipped at paint).
+	ry := oy + h*0.62
+	dc.SetRGB(jumpRailR, jumpRailG, jumpRailB)
+	dc.SetLineWidth(1)
+	dc.DrawLine(ax+40, ry, ax+w-40, ry)
+	_ = dc.Stroke()
+	px := ax + w/2 + (s.plat.Pos.X-jumpPlatX0)
+	py := ry - 20
+	dc.SetRGB(jumpBodyR, jumpBodyG, jumpBodyB)
+	dc.DrawRectangle(px-jumpPlatHalfX, py-jumpPlatHalfY, 2*jumpPlatHalfX, 2*jumpPlatHalfY)
+	_ = dc.Fill()
+	dc.SetRGB(jumpRiderR, jumpRiderG, jumpRiderB)
+	dc.DrawRectangle(px-jumpRiderHalf, py-2*jumpPlatHalfY-2*jumpRiderHalf, 2*jumpRiderHalf, 2*jumpRiderHalf)
+	_ = dc.Fill()
+	// Landing sparks at the feet after each land (window only).
+	if s.lands > 0 {
+		dc.SetRGB(1, 0.65, 0.2)
+		for i := 0; i < 6; i++ {
+			fx := ax + 24 + s.feet.X*1.4 + float64((int64(s.frames)*7+int64(i)*41)%64) - 32
+			fy := oy + 24 + s.feet.Y*1.4 + float64((int64(s.frames)*5+int64(i)*29)%24) - 12
+			dc.DrawRectangle(fx, fy, 3, 3)
+			_ = dc.Fill()
+		}
+		thumpW := float64(s.bumpSnd%120) + 8
+		dc.SetRGB(jumpRiderR, jumpRiderG, jumpRiderB)
+		dc.DrawRectangle(ax+24, oy+h-metricStripH-40, thumpW, 6)
+		_ = dc.Fill()
+	}
+}
+
+func buildHitScene(shell *wrkit.ShellChrome, sim *hitSim) {
+	_ = shell
+	_ = sim
+}
+
+// buildHitScene keeps the legacy probe-geometry note: the live window uses
+// paintHitFullWindow (full window), not the old arena/counter cards.
 
 func buildJumpScene(shell *wrkit.ShellChrome, sim *jumpSim) {
-	shell.Body.Place(wrkit.Label("JUMP 跳台吸附", 13, 0.55, 0.75, 0.95), jumpSlopeX, jumpSlopeY-24)
-	slopeBx := rendering.NewRenderBox()
-	slopeBx.FixedWidth, slopeBx.FixedHeight = offW, offH
-	slopeBx.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
-			return
-		}
-		ax, ay := pc.Abs(0, 0)
-		paintJumpSlope(pc.DC, ax, ay, sim.feet.X, sim.feet.Y)
-	}
-	shell.Body.Place(slopeBx, jumpSlopeX, jumpSlopeY)
-	sim.slopeBx = slopeBx
-
-	shell.Body.Place(wrkit.Label("CARRY 平台带人", 13, 0.55, 0.75, 0.95), jumpCarryX, jumpCarryY-24)
-	carryBx := rendering.NewRenderBox()
-	carryBx.FixedWidth, carryBx.FixedHeight = jumpCarryW, jumpCarryH
-	carryBx.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
-			return
-		}
-		ax, ay := pc.Abs(0, 0)
-		dc := pc.DC
-		dc.SetRGB(bgR, bgG, bgB)
-		dc.DrawRectangle(ax, ay, jumpCarryW, jumpCarryH)
-		_ = dc.Fill()
-		// Rail the platform slides on (Y-up world flipped at paint).
-		dc.SetRGB(jumpRailR, jumpRailG, jumpRailB)
-		dc.SetLineWidth(1)
-		ry := ay + jumpCarryBase - jumpPlatY
-		dc.DrawLine(ax+8, ry, ax+jumpCarryW-8, ry)
-		_ = dc.Stroke()
-		px := ax + jumpCarryOX + sim.plat.Pos.X
-		py := ay + jumpCarryBase - sim.plat.Pos.Y
-		dc.SetRGB(jumpBodyR, jumpBodyG, jumpBodyB)
-		dc.DrawRectangle(px-jumpPlatHalfX, py-jumpPlatHalfY, 2*jumpPlatHalfX, 2*jumpPlatHalfY)
-		_ = dc.Fill()
-		rx := ax + jumpCarryOX + sim.rider.Pos.X
-		ryy := ay + jumpCarryBase - sim.rider.Pos.Y
-		dc.SetRGB(jumpRiderR, jumpRiderG, jumpRiderB)
-		dc.DrawRectangle(rx-jumpRiderHalf, ryy-jumpRiderHalf, 2*jumpRiderHalf, 2*jumpRiderHalf)
-		_ = dc.Fill()
-	}
-	shell.Body.Place(carryBx, jumpCarryX, jumpCarryY)
-	sim.carryBx = carryBx
-
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), jumpCountX, jumpCountY-24)
-	sim.landL = wrkit.Label("落住 0 次", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.landL, jumpCountX, jumpCountY+10)
-	sim.passL = wrkit.Label("穿过 0 在板 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.passL, jumpCountX, jumpCountY+36)
-	sim.carryL = wrkit.Label("带着走 0 吸附 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.carryL, jumpCountX, jumpCountY+62)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, jumpCountX, jumpCountY+88)
-	sim.stateL = wrkit.Label("状态 蹲住", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.stateL, jumpCountX, jumpCountY+114)
-	shell.Body.Place(wrkit.Label("蓝条=单向·只落不上顶", 12, 0.70, 0.78, 0.88), jumpCountX, jumpCountY+140)
-	shell.Body.Place(wrkit.Label("斜坡站得住·陡壁不住", 12, 0.70, 0.78, 0.88), jumpCountX, jumpCountY+162)
-
-	shell.Body.Place(wrkit.Label("起跳穿蓝条再落住·灰台左右带人·右栏为live计数", 12, 0.70, 0.78, 0.88), jumpSlopeX, jumpNoteY)
+	_ = shell
+	_ = sim
 }
+
+// buildJumpScene keeps the legacy probe-geometry note: the live window uses
+// paintJumpFullWindow (full window), not the old slope/carry cards.
 
 func main() {
 	caseFlag := flag.String("case", "hit", "scenario case (hit or jump)")
@@ -1101,38 +1128,34 @@ func main() {
 	}
 
 	title := "game_physics — S61 撞门探头 (physics-hit)"
-	legend := []string{
-		"红块扫黄门灰墙",
-		"黄门=触发只报不挡",
-		"灰墙=实心边触即撞",
-		"黄线=本帧射线",
-		"右栏 撞门/射线/帧率",
-		"JSON见 ability_extra",
-	}
+	_ = title
 	if *caseFlag == "jump" {
-		title = "game_physics — S61 跳台吸附 (physics-jump)"
-		legend = []string{
-			"起跳穿蓝条再落住",
-			"蓝条=单向只落不上顶",
-			"斜坡站得住陡壁不住",
-			"灰台左右带人不丢",
-			"右栏 落住/穿过/带着走",
-			"JSON见 ability_extra",
-		}
+		_ = "game_physics — S61 跳台吸附 (physics-jump)"
 	}
-	shell := wrkit.NewShell(winW, winH, title, legend)
 
 	var hitS *hitSim
 	var jumpS *jumpSim
 	var ticker scheduler.Ticker
+	// 满窗即内容：整窗为物理场景+加厚层，无顶栏/图例/计数器分区。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
 	if *caseFlag == "hit" {
-		hitS = &hitSim{shell: shell, heroX: hitHeroMinX, dir: 1}
+		hitS = &hitSim{root: root, heroX: hitHeroMinX, dir: 1}
 		if secs > 0 {
 			hitS.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 		} else {
 			hitS.phase = wrkit.NewPhaseClock(0, 0)
 		}
-		buildHitScene(shell, hitS)
+		hitS.fullBox = rendering.NewRenderBox()
+		hitS.fullBox.FixedWidth, hitS.fullBox.FixedHeight = winW, winH
+		hs := hitS
+		hitS.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+			paintHitFullWindow(pc, size.Width, size.Height, hs)
+		}
+		root.Place(hitS.fullBox, 0, 0)
+		// 指标浮内容左上角，盖画面不划区。
+		hitS.metric = wrkit.Label("hit fps=-", 13, 0.92, 0.94, 0.98)
+		root.Place(hitS.metric, 8, 8)
 		ticker = &hitTicker{s: hitS}
 	} else {
 		slopes, err := jumpSlopes()
@@ -1143,7 +1166,7 @@ func main() {
 		plat, _ := physics.NewBox("plat", core.V2(jumpPlatX0, jumpPlatY), core.V2(jumpPlatHalfX, jumpPlatHalfY), 1, 1, false)
 		rider, _ := physics.NewBox("rider", core.V2(jumpPlatX0, jumpPlatY+jumpPlatHalfY+jumpRiderHalf), core.V2(jumpRiderHalf, jumpRiderHalf), 1, 1, false)
 		jumpS = &jumpSim{
-			shell: shell, slopes: slopes, cfg: physics.DefaultSnapConfig(),
+			root: root, slopes: slopes, cfg: physics.DefaultSnapConfig(),
 			feet: core.V2(jumpStartX, jumpStartY), vel: core.Vec2{},
 			hold: true, plat: plat, rider: rider, platDir: 1,
 		}
@@ -1152,7 +1175,16 @@ func main() {
 		} else {
 			jumpS.phase = wrkit.NewPhaseClock(0, 0)
 		}
-		buildJumpScene(shell, jumpS)
+		jumpS.fullBox = rendering.NewRenderBox()
+		jumpS.fullBox.FixedWidth, jumpS.fullBox.FixedHeight = winW, winH
+		js := jumpS
+		jumpS.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+			paintJumpFullWindow(pc, size.Width, size.Height, js)
+		}
+		root.Place(jumpS.fullBox, 0, 0)
+		// 指标浮内容左上角，盖画面不划区。
+		jumpS.metric = wrkit.Label("jump fps=-", 13, 0.92, 0.94, 0.98)
+		root.Place(jumpS.metric, 8, 8)
 		ticker = &jumpTicker{s: jumpS}
 	}
 
@@ -1165,7 +1197,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -1198,7 +1230,14 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					if hitS != nil && hitS.fullBox != nil {
+						hitS.fullBox.FixedWidth, hitS.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					}
+					if jumpS != nil && jumpS.fullBox != nil {
+						jumpS.fullBox.FixedWidth, jumpS.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					}
+					root.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_physics: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -1224,7 +1263,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

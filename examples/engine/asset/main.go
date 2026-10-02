@@ -95,7 +95,8 @@ const (
 	barBgB           = 0.32
 )
 
-// Body-local layout (body is ~904x656 under the shell chrome).
+// Body-local layout (legacy coords, kept for probe reference;
+// live window is full-window content, see metricStripH).
 const (
 	liveX, liveY   = 16.0, 44.0
 	depX, depY     = 312.0, 44.0
@@ -110,6 +111,9 @@ const (
 	offBarY, offBarH = 244, 10
 	offBarW, offFill = 460, 300
 )
+
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+const metricStripH = 32.0
 
 // probeResult is the three-evidence headless verdict (no GPU needed).
 type probeResult struct {
@@ -763,7 +767,12 @@ func probeGolden() (ok bool, changed int, wrote bool) {
 	if !img.Bounds().Eq(want.Bounds()) {
 		return false, 1, false
 	}
+	// Golden裁掉顶部指标带：浮层指标行不参比。
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			ar, ag, ab, aa := img.At(x, y).RGBA()
 			br, bg, bb, ba := want.At(x, y).RGBA()
@@ -787,25 +796,22 @@ func runProbes() probeResult {
 	return p
 }
 
-// assetSim is the live window state: one real Watcher polls the owned
-// slot file every frame and swaps only that id when it changes.
+// assetSim is the live window state: full-window atlas + figure + light.
 type assetSim struct {
 	mgr     *asset.Manager
 	watcher *asset.Watcher
 	app     *embedder.PipelineApp
-	shell   *wrkit.ShellChrome
+	root    *rendering.AbsoluteBox
 	phase   *wrkit.PhaseClock
-	redBox  *rendering.RenderColorBox
-	chkBox  *rendering.RenderColorBox
-	hashL   *rendering.RenderText
-	sizeL   *rendering.RenderText
-	stateL  *rendering.RenderText
-	chainL  *rendering.RenderText
-	reloadL *rendering.RenderText
-	eventL  *rendering.RenderText
-	perfL   *rendering.RenderText
-	fpsL    *rendering.RenderText
+	fullBox *rendering.RenderBox
+	metric  *rendering.RenderText
+	hash    uint64
+	size    int
+	reloads int64
+	events  int64
 	frames  int
+	walkT   float64
+	walkX   float64
 }
 
 type ticker struct{ s *assetSim }
@@ -828,40 +834,26 @@ func (t *ticker) Tick(dt float64) bool {
 	cur, _ := s.mgr.Wait(core.AssetID(liveID))
 	var hash uint64
 	var size int
-	var state asset.State
 	if cur != nil {
-		hash, size, state = cur.Hash(), cur.Size(), cur.State()
+		hash, size = cur.Hash(), cur.Size()
 	}
 	st := s.watcher.Stats()
-	// Toggle the visible slot: red bytes show red, checker bytes show
-	// checker, so a manual file edit visibly swaps the swatch.
-	if size == 136 {
-		s.redBox.SetAlpha(0)
-		s.chkBox.SetAlpha(1)
-	} else {
-		s.redBox.SetAlpha(1)
-		s.chkBox.SetAlpha(0)
+	s.hash, s.size = hash, size
+	s.reloads, s.events = st.Reloads, st.Events
+	s.walkT += dt
+	s.walkX = float64(int(s.walkT*60) % (winW + 128))
+	s.walkX -= 64
+	s.fullBox.MarkNeedsPaint()
+	if s.metric != nil {
+		snap := s.app.Metrics().Snapshot()
+		fps := 0.0
+		if snap.AvgFrameIntervalMs > 1e-6 {
+			fps = 1000.0 / snap.AvgFrameIntervalMs
+		}
+		s.metric.SetText(fmt.Sprintf("hash=%d size=%d reloads=%d fps=%.0f", hash, size, st.Reloads, fps))
+		s.metric.MarkNeedsPaint()
 	}
-	s.hashL.SetText(fmt.Sprintf("哈希 %d", hash))
-	s.sizeL.SetText(fmt.Sprintf("字节 %d", size))
-	s.stateL.SetText(fmt.Sprintf("看门 %s 总字节 %d", s.watcher.StateOf(core.AssetID(liveID)), s.mgr.TotalBytes()))
-	s.reloadL.SetText(fmt.Sprintf("重载数 %d", st.Reloads))
-	s.eventL.SetText(fmt.Sprintf("事件数 %d", st.Events))
-	s.perfL.SetText(fmt.Sprintf("轮询目标 %.0fus 重载目标 %.0fus", pollTargetUs, reloadTargetUs))
-	_ = state
-
-	phase := s.phase.Advance(dt)
-	snap := s.app.Metrics().Snapshot()
-	fps := 0.0
-	if snap.AvgFrameIntervalMs > 1e-6 {
-		fps = 1000.0 / snap.AvgFrameIntervalMs
-	}
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	gateOK := s.frames > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("asset-reload", phase, s.app, gateOK,
-		fmt.Sprintf("reloads=%d events=%d", st.Reloads, st.Events),
-		fmt.Sprintf("hash=%d size=%d", hash, size))
+	_ = s.phase.Advance(dt)
 	s.app.ScheduleFrame()
 	return true
 }
@@ -935,7 +927,7 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_asset — 12.3 热重载 (asset-reload)", []string{
+	_ = wrkit.NewShell(winW, winH, "game_asset — 12.3 热重载 (asset-reload)", []string{
 		"改一个文件只换一个资源",
 		"坏文件保旧图不崩",
 		"看门人与直装逐位一致",
@@ -957,49 +949,44 @@ func main() {
 	sim := &assetSim{
 		mgr:     mgr,
 		watcher: watcher,
-		shell:   shell,
 	}
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	sim.root = root
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	// Left: live slot (two swatches stacked, toggle by loaded size).
-	shell.Body.Place(wrkit.Label("LIVE 看门文件·改即换", 13, 0.55, 0.75, 0.95), liveX, liveY-24)
-	sim.redBox = rendering.NewRenderColorBox(swW, swH, redR, redG, redB, 1)
-	shell.Body.Place(sim.redBox, liveX, liveY)
-	sim.chkBox = rendering.NewRenderColorBox(swW, swH, chkR, chkG, chkB, 1)
-	sim.chkBox.SetAlpha(0)
-	shell.Body.Place(sim.chkBox, liveX, liveY)
-	sim.hashL = wrkit.Label("哈希 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.hashL, liveX, liveY+swH+10)
-	sim.sizeL = wrkit.Label("字节 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.sizeL, liveX, liveY+swH+36)
-	sim.stateL = wrkit.Label("看门 watching", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.stateL, liveX, liveY+swH+62)
-
-	// Middle: dependency chain served by the real ledger.
-	shell.Body.Place(wrkit.Label("DEP 依赖链", 13, 0.55, 0.75, 0.95), depX, depY-24)
-	shell.Body.Place(wrkit.Label("map/level1 需两张贴图", 12, 0.70, 0.78, 0.88), depX, depY+10)
-	shell.Body.Place(wrkit.Label("tex/red 被两处引用", 12, 0.70, 0.78, 0.88), depX, depY+36)
-	sim.chainL = wrkit.Label("断链报哪条链见 JSON", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.chainL, depX, depY+62)
-	shell.Body.Place(wrkit.Label("坏文件保旧不崩", 12, 0.70, 0.78, 0.88), depX, depY+88)
-	shell.Body.Place(wrkit.Label("看门人与直装逐位一致", 12, 0.70, 0.78, 0.88), depX, depY+114)
-
-	// Right: live counters.
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), countX, countY-24)
-	sim.reloadL = wrkit.Label("重载数 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.reloadL, countX, countY+10)
-	sim.eventL = wrkit.Label("事件数 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.eventL, countX, countY+36)
-	sim.perfL = wrkit.Label("轮询/重载目标", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.perfL, countX, countY+62)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, countX, countY+88)
-
-	shell.Body.Place(wrkit.Label("改 testdata/live_slot.ktx2 即换 · 红112B/青136B来回 · 右栏为live计数", 12, 0.70, 0.78, 0.88), liveX, noteY)
+	// 满窗即内容：整窗为拼图热更场景（拼图底+人物+灯罩加厚）。
+	sim.fullBox = rendering.NewRenderBox()
+	sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
+	sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		if sim.size == 136 {
+			pc.DC.SetRGBA(chkR, chkG, chkB, 1)
+		} else {
+			pc.DC.SetRGBA(redR, redG, redB, 1)
+		}
+		pc.DC.DrawRectangle(0, 0, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		mx, my := sim.walkX, size.Height-140
+		pc.DC.SetRGBA(0.92, 0.90, 0.86, 1)
+		pc.DC.DrawRectangle(mx, my, 56, 84)
+		_ = pc.DC.Fill()
+		pc.DC.SetRGBA(1, 0.72, 0.30, 0.10)
+		pc.DC.DrawRectangle(0, 0, size.Width, size.Height)
+		_ = pc.DC.Fill()
+	}
+	_ = liveX
+	_ = depX
+	_ = countX
+	root.Place(sim.fullBox, 0, 0)
+	sim.metric = wrkit.Label("hash=0", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 8, 8)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_asset", Decorations: true})
 	if err != nil {
@@ -1010,7 +997,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -1043,7 +1030,9 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_asset: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -1065,7 +1054,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

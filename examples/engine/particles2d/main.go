@@ -69,7 +69,8 @@ const (
 	sparkR, sparkG, sparkB = 1.0, 0.85, 0.30
 )
 
-// Body-local layout (body is ~904x656 under the shell chrome).
+// Body-local layout (legacy card coords, kept for probe geometry reference;
+// live window is full-window content, see metricStripH).
 const (
 	fireX, fireY, fireW, fireH     = 16.0, 44.0, 280.0, 340.0
 	smokeX, smokeY, smokeW, smokeH = 312.0, 44.0, 280.0, 340.0
@@ -77,6 +78,9 @@ const (
 	countX, countY                 = 16.0, 420.0
 	noteY                          = 560.0
 )
+
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+const metricStripH = 32.0
 
 // Live emitter geometry in card-local coordinates.
 const (
@@ -396,7 +400,12 @@ func probeGolden() (ok bool, changed int, wrote bool) {
 	if !img.Bounds().Eq(want.Bounds()) {
 		return false, 1, false
 	}
+	// Golden裁掉顶部指标带：浮层指标行不参比。
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			ar, ag, ab, aa := img.At(x, y).RGBA()
 			br, bg, bb, ba := want.At(x, y).RGBA()
@@ -558,22 +567,51 @@ func paintParticleCard(pc *rendering.PaintContext, w, h float64, e *particle.Emi
 	_, _ = pc.DC.DrawAtlasEx(atlasBuf, rs, render.AtlasDrawOptions{})
 }
 
+// paintFullWindow draws the full-window scene: fire left, smoke mid, boom
+// right, day-night tint, walking monster rect (window only, engine untouched).
+func paintFullWindow(pc *rendering.PaintContext, w, h float64, fire, smoke, boom *particle.Emitter, dayA, monX float64) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	ax, ay := pc.Abs(0, 0)
+	pc.DC.SetRGB(0.05, 0.05, 0.07)
+	pc.DC.DrawRectangle(ax, ay, w, h)
+	_ = pc.DC.Fill()
+	oxF := ax + w*0.20 - fireOriginX
+	oyF := ay + h*0.66 - fireOriginY
+	oxS := ax + w*0.48 - smokeOriginX
+	oyS := ay + h*0.64 - smokeOriginY
+	oxB := ax + w*0.76 - boomOriginX
+	oyB := ay + h*0.42 - boomOriginY
+	rs := particlesToAtlas(fire, fireSize, oxF, oyF)
+	rs = append(rs, particlesToAtlas(smoke, smokeSize, oxS, oyS)...)
+	rs = append(rs, particlesToAtlas(boom, boomSize, oxB, oyB)...)
+	_, _ = pc.DC.DrawAtlasEx(atlasBuf, rs, render.AtlasDrawOptions{})
+	// Day-night tint over the whole scene.
+	pc.DC.SetRGBA(0.12, 0.18, 0.45, dayA)
+	pc.DC.DrawRectangle(ax, ay, w, h)
+	_ = pc.DC.Fill()
+	// Walking monster: dark body + bright eye, loops across the floor.
+	mx, my := ax+monX, ay+h-110
+	pc.DC.SetRGBA(0.16, 0.14, 0.20, 1)
+	pc.DC.DrawRectangle(mx, my, 64, 46)
+	_ = pc.DC.Fill()
+	pc.DC.SetRGBA(1, 0.25, 0.20, 1)
+	pc.DC.DrawRectangle(mx+44, my+12, 10, 10)
+	_ = pc.DC.Fill()
+}
+
 // liveSim is the live window state: three real emitters advance every tick,
-// the batch proves the wiring, cards draw the tinted sets.
+// the batch proves the wiring, one full-window box draws the thickened scene.
 type liveSim struct {
 	fire        *particle.Emitter
 	smoke       *particle.Emitter
 	boom        *particle.Emitter
 	app         *embedder.PipelineApp
-	shell       *wrkit.ShellChrome
+	root        *rendering.AbsoluteBox
 	phase       *wrkit.PhaseClock
-	fireBox     *rendering.RenderBox
-	smokeBox    *rendering.RenderBox
-	boomBox     *rendering.RenderBox
-	fireL       *rendering.RenderText
-	smokeL      *rendering.RenderText
-	boomL       *rendering.RenderText
-	batchL      *rendering.RenderText
+	fullBox     *rendering.RenderBox
+	metric      *rendering.RenderText
 	fireAlive   int
 	smokeAlive  int
 	boomAlive   int
@@ -583,6 +621,9 @@ type liveSim struct {
 	boomTimer   float64
 	pendingBoom int
 	triggers    int
+	elapsed     float64
+	dayA        float64
+	monX        float64
 }
 
 type ticker struct{ s *liveSim }
@@ -639,33 +680,21 @@ func (t *ticker) Tick(dt float64) bool {
 		_, _ = s.boom.AppendToBatch(b, particleImageID, particleSrc, boomSize)
 	}
 	s.batchCalls = b.Flush(func(_ core.AssetID, _ []sprite.Sprite) {})
-	if s.fireBox != nil {
-		s.fireBox.MarkNeedsPaint()
+	// Thickening state: day-night cycle + monster walk (window only).
+	s.elapsed += dt
+	s.dayA = 0.10 + 0.08*math.Sin(s.elapsed*0.35)
+	if s.dayA < 0 {
+		s.dayA = 0
 	}
-	if s.smokeBox != nil {
-		s.smokeBox.MarkNeedsPaint()
+	s.monX = math.Mod(s.elapsed*60, winW+128) - 64
+	if s.fullBox != nil {
+		s.fullBox.MarkNeedsPaint()
 	}
-	if s.boomBox != nil {
-		s.boomBox.MarkNeedsPaint()
+	if s.metric != nil {
+		s.metric.SetText(fmt.Sprintf("fire=%d smoke=%d boom=%d child=%d batch=%d day=%.2f", s.fireAlive, s.smokeAlive, s.boomAlive, s.boomChild, s.batchCalls, s.dayA))
+		s.metric.MarkNeedsPaint()
 	}
-	if s.fireL != nil {
-		s.fireL.SetText(fmt.Sprintf("fire_alive %d", s.fireAlive))
-	}
-	if s.smokeL != nil {
-		s.smokeL.SetText(fmt.Sprintf("smoke_alive %d", s.smokeAlive))
-	}
-	if s.boomL != nil {
-		s.boomL.SetText(fmt.Sprintf("boom_alive %d child %d", s.boomAlive, s.boomChild))
-	}
-	if s.batchL != nil {
-		s.batchL.SetText(fmt.Sprintf("batch_calls %d", s.batchCalls))
-	}
-	phase := s.phase.Advance(dt)
-	gateOK := s.fireAlive > 0 && s.smokeAlive > 0 && s.boomAlive > 0 && s.batchCalls >= 1
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("particles2d-boom", phase, s.app, gateOK,
-		fmt.Sprintf("fire=%d smoke=%d boom=%d batch=%d", s.fireAlive, s.smokeAlive, s.boomAlive, s.batchCalls),
-		fmt.Sprintf("child=%d triggers=%d", s.boomChild, s.triggers))
+	_ = s.phase.Advance(dt)
 	s.app.ScheduleFrame()
 	return true
 }
@@ -763,59 +792,25 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_particles2d — S83 火/烟/爆炸对照 (particles2d-boom)", []string{
-		"左火 cone向上亮黄红",
-		"中烟 box缓升+乱流摆",
-		"右爆 ring向外+子火星",
-		"点/按键重触发爆炸",
-		"位置+透明走合批染色",
-		"底栏 fire/smoke/boom",
-		"JSON见 ability_extra",
-	})
-
-	sim := &liveSim{fire: fire, smoke: smoke, boom: boom, shell: shell}
+	// 满窗即内容：整窗为火/烟/爆场景，昼夜罩+巡逻怪同场加厚。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	sim := &liveSim{fire: fire, smoke: smoke, boom: boom, root: root}
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	shell.Body.Place(wrkit.Label("FIRE 火区", 13, 0.55, 0.75, 0.95), fireX, fireY-24)
-	sim.fireBox = rendering.NewRenderBox()
-	sim.fireBox.FixedWidth, sim.fireBox.FixedHeight = fireW, fireH
-	fireEm := fire
-	sim.fireBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintParticleCard(pc, size.Width, size.Height, fireEm, fireSize)
+	sim.fullBox = rendering.NewRenderBox()
+	sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
+	fireEm, smokeEm, boomEm := fire, smoke, boom
+	sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		paintFullWindow(pc, size.Width, size.Height, fireEm, smokeEm, boomEm, sim.dayA, sim.monX)
 	}
-	shell.Body.Place(sim.fireBox, fireX, fireY)
-
-	shell.Body.Place(wrkit.Label("SMOKE 烟区", 13, 0.55, 0.75, 0.95), smokeX, smokeY-24)
-	sim.smokeBox = rendering.NewRenderBox()
-	sim.smokeBox.FixedWidth, sim.smokeBox.FixedHeight = smokeW, smokeH
-	smokeEm := smoke
-	sim.smokeBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintParticleCard(pc, size.Width, size.Height, smokeEm, smokeSize)
-	}
-	shell.Body.Place(sim.smokeBox, smokeX, smokeY)
-
-	shell.Body.Place(wrkit.Label("BOOM 爆炸区", 13, 0.55, 0.75, 0.95), boomX, boomY-24)
-	sim.boomBox = rendering.NewRenderBox()
-	sim.boomBox.FixedWidth, sim.boomBox.FixedHeight = boomW, boomH
-	boomEm := boom
-	sim.boomBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintParticleCard(pc, size.Width, size.Height, boomEm, boomSize)
-	}
-	shell.Body.Place(sim.boomBox, boomX, boomY)
-
-	sim.fireL = wrkit.Label("fire_alive 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fireL, countX, countY+10)
-	sim.smokeL = wrkit.Label("smoke_alive 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.smokeL, countX+220, countY+10)
-	sim.boomL = wrkit.Label("boom_alive 0 child 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.boomL, countX+440, countY+10)
-	sim.batchL = wrkit.Label("batch_calls 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.batchL, countX+660, countY+10)
-	shell.Body.Place(wrkit.Label("火亮黄红上升 · 烟灰缓飘乱流 · 爆炸环扩散子火星四溅 · 点/按重爆", 12, 0.70, 0.78, 0.88), countX, noteY)
+	root.Place(sim.fullBox, 0, 0)
+	sim.metric = wrkit.Label("fire=0 smoke=0 boom=0", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 8, 8)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_particles2d", Decorations: true})
 	if err != nil {
@@ -826,7 +821,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -861,7 +856,9 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_particles2d: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -883,7 +880,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	var proc scheduler.ProcessTracker

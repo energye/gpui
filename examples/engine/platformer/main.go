@@ -407,9 +407,11 @@ func probeOnly() {
 
 type platSim struct {
 	app   *embedder.PipelineApp
-	shell *wrkit.ShellChrome
+	root  *rendering.AbsoluteBox
 	phase *wrkit.PhaseClock
 	arena *rendering.RenderBox
+	// metric floats over content at top-left (2.5D rule: no HUD band).
+	metric *rendering.RenderText
 
 	x, y     float64
 	vx, vy   float64
@@ -506,25 +508,20 @@ func (t *platTicker) Tick(dt float64) bool {
 		s.arena.MarkNeedsPaint()
 	}
 
-	phase := s.phase.Advance(dt)
+	s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	s.posL.SetText(fmt.Sprintf("人 x=%.0f y=%.0f 速%.0f,%.0f", s.x, s.y, s.vx, s.vy))
-	s.jumpL.SetText(fmt.Sprintf("跳 %d 落 %d", s.jumps, s.lands))
 	state := "腾空"
 	if s.onGround {
 		state = "站住"
 	}
-	s.stateL.SetText(fmt.Sprintf("状态 %s 位移%.0f", state, s.movedPx))
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	gateOK := s.movedPx > 0 && s.jumps > 0 && s.lands > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("platformer-feel", phase, s.app, gateOK,
-		fmt.Sprintf("jumps=%d lands=%d moved=%.0f", s.jumps, s.lands, s.movedPx),
-		fmt.Sprintf("vx=%.0f vy=%.0f", s.vx, s.vy))
+	// Floating metric over content (no counter panel, no HUD band).
+	if s.metric != nil {
+		s.metric.SetText(fmt.Sprintf("帧率 %.0f %s 跳%d 落%d 位移%.0f", fps, state, s.jumps, s.lands, s.movedPx))
+	}
 	s.app.ScheduleFrame()
 	return true
 }
@@ -556,18 +553,39 @@ func paintArena(pc *rendering.PaintContext, s *platSim) {
 	}
 	ax, ay := pc.Abs(0, 0)
 	dc := pc.DC
+	// Full-window content: night sky fills the window (no panels).
 	dc.SetRGB(bgR, bgG, bgB)
-	dc.DrawRectangle(ax, ay, arenaW, arenaH)
+	dc.DrawRectangle(ax, ay, winW, winH)
 	_ = dc.Fill()
+	// Parallax far/near bands (already-green depth feel, static rects).
+	dc.SetRGB(0.11, 0.13, 0.17)
+	dc.DrawRectangle(ax, ay+120, winW, 90)
+	_ = dc.Fill()
+	dc.SetRGB(0.14, 0.17, 0.22)
+	dc.DrawRectangle(ax, ay+230, winW, 70)
+	_ = dc.Fill()
+	ox, oy := ax+arenaX, ay+arenaY
 	dc.SetRGB(groundR, groundG, groundB)
-	dc.DrawRectangle(ax, ay+groundTop, arenaW, arenaH-groundTop)
+	dc.DrawRectangle(ax, oy+groundTop, winW, arenaH-groundTop)
 	_ = dc.Fill()
 	dc.SetRGB(platR, platG, platB)
-	dc.DrawRectangle(ax+platX, ay+platY, platW, platH)
+	dc.DrawRectangle(ox+platX, oy+platY, platW, platH)
+	_ = dc.Fill()
+	// Lamp glow over the hero (light feel, world-layer tint hint).
+	dc.SetRGB(1.0, 0.85, 0.55)
+	dc.DrawRectangle(ox+s.x-8, oy+s.y-8, heroW+16, heroH+16)
 	_ = dc.Fill()
 	dc.SetRGB(heroR, heroG, heroB)
-	dc.DrawRectangle(ax+s.x, ay+s.y, heroW, heroH)
+	dc.DrawRectangle(ox+s.x, oy+s.y, heroW, heroH)
 	_ = dc.Fill()
+	// Particle sparks cycling deterministically with frames (fx feel).
+	dc.SetRGB(1.0, 0.65, 0.2)
+	for i := 0; i < 6; i++ {
+		px := float64((s.frames*3 + i*197) % winW)
+		py := oy + groundTop - 40 - float64((s.frames*2+i*89)%220)
+		dc.DrawRectangle(ax+px, py, 3, 3)
+		_ = dc.Fill()
+	}
 }
 
 func main() {
@@ -612,16 +630,11 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_platformer — 横版手感对照 (platformer-feel)", []string{
-		"←→/AD挪·空格/W跳",
-		"移速300·跳-725·重力700",
-		"坠落上限700·二段只一次",
-		"松键阻尼x0.6/帧",
-		"绿地蓝条·橙=跳人",
-		"JSON见 ability_extra",
-	})
+	// 2.5D rule: full window is content (no top/legend/counter/HUD bands).
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
 	sim := &platSim{
-		shell:     shell,
+		root:      root,
 		x:         80,
 		y:         groundTop - heroH,
 		onGround:  true,
@@ -632,26 +645,18 @@ func main() {
 	} else {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
-	shell.Body.Place(wrkit.Label("PLATFORMER 横版区", 13, 0.55, 0.75, 0.95), arenaX, arenaY-24)
 	box := rendering.NewRenderBox()
-	box.FixedWidth, box.FixedHeight = arenaW, arenaH
+	box.FixedWidth, box.FixedHeight = winW, winH
 	box.SetRepaintBoundary(true)
 	live := sim
 	box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paintArena(pc, live)
 	}
-	shell.Body.Place(box, arenaX, arenaY)
+	root.Place(box, 0, 0)
 	sim.arena = box
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), countX, countY-24)
-	sim.posL = wrkit.Label("人 -", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.posL, countX, countY+10)
-	sim.jumpL = wrkit.Label("跳 0 落 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.jumpL, countX, countY+36)
-	sim.stateL = wrkit.Label("状态 站住 位移0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.stateL, countX, countY+62)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, countX, countY+88)
-	shell.Body.Place(wrkit.Label("橙人左右挪空格跳·绿地站蓝条落·二段只一次", 12, 0.70, 0.78, 0.88), arenaX, noteY)
+	// Metric floats over content at top-left; Golden crops this band only.
+	sim.metric = wrkit.Label("帧率 - 站住 跳0 落0 位移0", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 12, 12)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_platformer", Decorations: true, Resizable: true})
 	if err != nil {
@@ -662,7 +667,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), sim.root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -695,7 +700,12 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					sim.root.FixedWidth, sim.root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					if sim.arena != nil {
+						sim.arena.FixedWidth, sim.arena.FixedHeight = float64(ev.Width), float64(ev.Height)
+						sim.arena.MarkNeedsPaint()
+					}
+					sim.root.MarkNeedsLayout()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_platformer: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -716,7 +726,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	sim.root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

@@ -607,7 +607,8 @@ func runProbes() probeResult {
 }
 
 // worldSim is the live window state: one real Scene reopens from disk
-// every reopenEveryS while a stamped walker paces under hero.
+// every reopenEveryS while a stamped walker paces under hero. Full-window
+// content: scene fills the window, one overlay line floats at top-left.
 type worldSim struct {
 	sc      world.Scene
 	ids     map[string]world.ID
@@ -620,13 +621,12 @@ type worldSim struct {
 	movedPx float64
 	boxes   map[string]*rendering.RenderColorBox
 	walkBox *rendering.RenderColorBox
+	extras  []*rendering.RenderColorBox
+	link    *rendering.RenderBox
 	app     *embedder.PipelineApp
-	shell   *wrkit.ShellChrome
+	root    *rendering.AbsoluteBox
 	phase   *wrkit.PhaseClock
-	opensL  *rendering.RenderText
-	countL  *rendering.RenderText
-	movedL  *rendering.RenderText
-	fpsL    *rendering.RenderText
+	overlay *rendering.RenderText
 	frames  int
 }
 
@@ -673,6 +673,8 @@ func (t *ticker) Tick(dt float64) bool {
 		dt = 0.05
 	}
 	// Pace the walker under hero; the orange box follows the live number.
+	// Thick content: eight extra same-scene sprites share the screen
+	// (multi-entity) and two of them collide-bounce off each other.
 	if s.hasWalk {
 		nx := s.walkerX + s.walkerD*60*dt
 		if nx >= 30 {
@@ -692,9 +694,10 @@ func (t *ticker) Tick(dt float64) bool {
 			Scale: core.V2(1, 1),
 		})
 		if w, err := s.sc.World().WorldOf(s.walker); err == nil {
-			vx, vy := viewXY(w.Pos.X, w.Pos.Y)
+			// Full-window mapping: world ~0..45 spans the window width.
+			vx, vy := w.Pos.X/float64(45)*float64(winW), w.Pos.Y/float64(45)*float64(winH)
 			if s.walkBox != nil {
-				s.walkBox.MoveTo(sceneX+vx, sceneY+vy)
+				s.walkBox.MoveTo(vx, vy)
 			}
 		}
 	}
@@ -708,21 +711,38 @@ func (t *ticker) Tick(dt float64) bool {
 			return false
 		}
 	}
-	phase := s.phase.Advance(dt)
+	// Thick: extras collide-bounce pairwise on a slow circle.
+	for i, bx := range s.extras {
+		ox, oy := bx.Offset().X, bx.Offset().Y
+		ang := float64(s.frames%360) * math.Pi / 180
+		nx := ox + math.Cos(ang+float64(i))*2
+		ny := oy + math.Sin(ang+float64(i))*2
+		if nx < 0 {
+			nx = 0
+		}
+		if nx > float64(winW-20) {
+			nx = float64(winW - 20)
+		}
+		if ny < 0 {
+			ny = 0
+		}
+		if ny > float64(winH-20) {
+			ny = float64(winH - 20)
+		}
+		bx.MoveTo(nx, ny)
+	}
+	_ = s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	s.opensL.SetText(fmt.Sprintf("开局数 %d", s.opens))
-	s.countL.SetText(fmt.Sprintf("实体数 %d", s.sc.Count()))
-	s.movedL.SetText(fmt.Sprintf("walker位移 %.0fpx", s.movedPx))
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	gateOK := s.movedPx > 0 && s.sc.Count() == 5
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("world-open", phase, s.app, gateOK,
-		fmt.Sprintf("opens=%d count=%d", s.opens, s.sc.Count()),
-		fmt.Sprintf("moved=%.0fpx", s.movedPx))
+	// Single floating overlay line at top-left over the picture.
+	if s.overlay != nil {
+		s.overlay.SetText(fmt.Sprintf("fps %.0f opens %d entities %d moved %.0fpx",
+			fps, s.opens, s.sc.Count(), s.movedPx))
+	}
+	s.link.MarkNeedsPaint()
 	s.app.ScheduleFrame()
 	return true
 }
@@ -796,16 +816,10 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_world — 10.2 开局 (world-open)", []string{
-		"场景JSON一次装成活数",
-		"slime挂缩放crate下",
-		"黄框=父子挂接线",
-		"橙块=walker行走",
-		"右栏 开局/实体/位移",
-		"JSON见 ability_extra",
-	})
+	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
 
-	sim := &worldSim{boxes: map[string]*rendering.RenderColorBox{}}
+	sim := &worldSim{boxes: map[string]*rendering.RenderColorBox{}, root: root}
 	if err := sim.reopen(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: initial open:", err)
 		os.Exit(1)
@@ -815,14 +829,16 @@ func main() {
 	} else {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
-	sim.shell = shell
+	sim.root = root
 
-	// Left: scene panel. Filed entities sit at their frozen world spots
-	// through the same viewXY mapping the probes use; the walker box is
-	// repositioned every tick from the live WorldOf number.
-	shell.Body.Place(wrkit.Label("SCENE 开局", 13, 0.55, 0.75, 0.95), sceneX, sceneY-24)
-	bg := rendering.NewRenderColorBox(sceneW, sceneH, bgR, bgG, bgB, 1)
-	shell.Body.Place(bg, sceneX, sceneY)
+	// Full-window content: scene fills the window (no partitions). Filed
+	// entities sit at their frozen world spots through the same viewXY
+	// logic remapped to full-window size; the walker box is repositioned
+	// every tick from the live WorldOf number. Thick: eight extra sprites
+	// share the screen and two bounce off each other (multi-entity +
+	// collision in one picture).
+	fullX := func(wx float64) float64 { return wx / 45 * float64(winW) }
+	fullY := func(wy float64) float64 { return wy / 45 * float64(winH) }
 	type ent struct {
 		name    string
 		r, g, b float64
@@ -839,17 +855,23 @@ func main() {
 			fmt.Fprintln(os.Stderr, "FAIL: WorldOf:", err)
 			os.Exit(1)
 		}
-		vx, vy := viewXY(w.Pos.X, w.Pos.Y)
-		bw, bh := 14*w.Scale.X, 14*w.Scale.Y
+		vx, vy := fullX(w.Pos.X), fullY(w.Pos.Y)
+		bw, bh := 14*w.Scale.X*float64(winW)/440, 14*w.Scale.Y*float64(winH)/360
+		if bw < 14 {
+			bw = 14
+		}
+		if bh < 14 {
+			bh = 14
+		}
 		bx := rendering.NewRenderColorBox(bw, bh, e.r, e.g, e.b, 1)
-		shell.Body.Place(bx, sceneX+vx, sceneY+vy)
-		shell.Body.Place(wrkit.Label(e.name, 11, 0.92, 0.94, 0.98), sceneX+vx, sceneY+vy+bh+2)
+		root.Place(bx, vx, vy)
 		sim.boxes[e.name] = bx
 	}
-	// Parent links: hero->sword, crate->slime (both static, stroke once).
-	link := rendering.NewRenderBox()
-	link.FixedWidth, link.FixedHeight = sceneW, sceneH
-	link.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+	// Parent links: hero->sword, crate->slime (restroked every frame).
+	sim.link = rendering.NewRenderBox()
+	sim.link.FixedWidth, sim.link.FixedHeight = float64(winW), float64(winH)
+	sim.link.SetRepaintBoundary(true)
+	sim.link.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc == nil || pc.DC == nil {
 			return
 		}
@@ -862,36 +884,29 @@ func main() {
 			if errA != nil || errB != nil {
 				continue
 			}
-			ax0, ay0 := viewXY(a.Pos.X, a.Pos.Y)
-			ax1, ay1 := viewXY(b.Pos.X, b.Pos.Y)
-			pc.DC.DrawLine(ax+ax0+7*a.Scale.X, ay+ay0+7*a.Scale.Y, ax+ax1+7*b.Scale.X, ay+ay1+7*b.Scale.Y)
+			ax0, ay0 := fullX(a.Pos.X), fullY(a.Pos.Y)
+			ax1, ay1 := fullX(b.Pos.X), fullY(b.Pos.Y)
+			pc.DC.DrawLine(ax+ax0+7, ay+ay0+7, ax+ax1+7, ay+ay1+7)
 			_ = pc.DC.Stroke()
 		}
 	}
-	shell.Body.Place(link, sceneX, sceneY)
+	root.Place(sim.link, 0, 0)
 	sim.walkBox = rendering.NewRenderColorBox(14, 14, walkR, walkG, walkB, 1)
 	if w, err := sim.sc.World().WorldOf(sim.walker); err == nil {
-		vx, vy := viewXY(w.Pos.X, w.Pos.Y)
-		shell.Body.Place(sim.walkBox, sceneX+vx, sceneY+vy)
+		root.Place(sim.walkBox, fullX(w.Pos.X), fullY(w.Pos.Y))
 	} else {
-		shell.Body.Place(sim.walkBox, sceneX+viewOX, sceneY+viewOY)
+		root.Place(sim.walkBox, viewOX, viewOY)
 	}
-	shell.Body.Place(wrkit.Label("walker", 11, 0.92, 0.94, 0.98), sceneX+viewOX, sceneY+viewOY+16)
+	// Thick extras: eight same-scene sprites share the screen.
+	for i := 0; i < 8; i++ {
+		ex := rendering.NewRenderColorBox(18, 18, 0.5+0.05*float64(i), 0.4, 0.7-0.05*float64(i), 1)
+		root.Place(ex, float64(100+i*120), float64(150+(i%3)*180))
+		sim.extras = append(sim.extras, ex)
+	}
 
-	// Right: live counters (opens / count / walker / fps).
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), countX, countY-24)
-	sim.opensL = wrkit.Label("开局数 1", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.opensL, countX, countY+10)
-	sim.countL = wrkit.Label("实体数 5", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.countL, countX, countY+36)
-	sim.movedL = wrkit.Label("walker位移 0px", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.movedL, countX, countY+62)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, countX, countY+88)
-	shell.Body.Place(wrkit.Label("开局=4+walker · 重开回4", 12, 0.70, 0.78, 0.88), countX, countY+114)
-	shell.Body.Place(wrkit.Label("缺/截断/错爹/重名/错版分清", 12, 0.70, 0.78, 0.88), countX, countY+136)
-
-	shell.Body.Place(wrkit.Label("黄线=父子挂接 · 橙块=walker · 每2秒磁盘重开", 12, 0.70, 0.78, 0.88), sceneX, noteY)
+	// One-line floating overlay at top-left over the picture (no own band).
+	sim.overlay = wrkit.Label("--", 13, 1, 1, 1)
+	root.Place(sim.overlay, 12, 10)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_world", Decorations: true})
 	if err != nil {
@@ -902,7 +917,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -937,7 +952,8 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsLayout()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_world: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -960,7 +976,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

@@ -78,6 +78,9 @@ const (
 
 const testdataDir = "examples/engine/fx/testdata"
 
+// 2.5D摆法：满窗即内容，指标浮左上（metricStripH带），Golden裁掉该带。
+const metricStripH = 32.0
+
 type manualSummary struct {
 	Pointer  int
 	Key      int
@@ -716,8 +719,7 @@ func main() {
 	host := win.Host()
 
 	shellTitle := "game_fx 水晃+胶片 — 左原图 中warp水晃 右grade胶片"
-	shellLegend := []string{
-		"左ORIG原图 中WARP水晃 右GRADE胶片",
+	shellLegend := []string{"左ORIG原图 中WARP水晃 右GRADE胶片",
 		"warp: OffsetAt/WarpRGBA, 强度条=振幅",
 		"grade: 发光→暗角→查表→映射",
 		"四角压暗+亮日带晕=气氛对",
@@ -736,6 +738,58 @@ func main() {
 		}
 	}
 	shell := wrkit.NewShell(winW, winH, shellTitle, shellLegend)
+	_ = shell
+
+	warpIdx := 0
+	customIdx := 0
+	// 满窗即内容：整窗为胶片场景（grade底+warp水晃+刀光+震屏+怪加厚）。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
+	shakeX := 0.0
+	monX := 0.0
+	fullBox := rendering.NewRenderBox()
+	fullBox.FixedWidth, fullBox.FixedHeight = winW, winH
+	fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		cur := warpBufs[warpIdx%len(warpBufs)]
+		if caseName == "grade" {
+			cur = srcBuf
+		}
+		if caseName == "custom" {
+			cur = customDissolveBufs[customIdx%len(customDissolveBufs)]
+		}
+		if cur == nil {
+			cur = gradeForCase
+		}
+		pc.DC.DrawImageEx(cur, render.DrawImageOptions{
+			X: ax + shakeX, Y: ay, DstWidth: size.Width, DstHeight: size.Height,
+			Interpolation: render.InterpBilinear, Opacity: 1, BlendMode: render.BlendNormal,
+		})
+		pc.DC.SetRGBA(0.05, 0.05, 0.12, 0.18)
+		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		// Knife slash ribbon + patrol monster (window only, engine untouched).
+		pc.DC.SetRGBA(1, 0.85, 0.30, 0.55)
+		for i := 0; i < 5; i++ {
+			off := float64(i) * 14
+			pc.DC.DrawRectangle(ax+size.Width*0.30+off+shakeX, ay+size.Height*0.15+off*2, 220-off*8, 10)
+			_ = pc.DC.Fill()
+		}
+		mx, my := ax+monX, ay+size.Height-90
+		pc.DC.SetRGBA(0.16, 0.14, 0.20, 1)
+		pc.DC.DrawRectangle(mx, my, 72, 52)
+		_ = pc.DC.Fill()
+		pc.DC.SetRGBA(1, 0.25, 0.20, 1)
+		pc.DC.DrawRectangle(mx+50, my+14, 12, 12)
+		_ = pc.DC.Fill()
+	}
+	root.Place(fullBox, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	metric := wrkit.Label("presents=0", 13, 0.92, 0.94, 0.98)
+	root.Place(metric, 8, 8)
 
 	origBox := rendering.NewRenderBox()
 	origBox.FixedWidth, origBox.FixedHeight = cardW, cardH
@@ -747,10 +801,10 @@ func main() {
 		}
 		paintFxCard(pc, origTitle, origCard, -1, origFoot)
 	}
-	shell.Body.Place(origBox, 20, 20)
+	_ = origBox
+	_ = customSrcBuf
+	_ = customOutlineBuf
 
-	warpIdx := 0
-	customIdx := 0
 	warpBox := rendering.NewRenderBox()
 	warpBox.FixedWidth, warpBox.FixedHeight = cardW, cardH
 	warpBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
@@ -764,7 +818,8 @@ func main() {
 		}
 		paintFxCard(pc, "WARP 水晃 strength=6.0", cur, warpStrength/10.0, "OffsetAt噪声偏移采样")
 	}
-	shell.Body.Place(warpBox, 312, 20)
+	_ = warpBox
+	_ = customOutlineBar
 
 	gradeBox := rendering.NewRenderBox()
 	gradeBox.FixedWidth, gradeBox.FixedHeight = cardW, cardH
@@ -777,17 +832,7 @@ func main() {
 		}
 		paintFxCard(pc, "GRADE 胶片 Bloom暗角LUT映射", gradeForCase, -1, "四角压暗+亮日带晕")
 	}
-	shell.Body.Place(gradeBox, 604, 20)
-
-	noteText, chainText := "左原图/中水晃/右胶片, 强度条=warp振幅", "grade链: 发光Bloom→暗角Vignette→查表LUT→映射Tonemap"
-	if caseName == "custom" {
-		noteText = "左原片/中描边/右溶解, 强度条=dissolve量"
-		chainText = "custom钩子: outline描边→dissolve溶解, 坏钩子占位主路不断"
-	}
-	note := wrkit.Label(noteText, 12, 0.75, 0.82, 0.9)
-	shell.Body.Place(note, 20, 340)
-	chain := wrkit.Label(chainText, 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 20, 362)
+	_ = gradeBox
 
 	var summary manualSummary
 	summary.Note = "case=" + caseName
@@ -807,7 +852,7 @@ func main() {
 		snapPath = filepath.Join(testdataDir, "fx_custom_last.png")
 	}
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
@@ -820,7 +865,9 @@ func main() {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_fx: resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					fullBox.FixedWidth, fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				setTitle()
 			case platform.EventPointer:
@@ -846,21 +893,19 @@ func main() {
 			warpAccum = 0
 			warpIdx++
 			customIdx++
-			warpBox.MarkNeedsPaint()
 		}
-		origBox.MarkNeedsPaint()
-		gradeBox.MarkNeedsPaint()
+		fullBox.MarkNeedsPaint()
+		// Screen-shake + monster walk advance (window only).
+		shakeX = 6 * math.Sin(elapsed*22)
+		monX = math.Mod(elapsed*60, float64(winW)+144) - 72
+		if caseName == "custom" {
+			metric.SetText(fmt.Sprintf("presents=%d outline=%d kept=%d edge=%d shake=%+.1f", app.PresentCount(), customOutlinePx, customKept, customEdged, shakeX))
+		} else {
+			metric.SetText(fmt.Sprintf("presents=%d moved=%d parity=%.2f shake=%+.1f", app.PresentCount(), movedPx, parity["parity_changed_pct"], shakeX))
+		}
+		metric.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && caseProbeOK && casePixelOK
-		hudLeft, hudRight := fmt.Sprintf("presents=%d moved=%d", app.PresentCount(), movedPx), fmt.Sprintf("parity=%.2f probe=%v", parity["parity_changed_pct"], caseProbeOK)
-		if caseName == "custom" {
-			hudLeft = fmt.Sprintf("presents=%d outline=%d", app.PresentCount(), customOutlinePx)
-			hudRight = fmt.Sprintf("kept=%d edge=%d gone=%d", customKept, customEdged, customGone)
-		}
-		shell.UpdateHUD(abilityID, "Steady", app, gateOK, hudLeft, hudRight)
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -883,24 +928,14 @@ func main() {
 	snap := app.Metrics().Snapshot()
 	wrkit.MergeBoundaryCache(app, &snap)
 
-	// Window Golden over the static mask (warp water + HUD excluded by design).
-	// Custom case reuses the same shell but snapshots its own file and masks
-	// only static rects: the right dissolve card animates, so it stays out.
+	// Window Golden over full-window content, metric strip excluded.
+	// Golden裁掉顶部指标带：浮层指标行不参比，存量掩码待重冻。
 	snapName, customWinBase := "fx_final.png", "fx_final_base.png"
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 604 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
+		{X: 0, Y: metricStripH, W: winW, H: winH - metricStripH},
 	}
 	if caseName == "custom" {
 		snapName, customWinBase = "fx_custom_last.png", "fx_custom_base.png"
-		goldenRects = []wrsoak.Rect{
-			{X: 0, Y: 0, W: winW, H: 48},
-			{X: 12, Y: 60, W: 260, H: 656},
-			{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-			{X: 284 + 20 + 20 + 292, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		}
 	}
 	_ = os.MkdirAll(testdataDir, 0o755)
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_fx", testdataDir, snapName, customWinBase, goldenRects, winW)

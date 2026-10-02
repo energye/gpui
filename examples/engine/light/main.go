@@ -555,6 +555,8 @@ func main() {
 	srcBuf := bufFromColors(srcW, srcH, baseCols)
 	nightBuf := bufFromColors(nightImg.W, nightImg.H, nightImg.Pix)
 	torchBuf := bufFromColors(torchImg.W, torchImg.H, torchImg.Pix)
+	_ = srcBuf
+	_ = nightBuf
 	parity := lightParityOffscreen(torchBuf)
 	// Small golden for the frozen torch look, zero tolerance.
 	smallCols := makeBaseColors(goldenW, goldenH)
@@ -590,40 +592,43 @@ func main() {
 	}
 	host := win.Host()
 
-	shell := wrkit.NewShell(winW, winH, "game_light 手电只照人 — 左白天 中夜色 右手电", []string{
-		"左DAY白天 中NIGHT夜色 右TORCH手电",
-		"torch: 点光+圆灯片, 只照人层",
-		"背景层不照=还是夜色",
-		"零灯不黑屏=夜色保底",
-		"JSON看parity<=1+探针全过",
-		"--case=torch, 只要这一个",
-	})
-
-	dayBox := rendering.NewRenderBox()
-	dayBox.FixedWidth, dayBox.FixedHeight = cardW, cardH
-	dayBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "DAY 白天原片", srcBuf, -1, "人+背景都亮")
+	// 2.5D rule: full window is content (no shell top/legend/HUD bands).
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
+	content := rendering.NewRenderBox()
+	content.FixedWidth, content.FixedHeight = float64(winW), float64(winH)
+	content.SetRepaintBoundary(true)
+	metric := wrkit.Label("帧率 - 火把 怪0", 13, 0.92, 0.94, 0.98)
+	// Follower mobs cycling deterministically with frames (thickened).
+	frames := 0
+	content.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		cw, ch := float64(winW), float64(winH)
+		// Content: full-window lit torch field (no day/night card shells).
+		if torchBuf != nil {
+			pc.DC.DrawImageEx(torchBuf, render.DrawImageOptions{
+				X: ax, Y: ay, DstWidth: cw, DstHeight: ch,
+				Interpolation: render.InterpBilinear, Opacity: 1, BlendMode: render.BlendNormal,
+			})
+		}
+		// Follower mobs with shadows marching across the lit field.
+		pc.DC.SetRGBA(0.2, 0.35, 0.2, 0.85)
+		for i := 0; i < 5; i++ {
+			mx := float64((frames*3 + i*263) % winW)
+			my := ay + 200 + float64(i*97%int(ch-260))
+			pc.DC.DrawRectangle(ax+mx, my, 26, 30)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(0.05, 0.05, 0.08, 0.55)
+			pc.DC.DrawRectangle(ax+mx+22, my+6, 30, 24)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(0.2, 0.35, 0.2, 0.85)
+		}
 	}
-	shell.Body.Place(dayBox, 20, 20)
-
-	nightBox := rendering.NewRenderBox()
-	nightBox.FixedWidth, nightBox.FixedHeight = cardW, cardH
-	nightBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "NIGHT 夜色保底", nightBuf, -1, "零灯不黑屏")
-	}
-	shell.Body.Place(nightBox, 312, 20)
-
-	torchBox := rendering.NewRenderBox()
-	torchBox.FixedWidth, torchBox.FixedHeight = cardW, cardH
-	torchBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "TORCH 手电只照人", torchBuf, torchIntensity/2.0, "人亮背景还是夜色")
-	}
-	shell.Body.Place(torchBox, 604, 20)
-
-	note := wrkit.Label("左白天/中夜色/右手电, 强度条=灯强度", 12, 0.75, 0.82, 0.9)
-	shell.Body.Place(note, 20, 340)
-	chain := wrkit.Label("light盖在fx之后: 夜色全局+点光只照人层+灯片圆光", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 20, 362)
+	root.Place(content, 0, 0)
+	root.Place(metric, 12, 12)
 
 	var summary manualSummary
 	summary.Note = "case=" + caseName
@@ -639,7 +644,7 @@ func main() {
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "light_final.png")
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
@@ -652,7 +657,10 @@ func main() {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_light: resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.FixedWidth, content.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.MarkNeedsPaint()
+					root.MarkNeedsLayout()
 				}
 				setTitle()
 			case platform.EventPointer:
@@ -673,17 +681,15 @@ func main() {
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
-		dayBox.MarkNeedsPaint()
-		nightBox.MarkNeedsPaint()
-		torchBox.MarkNeedsPaint()
+		frames++
+		content.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && probeOK && pixelOK
-		shell.UpdateHUD(abilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d lit=%d", app.PresentCount(), litPx),
-			fmt.Sprintf("parity=%.2f probe=%v", parity["parity_changed_pct"], probeOK))
+		fps := 0.0
+		if ms := app.Metrics().Snapshot().AvgFrameIntervalMs; ms > 1e-6 {
+			fps = 1000.0 / ms
+		}
+		metric.SetText(fmt.Sprintf("帧率 %.0f 火把 怪5 影5", fps))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -706,13 +712,11 @@ func main() {
 	snap := app.Metrics().Snapshot()
 	wrkit.MergeBoundaryCache(app, &snap)
 
-	// Window Golden over the static mask (HUD excluded by design).
+	// Window Golden compares only the pure picture below the floating
+	// metric band (2.5D rule); content is the full-window torch field.
+	const metricH = 36.0
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 312 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 604 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
+		{X: 0, Y: metricH, W: winW, H: winH - metricH},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_light", testdataDir, "light_final.png", "light_final_base.png", goldenRects, winW)
 
@@ -742,9 +746,9 @@ func main() {
 		"key_events":          summary.Key,
 		"resize_events":       summary.Resize,
 		"manual_timed":        secsSet,
-		"covered":             "左白天+中夜色+右手电, 强度条, 人亮背景夜色",
+		"covered":             "全窗火把+跟随怪5+影5, 人亮背景夜色",
 		"impl_correctness":    "Scene.Apply直调冻接口, 灯片圆光, 只照人层, 夜色全局",
-		"impl_visible":        "HUD实时presents/lit/parity, 强度条=灯强, 关窗/超时出JSON",
+		"impl_visible":        "指标浮左上, 关窗/超时出JSON",
 	}
 	for k, v := range probeMap {
 		if _, dup := extra[k]; !dup {
@@ -1103,40 +1107,43 @@ func runShadowCase(autoOnly bool, manualSeconds int) {
 	}
 	host := win.Host()
 
-	shell := wrkit.NewShell(winW, winH, "game_light 墙影 — 左白天 中手电 右墙影", []string{
-		"左DAY白天 中TORCH手电 右SHADOW墙影",
-		"torch+竖墙压人右半, 右半=影子=夜色",
-		"人左半还在墙前=和中卡一样亮",
-		"零挡=中卡, 不崩",
-		"JSON看parity<=1+探针全过",
-		"--case=shadow, 只要这一个",
-	})
-
-	dayBox := rendering.NewRenderBox()
-	dayBox.FixedWidth, dayBox.FixedHeight = cardW, cardH
-	dayBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "DAY 白天原片", dayBuf, -1, "人+背景都亮")
+	// 2.5D rule: full window is content (no shell top/legend/HUD bands).
+	_ = dayBuf
+	_ = torchBuf
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
+	content := rendering.NewRenderBox()
+	content.FixedWidth, content.FixedHeight = float64(winW), float64(winH)
+	content.SetRepaintBoundary(true)
+	metric := wrkit.Label("帧率 - 墙影 怪0", 13, 0.92, 0.94, 0.98)
+	shadowFrames := 0
+	content.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		if shadowBuf == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.DrawImageEx(shadowBuf, render.DrawImageOptions{
+			X: ax, Y: ay, DstWidth: float64(winW), DstHeight: float64(winH),
+			Interpolation: render.InterpBilinear, Opacity: 1, BlendMode: render.BlendNormal,
+		})
+		// Follower mobs with shadows marching across the lit field.
+		pc.DC.SetRGBA(0.2, 0.35, 0.2, 0.85)
+		for i := 0; i < 5; i++ {
+			mx := float64((shadowFrames*3 + i*263) % winW)
+			my := ay + 200 + float64(i*97%500)
+			pc.DC.DrawRectangle(ax+mx, my, 26, 30)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(0.05, 0.05, 0.08, 0.55)
+			pc.DC.DrawRectangle(ax+mx+22, my+6, 30, 24)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(0.2, 0.35, 0.2, 0.85)
+		}
 	}
-	shell.Body.Place(dayBox, 20, 20)
-
-	torchBox := rendering.NewRenderBox()
-	torchBox.FixedWidth, torchBox.FixedHeight = cardW, cardH
-	torchBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "TORCH 无墙", torchBuf, torchIntensity/2.0, "零挡=手电全开")
-	}
-	shell.Body.Place(torchBox, 312, 20)
-
-	shadowBox := rendering.NewRenderBox()
-	shadowBox.FixedWidth, shadowBox.FixedHeight = cardW, cardH
-	shadowBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "SHADOW 有墙影", shadowBuf, torchIntensity/2.0, "人右半变暗=夜色, 左半一样亮")
-	}
-	shell.Body.Place(shadowBox, 604, 20)
-
-	note := wrkit.Label("左白天/中手电/右墙影, 人右半影子方向看右边", 12, 0.75, 0.82, 0.9)
-	shell.Body.Place(note, 20, 340)
-	chain := wrkit.Label("shadow盖在light之后: 夜色全局+点光只照人层+墙挡变暗", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 20, 362)
+	root.Place(content, 0, 0)
+	root.Place(metric, 12, 12)
 
 	var summary manualSummary
 	summary.Note = "case=shadow"
@@ -1152,7 +1159,7 @@ func runShadowCase(autoOnly bool, manualSeconds int) {
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "shadow_final.png")
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
@@ -1165,7 +1172,10 @@ func runShadowCase(autoOnly bool, manualSeconds int) {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_light shadow: resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.FixedWidth, content.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.MarkNeedsPaint()
+					root.MarkNeedsLayout()
 				}
 				setTitle()
 			case platform.EventPointer:
@@ -1186,17 +1196,15 @@ func runShadowCase(autoOnly bool, manualSeconds int) {
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
-		dayBox.MarkNeedsPaint()
-		torchBox.MarkNeedsPaint()
-		shadowBox.MarkNeedsPaint()
+		shadowFrames++
+		content.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && probeOK && pixelOK
-		shell.UpdateHUD(abilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d moved=%d", app.PresentCount(), movedPx),
-			fmt.Sprintf("parity=%.2f probe=%v", parity["parity_changed_pct"], probeOK))
+		fps := 0.0
+		if ms := app.Metrics().Snapshot().AvgFrameIntervalMs; ms > 1e-6 {
+			fps = 1000.0 / ms
+		}
+		metric.SetText(fmt.Sprintf("帧率 %.0f 墙影 影1", fps))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -1219,13 +1227,11 @@ func runShadowCase(autoOnly bool, manualSeconds int) {
 	snap := app.Metrics().Snapshot()
 	wrkit.MergeBoundaryCache(app, &snap)
 
-	// Window Golden over the static mask (HUD excluded by design).
+	// Window Golden compares only the pure picture below the floating
+	// metric band (2.5D rule); content is the full-window shadow field.
+	const metricH = 36.0
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 312 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 604 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
+		{X: 0, Y: metricH, W: winW, H: winH - metricH},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_light", testdataDir, "shadow_final.png", "shadow_final_base.png", goldenRects, winW)
 
@@ -1253,9 +1259,9 @@ func runShadowCase(autoOnly bool, manualSeconds int) {
 		"key_events":          summary.Key,
 		"resize_events":       summary.Resize,
 		"manual_timed":        secsSet,
-		"covered":             "左白天+中手电+右墙影, 人左半一样亮右半变暗",
+		"covered":             "全窗墙影+跟随怪5+影5, 左半手电右半夜色",
 		"impl_correctness":    "Shadow.Apply盖在Scene之后, 竖墙压人右半, 右半回夜色",
-		"impl_visible":        "HUD实时presents/moved/parity, 关窗/超时出JSON",
+		"impl_visible":        "指标浮左上, 关窗/超时出JSON",
 	}
 	for k, v := range probeMap {
 		if _, dup := extra[k]; !dup {
@@ -1729,6 +1735,8 @@ func runNormalCase(autoOnly bool, manualSeconds int) {
 	flatBuf := bufFromColors(flatImg.W, flatImg.H, flatImg.Pix)
 	domeBuf := bufFromColors(domeImg.W, domeImg.H, domeImg.Pix)
 	dirBuf := bufFromColors(dirImg.W, dirImg.H, dirImg.Pix)
+	_ = flatBuf
+	_ = dirBuf
 	parity := lightParityOffscreen(domeBuf)
 	// Small golden for the frozen dome look, zero tolerance (also 4x AA).
 	smallBase2 := mustImageStep(goldenW*normalSS, goldenH*normalSS, ssStep, makeGrayColors(goldenW*normalSS, goldenH*normalSS), makeWorldLayers(goldenW*normalSS, goldenH*normalSS))
@@ -1764,40 +1772,41 @@ func runNormalCase(autoOnly bool, manualSeconds int) {
 	}
 	host := win.Host()
 
-	shell := wrkit.NewShell(winW, winH, "game_light 法线立体 — 左平光 中侧光 右斜光", []string{
-		"左FLAT平光 中DOME侧光 右DIR斜光",
-		"dome: 中卡左侧亮右侧暗=立体",
-		"右卡斜光朝左上=左坡更亮",
-		"零法线=平光, 不崩",
-		"JSON看parity<=1+探针全过",
-		"--case=normal, 只要这一个",
-	})
-
-	flatBox := rendering.NewRenderBox()
-	flatBox.FixedWidth, flatBox.FixedHeight = cardW, cardH
-	flatBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "FLAT 平光参考", flatBuf, normalIntensity/2.0, "无坡=均匀 falloff")
+	// 2.5D rule: full window is content (no shell top/legend/HUD bands).
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
+	content := rendering.NewRenderBox()
+	content.FixedWidth, content.FixedHeight = float64(winW), float64(winH)
+	content.SetRepaintBoundary(true)
+	metric := wrkit.Label("帧率 - 鼓包 怪0", 13, 0.92, 0.94, 0.98)
+	normalFrames := 0
+	content.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		if domeBuf == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.DrawImageEx(domeBuf, render.DrawImageOptions{
+			X: ax, Y: ay, DstWidth: float64(winW), DstHeight: float64(winH),
+			Interpolation: render.InterpBilinear, Opacity: 1, BlendMode: render.BlendNormal,
+		})
+		// Follower mobs with shadows marching across the dome field.
+		pc.DC.SetRGBA(0.2, 0.35, 0.2, 0.85)
+		for i := 0; i < 5; i++ {
+			mx := float64((normalFrames*3 + i*263) % winW)
+			my := ay + 200 + float64(i*97%500)
+			pc.DC.DrawRectangle(ax+mx, my, 26, 30)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(0.05, 0.05, 0.08, 0.55)
+			pc.DC.DrawRectangle(ax+mx+22, my+6, 30, 24)
+			_ = pc.DC.Fill()
+			pc.DC.SetRGBA(0.2, 0.35, 0.2, 0.85)
+		}
 	}
-	shell.Body.Place(flatBox, 20, 20)
-
-	domeBox := rendering.NewRenderBox()
-	domeBox.FixedWidth, domeBox.FixedHeight = cardW, cardH
-	domeBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "DOME 侧光立体", domeBuf, normalIntensity/2.0, "左侧亮右侧暗=坡向对")
-	}
-	shell.Body.Place(domeBox, 312, 20)
-
-	dirBox := rendering.NewRenderBox()
-	dirBox.FixedWidth, dirBox.FixedHeight = cardW, cardH
-	dirBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintLightCard(pc, "DIR 斜光", dirBuf, 0.5, "斜光朝左上, 左坡更亮")
-	}
-	shell.Body.Place(dirBox, 604, 20)
-
-	note := wrkit.Label("左平光/中侧光/右斜光, 底都是0.75灰, 立体全算法线", 12, 0.75, 0.82, 0.9)
-	shell.Body.Place(note, 20, 340)
-	chain := wrkit.Label("normal盖在fx之后: 夜色全局+灯高60+法线坡向调制", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 20, 362)
+	root.Place(content, 0, 0)
+	root.Place(metric, 12, 12)
 
 	var summary manualSummary
 	summary.Note = "case=normal"
@@ -1813,7 +1822,7 @@ func runNormalCase(autoOnly bool, manualSeconds int) {
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "normal_final.png")
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
@@ -1826,7 +1835,10 @@ func runNormalCase(autoOnly bool, manualSeconds int) {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_light normal: resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.FixedWidth, content.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.MarkNeedsPaint()
+					root.MarkNeedsLayout()
 				}
 				setTitle()
 			case platform.EventPointer:
@@ -1847,17 +1859,15 @@ func runNormalCase(autoOnly bool, manualSeconds int) {
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
-		flatBox.MarkNeedsPaint()
-		domeBox.MarkNeedsPaint()
-		dirBox.MarkNeedsPaint()
+		normalFrames++
+		content.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && probeOK && pixelOK
-		shell.UpdateHUD(abilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d lit=%d", app.PresentCount(), litPx),
-			fmt.Sprintf("parity=%.2f probe=%v", parity["parity_changed_pct"], probeOK))
+		fps := 0.0
+		if ms := app.Metrics().Snapshot().AvgFrameIntervalMs; ms > 1e-6 {
+			fps = 1000.0 / ms
+		}
+		metric.SetText(fmt.Sprintf("帧率 %.0f 鼓包 怪5 影5", fps))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -1880,13 +1890,11 @@ func runNormalCase(autoOnly bool, manualSeconds int) {
 	snap := app.Metrics().Snapshot()
 	wrkit.MergeBoundaryCache(app, &snap)
 
-	// Window Golden over the static mask (HUD excluded by design).
+	// Window Golden compares only the pure picture below the floating
+	// metric band (2.5D rule); content is the full-window dome field.
+	const metricH = 36.0
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 312 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 604 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
+		{X: 0, Y: metricH, W: winW, H: winH - metricH},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_light", testdataDir, "normal_final.png", "normal_final_base.png", goldenRects, winW)
 
@@ -1913,9 +1921,9 @@ func runNormalCase(autoOnly bool, manualSeconds int) {
 		"key_events":          summary.Key,
 		"resize_events":       summary.Resize,
 		"manual_timed":        secsSet,
-		"covered":             "左平光+中侧光+右斜光, 左坡亮右坡暗",
+		"covered":             "全窗鼓包+跟随怪5+影5, 左坡亮右坡暗",
 		"impl_correctness":    "NormalScene.Apply直调冻接口, 灯高60, 法线坡向调制",
-		"impl_visible":        "HUD实时presents/lit/parity, 关窗/超时出JSON",
+		"impl_visible":        "指标浮左上, 关窗/超时出JSON",
 	}
 	for k, v := range probeMap {
 		if _, dup := extra[k]; !dup {

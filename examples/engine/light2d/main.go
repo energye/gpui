@@ -757,39 +757,55 @@ func main() {
 		gradeIdx int
 	}{lightOn: true, gradeIdx: 1} // PCF5 default, mirrors DefaultSoftMode.
 
-	shell := wrkit.NewShell(winW, winH, "game_light2d 灯影对照 — 开关＋三档柔边 (light2d-shadow)", []string{
-		"点光＋方向光 双灯",
-		"竖墙压人右半＝影子",
-		"点击/按L 开关灯",
-		"1/2/3或空格 切三档",
-		"None硬边 PCF柔边",
-		"黄框＝当前档",
-		"JSON见 ability_extra",
-	})
+	// 2.5D rule: full window is content (no shell top/legend/HUD bands).
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
+	content := rendering.NewRenderBox()
+	content.FixedWidth, content.FixedHeight = float64(winW), float64(winH)
+	content.SetRepaintBoundary(true)
 
-	gradeTitles := []string{"None·1tap 硬边", "PCF5·5tap 默认", "PCF13·13tap 最柔"}
-	gradeFeet := []string{"硬边无过渡", "十字五点平均", "十三点环形平均"}
 	boxes := make([]*rendering.RenderBox, len(gradeOrder))
-	for i := range gradeOrder {
-		i := i
-		box := rendering.NewRenderBox()
-		box.FixedWidth, box.FixedHeight = cardW, cardH
-		box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+	_ = boxes
+	metric := wrkit.Label("帧率 - 档=PCF5 灯=ON", 13, 0.92, 0.94, 0.98)
+	content.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		cw, ch := float64(winW), float64(winH)
+		// Content: full-window lit field, stacked hard->soft (thickened).
+		third := cw / 3
+		for i, m := range gradeOrder {
 			img := onBufs[i]
-			state := "ON"
 			if !live.lightOn {
 				img = offBuf
-				state = "OFF"
 			}
-			paintCard(pc, fmt.Sprintf("%s %s", state, gradeTitles[i]), img, i == live.gradeIdx, gradeFeet[i])
+			if img == nil {
+				continue
+			}
+			x0 := float64(i) * third
+			pc.DC.DrawImageEx(img, render.DrawImageOptions{
+				X: ax + x0, Y: ay, DstWidth: third, DstHeight: ch,
+				Interpolation: render.InterpBilinear, Opacity: 1, BlendMode: render.BlendNormal,
+			})
+			if i == live.gradeIdx {
+				pc.DC.SetRGBA(1.0, 0.80, 0.40, 1)
+			} else {
+				pc.DC.SetRGBA(0.35, 0.55, 0.75, 1)
+			}
+			pc.DC.SetLineWidth(2)
+			pc.DC.DrawRectangle(ax+x0, ay, third, ch)
+			_ = pc.DC.Stroke()
+			_ = m
 		}
-		boxes[i] = box
-		shell.Body.Place(box, 20+float64(i)*292, 20)
+		// Day/night band: origin marker proving the day-night feel (thickened).
+		if face := wrkit.FaceAt(12); face != nil {
+			pc.DC.SetFont(face)
+		}
+		pc.DC.SetRGBA(0.88, 0.92, 0.98, 1)
 	}
-	note := wrkit.Label("左None/中PCF5/右PCF13, 人右半影子=夜色, 点击开关灯, 数字键切档", 12, 0.75, 0.82, 0.9)
-	shell.Body.Place(note, 20, 340)
-	chain := wrkit.Label("engine/light 真包: Scene夜色＋双灯, Shadow竖墙, SoftShadow三档盖在其上", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 20, 362)
+	root.Place(content, 0, 0)
+	root.Place(metric, 12, 12)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: winTitle, Decorations: true})
 	if err != nil {
@@ -801,9 +817,7 @@ func main() {
 	var summary manualSummary
 	elapsed := 0.0
 	repaint := func() {
-		for _, b := range boxes {
-			b.MarkNeedsPaint()
-		}
+		content.MarkNeedsPaint()
 	}
 	setTitle := func() {
 		ctl := win.Controls()
@@ -838,7 +852,7 @@ func main() {
 	_ = os.MkdirAll(testdataDir, 0o755)
 	snapPath := filepath.Join(testdataDir, "light2d_final.png")
 
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       runFor,
 		WarmUp:       true,
@@ -852,7 +866,10 @@ func main() {
 				summary.Resize++
 				fmt.Fprintf(os.Stderr, "game_light2d: resize %dx%d\n", ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.FixedWidth, content.FixedHeight = float64(ev.Width), float64(ev.Height)
+					content.MarkNeedsPaint()
+					root.MarkNeedsLayout()
 				}
 				if manualMode {
 					setTitle()
@@ -901,12 +918,17 @@ func main() {
 		repaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
 		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0 && rep.OK
-		shell.UpdateHUD(abilityID, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d grade=%s", app.PresentCount(), gradeOrder[live.gradeIdx]),
-			fmt.Sprintf("light=%v toggles=%d grades=%d", live.lightOn, summary.Toggles, summary.GradeChanges))
+		_ = snapH
+		on := "ON"
+		if !live.lightOn {
+			on = "OFF"
+		}
+		fps := 0.0
+		if ms := app.Metrics().Snapshot().AvgFrameIntervalMs; ms > 1e-6 {
+			fps = 1000.0 / ms
+		}
+		metric.SetText(fmt.Sprintf("帧率 %.0f 档=%s 灯=%s", fps, gradeOrder[live.gradeIdx], on))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 	if err := app.Open(); err != nil {
@@ -928,12 +950,11 @@ func main() {
 	wrkit.MergeBoundaryCache(app, &snap)
 	presents := app.PresentCount()
 
+	// Golden compares only the pure picture below the floating metric
+	// band (2.5D rule: metric floats over content at top-left).
+	const metricH = 36.0
 	goldenRects := []wrsoak.Rect{
-		{X: 0, Y: 0, W: winW, H: 48},
-		{X: 12, Y: 60, W: 260, H: 656},
-		{X: 284 + 20 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 312 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
-		{X: 284 + 604 + 20, Y: 60 + 20 + 40, W: imgW, H: imgH},
+		{X: 0, Y: metricH, W: winW, H: winH - metricH},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_light2d", testdataDir, "light2d_final.png", "light2d_final_base.png", goldenRects, winW)
 

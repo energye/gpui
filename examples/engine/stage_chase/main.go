@@ -653,7 +653,7 @@ type chaseSim struct {
 	batch   *sprite.Batch
 
 	app   *embedder.PipelineApp
-	shell *wrkit.ShellChrome
+	root  *rendering.AbsoluteBox
 	phase *wrkit.PhaseClock
 
 	worldBox *rendering.RenderBox
@@ -700,22 +700,19 @@ type chaseSim struct {
 	fulls      int
 
 	camL, chunkL, sortL, trailL, dirtyL, fpsL *rendering.RenderText
-	worldTitleL, countersTitleL, noteL        *rendering.RenderText
+	metric *rendering.RenderText // floats over content at top-left.
 }
 
 // layoutWorldToWindow stretches the world and overlay boxes to the live
-// body size and grows the camera viewport with them, so a resize fills
-// the panel instead of leaving the old box floating. The world never
-// grows past the body panel, so it cannot cover the counters below it.
-// At 1200x800 every number lands back on the design values, so gates
-// and pixels are unaffected.
+// window: full window is content (no shell panels), so the world always
+// fills it and the camera viewport follows one to one. At 1200x800 every
+// number lands back on the design values, so gates are unaffected.
 func (s *chaseSim) layoutWorldToWindow() {
 	if s == nil {
 		return
 	}
 	w, h := fitWorldSize()
 	worldWW, worldWH = w, h
-	dh := h - viewH
 	_ = s.cam.SetViewport(core.V2(w, h))
 	if w < worldW && h < worldH {
 		_ = s.cam.SetLimit(core.NewRect(w/2, h/2, worldW-w, worldH-h))
@@ -728,49 +725,8 @@ func (s *chaseSim) layoutWorldToWindow() {
 		box.SetRepaintBoundary(true)
 		box.MarkNeedsPaint()
 	}
-	countY = 420.0 + dh
-	noteY = 620.0 + dh
-	// Counters stay inside the body panel: clamp them above the panel
-	// bottom so a smaller window never pushes them out of view. Panel
-	// geometry mirrors the shell (top 48, HUD 72, gaps 12).
-	legH := liveWinH - 48.0 - 72.0 - 24.0
-	if legH < 200 {
-		legH = 200
-	}
-	maxCountY := worldY + legH - 70.0
-	if countY > maxCountY {
-		countY = maxCountY
-	}
-	maxNoteY := worldY + legH - 20.0
-	if noteY > maxNoteY {
-		noteY = maxNoteY
-	}
-	if s.shell != nil {
-		if s.worldTitleL != nil {
-			s.shell.Body.Place(s.worldTitleL, worldX, worldY-24)
-		}
-		if s.countersTitleL != nil {
-			s.shell.Body.Place(s.countersTitleL, countX, countY-24)
-		}
-		s.shell.Body.Place(s.camL, countX, countY+10)
-		s.shell.Body.Place(s.chunkL, countX+300, countY+10)
-		s.shell.Body.Place(s.sortL, countX+560, countY+10)
-		s.shell.Body.Place(s.trailL, countX, countY+36)
-		s.shell.Body.Place(s.dirtyL, countX+300, countY+36)
-		s.shell.Body.Place(s.fpsL, countX+560, countY+36)
-		if s.noteL != nil {
-			s.shell.Body.Place(s.noteL, countX, noteY)
-		}
-		// A resize moves every body child at once (box sizes and label
-		// rows follow the window delta), so re-layout and repaint the whole
-		// shell: otherwise a mid-drag frame can paint children from stale
-		// offsets/pictures (title/counts/world drift for a frame, then
-		// snap back).
-		s.shell.Body.Box.MarkNeedsLayout()
-		s.shell.Body.Box.MarkNeedsPaint()
-		if s.shell.Root != nil {
-			s.shell.Root.MarkNeedsLayout()
-		}
+	if s.root != nil {
+		s.root.MarkNeedsLayout()
 	}
 	// Viewport changed: drop the chunk range cache so the next tick
 	// re-resolves visible chunks for the new view instead of reusing the
@@ -798,9 +754,6 @@ func (t *ticker) Tick(dt float64) bool {
 	// paint, so a drag storm lays out and paints exactly one size per
 	// frame (no half-applied tree, no stale pictures).
 	if liveWinW > 0 && liveWinH > 0 && (liveWinW != s.appliedWinW || liveWinH != s.appliedWinH) {
-		if s.shell != nil {
-			s.shell.Resize(liveWinW, liveWinH)
-		}
 		s.layoutWorldToWindow()
 	}
 	s.frames++
@@ -895,6 +848,7 @@ func (t *ticker) Tick(dt float64) bool {
 	s.layer.Clear()
 
 	phase := s.phase.Advance(dt)
+	_ = phase
 	// Wall-time hitch over the §5 20ms line (the metrics ring still counts
 	// the old 33.4ms line; this recomputes the strict line per tick).
 	now := time.Now()
@@ -906,7 +860,7 @@ func (t *ticker) Tick(dt float64) bool {
 	s.lastTickWall = now
 	s.haveTickWall = true
 
-	// Chrome text at ~4Hz: counters still jump, JSON gates read sim fields.
+	// Floating metric at ~4Hz over content (no counter panel, no HUD band).
 	s.labelTick++
 	if s.labelTick%15 == 1 {
 		snap := s.app.Metrics().Snapshot()
@@ -914,23 +868,9 @@ func (t *ticker) Tick(dt float64) bool {
 		if snap.AvgFrameIntervalMs > 1e-6 {
 			fps = 1000.0 / snap.AvgFrameIntervalMs
 		}
-		s.camL.SetText(fmt.Sprintf("镜头 %.0f,%.0f 可见%d块", s.cam.Pos().X, s.cam.Pos().Y, s.visible))
-		s.chunkL.SetText(fmt.Sprintf("分区 装载%d 可见%d", s.loaded, s.visible))
-		s.sortL.SetText(fmt.Sprintf("排序 %d 遮挡对", s.sorted))
-		s.trailL.SetText(fmt.Sprintf("拖尾 车%d点 炉%d活%d点", s.trailPts, s.poolAlive, s.poolPts))
-		if s.tracker.NeedsFull() {
-			s.dirtyL.SetText("脏块 FULL")
-		} else {
-			s.dirtyL.SetText(fmt.Sprintf("脏块 %d 回退%d", len(kept), s.fulls))
+		if s.metric != nil {
+			s.metric.SetText(fmt.Sprintf("帧率 %.0f 追%.0f 可见%d 拖尾%d 炉%d活", fps, s.movedPx, s.visible, s.trailPts, s.poolAlive))
 		}
-		s.fpsL.SetText(fmt.Sprintf("帧率 %.0f 位移%.0f", fps, s.movedPx))
-		gateOK := s.movedPx > 0 && s.visible > 0 && s.sorted > 0 && s.trailPts > 0
-		s.shell.NoteHUDTick(dt)
-		s.shell.UpdateHUD("stage-chase", phase, s.app, gateOK,
-			fmt.Sprintf("vis=%d sorted=%d trail=%d dirty=%d", s.visible, s.sorted, s.trailPts, len(kept)),
-			fmt.Sprintf("moved=%.0f batch=%d", s.movedPx, s.batchCalls))
-	} else {
-		s.shell.NoteHUDTick(dt)
 	}
 	s.app.ScheduleFrame()
 	return true
@@ -1106,15 +1046,9 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_stage_chase — 追车五合一 (stage-chase)", []string{
-		"镜头跟随·限位平滑",
-		"排序遮挡·远先近后",
-		"拖尾·头宽尾窄渐隐",
-		"分区·只画可见块",
-		"脏区·动哪更哪",
-		"黄框=脏区 青车=追车",
-		"JSON见 ability_extra",
-	})
+	// 2.5D rule: full window is content (no shell top/legend/HUD bands).
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
 	atlas := buildWhiteAtlas()
 	props := buildProps()
 	sortPropsFarToNear(props)
@@ -1122,7 +1056,7 @@ func main() {
 		cam: cam, chunk: &chk, trail: trail, pool: pool,
 		tracker: tracker, layer: layer,
 		props: props, propSprites: buildPropSprites(props), atlas: atlas,
-		shell: shell, carX: carMinX, carY: carY, dir: 1,
+		root: root, carX: carMinX, carY: carY, dir: 1,
 	}
 	runtime.ReadMemStats(&sim.memStart)
 	if secs > 0 {
@@ -1131,8 +1065,6 @@ func main() {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	sim.worldTitleL = wrkit.Label("CHASE 世界跟随区", 13, 0.55, 0.75, 0.95)
-	shell.Body.Place(sim.worldTitleL, worldX, worldY-24)
 	sim.worldBox = rendering.NewRenderBox()
 	sim.worldBox.FixedWidth, sim.worldBox.FixedHeight = worldWW, worldWH
 	sim.worldBox.SetRepaintBoundary(true)
@@ -1140,7 +1072,7 @@ func main() {
 	sim.worldBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paintWorld(pc, live)
 	}
-	shell.Body.Place(sim.worldBox, worldX, worldY)
+	root.Place(sim.worldBox, 0, 0)
 	sim.overlay = rendering.NewRenderBox()
 	sim.overlay.FixedWidth, sim.overlay.FixedHeight = worldWW, worldWH
 	sim.overlay.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
@@ -1162,24 +1094,10 @@ func main() {
 			_ = pc.DC.Stroke()
 		}
 	}
-	shell.Body.Place(sim.overlay, worldX, worldY)
-
-	sim.countersTitleL = wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95)
-	shell.Body.Place(sim.countersTitleL, countX, countY-24)
-	sim.camL = wrkit.Label("镜头 -", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.camL, countX, countY+10)
-	sim.chunkL = wrkit.Label("分区 -", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.chunkL, countX+300, countY+10)
-	sim.sortL = wrkit.Label("排序 -", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.sortL, countX+560, countY+10)
-	sim.trailL = wrkit.Label("拖尾 -", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.trailL, countX, countY+36)
-	sim.dirtyL = wrkit.Label("脏块 -", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.dirtyL, countX+300, countY+36)
-	sim.fpsL = wrkit.Label("帧率 -", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, countX+560, countY+36)
-	sim.noteL = wrkit.Label("红车循环追·镜头跟·黄框脏区·橙条拖尾·灰炉烟·绿树灰石按远近盖", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.noteL, countX, noteY)
+	root.Place(sim.overlay, 0, 0)
+	// Metric floats over content at top-left (2.5D rule: no panels).
+	sim.metric = wrkit.Label("帧率 - 追0 可见0 拖尾0", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 12, 12)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_stage_chase", Decorations: true, Resizable: true})
 	if err != nil {
@@ -1204,7 +1122,7 @@ func main() {
 	}
 	sim.layoutWorldToWindow()
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -1265,7 +1183,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	var proc scheduler.ProcessTracker
@@ -1287,13 +1205,12 @@ func main() {
 	if probe.OK {
 		probeOK = 1
 	}
-	// Window golden over the static legend chrome (the world is live by
-	// design: the car loops forever, so no world pixel is deterministic;
-	// game-pixel determinism rides the offscreen golden instead).
+	// Window golden compares only the pure world below the floating metric
+	// band (2.5D rule); the car loops forever so the band below stays the
+	// offscreen-deterministic base only (re-frozen on this layout).
+	const metricH = 36.0
 	goldenRects := []wrsoak.Rect{
-		{X: 20, Y: 320, W: 100, H: 260},
-		{X: 20, Y: 630, W: 100, H: 60},
-		{X: 20, Y: 70, W: 100, H: 14},
+		{X: 0, Y: metricH, W: winW, H: 200},
 	}
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_stage_chase", "examples/engine/stage_chase/testdata", "chase_final.png", "chase_final_base.png", goldenRects, winW)
 	var memEnd runtime.MemStats
@@ -1483,11 +1400,19 @@ func paintWorld(pc *rendering.PaintContext, s *chaseSim) {
 		pc.DC.DrawRectangle(ax+sx.X, ay+sx.Y, b.W, b.H)
 		_ = pc.DC.Fill()
 	}
-	// Lane guide through the car row.
-	if c0, ok := s.cam.WorldToScreen(core.V2(view.X, s.carY-10)); ok {
+	// Night tint over the ground (day-night feel, thickened).
+	pc.DC.SetRGBA(0.05, 0.06, 0.12, 0.35)
+	pc.DC.DrawRectangle(ax, ay, worldWW, worldWH)
+	_ = pc.DC.Fill()
+	// Lamp glow at the car head (light feel, thickened).
+	if sc, ok := s.cam.WorldToScreen(core.V2(s.carX+carW, s.carY+carH/2)); ok {
+		pc.DC.SetRGBA(1.0, 0.85, 0.5, 0.35)
+		pc.DC.DrawRectangle(ax+sc.X-30, ay+sc.Y-24, 90, 48)
+		_ = pc.DC.Fill()
+		// Lane guide through the car row.
 		pc.DC.SetRGBA(0.9, 0.9, 0.9, 0.25)
 		pc.DC.SetLineWidth(1)
-		pc.DC.DrawLine(ax+c0.X, ay+c0.Y, ax+c0.X+view.W, ay+c0.Y)
+		pc.DC.DrawLine(ax+sc.X-view.W/2, ay+sc.Y-10, ax+sc.X+view.W/2, ay+sc.Y-10)
 		_ = pc.DC.Stroke()
 	}
 	// Sorted atlas sprites: visible props far-to-near + car on top.

@@ -47,6 +47,11 @@ import (
 
 const winW, winH = 1200, 800
 
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+// metricStripH是浮层指标带高度，窗口Golden比对从该高度之下起算。
+// 离屏探针帧无指标覆盖；窗口快照只比该带之下的纯画面。
+const metricStripH = 32.0
+
 // GOLDEN-BEGIN: offscreen scene shared verbatim with the /tmp baseline
 // generator (mechanical extraction only, never hand-copied).
 const (
@@ -433,6 +438,83 @@ func paintBatchCard(pc *rendering.PaintContext, w, h float64, calls int) {
 	pc.DC.DrawString(fmt.Sprintf("1000 trees one atlas, batch_calls=%d", calls), ax+8, ay+28)
 }
 
+// paintSpriteFullWindow draws the full-window scene for rot/depth/batch:
+// the selected cards spread across the whole window plus the thickening
+// layer (window only, engine untouched): a running真帧 hero with shadow,
+// warm light tint, and a particle trail behind the batch trees.
+func paintSpriteFullWindow(pc *rendering.PaintContext, w, h float64, caseName string, batchCalls int, tick int) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	ax, ay := pc.Abs(0, 0)
+	dc := pc.DC
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(ax, ay, w, h)
+	_ = dc.Fill()
+	show := func(name string) bool { return caseName == "all" || caseName == name }
+	cw := w
+	if caseName == "all" {
+		cw = (w - 32) / 3
+	}
+	if show("rot") {
+		ox := ax + 8
+		if caseName != "all" {
+			ox = ax + 24
+		}
+		rs, err := sprite.AtlasToRender(rotSprites(ox, ay+metricStripH+24))
+		if err == nil {
+			_, _ = dc.DrawAtlasEx(atlasBuf, rs, render.AtlasDrawOptions{})
+		}
+		if caseName != "all" {
+			// Thickening row under the card (window only).
+			dc.SetRGBA(1, 0.72, 0.30, 0.10)
+			dc.DrawRectangle(ax+24, ay+h-220, w-48, 120)
+			_ = dc.Fill()
+			dc.SetRGBA(0.2, 0.2, 0.25, 0.55)
+			dc.DrawRectangle(ax+24+float64(tick%400), ay+h-140, 40, 12)
+			_ = dc.Fill()
+		}
+	}
+	if show("depth") {
+		ox := ax + 16 + cw
+		if caseName != "all" {
+			ox = ax + w/2 - 60
+		}
+		_, _ = dc.DrawDepthSprites(atlasBuf, depthTrueSprites(ox, ay+metricStripH+24), render.DepthDrawOptions{DepthTest: true})
+		_, _ = dc.DrawDepthSprites(atlasBuf, depthFalseSprites(ox, ay+metricStripH+150), render.DepthDrawOptions{DepthTest: false})
+	}
+	if show("batch") {
+		var flat []render.AtlasSprite
+		ox := ax + 24 + 2*cw
+		if caseName != "all" {
+			ox = ax + 24
+		}
+		for _, s := range batchGameSprites(ox, ay+metricStripH+80) {
+			flat = append(flat, spriteToRender(s))
+		}
+		_, _ = dc.DrawAtlasEx(atlasBuf, flat, render.AtlasDrawOptions{})
+		// Particle trail dots behind the trees (window only).
+		dc.SetRGB(1, 0.65, 0.2)
+		for i := 0; i < 10; i++ {
+			px := ox + float64((tick*5+i*97)%int(w-80))
+			py := ay + h - 60 - float64((tick*3+i*61)%160)
+			dc.DrawRectangle(px, py, 3, 3)
+			_ = dc.Fill()
+		}
+		if face := wrkit.FaceAt(12); face != nil {
+			dc.SetFont(face)
+		}
+		dc.SetRGBA(0.1, 0.12, 0.15, 1)
+		dc.DrawString(fmt.Sprintf("batch_calls=%d", batchCalls), ox, ay+metricStripH+60)
+	}
+	if caseName != "all" {
+		// Warm light tint band across the scene (window only).
+		dc.SetRGBA(1, 0.72, 0.30, 0.06)
+		dc.DrawRectangle(ax, ay+metricStripH, w, 140)
+		_ = dc.Fill()
+	}
+}
+
 var atlasBuf *render.ImageBuf
 
 func main() {
@@ -490,59 +572,27 @@ func main() {
 	host := win.Host()
 	ctl := win.Controls()
 
-	shell := wrkit.NewShell(winW, winH, "game_sprite — rot/depth/batch ("+*caseName+")", []string{
-		"rot: 90deg red + feet pivot",
-		"gray tint + flipX mirror",
-		"depth: far green near red",
-		"true=sorted red covers",
-		"false=raw order contrast",
-		"same-depth strip no flicker",
-		"batch: 1000 trees 1 commit",
-		"parity<=1% probes 3/3",
-		"golden static zero-tol",
-	})
+	_ = *caseName
+	// 满窗即内容：整窗为精灵场景+真帧/影子/灯光/拖尾同场加厚，无分区。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 1, G: 1, B: 1, A: 1}
 
 	batchCalls := 0
 	if v, ok := numExtra(extra, "batch_calls"); ok {
 		batchCalls = int(v)
 	}
-	var cards []*rendering.RenderBox
-	mkCard := func(paint func(pc *rendering.PaintContext, w, h float64), w, h float64) *rendering.RenderBox {
-		box := rendering.NewRenderBox()
-		box.FixedWidth, box.FixedHeight = w, h
-		box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			paint(pc, size.Width, size.Height)
-		}
-		cards = append(cards, box)
-		return box
+	fullBox := rendering.NewRenderBox()
+	fullBox.FixedWidth, fullBox.FixedHeight = winW, winH
+	ticks := 0
+	cn, bc := *caseName, batchCalls
+	fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		paintSpriteFullWindow(pc, size.Width, size.Height, cn, bc, ticks)
 	}
-	const cardY, cardH = 48.0, 600.0
-	if *caseName == "all" {
-		shell.Body.LabelAt("ROT: turn + tint + mirror + feet", 13, 8, 8, 0.75, 0.82, 0.9)
-		shell.Body.Place(mkCard(paintRotCard, 292, 220), 8, cardY)
-		shell.Body.LabelAt("DEPTH: sorted vs raw + same-depth", 13, 306, 8, 0.75, 0.82, 0.9)
-		shell.Body.Place(mkCard(paintDepthCard, 292, 320), 306, cardY)
-		shell.Body.LabelAt("BATCH: 1000 trees one commit", 13, 604, 8, 0.75, 0.82, 0.9)
-		shell.Body.Place(mkCard(func(pc *rendering.PaintContext, w, h float64) {
-			paintBatchCard(pc, w, h, batchCalls)
-		}, 292, 220), 604, cardY)
-	} else {
-		var paint func(pc *rendering.PaintContext, w, h float64)
-		var title string
-		switch *caseName {
-		case "rot":
-			title, paint = "ROT: turn + tint + mirror + feet", paintRotCard
-		case "depth":
-			title, paint = "DEPTH: sorted vs raw + same-depth", paintDepthCard
-		default:
-			title = "BATCH: 1000 trees one commit"
-			paint = func(pc *rendering.PaintContext, w, h float64) {
-				paintBatchCard(pc, w, h, batchCalls)
-			}
-		}
-		shell.Body.LabelAt(title, 13, 8, 8, 0.75, 0.82, 0.9)
-		shell.Body.Place(mkCard(paint, 888, 400), 8, cardY)
-	}
+	root.Place(fullBox, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	metric := wrkit.Label("sprite fps=-", 13, 0.1, 0.12, 0.15)
+	root.Place(metric, 8, 8)
+	cards := []*rendering.RenderBox{fullBox}
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
@@ -553,7 +603,7 @@ func main() {
 		}
 	}
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -576,7 +626,9 @@ func main() {
 				eventsTotal++
 				fmt.Fprintf(os.Stderr, "game_sprite event resize (%d) %dx%d\n", eventsTotal, ev.Width, ev.Height)
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					fullBox.FixedWidth, fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				bumpTitle()
 			}
@@ -587,13 +639,17 @@ func main() {
 		for _, c := range cards {
 			c.MarkNeedsPaint()
 		}
+		ticks++
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
 		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0
-		shell.UpdateHUD(ability, "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d events=%d", app.PresentCount(), eventsTotal), *caseName)
+		_ = snapH
+		fps := 0.0
+		if h := app.Metrics().Snapshot(); h.AvgFrameIntervalMs > 1e-6 {
+			fps = 1000.0 / h.AvgFrameIntervalMs
+		}
+		metric.SetText(fmt.Sprintf("sprite %s fps=%.0f presents=%d ev=%d", *caseName, fps, app.PresentCount(), eventsTotal))
+		metric.MarkNeedsPaint()
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -1167,11 +1223,55 @@ type animLive struct {
 	curFrame     int
 	curIndex     int
 	app          *embedder.PipelineApp
-	shell        *wrkit.ShellChrome
+	root         *rendering.AbsoluteBox
 	phase        *wrkit.PhaseClock
-	liveBox      *rendering.RenderBox
-	statusL      *rendering.RenderText
+	fullBox      *rendering.RenderBox
+	metric       *rendering.RenderText
 	framesTotal  int
+}
+
+// paintAnimFullWindow draws the full-window anim scene: the four true
+// frames strip across the window plus the live playback card, with the
+// thickening layer (window only, engine untouched): shadow plate under the
+// live frame, warm light tint, and trail dots behind the strip.
+func paintAnimFullWindow(pc *rendering.PaintContext, w, h float64, s *animLive, frames []*render.ImageBuf) {
+	if pc == nil || pc.DC == nil || s == nil {
+		return
+	}
+	ax, ay := pc.Abs(0, 0)
+	dc := pc.DC
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(ax, ay, w, h)
+	_ = dc.Fill()
+	step := (w - 48) / 4
+	paintAnimStrip(dc, frames, ax+24, ay+metricStripH+170, step)
+	lw, lh := w*0.4, h*0.36
+	lx, ly := ax+(w-lw)/2, ay+metricStripH+220
+	dc.SetRGBA(0.2, 0.2, 0.25, 0.35)
+	dc.DrawRectangle(lx-10, ly+lh-6, lw+20, 12)
+	_ = dc.Fill()
+	paintAnimLiveCard(&rendering.PaintContext{}, 0, 0, s)
+	if fr := s.frames[s.curFrame]; fr != nil {
+		fw, fh := fr.Bounds()
+		dc.DrawImageEx(fr, render.DrawImageOptions{
+			X: lx + (lw-float64(fw))/2, Y: ly + (lh-float64(fh))/2,
+			Interpolation: render.InterpNearest,
+			Opacity:       1.0,
+			BlendMode:     render.BlendNormal,
+		})
+	}
+	dc.SetRGBA(1, 0.72, 0.30, 0.06)
+	dc.DrawRectangle(ax, ay+metricStripH, w, 140)
+	_ = dc.Fill()
+	dc.SetRGB(1, 0.65, 0.2)
+	for i := 0; i < 8; i++ {
+		px := ax + 24 + float64((s.framesTotal*5+i*97)%int(w-80))
+		py := ay + metricStripH + 200 + float64((s.framesTotal*3+i*61)%120)
+		dc.DrawRectangle(px, py, 3, 3)
+		_ = dc.Fill()
+	}
+	_ = lw
+	_ = lh
 }
 
 func (s *animLive) onEvent(ev sprite.Event) {
@@ -1221,12 +1321,12 @@ func (s *animLive) tick(dt float64) {
 			s.active = next
 			s.switches++
 		}
-		if s.liveBox != nil {
-			s.liveBox.MarkNeedsPaint()
+		if s.fullBox != nil {
+			s.fullBox.MarkNeedsPaint()
 		}
 	}
-	if s.liveBox != nil {
-		s.liveBox.MarkNeedsPaint()
+	if s.fullBox != nil {
+		s.fullBox.MarkNeedsPaint()
 	}
 }
 
@@ -1326,49 +1426,20 @@ func runAnimCase(autoOnly bool, manualSeconds int) {
 	host := win.Host()
 	ctl := win.Controls()
 
-	shell := wrkit.NewShell(winW, winH, "game_sprite — 帧动画 flipbook (anim)", []string{
-		"right/up 双动画 dodge 真帧",
-		"5fps 200ms 一帧 loop 循环",
-		"待机跑跳六序列全对",
-		"每2秒一切右上互换",
-		"静条=四真帧金图覆盖",
-		"活卡=当前帧实时跟播",
-		"回调与返回逐事件一致",
-		"parity<=1% 双金零容差",
-		"JSON见 ability_extra",
-	})
-	sim.shell = shell
-
-	shell.Body.LabelAt("TRUE FRAMES: right walk1/walk2 + up up1/up2 (dodge)", 13, 8, 8, 0.75, 0.82, 0.9)
-	strip := rendering.NewRenderBox()
-	strip.FixedWidth, strip.FixedHeight = animStripW, animStripH
-	strip.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
-			return
-		}
-		ax, ay := pc.Abs(0, 0)
-		pc.DC.SetRGB(1, 1, 1)
-		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
-		_ = pc.DC.Fill()
-		paintAnimStrip(pc.DC, frames, ax+12, ay+animStripBaseY, animStripStep)
+	// 满窗即内容：整窗为四真帧静条+活卡+影子/灯/拖尾同场加厚，无分区。
+	aroot := rendering.NewAbsoluteBox(winW, winH)
+	aroot.Background = &rendering.Color{R: 1, G: 1, B: 1, A: 1}
+	sim.root = aroot
+	sim.fullBox = rendering.NewRenderBox()
+	sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
+	asim, aframes := sim, frames
+	sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		paintAnimFullWindow(pc, size.Width, size.Height, asim, aframes)
 	}
-	shell.Body.Place(strip, 8, 40)
-
-	live := rendering.NewRenderBox()
-	live.FixedWidth, live.FixedHeight = animLiveW, animLiveH
-	live.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		paintAnimLiveCard(pc, size.Width, size.Height, sim)
-	}
-	shell.Body.Place(live, 8, 230)
-	sim.liveBox = live
-	shell.Body.LabelAt("LIVE: current frame follows the flipbook", 13, 8, 208, 0.75, 0.82, 0.9)
-
-	sim.statusL = wrkit.Label("CLIP right frame=100 switches=0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.statusL, 424, 230)
-	chain := wrkit.Label("engine/sprite只算数: Flipbook直调冻接口", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(chain, 424, 256)
-	cbL := wrkit.Label("callbacks mirror every crossing", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(cbL, 424, 282)
+	aroot.Place(sim.fullBox, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	sim.metric = wrkit.Label("anim clip=-", 13, 0.1, 0.12, 0.15)
+	aroot.Place(sim.metric, 8, 8)
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
@@ -1381,7 +1452,7 @@ func runAnimCase(autoOnly bool, manualSeconds int) {
 		}
 	}
 
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, aroot, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       runFor,
 		WarmUp:       true,
@@ -1413,7 +1484,9 @@ func runAnimCase(autoOnly bool, manualSeconds int) {
 					fmt.Fprintf(os.Stderr, "game_sprite anim event resize (%d) %dx%d\n", eventsTotal, ev.Width, ev.Height)
 				}
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					aroot.FixedWidth, aroot.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					aroot.MarkNeedsPaint()
 				}
 				bumpTitle()
 			}
@@ -1424,16 +1497,14 @@ func runAnimCase(autoOnly bool, manualSeconds int) {
 		sim.tick(dt)
 		app.ScheduleFrame()
 		proc.Sample()
-		phase := sim.phase.Advance(dt)
-		sim.statusL.SetText(fmt.Sprintf("CLIP %s frame=%d idx=%d switches=%d cb=%d",
-			sim.art[sim.active].Name, sim.curFrame, sim.curIndex, sim.switches, sim.callbacks))
-		sim.statusL.MarkNeedsPaint()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0
-		shell.UpdateHUD(ability, phase, app, gateOK,
-			fmt.Sprintf("presents=%d clip=%s sw=%d", app.PresentCount(), sim.art[sim.active].Name, sim.switches),
-			"right/up")
+		_ = sim.phase.Advance(dt)
+		fps := 0.0
+		if h := app.Metrics().Snapshot(); h.AvgFrameIntervalMs > 1e-6 {
+			fps = 1000.0 / h.AvgFrameIntervalMs
+		}
+		sim.metric.SetText(fmt.Sprintf("anim %s f=%d sw=%d fps=%.0f",
+			sim.art[sim.active].Name, sim.curFrame, sim.switches, fps))
+		sim.metric.MarkNeedsPaint()
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 

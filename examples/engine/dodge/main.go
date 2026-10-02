@@ -471,9 +471,11 @@ func runProbes() probeResult {
 
 type dodgeSim struct {
 	app    *embedder.PipelineApp
-	shell  *wrkit.ShellChrome
+	root   *rendering.AbsoluteBox
 	phase  *wrkit.PhaseClock
 	arena  *rendering.RenderBox
+	// metric floats over content at top-left (2.5D rule: no HUD band).
+	metric *rendering.RenderText
 	player core.Vec2
 	alive  bool
 	// state is the HUD triple: title waits for a move key, playing runs,
@@ -653,6 +655,7 @@ func (t *dodgeTicker) Tick(dt float64) bool {
 		s.arena.MarkNeedsPaint()
 	}
 	phase := s.phase.Advance(dt)
+	_ = phase
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
@@ -668,15 +671,10 @@ func (t *dodgeTicker) Tick(dt float64) bool {
 	} else if s.state == dodgeOver {
 		state = "结算按R重来"
 	}
-	s.scoreL.SetText(fmt.Sprintf("分数 %d 最高 %d", s.score, s.high))
-	s.mobL.SetText(fmt.Sprintf("怪 活%d 刷%d 收%d", len(s.mobs), s.spawned, s.recycled))
-	s.stateL.SetText(fmt.Sprintf("玩家 %s 位移%.0f 声相%.2f", state, s.movedPx, s.lastPan))
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	gateOK := s.movedPx > 0 && s.spawned > 0
-	s.shell.NoteHUDTick(dt)
-	s.shell.UpdateHUD("dodge-creeps", phase, s.app, gateOK,
-		fmt.Sprintf("score=%d mobs=%d moved=%.0f", s.score, len(s.mobs), s.movedPx),
-		fmt.Sprintf("deaths=%d recycled=%d", s.deaths, s.recycled))
+	// Floating metric over content (no counter panel, no HUD band).
+	if s.metric != nil {
+		s.metric.SetText(fmt.Sprintf("帧率 %.0f %s 分数%d 怪%d 死%d 位移%.0f", fps, state, s.score, len(s.mobs), s.deaths, s.movedPx))
+	}
 	s.app.ScheduleFrame()
 	return true
 }
@@ -731,21 +729,43 @@ func paintArena(pc *rendering.PaintContext, s *dodgeSim) {
 	}
 	ax, ay := pc.Abs(0, 0)
 	dc := pc.DC
+	// Full-window content: arena night fills the window (no panels).
 	dc.SetRGB(bgR, bgG, bgB)
-	dc.DrawRectangle(ax, ay, arenaW, arenaH)
+	dc.DrawRectangle(ax, ay, winW, winH)
 	_ = dc.Fill()
+	ox, oy := ax+arenaX, ay+arenaY
 	for _, m := range s.mobs {
 		if m.kind == 1 {
 			dc.SetRGB(creep2R, creep2G, creep2B)
 		} else {
 			dc.SetRGB(creepR, creepG, creepB)
 		}
-		dc.DrawRectangle(ax+m.pos.X-mobR, ay+m.pos.Y-mobR, 2*mobR, 2*mobR)
+		dc.DrawRectangle(ox+m.pos.X-mobR, oy+m.pos.Y-mobR, 2*mobR, 2*mobR)
 		_ = dc.Fill()
 	}
 	if s.alive {
+		// Lamp glow over the player (light feel, world-layer tint hint).
+		dc.SetRGB(1.0, 0.85, 0.55)
+		dc.DrawRectangle(ox+s.player.X-playerR-6, oy+s.player.Y-playerR-6, 2*playerR+12, 2*playerR+12)
+		_ = dc.Fill()
 		dc.SetRGB(heroR, heroG, heroB)
-		dc.DrawRectangle(ax+s.player.X-playerR, ay+s.player.Y-playerR, 2*playerR, 2*playerR)
+		dc.DrawRectangle(ox+s.player.X-playerR, oy+s.player.Y-playerR, 2*playerR, 2*playerR)
+		_ = dc.Fill()
+	} else {
+		// Death burst rings cycling deterministically with frames (fx feel).
+		dc.SetRGB(1.0, 0.55, 0.2)
+		for i := 0; i < 4; i++ {
+			r := float64((s.frames*2+i*24)%96) + 8
+			dc.DrawRectangle(ox+s.player.X-r/2, oy+s.player.Y-r/2, r, r)
+			_ = dc.Fill()
+		}
+	}
+	// Ambient score motes drifting with the frame clock (music-beat hint).
+	dc.SetRGB(scoreR, scoreG, scoreB)
+	for i := 0; i < 6; i++ {
+		px := float64((s.frames*2 + i*211) % winW)
+		py := ay + 60 + float64((s.frames+i*137)%120)
+		dc.DrawRectangle(ax+px, py, 3, 3)
 		_ = dc.Fill()
 	}
 }
@@ -788,17 +808,11 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	shell := wrkit.NewShell(winW, winH, "game_dodge — 躲避小怪 (dodge-creeps)", []string{
-		"WASD/方向键挪玩家",
-		"玩家400归一化",
-		"怪150-250垂直±45°",
-		"撞上死藏+禁",
-		"出屏怪回收",
-		"每秒+1分",
-		"JSON见 ability_extra",
-	})
+	// 2.5D rule: full window is content (no top/legend/counter/HUD bands).
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
 	sim := &dodgeSim{
-		shell:     shell,
+		root:      root,
 		player:    core.V2(arenaW/2, arenaH/2),
 		alive:     true,
 		state:     dodgeTitle,
@@ -814,26 +828,18 @@ func main() {
 	} else {
 		sim.phase = wrkit.NewPhaseClock(0, 0)
 	}
-	shell.Body.Place(wrkit.Label("DODGE 躲避区", 13, 0.55, 0.75, 0.95), arenaX, arenaY-24)
 	box := rendering.NewRenderBox()
-	box.FixedWidth, box.FixedHeight = arenaW, arenaH
+	box.FixedWidth, box.FixedHeight = winW, winH
 	box.SetRepaintBoundary(true)
 	live := sim
 	box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paintArena(pc, live)
 	}
-	shell.Body.Place(box, arenaX, arenaY)
+	root.Place(box, 0, 0)
 	sim.arena = box
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), countX, countY-24)
-	sim.scoreL = wrkit.Label("分数 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.scoreL, countX, countY+10)
-	sim.mobL = wrkit.Label("怪 活0 刷0 收0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.mobL, countX, countY+36)
-	sim.stateL = wrkit.Label("玩家 活着 位移0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.stateL, countX, countY+62)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.fpsL, countX, countY+88)
-	shell.Body.Place(wrkit.Label("红=玩家 绿黄=三怪·撞死藏+禁·出屏回收·每秒加分", 12, 0.70, 0.78, 0.88), arenaX, noteY)
+	// Metric floats over content at top-left; Golden crops this band only.
+	sim.metric = wrkit.Label("帧率 - 就绪 分数0 怪0 死0", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 12, 12)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_dodge", Decorations: true, Resizable: true})
 	if err != nil {
@@ -844,7 +850,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), sim.root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -881,7 +887,12 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					sim.root.FixedWidth, sim.root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					if sim.arena != nil {
+						sim.arena.FixedWidth, sim.arena.FixedHeight = float64(ev.Width), float64(ev.Height)
+						sim.arena.MarkNeedsPaint()
+					}
+					sim.root.MarkNeedsLayout()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_dodge: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -902,7 +913,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	sim.root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

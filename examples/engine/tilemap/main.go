@@ -841,9 +841,10 @@ func probeLODPixels() (bool, string) {
 type tileSim struct {
 	caseName string
 	app      *embedder.PipelineApp
-	shell    *wrkit.ShellChrome
+	root     *rendering.AbsoluteBox
 	phase    *wrkit.PhaseClock
 	board    *rendering.RenderBox
+	overlay  *rendering.RenderText
 
 	// Shared counters.
 	frames int
@@ -872,11 +873,10 @@ type tileSim struct {
 	nearN    int
 	farN     int
 
-	lineA *rendering.RenderText
-	lineB *rendering.RenderText
-	lineC *rendering.RenderText
-	lineD *rendering.RenderText
-	fpsL  *rendering.RenderText
+	// Thick content shared by all cases: pacing monster + day-night lamp.
+	monX   float64
+	monDir float64
+	lampOn bool
 }
 
 type ticker struct{ s *tileSim }
@@ -894,6 +894,19 @@ func (t *ticker) Tick(dt float64) bool {
 	}
 	s.frames++
 	s.clock += dt
+
+	// Thick content: one pacing monster + day-night lamp blink shared by
+	// all cases (live only, probes use frozen copies).
+	s.monX += s.monDir * 120 * dt
+	if s.monX > 1 {
+		s.monX, s.monDir = 1, -1
+	}
+	if s.monX < 0 {
+		s.monX, s.monDir = 0, 1
+	}
+	if s.frames%120 == 0 {
+		s.lampOn = !s.lampOn
+	}
 
 	switch s.caseName {
 	case "map":
@@ -943,80 +956,85 @@ func (t *ticker) Tick(dt float64) bool {
 		s.board.MarkNeedsPaint()
 	}
 
-	phase := s.phase.Advance(dt)
+	_ = s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
 	fps := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	switch s.caseName {
-	case "map":
-		drawn := int(s.viewW/32) * 100
-		s.lineA.SetText(fmt.Sprintf("摆怪 %d 错位 %d", 3, 0))
-		s.lineB.SetText(fmt.Sprintf("笔刷断缝 %d", 0))
-		s.lineC.SetText(fmt.Sprintf("视口内 %d 视口外 %d", drawn, 10000-drawn))
-		s.lineD.SetText("firstgid 1 对齐")
-		s.shell.UpdateHUD("tilemap-map", phase, s.app, true,
-			fmt.Sprintf("view=%.0f drawn=%d", s.viewX, drawn),
-			fmt.Sprintf("frames=%d", s.frames))
-	case "chunk":
-		vis := len(s.chunks.Visible(s.view))
-		s.lineA.SetText(fmt.Sprintf("已装 %d 可见 %d", s.chunks.LoadedCount(), vis))
-		s.lineB.SetText(fmt.Sprintf("一批 %d 块内 %d 瓦片", s.batches, quadrantTiles))
-		s.lineC.SetText(fmt.Sprintf("装 %d 卸 %d", s.loads, s.unloads))
-		s.lineD.SetText("视口外 48/49 自动裁")
-		s.shell.UpdateHUD("tilemap-chunk", phase, s.app, true,
-			fmt.Sprintf("loaded=%d vis=%d", s.chunks.LoadedCount(), vis),
-			fmt.Sprintf("loads=%d drops=%d", s.loads, s.unloads))
-	case "lod":
-		s.lineA.SetText(fmt.Sprintf("当前 %s", lodLevelName(s.curLevel)))
-		s.lineB.SetText(fmt.Sprintf("真切 %d 带内抖 %d", s.switches, s.flickers))
-		s.lineC.SetText(fmt.Sprintf("近 %d 远 %d", s.nearN, s.farN))
-		s.lineD.SetText("近线 192 远线 320")
-		s.shell.UpdateHUD("tilemap-lod", phase, s.app, s.flickers == 0,
-			fmt.Sprintf("level=%s focus=%.0f", lodLevelName(s.curLevel), s.focus.X),
-			fmt.Sprintf("switches=%d", s.switches))
+	// Single floating overlay line at top-left over the picture.
+	if s.overlay != nil {
+		switch s.caseName {
+		case "map":
+			drawn := int(s.viewW/32) * 100
+			s.overlay.SetText(fmt.Sprintf("fps %.0f map view=%.0f drawn=%d mis=0 seam=0 mon=%.2f lamp=%v",
+				fps, s.viewX, drawn, s.monX, s.lampOn))
+		case "chunk":
+			vis := len(s.chunks.Visible(s.view))
+			s.overlay.SetText(fmt.Sprintf("fps %.0f chunk loaded=%d vis=%d l=%d d=%d mon=%.2f",
+				fps, s.chunks.LoadedCount(), vis, s.loads, s.unloads, s.monX))
+		case "lod":
+			s.overlay.SetText(fmt.Sprintf("fps %.0f lod %s sw=%d fl=%d near=%d far=%d mon=%.2f",
+				fps, lodLevelName(s.curLevel), s.switches, s.flickers, s.nearN, s.farN, s.monX))
+		}
 	}
-	s.shell.NoteHUDTick(dt)
+	s.board.MarkNeedsPaint()
 	s.app.ScheduleFrame()
 	return true
 }
 
-// paintBoard draws the live scene for the active case.
+// paintBoard draws the live scene for the active case. The board fills the
+// window; thick extras (pacing monster + lamp) draw over every case.
 func (s *tileSim) paintBoard(pc *rendering.PaintContext) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
 	ax, ay := pc.Abs(0, 0)
 	dc := pc.DC
+	// Window-size scale so the same content fills the full window.
+	bw := float64(winW)
+	sc := bw / boardW
+	ox, oy := ax, ay
 	switch s.caseName {
 	case "map":
-		mapPaint(dc, ax+20, ay+20, 110)
-		// Viewport strip over the virtual field (scale: 3200px -> 640px).
+		mapPaint(dc, ox+20*sc, oy+20*sc, 110*sc)
+		// Viewport strip over the virtual field.
 		dc.SetRGBA(1, 0.9, 0.2, 1)
 		dc.SetLineWidth(2)
-		vx := ax + 20 + s.viewX/3200*640
-		dc.DrawRectangle(vx, ay+boardH-60, s.viewW/3200*640, 30)
+		vx := ox + 20*sc + s.viewX/3200*(640*sc)
+		dc.DrawRectangle(vx, oy+(boardH-60)*sc, s.viewW/3200*(640*sc), 30*sc)
 		_ = dc.Stroke()
 	case "chunk":
 		lit := map[tilemap.ChunkID]bool{}
 		for _, id := range s.chunks.Loaded() {
 			lit[id] = true
 		}
-		chunkPaint(dc, ax+40, ay+10, 32, lit, s.view)
+		chunkPaint(dc, ox+40*sc, oy+10*sc, 32*sc, lit, s.view)
 	case "lod":
-		lodPaint(dc, ax+20, ay+30)
+		lodPaint(dc, ox+20*sc, oy+30*sc)
 		// Live focus marker under the band bar.
-		fx := ax + 20 + s.focus.X/512*420
+		fx := ox + 20*sc + s.focus.X/512*(420*sc)
 		if s.curLevel == tilemap.LevelNear {
 			dc.SetRGBA(nearR, nearG, nearB, 1)
 		} else {
 			dc.SetRGBA(farR, farG, farB, 1)
 		}
-		dc.DrawRectangle(fx-4, ay+30+150+22, 8, 8)
+		dc.DrawRectangle(fx-4*sc, oy+30*sc+150*sc+22*sc, 8*sc, 8*sc)
 		_ = dc.Fill()
 	}
+	// Thick: pacing monster block + day-night lamp dot over the picture.
+	mx := ox + s.monX*(bw-60) + 10
+	my := oy + float64(winH)*0.75
+	dc.SetRGBA(solidR, solidG, solidB, 1)
+	dc.DrawRectangle(mx, my, 40*sc, 40*sc)
+	_ = dc.Fill()
+	if s.lampOn {
+		dc.SetRGBA(1, 0.9, 0.4, 0.9)
+	} else {
+		dc.SetRGBA(0.2, 0.25, 0.45, 0.9)
+	}
+	dc.DrawRectangle(ox+bw-50, oy+40, 24, 24)
+	_ = dc.Fill()
 }
 
 type manualSummary struct {
@@ -1134,40 +1152,10 @@ func main() {
 		runFor = time.Duration(secs) * time.Second
 	}
 
-	legends := map[string][]string{
-		"map": {
-			"TMX子集直读·firstgid不错位",
-			"黄=怪白=点·红框=碰撞",
-			"底行=笔刷连点自接边",
-			"底条=万级视口走位",
-			"右栏 摆怪/断缝/裁剪",
-			"JSON见 ability_extra",
-		},
-		"chunk": {
-			"16x16场·4x4块走装",
-			"亮=已装暗=未装",
-			"黄框=视口·256块一批",
-			"走尾跳回验证不留脏块",
-			"右栏 已装/批次/装卸",
-			"JSON见 ability_extra",
-		},
-		"lod": {
-			"近线192·远线320",
-			"带内同距抱老档不闪",
-			"白点=焦点·底条=带",
-			"焦点来回扫过两条线",
-			"右栏 当前档/真切/抖闪",
-			"JSON见 ability_extra",
-		},
-	}
-	titles := map[string]string{
-		"map":   "game_tilemap — 7.1 瓦片 (tilemap-map)",
-		"chunk": "game_tilemap — 7.2 分区 (tilemap-chunk)",
-		"lod":   "game_tilemap — 7.3 远近 (tilemap-lod)",
-	}
-	shell := wrkit.NewShell(winW, winH, titles[caseName], legends[caseName])
+	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
 
-	sim := &tileSim{caseName: caseName, shell: shell, viewW: 256}
+	sim := &tileSim{caseName: caseName, root: root, viewW: 256, monDir: 1, lampOn: true}
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
@@ -1196,26 +1184,16 @@ func main() {
 	}
 
 	sim.board = rendering.NewRenderBox()
-	sim.board.FixedWidth, sim.board.FixedHeight = boardW, boardH
+	sim.board.FixedWidth, sim.board.FixedHeight = float64(winW), float64(winH)
 	sim.board.SetRepaintBoundary(true)
 	sim.board.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		sim.paintBoard(pc)
 	}
-	shell.Body.Place(sim.board, boardX, boardY)
+	root.Place(sim.board, 0, 0)
 
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), countX, countY-24)
-	sim.lineA = wrkit.Label("—", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.lineA, countX, countY+10)
-	sim.lineB = wrkit.Label("—", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.lineB, countX, countY+36)
-	sim.lineC = wrkit.Label("—", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(sim.lineC, countX, countY+62)
-	sim.lineD = wrkit.Label("—", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.lineD, countX, countY+88)
-	sim.fpsL = wrkit.Label("帧率 0", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(sim.fpsL, countX, countY+114)
-
-	shell.Body.Place(wrkit.Label("黄框=视口/当前档 · 右栏为live计数 · 金图0容差", 12, 0.70, 0.78, 0.88), boardX, noteY)
+	// One-line floating overlay at top-left over the picture (no own band).
+	sim.overlay = wrkit.Label("--", 13, 1, 1, 1)
+	root.Place(sim.overlay, 12, 10)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_tilemap", Decorations: true})
 	if err != nil {
@@ -1226,7 +1204,7 @@ func main() {
 	ctl := win.Controls()
 
 	var summary manualSummary
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -1259,7 +1237,8 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsLayout()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_tilemap: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -1281,7 +1260,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

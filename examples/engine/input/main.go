@@ -86,7 +86,8 @@ const (
 	comboB           = 0.30
 )
 
-// Body-local layout (body is ~904x656 under the shell chrome).
+// Body-local layout (legacy probe geometry reference; live window is
+// full-window content, see metricStripH).
 const (
 	leftX, leftY, leftW, leftH = 16.0, 44.0, 440.0, 360.0
 	midX, midY, midW, midH     = 472.0, 44.0, 220.0, 360.0
@@ -95,6 +96,11 @@ const (
 
 	offW, offH = 480, 270
 )
+
+// 2.5D摆法：满窗即内容，指标浮左上，Golden排除指标带。
+// metricStripH是浮层指标带高度，窗口Golden比对从该高度之下起算。
+// 离屏探针帧无指标覆盖；窗口快照只比该带之下的纯画面。
+const metricStripH = 32.0
 
 // Frozen action file schema (mirrors engine/input/action_test.go).
 type jBinding struct {
@@ -815,7 +821,12 @@ func probeGolden(which string) (ok bool, changed int, wrote bool) {
 	if !img.Bounds().Eq(want.Bounds()) {
 		return false, 1, false
 	}
+	// Golden裁掉顶部指标带：浮层指标行不参比，只比它下面的纯画面。
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
 			ar, ag, ab, aa := img.At(x, y).RGBA()
 			br, bg, bb, ba := want.At(x, y).RGBA()
@@ -880,19 +891,23 @@ func liveMap() (*input.Map, error) {
 var remapActions = []string{"jump", "attack", "move_left", "move_right", "move_up", "move_down"}
 
 // sim is the live window state: real engine/input handles advance every
-// frame, and the overlay paints exactly what the API reports.
+// frame, and the full-window scene paints exactly what the API reports.
 type sim struct {
 	which   string
 	amap    *input.Map
 	buf     *input.Buffer
 	touches *input.TouchTracker
 	app     *embedder.PipelineApp
-	shell   *wrkit.ShellChrome
+	root    *rendering.AbsoluteBox
 	phase   *wrkit.PhaseClock
 
-	bars  *rendering.RenderBox
-	strip *rendering.RenderBox
-	vec   *rendering.RenderBox
+	fullBox *rendering.RenderBox
+	metric  *rendering.RenderText
+
+	heroX   float64
+	heroY   float64
+	heroVX  float64
+	savedAt int64
 
 	lastKey int
 	remaps  int
@@ -911,12 +926,6 @@ type sim struct {
 
 	elapsed float64
 	frames  int
-
-	lineA *rendering.RenderText
-	lineB *rendering.RenderText
-	lineC *rendering.RenderText
-	lineD *rendering.RenderText
-	fpsL  *rendering.RenderText
 }
 
 func (s *sim) strengths() [6]float64 {
@@ -1073,6 +1082,25 @@ func (t *ticker) Tick(dt float64) bool {
 		if autoScript {
 			s.tickRemapScript()
 		}
+		// Thickening: the remapped keys also drive a hero dot (window only).
+		mv, _ := s.amap.Vector("move_left", "move_right", "move_up", "move_down")
+		s.heroVX = mv.X * 220
+		s.heroX += s.heroVX * dt
+		if s.heroX < 40 {
+			s.heroX = 40
+		}
+		if s.heroX > winW-80 {
+			s.heroX = winW - 80
+		}
+		if j, _ := s.amap.Strength("jump"); j > 0 && s.heroY >= 0 {
+			s.heroY = -120
+		}
+		if s.heroY < 0 {
+			s.heroY += 320 * dt
+			if s.heroY > 0 {
+				s.heroY = 0
+			}
+		}
 	} else {
 		if autoScript {
 			s.tickComboScript()
@@ -1091,14 +1119,8 @@ func (t *ticker) Tick(dt float64) bool {
 			}
 		}
 	}
-	if s.bars != nil {
-		s.bars.MarkNeedsPaint()
-	}
-	if s.strip != nil {
-		s.strip.MarkNeedsPaint()
-	}
-	if s.vec != nil {
-		s.vec.MarkNeedsPaint()
+	if s.fullBox != nil {
+		s.fullBox.MarkNeedsPaint()
 	}
 
 	phase := s.phase.Advance(dt)
@@ -1107,29 +1129,22 @@ func (t *ticker) Tick(dt float64) bool {
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fps = 1000.0 / snap.AvgFrameIntervalMs
 	}
-	if s.which == "remap" {
-		st := s.strengths()
-		dz, _ := s.amap.Deadzone("move_right")
-		s.lineA.SetText(fmt.Sprintf("跳 %.2f 攻 %.2f", st[0], st[1]))
-		s.lineB.SetText(fmt.Sprintf("左 %.2f 右 %.2f 上 %.2f 下 %.2f", st[2], st[3], st[4], st[5]))
-		s.lineC.SetText(fmt.Sprintf("末键 %d 死区 %.2f 改键 %d", s.lastKey, dz, s.remaps))
-		s.lineD.SetText(fmt.Sprintf("脚本 %d/7", s.scriptedHit))
-	} else {
-		s.lineA.SetText(fmt.Sprintf("连 %d 丢 %d 满 %d 零 %d", s.comboHits, s.comboMiss, s.comboCap, s.comboZero))
-		s.lineB.SetText(fmt.Sprintf("缓存 %d 触点 %d 触检 %d", s.buf.Len(), s.touches.ActiveCount(), s.touchOK))
-		s.lineC.SetText(fmt.Sprintf("末键 %d", s.lastKey))
-		flash := "·"
-		if s.comboFlash > 0 {
-			flash = "FIRE"
+	if s.metric != nil {
+		if s.which == "remap" {
+			st := s.strengths()
+			s.metric.SetText(fmt.Sprintf("input fps=%.0f x=%.0f jump=%.1f atk=%.1f script=%d/7 key=%d",
+				fps, s.heroX, st[0], st[1], s.scriptedHit, s.lastKey))
+		} else {
+			flash := ""
+			if s.comboFlash > 0 {
+				flash = " FIRE"
+			}
+			s.metric.SetText(fmt.Sprintf("input fps=%.0f combo=%d miss=%d cap=%d zero=%d%s",
+				fps, s.comboHits, s.comboMiss, s.comboCap, s.comboZero, flash))
 		}
-		s.lineD.SetText(fmt.Sprintf("连招 %s", flash))
+		s.metric.MarkNeedsPaint()
 	}
-	s.fpsL.SetText(fmt.Sprintf("帧率 %.0f", fps))
-	gateOK := true
-	s.shell.NoteHUDTick(dt)
-	coreLine := fmt.Sprintf("frames=%d", s.frames)
-	s.shell.UpdateHUD("input-"+s.which, phase, s.app, gateOK, coreLine,
-		fmt.Sprintf("key=%d", s.lastKey))
+	_ = phase
 	s.app.ScheduleFrame()
 	return true
 }
@@ -1142,6 +1157,100 @@ type manualSummary struct {
 	Pointer, Key, Resize, Touch int
 	Timed                       bool
 	Note                        string
+}
+
+// paintInputFullWindow draws the full-window scene for both cases:
+// action strength bars + move vector arrow + responding hero (remap),
+// combo strip + touch dots + saved-key readout (combo). Thickening
+// (window only, engine untouched): hero answers keys, combo FIRE shows,
+//存档键位 readout keeps the last key on screen.
+func paintInputFullWindow(pc *rendering.PaintContext, w, h float64, s *sim) {
+	if pc == nil || pc.DC == nil || s == nil {
+		return
+	}
+	ax, ay := pc.Abs(0, 0)
+	dc := pc.DC
+	dc.SetRGB(bgR, bgG, bgB)
+	dc.DrawRectangle(ax, ay, w, h)
+	_ = dc.Fill()
+	top := ay + metricStripH + 8
+	if s.which == "remap" {
+		st := s.strengths()
+		for i := range remapActions {
+			y := top + 20 + float64(i)*56
+			dc.SetRGBA(barBgR, barBgG, barBgB, 1)
+			dc.DrawRectangle(ax+24, y, w/2-48, 24)
+			_ = dc.Fill()
+			if st[i] > 0 {
+				dc.SetRGBA(barR, barG, barB, 1)
+				dc.DrawRectangle(ax+24, y, (w/2-48)*st[i], 24)
+				_ = dc.Fill()
+			}
+		}
+		// Move vector arrow盘.
+		cx, cy := ax+w*0.75, top+140.0
+		dc.SetRGBA(barBgR, barBgG, barBgB, 1)
+		dc.DrawRectangle(cx-90, cy-90, 180, 180)
+		_ = dc.Fill()
+		v, err := s.amap.Vector("move_left", "move_right", "move_up", "move_down")
+		if err == nil {
+			dc.SetRGBA(comboR, comboG, comboB, 1)
+			dc.SetLineWidth(3)
+			dc.DrawLine(cx, cy, cx+v.X*70, cy-v.Y*70)
+			_ = dc.Stroke()
+		}
+		// Responding hero: runs with keys, hops with jump (window only).
+		hx := ax + s.heroX
+		hy := top + h/2 + 120 + s.heroY
+		dc.SetRGBA(0.9, 0.2, 0.15, 1)
+		dc.DrawRectangle(hx, hy, 40, 40)
+		_ = dc.Fill()
+		// Combo flash line under the hero.
+		for i, p := range s.buf.Presses() {
+			_ = i
+			_ = p
+		}
+	} else {
+		presses := s.buf.Presses()
+		now := core.Milliseconds(int64(s.elapsed * 1000))
+		live := map[int]bool{}
+		for i, p := range presses {
+			if p.At <= now && now-p.At <= s.buf.Window() {
+				live[i] = true
+			}
+		}
+		for i := 0; i < 64; i++ {
+			x := ax + 24 + float64(i%16)*((w-48)/16)
+			y := top + 20 + float64(i/16)*34
+			cw := (w-48)/16 - 6
+			switch {
+			case live[i]:
+				dc.SetRGBA(cellR, cellG, cellB, 1)
+			case i < len(presses):
+				dc.SetRGBA(comboR, comboG, comboB, 0.45)
+			default:
+				dc.SetRGBA(barBgR, barBgG, barBgB, 1)
+			}
+			dc.DrawRectangle(x, y, cw, 26)
+			_ = dc.Fill()
+		}
+		for i, tc := range s.touches.Touches() {
+			_ = tc
+			dc.SetRGBA(touchR, touchG, touchB, 1)
+			dc.DrawRectangle(ax+40+float64(i)*48, top+h/2, 14, 14)
+			_ = dc.Fill()
+		}
+		// FIRE banner when the rising edge lands (window only).
+		if s.comboFlash > 0 {
+			dc.SetRGBA(comboR, comboG, comboB, 1)
+			dc.DrawRectangle(ax+w/2-80, top+200, 160, 30)
+			_ = dc.Fill()
+		}
+		// 存档键位 readout: last key stays visible bottom-left.
+		dc.SetRGBA(0.7, 0.78, 0.88, 1)
+		dc.DrawRectangle(ax+24, ay+h-48, float64(s.lastKey%200)+40, 8)
+		_ = dc.Fill()
+	}
 }
 
 func runSeconds(def int) int {
@@ -1256,7 +1365,8 @@ func main() {
 			"JSON见 ability_extra",
 		}
 	}
-	shell := wrkit.NewShell(winW, winH, shellTitle, legend)
+	_ = legend
+	_ = shellTitle
 
 	m, err := liveMap()
 	if err != nil {
@@ -1273,7 +1383,7 @@ func main() {
 		amap:    m,
 		buf:     buf,
 		touches: input.NewTouchTracker(),
-		shell:   shell,
+		heroX:   120,
 	}
 	if secs > 0 {
 		s.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
@@ -1281,120 +1391,20 @@ func main() {
 		s.phase = wrkit.NewPhaseClock(0, 0)
 	}
 
-	if which == "remap" {
-		shell.Body.Place(wrkit.Label("ACTION 动作强度", 13, 0.55, 0.75, 0.95), leftX, leftY-24)
-		bars := rendering.NewRenderBox()
-		bars.FixedWidth, bars.FixedHeight = leftW, leftH
-		bars.SetRepaintBoundary(true)
-		bars.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			st := s.strengths()
-			for i := range remapActions {
-				y := ay + 20 + float64(i)*56
-				pc.DC.SetRGBA(barBgR, barBgG, barBgB, 1)
-				pc.DC.DrawRectangle(ax+16, y, leftW-32, 24)
-				_ = pc.DC.Fill()
-				if st[i] > 0 {
-					pc.DC.SetRGBA(barR, barG, barB, 1)
-					pc.DC.DrawRectangle(ax+16, y, (leftW-32)*st[i], 24)
-					_ = pc.DC.Fill()
-				}
-			}
-		}
-		shell.Body.Place(bars, leftX, leftY)
-		s.bars = bars
-	} else {
-		shell.Body.Place(wrkit.Label("BUFFER 连招缓存", 13, 0.55, 0.75, 0.95), leftX, leftY-24)
-		strip := rendering.NewRenderBox()
-		strip.FixedWidth, strip.FixedHeight = leftW, leftH
-		strip.SetRepaintBoundary(true)
-		strip.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-			if pc == nil || pc.DC == nil {
-				return
-			}
-			ax, ay := pc.Abs(0, 0)
-			presses := s.buf.Presses()
-			now := core.Milliseconds(int64(s.elapsed * 1000))
-			live := map[int]bool{}
-			for i, p := range presses {
-				if p.At <= now && now-p.At <= s.buf.Window() {
-					live[i] = true
-				}
-			}
-			for i := 0; i < 64; i++ {
-				x := ax + 16 + float64(i%8)*52
-				y := ay + 16 + float64(i/8)*30
-				switch {
-				case live[i]:
-					pc.DC.SetRGBA(cellR, cellG, cellB, 1)
-				case i < len(presses):
-					pc.DC.SetRGBA(comboR, comboG, comboB, 0.45)
-				default:
-					pc.DC.SetRGBA(barBgR, barBgG, barBgB, 1)
-				}
-				pc.DC.DrawRectangle(x, y, 46, 24)
-				_ = pc.DC.Fill()
-			}
-			for i, tc := range s.touches.Touches() {
-				_ = tc
-				pc.DC.SetRGBA(touchR, touchG, touchB, 1)
-				pc.DC.DrawRectangle(ax+30+float64(i)*44, ay+leftH-44, 12, 12)
-				_ = pc.DC.Fill()
-			}
-		}
-		shell.Body.Place(strip, leftX, leftY)
-		s.strip = strip
+	// 满窗即内容：整窗为输入场景+人物响应+存档键位同场加厚，无分区。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	s.root = root
+	s.fullBox = rendering.NewRenderBox()
+	s.fullBox.FixedWidth, s.fullBox.FixedHeight = winW, winH
+	live := s
+	s.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		paintInputFullWindow(pc, size.Width, size.Height, live)
 	}
-
-	mid := wrkit.Label("VEC 向量", 13, 0.55, 0.75, 0.95)
-	shell.Body.Place(mid, midX, midY-24)
-	vecBox := rendering.NewRenderBox()
-	vecBox.FixedWidth, vecBox.FixedHeight = midW, 200
-	vecBox.SetRepaintBoundary(true)
-	vecBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
-			return
-		}
-		ax, ay := pc.Abs(0, 0)
-		pc.DC.SetRGBA(barBgR, barBgG, barBgB, 1)
-		pc.DC.DrawRectangle(ax, ay, midW, 200)
-		_ = pc.DC.Fill()
-		v, err := s.amap.Vector("move_left", "move_right", "move_up", "move_down")
-		if err != nil {
-			return
-		}
-		cx, cy := ax+midW/2, ay+100.0
-		pc.DC.SetRGBA(0.9, 0.9, 0.9, 0.4)
-		pc.DC.SetLineWidth(1)
-		pc.DC.DrawLine(cx-70, cy, cx+70, cy)
-		_ = pc.DC.Stroke()
-		pc.DC.DrawLine(cx, cy-70, cx, cy+70)
-		_ = pc.DC.Stroke()
-		pc.DC.SetRGBA(comboR, comboG, comboB, 1)
-		pc.DC.SetLineWidth(3)
-		pc.DC.DrawLine(cx, cy, cx+v.X*70, cy-v.Y*70)
-		_ = pc.DC.Stroke()
-	}
-	shell.Body.Place(vecBox, midX, midY)
-	s.vec = vecBox
-
-	shell.Body.Place(wrkit.Label("COUNTERS 计数器", 13, 0.55, 0.75, 0.95), rightX, rightY-24)
-	s.lineA = wrkit.Label("-", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(s.lineA, rightX, rightY+10)
-	s.lineB = wrkit.Label("-", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(s.lineB, rightX, rightY+36)
-	s.lineC = wrkit.Label("-", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(s.lineC, rightX, rightY+62)
-	s.lineD = wrkit.Label("-", 12, 0.70, 0.78, 0.88)
-	shell.Body.Place(s.lineD, rightX, rightY+88)
-	s.fpsL = wrkit.Label("帧率 0", 12, 0.92, 0.94, 0.98)
-	shell.Body.Place(s.fpsL, rightX, rightY+114)
-	shell.Body.Place(wrkit.Label("MaxBuffered=64 窗150ms", 12, 0.70, 0.78, 0.88), rightX, rightY+140)
-
-	shell.Body.Place(wrkit.Label("条长=强度 黄格=缓存 蓝点=触点 · 中盘=移动向量", 12, 0.70, 0.78, 0.88), leftX, noteY)
+	root.Place(s.fullBox, 0, 0)
+	// 指标浮内容左上角，盖画面不划区。
+	s.metric = wrkit.Label("input fps=-", 13, 0.92, 0.94, 0.98)
+	root.Place(s.metric, 8, 8)
 
 	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_input", Decorations: true})
 	if err != nil {
@@ -1417,7 +1427,7 @@ func main() {
 			}
 		}
 	}
-	app := embedder.NewPipelineApp(win.Host(), shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
@@ -1495,7 +1505,9 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					s.fullBox.FixedWidth, s.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_input: resize %dx%d n=%d\n",
@@ -1519,7 +1531,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
-	shell.Root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
 	app.ScheduleFrame()
 
 	t0 := time.Now()

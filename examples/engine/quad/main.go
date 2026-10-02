@@ -31,6 +31,9 @@ import (
 
 const winW, winH = 1200, 800
 
+// 2.5D摆法：满窗即内容，指标浮左上（metricStripH带），Golden裁掉该带。
+const metricStripH = 32.0
+
 func main() {
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
@@ -59,28 +62,83 @@ func main() {
 		"白边消失=退化成方块=FAIL",
 		"JSON看parity_changed_pct<=1",
 	})
+	_ = shell
 
 	src := makeQuadSrc()
 
-	// Two quad views side by side inside body.
+	// 满窗即内容：整窗为合批梯形阵（大实体+暖光+粒子点加厚）。
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
+	fullBox := rendering.NewRenderBox()
+	fullBox.FixedWidth, fullBox.FixedHeight = winW, winH
+	fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.SetRGB(1, 1, 1)
+		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		for row := 0; row < 3; row++ {
+			for col := 0; col < 4; col++ {
+				ox := ax + float64(col)*size.Width/4
+				oy := ay + float64(row)*size.Height/3
+				cw, ch := size.Width/4, size.Height/3
+				interp := render.InterpNearest
+				if (row+col)%2 == 1 {
+					interp = render.InterpBilinear
+				}
+				corners := [4]render.Point{
+					{X: ox + cw*0.35, Y: oy + ch*0.12},
+					{X: ox + cw*0.65, Y: oy + ch*0.12},
+					{X: ox + cw*0.88, Y: oy + ch*0.82},
+					{X: ox + cw*0.12, Y: oy + ch*0.82},
+				}
+				_ = pc.DC.DrawImageQuadEx(src, corners, render.QuadDrawOptions{
+					Interpolation: interp,
+					Opacity:       1,
+					BlendMode:     render.BlendNormal,
+				})
+				// Particle dots over each quad (window only).
+				pc.DC.SetRGBA(1, 0.6, 0.1, 0.8)
+				for i := 0; i < 6; i++ {
+					px := ox + cw*0.3 + float64(i)*cw*0.07
+					py := oy + ch*0.5 + float64((i*37)%23)
+					pc.DC.DrawRectangle(px, py, 5, 5)
+					_ = pc.DC.Fill()
+				}
+			}
+		}
+		// Warm light band across the middle.
+		pc.DC.SetRGBA(1, 0.72, 0.30, 0.08)
+		pc.DC.DrawRectangle(ax, ay+size.Height*0.4, size.Width, size.Height*0.2)
+		_ = pc.DC.Fill()
+		if face := wrkit.FaceAt(12); face != nil {
+			pc.DC.SetFont(face)
+		}
+		pc.DC.SetRGBA(0.1, 0.12, 0.15, 1)
+		pc.DC.DrawString("trap-array 4x3 Nearest/Bilinear", ax+12, ay+size.Height-16)
+	}
+	root.Place(fullBox, 0, 0)
+	metric := wrkit.Label("presents=0", 13, 0.08, 0.10, 0.13)
+	root.Place(metric, 8, 8)
+
+	// 旧双卡保留引用但不进窗（窗只画满窗fullBox）。
 	quadL := rendering.NewRenderBox()
 	quadL.FixedWidth, quadL.FixedHeight = 340, 220
 	quadL.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paintQuadCard(pc, src, render.InterpNearest, "Nearest 精确")
 	}
-	shell.Body.Place(quadL, 20, 20)
+	_ = quadL
 
 	quadR := rendering.NewRenderBox()
 	quadR.FixedWidth, quadR.FixedHeight = 340, 220
 	quadR.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		paintQuadCard(pc, src, render.InterpBilinear, "Bilinear 平滑")
 	}
-	shell.Body.Place(quadR, 380, 20)
+	_ = quadR
 
-	note := wrkit.Label("上窄下宽梯形, 外圈白边必须留住", 12, 0.75, 0.82, 0.9)
-	shell.Body.Place(note, 20, 260)
-
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
 		WarmUp: true,
@@ -90,22 +148,20 @@ func main() {
 				fmt.Fprintf(os.Stderr, "game_quad: close (%s)\n", win.Backend())
 			case platform.EventResize:
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					fullBox.FixedWidth, fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
 				}
 			}
 		},
 	})
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
-		quadL.MarkNeedsPaint()
-		quadR.MarkNeedsPaint()
+		fullBox.MarkNeedsPaint()
+		metric.SetText(fmt.Sprintf("presents=%d trap-array", app.PresentCount()))
+		metric.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
-		shell.NoteHUDTick(dt)
-		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.PaintCount > 0
-		shell.UpdateHUD("R1", "Steady", app, gateOK,
-			fmt.Sprintf("presents=%d", app.PresentCount()), "trap-not-box")
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -201,8 +257,7 @@ func makeQuadSrc() *render.ImageBuf {
 	return img
 }
 
-func paintQuadCard(pc *rendering.PaintContext, src *render.ImageBuf, interp render.InterpolationMode, tag string) {
-	if pc == nil || pc.DC == nil {
+func paintQuadCard(pc *rendering.PaintContext, src *render.ImageBuf, interp render.InterpolationMode, tag string) {	if pc == nil || pc.DC == nil {
 		return
 	}
 	// Card white background so outside-trapezoid white edge is visible.
