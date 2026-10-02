@@ -11,6 +11,9 @@
 package fx
 
 import (
+	"log"
+	"math"
+
 	"github.com/energye/gpui/engine/core"
 )
 
@@ -158,7 +161,14 @@ const (
 	// TonemapACES is the Narkowicz filmic approximation (Godot ACES idea,
 	// Skia has no built-in curve so games carry this formula).
 	TonemapACES
+	// TonemapFilmic is the Hejl-Burgess-Dawson shoulder curve (the third
+	// S66 option; selectable, never the default).
+	TonemapFilmic
 )
+
+// DefaultTonemap freezes the S66 curve choice: Reinhard. Selectable in
+// code, but the windows and goldens pin this value.
+const DefaultTonemap = TonemapReinhard
 
 // String returns the stable log name of t.
 func (t Tonemap) String() string {
@@ -167,13 +177,15 @@ func (t Tonemap) String() string {
 		return "reinhard"
 	case TonemapACES:
 		return "aces"
+	case TonemapFilmic:
+		return "filmic"
 	default:
 		return "none"
 	}
 }
 
-// ParseTonemap maps "none"/"reinhard"/"aces" to a Tonemap. Anything else is
-// InvalidArg and returns TonemapNone.
+// ParseTonemap maps "none"/"reinhard"/"aces"/"filmic" to a Tonemap.
+// Anything else is InvalidArg and returns TonemapNone.
 func ParseTonemap(s string) (Tonemap, error) {
 	switch s {
 	case "none":
@@ -182,6 +194,8 @@ func ParseTonemap(s string) (Tonemap, error) {
 		return TonemapReinhard, nil
 	case "aces":
 		return TonemapACES, nil
+	case "filmic":
+		return TonemapFilmic, nil
 	default:
 		return TonemapNone, core.InvalidArg("fx.ParseTonemap", s)
 	}
@@ -199,9 +213,44 @@ func (t Tonemap) Map(x, exposure float64) float64 {
 	case TonemapACES:
 		xe := x * exposure
 		return clamp01(xe * (2.51*xe + 0.03) / (xe*(2.43*xe+0.59) + 0.14))
+	case TonemapFilmic:
+		xe := x * exposure
+		return clamp01(hbd(xe))
 	default:
 		return clamp01(x)
 	}
+}
+
+// hbd is the Hejl-Burgess-Dawson filmic curve with max-white scaling:
+// shoulder compresses, toe lifts blacks, white point pins 1 to 1.
+// Monotonic on [0,inf), finite in finite out. Constants are the
+// community-tuned set (A=0.15 B=0.50 C=0.10 D=0.20 E=0.02 F=0.30,
+// W=11.2), carried for the curve shape, not the code.
+func hbd(xe float64) float64 {
+	const (
+		a = 0.15
+		b = 0.50
+		c = 0.10
+		d = 0.20
+		e = 0.02
+		f = 0.30
+		w = 11.2
+	)
+	curve := func(v float64) float64 {
+		return ((v*(a*v+c*b) + d*e) / (v*(a*v+b) + d*f)) - e/f
+	}
+	white := ((w*(a*w+c*b) + d*e) / (w*(a*w+b) + d*f)) - e/f
+	if !(xe >= 0) || math.IsInf(xe, 0) {
+		return 0
+	}
+	got := curve(xe) / white
+	if math.IsNaN(got) || math.IsInf(got, 0) || got < 0 {
+		return 0
+	}
+	if got > 1 {
+		return 1
+	}
+	return got
 }
 
 // ApplyTonemap returns src tonemapped, as a fresh image. TonemapNone
@@ -212,11 +261,16 @@ func ApplyTonemap(src *Image, t Tonemap, exposure float64) (*Image, error) {
 	if err := src.check(op); err != nil {
 		return nil, err
 	}
-	if t != TonemapNone && t != TonemapReinhard && t != TonemapACES {
+	if t != TonemapNone && t != TonemapReinhard && t != TonemapACES && t != TonemapFilmic {
 		return nil, core.InvalidArg(op, "tonemap")
 	}
 	if t != TonemapNone && !validExposure(exposure) {
 		return nil, core.InvalidArg(op, "exposure")
+	}
+	if t != TonemapNone {
+		// CPU fallback mark: the tonemap stage has no GPU shader yet, so
+		// every tonemapped frame runs the CPU reference. Loud, not silent.
+		log.Printf("fx: tonemap %s runs CPU reference (exposure %.3f)", t.String(), exposure)
 	}
 	out := make([]core.Color, len(src.Pix))
 	if t == TonemapNone {
@@ -261,7 +315,7 @@ func NewGrade(bloom Bloom, vig Vignette, lut *LUT, tm Tonemap, exposure float64)
 			return Grade{}, err
 		}
 	}
-	if tm != TonemapNone && tm != TonemapReinhard && tm != TonemapACES {
+	if tm != TonemapNone && tm != TonemapReinhard && tm != TonemapACES && tm != TonemapFilmic {
 		return Grade{}, core.InvalidArg(op, "tonemap")
 	}
 	if tm != TonemapNone && !validExposure(exposure) {
@@ -281,6 +335,20 @@ func NewGrade(bloom Bloom, vig Vignette, lut *LUT, tm Tonemap, exposure float64)
 // Stages returns the frozen filter-chain order this grade runs.
 func (g Grade) Stages() []string {
 	return []string{"bloom", "vignette", "lut", "tonemap"}
+}
+
+// Degraded reports the frozen CPU fallback mark: true when the tonemap
+// stage is on (no GPU shader yet, CPU reference runs). Callers gate
+// parity on this bit; a set bit without a log line is a fake-green bug.
+func (g Grade) Degraded() bool { return g.Tonemap != TonemapNone }
+
+// ExposureValue returns the frozen exposure plus whether tonemapping is
+// on: the queryable S66 knob. TonemapNone reports (0, false).
+func (g Grade) ExposureValue() (float64, bool) {
+	if g.Tonemap == TonemapNone {
+		return 0, false
+	}
+	return g.Exposure, true
 }
 
 // Apply runs bloom, vignette, LUT (unless nil), tonemap (unless None) and
