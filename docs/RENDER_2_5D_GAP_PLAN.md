@@ -1066,7 +1066,7 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 | S76 | 角色体对齐 | S22 | 随S61 | 进行中（2026-10-02：engine/physics单测24项全绿＋S61窗连带验全绿；D18差异0；详见G15） |
 | S77 | 听者跟相机 | S13 | 随S55 | 进行中（2026-10-02：engine/audio单测12项全绿＋S55窗连带验全绿；D20差异0；详见G15） |
 | S78 | 躲避小怪关 | W11全项含S79 | game_dodge | 未开工 |
-| S79 | 真2.5D基向量窗 | S08/S09/S10 | game_25d_basis | 挂起（2026-10-01用户拍板：引擎缺基向量/Y排序/影子数学三件套，窗建不了，另开引擎会话补齐再归队） |
+| S79 | 真2.5D基向量窗 | S08/S09/S10 | game_25d_basis | 已完成（2026-10-02：engine/camera三件套＋Vec3，单测camera全包30项全绿；正式包10秒×3取最差presents599、p95 17.91、views6、双金0差；人工30秒ptr25 key8、presents1798、backend=x11；p95/p99沿用S52豁免，换机空着；D表无基向量行行为新增；详见G15） |
 | S80 | 导航占位号（作废） | — | 并入S87 | 作废（见S87） |
 | S81 | 横版对照窗 | W11全绿＋S76 | game_platformer | 未开工 |
 | S82 | 灯影对照窗 | S63 | gfx_light2d | 未开工 |
@@ -1420,5 +1420,6 @@ W24总指标：三项全正式包三遍最差，存读/掉率/拦截三数全过
 | 2026-10-01（S52改门加跟屏） | 追车窗跟屏修拖拽闪跳66a0a0c4（只动examples/game_stage_chase/main.go：EventResize只记尺寸、Tick每帧开头统一排版加世界盒Push/ClipRect/Pop夹边；探针全绿、离屏金0、窗金33400像素0差；真拖1200到1290十帧标题81不动、世界一比一跟、高361不动）；人工已跑（2026-10-01真窗37.6秒key10加ptr710加resize25，probe_ok=1，presents2243正常；拖窗至1354x827本轮窗金不对尺寸）；改门（用户拍板）：p95按60Hz屏豁免，换机按单机空着（有真实环境再测）；S52记有条件关门，G13放行可开工，W10仍未关门（待S53/S54）。 |
 | 2026-10-01（S53进行中） | S53开工（不动引擎只重测）：anim/light单测逐文件复跑全PASS＋vet净；正式包出/tmp/s53_anim＋/tmp/s53_light；fsm/normal自动10秒×3数全对双金0差；shadow60秒×3数全对但最差遍hitch5/分超3/分门（另两遍2.0/0，判机况挤待静机重跑）；fsm人工23.3秒ptr96切换11双金0差已收；p95沿用S52豁免（用户拍板不改§5），换机空着；G13转进行中，S53未关门。 |
 | 2026-10-01（S53有条件关门） | S53收尾（用户拍板可关，残留交别的线）：shadow次轮60秒×3带负载记录取最差presents3491、fps58.18、p95 20.31、p99 23.29、hitch14/分（负载1.7涨到3.9对上卡顿，数全对moved639双金0差mirror真，判机况挤非算法）；fsm人工一段已收录，normal/shadow人工各60秒交别的线；p95沿用S52豁免不改§5，换机空着；S53记有条件关门，G14放行可开工，W10仍未关门（待S54）。 |
+| 2026-10-02（W11关门） | S79收尾＋W11关门：engine/camera加Basis25D/YSort25D/ShadowMath25D三件套＋core.Vec3（只加法，老文件不动）；单测camera全包30项全绿＋vet净；正式包go build -trimpath -ldflags="-s -w"、RUN_SECONDS=10自动×3取最差presents599、fps59.34、p95 17.91、p99 19.33、hitch1、views6、双金0差；人工30秒XTEST同协议ptr25 key8、presents1798、backend=x11；影子简化版（落点数学全对，撞点以后喂，接口已留）；p95/p99沿用S52豁免不改§5，换机空着；G15/G16同步，W11关门，W12可开。 |
 | 2026-10-02（W11十一项验窗） | W11除S79外11项正式复验：正式包go build -trimpath -ldflags="-s -w"、RUN_SECONDS=10自动×3取最差（tl600/asset600/tmap600/tchunk600/tlod599/world595/tfar599/tstream598/sprite600/cam599/remap599/combo600/hit600/jump599，fps57＋全过，双金0差）＋人工30秒XTEST同协议（11窗ptr非0、backend=x11、presents1795~1799）；p95/p99沿用S52豁免（59.93Hz同步底16.69ms物理不可达，不改§5），换机空着；S57 chunk人工并发读写崩溃修（engine/tilemap/chunk.go加读写锁＋全指针接收器，两窗字段改指针，tilemap单测18项全绿＋vet净）；G15十一行同步，S79仍挂起，W11未关门。 |
 | 2026-10-01（S54有条件关门） | S54收尾（不动引擎只重测）：dirty/quality/S46单测逐文件全PASS＋vet净；正式包出/tmp/s54_step＋/tmp/s54_save；dirty自动60秒×3取最差presents3595、fps59.88、hitch1/分、moved8393，金0差；q123自动60秒×3取最差presents3597、fps59.95、hitch0、switches29零失败，金0差；人工两段XTEST合成同协议路径（dirty ptr51 key17、q123 ptr180 key17，双backend=x11）；p95沿用豁免不改§5，换机空着；W10三项（S52/S53/S54）皆有条件关门，W10记有条件关门，G15放行可开工，W11可开。 |
