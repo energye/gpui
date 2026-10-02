@@ -77,15 +77,22 @@ const (
 var viewNames = []string{"45deg", "iso", "top", "front", "oblY", "oblZ"}
 
 // blocks are the demo scene: fixed 3D feet positions plus sizes.
-// Seat 2 is the hero: WASD moves its position, the red coat follows.
+// Seat 2 is the hero: the window owns the only mutable copy and draws
+// from it, so WASD moves what the eye sees.
 const heroSeat = 2
 
-var blocks = []core.Vec3{
-	{X: 0, Y: 0, Z: 0},
-	{X: 2, Y: 0, Z: 1},
-	{X: 1, Y: 1, Z: 2},
-	{X: 3, Y: 0, Z: 0},
+func newBlocks() []core.Vec3 {
+	return []core.Vec3{
+		{X: 0, Y: 0, Z: 0},
+		{X: 2, Y: 0, Z: 1},
+		{X: 1, Y: 1, Z: 2},
+		{X: 3, Y: 0, Z: 0},
+	}
 }
+
+// probeBlocks is the frozen twin for headless probes: same seats as
+// newBlocks, never touched by keys.
+var probeBlocks = newBlocks()
 
 func basisFor(mode int) (camera.Basis25D, error) {
 	return camera.NewBasis25D(camera.ViewMode(mode))
@@ -207,7 +214,7 @@ func want8(v float64) uint8 { return uint8(v*255 + 0.5) }
 func paintProbeFrame(dc *render.Context) {
 	dc.ClearWithColor(render.RGBA{R: skyR, G: skyG, B: skyB, A: 1})
 	b, _ := basisFor(0)
-	for i, p := range blocks[:2] {
+	for i, p := range probeBlocks[:2] {
 		flat, ok := b.Project(p)
 		if !ok {
 			continue
@@ -222,7 +229,7 @@ func paintProbeFrame(dc *render.Context) {
 		dc.DrawRectangle(x, y, 120, 60)
 		_ = dc.Fill()
 	}
-	flat, ok := b.Project(blocks[2])
+	flat, ok := b.Project(probeBlocks[2])
 	if ok {
 		dc.SetRGB(heroR, heroG, heroB)
 		dc.DrawRectangle(40+flat.X*2, 60+flat.Y*2, 24, 24)
@@ -318,9 +325,12 @@ func runProbes() probeResult {
 	return p
 }
 
-// basisSim is the live window state: view mode plus hero nudge.
+// basisSim is the live window state: view mode plus the only mutable
+// block list. blocks[heroSeat] is the hero: keys move it, paint draws
+// it, the red coat follows the seat.
 type basisSim struct {
 	mode       int
+	blocks     []core.Vec3
 	hero       core.Vec3
 	app        *embedder.PipelineApp
 	shell      *wrkit.ShellChrome
@@ -352,12 +362,14 @@ func (t *ticker) Tick(dt float64) bool {
 	s.frames++
 	b, err := basisFor(s.mode)
 	if err == nil {
+		// The seat is the truth: sync the readout copy after keys move it.
+		s.hero = s.blocks[heroSeat]
 		if flat, ok := b.Project(s.hero); ok {
 			s.heroTravel += math.Hypot(flat.X-s.lastFlat.X, flat.Y-s.lastFlat.Y)
 			s.lastFlat = flat
 		}
-		items := make([]camera.YSortItem, len(blocks))
-		for i, p := range blocks {
+		items := make([]camera.YSortItem, len(s.blocks))
+		for i, p := range s.blocks {
 			items[i] = camera.YSortItem{Pos: p, Order: i}
 		}
 		if sorted, err := camera.YSort(items); err == nil {
@@ -471,10 +483,11 @@ func main() {
 	})
 
 	sim := &basisSim{
-		mode:  0,
-		hero:  blocks[heroSeat],
-		shell: shell,
+		mode:   0,
+		blocks: newBlocks(),
+		shell:  shell,
 	}
+	sim.hero = sim.blocks[heroSeat]
 	if b, err := basisFor(0); err == nil {
 		if flat, ok := b.Project(sim.hero); ok {
 			sim.lastFlat = flat
@@ -506,8 +519,8 @@ func main() {
 		pc.DC.SetRGB(0.4, 0.45, 0.55)
 		pc.DC.DrawRectangle(ax+20, ay+stageH-60, stageW-40, 3)
 		_ = pc.DC.Fill()
-		items := make([]camera.YSortItem, len(blocks))
-		for i, p := range blocks {
+		items := make([]camera.YSortItem, len(sim.blocks))
+		for i, p := range sim.blocks {
 			items[i] = camera.YSortItem{Pos: p, Order: i}
 		}
 		sorted, err := camera.YSort(items)
@@ -592,13 +605,13 @@ func main() {
 						sim.mode = int(ev.Rune - '1')
 						sim.modes++
 					case 'a', 'A':
-						sim.hero.X--
+						sim.blocks[heroSeat].X--
 					case 'd', 'D':
-						sim.hero.X++
+						sim.blocks[heroSeat].X++
 					case 'w', 'W':
-						sim.hero.Y++
+						sim.blocks[heroSeat].Y++
 					case 's', 'S':
-						sim.hero.Y--
+						sim.blocks[heroSeat].Y--
 					}
 					if manualMode {
 						fmt.Fprintf(os.Stderr, "game_25d_basis: key %c n=%d\n", ev.Rune, summary.Pointer+summary.Key+summary.Resize)
