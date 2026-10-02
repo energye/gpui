@@ -412,8 +412,29 @@ func probeMapPixels() (bool, string) {
 		r1, g1, b1 := sample8(img, int(ox+cell/2), int(oy+cell/2))
 		// Empty cell center (col 3, row 1) must stay background.
 		r0, g0, b0 := sample8(img, int(ox+3*cell+cell/2), int(oy+cell+cell/2))
-		// Hero marker pixel near its scaled anchor.
-		rh, gh, bh := sample8(img, int(ox+2*cell+cell/2), int(oy+cell/2))
+		// Hero marker pixel at its painted center: mapPaint draws the
+		// 8x8 box at (ox+fx+cell/2-4, oy+fy+cell/2-4) for the hero
+		// bounds (fx,fy from object bounds scaled to cell), so the
+		// center is (ox+fx+cell/2, oy+fy+cell/2) — not the hero anchor
+		// row. Bounds come from the same fixture mapPaint reads.
+		hx, hy := ox+2*cell+cell/2, oy+cell/2
+		if hm, herr := loadOrthoFixture(); herr == nil {
+			for _, o := range hm.Objects() {
+				if o.Name() == "hero" {
+					hb := o.Bounds()
+					hx = ox + (hb.X-0)/32*cell + cell/2
+					hy = oy + (hb.Y-0)/32*cell + cell/2
+					break
+				}
+			}
+		}
+		if hx < ox+4 {
+			hx = ox + 4
+		}
+		if hy < oy+4 {
+			hy = oy + 4
+		}
+		rh, gh, bh := sample8(img, int(hx), int(hy))
 		okNew := closeEnough(r1, want8(gid1R)) && closeEnough(g1, want8(gid1G)) && closeEnough(b1, want8(gid1B))
 		okEmpty := closeEnough(r0, want8(bgR)) && closeEnough(g0, want8(bgG)) && closeEnough(b0, want8(bgB))
 		okHero := closeEnough(rh, want8(heroR)) && closeEnough(gh, want8(heroG)) && closeEnough(bh, want8(heroB))

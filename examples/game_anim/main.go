@@ -2378,7 +2378,12 @@ func tlParity(f tlFile) bool {
 		return false
 	}
 	for i := range av {
-		if av[i] != bv[i] || ae[i] != be[i] {
+		if av[i] != bv[i] {
+			return false
+		}
+	}
+	for i := range ae {
+		if ae[i] != be[i] {
 			return false
 		}
 	}

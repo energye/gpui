@@ -926,15 +926,30 @@ func failJSON(caseName string, probe probeResult) {
 }
 
 // paintLiveCells draws RGBA bytes into a live RenderBox paint callback.
+// The source is downsampled to at most thumbMax pixels per side first:
+// per-pixel vector rectangles cost one draw call each, so painting a
+// 256x256 source cell-by-cell (65536 calls) stalls the frame loop and
+// the window drops to ~14fps. Downsampling keeps the live card honest
+// (same pixels, fewer calls) while probes use the full-res source.
 func paintLiveCells(pc *rendering.PaintContext, px []byte, w, h int, dw, dh float64) {
 	if pc == nil || pc.DC == nil || len(px) == 0 || w <= 0 || h <= 0 {
 		return
 	}
+	const thumbMax = 64
+	sw, sh := w, h
+	if sw > thumbMax || sh > thumbMax {
+		sw = thumbMax
+		if sh > thumbMax {
+			sh = thumbMax
+		}
+	}
 	ax, ay := pc.Abs(0, 0)
-	cw, ch := dw/float64(w), dh/float64(h)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			off := (y*w + x) * 4
+	cw, ch := dw/float64(sw), dh/float64(sh)
+	for y := 0; y < sh; y++ {
+		sy := y * h / sh
+		for x := 0; x < sw; x++ {
+			sx := x * w / sw
+			off := (sy*w + sx) * 4
 			pc.DC.SetRGBA(float64(px[off])/255, float64(px[off+1])/255, float64(px[off+2])/255, 1)
 			pc.DC.DrawRectangle(ax+float64(x)*cw, ay+float64(y)*ch, cw+0.5, ch+0.5)
 			_ = pc.DC.Fill()

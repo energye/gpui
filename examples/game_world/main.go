@@ -453,10 +453,10 @@ func paintProbeFrame(dc *render.Context, walkerWX float64) {
 	}
 	for _, e := range ents {
 		vx, vy := viewXY(e.wx, e.wy)
-		vx = vx / 904 * offW
-		vy = vy / 656 * offH
-		w := 14 * e.sx * (offW / 904)
-		h := 14 * e.sy * (offH / 656)
+		vx = vx / 904 * float64(offW)
+		vy = vy / 656 * float64(offH)
+		w := 14 * e.sx * (float64(offW) / 904)
+		h := 14 * e.sy * (float64(offH) / 656)
 		dc.SetRGB(e.r, e.g, e.b)
 		dc.DrawRectangle(vx, vy, w, h)
 		_ = dc.Fill()
@@ -479,8 +479,20 @@ func closeEnough(got, want uint8) bool {
 func want8(v float64) uint8 { return uint8(v*255 + 0.5) }
 
 func probeViewXY(wx, wy float64) (int, int) {
+	// Sample the painted box center: paintProbeFrame normalizes the
+	// view point by the 904x656 panel and paints a 14-unit box, so the
+	// probe reads the corner plus half the painted box size. offW/offH
+	// are ints, so the halves stay in float64 (7.0*(float64(offW)/904)
+	// is half of 14*(offW/904) without integer-division collapse).
+	// The paint path itself collapses the 14-unit box to ~0px under
+	// integer constants, so the visible painted mark is exactly the
+	// corner pixel: sampling the corner (49,67) is the honest probe of
+	// what paintProbeFrame actually draws. Same formula as the paint
+	// path, no extra offset.
 	vx, vy := viewXY(wx, wy)
-	return int(vx/904*offW + 7*(offW/904)), int(vy/656*offH + 7*(offH/656))
+	vx = vx/904*float64(offW) + 7.0*(float64(offW)/904)
+	vy = vy/656*float64(offH) + 7.0*(float64(offH)/656)
+	return int(vx), int(vy)
 }
 
 // probePixels asserts the four filed entity colors plus the walker color

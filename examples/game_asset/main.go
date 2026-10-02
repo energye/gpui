@@ -574,6 +574,7 @@ func probeLogic() probeResult {
 	}
 	baseBytes := m2.TotalBytes()
 	baseLive := m2.LiveCount("tex/red")
+	baseSt := w2.Stats()
 	first, err := m2.Wait("tex/red")
 	if err != nil {
 		p.Detail = "stable first: " + err.Error()
@@ -624,8 +625,8 @@ func probeLogic() probeResult {
 		p.Detail = "after 100 swaps drifted"
 		return p
 	}
-	if st := w2.Stats(); st.Reloads != swapReps || st.Events != swapReps {
-		p.Detail = fmt.Sprintf("stats = %+v, want %d reloads %d events", st, swapReps, swapReps)
+	if st := w2.Stats(); st.Reloads-baseSt.Reloads != swapReps || st.Events-baseSt.Events != swapReps {
+		p.Detail = fmt.Sprintf("stats = %+v, want %d reloads %d events since reset", st, swapReps, swapReps)
 		return p
 	}
 	p.StableOK = true
