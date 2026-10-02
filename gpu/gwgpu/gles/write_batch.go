@@ -60,11 +60,15 @@ func (b *writeBatch) stage(buf *Buffer, offset uint64, data []byte) (overflow bo
 	return overflow
 }
 
-// drain swaps out the staged list for flushing under the caller's Lock.
+// drain hands the staged list to the caller for flushing under its Lock
+// and keeps the backing for the next stage: the list is reset in place so
+// the per-submit header array is reused instead of regrown every frame.
+// The caller must finish with the returned headers before the next drain
+// on the same batch (all drains here run serialized under a GL Lock).
 func (b *writeBatch) drain() []pendingWrite {
 	b.mu.Lock()
 	list := b.list
-	b.list = nil
+	b.list = b.list[:0]
 	b.bytes = 0
 	b.mu.Unlock()
 	return list

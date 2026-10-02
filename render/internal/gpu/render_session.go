@@ -473,6 +473,10 @@ type GPURenderSession struct {
 	lastBatchStats BatchDrawStats
 
 	lastSubmitStats SubmitPathStats
+	// submitHalScratch converts the submit list for Queue.Submit without a
+	// per-submit allocation (same elements, same order). Same-thread only
+	// (raster/encode path), matching the other scratch* reuses above.
+	submitHalScratch []hal.CommandBuffer
 	// passLedger dedups identical binds within one pass (all tiers share
 	// it; each tier's Draw invalidates). Bumped per pass via
 	// BeginPassLedger; attached to the SDF tier at encode time.
@@ -3381,9 +3385,11 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		}
 		// Slab pack: stencil fill uniform bytes for this slot (same
 		// viewport+matrix+color formula as updateRenderBuffersSticky).
+		// Zero-alloc: fill the slab slot directly, skipping the per-path
+		// heap slice that makeStencilUniform used to return (the slot only
+		// carries the 64B payload; padding stays zero from slab growth).
 		pmul := [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)}
-		uni := makeStencilUniform(w, h, cmd.Matrix, pmul)
-		copy(s.stencilUniScratch[i*stencilUniSlabStride:], uni)
+		fillStencilUniformInto(s.stencilUniScratch[i*stencilUniSlabStride:], w, h, cmd.Matrix, pmul)
 		fanView := slabViewOf(s.stencilVertSlab, fanOff, i)
 		bandView := slabViewOf(s.stencilVertSlab, bandOff, i)
 		innerView := slabViewOf(s.stencilVertSlab, innerOff, i)
@@ -4159,8 +4165,9 @@ func (s *GPURenderSession) submitWithLeading(cmd hal.CommandBuffer) error {
 	var subIdx uint64
 	err := s.withSubmitErrorScope("submitWithLeading", func() error {
 		// Queue.Submit takes hal.CommandBuffer: convert element-wise (same
-		// elements, same order, behavior unchanged).
-		halAll := make([]hal.CommandBuffer, 0, len(all))
+		// elements, same order, behavior unchanged). Reuse the scratch so
+		// the per-submit slice header isn't regrown every flush.
+		halAll := s.submitHalScratch[:0]
 		for _, cb := range all {
 			halAll = append(halAll, cb)
 		}

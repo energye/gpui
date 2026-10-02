@@ -235,25 +235,34 @@ func deviceCoverQuadRect(minX, minY, maxX, maxY float64, m render.Matrix) [12]fl
 	}
 }
 
+// fillStencilUniformInto writes the 64B stencil uniform (viewport + affine
+// rows + color, same layout as makeStencilUniform) into dst, which must have
+// room for stencilFillUniformSize bytes. Zero-alloc sibling of
+// makeStencilUniform for the per-path per-frame pack path: callers pass a
+// stack array or the session slab slot directly, skipping the heap slice.
+func fillStencilUniformInto(dst []byte, w, h uint32, m render.Matrix, color [4]float32) {
+	binary.LittleEndian.PutUint32(dst[0:4], math.Float32bits(float32(w)))
+	binary.LittleEndian.PutUint32(dst[4:8], math.Float32bits(float32(h)))
+	// bytes 8..15 pad zero (caller zeroes once; never written here).
+	binary.LittleEndian.PutUint32(dst[16:20], math.Float32bits(float32(m.A)))
+	binary.LittleEndian.PutUint32(dst[20:24], math.Float32bits(float32(m.B)))
+	binary.LittleEndian.PutUint32(dst[24:28], math.Float32bits(float32(m.C)))
+	// bytes 28..31 pad.
+	binary.LittleEndian.PutUint32(dst[32:36], math.Float32bits(float32(m.D)))
+	binary.LittleEndian.PutUint32(dst[36:40], math.Float32bits(float32(m.E)))
+	binary.LittleEndian.PutUint32(dst[40:44], math.Float32bits(float32(m.F)))
+	// bytes 44..47 pad.
+	binary.LittleEndian.PutUint32(dst[48:52], math.Float32bits(color[0]))
+	binary.LittleEndian.PutUint32(dst[52:56], math.Float32bits(color[1]))
+	binary.LittleEndian.PutUint32(dst[56:60], math.Float32bits(color[2]))
+	binary.LittleEndian.PutUint32(dst[60:64], math.Float32bits(color[3]))
+}
+
 // makeStencilUniform builds the 64B stencil uniform: viewport + affine rows
 // + color. Layout must match shaders/stencil_fill.wgsl Uniforms.
 func makeStencilUniform(w, h uint32, m render.Matrix, color [4]float32) []byte {
 	buf := make([]byte, stencilFillUniformSize)
-	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(float32(w)))
-	binary.LittleEndian.PutUint32(buf[4:8], math.Float32bits(float32(h)))
-	// bytes 8..15 pad zero (already zeroed by make).
-	binary.LittleEndian.PutUint32(buf[16:20], math.Float32bits(float32(m.A)))
-	binary.LittleEndian.PutUint32(buf[20:24], math.Float32bits(float32(m.B)))
-	binary.LittleEndian.PutUint32(buf[24:28], math.Float32bits(float32(m.C)))
-	// bytes 28..31 pad.
-	binary.LittleEndian.PutUint32(buf[32:36], math.Float32bits(float32(m.D)))
-	binary.LittleEndian.PutUint32(buf[36:40], math.Float32bits(float32(m.E)))
-	binary.LittleEndian.PutUint32(buf[40:44], math.Float32bits(float32(m.F)))
-	// bytes 44..47 pad.
-	binary.LittleEndian.PutUint32(buf[48:52], math.Float32bits(color[0]))
-	binary.LittleEndian.PutUint32(buf[52:56], math.Float32bits(color[1]))
-	binary.LittleEndian.PutUint32(buf[56:60], math.Float32bits(color[2]))
-	binary.LittleEndian.PutUint32(buf[60:64], math.Float32bits(color[3]))
+	fillStencilUniformInto(buf, w, h, m, color)
 	return buf
 }
 
