@@ -320,4 +320,4 @@ E2/E3/E5 基线不动。不留双路开关（直接重写，红了 revert）。�
 | 13 | X11 真卡两项改尺寸单测本地跳过 | 真机 CI 才跑；记录语义无头单测已入库 |
 | 14 | 无界非回调图片仍走全屏老路 | 俩窗实测零出现；`WR_TEXDBG` 探针留着看 |
 | 15 | T 窗 `BudgetRefusals` 无窗侧断言 | ✅ 已关（2026-09-19）：metrics 加 `budget_refusals` 字段 + `SetBudgetRefusals`，embedder 两条采样路径接 `cacheBudgetRefusals()`（PictureTextures 访问器，边界缓存无界不计），T 窗 X9 断言补 `budget_refusals>=0` 输出；T 窗实测 X9 `entries=113 evictions=0 budget_refusals=0`，extremes 12/12 全绿 | 关闭 |
-| 16 | 本地提交未推 + 别线游戏金图未动 | ✅ 已关（2026-09-19，用户推送）：`feat/ime-x11` 20 笔全部推送，`origin` 领先归零。游戏金图 `examples/game_stage_chase/testdata/chase_final.png` 仍是别线工作区改动，不归本线收 | 关闭 |
+| 16 | 本地提交未推 + 别线游戏金图未动 | ✅ 已关（2026-09-19，用户推送）：`feat/ime-x11` 20 笔全部推送，`origin` 领先归零。游戏金图 `examples/engine/stage_chase/testdata/chase_final.png` 仍是别线工作区改动，不归本线收 | 关闭 |

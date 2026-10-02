@@ -743,7 +743,7 @@ func TestSkeletonOffscreenGolden(t *testing.T) {
 	if math.Abs(hv.X-midx) >= 1e-9 || math.Abs(hv.Y-midy) >= 1e-9 {
 		t.Errorf("head = (%v,%v), want midpoint (%v,%v)", hv.X, hv.Y, midx, midy)
 	}
-	// examples/game_anim does not exist yet, so no window is built here.
+	// examples/engine/anim does not exist yet, so no window is built here.
 	if _, err := os.Stat(filepath.Join("..", "..", "examples", "game_anim")); err == nil {
 		t.Log("game_anim window exists; P2 should wire --case=sk to this skeleton")
 	} else {
