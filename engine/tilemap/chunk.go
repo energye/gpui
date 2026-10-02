@@ -13,6 +13,7 @@ package tilemap
 import (
 	"math"
 	"sort"
+	"sync"
 
 	"github.com/energye/gpui/engine/core"
 )
@@ -43,6 +44,11 @@ type Chunk struct {
 	chunkH int
 	cols   int
 	rows   int
+	// mu guards loaded: the window tick thread writes it (Load/Unload/
+	// Update) while the raster thread reads it (Loaded/Visible/IsLoaded
+	// from paint callbacks). Without this, manual runs with real pointer
+	// events crash with concurrent map iteration and map write.
+	mu     sync.RWMutex
 	loaded map[ChunkID]struct{}
 }
 
@@ -77,35 +83,40 @@ func NewChunker(orient Orientation, mapW, mapH int, tileW, tileH float64, chunkW
 }
 
 // Orient returns the grid math selector.
-func (c Chunk) Orient() Orientation { return c.orient }
+func (c *Chunk) Orient() Orientation { return c.orient }
 
 // W returns the map width in tiles.
-func (c Chunk) W() int { return c.mapW }
+func (c *Chunk) W() int { return c.mapW }
 
 // H returns the map height in tiles.
-func (c Chunk) H() int { return c.mapH }
+func (c *Chunk) H() int { return c.mapH }
 
 // TileW returns the tile width in world units.
-func (c Chunk) TileW() float64 { return c.tileW }
+func (c *Chunk) TileW() float64 { return c.tileW }
 
 // TileH returns the tile height in world units.
-func (c Chunk) TileH() float64 { return c.tileH }
+func (c *Chunk) TileH() float64 { return c.tileH }
 
 // ChunkW returns the chunk width in tiles.
-func (c Chunk) ChunkW() int { return c.chunkW }
+func (c *Chunk) ChunkW() int { return c.chunkW }
 
 // ChunkH returns the chunk height in tiles.
-func (c Chunk) ChunkH() int { return c.chunkH }
+func (c *Chunk) ChunkH() int { return c.chunkH }
 
 // ChunkCols returns how many chunks span the map width.
-func (c Chunk) ChunkCols() int { return c.cols }
+func (c *Chunk) ChunkCols() int { return c.cols }
 
 // ChunkRows returns how many chunks span the map height.
-func (c Chunk) ChunkRows() int { return c.rows }
+func (c *Chunk) ChunkRows() int { return c.rows }
 
 // LoadedCount returns how many chunks are loaded now.
 func (c *Chunk) LoadedCount() int {
-	if c == nil || c.loaded == nil {
+	if c == nil {
+		return 0
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.loaded == nil {
 		return 0
 	}
 	return len(c.loaded)
@@ -128,7 +139,7 @@ func validView(view core.Rect) bool {
 }
 
 // ChunkOf maps one tile to its chunk. OOB tiles report ok=false.
-func (c Chunk) ChunkOf(col, row int) (ChunkID, bool) {
+func (c *Chunk) ChunkOf(col, row int) (ChunkID, bool) {
 	if c.cols <= 0 || c.rows <= 0 || col < 0 || row < 0 || col >= c.mapW || row >= c.mapH {
 		return ChunkID{}, false
 	}
@@ -137,7 +148,7 @@ func (c Chunk) ChunkOf(col, row int) (ChunkID, bool) {
 
 // isoChunkBounds unions the diamond boxes of tiles [c0,c1) x [r0,r1).
 // Corner origins bound the linear projection, so four corners suffice.
-func (c Chunk) isoChunkBounds(c0, r0, c1, r1 int) core.Rect {
+func (c *Chunk) isoChunkBounds(c0, r0, c1, r1 int) core.Rect {
 	hw := c.tileW / 2
 	hh := c.tileH / 2
 	xs := [4]float64{
@@ -163,7 +174,7 @@ func (c Chunk) isoChunkBounds(c0, r0, c1, r1 int) core.Rect {
 	return core.NewRect(minX, minY, maxX+c.tileW-minX, maxY+c.tileH-minY)
 }
 
-func (c Chunk) chunkBounds(id ChunkID) (core.Rect, bool) {
+func (c *Chunk) chunkBounds(id ChunkID) (core.Rect, bool) {
 	if id.CX < 0 || id.CY < 0 || id.CX >= c.cols || id.CY >= c.rows ||
 		c.mapW <= 0 || c.mapH <= 0 {
 		return core.Rect{}, false
@@ -182,14 +193,14 @@ func (c Chunk) chunkBounds(id ChunkID) (core.Rect, bool) {
 // ChunkBounds returns the world box a chunk covers: orthogonal tile block,
 // isometric union of member diamond boxes (conservative, neighbours
 // overlap by design). Unknown ids report ok=false with zero.
-func (c Chunk) ChunkBounds(id ChunkID) (core.Rect, bool) {
+func (c *Chunk) ChunkBounds(id ChunkID) (core.Rect, bool) {
 	return c.chunkBounds(id)
 }
 
 // Needed lists chunks touching view, sorted by (CY,CX) so replays match
 // bit for bit. Edge-touching chunks stay out (positive-area overlap only).
 // Bad or empty views need nothing, never panic.
-func (c Chunk) Needed(view core.Rect) []ChunkID {
+func (c *Chunk) Needed(view core.Rect) []ChunkID {
 	if c.cols <= 0 || c.rows <= 0 || !validView(view) {
 		return nil
 	}
@@ -215,6 +226,8 @@ func (c *Chunk) Load(view core.Rect) []ChunkID {
 	if len(need) == 0 {
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.loaded == nil {
 		c.loaded = make(map[ChunkID]struct{}, len(need))
 	}
@@ -232,7 +245,12 @@ func (c *Chunk) Load(view core.Rect) []ChunkID {
 // (sorted, nil when nothing dropped). An empty (but finite) view sees
 // nothing, so everything unloads; an invalid view changes nothing.
 func (c *Chunk) Unload(view core.Rect) []ChunkID {
-	if c == nil || !finiteRect(view) || len(c.loaded) == 0 {
+	if c == nil || !finiteRect(view) {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.loaded) == 0 {
 		return nil
 	}
 	need := c.Needed(view)
@@ -262,6 +280,8 @@ func (c *Chunk) Update(view core.Rect) (loaded, unloaded []ChunkID) {
 		return nil, nil
 	}
 	need := c.Needed(view)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.loaded == nil {
 		c.loaded = make(map[ChunkID]struct{}, len(need))
 	}
@@ -292,11 +312,16 @@ loadedLoop:
 
 // Visible lists loaded chunks touching view: the draw list (镜头外不画).
 // It never mutates the loaded set. Sorted, nil when nothing to draw.
-func (c Chunk) Visible(view core.Rect) []ChunkID {
-	if len(c.loaded) == 0 || !validView(view) {
+func (c *Chunk) Visible(view core.Rect) []ChunkID {
+	if c == nil || !validView(view) {
 		return nil
 	}
 	need := c.Needed(view)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if len(c.loaded) == 0 {
+		return nil
+	}
 	var out []ChunkID
 	for _, id := range need {
 		if _, ok := c.loaded[id]; ok {
@@ -309,7 +334,12 @@ func (c Chunk) Visible(view core.Rect) []ChunkID {
 // Loaded returns the loaded chunk ids, sorted. A fresh slice every call:
 // writing it cannot alias the grid.
 func (c *Chunk) Loaded() []ChunkID {
-	if c == nil || len(c.loaded) == 0 {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if len(c.loaded) == 0 {
 		return nil
 	}
 	out := make([]ChunkID, 0, len(c.loaded))
@@ -323,7 +353,12 @@ func (c *Chunk) Loaded() []ChunkID {
 // IsLoaded reports whether id is loaded. Unknown ids are false, nil grids
 // are never loaded, never panic.
 func (c *Chunk) IsLoaded(id ChunkID) bool {
-	if c == nil || c.loaded == nil {
+	if c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.loaded == nil {
 		return false
 	}
 	_, ok := c.loaded[id]
@@ -335,5 +370,7 @@ func (c *Chunk) Reset() {
 	if c == nil {
 		return
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.loaded = nil
 }

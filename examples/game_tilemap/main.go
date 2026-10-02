@@ -854,7 +854,9 @@ type tileSim struct {
 	viewW float64
 
 	// chunk case: real streaming state over the 16x16 field.
-	chunks  tilemap.Chunk
+	// Pointer: tilemap.Chunk holds a lock (tick writes while paint reads),
+	// so the grid is never copied after construction.
+	chunks  *tilemap.Chunk
 	view    core.Rect
 	loads   int
 	unloads int
@@ -1177,7 +1179,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "FAIL: chunker:", err)
 			os.Exit(1)
 		}
-		sim.chunks = ch
+		sim.chunks = &ch
 		sim.view = core.NewRect(0, 64, 128, 128)
 		sim.chunks.Update(sim.view)
 	}

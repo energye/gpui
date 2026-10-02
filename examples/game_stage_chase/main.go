@@ -642,7 +642,8 @@ func chaseBatchEmit(_ core.AssetID, _ []sprite.Sprite) {}
 // chaseSim is the live window state: all five engines advance every tick.
 type chaseSim struct {
 	cam     camera.Camera
-	chunk   tilemap.Chunk
+	// Pointer: tilemap.Chunk holds a lock, never copied after construction.
+	chunk   *tilemap.Chunk
 	trail   *particle.Trail
 	pool    *particle.GPUPool
 	tracker *dirty.DirtyTracker
@@ -1118,7 +1119,7 @@ func main() {
 	props := buildProps()
 	sortPropsFarToNear(props)
 	sim := &chaseSim{
-		cam: cam, chunk: chk, trail: trail, pool: pool,
+		cam: cam, chunk: &chk, trail: trail, pool: pool,
 		tracker: tracker, layer: layer,
 		props: props, propSprites: buildPropSprites(props), atlas: atlas,
 		shell: shell, carX: carMinX, carY: carY, dir: 1,

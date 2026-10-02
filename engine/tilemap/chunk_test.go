@@ -121,7 +121,7 @@ func loadChunkCases(t *testing.T) chunkFile {
 	return f
 }
 
-func mustChunker(t *testing.T) (Chunk, chunkFile) {
+func mustChunker(t *testing.T) (*Chunk, chunkFile) {
 	t.Helper()
 	f := loadChunkCases(t)
 	g := f.Grid
@@ -132,7 +132,7 @@ func mustChunker(t *testing.T) (Chunk, chunkFile) {
 	if c.ChunkCols() != g.Cols || c.ChunkRows() != g.Rows {
 		t.Fatalf("grid = %dx%d, want %dx%d", c.ChunkCols(), c.ChunkRows(), g.Cols, g.Rows)
 	}
-	return c, f
+	return &c, f
 }
 
 func chunkRect(v [4]float64) core.Rect {

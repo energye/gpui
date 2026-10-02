@@ -1042,13 +1042,13 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 | S52 | 追车减分配回炉 | 追车窗现有 | game_stage_chase | 进行中（2026-09-17；camera/sprite/particle/tilemap/step共17个_test.go逐个复跑全PASS＋vet净＋CGO_ENABLED=0四包可构建；减分配只动窗＋四包热路径、逻辑数画面不变：batch单图快路＋Clear复用底子、chunk范围缓存、排序计数＋300tick全量校验零失配、标签4Hz、dirty复用、emitter无子发射免deaths片、GPUPool原地sync；正式包go build -trimpath -ldflags="-s -w" 120秒×3取最差：presents7137、fps59.47、p50 16.87、p95 17.53、p99 18.06、h33 0/分、h20重算2.00/分、moved24624、vis/load12、sorted131、trail32、pool48、batch1、dirty1、full0、fb0、RSS止≈峰、离屏金0、窗金静态条33400像素0差、parity图集路0差；人工30秒key4＋ptr12（XTEST合成，同一协议路径）、presents1793、backend=x11；换机独显建窗失败（降级链high→low→software）：首遍940MX 1GB已用673MB，后松到345MB、可用623MB仍卡在session_depth_stencil、连1x1兜底都建不出来；DBG确认选卡对（NVIDIA DiscreteGPU Vulkan，能跑3帧才死）＋最小raw独显测试（自建device＋320窗＋depth＋强制恢复）0.53秒PASS＋最小完整窗game_quad独显8秒同签名失败＋原生判决测试（绕wgpu直调vkAllocateMemory 3.66MB device-local成功0.15秒、D24S8 1200x800建镜像＋绑内存成功0.13秒）——驱动堆本身可用，悬崖在wgpu-native块分配器；1x默认＋1x1闩住＋进程台账＋CreateBuffer回调补口＋探针独立设备释放＋设备就绪门（8秒）＋小规格描述符（GPUI_LOW_VRAM）七件修后，独显仍死在开窗首个3.66MB depth（low/software两级也一样），属wgpu-native侧问题、本线解不了，未过；p95红收敛到屏物理：59.93Hz同步底16.69ms、p50 16.78已贴底、p95三遍17.53/17.17/17.17，≤16在该屏不可达、非代码可解；2026-09-30二期减分配（窗＋引擎复用口）：窗侧props预排序＋sprite预建＋paint免排＋batch免拷（FlushCount）＋trail/pool复用背＋tick零NewSprite，引擎侧sprite.FlushCount＋particle.AppendPoints＋Emitter/GPUPool.AppendParticles（老口保留），单测sprite 8项＋particle 12项逐个复跑全PASS＋复用等价2项新绿＋vet净＋CGO_ENABLED=0可构建＋追车窗及4调用方可构建；正式包go run 120秒×3取最差（本机集显X11）：presents7173、fps59.76、p50 16.69、p95 18.51、p99 19.50、h33 2.50/分、h20重算24.94/分、moved24587、vis/load12、sorted125、trail32、pool52、batch1、dirty1、full0、fb0、3遍GC 15/16次最大停顿0.67~0.76ms、离屏金0、窗金33400像素0差、parity图集路0差；人工已跑（2026-10-01真窗37.6秒手动关窗：key10加ptr710加resize25，probe_ok=1，presents2243，moved7674，vis15，sorted160，trail32，present正常；本轮拖窗至1354x827窗金不对尺寸，窗金0差仍以前序120秒自动三遍为准）；跟屏修复66a0a0c4（事件只记尺寸、每帧开头统一排版加世界盒夹边，真拖10帧标题81不动、世界一比一跟）；改门（用户2026-10-01拍板）：p95按60Hz屏豁免（59.93Hz同步底16.69ms物理不可达、非代码可解），换机按单机空着（差异未知，有真实环境再测）；D表差异：本项只减分配加跟屏修拖拽闪跳、逻辑数画面不变，D01–D20沿用V1实现差异0，无G号原因见总账非Godot单点注；改文件：examples/game_stage_chase/main.go＋engine/sprite/batch.go＋batch_test.go＋engine/particle/trail.go＋emitter.go＋gpu.go＋gpu_trail_test.go；S52记有条件关门，G13放行可开工） |
 | S53 | W7三窗单窗正式重测 | S46–S48 | fsm/normal/shadow | 有条件关门（2026-10-01：不动引擎只重测；anim/light单测逐文件复跑全PASS＋整包PASS＋vet净；正式包go build -trimpath -ldflags="-s -w"出/tmp/s53_anim＋/tmp/s53_light；fsm自动10秒×3取最差presents600、fps59.95、p95 19.13、p99 22.10、hitch0、切换4～5、双金0差；normal自动10秒×3取最差presents600、fps60.02、p95 20.51、lit33762、增益0.7816、穹顶行0.9746＞0.6016＞0.1929、双金0差；shadow自动60秒×3两轮取最差presents3491、fps58.18、p95 20.31、p99 23.29、hitch14/分（负载对上卡顿，moved639双金0差mirror真，判机况挤）；fsm人工23.3秒ptr96切换11双金0差；p95沿用S52豁免（不改§5，59.93Hz同步底16.69ms不可达），换机空着；D表差异：D05切换权重和为1、D12手电只照人、D13影子方向对，沿用V1实现差异0；残留交别的线：shadow静机hitch复测＋normal/shadow人工；S53记有条件关门，G14放行） |
 | S54 | 弱证据重测 | S53 | dirty/q123 | 有条件关门（2026-10-01：不动引擎只重测；dirty/quality/S46单测逐文件复跑全PASS＋vet净；正式包出/tmp/s54_step＋/tmp/s54_save；dirty自动60秒×3取最差presents3595、fps59.88、p95 18.91、p99 20.49、hitch1/分、moved8393、dirty_max1、full15、金0差；q123自动60秒×3取最差presents3597、fps59.95、p95 19.63、p99 22.57、hitch0、switches29、errors0、三档60/60/60、frames1199/1198/1199、金0差；dirty人工60秒ptr51 key17、q123人工60秒ptr180 key17、双backend=x11（XTEST合成）；p95沿用豁免不改§5，换机空着；D表差异：D05差异0，8.3/16.2无D表对应、行为不变；W10三项齐记有条件关门，G15放行） |
-| S55 | 相机窗 | S08/S09 | game_camera | 未开工 |
-| S56 | 贴图窗 | S32/S29 | game_tex双case | 未开工 |
-| S57 | 地图窗 | S05/S20/S26 | game_tilemap三case | 未开工 |
-| S58 | 世界窗 | S33 | game_world | 未开工 |
-| S59 | 资源窗 | S28 | game_asset | 未开工 |
-| S60 | 输入窗 | S07/S23 | game_input双case | 未开工 |
-| S61 | 物理窗 | S06/S21/S22 | game_physics双case | 未开工 |
+| S55 | 相机窗 | S08/S09 | game_camera | 进行中（2026-10-02：正式包10秒×3取最差presents599、p95 17.94、converge29、双金0差；人工30秒ptr24 key8、presents1799、backend=x11；p95/p99沿用S52豁免，换机空着；D01–D02差异0；详见G15） |
+| S56 | 贴图窗 | S32/S29 | game_tex双case | 进行中（2026-10-02：正式包10秒×3取最差far-presents599、stream-presents598、双金0差；人工30秒far-presents1799/stream-presents1797、双ptr24 key8、backend=x11；p95/p99沿用S52豁免，换机空着；D17差异0；详见G15） |
+| S57 | 地图窗 | S05/S20/S26 | game_tilemap三case | 进行中（2026-10-02：正式包10秒×3取最差三段presents599~600、双金0差；人工30秒map1799/chunk1799/lod1795、ptr24~25 key8、backend=x11；chunk人工并发读写崩溃修（chunk.go加读写锁＋全指针接收器）；p95/p99沿用S52豁免，换机空着；D10差异0；详见G15） |
+| S58 | 世界窗 | S33 | game_world | 进行中（2026-10-02：正式包10秒×3取最差presents595、p95 19.75、opens5、双金0差；人工30秒ptr24 key8、presents1798、opens15、backend=x11；p95/p99沿用S52豁免，换机空着；D表无对应行为不变；详见G15） |
+| S59 | 资源窗 | S28 | game_asset | 进行中（2026-10-02：正式包10秒×3取最差presents600、reloads100、events100、双金0差；人工30秒ptr24 key8、presents1799、backend=x11；p95/p99沿用S52豁免，换机空着；D表无对应行为不变；详见G15） |
+| S60 | 输入窗 | S07/S23 | game_input双case | 进行中（2026-10-02：正式包10秒×3取最差remap599/combo600、双金0差；人工30秒remap1799（ptr90 key8）/combo1799（ptr59 key29）、backend=x11；p95沿用S52豁免，换机空着；D20差异0；详见G15） |
+| S61 | 物理窗 | S06/S21/S22 | game_physics双case | 进行中（2026-10-02：正式包10秒×3取最差hit600/jump599、双金0差；人工30秒hit1795/combo1799、backend=x11；p95沿用S52豁免，换机空着；D19差异0；详见G15） |
 | S62 | 材质粗糙 | S42 | game_light重验 | 未开工 |
 | S63 | 灯影柔边收费 | S45 | torch/shadow重验 | 未开工 |
 | S64 | 第二压缩转码 | S02 | game_tex重验 | 未开工 |
@@ -1061,12 +1061,12 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 | S71 | 预览录帧 | W13 | tools双预览 | 未开工 |
 | S72 | 平台矩阵 | W13 | 三档机集显独显各一遍 | 未开工 |
 | S73 | 联机脚本冻接口 | W14 | 只接口无窗 | 未开工 |
-| S74 | 帧动画窗 | S11 | sprite--case=anim | 未开工 |
-| S75 | 时间轴窗 | S17 | anim--case=tl | 未开工 |
-| S76 | 角色体对齐 | S22 | 随S61 | 未开工 |
-| S77 | 听者跟相机 | S13 | 随S55 | 未开工 |
+| S74 | 帧动画窗 | S11 | sprite--case=anim | 进行中（2026-10-02：正式包10秒×3取最差presents600、p95 18.57、switches4、双金0差；人工30秒ptr24 key8、presents1799、switches14、backend=x11；p95/p99沿用S52豁免，换机空着；D04差异0；详见G15） |
+| S75 | 时间轴窗 | S17 | anim--case=tl | 进行中（2026-10-02：正式包10秒×3取最差presents600、p95 18.72、wraps10、events100、双金0差；人工30秒ptr25 key8、presents1798、wraps30、backend=x11；p95/p99沿用S52豁免，换机空着；D表无timeline行行为不变；详见G15） |
+| S76 | 角色体对齐 | S22 | 随S61 | 进行中（2026-10-02：engine/physics单测24项全绿＋S61窗连带验全绿；D18差异0；详见G15） |
+| S77 | 听者跟相机 | S13 | 随S55 | 进行中（2026-10-02：engine/audio单测12项全绿＋S55窗连带验全绿；D20差异0；详见G15） |
 | S78 | 躲避小怪关 | W11全项含S79 | game_dodge | 未开工 |
-| S79 | 真2.5D基向量窗 | S08/S09/S10 | game_25d_basis | 未开工 |
+| S79 | 真2.5D基向量窗 | S08/S09/S10 | game_25d_basis | 挂起（2026-10-01用户拍板：引擎缺基向量/Y排序/影子数学三件套，窗建不了，另开引擎会话补齐再归队） |
 | S80 | 导航占位号（作废） | — | 并入S87 | 作废（见S87） |
 | S81 | 横版对照窗 | W11全绿＋S76 | game_platformer | 未开工 |
 | S82 | 灯影对照窗 | S63 | gfx_light2d | 未开工 |
@@ -1420,4 +1420,5 @@ W24总指标：三项全正式包三遍最差，存读/掉率/拦截三数全过
 | 2026-10-01（S52改门加跟屏） | 追车窗跟屏修拖拽闪跳66a0a0c4（只动examples/game_stage_chase/main.go：EventResize只记尺寸、Tick每帧开头统一排版加世界盒Push/ClipRect/Pop夹边；探针全绿、离屏金0、窗金33400像素0差；真拖1200到1290十帧标题81不动、世界一比一跟、高361不动）；人工已跑（2026-10-01真窗37.6秒key10加ptr710加resize25，probe_ok=1，presents2243正常；拖窗至1354x827本轮窗金不对尺寸）；改门（用户拍板）：p95按60Hz屏豁免，换机按单机空着（有真实环境再测）；S52记有条件关门，G13放行可开工，W10仍未关门（待S53/S54）。 |
 | 2026-10-01（S53进行中） | S53开工（不动引擎只重测）：anim/light单测逐文件复跑全PASS＋vet净；正式包出/tmp/s53_anim＋/tmp/s53_light；fsm/normal自动10秒×3数全对双金0差；shadow60秒×3数全对但最差遍hitch5/分超3/分门（另两遍2.0/0，判机况挤待静机重跑）；fsm人工23.3秒ptr96切换11双金0差已收；p95沿用S52豁免（用户拍板不改§5），换机空着；G13转进行中，S53未关门。 |
 | 2026-10-01（S53有条件关门） | S53收尾（用户拍板可关，残留交别的线）：shadow次轮60秒×3带负载记录取最差presents3491、fps58.18、p95 20.31、p99 23.29、hitch14/分（负载1.7涨到3.9对上卡顿，数全对moved639双金0差mirror真，判机况挤非算法）；fsm人工一段已收录，normal/shadow人工各60秒交别的线；p95沿用S52豁免不改§5，换机空着；S53记有条件关门，G14放行可开工，W10仍未关门（待S54）。 |
+| 2026-10-02（W11十一项验窗） | W11除S79外11项正式复验：正式包go build -trimpath -ldflags="-s -w"、RUN_SECONDS=10自动×3取最差（tl600/asset600/tmap600/tchunk600/tlod599/world595/tfar599/tstream598/sprite600/cam599/remap599/combo600/hit600/jump599，fps57＋全过，双金0差）＋人工30秒XTEST同协议（11窗ptr非0、backend=x11、presents1795~1799）；p95/p99沿用S52豁免（59.93Hz同步底16.69ms物理不可达，不改§5），换机空着；S57 chunk人工并发读写崩溃修（engine/tilemap/chunk.go加读写锁＋全指针接收器，两窗字段改指针，tilemap单测18项全绿＋vet净）；G15十一行同步，S79仍挂起，W11未关门。 |
 | 2026-10-01（S54有条件关门） | S54收尾（不动引擎只重测）：dirty/quality/S46单测逐文件全PASS＋vet净；正式包出/tmp/s54_step＋/tmp/s54_save；dirty自动60秒×3取最差presents3595、fps59.88、hitch1/分、moved8393，金0差；q123自动60秒×3取最差presents3597、fps59.95、hitch0、switches29零失败，金0差；人工两段XTEST合成同协议路径（dirty ptr51 key17、q123 ptr180 key17，双backend=x11）；p95沿用豁免不改§5，换机空着；W10三项（S52/S53/S54）皆有条件关门，W10记有条件关门，G15放行可开工，W11可开。 |
