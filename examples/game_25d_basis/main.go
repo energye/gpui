@@ -77,6 +77,9 @@ const (
 var viewNames = []string{"45deg", "iso", "top", "front", "oblY", "oblZ"}
 
 // blocks are the demo scene: fixed 3D feet positions plus sizes.
+// Seat 2 is the hero: WASD moves its position, the red coat follows.
+const heroSeat = 2
+
 var blocks = []core.Vec3{
 	{X: 0, Y: 0, Z: 0},
 	{X: 2, Y: 0, Z: 1},
@@ -469,7 +472,7 @@ func main() {
 
 	sim := &basisSim{
 		mode:  0,
-		hero:  core.V3(1, 1, 2),
+		hero:  blocks[heroSeat],
 		shell: shell,
 	}
 	if b, err := basisFor(0); err == nil {
@@ -511,7 +514,8 @@ func main() {
 		if err != nil {
 			return
 		}
-		// Back-to-front: lower y first, hero uses the hero color.
+		// Back-to-front: lower y first. The hero is blocks[2] by seat,
+		// not by position: WASD moves it, but the red coat follows.
 		for _, it := range sorted {
 			flat, ok := b.Project(it.Pos)
 			if !ok {
@@ -519,7 +523,7 @@ func main() {
 			}
 			x := ax + stageW/2 + flat.X*2
 			y := ay + stageH/2 + flat.Y*2
-			isHero := it.Pos == sim.hero
+			isHero := it.Order == heroSeat
 			if isHero {
 				pc.DC.SetRGB(heroR, heroG, heroB)
 			} else {
